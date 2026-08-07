@@ -38,6 +38,39 @@
     --shadow-lg: 0 12px 32px rgba(20,22,26,0.08);
   }
 
+  /* ---------- Modo escuro ---------- */
+  html[data-theme="dark"] {
+    --bg: #0f1115;
+    --surface: #181b21;
+    --surface-sunken: #12141a;
+    --border: #2a2f3a;
+    --border-strong: #3a4150;
+    --text: #e8eaed;
+    --text-soft: #a6adba;
+    --text-faint: #6b7280;
+
+    --accent: #7c74ff;
+    --accent-hover: #938cff;
+    --accent-soft: #22243a;
+    --accent-ring: rgba(124,116,255,0.24);
+
+    --good: #34d399;
+    --good-soft: #10241d;
+    --warn: #fbbf5b;
+    --warn-soft: #2a2114;
+    --bad: #f87171;
+    --bad-soft: #2a1618;
+
+    --shadow-sm: 0 1px 2px rgba(0,0,0,0.30);
+    --shadow-md: 0 4px 12px rgba(0,0,0,0.40), 0 1px 3px rgba(0,0,0,0.35);
+    --shadow-lg: 0 12px 32px rgba(0,0,0,0.55);
+  }
+  /* Suaviza a transição ao alternar tema */
+  html[data-theme] body, html[data-theme] .card, html[data-theme] .sidebar,
+  html[data-theme] .tab, html[data-theme] input, html[data-theme] select, html[data-theme] textarea {
+    transition: background-color 0.2s ease, color 0.2s ease, border-color 0.2s ease;
+  }
+
   * { box-sizing: border-box; }
 
   body {
@@ -73,6 +106,26 @@
     padding: 0 8px;
     margin-bottom: 28px;
   }
+  .brand-top-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    margin-bottom: 12px;
+  }
+  .theme-toggle {
+    flex-shrink: 0;
+    width: 32px; height: 32px;
+    border-radius: 9px;
+    border: 1.5px solid var(--border);
+    background: var(--surface-sunken);
+    cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 15px; line-height: 1;
+    transition: border-color 0.15s ease, background 0.15s ease, transform 0.15s ease;
+  }
+  .theme-toggle:hover { border-color: var(--accent); background: var(--accent-soft); transform: rotate(-12deg); }
+  .theme-toggle:active { transform: scale(0.92); }
 
   .eyebrow {
     display: inline-flex;
@@ -2225,6 +2278,16 @@
 </style>
 </head>
 <body>
+<script>
+  // Aplica o tema salvo IMEDIATAMENTE (antes de renderizar) para evitar "flash" de tela clara.
+  (function () {
+    try {
+      var saved = localStorage.getItem('diario-estudos:theme');
+      if (!saved) saved = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+      document.documentElement.setAttribute('data-theme', saved);
+    } catch (e) { document.documentElement.setAttribute('data-theme', 'light'); }
+  })();
+</script>
 
 <!-- ============ TELA DE ACESSO (seleção de perfil) ============ -->
 <div id="profile-gate" class="profile-gate" style="display:none;">
@@ -2330,7 +2393,12 @@
 <div class="app-shell">
   <aside class="sidebar">
     <div class="sidebar-brand">
-      <span class="eyebrow"><span class="pip"></span>registro pessoal</span>
+      <div class="brand-top-row">
+        <span class="eyebrow"><span class="pip"></span>registro pessoal</span>
+        <button type="button" class="theme-toggle" id="theme-toggle" title="Alternar modo claro/escuro" aria-label="Alternar tema">
+          <span class="theme-toggle-icon">🌙</span>
+        </button>
+      </div>
       <h1>Diário de Estudos</h1>
       <div class="plan-switcher" id="plan-switcher">
         <button type="button" class="plan-switcher-btn" id="plan-switcher-btn">
@@ -4708,6 +4776,27 @@ function planCycleMode() {
 
   let pendingCycle = null; // rascunho entre "calcular sugestão" e "confirmar"
 
+  // Monta o <select> de matéria puxando as disciplinas cadastradas em Configurações.
+  // Mantém a matéria já escolhida (mesmo que tenha sido desativada) e oferece "outra".
+  function subjectSelectHtml(selectedName) {
+    const actives = DB.getActiveSubjects();
+    const names = actives.map(s => s.nome);
+    // se a matéria atual não estiver na lista ativa, inclui para não perder a seleção
+    if (selectedName && !names.includes(selectedName)) names.unshift(selectedName);
+    if (names.length === 0) {
+      return `<select class="cs-name">
+        <option value="" disabled selected>Cadastre matérias em Configurações</option>
+      </select>`;
+    }
+    const opts = names.map(n =>
+      `<option value="${escapeHtml(n)}" ${n === selectedName ? 'selected' : ''}>${escapeHtml(n)}</option>`
+    ).join('');
+    return `<select class="cs-name">
+      <option value="" ${!selectedName ? 'selected' : ''} disabled>Selecione a matéria</option>
+      ${opts}
+    </select>`;
+  }
+
   function subjectRowTemplate(s) {
     const nome = s ? s.nome : '';
     const dif = s ? s.dificuldade : 3;
@@ -4722,7 +4811,7 @@ function planCycleMode() {
       <div class="cycle-subject-row pos" data-row-id="${rowId}">
         <div class="field">
           <label>Matéria</label>
-          <input type="text" class="cs-name" list="cycle-subject-list" value="${escapeHtml(nome)}" placeholder="Nome da matéria">
+          ${subjectSelectHtml(nome)}
         </div>
         <div class="field">
           <label title="Quantidade de questões na prova">Qtd. Q.</label>
@@ -4758,7 +4847,7 @@ function planCycleMode() {
       <div class="cycle-subject-row" data-row-id="${rowId}">
         <div class="field">
           <label>Matéria</label>
-          <input type="text" class="cs-name" list="cycle-subject-list" value="${escapeHtml(nome)}" placeholder="Nome da matéria">
+          ${subjectSelectHtml(nome)}
         </div>
         <div class="field">
           <label>Dificuldade</label>
@@ -8494,6 +8583,25 @@ window.addEventListener('screen:activated', (e) => { if (e.detail.screen === 'co
 
 /* ---- Inicialização (ordem importa) ---- */
 _cloudNotifyHook = () => CloudStore.notifyChange();
+/* ---- Alternador de tema claro/escuro (preferência do dispositivo) ---- */
+(function () {
+  const KEY = 'diario-estudos:theme';
+  const btn = document.getElementById('theme-toggle');
+  function current() { return document.documentElement.getAttribute('data-theme') || 'light'; }
+  function syncIcon() {
+    const icon = btn && btn.querySelector('.theme-toggle-icon');
+    if (icon) icon.textContent = current() === 'dark' ? '☀️' : '🌙';
+    if (btn) btn.title = current() === 'dark' ? 'Mudar para modo claro' : 'Mudar para modo escuro';
+  }
+  function apply(theme) {
+    document.documentElement.setAttribute('data-theme', theme);
+    try { localStorage.setItem(KEY, theme); } catch (e) {}
+    syncIcon();
+  }
+  syncIcon();
+  if (btn) btn.addEventListener('click', () => apply(current() === 'dark' ? 'light' : 'dark'));
+})();
+
 ProfileUI.boot();
 CloudStore.init();
 
