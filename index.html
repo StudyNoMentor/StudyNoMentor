@@ -537,32 +537,6 @@
   }
   .toast .check svg { width: 9px; height: 9px; }
 
-  /* Banner de sincronização (dados mais novos na nuvem) */
-  .sync-banner {
-    position: fixed; top: 18px; left: 50%; transform: translateX(-50%) translateY(-140%);
-    z-index: 998; width: calc(100% - 32px); max-width: 520px;
-    background: var(--surface); border: 1.5px solid var(--accent); border-radius: 14px;
-    box-shadow: var(--shadow-lg); padding: 14px 16px;
-    display: flex; align-items: center; gap: 13px;
-    transition: transform 0.35s cubic-bezier(0.34,1.2,0.64,1), opacity 0.3s ease; opacity: 0;
-  }
-  .sync-banner.show { transform: translateX(-50%) translateY(0); opacity: 1; }
-  .sync-banner-icon { font-size: 22px; flex-shrink: 0; }
-  .sync-banner-text { display: flex; flex-direction: column; gap: 2px; flex: 1; min-width: 0; }
-  .sync-banner-text strong { font-size: 13.5px; color: var(--text); }
-  .sync-banner-text span { font-size: 12px; color: var(--text-soft); line-height: 1.4; }
-  .sync-banner-actions { display: flex; gap: 8px; flex-shrink: 0; }
-  .sync-banner-btn { border: none; border-radius: 9px; padding: 9px 14px; font-size: 12.5px; font-weight: 700; cursor: pointer; white-space: nowrap; font-family: 'Inter', sans-serif; }
-  .sync-banner-btn.ghost { background: var(--surface-sunken); color: var(--text-soft); border: 1.5px solid var(--border); }
-  .sync-banner-btn.ghost:hover { border-color: var(--border-strong); color: var(--text); }
-  .sync-banner-btn.primary { background: var(--accent); color: #fff; }
-  .sync-banner-btn.primary:hover { background: var(--accent-hover); }
-  @media (max-width: 560px) {
-    .sync-banner { flex-wrap: wrap; }
-    .sync-banner-actions { width: 100%; }
-    .sync-banner-btn { flex: 1; }
-  }
-
   /* Recent entries */
   .recent { margin-top: 26px; }
   .recent-item {
@@ -2839,7 +2813,7 @@
       <div class="card-header">
         <div>
           <h2>☁️ Sincronização na nuvem</h2>
-          <p class="sub">Acesse este perfil de qualquer máquina. Seus dados ficam vinculados à sua conta, com login e senha.</p>
+          <p class="sub">Acesse este perfil de qualquer máquina. Ao entrar, o app sincroniza sozinho com a versão mais recente; as gravações são protegidas para um dispositivo nunca sobrescrever o outro.</p>
         </div>
       </div>
       <div style="padding: 16px 28px 26px;">
@@ -3189,18 +3163,7 @@
   <span id="toast-text">Estudo registrado</span>
 </div>
 
-<!-- Banner: avisa quando há dados mais novos na nuvem (download automático seguro) -->
-<div class="sync-banner" id="sync-banner" style="display:none;">
-  <span class="sync-banner-icon">☁️</span>
-  <div class="sync-banner-text">
-    <strong>Há dados mais recentes na nuvem</strong>
-    <span id="sync-banner-sub">Enviados de outro dispositivo. Deseja baixar agora?</span>
-  </div>
-  <div class="sync-banner-actions">
-    <button type="button" class="sync-banner-btn ghost" id="sync-banner-dismiss">Agora não</button>
-    <button type="button" class="sync-banner-btn primary" id="sync-banner-pull">⭳ Baixar</button>
-  </div>
-</div>
+
 
 <script>
 // Hook seguro para a sincronização na nuvem (CloudSync é definido bem mais abaixo no script).
@@ -8196,18 +8159,12 @@ const CloudSync = {
 
   onAuthReady() {
     if (window.CloudUI) CloudUI.render();
-    // ao abrir/logar, verifica UMA vez se a nuvem tem dados mais novos (download automático seguro)
-    if (this.isLoggedIn() && !this._autoCheckDone) {
-      this._autoCheckDone = true;
+    // ao abrir/logar, sincroniza AUTOMATICAMENTE uma vez (a nuvem é a fonte da verdade)
+    if (this.isLoggedIn() && !this._autoSyncDone) {
+      this._autoSyncDone = true;
       // pequeno atraso para não competir com o carregamento inicial das telas
-      setTimeout(() => this.autoCheckOnOpen(), 1200);
+      setTimeout(() => this.autoSyncOnLogin(), 700);
     }
-  },
-  async autoCheckOnOpen() {
-    try {
-      const res = await this.checkForRemoteUpdates();
-      if (res.hasUpdate && window.CloudUI) CloudUI.showSyncBanner(res.cloudTs);
-    } catch (e) { /* silencioso: sem internet, segue offline normalmente */ }
   },
 
   // Chamado por DB._set em TODA escrita local — agenda um envio automático (debounced)
@@ -8256,74 +8213,108 @@ const CloudSync = {
     try { localStorage.setItem(this.slotKeyForProfile(profileId), name); } catch (e) {}
   },
 
-  // ---- "Carimbo conhecido": último updated_at da nuvem que ESTE dispositivo já viu ----
-  // Usado para detectar, ao abrir, se outro aparelho enviou algo mais novo.
-  _knownTsKey(profileId, slot) { return 'diario-estudos:cloud-ts:' + profileId + ':' + slot; },
-  getKnownTs(profileId, slot) {
-    try { return localStorage.getItem(this._knownTsKey(profileId, slot)) || null; } catch (e) { return null; }
+  // ---- Controle de versão (rev): base do banco confiável (optimistic locking) ----
+  // baseRev = a revisão da nuvem que ESTE dispositivo já tem localmente.
+  _revKey(profileId, slot) { return 'diario-estudos:cloud-rev:' + profileId + ':' + slot; },
+  getBaseRev(profileId, slot) {
+    try { return parseInt(localStorage.getItem(this._revKey(profileId, slot))) || 0; } catch (e) { return 0; }
   },
-  setKnownTs(profileId, slot, ts) {
-    try { if (ts) localStorage.setItem(this._knownTsKey(profileId, slot), ts); } catch (e) {}
+  setBaseRev(profileId, slot, rev) {
+    try { localStorage.setItem(this._revKey(profileId, slot), String(rev)); } catch (e) {}
   },
-  // Consulta LEVE: só o updated_at do slot na nuvem (não baixa o payload inteiro)
-  async fetchSlotTimestamp(slotName) {
+  // Metadados leves do slot na nuvem (rev + updated_at), sem baixar o payload inteiro.
+  async fetchSlotMeta(slotName) {
     if (!this.isLoggedIn()) return null;
     const { data, error } = await this.client.from(this.TABLE)
-      .select('updated_at').eq('slot_name', slotName).maybeSingle();
+      .select('rev, updated_at').eq('slot_name', slotName).maybeSingle();
     if (error) throw error;
-    return data ? data.updated_at : null;
-  },
-  // Verifica se há dados MAIS NOVOS na nuvem do que este dispositivo conhece.
-  // Retorna { hasUpdate, cloudTs } — NUNCA baixa nada sozinho.
-  async checkForRemoteUpdates() {
-    const profile = ProfileManager.getActiveProfile();
-    if (!profile || !this.isLoggedIn()) return { hasUpdate: false };
-    const slot = this.getSlotName(profile.id);
-    let cloudTs = null;
-    try { cloudTs = await this.fetchSlotTimestamp(slot); }
-    catch (e) { console.warn('Não foi possível verificar a nuvem:', e); return { hasUpdate: false }; }
-    if (!cloudTs) return { hasUpdate: false }; // nada salvo na nuvem ainda
-    const known = this.getKnownTs(profile.id, slot);
-    // se nunca sincronizamos neste aparelho, OU a nuvem é mais recente que o último carimbo visto
-    const hasUpdate = !known || new Date(cloudTs).getTime() > new Date(known).getTime();
-    return { hasUpdate, cloudTs, slot };
+    return data ? { rev: data.rev || 0, updatedAt: data.updated_at } : null;
   },
 
-  // ---- Enviar / Baixar (reaproveita o formato de backup do ProfileManager) ----
+  // ---- Enviar com OPTIMISTIC LOCKING ----
+  // Só grava se a revisão da nuvem ainda for a que este dispositivo conhece (baseRev).
+  // Se OUTRO dispositivo gravou nesse meio-tempo, retorna { conflict:true } SEM sobrescrever.
   async pushProfile(profileId, slotName) {
     if (!this.isLoggedIn()) throw new Error('Faça login primeiro.');
     const backup = ProfileManager.exportProfile(profileId);
     if (!backup) throw new Error('Perfil não encontrado.');
-    const ts = new Date().toISOString();
-    const row = {
-      user_id: this.session.user.id,
-      slot_name: slotName,
-      payload: backup,
-      updated_at: ts
-    };
-    const { error } = await this.client.from(this.TABLE).upsert(row, { onConflict: 'user_id,slot_name' });
+    const uid = this.session.user.id;
+    const base = this.getBaseRev(profileId, slotName);
+    const now = new Date().toISOString();
+
+    if (base === 0) {
+      // este dispositivo acha que não há registro na nuvem → tenta INSERIR
+      const { data, error } = await this.client.from(this.TABLE)
+        .insert({ user_id: uid, slot_name: slotName, payload: backup, rev: 1, updated_at: now })
+        .select('rev').maybeSingle();
+      if (error) {
+        // violação de unicidade = já existe um registro que este device não conhece → conflito (baixar)
+        if (error.code === '23505' || /duplicate|unique/i.test(error.message || '')) return { conflict: true };
+        throw error;
+      }
+      this.setBaseRev(profileId, slotName, (data && data.rev) || 1);
+      return { rev: (data && data.rev) || 1 };
+    }
+    // atualização GUARDADA pela revisão: só afeta a linha se rev == base
+    const { data, error } = await this.client.from(this.TABLE)
+      .update({ payload: backup, rev: base + 1, updated_at: now })
+      .eq('user_id', uid).eq('slot_name', slotName).eq('rev', base)
+      .select('rev');
     if (error) throw error;
-    // registra o carimbo: assim, o que ESTE aparelho enviou não vira "novidade" a baixar
-    this.setKnownTs(profileId, slotName, ts);
-    return true;
+    if (!data || data.length === 0) return { conflict: true }; // rev mudou na nuvem → conflito
+    this.setBaseRev(profileId, slotName, base + 1);
+    return { rev: base + 1 };
   },
+
   async autoPush() {
     const profile = ProfileManager.getActiveProfile();
     if (!profile) return;
     const slot = this.getSlotName(profile.id);
     if (window.CloudUI) CloudUI.setStatus('syncing', 'Sincronizando...');
     try {
-      await this.pushProfile(profile.id, slot);
+      const res = await this.pushProfile(profile.id, slot);
+      if (res && res.conflict) {
+        // outro dispositivo gravou primeiro → a nuvem tem prioridade; baixa e recarrega
+        if (window.CloudUI) CloudUI.setStatus('syncing', 'Outro dispositivo atualizou — sincronizando...');
+        await this.pullAndReload(slot);
+        return;
+      }
       if (window.CloudUI) CloudUI.setStatus('ok', 'Sincronizado ' + new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }));
     } catch (err) {
       console.error('Falha na sincronização automática:', err);
       if (window.CloudUI) CloudUI.setStatus('error', 'Falha ao sincronizar (verifique a internet)');
     }
   },
+
+  // ---- Sincronização AUTOMÁTICA ao logar/abrir (a nuvem é a fonte da verdade) ----
+  async autoSyncOnLogin() {
+    const profile = ProfileManager.getActiveProfile();
+    if (!profile || !this.isLoggedIn()) return;
+    const slot = this.getSlotName(profile.id);
+    if (window.CloudUI) CloudUI.setStatus('syncing', 'Sincronizando...');
+    let meta = null;
+    try { meta = await this.fetchSlotMeta(slot); }
+    catch (e) { if (window.CloudUI) CloudUI.setStatus('error', 'Sem conexão — usando dados locais'); return; }
+
+    const base = this.getBaseRev(profile.id, slot);
+    if (!meta) {
+      // nuvem vazia para este espaço → envia o estado local como base inicial
+      try { await this.pushProfile(profile.id, slot); if (window.CloudUI) CloudUI.setStatus('ok', 'Sincronizado'); }
+      catch (e) { if (window.CloudUI) CloudUI.setStatus('error', 'Falha ao enviar'); }
+      return;
+    }
+    if (meta.rev > base) {
+      // nuvem à frente (outro dispositivo salvou, ou 1ª vez neste aparelho) → baixa automaticamente
+      await this.pullAndReload(slot);
+    } else {
+      if (window.CloudUI) CloudUI.setStatus('ok', 'Em dia com a nuvem');
+    }
+  },
+
   async listSlots() {
     if (!this.isLoggedIn()) return [];
     const { data, error } = await this.client.from(this.TABLE)
-      .select('slot_name, updated_at')
+      .select('slot_name, updated_at, rev')
       .order('updated_at', { ascending: false });
     if (error) throw error;
     return data || [];
@@ -8331,13 +8322,26 @@ const CloudSync = {
   async pullSlot(slotName) {
     if (!this.isLoggedIn()) throw new Error('Faça login primeiro.');
     const { data, error } = await this.client.from(this.TABLE)
-      .select('payload, updated_at').eq('slot_name', slotName).maybeSingle();
+      .select('payload, rev, updated_at').eq('slot_name', slotName).maybeSingle();
     if (error) throw error;
     if (!data) throw new Error('Espaço não encontrado na nuvem.');
-    // registra o carimbo do que acabamos de baixar, para não reavisar em seguida
+    // fica em dia com a revisão baixada (assim o próximo push parte da rev correta)
     const profile = ProfileManager.getActiveProfile();
-    if (profile && data.updated_at) this.setKnownTs(profile.id, slotName, data.updated_at);
+    if (profile) this.setBaseRev(profile.id, slotName, data.rev || 0);
     return data.payload; // mesmo formato do ProfileManager.exportProfile()
+  },
+  // Baixa a nuvem para o perfil ativo e recarrega o app (nuvem = fonte da verdade)
+  async pullAndReload(slotName) {
+    try {
+      const backup = await this.pullSlot(slotName);
+      this.restoreIntoCurrentProfile(backup);
+      if (window.CloudUI) CloudUI.setStatus('ok', 'Sincronizado');
+      showToast('Dados sincronizados da nuvem ✓');
+      setTimeout(() => location.reload(), 600);
+    } catch (err) {
+      console.error('Falha ao baixar da nuvem:', err);
+      if (window.CloudUI) CloudUI.setStatus('error', 'Falha ao sincronizar');
+    }
   },
   // Restaura um payload de backup SOBRE o perfil ativo local (sobrescreve os dados dele)
   restoreIntoCurrentProfile(backup) {
@@ -8352,9 +8356,12 @@ const CloudSync = {
   },
   async deleteSlot(slotName) {
     if (!this.isLoggedIn()) return;
+    const profile = ProfileManager.getActiveProfile();
     const { error } = await this.client.from(this.TABLE)
       .delete().eq('user_id', this.session.user.id).eq('slot_name', slotName);
     if (error) throw error;
+    // esquece a revisão local desse slot (se for reenviado, começa do zero)
+    if (profile) { try { localStorage.removeItem(this._revKey(profile.id, slotName)); } catch (e) {} }
   }
 };
 
@@ -8386,40 +8393,6 @@ const CloudUI = {
     if (!el) return;
     el.className = 'cloud-status-sub ' + (tone === 'ok' ? '' : tone);
     el.innerHTML = `<span class="dot"></span>${escapeHtml(text)}`;
-  },
-  // Banner não-intrusivo: avisa que há dados mais novos na nuvem (nunca sobrescreve sozinho)
-  showSyncBanner(cloudTs) {
-    const banner = document.getElementById('sync-banner');
-    if (!banner) return;
-    const sub = document.getElementById('sync-banner-sub');
-    if (sub && cloudTs) {
-      const quando = new Date(cloudTs).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
-      sub.textContent = `Atualizados em ${quando} (de outro dispositivo). Deseja baixar agora?`;
-    }
-    banner.style.display = 'flex';
-    requestAnimationFrame(() => banner.classList.add('show'));
-  },
-  hideSyncBanner() {
-    const banner = document.getElementById('sync-banner');
-    if (!banner) return;
-    banner.classList.remove('show');
-    setTimeout(() => { banner.style.display = 'none'; }, 350);
-  },
-  // Baixa a partir do banner (sem depender de estar na tela de Configurações)
-  async pullFromBanner() {
-    const profile = ProfileManager.getActiveProfile();
-    if (!profile) return;
-    const slot = CloudSync.getSlotName(profile.id);
-    this.hideSyncBanner();
-    showToast('Baixando da nuvem...');
-    try {
-      const backup = await CloudSync.pullSlot(slot);
-      CloudSync.restoreIntoCurrentProfile(backup);
-      showToast('Dados atualizados da nuvem ✓ Recarregando...');
-      setTimeout(() => location.reload(), 800);
-    } catch (err) {
-      showToast('Erro ao baixar: ' + err.message);
-    }
   },
   async renderSlots() {
     const list = document.getElementById('cloud-slots-list');
@@ -8476,7 +8449,13 @@ const CloudUI = {
     CloudSync.setSlotName(profile.id, slot);
     this.setStatus('syncing', 'Enviando...');
     try {
-      await CloudSync.pushProfile(profile.id, slot);
+      const res = await CloudSync.pushProfile(profile.id, slot);
+      if (res && res.conflict) {
+        // outro dispositivo gravou primeiro — a nuvem tem prioridade; traz a versão de lá
+        showToast('A nuvem foi atualizada por outro dispositivo — baixando a versão mais recente...');
+        await CloudSync.pullAndReload(slot);
+        return;
+      }
       this.setStatus('ok', 'Enviado ✓ ' + new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }));
       showToast('Perfil enviado para a nuvem ✓');
       this.renderSlots();
@@ -8537,9 +8516,7 @@ document.getElementById('cloud-slot-name').addEventListener('change', (e) => {
   const profile = ProfileManager.getActiveProfile();
   if (profile) CloudSync.setSlotName(profile.id, e.target.value.trim() || profile.nome);
 });
-// Banner de dados mais novos na nuvem
-document.getElementById('sync-banner-pull').addEventListener('click', () => CloudUI.pullFromBanner());
-document.getElementById('sync-banner-dismiss').addEventListener('click', () => CloudUI.hideSyncBanner());
+
 
 window.addEventListener('screen:activated', (e) => {
   if (e.detail.screen === 'config') CloudUI.render();
