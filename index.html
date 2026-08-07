@@ -3,9 +3,6 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<meta name="description" content="Diário de estudos: registre sessões, acompanhe ciclos, trilhas e desempenho por tópico.">
-<meta name="theme-color" content="#f4f5f7">
-<meta name="color-scheme" content="light">
 <title>Diário de Estudos</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
@@ -2154,6 +2151,27 @@
     border: 1.5px solid var(--border); border-radius: 18px; box-shadow: var(--shadow-md);
     padding: 26px 24px; text-align: left;
   }
+  /* indicador de conexão com o servidor */
+  .gate-conn {
+    display: flex; align-items: center; gap: 7px; justify-content: center;
+    font-size: 11.5px; font-weight: 600; color: var(--text-soft);
+    margin-bottom: 16px; padding: 6px 10px; border-radius: 20px; background: var(--surface-sunken);
+  }
+  .gate-conn .cdot { width: 8px; height: 8px; border-radius: 50%; background: var(--warn); animation: cpulse 1.2s infinite; }
+  .gate-conn.ok { color: var(--good); background: var(--good-soft); }
+  .gate-conn.ok .cdot { background: var(--good); animation: none; }
+  .gate-conn.bad { color: var(--bad); background: var(--bad-soft); }
+  .gate-conn.bad .cdot { background: var(--bad); animation: none; }
+  @keyframes cpulse { 0%,100%{opacity:1;} 50%{opacity:0.3;} }
+  /* caixa de alerta do login (sempre visível, não é um hint discreto) */
+  .gate-alert {
+    display: none; font-size: 12.5px; font-weight: 600; line-height: 1.45;
+    padding: 10px 12px; border-radius: 10px; margin: 12px 0 4px; border: 1.5px solid;
+  }
+  .gate-alert.bad { background: var(--bad-soft); border-color: #f5c1c3; color: #b3282e; }
+  .gate-alert.warn { background: var(--warn-soft); border-color: #f5d5a3; color: #9a5a12; }
+  .gate-alert.good { background: var(--good-soft); border-color: #b8ead1; color: #0b7d4f; }
+  .gate-alert.info { background: var(--accent-soft); border-color: var(--accent); color: var(--accent); }
   /* Modais da tela de acesso */
   .profile-modal { position: fixed; inset: 0; z-index: 510; background: rgba(20,22,26,0.45); display: flex; align-items: center; justify-content: center; padding: 20px; }
   .profile-modal-box { width: 100%; max-width: 440px; background: var(--surface); border-radius: 18px; box-shadow: var(--shadow-lg); padding: 24px; }
@@ -2220,9 +2238,10 @@
     <!-- ETAPA 1: LOGIN (aparece quando não há sessão) -->
     <div id="gate-login" style="display:none;">
       <div class="gate-login-box">
-        <div class="cloud-auth-tabs" style="margin-bottom:18px;" role="tablist">
-          <button type="button" role="tab" aria-selected="true" class="cloud-auth-tab active" data-gatemode="signin">Entrar</button>
-          <button type="button" role="tab" aria-selected="false" class="cloud-auth-tab" data-gatemode="signup">Criar conta</button>
+        <div class="gate-conn" id="gate-conn-status"><span class="cdot"></span> Conectando ao servidor...</div>
+        <div class="cloud-auth-tabs" style="margin-bottom:18px;">
+          <button type="button" class="cloud-auth-tab active" data-gatemode="signin">Entrar</button>
+          <button type="button" class="cloud-auth-tab" data-gatemode="signup">Criar conta</button>
         </div>
         <div class="field">
           <label for="gate-email">E-mail</label>
@@ -2259,7 +2278,7 @@
     <div class="profile-modal-box">
       <div class="profile-modal-head">
         <h2 id="profile-modal-title">Novo perfil</h2>
-        <button type="button" class="icon-btn" id="profile-modal-close" aria-label="Fechar" title="Fechar">✕</button>
+        <button type="button" class="icon-btn" id="profile-modal-close">✕</button>
       </div>
       <div class="field">
         <label for="pf-nome">Nome do perfil</label>
@@ -2331,14 +2350,14 @@
     </div>
 
     <nav class="tabs" id="tabs">
-      <button type="button" class="tab active" data-screen="registrar"><span class="tab-icon">✎</span>Registrar</button>
-      <button type="button" class="tab" data-screen="ciclo"><span class="tab-icon">◔</span>Ciclo da Semana</button>
-      <button type="button" class="tab" data-screen="estudonovo"><span class="tab-icon">▥</span>Estudo Novo</button>
-      <button type="button" class="tab" data-screen="historico"><span class="tab-icon">▤</span>Histórico</button>
-      <button type="button" class="tab" data-screen="evolucao"><span class="tab-icon">📈</span>Evolução</button>
-      <button type="button" class="tab" data-screen="desempenhotec"><span class="tab-icon">🎯</span>Desempenho TEC</button>
-      <button type="button" class="tab" data-screen="ferramentas"><span class="tab-icon">🧰</span>Ferramentas</button>
-      <button type="button" class="tab" data-screen="config"><span class="tab-icon">⚙</span>Configurações</button>
+      <button class="tab active" data-screen="registrar"><span class="tab-icon">✎</span>Registrar</button>
+      <button class="tab" data-screen="ciclo"><span class="tab-icon">◔</span>Ciclo da Semana</button>
+      <button class="tab" data-screen="estudonovo"><span class="tab-icon">▥</span>Estudo Novo</button>
+      <button class="tab" data-screen="historico"><span class="tab-icon">▤</span>Histórico</button>
+      <button class="tab" data-screen="evolucao"><span class="tab-icon">📈</span>Evolução</button>
+      <button class="tab" data-screen="desempenhotec"><span class="tab-icon">🎯</span>Desempenho TEC</button>
+      <button class="tab" data-screen="ferramentas"><span class="tab-icon">🧰</span>Ferramentas</button>
+      <button class="tab" data-screen="config"><span class="tab-icon">⚙</span>Configurações</button>
     </nav>
 
     <div class="sidebar-footer">
@@ -2408,7 +2427,7 @@
                 <input type="number" id="page-end" min="0" placeholder="0">
               </div>
               <div class="field">
-                <label for="duration-h">Tempo de estudo</label>
+                <label for="duration">Tempo de estudo</label>
                 <div class="time-input">
                   <input type="number" id="duration-h" min="0" placeholder="0">
                   <span>h</span>
@@ -3298,26 +3317,9 @@ const DB = {
     }
   },
   _set(key, value) {
-    // [CORRECAO] Antes sem try/catch: com localStorage cheio (QuotaExceededError) ou
-    // bloqueado (aba anonima do Safari, iframe de terceiros) a excecao subia e
-    // derrubava o fluxo inteiro em silencio.
-    try {
-      localStorage.setItem(key, JSON.stringify(value));
-    } catch (e) {
-      console.error('Falha ao gravar', key, e);
-      const cheio = e && (e.name === 'QuotaExceededError' || e.code === 22 || e.code === 1014);
-      try {
-        if (typeof showToast === 'function') {
-          showToast(cheio
-            ? 'Armazenamento cheio — exporte um backup e apague planejamentos antigos.'
-            : 'Não foi possível salvar neste dispositivo (armazenamento bloqueado).');
-        }
-      } catch (e2) {}
-      return false;
-    }
+    localStorage.setItem(key, JSON.stringify(value));
     // dispara sincronização automática com atraso (se conectado à nuvem) — não bloqueia a escrita
     if (_cloudNotifyHook) _cloudNotifyHook();
-    return true;
   },
   _uid() {
     return Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
@@ -8012,6 +8014,14 @@ const ProfileUI = {
       profilesEl.style.display = 'none';
       title.textContent = 'Entrar na sua conta';
       sub.textContent = 'Faça login para acessar seus perfis em qualquer dispositivo.';
+      // indicador de conexão com o servidor da nuvem
+      const statusEl = document.getElementById('gate-conn-status');
+      if (statusEl) {
+        const st = CS ? CS.libStatus : 'pending';
+        if (st === 'ready') { statusEl.innerHTML = '<span class="cdot ok"></span> Servidor conectado'; statusEl.className = 'gate-conn ok'; }
+        else if (st === 'pending') { statusEl.innerHTML = '<span class="cdot"></span> Conectando ao servidor...'; statusEl.className = 'gate-conn'; }
+        else { statusEl.innerHTML = '<span class="cdot bad"></span> Servidor indisponível — verifique a internet'; statusEl.className = 'gate-conn bad'; }
+      }
     } else {
       // etapa de PERFIS
       loginEl.style.display = 'none';
@@ -8224,48 +8234,68 @@ const ProfileUI = {
     const email = document.getElementById('gate-email').value.trim();
     const password = document.getElementById('gate-password').value;
     const msg = document.getElementById('gate-auth-msg');
-    const show = (t, color) => { msg.textContent = t; msg.style.color = color; msg.style.display = 'block'; };
+    // feedback SEMPRE visível (caixa de alerta, não hint discreto)
+    const show = (t, kind) => {
+      msg.textContent = t;
+      msg.className = 'gate-alert ' + (kind || 'bad');
+      msg.style.display = 'block';
+    };
     msg.style.display = 'none';
-    if (typeof CloudSync === 'undefined' || !CloudSync.isReady()) {
-      show('Sem conexão com o servidor. Você pode usar offline neste dispositivo.', 'var(--warn)');
+
+    const CS = window.CloudSync;
+    // 1) servidor indisponível → mensagem clara + caminho offline
+    if (!CS || !CS.isReady()) {
+      const why = (CS && CS.libStatus === 'missing')
+        ? 'Não foi possível carregar o servidor da nuvem (conexão bloqueada ou offline).'
+        : 'O servidor da nuvem ainda não está pronto.';
+      show(why + ' Você pode entrar sem conta usando "Usar offline neste dispositivo" abaixo.', 'warn');
       return;
     }
-    if (!email || password.length < 6) { show('Informe um e-mail válido e senha com ao menos 6 caracteres.', 'var(--bad)'); return; }
+    // 2) validação de campos
+    if (!email) { show('Informe seu e-mail.', 'bad'); return; }
+    if (password.length < 6) { show('A senha precisa ter ao menos 6 caracteres.', 'bad'); return; }
+
     const btn = document.getElementById('gate-auth-submit');
+    const original = this._gateAuthMode === 'signup' ? 'Criar conta' : 'Entrar';
     btn.disabled = true; btn.textContent = 'Aguarde...';
+    show('Conectando...', 'info');
     try {
       if (this._gateAuthMode === 'signup') {
-        await CloudSync.signUp(email, password);
-        // alguns projetos exigem confirmar e-mail; se já logou, o onAuthReady avança sozinho
-        if (!CloudSync.isLoggedIn()) show('Conta criada! Confirme o e-mail que enviamos e depois use a aba "Entrar".', 'var(--good)');
+        await CS.signUp(email, password);
+        if (CS.isLoggedIn()) {
+          show('Conta criada! Entrando...', 'good');
+          // o onAuthReady avança o portão para os perfis
+        } else {
+          show('Conta criada! Verifique seu e-mail para confirmar e depois clique em "Entrar".', 'good');
+        }
       } else {
-        await CloudSync.signIn(email, password);
-        // [CORRECAO] rede de seguranca: se por algum motivo o portao nao avancar
-        // sozinho, o usuario recebe um retorno em vez de "nada acontece".
-        setTimeout(() => {
-          if (this.isGateOpen() && document.getElementById('gate-login').style.display !== 'none') {
-            if (CloudSync.isLoggedIn()) this.refreshGateStage();
-            else show('Não foi possível concluir o login. Tente novamente.', 'var(--bad)');
-          }
-        }, 1200);
+        await CS.signIn(email, password);
+        show('Entrando...', 'good');
+        // segurança: se o onAuthReady não avançar em 2,5s, força a atualização do portão
+        setTimeout(() => { if (this.isGateOpen()) this.refreshGateStage(); }, 2500);
       }
-      // o onAuthReady cuida de reconciliar perfis e avançar para a etapa de perfis
     } catch (err) {
-      show(err.message || 'Erro ao autenticar.', 'var(--bad)');
+      show(this._friendlyAuthError(err), 'bad');
     } finally {
-      btn.disabled = false; btn.textContent = this._gateAuthMode === 'signup' ? 'Criar conta' : 'Entrar';
+      btn.disabled = false; btn.textContent = original;
     }
+  },
+  // Traduz os erros mais comuns do Supabase para mensagens claras em português
+  _friendlyAuthError(err) {
+    const m = (err && err.message || '').toLowerCase();
+    if (m.includes('invalid login')) return 'E-mail ou senha incorretos. Se acabou de criar a conta, confirme pelo e-mail primeiro.';
+    if (m.includes('email not confirmed')) return 'Confirme seu e-mail (link enviado na criação da conta) e tente entrar de novo.';
+    if (m.includes('already registered') || m.includes('already been registered')) return 'Este e-mail já tem conta. Use a aba "Entrar".';
+    if (m.includes('password')) return 'Senha muito curta ou inválida (mínimo 6 caracteres).';
+    if (m.includes('demorou demais') || m.includes('timeout') || m.includes('failed to fetch') || m.includes('networkerror')) {
+      return 'Sem resposta do servidor. Verifique sua internet e tente novamente (ou use offline).';
+    }
+    return (err && err.message) ? err.message : 'Não foi possível autenticar. Tente novamente.';
   },
   setGateAuthMode(mode) {
     this._gateAuthMode = mode;
-    document.querySelectorAll('#gate-login .cloud-auth-tab').forEach(t => {
-      const on = t.dataset.gatemode === mode;
-      t.classList.toggle('active', on);
-      t.setAttribute('aria-selected', on ? 'true' : 'false'); // [CORRECAO] acessibilidade
-    });
+    document.querySelectorAll('#gate-login .cloud-auth-tab').forEach(t => t.classList.toggle('active', t.dataset.gatemode === mode));
     document.getElementById('gate-auth-submit').textContent = mode === 'signup' ? 'Criar conta' : 'Entrar';
-    // [CORRECAO] avisa o gerenciador de senhas se e senha nova ou existente
-    document.getElementById('gate-password').setAttribute('autocomplete', mode === 'signup' ? 'new-password' : 'current-password');
     document.getElementById('gate-auth-msg').style.display = 'none';
   },
   useOffline() {
@@ -8282,11 +8312,8 @@ const ProfileUI = {
     this.refreshGateStage();
   }
 };
-// [CORRECAO CRITICA] Expoe globalmente. O CloudSync (definido mais abaixo) chama
-// `window.ProfileUI` dentro dos callbacks assincronos de login. Como ProfileUI e
-// declarado com `const`, ele NAO entra no objeto window automaticamente — sem esta
-// linha a condicao `if (window.ProfileUI && ...)` era sempre falsa e o portao
-// nunca saia da etapa de login apos o Entrar/Criar conta.
+// Expõe globalmente: o CloudSync (definido depois) referencia window.ProfileUI para
+// avançar o portão após o login. Sem isto, a tela NÃO avançava para os perfis. (bug corrigido)
 window.ProfileUI = ProfileUI;
 
 // Listeners da tela de acesso
@@ -8337,26 +8364,48 @@ const CloudSync = {
   DEBOUNCE_MS: 1500,
   _authMode: 'signin', // 'signin' | 'signup'
 
+  libStatus: 'pending', // 'pending' | 'ready' | 'missing' | 'error'
   init() {
-    if (typeof supabase === 'undefined' || !supabase.createClient) {
-      console.warn('Biblioteca do Supabase não carregou (sem internet?). A sincronização na nuvem ficará indisponível, mas o app continua funcionando normalmente offline.');
-      return;
+    try {
+      // a lib do Supabase é carregada via <script> no <head> e expõe window.supabase
+      const lib = (typeof supabase !== 'undefined') ? supabase : (typeof window !== 'undefined' ? window.supabase : undefined);
+      if (!lib || !lib.createClient) {
+        this.libStatus = 'missing';
+        console.warn('Biblioteca do Supabase não carregou. Verifique a conexão. O app continua funcionando offline.');
+        if (window.ProfileUI && ProfileUI.isGateOpen()) ProfileUI.refreshGateStage();
+        return;
+      }
+      this.client = lib.createClient(this.SUPABASE_URL, this.SUPABASE_KEY, {
+        auth: { persistSession: true, autoRefreshToken: true }
+      });
+      this.libStatus = 'ready';
+      this.client.auth.getSession().then(({ data }) => {
+        this.session = (data && data.session) || null;
+        this.onAuthReady();
+      }).catch(e => console.warn('getSession falhou:', e));
+      this.client.auth.onAuthStateChange((_event, session) => {
+        this.session = session;
+        this.onAuthReady();
+      });
+    } catch (err) {
+      this.libStatus = 'error';
+      this._lastInitError = err && err.message;
+      console.error('Falha ao iniciar o cliente da nuvem:', err);
     }
-    this.client = supabase.createClient(this.SUPABASE_URL, this.SUPABASE_KEY, {
-      auth: { persistSession: true, autoRefreshToken: true }
-    });
-    this.client.auth.getSession().then(({ data }) => {
-      this.session = data.session || null;
-      this.onAuthReady();
-    });
-    this.client.auth.onAuthStateChange((_event, session) => {
-      this.session = session;
-      this.onAuthReady();
-    });
+    // atualiza o portão para refletir o status de conexão assim que soubermos
+    if (window.ProfileUI && ProfileUI.isGateOpen()) ProfileUI.refreshGateStage();
   },
 
   isReady() { return !!this.client; },
   isLoggedIn() { return !!this.session; },
+  // corrida contra o relógio: nenhuma chamada de rede pode travar a interface para sempre
+  _withTimeout(promise, ms, label) {
+    return Promise.race([
+      promise,
+      new Promise((_, rej) => setTimeout(() =>
+        rej(new Error((label || 'A operação') + ' demorou demais. Verifique sua internet e tente novamente.')), ms))
+    ]);
+  },
 
   async onAuthReady() {
     if (window.CloudUI) CloudUI.render();
@@ -8403,17 +8452,15 @@ const CloudSync = {
 
   // ---- Autenticação ----
   async signUp(email, password) {
-    const { data, error } = await this.client.auth.signUp({ email, password });
+    const { data, error } = await this._withTimeout(
+      this.client.auth.signUp({ email, password }), 20000, 'A criação de conta');
     if (error) throw error;
-    // [CORRECAO] onAuthStateChange e assincrono; sem isto o isLoggedIn() logo apos o
-    // signUp podia responder "false" mesmo com confirmacao de e-mail desativada.
-    if (data && data.session) { this.session = data.session; this.onAuthReady(); }
     return data;
   },
   async signIn(email, password) {
-    const { data, error } = await this.client.auth.signInWithPassword({ email, password });
+    const { data, error } = await this._withTimeout(
+      this.client.auth.signInWithPassword({ email, password }), 20000, 'O login');
     if (error) throw error;
-    if (data && data.session) { this.session = data.session; this.onAuthReady(); }
     return data;
   },
   async signOut() {
@@ -8868,13 +8915,10 @@ const CloudUI = {
 window.CloudUI = CloudUI;
 
 // Listeners da seção Nuvem
-// [CORRECAO] Escopo restrito a #cloud-auth-box. Antes o seletor global tambem
-// capturava as abas do portao de login (que usam data-gatemode), zerando o
-// _authMode e baguncando o estado "active" das duas telas ao mesmo tempo.
-document.querySelectorAll('#cloud-auth-box .cloud-auth-tab').forEach(tab => {
+document.querySelectorAll('.cloud-auth-tab').forEach(tab => {
   tab.addEventListener('click', () => {
     CloudSync._authMode = tab.dataset.mode;
-    document.querySelectorAll('#cloud-auth-box .cloud-auth-tab').forEach(t => t.classList.toggle('active', t === tab));
+    document.querySelectorAll('.cloud-auth-tab').forEach(t => t.classList.toggle('active', t === tab));
     document.getElementById('cloud-auth-submit').textContent = tab.dataset.mode === 'signup' ? 'Criar conta' : 'Entrar';
     document.getElementById('cloud-auth-msg').style.display = 'none';
   });
