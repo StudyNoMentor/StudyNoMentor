@@ -3665,6 +3665,75 @@ const DB = {
     this._set(this.KEYS.subjects, subjects);
   },
   setSubjectActive(id, ativo) { this.updateSubject(id, { ativo }); },
+  // normaliza nome p/ casamento robusto (sem acento/espaços extras/caixa)
+  _normSubj(s) {
+    return String(s == null ? '' : s).normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/\s+/g, ' ').trim();
+  },
+  // Renomeia a matéria e PROPAGA para tudo que a referencia por nome:
+  // registros, ciclo ativo (matérias + grade), trilhas do Estudo Novo e histórico.
+  // Retorna { ok, reason, changed:{...} }. Bloqueia colisão com outra matéria existente.
+  renameSubjectEverywhere(id, newNameRaw) {
+    const newName = String(newNameRaw || '').trim();
+    if (!newName) return { ok: false, reason: 'empty' };
+    const subjects = this.getSubjects();
+    const target = subjects.find(x => x.id === id);
+    if (!target) return { ok: false, reason: 'not-found' };
+    const oldName = target.nome;
+    if (oldName === newName) return { ok: true, reason: 'unchanged', changed: {} };
+    // colisão: já existe OUTRA matéria com esse nome (mesmo ignorando acento/caixa)
+    const collision = subjects.find(x => x.id !== id && this._normSubj(x.nome) === this._normSubj(newName));
+    if (collision) return { ok: false, reason: 'collision', collisionName: collision.nome };
+
+    const oldKey = this._normSubj(oldName);
+    const changed = { entries: 0, cycle: false, gradeCells: 0, track: false, history: 0 };
+
+    // 1) catálogo
+    target.nome = newName;
+    this._set(this.KEYS.subjects, subjects);
+
+    // 2) registros
+    const entries = this.getEntries();
+    entries.forEach(e => { if (this._normSubj(e.subject) === oldKey) { e.subject = newName; changed.entries++; } });
+    if (changed.entries) this._set(this.KEYS.entries, entries);
+
+    // 3) ciclo ativo (matérias + células da grade)
+    const cycle = this.getCurrentCycle();
+    if (cycle) {
+      let touched = false;
+      (cycle.subjects || []).forEach(s => { if (this._normSubj(s.nome) === oldKey) { s.nome = newName; touched = true; changed.cycle = true; } });
+      const dias = ['Segunda','Terça','Quarta','Quinta','Sexta','Sábado','Domingo'];
+      dias.forEach(d => {
+        const arr = cycle.grade && cycle.grade[d];
+        if (!Array.isArray(arr)) return;
+        arr.forEach((cell, i) => {
+          if (cell && typeof cell === 'object' && this._normSubj(cell.subject) === oldKey) { cell.subject = newName; touched = true; changed.gradeCells++; }
+          else if (typeof cell === 'string' && this._normSubj(cell) === oldKey) { arr[i] = newName; touched = true; changed.gradeCells++; }
+        });
+      });
+      if (touched) this.saveCurrentCycle(cycle);
+    }
+
+    // 4) trilhas do Estudo Novo (chaveadas por nome) — move/mescla a chave
+    const tracks = this._get(this.KEYS.tracks, {});
+    const keysToMove = Object.keys(tracks).filter(k => this._normSubj(k) === oldKey);
+    if (keysToMove.length) {
+      const merged = tracks[newName] ? tracks[newName].slice() : [];
+      keysToMove.forEach(k => { (tracks[k] || []).forEach(it => merged.push(it)); if (k !== newName) delete tracks[k]; });
+      tracks[newName] = merged;
+      this._set(this.KEYS.tracks, tracks);
+      changed.track = true;
+    }
+
+    // 5) histórico (para consolidar corretamente na Evolução)
+    const hist = this.getCycleHistory();
+    let histTouched = false;
+    hist.forEach(snap => {
+      (snap.subjects || []).forEach(s => { if (this._normSubj(s.nome) === oldKey) { s.nome = newName; histTouched = true; changed.history++; } });
+    });
+    if (histTouched) this._set(this.KEYS.cycleHistory, hist);
+
+    return { ok: true, reason: 'renamed', oldName, newName, changed };
+  },
   removeSubjectPermanently(id) {
     // só usado quando a matéria nunca teve nenhum registro (ver removeSubjectSafely)
     const subjects = this.getSubjects().filter(s => s.id !== id);
@@ -4917,12 +4986,22 @@ const CycleEngine = {
       ? this.suggestMinutesPos(subjects, weeklyHours)
       : this.suggestMinutes(subjects, weeklyHours);
   },
-  // minutos já estudados desta matéria dentro do intervalo da semana
+  // normaliza nome (matéria/método) p/ casamento robusto: sem espaços extras, sem acentos, minúsculas
+  normKey(s) {
+    return String(s == null ? '' : s).normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/\s+/g, ' ').trim();
+  },
+  // minutos já estudados desta matéria dentro do intervalo da semana (casamento robusto por nome)
   minutesStudied(subjectName, startDate, endDate) {
-    const entries = DB.getEntries();
-    return entries
-      .filter(e => e.subject.toLowerCase() === subjectName.toLowerCase() && e.date >= startDate && e.date <= endDate)
+    const key = this.normKey(subjectName);
+    return DB.getEntries()
+      .filter(e => this.normKey(e.subject) === key && e.date >= startDate && e.date <= endDate)
       .reduce((sum, e) => sum + (e.durationMin || 0), 0);
+  },
+  // Fim efetivo do ciclo para CONTAGEM na visão ao vivo: nunca antes de hoje, para que
+  // estudos registrados após o 7º dia teórico ainda contem (consistente com o fechamento).
+  effectiveEnd(cycle) {
+    const today = todayLocal();
+    return (cycle && cycle.endDate && cycle.endDate > today) ? cycle.endDate : today;
   },
   statusFor(studiedMin, targetMin) {
     if (studiedMin <= 0) return 'pendente';
@@ -5321,7 +5400,7 @@ function planCycleMode() {
     const container = document.getElementById('ciclo-overview-gauges');
     let totalTarget = 0, totalStudied = 0, finalizadas = 0;
     cycle.subjects.forEach(s => {
-      const studied = CycleEngine.minutesStudied(s.nome, cycle.startDate, cycle.endDate);
+      const studied = CycleEngine.minutesStudied(s.nome, cycle.startDate, CycleEngine.effectiveEnd(cycle));
       totalTarget += s.definidoMin;
       totalStudied += Math.min(studied, s.definidoMin * 3); // evita distorcer muito o total
       if (CycleEngine.statusFor(studied, s.definidoMin) === 'finalizada') finalizadas++;
@@ -5349,7 +5428,7 @@ function planCycleMode() {
   function renderSubjectsProgress(cycle) {
     const container = document.getElementById('ciclo-subjects-progress');
     container.innerHTML = cycle.subjects.map(s => {
-      const studied = CycleEngine.minutesStudied(s.nome, cycle.startDate, cycle.endDate);
+      const studied = CycleEngine.minutesStudied(s.nome, cycle.startDate, CycleEngine.effectiveEnd(cycle));
       const status = CycleEngine.statusFor(studied, s.definidoMin);
       const pct = Math.min(100, Math.round((studied / s.definidoMin) * 100));
       const over = studied > s.definidoMin;
@@ -5586,8 +5665,10 @@ function planCycleMode() {
   function renderActiveCycle() {
     const cycle = DB.getCurrentCycle();
     if (!cycle) return;
+    const _expired = todayLocal() > cycle.endDate;
     document.getElementById('ciclo-active-dates').textContent =
-      `${formatDateShort(cycle.startDate)} — ${formatDateShort(cycle.endDate)} · ${cycle.weeklyHours}h planejadas`;
+      `${formatDateShort(cycle.startDate)} — ${formatDateShort(cycle.endDate)} · ${cycle.weeklyHours}h planejadas`
+      + (_expired ? ' · ⚠ semana encerrada — estudos de hoje ainda contam; feche para arquivar' : '');
     renderOverviewGauges(cycle);
     renderSubjectsProgress(cycle);
     renderChipTray(cycle);
@@ -7113,8 +7194,26 @@ const ConfigScreen = {
 
       nameInput.addEventListener('change', () => {
         const val = nameInput.value.trim();
-        if (val) DB.updateSubject(id, { nome: val });
-        else { this.renderSubjects(); return; }
+        if (!val) { this.renderSubjects(); return; }
+        // Propaga o rename para registros, ciclo, grade, trilhas e histórico (dados interligados)
+        const res = DB.renameSubjectEverywhere(id, val);
+        if (!res.ok) {
+          if (res.reason === 'collision') {
+            showToast('Já existe a matéria "' + res.collisionName + '". Escolha outro nome.');
+          }
+          this.renderSubjects();
+          return;
+        }
+        if (res.reason === 'renamed') {
+          const c = res.changed || {};
+          const partes = [];
+          if (c.entries) partes.push(c.entries + ' registro(s)');
+          if (c.cycle || c.gradeCells) partes.push('ciclo da semana');
+          if (c.track) partes.push('trilha do Estudo Novo');
+          if (c.history) partes.push('histórico');
+          showToast(partes.length ? 'Matéria renomeada e atualizada em: ' + partes.join(', ') + ' ✓' : 'Matéria renomeada ✓');
+        }
+        this.renderSubjects();
         window.RegistrarScreen?.refreshSubjectSelect();
       });
       difSelect.addEventListener('change', () => DB.updateSubject(id, { dificuldade: parseInt(difSelect.value) }));
