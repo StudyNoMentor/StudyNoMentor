@@ -8333,6 +8333,29 @@ const CloudStore = {
     ProfileManager.setRev(id, rev + 1);
     return { rev: rev + 1 };
   },
+  // Lê apenas a rev atual do perfil na nuvem (usado para reconciliar antes de reenviar)
+  async _fetchRev(id) {
+    const { data, error } = await this.client.from(this.TABLE).select('rev').eq('id', id).maybeSingle();
+    if (error) throw error;
+    return data ? data.rev : null;
+  },
+  // Salva com RETENTATIVA: em caso de conflito, re-sincroniza a versão e REENVIA o estado
+  // local (a ação do usuário nunca é descartada). Evita a perda de dados por conflito de versão.
+  async saveActiveWithRetry(maxTries) {
+    maxTries = maxTries || 4;
+    const id = ProfileManager.getActiveProfileId();
+    if (!id || !this.isLoggedIn()) return { skipped: true };
+    for (let attempt = 0; attempt < maxTries; attempt++) {
+      const r = await this.saveActive();
+      if (!r || !r.conflict) return r; // sucesso (ou skipped)
+      // conflito → busca a rev real da nuvem, alinha localmente e tenta de novo (empurra o local)
+      let currentRev = null;
+      try { currentRev = await this._fetchRev(id); } catch (e) { return { conflict: true, error: e }; }
+      if (currentRev == null) return { conflict: true };
+      ProfileManager.setRev(id, currentRev);
+    }
+    return { conflict: true };
+  },
   async deleteRow(id) { const { error } = await this.client.from(this.TABLE).delete().eq('id', id); if (error) throw error; },
 
   notifyChange() {
@@ -8345,8 +8368,8 @@ const CloudStore = {
   async autoSave() {
     if (window.CloudUI) CloudUI.setStatus('syncing', 'Sincronizando...');
     try {
-      const r = await this.saveActive();
-      if (r && r.conflict) { await this.pullActiveAndReload(); return; }
+      const r = await this.saveActiveWithRetry();
+      if (r && r.conflict) { if (window.CloudUI) CloudUI.setStatus('error', 'Não foi possível sincronizar agora'); return; }
       if (window.CloudUI) CloudUI.setStatus('ok', 'Sincronizado ' + new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }));
     } catch (err) { console.error('autoSave', err); if (window.CloudUI) CloudUI.setStatus('error', 'Falha ao sincronizar (verifique a internet)'); }
   },
@@ -8368,8 +8391,11 @@ const CloudStore = {
     clearTimeout(this._debounce); // cancela qualquer autoSave pendente (vamos salvar já)
     if (this.isReady() && this.isLoggedIn()) {
       try {
-        const r = await this.saveActive();
-        if (r && r.conflict) { await this.pullActiveAndReload(); return; }
+        // retentativa: garante que a ação do usuário chegue à nuvem antes de recarregar
+        const r = await this.saveActiveWithRetry();
+        if (r && r.conflict) {
+          showToast('Aviso: não foi possível confirmar o salvamento na nuvem. Seus dados estão guardados neste dispositivo.');
+        }
       } catch (e) { console.error('saveThenReload', e); showToast('Aviso: não foi possível salvar na nuvem agora. Verifique a internet.'); }
     }
     location.reload();
