@@ -116,7 +116,7 @@
   .theme-toggle {
     flex-shrink: 0;
     width: 32px; height: 32px;
-    border-radius: 9px;
+    border-radius: 12px;
     border: 1.5px solid var(--border);
     background: var(--surface-sunken);
     cursor: pointer;
@@ -151,6 +151,18 @@
     margin: 0;
     line-height: 1.2;
   }
+  .brand-title { display: flex; align-items: center; gap: 10px; }
+  .brand-logo {
+    flex-shrink: 0;
+    width: 34px; height: 34px;
+    display: flex; align-items: center; justify-content: center;
+    color: #fff;
+    background: linear-gradient(135deg, var(--accent), var(--accent-hover));
+    border-radius: 12px;
+    box-shadow: 0 3px 10px var(--accent-ring);
+  }
+  .brand-logo svg { width: 20px; height: 20px; }
+  .brand-title span:last-child { min-width: 0; }
   /* ---------- Seletor de planejamento (workspace) ---------- */
   .plan-switcher { position: relative; margin-top: 14px; }
   .plan-switcher-btn {
@@ -161,7 +173,7 @@
     gap: 8px;
     background: var(--surface-sunken);
     border: 1.5px solid var(--border);
-    border-radius: 10px;
+    border-radius: 12px;
     padding: 9px 11px;
     cursor: pointer;
     text-align: left;
@@ -240,7 +252,7 @@
   .plan-card {
     background: var(--surface);
     border: 1px solid var(--border);
-    border-radius: 14px;
+    border-radius: 16px;
     box-shadow: var(--shadow-sm);
     padding: 18px 22px;
     margin-bottom: 14px;
@@ -262,14 +274,14 @@
   .plan-stat .label { font-size: 10px; color: var(--text-faint); text-transform: uppercase; letter-spacing: 0.03em; margin-top: 2px; }
   .plan-card-actions { display: flex; gap: 8px; flex-wrap: wrap; }
   /* Caixa de opções ao aproveitar estrutura */
-  .copy-options { background: var(--surface-sunken); border: 1.5px solid var(--border); border-radius: 10px; padding: 12px 14px; margin-bottom: 16px; }
+  .copy-options { background: var(--surface-sunken); border: 1.5px solid var(--border); border-radius: 12px; padding: 12px 14px; margin-bottom: 16px; }
   .copy-options .co-title { font-size: 11px; font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase; color: var(--text-faint); margin-bottom: 10px; }
   .co-check { display: flex; align-items: center; gap: 9px; padding: 6px 0; font-size: 13px; font-weight: 500; color: var(--text); cursor: pointer; }
   .co-check input { width: auto; margin: 0; }
   /* Alternador de escopo (este planejamento / todos) */
-  .scope-toggle { display: inline-flex; background: var(--surface-sunken); border: 1.5px solid var(--border); border-radius: 9px; padding: 3px; gap: 3px; }
+  .scope-toggle { display: inline-flex; background: var(--surface-sunken); border: 1.5px solid var(--border); border-radius: 12px; padding: 3px; gap: 3px; }
   .scope-toggle button {
-    background: transparent; border: none; border-radius: 7px; padding: 7px 12px;
+    background: transparent; border: none; border-radius: 8px; padding: 7px 12px;
     font-size: 12.5px; font-weight: 700; color: var(--text-soft); cursor: pointer; white-space: nowrap;
   }
   .scope-toggle button.active { background: var(--accent); color: #fff; box-shadow: var(--shadow-sm); }
@@ -310,9 +322,19 @@
   }
   .tab .tab-icon { font-size: 15px; width: 18px; text-align: center; flex-shrink: 0; }
   .tab:hover { color: var(--text); background: var(--surface-sunken); }
+  .tab { position: relative; }
   .tab.active {
     color: var(--accent);
     background: var(--accent-soft);
+  }
+  .tab.active::before {
+    content: '';
+    position: absolute;
+    left: 0; top: 50%;
+    height: 60%; width: 3px;
+    transform: translateY(-50%);
+    background: var(--accent);
+    border-radius: 0 3px 3px 0;
   }
 
   .sidebar-footer {
@@ -337,7 +359,7 @@
     max-width: 1180px;
   }
 
-  .page-header { margin-bottom: 8px; }
+  .page-header { margin-bottom: 12px; }
   .page-header h2.page-title {
     font-size: 26px;
     font-weight: 800;
@@ -353,7 +375,14 @@
   }
 
   .screen { display: none; }
-  .screen.active { display: block; }
+  .screen.active { display: block; animation: screen-in 0.32s cubic-bezier(0.22, 1, 0.36, 1); }
+  @keyframes screen-in {
+    from { opacity: 0; transform: translateY(8px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .screen.active { animation: none; }
+  }
 
   /* Mobile: sidebar colapsa para barra superior simples */
   @media (max-width: 860px) {
@@ -414,7 +443,7 @@
     color: var(--text);
     background: var(--surface-sunken);
     border: 1.5px solid var(--border);
-    border-radius: 9px;
+    border-radius: 12px;
     padding: 10px 12px;
     transition: border-color 0.15s ease, box-shadow 0.15s ease, background 0.15s ease;
   }
@@ -532,7 +561,7 @@
     font-size: 14px;
     color: #fff;
     background: var(--accent);
-    border-radius: 9px;
+    border-radius: 12px;
     padding: 11px 22px;
     transition: background 0.15s ease, transform 0.1s ease, box-shadow 0.15s ease;
     box-shadow: var(--shadow-sm);
@@ -546,7 +575,7 @@
     color: var(--text-soft);
     background: var(--surface-sunken);
     border: 1.5px solid var(--border);
-    border-radius: 9px;
+    border-radius: 12px;
     padding: 9px 16px;
     transition: border-color 0.15s ease, color 0.15s ease;
   }
@@ -572,7 +601,7 @@
     font-size: 13.5px;
     font-weight: 500;
     padding: 11px 18px;
-    border-radius: 10px;
+    border-radius: 12px;
     box-shadow: var(--shadow-lg);
     opacity: 0;
     pointer-events: none;
@@ -638,7 +667,7 @@
     font-size: 11px;
     font-weight: 600;
     padding: 3px 9px;
-    border-radius: 6px;
+    border-radius: 8px;
     white-space: nowrap;
   }
   .meta-badge.badge-method {
@@ -727,7 +756,7 @@
     font-size: 18px;
     line-height: 1;
     padding: 8px;
-    border-radius: 6px;
+    border-radius: 8px;
   }
   .cycle-subject-row .remove-btn:hover { color: var(--bad); background: var(--bad-soft); }
 
@@ -818,7 +847,7 @@
     font-size: 11px;
     font-weight: 600;
     padding: 5px 8px;
-    border-radius: 6px;
+    border-radius: 8px;
     text-align: center;
     white-space: nowrap;
   }
@@ -988,7 +1017,7 @@
     padding: 12px;
     background: var(--surface-sunken);
     border: 1.5px dashed var(--border-strong);
-    border-radius: 10px;
+    border-radius: 12px;
     margin-bottom: 14px;
   }
   .grade-chip-tray.drag-active { border-color: var(--accent); background: var(--accent-soft); }
@@ -1029,7 +1058,7 @@
     display: flex;
     align-items: stretch;
     padding: 2px;
-    border-radius: 6px;
+    border-radius: 8px;
     transition: background 0.12s ease, box-shadow 0.12s ease;
   }
   .grade-cell-drop.drag-over { background: var(--accent-soft); box-shadow: inset 0 0 0 1.5px var(--accent); }
@@ -1090,7 +1119,7 @@
     width: 38px;
     border: none;
     background: rgba(255,255,255,0.55);
-    border-radius: 4px;
+    border-radius: 8px;
     font-family: 'Space Mono', monospace;
     font-size: 10px;
     text-align: center;
@@ -1103,7 +1132,7 @@
   .chip-done-toggle {
     width: 18px;
     height: 18px;
-    border-radius: 5px;
+    border-radius: 8px;
     border: 1.5px solid currentColor;
     background: transparent;
     color: inherit;
@@ -1142,7 +1171,7 @@
   .week-card {
     background: var(--surface);
     border: 1px solid var(--border);
-    border-radius: 14px;
+    border-radius: 16px;
     box-shadow: var(--shadow-sm);
     padding: 20px 24px;
     margin-bottom: 16px;
@@ -1186,7 +1215,7 @@
     gap: 8px;
     background: var(--surface-sunken);
     border: 1.5px solid var(--border);
-    border-radius: 9px;
+    border-radius: 12px;
     padding: 9px 14px;
     font-size: 12.5px;
     font-weight: 700;
@@ -1216,7 +1245,7 @@
   .wd-entry-pct .p { font-family: 'Space Mono', monospace; font-size: 11.5px; font-weight: 700; padding: 3px 9px; border-radius: 20px; }
   .wd-entry-pct .c { font-family: 'Space Mono', monospace; font-size: 10px; color: var(--text-faint); }
   /* Grade read-only do histórico */
-  .wd-grade-chip { display: flex; flex-direction: column; gap: 2px; background: var(--accent-soft); color: var(--accent); border-radius: 7px; padding: 5px 6px; }
+  .wd-grade-chip { display: flex; flex-direction: column; gap: 2px; background: var(--accent-soft); color: var(--accent); border-radius: 8px; padding: 5px 6px; }
   .wd-grade-chip.done { background: var(--good-soft); color: var(--good); }
   .wd-grade-chip .acr { font-size: 11px; font-weight: 700; display: flex; align-items: center; justify-content: space-between; gap: 4px; }
   .wd-grade-chip .min { font-family: 'Space Mono', monospace; font-size: 9.5px; opacity: 0.85; }
@@ -1230,7 +1259,7 @@
   .evo-stat-card {
     background: var(--surface);
     border: 1px solid var(--border);
-    border-radius: 14px;
+    border-radius: 16px;
     box-shadow: var(--shadow-sm);
     padding: 18px 18px;
   }
@@ -1268,7 +1297,7 @@
   .en-subject-sidebar {
     background: var(--surface);
     border: 1px solid var(--border);
-    border-radius: 14px;
+    border-radius: 16px;
     box-shadow: var(--shadow-sm);
     overflow: hidden;
     position: sticky;
@@ -1335,13 +1364,13 @@
     flex: 1;
     height: 4px;
     background: var(--border);
-    border-radius: 4px;
+    border-radius: 8px;
     overflow: hidden;
   }
   .en-subject-progress-fill {
     height: 100%;
     background: var(--accent);
-    border-radius: 4px;
+    border-radius: 8px;
   }
   .en-subject-progress-fill.complete { background: var(--good); }
   .en-subject-progress-text {
@@ -1421,7 +1450,7 @@
     padding: 5px 8px;
     width: 100%;
     color: var(--text);
-    border-radius: 7px;
+    border-radius: 8px;
     transition: background 0.12s ease, border-color 0.12s ease;
   }
   .track-lesson-text:hover { border-color: var(--border); background: var(--surface-sunken); }
@@ -1431,7 +1460,7 @@
     font-size: 11.5px;
     font-weight: 700;
     padding: 6px 8px;
-    border-radius: 6px;
+    border-radius: 8px;
     border: 1.5px solid transparent;
     cursor: pointer;
     text-align: center;
@@ -1448,7 +1477,7 @@
     text-align: center;
     padding: 6px 4px;
     border: 1px solid var(--border);
-    border-radius: 6px;
+    border-radius: 8px;
     background: var(--surface-sunken);
     width: 100%;
   }
@@ -1459,7 +1488,7 @@
     color: var(--text-faint);
     font-size: 15px;
     padding: 4px 6px;
-    border-radius: 5px;
+    border-radius: 8px;
     text-align: center;
   }
   .track-remove-btn:hover { background: var(--bad-soft); color: var(--bad); }
@@ -1472,7 +1501,7 @@
     margin: 0 28px 12px;
     background: linear-gradient(180deg, #fdf2d6, #fdf6e3);
     border: 1.5px solid #f0dfa8;
-    border-radius: 10px;
+    border-radius: 12px;
     box-shadow: var(--shadow-sm);
   }
   .track-checkpoint-row .drag-handle { flex-shrink: 0; }
@@ -1556,7 +1585,7 @@
     background: transparent;
     color: var(--text-faint);
     padding: 6px 8px;
-    border-radius: 6px;
+    border-radius: 8px;
     font-size: 12px;
     font-weight: 600;
   }
@@ -1605,7 +1634,7 @@
     background: var(--surface-sunken);
     border: 1px solid var(--border);
     padding: 2px 7px;
-    border-radius: 10px;
+    border-radius: 12px;
   }
 
   /* ---------- Configurações: Status do Estudo Novo ---------- */
@@ -1631,7 +1660,7 @@
   .cfg-status-name:hover { border-color: var(--border-strong); }
   .cfg-status-name:focus { outline: none; background: var(--surface); border-color: var(--accent); box-shadow: 0 0 0 4px var(--accent-ring); }
   .status-preview {
-    font-size: 11.5px; font-weight: 700; padding: 6px 12px; border-radius: 6px;
+    font-size: 11.5px; font-weight: 700; padding: 6px 12px; border-radius: 8px;
     border: 1.5px solid; white-space: nowrap; text-align: center; min-width: 92px;
   }
   .status-swatches { display: flex; gap: 5px; }
@@ -1645,7 +1674,7 @@
   .status-done-toggle input { width: auto; margin: 0; }
   .status-done-badge {
     font-size: 9px; font-weight: 700; letter-spacing: 0.03em; text-transform: uppercase;
-    color: var(--good); background: var(--good-soft); padding: 2px 7px; border-radius: 10px; white-space: nowrap;
+    color: var(--good); background: var(--good-soft); padding: 2px 7px; border-radius: 12px; white-space: nowrap;
   }
   @media (max-width: 640px) {
     .config-status-row { grid-template-columns: 1fr auto; grid-auto-rows: auto; }
@@ -1658,7 +1687,7 @@
     padding: 16px 18px;
     background: linear-gradient(180deg, var(--accent-soft), var(--surface) 92%);
     border: 1.5px solid var(--border);
-    border-radius: 14px;
+    border-radius: 16px;
     box-shadow: var(--shadow-sm);
   }
   .track-averages-title {
@@ -1677,7 +1706,7 @@
   .track-avg-card {
     background: var(--surface);
     border: 1.5px solid var(--border);
-    border-radius: 10px;
+    border-radius: 12px;
     padding: 12px 14px;
     text-align: center;
     box-shadow: var(--shadow-sm);
@@ -1697,7 +1726,7 @@
     margin: 0 28px 12px;
     padding: 12px;
     border: 1.5px solid var(--border);
-    border-radius: 14px;
+    border-radius: 16px;
     background: var(--surface-sunken);
   }
   .track-segment-head {
@@ -1716,7 +1745,7 @@
     background: var(--surface);
     border: 1px solid var(--border);
     border-left: 3px solid var(--lesson-accent, var(--border-strong));
-    border-radius: 10px;
+    border-radius: 12px;
     box-shadow: var(--shadow-sm);
     margin-bottom: 10px;
     transition: box-shadow 0.12s ease, border-color 0.12s ease;
@@ -1742,7 +1771,7 @@
   .track-stage {
     background: var(--surface-sunken);
     border: 1px solid var(--border);
-    border-radius: 9px;
+    border-radius: 12px;
     padding: 8px 10px;
   }
   .track-card:hover .track-stage { background: var(--surface); }
@@ -1752,7 +1781,7 @@
   }
   .ts-inputs { display: flex; align-items: center; gap: 5px; }
   .ts-num {
-    width: 46px; text-align: center; padding: 6px 4px; border-radius: 6px;
+    width: 46px; text-align: center; padding: 6px 4px; border-radius: 8px;
     border: 1px solid var(--border); background: var(--surface);
     font-family: 'Space Mono', monospace; font-size: 12px; color: var(--text);
   }
@@ -1806,7 +1835,7 @@
   /* ---------- Ferramentas (Estimativa de Tempo + Seleção de Matérias) ---------- */
   .tool-tabs { display: flex; gap: 6px; margin: 20px 0 4px; flex-wrap: wrap; }
   .tool-tab {
-    background: var(--surface); border: 1.5px solid var(--border); border-radius: 10px;
+    background: var(--surface); border: 1.5px solid var(--border); border-radius: 12px;
     padding: 10px 16px; font-size: 13.5px; font-weight: 700; color: var(--text-soft); cursor: pointer;
     transition: border-color 0.15s ease, color 0.15s ease, background 0.15s ease;
   }
@@ -1841,7 +1870,7 @@
   }
   .edital-col-head .edital-remove {
     background: transparent; border: none; color: var(--text-faint); font-size: 16px; cursor: pointer;
-    padding: 4px 6px; border-radius: 6px;
+    padding: 4px 6px; border-radius: 8px;
   }
   .edital-col-head .edital-remove:hover { background: var(--bad-soft); color: var(--bad); }
   .edital-col textarea {
@@ -1875,7 +1904,7 @@
   .track-comment-box {
     width: 100%; margin-top: 6px; min-height: 54px; resize: vertical;
     font-size: 12.5px; line-height: 1.5; padding: 9px 11px;
-    border: 1.5px solid var(--border); border-radius: 9px; background: var(--surface-sunken);
+    border: 1.5px solid var(--border); border-radius: 12px; background: var(--surface-sunken);
     font-family: 'Inter', sans-serif; color: var(--text);
   }
   .track-comment-box:hover { border-color: var(--border-strong); }
@@ -1913,7 +1942,7 @@
 
   /* ---------- Desempenho TEC ---------- */
   .tec-total-card {
-    background: var(--surface); border: 1.5px solid var(--border); border-radius: 14px;
+    background: var(--surface); border: 1.5px solid var(--border); border-radius: 16px;
     box-shadow: var(--shadow-sm); padding: 16px 18px; text-align: center;
   }
   .tec-total-card.hero { background: linear-gradient(180deg, var(--accent-soft), var(--surface) 92%); border-color: var(--accent); }
@@ -1991,14 +2020,14 @@
   .tec-topic-fill.tone-warn { background: var(--warn); }
   .tec-topic-fill.tone-bad { background: var(--bad); }
   .tec-topic-pct { font-family: 'Space Mono', monospace; font-size: 11px; text-align: right; color: var(--text-soft); }
-  .tec-delta { font-size: 10.5px; font-weight: 700; padding: 2px 7px; border-radius: 10px; margin-left: 8px; white-space: nowrap; }
+  .tec-delta { font-size: 10.5px; font-weight: 700; padding: 2px 7px; border-radius: 12px; margin-left: 8px; white-space: nowrap; }
   .tec-delta.up { color: var(--good); background: var(--good-soft); }
   .tec-delta.down { color: var(--bad); background: var(--bad-soft); }
   .tec-delta.flat { color: var(--text-faint); background: var(--surface-sunken); }
   /* Árvore em cascata (disciplina → tópico → subtópico → ...) */
   /* Card de foco quando uma disciplina é filtrada */
   .tec-focus-card {
-    margin: 4px 24px 0; padding: 16px 18px; border-radius: 14px;
+    margin: 4px 24px 0; padding: 16px 18px; border-radius: 16px;
     background: linear-gradient(180deg, var(--accent-soft), var(--surface) 92%);
     border: 1.5px solid var(--accent);
   }
@@ -2009,7 +2038,7 @@
   .tec-focus-fill.tone-warn { background: var(--warn); }
   .tec-focus-fill.tone-bad { background: var(--bad); }
   .tec-focus-stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-top: 14px; }
-  .tfs { display: flex; flex-direction: column; align-items: center; text-align: center; background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 10px 6px; }
+  .tfs { display: flex; flex-direction: column; align-items: center; text-align: center; background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 10px 6px; }
   .tfs-val { font-family: 'Space Mono', monospace; font-weight: 800; font-size: 20px; color: var(--text); line-height: 1; }
   .tfs-val.tone-good { color: var(--good); }
   .tfs-val.tone-warn { color: var(--warn); }
@@ -2088,7 +2117,7 @@
   .evo-day-axis span { flex: 1; text-align: center; font-family: 'Space Mono', monospace; font-size: 8.5px; color: var(--text-faint); overflow: hidden; white-space: nowrap; }
   .evo-legend { display: flex; flex-wrap: wrap; gap: 10px 16px; padding: 12px 24px 4px; }
   .evo-legend-item { display: inline-flex; align-items: center; gap: 6px; font-size: 11.5px; font-weight: 600; color: var(--text-soft); }
-  .evo-legend-swatch { width: 12px; height: 3px; border-radius: 2px; }
+  .evo-legend-swatch { width: 12px; height: 3px; border-radius: 8px; }
   .evo-empty-mini { color: var(--text-faint); font-size: 13px; text-align: center; padding: 40px 8px; }
   /* Ritmo de estudo */
   .ritmo-table { width: 100%; border-collapse: collapse; }
@@ -2101,13 +2130,13 @@
   .ritmo-section td {
     font-size: 10.5px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase;
     color: var(--text-faint); background: var(--surface-sunken); padding: 8px 10px !important;
-    border-radius: 6px; border-bottom: none !important;
+    border-radius: 8px; border-bottom: none !important;
   }
   .ritmo-total td { font-weight: 700; }
   .ritmo-total .rk { color: var(--text); font-weight: 700; }
   .ritmo-total .rv { font-size: 14px; color: var(--accent); }
   .ritmo-highlight {
-    margin-top: 22px; padding: 20px; border-radius: 14px;
+    margin-top: 22px; padding: 20px; border-radius: 16px;
     background: linear-gradient(180deg, var(--accent-soft), var(--surface) 92%);
     border: 1.5px solid var(--accent);
   }
@@ -2131,13 +2160,13 @@
   .acm-chart { display: flex; flex-direction: column; gap: 4px; }
   .acm-row { display: grid; grid-template-columns: 150px 1fr 96px; align-items: center; gap: 14px; padding: 6px 0; }
   .acm-name { font-size: 12.5px; font-weight: 600; color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .acm-track { position: relative; height: 20px; background: var(--surface-sunken); border: 1px solid var(--border); border-radius: 6px; overflow: visible; }
+  .acm-track { position: relative; height: 20px; background: var(--surface-sunken); border: 1px solid var(--border); border-radius: 8px; overflow: visible; }
   .acm-fill { height: 100%; border-radius: 6px 0 0 6px; transition: width 0.5s ease; }
   .acm-ref { position: absolute; top: -5px; bottom: -5px; width: 2px; opacity: 0.9; z-index: 2; }
   .acm-ref-tag {
     position: absolute; top: -18px; left: 50%; transform: translateX(-50%);
     font-family: 'Space Mono', monospace; font-size: 8.5px; font-weight: 700; color: #fff;
-    padding: 1px 4px; border-radius: 4px; white-space: nowrap;
+    padding: 1px 4px; border-radius: 8px; white-space: nowrap;
   }
   .acm-row:not(:first-child) .acm-ref-tag { display: none; }
   .acm-val { font-family: 'Space Mono', monospace; font-weight: 700; font-size: 13px; text-align: right; }
@@ -2154,7 +2183,7 @@
   .tpm-val { display: flex; align-items: center; justify-content: flex-end; gap: 8px; }
   .tpm-hours {
     font-family: 'Space Mono', monospace; font-weight: 700; font-size: 13.5px; color: var(--accent);
-    background: var(--accent-soft); border-radius: 6px; padding: 4px 9px; white-space: nowrap;
+    background: var(--accent-soft); border-radius: 8px; padding: 4px 9px; white-space: nowrap;
   }
   .tpm-pct { font-family: 'Space Mono', monospace; font-size: 11px; color: var(--text-faint); min-width: 30px; text-align: right; }
   @media (max-width: 560px) {
@@ -2174,7 +2203,7 @@
   .profile-gate-brand p { color: var(--text-soft); font-size: 14.5px; margin: 8px 0 0; }
   .profile-grid { display: flex; flex-wrap: wrap; gap: 18px; justify-content: center; }
   .profile-card {
-    width: 148px; padding: 20px 14px; border-radius: 18px; cursor: pointer;
+    width: 148px; padding: 20px 14px; border-radius: 16px; cursor: pointer;
     background: var(--surface); border: 1.5px solid var(--border); box-shadow: var(--shadow-sm);
     transition: transform 0.15s ease, box-shadow 0.15s ease, border-color 0.15s ease;
     display: flex; flex-direction: column; align-items: center; gap: 10px; position: relative;
@@ -2201,7 +2230,7 @@
   .profile-gate-note { font-size: 11.5px; color: var(--text-faint); margin-top: 30px; max-width: 52ch; margin-left: auto; margin-right: auto; line-height: 1.5; }
   .gate-login-box {
     max-width: 380px; margin: 0 auto; background: var(--surface);
-    border: 1.5px solid var(--border); border-radius: 18px; box-shadow: var(--shadow-md);
+    border: 1.5px solid var(--border); border-radius: 16px; box-shadow: var(--shadow-md);
     padding: 26px 24px; text-align: left;
   }
   /* indicador de conexão com o servidor */
@@ -2219,7 +2248,7 @@
   /* caixa de alerta do login (sempre visível, não é um hint discreto) */
   .gate-alert {
     display: none; font-size: 12.5px; font-weight: 600; line-height: 1.45;
-    padding: 10px 12px; border-radius: 10px; margin: 12px 0 4px; border: 1.5px solid;
+    padding: 10px 12px; border-radius: 12px; margin: 12px 0 4px; border: 1.5px solid;
   }
   .gate-alert.bad { background: var(--bad-soft); border-color: #f5c1c3; color: #b3282e; }
   .gate-alert.warn { background: var(--warn-soft); border-color: #f5d5a3; color: #9a5a12; }
@@ -2227,12 +2256,12 @@
   .gate-alert.info { background: var(--accent-soft); border-color: var(--accent); color: var(--accent); }
   /* Modais da tela de acesso */
   .profile-modal { position: fixed; inset: 0; z-index: 510; background: rgba(20,22,26,0.45); display: flex; align-items: center; justify-content: center; padding: 20px; }
-  .profile-modal-box { width: 100%; max-width: 440px; background: var(--surface); border-radius: 18px; box-shadow: var(--shadow-lg); padding: 24px; }
+  .profile-modal-box { width: 100%; max-width: 440px; background: var(--surface); border-radius: 16px; box-shadow: var(--shadow-lg); padding: 24px; }
   .profile-modal-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; }
   .profile-modal-head h2 { font-size: 18px; font-weight: 800; margin: 0; }
   .pf-avatar-grid { display: flex; flex-wrap: wrap; gap: 8px; }
   .pf-avatar-opt {
-    width: 40px; height: 40px; border-radius: 10px; border: 1.5px solid var(--border); background: var(--surface-sunken);
+    width: 40px; height: 40px; border-radius: 12px; border: 1.5px solid var(--border); background: var(--surface-sunken);
     font-size: 20px; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: all 0.12s ease;
   }
   .pf-avatar-opt:hover { border-color: var(--border-strong); }
@@ -2255,7 +2284,7 @@
   /* ---------- Sincronização na nuvem ---------- */
   .cloud-auth-tabs { display: flex; gap: 6px; margin-bottom: 16px; }
   .cloud-auth-tab {
-    flex: 1; background: var(--surface-sunken); border: 1.5px solid var(--border); border-radius: 9px;
+    flex: 1; background: var(--surface-sunken); border: 1.5px solid var(--border); border-radius: 12px;
     padding: 9px; font-size: 13px; font-weight: 700; color: var(--text-soft); cursor: pointer;
     transition: all 0.12s ease;
   }
@@ -2268,13 +2297,191 @@
   .cloud-status-sub.error .dot { background: var(--bad); box-shadow: 0 0 0 3px var(--bad-soft); }
   .cloud-slot-row {
     display: flex; align-items: center; justify-content: space-between; gap: 10px;
-    padding: 10px 12px; border: 1px solid var(--border); border-radius: 10px; background: var(--surface-sunken);
+    padding: 10px 12px; border: 1px solid var(--border); border-radius: 12px; background: var(--surface-sunken);
     margin-bottom: 8px;
   }
   .cloud-slot-row:last-child { margin-bottom: 0; }
   .cloud-slot-info .name { font-size: 13px; font-weight: 700; color: var(--text); }
   .cloud-slot-info .meta { font-size: 10.5px; color: var(--text-faint); margin-top: 2px; font-family: 'Space Mono', monospace; }
   .cloud-slot-actions { display: flex; gap: 6px; }
+
+
+  /* ============================================================
+     REFINO UX v46 — Configurações, Registrar e Grade da Semana
+     Somente CSS/HTML visual: não altera regras de negócio.
+     ============================================================ */
+
+  /* Grade da semana: evita sobreposição do texto "min" com o check */
+  .chip-bottom-row {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 8px;
+  }
+  .chip-duration-wrap {
+    display: inline-flex;
+    align-items: center;
+    justify-content: flex-start;
+    gap: 3px;
+    min-width: 0;
+    max-width: 100%;
+  }
+  .chip-duration-input {
+    width: 44px;
+    min-width: 44px;
+    height: 22px;
+    line-height: 1;
+    box-sizing: border-box;
+  }
+  .chip-duration-unit {
+    font-size: 9.5px;
+    margin-left: 0;
+    white-space: nowrap;
+    flex-shrink: 0;
+  }
+  .grade-cell-drop .subject-chip {
+    min-width: 0;
+    overflow: hidden;
+  }
+  .chip-done-toggle {
+    justify-self: end;
+  }
+
+  /* Registrar: aparência mais clara, agradável e guiada */
+  #screen-registrar .card {
+    border-color: color-mix(in srgb, var(--border) 80%, var(--accent) 20%);
+  }
+  #screen-registrar form,
+  #screen-registrar .form-grid {
+    gap: 16px;
+  }
+  #screen-registrar .field label {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 11px;
+    font-weight: 800;
+    letter-spacing: 0.045em;
+    text-transform: uppercase;
+    color: var(--text-soft);
+  }
+  #screen-registrar input,
+  #screen-registrar select,
+  #screen-registrar textarea {
+    background: var(--surface-sunken);
+    border-width: 1.5px;
+  }
+  #screen-registrar input:focus,
+  #screen-registrar select:focus,
+  #screen-registrar textarea:focus {
+    background: var(--surface);
+  }
+  #screen-registrar .submit-row {
+    padding-top: 4px;
+  }
+  #screen-registrar .btn-primary {
+    box-shadow: 0 6px 18px var(--accent-ring);
+  }
+
+  /* Configurações: painel mais didático e legível */
+  #screen-config .card {
+    border-color: color-mix(in srgb, var(--border) 86%, var(--accent) 14%);
+    overflow: hidden;
+  }
+  #screen-config .card-header {
+    background: linear-gradient(180deg, var(--surface) 0%, var(--surface-sunken) 100%);
+    border-bottom: 1px solid var(--border);
+  }
+  #screen-config .card-header h2 {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  #screen-config .sub {
+    max-width: 78ch;
+    line-height: 1.55;
+  }
+  #screen-config .config-add-row {
+    background: var(--surface-sunken);
+    border: 1.5px dashed var(--border-strong);
+    border-radius: 12px;
+    padding: 12px;
+    margin-top: 14px;
+  }
+  #screen-config .config-add-row input {
+    background: var(--surface);
+  }
+
+  /* Linhas de Configurações: hierarquia e feedback visual */
+  #screen-config .config-subject-row,
+  #screen-config .config-method-row,
+  #screen-config .config-phase-row,
+  #screen-config .config-status-row,
+  #screen-config .config-mode-row,
+  #screen-config .cfg-row,
+  #screen-config .config-item {
+    border-radius: 12px;
+    border-color: var(--border);
+    background: var(--surface);
+    transition: border-color 0.16s ease, background 0.16s ease, box-shadow 0.16s ease, transform 0.16s ease;
+  }
+  #screen-config .config-subject-row:hover,
+  #screen-config .config-method-row:hover,
+  #screen-config .config-phase-row:hover,
+  #screen-config .config-status-row:hover,
+  #screen-config .config-mode-row:hover,
+  #screen-config .cfg-row:hover,
+  #screen-config .config-item:hover {
+    border-color: var(--border-strong);
+    box-shadow: var(--shadow-sm);
+  }
+  #screen-config .inactive,
+  #screen-config .config-subject-row.inactive,
+  #screen-config .config-method-row.inactive,
+  #screen-config .config-phase-row.inactive,
+  #screen-config .config-status-row.inactive,
+  #screen-config .config-mode-row.inactive {
+    background: color-mix(in srgb, var(--surface-sunken) 82%, var(--surface) 18%);
+    opacity: 0.82;
+  }
+
+  /* Status do Estudo Novo: texto formal e badge mais bem-acabada */
+  .status-done-toggle {
+    gap: 8px;
+    font-size: 12px;
+    font-weight: 700;
+    color: var(--text-soft);
+    border: 1px solid var(--border);
+    background: var(--surface-sunken);
+    padding: 7px 10px;
+    border-radius: 20px;
+  }
+  .status-done-toggle:hover {
+    border-color: var(--good);
+    color: var(--good);
+    background: var(--good-soft);
+  }
+  .status-done-toggle input {
+    accent-color: var(--good);
+  }
+  .status-done-badge {
+    font-size: 10.5px;
+    font-weight: 800;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: var(--good);
+    background: var(--good-soft);
+    border: 1px solid color-mix(in srgb, var(--good) 35%, transparent);
+    padding: 4px 8px;
+    border-radius: 20px;
+  }
+
+  @media (max-width: 720px) {
+    .chip-duration-input { width: 40px; min-width: 40px; }
+    .chip-duration-unit { font-size: 9px; }
+    #screen-config .config-add-row { padding: 10px; }
+  }
+
 </style>
 </head>
 <body>
@@ -2399,7 +2606,17 @@
           <span class="theme-toggle-icon">🌙</span>
         </button>
       </div>
-      <h1>Diário de Estudos</h1>
+      <h1 class="brand-title">
+        <span class="brand-logo" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <path d="M5 4.5A2.5 2.5 0 0 1 7.5 2H19a1 1 0 0 1 1 1v15a1 1 0 0 1-1 1H7.5A2.5 2.5 0 0 0 5 21.5V4.5Z" fill="currentColor" opacity="0.16"/>
+            <path d="M5 4.5A2.5 2.5 0 0 1 7.5 2H19a1 1 0 0 1 1 1v15a1 1 0 0 1-1 1H7.5A2.5 2.5 0 0 0 5 21.5V4.5Z" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/>
+            <path d="M5 18.5A2.5 2.5 0 0 1 7.5 16H20" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/>
+            <path d="M9 7h7M9 10h5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>
+          </svg>
+        </span>
+        <span>Diário de Estudos</span>
+      </h1>
       <div class="plan-switcher" id="plan-switcher">
         <button type="button" class="plan-switcher-btn" id="plan-switcher-btn">
           <span class="plan-switcher-label">
@@ -5259,7 +5476,7 @@ function planCycleMode() {
           <button type="button" class="chip-remove" title="Remover desta célula">×</button>
         </div>
         <div class="chip-bottom-row">
-          <span><input type="number" class="chip-duration-input" min="5" step="5" value="${minutes}" title="Duração em minutos"><span class="chip-duration-unit">min</span></span>
+          <span class="chip-duration-wrap"><input type="number" class="chip-duration-input" min="5" step="5" value="${minutes}" title="Duração em minutos"><span class="chip-duration-unit">min</span></span>
           <button type="button" class="chip-done-toggle" title="${done ? 'Marcar como não concluída' : 'Marcar como concluída'}">${CHECK_ICON}</button>
         </div>
       </div>
@@ -7042,10 +7259,10 @@ const ConfigScreen = {
         </div>
         <label class="status-done-toggle" title="Aulas com este status contam como concluídas no progresso">
           <input type="checkbox" class="cfg-status-done" ${s.done ? 'checked' : ''} ${s.ativo ? '' : 'disabled'}>
-          conclui
+          <span>Conta como concluída</span>
         </label>
         <div class="config-row-actions">
-          ${s.done ? '<span class="status-done-badge">concluída</span>' : ''}
+          ${s.done ? '<span class="status-done-badge">Concluída</span>' : ''}
           ${s.ativo ? '' : '<span class="inactive-tag">inativo</span>'}
           <button type="button" class="toggle-switch ${s.ativo ? 'on' : ''}" title="${s.ativo ? 'Desativar' : 'Reativar'}"></button>
           <button type="button" class="icon-btn danger btn-delete-status" title="Excluir">×</button>
