@@ -7842,7 +7842,7 @@ const PlanUI = {
         const id = btn.dataset.id;
         if (id === PlanManager.getActivePlanId()) { this.closeMenu(); return; }
         PlanManager.setActivePlan(id);
-        location.reload(); // recarrega para todas as telas lerem o novo namespace
+        CloudStore.saveThenReload(); // salva na nuvem antes de recarregar
       });
     });
   },
@@ -7911,7 +7911,7 @@ const PlanUI = {
       const openBtn = card.querySelector('.btn-open-plan');
       if (openBtn) openBtn.addEventListener('click', () => {
         PlanManager.setActivePlan(id);
-        location.reload();
+        CloudStore.saveThenReload();
       });
       card.querySelector('.btn-rename-plan').addEventListener('click', () => {
         const p = PlanManager.getPlans().find(x => x.id === id);
@@ -7934,7 +7934,7 @@ const PlanUI = {
         if (!confirm(`Excluir o planejamento "${p.nome}"?\n\nTodos os seus dados (${entries} registro(s), matérias, ciclos, histórico e trilhas) serão apagados permanentemente. Esta ação não pode ser desfeita.`)) return;
         const wasActive = PlanManager.getActivePlanId() === id;
         PlanManager.deletePlan(id);
-        if (wasActive) { location.reload(); return; }
+        if (wasActive) { CloudStore.saveThenReload(); return; }
         this.renderScreen();
         this.renderSidebar();
         showToast('Planejamento excluído');
@@ -7958,9 +7958,10 @@ const PlanUI = {
     } else {
       newId = PlanManager.createPlan({ nome, tipo });
     }
-    // ativa o novo planejamento e recarrega para as telas assumirem o novo namespace
+    // ativa o novo planejamento e SALVA NA NUVEM antes de recarregar
     PlanManager.setActivePlan(newId);
-    location.reload();
+    showToast('Salvando planejamento...');
+    CloudStore.saveThenReload();
   }
 };
 
@@ -8360,6 +8361,18 @@ const CloudStore = {
       showToast('Sincronizado da nuvem ✓');
       setTimeout(() => location.reload(), 500);
     } catch (e) { this._applying = false; console.error('pullActiveAndReload', e); }
+  },
+  // Salva o estado atual na nuvem ANTES de recarregar a página. Essencial: sem isto,
+  // o location.reload() cancela o salvamento automático e a alteração se perde na nuvem.
+  async saveThenReload() {
+    clearTimeout(this._debounce); // cancela qualquer autoSave pendente (vamos salvar já)
+    if (this.isReady() && this.isLoggedIn()) {
+      try {
+        const r = await this.saveActive();
+        if (r && r.conflict) { await this.pullActiveAndReload(); return; }
+      } catch (e) { console.error('saveThenReload', e); showToast('Aviso: não foi possível salvar na nuvem agora. Verifique a internet.'); }
+    }
+    location.reload();
   },
 
   subscribeRealtime() {
