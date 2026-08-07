@@ -2146,6 +2146,11 @@
   .profile-card.add .profile-card-avatar { background: var(--border-strong) !important; font-weight: 300; }
   .profile-card.add:hover .profile-card-avatar { background: var(--accent) !important; }
   .profile-gate-note { font-size: 11.5px; color: var(--text-faint); margin-top: 30px; max-width: 52ch; margin-left: auto; margin-right: auto; line-height: 1.5; }
+  .gate-login-box {
+    max-width: 380px; margin: 0 auto; background: var(--surface);
+    border: 1.5px solid var(--border); border-radius: 18px; box-shadow: var(--shadow-md);
+    padding: 26px 24px; text-align: left;
+  }
   /* Modais da tela de acesso */
   .profile-modal { position: fixed; inset: 0; z-index: 510; background: rgba(20,22,26,0.45); display: flex; align-items: center; justify-content: center; padding: 20px; }
   .profile-modal-box { width: 100%; max-width: 440px; background: var(--surface); border-radius: 18px; box-shadow: var(--shadow-lg); padding: 24px; }
@@ -2208,12 +2213,42 @@
       <h1 id="profile-gate-title">Quem vai estudar?</h1>
       <p id="profile-gate-sub">Selecione seu perfil para entrar no seu diário.</p>
     </div>
-    <div id="profile-gate-grid" class="profile-grid"></div>
-    <div style="margin-top:22px;">
-      <button type="button" class="btn-secondary" id="profile-import-btn">⭱ Importar perfil de um backup (.json)</button>
-      <input type="file" id="profile-import-file" accept=".json,application/json" style="display:none;">
+
+    <!-- ETAPA 1: LOGIN (aparece quando não há sessão) -->
+    <div id="gate-login" style="display:none;">
+      <div class="gate-login-box">
+        <div class="cloud-auth-tabs" style="margin-bottom:18px;">
+          <button type="button" class="cloud-auth-tab active" data-gatemode="signin">Entrar</button>
+          <button type="button" class="cloud-auth-tab" data-gatemode="signup">Criar conta</button>
+        </div>
+        <div class="field">
+          <label for="gate-email">E-mail</label>
+          <input type="email" id="gate-email" placeholder="voce@email.com" autocomplete="email">
+        </div>
+        <div class="field">
+          <label for="gate-password">Senha</label>
+          <input type="password" id="gate-password" placeholder="Mínimo 6 caracteres" autocomplete="current-password">
+        </div>
+        <p class="hint" id="gate-auth-msg" style="display:none;"></p>
+        <button type="button" class="btn-primary" id="gate-auth-submit" style="width:100%;">Entrar</button>
+        <p class="hint" id="gate-offline-line" style="margin-top:14px; text-align:center;">
+          Sem internet? <button type="button" id="gate-offline-btn" style="background:none;border:none;color:var(--accent);font-weight:700;cursor:pointer;padding:0;font-size:12px;">Usar offline neste dispositivo</button>
+        </p>
+      </div>
     </div>
-    <p class="profile-gate-note">🔒 Os perfis separam seus dados neste dispositivo. Não é uma autenticação segura — evite usar para dados sensíveis em dispositivos compartilhados.</p>
+
+    <!-- ETAPA 2: PERFIS (aparece quando logado, ou em modo offline) -->
+    <div id="gate-profiles" style="display:none;">
+      <div id="profile-gate-grid" class="profile-grid"></div>
+      <div style="margin-top:22px; display:flex; gap:10px; justify-content:center; flex-wrap:wrap;">
+        <button type="button" class="btn-secondary" id="profile-import-btn">⭱ Importar perfil de um backup (.json)</button>
+        <button type="button" class="btn-secondary" id="gate-logout-btn" style="display:none;">↩ Sair da conta</button>
+        <input type="file" id="profile-import-file" accept=".json,application/json" style="display:none;">
+      </div>
+      <p class="profile-gate-note" id="gate-profiles-note">🔒 Seus perfis e dados ficam vinculados à sua conta e sincronizados na nuvem — aparecem iguais em qualquer dispositivo onde você entrar.</p>
+    </div>
+
+    <p class="profile-gate-note" id="gate-generic-note" style="display:none;">🔒 App de uso pessoal. Seus dados de estudo ficam protegidos pelo seu login.</p>
   </div>
 
   <!-- Modal: criar/editar perfil -->
@@ -3851,6 +3886,22 @@ const ProfileManager = {
     this.saveProfiles(list);
   },
   renameProfile(id, nome) { this.updateProfile(id, { nome: (nome || '').trim() }); },
+  // ---- Helpers usados pela reconciliação com o índice da nuvem ----
+  // Inserem/atualizam/removem perfis SEM disparar novo push (o guard CloudSync._applying cuida disso)
+  _insertRaw({ id, nome, avatar, cor }) {
+    const list = this.getProfiles();
+    if (list.find(p => p.id === id)) return;
+    list.push({ id, nome: nome || 'Perfil', avatar: avatar || '📘', cor: cor || '#4f46e5', pinHash: null, createdAt: new Date().toISOString() });
+    this.saveProfiles(list);
+  },
+  updateProfileSilent(id, patch) { this.updateProfile(id, patch); },
+  _removeRaw(id) {
+    const prefix = 'diario-estudos:u:' + id + ':';
+    const toRemove = [];
+    for (let i = 0; i < localStorage.length; i++) { const k = localStorage.key(i); if (k && k.startsWith(prefix)) toRemove.push(k); }
+    toRemove.forEach(k => localStorage.removeItem(k));
+    this.saveProfiles(this.getProfiles().filter(p => p.id !== id));
+  },
   deleteProfile(id) {
     // apaga TODOS os dados namespaced desse perfil
     const prefix = 'diario-estudos:u:' + id + ':';
@@ -7904,16 +7955,53 @@ const ProfileUI = {
   _draftAvatar: null,
   _draftColor: null,
 
+  _offline: false, // true = usuário optou por usar sem conta neste dispositivo
+
   boot() {
     this.renderChip();
     let entered = null;
     try { entered = sessionStorage.getItem(this.SESSION_KEY); } catch (e) {}
     const active = ProfileManager.getActiveProfileId();
-    if (entered && entered === active) this.hideGate();
-    else this.showGate();
+    // Se já entrou num perfil nesta sessão, vai direto pro app
+    if (entered && entered === active) { this.hideGate(); return; }
+    // Caso contrário, abre o portão — ele decide sozinho (login x perfis) conforme o estado
+    this.showGate();
   },
-  showGate() { this.renderGrid(); document.getElementById('profile-gate').style.display = 'flex'; },
+  isGateOpen() {
+    const g = document.getElementById('profile-gate');
+    return g && g.style.display !== 'none';
+  },
+  // Mostra o portão e escolhe a etapa: LOGIN (se não logado e online) ou PERFIS
+  showGate() {
+    document.getElementById('profile-gate').style.display = 'flex';
+    this.refreshGateStage();
+  },
   hideGate() { document.getElementById('profile-gate').style.display = 'none'; },
+  // Decide qual etapa exibir com base no estado de login
+  refreshGateStage() {
+    const loginEl = document.getElementById('gate-login');
+    const profilesEl = document.getElementById('gate-profiles');
+    const title = document.getElementById('profile-gate-title');
+    const sub = document.getElementById('profile-gate-sub');
+    // usa window.CloudSync (acesso a propriedade nunca dispara TDZ, mesmo se chamado durante o boot)
+    const CS = window.CloudSync;
+    const logged = !!(CS && CS.isReady && CS.isReady() && CS.isLoggedIn());
+    if (!logged && !this._offline) {
+      // etapa de LOGIN
+      loginEl.style.display = 'block';
+      profilesEl.style.display = 'none';
+      title.textContent = 'Entrar na sua conta';
+      sub.textContent = 'Faça login para acessar seus perfis em qualquer dispositivo.';
+    } else {
+      // etapa de PERFIS
+      loginEl.style.display = 'none';
+      profilesEl.style.display = 'block';
+      title.textContent = 'Quem vai estudar?';
+      sub.textContent = 'Selecione seu perfil para entrar no seu diário.';
+      document.getElementById('gate-logout-btn').style.display = logged ? 'inline-block' : 'none';
+      this.renderGrid();
+    }
+  },
 
   renderGrid() {
     const grid = document.getElementById('profile-gate-grid');
@@ -8070,14 +8158,27 @@ const ProfileUI = {
     document.getElementById('profile-modal').style.display = 'none';
     this.renderGrid();
     this.renderChip();
+    this.syncIndexToCloud(); // reflete a mudança de perfis na nuvem (aparece nos outros dispositivos)
+  },
+  // Atualiza o índice de perfis na nuvem (best-effort; nunca bloqueia a UI)
+  syncIndexToCloud() {
+    if (typeof CloudSync !== 'undefined' && CloudSync.isReady() && CloudSync.isLoggedIn()) {
+      CloudSync.pushIndex().catch(err => console.warn('Falha ao sincronizar índice de perfis:', err));
+    }
   },
   deleteCurrent() {
     const id = this._editingId;
     if (!id) return;
     const p = ProfileManager.getProfiles().find(x => x.id === id);
-    if (!confirm(`Excluir o perfil "${p.nome}"?\n\nTODOS os planejamentos, registros, ciclos, trilhas e dados do TEC deste perfil serão apagados permanentemente. Esta ação não pode ser desfeita.`)) return;
+    if (!confirm(`Excluir o perfil "${p.nome}"?\n\nTODOS os planejamentos, registros, ciclos, trilhas e dados do TEC deste perfil serão apagados permanentemente (inclusive na nuvem). Esta ação não pode ser desfeita.`)) return;
+    // remove o dado do perfil na nuvem antes de apagar localmente (best-effort)
+    if (typeof CloudSync !== 'undefined' && CloudSync.isReady() && CloudSync.isLoggedIn()) {
+      const slot = CloudSync.slotForProfile(id);
+      CloudSync.deleteSlot(slot).catch(err => console.warn('Falha ao excluir dado na nuvem:', err));
+    }
     const wasActive = ProfileManager.getActiveProfileId() === id;
     ProfileManager.deleteProfile(id);
+    this.syncIndexToCloud(); // reflete a remoção no índice da nuvem
     document.getElementById('profile-modal').style.display = 'none';
     if (wasActive) { try { sessionStorage.removeItem(this.SESSION_KEY); } catch (e) {} location.reload(); return; }
     this.renderGrid();
@@ -8095,6 +8196,56 @@ const ProfileUI = {
   switchProfile() {
     try { sessionStorage.removeItem(this.SESSION_KEY); } catch (e) {}
     this.showGate();
+  },
+
+  // ---- Login no PORTÃO (etapa 1) ----
+  _gateAuthMode: 'signin',
+  async submitGateAuth() {
+    const email = document.getElementById('gate-email').value.trim();
+    const password = document.getElementById('gate-password').value;
+    const msg = document.getElementById('gate-auth-msg');
+    const show = (t, color) => { msg.textContent = t; msg.style.color = color; msg.style.display = 'block'; };
+    msg.style.display = 'none';
+    if (typeof CloudSync === 'undefined' || !CloudSync.isReady()) {
+      show('Sem conexão com o servidor. Você pode usar offline neste dispositivo.', 'var(--warn)');
+      return;
+    }
+    if (!email || password.length < 6) { show('Informe um e-mail válido e senha com ao menos 6 caracteres.', 'var(--bad)'); return; }
+    const btn = document.getElementById('gate-auth-submit');
+    btn.disabled = true; btn.textContent = 'Aguarde...';
+    try {
+      if (this._gateAuthMode === 'signup') {
+        await CloudSync.signUp(email, password);
+        // alguns projetos exigem confirmar e-mail; se já logou, o onAuthReady avança sozinho
+        if (!CloudSync.isLoggedIn()) show('Conta criada! Se pedir confirmação, verifique seu e-mail e depois entre.', 'var(--good)');
+      } else {
+        await CloudSync.signIn(email, password);
+      }
+      // o onAuthReady cuida de reconciliar perfis e avançar para a etapa de perfis
+    } catch (err) {
+      show(err.message || 'Erro ao autenticar.', 'var(--bad)');
+    } finally {
+      btn.disabled = false; btn.textContent = this._gateAuthMode === 'signup' ? 'Criar conta' : 'Entrar';
+    }
+  },
+  setGateAuthMode(mode) {
+    this._gateAuthMode = mode;
+    document.querySelectorAll('#gate-login .cloud-auth-tab').forEach(t => t.classList.toggle('active', t.dataset.gatemode === mode));
+    document.getElementById('gate-auth-submit').textContent = mode === 'signup' ? 'Criar conta' : 'Entrar';
+    document.getElementById('gate-auth-msg').style.display = 'none';
+  },
+  useOffline() {
+    this._offline = true;
+    this.refreshGateStage();
+    showToast('Modo offline — os dados ficam só neste dispositivo');
+  },
+  async gateLogout() {
+    if (typeof CloudSync !== 'undefined' && CloudSync.isReady() && CloudSync.isLoggedIn()) {
+      try { await CloudSync.signOut(); } catch (e) {}
+    }
+    this._offline = false;
+    try { sessionStorage.removeItem(this.SESSION_KEY); } catch (e) {}
+    this.refreshGateStage();
   }
 };
 
@@ -8114,6 +8265,14 @@ document.getElementById('pin-confirm').addEventListener('click', () => ProfileUI
 document.getElementById('pin-cancel').addEventListener('click', () => document.getElementById('pin-modal').style.display = 'none');
 document.getElementById('pin-input').addEventListener('keydown', (e) => { if (e.key === 'Enter') ProfileUI.confirmPin(); });
 document.getElementById('profile-chip-switch').addEventListener('click', () => ProfileUI.switchProfile());
+// Login no portão
+document.getElementById('gate-auth-submit').addEventListener('click', () => ProfileUI.submitGateAuth());
+document.getElementById('gate-password').addEventListener('keydown', (e) => { if (e.key === 'Enter') ProfileUI.submitGateAuth(); });
+document.querySelectorAll('#gate-login .cloud-auth-tab').forEach(tab => {
+  tab.addEventListener('click', () => ProfileUI.setGateAuthMode(tab.dataset.gatemode));
+});
+document.getElementById('gate-offline-btn').addEventListener('click', () => ProfileUI.useOffline());
+document.getElementById('gate-logout-btn').addEventListener('click', () => ProfileUI.gateLogout());
 
 // inicia a tela de acesso
 ProfileUI.boot();
@@ -8132,8 +8291,10 @@ const CloudSync = {
 
   client: null,
   session: null,
+  channel: null,
+  _applying: false, // true enquanto aplicamos dados vindos da nuvem (evita re-push em loop)
   _debounceTimer: null,
-  DEBOUNCE_MS: 4000,
+  DEBOUNCE_MS: 1500,
   _authMode: 'signin', // 'signin' | 'signup'
 
   init() {
@@ -8157,20 +8318,38 @@ const CloudSync = {
   isReady() { return !!this.client; },
   isLoggedIn() { return !!this.session; },
 
-  onAuthReady() {
+  async onAuthReady() {
     if (window.CloudUI) CloudUI.render();
-    // ao abrir/logar, sincroniza AUTOMATICAMENTE uma vez (a nuvem é a fonte da verdade)
-    if (this.isLoggedIn() && !this._autoSyncDone) {
-      this._autoSyncDone = true;
-      // pequeno atraso para não competir com o carregamento inicial das telas
-      setTimeout(() => this.autoSyncOnLogin(), 700);
+    // Conduz o PORTÃO: se está aberto na etapa de login e agora há sessão, avança para perfis
+    if (window.ProfileUI && ProfileUI.isGateOpen()) ProfileUI.refreshGateStage();
+
+    if (this.isLoggedIn() && !this._loginBootDone) {
+      this._loginBootDone = true;
+      // 1) reconcilia o ÍNDICE de perfis (deixa a lista igual em todos os dispositivos)
+      try { await this.reconcileIndex(); }
+      catch (e) { console.warn('Falha ao reconciliar índice de perfis:', e); }
+      // atualiza a grade de perfis do portão com a lista já reconciliada
+      if (window.ProfileUI && ProfileUI.isGateOpen()) ProfileUI.refreshGateStage();
+      // 2) ativa o TEMPO REAL (best-effort)
+      this.subscribeRealtime();
+      // 3) se já estamos DENTRO de um perfil, sincroniza os dados dele agora
+      let entered = null;
+      try { entered = sessionStorage.getItem('diario-estudos:entered'); } catch (e) {}
+      if (entered && ProfileManager.getActiveProfileId() === entered) {
+        setTimeout(() => this.autoSyncOnLogin(), 500);
+      }
     }
+    // ao deslogar, encerra o tempo real
+    if (!this.isLoggedIn()) { this._loginBootDone = false; this._unsubscribe(); }
   },
 
   // Chamado por DB._set em TODA escrita local — agenda um envio automático (debounced)
   notifyChange() {
+    if (this._applying) return; // estamos aplicando dados da nuvem → não re-empurrar (evita loop)
     if (!this.isReady() || !this.isLoggedIn()) return;
     if (!this._autoSyncEnabled()) return;
+    // só sincroniza automaticamente os dados quando já se está DENTRO de um perfil
+    try { if (!sessionStorage.getItem('diario-estudos:entered')) return; } catch (e) {}
     clearTimeout(this._debounceTimer);
     this._debounceTimer = setTimeout(() => this.autoPush(), this.DEBOUNCE_MS);
   },
@@ -8362,8 +8541,155 @@ const CloudSync = {
     if (error) throw error;
     // esquece a revisão local desse slot (se for reenviado, começa do zero)
     if (profile) { try { localStorage.removeItem(this._revKey(profile.id, slotName)); } catch (e) {} }
+  },
+
+  /* ============================================================
+     ÍNDICE DE PERFIS na nuvem — faz a tela de perfis ficar IGUAL
+     em todos os dispositivos. É uma linha própria ('__index__')
+     com controle de versão (optimistic lock), à parte dos dados
+     de cada perfil (que ficam cada um na sua linha).
+     ============================================================ */
+  INDEX_SLOT: '__index__',
+  _idxRevKey() { return 'diario-estudos:cloud-index-rev'; },
+  getIndexBaseRev() { try { return parseInt(localStorage.getItem(this._idxRevKey())) || 0; } catch (e) { return 0; } },
+  setIndexBaseRev(r) { try { localStorage.setItem(this._idxRevKey(), String(r)); } catch (e) {} },
+
+  // slot de dados de um perfil: usa o mapeamento salvo, senão o próprio id (estável a renomeações)
+  slotForProfile(profileId) {
+    try {
+      const saved = localStorage.getItem(this.slotKeyForProfile(profileId));
+      if (saved) return saved;
+    } catch (e) {}
+    this.setSlotName(profileId, profileId);
+    return profileId;
+  },
+  // marca (localmente) que um perfil já foi sincronizado com a nuvem
+  _isSynced(profileId) { try { return !!localStorage.getItem(this.slotKeyForProfile(profileId)); } catch (e) { return false; } },
+
+  async pullIndex() {
+    if (!this.isLoggedIn()) return null;
+    const { data, error } = await this.client.from(this.TABLE)
+      .select('payload, rev').eq('slot_name', this.INDEX_SLOT).maybeSingle();
+    if (error) throw error;
+    if (!data) return null;
+    return { profiles: (data.payload && data.payload.profiles) || [], rev: data.rev || 0 };
+  },
+  _buildIndexPayload() {
+    const profiles = ProfileManager.getProfiles().map(p => ({
+      id: p.id, nome: p.nome, avatar: p.avatar, cor: p.cor, slot: this.slotForProfile(p.id)
+    }));
+    return { app: 'diario-estudos', kind: 'profiles-index', version: 1, profiles };
+  },
+  // Grava o índice com optimistic locking (nunca sobrescreve às cegas).
+  // Usa um LOOP com limite de tentativas (sem recursão mútua = sem risco de loop infinito).
+  async pushIndex() {
+    if (!this.isLoggedIn()) return { skipped: true };
+    const uid = this.session.user.id;
+    for (let attempt = 0; attempt < 5; attempt++) {
+      const base = this.getIndexBaseRev();
+      const now = new Date().toISOString();
+      const payload = this._buildIndexPayload();
+      if (base === 0) {
+        const { data, error } = await this.client.from(this.TABLE)
+          .insert({ user_id: uid, slot_name: this.INDEX_SLOT, payload, rev: 1, updated_at: now })
+          .select('rev').maybeSingle();
+        if (error) {
+          if (error.code === '23505' || /duplicate|unique/i.test(error.message || '')) {
+            await this._reconcileIndexData(); // já existe → traz a versão da nuvem e tenta de novo
+            continue;
+          }
+          throw error;
+        }
+        this.setIndexBaseRev((data && data.rev) || 1);
+        return { rev: (data && data.rev) || 1 };
+      }
+      const { data, error } = await this.client.from(this.TABLE)
+        .update({ payload, rev: base + 1, updated_at: now })
+        .eq('user_id', uid).eq('slot_name', this.INDEX_SLOT).eq('rev', base)
+        .select('rev');
+      if (error) throw error;
+      if (data && data.length > 0) { this.setIndexBaseRev(base + 1); return { rev: base + 1 }; }
+      // conflito → reconcilia a base local e tenta de novo (no máx. 5x)
+      await this._reconcileIndexData();
+    }
+    return { conflict: true }; // desistiu após 5 tentativas (evita loop infinito)
+  },
+  // (interno) Só FUNDE os dados do índice da nuvem nos perfis locais. NÃO faz push.
+  // Retorna { localOnly } indicando se há perfil local ainda não presente na nuvem.
+  async _reconcileIndexData() {
+    const idx = await this.pullIndex();
+    if (!idx) return { localOnly: ProfileManager.getProfiles().length > 0, empty: true };
+    let localOnly = false;
+    this._applying = true; // evita que as escritas locais abaixo disparem push automático
+    try {
+      this.setIndexBaseRev(idx.rev);
+      const cloudIds = new Set(idx.profiles.map(p => p.id));
+      // 1) adiciona/atualiza a partir da nuvem
+      idx.profiles.forEach(cp => {
+        const local = ProfileManager.getProfiles().find(p => p.id === cp.id);
+        if (!local) ProfileManager._insertRaw({ id: cp.id, nome: cp.nome, avatar: cp.avatar, cor: cp.cor });
+        else ProfileManager.updateProfileSilent(cp.id, { nome: cp.nome, avatar: cp.avatar, cor: cp.cor });
+        if (cp.slot) this.setSlotName(cp.id, cp.slot);
+      });
+      // 2) remove localmente perfis JÁ sincronizados que sumiram do índice (exclusão em outro device)
+      ProfileManager.getProfiles().slice().forEach(p => {
+        if (!cloudIds.has(p.id)) {
+          if (this._isSynced(p.id)) ProfileManager._removeRaw(p.id);
+          else localOnly = true; // perfil novo local ainda não enviado
+        }
+      });
+    } finally {
+      this._applying = false;
+    }
+    return { localOnly };
+  },
+  // Público: funde os dados E, se houver perfil local novo, envia o índice UMA vez.
+  async reconcileIndex() {
+    const { localOnly, empty } = await this._reconcileIndexData();
+    if (empty || localOnly) {
+      try { await this.pushIndex(); } catch (e) { console.warn('pushIndex após reconcile:', e); }
+    }
+  },
+
+  /* ---- Tempo real: reage a mudanças feitas por outros dispositivos ---- */
+  subscribeRealtime() {
+    if (!this.isReady() || !this.isLoggedIn() || this.channel) return;
+    try {
+      this.channel = this.client.channel('cloud_profiles_rt')
+        .on('postgres_changes',
+          { event: '*', schema: 'public', table: this.TABLE, filter: 'user_id=eq.' + this.session.user.id },
+          (payload) => this._onRealtime(payload))
+        .subscribe();
+    } catch (e) { console.warn('Realtime indisponível:', e); }
+  },
+  _unsubscribe() {
+    if (this.channel) { try { this.client.removeChannel(this.channel); } catch (e) {} this.channel = null; }
+  },
+  _onRealtime(evt) {
+    const row = evt.new || evt.old || {};
+    const slot = row.slot_name;
+    const rev = row.rev || 0;
+    if (slot === this.INDEX_SLOT) {
+      // índice mudou em outro device → se estamos na tela de perfis, atualiza a lista ao vivo
+      if (rev > this.getIndexBaseRev()) {
+        this.reconcileIndex().then(() => { if (window.ProfileUI && ProfileUI.isGateOpen()) ProfileUI.renderGrid(); });
+      }
+      return;
+    }
+    // mudança nos DADOS do perfil ativo, feita por outro dispositivo → traz na hora
+    const profile = ProfileManager.getActiveProfile();
+    if (!profile) return;
+    const activeSlot = this.slotForProfile(profile.id);
+    if (slot === activeSlot && rev > this.getBaseRev(profile.id, activeSlot)) {
+      // evita recarregar no meio de uma digitação: só recarrega se não há push local pendente
+      if (this._debounceTimer) return; // há alteração local a caminho — o push/optimistic-lock resolve
+      showToast('Atualizado em tempo real ✓');
+      this.pullAndReload(activeSlot);
+    }
   }
 };
+// Expõe globalmente para que o ProfileUI (que roda no boot) referencie com segurança (sem TDZ)
+window.CloudSync = CloudSync;
 
 /* ============================================================
    CLOUD UI — tela "☁️ Sincronização na nuvem" em Configurações
