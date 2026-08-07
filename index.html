@@ -1160,6 +1160,23 @@
     font-weight: 700;
   }
   .grade-summary-row td:first-child { color: var(--text-soft); }
+  .grade-session-controls {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+    margin-top: 12px;
+  }
+  .grade-session-controls .btn-secondary {
+    padding: 6px 12px;
+    font-size: 12.5px;
+  }
+  .grade-session-count {
+    font-size: 12px;
+    color: var(--text-faint);
+    font-family: 'Space Mono', monospace;
+    margin-left: auto;
+  }
   .grade-summary-cell {
     font-family: 'Space Mono', monospace;
     font-size: 12px;
@@ -5403,12 +5420,32 @@ function planCycleMode() {
     const mode = planCycleMode();
     const withSuggestions = CycleEngine.suggestMinutesFor(rawSubjects, weeklyHours, mode);
 
-    // preserva grade existente se já havia um ciclo com a mesma janela
-    const prevCycle = DB.getCurrentCycle();
-    const grade = (prevCycle && prevCycle.startDate === startDate) ? prevCycle.grade : {};
-    DIAS_SEMANA.forEach(d => { if (!grade[d]) grade[d] = ['', '', '']; });
+    // preserva os minutos DEFINIDOS MANUALMENTE ao reeditar um ciclo: se a matéria já tinha
+    // um tempo definido diferente da sugestão, mantém esse valor (casa por nome), em vez de
+    // sobrescrever com a nova sugestão da ferramenta.
+    const prevDefined = {};
+    if (pendingCycle && Array.isArray(pendingCycle.subjects)) {
+      pendingCycle.subjects.forEach(s => {
+        if (s && s.nome != null && s.definidoMin != null) prevDefined[CycleEngine.normKey(s.nome)] = s.definidoMin;
+      });
+    }
+    withSuggestions.forEach(s => {
+      const pd = prevDefined[CycleEngine.normKey(s.nome)];
+      if (pd != null) s.definidoMin = pd; // mantém o tempo do usuário; sugeridoMin segue como referência
+    });
 
-    pendingCycle = { startDate, endDate, weeklyHours, mode, subjects: withSuggestions, grade };
+    // preserva grade existente e o nº de sessões se já havia um ciclo com a mesma janela
+    const prevCycle = DB.getCurrentCycle();
+    const sameWindow = prevCycle && prevCycle.startDate === startDate;
+    const grade = sameWindow ? prevCycle.grade : {};
+    const carriedSessions = sameWindow ? (prevCycle.sessions || sessionCount(prevCycle)) : (pendingCycle && pendingCycle.sessions);
+    const nSess = Math.max(1, carriedSessions || 3);
+    DIAS_SEMANA.forEach(d => {
+      if (!Array.isArray(grade[d])) grade[d] = [];
+      while (grade[d].length < nSess) grade[d].push('');
+    });
+
+    pendingCycle = { startDate, endDate, weeklyHours, mode, subjects: withSuggestions, grade, sessions: nSess };
     rawSubjects.forEach(s => {
       DB.upsertSubjectName(s.nome);
       // No pós-edital, persiste os parâmetros estratégicos no cadastro da matéria,
@@ -5529,6 +5566,7 @@ function planCycleMode() {
       mode: pendingCycle.mode || planCycleMode(),
       subjects: pendingCycle.subjects,
       grade: pendingCycle.grade,
+      sessions: pendingCycle.sessions || sessionCount(pendingCycle),
       createdAt: new Date().toISOString()
     };
     DB.saveCurrentCycle(cycle);
@@ -5647,9 +5685,20 @@ function planCycleMode() {
     return raw;
   }
 
+  // número de sessões (linhas) da grade: usa cycle.sessions ou deriva do maior array da grade (mín. 1, padrão 3)
+  function sessionCount(cycle) {
+    let n = (cycle && Number.isFinite(cycle.sessions)) ? cycle.sessions : 0;
+    if (!n && cycle && cycle.grade) {
+      DIAS_SEMANA.forEach(d => { if (Array.isArray(cycle.grade[d])) n = Math.max(n, cycle.grade[d].length); });
+    }
+    return Math.max(1, n || 3);
+  }
+  function sessionLabel(i) { return `${i + 1}ª sessão`; }
+
   function renderGrade(cycle) {
     const container = document.getElementById('ciclo-grade');
-    const rows = ['1ª sessão', '2ª sessão', '3ª sessão'];
+    const count = sessionCount(cycle);
+    const rows = Array.from({ length: count }, (_, i) => sessionLabel(i));
     let html = '<table class="grade-table"><thead><tr><th>Sessão</th>';
     DIAS_SEMANA.forEach(d => html += `<th>${d.slice(0, 3)}</th>`);
     html += '</tr></thead><tbody>';
@@ -5667,6 +5716,12 @@ function planCycleMode() {
     });
     html += '</tr>';
     html += '</tbody></table>';
+    // controles para adicionar/remover sessões livremente
+    html += `<div class="grade-session-controls">
+      <button type="button" class="btn-secondary" id="btn-add-session">+ Adicionar sessão</button>
+      <button type="button" class="btn-secondary" id="btn-remove-session"${count <= 1 ? ' disabled' : ''}>− Remover última sessão</button>
+      <span class="grade-session-count">${count} sess${count === 1 ? 'ão' : 'ões'} por dia</span>
+    </div>`;
     container.innerHTML = html;
 
     // preenche cada célula com o chip correspondente, se houver
@@ -5676,6 +5731,32 @@ function planCycleMode() {
 
     bindDropZones(container, cycle);
     updateDaySummary(cycle);
+
+    // adicionar sessão: cresce o nº de linhas da grade
+    const addBtn = container.querySelector('#btn-add-session');
+    if (addBtn) addBtn.addEventListener('click', () => {
+      const c = DB.getCurrentCycle(); if (!c) return;
+      const newCount = sessionCount(c) + 1;
+      c.sessions = newCount;
+      DIAS_SEMANA.forEach(d => { if (!Array.isArray(c.grade[d])) c.grade[d] = []; while (c.grade[d].length < newCount) c.grade[d].push(''); });
+      DB.saveCurrentCycle(c);
+      renderGrade(c);
+    });
+    // remover última sessão: só se estiver vazia em todos os dias
+    const remBtn = container.querySelector('#btn-remove-session');
+    if (remBtn) remBtn.addEventListener('click', () => {
+      const c = DB.getCurrentCycle(); if (!c) return;
+      const cur = sessionCount(c);
+      if (cur <= 1) return;
+      const lastIdx = cur - 1;
+      const hasContent = DIAS_SEMANA.some(d => normalizeCell(c.grade[d] && c.grade[d][lastIdx]));
+      if (hasContent) { showToast('A última sessão tem matérias. Remova-as antes de excluir a sessão.'); return; }
+      const newCount = cur - 1;
+      c.sessions = newCount;
+      DIAS_SEMANA.forEach(d => { if (Array.isArray(c.grade[d])) c.grade[d] = c.grade[d].slice(0, newCount); });
+      DB.saveCurrentCycle(c);
+      renderGrade(c);
+    });
   }
 
   const CHECK_ICON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>';
@@ -5721,10 +5802,14 @@ function planCycleMode() {
 
     cell.querySelector('.chip-done-toggle').addEventListener('click', (e) => {
       e.stopPropagation();
-      const newDone = !done;
-      setCellData(dia, idx, { subject, minutes, done: newDone });
-      chip.classList.toggle('done', newDone);
-      cell.querySelector('.chip-done-toggle').title = newDone ? 'Marcar como não concluída' : 'Marcar como concluída';
+      // lê o estado ATUAL do armazenamento (não o do closure, que ficava desatualizado
+      // e impedia desmarcar) e re-renderiza a célula para refletir/rebindar corretamente
+      const cyc = DB.getCurrentCycle();
+      const cur = normalizeCell(cyc && cyc.grade[dia] && cyc.grade[dia][idx]);
+      const newDone = !(cur && cur.done);
+      setCellData(dia, idx, { subject, minutes: (cur && cur.minutes) || minutes, done: newDone });
+      renderCellContent(cell, DB.getCurrentCycle());
+      updateDaySummary(DB.getCurrentCycle());
     });
 
     cell.querySelector('.chip-remove').addEventListener('click', () => {
@@ -5737,7 +5822,8 @@ function planCycleMode() {
   function setCellData(dia, idx, cellData) {
     const c = DB.getCurrentCycle();
     if (!c) return;
-    if (!c.grade[dia]) c.grade[dia] = ['', '', ''];
+    if (!Array.isArray(c.grade[dia])) c.grade[dia] = [];
+    while (c.grade[dia].length <= idx) c.grade[dia].push(''); // garante slot p/ sessões dinâmicas
     c.grade[dia][idx] = cellData; // objeto {subject, minutes, done} ou null
     DB.saveCurrentCycle(c);
   }
@@ -6054,7 +6140,10 @@ const HistoricoScreen = {
   gradeDetailHtml(w) {
     const grade = w.grade || {};
     const dias = ['Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado', 'Domingo'];
-    const rows = ['1ª sessão', '2ª sessão', '3ª sessão'];
+    // nº de sessões vem do snapshot (dinâmico): usa w.sessions ou o maior array da grade (mín. 3)
+    const maxLen = dias.reduce((m, d) => Math.max(m, Array.isArray(grade[d]) ? grade[d].length : 0), 0);
+    const nRows = Math.max(w.sessions || 0, maxLen, 3);
+    const rows = Array.from({ length: nRows }, (_, i) => `${i + 1}ª sessão`);
     const hasAny = dias.some(d => (grade[d] || []).some(c => this.normalizeGradeCell(c)));
     if (!hasAny) return `<p class="wd-empty">Nenhuma grade foi montada para esta semana.</p>`;
 
