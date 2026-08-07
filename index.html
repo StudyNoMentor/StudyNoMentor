@@ -2307,6 +2307,44 @@
 
 
   /* ============================================================
+     EDITAR SEMANA (Histórico) — agregados calculados (read-only)
+     ============================================================ */
+  .wk-edit-note {
+    font-size: 12px; line-height: 1.5; color: var(--text-soft);
+    background: var(--accent-soft); border: 1px solid var(--accent);
+    border-radius: 12px; padding: 10px 12px; margin: 0 0 14px;
+  }
+  .wk-range-warn { font-size: 12px; font-weight: 700; color: var(--bad); margin: 8px 0 0; }
+  .wk-computed {
+    display: grid; grid-template-columns: repeat(5, 1fr); gap: 10px;
+    margin: 14px 0 4px; padding: 12px; background: var(--surface-sunken);
+    border: 1px solid var(--border); border-radius: 12px;
+  }
+  .wk-metric { text-align: center; }
+  .wk-metric-val { font-family: 'Space Mono', monospace; font-weight: 800; font-size: 18px; color: var(--text); }
+  .wk-metric-lbl { font-size: 10px; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; color: var(--text-faint); margin-top: 3px; }
+  .wk-subj-list { margin-top: 14px; border: 1px solid var(--border); border-radius: 12px; overflow: hidden; }
+  .wk-subj-title {
+    font-size: 11px; font-weight: 800; letter-spacing: 0.05em; text-transform: uppercase;
+    color: var(--text-soft); padding: 10px 12px; background: var(--surface-sunken); border-bottom: 1px solid var(--border);
+  }
+  .wk-subj-row {
+    display: grid; grid-template-columns: 1fr auto auto; gap: 12px; align-items: center;
+    padding: 9px 12px; border-bottom: 1px solid var(--border);
+  }
+  .wk-subj-row:last-child { border-bottom: none; }
+  .wk-subj-name { font-size: 13px; font-weight: 600; color: var(--text); }
+  .wk-subj-meta { display: flex; align-items: center; gap: 6px; font-size: 11px; font-weight: 700; color: var(--text-faint); text-transform: uppercase; letter-spacing: 0.03em; }
+  .wk-subj-meta input { width: 76px; }
+  .wk-subj-done { font-size: 11px; font-weight: 700; color: var(--text-faint); text-transform: uppercase; letter-spacing: 0.03em; white-space: nowrap; }
+  .wk-subj-done b { font-family: 'Space Mono', monospace; color: var(--accent); margin-left: 4px; }
+  @media (max-width: 720px) {
+    .wk-computed { grid-template-columns: repeat(2, 1fr); }
+    .wk-subj-row { grid-template-columns: 1fr auto; }
+    .wk-subj-done { grid-column: 1 / -1; }
+  }
+
+  /* ============================================================
      REFINO UX v46 — Configurações, Registrar e Grade da Semana
      Somente CSS/HTML visual: não altera regras de negócio.
      ============================================================ */
@@ -2812,7 +2850,12 @@
             <label for="cycle-start">Início da semana</label>
             <input type="date" id="cycle-start">
           </div>
+          <div class="field">
+            <label for="cycle-end">Término da semana</label>
+            <input type="date" id="cycle-end">
+          </div>
         </div>
+        <p class="hint" id="cycle-dates-hint" style="margin-top:-6px;">O término é preenchido automaticamente como o 7º dia (início + 6), mas você pode ajustar livremente. Só os estudos com data dentro deste intervalo são contabilizados neste ciclo.</p>
 
         <hr class="divider">
         <p class="section-label" id="ciclo-setup-subjects-label">Matérias no ciclo</p>
@@ -3899,6 +3942,24 @@ const DB = {
   deleteCycleHistoryEntry(id) {
     const history = this.getCycleHistory().filter(x => x.id !== id);
     this._set(this.KEYS.cycleHistory, history);
+  },
+  // Verifica se o intervalo [start,end] se sobrepõe a algum ciclo já existente.
+  // excludeHistoryId: ignora uma semana do histórico (ao editá-la).
+  // includeActive: também considera a semana ativa atual (default true).
+  // Retorna o item conflitante { start, end, label } ou null.
+  findCycleOverlap(start, end, excludeHistoryId, includeActive) {
+    if (!start || !end) return null;
+    if (includeActive === undefined) includeActive = true;
+    const items = [];
+    this.getCycleHistory().forEach(w => {
+      if (excludeHistoryId != null && w.id === excludeHistoryId) return;
+      items.push({ start: w.startDate, end: w.endDate, label: 'semana ' + w.startDate + ' → ' + w.endDate });
+    });
+    if (includeActive) {
+      const c = this.getCurrentCycle();
+      if (c) items.push({ start: c.startDate, end: c.endDate, label: 'a semana atual em montagem' });
+    }
+    return items.find(it => start <= it.end && it.start <= end) || null;
   },
 
   // --- Trilhas de Estudo Novo (por matéria) ---
@@ -5003,6 +5064,62 @@ const CycleEngine = {
     const today = todayLocal();
     return (cycle && cycle.endDate && cycle.endDate > today) ? cycle.endDate : today;
   },
+  // Conta minutos estudados desta matéria a partir do INÍCIO do ciclo, SEM limite superior.
+  // O ciclo ativo acumula tudo o que você registra desde que ele começou, até você fechá-lo —
+  // assim nenhum estudo "some" por estar datado além do 7º dia planejado.
+  minutesStudiedSince(subjectName, startDate) {
+    const key = this.normKey(subjectName);
+    return DB.getEntries()
+      .filter(e => this.normKey(e.subject) === key && e.date >= startDate)
+      .reduce((sum, e) => sum + (e.durationMin || 0), 0);
+  },
+  // Data do último estudo registrado a partir do início do ciclo (>= today se não houver nenhum além)
+  lastEntryDateSince(startDate) {
+    return DB.getEntries()
+      .filter(e => e.date >= startDate)
+      .reduce((mx, e) => (e.date > mx ? e.date : mx), todayLocal());
+  },
+  // Recalcula os AGREGADOS de uma semana do histórico de forma fiel aos registros:
+  // dado o snapshot (com suas matérias/metas) e um intervalo [start,end], soma os
+  // registros reais e devolve um patch com os valores derivados. As mesmas fórmulas
+  // usadas no fechamento do ciclo — garante coesão total entre telas.
+  recomputeWeek(snapshot, opts) {
+    opts = opts || {};
+    const startDate = opts.startDate || (snapshot && snapshot.startDate);
+    const endDate = opts.endDate || (snapshot && snapshot.endDate);
+    const weeklyHours = (opts.weeklyHours != null) ? opts.weeklyHours : (snapshot && snapshot.weeklyHours) || 0;
+    const metas = opts.metas || null; // mapa normKey(nome) -> meta(min) editada (opcional)
+    const entries = DB.getEntries().filter(e => e.date >= startDate && e.date <= endDate);
+    const totalStudied = entries.reduce((sum, e) => sum + (e.durationMin || 0), 0);
+    const withPct = entries.filter(e => e.total > 0);
+    const avgPct = withPct.length
+      ? Math.round((withPct.reduce((sum, e) => sum + (e.correct / e.total) * 100, 0) / withPct.length) * 100) / 100
+      : null;
+    const baseSubjects = (snapshot && snapshot.subjects) || [];
+    const subjectsSnapshot = baseSubjects.map(s => {
+      // meta editável (se fornecida) sobrescreve a definida no snapshot
+      let definido = s.definidoMin || 0;
+      if (metas) {
+        const ov = metas[this.normKey(s.nome)];
+        if (ov !== undefined && ov !== '' && ov !== null) definido = Math.max(0, parseInt(ov) || 0);
+      }
+      const studied = this.minutesStudied(s.nome, startDate, endDate);
+      return { ...s, definidoMin: definido, estudadoMin: studied, status: this.statusFor(studied, definido) };
+    });
+    const finalizadas = subjectsSnapshot.filter(s => s.status === 'finalizada').length;
+    const targetTotal = subjectsSnapshot.reduce((sum, s) => sum + (s.definidoMin || 0), 0);
+    return {
+      startDate, endDate,
+      weeklyHours: weeklyHours,
+      subjects: subjectsSnapshot,
+      totalTargetMin: targetTotal,
+      totalStudiedMin: totalStudied,
+      pctCumprido: targetTotal > 0 ? Math.round((Math.min(totalStudied, targetTotal * 1.5) / targetTotal) * 100) : 0,
+      finalizadas,
+      totalSubjects: subjectsSnapshot.length,
+      avgPerformancePct: avgPct
+    };
+  },
   statusFor(studiedMin, targetMin) {
     if (studiedMin <= 0) return 'pendente';
     if (studiedMin >= targetMin) return 'finalizada';
@@ -5068,7 +5185,14 @@ function planCycleMode() {
 
   const cycleHoursInput = document.getElementById('cycle-hours');
   const cycleStartInput = document.getElementById('cycle-start');
+  const cycleEndInput = document.getElementById('cycle-end');
   const subjectsListEl = document.getElementById('cycle-subjects-list');
+
+  // Ao mudar o início, sugere o término = início + 6 dias (o usuário ainda pode editar).
+  if (cycleStartInput) cycleStartInput.addEventListener('change', () => {
+    const s = cycleStartInput.value;
+    if (s) cycleEndInput.value = CycleEngine.weekEndDate(s);
+  });
 
   let pendingCycle = null; // rascunho entre "calcular sugestão" e "confirmar"
 
@@ -5205,7 +5329,10 @@ function planCycleMode() {
 
   function openSetup(prefill) {
     cycleHoursInput.value = prefill?.weeklyHours || 20;
-    cycleStartInput.value = prefill?.startDate || todayLocal();
+    const _start = prefill?.startDate || todayLocal();
+    cycleStartInput.value = _start;
+    // término: usa o do prefill (edição) ou sugere início + 6 dias (7º dia da semana)
+    cycleEndInput.value = prefill?.endDate || CycleEngine.weekEndDate(_start);
     // aviso e rótulos conforme o modo do planejamento ativo
     const isPos = planCycleMode() === 'pos';
     const hintEl = document.getElementById('ciclo-setup-mode-hint');
@@ -5237,6 +5364,7 @@ function planCycleMode() {
     if (existing) {
       pendingCycle = {
         startDate: existing.startDate,
+        endDate: existing.endDate || CycleEngine.weekEndDate(existing.startDate),
         weeklyHours: existing.weeklyHours,
         mode: existing.mode || planCycleMode(),
         subjects: existing.subjects.map(s => ({ ...s })),
@@ -5252,6 +5380,19 @@ function planCycleMode() {
   document.getElementById('btn-calc-cycle').addEventListener('click', () => {
     const weeklyHours = parseFloat(cycleHoursInput.value) || 1;
     const startDate = cycleStartInput.value || todayLocal();
+    // término editável (fallback = início + 6). Garante término >= início.
+    let endDate = cycleEndInput.value || CycleEngine.weekEndDate(startDate);
+    if (endDate < startDate) {
+      showToast('O término não pode ser anterior ao início. Ajustei para o 7º dia.');
+      endDate = CycleEngine.weekEndDate(startDate);
+      cycleEndInput.value = endDate;
+    }
+    // impede sobreposição com semanas já fechadas no histórico (evita ambiguidade de datas)
+    const overlap = DB.findCycleOverlap(startDate, endDate, null, false);
+    if (overlap) {
+      showToast('Este intervalo se sobrepõe a ' + overlap.label + '. Ajuste as datas do ciclo.');
+      return;
+    }
     const rawSubjects = readSetupSubjects();
 
     if (rawSubjects.length === 0) {
@@ -5267,7 +5408,7 @@ function planCycleMode() {
     const grade = (prevCycle && prevCycle.startDate === startDate) ? prevCycle.grade : {};
     DIAS_SEMANA.forEach(d => { if (!grade[d]) grade[d] = ['', '', '']; });
 
-    pendingCycle = { startDate, weeklyHours, mode, subjects: withSuggestions, grade };
+    pendingCycle = { startDate, endDate, weeklyHours, mode, subjects: withSuggestions, grade };
     rawSubjects.forEach(s => {
       DB.upsertSubjectName(s.nome);
       // No pós-edital, persiste os parâmetros estratégicos no cadastro da matéria,
@@ -5383,7 +5524,7 @@ function planCycleMode() {
   document.getElementById('btn-confirm-cycle').addEventListener('click', () => {
     const cycle = {
       startDate: pendingCycle.startDate,
-      endDate: CycleEngine.weekEndDate(pendingCycle.startDate),
+      endDate: pendingCycle.endDate || CycleEngine.weekEndDate(pendingCycle.startDate),
       weeklyHours: pendingCycle.weeklyHours,
       mode: pendingCycle.mode || planCycleMode(),
       subjects: pendingCycle.subjects,
@@ -5400,7 +5541,7 @@ function planCycleMode() {
     const container = document.getElementById('ciclo-overview-gauges');
     let totalTarget = 0, totalStudied = 0, finalizadas = 0;
     cycle.subjects.forEach(s => {
-      const studied = CycleEngine.minutesStudied(s.nome, cycle.startDate, CycleEngine.effectiveEnd(cycle));
+      const studied = CycleEngine.minutesStudied(s.nome, cycle.startDate, cycle.endDate);
       totalTarget += s.definidoMin;
       totalStudied += Math.min(studied, s.definidoMin * 3); // evita distorcer muito o total
       if (CycleEngine.statusFor(studied, s.definidoMin) === 'finalizada') finalizadas++;
@@ -5428,7 +5569,7 @@ function planCycleMode() {
   function renderSubjectsProgress(cycle) {
     const container = document.getElementById('ciclo-subjects-progress');
     container.innerHTML = cycle.subjects.map(s => {
-      const studied = CycleEngine.minutesStudied(s.nome, cycle.startDate, CycleEngine.effectiveEnd(cycle));
+      const studied = CycleEngine.minutesStudied(s.nome, cycle.startDate, cycle.endDate);
       const status = CycleEngine.statusFor(studied, s.definidoMin);
       const pct = Math.min(100, Math.round((studied / s.definidoMin) * 100));
       const over = studied > s.definidoMin;
@@ -5666,9 +5807,9 @@ function planCycleMode() {
     const cycle = DB.getCurrentCycle();
     if (!cycle) return;
     const _expired = todayLocal() > cycle.endDate;
+    const _nota = _expired ? ' · ⚠ semana encerrada — feche para arquivar e iniciar a próxima' : '';
     document.getElementById('ciclo-active-dates').textContent =
-      `${formatDateShort(cycle.startDate)} — ${formatDateShort(cycle.endDate)} · ${cycle.weeklyHours}h planejadas`
-      + (_expired ? ' · ⚠ semana encerrada — estudos de hoje ainda contam; feche para arquivar' : '');
+      `${formatDateShort(cycle.startDate)} — ${formatDateShort(cycle.endDate)} · ${cycle.weeklyHours}h planejadas` + _nota;
     renderOverviewGauges(cycle);
     renderSubjectsProgress(cycle);
     renderChipTray(cycle);
@@ -5680,11 +5821,10 @@ function planCycleMode() {
     if (!cycle) return;
     if (!confirm('Fechar esta semana? Ela será salva no histórico permanentemente e uma nova semana começará zerada.')) return;
 
-    // a semana no histórico vai da data de criação até a data real de hoje (fechamento),
-    // não até o fim teórico de 6 dias — reflete quando o ciclo de fato durou
-    const realEndDate = todayLocal();
+    // a semana no histórico usa exatamente o intervalo definido no ciclo (início → término)
+    const realEndDate = cycle.endDate || CycleEngine.weekEndDate(cycle.startDate);
 
-    // monta snapshot completo com desempenho, considerando o período real
+    // monta snapshot completo com desempenho, considerando os estudos dentro do intervalo
     const entries = DB.getEntries().filter(e => e.date >= cycle.startDate && e.date <= realEndDate);
     const totalStudied = entries.reduce((sum, e) => sum + (e.durationMin || 0), 0);
     const withPct = entries.filter(e => e.total > 0);
@@ -5693,7 +5833,7 @@ function planCycleMode() {
       : null;
 
     const subjectsSnapshot = cycle.subjects.map(s => {
-      const studied = CycleEngine.minutesStudied(s.nome, cycle.startDate, realEndDate);
+      const studied = CycleEngine.minutesStudied(s.nome, cycle.startDate, cycle.endDate);
       return { ...s, estudadoMin: studied, status: CycleEngine.statusFor(studied, s.definidoMin) };
     });
     const finalizadas = subjectsSnapshot.filter(s => s.status === 'finalizada').length;
@@ -5994,8 +6134,17 @@ const HistoricoScreen = {
   },
 
   editTemplate(w) {
+    const subjRows = (w.subjects || []).map(s => `
+      <div class="wk-subj-row" data-subj="${escapeHtml(s.nome)}">
+        <span class="wk-subj-name">${escapeHtml(s.nome)}</span>
+        <label class="wk-subj-meta">Meta (min)
+          <input type="number" class="wk-subj-target" value="${s.definidoMin || 0}" min="0" step="5">
+        </label>
+        <span class="wk-subj-done">Estudado <b class="wk-subj-studied">—</b></span>
+      </div>`).join('');
     return `
-      <div class="week-card" data-id="${w.id}" style="border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-ring);">
+      <div class="week-card wk-editing" data-id="${w.id}" style="border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-ring);">
+        <p class="wk-edit-note">🔒 Os indicadores abaixo (%, estudado, finalizadas, total, % médio) são <b>calculados a partir dos seus registros</b> e não podem ser digitados. Ajuste as <b>datas</b>, as <b>horas planejadas</b> ou as <b>metas por matéria</b> — os resultados se atualizam sozinhos.</p>
         <div class="week-card-head">
           <div class="field" style="margin-bottom:0;">
             <label>Início da semana</label>
@@ -6005,41 +6154,55 @@ const HistoricoScreen = {
             <label>Fim da semana</label>
             <input type="date" class="wk-end" value="${w.endDate}">
           </div>
-        </div>
-        <div class="week-stats-row" style="margin-top: 14px;">
           <div class="field" style="margin-bottom:0;">
-            <label>% cumprido</label>
-            <input type="number" class="wk-pct" value="${w.pctCumprido}" min="0">
-          </div>
-          <div class="field" style="margin-bottom:0;">
-            <label>Estudado (min)</label>
-            <input type="number" class="wk-studied" value="${w.totalStudiedMin}" min="0">
-          </div>
-          <div class="field" style="margin-bottom:0;">
-            <label>Finalizadas</label>
-            <input type="number" class="wk-finalizadas" value="${w.finalizadas}" min="0">
-          </div>
-          <div class="field" style="margin-bottom:0;">
-            <label>Total matérias</label>
-            <input type="number" class="wk-total-subj" value="${w.totalSubjects}" min="0">
-          </div>
-        </div>
-        <div class="field-group" style="margin-top: 4px;">
-          <div class="field">
             <label>Horas planejadas</label>
-            <input type="number" class="wk-hours" value="${w.weeklyHours}" min="0">
-          </div>
-          <div class="field">
-            <label>% acerto médio <span class="opt">(vazio = sem dado)</span></label>
-            <input type="number" class="wk-perf" value="${w.avgPerformancePct ?? ''}" min="0" max="100">
+            <input type="number" class="wk-hours" value="${w.weeklyHours}" min="0" step="0.5">
           </div>
         </div>
-        <div class="submit-row" style="margin-top:4px;">
+        <p class="wk-range-warn" style="display:none;"></p>
+
+        <div class="wk-computed">
+          <div class="wk-metric"><div class="wk-metric-val wk-c-pct">—</div><div class="wk-metric-lbl">% cumprido</div></div>
+          <div class="wk-metric"><div class="wk-metric-val wk-c-studied">—</div><div class="wk-metric-lbl">estudado</div></div>
+          <div class="wk-metric"><div class="wk-metric-val wk-c-final">—</div><div class="wk-metric-lbl">finalizadas</div></div>
+          <div class="wk-metric"><div class="wk-metric-val wk-c-total">—</div><div class="wk-metric-lbl">matérias</div></div>
+          <div class="wk-metric"><div class="wk-metric-val wk-c-perf">—</div><div class="wk-metric-lbl">% acerto médio</div></div>
+        </div>
+
+        ${subjRows ? `<div class="wk-subj-list"><div class="wk-subj-title">Metas por matéria</div>${subjRows}</div>` : ''}
+
+        <div class="submit-row" style="margin-top:8px;">
           <button type="button" class="btn-secondary btn-cancel-week">Cancelar</button>
           <button type="button" class="btn-primary btn-save-week">Salvar alterações</button>
         </div>
       </div>
     `;
+  },
+  // Lê as fontes editáveis do card e recalcula tudo (usado ao vivo e ao salvar)
+  _recomputeFromCard(card, w) {
+    const metas = {};
+    card.querySelectorAll('.wk-subj-row').forEach(row => {
+      const nome = row.dataset.subj;
+      metas[CycleEngine.normKey(nome)] = row.querySelector('.wk-subj-target').value;
+    });
+    return CycleEngine.recomputeWeek(w, {
+      startDate: card.querySelector('.wk-start').value,
+      endDate: card.querySelector('.wk-end').value,
+      weeklyHours: parseFloat(card.querySelector('.wk-hours').value) || 0,
+      metas
+    });
+  },
+  _paintComputed(card, r) {
+    const set = (sel, txt) => { const el = card.querySelector(sel); if (el) el.textContent = txt; };
+    set('.wk-c-pct', Math.min(r.pctCumprido, 999) + '%');
+    set('.wk-c-studied', CycleEngine.fmtHM(r.totalStudiedMin));
+    set('.wk-c-final', r.finalizadas + '/' + r.totalSubjects);
+    set('.wk-c-total', r.totalSubjects);
+    set('.wk-c-perf', r.avgPerformancePct == null ? '—' : formatPct(r.avgPerformancePct) + '%');
+    (r.subjects || []).forEach(s => {
+      const row = card.querySelector(`.wk-subj-row[data-subj="${(s.nome || '').replace(/"/g, '\\"')}"]`);
+      if (row) { const b = row.querySelector('.wk-subj-studied'); if (b) b.textContent = CycleEngine.fmtHM(s.estudadoMin); }
+    });
   },
 
   bindRows(listEl) {
@@ -6061,24 +6224,50 @@ const HistoricoScreen = {
       const cancelBtn = card.querySelector('.btn-cancel-week');
       if (cancelBtn) cancelBtn.addEventListener('click', () => { this.editingId = null; this.render(); });
 
-      const saveBtn = card.querySelector('.btn-save-week');
-      if (saveBtn) saveBtn.addEventListener('click', () => {
-        const perfVal = card.querySelector('.wk-perf').value;
-        const patch = {
-          startDate: card.querySelector('.wk-start').value,
-          endDate: card.querySelector('.wk-end').value,
-          pctCumprido: parseFloat(card.querySelector('.wk-pct').value) || 0,
-          totalStudiedMin: parseFloat(card.querySelector('.wk-studied').value) || 0,
-          finalizadas: parseInt(card.querySelector('.wk-finalizadas').value) || 0,
-          totalSubjects: parseInt(card.querySelector('.wk-total-subj').value) || 0,
-          weeklyHours: parseFloat(card.querySelector('.wk-hours').value) || 0,
-          avgPerformancePct: perfVal === '' ? null : parseFloat(perfVal)
+      // Só entra no modo edição quando esta semana está sendo editada
+      if (card.classList.contains('wk-editing')) {
+        const w = DB.getCycleHistory().find(x => x.id === id);
+        const warnEl = card.querySelector('.wk-range-warn');
+        const startEl = card.querySelector('.wk-start');
+        const endEl = card.querySelector('.wk-end');
+        const saveBtn = card.querySelector('.btn-save-week');
+
+        const refresh = () => {
+          // datas coerentes
+          let start = startEl.value, end = endEl.value;
+          let dateError = '';
+          if (start && end && end < start) dateError = 'O término não pode ser anterior ao início.';
+          // sobreposição com outras semanas (histórico + semana ativa)
+          let overlap = null;
+          if (!dateError && start && end) overlap = DB.findCycleOverlap(start, end, id, true);
+          if (overlap) dateError = 'Este intervalo se sobrepõe a ' + overlap.label + '. Ajuste as datas.';
+          if (warnEl) { warnEl.style.display = dateError ? 'block' : 'none'; warnEl.textContent = dateError ? '⚠ ' + dateError : ''; }
+          if (saveBtn) { saveBtn.disabled = !!dateError; saveBtn.style.opacity = dateError ? '0.5' : ''; }
+          const r = this._recomputeFromCard(card, w);
+          this._paintComputed(card, r);
+          return { r, dateError };
         };
-        DB.updateCycleHistoryEntry(id, patch);
-        this.editingId = null;
-        showToast('Semana atualizada ✓');
-        this.render();
-      });
+        // recálculo ao vivo em qualquer fonte editável
+        card.querySelectorAll('.wk-start, .wk-end, .wk-hours, .wk-subj-target').forEach(inp => {
+          inp.addEventListener('input', refresh);
+          inp.addEventListener('change', refresh);
+        });
+        refresh(); // pinta os valores iniciais
+
+        if (saveBtn) saveBtn.addEventListener('click', () => {
+          const { r, dateError } = refresh();
+          if (dateError) { showToast(dateError); return; }
+          DB.updateCycleHistoryEntry(id, {
+            startDate: r.startDate, endDate: r.endDate, weeklyHours: r.weeklyHours,
+            subjects: r.subjects, totalTargetMin: r.totalTargetMin, totalStudiedMin: r.totalStudiedMin,
+            pctCumprido: r.pctCumprido, finalizadas: r.finalizadas, totalSubjects: r.totalSubjects,
+            avgPerformancePct: r.avgPerformancePct
+          });
+          this.editingId = null;
+          showToast('Semana atualizada ✓');
+          this.render();
+        });
+      }
     });
   }
 };
