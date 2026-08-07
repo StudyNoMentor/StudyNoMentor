@@ -1052,6 +1052,30 @@
     text-overflow: ellipsis;
     white-space: nowrap;
   }
+  /* Sigla com cor customizada */
+  .subject-chip[style*="--chip-color"] {
+    background: color-mix(in srgb, var(--chip-color) 16%, transparent);
+    color: var(--chip-color);
+  }
+  /* Atalho da grade na tela do ciclo */
+  .grade-shortcut {
+    display: flex; align-items: center; justify-content: space-between; gap: 14px; flex-wrap: wrap;
+    background: var(--surface-sunken); border: 1.5px solid var(--border); border-radius: 12px; padding: 14px 16px;
+  }
+  .grade-shortcut .btn-secondary { white-space: nowrap; }
+  /* Gerenciador de siglas customizadas */
+  .custom-sigla-manager { display: flex; flex-direction: column; gap: 8px; }
+  .custom-sigla-row {
+    display: grid; grid-template-columns: 22px 130px 1fr 40px 32px; align-items: center; gap: 10px;
+    background: var(--surface-sunken); border: 1px solid var(--border); border-radius: 10px; padding: 6px 10px;
+  }
+  .custom-sigla-swatch { width: 16px; height: 16px; border-radius: 50%; border: 1px solid var(--border); }
+  .custom-sigla-row .cs-sigla { font-family: 'Space Mono', monospace; font-weight: 700; text-transform: uppercase; }
+  .custom-sigla-row .cs-color { width: 40px; height: 30px; padding: 2px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface); cursor: pointer; }
+  @media (max-width: 640px) {
+    .custom-sigla-row { grid-template-columns: 18px 1fr 40px 32px; }
+    .custom-sigla-row .cs-nome { grid-column: 1 / -1; }
+  }
 
   .grade-cell-drop {
     min-height: 54px;
@@ -2692,6 +2716,7 @@
     <nav class="tabs" id="tabs">
       <button class="tab active" data-screen="registrar"><span class="tab-icon">✎</span>Registrar</button>
       <button class="tab" data-screen="ciclo"><span class="tab-icon">◔</span>Ciclo da Semana</button>
+      <button class="tab" data-screen="grade"><span class="tab-icon">▦</span>Grade Semanal</button>
       <button class="tab" data-screen="estudonovo"><span class="tab-icon">▥</span>Estudo Novo</button>
       <button class="tab" data-screen="historico"><span class="tab-icon">▤</span>Histórico</button>
       <button class="tab" data-screen="evolucao"><span class="tab-icon">📈</span>Evolução</button>
@@ -2922,10 +2947,13 @@
           <div id="ciclo-subjects-progress"></div>
 
           <hr class="divider">
-          <p class="section-label">Grade da semana</p>
-          <p class="hint" style="margin: -8px 0 12px;">Arraste uma sigla para o dia e sessão desejados. A mesma matéria pode aparecer em várias células — ajuste a duração de cada uma livremente.</p>
-          <div id="grade-chip-tray" class="grade-chip-tray"></div>
-          <div id="ciclo-grade" style="overflow-x:auto;"></div>
+          <div class="grade-shortcut">
+            <div>
+              <p class="section-label" style="margin:0;">Grade da semana</p>
+              <p class="hint" style="margin:4px 0 0;">Sua rotina semanal agora fica no menu <strong>Grade Semanal</strong> — persistente e reutilizada a cada ciclo, sem retrabalho.</p>
+            </div>
+            <button class="btn-secondary" id="btn-goto-grade" type="button">▦ Abrir Grade Semanal</button>
+          </div>
 
           <div class="submit-row" style="margin-top: 26px;">
             <span class="save-note"><span class="dot"></span>atualizado a cada estudo registrado</span>
@@ -2935,6 +2963,45 @@
       </div>
     </div>
 
+  </section>
+
+  <!-- ============ TELA: GRADE SEMANAL ============ -->
+  <section class="screen" id="screen-grade">
+    <div class="page-header">
+      <h2 class="page-title">Grade Semanal</h2>
+      <p class="page-subtitle">Sua rotina de estudos — persistente e reutilizada a cada ciclo. Monte uma vez e não precise arrastar tudo de novo toda semana. Esta é uma ferramenta de planejamento: os números reais vêm dos seus registros.</p>
+    </div>
+
+    <div class="card">
+      <div class="card-header">
+        <div>
+          <h2>Siglas disponíveis</h2>
+          <p class="sub">Arraste para os dias e sessões. Vêm das suas matérias; você também pode criar siglas próprias.</p>
+        </div>
+      </div>
+      <div style="padding: 8px 28px 22px;">
+        <div id="grade-chip-tray" class="grade-chip-tray"></div>
+
+        <div id="custom-sigla-manager" class="custom-sigla-manager"></div>
+        <div class="config-add-row" style="margin-top:12px;">
+          <input type="text" id="new-sigla-input" placeholder="Sigla (ex.: REVGERAL)" maxlength="12" style="max-width:180px;">
+          <input type="text" id="new-sigla-nome" placeholder="Nome / descrição (opcional)">
+          <button class="btn-secondary" id="btn-add-sigla" type="button">Criar sigla</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-header">
+        <div>
+          <h2>Grade da semana</h2>
+          <p class="sub">Arraste as siglas para montar sua rotina. A mesma matéria pode aparecer em várias células — ajuste a duração de cada uma.</p>
+        </div>
+      </div>
+      <div style="padding: 8px 28px 26px;">
+        <div id="ciclo-grade" style="overflow-x:auto;"></div>
+      </div>
+    </div>
   </section>
 
   <!-- ============ TELA: ESTUDO NOVO ============ -->
@@ -3618,7 +3685,9 @@ const DB = {
       currentCycle: base + 'current-cycle',
       cycleHistory: base + 'cycle-history',
       tracks: base + 'tracks',
-      tec: base + 'tec'
+      tec: base + 'tec',
+      gradeTemplate: base + 'grade-template',
+      customSiglas: base + 'custom-siglas'
     };
   },
   // KEYS "dinâmico": sempre aponta para o planejamento ativo no momento da leitura
@@ -3772,6 +3841,27 @@ const DB = {
       });
       if (touched) this.saveCurrentCycle(cycle);
     }
+
+    // 3b) MODELO PERSISTENTE da grade (rotina reutilizável) + siglas customizadas vinculadas
+    const tmpl = this._get(this.KEYS.gradeTemplate, null);
+    if (tmpl && tmpl.grade) {
+      let gTouched = false;
+      const dias = ['Segunda','Terça','Quarta','Quinta','Sexta','Sábado','Domingo'];
+      dias.forEach(d => {
+        const arr = tmpl.grade[d];
+        if (!Array.isArray(arr)) return;
+        arr.forEach((cell, i) => {
+          if (cell && typeof cell === 'object' && this._normSubj(cell.subject) === oldKey) { cell.subject = newName; gTouched = true; changed.gradeCells++; }
+          else if (typeof cell === 'string' && this._normSubj(cell) === oldKey) { arr[i] = newName; gTouched = true; changed.gradeCells++; }
+        });
+      });
+      if (gTouched) this._set(this.KEYS.gradeTemplate, tmpl);
+    }
+    // siglas customizadas que apontam para a matéria renomeada
+    const csig = this.getCustomSiglas();
+    let csTouched = false;
+    csig.forEach(c => { if (c.nome && this._normSubj(c.nome) === oldKey) { c.nome = newName; csTouched = true; } });
+    if (csTouched) this.saveCustomSiglas(csig);
 
     // 4) trilhas do Estudo Novo (chaveadas por nome) — move/mescla a chave
     const tracks = this._get(this.KEYS.tracks, {});
@@ -3941,6 +4031,44 @@ const DB = {
   getCurrentCycle() { return this._get(this.KEYS.currentCycle, null); },
   saveCurrentCycle(cycle) { this._set(this.KEYS.currentCycle, cycle); },
   clearCurrentCycle() { localStorage.removeItem(this.KEYS.currentCycle); },
+
+  // ---- Modelo de grade (rotina semanal persistente, reutilizada entre ciclos) ----
+  // Estrutura: { grade: { Segunda:[celulas], ... }, sessions: N }
+  getGradeTemplate() {
+    let t = this._get(this.KEYS.gradeTemplate, null);
+    if (!t) {
+      // migração: se já existe uma grade no ciclo atual, ela vira o modelo inicial
+      const cyc = this.getCurrentCycle();
+      if (cyc && cyc.grade && Object.keys(cyc.grade).length) {
+        t = { grade: JSON.parse(JSON.stringify(cyc.grade)), sessions: cyc.sessions || 3 };
+      } else {
+        t = { grade: {}, sessions: 3 };
+      }
+      const DIAS = ['Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado', 'Domingo'];
+      DIAS.forEach(d => { if (!Array.isArray(t.grade[d])) t.grade[d] = []; while (t.grade[d].length < t.sessions) t.grade[d].push(''); });
+      this._set(this.KEYS.gradeTemplate, t);
+    }
+    return t;
+  },
+  saveGradeTemplate(t) { this._set(this.KEYS.gradeTemplate, t); },
+
+  // ---- Siglas customizadas: [{ id, sigla, nome, color }] ----
+  // 'nome' opcional casa a sigla a uma matéria; sem nome, é uma etiqueta livre.
+  getCustomSiglas() { return this._get(this.KEYS.customSiglas, []); },
+  saveCustomSiglas(list) { this._set(this.KEYS.customSiglas, list); },
+  addCustomSigla({ sigla, nome, color }) {
+    const list = this.getCustomSiglas();
+    list.push({ id: this._uid(), sigla: (sigla || '').trim(), nome: (nome || '').trim(), color: color || '#4f46e5' });
+    this.saveCustomSiglas(list);
+    return list[list.length - 1];
+  },
+  updateCustomSigla(id, patch) {
+    const list = this.getCustomSiglas();
+    const s = list.find(x => x.id === id);
+    if (s) Object.assign(s, patch);
+    this.saveCustomSiglas(list);
+  },
+  removeCustomSigla(id) { this.saveCustomSiglas(this.getCustomSiglas().filter(x => x.id !== id)); },
 
   // --- Cycle History ---
   getCycleHistory() { return this._get(this.KEYS.cycleHistory, []); },
@@ -4499,7 +4627,9 @@ function switchScreen(name) {
   document.getElementById('screen-' + name).classList.add('active');
   const tabBtn = document.querySelector(`.tab[data-screen="${name}"]`);
   if (tabBtn) tabBtn.classList.add('active');
-  document.querySelector('.content-wrap').classList.toggle('wide', name === 'estudonovo' || name === 'ciclo');
+  document.querySelector('.content-wrap').classList.toggle('wide', name === 'estudonovo' || name === 'ciclo' || name === 'grade');
+  // a Grade Semanal renderiza a bandeja + grade ao ficar visível
+  if (name === 'grade' && window.GradeScreen) window.GradeScreen.render();
   // dispara evento para a tela recarregar seus dados ao ficar visível
   window.dispatchEvent(new CustomEvent('screen:activated', { detail: { screen: name } }));
 }
@@ -5182,6 +5312,27 @@ const CycleEngine = {
       used.add(candidate);
       return { ...s, acronym: candidate };
     });
+  },
+  // Sigla efetiva de uma matéria: usa a customizada (se houver) ou a gerada automaticamente.
+  siglaForSubject(nome) {
+    const custom = DB.getCustomSiglas().find(c => c.nome && this.normKey(c.nome) === this.normKey(nome));
+    return (custom && custom.sigla) ? custom.sigla : this.baseAcronym(nome);
+  },
+  // Cor de uma matéria/sigla (customizada tem prioridade; senão, padrão do acento).
+  colorForSubject(nome) {
+    const custom = DB.getCustomSiglas().find(c => c.nome && this.normKey(c.nome) === this.normKey(nome));
+    return (custom && custom.color) ? custom.color : '';
+  },
+  // Mapa nome->sigla de TODAS as fontes (matérias ativas + siglas customizadas livres),
+  // para a grade e o tray funcionarem independentemente do ciclo.
+  buildAcronymMap() {
+    const map = {};
+    DB.getActiveSubjects().forEach(s => { map[s.nome] = this.siglaForSubject(s.nome); });
+    DB.getCustomSiglas().forEach(c => {
+      const key = c.nome || c.sigla;
+      if (key && !map[key]) map[key] = c.sigla || this.baseAcronym(key);
+    });
+    return map;
   }
 };
 
@@ -5647,19 +5798,32 @@ function planCycleMode() {
   // Duração padrão ao alocar uma matéria numa célula vazia (o usuário pode editar livremente depois)
   const GRADE_DEFAULT_MIN = 60;
 
-  function renderChipTray(cycle) {
-    const tray = document.getElementById('grade-chip-tray');
-    const withAcronyms = CycleEngine.assignAcronyms(cycle.subjects);
-    // guarda o mapeamento sigla->matéria no próprio ciclo para uso nas células
-    cycle._acronymMap = Object.fromEntries(withAcronyms.map(s => [s.nome, s.acronym]));
+  // Fonte da grade = MODELO PERSISTENTE (rotina reutilizável entre ciclos)
+  function gradeGet() { return DB.getGradeTemplate(); }
+  function gradeSave(t) { DB.saveGradeTemplate(t); }
+  // Lista de siglas para a bandeja: matérias ativas + siglas livres customizadas.
+  function gradeTrayItems() {
+    const map = CycleEngine.buildAcronymMap(); // nome -> sigla (respeita customizadas)
+    const items = DB.getActiveSubjects().map(s => ({
+      nome: s.nome, acronym: map[s.nome] || CycleEngine.baseAcronym(s.nome), color: CycleEngine.colorForSubject(s.nome)
+    }));
+    // siglas livres (sem matéria vinculada) entram como itens arrastáveis próprios
+    DB.getCustomSiglas().filter(c => !c.nome).forEach(c => {
+      items.push({ nome: c.sigla, acronym: c.sigla, color: c.color, free: true });
+    });
+    return items;
+  }
 
-    if (withAcronyms.length === 0) {
-      tray.innerHTML = `<span class="grade-chip-tray-empty">Nenhuma matéria neste ciclo.</span>`;
+  function renderChipTray() {
+    const tray = document.getElementById('grade-chip-tray');
+    if (!tray) return;
+    const items = gradeTrayItems();
+    if (items.length === 0) {
+      tray.innerHTML = `<span class="grade-chip-tray-empty">Cadastre matérias em Configurações ou crie siglas customizadas abaixo.</span>`;
       return;
     }
-
-    tray.innerHTML = withAcronyms.map(s => `
-      <div class="subject-chip" draggable="true" data-subject="${escapeHtml(s.nome)}" data-acronym="${escapeHtml(s.acronym)}">
+    tray.innerHTML = items.map(s => `
+      <div class="subject-chip" draggable="true" data-subject="${escapeHtml(s.nome)}" data-acronym="${escapeHtml(s.acronym)}"${s.color ? ` style="--chip-color:${s.color}"` : ''}>
         <span>${escapeHtml(s.acronym)}</span>
         <span class="chip-full-name">${escapeHtml(s.nome)}</span>
       </div>
@@ -5695,9 +5859,11 @@ function planCycleMode() {
   }
   function sessionLabel(i) { return `${i + 1}ª sessão`; }
 
-  function renderGrade(cycle) {
+  function renderGrade() {
     const container = document.getElementById('ciclo-grade');
-    const count = sessionCount(cycle);
+    if (!container) return;
+    const tmpl = gradeGet();
+    const count = sessionCount(tmpl);
     const rows = Array.from({ length: count }, (_, i) => sessionLabel(i));
     let html = '<table class="grade-table"><thead><tr><th>Sessão</th>';
     DIAS_SEMANA.forEach(d => html += `<th>${d.slice(0, 3)}</th>`);
@@ -5726,52 +5892,54 @@ function planCycleMode() {
 
     // preenche cada célula com o chip correspondente, se houver
     container.querySelectorAll('.grade-cell-drop').forEach(cell => {
-      renderCellContent(cell, cycle);
+      renderCellContent(cell);
     });
 
-    bindDropZones(container, cycle);
-    updateDaySummary(cycle);
+    bindDropZones(container);
+    updateDaySummary();
 
-    // adicionar sessão: cresce o nº de linhas da grade
+    // adicionar sessão: cresce o nº de linhas da grade (no modelo persistente)
     const addBtn = container.querySelector('#btn-add-session');
     if (addBtn) addBtn.addEventListener('click', () => {
-      const c = DB.getCurrentCycle(); if (!c) return;
-      const newCount = sessionCount(c) + 1;
-      c.sessions = newCount;
-      DIAS_SEMANA.forEach(d => { if (!Array.isArray(c.grade[d])) c.grade[d] = []; while (c.grade[d].length < newCount) c.grade[d].push(''); });
-      DB.saveCurrentCycle(c);
-      renderGrade(c);
+      const t = gradeGet();
+      const newCount = sessionCount(t) + 1;
+      t.sessions = newCount;
+      DIAS_SEMANA.forEach(d => { if (!Array.isArray(t.grade[d])) t.grade[d] = []; while (t.grade[d].length < newCount) t.grade[d].push(''); });
+      gradeSave(t);
+      renderGrade();
     });
     // remover última sessão: só se estiver vazia em todos os dias
     const remBtn = container.querySelector('#btn-remove-session');
     if (remBtn) remBtn.addEventListener('click', () => {
-      const c = DB.getCurrentCycle(); if (!c) return;
-      const cur = sessionCount(c);
+      const t = gradeGet();
+      const cur = sessionCount(t);
       if (cur <= 1) return;
       const lastIdx = cur - 1;
-      const hasContent = DIAS_SEMANA.some(d => normalizeCell(c.grade[d] && c.grade[d][lastIdx]));
+      const hasContent = DIAS_SEMANA.some(d => normalizeCell(t.grade[d] && t.grade[d][lastIdx]));
       if (hasContent) { showToast('A última sessão tem matérias. Remova-as antes de excluir a sessão.'); return; }
       const newCount = cur - 1;
-      c.sessions = newCount;
-      DIAS_SEMANA.forEach(d => { if (Array.isArray(c.grade[d])) c.grade[d] = c.grade[d].slice(0, newCount); });
-      DB.saveCurrentCycle(c);
-      renderGrade(c);
+      t.sessions = newCount;
+      DIAS_SEMANA.forEach(d => { if (Array.isArray(t.grade[d])) t.grade[d] = t.grade[d].slice(0, newCount); });
+      gradeSave(t);
+      renderGrade();
     });
   }
 
   const CHECK_ICON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>';
 
-  function renderCellContent(cell, cycle) {
+  function renderCellContent(cell) {
     const dia = cell.dataset.dia, idx = parseInt(cell.dataset.idx);
-    const cellData = normalizeCell(cycle.grade[dia] && cycle.grade[dia][idx]);
+    const tmpl = gradeGet();
+    const cellData = normalizeCell(tmpl.grade[dia] && tmpl.grade[dia][idx]);
     if (!cellData) {
       cell.innerHTML = `<span class="grade-cell-empty-hint">arraste aqui</span>`;
       return;
     }
     const { subject, minutes, done } = cellData;
-    const acronym = cycle._acronymMap?.[subject] || CycleEngine.baseAcronym(subject);
+    const acronym = CycleEngine.buildAcronymMap()[subject] || CycleEngine.siglaForSubject(subject);
+    const _color = CycleEngine.colorForSubject(subject);
     cell.innerHTML = `
-      <div class="subject-chip ${done ? 'done' : ''}" draggable="true" data-subject="${escapeHtml(subject)}" data-acronym="${escapeHtml(acronym)}" title="${escapeHtml(subject)}">
+      <div class="subject-chip ${done ? 'done' : ''}" draggable="true" data-subject="${escapeHtml(subject)}" data-acronym="${escapeHtml(acronym)}" title="${escapeHtml(subject)}"${_color ? ` style="--chip-color:${_color}"` : ''}>
         <div class="chip-top-row">
           <span class="chip-acronym-label">${escapeHtml(acronym)}</span>
           <button type="button" class="chip-remove" title="Remover desta célula">×</button>
@@ -5797,38 +5965,37 @@ function planCycleMode() {
     durationInput.addEventListener('change', () => {
       const newMin = Math.max(5, parseInt(durationInput.value) || GRADE_DEFAULT_MIN);
       setCellData(dia, idx, { subject, minutes: newMin, done });
-      updateDaySummary(DB.getCurrentCycle());
+      updateDaySummary();
     });
 
     cell.querySelector('.chip-done-toggle').addEventListener('click', (e) => {
       e.stopPropagation();
       // lê o estado ATUAL do armazenamento (não o do closure, que ficava desatualizado
       // e impedia desmarcar) e re-renderiza a célula para refletir/rebindar corretamente
-      const cyc = DB.getCurrentCycle();
-      const cur = normalizeCell(cyc && cyc.grade[dia] && cyc.grade[dia][idx]);
+      const t = gradeGet();
+      const cur = normalizeCell(t && t.grade[dia] && t.grade[dia][idx]);
       const newDone = !(cur && cur.done);
       setCellData(dia, idx, { subject, minutes: (cur && cur.minutes) || minutes, done: newDone });
-      renderCellContent(cell, DB.getCurrentCycle());
-      updateDaySummary(DB.getCurrentCycle());
+      renderCellContent(cell);
+      updateDaySummary();
     });
 
     cell.querySelector('.chip-remove').addEventListener('click', () => {
       setCellData(dia, idx, null);
       cell.innerHTML = `<span class="grade-cell-empty-hint">arraste aqui</span>`;
-      updateDaySummary(DB.getCurrentCycle());
+      updateDaySummary();
     });
   }
 
   function setCellData(dia, idx, cellData) {
-    const c = DB.getCurrentCycle();
-    if (!c) return;
-    if (!Array.isArray(c.grade[dia])) c.grade[dia] = [];
-    while (c.grade[dia].length <= idx) c.grade[dia].push(''); // garante slot p/ sessões dinâmicas
-    c.grade[dia][idx] = cellData; // objeto {subject, minutes, done} ou null
-    DB.saveCurrentCycle(c);
+    const t = gradeGet();
+    if (!Array.isArray(t.grade[dia])) t.grade[dia] = [];
+    while (t.grade[dia].length <= idx) t.grade[dia].push(''); // garante slot p/ sessões dinâmicas
+    t.grade[dia][idx] = cellData; // objeto {subject, minutes, done} ou null
+    gradeSave(t);
   }
 
-  function bindDropZones(container, cycle) {
+  function bindDropZones(container) {
     const tray = document.getElementById('grade-chip-tray');
     const cells = container.querySelectorAll('.grade-cell-drop');
 
@@ -5848,7 +6015,7 @@ function planCycleMode() {
       // move preserva o status de conclusão; nova alocação da bandeja sempre começa pendente
       const done = data.from === 'cell' ? !!data.done : false;
       setCellData(targetDia, targetIdx, { subject: data.subject, minutes, done });
-      renderActiveCycle(); // re-renderiza tudo (grade + resumo) para refletir a movimentação
+      renderGradeScreen(); // re-renderiza a grade para refletir a movimentação
     }
 
     cells.forEach(cell => {
@@ -5873,17 +6040,17 @@ function planCycleMode() {
       try { data = JSON.parse(e.dataTransfer.getData('text/plain')); } catch { return; }
       if (data && data.from === 'cell') {
         setCellData(data.fromDia, data.fromIdx, null);
-        renderActiveCycle();
+        renderGradeScreen();
       }
     });
   }
 
-  function updateDaySummary(cycle) {
-    if (!cycle) return;
+  function updateDaySummary() {
+    const tmpl = gradeGet();
     DIAS_SEMANA.forEach(dia => {
       const cellEl = document.querySelector(`.grade-summary-cell[data-summary-dia="${dia}"]`);
       if (!cellEl) return;
-      const slots = (cycle.grade[dia] || []).map(normalizeCell).filter(Boolean);
+      const slots = (tmpl.grade[dia] || []).map(normalizeCell).filter(Boolean);
       const totalMin = slots.reduce((sum, s) => sum + (s.minutes || 0), 0);
       cellEl.textContent = totalMin > 0 ? CycleEngine.fmtHM(totalMin) : '—';
     });
@@ -5898,9 +6065,69 @@ function planCycleMode() {
       `${formatDateShort(cycle.startDate)} — ${formatDateShort(cycle.endDate)} · ${cycle.weeklyHours}h planejadas` + _nota;
     renderOverviewGauges(cycle);
     renderSubjectsProgress(cycle);
-    renderChipTray(cycle);
-    renderGrade(cycle);
   }
+
+  // Renderiza a TELA da Grade Semanal (bandeja + grade), independente do ciclo.
+  function renderGradeScreen() {
+    renderChipTray();
+    renderGrade();
+    renderCustomSiglaManager();
+  }
+  // exposto para a navegação abrir a tela e para o botão de atalho do ciclo
+  window.GradeScreen = { render: renderGradeScreen };
+
+  // Gerenciador de siglas customizadas: lista editável (sigla, nome, cor) + excluir
+  function renderCustomSiglaManager() {
+    const box = document.getElementById('custom-sigla-manager');
+    if (!box) return;
+    const list = DB.getCustomSiglas();
+    if (list.length === 0) { box.innerHTML = ''; return; }
+    box.innerHTML = `<p class="section-label" style="margin:16px 0 8px;">Siglas customizadas</p>` +
+      list.map(c => `
+        <div class="custom-sigla-row" data-id="${c.id}">
+          <span class="custom-sigla-swatch" style="background:${c.color}"></span>
+          <input type="text" class="cs-sigla" value="${escapeHtml(c.sigla)}" maxlength="12" title="Sigla">
+          <input type="text" class="cs-nome" value="${escapeHtml(c.nome || '')}" placeholder="Nome / descrição (opcional)" title="Nome vinculado">
+          <input type="color" class="cs-color" value="${c.color || '#4f46e5'}" title="Cor">
+          <button type="button" class="icon-btn danger cs-del" title="Excluir sigla">×</button>
+        </div>`).join('');
+    box.querySelectorAll('.custom-sigla-row').forEach(row => {
+      const id = row.dataset.id;
+      const commit = () => {
+        DB.updateCustomSigla(id, {
+          sigla: row.querySelector('.cs-sigla').value.trim(),
+          nome: row.querySelector('.cs-nome').value.trim(),
+          color: row.querySelector('.cs-color').value
+        });
+        renderChipTray(); renderGrade(); renderCustomSiglaManager();
+      };
+      row.querySelector('.cs-sigla').addEventListener('change', commit);
+      row.querySelector('.cs-nome').addEventListener('change', commit);
+      row.querySelector('.cs-color').addEventListener('change', commit);
+      row.querySelector('.cs-del').addEventListener('click', () => {
+        if (!confirm('Excluir esta sigla customizada? As células da grade que a usam não são afetadas.')) return;
+        DB.removeCustomSigla(id);
+        renderChipTray(); renderGrade(); renderCustomSiglaManager();
+      });
+    });
+  }
+
+  // criar nova sigla customizada
+  const _addSiglaBtn = document.getElementById('btn-add-sigla');
+  if (_addSiglaBtn) _addSiglaBtn.addEventListener('click', () => {
+    const sigla = document.getElementById('new-sigla-input').value.trim();
+    const nome = document.getElementById('new-sigla-nome').value.trim();
+    if (!sigla) { showToast('Digite a sigla'); return; }
+    DB.addCustomSigla({ sigla, nome });
+    document.getElementById('new-sigla-input').value = '';
+    document.getElementById('new-sigla-nome').value = '';
+    renderChipTray(); renderGrade(); renderCustomSiglaManager();
+    showToast('Sigla criada ✓');
+  });
+
+  // atalho do ciclo -> abre a Grade Semanal
+  const _gotoGrade = document.getElementById('btn-goto-grade');
+  if (_gotoGrade) _gotoGrade.addEventListener('click', () => switchScreen('grade'));
 
   document.getElementById('btn-close-cycle').addEventListener('click', () => {
     const cycle = DB.getCurrentCycle();
@@ -5931,7 +6158,8 @@ function planCycleMode() {
       endDate: realEndDate,
       weeklyHours: cycle.weeklyHours,
       subjects: subjectsSnapshot,
-      grade: cycle.grade,
+      grade: JSON.parse(JSON.stringify(gradeGet().grade)),
+      sessions: gradeGet().sessions,
       totalTargetMin: targetTotal,
       totalStudiedMin: totalStudied,
       pctCumprido: targetTotal > 0 ? Math.round((Math.min(totalStudied, targetTotal * 1.5) / targetTotal) * 100) : 0,
