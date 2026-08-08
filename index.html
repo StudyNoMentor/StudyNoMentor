@@ -1030,6 +1030,7 @@
     font-family: 'Space Mono', monospace;
     font-size: 11.5px;
     font-weight: 700;
+    text-transform: uppercase;
     padding: 6px 10px;
     border-radius: 20px;
     background: var(--accent-soft);
@@ -1046,6 +1047,7 @@
     font-family: 'Inter', sans-serif;
     font-weight: 400;
     font-size: 10.5px;
+    text-transform: none;
     color: var(--text-faint);
     max-width: 90px;
     overflow: hidden;
@@ -1077,13 +1079,34 @@
     .custom-sigla-row { grid-template-columns: 18px 1fr 40px 32px; }
     .custom-sigla-row .cs-nome, .custom-sigla-row .cs-subject-name { grid-column: 1 / -1; }
   }
-  /* Bandeja de siglas recolhível */
-  .siglas-card-header { cursor: pointer; user-select: none; align-items: center; gap: 12px; padding-bottom: 14px; border-radius: 14px 14px 0 0; transition: background 0.15s ease; }
-  #siglas-card.collapsed .siglas-card-header { border-radius: 14px; padding-bottom: 20px; }
-  .siglas-card-header:hover { background: var(--surface-sunken); }
-  .siglas-caret { font-size: 14px; color: var(--text-faint); flex-shrink: 0; transition: color 0.15s ease; }
-  .siglas-card-header:hover .siglas-caret { color: var(--accent); }
-  #siglas-card.collapsed #siglas-collapsible { display: none; }
+  /* Bandeja compacta (chips + botão editar), colada acima da grade */
+  .grade-tray-bar {
+    display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+    padding: 10px 12px; margin-bottom: 14px;
+    background: var(--surface-sunken); border: 1.5px solid var(--border); border-radius: 12px;
+  }
+  .grade-tray-bar .grade-chip-tray { flex: 1; min-width: 0; border: none; background: transparent; padding: 0; margin: 0; }
+  .grade-edit-siglas { white-space: nowrap; flex-shrink: 0; align-self: center; }
+  /* Modal de gerenciar siglas */
+  .siglas-modal {
+    position: fixed; inset: 0; z-index: 300; background: rgba(15,17,21,0.55);
+    display: flex; align-items: center; justify-content: center; padding: 20px;
+    backdrop-filter: blur(3px);
+  }
+  .siglas-modal-box {
+    background: var(--surface); border: 1.5px solid var(--border); border-radius: 18px;
+    box-shadow: var(--shadow-lg); width: 100%; max-width: 560px; max-height: 88vh;
+    display: flex; flex-direction: column; overflow: hidden;
+  }
+  .siglas-modal-head {
+    display: flex; align-items: flex-start; justify-content: space-between; gap: 12px;
+    padding: 20px 22px 14px; border-bottom: 1px solid var(--border);
+  }
+  .siglas-modal-head h2 { margin: 0 0 3px; font-size: 17px; }
+  .siglas-modal-head .sub { margin: 0; font-size: 12.5px; color: var(--text-faint); }
+  .siglas-modal-body { padding: 16px 22px; overflow-y: auto; }
+  .siglas-modal-foot { padding: 14px 22px; border-top: 1px solid var(--border); display: flex; justify-content: flex-end; }
+  @media (max-width: 640px) { .siglas-modal-box { max-height: 92vh; } }
 
   .grade-cell-drop {
     min-height: 54px;
@@ -3142,41 +3165,51 @@
       <p class="page-subtitle">Sua rotina de estudos — persistente e reutilizada a cada ciclo. Monte uma vez e não precise arrastar tudo de novo toda semana. Esta é uma ferramenta de planejamento: os números reais vêm dos seus registros.</p>
     </div>
 
-    <div class="card" id="siglas-card">
-      <div class="card-header siglas-card-header" id="siglas-toggle" role="button" tabindex="0">
+    <div class="card">
+      <div class="card-header">
         <div>
-          <h2>Siglas disponíveis</h2>
-          <p class="sub">Arraste para os dias e sessões. Toque no cabeçalho para recolher e liberar espaço para a grade.</p>
+          <h2>Grade da semana</h2>
+          <p class="sub">Arraste as siglas abaixo para os dias e sessões. A mesma matéria pode aparecer em várias células — ajuste a duração de cada uma.</p>
         </div>
-        <span class="siglas-caret" id="siglas-caret">▾</span>
+        <button class="btn-secondary" id="btn-uncheck-all" type="button" style="display:none;">↺ Desmarcar concluídos</button>
       </div>
-      <div id="siglas-collapsible">
-        <div style="padding: 8px 28px 22px;">
+      <div style="padding: 8px 28px 26px;">
+        <!-- Bandeja compacta: só os chips arrastáveis + botão de editar -->
+        <div class="grade-tray-bar">
           <div id="grade-chip-tray" class="grade-chip-tray"></div>
+          <button type="button" class="btn-secondary grade-edit-siglas" id="btn-edit-siglas" title="Editar, criar e excluir siglas">✎ Editar siglas</button>
+        </div>
+        <div id="ciclo-grade" style="overflow-x:auto;"></div>
+      </div>
+    </div>
+  </section>
 
-          <div id="custom-sigla-manager" class="custom-sigla-manager"></div>
-          <div class="config-add-row" style="margin-top:12px;">
-            <input type="text" id="new-sigla-input" placeholder="Nova sigla livre (ex.: REVGERAL)" maxlength="12" style="max-width:200px;">
+  <!-- Modal: gerenciar siglas -->
+  <div id="siglas-modal" class="siglas-modal" style="display:none;">
+    <div class="siglas-modal-box">
+      <div class="siglas-modal-head">
+        <div>
+          <h2>Gerenciar siglas</h2>
+          <p class="sub">Edite a sigla e a cor de cada matéria, ou crie siglas livres. As siglas ficam em MAIÚSCULAS.</p>
+        </div>
+        <button type="button" class="icon-btn" id="siglas-modal-close" title="Fechar">✕</button>
+      </div>
+      <div class="siglas-modal-body">
+        <div id="custom-sigla-manager" class="custom-sigla-manager"></div>
+        <div class="siglas-add-block">
+          <p class="section-label" style="margin:16px 0 8px;">Criar sigla livre</p>
+          <div class="config-add-row">
+            <input type="text" id="new-sigla-input" placeholder="Sigla (ex.: REVGERAL)" maxlength="12" style="max-width:200px; text-transform:uppercase;">
             <input type="text" id="new-sigla-nome" placeholder="Nome / descrição (opcional)">
             <button class="btn-secondary" id="btn-add-sigla" type="button">Criar sigla</button>
           </div>
         </div>
       </div>
-    </div>
-
-    <div class="card">
-      <div class="card-header">
-        <div>
-          <h2>Grade da semana</h2>
-          <p class="sub">Arraste as siglas para montar sua rotina. A mesma matéria pode aparecer em várias células — ajuste a duração de cada uma.</p>
-        </div>
-        <button class="btn-secondary" id="btn-uncheck-all" type="button" style="display:none;">↺ Desmarcar concluídos</button>
-      </div>
-      <div style="padding: 8px 28px 26px;">
-        <div id="ciclo-grade" style="overflow-x:auto;"></div>
+      <div class="siglas-modal-foot">
+        <button type="button" class="btn-primary" id="siglas-modal-done">Concluído</button>
       </div>
     </div>
-  </section>
+  </div>
 
   <!-- ============ TELA: ESTUDO NOVO ============ -->
   <section class="screen" id="screen-estudonovo">
@@ -4374,14 +4407,14 @@ const DB = {
   deleteLei(id) { this.saveLeis(this.getLeis().filter(l => l.id !== id)); },
   addCustomSigla({ sigla, nome, color }) {
     const list = this.getCustomSiglas();
-    list.push({ id: this._uid(), sigla: (sigla || '').trim(), nome: (nome || '').trim(), color: color || '#4f46e5' });
+    list.push({ id: this._uid(), sigla: (sigla || '').trim().toUpperCase(), nome: (nome || '').trim(), color: color || '#4f46e5' });
     this.saveCustomSiglas(list);
     return list[list.length - 1];
   },
   updateCustomSigla(id, patch) {
     const list = this.getCustomSiglas();
     const s = list.find(x => x.id === id);
-    if (s) Object.assign(s, patch);
+    if (s) { if (patch.sigla !== undefined) patch.sigla = String(patch.sigla || '').trim().toUpperCase(); Object.assign(s, patch); }
     this.saveCustomSiglas(list);
   },
   removeCustomSigla(id) { this.saveCustomSiglas(this.getCustomSiglas().filter(x => x.id !== id)); },
@@ -4392,7 +4425,7 @@ const DB = {
     const nk = (s) => String(s == null ? '' : s).normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/\s+/g, ' ').trim();
     let s = list.find(c => c.nome && nk(c.nome) === nk(nome));
     if (!s) { s = { id: this._uid(), sigla: '', nome: nome, color: '#4f46e5' }; list.push(s); }
-    if (sigla !== undefined) s.sigla = (sigla || '').trim();
+    if (sigla !== undefined) s.sigla = (sigla || '').trim().toUpperCase();
     if (color !== undefined) s.color = color;
     this.saveCustomSiglas(list);
     return s;
@@ -6519,8 +6552,7 @@ function planCycleMode() {
   function renderGradeScreen() {
     renderChipTray();
     renderGrade();
-    renderCustomSiglaManager();
-    applySiglasCollapsed();
+    // o gerenciador só é renderizado quando o modal abre (renderCustomSiglaManager)
   }
   // exposto para a navegação abrir a tela e para o botão de atalho do ciclo
   window.GradeScreen = { render: renderGradeScreen };
@@ -6626,27 +6658,23 @@ function planCycleMode() {
   const _gotoGrade = document.getElementById('btn-goto-grade');
   if (_gotoGrade) _gotoGrade.addEventListener('click', () => switchScreen('grade'));
 
-  // --- Bandeja de siglas recolhível (estado persistido) ---
-  const SIGLAS_KEY = 'diario-estudos:siglas-collapsed';
-  function applySiglasCollapsed() {
-    let collapsed = false;
-    try { collapsed = localStorage.getItem(SIGLAS_KEY) === '1'; } catch (e) {}
-    const card = document.getElementById('siglas-card');
-    const caret = document.getElementById('siglas-caret');
-    if (card) card.classList.toggle('collapsed', collapsed);
-    if (caret) caret.textContent = collapsed ? '▸' : '▾';
+  // --- Modal de gerenciar siglas ---
+  function openSiglasModal() {
+    renderCustomSiglaManager();
+    document.getElementById('siglas-modal').style.display = 'flex';
   }
-  function toggleSiglas() {
-    let collapsed = false;
-    try { collapsed = localStorage.getItem(SIGLAS_KEY) === '1'; } catch (e) {}
-    try { localStorage.setItem(SIGLAS_KEY, collapsed ? '0' : '1'); } catch (e) {}
-    applySiglasCollapsed();
+  function closeSiglasModal() {
+    document.getElementById('siglas-modal').style.display = 'none';
+    renderChipTray(); renderGrade(); // reflete edições na bandeja/grade ao fechar
   }
-  const _siglasToggle = document.getElementById('siglas-toggle');
-  if (_siglasToggle) {
-    _siglasToggle.addEventListener('click', toggleSiglas);
-    _siglasToggle.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggleSiglas(); } });
-  }
+  const _editSiglas = document.getElementById('btn-edit-siglas');
+  if (_editSiglas) _editSiglas.addEventListener('click', openSiglasModal);
+  const _mClose = document.getElementById('siglas-modal-close');
+  if (_mClose) _mClose.addEventListener('click', closeSiglasModal);
+  const _mDone = document.getElementById('siglas-modal-done');
+  if (_mDone) _mDone.addEventListener('click', closeSiglasModal);
+  const _modal = document.getElementById('siglas-modal');
+  if (_modal) _modal.addEventListener('click', (e) => { if (e.target === _modal) closeSiglasModal(); });
 
   // --- Desmarcar todos os concluídos da grade ---
   function countDoneCells() {
