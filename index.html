@@ -904,8 +904,15 @@
   .subject-progress-head .name { font-weight: 700; font-size: 14px; color: var(--text); }
   .subject-progress-head .subject-meta-tag {
     font-family: 'Space Mono', monospace;
-    font-size: 10.5px;
-    color: var(--text-faint);
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    color: var(--text-soft);
+    background: var(--surface-sunken);
+    border: 1px solid var(--border);
+    border-radius: 20px;
+    padding: 3px 9px;
     white-space: nowrap;
   }
 
@@ -982,19 +989,22 @@
   }
   .grade-table th {
     background: var(--surface-sunken);
-    font-weight: 700;
-    font-size: 10.5px;
-    letter-spacing: 0.04em;
+    font-weight: 800;
+    font-size: 11px;
+    letter-spacing: 0.06em;
     text-transform: uppercase;
-    color: var(--text-faint);
+    color: var(--text-soft);
     text-align: center;
   }
   .grade-table th:first-child { width: 84px; }
   .grade-table td:first-child {
-    font-weight: 600;
+    font-weight: 700;
     background: var(--surface-sunken);
     white-space: nowrap;
-    font-size: 11.5px;
+    font-size: 11px;
+    letter-spacing: 0.02em;
+    text-transform: uppercase;
+    color: var(--text-soft);
     text-align: center;
     vertical-align: middle;
   }
@@ -1126,14 +1136,15 @@
     align-self: center;
   }
 
-  /* Chip de célula: layout vertical — sigla em cima, controles embaixo */
+  /* Chip de célula: layout vertical — sigla centralizada em cima, controles embaixo */
   .grade-cell-drop .subject-chip {
+    position: relative;
     flex-direction: column;
     align-items: stretch;
-    gap: 4px;
+    gap: 5px;
     width: 100%;
-    border-radius: 8px;
-    padding: 6px 7px;
+    border-radius: 10px;
+    padding: 7px 8px;
   }
   .grade-cell-drop .subject-chip.done {
     background: var(--good-soft);
@@ -1142,47 +1153,60 @@
   .chip-top-row {
     display: flex;
     align-items: center;
-    justify-content: space-between;
-    gap: 4px;
+    justify-content: center;
+    min-height: 16px;
   }
   .chip-acronym-label {
-    font-size: 11.5px;
+    font-family: 'Space Mono', monospace;
+    font-size: 12px;
     font-weight: 700;
+    letter-spacing: 0.02em;
+    text-align: center;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
+    max-width: 100%;
   }
   .chip-remove {
+    position: absolute;
+    top: 3px;
+    right: 3px;
+    width: 16px;
+    height: 16px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
     background: transparent;
     border: none;
     color: inherit;
-    opacity: 0.55;
-    font-size: 12px;
-    padding: 0 2px;
+    opacity: 0.45;
+    font-size: 13px;
+    padding: 0;
     cursor: pointer;
     line-height: 1;
-    flex-shrink: 0;
+    border-radius: 5px;
   }
-  .chip-remove:hover { opacity: 1; }
+  .chip-remove:hover { opacity: 1; background: rgba(0,0,0,0.08); }
   .chip-bottom-row {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    gap: 4px;
+    gap: 5px;
   }
   .chip-duration-input {
-    width: 38px;
+    width: 40px;
     border: none;
-    background: rgba(255,255,255,0.55);
-    border-radius: 8px;
+    background: rgba(255,255,255,0.6);
+    border-radius: 7px;
     font-family: 'Space Mono', monospace;
-    font-size: 10px;
+    font-size: 11px;
+    font-weight: 700;
     text-align: center;
-    padding: 2px 1px;
+    padding: 3px 1px;
     color: inherit;
   }
   .chip-duration-input:focus { outline: none; background: #fff; box-shadow: 0 0 0 2px var(--accent-ring); }
-  .chip-duration-unit { font-size: 9px; opacity: 0.7; margin-left: -2px; }
+  .chip-duration-unit { font-size: 8.5px; font-weight: 700; opacity: 0.65; letter-spacing: 0.04em; text-transform: uppercase; }
 
   .chip-done-toggle {
     width: 18px;
@@ -1517,6 +1541,7 @@
   .track-lesson-text {
     font-size: 14px;
     font-weight: 600;
+    font-family: 'Inter', sans-serif;
     border: 1px solid transparent;
     background: transparent;
     padding: 5px 8px;
@@ -1524,9 +1549,24 @@
     color: var(--text);
     border-radius: 8px;
     transition: background 0.12s ease, border-color 0.12s ease;
+    /* textarea que quebra linha p/ ler nomes longos por inteiro */
+    resize: none;
+    overflow: hidden;
+    line-height: 1.4;
+    min-height: 30px;
+    display: block;
   }
   .track-lesson-text:hover { border-color: var(--border); background: var(--surface-sunken); }
   .track-lesson-text:focus { outline: none; background: var(--surface); border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-ring); }
+  /* botões de resumo / remover no cabeçalho da aula */
+  .track-resumo-btn {
+    background: transparent; border: 1px solid transparent; cursor: pointer;
+    font-size: 14px; line-height: 1; padding: 4px; border-radius: 8px; align-self: center;
+    opacity: 0.55; transition: opacity 0.12s ease, background 0.12s ease;
+  }
+  .track-resumo-btn:hover { opacity: 1; background: var(--surface-sunken); }
+  .track-resumo-btn.has { opacity: 1; }
+  .track-resumo-btn.has::after { content: '•'; color: var(--accent); font-size: 16px; line-height: 0; position: relative; top: -6px; left: -3px; }
 
   .track-status-select {
     font-size: 11.5px;
@@ -1829,16 +1869,18 @@
   .track-row-wrap.drag-over-bottom .track-card { box-shadow: inset 0 -3px 0 var(--accent), var(--shadow-sm); }
   .track-card-head {
     display: grid;
-    grid-template-columns: 22px 34px 1fr 150px 30px;
-    gap: 10px;
-    align-items: center;
+    grid-template-columns: 20px 26px minmax(0,1fr) 128px 28px 28px;
+    gap: 8px;
+    align-items: start;
   }
+  .track-card-head .track-lesson-num { align-self: center; }
+  .track-card-head .track-status-select { align-self: center; }
   .track-stages {
     display: grid;
-    grid-template-columns: repeat(3, 1fr);
+    grid-template-columns: repeat(3, minmax(0, 1fr));
     gap: 10px;
-    margin-top: 10px;
-    padding-left: 66px;
+    margin-top: 12px;
+    padding-left: 54px;
   }
   .track-stage {
     background: var(--surface-sunken);
@@ -1867,10 +1909,12 @@
   .ts-pct.tone-good { color: var(--good); background: var(--good-soft); border-color: transparent; }
   .ts-pct.tone-warn { color: var(--warn); background: var(--warn-soft); border-color: transparent; }
   .ts-pct.tone-bad { color: var(--bad); background: var(--bad-soft); border-color: transparent; }
-  @media (max-width: 700px) {
-    .track-card-head { grid-template-columns: 22px 30px 1fr 30px; }
-    .track-card-head .track-status-select { grid-column: 2 / 5; }
+  @media (max-width: 820px) {
     .track-stages { grid-template-columns: 1fr; padding-left: 0; }
+  }
+  @media (max-width: 620px) {
+    .track-card-head { grid-template-columns: 20px 24px 1fr 28px 28px; }
+    .track-card-head .track-status-select { grid-column: 3 / 6; grid-row: 2; }
   }
 
   /* ---------- Estudo Novo: seletor de modo por disciplina ---------- */
@@ -2679,7 +2723,21 @@
   #lei-hl-toggles.auto-off .leis-hl-chip { opacity: 0.45; pointer-events: none; }
   /* botões de ação */
   .leis-toolbar-actions { border-top: 1px solid var(--border); padding-top: 10px; }
-  .leis-btn-mark, .leis-btn-unmark { padding: 8px 14px; font-size: 13px; border-radius: 10px; }
+  /* Ferramentas (marca-texto / borracha) como toggles */
+  .leis-tool-btn {
+    padding: 8px 14px; font-size: 13px; font-weight: 700; border-radius: 10px; cursor: pointer;
+    background: var(--surface-sunken); border: 1.5px solid var(--border); color: var(--text-soft);
+    transition: all 0.13s ease;
+  }
+  .leis-tool-btn:hover { border-color: var(--border-strong); color: var(--text); }
+  .leis-tool-mark.active { background: #fde68a; border-color: #f5c518; color: #7a5b00; box-shadow: 0 2px 8px rgba(245,197,24,0.3); }
+  .leis-tool-erase.active { background: var(--bad-soft); border-color: var(--bad); color: var(--bad); }
+  /* cursores por modo, no corpo da lei */
+  .lei-reader-body.tool-mark { cursor: text; }
+  .lei-reader-body.tool-mark mark { cursor: text; }
+  .lei-reader-body.tool-erase mark[class*="lawmark-"] { cursor: pointer; outline: 1px dashed currentColor; outline-offset: 1px; }
+  /* barra da lista de leis */
+  .leis-list-topbar { display: flex; align-items: center; gap: 14px; margin: 8px 0 14px; }
   .leis-reader-controls { display: flex; gap: 6px; }
   .leis-mark-hint { font-size: 12.5px; color: var(--text-soft); background: var(--accent-soft); border-radius: 10px; padding: 10px 14px; margin-bottom: 12px; }
   .leis-mark-count { font-size: 12px; color: var(--text-faint); font-family: 'Space Mono', monospace; white-space: nowrap; }
@@ -2827,9 +2885,14 @@
   .cards-ans4:hover { transform: translateY(-1px); filter: brightness(1.02); }
   .cards-ans4.a-errei { color: var(--bad); border-color: var(--bad); background: var(--bad-soft); }
   .cards-ans4.a-dificil { color: var(--warn); border-color: var(--warn); background: var(--warn-soft); }
-  .cards-ans4.a-bom { color: var(--good); border-color: var(--good); background: var(--good-soft); }
-  .cards-ans4.a-facil { color: var(--accent); border-color: var(--accent); background: var(--accent-soft); }
+  .cards-ans4.a-bom { color: #2563eb; border-color: #2563eb; background: color-mix(in srgb, #2563eb 12%, transparent); }
+  .cards-ans4.a-facil { color: var(--good); border-color: var(--good); background: var(--good-soft); }
   .cards-review-editrow { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-top: 12px; flex-wrap: wrap; }
+  .cards-review-nav { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-top: 14px; }
+  .cards-nav-btn { background: var(--surface-sunken); border: 1.5px solid var(--border); border-radius: 10px; padding: 8px 14px; font-size: 13px; font-weight: 700; color: var(--text-soft); cursor: pointer; transition: all 0.13s ease; }
+  .cards-nav-btn:hover:not(:disabled) { border-color: var(--accent); color: var(--accent); }
+  .cards-nav-btn:disabled { opacity: 0.4; cursor: default; }
+  .cards-kbd-hint-row { display: flex; justify-content: center; margin-top: 10px; }
   .cards-kbd-hint { font-size: 11px; color: var(--text-faint); }
   .cards-kbd-hint kbd { font-family: 'Space Mono', monospace; font-size: 10px; background: var(--surface-sunken); border: 1px solid var(--border); border-radius: 4px; padding: 0 5px; margin: 0 1px; }
   /* Cloze */
@@ -3121,9 +3184,9 @@
               <div class="field">
                 <label for="duration">Tempo de estudo</label>
                 <div class="time-input">
-                  <input type="number" id="duration-h" min="0" placeholder="0">
+                  <input type="text" inputmode="numeric" id="duration-h" placeholder="0">
                   <span>h</span>
-                  <input type="number" id="duration-m" min="0" max="59" placeholder="0">
+                  <input type="text" inputmode="numeric" id="duration-m" placeholder="0">
                   <span>min</span>
                 </div>
               </div>
@@ -3137,11 +3200,11 @@
               <div class="performance-inputs">
                 <div class="field">
                   <label for="correct">Acertos</label>
-                  <input type="number" id="correct" min="0" placeholder="0">
+                  <input type="text" inputmode="numeric" id="correct" placeholder="0">
                 </div>
                 <div class="field">
                   <label for="total">Total resolvido</label>
-                  <input type="number" id="total" min="0" placeholder="0">
+                  <input type="text" inputmode="numeric" id="total" placeholder="0">
                 </div>
               </div>
               <div class="gauge" id="gauge">
@@ -3265,10 +3328,13 @@
             <h2 id="ciclo-active-title">Semana atual</h2>
             <p class="sub" id="ciclo-active-dates"></p>
           </div>
-          <button class="btn-secondary" id="btn-edit-cycle">Editar</button>
+          <div style="display:flex; gap:8px; flex-shrink:0;">
+            <button class="btn-secondary" id="btn-edit-cycle">✎ Editar</button>
+            <button class="btn-primary" id="btn-close-cycle">✓ Fechar semana</button>
+          </div>
         </div>
         <div style="padding: 18px 28px 26px;">
-          <div id="ciclo-overview-gauges" style="display:grid; grid-template-columns: repeat(3,1fr); gap: 14px; margin-bottom: 22px;"></div>
+          <div id="ciclo-overview-gauges" style="display:grid; grid-template-columns: repeat(4,1fr); gap: 12px; margin-bottom: 22px;"></div>
 
           <p class="section-label">Progresso por matéria</p>
           <div id="ciclo-subjects-progress"></div>
@@ -3282,9 +3348,8 @@
             <button class="btn-secondary" id="btn-goto-grade" type="button">▦ Abrir Grade Semanal</button>
           </div>
 
-          <div class="submit-row" style="margin-top: 26px;">
-            <span class="save-note"><span class="dot"></span>atualizado a cada estudo registrado</span>
-            <button class="btn-primary" id="btn-close-cycle">Fechar semana</button>
+          <div class="submit-row" style="margin-top: 22px;">
+            <span class="save-note"><span class="dot"></span>atualizado a cada estudo registrado · use <strong>✓ Fechar semana</strong> no topo para arquivar</span>
           </div>
         </div>
       </div>
@@ -3407,14 +3472,21 @@
         <p class="page-subtitle">Seu vade mecum inteligente: cadastre as leis que quiser, leia com formatação limpa e destaque automático das clássicas pegadinhas de prova (prazos, exceções, competências…). Marque também seus próprios pontos-chave.</p>
       </div>
 
-      <div class="card">
-        <div class="card-header">
-          <div>
-            <h2>Nova lei</h2>
-            <p class="sub">Cole o texto da lei. O app organiza a estrutura (artigos, parágrafos, incisos) e destaca os termos de risco.</p>
-          </div>
+      <div class="leis-list-topbar">
+        <div class="section-divider" style="flex:1; margin:0;"><span>Suas leis</span></div>
+        <button type="button" class="btn-primary" id="lei-open-form-btn">＋ Nova lei</button>
+      </div>
+      <div id="leis-cards"></div>
+    </div>
+
+    <!-- Modal: cadastrar nova lei -->
+    <div id="lei-form-modal" class="cards-modal" style="display:none;">
+      <div class="cards-modal-box cards-modal-lg">
+        <div class="cards-modal-head">
+          <div><h2>＋ Nova lei</h2><p class="sub">Cole o texto — o app organiza a estrutura e destaca os termos de risco.</p></div>
+          <button type="button" class="icon-btn" id="lei-form-close">✕</button>
         </div>
-        <div style="padding: 16px 28px 24px;">
+        <div class="cards-modal-body">
           <div class="field-group">
             <div class="field">
               <label for="lei-titulo">Título</label>
@@ -3431,17 +3503,15 @@
           </div>
           <div class="field full">
             <label for="lei-texto">Texto da lei</label>
-            <textarea id="lei-texto" style="min-height: 150px; line-height:1.6;" placeholder="Cole aqui o texto da lei seca..."></textarea>
-          </div>
-          <div class="submit-row" style="margin-top: 4px;">
-            <span class="save-note"><span class="dot"></span>fica salvo no seu perfil e sincroniza entre dispositivos</span>
-            <button type="button" class="btn-primary" id="lei-add-btn">Cadastrar lei</button>
+            <textarea id="lei-texto" style="min-height: 220px; line-height:1.6;" placeholder="Cole aqui o texto da lei seca..."></textarea>
           </div>
         </div>
+        <div class="cards-modal-foot">
+          <span class="save-note" style="flex:1"><span class="dot"></span>salvo no seu perfil e sincronizado</span>
+          <button type="button" class="btn-secondary" id="lei-form-cancel">Cancelar</button>
+          <button type="button" class="btn-primary" id="lei-add-btn">Cadastrar lei</button>
+        </div>
       </div>
-
-      <div class="section-divider"><span>Suas leis</span></div>
-      <div id="leis-cards"></div>
     </div>
 
     <!-- LEITOR de uma lei -->
@@ -3476,8 +3546,8 @@
           </div>
         </div>
         <div class="leis-toolbar-row leis-toolbar-actions">
-          <button type="button" class="btn-primary leis-btn-mark" id="lei-mark-btn">✍️ Marcar seleção</button>
-          <button type="button" class="btn-secondary leis-btn-unmark" id="lei-unmark-btn">🧽 Desmarcar seleção</button>
+          <button type="button" class="leis-tool-btn leis-tool-mark" id="lei-mark-btn" title="Marca-texto: com ele ativo, basta selecionar o texto para destacar">🖍️ Marca-texto</button>
+          <button type="button" class="leis-tool-btn leis-tool-erase" id="lei-unmark-btn" title="Borracha: com ela ativa, selecione um destaque para apagá-lo (inclusive os automáticos)">🧽 Borracha</button>
           <span id="lei-mark-count" class="leis-mark-count"></span>
           <span class="leis-toolbar-spacer"></span>
           <div class="leis-reader-controls">
@@ -3487,7 +3557,7 @@
         </div>
       </div>
 
-      <div class="leis-mark-hint" id="lei-mark-hint">💡 Selecione um trecho e clique em <strong>Marcar seleção</strong>. Para desmarcar: selecione de novo e clique em <strong>Desmarcar</strong>, ou clique direto sobre o destaque no texto.</div>
+      <div class="leis-mark-hint" id="lei-mark-hint">💡 Ative o <strong>🖍️ Marca-texto</strong> e vá selecionando os trechos para destacar. Ative a <strong>🧽 Borracha</strong> e selecione um destaque (seu ou automático) para apagá-lo.</div>
 
       <div class="card leis-reader-card">
         <div id="lei-reader-body" class="lei-reader-body"></div>
@@ -3552,6 +3622,27 @@
     <!-- Área de conteúdo (revisar OU meus cards) -->
     <div id="cards-content"></div>
   </section>
+
+  <!-- Modal: resumo/anotação de uma aula do Estudo Novo -->
+  <div id="resumo-modal" class="cards-modal" style="display:none;">
+    <div class="cards-modal-box cards-modal-lg">
+      <div class="cards-modal-head">
+        <div><h2>📄 Resumo da aula</h2><p class="sub" id="resumo-modal-sub">—</p></div>
+        <button type="button" class="icon-btn" id="resumo-modal-close">✕</button>
+      </div>
+      <div class="cards-modal-body">
+        <div class="rte" data-target="resumo-editor">
+          <div class="rte-toolbar"></div>
+          <div class="rte-area" id="resumo-editor" contenteditable="true" style="min-height:260px;"></div>
+        </div>
+        <p class="hint" style="margin-top:8px;">Cole ou escreva aqui um resumo mais completo desta aula — fica salvo e sincronizado, separado do comentário rápido.</p>
+      </div>
+      <div class="cards-modal-foot"><span style="flex:1"></span>
+        <button type="button" class="btn-secondary" id="resumo-modal-cancel">Cancelar</button>
+        <button type="button" class="btn-primary" id="resumo-modal-save">Salvar resumo</button>
+      </div>
+    </div>
+  </div>
 
   <!-- Modal: criar/editar card -->
   <div id="card-modal" class="cards-modal" style="display:none;">
@@ -4688,7 +4779,7 @@ const DB = {
     const list = this.getLeis();
     const now = new Date().toISOString();
     const lei = { id: this._uid(), titulo: (titulo || 'Sem título').trim(), referencia: (referencia || '').trim(),
-      materia: (materia || '').trim(), texto: texto || '', marcacoes: [],
+      materia: (materia || '').trim(), texto: texto || '', marcacoes: [], suppressed: [],
       opts: { ressalvas: true, restricoes: true, competencias: true, prazos: true, efeitos: true, relacoes: true },
       createdAt: now, updatedAt: now };
     list.push(lei);
@@ -5624,6 +5715,11 @@ const TecEngine = {
     }
   }
 
+  // só dígitos nos campos numéricos livres (tempo, acertos, total)
+  ['correct', 'total', 'duration-h', 'duration-m'].forEach(fid => {
+    const el = document.getElementById(fid);
+    if (el) el.addEventListener('input', () => { el.value = el.value.replace(/\D/g, ''); });
+  });
   correctInput.addEventListener('input', updateGauge);
   totalInput.addEventListener('input', updateGauge);
   pageStart.addEventListener('input', updatePagesHint);
@@ -5643,12 +5739,17 @@ const TecEngine = {
     else subjectSelect.value = '';
   }
 
-  function refreshMethodSelect() {
+  function refreshMethodSelect(preferDefault) {
     const methods = DB.getActiveMethods();
     const methodSelect = document.getElementById('method');
     const currentVal = methodSelect.value;
     methodSelect.innerHTML = methods.map(m => `<option>${escapeHtml(m.nome)}</option>`).join('');
-    if (methods.find(m => m.nome === currentVal)) methodSelect.value = currentVal;
+    // preserva a seleção atual; senão, usa "Questões" como padrão (o mais usual)
+    if (!preferDefault && methods.find(m => m.nome === currentVal)) methodSelect.value = currentVal;
+    else {
+      const questoes = methods.find(m => m.nome.toLowerCase() === 'questões' || m.nome.toLowerCase() === 'questoes');
+      methodSelect.value = questoes ? questoes.nome : (methods[0] ? methods[0].nome : '');
+    }
   }
 
   function enterEditMode(entry) {
@@ -5680,7 +5781,9 @@ const TecEngine = {
     editingId = null;
     form.reset();
     dateInput.value = todayLocal();
-    refreshMethodSelect();
+    refreshMethodSelect(true);
+    refreshSubjectSelect();
+    document.getElementById('subject').value = '';
     updateGauge();
     updatePagesHint();
 
@@ -5825,18 +5928,20 @@ const TecEngine = {
       showToast('Estudo registrado ✓');
       form.reset();
       dateInput.value = todayLocal();
-      refreshMethodSelect();
+      refreshMethodSelect(true); // volta ao padrão "Questões"
+      refreshSubjectSelect();
+      document.getElementById('subject').value = ''; // matéria em branco p/ o usuário escolher
       updateGauge();
       updatePagesHint();
-      refreshSubjectSelect();
       renderRecent();
       window.dispatchEvent(new CustomEvent('data:entry-added', { detail: entry }));
     }
   });
 
   updateGauge();
-  refreshMethodSelect();
+  refreshMethodSelect(true);
   refreshSubjectSelect();
+  document.getElementById('subject').value = '';
   renderRecent();
 
   // expõe pra outras telas poderem forçar refresh se precisarem
@@ -6089,8 +6194,10 @@ const LawEngine = {
       re: /(subsidiariamente|subsidi[áa]ri[ao]|supletivamente|supletiv[ao]|solidariamente|solid[áa]ri[ao]|pessoalmente|pessoal|diretamente|indiretamente|conjuntamente)/giu }
   },
   // Constrói os spans de destaque de UMA linha (offsets locais).
-  _spansForLine(line, opts, manualList) {
+  // suppressed: lista de textos (minúsculos) cujos destaques AUTOMÁTICOS foram apagados pelo usuário.
+  _spansForLine(line, opts, manualList, suppressed) {
     const spans = [];
+    const supp = suppressed && suppressed.length ? suppressed.map(s => s.toLowerCase()) : null;
     const autoOff = opts && opts._auto === false; // interruptor mestre desligado
     if (!autoOff) Object.keys(this.categories).forEach(key => {
       if (opts && opts[key] === false) return;
@@ -6099,6 +6206,8 @@ const LawEngine = {
       let m;
       while ((m = re.exec(line)) !== null) {
         if (m.index === re.lastIndex) re.lastIndex++;
+        // pula o destaque automático se o usuário o apagou com a borracha
+        if (supp && supp.includes(m[0].toLowerCase())) continue;
         spans.push({ start: m.index, end: m.index + m[0].length, cls: cat.cls });
       }
     });
@@ -6146,12 +6255,13 @@ const LawEngine = {
     const text = this.normalize(lei.texto);
     const opts = lei.opts || {};
     const manual = lei.marcacoes || [];
+    const suppressed = lei.suppressed || [];
     const lines = text.split('\n');
     let html = '';
     lines.forEach(line => {
       if (!line.trim()) { html += '<div class="law-gap"></div>'; return; }
       const cls = this._classify(line);
-      const spans = this._spansForLine(line, opts, manual);
+      const spans = this._spansForLine(line, opts, manual, suppressed);
       html += `<div class="law-block ${cls}">${this._renderLine(line, spans)}</div>`;
     });
     return html;
@@ -6176,28 +6286,36 @@ const CardEngine = {
   },
   // Aplica a resposta e devolve o patch de agendamento (SM-2 com 4 botões, estilo Anki).
   // grade: 'errei' | 'dificil' | 'bom' | 'facil' (aliases: 'naosei'->'errei', 'sei'->'bom')
+  // Parâmetros inspirados nos padrões do Anki (SM-2)
+  MIN_EASE: 1.3, MAX_EASE: 3.2, HARD_FACTOR: 1.2, EASY_BONUS: 1.3, MAX_INTERVAL: 365 * 5,
+  GRAD_GOOD: 1,   // 1º "Bom" gradua para 1 dia
+  GRAD_EASY: 4,   // 1º "Fácil" gradua para 4 dias
   schedule(card, grade) {
     let ease = card.ease || 2.5, intervalo = card.intervalo || 0, reps = card.reps || 0, lapses = card.lapses || 0;
     if (grade === 'sei') grade = 'bom';
     if (grade === 'naosei') grade = 'errei';
+    const isNew = reps === 0 || intervalo <= 0; // ainda em aprendizado
     let status;
+    const clampE = (e) => Math.max(this.MIN_EASE, Math.min(this.MAX_EASE, e));
+    const cap = (d) => Math.max(1, Math.min(this.MAX_INTERVAL, Math.round(d)));
+
     if (grade === 'errei') {
-      reps = 0; lapses += 1; intervalo = 1; ease = Math.max(1.3, ease - 0.2); status = 'naosei';
-    } else if (grade === 'dificil') {
-      reps += 1;
-      intervalo = intervalo <= 0 ? 1 : Math.max(1, Math.round(intervalo * 1.2));
-      ease = Math.max(1.3, ease - 0.15); status = 'sei';
-    } else if (grade === 'facil') {
-      reps += 1;
-      intervalo = intervalo <= 0 ? 2 : Math.round(intervalo * ease * 1.3);
-      ease = Math.min(3.2, ease + 0.15); status = 'sei';
-    } else { // bom
-      reps += 1;
-      if (reps === 1) intervalo = 1;
-      else if (reps === 2) intervalo = 3;
-      else intervalo = Math.round(intervalo * ease);
-      status = 'sei'; // ease inalterado, como no Anki
+      // errou: lapso, reduz facilidade, reinicia o ciclo de aprendizado (revê em 1 dia)
+      lapses += 1; reps = 0; intervalo = 1; ease = clampE(ease - 0.20); status = 'naosei';
+    } else if (isNew) {
+      // fase de aprendizado (card novo ou reaprendendo): graduação
+      reps += 1; status = 'sei';
+      if (grade === 'facil') { intervalo = this.GRAD_EASY; ease = clampE(ease + 0.15); }
+      else if (grade === 'dificil') { intervalo = 1; ease = clampE(ease - 0.15); }
+      else intervalo = this.GRAD_GOOD; // bom
+    } else {
+      // fase de revisão (card já graduado): cresce conforme a nota
+      reps += 1; status = 'sei';
+      if (grade === 'dificil') { intervalo = cap(intervalo * this.HARD_FACTOR); ease = clampE(ease - 0.15); }
+      else if (grade === 'facil') { intervalo = cap(intervalo * ease * this.EASY_BONUS); ease = clampE(ease + 0.15); }
+      else intervalo = cap(intervalo * ease); // bom: cresce pela facilidade atual
     }
+    intervalo = cap(intervalo);
     return { status, grade, ease, intervalo, reps, lapses, due: this.addDays(todayLocal(), intervalo), lastReview: todayLocal() };
   },
   // Prévia do próximo intervalo de cada botão (para mostrar no card), sem alterar o card.
@@ -6655,6 +6773,8 @@ function planCycleMode() {
     const pctGeral = totalTarget > 0 ? Math.round((totalStudied / totalTarget) * 100) : 0;
     const overallAccent = pctGeral >= 100 ? 'accent-good' : pctGeral >= 40 ? 'accent-warn' : 'accent-bad';
     const finalizadasAccent = cycle.subjects.length > 0 && finalizadas === cycle.subjects.length ? 'accent-good' : '';
+    const remaining = Math.max(0, totalTarget - totalStudied);
+    const remAccent = remaining === 0 ? 'accent-good' : '';
 
     container.innerHTML = `
       <div class="mini-gauge-card ${overallAccent}">
@@ -6664,6 +6784,10 @@ function planCycleMode() {
       <div class="mini-gauge-card">
         <div class="value">${CycleEngine.fmtHM(totalStudied)}</div>
         <div class="label">estudado</div>
+      </div>
+      <div class="mini-gauge-card ${remAccent}">
+        <div class="value">${remaining === 0 ? '✓' : CycleEngine.fmtHM(remaining)}</div>
+        <div class="label">${remaining === 0 ? 'meta batida' : 'faltam'}</div>
       </div>
       <div class="mini-gauge-card ${finalizadasAccent}">
         <div class="value">${finalizadas}/${cycle.subjects.length}</div>
@@ -6863,7 +6987,7 @@ function planCycleMode() {
           <button type="button" class="chip-remove" title="Remover desta célula">×</button>
         </div>
         <div class="chip-bottom-row">
-          <span class="chip-duration-wrap"><input type="number" class="chip-duration-input" min="5" step="5" value="${minutes}" title="Duração em minutos"><span class="chip-duration-unit">min</span></span>
+          <span class="chip-duration-wrap"><input type="text" inputmode="numeric" class="chip-duration-input" value="${minutes}" title="Duração em minutos"><span class="chip-duration-unit">min</span></span>
           <button type="button" class="chip-done-toggle" title="${done ? 'Marcar como não concluída' : 'Marcar como concluída'}">${CHECK_ICON}</button>
         </div>
       </div>
@@ -6880,9 +7004,12 @@ function planCycleMode() {
 
     const durationInput = cell.querySelector('.chip-duration-input');
     durationInput.addEventListener('click', (e) => e.stopPropagation());
+    // aceita só dígitos enquanto digita
+    durationInput.addEventListener('input', () => { durationInput.value = durationInput.value.replace(/\D/g, ''); });
     durationInput.addEventListener('change', () => {
       const newMin = Math.max(5, parseInt(durationInput.value) || GRADE_DEFAULT_MIN);
       setCellData(dia, idx, { subject, minutes: newMin, done });
+      durationInput.value = newMin;
       updateDaySummary();
     });
 
@@ -6896,12 +7023,15 @@ function planCycleMode() {
       setCellData(dia, idx, { subject, minutes: (cur && cur.minutes) || minutes, done: newDone });
       renderCellContent(cell);
       updateDaySummary();
+      updateUncheckAllBtn(); // <- FIX: reflete no botão "Desmarcar concluídos"
     });
 
     cell.querySelector('.chip-remove').addEventListener('click', () => {
+      if (!confirm(`Remover "${subject}" desta célula da grade?`)) return;
       setCellData(dia, idx, null);
       cell.innerHTML = `<span class="grade-cell-empty-hint">arraste aqui</span>`;
       updateDaySummary();
+      updateUncheckAllBtn();
     });
   }
 
@@ -8476,6 +8606,26 @@ const EstudoNovoScreen = {
   },
 
   // Monta o bloco de comentário de uma aula (toggle + preview OU editor aberto)
+  // ---- Resumo/anotação da aula (modal) ----
+  openResumo(itemId) {
+    const subject = this.currentSubject;
+    const item = (DB.getTrack(subject) || []).find(i => i.id === itemId);
+    if (!item) return;
+    this._resumoItemId = itemId;
+    document.getElementById('resumo-modal-sub').textContent = (item.text || 'Aula') + ' · ' + subject;
+    document.getElementById('resumo-editor').innerHTML = item.resumo || '';
+    document.getElementById('resumo-modal').style.display = 'flex';
+    setTimeout(() => document.getElementById('resumo-editor').focus(), 60);
+  },
+  saveResumo() {
+    if (!this._resumoItemId) return;
+    const html = document.getElementById('resumo-editor').innerHTML.trim();
+    DB.updateTrackItem(this.currentSubject, this._resumoItemId, { resumo: html });
+    document.getElementById('resumo-modal').style.display = 'none';
+    this._resumoItemId = null;
+    this.renderTrack();
+    showToast('Resumo salvo ✓');
+  },
   commentHtml(item) {
     const hasComment = !!(item.comment && item.comment.trim());
     const isEditing = this.commentEditing.has(item.id);
@@ -8590,10 +8740,11 @@ const EstudoNovoScreen = {
             <div class="track-card-head">
               <span class="drag-handle">⠿</span>
               <span class="track-lesson-num">${lessonCounter}</span>
-              <input type="text" class="track-lesson-text" value="${escapeHtml(item.text)}" data-field="text">
+              <textarea class="track-lesson-text" rows="1" data-field="text" title="${escapeHtml(item.text)}">${escapeHtml(item.text)}</textarea>
               <select class="track-status-select" data-field="status" style="color:${st.color}; background-color:${st.bg}; border-color:${st.color}33;">
                 ${opts.map(s => `<option value="${s.id}" ${s.id === st.id ? 'selected' : ''}>${escapeHtml(s.nome)}</option>`).join('')}
               </select>
+              <button type="button" class="track-resumo-btn btn-open-resumo ${item.resumo && item.resumo.trim() ? 'has' : ''}" title="Resumo / anotação da aula">📄</button>
               <button type="button" class="track-remove-btn btn-remove-lesson" title="Remover aula">×</button>
             </div>
             <div class="track-stages">${stagesHtml}</div>
@@ -8652,6 +8803,19 @@ const EstudoNovoScreen = {
         DB.updateTrackItem(subject, itemId, { [field]: input.value });
         if (field === 'status') this.renderTrack(); // recolore o select e atualiza o progresso
       });
+    });
+    // textarea do nome da aula: auto-cresce e quebra linha (nomes longos legíveis)
+    const autoGrow = (ta) => { ta.style.height = 'auto'; ta.style.height = ta.scrollHeight + 'px'; };
+    listEl.querySelectorAll('textarea.track-lesson-text').forEach(ta => {
+      autoGrow(ta);
+      ta.addEventListener('input', () => autoGrow(ta));
+      // Enter não quebra linha aqui (salva/desfoca) — nome de aula é curto por natureza
+      ta.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); ta.blur(); } });
+    });
+    // botão de resumo/anotação
+    listEl.querySelectorAll('.btn-open-resumo').forEach(btn => {
+      const row = btn.closest('.track-row-wrap');
+      btn.addEventListener('click', () => this.openResumo(row.dataset.id));
     });
 
     // comentário: abrir/fechar o editor
@@ -8805,6 +8969,15 @@ document.getElementById('en-subject-mode').addEventListener('change', (e) => {
 
 // expõe para outras telas (ex.: Configurações) poderem forçar refresh após editar modos/status
 window.EstudoNovoScreen = EstudoNovoScreen;
+// listeners do modal de resumo
+(function () {
+  const on = (id, ev, fn) => { const el = document.getElementById(id); if (el) el.addEventListener(ev, fn); };
+  on('resumo-modal-close', 'click', () => document.getElementById('resumo-modal').style.display = 'none');
+  on('resumo-modal-cancel', 'click', () => document.getElementById('resumo-modal').style.display = 'none');
+  on('resumo-modal-save', 'click', () => EstudoNovoScreen.saveResumo());
+  const m = document.getElementById('resumo-modal');
+  if (m) m.addEventListener('click', (e) => { if (e.target === m) m.style.display = 'none'; });
+})();
 
 window.addEventListener('screen:activated', (e) => {
   if (e.detail.screen === 'estudonovo') EstudoNovoScreen.render();
@@ -8831,7 +9004,7 @@ const LeisScreen = {
     const wrap = document.getElementById('leis-cards');
     const leis = DB.getLeis().slice().sort((a, b) => (b.updatedAt || '').localeCompare(a.updatedAt || ''));
     if (leis.length === 0) {
-      wrap.innerHTML = `<div class="empty-state"><div class="big">§</div>Nenhuma lei cadastrada ainda. Adicione a primeira acima para começar seu vade mecum.</div>`;
+      wrap.innerHTML = `<div class="empty-state"><div class="big">§</div>Nenhuma lei cadastrada ainda. Clique em <strong>＋ Nova lei</strong> para começar seu vade mecum.</div>`;
       return;
     }
     wrap.innerHTML = leis.map(l => {
@@ -8857,6 +9030,14 @@ const LeisScreen = {
     });
   },
 
+  openForm() {
+    document.getElementById('lei-titulo').value = '';
+    document.getElementById('lei-ref').value = '';
+    document.getElementById('lei-materia').value = '';
+    document.getElementById('lei-texto').value = '';
+    document.getElementById('lei-form-modal').style.display = 'flex';
+    setTimeout(() => document.getElementById('lei-titulo').focus(), 60);
+  },
   addFromForm() {
     const titulo = document.getElementById('lei-titulo').value.trim();
     const texto = document.getElementById('lei-texto').value;
@@ -8868,10 +9049,7 @@ const LeisScreen = {
       materia: document.getElementById('lei-materia').value,
       texto
     });
-    document.getElementById('lei-titulo').value = '';
-    document.getElementById('lei-ref').value = '';
-    document.getElementById('lei-materia').value = '';
-    document.getElementById('lei-texto').value = '';
+    document.getElementById('lei-form-modal').style.display = 'none';
     showToast('Lei cadastrada ✓');
     this.openReader(lei.id);
   },
@@ -8880,6 +9058,8 @@ const LeisScreen = {
     const lei = DB.getLei(id);
     if (!lei) { this.showList(); return; }
     this.currentId = id;
+    this.hlMode = null; // reseta a ferramenta ativa ao abrir
+    ['lei-mark-btn', 'lei-unmark-btn'].forEach(bid => { const b = document.getElementById(bid); if (b) b.classList.remove('active'); });
     document.getElementById('leis-list-view').style.display = 'none';
     document.getElementById('leis-reader-view').style.display = 'block';
     document.getElementById('lei-reader-titulo').textContent = lei.titulo;
@@ -8908,18 +9088,14 @@ const LeisScreen = {
     const body = document.getElementById('lei-reader-body');
     body.innerHTML = LawEngine.toHtml(lei);
     body.style.fontSize = (100 + this.fontStep * 8) + '%';
-    // clicar num destaque MANUAL remove aquela marcação (desmarcar rápido)
-    body.querySelectorAll('mark.lawmark-manual').forEach(mk => {
-      mk.style.cursor = 'pointer';
-      mk.title = 'Clique para remover este destaque';
+    body.classList.toggle('tool-mark', this.hlMode === 'mark');
+    body.classList.toggle('tool-erase', this.hlMode === 'erase');
+    // com a BORRACHA ativa, clicar em qualquer destaque (manual ou automático) o apaga
+    body.querySelectorAll('mark[class*="lawmark-"]').forEach(mk => {
       mk.addEventListener('click', (e) => {
+        if (this.hlMode !== 'erase') return;
         e.stopPropagation();
-        const alvo = mk.textContent || '';
-        const l = DB.getLei(this.currentId);
-        const marks = (l.marcacoes || []).filter(m => m.toLowerCase() !== alvo.trim().toLowerCase());
-        DB.updateLei(this.currentId, { marcacoes: marks });
-        this.renderBody(); this.renderMarks();
-        showToast('Destaque removido');
+        this.eraseHighlight(mk.textContent || '');
       });
     });
   },
@@ -8939,64 +9115,129 @@ const LeisScreen = {
     const lei = DB.getLei(this.currentId);
     if (!lei) return;
     const marks = lei.marcacoes || [];
-    document.getElementById('lei-mark-count').textContent = marks.length ? `${marks.length} destaque(s) seu(s)` : '';
+    const suppressed = lei.suppressed || [];
+    const parts = [];
+    if (marks.length) parts.push(`${marks.length} destaque(s) seu(s)`);
+    if (suppressed.length) parts.push(`${suppressed.length} automático(s) apagado(s)`);
+    document.getElementById('lei-mark-count').textContent = parts.join(' · ');
     const panel = document.getElementById('lei-marks-panel');
     const list = document.getElementById('lei-marks-list');
-    if (marks.length === 0) { panel.style.display = 'none'; return; }
+    if (marks.length === 0 && suppressed.length === 0) { panel.style.display = 'none'; return; }
     panel.style.display = 'block';
-    list.innerHTML = marks.map((m, i) => `
-      <div class="lei-mark-row" data-i="${i}">
-        <span class="lawmark-manual lei-mark-text">${escapeHtml(m)}</span>
-        <button type="button" class="icon-btn danger lei-mark-del" title="Remover destaque">×</button>
-      </div>`).join('');
-    list.querySelectorAll('.lei-mark-row').forEach(row => {
+    let html = '';
+    if (marks.length) {
+      html += `<p class="section-label" style="margin:0 0 8px;">Seus destaques</p>` +
+        marks.map((m, i) => `
+          <div class="lei-mark-row" data-mark="${i}">
+            <span class="lawmark-manual lei-mark-text">${escapeHtml(m)}</span>
+            <button type="button" class="icon-btn danger lei-mark-del" title="Remover destaque">×</button>
+          </div>`).join('');
+    }
+    if (suppressed.length) {
+      html += `<div style="display:flex; align-items:center; justify-content:space-between; margin:14px 0 8px;">
+          <span class="section-label" style="margin:0;">Automáticos que você apagou</span>
+          <button type="button" class="btn-secondary" id="lei-restore-auto" style="padding:4px 10px; font-size:12px;">↺ Restaurar todos</button>
+        </div>` +
+        suppressed.map((m, i) => `
+          <div class="lei-mark-row" data-supp="${i}">
+            <span class="lei-mark-text" style="text-decoration:line-through; opacity:0.7;">${escapeHtml(m)}</span>
+            <button type="button" class="icon-btn supp-restore" title="Voltar a destacar">↺</button>
+          </div>`).join('');
+    }
+    list.innerHTML = html;
+    list.querySelectorAll('[data-mark]').forEach(row => {
       row.querySelector('.lei-mark-del').addEventListener('click', () => {
-        const idx = parseInt(row.dataset.i);
-        const l = DB.getLei(this.currentId);
-        l.marcacoes.splice(idx, 1);
+        const idx = parseInt(row.dataset.mark);
+        const l = DB.getLei(this.currentId); l.marcacoes.splice(idx, 1);
         DB.updateLei(this.currentId, { marcacoes: l.marcacoes });
         this.renderBody(); this.renderMarks();
       });
     });
+    list.querySelectorAll('[data-supp]').forEach(row => {
+      row.querySelector('.supp-restore').addEventListener('click', () => {
+        const idx = parseInt(row.dataset.supp);
+        const l = DB.getLei(this.currentId); const sup = (l.suppressed || []).slice(); sup.splice(idx, 1);
+        DB.updateLei(this.currentId, { suppressed: sup });
+        this.renderBody(); this.renderMarks();
+      });
+    });
+    const restoreBtn = document.getElementById('lei-restore-auto');
+    if (restoreBtn) restoreBtn.addEventListener('click', () => this.restoreAuto());
   },
-  markSelection() {
-    // usa a seleção viva; se o clique no botão já a limpou, usa a última capturada
-    const live = window.getSelection ? String(window.getSelection()).trim() : '';
-    const txt = (live && live.length >= 2) ? live : (this._selText || '');
-    if (!txt || txt.length < 2) { showToast('Selecione um trecho (2+ caracteres) no texto e clique em "Marcar seleção"'); return; }
-    if (txt.length > 200) { showToast('Seleção muito longa — marque um trecho menor'); return; }
-    const lei = DB.getLei(this.currentId);
-    const marks = lei.marcacoes || [];
-    const i = marks.findIndex(m => m.toLowerCase() === txt.toLowerCase());
-    if (i >= 0) {
-      // já existe → TOGGLE: desmarca
-      marks.splice(i, 1);
-      DB.updateLei(this.currentId, { marcacoes: marks });
-      this._clearSel();
-      this.renderBody(); this.renderMarks();
-      showToast('Destaque removido');
-      return;
+  // Ferramenta ativa: 'mark' (marca-texto) | 'erase' (borracha) | null
+  hlMode: null,
+  setTool(mode) {
+    this.hlMode = (this.hlMode === mode) ? null : mode;
+    const markBtn = document.getElementById('lei-mark-btn');
+    const eraseBtn = document.getElementById('lei-unmark-btn');
+    if (markBtn) markBtn.classList.toggle('active', this.hlMode === 'mark');
+    if (eraseBtn) eraseBtn.classList.toggle('active', this.hlMode === 'erase');
+    const body = document.getElementById('lei-reader-body');
+    if (body) {
+      body.classList.toggle('tool-mark', this.hlMode === 'mark');
+      body.classList.toggle('tool-erase', this.hlMode === 'erase');
     }
-    marks.push(txt);
-    DB.updateLei(this.currentId, { marcacoes: marks });
-    this._clearSel();
-    this.renderBody(); this.renderMarks();
-    showToast('Trecho destacado ✓');
+    if (this.hlMode === 'mark') showToast('Marca-texto ativo — selecione trechos para destacar');
+    else if (this.hlMode === 'erase') showToast('Borracha ativa — selecione um destaque para apagar');
   },
-  // Desmarcar a seleção atual (remove o destaque manual daquele trecho)
-  unmarkSelection() {
-    const live = window.getSelection ? String(window.getSelection()).trim() : '';
-    const txt = (live && live.length >= 2) ? live : (this._selText || '');
-    if (!txt || txt.length < 2) { showToast('Selecione um destaque no texto e clique em "Desmarcar seleção"'); return; }
+  // Chamado no mouseup do corpo: aplica a ferramenta ativa à seleção atual
+  onBodyMouseUp() {
+    if (!this.hlMode) return;
+    const sel = window.getSelection ? window.getSelection() : null;
+    const txt = sel ? String(sel).trim() : '';
+    if (!txt || txt.length < 2) return;
+    if (txt.length > 200) { showToast('Seleção muito longa'); return; }
+    if (this.hlMode === 'mark') this.applyMark(txt);
+    else if (this.hlMode === 'erase') this.applyErase(txt);
+    if (sel && sel.removeAllRanges) sel.removeAllRanges();
+  },
+  applyMark(txt) {
     const lei = DB.getLei(this.currentId);
     const marks = lei.marcacoes || [];
-    const before = marks.length;
-    const kept = marks.filter(m => m.toLowerCase() !== txt.toLowerCase());
-    if (kept.length === before) { showToast('Esse trecho não está entre os seus destaques manuais'); return; }
-    DB.updateLei(this.currentId, { marcacoes: kept });
-    this._clearSel();
+    if (!marks.some(m => m.toLowerCase() === txt.toLowerCase())) {
+      marks.push(txt);
+      DB.updateLei(this.currentId, { marcacoes: marks });
+      this.renderBody(); this.renderMarks();
+    }
+  },
+  // Borracha: remove destaque MANUAL e também SUPRIME destaques automáticos daquele trecho
+  applyErase(txt) {
+    const lei = DB.getLei(this.currentId);
+    const key = txt.toLowerCase();
+    const marks = (lei.marcacoes || []).filter(m => m.toLowerCase() !== key);
+    // suprime também as palavras automáticas contidas na seleção
+    const suppressed = (lei.suppressed || []).slice();
+    this._collectAutoInText(txt).forEach(w => { if (!suppressed.some(s => s.toLowerCase() === w.toLowerCase())) suppressed.push(w); });
+    DB.updateLei(this.currentId, { marcacoes: marks, suppressed });
     this.renderBody(); this.renderMarks();
-    showToast('Destaque removido');
+  },
+  // encontra os termos que as categorias automáticas destacariam dentro de um texto
+  _collectAutoInText(txt) {
+    const found = [];
+    Object.keys(LawEngine.categories).forEach(k => {
+      const cat = LawEngine.categories[k];
+      const re = new RegExp(cat.re.source, cat.re.flags);
+      let m;
+      while ((m = re.exec(txt)) !== null) { if (m.index === re.lastIndex) re.lastIndex++; found.push(m[0]); }
+    });
+    return found;
+  },
+  // remove uma marcação específica (manual) OU suprime um automático, pelo texto exato
+  eraseHighlight(text) {
+    const lei = DB.getLei(this.currentId);
+    const key = (text || '').trim().toLowerCase();
+    if (!key) return;
+    const marks = (lei.marcacoes || []).filter(m => m.toLowerCase() !== key);
+    const suppressed = (lei.suppressed || []).slice();
+    if (!suppressed.some(s => s.toLowerCase() === key)) suppressed.push(text.trim());
+    DB.updateLei(this.currentId, { marcacoes: marks, suppressed });
+    this.renderBody(); this.renderMarks();
+  },
+  // restaura todos os destaques automáticos suprimidos
+  restoreAuto() {
+    DB.updateLei(this.currentId, { suppressed: [] });
+    this.renderBody(); this.renderMarks();
+    showToast('Destaques automáticos restaurados');
   },
   _clearSel() {
     this._selText = '';
@@ -9060,31 +9301,32 @@ const LeisScreen = {
 window.LeisScreen = LeisScreen;
 
 // Listeners da tela de Leis
-document.getElementById('lei-add-btn').addEventListener('click', () => LeisScreen.addFromForm());
-document.getElementById('lei-back-btn').addEventListener('click', () => LeisScreen.showList());
-document.getElementById('lei-edit-btn').addEventListener('click', () => LeisScreen.editCurrent());
-document.getElementById('lei-del-btn').addEventListener('click', () => LeisScreen.deleteCurrent());
-// captura a seleção continuamente no corpo do leitor (para não perdê-la ao clicar no botão)
 (function () {
+  const on = (id, ev, fn) => { const el = document.getElementById(id); if (el) el.addEventListener(ev, fn); };
+  // modal de nova lei
+  on('lei-open-form-btn', 'click', () => LeisScreen.openForm());
+  on('lei-form-close', 'click', () => document.getElementById('lei-form-modal').style.display = 'none');
+  on('lei-form-cancel', 'click', () => document.getElementById('lei-form-modal').style.display = 'none');
+  on('lei-add-btn', 'click', () => LeisScreen.addFromForm());
+  const fm = document.getElementById('lei-form-modal');
+  if (fm) fm.addEventListener('click', (e) => { if (e.target === fm) fm.style.display = 'none'; });
+  // leitor
+  on('lei-back-btn', 'click', () => LeisScreen.showList());
+  on('lei-edit-btn', 'click', () => LeisScreen.editCurrent());
+  on('lei-del-btn', 'click', () => LeisScreen.deleteCurrent());
+  // ferramentas de marcação: marca-texto e borracha (modos)
+  on('lei-mark-btn', 'click', () => LeisScreen.setTool('mark'));
+  on('lei-unmark-btn', 'click', () => LeisScreen.setTool('erase'));
+  // aplica a ferramenta ativa ao soltar a seleção
   const body = document.getElementById('lei-reader-body');
-  if (body) {
-    body.addEventListener('mouseup', () => LeisScreen.captureSelection());
-    body.addEventListener('keyup', () => LeisScreen.captureSelection());
-  }
-  // impede que clicar nos botões de marcar/desmarcar limpe a seleção do texto
-  ['lei-mark-btn', 'lei-unmark-btn'].forEach(id => {
-    const b = document.getElementById(id);
-    if (b) b.addEventListener('mousedown', (e) => e.preventDefault());
+  if (body) body.addEventListener('mouseup', () => setTimeout(() => LeisScreen.onBodyMouseUp(), 0));
+  on('lei-font-inc', 'click', () => LeisScreen.changeFont(1));
+  on('lei-font-dec', 'click', () => LeisScreen.changeFont(-1));
+  on('lei-auto-master', 'change', (e) => LeisScreen.setAutoMaster(e.target.checked));
+  document.querySelectorAll('#lei-hl-toggles input[data-cat]').forEach(cb => {
+    cb.addEventListener('change', () => LeisScreen.toggleCategory(cb.dataset.cat, cb.checked));
   });
 })();
-document.getElementById('lei-mark-btn').addEventListener('click', () => LeisScreen.markSelection());
-document.getElementById('lei-unmark-btn').addEventListener('click', () => LeisScreen.unmarkSelection());
-document.getElementById('lei-font-inc').addEventListener('click', () => LeisScreen.changeFont(1));
-document.getElementById('lei-font-dec').addEventListener('click', () => LeisScreen.changeFont(-1));
-document.getElementById('lei-auto-master').addEventListener('change', (e) => LeisScreen.setAutoMaster(e.target.checked));
-document.querySelectorAll('#lei-hl-toggles input[data-cat]').forEach(cb => {
-  cb.addEventListener('change', () => LeisScreen.toggleCategory(cb.dataset.cat, cb.checked));
-});
 window.addEventListener('screen:activated', (e) => {
   if (e.detail.screen === 'leis') LeisScreen.render();
 });
@@ -9186,9 +9428,13 @@ const CardsScreen = {
         </div>
         ${this.faceHtml(c)}
         <div class="cards-review-actions" id="cards-review-actions"></div>
-        <div class="cards-review-editrow">
+        <div class="cards-review-nav">
+          <button type="button" class="cards-nav-btn" id="cards-prev" ${this._reviewIdx === 0 ? 'disabled' : ''}>← Anterior</button>
           <button type="button" class="icon-btn cards-review-edit" id="cards-review-edit" title="Editar card">✎ Editar</button>
-          <span class="cards-kbd-hint">Atalhos: <kbd>Espaço</kbd> vira · <kbd>1</kbd><kbd>2</kbd><kbd>3</kbd><kbd>4</kbd> avaliam</span>
+          <button type="button" class="cards-nav-btn" id="cards-next" ${this._reviewIdx >= total - 1 ? 'disabled' : ''}>Pular →</button>
+        </div>
+        <div class="cards-kbd-hint-row">
+          <span class="cards-kbd-hint"><kbd>Espaço</kbd> vira · <kbd>1</kbd><kbd>2</kbd><kbd>3</kbd><kbd>4</kbd> avaliam · <kbd>←</kbd><kbd>→</kbd> navegam</span>
         </div>
       </div>`;
     this.renderActions(box, c);
@@ -9196,6 +9442,8 @@ const CardsScreen = {
       DB.updateCard(c.id, { favorito: !c.favorito }); this.updateFavCount(); this.renderReviewCard(box);
     });
     document.getElementById('cards-review-edit').addEventListener('click', () => this.openCardModal(c.id));
+    const pv = document.getElementById('cards-prev'); if (pv) pv.addEventListener('click', () => this.navCard(-1));
+    const nx = document.getElementById('cards-next'); if (nx) nx.addEventListener('click', () => this.navCard(1));
   },
   // renderiza as faces conforme o tipo (cloze ou básico)
   faceHtml(c) {
@@ -9243,9 +9491,21 @@ const CardsScreen = {
       if (!this._flipped) this.flip(box);
       return;
     }
+    // setas: navegar entre cards sem avaliar (→ próximo/pular, ← anterior)
+    if (e.code === 'ArrowRight') { e.preventDefault(); this.navCard(1); return; }
+    if (e.code === 'ArrowLeft') { e.preventDefault(); this.navCard(-1); return; }
     if (!this._flipped) return;
     const map = { Digit1: 'errei', Numpad1: 'errei', Digit2: 'dificil', Numpad2: 'dificil', Digit3: 'bom', Numpad3: 'bom', Digit4: 'facil', Numpad4: 'facil' };
     if (map[e.code]) { e.preventDefault(); this.answer(map[e.code]); }
+  },
+  // navega entre os cards da fila sem avaliar (pular/voltar)
+  navCard(dir) {
+    if (!this._reviewQueue || this._reviewQueue.length === 0) return;
+    const ni = this._reviewIdx + dir;
+    if (ni < 0 || ni >= this._reviewQueue.length) return;
+    this._reviewIdx = ni;
+    this._flipped = false;
+    this.renderReviewCard(document.getElementById('cards-content'));
   },
   answer(grade) {
     const id = this._reviewQueue[this._reviewIdx];
