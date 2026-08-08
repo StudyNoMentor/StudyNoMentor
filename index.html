@@ -2949,6 +2949,75 @@
     .cards-modal-foot { justify-content: flex-end; }
   }
 
+  /* ============================================================
+     LINKS ÚTEIS
+     ============================================================ */
+  .links-topbar { display: flex; gap: 8px; flex-wrap: wrap; margin: 14px 0 16px; }
+  .links-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 14px; }
+  .link-card {
+    position: relative; display: flex; align-items: center; gap: 14px;
+    background: var(--surface); border: 1.5px solid var(--border); border-radius: 16px;
+    padding: 16px; text-decoration: none; color: inherit; box-shadow: var(--shadow-sm);
+    transition: border-color 0.15s ease, box-shadow 0.15s ease, transform 0.15s ease;
+    overflow: hidden;
+  }
+  .link-card::after {
+    content: '↗'; position: absolute; top: 10px; right: 12px; font-size: 13px; color: var(--text-faint);
+    opacity: 0; transition: opacity 0.15s ease;
+  }
+  .link-card:hover { border-color: var(--accent); box-shadow: var(--shadow-md); transform: translateY(-2px); }
+  .link-card:hover::after { opacity: 1; }
+  .link-card-logo {
+    width: 52px; height: 52px; border-radius: 13px; flex-shrink: 0; overflow: hidden;
+    display: flex; align-items: center; justify-content: center;
+    background: var(--surface-sunken); border: 1px solid var(--border);
+  }
+  .link-card-logo img { width: 100%; height: 100%; object-fit: contain; }
+  .link-card-logo.mono {
+    color: #fff; font-family: 'Space Mono', monospace; font-weight: 800; font-size: 17px;
+    letter-spacing: 0.02em; border: none;
+  }
+  .link-card-body { min-width: 0; flex: 1; }
+  .link-card-name { font-size: 15px; font-weight: 800; color: var(--text); letter-spacing: -0.01em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .link-card-host { font-size: 12px; color: var(--text-faint); font-family: 'Space Mono', monospace; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; margin-top: 3px; }
+  .link-card-cat {
+    position: absolute; bottom: 10px; right: 12px; font-size: 9.5px; font-weight: 700;
+    text-transform: uppercase; letter-spacing: 0.04em; color: var(--text-soft);
+    background: var(--surface-sunken); border: 1px solid var(--border); border-radius: 20px; padding: 2px 8px;
+  }
+  .link-card-edit {
+    position: absolute; top: 8px; right: 8px; width: 24px; height: 24px; border-radius: 7px;
+    background: var(--surface-sunken); border: 1px solid var(--border); color: var(--text-soft);
+    font-size: 11px; cursor: pointer; opacity: 0; display: flex; align-items: center; justify-content: center;
+    transition: opacity 0.15s ease;
+  }
+  .link-card:hover .link-card-edit { opacity: 1; }
+  .link-card-edit:hover { background: var(--accent-soft); color: var(--accent); }
+  /* modal de link */
+  .link-logo-row { display: flex; gap: 14px; align-items: flex-start; }
+  .link-logo-preview {
+    width: 72px; height: 72px; border-radius: 15px; flex-shrink: 0; overflow: hidden;
+    display: flex; align-items: center; justify-content: center;
+    background: var(--surface-sunken); border: 1.5px solid var(--border); color: var(--text-faint); font-size: 11px;
+  }
+  .link-logo-preview img { width: 100%; height: 100%; object-fit: contain; }
+  .link-preview-mono { width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; color: #fff; font-family: 'Space Mono', monospace; font-weight: 800; font-size: 24px; }
+  .link-logo-controls { flex: 1; min-width: 0; }
+  .link-color-row { display: flex; align-items: center; gap: 12px; }
+  .link-color-row input[type="color"] { width: 46px; height: 34px; padding: 2px; border: 1.5px solid var(--border); border-radius: 9px; background: var(--surface); cursor: pointer; }
+  .link-color-swatches { display: flex; gap: 6px; flex-wrap: wrap; }
+  .link-swatch { width: 24px; height: 24px; border-radius: 50%; cursor: pointer; border: 2px solid transparent; }
+  .link-swatch:hover { transform: scale(1.12); }
+  .link-swatch.sel { border-color: var(--text); box-shadow: 0 0 0 2px var(--surface), 0 0 0 4px var(--text); }
+  /* gerenciar links */
+  .link-manage-row { display: flex; align-items: center; gap: 12px; padding: 10px; border: 1px solid var(--border); border-radius: 12px; background: var(--surface-sunken); margin-bottom: 8px; }
+  .link-manage-row .link-card-logo { width: 40px; height: 40px; border-radius: 10px; }
+  .link-manage-row .link-card-logo.mono { font-size: 14px; }
+  .link-manage-info { flex: 1; min-width: 0; }
+  .link-manage-name { font-size: 13.5px; font-weight: 700; color: var(--text); }
+  .link-manage-url { font-size: 11px; color: var(--text-faint); font-family: 'Space Mono', monospace; }
+  @media (max-width: 560px) { .links-grid { grid-template-columns: 1fr; } }
+
 </style>
 </head>
 <body>
@@ -3108,6 +3177,7 @@
       <button class="tab" data-screen="estudonovo"><span class="tab-icon">▥</span>Estudo Novo</button>
       <button class="tab" data-screen="leis"><span class="tab-icon">§</span>Leis Secas</button>
       <button class="tab" data-screen="cards"><span class="tab-icon">🗂️</span>Cards de Revisão</button>
+      <button class="tab" data-screen="links"><span class="tab-icon">🔗</span>Links Úteis</button>
       <button class="tab" data-screen="historico"><span class="tab-icon">▤</span>Histórico</button>
       <button class="tab" data-screen="evolucao"><span class="tab-icon">📈</span>Evolução</button>
       <button class="tab" data-screen="desempenhotec"><span class="tab-icon">🎯</span>Desempenho TEC</button>
@@ -3749,6 +3819,75 @@
         <button type="button" class="btn-secondary" id="cards-export-json">Backup (.json)</button>
         <button type="button" class="btn-primary" id="cards-export-anki">Anki (.txt)</button>
       </div>
+    </div>
+  </div>
+
+  <!-- ============ TELA: LINKS ÚTEIS ============ -->
+  <section class="screen" id="screen-links">
+    <div class="page-header">
+      <h2 class="page-title">🔗 Links Úteis</h2>
+      <p class="page-subtitle">Seus atalhos de estudo num só lugar. Clique para abrir em nova aba. Personalize com o logo de cada site e gerencie quando um link mudar.</p>
+    </div>
+    <div class="links-topbar">
+      <button type="button" class="btn-primary" id="link-add-btn">＋ Novo link</button>
+      <button type="button" class="btn-secondary" id="link-manage-btn">⚙ Gerenciar</button>
+    </div>
+    <div id="links-grid" class="links-grid"></div>
+  </section>
+
+  <!-- Modal: criar/editar link -->
+  <div id="link-modal" class="cards-modal" style="display:none;">
+    <div class="cards-modal-box">
+      <div class="cards-modal-head">
+        <div><h2 id="link-modal-title">＋ Novo link</h2><p class="sub">Fica salvo no seu perfil e sincroniza entre dispositivos.</p></div>
+        <button type="button" class="icon-btn" id="link-modal-close">✕</button>
+      </div>
+      <div class="cards-modal-body">
+        <div class="field-group">
+          <div class="field"><label>Nome <span class="req">*</span></label>
+            <input type="text" id="link-nome" placeholder="Ex.: TecConcursos"></div>
+          <div class="field"><label>Categoria <span class="opt">(opcional)</span></label>
+            <input type="text" id="link-categoria" list="link-cat-list" placeholder="Ex.: Questões, Curso, IA">
+            <datalist id="link-cat-list"></datalist></div>
+        </div>
+        <div class="field"><label>Endereço (URL) <span class="req">*</span></label>
+          <input type="url" id="link-url" placeholder="https://..."></div>
+        <div class="field"><label>Logo <span class="opt">(opcional)</span></label>
+          <div class="link-logo-row">
+            <div class="link-logo-preview" id="link-logo-preview"><span>sem logo</span></div>
+            <div class="link-logo-controls">
+              <input type="file" id="link-logo-file" accept="image/png,image/jpeg,image/webp,image/svg+xml" style="display:none;">
+              <button type="button" class="btn-secondary" id="link-logo-pick">Escolher imagem</button>
+              <button type="button" class="btn-secondary" id="link-logo-clear" style="display:none;">Remover</button>
+              <p class="hint" style="margin:6px 0 0;">Recomendado: <strong>PNG quadrado</strong> (mín. 128×128, ideal 256×256), fundo transparente. Máx. 400&nbsp;KB. Sem logo, usamos um monograma colorido.</p>
+            </div>
+          </div>
+        </div>
+        <div class="field"><label>Cor de fundo <span class="opt">(quando não há logo)</span></label>
+          <div class="link-color-row">
+            <input type="color" id="link-cor" value="#4f46e5">
+            <div class="link-color-swatches" id="link-color-swatches"></div>
+          </div>
+        </div>
+      </div>
+      <div class="cards-modal-foot">
+        <button type="button" class="btn-danger-text" id="link-del-btn" style="display:none;">Excluir link</button>
+        <span style="flex:1"></span>
+        <button type="button" class="btn-secondary" id="link-cancel">Cancelar</button>
+        <button type="button" class="btn-primary" id="link-save">Salvar</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal: gerenciar links (lista) -->
+  <div id="link-manage-modal" class="cards-modal" style="display:none;">
+    <div class="cards-modal-box">
+      <div class="cards-modal-head">
+        <div><h2>⚙ Gerenciar links</h2><p class="sub">Edite ou remova. Arraste para reordenar não está disponível — use os botões.</p></div>
+        <button type="button" class="icon-btn" id="link-manage-close">✕</button>
+      </div>
+      <div class="cards-modal-body"><div id="link-manage-list"></div></div>
+      <div class="cards-modal-foot"><span style="flex:1"></span><button type="button" class="btn-secondary" id="link-manage-done">Fechar</button></div>
     </div>
   </div>
 
@@ -4400,7 +4539,8 @@ const DB = {
       customSiglas: base + 'custom-siglas',
       leis: base + 'leis',
       decks: base + 'decks',
-      cards: base + 'cards'
+      cards: base + 'cards',
+      links: base + 'links'
     };
   },
   // KEYS "dinâmico": sempre aponta para o planejamento ativo no momento da leitura
@@ -4845,6 +4985,44 @@ const DB = {
     this.saveCards(list); return c;
   },
   deleteCard(id) { this.saveCards(this.getCards().filter(c => c.id !== id)); },
+
+  // ---- Links úteis: [{ id, nome, url, categoria, cor, logo(dataURL|null), createdAt }] ----
+  DEFAULT_LINKS: [
+    { nome: 'TecConcursos', url: 'https://www.tecconcursos.com.br/', categoria: 'Questões', cor: '#29abe2' },
+    { nome: 'Estratégia', url: 'https://perfil.estrategia.com/login', categoria: 'Curso', cor: '#5b4fc4' },
+    { nome: 'Nazli Setton', url: 'https://www.nazlisetton.com.br/', categoria: 'Curso', cor: '#7cb342' },
+    { nome: 'Prof. Rabelo', url: 'https://cursos.rabeloconcursos.com/login', categoria: 'Curso', cor: '#123a5e' },
+    { nome: 'Gemini', url: 'https://gemini.google.com/app', categoria: 'IA', cor: '#4285f4' },
+    { nome: 'Claude', url: 'https://claude.ai/', categoria: 'IA', cor: '#d97757' }
+  ],
+  getLinks() {
+    let list = this._get(this.KEYS.links, null);
+    if (list === null) {
+      list = this.DEFAULT_LINKS.map(l => ({ id: this._uid(), ...l, logo: null, createdAt: new Date().toISOString() }));
+      this._set(this.KEYS.links, list);
+    }
+    return list;
+  },
+  saveLinks(list) { this._set(this.KEYS.links, list); },
+  addLink(data) {
+    const list = this.getLinks();
+    const link = {
+      id: this._uid(),
+      nome: (data.nome || 'Novo link').trim(),
+      url: (data.url || '').trim(),
+      categoria: (data.categoria || '').trim(),
+      cor: data.cor || '#4f46e5',
+      logo: data.logo || null,
+      createdAt: new Date().toISOString()
+    };
+    list.push(link); this.saveLinks(list); return link;
+  },
+  updateLink(id, patch) {
+    const list = this.getLinks(); const l = list.find(x => x.id === id);
+    if (l) Object.assign(l, patch);
+    this.saveLinks(list); return l;
+  },
+  deleteLink(id) { this.saveLinks(this.getLinks().filter(l => l.id !== id)); },
   addCustomSigla({ sigla, nome, color }) {
     const list = this.getCustomSiglas();
     list.push({ id: this._uid(), sigla: (sigla || '').trim().toUpperCase(), nome: (nome || '').trim(), color: color || '#4f46e5' });
@@ -10029,6 +10207,197 @@ document.querySelectorAll('.rte').forEach(buildRteToolbar);
 })();
 window.addEventListener('screen:activated', (e) => {
   if (e.detail.screen === 'cards') CardsScreen.render();
+});
+
+/* ============================================================
+   TELA: LINKS ÚTEIS
+   ============================================================ */
+const LinksScreen = {
+  _editingId: null,
+  _draftLogo: null,
+  _draftCor: '#4f46e5',
+  PALETTE: ['#4f46e5', '#29abe2', '#5b4fc4', '#7cb342', '#123a5e', '#4285f4', '#d97757', '#e0393f', '#0f9d63', '#d97a12', '#b3308a', '#5b6270'],
+
+  render() { this.renderGrid(); },
+  monogram(nome) {
+    const parts = String(nome || '?').trim().split(/\s+/);
+    if (parts.length >= 2) return (parts[0][0] + parts[1][0]).toUpperCase();
+    return (parts[0] || '?').slice(0, 2).toUpperCase();
+  },
+  hostname(url) { try { return new URL(url).hostname.replace(/^www\./, ''); } catch (e) { return url || ''; } },
+  logoHtml(l) {
+    if (l.logo) return `<div class="link-card-logo"><img src="${l.logo}" alt="${escapeHtml(l.nome)}"></div>`;
+    return `<div class="link-card-logo mono" style="background:${l.cor}">${escapeHtml(this.monogram(l.nome))}</div>`;
+  },
+  renderGrid() {
+    const grid = document.getElementById('links-grid');
+    const links = DB.getLinks();
+    if (links.length === 0) {
+      grid.innerHTML = `<div class="card"><div class="empty-state" style="padding:40px 20px;"><div class="big">🔗</div><h3 style="margin:4px 0;">Nenhum link ainda</h3><p style="color:var(--text-faint)">Clique em <strong>＋ Novo link</strong> para adicionar seus atalhos.</p></div></div>`;
+      return;
+    }
+    grid.innerHTML = links.map(l => `
+      <a class="link-card" href="${escapeHtml(l.url)}" target="_blank" rel="noopener noreferrer" data-id="${l.id}">
+        ${this.logoHtml(l)}
+        <div class="link-card-body">
+          <div class="link-card-name">${escapeHtml(l.nome)}</div>
+          <div class="link-card-host">${escapeHtml(this.hostname(l.url))}</div>
+        </div>
+        ${l.categoria ? `<span class="link-card-cat">${escapeHtml(l.categoria)}</span>` : ''}
+        <button type="button" class="link-card-edit" data-edit="${l.id}" title="Editar">✎</button>
+      </a>`).join('');
+    grid.querySelectorAll('[data-edit]').forEach(b => b.addEventListener('click', (e) => {
+      e.preventDefault(); e.stopPropagation(); this.openModal(b.dataset.edit);
+    }));
+  },
+
+  fillCategoryDatalist() {
+    const cats = [...new Set(DB.getLinks().map(l => l.categoria).filter(Boolean))].sort();
+    document.getElementById('link-cat-list').innerHTML = cats.map(c => `<option value="${escapeHtml(c)}">`).join('');
+  },
+  renderColorSwatches() {
+    const box = document.getElementById('link-color-swatches');
+    box.innerHTML = this.PALETTE.map(c =>
+      `<button type="button" class="link-swatch ${c === this._draftCor ? 'sel' : ''}" data-cor="${c}" style="background:${c}"></button>`).join('');
+    box.querySelectorAll('.link-swatch').forEach(sw => sw.addEventListener('click', () => {
+      this._draftCor = sw.dataset.cor;
+      document.getElementById('link-cor').value = sw.dataset.cor;
+      this.renderColorSwatches(); this.refreshLogoPreview();
+    }));
+  },
+  refreshLogoPreview() {
+    const prev = document.getElementById('link-logo-preview');
+    const clearBtn = document.getElementById('link-logo-clear');
+    if (this._draftLogo) {
+      prev.innerHTML = `<img src="${this._draftLogo}" alt="">`;
+      clearBtn.style.display = 'inline-block';
+    } else {
+      const nome = document.getElementById('link-nome').value || '?';
+      prev.innerHTML = `<span class="link-preview-mono" style="background:${this._draftCor}">${escapeHtml(this.monogram(nome))}</span>`;
+      clearBtn.style.display = 'none';
+    }
+  },
+  openModal(id) {
+    this._editingId = id || null;
+    const isEdit = !!id;
+    document.getElementById('link-modal-title').textContent = isEdit ? '✎ Editar link' : '＋ Novo link';
+    document.getElementById('link-del-btn').style.display = isEdit ? 'inline-block' : 'none';
+    let nome = '', url = '', categoria = '';
+    this._draftLogo = null; this._draftCor = this.PALETTE[Math.floor(Math.random() * 4)];
+    if (isEdit) {
+      const l = DB.getLinks().find(x => x.id === id);
+      if (l) { nome = l.nome; url = l.url; categoria = l.categoria || ''; this._draftLogo = l.logo || null; this._draftCor = l.cor || '#4f46e5'; }
+    }
+    document.getElementById('link-nome').value = nome;
+    document.getElementById('link-url').value = url;
+    document.getElementById('link-categoria').value = categoria;
+    document.getElementById('link-cor').value = this._draftCor;
+    document.getElementById('link-logo-file').value = '';
+    this.fillCategoryDatalist();
+    this.renderColorSwatches();
+    this.refreshLogoPreview();
+    document.getElementById('link-modal').style.display = 'flex';
+    setTimeout(() => document.getElementById('link-nome').focus(), 50);
+  },
+  closeModal() { document.getElementById('link-modal').style.display = 'none'; this._editingId = null; },
+  // redimensiona a imagem para no máx. 256px e devolve dataURL (PNG p/ transparência)
+  processLogo(file) {
+    if (!file) return;
+    if (file.size > 400 * 1024) { showToast('Imagem muito grande (máx. 400 KB). Reduza antes de enviar.'); return; }
+    // SVG: guarda direto (é leve e vetorial)
+    if (file.type === 'image/svg+xml') {
+      const r = new FileReader();
+      r.onload = (e) => { this._draftLogo = e.target.result; this.refreshLogoPreview(); };
+      r.readAsDataURL(file); return;
+    }
+    const r = new FileReader();
+    r.onload = (e) => {
+      const img = new Image();
+      img.onload = () => {
+        const max = 256;
+        let w = img.width, h = img.height;
+        if (w > max || h > max) { const s = max / Math.max(w, h); w = Math.round(w * s); h = Math.round(h * s); }
+        const cv = document.createElement('canvas'); cv.width = w; cv.height = h;
+        cv.getContext('2d').drawImage(img, 0, 0, w, h);
+        this._draftLogo = cv.toDataURL('image/png');
+        this.refreshLogoPreview();
+      };
+      img.onerror = () => showToast('Não foi possível ler a imagem.');
+      img.src = e.target.result;
+    };
+    r.readAsDataURL(file);
+  },
+  save() {
+    const nome = document.getElementById('link-nome').value.trim();
+    let url = document.getElementById('link-url').value.trim();
+    if (!nome) { showToast('Dê um nome ao link'); return; }
+    if (!url) { showToast('Informe o endereço (URL)'); return; }
+    if (!/^https?:\/\//i.test(url)) url = 'https://' + url; // conserta URL sem protocolo
+    const data = { nome, url, categoria: document.getElementById('link-categoria').value.trim(), cor: this._draftCor, logo: this._draftLogo };
+    if (this._editingId) { DB.updateLink(this._editingId, data); showToast('Link atualizado ✓'); }
+    else { DB.addLink(data); showToast('Link adicionado ✓'); }
+    this.closeModal();
+    this.renderGrid();
+    if (document.getElementById('link-manage-modal').style.display === 'flex') this.renderManageList();
+  },
+  deleteCurrent() {
+    if (!this._editingId) return;
+    const l = DB.getLinks().find(x => x.id === this._editingId);
+    if (!confirm(`Excluir o link "${l ? l.nome : ''}"?`)) return;
+    DB.deleteLink(this._editingId); this.closeModal(); this.renderGrid();
+    if (document.getElementById('link-manage-modal').style.display === 'flex') this.renderManageList();
+    showToast('Link excluído');
+  },
+  openManage() { this.renderManageList(); document.getElementById('link-manage-modal').style.display = 'flex'; },
+  renderManageList() {
+    const box = document.getElementById('link-manage-list');
+    const links = DB.getLinks();
+    if (links.length === 0) { box.innerHTML = `<p class="hint">Nenhum link cadastrado.</p>`; return; }
+    box.innerHTML = links.map(l => `
+      <div class="link-manage-row" data-id="${l.id}">
+        ${this.logoHtml(l)}
+        <div class="link-manage-info">
+          <div class="link-manage-name">${escapeHtml(l.nome)}</div>
+          <div class="link-manage-url">${escapeHtml(this.hostname(l.url))}</div>
+        </div>
+        <button type="button" class="icon-btn link-manage-edit" title="Editar">✎</button>
+        <button type="button" class="icon-btn danger link-manage-del" title="Excluir">×</button>
+      </div>`).join('');
+    box.querySelectorAll('.link-manage-row').forEach(row => {
+      const id = row.dataset.id;
+      row.querySelector('.link-manage-edit').addEventListener('click', () => this.openModal(id));
+      row.querySelector('.link-manage-del').addEventListener('click', () => {
+        const l = DB.getLinks().find(x => x.id === id);
+        if (!confirm(`Excluir o link "${l ? l.nome : ''}"?`)) return;
+        DB.deleteLink(id); this.renderManageList(); this.renderGrid(); showToast('Link excluído');
+      });
+    });
+  }
+};
+window.LinksScreen = LinksScreen;
+
+(function () {
+  const on = (id, ev, fn) => { const el = document.getElementById(id); if (el) el.addEventListener(ev, fn); };
+  on('link-add-btn', 'click', () => LinksScreen.openModal(null));
+  on('link-manage-btn', 'click', () => LinksScreen.openManage());
+  on('link-modal-close', 'click', () => LinksScreen.closeModal());
+  on('link-cancel', 'click', () => LinksScreen.closeModal());
+  on('link-save', 'click', () => LinksScreen.save());
+  on('link-del-btn', 'click', () => LinksScreen.deleteCurrent());
+  on('link-nome', 'input', () => LinksScreen.refreshLogoPreview());
+  on('link-cor', 'input', (e) => { LinksScreen._draftCor = e.target.value; LinksScreen.renderColorSwatches(); LinksScreen.refreshLogoPreview(); });
+  on('link-logo-pick', 'click', () => document.getElementById('link-logo-file').click());
+  on('link-logo-file', 'change', (e) => { if (e.target.files[0]) LinksScreen.processLogo(e.target.files[0]); });
+  on('link-logo-clear', 'click', () => { LinksScreen._draftLogo = null; LinksScreen.refreshLogoPreview(); });
+  on('link-manage-close', 'click', () => document.getElementById('link-manage-modal').style.display = 'none');
+  on('link-manage-done', 'click', () => document.getElementById('link-manage-modal').style.display = 'none');
+  ['link-modal', 'link-manage-modal'].forEach(id => {
+    const m = document.getElementById(id);
+    if (m) m.addEventListener('click', (e) => { if (e.target === m) m.style.display = 'none'; });
+  });
+})();
+window.addEventListener('screen:activated', (e) => {
+  if (e.detail.screen === 'links') LinksScreen.render();
 });
 
 /* ============================================================
