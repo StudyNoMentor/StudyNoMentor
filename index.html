@@ -1072,10 +1072,18 @@
   .custom-sigla-swatch { width: 16px; height: 16px; border-radius: 50%; border: 1px solid var(--border); }
   .custom-sigla-row .cs-sigla { font-family: 'Space Mono', monospace; font-weight: 700; text-transform: uppercase; }
   .custom-sigla-row .cs-color { width: 40px; height: 30px; padding: 2px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface); cursor: pointer; }
+  .custom-sigla-row .cs-subject-name { font-size: 13px; color: var(--text-soft); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   @media (max-width: 640px) {
     .custom-sigla-row { grid-template-columns: 18px 1fr 40px 32px; }
-    .custom-sigla-row .cs-nome { grid-column: 1 / -1; }
+    .custom-sigla-row .cs-nome, .custom-sigla-row .cs-subject-name { grid-column: 1 / -1; }
   }
+  /* Bandeja de siglas recolhível */
+  .siglas-card-header { cursor: pointer; user-select: none; align-items: center; gap: 12px; padding-bottom: 14px; border-radius: 14px 14px 0 0; transition: background 0.15s ease; }
+  #siglas-card.collapsed .siglas-card-header { border-radius: 14px; padding-bottom: 20px; }
+  .siglas-card-header:hover { background: var(--surface-sunken); }
+  .siglas-caret { font-size: 14px; color: var(--text-faint); flex-shrink: 0; transition: color 0.15s ease; }
+  .siglas-card-header:hover .siglas-caret { color: var(--accent); }
+  #siglas-card.collapsed #siglas-collapsible { display: none; }
 
   .grade-cell-drop {
     min-height: 54px;
@@ -3089,21 +3097,24 @@
       <p class="page-subtitle">Sua rotina de estudos — persistente e reutilizada a cada ciclo. Monte uma vez e não precise arrastar tudo de novo toda semana. Esta é uma ferramenta de planejamento: os números reais vêm dos seus registros.</p>
     </div>
 
-    <div class="card">
-      <div class="card-header">
+    <div class="card" id="siglas-card">
+      <div class="card-header siglas-card-header" id="siglas-toggle" role="button" tabindex="0">
         <div>
           <h2>Siglas disponíveis</h2>
-          <p class="sub">Arraste para os dias e sessões. Vêm das suas matérias; você também pode criar siglas próprias.</p>
+          <p class="sub">Arraste para os dias e sessões. Toque no cabeçalho para recolher e liberar espaço para a grade.</p>
         </div>
+        <span class="siglas-caret" id="siglas-caret">▾</span>
       </div>
-      <div style="padding: 8px 28px 22px;">
-        <div id="grade-chip-tray" class="grade-chip-tray"></div>
+      <div id="siglas-collapsible">
+        <div style="padding: 8px 28px 22px;">
+          <div id="grade-chip-tray" class="grade-chip-tray"></div>
 
-        <div id="custom-sigla-manager" class="custom-sigla-manager"></div>
-        <div class="config-add-row" style="margin-top:12px;">
-          <input type="text" id="new-sigla-input" placeholder="Sigla (ex.: REVGERAL)" maxlength="12" style="max-width:180px;">
-          <input type="text" id="new-sigla-nome" placeholder="Nome / descrição (opcional)">
-          <button class="btn-secondary" id="btn-add-sigla" type="button">Criar sigla</button>
+          <div id="custom-sigla-manager" class="custom-sigla-manager"></div>
+          <div class="config-add-row" style="margin-top:12px;">
+            <input type="text" id="new-sigla-input" placeholder="Nova sigla livre (ex.: REVGERAL)" maxlength="12" style="max-width:200px;">
+            <input type="text" id="new-sigla-nome" placeholder="Nome / descrição (opcional)">
+            <button class="btn-secondary" id="btn-add-sigla" type="button">Criar sigla</button>
+          </div>
         </div>
       </div>
     </div>
@@ -3114,6 +3125,7 @@
           <h2>Grade da semana</h2>
           <p class="sub">Arraste as siglas para montar sua rotina. A mesma matéria pode aparecer em várias células — ajuste a duração de cada uma.</p>
         </div>
+        <button class="btn-secondary" id="btn-uncheck-all" type="button" style="display:none;">↺ Desmarcar concluídos</button>
       </div>
       <div style="padding: 8px 28px 26px;">
         <div id="ciclo-grade" style="overflow-x:auto;"></div>
@@ -4304,6 +4316,18 @@ const DB = {
     this.saveCustomSiglas(list);
   },
   removeCustomSigla(id) { this.saveCustomSiglas(this.getCustomSiglas().filter(x => x.id !== id)); },
+  // Cria/atualiza a sigla e/ou cor de uma MATÉRIA (usada para editar as siglas automáticas).
+  // Guarda como uma sigla customizada vinculada ao nome da matéria.
+  upsertSubjectSigla(nome, { sigla, color }) {
+    const list = this.getCustomSiglas();
+    const nk = (s) => String(s == null ? '' : s).normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/\s+/g, ' ').trim();
+    let s = list.find(c => c.nome && nk(c.nome) === nk(nome));
+    if (!s) { s = { id: this._uid(), sigla: '', nome: nome, color: '#4f46e5' }; list.push(s); }
+    if (sigla !== undefined) s.sigla = (sigla || '').trim();
+    if (color !== undefined) s.color = color;
+    this.saveCustomSiglas(list);
+    return s;
+  },
 
   // --- Cycle History ---
   getCycleHistory() { return this._get(this.KEYS.cycleHistory, []); },
@@ -6250,6 +6274,7 @@ function planCycleMode() {
 
     bindDropZones(container);
     updateDaySummary();
+    updateUncheckAllBtn();
 
     // adicionar sessão: cresce o nº de linhas da grade (no modelo persistente)
     const addBtn = container.querySelector('#btn-add-session');
@@ -6425,26 +6450,75 @@ function planCycleMode() {
     renderChipTray();
     renderGrade();
     renderCustomSiglaManager();
+    applySiglasCollapsed();
   }
   // exposto para a navegação abrir a tela e para o botão de atalho do ciclo
   window.GradeScreen = { render: renderGradeScreen };
 
-  // Gerenciador de siglas customizadas: lista editável (sigla, nome, cor) + excluir
+  // Gerenciador de siglas: MATÉRIAS (sigla auto editável) + siglas livres customizadas.
   function renderCustomSiglaManager() {
     const box = document.getElementById('custom-sigla-manager');
     if (!box) return;
-    const list = DB.getCustomSiglas();
-    if (list.length === 0) { box.innerHTML = ''; return; }
-    box.innerHTML = `<p class="section-label" style="margin:16px 0 8px;">Siglas customizadas</p>` +
-      list.map(c => `
+    const subjects = DB.getActiveSubjects();
+    const freeSiglas = DB.getCustomSiglas().filter(c => !c.nome);
+    let html = '';
+
+    // 1) Matérias — a sigla vem automática, mas é editável (salva como customizada vinculada)
+    if (subjects.length) {
+      html += `<p class="section-label" style="margin:16px 0 8px;">Siglas das matérias <span class="opt" style="text-transform:none;letter-spacing:0;font-weight:400;">— edite a sigla ou a cor</span></p>`;
+      html += subjects.map(s => {
+        const sig = CycleEngine.siglaForSubject(s.nome);
+        const col = CycleEngine.colorForSubject(s.nome) || '#4f46e5';
+        return `
+          <div class="custom-sigla-row" data-subject="${escapeHtml(s.nome)}">
+            <span class="custom-sigla-swatch" style="background:${col}"></span>
+            <input type="text" class="cs-sigla" value="${escapeHtml(sig)}" maxlength="12" title="Sigla da matéria">
+            <span class="cs-subject-name" title="${escapeHtml(s.nome)}">${escapeHtml(s.nome)}</span>
+            <input type="color" class="cs-color" value="${col}" title="Cor">
+            <button type="button" class="icon-btn cs-reset" title="Voltar à sigla automática">↺</button>
+          </div>`;
+      }).join('');
+    }
+
+    // 2) Siglas livres (etiquetas próprias, sem matéria vinculada)
+    if (freeSiglas.length) {
+      html += `<p class="section-label" style="margin:18px 0 8px;">Siglas livres</p>`;
+      html += freeSiglas.map(c => `
         <div class="custom-sigla-row" data-id="${c.id}">
           <span class="custom-sigla-swatch" style="background:${c.color}"></span>
           <input type="text" class="cs-sigla" value="${escapeHtml(c.sigla)}" maxlength="12" title="Sigla">
-          <input type="text" class="cs-nome" value="${escapeHtml(c.nome || '')}" placeholder="Nome / descrição (opcional)" title="Nome vinculado">
+          <input type="text" class="cs-nome" value="${escapeHtml(c.nome || '')}" placeholder="Descrição (opcional)" title="Descrição">
           <input type="color" class="cs-color" value="${c.color || '#4f46e5'}" title="Cor">
           <button type="button" class="icon-btn danger cs-del" title="Excluir sigla">×</button>
         </div>`).join('');
-    box.querySelectorAll('.custom-sigla-row').forEach(row => {
+    }
+
+    box.innerHTML = html;
+    const refresh = () => { renderChipTray(); renderGrade(); renderCustomSiglaManager(); };
+
+    // --- linhas de matéria ---
+    box.querySelectorAll('.custom-sigla-row[data-subject]').forEach(row => {
+      const nome = row.dataset.subject;
+      const commit = () => {
+        const sigla = row.querySelector('.cs-sigla').value.trim();
+        const color = row.querySelector('.cs-color').value;
+        if (!sigla) { showToast('A sigla não pode ficar vazia'); refresh(); return; }
+        DB.upsertSubjectSigla(nome, { sigla, color });
+        refresh();
+      };
+      row.querySelector('.cs-sigla').addEventListener('change', commit);
+      row.querySelector('.cs-color').addEventListener('change', commit);
+      row.querySelector('.cs-reset').addEventListener('click', () => {
+        // remove a customização da matéria → volta à sigla automática
+        const cs = DB.getCustomSiglas().find(c => c.nome && CycleEngine.normKey(c.nome) === CycleEngine.normKey(nome));
+        if (cs) DB.removeCustomSigla(cs.id);
+        showToast('Sigla automática restaurada');
+        refresh();
+      });
+    });
+
+    // --- linhas de siglas livres ---
+    box.querySelectorAll('.custom-sigla-row[data-id]').forEach(row => {
       const id = row.dataset.id;
       const commit = () => {
         DB.updateCustomSigla(id, {
@@ -6452,15 +6526,15 @@ function planCycleMode() {
           nome: row.querySelector('.cs-nome').value.trim(),
           color: row.querySelector('.cs-color').value
         });
-        renderChipTray(); renderGrade(); renderCustomSiglaManager();
+        refresh();
       };
       row.querySelector('.cs-sigla').addEventListener('change', commit);
       row.querySelector('.cs-nome').addEventListener('change', commit);
       row.querySelector('.cs-color').addEventListener('change', commit);
       row.querySelector('.cs-del').addEventListener('click', () => {
-        if (!confirm('Excluir esta sigla customizada? As células da grade que a usam não são afetadas.')) return;
+        if (!confirm('Excluir esta sigla livre? As células da grade que a usam não são afetadas.')) return;
         DB.removeCustomSigla(id);
-        renderChipTray(); renderGrade(); renderCustomSiglaManager();
+        refresh();
       });
     });
   }
@@ -6481,6 +6555,53 @@ function planCycleMode() {
   // atalho do ciclo -> abre a Grade Semanal
   const _gotoGrade = document.getElementById('btn-goto-grade');
   if (_gotoGrade) _gotoGrade.addEventListener('click', () => switchScreen('grade'));
+
+  // --- Bandeja de siglas recolhível (estado persistido) ---
+  const SIGLAS_KEY = 'diario-estudos:siglas-collapsed';
+  function applySiglasCollapsed() {
+    let collapsed = false;
+    try { collapsed = localStorage.getItem(SIGLAS_KEY) === '1'; } catch (e) {}
+    const card = document.getElementById('siglas-card');
+    const caret = document.getElementById('siglas-caret');
+    if (card) card.classList.toggle('collapsed', collapsed);
+    if (caret) caret.textContent = collapsed ? '▸' : '▾';
+  }
+  function toggleSiglas() {
+    let collapsed = false;
+    try { collapsed = localStorage.getItem(SIGLAS_KEY) === '1'; } catch (e) {}
+    try { localStorage.setItem(SIGLAS_KEY, collapsed ? '0' : '1'); } catch (e) {}
+    applySiglasCollapsed();
+  }
+  const _siglasToggle = document.getElementById('siglas-toggle');
+  if (_siglasToggle) {
+    _siglasToggle.addEventListener('click', toggleSiglas);
+    _siglasToggle.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggleSiglas(); } });
+  }
+
+  // --- Desmarcar todos os concluídos da grade ---
+  function countDoneCells() {
+    const t = gradeGet(); let n = 0;
+    DIAS_SEMANA.forEach(d => (t.grade[d] || []).forEach(c => { const nc = normalizeCell(c); if (nc && nc.done) n++; }));
+    return n;
+  }
+  function updateUncheckAllBtn() {
+    const btn = document.getElementById('btn-uncheck-all');
+    if (!btn) return;
+    const n = countDoneCells();
+    btn.style.display = n > 0 ? 'inline-flex' : 'none';
+    btn.textContent = `↺ Desmarcar ${n} concluído${n === 1 ? '' : 's'}`;
+  }
+  const _uncheckBtn = document.getElementById('btn-uncheck-all');
+  if (_uncheckBtn) _uncheckBtn.addEventListener('click', () => {
+    const t = gradeGet();
+    DIAS_SEMANA.forEach(d => {
+      if (!Array.isArray(t.grade[d])) return;
+      t.grade[d].forEach((c, i) => { const nc = normalizeCell(c); if (nc && nc.done) { nc.done = false; t.grade[d][i] = nc; } });
+    });
+    gradeSave(t);
+    renderGrade();
+    showToast('Concluídos desmarcados ✓');
+  });
 
   document.getElementById('btn-close-cycle').addEventListener('click', () => {
     const cycle = DB.getCurrentCycle();
