@@ -2168,6 +2168,21 @@
   .evo-legend-item { display: inline-flex; align-items: center; gap: 6px; font-size: 11.5px; font-weight: 600; color: var(--text-soft); }
   .evo-legend-swatch { width: 12px; height: 3px; border-radius: 8px; }
   .evo-empty-mini { color: var(--text-faint); font-size: 13px; text-align: center; padding: 40px 8px; }
+  /* Evolução do aproveitamento — controles e filtro por disciplina */
+  .evo-line-controls { display: inline-flex; gap: 4px; background: var(--surface-sunken); border: 1.5px solid var(--border); border-radius: 20px; padding: 3px; }
+  .evo-line-controls .evo-chip { border: none; background: transparent; border-radius: 16px; }
+  .evo-line-controls .evo-chip.active { background: var(--accent); color: #fff; }
+  .evo-subject-filter { display: flex; align-items: center; gap: 7px; flex-wrap: wrap; padding: 4px 20px 8px; }
+  .evo-sf-label { font-size: 12px; font-weight: 700; color: var(--text-soft); margin-right: 2px; }
+  .evo-sf-chip {
+    display: inline-flex; align-items: center; gap: 6px; cursor: pointer;
+    background: var(--surface-sunken); border: 1.5px solid var(--border); border-radius: 20px;
+    padding: 5px 11px; font-size: 12px; font-weight: 600; color: var(--text-soft); transition: all 0.13s ease;
+  }
+  .evo-sf-chip:hover { border-color: var(--border-strong); color: var(--text); transform: translateY(-1px); }
+  .evo-sf-chip.active { background: color-mix(in srgb, var(--sf-color, var(--accent)) 14%, transparent); border-color: var(--sf-color, var(--accent)); color: var(--text); }
+  .evo-sf-chip.is-geral { cursor: default; background: var(--accent-soft); border-color: var(--accent); color: var(--accent); font-weight: 800; }
+  .evo-sf-dot { width: 9px; height: 9px; border-radius: 50%; flex-shrink: 0; }
   /* Ritmo de estudo */
   .ritmo-table { width: 100%; border-collapse: collapse; }
   .ritmo-table td { padding: 9px 4px; font-size: 13px; border-bottom: 1px solid var(--border); }
@@ -2610,16 +2625,46 @@
   .leis-reader-title h2 { font-size: 20px; font-weight: 800; margin: 0; letter-spacing: -0.02em; line-height: 1.2; }
   .leis-reader-meta { font-size: 12px; color: var(--text-faint); font-family: 'Space Mono', monospace; }
   .leis-reader-actions { display: flex; gap: 6px; flex-shrink: 0; }
-  .leis-reader-toolbar {
-    display: flex; align-items: center; justify-content: space-between; gap: 14px; flex-wrap: wrap;
-    background: var(--surface-sunken); border: 1.5px solid var(--border); border-radius: 12px;
-    padding: 12px 16px; margin-bottom: 12px;
+  /* Barra de ferramentas FIXA (sticky) do leitor */
+  .leis-sticky {
+    position: sticky; top: 8px; z-index: 20;
+    background: color-mix(in srgb, var(--surface) 92%, transparent);
+    backdrop-filter: saturate(180%) blur(10px);
+    border: 1.5px solid var(--border); border-radius: 14px;
+    box-shadow: var(--shadow-md);
+    padding: 10px 14px; margin-bottom: 12px;
+    display: flex; flex-direction: column; gap: 10px;
   }
+  .leis-toolbar-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+  .leis-toolbar-spacer { flex: 1; }
+  .leis-hl-group { display: flex; align-items: center; gap: 7px; flex-wrap: wrap; }
+  .leis-hl-sep { width: 1px; height: 20px; background: var(--border); margin: 0 2px; }
+  /* interruptor mestre do destaque automático */
+  .leis-auto-switch { display: inline-flex; align-items: center; gap: 8px; cursor: pointer; user-select: none; }
+  .leis-auto-switch input { display: none; }
+  .leis-auto-track { width: 34px; height: 19px; border-radius: 20px; background: var(--border-strong); position: relative; transition: background 0.18s ease; flex-shrink: 0; }
+  .leis-auto-thumb { position: absolute; top: 2px; left: 2px; width: 15px; height: 15px; border-radius: 50%; background: #fff; transition: transform 0.18s ease; box-shadow: 0 1px 3px rgba(0,0,0,0.3); }
+  .leis-auto-switch input:checked + .leis-auto-track { background: var(--accent); }
+  .leis-auto-switch input:checked + .leis-auto-track .leis-auto-thumb { transform: translateX(15px); }
+  .leis-auto-label { font-size: 12.5px; font-weight: 700; color: var(--text); white-space: nowrap; }
+  /* chips de categoria */
+  .leis-hl-chip { display: inline-flex; align-items: center; gap: 6px; cursor: pointer; font-size: 12px; user-select: none; }
+  .leis-hl-chip input { display: none; }
+  .leis-hl-chip span { padding: 4px 10px; border-radius: 20px; font-weight: 700; font-size: 11px; transition: all 0.14s ease; border: 1.5px solid transparent; }
+  .leis-hl-chip input:not(:checked) + span { background: var(--surface-sunken) !important; box-shadow: none !important; color: var(--text-faint); opacity: 0.7; }
+  .leis-hl-chip:hover span { transform: translateY(-1px); }
+  #lei-hl-toggles.auto-off .leis-hl-chip { opacity: 0.45; pointer-events: none; }
+  /* botões de ação */
+  .leis-toolbar-actions { border-top: 1px solid var(--border); padding-top: 10px; }
+  .leis-btn-mark, .leis-btn-unmark { padding: 8px 14px; font-size: 13px; border-radius: 10px; }
   .leis-reader-controls { display: flex; gap: 6px; }
-  .leis-mark-hint { font-size: 12.5px; color: var(--text-soft); background: var(--accent-soft); border-radius: 10px; padding: 10px 14px; margin-bottom: 10px; }
-  .leis-mark-actions { display: flex; align-items: center; gap: 12px; margin-bottom: 14px; }
-  .leis-mark-count { font-size: 12px; color: var(--text-faint); font-family: 'Space Mono', monospace; }
+  .leis-mark-hint { font-size: 12.5px; color: var(--text-soft); background: var(--accent-soft); border-radius: 10px; padding: 10px 14px; margin-bottom: 12px; }
+  .leis-mark-count { font-size: 12px; color: var(--text-faint); font-family: 'Space Mono', monospace; white-space: nowrap; }
   .leis-reader-card { padding: 8px 0; }
+  @media (max-width: 640px) {
+    .leis-auto-label { display: none; }
+    .leis-hl-chip span { font-size: 10.5px; padding: 3px 8px; }
+  }
 
   .lei-reader-body {
     padding: 18px 40px 34px;
@@ -3246,27 +3291,36 @@
         </div>
       </div>
 
-      <div class="leis-reader-toolbar">
-        <div class="leis-hl-group" id="lei-hl-toggles">
-          <span class="leis-hl-label">Destacar:</span>
-          <label class="leis-hl-chip"><input type="checkbox" data-cat="ressalvas" checked><span class="lawmark-ressalvas">Ressalvas/Exceções</span></label>
-          <label class="leis-hl-chip"><input type="checkbox" data-cat="restricoes" checked><span class="lawmark-restricoes">Restrições/Exclusiv.</span></label>
-          <label class="leis-hl-chip"><input type="checkbox" data-cat="competencias" checked><span class="lawmark-competencias">Poder/Dever/Comp.</span></label>
-          <label class="leis-hl-chip"><input type="checkbox" data-cat="prazos" checked><span class="lawmark-prazos">Prazos/Tempo</span></label>
-          <label class="leis-hl-chip"><input type="checkbox" data-cat="efeitos" checked><span class="lawmark-efeitos">Validade/Sanções</span></label>
-          <label class="leis-hl-chip"><input type="checkbox" data-cat="relacoes" checked><span class="lawmark-relacoes">Causalidade</span></label>
+      <div class="leis-sticky" id="leis-sticky-toolbar">
+        <div class="leis-toolbar-row">
+          <div class="leis-hl-group" id="lei-hl-toggles">
+            <label class="leis-auto-switch" title="Liga/desliga todo o destaque automático desta lei">
+              <input type="checkbox" id="lei-auto-master" checked>
+              <span class="leis-auto-track"><span class="leis-auto-thumb"></span></span>
+              <span class="leis-auto-label">🖍️ Destaque automático</span>
+            </label>
+            <span class="leis-hl-sep"></span>
+            <label class="leis-hl-chip"><input type="checkbox" data-cat="ressalvas" checked><span class="lawmark-ressalvas">⚖️ Ressalvas</span></label>
+            <label class="leis-hl-chip"><input type="checkbox" data-cat="restricoes" checked><span class="lawmark-restricoes">🚫 Restrições</span></label>
+            <label class="leis-hl-chip"><input type="checkbox" data-cat="competencias" checked><span class="lawmark-competencias">🏛️ Poder/Dever</span></label>
+            <label class="leis-hl-chip"><input type="checkbox" data-cat="prazos" checked><span class="lawmark-prazos">⏱️ Prazos</span></label>
+            <label class="leis-hl-chip"><input type="checkbox" data-cat="efeitos" checked><span class="lawmark-efeitos">⚠️ Sanções</span></label>
+            <label class="leis-hl-chip"><input type="checkbox" data-cat="relacoes" checked><span class="lawmark-relacoes">🔗 Causalidade</span></label>
+          </div>
         </div>
-        <div class="leis-reader-controls">
-          <button type="button" class="icon-btn" id="lei-font-dec" title="Diminuir fonte">A−</button>
-          <button type="button" class="icon-btn" id="lei-font-inc" title="Aumentar fonte">A+</button>
+        <div class="leis-toolbar-row leis-toolbar-actions">
+          <button type="button" class="btn-primary leis-btn-mark" id="lei-mark-btn">✍️ Marcar seleção</button>
+          <button type="button" class="btn-secondary leis-btn-unmark" id="lei-unmark-btn">🧽 Desmarcar seleção</button>
+          <span id="lei-mark-count" class="leis-mark-count"></span>
+          <span class="leis-toolbar-spacer"></span>
+          <div class="leis-reader-controls">
+            <button type="button" class="icon-btn" id="lei-font-dec" title="Diminuir fonte">A−</button>
+            <button type="button" class="icon-btn" id="lei-font-inc" title="Aumentar fonte">A+</button>
+          </div>
         </div>
       </div>
 
-      <div class="leis-mark-hint" id="lei-mark-hint">💡 Selecione um trecho e clique em <strong>"Marcar seleção"</strong> para destacar seus pontos-chave. Para <strong>desmarcar</strong>, clique no próprio destaque no texto (ou selecione-o de novo e clique no botão).</div>
-      <div class="leis-mark-actions">
-        <button type="button" class="btn-secondary" id="lei-mark-btn">✎ Marcar seleção</button>
-        <span id="lei-mark-count" class="leis-mark-count"></span>
-      </div>
+      <div class="leis-mark-hint" id="lei-mark-hint">💡 Selecione um trecho e clique em <strong>Marcar seleção</strong>. Para desmarcar: selecione de novo e clique em <strong>Desmarcar</strong>, ou clique direto sobre o destaque no texto.</div>
 
       <div class="card leis-reader-card">
         <div id="lei-reader-body" class="lei-reader-body"></div>
@@ -3362,6 +3416,21 @@
       <div class="card">
         <div class="card-header"><h2>Horas acumuladas</h2><p class="sub" id="evolucao-chart-sub"></p></div>
         <div style="padding: 8px 20px 24px;" id="evolucao-line-chart"></div>
+      </div>
+
+      <div class="card">
+        <div class="evo-card-head">
+          <div>
+            <h2>📈 Evolução do aproveitamento</h2>
+            <p class="sub">% de acerto ao longo do tempo (por semana). Veja a média geral e compare disciplinas.</p>
+          </div>
+          <div class="evo-line-controls">
+            <button type="button" class="evo-chip" id="evo-line-mode-week" data-mode="week">Semanal</button>
+            <button type="button" class="evo-chip" id="evo-line-mode-cum" data-mode="cum">Acumulada</button>
+          </div>
+        </div>
+        <div id="evo-line-subject-filter" class="evo-subject-filter"></div>
+        <div style="padding: 6px 20px 22px;" id="evolucao-acerto-linha"></div>
       </div>
 
       <div class="card">
@@ -5640,7 +5709,8 @@ const LawEngine = {
   // Constrói os spans de destaque de UMA linha (offsets locais).
   _spansForLine(line, opts, manualList) {
     const spans = [];
-    Object.keys(this.categories).forEach(key => {
+    const autoOff = opts && opts._auto === false; // interruptor mestre desligado
+    if (!autoOff) Object.keys(this.categories).forEach(key => {
       if (opts && opts[key] === false) return;
       const cat = this.categories[key];
       const re = new RegExp(cat.re.source, cat.re.flags);
@@ -7075,6 +7145,17 @@ const EvolucaoScreen = {
   filterEnd: null,
   activeShortcut: 'all', // '7d' | '30d' | 'all' | null (null = intervalo personalizado)
   scope: 'plan', // 'plan' = só o planejamento ativo | 'all' = todos somados
+  evoLineMode: 'week', // 'week' = % por semana | 'cum' = média acumulada
+  evoLineSubjects: null, // Set de disciplinas selecionadas (null = ainda não inicializado)
+
+  // segunda-feira da semana de uma data (chave do agrupamento temporal)
+  _weekKey(dateStr) {
+    const d = new Date(dateStr + 'T00:00:00');
+    const off = (d.getDay() + 6) % 7; // 0 = segunda
+    d.setDate(d.getDate() - off);
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  },
+  _palette: ['#4f46e5', '#e0393f', '#0f9d63', '#d97a12', '#0a95a8', '#b3308a', '#7c3aed', '#2563eb', '#059669', '#dc2626'],
 
   // soma/subtrai dias a uma data 'YYYY-MM-DD' mantendo o fuso local
   addDaysLocal(isoDate, delta) {
@@ -7121,6 +7202,7 @@ const EvolucaoScreen = {
     this.renderStats(entries);
     this.renderDayChart(entries);
     this.renderLineChart(entries);
+    this.renderAcertoLinha(entries);
     this.renderAcertoMateria(entries);
     this.renderBarChart(entries);
     this.renderPerformanceList(entries);
@@ -7305,6 +7387,127 @@ const EvolucaoScreen = {
       ${REFS.map(r => `<span class="evo-legend-item"><span class="evo-legend-swatch" style="background:${r.color}; width:14px; height:0; border-top:2px dashed ${r.color};"></span>meta ${r.v}%</span>`).join('')}
     </div>`;
     container.innerHTML = `<div class="acm-chart">${bars}</div>${legend}`;
+  },
+
+  // ------- Evolução do aproveitamento no tempo (média geral + por disciplina) -------
+  renderAcertoLinha(entries) {
+    const container = document.getElementById('evolucao-acerto-linha');
+    const filterBox = document.getElementById('evo-line-subject-filter');
+    const q = entries.filter(e => e.total > 0);
+    if (q.length === 0) {
+      filterBox.innerHTML = '';
+      container.innerHTML = `<div class="evo-empty-mini">Registre questões (acertos e total) para acompanhar a evolução do aproveitamento.</div>`;
+      return;
+    }
+    // atualiza destaque do modo
+    ['week', 'cum'].forEach(m => {
+      const b = document.getElementById(m === 'week' ? 'evo-line-mode-week' : 'evo-line-mode-cum');
+      if (b) b.classList.toggle('active', this.evoLineMode === m);
+    });
+
+    // disciplinas com questões, ordenadas por volume
+    const vol = {};
+    q.forEach(e => { vol[e.subject] = (vol[e.subject] || 0) + e.total; });
+    const discNames = Object.keys(vol).sort((a, b) => vol[b] - vol[a]);
+
+    // inicializa a seleção (por padrão: só a média geral)
+    if (this.evoLineSubjects === null) this.evoLineSubjects = new Set();
+    // remove da seleção o que não existe mais
+    [...this.evoLineSubjects].forEach(s => { if (!discNames.includes(s)) this.evoLineSubjects.delete(s); });
+
+    // chips de filtro (Geral fixo + disciplinas)
+    filterBox.innerHTML =
+      `<span class="evo-sf-label">Comparar:</span>` +
+      `<button type="button" class="evo-sf-chip is-geral active" disabled><span class="evo-sf-dot" style="background:${this._palette[0]}"></span>Média geral</button>` +
+      discNames.map((n, i) => {
+        const color = this._palette[(i + 1) % this._palette.length];
+        const on = this.evoLineSubjects.has(n);
+        return `<button type="button" class="evo-sf-chip${on ? ' active' : ''}" data-subject="${escapeHtml(n)}" style="--sf-color:${color}"><span class="evo-sf-dot" style="background:${color}"></span>${escapeHtml(n)}</button>`;
+      }).join('');
+    filterBox.querySelectorAll('.evo-sf-chip[data-subject]').forEach(chip => {
+      chip.addEventListener('click', () => {
+        const s = chip.dataset.subject;
+        if (this.evoLineSubjects.has(s)) this.evoLineSubjects.delete(s); else this.evoLineSubjects.add(s);
+        this.renderAcertoLinha(entries);
+      });
+    });
+
+    // agrupa por semana
+    const weeks = [...new Set(q.map(e => this._weekKey(e.date)))].sort();
+    if (weeks.length < 2) {
+      container.innerHTML = `<div class="evo-empty-mini">Registre questões em pelo menos 2 semanas diferentes para ver a linha de evolução.</div>`;
+      return;
+    }
+    // função que gera os pontos de uma série (filtro opcional por disciplina)
+    const seriesFor = (subject) => {
+      let cumC = 0, cumT = 0;
+      return weeks.map((wk, i) => {
+        const inWeek = q.filter(e => this._weekKey(e.date) === wk && (!subject || e.subject === subject));
+        const c = inWeek.reduce((a, e) => a + e.correct, 0);
+        const t = inWeek.reduce((a, e) => a + e.total, 0);
+        cumC += c; cumT += t;
+        let pct;
+        if (this.evoLineMode === 'cum') pct = cumT > 0 ? Math.round((cumC / cumT) * 1000) / 10 : null;
+        else pct = t > 0 ? Math.round((c / t) * 1000) / 10 : null;
+        return { x: i, pct, label: formatDateShort(wk) };
+      });
+    };
+
+    // série geral + selecionadas
+    const series = [{ color: this._palette[0], name: 'Média geral', points: seriesFor(null).filter(p => p.pct !== null || this.evoLineMode === 'cum') }];
+    discNames.forEach((n, i) => {
+      if (!this.evoLineSubjects.has(n)) return;
+      series.push({ color: this._palette[(i + 1) % this._palette.length], name: n, points: seriesFor(n) });
+    });
+
+    container.innerHTML = this.multiLineSVG(weeks, series, { yTitle: '% de acerto', xTitle: this.evoLineMode === 'cum' ? 'Semana (média acumulada)' : 'Semana' });
+  },
+
+  // Gráfico de linha MULTI-SÉRIE (0-100%) com grade, metas e legenda. Lida com pontos nulos (lacunas).
+  multiLineSVG(weeks, series, opts = {}) {
+    const w = 720, h = 280, padL = 48, padR = 22, padT = 20, padB = 44;
+    const n = weeks.length;
+    const xAt = (i) => padL + (n <= 1 ? 0 : (i / (n - 1)) * (w - padL - padR));
+    const yAt = (pct) => padT + (1 - pct / 100) * (h - padT - padB);
+    let grid = '';
+    [0, 25, 50, 75, 100].forEach(g => {
+      const y = yAt(g);
+      grid += `<line x1="${padL}" y1="${y}" x2="${w - padR}" y2="${y}" stroke="#eceef1" stroke-width="1" stroke-dasharray="${g === 0 ? '0' : '3 3'}"/>`;
+      grid += `<text x="${padL - 8}" y="${y + 3}" font-size="10" fill="#9297a3" text-anchor="end" font-family="Space Mono, monospace">${g}%</text>`;
+    });
+    // metas 70/80/85
+    [{ v: 70, c: '#0f9d63' }, { v: 80, c: '#d97a12' }, { v: 85, c: '#7c3aed' }].forEach(r => {
+      const y = yAt(r.v);
+      grid += `<line x1="${padL}" y1="${y}" x2="${w - padR}" y2="${y}" stroke="${r.c}" stroke-width="1.2" stroke-dasharray="6 4" opacity="0.6"/>`;
+    });
+    // rótulos X
+    const labelEvery = Math.max(1, Math.ceil(n / 9));
+    let xlabels = '';
+    weeks.forEach((wk, i) => {
+      if (i % labelEvery === 0 || i === n - 1) xlabels += `<text x="${xAt(i)}" y="${h - padB + 18}" font-size="9.5" fill="#9297a3" text-anchor="middle" font-family="Space Mono, monospace">${formatDateShort(wk)}</text>`;
+    });
+    const yTitle = `<text x="13" y="${padT + (h - padT - padB) / 2}" font-size="10" fill="#5b6270" text-anchor="middle" font-weight="700" transform="rotate(-90 13 ${padT + (h - padT - padB) / 2})" font-family="Inter, sans-serif">${opts.yTitle || '%'}</text>`;
+    // desenha cada série (segmentando em lacunas de pct nulo)
+    let paths = '';
+    series.forEach((s, si) => {
+      const isGeral = si === 0;
+      let seg = [];
+      const flush = () => {
+        if (seg.length === 0) return;
+        const d = seg.map((p, k) => `${k === 0 ? 'M' : 'L'} ${xAt(p.x)} ${yAt(p.pct)}`).join(' ');
+        paths += `<path d="${d}" fill="none" stroke="${s.color}" stroke-width="${isGeral ? 3 : 2}" stroke-linecap="round" stroke-linejoin="round" ${isGeral ? '' : 'opacity="0.9"'}/>`;
+        paths += seg.map(p => `<circle cx="${xAt(p.x)}" cy="${yAt(p.pct)}" r="${isGeral ? 3.5 : 3}" fill="#fff" stroke="${s.color}" stroke-width="2"><title>${escapeHtml(s.name)} · ${p.label}: ${formatPct(p.pct)}%</title></circle>`).join('');
+        seg = [];
+      };
+      s.points.forEach(p => { if (p.pct === null) flush(); else seg.push(p); });
+      flush();
+    });
+    // legenda
+    const legend = `<div class="evo-legend" style="padding:12px 20px 0;">` +
+      series.map(s => `<span class="evo-legend-item"><span class="evo-legend-swatch" style="background:${s.color}; height:3px;"></span>${escapeHtml(s.name)}</span>`).join('') +
+      `<span class="evo-legend-item" style="color:var(--text-faint)"><span class="evo-legend-swatch" style="background:#0f9d63; height:0; border-top:2px dashed #0f9d63;"></span>metas 70/80/85%</span>` +
+      `</div>`;
+    return `<svg viewBox="0 0 ${w} ${h}" style="width:100%; height:auto; overflow:visible;">${grid}${yTitle}${paths}${xlabels}</svg>${legend}`;
   },
 
   // ------- Aproveitamento por semana fechada (histórico de ciclos) -------
@@ -7686,6 +7889,19 @@ document.getElementById('evo-tempo-periodo').addEventListener('click', (e) => {
 
 // seletor de disciplina do gráfico "Evolução no TecConcursos"
 document.getElementById('evo-tec-disc').addEventListener('change', () => EvolucaoScreen.renderTecChart());
+
+// modo do gráfico "Evolução do aproveitamento" (semanal x acumulada)
+['evo-line-mode-week', 'evo-line-mode-cum'].forEach(id => {
+  const btn = document.getElementById(id);
+  if (btn) btn.addEventListener('click', () => {
+    EvolucaoScreen.evoLineMode = btn.dataset.mode;
+    const src = EvolucaoScreen.scope === 'all' ? DB.getAllEntriesTagged() : DB.getEntries();
+    let entries = src;
+    if (EvolucaoScreen.filterStart) entries = entries.filter(e => e.date >= EvolucaoScreen.filterStart);
+    if (EvolucaoScreen.filterEnd) entries = entries.filter(e => e.date <= EvolucaoScreen.filterEnd);
+    EvolucaoScreen.renderAcertoLinha(entries);
+  });
+});
 
 /* ============================================================
    TELA: ESTUDO NOVO
@@ -8205,9 +8421,14 @@ const LeisScreen = {
     document.getElementById('lei-reader-meta').textContent = metaParts.join(' · ');
     // sincroniza os toggles com as opções salvas da lei
     const opts = lei.opts || {};
+    const autoOn = opts._auto !== false;
+    const master = document.getElementById('lei-auto-master');
+    if (master) master.checked = autoOn;
     document.querySelectorAll('#lei-hl-toggles input[data-cat]').forEach(cb => {
       cb.checked = opts[cb.dataset.cat] !== false;
+      cb.disabled = !autoOn;
     });
+    document.getElementById('lei-hl-toggles').classList.toggle('auto-off', !autoOn);
     this.renderBody();
     this.renderMarks();
   },
@@ -8292,6 +8513,21 @@ const LeisScreen = {
     this.renderBody(); this.renderMarks();
     showToast('Trecho destacado ✓');
   },
+  // Desmarcar a seleção atual (remove o destaque manual daquele trecho)
+  unmarkSelection() {
+    const live = window.getSelection ? String(window.getSelection()).trim() : '';
+    const txt = (live && live.length >= 2) ? live : (this._selText || '');
+    if (!txt || txt.length < 2) { showToast('Selecione um destaque no texto e clique em "Desmarcar seleção"'); return; }
+    const lei = DB.getLei(this.currentId);
+    const marks = lei.marcacoes || [];
+    const before = marks.length;
+    const kept = marks.filter(m => m.toLowerCase() !== txt.toLowerCase());
+    if (kept.length === before) { showToast('Esse trecho não está entre os seus destaques manuais'); return; }
+    DB.updateLei(this.currentId, { marcacoes: kept });
+    this._clearSel();
+    this.renderBody(); this.renderMarks();
+    showToast('Destaque removido');
+  },
   _clearSel() {
     this._selText = '';
     const s = window.getSelection ? window.getSelection() : null;
@@ -8303,6 +8539,18 @@ const LeisScreen = {
     const opts = Object.assign({}, lei.opts || {});
     opts[cat] = on;
     DB.updateLei(this.currentId, { opts });
+    this.renderBody();
+  },
+  // Interruptor mestre: liga/desliga TODO o destaque automático desta lei
+  setAutoMaster(on) {
+    const lei = DB.getLei(this.currentId);
+    if (!lei) return;
+    const opts = Object.assign({}, lei.opts || {});
+    opts._auto = on;
+    DB.updateLei(this.currentId, { opts });
+    // desabilita visualmente as categorias individuais quando o mestre está off
+    document.querySelectorAll('#lei-hl-toggles input[data-cat]').forEach(cb => { cb.disabled = !on; });
+    document.getElementById('lei-hl-toggles').classList.toggle('auto-off', !on);
     this.renderBody();
   },
   changeFont(delta) {
@@ -8353,12 +8601,17 @@ document.getElementById('lei-del-btn').addEventListener('click', () => LeisScree
     body.addEventListener('mouseup', () => LeisScreen.captureSelection());
     body.addEventListener('keyup', () => LeisScreen.captureSelection());
   }
-  const mb = document.getElementById('lei-mark-btn');
-  if (mb) mb.addEventListener('mousedown', (e) => e.preventDefault()); // impede o botão de limpar a seleção
+  // impede que clicar nos botões de marcar/desmarcar limpe a seleção do texto
+  ['lei-mark-btn', 'lei-unmark-btn'].forEach(id => {
+    const b = document.getElementById(id);
+    if (b) b.addEventListener('mousedown', (e) => e.preventDefault());
+  });
 })();
 document.getElementById('lei-mark-btn').addEventListener('click', () => LeisScreen.markSelection());
+document.getElementById('lei-unmark-btn').addEventListener('click', () => LeisScreen.unmarkSelection());
 document.getElementById('lei-font-inc').addEventListener('click', () => LeisScreen.changeFont(1));
 document.getElementById('lei-font-dec').addEventListener('click', () => LeisScreen.changeFont(-1));
+document.getElementById('lei-auto-master').addEventListener('change', (e) => LeisScreen.setAutoMaster(e.target.checked));
 document.querySelectorAll('#lei-hl-toggles input[data-cat]').forEach(cb => {
   cb.addEventListener('change', () => LeisScreen.toggleCategory(cb.dataset.cat, cb.checked));
 });
