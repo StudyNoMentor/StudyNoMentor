@@ -2753,6 +2753,106 @@
     .law-ali { padding-left: 42px; } .law-ali::before { left: 28px; }
   }
 
+  /* ============================================================
+     CARDS DE REVISÃO
+     ============================================================ */
+  .cards-topbar { display: flex; gap: 8px; flex-wrap: wrap; margin: 14px 0 12px; }
+  .cards-tabs { display: flex; gap: 6px; margin-bottom: 14px; }
+  .cards-tab {
+    background: var(--surface); border: 1.5px solid var(--border); border-radius: 20px;
+    padding: 8px 16px; font-size: 13px; font-weight: 700; color: var(--text-soft); cursor: pointer;
+    transition: all 0.14s ease;
+  }
+  .cards-tab:hover { border-color: var(--border-strong); color: var(--text); }
+  .cards-tab.active { background: var(--accent-soft); border-color: var(--accent); color: var(--accent); }
+  .cards-filter-head { cursor: pointer; user-select: none; }
+  .cards-filter-head:hover { background: var(--surface-sunken); }
+  .cards-pills-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-top: 14px; }
+  .cards-pills-label { font-size: 11px; font-weight: 800; letter-spacing: 0.04em; text-transform: uppercase; color: var(--text-faint); }
+  .cards-pills { display: inline-flex; gap: 5px; }
+  .cards-pill {
+    background: var(--surface-sunken); border: 1.5px solid var(--border); border-radius: 20px;
+    padding: 5px 12px; font-size: 12px; font-weight: 700; color: var(--text-soft); cursor: pointer; transition: all 0.13s ease;
+  }
+  .cards-pill:hover { border-color: var(--border-strong); }
+  .cards-pill.active { background: var(--text); color: var(--surface); border-color: var(--text); }
+  .cards-pill.sei.active { background: var(--good); border-color: var(--good); color: #fff; }
+  .cards-pill.naosei.active { background: var(--bad); border-color: var(--bad); color: #fff; }
+  .cards-fav-toggle {
+    margin-left: auto; background: var(--surface-sunken); border: 1.5px solid var(--border); border-radius: 20px;
+    padding: 5px 12px; font-size: 12px; font-weight: 700; color: var(--warn); cursor: pointer;
+  }
+  .cards-fav-toggle.active { background: var(--warn-soft); border-color: var(--warn); }
+  /* Grid "Meus cards" */
+  .cards-count-bar { font-size: 12.5px; color: var(--text-faint); margin: 4px 0 12px; font-family: 'Space Mono', monospace; }
+  .cards-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 12px; }
+  .mini-card {
+    background: var(--surface); border: 1.5px solid var(--border); border-radius: 14px;
+    padding: 12px 14px; box-shadow: var(--shadow-sm); display: flex; flex-direction: column; gap: 8px;
+    transition: border-color 0.14s ease, box-shadow 0.14s ease, transform 0.14s ease;
+  }
+  .mini-card:hover { border-color: var(--accent); box-shadow: var(--shadow-md); transform: translateY(-1px); }
+  .mini-card-top { display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; }
+  .mini-card-badges { display: flex; gap: 6px; flex-wrap: wrap; }
+  .mini-card-front { font-size: 13.5px; color: var(--text); line-height: 1.5; max-height: 96px; overflow: hidden; }
+  .mini-card-front img { max-width: 100%; border-radius: 6px; }
+  .mini-card-foot { display: flex; align-items: center; gap: 7px; border-top: 1px solid var(--border); padding-top: 8px; margin-top: 2px; }
+  .mini-card-status { font-size: 11px; color: var(--text-soft); font-weight: 600; }
+  .cards-status-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+  .cards-status-dot.pendente { background: var(--text-faint); }
+  .cards-status-dot.sei { background: var(--good); }
+  .cards-status-dot.naosei { background: var(--bad); }
+  .cards-type-tag { font-size: 10px; font-weight: 700; padding: 2px 7px; border-radius: 12px; background: var(--surface-sunken); color: var(--text-soft); border: 1px solid var(--border); }
+  .cards-fav-star { background: none; border: none; cursor: pointer; font-size: 18px; color: var(--warn); line-height: 1; padding: 0; }
+  .cards-fav-star:not(.on) { color: var(--text-faint); }
+  /* Revisão (card grande) */
+  .cards-review-wrap { padding: 22px 26px 24px; }
+  .cards-review-progress { display: flex; align-items: center; gap: 12px; font-size: 12px; color: var(--text-faint); font-family: 'Space Mono', monospace; margin-bottom: 14px; }
+  .cards-review-bar { flex: 1; height: 6px; background: var(--surface-sunken); border-radius: 20px; overflow: hidden; }
+  .cards-review-bar div { height: 100%; background: var(--accent); border-radius: 20px; transition: width 0.3s ease; }
+  .cards-review-meta { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 16px; }
+  .cards-face { font-size: 17px; line-height: 1.7; color: var(--text); padding: 20px; background: var(--surface-sunken); border-radius: 14px; min-height: 90px; }
+  .cards-face img { max-width: 100%; border-radius: 8px; }
+  .cards-front { border: 1.5px solid var(--border); }
+  .cards-back { border: 1.5px solid var(--good); background: var(--good-soft); margin-top: 12px; }
+  .cards-review-actions { display: flex; align-items: center; gap: 10px; margin-top: 18px; }
+  .cards-flip { flex: 1; padding: 13px; font-size: 15px; }
+  .cards-ans { flex: 1; padding: 13px; font-size: 15px; font-weight: 800; border: none; border-radius: 12px; cursor: pointer; color: #fff; }
+  .cards-ans-yes { background: var(--good); }
+  .cards-ans-no { background: var(--bad); }
+  .cards-ans:hover { filter: brightness(1.06); }
+  .cards-review-done { text-align: center; padding: 44px 20px; }
+  .cards-review-done .big { font-size: 40px; }
+  .cards-review-done h3 { margin: 8px 0 4px; }
+  .cards-review-done p { color: var(--text-faint); margin: 0 0 16px; }
+  /* Modais dos cards (reaproveita padrão) */
+  .cards-modal { position: fixed; inset: 0; z-index: 300; background: rgba(15,17,21,0.55); display: flex; align-items: center; justify-content: center; padding: 20px; backdrop-filter: blur(3px); }
+  .cards-modal-box { background: var(--surface); border: 1.5px solid var(--border); border-radius: 18px; box-shadow: var(--shadow-lg); width: 100%; max-width: 520px; max-height: 90vh; display: flex; flex-direction: column; overflow: hidden; }
+  .cards-modal-lg { max-width: 680px; }
+  .cards-modal-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; padding: 18px 22px 14px; border-bottom: 1px solid var(--border); }
+  .cards-modal-head h2 { margin: 0 0 3px; font-size: 17px; }
+  .cards-modal-head .sub { margin: 0; font-size: 12.5px; color: var(--text-faint); }
+  .cards-modal-body { padding: 16px 22px; overflow-y: auto; }
+  .cards-modal-foot { display: flex; align-items: center; gap: 8px; padding: 14px 22px; border-top: 1px solid var(--border); flex-wrap: wrap; }
+  .req { color: var(--bad); }
+  /* Editor de texto rico */
+  .rte { border: 1.5px solid var(--border); border-radius: 12px; overflow: hidden; background: var(--surface); }
+  .rte-toolbar { display: flex; flex-wrap: wrap; gap: 3px; padding: 6px 8px; background: var(--surface-sunken); border-bottom: 1px solid var(--border); }
+  .rte-toolbar button { background: var(--surface); border: 1px solid var(--border); border-radius: 7px; padding: 4px 9px; font-size: 12.5px; cursor: pointer; color: var(--text-soft); }
+  .rte-toolbar button:hover { border-color: var(--accent); color: var(--accent); }
+  .rte-sep { width: 1px; background: var(--border); margin: 2px 3px; }
+  .rte-area { min-height: 110px; padding: 12px 14px; font-size: 14px; line-height: 1.6; color: var(--text); outline: none; }
+  .rte-area:focus { background: var(--surface); }
+  .rte-area img { max-width: 100%; border-radius: 6px; }
+  /* Baralhos */
+  .deck-row { display: grid; grid-template-columns: 1fr auto auto; align-items: center; gap: 10px; padding: 8px 10px; border: 1px solid var(--border); border-radius: 10px; background: var(--surface-sunken); margin-bottom: 8px; }
+  .deck-row .deck-name { font-weight: 600; font-size: 13.5px; background: var(--surface); }
+  .deck-count { font-size: 11px; color: var(--text-faint); font-family: 'Space Mono', monospace; white-space: nowrap; }
+  @media (max-width: 560px) {
+    .cards-grid { grid-template-columns: 1fr; }
+    .cards-modal-foot { justify-content: flex-end; }
+  }
+
 </style>
 </head>
 <body>
@@ -2911,6 +3011,7 @@
       <button class="tab" data-screen="grade"><span class="tab-icon">▦</span>Grade Semanal</button>
       <button class="tab" data-screen="estudonovo"><span class="tab-icon">▥</span>Estudo Novo</button>
       <button class="tab" data-screen="leis"><span class="tab-icon">§</span>Leis Secas</button>
+      <button class="tab" data-screen="cards"><span class="tab-icon">🗂️</span>Cards de Revisão</button>
       <button class="tab" data-screen="historico"><span class="tab-icon">▤</span>Histórico</button>
       <button class="tab" data-screen="evolucao"><span class="tab-icon">📈</span>Evolução</button>
       <button class="tab" data-screen="desempenhotec"><span class="tab-icon">🎯</span>Desempenho TEC</button>
@@ -3365,6 +3466,179 @@
       </div>
     </div>
   </section>
+
+  <!-- ============ TELA: CARDS DE REVISÃO ============ -->
+  <section class="screen" id="screen-cards">
+    <div class="page-header">
+      <h2 class="page-title">🗂️ Cards de Revisão</h2>
+      <p class="page-subtitle">Revise por disciplina e tópico com repetição espaçada. Marque o que você já sabe e o app agenda a próxima revisão de cada card automaticamente.</p>
+    </div>
+
+    <div class="cards-topbar">
+      <button type="button" class="btn-secondary" id="cards-import-btn">⭱ Importar</button>
+      <button type="button" class="btn-secondary" id="cards-export-btn">⭳ Exportar p/ Anki</button>
+      <button type="button" class="btn-secondary" id="cards-deck-btn">📁 Criar baralho</button>
+      <button type="button" class="btn-primary" id="cards-new-btn">＋ Criar card</button>
+    </div>
+
+    <div class="cards-tabs">
+      <button type="button" class="cards-tab active" data-ctab="revisar">🎴 Revisar</button>
+      <button type="button" class="cards-tab" data-ctab="meus">🗃️ Meus cards</button>
+    </div>
+
+    <!-- Filtros -->
+    <div class="card" id="cards-filter-card">
+      <div class="card-header cards-filter-head" id="cards-filter-toggle">
+        <div><h2>🔎 Buscar e filtrar</h2></div>
+        <span class="siglas-caret" id="cards-filter-caret">▾</span>
+      </div>
+      <div id="cards-filter-body" style="padding: 14px 24px 20px;">
+        <div class="field"><label for="cards-search">Buscar</label>
+          <input type="text" id="cards-search" placeholder="Buscar na frente, verso, tópico ou matéria..."></div>
+        <div class="field-group">
+          <div class="field"><label for="cards-f-materia">Disciplina / baralho</label>
+            <select id="cards-f-materia"><option value="">Todas</option></select></div>
+          <div class="field"><label for="cards-f-topico">Tópico</label>
+            <select id="cards-f-topico"><option value="">Todos os tópicos</option></select></div>
+          <div class="field"><label for="cards-f-tipo">Tipo</label>
+            <select id="cards-f-tipo"><option value="">Todos os tipos</option></select></div>
+        </div>
+        <div class="cards-pills-row">
+          <span class="cards-pills-label">Status</span>
+          <div class="cards-pills" id="cards-f-status">
+            <button type="button" class="cards-pill active" data-status="todos">Todos</button>
+            <button type="button" class="cards-pill" data-status="pendente">Pendente</button>
+            <button type="button" class="cards-pill sei" data-status="sei">Sei</button>
+            <button type="button" class="cards-pill naosei" data-status="naosei">Não sei</button>
+          </div>
+          <button type="button" class="cards-fav-toggle" id="cards-f-fav">★ Favoritos <span id="cards-fav-count">0</span></button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Área de conteúdo (revisar OU meus cards) -->
+    <div id="cards-content"></div>
+  </section>
+
+  <!-- Modal: criar/editar card -->
+  <div id="card-modal" class="cards-modal" style="display:none;">
+    <div class="cards-modal-box cards-modal-lg">
+      <div class="cards-modal-head">
+        <div><h2 id="card-modal-title">＋ Criar card</h2><p class="sub">Só você vê os cards que cria. Eles entram nas suas revisões.</p></div>
+        <button type="button" class="icon-btn" id="card-modal-close">✕</button>
+      </div>
+      <div class="cards-modal-body">
+        <div class="field-group">
+          <div class="field"><label>Destino <span class="req">*</span></label>
+            <select id="card-destino"></select></div>
+          <div class="field"><label>Tópico <span class="opt">(opcional)</span></label>
+            <input type="text" id="card-topico" list="card-topico-list" placeholder="Ex.: Crimes contra a Adm.">
+            <datalist id="card-topico-list"></datalist></div>
+          <div class="field"><label>Tipo <span class="opt">(opcional)</span></label>
+            <select id="card-tipo"></select></div>
+        </div>
+        <div class="field"><label>Frente (pergunta) <span class="req">*</span></label>
+          <div class="rte" data-target="card-frente">
+            <div class="rte-toolbar">
+              <button type="button" data-cmd="bold" title="Negrito"><b>B</b></button>
+              <button type="button" data-cmd="italic" title="Itálico"><i>I</i></button>
+              <button type="button" data-cmd="underline" title="Sublinhado"><u>U</u></button>
+              <span class="rte-sep"></span>
+              <button type="button" data-cmd="insertUnorderedList" title="Lista">• Lista</button>
+              <button type="button" data-cmd="insertOrderedList" title="Numerada">1. Lista</button>
+              <span class="rte-sep"></span>
+              <button type="button" data-cmd="hiliteYellow" title="Marca-texto">🖍️</button>
+              <button type="button" data-cmd="removeFormat" title="Limpar formatação">✕ formato</button>
+            </div>
+            <div class="rte-area" id="card-frente" contenteditable="true"></div>
+          </div>
+        </div>
+        <div class="field"><label>Verso (resposta) <span class="req">*</span></label>
+          <div class="rte" data-target="card-verso">
+            <div class="rte-toolbar">
+              <button type="button" data-cmd="bold" title="Negrito"><b>B</b></button>
+              <button type="button" data-cmd="italic" title="Itálico"><i>I</i></button>
+              <button type="button" data-cmd="underline" title="Sublinhado"><u>U</u></button>
+              <span class="rte-sep"></span>
+              <button type="button" data-cmd="insertUnorderedList" title="Lista">• Lista</button>
+              <button type="button" data-cmd="insertOrderedList" title="Numerada">1. Lista</button>
+              <span class="rte-sep"></span>
+              <button type="button" data-cmd="hiliteYellow" title="Marca-texto">🖍️</button>
+              <button type="button" data-cmd="removeFormat" title="Limpar formatação">✕ formato</button>
+            </div>
+            <div class="rte-area" id="card-verso" contenteditable="true"></div>
+          </div>
+        </div>
+      </div>
+      <div class="cards-modal-foot">
+        <button type="button" class="btn-danger-text" id="card-del-btn" style="display:none;">Excluir card</button>
+        <span style="flex:1"></span>
+        <button type="button" class="btn-secondary" id="card-cancel">Cancelar</button>
+        <button type="button" class="btn-secondary" id="card-save-another">Salvar e criar outro</button>
+        <button type="button" class="btn-primary" id="card-save-close">Salvar e fechar</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal: baralhos -->
+  <div id="deck-modal" class="cards-modal" style="display:none;">
+    <div class="cards-modal-box">
+      <div class="cards-modal-head">
+        <div><h2>📁 Meus baralhos</h2><p class="sub">Um baralho é um agrupamento seu de cards. Depois, escolha-o no "Destino" ao criar um card.</p></div>
+        <button type="button" class="icon-btn" id="deck-modal-close">✕</button>
+      </div>
+      <div class="cards-modal-body">
+        <div class="config-add-row">
+          <input type="text" id="deck-new-input" placeholder="Nome do novo baralho (ex.: Meus erros de RLM)">
+          <button class="btn-primary" id="deck-add-btn" type="button">Criar</button>
+        </div>
+        <div id="deck-list" style="margin-top:14px;"></div>
+      </div>
+      <div class="cards-modal-foot"><span style="flex:1"></span><button type="button" class="btn-secondary" id="deck-modal-done">Fechar</button></div>
+    </div>
+  </div>
+
+  <!-- Modal: importar -->
+  <div id="cards-import-modal" class="cards-modal" style="display:none;">
+    <div class="cards-modal-box">
+      <div class="cards-modal-head">
+        <div><h2>⭱ Importar cards</h2><p class="sub">Aceita um backup do app (.json) ou um arquivo de texto do Anki (.txt/.csv, com Frente e Verso separados por tabulação ou ponto-e-vírgula).</p></div>
+        <button type="button" class="icon-btn" id="cards-import-close">✕</button>
+      </div>
+      <div class="cards-modal-body">
+        <div class="field"><label>Destino dos cards importados</label>
+          <select id="cards-import-destino"></select></div>
+        <div id="cards-import-drop" class="tec-dropzone">
+          <input type="file" id="cards-import-file" accept=".json,.csv,.tsv,.txt" style="display:none;">
+          <div class="tec-dropzone-icon">🗂️</div>
+          <div class="tec-dropzone-text"><strong>Clique para escolher</strong> ou arraste o arquivo aqui</div>
+          <div class="tec-dropzone-hint">.json (nosso) · .csv / .txt (Anki)</div>
+          <div id="cards-import-name" class="tec-file-name" style="display:none;"></div>
+        </div>
+        <p class="hint" id="cards-import-preview">Aguardando arquivo...</p>
+      </div>
+      <div class="cards-modal-foot"><span style="flex:1"></span>
+        <button type="button" class="btn-secondary" id="cards-import-cancel">Cancelar</button>
+        <button type="button" class="btn-primary" id="cards-import-do">Importar</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal: exportar -->
+  <div id="cards-export-modal" class="cards-modal" style="display:none;">
+    <div class="cards-modal-box">
+      <div class="cards-modal-head">
+        <div><h2>⭳ Exportar cards</h2><p class="sub">Escolha o formato. O <strong>Anki</strong> importa arquivos de texto nativamente.</p></div>
+        <button type="button" class="icon-btn" id="cards-export-close">✕</button>
+      </div>
+      <div class="cards-modal-body" id="cards-export-body"></div>
+      <div class="cards-modal-foot"><span style="flex:1"></span>
+        <button type="button" class="btn-secondary" id="cards-export-cancel">Cancelar</button>
+        <button type="button" class="btn-secondary" id="cards-export-json">Backup (.json)</button>
+        <button type="button" class="btn-primary" id="cards-export-anki">Anki (.txt)</button>
+      </div>
+    </div>
+  </div>
 
   <!-- ============ TELA: HISTÓRICO ============ -->
   <section class="screen" id="screen-historico">
@@ -4012,7 +4286,9 @@ const DB = {
       tec: base + 'tec',
       gradeTemplate: base + 'grade-template',
       customSiglas: base + 'custom-siglas',
-      leis: base + 'leis'
+      leis: base + 'leis',
+      decks: base + 'decks',
+      cards: base + 'cards'
     };
   },
   // KEYS "dinâmico": sempre aponta para o planejamento ativo no momento da leitura
@@ -4405,6 +4681,56 @@ const DB = {
     this.saveLeis(list);
   },
   deleteLei(id) { this.saveLeis(this.getLeis().filter(l => l.id !== id)); },
+
+  // ---- Cards de Revisão: baralhos + cards com repetição espaçada ----
+  // Baralho: { id, nome, createdAt }
+  getDecks() { return this._get(this.KEYS.decks, []); },
+  saveDecks(list) { this._set(this.KEYS.decks, list); },
+  addDeck(nome) {
+    const list = this.getDecks();
+    const n = (nome || '').trim();
+    if (!n) return null;
+    if (list.some(d => d.nome.toLowerCase() === n.toLowerCase())) { return list.find(d => d.nome.toLowerCase() === n.toLowerCase()); }
+    const deck = { id: this._uid(), nome: n, createdAt: new Date().toISOString() };
+    list.push(deck); this.saveDecks(list); return deck;
+  },
+  renameDeck(id, nome) { const l = this.getDecks(); const d = l.find(x => x.id === id); if (d) d.nome = (nome || '').trim(); this.saveDecks(l); },
+  deleteDeck(id) {
+    this.saveDecks(this.getDecks().filter(d => d.id !== id));
+    // cards que apontavam para o baralho ficam "sem destino" (deckId null) — não são apagados
+    const cards = this.getCards(); let touched = false;
+    cards.forEach(c => { if (c.deckId === id) { c.deckId = null; touched = true; } });
+    if (touched) this.saveCards(cards);
+  },
+  // Card: { id, deckId|null, materia|null, topico, tipo, frente, verso, favorito,
+  //         status:'pendente'|'sei'|'naosei', ease, intervalo(dias), due(YYYY-MM-DD), reps, lapses, createdAt, updatedAt }
+  getCards() { return this._get(this.KEYS.cards, []); },
+  saveCards(list) { this._set(this.KEYS.cards, list); },
+  getCard(id) { return this.getCards().find(c => c.id === id) || null; },
+  addCard(data) {
+    const list = this.getCards();
+    const now = new Date().toISOString();
+    const card = {
+      id: this._uid(),
+      deckId: data.deckId || null,
+      materia: data.materia || null,
+      topico: (data.topico || '').trim(),
+      tipo: data.tipo || '',
+      frente: data.frente || '',
+      verso: data.verso || '',
+      favorito: false,
+      status: 'pendente',
+      ease: 2.5, intervalo: 0, due: todayLocal(), reps: 0, lapses: 0,
+      createdAt: now, updatedAt: now
+    };
+    list.push(card); this.saveCards(list); return card;
+  },
+  updateCard(id, patch) {
+    const list = this.getCards(); const c = list.find(x => x.id === id);
+    if (c) { Object.assign(c, patch); c.updatedAt = new Date().toISOString(); }
+    this.saveCards(list); return c;
+  },
+  deleteCard(id) { this.saveCards(this.getCards().filter(c => c.id !== id)); },
   addCustomSigla({ sigla, nome, color }) {
     const list = this.getCustomSiglas();
     list.push({ id: this._uid(), sigla: (sigla || '').trim().toUpperCase(), nome: (nome || '').trim(), color: color || '#4f46e5' });
@@ -5813,6 +6139,69 @@ const LawEngine = {
     const arts = (text.match(/art(?:\.|igo)\s*\d+/gi) || []).length;
     const palavras = (text.match(/\S+/g) || []).length;
     return { artigos: arts, palavras, marcacoes: (lei.marcacoes || []).length };
+  }
+};
+
+/* ============================================================
+   CARD ENGINE — repetição espaçada (SM-2 simplificado) + filtros
+   ============================================================ */
+const CardEngine = {
+  TIPOS: ['Aplicação', 'Associação', 'Certo/Errado', 'Complete a lacuna', 'Conceito', 'Definição', 'Diferenciação', 'Múltipla escolha', 'Verdadeiro ou Falso'],
+  addDays(iso, n) {
+    const d = new Date(iso + 'T00:00:00'); d.setDate(d.getDate() + n);
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  },
+  // Aplica a resposta ao card e devolve o patch de agendamento.
+  // grade: 'sei' (acertou) | 'naosei' (errou/difícil)
+  schedule(card, grade) {
+    let ease = card.ease || 2.5, intervalo = card.intervalo || 0, reps = card.reps || 0, lapses = card.lapses || 0;
+    if (grade === 'sei') {
+      reps += 1;
+      if (reps === 1) intervalo = 1;
+      else if (reps === 2) intervalo = 3;
+      else intervalo = Math.round(intervalo * ease);
+      ease = Math.min(3.2, ease + 0.1);
+    } else {
+      // não sei: reinicia o ciclo e reduz a facilidade; volta em 1 dia
+      reps = 0; lapses += 1; intervalo = 1;
+      ease = Math.max(1.3, ease - 0.2);
+    }
+    return {
+      status: grade, ease, intervalo, reps, lapses,
+      due: this.addDays(todayLocal(), intervalo),
+      lastReview: todayLocal()
+    };
+  },
+  isDue(card) { return (card.due || todayLocal()) <= todayLocal(); },
+  // Aplica os filtros a uma lista de cards. f = { busca, materias:Set, topico, tipo, status, favorito, deckId }
+  applyFilters(cards, f) {
+    f = f || {};
+    const busca = (f.busca || '').trim().toLowerCase();
+    return cards.filter(c => {
+      if (f.materias && f.materias.size && !(c.materia && f.materias.has(c.materia)) && !(c.deckId && f.materias.has('deck:' + c.deckId))) return false;
+      if (f.topico && (c.topico || '') !== f.topico) return false;
+      if (f.tipo && (c.tipo || '') !== f.tipo) return false;
+      if (f.status && f.status !== 'todos' && (c.status || 'pendente') !== f.status) return false;
+      if (f.favorito && !c.favorito) return false;
+      if (busca) {
+        const hay = ((c.frente || '') + ' ' + (c.verso || '') + ' ' + (c.topico || '') + ' ' + (c.materia || '')).toLowerCase().replace(/<[^>]+>/g, ' ');
+        if (!hay.includes(busca)) return false;
+      }
+      return true;
+    });
+  },
+  stats(cards) {
+    const s = { total: cards.length, pendente: 0, sei: 0, naosei: 0, due: 0, favoritos: 0 };
+    cards.forEach(c => {
+      s[c.status || 'pendente'] = (s[c.status || 'pendente'] || 0) + 1;
+      if (this.isDue(c)) s.due++;
+      if (c.favorito) s.favoritos++;
+    });
+    return s;
+  },
+  // texto puro (sem HTML) para exportação/preview
+  plain(html) {
+    return String(html || '').replace(/<br\s*\/?>/gi, '\n').replace(/<\/(p|div|li)>/gi, '\n').replace(/<[^>]+>/g, '').replace(/&nbsp;/g, ' ').replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').trim();
   }
 };
 
@@ -8645,6 +9034,488 @@ document.querySelectorAll('#lei-hl-toggles input[data-cat]').forEach(cb => {
 });
 window.addEventListener('screen:activated', (e) => {
   if (e.detail.screen === 'leis') LeisScreen.render();
+});
+
+/* ============================================================
+   TELA: CARDS DE REVISÃO
+   ============================================================ */
+const CardsScreen = {
+  tab: 'revisar',
+  filters: { busca: '', materias: new Set(), topico: '', tipo: '', status: 'todos', favorito: false },
+  _editingId: null,
+  _reviewQueue: [], _reviewIdx: 0, _flipped: false,
+  _importParsed: null,
+
+  render() {
+    this.populateFilterOptions();
+    this.populateTipoSelect();
+    this.renderContent();
+    this.updateFavCount();
+  },
+  // ---- opções de filtro (matérias + baralhos, tópicos, tipos) ----
+  materiaOptionsHtml(selectedValue) {
+    const subs = DB.getActiveSubjects().map(s => `<option value="${escapeHtml(s.nome)}"${selectedValue === s.nome ? ' selected' : ''}>${escapeHtml(s.nome)}</option>`).join('');
+    const decks = DB.getDecks().map(d => `<option value="deck:${d.id}"${selectedValue === 'deck:' + d.id ? ' selected' : ''}>📁 ${escapeHtml(d.nome)}</option>`).join('');
+    return { subs, decks };
+  },
+  populateFilterOptions() {
+    const mSel = document.getElementById('cards-f-materia');
+    const cur = mSel.value;
+    const { subs, decks } = this.materiaOptionsHtml(cur);
+    mSel.innerHTML = `<option value="">Todas as disciplinas/baralhos</option>` + subs + decks;
+    // tópicos existentes nos cards
+    const tops = [...new Set(DB.getCards().map(c => c.topico).filter(Boolean))].sort();
+    document.getElementById('cards-f-topico').innerHTML = `<option value="">Todos os tópicos</option>` + tops.map(t => `<option value="${escapeHtml(t)}">${escapeHtml(t)}</option>`).join('');
+    document.getElementById('cards-f-tipo').innerHTML = `<option value="">Todos os tipos</option>` + CardEngine.TIPOS.map(t => `<option value="${escapeHtml(t)}">${escapeHtml(t)}</option>`).join('');
+  },
+  populateTipoSelect() {
+    const sel = document.getElementById('card-tipo');
+    if (sel) sel.innerHTML = `<option value="">— sem tipo —</option>` + CardEngine.TIPOS.map(t => `<option value="${escapeHtml(t)}">${escapeHtml(t)}</option>`).join('');
+  },
+  destinoOptionsHtml(selected) {
+    const { subs, decks } = this.materiaOptionsHtml();
+    // para o destino, valor de matéria = "sub:Nome"; baralho = "deck:id"
+    const subOpts = DB.getActiveSubjects().map(s => `<option value="sub:${escapeHtml(s.nome)}"${selected === 'sub:' + s.nome ? ' selected' : ''}>${escapeHtml(s.nome)}</option>`).join('');
+    const deckOpts = DB.getDecks().map(d => `<option value="deck:${d.id}"${selected === 'deck:' + d.id ? ' selected' : ''}>📁 ${escapeHtml(d.nome)}</option>`).join('');
+    return `<option value="">Selecione uma disciplina ou baralho...</option>` + subOpts + deckOpts;
+  },
+  currentFilteredCards() {
+    return CardEngine.applyFilters(DB.getCards(), this.filters);
+  },
+  updateFavCount() {
+    const n = DB.getCards().filter(c => c.favorito).length;
+    const el = document.getElementById('cards-fav-count'); if (el) el.textContent = n;
+  },
+
+  // ---- conteúdo (revisar ou meus cards) ----
+  renderContent() {
+    const box = document.getElementById('cards-content');
+    if (this.tab === 'revisar') this.renderRevisar(box);
+    else this.renderMeus(box);
+  },
+  materiaLabel(c) {
+    if (c.deckId) { const d = DB.getDecks().find(x => x.id === c.deckId); return d ? '📁 ' + d.nome : '📁 (baralho removido)'; }
+    return c.materia || 'Sem disciplina';
+  },
+  renderRevisar(box) {
+    const filtered = this.currentFilteredCards();
+    const due = filtered.filter(c => CardEngine.isDue(c));
+    if (DB.getCards().length === 0) {
+      box.innerHTML = this.emptyState('Nenhum card ainda', 'Clique em <strong>＋ Criar card</strong> no topo para começar.');
+      return;
+    }
+    if (due.length === 0) {
+      box.innerHTML = `<div class="card"><div class="cards-review-done"><div class="big">✅</div><h3>Tudo em dia por aqui!</h3><p>Não há cards para revisar agora com os filtros atuais. Volte mais tarde ou ajuste os filtros.</p></div></div>`;
+      return;
+    }
+    // monta a fila (embaralhada) se ainda não corresponde
+    this._reviewQueue = due.map(c => c.id);
+    this._reviewIdx = Math.min(this._reviewIdx, this._reviewQueue.length - 1);
+    this._flipped = false;
+    this.renderReviewCard(box);
+  },
+  renderReviewCard(box) {
+    const total = this._reviewQueue.length;
+    const id = this._reviewQueue[this._reviewIdx];
+    const c = DB.getCard(id);
+    if (!c) { this.renderRevisar(box); return; }
+    const done = this._reviewIdx; // já revisados nesta sessão
+    box.innerHTML = `
+      <div class="card cards-review-wrap">
+        <div class="cards-review-progress"><span>${done + 1} de ${total}</span>
+          <div class="cards-review-bar"><div style="width:${((done) / total) * 100}%"></div></div>
+        </div>
+        <div class="cards-review-meta">
+          <span class="lei-tag mat">${escapeHtml(this.materiaLabel(c))}</span>
+          ${c.topico ? `<span class="lei-tag ref">${escapeHtml(c.topico)}</span>` : ''}
+          ${c.tipo ? `<span class="cards-type-tag">${escapeHtml(c.tipo)}</span>` : ''}
+          <button type="button" class="cards-fav-star ${c.favorito ? 'on' : ''}" id="cards-review-fav" title="Favoritar">${c.favorito ? '★' : '☆'}</button>
+        </div>
+        <div class="cards-face cards-front">${c.frente || '<em style="color:var(--text-faint)">(frente vazia)</em>'}</div>
+        <div class="cards-face cards-back" id="cards-back" style="display:${this._flipped ? 'block' : 'none'}">${c.verso || '<em style="color:var(--text-faint)">(verso vazio)</em>'}</div>
+        <div class="cards-review-actions">
+          ${!this._flipped
+            ? `<button type="button" class="btn-primary cards-flip" id="cards-flip">Mostrar resposta</button>`
+            : `<button type="button" class="cards-ans cards-ans-no" id="cards-ans-no">✗ Não sei</button>
+               <button type="button" class="cards-ans cards-ans-yes" id="cards-ans-yes">✓ Sei</button>`}
+          <button type="button" class="icon-btn cards-review-edit" id="cards-review-edit" title="Editar card">✎</button>
+        </div>
+      </div>`;
+    const flip = document.getElementById('cards-flip');
+    if (flip) flip.addEventListener('click', () => { this._flipped = true; this.renderReviewCard(box); });
+    const no = document.getElementById('cards-ans-no'); if (no) no.addEventListener('click', () => this.answer('naosei'));
+    const yes = document.getElementById('cards-ans-yes'); if (yes) yes.addEventListener('click', () => this.answer('sei'));
+    document.getElementById('cards-review-fav').addEventListener('click', () => {
+      DB.updateCard(c.id, { favorito: !c.favorito }); this.updateFavCount(); this.renderReviewCard(box);
+    });
+    document.getElementById('cards-review-edit').addEventListener('click', () => this.openCardModal(c.id));
+  },
+  answer(grade) {
+    const id = this._reviewQueue[this._reviewIdx];
+    const c = DB.getCard(id);
+    if (c) DB.updateCard(id, CardEngine.schedule(c, grade));
+    this._reviewIdx++;
+    this._flipped = false;
+    const box = document.getElementById('cards-content');
+    if (this._reviewIdx >= this._reviewQueue.length) {
+      box.innerHTML = `<div class="card"><div class="cards-review-done"><div class="big">🎉</div><h3>Sessão concluída!</h3><p>Você revisou ${this._reviewQueue.length} card(s). O app agendou a próxima revisão de cada um.</p><button type="button" class="btn-primary" id="cards-review-restart">Revisar novamente</button></div></div>`;
+      const rb = document.getElementById('cards-review-restart');
+      if (rb) rb.addEventListener('click', () => { this._reviewIdx = 0; this.renderContent(); });
+      this.updateFavCount();
+      return;
+    }
+    this.renderReviewCard(box);
+  },
+  renderMeus(box) {
+    const filtered = this.currentFilteredCards().sort((a, b) => (b.updatedAt || '').localeCompare(a.updatedAt || ''));
+    if (DB.getCards().length === 0) {
+      box.innerHTML = this.emptyState('Você ainda não criou nenhum card', 'Clique em <strong>＋ Criar card</strong> no topo pra começar.');
+      return;
+    }
+    if (filtered.length === 0) {
+      box.innerHTML = this.emptyState('Nenhum card nos filtros', 'Ajuste a busca ou os filtros acima.');
+      return;
+    }
+    const st = CardEngine.stats(filtered);
+    box.innerHTML = `
+      <div class="cards-count-bar">${filtered.length} card(s) · <span style="color:var(--good)">${st.sei} sei</span> · <span style="color:var(--bad)">${st.naosei} não sei</span> · <span style="color:var(--text-soft)">${st.pendente} pendente(s)</span></div>
+      <div class="cards-grid">` +
+      filtered.map(c => `
+        <div class="mini-card" data-id="${c.id}">
+          <div class="mini-card-top">
+            <span class="mini-card-badges">
+              <span class="lei-tag mat">${escapeHtml(this.materiaLabel(c))}</span>
+              ${c.topico ? `<span class="lei-tag ref">${escapeHtml(c.topico)}</span>` : ''}
+            </span>
+            <button type="button" class="cards-fav-star ${c.favorito ? 'on' : ''}" data-fav="${c.id}" title="Favoritar">${c.favorito ? '★' : '☆'}</button>
+          </div>
+          <div class="mini-card-front">${c.frente || '<em style="color:var(--text-faint)">(vazio)</em>'}</div>
+          <div class="mini-card-foot">
+            <span class="cards-status-dot ${c.status || 'pendente'}"></span>
+            <span class="mini-card-status">${c.status === 'sei' ? 'Sei' : c.status === 'naosei' ? 'Não sei' : 'Pendente'}</span>
+            ${c.tipo ? `<span class="cards-type-tag">${escapeHtml(c.tipo)}</span>` : ''}
+            <span style="flex:1"></span>
+            <button type="button" class="icon-btn mini-edit" data-edit="${c.id}" title="Editar">✎</button>
+            <button type="button" class="icon-btn danger mini-del" data-del="${c.id}" title="Excluir">×</button>
+          </div>
+        </div>`).join('') + `</div>`;
+    box.querySelectorAll('[data-fav]').forEach(b => b.addEventListener('click', () => {
+      const c = DB.getCard(b.dataset.fav); DB.updateCard(c.id, { favorito: !c.favorito }); this.updateFavCount(); this.renderMeus(box);
+    }));
+    box.querySelectorAll('[data-edit]').forEach(b => b.addEventListener('click', () => this.openCardModal(b.dataset.edit)));
+    box.querySelectorAll('[data-del]').forEach(b => b.addEventListener('click', () => {
+      if (!confirm('Excluir este card?')) return;
+      DB.deleteCard(b.dataset.del); this.render();
+    }));
+  },
+  emptyState(title, sub) {
+    return `<div class="card"><div class="empty-state" style="padding:40px 20px;"><div class="big">🗂️</div><h3 style="margin:4px 0;">${title}</h3><p style="color:var(--text-faint)">${sub}</p></div></div>`;
+  },
+
+  // ---- modal criar/editar card ----
+  openCardModal(id) {
+    this._editingId = id || null;
+    const isEdit = !!id;
+    document.getElementById('card-modal-title').textContent = isEdit ? '✎ Editar card' : '＋ Criar card';
+    document.getElementById('card-del-btn').style.display = isEdit ? 'inline-block' : 'none';
+    document.getElementById('card-save-another').style.display = isEdit ? 'none' : 'inline-block';
+    // destino
+    let destSel = '';
+    let topico = '', tipo = '', frente = '', verso = '';
+    if (isEdit) {
+      const c = DB.getCard(id);
+      destSel = c.deckId ? 'deck:' + c.deckId : (c.materia ? 'sub:' + c.materia : '');
+      topico = c.topico || ''; tipo = c.tipo || ''; frente = c.frente || ''; verso = c.verso || '';
+    }
+    document.getElementById('card-destino').innerHTML = this.destinoOptionsHtml(destSel);
+    document.getElementById('card-topico').value = topico;
+    // datalist de tópicos
+    const tops = [...new Set(DB.getCards().map(c => c.topico).filter(Boolean))].sort();
+    document.getElementById('card-topico-list').innerHTML = tops.map(t => `<option value="${escapeHtml(t)}">`).join('');
+    document.getElementById('card-tipo').value = tipo;
+    document.getElementById('card-frente').innerHTML = frente;
+    document.getElementById('card-verso').innerHTML = verso;
+    document.getElementById('card-modal').style.display = 'flex';
+    setTimeout(() => document.getElementById('card-destino').focus(), 50);
+  },
+  closeCardModal() { document.getElementById('card-modal').style.display = 'none'; this._editingId = null; },
+  _readCardForm() {
+    const dest = document.getElementById('card-destino').value;
+    const frente = document.getElementById('card-frente').innerHTML.trim();
+    const verso = document.getElementById('card-verso').innerHTML.trim();
+    if (!dest) { showToast('Escolha o destino (disciplina ou baralho)'); return null; }
+    if (!CardEngine.plain(frente)) { showToast('Preencha a frente'); return null; }
+    if (!CardEngine.plain(verso)) { showToast('Preencha o verso'); return null; }
+    const data = { topico: document.getElementById('card-topico').value, tipo: document.getElementById('card-tipo').value, frente, verso, deckId: null, materia: null };
+    if (dest.startsWith('deck:')) data.deckId = dest.slice(5);
+    else if (dest.startsWith('sub:')) data.materia = dest.slice(4);
+    return data;
+  },
+  saveCard(closeAfter) {
+    const data = this._readCardForm();
+    if (!data) return;
+    if (this._editingId) { DB.updateCard(this._editingId, data); showToast('Card atualizado ✓'); this.closeCardModal(); }
+    else {
+      DB.addCard(data); showToast('Card criado ✓');
+      if (closeAfter) this.closeCardModal();
+      else { // limpa frente/verso, mantém destino/tópico/tipo para criar em série
+        document.getElementById('card-frente').innerHTML = '';
+        document.getElementById('card-verso').innerHTML = '';
+        document.getElementById('card-frente').focus();
+      }
+    }
+    this.render();
+  },
+  deleteCard() {
+    if (!this._editingId) return;
+    if (!confirm('Excluir este card?')) return;
+    DB.deleteCard(this._editingId); this.closeCardModal(); this.render(); showToast('Card excluído');
+  },
+
+  // ---- baralhos ----
+  openDeckModal() { this.renderDeckList(); document.getElementById('deck-modal').style.display = 'flex'; },
+  renderDeckList() {
+    const box = document.getElementById('deck-list');
+    const decks = DB.getDecks();
+    if (decks.length === 0) { box.innerHTML = `<p class="hint">Nenhum baralho ainda. Crie o primeiro acima.</p>`; return; }
+    box.innerHTML = decks.map(d => {
+      const n = DB.getCards().filter(c => c.deckId === d.id).length;
+      return `<div class="deck-row" data-id="${d.id}">
+        <input type="text" class="deck-name" value="${escapeHtml(d.nome)}">
+        <span class="deck-count">${n} card(s)</span>
+        <button type="button" class="icon-btn danger deck-del" title="Excluir baralho">×</button>
+      </div>`;
+    }).join('');
+    box.querySelectorAll('.deck-row').forEach(row => {
+      const id = row.dataset.id;
+      row.querySelector('.deck-name').addEventListener('change', (e) => { DB.renameDeck(id, e.target.value); this.render(); });
+      row.querySelector('.deck-del').addEventListener('click', () => {
+        if (!confirm('Excluir este baralho? Os cards dele NÃO são apagados (ficam sem destino).')) return;
+        DB.deleteDeck(id); this.renderDeckList(); this.render();
+      });
+    });
+  },
+  addDeck() {
+    const inp = document.getElementById('deck-new-input');
+    const d = DB.addDeck(inp.value);
+    if (!d) { showToast('Digite um nome'); return; }
+    inp.value = ''; this.renderDeckList(); this.render(); showToast('Baralho criado ✓');
+  },
+
+  // ---- exportar ----
+  openExportModal() {
+    const cards = DB.getCards();
+    const body = document.getElementById('cards-export-body');
+    if (cards.length === 0) { body.innerHTML = `<p class="hint">Você ainda não criou nenhum card.</p>`; }
+    else {
+      const st = CardEngine.stats(cards);
+      body.innerHTML = `<p style="font-size:14px;">Você tem <strong>${cards.length} card(s)</strong>. Escolha o formato:</p>
+        <ul style="font-size:13px; color:var(--text-soft); line-height:1.7; margin:8px 0 0; padding-left:18px;">
+          <li><strong>Anki (.txt)</strong>: importe no Anki (Arquivo → Importar). Cada linha = Frente[tab]Verso[tab]Tags.</li>
+          <li><strong>Backup (.json)</strong>: cópia completa para reimportar aqui depois.</li>
+        </ul>`;
+    }
+    document.getElementById('cards-export-modal').style.display = 'flex';
+  },
+  _download(filename, content, mime) {
+    const blob = new Blob([content], { type: mime });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a'); a.href = url; a.download = filename;
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  },
+  exportAnki() {
+    const cards = DB.getCards();
+    if (cards.length === 0) { showToast('Nenhum card para exportar'); return; }
+    // TSV: Frente \t Verso \t Tags (matéria/tópico/tipo viram tags)
+    const lines = cards.map(c => {
+      const front = CardEngine.plain(c.frente).replace(/\t/g, ' ').replace(/\n/g, '<br>');
+      const back = CardEngine.plain(c.verso).replace(/\t/g, ' ').replace(/\n/g, '<br>');
+      const tags = [this.materiaLabel(c).replace('📁 ', ''), c.topico, c.tipo].filter(Boolean).map(t => t.replace(/\s+/g, '_')).join(' ');
+      return `${front}\t${back}\t${tags}`;
+    });
+    const header = '#separator:tab\n#html:true\n#tags column:3\n';
+    this._download('cards-anki_' + todayLocal() + '.txt', header + lines.join('\n'), 'text/plain');
+    showToast('Arquivo do Anki exportado ✓');
+    document.getElementById('cards-export-modal').style.display = 'none';
+  },
+  exportJson() {
+    const payload = { app: 'diario-estudos', kind: 'cards-backup', version: 1, exportedAt: new Date().toISOString(), decks: DB.getDecks(), cards: DB.getCards() };
+    this._download('cards-backup_' + todayLocal() + '.json', JSON.stringify(payload, null, 2), 'application/json');
+    showToast('Backup exportado ✓');
+    document.getElementById('cards-export-modal').style.display = 'none';
+  },
+
+  // ---- importar ----
+  openImportModal() {
+    this._importParsed = null;
+    document.getElementById('cards-import-destino').innerHTML = this.destinoOptionsHtml('');
+    document.getElementById('cards-import-preview').textContent = 'Aguardando arquivo...';
+    document.getElementById('cards-import-preview').style.color = 'var(--text-faint)';
+    const fn = document.getElementById('cards-import-name'); fn.style.display = 'none';
+    document.getElementById('cards-import-file').value = '';
+    document.getElementById('cards-import-modal').style.display = 'flex';
+  },
+  handleImportFile(file) {
+    if (!file) return;
+    const fn = document.getElementById('cards-import-name');
+    fn.style.display = 'inline-flex'; fn.textContent = '📎 ' + file.name;
+    const prev = document.getElementById('cards-import-preview');
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const text = e.target.result;
+      let parsed = null;
+      if (/\.json$/i.test(file.name)) {
+        try {
+          const obj = JSON.parse(text);
+          if (obj && obj.kind === 'cards-backup' && Array.isArray(obj.cards)) parsed = { kind: 'json', cards: obj.cards, decks: obj.decks || [] };
+          else { prev.textContent = '⚠ JSON não é um backup de cards válido.'; prev.style.color = 'var(--warn)'; return; }
+        } catch (err) { prev.textContent = '⚠ JSON inválido.'; prev.style.color = 'var(--bad)'; return; }
+      } else {
+        // texto Anki (TSV/CSV): detecta separador
+        const rows = this.parseAnkiText(text);
+        parsed = { kind: 'text', rows };
+      }
+      this._importParsed = parsed;
+      const n = parsed.kind === 'json' ? parsed.cards.length : parsed.rows.length;
+      if (n === 0) { prev.textContent = '⚠ Nenhum card reconhecido no arquivo.'; prev.style.color = 'var(--warn)'; }
+      else { prev.textContent = `✓ ${n} card(s) reconhecido(s) para importar.`; prev.style.color = 'var(--good)'; }
+    };
+    reader.readAsText(file);
+  },
+  parseAnkiText(text) {
+    const out = [];
+    String(text || '').split(/\r?\n/).forEach(line => {
+      if (!line.trim() || line.trim().startsWith('#')) return; // ignora comentários/cabeçalhos do Anki
+      const sep = line.includes('\t') ? '\t' : (line.includes(';') ? ';' : (line.includes(',') ? ',' : '\t'));
+      const cols = line.split(sep);
+      if (cols.length < 2) return;
+      out.push({ frente: cols[0].trim(), verso: cols[1].trim(), tags: (cols[2] || '').trim() });
+    });
+    return out;
+  },
+  doImport() {
+    if (!this._importParsed) { showToast('Escolha um arquivo primeiro'); return; }
+    const dest = document.getElementById('cards-import-destino').value;
+    let deckId = null, materia = null;
+    if (dest.startsWith('deck:')) deckId = dest.slice(5);
+    else if (dest.startsWith('sub:')) materia = dest.slice(4);
+    let count = 0;
+    if (this._importParsed.kind === 'json') {
+      // recria baralhos ausentes por nome
+      const backupDecks = this._importParsed.decks || [];
+      const idMap = {};
+      backupDecks.forEach(bd => { const nd = DB.addDeck(bd.nome); if (nd) idMap[bd.id] = nd.id; });
+      this._importParsed.cards.forEach(c => {
+        DB.addCard({ deckId: deckId || (c.deckId && idMap[c.deckId]) || null, materia: materia || c.materia || null, topico: c.topico || '', tipo: c.tipo || '', frente: c.frente || '', verso: c.verso || '' });
+        count++;
+      });
+    } else {
+      this._importParsed.rows.forEach(r => {
+        DB.addCard({ deckId, materia, topico: r.tags || '', tipo: '', frente: r.frente, verso: r.verso });
+        count++;
+      });
+    }
+    document.getElementById('cards-import-modal').style.display = 'none';
+    this.render();
+    showToast(`${count} card(s) importado(s) ✓`);
+  }
+};
+window.CardsScreen = CardsScreen;
+
+/* ---- editor de texto simples (contenteditable + execCommand) ---- */
+document.querySelectorAll('.rte').forEach(rte => {
+  rte.querySelectorAll('.rte-toolbar button[data-cmd]').forEach(btn => {
+    btn.addEventListener('mousedown', (e) => e.preventDefault()); // não perde o foco/seleção
+    btn.addEventListener('click', () => {
+      const cmd = btn.dataset.cmd;
+      const area = document.getElementById(rte.dataset.target);
+      area.focus();
+      try {
+        if (cmd === 'hiliteYellow') document.execCommand('hiliteColor', false, '#fde68a');
+        else document.execCommand(cmd, false, null);
+      } catch (e) {}
+    });
+  });
+});
+
+/* ---- listeners da tela Cards ---- */
+(function () {
+  const on = (id, ev, fn) => { const el = document.getElementById(id); if (el) el.addEventListener(ev, fn); };
+  // abas
+  document.querySelectorAll('.cards-tab').forEach(t => t.addEventListener('click', () => {
+    CardsScreen.tab = t.dataset.ctab;
+    document.querySelectorAll('.cards-tab').forEach(x => x.classList.toggle('active', x === t));
+    CardsScreen._reviewIdx = 0;
+    CardsScreen.renderContent();
+  }));
+  // filtro colapsável
+  on('cards-filter-toggle', 'click', () => {
+    const card = document.getElementById('cards-filter-card');
+    const body = document.getElementById('cards-filter-body');
+    const open = body.style.display !== 'none';
+    body.style.display = open ? 'none' : 'block';
+    document.getElementById('cards-filter-caret').textContent = open ? '▸' : '▾';
+  });
+  // busca
+  on('cards-search', 'input', (e) => { CardsScreen.filters.busca = e.target.value; CardsScreen._reviewIdx = 0; CardsScreen.renderContent(); });
+  on('cards-f-materia', 'change', (e) => {
+    CardsScreen.filters.materias = e.target.value ? new Set([e.target.value]) : new Set();
+    CardsScreen._reviewIdx = 0; CardsScreen.renderContent();
+  });
+  on('cards-f-topico', 'change', (e) => { CardsScreen.filters.topico = e.target.value; CardsScreen._reviewIdx = 0; CardsScreen.renderContent(); });
+  on('cards-f-tipo', 'change', (e) => { CardsScreen.filters.tipo = e.target.value; CardsScreen._reviewIdx = 0; CardsScreen.renderContent(); });
+  // status pills
+  document.querySelectorAll('#cards-f-status .cards-pill').forEach(p => p.addEventListener('click', () => {
+    document.querySelectorAll('#cards-f-status .cards-pill').forEach(x => x.classList.toggle('active', x === p));
+    CardsScreen.filters.status = p.dataset.status; CardsScreen._reviewIdx = 0; CardsScreen.renderContent();
+  }));
+  on('cards-f-fav', 'click', () => {
+    CardsScreen.filters.favorito = !CardsScreen.filters.favorito;
+    document.getElementById('cards-f-fav').classList.toggle('active', CardsScreen.filters.favorito);
+    CardsScreen._reviewIdx = 0; CardsScreen.renderContent();
+  });
+  // topo
+  on('cards-new-btn', 'click', () => CardsScreen.openCardModal(null));
+  on('cards-deck-btn', 'click', () => CardsScreen.openDeckModal());
+  on('cards-export-btn', 'click', () => CardsScreen.openExportModal());
+  on('cards-import-btn', 'click', () => CardsScreen.openImportModal());
+  // modal card
+  on('card-modal-close', 'click', () => CardsScreen.closeCardModal());
+  on('card-cancel', 'click', () => CardsScreen.closeCardModal());
+  on('card-save-close', 'click', () => CardsScreen.saveCard(true));
+  on('card-save-another', 'click', () => CardsScreen.saveCard(false));
+  on('card-del-btn', 'click', () => CardsScreen.deleteCard());
+  // modal baralho
+  on('deck-modal-close', 'click', () => document.getElementById('deck-modal').style.display = 'none');
+  on('deck-modal-done', 'click', () => document.getElementById('deck-modal').style.display = 'none');
+  on('deck-add-btn', 'click', () => CardsScreen.addDeck());
+  on('deck-new-input', 'keydown', (e) => { if (e.key === 'Enter') CardsScreen.addDeck(); });
+  // modal exportar
+  on('cards-export-close', 'click', () => document.getElementById('cards-export-modal').style.display = 'none');
+  on('cards-export-cancel', 'click', () => document.getElementById('cards-export-modal').style.display = 'none');
+  on('cards-export-anki', 'click', () => CardsScreen.exportAnki());
+  on('cards-export-json', 'click', () => CardsScreen.exportJson());
+  // modal importar
+  on('cards-import-close', 'click', () => document.getElementById('cards-import-modal').style.display = 'none');
+  on('cards-import-cancel', 'click', () => document.getElementById('cards-import-modal').style.display = 'none');
+  on('cards-import-do', 'click', () => CardsScreen.doImport());
+  const dz = document.getElementById('cards-import-drop');
+  if (dz) {
+    dz.addEventListener('click', () => document.getElementById('cards-import-file').click());
+    dz.addEventListener('dragover', (e) => { e.preventDefault(); dz.classList.add('dragover'); });
+    dz.addEventListener('dragleave', () => dz.classList.remove('dragover'));
+    dz.addEventListener('drop', (e) => { e.preventDefault(); dz.classList.remove('dragover'); if (e.dataTransfer.files[0]) CardsScreen.handleImportFile(e.dataTransfer.files[0]); });
+  }
+  on('cards-import-file', 'change', (e) => { if (e.target.files[0]) CardsScreen.handleImportFile(e.target.files[0]); });
+  // fechar modais clicando fora
+  ['card-modal', 'deck-modal', 'cards-import-modal', 'cards-export-modal'].forEach(id => {
+    const m = document.getElementById(id);
+    if (m) m.addEventListener('click', (e) => { if (e.target === m) m.style.display = 'none'; });
+  });
+})();
+window.addEventListener('screen:activated', (e) => {
+  if (e.detail.screen === 'cards') CardsScreen.render();
 });
 
 /* ============================================================
