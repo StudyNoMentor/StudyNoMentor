@@ -2829,7 +2829,9 @@
   .cards-ans4.a-dificil { color: var(--warn); border-color: var(--warn); background: var(--warn-soft); }
   .cards-ans4.a-bom { color: var(--good); border-color: var(--good); background: var(--good-soft); }
   .cards-ans4.a-facil { color: var(--accent); border-color: var(--accent); background: var(--accent-soft); }
-  .cards-review-editrow { display: flex; justify-content: center; margin-top: 12px; }
+  .cards-review-editrow { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-top: 12px; flex-wrap: wrap; }
+  .cards-kbd-hint { font-size: 11px; color: var(--text-faint); }
+  .cards-kbd-hint kbd { font-family: 'Space Mono', monospace; font-size: 10px; background: var(--surface-sunken); border: 1px solid var(--border); border-radius: 4px; padding: 0 5px; margin: 0 1px; }
   /* Cloze */
   .cloze-blank { color: var(--accent); font-weight: 800; background: var(--accent-soft); border-radius: 4px; padding: 0 3px; }
   .cloze-reveal { color: var(--good); font-weight: 800; background: var(--good-soft); border-radius: 4px; padding: 0 3px; }
@@ -2856,10 +2858,25 @@
   .rte-toolbar { display: flex; flex-wrap: wrap; gap: 3px; padding: 6px 8px; background: var(--surface-sunken); border-bottom: 1px solid var(--border); }
   .rte-toolbar button { background: var(--surface); border: 1px solid var(--border); border-radius: 7px; padding: 4px 9px; font-size: 12.5px; cursor: pointer; color: var(--text-soft); }
   .rte-toolbar button:hover { border-color: var(--accent); color: var(--accent); }
-  .rte-sep { width: 1px; background: var(--border); margin: 2px 3px; }
-  .rte-area { min-height: 110px; padding: 12px 14px; font-size: 14px; line-height: 1.6; color: var(--text); outline: none; }
+  .rte-sep { width: 1px; background: var(--border); margin: 2px 3px; align-self: stretch; }
+  .rte-grp { display: inline-flex; align-items: center; gap: 3px; }
+  .rte-color-grp { gap: 2px; }
+  .rte-color-label { font-size: 12px; font-weight: 800; color: var(--text-soft); padding: 0 2px; }
+  .rte-swatch { width: 18px; height: 18px; border-radius: 5px; border: 1.5px solid var(--border); cursor: pointer; padding: 0; }
+  .rte-swatch:hover { transform: scale(1.12); border-color: var(--text); }
+  .rte-size { font-size: 12px; padding: 4px 6px; border: 1px solid var(--border); border-radius: 7px; background: var(--surface); color: var(--text-soft); cursor: pointer; }
+  .rte-area { min-height: 120px; padding: 12px 14px; font-size: 14px; line-height: 1.6; color: var(--text); outline: none; }
   .rte-area:focus { background: var(--surface); }
   .rte-area img { max-width: 100%; border-radius: 6px; }
+  .rte-area a { color: var(--accent); }
+  .rte-area table.rte-table, .cards-face table.rte-table, .mini-card-front table.rte-table { border-collapse: collapse; margin: 8px 0; }
+  .rte-area .rte-table td, .cards-face .rte-table td, .mini-card-front .rte-table td { border: 1px solid var(--border-strong); padding: 5px 9px; min-width: 40px; }
+  /* teclas de atalho na revisão */
+  .cards-flip kbd, .a-kbd {
+    display: inline-block; font-family: 'Space Mono', monospace; font-size: 10px; font-weight: 700;
+    background: rgba(0,0,0,0.12); border-radius: 5px; padding: 1px 6px; margin-left: 6px;
+  }
+  .cards-ans4 .a-kbd { margin: 0 0 3px; opacity: 0.7; }
   /* Baralhos */
   .deck-row { display: grid; grid-template-columns: 1fr auto auto; align-items: center; gap: 10px; padding: 8px 10px; border: 1px solid var(--border); border-radius: 10px; background: var(--surface-sunken); margin-bottom: 8px; }
   .deck-row .deck-name { font-weight: 600; font-size: 13.5px; background: var(--surface); }
@@ -3288,7 +3305,7 @@
           <h2>Grade da semana</h2>
           <p class="sub">Arraste as siglas abaixo para os dias e sessões. A mesma matéria pode aparecer em várias células — ajuste a duração de cada uma.</p>
         </div>
-        <button class="btn-secondary" id="btn-uncheck-all" type="button" style="display:none;">↺ Desmarcar concluídos</button>
+        <button class="btn-secondary" id="btn-uncheck-all" type="button">↺ Desmarcar concluídos</button>
       </div>
       <div style="padding: 8px 28px 26px;">
         <!-- Bandeja compacta: só os chips arrastáveis + botão de editar -->
@@ -3562,37 +3579,14 @@
           <p class="hint" id="card-kind-hint" style="margin-top:6px;"></p>
         </div>
         <div class="field"><label id="card-frente-label">Frente (pergunta) <span class="req">*</span></label>
-          <div class="rte" data-target="card-frente">
-            <div class="rte-toolbar">
-              <button type="button" data-cmd="bold" title="Negrito"><b>B</b></button>
-              <button type="button" data-cmd="italic" title="Itálico"><i>I</i></button>
-              <button type="button" data-cmd="underline" title="Sublinhado"><u>U</u></button>
-              <span class="rte-sep"></span>
-              <button type="button" data-cmd="insertUnorderedList" title="Lista">• Lista</button>
-              <button type="button" data-cmd="insertOrderedList" title="Numerada">1. Lista</button>
-              <span class="rte-sep"></span>
-              <button type="button" data-cmd="hiliteYellow" title="Marca-texto">🖍️</button>
-              <button type="button" data-img="card-frente" title="Inserir imagem">🖼️</button>
-              <button type="button" data-cloze="card-frente" title="Ocultar seleção (cloze)" id="card-cloze-btn" style="display:none;">{{ }} Ocultar</button>
-              <button type="button" data-cmd="removeFormat" title="Limpar formatação">✕ formato</button>
-            </div>
+          <div class="rte" data-target="card-frente" data-cloze="1">
+            <div class="rte-toolbar"></div>
             <div class="rte-area" id="card-frente" contenteditable="true"></div>
           </div>
         </div>
         <div class="field" id="card-verso-field"><label id="card-verso-label">Verso (resposta) <span class="req">*</span></label>
           <div class="rte" data-target="card-verso">
-            <div class="rte-toolbar">
-              <button type="button" data-cmd="bold" title="Negrito"><b>B</b></button>
-              <button type="button" data-cmd="italic" title="Itálico"><i>I</i></button>
-              <button type="button" data-cmd="underline" title="Sublinhado"><u>U</u></button>
-              <span class="rte-sep"></span>
-              <button type="button" data-cmd="insertUnorderedList" title="Lista">• Lista</button>
-              <button type="button" data-cmd="insertOrderedList" title="Numerada">1. Lista</button>
-              <span class="rte-sep"></span>
-              <button type="button" data-cmd="hiliteYellow" title="Marca-texto">🖍️</button>
-              <button type="button" data-img="card-verso" title="Inserir imagem">🖼️</button>
-              <button type="button" data-cmd="removeFormat" title="Limpar formatação">✕ formato</button>
-            </div>
+            <div class="rte-toolbar"></div>
             <div class="rte-area" id="card-verso" contenteditable="true"></div>
           </div>
         </div>
@@ -7129,11 +7123,16 @@ function planCycleMode() {
     const btn = document.getElementById('btn-uncheck-all');
     if (!btn) return;
     const n = countDoneCells();
-    btn.style.display = n > 0 ? 'inline-flex' : 'none';
-    btn.textContent = `↺ Desmarcar ${n} concluído${n === 1 ? '' : 's'}`;
+    // botão SEMPRE visível (descoberta), apenas desabilitado quando não há nada a desmarcar
+    btn.disabled = n === 0;
+    btn.style.opacity = n === 0 ? '0.5' : '';
+    btn.textContent = n > 0 ? `↺ Desmarcar ${n} concluído${n === 1 ? '' : 's'}` : '↺ Desmarcar concluídos';
   }
   const _uncheckBtn = document.getElementById('btn-uncheck-all');
   if (_uncheckBtn) _uncheckBtn.addEventListener('click', () => {
+    const n = countDoneCells();
+    if (n === 0) { showToast('Nenhuma célula marcada como concluída'); return; }
+    if (!confirm(`Desmarcar as ${n} célula(s) concluída(s) da grade? As matérias e durações são mantidas.`)) return;
     const t = gradeGet();
     DIAS_SEMANA.forEach(d => {
       if (!Array.isArray(t.grade[d])) return;
@@ -9189,6 +9188,7 @@ const CardsScreen = {
         <div class="cards-review-actions" id="cards-review-actions"></div>
         <div class="cards-review-editrow">
           <button type="button" class="icon-btn cards-review-edit" id="cards-review-edit" title="Editar card">✎ Editar</button>
+          <span class="cards-kbd-hint">Atalhos: <kbd>Espaço</kbd> vira · <kbd>1</kbd><kbd>2</kbd><kbd>3</kbd><kbd>4</kbd> avaliam</span>
         </div>
       </div>`;
     this.renderActions(box, c);
@@ -9212,17 +9212,40 @@ const CardsScreen = {
   renderActions(box, c) {
     const el = document.getElementById('cards-review-actions');
     if (!this._flipped) {
-      el.innerHTML = `<button type="button" class="btn-primary cards-flip" id="cards-flip">Mostrar resposta</button>`;
-      document.getElementById('cards-flip').addEventListener('click', () => { this._flipped = true; this.renderReviewCard(box); });
+      el.innerHTML = `<button type="button" class="btn-primary cards-flip" id="cards-flip">Mostrar resposta <kbd>Espaço</kbd></button>`;
+      document.getElementById('cards-flip').addEventListener('click', () => this.flip(box));
       return;
     }
     const iv = CardEngine.previewIntervals(c);
     el.innerHTML = `
-      <button type="button" class="cards-ans4 a-errei" data-g="errei">✗ Errei<span>${CardEngine.fmtInterval(iv.errei)}</span></button>
-      <button type="button" class="cards-ans4 a-dificil" data-g="dificil">Difícil<span>${CardEngine.fmtInterval(iv.dificil)}</span></button>
-      <button type="button" class="cards-ans4 a-bom" data-g="bom">Bom<span>${CardEngine.fmtInterval(iv.bom)}</span></button>
-      <button type="button" class="cards-ans4 a-facil" data-g="facil">Fácil<span>${CardEngine.fmtInterval(iv.facil)}</span></button>`;
+      <button type="button" class="cards-ans4 a-errei" data-g="errei"><span class="a-kbd">1</span>✗ Errei<span>${CardEngine.fmtInterval(iv.errei)}</span></button>
+      <button type="button" class="cards-ans4 a-dificil" data-g="dificil"><span class="a-kbd">2</span>Difícil<span>${CardEngine.fmtInterval(iv.dificil)}</span></button>
+      <button type="button" class="cards-ans4 a-bom" data-g="bom"><span class="a-kbd">3</span>Bom<span>${CardEngine.fmtInterval(iv.bom)}</span></button>
+      <button type="button" class="cards-ans4 a-facil" data-g="facil"><span class="a-kbd">4</span>Fácil<span>${CardEngine.fmtInterval(iv.facil)}</span></button>`;
     el.querySelectorAll('.cards-ans4').forEach(b => b.addEventListener('click', () => this.answer(b.dataset.g)));
+  },
+  flip(box) { this._flipped = true; this.renderReviewCard(box || document.getElementById('cards-content')); },
+  // atalhos de teclado durante a revisão
+  onKey(e) {
+    // só na tela de cards, aba revisar, com um card na tela e sem modal aberto
+    const scr = document.getElementById('screen-cards');
+    if (!scr || !scr.classList.contains('active')) return;
+    if (this.tab !== 'revisar') return;
+    const anyModalOpen = ['card-modal', 'deck-modal', 'cards-import-modal', 'cards-export-modal']
+      .some(id => { const m = document.getElementById(id); return m && m.style.display === 'flex'; });
+    if (anyModalOpen) return;
+    if (!this._reviewQueue || this._reviewIdx >= this._reviewQueue.length) return;
+    const tag = (e.target.tagName || '').toLowerCase();
+    if (tag === 'input' || tag === 'textarea' || e.target.isContentEditable) return;
+    const box = document.getElementById('cards-content');
+    if (e.code === 'Space') {
+      e.preventDefault();
+      if (!this._flipped) this.flip(box);
+      return;
+    }
+    if (!this._flipped) return;
+    const map = { Digit1: 'errei', Numpad1: 'errei', Digit2: 'dificil', Numpad2: 'dificil', Digit3: 'bom', Numpad3: 'bom', Digit4: 'facil', Numpad4: 'facil' };
+    if (map[e.code]) { e.preventDefault(); this.answer(map[e.code]); }
   },
   answer(grade) {
     const id = this._reviewQueue[this._reviewIdx];
@@ -9530,8 +9553,9 @@ const CardsScreen = {
   }
 };
 window.CardsScreen = CardsScreen;
+document.addEventListener('keydown', (e) => CardsScreen.onKey(e));
 
-/* ---- editor de texto (contenteditable) + imagem + cloze ---- */
+/* ---- editor de texto RICO (contenteditable) — cores, tamanho, alinhamento, link, tabela, imagem, cloze ---- */
 function insertImageFile(area, file) {
   if (!file || !/^image\//.test(file.type)) return;
   if (file.size > 800 * 1024) { showToast('Imagem muito grande (máx. ~800KB). Reduza antes de inserir.'); return; }
@@ -9543,40 +9567,119 @@ function insertImageFile(area, file) {
   };
   reader.readAsDataURL(file);
 }
-document.querySelectorAll('.rte').forEach(rte => {
-  const area = document.getElementById(rte.dataset.target);
-  // comandos de formatação
-  rte.querySelectorAll('.rte-toolbar button[data-cmd]').forEach(btn => {
-    btn.addEventListener('mousedown', (e) => e.preventDefault());
-    btn.addEventListener('click', () => {
-      area.focus();
-      try {
-        if (btn.dataset.cmd === 'hiliteYellow') document.execCommand('hiliteColor', false, '#fde68a');
-        else document.execCommand(btn.dataset.cmd, false, null);
-      } catch (e) {}
-    });
+function rteExec(area, cmd, val) { area.focus(); try { document.execCommand(cmd, false, val || null); } catch (e) {} }
+// paleta compacta: [rótulo, cor]
+const RTE_TEXT_COLORS = [['Preto', '#1a1c20'], ['Vermelho', '#e0393f'], ['Verde', '#0f9d63'], ['Azul', '#2563eb'], ['Roxo', '#7c3aed'], ['Laranja', '#d97a12']];
+const RTE_HILITE_COLORS = [['Amarelo', '#fde68a'], ['Verde', '#bbf7d0'], ['Azul', '#bfdbfe'], ['Rosa', '#fbcfe8'], ['Laranja', '#fed7aa']];
+
+function buildRteToolbar(rte) {
+  const target = rte.dataset.target;
+  const area = document.getElementById(target);
+  const tb = rte.querySelector('.rte-toolbar');
+  const hasCloze = rte.dataset.cloze === '1';
+  // monta os grupos
+  const swatches = (arr, kind) => arr.map(([nome, cor]) =>
+    `<button type="button" class="rte-swatch" data-${kind}="${cor}" title="${nome}" style="background:${cor}"></button>`).join('');
+  tb.innerHTML = `
+    <div class="rte-grp">
+      <button type="button" data-cmd="bold" title="Negrito (Ctrl+B)"><b>B</b></button>
+      <button type="button" data-cmd="italic" title="Itálico (Ctrl+I)"><i>I</i></button>
+      <button type="button" data-cmd="underline" title="Sublinhado (Ctrl+U)"><u>U</u></button>
+      <button type="button" data-cmd="strikeThrough" title="Tachado"><s>S</s></button>
+    </div>
+    <span class="rte-sep"></span>
+    <div class="rte-grp rte-color-grp">
+      <span class="rte-color-label" title="Cor do texto">A</span>${swatches(RTE_TEXT_COLORS, 'color')}
+    </div>
+    <span class="rte-sep"></span>
+    <div class="rte-grp rte-color-grp">
+      <span class="rte-color-label" title="Marca-texto">🖍️</span>${swatches(RTE_HILITE_COLORS, 'hilite')}
+      <button type="button" data-cmd="removeHilite" title="Remover marca-texto">⌫</button>
+    </div>
+    <span class="rte-sep"></span>
+    <div class="rte-grp">
+      <select class="rte-size" title="Tamanho do texto">
+        <option value="">Tamanho</option>
+        <option value="2">Pequeno</option>
+        <option value="3">Normal</option>
+        <option value="5">Grande</option>
+        <option value="6">Título</option>
+      </select>
+    </div>
+    <span class="rte-sep"></span>
+    <div class="rte-grp">
+      <button type="button" data-cmd="justifyLeft" title="Esquerda">⬅</button>
+      <button type="button" data-cmd="justifyCenter" title="Centro">⬍</button>
+      <button type="button" data-cmd="justifyRight" title="Direita">➡</button>
+    </div>
+    <span class="rte-sep"></span>
+    <div class="rte-grp">
+      <button type="button" data-cmd="insertUnorderedList" title="Lista">• Lista</button>
+      <button type="button" data-cmd="insertOrderedList" title="Numerada">1.</button>
+    </div>
+    <span class="rte-sep"></span>
+    <div class="rte-grp">
+      <button type="button" data-link="1" title="Inserir link">🔗</button>
+      <button type="button" data-img="1" title="Inserir imagem">🖼️</button>
+      <button type="button" data-table="1" title="Inserir tabela">▦</button>
+      ${hasCloze ? `<button type="button" data-clozebtn="1" title="Ocultar seleção (cloze)" style="display:none;" id="card-cloze-btn">{{ }} Ocultar</button>` : ''}
+    </div>
+    <span class="rte-sep"></span>
+    <div class="rte-grp">
+      <button type="button" data-cmd="undo" title="Desfazer (Ctrl+Z)">↶</button>
+      <button type="button" data-cmd="redo" title="Refazer (Ctrl+Y)">↷</button>
+      <button type="button" data-cmd="removeFormat" title="Limpar formatação">✕</button>
+    </div>`;
+
+  // preserva seleção: nenhum controle da toolbar pode roubar o foco
+  tb.querySelectorAll('button, .rte-swatch, select, .rte-color-label').forEach(el => el.addEventListener('mousedown', (e) => e.preventDefault()));
+
+  // comandos simples
+  tb.querySelectorAll('button[data-cmd]').forEach(btn => btn.addEventListener('click', () => {
+    const cmd = btn.dataset.cmd;
+    if (cmd === 'removeHilite') rteExec(area, 'hiliteColor', 'transparent');
+    else rteExec(area, cmd);
+  }));
+  // cores de texto e marca-texto
+  tb.querySelectorAll('[data-color]').forEach(sw => sw.addEventListener('click', () => rteExec(area, 'foreColor', sw.dataset.color)));
+  tb.querySelectorAll('[data-hilite]').forEach(sw => sw.addEventListener('click', () => rteExec(area, 'hiliteColor', sw.dataset.hilite)));
+  // tamanho
+  const sizeSel = tb.querySelector('.rte-size');
+  if (sizeSel) sizeSel.addEventListener('change', () => { if (sizeSel.value) rteExec(area, 'fontSize', sizeSel.value); sizeSel.value = ''; });
+  // link
+  const linkBtn = tb.querySelector('[data-link]');
+  if (linkBtn) linkBtn.addEventListener('click', () => {
+    const url = prompt('URL do link (ex.: https://...):', 'https://');
+    if (url) rteExec(area, 'createLink', url);
   });
-  // botão de imagem
-  rte.querySelectorAll('.rte-toolbar button[data-img]').forEach(btn => {
-    btn.addEventListener('mousedown', (e) => e.preventDefault());
-    btn.addEventListener('click', () => {
-      const inp = document.createElement('input');
-      inp.type = 'file'; inp.accept = 'image/*';
-      inp.addEventListener('change', () => { if (inp.files[0]) insertImageFile(area, inp.files[0]); });
-      inp.click();
-    });
+  // imagem
+  const imgBtn = tb.querySelector('[data-img]');
+  if (imgBtn) imgBtn.addEventListener('click', () => {
+    const inp = document.createElement('input'); inp.type = 'file'; inp.accept = 'image/*';
+    inp.addEventListener('change', () => { if (inp.files[0]) insertImageFile(area, inp.files[0]); });
+    inp.click();
   });
-  // botão cloze: envolve a seleção em {{ }}
-  rte.querySelectorAll('.rte-toolbar button[data-cloze]').forEach(btn => {
-    btn.addEventListener('mousedown', (e) => e.preventDefault());
-    btn.addEventListener('click', () => {
-      area.focus();
-      const sel = window.getSelection();
-      const t = sel ? String(sel).trim() : '';
-      if (!t) { showToast('Selecione o trecho que deseja ocultar'); return; }
-      try { document.execCommand('insertText', false, '{{' + t + '}}'); }
-      catch (e) { document.execCommand('insertHTML', false, '{{' + t + '}}'); }
-    });
+  // tabela
+  const tableBtn = tb.querySelector('[data-table]');
+  if (tableBtn) tableBtn.addEventListener('click', () => {
+    const dims = prompt('Tabela — linhas x colunas (ex.: 3x2):', '2x2');
+    if (!dims) return;
+    const m = dims.match(/(\d+)\s*[x×]\s*(\d+)/i);
+    if (!m) { showToast('Formato inválido. Use linhas x colunas (ex.: 3x2)'); return; }
+    const r = Math.min(20, +m[1]), c = Math.min(10, +m[2]);
+    let t = '<table class="rte-table"><tbody>';
+    for (let i = 0; i < r; i++) { t += '<tr>'; for (let j = 0; j < c; j++) t += '<td>&nbsp;</td>'; t += '</tr>'; }
+    t += '</tbody></table><p><br></p>';
+    rteExec(area, 'insertHTML', t);
+  });
+  // cloze
+  const clozeBtn = tb.querySelector('[data-clozebtn]');
+  if (clozeBtn) clozeBtn.addEventListener('click', () => {
+    area.focus();
+    const t = window.getSelection ? String(window.getSelection()).trim() : '';
+    if (!t) { showToast('Selecione o trecho que deseja ocultar'); return; }
+    try { document.execCommand('insertText', false, '{{' + t + '}}'); }
+    catch (e) { document.execCommand('insertHTML', false, '{{' + t + '}}'); }
   });
   // colar imagem direto (Ctrl+V)
   area.addEventListener('paste', (e) => {
@@ -9585,7 +9688,8 @@ document.querySelectorAll('.rte').forEach(rte => {
       if (it.type && it.type.indexOf('image') === 0) { e.preventDefault(); insertImageFile(area, it.getAsFile()); return; }
     }
   });
-});
+}
+document.querySelectorAll('.rte').forEach(buildRteToolbar);
 
 /* ---- listeners da tela Cards ---- */
 (function () {
