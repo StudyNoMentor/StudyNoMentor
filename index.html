@@ -2561,6 +2561,85 @@
     #screen-config .config-add-row { padding: 10px; }
   }
 
+  /* ============================================================
+     LEIS SECAS
+     ============================================================ */
+  .lawmark-prazos       { background: color-mix(in srgb, #4f46e5 20%, transparent); border-radius: 3px; padding: 0 2px; font-weight: 700; }
+  .lawmark-restricoes   { background: color-mix(in srgb, #e0393f 22%, transparent); border-radius: 3px; padding: 0 2px; font-weight: 700; }
+  .lawmark-competencias { background: color-mix(in srgb, #0a95a8 22%, transparent); border-radius: 3px; padding: 0 2px; font-weight: 700; }
+  .lawmark-modais       { background: color-mix(in srgb, #d97a12 24%, transparent); border-radius: 3px; padding: 0 2px; font-weight: 700; }
+  .lawmark-limites      { background: color-mix(in srgb, #0f9d63 22%, transparent); border-radius: 3px; padding: 0 2px; font-weight: 700; }
+  .lawmark-manual       { background: color-mix(in srgb, #b3308a 26%, transparent); border-radius: 3px; padding: 0 2px; font-weight: 700; box-shadow: inset 0 -2px 0 color-mix(in srgb, #b3308a 55%, transparent); }
+  mark[class*="lawmark-"] { color: inherit; }
+
+  .leis-hl-group { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+  .leis-hl-label { font-size: 12px; font-weight: 700; color: var(--text-soft); }
+  .leis-hl-chip { display: inline-flex; align-items: center; gap: 6px; cursor: pointer; font-size: 12px; }
+  .leis-hl-chip input { width: auto; margin: 0; accent-color: var(--accent); }
+  .leis-hl-chip span { padding: 2px 8px; border-radius: 20px; font-weight: 700; }
+
+  .lei-card {
+    display: flex; align-items: center; gap: 14px; justify-content: space-between;
+    background: var(--surface); border: 1.5px solid var(--border); border-radius: 14px;
+    padding: 16px 18px; margin-bottom: 10px; box-shadow: var(--shadow-sm);
+    transition: border-color 0.15s ease, box-shadow 0.15s ease, transform 0.15s ease;
+  }
+  .lei-card:hover { border-color: var(--accent); box-shadow: var(--shadow-md); transform: translateY(-1px); }
+  .lei-card-main { flex: 1; min-width: 0; cursor: pointer; }
+  .lei-card-title { font-size: 15px; font-weight: 800; color: var(--text); letter-spacing: -0.01em; }
+  .lei-card-meta { display: flex; align-items: center; gap: 8px; margin-top: 6px; flex-wrap: wrap; }
+  .lei-tag { font-size: 10.5px; font-weight: 700; padding: 3px 9px; border-radius: 20px; text-transform: uppercase; letter-spacing: 0.03em; }
+  .lei-tag.ref { background: var(--accent-soft); color: var(--accent); }
+  .lei-tag.mat { background: var(--surface-sunken); color: var(--text-soft); border: 1px solid var(--border); }
+  .lei-card-stats { font-size: 11px; color: var(--text-faint); font-family: 'Space Mono', monospace; }
+  .lei-open { white-space: nowrap; }
+
+  .leis-reader-topbar { display: flex; align-items: center; gap: 14px; margin-bottom: 16px; }
+  .leis-reader-title { flex: 1; min-width: 0; }
+  .leis-reader-title h2 { font-size: 20px; font-weight: 800; margin: 0; letter-spacing: -0.02em; line-height: 1.2; }
+  .leis-reader-meta { font-size: 12px; color: var(--text-faint); font-family: 'Space Mono', monospace; }
+  .leis-reader-actions { display: flex; gap: 6px; flex-shrink: 0; }
+  .leis-reader-toolbar {
+    display: flex; align-items: center; justify-content: space-between; gap: 14px; flex-wrap: wrap;
+    background: var(--surface-sunken); border: 1.5px solid var(--border); border-radius: 12px;
+    padding: 12px 16px; margin-bottom: 12px;
+  }
+  .leis-reader-controls { display: flex; gap: 6px; }
+  .leis-mark-hint { font-size: 12.5px; color: var(--text-soft); background: var(--accent-soft); border-radius: 10px; padding: 10px 14px; margin-bottom: 10px; }
+  .leis-mark-actions { display: flex; align-items: center; gap: 12px; margin-bottom: 14px; }
+  .leis-mark-count { font-size: 12px; color: var(--text-faint); font-family: 'Space Mono', monospace; }
+  .leis-reader-card { padding: 8px 0; }
+
+  .lei-reader-body {
+    padding: 12px 30px 26px;
+    line-height: 1.85;
+    font-size: 15.5px;
+    color: var(--text);
+    max-width: 74ch;
+    margin: 0 auto;
+  }
+  .law-block { margin: 2px 0; }
+  .law-gap { height: 12px; }
+  .law-head {
+    font-weight: 800; text-transform: uppercase; letter-spacing: 0.04em;
+    font-size: 12.5px; color: var(--accent); margin: 20px 0 8px; text-align: center;
+  }
+  .law-art { font-weight: 700; margin-top: 18px; color: var(--text); }
+  .law-par { margin-top: 8px; padding-left: 16px; }
+  .law-inc { padding-left: 34px; color: var(--text-soft); }
+  .law-ali { padding-left: 52px; color: var(--text-soft); font-size: 0.96em; }
+
+  .lei-mark-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 8px 0; border-bottom: 1px solid var(--border); }
+  .lei-mark-row:last-child { border-bottom: none; }
+  .lei-mark-text { font-size: 13px; }
+
+  @media (max-width: 640px) {
+    .lei-reader-body { padding: 12px 18px 22px; font-size: 15px; }
+    .leis-reader-topbar { flex-wrap: wrap; }
+    .law-inc { padding-left: 24px; }
+    .law-ali { padding-left: 38px; }
+  }
+
 </style>
 </head>
 <body>
@@ -2718,6 +2797,7 @@
       <button class="tab" data-screen="ciclo"><span class="tab-icon">◔</span>Ciclo da Semana</button>
       <button class="tab" data-screen="grade"><span class="tab-icon">▦</span>Grade Semanal</button>
       <button class="tab" data-screen="estudonovo"><span class="tab-icon">▥</span>Estudo Novo</button>
+      <button class="tab" data-screen="leis"><span class="tab-icon">§</span>Leis Secas</button>
       <button class="tab" data-screen="historico"><span class="tab-icon">▤</span>Histórico</button>
       <button class="tab" data-screen="evolucao"><span class="tab-icon">📈</span>Evolução</button>
       <button class="tab" data-screen="desempenhotec"><span class="tab-icon">🎯</span>Desempenho TEC</button>
@@ -3053,6 +3133,98 @@
             </div>
           </section>
         </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ TELA: LEIS SECAS ============ -->
+  <section class="screen" id="screen-leis">
+    <!-- LISTA de leis -->
+    <div id="leis-list-view">
+      <div class="page-header">
+        <h2 class="page-title">Leis Secas</h2>
+        <p class="page-subtitle">Seu vade mecum inteligente: cadastre as leis que quiser, leia com formatação limpa e destaque automático das clássicas pegadinhas de prova (prazos, exceções, competências…). Marque também seus próprios pontos-chave.</p>
+      </div>
+
+      <div class="card">
+        <div class="card-header">
+          <div>
+            <h2>Nova lei</h2>
+            <p class="sub">Cole o texto da lei. O app organiza a estrutura (artigos, parágrafos, incisos) e destaca os termos de risco.</p>
+          </div>
+        </div>
+        <div style="padding: 16px 28px 24px;">
+          <div class="field-group">
+            <div class="field">
+              <label for="lei-titulo">Título</label>
+              <input type="text" id="lei-titulo" placeholder="Ex.: Crimes contra a Administração Pública">
+            </div>
+            <div class="field">
+              <label for="lei-ref">Referência <span class="opt">(opcional)</span></label>
+              <input type="text" id="lei-ref" placeholder="Ex.: CP, arts. 312 a 327">
+            </div>
+            <div class="field">
+              <label for="lei-materia">Matéria <span class="opt">(opcional)</span></label>
+              <input type="text" id="lei-materia" placeholder="Ex.: Direito Penal">
+            </div>
+          </div>
+          <div class="field full">
+            <label for="lei-texto">Texto da lei</label>
+            <textarea id="lei-texto" style="min-height: 150px; line-height:1.6;" placeholder="Cole aqui o texto da lei seca..."></textarea>
+          </div>
+          <div class="submit-row" style="margin-top: 4px;">
+            <span class="save-note"><span class="dot"></span>fica salvo no seu perfil e sincroniza entre dispositivos</span>
+            <button type="button" class="btn-primary" id="lei-add-btn">Cadastrar lei</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="section-divider"><span>Suas leis</span></div>
+      <div id="leis-cards"></div>
+    </div>
+
+    <!-- LEITOR de uma lei -->
+    <div id="leis-reader-view" style="display:none;">
+      <div class="leis-reader-topbar">
+        <button type="button" class="btn-secondary" id="lei-back-btn">← Voltar</button>
+        <div class="leis-reader-title">
+          <h2 id="lei-reader-titulo">—</h2>
+          <span id="lei-reader-meta" class="leis-reader-meta"></span>
+        </div>
+        <div class="leis-reader-actions">
+          <button type="button" class="icon-btn" id="lei-edit-btn" title="Editar dados da lei">✎</button>
+          <button type="button" class="icon-btn danger" id="lei-del-btn" title="Excluir lei">×</button>
+        </div>
+      </div>
+
+      <div class="leis-reader-toolbar">
+        <div class="leis-hl-group" id="lei-hl-toggles">
+          <span class="leis-hl-label">Destacar:</span>
+          <label class="leis-hl-chip"><input type="checkbox" data-cat="prazos" checked><span class="lawmark-prazos">Prazos/números</span></label>
+          <label class="leis-hl-chip"><input type="checkbox" data-cat="restricoes" checked><span class="lawmark-restricoes">Exceções</span></label>
+          <label class="leis-hl-chip"><input type="checkbox" data-cat="competencias" checked><span class="lawmark-competencias">Competências</span></label>
+          <label class="leis-hl-chip"><input type="checkbox" data-cat="modais" checked><span class="lawmark-modais">Poderá/Deverá</span></label>
+          <label class="leis-hl-chip"><input type="checkbox" data-cat="limites" checked><span class="lawmark-limites">Mín/Máx</span></label>
+        </div>
+        <div class="leis-reader-controls">
+          <button type="button" class="icon-btn" id="lei-font-dec" title="Diminuir fonte">A−</button>
+          <button type="button" class="icon-btn" id="lei-font-inc" title="Aumentar fonte">A+</button>
+        </div>
+      </div>
+
+      <div class="leis-mark-hint" id="lei-mark-hint">💡 Selecione um trecho no texto e clique em <strong>"Marcar seleção"</strong> para destacar seus próprios pontos-chave.</div>
+      <div class="leis-mark-actions">
+        <button type="button" class="btn-secondary" id="lei-mark-btn">✎ Marcar seleção</button>
+        <span id="lei-mark-count" class="leis-mark-count"></span>
+      </div>
+
+      <div class="card leis-reader-card">
+        <div id="lei-reader-body" class="lei-reader-body"></div>
+      </div>
+
+      <div class="card" id="lei-marks-panel" style="display:none;">
+        <div class="card-header"><div><h2>Seus destaques</h2><p class="sub">Trechos que você marcou manualmente nesta lei</p></div></div>
+        <div style="padding: 12px 24px 22px;" id="lei-marks-list"></div>
       </div>
     </div>
   </section>
@@ -3687,7 +3859,8 @@ const DB = {
       tracks: base + 'tracks',
       tec: base + 'tec',
       gradeTemplate: base + 'grade-template',
-      customSiglas: base + 'custom-siglas'
+      customSiglas: base + 'custom-siglas',
+      leis: base + 'leis'
     };
   },
   // KEYS "dinâmico": sempre aponta para o planejamento ativo no momento da leitura
@@ -4056,6 +4229,30 @@ const DB = {
   // 'nome' opcional casa a sigla a uma matéria; sem nome, é uma etiqueta livre.
   getCustomSiglas() { return this._get(this.KEYS.customSiglas, []); },
   saveCustomSiglas(list) { this._set(this.KEYS.customSiglas, list); },
+
+  // ---- Leis Secas: [{ id, titulo, referencia, materia, texto, marcacoes:[{start,end}], opts, createdAt, updatedAt }] ----
+  // 'marcacoes' guarda os destaques MANUAIS por offset de caractere no texto normalizado.
+  getLeis() { return this._get(this.KEYS.leis, []); },
+  saveLeis(list) { this._set(this.KEYS.leis, list); },
+  getLei(id) { return this.getLeis().find(l => l.id === id) || null; },
+  addLei({ titulo, referencia, materia, texto }) {
+    const list = this.getLeis();
+    const now = new Date().toISOString();
+    const lei = { id: this._uid(), titulo: (titulo || 'Sem título').trim(), referencia: (referencia || '').trim(),
+      materia: (materia || '').trim(), texto: texto || '', marcacoes: [],
+      opts: { prazos: true, restricoes: true, competencias: true, modais: true, limites: true },
+      createdAt: now, updatedAt: now };
+    list.push(lei);
+    this.saveLeis(list);
+    return lei;
+  },
+  updateLei(id, patch) {
+    const list = this.getLeis();
+    const l = list.find(x => x.id === id);
+    if (l) { Object.assign(l, patch); l.updatedAt = new Date().toISOString(); }
+    this.saveLeis(list);
+  },
+  deleteLei(id) { this.saveLeis(this.getLeis().filter(l => l.id !== id)); },
   addCustomSigla({ sigla, nome, color }) {
     const list = this.getCustomSiglas();
     list.push({ id: this._uid(), sigla: (sigla || '').trim(), nome: (nome || '').trim(), color: color || '#4f46e5' });
@@ -5333,6 +5530,116 @@ const CycleEngine = {
       if (key && !map[key]) map[key] = c.sigla || this.baseAcronym(key);
     });
     return map;
+  }
+};
+
+/* ============================================================
+   LAW ENGINE — formatação estruturada + destaque de "pegadinhas"
+   de lei seca (por regras, offline). Não é IA: são padrões
+   consagrados de cobrança em prova. O usuário liga/desliga
+   categorias e ainda pode marcar trechos manualmente.
+   ============================================================ */
+const LawEngine = {
+  // escape puro (não depende do DOM) — seguro para o caminho de renderização de texto
+  _esc(s) {
+    return String(s == null ? '' : s)
+      .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+  },
+  normalize(raw) {
+    return String(raw || '')
+      .replace(/\r\n?/g, '\n')
+      .replace(/[ \t]+\n/g, '\n')
+      .replace(/[ \t]{2,}/g, ' ')
+      .replace(/\n{3,}/g, '\n\n')
+      .trim();
+  },
+  // Categorias de destaque automático (classes CSS: lawmark-<chave>)
+  categories: {
+    prazos:       { label: 'Prazos e números', cls: 'lawmark-prazos',
+      re: /(\d{1,3}(?:\.\d{3})*(?:,\d+)?\s?%|\d+\s?\/\s?\d+|\d+\s?(?:dias?|horas?|meses|m[êe]s|anos?|semanas?|minutos?)|(?:um|dois|tr[êe]s|quatro|cinco|seis|sete|oito|nove|dez|quinze|vinte|trinta|quarenta|sessenta|noventa)\s+(?:dias?|horas?|meses|anos?)|maioria\s+absoluta|maioria\s+simples|dois\s+ter[çc]os|tr[êe]s\s+quintos|metade\s+mais\s+um)/giu },
+    restricoes:   { label: 'Exceções e restrições', cls: 'lawmark-restricoes',
+      re: /(salvo(?:\s+disposi[çc][ãa]o[^,.;]*)?|exceto|ressalvad[oa]s?|excetuad[oa]s?|desde\s+que|somente|apenas|t[ãa]o[- ]somente|vedad[oa]s?|proibid[oa]s?|é\s+vedado|n[ãa]o\s+poder[áa]|independentemente|sem\s+preju[íi]zo)/giu },
+    competencias: { label: 'Competências', cls: 'lawmark-competencias',
+      re: /(privativ[ao]s?|exclusiv[ao]s?|concorrente|indeleg[áa]vel|deleg[áa]vel)/giu },
+    modais:       { label: 'Poderá / Deverá', cls: 'lawmark-modais',
+      re: /(dever[áa]|dever[ãa]o|poder[áa]|poder[ãa]o|obrigat[óo]ri[ao]s?|facultativ[ao]s?)/giu },
+    limites:      { label: 'Limites (mín/máx)', cls: 'lawmark-limites',
+      re: /(no\s+m[íi]nimo|no\s+m[áa]ximo|a\s+partir\s+de|pelo\s+menos|at[ée]\s+o\s+limite)/giu }
+  },
+  // Constrói os spans de destaque de UMA linha (offsets locais).
+  _spansForLine(line, opts, manualList) {
+    const spans = [];
+    Object.keys(this.categories).forEach(key => {
+      if (opts && opts[key] === false) return;
+      const cat = this.categories[key];
+      const re = new RegExp(cat.re.source, cat.re.flags);
+      let m;
+      while ((m = re.exec(line)) !== null) {
+        if (m.index === re.lastIndex) re.lastIndex++;
+        spans.push({ start: m.index, end: m.index + m[0].length, cls: cat.cls });
+      }
+    });
+    // manuais: destaca todas as ocorrências da substring na linha
+    (manualList || []).forEach(sub => {
+      if (!sub || sub.length < 2) return;
+      const low = line.toLowerCase(), needle = sub.toLowerCase();
+      let from = 0, i;
+      while ((i = low.indexOf(needle, from)) !== -1) {
+        spans.push({ start: i, end: i + sub.length, cls: 'lawmark-manual' });
+        from = i + sub.length;
+      }
+    });
+    return spans;
+  },
+  // Renderiza uma linha aplicando os spans (trata sobreposições via fronteiras).
+  _renderLine(line, spans) {
+    if (!spans.length) return this._esc(line);
+    const bounds = new Set([0, line.length]);
+    spans.forEach(s => { bounds.add(Math.max(0, s.start)); bounds.add(Math.min(line.length, s.end)); });
+    const pts = [...bounds].sort((a, b) => a - b);
+    let out = '';
+    for (let i = 0; i < pts.length - 1; i++) {
+      const a = pts[i], b = pts[i + 1];
+      if (a >= b) continue;
+      const seg = line.slice(a, b);
+      const cls = [...new Set(spans.filter(s => s.start <= a && s.end >= b).map(s => s.cls))];
+      out += cls.length ? `<mark class="${cls.join(' ')}">${this._esc(seg)}</mark>` : this._esc(seg);
+    }
+    return out;
+  },
+  // Classifica a estrutura de uma linha para dar hierarquia visual.
+  _classify(line) {
+    const t = line.trim();
+    if (!t) return null;
+    if (/^(t[íi]tulo|cap[íi]tulo|se[çc][ãa]o|subse[çc][ãa]o|livro)\b/i.test(t)) return 'law-head';
+    if (/^art(?:\.|igo)\s*\d+/i.test(t)) return 'law-art';
+    if (/^§\s*\d+/.test(t) || /^par[áa]grafo\s+[úu]nico/i.test(t)) return 'law-par';
+    if (/^[IVXLCDM]+\s*[-–—.)]/i.test(t)) return 'law-inc';
+    if (/^[a-z]\)/.test(t)) return 'law-ali';
+    return 'law-line';
+  },
+  // Gera o HTML final estruturado + destacado de uma lei.
+  toHtml(lei) {
+    const text = this.normalize(lei.texto);
+    const opts = lei.opts || {};
+    const manual = lei.marcacoes || [];
+    const lines = text.split('\n');
+    let html = '';
+    lines.forEach(line => {
+      if (!line.trim()) { html += '<div class="law-gap"></div>'; return; }
+      const cls = this._classify(line);
+      const spans = this._spansForLine(line, opts, manual);
+      html += `<div class="law-block ${cls}">${this._renderLine(line, spans)}</div>`;
+    });
+    return html;
+  },
+  // Estatísticas rápidas para o cabeçalho do leitor.
+  stats(lei) {
+    const text = this.normalize(lei.texto);
+    const arts = (text.match(/art(?:\.|igo)\s*\d+/gi) || []).length;
+    const palavras = (text.match(/\S+/g) || []).length;
+    return { artigos: arts, palavras, marcacoes: (lei.marcacoes || []).length };
   }
 };
 
@@ -7648,6 +7955,197 @@ window.EstudoNovoScreen = EstudoNovoScreen;
 
 window.addEventListener('screen:activated', (e) => {
   if (e.detail.screen === 'estudonovo') EstudoNovoScreen.render();
+});
+
+/* ============================================================
+   TELA: LEIS SECAS — vade mecum com destaque de pegadinhas
+   ============================================================ */
+const LeisScreen = {
+  currentId: null,
+  fontStep: 0, // -2..+4
+
+  render() {
+    // ao ativar a aba, volta sempre para a lista
+    this.showList();
+  },
+  showList() {
+    document.getElementById('leis-list-view').style.display = 'block';
+    document.getElementById('leis-reader-view').style.display = 'none';
+    this.currentId = null;
+    this.renderCards();
+  },
+  renderCards() {
+    const wrap = document.getElementById('leis-cards');
+    const leis = DB.getLeis().slice().sort((a, b) => (b.updatedAt || '').localeCompare(a.updatedAt || ''));
+    if (leis.length === 0) {
+      wrap.innerHTML = `<div class="empty-state"><div class="big">§</div>Nenhuma lei cadastrada ainda. Adicione a primeira acima para começar seu vade mecum.</div>`;
+      return;
+    }
+    wrap.innerHTML = leis.map(l => {
+      const st = LawEngine.stats(l);
+      return `
+        <div class="lei-card" data-id="${l.id}">
+          <div class="lei-card-main">
+            <div class="lei-card-title">${escapeHtml(l.titulo)}</div>
+            <div class="lei-card-meta">
+              ${l.referencia ? `<span class="lei-tag ref">${escapeHtml(l.referencia)}</span>` : ''}
+              ${l.materia ? `<span class="lei-tag mat">${escapeHtml(l.materia)}</span>` : ''}
+              <span class="lei-card-stats">${st.artigos} art. · ${st.palavras} palavras${st.marcacoes ? ' · ' + st.marcacoes + ' destaque(s)' : ''}</span>
+            </div>
+          </div>
+          <button type="button" class="btn-secondary lei-open">Ler →</button>
+        </div>`;
+    }).join('');
+    wrap.querySelectorAll('.lei-card').forEach(card => {
+      const id = card.dataset.id;
+      const open = () => this.openReader(id);
+      card.querySelector('.lei-open').addEventListener('click', open);
+      card.querySelector('.lei-card-main').addEventListener('click', open);
+    });
+  },
+
+  addFromForm() {
+    const titulo = document.getElementById('lei-titulo').value.trim();
+    const texto = document.getElementById('lei-texto').value;
+    if (!titulo) { showToast('Dê um título à lei'); return; }
+    if (!texto.trim()) { showToast('Cole o texto da lei'); return; }
+    const lei = DB.addLei({
+      titulo,
+      referencia: document.getElementById('lei-ref').value,
+      materia: document.getElementById('lei-materia').value,
+      texto
+    });
+    document.getElementById('lei-titulo').value = '';
+    document.getElementById('lei-ref').value = '';
+    document.getElementById('lei-materia').value = '';
+    document.getElementById('lei-texto').value = '';
+    showToast('Lei cadastrada ✓');
+    this.openReader(lei.id);
+  },
+
+  openReader(id) {
+    const lei = DB.getLei(id);
+    if (!lei) { this.showList(); return; }
+    this.currentId = id;
+    document.getElementById('leis-list-view').style.display = 'none';
+    document.getElementById('leis-reader-view').style.display = 'block';
+    document.getElementById('lei-reader-titulo').textContent = lei.titulo;
+    const st = LawEngine.stats(lei);
+    const metaParts = [];
+    if (lei.referencia) metaParts.push(lei.referencia);
+    if (lei.materia) metaParts.push(lei.materia);
+    metaParts.push(`${st.artigos} artigos · ${st.palavras} palavras`);
+    document.getElementById('lei-reader-meta').textContent = metaParts.join(' · ');
+    // sincroniza os toggles com as opções salvas da lei
+    const opts = lei.opts || {};
+    document.querySelectorAll('#lei-hl-toggles input[data-cat]').forEach(cb => {
+      cb.checked = opts[cb.dataset.cat] !== false;
+    });
+    this.renderBody();
+    this.renderMarks();
+  },
+  renderBody() {
+    const lei = DB.getLei(this.currentId);
+    if (!lei) return;
+    const body = document.getElementById('lei-reader-body');
+    body.innerHTML = LawEngine.toHtml(lei);
+    body.style.fontSize = (100 + this.fontStep * 8) + '%';
+  },
+  renderMarks() {
+    const lei = DB.getLei(this.currentId);
+    if (!lei) return;
+    const marks = lei.marcacoes || [];
+    document.getElementById('lei-mark-count').textContent = marks.length ? `${marks.length} destaque(s) seu(s)` : '';
+    const panel = document.getElementById('lei-marks-panel');
+    const list = document.getElementById('lei-marks-list');
+    if (marks.length === 0) { panel.style.display = 'none'; return; }
+    panel.style.display = 'block';
+    list.innerHTML = marks.map((m, i) => `
+      <div class="lei-mark-row" data-i="${i}">
+        <span class="lawmark-manual lei-mark-text">${escapeHtml(m)}</span>
+        <button type="button" class="icon-btn danger lei-mark-del" title="Remover destaque">×</button>
+      </div>`).join('');
+    list.querySelectorAll('.lei-mark-row').forEach(row => {
+      row.querySelector('.lei-mark-del').addEventListener('click', () => {
+        const idx = parseInt(row.dataset.i);
+        const l = DB.getLei(this.currentId);
+        l.marcacoes.splice(idx, 1);
+        DB.updateLei(this.currentId, { marcacoes: l.marcacoes });
+        this.renderBody(); this.renderMarks();
+      });
+    });
+  },
+  markSelection() {
+    const sel = window.getSelection ? window.getSelection() : null;
+    const txt = sel ? String(sel).trim() : '';
+    if (!txt || txt.length < 2) { showToast('Selecione um trecho (2+ caracteres) no texto'); return; }
+    if (txt.length > 200) { showToast('Seleção muito longa — marque um trecho menor'); return; }
+    const lei = DB.getLei(this.currentId);
+    const marks = lei.marcacoes || [];
+    if (marks.some(m => m.toLowerCase() === txt.toLowerCase())) { showToast('Esse trecho já está destacado'); return; }
+    marks.push(txt);
+    DB.updateLei(this.currentId, { marcacoes: marks });
+    if (sel) sel.removeAllRanges();
+    this.renderBody(); this.renderMarks();
+    showToast('Trecho destacado ✓');
+  },
+  toggleCategory(cat, on) {
+    const lei = DB.getLei(this.currentId);
+    if (!lei) return;
+    const opts = Object.assign({}, lei.opts || {});
+    opts[cat] = on;
+    DB.updateLei(this.currentId, { opts });
+    this.renderBody();
+  },
+  changeFont(delta) {
+    this.fontStep = Math.max(-2, Math.min(5, this.fontStep + delta));
+    const body = document.getElementById('lei-reader-body');
+    body.style.fontSize = (100 + this.fontStep * 8) + '%';
+  },
+  editCurrent() {
+    const lei = DB.getLei(this.currentId);
+    if (!lei) return;
+    const novoTitulo = prompt('Título da lei:', lei.titulo);
+    if (novoTitulo === null) return;
+    const novaRef = prompt('Referência (opcional):', lei.referencia || '');
+    if (novaRef === null) return;
+    const novaMat = prompt('Matéria (opcional):', lei.materia || '');
+    if (novaMat === null) return;
+    const novoTexto = prompt('Texto da lei (edite se necessário):', lei.texto);
+    if (novoTexto === null) return;
+    DB.updateLei(this.currentId, {
+      titulo: novoTitulo.trim() || lei.titulo,
+      referencia: novaRef.trim(),
+      materia: novaMat.trim(),
+      texto: novoTexto
+    });
+    this.openReader(this.currentId);
+    showToast('Lei atualizada ✓');
+  },
+  deleteCurrent() {
+    const lei = DB.getLei(this.currentId);
+    if (!lei) return;
+    if (!confirm(`Excluir a lei "${lei.titulo}"? Esta ação não pode ser desfeita.`)) return;
+    DB.deleteLei(this.currentId);
+    showToast('Lei excluída');
+    this.showList();
+  }
+};
+window.LeisScreen = LeisScreen;
+
+// Listeners da tela de Leis
+document.getElementById('lei-add-btn').addEventListener('click', () => LeisScreen.addFromForm());
+document.getElementById('lei-back-btn').addEventListener('click', () => LeisScreen.showList());
+document.getElementById('lei-edit-btn').addEventListener('click', () => LeisScreen.editCurrent());
+document.getElementById('lei-del-btn').addEventListener('click', () => LeisScreen.deleteCurrent());
+document.getElementById('lei-mark-btn').addEventListener('click', () => LeisScreen.markSelection());
+document.getElementById('lei-font-inc').addEventListener('click', () => LeisScreen.changeFont(1));
+document.getElementById('lei-font-dec').addEventListener('click', () => LeisScreen.changeFont(-1));
+document.querySelectorAll('#lei-hl-toggles input[data-cat]').forEach(cb => {
+  cb.addEventListener('change', () => LeisScreen.toggleCategory(cb.dataset.cat, cb.checked));
+});
+window.addEventListener('screen:activated', (e) => {
+  if (e.detail.screen === 'leis') LeisScreen.render();
 });
 
 /* ============================================================
