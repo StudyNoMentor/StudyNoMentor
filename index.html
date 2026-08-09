@@ -2442,6 +2442,14 @@
   .profile-chip-switch { flex-shrink: 0; background: var(--surface-sunken); border: 1.5px solid var(--border); border-radius: 8px; width: 30px; height: 30px; font-size: 14px; color: var(--text-soft); cursor: pointer; transition: border-color 0.15s ease, color 0.15s ease; }
   .profile-chip-switch:hover { border-color: var(--accent); color: var(--accent); }
   @media (max-width: 860px) { .profile-chip { display: none; } }
+  /* Botão de perfil no topo (aparece só no mobile/tablet, onde a sidebar-footer some) */
+  .brand-top-actions { display: flex; align-items: center; gap: 8px; }
+  .mobile-profile-btn { display: none; align-items: center; gap: 7px; background: var(--surface-sunken); border: 1.5px solid var(--border); border-radius: 20px; padding: 4px 10px 4px 4px; cursor: pointer; max-width: 190px; }
+  .mobile-profile-btn:hover { border-color: var(--accent); }
+  .mobile-profile-avatar { width: 26px; height: 26px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 14px; color: #fff; flex-shrink: 0; }
+  .mobile-profile-name { font-size: 12.5px; font-weight: 700; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .mobile-profile-caret { font-size: 13px; color: var(--text-soft); flex-shrink: 0; }
+  @media (max-width: 860px) { .mobile-profile-btn { display: inline-flex; } }
 
   /* ---------- Sincronização na nuvem ---------- */
   .cloud-auth-tabs { display: flex; gap: 6px; margin-bottom: 16px; }
@@ -3209,9 +3217,16 @@
     <div class="sidebar-brand">
       <div class="brand-top-row">
         <span class="eyebrow"><span class="pip"></span>registro pessoal</span>
-        <button type="button" class="theme-toggle" id="theme-toggle" title="Alternar modo claro/escuro" aria-label="Alternar tema">
-          <span class="theme-toggle-icon">🌙</span>
-        </button>
+        <div class="brand-top-actions">
+          <button type="button" class="mobile-profile-btn" id="mobile-profile-btn" title="Trocar de perfil / sair">
+            <span class="mobile-profile-avatar" id="mobile-profile-avatar">📘</span>
+            <span class="mobile-profile-name" id="mobile-profile-name">—</span>
+            <span class="mobile-profile-caret">⇄</span>
+          </button>
+          <button type="button" class="theme-toggle" id="theme-toggle" title="Alternar modo claro/escuro" aria-label="Alternar tema">
+            <span class="theme-toggle-icon">🌙</span>
+          </button>
+        </div>
       </div>
       <h1 class="brand-title">
         <span class="brand-logo" aria-hidden="true">
@@ -6662,7 +6677,8 @@ function planCycleMode() {
   // Mantém a matéria já escolhida (mesmo que tenha sido desativada) e oferece "outra".
   function subjectSelectHtml(selectedName) {
     const actives = DB.getActiveSubjects();
-    const names = actives.map(s => s.nome);
+    // ordem alfabética (pt-BR, ignorando acentos/caixa)
+    const names = actives.map(s => s.nome).sort((a, b) => a.localeCompare(b, 'pt-BR', { sensitivity: 'base' }));
     // se a matéria atual não estiver na lista ativa, inclui para não perder a seleção
     if (selectedName && !names.includes(selectedName)) names.unshift(selectedName);
     if (names.length === 0) {
@@ -6811,7 +6827,8 @@ function planCycleMode() {
       : DB.getActiveSubjects().length ? DB.getActiveSubjects() : [null, null, null];
     renderSetupSubjects(subjectsForCycle.length ? subjectsForCycle : [null]);
     document.getElementById('cycle-subject-list').innerHTML =
-      DB.getActiveSubjects().map(s => `<option value="${escapeHtml(s.nome)}">`).join('');
+      DB.getActiveSubjects().slice().sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR', { sensitivity: 'base' }))
+        .map(s => `<option value="${escapeHtml(s.nome)}">`).join('');
     showState('setup');
   }
 
@@ -7057,7 +7074,9 @@ function planCycleMode() {
 
   function renderSubjectsProgress(cycle) {
     const container = document.getElementById('ciclo-subjects-progress');
-    container.innerHTML = cycle.subjects.map(s => {
+    // exibe em ordem alfabética (sem alterar a ordem salva do ciclo)
+    const ordered = cycle.subjects.slice().sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR', { sensitivity: 'base' }));
+    container.innerHTML = ordered.map(s => {
       const studied = CycleEngine.minutesStudied(s.nome, cycle.startDate, cycle.endDate);
       const status = CycleEngine.statusFor(studied, s.definidoMin);
       const pct = Math.min(100, Math.round((studied / s.definidoMin) * 100));
@@ -8892,7 +8911,9 @@ const EstudoNovoScreen = {
   renderSubjectList(subjects) {
     const listEl = document.getElementById('en-subject-list');
     const q = this.subjectFilter.toLowerCase();
-    const filtered = q ? subjects.filter(s => s.nome.toLowerCase().includes(q)) : subjects;
+    // ordena por ordem alfabética (pt-BR, ignorando acentos/caixa)
+    const ordered = subjects.slice().sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR', { sensitivity: 'base' }));
+    const filtered = q ? ordered.filter(s => s.nome.toLowerCase().includes(q)) : ordered;
 
     if (filtered.length === 0) {
       listEl.innerHTML = `<p style="color:var(--text-faint); font-size:12.5px; padding: 10px 8px;">Nenhuma matéria encontrada.</p>`;
@@ -12084,7 +12105,13 @@ const ProfileUI = {
   },
 
   switchProfile() { try { sessionStorage.removeItem(this.SESSION_KEY); } catch (e) {} this.showGate(); },
+  renderChipMobile() {
+    const p = ProfileManager.getActiveProfile(); if (!p) return;
+    const av = document.getElementById('mobile-profile-avatar'); if (av) { av.textContent = p.avatar; av.style.background = p.cor; }
+    const nm = document.getElementById('mobile-profile-name'); if (nm) nm.textContent = p.nome;
+  },
   renderChip() {
+    this.renderChipMobile();
     const p = ProfileManager.getActiveProfile(); if (!p) return;
     const av = document.getElementById('profile-chip-avatar'); if (av) { av.textContent = p.avatar; av.style.background = p.cor; }
     const nm = document.getElementById('profile-chip-name'); if (nm) nm.textContent = p.nome;
@@ -12316,6 +12343,7 @@ window.CloudUI = CloudUI;
   on('pf-save', 'click', () => ProfileUI.saveModal());
   on('pf-delete', 'click', () => ProfileUI.deleteCurrent());
   on('profile-chip-switch', 'click', () => ProfileUI.switchProfile());
+  on('mobile-profile-btn', 'click', () => ProfileUI.switchProfile());
   const imp = document.getElementById('profile-import-btn'); if (imp) imp.style.display = 'none';
   /* ---- Listeners: seção Nuvem em Configurações ---- */
   on('cloud-auth-submit', 'click', () => CloudUI.submitAuth());
