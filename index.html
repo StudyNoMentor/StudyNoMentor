@@ -424,6 +424,9 @@
   form { padding: 20px 28px 28px; }
 
   .field-group { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  .cycle-hm-input { display: flex; align-items: center; gap: 6px; }
+  .cycle-hm-input input { width: 64px; text-align: center; }
+  .cycle-hm-input span { font-size: 12.5px; font-weight: 700; color: var(--text-soft); }
   .field { margin-bottom: 18px; }
   .field.full { grid-column: 1 / -1; }
 
@@ -3466,8 +3469,11 @@
       <div style="padding: 20px 28px 28px;">
         <div class="field-group">
           <div class="field">
-            <label for="cycle-hours">Horas brutas semanais</label>
-            <input type="number" id="cycle-hours" min="1" value="20">
+            <label>Carga horária semanal</label>
+            <div class="cycle-hm-input">
+              <input type="text" inputmode="numeric" id="cycle-hours" value="20"><span>h</span>
+              <input type="text" inputmode="numeric" id="cycle-minutes" value="0" maxlength="2"><span>min</span>
+            </div>
           </div>
           <div class="field">
             <label for="cycle-start">Início da semana</label>
@@ -4761,7 +4767,8 @@ const DB = {
       decks: base + 'decks',
       cards: base + 'cards',
       links: base + 'links',
-      incidencia: base + 'incidencia'
+      incidencia: base + 'incidencia',
+      lastCycleSetup: base + 'last-cycle-setup'
     };
   },
   // KEYS "dinâmico": sempre aponta para o planejamento ativo no momento da leitura
@@ -5105,6 +5112,9 @@ const DB = {
   getCurrentCycle() { return this._get(this.KEYS.currentCycle, null); },
   saveCurrentCycle(cycle) { this._set(this.KEYS.currentCycle, cycle); },
   clearCurrentCycle() { localStorage.removeItem(this.KEYS.currentCycle); },
+  // memória do último ciclo montado (para pré-preencher a próxima semana) — por planejamento
+  getLastCycleSetup() { return this._get(this.KEYS.lastCycleSetup, null); },
+  saveLastCycleSetup(setup) { this._set(this.KEYS.lastCycleSetup, setup); },
 
   // ---- Modelo de grade (rotina semanal persistente, reutilizada entre ciclos) ----
   // Estrutura: { grade: { Segunda:[celulas], ... }, sessions: N }
@@ -6653,6 +6663,12 @@ const CycleEngine = {
     const h = Math.floor(min / 60), m = Math.round(min % 60);
     return (h > 0 ? h + 'h ' : '') + (m > 0 || h === 0 ? m + 'min' : '');
   },
+  // carga horária semanal (em horas decimais) formatada: 35.5 -> "35h 30min", 36 -> "36h"
+  fmtWeeklyHours(hDecimal) {
+    const totalMin = Math.round((hDecimal || 0) * 60);
+    const h = Math.floor(totalMin / 60), m = totalMin % 60;
+    return h + 'h' + (m > 0 ? ' ' + m + 'min' : '');
+  },
   // gera siglas curtas e únicas para as matérias do ciclo, para uso na grade da semana
   STOPWORDS: new Set(['de', 'da', 'do', 'das', 'dos', 'e', 'em', 'a', 'o', 'para', 'com']),
   baseAcronym(nome) {
@@ -6940,7 +6956,25 @@ function planCycleMode() {
   const elActive = document.getElementById('ciclo-active');
 
   const cycleHoursInput = document.getElementById('cycle-hours');
+  const cycleMinutesInput = document.getElementById('cycle-minutes');
   const cycleStartInput = document.getElementById('cycle-start');
+  // só dígitos nos campos de carga horária
+  [cycleHoursInput, cycleMinutesInput].forEach(el => {
+    if (el) el.addEventListener('input', () => { el.value = el.value.replace(/\D/g, ''); });
+  });
+  // lê a carga horária (horas + minutos) e devolve horas decimais; escreve nos dois campos
+  function readWeeklyHours() {
+    const h = parseInt(cycleHoursInput.value) || 0;
+    let m = parseInt(cycleMinutesInput.value) || 0;
+    if (m > 59) m = 59;
+    const dec = h + m / 60;
+    return dec > 0 ? dec : 1; // mínimo de 1h para não zerar a sugestão
+  }
+  function writeWeeklyHours(hDecimal) {
+    const total = Math.round((hDecimal || 0) * 60);
+    cycleHoursInput.value = Math.floor(total / 60);
+    cycleMinutesInput.value = total % 60;
+  }
   const cycleEndInput = document.getElementById('cycle-end');
   const subjectsListEl = document.getElementById('cycle-subjects-list');
 
@@ -7085,7 +7119,12 @@ function planCycleMode() {
   }
 
   function openSetup(prefill) {
-    cycleHoursInput.value = prefill?.weeklyHours || 20;
+    // memória: se não veio prefill (nova semana), usa o último ciclo montado deste planejamento
+    if (!prefill) {
+      const last = DB.getLastCycleSetup();
+      if (last) prefill = { weeklyHours: last.weeklyHours, subjects: last.subjects, mode: last.mode };
+    }
+    writeWeeklyHours(prefill?.weeklyHours || 20);
     const _start = prefill?.startDate || todayLocal();
     cycleStartInput.value = _start;
     // término: usa o do prefill (edição) ou sugere início + 6 dias (7º dia da semana)
@@ -7136,7 +7175,7 @@ function planCycleMode() {
   });
 
   document.getElementById('btn-calc-cycle').addEventListener('click', () => {
-    const weeklyHours = parseFloat(cycleHoursInput.value) || 1;
+    const weeklyHours = readWeeklyHours();
     const startDate = cycleStartInput.value || todayLocal();
     // término editável (fallback = início + 6). Garante término >= início.
     let endDate = cycleEndInput.value || CycleEngine.weekEndDate(startDate);
@@ -7165,6 +7204,16 @@ function planCycleMode() {
     // um tempo definido diferente da sugestão, mantém esse valor (casa por nome), em vez de
     // sobrescrever com a nova sugestão da ferramenta.
     const prevDefined = {};
+    // 1) memória do último ciclo montado (base) — restaura os tempos definidos na semana anterior
+    if (!pendingCycle) {
+      const last = DB.getLastCycleSetup();
+      if (last && Array.isArray(last.subjects)) {
+        last.subjects.forEach(s => {
+          if (s && s.nome != null && s.definidoMin != null) prevDefined[CycleEngine.normKey(s.nome)] = s.definidoMin;
+        });
+      }
+    }
+    // 2) rascunho em edição (tem prioridade sobre a memória)
     if (pendingCycle && Array.isArray(pendingCycle.subjects)) {
       pendingCycle.subjects.forEach(s => {
         if (s && s.nome != null && s.definidoMin != null) prevDefined[CycleEngine.normKey(s.nome)] = s.definidoMin;
@@ -7311,6 +7360,16 @@ function planCycleMode() {
       createdAt: new Date().toISOString()
     };
     DB.saveCurrentCycle(cycle);
+    // memória: guarda os dados do ciclo montado para pré-preencher a próxima semana
+    DB.saveLastCycleSetup({
+      weeklyHours: cycle.weeklyHours,
+      mode: cycle.mode,
+      subjects: cycle.subjects.map(s => ({
+        nome: s.nome, dificuldade: s.dificuldade, fase: s.fase,
+        qtdQuestoes: s.qtdQuestoes, pontosPorQuestao: s.pontosPorQuestao, peso: s.peso, extensao: s.extensao,
+        definidoMin: s.definidoMin
+      }))
+    });
     showToast('Ciclo confirmado ✓');
     renderActiveCycle();
     showState('active');
@@ -7755,7 +7814,7 @@ function planCycleMode() {
     const _expired = todayLocal() > cycle.endDate;
     const _nota = _expired ? ' · ⚠ semana encerrada — feche para arquivar e iniciar a próxima' : '';
     document.getElementById('ciclo-active-dates').textContent =
-      `${formatDateShort(cycle.startDate)} — ${formatDateShort(cycle.endDate)} · ${cycle.weeklyHours}h planejadas` + _nota;
+      `${formatDateShort(cycle.startDate)} — ${formatDateShort(cycle.endDate)} · ${CycleEngine.fmtWeeklyHours(cycle.weeklyHours)} planejadas` + _nota;
     renderOverviewGauges(cycle);
     renderSubjectsProgress(cycle);
   }
@@ -8080,7 +8139,7 @@ const HistoricoScreen = {
             <div class="label">finalizadas</div>
           </div>
           <div class="week-stat">
-            <div class="value">${w.weeklyHours}h</div>
+            <div class="value">${CycleEngine.fmtWeeklyHours(w.weeklyHours)}</div>
             <div class="label">planejadas</div>
           </div>
         </div>
