@@ -2344,7 +2344,7 @@
     font-size: 12px; font-weight: 800; color: var(--text); margin-bottom: 14px;
     letter-spacing: 0.02em;
   }
-  .ritmo-metric-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+  .ritmo-metric-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 14px; }
   .ritmo-metric {
     background: var(--surface); border: 1.5px solid var(--border); border-radius: 12px;
     padding: 16px 14px; text-align: center;
@@ -3386,6 +3386,26 @@
               </div>
             </div>
             <p class="hint" id="pages-hint">&nbsp;</p>
+
+            <div id="video-fields" style="display:none;">
+              <div class="row-3">
+                <div class="field">
+                  <label for="video-start">Minuto inicial do vídeo <span class="opt">(opcional)</span></label>
+                  <input type="number" id="video-start" min="0" step="0.1" placeholder="0">
+                </div>
+                <div class="field">
+                  <label for="video-end">Minuto final do vídeo <span class="opt">(opcional)</span></label>
+                  <input type="number" id="video-end" min="0" step="0.1" placeholder="0">
+                </div>
+                <div class="field">
+                  <label>Vídeo assistido</label>
+                  <div class="time-input" style="justify-content:flex-start;">
+                    <input type="text" id="video-consumed" readonly value="—" style="text-align:center; font-family:'Space Mono',monospace; font-weight:700; color:var(--accent); background:var(--accent-soft); border-color:transparent; cursor:default;">
+                  </div>
+                </div>
+              </div>
+              <p class="hint" id="video-hint">💡 Informe a posição no vídeo (não o relógio). Em 1h de estudo a 1,5x você assiste ~90&nbsp;min de conteúdo — isso alimenta seu ritmo real de vídeo na Evolução.</p>
+            </div>
 
             <hr class="divider">
 
@@ -6234,6 +6254,32 @@ const ReforcoEngine = {
   const pageStart = document.getElementById('page-start');
   const pageEnd = document.getElementById('page-end');
   const pagesHint = document.getElementById('pages-hint');
+  const videoFields = document.getElementById('video-fields');
+  const videoStart = document.getElementById('video-start');
+  const videoEnd = document.getElementById('video-end');
+  const videoConsumed = document.getElementById('video-consumed');
+  const methodSelect = document.getElementById('method');
+
+  // Detecta se a forma de estudo selecionada é vídeo/aula (mesmo critério da Evolução)
+  function isVideoMethod(name) {
+    const m = (name || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+    return /video|aula/.test(m);
+  }
+  // Mostra os campos de vídeo apenas quando fizer sentido
+  function updateVideoFieldsVisibility() {
+    videoFields.style.display = isVideoMethod(methodSelect.value) ? 'block' : 'none';
+  }
+  // Calcula e exibe os minutos de conteúdo assistido (final − inicial)
+  function updateVideoConsumed() {
+    const s = parseFloat(videoStart.value);
+    const e = parseFloat(videoEnd.value);
+    if (!isNaN(s) && !isNaN(e) && e >= s) {
+      const diff = Math.round((e - s) * 10) / 10;
+      videoConsumed.value = `${diff.toLocaleString('pt-BR')} min`;
+    } else {
+      videoConsumed.value = '—';
+    }
+  }
   const recentSection = document.getElementById('recent-section');
   const recentList = document.getElementById('recent-list');
   const searchInput = document.getElementById('recent-search');
@@ -6287,6 +6333,9 @@ const ReforcoEngine = {
   totalInput.addEventListener('input', updateGauge);
   pageStart.addEventListener('input', updatePagesHint);
   pageEnd.addEventListener('input', updatePagesHint);
+  videoStart.addEventListener('input', updateVideoConsumed);
+  videoEnd.addEventListener('input', updateVideoConsumed);
+  methodSelect.addEventListener('change', updateVideoFieldsVisibility);
 
   function refreshSubjectSelect() {
     const subjects = DB.getActiveSubjects();
@@ -6323,6 +6372,8 @@ const ReforcoEngine = {
     dateInput.value = entry.date;
     pageStart.value = entry.pageStart ?? '';
     pageEnd.value = entry.pageEnd ?? '';
+    videoStart.value = entry.videoStart ?? '';
+    videoEnd.value = entry.videoEnd ?? '';
     document.getElementById('duration-h').value = Math.floor(entry.durationMin / 60) || '';
     document.getElementById('duration-m').value = entry.durationMin % 60 || '';
     correctInput.value = entry.correct || '';
@@ -6331,6 +6382,8 @@ const ReforcoEngine = {
 
     updateGauge();
     updatePagesHint();
+    updateVideoFieldsVisibility();
+    updateVideoConsumed();
 
     formTitle.textContent = 'Editar sessão de estudo';
     editNote.style.display = 'block';
@@ -6349,6 +6402,8 @@ const ReforcoEngine = {
     document.getElementById('subject').value = '';
     updateGauge();
     updatePagesHint();
+    updateVideoConsumed();
+    updateVideoFieldsVisibility();
 
     formTitle.textContent = 'Nova sessão de estudo';
     editNote.style.display = 'none';
@@ -6462,6 +6517,10 @@ const ReforcoEngine = {
     const date = dateInput.value;
     const pStart = pageStart.value ? parseInt(pageStart.value) : null;
     const pEnd = pageEnd.value ? parseInt(pageEnd.value) : null;
+    // Minutos de vídeo (posição no vídeo) — só guarda quando a forma de estudo é vídeo/aula
+    const isVid = isVideoMethod(method);
+    const vStart = (isVid && videoStart.value !== '') ? parseFloat(videoStart.value) : null;
+    const vEnd = (isVid && videoEnd.value !== '') ? parseFloat(videoEnd.value) : null;
     const durH = parseInt(document.getElementById('duration-h').value) || 0;
     const durM = parseInt(document.getElementById('duration-m').value) || 0;
     const durationMin = durH * 60 + durM;
@@ -6474,7 +6533,7 @@ const ReforcoEngine = {
       return;
     }
 
-    const fields = { subject, lesson, method, date, pageStart: pStart, pageEnd: pEnd, durationMin, correct, total, comment };
+    const fields = { subject, lesson, method, date, pageStart: pStart, pageEnd: pEnd, videoStart: vStart, videoEnd: vEnd, durationMin, correct, total, comment };
 
     if (editingId !== null) {
       DB.updateEntry(editingId, fields);
@@ -6496,6 +6555,8 @@ const ReforcoEngine = {
       document.getElementById('subject').value = ''; // matéria em branco p/ o usuário escolher
       updateGauge();
       updatePagesHint();
+      updateVideoConsumed();
+      updateVideoFieldsVisibility();
       renderRecent();
       window.dispatchEvent(new CustomEvent('data:entry-added', { detail: entry }));
     }
@@ -6505,6 +6566,7 @@ const ReforcoEngine = {
   refreshMethodSelect(true);
   refreshSubjectSelect();
   document.getElementById('subject').value = '';
+  updateVideoFieldsVisibility();
   renderRecent();
 
   // expõe pra outras telas poderem forçar refresh se precisarem
@@ -8537,6 +8599,7 @@ const EvolucaoScreen = {
     const container = document.getElementById('evolucao-ritmo');
     // avanço: páginas lidas (soma de pageEnd-pageStart+1 quando houver)
     let totalPaginas = 0, horasComPaginas = 0;
+    let totalVideoMin = 0, clockMinComVideo = 0; // conteúdo assistido (min) e tempo real gasto nele
     const horas = { pdf: 0, video: 0, revisao: 0, questoes: 0 };
     entries.forEach(e => {
       const min = e.durationMin || 0;
@@ -8545,6 +8608,10 @@ const EvolucaoScreen = {
       if (e.pageStart != null && e.pageEnd != null && e.pageEnd >= e.pageStart) {
         totalPaginas += (e.pageEnd - e.pageStart + 1);
         horasComPaginas += min;
+      }
+      if (e.videoStart != null && e.videoEnd != null && e.videoEnd >= e.videoStart) {
+        totalVideoMin += (e.videoEnd - e.videoStart);
+        clockMinComVideo += min;
       }
     });
     const totalMin = horas.pdf + horas.video + horas.revisao + horas.questoes;
@@ -8556,8 +8623,9 @@ const EvolucaoScreen = {
     const pct = (v) => totalMin > 0 ? Math.round((v / totalMin) * 10000) / 100 : 0;
     // médias reais (o coração da tabela)
     const pagPorHora = horasComPaginas > 0 ? Math.round((totalPaginas / (horasComPaginas / 60)) * 10) / 10 : null;
-    // min de vídeo por hora: exige registrar minutos de vídeo assistidos — não capturamos isso hoje
-    const minVideoPorHora = null;
+    // min de vídeo por hora e velocidade média efetiva, a partir dos minutos inicial/final registrados
+    const minVideoPorHora = clockMinComVideo > 0 ? Math.round(totalVideoMin / (clockMinComVideo / 60)) : null;
+    const velocidadeVideo = clockMinComVideo > 0 ? Math.round((totalVideoMin / clockMinComVideo) * 100) / 100 : null;
 
     const fmt = (min) => CycleEngine.fmtHM(Math.round(min));
     container.innerHTML = `
@@ -8565,7 +8633,7 @@ const EvolucaoScreen = {
         <tbody>
           <tr class="ritmo-section"><td colspan="2">Avanço na matéria</td></tr>
           <tr><td class="rk">Total de páginas lidas</td><td class="rv">${totalPaginas.toLocaleString('pt-BR')}</td></tr>
-          <tr><td class="rk">Total de minutos de videoaula</td><td class="rv rv-muted" title="Requer registrar os minutos de vídeo assistidos">—</td></tr>
+          <tr><td class="rk">Total de minutos de videoaula <span class="rk-hint">(conteúdo assistido)</span></td>${totalVideoMin > 0 ? `<td class="rv">${(Math.round(totalVideoMin * 10) / 10).toLocaleString('pt-BR')}</td>` : `<td class="rv rv-muted" title="Registre o minuto inicial e final do vídeo ao registrar uma sessão de vídeo/aula">—</td>`}</tr>
 
           <tr class="ritmo-section"><td colspan="2">Tempo estudado</td></tr>
           <tr><td class="rk">Leitura / PDF</td><td class="rv">${fmt(horas.pdf)}</td></tr>
@@ -8590,18 +8658,23 @@ const EvolucaoScreen = {
             <div class="rm-sub">${totalPaginas.toLocaleString('pt-BR')} págs em ${fmt(horasComPaginas)}</div>
           </div>
           <div class="ritmo-metric">
-            <div class="rm-val rm-muted">—</div>
+            <div class="rm-val ${minVideoPorHora === null ? 'rm-muted' : ''}">${minVideoPorHora !== null ? minVideoPorHora.toLocaleString('pt-BR') : '—'}</div>
             <div class="rm-lbl">minutos de vídeo por hora</div>
-            <div class="rm-sub">requer registrar min. de vídeo</div>
+            <div class="rm-sub">${minVideoPorHora !== null ? `${(Math.round(totalVideoMin * 10) / 10).toLocaleString('pt-BR')} min em ${fmt(clockMinComVideo)}` : 'registre min. inicial e final do vídeo'}</div>
+          </div>
+          <div class="ritmo-metric">
+            <div class="rm-val ${velocidadeVideo === null ? 'rm-muted' : ''}">${velocidadeVideo !== null ? velocidadeVideo.toLocaleString('pt-BR', { minimumFractionDigits: 2 }) + 'x' : '—'}</div>
+            <div class="rm-lbl">velocidade média efetiva</div>
+            <div class="rm-sub">${velocidadeVideo !== null ? 'conteúdo assistido ÷ tempo real' : 'requer min. de vídeo'}</div>
           </div>
         </div>
-        <button type="button" class="btn-primary" id="ritmo-use-btn" ${pagPorHora === null ? 'disabled' : ''} style="margin-top:16px;">
+        <button type="button" class="btn-primary" id="ritmo-use-btn" ${(pagPorHora === null && minVideoPorHora === null) ? 'disabled' : ''} style="margin-top:16px;">
           Usar na Estimativa de Tempo →
         </button>
       </div>
     `;
     const btn = document.getElementById('ritmo-use-btn');
-    if (btn && pagPorHora !== null) {
+    if (btn && (pagPorHora !== null || minVideoPorHora !== null)) {
       btn.addEventListener('click', () => this.sendRitmoToEstimativa(pagPorHora, minVideoPorHora));
     }
   },
