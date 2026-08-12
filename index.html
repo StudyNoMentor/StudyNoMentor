@@ -2077,8 +2077,23 @@
   .tec-subtab.active { background: var(--accent-soft); border-color: var(--accent); color: var(--accent); }
   /* Incidência: lista de bancas */
   .incid-banca-row { display: flex; align-items: center; gap: 12px; padding: 10px 12px; border: 1px solid var(--border); border-radius: 10px; background: var(--surface-sunken); margin-bottom: 8px; }
+  .incid-banca-row.expandable { cursor: pointer; }
+  .incid-banca-row.expandable:hover { border-color: var(--accent); }
+  .incid-caret { font-size: 11px; color: var(--text-faint); transition: transform 0.2s ease; width: 12px; text-align: center; }
+  .incid-banca-block.open .incid-caret { transform: rotate(90deg); }
   .incid-banca-name { font-weight: 800; font-size: 13.5px; color: var(--text); flex: 1; }
   .incid-banca-count { font-size: 11.5px; color: var(--text-faint); font-family: 'Space Mono', monospace; }
+  .incid-banca-block { margin-bottom: 8px; }
+  .incid-detail { display: none; padding: 6px 4px 12px; }
+  .incid-banca-block.open .incid-detail { display: block; }
+  .incid-detail-search { width: 100%; margin: 4px 0 10px; padding: 8px 12px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface); color: var(--text); font-size: 12.5px; }
+  .incid-topic-row { display: grid; grid-template-columns: 1fr 54px; align-items: center; gap: 10px; padding: 5px 10px; border-radius: 7px; }
+  .incid-topic-row:nth-child(even) { background: var(--surface-sunken); }
+  .incid-topic-row.is-disc { font-weight: 800; color: var(--text); margin-top: 4px; }
+  .incid-topic-name { font-size: 12.5px; color: var(--text-soft); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .incid-topic-row.is-disc .incid-topic-name { color: var(--text); }
+  .incid-topic-val { font-family: 'Space Mono', monospace; font-size: 12px; font-weight: 700; color: var(--accent); text-align: right; }
+  .incid-detail-empty { padding: 10px; font-size: 12.5px; color: var(--text-faint); text-align: center; }
   /* Reforço */
   .reforco-controls { display: flex; gap: 16px; align-items: flex-end; flex-wrap: wrap; }
   .reforco-slider { width: 100%; accent-color: var(--accent); cursor: pointer; margin-top: 4px; }
@@ -3885,6 +3900,9 @@
           <div class="field"><label>Tópico <span class="opt">(opcional)</span></label>
             <input type="text" id="card-topico" list="card-topico-list" placeholder="Ex.: Crimes contra a Adm.">
             <datalist id="card-topico-list"></datalist></div>
+          <div class="field"><label>Banca <span class="opt">(opcional)</span></label>
+            <input type="text" id="card-banca" list="card-banca-list" placeholder="Ex.: FCC, FGV, Cebraspe">
+            <datalist id="card-banca-list"></datalist></div>
           <div class="field"><label>Categoria <span class="opt">(opcional)</span></label>
             <select id="card-tipo"></select></div>
         </div>
@@ -4627,7 +4645,7 @@
           </div>
         </div>
         <div class="card" id="incid-bancas-card" style="display:none;">
-          <div class="card-header"><div><h2>Bancas cadastradas</h2><p class="sub">Total de tópicos por banca</p></div></div>
+          <div class="card-header"><div><h2>Bancas cadastradas</h2><p class="sub">Clique em uma banca para ver e filtrar os tópicos importados</p></div></div>
           <div style="padding: 12px 24px 22px;" id="incid-bancas-list"></div>
         </div>
       </div>
@@ -5218,6 +5236,7 @@ const DB = {
       deckId: data.deckId || null,
       materia: data.materia || null,
       topico: (data.topico || '').trim(),
+      banca: (data.banca || '').trim(),
       tipo: data.tipo || '',
       kind: data.kind || 'basic',      // 'basic' | 'cloze'
       reversedOf: data.reversedOf || null, // id do card original (cartão invertido)
@@ -5284,7 +5303,7 @@ const DB = {
     let list = this.getIncidencia();
     if (replace) list = list.filter(r => r.banca.toLowerCase() !== banca.toLowerCase());
     rows.forEach(r => {
-      list.push({ id: this._uid(), banca, disciplina: (r.disciplina || '').trim(), topico: (r.topico || '').trim(), incidencia: r.incidencia || 0 });
+      list.push({ id: this._uid(), banca, disciplina: (r.disciplina || '').trim(), topico: (r.topico || '').trim(), incidencia: r.incidencia || 0, codigo: r.codigo || null, depth: (r.depth != null ? r.depth : null) });
     });
     this.saveIncidencia(list);
     return rows.length;
@@ -5935,6 +5954,145 @@ function todayLocal() {
 /* ============================================================
    TEC ENGINE — parsing da planilha do TecConcursos + análise
    ============================================================ */
+/* ============================================================
+   MiniXLSX — leitor de planilhas .xlsx 100% OFFLINE (sem CDN)
+   Um .xlsx é um ZIP de XMLs. Este leitor descompacta as entradas
+   necessárias com o DecompressionStream nativo do navegador e
+   extrai as linhas/células, preservando a posição das colunas
+   (essencial: a 1ª coluna vem vazia nas linhas de disciplina).
+   Usado como fallback quando a biblioteca SheetJS (CDN) não carrega.
+   ============================================================ */
+const MiniXLSX = {
+  _dv(u8) { return new DataView(u8.buffer, u8.byteOffset, u8.byteLength); },
+  // Lê o diretório central do ZIP e devolve um mapa nome -> { method, compSize, localOff }
+  _readZip(u8) {
+    const dv = this._dv(u8);
+    let eocd = -1;
+    for (let i = u8.length - 22; i >= 0 && i >= u8.length - 22 - 65536; i--) {
+      if (dv.getUint32(i, true) === 0x06054b50) { eocd = i; break; }
+    }
+    if (eocd < 0) throw new Error('arquivo .xlsx inválido (não é um ZIP).');
+    const cdOffset = dv.getUint32(eocd + 16, true);
+    const total = dv.getUint16(eocd + 10, true);
+    const entries = {};
+    let p = cdOffset;
+    for (let n = 0; n < total; n++) {
+      if (dv.getUint32(p, true) !== 0x02014b50) break;
+      const method = dv.getUint16(p + 10, true);
+      const compSize = dv.getUint32(p + 20, true);
+      const nameLen = dv.getUint16(p + 28, true);
+      const extraLen = dv.getUint16(p + 30, true);
+      const commentLen = dv.getUint16(p + 32, true);
+      const localOff = dv.getUint32(p + 42, true);
+      const name = new TextDecoder('utf-8').decode(u8.subarray(p + 46, p + 46 + nameLen));
+      entries[name] = { method, compSize, localOff };
+      p += 46 + nameLen + extraLen + commentLen;
+    }
+    this._u8 = u8; this._dvAll = dv;
+    return entries;
+  },
+  _compressedBytes(entry) {
+    const dv = this._dvAll, u8 = this._u8;
+    const lo = entry.localOff;
+    if (dv.getUint32(lo, true) !== 0x04034b50) throw new Error('cabeçalho local do ZIP inválido.');
+    const nameLen = dv.getUint16(lo + 26, true);
+    const extraLen = dv.getUint16(lo + 28, true);
+    const start = lo + 30 + nameLen + extraLen;
+    return u8.subarray(start, start + entry.compSize);
+  },
+  async _inflate(entry) {
+    const data = this._compressedBytes(entry);
+    if (entry.method === 0) return data; // STORED (sem compressão)
+    if (typeof DecompressionStream === 'undefined')
+      throw new Error('seu navegador não suporta ler .xlsx offline — atualize o navegador ou cole os dados.');
+    const ds = new DecompressionStream('deflate-raw');
+    const stream = new Blob([data]).stream().pipeThrough(ds);
+    const ab = await new Response(stream).arrayBuffer();
+    return new Uint8Array(ab);
+  },
+  _xmlDecode(s) {
+    return String(s)
+      .replace(/&#x([0-9a-fA-F]+);/g, (_, h) => String.fromCodePoint(parseInt(h, 16)))
+      .replace(/&#(\d+);/g, (_, d) => String.fromCodePoint(+d))
+      .replace(/&lt;/g, '<').replace(/&gt;/g, '>')
+      .replace(/&quot;/g, '"').replace(/&apos;/g, "'")
+      .replace(/&amp;/g, '&');
+  },
+  _colToIdx(ref) {
+    const m = /^([A-Z]+)/.exec(ref); if (!m) return 0;
+    let n = 0; for (const ch of m[1]) n = n * 26 + (ch.charCodeAt(0) - 64);
+    return n - 1;
+  },
+  _parseSharedStrings(xml) {
+    const out = []; const siRe = /<si\b[^>]*>([\s\S]*?)<\/si>/g; let m;
+    while ((m = siRe.exec(xml))) {
+      let text = ''; const tRe = /<t\b[^>]*>([\s\S]*?)<\/t>/g; let t;
+      while ((t = tRe.exec(m[1]))) text += this._xmlDecode(t[1]);
+      out.push(text);
+    }
+    return out;
+  },
+  _parseSheet(xml, sst) {
+    const rows = []; const rowRe = /<row\b[^>]*>([\s\S]*?)<\/row>/g; let rm;
+    while ((rm = rowRe.exec(xml))) {
+      const inner = rm[1]; const cells = [];
+      const cRe = /<c\b([^>]*?)(?:\/>|>([\s\S]*?)<\/c>)/g; let cm;
+      while ((cm = cRe.exec(inner))) {
+        const attrs = cm[1] || ''; const body = cm[2] || '';
+        const rMatch = /r="([A-Z]+\d+)"/.exec(attrs);
+        const tMatch = /t="([^"]+)"/.exec(attrs);
+        const type = tMatch ? tMatch[1] : null;
+        let val = '';
+        if (type === 'inlineStr') {
+          let s = ''; const tRe = /<t\b[^>]*>([\s\S]*?)<\/t>/g; let t;
+          while ((t = tRe.exec(body))) s += this._xmlDecode(t[1]);
+          val = s;
+        } else {
+          const vMatch = /<v\b[^>]*>([\s\S]*?)<\/v>/.exec(body);
+          const raw = vMatch ? this._xmlDecode(vMatch[1]) : '';
+          if (type === 's') { const idx = parseInt(raw); val = (sst[idx] !== undefined ? sst[idx] : ''); }
+          else val = raw;
+        }
+        const col = rMatch ? this._colToIdx(rMatch[1]) : cells.length;
+        while (cells.length <= col) cells.push('');
+        cells[col] = val;
+      }
+      rows.push(cells);
+    }
+    return rows;
+  },
+  // Descobre o caminho da PRIMEIRA planilha via workbook.xml + rels (com fallback para sheet1.xml)
+  async _firstSheetPath(entries, getText) {
+    try {
+      const wb = await getText('xl/workbook.xml');
+      const rels = await getText('xl/_rels/workbook.xml.rels');
+      if (wb && rels) {
+        const sm = /<sheet\b[^>]*>/i.exec(wb);
+        let rid = null;
+        if (sm) { const r = /r:id="([^"]+)"/.exec(sm[0]) || /[^:]id="([^"]+)"/.exec(sm[0]); if (r) rid = r[1]; }
+        if (rid) {
+          const relm = new RegExp('<Relationship\\b[^>]*Id="' + rid + '"[^>]*>', 'i').exec(rels);
+          if (relm) { const tm = /Target="([^"]+)"/.exec(relm[0]); if (tm) { let tgt = tm[1].replace(/^\//, '').replace(/^\.\//, ''); return tgt.startsWith('xl/') ? tgt : 'xl/' + tgt; } }
+        }
+      }
+    } catch (e) {}
+    const names = Object.keys(entries).filter(n => /^xl\/worksheets\/sheet\d+\.xml$/i.test(n)).sort();
+    return names[0] || 'xl/worksheets/sheet1.xml';
+  },
+  // API principal: lê o arquivo e devolve { rows: [[celula,...],...] } da 1ª planilha
+  async readFirstSheet(file) {
+    const u8 = (file instanceof Uint8Array) ? file : new Uint8Array(await file.arrayBuffer());
+    const entries = this._readZip(u8);
+    const getText = async (name) => { const e = entries[name]; if (!e) return null; return new TextDecoder('utf-8').decode(await this._inflate(e)); };
+    const sstXml = await getText('xl/sharedStrings.xml');
+    const sst = sstXml ? this._parseSharedStrings(sstXml) : [];
+    const sheetPath = await this._firstSheetPath(entries, getText);
+    const sheetXml = await getText(sheetPath);
+    if (sheetXml == null) throw new Error('planilha não encontrada dentro do arquivo.');
+    return { rows: this._parseSheet(sheetXml, sst) };
+  }
+};
+
 const TecEngine = {
   // Converte "85.0", "85,0", "1.234" (pt), "" em número; retorna null se vazio/invalido
   parseNum(raw) {
@@ -6121,7 +6279,48 @@ const ReforcoEngine = {
     };
     return this.parseIncidenciaCells(lines.map(split), bancaFixa);
   },
+  // Detecta o modelo "Índice do Caderno" do TecConcursos (planilha de incidência da banca):
+  //   Hierarquia | Índice | Quantidade encontrada | Porcentagem | Qtd no caderno | Porcentagem | Freq. Acumulada
+  // Nesse modelo a 1ª coluna é o código (01, 01.01...), a 2ª é o nome do tópico e a 3ª ("Quantidade
+  // encontrada") é a INCIDÊNCIA (nº de questões do tópico no histórico da banca).
+  _looksLikeIndiceCaderno(cellRows) {
+    let codigoRows = 0;
+    for (let i = 0; i < cellRows.length && i < 60; i++) {
+      const cells = (cellRows[i] || []).map(c => String(c == null ? '' : c).trim());
+      const joined = this.norm(cells.join(' '));
+      if (/quantidade encontrada|frequencia acumulada|indice do caderno/.test(joined)) return true;
+      if (/\bhierarquia\b/.test(joined) && /\bindice\b/.test(joined)) return true;
+      // sinal estrutural: código na 1ª coluna + nome (não numérico) na 2ª
+      if (cells.length >= 3 && /^\d+(\.\d+)*$/.test(cells[0]) && cells[1] && TecEngine.parseNum(cells[1]) === null) codigoRows++;
+    }
+    return codigoRows >= 3;
+  },
+  // Converte o modelo hierárquico em registros de incidência, reaproveitando o MESMO parser
+  // hierárquico do Desempenho (código col A, nome col B, números a partir de C).
+  _parseIndiceCaderno(cellRows, bancaFixa) {
+    const banca = (bancaFixa || 'X');
+    const rows = TecEngine.parseCellRows(cellRows); // r.questoes = 1º número = "Quantidade encontrada"
+    const out = [];
+    for (const r of rows) {
+      const incid = r.questoes; // Quantidade encontrada = incidência da banca
+      if (!r.nome || incid == null) continue;
+      out.push({
+        banca: banca.trim(),
+        disciplina: (r.depth === 0 ? r.nome : (r.disciplina || '')).trim(),
+        topico: r.nome.trim(),
+        incidencia: Math.max(0, incid),
+        codigo: r.codigo || null,
+        depth: r.depth
+      });
+    }
+    return out;
+  },
   parseIncidenciaCells(cellRows, bancaFixa) {
+    // 1) Modelo hierárquico "Índice do Caderno" (planilha padrão de incidência da banca)
+    if (this._looksLikeIndiceCaderno(cellRows)) {
+      return this._parseIndiceCaderno(cellRows, bancaFixa);
+    }
+    // 2) Formato plano/colado: [Disciplina, Tópico, Incidência] ou [Banca, Disciplina, Tópico, Incidência]
     const out = [];
     let skippedHeader = false;
     for (let cells of cellRows) {
@@ -10330,6 +10529,7 @@ const CardsScreen = {
             <span class="mini-card-badges">
               <span class="lei-tag mat">${escapeHtml(this.materiaLabel(c))}</span>
               ${c.topico ? `<span class="lei-tag ref">${escapeHtml(c.topico)}</span>` : ''}
+              ${c.banca ? `<span class="lei-tag" style="background:var(--accent);color:#fff;" title="Banca">🏛️ ${escapeHtml(c.banca)}</span>` : ''}
             </span>
             <button type="button" class="cards-fav-star ${c.favorito ? 'on' : ''}" data-fav="${c.id}" title="Favoritar">${c.favorito ? '★' : '☆'}</button>
           </div>
@@ -10377,16 +10577,22 @@ const CardsScreen = {
     document.getElementById('card-modal-title').textContent = isEdit ? '✎ Editar card' : '＋ Criar card';
     document.getElementById('card-del-btn').style.display = isEdit ? 'inline-block' : 'none';
     document.getElementById('card-save-another').style.display = isEdit ? 'none' : 'inline-block';
-    let destSel = '', topico = '', tipo = '', frente = '', verso = '', kind = 'basic';
+    let destSel = '', topico = '', banca = '', tipo = '', frente = '', verso = '', kind = 'basic';
     if (isEdit) {
       const c = DB.getCard(id);
       destSel = c.deckId ? 'deck:' + c.deckId : (c.materia ? 'sub:' + c.materia : '');
-      topico = c.topico || ''; tipo = c.tipo || ''; frente = c.frente || ''; verso = c.verso || ''; kind = c.kind || 'basic';
+      topico = c.topico || ''; banca = c.banca || ''; tipo = c.tipo || ''; frente = c.frente || ''; verso = c.verso || ''; kind = c.kind || 'basic';
     }
     document.getElementById('card-destino').innerHTML = this.destinoOptionsHtml(destSel);
     document.getElementById('card-topico').value = topico;
     const tops = [...new Set(DB.getCards().map(c => c.topico).filter(Boolean))].sort();
     document.getElementById('card-topico-list').innerHTML = tops.map(t => `<option value="${escapeHtml(t)}">`).join('');
+    // Banca: sugere as bancas já importadas na Incidência + as já usadas em outros cards
+    document.getElementById('card-banca').value = banca;
+    const bancasImport = (DB.getBancas ? DB.getBancas() : []);
+    const bancasCards = DB.getCards().map(c => c.banca).filter(Boolean);
+    const bancaOpts = [...new Set([...bancasImport, ...bancasCards])].sort();
+    document.getElementById('card-banca-list').innerHTML = bancaOpts.map(t => `<option value="${escapeHtml(t)}">`).join('');
     document.getElementById('card-tipo').value = tipo;
     // ao editar, o formato invertido não é reofertado (já são 2 cards); mostra básico/cloze
     const kindSel = document.getElementById('card-kind');
@@ -10414,6 +10620,7 @@ const CardsScreen = {
     }
     const data = {
       topico: document.getElementById('card-topico').value,
+      banca: document.getElementById('card-banca').value,
       tipo: document.getElementById('card-tipo').value,
       kind: kind === 'cloze' ? 'cloze' : 'basic',
       frente, verso: kind === 'cloze' ? '' : verso, deckId: null, materia: null,
@@ -10509,7 +10716,7 @@ const CardsScreen = {
     const lines = cards.map(c => {
       const front = CardEngine.plain(c.frente).replace(/\t/g, ' ').replace(/\n/g, '<br>');
       const back = CardEngine.plain(c.verso).replace(/\t/g, ' ').replace(/\n/g, '<br>');
-      const tags = [this.materiaLabel(c).replace('📁 ', ''), c.topico, c.tipo].filter(Boolean).map(t => t.replace(/\s+/g, '_')).join(' ');
+      const tags = [this.materiaLabel(c).replace('📁 ', ''), c.topico, c.banca, c.tipo].filter(Boolean).map(t => t.replace(/\s+/g, '_')).join(' ');
       return `${front}\t${back}\t${tags}`;
     });
     const header = '#separator:tab\n#html:true\n#tags column:3\n';
@@ -11691,29 +11898,37 @@ const DesempenhoTecScreen = {
         prev.style.color = 'var(--good)';
       }
     };
-    if (ext === 'xlsx' || ext === 'xls' || ext === 'csv') {
+    // CSV é texto puro: lê direto (funciona offline, sem biblioteca alguma)
+    if (ext === 'csv') {
+      const reader = new FileReader();
+      reader.onload = (e) => finish(TecEngine.parse(e.target.result));
+      reader.readAsText(file);
+      return;
+    }
+    // Fallback via SheetJS (usado só se o leitor embutido falhar OU para .xls antigo)
+    const trySheetJS = () => {
       if (typeof XLSX === 'undefined') {
-        prev.textContent = '⚠ Leitor de planilha indisponível (sem internet?). Abra o arquivo e cole os dados no campo abaixo.';
+        prev.textContent = (ext === 'xls')
+          ? '⚠ Formato .xls antigo requer internet. No Excel/Calc, salve como .xlsx e reenvie.'
+          : '⚠ Não consegui ler a planilha. Exporte como .csv ou cole os dados manualmente.';
         prev.style.color = 'var(--warn)';
         return;
       }
       const reader = new FileReader();
       reader.onload = (e) => {
         try {
-          // IMPORTANTE: SheetJS type:'array' espera Uint8Array (não ArrayBuffer cru) —
-          // passar o ArrayBuffer direto fazia o workbook vir vazio no navegador.
+          // IMPORTANTE: SheetJS type:'array' espera Uint8Array (não ArrayBuffer cru).
           const data = new Uint8Array(e.target.result);
           const wb = XLSX.read(data, { type: 'array', cellDates: false });
           const ws = wb.Sheets[wb.SheetNames[0]];
           if (!ws) { finish([]); return; }
-          // Caminho principal: converte a aba para TSV e usa o MESMO parser da colagem
-          // (que já funciona 100%). Isso elimina qualquer diferença de formato.
+          // Corrige o bug do <dimension> incorreto (arquivos LibreOffice): recalcula o range real
+          try { const ref = XLSX.utils.encode_range(XLSX.utils.decode_range(ws['!ref'])); ws['!ref'] = ref; } catch (e0) {}
           let rows = [];
           try {
             const tsv = XLSX.utils.sheet_to_csv(ws, { FS: '\t', RS: '\n', blankrows: false });
             rows = TecEngine.parse(tsv);
           } catch (e2) { rows = []; }
-          // Fallback: array-de-arrays, caso o TSV não produza resultado
           if (rows.length === 0) {
             const cellRows = XLSX.utils.sheet_to_json(ws, { header: 1, raw: false, defval: '' });
             rows = TecEngine.parseCellRows(cellRows);
@@ -11726,12 +11941,25 @@ const DesempenhoTecScreen = {
         }
       };
       reader.readAsArrayBuffer(file);
-    } else {
-      // txt/tsv: lê como texto e usa o parser de colagem
-      const reader = new FileReader();
-      reader.onload = (e) => finish(TecEngine.parse(e.target.result));
-      reader.readAsText(file);
+    };
+    if (ext === 'xls') { trySheetJS(); return; } // .xls binário antigo: só via SheetJS
+    if (ext === 'xlsx') {
+      // Leitor .xlsx EMBUTIDO como PRIMÁRIO: funciona offline e ignora o <dimension>
+      // incorreto que faz o SheetJS ler só o cabeçalho (0 linhas). SheetJS vira fallback.
+      prev.textContent = 'Lendo planilha…'; prev.style.color = 'var(--text-faint)';
+      MiniXLSX.readFirstSheet(file)
+        .then((res) => {
+          const rows = TecEngine.parseCellRows(res.rows);
+          if (rows.length === 0 && typeof XLSX !== 'undefined') { trySheetJS(); return; }
+          finish(rows);
+        })
+        .catch((err) => { console.error(err); trySheetJS(); });
+      return;
     }
+    // txt/tsv: lê como texto e usa o parser de colagem
+    const reader = new FileReader();
+    reader.onload = (e) => finish(TecEngine.parse(e.target.result));
+    reader.readAsText(file);
   },
   updateImportPreview() {
     // digitar no textarea descarta o arquivo carregado (a colagem passa a valer)
@@ -11827,21 +12055,60 @@ const DesempenhoTecScreen = {
     const list = document.getElementById('incid-bancas-list');
     if (bancas.length === 0) { card.style.display = 'none'; return; }
     card.style.display = 'block';
+    const all = DB.getIncidencia();
     list.innerHTML = bancas.map(b => {
-      const n = DB.getIncidencia().filter(r => r.banca === b).length;
-      return `<div class="incid-banca-row" data-banca="${escapeHtml(b)}">
-        <span class="incid-banca-name">${escapeHtml(b)}</span>
-        <span class="incid-banca-count">${n} tópico(s)</span>
-        <button type="button" class="icon-btn danger incid-banca-del" title="Excluir esta banca">×</button>
+      const rows = all.filter(r => r.banca === b);
+      const nTopicos = rows.length;
+      const soma = rows.reduce((s, r) => s + (r.incidencia || 0), 0);
+      // ordena por incidência desc para o detalhe (tópicos mais cobrados primeiro)
+      const ordenados = rows.slice().sort((a, c) => (c.incidencia || 0) - (a.incidencia || 0));
+      const detailRows = ordenados.map(r => {
+        const isDisc = (r.depth === 0);
+        return `<div class="incid-topic-row ${isDisc ? 'is-disc' : ''}" data-search="${escapeHtml(this._normSearch((r.topico || '') + ' ' + (r.disciplina || '')))}">
+          <span class="incid-topic-name" title="${escapeHtml(r.topico)}${r.disciplina ? ' — ' + escapeHtml(r.disciplina) : ''}">${escapeHtml(r.topico)}</span>
+          <span class="incid-topic-val">${r.incidencia || 0}</span>
+        </div>`;
+      }).join('');
+      return `<div class="incid-banca-block" data-banca="${escapeHtml(b)}">
+        <div class="incid-banca-row expandable">
+          <span class="incid-caret">▶</span>
+          <span class="incid-banca-name">${escapeHtml(b)}</span>
+          <span class="incid-banca-count">${nTopicos} tópico(s) · ${soma} questões</span>
+          <button type="button" class="icon-btn danger incid-banca-del" title="Excluir esta banca">×</button>
+        </div>
+        <div class="incid-detail">
+          <input type="text" class="incid-detail-search" placeholder="🔎 Filtrar tópicos desta banca...">
+          <div class="incid-detail-list">${detailRows || '<div class="incid-detail-empty">Nenhum tópico.</div>'}</div>
+        </div>
       </div>`;
     }).join('');
-    list.querySelectorAll('.incid-banca-row').forEach(row => {
-      row.querySelector('.incid-banca-del').addEventListener('click', () => {
-        const b = row.dataset.banca;
+    // interações: expandir/recolher, excluir, filtrar
+    list.querySelectorAll('.incid-banca-block').forEach(block => {
+      const head = block.querySelector('.incid-banca-row');
+      const del = block.querySelector('.incid-banca-del');
+      head.addEventListener('click', (e) => {
+        if (e.target.closest('.incid-banca-del')) return; // não expande ao clicar no X
+        block.classList.toggle('open');
+      });
+      del.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const b = block.dataset.banca;
         if (!confirm(`Excluir toda a incidência da banca "${b}"?`)) return;
         DB.clearIncidenciaBanca(b); this.renderIncidencia();
       });
+      const search = block.querySelector('.incid-detail-search');
+      const rowsEls = Array.from(block.querySelectorAll('.incid-topic-row'));
+      search.addEventListener('click', (e) => e.stopPropagation());
+      search.addEventListener('input', () => {
+        const q = this._normSearch(search.value);
+        rowsEls.forEach(el => {
+          el.style.display = (!q || el.dataset.search.includes(q)) ? '' : 'none';
+        });
+      });
     });
+  },
+  _normSearch(s) {
+    return String(s == null ? '' : s).normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/\s+/g, ' ').trim();
   },
   updateIncidPreview() {
     const banca = document.getElementById('incid-banca').value.trim();
@@ -11864,23 +12131,49 @@ const DesempenhoTecScreen = {
       if (rows.length === 0) { prev.textContent = '⚠ Nenhum tópico reconhecido no arquivo.'; prev.style.color = 'var(--warn)'; }
       else { prev.textContent = `✓ ${rows.length} tópico(s) reconhecido(s) para importar.`; prev.style.color = 'var(--good)'; }
     };
-    if (ext === 'xlsx' || ext === 'xls' || ext === 'csv') {
-      if (typeof XLSX === 'undefined') { prev.textContent = '⚠ Leitor de planilha indisponível. Cole os dados manualmente.'; prev.style.color = 'var(--warn)'; return; }
+    // CSV é texto puro: funciona offline sem biblioteca
+    if (ext === 'csv') {
+      const reader = new FileReader();
+      reader.onload = (e) => finish(ReforcoEngine.parseIncidencia(e.target.result, banca));
+      reader.readAsText(file);
+      return;
+    }
+    const trySheetJS = () => {
+      if (typeof XLSX === 'undefined') {
+        prev.textContent = (ext === 'xls')
+          ? '⚠ Formato .xls antigo requer internet. Salve como .xlsx e reenvie.'
+          : '⚠ Não consegui ler a planilha. Exporte como .csv ou cole os dados.';
+        prev.style.color = 'var(--warn)';
+        return;
+      }
       const reader = new FileReader();
       reader.onload = (e) => {
         try {
           const wb = XLSX.read(new Uint8Array(e.target.result), { type: 'array' });
           const ws = wb.Sheets[wb.SheetNames[0]];
+          try { ws['!ref'] = XLSX.utils.encode_range(XLSX.utils.decode_range(ws['!ref'])); } catch (e0) {}
           const tsv = XLSX.utils.sheet_to_csv(ws, { FS: '\t', RS: '\n', blankrows: false });
           finish(ReforcoEngine.parseIncidencia(tsv, banca));
         } catch (err) { prev.textContent = '⚠ Erro ao ler o arquivo.'; prev.style.color = 'var(--bad)'; }
       };
       reader.readAsArrayBuffer(file);
-    } else {
-      const reader = new FileReader();
-      reader.onload = (e) => finish(ReforcoEngine.parseIncidencia(e.target.result, banca));
-      reader.readAsText(file);
+    };
+    if (ext === 'xls') { trySheetJS(); return; }
+    if (ext === 'xlsx') {
+      // Leitor embutido como PRIMÁRIO (offline + ignora <dimension> incorreto). SheetJS = fallback.
+      prev.textContent = 'Lendo planilha…'; prev.style.color = 'var(--text-faint)';
+      MiniXLSX.readFirstSheet(file)
+        .then((res) => {
+          const rows = ReforcoEngine.parseIncidenciaCells(res.rows, banca);
+          if (rows.length === 0 && typeof XLSX !== 'undefined') { trySheetJS(); return; }
+          finish(rows);
+        })
+        .catch((err) => { console.error(err); trySheetJS(); });
+      return;
     }
+    const reader = new FileReader();
+    reader.onload = (e) => finish(ReforcoEngine.parseIncidencia(e.target.result, banca));
+    reader.readAsText(file);
   },
   saveIncidencia() {
     const banca = document.getElementById('incid-banca').value.trim();
