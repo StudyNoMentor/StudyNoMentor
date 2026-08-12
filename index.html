@@ -2087,13 +2087,19 @@
   .incid-detail { display: none; padding: 6px 4px 12px; }
   .incid-banca-block.open .incid-detail { display: block; }
   .incid-detail-search { width: 100%; margin: 4px 0 10px; padding: 8px 12px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface); color: var(--text); font-size: 12.5px; }
-  .incid-topic-row { display: grid; grid-template-columns: 1fr 54px; align-items: center; gap: 10px; padding: 5px 10px; border-radius: 7px; }
+  .incid-topic-row { display: grid; grid-template-columns: 1fr 96px 46px; align-items: center; gap: 10px; padding: 5px 10px; border-radius: 7px; }
   .incid-topic-row:nth-child(even) { background: var(--surface-sunken); }
-  .incid-topic-row.is-disc { font-weight: 800; color: var(--text); margin-top: 4px; }
+  .incid-topic-row.is-disc { font-weight: 800; color: var(--text); margin-top: 6px; background: var(--surface-sunken); }
   .incid-topic-name { font-size: 12.5px; color: var(--text-soft); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .incid-topic-row.is-disc .incid-topic-name { color: var(--text); }
+  .incid-topic-bar { height: 8px; background: var(--surface); border-radius: 20px; overflow: hidden; }
+  .incid-topic-bar > span { display: block; height: 100%; border-radius: 20px; background: var(--accent); }
+  .incid-topic-row.is-disc .incid-topic-bar > span { background: var(--good); }
   .incid-topic-val { font-family: 'Space Mono', monospace; font-size: 12px; font-weight: 700; color: var(--accent); text-align: right; }
+  .incid-topic-row.is-disc .incid-topic-val { color: var(--good); }
   .incid-detail-empty { padding: 10px; font-size: 12.5px; color: var(--text-faint); text-align: center; }
+  .incid-detail-summary { font-size: 12px; color: var(--text-soft); margin: 2px 2px 8px; }
+  .incid-detail-summary b { color: var(--text); }
   /* Reforço */
   .reforco-controls { display: flex; gap: 16px; align-items: flex-end; flex-wrap: wrap; }
   .reforco-slider { width: 100%; accent-color: var(--accent); cursor: pointer; margin-top: 4px; }
@@ -12056,20 +12062,27 @@ const DesempenhoTecScreen = {
     if (bancas.length === 0) { card.style.display = 'none'; return; }
     card.style.display = 'block';
     const all = DB.getIncidencia();
+    const autoOpen = (bancas.length === 1); // se só há uma banca, já abre o detalhe
     list.innerHTML = bancas.map(b => {
       const rows = all.filter(r => r.banca === b);
       const nTopicos = rows.length;
       const soma = rows.reduce((s, r) => s + (r.incidencia || 0), 0);
+      const nDisc = rows.filter(r => r.depth === 0).length;
+      const maxInc = Math.max(1, ...rows.map(r => r.incidencia || 0));
       // ordena por incidência desc para o detalhe (tópicos mais cobrados primeiro)
       const ordenados = rows.slice().sort((a, c) => (c.incidencia || 0) - (a.incidencia || 0));
       const detailRows = ordenados.map(r => {
         const isDisc = (r.depth === 0);
+        const inc = r.incidencia || 0;
+        const pct = Math.round((inc / maxInc) * 100);
+        const pctTotal = soma ? ((inc / soma) * 100).toFixed(1) : '0.0';
         return `<div class="incid-topic-row ${isDisc ? 'is-disc' : ''}" data-search="${escapeHtml(this._normSearch((r.topico || '') + ' ' + (r.disciplina || '')))}">
-          <span class="incid-topic-name" title="${escapeHtml(r.topico)}${r.disciplina ? ' — ' + escapeHtml(r.disciplina) : ''}">${escapeHtml(r.topico)}</span>
-          <span class="incid-topic-val">${r.incidencia || 0}</span>
+          <span class="incid-topic-name" title="${escapeHtml(r.topico)}${r.disciplina ? ' — ' + escapeHtml(r.disciplina) : ''} · ${pctTotal}% do total">${escapeHtml(r.topico)}</span>
+          <span class="incid-topic-bar"><span style="width:${pct}%"></span></span>
+          <span class="incid-topic-val" title="${inc} questão(ões) · ${pctTotal}% do total">${inc}</span>
         </div>`;
       }).join('');
-      return `<div class="incid-banca-block" data-banca="${escapeHtml(b)}">
+      return `<div class="incid-banca-block ${autoOpen ? 'open' : ''}" data-banca="${escapeHtml(b)}">
         <div class="incid-banca-row expandable">
           <span class="incid-caret">▶</span>
           <span class="incid-banca-name">${escapeHtml(b)}</span>
@@ -12077,6 +12090,7 @@ const DesempenhoTecScreen = {
           <button type="button" class="icon-btn danger incid-banca-del" title="Excluir esta banca">×</button>
         </div>
         <div class="incid-detail">
+          <div class="incid-detail-summary"><b>${nDisc}</b> disciplina(s) · <b>${nTopicos - nDisc}</b> subtópico(s) · <b>${soma}</b> questões no total. Barras = peso relativo ao tópico mais cobrado.</div>
           <input type="text" class="incid-detail-search" placeholder="🔎 Filtrar tópicos desta banca...">
           <div class="incid-detail-list">${detailRows || '<div class="incid-detail-empty">Nenhum tópico.</div>'}</div>
         </div>
@@ -12110,26 +12124,55 @@ const DesempenhoTecScreen = {
   _normSearch(s) {
     return String(s == null ? '' : s).normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/\s+/g, ' ').trim();
   },
+  // Fonte dos dados: 'file' (arquivo importado) ou 'paste' (textarea). Guardamos as
+  // linhas do arquivo separadamente para que digitar a banca NÃO apague a importação.
+  _incidFileRows: null,
   updateIncidPreview() {
-    const banca = document.getElementById('incid-banca').value.trim();
-    const text = document.getElementById('incid-text').value;
-    this._incidParsed = ReforcoEngine.parseIncidencia(text, banca || 'X');
     const prev = document.getElementById('incid-preview');
+    const text = document.getElementById('incid-text').value;
+    // Se há um arquivo importado e o textarea está vazio, mantemos as linhas do arquivo.
+    if (this._incidFileRows && !text.trim()) {
+      this._incidParsed = this._incidFileRows;
+      prev.textContent = `✓ ${this._incidFileRows.length} tópico(s) reconhecido(s) para importar (arquivo).`;
+      prev.style.color = 'var(--good)';
+      return;
+    }
+    // Caso o usuário cole texto, o textarea tem prioridade (e limpamos a fonte "arquivo").
+    if (text.trim()) this._incidFileRows = null;
+    const banca = document.getElementById('incid-banca').value.trim();
+    this._incidParsed = ReforcoEngine.parseIncidencia(text, banca || 'X');
     if (!text.trim()) { prev.textContent = 'Aguardando dados...'; prev.style.color = 'var(--text-faint)'; return; }
     if (this._incidParsed.length === 0) { prev.textContent = '⚠ Nenhuma linha reconhecida (use Disciplina · Tópico · Incidência).'; prev.style.color = 'var(--warn)'; }
     else { prev.textContent = `✓ ${this._incidParsed.length} tópico(s) reconhecido(s).`; prev.style.color = 'var(--good)'; }
+  },
+  // Sugere a sigla da banca a partir do nome do arquivo (ex.: "fcc 10 anos fiscal.xlsx" -> "FCC")
+  _bancaFromFilename(name) {
+    const base = String(name || '').replace(/\.[^.]+$/, '');
+    const m = base.match(/\b(fcc|fgv|cespe|cebraspe|vunesp|cespe|iades|quadrix|aocp|ibfc|consulplan|idecan|fumarc|instituto\s*aocp|esaf|cesgranrio|funrio|fundatec|ivin|selecon)\b/i);
+    if (m) return m[1].toUpperCase().replace(/\s+/g, ' ');
+    const first = base.split(/[\s_\-]+/)[0];
+    return (first && first.length <= 12) ? first.toUpperCase() : '';
   },
   handleIncidFile(file) {
     if (!file) return;
     const fn = document.getElementById('incid-file-name');
     fn.style.display = 'inline-flex'; fn.textContent = '📎 ' + file.name;
     const prev = document.getElementById('incid-preview');
-    const banca = document.getElementById('incid-banca').value.trim() || 'X';
+    // Autopreenche a banca pelo nome do arquivo, se o campo estiver vazio
+    const bancaEl = document.getElementById('incid-banca');
+    if (!bancaEl.value.trim()) {
+      const guess = this._bancaFromFilename(file.name);
+      if (guess) bancaEl.value = guess;
+    }
+    const banca = bancaEl.value.trim() || 'X';
     const ext = (file.name.split('.').pop() || '').toLowerCase();
     const finish = (rows) => {
+      // Guarda como fonte "arquivo" (protegido contra o input da banca) e limpa colagem
+      this._incidFileRows = rows;
       this._incidParsed = rows;
-      if (rows.length === 0) { prev.textContent = '⚠ Nenhum tópico reconhecido no arquivo.'; prev.style.color = 'var(--warn)'; }
-      else { prev.textContent = `✓ ${rows.length} tópico(s) reconhecido(s) para importar.`; prev.style.color = 'var(--good)'; }
+      document.getElementById('incid-text').value = '';
+      if (rows.length === 0) { this._incidFileRows = null; prev.textContent = '⚠ Nenhum tópico reconhecido no arquivo.'; prev.style.color = 'var(--warn)'; }
+      else { prev.textContent = `✓ ${rows.length} tópico(s) reconhecido(s) para importar. Confirme a banca e clique em Salvar.`; prev.style.color = 'var(--good)'; }
     };
     // CSV é texto puro: funciona offline sem biblioteca
     if (ext === 'csv') {
@@ -12178,18 +12221,23 @@ const DesempenhoTecScreen = {
   saveIncidencia() {
     const banca = document.getElementById('incid-banca').value.trim();
     if (!banca) { showToast('Informe a banca'); return; }
-    const rows = (this._incidParsed && this._incidParsed.length) ? this._incidParsed : ReforcoEngine.parseIncidencia(document.getElementById('incid-text').value, banca);
+    // Prioridade: linhas do arquivo importado → _incidParsed → reparse do textarea
+    let rows = (this._incidFileRows && this._incidFileRows.length) ? this._incidFileRows
+             : (this._incidParsed && this._incidParsed.length) ? this._incidParsed
+             : ReforcoEngine.parseIncidencia(document.getElementById('incid-text').value, banca);
     if (!rows || rows.length === 0) { showToast('Nenhum dado de incidência reconhecido'); return; }
-    // aplica a banca do campo (o parse pode ter usado placeholder)
+    // aplica a banca do campo (o parse pode ter usado placeholder 'X')
     rows.forEach(r => r.banca = banca);
     const replace = document.getElementById('incid-replace').checked;
-    DB.addIncidenciaRows(banca, rows, replace);
+    const n = DB.addIncidenciaRows(banca, rows, replace);
     document.getElementById('incid-text').value = '';
     document.getElementById('incid-file').value = '';
     document.getElementById('incid-file-name').style.display = 'none';
     this._incidParsed = null;
+    this._incidFileRows = null;
     document.getElementById('incid-preview').textContent = 'Aguardando dados...';
-    showToast(`${rows.length} tópico(s) de incidência salvos ✓`);
+    document.getElementById('incid-preview').style.color = 'var(--text-faint)';
+    showToast(`${n} tópico(s) de incidência salvos na banca ${banca} ✓`);
     this.renderIncidencia();
   },
   // ---- Reforço ----
