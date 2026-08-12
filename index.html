@@ -2169,6 +2169,38 @@
   .rfd-extra { margin-top: 8px; font-size: 11.5px; color: var(--text-soft); display: flex; flex-direction: column; gap: 4px; }
   .rfd-extra b { color: var(--text); }
   .rfd-badge-ok { font-size: 10.5px; font-weight: 700; padding: 2px 9px; border-radius: 20px; color: var(--good); background: var(--good-soft); }
+  /* ===== Reforço — interface redesenhada ===== */
+  .rfc-section { padding: 4px 24px 0; }
+  /* barra principal de controles */
+  .rfc-toolbar { display: flex; gap: 16px; align-items: flex-end; flex-wrap: wrap; padding: 14px 24px 6px; }
+  .rfc-field { display: flex; flex-direction: column; gap: 5px; min-width: 150px; }
+  .rfc-field.wide { flex: 1; min-width: 230px; }
+  .rfc-field > label { font-size: 11px; font-weight: 700; color: var(--text-faint); text-transform: uppercase; letter-spacing: 0.03em; }
+  .rfc-field .lbl-accent { color: var(--accent); text-transform: none; letter-spacing: 0; }
+  .rfc-field select, .rfc-field input[type="number"] { padding: 8px 10px; border-radius: 9px; border: 1.5px solid var(--border); background: var(--surface-sunken); color: var(--text); font-size: 13px; }
+  .rfc-field input[type="number"] { width: 100px; text-align: center; }
+  .rfc-adv-btn { margin-left: auto; align-self: flex-end; background: var(--surface-sunken); border: 1.5px solid var(--border); color: var(--text-soft); border-radius: 9px; padding: 8px 14px; font-size: 12.5px; font-weight: 700; cursor: pointer; display: flex; align-items: center; gap: 6px; transition: all 0.15s; }
+  .rfc-adv-btn:hover { border-color: var(--accent); color: var(--text); }
+  .rfc-adv-btn .chev { transition: transform 0.18s ease; display: inline-block; }
+  .rfc-adv-btn[aria-expanded="true"] .chev { transform: rotate(90deg); }
+  .rfc-advanced { padding: 6px 24px 10px; animation: rfcSlide 0.18s ease; }
+  @keyframes rfcSlide { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: none; } }
+  .rfc-adv-grid { display: flex; gap: 18px; align-items: flex-end; flex-wrap: wrap; background: var(--surface-sunken); border: 1px solid var(--border); border-radius: 12px; padding: 14px 16px; }
+  /* rótulo explícito de ordenação */
+  .rfc-orderlabel { padding: 8px 24px 0; font-size: 12px; color: var(--text-soft); display: flex; align-items: center; gap: 8px; }
+  .rfc-orderlabel .oi { font-size: 13px; }
+  .rfc-orderlabel b { color: var(--text); }
+  .rfc-status { padding: 6px 24px 0; }
+  .rfc-list { padding: 8px 24px 24px; }
+  /* selo de MOTIVO (por que subiu no ranking) */
+  .reforco-motivo { font-size: 10.5px; font-weight: 800; padding: 2px 8px; border-radius: 20px; white-space: nowrap; display: inline-flex; align-items: center; gap: 3px; }
+  .reforco-motivo.m-erro { color: var(--bad); background: var(--bad-soft); }
+  .reforco-motivo.m-incidencia { color: var(--accent); background: var(--accent-soft); }
+  .reforco-motivo.m-equilibrio { color: var(--text-soft); background: var(--surface-sunken); border: 1px solid var(--border); }
+  .reforco-row.is-semclass { opacity: 0.62; }
+  .reforco-tag.semclass { color: var(--text-faint); background: var(--surface-sunken); border: 1px dashed var(--border-strong); }
+  /* cards laterais mais limpos */
+  .rfc-side-body { padding: 8px 24px 20px; }
   .reforco-tag.semincid { color: var(--text-faint); background: var(--surface-sunken); border: 1px dashed var(--border-strong); }
   .reforco-tag.selo-fraco { color: var(--bad); background: var(--bad-soft); }
   .reforco-tag.selo-atencao { color: var(--warn); background: var(--warn-soft); }
@@ -4759,60 +4791,86 @@
 
       <!-- ABA REFORÇO -->
       <div id="tec-panel-reforco" style="display:none;">
-        <div class="card">
+        <div class="card rfc-card">
           <div class="card-header">
             <div>
               <h2>🎯 Reforço inteligente</h2>
-              <p class="sub">Onde investir seu tempo para <strong>ganhar mais pontos</strong>: cruza seu desempenho (escopo atual) com a incidência da banca, na <strong>melhor granularidade de cada ramo</strong>.</p>
+              <p class="sub">Onde investir seu tempo para <strong>ganhar mais pontos</strong>: cruza seu desempenho com a incidência da banca.</p>
             </div>
           </div>
-          <div style="padding: 14px 24px 8px;">
-            <div class="reforco-controls">
-              <div class="field" style="margin-bottom:0; min-width:180px;">
-                <label>Banca-alvo</label>
-                <select id="reforco-banca"></select>
+
+          <!-- 1) BANNER de projeção (destaque no topo) -->
+          <div id="reforco-proj" class="rfc-section"></div>
+
+          <!-- 2) BARRA principal: banca + visão + ordenação (o essencial, sempre visível) -->
+          <div class="rfc-toolbar">
+            <div class="rfc-field">
+              <label>Banca-alvo</label>
+              <select id="reforco-banca"></select>
+            </div>
+            <div class="rfc-field">
+              <label>Visão</label>
+              <div class="scope-toggle" id="reforco-view-toggle">
+                <button type="button" data-view="global" class="active">🏆 Ranking</button>
+                <button type="button" data-view="disc">📚 Disciplinas</button>
               </div>
-              <div class="field" style="margin-bottom:0; flex:1; min-width:240px;">
-                <label>Estratégia: <span id="reforco-estrat-label">equilíbrio</span></label>
+            </div>
+            <div class="rfc-field">
+              <label>Ordenar por</label>
+              <select id="reforco-ordenar">
+                <option value="oportunidade" selected>🎯 Oportunidade de pontos</option>
+                <option value="erro">🔴 Maior erro (mais fraco)</option>
+                <option value="incidencia">🏛️ Maior incidência</option>
+              </select>
+            </div>
+            <button type="button" class="rfc-adv-btn" id="reforco-adv-btn" aria-expanded="false">
+              <span class="chev">▸</span> Ajustes avançados
+            </button>
+          </div>
+
+          <!-- 3) AJUSTES AVANÇADOS (recolhível — tira a poluição da tela) -->
+          <div class="rfc-advanced" id="reforco-advanced" hidden>
+            <div class="rfc-adv-grid">
+              <div class="rfc-field wide">
+                <label>Estratégia: <span id="reforco-estrat-label" class="lbl-accent">equilíbrio</span></label>
                 <input type="range" id="reforco-estrat" min="0" max="100" value="50" class="reforco-slider">
-                <div class="reforco-slider-legend"><span>Recuperar pontos fracos</span><span>Maximizar incidência</span></div>
+                <div class="reforco-slider-legend"><span>Recuperar erros</span><span>Maximizar incidência</span></div>
               </div>
-              <div class="field" style="margin-bottom:0; flex:1; min-width:240px;">
-                <label>Granularidade: <span id="reforco-gran-label">Assunto (auto)</span></label>
+              <div class="rfc-field wide">
+                <label>Granularidade: <span id="reforco-gran-label" class="lbl-accent">Assunto (auto)</span></label>
                 <input type="range" id="reforco-gran" min="0" max="100" value="50" class="reforco-slider">
                 <div class="reforco-slider-legend"><span>Disciplina</span><span>Assunto</span><span>Tópico</span></div>
               </div>
-              <div class="field" style="margin-bottom:0; min-width:120px;">
+              <div class="rfc-field">
                 <label>Mín. de questões</label>
-                <input type="number" id="reforco-minq" min="1" value="10" style="width:90px; text-align:center;">
+                <input type="number" id="reforco-minq" min="1" value="10">
               </div>
-              <div class="field" style="margin-bottom:0; min-width:120px;">
+              <div class="rfc-field">
                 <label>Qtd. de tópicos</label>
-                <input type="number" id="reforco-limite" min="1" value="12" style="width:90px; text-align:center;">
+                <input type="number" id="reforco-limite" min="1" value="12">
               </div>
             </div>
           </div>
-          <!-- Alternador de visão: ranking global x por disciplina -->
-          <div style="padding: 2px 24px 0;">
-            <div class="scope-toggle" id="reforco-view-toggle">
-              <button type="button" data-view="global" class="active">🏆 Ranking global</button>
-              <button type="button" data-view="disc">📚 Por disciplina</button>
-            </div>
-          </div>
-          <!-- Banner: média projetada e potencial -->
-          <div id="reforco-proj" style="padding: 8px 24px 0;"></div>
-          <p class="hint" id="reforco-status" style="padding: 6px 24px 0;"></p>
-          <div style="padding: 6px 24px 24px;" id="reforco-list"></div>
+
+          <!-- 4) RÓTULO explícito da ordenação (didático) -->
+          <div class="rfc-orderlabel" id="reforco-orderlabel"></div>
+
+          <!-- status compacto -->
+          <p class="hint rfc-status" id="reforco-status"></p>
+
+          <!-- 5) LISTA -->
+          <div class="rfc-list" id="reforco-list"></div>
         </div>
-        <!-- Cards secundários: pontos cegos e sobre-investimento -->
+
+        <!-- Cards secundários: só na visão Ranking (na visão Disciplinas já aparecem embutidos) -->
         <div class="reforco-side-grid">
-          <div class="card" id="reforco-blind-card" style="display:none;">
-            <div class="card-header"><div><h2>🕳️ Pontos cegos</h2><p class="sub">Alta incidência, você quase não praticou — risco silencioso (fora do ranking de erros)</p></div></div>
-            <div style="padding: 8px 24px 20px;" id="reforco-blind-list"></div>
+          <div class="card rfc-side" id="reforco-blind-card" style="display:none;">
+            <div class="card-header"><div><h2>🕳️ Pontos cegos</h2><p class="sub">Alta incidência, você quase não praticou — risco silencioso</p></div></div>
+            <div class="rfc-side-body" id="reforco-blind-list"></div>
           </div>
-          <div class="card" id="reforco-over-card" style="display:none;">
-            <div class="card-header"><div><h2>⚖️ Possível sobre-investimento</h2><p class="sub">Você treina muito além do peso do tópico na banca</p></div></div>
-            <div style="padding: 8px 24px 20px;" id="reforco-over-list"></div>
+          <div class="card rfc-side" id="reforco-over-card" style="display:none;">
+            <div class="card-header"><div><h2>⚖️ Sobre-investimento</h2><p class="sub">Você treina muito além do peso do tópico na banca</p></div></div>
+            <div class="rfc-side-body" id="reforco-over-list"></div>
           </div>
         </div>
       </div>
@@ -6440,6 +6498,12 @@ const ReforcoEngine = {
     return /^total\b/.test(k) || /total\s+(assunto|geral|de\s+assunto|por\s+relev)/.test(k)
         || /frequencia\s+acumulada/.test(k) || /^indice\s+do\s+caderno$/.test(k);
   },
+  // "Sem Classificação" é um balde genérico do índice do TEC (questões sem assunto próprio).
+  // Não é um tópico acionável de estudo — marcamos para rebaixar no ranking.
+  _isSemClass(nome) {
+    const k = this.norm(nome);
+    return /sem\s+classifica/.test(k) || /nao\s+classificad/.test(k) || /outros\s*$/.test(k);
+  },
   _parseIndiceCaderno(cellRows, bancaFixa) {
     const banca = (bancaFixa || 'X');
     const rows = TecEngine.parseCellRows(cellRows); // r.questoes = 1º número = "Quantidade encontrada"
@@ -6720,8 +6784,20 @@ const ReforcoEngine = {
     const overinvest = units.filter(u => u.q >= Qmin && u.shareEsforco > 2 * u.shareBanca + 0.005)
       .sort((a, b) => (b.shareEsforco - b.shareBanca) - (a.shareEsforco - a.shareBanca));
 
-    const items = mainPool.map(u => {
+    // "share" de erro e de incidência da unidade (para descobrir o FATOR DOMINANTE na ordem)
+    const maxErr = Math.max(0.01, ...mainPool.map(u => u.errS));
+    const maxN = Math.max(1, ...mainPool.map(u => u.N));
+    // constrói um item padronizado (com motivo #3 e flag sem-classificação #4)
+    const buildItem = (u) => {
       const rec = recuperaveis(u);
+      const relErro = u.errS / maxErr;   // 0..1 — quão forte é o erro deste tópico
+      const relIncid = u.N / maxN;       // 0..1 — quão forte é a incidência
+      // motivo: o que mais "puxou" o item para cima (com o peso atual da estratégia)
+      const contribErro = Math.pow(relErro, wE);
+      const contribIncid = Math.pow(relIncid, wI);
+      let motivo = 'equilibrio';
+      if (contribIncid > contribErro * 1.35) motivo = 'incidencia';
+      else if (contribErro > contribIncid * 1.35) motivo = 'erro';
       return {
         codigo: u.codigo, nome: u.nome, disciplina: u.disciplina,
         incidencia: u.N, questoes: u.q, acertos: Math.round(u.pac * u.q),
@@ -6732,25 +6808,22 @@ const ReforcoEngine = {
         score: score(u),
         selo: (u.err >= 0.30 ? 'fraco' : (u.err >= 0.15 ? 'atencao' : 'ok')),
         nivel: this._depth(u.codigo),
-        temIncid: u.N > 0
+        temIncid: u.N > 0,
+        motivo,                                   // #3 fator dominante
+        semClass: this._isSemClass(u.nome)        // #4 "Sem Classificação"
       };
-    }).sort((a, b) => b.score - a.score).slice(0, limite);
-
-    // ---- TODOS os itens de erro (não cortados) p/ a visão por disciplina ----
-    const allItems = mainPool.map(u => {
-      const rec = recuperaveis(u);
-      return {
-        codigo: u.codigo, nome: u.nome, disciplina: u.disciplina,
-        incidencia: u.N, questoes: u.q, acertos: Math.round(u.pac * u.q),
-        erros: Math.round((1 - u.pac) * u.q),
-        taxaErro: Math.round((u.err || 0) * 1000) / 10,
-        pctAcerto: Math.round(u.pac * 1000) / 10,
-        pontosRecuperaveis: Math.round(rec * 10) / 10,
-        score: score(u),
-        selo: (u.err >= 0.30 ? 'fraco' : (u.err >= 0.15 ? 'atencao' : 'ok')),
-        nivel: this._depth(u.codigo), temIncid: u.N > 0
-      };
-    }).sort((a, b) => b.score - a.score);
+    };
+    // ordenação conforme #1: 'oportunidade' (score) | 'erro' | 'incidencia'
+    const ordenarPor = opts.ordenarPor || 'oportunidade';
+    const sortFn = (a, b) => {
+      // "Sem Classificação" sempre por último (é um balde genérico, pouco acionável)
+      if (a.semClass !== b.semClass) return a.semClass ? 1 : -1;
+      if (ordenarPor === 'erro') return b.taxaErro - a.taxaErro || b.incidencia - a.incidencia;
+      if (ordenarPor === 'incidencia') return b.incidencia - a.incidencia || b.taxaErro - a.taxaErro;
+      return b.score - a.score || b.incidencia - a.incidencia; // oportunidade (padrão)
+    };
+    const allItems = mainPool.map(buildItem).sort(sortFn);
+    const items = allItems.slice(0, limite);
 
     // ---- agrupa POR DISCIPLINA (para a visão direcionada) ----
     const topPorDisc = opts.topPorDisc || 5;
@@ -6779,7 +6852,12 @@ const ReforcoEngine = {
       nItens: g.itens.length,
       cegos: g.cegos.slice(0, 5),
       over: g.over.slice(0, 3)
-    })).sort((a, b) => b.pontosRec - a.pontosRec || b.incidencia - a.incidencia);
+    })).sort((a, b) => {
+      // ordena as disciplinas conforme o mesmo critério escolhido
+      if (ordenarPor === 'erro') return (a.pctAcerto == null ? 999 : a.pctAcerto) - (b.pctAcerto == null ? 999 : b.pctAcerto) || b.pontosRec - a.pontosRec;
+      if (ordenarPor === 'incidencia') return b.incidencia - a.incidencia || b.pontosRec - a.pontosRec;
+      return b.pontosRec - a.pontosRec || b.incidencia - a.incidencia; // oportunidade
+    });
 
     // projeção da média (sobre a parte coberta) e potencial se dominar o TOP
     const covered = units.filter(u => u.q > 0);
@@ -6797,6 +6875,7 @@ const ReforcoEngine = {
       projAtual: Math.round(projAtual * 1000) / 10,
       projPotencial: Math.round(projPotencial * 1000) / 10,
       cobertura, confianca: conf,
+      ordenarPor,
       items, porDisciplina,
       blindSpots: blindPool.slice(0, 8).map(u => ({ nome: u.nome, disciplina: u.disciplina, incidencia: u.N, questoes: u.q })),
       overinvest: overinvest.slice(0, 6).map(u => ({ nome: u.nome, disciplina: u.disciplina, questoes: u.q, incidencia: u.N, fatiaEsforco: Math.round(u.shareEsforco * 1000) / 10, fatiaBanca: Math.round(u.shareBanca * 1000) / 10 })),
@@ -12861,13 +12940,27 @@ const DesempenhoTecScreen = {
       return;
     }
     const gEl = document.getElementById('reforco-gran');
+    const ordEl = document.getElementById('reforco-ordenar');
+    const ordenarPor = ordEl ? ordEl.value : 'oportunidade';
     const res = ReforcoEngine.suggestFrontier(snap, {
       banca: document.getElementById('reforco-banca').value,
       estrategia: parseInt(document.getElementById('reforco-estrat').value) / 100,
       granularidade: gEl ? parseInt(gEl.value) / 100 : 0.5,
       minQuestoes: parseInt(document.getElementById('reforco-minq').value) || 10,
-      limite: parseInt(document.getElementById('reforco-limite').value) || 12
+      limite: parseInt(document.getElementById('reforco-limite').value) || 12,
+      ordenarPor
     });
+    // Rótulo explícito de ordenação (#2 didático)
+    const olEl = document.getElementById('reforco-orderlabel');
+    if (olEl) {
+      const map = {
+        oportunidade: ['🎯', 'Ordenado por <b>oportunidade de pontos</b> (erro × incidência × zona de virada) — do que mais rende ao que menos rende.'],
+        erro: ['🔴', 'Ordenado por <b>maior erro</b> — do tópico em que você mais erra ao que menos erra.'],
+        incidencia: ['🏛️', 'Ordenado por <b>maior incidência</b> — do assunto mais cobrado pela banca ao menos cobrado.']
+      };
+      const m = map[ordenarPor] || map.oportunidade;
+      olEl.innerHTML = `<span class="oi">${m[0]}</span> <span>${m[1]}</span>`;
+    }
     // Banner de projeção da média (só quando há incidência cadastrada)
     if (projEl) {
       if (res.hasAnyIncid && res.cobertura > 0) {
@@ -12892,10 +12985,12 @@ const DesempenhoTecScreen = {
     } else {
       this._renderReforcoGlobal(list, res);
     }
+    // Na visão "por disciplina" os cards laterais já entram embutidos → escondemos aqui
+    const discView = (this.reforcoView || 'global') === 'disc';
     // 🕳️ Pontos cegos (alta incidência, pouca prática) — fora do ranking de erros
     const blindCard = document.getElementById('reforco-blind-card');
     const blindList = document.getElementById('reforco-blind-list');
-    if (res.blindSpots && res.blindSpots.length) {
+    if (!discView && res.blindSpots && res.blindSpots.length) {
       blindCard.style.display = 'block';
       blindList.innerHTML = res.blindSpots.map(b => `
         <div class="reforco-mini">
@@ -12906,7 +13001,7 @@ const DesempenhoTecScreen = {
     // ⚖️ Sobre-investimento
     const overCard = document.getElementById('reforco-over-card');
     const overList = document.getElementById('reforco-over-list');
-    if (res.overinvest && res.overinvest.length) {
+    if (!discView && res.overinvest && res.overinvest.length) {
       overCard.style.display = 'block';
       overList.innerHTML = res.overinvest.map(o => `
         <div class="reforco-mini">
@@ -12919,18 +13014,30 @@ const DesempenhoTecScreen = {
   _reforcoItemHtml(it, rank) {
     const tone = it.pctAcerto >= 70 ? 'good' : it.pctAcerto >= 50 ? 'warn' : 'bad';
     const seloTxt = it.selo === 'fraco' ? '🔥 fraco' : it.selo === 'atencao' ? '⚠️ atenção' : '• ok';
+    // #3 — por que este item está nesta posição (fator dominante)
+    const motivoMap = {
+      erro: ['m-erro', '🔴 subiu pelo erro'],
+      incidencia: ['m-incidencia', '🎯 subiu pela incidência'],
+      equilibrio: ['m-equilibrio', '⚖️ erro + incidência']
+    };
+    const mv = motivoMap[it.motivo] || motivoMap.equilibrio;
+    const motivoHtml = `<span class="reforco-motivo ${mv[0]}" title="Fator que mais pesou para esta posição no ranking">${mv[1]}</span>`;
+    // #4 — "Sem Classificação": marca e esmaece
+    const semClassTag = it.semClass ? `<span class="reforco-tag semclass" title="Balde genérico do índice do TEC — pouco acionável para estudo">sem classificação</span>` : '';
     return `
-      <div class="reforco-row">
+      <div class="reforco-row ${it.semClass ? 'is-semclass' : ''}">
         <div class="reforco-rank">${rank}</div>
         <div class="reforco-main">
           <div class="reforco-topico">${escapeHtml(it.nome)}</div>
           <div class="reforco-meta">
             <span class="reforco-tag selo-${it.selo}">${seloTxt}</span>
+            ${motivoHtml}
             <span class="reforco-tag nivel">nível ${it.nivel}</span>
             <span class="reforco-tag tone-${tone}">${it.taxaErro}% erro · ${it.erros}/${it.questoes}</span>
             ${it.temIncid
               ? `<span class="reforco-tag incid">incidência ${it.incidencia}</span><span class="reforco-tag pts">~${it.pontosRecuperaveis} pts recuperáveis</span>`
               : `<span class="reforco-tag semincid">sem incidência</span>`}
+            ${semClassTag}
           </div>
         </div>
       </div>`;
@@ -13347,6 +13454,7 @@ document.getElementById('tec-weak-disc').addEventListener('change', (e) => {
   on('reforco-limite', 'input', () => DT.renderReforcoList());
   on('reforco-estrat', 'input', () => { DT.updateEstratLabel(); DT.renderReforcoList(); });
   on('reforco-gran', 'input', () => { DT.updateGranLabel(); DT.renderReforcoList(); });
+  on('reforco-ordenar', 'change', () => DT.renderReforcoList()); // #1 Ordenar por
   // alternador de visão: ranking global x por disciplina
   const vt = document.getElementById('reforco-view-toggle');
   if (vt) vt.addEventListener('click', (e) => {
@@ -13358,6 +13466,14 @@ document.getElementById('tec-weak-disc').addEventListener('change', (e) => {
     const side = document.querySelector('.reforco-side-grid');
     if (side) side.style.display = (DT.reforcoView === 'disc') ? 'none' : '';
     DT.renderReforcoList();
+  });
+  // painel de ajustes avançados (recolhível)
+  const advBtn = document.getElementById('reforco-adv-btn');
+  const advPanel = document.getElementById('reforco-advanced');
+  if (advBtn && advPanel) advBtn.addEventListener('click', () => {
+    const open = advPanel.hasAttribute('hidden');
+    if (open) advPanel.removeAttribute('hidden'); else advPanel.setAttribute('hidden', '');
+    advBtn.setAttribute('aria-expanded', open ? 'true' : 'false');
   });
 })();
 window.addEventListener('screen:activated', (e) => {
