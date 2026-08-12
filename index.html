@@ -2075,6 +2075,15 @@
   .tec-subtab { background: var(--surface); border: 1.5px solid var(--border); border-radius: 20px; padding: 8px 16px; font-size: 13px; font-weight: 700; color: var(--text-soft); cursor: pointer; transition: all 0.14s ease; }
   .tec-subtab:hover { border-color: var(--border-strong); color: var(--text); }
   .tec-subtab.active { background: var(--accent-soft); border-color: var(--accent); color: var(--accent); }
+  /* Escopo da análise: seleção de retratos + intervalo */
+  .tec-scope-actions { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; flex-wrap: wrap; }
+  .tec-scope-list { display: flex; flex-direction: column; gap: 6px; max-height: 260px; overflow-y: auto; padding: 2px; }
+  .tec-snap-pick { display: grid; grid-template-columns: 20px 1fr auto auto; align-items: center; gap: 10px; padding: 8px 12px; border: 1px solid var(--border); border-radius: 10px; background: var(--surface-sunken); cursor: pointer; }
+  .tec-snap-pick:hover { border-color: var(--accent); }
+  .tec-snap-pick input { width: auto; margin: 0; }
+  .tec-snap-pick .tsp-main { font-size: 12.5px; color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .tec-snap-pick .tsp-stats { font-family: 'Space Mono', monospace; font-size: 11.5px; color: var(--text-soft); white-space: nowrap; }
+  .tec-snap-pick .tsp-del { padding: 4px 8px; }
   /* Incidência: lista de bancas */
   .incid-banca-row { display: flex; align-items: center; gap: 12px; padding: 10px 12px; border: 1px solid var(--border); border-radius: 10px; background: var(--surface-sunken); margin-bottom: 8px; }
   .incid-banca-row.expandable { cursor: pointer; }
@@ -2118,6 +2127,32 @@
   .reforco-tag.incid { color: var(--accent); background: var(--accent-soft); }
   .reforco-tag.pts { color: #fff; background: var(--accent); }
   .reforco-tag.semincid { color: var(--text-faint); background: var(--surface-sunken); border: 1px dashed var(--border-strong); }
+  .reforco-tag.selo-fraco { color: var(--bad); background: var(--bad-soft); }
+  .reforco-tag.selo-atencao { color: var(--warn); background: var(--warn-soft); }
+  .reforco-tag.selo-ok { color: var(--good); background: var(--good-soft); }
+  .reforco-tag.nivel { color: var(--text-soft); background: var(--surface-sunken); border: 1px solid var(--border); }
+  /* Banner de projeção da média */
+  .reforco-proj-banner { display: flex; align-items: center; gap: 18px; flex-wrap: wrap; background: linear-gradient(180deg, var(--accent-soft), var(--surface) 92%); border: 1.5px solid var(--accent); border-radius: 14px; padding: 14px 18px; margin-bottom: 6px; }
+  .reforco-proj-item { display: flex; flex-direction: column; }
+  .reforco-proj-item .pv { font-family: 'Space Mono', monospace; font-weight: 800; font-size: 24px; color: var(--text); line-height: 1; }
+  .reforco-proj-item .pv.now { color: var(--good); }
+  .reforco-proj-item .pv.pot { color: var(--accent); }
+  .reforco-proj-item .pl { font-size: 10.5px; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; color: var(--text-faint); margin-top: 4px; }
+  .reforco-proj-arrow { font-size: 20px; color: var(--text-faint); align-self: center; }
+  .reforco-proj-note { font-size: 11.5px; color: var(--text-soft); margin-left: auto; max-width: 34ch; line-height: 1.4; }
+  .reforco-conf { font-size: 10px; font-weight: 700; letter-spacing: 0.03em; text-transform: uppercase; padding: 2px 8px; border-radius: 12px; margin-left: 6px; }
+  .reforco-conf.alta { color: var(--good); background: var(--good-soft); }
+  .reforco-conf.media { color: var(--warn); background: var(--warn-soft); }
+  .reforco-conf.baixa { color: var(--bad); background: var(--bad-soft); }
+  /* Cards secundários */
+  .reforco-side-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-top: 16px; }
+  @media (max-width: 820px) { .reforco-side-grid { grid-template-columns: 1fr; } }
+  .reforco-mini { display: grid; grid-template-columns: 1fr auto; align-items: center; gap: 10px; padding: 9px 10px; border-radius: 9px; }
+  .reforco-mini:nth-child(even) { background: var(--surface-sunken); }
+  .reforco-mini .rm-name { font-size: 13px; font-weight: 600; color: var(--text); }
+  .reforco-mini .rm-sub { font-size: 10.5px; color: var(--text-faint); text-transform: uppercase; letter-spacing: 0.03em; margin-top: 2px; }
+  .reforco-mini .rm-val { font-family: 'Space Mono', monospace; font-size: 12px; font-weight: 700; color: var(--accent); text-align: right; white-space: nowrap; }
+  .reforco-mini .rm-val small { display: block; color: var(--text-faint); font-weight: 400; }
   .reforco-actions { display: flex; gap: 6px; }
   .reforco-act { width: 34px; height: 34px; border-radius: 9px; border: 1.5px solid var(--border); background: var(--surface); display: flex; align-items: center; justify-content: center; font-size: 15px; cursor: pointer; text-decoration: none; transition: all 0.13s ease; }
   .reforco-act:hover { border-color: var(--accent); background: var(--accent-soft); transform: translateY(-1px); }
@@ -4541,19 +4576,42 @@
 
     <!-- Análise do snapshot mais recente -->
     <div id="tec-analysis" style="display:none;">
-      <!-- Barra superior: seletor de snapshot + ações -->
+      <!-- Barra superior: ESCOPO da análise (consolidado / seleção / intervalo) + ações -->
       <div class="card">
-        <div style="padding: 16px 24px; display:flex; align-items:center; justify-content:space-between; gap:14px; flex-wrap:wrap;">
-          <div style="display:flex; align-items:center; gap:12px; flex-wrap:wrap;">
-            <div class="field" style="margin-bottom:0;">
-              <label for="tec-snap-select" style="margin-bottom:4px;">Retrato</label>
-              <select id="tec-snap-select" style="min-width:220px;"></select>
+        <div style="padding: 16px 24px;">
+          <div style="display:flex; align-items:center; justify-content:space-between; gap:14px; flex-wrap:wrap; margin-bottom:8px;">
+            <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
+              <span class="section-label" style="margin:0;">Escopo da análise</span>
+              <div class="scope-toggle" id="tec-scope-toggle">
+                <button type="button" data-scope="consolidado" class="active">Consolidado (todos)</button>
+                <button type="button" data-scope="select">Selecionar retratos</button>
+                <button type="button" data-scope="range">Intervalo de datas</button>
+              </div>
             </div>
-            <span class="hint" id="tec-snap-meta" style="margin-top:14px;"></span>
-          </div>
-          <div style="display:flex; gap:8px;">
             <button class="btn-secondary" id="tec-btn-new-import" type="button">+ Nova importação</button>
-            <button class="icon-btn danger" id="tec-btn-delete-snap" type="button" title="Excluir este retrato">× Excluir</button>
+          </div>
+          <span class="hint" id="tec-snap-meta"></span>
+          <!-- Painel: seleção de retratos específicos (aparece no modo "Selecionar") -->
+          <div id="tec-scope-select" style="display:none; margin-top:12px;"></div>
+          <!-- Painel: intervalo de datas (aparece no modo "Intervalo") -->
+          <div id="tec-scope-range" style="display:none; margin-top:12px;">
+            <div style="display:flex; gap:12px; align-items:flex-end; flex-wrap:wrap;">
+              <div class="field" style="margin-bottom:0;">
+                <label for="tec-range-start" style="margin-bottom:4px;">De</label>
+                <input type="date" id="tec-range-start">
+              </div>
+              <div class="field" style="margin-bottom:0;">
+                <label for="tec-range-end" style="margin-bottom:4px;">Até</label>
+                <input type="date" id="tec-range-end">
+              </div>
+              <div style="display:flex; gap:8px; flex-wrap:wrap; padding-bottom:2px;">
+                <button type="button" class="btn-secondary tec-range-quick" data-range="3">Últimos 3 meses</button>
+                <button type="button" class="btn-secondary tec-range-quick" data-range="6">6 meses</button>
+                <button type="button" class="btn-secondary tec-range-quick" data-range="12">1 ano</button>
+                <button type="button" class="btn-secondary tec-range-quick" data-range="all">Tudo</button>
+              </div>
+            </div>
+            <p class="hint" id="tec-range-hint" style="margin-top:8px;">Inclui todo retrato cujo período se sobrepõe ao intervalo escolhido.</p>
           </div>
         </div>
       </div>
@@ -4662,7 +4720,7 @@
           <div class="card-header">
             <div>
               <h2>🎯 Reforço inteligente</h2>
-              <p class="sub">Onde investir seu tempo para <strong>ganhar mais pontos</strong>: cruza seu nível atual (último retrato) com a incidência da banca.</p>
+              <p class="sub">Onde investir seu tempo para <strong>ganhar mais pontos</strong>: cruza seu desempenho (escopo atual) com a incidência da banca, na <strong>melhor granularidade de cada ramo</strong>.</p>
             </div>
           </div>
           <div style="padding: 14px 24px 8px;">
@@ -4671,23 +4729,41 @@
                 <label>Banca-alvo</label>
                 <select id="reforco-banca"></select>
               </div>
-              <div class="field" style="margin-bottom:0; min-width:120px;">
-                <label>Mín. de questões</label>
-                <input type="number" id="reforco-minq" min="1" value="5" style="width:90px; text-align:center;">
-              </div>
-              <div class="field" style="margin-bottom:0; flex:1; min-width:220px;">
+              <div class="field" style="margin-bottom:0; flex:1; min-width:240px;">
                 <label>Estratégia: <span id="reforco-estrat-label">equilíbrio</span></label>
                 <input type="range" id="reforco-estrat" min="0" max="100" value="50" class="reforco-slider">
                 <div class="reforco-slider-legend"><span>Recuperar pontos fracos</span><span>Maximizar incidência</span></div>
               </div>
+              <div class="field" style="margin-bottom:0; flex:1; min-width:240px;">
+                <label>Granularidade: <span id="reforco-gran-label">Assunto (auto)</span></label>
+                <input type="range" id="reforco-gran" min="0" max="100" value="50" class="reforco-slider">
+                <div class="reforco-slider-legend"><span>Disciplina</span><span>Assunto</span><span>Tópico</span></div>
+              </div>
+              <div class="field" style="margin-bottom:0; min-width:120px;">
+                <label>Mín. de questões</label>
+                <input type="number" id="reforco-minq" min="1" value="10" style="width:90px; text-align:center;">
+              </div>
               <div class="field" style="margin-bottom:0; min-width:120px;">
                 <label>Qtd. de tópicos</label>
-                <input type="number" id="reforco-limite" min="1" value="10" style="width:90px; text-align:center;">
+                <input type="number" id="reforco-limite" min="1" value="12" style="width:90px; text-align:center;">
               </div>
             </div>
           </div>
-          <p class="hint" id="reforco-status" style="padding: 0 24px;"></p>
+          <!-- Banner: média projetada e potencial -->
+          <div id="reforco-proj" style="padding: 4px 24px 0;"></div>
+          <p class="hint" id="reforco-status" style="padding: 6px 24px 0;"></p>
           <div style="padding: 6px 24px 24px;" id="reforco-list"></div>
+        </div>
+        <!-- Cards secundários: pontos cegos e sobre-investimento -->
+        <div class="reforco-side-grid">
+          <div class="card" id="reforco-blind-card" style="display:none;">
+            <div class="card-header"><div><h2>🕳️ Pontos cegos</h2><p class="sub">Alta incidência, você quase não praticou — risco silencioso (fora do ranking de erros)</p></div></div>
+            <div style="padding: 8px 24px 20px;" id="reforco-blind-list"></div>
+          </div>
+          <div class="card" id="reforco-over-card" style="display:none;">
+            <div class="card-header"><div><h2>⚖️ Possível sobre-investimento</h2><p class="sub">Você treina muito além do peso do tópico na banca</p></div></div>
+            <div style="padding: 8px 24px 20px;" id="reforco-over-list"></div>
+          </div>
         </div>
       </div>
     </div>
@@ -6433,6 +6509,188 @@ const ReforcoEngine = {
       fresh: this.isFresh(snap, 90), snapDate: snap.endDate || snap.date,
       hasAnyIncid, semIncidencia,
       items: items.slice(0, limite), totalCandidatos: items.length
+    };
+  },
+  // ============================================================================
+  // REFORÇO POR FRONTEIRA ADAPTATIVA  (modelo validado com dados reais)
+  // Cruza a INCIDÊNCIA da banca (árvore hierárquica: pai = soma dos filhos) com o
+  // DESEMPENHO (retrato do escopo). Para cada RAMO escolhe a MELHOR granularidade.
+  //   • Partição LIMPA (0 sobreposição pai↔filho) → sem dupla contagem de questões.
+  //   • Casamento por: código TEC → nome normalizado → dicionário de equivalência.
+  //   • Separa 🔥 pontos fracos (amostra real) de 🕳️ pontos cegos (pouca prática)
+  //     e ⚖️ sobre-investimento (esforço >> peso na banca).
+  // ============================================================================
+  // Dicionário de equivalência de nomes de disciplina/tópico (variações comuns)
+  SINONIMOS: {
+    'portugues': 'lingua portuguesa',
+    'lingua portuguesa portugues': 'lingua portuguesa',
+    'dir tributario': 'direito tributario',
+    'dir constitucional': 'direito constitucional',
+    'dir administrativo': 'direito administrativo',
+    'afo': 'administracao financeira e orcamentaria',
+    'conta geral': 'contabilidade geral',
+    'rlm': 'raciocinio logico matematico'
+  },
+  _canon(nome) {
+    const k = this.norm(nome);
+    return this.SINONIMOS[k] || k;
+  },
+  _depth(codigo) { return (codigo == null || codigo === '') ? 0 : String(codigo).split('.').length; },
+  // Índice do desempenho por nome canônico → { q, ac, err, pac }
+  _perfIndex(snap) {
+    const idx = {};
+    (snap && snap.rows || []).forEach(r => {
+      const k = this._canon(r.nome);
+      const cur = idx[k] || { q: 0, ac: 0 };
+      cur.q += (r.questoes || 0); cur.ac += (r.acertos || 0);
+      idx[k] = cur;
+    });
+    Object.values(idx).forEach(v => { v.err = v.q > 0 ? (v.q - v.ac) / v.q : 0; v.pac = v.q > 0 ? v.ac / v.q : 0; });
+    return idx;
+  },
+  // Incidência agrupada por disciplina (uma banca), normalizando o campo de nome (topico)
+  _incidByDisc(banca) {
+    const by = {};
+    DB.getIncidencia().forEach(r => {
+      if (banca && banca !== '__todas__' && this.norm(r.banca) !== this.norm(banca)) return;
+      const row = {
+        codigo: (r.codigo == null || r.codigo === '') ? null : String(r.codigo),
+        nome: r.topico || r.nome || '',
+        disciplina: r.disciplina,
+        incidencia: (r.incidencia != null ? r.incidencia : 0)
+      };
+      (by[r.disciplina] = by[r.disciplina] || []).push(row);
+    });
+    return by;
+  },
+  _children(rows, code) {
+    if (code == null) return rows.filter(r => r.codigo && this._depth(r.codigo) === 1).sort((a, b) => a.codigo.localeCompare(b.codigo));
+    const d = this._depth(code);
+    return rows.filter(r => r.codigo && r.codigo.indexOf(code + '.') === 0 && this._depth(r.codigo) === d + 1).sort((a, b) => a.codigo.localeCompare(b.codigo));
+  },
+  _leavesUnder(rows, code) {
+    // folhas atômicas (sem filhos) sob um nó — usadas p/ os "pontos recuperáveis" sem dupla contagem
+    return rows.filter(r => {
+      if (r.codigo == null) return false;
+      const under = (code == null) ? true : (r.codigo === code || r.codigo.indexOf(code + '.') === 0);
+      if (!under) return false;
+      return !rows.some(o => o.codigo && o.codigo !== r.codigo && o.codigo.indexOf(r.codigo + '.') === 0);
+    });
+  },
+  _smoothErr(q, err, mbar, ebar) { mbar = mbar || 8; ebar = (ebar != null ? ebar : 0.30); return (err * q + ebar * mbar) / (q + mbar); },
+  _zona(pac) { const w = Math.exp(-Math.pow(pac - 0.55, 2) / (2 * 0.22 * 0.22)); return 0.6 + 0.4 * w; },
+  /* suggestFrontier(snap, opts)
+     opts: banca, estrategia(0..1), granularidade(0..1), minQuestoes, incidMin, limite */
+  suggestFrontier(snap, opts) {
+    opts = opts || {};
+    if (!snap) return { fresh: false, items: [], blindSpots: [], overinvest: [], hasAnyIncid: false, semIncidencia: 0, projAtual: 0, projPotencial: 0, cobertura: 0, totalErros: 0, totalCegos: 0, totalUnidades: 0 };
+    const s = (opts.estrategia != null) ? opts.estrategia : 0.5;
+    const g = (opts.granularidade != null) ? opts.granularidade : 0.5;
+    const Qmin = opts.minQuestoes || 10;
+    const Imin = opts.incidMin || 5;
+    const limite = opts.limite || 12;
+    const banca = opts.banca || '__todas__';
+
+    const byDisc = this._incidByDisc(banca);
+    const hasAnyIncid = Object.keys(byDisc).length > 0;
+    const perf = this._perfIndex(snap);
+    const qOf = (n) => { const v = perf[this._canon(n)]; return v ? v.q : 0; };
+    const errOf = (n) => { const v = perf[this._canon(n)]; return v ? v.err : null; };
+    const pacOf = (n) => { const v = perf[this._canon(n)]; return v ? v.pac : 0; };
+
+    // granularidade → profundidade máx. e "avidez" de descida
+    //   g≈0  (Disciplina) → maxDepth 0  → nunca desce: unidades = disciplinas
+    //   g≈0.5(Assunto)    → maxDepth 2  → desce até assunto (adaptativo por ramo)
+    //   g≈1  (Tópico)     → maxDepth 3  → desce até o tópico específico
+    const maxDepth = Math.round(g * 3);
+    const splitQ = (2 - g) * Qmin;   // no meio, só desce quando há amostra suficiente
+    const splitN = (2 - g) * Imin;   // e incidência relevante no filho
+
+    // ---- FRONTEIRA: partição limpa (cada folha pertence a UMA só unidade) ----
+    const units = [];
+    Object.keys(byDisc).forEach(disc => {
+      const rows = byDisc[disc];
+      const discRow = rows.find(r => r.codigo == null) || { codigo: null, nome: disc, disciplina: disc, incidencia: rows.reduce((a, r) => a + (r.incidencia || 0), 0) };
+      const rec = (node) => {
+        const code = (node.codigo == null || node.codigo === '') ? null : node.codigo;
+        const dep = this._depth(code);
+        const ch = this._children(rows, code);
+        const q = qOf(node.nome);
+        const split = dep < maxDepth && ch.length && q >= splitQ && (node.incidencia || 0) >= splitN;
+        if (split) ch.forEach(rec);
+        else units.push({ disciplina: disc, codigo: code, nome: node.nome, N: (node.incidencia || 0), _rows: rows });
+      };
+      rec(discRow);
+    });
+
+    // métricas por unidade
+    units.forEach(u => {
+      u.q = qOf(u.nome); const e = errOf(u.nome);
+      u.err = e; u.pac = pacOf(u.nome);
+      u.errS = this._smoothErr(u.q, e == null ? 0.30 : e);
+    });
+    const totalN = units.reduce((a, u) => a + u.N, 0) || 1;
+    const totalQ = units.reduce((a, u) => a + u.q, 0) || 1;
+    units.forEach(u => { u.shareBanca = u.N / totalN; u.shareEsforco = u.q / totalQ; });
+
+    // score mesclado — slider erro↔incidência preservado
+    const wE = 1.3 - 0.8 * s, wI = 0.5 + 0.8 * s;
+    const score = (u) => Math.pow(Math.max(u.N, 0.001), wI) * Math.pow(u.errS + 0.001, wE) * this._zona(u.pac);
+
+    // pontos recuperáveis (teto 90%) somando as folhas cobertas sob a unidade — sem dupla contagem
+    const CEIL = 0.90;
+    const recuperaveis = (u) => {
+      const leaves = this._leavesUnder(u._rows, u.codigo);
+      let g2 = 0;
+      leaves.forEach(lf => { const p = pacOf(lf.nome); if (qOf(lf.nome) > 0) g2 += lf.incidencia * Math.max(0, CEIL - p); });
+      // fallback: se a unidade é folha/sem filhos cobertos, usa a própria
+      if (g2 === 0 && u.q > 0) g2 = u.N * Math.max(0, CEIL - u.pac);
+      return g2;
+    };
+
+    // ---- 3 grupos ----
+    const mainPool = units.filter(u => u.q >= Qmin && u.err != null && u.err > 0);
+    const blindPool = units.filter(u => u.q < Qmin && u.N >= Imin).sort((a, b) => b.N - a.N);
+    const overinvest = units.filter(u => u.q >= Qmin && u.shareEsforco > 2 * u.shareBanca + 0.005)
+      .sort((a, b) => (b.shareEsforco - b.shareBanca) - (a.shareEsforco - a.shareBanca));
+
+    const items = mainPool.map(u => {
+      const rec = recuperaveis(u);
+      return {
+        codigo: u.codigo, nome: u.nome, disciplina: u.disciplina,
+        incidencia: u.N, questoes: u.q, acertos: Math.round(u.pac * u.q),
+        erros: Math.round((1 - u.pac) * u.q),
+        taxaErro: Math.round((u.err || 0) * 1000) / 10,
+        pctAcerto: Math.round(u.pac * 1000) / 10,
+        pontosRecuperaveis: Math.round(rec * 10) / 10,
+        score: score(u),
+        selo: (u.err >= 0.30 ? 'fraco' : (u.err >= 0.15 ? 'atencao' : 'ok')),
+        nivel: this._depth(u.codigo),
+        temIncid: u.N > 0
+      };
+    }).sort((a, b) => b.score - a.score).slice(0, limite);
+
+    // projeção da média (sobre a parte coberta) e potencial se dominar o TOP
+    const covered = units.filter(u => u.q > 0);
+    const cN = covered.reduce((a, u) => a + u.N, 0) || 1;
+    const projAtual = covered.reduce((a, u) => a + u.N * u.pac, 0) / cN;
+    const ganhoTop = items.reduce((a, it) => a + it.pontosRecuperaveis, 0);
+    const projPotencial = projAtual + ganhoTop / cN;
+    const cobertura = Math.round(cN / totalN * 100);
+    // confiança da projeção: quanto da prova está coberto por amostra real
+    const conf = cobertura >= 70 ? 'alta' : cobertura >= 45 ? 'media' : 'baixa';
+
+    return {
+      fresh: this.isFresh(snap, 90), snapDate: snap.endDate || snap.date,
+      hasAnyIncid,
+      projAtual: Math.round(projAtual * 1000) / 10,
+      projPotencial: Math.round(projPotencial * 1000) / 10,
+      cobertura, confianca: conf,
+      items,
+      blindSpots: blindPool.slice(0, 8).map(u => ({ nome: u.nome, disciplina: u.disciplina, incidencia: u.N, questoes: u.q })),
+      overinvest: overinvest.slice(0, 6).map(u => ({ nome: u.nome, disciplina: u.disciplina, questoes: u.q, incidencia: u.N, fatiaEsforco: Math.round(u.shareEsforco * 1000) / 10, fatiaBanca: Math.round(u.shareBanca * 1000) / 10 })),
+      totalUnidades: units.length, totalErros: mainPool.length, totalCegos: blindPool.length,
+      semIncidencia: hasAnyIncid ? 0 : items.length
     };
   },
   // sugestão de quantidade de tópicos conforme a carga horária semanal do ciclo
@@ -11817,6 +12075,10 @@ window.addEventListener('screen:activated', (e) => {
    ============================================================ */
 const DesempenhoTecScreen = {
   currentSnapId: null,
+  // ---- Escopo da análise: 'consolidado' (todos), 'select' (retratos marcados), 'range' (intervalo) ----
+  scopeMode: 'consolidado',
+  selectedSnapIds: null, // Set de ids marcados (modo 'select')
+  rangeStart: null, rangeEnd: null, // (modo 'range')
   render() {
     const snaps = DB.getTecSnapshots();
     const emptyEl = document.getElementById('tec-empty');
@@ -11830,13 +12092,73 @@ const DesempenhoTecScreen = {
     }
     emptyEl.style.display = 'none';
     analysisEl.style.display = 'block';
-    // seleciona o mais recente por padrão
-    if (!this.currentSnapId || !snaps.find(s => s.id === this.currentSnapId)) {
-      this.currentSnapId = snaps[snaps.length - 1].id;
+    // inicializa a seleção (todos marcados) e o intervalo (cobre tudo) na 1ª vez
+    if (this.selectedSnapIds === null) this.selectedSnapIds = new Set(snaps.map(s => s.id));
+    // remove ids que não existem mais
+    [...this.selectedSnapIds].forEach(id => { if (!snaps.find(s => s.id === id)) this.selectedSnapIds.delete(id); });
+    if (this.selectedSnapIds.size === 0) snaps.forEach(s => this.selectedSnapIds.add(s.id));
+    if (!this.rangeStart || !this.rangeEnd) {
+      this.rangeStart = snaps[0].startDate;
+      this.rangeEnd = snaps[snaps.length - 1].endDate;
     }
-    this.renderSnapSelector(snaps);
+    this.renderScopeControls(snaps);
     this.renderAnalysis();
     this.switchTecTab(this.tecTab || 'analise'); // reaplica a aba ativa
+  },
+  // normaliza texto p/ casar tópicos entre retratos (sem acento/caixa/espaços extras)
+  _nk(s) { return String(s == null ? '' : s).normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/\s+/g, ' ').trim(); },
+  // Retorna os retratos ativos conforme o escopo selecionado (ordenados por período)
+  activeSnapshots() {
+    const snaps = DB.getTecSnapshots();
+    if (this.scopeMode === 'select') {
+      return snaps.filter(s => this.selectedSnapIds.has(s.id));
+    }
+    if (this.scopeMode === 'range') {
+      const a = this.rangeStart, b = this.rangeEnd;
+      // inclui retratos cujo PERÍODO [start,end] se sobrepõe ao intervalo [a,b]
+      return snaps.filter(s => s.startDate <= b && s.endDate >= a);
+    }
+    return snaps; // consolidado
+  },
+  // Agrega vários retratos num "retrato virtual": soma questões e acertos por tópico
+  // (casando por disciplina+código+nome) e recalcula o % de acerto (média ponderada).
+  aggregate(snaps) {
+    if (!snaps || snaps.length === 0) return null;
+    const order = [], map = new Map();
+    snaps.forEach(s => {
+      (s.rows || []).forEach(r => {
+        const key = (r.depth === 0)
+          ? 'D::' + this._nk(r.nome)
+          : this._nk(r.disciplina) + '|' + (r.codigo || '') + '|' + this._nk(r.nome);
+        let agg = map.get(key);
+        if (!agg) {
+          agg = { codigo: r.codigo, nome: r.nome, depth: r.depth, disciplina: r.disciplina, questoes: 0, acertos: 0, peso: r.peso };
+          map.set(key, agg); order.push(key);
+        }
+        agg.questoes += (r.questoes || 0);
+        agg.acertos += (r.acertos || 0);
+      });
+    });
+    const rows = order.map(k => {
+      const a = map.get(k);
+      a.pctAcerto = a.questoes > 0 ? Math.round((a.acertos / a.questoes) * 1000) / 10 : 0;
+      return a;
+    });
+    const starts = snaps.map(s => s.startDate).sort();
+    const ends = snaps.map(s => s.endDate).sort();
+    return {
+      id: (snaps.length === 1 ? snaps[0].id : '__agg__'),
+      aggregated: snaps.length > 1,
+      count: snaps.length,
+      startDate: starts[0], endDate: ends[ends.length - 1],
+      date: starts[0], rows
+    };
+  },
+  // Retrato efetivo usado por toda a análise (agrega o escopo atual)
+  scopedSnapshot() {
+    const snaps = this.activeSnapshots();
+    if (snaps.length === 0) return null;
+    return this.aggregate(snaps);
   },
   openImport() {
     document.getElementById('tec-empty').style.display = 'none';
@@ -12006,6 +12328,11 @@ const DesempenhoTecScreen = {
     };
     DB.saveTecSnapshot(snap);
     this.currentSnapId = snap.id;
+    // garante que o novo retrato entre no escopo atual (marcado na seleção)
+    if (this.selectedSnapIds) this.selectedSnapIds.add(snap.id);
+    // amplia o intervalo para cobrir o novo período, se o modo for 'range'
+    if (!this.rangeEnd || snap.endDate > this.rangeEnd) this.rangeEnd = snap.endDate;
+    if (!this.rangeStart || snap.startDate < this.rangeStart) this.rangeStart = snap.startDate;
     this._parsedRows = null;
     showToast('Importação salva ✓');
     this.render();
@@ -12015,26 +12342,97 @@ const DesempenhoTecScreen = {
     if (s.startDate === s.endDate) return `${formatDateShort(s.startDate)}`;
     return `${formatDateShort(s.startDate)} → ${formatDateShort(s.endDate)}`;
   },
-  renderSnapSelector(snaps) {
-    const sel = document.getElementById('tec-snap-select');
-    sel.innerHTML = snaps.slice().reverse().map(s => {
-      const lbl = s.label ? ` — ${s.label}` : '';
-      return `<option value="${s.id}" ${s.id === this.currentSnapId ? 'selected' : ''}>${this.rangeLabel(s)}${escapeHtml(lbl)}</option>`;
-    }).join('');
-    const snap = snaps.find(s => s.id === this.currentSnapId);
-    const idx = snaps.findIndex(s => s.id === this.currentSnapId);
+  // Sincroniza os controles de escopo (botões, painéis, meta) com o estado atual
+  renderScopeControls(snaps) {
+    // destaca o modo ativo
+    document.querySelectorAll('#tec-scope-toggle button').forEach(b =>
+      b.classList.toggle('active', b.dataset.scope === this.scopeMode));
+    const selPanel = document.getElementById('tec-scope-select');
+    const rangePanel = document.getElementById('tec-scope-range');
+    selPanel.style.display = this.scopeMode === 'select' ? 'block' : 'none';
+    rangePanel.style.display = this.scopeMode === 'range' ? 'block' : 'none';
+    if (this.scopeMode === 'select') this.renderScopeSelectPanel(snaps);
+    if (this.scopeMode === 'range') this.syncRangeInputs(snaps);
+    // meta (resumo do que está sendo analisado)
+    const active = this.activeSnapshots();
     const meta = document.getElementById('tec-snap-meta');
-    meta.textContent = `Retrato ${idx + 1} de ${snaps.length} · período ${this.rangeLabel(snap)}` + (snap.label ? ` · ${snap.label}` : '');
+    if (active.length === 0) {
+      meta.textContent = 'Nenhum retrato no escopo atual — ajuste a seleção ou o intervalo.';
+    } else if (active.length === 1) {
+      const s = active[0];
+      meta.textContent = `1 retrato · período ${this.rangeLabel(s)}` + (s.label ? ` · ${s.label}` : '');
+    } else {
+      const starts = active.map(s => s.startDate).sort();
+      const ends = active.map(s => s.endDate).sort();
+      meta.textContent = `${active.length} retratos consolidados · de ${formatDateShort(starts[0])} a ${formatDateShort(ends[ends.length - 1])} · questões e acertos somados, % recalculado`;
+    }
   },
-  // snapshot anterior ao atual, para comparação de evolução
+  // Lista de retratos com checkbox (marcar/desmarcar) + exclusão individual
+  renderScopeSelectPanel(snaps) {
+    const box = document.getElementById('tec-scope-select');
+    const rows = snaps.slice().reverse().map(s => {
+      const tot = TecEngine.totais(s);
+      const checked = this.selectedSnapIds.has(s.id);
+      const lbl = s.label ? ` · ${escapeHtml(s.label)}` : '';
+      return `<label class="tec-snap-pick" data-id="${s.id}">
+        <input type="checkbox" data-snap="${s.id}" ${checked ? 'checked' : ''}>
+        <span class="tsp-main"><b>${this.rangeLabel(s)}</b>${lbl}</span>
+        <span class="tsp-stats">${tot.questoes} q · ${tot.pct}%</span>
+        <button type="button" class="icon-btn danger tsp-del" title="Excluir este retrato">×</button>
+      </label>`;
+    }).join('');
+    box.innerHTML = `
+      <div class="tec-scope-actions">
+        <button type="button" class="tec-tree-btn" id="tec-scope-all">Marcar todos</button>
+        <button type="button" class="tec-tree-btn" id="tec-scope-none">Limpar</button>
+        <span class="hint" style="margin:0 0 0 auto;">${this.selectedSnapIds.size} de ${snaps.length} selecionado(s)</span>
+      </div>
+      <div class="tec-scope-list">${rows}</div>`;
+    box.querySelectorAll('input[data-snap]').forEach(cb => cb.addEventListener('change', () => {
+      const id = parseInt(cb.dataset.snap);
+      if (cb.checked) this.selectedSnapIds.add(id); else this.selectedSnapIds.delete(id);
+      this.renderScopeControls(DB.getTecSnapshots());
+      this.renderAnalysis();
+    }));
+    box.querySelectorAll('.tsp-del').forEach(btn => btn.addEventListener('click', (e) => {
+      e.preventDefault(); e.stopPropagation();
+      const id = parseInt(btn.closest('.tec-snap-pick').dataset.id);
+      const s = DB.getTecSnapshots().find(x => x.id === id);
+      if (!s) return;
+      if (!confirm(`Excluir o retrato do período ${this.rangeLabel(s)}${s.label ? ' (' + s.label + ')' : ''}? Essa ação não pode ser desfeita.`)) return;
+      DB.deleteTecSnapshot(id);
+      this.selectedSnapIds.delete(id);
+      showToast('Retrato excluído');
+      this.render();
+    }));
+    const allBtn = box.querySelector('#tec-scope-all');
+    const noneBtn = box.querySelector('#tec-scope-none');
+    if (allBtn) allBtn.addEventListener('click', () => { snaps.forEach(s => this.selectedSnapIds.add(s.id)); this.renderScopeControls(DB.getTecSnapshots()); this.renderAnalysis(); });
+    if (noneBtn) noneBtn.addEventListener('click', () => { this.selectedSnapIds.clear(); this.renderScopeControls(DB.getTecSnapshots()); this.renderAnalysis(); });
+  },
+  syncRangeInputs(snaps) {
+    const startEl = document.getElementById('tec-range-start');
+    const endEl = document.getElementById('tec-range-end');
+    if (startEl) startEl.value = this.rangeStart || snaps[0].startDate;
+    if (endEl) endEl.value = this.rangeEnd || snaps[snaps.length - 1].endDate;
+  },
+  // snapshot anterior ao retrato em foco — só faz sentido quando o escopo é UM retrato.
+  // Nesse caso, compara com o retrato imediatamente anterior no tempo (mostra a evolução).
   prevSnap() {
-    const snaps = DB.getTecSnapshots();
-    const idx = snaps.findIndex(s => s.id === this.currentSnapId);
-    return idx > 0 ? snaps[idx - 1] : null;
+    const active = this.activeSnapshots();
+    if (active.length !== 1) return null; // sem delta em modo consolidado/múltiplo
+    const all = DB.getTecSnapshots();
+    const idx = all.findIndex(s => s.id === active[0].id);
+    return idx > 0 ? all[idx - 1] : null;
   },
   renderAnalysis() {
-    const snap = DB.getTecSnapshots().find(s => s.id === this.currentSnapId);
-    if (!snap) return;
+    const snap = this.scopedSnapshot();
+    const wrap = document.getElementById('tec-panel-analise');
+    if (!snap) {
+      if (wrap) wrap.querySelectorAll('#tec-totais, #tec-weak-list, #tec-disc-list').forEach(el => { if (el) el.innerHTML = ''; });
+      const t = document.getElementById('tec-totais'); if (t) t.innerHTML = '<div class="evo-empty-mini" style="grid-column:1/-1;">Nenhum retrato no escopo atual. Ajuste a seleção ou o intervalo de datas acima.</div>';
+      return;
+    }
     this.renderTotais(snap);
     this.renderWeak(snap);
     this.renderDisciplinas(snap);
@@ -12242,7 +12640,7 @@ const DesempenhoTecScreen = {
   },
   // ---- Reforço ----
   renderReforco() {
-    const snap = ReforcoEngine.currentSnapshot();
+    const snap = this.scopedSnapshot() || ReforcoEngine.currentSnapshot();
     const bancaSel = document.getElementById('reforco-banca');
     const bancas = DB.getBancas();
     const cur = bancaSel.value || '__todas__';
@@ -12252,6 +12650,7 @@ const DesempenhoTecScreen = {
     // sugere limite pela carga horária (só na 1ª vez)
     if (!this._reforcoInit) { document.getElementById('reforco-limite').value = ReforcoEngine.sugerirLimite(); this._reforcoInit = true; }
     this.updateEstratLabel();
+    this.updateGranLabel();
     this.renderReforcoList();
   },
   updateEstratLabel() {
@@ -12259,55 +12658,108 @@ const DesempenhoTecScreen = {
     const lbl = document.getElementById('reforco-estrat-label');
     lbl.textContent = v <= 25 ? 'foco no erro' : v >= 75 ? 'foco na incidência' : 'equilíbrio';
   },
+  updateGranLabel() {
+    const el = document.getElementById('reforco-gran');
+    if (!el) return;
+    const g = parseInt(el.value) / 100;
+    const lbl = document.getElementById('reforco-gran-label');
+    if (lbl) lbl.textContent = g < 0.33 ? 'Disciplina' : g > 0.66 ? 'Tópico' : 'Assunto (auto)';
+  },
   renderReforcoList() {
     const list = document.getElementById('reforco-list');
     const status = document.getElementById('reforco-status');
-    const snap = ReforcoEngine.currentSnapshot();
-    if (!snap) { list.innerHTML = `<div class="evo-empty-mini">Importe seu desempenho do TEC (aba Importar) para gerar o reforço.</div>`; status.textContent = ''; return; }
-    const res = ReforcoEngine.suggest(snap, {
-      banca: document.getElementById('reforco-banca').value,
-      estrategia: parseInt(document.getElementById('reforco-estrat').value) / 100,
-      minQuestoes: parseInt(document.getElementById('reforco-minq').value) || 5,
-      limite: parseInt(document.getElementById('reforco-limite').value) || 10
-    });
-    // status
-    const parts = [];
-    if (!res.fresh) parts.push(`<span style="color:var(--warn)">⚠ Seu retrato mais recente (${formatDateShort(res.snapDate)}) tem mais de 3 meses — importe de novo para dados atuais.</span>`);
-    if (!res.hasAnyIncid) parts.push('Sem incidência cadastrada ainda — o reforço está usando só seus erros. Cadastre a incidência da banca para priorizar por pontos.');
-    else if (res.semIncidencia > 0) parts.push(`${res.semIncidencia} tópico(s) sem dado de incidência (aparecem marcados).`);
-    status.innerHTML = parts.join(' · ');
-    if (res.items.length === 0) {
-      list.innerHTML = `<div class="evo-empty-mini">Nenhum tópico de reforço com os filtros atuais. Diminua o "mínimo de questões" ou importe um retrato mais completo.</div>`;
+    const projEl = document.getElementById('reforco-proj');
+    const snap = this.scopedSnapshot() || ReforcoEngine.currentSnapshot();
+    if (!snap) {
+      list.innerHTML = `<div class="evo-empty-mini">Importe seu desempenho do TEC (aba Importar) para gerar o reforço.</div>`;
+      status.textContent = ''; if (projEl) projEl.innerHTML = '';
+      document.getElementById('reforco-blind-card').style.display = 'none';
+      document.getElementById('reforco-over-card').style.display = 'none';
       return;
     }
-    list.innerHTML = res.items.map((it, i) => {
-      const tone = it.pctAcerto >= 70 ? 'good' : it.pctAcerto >= 50 ? 'warn' : 'bad';
-      const busca = encodeURIComponent(it.nome + ' ' + it.disciplina);
-      return `
-        <div class="reforco-row" data-nome="${escapeHtml(it.nome)}" data-disc="${escapeHtml(it.disciplina)}">
-          <div class="reforco-rank">${i + 1}</div>
-          <div class="reforco-main">
-            <div class="reforco-topico">${escapeHtml(it.nome)}</div>
-            <div class="reforco-meta">
-              <span class="reforco-disc">${escapeHtml(it.disciplina)}</span>
-              <span class="reforco-tag tone-${tone}">${it.taxaErro}% erro · ${it.erros}/${it.questoes}</span>
-              ${it.temIncid
-                ? `<span class="reforco-tag incid">incidência ${it.incidencia}</span><span class="reforco-tag pts">~${it.pontosRecuperaveis} pts recuperáveis</span>`
-                : `<span class="reforco-tag semincid">sem incidência</span>`}
-            </div>
-          </div>
-          <div class="reforco-actions">
-            <a class="reforco-act tec" href="https://www.tecconcursos.com.br/questoes/pesquisa?texto=${busca}" target="_blank" rel="noopener" title="Resolver no Tec">🔗</a>
-            <button type="button" class="reforco-act card" data-act="card" title="Criar card de revisão">🗂️</button>
-            <button type="button" class="reforco-act ciclo" data-act="ciclo" title="Adicionar ao Ciclo da Semana">➕</button>
-          </div>
-        </div>`;
-    }).join('');
-    list.querySelectorAll('.reforco-row').forEach(row => {
-      const nome = row.dataset.nome, disc = row.dataset.disc;
-      row.querySelector('[data-act="card"]').addEventListener('click', () => this.reforcoToCard(nome, disc));
-      row.querySelector('[data-act="ciclo"]').addEventListener('click', () => this.reforcoToCiclo(nome, disc));
+    const gEl = document.getElementById('reforco-gran');
+    const res = ReforcoEngine.suggestFrontier(snap, {
+      banca: document.getElementById('reforco-banca').value,
+      estrategia: parseInt(document.getElementById('reforco-estrat').value) / 100,
+      granularidade: gEl ? parseInt(gEl.value) / 100 : 0.5,
+      minQuestoes: parseInt(document.getElementById('reforco-minq').value) || 10,
+      limite: parseInt(document.getElementById('reforco-limite').value) || 12
     });
+    // Banner de projeção da média (só quando há incidência cadastrada)
+    if (projEl) {
+      if (res.hasAnyIncid && res.cobertura > 0) {
+        const cls = res.confianca === 'alta' ? 'alta' : res.confianca === 'media' ? 'media' : 'baixa';
+        projEl.innerHTML = `<div class="reforco-proj-banner">
+          <div class="reforco-proj-item"><span class="pv now">${res.projAtual}%</span><span class="pl">Média projetada (banca)</span></div>
+          <span class="reforco-proj-arrow">→</span>
+          <div class="reforco-proj-item"><span class="pv pot">${res.projPotencial}%</span><span class="pl">Potencial (dominando o TOP)</span></div>
+          <div class="reforco-proj-note">Cobertura de <b>${res.cobertura}%</b> da prova pela sua amostra<span class="reforco-conf ${cls}">confiança ${res.confianca}</span></div>
+        </div>`;
+      } else projEl.innerHTML = '';
+    }
+    // status
+    const parts = [];
+    if (!res.fresh && res.snapDate) parts.push(`<span style="color:var(--warn)">⚠ Retrato mais recente (${formatDateShort(res.snapDate)}) tem mais de 3 meses — reimporte para dados atuais.</span>`);
+    if (!res.hasAnyIncid) parts.push('Sem incidência cadastrada — o reforço prioriza só pelo seu erro. Cadastre a incidência da banca (aba Incidência) para priorizar por pontos.');
+    else parts.push(`<b>${res.totalErros}</b> unidade(s) no ranking de erros · <b>${res.totalCegos}</b> ponto(s) cego(s) · fronteira com <b>${res.totalUnidades}</b> unidade(s), sem dupla contagem.`);
+    status.innerHTML = parts.join(' · ');
+    if (res.items.length === 0) {
+      list.innerHTML = `<div class="evo-empty-mini">Nenhum ponto fraco com amostra suficiente. Diminua o "mínimo de questões", mude a granularidade, ou importe/consolide mais retratos.</div>`;
+    } else {
+      list.innerHTML = res.items.map((it, i) => {
+        const tone = it.pctAcerto >= 70 ? 'good' : it.pctAcerto >= 50 ? 'warn' : 'bad';
+        const seloTxt = it.selo === 'fraco' ? '🔥 fraco' : it.selo === 'atencao' ? '⚠️ atenção' : '• ok';
+        const busca = encodeURIComponent(it.nome + ' ' + it.disciplina);
+        return `
+          <div class="reforco-row" data-nome="${escapeHtml(it.nome)}" data-disc="${escapeHtml(it.disciplina)}">
+            <div class="reforco-rank">${i + 1}</div>
+            <div class="reforco-main">
+              <div class="reforco-topico">${escapeHtml(it.nome)}</div>
+              <div class="reforco-meta">
+                <span class="reforco-disc">${escapeHtml(it.disciplina)}</span>
+                <span class="reforco-tag selo-${it.selo}">${seloTxt}</span>
+                <span class="reforco-tag nivel">nível ${it.nivel}</span>
+                <span class="reforco-tag tone-${tone}">${it.taxaErro}% erro · ${it.erros}/${it.questoes}</span>
+                ${it.temIncid
+                  ? `<span class="reforco-tag incid">incidência ${it.incidencia}</span><span class="reforco-tag pts">~${it.pontosRecuperaveis} pts recuperáveis</span>`
+                  : `<span class="reforco-tag semincid">sem incidência</span>`}
+              </div>
+            </div>
+            <div class="reforco-actions">
+              <a class="reforco-act tec" href="https://www.tecconcursos.com.br/questoes/pesquisa?texto=${busca}" target="_blank" rel="noopener" title="Resolver no Tec">🔗</a>
+              <button type="button" class="reforco-act card" data-act="card" title="Criar card de revisão">🗂️</button>
+              <button type="button" class="reforco-act ciclo" data-act="ciclo" title="Adicionar ao Ciclo da Semana">➕</button>
+            </div>
+          </div>`;
+      }).join('');
+      list.querySelectorAll('.reforco-row').forEach(row => {
+        const nome = row.dataset.nome, disc = row.dataset.disc;
+        row.querySelector('[data-act="card"]').addEventListener('click', () => this.reforcoToCard(nome, disc));
+        row.querySelector('[data-act="ciclo"]').addEventListener('click', () => this.reforcoToCiclo(nome, disc));
+      });
+    }
+    // 🕳️ Pontos cegos (alta incidência, pouca prática) — fora do ranking de erros
+    const blindCard = document.getElementById('reforco-blind-card');
+    const blindList = document.getElementById('reforco-blind-list');
+    if (res.blindSpots && res.blindSpots.length) {
+      blindCard.style.display = 'block';
+      blindList.innerHTML = res.blindSpots.map(b => `
+        <div class="reforco-mini">
+          <div><div class="rm-name">${escapeHtml(b.nome)}</div><div class="rm-sub">${escapeHtml(b.disciplina)}</div></div>
+          <div class="rm-val">N=${b.incidencia}<small>${b.questoes} questão(ões)</small></div>
+        </div>`).join('');
+    } else blindCard.style.display = 'none';
+    // ⚖️ Sobre-investimento
+    const overCard = document.getElementById('reforco-over-card');
+    const overList = document.getElementById('reforco-over-list');
+    if (res.overinvest && res.overinvest.length) {
+      overCard.style.display = 'block';
+      overList.innerHTML = res.overinvest.map(o => `
+        <div class="reforco-mini">
+          <div><div class="rm-name">${escapeHtml(o.nome)}</div><div class="rm-sub">${escapeHtml(o.disciplina)}</div></div>
+          <div class="rm-val">${o.fatiaEsforco}%<small>vs banca ${o.fatiaBanca}%</small></div>
+        </div>`).join('');
+    } else overCard.style.display = 'none';
   },
   reforcoToCard(topico, disciplina) {
     if (!window.CardsScreen) { showToast('Abra a aba Cards uma vez e tente de novo'); return; }
@@ -12577,7 +13029,7 @@ document.getElementById('tec-import-end').addEventListener('change', () => Desem
 // filtro por disciplina na árvore
 document.getElementById('tec-disc-filter').addEventListener('change', (e) => {
   DesempenhoTecScreen.discFilter = e.target.value;
-  const snap = DB.getTecSnapshots().find(s => s.id === DesempenhoTecScreen.currentSnapId);
+  const snap = DesempenhoTecScreen.scopedSnapshot();
   if (snap) DesempenhoTecScreen.renderDisciplinas(snap);
 });
 // upload de arquivo (clique + arrastar-e-soltar)
@@ -12593,29 +13045,60 @@ document.getElementById('tec-disc-filter').addEventListener('change', (e) => {
     if (e.dataTransfer.files[0]) DesempenhoTecScreen.handleFile(e.dataTransfer.files[0]);
   });
 })();
-document.getElementById('tec-snap-select').addEventListener('change', (e) => {
-  DesempenhoTecScreen.currentSnapId = parseInt(e.target.value);
+// --- Escopo da análise: consolidado / selecionar / intervalo ---
+document.getElementById('tec-scope-toggle').addEventListener('click', (e) => {
+  const btn = e.target.closest('button[data-scope]');
+  if (!btn) return;
+  DesempenhoTecScreen.scopeMode = btn.dataset.scope;
+  DesempenhoTecScreen.renderScopeControls(DB.getTecSnapshots());
   DesempenhoTecScreen.renderAnalysis();
-  DesempenhoTecScreen.renderSnapSelector(DB.getTecSnapshots());
+  // reaplica a aba ativa (reforço também depende do escopo)
+  if (DesempenhoTecScreen.tecTab === 'reforco') DesempenhoTecScreen.renderReforco();
 });
-document.getElementById('tec-btn-delete-snap').addEventListener('click', () => {
-  const snap = DB.getTecSnapshots().find(s => s.id === DesempenhoTecScreen.currentSnapId);
-  if (!snap) return;
-  if (!confirm(`Excluir o retrato do período ${DesempenhoTecScreen.rangeLabel(snap)}${snap.label ? ' (' + snap.label + ')' : ''}? Essa ação não pode ser desfeita.`)) return;
-  DB.deleteTecSnapshot(snap.id);
-  DesempenhoTecScreen.currentSnapId = null;
-  showToast('Retrato excluído');
-  DesempenhoTecScreen.render();
+// intervalo de datas: inputs manuais
+['tec-range-start', 'tec-range-end'].forEach(id => {
+  const el = document.getElementById(id);
+  if (el) el.addEventListener('change', () => {
+    DesempenhoTecScreen.rangeStart = document.getElementById('tec-range-start').value || DesempenhoTecScreen.rangeStart;
+    DesempenhoTecScreen.rangeEnd = document.getElementById('tec-range-end').value || DesempenhoTecScreen.rangeEnd;
+    if (DesempenhoTecScreen.rangeStart > DesempenhoTecScreen.rangeEnd) {
+      // corrige intervalo invertido
+      const t = DesempenhoTecScreen.rangeStart; DesempenhoTecScreen.rangeStart = DesempenhoTecScreen.rangeEnd; DesempenhoTecScreen.rangeEnd = t;
+    }
+    DesempenhoTecScreen.renderScopeControls(DB.getTecSnapshots());
+    DesempenhoTecScreen.renderAnalysis();
+    if (DesempenhoTecScreen.tecTab === 'reforco') DesempenhoTecScreen.renderReforco();
+  });
 });
+// atalhos de intervalo (últimos N meses / tudo)
+document.querySelectorAll('.tec-range-quick').forEach(btn => btn.addEventListener('click', () => {
+  const snaps = DB.getTecSnapshots();
+  if (snaps.length === 0) return;
+  const r = btn.dataset.range;
+  if (r === 'all') {
+    DesempenhoTecScreen.rangeStart = snaps[0].startDate;
+    DesempenhoTecScreen.rangeEnd = snaps[snaps.length - 1].endDate;
+  } else {
+    const months = parseInt(r);
+    const end = snaps[snaps.length - 1].endDate;
+    const d = new Date(end + 'T00:00:00');
+    d.setMonth(d.getMonth() - months);
+    DesempenhoTecScreen.rangeStart = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+    DesempenhoTecScreen.rangeEnd = end;
+  }
+  DesempenhoTecScreen.renderScopeControls(DB.getTecSnapshots());
+  DesempenhoTecScreen.renderAnalysis();
+  if (DesempenhoTecScreen.tecTab === 'reforco') DesempenhoTecScreen.renderReforco();
+}));
 ['tec-weak-threshold', 'tec-weak-minq', 'tec-weak-leaves'].forEach(id => {
   document.getElementById(id).addEventListener('input', () => {
-    const snap = DB.getTecSnapshots().find(s => s.id === DesempenhoTecScreen.currentSnapId);
+    const snap = DesempenhoTecScreen.scopedSnapshot();
     if (snap) DesempenhoTecScreen.renderWeak(snap);
   });
 });
 document.getElementById('tec-weak-disc').addEventListener('change', (e) => {
   DesempenhoTecScreen.weakDisc = e.target.value;
-  const snap = DB.getTecSnapshots().find(s => s.id === DesempenhoTecScreen.currentSnapId);
+  const snap = DesempenhoTecScreen.scopedSnapshot();
   if (snap) DesempenhoTecScreen.renderWeak(snap);
 });
 // --- Listeners das abas Incidência / Reforço ---
@@ -12640,6 +13123,7 @@ document.getElementById('tec-weak-disc').addEventListener('change', (e) => {
   on('reforco-minq', 'input', () => DT.renderReforcoList());
   on('reforco-limite', 'input', () => DT.renderReforcoList());
   on('reforco-estrat', 'input', () => { DT.updateEstratLabel(); DT.renderReforcoList(); });
+  on('reforco-gran', 'input', () => { DT.updateGranLabel(); DT.renderReforcoList(); });
 })();
 window.addEventListener('screen:activated', (e) => {
   if (e.detail.screen === 'desempenhotec') DesempenhoTecScreen.render();
