@@ -2109,6 +2109,29 @@
   .incid-detail-empty { padding: 10px; font-size: 12.5px; color: var(--text-faint); text-align: center; }
   .incid-detail-summary { font-size: 12px; color: var(--text-soft); margin: 2px 2px 8px; }
   .incid-detail-summary b { color: var(--text); }
+  /* Incidência: árvore hierárquica (disciplina → assunto → tópico) */
+  .itree { border: 1px solid var(--border); border-radius: 10px; overflow: hidden; }
+  .itree-toolbar { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; padding: 6px 4px 10px; }
+  .itree-node > .itree-children { display: none; }
+  .itree-node.open > .itree-children { display: block; }
+  .itree-row { display: grid; grid-template-columns: 1fr 110px 52px; align-items: center; gap: 10px; padding: 6px 10px; border-top: 1px solid var(--border); }
+  .itree-node:first-child > .itree-row { border-top: none; }
+  .itree-row.has-kids { cursor: pointer; }
+  .itree-row.has-kids:hover { background: var(--surface-sunken); }
+  .itree-row.lvl0 { background: var(--surface-sunken); }
+  .itree-row.lvl0:hover { background: var(--accent-soft); }
+  .itree-name { display: flex; align-items: center; gap: 7px; min-width: 0; }
+  .itree-caret { font-size: 9px; color: var(--text-faint); transition: transform 0.18s ease; width: 10px; flex-shrink: 0; }
+  .itree-node.open > .itree-row > .itree-name > .itree-caret { transform: rotate(90deg); }
+  .itree-dot { width: 5px; height: 5px; border-radius: 50%; background: var(--border-strong); flex-shrink: 0; margin: 0 2px; }
+  .itree-label { font-size: 12.5px; color: var(--text-soft); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .itree-row.lvl0 .itree-label { font-size: 13px; font-weight: 800; color: var(--text); }
+  .itree-bar { height: 8px; background: var(--surface); border: 1px solid var(--border); border-radius: 20px; overflow: hidden; }
+  .itree-bar > span { display: block; height: 100%; border-radius: 20px; background: var(--accent); }
+  .itree-row.lvl0 .itree-bar > span { background: var(--good); }
+  .itree-val { font-family: 'Space Mono', monospace; font-size: 12px; font-weight: 700; color: var(--accent); text-align: right; }
+  .itree-row.lvl0 .itree-val { color: var(--good); }
+  @media (max-width: 560px) { .itree-row { grid-template-columns: 1fr 48px; } .itree-bar { display: none; } }
   /* Reforço */
   .reforco-controls { display: flex; gap: 16px; align-items: flex-end; flex-wrap: wrap; }
   .reforco-slider { width: 100%; accent-color: var(--accent); cursor: pointer; margin-top: 4px; }
@@ -6379,6 +6402,14 @@ const ReforcoEngine = {
   },
   // Converte o modelo hierárquico em registros de incidência, reaproveitando o MESMO parser
   // hierárquico do Desempenho (código col A, nome col B, números a partir de C).
+  // Linhas de TOTAL/RESUMO do índice do caderno que NÃO são disciplinas
+  // (ex.: "Total assuntos por relevância", "Total geral"). Se entrassem, virariam
+  // uma "disciplina" fantasma e o pai passaria a somar tudo → contagem e reforço quebrados.
+  _isTotalRow(nome) {
+    const k = this.norm(nome);
+    return /^total\b/.test(k) || /total\s+(assunto|geral|de\s+assunto|por\s+relev)/.test(k)
+        || /frequencia\s+acumulada/.test(k) || /^indice\s+do\s+caderno$/.test(k);
+  },
   _parseIndiceCaderno(cellRows, bancaFixa) {
     const banca = (bancaFixa || 'X');
     const rows = TecEngine.parseCellRows(cellRows); // r.questoes = 1º número = "Quantidade encontrada"
@@ -6386,6 +6417,8 @@ const ReforcoEngine = {
     for (const r of rows) {
       const incid = r.questoes; // Quantidade encontrada = incidência da banca
       if (!r.nome || incid == null) continue;
+      // ignora linhas de total/resumo (só quando NÃO têm código — disciplina/raiz)
+      if ((r.codigo == null || r.codigo === '') && this._isTotalRow(r.nome)) continue;
       out.push({
         banca: banca.trim(),
         disciplina: (r.depth === 0 ? r.nome : (r.disciplina || '')).trim(),
@@ -12463,43 +12496,43 @@ const DesempenhoTecScreen = {
     const autoOpen = (bancas.length === 1); // se só há uma banca, já abre o detalhe
     list.innerHTML = bancas.map(b => {
       const rows = all.filter(r => r.banca === b);
-      const nTopicos = rows.length;
-      const soma = rows.reduce((s, r) => s + (r.incidencia || 0), 0);
       const nDisc = rows.filter(r => r.depth === 0).length;
+      // TOTAL correto: como pai = soma dos filhos, o total é a soma das DISCIPLINAS
+      // (nível 0). Sem info de nível (formato colado plano), soma tudo.
+      const soma = nDisc > 0
+        ? rows.filter(r => r.depth === 0).reduce((s, r) => s + (r.incidencia || 0), 0)
+        : rows.reduce((s, r) => s + (r.incidencia || 0), 0);
+      const nSub = rows.length - nDisc;
       const maxInc = Math.max(1, ...rows.map(r => r.incidencia || 0));
-      // ordena por incidência desc para o detalhe (tópicos mais cobrados primeiro)
-      const ordenados = rows.slice().sort((a, c) => (c.incidencia || 0) - (a.incidencia || 0));
-      const detailRows = ordenados.map(r => {
-        const isDisc = (r.depth === 0);
-        const inc = r.incidencia || 0;
-        const pct = Math.round((inc / maxInc) * 100);
-        const pctTotal = soma ? ((inc / soma) * 100).toFixed(1) : '0.0';
-        return `<div class="incid-topic-row ${isDisc ? 'is-disc' : ''}" data-search="${escapeHtml(this._normSearch((r.topico || '') + ' ' + (r.disciplina || '')))}">
-          <span class="incid-topic-name" title="${escapeHtml(r.topico)}${r.disciplina ? ' — ' + escapeHtml(r.disciplina) : ''} · ${pctTotal}% do total">${escapeHtml(r.topico)}</span>
-          <span class="incid-topic-bar"><span style="width:${pct}%"></span></span>
-          <span class="incid-topic-val" title="${inc} questão(ões) · ${pctTotal}% do total">${inc}</span>
-        </div>`;
-      }).join('');
+      // Reconstrói a HIERARQUIA (disciplina → assunto → tópico) a partir das linhas salvas
+      const forest = this._buildIncidForest(rows);
+      const treeHtml = forest.length
+        ? `<div class="itree">${forest.map(n => this._incidNodeHtml(n, 0, maxInc)).join('')}</div>`
+        : '<div class="incid-detail-empty">Nenhum tópico.</div>';
       return `<div class="incid-banca-block ${autoOpen ? 'open' : ''}" data-banca="${escapeHtml(b)}">
         <div class="incid-banca-row expandable">
           <span class="incid-caret">▶</span>
           <span class="incid-banca-name">${escapeHtml(b)}</span>
-          <span class="incid-banca-count">${nTopicos} tópico(s) · ${soma} questões</span>
+          <span class="incid-banca-count">${nDisc} disc. · ${soma} questões</span>
           <button type="button" class="icon-btn danger incid-banca-del" title="Excluir esta banca">×</button>
         </div>
         <div class="incid-detail">
-          <div class="incid-detail-summary"><b>${nDisc}</b> disciplina(s) · <b>${nTopicos - nDisc}</b> subtópico(s) · <b>${soma}</b> questões no total. Barras = peso relativo ao tópico mais cobrado.</div>
-          <input type="text" class="incid-detail-search" placeholder="🔎 Filtrar tópicos desta banca...">
-          <div class="incid-detail-list">${detailRows || '<div class="incid-detail-empty">Nenhum tópico.</div>'}</div>
+          <div class="incid-detail-summary"><b>${nDisc}</b> disciplina(s) · <b>${nSub}</b> subtópico(s) · <b>${soma}</b> questões no total (soma das disciplinas). Barras = peso relativo ao mais cobrado.</div>
+          <div class="itree-toolbar">
+            <input type="text" class="incid-detail-search" placeholder="🔎 Filtrar assuntos desta banca..." style="flex:1; min-width:160px;">
+            <button type="button" class="tec-tree-btn itree-expand">⊞ Expandir</button>
+            <button type="button" class="tec-tree-btn itree-collapse">⊟ Recolher</button>
+          </div>
+          <div class="incid-detail-list">${treeHtml}</div>
         </div>
       </div>`;
     }).join('');
-    // interações: expandir/recolher, excluir, filtrar
+    // interações: expandir/recolher a banca, excluir, filtrar, e navegar a árvore
     list.querySelectorAll('.incid-banca-block').forEach(block => {
       const head = block.querySelector('.incid-banca-row');
       const del = block.querySelector('.incid-banca-del');
       head.addEventListener('click', (e) => {
-        if (e.target.closest('.incid-banca-del')) return; // não expande ao clicar no X
+        if (e.target.closest('.incid-banca-del')) return;
         block.classList.toggle('open');
       });
       del.addEventListener('click', (e) => {
@@ -12508,16 +12541,66 @@ const DesempenhoTecScreen = {
         if (!confirm(`Excluir toda a incidência da banca "${b}"?`)) return;
         DB.clearIncidenciaBanca(b); this.renderIncidencia();
       });
-      const search = block.querySelector('.incid-detail-search');
-      const rowsEls = Array.from(block.querySelectorAll('.incid-topic-row'));
-      search.addEventListener('click', (e) => e.stopPropagation());
-      search.addEventListener('input', () => {
-        const q = this._normSearch(search.value);
-        rowsEls.forEach(el => {
-          el.style.display = (!q || el.dataset.search.includes(q)) ? '' : 'none';
-        });
+      // toggle de cada nó com filhos
+      block.querySelectorAll('.itree-row.has-kids').forEach(row => {
+        row.addEventListener('click', (e) => { e.stopPropagation(); row.closest('.itree-node').classList.toggle('open'); });
       });
+      // expandir/recolher tudo
+      const setAll = (open) => block.querySelectorAll('.itree-node').forEach(n => { if (n.querySelector(':scope > .itree-children')) n.classList.toggle('open', open); });
+      const exp = block.querySelector('.itree-expand'); if (exp) exp.addEventListener('click', (e) => { e.stopPropagation(); setAll(true); });
+      const col = block.querySelector('.itree-collapse'); if (col) col.addEventListener('click', (e) => { e.stopPropagation(); setAll(false); });
+      // busca hierárquica (mostra o nó se ele OU um descendente casar; expande os caminhos)
+      const search = block.querySelector('.incid-detail-search');
+      const roots = Array.from(block.querySelectorAll('.itree > .itree-node'));
+      const filterNode = (node, q) => {
+        const nameEl = node.querySelector(':scope > .itree-row .itree-label');
+        const selfMatch = !q || (nameEl && nameEl.dataset.s.includes(q));
+        const kids = Array.from(node.querySelectorAll(':scope > .itree-children > .itree-node'));
+        let kidVisible = false;
+        kids.forEach(k => { if (filterNode(k, q)) kidVisible = true; });
+        const visible = selfMatch || kidVisible;
+        node.style.display = visible ? '' : 'none';
+        if (q && kidVisible) node.classList.add('open');
+        return visible;
+      };
+      if (search) {
+        search.addEventListener('click', (e) => e.stopPropagation());
+        search.addEventListener('input', () => { const q = this._normSearch(search.value); roots.forEach(r => filterNode(r, q)); });
+      }
     });
+  },
+  // Reconstrói a floresta hierárquica a partir das linhas salvas (código define o nível)
+  _buildIncidForest(rows) {
+    const forest = []; let discNode = null; let byCodigo = {};
+    rows.forEach(r => {
+      const node = { nome: r.topico, incidencia: r.incidencia || 0, codigo: r.codigo || null, depth: r.depth, children: [] };
+      if (r.depth === 0) { discNode = node; byCodigo = {}; forest.push(node); }
+      else if (r.codigo) {
+        byCodigo[r.codigo] = node;
+        const parts = r.codigo.split('.');
+        const parentCod = parts.slice(0, -1).join('.');
+        const parent = (parts.length > 1 && byCodigo[parentCod]) ? byCodigo[parentCod] : discNode;
+        (parent ? parent.children : forest).push(node);
+      } else if (discNode) { discNode.children.push(node); }
+      else forest.push(node);
+    });
+    return forest;
+  },
+  _incidNodeHtml(node, level, maxInc) {
+    const hasKids = node.children && node.children.length > 0;
+    const pct = Math.round((node.incidencia / maxInc) * 100);
+    const indent = 10 + level * 16;
+    const caret = hasKids ? '<span class="itree-caret">▶</span>' : '<span class="itree-dot"></span>';
+    const kids = hasKids ? `<div class="itree-children">${node.children.map(k => this._incidNodeHtml(k, level + 1, maxInc)).join('')}</div>` : '';
+    const ns = this._normSearch(node.nome);
+    return `<div class="itree-node ${level === 0 ? 'open' : ''}">
+      <div class="itree-row ${hasKids ? 'has-kids' : ''} ${level === 0 ? 'lvl0' : ''}" style="padding-left:${indent}px;">
+        <span class="itree-name">${caret}<span class="itree-label" data-s="${escapeHtml(ns)}" title="${escapeHtml(node.nome)}">${escapeHtml(node.nome)}</span></span>
+        <span class="itree-bar"><span style="width:${pct}%"></span></span>
+        <span class="itree-val" title="${node.incidencia} questão(ões) no histórico">${node.incidencia}</span>
+      </div>
+      ${kids}
+    </div>`;
   },
   _normSearch(s) {
     return String(s == null ? '' : s).normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/\s+/g, ' ').trim();
