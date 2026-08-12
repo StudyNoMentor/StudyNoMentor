@@ -9258,11 +9258,15 @@ const EvolucaoScreen = {
       const min = e.durationMin || 0;
       const b = this.bucketOf(e.method);
       horas[b] += min;
-      if (e.pageStart != null && e.pageEnd != null && e.pageEnd >= e.pageStart) {
+      // Ritmo de LEITURA: conta páginas e tempo APENAS de sessões de leitura/PDF.
+      // (Antes contava páginas de qualquer sessão — inclusive Questões/Vídeo —,
+      //  inflando o divisor e derrubando o "páginas por hora".)
+      if (b === 'pdf' && e.pageStart != null && e.pageEnd != null && e.pageEnd >= e.pageStart) {
         totalPaginas += (e.pageEnd - e.pageStart + 1);
         horasComPaginas += min;
       }
-      if (e.videoStart != null && e.videoEnd != null && e.videoEnd >= e.videoStart) {
+      // Ritmo de VÍDEO: conta apenas sessões de vídeo/aula (mesma lógica de escopo).
+      if (b === 'video' && e.videoStart != null && e.videoEnd != null && e.videoEnd >= e.videoStart) {
         totalVideoMin += (e.videoEnd - e.videoStart);
         clockMinComVideo += min;
       }
