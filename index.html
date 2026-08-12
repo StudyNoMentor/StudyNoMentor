@@ -5408,7 +5408,7 @@ const DB = {
     let list = this.getIncidencia();
     if (replace) list = list.filter(r => r.banca.toLowerCase() !== banca.toLowerCase());
     rows.forEach(r => {
-      list.push({ id: this._uid(), banca, disciplina: (r.disciplina || '').trim(), topico: (r.topico || '').trim(), incidencia: r.incidencia || 0, codigo: r.codigo || null, depth: (r.depth != null ? r.depth : null) });
+      list.push({ id: this._uid(), banca, disciplina: (r.disciplina || '').trim(), topico: (r.topico || '').trim(), incidencia: r.incidencia || 0, codigo: r.codigo || null, depth: (r.depth != null ? r.depth : null), pct: (r.pct != null ? r.pct : null) });
     });
     this.saveIncidencia(list);
     return rows.length;
@@ -6395,6 +6395,9 @@ const ReforcoEngine = {
       const joined = this.norm(cells.join(' '));
       if (/quantidade encontrada|frequencia acumulada|indice do caderno/.test(joined)) return true;
       if (/\bhierarquia\b/.test(joined) && /\bindice\b/.test(joined)) return true;
+      // modelo curto (novo histórico de cobrança): "Hierarquia · Índice · Quantidade · Porcentagem"
+      if (/\bquantidade\b/.test(joined) && /\bporcentagem\b/.test(joined)) return true;
+      if (/\bindice\b/.test(joined) && /\bporcentagem\b/.test(joined)) return true;
       // sinal estrutural: código na 1ª coluna + nome (não numérico) na 2ª
       if (cells.length >= 3 && /^\d+(\.\d+)*$/.test(cells[0]) && cells[1] && TecEngine.parseNum(cells[1]) === null) codigoRows++;
     }
@@ -6425,7 +6428,10 @@ const ReforcoEngine = {
         topico: r.nome.trim(),
         incidencia: Math.max(0, incid),
         codigo: r.codigo || null,
-        depth: r.depth
+        depth: r.depth,
+        // % do assunto na prova (col "Porcentagem"). Serve p/ reconstruir o total do
+        // caderno quando houver questões "sem classificação" fora do índice.
+        pct: (r.pctAcerto != null ? r.pctAcerto : null)
       });
     }
     return out;
@@ -12504,6 +12510,23 @@ const DesempenhoTecScreen = {
         : rows.reduce((s, r) => s + (r.incidencia || 0), 0);
       const nSub = rows.length - nDisc;
       const maxInc = Math.max(1, ...rows.map(r => r.incidencia || 0));
+      // TOTAL DO CADERNO (quando o arquivo traz a coluna "Porcentagem"): reconstrói pelo
+      // % das disciplinas — total = incidência ÷ (%/100). Se a soma das disciplinas já
+      // cobre ~100% (como no novo modelo), o total é o próprio "soma".
+      const discComPct = rows.filter(r => r.depth === 0 && r.pct != null && r.pct > 0);
+      let cadernoTotal = null;
+      if (discComPct.length) {
+        const sIncid = discComPct.reduce((s, r) => s + (r.incidencia || 0), 0);
+        const sPct = discComPct.reduce((s, r) => s + r.pct, 0);
+        if (sPct > 0) cadernoTotal = Math.round(sIncid / (sPct / 100));
+      }
+      const naoClass = (cadernoTotal != null && cadernoTotal > soma + 2) ? (cadernoTotal - soma) : 0;
+      const headCount = (cadernoTotal != null && naoClass > 0)
+        ? `${nDisc} disc. · ~${cadernoTotal.toLocaleString('pt-BR')} questões no caderno`
+        : `${nDisc} disc. · ${soma.toLocaleString('pt-BR')} questões`;
+      const summaryHtml = (cadernoTotal != null && naoClass > 0)
+        ? `<b>~${cadernoTotal.toLocaleString('pt-BR')}</b> questões no caderno · <b>${soma.toLocaleString('pt-BR')}</b> classificadas em <b>${nDisc}</b> disciplina(s)/<b>${nSub}</b> subtópico(s) · <b>${naoClass.toLocaleString('pt-BR')}</b> sem assunto no índice. Barras = peso relativo ao mais cobrado.`
+        : `<b>${nDisc}</b> disciplina(s) · <b>${nSub}</b> subtópico(s) · <b>${soma.toLocaleString('pt-BR')}</b> questões no total. Barras = peso relativo ao mais cobrado.`;
       // Reconstrói a HIERARQUIA (disciplina → assunto → tópico) a partir das linhas salvas
       const forest = this._buildIncidForest(rows);
       const treeHtml = forest.length
@@ -12513,11 +12536,11 @@ const DesempenhoTecScreen = {
         <div class="incid-banca-row expandable">
           <span class="incid-caret">▶</span>
           <span class="incid-banca-name">${escapeHtml(b)}</span>
-          <span class="incid-banca-count">${nDisc} disc. · ${soma} questões</span>
+          <span class="incid-banca-count">${headCount}</span>
           <button type="button" class="icon-btn danger incid-banca-del" title="Excluir esta banca">×</button>
         </div>
         <div class="incid-detail">
-          <div class="incid-detail-summary"><b>${nDisc}</b> disciplina(s) · <b>${nSub}</b> subtópico(s) · <b>${soma}</b> questões no total (soma das disciplinas). Barras = peso relativo ao mais cobrado.</div>
+          <div class="incid-detail-summary">${summaryHtml}</div>
           <div class="itree-toolbar">
             <input type="text" class="incid-detail-search" placeholder="🔎 Filtrar assuntos desta banca..." style="flex:1; min-width:160px;">
             <button type="button" class="tec-tree-btn itree-expand">⊞ Expandir</button>
