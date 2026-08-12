@@ -2149,6 +2149,26 @@
   .reforco-tag.tone-bad { color: var(--bad); background: var(--bad-soft); }
   .reforco-tag.incid { color: var(--accent); background: var(--accent-soft); }
   .reforco-tag.pts { color: #fff; background: var(--accent); }
+  /* Reforço por disciplina (acordeão) */
+  .rfd-card { border: 1px solid var(--border); border-radius: 12px; margin-bottom: 10px; overflow: hidden; background: var(--surface); }
+  .rfd-head { display: grid; grid-template-columns: 16px 1fr auto; align-items: center; gap: 12px; padding: 12px 14px; cursor: pointer; }
+  .rfd-head:hover { background: var(--surface-sunken); }
+  .rfd-caret { font-size: 11px; color: var(--text-faint); transition: transform 0.18s ease; }
+  .rfd-card.open .rfd-caret { transform: rotate(90deg); }
+  .rfd-title { min-width: 0; }
+  .rfd-name { font-size: 14.5px; font-weight: 800; color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .rfd-sub { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 4px; font-size: 11px; color: var(--text-faint); }
+  .rfd-sub .chip { font-family: 'Space Mono', monospace; }
+  .rfd-opp { text-align: right; white-space: nowrap; }
+  .rfd-opp .v { font-family: 'Space Mono', monospace; font-weight: 800; font-size: 16px; color: var(--accent); }
+  .rfd-opp .l { font-size: 9.5px; text-transform: uppercase; letter-spacing: 0.04em; color: var(--text-faint); }
+  .rfd-acc-good .v { color: var(--good); }
+  .rfd-body { display: none; padding: 4px 14px 14px; border-top: 1px solid var(--border); }
+  .rfd-card.open .rfd-body { display: block; }
+  .rfd-emptyline { font-size: 12px; color: var(--text-faint); padding: 8px 2px; }
+  .rfd-extra { margin-top: 8px; font-size: 11.5px; color: var(--text-soft); display: flex; flex-direction: column; gap: 4px; }
+  .rfd-extra b { color: var(--text); }
+  .rfd-badge-ok { font-size: 10.5px; font-weight: 700; padding: 2px 9px; border-radius: 20px; color: var(--good); background: var(--good-soft); }
   .reforco-tag.semincid { color: var(--text-faint); background: var(--surface-sunken); border: 1px dashed var(--border-strong); }
   .reforco-tag.selo-fraco { color: var(--bad); background: var(--bad-soft); }
   .reforco-tag.selo-atencao { color: var(--warn); background: var(--warn-soft); }
@@ -4772,8 +4792,15 @@
               </div>
             </div>
           </div>
+          <!-- Alternador de visão: ranking global x por disciplina -->
+          <div style="padding: 2px 24px 0;">
+            <div class="scope-toggle" id="reforco-view-toggle">
+              <button type="button" data-view="global" class="active">🏆 Ranking global</button>
+              <button type="button" data-view="disc">📚 Por disciplina</button>
+            </div>
+          </div>
           <!-- Banner: média projetada e potencial -->
-          <div id="reforco-proj" style="padding: 4px 24px 0;"></div>
+          <div id="reforco-proj" style="padding: 8px 24px 0;"></div>
           <p class="hint" id="reforco-status" style="padding: 6px 24px 0;"></p>
           <div style="padding: 6px 24px 24px;" id="reforco-list"></div>
         </div>
@@ -6709,6 +6736,51 @@ const ReforcoEngine = {
       };
     }).sort((a, b) => b.score - a.score).slice(0, limite);
 
+    // ---- TODOS os itens de erro (não cortados) p/ a visão por disciplina ----
+    const allItems = mainPool.map(u => {
+      const rec = recuperaveis(u);
+      return {
+        codigo: u.codigo, nome: u.nome, disciplina: u.disciplina,
+        incidencia: u.N, questoes: u.q, acertos: Math.round(u.pac * u.q),
+        erros: Math.round((1 - u.pac) * u.q),
+        taxaErro: Math.round((u.err || 0) * 1000) / 10,
+        pctAcerto: Math.round(u.pac * 1000) / 10,
+        pontosRecuperaveis: Math.round(rec * 10) / 10,
+        score: score(u),
+        selo: (u.err >= 0.30 ? 'fraco' : (u.err >= 0.15 ? 'atencao' : 'ok')),
+        nivel: this._depth(u.codigo), temIncid: u.N > 0
+      };
+    }).sort((a, b) => b.score - a.score);
+
+    // ---- agrupa POR DISCIPLINA (para a visão direcionada) ----
+    const topPorDisc = opts.topPorDisc || 5;
+    const discMap = {};
+    // acumula estatísticas da disciplina a partir das UNIDADES cobertas (média ponderada correta)
+    covered_forEach: {
+      units.forEach(u => {
+        const d = u.disciplina || '—';
+        const g = discMap[d] || (discMap[d] = { disciplina: d, incidencia: 0, questoes: 0, acertos: 0, itens: [], cegos: [], over: [], pontosRec: 0 });
+        g.incidencia += u.N;
+        if (u.q > 0) { g.questoes += u.q; g.acertos += u.pac * u.q; }
+      });
+    }
+    allItems.forEach(it => { const g = discMap[it.disciplina]; if (g) { g.itens.push(it); g.pontosRec += it.pontosRecuperaveis; } });
+    blindPool.forEach(u => { const g = discMap[u.disciplina]; if (g) g.cegos.push({ nome: u.nome, incidencia: u.N, questoes: u.q }); });
+    overinvest.forEach(u => { const g = discMap[u.disciplina]; if (g) g.over.push({ nome: u.nome, fatiaEsforco: Math.round(u.shareEsforco * 1000) / 10, fatiaBanca: Math.round(u.shareBanca * 1000) / 10 }); });
+    const porDisciplina = Object.values(discMap).map(g => ({
+      disciplina: g.disciplina,
+      incidencia: g.incidencia,
+      questoes: g.questoes,
+      pctAcerto: g.questoes > 0 ? Math.round((g.acertos / g.questoes) * 1000) / 10 : null,
+      nFracos: g.itens.filter(it => it.selo !== 'ok').length,
+      pontosRec: Math.round(g.pontosRec * 10) / 10,
+      cobertura: g.incidencia > 0 ? Math.round((g.questoes > 0 ? Math.min(1, g.itens.reduce((s, it) => s + it.incidencia, 0) / g.incidencia) : 0) * 100) : 0,
+      itens: g.itens.slice(0, topPorDisc),
+      nItens: g.itens.length,
+      cegos: g.cegos.slice(0, 5),
+      over: g.over.slice(0, 3)
+    })).sort((a, b) => b.pontosRec - a.pontosRec || b.incidencia - a.incidencia);
+
     // projeção da média (sobre a parte coberta) e potencial se dominar o TOP
     const covered = units.filter(u => u.q > 0);
     const cN = covered.reduce((a, u) => a + u.N, 0) || 1;
@@ -6725,7 +6797,7 @@ const ReforcoEngine = {
       projAtual: Math.round(projAtual * 1000) / 10,
       projPotencial: Math.round(projPotencial * 1000) / 10,
       cobertura, confianca: conf,
-      items,
+      items, porDisciplina,
       blindSpots: blindPool.slice(0, 8).map(u => ({ nome: u.nome, disciplina: u.disciplina, incidencia: u.N, questoes: u.q })),
       overinvest: overinvest.slice(0, 6).map(u => ({ nome: u.nome, disciplina: u.disciplina, questoes: u.q, incidencia: u.N, fatiaEsforco: Math.round(u.shareEsforco * 1000) / 10, fatiaBanca: Math.round(u.shareBanca * 1000) / 10 })),
       totalUnidades: units.length, totalErros: mainPool.length, totalCegos: blindPool.length,
@@ -12757,6 +12829,11 @@ const DesempenhoTecScreen = {
     if (!this._reforcoInit) { document.getElementById('reforco-limite').value = ReforcoEngine.sugerirLimite(); this._reforcoInit = true; }
     this.updateEstratLabel();
     this.updateGranLabel();
+    // sincroniza o alternador de visão e a visibilidade dos cards laterais
+    const vt = document.getElementById('reforco-view-toggle');
+    if (vt) vt.querySelectorAll('button').forEach(b => b.classList.toggle('active', b.dataset.view === (this.reforcoView || 'global')));
+    const side = document.querySelector('.reforco-side-grid');
+    if (side) side.style.display = ((this.reforcoView || 'global') === 'disc') ? 'none' : '';
     this.renderReforcoList();
   },
   updateEstratLabel() {
@@ -12809,40 +12886,11 @@ const DesempenhoTecScreen = {
     if (!res.hasAnyIncid) parts.push('Sem incidência cadastrada — o reforço prioriza só pelo seu erro. Cadastre a incidência da banca (aba Incidência) para priorizar por pontos.');
     else parts.push(`<b>${res.totalErros}</b> unidade(s) no ranking de erros · <b>${res.totalCegos}</b> ponto(s) cego(s) · fronteira com <b>${res.totalUnidades}</b> unidade(s), sem dupla contagem.`);
     status.innerHTML = parts.join(' · ');
-    if (res.items.length === 0) {
-      list.innerHTML = `<div class="evo-empty-mini">Nenhum ponto fraco com amostra suficiente. Diminua o "mínimo de questões", mude a granularidade, ou importe/consolide mais retratos.</div>`;
+    // Renderiza conforme a visão escolhida: global (ranking) ou por disciplina (acordeão)
+    if ((this.reforcoView || 'global') === 'disc') {
+      this._renderReforcoPorDisciplina(list, res);
     } else {
-      list.innerHTML = res.items.map((it, i) => {
-        const tone = it.pctAcerto >= 70 ? 'good' : it.pctAcerto >= 50 ? 'warn' : 'bad';
-        const seloTxt = it.selo === 'fraco' ? '🔥 fraco' : it.selo === 'atencao' ? '⚠️ atenção' : '• ok';
-        const busca = encodeURIComponent(it.nome + ' ' + it.disciplina);
-        return `
-          <div class="reforco-row" data-nome="${escapeHtml(it.nome)}" data-disc="${escapeHtml(it.disciplina)}">
-            <div class="reforco-rank">${i + 1}</div>
-            <div class="reforco-main">
-              <div class="reforco-topico">${escapeHtml(it.nome)}</div>
-              <div class="reforco-meta">
-                <span class="reforco-disc">${escapeHtml(it.disciplina)}</span>
-                <span class="reforco-tag selo-${it.selo}">${seloTxt}</span>
-                <span class="reforco-tag nivel">nível ${it.nivel}</span>
-                <span class="reforco-tag tone-${tone}">${it.taxaErro}% erro · ${it.erros}/${it.questoes}</span>
-                ${it.temIncid
-                  ? `<span class="reforco-tag incid">incidência ${it.incidencia}</span><span class="reforco-tag pts">~${it.pontosRecuperaveis} pts recuperáveis</span>`
-                  : `<span class="reforco-tag semincid">sem incidência</span>`}
-              </div>
-            </div>
-            <div class="reforco-actions">
-              <a class="reforco-act tec" href="https://www.tecconcursos.com.br/questoes/pesquisa?texto=${busca}" target="_blank" rel="noopener" title="Resolver no Tec">🔗</a>
-              <button type="button" class="reforco-act card" data-act="card" title="Criar card de revisão">🗂️</button>
-              <button type="button" class="reforco-act ciclo" data-act="ciclo" title="Adicionar ao Ciclo da Semana">➕</button>
-            </div>
-          </div>`;
-      }).join('');
-      list.querySelectorAll('.reforco-row').forEach(row => {
-        const nome = row.dataset.nome, disc = row.dataset.disc;
-        row.querySelector('[data-act="card"]').addEventListener('click', () => this.reforcoToCard(nome, disc));
-        row.querySelector('[data-act="ciclo"]').addEventListener('click', () => this.reforcoToCiclo(nome, disc));
-      });
+      this._renderReforcoGlobal(list, res);
     }
     // 🕳️ Pontos cegos (alta incidência, pouca prática) — fora do ranking de erros
     const blindCard = document.getElementById('reforco-blind-card');
@@ -12866,6 +12914,75 @@ const DesempenhoTecScreen = {
           <div class="rm-val">${o.fatiaEsforco}%<small>vs banca ${o.fatiaBanca}%</small></div>
         </div>`).join('');
     } else overCard.style.display = 'none';
+  },
+  // linha de tópico reutilizável (sem botões de ação)
+  _reforcoItemHtml(it, rank) {
+    const tone = it.pctAcerto >= 70 ? 'good' : it.pctAcerto >= 50 ? 'warn' : 'bad';
+    const seloTxt = it.selo === 'fraco' ? '🔥 fraco' : it.selo === 'atencao' ? '⚠️ atenção' : '• ok';
+    return `
+      <div class="reforco-row">
+        <div class="reforco-rank">${rank}</div>
+        <div class="reforco-main">
+          <div class="reforco-topico">${escapeHtml(it.nome)}</div>
+          <div class="reforco-meta">
+            <span class="reforco-tag selo-${it.selo}">${seloTxt}</span>
+            <span class="reforco-tag nivel">nível ${it.nivel}</span>
+            <span class="reforco-tag tone-${tone}">${it.taxaErro}% erro · ${it.erros}/${it.questoes}</span>
+            ${it.temIncid
+              ? `<span class="reforco-tag incid">incidência ${it.incidencia}</span><span class="reforco-tag pts">~${it.pontosRecuperaveis} pts recuperáveis</span>`
+              : `<span class="reforco-tag semincid">sem incidência</span>`}
+          </div>
+        </div>
+      </div>`;
+  },
+  _renderReforcoGlobal(list, res) {
+    if (!res.items.length) {
+      list.innerHTML = `<div class="evo-empty-mini">Nenhum ponto fraco com amostra suficiente. Diminua o "mínimo de questões", mude a granularidade, ou importe/consolide mais retratos.</div>`;
+      return;
+    }
+    list.innerHTML = res.items.map((it, i) => this._reforcoItemHtml(it, i + 1)).join('');
+  },
+  _renderReforcoPorDisciplina(list, res) {
+    const discs = (res.porDisciplina || []).filter(d => d.itens.length > 0 || d.nFracos > 0 || d.incidencia > 0);
+    if (!discs.length) {
+      list.innerHTML = `<div class="evo-empty-mini">Nenhuma disciplina com dados suficientes. Ajuste os filtros ou importe mais retratos.</div>`;
+      return;
+    }
+    list.innerHTML = discs.map((d, idx) => {
+      const emDia = d.itens.length === 0;
+      const pct = (d.pctAcerto != null) ? d.pctAcerto + '%' : '—';
+      const itensHtml = d.itens.length
+        ? d.itens.map((it, i) => this._reforcoItemHtml(it, i + 1)).join('')
+          + (d.nItens > d.itens.length ? `<div class="rfd-emptyline">+ ${d.nItens - d.itens.length} outro(s) ponto(s) fraco(s) nesta disciplina (aumente "Qtd. de tópicos").</div>` : '')
+        : `<div class="rfd-emptyline">✓ Sem pontos fracos com amostra suficiente aqui — disciplina em dia.</div>`;
+      const cegosHtml = d.cegos && d.cegos.length
+        ? `<div>🕳️ <b>Pontos cegos:</b> ${d.cegos.map(c => escapeHtml(c.nome) + ' (N=' + c.incidencia + ', ' + c.questoes + 'q)').join(' · ')}</div>` : '';
+      const overHtml = d.over && d.over.length
+        ? `<div>⚖️ <b>Sobre-investimento:</b> ${d.over.map(o => escapeHtml(o.nome) + ' (' + o.fatiaEsforco + '% vs banca ' + o.fatiaBanca + '%)').join(' · ')}</div>` : '';
+      const extra = (cegosHtml || overHtml) ? `<div class="rfd-extra">${cegosHtml}${overHtml}</div>` : '';
+      return `
+        <div class="rfd-card ${idx === 0 && !emDia ? 'open' : ''}" data-disc="${escapeHtml(d.disciplina)}">
+          <div class="rfd-head">
+            <span class="rfd-caret">▶</span>
+            <div class="rfd-title">
+              <div class="rfd-name">${escapeHtml(d.disciplina)}</div>
+              <div class="rfd-sub">
+                <span class="chip">🏛️ ${d.incidencia} na banca</span>
+                <span class="chip">🎯 ${pct} acerto</span>
+                ${emDia ? '<span class="rfd-badge-ok">✓ em dia</span>' : `<span class="chip">🔥 ${d.nFracos} ponto(s) fraco(s)</span>`}
+              </div>
+            </div>
+            <div class="rfd-opp ${emDia ? 'rfd-acc-good' : ''}">
+              <div class="v">${emDia ? '—' : '+' + d.pontosRec}</div>
+              <div class="l">${emDia ? 'em dia' : 'pts recuperáveis'}</div>
+            </div>
+          </div>
+          <div class="rfd-body">${itensHtml}${extra}</div>
+        </div>`;
+    }).join('');
+    list.querySelectorAll('.rfd-head').forEach(head => {
+      head.addEventListener('click', () => head.closest('.rfd-card').classList.toggle('open'));
+    });
   },
   reforcoToCard(topico, disciplina) {
     if (!window.CardsScreen) { showToast('Abra a aba Cards uma vez e tente de novo'); return; }
@@ -13230,6 +13347,18 @@ document.getElementById('tec-weak-disc').addEventListener('change', (e) => {
   on('reforco-limite', 'input', () => DT.renderReforcoList());
   on('reforco-estrat', 'input', () => { DT.updateEstratLabel(); DT.renderReforcoList(); });
   on('reforco-gran', 'input', () => { DT.updateGranLabel(); DT.renderReforcoList(); });
+  // alternador de visão: ranking global x por disciplina
+  const vt = document.getElementById('reforco-view-toggle');
+  if (vt) vt.addEventListener('click', (e) => {
+    const btn = e.target.closest('button[data-view]');
+    if (!btn) return;
+    DT.reforcoView = btn.dataset.view;
+    vt.querySelectorAll('button').forEach(b => b.classList.toggle('active', b === btn));
+    // no modo "por disciplina", os cards laterais viram redundantes (já entram em cada disciplina)
+    const side = document.querySelector('.reforco-side-grid');
+    if (side) side.style.display = (DT.reforcoView === 'disc') ? 'none' : '';
+    DT.renderReforcoList();
+  });
 })();
 window.addEventListener('screen:activated', (e) => {
   if (e.detail.screen === 'desempenhotec') DesempenhoTecScreen.render();
