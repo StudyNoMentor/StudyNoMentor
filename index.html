@@ -824,6 +824,10 @@
   .sug-config { padding: 7px 12px; font-size: 12.5px; white-space: nowrap; }
   .sug-row.is-added { opacity: 0.6; background: var(--good-soft); border-color: transparent; }
   .sug-added-badge { font-size: 11.5px; font-weight: 700; color: var(--good); background: var(--good-soft); padding: 5px 11px; border-radius: 20px; white-space: nowrap; }
+  .sug-filters { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-bottom: 12px; padding-bottom: 12px; border-bottom: 1px solid var(--border); }
+  @media (max-width: 620px) { .sug-filters { grid-template-columns: 1fr 1fr; } }
+  .sug-filters .sug-tool-field { min-width: 0; }
+  .sug-filters select, .sug-filters input { width: 100%; padding: 8px 10px; border: 1px solid var(--border); border-radius: 9px; background: var(--surface-sunken); color: var(--text); font-size: 13px; }
   .sug-toolbar { display: flex; align-items: flex-end; gap: 12px; flex-wrap: wrap; margin-bottom: 14px; padding-bottom: 12px; border-bottom: 1px solid var(--border); }
   .sug-tool-field { flex: 1; min-width: 200px; display: flex; flex-direction: column; gap: 5px; }
   .sug-tool-field label { font-size: 11px; font-weight: 700; color: var(--text-faint); text-transform: uppercase; letter-spacing: 0.03em; }
@@ -4107,6 +4111,7 @@
     </div>
 
     <div class="cards-topbar">
+      <button type="button" class="btn-secondary" id="cards-algo-btn" title="Algoritmo de repetição espaçada">⚙ Algoritmo</button>
       <button type="button" class="btn-secondary" id="cards-import-btn">⭱ Importar</button>
       <button type="button" class="btn-secondary" id="cards-export-btn">⭳ Exportar p/ Anki</button>
       <button type="button" class="btn-secondary" id="cards-deck-btn">📁 Criar baralho</button>
@@ -5096,6 +5101,28 @@
         <button type="button" class="icon-btn" id="extra-suggest-close">✕</button>
       </div>
       <div class="cards-modal-body">
+        <div class="sug-filters">
+          <div class="sug-tool-field">
+            <label>Banca</label>
+            <select id="extra-suggest-banca"></select>
+          </div>
+          <div class="sug-tool-field">
+            <label>Disciplina</label>
+            <select id="extra-suggest-disc"><option value="__todas__">📚 Todas</option></select>
+          </div>
+          <div class="sug-tool-field">
+            <label>Ordenar por</label>
+            <select id="extra-suggest-ordenar">
+              <option value="oportunidade" selected>🎯 Oportunidade</option>
+              <option value="erro">🔴 Maior erro</option>
+              <option value="incidencia">🏛️ Maior incidência</option>
+            </select>
+          </div>
+          <div class="sug-tool-field">
+            <label>Mín. questões</label>
+            <input type="number" id="extra-suggest-minq" min="1" value="8">
+          </div>
+        </div>
         <div class="sug-toolbar">
           <div class="sug-tool-field">
             <label>Gerar cada uma como</label>
@@ -5740,6 +5767,8 @@ const DB = {
       favorito: false,
       status: 'pendente',
       ease: 2.5, intervalo: 0, due: todayLocal(), reps: 0, lapses: 0,
+      // estado FSRS (Anki): fase, passo de aprendizado, estabilidade (S), dificuldade (D)
+      phase: 'new', learnStep: 0, s: null, d: null, dueTs: null,
       createdAt: now, updatedAt: now
     };
     list.push(card); this.saveCards(list); return card;
@@ -8084,53 +8113,142 @@ const LawEngine = {
 /* ============================================================
    CARD ENGINE — repetição espaçada (SM-2 simplificado) + filtros
    ============================================================ */
+/* ============================================================
+   FSRS-5 — Free Spaced Repetition Scheduler (o algoritmo padrão do Anki).
+   Modela a memória por card com Dificuldade (D) e Estabilidade (S) e agenda
+   cada card no dia em que sua chance de lembrar cai para a RETENÇÃO-ALVO.
+   ============================================================ */
+const FSRS = {
+  DEFAULT_W: [0.40255, 1.18385, 3.173, 15.69105, 7.1949, 0.5345, 1.4604, 0.0046,
+    1.54575, 0.1192, 1.01925, 1.9395, 0.11, 0.29605, 2.2698, 0.2315, 2.9898, 0.51655, 0.6621],
+  DECAY: -0.5,
+  get FACTOR() { return Math.pow(0.9, 1 / this.DECAY) - 1; }, // ≈ 0.234568
+  clampD(d) { return Math.min(10, Math.max(1, d)); },
+  clampS(s) { return Math.max(0.01, s); },
+  R(t, S) { return Math.pow(1 + this.FACTOR * t / S, this.DECAY); },
+  interval(S, r) { return Math.max(1, Math.round((S / this.FACTOR) * (Math.pow(r, 1 / this.DECAY) - 1))); },
+  initS(G, w) { return this.clampS(w[G - 1]); },
+  D0(G, w) { return w[4] - Math.exp(w[5] * (G - 1)) + 1; },
+  initD(G, w) { return this.clampD(this.D0(G, w)); },
+  nextD(D, G, w) { const dp = D - w[6] * (G - 3) * (10 - D) / 9; return this.clampD(w[7] * this.D0(4, w) + (1 - w[7]) * dp); },
+  nextS_recall(D, S, R, G, w) {
+    const hard = (G === 2) ? w[15] : 1, easy = (G === 4) ? w[16] : 1;
+    return this.clampS(S * (1 + Math.exp(w[8]) * (11 - D) * Math.pow(S, -w[9]) * (Math.exp(w[10] * (1 - R)) - 1) * hard * easy));
+  },
+  nextS_forget(D, S, R, w) { return this.clampS(Math.min(w[11] * Math.pow(D, -w[12]) * (Math.pow(S + 1, w[13]) - 1) * Math.exp(w[14] * (1 - R)), S)); }
+};
+
+// Configuração dos Cards (algoritmo, retenção-alvo, passos de aprendizado) — global, por dispositivo.
+const CardsConfig = {
+  KEY: 'diario-estudos:cards-cfg',
+  DEFAULTS: { algo: 'fsrs', retention: 0.9, learnSteps: [1, 10], relearnSteps: [10] },
+  _c: null,
+  get() {
+    if (this._c) return this._c;
+    let v = null; try { v = JSON.parse(localStorage.getItem(this.KEY)); } catch (_) {}
+    this._c = Object.assign({}, this.DEFAULTS, v || {});
+    if (!Array.isArray(this._c.learnSteps) || !this._c.learnSteps.length) this._c.learnSteps = this.DEFAULTS.learnSteps.slice();
+    if (!Array.isArray(this._c.relearnSteps) || !this._c.relearnSteps.length) this._c.relearnSteps = this.DEFAULTS.relearnSteps.slice();
+    return this._c;
+  },
+  set(patch) { const v = Object.assign(this.get(), patch || {}); this._c = v; try { localStorage.setItem(this.KEY, JSON.stringify(v)); } catch (_) {} }
+};
+
 const CardEngine = {
   TIPOS: ['Aplicação', 'Associação', 'Certo/Errado', 'Complete a lacuna', 'Conceito', 'Definição', 'Diferenciação', 'Múltipla escolha', 'Verdadeiro ou Falso'],
   addDays(iso, n) {
     const d = new Date(iso + 'T00:00:00'); d.setDate(d.getDate() + n);
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
   },
-  // Aplica a resposta e devolve o patch de agendamento (SM-2 com 4 botões, estilo Anki).
-  // grade: 'errei' | 'dificil' | 'bom' | 'facil' (aliases: 'naosei'->'errei', 'sei'->'bom')
-  // Parâmetros inspirados nos padrões do Anki (SM-2)
+  // Parâmetros do algoritmo Clássico (SM-2)
   MIN_EASE: 1.3, MAX_EASE: 3.2, HARD_FACTOR: 1.2, EASY_BONUS: 1.3, MAX_INTERVAL: 365 * 5,
-  GRAD_GOOD: 1,   // 1º "Bom" gradua para 1 dia
-  GRAD_EASY: 4,   // 1º "Fácil" gradua para 4 dias
-  schedule(card, grade) {
+  GRAD_GOOD: 1, GRAD_EASY: 4,
+  GRADE_NUM: { errei: 1, dificil: 2, bom: 3, facil: 4, naosei: 1, sei: 3 },
+  _daysBetween(a, b) { return Math.max(0, Math.round((new Date(b + 'T00:00:00') - new Date(a + 'T00:00:00')) / 86400000)); },
+  // Migração/normalização: garante que todo card tenha estado FSRS quando o algoritmo é FSRS.
+  _ensureFsrsState(card) {
+    const w = FSRS.DEFAULT_W;
+    const c = Object.assign({}, card);
+    if (!c.phase) {
+      if ((c.reps || 0) > 0 && (c.intervalo || 0) > 0) {
+        // card antigo já em revisão → aproxima S pelo intervalo e D pela facilidade
+        c.phase = 'review';
+        c.s = Math.max(1, c.intervalo);
+        const e = c.ease || 2.5;
+        c.d = FSRS.clampD(10 - ((e - this.MIN_EASE) / (this.MAX_EASE - this.MIN_EASE)) * 9);
+      } else { c.phase = 'new'; c.s = null; c.d = null; }
+      c.learnStep = c.learnStep || 0;
+    }
+    return c;
+  },
+  // ---- Agendador FSRS (com passos de aprendizado/reaprendizado em minutos, como o Anki) ----
+  _scheduleFSRS(card, G) {
+    const cfg = CardsConfig.get(), w = FSRS.DEFAULT_W, r = cfg.retention || 0.9;
+    const learn = cfg.learnSteps, relearn = cfg.relearnSteps;
+    const c = this._ensureFsrsState(card);
+    const nowTs = Date.now(), tdy = todayLocal();
+    let patch = { reps: (c.reps || 0) + 1, lastReview: tdy, algo: 'fsrs' };
+    const stepDue = (min) => ({ dueTs: nowTs + min * 60000, due: tdy });
+    const graduate = (gInit, keepS) => {
+      const S = (keepS != null) ? keepS : FSRS.initS(gInit, w);
+      const D = (c.d != null) ? c.d : FSRS.initD(gInit, w);
+      const iv = FSRS.interval(S, r);
+      return Object.assign(patch, { phase: 'review', learnStep: 0, s: S, d: D, due: this.addDays(tdy, iv), dueTs: null, status: 'sei', _kind: 'day', _val: iv });
+    };
+    if (c.phase === 'new' || c.phase === 'learning') {
+      if (G === 1) { Object.assign(patch, { phase: 'learning', learnStep: 0, status: 'naosei' }, stepDue(learn[0])); patch._kind = 'min'; patch._val = learn[0]; }
+      else if (G === 4) { graduate(4); }
+      else if (G === 3) {
+        const next = (c.phase === 'new' ? 0 : (c.learnStep || 0)) + 1;
+        if (next >= learn.length) graduate(3);
+        else { Object.assign(patch, { phase: 'learning', learnStep: next, status: 'naosei' }, stepDue(learn[next])); patch._kind = 'min'; patch._val = learn[next]; }
+      } else { const st = (c.phase === 'new' ? 0 : (c.learnStep || 0)); Object.assign(patch, { phase: 'learning', learnStep: st, status: 'naosei' }, stepDue(learn[st])); patch._kind = 'min'; patch._val = learn[st]; }
+    } else if (c.phase === 'review') {
+      const elapsed = Math.max(0.01, this._daysBetween(c.lastReview || tdy, tdy));
+      const R = FSRS.R(elapsed, c.s || 1);
+      if (G === 1) { const Sf = FSRS.nextS_forget(c.d, c.s, R, w), D2 = FSRS.nextD(c.d, 1, w); Object.assign(patch, { phase: 'relearning', learnStep: 0, s: Sf, d: D2, lapses: (c.lapses || 0) + 1, status: 'naosei' }, stepDue(relearn[0])); patch._kind = 'min'; patch._val = relearn[0]; }
+      else { const S2 = FSRS.nextS_recall(c.d, c.s, R, G, w), D2 = FSRS.nextD(c.d, G, w), iv = FSRS.interval(S2, r); Object.assign(patch, { phase: 'review', s: S2, d: D2, due: this.addDays(tdy, iv), dueTs: null, status: 'sei' }); patch._kind = 'day'; patch._val = iv; }
+    } else if (c.phase === 'relearning') {
+      if (G === 1) { Object.assign(patch, { learnStep: 0, status: 'naosei' }, stepDue(relearn[0])); patch._kind = 'min'; patch._val = relearn[0]; }
+      else if (G === 4) { graduate(3, c.s); }
+      else if (G === 3) { const next = (c.learnStep || 0) + 1; if (next >= relearn.length) graduate(3, c.s); else { Object.assign(patch, { learnStep: next, status: 'naosei' }, stepDue(relearn[next])); patch._kind = 'min'; patch._val = relearn[next]; } }
+      else { const st = c.learnStep || 0; Object.assign(patch, { learnStep: st, status: 'naosei' }, stepDue(relearn[st])); patch._kind = 'min'; patch._val = relearn[st]; }
+    }
+    return patch;
+  },
+  // ---- Agendador Clássico (SM-2) ----
+  _scheduleSM2(card, grade) {
     let ease = card.ease || 2.5, intervalo = card.intervalo || 0, reps = card.reps || 0, lapses = card.lapses || 0;
-    if (grade === 'sei') grade = 'bom';
-    if (grade === 'naosei') grade = 'errei';
-    const isNew = reps === 0 || intervalo <= 0; // ainda em aprendizado
+    const isNew = reps === 0 || intervalo <= 0;
     let status;
     const clampE = (e) => Math.max(this.MIN_EASE, Math.min(this.MAX_EASE, e));
     const cap = (d) => Math.max(1, Math.min(this.MAX_INTERVAL, Math.round(d)));
-
-    if (grade === 'errei') {
-      // errou: lapso, reduz facilidade, reinicia o ciclo de aprendizado (revê em 1 dia)
-      lapses += 1; reps = 0; intervalo = 1; ease = clampE(ease - 0.20); status = 'naosei';
-    } else if (isNew) {
-      // fase de aprendizado (card novo ou reaprendendo): graduação
-      reps += 1; status = 'sei';
-      if (grade === 'facil') { intervalo = this.GRAD_EASY; ease = clampE(ease + 0.15); }
-      else if (grade === 'dificil') { intervalo = 1; ease = clampE(ease - 0.15); }
-      else intervalo = this.GRAD_GOOD; // bom
-    } else {
-      // fase de revisão (card já graduado): cresce conforme a nota
-      reps += 1; status = 'sei';
-      if (grade === 'dificil') { intervalo = cap(intervalo * this.HARD_FACTOR); ease = clampE(ease - 0.15); }
-      else if (grade === 'facil') { intervalo = cap(intervalo * ease * this.EASY_BONUS); ease = clampE(ease + 0.15); }
-      else intervalo = cap(intervalo * ease); // bom: cresce pela facilidade atual
-    }
+    if (grade === 'errei') { lapses += 1; reps = 0; intervalo = 1; ease = clampE(ease - 0.20); status = 'naosei'; }
+    else if (isNew) { reps += 1; status = 'sei'; if (grade === 'facil') { intervalo = this.GRAD_EASY; ease = clampE(ease + 0.15); } else if (grade === 'dificil') { intervalo = 1; ease = clampE(ease - 0.15); } else intervalo = this.GRAD_GOOD; }
+    else { reps += 1; status = 'sei'; if (grade === 'dificil') { intervalo = cap(intervalo * this.HARD_FACTOR); ease = clampE(ease - 0.15); } else if (grade === 'facil') { intervalo = cap(intervalo * ease * this.EASY_BONUS); ease = clampE(ease + 0.15); } else intervalo = cap(intervalo * ease); }
     intervalo = cap(intervalo);
-    return { status, grade, ease, intervalo, reps, lapses, due: this.addDays(todayLocal(), intervalo), lastReview: todayLocal() };
+    return { status, grade, ease, intervalo, reps, lapses, due: this.addDays(todayLocal(), intervalo), dueTs: null, lastReview: todayLocal(), algo: 'sm2', _kind: 'day', _val: intervalo };
   },
-  // Prévia do próximo intervalo de cada botão (para mostrar no card), sem alterar o card.
+  // Ponto único de entrada. grade: 'errei'|'dificil'|'bom'|'facil' (ou 'sei'/'naosei')
+  schedule(card, grade) {
+    if (grade === 'sei') grade = 'bom';
+    if (grade === 'naosei') grade = 'errei';
+    if (CardsConfig.get().algo === 'fsrs') return this._scheduleFSRS(card, this.GRADE_NUM[grade] || 3);
+    return this._scheduleSM2(card, grade);
+  },
+  // Prévia dos 4 botões — cada um retorna { kind:'min'|'day', val }
   previewIntervals(card) {
     const out = {};
-    ['errei', 'dificil', 'bom', 'facil'].forEach(g => { out[g] = this.schedule(card, g).intervalo; });
+    ['errei', 'dificil', 'bom', 'facil'].forEach(g => { const p = this.schedule(card, g); out[g] = { kind: p._kind || 'day', val: (p._val != null ? p._val : p.intervalo) }; });
     return out;
   },
-  fmtInterval(dias) {
+  // Formata a prévia de um botão: aceita número (dias) ou objeto { kind, val }
+  fmtInterval(v) {
+    if (v && typeof v === 'object') {
+      if (v.kind === 'min') { const m = v.val; return m < 60 ? m + ' min' : (Math.round(m / 60 * 10) / 10) + ' h'; }
+      return this.fmtInterval(v.val);
+    }
+    const dias = v;
     if (dias <= 0) return 'hoje';
     if (dias === 1) return '1 dia';
     if (dias < 30) return dias + ' dias';
@@ -8144,7 +8262,10 @@ const CardEngine = {
     return String(html || '').replace(/\{\{(?:c\d+::)?([\s\S]*?)\}\}/g, (m, inner) =>
       reveal ? `<span class="cloze-reveal">${inner}</span>` : `<span class="cloze-blank">[&nbsp;…&nbsp;]</span>`);
   },
-  isDue(card) { return (card.due || todayLocal()) <= todayLocal(); },
+  isDue(card) {
+    if (card.dueTs) return Date.now() >= card.dueTs;   // passo em minutos (aprendizado/reaprendizado)
+    return (card.due || todayLocal()) <= todayLocal(); // agendamento por dia
+  },
   // Aplica os filtros a uma lista de cards. f = { busca, materias:Set, topico, tipo, status, favorito, deckId }
   applyFilters(cards, f) {
     f = f || {};
@@ -11571,9 +11692,17 @@ const CardsScreen = {
   answer(grade) {
     const id = this._reviewQueue[this._reviewIdx];
     const c = DB.getCard(id);
-    if (c) DB.updateCard(id, CardEngine.schedule(c, grade));
+    let patch = null;
+    if (c) { patch = CardEngine.schedule(c, grade); DB.updateCard(id, patch); }
     this._reviewIdx++;
     this._flipped = false;
+    // Anki: cards em APRENDIZADO/REAPRENDIZADO ressurgem na mesma sessão (após o passo).
+    // Reinsere o id algumas posições à frente para você revê-lo até fixar.
+    if (patch && (patch.phase === 'learning' || patch.phase === 'relearning')) {
+      const restam = this._reviewQueue.length - this._reviewIdx;
+      const gap = Math.min(3, restam);
+      this._reviewQueue.splice(this._reviewIdx + gap, 0, id);
+    }
     const box = document.getElementById('cards-content');
     if (this._reviewIdx >= this._reviewQueue.length) {
       box.innerHTML = `<div class="card"><div class="cards-review-done"><div class="big">🎉</div><h3>Sessão concluída!</h3><p>Você revisou ${this._reviewQueue.length} card(s). O app agendou a próxima revisão de cada um.</p><button type="button" class="btn-primary" id="cards-review-restart">Revisar novamente</button></div></div>`;
@@ -11881,6 +12010,32 @@ const CardsScreen = {
     showToast(`${count} card(s) importado(s) ✓`);
   }
 };
+CardsScreen.openAlgoConfig = function () {
+  const cfg = CardsConfig.get();
+  UI.prompt([
+    { key: 'algo', label: '🧠 Algoritmo de repetição espaçada', type: 'select', value: cfg.algo,
+      options: [{ value: 'fsrs', label: 'FSRS (recomendado — igual ao Anki atual)' }, { value: 'sm2', label: 'Clássico (SM-2)' }],
+      hint: 'FSRS agenda cada card no dia exato da sua meta de retenção — 20–30% mais eficiente.' },
+    { key: 'retention', label: '🎯 Retenção-alvo (%) — só FSRS', type: 'number', value: Math.round(cfg.retention * 100), min: 70, max: 97,
+      hint: 'Maior = revê mais vezes e esquece menos. Padrão do Anki: 90%.' },
+    { key: 'learn', label: '⏱️ Passos de aprendizado (min)', type: 'text', value: cfg.learnSteps.join(' '), placeholder: '1 10',
+      hint: 'Card novo: você o revê nesses minutos até fixar. Igual ao Anki (ex.: 1 10).' },
+    { key: 'relearn', label: '🔁 Passos de reaprendizado (min)', type: 'text', value: cfg.relearnSteps.join(' '), placeholder: '10',
+      hint: 'Ao errar um card já aprendido, ele volta nesses minutos.' }
+  ], { title: '⚙ Algoritmo dos Cards', okText: 'Salvar' }).then(v => {
+    if (!v) return;
+    const parseSteps = (s, def) => { const a = String(s).split(/[\s,]+/).map(x => parseFloat(x)).filter(x => x > 0); return a.length ? a : def; };
+    const ret = Math.min(0.97, Math.max(0.70, (parseFloat(v.retention) || 90) / 100));
+    CardsConfig.set({
+      algo: v.algo === 'sm2' ? 'sm2' : 'fsrs',
+      retention: ret,
+      learnSteps: parseSteps(v.learn, [1, 10]),
+      relearnSteps: parseSteps(v.relearn, [10])
+    });
+    showToast('Algoritmo atualizado: ' + (v.algo === 'sm2' ? 'Clássico (SM-2)' : 'FSRS') + ' ✓');
+    if (CardsScreen.tab === 'revisar') CardsScreen.renderContent();
+  });
+};
 window.CardsScreen = CardsScreen;
 document.addEventListener('keydown', (e) => CardsScreen.onKey(e));
 
@@ -12059,6 +12214,7 @@ document.querySelectorAll('.rte').forEach(buildRteToolbar);
     CardsScreen._reviewIdx = 0; CardsScreen.renderContent();
   });
   // topo
+  on('cards-algo-btn', 'click', () => CardsScreen.openAlgoConfig());
   on('cards-new-btn', 'click', () => CardsScreen.openCardModal(null));
   on('cards-deck-btn', 'click', () => CardsScreen.openDeckModal());
   on('cards-export-btn', 'click', () => CardsScreen.openExportModal());
@@ -12388,12 +12544,41 @@ const ExtrasScreen = {
     const snap = (typeof DesempenhoTecScreen !== 'undefined' && DesempenhoTecScreen.scopedSnapshot)
       ? DesempenhoTecScreen.scopedSnapshot() : ReforcoEngine.currentSnapshot();
     if (!snap) return [];
-    const banca = (DB.getBancas()[0]) || '__todas__';
-    const res = ReforcoEngine.suggestFrontier(snap, { banca, estrategia: 0.5, granularidade: 0.5, minQuestoes: 8, limite: 15, ordenarPor: 'oportunidade' });
-    return (res.items || []).filter(it => it.selo !== 'ok').slice(0, 12);
+    const bancaEl = document.getElementById('extra-suggest-banca');
+    const discEl = document.getElementById('extra-suggest-disc');
+    const ordEl = document.getElementById('extra-suggest-ordenar');
+    const minqEl = document.getElementById('extra-suggest-minq');
+    const banca = (bancaEl && bancaEl.value) || (DB.getBancas()[0]) || '__todas__';
+    const ordenarPor = (ordEl && ordEl.value) || 'oportunidade';
+    const minq = (minqEl && parseInt(minqEl.value)) || 8;
+    const res = ReforcoEngine.suggestFrontier(snap, { banca, estrategia: 0.5, granularidade: 0.5, minQuestoes: minq, limite: 60, ordenarPor });
+    let items = (res.items || []).filter(it => it.selo !== 'ok');
+    // filtro por disciplina
+    const disc = discEl ? discEl.value : '__todas__';
+    if (disc && disc !== '__todas__') { const nk = ReforcoEngine.norm(disc); items = items.filter(it => ReforcoEngine.norm(it.disciplina) === nk); }
+    return items.slice(0, 20);
+  },
+  _populateSuggestFilters() {
+    const bancaEl = document.getElementById('extra-suggest-banca');
+    const discEl = document.getElementById('extra-suggest-disc');
+    if (bancaEl) {
+      const bancas = DB.getBancas();
+      const cur = bancaEl.value;
+      bancaEl.innerHTML = (bancas.length ? '' : '<option value="__todas__">Todas</option>') +
+        bancas.map(b => `<option value="${escapeHtml(b)}">${escapeHtml(b)}</option>`).join('');
+      if (cur && [...bancaEl.options].some(o => o.value === cur)) bancaEl.value = cur;
+    }
+    if (discEl) {
+      const bsel = bancaEl ? bancaEl.value : '__todas__';
+      const discs = [...new Set(DB.getIncidencia().filter(r => r.depth === 0 && (bsel === '__todas__' || r.banca === bsel)).map(r => r.topico))].sort();
+      const cur = discEl.value || '__todas__';
+      discEl.innerHTML = `<option value="__todas__">📚 Todas as disciplinas</option>` + discs.map(d => `<option value="${escapeHtml(d)}">${escapeHtml(d)}</option>`).join('');
+      if ([...discEl.options].some(o => o.value === cur)) discEl.value = cur;
+    }
   },
   _sugAdded: null,   // conjunto de índices já adicionados (para marcar ✓)
   openSuggest() {
+    this._populateSuggestFilters();
     const sugs = this._suggestions();
     this._sugAdded = this._sugAdded || new Set();
     const listEl = document.getElementById('extra-suggest-list');
@@ -12515,6 +12700,11 @@ window.ExtrasScreen = ExtrasScreen;
   on('extra-suggest-cancel', 'click', () => { document.getElementById('extra-suggest-modal').style.display = 'none'; ExtrasScreen._sugAdded = new Set(); });
   on('extra-suggest-add', 'click', () => ExtrasScreen.addSuggested());
   on('extra-suggest-all', 'click', () => ExtrasScreen.toggleSelectAll());
+  // filtros das sugestões (recarregam a lista) — como no Reforço
+  on('extra-suggest-banca', 'change', () => { ExtrasScreen._populateSuggestFilters(); ExtrasScreen.openSuggest(); });
+  on('extra-suggest-disc', 'change', () => ExtrasScreen.openSuggest());
+  on('extra-suggest-ordenar', 'change', () => ExtrasScreen.openSuggest());
+  on('extra-suggest-minq', 'input', () => ExtrasScreen.openSuggest());
   // fechar/cancelar o config: se veio das sugestões, volta para elas
   const closeExtraModal = () => {
     document.getElementById('extra-modal').style.display = 'none';
