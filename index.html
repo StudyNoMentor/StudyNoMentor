@@ -3082,8 +3082,29 @@
     max-width: 76ch;
     margin: 0 auto;
   }
-  .law-block { margin: 3px 0; }
+  .law-block { margin: 3px 0; position: relative; }
   .law-gap { height: 14px; }
+  /* Numeração de linha (gutter) — some por padrão; aparece com .show-lines */
+  .law-lnum { display: none; }
+  .lei-reader-body.show-lines .law-lnum {
+    display: inline-flex; align-items: center; justify-content: flex-end;
+    position: absolute; left: -44px; top: 0.15em; width: 34px;
+    font-family: 'Space Mono', monospace; font-size: 11px; color: var(--text-faint);
+    user-select: none; cursor: pointer; padding: 1px 5px; border-radius: 5px;
+    transition: background 0.12s ease, color 0.12s ease;
+  }
+  .lei-reader-body.show-lines .law-lnum:hover { background: var(--accent-soft); color: var(--accent); }
+  .lei-reader-body.show-lines { padding-left: 60px; }
+  /* Linha marcada como "onde parei" */
+  .law-bookmarked { background: linear-gradient(90deg, var(--warn-soft), transparent 70%); border-radius: 8px; box-shadow: -3px 0 0 var(--warn); scroll-margin-top: 120px; }
+  .law-bookmarked .law-lnum { background: var(--warn); color: #fff !important; font-weight: 700; }
+  .law-pin { margin-left: 8px; font-size: 14px; }
+  .law-bk-flash { animation: lawBkFlash 1.2s ease; }
+  @keyframes lawBkFlash { 0%, 100% { box-shadow: -3px 0 0 var(--warn); } 30% { box-shadow: 0 0 0 3px var(--warn); background: var(--warn-soft); } }
+  @media (max-width: 640px) {
+    .lei-reader-body.show-lines { padding-left: 40px; }
+    .lei-reader-body.show-lines .law-lnum { left: -34px; width: 26px; font-size: 10px; }
+  }
   /* Títulos / Capítulos / Seções — divisor central elegante */
   .law-head {
     font-weight: 800; text-transform: uppercase; letter-spacing: 0.08em;
@@ -4018,6 +4039,8 @@
           <button type="button" class="leis-tool-btn leis-tool-erase" id="lei-unmark-btn" title="Borracha: com ela ativa, selecione um destaque para apagá-lo (inclusive os automáticos)">🧽 Borracha</button>
           <span id="lei-mark-count" class="leis-mark-count"></span>
           <span class="leis-toolbar-spacer"></span>
+          <button type="button" class="leis-tool-btn" id="lei-lines-btn" title="Mostrar/ocultar a numeração das linhas">🔢 Linhas</button>
+          <button type="button" class="leis-tool-btn" id="lei-goto-mark-btn" title="Ir para a linha onde você parou">📌 Onde parei</button>
           <div class="leis-reader-controls">
             <button type="button" class="icon-btn" id="lei-font-dec" title="Diminuir fonte">A−</button>
             <button type="button" class="icon-btn" id="lei-font-inc" title="Aumentar fonte">A+</button>
@@ -7994,12 +8017,20 @@ const LawEngine = {
     const manual = lei.marcacoes || [];
     const suppressed = lei.suppressed || [];
     const lines = text.split('\n');
+    const bookmark = (lei.bookmark != null) ? lei.bookmark : -1;
     let html = '';
+    let ln = 0; // contador de linhas de conteúdo (ignora linhas em branco)
     lines.forEach(line => {
       if (!line.trim()) { html += '<div class="law-gap"></div>'; return; }
+      ln++;
       const cls = this._classify(line);
       const spans = this._spansForLine(line, opts, manual, suppressed);
-      html += `<div class="law-block ${cls}">${this._renderLine(line, spans)}</div>`;
+      const isBk = (ln === bookmark);
+      html += `<div class="law-block ${cls} ${isBk ? 'law-bookmarked' : ''}" data-line="${ln}">` +
+        `<span class="law-lnum" data-line="${ln}" title="Clique para marcar aqui (onde parei)">${ln}</span>` +
+        `<span class="law-content">${this._renderLine(line, spans)}</span>` +
+        (isBk ? '<span class="law-pin" title="Você parou aqui">📌</span>' : '') +
+        `</div>`;
     });
     return html;
   },
@@ -11033,6 +11064,9 @@ const LeisScreen = {
       cb.disabled = !autoOn;
     });
     document.getElementById('lei-hl-toggles').classList.toggle('auto-off', !autoOn);
+    // restaura preferência de numeração de linhas
+    try { this.showLines = localStorage.getItem('diario-estudos:lei-show-lines') === '1'; } catch (_) {}
+    const lb = document.getElementById('lei-lines-btn'); if (lb) lb.classList.toggle('active', !!this.showLines);
     this.renderBody();
     this.renderMarks();
   },
@@ -11044,6 +11078,7 @@ const LeisScreen = {
     body.style.fontSize = (100 + this.fontStep * 8) + '%';
     body.classList.toggle('tool-mark', this.hlMode === 'mark');
     body.classList.toggle('tool-erase', this.hlMode === 'erase');
+    body.classList.toggle('show-lines', !!this.showLines);
     // com a BORRACHA ativa, clicar em qualquer destaque (manual ou automático) o apaga
     body.querySelectorAll('mark[class*="lawmark-"]').forEach(mk => {
       mk.addEventListener('click', (e) => {
@@ -11052,6 +11087,38 @@ const LeisScreen = {
         this.eraseHighlight(mk.textContent || '');
       });
     });
+    // clicar no NÚMERO da linha → fixa/retira o pin "onde parei"
+    body.querySelectorAll('.law-lnum').forEach(el => {
+      el.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const ln = parseInt(el.dataset.line);
+        const cur = DB.getLei(this.currentId);
+        const atual = (cur.bookmark != null) ? cur.bookmark : -1;
+        const novo = (atual === ln) ? null : ln; // clicar de novo remove
+        DB.updateLei(this.currentId, { bookmark: novo });
+        this.renderBody();
+        if (novo != null) { this.gotoBookmark(); showToast('📌 Marcado: você parou na linha ' + novo); }
+        else showToast('Marcador removido');
+      });
+    });
+    // atualiza o rótulo do botão "Onde parei"
+    const gb = document.getElementById('lei-goto-mark-btn');
+    if (gb) { const has = lei.bookmark != null; gb.style.opacity = has ? '1' : '0.55'; gb.title = has ? 'Ir para a linha ' + lei.bookmark : 'Nenhuma linha marcada ainda — clique no número de uma linha'; }
+  },
+  toggleLines() {
+    this.showLines = !this.showLines;
+    const btn = document.getElementById('lei-lines-btn');
+    if (btn) btn.classList.toggle('active', this.showLines);
+    try { localStorage.setItem('diario-estudos:lei-show-lines', this.showLines ? '1' : '0'); } catch (_) {}
+    this.renderBody();
+  },
+  gotoBookmark() {
+    const lei = DB.getLei(this.currentId);
+    if (!lei || lei.bookmark == null) { showToast('Marque uma linha primeiro: clique no 🔢 Linhas e depois no número onde parou'); if (!this.showLines) this.toggleLines(); return; }
+    // garante que a numeração esteja visível para orientação
+    const body = document.getElementById('lei-reader-body');
+    const alvo = body.querySelector(`.law-block[data-line="${lei.bookmark}"]`);
+    if (alvo) { alvo.scrollIntoView({ behavior: 'smooth', block: 'center' }); alvo.classList.add('law-bk-flash'); setTimeout(() => alvo.classList.remove('law-bk-flash'), 1200); }
   },
   // captura a seleção atual DENTRO do corpo do leitor (chamado no mouseup/keyup)
   captureSelection() {
@@ -11276,6 +11343,8 @@ window.LeisScreen = LeisScreen;
   if (body) body.addEventListener('mouseup', () => setTimeout(() => LeisScreen.onBodyMouseUp(), 0));
   on('lei-font-inc', 'click', () => LeisScreen.changeFont(1));
   on('lei-font-dec', 'click', () => LeisScreen.changeFont(-1));
+  on('lei-lines-btn', 'click', () => LeisScreen.toggleLines());
+  on('lei-goto-mark-btn', 'click', () => LeisScreen.gotoBookmark());
   on('lei-auto-master', 'change', (e) => LeisScreen.setAutoMaster(e.target.checked));
   document.querySelectorAll('#lei-hl-toggles input[data-cat]').forEach(cb => {
     cb.addEventListener('change', () => LeisScreen.toggleCategory(cb.dataset.cat, cb.checked));
