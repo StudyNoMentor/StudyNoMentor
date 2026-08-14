@@ -769,6 +769,10 @@
   .extra-progress .bar > span.full { background: var(--good); }
   .extra-progress .nums { display: flex; align-items: baseline; justify-content: space-between; margin-top: 6px; font-size: 12px; color: var(--text-soft); }
   .extra-progress .nums b { font-family: 'Space Mono', monospace; color: var(--text); font-size: 14px; }
+  .extra-marcador { display: flex; align-items: center; gap: 8px; margin-top: 10px; padding: 8px 10px; background: var(--warn-soft); border: 1px dashed var(--warn); border-radius: 10px; }
+  .extra-marcador .em-ico { font-size: 15px; }
+  .extra-marcador input { flex: 1; min-width: 0; padding: 6px 10px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface); color: var(--text); font-size: 12.5px; }
+  .extra-marcador button { padding: 6px 12px; font-size: 12px; }
   .extra-foot { display: flex; align-items: center; gap: 8px; margin-top: 12px; flex-wrap: wrap; }
   .extra-adv { display: flex; align-items: center; gap: 6px; }
   .extra-adv input { width: 84px; text-align: center; padding: 7px 8px; }
@@ -2153,7 +2157,10 @@
   .itree-toolbar { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; padding: 6px 4px 10px; }
   .itree-node > .itree-children { display: none; }
   .itree-node.open > .itree-children { display: block; }
-  .itree-row { display: grid; grid-template-columns: 1fr 110px 52px; align-items: center; gap: 10px; padding: 6px 10px; border-top: 1px solid var(--border); }
+  .itree-row { display: grid; grid-template-columns: 1fr 110px 52px 28px; align-items: center; gap: 10px; padding: 6px 10px; border-top: 1px solid var(--border); }
+  .itree-edit { background: transparent; border: none; color: var(--text-faint); cursor: pointer; font-size: 13px; padding: 2px 4px; border-radius: 6px; opacity: 0; transition: opacity 0.13s ease, background 0.13s ease; }
+  .itree-row:hover .itree-edit { opacity: 1; }
+  .itree-edit:hover { background: var(--accent-soft); color: var(--accent); }
   .itree-node:first-child > .itree-row { border-top: none; }
   .itree-row.has-kids { cursor: pointer; }
   .itree-row.has-kids:hover { background: var(--surface-sunken); }
@@ -4973,11 +4980,18 @@
             <select id="extra-unidade">
               <option value="cards">cards</option>
               <option value="paginas">páginas</option>
+              <option value="linhas">linhas</option>
+              <option value="artigos">artigos</option>
               <option value="questoes">questões</option>
               <option value="min">minutos</option>
               <option value="sessoes">sessões</option>
               <option value="itens">itens</option>
             </select></div>
+        </div>
+        <!-- Marcador de leitura (aparece para Lei seca): onde parei -->
+        <div class="field" id="extra-marcador-field" style="display:none;">
+          <label>📌 Onde parei <span class="opt">(marcador de leitura)</span></label>
+          <input type="text" id="extra-marcador" placeholder="Ex.: parei no art. 150 / linha 234 / pág. 88">
         </div>
         <div class="field-group">
           <div class="field"><label>Recorrência</label>
@@ -5622,6 +5636,22 @@ const DB = {
     return rows.length;
   },
   clearIncidenciaBanca(banca) { this.saveIncidencia(this.getIncidencia().filter(r => r.banca.toLowerCase() !== banca.toLowerCase())); },
+  // Edita um item de incidência (renomear tópico e/ou ajustar a incidência).
+  // Se for uma DISCIPLINA (depth 0) e o nome mudar, propaga o novo nome de disciplina aos filhos.
+  updateIncidenciaItem(id, patch) {
+    const list = this.getIncidencia();
+    const it = list.find(r => r.id === id);
+    if (!it) return null;
+    const oldTopico = it.topico, oldDisc = it.disciplina, wasDisc = (it.depth === 0);
+    if (patch.topico != null) it.topico = String(patch.topico).trim() || it.topico;
+    if (patch.incidencia != null && !isNaN(parseFloat(patch.incidencia))) it.incidencia = Math.max(0, parseFloat(patch.incidencia));
+    // renomear disciplina → atualiza o campo disciplina de todos os itens daquele grupo
+    if (wasDisc && patch.topico != null && it.topico !== oldDisc) {
+      list.forEach(r => { if (r.banca === it.banca && r.disciplina === oldDisc) r.disciplina = it.topico; });
+    }
+    this.saveIncidencia(list); return it;
+  },
+  deleteIncidenciaItem(id) { this.saveIncidencia(this.getIncidencia().filter(r => r.id !== id)); },
   // ---- Atividades Extras (metas paralelas): anki, lei seca, questões, revisão, vídeo, livre ----
   // Cada extra: { id, titulo, tipo, disciplina, unidade, alvo, periodo, progresso, contaMetricas,
   //               status, historico:[{data, quantidade, minutos}], createdAt, updatedAt }
@@ -5640,6 +5670,7 @@ const DB = {
       alvo: Math.max(0, parseFloat(data.alvo) || 0),
       periodo: data.periodo || 'unica',           // unica|diaria|semanal
       progresso: 0,
+      marcador: (data.marcador || '').trim(),      // "onde parei" (lei seca / leitura)
       contaMetricas: data.contaMetricas !== false, // por atividade (padrão: conta)
       status: 'ativa',                            // ativa|concluida|pausada
       historico: [],
@@ -9432,9 +9463,13 @@ const EvolucaoScreen = {
     });
     return out;
   },
+  // Fonte unificada de sessões p/ TODOS os gráficos: base (registros) + extras (se habilitado)
+  _sourceEntries() {
+    const base = this.scope === 'all' ? DB.getAllEntriesTagged() : DB.getEntries();
+    return base.concat(this._extraEntries());
+  },
   render() {
-    const baseEntries = this.scope === 'all' ? DB.getAllEntriesTagged() : DB.getEntries();
-    const allEntries = baseEntries.concat(this._extraEntries());
+    const allEntries = this._sourceEntries();
     const emptyEl = document.getElementById('evolucao-empty');
     const contentEl = document.getElementById('evolucao-content');
 
@@ -9599,7 +9634,7 @@ const EvolucaoScreen = {
     const hoje = todayLocal();
     const start = this.addDaysLocal(hoje, -(this.tempoDias - 1));
     // agrega minutos por dia dentro da janela do atalho (independe do filtro de data principal)
-    const src = this.scope === 'all' ? DB.getAllEntriesTagged() : DB.getEntries();
+    const src = this._sourceEntries();
     const byDate = {};
     src.forEach(e => { if (e.date >= start && e.date <= hoje) byDate[e.date] = (byDate[e.date] || 0) + (e.durationMin || 0); });
     // monta a sequência completa de dias
@@ -10178,8 +10213,7 @@ document.getElementById('evo-tempo-periodo').addEventListener('click', (e) => {
   if (!btn) return;
   EvolucaoScreen.tempoDias = parseInt(btn.dataset.days);
   document.querySelectorAll('#evo-tempo-periodo .evo-chip').forEach(b => b.classList.toggle('active', b === btn));
-  const src = EvolucaoScreen.scope === 'all' ? DB.getAllEntriesTagged() : DB.getEntries();
-  EvolucaoScreen.renderDayChart(src);
+  EvolucaoScreen.renderDayChart(EvolucaoScreen._sourceEntries());
 });
 
 // seletor de disciplina do gráfico "Evolução no TecConcursos"
@@ -10190,8 +10224,7 @@ document.getElementById('evo-tec-disc').addEventListener('change', () => Evoluca
   const btn = document.getElementById(id);
   if (btn) btn.addEventListener('click', () => {
     EvolucaoScreen.evoLineMode = btn.dataset.mode;
-    const src = EvolucaoScreen.scope === 'all' ? DB.getAllEntriesTagged() : DB.getEntries();
-    let entries = src;
+    let entries = EvolucaoScreen._sourceEntries();
     if (EvolucaoScreen.filterStart) entries = entries.filter(e => e.date >= EvolucaoScreen.filterStart);
     if (EvolucaoScreen.filterEnd) entries = entries.filter(e => e.date <= EvolucaoScreen.filterEnd);
     EvolucaoScreen.renderAcertoLinha(entries);
@@ -11808,6 +11841,12 @@ const ExtrasScreen = {
           <div class="bar"><span class="${done ? 'full' : ''}" style="width:${pct}%"></span></div>
           <div class="nums"><span><b>${(x.progresso || 0).toLocaleString('pt-BR')}</b>${x.alvo > 0 ? ' / ' + x.alvo.toLocaleString('pt-BR') : ''} ${escapeHtml(x.unidade)}</span><span>${x.alvo > 0 ? pct + '%' : ''}</span></div>
         </div>
+        ${x.tipo === 'leitura' ? `
+        <div class="extra-marcador">
+          <span class="em-ico">📌</span>
+          <input type="text" class="ex-marcador" value="${escapeHtml(x.marcador || '')}" placeholder="Onde parei? (ex.: art. 150, linha 234)">
+          <button type="button" class="btn-secondary ex-marcador-save" title="Salvar marcador">Salvar</button>
+        </div>` : ''}
         <div class="extra-foot">
           <div class="extra-adv">
             <input type="number" class="ex-qtd" min="0" placeholder="qtd" title="Quanto avançou">
@@ -11841,6 +11880,15 @@ const ExtrasScreen = {
         DB.addExtraProgress(id, qtd, min);
         this.render(); showToast('Progresso registrado ✓');
       });
+      // marcador "onde parei" (leitura): salvar sem re-render (para não perder o foco)
+      const mkSave = card.querySelector('.ex-marcador-save');
+      if (mkSave) mkSave.addEventListener('click', () => {
+        const v = card.querySelector('.ex-marcador').value;
+        DB.updateExtra(id, { marcador: v });
+        showToast('📌 Marcador salvo');
+      });
+      const mkInput = card.querySelector('.ex-marcador');
+      if (mkInput) mkInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') { DB.updateExtra(id, { marcador: mkInput.value }); showToast('📌 Marcador salvo'); } });
       const comp = card.querySelector('.ex-complete');
       if (comp) comp.addEventListener('click', () => { DB.updateExtra(id, { status: 'concluida' }); this.render(); showToast('Atividade concluída 🎉'); });
       const reopen = card.querySelector('.ex-reopen');
@@ -11855,7 +11903,7 @@ const ExtrasScreen = {
     // datalist de disciplinas
     const discs = [...new Set([...DB.getActiveSubjects().map(s => s.nome), ...DB.getIncidencia().map(r => r.disciplina)].filter(Boolean))].sort();
     document.getElementById('extra-disc-list').innerHTML = discs.map(d => `<option value="${escapeHtml(d)}">`).join('');
-    let x = { titulo: '', tipo: 'anki', disciplina: '', alvo: '', unidade: 'cards', periodo: 'unica', contaMetricas: true };
+    let x = { titulo: '', tipo: 'anki', disciplina: '', alvo: '', unidade: 'cards', periodo: 'unica', marcador: '', contaMetricas: true };
     if (isEdit) x = Object.assign(x, DB.getExtra(id));
     document.getElementById('extra-titulo').value = x.titulo;
     document.getElementById('extra-tipo').value = x.tipo;
@@ -11863,14 +11911,20 @@ const ExtrasScreen = {
     document.getElementById('extra-alvo').value = x.alvo || '';
     document.getElementById('extra-unidade').value = x.unidade;
     document.getElementById('extra-periodo').value = x.periodo;
+    document.getElementById('extra-marcador').value = x.marcador || '';
     document.getElementById('extra-conta').checked = x.contaMetricas !== false;
+    this.onTipoChange(true); // mostra/oculta o campo marcador
     document.getElementById('extra-modal').style.display = 'flex';
     setTimeout(() => document.getElementById('extra-titulo').focus(), 50);
   },
-  // ao trocar o tipo, sugere a unidade padrão
-  onTipoChange() {
+  // ao trocar o tipo, sugere a unidade padrão e mostra o marcador p/ leitura
+  onTipoChange(keepUnit) {
     const tipo = document.getElementById('extra-tipo').value;
-    const t = this.TIPOS[tipo]; if (t) document.getElementById('extra-unidade').value = t.unidade;
+    const t = this.TIPOS[tipo];
+    if (t && !keepUnit) document.getElementById('extra-unidade').value = t.unidade;
+    // marcador "onde parei" faz sentido para leitura/lei seca
+    const mf = document.getElementById('extra-marcador-field');
+    if (mf) mf.style.display = (tipo === 'leitura') ? 'block' : 'none';
   },
   save() {
     const titulo = document.getElementById('extra-titulo').value.trim();
@@ -11882,6 +11936,7 @@ const ExtrasScreen = {
       alvo: document.getElementById('extra-alvo').value,
       unidade: document.getElementById('extra-unidade').value,
       periodo: document.getElementById('extra-periodo').value,
+      marcador: document.getElementById('extra-marcador').value,
       contaMetricas: document.getElementById('extra-conta').checked
     };
     if (this._editingId) { DB.updateExtra(this._editingId, data); showToast('Atividade atualizada ✓'); }
@@ -13190,7 +13245,23 @@ const DesempenhoTecScreen = {
       });
       // toggle de cada nó com filhos
       block.querySelectorAll('.itree-row.has-kids').forEach(row => {
-        row.addEventListener('click', (e) => { e.stopPropagation(); row.closest('.itree-node').classList.toggle('open'); });
+        row.addEventListener('click', (e) => { if (e.target.closest('.itree-edit')) return; e.stopPropagation(); row.closest('.itree-node').classList.toggle('open'); });
+      });
+      // editar/renomear item de incidência
+      block.querySelectorAll('.itree-edit').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          const id = btn.dataset.id;
+          const nomeAtual = btn.dataset.nome;
+          const incAtual = btn.dataset.inc;
+          const novoNome = prompt('Renomear tópico/disciplina:', nomeAtual);
+          if (novoNome === null) return;
+          const novaInc = prompt('Incidência (nº de questões):', incAtual);
+          if (novaInc === null) return;
+          DB.updateIncidenciaItem(id, { topico: novoNome, incidencia: novaInc });
+          this.renderIncidencia();
+          showToast('Incidência atualizada ✓');
+        });
       });
       // expandir/recolher tudo
       const setAll = (open) => block.querySelectorAll('.itree-node').forEach(n => { if (n.querySelector(':scope > .itree-children')) n.classList.toggle('open', open); });
@@ -13233,7 +13304,7 @@ const DesempenhoTecScreen = {
   _buildIncidForest(rows) {
     const forest = []; let discNode = null; let byCodigo = {};
     rows.forEach(r => {
-      const node = { nome: r.topico, incidencia: r.incidencia || 0, codigo: r.codigo || null, depth: r.depth, children: [] };
+      const node = { id: r.id, nome: r.topico, incidencia: r.incidencia || 0, codigo: r.codigo || null, depth: r.depth, children: [] };
       if (r.depth === 0) { discNode = node; byCodigo = {}; forest.push(node); }
       else if (r.codigo) {
         byCodigo[r.codigo] = node;
@@ -13257,11 +13328,13 @@ const DesempenhoTecScreen = {
     const childMax = hasKids ? Math.max(1, ...node.children.map(c => c.incidencia || 0)) : 1;
     const kids = hasKids ? `<div class="itree-children">${node.children.map(k => this._incidNodeHtml(k, level + 1, childMax)).join('')}</div>` : '';
     const ns = this._normSearch(node.nome);
+    const editBtn = node.id ? `<button type="button" class="itree-edit" data-id="${node.id}" data-nome="${escapeHtml(node.nome)}" data-inc="${node.incidencia}" title="Editar/renomear">✎</button>` : '';
     return `<div class="itree-node ${level === 0 ? 'open' : ''}">
       <div class="itree-row ${hasKids ? 'has-kids' : ''} ${level === 0 ? 'lvl0' : ''}" style="padding-left:${indent}px;">
         <span class="itree-name">${caret}<span class="itree-label" data-s="${escapeHtml(ns)}" title="${escapeHtml(node.nome)}">${escapeHtml(node.nome)}</span></span>
         <span class="itree-bar"><span style="width:${pct}%"></span></span>
         <span class="itree-val" title="${node.incidencia} questão(ões) no histórico">${node.incidencia}</span>
+        ${editBtn}
       </div>
       ${kids}
     </div>`;
