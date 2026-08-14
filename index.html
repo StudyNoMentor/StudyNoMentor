@@ -3201,6 +3201,15 @@
      ============================================================ */
   .cards-topbar { display: flex; gap: 8px; flex-wrap: wrap; margin: 14px 0 12px; }
   .cards-tabs { display: flex; gap: 6px; margin-bottom: 14px; }
+  /* Gráfico da retenção recomendada (FSRS) */
+  .rr-chart { display: flex; align-items: flex-end; gap: 8px; height: 130px; padding: 12px 4px 30px; }
+  .rr-bar { flex: 1; height: 100%; display: flex; flex-direction: column; justify-content: flex-end; align-items: center; position: relative; }
+  .rr-fill { width: 72%; max-width: 34px; background: var(--accent); border-radius: 5px 5px 0 0; opacity: 0.7; }
+  .rr-fill.rec { background: var(--good); opacity: 1; box-shadow: 0 0 0 2px var(--good-soft); }
+  .rr-n { position: absolute; top: -16px; font-size: 10px; font-family: 'Space Mono', monospace; color: var(--text-soft); font-weight: 700; }
+  .rr-x { position: absolute; bottom: -18px; font-size: 10px; color: var(--text-faint); font-weight: 700; }
+  .rr-legend { font-size: 11.5px; color: var(--text-faint); text-align: center; margin: 4px 0 10px; }
+  .rr-rec { text-align: center; font-size: 14px; color: var(--text); background: var(--surface-sunken); border: 1px solid var(--border); border-radius: 10px; padding: 10px; }
   .cards-tab {
     background: var(--surface); border: 1.5px solid var(--border); border-radius: 20px;
     padding: 8px 16px; font-size: 13px; font-weight: 700; color: var(--text-soft); cursor: pointer;
@@ -3253,6 +3262,27 @@
   .cards-review-progress { display: flex; align-items: center; gap: 12px; font-size: 12px; color: var(--text-faint); font-family: 'Space Mono', monospace; margin-bottom: 14px; }
   .cards-review-bar { flex: 1; height: 6px; background: var(--surface-sunken); border-radius: 20px; overflow: hidden; }
   .cards-review-bar div { height: 100%; background: var(--accent); border-radius: 20px; transition: width 0.3s ease; }
+  .cards-limit-chip { font-size: 10.5px; color: var(--text-soft); background: var(--surface-sunken); border: 1px solid var(--border); padding: 3px 9px; border-radius: 20px; white-space: nowrap; }
+  /* Estatísticas dos Cards (FSRS) */
+  .stat-kpis { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 16px; }
+  @media (max-width: 640px) { .stat-kpis { grid-template-columns: 1fr 1fr; } }
+  .stat-kpi { background: var(--surface); border: 1px solid var(--border); border-radius: 14px; padding: 16px; text-align: center; box-shadow: var(--shadow-sm); }
+  .stat-kpi-v { font-family: 'Space Mono', monospace; font-weight: 800; font-size: 26px; color: var(--text); line-height: 1; }
+  .stat-kpi-v.good { color: var(--good); } .stat-kpi-v.warn { color: var(--warn); } .stat-kpi-v.accent { color: var(--accent); }
+  .stat-kpi-l { font-size: 10.5px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; color: var(--text-faint); margin-top: 6px; }
+  .stat-grid { display: grid; grid-template-columns: 1fr; gap: 14px; }
+  .stat-card .card-header { padding: 14px 18px 6px; }
+  .stat-mat { padding: 8px 18px 18px; }
+  .stat-mat-bar { display: flex; height: 20px; border-radius: 20px; overflow: hidden; gap: 2px; background: var(--surface-sunken); }
+  .stat-mat-bar > span { display: block; }
+  .stat-mat-legend { display: flex; gap: 16px; flex-wrap: wrap; margin-top: 12px; font-size: 12px; color: var(--text-soft); }
+  .stat-mat-legend i { display: inline-block; width: 10px; height: 10px; border-radius: 3px; margin-right: 5px; vertical-align: middle; }
+  .stat-chart { display: flex; align-items: flex-end; gap: 5px; height: 130px; padding: 10px 18px 34px; }
+  .stat-bar { flex: 1; height: 100%; display: flex; flex-direction: column; justify-content: flex-end; align-items: center; position: relative; }
+  .stat-bar-fill { width: 70%; max-width: 26px; border-radius: 5px 5px 0 0; }
+  .stat-bar-fill.accent { background: var(--accent); } .stat-bar-fill.good { background: var(--good); }
+  .stat-bar-n { position: absolute; top: -16px; font-size: 10px; font-family: 'Space Mono', monospace; color: var(--text-soft); font-weight: 700; }
+  .stat-bar-x { position: absolute; bottom: -20px; font-size: 9.5px; color: var(--text-faint); }
   .cards-review-meta { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 16px; }
   .cards-face { font-size: 17px; line-height: 1.7; color: var(--text); padding: 20px; background: var(--surface-sunken); border-radius: 14px; min-height: 90px; }
   .cards-face img { max-width: 100%; border-radius: 8px; }
@@ -3429,6 +3459,47 @@
     /* botões de resposta dos cards não espremem o texto */
     .cards-ans4 { font-size: 12px; }
   }
+
+  /* =======================================================================
+     POLIMENTO DE USABILIDADE (Mobile + Desktop) — toques maiores, sem zoom
+     indesejado no iOS, rolagem suave e feedback de toque consistente.
+     ======================================================================= */
+  /* Remove o realce cinza de toque e melhora o feedback tátil */
+  * { -webkit-tap-highlight-color: transparent; }
+  button, .btn-primary, .btn-secondary, .icon-btn, .cards-tab, .tab, select, .cloud-sync-btn { touch-action: manipulation; }
+  /* Rolagem por inércia em todas as áreas horizontais */
+  .cal-strip, .stat-chart, .grade-scroll, .tabs, [style*="overflow-x"] { -webkit-overflow-scrolling: touch; }
+  /* Feedback de :active para quem usa toque (quando não há hover) */
+  @media (hover: none) {
+    .btn-primary:active, .btn-secondary:active, .icon-btn:active, .cards-tab:active, .cards-ans4:active { transform: scale(0.97); filter: brightness(0.97); }
+  }
+  /* Em telas de toque, garante alvos de toque confortáveis (mín. ~40px) */
+  @media (max-width: 860px) {
+    .btn-primary, .btn-secondary { min-height: 42px; }
+    .icon-btn { min-height: 40px; min-width: 40px; display: inline-flex; align-items: center; justify-content: center; }
+    .cards-tab, .tec-subtab { min-height: 40px; }
+  }
+  /* iOS: inputs com fonte < 16px fazem a página dar zoom ao focar. Evita isso. */
+  @media (max-width: 560px) {
+    input, select, textarea, .rte-area,
+    .rfc-field select, .rfc-field input, .sug-filters select, .sug-filters input,
+    #ui-modal input, #ui-modal select, #ui-modal textarea,
+    .incid-disc-filter, .incid-detail-search { font-size: 16px !important; }
+    /* botões de resposta dos cards: mais altos e fáceis de acertar com o polegar */
+    .cards-ans4 { padding: 12px 4px; min-height: 54px; }
+    .cards-ans4 .a-kbd { display: none; } /* atalhos de teclado não fazem sentido no celular */
+    /* barra de ações dos cards não gruda no rodapé do navegador */
+    .cards-review-actions { position: sticky; bottom: 8px; z-index: 5; }
+    /* topo dos cards: botões ocupam a linha inteira e não quebram feio */
+    .cards-topbar button { flex: 1 1 46%; }
+    /* diálogos ocupam melhor a tela pequena */
+    .cards-modal-box, #ui-modal-box { max-height: 92vh; }
+  }
+  /* Desktop: leve refinamento de foco visível para acessibilidade (teclado) */
+  button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible,
+  .cards-tab:focus-visible, .cards-ans4:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  /* respeita quem prefere menos animação */
+  @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation-duration: 0.001ms !important; transition-duration: 0.001ms !important; } }
 
 </style>
 </head>
@@ -4111,6 +4182,7 @@
     </div>
 
     <div class="cards-topbar">
+      <button type="button" class="btn-secondary" id="cards-stats-btn" title="Ver estatísticas (retenção, previsão, maturidade)">📊 Estatísticas</button>
       <button type="button" class="btn-secondary" id="cards-algo-btn" title="Algoritmo de repetição espaçada">⚙ Algoritmo</button>
       <button type="button" class="btn-secondary" id="cards-import-btn">⭱ Importar</button>
       <button type="button" class="btn-secondary" id="cards-export-btn">⭳ Exportar p/ Anki</button>
@@ -4121,6 +4193,7 @@
     <div class="cards-tabs">
       <button type="button" class="cards-tab active" data-ctab="revisar">🎴 Revisar</button>
       <button type="button" class="cards-tab" data-ctab="meus">🗃️ Meus cards</button>
+      <button type="button" class="cards-tab" data-ctab="stats">📊 Estatísticas</button>
     </div>
 
     <!-- Filtros -->
@@ -5328,7 +5401,8 @@ const DB = {
       links: base + 'links',
       incidencia: base + 'incidencia',
       lastCycleSetup: base + 'last-cycle-setup',
-      extras: base + 'extras'
+      extras: base + 'extras',
+      revlog: base + 'revlog'
     };
   },
   // KEYS "dinâmico": sempre aponta para o planejamento ativo no momento da leitura
@@ -5749,6 +5823,9 @@ const DB = {
   //         status:'pendente'|'sei'|'naosei', ease, intervalo(dias), due(YYYY-MM-DD), reps, lapses, createdAt, updatedAt }
   getCards() { return this._get(this.KEYS.cards, []); },
   saveCards(list) { this._set(this.KEYS.cards, list); },
+  // Histórico de revisões (revlog) — base para o otimizador FSRS personalizar seus pesos.
+  getRevlog() { return this._get(this.KEYS.revlog, []); },
+  addRevlog(entry) { const l = this.getRevlog(); l.push(entry); if (l.length > 8000) l.splice(0, l.length - 8000); this._set(this.KEYS.revlog, l); },
   getCard(id) { return this.getCards().find(c => c.id === id) || null; },
   addCard(data) {
     const list = this.getCards();
@@ -8135,13 +8212,99 @@ const FSRS = {
     const hard = (G === 2) ? w[15] : 1, easy = (G === 4) ? w[16] : 1;
     return this.clampS(S * (1 + Math.exp(w[8]) * (11 - D) * Math.pow(S, -w[9]) * (Math.exp(w[10] * (1 - R)) - 1) * hard * easy));
   },
-  nextS_forget(D, S, R, w) { return this.clampS(Math.min(w[11] * Math.pow(D, -w[12]) * (Math.pow(S + 1, w[13]) - 1) * Math.exp(w[14] * (1 - R)), S)); }
+  nextS_forget(D, S, R, w) { return this.clampS(Math.min(w[11] * Math.pow(D, -w[12]) * (Math.pow(S + 1, w[13]) - 1) * Math.exp(w[14] * (1 - R)), S)); },
+
+  // ---- OTIMIZADOR (personaliza os 19 pesos a partir do seu histórico) ----
+  // Reconstrói sequências (elapsed, grade) por card e minimiza o log-loss por gradient descent.
+  _buildSequences(revlog) {
+    const byCard = {};
+    revlog.slice().sort((a, b) => a.ts - b.ts).forEach(r => {
+      if (!r.cardId || !r.grade) return;
+      (byCard[r.cardId] = byCard[r.cardId] || []).push({ grade: r.grade, elapsed: Math.max(0, r.elapsed || 0) });
+    });
+    return Object.values(byCard).filter(s => s.length >= 2);
+  },
+  _logLoss(w, seqs) {
+    let loss = 0, n = 0; const EPS = 1e-6;
+    for (const seq of seqs) {
+      let S = this.initS(seq[0].grade, w), D = this.initD(seq[0].grade, w);
+      for (let i = 1; i < seq.length; i++) {
+        const t = Math.max(0.01, seq[i].elapsed);
+        const R = this.R(t, S), y = seq[i].grade >= 2 ? 1 : 0;
+        const p = Math.min(1 - EPS, Math.max(EPS, R));
+        loss += -(y * Math.log(p) + (1 - y) * Math.log(1 - p)); n++;
+        if (seq[i].grade >= 2) { S = this.nextS_recall(D, S, R, seq[i].grade, w); D = this.nextD(D, seq[i].grade, w); }
+        else { S = this.nextS_forget(D, S, R, w); D = this.nextD(D, 1, w); }
+      }
+    }
+    return n ? loss / n : Infinity;
+  },
+  optimize(revlog, opts) {
+    opts = opts || {};
+    const seqs = this._buildSequences(revlog);
+    const reviews = seqs.reduce((a, s) => a + (s.length - 1), 0);
+    const w0 = (opts.startW || this.DEFAULT_W).slice();
+    if (reviews < (opts.minReviews || 40)) return { w: w0, lossBefore: null, lossAfter: null, improved: false, reviews, reason: 'few' };
+    const LO = [0.01, 0.1, 0.1, 0.5, 1, 0.001, 0.01, 0, 0.01, 0, 0.01, 0.01, 0.001, 0.001, 0.1, 0, 1, 0, 0];
+    const HI = [50, 50, 100, 100, 10, 4, 6, 0.6, 3, 0.8, 3.5, 5, 0.25, 0.9, 4, 1, 6, 2, 2];
+    const clampW = (w) => w.map((v, i) => Math.min(HI[i], Math.max(LO[i], v)));
+    let w = clampW(w0);
+    const lossBefore = this._logLoss(w0, seqs);
+    let cur = this._logLoss(w, seqs);
+    const lr = opts.lr || 0.03, iters = opts.iters || 50, h = 1e-4;
+    for (let it = 0; it < iters; it++) {
+      const grad = new Array(19).fill(0);
+      for (let k = 0; k < 19; k++) { const wp = w.slice(); wp[k] += h; const wm = w.slice(); wm[k] -= h; grad[k] = (this._logLoss(wp, seqs) - this._logLoss(wm, seqs)) / (2 * h); }
+      const gnorm = Math.sqrt(grad.reduce((a, g) => a + g * g, 0)) || 1;
+      const next = clampW(w.map((v, k) => v - lr * grad[k] / gnorm));
+      const nl = this._logLoss(next, seqs);
+      if (nl < cur - 1e-6) { w = next; cur = nl; } else break;
+    }
+    const improved = cur < lossBefore - 1e-4;
+    return { w: improved ? w : w0, lossBefore, lossAfter: cur, improved, reviews };
+  },
+  // ---- LOAD BALANCING: dentro da janela de fuzz, escolhe o dia de MENOR carga ----
+  loadBalance(iv, dueCountByDay) {
+    if (iv < 3) return iv;
+    const pct = iv < 7 ? 0.15 : iv < 30 ? 0.10 : 0.05;
+    const spread = Math.max(1, Math.round(iv * pct));
+    const lo = Math.max(1, iv - spread), hi = iv + spread;
+    let best = iv, bestLoad = Infinity;
+    for (let d = lo; d <= hi; d++) { const load = dueCountByDay(d); if (load < bestLoad) { bestLoad = load; best = d; } }
+    return best;
+  },
+  // ---- RETENÇÃO RECOMENDADA: custo de revisões por retenção-alvo (menor custo = ótimo) ----
+  recommendRetention(nCards, minutesPerDay, opts) {
+    opts = opts || {}; const w = opts.w || this.DEFAULT_W;
+    const horizon = opts.horizon || 365, secPerReview = opts.secPerReview || 9;
+    const capacity = (minutesPerDay * 60) / secPerReview;
+    const curve = [];
+    const costPerCard = (r) => {
+      let S = this.initS(3, w), D = this.initD(3, w), day = 0, reviews = 0, guard = 0;
+      while (day < horizon && guard++ < 2000) {
+        const iv = this.interval(S, r); day += iv; if (day > horizon) break;
+        reviews++; const R = this.R(iv, S);
+        if (Math.random() < R) { S = this.nextS_recall(D, S, R, 3, w); D = this.nextD(D, 3, w); }
+        else { S = this.nextS_forget(D, S, R, w); D = this.nextD(D, 1, w); reviews += 1; }
+      }
+      return reviews;
+    };
+    for (let rr = 0.80; rr <= 0.97 + 1e-9; rr += 0.01) {
+      let sum = 0; const K = 12; for (let k = 0; k < K; k++) sum += costPerCard(rr);
+      const perCardYear = sum / K, reviewsPerDay = (perCardYear * nCards) / horizon;
+      curve.push({ retention: Math.round(rr * 100) / 100, reviewsPerDay: Math.round(reviewsPerDay * 10) / 10 });
+    }
+    let best = curve[0]; curve.forEach(c => { if (c.reviewsPerDay < best.reviewsPerDay) best = c; });
+    let rec = best.retention;
+    if (best.reviewsPerDay > capacity) { const feas = curve.filter(c => c.reviewsPerDay <= capacity); if (feas.length) rec = feas[feas.length - 1].retention; }
+    return { recommended: rec, optimal: best.retention, capacity: Math.round(capacity), curve };
+  }
 };
 
 // Configuração dos Cards (algoritmo, retenção-alvo, passos de aprendizado) — global, por dispositivo.
 const CardsConfig = {
   KEY: 'diario-estudos:cards-cfg',
-  DEFAULTS: { algo: 'fsrs', retention: 0.9, learnSteps: [1, 10], relearnSteps: [10] },
+  DEFAULTS: { algo: 'fsrs', retention: 0.9, learnSteps: [1, 10], relearnSteps: [10], weights: null, loadBalance: true, lastOptim: null, newPerDay: 20, revPerDay: 200 },
   _c: null,
   get() {
     if (this._c) return this._c;
@@ -8151,7 +8314,36 @@ const CardsConfig = {
     if (!Array.isArray(this._c.relearnSteps) || !this._c.relearnSteps.length) this._c.relearnSteps = this.DEFAULTS.relearnSteps.slice();
     return this._c;
   },
-  set(patch) { const v = Object.assign(this.get(), patch || {}); this._c = v; try { localStorage.setItem(this.KEY, JSON.stringify(v)); } catch (_) {} }
+  set(patch) { const v = Object.assign(this.get(), patch || {}); this._c = v; try { localStorage.setItem(this.KEY, JSON.stringify(v)); } catch (_) {} },
+  // ---- Presets POR BARALHO (como o Anki): overrides que herdam do global ----
+  PKEY: 'diario-estudos:cards-presets',
+  _presets: null,
+  _getPresets() { if (this._presets) return this._presets; let v = null; try { v = JSON.parse(localStorage.getItem(this.PKEY)); } catch (_) {} this._presets = v || {}; return this._presets; },
+  _savePresets() { try { localStorage.setItem(this.PKEY, JSON.stringify(this._presets || {})); } catch (_) {} },
+  hasDeckPreset(deckId) { return !!(deckId && this._getPresets()[deckId]); },
+  deckPreset(deckId) { return (deckId && this._getPresets()[deckId]) || null; },
+  setDeckPreset(deckId, patch) { if (!deckId) return; const p = this._getPresets(); p[deckId] = Object.assign(p[deckId] || {}, patch || {}); this._savePresets(); },
+  clearDeckPreset(deckId) { const p = this._getPresets(); delete p[deckId]; this._savePresets(); },
+  // Config EFETIVA de um card: global + override do baralho (se houver)
+  forDeck(deckId) {
+    const base = this.get();
+    const ov = this.deckPreset(deckId);
+    if (!ov) return base;
+    const merged = Object.assign({}, base, ov);
+    if (!Array.isArray(merged.learnSteps) || !merged.learnSteps.length) merged.learnSteps = base.learnSteps;
+    if (!Array.isArray(merged.relearnSteps) || !merged.relearnSteps.length) merged.relearnSteps = base.relearnSteps;
+    return merged;
+  },
+  weightsFor(deckId) { const c = this.forDeck(deckId); return (Array.isArray(c.weights) && c.weights.length === 19) ? c.weights : FSRS.DEFAULT_W; },
+  // pesos ativos globais (compatibilidade)
+  weights() { const w = this.get().weights; return (Array.isArray(w) && w.length === 19) ? w : FSRS.DEFAULT_W; },
+  // ---- Contadores diários (novos/revisões introduzidos hoje) — resetam a cada dia ----
+  _daily() { let d = null; try { d = JSON.parse(localStorage.getItem('diario-estudos:cards-daily')); } catch (_) {} if (!d || d.date !== todayLocal()) d = { date: todayLocal(), newDone: 0, revDone: 0 }; return d; },
+  _saveDaily(d) { try { localStorage.setItem('diario-estudos:cards-daily', JSON.stringify(d)); } catch (_) {} },
+  newDoneToday() { return this._daily().newDone; }, revDoneToday() { return this._daily().revDone; },
+  markIntroduced(kind) { const d = this._daily(); if (kind === 'new') d.newDone++; else d.revDone++; this._saveDaily(d); },
+  newRemaining() { return Math.max(0, (this.get().newPerDay || 0) - this.newDoneToday()); },
+  revRemaining() { return Math.max(0, (this.get().revPerDay || 0) - this.revDoneToday()); }
 };
 
 const CardEngine = {
@@ -8165,9 +8357,14 @@ const CardEngine = {
   GRAD_GOOD: 1, GRAD_EASY: 4,
   GRADE_NUM: { errei: 1, dificil: 2, bom: 3, facil: 4, naosei: 1, sei: 3 },
   _daysBetween(a, b) { return Math.max(0, Math.round((new Date(b + 'T00:00:00') - new Date(a + 'T00:00:00')) / 86400000)); },
+  // Conta quantos cards de revisão já vencem daqui a N dias (para o Load Balancing)
+  _dueCountInDays(n) {
+    const alvo = this.addDays(todayLocal(), n);
+    try { return DB.getCards().filter(c => !c.dueTs && (c.phase === 'review' || ((c.reps || 0) > 0 && (c.intervalo || 0) > 0)) && (c.due || '') === alvo).length; }
+    catch (_) { return 0; }
+  },
   // Migração/normalização: garante que todo card tenha estado FSRS quando o algoritmo é FSRS.
   _ensureFsrsState(card) {
-    const w = FSRS.DEFAULT_W;
     const c = Object.assign({}, card);
     if (!c.phase) {
       if ((c.reps || 0) > 0 && (c.intervalo || 0) > 0) {
@@ -8183,16 +8380,18 @@ const CardEngine = {
   },
   // ---- Agendador FSRS (com passos de aprendizado/reaprendizado em minutos, como o Anki) ----
   _scheduleFSRS(card, G) {
-    const cfg = CardsConfig.get(), w = FSRS.DEFAULT_W, r = cfg.retention || 0.9;
+    const cfg = CardsConfig.forDeck(card.deckId), w = CardsConfig.weightsFor(card.deckId), r = cfg.retention || 0.9;
     const learn = cfg.learnSteps, relearn = cfg.relearnSteps;
     const c = this._ensureFsrsState(card);
     const nowTs = Date.now(), tdy = todayLocal();
     let patch = { reps: (c.reps || 0) + 1, lastReview: tdy, algo: 'fsrs' };
     const stepDue = (min) => ({ dueTs: nowTs + min * 60000, due: tdy });
+    // aplica Load Balancing: dentro da janela de fuzz, escolhe o dia de menor carga
+    const balance = (iv) => (cfg.loadBalance && !this._noBalance) ? FSRS.loadBalance(iv, (d) => this._dueCountInDays(d)) : iv;
     const graduate = (gInit, keepS) => {
       const S = (keepS != null) ? keepS : FSRS.initS(gInit, w);
       const D = (c.d != null) ? c.d : FSRS.initD(gInit, w);
-      const iv = FSRS.interval(S, r);
+      const iv = balance(FSRS.interval(S, r));
       return Object.assign(patch, { phase: 'review', learnStep: 0, s: S, d: D, due: this.addDays(tdy, iv), dueTs: null, status: 'sei', _kind: 'day', _val: iv });
     };
     if (c.phase === 'new' || c.phase === 'learning') {
@@ -8204,10 +8403,13 @@ const CardEngine = {
         else { Object.assign(patch, { phase: 'learning', learnStep: next, status: 'naosei' }, stepDue(learn[next])); patch._kind = 'min'; patch._val = learn[next]; }
       } else { const st = (c.phase === 'new' ? 0 : (c.learnStep || 0)); Object.assign(patch, { phase: 'learning', learnStep: st, status: 'naosei' }, stepDue(learn[st])); patch._kind = 'min'; patch._val = learn[st]; }
     } else if (c.phase === 'review') {
-      const elapsed = Math.max(0.01, this._daysBetween(c.lastReview || tdy, tdy));
+      // dias decorridos desde a última revisão. Se a revisão for ANTECIPADA (elapsed 0),
+      // usa o intervalo agendado como referência — evita R≈1 congelar o crescimento de S.
+      let elapsed = this._daysBetween(c.lastReview || tdy, tdy);
+      if (elapsed <= 0) elapsed = Math.max(1, FSRS.interval(c.s || 1, r));
       const R = FSRS.R(elapsed, c.s || 1);
       if (G === 1) { const Sf = FSRS.nextS_forget(c.d, c.s, R, w), D2 = FSRS.nextD(c.d, 1, w); Object.assign(patch, { phase: 'relearning', learnStep: 0, s: Sf, d: D2, lapses: (c.lapses || 0) + 1, status: 'naosei' }, stepDue(relearn[0])); patch._kind = 'min'; patch._val = relearn[0]; }
-      else { const S2 = FSRS.nextS_recall(c.d, c.s, R, G, w), D2 = FSRS.nextD(c.d, G, w), iv = FSRS.interval(S2, r); Object.assign(patch, { phase: 'review', s: S2, d: D2, due: this.addDays(tdy, iv), dueTs: null, status: 'sei' }); patch._kind = 'day'; patch._val = iv; }
+      else { const S2 = FSRS.nextS_recall(c.d, c.s, R, G, w), D2 = FSRS.nextD(c.d, G, w), iv = balance(FSRS.interval(S2, r)); Object.assign(patch, { phase: 'review', s: S2, d: D2, due: this.addDays(tdy, iv), dueTs: null, status: 'sei' }); patch._kind = 'day'; patch._val = iv; }
     } else if (c.phase === 'relearning') {
       if (G === 1) { Object.assign(patch, { learnStep: 0, status: 'naosei' }, stepDue(relearn[0])); patch._kind = 'min'; patch._val = relearn[0]; }
       else if (G === 4) { graduate(3, c.s); }
@@ -8233,13 +8435,15 @@ const CardEngine = {
   schedule(card, grade) {
     if (grade === 'sei') grade = 'bom';
     if (grade === 'naosei') grade = 'errei';
-    if (CardsConfig.get().algo === 'fsrs') return this._scheduleFSRS(card, this.GRADE_NUM[grade] || 3);
+    if (CardsConfig.forDeck(card.deckId).algo === 'fsrs') return this._scheduleFSRS(card, this.GRADE_NUM[grade] || 3);
     return this._scheduleSM2(card, grade);
   },
   // Prévia dos 4 botões — cada um retorna { kind:'min'|'day', val }
   previewIntervals(card) {
     const out = {};
+    this._noBalance = true; // a prévia mostra o intervalo IDEAL (sem o fuzz do balanceamento)
     ['errei', 'dificil', 'bom', 'facil'].forEach(g => { const p = this.schedule(card, g); out[g] = { kind: p._kind || 'day', val: (p._val != null ? p._val : p.intervalo) }; });
+    this._noBalance = false;
     return out;
   },
   // Formata a prévia de um botão: aceita número (dias) ou objeto { kind, val }
@@ -8252,8 +8456,9 @@ const CardEngine = {
     if (dias <= 0) return 'hoje';
     if (dias === 1) return '1 dia';
     if (dias < 30) return dias + ' dias';
-    if (dias < 365) return Math.round(dias / 30) + ' m';
-    return Math.round(dias / 365 * 10) / 10 + ' a';
+    // rótulos claros para não confundir "m" (mês) com minuto — estilo Anki (mo/anos)
+    if (dias < 365) { const mo = Math.round(dias / 30 * 10) / 10; return mo === 1 ? '1 mês' : mo + ' meses'; }
+    const an = Math.round(dias / 365 * 10) / 10; return an === 1 ? '1 ano' : an + ' anos';
   },
   // ---- Cloze / Omissão de palavras: {{texto}} ou {{c1::texto}} ----
   hasCloze(text) { return /\{\{[\s\S]*?\}\}/.test(String(text || '')); },
@@ -11568,28 +11773,105 @@ const CardsScreen = {
   renderContent() {
     const box = document.getElementById('cards-content');
     if (this.tab === 'revisar') this.renderRevisar(box);
+    else if (this.tab === 'stats') this.renderStats(box);
     else this.renderMeus(box);
   },
   materiaLabel(c) {
     if (c.deckId) { const d = DB.getDecks().find(x => x.id === c.deckId); return d ? '📁 ' + d.nome : '📁 (baralho removido)'; }
     return c.materia || 'Sem disciplina';
   },
-  renderRevisar(box) {
+  // classifica um card para os limites diários
+  _bucket(c) {
+    const ph = c.phase || (((c.reps || 0) > 0 && (c.intervalo || 0) > 0) ? 'review' : 'new');
+    if (ph === 'new') return 'new';
+    if (ph === 'learning' || ph === 'relearning') return 'learn';
+    return 'review';
+  },
+  // Monta a fila do dia respeitando os LIMITES diários (novos/revisões) — como o Anki.
+  buildQueue() {
     const filtered = this.currentFilteredCards();
     const due = filtered.filter(c => CardEngine.isDue(c));
+    const cfg = CardsConfig.get();
+    const newRem = CardsConfig.newRemaining(), revRem = CardsConfig.revRemaining();
+    const novos = [], revisoes = [], aprend = [];
+    due.forEach(c => { const b = this._bucket(c); if (b === 'new') novos.push(c); else if (b === 'review') revisoes.push(c); else aprend.push(c); });
+    const novosLim = novos.slice(0, newRem), revLim = revisoes.slice(0, revRem);
+    const shuffle = (a) => { for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1));[a[i], a[j]] = [a[j], a[i]]; } return a; };
+    const queue = aprend.concat(shuffle(revLim.concat(novosLim))).map(c => c.id);
+    this._queueMeta = { bloqueadosNovos: Math.max(0, novos.length - novosLim.length), bloqueadosRev: Math.max(0, revisoes.length - revLim.length) };
+    return queue;
+  },
+  renderRevisar(box) {
     if (DB.getCards().length === 0) {
       box.innerHTML = this.emptyState('Nenhum card ainda', 'Clique em <strong>＋ Criar card</strong> no topo para começar.');
       return;
     }
-    if (due.length === 0) {
-      box.innerHTML = `<div class="card"><div class="cards-review-done"><div class="big">✅</div><h3>Tudo em dia por aqui!</h3><p>Não há cards para revisar agora com os filtros atuais. Volte mais tarde ou ajuste os filtros.</p></div></div>`;
+    if (this._reviewIdx === 0) this._seenThisSession = new Set(); // nova sessão
+    this._reviewQueue = this.buildQueue();
+    const m = this._queueMeta || {};
+    if (this._reviewQueue.length === 0) {
+      const extra = (m.bloqueadosNovos || m.bloqueadosRev)
+        ? `<p style="margin-top:10px;color:var(--text-soft)">Você atingiu o limite diário. Restam <b>${m.bloqueadosNovos}</b> novo(s) e <b>${m.bloqueadosRev}</b> revisão(ões) para amanhã — ajuste em <strong>⚙ Algoritmo</strong> se quiser continuar.</p>` : '';
+      box.innerHTML = `<div class="card"><div class="cards-review-done"><div class="big">✅</div><h3>Tudo em dia por aqui!</h3><p>Não há cards para revisar agora com os filtros atuais.</p>${extra}</div></div>`;
       return;
     }
-    // monta a fila (embaralhada) se ainda não corresponde
-    this._reviewQueue = due.map(c => c.id);
     this._reviewIdx = Math.min(this._reviewIdx, this._reviewQueue.length - 1);
     this._flipped = false;
     this.renderReviewCard(box);
+  },
+  // ===== Painel de estatísticas FSRS (retenção real, previsão, maturidade) =====
+  renderStats(box) {
+    const cards = DB.getCards();
+    if (cards.length === 0) { box.innerHTML = this.emptyState('Sem estatísticas ainda', 'Crie e revise alguns cards para ver seus dados.'); return; }
+    const cfg = CardsConfig.get();
+    const revlog = DB.getRevlog();
+    const revs = revlog.filter(r => r.phase === 'review' && (r.elapsed || 0) >= 1);
+    const retReal = revs.length ? Math.round((revs.filter(r => r.acerto).length / revs.length) * 1000) / 10 : null;
+    const lim30 = CardEngine.addDays(todayLocal(), -30);
+    const revs30 = revs.filter(r => r.date >= lim30);
+    const ret30 = revs30.length ? Math.round((revs30.filter(r => r.acerto).length / revs30.length) * 1000) / 10 : null;
+    const est = (c) => (c.s != null ? c.s : (c.intervalo || 0));
+    const novos = cards.filter(c => this._bucket(c) === 'new').length;
+    const aprend = cards.filter(c => this._bucket(c) === 'learn').length;
+    const jovens = cards.filter(c => this._bucket(c) === 'review' && est(c) < 21).length;
+    const maduros = cards.filter(c => this._bucket(c) === 'review' && est(c) >= 21).length;
+    const prev = [];
+    for (let i = 0; i < 14; i++) { const dia = CardEngine.addDays(todayLocal(), i); prev.push({ dia, n: cards.filter(c => !c.dueTs && (c.due || todayLocal()) === dia && this._bucket(c) === 'review').length }); }
+    const maxPrev = Math.max(1, ...prev.map(p => p.n));
+    const act = [];
+    for (let i = 13; i >= 0; i--) { const dia = CardEngine.addDays(todayLocal(), -i); act.push({ dia, n: revlog.filter(r => r.date === dia).length }); }
+    const maxAct = Math.max(1, ...act.map(a => a.n));
+    const dueNow = cards.filter(c => CardEngine.isDue(c)).length;
+    const custom = Array.isArray(cfg.weights) && cfg.weights.length === 19;
+    const kpi = (v, l, tone) => `<div class="stat-kpi"><div class="stat-kpi-v ${tone || ''}">${v}</div><div class="stat-kpi-l">${l}</div></div>`;
+    const bars = (arr, max, lbl, tone) => arr.map(p => { const h = Math.round((p.n / max) * 100); return `<div class="stat-bar"><div class="stat-bar-fill ${tone}" style="height:${p.n ? Math.max(6, h) : 0}%"></div><span class="stat-bar-n">${p.n || ''}</span><span class="stat-bar-x">${lbl(p.dia)}</span></div>`; }).join('');
+    const dm = (iso) => iso.slice(8, 10) + '/' + iso.slice(5, 7);
+    const wd = (iso) => ['D', 'S', 'T', 'Q', 'Q', 'S', 'S'][new Date(iso + 'T00:00:00').getDay()];
+    box.innerHTML = `
+      <div class="stat-kpis">
+        ${kpi(retReal != null ? retReal + '%' : '—', 'Retenção real (tudo)', retReal != null && retReal >= cfg.retention * 100 ? 'good' : (retReal != null ? 'warn' : ''))}
+        ${kpi(ret30 != null ? ret30 + '%' : '—', 'Retenção (30 dias)', ret30 != null && ret30 >= cfg.retention * 100 ? 'good' : (ret30 != null ? 'warn' : ''))}
+        ${kpi(Math.round(cfg.retention * 100) + '%', 'Meta configurada', 'accent')}
+        ${kpi(dueNow, 'Para revisar agora', dueNow ? 'warn' : 'good')}
+      </div>
+      <div class="stat-grid">
+        <div class="card stat-card">
+          <div class="card-header"><div><h2>🧩 Maturidade dos cards</h2><p class="sub">Total: ${cards.length} · algoritmo: ${cfg.algo === 'fsrs' ? 'FSRS' + (custom ? ' (pesos personalizados)' : '') : 'Clássico'}</p></div></div>
+          <div class="stat-mat">
+            <div class="stat-mat-bar">
+              <span style="flex:${novos || 0.001};background:var(--text-faint)"></span><span style="flex:${aprend || 0.001};background:var(--warn)"></span>
+              <span style="flex:${jovens || 0.001};background:var(--accent)"></span><span style="flex:${maduros || 0.001};background:var(--good)"></span>
+            </div>
+            <div class="stat-mat-legend">
+              <span><i style="background:var(--text-faint)"></i>Novos ${novos}</span><span><i style="background:var(--warn)"></i>Aprendendo ${aprend}</span>
+              <span><i style="background:var(--accent)"></i>Jovens ${jovens}</span><span><i style="background:var(--good)"></i>Maduros ${maduros}</span>
+            </div>
+          </div>
+        </div>
+        <div class="card stat-card"><div class="card-header"><div><h2>📅 Previsão de carga</h2><p class="sub">Revisões que vencem nos próximos 14 dias</p></div></div><div class="stat-chart">${bars(prev, maxPrev, dm, 'accent')}</div></div>
+        <div class="card stat-card"><div class="card-header"><div><h2>🔥 Atividade recente</h2><p class="sub">Revisões feitas nos últimos 14 dias · histórico: ${revlog.length}</p></div></div><div class="stat-chart">${bars(act, maxAct, wd, 'good')}</div></div>
+      </div>
+      ${revs.length < 10 ? `<p class="hint" style="text-align:center;margin-top:14px;">💡 A retenção real fica precisa após ~10 revisões de cards maduros (você tem ${revs.length}).</p>` : ''}`;
   },
   renderReviewCard(box) {
     const total = this._reviewQueue.length;
@@ -11601,6 +11883,7 @@ const CardsScreen = {
       <div class="card cards-review-wrap">
         <div class="cards-review-progress"><span>${done + 1} de ${total}</span>
           <div class="cards-review-bar"><div style="width:${((done) / total) * 100}%"></div></div>
+          <span class="cards-limit-chip" title="Novos e revisões introduzidos hoje / limite diário">🆕 ${CardsConfig.newDoneToday()}/${CardsConfig.get().newPerDay} · 🔄 ${CardsConfig.revDoneToday()}/${CardsConfig.get().revPerDay}</span>
         </div>
         <div class="cards-review-meta">
           <span class="lei-tag mat">${escapeHtml(this.materiaLabel(c))}</span>
@@ -11693,7 +11976,18 @@ const CardsScreen = {
     const id = this._reviewQueue[this._reviewIdx];
     const c = DB.getCard(id);
     let patch = null;
-    if (c) { patch = CardEngine.schedule(c, grade); DB.updateCard(id, patch); }
+    if (c) {
+      // registra no histórico (revlog) ANTES de reagendar — base para o otimizador FSRS
+      const G = CardEngine.GRADE_NUM[grade] || 3;
+      const elapsed = c.lastReview ? Math.max(0, Math.round((new Date(todayLocal() + 'T00:00:00') - new Date(c.lastReview + 'T00:00:00')) / 86400000)) : 0;
+      DB.addRevlog({ ts: Date.now(), date: todayLocal(), cardId: id, grade: G, acerto: G > 1, phase: (c.phase || 'new'), elapsed, s: (c.s || null), d: (c.d || null) });
+      // conta introdução no limite diário só na 1ª vez que o card aparece nesta sessão
+      const bucketAntes = this._bucket(c);
+      if (!this._seenThisSession) this._seenThisSession = new Set();
+      if (!this._seenThisSession.has(id) && (bucketAntes === 'new' || bucketAntes === 'review')) CardsConfig.markIntroduced(bucketAntes);
+      this._seenThisSession.add(id);
+      patch = CardEngine.schedule(c, grade); DB.updateCard(id, patch);
+    }
     this._reviewIdx++;
     this._flipped = false;
     // Anki: cards em APRENDIZADO/REAPRENDIZADO ressurgem na mesma sessão (após o passo).
@@ -12010,31 +12304,144 @@ const CardsScreen = {
     showToast(`${count} card(s) importado(s) ✓`);
   }
 };
+// Passo 1: escolher o ESCOPO (global ou um baralho específico) — como o Anki (presets por baralho)
 CardsScreen.openAlgoConfig = function () {
-  const cfg = CardsConfig.get();
-  UI.prompt([
+  const decks = DB.getDecks();
+  if (!decks.length) { CardsScreen.openAlgoConfigFor(null); return; }
+  const opts = [{ value: '__global__', label: '🌐 Global (padrão de todos)' }].concat(
+    decks.map(d => ({ value: d.id, label: '📁 ' + d.nome + (CardsConfig.hasDeckPreset(d.id) ? '  • personalizado' : '  • herda global') }))
+  );
+  UI.prompt([{ key: 'scope', label: '⚙ Configurar qual conjunto?', type: 'select', value: '__global__', options: opts,
+    hint: 'Cada baralho pode ter seu próprio algoritmo/retenção (ex.: lei seca em 95%, teoria em 88%). Sem preset, o baralho herda o global.' }],
+    { title: '⚙ Parâmetros dos Cards', okText: 'Continuar' }).then(v => {
+      if (!v) return;
+      CardsScreen.openAlgoConfigFor(v.scope === '__global__' ? null : v.scope);
+    });
+};
+// Passo 2: formulário para o escopo escolhido (deckId=null → global)
+CardsScreen.openAlgoConfigFor = function (deckId) {
+  const isDeck = !!deckId;
+  const g = CardsConfig.get();
+  const cfg = isDeck ? CardsConfig.forDeck(deckId) : g;
+  const deckName = isDeck ? ((DB.getDecks().find(d => d.id === deckId) || {}).nome || 'baralho') : null;
+  const hasPreset = isDeck && CardsConfig.hasDeckPreset(deckId);
+  const fields = [
     { key: 'algo', label: '🧠 Algoritmo de repetição espaçada', type: 'select', value: cfg.algo,
       options: [{ value: 'fsrs', label: 'FSRS (recomendado — igual ao Anki atual)' }, { value: 'sm2', label: 'Clássico (SM-2)' }],
       hint: 'FSRS agenda cada card no dia exato da sua meta de retenção — 20–30% mais eficiente.' },
     { key: 'retention', label: '🎯 Retenção-alvo (%) — só FSRS', type: 'number', value: Math.round(cfg.retention * 100), min: 70, max: 97,
-      hint: 'Maior = revê mais vezes e esquece menos. Padrão do Anki: 90%.' },
+      hint: 'Maior = revê mais e esquece menos. Padrão do Anki: 90%.' },
     { key: 'learn', label: '⏱️ Passos de aprendizado (min)', type: 'text', value: cfg.learnSteps.join(' '), placeholder: '1 10',
-      hint: 'Card novo: você o revê nesses minutos até fixar. Igual ao Anki (ex.: 1 10).' },
+      hint: 'Card novo: você o revê nesses minutos até fixar (ex.: 1 10).' },
     { key: 'relearn', label: '🔁 Passos de reaprendizado (min)', type: 'text', value: cfg.relearnSteps.join(' '), placeholder: '10',
-      hint: 'Ao errar um card já aprendido, ele volta nesses minutos.' }
-  ], { title: '⚙ Algoritmo dos Cards', okText: 'Salvar' }).then(v => {
+      hint: 'Ao errar um card já aprendido, ele volta nesses minutos.' },
+    { key: 'lb', label: '⚖️ Balancear carga (Load Balancing)', type: 'select', value: cfg.loadBalance ? '1' : '0',
+      options: [{ value: '1', label: 'Ligado (distribui as revisões)' }, { value: '0', label: 'Desligado' }],
+      hint: 'Espalha os vencimentos em ±alguns dias para evitar picos num só dia.' }
+  ];
+  // limites diários só no escopo global (no Anki também são por baralho, mas mantemos simples)
+  if (!isDeck) {
+    fields.push({ key: 'newPerDay', label: '🆕 Máx. de cards NOVOS por dia', type: 'number', value: g.newPerDay, min: 0, max: 999, hint: 'Padrão Anki: 20.' });
+    fields.push({ key: 'revPerDay', label: '🔄 Máx. de REVISÕES por dia', type: 'number', value: g.revPerDay, min: 0, max: 9999, hint: 'Padrão Anki: 200.' });
+  }
+  const title = isDeck ? ('⚙ Baralho: ' + deckName) : '⚙ Configuração Global';
+  UI.prompt(fields, { title, okText: 'Salvar', sub: isDeck ? (hasPreset ? 'Este baralho usa um preset próprio.' : 'Salvar aqui cria um preset só para este baralho.') : '' }).then(v => {
     if (!v) return;
     const parseSteps = (s, def) => { const a = String(s).split(/[\s,]+/).map(x => parseFloat(x)).filter(x => x > 0); return a.length ? a : def; };
     const ret = Math.min(0.97, Math.max(0.70, (parseFloat(v.retention) || 90) / 100));
-    CardsConfig.set({
-      algo: v.algo === 'sm2' ? 'sm2' : 'fsrs',
-      retention: ret,
-      learnSteps: parseSteps(v.learn, [1, 10]),
-      relearnSteps: parseSteps(v.relearn, [10])
-    });
-    showToast('Algoritmo atualizado: ' + (v.algo === 'sm2' ? 'Clássico (SM-2)' : 'FSRS') + ' ✓');
-    if (CardsScreen.tab === 'revisar') CardsScreen.renderContent();
+    const patch = { algo: v.algo === 'sm2' ? 'sm2' : 'fsrs', retention: ret, learnSteps: parseSteps(v.learn, [1, 10]), relearnSteps: parseSteps(v.relearn, [10]), loadBalance: v.lb === '1' };
+    if (isDeck) { CardsConfig.setDeckPreset(deckId, patch); showToast('Preset do baralho "' + deckName + '" salvo ✓'); }
+    else { patch.newPerDay = Math.max(0, parseInt(v.newPerDay) || 0); patch.revPerDay = Math.max(0, parseInt(v.revPerDay) || 0); CardsConfig.set(patch); showToast('Configuração global salva ✓'); }
+    // ações avançadas FSRS (otimizar/retenção) — para o escopo escolhido
+    if ((v.algo || 'fsrs') !== 'sm2') { CardsScreen._fsrsScope = deckId; setTimeout(() => CardsScreen.openFsrsTools(), 250); }
+    if (CardsScreen.tab === 'revisar' || CardsScreen.tab === 'stats') CardsScreen.renderContent();
   });
+  // botão extra "restaurar herança" quando o baralho tem preset
+  if (isDeck && hasPreset) setTimeout(() => {
+    const foot = document.querySelector('#ui-modal .cards-modal-foot');
+    if (!foot || document.getElementById('deck-inherit-btn')) return;
+    const b = document.createElement('button'); b.id = 'deck-inherit-btn'; b.type = 'button'; b.className = 'btn-secondary'; b.style.marginRight = 'auto'; b.textContent = '↩ Voltar a herdar o global';
+    b.addEventListener('click', () => { UI._submit(false); CardsConfig.clearDeckPreset(deckId); showToast('Baralho "' + deckName + '" voltou a herdar o global ✓'); });
+    foot.insertBefore(b, foot.firstChild);
+  }, 60);
+};
+// Ferramentas FSRS avançadas: otimizar pesos + calcular retenção recomendada
+CardsScreen.openFsrsTools = function () {
+  const scope = CardsScreen._fsrsScope || null;
+  const cfg = scope ? CardsConfig.forDeck(scope) : CardsConfig.get();
+  const custom = Array.isArray(cfg.weights) && cfg.weights.length === 19;
+  const last = cfg.lastOptim ? new Date(cfg.lastOptim).toLocaleDateString('pt-BR') : null;
+  const alvo = scope ? ('baralho "' + ((DB.getDecks().find(d => d.id === scope) || {}).nome || '') + '"') : 'global';
+  const nRev = scope ? (DB.getRevlog() || []).filter(r => { const c = DB.getCard(r.cardId); return c && c.deckId === scope; }).length : (DB.getRevlog() || []).length;
+  UI.confirm(
+    `Escopo: ${alvo} · ${nRev} revisão(ões) registrada(s).\n\n` +
+    (custom ? `✔ Usando pesos PERSONALIZADOS${last ? ' (otimizados em ' + last + ')' : ''}.` : 'Usando os pesos PADRÃO do FSRS-5.') +
+    `\n\nEscolha uma ação avançada:`,
+    { title: '🧠 Ferramentas FSRS', okText: '⚡ Otimizar meus parâmetros', cancelText: 'Fechar' }
+  ).then(ok => { if (ok) CardsScreen.runOptimizer(); });
+  setTimeout(() => {
+    const foot = document.querySelector('#ui-modal .cards-modal-foot');
+    if (!foot || document.getElementById('fsrs-extra-btns')) return;
+    const wrap = document.createElement('div'); wrap.id = 'fsrs-extra-btns'; wrap.style.cssText = 'display:flex;gap:8px;flex:1;';
+    const b1 = document.createElement('button'); b1.type = 'button'; b1.className = 'btn-secondary'; b1.textContent = '🎯 Retenção recomendada';
+    b1.addEventListener('click', () => { UI._submit(false); CardsScreen.computeRetention(); });
+    wrap.appendChild(b1);
+    if (custom) { const b2 = document.createElement('button'); b2.type = 'button'; b2.className = 'btn-secondary'; b2.textContent = '↩ Restaurar padrão'; b2.addEventListener('click', () => { UI._submit(false); if (scope) CardsConfig.setDeckPreset(scope, { weights: null, lastOptim: null }); else CardsConfig.set({ weights: null, lastOptim: null }); showToast('Pesos padrão restaurados ✓'); }); wrap.appendChild(b2); }
+    foot.insertBefore(wrap, foot.firstChild);
+  }, 60);
+};
+// ⚡ Otimizador: roda gradient descent sobre o revlog e adota os pesos se forem melhores
+CardsScreen.runOptimizer = function () {
+  const scope = CardsScreen._fsrsScope || null; // null = global; senão deckId
+  let revlog = DB.getRevlog() || [];
+  if (scope) { const ids = new Set(DB.getCards().filter(c => c.deckId === scope).map(c => c.id)); revlog = revlog.filter(r => ids.has(r.cardId)); }
+  const alvo = scope ? ('do baralho "' + ((DB.getDecks().find(d => d.id === scope) || {}).nome || '') + '"') : 'global';
+  UI.alert('Analisando seu histórico ' + alvo + ' e ajustando os 19 parâmetros… pode levar alguns segundos.', { title: '⚡ Otimizando FSRS', okText: 'Aguarde…' });
+  setTimeout(() => {
+    const startW = scope ? CardsConfig.weightsFor(scope) : CardsConfig.weights();
+    const res = FSRS.optimize(revlog, { startW, iters: 50, lr: 0.03, minReviews: 40 });
+    UI._submit(false);
+    if (res.reason === 'few' || res.reviews < 40) {
+      UI.alert(`Há apenas ${res.reviews} revisão(ões) avaliável(is) ${alvo}. O otimizador precisa de ~40+ para valer a pena.\n\nContinue revisando — o Anki recomenda reotimizar cada vez que suas revisões dobram.`, { title: 'Dados insuficientes ainda', okText: 'Entendi' });
+      return;
+    }
+    if (res.improved) {
+      const antes = res.lossBefore.toFixed(4), depois = res.lossAfter.toFixed(4);
+      const ganho = ((1 - res.lossAfter / res.lossBefore) * 100).toFixed(1);
+      if (scope) CardsConfig.setDeckPreset(scope, { weights: res.w, lastOptim: Date.now() });
+      else CardsConfig.set({ weights: res.w, lastOptim: Date.now() });
+      UI.alert(`Parâmetros ${alvo} otimizados a partir de ${res.reviews} revisões! ✓\n\nErro de previsão (log-loss): ${antes} → ${depois}  (−${ganho}%)`, { title: '✅ Otimização concluída', okText: 'Ótimo!' });
+      if (CardsScreen.tab === 'revisar' || CardsScreen.tab === 'stats') CardsScreen.renderContent();
+    } else {
+      UI.alert('Seus parâmetros ' + alvo + ' já estão ótimos para o histórico — nenhuma mudança melhoraria a previsão.\n\n(O Anki segue a mesma regra: só troca se for comprovadamente melhor.)', { title: 'Já está ótimo', okText: 'Perfeito' });
+    }
+  }, 120);
+};
+// 🎯 Retenção recomendada: pergunta o tempo/dia e mostra a curva custo × retenção
+CardsScreen.computeRetention = function () {
+  const scope = CardsScreen._fsrsScope || null;
+  const pool = scope ? DB.getCards().filter(c => c.deckId === scope) : DB.getCards();
+  const nCards = pool.filter(c => (c.reps || 0) > 0).length || pool.length;
+  UI.prompt([{ key: 'min', label: '⏱️ Quanto tempo por dia você tem para os cards? (min)', type: 'number', value: 20, min: 5, max: 240, hint: `Baseado em ~${nCards} cards ativos. Vou simular a carga de revisões para várias metas de retenção.` }],
+    { title: '🎯 Retenção recomendada', okText: 'Calcular' }).then(v => {
+      if (!v) return;
+      const min = Math.max(5, parseInt(v.min) || 20);
+      const rec = FSRS.recommendRetention(nCards, min, { w: scope ? CardsConfig.weightsFor(scope) : CardsConfig.weights() });
+      const pts = rec.curve.filter(c => [0.80, 0.83, 0.85, 0.87, 0.90, 0.93, 0.95].some(x => Math.abs(x - c.retention) < 0.005));
+      const maxRev = Math.max(1, ...rec.curve.map(c => c.reviewsPerDay));
+      const bars = pts.map(c => {
+        const h = Math.round((c.reviewsPerDay / maxRev) * 100);
+        const isRec = Math.abs(c.retention - rec.recommended) < 0.005;
+        return `<div class="rr-bar"><div class="rr-fill ${isRec ? 'rec' : ''}" style="height:${Math.max(6, h)}%"></div><span class="rr-n">${c.reviewsPerDay}</span><span class="rr-x">${Math.round(c.retention * 100)}%</span></div>`;
+      }).join('');
+      const body = `
+        <p style="margin:0 0 10px;font-size:13.5px;color:var(--text-soft)">Para <b>~${nCards}</b> cards e <b>${min} min/dia</b> (≈ ${rec.capacity} revisões/dia):</p>
+        <div class="rr-chart">${bars}</div>
+        <div class="rr-legend">Barras = revisões/dia estimadas por meta de retenção. Verde = ponto de <b>menor esforço</b>.</div>
+        <div class="rr-rec">🎯 Recomendado: <b>${Math.round(rec.recommended * 100)}%</b>${rec.optimal !== rec.recommended ? ` <span style="color:var(--text-faint)">(ótimo teórico ${Math.round(rec.optimal * 100)}%, ajustado ao seu tempo)</span>` : ''}</div>`;
+      UI._open('🎯 Retenção recomendada', '', body, { okText: 'Aplicar ' + Math.round(rec.recommended * 100) + '%', cancelText: 'Fechar' });
+      UI._mode = 'confirm'; UI._resolve = (ok) => { if (ok) { if (scope) CardsConfig.setDeckPreset(scope, { retention: rec.recommended }); else CardsConfig.set({ retention: rec.recommended }); showToast('Retenção-alvo ajustada para ' + Math.round(rec.recommended * 100) + '% ✓'); if (CardsScreen.tab === 'revisar' || CardsScreen.tab === 'stats') CardsScreen.renderContent(); } };
+    });
 };
 window.CardsScreen = CardsScreen;
 document.addEventListener('keydown', (e) => CardsScreen.onKey(e));
@@ -12215,6 +12622,12 @@ document.querySelectorAll('.rte').forEach(buildRteToolbar);
   });
   // topo
   on('cards-algo-btn', 'click', () => CardsScreen.openAlgoConfig());
+  // atalho 📊: pula direto para a aba Estatísticas
+  on('cards-stats-btn', 'click', () => {
+    CardsScreen.tab = 'stats';
+    document.querySelectorAll('.cards-tab').forEach(x => x.classList.toggle('active', x.dataset.ctab === 'stats'));
+    CardsScreen.renderContent();
+  });
   on('cards-new-btn', 'click', () => CardsScreen.openCardModal(null));
   on('cards-deck-btn', 'click', () => CardsScreen.openDeckModal());
   on('cards-export-btn', 'click', () => CardsScreen.openExportModal());
