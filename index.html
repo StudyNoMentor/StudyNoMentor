@@ -687,6 +687,11 @@
     background: #fdf6e3;
     color: #8a6d1a;
   }
+  .meta-badge.badge-progress {
+    background: var(--accent-soft);
+    color: var(--accent);
+    font-family: 'Space Mono', monospace;
+  }
 
   .recent-main .comment {
     font-size: 12px;
@@ -736,6 +741,40 @@
 
   @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
 
+  /* ---------- Atividades Extras ---------- */
+  .extras-toolbar { display: flex; align-items: center; justify-content: space-between; gap: 14px; flex-wrap: wrap; margin: 18px 0 10px; }
+  .extras-global { display: flex; align-items: center; gap: 10px; font-size: 13px; font-weight: 600; color: var(--text-soft); background: var(--surface-sunken); border: 1px solid var(--border); border-radius: 12px; padding: 9px 14px; }
+  .extras-summary { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 16px; }
+  @media (max-width: 640px) { .extras-summary { grid-template-columns: 1fr 1fr; } }
+  .extras-sum-card { background: var(--surface); border: 1px solid var(--border); border-radius: 14px; padding: 14px 16px; text-align: center; box-shadow: var(--shadow-sm); }
+  .extras-sum-card .v { font-family: 'Space Mono', monospace; font-weight: 800; font-size: 22px; color: var(--text); }
+  .extras-sum-card .l { font-size: 10.5px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; color: var(--text-faint); margin-top: 4px; }
+  .extra-card { background: var(--surface); border: 1.5px solid var(--border); border-radius: 16px; padding: 16px 18px; margin-bottom: 12px; box-shadow: var(--shadow-sm); transition: border-color 0.14s ease, transform 0.14s ease; }
+  .extra-card:hover { border-color: var(--accent); transform: translateY(-1px); }
+  .extra-card.is-done { opacity: 0.72; }
+  .extra-head { display: flex; align-items: flex-start; gap: 12px; }
+  .extra-ico { width: 40px; height: 40px; border-radius: 12px; display: flex; align-items: center; justify-content: center; font-size: 20px; background: var(--accent-soft); flex-shrink: 0; }
+  .extra-title { flex: 1; min-width: 0; }
+  .extra-title .t { font-size: 15px; font-weight: 800; color: var(--text); }
+  .extra-title .m { display: flex; gap: 7px; flex-wrap: wrap; margin-top: 5px; }
+  .extra-tag { font-size: 10.5px; font-weight: 700; padding: 2px 9px; border-radius: 20px; background: var(--surface-sunken); color: var(--text-soft); border: 1px solid var(--border); }
+  .extra-tag.disc { background: var(--accent-soft); color: var(--accent); border-color: transparent; }
+  .extra-tag.count-on { background: var(--good-soft); color: var(--good); border-color: transparent; }
+  .extra-tag.count-off { background: var(--surface-sunken); color: var(--text-faint); border-style: dashed; }
+  .extra-tag.rec { background: var(--warn-soft); color: var(--warn); border-color: transparent; }
+  .extra-actions { display: flex; gap: 5px; flex-shrink: 0; }
+  .extra-progress { margin-top: 12px; }
+  .extra-progress .bar { height: 10px; background: var(--surface-sunken); border: 1px solid var(--border); border-radius: 20px; overflow: hidden; }
+  .extra-progress .bar > span { display: block; height: 100%; border-radius: 20px; background: var(--accent); transition: width 0.4s ease; }
+  .extra-progress .bar > span.full { background: var(--good); }
+  .extra-progress .nums { display: flex; align-items: baseline; justify-content: space-between; margin-top: 6px; font-size: 12px; color: var(--text-soft); }
+  .extra-progress .nums b { font-family: 'Space Mono', monospace; color: var(--text); font-size: 14px; }
+  .extra-foot { display: flex; align-items: center; gap: 8px; margin-top: 12px; flex-wrap: wrap; }
+  .extra-adv { display: flex; align-items: center; gap: 6px; }
+  .extra-adv input { width: 84px; text-align: center; padding: 7px 8px; }
+  .extras-empty { text-align: center; padding: 40px 20px; color: var(--text-faint); }
+  .extras-empty .big { font-size: 34px; margin-bottom: 8px; }
+  .extras-group-title { font-size: 11px; font-weight: 800; letter-spacing: 0.05em; text-transform: uppercase; color: var(--text-faint); margin: 18px 0 10px; }
   /* ---------- Ciclo da Semana ---------- */
   .cycle-subject-row {
     display: grid;
@@ -2222,12 +2261,21 @@
   /* Cards secundários */
   .reforco-side-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-top: 16px; }
   @media (max-width: 820px) { .reforco-side-grid { grid-template-columns: 1fr; } }
-  .reforco-mini { display: grid; grid-template-columns: 1fr auto; align-items: center; gap: 10px; padding: 9px 10px; border-radius: 9px; }
-  .reforco-mini:nth-child(even) { background: var(--surface-sunken); }
-  .reforco-mini .rm-name { font-size: 13px; font-weight: 600; color: var(--text); }
+  .reforco-mini { display: grid; grid-template-columns: 26px 1fr auto; align-items: center; gap: 11px; padding: 10px 12px; border-radius: 11px; border: 1px solid var(--border); background: var(--surface); margin-bottom: 7px; transition: border-color 0.13s ease, transform 0.13s ease; }
+  .reforco-mini:hover { border-color: var(--accent); transform: translateY(-1px); }
+  .reforco-mini .rm-ico { width: 26px; height: 26px; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 14px; flex-shrink: 0; }
+  .reforco-mini.tone-blind .rm-ico { background: var(--accent-soft); }
+  .reforco-mini.tone-over .rm-ico { background: var(--warn-soft); }
+  .reforco-mini .rm-body { min-width: 0; }
+  .reforco-mini .rm-name { font-size: 13px; font-weight: 700; color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .reforco-mini .rm-sub { font-size: 10.5px; color: var(--text-faint); text-transform: uppercase; letter-spacing: 0.03em; margin-top: 2px; }
-  .reforco-mini .rm-val { font-family: 'Space Mono', monospace; font-size: 12px; font-weight: 700; color: var(--accent); text-align: right; white-space: nowrap; }
-  .reforco-mini .rm-val small { display: block; color: var(--text-faint); font-weight: 400; }
+  .reforco-mini .rm-bar { height: 5px; background: var(--surface-sunken); border-radius: 20px; overflow: hidden; margin-top: 6px; }
+  .reforco-mini .rm-bar > span { display: block; height: 100%; border-radius: 20px; }
+  .reforco-mini.tone-blind .rm-bar > span { background: var(--accent); }
+  .reforco-mini.tone-over .rm-bar > span { background: var(--warn); }
+  .reforco-mini .rm-val { font-family: 'Space Mono', monospace; font-size: 13px; font-weight: 800; color: var(--accent); text-align: right; white-space: nowrap; }
+  .reforco-mini.tone-over .rm-val { color: var(--warn); }
+  .reforco-mini .rm-val small { display: block; color: var(--text-faint); font-weight: 400; font-size: 10px; margin-top: 1px; }
   .reforco-actions { display: flex; gap: 6px; }
   .reforco-act { width: 34px; height: 34px; border-radius: 9px; border: 1.5px solid var(--border); background: var(--surface); display: flex; align-items: center; justify-content: center; font-size: 15px; cursor: pointer; text-decoration: none; transition: all 0.13s ease; }
   .reforco-act:hover { border-color: var(--accent); background: var(--accent-soft); transform: translateY(-1px); }
@@ -3432,6 +3480,7 @@
       <button class="tab" data-screen="estudonovo"><span class="tab-icon">▥</span>Estudo Novo</button>
       <button class="tab" data-screen="leis"><span class="tab-icon">§</span>Leis Secas</button>
       <button class="tab" data-screen="cards"><span class="tab-icon">🗂️</span>Cards de Revisão</button>
+      <button class="tab" data-screen="extras"><span class="tab-icon">✅</span>Atividades Extras</button>
       <button class="tab" data-screen="links"><span class="tab-icon">🔗</span>Links Úteis</button>
       <button class="tab" data-screen="historico"><span class="tab-icon">▤</span>Histórico</button>
       <button class="tab" data-screen="evolucao"><span class="tab-icon">📈</span>Evolução</button>
@@ -4283,7 +4332,7 @@
       </div>
 
       <div class="card">
-        <div class="card-header"><h2>% de acertos por matéria</h2><p class="sub">Aproveitamento em questões no período · linha de referência = 70%</p></div>
+        <div class="card-header"><div><h2>% de acertos por matéria</h2><p class="sub">Aproveitamento em questões no período · <span id="metas-sub">metas 70/80/85</span></p></div><button type="button" class="icon-btn" id="btn-edit-metas" title="Editar metas e cores (verde/amarelo/vermelho)">⚙ Metas</button></div>
         <div style="padding: 8px 24px 24px;" id="evolucao-acerto-materia"></div>
       </div>
 
@@ -4877,6 +4926,79 @@
     </div>
   </section>
 
+  <!-- ============ TELA: ATIVIDADES EXTRAS ============ -->
+  <section class="screen" id="screen-extras">
+    <div class="page-header">
+      <h2 class="page-title">✅ Atividades Extras</h2>
+      <p class="page-subtitle">Metas paralelas ao seu planejamento obrigatório: baralhos de Anki, leitura de lei seca, questões de um assunto, revisão de pontos fracos, vídeos e revisões de véspera. Você decide, por atividade, se ela entra ou não nas métricas de Evolução.</p>
+    </div>
+    <div class="extras-toolbar">
+      <div class="extras-global">
+        <button type="button" class="toggle-switch" id="extras-global-toggle" title="Somar as atividades marcadas às métricas de Evolução"></button>
+        <span>Incluir Atividades Extras (marcadas) nas métricas de Evolução</span>
+      </div>
+      <button type="button" class="btn-primary" id="extras-new-btn">＋ Nova atividade</button>
+    </div>
+    <div id="extras-summary" class="extras-summary"></div>
+    <div id="extras-list"></div>
+  </section>
+  <!-- Modal: criar/editar atividade extra -->
+  <div id="extra-modal" class="cards-modal" style="display:none;">
+    <div class="cards-modal-box">
+      <div class="cards-modal-head">
+        <div><h2 id="extra-modal-title">＋ Nova atividade</h2><p class="sub">Defina a meta e se ela conta nas suas métricas.</p></div>
+        <button type="button" class="icon-btn" id="extra-modal-close">✕</button>
+      </div>
+      <div class="cards-modal-body">
+        <div class="field"><label>Título <span class="req">*</span></label>
+          <input type="text" id="extra-titulo" placeholder="Ex.: 300 flashcards de Tributário"></div>
+        <div class="field-group">
+          <div class="field"><label>Tipo</label>
+            <select id="extra-tipo">
+              <option value="anki">🃏 Anki (cards)</option>
+              <option value="leitura">📜 Lei seca (páginas)</option>
+              <option value="questoes">❓ Questões</option>
+              <option value="revisao">🔁 Revisão ponto fraco</option>
+              <option value="video">🎬 Vídeo / véspera</option>
+              <option value="livre">⭐ Livre</option>
+            </select></div>
+          <div class="field"><label>Disciplina <span class="opt">(opcional)</span></label>
+            <input type="text" id="extra-disciplina" list="extra-disc-list" placeholder="Ex.: Direito Tributário">
+            <datalist id="extra-disc-list"></datalist></div>
+        </div>
+        <div class="field-group">
+          <div class="field"><label>Meta (alvo)</label>
+            <input type="number" id="extra-alvo" min="0" placeholder="Ex.: 300"></div>
+          <div class="field"><label>Unidade</label>
+            <select id="extra-unidade">
+              <option value="cards">cards</option>
+              <option value="paginas">páginas</option>
+              <option value="questoes">questões</option>
+              <option value="min">minutos</option>
+              <option value="sessoes">sessões</option>
+              <option value="itens">itens</option>
+            </select></div>
+        </div>
+        <div class="field-group">
+          <div class="field"><label>Recorrência</label>
+            <select id="extra-periodo">
+              <option value="unica">Única (meta total)</option>
+              <option value="diaria">Diária</option>
+              <option value="semanal">Semanal</option>
+            </select></div>
+          <div class="field" style="display:flex; align-items:flex-end;">
+            <label class="co-check" style="margin:0;"><input type="checkbox" id="extra-conta" checked> Contar esta atividade nas métricas</label>
+          </div>
+        </div>
+      </div>
+      <div class="cards-modal-foot">
+        <button type="button" class="btn-danger-text" id="extra-del-btn" style="display:none;">Excluir</button>
+        <span style="flex:1"></span>
+        <button type="button" class="btn-secondary" id="extra-cancel">Cancelar</button>
+        <button type="button" class="btn-primary" id="extra-save">Salvar</button>
+      </div>
+    </div>
+  </div>
   <!-- ============ TELA: PLANEJAMENTOS ============ -->
   <section class="screen" id="screen-planejamentos">
     <div class="page-header">
@@ -4996,7 +5118,8 @@ const DB = {
       cards: base + 'cards',
       links: base + 'links',
       incidencia: base + 'incidencia',
-      lastCycleSetup: base + 'last-cycle-setup'
+      lastCycleSetup: base + 'last-cycle-setup',
+      extras: base + 'extras'
     };
   },
   // KEYS "dinâmico": sempre aponta para o planejamento ativo no momento da leitura
@@ -5499,6 +5622,54 @@ const DB = {
     return rows.length;
   },
   clearIncidenciaBanca(banca) { this.saveIncidencia(this.getIncidencia().filter(r => r.banca.toLowerCase() !== banca.toLowerCase())); },
+  // ---- Atividades Extras (metas paralelas): anki, lei seca, questões, revisão, vídeo, livre ----
+  // Cada extra: { id, titulo, tipo, disciplina, unidade, alvo, periodo, progresso, contaMetricas,
+  //               status, historico:[{data, quantidade, minutos}], createdAt, updatedAt }
+  getExtras() { return this._get(this.KEYS.extras, []); },
+  saveExtras(list) { this._set(this.KEYS.extras, list); },
+  getExtra(id) { return this.getExtras().find(x => x.id === id) || null; },
+  addExtra(data) {
+    const list = this.getExtras();
+    const now = new Date().toISOString();
+    const ex = {
+      id: this._uid(),
+      titulo: (data.titulo || 'Nova atividade').trim(),
+      tipo: data.tipo || 'livre',                 // anki|leitura|questoes|revisao|video|livre
+      disciplina: (data.disciplina || '').trim(),
+      unidade: data.unidade || 'itens',           // cards|paginas|questoes|min|sessoes|itens
+      alvo: Math.max(0, parseFloat(data.alvo) || 0),
+      periodo: data.periodo || 'unica',           // unica|diaria|semanal
+      progresso: 0,
+      contaMetricas: data.contaMetricas !== false, // por atividade (padrão: conta)
+      status: 'ativa',                            // ativa|concluida|pausada
+      historico: [],
+      createdAt: now, updatedAt: now
+    };
+    list.push(ex); this.saveExtras(list); return ex;
+  },
+  updateExtra(id, patch) {
+    const list = this.getExtras(); const e = list.find(x => x.id === id);
+    if (e) { Object.assign(e, patch); e.updatedAt = new Date().toISOString(); }
+    this.saveExtras(list); return e;
+  },
+  deleteExtra(id) { this.saveExtras(this.getExtras().filter(x => x.id !== id)); },
+  addExtraProgress(id, quantidade, minutos) {
+    const list = this.getExtras(); const e = list.find(x => x.id === id);
+    if (!e) return null;
+    const q = Math.max(0, parseFloat(quantidade) || 0);
+    e.progresso = Math.max(0, (e.progresso || 0) + q);
+    e.historico = e.historico || [];
+    e.historico.push({ data: todayLocal(), quantidade: q, minutos: Math.max(0, parseFloat(minutos) || 0) });
+    if (e.alvo > 0 && e.progresso >= e.alvo && e.periodo === 'unica') e.status = 'concluida';
+    e.updatedAt = new Date().toISOString();
+    this.saveExtras(list); return e;
+  },
+  // Configuração global: incluir Atividades Extras nas métricas de Evolução
+  extrasCountGlobal() {
+    try { const v = localStorage.getItem('diario-estudos:extras-in-metrics'); return v === null ? false : v === '1'; }
+    catch (_) { return false; }
+  },
+  setExtrasCountGlobal(on) { try { localStorage.setItem('diario-estudos:extras-in-metrics', on ? '1' : '0'); } catch (_) {} },
   addCustomSigla({ sigla, nome, color }) {
     const list = this.getCustomSiglas();
     list.push({ id: this._uid(), sigla: (sigla || '').trim().toUpperCase(), nome: (nome || '').trim(), color: color || '#4f46e5' });
@@ -6105,10 +6276,36 @@ function showToast(text) {
   setTimeout(() => toast.classList.remove('show'), 2400);
 }
 
+// ---- Metas/limiares de aproveitamento (editáveis pelo usuário) ----
+// good = verde a partir de METAS.bom; warn entre METAS.atencao e METAS.bom; bad abaixo.
+// METAS.linhas = linhas de referência exibidas nos gráficos (ex.: 70/80/85).
+const AppSettings = {
+  KEY: 'diario-estudos:metas',
+  _cache: null,
+  DEFAULTS: { atencao: 50, bom: 70, linhas: [70, 80, 85] },
+  get() {
+    if (this._cache) return this._cache;
+    let v = null; try { v = JSON.parse(localStorage.getItem(this.KEY)); } catch (_) {}
+    this._cache = Object.assign({}, this.DEFAULTS, v || {});
+    if (!Array.isArray(this._cache.linhas) || !this._cache.linhas.length) this._cache.linhas = this.DEFAULTS.linhas.slice();
+    return this._cache;
+  },
+  set(patch) {
+    const v = Object.assign(this.get(), patch || {});
+    this._cache = v;
+    try { localStorage.setItem(this.KEY, JSON.stringify(v)); } catch (_) {}
+  }
+};
 function toneFor(pct) {
-  if (pct >= 70) return 'good';
-  if (pct >= 50) return 'warn';
+  const m = AppSettings.get();
+  if (pct >= m.bom) return 'good';
+  if (pct >= m.atencao) return 'warn';
   return 'bad';
+}
+// linhas de referência (metas) para os gráficos, com cores fixas por posição
+function metaRefs() {
+  const cores = ['#0f9d63', '#d97a12', '#7c3aed', '#2563eb'];
+  return AppSettings.get().linhas.slice().sort((a, b) => a - b).map((v, i) => ({ v, color: cores[i % cores.length] }));
 }
 
 function calcPct(correct, total) {
@@ -6130,6 +6327,19 @@ function escapeHtml(str) {
 function formatDateShort(iso) {
   const [y, m, d] = iso.split('-');
   return `${d}/${m}`;
+}
+// Badge de avanço material de uma sessão: min de vídeo assistido OU nº de páginas lidas.
+// Aparece no histórico (Registrar e semanas) para dar contexto do que foi feito na sessão.
+function progressBadgeHtml(e) {
+  if (e && e.videoStart != null && e.videoEnd != null && e.videoEnd >= e.videoStart) {
+    const min = Math.round((e.videoEnd - e.videoStart) * 10) / 10;
+    if (min > 0) return `<span class="meta-badge badge-progress">🎬 ${min.toLocaleString('pt-BR')} min de vídeo</span>`;
+  }
+  if (e && e.pageStart != null && e.pageEnd != null && e.pageEnd >= e.pageStart) {
+    const p = e.pageEnd - e.pageStart + 1;
+    if (p > 0) return `<span class="meta-badge badge-progress">📖 ${p.toLocaleString('pt-BR')} pág.</span>`;
+  }
+  return '';
 }
 
 // Data de HOJE no fuso local (evita o desvio de 1 dia que o toISOString/UTC causa à noite)
@@ -6815,12 +7025,14 @@ const ReforcoEngine = {
     };
     // ordenação conforme #1: 'oportunidade' (score) | 'erro' | 'incidencia'
     const ordenarPor = opts.ordenarPor || 'oportunidade';
+    // desempate final ESTÁVEL (nome) para ordem 100% determinística entre recálculos
+    const tie = (a, b) => (a.nome || '').localeCompare((b.nome || ''), 'pt-BR');
     const sortFn = (a, b) => {
       // "Sem Classificação" sempre por último (é um balde genérico, pouco acionável)
       if (a.semClass !== b.semClass) return a.semClass ? 1 : -1;
-      if (ordenarPor === 'erro') return b.taxaErro - a.taxaErro || b.incidencia - a.incidencia;
-      if (ordenarPor === 'incidencia') return b.incidencia - a.incidencia || b.taxaErro - a.taxaErro;
-      return b.score - a.score || b.incidencia - a.incidencia; // oportunidade (padrão)
+      if (ordenarPor === 'erro') return b.taxaErro - a.taxaErro || b.incidencia - a.incidencia || tie(a, b);
+      if (ordenarPor === 'incidencia') return b.incidencia - a.incidencia || b.taxaErro - a.taxaErro || tie(a, b);
+      return b.score - a.score || b.incidencia - a.incidencia || tie(a, b); // oportunidade (padrão)
     };
     const allItems = mainPool.map(buildItem).sort(sortFn);
     const items = allItems.slice(0, limite);
@@ -7119,6 +7331,7 @@ const ReforcoEngine = {
             <div class="meta-badges">
               <span class="meta-badge badge-method">${escapeHtml(e.method)}</span>
               <span class="meta-badge badge-duration">${timeStr}</span>
+              ${progressBadgeHtml(e)}
               ${e.lesson ? `<span class="meta-badge badge-lesson">${escapeHtml(e.lesson)}</span>` : ''}
             </div>
             ${e.comment ? `<div class="comment">${escapeHtml(e.comment)}</div>` : ''}
@@ -8994,6 +9207,7 @@ const HistoricoScreen = {
             <div class="wd-entry-badges">
               <span class="meta-badge badge-method">${escapeHtml(e.method)}</span>
               <span class="meta-badge badge-duration">${timeStr}</span>
+              ${progressBadgeHtml(e)}
               ${e.lesson ? `<span class="meta-badge badge-lesson">${escapeHtml(e.lesson)}</span>` : ''}
             </div>
             ${e.comment ? `<div class="wd-entry-comment">${escapeHtml(e.comment)}</div>` : ''}
@@ -9194,8 +9408,33 @@ const EvolucaoScreen = {
     return `${y}-${m}-${day}`;
   },
 
+  // Converte o histórico das Atividades Extras (marcadas) em "registros virtuais",
+  // para que, quando habilitado, o tempo delas entre nas métricas de Evolução.
+  _extraEntries() {
+    if (!DB.extrasCountGlobal()) return [];
+    const methodByTipo = { anki: 'Revisão Teórica', leitura: 'Leitura', questoes: 'Questões', revisao: 'Revisão Teórica', video: 'Videoaula', livre: 'Outro' };
+    const out = [];
+    DB.getExtras().forEach(x => {
+      if (!x.contaMetricas) return;
+      (x.historico || []).forEach((h, i) => {
+        const min = Math.max(0, h.minutos || (x.tipo === 'video' ? h.quantidade : 0) || 0);
+        if (min <= 0 && x.tipo !== 'questoes') return;
+        const e = {
+          id: 'ex_' + x.id + '_' + i, date: h.data,
+          subject: x.disciplina || 'Atividades Extras',
+          method: methodByTipo[x.tipo] || 'Outro',
+          durationMin: min, correct: 0, total: 0, _extra: true
+        };
+        // questões: registra acertos/total se a unidade for questões (progresso conta como total)
+        if (x.tipo === 'questoes') { e.total = Math.round(h.quantidade || 0); e.correct = 0; }
+        out.push(e);
+      });
+    });
+    return out;
+  },
   render() {
-    const allEntries = this.scope === 'all' ? DB.getAllEntriesTagged() : DB.getEntries();
+    const baseEntries = this.scope === 'all' ? DB.getAllEntriesTagged() : DB.getEntries();
+    const allEntries = baseEntries.concat(this._extraEntries());
     const emptyEl = document.getElementById('evolucao-empty');
     const contentEl = document.getElementById('evolucao-content');
 
@@ -9405,11 +9644,7 @@ const EvolucaoScreen = {
       return;
     }
     // linhas de referência (metas) desenhadas sobre as barras
-    const REFS = [
-      { v: 70, color: 'var(--good)' },
-      { v: 80, color: 'var(--warn)' },
-      { v: 85, color: 'var(--accent)' }
-    ];
+    const REFS = metaRefs();
     const refLines = REFS.map(r =>
       `<div class="acm-ref" style="left:${r.v}%; background:${r.color};"><span class="acm-ref-tag" style="background:${r.color};">${r.v}%</span></div>`
     ).join('');
@@ -9518,7 +9753,7 @@ const EvolucaoScreen = {
       grid += `<text x="${padL - 8}" y="${y + 3}" font-size="10" fill="#9297a3" text-anchor="end" font-family="Space Mono, monospace">${g}%</text>`;
     });
     // metas 70/80/85
-    [{ v: 70, c: '#0f9d63' }, { v: 80, c: '#d97a12' }, { v: 85, c: '#7c3aed' }].forEach(r => {
+    metaRefs().map(r => ({ v: r.v, c: r.color })).forEach(r => {
       const y = yAt(r.v);
       grid += `<line x1="${padL}" y1="${y}" x2="${w - padR}" y2="${y}" stroke="${r.c}" stroke-width="1.2" stroke-dasharray="6 4" opacity="0.6"/>`;
     });
@@ -9627,12 +9862,8 @@ const EvolucaoScreen = {
       grid += `<line x1="${padL}" y1="${y}" x2="${w - padR}" y2="${y}" stroke="#eceef1" stroke-width="1" stroke-dasharray="${g === 0 ? '0' : '3 3'}"/>`;
       grid += `<text x="${padL - 8}" y="${y + 3}" font-size="10" fill="#9297a3" text-anchor="end" font-family="Space Mono, monospace">${g}%</text>`;
     });
-    // linhas de referência 70 / 80 / 85% (metas), bem visíveis
-    const refs = [
-      { v: 70, color: '#0f9d63' },
-      { v: 80, color: '#d97a12' },
-      { v: 85, color: '#4f46e5' }
-    ];
+    // linhas de referência (metas configuráveis), bem visíveis
+    const refs = metaRefs();
     let refLines = '';
     refs.forEach(r => {
       const y = yAt(r.v);
@@ -9911,6 +10142,28 @@ document.getElementById('evo-period-7d').addEventListener('click', () => Evoluca
 document.getElementById('evo-period-30d').addEventListener('click', () => EvolucaoScreen.setPeriod(29));
 document.getElementById('evo-period-all').addEventListener('click', () => EvolucaoScreen.setPeriod(null));
 
+// ⚙ Editor de metas/limiares (verde/amarelo + linhas de referência) — reflete em todo o app
+(function () {
+  const btn = document.getElementById('btn-edit-metas');
+  const syncSub = () => { const s = document.getElementById('metas-sub'); if (s) s.textContent = 'metas ' + AppSettings.get().linhas.slice().sort((a, b) => a - b).join('/'); };
+  syncSub();
+  if (btn) btn.addEventListener('click', () => {
+    const m = AppSettings.get();
+    const bom = prompt('Meta VERDE — aproveitamento a partir de (%) para "bom":', m.bom);
+    if (bom === null) return;
+    const at = prompt('Meta AMARELA — aproveitamento a partir de (%) para "atenção" (abaixo disso é vermelho):', m.atencao);
+    if (at === null) return;
+    const linhas = prompt('Linhas de referência nos gráficos (percentuais separados por vírgula):', m.linhas.join(', '));
+    if (linhas === null) return;
+    const nb = Math.max(1, Math.min(100, parseFloat(bom) || m.bom));
+    const na = Math.max(1, Math.min(nb - 1, parseFloat(at) || m.atencao));
+    const nl = linhas.split(/[,;\s]+/).map(x => parseFloat(x)).filter(x => !isNaN(x) && x > 0 && x <= 100).slice(0, 4);
+    AppSettings.set({ bom: nb, atencao: na, linhas: nl.length ? nl : m.linhas });
+    syncSub();
+    EvolucaoScreen.render();
+    showToast('Metas atualizadas ✓');
+  });
+})();
 document.getElementById('evo-scope-toggle').addEventListener('click', (e) => {
   const btn = e.target.closest('button[data-scope]');
   if (!btn) return;
@@ -11484,6 +11737,188 @@ window.addEventListener('screen:activated', (e) => {
 });
 
 /* ============================================================
+   TELA: ATIVIDADES EXTRAS (metas paralelas)
+   ============================================================ */
+const ExtrasScreen = {
+  _editingId: null,
+  TIPOS: {
+    anki: { ico: '🃏', nome: 'Anki', unidade: 'cards' },
+    leitura: { ico: '📜', nome: 'Lei seca', unidade: 'paginas' },
+    questoes: { ico: '❓', nome: 'Questões', unidade: 'questoes' },
+    revisao: { ico: '🔁', nome: 'Revisão', unidade: 'sessoes' },
+    video: { ico: '🎬', nome: 'Vídeo', unidade: 'min' },
+    livre: { ico: '⭐', nome: 'Livre', unidade: 'itens' }
+  },
+  render() {
+    // toggle global
+    const gt = document.getElementById('extras-global-toggle');
+    if (gt) gt.classList.toggle('on', DB.extrasCountGlobal());
+    const extras = DB.getExtras();
+    const list = document.getElementById('extras-list');
+    const summary = document.getElementById('extras-summary');
+    // resumo
+    const ativas = extras.filter(x => x.status === 'ativa');
+    const concl = extras.filter(x => x.status === 'concluida');
+    const contam = extras.filter(x => x.contaMetricas).length;
+    const minHoje = extras.reduce((s, x) => s + (x.historico || []).filter(h => h.data === todayLocal()).reduce((a, h) => a + (h.minutos || 0), 0), 0);
+    summary.innerHTML = `
+      <div class="extras-sum-card"><div class="v">${ativas.length}</div><div class="l">ativas</div></div>
+      <div class="extras-sum-card"><div class="v" style="color:var(--good)">${concl.length}</div><div class="l">concluídas</div></div>
+      <div class="extras-sum-card"><div class="v">${contam}</div><div class="l">contam nas métricas</div></div>
+      <div class="extras-sum-card"><div class="v">${CycleEngine.fmtHM(minHoje)}</div><div class="l">registrado hoje</div></div>`;
+    if (extras.length === 0) {
+      list.innerHTML = `<div class="extras-empty"><div class="big">✅</div>Nenhuma atividade extra ainda.<br>Clique em <strong>＋ Nova atividade</strong> para criar sua primeira meta paralela.</div>`;
+      return;
+    }
+    const grupos = [
+      ['Ativas', extras.filter(x => x.status === 'ativa')],
+      ['Concluídas', extras.filter(x => x.status === 'concluida')]
+    ];
+    list.innerHTML = grupos.map(([titulo, arr]) => {
+      if (!arr.length) return '';
+      return `<div class="extras-group-title">${titulo} (${arr.length})</div>` +
+        arr.map(x => this.cardHtml(x)).join('');
+    }).join('');
+    this.bind(list);
+  },
+  cardHtml(x) {
+    const t = this.TIPOS[x.tipo] || this.TIPOS.livre;
+    const done = x.alvo > 0 && x.progresso >= x.alvo;
+    const pct = x.alvo > 0 ? Math.min(100, Math.round((x.progresso / x.alvo) * 100)) : 0;
+    const recTxt = x.periodo === 'diaria' ? 'diária' : x.periodo === 'semanal' ? 'semanal' : null;
+    return `
+      <div class="extra-card ${x.status === 'concluida' ? 'is-done' : ''}" data-id="${x.id}">
+        <div class="extra-head">
+          <div class="extra-ico">${t.ico}</div>
+          <div class="extra-title">
+            <div class="t">${escapeHtml(x.titulo)}</div>
+            <div class="m">
+              <span class="extra-tag">${t.nome}</span>
+              ${x.disciplina ? `<span class="extra-tag disc">${escapeHtml(x.disciplina)}</span>` : ''}
+              ${recTxt ? `<span class="extra-tag rec">🔁 ${recTxt}</span>` : ''}
+              <span class="extra-tag ${x.contaMetricas ? 'count-on' : 'count-off'}">${x.contaMetricas ? '📊 conta nas métricas' : 'fora das métricas'}</span>
+            </div>
+          </div>
+          <div class="extra-actions">
+            <button type="button" class="icon-btn ex-edit" title="Editar">✎</button>
+            <button type="button" class="icon-btn danger ex-del" title="Excluir">×</button>
+          </div>
+        </div>
+        <div class="extra-progress">
+          <div class="bar"><span class="${done ? 'full' : ''}" style="width:${pct}%"></span></div>
+          <div class="nums"><span><b>${(x.progresso || 0).toLocaleString('pt-BR')}</b>${x.alvo > 0 ? ' / ' + x.alvo.toLocaleString('pt-BR') : ''} ${escapeHtml(x.unidade)}</span><span>${x.alvo > 0 ? pct + '%' : ''}</span></div>
+        </div>
+        <div class="extra-foot">
+          <div class="extra-adv">
+            <input type="number" class="ex-qtd" min="0" placeholder="qtd" title="Quanto avançou">
+            ${x.tipo === 'video' ? '' : `<input type="number" class="ex-min" min="0" placeholder="min" title="Minutos (opcional)">`}
+            <button type="button" class="btn-secondary ex-adv-btn">+ Avançar</button>
+          </div>
+          <span style="flex:1"></span>
+          ${x.status === 'concluida'
+            ? `<button type="button" class="btn-secondary ex-reopen">↺ Reabrir</button>`
+            : `<button type="button" class="btn-secondary ex-complete">✓ Concluir</button>`}
+        </div>
+      </div>`;
+  },
+  bind(list) {
+    list.querySelectorAll('.extra-card').forEach(card => {
+      const id = card.dataset.id;
+      card.querySelector('.ex-edit').addEventListener('click', () => this.openModal(id));
+      card.querySelector('.ex-del').addEventListener('click', () => {
+        const x = DB.getExtra(id);
+        if (!confirm(`Excluir a atividade "${x ? x.titulo : ''}"?`)) return;
+        DB.deleteExtra(id); this.render(); showToast('Atividade excluída');
+      });
+      const advBtn = card.querySelector('.ex-adv-btn');
+      if (advBtn) advBtn.addEventListener('click', () => {
+        const qtd = card.querySelector('.ex-qtd').value;
+        const minEl = card.querySelector('.ex-min');
+        const x = DB.getExtra(id);
+        // vídeo: a própria quantidade é em minutos
+        const min = minEl ? minEl.value : (x && x.tipo === 'video' ? qtd : 0);
+        if (!qtd || parseFloat(qtd) <= 0) { showToast('Informe quanto avançou'); return; }
+        DB.addExtraProgress(id, qtd, min);
+        this.render(); showToast('Progresso registrado ✓');
+      });
+      const comp = card.querySelector('.ex-complete');
+      if (comp) comp.addEventListener('click', () => { DB.updateExtra(id, { status: 'concluida' }); this.render(); showToast('Atividade concluída 🎉'); });
+      const reopen = card.querySelector('.ex-reopen');
+      if (reopen) reopen.addEventListener('click', () => { DB.updateExtra(id, { status: 'ativa' }); this.render(); });
+    });
+  },
+  openModal(id) {
+    this._editingId = id || null;
+    const isEdit = !!id;
+    document.getElementById('extra-modal-title').textContent = isEdit ? '✎ Editar atividade' : '＋ Nova atividade';
+    document.getElementById('extra-del-btn').style.display = isEdit ? 'inline-block' : 'none';
+    // datalist de disciplinas
+    const discs = [...new Set([...DB.getActiveSubjects().map(s => s.nome), ...DB.getIncidencia().map(r => r.disciplina)].filter(Boolean))].sort();
+    document.getElementById('extra-disc-list').innerHTML = discs.map(d => `<option value="${escapeHtml(d)}">`).join('');
+    let x = { titulo: '', tipo: 'anki', disciplina: '', alvo: '', unidade: 'cards', periodo: 'unica', contaMetricas: true };
+    if (isEdit) x = Object.assign(x, DB.getExtra(id));
+    document.getElementById('extra-titulo').value = x.titulo;
+    document.getElementById('extra-tipo').value = x.tipo;
+    document.getElementById('extra-disciplina').value = x.disciplina || '';
+    document.getElementById('extra-alvo').value = x.alvo || '';
+    document.getElementById('extra-unidade').value = x.unidade;
+    document.getElementById('extra-periodo').value = x.periodo;
+    document.getElementById('extra-conta').checked = x.contaMetricas !== false;
+    document.getElementById('extra-modal').style.display = 'flex';
+    setTimeout(() => document.getElementById('extra-titulo').focus(), 50);
+  },
+  // ao trocar o tipo, sugere a unidade padrão
+  onTipoChange() {
+    const tipo = document.getElementById('extra-tipo').value;
+    const t = this.TIPOS[tipo]; if (t) document.getElementById('extra-unidade').value = t.unidade;
+  },
+  save() {
+    const titulo = document.getElementById('extra-titulo').value.trim();
+    if (!titulo) { showToast('Dê um título à atividade'); return; }
+    const data = {
+      titulo,
+      tipo: document.getElementById('extra-tipo').value,
+      disciplina: document.getElementById('extra-disciplina').value,
+      alvo: document.getElementById('extra-alvo').value,
+      unidade: document.getElementById('extra-unidade').value,
+      periodo: document.getElementById('extra-periodo').value,
+      contaMetricas: document.getElementById('extra-conta').checked
+    };
+    if (this._editingId) { DB.updateExtra(this._editingId, data); showToast('Atividade atualizada ✓'); }
+    else { DB.addExtra(data); showToast('Atividade criada ✓'); }
+    document.getElementById('extra-modal').style.display = 'none';
+    this.render();
+  },
+  deleteCurrent() {
+    if (!this._editingId) return;
+    if (!confirm('Excluir esta atividade?')) return;
+    DB.deleteExtra(this._editingId);
+    document.getElementById('extra-modal').style.display = 'none';
+    this.render(); showToast('Atividade excluída');
+  }
+};
+window.ExtrasScreen = ExtrasScreen;
+(function () {
+  const on = (id, ev, fn) => { const el = document.getElementById(id); if (el) el.addEventListener(ev, fn); };
+  on('extras-new-btn', 'click', () => ExtrasScreen.openModal(null));
+  on('extra-modal-close', 'click', () => document.getElementById('extra-modal').style.display = 'none');
+  on('extra-cancel', 'click', () => document.getElementById('extra-modal').style.display = 'none');
+  on('extra-save', 'click', () => ExtrasScreen.save());
+  on('extra-del-btn', 'click', () => ExtrasScreen.deleteCurrent());
+  on('extra-tipo', 'change', () => ExtrasScreen.onTipoChange());
+  on('extras-global-toggle', 'click', () => {
+    DB.setExtrasCountGlobal(!DB.extrasCountGlobal());
+    document.getElementById('extras-global-toggle').classList.toggle('on', DB.extrasCountGlobal());
+    showToast(DB.extrasCountGlobal() ? 'Atividades marcadas entram nas métricas' : 'Atividades fora das métricas');
+  });
+  const m = document.getElementById('extra-modal');
+  if (m) m.addEventListener('click', (e) => { if (e.target === m) m.style.display = 'none'; });
+})();
+window.addEventListener('screen:activated', (e) => {
+  if (e.detail.screen === 'extras') ExtrasScreen.render();
+});
+
+/* ============================================================
    TELA: LINKS ÚTEIS
    ============================================================ */
 const LinksScreen = {
@@ -12273,6 +12708,30 @@ const DesempenhoTecScreen = {
   scopeMode: 'consolidado',
   selectedSnapIds: null, // Set de ids marcados (modo 'select')
   rangeStart: null, rangeEnd: null, // (modo 'range')
+  // ---- Persistência de filtros/seleções (lembra entre sessões, por perfil) ----
+  _prefsKey() { return DB._profilePrefix() + 'tec-prefs'; },
+  _loadPrefs() {
+    if (this._prefs) return this._prefs;
+    this._prefs = DB._get(this._prefsKey(), {}) || {};
+    return this._prefs;
+  },
+  savePrefs(patch) {
+    const p = Object.assign(this._loadPrefs(), patch || {});
+    this._prefs = p;
+    try { localStorage.setItem(this._prefsKey(), JSON.stringify(p)); } catch (_) {}
+  },
+  // aplica as preferências salvas aos controles do Reforço (chamado ao renderizar)
+  applyReforcoPrefs() {
+    const p = this._loadPrefs();
+    if (p.reforcoView) this.reforcoView = p.reforcoView;
+    const set = (id, v) => { const el = document.getElementById(id); if (el && v != null && v !== '') el.value = v; };
+    if (p.ordenar) { const el = document.getElementById('reforco-ordenar'); if (el && [...el.options].some(o => o.value === p.ordenar)) el.value = p.ordenar; }
+    if (p.estrat != null) set('reforco-estrat', p.estrat);
+    if (p.gran != null) set('reforco-gran', p.gran);
+    if (p.minq != null) set('reforco-minq', p.minq);
+    if (p.limite != null) set('reforco-limite', p.limite);
+    if (p.banca) { const el = document.getElementById('reforco-banca'); if (el && [...el.options].some(o => o.value === p.banca)) el.value = p.banca; }
+  },
   render() {
     const snaps = DB.getTecSnapshots();
     const emptyEl = document.getElementById('tec-empty');
@@ -12286,6 +12745,10 @@ const DesempenhoTecScreen = {
     }
     emptyEl.style.display = 'none';
     analysisEl.style.display = 'block';
+    // restaura o modo de escopo salvo (persistência de filtros)
+    const _p = this._loadPrefs();
+    if (_p.scopeMode && ['consolidado', 'select', 'range'].includes(_p.scopeMode)) this.scopeMode = _p.scopeMode;
+    if (_p.reforcoView) this.reforcoView = _p.reforcoView;
     // inicializa a seleção (todos marcados) e o intervalo (cobre tudo) na 1ª vez
     if (this.selectedSnapIds === null) this.selectedSnapIds = new Set(snaps.map(s => s.id));
     // remove ids que não existem mais
@@ -12684,8 +13147,10 @@ const DesempenhoTecScreen = {
         : `<b>${nDisc}</b> disciplina(s) · <b>${nSub}</b> subtópico(s) · <b>${soma.toLocaleString('pt-BR')}</b> questões no total. Barras = peso relativo ao mais cobrado.`;
       // Reconstrói a HIERARQUIA (disciplina → assunto → tópico) a partir das linhas salvas
       const forest = this._buildIncidForest(rows);
+      // base das barras de nível 0 = maior disciplina (barras relativas aos irmãos)
+      const rootMax = Math.max(1, ...forest.map(n => n.incidencia || 0));
       const treeHtml = forest.length
-        ? `<div class="itree">${forest.map(n => this._incidNodeHtml(n, 0, maxInc)).join('')}</div>`
+        ? `<div class="itree">${forest.map(n => this._incidNodeHtml(n, 0, rootMax)).join('')}</div>`
         : '<div class="incid-detail-empty">Nenhum tópico.</div>';
       return `<div class="incid-banca-block ${autoOpen ? 'open' : ''}" data-banca="${escapeHtml(b)}">
         <div class="incid-banca-row expandable">
@@ -12697,7 +13162,11 @@ const DesempenhoTecScreen = {
         <div class="incid-detail">
           <div class="incid-detail-summary">${summaryHtml}</div>
           <div class="itree-toolbar">
-            <input type="text" class="incid-detail-search" placeholder="🔎 Filtrar assuntos desta banca..." style="flex:1; min-width:160px;">
+            <select class="incid-disc-filter" style="min-width:160px; padding:8px 10px; border:1px solid var(--border); border-radius:8px; background:var(--surface); color:var(--text); font-size:12.5px;">
+              <option value="__todas__">📚 Todas as disciplinas</option>
+              ${forest.map(n => `<option value="${escapeHtml(n.nome)}">${escapeHtml(n.nome)} (${n.incidencia})</option>`).join('')}
+            </select>
+            <input type="text" class="incid-detail-search" placeholder="🔎 Filtrar assuntos..." style="flex:1; min-width:140px;">
             <button type="button" class="tec-tree-btn itree-expand">⊞ Expandir</button>
             <button type="button" class="tec-tree-btn itree-collapse">⊟ Recolher</button>
           </div>
@@ -12745,6 +13214,19 @@ const DesempenhoTecScreen = {
         search.addEventListener('click', (e) => e.stopPropagation());
         search.addEventListener('input', () => { const q = this._normSearch(search.value); roots.forEach(r => filterNode(r, q)); });
       }
+      // filtro por DISCIPLINA: mostra só o ramo escolhido (ou todos)
+      const discSel = block.querySelector('.incid-disc-filter');
+      if (discSel) discSel.addEventListener('change', () => {
+        const val = discSel.value;
+        roots.forEach(r => {
+          const nameEl = r.querySelector(':scope > .itree-row .itree-label');
+          const nome = nameEl ? nameEl.getAttribute('title') : '';
+          const show = (val === '__todas__') || (nome === val);
+          r.style.display = show ? '' : 'none';
+          if (show && val !== '__todas__') r.classList.add('open');
+        });
+        if (search) search.value = '';
+      });
     });
   },
   // Reconstrói a floresta hierárquica a partir das linhas salvas (código define o nível)
@@ -12764,12 +13246,16 @@ const DesempenhoTecScreen = {
     });
     return forest;
   },
-  _incidNodeHtml(node, level, maxInc) {
+  _incidNodeHtml(node, level, siblingMax) {
     const hasKids = node.children && node.children.length > 0;
-    const pct = Math.round((node.incidencia / maxInc) * 100);
+    // Barra RELATIVA AOS IRMÃOS (não ao total do caderno): o maior item de cada
+    // grupo enche a barra, tornando a comparação visível em todos os níveis.
+    const base = siblingMax || node.incidencia || 1;
+    const pct = Math.max(3, Math.round((node.incidencia / base) * 100)); // piso de 3% para não sumir
     const indent = 10 + level * 16;
     const caret = hasKids ? '<span class="itree-caret">▶</span>' : '<span class="itree-dot"></span>';
-    const kids = hasKids ? `<div class="itree-children">${node.children.map(k => this._incidNodeHtml(k, level + 1, maxInc)).join('')}</div>` : '';
+    const childMax = hasKids ? Math.max(1, ...node.children.map(c => c.incidencia || 0)) : 1;
+    const kids = hasKids ? `<div class="itree-children">${node.children.map(k => this._incidNodeHtml(k, level + 1, childMax)).join('')}</div>` : '';
     const ns = this._normSearch(node.nome);
     return `<div class="itree-node ${level === 0 ? 'open' : ''}">
       <div class="itree-row ${hasKids ? 'has-kids' : ''} ${level === 0 ? 'lvl0' : ''}" style="padding-left:${indent}px;">
@@ -12908,8 +13394,10 @@ const DesempenhoTecScreen = {
     bancaSel.innerHTML = `<option value="__todas__">Todas as bancas</option>` +
       bancas.map(b => `<option value="${escapeHtml(b)}" ${b === cur ? 'selected' : ''}>${escapeHtml(b)}</option>`).join('');
     if (!bancaSel.value) bancaSel.value = cur;
-    // sugere limite pela carga horária (só na 1ª vez)
+    // sugere limite pela carga horária (só na 1ª vez); depois respeita a preferência salva
     if (!this._reforcoInit) { document.getElementById('reforco-limite').value = ReforcoEngine.sugerirLimite(); this._reforcoInit = true; }
+    // restaura filtros/seleções salvos (banca, ordenação, sliders, mín. e qtd.)
+    this.applyReforcoPrefs();
     this.updateEstratLabel();
     this.updateGranLabel();
     // sincroniza o alternador de visão e a visibilidade dos cards laterais
@@ -12996,10 +13484,16 @@ const DesempenhoTecScreen = {
     const blindList = document.getElementById('reforco-blind-list');
     if (!discView && res.blindSpots && res.blindSpots.length) {
       blindCard.style.display = 'block';
+      const maxB = Math.max(1, ...res.blindSpots.map(b => b.incidencia || 0));
       blindList.innerHTML = res.blindSpots.map(b => `
-        <div class="reforco-mini">
-          <div><div class="rm-name">${escapeHtml(b.nome)}</div><div class="rm-sub">${escapeHtml(b.disciplina)}</div></div>
-          <div class="rm-val">N=${b.incidencia}<small>${b.questoes} questão(ões)</small></div>
+        <div class="reforco-mini tone-blind">
+          <div class="rm-ico">🕳️</div>
+          <div class="rm-body">
+            <div class="rm-name" title="${escapeHtml(b.nome)}">${escapeHtml(b.nome)}</div>
+            <div class="rm-sub">${escapeHtml(b.disciplina)}</div>
+            <div class="rm-bar"><span style="width:${Math.round((b.incidencia / maxB) * 100)}%"></span></div>
+          </div>
+          <div class="rm-val">${b.incidencia}<small>${b.questoes}q feitas</small></div>
         </div>`).join('');
     } else blindCard.style.display = 'none';
     // ⚖️ Sobre-investimento
@@ -13007,10 +13501,16 @@ const DesempenhoTecScreen = {
     const overList = document.getElementById('reforco-over-list');
     if (!discView && res.overinvest && res.overinvest.length) {
       overCard.style.display = 'block';
+      const maxO = Math.max(1, ...res.overinvest.map(o => o.fatiaEsforco || 0));
       overList.innerHTML = res.overinvest.map(o => `
-        <div class="reforco-mini">
-          <div><div class="rm-name">${escapeHtml(o.nome)}</div><div class="rm-sub">${escapeHtml(o.disciplina)}</div></div>
-          <div class="rm-val">${o.fatiaEsforco}%<small>vs banca ${o.fatiaBanca}%</small></div>
+        <div class="reforco-mini tone-over">
+          <div class="rm-ico">⚖️</div>
+          <div class="rm-body">
+            <div class="rm-name" title="${escapeHtml(o.nome)}">${escapeHtml(o.nome)}</div>
+            <div class="rm-sub">${escapeHtml(o.disciplina)} · esforço ${o.fatiaEsforco}% vs banca ${o.fatiaBanca}%</div>
+            <div class="rm-bar"><span style="width:${Math.round((o.fatiaEsforco / maxO) * 100)}%"></span></div>
+          </div>
+          <div class="rm-val">${o.fatiaEsforco}%<small>seu tempo</small></div>
         </div>`).join('');
     } else overCard.style.display = 'none';
   },
@@ -13384,6 +13884,7 @@ document.getElementById('tec-scope-toggle').addEventListener('click', (e) => {
   const btn = e.target.closest('button[data-scope]');
   if (!btn) return;
   DesempenhoTecScreen.scopeMode = btn.dataset.scope;
+  DesempenhoTecScreen.savePrefs({ scopeMode: btn.dataset.scope });
   DesempenhoTecScreen.renderScopeControls(DB.getTecSnapshots());
   DesempenhoTecScreen.renderAnalysis();
   // reaplica a aba ativa (reforço também depende do escopo)
@@ -13452,19 +13953,20 @@ document.getElementById('tec-weak-disc').addEventListener('change', (e) => {
     idz.addEventListener('drop', (e) => { e.preventDefault(); idz.classList.remove('dragover'); if (e.dataTransfer.files[0]) DT.handleIncidFile(e.dataTransfer.files[0]); });
   }
   on('incid-file', 'change', (e) => { if (e.target.files[0]) DT.handleIncidFile(e.target.files[0]); });
-  // Reforço
-  on('reforco-banca', 'change', () => DT.renderReforcoList());
-  on('reforco-minq', 'input', () => DT.renderReforcoList());
-  on('reforco-limite', 'input', () => DT.renderReforcoList());
-  on('reforco-estrat', 'input', () => { DT.updateEstratLabel(); DT.renderReforcoList(); });
-  on('reforco-gran', 'input', () => { DT.updateGranLabel(); DT.renderReforcoList(); });
-  on('reforco-ordenar', 'change', () => DT.renderReforcoList()); // #1 Ordenar por
+  // Reforço (todos salvam a preferência para lembrar entre sessões)
+  on('reforco-banca', 'change', (e) => { DT.savePrefs({ banca: e.target.value }); DT.renderReforcoList(); });
+  on('reforco-minq', 'input', (e) => { DT.savePrefs({ minq: e.target.value }); DT.renderReforcoList(); });
+  on('reforco-limite', 'input', (e) => { DT.savePrefs({ limite: e.target.value }); DT.renderReforcoList(); });
+  on('reforco-estrat', 'input', (e) => { DT.savePrefs({ estrat: e.target.value }); DT.updateEstratLabel(); DT.renderReforcoList(); });
+  on('reforco-gran', 'input', (e) => { DT.savePrefs({ gran: e.target.value }); DT.updateGranLabel(); DT.renderReforcoList(); });
+  on('reforco-ordenar', 'change', (e) => { DT.savePrefs({ ordenar: e.target.value }); DT.renderReforcoList(); }); // #1 Ordenar por
   // alternador de visão: ranking global x por disciplina
   const vt = document.getElementById('reforco-view-toggle');
   if (vt) vt.addEventListener('click', (e) => {
     const btn = e.target.closest('button[data-view]');
     if (!btn) return;
     DT.reforcoView = btn.dataset.view;
+    DT.savePrefs({ reforcoView: btn.dataset.view });
     vt.querySelectorAll('button').forEach(b => b.classList.toggle('active', b === btn));
     // no modo "por disciplina", os cards laterais viram redundantes (já entram em cada disciplina)
     const side = document.querySelector('.reforco-side-grid');
