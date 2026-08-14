@@ -571,6 +571,8 @@
   }
   .btn-primary:hover { background: var(--accent-hover); box-shadow: 0 4px 14px rgba(79,70,229,0.3); }
   .btn-primary:active { transform: translateY(1px); }
+  .btn-primary.btn-danger { background: var(--bad); }
+  .btn-primary.btn-danger:hover { background: #b0392b; box-shadow: 0 4px 14px rgba(192,57,43,0.35); }
 
   .btn-secondary {
     font-weight: 600;
@@ -776,6 +778,30 @@
   .extra-foot { display: flex; align-items: center; gap: 8px; margin-top: 12px; flex-wrap: wrap; }
   .extra-adv { display: flex; align-items: center; gap: 6px; }
   .extra-adv input { width: 84px; text-align: center; padding: 7px 8px; }
+  /* Cronograma / agenda */
+  .extras-agenda-card { margin-bottom: 16px; }
+  .extras-agenda-scroll { overflow-x: auto; padding: 4px 16px 12px; }
+  .extras-agenda-table { width: 100%; border-collapse: collapse; min-width: 520px; }
+  .extras-agenda-table th, .extras-agenda-table td { text-align: center; padding: 7px 6px; font-size: 12px; border-bottom: 1px solid var(--border); }
+  .extras-agenda-table th { color: var(--text-faint); font-weight: 700; font-size: 10.5px; text-transform: uppercase; letter-spacing: 0.03em; }
+  .extras-agenda-table th.ag-today { color: var(--accent); }
+  .extras-agenda-table th .ag-dm { display: block; font-size: 9.5px; color: var(--text-faint); font-family: 'Space Mono', monospace; }
+  .extras-agenda-table td.ag-name, .extras-agenda-table th.ag-name { text-align: left; font-weight: 700; color: var(--text); white-space: nowrap; min-width: 180px; }
+  .extras-agenda-table .ag-ico { margin-right: 6px; }
+  .extras-agenda-table .ag-rec { font-size: 10px; color: var(--warn); margin-left: 8px; font-weight: 600; }
+  .ag-cell { font-family: 'Space Mono', monospace; font-weight: 700; color: var(--text-faint); }
+  .ag-cell.ag-done { background: var(--good-soft); color: var(--good); border-radius: 6px; }
+  .ag-cell.ag-pend { color: var(--warn); font-size: 16px; }
+  .extras-agenda-hint { padding: 0 24px 16px; font-size: 12px; color: var(--text-soft); }
+  /* Sugestões */
+  .sug-row { display: flex; align-items: flex-start; gap: 11px; padding: 10px 12px; border: 1px solid var(--border); border-radius: 11px; margin-bottom: 7px; cursor: pointer; transition: border-color 0.13s ease; }
+  .sug-row:hover { border-color: var(--accent); }
+  .sug-row input { margin-top: 3px; }
+  .sug-body { min-width: 0; flex: 1; }
+  .sug-name { font-size: 13.5px; font-weight: 700; color: var(--text); display: block; }
+  .sug-meta { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 5px; align-items: center; }
+  .sug-tag { font-size: 10.5px; font-weight: 700; padding: 2px 8px; border-radius: 20px; background: var(--surface-sunken); color: var(--text-soft); }
+  .sug-tag.pts { background: var(--accent-soft); color: var(--accent); }
   .extras-empty { text-align: center; padding: 40px 20px; color: var(--text-faint); }
   .extras-empty .big { font-size: 34px; margin-bottom: 8px; }
   .extras-group-title { font-size: 11px; font-weight: 800; letter-spacing: 0.05em; text-transform: uppercase; color: var(--text-faint); margin: 18px 0 10px; }
@@ -1077,6 +1103,8 @@
     margin-bottom: 14px;
   }
   .grade-chip-tray.drag-active { border-color: var(--accent); background: var(--accent-soft); }
+  .grade-tray-bar.tray-collapsed { display: none; }
+  #btn-toggle-tray.is-collapsed { background: var(--accent-soft); color: var(--accent); border-color: var(--accent); }
   .grade-chip-tray-empty { font-size: 12px; color: var(--text-faint); padding: 4px; }
 
   .subject-chip {
@@ -3774,11 +3802,14 @@
           <h2>Grade da semana</h2>
           <p class="sub">Toque numa célula para escolher a sigla (ou arraste). A mesma matéria pode aparecer em várias células — ajuste a duração de cada uma.</p>
         </div>
-        <button class="btn-secondary" id="btn-uncheck-all" type="button">↺ Desmarcar concluídos</button>
+        <div style="display:flex; gap:8px; align-items:center;">
+          <button class="btn-secondary" id="btn-toggle-tray" type="button" title="Minimizar/expandir as siglas">▾ Siglas</button>
+          <button class="btn-secondary" id="btn-uncheck-all" type="button">↺ Desmarcar concluídos</button>
+        </div>
       </div>
       <div style="padding: 8px 20px 26px;">
         <!-- Bandeja compacta: só os chips arrastáveis + botão de editar -->
-        <div class="grade-tray-bar">
+        <div class="grade-tray-bar" id="grade-tray-bar">
           <div id="grade-chip-tray" class="grade-chip-tray"></div>
           <div class="grade-tray-actions">
             <label class="grade-weekstart" title="Dia em que a semana começa">
@@ -4865,6 +4896,10 @@
               <select id="reforco-banca"></select>
             </div>
             <div class="rfc-field">
+              <label>Disciplina</label>
+              <select id="reforco-disc"><option value="__todas__">📚 Todas</option></select>
+            </div>
+            <div class="rfc-field">
               <label>Visão</label>
               <div class="scope-toggle" id="reforco-view-toggle">
                 <button type="button" data-view="global" class="active">🏆 Ranking</button>
@@ -4933,6 +4968,21 @@
     </div>
   </section>
 
+  <!-- ============ DIÁLOGO GENÉRICO (confirm/prompt bonito) ============ -->
+  <div id="ui-modal" class="cards-modal" style="display:none; z-index:600;">
+    <div class="cards-modal-box" id="ui-modal-box" style="max-width:460px;">
+      <div class="cards-modal-head">
+        <div><h2 id="ui-modal-title">Confirmar</h2><p class="sub" id="ui-modal-sub" style="display:none;"></p></div>
+        <button type="button" class="icon-btn" id="ui-modal-x">✕</button>
+      </div>
+      <div class="cards-modal-body" id="ui-modal-body"></div>
+      <div class="cards-modal-foot">
+        <span style="flex:1"></span>
+        <button type="button" class="btn-secondary" id="ui-modal-cancel">Cancelar</button>
+        <button type="button" class="btn-primary" id="ui-modal-ok">Confirmar</button>
+      </div>
+    </div>
+  </div>
   <!-- ============ TELA: ATIVIDADES EXTRAS ============ -->
   <section class="screen" id="screen-extras">
     <div class="page-header">
@@ -4944,11 +4994,44 @@
         <button type="button" class="toggle-switch" id="extras-global-toggle" title="Somar as atividades marcadas às métricas de Evolução"></button>
         <span>Incluir Atividades Extras (marcadas) nas métricas de Evolução</span>
       </div>
-      <button type="button" class="btn-primary" id="extras-new-btn">＋ Nova atividade</button>
+      <div style="display:flex; gap:8px; flex-wrap:wrap;">
+        <button type="button" class="btn-secondary" id="extras-suggest-btn" title="Sugerir atividades com base nos seus pontos fracos do TEC">💡 Sugerir dos pontos fracos</button>
+        <button type="button" class="btn-primary" id="extras-new-btn">＋ Nova atividade</button>
+      </div>
     </div>
     <div id="extras-summary" class="extras-summary"></div>
+    <!-- Cronograma/agenda das atividades extras -->
+    <div id="extras-agenda"></div>
     <div id="extras-list"></div>
   </section>
+  <!-- Modal: sugestões a partir dos pontos fracos do TEC -->
+  <div id="extra-suggest-modal" class="cards-modal" style="display:none; z-index:610;">
+    <div class="cards-modal-box cards-modal-lg">
+      <div class="cards-modal-head">
+        <div><h2>💡 Sugestões de atividades</h2><p class="sub">Baseadas nos seus pontos fracos do Desempenho TEC. Marque as que quiser adicionar.</p></div>
+        <button type="button" class="icon-btn" id="extra-suggest-close">✕</button>
+      </div>
+      <div class="cards-modal-body">
+        <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap; margin-bottom:12px;">
+          <label style="font-size:12px; color:var(--text-faint); font-weight:700;">Gerar como:</label>
+          <select id="extra-suggest-tipo" style="padding:7px 10px; border:1px solid var(--border); border-radius:8px; background:var(--surface-sunken); color:var(--text);">
+            <option value="revisao" selected>🔁 Revisão do ponto fraco</option>
+            <option value="questoes">❓ Questões do assunto</option>
+            <option value="video">🎬 Vídeo do assunto</option>
+            <option value="anki">🃏 Flashcards do assunto</option>
+          </select>
+          <span style="flex:1"></span>
+          <button type="button" class="btn-secondary" id="extra-suggest-all">Marcar todos</button>
+        </div>
+        <div id="extra-suggest-list"></div>
+      </div>
+      <div class="cards-modal-foot">
+        <span class="hint" id="extra-suggest-count" style="flex:1; margin:0;"></span>
+        <button type="button" class="btn-secondary" id="extra-suggest-cancel">Cancelar</button>
+        <button type="button" class="btn-primary" id="extra-suggest-add">Adicionar selecionadas</button>
+      </div>
+    </div>
+  </div>
   <!-- Modal: criar/editar atividade extra -->
   <div id="extra-modal" class="cards-modal" style="display:none;">
     <div class="cards-modal-box">
@@ -6306,6 +6389,88 @@ function showToast(text) {
   toast.classList.add('show');
   setTimeout(() => toast.classList.remove('show'), 2400);
 }
+
+// ============================================================
+//  UI — Diálogos bonitos (substituem confirm/prompt do navegador)
+//  UI.confirm(msg, {title, okText, danger}) -> Promise<boolean>
+//  UI.prompt(fields, {title, okText}) -> Promise<values|null>
+//    fields: [{ key, label, type('text'|'number'|'textarea'|'select'), value, options, placeholder, hint }]
+// ============================================================
+const UI = {
+  _resolve: null,
+  _open(title, sub, bodyHtml, { okText = 'Confirmar', cancelText = 'Cancelar', danger = false, hideCancel = false } = {}) {
+    const modal = document.getElementById('ui-modal');
+    document.getElementById('ui-modal-title').textContent = title || '';
+    const subEl = document.getElementById('ui-modal-sub');
+    if (sub) { subEl.textContent = sub; subEl.style.display = 'block'; } else subEl.style.display = 'none';
+    document.getElementById('ui-modal-body').innerHTML = bodyHtml || '';
+    const ok = document.getElementById('ui-modal-ok');
+    ok.textContent = okText;
+    ok.className = 'btn-primary' + (danger ? ' btn-danger' : '');
+    const cancel = document.getElementById('ui-modal-cancel');
+    cancel.textContent = cancelText;
+    cancel.style.display = hideCancel ? 'none' : 'inline-flex';
+    modal.style.display = 'flex';
+    const first = modal.querySelector('.cards-modal-body input, .cards-modal-body textarea, .cards-modal-body select');
+    if (first) setTimeout(() => first.focus(), 60);
+  },
+  _close() { document.getElementById('ui-modal').style.display = 'none'; },
+  confirm(message, opts = {}) {
+    return new Promise((resolve) => {
+      this._resolve = resolve;
+      this._mode = 'confirm';
+      const body = `<p style="margin:0; font-size:14px; line-height:1.55; color:var(--text-soft); white-space:pre-line;">${escapeHtml(message)}</p>`;
+      this._open(opts.title || 'Confirmar', opts.sub || '', body, { okText: opts.okText || 'Confirmar', danger: opts.danger });
+    });
+  },
+  alert(message, opts = {}) {
+    return new Promise((resolve) => {
+      this._resolve = resolve; this._mode = 'confirm';
+      const body = `<p style="margin:0; font-size:14px; line-height:1.55; color:var(--text-soft); white-space:pre-line;">${escapeHtml(message)}</p>`;
+      this._open(opts.title || 'Aviso', opts.sub || '', body, { okText: opts.okText || 'OK', hideCancel: true });
+    });
+  },
+  prompt(fields, opts = {}) {
+    return new Promise((resolve) => {
+      this._resolve = resolve; this._mode = 'prompt'; this._fields = fields;
+      const body = fields.map(f => {
+        const id = 'uip_' + f.key;
+        let input;
+        if (f.type === 'textarea') input = `<textarea id="${id}" rows="${f.rows || 4}" placeholder="${escapeHtml(f.placeholder || '')}">${escapeHtml(f.value != null ? String(f.value) : '')}</textarea>`;
+        else if (f.type === 'select') input = `<select id="${id}">${(f.options || []).map(o => `<option value="${escapeHtml(o.value)}" ${String(o.value) === String(f.value) ? 'selected' : ''}>${escapeHtml(o.label)}</option>`).join('')}</select>`;
+        else input = `<input type="${f.type || 'text'}" id="${id}" value="${escapeHtml(f.value != null ? String(f.value) : '')}" placeholder="${escapeHtml(f.placeholder || '')}" ${f.min != null ? 'min=' + f.min : ''} ${f.max != null ? 'max=' + f.max : ''}>`;
+        return `<div class="field" style="margin-bottom:12px;"><label>${escapeHtml(f.label)}${f.opt ? ' <span class="opt">(opcional)</span>' : ''}</label>${input}${f.hint ? `<p class="hint" style="margin:5px 0 0;">${escapeHtml(f.hint)}</p>` : ''}</div>`;
+      }).join('');
+      this._open(opts.title || 'Editar', opts.sub || '', body, { okText: opts.okText || 'Salvar' });
+    });
+  },
+  _submit(ok) {
+    const r = this._resolve; this._resolve = null;
+    if (this._mode === 'prompt') {
+      if (!ok) { this._close(); if (r) r(null); return; }
+      const vals = {};
+      (this._fields || []).forEach(f => { const el = document.getElementById('uip_' + f.key); vals[f.key] = el ? el.value : null; });
+      this._close(); if (r) r(vals);
+    } else {
+      this._close(); if (r) r(!!ok);
+    }
+  }
+};
+(function () {
+  const bind = () => {
+    const ok = document.getElementById('ui-modal-ok'); if (ok) ok.addEventListener('click', () => UI._submit(true));
+    const c = document.getElementById('ui-modal-cancel'); if (c) c.addEventListener('click', () => UI._submit(false));
+    const x = document.getElementById('ui-modal-x'); if (x) x.addEventListener('click', () => UI._submit(false));
+    const m = document.getElementById('ui-modal'); if (m) m.addEventListener('click', (e) => { if (e.target === m) UI._submit(false); });
+    document.addEventListener('keydown', (e) => {
+      const m = document.getElementById('ui-modal');
+      if (!m || m.style.display === 'none') return;
+      if (e.key === 'Escape') UI._submit(false);
+      else if (e.key === 'Enter' && (e.target.tagName !== 'TEXTAREA')) { e.preventDefault(); UI._submit(true); }
+    });
+  };
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', bind); else bind();
+})();
 
 // ---- Metas/limiares de aproveitamento (editáveis pelo usuário) ----
 // good = verde a partir de METAS.bom; warn entre METAS.atencao e METAS.bom; bad abaixo.
@@ -8929,6 +9094,20 @@ function planCycleMode() {
     btn.style.opacity = n === 0 ? '0.5' : '';
     btn.textContent = n > 0 ? `↺ Desmarcar ${n} concluído${n === 1 ? '' : 's'}` : '↺ Desmarcar concluídos';
   }
+  // minimizar/expandir a bandeja de siglas (lembra a preferência)
+  const _trayBtn = document.getElementById('btn-toggle-tray');
+  const _trayBar = document.getElementById('grade-tray-bar');
+  const _applyTray = () => {
+    const collapsed = localStorage.getItem('diario-estudos:grade-tray-collapsed') === '1';
+    if (_trayBar) _trayBar.classList.toggle('tray-collapsed', collapsed);
+    if (_trayBtn) { _trayBtn.classList.toggle('is-collapsed', collapsed); _trayBtn.textContent = collapsed ? '▸ Siglas' : '▾ Siglas'; }
+  };
+  if (_trayBtn) _trayBtn.addEventListener('click', () => {
+    const now = localStorage.getItem('diario-estudos:grade-tray-collapsed') === '1';
+    localStorage.setItem('diario-estudos:grade-tray-collapsed', now ? '0' : '1');
+    _applyTray();
+  });
+  _applyTray();
   const _uncheckBtn = document.getElementById('btn-uncheck-all');
   if (_uncheckBtn) _uncheckBtn.addEventListener('click', () => {
     const n = countDoneCells();
@@ -10184,19 +10363,20 @@ document.getElementById('evo-period-all').addEventListener('click', () => Evoluc
   syncSub();
   if (btn) btn.addEventListener('click', () => {
     const m = AppSettings.get();
-    const bom = prompt('Meta VERDE — aproveitamento a partir de (%) para "bom":', m.bom);
-    if (bom === null) return;
-    const at = prompt('Meta AMARELA — aproveitamento a partir de (%) para "atenção" (abaixo disso é vermelho):', m.atencao);
-    if (at === null) return;
-    const linhas = prompt('Linhas de referência nos gráficos (percentuais separados por vírgula):', m.linhas.join(', '));
-    if (linhas === null) return;
-    const nb = Math.max(1, Math.min(100, parseFloat(bom) || m.bom));
-    const na = Math.max(1, Math.min(nb - 1, parseFloat(at) || m.atencao));
-    const nl = linhas.split(/[,;\s]+/).map(x => parseFloat(x)).filter(x => !isNaN(x) && x > 0 && x <= 100).slice(0, 4);
-    AppSettings.set({ bom: nb, atencao: na, linhas: nl.length ? nl : m.linhas });
-    syncSub();
-    EvolucaoScreen.render();
-    showToast('Metas atualizadas ✓');
+    UI.prompt([
+      { key: 'bom', label: '🟢 Meta VERDE — "bom" a partir de (%)', type: 'number', value: m.bom, min: 1, max: 100 },
+      { key: 'at', label: '🟡 Meta AMARELA — "atenção" a partir de (%)', type: 'number', value: m.atencao, min: 1, max: 100, hint: 'Abaixo deste valor é vermelho.' },
+      { key: 'linhas', label: '📏 Linhas de referência nos gráficos', type: 'text', value: m.linhas.join(', '), placeholder: '70, 80, 85', hint: 'Percentuais separados por vírgula (até 4).' }
+    ], { title: '⚙ Editar metas de aproveitamento', okText: 'Salvar metas' }).then(v => {
+      if (!v) return;
+      const nb = Math.max(1, Math.min(100, parseFloat(v.bom) || m.bom));
+      const na = Math.max(1, Math.min(nb - 1, parseFloat(v.at) || m.atencao));
+      const nl = String(v.linhas).split(/[,;\s]+/).map(x => parseFloat(x)).filter(x => !isNaN(x) && x > 0 && x <= 100).slice(0, 4);
+      AppSettings.set({ bom: nb, atencao: na, linhas: nl.length ? nl : m.linhas });
+      syncSub();
+      EvolucaoScreen.render();
+      showToast('Metas atualizadas ✓');
+    });
   });
 })();
 document.getElementById('evo-scope-toggle').addEventListener('click', (e) => {
@@ -11002,22 +11182,22 @@ const LeisScreen = {
   editCurrent() {
     const lei = DB.getLei(this.currentId);
     if (!lei) return;
-    const novoTitulo = prompt('Título da lei:', lei.titulo);
-    if (novoTitulo === null) return;
-    const novaRef = prompt('Referência (opcional):', lei.referencia || '');
-    if (novaRef === null) return;
-    const novaMat = prompt('Matéria (opcional):', lei.materia || '');
-    if (novaMat === null) return;
-    const novoTexto = prompt('Texto da lei (edite se necessário):', lei.texto);
-    if (novoTexto === null) return;
-    DB.updateLei(this.currentId, {
-      titulo: novoTitulo.trim() || lei.titulo,
-      referencia: novaRef.trim(),
-      materia: novaMat.trim(),
-      texto: novoTexto
+    UI.prompt([
+      { key: 'titulo', label: 'Título da lei', type: 'text', value: lei.titulo },
+      { key: 'ref', label: 'Referência', type: 'text', value: lei.referencia || '', opt: true },
+      { key: 'mat', label: 'Matéria', type: 'text', value: lei.materia || '', opt: true },
+      { key: 'texto', label: 'Texto da lei', type: 'textarea', value: lei.texto, rows: 8 }
+    ], { title: '✎ Editar lei', okText: 'Salvar' }).then(v => {
+      if (!v) return;
+      DB.updateLei(this.currentId, {
+        titulo: (v.titulo || '').trim() || lei.titulo,
+        referencia: (v.ref || '').trim(),
+        materia: (v.mat || '').trim(),
+        texto: v.texto
+      });
+      this.openReader(this.currentId);
+      showToast('Lei atualizada ✓');
     });
-    this.openReader(this.currentId);
-    showToast('Lei atualizada ✓');
   },
   deleteCurrent() {
     const lei = DB.getLei(this.currentId);
@@ -11647,8 +11827,9 @@ function buildRteToolbar(rte) {
   // link
   const linkBtn = tb.querySelector('[data-link]');
   if (linkBtn) linkBtn.addEventListener('click', () => {
-    const url = prompt('URL do link (ex.: https://...):', 'https://');
-    if (url) rteExec(area, 'createLink', url);
+    UI.prompt([{ key: 'url', label: 'URL do link', type: 'text', value: 'https://', placeholder: 'https://...' }], { title: '🔗 Inserir link', okText: 'Inserir' }).then(v => {
+      if (v && v.url) rteExec(area, 'createLink', v.url);
+    });
   });
   // imagem
   const imgBtn = tb.querySelector('[data-img]');
@@ -11660,15 +11841,16 @@ function buildRteToolbar(rte) {
   // tabela
   const tableBtn = tb.querySelector('[data-table]');
   if (tableBtn) tableBtn.addEventListener('click', () => {
-    const dims = prompt('Tabela — linhas x colunas (ex.: 3x2):', '2x2');
-    if (!dims) return;
-    const m = dims.match(/(\d+)\s*[x×]\s*(\d+)/i);
-    if (!m) { showToast('Formato inválido. Use linhas x colunas (ex.: 3x2)'); return; }
-    const r = Math.min(20, +m[1]), c = Math.min(10, +m[2]);
-    let t = '<table class="rte-table"><tbody>';
-    for (let i = 0; i < r; i++) { t += '<tr>'; for (let j = 0; j < c; j++) t += '<td>&nbsp;</td>'; t += '</tr>'; }
-    t += '</tbody></table><p><br></p>';
-    rteExec(area, 'insertHTML', t);
+    UI.prompt([{ key: 'dims', label: 'Tabela — linhas x colunas', type: 'text', value: '2x2', placeholder: 'ex.: 3x2' }], { title: '▦ Inserir tabela', okText: 'Inserir' }).then(v => {
+      if (!v || !v.dims) return;
+      const m = v.dims.match(/(\d+)\s*[x×]\s*(\d+)/i);
+      if (!m) { showToast('Formato inválido. Use linhas x colunas (ex.: 3x2)'); return; }
+      const r = Math.min(20, +m[1]), c = Math.min(10, +m[2]);
+      let t = '<table class="rte-table"><tbody>';
+      for (let i = 0; i < r; i++) { t += '<tr>'; for (let j = 0; j < c; j++) t += '<td>&nbsp;</td>'; t += '</tr>'; }
+      t += '</tbody></table><p><br></p>';
+      rteExec(area, 'insertHTML', t);
+    });
   });
   // cloze
   const clozeBtn = tb.querySelector('[data-clozebtn]');
@@ -11799,8 +11981,9 @@ const ExtrasScreen = {
       <div class="extras-sum-card"><div class="v" style="color:var(--good)">${concl.length}</div><div class="l">concluídas</div></div>
       <div class="extras-sum-card"><div class="v">${contam}</div><div class="l">contam nas métricas</div></div>
       <div class="extras-sum-card"><div class="v">${CycleEngine.fmtHM(minHoje)}</div><div class="l">registrado hoje</div></div>`;
+    this.renderAgenda();
     if (extras.length === 0) {
-      list.innerHTML = `<div class="extras-empty"><div class="big">✅</div>Nenhuma atividade extra ainda.<br>Clique em <strong>＋ Nova atividade</strong> para criar sua primeira meta paralela.</div>`;
+      list.innerHTML = `<div class="extras-empty"><div class="big">✅</div>Nenhuma atividade extra ainda.<br>Clique em <strong>＋ Nova atividade</strong> ou <strong>💡 Sugerir dos pontos fracos</strong> para começar.</div>`;
       return;
     }
     const grupos = [
@@ -11866,8 +12049,10 @@ const ExtrasScreen = {
       card.querySelector('.ex-edit').addEventListener('click', () => this.openModal(id));
       card.querySelector('.ex-del').addEventListener('click', () => {
         const x = DB.getExtra(id);
-        if (!confirm(`Excluir a atividade "${x ? x.titulo : ''}"?`)) return;
-        DB.deleteExtra(id); this.render(); showToast('Atividade excluída');
+        UI.confirm(`Excluir a atividade "${x ? x.titulo : ''}"?`, { title: 'Excluir atividade', okText: 'Excluir', danger: true }).then(ok => {
+          if (!ok) return;
+          DB.deleteExtra(id); this.render(); showToast('Atividade excluída');
+        });
       });
       const advBtn = card.querySelector('.ex-adv-btn');
       if (advBtn) advBtn.addEventListener('click', () => {
@@ -11944,18 +12129,124 @@ const ExtrasScreen = {
     document.getElementById('extra-modal').style.display = 'none';
     this.render();
   },
+  // ===== Cronograma/Agenda das atividades extras =====
+  renderAgenda() {
+    const host = document.getElementById('extras-agenda');
+    if (!host) return;
+    const extras = DB.getExtras().filter(x => x.status === 'ativa');
+    if (!extras.length) { host.innerHTML = ''; return; }
+    // Semana atual (7 dias a partir de hoje) com o que foi registrado em cada dia
+    const addDays = (iso, delta) => { const d = new Date(iso + 'T00:00:00'); d.setDate(d.getDate() + delta); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; };
+    const dias = [];
+    for (let i = 0; i < 7; i++) dias.push(addDays(todayLocal(), i));
+    const diaNome = (iso) => { const d = new Date(iso + 'T00:00:00'); return ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'][d.getDay()]; };
+    const recorrentes = extras.filter(x => x.periodo !== 'unica');
+    const rows = extras.map(x => {
+      const t = this.TIPOS[x.tipo] || this.TIPOS.livre;
+      const cells = dias.map(dia => {
+        const feito = (x.historico || []).filter(h => h.data === dia).reduce((a, h) => a + (h.quantidade || 0), 0);
+        const isToday = dia === todayLocal();
+        // recorrente sem registro hoje → célula "pendente"
+        const pend = (x.periodo !== 'unica') && feito === 0;
+        const cls = feito > 0 ? 'ag-done' : (pend && isToday ? 'ag-pend' : '');
+        const txt = feito > 0 ? feito : (pend && isToday ? '•' : '');
+        return `<td class="ag-cell ${cls}" title="${escapeHtml(x.titulo)} — ${dia}">${txt}</td>`;
+      }).join('');
+      return `<tr><td class="ag-name"><span class="ag-ico">${t.ico}</span>${escapeHtml(x.titulo)}${x.periodo !== 'unica' ? `<span class="ag-rec">🔁 ${x.periodo === 'diaria' ? 'diária' : 'semanal'}</span>` : ''}</td>${cells}</tr>`;
+    }).join('');
+    host.innerHTML = `
+      <div class="card extras-agenda-card">
+        <div class="card-header"><div><h2>🗓️ Cronograma da semana</h2><p class="sub">Acompanhe o cumprimento das atividades. Verde = registrado; ● = pendente hoje (recorrentes).</p></div></div>
+        <div class="extras-agenda-scroll">
+          <table class="extras-agenda-table">
+            <thead><tr><th class="ag-name">Atividade</th>${dias.map(d => `<th class="${d === todayLocal() ? 'ag-today' : ''}">${diaNome(d)}<span class="ag-dm">${d.slice(8, 10)}/${d.slice(5, 7)}</span></th>`).join('')}</tr></thead>
+            <tbody>${rows}</tbody>
+          </table>
+        </div>
+        ${recorrentes.length ? `<div class="extras-agenda-hint">💡 ${recorrentes.length} atividade(s) recorrente(s) — registre o avanço diário para manter o ritmo.</div>` : ''}
+      </div>`;
+  },
+  // ===== Sugestões a partir dos pontos fracos do TEC =====
+  _suggestions() {
+    const snap = (typeof DesempenhoTecScreen !== 'undefined' && DesempenhoTecScreen.scopedSnapshot)
+      ? DesempenhoTecScreen.scopedSnapshot() : ReforcoEngine.currentSnapshot();
+    if (!snap) return [];
+    const banca = (DB.getBancas()[0]) || '__todas__';
+    const res = ReforcoEngine.suggestFrontier(snap, { banca, estrategia: 0.5, granularidade: 0.5, minQuestoes: 8, limite: 15, ordenarPor: 'oportunidade' });
+    return (res.items || []).filter(it => it.selo !== 'ok').slice(0, 12);
+  },
+  openSuggest() {
+    const sugs = this._suggestions();
+    const listEl = document.getElementById('extra-suggest-list');
+    if (!sugs.length) {
+      listEl.innerHTML = `<div class="extras-empty" style="padding:24px;">Nenhum ponto fraco encontrado no escopo atual do Desempenho TEC.<br>Importe/atualize seus retratos e a incidência da banca primeiro.</div>`;
+      document.getElementById('extra-suggest-count').textContent = '';
+    } else {
+      this._sugCache = sugs;
+      listEl.innerHTML = sugs.map((it, i) => `
+        <label class="sug-row">
+          <input type="checkbox" class="sug-chk" data-i="${i}" checked>
+          <span class="sug-body">
+            <span class="sug-name">${escapeHtml(it.nome)}</span>
+            <span class="sug-meta"><span class="reforco-tag selo-${it.selo}">${it.selo === 'fraco' ? '🔥 fraco' : '⚠️ atenção'}</span>
+              <span class="sug-tag">${escapeHtml(it.disciplina)}</span>
+              <span class="sug-tag">${it.taxaErro}% erro</span>
+              <span class="sug-tag">N=${it.incidencia}</span>
+              <span class="sug-tag pts">+${it.pontosRecuperaveis} pts</span></span>
+          </span>
+        </label>`).join('');
+      this._updateSugCount();
+    }
+    document.getElementById('extra-suggest-modal').style.display = 'flex';
+    listEl.querySelectorAll('.sug-chk').forEach(c => c.addEventListener('change', () => this._updateSugCount()));
+  },
+  _updateSugCount() {
+    const n = document.querySelectorAll('#extra-suggest-list .sug-chk:checked').length;
+    document.getElementById('extra-suggest-count').textContent = n ? `${n} atividade(s) selecionada(s)` : 'Nenhuma selecionada';
+  },
+  addSuggested() {
+    const tipo = document.getElementById('extra-suggest-tipo').value;
+    const checks = [...document.querySelectorAll('#extra-suggest-list .sug-chk:checked')];
+    if (!checks.length) { showToast('Marque ao menos uma sugestão'); return; }
+    const nomeTipo = { revisao: 'Revisar', questoes: 'Questões de', video: 'Vídeo de', anki: 'Flashcards de' }[tipo] || 'Estudar';
+    const unidade = { revisao: 'sessoes', questoes: 'questoes', video: 'min', anki: 'cards' }[tipo] || 'itens';
+    const alvoPad = { revisao: 3, questoes: 20, video: 30, anki: 20 }[tipo] || 0;
+    let n = 0;
+    checks.forEach(c => {
+      const it = this._sugCache[parseInt(c.dataset.i)];
+      if (!it) return;
+      DB.addExtra({
+        titulo: `${nomeTipo} ${it.nome}`,
+        tipo, disciplina: it.disciplina,
+        alvo: alvoPad, unidade, periodo: 'unica', contaMetricas: true
+      });
+      n++;
+    });
+    document.getElementById('extra-suggest-modal').style.display = 'none';
+    this.render();
+    showToast(`${n} atividade(s) criada(s) a partir dos pontos fracos ✓`);
+  },
   deleteCurrent() {
     if (!this._editingId) return;
-    if (!confirm('Excluir esta atividade?')) return;
-    DB.deleteExtra(this._editingId);
-    document.getElementById('extra-modal').style.display = 'none';
-    this.render(); showToast('Atividade excluída');
+    const idToDel = this._editingId;
+    UI.confirm('Excluir esta atividade?', { title: 'Excluir atividade', okText: 'Excluir', danger: true }).then(ok => {
+      if (!ok) return;
+      DB.deleteExtra(idToDel);
+      document.getElementById('extra-modal').style.display = 'none';
+      this.render(); showToast('Atividade excluída');
+    });
+    return;
   }
 };
 window.ExtrasScreen = ExtrasScreen;
 (function () {
   const on = (id, ev, fn) => { const el = document.getElementById(id); if (el) el.addEventListener(ev, fn); };
   on('extras-new-btn', 'click', () => ExtrasScreen.openModal(null));
+  on('extras-suggest-btn', 'click', () => ExtrasScreen.openSuggest());
+  on('extra-suggest-close', 'click', () => document.getElementById('extra-suggest-modal').style.display = 'none');
+  on('extra-suggest-cancel', 'click', () => document.getElementById('extra-suggest-modal').style.display = 'none');
+  on('extra-suggest-add', 'click', () => ExtrasScreen.addSuggested());
+  on('extra-suggest-all', 'click', () => { document.querySelectorAll('#extra-suggest-list .sug-chk').forEach(c => c.checked = true); ExtrasScreen._updateSugCount(); });
   on('extra-modal-close', 'click', () => document.getElementById('extra-modal').style.display = 'none');
   on('extra-cancel', 'click', () => document.getElementById('extra-modal').style.display = 'none');
   on('extra-save', 'click', () => ExtrasScreen.save());
@@ -12786,6 +13077,7 @@ const DesempenhoTecScreen = {
     if (p.minq != null) set('reforco-minq', p.minq);
     if (p.limite != null) set('reforco-limite', p.limite);
     if (p.banca) { const el = document.getElementById('reforco-banca'); if (el && [...el.options].some(o => o.value === p.banca)) el.value = p.banca; }
+    if (p.disc) { const el = document.getElementById('reforco-disc'); if (el && [...el.options].some(o => o.value === p.disc)) el.value = p.disc; }
   },
   render() {
     const snaps = DB.getTecSnapshots();
@@ -13111,11 +13403,13 @@ const DesempenhoTecScreen = {
       const id = parseInt(btn.closest('.tec-snap-pick').dataset.id);
       const s = DB.getTecSnapshots().find(x => x.id === id);
       if (!s) return;
-      if (!confirm(`Excluir o retrato do período ${this.rangeLabel(s)}${s.label ? ' (' + s.label + ')' : ''}? Essa ação não pode ser desfeita.`)) return;
-      DB.deleteTecSnapshot(id);
-      this.selectedSnapIds.delete(id);
-      showToast('Retrato excluído');
-      this.render();
+      UI.confirm(`Excluir o retrato do período ${this.rangeLabel(s)}${s.label ? ' (' + s.label + ')' : ''}? Essa ação não pode ser desfeita.`, { title: 'Excluir retrato', okText: 'Excluir', danger: true }).then(ok => {
+        if (!ok) return;
+        DB.deleteTecSnapshot(id);
+        this.selectedSnapIds.delete(id);
+        showToast('Retrato excluído');
+        this.render();
+      });
     }));
     const allBtn = box.querySelector('#tec-scope-all');
     const noneBtn = box.querySelector('#tec-scope-none');
@@ -13240,8 +13534,11 @@ const DesempenhoTecScreen = {
       del.addEventListener('click', (e) => {
         e.stopPropagation();
         const b = block.dataset.banca;
-        if (!confirm(`Excluir toda a incidência da banca "${b}"?`)) return;
-        DB.clearIncidenciaBanca(b); this.renderIncidencia();
+        UI.confirm(`Excluir toda a incidência da banca "${b}"?`, { title: 'Excluir incidência', okText: 'Excluir', danger: true }).then(ok => {
+          if (!ok) return;
+          DB.clearIncidenciaBanca(b); this.renderIncidencia();
+        });
+        return;
       });
       // toggle de cada nó com filhos
       block.querySelectorAll('.itree-row.has-kids').forEach(row => {
@@ -13254,13 +13551,15 @@ const DesempenhoTecScreen = {
           const id = btn.dataset.id;
           const nomeAtual = btn.dataset.nome;
           const incAtual = btn.dataset.inc;
-          const novoNome = prompt('Renomear tópico/disciplina:', nomeAtual);
-          if (novoNome === null) return;
-          const novaInc = prompt('Incidência (nº de questões):', incAtual);
-          if (novaInc === null) return;
-          DB.updateIncidenciaItem(id, { topico: novoNome, incidencia: novaInc });
-          this.renderIncidencia();
-          showToast('Incidência atualizada ✓');
+          UI.prompt([
+            { key: 'nome', label: 'Nome do tópico/disciplina', type: 'text', value: nomeAtual },
+            { key: 'inc', label: 'Incidência (nº de questões)', type: 'number', value: incAtual, min: 0 }
+          ], { title: '✎ Editar incidência', okText: 'Salvar' }).then(v => {
+            if (!v) return;
+            DB.updateIncidenciaItem(id, { topico: v.nome, incidencia: v.inc });
+            this.renderIncidencia();
+            showToast('Incidência atualizada ✓');
+          });
         });
       });
       // expandir/recolher tudo
@@ -13467,6 +13766,18 @@ const DesempenhoTecScreen = {
     bancaSel.innerHTML = `<option value="__todas__">Todas as bancas</option>` +
       bancas.map(b => `<option value="${escapeHtml(b)}" ${b === cur ? 'selected' : ''}>${escapeHtml(b)}</option>`).join('');
     if (!bancaSel.value) bancaSel.value = cur;
+    // popula o filtro de DISCIPLINA a partir da incidência da banca selecionada
+    const discSel = document.getElementById('reforco-disc');
+    if (discSel) {
+      const bsel = bancaSel.value;
+      const discs = [...new Set(DB.getIncidencia()
+        .filter(r => r.depth === 0 && (bsel === '__todas__' || r.banca === bsel))
+        .map(r => r.topico))].sort();
+      const curD = discSel.value || '__todas__';
+      discSel.innerHTML = `<option value="__todas__">📚 Todas as disciplinas</option>` +
+        discs.map(d => `<option value="${escapeHtml(d)}" ${d === curD ? 'selected' : ''}>${escapeHtml(d)}</option>`).join('');
+      if (![...discSel.options].some(o => o.value === curD)) discSel.value = '__todas__';
+    }
     // sugere limite pela carga horária (só na 1ª vez); depois respeita a preferência salva
     if (!this._reforcoInit) { document.getElementById('reforco-limite').value = ReforcoEngine.sugerirLimite(); this._reforcoInit = true; }
     // restaura filtros/seleções salvos (banca, ordenação, sliders, mín. e qtd.)
@@ -13515,6 +13826,16 @@ const DesempenhoTecScreen = {
       limite: parseInt(document.getElementById('reforco-limite').value) || 12,
       ordenarPor
     });
+    // filtro por DISCIPLINA (pós-processa o resultado, sem mexer no motor)
+    const discSel = document.getElementById('reforco-disc');
+    const discFiltro = discSel ? discSel.value : '__todas__';
+    if (discFiltro && discFiltro !== '__todas__') {
+      const nk = ReforcoEngine.norm(discFiltro);
+      res.items = res.items.filter(it => ReforcoEngine.norm(it.disciplina) === nk);
+      res.porDisciplina = res.porDisciplina.filter(d => ReforcoEngine.norm(d.disciplina) === nk);
+      res.blindSpots = (res.blindSpots || []).filter(b => ReforcoEngine.norm(b.disciplina) === nk);
+      res.overinvest = (res.overinvest || []).filter(o => ReforcoEngine.norm(o.disciplina) === nk);
+    }
     // Rótulo explícito de ordenação (#2 didático)
     const olEl = document.getElementById('reforco-orderlabel');
     if (olEl) {
@@ -14027,7 +14348,8 @@ document.getElementById('tec-weak-disc').addEventListener('change', (e) => {
   }
   on('incid-file', 'change', (e) => { if (e.target.files[0]) DT.handleIncidFile(e.target.files[0]); });
   // Reforço (todos salvam a preferência para lembrar entre sessões)
-  on('reforco-banca', 'change', (e) => { DT.savePrefs({ banca: e.target.value }); DT.renderReforcoList(); });
+  on('reforco-banca', 'change', (e) => { DT.savePrefs({ banca: e.target.value }); DT.renderReforco(); });
+  on('reforco-disc', 'change', (e) => { DT.savePrefs({ disc: e.target.value }); DT.renderReforcoList(); });
   on('reforco-minq', 'input', (e) => { DT.savePrefs({ minq: e.target.value }); DT.renderReforcoList(); });
   on('reforco-limite', 'input', (e) => { DT.savePrefs({ limite: e.target.value }); DT.renderReforcoList(); });
   on('reforco-estrat', 'input', (e) => { DT.savePrefs({ estrat: e.target.value }); DT.updateEstratLabel(); DT.renderReforcoList(); });
@@ -14157,13 +14479,14 @@ const PlanUI = {
       });
       card.querySelector('.btn-rename-plan').addEventListener('click', () => {
         const p = PlanManager.getPlans().find(x => x.id === id);
-        const novo = prompt('Novo nome do planejamento:', p.nome);
-        if (novo && novo.trim()) {
-          PlanManager.renamePlan(id, novo);
-          this.renderScreen();
-          this.renderSidebar();
-          showToast('Planejamento renomeado ✓');
-        }
+        UI.prompt([{ key: 'nome', label: 'Novo nome do planejamento', type: 'text', value: p.nome }], { title: '✎ Renomear planejamento', okText: 'Salvar' }).then(v => {
+          if (v && v.nome && v.nome.trim()) {
+            PlanManager.renamePlan(id, v.nome);
+            this.renderScreen();
+            this.renderSidebar();
+            showToast('Planejamento renomeado ✓');
+          }
+        });
       });
       card.querySelector('.btn-delete-plan').addEventListener('click', () => {
         const plans = PlanManager.getPlans();
