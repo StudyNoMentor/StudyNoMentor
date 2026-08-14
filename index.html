@@ -771,37 +771,60 @@
   .extra-progress .bar > span.full { background: var(--good); }
   .extra-progress .nums { display: flex; align-items: baseline; justify-content: space-between; margin-top: 6px; font-size: 12px; color: var(--text-soft); }
   .extra-progress .nums b { font-family: 'Space Mono', monospace; color: var(--text); font-size: 14px; }
-  .extra-marcador { display: flex; align-items: center; gap: 8px; margin-top: 10px; padding: 8px 10px; background: var(--warn-soft); border: 1px dashed var(--warn); border-radius: 10px; }
-  .extra-marcador .em-ico { font-size: 15px; }
-  .extra-marcador input { flex: 1; min-width: 0; padding: 6px 10px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface); color: var(--text); font-size: 12.5px; }
-  .extra-marcador button { padding: 6px 12px; font-size: 12px; }
+  .extra-marcador { display: flex; align-items: center; gap: 10px; margin-top: 10px; padding: 10px 12px; background: linear-gradient(180deg, var(--warn-soft), var(--surface) 90%); border: 1px solid var(--warn); border-left-width: 4px; border-radius: 10px; }
+  .extra-marcador .em-label { font-size: 11px; font-weight: 800; color: var(--warn); text-transform: uppercase; letter-spacing: 0.03em; white-space: nowrap; }
+  .extra-marcador input { flex: 1; min-width: 0; padding: 8px 11px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface); color: var(--text); font-size: 13px; }
+  .extra-marcador input:focus { border-color: var(--warn); outline: none; }
+  .extra-marcador button { padding: 8px 14px; font-size: 12.5px; }
+  .extra-tag.pin { background: var(--warn-soft); color: var(--warn); border-color: transparent; font-weight: 700; }
   .extra-foot { display: flex; align-items: center; gap: 8px; margin-top: 12px; flex-wrap: wrap; }
   .extra-adv { display: flex; align-items: center; gap: 6px; }
   .extra-adv input { width: 84px; text-align: center; padding: 7px 8px; }
-  /* Cronograma / agenda */
-  .extras-agenda-card { margin-bottom: 16px; }
-  .extras-agenda-scroll { overflow-x: auto; padding: 4px 16px 12px; }
-  .extras-agenda-table { width: 100%; border-collapse: collapse; min-width: 520px; }
-  .extras-agenda-table th, .extras-agenda-table td { text-align: center; padding: 7px 6px; font-size: 12px; border-bottom: 1px solid var(--border); }
-  .extras-agenda-table th { color: var(--text-faint); font-weight: 700; font-size: 10.5px; text-transform: uppercase; letter-spacing: 0.03em; }
-  .extras-agenda-table th.ag-today { color: var(--accent); }
-  .extras-agenda-table th .ag-dm { display: block; font-size: 9.5px; color: var(--text-faint); font-family: 'Space Mono', monospace; }
-  .extras-agenda-table td.ag-name, .extras-agenda-table th.ag-name { text-align: left; font-weight: 700; color: var(--text); white-space: nowrap; min-width: 180px; }
-  .extras-agenda-table .ag-ico { margin-right: 6px; }
-  .extras-agenda-table .ag-rec { font-size: 10px; color: var(--warn); margin-left: 8px; font-weight: 600; }
-  .ag-cell { font-family: 'Space Mono', monospace; font-weight: 700; color: var(--text-faint); }
-  .ag-cell.ag-done { background: var(--good-soft); color: var(--good); border-radius: 6px; }
-  .ag-cell.ag-pend { color: var(--warn); font-size: 16px; }
-  .extras-agenda-hint { padding: 0 24px 16px; font-size: 12px; color: var(--text-soft); }
+  /* Calendário em linha das atividades extras */
+  .cal-card { margin-bottom: 16px; }
+  .cal-nav { display: flex; align-items: center; gap: 6px; }
+  .cal-nav .btn-secondary { padding: 6px 12px; font-size: 12px; }
+  .cal-strip { display: flex; gap: 8px; overflow-x: auto; padding: 6px 24px 14px; scrollbar-width: thin; }
+  .cal-day { flex: 0 0 auto; width: 60px; display: flex; flex-direction: column; align-items: center; gap: 1px; padding: 9px 4px 7px; border: 1.5px solid var(--border); border-radius: 12px; background: var(--surface); cursor: pointer; transition: all 0.13s ease; }
+  .cal-day:hover { border-color: var(--accent); transform: translateY(-1px); }
+  .cal-day.sel { border-color: var(--accent); background: var(--accent-soft); box-shadow: 0 0 0 3px var(--accent-soft); }
+  .cal-day.hoje .cal-dn { color: var(--accent); }
+  .cal-day .cal-wd { font-size: 10px; font-weight: 700; text-transform: uppercase; color: var(--text-faint); letter-spacing: 0.03em; }
+  .cal-day .cal-dn { font-family: 'Space Mono', monospace; font-size: 19px; font-weight: 800; color: var(--text); line-height: 1.1; }
+  .cal-day .cal-mo { font-size: 9.5px; color: var(--text-faint); text-transform: uppercase; }
+  .cal-day .cal-dots { display: flex; gap: 3px; align-items: center; margin-top: 4px; min-height: 7px; }
+  .cal-dot { width: 6px; height: 6px; border-radius: 50%; }
+  .cal-more { font-size: 8px; color: var(--text-faint); font-weight: 700; }
+  .cal-panel { padding: 4px 24px 20px; }
+  .cal-panel-head { font-size: 14px; font-weight: 800; color: var(--text); margin-bottom: 12px; text-transform: capitalize; }
+  .cal-hoje-badge { font-size: 10px; font-weight: 700; color: var(--accent); background: var(--accent-soft); padding: 2px 8px; border-radius: 20px; text-transform: uppercase; margin-left: 6px; }
+  .cal-chips { display: flex; flex-direction: column; gap: 8px; margin-bottom: 12px; }
+  .cal-chip { display: flex; align-items: center; gap: 10px; padding: 10px 12px; border: 1px solid var(--border); border-left-width: 4px; border-radius: 10px; background: var(--surface); }
+  .cal-chip-ico { font-size: 16px; }
+  .cal-chip-name { flex: 1; min-width: 0; font-size: 13.5px; font-weight: 700; color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .cal-chip-done { font-size: 11px; font-weight: 700; color: var(--good); background: var(--good-soft); padding: 2px 9px; border-radius: 20px; font-family: 'Space Mono', monospace; }
+  .cal-chip-x { background: transparent; border: none; color: var(--text-faint); font-size: 18px; cursor: pointer; padding: 0 4px; border-radius: 6px; line-height: 1; }
+  .cal-chip-x:hover { color: var(--bad); background: var(--bad-soft); }
+  .cal-empty { padding: 16px; text-align: center; font-size: 12.5px; color: var(--text-faint); background: var(--surface-sunken); border-radius: 10px; border: 1px dashed var(--border); }
+  .cal-add-row select { width: 100%; padding: 10px 12px; border: 1.5px solid var(--border); border-radius: 10px; background: var(--surface-sunken); color: var(--text); font-size: 13px; cursor: pointer; }
+  .cal-add-row select:hover { border-color: var(--accent); }
   /* Sugestões */
-  .sug-row { display: flex; align-items: flex-start; gap: 11px; padding: 10px 12px; border: 1px solid var(--border); border-radius: 11px; margin-bottom: 7px; cursor: pointer; transition: border-color 0.13s ease; }
-  .sug-row:hover { border-color: var(--accent); }
-  .sug-row input { margin-top: 3px; }
-  .sug-body { min-width: 0; flex: 1; }
-  .sug-name { font-size: 13.5px; font-weight: 700; color: var(--text); display: block; }
-  .sug-meta { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 5px; align-items: center; }
-  .sug-tag { font-size: 10.5px; font-weight: 700; padding: 2px 8px; border-radius: 20px; background: var(--surface-sunken); color: var(--text-soft); }
-  .sug-tag.pts { background: var(--accent-soft); color: var(--accent); }
+  .sug-row { display: grid; grid-template-columns: 24px 1fr auto; align-items: center; gap: 12px; padding: 11px 14px; border: 1px solid var(--border); border-radius: 12px; margin-bottom: 8px; cursor: pointer; transition: border-color 0.13s ease, background 0.13s ease; }
+  .sug-row:hover { border-color: var(--accent); background: var(--surface-sunken); }
+  .sug-chk { width: 18px; height: 18px; margin: 0; cursor: pointer; accent-color: var(--accent); }
+  .sug-body { min-width: 0; }
+  .sug-name { font-size: 14px; font-weight: 700; color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .sug-meta { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 6px; align-items: center; }
+  .sug-tag { font-size: 10.5px; font-weight: 700; padding: 2px 9px; border-radius: 20px; background: var(--surface-sunken); color: var(--text-soft); white-space: nowrap; }
+  .sug-selo { font-size: 10.5px; font-weight: 800; padding: 2px 9px; border-radius: 20px; white-space: nowrap; }
+  .sug-selo.fraco { color: var(--bad); background: var(--bad-soft); }
+  .sug-selo.atencao { color: var(--warn); background: var(--warn-soft); }
+  .sug-pts { font-family: 'Space Mono', monospace; font-weight: 800; font-size: 15px; color: var(--accent); text-align: right; white-space: nowrap; }
+  .sug-pts small { display: block; font-size: 9.5px; color: var(--text-faint); font-weight: 400; }
+  .sug-toolbar { display: flex; align-items: flex-end; gap: 12px; flex-wrap: wrap; margin-bottom: 14px; padding-bottom: 12px; border-bottom: 1px solid var(--border); }
+  .sug-tool-field { flex: 1; min-width: 200px; display: flex; flex-direction: column; gap: 5px; }
+  .sug-tool-field label { font-size: 11px; font-weight: 700; color: var(--text-faint); text-transform: uppercase; letter-spacing: 0.03em; }
+  .sug-tool-field select { padding: 9px 11px; border: 1px solid var(--border); border-radius: 9px; background: var(--surface-sunken); color: var(--text); font-size: 13.5px; width: 100%; }
   .extras-empty { text-align: center; padding: 40px 20px; color: var(--text-faint); }
   .extras-empty .big { font-size: 34px; margin-bottom: 8px; }
   .extras-group-title { font-size: 11px; font-weight: 800; letter-spacing: 0.05em; text-transform: uppercase; color: var(--text-faint); margin: 18px 0 10px; }
@@ -5012,16 +5035,17 @@
         <button type="button" class="icon-btn" id="extra-suggest-close">✕</button>
       </div>
       <div class="cards-modal-body">
-        <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap; margin-bottom:12px;">
-          <label style="font-size:12px; color:var(--text-faint); font-weight:700;">Gerar como:</label>
-          <select id="extra-suggest-tipo" style="padding:7px 10px; border:1px solid var(--border); border-radius:8px; background:var(--surface-sunken); color:var(--text);">
-            <option value="revisao" selected>🔁 Revisão do ponto fraco</option>
-            <option value="questoes">❓ Questões do assunto</option>
-            <option value="video">🎬 Vídeo do assunto</option>
-            <option value="anki">🃏 Flashcards do assunto</option>
-          </select>
-          <span style="flex:1"></span>
-          <button type="button" class="btn-secondary" id="extra-suggest-all">Marcar todos</button>
+        <div class="sug-toolbar">
+          <div class="sug-tool-field">
+            <label>Gerar cada uma como</label>
+            <select id="extra-suggest-tipo">
+              <option value="revisao" selected>🔁 Revisão do ponto fraco</option>
+              <option value="questoes">❓ Questões do assunto</option>
+              <option value="video">🎬 Vídeo do assunto</option>
+              <option value="anki">🃏 Flashcards do assunto</option>
+            </select>
+          </div>
+          <button type="button" class="btn-secondary" id="extra-suggest-all">☑ Marcar todos</button>
         </div>
         <div id="extra-suggest-list"></div>
       </div>
@@ -5753,6 +5777,7 @@ const DB = {
       alvo: Math.max(0, parseFloat(data.alvo) || 0),
       periodo: data.periodo || 'unica',           // unica|diaria|semanal
       progresso: 0,
+      datas: Array.isArray(data.datas) ? data.datas : [], // datas agendadas (calendário)
       marcador: (data.marcador || '').trim(),      // "onde parei" (lei seca / leitura)
       contaMetricas: data.contaMetricas !== false, // por atividade (padrão: conta)
       status: 'ativa',                            // ativa|concluida|pausada
@@ -5767,6 +5792,25 @@ const DB = {
     this.saveExtras(list); return e;
   },
   deleteExtra(id) { this.saveExtras(this.getExtras().filter(x => x.id !== id)); },
+  // Agenda: vincula/desvincula uma atividade a uma data (calendário em linha)
+  toggleExtraData(id, dataISO) {
+    const list = this.getExtras(); const e = list.find(x => x.id === id);
+    if (!e) return null;
+    e.datas = Array.isArray(e.datas) ? e.datas : [];
+    const i = e.datas.indexOf(dataISO);
+    if (i >= 0) e.datas.splice(i, 1); else e.datas.push(dataISO);
+    e.updatedAt = new Date().toISOString();
+    this.saveExtras(list); return e;
+  },
+  setExtraData(id, dataISO, on) {
+    const list = this.getExtras(); const e = list.find(x => x.id === id);
+    if (!e) return null;
+    e.datas = Array.isArray(e.datas) ? e.datas : [];
+    const i = e.datas.indexOf(dataISO);
+    if (on && i < 0) e.datas.push(dataISO);
+    if (!on && i >= 0) e.datas.splice(i, 1);
+    this.saveExtras(list); return e;
+  },
   addExtraProgress(id, quantidade, minutos) {
     const list = this.getExtras(); const e = list.find(x => x.id === id);
     if (!e) return null;
@@ -12012,6 +12056,7 @@ const ExtrasScreen = {
               <span class="extra-tag">${t.nome}</span>
               ${x.disciplina ? `<span class="extra-tag disc">${escapeHtml(x.disciplina)}</span>` : ''}
               ${recTxt ? `<span class="extra-tag rec">🔁 ${recTxt}</span>` : ''}
+              ${x.tipo === 'leitura' && x.marcador ? `<span class="extra-tag pin">📌 parei em: ${escapeHtml(x.marcador)}</span>` : ''}
               <span class="extra-tag ${x.contaMetricas ? 'count-on' : 'count-off'}">${x.contaMetricas ? '📊 conta nas métricas' : 'fora das métricas'}</span>
             </div>
           </div>
@@ -12026,9 +12071,9 @@ const ExtrasScreen = {
         </div>
         ${x.tipo === 'leitura' ? `
         <div class="extra-marcador">
-          <span class="em-ico">📌</span>
-          <input type="text" class="ex-marcador" value="${escapeHtml(x.marcador || '')}" placeholder="Onde parei? (ex.: art. 150, linha 234)">
-          <button type="button" class="btn-secondary ex-marcador-save" title="Salvar marcador">Salvar</button>
+          <span class="em-label">📌 Onde parei</span>
+          <input type="text" class="ex-marcador" value="${escapeHtml(x.marcador || '')}" placeholder="ex.: art. 150 · linha 234 · pág. 88">
+          <button type="button" class="btn-primary ex-marcador-save" title="Salvar marcador">Salvar</button>
         </div>` : ''}
         <div class="extra-foot">
           <div class="extra-adv">
@@ -12070,10 +12115,10 @@ const ExtrasScreen = {
       if (mkSave) mkSave.addEventListener('click', () => {
         const v = card.querySelector('.ex-marcador').value;
         DB.updateExtra(id, { marcador: v });
-        showToast('📌 Marcador salvo');
+        this.render(); showToast('📌 Marcador salvo');
       });
       const mkInput = card.querySelector('.ex-marcador');
-      if (mkInput) mkInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') { DB.updateExtra(id, { marcador: mkInput.value }); showToast('📌 Marcador salvo'); } });
+      if (mkInput) mkInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') { DB.updateExtra(id, { marcador: mkInput.value }); this.render(); showToast('📌 Marcador salvo'); } });
       const comp = card.querySelector('.ex-complete');
       if (comp) comp.addEventListener('click', () => { DB.updateExtra(id, { status: 'concluida' }); this.render(); showToast('Atividade concluída 🎉'); });
       const reopen = card.querySelector('.ex-reopen');
@@ -12129,42 +12174,94 @@ const ExtrasScreen = {
     document.getElementById('extra-modal').style.display = 'none';
     this.render();
   },
-  // ===== Cronograma/Agenda das atividades extras =====
+  // ===== Calendário em linha: vincule atividades a datas =====
+  _addDays(iso, delta) { const d = new Date(iso + 'T00:00:00'); d.setDate(d.getDate() + delta); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; },
+  _calSel: null,      // data selecionada no calendário
+  _calStart: null,    // 1º dia visível (para navegação)
   renderAgenda() {
     const host = document.getElementById('extras-agenda');
     if (!host) return;
     const extras = DB.getExtras().filter(x => x.status === 'ativa');
     if (!extras.length) { host.innerHTML = ''; return; }
-    // Semana atual (7 dias a partir de hoje) com o que foi registrado em cada dia
-    const addDays = (iso, delta) => { const d = new Date(iso + 'T00:00:00'); d.setDate(d.getDate() + delta); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; };
-    const dias = [];
-    for (let i = 0; i < 7; i++) dias.push(addDays(todayLocal(), i));
-    const diaNome = (iso) => { const d = new Date(iso + 'T00:00:00'); return ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'][d.getDay()]; };
-    const recorrentes = extras.filter(x => x.periodo !== 'unica');
-    const rows = extras.map(x => {
-      const t = this.TIPOS[x.tipo] || this.TIPOS.livre;
-      const cells = dias.map(dia => {
-        const feito = (x.historico || []).filter(h => h.data === dia).reduce((a, h) => a + (h.quantidade || 0), 0);
-        const isToday = dia === todayLocal();
-        // recorrente sem registro hoje → célula "pendente"
-        const pend = (x.periodo !== 'unica') && feito === 0;
-        const cls = feito > 0 ? 'ag-done' : (pend && isToday ? 'ag-pend' : '');
-        const txt = feito > 0 ? feito : (pend && isToday ? '•' : '');
-        return `<td class="ag-cell ${cls}" title="${escapeHtml(x.titulo)} — ${dia}">${txt}</td>`;
-      }).join('');
-      return `<tr><td class="ag-name"><span class="ag-ico">${t.ico}</span>${escapeHtml(x.titulo)}${x.periodo !== 'unica' ? `<span class="ag-rec">🔁 ${x.periodo === 'diaria' ? 'diária' : 'semanal'}</span>` : ''}</td>${cells}</tr>`;
-    }).join('');
+    const hoje = todayLocal();
+    if (!this._calSel) this._calSel = hoje;
+    if (!this._calStart) this._calStart = hoje;
+    const DIAS = 14; // janela do calendário em linha
+    const nomes = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
+    const meses = ['jan', 'fev', 'mar', 'abr', 'mai', 'jun', 'jul', 'ago', 'set', 'out', 'nov', 'dez'];
+    // conta atividades agendadas por dia
+    const agendadasNo = (dia) => extras.filter(x => (x.datas || []).includes(dia));
+    const feitoNo = (x, dia) => (x.historico || []).filter(h => h.data === dia).reduce((a, h) => a + (h.quantidade || 0), 0);
+
+    // tira do calendário (strip)
+    let strip = '';
+    for (let i = 0; i < DIAS; i++) {
+      const dia = this._addDays(this._calStart, i);
+      const d = new Date(dia + 'T00:00:00');
+      const ags = agendadasNo(dia);
+      const sel = dia === this._calSel;
+      const isHoje = dia === hoje;
+      const dots = ags.slice(0, 4).map(x => `<span class="cal-dot" style="background:${this._tipoColor(x.tipo)}"></span>`).join('');
+      strip += `<button type="button" class="cal-day ${sel ? 'sel' : ''} ${isHoje ? 'hoje' : ''}" data-dia="${dia}">
+        <span class="cal-wd">${nomes[d.getDay()]}</span>
+        <span class="cal-dn">${String(d.getDate()).padStart(2, '0')}</span>
+        <span class="cal-mo">${meses[d.getMonth()]}</span>
+        <span class="cal-dots">${dots || (ags.length ? '' : '&nbsp;')}${ags.length > 4 ? '<span class="cal-more">+' + (ags.length - 4) + '</span>' : ''}</span>
+      </button>`;
+    }
+
+    // painel do dia selecionado
+    const selD = new Date(this._calSel + 'T00:00:00');
+    const selLabel = `${nomes[selD.getDay()]}, ${String(selD.getDate()).padStart(2, '0')} de ${['janeiro', 'fevereiro', 'março', 'abril', 'maio', 'junho', 'julho', 'agosto', 'setembro', 'outubro', 'novembro', 'dezembro'][selD.getMonth()]}`;
+    const doDia = agendadasNo(this._calSel);
+    const naoAgendadas = extras.filter(x => !(x.datas || []).includes(this._calSel));
+    const chips = doDia.length
+      ? doDia.map(x => {
+          const t = this.TIPOS[x.tipo] || this.TIPOS.livre;
+          const feito = feitoNo(x, this._calSel);
+          return `<div class="cal-chip" style="border-color:${this._tipoColor(x.tipo)}">
+            <span class="cal-chip-ico">${t.ico}</span>
+            <span class="cal-chip-name">${escapeHtml(x.titulo)}</span>
+            ${feito > 0 ? `<span class="cal-chip-done">✓ ${feito}</span>` : ''}
+            <button type="button" class="cal-chip-x" data-unschedule="${x.id}" title="Desvincular deste dia">×</button>
+          </div>`;
+        }).join('')
+      : `<div class="cal-empty">Nenhuma atividade neste dia. Adicione abaixo 👇</div>`;
+
     host.innerHTML = `
-      <div class="card extras-agenda-card">
-        <div class="card-header"><div><h2>🗓️ Cronograma da semana</h2><p class="sub">Acompanhe o cumprimento das atividades. Verde = registrado; ● = pendente hoje (recorrentes).</p></div></div>
-        <div class="extras-agenda-scroll">
-          <table class="extras-agenda-table">
-            <thead><tr><th class="ag-name">Atividade</th>${dias.map(d => `<th class="${d === todayLocal() ? 'ag-today' : ''}">${diaNome(d)}<span class="ag-dm">${d.slice(8, 10)}/${d.slice(5, 7)}</span></th>`).join('')}</tr></thead>
-            <tbody>${rows}</tbody>
-          </table>
+      <div class="card cal-card">
+        <div class="card-header">
+          <div><h2>🗓️ Calendário de atividades</h2><p class="sub">Clique num dia e vincule atividades extras a ele. Os pontinhos mostram o que já está agendado.</p></div>
+          <div class="cal-nav">
+            <button type="button" class="icon-btn" id="cal-prev" title="Semana anterior">‹</button>
+            <button type="button" class="btn-secondary" id="cal-today">Hoje</button>
+            <button type="button" class="icon-btn" id="cal-next" title="Próxima semana">›</button>
+          </div>
         </div>
-        ${recorrentes.length ? `<div class="extras-agenda-hint">💡 ${recorrentes.length} atividade(s) recorrente(s) — registre o avanço diário para manter o ritmo.</div>` : ''}
+        <div class="cal-strip">${strip}</div>
+        <div class="cal-panel">
+          <div class="cal-panel-head">📌 ${selLabel}${this._calSel === hoje ? ' <span class="cal-hoje-badge">hoje</span>' : ''}</div>
+          <div class="cal-chips">${chips}</div>
+          <div class="cal-add-row">
+            <select id="cal-add-select">
+              <option value="">+ Vincular atividade a este dia…</option>
+              ${naoAgendadas.map(x => `<option value="${x.id}">${(this.TIPOS[x.tipo] || this.TIPOS.livre).ico} ${escapeHtml(x.titulo)}</option>`).join('')}
+            </select>
+          </div>
+        </div>
       </div>`;
+
+    // interações
+    host.querySelectorAll('.cal-day').forEach(b => b.addEventListener('click', () => { this._calSel = b.dataset.dia; this.renderAgenda(); }));
+    const prev = host.querySelector('#cal-prev'); if (prev) prev.addEventListener('click', () => { this._calStart = this._addDays(this._calStart, -7); this.renderAgenda(); });
+    const next = host.querySelector('#cal-next'); if (next) next.addEventListener('click', () => { this._calStart = this._addDays(this._calStart, 7); this.renderAgenda(); });
+    const tod = host.querySelector('#cal-today'); if (tod) tod.addEventListener('click', () => { this._calStart = hoje; this._calSel = hoje; this.renderAgenda(); });
+    host.querySelectorAll('[data-unschedule]').forEach(b => b.addEventListener('click', () => { DB.setExtraData(b.dataset.unschedule, this._calSel, false); this.renderAgenda(); showToast('Desvinculado do dia'); }));
+    const addSel = host.querySelector('#cal-add-select');
+    if (addSel) addSel.addEventListener('change', () => { if (addSel.value) { DB.setExtraData(addSel.value, this._calSel, true); this.renderAgenda(); showToast('📅 Atividade vinculada ao dia'); } });
+  },
+  _tipoColor(tipo) {
+    return { anki: '#7c3aed', leitura: '#0f9d63', questoes: '#2563eb', revisao: '#d97a12', video: '#e0393f', livre: '#0a95a8' }[tipo] || '#6b7280';
   },
   // ===== Sugestões a partir dos pontos fracos do TEC =====
   _suggestions() {
@@ -12187,13 +12284,15 @@ const ExtrasScreen = {
         <label class="sug-row">
           <input type="checkbox" class="sug-chk" data-i="${i}" checked>
           <span class="sug-body">
-            <span class="sug-name">${escapeHtml(it.nome)}</span>
-            <span class="sug-meta"><span class="reforco-tag selo-${it.selo}">${it.selo === 'fraco' ? '🔥 fraco' : '⚠️ atenção'}</span>
+            <span class="sug-name" title="${escapeHtml(it.nome)}">${escapeHtml(it.nome)}</span>
+            <span class="sug-meta">
+              <span class="sug-selo ${it.selo}">${it.selo === 'fraco' ? '🔥 fraco' : '⚠️ atenção'}</span>
               <span class="sug-tag">${escapeHtml(it.disciplina)}</span>
               <span class="sug-tag">${it.taxaErro}% erro</span>
               <span class="sug-tag">N=${it.incidencia}</span>
-              <span class="sug-tag pts">+${it.pontosRecuperaveis} pts</span></span>
+            </span>
           </span>
+          <span class="sug-pts">+${it.pontosRecuperaveis}<small>pts recup.</small></span>
         </label>`).join('');
       this._updateSugCount();
     }
