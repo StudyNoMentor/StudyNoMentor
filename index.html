@@ -819,8 +819,11 @@
   .sug-selo { font-size: 10.5px; font-weight: 800; padding: 2px 9px; border-radius: 20px; white-space: nowrap; }
   .sug-selo.fraco { color: var(--bad); background: var(--bad-soft); }
   .sug-selo.atencao { color: var(--warn); background: var(--warn-soft); }
-  .sug-pts { font-family: 'Space Mono', monospace; font-weight: 800; font-size: 15px; color: var(--accent); text-align: right; white-space: nowrap; }
-  .sug-pts small { display: block; font-size: 9.5px; color: var(--text-faint); font-weight: 400; }
+  .sug-tag.pts { background: var(--accent-soft); color: var(--accent); }
+  .sug-row { cursor: default; }
+  .sug-config { padding: 7px 12px; font-size: 12.5px; white-space: nowrap; }
+  .sug-row.is-added { opacity: 0.6; background: var(--good-soft); border-color: transparent; }
+  .sug-added-badge { font-size: 11.5px; font-weight: 700; color: var(--good); background: var(--good-soft); padding: 5px 11px; border-radius: 20px; white-space: nowrap; }
   .sug-toolbar { display: flex; align-items: flex-end; gap: 12px; flex-wrap: wrap; margin-bottom: 14px; padding-bottom: 12px; border-bottom: 1px solid var(--border); }
   .sug-tool-field { flex: 1; min-width: 200px; display: flex; flex-direction: column; gap: 5px; }
   .sug-tool-field label { font-size: 11px; font-weight: 700; color: var(--text-faint); text-transform: uppercase; letter-spacing: 0.03em; }
@@ -2719,6 +2722,36 @@
   @media (max-width: 860px) { .profile-chip { display: none; } }
   /* Botão de perfil no topo (aparece só no mobile/tablet, onde a sidebar-footer some) */
   .brand-top-actions { display: flex; align-items: center; gap: 8px; }
+  /* Botão de sincronização na nuvem — sempre visível (topo, desktop e mobile) */
+  .cloud-sync-btn {
+    display: inline-flex; align-items: center; gap: 7px;
+    background: var(--surface-sunken); border: 1.5px solid var(--border);
+    border-radius: 20px; padding: 5px 12px 5px 9px; cursor: pointer;
+    font-size: 12px; font-weight: 700; color: var(--text-soft);
+    transition: border-color 0.15s ease, color 0.15s ease, background 0.15s ease;
+    white-space: nowrap;
+  }
+  .cloud-sync-btn:hover { border-color: var(--accent); color: var(--text); }
+  .cloud-sync-btn:active { transform: scale(0.97); }
+  .cloud-sync-btn .csb-ico { font-size: 13px; line-height: 1; }
+  .cloud-sync-btn .csb-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--text-faint); flex-shrink: 0; }
+  .cloud-sync-btn .csb-text { max-width: 130px; overflow: hidden; text-overflow: ellipsis; }
+  /* estados */
+  .cloud-sync-btn.st-ok { color: var(--good); border-color: color-mix(in srgb, var(--good) 40%, var(--border)); }
+  .cloud-sync-btn.st-ok .csb-dot { background: var(--good); box-shadow: 0 0 0 3px var(--good-soft); }
+  .cloud-sync-btn.st-syncing { color: var(--warn); border-color: color-mix(in srgb, var(--warn) 45%, var(--border)); }
+  .cloud-sync-btn.st-syncing .csb-dot { background: var(--warn); animation: csbPulse 1s infinite; }
+  .cloud-sync-btn.st-syncing .csb-ico { animation: csbSpin 1.1s linear infinite; }
+  .cloud-sync-btn.st-pending { color: var(--warn); border-color: color-mix(in srgb, var(--warn) 45%, var(--border)); }
+  .cloud-sync-btn.st-pending .csb-dot { background: var(--warn); box-shadow: 0 0 0 3px var(--warn-soft); }
+  .cloud-sync-btn.st-error { color: var(--bad); border-color: color-mix(in srgb, var(--bad) 50%, var(--border)); background: var(--bad-soft); }
+  .cloud-sync-btn.st-error .csb-dot { background: var(--bad); box-shadow: 0 0 0 3px var(--bad-soft); }
+  .cloud-sync-btn.st-off { opacity: 0.75; }
+  .cloud-sync-btn.st-off .csb-dot { background: var(--text-faint); }
+  @keyframes csbPulse { 0%,100% { opacity: 1; } 50% { opacity: 0.35; } }
+  @keyframes csbSpin { to { transform: rotate(360deg); } }
+  /* no mobile, esconde o texto para caber (mantém dot + ícone) */
+  @media (max-width: 560px) { .cloud-sync-btn .csb-text { display: none; } .cloud-sync-btn { padding: 6px 9px; } }
   .mobile-profile-btn { display: none; align-items: center; gap: 7px; background: var(--surface-sunken); border: 1.5px solid var(--border); border-radius: 20px; padding: 4px 10px 4px 4px; cursor: pointer; max-width: 190px; }
   .mobile-profile-btn:hover { border-color: var(--accent); }
   .mobile-profile-avatar { width: 26px; height: 26px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 14px; color: #fff; flex-shrink: 0; }
@@ -3514,6 +3547,11 @@
       <div class="brand-top-row">
         <span class="eyebrow"><span class="pip"></span>registro pessoal</span>
         <div class="brand-top-actions">
+          <button type="button" class="cloud-sync-btn" id="cloud-sync-btn" title="Sincronizar agora">
+            <span class="csb-dot" id="csb-dot"></span>
+            <span class="csb-ico" id="csb-ico">☁</span>
+            <span class="csb-text" id="csb-text">—</span>
+          </button>
           <button type="button" class="mobile-profile-btn" id="mobile-profile-btn" title="Trocar de perfil / sair">
             <span class="mobile-profile-avatar" id="mobile-profile-avatar">📘</span>
             <span class="mobile-profile-name" id="mobile-profile-name">—</span>
@@ -5054,7 +5092,7 @@
   <div id="extra-suggest-modal" class="cards-modal" style="display:none; z-index:610;">
     <div class="cards-modal-box cards-modal-lg">
       <div class="cards-modal-head">
-        <div><h2>💡 Sugestões de atividades</h2><p class="sub">Baseadas nos seus pontos fracos do Desempenho TEC. Marque as que quiser adicionar.</p></div>
+        <div><h2>💡 Sugestões de atividades</h2><p class="sub">Baseadas nos seus pontos fracos do TEC. Use <strong>⚙ Configurar</strong> para ajustar a meta de cada uma, ou marque várias e adicione em lote.</p></div>
         <button type="button" class="icon-btn" id="extra-suggest-close">✕</button>
       </div>
       <div class="cards-modal-body">
@@ -5080,7 +5118,7 @@
     </div>
   </div>
   <!-- Modal: criar/editar atividade extra -->
-  <div id="extra-modal" class="cards-modal" style="display:none;">
+  <div id="extra-modal" class="cards-modal" style="display:none; z-index:620;">
     <div class="cards-modal-box">
       <div class="cards-modal-head">
         <div><h2 id="extra-modal-title">＋ Nova atividade</h2><p class="sub">Defina a meta e se ela conta nas suas métricas.</p></div>
@@ -12194,16 +12232,20 @@ const ExtrasScreen = {
       if (reopen) reopen.addEventListener('click', () => { DB.updateExtra(id, { status: 'ativa' }); this.render(); });
     });
   },
-  openModal(id) {
+  openModal(id, prefill) {
     this._editingId = id || null;
     const isEdit = !!id;
-    document.getElementById('extra-modal-title').textContent = isEdit ? '✎ Editar atividade' : '＋ Nova atividade';
+    const isConfig = !!prefill;  // veio das sugestões (configurar antes de criar)
+    document.getElementById('extra-modal-title').textContent = isEdit ? '✎ Editar atividade' : (isConfig ? '⚙ Configurar atividade' : '＋ Nova atividade');
     document.getElementById('extra-del-btn').style.display = isEdit ? 'inline-block' : 'none';
     // datalist de disciplinas
     const discs = [...new Set([...DB.getActiveSubjects().map(s => s.nome), ...DB.getIncidencia().map(r => r.disciplina)].filter(Boolean))].sort();
     document.getElementById('extra-disc-list').innerHTML = discs.map(d => `<option value="${escapeHtml(d)}">`).join('');
     let x = { titulo: '', tipo: 'anki', disciplina: '', alvo: '', unidade: 'cards', periodo: 'unica', marcador: '', contaMetricas: true };
     if (isEdit) x = Object.assign(x, DB.getExtra(id));
+    else if (isConfig) x = Object.assign(x, prefill);
+    // ajusta o texto do botão salvar conforme o contexto
+    const okBtn = document.getElementById('extra-save'); if (okBtn) okBtn.textContent = isConfig ? 'Adicionar atividade' : 'Salvar';
     document.getElementById('extra-titulo').value = x.titulo;
     document.getElementById('extra-tipo').value = x.tipo;
     document.getElementById('extra-disciplina').value = x.disciplina || '';
@@ -12241,7 +12283,16 @@ const ExtrasScreen = {
     if (this._editingId) { DB.updateExtra(this._editingId, data); showToast('Atividade atualizada ✓'); }
     else { DB.addExtra(data); showToast('Atividade criada ✓'); }
     document.getElementById('extra-modal').style.display = 'none';
-    this.render();
+    const okBtn = document.getElementById('extra-save'); if (okBtn) okBtn.textContent = 'Salvar';
+    // se veio das sugestões: marca como adicionada e volta para a lista de sugestões
+    if (this._fromSuggest != null) {
+      if (this._sugAdded) this._sugAdded.add(this._fromSuggest);
+      this._fromSuggest = null;
+      this.render();
+      this.openSuggest(); // reabre para configurar as próximas
+    } else {
+      this.render();
+    }
   },
   // ===== Calendário em linha: vincule atividades a datas =====
   _addDays(iso, delta) { const d = new Date(iso + 'T00:00:00'); d.setDate(d.getDate() + delta); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; },
@@ -12341,17 +12392,21 @@ const ExtrasScreen = {
     const res = ReforcoEngine.suggestFrontier(snap, { banca, estrategia: 0.5, granularidade: 0.5, minQuestoes: 8, limite: 15, ordenarPor: 'oportunidade' });
     return (res.items || []).filter(it => it.selo !== 'ok').slice(0, 12);
   },
+  _sugAdded: null,   // conjunto de índices já adicionados (para marcar ✓)
   openSuggest() {
     const sugs = this._suggestions();
+    this._sugAdded = this._sugAdded || new Set();
     const listEl = document.getElementById('extra-suggest-list');
     if (!sugs.length) {
       listEl.innerHTML = `<div class="extras-empty" style="padding:24px;">Nenhum ponto fraco encontrado no escopo atual do Desempenho TEC.<br>Importe/atualize seus retratos e a incidência da banca primeiro.</div>`;
       document.getElementById('extra-suggest-count').textContent = '';
     } else {
       this._sugCache = sugs;
-      listEl.innerHTML = sugs.map((it, i) => `
-        <label class="sug-row">
-          <input type="checkbox" class="sug-chk" data-i="${i}" checked>
+      listEl.innerHTML = sugs.map((it, i) => {
+        const added = this._sugAdded.has(i);
+        return `
+        <div class="sug-row ${added ? 'is-added' : ''}">
+          <input type="checkbox" class="sug-chk" data-i="${i}" ${added ? 'disabled' : ''}>
           <span class="sug-body">
             <span class="sug-name" title="${escapeHtml(it.nome)}">${escapeHtml(it.nome)}</span>
             <span class="sug-meta">
@@ -12359,38 +12414,83 @@ const ExtrasScreen = {
               <span class="sug-tag">${escapeHtml(it.disciplina)}</span>
               <span class="sug-tag">${it.taxaErro}% erro</span>
               <span class="sug-tag">N=${it.incidencia}</span>
+              <span class="sug-tag pts">+${it.pontosRecuperaveis} pts</span>
             </span>
           </span>
-          <span class="sug-pts">+${it.pontosRecuperaveis}<small>pts recup.</small></span>
-        </label>`).join('');
+          ${added
+            ? `<span class="sug-added-badge">✓ adicionada</span>`
+            : `<button type="button" class="btn-secondary sug-config" data-i="${i}" title="Configurar a meta e adicionar esta atividade">⚙ Configurar</button>`}
+        </div>`;
+      }).join('');
       this._updateSugCount();
     }
     document.getElementById('extra-suggest-modal').style.display = 'flex';
     listEl.querySelectorAll('.sug-chk').forEach(c => c.addEventListener('change', () => this._updateSugCount()));
+    listEl.querySelectorAll('.sug-config').forEach(b => b.addEventListener('click', () => this.configureSuggestion(parseInt(b.dataset.i))));
+    // botão marcar/desmarcar todos reflete o estado
+    this._syncSelectAllBtn();
   },
   _updateSugCount() {
     const n = document.querySelectorAll('#extra-suggest-list .sug-chk:checked').length;
-    document.getElementById('extra-suggest-count').textContent = n ? `${n} atividade(s) selecionada(s)` : 'Nenhuma selecionada';
+    const el = document.getElementById('extra-suggest-count');
+    if (el) el.textContent = n ? `${n} selecionada(s) para adição rápida` : 'Configure uma a uma (⚙) ou marque para adicionar em lote';
+    this._syncSelectAllBtn();
   },
+  _syncSelectAllBtn() {
+    const btn = document.getElementById('extra-suggest-all');
+    if (!btn) return;
+    const boxes = [...document.querySelectorAll('#extra-suggest-list .sug-chk:not(:disabled)')];
+    const allOn = boxes.length > 0 && boxes.every(c => c.checked);
+    btn.textContent = allOn ? '☐ Desmarcar todos' : '☑ Marcar todos';
+    btn.dataset.state = allOn ? 'on' : 'off';
+  },
+  toggleSelectAll() {
+    const boxes = [...document.querySelectorAll('#extra-suggest-list .sug-chk:not(:disabled)')];
+    const btn = document.getElementById('extra-suggest-all');
+    const turnOn = !(btn && btn.dataset.state === 'on');
+    boxes.forEach(c => c.checked = turnOn);
+    this._updateSugCount();
+  },
+  // Defaults de meta/unidade por tipo (usado no config e no lote)
+  _tipoDefaults(tipo) {
+    return {
+      revisao: { prefixo: 'Revisar', unidade: 'sessoes', alvo: 3 },
+      questoes: { prefixo: 'Questões de', unidade: 'questoes', alvo: 20 },
+      video: { prefixo: 'Vídeo de', unidade: 'min', alvo: 30 },
+      anki: { prefixo: 'Flashcards de', unidade: 'cards', alvo: 20 }
+    }[tipo] || { prefixo: 'Estudar', unidade: 'itens', alvo: 0 };
+  },
+  // ⚙ Configurar UMA sugestão: abre a caixinha (modal) pré-preenchida com meta ajustável
+  configureSuggestion(i) {
+    const it = this._sugCache[i];
+    if (!it) return;
+    const tipo = document.getElementById('extra-suggest-tipo').value;
+    const d = this._tipoDefaults(tipo);
+    this._fromSuggest = i; // marca que veio das sugestões
+    // esconde o modal de sugestões e abre o de configuração por cima
+    document.getElementById('extra-suggest-modal').style.display = 'none';
+    this.openModal(null, {
+      titulo: `${d.prefixo} ${it.nome}`,
+      tipo, disciplina: it.disciplina,
+      alvo: d.alvo, unidade: d.unidade, periodo: 'unica', contaMetricas: true
+    });
+  },
+  // Adição em LOTE das marcadas (com defaults do tipo escolhido)
   addSuggested() {
     const tipo = document.getElementById('extra-suggest-tipo').value;
     const checks = [...document.querySelectorAll('#extra-suggest-list .sug-chk:checked')];
-    if (!checks.length) { showToast('Marque ao menos uma sugestão'); return; }
-    const nomeTipo = { revisao: 'Revisar', questoes: 'Questões de', video: 'Vídeo de', anki: 'Flashcards de' }[tipo] || 'Estudar';
-    const unidade = { revisao: 'sessoes', questoes: 'questoes', video: 'min', anki: 'cards' }[tipo] || 'itens';
-    const alvoPad = { revisao: 3, questoes: 20, video: 30, anki: 20 }[tipo] || 0;
+    if (!checks.length) { showToast('Marque as sugestões ou use ⚙ Configurar para ajustar cada uma'); return; }
+    const d = this._tipoDefaults(tipo);
     let n = 0;
     checks.forEach(c => {
       const it = this._sugCache[parseInt(c.dataset.i)];
       if (!it) return;
-      DB.addExtra({
-        titulo: `${nomeTipo} ${it.nome}`,
-        tipo, disciplina: it.disciplina,
-        alvo: alvoPad, unidade, periodo: 'unica', contaMetricas: true
-      });
+      DB.addExtra({ titulo: `${d.prefixo} ${it.nome}`, tipo, disciplina: it.disciplina, alvo: d.alvo, unidade: d.unidade, periodo: 'unica', contaMetricas: true });
+      this._sugAdded.add(parseInt(c.dataset.i));
       n++;
     });
     document.getElementById('extra-suggest-modal').style.display = 'none';
+    this._sugAdded = new Set(); // limpa para a próxima abertura
     this.render();
     showToast(`${n} atividade(s) criada(s) a partir dos pontos fracos ✓`);
   },
@@ -12409,14 +12509,20 @@ const ExtrasScreen = {
 window.ExtrasScreen = ExtrasScreen;
 (function () {
   const on = (id, ev, fn) => { const el = document.getElementById(id); if (el) el.addEventListener(ev, fn); };
-  on('extras-new-btn', 'click', () => ExtrasScreen.openModal(null));
-  on('extras-suggest-btn', 'click', () => ExtrasScreen.openSuggest());
-  on('extra-suggest-close', 'click', () => document.getElementById('extra-suggest-modal').style.display = 'none');
-  on('extra-suggest-cancel', 'click', () => document.getElementById('extra-suggest-modal').style.display = 'none');
+  on('extras-new-btn', 'click', () => { ExtrasScreen._fromSuggest = null; ExtrasScreen._sugAdded = new Set(); ExtrasScreen.openModal(null); });
+  on('extras-suggest-btn', 'click', () => { ExtrasScreen._sugAdded = new Set(); ExtrasScreen.openSuggest(); });
+  on('extra-suggest-close', 'click', () => { document.getElementById('extra-suggest-modal').style.display = 'none'; ExtrasScreen._sugAdded = new Set(); });
+  on('extra-suggest-cancel', 'click', () => { document.getElementById('extra-suggest-modal').style.display = 'none'; ExtrasScreen._sugAdded = new Set(); });
   on('extra-suggest-add', 'click', () => ExtrasScreen.addSuggested());
-  on('extra-suggest-all', 'click', () => { document.querySelectorAll('#extra-suggest-list .sug-chk').forEach(c => c.checked = true); ExtrasScreen._updateSugCount(); });
-  on('extra-modal-close', 'click', () => document.getElementById('extra-modal').style.display = 'none');
-  on('extra-cancel', 'click', () => document.getElementById('extra-modal').style.display = 'none');
+  on('extra-suggest-all', 'click', () => ExtrasScreen.toggleSelectAll());
+  // fechar/cancelar o config: se veio das sugestões, volta para elas
+  const closeExtraModal = () => {
+    document.getElementById('extra-modal').style.display = 'none';
+    const okBtn = document.getElementById('extra-save'); if (okBtn) okBtn.textContent = 'Salvar';
+    if (ExtrasScreen._fromSuggest != null) { ExtrasScreen._fromSuggest = null; ExtrasScreen.openSuggest(); }
+  };
+  on('extra-modal-close', 'click', closeExtraModal);
+  on('extra-cancel', 'click', closeExtraModal);
   on('extra-save', 'click', () => ExtrasScreen.save());
   on('extra-del-btn', 'click', () => ExtrasScreen.deleteCurrent());
   on('extra-tipo', 'change', () => ExtrasScreen.onTipoChange());
@@ -12426,7 +12532,7 @@ window.ExtrasScreen = ExtrasScreen;
     showToast(DB.extrasCountGlobal() ? 'Atividades marcadas entram nas métricas' : 'Atividades fora das métricas');
   });
   const m = document.getElementById('extra-modal');
-  if (m) m.addEventListener('click', (e) => { if (e.target === m) m.style.display = 'none'; });
+  if (m) m.addEventListener('click', (e) => { if (e.target === m) closeExtraModal(); });
 })();
 window.addEventListener('screen:activated', (e) => {
   if (e.detail.screen === 'extras') ExtrasScreen.render();
@@ -15002,6 +15108,7 @@ const CloudStore = {
   TABLE: 'study_profiles',
   client: null, session: null, libStatus: 'pending', channel: null,
   _debounce: null, DEBOUNCE_MS: 1500, _applying: false, _cfgMode: 'signin',
+  _pending: false, _lastSyncAt: null, _syncing: false,
 
   init() {
     try {
@@ -15026,6 +15133,7 @@ const CloudStore = {
   },
   onAuth() {
     if (window.ProfileUI) ProfileUI.onAuthChanged();
+    if (window.CloudUI) CloudUI.refreshSyncBtn();
     if (this.isLoggedIn()) this.subscribeRealtime(); else this._unsub();
   },
 
@@ -15101,16 +15209,61 @@ const CloudStore = {
     if (this._applying) return;
     if (!this.isReady() || !this.isLoggedIn()) return;
     try { if (!sessionStorage.getItem('diario-estudos:entered')) return; } catch (e) {}
+    this._pending = true;
+    if (window.CloudUI) CloudUI.refreshSyncBtn();
     clearTimeout(this._debounce);
     this._debounce = setTimeout(() => this.autoSave(), this.DEBOUNCE_MS);
   },
   async autoSave() {
+    if (this._syncing) return;                 // evita corridas de salvamento
+    if (!this.isReady() || !this.isLoggedIn()) return;
+    clearTimeout(this._debounce);
+    this._syncing = true; this._pending = false;
     if (window.CloudUI) CloudUI.setStatus('syncing', 'Sincronizando...');
     try {
       const r = await this.saveActiveWithRetry();
+      this._syncing = false;
       if (r && r.conflict) { if (window.CloudUI) CloudUI.setStatus('error', 'Não foi possível sincronizar agora'); return; }
-      if (window.CloudUI) CloudUI.setStatus('ok', 'Sincronizado ' + new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }));
-    } catch (err) { console.error('autoSave', err); if (window.CloudUI) CloudUI.setStatus('error', 'Falha ao sincronizar (verifique a internet)'); }
+      this._lastSyncAt = Date.now();
+      if (window.CloudUI) CloudUI.setStatus('ok', 'Sincronizado');
+    } catch (err) { this._syncing = false; console.error('autoSave', err); if (window.CloudUI) CloudUI.setStatus('error', 'Falha ao sincronizar (verifique a internet)'); }
+  },
+  // Envia AGORA quaisquer alterações pendentes (cancela o debounce e salva já).
+  async flushPending() {
+    if (!this.isReady() || !this.isLoggedIn()) return;
+    clearTimeout(this._debounce);
+    if (this._pending) await this.autoSave();
+  },
+  // Sincronização inteligente ao voltar o foco/rede: se há mudanças locais, ENVIA;
+  // se não há nada pendente e a nuvem está mais nova (outro dispositivo salvou), BAIXA.
+  // Assim, editar no celular e no PC não sobrescreve um ao outro no uso normal.
+  async syncOnFocus() {
+    if (!this.isReady() || !this.isLoggedIn()) return;
+    try { if (!sessionStorage.getItem('diario-estudos:entered')) return; } catch (e) { return; }
+    if (this._pending || this._debounce) { await this.flushPending(); return; }
+    const id = ProfileManager.getActiveProfileId(); if (!id) return;
+    try {
+      const remoteRev = await this._fetchRev(id);
+      if (remoteRev != null && remoteRev > ProfileManager.getRev(id)) {
+        if (window.CloudUI) CloudUI.setStatus('syncing', 'Baixando atualizações...');
+        await this.pullActiveAndReload();
+      }
+    } catch (e) { /* silencioso: tenta de novo no próximo foco */ }
+  },
+  // Botão manual "Sincronizar agora": empurra pendências e puxa se a nuvem estiver mais nova.
+  async syncNow() {
+    if (!this.isReady() || !this.isLoggedIn()) { showToast('Entre na sua conta para sincronizar (Configurações → Nuvem).'); return; }
+    if (window.CloudUI) CloudUI.setStatus('syncing', 'Sincronizando...');
+    try {
+      if (this._pending || this._debounce) await this.flushPending();
+      else {
+        const id = ProfileManager.getActiveProfileId();
+        const remoteRev = id ? await this._fetchRev(id) : null;
+        if (remoteRev != null && remoteRev > ProfileManager.getRev(id)) { await this.pullActiveAndReload(); return; }
+        else { await this.autoSave(); } // reenvia o estado atual como confirmação
+      }
+      showToast('Sincronizado ✓');
+    } catch (e) { if (window.CloudUI) CloudUI.setStatus('error', 'Falha ao sincronizar'); showToast('Não foi possível sincronizar agora'); }
   },
   async pullActiveAndReload() {
     const id = ProfileManager.getActiveProfileId(); if (!id) return;
@@ -15184,9 +15337,46 @@ const CloudUI = {
     }
   },
   setStatus(tone, text) {
-    const el = document.getElementById('cloud-sync-status'); if (!el) return;
-    el.className = 'cloud-status-sub ' + (tone === 'ok' ? '' : tone);
-    el.innerHTML = '<span class="dot"></span>' + escapeHtml(text);
+    // painel em Configurações (quando visível)
+    const el = document.getElementById('cloud-sync-status');
+    if (el) { el.className = 'cloud-status-sub ' + (tone === 'ok' ? '' : tone); el.innerHTML = '<span class="dot"></span>' + escapeHtml(text); }
+    // botão sempre visível no topo
+    this.refreshSyncBtn(tone, text);
+  },
+  _timeAgo(ts) {
+    if (!ts) return '';
+    const s = Math.round((Date.now() - ts) / 1000);
+    if (s < 60) return 'agora';
+    const m = Math.round(s / 60);
+    if (m < 60) return 'há ' + m + ' min';
+    const h = Math.round(m / 60);
+    return 'há ' + h + 'h';
+  },
+  // Atualiza o botão de sincronização do topo conforme o estado do CloudStore
+  refreshSyncBtn(forceTone, forceText) {
+    const btn = document.getElementById('cloud-sync-btn');
+    if (!btn) return;
+    const dot = document.getElementById('csb-dot');
+    const ico = document.getElementById('csb-ico');
+    const txt = document.getElementById('csb-text');
+    const CS = window.CloudStore;
+    let tone = forceTone, text = forceText;
+    if (!tone) {
+      if (!CS || !CS.isReady() || !CS.isLoggedIn()) { tone = 'off'; text = 'Offline'; }
+      else if (CS._syncing) { tone = 'syncing'; text = 'Sincronizando...'; }
+      else if (CS._pending || CS._debounce) { tone = 'pending'; text = 'Alterações pendentes'; }
+      else if (CS._lastSyncAt) { tone = 'ok'; text = 'Sincronizado ' + this._timeAgo(CS._lastSyncAt); }
+      else { tone = 'ok'; text = 'Sincronizado'; }
+    } else {
+      // normaliza rótulos vindos do setStatus para o botão compacto
+      if (tone === 'ok' && CS && CS._lastSyncAt) text = 'Sincronizado ' + this._timeAgo(CS._lastSyncAt);
+    }
+    btn.className = 'cloud-sync-btn st-' + tone;
+    if (dot) dot.className = 'csb-dot';
+    if (ico) ico.textContent = (tone === 'off') ? '☁' : (tone === 'error' ? '⚠' : '☁');
+    if (txt) txt.textContent = text || '';
+    btn.title = (tone === 'off') ? 'Entre na conta em Configurações → Nuvem para sincronizar'
+      : (tone === 'error' ? 'Erro na sincronização — toque para tentar de novo' : 'Sincronizar agora' + (CS && CS._lastSyncAt ? ' · última: ' + this._timeAgo(CS._lastSyncAt) : ''));
   },
   async submitAuth() {
     const email = document.getElementById('cloud-email').value.trim();
@@ -15234,6 +15424,31 @@ window.addEventListener('screen:activated', (e) => { if (e.detail.screen === 'co
 
 /* ---- Inicialização (ordem importa) ---- */
 _cloudNotifyHook = () => CloudStore.notifyChange();
+
+/* ---- Sincronização automática sem botão obrigatório + botão visível no topo ----
+   • Ao VOLTAR o foco/rede: puxa a versão mais nova da nuvem (se você não tem alterações
+     pendentes) ou envia as suas (se tem). Isso evita o conflito celular↔PC no uso normal.
+   • Ao SAIR/ocultar a aba: envia na hora o que estava pendente (não espera o debounce).
+   • O botão ☁ no topo mostra o estado e, se quiser, força a sincronização na hora. */
+(function () {
+  const btn = document.getElementById('cloud-sync-btn');
+  if (btn) btn.addEventListener('click', () => CloudStore.syncNow());
+  // voltar o foco à aba / janela → sincroniza de forma inteligente
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible') CloudStore.syncOnFocus();
+    else CloudStore.flushPending(); // ao ocultar (trocar de app no celular), envia já
+  });
+  window.addEventListener('focus', () => CloudStore.syncOnFocus());
+  window.addEventListener('online', () => { if (window.CloudUI) CloudUI.refreshSyncBtn(); CloudStore.syncOnFocus(); });
+  window.addEventListener('offline', () => { if (window.CloudUI) CloudUI.setStatus('error', 'Sem internet'); });
+  // ao fechar a aba, tenta enviar as pendências (melhor esforço)
+  window.addEventListener('beforeunload', () => { try { CloudStore.flushPending(); } catch (e) {} });
+  // atualiza o rótulo "há X min" periodicamente
+  setInterval(() => { if (window.CloudUI) CloudUI.refreshSyncBtn(); }, 30000);
+  // estado inicial do botão
+  setTimeout(() => { if (window.CloudUI) CloudUI.refreshSyncBtn(); }, 300);
+})();
+
 /* ---- Alternador de tema claro/escuro (preferência do dispositivo) ---- */
 (function () {
   const KEY = 'diario-estudos:theme';
