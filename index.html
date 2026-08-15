@@ -5270,6 +5270,7 @@
         <button type="button" class="tec-subtab active" data-tectab="analise">📊 Análise</button>
         <button type="button" class="tec-subtab" data-tectab="incidencia">🏛️ Incidência</button>
         <button type="button" class="tec-subtab" data-tectab="reforco">🎯 Reforço</button>
+        <button type="button" class="tec-subtab" data-tectab="plano">🏁 Plano</button>
       </div>
 
       <div id="tec-panel-analise">
@@ -5449,6 +5450,40 @@
           <div class="card rfc-side" id="reforco-over-card" style="display:none;">
             <div class="card-header"><div><h2>⚖️ Sobre-investimento</h2><p class="sub">Você treina muito além do peso do tópico na banca</p></div></div>
             <div class="rfc-side-body" id="reforco-over-list"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ============ PLANO DE APROVAÇÃO ============ -->
+      <div id="tec-panel-plano" style="display:none;">
+        <div class="card">
+          <div class="card-header">
+            <div>
+              <h2>🏁 Plano de aprovação</h2>
+              <p class="sub">Onde você está em relação à sua meta, e a ordem que fecha a lacuna gastando menos horas.</p>
+            </div>
+          </div>
+          <div style="padding: 4px 28px 20px;">
+            <div class="rfc-toolbar" style="margin-bottom:4px;">
+              <div class="rfc-field">
+                <label>Banca-alvo</label>
+                <select id="plano-banca"></select>
+              </div>
+              <div class="rfc-field">
+                <label>Questões da prova</label>
+                <input type="number" id="plano-total" min="5" max="250" step="1">
+              </div>
+              <div class="rfc-field">
+                <label>Nota-alvo (%)</label>
+                <input type="number" id="plano-alvo" min="30" max="100" step="1">
+              </div>
+              <div class="rfc-field">
+                <label>Teto de domínio (%)</label>
+                <input type="number" id="plano-teto" min="50" max="100" step="1" title="Acerto realista quando você domina um assunto. 100% não acontece na prática.">
+              </div>
+            </div>
+            <div id="plano-proj"></div>
+            <div id="plano-lista"></div>
           </div>
         </div>
       </div>
@@ -14858,6 +14893,149 @@ window.addEventListener('screen:activated', (e) => {
 /* ============================================================
    TELA: DESEMPENHO TEC (importação e análise TecConcursos)
    ============================================================ */
+// ============================================================================
+// PLANO DE APROVAÇÃO — visão alternativa ao Reforço (o Reforço segue intacto).
+// Responde "quanto falta e por onde começar", não só "onde você é fraca".
+// Três diferenças de essência em relação ao Reforço:
+//   1) TAXA RECENTE: usa o retrato mais novo, não a média da vida inteira. Um
+//      assunto que você já dominou para de aparecer no topo.
+//   2) ESCALA DA PROVA: converte incidência em questões da SUA prova, e compara
+//      com uma nota-alvo. Existe um "pronto".
+//   3) GANHO POR HORA: usa o seu ritmo real (min/questão por disciplina, tirado
+//      dos seus registros) — com tempo escasso é isso que decide a ordem.
+// ============================================================================
+const PlanoEngine = {
+  KEY_PREF: 'plano-prefs',
+  DEFAULTS: { alvoPct: 80, totalProva: 70, tetoDominio: 90, minRecente: 15 },
+  prefs() {
+    try {
+      const v = JSON.parse(localStorage.getItem(DB._profilePrefix() + this.KEY_PREF));
+      return Object.assign({}, this.DEFAULTS, v || {});
+    } catch (_) { return Object.assign({}, this.DEFAULTS); }
+  },
+  salvarPrefs(patch) {
+    const v = Object.assign(this.prefs(), patch || {});
+    try { localStorage.setItem(DB._profilePrefix() + this.KEY_PREF, JSON.stringify(v)); } catch (_) {}
+    try { if (window.CloudStore && CloudStore.notifyChange) CloudStore.notifyChange(); } catch (_) {}
+    return v;
+  },
+  // Ritmo REAL: minutos por questão em cada disciplina, a partir dos registros.
+  // Sem dado da disciplina, cai na média geral; sem nada, 2 min/questão.
+  ritmoPorDisciplina() {
+    const acc = {}, geral = { min: 0, q: 0 };
+    (DB.getEntries() || []).forEach(e => {
+      const q = e.total || 0, m = e.durationMin || 0;
+      if (q <= 0 || m <= 0) return;
+      const k = ReforcoEngine.norm(e.subject || '');
+      const a = acc[k] || { min: 0, q: 0 };
+      a.min += m; a.q += q; acc[k] = a;
+      geral.min += m; geral.q += q;
+    });
+    const media = geral.q > 0 ? geral.min / geral.q : 2;
+    const out = { __media__: media };
+    Object.keys(acc).forEach(k => { out[k] = acc[k].min / acc[k].q; });
+    return out;
+  },
+  minPorQuestao(ritmo, disciplina) {
+    const k = ReforcoEngine.norm(disciplina || '');
+    const v = ritmo[k];
+    return (v && isFinite(v) && v > 0) ? v : ritmo.__media__;
+  },
+  // Incidência apenas das FOLHAS. A linha de uma disciplina já soma os filhos —
+  // incluí-la dobraria o total e criaria um "assunto" fantasma sem desempenho.
+  _incidenciaFolhas(banca) {
+    const linhas = DB.getIncidencia().filter(r =>
+      !banca || banca === '__todas__' || ReforcoEngine.norm(r.banca) === ReforcoEngine.norm(banca));
+    const map = {};
+    linhas.forEach(r => {
+      if ((r.depth || 0) === 0) return;                        // disciplina: é soma, não folha
+      if (r.codigo && linhas.some(o => o !== r && o.codigo &&
+          String(o.codigo).startsWith(String(r.codigo) + '.'))) return;  // tem filhos: não é folha
+      if (ReforcoEngine._isSemClass && ReforcoEngine._isSemClass(r.topico)) return;
+      const k = ReforcoEngine.norm(r.topico);
+      map[k] = (map[k] || 0) + (r.incidencia || 0);
+    });
+    return map;
+  },
+  // Retrato mais recente (taxa atual) e consolidado (histórico), já no escopo da tela
+  _retratos(scoped) {
+    const todos = DB.getTecSnapshots();
+    return { recente: todos.length ? todos[todos.length - 1] : null, consolidado: scoped || null };
+  },
+  _mapa(snap) {
+    const m = {};
+    (snap && snap.rows || []).forEach(r => {
+      if (r.depth === 0) return;
+      const k = ReforcoEngine.norm(r.nome);
+      const c = m[k] || { q: 0, ac: 0, disciplina: r.disciplina, nome: r.nome, codigo: r.codigo };
+      c.q += (r.questoes || 0); c.ac += (r.acertos || 0);
+      m[k] = c;
+    });
+    Object.values(m).forEach(v => { v.pct = v.q > 0 ? v.ac / v.q * 100 : null; });
+    return m;
+  },
+  // Núcleo: projeta a nota, calcula a lacuna e ordena o plano por ganho/hora.
+  calcular(scoped, opts) {
+    opts = Object.assign({}, this.prefs(), opts || {});
+    const banca = opts.banca || '__todas__';
+    const incid = this._incidenciaFolhas(banca);              // só folhas: sem dupla contagem
+    const incTot = Object.values(incid).reduce((a, b) => a + b, 0);
+    if (!incTot) return { erro: 'sem-incidencia' };
+    const { recente, consolidado } = this._retratos(scoped);
+    if (!consolidado) return { erro: 'sem-retrato' };
+    const mVida = this._mapa(consolidado);
+    const mRec = this._mapa(recente);
+    if (!Object.keys(mVida).length) return { erro: 'sem-retrato' };
+
+    const ritmo = this.ritmoPorDisciplina();
+    const teto = Math.max(50, Math.min(100, opts.tetoDominio)) / 100;
+    const itens = [];
+    Object.keys(incid).forEach(k => {
+      const inc = incid[k];
+      if (!inc) return;
+      const v = mVida[k], r = mRec[k];
+      const qProva = inc / incTot * opts.totalProva;           // fatia esperada na prova
+      const usaRecente = !!(r && r.q >= opts.minRecente);
+      const pctVida = v && v.pct != null ? v.pct : null;
+      const pctRec = r && r.pct != null ? r.pct : null;
+      const taxa = usaRecente ? pctRec : (pctVida != null ? pctVida : 0);
+      const semDados = (pctVida == null && pctRec == null);
+      const acerta = qProva * taxa / 100;
+      const ganho = Math.max(0, qProva * teto - acerta);
+      const mpq = this.minPorQuestao(ritmo, (v && v.disciplina) || (r && r.disciplina) || '');
+      const horas = Math.max(0.25, inc * mpq / 60);
+      itens.push({
+        nome: (v && v.nome) || (r && r.nome) || k,
+        disciplina: (v && v.disciplina) || (r && r.disciplina) || '',
+        incidencia: inc, qProva, taxa, pctVida, pctRec, usaRecente, semDados,
+        delta: (pctVida != null && pctRec != null) ? Math.round((pctRec - pctVida) * 10) / 10 : null,
+        qVida: v ? v.q : 0, qRecente: r ? r.q : 0,
+        acerta, ganho, horas, porHora: ganho / horas
+      });
+    });
+
+    const projetado = itens.reduce((a, x) => a + x.acerta, 0);
+    const alvo = opts.totalProva * opts.alvoPct / 100;
+    // ordena por ganho/hora e marca onde o alvo é cruzado
+    const plano = itens.slice().sort((a, b) => b.porHora - a.porHora);
+    let acum = projetado, idxAlvo = -1, horasAteAlvo = 0;
+    plano.forEach((x, i) => {
+      acum += x.ganho; x.acumulado = acum;
+      if (idxAlvo < 0) { horasAteAlvo += x.horas; if (acum >= alvo) idxAlvo = i; }
+    });
+    return {
+      projetado, alvo, falta: Math.max(0, alvo - projetado),
+      jaAtinge: projetado >= alvo,
+      totalProva: opts.totalProva, alvoPct: opts.alvoPct,
+      tetoAlcancavel: itens.reduce((a, x) => a + x.qProva * teto, 0),
+      idxAlvo, horasAteAlvo: idxAlvo >= 0 ? horasAteAlvo : null,
+      temRecente: !!recente && Object.keys(mRec).length > 0,
+      dataRecente: recente ? (recente.endDate || recente.date) : null,
+      itens: plano
+    };
+  }
+};
+
 const DesempenhoTecScreen = {
   currentSnapId: null,
   // ---- Escopo da análise: 'consolidado' (todos), 'select' (retratos marcados), 'range' (intervalo) ----
@@ -15272,12 +15450,100 @@ const DesempenhoTecScreen = {
   switchTecTab(tab) {
     this.tecTab = tab;
     document.querySelectorAll('#tec-subtabs .tec-subtab').forEach(b => b.classList.toggle('active', b.dataset.tectab === tab));
-    ['analise', 'incidencia', 'reforco'].forEach(t => {
+    ['analise', 'incidencia', 'reforco', 'plano'].forEach(t => {
       const el = document.getElementById('tec-panel-' + t);
       if (el) el.style.display = (t === tab) ? 'block' : 'none';
     });
     if (tab === 'incidencia') this.renderIncidencia();
     if (tab === 'reforco') this.renderReforco();
+    if (tab === 'plano') this.renderPlano();
+  },
+  // ---- Plano de aprovação ----
+  renderPlano() {
+    const p = PlanoEngine.prefs();
+    const setV = (id, v) => { const e = document.getElementById(id); if (e && e.value === '') e.value = v; };
+    setV('plano-total', p.totalProva); setV('plano-alvo', p.alvoPct); setV('plano-teto', p.tetoDominio);
+    const bs = document.getElementById('plano-banca');
+    if (bs) {
+      const cur = bs.value || '__todas__';
+      bs.innerHTML = `<option value="__todas__">Todas as bancas</option>` +
+        DB.getBancas().map(b => `<option value="${escapeHtml(b)}" ${b === cur ? 'selected' : ''}>${escapeHtml(b)}</option>`).join('');
+    }
+    this.renderPlanoConteudo();
+  },
+  renderPlanoConteudo() {
+    const proj = document.getElementById('plano-proj');
+    const lista = document.getElementById('plano-lista');
+    if (!proj || !lista) return;
+    const opts = {
+      banca: (document.getElementById('plano-banca') || {}).value || '__todas__',
+      totalProva: Math.max(5, parseInt((document.getElementById('plano-total') || {}).value) || 70),
+      alvoPct: Math.max(30, Math.min(100, parseInt((document.getElementById('plano-alvo') || {}).value) || 80)),
+      tetoDominio: Math.max(50, Math.min(100, parseInt((document.getElementById('plano-teto') || {}).value) || 90))
+    };
+    PlanoEngine.salvarPrefs(opts);
+    const r = PlanoEngine.calcular(this.scopedSnapshot(), opts);
+    if (r.erro === 'sem-incidencia') {
+      proj.innerHTML = `<p class="hint" style="padding:18px 0;">Para montar o plano é preciso ter a <strong>incidência da banca</strong> importada. Vá em <strong>🏛️ Incidência</strong> e cole o Índice do Caderno do TEC.</p>`;
+      lista.innerHTML = ''; return;
+    }
+    if (r.erro === 'sem-retrato') {
+      proj.innerHTML = `<p class="hint" style="padding:18px 0;">Importe ao menos um retrato de desempenho em <strong>📊 Análise</strong>.</p>`;
+      lista.innerHTML = ''; return;
+    }
+    const tom = r.jaAtinge ? 'good' : (r.falta <= r.totalProva * 0.1 ? 'warn' : 'bad');
+    const pctAtual = r.projetado / r.totalProva * 100;
+    proj.innerHTML = `
+      <div class="card" style="background:var(--surface-sunken); box-shadow:none; margin:10px 0 18px;">
+        <div style="padding:16px 18px;">
+          <div style="font-family:'Space Mono',monospace;font-size:calc(30px * var(--fs-scale,1));font-weight:800;line-height:1;" class="tone-${tom}">
+            ${r.projetado.toFixed(1)}<span style="font-size:calc(16px * var(--fs-scale,1));color:var(--text-faint)"> / ${r.totalProva}</span>
+          </div>
+          <div class="hint" style="margin:4px 0 10px;">projeção de acertos hoje · ${pctAtual.toFixed(0)}% · meta de ${r.alvoPct}% (${r.alvo.toFixed(0)} questões)</div>
+          <div class="bar-track" style="height:10px;"><span style="width:${Math.min(100, pctAtual)}%"></span></div>
+          <p style="margin:12px 0 0;font-weight:700;" class="tone-${tom}">
+            ${r.jaAtinge
+              ? `✓ Acima da meta, com folga de ${(r.projetado - r.alvo).toFixed(1)} questões.`
+              : `Faltam ${r.falta.toFixed(1)} questões para a meta.` + (r.horasAteAlvo != null ? ` Estimativa: ~${Math.round(r.horasAteAlvo)}h seguindo a ordem abaixo.` : '')}
+          </p>
+          <p class="hint" style="margin:8px 0 0;">
+            ${r.temRecente ? `Taxa recente vinda do retrato de ${formatDateShort(r.dataRecente)}. ` : ''}
+            Projeção estimada: assume que a incidência histórica prevê a composição da prova. Trate como bússola, não como nota garantida.
+          </p>
+        </div>
+      </div>`;
+
+    const linhas = r.itens.filter(x => x.ganho > 0.01).slice(0, 40).map((x, i) => {
+      const seta = x.delta == null ? '' :
+        x.delta >= 8 ? `<span class="reforco-tag tone-good">▲ +${x.delta}pp</span>` :
+        x.delta <= -8 ? `<span class="reforco-tag tone-bad">▼ ${x.delta}pp</span>` : '';
+      const marca = (i === r.idxAlvo) ? `<div class="hint" style="margin:8px 0;padding:6px 10px;border-left:3px solid var(--good);background:var(--good-soft);font-weight:700;color:var(--good-text)">🏁 Meta de ${r.alvoPct}% atingida aqui</div>` : '';
+      const fonte = x.usaRecente
+        ? `<span class="reforco-tag incid" title="Taxa medida no retrato mais recente (${x.qRecente} questões)">recente ${x.taxa.toFixed(0)}%</span>`
+        : (x.semDados
+          ? `<span class="reforco-tag tone-bad" title="Assunto que cai na banca e você ainda não praticou">🕳️ sem prática</span>`
+          : `<span class="reforco-tag tone-warn" title="Amostra recente pequena — usando a média acumulada">acumulado ${x.taxa.toFixed(0)}%</span>`);
+      return `
+        <div class="reforco-row">
+          <div class="reforco-rank">${i + 1}</div>
+          <div class="reforco-main">
+            <div class="reforco-topico">${escapeHtml(x.nome)}</div>
+            <div class="reforco-meta">
+              ${x.disciplina ? `<span class="reforco-disc">${escapeHtml(x.disciplina)}</span>` : ''}
+              ${fonte}${seta}
+              <span class="reforco-tag" style="background:var(--surface-sunken);color:var(--text-soft)">~${x.horas.toFixed(0)}h</span>
+              <span class="reforco-tag incid">${x.incidencia} na banca</span>
+            </div>
+          </div>
+          <div style="text-align:right;white-space:nowrap;">
+            <div style="font-family:'Space Mono',monospace;font-weight:800;" class="tone-good">+${x.ganho.toFixed(1)}</div>
+            <div class="hint" style="margin:0;">${x.acumulado.toFixed(1)}/${r.totalProva}</div>
+          </div>
+        </div>${marca}`;
+    }).join('');
+    lista.innerHTML = linhas
+      ? `<div class="hint" style="margin:0 0 6px;">Ordenado por <strong>ganho por hora</strong>: quanto cada assunto rende na prova dividido pelo tempo estimado no seu ritmo.</div>${linhas}`
+      : `<p class="hint" style="padding:18px 0;">Nenhum assunto com ganho relevante — você já está no teto de domínio configurado.</p>`;
   },
   // ---- Incidência ----
   _incidParsed: null,
@@ -16173,6 +16439,11 @@ document.getElementById('tec-weak-disc').addEventListener('change', (e) => {
   on('incid-file', 'change', (e) => { if (e.target.files[0]) DT.handleIncidFile(e.target.files[0]); });
   // Reforço (todos salvam a preferência para lembrar entre sessões)
   on('reforco-banca', 'change', (e) => { DT.savePrefs({ banca: e.target.value }); DT.renderReforco(); });
+  // Plano de aprovação
+  ['plano-banca', 'plano-total', 'plano-alvo', 'plano-teto'].forEach(id => {
+    on(id, 'change', () => DT.renderPlanoConteudo());
+    on(id, 'input', () => DT.renderPlanoConteudo());
+  });
   on('reforco-disc', 'change', (e) => { DT.savePrefs({ disc: e.target.value }); DT.renderReforcoList(); });
   on('reforco-minq', 'input', (e) => { DT.savePrefs({ minq: e.target.value }); DT.renderReforcoList(); });
   on('reforco-limite', 'input', (e) => { DT.savePrefs({ limite: e.target.value }); DT.renderReforcoList(); });
