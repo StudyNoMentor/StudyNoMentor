@@ -5479,8 +5479,19 @@
                 <input type="number" id="plano-meta" min="30" max="100" step="1">
               </div>
               <div class="rfc-field">
+                <label>Nível atual = últimos</label>
+                <select id="plano-janela" title="Janela usada como referência do seu nível ATUAL. Soma todos os retratos que terminam dentro dela.">
+                  <option value="30">30 dias</option>
+                  <option value="60">60 dias</option>
+                  <option value="90">90 dias</option>
+                  <option value="120">120 dias</option>
+                  <option value="180">180 dias</option>
+                  <option value="99999">tudo (sem janela)</option>
+                </select>
+              </div>
+              <div class="rfc-field">
                 <label>Ritmo (questões/semana)</label>
-                <input type="number" id="plano-ritmo" min="1" max="2000" step="1" title="Vem medido do seu último retrato. Altere para simular outro ritmo.">
+                <input type="number" id="plano-ritmo" min="1" max="2000" step="1" title="Medido na janela. Altere para simular outro ritmo.">
               </div>
               <button type="button" class="rfc-adv-btn" id="plano-adv-btn" aria-expanded="false">
                 <span class="chev">▸</span> Ajustes avançados
@@ -5522,6 +5533,14 @@
                 <div class="rfc-field">
                   <label>Mostrar até</label>
                   <input type="number" id="plano-limite" min="5" max="200" step="5">
+                </div>
+                <div class="rfc-field">
+                  <label>Importo a cada (dias)</label>
+                  <input type="number" id="plano-cadencia" min="7" max="365" step="1" title="Se o último retrato ficar mais velho que isso, o app avisa que a leitura está defasada.">
+                </div>
+                <div class="rfc-field">
+                  <label>Mín. na janela p/ usar recente</label>
+                  <input type="number" id="plano-minrecente" min="1" max="200" step="1" title="Abaixo disso, o assunto cai no histórico completo em vez da janela.">
                 </div>
                 <div class="rfc-field wide">
                   <label class="rfc-check"><input type="checkbox" id="plano-folhas"> Só assuntos específicos (ignorar tópicos-pai)</label>
@@ -14965,7 +14984,9 @@ const PlanoEngine = {
     ponderacao: 'igual', minAmostra: 20, incluirPequenas: false,
     custoModo: 'fixo', custoFixo: 60, custoFator: 0.5,
     ritmoSemanal: null, apenasFolhas: true, disciplina: '__todas__',
-    limite: 30, minRecente: 15
+    limite: 30, minRecente: 12,
+    janelaDias: 90,      // referência de "nível atual": soma os retratos desta janela
+    cadenciaDias: 30     // com que frequência você pretende importar
   },
   prefs() {
     try {
@@ -14979,9 +15000,24 @@ const PlanoEngine = {
     try { if (window.CloudStore && CloudStore.notifyChange) CloudStore.notifyChange(); } catch (_) {}
     return v;
   },
-  _retratos(scoped) {
+  _diasDesde(iso) {
+    if (!iso) return Infinity;
+    return Math.floor((new Date(todayLocal() + 'T00:00:00') - new Date(iso + 'T00:00:00')) / 86400000);
+  },
+  // "Nível atual" = TODOS os retratos cujo período termina dentro da janela.
+  // Com importações mensais e janela de 90 dias, isso soma ~3 retratos: amostra
+  // suficiente sem arrastar o desempenho antigo que você já superou.
+  _retratos(scoped, janelaDias) {
     const todos = DB.getTecSnapshots();
-    return { recente: todos.length ? todos[todos.length - 1] : null, consolidado: scoped || null };
+    const dentro = todos.filter(s => this._diasDesde(s.endDate || s.date) <= janelaDias);
+    const usados = dentro.length ? dentro : (todos.length ? [todos[todos.length - 1]] : []);
+    return {
+      janela: usados,
+      janelaVazia: dentro.length === 0,
+      consolidado: scoped || null,
+      ultimo: todos.length ? todos[todos.length - 1] : null,
+      idadeUltimo: todos.length ? this._diasDesde(todos[todos.length - 1].endDate || todos[todos.length - 1].date) : null
+    };
   },
   // Folhas do retrato: assuntos atômicos, sem somar pai e filho duas vezes
   _folhas(snap, apenasFolhas) {
@@ -15004,11 +15040,29 @@ const PlanoEngine = {
     Object.values(m).forEach(v => { v.pct = v.q > 0 ? v.ac / v.q * 100 : null; });
     return m;
   },
-  // Ritmo MEDIDO no próprio TEC: questões ÷ semanas do período do retrato.
-  ritmoMedido(snap) {
-    if (!snap) return null;
-    const q = (snap.rows || []).filter(r => r.depth > 0).reduce((a, r) => a + (r.questoes || 0), 0);
-    const ini = snap.startDate, fim = snap.endDate || snap.date;
+  // Índice somando VÁRIOS retratos (a janela de recência)
+  _indiceMulti(snaps, apenasFolhas) {
+    const m = {};
+    (snaps || []).forEach(s => {
+      const parcial = this._indice(s, apenasFolhas);
+      Object.keys(parcial).forEach(k => {
+        const c = m[k] || { q: 0, ac: 0, nome: parcial[k].nome, disciplina: parcial[k].disciplina };
+        c.q += parcial[k].q; c.ac += parcial[k].ac;
+        m[k] = c;
+      });
+    });
+    Object.values(m).forEach(v => { v.pct = v.q > 0 ? v.ac / v.q * 100 : null; });
+    return m;
+  },
+  ritmoJanela(snaps) {
+    if (!snaps || !snaps.length) return null;
+    let q = 0, ini = null, fim = null;
+    snaps.forEach(s => {
+      q += (s.rows || []).filter(r => r.depth > 0).reduce((a, r) => a + (r.questoes || 0), 0);
+      if (!ini || s.startDate < ini) ini = s.startDate;
+      const f = s.endDate || s.date;
+      if (!fim || f > fim) fim = f;
+    });
     if (!q || !ini || !fim) return null;
     const sem = Math.max(1, (new Date(fim + 'T00:00:00') - new Date(ini + 'T00:00:00')) / (7 * 86400000));
     return Math.round(q / sem);
@@ -15020,35 +15074,34 @@ const PlanoEngine = {
   },
   calcular(scoped, opts) {
     opts = Object.assign({}, this.prefs(), opts || {});
-    const { recente, consolidado } = this._retratos(scoped);
-    if (!consolidado) return { erro: 'sem-retrato' };
-    const mVida = this._indice(consolidado, opts.apenasFolhas);
-    const mRec = this._indice(recente, opts.apenasFolhas);
-    let chaves = Object.keys(mVida);
+    const R = this._retratos(scoped, opts.janelaDias);
+    if (!R.consolidado) return { erro: 'sem-retrato' };
+    const mHist = this._indice(R.consolidado, opts.apenasFolhas);
+    const mJan = this._indiceMulti(R.janela, opts.apenasFolhas);
+    let chaves = Object.keys(mHist);
     if (opts.disciplina && opts.disciplina !== '__todas__') {
-      chaves = chaves.filter(k => ReforcoEngine.norm(mVida[k].disciplina || '') === ReforcoEngine.norm(opts.disciplina));
+      chaves = chaves.filter(k => ReforcoEngine.norm(mHist[k].disciplina || '') === ReforcoEngine.norm(opts.disciplina));
     }
     if (!chaves.length) return { erro: 'sem-retrato' };
 
     const teto = Math.max(50, Math.min(100, opts.tetoDominio)) / 100;
     const brutos = chaves.map(k => {
-      const v = mVida[k], r = mRec[k];
-      const pctVida = v.pct, pctRec = r && r.pct != null ? r.pct : null;
-      const usaRecente = !!(r && r.q >= opts.minRecente);
-      const taxa = usaRecente ? pctRec : pctVida;
-      const amostraFraca = v.q < opts.minAmostra;
-      const peso = (opts.ponderacao === 'volume') ? v.q : 1;
+      const h = mHist[k], j = mJan[k];
+      const pctHist = h.pct, pctJan = j && j.pct != null ? j.pct : null;
+      // prioriza SEMPRE a janela recente; só cai no histórico se a amostra não bastar
+      const usaRecente = !!(j && j.q >= opts.minRecente);
+      const taxa = usaRecente ? pctJan : pctHist;
+      const amostraFraca = (usaRecente ? j.q : h.q) < opts.minAmostra;
+      const peso = (opts.ponderacao === 'volume') ? (usaRecente ? j.q : h.q) : 1;
       const custoQ = (opts.custoModo === 'proporcional')
-        ? Math.max(10, Math.round(v.q * opts.custoFator))
+        ? Math.max(10, Math.round(h.q * opts.custoFator))
         : Math.max(10, Math.round(opts.custoFixo));
       return {
-        nome: v.nome, disciplina: v.disciplina || '', qVida: v.q, qRecente: r ? r.q : 0,
-        pctVida, pctRec, usaRecente, taxa, amostraFraca, peso, custoQ,
-        delta: (pctVida != null && pctRec != null) ? Math.round((pctRec - pctVida) * 10) / 10 : null
+        nome: h.nome, disciplina: h.disciplina || '', qHist: h.q, qJanela: j ? j.q : 0,
+        pctHist, pctJanela: pctJan, usaRecente, taxa, amostraFraca, peso, custoQ,
+        delta: (pctHist != null && pctJan != null) ? Math.round((pctJan - pctHist) * 10) / 10 : null
       };
     });
-    // amostras pequenas ficam de fora do cálculo por padrão: 4 erros em 8 questões
-    // não é fraqueza comprovada, é falta de dado.
     const usados = opts.incluirPequenas ? brutos : brutos.filter(x => !x.amostraFraca);
     if (!usados.length) return { erro: 'amostra' };
     const universo = usados.reduce((a, x) => a + x.peso, 0);
@@ -15065,16 +15118,19 @@ const PlanoEngine = {
       acum += x.ganhoPP; x.acumulado = acum;
       if (idxMeta < 0) { qAteMeta += x.custoQ; if (acum >= meta) idxMeta = i; }
     });
-    const ritmo = opts.ritmoSemanal || this.ritmoMedido(recente) || 0;
+    const ritmo = opts.ritmoSemanal || this.ritmoJanela(R.janela) || 0;
+    const naJanela = usados.filter(x => x.usaRecente).length;
     return {
       dominioPct, meta, jaAtinge: dominioPct >= meta, falta: Math.max(0, meta - dominioPct),
       assuntos: usados.length, ignorados: brutos.length - usados.length,
-      qTotal: usados.reduce((a, x) => a + x.qVida, 0),
+      qTotal: usados.reduce((a, x) => a + (x.usaRecente ? x.qJanela : x.qHist), 0),
       idxMeta, qAteMeta: idxMeta >= 0 ? qAteMeta : null,
-      ritmo, ritmoMedido: this.ritmoMedido(recente),
+      ritmo, ritmoMedido: this.ritmoJanela(R.janela),
       semanas: (idxMeta >= 0 && ritmo > 0) ? qAteMeta / ritmo : null,
-      temRecente: !!recente && Object.keys(mRec).length > 0,
-      dataRecente: recente ? (recente.endDate || recente.date) : null,
+      janelaDias: opts.janelaDias, retratosJanela: R.janela.length, janelaVazia: R.janelaVazia,
+      naJanela, foraJanela: usados.length - naJanela,
+      idadeUltimo: R.idadeUltimo, cadenciaDias: opts.cadenciaDias,
+      defasado: R.idadeUltimo != null && R.idadeUltimo > opts.cadenciaDias,
       ponderacao: opts.ponderacao,
       itens: plano.slice(0, opts.limite),
       pequenas: brutos.filter(x => x.amostraFraca).sort((a, b) => (a.taxa || 0) - (b.taxa || 0))
@@ -15515,8 +15571,10 @@ const DesempenhoTecScreen = {
     set('plano-customodo', p.custoModo); set('plano-custofixo', p.custoFixo);
     set('plano-custofator', p.custoFator); set('plano-limite', p.limite);
     chk('plano-folhas', p.apenasFolhas); chk('plano-pequenas', p.incluirPequenas);
-    const snaps = DB.getTecSnapshots();
-    set('plano-ritmo', p.ritmoSemanal || PlanoEngine.ritmoMedido(snaps[snaps.length - 1]) || 25);
+    set('plano-janela', p.janelaDias); set('plano-cadencia', p.cadenciaDias);
+    set('plano-minrecente', p.minRecente);
+    const R = PlanoEngine._retratos(this.scopedSnapshot(), p.janelaDias);
+    set('plano-ritmo', p.ritmoSemanal || PlanoEngine.ritmoJanela(R.janela) || 25);
     const ds = document.getElementById('plano-disc');
     if (ds) {
       const discs = PlanoEngine.disciplinas(this.scopedSnapshot());
@@ -15545,6 +15603,9 @@ const DesempenhoTecScreen = {
       custoFator: Math.max(0.1, num('plano-custofator', 0.5)),
       apenasFolhas: bool('plano-folhas'),
       limite: Math.max(5, num('plano-limite', 30)),
+      janelaDias: Math.max(7, num('plano-janela', 90)),
+      cadenciaDias: Math.max(7, num('plano-cadencia', 30)),
+      minRecente: Math.max(1, num('plano-minrecente', 12)),
       ritmoSemanal: Math.max(1, num('plano-ritmo', 25))
     };
     PlanoEngine.salvarPrefs(opts);
@@ -15575,10 +15636,17 @@ const DesempenhoTecScreen = {
                 (r.semanas ? ` · ~${Math.ceil(r.semanas)} semanas no ritmo de ${r.ritmo}/sem (${(r.semanas / 4.3).toFixed(1)} meses)` : '')}
           </p>
           <div class="reforco-meta" style="margin-top:12px;">
-            ${r.ritmoMedido ? `<span class="reforco-tag incid">ritmo medido: ${r.ritmoMedido} q/sem</span>` : ''}
-            ${r.temRecente ? `<span class="reforco-tag" style="background:var(--surface);color:var(--text-soft)">taxa recente de ${formatDateShort(r.dataRecente)}</span>` : ''}
+            <span class="reforco-tag incid" title="Referência do seu nível atual">
+              janela: ${r.janelaDias >= 99999 ? 'todo o histórico' : 'últimos ' + r.janelaDias + ' dias'} · ${r.retratosJanela} retrato(s)
+            </span>
+            <span class="reforco-tag ${r.foraJanela ? 'tone-warn' : 'tone-good'}" title="Assuntos cuja taxa veio da janela recente; o resto caiu no histórico por falta de amostra">
+              ${r.naJanela} de ${r.assuntos} com dado recente
+            </span>
+            ${r.ritmoMedido ? `<span class="reforco-tag" style="background:var(--surface);color:var(--text-soft)">ritmo medido: ${r.ritmoMedido} q/sem</span>` : ''}
             ${r.ignorados ? `<span class="reforco-tag tone-warn" title="Assuntos com menos questões que a amostra mínima — listados no fim">${r.ignorados} fora por amostra pequena</span>` : ''}
           </div>
+          ${r.janelaVazia ? `<p class="hint" style="margin:10px 0 0;color:var(--warn-text);font-weight:700;">⚠ Nenhum retrato dentro da janela. Usando o mais recente disponível (${r.idadeUltimo} dias atrás).</p>` : ''}
+          ${r.defasado && !r.janelaVazia ? `<p class="hint" style="margin:10px 0 0;color:var(--warn-text);font-weight:700;">⏳ Última importação há ${r.idadeUltimo} dias — você definiu ${r.cadenciaDias}. Importe um novo período para a leitura refletir seu nível de hoje.</p>` : ''}
         </div>
       </div>`;
 
@@ -15587,8 +15655,8 @@ const DesempenhoTecScreen = {
         x.delta >= 8 ? `<span class="reforco-tag tone-good">▲ +${x.delta}pp</span>` :
         x.delta <= -8 ? `<span class="reforco-tag tone-bad">▼ ${x.delta}pp</span>` : '';
       const fonte = x.usaRecente
-        ? `<span class="reforco-tag incid" title="Medido no retrato mais recente (${x.qRecente} questões)">recente ${x.taxa.toFixed(0)}%</span>`
-        : `<span class="reforco-tag tone-warn" title="Amostra recente pequena — usando o acumulado (${x.qVida} questões)">acumulado ${x.taxa.toFixed(0)}%</span>`;
+        ? `<span class="reforco-tag incid" title="Medido na janela recente: ${x.qJanela} questões">atual ${x.taxa.toFixed(0)}%</span>`
+        : `<span class="reforco-tag tone-warn" title="Só ${x.qJanela} questão(ões) na janela — usando o histórico completo (${x.qHist})">histórico ${x.taxa.toFixed(0)}%</span>`;
       const marca = (i === r.idxMeta) ? `<div class="hint" style="margin:8px 0;padding:6px 10px;border-left:3px solid var(--good);background:var(--good-soft);font-weight:700;color:var(--good-text)">🏁 Meta de ${r.meta}% atingida aqui</div>` : '';
       return `
         <div class="reforco-row">
@@ -15599,7 +15667,7 @@ const DesempenhoTecScreen = {
               ${x.disciplina ? `<span class="reforco-disc">${escapeHtml(x.disciplina)}</span>` : ''}
               ${fonte}${seta}
               <span class="reforco-tag" style="background:var(--surface-sunken);color:var(--text-soft)">≈ ${x.custoQ} questões</span>
-              <span class="reforco-tag" style="background:var(--surface-sunken);color:var(--text-faint)">${x.qVida} praticadas</span>
+              <span class="reforco-tag" style="background:var(--surface-sunken);color:var(--text-faint)" title="questões na janela / no histórico">${x.qJanela} na janela · ${x.qHist} total</span>
             </div>
           </div>
           <div style="text-align:right;white-space:nowrap;">
@@ -15616,7 +15684,7 @@ const DesempenhoTecScreen = {
           <div class="reforco-rank" style="background:var(--surface-sunken);color:var(--text-faint)">?</div>
           <div class="reforco-main"><div class="reforco-topico">${escapeHtml(x.nome)}</div>
             <div class="reforco-meta">${x.disciplina ? `<span class="reforco-disc">${escapeHtml(x.disciplina)}</span>` : ''}
-            <span class="reforco-tag tone-warn">${x.taxa != null ? x.taxa.toFixed(0) + '%' : '—'} em ${x.qVida} questões</span></div>
+            <span class="reforco-tag tone-warn">${x.taxa != null ? x.taxa.toFixed(0) + '%' : '—'} em ${x.usaRecente ? x.qJanela : x.qHist} questões</span></div>
           </div><div></div></div>`).join('')}
       </div>` : '';
     lista.innerHTML = (linhas
@@ -16519,7 +16587,8 @@ document.getElementById('tec-weak-disc').addEventListener('change', (e) => {
   on('reforco-banca', 'change', (e) => { DT.savePrefs({ banca: e.target.value }); DT.renderReforco(); });
   // Plano de aprovação
   ['plano-disc','plano-meta','plano-ritmo','plano-teto','plano-ponderacao','plano-minamostra',
-   'plano-customodo','plano-custofixo','plano-custofator','plano-limite','plano-folhas','plano-pequenas'].forEach(id => {
+   'plano-customodo','plano-custofixo','plano-custofator','plano-limite','plano-folhas','plano-pequenas',
+   'plano-janela','plano-cadencia','plano-minrecente'].forEach(id => {
     on(id, 'change', () => DT.renderPlanoConteudo());
     on(id, 'input', () => DT.renderPlanoConteudo());
   });
