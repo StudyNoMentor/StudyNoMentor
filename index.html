@@ -6910,10 +6910,18 @@ const TecEngine = {
     if (raw === undefined || raw === null) return null;
     let s = String(raw).trim();
     if (s === '' || s === '-' || s === '—') return null;
-    s = s.replace(/%/g, '').trim();
-    // se tem vírgula decimal (pt-BR) e não ponto de milhar ambíguo: troca vírgula por ponto
-    if (s.includes(',') && !s.includes('.')) s = s.replace(',', '.');
-    else if (s.includes(',') && s.includes('.')) s = s.replace(/\./g, '').replace(',', '.');
+    s = s.replace(/%/g, '').replace(/\s/g, '').trim();
+    if (s.includes(',') && !s.includes('.')) {
+      // vírgula decimal pt-BR: 85,5 -> 85.5
+      s = s.replace(',', '.');
+    } else if (s.includes(',') && s.includes('.')) {
+      // ponto = milhar, vírgula = decimal: 1.234,5 -> 1234.5
+      s = s.replace(/\./g, '').replace(',', '.');
+    } else if (/^-?\d{1,3}(\.\d{3})+$/.test(s)) {
+      // SÓ pontos, em grupos exatos de 3: é separador de MILHAR pt-BR.
+      // 1.234 -> 1234 · 1.234.567 -> 1234567 (antes virava 1.234, quebrando os totais)
+      s = s.replace(/\./g, '');
+    }
     const n = parseFloat(s);
     return isNaN(n) ? null : n;
   },
@@ -6931,6 +6939,13 @@ const TecEngine = {
     const rawLines = String(text || '').split(/\r?\n/).map(l => l.replace(/\u00a0/g, ' ')).filter(l => l.trim() !== '');
     return this.parseCellRows(rawLines.map(l => this.splitLine(l)));
   },
+  // Linhas de TOTAL/RESUMO do relatório do TEC. Se entrassem, virariam uma "disciplina"
+  // fantasma e os totais gerais apareceriam somados em dobro.
+  _isTotalRow(nome) {
+    const k = String(nome == null ? '' : nome).normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim();
+    return /^total\b/.test(k) || /^soma\b/.test(k) || /total\s+(geral|de\s+quest|assunto)/.test(k)
+        || /^resumo\b/.test(k) || /^geral$/.test(k);
+  },
   // Núcleo compartilhado: recebe linhas já divididas em células (de texto colado OU de planilha xlsx/csv)
   parseCellRows(cellRows) {
     const rows = [];
@@ -6943,7 +6958,7 @@ const TecEngine = {
       if (cells.length < 2) continue;
       // pula cabeçalho (aparece uma vez, contém "Questões"/"Hierarquia"/"Acertos")
       const joined = cells.join(' ').toLowerCase();
-      if (!skippedHeader && /(hierarquia|questões resolvidas|acertos)/.test(joined) && !/^\d/.test(cells[0])) {
+      if (!skippedHeader && /(hierarquia|questões resolvidas|questoes resolvidas|acertos)/.test(joined) && !/^\d/.test(cells[0])) {
         skippedHeader = true;
         continue;
       }
@@ -6970,6 +6985,11 @@ const TecEngine = {
         depth = 0;
         currentDisc = nome;
       }
+      // Descarta células VAZIAS antes do 1º número. Ao colar a tabela, a coluna
+      // "Índice" da disciplina vem vazia e deslocava todos os valores uma casa.
+      while (nums.length && String(nums[0]).trim() === '') nums.shift();
+      // linhas de TOTAL/RESUMO não são disciplinas
+      if (depth === 0 && this._isTotalRow(nome)) { currentDisc = null; continue; }
       const questoes = this.parseNum(nums[0]);
       const pctAcerto = this.parseNum(nums[1]);
       let acertos = this.parseNum(nums[2]);
@@ -7036,35 +7056,53 @@ const TecEngine = {
 
   // Monta a ÁRVORE hierárquica completa (disciplina → tópico → subtópico → ...) a partir
   // dos códigos "01", "01.07", "01.07.01.01.02.06". Cada nó tem .children (cascata total).
+  // O vínculo usa o campo `disciplina` de cada linha — e não a ordem em que elas aparecem —
+  // porque na visão consolidada as linhas de vários retratos vêm intercaladas.
   buildTree(snap) {
     if (!snap) return [];
+    const nk = (s) => String(s == null ? '' : s).normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/\s+/g, ' ').trim();
     const forest = [];
-    let currentDiscNode = null;
-    // mapa por disciplina: codigo -> nó, para achar o pai pelo prefixo do código
-    let byCodigo = {};
-    snap.rows.forEach(r => {
-      const node = {
-        codigo: r.codigo, nome: r.nome, depth: r.depth, disciplina: r.disciplina,
-        questoes: r.questoes, acertos: r.acertos, pctAcerto: r.pctAcerto, peso: r.peso,
-        children: []
-      };
-      if (r.depth === 0) {
-        // nova disciplina: reinicia o mapa de códigos
-        currentDiscNode = node;
-        byCodigo = {};
-        forest.push(node);
-      } else if (r.codigo) {
-        byCodigo[r.codigo] = node;
-        const parts = r.codigo.split('.');
-        const parentCodigo = parts.slice(0, -1).join('.');
-        const parent = (parts.length > 1 && byCodigo[parentCodigo]) ? byCodigo[parentCodigo] : currentDiscNode;
-        (parent ? parent.children : forest).push(node);
-      } else if (currentDiscNode) {
-        currentDiscNode.children.push(node);
-      } else {
-        forest.push(node);
-      }
+    const discNodes = {};   // disciplina normalizada -> nó da disciplina
+    const byCodigo = {};    // disciplina normalizada -> { codigo: nó }
+    let ultimaDisc = null;
+    const mkNode = (r) => ({
+      codigo: r.codigo, nome: r.nome, depth: r.depth, disciplina: r.disciplina,
+      questoes: r.questoes, acertos: r.acertos, pctAcerto: r.pctAcerto, peso: r.peso,
+      children: []
     });
+    const pendentes = [];
+    snap.rows.forEach(r => {
+      if (r.depth === 0) {
+        const k = nk(r.nome);
+        if (discNodes[k]) { ultimaDisc = k; return; } // disciplina repetida: não duplica
+        const node = mkNode(r);
+        discNodes[k] = node; byCodigo[k] = {}; ultimaDisc = k;
+        forest.push(node);
+        return;
+      }
+      const k = r.disciplina ? nk(r.disciplina) : ultimaDisc;
+      if (!discNodes[k]) {
+        // tópico de uma disciplina que não foi declarada: cria a raiz implicitamente
+        const impl = { codigo: null, nome: r.disciplina || '(sem disciplina)', depth: 0, disciplina: r.disciplina, questoes: 0, acertos: 0, pctAcerto: 0, children: [] };
+        discNodes[k] = impl; byCodigo[k] = {}; forest.push(impl);
+      }
+      const node = mkNode(r);
+      if (r.codigo) byCodigo[k][r.codigo] = node;
+      pendentes.push({ node, k, codigo: r.codigo });
+    });
+    // 2ª passada: liga cada nó ao pai pelo prefixo do código (independe da ordem de leitura)
+    pendentes.forEach(({ node, k, codigo }) => {
+      const disc = discNodes[k];
+      if (!codigo) { disc.children.push(node); return; }
+      const parts = codigo.split('.');
+      const parentCodigo = parts.slice(0, -1).join('.');
+      const parent = (parts.length > 1 && byCodigo[k][parentCodigo]) ? byCodigo[k][parentCodigo] : disc;
+      parent.children.push(node);
+    });
+    // ordena os filhos pelo código, para a árvore consolidada não sair embaralhada
+    const cmp = (a, b) => String(a.codigo || '').localeCompare(String(b.codigo || ''), 'pt-BR', { numeric: true });
+    const sortRec = (n) => { n.children.sort(cmp); n.children.forEach(sortRec); };
+    forest.forEach(sortRec);
     return forest;
   }
 };
@@ -14289,12 +14327,26 @@ const DesempenhoTecScreen = {
         }
         agg.questoes += (r.questoes || 0);
         agg.acertos += (r.acertos || 0);
+        if (r.peso != null && (agg.peso == null || r.peso > agg.peso)) agg.peso = r.peso;
       });
     });
     const rows = order.map(k => {
       const a = map.get(k);
       a.pctAcerto = a.questoes > 0 ? Math.round((a.acertos / a.questoes) * 1000) / 10 : 0;
       return a;
+    });
+    // Reagrupa por DISCIPLINA: um tópico que só apareceu no retrato mais novo entrava no
+    // fim da lista e, na árvore, acabava pendurado na disciplina errada.
+    const nk = this._nk.bind(this);
+    const ordemDisc = [];
+    rows.forEach(r => { const d = nk(r.disciplina || r.nome); if (!ordemDisc.includes(d)) ordemDisc.push(d); });
+    const agrupadas = [];
+    ordemDisc.forEach(d => {
+      const daDisc = rows.filter(r => nk(r.disciplina || r.nome) === d);
+      const raiz = daDisc.filter(r => r.depth === 0);
+      const filhos = daDisc.filter(r => r.depth > 0)
+        .sort((a, b) => String(a.codigo || '').localeCompare(String(b.codigo || ''), 'pt-BR', { numeric: true }));
+      agrupadas.push(...raiz, ...filhos);
     });
     const starts = snaps.map(s => s.startDate).sort();
     const ends = snaps.map(s => s.endDate).sort();
@@ -14303,7 +14355,7 @@ const DesempenhoTecScreen = {
       aggregated: snaps.length > 1,
       count: snaps.length,
       startDate: starts[0], endDate: ends[ends.length - 1],
-      date: starts[0], rows
+      date: starts[0], rows: agrupadas
     };
   },
   // Retrato efetivo usado por toda a análise (agrega o escopo atual)
