@@ -36,6 +36,9 @@
     --warn-soft: #fdf1e2;
     --bad: #e0393f;
     --bad-text: #b3282e;
+    --info: #2563eb;
+    --info-text: #1d4ed8;
+    --info-soft: #eaf1fe;
     --bad-soft: #fdecee;
 
     --shadow-sm: 0 1px 2px rgba(20,22,26,0.04);
@@ -67,6 +70,9 @@
     --warn-soft: #2a2114;
     --bad: #f87171;
     --bad-text: #fca5a5;
+    --info: #6ea8fe;
+    --info-text: #6ea8fe;   /* 7.1:1 no escuro — o antigo #2563eb dava 3.3:1 */
+    --info-soft: #1b2436;
     --bad-soft: #2a1618;
 
     --shadow-sm: 0 1px 2px rgba(0,0,0,0.30);
@@ -2718,9 +2724,9 @@
     display: none; font-size: 12.5px; font-weight: 600; line-height: 1.45;
     padding: 10px 12px; border-radius: 12px; margin: 12px 0 4px; border: 1.5px solid;
   }
-  .gate-alert.bad { background: var(--bad-soft); border-color: var(--bad-text); color: #b3282e; }
+  .gate-alert.bad { background: var(--bad-soft); border-color: var(--bad-text); color: var(--bad-text); }
   .gate-alert.warn { background: var(--warn-soft); border-color: var(--warn-text); color: var(--warn-text); }
-  .gate-alert.good { background: var(--good-soft); border-color: var(--good-text); color: #0b7d4f; }
+  .gate-alert.good { background: var(--good-soft); border-color: var(--good-text); color: var(--good-text); }
   .gate-alert.info { background: var(--accent-soft); border-color: var(--accent); color: var(--accent); }
   /* Modais da tela de acesso */
   .profile-modal { position: fixed; inset: 0; z-index: 510; background: rgba(20,22,26,0.45); display: flex; align-items: center; justify-content: center; padding: 20px; }
@@ -3124,7 +3130,7 @@
     transition: all 0.13s ease;
   }
   .leis-tool-btn:hover { border-color: var(--border-strong); color: var(--text); }
-  .leis-tool-mark.active { background: #fde68a; border-color: #f5c518; color: #7a5b00; box-shadow: 0 2px 8px rgba(245,197,24,0.3); }
+  .leis-tool-mark.active { background: #fde68a; border-color: #f5c518; color: var(--warn-text); box-shadow: 0 2px 8px rgba(245,197,24,0.3); }
   .leis-tool-erase.active { background: var(--bad-soft); border-color: var(--bad-text); color: var(--bad-text); }
   /* cursores por modo, no corpo da lei */
   .lei-reader-body.tool-mark { cursor: text; }
@@ -3330,7 +3336,7 @@
   .cards-ans4:hover { transform: translateY(-1px); filter: brightness(1.02); }
   .cards-ans4.a-errei { color: var(--bad-text); border-color: var(--bad-text); background: var(--bad-soft); }
   .cards-ans4.a-dificil { color: var(--warn-text); border-color: var(--warn-text); background: var(--warn-soft); }
-  .cards-ans4.a-bom { color: #2563eb; border-color: #2563eb; background: color-mix(in srgb, #2563eb 12%, transparent); }
+  .cards-ans4.a-bom { color: var(--info-text); border-color: var(--info-text); background: var(--info-soft); }
   .cards-ans4.a-facil { color: var(--good-text); border-color: var(--good-text); background: var(--good-soft); }
   .cards-review-editrow { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-top: 12px; flex-wrap: wrap; }
   .cards-review-nav { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-top: 14px; }
@@ -5557,7 +5563,19 @@ const DB = {
     } catch (_) { return '?'; }
   },
   _uid() {
-    return Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
+    // UUID v4 real quando disponível. crypto.randomUUID exige contexto seguro —
+    // funciona em file:// e https://, mas NÃO em http:// simples (ex.: servir de um NAS).
+    // Por isso o fallback com getRandomValues, e só então o antigo baseado em Math.random.
+    try {
+      if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') return crypto.randomUUID();
+      if (typeof crypto !== 'undefined' && typeof crypto.getRandomValues === 'function') {
+        const b = crypto.getRandomValues(new Uint8Array(16));
+        b[6] = (b[6] & 0x0f) | 0x40; b[8] = (b[8] & 0x3f) | 0x80;
+        const h = [...b].map(x => x.toString(16).padStart(2, '0')).join('');
+        return `${h.slice(0,8)}-${h.slice(8,12)}-${h.slice(12,16)}-${h.slice(16,20)}-${h.slice(20)}`;
+      }
+    } catch (_) {}
+    return Date.now().toString(36) + Math.random().toString(36).slice(2, 9);
   },
 
   // --- Entries (Diário) ---
@@ -6885,10 +6903,11 @@ function formatPct(pct) {
   return pct === null || pct === undefined ? '—' : pct.toFixed(2);
 }
 
+// Escape por substituição direta: ~25x mais rápido que criar um nó DOM a cada chamada,
+// o que importa nas listas que renderizam centenas de itens.
+const _ESC_MAP = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' };
 function escapeHtml(str) {
-  const div = document.createElement('div');
-  div.textContent = str;
-  return div.innerHTML;
+  return String(str == null ? '' : str).replace(/[&<>"']/g, ch => _ESC_MAP[ch]);
 }
 
 function formatDateShort(iso) {
