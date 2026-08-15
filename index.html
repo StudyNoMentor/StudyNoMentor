@@ -93,25 +93,35 @@
     flex-shrink: 0;
     background: var(--surface);
     border-right: 1px solid var(--border);
-    padding: 28px 18px;
+    padding: 22px 16px;
     position: sticky;
     top: 0;
     height: 100vh;
     overflow-y: auto;
+    overflow-x: hidden;            /* nunca gera barra horizontal */
     display: flex;
     flex-direction: column;
+    scrollbar-width: thin;         /* Firefox: barra fina */
+    scrollbar-color: var(--border-strong) transparent;
   }
+  /* Barra de rolagem discreta (Chrome/Edge/Safari) */
+  .sidebar::-webkit-scrollbar { width: 6px; height: 0; }
+  .sidebar::-webkit-scrollbar-track { background: transparent; }
+  .sidebar::-webkit-scrollbar-thumb { background: transparent; border-radius: 6px; }
+  .sidebar:hover::-webkit-scrollbar-thumb { background: var(--border-strong); }
 
   .sidebar-brand {
-    padding: 0 8px;
-    margin-bottom: 28px;
+    padding: 0 4px;
+    margin-bottom: 18px;
+    min-width: 0;
   }
   .brand-top-row {
     display: flex;
     align-items: center;
-    justify-content: space-between;
+    justify-content: flex-start;
     gap: 8px;
-    margin-bottom: 12px;
+    margin-bottom: 4px;
+    min-width: 0;
   }
   .theme-toggle {
     flex-shrink: 0;
@@ -1133,7 +1143,9 @@
     margin-bottom: 14px;
   }
   .grade-chip-tray.drag-active { border-color: var(--accent); background: var(--accent-soft); }
-  .grade-tray-bar.tray-collapsed { display: none; }
+  /* Recolhida: some só a lista de chips; "Início" e "Editar siglas" continuam acessíveis */
+  .grade-tray-bar.tray-collapsed .grade-chip-tray { display: none; }
+  .grade-tray-bar.tray-collapsed { padding: 8px 12px; justify-content: flex-end; }
   #btn-toggle-tray.is-collapsed { background: var(--accent-soft); color: var(--accent); border-color: var(--accent); }
   .grade-chip-tray-empty { font-size: 12px; color: var(--text-faint); padding: 4px; }
 
@@ -2725,21 +2737,25 @@
   .profile-chip-switch:hover { border-color: var(--accent); color: var(--accent); }
   @media (max-width: 860px) { .profile-chip { display: none; } }
   /* Botão de perfil no topo (aparece só no mobile/tablet, onde a sidebar-footer some) */
-  .brand-top-actions { display: flex; align-items: center; gap: 8px; }
+  .brand-top-actions {
+    display: flex; align-items: center; gap: 8px;
+    width: 100%; min-width: 0; justify-content: space-between; flex-wrap: nowrap;
+  }
   /* Botão de sincronização na nuvem — sempre visível (topo, desktop e mobile) */
   .cloud-sync-btn {
     display: inline-flex; align-items: center; gap: 7px;
     background: var(--surface-sunken); border: 1.5px solid var(--border);
-    border-radius: 20px; padding: 5px 12px 5px 9px; cursor: pointer;
+    border-radius: 20px; padding: 5px 11px 5px 9px; cursor: pointer;
     font-size: 12px; font-weight: 700; color: var(--text-soft);
     transition: border-color 0.15s ease, color 0.15s ease, background 0.15s ease;
     white-space: nowrap;
+    min-width: 0; flex: 0 1 auto; overflow: hidden;
   }
   .cloud-sync-btn:hover { border-color: var(--accent); color: var(--text); }
   .cloud-sync-btn:active { transform: scale(0.97); }
   .cloud-sync-btn .csb-ico { font-size: 13px; line-height: 1; }
   .cloud-sync-btn .csb-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--text-faint); flex-shrink: 0; }
-  .cloud-sync-btn .csb-text { max-width: 130px; overflow: hidden; text-overflow: ellipsis; }
+  .cloud-sync-btn .csb-text { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   /* estados */
   .cloud-sync-btn.st-ok { color: var(--good); border-color: color-mix(in srgb, var(--good) 40%, var(--border)); }
   .cloud-sync-btn.st-ok .csb-dot { background: var(--good); box-shadow: 0 0 0 3px var(--good-soft); }
@@ -3519,7 +3535,6 @@
 <div id="profile-gate" class="profile-gate" style="display:none;">
   <div class="profile-gate-inner">
     <div class="profile-gate-brand">
-      <span class="eyebrow"><span class="pip"></span>diário de estudos</span>
       <h1 id="profile-gate-title">Quem vai estudar?</h1>
       <p id="profile-gate-sub">Selecione seu perfil para entrar no seu diário.</p>
     </div>
@@ -3620,7 +3635,6 @@
   <aside class="sidebar">
     <div class="sidebar-brand">
       <div class="brand-top-row">
-        <span class="eyebrow"><span class="pip"></span>registro pessoal</span>
         <div class="brand-top-actions">
           <button type="button" class="cloud-sync-btn" id="cloud-sync-btn" title="Sincronizar agora">
             <span class="csb-dot" id="csb-dot"></span>
@@ -3637,17 +3651,6 @@
           </button>
         </div>
       </div>
-      <h1 class="brand-title">
-        <span class="brand-logo" aria-hidden="true">
-          <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-            <path d="M5 4.5A2.5 2.5 0 0 1 7.5 2H19a1 1 0 0 1 1 1v15a1 1 0 0 1-1 1H7.5A2.5 2.5 0 0 0 5 21.5V4.5Z" fill="currentColor" opacity="0.16"/>
-            <path d="M5 4.5A2.5 2.5 0 0 1 7.5 2H19a1 1 0 0 1 1 1v15a1 1 0 0 1-1 1H7.5A2.5 2.5 0 0 0 5 21.5V4.5Z" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/>
-            <path d="M5 18.5A2.5 2.5 0 0 1 7.5 16H20" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/>
-            <path d="M9 7h7M9 10h5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>
-          </svg>
-        </span>
-        <span>Diário de Estudos</span>
-      </h1>
       <div class="plan-switcher" id="plan-switcher">
         <button type="button" class="plan-switcher-btn" id="plan-switcher-btn">
           <span class="plan-switcher-label">
@@ -9021,10 +9024,35 @@ function planCycleMode() {
   // Fonte da grade = MODELO PERSISTENTE (rotina reutilizável entre ciclos)
   function gradeGet() { return DB.getGradeTemplate(); }
   function gradeSave(t) { DB.saveGradeTemplate(t); }
+  /* ---- Preferências de exibição da Grade (por PERFIL e sincronizadas na nuvem) ----
+     Antes ficavam em chaves globais do navegador: não acompanhavam o perfil nem iam
+     para o backup, então "voltavam ao padrão" ao trocar de dispositivo/recarregar. */
+  const GRADE_WS_LEGACY = 'diario-estudos:grade-weekstart';
+  const GRADE_TRAY_LEGACY = 'diario-estudos:grade-tray-collapsed';
+  function _gradePrefKey(name) {
+    try { return DB._profilePrefix() + 'pref-' + name; } catch (e) { return 'diario-estudos:pref-' + name; }
+  }
+  function gradePrefGet(name, legacyKey, fallback) {
+    try {
+      const v = localStorage.getItem(_gradePrefKey(name));
+      if (v !== null) return v;
+      if (legacyKey) {
+        const lv = localStorage.getItem(legacyKey);
+        if (lv !== null) { gradePrefSet(name, lv); return lv; } // migra a preferência antiga
+      }
+    } catch (e) {}
+    return fallback;
+  }
+  function gradePrefSet(name, value) {
+    try { localStorage.setItem(_gradePrefKey(name), String(value)); } catch (e) {}
+    try { if (window.CloudStore && CloudStore.notifyChange) CloudStore.notifyChange(); } catch (e) {}
+  }
   // preferência de início da semana ('mon' = segunda | 'sun' = domingo) — só afeta a ORDEM de exibição
-  const GRADE_WS_KEY = 'diario-estudos:grade-weekstart';
-  function gradeWeekStart() { try { return localStorage.getItem(GRADE_WS_KEY) === 'sun' ? 'sun' : 'mon'; } catch (e) { return 'mon'; } }
-  function setGradeWeekStart(v) { try { localStorage.setItem(GRADE_WS_KEY, v === 'sun' ? 'sun' : 'mon'); } catch (e) {} }
+  function gradeWeekStart() { return gradePrefGet('grade-weekstart', GRADE_WS_LEGACY, 'mon') === 'sun' ? 'sun' : 'mon'; }
+  function setGradeWeekStart(v) { gradePrefSet('grade-weekstart', v === 'sun' ? 'sun' : 'mon'); }
+  // preferência da bandeja de siglas (recolhida ou não)
+  function gradeTrayCollapsed() { return gradePrefGet('grade-tray-collapsed', GRADE_TRAY_LEGACY, '0') === '1'; }
+  function setGradeTrayCollapsed(b) { gradePrefSet('grade-tray-collapsed', b ? '1' : '0'); }
   // dias na ordem de exibição escolhida (os DADOS continuam guardados por nome do dia)
   function gradeDaysOrder() {
     if (gradeWeekStart() === 'sun') return ['Domingo', 'Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado'];
@@ -9388,6 +9416,8 @@ function planCycleMode() {
     renderGrade();
     const ws = document.getElementById('grade-weekstart-select');
     if (ws) ws.value = gradeWeekStart();
+    // reaplica a preferência salva da bandeja de siglas (vale também após trocar de perfil)
+    if (typeof window._applyGradeTray === 'function') window._applyGradeTray();
     // o gerenciador só é renderizado quando o modal abre (renderCustomSiglaManager)
   }
   // exposto para a navegação abrir a tela e para o botão de atalho do ciclo
@@ -9537,13 +9567,17 @@ function planCycleMode() {
   const _trayBtn = document.getElementById('btn-toggle-tray');
   const _trayBar = document.getElementById('grade-tray-bar');
   const _applyTray = () => {
-    const collapsed = localStorage.getItem('diario-estudos:grade-tray-collapsed') === '1';
+    const collapsed = gradeTrayCollapsed();
     if (_trayBar) _trayBar.classList.toggle('tray-collapsed', collapsed);
-    if (_trayBtn) { _trayBtn.classList.toggle('is-collapsed', collapsed); _trayBtn.textContent = collapsed ? '▸ Siglas' : '▾ Siglas'; }
+    if (_trayBtn) {
+      _trayBtn.classList.toggle('is-collapsed', collapsed);
+      _trayBtn.textContent = collapsed ? '▸ Siglas' : '▾ Siglas';
+      _trayBtn.title = collapsed ? 'Mostrar as siglas arrastáveis' : 'Ocultar as siglas arrastáveis';
+    }
   };
+  window._applyGradeTray = _applyTray; // reaplicado sempre que a tela da grade é aberta
   if (_trayBtn) _trayBtn.addEventListener('click', () => {
-    const now = localStorage.getItem('diario-estudos:grade-tray-collapsed') === '1';
-    localStorage.setItem('diario-estudos:grade-tray-collapsed', now ? '0' : '1');
+    setGradeTrayCollapsed(!gradeTrayCollapsed());
     _applyTray();
   });
   _applyTray();
@@ -15442,6 +15476,9 @@ const ProfileUI = {
   SESSION_KEY: 'diario-estudos:entered',
   _stage: 'login',
   _offline: false,
+  _lastAuthKey: null,   // evita re-render do gate a cada evento de auth repetido
+  _gridToken: 0,        // ignora respostas fora de ordem ao listar perfis
+  _gridSig: null,       // assinatura do grid já pintado (evita repintar igual)
   _authMode: 'signin',
   _editingId: null,
   _draftAvatar: null,
@@ -15464,7 +15501,17 @@ const ProfileUI = {
   isGateOpen() { const g = document.getElementById('profile-gate'); return g && g.style.display !== 'none'; },
   showGate() { document.getElementById('profile-gate').style.display = 'flex'; this.refreshStage(); },
   hideGate() { document.getElementById('profile-gate').style.display = 'none'; },
-  onAuthChanged() { if (this.isGateOpen()) this.refreshStage(); if (window.CloudUI) CloudUI.render(); },
+  // O Supabase dispara vários eventos de auth (INITIAL_SESSION, SIGNED_IN, TOKEN_REFRESHED...).
+  // Sem este guarda, cada evento re-renderizava o gate e causava a "piscada" nos perfis.
+  onAuthChanged() {
+    const CS = window.CloudStore;
+    const uid = (CS && CS.session && CS.session.user) ? CS.session.user.id : null;
+    const key = (uid || 'anon') + '|' + (this._offline ? 'off' : 'on') + '|' + ((CS && CS.libStatus) || '');
+    const changed = (key !== this._lastAuthKey);
+    this._lastAuthKey = key;
+    if (this.isGateOpen() && changed) this.refreshStage();
+    if (window.CloudUI) CloudUI.render();
+  },
 
   refreshStage() {
     const CS = window.CloudStore;
@@ -15475,6 +15522,10 @@ const ProfileUI = {
     const sub = document.getElementById('profile-gate-sub');
     if (!logged && !this._offline) {
       this._stage = 'login';
+      this._gridSig = null;
+      this._gridToken++;
+      const g = document.getElementById('profile-gate-grid');
+      if (g) g.innerHTML = '';
       if (loginEl) loginEl.style.display = 'block';
       if (profilesEl) profilesEl.style.display = 'none';
       if (title) title.textContent = 'Entrar na sua conta';
@@ -15502,12 +15553,20 @@ const ProfileUI = {
   async loadCloudProfiles() {
     const grid = document.getElementById('profile-gate-grid');
     if (!grid) return;
-    grid.innerHTML = '<p class="hint" style="text-align:center; padding:20px;">Carregando perfis...</p>';
+    const token = ++this._gridToken;
+    // só mostra "Carregando" quando ainda não há nada pintado — assim uma
+    // atualização em segundo plano (realtime/token refresh) não pisca a tela.
+    if (!grid.querySelector('.profile-card')) {
+      grid.innerHTML = '<p class="hint" style="text-align:center; padding:20px;">Carregando perfis...</p>';
+    }
     try {
       const rows = await CloudStore.listProfiles();
+      if (token !== this._gridToken) return; // chegou uma resposta mais nova
       ProfileManager.syncMirrorFromCloud(rows);
       this.renderGrid(rows.map(r => ({ id: r.id, nome: r.profile_name, avatar: r.avatar, cor: r.color })));
     } catch (err) {
+      if (token !== this._gridToken) return;
+      if (grid.querySelector('.profile-card')) return; // mantém o que já está na tela
       grid.innerHTML = '<p class="hint" style="color:var(--bad); text-align:center; padding:20px;">Não foi possível carregar seus perfis: ' + escapeHtml(err.message || '') + '<br>Tente recarregar a página.</p>';
     }
   },
@@ -15515,6 +15574,10 @@ const ProfileUI = {
   renderGrid(profiles) {
     const grid = document.getElementById('profile-gate-grid');
     if (!grid) return;
+    // Se a lista é exatamente a mesma que já está na tela, não repinta (evita o "flash").
+    const sig = JSON.stringify((profiles || []).map(p => [p.id, p.nome, p.avatar, p.cor]));
+    if (sig === this._gridSig && grid.querySelector('.profile-card')) return;
+    this._gridSig = sig;
     grid.innerHTML = (profiles || []).map(p => `
       <div class="profile-card" data-id="${p.id}">
         <button type="button" class="profile-card-edit" data-edit="${p.id}" title="Editar">✎</button>
