@@ -5829,6 +5829,7 @@ const DB = {
   // Histórico de revisões (revlog) — base para o otimizador FSRS personalizar seus pesos.
   getRevlog() { return this._get(this.KEYS.revlog, []); },
   addRevlog(entry) { const l = this.getRevlog(); l.push(entry); if (l.length > 8000) l.splice(0, l.length - 8000); this._set(this.KEYS.revlog, l); },
+  removeRevlog(ts) { const l = this.getRevlog(); const i = l.findIndex(r => r.ts === ts); if (i >= 0) { l.splice(i, 1); this._set(this.KEYS.revlog, l); } },
   getCard(id) { return this.getCards().find(c => c.id === id) || null; },
   addCard(data) {
     const list = this.getCards();
@@ -8216,6 +8217,33 @@ const FSRS = {
     return this.clampS(S * (1 + Math.exp(w[8]) * (11 - D) * Math.pow(S, -w[9]) * (Math.exp(w[10] * (1 - R)) - 1) * hard * easy));
   },
   nextS_forget(D, S, R, w) { return this.clampS(Math.min(w[11] * Math.pow(D, -w[12]) * (Math.pow(S + 1, w[13]) - 1) * Math.exp(w[14] * (1 - R)), S)); },
+  // FSRS-5 — MEMÓRIA DE CURTO PRAZO: usada nos passos de aprendizado/reaprendizado e em
+  // qualquer revisão feita no MESMO dia. Sem ela, cada clique extra no mesmo dia era
+  // tratado como um intervalo cheio e inflava S sem limite.
+  nextS_short(S, G, w) { return this.clampS(S * Math.exp(w[17] * (G - 3 + w[18]))); },
+
+  // ---- FUZZ (dispersão) — mesma fórmula do Anki: delta acumulado por faixa ----
+  fuzzDelta(iv) {
+    let delta = 1.0;
+    [[2.5, 7, 0.15], [7, 20, 0.1], [20, Infinity, 0.05]].forEach(([a, b, f]) => {
+      delta += f * Math.max(0, Math.min(iv, b) - a);
+    });
+    return delta;
+  },
+  fuzzRange(iv, maxIv) {
+    if (iv < 2.5) return [iv, iv];
+    const d = this.fuzzDelta(iv);
+    const lo = Math.max(2, Math.round(iv - d));
+    const hi = Math.min(maxIv || 36500, Math.max(lo, Math.round(iv + d)));
+    return [lo, hi];
+  },
+  // Fuzz DETERMINÍSTICO (semeado pelo card+nota): a prévia do botão bate com o que é agendado.
+  _hash(str) { let h = 2166136261; for (let i = 0; i < str.length; i++) { h ^= str.charCodeAt(i); h = Math.imul(h, 16777619); } return (h >>> 0) / 4294967296; },
+  fuzzed(iv, seed, maxIv) {
+    const [lo, hi] = this.fuzzRange(iv, maxIv);
+    if (hi <= lo) return lo;
+    return lo + Math.floor(this._hash(String(seed)) * (hi - lo + 1));
+  },
 
   // ---- OTIMIZADOR (personaliza os 19 pesos a partir do seu histórico) ----
   // Reconstrói sequências (elapsed, grade) por card e minimiza o log-loss por gradient descent.
@@ -8266,13 +8294,11 @@ const FSRS = {
     const improved = cur < lossBefore - 1e-4;
     return { w: improved ? w : w0, lossBefore, lossAfter: cur, improved, reviews };
   },
-  // ---- LOAD BALANCING: dentro da janela de fuzz, escolhe o dia de MENOR carga ----
-  loadBalance(iv, dueCountByDay) {
-    if (iv < 3) return iv;
-    const pct = iv < 7 ? 0.15 : iv < 30 ? 0.10 : 0.05;
-    const spread = Math.max(1, Math.round(iv * pct));
-    const lo = Math.max(1, iv - spread), hi = iv + spread;
-    let best = iv, bestLoad = Infinity;
+  // ---- LOAD BALANCING: dentro da MESMA janela de fuzz do Anki, escolhe o dia de menor carga ----
+  loadBalance(iv, dueCountByDay, maxIv) {
+    const [lo, hi] = this.fuzzRange(iv, maxIv);
+    if (hi <= lo) return lo;
+    let best = lo, bestLoad = Infinity;
     for (let d = lo; d <= hi; d++) { const load = dueCountByDay(d); if (load < bestLoad) { bestLoad = load; best = d; } }
     return best;
   },
@@ -8306,23 +8332,57 @@ const FSRS = {
 
 // Configuração dos Cards (algoritmo, retenção-alvo, passos de aprendizado) — global, por dispositivo.
 const CardsConfig = {
-  KEY: 'diario-estudos:cards-cfg',
-  DEFAULTS: { algo: 'fsrs', retention: 0.9, learnSteps: [1, 10], relearnSteps: [10], weights: null, loadBalance: true, lastOptim: null, newPerDay: 20, revPerDay: 200 },
-  _c: null,
+  // Chaves NAMESPACED pelo perfil ativo: acompanham o perfil e entram no backup/sync.
+  // (As chaves globais antigas são migradas na primeira leitura.)
+  LEGACY_KEY: 'diario-estudos:cards-cfg',
+  LEGACY_PKEY: 'diario-estudos:cards-presets',
+  LEGACY_DKEY: 'diario-estudos:cards-daily',
+  _pfx() { try { return DB._profilePrefix(); } catch (_) { return 'diario-estudos:'; } },
+  get KEY() { return this._pfx() + 'cards-cfg'; },
+  get PKEY() { return this._pfx() + 'cards-presets'; },
+  get DKEY() { return this._pfx() + 'cards-daily'; },
+  DEFAULTS: {
+    algo: 'fsrs', retention: 0.9, learnSteps: [1, 10], relearnSteps: [10], weights: null,
+    loadBalance: true, lastOptim: null, newPerDay: 20, revPerDay: 200,
+    maxInterval: 36500, leechThreshold: 8, leechAction: 'suspend'
+  },
+  _c: null, _cKey: null,
+  _notify() { try { if (window.CloudStore && CloudStore.notifyChange) CloudStore.notifyChange(); } catch (_) {} },
+  _read(key, legacyKey) {
+    let v = null;
+    try { v = JSON.parse(localStorage.getItem(key)); } catch (_) {}
+    if (v == null && legacyKey) {
+      try {
+        const lv = JSON.parse(localStorage.getItem(legacyKey));
+        if (lv != null) { v = lv; localStorage.setItem(key, JSON.stringify(lv)); } // migra para o perfil
+      } catch (_) {}
+    }
+    return v;
+  },
   get() {
-    if (this._c) return this._c;
-    let v = null; try { v = JSON.parse(localStorage.getItem(this.KEY)); } catch (_) {}
+    const k = this.KEY;
+    if (this._c && this._cKey === k) return this._c;   // cache inválido ao trocar de perfil
+    const v = this._read(k, this.LEGACY_KEY);
     this._c = Object.assign({}, this.DEFAULTS, v || {});
+    this._cKey = k;
     if (!Array.isArray(this._c.learnSteps) || !this._c.learnSteps.length) this._c.learnSteps = this.DEFAULTS.learnSteps.slice();
     if (!Array.isArray(this._c.relearnSteps) || !this._c.relearnSteps.length) this._c.relearnSteps = this.DEFAULTS.relearnSteps.slice();
     return this._c;
   },
-  set(patch) { const v = Object.assign(this.get(), patch || {}); this._c = v; try { localStorage.setItem(this.KEY, JSON.stringify(v)); } catch (_) {} },
+  set(patch) {
+    const v = Object.assign(this.get(), patch || {}); this._c = v; this._cKey = this.KEY;
+    try { localStorage.setItem(this.KEY, JSON.stringify(v)); } catch (_) {}
+    this._notify();
+  },
   // ---- Presets POR BARALHO (como o Anki): overrides que herdam do global ----
-  PKEY: 'diario-estudos:cards-presets',
-  _presets: null,
-  _getPresets() { if (this._presets) return this._presets; let v = null; try { v = JSON.parse(localStorage.getItem(this.PKEY)); } catch (_) {} this._presets = v || {}; return this._presets; },
-  _savePresets() { try { localStorage.setItem(this.PKEY, JSON.stringify(this._presets || {})); } catch (_) {} },
+  _presets: null, _pKey: null,
+  _getPresets() {
+    const k = this.PKEY;
+    if (this._presets && this._pKey === k) return this._presets;
+    this._presets = this._read(k, this.LEGACY_PKEY) || {}; this._pKey = k;
+    return this._presets;
+  },
+  _savePresets() { try { localStorage.setItem(this.PKEY, JSON.stringify(this._presets || {})); } catch (_) {} this._notify(); },
   hasDeckPreset(deckId) { return !!(deckId && this._getPresets()[deckId]); },
   deckPreset(deckId) { return (deckId && this._getPresets()[deckId]) || null; },
   setDeckPreset(deckId, patch) { if (!deckId) return; const p = this._getPresets(); p[deckId] = Object.assign(p[deckId] || {}, patch || {}); this._savePresets(); },
@@ -8341,10 +8401,11 @@ const CardsConfig = {
   // pesos ativos globais (compatibilidade)
   weights() { const w = this.get().weights; return (Array.isArray(w) && w.length === 19) ? w : FSRS.DEFAULT_W; },
   // ---- Contadores diários (novos/revisões introduzidos hoje) — resetam a cada dia ----
-  _daily() { let d = null; try { d = JSON.parse(localStorage.getItem('diario-estudos:cards-daily')); } catch (_) {} if (!d || d.date !== todayLocal()) d = { date: todayLocal(), newDone: 0, revDone: 0 }; return d; },
-  _saveDaily(d) { try { localStorage.setItem('diario-estudos:cards-daily', JSON.stringify(d)); } catch (_) {} },
+  _daily() { let d = this._read(this.DKEY, this.LEGACY_DKEY); if (!d || d.date !== todayLocal()) d = { date: todayLocal(), newDone: 0, revDone: 0 }; return d; },
+  _saveDaily(d) { try { localStorage.setItem(this.DKEY, JSON.stringify(d)); } catch (_) {} this._notify(); },
   newDoneToday() { return this._daily().newDone; }, revDoneToday() { return this._daily().revDone; },
   markIntroduced(kind) { const d = this._daily(); if (kind === 'new') d.newDone++; else d.revDone++; this._saveDaily(d); },
+  unmarkIntroduced(kind) { const d = this._daily(); if (kind === 'new') d.newDone = Math.max(0, d.newDone - 1); else d.revDone = Math.max(0, d.revDone - 1); this._saveDaily(d); },
   newRemaining() { return Math.max(0, (this.get().newPerDay || 0) - this.newDoneToday()); },
   revRemaining() { return Math.max(0, (this.get().revPerDay || 0) - this.revDoneToday()); }
 };
@@ -8361,10 +8422,22 @@ const CardEngine = {
   GRADE_NUM: { errei: 1, dificil: 2, bom: 3, facil: 4, naosei: 1, sei: 3 },
   _daysBetween(a, b) { return Math.max(0, Math.round((new Date(b + 'T00:00:00') - new Date(a + 'T00:00:00')) / 86400000)); },
   // Conta quantos cards de revisão já vencem daqui a N dias (para o Load Balancing)
+  _dueCache: null,
+  invalidateDueCache() { this._dueCache = null; },
   _dueCountInDays(n) {
-    const alvo = this.addDays(todayLocal(), n);
-    try { return DB.getCards().filter(c => !c.dueTs && (c.phase === 'review' || ((c.reps || 0) > 0 && (c.intervalo || 0) > 0)) && (c.due || '') === alvo).length; }
-    catch (_) { return 0; }
+    try {
+      if (!this._dueCache || this._dueCache.day !== todayLocal()) {
+        const map = {};
+        DB.getCards().forEach(c => {
+          if (c.suspenso) return;
+          if (c.dueTs) return;
+          if (!(c.phase === 'review' || ((c.reps || 0) > 0 && (c.intervalo || 0) > 0))) return;
+          const k = c.due || ''; map[k] = (map[k] || 0) + 1;
+        });
+        this._dueCache = { day: todayLocal(), map };
+      }
+      return this._dueCache.map[this.addDays(todayLocal(), n)] || 0;
+    } catch (_) { return 0; }
   },
   // Migração/normalização: garante que todo card tenha estado FSRS quando o algoritmo é FSRS.
   _ensureFsrsState(card) {
@@ -8385,39 +8458,68 @@ const CardEngine = {
   _scheduleFSRS(card, G) {
     const cfg = CardsConfig.forDeck(card.deckId), w = CardsConfig.weightsFor(card.deckId), r = cfg.retention || 0.9;
     const learn = cfg.learnSteps, relearn = cfg.relearnSteps;
+    const maxIv = Math.max(1, cfg.maxInterval || 36500);
     const c = this._ensureFsrsState(card);
     const nowTs = Date.now(), tdy = todayLocal();
     let patch = { reps: (c.reps || 0) + 1, lastReview: tdy, algo: 'fsrs' };
-    const stepDue = (min) => ({ dueTs: nowTs + min * 60000, due: tdy });
-    // aplica Load Balancing: dentro da janela de fuzz, escolhe o dia de menor carga
-    const balance = (iv) => (cfg.loadBalance && !this._noBalance) ? FSRS.loadBalance(iv, (d) => this._dueCountInDays(d)) : iv;
-    const graduate = (gInit, keepS) => {
-      const S = (keepS != null) ? keepS : FSRS.initS(gInit, w);
-      const D = (c.d != null) ? c.d : FSRS.initD(gInit, w);
-      const iv = balance(FSRS.interval(S, r));
+    const stepDue = (min) => ({ dueTs: nowTs + Math.round(min * 60000), due: tdy });
+    // Dia de vencimento: fuzz determinístico do Anki; com Load Balancing, o dia de MENOR
+    // carga dentro da mesma janela. Determinístico = a prévia do botão bate com o agendado.
+    const place = (ivRaw) => {
+      const iv = Math.max(1, Math.min(maxIv, Math.round(ivRaw)));
+      if (cfg.loadBalance) return Math.min(maxIv, FSRS.loadBalance(iv, (d) => this._dueCountInDays(d), maxIv));
+      return Math.min(maxIv, FSRS.fuzzed(iv, (c.id || 'c') + '|' + G + '|' + (c.reps || 0) + '|' + iv, maxIv));
+    };
+    // Primeira nota do card define S/D; as seguintes evoluem pela memória de curto prazo.
+    const shortTerm = (g) => {
+      const first = (c.s == null);
+      return {
+        s: first ? FSRS.initS(g, w) : FSRS.nextS_short(c.s, g, w),
+        d: first ? FSRS.initD(g, w) : FSRS.nextD(c.d, g, w)
+      };
+    };
+    const graduate = (g, st) => {
+      const S = st.s, D = st.d, iv = place(FSRS.interval(S, r));
       return Object.assign(patch, { phase: 'review', learnStep: 0, s: S, d: D, due: this.addDays(tdy, iv), dueTs: null, status: 'sei', _kind: 'day', _val: iv });
     };
     if (c.phase === 'new' || c.phase === 'learning') {
-      if (G === 1) { Object.assign(patch, { phase: 'learning', learnStep: 0, status: 'naosei' }, stepDue(learn[0])); patch._kind = 'min'; patch._val = learn[0]; }
-      else if (G === 4) { graduate(4); }
+      const st = shortTerm(G);
+      const cur = (c.phase === 'new' ? 0 : (c.learnStep || 0));
+      if (G === 1) { Object.assign(patch, { phase: 'learning', learnStep: 0, s: st.s, d: st.d, status: 'naosei' }, stepDue(learn[0])); patch._kind = 'min'; patch._val = learn[0]; }
+      else if (G === 4) { graduate(4, st); }
       else if (G === 3) {
-        const next = (c.phase === 'new' ? 0 : (c.learnStep || 0)) + 1;
-        if (next >= learn.length) graduate(3);
-        else { Object.assign(patch, { phase: 'learning', learnStep: next, status: 'naosei' }, stepDue(learn[next])); patch._kind = 'min'; patch._val = learn[next]; }
-      } else { const st = (c.phase === 'new' ? 0 : (c.learnStep || 0)); Object.assign(patch, { phase: 'learning', learnStep: st, status: 'naosei' }, stepDue(learn[st])); patch._kind = 'min'; patch._val = learn[st]; }
+        const next = cur + 1;
+        if (next >= learn.length) graduate(3, st);
+        else { Object.assign(patch, { phase: 'learning', learnStep: next, s: st.s, d: st.d, status: 'naosei' }, stepDue(learn[next])); patch._kind = 'min'; patch._val = learn[next]; }
+      } else {
+        // Difícil (Anki): no 1º passo = média entre o passo atual e o próximo; depois, repete o passo.
+        const delay = (cur === 0 && learn.length > 1) ? (learn[0] + learn[1]) / 2 : learn[cur];
+        Object.assign(patch, { phase: 'learning', learnStep: cur, s: st.s, d: st.d, status: 'naosei' }, stepDue(delay));
+        patch._kind = 'min'; patch._val = delay;
+      }
     } else if (c.phase === 'review') {
-      // dias decorridos desde a última revisão. Se a revisão for ANTECIPADA (elapsed 0),
-      // usa o intervalo agendado como referência — evita R≈1 congelar o crescimento de S.
-      let elapsed = this._daysBetween(c.lastReview || tdy, tdy);
-      if (elapsed <= 0) elapsed = Math.max(1, FSRS.interval(c.s || 1, r));
+      const elapsed = this._daysBetween(c.lastReview || tdy, tdy);
+      // Revisão feita no MESMO dia (elapsed 0): memória de curto prazo, como no Anki.
+      if (elapsed <= 0 && G > 1) {
+        const S2 = FSRS.nextS_short(c.s || 1, G, w), D2 = FSRS.nextD(c.d, G, w), iv = place(FSRS.interval(S2, r));
+        Object.assign(patch, { phase: 'review', s: S2, d: D2, due: this.addDays(tdy, iv), dueTs: null, status: 'sei' });
+        patch._kind = 'day'; patch._val = iv;
+        return patch;
+      }
       const R = FSRS.R(elapsed, c.s || 1);
       if (G === 1) { const Sf = FSRS.nextS_forget(c.d, c.s, R, w), D2 = FSRS.nextD(c.d, 1, w); Object.assign(patch, { phase: 'relearning', learnStep: 0, s: Sf, d: D2, lapses: (c.lapses || 0) + 1, status: 'naosei' }, stepDue(relearn[0])); patch._kind = 'min'; patch._val = relearn[0]; }
-      else { const S2 = FSRS.nextS_recall(c.d, c.s, R, G, w), D2 = FSRS.nextD(c.d, G, w), iv = balance(FSRS.interval(S2, r)); Object.assign(patch, { phase: 'review', s: S2, d: D2, due: this.addDays(tdy, iv), dueTs: null, status: 'sei' }); patch._kind = 'day'; patch._val = iv; }
+      else { const S2 = FSRS.nextS_recall(c.d, c.s, R, G, w), D2 = FSRS.nextD(c.d, G, w), iv = place(FSRS.interval(S2, r)); Object.assign(patch, { phase: 'review', s: S2, d: D2, due: this.addDays(tdy, iv), dueTs: null, status: 'sei' }); patch._kind = 'day'; patch._val = iv; }
     } else if (c.phase === 'relearning') {
-      if (G === 1) { Object.assign(patch, { learnStep: 0, status: 'naosei' }, stepDue(relearn[0])); patch._kind = 'min'; patch._val = relearn[0]; }
-      else if (G === 4) { graduate(3, c.s); }
-      else if (G === 3) { const next = (c.learnStep || 0) + 1; if (next >= relearn.length) graduate(3, c.s); else { Object.assign(patch, { learnStep: next, status: 'naosei' }, stepDue(relearn[next])); patch._kind = 'min'; patch._val = relearn[next]; } }
-      else { const st = c.learnStep || 0; Object.assign(patch, { learnStep: st, status: 'naosei' }, stepDue(relearn[st])); patch._kind = 'min'; patch._val = relearn[st]; }
+      const st = shortTerm(G);
+      const cur = c.learnStep || 0;
+      if (G === 1) { Object.assign(patch, { learnStep: 0, s: st.s, d: st.d, status: 'naosei' }, stepDue(relearn[0])); patch._kind = 'min'; patch._val = relearn[0]; }
+      else if (G === 4) { graduate(4, st); }
+      else if (G === 3) { const next = cur + 1; if (next >= relearn.length) graduate(3, st); else { Object.assign(patch, { learnStep: next, s: st.s, d: st.d, status: 'naosei' }, stepDue(relearn[next])); patch._kind = 'min'; patch._val = relearn[next]; } }
+      else {
+        const delay = (cur === 0 && relearn.length > 1) ? (relearn[0] + relearn[1]) / 2 : relearn[cur];
+        Object.assign(patch, { learnStep: cur, s: st.s, d: st.d, status: 'naosei' }, stepDue(delay));
+        patch._kind = 'min'; patch._val = delay;
+      }
     }
     return patch;
   },
@@ -8438,15 +8540,29 @@ const CardEngine = {
   schedule(card, grade) {
     if (grade === 'sei') grade = 'bom';
     if (grade === 'naosei') grade = 'errei';
-    if (CardsConfig.forDeck(card.deckId).algo === 'fsrs') return this._scheduleFSRS(card, this.GRADE_NUM[grade] || 3);
-    return this._scheduleSM2(card, grade);
+    const cfg = CardsConfig.forDeck(card.deckId);
+    const patch = (cfg.algo === 'fsrs')
+      ? this._scheduleFSRS(card, this.GRADE_NUM[grade] || 3)
+      : this._scheduleSM2(card, grade);
+    // LEECH (Anki): ao atingir o limite de lapsos — e a cada metade dele depois —
+    // o card é marcado como problemático e (por padrão) suspenso.
+    const lim = cfg.leechThreshold || 0;
+    if (lim > 0 && patch.lapses && patch.lapses > (card.lapses || 0) && patch.lapses >= lim) {
+      const passo = Math.max(1, Math.floor(lim / 2));
+      if ((patch.lapses - lim) % passo === 0) {
+        patch.leech = true;
+        patch._leechNow = true;
+        if (cfg.leechAction !== 'tag') patch.suspenso = true;
+      }
+    }
+    return patch;
   },
   // Prévia dos 4 botões — cada um retorna { kind:'min'|'day', val }
+  // A prévia roda o MESMO agendador (fuzz determinístico + balanceamento), então o número
+  // mostrado no botão é exatamente o que será gravado ao clicar.
   previewIntervals(card) {
     const out = {};
-    this._noBalance = true; // a prévia mostra o intervalo IDEAL (sem o fuzz do balanceamento)
     ['errei', 'dificil', 'bom', 'facil'].forEach(g => { const p = this.schedule(card, g); out[g] = { kind: p._kind || 'day', val: (p._val != null ? p._val : p.intervalo) }; });
-    this._noBalance = false;
     return out;
   },
   // Formata a prévia de um botão: aceita número (dias) ou objeto { kind, val }
@@ -8492,9 +8608,10 @@ const CardEngine = {
     });
   },
   stats(cards) {
-    const s = { total: cards.length, pendente: 0, sei: 0, naosei: 0, due: 0, favoritos: 0 };
+    const s = { total: cards.length, pendente: 0, sei: 0, naosei: 0, due: 0, favoritos: 0, suspensos: 0 };
     cards.forEach(c => {
       s[c.status || 'pendente'] = (s[c.status || 'pendente'] || 0) + 1;
+      if (c.suspenso) { s.suspensos++; return; } // suspenso não entra na contagem de vencidos
       if (this.isDue(c)) s.due++;
       if (c.favorito) s.favoritos++;
     });
@@ -11823,33 +11940,74 @@ const CardsScreen = {
   },
   // Monta a fila do dia respeitando os LIMITES diários (novos/revisões) — como o Anki.
   buildQueue() {
-    const filtered = this.currentFilteredCards();
+    // cards suspensos (leech) ficam fora da fila, como no Anki
+    const filtered = this.currentFilteredCards().filter(c => !c.suspenso);
     const due = filtered.filter(c => CardEngine.isDue(c));
-    const cfg = CardsConfig.get();
     const newRem = CardsConfig.newRemaining(), revRem = CardsConfig.revRemaining();
     const novos = [], revisoes = [], aprend = [];
     due.forEach(c => { const b = this._bucket(c); if (b === 'new') novos.push(c); else if (b === 'review') revisoes.push(c); else aprend.push(c); });
     const novosLim = novos.slice(0, newRem), revLim = revisoes.slice(0, revRem);
     const shuffle = (a) => { for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1));[a[i], a[j]] = [a[j], a[i]]; } return a; };
     const queue = aprend.concat(shuffle(revLim.concat(novosLim))).map(c => c.id);
-    this._queueMeta = { bloqueadosNovos: Math.max(0, novos.length - novosLim.length), bloqueadosRev: Math.max(0, revisoes.length - revLim.length) };
+    // cards em aprendizado cujo passo ainda não venceu (base do "learn ahead" do Anki)
+    const pendentes = filtered
+      .filter(c => c.dueTs && c.dueTs > Date.now() && (c.due || todayLocal()) <= todayLocal())
+      .sort((a, b) => a.dueTs - b.dueTs);
+    this._queueMeta = {
+      bloqueadosNovos: Math.max(0, novos.length - novosLim.length),
+      bloqueadosRev: Math.max(0, revisoes.length - revLim.length),
+      proximoTs: pendentes.length ? pendentes[0].dueTs : null,
+      pendentes: pendentes.length,
+      suspensos: this.currentFilteredCards().filter(c => c.suspenso).length
+    };
     return queue;
+  },
+  // Anki mostra um card de aprendizado antes da hora quando não há mais nada na fila
+  // (learn ahead limit = 20 min). Fora disso, informa quanto falta.
+  LEARN_AHEAD_MIN: 20,
+  _learnAheadQueue() {
+    const limite = Date.now() + this.LEARN_AHEAD_MIN * 60000;
+    return this.currentFilteredCards()
+      .filter(c => !c.suspenso && c.dueTs && c.dueTs > Date.now() && c.dueTs <= limite)
+      .sort((a, b) => a.dueTs - b.dueTs)
+      .map(c => c.id);
   },
   renderRevisar(box) {
     if (DB.getCards().length === 0) {
       box.innerHTML = this.emptyState('Nenhum card ainda', 'Clique em <strong>＋ Criar card</strong> no topo para começar.');
       return;
     }
-    if (this._reviewIdx === 0) this._seenThisSession = new Set(); // nova sessão
+    if (this._reviewIdx === 0) { this._seenThisSession = new Set(); this._undoStack = []; } // nova sessão
+    const atualId = this._reviewQueue && this._reviewQueue[this._reviewIdx];
     this._reviewQueue = this.buildQueue();
     const m = this._queueMeta || {};
     if (this._reviewQueue.length === 0) {
-      const extra = (m.bloqueadosNovos || m.bloqueadosRev)
-        ? `<p style="margin-top:10px;color:var(--text-soft)">Você atingiu o limite diário. Restam <b>${m.bloqueadosNovos}</b> novo(s) e <b>${m.bloqueadosRev}</b> revisão(ões) para amanhã — ajuste em <strong>⚙ Algoritmo</strong> se quiser continuar.</p>` : '';
-      box.innerHTML = `<div class="card"><div class="cards-review-done"><div class="big">✅</div><h3>Tudo em dia por aqui!</h3><p>Não há cards para revisar agora com os filtros atuais.</p>${extra}</div></div>`;
-      return;
+      // "Learn ahead" do Anki: se só restam passos de aprendizado, antecipa os que estão
+      // dentro de 20 min; senão, mostra quanto falta em vez de dizer que acabou.
+      if (m.proximoTs) {
+        const faltaMin = Math.max(0, Math.ceil((m.proximoTs - Date.now()) / 60000));
+        if (faltaMin <= this.LEARN_AHEAD_MIN) this._reviewQueue = this._learnAheadQueue();
+        if (!this._reviewQueue || this._reviewQueue.length === 0) {
+          box.innerHTML = `<div class="card"><div class="cards-review-done"><div class="big">⏳</div><h3>Aguardando o próximo passo</h3>
+            <p>Você tem <b>${m.pendentes}</b> card(s) em aprendizado. O próximo volta em <b id="cards-eta">${faltaMin} min</b>.</p>
+            <button type="button" class="btn-secondary" id="cards-review-refresh">Atualizar agora</button></div></div>`;
+          const rb = document.getElementById('cards-review-refresh');
+          if (rb) rb.addEventListener('click', () => this.renderContent());
+          clearTimeout(this._etaTimer);
+          this._etaTimer = setTimeout(() => { if (this.tab === 'revisar') this.renderContent(); }, Math.min(60000, Math.max(5000, (m.proximoTs - Date.now()) + 500)));
+          return;
+        }
+      } else {
+        const extra = (m.bloqueadosNovos || m.bloqueadosRev)
+          ? `<p style="margin-top:10px;color:var(--text-soft)">Você atingiu o limite diário. Restam <b>${m.bloqueadosNovos}</b> novo(s) e <b>${m.bloqueadosRev}</b> revisão(ões) para amanhã — ajuste em <strong>⚙ Algoritmo</strong> se quiser continuar.</p>` : '';
+        const susp = m.suspensos ? `<p style="margin-top:10px;color:var(--text-soft)">🚫 <b>${m.suspensos}</b> card(s) suspenso(s) por excesso de erros — reative em <strong>Meus cards</strong>.</p>` : '';
+        box.innerHTML = `<div class="card"><div class="cards-review-done"><div class="big">✅</div><h3>Tudo em dia por aqui!</h3><p>Não há cards para revisar agora com os filtros atuais.</p>${extra}${susp}</div></div>`;
+        return;
+      }
     }
-    this._reviewIdx = Math.min(this._reviewIdx, this._reviewQueue.length - 1);
+    // mantém o card que estava na tela quando a fila é remontada (ex.: após editar um card)
+    const iAtual = atualId ? this._reviewQueue.indexOf(atualId) : -1;
+    this._reviewIdx = iAtual >= 0 ? iAtual : Math.min(this._reviewIdx, this._reviewQueue.length - 1);
     this._flipped = false;
     this.renderReviewCard(box);
   },
@@ -11928,12 +12086,12 @@ const CardsScreen = {
         ${this.faceHtml(c)}
         <div class="cards-review-actions" id="cards-review-actions"></div>
         <div class="cards-review-nav">
-          <button type="button" class="cards-nav-btn" id="cards-prev" ${this._reviewIdx === 0 ? 'disabled' : ''}>← Anterior</button>
+          <button type="button" class="cards-nav-btn" id="cards-undo" ${(this._undoStack || []).length === 0 ? 'disabled' : ''} title="Desfazer a última avaliação (Ctrl+Z)">↶ Desfazer</button>
           <button type="button" class="icon-btn cards-review-edit" id="cards-review-edit" title="Editar card">✎ Editar</button>
           <button type="button" class="cards-nav-btn" id="cards-next" ${this._reviewIdx >= total - 1 ? 'disabled' : ''}>Pular →</button>
         </div>
         <div class="cards-kbd-hint-row">
-          <span class="cards-kbd-hint"><kbd>Espaço</kbd> vira · <kbd>1</kbd><kbd>2</kbd><kbd>3</kbd><kbd>4</kbd> avaliam · <kbd>←</kbd><kbd>→</kbd> navegam</span>
+          <span class="cards-kbd-hint"><kbd>Espaço</kbd> vira · <kbd>1</kbd><kbd>2</kbd><kbd>3</kbd><kbd>4</kbd> avaliam · <kbd>Ctrl</kbd>+<kbd>Z</kbd> desfaz · <kbd>→</kbd> pula</span>
         </div>
       </div>`;
     this.renderActions(box, c);
@@ -11941,7 +12099,7 @@ const CardsScreen = {
       DB.updateCard(c.id, { favorito: !c.favorito }); this.updateFavCount(); this.renderReviewCard(box);
     });
     document.getElementById('cards-review-edit').addEventListener('click', () => this.openCardModal(c.id));
-    const pv = document.getElementById('cards-prev'); if (pv) pv.addEventListener('click', () => this.navCard(-1));
+    const un = document.getElementById('cards-undo'); if (un) un.addEventListener('click', () => this.undoAnswer());
     const nx = document.getElementById('cards-next'); if (nx) nx.addEventListener('click', () => this.navCard(1));
   },
   // renderiza as faces conforme o tipo (cloze ou básico)
@@ -11985,25 +12143,62 @@ const CardsScreen = {
     const tag = (e.target.tagName || '').toLowerCase();
     if (tag === 'input' || tag === 'textarea' || e.target.isContentEditable) return;
     const box = document.getElementById('cards-content');
+    // Ctrl+Z / Cmd+Z: desfazer a última avaliação (como no Anki)
+    if ((e.ctrlKey || e.metaKey) && e.code === 'KeyZ') { e.preventDefault(); this.undoAnswer(); return; }
     if (e.code === 'Space') {
       e.preventDefault();
       if (!this._flipped) this.flip(box);
       return;
     }
-    // setas: navegar entre cards sem avaliar (→ próximo/pular, ← anterior)
+    // → pula o card sem avaliar; ← desfaz a última avaliação
     if (e.code === 'ArrowRight') { e.preventDefault(); this.navCard(1); return; }
-    if (e.code === 'ArrowLeft') { e.preventDefault(); this.navCard(-1); return; }
+    if (e.code === 'ArrowLeft') { e.preventDefault(); this.undoAnswer(); return; }
     if (!this._flipped) return;
     const map = { Digit1: 'errei', Numpad1: 'errei', Digit2: 'dificil', Numpad2: 'dificil', Digit3: 'bom', Numpad3: 'bom', Digit4: 'facil', Numpad4: 'facil' };
     if (map[e.code]) { e.preventDefault(); this.answer(map[e.code]); }
   },
-  // navega entre os cards da fila sem avaliar (pular/voltar)
+  // pula (rotacionando para o fim) cards cujo passo de aprendizado ainda não venceu,
+  // desde que exista outro card disponível agora
+  _skipNotDue() {
+    const q = this._reviewQueue;
+    let guard = q.length;
+    while (guard-- > 0 && this._reviewIdx < q.length) {
+      const c = DB.getCard(q[this._reviewIdx]);
+      if (!c || !c.dueTs || c.dueTs <= Date.now()) return;
+      const temOutro = q.slice(this._reviewIdx + 1).some(id => { const o = DB.getCard(id); return o && (!o.dueTs || o.dueTs <= Date.now()); });
+      if (!temOutro) return; // é o único: o Anki antecipa (learn ahead)
+      q.push(q.splice(this._reviewIdx, 1)[0]);
+    }
+  },
+  // navega entre os cards da fila sem avaliar (pular)
   navCard(dir) {
     if (!this._reviewQueue || this._reviewQueue.length === 0) return;
     const ni = this._reviewIdx + dir;
     if (ni < 0 || ni >= this._reviewQueue.length) return;
     this._reviewIdx = ni;
     this._flipped = false;
+    this.renderReviewCard(document.getElementById('cards-content'));
+  },
+  // DESFAZER (Anki: Ctrl+Z) — restaura o card, apaga a revisão do histórico e devolve
+  // o contador diário. Substitui o antigo "Anterior", que reavaliava o card em dobro.
+  undoAnswer() {
+    const u = (this._undoStack || []).pop();
+    if (!u) { showToast('Nada para desfazer'); return; }
+    DB.updateCard(u.id, u.antes);
+    CardEngine.invalidateDueCache();
+    DB.removeRevlog(u.revTs);
+    if (u.contou) CardsConfig.unmarkIntroduced(u.contou);
+    if (this._seenThisSession && !(this._undoStack || []).some(x => x.id === u.id)) this._seenThisSession.delete(u.id);
+    // desfaz a reinserção do card na fila, se houve
+    const dup = this._reviewQueue.lastIndexOf(u.id);
+    if (dup > u.idx) this._reviewQueue.splice(dup, 1);
+    this._reviewIdx = Math.max(0, Math.min(u.idx, this._reviewQueue.length - 1));
+    if (this._reviewQueue[this._reviewIdx] !== u.id) {
+      const i = this._reviewQueue.indexOf(u.id);
+      if (i >= 0) this._reviewIdx = i; else { this._reviewQueue.splice(this._reviewIdx, 0, u.id); }
+    }
+    this._flipped = false;
+    showToast('Revisão desfeita ↶');
     this.renderReviewCard(document.getElementById('cards-content'));
   },
   answer(grade) {
@@ -12014,29 +12209,48 @@ const CardsScreen = {
       // registra no histórico (revlog) ANTES de reagendar — base para o otimizador FSRS
       const G = CardEngine.GRADE_NUM[grade] || 3;
       const elapsed = c.lastReview ? Math.max(0, Math.round((new Date(todayLocal() + 'T00:00:00') - new Date(c.lastReview + 'T00:00:00')) / 86400000)) : 0;
-      DB.addRevlog({ ts: Date.now(), date: todayLocal(), cardId: id, grade: G, acerto: G > 1, phase: (c.phase || 'new'), elapsed, s: (c.s || null), d: (c.d || null) });
+      const revTs = Date.now();
+      DB.addRevlog({ ts: revTs, date: todayLocal(), cardId: id, grade: G, acerto: G > 1, phase: (c.phase || 'new'), elapsed, s: (c.s || null), d: (c.d || null) });
       // conta introdução no limite diário só na 1ª vez que o card aparece nesta sessão
       const bucketAntes = this._bucket(c);
       if (!this._seenThisSession) this._seenThisSession = new Set();
-      if (!this._seenThisSession.has(id) && (bucketAntes === 'new' || bucketAntes === 'review')) CardsConfig.markIntroduced(bucketAntes);
+      const primeiraVez = !this._seenThisSession.has(id) && (bucketAntes === 'new' || bucketAntes === 'review');
+      if (primeiraVez) CardsConfig.markIntroduced(bucketAntes);
       this._seenThisSession.add(id);
+      // snapshot para o DESFAZER — capturado ANTES de gravar (Anki: Ctrl+Z)
+      const antes = {};
+      ['phase', 'learnStep', 's', 'd', 'due', 'dueTs', 'reps', 'lapses', 'ease', 'intervalo', 'status', 'lastReview', 'algo', 'leech', 'suspenso']
+        .forEach(k => { antes[k] = c[k]; });
       patch = CardEngine.schedule(c, grade); DB.updateCard(id, patch);
+      CardEngine.invalidateDueCache();
+      (this._undoStack = this._undoStack || []).push({ id, antes, revTs, contou: primeiraVez ? bucketAntes : null, idx: this._reviewIdx });
+      if (this._undoStack.length > 50) this._undoStack.shift();
+      if (patch._leechNow) showToast(patch.suspenso ? '🚫 Card suspenso: já errou ' + patch.lapses + ' vezes' : '⚠ Card marcado como problemático (' + patch.lapses + ' erros)');
     }
     this._reviewIdx++;
     this._flipped = false;
-    // Anki: cards em APRENDIZADO/REAPRENDIZADO ressurgem na mesma sessão (após o passo).
-    // Reinsere o id algumas posições à frente para você revê-lo até fixar.
-    if (patch && (patch.phase === 'learning' || patch.phase === 'relearning')) {
+    // Anki: cards em APRENDIZADO/REAPRENDIZADO ressurgem na mesma sessão, mas só DEPOIS
+    // do passo. Passo curto volta logo; passo longo vai para o fim da fila.
+    if (patch && (patch.phase === 'learning' || patch.phase === 'relearning') && !patch.suspenso) {
       const restam = this._reviewQueue.length - this._reviewIdx;
-      const gap = Math.min(3, restam);
+      const curto = patch.dueTs && (patch.dueTs - Date.now()) <= 3 * 60000;
+      const gap = curto ? Math.min(3, restam) : restam;
       this._reviewQueue.splice(this._reviewIdx + gap, 0, id);
     }
+    // não mostra um card cujo passo ainda não venceu se houver outro disponível
+    this._skipNotDue();
     const box = document.getElementById('cards-content');
     if (this._reviewIdx >= this._reviewQueue.length) {
-      box.innerHTML = `<div class="card"><div class="cards-review-done"><div class="big">🎉</div><h3>Sessão concluída!</h3><p>Você revisou ${this._reviewQueue.length} card(s). O app agendou a próxima revisão de cada um.</p><button type="button" class="btn-primary" id="cards-review-restart">Revisar novamente</button></div></div>`;
+      // conta CARDS DISTINTOS, não as repetições dos passos de aprendizado
+      const distintos = new Set(this._reviewQueue).size;
+      box.innerHTML = `<div class="card"><div class="cards-review-done"><div class="big">🎉</div><h3>Sessão concluída!</h3><p>Você revisou ${distintos} card(s). O app agendou a próxima revisão de cada um.</p><button type="button" class="btn-primary" id="cards-review-restart">Ver se há mais</button></div></div>`;
       const rb = document.getElementById('cards-review-restart');
       if (rb) rb.addEventListener('click', () => { this._reviewIdx = 0; this.renderContent(); });
       this.updateFavCount();
+      // se ainda há passos de aprendizado pendentes, reabre a fila sozinho quando vencerem
+      const prox = (this._queueMeta || {}).proximoTs;
+      clearTimeout(this._etaTimer);
+      if (prox) this._etaTimer = setTimeout(() => { if (this.tab === 'revisar') { this._reviewIdx = 0; this.renderContent(); } }, Math.max(3000, prox - Date.now() + 500));
       return;
     }
     this.renderReviewCard(box);
@@ -12053,7 +12267,7 @@ const CardsScreen = {
     }
     const st = CardEngine.stats(filtered);
     box.innerHTML = `
-      <div class="cards-count-bar">${filtered.length} card(s) · <span style="color:var(--good)">${st.sei} sei</span> · <span style="color:var(--bad)">${st.naosei} não sei</span> · <span style="color:var(--text-soft)">${st.pendente} pendente(s)</span></div>
+      <div class="cards-count-bar">${filtered.length} card(s) · <span style="color:var(--good)">${st.sei} sei</span> · <span style="color:var(--bad)">${st.naosei} não sei</span> · <span style="color:var(--text-soft)">${st.pendente} pendente(s)</span>${st.suspensos ? ` · <span style="color:var(--bad)">🚫 ${st.suspensos} suspenso(s)</span>` : ''}</div>
       <div class="cards-grid">` +
       filtered.map(c => `
         <div class="mini-card" data-id="${c.id}">
@@ -12072,7 +12286,10 @@ const CardsScreen = {
             ${c.kind === 'cloze' ? `<span class="cards-type-tag" style="color:var(--accent)">Cloze</span>` : ''}
             ${c.reversedOf ? `<span class="cards-type-tag" title="Cartão invertido">⇄</span>` : ''}
             ${c.tipo ? `<span class="cards-type-tag">${escapeHtml(c.tipo)}</span>` : ''}
+            ${c.suspenso ? `<span class="cards-type-tag" style="color:var(--bad);border-color:var(--bad)" title="Suspenso após ${c.lapses || 0} erros — clique em ▶ para reativar">🚫 Suspenso</span>`
+              : (c.leech ? `<span class="cards-type-tag" style="color:var(--warn);border-color:var(--warn)" title="${c.lapses || 0} erros acumulados">⚠ Difícil</span>` : '')}
             <span style="flex:1"></span>
+            ${c.suspenso ? `<button type="button" class="icon-btn" data-unsusp="${c.id}" title="Reativar card">▶</button>` : ''}
             <button type="button" class="icon-btn mini-edit" data-edit="${c.id}" title="Editar">✎</button>
             <button type="button" class="icon-btn danger mini-del" data-del="${c.id}" title="Excluir">×</button>
           </div>
@@ -12081,6 +12298,11 @@ const CardsScreen = {
       const c = DB.getCard(b.dataset.fav); DB.updateCard(c.id, { favorito: !c.favorito }); this.updateFavCount(); this.renderMeus(box);
     }));
     box.querySelectorAll('[data-edit]').forEach(b => b.addEventListener('click', () => this.openCardModal(b.dataset.edit)));
+    box.querySelectorAll('[data-unsusp]').forEach(b => b.addEventListener('click', () => {
+      DB.updateCard(b.dataset.unsusp, { suspenso: false, due: todayLocal(), dueTs: null });
+      CardEngine.invalidateDueCache();
+      showToast('Card reativado ✓'); this.renderMeus(box);
+    }));
     box.querySelectorAll('[data-del]').forEach(b => b.addEventListener('click', () => {
       if (!confirm('Excluir este card?')) return;
       DB.deleteCard(b.dataset.del); this.render();
@@ -12371,7 +12593,14 @@ CardsScreen.openAlgoConfigFor = function (deckId) {
       hint: 'Ao errar um card já aprendido, ele volta nesses minutos.' },
     { key: 'lb', label: '⚖️ Balancear carga (Load Balancing)', type: 'select', value: cfg.loadBalance ? '1' : '0',
       options: [{ value: '1', label: 'Ligado (distribui as revisões)' }, { value: '0', label: 'Desligado' }],
-      hint: 'Espalha os vencimentos em ±alguns dias para evitar picos num só dia.' }
+      hint: 'Escolhe, dentro da janela de dispersão, o dia com menos revisões marcadas.' },
+    { key: 'maxInterval', label: '📆 Intervalo máximo (dias)', type: 'number', value: cfg.maxInterval || 36500, min: 1, max: 36500,
+      hint: 'Teto de espera entre revisões. Padrão Anki: 36500 (100 anos).' },
+    { key: 'leechThreshold', label: '🚫 Erros até marcar como problemático', type: 'number', value: cfg.leechThreshold != null ? cfg.leechThreshold : 8, min: 0, max: 99,
+      hint: 'Padrão Anki: 8. Use 0 para desativar.' },
+    { key: 'leechAction', label: '🚫 O que fazer com o card problemático', type: 'select', value: cfg.leechAction || 'suspend',
+      options: [{ value: 'suspend', label: 'Suspender (tira da fila)' }, { value: 'tag', label: 'Só marcar (continua aparecendo)' }],
+      hint: 'Suspenso some da revisão até você reativar em Meus cards.' }
   ];
   // limites diários só no escopo global (no Anki também são por baralho, mas mantemos simples)
   if (!isDeck) {
@@ -12383,9 +12612,17 @@ CardsScreen.openAlgoConfigFor = function (deckId) {
     if (!v) return;
     const parseSteps = (s, def) => { const a = String(s).split(/[\s,]+/).map(x => parseFloat(x)).filter(x => x > 0); return a.length ? a : def; };
     const ret = Math.min(0.97, Math.max(0.70, (parseFloat(v.retention) || 90) / 100));
-    const patch = { algo: v.algo === 'sm2' ? 'sm2' : 'fsrs', retention: ret, learnSteps: parseSteps(v.learn, [1, 10]), relearnSteps: parseSteps(v.relearn, [10]), loadBalance: v.lb === '1' };
+    const patch = {
+      algo: v.algo === 'sm2' ? 'sm2' : 'fsrs', retention: ret,
+      learnSteps: parseSteps(v.learn, [1, 10]), relearnSteps: parseSteps(v.relearn, [10]),
+      loadBalance: v.lb === '1',
+      maxInterval: Math.min(36500, Math.max(1, parseInt(v.maxInterval) || 36500)),
+      leechThreshold: Math.max(0, Math.min(99, parseInt(v.leechThreshold) != null && !isNaN(parseInt(v.leechThreshold)) ? parseInt(v.leechThreshold) : 8)),
+      leechAction: v.leechAction === 'tag' ? 'tag' : 'suspend'
+    };
     if (isDeck) { CardsConfig.setDeckPreset(deckId, patch); showToast('Preset do baralho "' + deckName + '" salvo ✓'); }
     else { patch.newPerDay = Math.max(0, parseInt(v.newPerDay) || 0); patch.revPerDay = Math.max(0, parseInt(v.revPerDay) || 0); CardsConfig.set(patch); showToast('Configuração global salva ✓'); }
+    CardEngine.invalidateDueCache();
     // ações avançadas FSRS (otimizar/retenção) — para o escopo escolhido
     if ((v.algo || 'fsrs') !== 'sm2') { CardsScreen._fsrsScope = deckId; setTimeout(() => CardsScreen.openFsrsTools(), 250); }
     if (CardsScreen.tab === 'revisar' || CardsScreen.tab === 'stats') CardsScreen.renderContent();
