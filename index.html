@@ -5489,7 +5489,16 @@
               </div>
               <div class="rfc-field">
                 <label>Ritmo (questões/semana)</label>
-                <input type="number" id="plano-ritmo" min="1" max="2000" step="1" title="Medido na janela. Altere para simular outro ritmo.">
+                <input type="number" id="plano-ritmo" min="1" max="2000" step="1" title="Segue sozinho o que você produz. Digite outro valor para simular.">
+              </div>
+              <div class="rfc-field wide">
+                <label>Ordenar por</label>
+                <select id="plano-ordenar">
+                  <option value="rendimento">⚡ Melhor retorno — ganho por questão resolvida</option>
+                  <option value="pior">🔴 Pior acerto primeiro</option>
+                  <option value="queda">📉 Maior queda recente</option>
+                  <option value="volume">📚 Mais questões já resolvidas</option>
+                </select>
               </div>
               <button type="button" class="rfc-adv-btn" id="plano-adv-btn" aria-expanded="false">
                 <span class="chev">▸</span> Ajustes avançados
@@ -14982,7 +14991,7 @@ const PlanoEngine = {
     ponderacao: 'igual', minAmostra: 20, incluirPequenas: false,
     custoModo: 'fixo', custoFixo: 60, custoFator: 0.5,
     ritmoSemanal: null, apenasFolhas: true, disciplina: '__todas__',
-    limite: 30,
+    limite: 30, ordenar: 'rendimento',
     amostraAlvo: 50,     // amostra que buscamos para a taxa ser confiável (±14pp a 95%)
     janelaMax: 365,      // até onde recuar no tempo procurando essa amostra
     cadenciaDias: 30
@@ -15119,7 +15128,21 @@ const PlanoEngine = {
       x.ganhoPP = Math.max(0, (x.peso * teto - x.peso * x.taxa / 100) / universo * 100);
       x.rendimento = x.ganhoPP / x.custoQ * 100;
     });
-    const plano = usados.filter(x => x.ganhoPP > 0.001).sort((a, b) => b.rendimento - a.rendimento);
+    // Classificação em linguagem clara, com o que fazer em cada faixa
+    usados.forEach(x => {
+      const t = x.taxa;
+      if (t < 50) x.status = { rot: 'Crítico', tom: 'bad', acao: 'Volte à teoria antes de resolver mais questões — o erro aqui é de base.' };
+      else if (t < 65) x.status = { rot: 'Frágil', tom: 'bad', acao: 'Revise a teoria dos pontos que erra e alterne com bateria de questões.' };
+      else if (t < 80) x.status = { rot: 'Em desenvolvimento', tom: 'warn', acao: 'Base existe. Ganhe volume de questões e revise só o que errar.' };
+      else x.status = { rot: 'Consolidado', tom: 'good', acao: 'Manter com revisão espaçada. Não gaste tempo extra aqui.' };
+    });
+    const ordem = {
+      rendimento: (a, b) => b.rendimento - a.rendimento,
+      pior: (a, b) => a.taxa - b.taxa,
+      queda: (a, b) => (a.delta == null ? 0 : a.delta) - (b.delta == null ? 0 : b.delta),
+      volume: (a, b) => b.qHist - a.qHist
+    };
+    const plano = usados.filter(x => x.ganhoPP > 0.001).sort(ordem[opts.ordenar] || ordem.rendimento);
     const meta = opts.metaDominio;
     let acum = dominioPct, idxMeta = -1, qAteMeta = 0;
     plano.forEach((x, i) => {
@@ -15128,6 +15151,8 @@ const PlanoEngine = {
     });
     const ritmo = opts.ritmoSemanal || this.ritmoRecente(snapsDesc, 120) || 0;
     const idadeUltimo = this._diasDesde(todos[todos.length - 1].endDate || todos[todos.length - 1].date);
+    const melhorando = usados.filter(x => x.delta != null && x.delta >= 3).length;
+    const piorando = usados.filter(x => x.delta != null && x.delta <= -3).length;
     const janelaMedia = Math.round(usados.filter(x => x.diasJanela).reduce((a, x) => a + x.diasJanela, 0) / Math.max(1, usados.filter(x => x.diasJanela).length));
     return {
       dominioPct, meta, jaAtinge: dominioPct >= meta, falta: Math.max(0, meta - dominioPct),
@@ -15138,6 +15163,7 @@ const PlanoEngine = {
       semanas: (idxMeta >= 0 && ritmo > 0) ? qAteMeta / ritmo : null,
       amostraAlvo: opts.amostraAlvo, janelaMax: opts.janelaMax, janelaMedia,
       comAlvo: usados.filter(x => x.atingiuAlvo).length,
+      melhorando, piorando, ordenar: opts.ordenar,
       idadeUltimo, cadenciaDias: opts.cadenciaDias,
       defasado: idadeUltimo > opts.cadenciaDias,
       ponderacao: opts.ponderacao,
@@ -15580,7 +15606,7 @@ const DesempenhoTecScreen = {
     set('plano-customodo', p.custoModo); set('plano-custofixo', p.custoFixo);
     set('plano-custofator', p.custoFator); set('plano-limite', p.limite);
     chk('plano-folhas', p.apenasFolhas); chk('plano-pequenas', p.incluirPequenas);
-    set('plano-amostraalvo', p.amostraAlvo); set('plano-cadencia', p.cadenciaDias);
+    set('plano-amostraalvo', p.amostraAlvo); set('plano-cadencia', p.cadenciaDias); set('plano-ordenar', p.ordenar);
     set('plano-janelamax', p.janelaMax);
     const desc = DB.getTecSnapshots().slice().reverse();
     set('plano-ritmo', p.ritmoSemanal || PlanoEngine.ritmoRecente(desc, 120) || 25);
@@ -15615,9 +15641,16 @@ const DesempenhoTecScreen = {
       amostraAlvo: Math.max(10, num('plano-amostraalvo', 50)),
       janelaMax: Math.max(30, num('plano-janelamax', 365)),
       cadenciaDias: Math.max(7, num('plano-cadencia', 30)),
-      ritmoSemanal: Math.max(1, num('plano-ritmo', 25))
+      ordenar: val('plano-ordenar', 'rendimento')
     };
+    // O ritmo SEGUE a medição automaticamente. Só vira manual se você digitar algo
+    // diferente do medido — assim novos imports atualizam o número sozinhos.
+    const descSnaps = DB.getTecSnapshots().slice().reverse();
+    const medido = PlanoEngine.ritmoRecente(descSnaps, 120) || 25;
+    const digitado = Math.max(1, num('plano-ritmo', medido));
+    opts.ritmoSemanal = (digitado === medido) ? null : digitado;
     PlanoEngine.salvarPrefs(opts);
+    opts.ritmoSemanal = opts.ritmoSemanal || medido;
     const r = PlanoEngine.calcular(this.scopedSnapshot(), opts);
     if (r.erro === 'sem-retrato') {
       proj.innerHTML = `<p class="hint" style="padding:18px 0;">Importe ao menos um retrato de desempenho em <strong>📊 Análise</strong>.</p>`;
@@ -15651,7 +15684,8 @@ const DesempenhoTecScreen = {
             <span class="reforco-tag ${r.comAlvo < r.assuntos ? 'tone-warn' : 'tone-good'}" title="Assuntos que alcançaram a amostra-alvo dentro do limite de tempo">
               ${r.comAlvo} de ${r.assuntos} com amostra completa
             </span>
-            ${r.ritmoMedido ? `<span class="reforco-tag" style="background:var(--surface);color:var(--text-soft)">ritmo medido: ${r.ritmoMedido} q/sem</span>` : ''}
+            ${r.ritmoMedido ? `<span class="reforco-tag" style="background:var(--surface);color:var(--text-soft)" title="Medido no seu próprio histórico — acompanha sozinho cada importação">ritmo: ${r.ritmoMedido} q/sem (automático)</span>` : ''}
+            ${(r.melhorando || r.piorando) ? `<span class="reforco-tag ${r.melhorando >= r.piorando ? 'tone-good' : 'tone-bad'}" title="Assuntos cuja taxa recente subiu ou caiu mais de 3pp em relação ao histórico">tendência: ${r.melhorando}▲ ${r.piorando}▼</span>` : ''}
             ${r.ignorados ? `<span class="reforco-tag tone-warn" title="Assuntos com menos questões que a amostra mínima — listados no fim">${r.ignorados} fora por amostra pequena</span>` : ''}
           </div>
           ${r.defasado ? `<p class="hint" style="margin:10px 0 0;color:var(--warn-text);font-weight:700;">⏳ Última importação há ${r.idadeUltimo} dias — você definiu ${r.cadenciaDias}. Importe um novo período para a leitura refletir seu nível de hoje.</p>` : ''}
@@ -15660,41 +15694,62 @@ const DesempenhoTecScreen = {
 
     const linhas = r.itens.map((x, i) => {
       const seta = x.delta == null ? '' :
-        x.delta >= 8 ? `<span class="reforco-tag tone-good">▲ +${x.delta}pp</span>` :
-        x.delta <= -8 ? `<span class="reforco-tag tone-bad">▼ ${x.delta}pp</span>` : '';
-      const fonte = `<span class="reforco-tag tone-${x.conf.tom}" title="Amostra de ${x.qJanela} questões · confiabilidade ${x.conf.nivel}">${x.taxa.toFixed(0)}%${x.margem != null ? ' ±' + x.margem.toFixed(0) + 'pp' : ''}</span>`;
-      const marca = (i === r.idxMeta) ? `<div class="hint" style="margin:8px 0;padding:6px 10px;border-left:3px solid var(--good);background:var(--good-soft);font-weight:700;color:var(--good-text)">🏁 Meta de ${r.meta}% atingida aqui</div>` : '';
+        x.delta >= 3 ? `<span class="reforco-tag tone-good" title="Sua taxa recente está acima da média histórica — você melhorou">▲ +${x.delta}pp vs histórico</span>` :
+        x.delta <= -3 ? `<span class="reforco-tag tone-bad" title="Sua taxa recente está abaixo da média histórica — atenção">▼ ${x.delta}pp vs histórico</span>` : '';
+      const marca = (i === r.idxMeta) ? `<div class="hint" style="margin:8px 0;padding:8px 12px;border-left:3px solid var(--good);background:var(--good-soft);font-weight:700;color:var(--good-text)">🏁 Daqui para cima já basta para chegar a ${r.meta}% de domínio</div>` : '';
       return `
-        <div class="reforco-row">
+        <div class="reforco-row" style="align-items:flex-start;">
           <div class="reforco-rank">${i + 1}</div>
           <div class="reforco-main">
             <div class="reforco-topico">${escapeHtml(x.nome)}</div>
             <div class="reforco-meta">
               ${x.disciplina ? `<span class="reforco-disc">${escapeHtml(x.disciplina)}</span>` : ''}
-              ${fonte}${seta}
-              <span class="reforco-tag" style="background:var(--surface-sunken);color:var(--text-soft)">≈ ${x.custoQ} questões</span>
-              <span class="reforco-tag" style="background:var(--surface-sunken);color:var(--text-faint)" title="Quantas questões e de quanto tempo atrás o app precisou puxar">${x.qJanela} quest.${x.diasJanela ? ' · últimos ' + x.diasJanela + 'd' : ''}${x.atingiuAlvo ? '' : ' ⚠'}</span>
+              <span class="reforco-tag tone-${x.status.tom}">${x.status.rot}</span>
+              <span class="reforco-tag tone-${x.conf.tom}" title="Taxa de acerto e margem de erro a 95% de confiança">
+                ${x.taxa.toFixed(0)}%${x.margem != null ? ' ±' + x.margem.toFixed(0) + 'pp' : ''}
+              </span>
+              ${seta}
+            </div>
+            <div class="hint" style="margin:6px 0 0;">${escapeHtml(x.status.acao)}</div>
+            <div class="hint" style="margin:4px 0 0;font-size:calc(10px * var(--fs-scale,1));">
+              base: ${x.qJanela} questões${x.diasJanela ? ' dos últimos ' + x.diasJanela + ' dias' : ''} · ${x.qHist} no histórico total
+              ${x.atingiuAlvo ? '' : ' · <span style="color:var(--warn-text);font-weight:700">amostra abaixo do alvo</span>'}
+              · custo estimado ≈ ${x.custoQ} questões
             </div>
           </div>
           <div style="text-align:right;white-space:nowrap;">
             <div style="font-family:'Space Mono',monospace;font-weight:800;" class="tone-good">+${x.ganhoPP.toFixed(1)}pp</div>
-            <div class="hint" style="margin:0;">→ ${x.acumulado.toFixed(1)}%</div>
+            <div class="hint" style="margin:0;">leva a ${x.acumulado.toFixed(1)}%</div>
           </div>
         </div>${marca}`;
     }).join('');
+    const comoLer = `
+      <details class="rfc-advanced" style="margin:0 0 14px;padding:12px 14px;">
+        <summary style="cursor:pointer;font-weight:700;font-size:calc(13px * var(--fs-scale,1));">📖 Como ler esta tela</summary>
+        <div class="hint" style="margin-top:10px;line-height:1.65;">
+          <p style="margin:0 0 8px;"><strong>Domínio</strong> é a média das suas taxas de acerto nos assuntos que você pratica. É o número a subir.</p>
+          <p style="margin:0 0 8px;"><strong>Taxa e margem</strong> (ex.: 63% ±11pp) vêm das suas questões mais recentes. A margem diz o quanto o número pode variar: quanto menor a amostra, maior a incerteza.</p>
+          <p style="margin:0 0 8px;"><strong>Base</strong> mostra de quantas questões e de quanto tempo atrás o app puxou o dado. Ele recua no tempo só o necessário para a amostra ficar confiável.</p>
+          <p style="margin:0 0 8px;"><strong>+X pp</strong> é quanto o seu domínio sobe se você levar aquele assunto ao teto. <strong>Custo</strong> é a estimativa de questões para isso.</p>
+          <p style="margin:0 0 8px;"><strong>▲ ▼ vs histórico</strong> compara sua taxa recente com a média de toda a sua vida naquele assunto. Verde significa que você evoluiu e o histórico ainda não refletia.</p>
+          <p style="margin:0;"><strong>Como agir:</strong> comece pelo topo da lista. Cada item traz a orientação conforme a faixa de acerto — abaixo de 50% o problema é teoria, acima de 65% é volume. A linha verde marca até onde você precisa ir para bater a meta.</p>
+        </div>
+      </details>`;
     const pequenas = (!opts.incluirPequenas && r.pequenas.length) ? `
       <div style="margin-top:18px;padding-top:14px;border-top:1px dashed var(--border);">
-        <p class="section-label" style="margin:0 0 6px;">Fora do cálculo — amostra menor que ${opts.minAmostra} questões</p>
-        <p class="hint" style="margin:0 0 8px;">Pode ser fraqueza real ou só falta de dado. Resolva mais questões para descobrir.</p>
-        ${r.pequenas.slice(0, 12).map(x => `<div class="reforco-row" style="opacity:0.7">
+        <p class="section-label" style="margin:0 0 6px;">Fora do cálculo — menos de ${opts.minAmostra} questões</p>
+        <p class="hint" style="margin:0 0 8px;">Pode ser fraqueza real ou só falta de dado. Resolva algumas questões para descobrir de qual se trata.</p>
+        ${r.pequenas.slice(0, 12).map(x => `<div class="reforco-row" style="opacity:0.72">
           <div class="reforco-rank" style="background:var(--surface-sunken);color:var(--text-faint)">?</div>
           <div class="reforco-main"><div class="reforco-topico">${escapeHtml(x.nome)}</div>
             <div class="reforco-meta">${x.disciplina ? `<span class="reforco-disc">${escapeHtml(x.disciplina)}</span>` : ''}
-            <span class="reforco-tag tone-warn">${x.taxa != null ? x.taxa.toFixed(0) + '%' : '—'} em ${x.qJanela} questões</span></div>
+            <span class="reforco-tag tone-warn">${x.taxa != null ? x.taxa.toFixed(0) + '%' : '—'} em apenas ${x.qJanela} questões</span></div>
           </div><div></div></div>`).join('')}
       </div>` : '';
+    const rotOrdem = { rendimento: 'melhor retorno por questão resolvida', pior: 'pior acerto primeiro',
+      queda: 'maior queda recente', volume: 'mais questões já resolvidas' }[r.ordenar] || 'melhor retorno';
     lista.innerHTML = (linhas
-      ? `<div class="hint" style="margin:0 0 6px;">Ordenado por <strong>rendimento</strong>: pontos de domínio ganhos por questão resolvida. O topo é onde o esforço rende mais.</div>${linhas}`
+      ? comoLer + `<div class="hint" style="margin:0 0 6px;">Ordenado por <strong>${rotOrdem}</strong> · ${r.itens.length} assunto(s)</div>${linhas}`
       : `<p class="hint" style="padding:18px 0;">Nenhum assunto abaixo do teto — você já domina tudo que pratica.</p>`) + pequenas;
   },
   // ---- Incidência ----
@@ -16594,7 +16649,7 @@ document.getElementById('tec-weak-disc').addEventListener('change', (e) => {
   // Plano de aprovação
   ['plano-disc','plano-meta','plano-ritmo','plano-teto','plano-ponderacao','plano-minamostra',
    'plano-customodo','plano-custofixo','plano-custofator','plano-limite','plano-folhas','plano-pequenas',
-   'plano-amostraalvo','plano-cadencia','plano-janelamax'].forEach(id => {
+   'plano-amostraalvo','plano-cadencia','plano-janelamax','plano-ordenar'].forEach(id => {
     on(id, 'change', () => DT.renderPlanoConteudo());
     on(id, 'input', () => DT.renderPlanoConteudo());
   });
