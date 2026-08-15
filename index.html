@@ -5459,34 +5459,77 @@
         </div>
       </div>
 
-      <!-- ============ PLANO DE APROVAÇÃO ============ -->
+      <!-- ============ PLANO DE PONTOS FRACOS ============ -->
       <div id="tec-panel-plano" style="display:none;">
         <div class="card">
           <div class="card-header">
             <div>
-              <h2>🏁 Plano de aprovação</h2>
-              <p class="sub">Quanto do universo da banca você já domina, e a ordem que fecha a lacuna resolvendo menos questões. Funciona sem edital definido.</p>
+              <h2>🏁 Plano de pontos fracos</h2>
+              <p class="sub">Só o seu desempenho no TEC — sem incidência de banca. Mede o quanto você domina do que estuda e mostra a ordem que fecha a lacuna resolvendo menos questões.</p>
             </div>
           </div>
           <div style="padding: 4px 28px 20px;">
             <div class="rfc-toolbar" style="margin-bottom:4px;">
-              <div class="rfc-field">
-                <label>Banca-alvo</label>
-                <select id="plano-banca"></select>
+              <div class="rfc-field wide">
+                <label>Disciplina</label>
+                <select id="plano-disc"><option value="__todas__">📚 Todas</option></select>
               </div>
               <div class="rfc-field">
                 <label>Meta de domínio (%)</label>
-                <input type="number" id="plano-meta" min="30" max="100" step="1" title="Quanto do que a banca cobra você quer dominar. Não depende de edital.">
+                <input type="number" id="plano-meta" min="30" max="100" step="1">
               </div>
               <div class="rfc-field">
                 <label>Ritmo (questões/semana)</label>
-                <input type="number" id="plano-ritmo" min="1" max="2000" step="1" title="Vem medido do seu último retrato do TEC. Altere para simular outro ritmo.">
+                <input type="number" id="plano-ritmo" min="1" max="2000" step="1" title="Vem medido do seu último retrato. Altere para simular outro ritmo.">
               </div>
-              <div class="rfc-field">
-                <label>Teto de domínio (%)</label>
-                <input type="number" id="plano-teto" min="50" max="100" step="1" title="Acerto realista quando um assunto está dominado. 100% não acontece na prática.">
+              <button type="button" class="rfc-adv-btn" id="plano-adv-btn" aria-expanded="false">
+                <span class="chev">▸</span> Ajustes avançados
+              </button>
+            </div>
+
+            <div class="rfc-advanced" id="plano-advanced" hidden>
+              <div class="rfc-adv-grid">
+                <div class="rfc-field wide">
+                  <label>Como pesar cada assunto</label>
+                  <select id="plano-ponderacao">
+                    <option value="igual">Todo assunto pesa igual — nada se esconde atrás de pouco volume</option>
+                    <option value="volume">Pelo volume que você pratica — reflete sua própria prioridade</option>
+                  </select>
+                </div>
+                <div class="rfc-field">
+                  <label>Teto de domínio (%)</label>
+                  <input type="number" id="plano-teto" min="50" max="100" step="1" title="Acerto realista quando um assunto está dominado.">
+                </div>
+                <div class="rfc-field">
+                  <label>Amostra mínima (questões)</label>
+                  <input type="number" id="plano-minamostra" min="0" max="500" step="1" title="Abaixo disso o assunto não entra no cálculo — 3 erros em 6 questões não é fraqueza comprovada.">
+                </div>
+                <div class="rfc-field wide">
+                  <label>Custo para consolidar um assunto</label>
+                  <select id="plano-customodo">
+                    <option value="fixo">Número fixo de questões por assunto</option>
+                    <option value="proporcional">Proporcional ao que você já praticou</option>
+                  </select>
+                </div>
+                <div class="rfc-field">
+                  <label>Questões por assunto</label>
+                  <input type="number" id="plano-custofixo" min="10" max="1000" step="5">
+                </div>
+                <div class="rfc-field">
+                  <label>Fator proporcional</label>
+                  <input type="number" id="plano-custofator" min="0.1" max="3" step="0.1">
+                </div>
+                <div class="rfc-field">
+                  <label>Mostrar até</label>
+                  <input type="number" id="plano-limite" min="5" max="200" step="5">
+                </div>
+                <div class="rfc-field wide">
+                  <label class="rfc-check"><input type="checkbox" id="plano-folhas"> Só assuntos específicos (ignorar tópicos-pai)</label>
+                  <label class="rfc-check"><input type="checkbox" id="plano-pequenas"> Incluir assuntos com amostra pequena no cálculo</label>
+                </div>
               </div>
             </div>
+
             <div id="plano-proj"></div>
             <div id="plano-lista"></div>
           </div>
@@ -14911,12 +14954,19 @@ window.addEventListener('screen:activated', (e) => {
 // ============================================================================
 const PlanoEngine = {
   KEY_PREF: 'plano-prefs',
-  // Pré-edital: a régua é o UNIVERSO DA BANCA, não uma prova hipotética.
-  //   metaDominio  — % do que a banca cobra que você quer dominar
-  //   tetoDominio  — acerto realista quando um assunto está dominado (100% não existe)
-  //   fatorCusto   — questões necessárias por assunto ≈ fator × incidência
-  //   ritmoSemanal — questões/semana; começa MEDIDO do próprio TEC e é editável
-  DEFAULTS: { metaDominio: 80, tetoDominio: 90, fatorCusto: 0.6, ritmoSemanal: null, minRecente: 15 },
+  // 100% PONTOS FRACOS — não usa incidência de banca. O universo é o que VOCÊ
+  // pratica, medido pelo TEC. Tudo aqui é ajustável pelo usuário.
+  //   ponderacao  'igual'  = todo assunto pesa o mesmo (não deixa nada se esconder)
+  //               'volume' = pesa pelo quanto você já praticou (reflete sua prioridade)
+  //   custoModo   'fixo'   = N questões por assunto
+  //               'proporcional' = fator × questões já praticadas
+  DEFAULTS: {
+    metaDominio: 80, tetoDominio: 90,
+    ponderacao: 'igual', minAmostra: 20, incluirPequenas: false,
+    custoModo: 'fixo', custoFixo: 60, custoFator: 0.5,
+    ritmoSemanal: null, apenasFolhas: true, disciplina: '__todas__',
+    limite: 30, minRecente: 15
+  },
   prefs() {
     try {
       const v = JSON.parse(localStorage.getItem(DB._profilePrefix() + this.KEY_PREF));
@@ -14929,43 +14979,32 @@ const PlanoEngine = {
     try { if (window.CloudStore && CloudStore.notifyChange) CloudStore.notifyChange(); } catch (_) {}
     return v;
   },
-  // Incidência apenas das FOLHAS. A linha de uma disciplina já soma os filhos —
-  // incluí-la dobraria o total e criaria um "assunto" fantasma sem desempenho.
-  _incidenciaFolhas(banca) {
-    const linhas = DB.getIncidencia().filter(r =>
-      !banca || banca === '__todas__' || ReforcoEngine.norm(r.banca) === ReforcoEngine.norm(banca));
-    const map = {};
-    linhas.forEach(r => {
-      if ((r.depth || 0) === 0) return;                        // disciplina: é soma, não folha
-      if (r.codigo && linhas.some(o => o !== r && o.codigo &&
-          String(o.codigo).startsWith(String(r.codigo) + '.'))) return;  // tem filhos: não é folha
-      if (ReforcoEngine._isSemClass && ReforcoEngine._isSemClass(r.topico)) return;
-      const k = ReforcoEngine.norm(r.topico);
-      const cur = map[k] || { inc: 0, nome: r.topico, disciplina: r.disciplina };
-      cur.inc += (r.incidencia || 0);
-      map[k] = cur;
-    });
-    return map;
-  },
-  // Retrato mais recente (taxa atual) e consolidado (histórico), já no escopo da tela
   _retratos(scoped) {
     const todos = DB.getTecSnapshots();
     return { recente: todos.length ? todos[todos.length - 1] : null, consolidado: scoped || null };
   },
-  _mapa(snap) {
+  // Folhas do retrato: assuntos atômicos, sem somar pai e filho duas vezes
+  _folhas(snap, apenasFolhas) {
+    const rows = (snap && snap.rows || []).filter(r => r.depth > 0 && (r.questoes || 0) > 0);
+    if (!apenasFolhas) return rows;
+    return rows.filter(r => {
+      if (!r.codigo) return true;
+      return !rows.some(o => o !== r && o.disciplina === r.disciplina && o.codigo &&
+        String(o.codigo).startsWith(String(r.codigo) + '.'));
+    });
+  },
+  _indice(snap, apenasFolhas) {
     const m = {};
-    (snap && snap.rows || []).forEach(r => {
-      if (r.depth === 0) return;
+    this._folhas(snap, apenasFolhas).forEach(r => {
       const k = ReforcoEngine.norm(r.nome);
-      const c = m[k] || { q: 0, ac: 0, disciplina: r.disciplina, nome: r.nome };
+      const c = m[k] || { q: 0, ac: 0, nome: r.nome, disciplina: r.disciplina };
       c.q += (r.questoes || 0); c.ac += (r.acertos || 0);
       m[k] = c;
     });
     Object.values(m).forEach(v => { v.pct = v.q > 0 ? v.ac / v.q * 100 : null; });
     return m;
   },
-  // Ritmo MEDIDO no próprio TEC: questões resolvidas ÷ semanas do período do retrato.
-  // Não depende de registro manual nem de estimativa de tempo.
+  // Ritmo MEDIDO no próprio TEC: questões ÷ semanas do período do retrato.
   ritmoMedido(snap) {
     if (!snap) return null;
     const q = (snap.rows || []).filter(r => r.depth > 0).reduce((a, r) => a + (r.questoes || 0), 0);
@@ -14974,43 +15013,53 @@ const PlanoEngine = {
     const sem = Math.max(1, (new Date(fim + 'T00:00:00') - new Date(ini + 'T00:00:00')) / (7 * 86400000));
     return Math.round(q / sem);
   },
+  disciplinas(scoped) {
+    const s = new Set();
+    (scoped && scoped.rows || []).forEach(r => { if (r.disciplina) s.add(r.disciplina); });
+    return [...s].sort();
+  },
   calcular(scoped, opts) {
     opts = Object.assign({}, this.prefs(), opts || {});
-    const incid = this._incidenciaFolhas(opts.banca || '__todas__');
-    const universo = Object.values(incid).reduce((a, x) => a + x.inc, 0);
-    if (!universo) return { erro: 'sem-incidencia' };
     const { recente, consolidado } = this._retratos(scoped);
     if (!consolidado) return { erro: 'sem-retrato' };
-    const mVida = this._mapa(consolidado), mRec = this._mapa(recente);
-    if (!Object.keys(mVida).length) return { erro: 'sem-retrato' };
+    const mVida = this._indice(consolidado, opts.apenasFolhas);
+    const mRec = this._indice(recente, opts.apenasFolhas);
+    let chaves = Object.keys(mVida);
+    if (opts.disciplina && opts.disciplina !== '__todas__') {
+      chaves = chaves.filter(k => ReforcoEngine.norm(mVida[k].disciplina || '') === ReforcoEngine.norm(opts.disciplina));
+    }
+    if (!chaves.length) return { erro: 'sem-retrato' };
 
     const teto = Math.max(50, Math.min(100, opts.tetoDominio)) / 100;
-    const itens = [];
-    let dominio = 0, coberto = 0;
-    Object.keys(incid).forEach(k => {
-      const inc = incid[k].inc;
-      if (!inc) return;
+    const brutos = chaves.map(k => {
       const v = mVida[k], r = mRec[k];
-      const pctVida = v && v.pct != null ? v.pct : null;
-      const pctRec = r && r.pct != null ? r.pct : null;
+      const pctVida = v.pct, pctRec = r && r.pct != null ? r.pct : null;
       const usaRecente = !!(r && r.q >= opts.minRecente);
-      const semDados = (pctVida == null && pctRec == null);
-      const taxa = semDados ? 0 : (usaRecente ? pctRec : pctVida);
-      if (!semDados) coberto += inc;
-      dominio += inc * taxa / 100;
-      const ganhoPP = (inc * teto - inc * taxa / 100) / universo * 100;
-      const custoQ = Math.max(5, Math.round(inc * opts.fatorCusto));
-      itens.push({
-        nome: incid[k].nome, disciplina: incid[k].disciplina || (v && v.disciplina) || '',
-        incidencia: inc, taxa, pctVida, pctRec, usaRecente, semDados,
-        delta: (pctVida != null && pctRec != null) ? Math.round((pctRec - pctVida) * 10) / 10 : null,
-        qVida: v ? v.q : 0, qRecente: r ? r.q : 0,
-        ganhoPP, custoQ, rendimento: ganhoPP / custoQ * 100
-      });
+      const taxa = usaRecente ? pctRec : pctVida;
+      const amostraFraca = v.q < opts.minAmostra;
+      const peso = (opts.ponderacao === 'volume') ? v.q : 1;
+      const custoQ = (opts.custoModo === 'proporcional')
+        ? Math.max(10, Math.round(v.q * opts.custoFator))
+        : Math.max(10, Math.round(opts.custoFixo));
+      return {
+        nome: v.nome, disciplina: v.disciplina || '', qVida: v.q, qRecente: r ? r.q : 0,
+        pctVida, pctRec, usaRecente, taxa, amostraFraca, peso, custoQ,
+        delta: (pctVida != null && pctRec != null) ? Math.round((pctRec - pctVida) * 10) / 10 : null
+      };
     });
-    const dominioPct = dominio / universo * 100;
+    // amostras pequenas ficam de fora do cálculo por padrão: 4 erros em 8 questões
+    // não é fraqueza comprovada, é falta de dado.
+    const usados = opts.incluirPequenas ? brutos : brutos.filter(x => !x.amostraFraca);
+    if (!usados.length) return { erro: 'amostra' };
+    const universo = usados.reduce((a, x) => a + x.peso, 0);
+    const dominioPct = usados.reduce((a, x) => a + x.peso * x.taxa / 100, 0) / universo * 100;
+
+    usados.forEach(x => {
+      x.ganhoPP = Math.max(0, (x.peso * teto - x.peso * x.taxa / 100) / universo * 100);
+      x.rendimento = x.ganhoPP / x.custoQ * 100;
+    });
+    const plano = usados.filter(x => x.ganhoPP > 0.001).sort((a, b) => b.rendimento - a.rendimento);
     const meta = opts.metaDominio;
-    const plano = itens.filter(x => x.ganhoPP > 0.01).sort((a, b) => b.rendimento - a.rendimento);
     let acum = dominioPct, idxMeta = -1, qAteMeta = 0;
     plano.forEach((x, i) => {
       acum += x.ganhoPP; x.acumulado = acum;
@@ -15018,17 +15067,17 @@ const PlanoEngine = {
     });
     const ritmo = opts.ritmoSemanal || this.ritmoMedido(recente) || 0;
     return {
-      universo, dominioPct, meta, jaAtinge: dominioPct >= meta,
-      falta: Math.max(0, meta - dominioPct),
-      cobertura: coberto / universo * 100,
-      naoPraticado: 100 - coberto / universo * 100,
+      dominioPct, meta, jaAtinge: dominioPct >= meta, falta: Math.max(0, meta - dominioPct),
+      assuntos: usados.length, ignorados: brutos.length - usados.length,
+      qTotal: usados.reduce((a, x) => a + x.qVida, 0),
       idxMeta, qAteMeta: idxMeta >= 0 ? qAteMeta : null,
       ritmo, ritmoMedido: this.ritmoMedido(recente),
       semanas: (idxMeta >= 0 && ritmo > 0) ? qAteMeta / ritmo : null,
       temRecente: !!recente && Object.keys(mRec).length > 0,
       dataRecente: recente ? (recente.endDate || recente.date) : null,
-      bancasRecente: recente ? (recente.bancas || null) : null,
-      itens: plano
+      ponderacao: opts.ponderacao,
+      itens: plano.slice(0, opts.limite),
+      pequenas: brutos.filter(x => x.amostraFraca).sort((a, b) => (a.taxa || 0) - (b.taxa || 0))
     };
   }
 };
@@ -15459,53 +15508,64 @@ const DesempenhoTecScreen = {
   // ---- Plano de aprovação ----
   renderPlano() {
     const p = PlanoEngine.prefs();
-    const setV = (id, v) => { const e = document.getElementById(id); if (e && e.value === '') e.value = v; };
-    setV('plano-meta', p.metaDominio); setV('plano-teto', p.tetoDominio);
-    const rEl = document.getElementById('plano-ritmo');
-    if (rEl && rEl.value === '') {
-      const snaps = DB.getTecSnapshots();
-      rEl.value = p.ritmoSemanal || PlanoEngine.ritmoMedido(snaps[snaps.length - 1]) || 25;
+    const set = (id, v) => { const e = document.getElementById(id); if (e) e.value = v; };
+    const chk = (id, v) => { const e = document.getElementById(id); if (e) e.checked = !!v; };
+    set('plano-meta', p.metaDominio); set('plano-teto', p.tetoDominio);
+    set('plano-ponderacao', p.ponderacao); set('plano-minamostra', p.minAmostra);
+    set('plano-customodo', p.custoModo); set('plano-custofixo', p.custoFixo);
+    set('plano-custofator', p.custoFator); set('plano-limite', p.limite);
+    chk('plano-folhas', p.apenasFolhas); chk('plano-pequenas', p.incluirPequenas);
+    const snaps = DB.getTecSnapshots();
+    set('plano-ritmo', p.ritmoSemanal || PlanoEngine.ritmoMedido(snaps[snaps.length - 1]) || 25);
+    const ds = document.getElementById('plano-disc');
+    if (ds) {
+      const discs = PlanoEngine.disciplinas(this.scopedSnapshot());
+      ds.innerHTML = `<option value="__todas__">📚 Todas</option>` +
+        discs.map(d => `<option value="${escapeHtml(d)}" ${d === p.disciplina ? 'selected' : ''}>${escapeHtml(d)}</option>`).join('');
+      if (![...ds.options].some(o => o.value === p.disciplina)) ds.value = '__todas__';
     }
-    const bs = document.getElementById('plano-banca');
-    if (bs) {
-      const cur = bs.value || '__todas__';
-      bs.innerHTML = `<option value="__todas__">Todas as bancas (multibanca)</option>` +
-        DB.getBancas().map(b => `<option value="${escapeHtml(b)}" ${b === cur ? 'selected' : ''}>${escapeHtml(b)}</option>`).join('');
-    }
-    // datalist de bancas para o campo de importação
-    const dl = document.getElementById('tec-bancas-list');
-    if (dl) dl.innerHTML = DB.getBancas().map(b => `<option value="${escapeHtml(b)}">`).join('');
     this.renderPlanoConteudo();
   },
   renderPlanoConteudo() {
     const proj = document.getElementById('plano-proj');
     const lista = document.getElementById('plano-lista');
     if (!proj || !lista) return;
-    const val = (id, d) => { const e = document.getElementById(id); const n = parseInt(e && e.value); return isNaN(n) ? d : n; };
+    const num = (id, d) => { const e = document.getElementById(id); const n = parseFloat(e && e.value); return isNaN(n) ? d : n; };
+    const val = (id, d) => { const e = document.getElementById(id); return (e && e.value) || d; };
+    const bool = (id) => { const e = document.getElementById(id); return !!(e && e.checked); };
     const opts = {
-      banca: (document.getElementById('plano-banca') || {}).value || '__todas__',
-      metaDominio: Math.max(30, Math.min(100, val('plano-meta', 80))),
-      tetoDominio: Math.max(50, Math.min(100, val('plano-teto', 90))),
-      ritmoSemanal: Math.max(1, val('plano-ritmo', 25))
+      disciplina: val('plano-disc', '__todas__'),
+      metaDominio: Math.max(30, Math.min(100, num('plano-meta', 80))),
+      tetoDominio: Math.max(50, Math.min(100, num('plano-teto', 90))),
+      ponderacao: val('plano-ponderacao', 'igual'),
+      minAmostra: Math.max(0, num('plano-minamostra', 20)),
+      incluirPequenas: bool('plano-pequenas'),
+      custoModo: val('plano-customodo', 'fixo'),
+      custoFixo: Math.max(10, num('plano-custofixo', 60)),
+      custoFator: Math.max(0.1, num('plano-custofator', 0.5)),
+      apenasFolhas: bool('plano-folhas'),
+      limite: Math.max(5, num('plano-limite', 30)),
+      ritmoSemanal: Math.max(1, num('plano-ritmo', 25))
     };
     PlanoEngine.salvarPrefs(opts);
     const r = PlanoEngine.calcular(this.scopedSnapshot(), opts);
-    if (r.erro === 'sem-incidencia') {
-      proj.innerHTML = `<p class="hint" style="padding:18px 0;">O plano precisa da <strong>incidência da banca</strong>. Vá em <strong>🏛️ Incidência</strong> e cole o Índice do Caderno do TEC.</p>`;
-      lista.innerHTML = ''; return;
-    }
     if (r.erro === 'sem-retrato') {
       proj.innerHTML = `<p class="hint" style="padding:18px 0;">Importe ao menos um retrato de desempenho em <strong>📊 Análise</strong>.</p>`;
       lista.innerHTML = ''; return;
     }
+    if (r.erro === 'amostra') {
+      proj.innerHTML = `<p class="hint" style="padding:18px 0;">Nenhum assunto atingiu a amostra mínima de <strong>${opts.minAmostra}</strong> questões. Reduza esse valor nos ajustes avançados ou resolva mais questões.</p>`;
+      lista.innerHTML = ''; return;
+    }
     const tom = r.jaAtinge ? 'good' : (r.falta <= 8 ? 'warn' : 'bad');
+    const pond = r.ponderacao === 'volume' ? 'ponderado pelo volume praticado' : 'todo assunto com o mesmo peso';
     proj.innerHTML = `
       <div class="card" style="background:var(--surface-sunken); box-shadow:none; margin:10px 0 18px;">
         <div style="padding:16px 18px;">
           <div style="font-family:'Space Mono',monospace;font-size:calc(30px * var(--fs-scale,1));font-weight:800;line-height:1;" class="tone-${tom}">
             ${r.dominioPct.toFixed(1)}<span style="font-size:calc(16px * var(--fs-scale,1));color:var(--text-faint)">% de domínio</span>
           </div>
-          <div class="hint" style="margin:4px 0 10px;">do universo da banca (${r.universo.toLocaleString('pt-BR')} questões catalogadas) · meta: ${r.meta}%</div>
+          <div class="hint" style="margin:4px 0 10px;">sobre ${r.assuntos} assunto(s) que você pratica · ${r.qTotal.toLocaleString('pt-BR')} questões · ${pond} · meta: ${r.meta}%</div>
           <div class="bar-track" style="height:10px;"><span style="width:${Math.min(100, r.dominioPct)}%"></span></div>
           <p style="margin:12px 0 0;font-weight:700;" class="tone-${tom}">
             ${r.jaAtinge
@@ -15515,29 +15575,21 @@ const DesempenhoTecScreen = {
                 (r.semanas ? ` · ~${Math.ceil(r.semanas)} semanas no ritmo de ${r.ritmo}/sem (${(r.semanas / 4.3).toFixed(1)} meses)` : '')}
           </p>
           <div class="reforco-meta" style="margin-top:12px;">
-            <span class="reforco-tag ${r.naoPraticado > 15 ? 'tone-bad' : 'tone-good'}" title="Parte do universo da banca que você nunca praticou — não dá para saber se sabe">
-              🕳️ ${r.naoPraticado.toFixed(0)}% nunca praticado
-            </span>
             ${r.ritmoMedido ? `<span class="reforco-tag incid">ritmo medido: ${r.ritmoMedido} q/sem</span>` : ''}
-            ${r.temRecente ? `<span class="reforco-tag" style="background:var(--surface);color:var(--text-soft)">taxa recente de ${formatDateShort(r.dataRecente)}${r.bancasRecente ? ' · ' + escapeHtml(r.bancasRecente) : ''}</span>` : ''}
+            ${r.temRecente ? `<span class="reforco-tag" style="background:var(--surface);color:var(--text-soft)">taxa recente de ${formatDateShort(r.dataRecente)}</span>` : ''}
+            ${r.ignorados ? `<span class="reforco-tag tone-warn" title="Assuntos com menos questões que a amostra mínima — listados no fim">${r.ignorados} fora por amostra pequena</span>` : ''}
           </div>
-          <p class="hint" style="margin:10px 0 0;">
-            Régua independente de edital: mede o quanto você domina do que a banca historicamente cobra.
-            Quando o edital sair, isso vira projeção de nota sem refazer nada.
-          </p>
         </div>
       </div>`;
 
-    const linhas = r.itens.slice(0, 40).map((x, i) => {
+    const linhas = r.itens.map((x, i) => {
       const seta = x.delta == null ? '' :
         x.delta >= 8 ? `<span class="reforco-tag tone-good">▲ +${x.delta}pp</span>` :
         x.delta <= -8 ? `<span class="reforco-tag tone-bad">▼ ${x.delta}pp</span>` : '';
-      const fonte = x.semDados
-        ? `<span class="reforco-tag tone-bad" title="Cai na banca e você nunca praticou">🕳️ nunca praticado</span>`
-        : (x.usaRecente
-          ? `<span class="reforco-tag incid" title="Medido no retrato mais recente (${x.qRecente} questões)">recente ${x.taxa.toFixed(0)}%</span>`
-          : `<span class="reforco-tag tone-warn" title="Amostra recente pequena — usando o acumulado">acumulado ${x.taxa.toFixed(0)}%</span>`);
-      const marca = (i === r.idxMeta) ? `<div class="hint" style="margin:8px 0;padding:6px 10px;border-left:3px solid var(--good);background:var(--good-soft);font-weight:700;color:var(--good-text)">🏁 Meta de ${r.meta}% de domínio atingida aqui</div>` : '';
+      const fonte = x.usaRecente
+        ? `<span class="reforco-tag incid" title="Medido no retrato mais recente (${x.qRecente} questões)">recente ${x.taxa.toFixed(0)}%</span>`
+        : `<span class="reforco-tag tone-warn" title="Amostra recente pequena — usando o acumulado (${x.qVida} questões)">acumulado ${x.taxa.toFixed(0)}%</span>`;
+      const marca = (i === r.idxMeta) ? `<div class="hint" style="margin:8px 0;padding:6px 10px;border-left:3px solid var(--good);background:var(--good-soft);font-weight:700;color:var(--good-text)">🏁 Meta de ${r.meta}% atingida aqui</div>` : '';
       return `
         <div class="reforco-row">
           <div class="reforco-rank">${i + 1}</div>
@@ -15547,7 +15599,7 @@ const DesempenhoTecScreen = {
               ${x.disciplina ? `<span class="reforco-disc">${escapeHtml(x.disciplina)}</span>` : ''}
               ${fonte}${seta}
               <span class="reforco-tag" style="background:var(--surface-sunken);color:var(--text-soft)">≈ ${x.custoQ} questões</span>
-              <span class="reforco-tag incid">${x.incidencia} na banca</span>
+              <span class="reforco-tag" style="background:var(--surface-sunken);color:var(--text-faint)">${x.qVida} praticadas</span>
             </div>
           </div>
           <div style="text-align:right;white-space:nowrap;">
@@ -15556,9 +15608,20 @@ const DesempenhoTecScreen = {
           </div>
         </div>${marca}`;
     }).join('');
-    lista.innerHTML = linhas
+    const pequenas = (!opts.incluirPequenas && r.pequenas.length) ? `
+      <div style="margin-top:18px;padding-top:14px;border-top:1px dashed var(--border);">
+        <p class="section-label" style="margin:0 0 6px;">Fora do cálculo — amostra menor que ${opts.minAmostra} questões</p>
+        <p class="hint" style="margin:0 0 8px;">Pode ser fraqueza real ou só falta de dado. Resolva mais questões para descobrir.</p>
+        ${r.pequenas.slice(0, 12).map(x => `<div class="reforco-row" style="opacity:0.7">
+          <div class="reforco-rank" style="background:var(--surface-sunken);color:var(--text-faint)">?</div>
+          <div class="reforco-main"><div class="reforco-topico">${escapeHtml(x.nome)}</div>
+            <div class="reforco-meta">${x.disciplina ? `<span class="reforco-disc">${escapeHtml(x.disciplina)}</span>` : ''}
+            <span class="reforco-tag tone-warn">${x.taxa != null ? x.taxa.toFixed(0) + '%' : '—'} em ${x.qVida} questões</span></div>
+          </div><div></div></div>`).join('')}
+      </div>` : '';
+    lista.innerHTML = (linhas
       ? `<div class="hint" style="margin:0 0 6px;">Ordenado por <strong>rendimento</strong>: pontos de domínio ganhos por questão resolvida. O topo é onde o esforço rende mais.</div>${linhas}`
-      : `<p class="hint" style="padding:18px 0;">Nenhum assunto com ganho relevante — você já está no teto de domínio configurado.</p>`;
+      : `<p class="hint" style="padding:18px 0;">Nenhum assunto abaixo do teto — você já domina tudo que pratica.</p>`) + pequenas;
   },
   // ---- Incidência ----
   _incidParsed: null,
@@ -16455,9 +16518,19 @@ document.getElementById('tec-weak-disc').addEventListener('change', (e) => {
   // Reforço (todos salvam a preferência para lembrar entre sessões)
   on('reforco-banca', 'change', (e) => { DT.savePrefs({ banca: e.target.value }); DT.renderReforco(); });
   // Plano de aprovação
-  ['plano-banca', 'plano-meta', 'plano-ritmo', 'plano-teto'].forEach(id => {
+  ['plano-disc','plano-meta','plano-ritmo','plano-teto','plano-ponderacao','plano-minamostra',
+   'plano-customodo','plano-custofixo','plano-custofator','plano-limite','plano-folhas','plano-pequenas'].forEach(id => {
     on(id, 'change', () => DT.renderPlanoConteudo());
     on(id, 'input', () => DT.renderPlanoConteudo());
+  });
+  on('plano-adv-btn', 'click', () => {
+    const box = document.getElementById('plano-advanced');
+    const btn = document.getElementById('plano-adv-btn');
+    if (!box || !btn) return;
+    const aberto = !box.hasAttribute('hidden');
+    if (aberto) box.setAttribute('hidden', ''); else box.removeAttribute('hidden');
+    btn.setAttribute('aria-expanded', aberto ? 'false' : 'true');
+    const ch = btn.querySelector('.chev'); if (ch) ch.textContent = aberto ? '▸' : '▾';
   });
   on('reforco-disc', 'change', (e) => { DT.savePrefs({ disc: e.target.value }); DT.renderReforcoList(); });
   on('reforco-minq', 'input', (e) => { DT.savePrefs({ minq: e.target.value }); DT.renderReforcoList(); });
