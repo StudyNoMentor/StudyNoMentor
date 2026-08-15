@@ -788,8 +788,9 @@
   .extra-marcador button { padding: 8px 14px; font-size: 12.5px; }
   .extra-tag.pin { background: var(--warn-soft); color: var(--warn); border-color: transparent; font-weight: 700; }
   .extra-foot { display: flex; align-items: center; gap: 8px; margin-top: 12px; flex-wrap: wrap; }
-  .extra-adv { display: flex; align-items: center; gap: 6px; }
+  .extra-adv { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
   .extra-adv input { width: 84px; text-align: center; padding: 7px 8px; }
+  .extra-adv input.ex-data { width: 140px; font-size: 12px; }
   /* Calendário em linha das atividades extras */
   .cal-card { margin-bottom: 16px; }
   .cal-nav { display: flex; align-items: center; gap: 6px; }
@@ -5959,7 +5960,13 @@ const DB = {
   },
   updateExtra(id, patch) {
     const list = this.getExtras(); const e = list.find(x => x.id === id);
-    if (e) { Object.assign(e, patch); e.updatedAt = new Date().toISOString(); }
+    if (e) {
+      const p = Object.assign({}, patch);
+      // normaliza tipos numéricos (o modal entrega strings vindas dos inputs)
+      if ('alvo' in p) p.alvo = Math.max(0, parseFloat(p.alvo) || 0);
+      if ('progresso' in p) p.progresso = Math.max(0, parseFloat(p.progresso) || 0);
+      Object.assign(e, p); e.updatedAt = new Date().toISOString();
+    }
     this.saveExtras(list); return e;
   },
   deleteExtra(id) { this.saveExtras(this.getExtras().filter(x => x.id !== id)); },
@@ -5982,23 +5989,65 @@ const DB = {
     if (!on && i >= 0) e.datas.splice(i, 1);
     this.saveExtras(list); return e;
   },
-  addExtraProgress(id, quantidade, minutos) {
+  addExtraProgress(id, quantidade, minutos, opts) {
     const list = this.getExtras(); const e = list.find(x => x.id === id);
     if (!e) return null;
+    opts = opts || {};
     const q = Math.max(0, parseFloat(quantidade) || 0);
+    const data = opts.data || todayLocal();          // permite lançamento retroativo
     e.progresso = Math.max(0, (e.progresso || 0) + q);
     e.historico = e.historico || [];
-    e.historico.push({ data: todayLocal(), quantidade: q, minutos: Math.max(0, parseFloat(minutos) || 0) });
-    if (e.alvo > 0 && e.progresso >= e.alvo && e.periodo === 'unica') e.status = 'concluida';
+    const reg = { data, quantidade: q, minutos: Math.max(0, parseFloat(minutos) || 0) };
+    // questões: guarda os ACERTOS para não zerar o aproveitamento nas métricas
+    if (opts.acertos != null && opts.acertos !== '') reg.acertos = Math.max(0, Math.min(q, parseFloat(opts.acertos) || 0));
+    e.historico.push(reg);
+    if (e.alvo > 0 && this.extraProgressoPeriodo(e) >= e.alvo && e.periodo === 'unica') e.status = 'concluida';
     e.updatedAt = new Date().toISOString();
     this.saveExtras(list); return e;
   },
-  // Configuração global: incluir Atividades Extras nas métricas de Evolução
-  extrasCountGlobal() {
-    try { const v = localStorage.getItem('diario-estudos:extras-in-metrics'); return v === null ? false : v === '1'; }
-    catch (_) { return false; }
+  // Remove o ÚLTIMO lançamento (desfaz erro de digitação, que antes ficava permanente)
+  undoExtraProgress(id) {
+    const list = this.getExtras(); const e = list.find(x => x.id === id);
+    if (!e || !e.historico || !e.historico.length) return null;
+    const ultimo = e.historico.pop();
+    e.progresso = Math.max(0, (e.progresso || 0) - (ultimo.quantidade || 0));
+    if (e.status === 'concluida' && e.periodo === 'unica' && e.alvo > 0 && e.progresso < e.alvo) e.status = 'ativa';
+    e.updatedAt = new Date().toISOString();
+    this.saveExtras(list); return ultimo;
   },
-  setExtrasCountGlobal(on) { try { localStorage.setItem('diario-estudos:extras-in-metrics', on ? '1' : '0'); } catch (_) {} },
+  // Início do período corrente de uma meta recorrente (diária = hoje; semanal = últimos 7 dias)
+  _periodoInicio(periodo) {
+    if (periodo === 'diaria') return todayLocal();
+    if (periodo === 'semanal') {
+      const d = new Date(todayLocal() + 'T00:00:00'); d.setDate(d.getDate() - 6);
+      return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+    }
+    return null;
+  },
+  // Progresso que vale para a barra: metas recorrentes contam só o PERÍODO ATUAL.
+  // Sem isso, uma meta de 50 cards/dia mostrava 100% para sempre a partir do 1º dia.
+  extraProgressoPeriodo(e) {
+    if (!e) return 0;
+    const ini = this._periodoInicio(e.periodo);
+    if (!ini) return e.progresso || 0;
+    return (e.historico || []).filter(h => h.data >= ini).reduce((a, h) => a + (h.quantidade || 0), 0);
+  },
+  // Configuração: incluir Atividades Extras nas métricas de Evolução (por PERFIL, sincronizada)
+  _extrasMetricsKey() { return this._profilePrefix() + 'extras-in-metrics'; },
+  extrasCountGlobal() {
+    try {
+      let v = localStorage.getItem(this._extrasMetricsKey());
+      if (v === null) { // migra a chave global antiga
+        const legado = localStorage.getItem('diario-estudos:extras-in-metrics');
+        if (legado !== null) { localStorage.setItem(this._extrasMetricsKey(), legado); v = legado; }
+      }
+      return v === null ? false : v === '1';
+    } catch (_) { return false; }
+  },
+  setExtrasCountGlobal(on) {
+    try { localStorage.setItem(this._extrasMetricsKey(), on ? '1' : '0'); } catch (_) {}
+    try { if (window.CloudStore && CloudStore.notifyChange) CloudStore.notifyChange(); } catch (_) {}
+  },
   addCustomSigla({ sigla, nome, color }) {
     const list = this.getCustomSiglas();
     list.push({ id: this._uid(), sigla: (sigla || '').trim().toUpperCase(), nome: (nome || '').trim(), color: color || '#4f46e5' });
@@ -10256,15 +10305,21 @@ const EvolucaoScreen = {
       if (!x.contaMetricas) return;
       (x.historico || []).forEach((h, i) => {
         const min = Math.max(0, h.minutos || (x.tipo === 'video' ? h.quantidade : 0) || 0);
-        if (min <= 0 && x.tipo !== 'questoes') return;
+        const contaQuestoes = (x.tipo === 'questoes' && h.acertos != null);
+        // sem minutos e sem acertos informados não há o que somar em métrica alguma
+        if (min <= 0 && !contaQuestoes) return;
         const e = {
           id: 'ex_' + x.id + '_' + i, date: h.data,
           subject: x.disciplina || 'Atividades Extras',
           method: methodByTipo[x.tipo] || 'Outro',
           durationMin: min, correct: 0, total: 0, _extra: true
         };
-        // questões: registra acertos/total se a unidade for questões (progresso conta como total)
-        if (x.tipo === 'questoes') { e.total = Math.round(h.quantidade || 0); e.correct = 0; }
+        // Questões: só entram no aproveitamento se os ACERTOS foram informados.
+        // Antes, toda questão extra virava "0 acertos" e derrubava o % de acerto geral.
+        if (x.tipo === 'questoes' && h.acertos != null) {
+          e.total = Math.round(h.quantidade || 0);
+          e.correct = Math.round(h.acertos);
+        }
         out.push(e);
       });
     });
@@ -13028,9 +13083,14 @@ const ExtrasScreen = {
   },
   cardHtml(x) {
     const t = this.TIPOS[x.tipo] || this.TIPOS.livre;
-    const done = x.alvo > 0 && x.progresso >= x.alvo;
-    const pct = x.alvo > 0 ? Math.min(100, Math.round((x.progresso / x.alvo) * 100)) : 0;
+    const recorrente = x.periodo === 'diaria' || x.periodo === 'semanal';
+    // metas recorrentes: a barra mostra o PERÍODO ATUAL (hoje / últimos 7 dias)
+    const feito = recorrente ? DB.extraProgressoPeriodo(x) : (x.progresso || 0);
+    const alvo = parseFloat(x.alvo) || 0;
+    const done = alvo > 0 && feito >= alvo;
+    const pct = alvo > 0 ? Math.min(100, Math.round((feito / alvo) * 100)) : 0;
     const recTxt = x.periodo === 'diaria' ? 'diária' : x.periodo === 'semanal' ? 'semanal' : null;
+    const escopo = recorrente ? (x.periodo === 'diaria' ? 'hoje' : 'nos últimos 7 dias') : '';
     return `
       <div class="extra-card ${x.status === 'concluida' ? 'is-done' : ''}" data-id="${x.id}">
         <div class="extra-head">
@@ -13052,7 +13112,11 @@ const ExtrasScreen = {
         </div>
         <div class="extra-progress">
           <div class="bar"><span class="${done ? 'full' : ''}" style="width:${pct}%"></span></div>
-          <div class="nums"><span><b>${(x.progresso || 0).toLocaleString('pt-BR')}</b>${x.alvo > 0 ? ' / ' + x.alvo.toLocaleString('pt-BR') : ''} ${escapeHtml(x.unidade)}</span><span>${x.alvo > 0 ? pct + '%' : ''}</span></div>
+          <div class="nums">
+            <span><b>${feito.toLocaleString('pt-BR')}</b>${alvo > 0 ? ' / ' + alvo.toLocaleString('pt-BR') : ''} ${escapeHtml(x.unidade)}${escopo ? ' <span class="opt">' + escopo + '</span>' : ''}</span>
+            <span>${alvo > 0 ? pct + '%' : ''}</span>
+          </div>
+          ${recorrente ? `<div class="hint" style="margin:4px 0 0;">Acumulado total: ${(x.progresso || 0).toLocaleString('pt-BR')} ${escapeHtml(x.unidade)}</div>` : ''}
         </div>
         ${x.tipo === 'leitura' ? `
         <div class="extra-marcador">
@@ -13063,8 +13127,11 @@ const ExtrasScreen = {
         <div class="extra-foot">
           <div class="extra-adv">
             <input type="number" class="ex-qtd" min="0" placeholder="qtd" title="Quanto avançou">
+            ${x.tipo === 'questoes' ? `<input type="number" class="ex-ac" min="0" placeholder="acertos" title="Acertos (opcional — necessário para entrar no % de acerto)">` : ''}
             ${x.tipo === 'video' ? '' : `<input type="number" class="ex-min" min="0" placeholder="min" title="Minutos (opcional)">`}
+            <input type="date" class="ex-data" value="${todayLocal()}" max="${todayLocal()}" title="Data do lançamento (permite retroativo)">
             <button type="button" class="btn-secondary ex-adv-btn">+ Avançar</button>
+            ${(x.historico || []).length ? `<button type="button" class="icon-btn ex-undo" title="Desfazer o último lançamento">↶</button>` : ''}
           </div>
           <span style="flex:1"></span>
           ${x.status === 'concluida'
@@ -13088,12 +13155,25 @@ const ExtrasScreen = {
       if (advBtn) advBtn.addEventListener('click', () => {
         const qtd = card.querySelector('.ex-qtd').value;
         const minEl = card.querySelector('.ex-min');
+        const acEl = card.querySelector('.ex-ac');
+        const dtEl = card.querySelector('.ex-data');
         const x = DB.getExtra(id);
         // vídeo: a própria quantidade é em minutos
         const min = minEl ? minEl.value : (x && x.tipo === 'video' ? qtd : 0);
         if (!qtd || parseFloat(qtd) <= 0) { showToast('Informe quanto avançou'); return; }
-        DB.addExtraProgress(id, qtd, min);
-        this.render(); showToast('Progresso registrado ✓');
+        if (acEl && acEl.value !== '' && parseFloat(acEl.value) > parseFloat(qtd)) { showToast('Acertos não podem passar do total de questões'); return; }
+        const data = (dtEl && dtEl.value) ? dtEl.value : todayLocal();
+        if (data > todayLocal()) { showToast('Não dá para lançar progresso em data futura'); return; }
+        DB.addExtraProgress(id, qtd, min, { data, acertos: acEl ? acEl.value : null });
+        this.render();
+        showToast(data === todayLocal() ? 'Progresso registrado ✓' : 'Progresso registrado em ' + formatDateShort(data) + ' ✓');
+      });
+      const undoBtn = card.querySelector('.ex-undo');
+      if (undoBtn) undoBtn.addEventListener('click', () => {
+        const u = DB.undoExtraProgress(id);
+        if (!u) { showToast('Nada para desfazer'); return; }
+        this.render();
+        showToast('Lançamento de ' + (u.quantidade || 0) + ' desfeito ↶');
       });
       // marcador "onde parei" (leitura): salvar sem re-render (para não perder o foco)
       const mkSave = card.querySelector('.ex-marcador-save');
