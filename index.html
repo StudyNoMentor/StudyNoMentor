@@ -21,7 +21,7 @@
     --border-strong: #d1d5db;
     --text: #14161a;
     --text-soft: #5b6270;
-    --text-faint: #6b7280;   /* 4.83:1 sobre branco — antes #9297a3 dava 2.93:1 */
+    --text-faint: #656b78;   /* 5.35:1 sobre branco, 5.08:1 sobre o fundo rebaixado */
 
     --accent: #4f46e5;
     --accent-hover: #4338ca;
@@ -39,6 +39,7 @@
     --info: #2563eb;
     --info-text: #1d4ed8;
     --info-soft: #eaf1fe;
+    --accent-text: #3f37c9;   /* accent como TEXTO precisa ser mais escuro */
     --bad-soft: #fdecee;
 
     --shadow-sm: 0 1px 2px rgba(20,22,26,0.04);
@@ -73,6 +74,7 @@
     --info: #6ea8fe;
     --info-text: #6ea8fe;   /* 7.1:1 no escuro — o antigo #2563eb dava 3.3:1 */
     --info-soft: #1b2436;
+    --accent-text: #a99dff;
     --bad-soft: #2a1618;
 
     --shadow-sm: 0 1px 2px rgba(0,0,0,0.30);
@@ -835,7 +837,7 @@
   .extra-progress .nums { display: flex; align-items: baseline; justify-content: space-between; margin-top: 6px; font-size: 12px; color: var(--text-soft); }
   .extra-progress .nums b { font-family: 'Space Mono', monospace; color: var(--text); font-size: 14px; }
   .extra-marcador { display: flex; align-items: center; gap: 10px; margin-top: 10px; padding: 10px 12px; background: linear-gradient(180deg, var(--warn-soft), var(--surface) 90%); border: 1px solid var(--warn); border-left-width: 4px; border-radius: 10px; }
-  .extra-marcador .em-label { font-size: 11px; font-weight: 800; color: var(--warn); text-transform: uppercase; letter-spacing: 0.03em; white-space: nowrap; }
+  .extra-marcador .em-label { font-size: 11px; font-weight: 800; color: var(--warn-text); text-transform: uppercase; letter-spacing: 0.03em; white-space: nowrap; }
   .extra-marcador input { flex: 1; min-width: 0; padding: 8px 11px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface); color: var(--text); font-size: 13px; }
   .extra-marcador input:focus { border-color: var(--warn); outline: none; }
   .extra-marcador button { padding: 8px 14px; font-size: 12.5px; }
@@ -957,8 +959,8 @@
     font-weight: 600;
   }
   .cycle-budget-message.tone-over { color: var(--bad); }
-  .cycle-budget-message.tone-warn { color: var(--warn); }
-  .cycle-budget-message.tone-good { color: var(--good); }
+  .cycle-budget-message.tone-warn { color: var(--warn-text); }
+  .cycle-budget-message.tone-good { color: var(--good-text); }
 
   .cycle-budget-track {
     height: 8px;
@@ -1064,10 +1066,12 @@
     display: flex;
     align-items: center;
     justify-content: space-between;
+    flex-wrap: wrap;   /* nome longo empurrava o selo de status para fora da tela */
+    gap: 6px;
     margin-bottom: 10px;
     gap: 10px;
   }
-  .subject-progress-head .name { font-weight: 700; font-size: 14px; color: var(--text); }
+  .subject-progress-head .name { font-weight: 700; font-size: 14px; color: var(--text); min-width: 0; flex: 1 1 140px; overflow-wrap: break-word; }
   .subject-progress-head .subject-meta-tag {
     font-family: 'Space Mono', monospace;
     font-size: 10px;
@@ -1091,8 +1095,8 @@
     border-radius: 12px;
     white-space: nowrap;
   }
-  .status-badge.finalizada { background: var(--good); color: #fff; }
-  .status-badge.iniciada { background: var(--warn); color: #fff; }
+  .status-badge.finalizada { background: var(--good-soft); color: var(--good-text); }
+  .status-badge.iniciada { background: var(--warn-soft); color: var(--warn-text); }
   .status-badge.pendente { background: var(--bad); color: #fff; }
 
   .progress-track {
@@ -1140,7 +1144,7 @@
     color: var(--text-faint);
     margin-top: 2px;
   }
-  .subject-hours-cell.done .hv { color: var(--good); }
+  .subject-hours-cell.done .hv { color: var(--good-text); }
   .subject-hours-cell.remaining .hv { color: var(--bad); }
   .subject-hours-cell.remaining.zero .hv { color: var(--good); }
 
@@ -2025,9 +2029,9 @@
     color: var(--text-faint); margin-bottom: 5px;
   }
   .track-avg-card .val { font-family: 'Space Mono', monospace; font-weight: 800; font-size: 22px; color: var(--text); }
-  .track-avg-card .val.tone-good { color: var(--good); }
-  .track-avg-card .val.tone-warn { color: var(--warn); }
-  .track-avg-card .val.tone-bad { color: var(--bad); }
+  .track-avg-card .val.tone-good { color: var(--good-text); }
+  .track-avg-card .val.tone-warn { color: var(--warn-text); }
+  .track-avg-card .val.tone-bad { color: var(--bad-text); }
   .track-avg-card .cnt { font-size: 10px; color: var(--text-faint); margin-top: 3px; }
 
   /* Trecho: grupo de aulas entre checkpoints */
@@ -2443,9 +2447,9 @@
   .tec-total-card.hero { background: linear-gradient(180deg, var(--accent-soft), var(--surface) 92%); border-color: var(--accent); }
   .tec-total-card .val { font-family: 'Space Mono', monospace; font-weight: 800; font-size: 24px; color: var(--text); letter-spacing: -0.02em; }
   .tec-total-card.hero .val { color: var(--accent); }
-  .tec-total-card .val.tone-good { color: var(--good); }
-  .tec-total-card .val.tone-warn { color: var(--warn); }
-  .tec-total-card .val.tone-bad { color: var(--bad); }
+  .tec-total-card .val.tone-good { color: var(--good-text); }
+  .tec-total-card .val.tone-warn { color: var(--warn-text); }
+  .tec-total-card .val.tone-bad { color: var(--bad-text); }
   .tec-total-card .lbl { font-size: 10.5px; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; color: var(--text-faint); margin-top: 6px; }
   /* Ponto fraco */
   .weak-row {
@@ -2457,7 +2461,7 @@
   .weak-group { margin-bottom: 14px; }
   .weak-group:last-child { margin-bottom: 0; }
   .weak-group-head {
-    display: flex; align-items: center; justify-content: space-between; gap: 10px;
+    display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap;
     padding: 8px 12px; margin-bottom: 4px; border-radius: 8px;
     background: var(--surface-sunken); border: 1px solid var(--border);
   }
@@ -2478,9 +2482,9 @@
   .weak-fill.tone-good { background: var(--good); }
   .weak-pct { font-family: 'Space Mono', monospace; font-weight: 700; font-size: 13px; text-align: right; }
   .weak-pct .q { display:block; font-size: 10px; color: var(--text-faint); font-weight: 400; }
-  .weak-pct.tone-bad { color: var(--bad); }
-  .weak-pct.tone-warn { color: var(--warn); }
-  .weak-pct.tone-good { color: var(--good); }
+  .weak-pct.tone-bad { color: var(--bad-text); }
+  .weak-pct.tone-warn { color: var(--warn-text); }
+  .weak-pct.tone-good { color: var(--good-text); }
   /* Disciplina expansível */
   .tec-disc {
     border: 1.5px solid var(--border); border-radius: 12px; margin-bottom: 10px; overflow: hidden;
@@ -2501,9 +2505,9 @@
   .tec-disc-fill.tone-bad { background: var(--bad); }
   .tec-disc-pct { font-family: 'Space Mono', monospace; font-weight: 700; font-size: 13px; text-align: right; }
   .tec-disc-pct .q { display:block; font-size:9.5px; color: var(--text-faint); font-weight:400; }
-  .tec-disc-pct.tone-good { color: var(--good); }
-  .tec-disc-pct.tone-warn { color: var(--warn); }
-  .tec-disc-pct.tone-bad { color: var(--bad); }
+  .tec-disc-pct.tone-good { color: var(--good-text); }
+  .tec-disc-pct.tone-warn { color: var(--warn-text); }
+  .tec-disc-pct.tone-bad { color: var(--bad-text); }
   .tec-disc-body { display: none; border-top: 1px solid var(--border); padding: 6px 16px 12px; background: var(--surface-sunken); }
   .tec-disc.open .tec-disc-body { display: block; }
   .tec-topic-row { display: grid; grid-template-columns: 1fr 110px 70px; align-items: center; gap: 12px; padding: 7px 0; border-bottom: 1px dashed var(--border); }
@@ -2535,9 +2539,9 @@
   .tec-focus-stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-top: 14px; }
   .tfs { display: flex; flex-direction: column; align-items: center; text-align: center; background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 10px 6px; }
   .tfs-val { font-family: 'Space Mono', monospace; font-weight: 800; font-size: 20px; color: var(--text); line-height: 1; }
-  .tfs-val.tone-good { color: var(--good); }
-  .tfs-val.tone-warn { color: var(--warn); }
-  .tfs-val.tone-bad { color: var(--bad); }
+  .tfs-val.tone-good { color: var(--good-text); }
+  .tfs-val.tone-warn { color: var(--warn-text); }
+  .tfs-val.tone-bad { color: var(--bad-text); }
   .tfs-lbl { font-size: 10px; font-weight: 700; letter-spacing: 0.03em; text-transform: uppercase; color: var(--text-faint); margin-top: 6px; }
   @media (max-width: 560px) { .tec-focus-stats { grid-template-columns: 1fr 1fr; } }
   .tec-tree-toolbar { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; padding: 4px 0 12px; }
@@ -2573,9 +2577,9 @@
   .tnode-fill.tone-bad { background: var(--bad); }
   .tnode-pct { font-family: 'Space Mono', monospace; font-weight: 700; font-size: 12px; text-align: right; }
   .tnode-pct .q { display: block; font-size: 9px; color: var(--text-faint); font-weight: 400; }
-  .tnode-pct.tone-good { color: var(--good); }
-  .tnode-pct.tone-warn { color: var(--warn); }
-  .tnode-pct.tone-bad { color: var(--bad); }
+  .tnode-pct.tone-good { color: var(--good-text); }
+  .tnode-pct.tone-warn { color: var(--warn-text); }
+  .tnode-pct.tone-bad { color: var(--bad-text); }
   .tnode-children { display: none; }
   .tnode.open > .tnode-children { display: block; }
   .tnode-children .tnode { border-top: 1px dashed var(--border); }
@@ -2675,8 +2679,8 @@
   .acm-ref { position: absolute; top: -5px; bottom: -5px; width: 2px; opacity: 0.9; z-index: 2; }
   .acm-ref-tag {
     position: absolute; top: -18px; left: 50%; transform: translateX(-50%);
-    font-family: 'Space Mono', monospace; font-size: 8.5px; font-weight: 700; color: #fff;
-    padding: 1px 4px; border-radius: 8px; white-space: nowrap;
+    font-family: 'Space Mono', monospace; font-size: 9.5px; font-weight: 700; color: #fff;
+    padding: 1px 5px; border-radius: 8px; white-space: nowrap;
   }
   .acm-row:not(:first-child) .acm-ref-tag { display: none; }
   .acm-val { font-family: 'Space Mono', monospace; font-weight: 700; font-size: 13px; text-align: right; }
@@ -3603,6 +3607,47 @@
   .pct-badge { flex-shrink: 0; white-space: nowrap; }
   /* linhas de listas: permitem quebrar quando não cabe em vez de transbordar */
   .perf-row, .acerto-row, .modality-row, .stat-row, .evo-list > * { flex-wrap: wrap; }
+  /* ── Selos com texto longo ────────────────────────────────────────────────
+     Nome de aula, matéria ou tópico pode ser uma frase inteira. Com nowrap o selo
+     não cabia e vazava para fora do cartão. */
+  :where(.meta-badge, .extra-tag, .subject-meta-tag, .status-badge, .cards-type-tag,
+         .weak-group-name, .weak-group-meta, .lei-tag, .acm-ref-tag) {
+    max-width: 100%;
+    overflow-wrap: break-word;
+  }
+  .meta-badge.badge-lesson, .extra-tag.disc, .weak-group-name { white-space: normal; text-align: left; }
+  .recent-main .subject { overflow-wrap: break-word; }
+
+  /* ── Alvos de toque ───────────────────────────────────────────────────────
+     Em telas de toque, controles pequenos ganham área clicável de 40px SEM mudar
+     de tamanho visual: um pseudo-elemento invisível estende a região sensível. */
+  @media (max-width: 834px) {
+    :where(.chip-remove, .chip-done-toggle, .cal-chip-x, .link-card-edit,
+           .cards-fav-toggle, .cards-fav-star, .status-swatch,
+           .tec-tree-btn, .pf-color-opt, .link-swatch, .rte-swatch, .cs-remove, .icon-btn) {
+      position: relative;
+    }
+    :where(.chip-remove, .chip-done-toggle, .cal-chip-x, .link-card-edit,
+           .cards-fav-toggle, .cards-fav-star, .status-swatch,
+           .tec-tree-btn, .pf-color-opt, .link-swatch, .rte-swatch, .cs-remove, .icon-btn)::after {
+      content: '';
+      position: absolute;
+      top: 50%; left: 50%;
+      width: max(100%, 40px); height: max(100%, 40px);
+      transform: translate(-50%, -50%);
+    }
+    /* o interruptor já usa ::after para a bolinha — aqui o toque vai no ::before */
+    .toggle-switch::before {
+      content: ''; position: absolute; top: 50%; left: 50%;
+      width: 44px; height: 40px; transform: translate(-50%, -50%);
+    }
+    /* botões-pílula crescem de verdade: há espaço e melhora a leitura */
+    .cards-pill, .evo-chip, .evo-sf-chip,
+    .scope-toggle button, .tec-tree-btn, .tec-subtab, .cards-fav-toggle {
+      min-height: 34px; padding-top: 7px; padding-bottom: 7px;
+    }
+  }
+
   /* respeita quem prefere menos animação */
   @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation-duration: 0.001ms !important; transition-duration: 0.001ms !important; } }
 
@@ -10319,7 +10364,7 @@ const HistoricoScreen = {
           </div>
           ${hasPct ? `
             <div class="wd-entry-pct">
-              <span class="p tone-${tone}" style="background:var(--${tone}-soft); color:var(--${tone});">${formatPct(pct)}%</span>
+              <span class="p tone-${tone}" style="background:var(--${tone}-soft); color:var(--${tone}-text);">${formatPct(pct)}%</span>
               <span class="c">${e.correct}/${e.total}</span>
             </div>` : '<div></div>'}
         </div>
@@ -10772,7 +10817,7 @@ const EvolucaoScreen = {
             <div class="acm-fill" style="width:${r.pct}%; background:var(--${tone});"></div>
             ${refLines}
           </div>
-          <div class="acm-val" style="color:var(--${tone});">${formatPct(r.pct)}%<span class="acm-q">${r.correct}/${r.total}</span></div>
+          <div class="acm-val" style="color:var(--${tone}-text);">${formatPct(r.pct)}%<span class="acm-q">${r.correct}/${r.total}</span></div>
         </div>`;
     }).join('');
     const legend = `<div class="evo-legend" style="padding:14px 0 0;">
@@ -11208,7 +11253,7 @@ const EvolucaoScreen = {
     container.innerHTML = rows.map(r => `
       <div class="perf-row">
         <span class="name">${escapeHtml(r.name)}</span>
-        <span class="pct-badge tone-${toneFor(r.pct)}" style="background:var(--${toneFor(r.pct)}-soft); color:var(--${toneFor(r.pct)});">${formatPct(r.pct)}%</span>
+        <span class="pct-badge tone-${toneFor(r.pct)}" style="background:var(--${toneFor(r.pct)}-soft); color:var(--${toneFor(r.pct)}-text);">${formatPct(r.pct)}%</span>
       </div>
     `).join('');
   },
