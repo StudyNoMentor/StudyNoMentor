@@ -5554,6 +5554,14 @@
                   <input type="number" id="plano-limite" min="5" max="200" step="5">
                 </div>
                 <div class="rfc-field">
+                  <label>Importações p/ consolidar</label>
+                  <input type="number" id="plano-consolidar" min="1" max="10" step="1" title="Quantas importações seguidas na meta um assunto precisa sustentar para ser considerado sólido.">
+                </div>
+                <div class="rfc-field">
+                  <label>Dado vence em (dias)</label>
+                  <input type="number" id="plano-validade" min="30" max="720" step="15" title="Sem medição nova nesse prazo, o assunto é marcado como dado vencido.">
+                </div>
+                <div class="rfc-field">
                   <label>Importo a cada (dias)</label>
                   <input type="number" id="plano-cadencia" min="7" max="365" step="1" title="Se o último retrato ficar mais velho que isso, o app avisa que a leitura está defasada.">
                 </div>
@@ -15074,6 +15082,8 @@ const PlanoEngine = {
     custoModo: 'fixo', custoFixo: 60, custoFator: 0.5,
     ritmoSemanal: null, apenasFolhas: true, disciplina: '__todas__',
     limite: 30, ordenar: 'pior',
+    consolidarEm: 2,     // importações seguidas na meta para considerar sólido
+    validadeDias: 120,   // acima disso o dado do assunto é considerado vencido
     amostraAlvo: 50,     // amostra que buscamos para a taxa ser confiável (±14pp a 95%)
     janelaMax: 365,      // até onde recuar no tempo procurando essa amostra
     cadenciaDias: 30
@@ -15148,6 +15158,65 @@ const PlanoEngine = {
     Object.values(m).forEach(v => { v.pct = v.q > 0 ? v.ac / v.q * 100 : null; });
     return m;
   },
+  // ── SÉRIE HISTÓRICA: domínio em cada importação ─────────────────────────
+  // Responde "está funcionando?" — a pergunta que nenhum número isolado responde.
+  // Usa um piso baixo de amostra (a intenção é tendência, não precisão pontual).
+  PISO_SERIE: 5,
+  serieHistorica(opts) {
+    opts = Object.assign({}, this.prefs(), opts || {});
+    const snaps = DB.getTecSnapshots();
+    const pontos = [];
+    let ant = null;
+    snaps.forEach(s => {
+      const idx = this._indice(s, opts.apenasFolhas);
+      const chaves = Object.keys(idx).filter(k => idx[k].q >= this.PISO_SERIE &&
+        (opts.disciplina === '__todas__' || ReforcoEngine.norm(idx[k].disciplina || '') === ReforcoEngine.norm(opts.disciplina)));
+      if (!chaves.length) return;
+      const peso = (k) => (opts.ponderacao === 'volume') ? idx[k].q : 1;
+      const univ = chaves.reduce((a, k) => a + peso(k), 0);
+      const dom = chaves.reduce((a, k) => a + peso(k) * idx[k].pct / 100, 0) / univ * 100;
+      const qTotal = chaves.reduce((a, k) => a + idx[k].q, 0);
+      const p = {
+        data: s.endDate || s.date, nome: s.nome || '', dominio: dom,
+        assuntos: chaves.length, questoes: qTotal,
+        delta: ant ? dom - ant.dominio : null,
+        // retorno do esforço: pontos de domínio ganhos a cada 100 questões do período
+        rendimento: (ant && qTotal > 0) ? (dom - ant.dominio) / qTotal * 100 : null
+      };
+      pontos.push(p); ant = p;
+    });
+    return pontos;
+  },
+  // ── CONSOLIDAÇÃO: quantas importações SEGUIDAS o assunto ficou na meta ───
+  // "Cruzou a meta" e "está sólido" são coisas diferentes. Um assunto que acabou
+  // de cruzar ainda não provou que fica — tirá-lo da lista agora é abandoná-lo cedo.
+  _sequencias(opts) {
+    const snaps = DB.getTecSnapshots();
+    const porTopico = {};
+    snaps.forEach(s => {
+      const idx = this._indice(s, opts.apenasFolhas);
+      const dataFim = s.endDate || s.date;
+      Object.keys(idx).forEach(k => {
+        if (idx[k].q < this.PISO_SERIE) return;
+        (porTopico[k] = porTopico[k] || []).push({ data: dataFim, pct: idx[k].pct, q: idx[k].q });
+      });
+    });
+    const out = {};
+    Object.keys(porTopico).forEach(k => {
+      const linha = porTopico[k];                 // já em ordem cronológica
+      let seq = 0;
+      for (let i = linha.length - 1; i >= 0; i--) {  // do mais novo para trás
+        if (linha[i].pct >= opts.metaDominio) seq++; else break;
+      }
+      out[k] = {
+        seq, medicoes: linha.length,
+        ultimaMedicao: linha[linha.length - 1].data,
+        diasDesde: this._diasDesde(linha[linha.length - 1].data),
+        serie: linha.map(x => x.pct)
+      };
+    });
+    return out;
+  },
   ritmoRecente(snapsDesc, dias) {
     let q = 0, ini = null, fim = null;
     for (const s of snapsDesc) {
@@ -15183,6 +15252,7 @@ const PlanoEngine = {
     if (!chaves.length) return { erro: 'sem-retrato' };
 
     const teto = Math.max(50, Math.min(100, opts.tetoDominio)) / 100;
+    const seqs = this._sequencias(opts);
     const brutos = chaves.map(k => {
       const h = mHist[k];
       const a = this._taxaAdaptativa(k, snapsDesc, opts) || { q: h.q, ac: h.ac, pct: h.pct, diasJanela: null, retratos: 0, margem: this.margemErro(h.pct, h.q), conf: this.confiabilidade(h.q) };
@@ -15192,8 +15262,12 @@ const PlanoEngine = {
       const custoQ = (opts.custoModo === 'proporcional')
         ? Math.max(10, Math.round(h.q * opts.custoFator))
         : Math.max(10, Math.round(opts.custoFixo));
+      const sq = seqs[k] || { seq: 0, medicoes: 0, diasDesde: null, serie: [] };
       return {
         nome: h.nome, disciplina: h.disciplina || '',
+        seq: sq.seq, medicoes: sq.medicoes, serie: sq.serie,
+        diasDesdeMedicao: sq.diasDesde,
+        vencido: sq.diasDesde != null && sq.diasDesde > opts.validadeDias,
         qHist: h.q, pctHist: h.pct,
         qJanela: a.q, diasJanela: a.diasJanela, retratosJanela: a.retratos,
         margem: a.margem, conf: a.conf, atingiuAlvo: a.q >= opts.amostraAlvo,
@@ -15212,11 +15286,14 @@ const PlanoEngine = {
     });
     // Classificação em linguagem clara, com o que fazer em cada faixa
     usados.forEach(x => {
-      const t = x.taxa;
-      if (t < 50) x.status = { rot: 'Crítico', tom: 'bad', acao: 'Volte à teoria antes de resolver mais questões — o erro aqui é de base.' };
-      else if (t < 65) x.status = { rot: 'Frágil', tom: 'bad', acao: 'Revise a teoria dos pontos que erra e alterne com bateria de questões.' };
-      else if (t < 80) x.status = { rot: 'Em desenvolvimento', tom: 'warn', acao: 'Base existe. Ganhe volume de questões e revise só o que errar.' };
-      else x.status = { rot: 'Consolidado', tom: 'good', acao: 'Manter com revisão espaçada. Não gaste tempo extra aqui.' };
+      const t = x.taxa, alvoSeq = opts.consolidarEm;
+      if (t < 50) x.status = { rot: '🔴 Crítico', tom: 'bad', acao: 'Volte à teoria antes de resolver mais questões — o erro aqui é de base.' };
+      else if (t < 65) x.status = { rot: '🔴 Frágil', tom: 'bad', acao: 'Revise a teoria dos pontos que erra e alterne com bateria de questões.' };
+      else if (t < opts.metaDominio) x.status = { rot: '🟠 Em desenvolvimento', tom: 'warn', acao: 'Base existe. Ganhe volume de questões e revise só o que errar.' };
+      else if (x.seq >= alvoSeq) x.status = { rot: '🟢 Consolidado', tom: 'good', seq: x.seq,
+        acao: 'Sustentou a meta em ' + x.seq + ' importações seguidas. Só revisão espaçada — não gaste tempo extra.' };
+      else x.status = { rot: '🟡 Recém-corrigido', tom: 'warn', seq: x.seq,
+        acao: 'Cruzou a meta há pouco (' + x.seq + ' de ' + alvoSeq + ' importações). Ainda não provou que fixou — mantenha um volume menor até sustentar.' };
     });
     const ordem = {
       rendimento: (a, b) => b.rendimento - a.rendimento,
@@ -15250,6 +15327,11 @@ const PlanoEngine = {
       teto: Math.round(teto * 100),
       comAlvo: usados.filter(x => x.atingiuAlvo).length,
       melhorando, piorando, ordenar: opts.ordenar,
+      consolidados: usados.filter(x => x.taxa >= opts.metaDominio && x.seq >= opts.consolidarEm).length,
+      recentes: usados.filter(x => x.taxa >= opts.metaDominio && x.seq < opts.consolidarEm).length,
+      vencidos: usados.filter(x => x.vencido).length,
+      consolidarEm: opts.consolidarEm, validadeDias: opts.validadeDias,
+      serie: this.serieHistorica(opts),
       idadeUltimo, cadenciaDias: opts.cadenciaDias,
       defasado: idadeUltimo > opts.cadenciaDias,
       ponderacao: opts.ponderacao,
@@ -15708,7 +15790,11 @@ const DesempenhoTecScreen = {
         : 'Gerado pelo Plano de pontos fracos. Ao importar o próximo retrato do TEC, a métrica dirá se o assunto saiu da lista.'
     });
     if (e) {
-      DB.updateExtra(e.id, { origemPlano: { topico, disciplina: disciplina || '', motivo: motivo || 'reforco', criadoEm: todayLocal() } });
+      const r0 = PlanoEngine.calcular(this.scopedSnapshot(), PlanoEngine.prefs());
+      const alvoTop = [].concat((r0 && r0.itens) || [], (r0 && r0.pequenas) || [])
+        .find(t => ReforcoEngine.norm(t.nome) === ReforcoEngine.norm(topico));
+      DB.updateExtra(e.id, { origemPlano: { topico, disciplina: disciplina || '', motivo: motivo || 'reforco',
+        criadoEm: todayLocal(), taxaInicial: alvoTop && alvoTop.taxa != null ? alvoTop.taxa : null } });
       showToast('Atividade criada: ' + (diag ? 'diagnosticar ' : 'reforçar ') + topico);
       this.renderPlanoConteudo();
     }
@@ -15723,7 +15809,7 @@ const DesempenhoTecScreen = {
     set('plano-custofator', p.custoFator); set('plano-limite', p.limite);
     chk('plano-folhas', p.apenasFolhas); chk('plano-pequenas', p.incluirPequenas);
     set('plano-amostraalvo', p.amostraAlvo); set('plano-cadencia', p.cadenciaDias); set('plano-ordenar', p.ordenar);
-    set('plano-janelamax', p.janelaMax);
+    set('plano-janelamax', p.janelaMax); set('plano-consolidar', p.consolidarEm); set('plano-validade', p.validadeDias);
     const desc = DB.getTecSnapshots().slice().reverse();
     set('plano-ritmo', p.ritmoSemanal || PlanoEngine.ritmoRecente(desc, 120) || 25);
     const ds = document.getElementById('plano-disc');
@@ -15757,6 +15843,8 @@ const DesempenhoTecScreen = {
       amostraAlvo: Math.max(10, num('plano-amostraalvo', 50)),
       janelaMax: Math.max(30, num('plano-janelamax', 365)),
       cadenciaDias: Math.max(7, num('plano-cadencia', 30)),
+      consolidarEm: Math.max(1, num('plano-consolidar', 2)),
+      validadeDias: Math.max(30, num('plano-validade', 120)),
       ordenar: val('plano-ordenar', 'rendimento')
     };
     // O ritmo SEGUE a medição automaticamente. Só vira manual se você digitar algo
@@ -15820,6 +15908,9 @@ const DesempenhoTecScreen = {
               ${r.comAlvo} de ${r.assuntos} com amostra completa
             </span>
             ${r.ritmoMedido ? `<span class="reforco-tag" style="background:var(--surface);color:var(--text-soft)" title="Medido no seu próprio histórico — acompanha sozinho cada importação">ritmo: ${r.ritmoMedido} q/sem (automático)</span>` : ''}
+            <span class="reforco-tag tone-good" title="Sustentaram a meta em ${r.consolidarEm}+ importações seguidas">🟢 ${r.consolidados} sólidos</span>
+            ${r.recentes ? `<span class="reforco-tag tone-warn" title="Cruzaram a meta há pouco — ainda não provaram que fixaram">🟡 ${r.recentes} recém-corrigidos</span>` : ''}
+            ${r.vencidos ? `<span class="reforco-tag tone-bad" title="Sem medição há mais de ${r.validadeDias} dias">⏳ ${r.vencidos} com dado vencido</span>` : ''}
             ${(r.melhorando || r.piorando) ? `<span class="reforco-tag ${r.melhorando >= r.piorando ? 'tone-good' : 'tone-bad'}" title="Assuntos cuja taxa recente subiu ou caiu mais de 3pp em relação ao histórico">tendência: ${r.melhorando}▲ ${r.piorando}▼</span>` : ''}
             ${r.ignorados ? `<span class="reforco-tag tone-warn" title="Assuntos com menos questões que a amostra mínima — listados no fim">${r.ignorados} fora por amostra pequena</span>` : ''}
           </div>
@@ -15837,6 +15928,46 @@ const DesempenhoTecScreen = {
         </div>
       </div>`;
 
+    // ── Trajetória do domínio a cada importação ──
+    const S = r.serie || [];
+    let grafico = '';
+    if (S.length >= 2) {
+      const W = 100, H = 34;
+      const lo = Math.max(0, Math.min(...S.map(p => p.dominio), r.meta) - 6);
+      const hi = Math.min(100, Math.max(...S.map(p => p.dominio), r.meta) + 6);
+      const px = (i) => (S.length === 1 ? W / 2 : i / (S.length - 1) * W);
+      const py = (v) => H - (v - lo) / Math.max(1, hi - lo) * H;
+      const pts = S.map((p, i) => `${px(i).toFixed(1)},${py(p.dominio).toFixed(1)}`).join(' ');
+      const yMeta = py(r.meta).toFixed(1);
+      const ganho = S[S.length - 1].dominio - S[0].dominio;
+      const rend = S.filter(p => p.rendimento != null);
+      const rendMedio = rend.length ? rend.reduce((a, p) => a + p.rendimento, 0) / rend.length : null;
+      const ultimo = S[S.length - 1];
+      grafico = `
+        <div class="card" style="background:var(--surface-sunken);box-shadow:none;margin:0 0 16px;">
+          <div style="padding:14px 16px;">
+            <div style="display:flex;align-items:baseline;justify-content:space-between;gap:10px;flex-wrap:wrap;">
+              <strong style="font-size:calc(13px * var(--fs-scale,1));">📈 Sua trajetória</strong>
+              <span class="reforco-tag ${ganho >= 0 ? 'tone-good' : 'tone-bad'}">${ganho >= 0 ? '+' : ''}${ganho.toFixed(1)}pp em ${S.length} importações</span>
+            </div>
+            <svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" style="width:100%;height:74px;margin:10px 0 4px;overflow:visible;">
+              <line x1="0" y1="${yMeta}" x2="${W}" y2="${yMeta}" stroke="var(--text-faint)" stroke-width="0.4" stroke-dasharray="2 2"/>
+              <polyline points="${pts}" fill="none" stroke="var(--accent)" stroke-width="1.6" vector-effect="non-scaling-stroke" stroke-linejoin="round"/>
+              ${S.map((p, i) => `<circle cx="${px(i).toFixed(1)}" cy="${py(p.dominio).toFixed(1)}" r="1.8" fill="var(--accent)" vector-effect="non-scaling-stroke"><title>${escapeHtml(formatDateShort(p.data))}: ${p.dominio.toFixed(1)}%</title></circle>`).join('')}
+            </svg>
+            <div style="display:flex;justify-content:space-between;font-size:calc(10px * var(--fs-scale,1));color:var(--text-faint);">
+              <span>${escapeHtml(formatDateShort(S[0].data))} · ${S[0].dominio.toFixed(0)}%</span>
+              <span style="color:var(--text-soft);font-weight:700;">linha tracejada = meta ${r.meta}%</span>
+              <span>${escapeHtml(formatDateShort(ultimo.data))} · ${ultimo.dominio.toFixed(0)}%</span>
+            </div>
+            ${rendMedio != null ? `<p class="hint" style="margin:10px 0 0;">
+              <strong>Retorno do seu esforço:</strong> ${rendMedio.toFixed(1)}pp de domínio a cada 100 questões resolvidas.
+              ${S[S.length - 1].rendimento != null ? 'No último período: ' + S[S.length - 1].rendimento.toFixed(1) + 'pp/100q' +
+                (S[S.length - 1].rendimento < rendMedio * 0.5 ? ' — abaixo da sua média: sinal de que o volume sozinho parou de render.' : '.') : ''}
+            </p>` : ''}
+          </div>
+        </div>`;
+    }
     const linhas = r.itens.map((x, i) => {
       const seta = x.delta == null ? '' :
         x.delta >= 3 ? `<span class="reforco-tag tone-good" title="Sua taxa recente está acima da média histórica — você melhorou">▲ +${x.delta}pp vs histórico</span>` :
@@ -15849,7 +15980,12 @@ const DesempenhoTecScreen = {
             <div class="reforco-topico">${escapeHtml(x.nome)}</div>
             <div class="reforco-meta">
               ${x.disciplina ? `<span class="reforco-disc">${escapeHtml(x.disciplina)}</span>` : ''}
-              <span class="reforco-tag tone-${x.status.tom}">${x.status.rot}</span>
+              <span class="reforco-tag tone-${x.status.tom}" title="${x.status.seq != null ? x.status.seq + ' importação(ões) seguidas na meta' : 'Faixa de acerto'}">${x.status.rot}${x.status.seq ? ' ' + x.status.seq + '×' : ''}</span>
+              ${x.vencido ? `<span class="reforco-tag tone-bad" title="Última medição há ${x.diasDesdeMedicao} dias — a taxa pode não refletir você hoje">⏳ dado de ${x.diasDesdeMedicao}d atrás</span>` : ''}
+              ${(x.extra && x.extra.origemPlano && x.extra.origemPlano.taxaInicial != null && x.taxa != null)
+                ? `<span class="reforco-tag ${x.taxa - x.extra.origemPlano.taxaInicial >= 0 ? 'tone-good' : 'tone-bad'}" title="Desde que você criou a atividade em ${escapeHtml(formatDateShort(x.extra.origemPlano.criadoEm))}">
+                     desde a atividade: ${x.extra.origemPlano.taxaInicial.toFixed(0)}% → ${x.taxa.toFixed(0)}% (${x.taxa - x.extra.origemPlano.taxaInicial >= 0 ? '+' : ''}${(x.taxa - x.extra.origemPlano.taxaInicial).toFixed(0)}pp)
+                   </span>` : ''}
               <span class="reforco-tag tone-${x.conf.tom}" title="Taxa de acerto e margem de erro a 95% de confiança">
                 ${x.taxa.toFixed(0)}%${x.margem != null ? ' ±' + x.margem.toFixed(0) + 'pp' : ''}
               </span>
@@ -15929,7 +16065,7 @@ const DesempenhoTecScreen = {
     // fixo e peso igual, o resultado é o mesmo de "pior acerto primeiro".
     const mesmaOrdem = (opts.custoModo === 'fixo' && opts.ponderacao === 'igual' && r.ordenar === 'rendimento');
     lista.innerHTML = (linhas
-      ? comoLer + `<div class="hint" style="margin:0 0 6px;">Ordenado por <strong>${rotOrdem}</strong> · ${r.itens.length} assunto(s)${mesmaOrdem ? ' — com custo fixo e peso igual, esta ordem é idêntica a "pior acerto primeiro"' : ''}</div>${linhas}`
+      ? grafico + comoLer + `<div class="hint" style="margin:0 0 6px;">Ordenado por <strong>${rotOrdem}</strong> · ${r.itens.length} assunto(s)${mesmaOrdem ? ' — com custo fixo e peso igual, esta ordem é idêntica a "pior acerto primeiro"' : ''}</div>${linhas}`
       : `<p class="hint" style="padding:18px 0;">Nenhum assunto abaixo do teto — você já domina tudo que pratica.</p>`) + pequenas;
     lista.querySelectorAll('.plano-nova-extra').forEach(b => b.addEventListener('click', () => {
       this.criarExtraDoPlano(b.dataset.topico, b.dataset.disc, b.dataset.alvo, b.dataset.motivo);
@@ -16832,7 +16968,7 @@ document.getElementById('tec-weak-disc').addEventListener('change', (e) => {
   // Plano de aprovação
   ['plano-disc','plano-meta','plano-ritmo','plano-teto','plano-ponderacao','plano-minamostra',
    'plano-customodo','plano-custofixo','plano-custofator','plano-limite','plano-folhas','plano-pequenas',
-   'plano-amostraalvo','plano-cadencia','plano-janelamax','plano-ordenar'].forEach(id => {
+   'plano-amostraalvo','plano-cadencia','plano-janelamax','plano-ordenar','plano-consolidar','plano-validade'].forEach(id => {
     on(id, 'change', () => DT.renderPlanoConteudo());
     on(id, 'input', () => DT.renderPlanoConteudo());
   });
