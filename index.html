@@ -2531,6 +2531,39 @@
   .reforco-actions { display: flex; gap: 6px; }
   .reforco-act { width: 34px; height: 34px; border-radius: 9px; border: 1.5px solid var(--border); background: var(--surface); display: flex; align-items: center; justify-content: center; font-size: calc(14px * var(--fs-scale, 1)); cursor: pointer; text-decoration: none; transition: all 0.13s ease; }
   .reforco-act:hover { border-color: var(--accent); background: var(--accent-soft); transform: translateY(-1px); }
+  /* ═══ MODO FOCO — estudar só os cards, em tela cheia ═══════════════════════
+     Reaproveita toda a lógica de revisão: em vez de duplicar a tela, esconde o
+     resto da interface e expande o card. Sair restaura tudo. */
+  body.cards-foco .sidebar,
+  body.cards-foco .tabs,
+  body.cards-foco .nav-sheet,
+  body.cards-foco .nav-scrim,
+  body.cards-foco #screen-cards > .page-header,
+  body.cards-foco .cards-topbar,
+  body.cards-foco .cards-tabs,
+  body.cards-foco #cards-filter-card,
+  body.cards-foco .screen:not(#screen-cards) { display: none !important; }
+  body.cards-foco .app-shell { display: block; }
+  body.cards-foco .main-content { padding: 0 !important; max-width: none; }
+  body.cards-foco .content-wrap { max-width: none; padding: 0; }
+  body.cards-foco #cards-content { max-width: 760px; margin: 0 auto; padding: 64px 18px 30px; }
+  body.cards-foco .cards-face { font-size: calc(18px * var(--fs-scale, 1)); line-height: 1.6; }
+  body.cards-foco .cards-review-card { min-height: 44vh; }
+  .foco-bar { display: none; }
+  body.cards-foco .foco-bar {
+    display: flex; align-items: center; justify-content: space-between; gap: 12px;
+    position: fixed; top: 0; left: 0; right: 0; z-index: 70;
+    padding: 8px 14px; background: var(--surface);
+    border-bottom: 1px solid var(--border); box-shadow: 0 2px 10px rgba(0,0,0,0.05);
+  }
+  .foco-bar .foco-info { font-family: 'Inter', sans-serif; font-size: calc(12px * var(--fs-scale,1)); font-weight: 700; color: var(--text-soft); min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .foco-bar .foco-acoes { display: flex; gap: 6px; flex-shrink: 0; }
+  .foco-bar button { min-height: 34px; padding: 6px 12px; font-size: calc(12px * var(--fs-scale,1)); }
+  @media (max-width: 560px) {
+    body.cards-foco #cards-content { padding: 58px 12px 24px; }
+    body.cards-foco .cards-face { font-size: calc(16px * var(--fs-scale,1)); }
+  }
+
   /* ═══ PLANO DE PONTOS FRACOS — sistema visual próprio ═══════════════════
      Regra de tipografia: monoespaçada SÓ em número. Texto corrido em Inter,
      que é o que se lê rápido. Antes tudo herdava .hint (mono) e parágrafos
@@ -4549,6 +4582,13 @@
   </section>
 
   <!-- ============ TELA: CARDS DE REVISÃO ============ -->
+  <div class="foco-bar" id="foco-bar">
+    <span class="foco-info" id="foco-info">Modo foco</span>
+    <span class="foco-acoes">
+      <button type="button" class="btn-secondary" id="foco-undo" title="Desfazer a última avaliação (Ctrl+Z)">↶</button>
+      <button type="button" class="btn-secondary" id="foco-sair" title="Sair do modo foco (Esc)">✕ Sair</button>
+    </span>
+  </div>
   <section class="screen" id="screen-cards">
     <div class="page-header">
       <h2 class="page-title">🗂️ Cards de Revisão</h2>
@@ -4562,6 +4602,7 @@
       <button type="button" class="btn-secondary" id="cards-export-btn">⭳ Exportar p/ Anki</button>
       <button type="button" class="btn-secondary" id="cards-deck-btn">📁 Criar baralho</button>
       <button type="button" class="btn-primary" id="cards-new-btn">＋ Criar card</button>
+      <button type="button" class="btn-primary" id="cards-foco-btn" title="Estudar sem distração, em tela cheia (Esc para sair)">🎯 Modo foco</button>
     </div>
 
     <div class="cards-tabs">
@@ -4634,7 +4675,7 @@
       </div>
       <div class="cards-modal-body">
         <div class="field-group">
-          <div class="field"><label>Destino <span class="req">*</span></label>
+          <div class="field"><label>Baralho ou disciplina <span class="req">*</span></label>
             <select id="card-destino"></select></div>
           <div class="field"><label>Tópico <span class="opt">(opcional)</span></label>
             <input type="text" id="card-topico" list="card-topico-list" placeholder="Ex.: Crimes contra a Adm.">
@@ -12666,7 +12707,7 @@ const CardsScreen = {
     // para o destino, valor de matéria = "sub:Nome"; baralho = "deck:id"
     const subOpts = DB.getActiveSubjects().map(s => `<option value="sub:${escapeHtml(s.nome)}"${selected === 'sub:' + s.nome ? ' selected' : ''}>${escapeHtml(s.nome)}</option>`).join('');
     const deckOpts = DB.getDecks().map(d => `<option value="deck:${d.id}"${selected === 'deck:' + d.id ? ' selected' : ''}>📁 ${escapeHtml(d.nome)}</option>`).join('');
-    return `<option value="">Selecione uma disciplina ou baralho...</option>` + subOpts + deckOpts;
+    return `<option value="">Escolha onde este card fica...</option>` + subOpts + deckOpts;
   },
   currentFilteredCards() {
     return CardEngine.applyFilters(DB.getCards(), this.filters);
@@ -12766,6 +12807,7 @@ const CardsScreen = {
     this._reviewIdx = iAtual >= 0 ? iAtual : Math.min(this._reviewIdx, this._reviewQueue.length - 1);
     this._flipped = false;
     this.renderReviewCard(box);
+    this.atualizarFoco();
   },
   // ===== Painel de estatísticas FSRS (retenção real, previsão, maturidade) =====
   renderStats(box) {
@@ -12901,6 +12943,7 @@ const CardsScreen = {
     const box = document.getElementById('cards-content');
     // Ctrl+Z / Cmd+Z: desfazer a última avaliação (como no Anki)
     if ((e.ctrlKey || e.metaKey) && e.code === 'KeyZ') { e.preventDefault(); this.undoAnswer(); return; }
+    if (e.code === 'Escape' && this.emFoco()) { e.preventDefault(); this.sairFoco(); return; }
     if (e.code === 'Space') {
       e.preventDefault();
       if (!this._flipped) this.flip(box);
@@ -12925,6 +12968,35 @@ const CardsScreen = {
       if (!temOutro) return; // é o único: o Anki antecipa (learn ahead)
       q.push(q.splice(this._reviewIdx, 1)[0]);
     }
+  },
+  // ── Modo foco: estudar só os cards, em tela cheia ──
+  entrarFoco() {
+    this.tab = 'revisar';
+    document.querySelectorAll('.cards-tab').forEach(t => t.classList.toggle('active', t.dataset.ctab === 'revisar'));
+    document.body.classList.add('cards-foco');
+    this._reviewIdx = 0;
+    this.renderContent();
+    this.atualizarFoco();
+    window.scrollTo({ top: 0 });
+    showToast('Modo foco · Espaço vira · 1-4 avaliam · Esc sai');
+  },
+  sairFoco() {
+    document.body.classList.remove('cards-foco');
+    this.renderContent();
+  },
+  emFoco() { return document.body.classList.contains('cards-foco'); },
+  atualizarFoco() {
+    if (!this.emFoco()) return;
+    const el = document.getElementById('foco-info');
+    if (!el) return;
+    const total = (this._reviewQueue || []).length;
+    const c = total ? DB.getCard(this._reviewQueue[this._reviewIdx]) : null;
+    const onde = c ? (c.materia || (DB.getDecks().find(d => d.id === c.deckId) || {}).nome || '') : '';
+    el.textContent = total
+      ? `${Math.min(this._reviewIdx + 1, total)} de ${total}${onde ? ' · ' + onde : ''}`
+      : 'Nada para revisar agora';
+    const u = document.getElementById('foco-undo');
+    if (u) u.disabled = !(this._undoStack || []).length;
   },
   // navega entre os cards da fila sem avaliar (pular)
   navCard(dir) {
@@ -12956,6 +13028,7 @@ const CardsScreen = {
     this._flipped = false;
     showToast('Revisão desfeita ↶');
     this.renderReviewCard(document.getElementById('cards-content'));
+    this.atualizarFoco();
   },
   answer(grade) {
     const id = this._reviewQueue[this._reviewIdx];
@@ -12995,6 +13068,7 @@ const CardsScreen = {
     }
     // não mostra um card cujo passo ainda não venceu se houver outro disponível
     this._skipNotDue();
+    this.atualizarFoco();
     const box = document.getElementById('cards-content');
     if (this._reviewIdx >= this._reviewQueue.length) {
       // conta CARDS DISTINTOS, não as repetições dos passos de aprendizado
@@ -13738,6 +13812,9 @@ document.querySelectorAll('.rte').forEach(buildRteToolbar);
     CardsScreen.renderContent();
   });
   on('cards-new-btn', 'click', () => CardsScreen.openCardModal(null));
+  on('cards-foco-btn', 'click', () => CardsScreen.entrarFoco());
+  on('foco-sair', 'click', () => CardsScreen.sairFoco());
+  on('foco-undo', 'click', () => CardsScreen.undoAnswer());
   on('cards-deck-btn', 'click', () => CardsScreen.openDeckModal());
   on('cards-export-btn', 'click', () => CardsScreen.openExportModal());
   on('cards-import-btn', 'click', () => CardsScreen.openImportModal());
