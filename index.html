@@ -2562,6 +2562,23 @@
   .conq-rec .qd { font-family: 'Inter', sans-serif; font-size: calc(10px * var(--fs-scale,1)); color: var(--text-faint); }
   .conq-novo { font-size: calc(9.5px * var(--fs-scale,1)); font-weight: 800; padding: 2px 7px; border-radius: 20px; background: var(--good-soft); color: var(--good-text); }
 
+  /* badges de conquista */
+  .badge-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px; }
+  .badge { border: 1.5px solid var(--border); border-radius: 14px; padding: 12px; background: var(--surface-sunken); position: relative; overflow: hidden; }
+  .badge.on { border-color: var(--good); background: var(--good-soft); }
+  .badge.off { opacity: 0.6; }
+  .badge .bi { font-size: calc(22px * var(--fs-scale,1)); line-height: 1; display: block; }
+  .badge.off .bi { filter: grayscale(1); opacity: 0.55; }
+  .badge .bn { font-family: 'Inter', sans-serif; font-size: calc(12px * var(--fs-scale,1)); font-weight: 800; margin-top: 7px; line-height: 1.25; }
+  .badge .bl { font-family: 'Inter', sans-serif; font-size: calc(10.5px * var(--fs-scale,1)); font-weight: 700; margin-top: 3px; }
+  .badge.on .bl { color: var(--good-text); }
+  .badge.off .bl { color: var(--text-faint); }
+  .badge .bd { font-family: 'Inter', sans-serif; font-size: calc(10px * var(--fs-scale,1)); color: var(--text-faint); margin-top: 5px; line-height: 1.45; }
+  .badge .bp { height: 4px; background: var(--border); border-radius: 4px; margin-top: 8px; overflow: hidden; }
+  .badge .bp i { display: block; height: 100%; background: var(--good); border-radius: 4px; }
+  .badge-cat { font-family: 'Inter', sans-serif; font-size: calc(11px * var(--fs-scale,1)); font-weight: 800; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-faint); margin: 16px 0 8px; }
+  .badge-cat span { font-weight: 500; text-transform: none; letter-spacing: 0; }
+
   /* ═══ MODO FOCO — LEIS SECAS ══════════════════════════════════════════════
      Mesmo princípio dos cards: esconde a interface e dá a tela ao texto.
      A barra de ferramentas some, mas o marca-texto e a borracha continuam
@@ -11114,6 +11131,100 @@ const ConquistasEngine = {
       montar(cards, this.ESCADAS.cards, 'cards revisados', '')
     ].filter(m => m.valor > 0);
   },
+  // ── BADGES ────────────────────────────────────────────────────────────────
+  // Cada badge é um fato verificável sobre o que você JÁ fez. Nenhuma tem prazo,
+  // nenhuma expira, nenhuma pode ser perdida. A mais importante é "Retomada":
+  // ela transforma voltar depois de uma pausa em conquista, não em falha.
+  CATEGORIAS: [
+    { id: 'volume', nome: 'Volume', desc: 'o quanto você já acumulou' },
+    { id: 'amplitude', nome: 'Amplitude', desc: 'o quanto de terreno você cobriu' },
+    { id: 'qualidade', nome: 'Qualidade', desc: 'o que virou conhecimento sólido' },
+    { id: 'habito', nome: 'Hábito', desc: 'como você se mantém na caminhada' }
+  ],
+  badges(entries) {
+    const dias = this.porDia(entries);
+    const vals = Object.values(dias);
+    const horas = vals.reduce((a, d) => a + d.min, 0) / 60;
+    const questoes = vals.reduce((a, d) => a + d.q, 0);
+    const cards = vals.reduce((a, d) => a + d.cards, 0);
+    const hoje = todayLocal();
+    const B = [];
+    // escada de badges: uma linha por nível, marcando o maior alcançado
+    const escada = (cat, ico, nome, valor, niveis, fmt) => {
+      const alcancados = niveis.filter(n => valor >= n.v);
+      const atual = alcancados.length ? alcancados[alcancados.length - 1] : null;
+      const prox = niveis.find(n => valor > 0 && n.v > valor);
+      B.push({
+        cat, ico, nome, conquistada: !!atual,
+        nivel: atual ? atual.rot : null,
+        detalhe: atual ? ('você já tem ' + fmt(valor)) : (niveis[0] ? 'conquista a partir de ' + fmt(niveis[0].v) : ''),
+        progresso: prox ? Math.min(1, (valor - (atual ? atual.v : 0)) / (prox.v - (atual ? atual.v : 0))) : 1,
+        prox: prox && atual ? { rot: prox.rot, falta: fmt(prox.v - valor) } : null,
+        valorAtual: fmt(valor)
+      });
+    };
+    const hFmt = v => Math.round(v) + 'h';
+    const nFmt = v => Math.round(v).toLocaleString('pt-BR');
+    escada('volume', '⏳', 'Horas na cadeira', horas,
+      [{ v: 10, rot: 'Primeiros passos' }, { v: 100, rot: 'Constância' }, { v: 250, rot: 'Rotina firme' },
+       { v: 500, rot: 'Maratonista' }, { v: 1000, rot: 'Mil horas' }, { v: 2000, rot: 'Veterano' }], hFmt);
+    escada('volume', '🎯', 'Questões resolvidas', questoes,
+      [{ v: 100, rot: 'Aquecendo' }, { v: 1000, rot: 'Artilheiro' }, { v: 5000, rot: 'Metralhadora' },
+       { v: 10000, rot: 'Dez mil' }, { v: 25000, rot: 'Fora de série' }], nFmt);
+    escada('volume', '🃏', 'Cards revisados', cards,
+      [{ v: 100, rot: 'Primeiro baralho' }, { v: 1000, rot: 'Memória treinada' },
+       { v: 10000, rot: 'Memória de elefante' }], nFmt);
+
+    // AMPLITUDE — recompensa cobrir terreno, não repetir o que já sabe
+    const materias = new Set((entries || []).map(e => e.subject).filter(Boolean)).size;
+    escada('amplitude', '🗺️', 'Matérias estudadas', materias,
+      [{ v: 3, rot: 'Explorando' }, { v: 5, rot: 'Panorama' }, { v: 8, rot: 'Visão ampla' }], nFmt);
+    let leis = 0; try { leis = (DB.getLeis() || []).length; } catch (_) {}
+    escada('amplitude', '§', 'Leis no leitor', leis,
+      [{ v: 3, rot: 'Letra da lei' }, { v: 10, rot: 'Biblioteca' }, { v: 25, rot: 'Acervo' }], nFmt);
+
+    // QUALIDADE — só conta o que virou conhecimento medido
+    let solidos = 0, virada = null;
+    try {
+      const r = PlanoEngine.calcular(DesempenhoTecScreen.scopedSnapshot(), PlanoEngine.prefs());
+      if (r && !r.erro) {
+        solidos = r.consolidados || 0;
+        const v = (r.itens || []).find(x => x.pctHist != null && x.pctHist < 50 && x.taxa >= 80);
+        if (v) virada = v.nome;
+      }
+    } catch (_) {}
+    escada('qualidade', '🎓', 'Assuntos consolidados', solidos,
+      [{ v: 1, rot: 'Primeiro domínio' }, { v: 5, rot: 'Base sólida' }, { v: 15, rot: 'Terreno firme' }], nFmt);
+    B.push({
+      cat: 'qualidade', ico: '📈', nome: 'A virada', conquistada: !!virada,
+      detalhe: virada ? 'você levou "' + virada + '" de menos de 50% para mais de 80%' : 'levar um assunto de menos de 50% para mais de 80%',
+      progresso: virada ? 1 : 0, valorAtual: ''
+    });
+
+    // HÁBITO — sem sequência, sem punição
+    const em30 = (() => { let c = 0; for (let i = 0; i < 30; i++) { const d = new Date(hoje + 'T00:00:00'); d.setDate(d.getDate() - i); if ((dias[this._iso(d)] || {}).temAlgo) c++; } return c; })();
+    escada('habito', '🌗', 'Dias ativos no mês', em30,
+      [{ v: 10, rot: 'Presente' }, { v: 20, rot: 'Ritmo firme' }, { v: 26, rot: 'Quase todo dia' }], nFmt);
+    const meses = new Set(Object.keys(dias).filter(k => dias[k].temAlgo).map(k => k.slice(0, 7))).size;
+    escada('habito', '📅', 'Meses na caminhada', meses,
+      [{ v: 3, rot: 'Três meses' }, { v: 6, rot: 'Meio ano' }, { v: 12, rot: 'Um ano' }, { v: 24, rot: 'Dois anos' }], nFmt);
+    // Retomada: a badge mais importante do conjunto. Voltar depois de uma pausa
+    // é conquista — não uma falha a ser recuperada.
+    const ordenados = Object.keys(dias).filter(k => dias[k].temAlgo).sort();
+    let maiorRetomada = 0, quando = null;
+    for (let i = 1; i < ordenados.length; i++) {
+      const gap = this._diasEntre(ordenados[i - 1], ordenados[i]);
+      if (gap >= 7 && gap > maiorRetomada) { maiorRetomada = gap; quando = ordenados[i]; }
+    }
+    B.push({
+      cat: 'habito', ico: '🌅', nome: 'Retomada', conquistada: !!quando,
+      detalhe: quando
+        ? 'você voltou depois de ' + maiorRetomada + ' dias parado, em ' + formatDateShort(quando) + '. Parar acontece — voltar é o que conta.'
+        : 'voltar a estudar depois de uma pausa também é conquista',
+      progresso: quando ? 1 : 0, valorAtual: ''
+    });
+    return B;
+  },
   recordes(entries) {
     const dias = this.porDia(entries);
     const hoje = todayLocal();
@@ -11230,6 +11341,8 @@ const EvolucaoScreen = {
     const cal = ConquistasEngine.calendario(entries, largo ? 26 : 14);
     const marcos = ConquistasEngine.marcos(entries);
     const recs = ConquistasEngine.recordes(entries);
+    const badges = ConquistasEngine.badges(entries);
+    const ganhas = badges.filter(b => b.conquistada).length;
     if (!marcos.length) {
       box.innerHTML = `<p class="hint">Registre suas primeiras sessões e sua caminhada começa a aparecer aqui.</p>`;
       if (resumo) resumo.textContent = '';
@@ -11237,7 +11350,7 @@ const EvolucaoScreen = {
     }
     if (resumo) {
       const h = marcos.find(m => m.unidade === 'h');
-      resumo.textContent = (h ? h.valor + 'h · ' : '') + cal.em30 + ' dias com estudo no último mês';
+      resumo.textContent = (h ? h.valor + 'h · ' : '') + ganhas + ' conquistas · ' + cal.em30 + ' dias ativos no mês';
     }
     const nomeDia = ['seg', 'ter', 'qua', 'qui', 'sex', 'sáb', 'dom'];
     const celulas = cal.grade.map(d => {
@@ -11273,6 +11386,26 @@ const EvolucaoScreen = {
               ${m.mostrarProx ? `<div class="p">próximo: ${m.prox.toLocaleString('pt-BR')}${m.unidade} — faltam ${m.falta.toLocaleString('pt-BR')}</div>` : ''}
             </div>`).join('')}
         </div>
+      </div>
+
+      <div class="conq-bloco">
+        <p class="conq-titulo">🏅 Conquistas <span style="font-weight:500;text-transform:none;letter-spacing:0;">· ${ganhas} de ${badges.length}</span></p>
+        ${ConquistasEngine.CATEGORIAS.map(c => {
+          const doGrupo = badges.filter(b => b.cat === c.id);
+          if (!doGrupo.length) return '';
+          return `<p class="badge-cat">${c.nome} <span>· ${c.desc}</span></p>
+            <div class="badge-grid">
+              ${doGrupo.map(b => `
+                <div class="badge ${b.conquistada ? 'on' : 'off'}" title="${escapeHtml(b.detalhe || '')}">
+                  <span class="bi">${b.ico}</span>
+                  <div class="bn">${escapeHtml(b.nome)}</div>
+                  ${b.nivel ? `<div class="bl">✓ ${escapeHtml(b.nivel)}</div>` : `<div class="bl">ainda não</div>`}
+                  <div class="bd">${escapeHtml(b.detalhe || '')}</div>
+                  ${(b.prox && b.progresso < 1) ? `<div class="bp"><i style="width:${Math.round(b.progresso * 100)}%"></i></div>
+                    <div class="bd" style="margin-top:4px;">próximo: ${escapeHtml(b.prox.rot)} — faltam ${escapeHtml(b.prox.falta)}</div>` : ''}
+                </div>`).join('')}
+            </div>`;
+        }).join('')}
       </div>
 
       ${recs.length ? `<div class="conq-bloco">
@@ -13534,6 +13667,11 @@ const CardsScreen = {
     setTimeout(() => document.getElementById('card-destino').focus(), 50);
   },
   closeCardModal() { document.getElementById('card-modal').style.display = 'none'; this._editingId = null; },
+  // Há algo digitado que se perderia ao fechar?
+  cardTemConteudo() {
+    const txt = (id) => { const e = document.getElementById(id); if (!e) return ''; return (e.innerHTML !== undefined && e.classList.contains('rte-area') ? e.innerText : e.value || '').trim(); };
+    return !!(txt('card-frente') || txt('card-verso') || txt('card-topico') || txt('card-cloze-texto'));
+  },
   _readCardForm() {
     const dest = document.getElementById('card-destino').value;
     const kind = document.getElementById('card-kind').value;
@@ -14193,9 +14331,20 @@ document.querySelectorAll('.rte').forEach(buildRteToolbar);
   }
   on('cards-import-file', 'change', (e) => { if (e.target.files[0]) CardsScreen.handleImportFile(e.target.files[0]); });
   // fechar modais clicando fora
+  // Clique no fundo fecha o diálogo — MENOS quando há conteúdo digitado no card.
+  // Perder uma frente/verso já escrita por um clique fora é o pior tipo de erro:
+  // silencioso e irrecuperável.
   ['card-modal', 'deck-modal', 'cards-import-modal', 'cards-export-modal'].forEach(id => {
     const m = document.getElementById(id);
-    if (m) m.addEventListener('click', (e) => { if (e.target === m) m.style.display = 'none'; });
+    if (!m) return;
+    m.addEventListener('click', (e) => {
+      if (e.target !== m) return;
+      if (id === 'card-modal' && CardsScreen.cardTemConteudo()) {
+        showToast('Use ✕ ou Cancelar para fechar — você tem conteúdo não salvo');
+        return;
+      }
+      m.style.display = 'none';
+    });
   });
 })();
 window.addEventListener('screen:activated', (e) => {
