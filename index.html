@@ -5494,8 +5494,8 @@
               <div class="rfc-field wide">
                 <label>Ordenar por</label>
                 <select id="plano-ordenar">
-                  <option value="rendimento">⚡ Melhor retorno — ganho por questão resolvida</option>
-                  <option value="pior">🔴 Pior acerto primeiro</option>
+                  <option value="pior">🔴 Prioridade — pior acerto primeiro</option>
+                  <option value="rendimento">⚡ Melhor retorno — ganho ÷ custo em questões</option>
                   <option value="queda">📉 Maior queda recente</option>
                   <option value="volume">📚 Mais questões já resolvidas</option>
                 </select>
@@ -5592,6 +5592,7 @@
       </div>
       <div style="display:flex; gap:8px; flex-wrap:wrap;">
         <button type="button" class="btn-secondary" id="extras-suggest-btn" title="Sugerir atividades com base nos seus pontos fracos do TEC">💡 Sugerir dos pontos fracos</button>
+        <button type="button" class="btn-secondary" id="extras-plano-btn" title="Puxar os assuntos prioritários do Plano de pontos fracos, com meta já calculada">🏁 Puxar do Plano</button>
         <button type="button" class="btn-primary" id="extras-new-btn">＋ Nova atividade</button>
       </div>
     </div>
@@ -13730,6 +13731,74 @@ const ExtrasScreen = {
     }).join('');
     this.bind(list);
   },
+  // Puxa os assuntos prioritários do Plano de pontos fracos, com a meta já calculada
+  puxarDoPlano() {
+    // const de topo NÃO vive em window — testar por typeof, não por window.X
+    if (typeof PlanoEngine === 'undefined' || typeof DesempenhoTecScreen === 'undefined') { showToast('Plano indisponível'); return; }
+    const r = PlanoEngine.calcular(DesempenhoTecScreen.scopedSnapshot(), PlanoEngine.prefs());
+    if (!r || r.erro) {
+      showToast(r && r.erro === 'sem-retrato'
+        ? 'Importe um retrato do TEC em Desempenho TEC → Análise'
+        : 'Sem dados suficientes no Plano ainda');
+      return;
+    }
+    const jaTem = new Set(DB.getExtras().filter(e => e.origemPlano)
+      .map(e => ReforcoEngine.norm(e.origemPlano.topico)));
+    const cand = []
+      .concat((r.itens || []).map(x => ({ ...x, motivo: 'reforco', alvo: x.custoQ })))
+      .concat((r.pequenas || []).map(x => ({ ...x, motivo: 'diagnostico', alvo: x.faltaAmostra })))
+      .filter(x => !jaTem.has(ReforcoEngine.norm(x.nome)))
+      .slice(0, 12);
+    if (!cand.length) { showToast('Todos os assuntos prioritários já têm atividade'); return; }
+    const linhas = cand.map((x, i) => `
+      <label class="sug-row" style="align-items:flex-start;">
+        <input type="checkbox" class="pl-pick" data-i="${i}" ${i < 3 ? 'checked' : ''}>
+        <div style="min-width:0;">
+          <div style="font-weight:700;">${escapeHtml(x.nome)}</div>
+          <div class="hint" style="margin:2px 0 0;">
+            ${x.disciplina ? escapeHtml(x.disciplina) + ' · ' : ''}
+            ${x.taxa != null ? x.taxa.toFixed(0) + '% de acerto' : 'sem taxa'} em ${x.qJanela} questões ·
+            ${x.motivo === 'diagnostico'
+              ? `<strong>diagnóstico</strong>: resolver ${x.alvo} para saber onde está`
+              : `<strong>reforço</strong>: ${x.alvo} questões · +${x.ganhoPP.toFixed(1)}pp de domínio`}
+          </div>
+        </div>
+      </label>`).join('');
+    UI._resolve = null; UI._mode = 'confirm';
+    const body = `<p class="hint" style="margin:0 0 12px;">Cada item vira uma atividade de questões com a meta já calculada.
+      Ao importar o próximo retrato do TEC, o Plano avisa se o assunto saiu da lista.</p>
+      <div style="max-height:46vh;overflow:auto;">${linhas}</div>`;
+    new Promise((resolve) => {
+      UI._resolve = resolve; UI._mode = 'confirm';
+      UI._open('🏁 Puxar do Plano', 'Assuntos prioritários com meta pronta', body, { okText: 'Criar atividades' });
+    }).then((ok) => {
+      if (!ok) return;
+      let n = 0;
+      (this._planoCand || []).forEach((x, i) => {
+        if (!this._planoSel || !this._planoSel.has(i)) return;
+        const e = DB.addExtra({
+          titulo: (x.motivo === 'diagnostico' ? 'Diagnosticar: ' : 'Reforçar: ') + x.nome,
+          tipo: 'questoes', disciplina: x.disciplina || '', unidade: 'questoes',
+          alvo: Math.max(1, x.alvo), periodo: 'unica', contaMetricas: false,
+          obs: 'Gerado pelo Plano de pontos fracos.'
+        });
+        if (e) { DB.updateExtra(e.id, { origemPlano: { topico: x.nome, disciplina: x.disciplina || '', motivo: x.motivo, criadoEm: todayLocal() } }); n++; }
+      });
+      this.render();
+      showToast(n ? n + ' atividade(s) criada(s) ✓' : 'Nenhuma selecionada');
+    });
+    // guarda a seleção viva enquanto o diálogo está aberto
+    this._planoCand = cand;
+    this._planoSel = new Set(cand.map((_, i) => i).filter(i => i < 3));
+    setTimeout(() => {
+      document.querySelectorAll('#ui-modal .pl-pick').forEach(cb => {
+        cb.addEventListener('change', () => {
+          const i = parseInt(cb.dataset.i);
+          if (cb.checked) this._planoSel.add(i); else this._planoSel.delete(i);
+        });
+      });
+    }, 40);
+  },
   cardHtml(x) {
     const t = this.TIPOS[x.tipo] || this.TIPOS.livre;
     const recorrente = x.periodo === 'diaria' || x.periodo === 'semanal';
@@ -14147,6 +14216,7 @@ window.ExtrasScreen = ExtrasScreen;
   const on = (id, ev, fn) => { const el = document.getElementById(id); if (el) el.addEventListener(ev, fn); };
   on('extras-new-btn', 'click', () => { ExtrasScreen._fromSuggest = null; ExtrasScreen._sugAdded = new Set(); ExtrasScreen.openModal(null); });
   on('extras-suggest-btn', 'click', () => { ExtrasScreen._sugAdded = new Set(); ExtrasScreen.openSuggest(); });
+  on('extras-plano-btn', 'click', () => ExtrasScreen.puxarDoPlano());
   on('extra-suggest-close', 'click', () => { document.getElementById('extra-suggest-modal').style.display = 'none'; ExtrasScreen._sugAdded = new Set(); });
   on('extra-suggest-cancel', 'click', () => { document.getElementById('extra-suggest-modal').style.display = 'none'; ExtrasScreen._sugAdded = new Set(); });
   on('extra-suggest-add', 'click', () => ExtrasScreen.addSuggested());
@@ -14991,7 +15061,7 @@ const PlanoEngine = {
     ponderacao: 'igual', minAmostra: 20, incluirPequenas: false,
     custoModo: 'fixo', custoFixo: 60, custoFator: 0.5,
     ritmoSemanal: null, apenasFolhas: true, disciplina: '__todas__',
-    limite: 30, ordenar: 'rendimento',
+    limite: 30, ordenar: 'pior',
     amostraAlvo: 50,     // amostra que buscamos para a taxa ser confiável (±14pp a 95%)
     janelaMax: 365,      // até onde recuar no tempo procurando essa amostra
     cadenciaDias: 30
@@ -15162,13 +15232,19 @@ const PlanoEngine = {
       ritmo, ritmoMedido: this.ritmoRecente(snapsDesc, 120),
       semanas: (idxMeta >= 0 && ritmo > 0) ? qAteMeta / ritmo : null,
       amostraAlvo: opts.amostraAlvo, janelaMax: opts.janelaMax, janelaMedia,
+      teto: Math.round(teto * 100),
       comAlvo: usados.filter(x => x.atingiuAlvo).length,
       melhorando, piorando, ordenar: opts.ordenar,
       idadeUltimo, cadenciaDias: opts.cadenciaDias,
       defasado: idadeUltimo > opts.cadenciaDias,
       ponderacao: opts.ponderacao,
       itens: plano.slice(0, opts.limite),
-      pequenas: brutos.filter(x => x.amostraFraca).sort((a, b) => (a.taxa || 0) - (b.taxa || 0))
+      // SEGUNDO PLANO: assuntos sem amostra confiável. Ficam FORA da média (8 questões
+      // a 38% podem significar de 4% a 71% — contaminaria o número), mas não somem.
+      // Aqui a ação é outra: primeiro juntar dado, depois decidir se é fraqueza.
+      pequenas: brutos.filter(x => x.amostraFraca).map(x => Object.assign(x, {
+        faltaAmostra: Math.max(1, opts.amostraAlvo - x.qJanela)
+      })).sort((a, b) => (a.taxa == null ? 999 : a.taxa) - (b.taxa == null ? 999 : b.taxa))
     };
   }
 };
@@ -15597,6 +15673,31 @@ const DesempenhoTecScreen = {
     if (tab === 'plano') this.renderPlano();
   },
   // ---- Plano de aprovação ----
+  // Cria uma Atividade Extra ligada a um assunto do plano — fecha o ciclo:
+  // você resolve as questões, importa o novo retrato, e a métrica decide se acabou.
+  criarExtraDoPlano(topico, disciplina, alvo, motivo) {
+    const jaTem = DB.getExtras().find(e => e.origemPlano &&
+      ReforcoEngine.norm(e.origemPlano.topico) === ReforcoEngine.norm(topico));
+    if (jaTem) { showToast('Já existe uma atividade para "' + topico + '"'); return; }
+    const diag = motivo === 'diagnostico';
+    const e = DB.addExtra({
+      titulo: (diag ? 'Diagnosticar: ' : 'Reforçar: ') + topico,
+      tipo: 'questoes',
+      disciplina: disciplina || '',
+      unidade: 'questoes',
+      alvo: Math.max(1, parseInt(alvo) || 30),
+      periodo: 'unica',
+      contaMetricas: false,
+      obs: diag
+        ? 'Gerado pelo Plano: amostra insuficiente. Resolva estas questões para saber se é fraqueza real.'
+        : 'Gerado pelo Plano de pontos fracos. Ao importar o próximo retrato do TEC, a métrica dirá se o assunto saiu da lista.'
+    });
+    if (e) {
+      DB.updateExtra(e.id, { origemPlano: { topico, disciplina: disciplina || '', motivo: motivo || 'reforco', criadoEm: todayLocal() } });
+      showToast('Atividade criada: ' + (diag ? 'diagnosticar ' : 'reforçar ') + topico);
+      this.renderPlanoConteudo();
+    }
+  },
   renderPlano() {
     const p = PlanoEngine.prefs();
     const set = (id, v) => { const e = document.getElementById(id); if (e) e.value = v; };
@@ -15652,6 +15753,18 @@ const DesempenhoTecScreen = {
     PlanoEngine.salvarPrefs(opts);
     opts.ritmoSemanal = opts.ritmoSemanal || medido;
     const r = PlanoEngine.calcular(this.scopedSnapshot(), opts);
+    // liga cada assunto à atividade extra já criada para ele (ciclo de acompanhamento)
+    if (r && r.itens) {
+      const extras = DB.getExtras().filter(e => e.origemPlano && e.origemPlano.topico);
+      const casar = (x) => extras.find(e => ReforcoEngine.norm(e.origemPlano.topico) === ReforcoEngine.norm(x.nome));
+      [].concat(r.itens, r.pequenas || []).forEach(x => {
+        const e = casar(x);
+        if (!e) return;
+        x.extra = e; x.extraAlvo = e.alvo || 0;
+        x.extraFeito = DB.extraProgressoPeriodo ? DB.extraProgressoPeriodo(e) : (e.progresso || 0);
+        x.extraConcluida = e.status === 'concluida' || (e.alvo > 0 && x.extraFeito >= e.alvo);
+      });
+    }
     if (r.erro === 'sem-retrato') {
       proj.innerHTML = `<p class="hint" style="padding:18px 0;">Importe ao menos um retrato de desempenho em <strong>📊 Análise</strong>.</p>`;
       lista.innerHTML = ''; return;
@@ -15668,8 +15781,15 @@ const DesempenhoTecScreen = {
           <div style="font-family:'Space Mono',monospace;font-size:calc(30px * var(--fs-scale,1));font-weight:800;line-height:1;" class="tone-${tom}">
             ${r.dominioPct.toFixed(1)}<span style="font-size:calc(16px * var(--fs-scale,1));color:var(--text-faint)">% de domínio</span>
           </div>
-          <div class="hint" style="margin:4px 0 10px;">sobre ${r.assuntos} assunto(s) · ${r.qTotal.toLocaleString('pt-BR')} questões na amostra · ${pond} · meta: ${r.meta}%</div>
-          <div class="bar-track" style="height:10px;"><span style="width:${Math.min(100, r.dominioPct)}%"></span></div>
+          <div class="hint" style="margin:4px 0 10px;">
+            Sua <strong>média de acerto atual</strong> em ${r.assuntos} assunto(s) · ${r.qTotal.toLocaleString('pt-BR')} questões na amostra ·
+            recorte médio: últimos ${r.janelaMedia || '—'} dias · ${pond}
+          </div>
+          <div class="bar-track" style="height:12px;position:relative;overflow:visible;">
+            <span style="width:${Math.min(100, r.dominioPct)}%"></span>
+            <span style="position:absolute;left:${Math.min(100, r.meta)}%;top:-4px;bottom:-4px;width:2px;background:var(--text);opacity:0.55;" title="Meta de ${r.meta}%"></span>
+            <span style="position:absolute;left:${Math.min(100, r.meta)}%;top:-18px;transform:translateX(-50%);font-size:calc(10px * var(--fs-scale,1));font-weight:700;color:var(--text-soft);white-space:nowrap;">meta ${r.meta}%</span>
+          </div>
           <p style="margin:12px 0 0;font-weight:700;" class="tone-${tom}">
             ${r.jaAtinge
               ? `✓ Acima da meta, com folga de ${(r.dominioPct - r.meta).toFixed(1)} pontos.`
@@ -15711,15 +15831,29 @@ const DesempenhoTecScreen = {
               ${seta}
             </div>
             <div class="hint" style="margin:6px 0 0;">${escapeHtml(x.status.acao)}</div>
-            <div class="hint" style="margin:4px 0 0;font-size:calc(10px * var(--fs-scale,1));">
-              base: ${x.qJanela} questões${x.diasJanela ? ' dos últimos ' + x.diasJanela + ' dias' : ''} · ${x.qHist} no histórico total
-              ${x.atingiuAlvo ? '' : ' · <span style="color:var(--warn-text);font-weight:700">amostra abaixo do alvo</span>'}
-              · custo estimado ≈ ${x.custoQ} questões
+            <div class="hint" style="margin:6px 0 0;font-size:calc(10px * var(--fs-scale,1));line-height:1.6;">
+              <span title="Quanto falta desta taxa até o teto de domínio — é daqui que sai o ganho ao lado">
+                <strong>faltam ${(r.teto - x.taxa).toFixed(0)}pp</strong> até o teto de ${r.teto}%
+              </span>
+              · base: <strong>${x.qJanela}</strong> questões${x.diasJanela ? ' dos últimos <strong>' + x.diasJanela + ' dias</strong>' : ''}
+              (${x.qHist} no histórico total)
+              ${x.atingiuAlvo ? '' : ' · <span style="color:var(--warn-text);font-weight:700">amostra abaixo do alvo de ' + r.amostraAlvo + '</span>'}
+              · custo ≈ <strong>${x.custoQ}</strong> questões
+            </div>
+            <div class="bar-track" style="height:5px;margin-top:6px;position:relative;overflow:visible;">
+              <span style="width:${Math.min(100, x.taxa)}%"></span>
+              <span style="position:absolute;left:${Math.min(100, r.teto)}%;top:-2px;bottom:-2px;width:2px;background:var(--text);opacity:0.45;"></span>
             </div>
           </div>
           <div style="text-align:right;white-space:nowrap;">
             <div style="font-family:'Space Mono',monospace;font-weight:800;" class="tone-good">+${x.ganhoPP.toFixed(1)}pp</div>
-            <div class="hint" style="margin:0;">leva a ${x.acumulado.toFixed(1)}%</div>
+            <div class="hint" style="margin:0 0 6px;">leva a ${x.acumulado.toFixed(1)}%</div>
+            ${x.extra
+              ? `<span class="reforco-tag ${x.extraConcluida ? 'tone-good' : 'incid'}" title="${x.extraConcluida ? 'Meta da atividade atingida' : 'Atividade em andamento'}">
+                   ${x.extraConcluida ? '✓ meta batida' : '▶ ' + x.extraFeito + '/' + x.extraAlvo}
+                 </span>`
+              : `<button type="button" class="btn-secondary plano-nova-extra" data-topico="${escapeHtml(x.nome)}"
+                   data-disc="${escapeHtml(x.disciplina || '')}" data-alvo="${x.custoQ}" data-motivo="reforco">+ Atividade</button>`}
           </div>
         </div>${marca}`;
     }).join('');
@@ -15735,22 +15869,47 @@ const DesempenhoTecScreen = {
           <p style="margin:0;"><strong>Como agir:</strong> comece pelo topo da lista. Cada item traz a orientação conforme a faixa de acerto — abaixo de 50% o problema é teoria, acima de 65% é volume. A linha verde marca até onde você precisa ir para bater a meta.</p>
         </div>
       </details>`;
-    const pequenas = (!opts.incluirPequenas && r.pequenas.length) ? `
-      <div style="margin-top:18px;padding-top:14px;border-top:1px dashed var(--border);">
-        <p class="section-label" style="margin:0 0 6px;">Fora do cálculo — menos de ${opts.minAmostra} questões</p>
-        <p class="hint" style="margin:0 0 8px;">Pode ser fraqueza real ou só falta de dado. Resolva algumas questões para descobrir de qual se trata.</p>
-        ${r.pequenas.slice(0, 12).map(x => `<div class="reforco-row" style="opacity:0.72">
-          <div class="reforco-rank" style="background:var(--surface-sunken);color:var(--text-faint)">?</div>
-          <div class="reforco-main"><div class="reforco-topico">${escapeHtml(x.nome)}</div>
-            <div class="reforco-meta">${x.disciplina ? `<span class="reforco-disc">${escapeHtml(x.disciplina)}</span>` : ''}
-            <span class="reforco-tag tone-warn">${x.taxa != null ? x.taxa.toFixed(0) + '%' : '—'} em apenas ${x.qJanela} questões</span></div>
-          </div><div></div></div>`).join('')}
+    const pequenas = r.pequenas.length ? `
+      <div style="margin-top:22px;padding-top:16px;border-top:2px solid var(--border);">
+        <p class="section-label" style="margin:0 0 4px;">🕳️ Segundo plano de ataque — diagnóstico incompleto</p>
+        <p class="hint" style="margin:0 0 10px;">
+          Menos de ${opts.minAmostra} questões: ainda não dá para afirmar que é fraqueza.
+          Ficam fora da média de domínio de propósito — com amostra assim pequena, a taxa real pode variar dezenas de pontos.
+          <strong>A ação aqui é outra:</strong> resolver questões para descobrir onde você está.
+        </p>
+        ${r.pequenas.slice(0, 15).map((x, i) => `
+          <div class="reforco-row" style="align-items:flex-start;">
+            <div class="reforco-rank" style="background:var(--surface-sunken);color:var(--text-faint)">${i + 1}</div>
+            <div class="reforco-main">
+              <div class="reforco-topico">${escapeHtml(x.nome)}</div>
+              <div class="reforco-meta">
+                ${x.disciplina ? `<span class="reforco-disc">${escapeHtml(x.disciplina)}</span>` : ''}
+                <span class="reforco-tag tone-warn" title="Margem de erro grande demais para servir de diagnóstico">
+                  ${x.taxa != null ? x.taxa.toFixed(0) + '%' : '—'}${x.margem != null ? ' ±' + x.margem.toFixed(0) + 'pp' : ''} em ${x.qJanela} questões
+                </span>
+              </div>
+              <div class="hint" style="margin:6px 0 0;">
+                Resolva <strong>${x.faltaAmostra}</strong> questões para virar diagnóstico confiável.
+              </div>
+            </div>
+            <div style="white-space:nowrap;">
+              <button type="button" class="btn-secondary plano-nova-extra" data-topico="${escapeHtml(x.nome)}"
+                data-disc="${escapeHtml(x.disciplina || '')}" data-alvo="${x.faltaAmostra}" data-motivo="diagnostico">+ Atividade</button>
+            </div>
+          </div>`).join('')}
       </div>` : '';
-    const rotOrdem = { rendimento: 'melhor retorno por questão resolvida', pior: 'pior acerto primeiro',
-      queda: 'maior queda recente', volume: 'mais questões já resolvidas' }[r.ordenar] || 'melhor retorno';
+    const rotOrdem = { rendimento: 'melhor retorno (ganho ÷ custo)', pior: 'pior acerto primeiro',
+      queda: 'maior queda recente', volume: 'mais questões já resolvidas' }[r.ordenar] || 'pior acerto primeiro';
+    // com custo fixo e peso igual, "retorno" e "pior acerto" dão a MESMA ordem — dizer isso
+    // evita a impressão de que há uma métrica escondida decidindo por você
+    const mesmaOrdem = (opts.custoModo === 'fixo' && opts.ponderacao === 'igual'
+      && (r.ordenar === 'rendimento' || r.ordenar === 'pior'));
     lista.innerHTML = (linhas
-      ? comoLer + `<div class="hint" style="margin:0 0 6px;">Ordenado por <strong>${rotOrdem}</strong> · ${r.itens.length} assunto(s)</div>${linhas}`
+      ? comoLer + `<div class="hint" style="margin:0 0 6px;">Ordenado por <strong>${rotOrdem}</strong> · ${r.itens.length} assunto(s)${mesmaOrdem ? ' — com custo fixo e peso igual, esta ordem é idêntica a "pior acerto primeiro"' : ''}</div>${linhas}`
       : `<p class="hint" style="padding:18px 0;">Nenhum assunto abaixo do teto — você já domina tudo que pratica.</p>`) + pequenas;
+    lista.querySelectorAll('.plano-nova-extra').forEach(b => b.addEventListener('click', () => {
+      this.criarExtraDoPlano(b.dataset.topico, b.dataset.disc, b.dataset.alvo, b.dataset.motivo);
+    }));
   },
   // ---- Incidência ----
   _incidParsed: null,
