@@ -5531,7 +5531,7 @@
           <div class="card-header">
             <div>
               <h2>🏁 Plano de pontos fracos</h2>
-              <p class="sub">Só o seu desempenho no TEC — sem incidência de banca. Mede o quanto você domina do que estuda e mostra a ordem que fecha a lacuna resolvendo menos questões.</p>
+              <p class="sub">Baseado só no seu desempenho no TEC. Mede o quanto você já domina do que estuda e mostra por onde atacar para fechar a lacuna resolvendo o menor número de questões.</p>
             </div>
           </div>
           <div style="padding: 4px 28px 20px;">
@@ -5545,8 +5545,8 @@
                 <input type="number" id="plano-meta" min="30" max="100" step="1">
               </div>
               <div class="rfc-field">
-                <label>Amostra confiável</label>
-                <select id="plano-amostraalvo" title="Para cada assunto, o app usa os retratos mais recentes e só recua no tempo até juntar esta quantidade de questões.">
+                <label>Amostra desejada por assunto</label>
+                <select id="plano-amostraalvo" title="Para cada assunto o app parte da importação mais recente e só volta no tempo até juntar esta quantidade de questões. Quanto maior, mais confiável a taxa — e mais antigo o dado que ela usa.">
                   <option value="30">30 questões (±18pp)</option>
                   <option value="50">50 questões (±14pp)</option>
                   <option value="100">100 questões (±10pp)</option>
@@ -5583,30 +5583,30 @@
                   </select>
                 </div>
                 <div class="rfc-field">
-                  <label>Teto de domínio (%)</label>
-                  <input type="number" id="plano-teto" min="50" max="100" step="1" title="Acerto realista quando um assunto está dominado.">
+                  <label>Acerto máximo realista (%)</label>
+                  <input type="number" id="plano-teto" min="50" max="100" step="1" title="Ninguém acerta 100% nem no assunto que domina. Este é o alvo por assunto — e a base do cálculo de ganho.">
                 </div>
                 <div class="rfc-field">
-                  <label>Amostra mínima (questões)</label>
-                  <input type="number" id="plano-minamostra" min="0" max="500" step="1" title="Abaixo disso o assunto não entra no cálculo — 3 erros em 6 questões não é fraqueza comprovada.">
+                  <label>Mínimo para entrar no cálculo</label>
+                  <input type="number" id="plano-minamostra" min="0" max="500" step="1" title="Assuntos com menos questões que isso saem da média de domínio e vão para o segundo plano. Três erros em seis questões não é fraqueza comprovada, é falta de dado.">
                 </div>
                 <div class="rfc-field wide">
-                  <label>Custo para consolidar um assunto</label>
+                  <label>Como estimar o custo de cada assunto</label>
                   <select id="plano-customodo">
                     <option value="fixo">Número fixo de questões por assunto</option>
                     <option value="proporcional">Proporcional ao que você já praticou</option>
                   </select>
                 </div>
                 <div class="rfc-field">
-                  <label>Questões por assunto</label>
+                  <label>· se fixo: questões</label>
                   <input type="number" id="plano-custofixo" min="10" max="1000" step="5">
                 </div>
                 <div class="rfc-field">
-                  <label>Fator proporcional</label>
+                  <label>· se proporcional: fator</label>
                   <input type="number" id="plano-custofator" min="0.1" max="3" step="0.1">
                 </div>
                 <div class="rfc-field">
-                  <label>Mostrar até</label>
+                  <label>Mostrar até (assuntos)</label>
                   <input type="number" id="plano-limite" min="5" max="200" step="5">
                 </div>
                 <div class="rfc-field">
@@ -5618,24 +5618,24 @@
                   <input type="number" id="plano-validade" min="30" max="720" step="15" title="Sem medição nova nesse prazo, o assunto é marcado como dado vencido.">
                 </div>
                 <div class="rfc-field">
-                  <label>Importo a cada (dias)</label>
+                  <label>Frequência de importação (dias)</label>
                   <input type="number" id="plano-cadencia" min="7" max="365" step="1" title="Se o último retrato ficar mais velho que isso, o app avisa que a leitura está defasada.">
                 </div>
                 <div class="rfc-field">
-                  <label>Recuar no máximo (dias)</label>
-                  <input type="number" id="plano-janelamax" min="30" max="1825" step="30" title="Limite de quanto o app pode voltar no tempo procurando amostra. Além disso, o dado é velho demais para representar você hoje.">
+                  <label>Não usar dado mais velho que (dias)</label>
+                  <input type="number" id="plano-janelamax" min="30" max="1825" step="30" title="Trava de segurança: mesmo faltando amostra, o app não usa dado mais antigo que isso. Acima desse prazo o desempenho já não representa você hoje.">
                 </div>
                 <div class="rfc-field">
-                  <label>Faixa "crítico" abaixo de (%)</label>
+                  <label>Faixa crítica: abaixo de (%)</label>
                   <input type="number" id="plano-critico" min="0" max="100" step="5" title="Abaixo disso o diagnóstico é problema de teoria, não de treino.">
                 </div>
                 <div class="rfc-field">
-                  <label>Faixa "frágil" abaixo de (%)</label>
+                  <label>Faixa frágil: abaixo de (%)</label>
                   <input type="number" id="plano-fragil" min="0" max="100" step="5" title="Entre crítico e este valor: revisar teoria e alternar com questões.">
                 </div>
                 <div class="rfc-field">
-                  <label>Piso por importação (questões)</label>
-                  <input type="number" id="plano-piso" min="1" max="100" step="1" title="Amostra mínima em CADA importação para ela contar na trajetória e na sequência de consolidação.">
+                  <label>Mínimo por importação (trajetória)</label>
+                  <input type="number" id="plano-piso" min="1" max="100" step="1" title="Diferente do campo acima: aqui é o mínimo dentro de UMA importação para ela valer como medição no gráfico de trajetória e na contagem de importações seguidas.">
                 </div>
                 <div class="rfc-field">
                   <label>Sensibilidade da tendência (pp)</label>
@@ -15393,15 +15393,24 @@ const PlanoEngine = {
       x.rendimento = x.ganhoPP / x.custoQ * 100;
     });
     // Classificação em linguagem clara, com o que fazer em cada faixa
+    // Orientação escrita para o CASO, não genérica: usa a taxa, a distância até a
+    // meta e o histórico daquele assunto. Antes a mesma frase se repetia em vários.
     usados.forEach(x => {
       const t = x.taxa, alvoSeq = opts.consolidarEm;
-      if (t < opts.faixaCritico) x.status = { rot: '🔴 Crítico', tom: 'bad', acao: 'Volte à teoria antes de resolver mais questões — o erro aqui é de base.' };
-      else if (t < opts.faixaFragil) x.status = { rot: '🔴 Frágil', tom: 'bad', acao: 'Revise a teoria dos pontos que erra e alterne com bateria de questões.' };
-      else if (t < opts.metaDominio) x.status = { rot: '🟠 Em desenvolvimento', tom: 'warn', acao: 'Base existe. Ganhe volume de questões e revise só o que errar.' };
+      const faltaMeta = Math.max(0, opts.metaDominio - t).toFixed(0);
+      const caindo = x.delta != null && x.delta <= -opts.sensTendencia;
+      if (t < opts.faixaCritico) x.status = { rot: '🔴 Crítico', tom: 'bad',
+        acao: 'Você erra mais do que acerta aqui. Resolver mais questões agora só repete o erro — retome a teoria primeiro e volte às questões depois.' };
+      else if (t < opts.faixaFragil) x.status = { rot: '🔴 Frágil', tom: 'bad',
+        acao: 'A base existe, mas falha em pontos específicos. Vá pelo caminho do erro: resolva um bloco, anote o que errou e revise só esses pontos antes do bloco seguinte.' };
+      else if (t < opts.metaDominio) x.status = { rot: '🟠 Em desenvolvimento', tom: 'warn',
+        acao: caindo
+          ? 'Estava melhor antes e caiu. Antes de aumentar o volume, verifique se o assunto mudou de banca ou se você deixou de revisar — reforce a revisão.'
+          : 'Faltam ' + faltaMeta + ' pontos para a meta. Aqui volume resolve: bata questões e revise apenas o que errar, sem voltar à teoria inteira.' };
       else if (x.seq >= alvoSeq) x.status = { rot: '🟢 Consolidado', tom: 'good', seq: x.seq,
-        acao: 'Sustentou a meta em ' + x.seq + ' importações seguidas. Só revisão espaçada — não gaste tempo extra.' };
+        acao: 'Sustenta a meta há ' + x.seq + ' importações seguidas. Está resolvido: só revisão espaçada. Tempo extra aqui rende menos que em qualquer assunto acima.' };
       else x.status = { rot: '🟡 Recém-corrigido', tom: 'warn', seq: x.seq,
-        acao: 'Cruzou a meta há pouco (' + x.seq + ' de ' + alvoSeq + ' importações). Ainda não provou que fixou — mantenha um volume menor até sustentar.' };
+        acao: 'Passou da meta em ' + x.seq + ' de ' + alvoSeq + ' importações necessárias. Ainda não provou que fixou — mantenha um volume pequeno e constante até sustentar na próxima importação.' };
     });
     const ordem = {
       rendimento: (a, b) => b.rendimento - a.rendimento,
@@ -16002,7 +16011,7 @@ const DesempenhoTecScreen = {
           <span class="pl-hero-uni">de domínio</span>
         </div>
         <p class="pl-hero-sub">
-          Média de acerto nos <strong>${r.assuntos}</strong> assuntos com amostra suficiente ·
+          Média de acerto nos <strong>${r.assuntos}</strong> ${r.assuntos === 1 ? 'assunto' : 'assuntos'} com amostra suficiente ·
           ${r.qTotal.toLocaleString('pt-BR')} questões · recorte médio de ${r.janelaMedia || '—'} dias
         </p>
         <div class="pl-medidor" style="height:12px;">
@@ -16079,8 +16088,8 @@ const DesempenhoTecScreen = {
             </div>
             ${rendMedio != null ? `<p class="pl-prosa" style="margin:10px 0 0;">
               <strong>Retorno do seu esforço:</strong> ${rendMedio.toFixed(1)}pp de domínio a cada 100 questões resolvidas.
-              ${S[S.length - 1].rendimento != null ? 'No último período: ' + S[S.length - 1].rendimento.toFixed(1) + 'pp/100q' +
-                (S[S.length - 1].rendimento < rendMedio * 0.5 ? ' — abaixo da sua média: sinal de que o volume sozinho parou de render.' : '.') : ''}
+              ${S[S.length - 1].rendimento != null ? 'No último período foram ' + S[S.length - 1].rendimento.toFixed(1) + 'pp por 100 questões' +
+                (S[S.length - 1].rendimento < rendMedio * 0.5 ? ' — bem abaixo da sua média, sinal de que só aumentar o volume parou de funcionar neste momento.' : '.') : ''}
             </p>` : ''}
           </div>
         </div>`;
@@ -16100,7 +16109,7 @@ const DesempenhoTecScreen = {
           <div class="pl-nome">${escapeHtml(x.nome)}</div>
           <div class="pl-ganho">
             <b>+${x.ganhoPP.toFixed(1)}pp</b>
-            <span>leva a ${x.acumulado.toFixed(1)}%</span>
+            <span>domínio vai a ${x.acumulado.toFixed(1)}%</span>
           </div>
           <div class="pl-corpo">
             ${x.disciplina ? `<div class="pl-disc">${escapeHtml(x.disciplina)}</div>` : ''}
@@ -16110,13 +16119,13 @@ const DesempenhoTecScreen = {
               ${seta}${desdeAtiv}
               ${x.vencido ? `<span class="reforco-tag tone-bad" title="Sem medição nova — a taxa pode não refletir você hoje">⏳ ${x.diasDesdeMedicao}d</span>` : ''}
             </div>
-            <div class="pl-medidor" title="${x.taxa.toFixed(0)}% de acerto · marcador no teto de ${r.teto}%">
+            <div class="pl-medidor" title="${x.taxa.toFixed(0)}% de acerto · marcador no máximo realista de ${r.teto}%">
               <i style="width:${Math.min(100, x.taxa)}%"></i><u style="left:${Math.min(100, r.teto)}%"></u>
             </div>
             ${mostraAcao ? `<p class="pl-acao">${escapeHtml(x.status.acao)}</p>` : ''}
             <div class="pl-rodape">
               <p class="pl-base">
-                faltam <b>${(r.teto - x.taxa).toFixed(0)}pp</b> até o teto · base <b>${x.qJanela}</b> questões${x.diasJanela ? ' de <b>' + x.diasJanela + 'd</b>' : ''}${x.qHist > x.qJanela ? ' (de ' + x.qHist + ')' : ''} · custo ≈ <b>${x.custoQ}</b>
+                faltam <b>${(r.teto - x.taxa).toFixed(0)} pontos</b> até o máximo · medido em <b>${x.qJanela}</b> questões${x.diasJanela ? ' dos últimos <b>' + x.diasJanela + '</b> dias' : ''}${x.qHist > x.qJanela ? ' (de <b>' + x.qHist + '</b> no total)' : ''} · custo estimado: <b>${x.custoQ}</b> questões
               </p>
               ${x.extra
                 ? `<span class="reforco-tag ${x.extraConcluida ? 'tone-good' : 'incid'}">${x.extraConcluida ? '✓ meta batida' : '▶ ' + x.extraFeito + '/' + x.extraAlvo}</span>`
@@ -16126,47 +16135,48 @@ const DesempenhoTecScreen = {
           </div>
         </div>${marca}`;
     }).join('');
+    const pequenas = r.pequenas.length ? `
+      <div style="margin-top:22px;padding-top:16px;border-top:2px solid var(--border);">
+        <p class="section-label" style="margin:0 0 4px;">🕳️ Segundo plano — assuntos sem diagnóstico</p>
+        <p class="pl-prosa" style="margin:0 0 12px;">
+          Menos de ${opts.minAmostra} questões resolvidas: ainda não dá para afirmar que é fraqueza.
+          Ficam fora da média de domínio de propósito — com amostra assim pequena a taxa real pode variar dezenas de pontos.
+          <strong>Aqui a ação é outra:</strong> resolver questões para descobrir onde você está.
+        </p>
+        ${r.pequenas.slice(0, 15).map((x, i) => `
+          <div class="pl-item">
+            <div class="pl-rank" style="background:var(--surface-sunken);color:var(--text-faint)">${i + 1}</div>
+            <div class="pl-nome">${escapeHtml(x.nome)}</div>
+            <div class="pl-ganho"><b style="color:var(--text-faint);font-size:calc(13px * var(--fs-scale,1));">?</b></div>
+            <div class="pl-corpo">
+              ${x.disciplina ? `<div class="pl-disc">${escapeHtml(x.disciplina)}</div>` : ''}
+              <div class="pl-tags">
+                <span class="reforco-tag tone-warn" title="Margem de erro grande demais para servir de diagnóstico">
+                  ${x.taxa != null ? x.taxa.toFixed(0) + '%' : '—'}${x.margem != null ? ' ±' + x.margem.toFixed(0) + 'pp' : ''} em ${x.qJanela} ${x.qJanela === 1 ? 'questão' : 'questões'}
+                </span>
+              </div>
+              <div class="pl-rodape">
+                <p class="pl-base">Resolva <b>${x.faltaAmostra}</b> questões para virar diagnóstico confiável.</p>
+                <button type="button" class="btn-secondary plano-nova-extra" style="padding:6px 12px;font-size:calc(11px * var(--fs-scale,1));white-space:nowrap;"
+                  data-topico="${escapeHtml(x.nome)}" data-disc="${escapeHtml(x.disciplina || '')}"
+                  data-alvo="${x.faltaAmostra}" data-motivo="diagnostico">+ Atividade</button>
+              </div>
+            </div>
+          </div>`).join('')}
+      </div>` : '';
     const comoLer = `
       <details class="rfc-advanced" style="margin:0 0 14px;padding:12px 14px;">
         <summary style="cursor:pointer;font-weight:700;font-size:calc(13px * var(--fs-scale,1));">📖 Como ler esta tela</summary>
         <div class="pl-prosa" style="margin-top:10px;line-height:1.7;">
-          <p style="margin:0 0 8px;"><strong>Domínio</strong> é a média das suas taxas de acerto nos assuntos que você pratica. É o número a subir.</p>
-          <p style="margin:0 0 8px;"><strong>Taxa e margem</strong> (ex.: 63% ±11pp) vêm das suas questões mais recentes. A margem diz o quanto o número pode variar: quanto menor a amostra, maior a incerteza.</p>
-          <p style="margin:0 0 8px;"><strong>Base</strong> mostra de quantas questões e de quanto tempo atrás o app puxou o dado. Ele recua no tempo só o necessário para a amostra ficar confiável.</p>
-          <p style="margin:0 0 8px;"><strong>+X pp</strong> é quanto o seu domínio sobe se você levar aquele assunto ao teto. <strong>Custo</strong> é a estimativa de questões para isso.</p>
-          <p style="margin:0 0 8px;"><strong>▲ ▼ vs histórico</strong> compara sua taxa recente com a média de toda a sua vida naquele assunto. Verde significa que você evoluiu e o histórico ainda não refletia.</p>
-          <p style="margin:0;"><strong>Como agir:</strong> comece pelo topo da lista. Cada item traz a orientação conforme a faixa de acerto — abaixo de 50% o problema é teoria, acima de 65% é volume. A linha verde marca até onde você precisa ir para bater a meta.</p>
+          <p style="margin:0 0 10px;"><strong>Domínio</strong> é a sua taxa média de acerto nos assuntos que você já praticou o suficiente para medir. É o número grande lá em cima, e é ele que deve subir.</p>
+          <p style="margin:0 0 10px;"><strong>pp</strong> quer dizer <em>pontos percentuais</em>. Sair de 70% para 75% é ganhar 5pp. Usamos pp em vez de % para não confundir com a própria taxa de acerto.</p>
+          <p style="margin:0 0 10px;"><strong>63% ±11pp</strong> é sua taxa naquele assunto e o quanto ela pode variar. Amostra pequena dá margem grande: com 8 questões, um 40% pode ser qualquer coisa entre 4% e 71%. Por isso assuntos com pouca prática ficam fora do cálculo e vão para o segundo plano.</p>
+          <p style="margin:0 0 10px;"><strong>Medido em N questões dos últimos X dias</strong> mostra de onde veio a taxa. O app usa sempre o dado mais recente e só recua no tempo até juntar amostra suficiente — assim um assunto que você já corrigiu não fica preso ao desempenho antigo.</p>
+          <p style="margin:0 0 10px;"><strong>+2,8pp</strong> é quanto o seu domínio sobe se você levar aquele assunto ao acerto máximo realista. <strong>Custo estimado</strong> é a ordem de grandeza de questões para isso — serve para comparar assuntos entre si, não para prever com precisão.</p>
+          <p style="margin:0 0 10px;"><strong>🟡 Recém-corrigido × 🟢 Consolidado</strong> é a distinção mais importante. Cruzar a meta uma vez não prova que fixou. Só vira sólido quem sustenta a meta em importações seguidas — e até lá vale manter um volume menor de questões no assunto.</p>
+          <p style="margin:0;"><strong>Como agir:</strong> comece pelo topo. Cada assunto traz a orientação conforme a faixa de acerto — abaixo de 50% o problema costuma ser de teoria, acima de 65% costuma ser falta de volume. A faixa verde marca até onde você precisa ir para bater a meta. Use <strong>+ Atividade</strong> para virar aquilo numa tarefa com meta, e reimporte o TEC quando terminar.</p>
         </div>
       </details>`;
-    const pequenas = r.pequenas.length ? `
-      <div style="margin-top:22px;padding-top:16px;border-top:2px solid var(--border);">
-        <p class="section-label" style="margin:0 0 4px;">🕳️ Segundo plano de ataque — diagnóstico incompleto</p>
-        <p class="hint" style="margin:0 0 10px;">
-          Menos de ${opts.minAmostra} questões: ainda não dá para afirmar que é fraqueza.
-          Ficam fora da média de domínio de propósito — com amostra assim pequena, a taxa real pode variar dezenas de pontos.
-          <strong>A ação aqui é outra:</strong> resolver questões para descobrir onde você está.
-        </p>
-        ${r.pequenas.slice(0, 15).map((x, i) => `
-          <div class="reforco-row" style="align-items:flex-start;">
-            <div class="reforco-rank" style="background:var(--surface-sunken);color:var(--text-faint)">${i + 1}</div>
-            <div class="reforco-main">
-              <div class="reforco-topico">${escapeHtml(x.nome)}</div>
-              <div class="reforco-meta">
-                ${x.disciplina ? `<span class="reforco-disc">${escapeHtml(x.disciplina)}</span>` : ''}
-                <span class="reforco-tag tone-warn" title="Margem de erro grande demais para servir de diagnóstico">
-                  ${x.taxa != null ? x.taxa.toFixed(0) + '%' : '—'}${x.margem != null ? ' ±' + x.margem.toFixed(0) + 'pp' : ''} em ${x.qJanela} questões
-                </span>
-              </div>
-              <div class="hint" style="margin:6px 0 0;">
-                Resolva <strong>${x.faltaAmostra}</strong> questões para virar diagnóstico confiável.
-              </div>
-            </div>
-            <div class="plano-acao">
-              <button type="button" class="btn-secondary plano-nova-extra" data-topico="${escapeHtml(x.nome)}"
-                data-disc="${escapeHtml(x.disciplina || '')}" data-alvo="${x.faltaAmostra}" data-motivo="diagnostico">+ Atividade</button>
-            </div>
-          </div>`).join('')}
-      </div>` : '';
     const rotOrdem = { rendimento: 'melhor retorno (ganho ÷ custo)', pior: 'pior acerto primeiro',
       queda: 'maior queda recente', volume: 'mais questões já resolvidas' }[r.ordenar] || 'pior acerto primeiro';
     // com custo fixo e peso igual, "retorno" e "pior acerto" dão a MESMA ordem — dizer isso
@@ -16175,8 +16185,8 @@ const DesempenhoTecScreen = {
     // fixo e peso igual, o resultado é o mesmo de "pior acerto primeiro".
     const mesmaOrdem = (opts.custoModo === 'fixo' && opts.ponderacao === 'igual' && r.ordenar === 'rendimento');
     lista.innerHTML = (linhas
-      ? grafico + comoLer + `<div class="pl-prosa" style="margin:0 0 8px;color:var(--text-faint);">Ordenado por <strong>${rotOrdem}</strong> · ${r.itens.length} assunto(s)${mesmaOrdem ? ' — com custo fixo e peso igual, esta ordem é idêntica a "pior acerto primeiro"' : ''}</div>${linhas}`
-      : `<p class="hint" style="padding:18px 0;">Nenhum assunto abaixo do teto — você já domina tudo que pratica.</p>`) + pequenas;
+      ? grafico + comoLer + `<div class="pl-prosa" style="margin:0 0 8px;color:var(--text-faint);">Ordenado por <strong>${rotOrdem}</strong> · ${r.itens.length} ${r.itens.length === 1 ? 'assunto' : 'assuntos'}${mesmaOrdem ? ' — com custo fixo e peso igual, esta ordem é idêntica a "pior acerto primeiro"' : ''}</div>${linhas}`
+      : `<p class="hint" style="padding:18px 0;">Nenhum assunto abaixo do máximo realista — você já domina tudo que pratica.</p>`) + pequenas;
     lista.querySelectorAll('.plano-nova-extra').forEach(b => b.addEventListener('click', () => {
       this.criarExtraDoPlano(b.dataset.topico, b.dataset.disc, b.dataset.alvo, b.dataset.motivo);
     }));
