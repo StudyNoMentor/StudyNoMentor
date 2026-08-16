@@ -2531,6 +2531,41 @@
   .reforco-actions { display: flex; gap: 6px; }
   .reforco-act { width: 34px; height: 34px; border-radius: 9px; border: 1.5px solid var(--border); background: var(--surface); display: flex; align-items: center; justify-content: center; font-size: calc(14px * var(--fs-scale, 1)); cursor: pointer; text-decoration: none; transition: all 0.13s ease; }
   .reforco-act:hover { border-color: var(--accent); background: var(--accent-soft); transform: translateY(-1px); }
+  /* ═══ MODO FOCO — LEIS SECAS ══════════════════════════════════════════════
+     Mesmo princípio dos cards: esconde a interface e dá a tela ao texto.
+     A barra de ferramentas some, mas o marca-texto e a borracha continuam
+     valendo — quem lê lei seca marca enquanto lê. */
+  body.leis-foco .sidebar,
+  body.leis-foco .tabs,
+  body.leis-foco .nav-sheet,
+  body.leis-foco .nav-scrim,
+  body.leis-foco #screen-leis > .page-header,
+  body.leis-foco .leis-reader-topbar,
+  body.leis-foco #leis-sticky-toolbar,
+  body.leis-foco .leis-mark-hint,
+  body.leis-foco #lei-marks-panel,
+  body.leis-foco .screen:not(#screen-leis) { display: none !important; }
+  body.leis-foco .app-shell { display: block; }
+  body.leis-foco .main-content { padding: 0 !important; max-width: none; }
+  body.leis-foco .content-wrap { max-width: none; padding: 0; }
+  body.leis-foco #leis-reader-view { max-width: 820px; margin: 0 auto; padding: 60px 14px 40px; }
+  body.leis-foco .leis-reader-card { box-shadow: none; border: none; background: transparent; }
+  /* leitura confortável: linha mais alta e coluna estreita */
+  body.leis-foco .lei-reader-body { padding: 6px 4px 30px; line-height: 1.85; }
+  body.leis-foco .law-block { padding-top: 3px; padding-bottom: 3px; }
+  /* a barra fixa é compartilhada com o modo foco dos cards; aqui ela precisa
+     da sua própria regra de exibição */
+  body.leis-foco #lei-foco-bar {
+    display: flex; align-items: center; justify-content: space-between; gap: 12px;
+    position: fixed; top: 0; left: 0; right: 0; z-index: 70;
+    padding: 8px 14px; background: var(--surface);
+    border-bottom: 1px solid var(--border); box-shadow: 0 2px 10px rgba(0,0,0,0.05);
+  }
+  body.leis-foco #lei-foco-bar .foco-info { font-family: 'Inter', sans-serif; }
+  /* no modo dos cards a barra da lei some, e vice-versa */
+  body.cards-foco #lei-foco-bar { display: none !important; }
+  body.leis-foco #foco-bar { display: none !important; }
+
   /* ═══ MODO FOCO — estudar só os cards, em tela cheia ═══════════════════════
      Reaproveita toda a lógica de revisão: em vez de duplicar a tela, esconde o
      resto da interface e expande o card. Sair restaura tudo. */
@@ -4473,6 +4508,13 @@
   </section>
 
   <!-- ============ TELA: LEIS SECAS ============ -->
+  <div class="foco-bar" id="lei-foco-bar">
+    <span class="foco-info" id="lei-foco-info">Leitura</span>
+    <span class="foco-acoes">
+      <button type="button" class="btn-secondary" id="lei-foco-marcar" title="Marcar onde parei (linha do topo da tela)">📌 Marcar aqui</button>
+      <button type="button" class="btn-secondary" id="lei-foco-sair" title="Sair do modo foco (Esc)">✕ Sair</button>
+    </span>
+  </div>
   <section class="screen" id="screen-leis">
     <!-- LISTA de leis -->
     <div id="leis-list-view">
@@ -4561,6 +4603,7 @@
           <span class="leis-toolbar-spacer"></span>
           <button type="button" class="leis-tool-btn" id="lei-lines-btn" title="Mostrar/ocultar a numeração das linhas">🔢 Linhas</button>
           <button type="button" class="leis-tool-btn" id="lei-goto-mark-btn" title="Ir para a linha onde você parou">📌 Onde parei</button>
+          <button type="button" class="leis-tool-btn" id="lei-foco-btn" title="Ler sem distração, em tela cheia (Esc para sair)">🎯 Modo foco</button>
           <div class="leis-reader-controls">
             <button type="button" class="icon-btn" id="lei-font-dec" title="Diminuir fonte">A−</button>
             <button type="button" class="icon-btn" id="lei-font-inc" title="Aumentar fonte">A+</button>
@@ -12375,6 +12418,7 @@ const LeisScreen = {
         }
       });
     }
+    this.atualizarFoco();
     // atualiza o rótulo do botão "Onde parei"
     const gb = document.getElementById('lei-goto-mark-btn');
     if (gb) { const bk = LawEngine.resolveBookmark(lei); const has = lei.bookmark != null; gb.style.opacity = has ? '1' : '0.55'; gb.title = has ? 'Ir para a linha ' + bk : 'Nenhuma linha marcada ainda — clique no número de uma linha'; }
@@ -12403,6 +12447,35 @@ const LeisScreen = {
     if (btn) btn.classList.toggle('active', this.showLines);
     this._prefSet('show-lines', this.showLines ? '1' : '0');
     this.renderBody();
+  },
+  // ── Modo foco: ler a lei em tela cheia ──
+  entrarFoco() {
+    if (!this.currentId) { showToast('Abra uma lei primeiro'); return; }
+    document.body.classList.add('leis-foco');
+    this.atualizarFoco();
+    showToast('Modo foco · Esc sai · o marca-texto continua funcionando');
+  },
+  sairFoco() { document.body.classList.remove('leis-foco'); this.atualizarFoco(); },
+  emFoco() { return document.body.classList.contains('leis-foco'); },
+  atualizarFoco() {
+    if (!this.emFoco()) return;
+    const lei = DB.getLei(this.currentId);
+    const el = document.getElementById('lei-foco-info');
+    if (!el || !lei) return;
+    const bk = LawEngine.resolveBookmark(lei);
+    const st = LawEngine.stats(lei);
+    el.textContent = (lei.titulo || 'Lei') + ' · ' + st.artigos + ' art.' + (bk > 0 ? ' · 📌 linha ' + bk : '');
+  },
+  // marca a linha que está no topo da tela — no modo foco a numeração fica oculta
+  marcarLinhaVisivel() {
+    const body = document.getElementById('lei-reader-body');
+    if (!body || !this.currentId) return;
+    const blocos = [...body.querySelectorAll('.law-block')];
+    const topo = 70; // abaixo da barra fixa
+    const alvo = blocos.find(b => b.getBoundingClientRect().bottom > topo) || blocos[0];
+    if (!alvo) return;
+    this.onLineNumClick(parseInt(alvo.dataset.line));
+    this.atualizarFoco();
   },
   gotoBookmark() {
     const lei = DB.getLei(this.currentId);
@@ -12657,6 +12730,18 @@ window.LeisScreen = LeisScreen;
   on('lei-font-dec', 'click', () => LeisScreen.changeFont(-1));
   on('lei-lines-btn', 'click', () => LeisScreen.toggleLines());
   on('lei-goto-mark-btn', 'click', () => LeisScreen.gotoBookmark());
+  on('lei-foco-btn', 'click', () => LeisScreen.entrarFoco());
+  // Esc sai do modo foco da leitura. Não conflita com o dos cards: cada um só
+  // reage quando a sua própria classe está no body.
+  document.addEventListener('keydown', (e) => {
+    if (e.key !== 'Escape' || !LeisScreen.emFoco()) return;
+    const alvo = e.target;
+    if (alvo && /^(INPUT|TEXTAREA|SELECT)$/.test(alvo.tagName)) return;
+    if (document.querySelector('.cards-modal[style*="flex"], #ui-modal[style*="flex"]')) return; // modal aberto tem prioridade
+    e.preventDefault(); LeisScreen.sairFoco();
+  });
+  on('lei-foco-sair', 'click', () => LeisScreen.sairFoco());
+  on('lei-foco-marcar', 'click', () => LeisScreen.marcarLinhaVisivel());
   on('lei-auto-master', 'change', (e) => LeisScreen.setAutoMaster(e.target.checked));
   document.querySelectorAll('#lei-hl-toggles input[data-cat]').forEach(cb => {
     cb.addEventListener('change', () => LeisScreen.toggleCategory(cb.dataset.cat, cb.checked));
