@@ -12661,8 +12661,15 @@ window.EstudoNovoScreen = EstudoNovoScreen;
   on('resumo-modal-close', 'click', () => document.getElementById('resumo-modal').style.display = 'none');
   on('resumo-modal-cancel', 'click', () => document.getElementById('resumo-modal').style.display = 'none');
   on('resumo-modal-save', 'click', () => EstudoNovoScreen.saveResumo());
+  // resumo também é área de digitação: só fecha pelo fundo se estiver vazio
   const m = document.getElementById('resumo-modal');
-  if (m) m.addEventListener('click', (e) => { if (e.target === m) m.style.display = 'none'; });
+  if (m) m.addEventListener('click', (e) => {
+    if (e.target !== m) return;
+    const ta = m.querySelector('textarea, .rte-area');
+    const cheio = ta && ((ta.value || ta.innerText || '').trim().length > 0);
+    if (cheio) { showToast('Use ✕ ou Cancelar — há texto não salvo'); return; }
+    m.style.display = 'none';
+  });
 })();
 
 window.addEventListener('screen:activated', (e) => {
@@ -13667,10 +13674,27 @@ const CardsScreen = {
     setTimeout(() => document.getElementById('card-destino').focus(), 50);
   },
   closeCardModal() { document.getElementById('card-modal').style.display = 'none'; this._editingId = null; },
-  // Há algo digitado que se perderia ao fechar?
+  // Há algo que se perderia ao fechar? Para as áreas ricas olha o innerHTML, não o
+  // innerText: um card com apenas uma IMAGEM colada tem texto vazio e seria
+  // descartado como se estivesse em branco.
   cardTemConteudo() {
-    const txt = (id) => { const e = document.getElementById(id); if (!e) return ''; return (e.innerHTML !== undefined && e.classList.contains('rte-area') ? e.innerText : e.value || '').trim(); };
-    return !!(txt('card-frente') || txt('card-verso') || txt('card-topico') || txt('card-cloze-texto'));
+    const rico = (id) => {
+      const e = document.getElementById(id);
+      if (!e) return false;
+      const html = (e.innerHTML || '').replace(/<br\s*\/?>|&nbsp;|\s/gi, '').replace(/<div><\/div>/gi, '');
+      return html.length > 0;
+    };
+    const campo = (id) => { const e = document.getElementById(id); return !!(e && (e.value || '').trim()); };
+    return rico('card-frente') || rico('card-verso') || campo('card-topico') || campo('card-banca');
+  },
+  // Fecha pedindo confirmação quando há conteúdo não salvo
+  async fecharCardComAviso() {
+    if (this.cardTemConteudo()) {
+      const ok = await UI.confirm('Descartar este card? O que você escreveu será perdido.',
+        { title: 'Fechar sem salvar', okText: 'Descartar', danger: true });
+      if (!ok) return;
+    }
+    this.closeCardModal();
   },
   _readCardForm() {
     const dest = document.getElementById('card-destino').value;
@@ -14302,8 +14326,8 @@ document.querySelectorAll('.rte').forEach(buildRteToolbar);
   on('cards-export-btn', 'click', () => CardsScreen.openExportModal());
   on('cards-import-btn', 'click', () => CardsScreen.openImportModal());
   // modal card
-  on('card-modal-close', 'click', () => CardsScreen.closeCardModal());
-  on('card-cancel', 'click', () => CardsScreen.closeCardModal());
+  on('card-modal-close', 'click', () => CardsScreen.fecharCardComAviso());
+  on('card-cancel', 'click', () => CardsScreen.fecharCardComAviso());
   on('card-kind', 'change', () => CardsScreen.applyKindUI());
   on('card-save-close', 'click', () => CardsScreen.saveCard(true));
   on('card-save-another', 'click', () => CardsScreen.saveCard(false));
@@ -14334,17 +14358,23 @@ document.querySelectorAll('.rte').forEach(buildRteToolbar);
   // Clique no fundo fecha o diálogo — MENOS quando há conteúdo digitado no card.
   // Perder uma frente/verso já escrita por um clique fora é o pior tipo de erro:
   // silencioso e irrecuperável.
-  ['card-modal', 'deck-modal', 'cards-import-modal', 'cards-export-modal'].forEach(id => {
+  // O modal de CARD e o de LEI ficam FORA desta lista de propósito: neles você
+  // digita conteúdo, e um clique acidental no fundo apagava tudo em silêncio.
+  // Fechar esses dois é sempre explícito (✕, Cancelar ou Esc).
+  ['deck-modal', 'cards-import-modal', 'cards-export-modal'].forEach(id => {
     const m = document.getElementById(id);
-    if (!m) return;
-    m.addEventListener('click', (e) => {
-      if (e.target !== m) return;
-      if (id === 'card-modal' && CardsScreen.cardTemConteudo()) {
-        showToast('Use ✕ ou Cancelar para fechar — você tem conteúdo não salvo');
-        return;
-      }
-      m.style.display = 'none';
-    });
+    if (m) m.addEventListener('click', (e) => { if (e.target === m) m.style.display = 'none'; });
+  });
+  // Esc fecha o card, confirmando quando há conteúdo
+  document.addEventListener('keydown', (e) => {
+    if (e.key !== 'Escape') return;
+    const m = document.getElementById('card-modal');
+    if (!m || m.style.display !== 'flex') return;
+    e.preventDefault();
+    // Abre no próximo tick: o handler global do diálogo é registrado no
+    // DOMContentLoaded, portanto roda DEPOIS deste. Abrindo a confirmação agora,
+    // o mesmo Esc chegaria nele e a fecharia no mesmo instante.
+    setTimeout(() => CardsScreen.fecharCardComAviso(), 0);
   });
 })();
 window.addEventListener('screen:activated', (e) => {
