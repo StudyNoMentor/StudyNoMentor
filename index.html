@@ -2531,10 +2531,22 @@
   .reforco-actions { display: flex; gap: 6px; }
   .reforco-act { width: 34px; height: 34px; border-radius: 9px; border: 1.5px solid var(--border); background: var(--surface); display: flex; align-items: center; justify-content: center; font-size: calc(14px * var(--fs-scale, 1)); cursor: pointer; text-decoration: none; transition: all 0.13s ease; }
   .reforco-act:hover { border-color: var(--accent); background: var(--accent-soft); transform: translateY(-1px); }
+  /* Coluna direita das linhas do Plano: ganho + botão de atividade */
+  .plano-acao { display: flex; flex-direction: column; align-items: flex-end; gap: 4px; white-space: nowrap; }
+  .plano-ganho { font-family: 'Space Mono', monospace; font-weight: 800; font-size: calc(16px * var(--fs-scale, 1)); }
+  .plano-leva { font-size: calc(10px * var(--fs-scale, 1)); color: var(--text-faint); }
+  .plano-acao .btn-secondary { padding: 6px 12px; font-size: calc(11px * var(--fs-scale, 1)); white-space: nowrap; }
   @media (max-width: 640px) {
     .reforco-row { grid-template-columns: 26px 1fr; }
     .reforco-actions { grid-column: 1 / -1; justify-content: flex-end; }
     .reforco-controls { gap: 12px; }
+    /* sem isto a coluna direita caía na faixa de 26px do número */
+    .plano-acao {
+      grid-column: 2 / -1;
+      flex-direction: row; align-items: center; justify-content: flex-start;
+      gap: 10px; margin-top: 8px; flex-wrap: wrap;
+    }
+    .plano-acao .plano-leva::before { content: '· '; }
   }
   .tec-dropzone {
     border: 2px dashed var(--border-strong); border-radius: 12px; padding: 22px 18px;
@@ -15232,6 +15244,9 @@ const PlanoEngine = {
       ritmo, ritmoMedido: this.ritmoRecente(snapsDesc, 120),
       semanas: (idxMeta >= 0 && ritmo > 0) ? qAteMeta / ritmo : null,
       amostraAlvo: opts.amostraAlvo, janelaMax: opts.janelaMax, janelaMedia,
+      // Se quase ninguém alcança o alvo, o problema é a CONFIGURAÇÃO, não o seu estudo.
+      maiorAmostra: usados.reduce((m, x) => Math.max(m, x.qJanela), 0),
+      alvoInviavel: usados.length > 0 && (usados.filter(x => x.atingiuAlvo).length / usados.length) < 0.25,
       teto: Math.round(teto * 100),
       comAlvo: usados.filter(x => x.atingiuAlvo).length,
       melhorando, piorando, ordenar: opts.ordenar,
@@ -15786,7 +15801,7 @@ const DesempenhoTecScreen = {
             recorte médio: últimos ${r.janelaMedia || '—'} dias · ${pond}
           </div>
           <div class="bar-track" style="height:12px;position:relative;overflow:visible;">
-            <span style="width:${Math.min(100, r.dominioPct)}%"></span>
+            <span class="bar-fill" style="display:block;width:${Math.min(100, r.dominioPct)}%"></span>
             <span style="position:absolute;left:${Math.min(100, r.meta)}%;top:-4px;bottom:-4px;width:2px;background:var(--text);opacity:0.55;" title="Meta de ${r.meta}%"></span>
             <span style="position:absolute;left:${Math.min(100, r.meta)}%;top:-18px;transform:translateX(-50%);font-size:calc(10px * var(--fs-scale,1));font-weight:700;color:var(--text-soft);white-space:nowrap;">meta ${r.meta}%</span>
           </div>
@@ -15808,6 +15823,16 @@ const DesempenhoTecScreen = {
             ${(r.melhorando || r.piorando) ? `<span class="reforco-tag ${r.melhorando >= r.piorando ? 'tone-good' : 'tone-bad'}" title="Assuntos cuja taxa recente subiu ou caiu mais de 3pp em relação ao histórico">tendência: ${r.melhorando}▲ ${r.piorando}▼</span>` : ''}
             ${r.ignorados ? `<span class="reforco-tag tone-warn" title="Assuntos com menos questões que a amostra mínima — listados no fim">${r.ignorados} fora por amostra pequena</span>` : ''}
           </div>
+          ${r.ignorados >= r.assuntos * 0.5 ? `<p class="hint" style="margin:10px 0 0;padding:8px 12px;border-left:3px solid var(--warn);background:var(--warn-soft);color:var(--warn-text);font-weight:700;">
+            📐 Este ${r.dominioPct.toFixed(0)}% descreve apenas os <strong>${r.assuntos}</strong> assuntos com amostra suficiente.
+            Outros <strong>${r.ignorados}</strong> ainda não têm dado para entrar na conta — veja o segundo plano no fim da lista.
+            Bater a meta aqui não significa dominar a disciplina inteira.
+          </p>` : ''}
+          ${r.alvoInviavel ? `<p class="hint" style="margin:10px 0 0;padding:8px 12px;border-left:3px solid var(--warn);background:var(--warn-soft);color:var(--warn-text);font-weight:700;">
+            ⚙ Alvo de amostra alto demais para o seu volume: só ${r.comAlvo} de ${r.assuntos} assuntos alcançam ${r.amostraAlvo} questões
+            (o maior tem ${r.maiorAmostra}). Isso marca quase tudo como incompleto sem que seja culpa do seu estudo —
+            experimente <strong>${r.maiorAmostra >= 100 ? 100 : r.maiorAmostra >= 50 ? 50 : 30} questões</strong> em "Amostra confiável".
+          </p>` : ''}
           ${r.defasado ? `<p class="hint" style="margin:10px 0 0;color:var(--warn-text);font-weight:700;">⏳ Última importação há ${r.idadeUltimo} dias — você definiu ${r.cadenciaDias}. Importe um novo período para a leitura refletir seu nível de hoje.</p>` : ''}
         </div>
       </div>`;
@@ -15830,24 +15855,22 @@ const DesempenhoTecScreen = {
               </span>
               ${seta}
             </div>
-            <div class="hint" style="margin:6px 0 0;">${escapeHtml(x.status.acao)}</div>
+            ${(r.idxMeta < 0 || i <= Math.max(r.idxMeta, 2)) ? `<div class="hint" style="margin:6px 0 0;">${escapeHtml(x.status.acao)}</div>` : ''}
             <div class="hint" style="margin:6px 0 0;font-size:calc(10px * var(--fs-scale,1));line-height:1.6;">
               <span title="Quanto falta desta taxa até o teto de domínio — é daqui que sai o ganho ao lado">
                 <strong>faltam ${(r.teto - x.taxa).toFixed(0)}pp</strong> até o teto de ${r.teto}%
               </span>
-              · base: <strong>${x.qJanela}</strong> questões${x.diasJanela ? ' dos últimos <strong>' + x.diasJanela + ' dias</strong>' : ''}
-              (${x.qHist} no histórico total)
-              ${x.atingiuAlvo ? '' : ' · <span style="color:var(--warn-text);font-weight:700">amostra abaixo do alvo de ' + r.amostraAlvo + '</span>'}
+              · base: <strong>${x.qJanela}</strong> questões${x.diasJanela ? ' dos últimos <strong>' + x.diasJanela + ' dias</strong>' : ''}${x.qHist > x.qJanela ? ' (de ' + x.qHist + ' no total)' : ''}
               · custo ≈ <strong>${x.custoQ}</strong> questões
             </div>
             <div class="bar-track" style="height:5px;margin-top:6px;position:relative;overflow:visible;">
-              <span style="width:${Math.min(100, x.taxa)}%"></span>
+              <span class="bar-fill" style="display:block;width:${Math.min(100, x.taxa)}%"></span>
               <span style="position:absolute;left:${Math.min(100, r.teto)}%;top:-2px;bottom:-2px;width:2px;background:var(--text);opacity:0.45;"></span>
             </div>
           </div>
-          <div style="text-align:right;white-space:nowrap;">
-            <div style="font-family:'Space Mono',monospace;font-weight:800;" class="tone-good">+${x.ganhoPP.toFixed(1)}pp</div>
-            <div class="hint" style="margin:0 0 6px;">leva a ${x.acumulado.toFixed(1)}%</div>
+          <div class="plano-acao">
+            <div class="plano-ganho tone-good">+${x.ganhoPP.toFixed(1)}pp</div>
+            <div class="plano-leva">leva a ${x.acumulado.toFixed(1)}%</div>
             ${x.extra
               ? `<span class="reforco-tag ${x.extraConcluida ? 'tone-good' : 'incid'}" title="${x.extraConcluida ? 'Meta da atividade atingida' : 'Atividade em andamento'}">
                    ${x.extraConcluida ? '✓ meta batida' : '▶ ' + x.extraFeito + '/' + x.extraAlvo}
@@ -15892,7 +15915,7 @@ const DesempenhoTecScreen = {
                 Resolva <strong>${x.faltaAmostra}</strong> questões para virar diagnóstico confiável.
               </div>
             </div>
-            <div style="white-space:nowrap;">
+            <div class="plano-acao">
               <button type="button" class="btn-secondary plano-nova-extra" data-topico="${escapeHtml(x.nome)}"
                 data-disc="${escapeHtml(x.disciplina || '')}" data-alvo="${x.faltaAmostra}" data-motivo="diagnostico">+ Atividade</button>
             </div>
@@ -15902,8 +15925,9 @@ const DesempenhoTecScreen = {
       queda: 'maior queda recente', volume: 'mais questões já resolvidas' }[r.ordenar] || 'pior acerto primeiro';
     // com custo fixo e peso igual, "retorno" e "pior acerto" dão a MESMA ordem — dizer isso
     // evita a impressão de que há uma métrica escondida decidindo por você
-    const mesmaOrdem = (opts.custoModo === 'fixo' && opts.ponderacao === 'igual'
-      && (r.ordenar === 'rendimento' || r.ordenar === 'pior'));
+    // Só avisa quando o usuário escolheu "rendimento": aí é útil saber que, com custo
+    // fixo e peso igual, o resultado é o mesmo de "pior acerto primeiro".
+    const mesmaOrdem = (opts.custoModo === 'fixo' && opts.ponderacao === 'igual' && r.ordenar === 'rendimento');
     lista.innerHTML = (linhas
       ? comoLer + `<div class="hint" style="margin:0 0 6px;">Ordenado por <strong>${rotOrdem}</strong> · ${r.itens.length} assunto(s)${mesmaOrdem ? ' — com custo fixo e peso igual, esta ordem é idêntica a "pior acerto primeiro"' : ''}</div>${linhas}`
       : `<p class="hint" style="padding:18px 0;">Nenhum assunto abaixo do teto — você já domina tudo que pratica.</p>`) + pequenas;
