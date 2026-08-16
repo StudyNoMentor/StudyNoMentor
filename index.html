@@ -2531,6 +2531,37 @@
   .reforco-actions { display: flex; gap: 6px; }
   .reforco-act { width: 34px; height: 34px; border-radius: 9px; border: 1.5px solid var(--border); background: var(--surface); display: flex; align-items: center; justify-content: center; font-size: calc(14px * var(--fs-scale, 1)); cursor: pointer; text-decoration: none; transition: all 0.13s ease; }
   .reforco-act:hover { border-color: var(--accent); background: var(--accent-soft); transform: translateY(-1px); }
+  /* ═══ CONQUISTAS — calendário de presença, marcos e recordes ═══════════════
+     Sem vermelho, sem sequência, sem cobrança. Dia sem estudo é neutro. */
+  #conquistas-card summary::-webkit-details-marker { display: none; }
+  .conq-bloco { margin-top: 18px; }
+  .conq-titulo { font-family: 'Inter', sans-serif; font-size: calc(12px * var(--fs-scale,1)); font-weight: 800; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-faint); margin: 0 0 10px; }
+  /* calendário */
+  .cal-grid { display: grid; grid-auto-flow: column; grid-template-rows: repeat(7, 1fr); gap: 3px; overflow-x: auto; padding-bottom: 6px; scrollbar-width: thin; }
+  .cal-dia { width: 13px; height: 13px; border-radius: 3px; background: var(--surface-sunken); border: 1px solid var(--border); }
+  .cal-dia.n1 { background: color-mix(in srgb, var(--good) 30%, transparent); border-color: transparent; }
+  .cal-dia.n2 { background: color-mix(in srgb, var(--good) 60%, transparent); border-color: transparent; }
+  .cal-dia.n3 { background: var(--good); border-color: transparent; }
+  .cal-dia.hoje { box-shadow: 0 0 0 2px var(--accent); }
+  .cal-dia.futuro { opacity: 0.25; border-style: dashed; }
+  .cal-legenda { display: flex; align-items: center; gap: 6px; margin-top: 10px; font-family: 'Inter', sans-serif; font-size: calc(10px * var(--fs-scale,1)); color: var(--text-faint); flex-wrap: wrap; }
+  .cal-legenda .cal-dia { width: 11px; height: 11px; }
+  .conq-presenca { font-family: 'Inter', sans-serif; font-size: calc(12px * var(--fs-scale,1)); color: var(--text-soft); margin: 10px 0 0; }
+  /* marcos */
+  .conq-marcos { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; }
+  .conq-marco { border: 1.5px solid var(--border); border-radius: 12px; padding: 12px 14px; background: var(--surface-sunken); }
+  .conq-marco .v { font-family: 'Space Mono', monospace; font-weight: 800; font-size: calc(22px * var(--fs-scale,1)); line-height: 1; font-variant-numeric: tabular-nums; }
+  .conq-marco .r { font-family: 'Inter', sans-serif; font-size: calc(11px * var(--fs-scale,1)); color: var(--text-soft); margin-top: 3px; }
+  .conq-marco .m { font-family: 'Inter', sans-serif; font-size: calc(10px * var(--fs-scale,1)); font-weight: 700; color: var(--good-text); margin-top: 6px; }
+  .conq-marco .p { font-family: 'Inter', sans-serif; font-size: calc(10px * var(--fs-scale,1)); color: var(--text-faint); margin-top: 3px; }
+  /* recordes */
+  .conq-rec { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; padding: 10px 0; border-bottom: 1px solid var(--border); flex-wrap: wrap; }
+  .conq-rec:last-child { border-bottom: none; }
+  .conq-rec .rot { font-family: 'Inter', sans-serif; font-size: calc(12px * var(--fs-scale,1)); color: var(--text-soft); }
+  .conq-rec .val { font-family: 'Space Mono', monospace; font-weight: 800; font-size: calc(15px * var(--fs-scale,1)); font-variant-numeric: tabular-nums; }
+  .conq-rec .qd { font-family: 'Inter', sans-serif; font-size: calc(10px * var(--fs-scale,1)); color: var(--text-faint); }
+  .conq-novo { font-size: calc(9.5px * var(--fs-scale,1)); font-weight: 800; padding: 2px 7px; border-radius: 20px; background: var(--good-soft); color: var(--good-text); }
+
   /* ═══ MODO FOCO — LEIS SECAS ══════════════════════════════════════════════
      Mesmo princípio dos cards: esconde a interface e dá a tela ao texto.
      A barra de ferramentas some, mas o marca-texto e a borracha continuam
@@ -4915,6 +4946,16 @@
       <h2 class="page-title">Evolução</h2>
       <p class="page-subtitle">Sua trajetória cruzando todos os registros do Diário.</p>
     </div>
+
+    <!-- Conquistas: o que você já construiu, antes de como está indo -->
+    <details class="card" id="conquistas-card" open>
+      <summary style="cursor:pointer;list-style:none;padding:16px 24px;display:flex;align-items:center;gap:10px;">
+        <span style="font-size:calc(18px * var(--fs-scale,1));">🏅</span>
+        <span style="font-weight:800;font-size:calc(16px * var(--fs-scale,1));">Sua caminhada</span>
+        <span class="hint" id="conq-resumo" style="margin:0 0 0 auto;font-size:calc(11px * var(--fs-scale,1));"></span>
+      </summary>
+      <div style="padding:0 24px 22px;" id="conquistas-body"></div>
+    </details>
 
     <section class="card">
       <div style="padding: 18px 24px;">
@@ -10968,6 +11009,155 @@ window.addEventListener('screen:activated', (e) => {
 /* ============================================================
    TELA: EVOLUÇÃO
    ============================================================ */
+// ============================================================================
+// CONQUISTAS — presença, marcos e recordes.
+// Desenho deliberado para MOTIVAR SEM COBRAR:
+//   • nenhuma contagem de sequência (streak) — dia sem estudo fica neutro, não vermelho
+//   • marcos só sobem: não existe estado de falha
+//   • o próximo marco só aparece quando está ao alcance, senão comemorar 500h viraria
+//     "faltam 499h", que transforma conquista em dívida
+//   • recordes vêm acompanhados do melhor recente, para um recorde antigo não
+//     comunicar decadência
+// ============================================================================
+const ConquistasEngine = {
+  RECENTE_DIAS: 90,
+  MIN_Q_SEMANA: 30,      // amostra mínima para uma semana disputar recorde de acerto
+  ESCADAS: {
+    horas:    [10, 25, 50, 100, 250, 500, 1000, 2000, 5000],
+    questoes: [100, 500, 1000, 2500, 5000, 10000, 25000, 50000],
+    dias:     [10, 30, 60, 100, 180, 365, 730, 1095],
+    cards:    [100, 500, 1000, 5000, 10000, 25000, 50000]
+  },
+  _iso(d) { return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; },
+  _diasEntre(a, b) { return Math.round((new Date(b + 'T00:00:00') - new Date(a + 'T00:00:00')) / 86400000); },
+  // Segunda-feira da semana de uma data (chave de agrupamento semanal)
+  _semanaDe(iso) {
+    const d = new Date(iso + 'T00:00:00');
+    d.setDate(d.getDate() - ((d.getDay() + 6) % 7));
+    return this._iso(d);
+  },
+  // Mapa dia → { min, q, ac, cards, temAlgo }. Um dia em que você só revisou cards
+  // ou só avançou uma atividade extra CONTA como presente.
+  porDia(entries) {
+    const m = {};
+    const get = (dia) => (m[dia] = m[dia] || { min: 0, q: 0, ac: 0, cards: 0 });
+    (entries || []).forEach(e => {
+      if (!e.date) return;
+      const d = get(e.date);
+      d.min += (e.durationMin || 0); d.q += (e.total || 0); d.ac += (e.correct || 0);
+    });
+    try {
+      (DB.getRevlog() || []).forEach(r => { if (r.date) get(r.date).cards++; });
+    } catch (_) {}
+    try {
+      (DB.getExtras() || []).forEach(x => (x.historico || []).forEach(h => {
+        if (!h.data) return;
+        const d = get(h.data); d.min += (h.minutos || 0);
+      }));
+    } catch (_) {}
+    Object.values(m).forEach(d => { d.temAlgo = (d.min > 0 || d.q > 0 || d.cards > 0); });
+    return m;
+  },
+  // Calendário: N semanas terminando na semana atual, alinhado em segunda-feira
+  calendario(entries, semanas) {
+    const dias = this.porDia(entries);
+    const hoje = todayLocal();
+    const fim = new Date(hoje + 'T00:00:00');
+    fim.setDate(fim.getDate() + (6 - ((fim.getDay() + 6) % 7)));   // domingo desta semana
+    const total = semanas * 7;
+    const grade = [];
+    for (let i = total - 1; i >= 0; i--) {
+      const d = new Date(fim); d.setDate(d.getDate() - i);
+      const iso = this._iso(d);
+      const info = dias[iso] || { min: 0, q: 0, ac: 0, cards: 0, temAlgo: false };
+      grade.push({
+        iso, futuro: iso > hoje, hoje: iso === hoje,
+        min: info.min, q: info.q, cards: info.cards, presente: !!info.temAlgo,
+        nivel: !info.temAlgo ? 0 : info.min >= 180 ? 3 : info.min >= 90 ? 2 : 1
+      });
+    }
+    const ultimos = (n) => {
+      let c = 0;
+      for (let i = 0; i < n; i++) {
+        const d = new Date(hoje + 'T00:00:00'); d.setDate(d.getDate() - i);
+        if ((dias[this._iso(d)] || {}).temAlgo) c++;
+      }
+      return c;
+    };
+    return { grade, semanas, em7: ultimos(7), em30: ultimos(30) };
+  },
+  marcos(entries) {
+    const dias = this.porDia(entries);
+    const vals = Object.values(dias);
+    const horas = Math.round(vals.reduce((a, d) => a + d.min, 0) / 60);
+    const questoes = vals.reduce((a, d) => a + d.q, 0);
+    const diasEstudo = vals.filter(d => d.temAlgo).length;
+    const cards = vals.reduce((a, d) => a + d.cards, 0);
+    const montar = (valor, escada, rot, unidade) => {
+      const atingidos = escada.filter(x => x <= valor);
+      const atual = atingidos.length ? atingidos[atingidos.length - 1] : null;
+      const prox = escada.find(x => x > valor) || null;
+      const anterior = atual || 0;
+      const progresso = prox ? (valor - anterior) / (prox - anterior) : 1;
+      return {
+        rot, unidade, valor, atual, prox,
+        // o próximo marco só aparece quando está perto (>=80% do caminho).
+        // Longe dele, a linha só celebra o que já foi conquistado.
+        mostrarProx: !!prox && progresso >= 0.8,
+        falta: prox ? prox - valor : 0, progresso
+      };
+    };
+    return [
+      montar(horas, this.ESCADAS.horas, 'horas de estudo', 'h'),
+      montar(questoes, this.ESCADAS.questoes, 'questões resolvidas', ''),
+      montar(diasEstudo, this.ESCADAS.dias, 'dias com estudo', ''),
+      montar(cards, this.ESCADAS.cards, 'cards revisados', '')
+    ].filter(m => m.valor > 0);
+  },
+  recordes(entries) {
+    const dias = this.porDia(entries);
+    const hoje = todayLocal();
+    const sem = {};
+    Object.keys(dias).forEach(iso => {
+      const k = this._semanaDe(iso);
+      const s = sem[k] || { min: 0, q: 0, ac: 0, dias: 0 };
+      s.min += dias[iso].min; s.q += dias[iso].q; s.ac += dias[iso].ac;
+      if (dias[iso].temAlgo) s.dias++;
+      sem[k] = s;
+    });
+    const semArr = Object.entries(sem).filter(([, v]) => v.min > 0 || v.q > 0);
+    const diaArr = Object.entries(dias).filter(([, v]) => v.temAlgo);
+    const melhor = (arr, valor, filtro) => {
+      const elegiveis = filtro ? arr.filter(([, v]) => filtro(v)) : arr;
+      if (!elegiveis.length) return null;
+      const top = elegiveis.reduce((a, b) => valor(b[1]) > valor(a[1]) ? b : a);
+      return { data: top[0], valor: valor(top[1]), idade: this._diasEntre(top[0], hoje) };
+    };
+    const recente = (arr) => arr.filter(([k]) => this._diasEntre(k, hoje) <= this.RECENTE_DIAS);
+    const par = (arr, valor, filtro, rot, fmt) => {
+      const hist = melhor(arr, valor, filtro);
+      if (!hist) return null;
+      const rec = melhor(recente(arr), valor, filtro);
+      return {
+        rot, fmt,
+        hist, rec,
+        // recorde batido nos últimos 14 dias ganha selo de novidade
+        novo: hist.idade <= 14,
+        // só mostra o recente se for de outra data E com valor diferente — senão
+        // a linha repetiria o mesmo número duas vezes
+        mostraRec: !!rec && rec.data !== hist.data && Math.abs(rec.valor - hist.valor) > 0.05
+      };
+    };
+    return [
+      par(semArr, v => v.min, null, 'Melhor semana em tempo', v => (v / 60).toFixed(1) + 'h'),
+      par(semArr, v => v.q, null, 'Melhor semana em questões', v => Math.round(v) + ' questões'),
+      par(semArr, v => v.q >= this.MIN_Q_SEMANA ? v.ac / v.q * 100 : -1,
+        v => v.q >= this.MIN_Q_SEMANA, 'Melhor aproveitamento semanal', v => v.toFixed(0) + '%'),
+      par(diaArr, v => v.min, null, 'Melhor dia', v => (v / 60).toFixed(1) + 'h')
+    ].filter(Boolean);
+  }
+};
+
 const EvolucaoScreen = {
   filterStart: null,
   filterEnd: null,
@@ -11030,8 +11220,78 @@ const EvolucaoScreen = {
     const base = this.scope === 'all' ? DB.getAllEntriesTagged() : DB.getEntries();
     return base.concat(this._extraEntries());
   },
+  renderConquistas() {
+    const box = document.getElementById('conquistas-body');
+    const resumo = document.getElementById('conq-resumo');
+    if (!box) return;
+    // Sempre sobre o histórico INTEIRO — conquista não se limita ao filtro de período.
+    const entries = this.scope === 'all' ? DB.getAllEntriesTagged() : DB.getEntries();
+    const largo = window.innerWidth >= 900;
+    const cal = ConquistasEngine.calendario(entries, largo ? 26 : 14);
+    const marcos = ConquistasEngine.marcos(entries);
+    const recs = ConquistasEngine.recordes(entries);
+    if (!marcos.length) {
+      box.innerHTML = `<p class="hint">Registre suas primeiras sessões e sua caminhada começa a aparecer aqui.</p>`;
+      if (resumo) resumo.textContent = '';
+      return;
+    }
+    if (resumo) {
+      const h = marcos.find(m => m.unidade === 'h');
+      resumo.textContent = (h ? h.valor + 'h · ' : '') + cal.em30 + ' dias com estudo no último mês';
+    }
+    const nomeDia = ['seg', 'ter', 'qua', 'qui', 'sex', 'sáb', 'dom'];
+    const celulas = cal.grade.map(d => {
+      const t = d.futuro ? '' :
+        (d.presente
+          ? `${formatDateShort(d.iso)} · ${d.min ? Math.floor(d.min / 60) + 'h' + String(d.min % 60).padStart(2, '0') : 'sem tempo registrado'}${d.q ? ' · ' + d.q + ' questões' : ''}${d.cards ? ' · ' + d.cards + ' cards' : ''}`
+          : `${formatDateShort(d.iso)} · sem registro`);
+      return `<span class="cal-dia n${d.nivel}${d.hoje ? ' hoje' : ''}${d.futuro ? ' futuro' : ''}" title="${escapeHtml(t)}"></span>`;
+    }).join('');
+    box.innerHTML = `
+      <div class="conq-bloco">
+        <p class="conq-titulo">📅 Calendário de presença</p>
+        <div class="cal-grid">${celulas}</div>
+        <div class="cal-legenda">
+          <span>menos</span>
+          <span class="cal-dia n0"></span><span class="cal-dia n1"></span><span class="cal-dia n2"></span><span class="cal-dia n3"></span>
+          <span>mais</span>
+          <span style="margin-left:6px;">· intensidade pelo tempo estudado no dia</span>
+        </div>
+        <p class="conq-presenca">
+          Você estudou em <strong>${cal.em7}</strong> dos últimos 7 dias e em <strong>${cal.em30}</strong> dos últimos 30.
+        </p>
+      </div>
+
+      <div class="conq-bloco">
+        <p class="conq-titulo">🎯 Marcos acumulados</p>
+        <div class="conq-marcos">
+          ${marcos.map(m => `
+            <div class="conq-marco">
+              <div class="v">${m.valor.toLocaleString('pt-BR')}${m.unidade}</div>
+              <div class="r">${m.rot}</div>
+              ${m.atual ? `<div class="m">✓ marco de ${m.atual.toLocaleString('pt-BR')}${m.unidade} alcançado</div>` : ''}
+              ${m.mostrarProx ? `<div class="p">próximo: ${m.prox.toLocaleString('pt-BR')}${m.unidade} — faltam ${m.falta.toLocaleString('pt-BR')}</div>` : ''}
+            </div>`).join('')}
+        </div>
+      </div>
+
+      ${recs.length ? `<div class="conq-bloco">
+        <p class="conq-titulo">🏆 Seus recordes</p>
+        ${recs.map(r => `
+          <div class="conq-rec">
+            <span class="rot">${r.rot}${r.novo ? ' <span class="conq-novo">novo!</span>' : ''}</span>
+            <span style="text-align:right;">
+              <span class="val">${r.fmt(r.hist.valor)}</span>
+              <span class="qd"> · ${formatDateShort(r.hist.data)}</span>
+              ${r.mostraRec ? `<span class="qd" style="display:block;">melhor dos últimos 90 dias: ${r.fmt(r.rec.valor)}</span>` : ''}
+            </span>
+          </div>`).join('')}
+        <p class="hint" style="margin-top:10px;">Comparação só com você mesmo. Recorde é história, não meta.</p>
+      </div>` : ''}`;
+  },
   render() {
     const allEntries = this._sourceEntries();
+    this.renderConquistas();
     const emptyEl = document.getElementById('evolucao-empty');
     const contentEl = document.getElementById('evolucao-content');
 
