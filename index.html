@@ -11,7 +11,7 @@
 <!-- SheetJS: leitura de planilhas .xlsx/.xls/.csv no upload do Desempenho TEC (opcional; a colagem funciona sem ele) -->
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js" defer></script>
 <!-- Supabase: sincronização opcional na nuvem (login + backup do perfil) -->
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js" defer></script>
 <style>
   :root {
     --fs-scale: 1;   /* ajustável pelo usuário: A− / A+ no topo */
@@ -18981,7 +18981,10 @@ GraficoTip.init();
 })();
 
 ProfileUI.boot();
-CloudStore.init();
+// Os scripts externos agora usam defer (não travam a abertura do app). Eles executam
+// antes do DOMContentLoaded, então é aqui que a nuvem pode ser iniciada com segurança.
+if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', () => CloudStore.init());
+else CloudStore.init();
 
 </script>
 
