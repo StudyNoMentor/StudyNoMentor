@@ -11280,7 +11280,7 @@ const ConquistasEngine = {
       melhorSemPct, melhorDiaBateria,
       solidos, virada, dominio, semCegos,
       nuvem: g(() => !!(CloudStore && CloudStore.session), false),
-      planejamentos: g(() => (DB.getPlanejamentos() || []).length, 1)
+      planejamentos: g(() => (PlanManager.getPlans() || []).length, 1)
     };
   },
   // n = número puro · h = horas · pc = percentual
