@@ -2547,31 +2547,6 @@
   .cal-legenda { display: flex; align-items: center; gap: 6px; margin-top: 10px; font-family: 'Inter', sans-serif; font-size: calc(10px * var(--fs-scale,1)); color: var(--text-faint); flex-wrap: wrap; }
   .cal-legenda .cal-dia { width: 11px; height: 11px; }
   .conq-presenca { font-family: 'Inter', sans-serif; font-size: calc(12px * var(--fs-scale,1)); color: var(--text-soft); margin: 10px 0 0; }
-  /* Calendário MENSAL de presença (um mês por vez, com navegação) */
-  .calm-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin: 4px 0 12px; }
-  .calm-title { font-family: 'Inter', sans-serif; font-size: calc(15px * var(--fs-scale,1)); font-weight: 800; color: var(--text); text-transform: capitalize; }
-  .calm-nav { display: inline-flex; align-items: center; gap: 6px; }
-  .calm-nav button { width: 34px; height: 34px; border-radius: 9px; border: 1.5px solid var(--border); background: var(--surface-sunken); color: var(--text-soft); font-size: calc(16px * var(--fs-scale,1)); cursor: pointer; display: inline-flex; align-items: center; justify-content: center; line-height: 1; }
-  .calm-nav button:hover:not(:disabled) { border-color: var(--accent); color: var(--accent); }
-  .calm-nav button:disabled { opacity: 0.35; cursor: default; }
-  .calm-nav .calm-today { width: auto; padding: 0 12px; font-size: calc(12px * var(--fs-scale,1)); font-weight: 700; }
-  .calm-weekdays { display: grid; grid-template-columns: repeat(7, 1fr); gap: 5px; margin-bottom: 5px; }
-  .calm-weekdays span { text-align: center; font-family: 'Inter', sans-serif; font-size: calc(10px * var(--fs-scale,1)); font-weight: 800; letter-spacing: 0.04em; text-transform: uppercase; color: var(--text-faint); }
-  .calm-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 5px; }
-  .calm-cell { position: relative; aspect-ratio: 1 / 1; border-radius: 10px; border: 1.5px solid var(--border); background: var(--surface-sunken); display: flex; align-items: center; justify-content: center; font-family: 'Space Mono', monospace; font-size: calc(13px * var(--fs-scale,1)); font-weight: 700; color: var(--text-soft); transition: transform 0.1s ease, box-shadow 0.12s ease; }
-  .calm-cell.empty { border: none; background: transparent; }
-  .calm-cell.p1 { background: color-mix(in srgb, var(--good) 22%, var(--surface)); border-color: transparent; color: var(--text); }
-  .calm-cell.p2 { background: color-mix(in srgb, var(--good) 45%, var(--surface)); border-color: transparent; color: var(--text); }
-  .calm-cell.p3 { background: var(--good); border-color: transparent; color: #fff; }
-  .calm-cell.hoje { box-shadow: 0 0 0 2px var(--accent); }
-  .calm-cell.futuro { opacity: 0.4; }
-  .calm-cell:not(.empty):hover { transform: translateY(-1px); box-shadow: var(--shadow-sm); }
-  .calm-cell .calm-dot { position: absolute; bottom: 5px; left: 50%; transform: translateX(-50%); width: 5px; height: 5px; border-radius: 50%; background: currentColor; opacity: 0.55; }
-  .calm-legend { display: flex; align-items: center; gap: 6px; margin-top: 12px; font-family: 'Inter', sans-serif; font-size: calc(10px * var(--fs-scale,1)); color: var(--text-faint); flex-wrap: wrap; }
-  .calm-legend i { width: 13px; height: 13px; border-radius: 4px; display: inline-block; border: 1px solid var(--border); }
-  .calm-legend i.p1 { background: color-mix(in srgb, var(--good) 22%, var(--surface)); border-color: transparent; }
-  .calm-legend i.p2 { background: color-mix(in srgb, var(--good) 45%, var(--surface)); border-color: transparent; }
-  .calm-legend i.p3 { background: var(--good); border-color: transparent; }
   /* marcos */
   .conq-marcos { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; }
   .conq-marco { border: 1.5px solid var(--border); border-radius: 12px; padding: 12px 14px; background: var(--surface-sunken); }
@@ -2613,6 +2588,24 @@
   }
   .pl-fchip:hover { border-color: var(--accent); color: var(--accent); }
   .pl-fchip.ativo { background: var(--accent-soft); border-color: var(--accent); color: var(--accent); }
+  /* [MELHORIA] Diálogo "Puxar do Plano": prioridade + dropdown de disciplinas */
+  .pl-modal-tools { display: flex; gap: 12px; flex-wrap: wrap; margin: 0 0 12px; }
+  .pl-modal-field { display: flex; flex-direction: column; gap: 4px; min-width: 180px; flex: 1; }
+  .pl-modal-field > span { font-size: calc(10.5px * var(--fs-scale,1)); font-weight: 700; text-transform: uppercase; letter-spacing: 0.03em; color: var(--text-faint); }
+  .pl-modal-field select { padding: 8px 10px; }
+  .pl-disc-toggle { display: inline-flex; align-items: center; justify-content: space-between; gap: 8px; width: 100%; padding: 8px 12px; border: 1.5px solid var(--border); border-radius: 10px; background: var(--surface-sunken); color: var(--text); font-size: calc(13px * var(--fs-scale,1)); font-weight: 600; cursor: pointer; }
+  .pl-disc-toggle:hover { border-color: var(--accent); }
+  .pl-disc-toggle .chev { transition: transform 0.18s ease; color: var(--text-faint); }
+  .pl-disc-toggle.open .chev { transform: rotate(180deg); }
+  .pl-disc-panel { position: absolute; top: 100%; left: 0; right: 0; margin-top: 4px; z-index: 10; background: var(--surface); border: 1.5px solid var(--border); border-radius: 12px; box-shadow: var(--shadow-lg); padding: 6px; max-height: 260px; overflow-y: auto; }
+  .pl-disc-check { display: flex; align-items: center; gap: 9px; padding: 7px 9px; border-radius: 8px; cursor: pointer; }
+  .pl-disc-check:hover { background: var(--surface-sunken); }
+  .pl-disc-check input { accent-color: var(--accent); width: 15px; height: 15px; flex-shrink: 0; }
+  .pl-disc-name { flex: 1; min-width: 0; font-size: calc(13px * var(--fs-scale,1)); color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .pl-disc-count { font-family: 'Space Mono', monospace; font-size: calc(11px * var(--fs-scale,1)); font-weight: 700; color: var(--accent); background: var(--accent-soft); border-radius: 10px; padding: 1px 8px; }
+  .pl-disc-actions { display: flex; justify-content: flex-end; padding: 6px 4px 2px; border-top: 1px solid var(--border); margin-top: 4px; }
+  .pl-disc-actions button { background: transparent; border: 1px solid var(--border); border-radius: 8px; padding: 5px 12px; font-size: calc(11px * var(--fs-scale,1)); font-weight: 700; color: var(--text-soft); cursor: pointer; }
+  .pl-disc-actions button:hover { border-color: var(--accent); color: var(--accent); }
 
   /* ═══ DICA POR TOQUE — valor do ponto do gráfico ═══════════════════════════
      Os gráficos usavam apenas `title`, que só aparece no HOVER: no celular nunca
@@ -2751,24 +2744,6 @@
   .pl-acao { font-family: 'Inter', sans-serif; font-size: calc(12px * var(--fs-scale,1)); line-height: 1.5; color: var(--text-soft); margin: 8px 0 0; }
   .pl-base { font-family: 'Inter', sans-serif; font-size: calc(10.5px * var(--fs-scale,1)); line-height: 1.5; color: var(--text-faint); margin: 6px 0 0; }
   .pl-base b { font-family: 'Space Mono', monospace; color: var(--text-soft); font-variant-numeric: tabular-nums; }
-  /* Plano: direção curta + caixinhas numéricas + guia expansível */
-  .pl-direcao { font-family: 'Inter', sans-serif; font-size: calc(12px * var(--fs-scale,1)); font-weight: 700; line-height: 1.45; margin: 8px 0 0; display: flex; align-items: flex-start; gap: 6px; }
-  .pl-direcao .seta { flex-shrink: 0; }
-  .pl-direcao.tone-bad { color: var(--bad-text); } .pl-direcao.tone-warn { color: var(--warn-text); } .pl-direcao.tone-good { color: var(--good-text); }
-  .pl-metrics { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; margin: 10px 0 0; }
-  .pl-metrics .plm { background: var(--surface-sunken); border: 1px solid var(--border); border-radius: 10px; padding: 7px 4px; text-align: center; min-width: 0; }
-  .pl-metrics .plm b { display: block; font-family: 'Space Mono', monospace; font-weight: 800; font-size: calc(15px * var(--fs-scale,1)); color: var(--text); font-variant-numeric: tabular-nums; line-height: 1.1; }
-  .pl-metrics .plm b.tone-bad { color: var(--bad-text); } .pl-metrics .plm b.tone-warn { color: var(--warn-text); } .pl-metrics .plm b.tone-good { color: var(--good-text); }
-  .pl-metrics .plm span { display: block; font-size: calc(9px * var(--fs-scale,1)); font-weight: 700; letter-spacing: 0.02em; text-transform: uppercase; color: var(--text-faint); margin-top: 3px; line-height: 1.2; }
-  @media (max-width: 560px) { .pl-metrics { grid-template-columns: 1fr 1fr; } }
-  .pl-guia { margin: 10px 0 0; border: 1px solid var(--border); border-radius: 10px; background: var(--surface-sunken); overflow: hidden; }
-  .pl-guia > summary { cursor: pointer; list-style: none; padding: 8px 12px; font-family: 'Inter', sans-serif; font-size: calc(11.5px * var(--fs-scale,1)); font-weight: 700; color: var(--text-soft); display: flex; align-items: center; gap: 7px; }
-  .pl-guia > summary::-webkit-details-marker { display: none; }
-  .pl-guia > summary .chev { margin-left: auto; transition: transform 0.18s ease; color: var(--text-faint); font-size: calc(10px * var(--fs-scale,1)); }
-  .pl-guia[open] > summary .chev { transform: rotate(180deg); }
-  .pl-guia > summary:hover { color: var(--accent); }
-  .pl-guia .pl-guia-body { padding: 2px 12px 12px; }
-  .pl-guia .pl-acao { margin-top: 4px; }
   .pl-medidor { position: relative; height: 6px; background: var(--surface-sunken); border-radius: 20px; margin: 9px 0 0; overflow: visible; }
   .pl-medidor i { position: absolute; inset: 0 auto 0 0; display: block; background: var(--accent); border-radius: 20px; }
   .pl-medidor u { position: absolute; top: -3px; bottom: -3px; width: 2px; background: var(--text); opacity: 0.4; }
@@ -2980,6 +2955,57 @@
   .evo-card-head h2 { font-size: calc(16px * var(--fs-scale, 1)); font-weight: 700; margin: 0; letter-spacing: -0.01em; }
   .evo-card-head .sub { font-size: calc(12px * var(--fs-scale, 1)); color: var(--text-faint); margin-top: 3px; }
   .evo-chip-group { display: inline-flex; gap: 4px; flex-wrap: wrap; }
+  /* [MELHORIA] Intervalo de datas do gráfico "Tempo de estudo" */
+  .evo-tempo-range { display: inline-flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+  .evo-tempo-range-lbl { font-size: calc(11px * var(--fs-scale,1)); font-weight: 700; color: var(--text-faint); text-transform: uppercase; letter-spacing: 0.03em; }
+  .evo-tempo-range-sep { color: var(--text-faint); font-weight: 700; }
+  .evo-tempo-range input[type="date"] { padding: 5px 8px; font-size: calc(12px * var(--fs-scale,1)); border-radius: 8px; width: auto; }
+  .evo-tempo-clear { background: var(--surface-sunken); border: 1.5px solid var(--border); border-radius: 8px; width: 28px; height: 28px; cursor: pointer; color: var(--text-soft); font-size: calc(12px * var(--fs-scale,1)); }
+  .evo-tempo-clear:hover { border-color: var(--bad-text); color: var(--bad-text); }
+  #evo-tempo-periodo.range-active .evo-chip.active { background: var(--surface-sunken); color: var(--text-soft); border-color: var(--border); }
+  /* [MELHORIAS Evolução] */
+  .evo-scope-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+  .evo-collapse-btn { display: inline-flex; align-items: center; gap: 6px; background: transparent; border: none; cursor: pointer; font-family: 'Inter', sans-serif; font-size: calc(12px * var(--fs-scale,1)); font-weight: 700; color: var(--text-soft); padding: 4px 6px; border-radius: 8px; }
+  .evo-collapse-btn:hover { color: var(--accent); }
+  .evo-collapse-btn .chev { transition: transform 0.18s ease; display: inline-block; font-size: calc(10px * var(--fs-scale,1)); }
+  .evo-collapse-btn[aria-expanded="false"] .chev { transform: rotate(-90deg); }
+  #evo-scope-body[hidden] { display: none; }
+  .evo-sf-toggle { display: inline-flex; align-items: center; gap: 8px; background: var(--surface-sunken); border: 1.5px solid var(--border); border-radius: 20px; padding: 6px 14px; font-family: 'Inter', sans-serif; font-size: calc(12px * var(--fs-scale,1)); font-weight: 700; color: var(--text-soft); cursor: pointer; }
+  .evo-sf-toggle:hover { border-color: var(--accent); color: var(--accent); }
+  .evo-sf-toggle .chev { transition: transform 0.18s ease; font-size: calc(10px * var(--fs-scale,1)); }
+  .evo-sf-toggle.open .chev { transform: rotate(180deg); }
+  .evo-sf-count { background: var(--accent); color: #fff; font-size: calc(10px * var(--fs-scale,1)); font-weight: 800; border-radius: 10px; padding: 1px 7px; }
+  .evo-sf-panel { margin-top: 10px; border: 1.5px solid var(--border); border-radius: 12px; background: var(--surface); padding: 8px; display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 4px; }
+  .evo-sf-check { display: flex; align-items: center; gap: 8px; padding: 7px 9px; border-radius: 9px; cursor: pointer; font-family: 'Inter', sans-serif; font-size: calc(12px * var(--fs-scale,1)); color: var(--text); }
+  .evo-sf-check:hover { background: var(--surface-sunken); }
+  .evo-sf-check input { accent-color: var(--accent); width: 15px; height: 15px; flex-shrink: 0; }
+  .evo-sf-check .evo-sf-vol { margin-left: auto; font-family: 'Space Mono', monospace; font-size: calc(10px * var(--fs-scale,1)); color: var(--text-faint); }
+  .evo-sf-dot { width: 9px; height: 9px; border-radius: 50%; flex-shrink: 0; }
+  .evo-sf-actions { grid-column: 1 / -1; display: flex; gap: 8px; justify-content: flex-end; padding: 6px 4px 2px; border-top: 1px solid var(--border); margin-top: 4px; }
+  .evo-sf-actions button { background: transparent; border: 1px solid var(--border); border-radius: 8px; padding: 5px 12px; font-size: calc(11px * var(--fs-scale,1)); font-weight: 700; color: var(--text-soft); cursor: pointer; }
+  .evo-sf-actions button:hover { border-color: var(--accent); color: var(--accent); }
+  .badge { cursor: pointer; }
+  .badge:hover { border-color: var(--accent); box-shadow: var(--shadow-sm); }
+  .badge .bmore { font-size: calc(9.5px * var(--fs-scale,1)); color: var(--accent); font-weight: 700; margin-top: 6px; opacity: 0.9; }
+  .niv-overlay { position: fixed; inset: 0; background: rgba(15,18,25,0.55); z-index: 3000; display: flex; align-items: center; justify-content: center; padding: 18px; }
+  .niv-modal { background: var(--surface); border-radius: 18px; box-shadow: var(--shadow-lg); max-width: 420px; width: 100%; max-height: 84vh; overflow-y: auto; padding: 22px; }
+  .niv-head { display: flex; align-items: center; gap: 12px; margin-bottom: 6px; }
+  .niv-head .ic { font-size: calc(30px * var(--fs-scale,1)); line-height: 1; }
+  .niv-head h3 { margin: 0; font-family: 'Inter', sans-serif; font-size: calc(17px * var(--fs-scale,1)); font-weight: 800; }
+  .niv-sub { font-size: calc(12px * var(--fs-scale,1)); color: var(--text-faint); margin: 0 0 16px; }
+  .niv-list { display: flex; flex-direction: column; gap: 8px; }
+  .niv-item { display: flex; align-items: center; gap: 12px; padding: 10px 12px; border-radius: 11px; border: 1.5px solid var(--border); background: var(--surface-sunken); }
+  .niv-item.done { border-color: var(--good); background: var(--good-soft); }
+  .niv-item.next { border-color: var(--accent); box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 22%, transparent); }
+  .niv-check { width: 24px; height: 24px; border-radius: 50%; flex-shrink: 0; display: flex; align-items: center; justify-content: center; font-size: calc(12px * var(--fs-scale,1)); font-weight: 800; border: 2px solid var(--border); color: var(--text-faint); }
+  .niv-item.done .niv-check { background: var(--good); border-color: var(--good); color: #fff; }
+  .niv-item.next .niv-check { border-color: var(--accent); color: var(--accent); }
+  .niv-txt { flex: 1; min-width: 0; }
+  .niv-rot { font-family: 'Inter', sans-serif; font-size: calc(13px * var(--fs-scale,1)); font-weight: 700; color: var(--text); }
+  .niv-req { font-family: 'Space Mono', monospace; font-size: calc(11px * var(--fs-scale,1)); color: var(--text-faint); margin-top: 1px; }
+  .niv-item.next .niv-req { color: var(--accent); font-weight: 700; }
+  .niv-close { margin-top: 18px; width: 100%; padding: 11px; border-radius: 11px; border: none; background: var(--accent); color: #fff; font-weight: 800; font-size: calc(13px * var(--fs-scale,1)); cursor: pointer; }
+  .niv-foot { font-size: calc(11px * var(--fs-scale,1)); color: var(--text-faint); margin: 14px 0 0; text-align: center; }
   .evo-chip {
     background: var(--surface-sunken); border: 1.5px solid var(--border); border-radius: 20px;
     padding: 5px 12px; font-size: calc(11px * var(--fs-scale, 1)); font-weight: 700; color: var(--text-soft); cursor: pointer;
@@ -3056,13 +3082,12 @@
   .acm-track { position: relative; height: 20px; background: var(--surface-sunken); border: 1px solid var(--border); border-radius: 8px; overflow: visible; }
   .acm-fill { height: 100%; border-radius: 6px 0 0 6px; transition: width 0.5s ease; }
   .acm-ref { position: absolute; top: -5px; bottom: -5px; width: 2px; opacity: 0.9; z-index: 2; }
-  /* Régua de metas ACIMA das barras: rótulos escalonados em 2 níveis p/ nunca sobrepor (70/80/85). */
-  .acm-ruler { position: relative; height: 34px; margin: 0 0 2px; }
-  .acm-ruler-lbl { position: absolute; transform: translateX(-50%); font-family: 'Space Mono', monospace; font-size: calc(10px * var(--fs-scale, 1)); font-weight: 700; color: #fff; padding: 1px 6px; border-radius: 8px; white-space: nowrap; line-height: 1.5; }
-  .acm-ruler-lbl::after { content: ''; position: absolute; left: 50%; bottom: -4px; transform: translateX(-50%); width: 2px; height: 4px; background: inherit; }
-  .acm-ruler-lbl.lvl1 { top: 16px; }
-  .acm-ruler-inner { position: absolute; left: 164px; right: 96px; top: 0; bottom: 0; }
-  @media (max-width: 560px) { .acm-ruler-inner { left: 102px; right: 60px; } }
+  .acm-ref-tag {
+    position: absolute; top: -18px; left: 50%; transform: translateX(-50%);
+    font-family: 'Space Mono', monospace; font-size: calc(10px * var(--fs-scale, 1)); font-weight: 700; color: #fff;
+    padding: 1px 5px; border-radius: 8px; white-space: nowrap;
+  }
+  .acm-row:not(:first-child) .acm-ref-tag { display: none; }
   .acm-val { font-family: 'Space Mono', monospace; font-weight: 700; font-size: calc(13px * var(--fs-scale, 1)); text-align: right; }
   .acm-val .acm-q { display: block; font-size: calc(10px * var(--fs-scale, 1)); color: var(--text-faint); font-weight: 400; }
   @media (max-width: 560px) {
@@ -4531,9 +4556,10 @@
           <h2>Grade da semana</h2>
           <p class="sub">Toque numa célula para escolher a sigla (ou arraste). A mesma matéria pode aparecer em várias células — ajuste a duração de cada uma.</p>
         </div>
-        <div style="display:flex; gap:8px; align-items:center;">
+        <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
           <button class="btn-secondary" id="btn-toggle-tray" type="button" title="Minimizar/expandir as siglas">▾ Siglas</button>
           <button class="btn-secondary" id="btn-uncheck-all" type="button">↺ Desmarcar concluídos</button>
+          <button class="btn-secondary" id="btn-clear-grade" type="button" title="Esvaziar toda a grade para montar do zero">🗑️ Limpar grade</button>
         </div>
       </div>
       <div style="padding: 8px 20px 26px;">
@@ -5055,30 +5081,37 @@
       <p class="page-subtitle">Sua trajetória cruzando todos os registros do Diário.</p>
     </div>
 
-    <section class="card">
+    <section class="card" id="evo-scope-card">
       <div style="padding: 18px 24px;">
-        <div style="display:flex; align-items:center; gap: 10px; margin-bottom: 16px; flex-wrap: wrap;">
-          <span class="section-label" style="margin:0;">Escopo</span>
-          <div class="scope-toggle" id="evo-scope-toggle">
-            <button type="button" data-scope="plan" class="active">Este planejamento</button>
-            <button type="button" data-scope="all">Todos os planejamentos</button>
-          </div>
+        <div class="evo-scope-head">
+          <span class="section-label" style="margin:0;">Escopo e período</span>
+          <button type="button" class="evo-collapse-btn" id="evo-scope-collapse" aria-expanded="true" title="Minimizar ou expandir os filtros">
+            <span id="evo-scope-collapse-txt">Ocultar filtros</span><span class="chev">&#9662;</span>
+          </button>
         </div>
-        <div style="display:flex; align-items:flex-end; gap: 14px; flex-wrap: wrap;">
-          <div class="field" style="margin-bottom:0;">
-            <label for="evo-date-start">De</label>
-            <input type="date" id="evo-date-start">
+        <div id="evo-scope-body" style="margin-top:14px;">
+          <div style="display:flex; align-items:center; gap: 10px; margin-bottom: 16px; flex-wrap: wrap;">
+            <div class="scope-toggle" id="evo-scope-toggle">
+              <button type="button" data-scope="plan" class="active">Este planejamento</button>
+              <button type="button" data-scope="all">Todos os planejamentos</button>
+            </div>
           </div>
-          <div class="field" style="margin-bottom:0;">
-            <label for="evo-date-end">Até</label>
-            <input type="date" id="evo-date-end">
+          <div style="display:flex; align-items:flex-end; gap: 14px; flex-wrap: wrap;">
+            <div class="field" style="margin-bottom:0;">
+              <label for="evo-date-start">De</label>
+              <input type="date" id="evo-date-start">
+            </div>
+            <div class="field" style="margin-bottom:0;">
+              <label for="evo-date-end">Até</label>
+              <input type="date" id="evo-date-end">
+            </div>
+            <div style="display:flex; gap:8px; margin-bottom: 0;">
+              <button type="button" class="btn-secondary" id="evo-period-7d">7 dias</button>
+              <button type="button" class="btn-secondary" id="evo-period-30d">30 dias</button>
+              <button type="button" class="btn-secondary" id="evo-period-all">Tudo</button>
+            </div>
+            <span class="hint" id="evo-period-label" style="margin-top: 0; padding-bottom: 10px;"></span>
           </div>
-          <div style="display:flex; gap:8px; margin-bottom: 0;">
-            <button type="button" class="btn-secondary" id="evo-period-7d">7 dias</button>
-            <button type="button" class="btn-secondary" id="evo-period-30d">30 dias</button>
-            <button type="button" class="btn-secondary" id="evo-period-all">Tudo</button>
-          </div>
-          <span class="hint" id="evo-period-label" style="margin-top: 0; padding-bottom: 10px;"></span>
         </div>
       </div>
     </section>
@@ -5096,13 +5129,22 @@
             <h2>Tempo de estudo</h2>
             <p class="sub">Tempo registrado por dia</p>
           </div>
-          <div class="evo-chip-group" id="evo-tempo-periodo">
-            <button type="button" class="evo-chip active" data-days="7">1 semana</button>
-            <button type="button" class="evo-chip" data-days="14">2 semanas</button>
-            <button type="button" class="evo-chip" data-days="30">1 mês</button>
-            <button type="button" class="evo-chip" data-days="90">3 meses</button>
-            <button type="button" class="evo-chip" data-days="180">6 meses</button>
-            <button type="button" class="evo-chip" data-days="365">1 ano</button>
+          <div style="display:flex; flex-direction:column; gap:8px; align-items:flex-end;">
+            <div class="evo-chip-group" id="evo-tempo-periodo">
+              <button type="button" class="evo-chip active" data-days="7">1 semana</button>
+              <button type="button" class="evo-chip" data-days="14">2 semanas</button>
+              <button type="button" class="evo-chip" data-days="30">1 mês</button>
+              <button type="button" class="evo-chip" data-days="90">3 meses</button>
+              <button type="button" class="evo-chip" data-days="180">6 meses</button>
+              <button type="button" class="evo-chip" data-days="365">1 ano</button>
+            </div>
+            <div class="evo-tempo-range" id="evo-tempo-range">
+              <span class="evo-tempo-range-lbl">Intervalo:</span>
+              <input type="date" id="evo-tempo-de" title="Data inicial">
+              <span class="evo-tempo-range-sep">→</span>
+              <input type="date" id="evo-tempo-ate" title="Data final">
+              <button type="button" class="evo-tempo-clear" id="evo-tempo-clear" title="Voltar aos atalhos rápidos" style="display:none;">✕</button>
+            </div>
           </div>
         </div>
         <div style="padding: 8px 20px 20px;" id="evolucao-day-chart"></div>
@@ -5147,6 +5189,12 @@
           <div class="field" style="margin-bottom:0; min-width:200px;">
             <select id="evo-tec-disc"></select>
           </div>
+        </div>
+        <div class="evo-chip-group" id="evo-tec-periodo" style="padding: 2px 20px 4px;">
+          <button type="button" class="evo-chip" data-tecdays="90">3 meses</button>
+          <button type="button" class="evo-chip" data-tecdays="180">6 meses</button>
+          <button type="button" class="evo-chip" data-tecdays="365">1 ano</button>
+          <button type="button" class="evo-chip active" data-tecdays="all">Tudo</button>
         </div>
         <div style="padding: 8px 20px 20px;" id="evolucao-tec-chart"></div>
         <div class="evo-legend" id="evolucao-tec-legend"></div>
@@ -6027,10 +6075,15 @@
               <option value="unica">Única (meta total)</option>
               <option value="diaria">Diária</option>
               <option value="semanal">Semanal</option>
+              <option value="quinzenal">Quinzenal</option>
+              <option value="mensal">Mensal</option>
             </select></div>
-          <div class="field" style="display:flex; align-items:flex-end;">
-            <label class="co-check" style="margin:0;"><input type="checkbox" id="extra-conta" checked> Contar esta atividade nas métricas</label>
+          <div class="field" id="extra-datafim-field" style="display:none;"><label>Fim da recorrência <span class="opt">(opcional)</span></label>
+            <input type="date" id="extra-datafim" title="A meta para de reiniciar depois desta data. Deixe em branco para recorrer sem fim.">
           </div>
+        </div>
+        <div class="field" style="display:flex; align-items:center;">
+          <label class="co-check" style="margin:0;"><input type="checkbox" id="extra-conta" checked> Contar esta atividade nas métricas</label>
         </div>
       </div>
       <div class="cards-modal-foot">
@@ -6748,7 +6801,8 @@ const DB = {
       disciplina: (data.disciplina || '').trim(),
       unidade: data.unidade || 'itens',           // cards|paginas|questoes|min|sessoes|itens
       alvo: Math.max(0, parseFloat(data.alvo) || 0),
-      periodo: data.periodo || 'unica',           // unica|diaria|semanal
+      periodo: data.periodo || 'unica',           // unica|diaria|semanal|quinzenal|mensal
+      dataFim: (data.dataFim || '').trim() || null, // fim da recorrência (opcional): para de reiniciar depois disso
       progresso: 0,
       datas: Array.isArray(data.datas) ? data.datas : [], // datas agendadas (calendário)
       marcador: (data.marcador || '').trim(),      // "onde parei" (lei seca / leitura)
@@ -6766,6 +6820,7 @@ const DB = {
       // normaliza tipos numéricos (o modal entrega strings vindas dos inputs)
       if ('alvo' in p) p.alvo = Math.max(0, parseFloat(p.alvo) || 0);
       if ('progresso' in p) p.progresso = Math.max(0, parseFloat(p.progresso) || 0);
+      if ('dataFim' in p) p.dataFim = (String(p.dataFim || '').trim()) || null;
       Object.assign(e, p); e.updatedAt = new Date().toISOString();
     }
     this.saveExtras(list); return e;
@@ -6816,19 +6871,32 @@ const DB = {
     e.updatedAt = new Date().toISOString();
     this.saveExtras(list); return ultimo;
   },
-  // Início do período corrente de uma meta recorrente (diária = hoje; semanal = últimos 7 dias)
+  _isoDia(d) { return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; },
+  // É recorrente (reinicia a cada período)? diária, semanal, quinzenal ou mensal.
+  extraRecorrente(x) { return x && (x.periodo === 'diaria' || x.periodo === 'semanal' || x.periodo === 'quinzenal' || x.periodo === 'mensal'); },
+  // A recorrência terminou? (passou da data-fim escolhida). Depois disso não reinicia mais.
+  extraEncerrada(x) { return !!(x && x.dataFim && todayLocal() > x.dataFim); },
+  // Início do PERÍODO CORRENTE de uma meta recorrente. Alinhado ao calendário para que
+  // a meta "reinicie" de forma previsível: semanal reseta na segunda-feira, mensal no dia 1.
+  //   diária    = hoje
+  //   semanal   = segunda-feira desta semana
+  //   quinzenal = 14 dias atrás (janela móvel)
+  //   mensal    = dia 1 deste mês
   _periodoInicio(periodo) {
-    if (periodo === 'diaria') return todayLocal();
-    if (periodo === 'semanal') {
-      const d = new Date(todayLocal() + 'T00:00:00'); d.setDate(d.getDate() - 6);
-      return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-    }
+    const hoje = todayLocal();
+    const d = new Date(hoje + 'T00:00:00');
+    if (periodo === 'diaria') return hoje;
+    if (periodo === 'semanal') { d.setDate(d.getDate() - ((d.getDay() + 6) % 7)); return this._isoDia(d); }
+    if (periodo === 'quinzenal') { d.setDate(d.getDate() - 13); return this._isoDia(d); }
+    if (periodo === 'mensal') { d.setDate(1); return this._isoDia(d); }
     return null;
   },
   // Progresso que vale para a barra: metas recorrentes contam só o PERÍODO ATUAL.
   // Sem isso, uma meta de 50 cards/dia mostrava 100% para sempre a partir do 1º dia.
   extraProgressoPeriodo(e) {
     if (!e) return 0;
+    // recorrência encerrada: mostra o total acumulado (não reinicia mais)
+    if (this.extraEncerrada(e)) return e.progresso || 0;
     const ini = this._periodoInicio(e.periodo);
     if (!ini) return e.progresso || 0;
     return (e.historico || []).filter(h => h.data >= ini).reduce((a, h) => a + (h.quantidade || 0), 0);
@@ -10645,6 +10713,21 @@ function planCycleMode() {
     renderGrade();
     showToast('Concluídos desmarcados ✓');
   });
+  // Limpar grade: esvazia TODAS as células (mantém o nº de sessões), para remontar do zero.
+  // As siglas/matérias cadastradas não são apagadas — só saem da grade.
+  const _clearGradeBtn = document.getElementById('btn-clear-grade');
+  if (_clearGradeBtn) _clearGradeBtn.addEventListener('click', () => {
+    const t = gradeGet();
+    let ocupadas = 0;
+    DIAS_SEMANA.forEach(d => (t.grade[d] || []).forEach(c => { if (normalizeCell(c)) ocupadas++; }));
+    if (ocupadas === 0) { showToast('A grade já está vazia'); return; }
+    if (!confirm(`Limpar toda a grade? As ${ocupadas} matéria(s) alocadas serão removidas das células (as siglas cadastradas são mantidas). Use isto para refazer o planejamento do zero.`)) return;
+    const n = sessionCount(t);
+    DIAS_SEMANA.forEach(d => { t.grade[d] = Array.from({ length: n }, () => ''); });
+    gradeSave(t);
+    renderGrade();
+    showToast('Grade limpa — monte do zero ✓');
+  });
 
   document.getElementById('btn-close-cycle').addEventListener('click', () => {
     const cycle = DB.getCurrentCycle();
@@ -11191,28 +11274,6 @@ const ConquistasEngine = {
     };
     return { grade, semanas, em7: ultimos(7), em30: ultimos(30) };
   },
-  // Grade de UM mês (calendário tradicional), semana começando na segunda-feira.
-  mesGrade(entries, ano, mes) {
-    const dias = this.porDia(entries);
-    const hoje = todayLocal();
-    const primeiro = new Date(ano, mes, 1);
-    const ultimoDia = new Date(ano, mes + 1, 0).getDate();
-    const offset = (primeiro.getDay() + 6) % 7; // 0 = segunda
-    const celulas = [];
-    for (let i = 0; i < offset; i++) celulas.push(null);
-    let presentes = 0, totMin = 0;
-    for (let d = 1; d <= ultimoDia; d++) {
-      const dt = new Date(ano, mes, d);
-      const iso = this._iso(dt);
-      const info = dias[iso] || { min: 0, q: 0, cards: 0, temAlgo: false };
-      if (info.temAlgo) { presentes++; totMin += info.min; }
-      celulas.push({ dia: d, iso, futuro: iso > hoje, hoje: iso === hoje,
-        min: info.min, q: info.q, cards: info.cards, presente: !!info.temAlgo,
-        nivel: !info.temAlgo ? 0 : info.min >= 180 ? 3 : info.min >= 90 ? 2 : 1 });
-    }
-    while (celulas.length % 7 !== 0) celulas.push(null);
-    return { celulas, ano, mes, presentes, totalMin: totMin, diasNoMes: ultimoDia };
-  },
   marcos(entries) {
     const dias = this.porDia(entries);
     const vals = Object.values(dias);
@@ -11440,7 +11501,10 @@ const ConquistasEngine = {
         detalhe: atual ? ('você já tem ' + fmt(v, d.f)) : ((d.d2 ? d.d2 + '. ' : '') + 'conquista a partir de ' + fmt(niveis[0].v, d.f)),
         progresso: prox ? Math.min(1, (v - base) / (prox.v - base)) : 1,
         prox: prox ? { rot: prox.rot, falta: fmt(prox.v - v, d.f) } : null,
-        totalNiveis: niveis.length, nivelAtual: alc.length
+        totalNiveis: niveis.length, nivelAtual: alc.length,
+        // [MELHORIA 5] escada completa de níveis (para o modal ao clicar no cartão)
+        valorFmt: fmt(v, d.f),
+        niveis: niveis.map(nv => ({ rot: nv.rot, req: fmt(nv.v, d.f), alcancado: v >= nv.v }))
       };
     });
   },
@@ -11550,43 +11614,40 @@ const EvolucaoScreen = {
     const base = this.scope === 'all' ? DB.getAllEntriesTagged() : DB.getEntries();
     return base.concat(this._extraEntries());
   },
-  // Monta o HTML do calendário MENSAL (um mês, com navegação).
-  _calMensalHtml() {
-    const g = ConquistasEngine.mesGrade(this._calEntries || [], this.calAno, this.calMes);
-    const MES = ['janeiro', 'fevereiro', 'março', 'abril', 'maio', 'junho', 'julho', 'agosto', 'setembro', 'outubro', 'novembro', 'dezembro'];
-    const hoje = new Date();
-    const noFuturo = (this.calAno > hoje.getFullYear()) || (this.calAno === hoje.getFullYear() && this.calMes >= hoje.getMonth());
-    const wds = ['Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb', 'Dom'];
-    const cells = g.celulas.map(c => {
-      if (!c) return '<div class="calm-cell empty"></div>';
-      const cls = c.futuro ? 'futuro' : ('p' + c.nivel);
-      const tip = c.futuro ? formatDateShort(c.iso) : (c.presente
-        ? `${formatDateShort(c.iso)} · ${c.min ? Math.floor(c.min / 60) + 'h' + String(c.min % 60).padStart(2, '0') : 'sem tempo'}${c.q ? ' · ' + c.q + ' questões' : ''}${c.cards ? ' · ' + c.cards + ' cards' : ''}`
-        : `${formatDateShort(c.iso)} · sem registro`);
-      return `<div class="calm-cell ${cls}${c.hoje ? ' hoje' : ''}" data-tip="${escapeHtml(tip)}">${c.dia}${(c.presente && c.q) ? '<span class="calm-dot"></span>' : ''}</div>`;
-    }).join('');
-    const totH = g.totalMin ? (Math.floor(g.totalMin / 60) + 'h' + (g.totalMin % 60 ? String(g.totalMin % 60).padStart(2, '0') : '')) : '0h';
-    return `
-      <div class="calm-head">
-        <div class="calm-title">${MES[this.calMes]} de ${this.calAno}</div>
-        <div class="calm-nav">
-          <button type="button" data-cal="prev" title="Mês anterior">&#8249;</button>
-          <button type="button" class="calm-today" data-cal="today">Hoje</button>
-          <button type="button" data-cal="next" title="Próximo mês" ${noFuturo ? 'disabled' : ''}>&#8250;</button>
-        </div>
-      </div>
-      <div class="calm-weekdays">${wds.map(w => `<span>${w}</span>`).join('')}</div>
-      <div class="calm-grid">${cells}</div>
-      <p class="conq-presenca" style="margin-top:10px;">Neste mês: <strong>${g.presentes}</strong> ${g.presentes === 1 ? 'dia' : 'dias'} com estudo &middot; <strong>${totH}</strong> no total.</p>
-      <div class="calm-legend"><span>menos</span><i class="p0"></i><i class="p1"></i><i class="p2"></i><i class="p3"></i><span>mais</span><span style="margin-left:4px;">&middot; cor pela intensidade (tempo estudado)</span></div>`;
-  },
-  // Navega o calendário: 'prev' | 'next' | 'today'. Repinta só o corpo.
-  _navCal(dir) {
-    if (dir === 'today') { const h = new Date(); this.calAno = h.getFullYear(); this.calMes = h.getMonth(); }
-    else if (dir === 'next') { this.calMes++; if (this.calMes > 11) { this.calMes = 0; this.calAno++; } }
-    else { this.calMes--; if (this.calMes < 0) { this.calMes = 11; this.calAno--; } }
-    const body = document.getElementById('conq-cal-body');
-    if (body) body.innerHTML = this._calMensalHtml();
+  // [MELHORIA 5] Modal com todos os níveis de uma conquista (requisitos p/ subir).
+  abrirNiveisModal(idx) {
+    const b = this._badgesFlat && this._badgesFlat[idx];
+    if (!b) return;
+    const niveis = b.niveis || [];
+    let itens, sub;
+    if (niveis.length) {
+      const nextIdx = niveis.findIndex(n => !n.alcancado);
+      itens = niveis.map((n, i) => {
+        const cls = n.alcancado ? 'done' : (i === nextIdx ? 'next' : '');
+        const mark = n.alcancado ? '\u2713' : (i + 1);
+        return `<div class="niv-item ${cls}"><div class="niv-check">${mark}</div><div class="niv-txt"><div class="niv-rot">${escapeHtml(n.rot)}</div><div class="niv-req">${n.alcancado ? 'conquistado \u00b7 ' : 'a partir de '}${escapeHtml(n.req)}</div></div></div>`;
+      }).join('');
+      sub = `${b.nivelAtual || 0} de ${b.totalNiveis} n\u00edveis \u00b7 voc\u00ea j\u00e1 tem ${escapeHtml(b.valorFmt || '')}`;
+    } else {
+      const done = b.conquistada;
+      itens = `<div class="niv-item ${done ? 'done' : 'next'}"><div class="niv-check">${done ? '\u2713' : '\u2605'}</div><div class="niv-txt"><div class="niv-rot">${done ? 'Conquistada' : 'Como conquistar'}</div><div class="niv-req">${escapeHtml(b.detalhe || '')}</div></div></div>`;
+      sub = done ? 'Conquista desbloqueada.' : 'Ainda n\u00e3o conquistada.';
+    }
+    const ov = document.createElement('div');
+    ov.className = 'niv-overlay';
+    ov.innerHTML = `<div class="niv-modal">
+      <div class="niv-head"><span class="ic">${b.ico}</span><h3>${escapeHtml(b.nome)}</h3></div>
+      <p class="niv-sub">${sub}</p>
+      <div class="niv-list">${itens}</div>
+      <p class="niv-foot">Nada aqui expira \u2014 cada n\u00edvel \u00e9 um marco do que voc\u00ea j\u00e1 construiu.</p>
+      <button type="button" class="niv-close">Fechar</button>
+    </div>`;
+    const fechar = () => { ov.remove(); document.removeEventListener('keydown', onEsc); };
+    function onEsc(ev) { if (ev.key === 'Escape') fechar(); }
+    ov.addEventListener('click', (e) => { if (e.target === ov) fechar(); });
+    ov.querySelector('.niv-close').addEventListener('click', fechar);
+    document.addEventListener('keydown', onEsc);
+    document.body.appendChild(ov);
   },
   renderConquistas() {
     const box = document.getElementById('conquistas-body');
@@ -11597,13 +11658,17 @@ const EvolucaoScreen = {
     const marcos = ConquistasEngine.marcos(entries);
     const recs = ConquistasEngine.recordes(entries);
     const badges = ConquistasEngine.badges(entries);
+    this._badgesFlat = badges; // [MELHORIA 5] acesso p/ o modal de níveis
     const ganhas = badges.filter(b => b.conquistada).length;
     const niveisGanhos = badges.reduce((a, b) => a + (b.nivelAtual || (b.conquistada ? 1 : 0)), 0);
     const niveisTotal = badges.reduce((a, b) => a + (b.totalNiveis || 1), 0);
 
-    // mês exibido no calendário (1ª vez: mês atual) + guarda entries p/ navegação
-    if (this.calAno == null || this.calMes == null) { const h = new Date(); this.calAno = h.getFullYear(); this.calMes = h.getMonth(); }
-    this._calEntries = entries;
+    const celulas = cal.grade.map(d => {
+      const t = d.futuro ? '' : (d.presente
+        ? `${formatDateShort(d.iso)} · ${d.min ? Math.floor(d.min / 60) + 'h' + String(d.min % 60).padStart(2, '0') : 'sem tempo'}${d.q ? ' · ' + d.q + ' questões' : ''}${d.cards ? ' · ' + d.cards + ' cards' : ''}`
+        : `${formatDateShort(d.iso)} · sem registro`);
+      return `<span class="cal-dia n${d.nivel}${d.hoje ? ' hoje' : ''}${d.futuro ? ' futuro' : ''}" title="${escapeHtml(t)}"></span>`;
+    }).join('');
 
     box.innerHTML = `
       <div class="card"><div style="padding:18px 22px;">
@@ -11616,7 +11681,12 @@ const EvolucaoScreen = {
 
       <div class="card"><div style="padding:18px 22px;">
         <p class="conq-titulo">📅 Calendário de presença</p>
-        <div id="conq-cal-body">${this._calMensalHtml()}</div>
+        <div class="cal-grid">${celulas}</div>
+        <div class="cal-legenda">
+          <span>menos</span>
+          <span class="cal-dia n0"></span><span class="cal-dia n1"></span><span class="cal-dia n2"></span><span class="cal-dia n3"></span>
+          <span>mais</span><span style="margin-left:6px;">· intensidade pelo tempo estudado</span>
+        </div>
         <p class="conq-presenca">Você estudou em <strong>${cal.em7}</strong> dos últimos 7 dias e em <strong>${cal.em30}</strong> dos últimos 30.</p>
       </div></div>
 
@@ -11644,7 +11714,7 @@ const EvolucaoScreen = {
           </p>
           <div class="badge-grid">
             ${grupo.map(b => `
-              <div class="badge ${b.conquistada ? 'on' : 'off'}">
+              <div class="badge ${b.conquistada ? 'on' : 'off'}" data-badge-idx="${badges.indexOf(b)}" title="Ver todos os níveis">
                 <span class="bi">${b.ico}</span>
                 <div class="bn">${escapeHtml(b.nome)}</div>
                 ${b.nivel ? `<div class="bl">✓ ${escapeHtml(b.nivel)}</div>` : `<div class="bl">ainda não</div>`}
@@ -11652,6 +11722,7 @@ const EvolucaoScreen = {
                 ${(b.prox && b.progresso < 1) ? `<div class="bp"><i style="width:${Math.round(b.progresso * 100)}%"></i></div>
                   <div class="bd" style="margin-top:4px;">próximo: ${escapeHtml(b.prox.rot)} — faltam ${escapeHtml(b.prox.falta)}</div>` : ''}
                 ${b.totalNiveis ? `<div class="bd" style="margin-top:4px;opacity:0.75;">nível ${b.nivelAtual} de ${b.totalNiveis}</div>` : ''}
+                <div class="bmore">${b.totalNiveis ? 'ver níveis ›' : 'ver detalhe ›'}</div>
               </div>`).join('')}
           </div>
         </div></div>`;
@@ -11828,23 +11899,41 @@ const EvolucaoScreen = {
     document.querySelectorAll('.tool-panel').forEach(p => p.classList.toggle('active', p.id === 'tool-estimativa'));
   },
 
-  // ------- Tempo de estudo por dia (barras, com atalho de período) -------
+  // ------- Tempo de estudo por dia (barras, com atalho de período OU intervalo de datas) -------
   tempoDias: 7,
+  tempoStart: null, tempoEnd: null, // [MELHORIA] intervalo de datas personalizado (tem prioridade sobre os atalhos)
   renderDayChart(entries) {
     const container = document.getElementById('evolucao-day-chart');
     const hoje = todayLocal();
-    const start = this.addDaysLocal(hoje, -(this.tempoDias - 1));
-    // agrega minutos por dia dentro da janela do atalho (independe do filtro de data principal)
+    // Se o usuário escolheu um intervalo de datas, ele manda; senão usa o atalho (N dias).
+    const usaRange = !!(this.tempoStart && this.tempoEnd);
+    let start, end, nDias;
+    if (usaRange) {
+      start = this.tempoStart; end = this.tempoEnd;
+      if (start > end) { const t = start; start = end; end = t; }
+      if (end > hoje) end = hoje;
+      nDias = Math.max(1, Math.round((new Date(end + 'T00:00:00') - new Date(start + 'T00:00:00')) / 86400000) + 1);
+    } else {
+      end = hoje; start = this.addDaysLocal(hoje, -(this.tempoDias - 1)); nDias = this.tempoDias;
+    }
+    // reflete o estado nos controles
+    const chipGroup = document.getElementById('evo-tempo-periodo');
+    if (chipGroup) chipGroup.classList.toggle('range-active', usaRange);
+    const clearBtn = document.getElementById('evo-tempo-clear');
+    if (clearBtn) clearBtn.style.display = usaRange ? '' : 'none';
+    const deEl = document.getElementById('evo-tempo-de'); if (deEl) { deEl.value = usaRange ? start : ''; deEl.max = hoje; }
+    const ateEl = document.getElementById('evo-tempo-ate'); if (ateEl) { ateEl.value = usaRange ? end : ''; ateEl.max = hoje; }
+    // agrega minutos por dia dentro da janela (independe do filtro de data principal)
     const src = this._sourceEntries();
     const byDate = {};
-    src.forEach(e => { if (e.date >= start && e.date <= hoje) byDate[e.date] = (byDate[e.date] || 0) + (e.durationMin || 0); });
+    src.forEach(e => { if (e.date >= start && e.date <= end) byDate[e.date] = (byDate[e.date] || 0) + (e.durationMin || 0); });
     // monta a sequência completa de dias
     const days = [];
-    for (let i = 0; i < this.tempoDias; i++) days.push(this.addDaysLocal(start, i));
+    for (let i = 0; i < nDias; i++) days.push(this.addDaysLocal(start, i));
     const maxMin = Math.max(1, ...days.map(d => byDate[d] || 0));
     const totalMin = days.reduce((a, d) => a + (byDate[d] || 0), 0);
     if (totalMin === 0) {
-      container.innerHTML = `<div class="evo-empty-mini">Nenhum tempo registrado nos últimos ${this.tempoDias} dias.</div>`;
+      container.innerHTML = `<div class="evo-empty-mini">Nenhum tempo registrado ${usaRange ? 'no intervalo de ' + formatDateShort(start) + ' a ' + formatDateShort(end) : 'nos últimos ' + nDias + ' dias'}.</div>`;
       return;
     }
     // com muitos dias, mostra rótulo a cada N
@@ -11859,7 +11948,7 @@ const EvolucaoScreen = {
     container.innerHTML = `
       <div class="evo-day-bar-row">${bars}</div>
       <div class="evo-day-axis">${axis}</div>
-      <p class="hint" style="text-align:center; margin-top:10px;">${CycleEngine.fmtHM(totalMin)} em ${this.tempoDias} dias · média de ${CycleEngine.fmtHM(Math.round(totalMin / this.tempoDias))}/dia</p>
+      <p class="hint" style="text-align:center; margin-top:10px;">${CycleEngine.fmtHM(totalMin)} em ${nDias} dias · média de ${CycleEngine.fmtHM(Math.round(totalMin / nDias))}/dia</p>
     `;
   },
 
@@ -11882,10 +11971,8 @@ const EvolucaoScreen = {
     // linhas de referência (metas) desenhadas sobre as barras
     const REFS = metaRefs();
     const refLines = REFS.map(r =>
-      `<div class="acm-ref" style="left:${r.v}%; background:${r.color};"></div>`
+      `<div class="acm-ref" style="left:${r.v}%; background:${r.color};"><span class="acm-ref-tag" style="background:${r.color};">${r.v}%</span></div>`
     ).join('');
-    // régua de metas ACIMA das barras — rótulos escalonados p/ não sobrepor
-    const ruler = `<div class="acm-ruler"><div class="acm-ruler-inner">${REFS.map((r, idx) => `<span class="acm-ruler-lbl ${idx % 2 ? 'lvl1' : ''}" style="left:${r.v}%; background:${r.color};">${r.v}%</span>`).join('')}</div></div>`;
     const bars = rows.map(r => {
       const tone = toneFor(r.pct);
       return `
@@ -11901,7 +11988,7 @@ const EvolucaoScreen = {
     const legend = `<div class="evo-legend" style="padding:14px 0 0;">
       ${REFS.map(r => `<span class="evo-legend-item"><span class="evo-legend-swatch" style="background:${r.color}; width:14px; height:0; border-top:2px dashed ${r.color};"></span>meta ${r.v}%</span>`).join('')}
     </div>`;
-    container.innerHTML = `${ruler}<div class="acm-chart">${bars}</div>${legend}`;
+    container.innerHTML = `<div class="acm-chart">${bars}</div>${legend}`;
   },
 
   // ------- Evolução do aproveitamento no tempo (média geral + por disciplina) -------
@@ -11930,19 +12017,39 @@ const EvolucaoScreen = {
     // remove da seleção o que não existe mais
     [...this.evoLineSubjects].forEach(s => { if (!discNames.includes(s)) this.evoLineSubjects.delete(s); });
 
-    // chips de filtro (Geral fixo + disciplinas)
+    // [MELHORIA 3] Filtro RECOLHÍVEL: botão discreto abre um painel com caixas de seleção,
+    // em vez de deixar a pilha de disciplinas sempre visível poluindo a tela.
+    const nSel = this.evoLineSubjects.size;
+    if (this._evoSfOpen === undefined) this._evoSfOpen = false;
+    const painel = this._evoSfOpen ? `
+      <div class="evo-sf-panel">
+        ${discNames.map((n, i) => {
+          const color = this._palette[(i + 1) % this._palette.length];
+          const on = this.evoLineSubjects.has(n);
+          return `<label class="evo-sf-check"><input type="checkbox" data-subject="${escapeHtml(n)}" ${on ? 'checked' : ''}><span class="evo-sf-dot" style="background:${color}"></span><span>${escapeHtml(n)}</span><span class="evo-sf-vol">${vol[n]} q</span></label>`;
+        }).join('')}
+        <div class="evo-sf-actions">
+          <button type="button" data-sf-action="none">Limpar seleção</button>
+          <button type="button" data-sf-action="close">Fechar</button>
+        </div>
+      </div>` : '';
     filterBox.innerHTML =
-      `<span class="evo-sf-label">Comparar:</span>` +
-      `<button type="button" class="evo-sf-chip is-geral active" disabled><span class="evo-sf-dot" style="background:${this._palette[0]}"></span>Média geral</button>` +
-      discNames.map((n, i) => {
-        const color = this._palette[(i + 1) % this._palette.length];
-        const on = this.evoLineSubjects.has(n);
-        return `<button type="button" class="evo-sf-chip${on ? ' active' : ''}" data-subject="${escapeHtml(n)}" style="--sf-color:${color}"><span class="evo-sf-dot" style="background:${color}"></span>${escapeHtml(n)}</button>`;
-      }).join('');
-    filterBox.querySelectorAll('.evo-sf-chip[data-subject]').forEach(chip => {
-      chip.addEventListener('click', () => {
-        const s = chip.dataset.subject;
-        if (this.evoLineSubjects.has(s)) this.evoLineSubjects.delete(s); else this.evoLineSubjects.add(s);
+      `<button type="button" class="evo-sf-toggle${this._evoSfOpen ? ' open' : ''}" id="evo-sf-toggle-btn">&#127899;&#65039; Comparar disciplinas${nSel ? `<span class="evo-sf-count">${nSel}</span>` : ''}<span class="chev">&#9662;</span></button>` +
+      painel;
+    const tb = document.getElementById('evo-sf-toggle-btn');
+    if (tb) tb.addEventListener('click', () => { this._evoSfOpen = !this._evoSfOpen; this.renderAcertoLinha(entries); });
+    filterBox.querySelectorAll('.evo-sf-check input[data-subject]').forEach(chk => {
+      chk.addEventListener('change', () => {
+        const s = chk.dataset.subject;
+        if (chk.checked) this.evoLineSubjects.add(s); else this.evoLineSubjects.delete(s);
+        this.renderAcertoLinha(entries);
+      });
+    });
+    filterBox.querySelectorAll('[data-sf-action]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const a = btn.getAttribute('data-sf-action');
+        if (a === 'none') this.evoLineSubjects.clear();
+        if (a === 'close') this._evoSfOpen = false;
         this.renderAcertoLinha(entries);
       });
     });
@@ -12062,8 +12169,19 @@ const EvolucaoScreen = {
       legend.innerHTML = '';
       return;
     }
+    // [MELHORIA 4] recorte de período — evita o eixo espremido com muitos retratos
+    const per = this.tecEvoDias || 'all';
+    let usados = snaps;
+    if (per !== 'all') {
+      const lastIso = snaps[snaps.length - 1].date;
+      const cut = new Date(lastIso + 'T00:00:00'); cut.setDate(cut.getDate() - per);
+      const cutIso = `${cut.getFullYear()}-${String(cut.getMonth() + 1).padStart(2, '0')}-${String(cut.getDate()).padStart(2, '0')}`;
+      const f = snaps.filter(s => s.date >= cutIso);
+      usados = f.length >= 2 ? f : snaps.slice(-2);
+    }
+    document.querySelectorAll('#evo-tec-periodo .evo-chip').forEach(bt => bt.classList.toggle('active', String(bt.dataset.tecdays) === String(per)));
     const showDisc = sel.value && sel.value !== '__geral__' ? sel.value : null;
-    const points = snaps.map((s, i) => {
+    const points = usados.map((s, i) => {
       let pct;
       if (showDisc) {
         const d = TecEngine.disciplinas(s).find(x => x.nome === showDisc);
@@ -12279,7 +12397,7 @@ const EvolucaoScreen = {
         ${grid}
         <path d="${areaD}" fill="url(#areaGrad)" />
         <path d="${pathD}" fill="none" stroke="#4f46e5" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
-        ${points.map((p, i) => `<circle cx="${xAt(i)}" cy="${yAt(p.acc)}" r="3" fill="#4f46e5"><title>${formatDateShort(p.date)}: ${CycleEngine.fmtHM(p.acc)}</title></circle>`).join('')}
+        ${points.map((p, i) => `<circle cx="${xAt(i)}" cy="${yAt(p.acc)}" r="3.5" fill="#4f46e5"/><circle cx="${xAt(i)}" cy="${yAt(p.acc)}" r="13" fill="transparent" style="cursor:pointer" data-tip="${formatDateShort(p.date)}: ${CycleEngine.fmtHM(p.acc)} acumuladas"></circle>`).join('')}
         ${labels}${endLabel}${xAxisTitle}
       </svg>
     `;
@@ -12410,18 +12528,74 @@ document.getElementById('evo-scope-toggle').addEventListener('click', (e) => {
   document.querySelectorAll('#evo-scope-toggle button').forEach(b => b.classList.toggle('active', b === btn));
   EvolucaoScreen.render();
 });
+// [MELHORIA 1] Minimizar o cartão de Escopo/filtros — estado salvo por perfil.
+function _evoScopeKey() { try { return DB._profilePrefix() + 'evo-scope-collapsed'; } catch (_) { return 'diario-estudos:evo-scope-collapsed'; } }
+function evoApplyScopeCollapsed(collapsed, persist) {
+  const body = document.getElementById('evo-scope-body');
+  const btn = document.getElementById('evo-scope-collapse');
+  const txt = document.getElementById('evo-scope-collapse-txt');
+  if (!body || !btn) return;
+  body.hidden = collapsed;
+  btn.setAttribute('aria-expanded', collapsed ? 'false' : 'true');
+  if (txt) txt.textContent = collapsed ? 'Mostrar filtros' : 'Ocultar filtros';
+  if (persist) { try { localStorage.setItem(_evoScopeKey(), collapsed ? '1' : '0'); } catch (_) {}
+    try { if (window.CloudStore && CloudStore.notifyChange) CloudStore.notifyChange(); } catch (_) {} }
+}
+(function () { const b = document.getElementById('evo-scope-collapse');
+  if (b) b.addEventListener('click', () => {
+    const collapsed = document.getElementById('evo-scope-collapse').getAttribute('aria-expanded') === 'true';
+    evoApplyScopeCollapsed(collapsed, true);
+  });
+})();
+window.addEventListener('screen:activated', (e) => {
+  if (e.detail && e.detail.screen === 'evolucao') {
+    let c = false; try { c = localStorage.getItem(_evoScopeKey()) === '1'; } catch (_) {}
+    evoApplyScopeCollapsed(c, false);
+  }
+});
 
 // atalho de período do gráfico "Tempo de estudo por dia"
 document.getElementById('evo-tempo-periodo').addEventListener('click', (e) => {
   const btn = e.target.closest('.evo-chip');
   if (!btn) return;
   EvolucaoScreen.tempoDias = parseInt(btn.dataset.days);
+  EvolucaoScreen.tempoStart = null; EvolucaoScreen.tempoEnd = null; // atalho anula o intervalo custom
   document.querySelectorAll('#evo-tempo-periodo .evo-chip').forEach(b => b.classList.toggle('active', b === btn));
   EvolucaoScreen.renderDayChart(EvolucaoScreen._sourceEntries());
 });
+// [MELHORIA] Intervalo de datas personalizado no "Tempo de estudo"
+(function () {
+  const de = document.getElementById('evo-tempo-de');
+  const ate = document.getElementById('evo-tempo-ate');
+  const clear = document.getElementById('evo-tempo-clear');
+  const apply = () => {
+    const dv = de && de.value, av = ate && ate.value;
+    if (dv && av) {
+      EvolucaoScreen.tempoStart = dv; EvolucaoScreen.tempoEnd = av;
+      EvolucaoScreen.renderDayChart(EvolucaoScreen._sourceEntries());
+    } else if (dv || av) {
+      // com só uma data definida, ainda não filtra; espera a outra
+      EvolucaoScreen.tempoStart = dv || null; EvolucaoScreen.tempoEnd = av || null;
+    }
+  };
+  if (de) de.addEventListener('change', apply);
+  if (ate) ate.addEventListener('change', apply);
+  if (clear) clear.addEventListener('click', () => {
+    EvolucaoScreen.tempoStart = null; EvolucaoScreen.tempoEnd = null;
+    EvolucaoScreen.renderDayChart(EvolucaoScreen._sourceEntries());
+  });
+})();
 
 // seletor de disciplina do gráfico "Evolução no TecConcursos"
 document.getElementById('evo-tec-disc').addEventListener('change', () => EvolucaoScreen.renderTecChart());
+// [MELHORIA 4] seletor de período do gráfico "Evolução no TecConcursos"
+document.getElementById('evo-tec-periodo').addEventListener('click', (e) => {
+  const b = e.target.closest('.evo-chip'); if (!b) return;
+  const v = b.dataset.tecdays;
+  EvolucaoScreen.tecEvoDias = (v === 'all') ? 'all' : parseInt(v);
+  document.querySelectorAll('#evo-tec-periodo .evo-chip').forEach(x => x.classList.toggle('active', x === b));
+  EvolucaoScreen.renderTecChart();
+});
 
 // modo do gráfico "Evolução do aproveitamento" (semanal x acumulada)
 ['evo-line-mode-week', 'evo-line-mode-cum'].forEach(id => {
@@ -12469,8 +12643,15 @@ const EstudoNovoScreen = {
   renderSubjectList(subjects) {
     const listEl = document.getElementById('en-subject-list');
     const q = this.subjectFilter.toLowerCase();
-    // ordena por ordem alfabética (pt-BR, ignorando acentos/caixa)
-    const ordered = subjects.slice().sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR', { sensitivity: 'base' }));
+    // Ordena colocando PRIMEIRO as matérias que já têm aulas cadastradas (as com
+    // trilha montada aparecem no topo), e dentro de cada grupo mantém a ordem
+    // alfabética (pt-BR, ignorando acentos/caixa).
+    const ordered = subjects.slice().sort((a, b) => {
+      const ha = DB.getTrack(a.nome).some(i => i.type === 'aula');
+      const hb = DB.getTrack(b.nome).some(i => i.type === 'aula');
+      if (ha !== hb) return ha ? -1 : 1;
+      return a.nome.localeCompare(b.nome, 'pt-BR', { sensitivity: 'base' });
+    });
     const filtered = q ? ordered.filter(s => s.nome.toLowerCase().includes(q)) : ordered;
 
     if (filtered.length === 0) {
@@ -14678,58 +14859,67 @@ const ExtrasScreen = {
   },
   // Puxa os assuntos prioritários do Plano de pontos fracos, com a meta já calculada
   puxarDoPlano() {
-    // const de topo NÃO vive em window — testar por typeof, não por window.X
     if (typeof PlanoEngine === 'undefined' || typeof DesempenhoTecScreen === 'undefined') { showToast('Plano indisponível'); return; }
-    // Aqui ignoramos o filtro de disciplina do Plano: nesta tela você escolhe
-    // livremente entre TODAS as matérias, com um filtro próprio dentro do diálogo.
-    const r = PlanoEngine.calcular(DesempenhoTecScreen.scopedSnapshot(),
-      Object.assign({}, PlanoEngine.prefs(), { disciplina: '__todas__', limite: 200 }));
-    if (!r || r.erro) {
-      showToast(r && r.erro === 'sem-retrato'
+    // guarda o estado do diálogo: prioridade (ordenação) e disciplinas marcadas
+    this._planoOrd = this._planoOrd || 'pior';
+    this._planoDiscSel = this._planoDiscSel || new Set(); // vazio = todas
+    this._planoDiscOpen = false;
+    this._planoSel = new Set();
+    // recomputa os candidatos com a ordenação escolhida (aproveita o motor do Plano)
+    this._planoRecalc = () => {
+      const r = PlanoEngine.calcular(DesempenhoTecScreen.scopedSnapshot(),
+        Object.assign({}, PlanoEngine.prefs(), { disciplina: '__todas__', limite: 200, ordenar: this._planoOrd }));
+      if (!r || r.erro) { this._planoCand = null; this._planoErr = (r && r.erro) || 'erro'; return; }
+      const jaTem = new Set(DB.getExtras().filter(e => e.origemPlano).map(e => ReforcoEngine.norm(e.origemPlano.topico)));
+      this._planoCand = []
+        .concat((r.itens || []).map(x => ({ ...x, motivo: 'reforco', alvo: x.custoQ })))
+        .concat((r.pequenas || []).map(x => ({ ...x, motivo: 'diagnostico', alvo: x.faltaAmostra })))
+        .filter(x => !jaTem.has(ReforcoEngine.norm(x.nome)));
+      this._planoErr = null;
+    };
+    this._planoRecalc();
+    if (this._planoErr) {
+      showToast(this._planoErr === 'sem-retrato'
         ? 'Importe um retrato do TEC em Desempenho TEC → Análise'
         : 'Sem dados suficientes no Plano ainda');
       return;
     }
-    const jaTem = new Set(DB.getExtras().filter(e => e.origemPlano)
-      .map(e => ReforcoEngine.norm(e.origemPlano.topico)));
-    const cand = []
-      .concat((r.itens || []).map(x => ({ ...x, motivo: 'reforco', alvo: x.custoQ })))
-      .concat((r.pequenas || []).map(x => ({ ...x, motivo: 'diagnostico', alvo: x.faltaAmostra })))
-      .filter(x => !jaTem.has(ReforcoEngine.norm(x.nome)));
-    if (!cand.length) { showToast('Todos os assuntos prioritários já têm atividade'); return; }
-    const discs = [...new Set(cand.map(x => x.disciplina).filter(Boolean))].sort();
-    // Filtro por matéria com seleção MÚLTIPLA: cada chip liga/desliga uma matéria.
-    // Um <select> comum só permitia uma por vez ou todas.
-    const filtro = `
-      <div style="margin:0 0 10px;">
-        <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px;" id="pl-chips">
-          <button type="button" class="pl-fchip ativo" data-disc="__todas__">📚 Todas (${cand.length})</button>
-          ${discs.map(d => `<button type="button" class="pl-fchip" data-disc="${escapeHtml(d)}">${escapeHtml(d)} (${cand.filter(x => x.disciplina === d).length})</button>`).join('')}
+    if (!this._planoCand.length) { showToast('Todos os assuntos prioritários já têm atividade'); return; }
+    // marca os 3 primeiros por padrão
+    this._planoCand.forEach((_, i) => { if (i < 3) this._planoSel.add(i); });
+
+    const ORDENS = [
+      ['pior', '🔴 Pior acerto primeiro'],
+      ['banca', '🎯 Prioridade na banca'],
+      ['rendimento', '⚡ Melhor retorno'],
+      ['queda', '📉 Maior queda recente'],
+      ['volume', '📚 Mais questões resolvidas']
+    ];
+    const temInc = window.ReforcoEngine && ReforcoEngine.hasIncidencia && ReforcoEngine.hasIncidencia();
+
+    // HTML fixo do diálogo (a lista e o dropdown de disciplinas são preenchidos por JS)
+    const body = `
+      <p class="hint" style="margin:0 0 10px;">Cada item vira uma atividade de questões com a meta já calculada. Ao importar o próximo retrato do TEC, o Plano avisa se o assunto saiu da lista.</p>
+      <div class="pl-modal-tools">
+        <label class="pl-modal-field">
+          <span>Prioridade</span>
+          <select id="pl-ordenar">
+            ${ORDENS.map(o => `<option value="${o[0]}" ${o[0] === this._planoOrd ? 'selected' : ''} ${o[0] === 'banca' && !temInc ? 'disabled' : ''}>${o[1]}${o[0] === 'banca' && !temInc ? ' (importe a incidência)' : ''}</option>`).join('')}
+          </select>
+        </label>
+        <div class="pl-modal-field" style="position:relative;">
+          <span>Disciplinas</span>
+          <button type="button" class="pl-disc-toggle" id="pl-disc-toggle">Todas <span class="chev">▾</span></button>
+          <div class="pl-disc-panel" id="pl-disc-panel" style="display:none;"></div>
         </div>
-        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
-          <span class="hint" id="pl-conta" style="margin:0;flex:1;min-width:0;"></span>
-          <button type="button" class="btn-secondary" id="pl-marcar" style="white-space:nowrap;">Marcar visíveis</button>
-          <button type="button" class="btn-secondary" id="pl-limpar" style="white-space:nowrap;">Limpar</button>
-        </div>
-      </div>`;
-    const linhas = cand.map((x, i) => `
-      <label class="sug-row pl-linha" data-disc="${escapeHtml(x.disciplina || '')}" style="align-items:flex-start;">
-        <input type="checkbox" class="pl-pick" data-i="${i}" ${i < 3 ? 'checked' : ''}>
-        <div style="min-width:0;">
-          <div style="font-weight:700;">${escapeHtml(x.nome)}</div>
-          <div class="hint" style="margin:2px 0 0;">
-            ${x.disciplina ? escapeHtml(x.disciplina) + ' · ' : ''}
-            ${x.taxa != null ? x.taxa.toFixed(0) + '% de acerto' : 'sem taxa'} em ${x.qJanela} questões ·
-            ${x.motivo === 'diagnostico'
-              ? `<strong>diagnóstico</strong>: resolver ${x.alvo} para saber onde está`
-              : `<strong>reforço</strong>: ${x.alvo} questões · +${x.ganhoPP.toFixed(1)}pp de domínio`}
-          </div>
-        </div>
-      </label>`).join('');
-    UI._resolve = null; UI._mode = 'confirm';
-    const body = `<p class="hint" style="margin:0 0 12px;">Cada item vira uma atividade de questões com a meta já calculada.
-      Ao importar o próximo retrato do TEC, o Plano avisa se o assunto saiu da lista.</p>
-      ${filtro}<div style="max-height:44vh;overflow:auto;" id="pl-lista">${linhas}</div>`;
+      </div>
+      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:0 0 8px;">
+        <span class="hint" id="pl-conta" style="margin:0;flex:1;min-width:0;"></span>
+        <button type="button" class="btn-secondary" id="pl-marcar" style="white-space:nowrap;padding:5px 10px;">Marcar visíveis</button>
+        <button type="button" class="btn-secondary" id="pl-limpar" style="white-space:nowrap;padding:5px 10px;">Limpar</button>
+      </div>
+      <div style="max-height:42vh;overflow:auto;" id="pl-lista"></div>`;
+
     new Promise((resolve) => {
       UI._resolve = resolve; UI._mode = 'confirm';
       UI._open('🏁 Puxar do Plano', 'Assuntos prioritários com meta pronta', body, { okText: 'Criar atividades' });
@@ -14749,75 +14939,135 @@ const ExtrasScreen = {
       this.render();
       showToast(n ? n + ' atividade(s) criada(s) ✓' : 'Nenhuma selecionada');
     });
-    // guarda a seleção viva enquanto o diálogo está aberto
-    this._planoCand = cand;
-    this._planoSel = new Set(cand.map((_, i) => i).filter(i => i < 3));
-    setTimeout(() => {
-      const linhasEl = [...document.querySelectorAll('#ui-modal .pl-linha')];
-      linhasEl.forEach(l => {
-        const cb = l.querySelector('.pl-pick');
-        if (cb) cb.addEventListener('change', () => {
-          const i = parseInt(cb.dataset.i);
-          if (cb.checked) this._planoSel.add(i); else this._planoSel.delete(i);
-          aplicar();
-        });
-      });
-      const visiveis = () => linhasEl.filter(l => l.style.display !== 'none');
-      const chips = [...document.querySelectorAll('#ui-modal .pl-fchip')];
-      const sel = new Set();                       // vazio = todas
-      const conta = document.getElementById('pl-conta');
-      const aplicar = () => {
-        linhasEl.forEach(l => {
-          l.style.display = (sel.size === 0 || sel.has(l.dataset.disc)) ? '' : 'none';
-        });
-        chips.forEach(c => {
-          const todas = c.dataset.disc === '__todas__';
-          c.classList.toggle('ativo', todas ? sel.size === 0 : sel.has(c.dataset.disc));
-        });
-        const v = visiveis().length;
-        const marcados = this._planoSel ? this._planoSel.size : 0;
-        // mostra quantos estão SELECIONADOS no total, inclusive em matérias ocultas —
-        // senão você filtraria por 2 matérias e criaria uma atividade de uma terceira
-        const ocultos = linhasEl.filter(l => l.style.display === 'none' && l.querySelector('.pl-pick').checked).length;
-        if (conta) conta.innerHTML = (sel.size === 0
-          ? `${v} assunto(s) · toque nas matérias para filtrar`
-          : `${v} assunto(s) em ${sel.size} matéria(s)`)
-          + ` · <strong>${marcados} marcado(s)</strong>`
-          + (ocultos ? ` <span style="color:var(--warn-text);font-weight:700;">(${ocultos} fora do filtro)</span>` : '');
-      };
-      chips.forEach(c => c.addEventListener('click', () => {
-        const d = c.dataset.disc;
-        if (d === '__todas__') sel.clear();
-        else { sel.has(d) ? sel.delete(d) : sel.add(d); }
-        aplicar();
+
+    // liga a interface do diálogo depois de renderizado
+    setTimeout(() => this._planoBind(), 40);
+  },
+  // Preenche a lista de assuntos do diálogo conforme o filtro de disciplinas atual.
+  _planoRenderLista() {
+    const host = document.getElementById('pl-lista');
+    if (!host) return;
+    const sel = this._planoDiscSel;
+    const cand = this._planoCand || [];
+    const visiveis = cand
+      .map((x, i) => ({ x, i }))
+      .filter(({ x }) => sel.size === 0 || sel.has(x.disciplina || ''));
+    host.innerHTML = visiveis.length ? visiveis.map(({ x, i }) => `
+      <label class="sug-row pl-linha" style="align-items:flex-start;">
+        <input type="checkbox" class="pl-pick" data-i="${i}" ${this._planoSel.has(i) ? 'checked' : ''}>
+        <div style="min-width:0;">
+          <div style="font-weight:700;">${escapeHtml(x.nome)}</div>
+          <div class="hint" style="margin:2px 0 0;">
+            ${x.disciplina ? escapeHtml(x.disciplina) + ' · ' : ''}
+            ${x.taxa != null ? x.taxa.toFixed(0) + '% de acerto' : 'sem taxa'} em ${x.qJanela} questões
+            ${(x.incid > 0) ? ' · 🎯 incidência ' + x.incid : ''} ·
+            ${x.motivo === 'diagnostico'
+              ? `<strong>diagnóstico</strong>: resolver ${x.alvo} para saber onde está`
+              : `<strong>reforço</strong>: ${x.alvo} questões · +${x.ganhoPP.toFixed(1)}pp de domínio`}
+          </div>
+        </div>
+      </label>`).join('') : `<p class="hint" style="padding:16px 4px;">Nenhum assunto nas disciplinas selecionadas.</p>`;
+    host.querySelectorAll('.pl-pick').forEach(cb => cb.addEventListener('change', () => {
+      const i = parseInt(cb.dataset.i);
+      if (cb.checked) this._planoSel.add(i); else this._planoSel.delete(i);
+      this._planoUpdConta();
+    }));
+    this._planoUpdConta();
+  },
+  _planoUpdConta() {
+    const conta = document.getElementById('pl-conta');
+    if (!conta) return;
+    const sel = this._planoDiscSel;
+    const cand = this._planoCand || [];
+    const vis = cand.filter(x => sel.size === 0 || sel.has(x.disciplina || '')).length;
+    const marcados = this._planoSel ? this._planoSel.size : 0;
+    conta.innerHTML = (sel.size === 0 ? `${vis} assunto(s)` : `${vis} assunto(s) em ${sel.size} disciplina(s)`)
+      + ` · <strong>${marcados} marcado(s)</strong>`;
+  },
+  // Monta o dropdown de disciplinas (com contagem de pontos fracos) e liga tudo.
+  _planoBind() {
+    const cand = this._planoCand || [];
+    // disciplinas com contagem
+    const cont = {};
+    cand.forEach(x => { const d = x.disciplina || '—'; cont[d] = (cont[d] || 0) + 1; });
+    const discs = Object.keys(cont).sort((a, b) => cont[b] - cont[a] || a.localeCompare(b, 'pt-BR'));
+    const panel = document.getElementById('pl-disc-panel');
+    const toggle = document.getElementById('pl-disc-toggle');
+    const setToggleLabel = () => {
+      const n = this._planoDiscSel.size;
+      if (toggle) toggle.firstChild.textContent = (n === 0 ? 'Todas ' : n + ' selecionada' + (n > 1 ? 's ' : ' '));
+    };
+    if (panel) {
+      panel.innerHTML = discs.map(d => `
+        <label class="pl-disc-check">
+          <input type="checkbox" data-disc="${escapeHtml(d)}" ${this._planoDiscSel.has(d) ? 'checked' : ''}>
+          <span class="pl-disc-name">${escapeHtml(d)}</span>
+          <span class="pl-disc-count">${cont[d]}</span>
+        </label>`).join('') + `
+        <div class="pl-disc-actions">
+          <button type="button" data-act="all">Todas</button>
+        </div>`;
+      panel.querySelectorAll('input[data-disc]').forEach(chk => chk.addEventListener('change', () => {
+        const d = chk.dataset.disc;
+        if (chk.checked) this._planoDiscSel.add(d); else this._planoDiscSel.delete(d);
+        setToggleLabel();
+        this._planoRenderLista();
       }));
-      aplicar();
-      const marcar = document.getElementById('pl-marcar');
-      if (marcar) marcar.addEventListener('click', () => {
-        visiveis().forEach(l => {
-          const cb = l.querySelector('.pl-pick'); if (cb && !cb.checked) { cb.checked = true; this._planoSel.add(parseInt(cb.dataset.i)); }
-        });
-        aplicar();
+      const allBtn = panel.querySelector('[data-act="all"]');
+      if (allBtn) allBtn.addEventListener('click', () => {
+        this._planoDiscSel.clear();
+        panel.querySelectorAll('input[data-disc]').forEach(c => c.checked = false);
+        setToggleLabel(); this._planoRenderLista();
       });
-      const limpar = document.getElementById('pl-limpar');
-      if (limpar) limpar.addEventListener('click', () => {
-        linhasEl.forEach(l => {
-          const cb = l.querySelector('.pl-pick'); if (cb && cb.checked) { cb.checked = false; this._planoSel.delete(parseInt(cb.dataset.i)); }
-        });
-        aplicar();
-      });
-    }, 40);
+    }
+    if (toggle) toggle.addEventListener('click', () => {
+      this._planoDiscOpen = !this._planoDiscOpen;
+      if (panel) panel.style.display = this._planoDiscOpen ? 'block' : 'none';
+      toggle.classList.toggle('open', this._planoDiscOpen);
+    });
+    setToggleLabel();
+    // seletor de prioridade → recomputa e repinta
+    const ord = document.getElementById('pl-ordenar');
+    if (ord) ord.addEventListener('change', () => {
+      this._planoOrd = ord.value;
+      this._planoRecalc();
+      // mantém as marcações por NOME do assunto ao reordenar
+      const marcadosNomes = new Set([...this._planoSel].map(i => (cand[i] || {}).nome).filter(Boolean));
+      this._planoSel = new Set();
+      (this._planoCand || []).forEach((x, i) => { if (marcadosNomes.has(x.nome)) this._planoSel.add(i); });
+      // atualiza o dropdown de disciplinas (a contagem pode mudar) e a lista
+      this._planoBind();
+      this._planoRenderLista();
+    });
+    // marcar visíveis / limpar
+    const marcar = document.getElementById('pl-marcar');
+    if (marcar) marcar.addEventListener('click', () => {
+      const sel = this._planoDiscSel;
+      (this._planoCand || []).forEach((x, i) => { if (sel.size === 0 || sel.has(x.disciplina || '')) this._planoSel.add(i); });
+      this._planoRenderLista();
+    });
+    const limpar = document.getElementById('pl-limpar');
+    if (limpar) limpar.addEventListener('click', () => { this._planoSel.clear(); this._planoRenderLista(); });
+    this._planoRenderLista();
   },
   cardHtml(x) {
     const t = this.TIPOS[x.tipo] || this.TIPOS.livre;
-    const recorrente = x.periodo === 'diaria' || x.periodo === 'semanal';
-    // metas recorrentes: a barra mostra o PERÍODO ATUAL (hoje / últimos 7 dias)
+    const encerrada = DB.extraEncerrada(x);
+    const recorrente = DB.extraRecorrente(x) && !encerrada;
+    // metas recorrentes: a barra mostra o PERÍODO ATUAL; encerrada mostra o total acumulado
     const feito = recorrente ? DB.extraProgressoPeriodo(x) : (x.progresso || 0);
     const alvo = parseFloat(x.alvo) || 0;
     const done = alvo > 0 && feito >= alvo;
     const pct = alvo > 0 ? Math.min(100, Math.round((feito / alvo) * 100)) : 0;
-    const recTxt = x.periodo === 'diaria' ? 'diária' : x.periodo === 'semanal' ? 'semanal' : null;
-    const escopo = recorrente ? (x.periodo === 'diaria' ? 'hoje' : 'nos últimos 7 dias') : '';
+    const REC_NOME = { diaria: 'diária', semanal: 'semanal', quinzenal: 'quinzenal', mensal: 'mensal' };
+    const REC_ESCOPO = { diaria: 'hoje', semanal: 'nesta semana', quinzenal: 'na quinzena', mensal: 'neste mês' };
+    const recTxt = DB.extraRecorrente(x) ? REC_NOME[x.periodo] : null;
+    const escopo = recorrente ? (REC_ESCOPO[x.periodo] || '') : '';
+    const fimTag = (x.dataFim)
+      ? (encerrada
+          ? `<span class="extra-tag" style="background:var(--surface-sunken);color:var(--text-faint);border-style:dashed;">✔ recorrência encerrada em ${escapeHtml(formatDateShort(x.dataFim))}</span>`
+          : `<span class="extra-tag" title="A recorrência para de reiniciar depois desta data">⏳ até ${escapeHtml(formatDateShort(x.dataFim))}</span>`)
+      : '';
     return `
       <div class="extra-card ${x.status === 'concluida' ? 'is-done' : ''}" data-id="${x.id}">
         <div class="extra-head">
@@ -14828,6 +15078,7 @@ const ExtrasScreen = {
               <span class="extra-tag">${t.nome}</span>
               ${x.disciplina ? `<span class="extra-tag disc">${escapeHtml(x.disciplina)}</span>` : ''}
               ${recTxt ? `<span class="extra-tag rec">🔁 ${recTxt}</span>` : ''}
+              ${fimTag}
               ${x.tipo === 'leitura' && x.marcador ? `<span class="extra-tag pin">📌 parei em: ${escapeHtml(x.marcador)}</span>` : ''}
               <span class="extra-tag ${x.contaMetricas ? 'count-on' : 'count-off'}">${x.contaMetricas ? '📊 conta nas métricas' : 'fora das métricas'}</span>
             </div>
@@ -14926,7 +15177,7 @@ const ExtrasScreen = {
     // datalist de disciplinas
     const discs = [...new Set([...DB.getActiveSubjects().map(s => s.nome), ...DB.getIncidencia().map(r => r.disciplina)].filter(Boolean))].sort();
     document.getElementById('extra-disc-list').innerHTML = discs.map(d => `<option value="${escapeHtml(d)}">`).join('');
-    let x = { titulo: '', tipo: 'anki', disciplina: '', alvo: '', unidade: 'cards', periodo: 'unica', marcador: '', contaMetricas: true };
+    let x = { titulo: '', tipo: 'anki', disciplina: '', alvo: '', unidade: 'cards', periodo: 'unica', dataFim: '', marcador: '', contaMetricas: true };
     if (isEdit) x = Object.assign(x, DB.getExtra(id));
     else if (isConfig) x = Object.assign(x, prefill);
     // ajusta o texto do botão salvar conforme o contexto
@@ -14937,9 +15188,11 @@ const ExtrasScreen = {
     document.getElementById('extra-alvo').value = x.alvo || '';
     document.getElementById('extra-unidade').value = x.unidade;
     document.getElementById('extra-periodo').value = x.periodo;
+    const dfEl = document.getElementById('extra-datafim'); if (dfEl) dfEl.value = x.dataFim || '';
     document.getElementById('extra-marcador').value = x.marcador || '';
     document.getElementById('extra-conta').checked = x.contaMetricas !== false;
     this.onTipoChange(true); // mostra/oculta o campo marcador
+    this.onPeriodoChange();  // mostra/oculta o campo de fim da recorrência
     document.getElementById('extra-modal').style.display = 'flex';
     setTimeout(() => document.getElementById('extra-titulo').focus(), 50);
   },
@@ -14952,6 +15205,14 @@ const ExtrasScreen = {
     const mf = document.getElementById('extra-marcador-field');
     if (mf) mf.style.display = (tipo === 'leitura') ? 'block' : 'none';
   },
+  // o campo "Fim da recorrência" só faz sentido quando a atividade é recorrente
+  onPeriodoChange() {
+    const per = document.getElementById('extra-periodo').value;
+    const recorrente = (per === 'diaria' || per === 'semanal' || per === 'quinzenal' || per === 'mensal');
+    const f = document.getElementById('extra-datafim-field');
+    if (f) f.style.display = recorrente ? 'block' : 'none';
+    if (!recorrente) { const dfEl = document.getElementById('extra-datafim'); if (dfEl) dfEl.value = ''; }
+  },
   save() {
     const titulo = document.getElementById('extra-titulo').value.trim();
     if (!titulo) { showToast('Dê um título à atividade'); return; }
@@ -14962,6 +15223,7 @@ const ExtrasScreen = {
       alvo: document.getElementById('extra-alvo').value,
       unidade: document.getElementById('extra-unidade').value,
       periodo: document.getElementById('extra-periodo').value,
+      dataFim: document.getElementById('extra-datafim') ? document.getElementById('extra-datafim').value : '',
       marcador: document.getElementById('extra-marcador').value,
       contaMetricas: document.getElementById('extra-conta').checked
     };
@@ -15246,6 +15508,7 @@ window.ExtrasScreen = ExtrasScreen;
   on('extra-save', 'click', () => ExtrasScreen.save());
   on('extra-del-btn', 'click', () => ExtrasScreen.deleteCurrent());
   on('extra-tipo', 'change', () => ExtrasScreen.onTipoChange());
+  on('extra-periodo', 'change', () => ExtrasScreen.onPeriodoChange());
   on('extras-global-toggle', 'click', () => {
     DB.setExtrasCountGlobal(!DB.extrasCountGlobal());
     document.getElementById('extras-global-toggle').classList.toggle('on', DB.extrasCountGlobal());
@@ -17035,43 +17298,20 @@ const DesempenhoTecScreen = {
       const desdeAtiv = (x.extra && x.extra.origemPlano && x.extra.origemPlano.taxaInicial != null && x.taxa != null)
         ? `<span class="reforco-tag ${x.taxa - x.extra.origemPlano.taxaInicial >= 0 ? 'tone-good' : 'tone-bad'}" title="Evolução desde que você criou a atividade em ${escapeHtml(formatDateShort(x.extra.origemPlano.criadoEm))}">desde a atividade ${x.extra.origemPlano.taxaInicial.toFixed(0)}→${x.taxa.toFixed(0)}%</span>` : '';
       const marca = (i === r.idxMeta) ? `<div class="pl-marco">🏁 Daqui para cima já basta para chegar a ${r.meta}% de domínio</div>` : '';
-      // Direção curta (onde ir), sempre visível — derivada da faixa de acerto.
-      const faltaMeta = Math.max(0, r.meta - x.taxa);
-      let dir, dirTom;
-      if (x.taxa < r.faixaFragil) { dirTom = 'bad'; dir = 'Retome a teoria e volte às questões pelo caminho do erro.'; }
-      else if (x.taxa < r.meta) { dirTom = 'warn'; dir = 'Faltam ' + faltaMeta.toFixed(0) + ' pts: resolva questões e revise só o que errar.'; }
-      else if (x.status.rot.indexOf('Consolidado') >= 0) { dirTom = 'good'; dir = 'Sustentado — só revisão espaçada leve.'; }
-      else { dirTom = 'warn'; dir = 'Passou da meta há pouco: mantenha um volume pequeno até fixar.'; }
-      // Caixinhas numéricas (leitura rápida do status).
-      const metricas = `
-        <div class="pl-metrics">
-          <div class="plm"><b class="tone-${x.conf.tom}">${x.taxa.toFixed(0)}%</b><span>acerto${x.margem != null ? ' ±' + x.margem.toFixed(0) : ''}</span></div>
-          <div class="plm"><b class="tone-${dirTom}">${faltaMeta > 0 ? faltaMeta.toFixed(0) : '✓'}</b><span>pts p/ meta</span></div>
-          <div class="plm"><b>${x.custoQ}</b><span>questões (custo)</span></div>
-          <div class="plm"><b>${x.qJanela}</b><span>na amostra</span></div>
-        </div>`;
-      // Guia expansível (orientação completa) — aberta nos primeiros itens.
-      const abreGuia = (r.idxMeta < 0 || i <= Math.max(r.idxMeta, 2));
-      const guia = `
-        <details class="pl-guia" ${abreGuia ? 'open' : ''}>
-          <summary>💡 Como estudar este assunto <span class="chev">▾</span></summary>
-          <div class="pl-guia-body">
-            <p class="pl-acao">${escapeHtml(x.status.acao)}</p>
-            <p class="pl-base">Máximo realista ${r.teto}% · faltam <b>${(r.teto - x.taxa).toFixed(0)} pts</b> até lá · medido em <b>${x.qJanela}</b> questões${x.diasJanela ? ' dos últimos <b>' + x.diasJanela + '</b> dias' : ''}${x.qHist > x.qJanela ? ' (de <b>' + x.qHist + '</b> no total)' : ''}.</p>
-          </div>
-        </details>`;
+      const mostraAcao = (r.idxMeta < 0 || i <= Math.max(r.idxMeta, 2));
       return `
         <div class="pl-item">
           <div class="pl-rank">${i + 1}</div>
           <div class="pl-nome">${escapeHtml(x.nome)}</div>
           <div class="pl-ganho">
             <b>+${x.ganhoPP.toFixed(1)}pp</b>
-            <span>domínio → ${x.acumulado.toFixed(1)}%</span>
+            <span>domínio vai a ${x.acumulado.toFixed(1)}%</span>
           </div>
           <div class="pl-corpo">
             ${x.disciplina ? `<div class="pl-disc">${escapeHtml(x.disciplina)}</div>` : ''}
             <div class="pl-tags">
               <span class="reforco-tag tone-${x.status.tom}" title="${x.status.seq != null ? x.status.seq + ' importação(ões) seguidas na meta' : 'Faixa de acerto'}">${x.status.rot}${x.status.seq ? ' ' + x.status.seq + '×' : ''}</span>
+              <span class="reforco-tag tone-${x.conf.tom}" title="Acerto e margem de erro a 95% · amostra de ${x.qJanela} questões">${x.taxa.toFixed(0)}%${x.margem != null ? ' ±' + x.margem.toFixed(0) + 'pp' : ''}</span>
               ${(x.incid > 0) ? `<span class="reforco-tag incid" title="Incidência na banca ${escapeHtml(r.banca === '__todas__' ? 'selecionada' : r.banca)}: aparece bastante na prova">🎯 incidência ${x.incid}</span>` : ''}
               ${seta}${desdeAtiv}
               ${x.vencido ? `<span class="reforco-tag tone-bad" title="Sem medição nova — a taxa pode não refletir você hoje">⏳ ${x.diasDesdeMedicao}d</span>` : ''}
@@ -17079,10 +17319,11 @@ const DesempenhoTecScreen = {
             <div class="pl-medidor" title="${x.taxa.toFixed(0)}% de acerto · marcador no máximo realista de ${r.teto}%">
               <i style="width:${Math.min(100, x.taxa)}%"></i><u style="left:${Math.min(100, r.teto)}%"></u>
             </div>
-            <p class="pl-direcao tone-${dirTom}"><span class="seta">➜</span><span>${dir}</span></p>
-            ${metricas}
-            ${guia}
+            ${mostraAcao ? `<p class="pl-acao">${escapeHtml(x.status.acao)}</p>` : ''}
             <div class="pl-rodape">
+              <p class="pl-base">
+                faltam <b>${(r.teto - x.taxa).toFixed(0)} pontos</b> até o máximo · medido em <b>${x.qJanela}</b> questões${x.diasJanela ? ' dos últimos <b>' + x.diasJanela + '</b> dias' : ''}${x.qHist > x.qJanela ? ' (de <b>' + x.qHist + '</b> no total)' : ''} · custo estimado: <b>${x.custoQ}</b> questões
+              </p>
               ${x.extra
                 ? `<span class="reforco-tag ${x.extraConcluida ? 'tone-good' : 'incid'}">${x.extraConcluida ? '✓ meta batida' : '▶ ' + x.extraFeito + '/' + x.extraAlvo}</span>`
                 : `<button type="button" class="btn-secondary plano-nova-extra" style="padding:6px 12px;font-size:calc(11px * var(--fs-scale,1));white-space:nowrap;" data-topico="${escapeHtml(x.nome)}"
@@ -19246,10 +19487,10 @@ const GraficoTip = {
   }
 };
 GraficoTip.init();
-/* Navegação do calendário mensal de presença (delegação única) */
+// [MELHORIA 5] Clique no cartão de conquista abre o modal de níveis.
 document.addEventListener('click', (e) => {
-  const b = e.target.closest ? e.target.closest('#conq-cal-body [data-cal]') : null;
-  if (b && window.EvolucaoScreen) EvolucaoScreen._navCal(b.dataset.cal);
+  const card = e.target.closest ? e.target.closest('#conquistas-body .badge[data-badge-idx]') : null;
+  if (card && window.EvolucaoScreen) EvolucaoScreen.abrirNiveisModal(parseInt(card.dataset.badgeIdx));
 });
 
 /* ---- Alternador de tema claro/escuro (preferência do dispositivo) ---- */
