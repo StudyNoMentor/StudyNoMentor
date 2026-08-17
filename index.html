@@ -18739,7 +18739,63 @@ window.CloudUI = CloudUI;
   });
   on('profile-chip-switch', 'click', () => ProfileUI.switchProfile());
   on('mobile-profile-btn', 'click', () => ProfileUI.switchProfile());
-  const imp = document.getElementById('profile-import-btn'); if (imp) imp.style.display = 'none';
+  // Importar perfil de um backup: o botão existia no HTML mas ficava escondido e
+  // sem nenhum clique ligado — a função ProfileManager.importProfile nunca era
+  // alcançável pela interface. Importar cria SEMPRE um perfil novo, nunca
+  // sobrescreve um existente.
+  on('profile-import-btn', 'click', () => {
+    const inp = document.getElementById('profile-import-file');
+    if (inp) { inp.value = ''; inp.click(); }
+  });
+  on('profile-import-file', 'change', (e) => {
+    const file = e.target.files && e.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = async () => {
+      let obj;
+      try { obj = JSON.parse(reader.result); }
+      catch (_) { showToast('⚠ Arquivo inválido: não é um JSON válido.'); return; }
+      if (!ProfileManager.validateBackup(obj)) {
+        showToast('⚠ Este arquivo não é um backup do Diário de Estudos.'); return;
+      }
+      const qtd = Object.keys(obj.data || {}).length;
+      if (!qtd) { showToast('⚠ Este backup está vazio — não há dados para importar.'); return; }
+      const nomeOrig = (obj.profile && obj.profile.nome) || 'Perfil importado';
+      const quando = obj.exportedAt ? formatDateShort(obj.exportedAt.slice(0, 10)) : 'data desconhecida';
+      const ok = await UI.confirm(
+        `Importar o perfil "${escapeHtml(nomeOrig)}"?\n\nBackup de ${quando} · ${qtd} conjunto(s) de dados.\n\nSerá criado um perfil NOVO. Nenhum perfil existente é alterado.`,
+        { title: '⭱ Importar perfil', okText: 'Importar' });
+      if (!ok) return;
+      try {
+        // Se já existe um perfil com o mesmo nome, diferencia — dois cards
+        // idênticos na tela de seleção seriam impossíveis de distinguir.
+        const existentes = ProfileManager.getProfiles().map(p => (p.nome || '').trim().toLowerCase());
+        let nomeFinal = nomeOrig.trim();
+        if (existentes.includes(nomeFinal.toLowerCase())) {
+          const sufixo = obj.exportedAt ? formatDateShort(obj.exportedAt.slice(0, 10)) : todayLocal();
+          nomeFinal = nomeFinal + ' (importado ' + sufixo + ')';
+        }
+        const novoId = ProfileManager.importProfile(obj, nomeFinal);
+        showToast('Perfil importado ✓');
+        // Envia para a nuvem se estiver logado, para não ficar só neste aparelho.
+        // Falha aqui não invalida a importação: os dados já estão salvos localmente.
+        if (window.CloudStore && CloudStore.isLoggedIn()) {
+          try {
+            const meta = ProfileManager.getProfiles().find(p => p.id === novoId) || {};
+            await CloudStore.createRow({ name: meta.nome, avatar: meta.avatar, color: meta.cor,
+              payload: ProfileManager.exportProfile(novoId) });
+          } catch (err) {
+            showToast('Importado neste aparelho. Não subiu para a nuvem: ' + (err.message || ''));
+          }
+        }
+        ProfileUI.refreshStage();
+      } catch (err) {
+        showToast('Erro ao importar: ' + (err.message || ''));
+      }
+    };
+    reader.onerror = () => showToast('Não foi possível ler o arquivo.');
+    reader.readAsText(file);
+  });
   /* ---- Listeners: seção Nuvem em Configurações ---- */
   on('cloud-auth-submit', 'click', () => CloudUI.submitAuth());
   document.querySelectorAll('#cloud-auth-box .cloud-auth-tab').forEach(tab => tab.addEventListener('click', () => {
