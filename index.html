@@ -6050,7 +6050,7 @@
 
 
 
-<script>
+<script id="app-code" type="application/x-diario-inert">
 // Hook seguro para a sincronização na nuvem (CloudStore é definido bem mais abaixo no script).
 // Usar `var` evita o erro de "temporal dead zone" que aconteceria com `typeof CloudStore`
 // caso DB._set seja chamado durante a inicialização, antes do CloudStore existir.
@@ -19088,6 +19088,195 @@ ProfileUI.boot();
 if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', () => CloudStore.init());
 else CloudStore.init();
 
+</script>
+
+<!-- ============================================================
+     CAMADA DE PERSISTÊNCIA: IndexedDB
+     ------------------------------------------------------------
+     O app inteiro foi escrito sobre a API SÍNCRONA do localStorage
+     (getItem/setItem/removeItem/key/length), que tem cota de ~5 MB.
+     Em vez de reescrever as ~80 chamadas para a API assíncrona do
+     IndexedDB, instalamos aqui uma FACHADA compatível:
+
+       1) Ao carregar, todos os pares chave/valor são lidos do
+          IndexedDB para um cache em memória (hidratação).
+       2) window.localStorage é substituído por uma implementação
+          que lê do cache (síncrono) e grava no IndexedDB de forma
+          assíncrona (write-through), sem bloquear a interface.
+       3) Só então o código do app (script inerte "app-code") é
+          executado — passando a usar o IndexedDB de forma transparente.
+
+     Ganho: a cota deixa de ser ~5 MB e passa a ser a do IndexedDB
+     (centenas de MB), eliminando os avisos de "armazenamento cheio".
+     ============================================================ -->
+<script>
+(function () {
+  'use strict';
+
+  var IDB_NAME = 'diario-estudos-db', IDB_STORE = 'kv', IDB_VERSION = 1;
+  var MIRROR_MAX = 100000; // espelha no localStorage nativo só chaves pequenas (evita cota)
+
+  var nativeLS = null;
+  try { nativeLS = window.localStorage; } catch (e) { nativeLS = null; }
+
+  var cache = new Map();   // fonte da verdade em memória (síncrona)
+  var _keys = null;        // cache do Array de chaves p/ .key(i)
+  function invalidateKeys() { _keys = null; }
+
+  var db = null, queue = [], flushing = false;
+
+  function openIDB() {
+    return new Promise(function (resolve, reject) {
+      var req;
+      try { req = indexedDB.open(IDB_NAME, IDB_VERSION); }
+      catch (e) { reject(e); return; }
+      req.onupgradeneeded = function () {
+        try {
+          var d = req.result;
+          if (!d.objectStoreNames.contains(IDB_STORE)) d.createObjectStore(IDB_STORE);
+        } catch (e) {}
+      };
+      req.onsuccess = function () { resolve(req.result); };
+      req.onerror = function () { reject(req.error); };
+    });
+  }
+
+  // ---- write-through assíncrono (lote por microtask) ----
+  function scheduleFlush() { if (!flushing) { flushing = true; Promise.resolve().then(flush); } }
+  function flush() {
+    if (!db) { flushing = false; return; }
+    var ops = queue; queue = [];
+    if (!ops.length) { flushing = false; return; }
+    var tx, store;
+    try { tx = db.transaction(IDB_STORE, 'readwrite'); store = tx.objectStore(IDB_STORE); }
+    catch (e) { flushing = false; return; }
+    for (var i = 0; i < ops.length; i++) {
+      var op = ops[i];
+      try {
+        if (op.t === 'set') store.put(op.v, op.k);
+        else if (op.t === 'del') store.delete(op.k);
+        else if (op.t === 'clear') store.clear();
+      } catch (e) {}
+    }
+    tx.oncomplete = function () { flushing = false; if (queue.length) scheduleFlush(); };
+    tx.onerror = function () { flushing = false; };
+    tx.onabort = function () { flushing = false; };
+  }
+  function enqueue(op) { queue.push(op); scheduleFlush(); }
+
+  // Espelho best-effort no localStorage nativo: mantém chaves pequenas (ex.: tema)
+  // acessíveis ao script que evita o "flash" de tela clara. Erros de cota são ignorados.
+  function mirrorNative(t, k, v) {
+    if (!nativeLS) return;
+    try {
+      if (t === 'set') { if (v.length < MIRROR_MAX) nativeLS.setItem(k, v); else nativeLS.removeItem(k); }
+      else if (t === 'del') nativeLS.removeItem(k);
+    } catch (e) {}
+  }
+
+  // ---- fachada compatível com a Storage API ----
+  var LS = {
+    getItem: function (k) { k = String(k); return cache.has(k) ? cache.get(k) : null; },
+    setItem: function (k, v) {
+      k = String(k); v = String(v);
+      if (!cache.has(k)) invalidateKeys();
+      cache.set(k, v);
+      enqueue({ t: 'set', k: k, v: v });
+      mirrorNative('set', k, v);
+    },
+    removeItem: function (k) {
+      k = String(k);
+      if (cache.has(k)) { cache.delete(k); invalidateKeys(); }
+      enqueue({ t: 'del', k: k });
+      mirrorNative('del', k);
+    },
+    clear: function () {
+      cache.clear(); invalidateKeys();
+      enqueue({ t: 'clear' });
+      try { if (nativeLS) nativeLS.clear(); } catch (e) {}
+    },
+    key: function (i) {
+      i = i >> 0;
+      if (!_keys) _keys = Array.from(cache.keys());
+      return (i >= 0 && i < _keys.length) ? _keys[i] : null;
+    }
+  };
+  Object.defineProperty(LS, 'length', { get: function () { return cache.size; } });
+
+  function installShim() {
+    try {
+      Object.defineProperty(window, 'localStorage', { configurable: true, get: function () { return LS; } });
+      return true;
+    } catch (e) {
+      try { window.localStorage = LS; return true; } catch (e2) { return false; }
+    }
+  }
+
+  function hydrate() {
+    return new Promise(function (resolve) {
+      if (!db) { resolve(); return; }
+      var tx, store, req;
+      try { tx = db.transaction(IDB_STORE, 'readonly'); store = tx.objectStore(IDB_STORE); req = store.openCursor(); }
+      catch (e) { resolve(); return; }
+      req.onsuccess = function () {
+        var cur = req.result;
+        if (cur) { cache.set(String(cur.key), String(cur.value)); cur.continue(); }
+        else { invalidateKeys(); resolve(); }
+      };
+      req.onerror = function () { resolve(); };
+    });
+  }
+
+  // Migração única: se o IndexedDB está vazio mas há dados no localStorage antigo,
+  // importa TODAS as chaves para o IndexedDB (executa só na primeira vez).
+  function migrateFromNative() {
+    if (cache.size > 0 || !nativeLS) return;
+    try {
+      for (var i = 0; i < nativeLS.length; i++) {
+        var k = nativeLS.key(i); if (k == null) continue;
+        var v = nativeLS.getItem(k); if (v == null) continue;
+        cache.set(k, v);
+        enqueue({ t: 'set', k: k, v: v });
+      }
+      invalidateKeys();
+    } catch (e) {}
+  }
+
+  // Reaplica o tema a partir do cache já hidratado (garante o tema certo mesmo
+  // quando o dado existe só no IndexedDB e não no localStorage nativo).
+  function applyTheme() {
+    try {
+      var saved = cache.get('diario-estudos:theme');
+      if (!saved) saved = (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) ? 'dark' : 'light';
+      document.documentElement.setAttribute('data-theme', saved);
+    } catch (e) {}
+  }
+
+  // Espera o DOM/scripts deferidos (xlsx, supabase) ficarem prontos antes de rodar o app.
+  var domReady = new Promise(function (resolve) {
+    if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', resolve, { once: true });
+    else resolve();
+  });
+
+  function runApp() {
+    var codeEl = document.getElementById('app-code');
+    if (!codeEl) return;
+    var s = document.createElement('script');
+    s.textContent = codeEl.textContent; // executa em escopo global (idêntico ao original)
+    document.body.appendChild(s);
+  }
+
+  openIDB()
+    .then(function (database) { db = database; return hydrate(); })
+    .then(function () { migrateFromNative(); installShim(); applyTheme(); })
+    .catch(function (err) {
+      // IndexedDB indisponível (modo privado antigo, navegador sem suporte, etc.):
+      // o app continua funcionando sobre o localStorage nativo, sem a fachada.
+      try { console.error('IndexedDB indisponível — usando localStorage nativo:', err); } catch (e) {}
+    })
+    .then(function () { return domReady; })
+    .then(runApp);
+})();
 </script>
 
 </body>
