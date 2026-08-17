@@ -18257,7 +18257,10 @@ const ProfileUI = {
     const isNew = !id;
     document.getElementById('profile-modal-title').textContent = isNew ? 'Novo perfil' : 'Editar perfil';
     document.getElementById('pf-delete').style.display = isNew ? 'none' : 'inline-block';
-    const exp = document.getElementById('pf-export-row'); if (exp) exp.style.display = 'none';
+    // O botão de exportar só faz sentido para um perfil que JÁ EXISTE (precisa
+    // de dados salvos para gerar o arquivo). Antes ficava sempre escondido —
+    // nada no código voltava a exibi-lo depois do reset acima.
+    const exp = document.getElementById('pf-export-row'); if (exp) exp.style.display = isNew ? 'none' : 'block';
     let nome = '', avatar = ProfileManager.DEFAULT_AVATARS[0], cor = ProfileManager.DEFAULT_COLORS[0];
     if (!isNew) { const p = ProfileManager.getProfiles().find(x => x.id === id); if (p) { nome = p.nome; avatar = p.avatar; cor = p.cor; } }
     this._draftAvatar = avatar; this._draftColor = cor;
@@ -18700,6 +18703,16 @@ window.CloudUI = CloudUI;
   on('profile-modal-close', 'click', () => document.getElementById('profile-modal').style.display = 'none');
   on('pf-save', 'click', () => ProfileUI.saveModal());
   on('pf-delete', 'click', () => ProfileUI.deleteCurrent());
+  on('pf-export', 'click', () => {
+    const id = ProfileUI._editingId;
+    if (!id) return;
+    const meta = (ProfileManager.getProfiles().find(p => p.id === id) || {});
+    const backup = ProfileManager.exportProfile(id);
+    if (!backup) { showToast('Não foi possível gerar o backup deste perfil'); return; }
+    const nomeArq = 'backup-' + (meta.nome || 'perfil').toLowerCase().replace(/[^a-z0-9]+/g, '-') + '-' + todayLocal() + '.json';
+    CardsScreen._download(nomeArq, JSON.stringify(backup, null, 2), 'application/json');
+    showToast('Backup baixado ✓');
+  });
   on('profile-chip-switch', 'click', () => ProfileUI.switchProfile());
   on('mobile-profile-btn', 'click', () => ProfileUI.switchProfile());
   const imp = document.getElementById('profile-import-btn'); if (imp) imp.style.display = 'none';
