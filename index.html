@@ -4158,6 +4158,7 @@
       <button class="tab" data-screen="links" data-short="Links"><span class="tab-icon">🔗</span><span class="tab-label">Links Úteis</span></button>
       <button class="tab" data-screen="historico" data-short="Histórico"><span class="tab-icon">▤</span><span class="tab-label">Histórico</span></button>
       <button class="tab" data-screen="evolucao" data-short="Evolução"><span class="tab-icon">📈</span><span class="tab-label">Evolução</span></button>
+      <button class="tab" data-screen="conquistas" data-short="Conquistas"><span class="tab-icon">🏅</span><span class="tab-label">Conquistas</span></button>
       <button class="tab" data-screen="desempenhotec" data-short="TEC"><span class="tab-icon">🎯</span><span class="tab-label">Desempenho TEC</span></button>
       <button class="tab" data-screen="ferramentas" data-short="Ferram."><span class="tab-icon">🧰</span><span class="tab-label">Ferramentas</span></button>
       <button class="tab" data-screen="config" data-short="Ajustes"><span class="tab-icon">⚙</span><span class="tab-label">Configurações</span></button>
@@ -4958,21 +4959,20 @@
   </section>
 
   <!-- ============ TELA: EVOLUÇÃO ============ -->
+  <!-- ============ TELA: CONQUISTAS ============ -->
+  <section class="screen" id="screen-conquistas">
+    <div class="page-header">
+      <h2 class="page-title">🏅 Conquistas</h2>
+      <p class="page-subtitle">O registro da sua caminhada. Nada aqui expira, nada se perde e nada tem prazo — são fatos sobre o que você já construiu.</p>
+    </div>
+    <div id="conquistas-body"></div>
+  </section>
+
   <section class="screen" id="screen-evolucao">
     <div class="page-header">
       <h2 class="page-title">Evolução</h2>
       <p class="page-subtitle">Sua trajetória cruzando todos os registros do Diário.</p>
     </div>
-
-    <!-- Conquistas: o que você já construiu, antes de como está indo -->
-    <details class="card" id="conquistas-card" open>
-      <summary style="cursor:pointer;list-style:none;padding:16px 24px;display:flex;align-items:center;gap:10px;">
-        <span style="font-size:calc(18px * var(--fs-scale,1));">🏅</span>
-        <span style="font-weight:800;font-size:calc(16px * var(--fs-scale,1));">Sua caminhada</span>
-        <span class="hint" id="conq-resumo" style="margin:0 0 0 auto;font-size:calc(11px * var(--fs-scale,1));"></span>
-      </summary>
-      <div style="padding:0 24px 22px;" id="conquistas-body"></div>
-    </details>
 
     <section class="card">
       <div style="padding: 18px 24px;">
@@ -11132,98 +11132,207 @@ const ConquistasEngine = {
     ].filter(m => m.valor > 0);
   },
   // ── BADGES ────────────────────────────────────────────────────────────────
-  // Cada badge é um fato verificável sobre o que você JÁ fez. Nenhuma tem prazo,
-  // nenhuma expira, nenhuma pode ser perdida. A mais importante é "Retomada":
-  // ela transforma voltar depois de uma pausa em conquista, não em falha.
+  // Cada badge é um FATO verificável sobre o que você já fez. Nenhuma tem prazo,
+  // nenhuma expira, nenhuma pode ser perdida. Definição orientada a dados: o
+  // contexto é calculado uma vez e cada badge só declara de onde tira seu número.
   CATEGORIAS: [
-    { id: 'volume', nome: 'Volume', desc: 'o quanto você já acumulou' },
-    { id: 'amplitude', nome: 'Amplitude', desc: 'o quanto de terreno você cobriu' },
-    { id: 'qualidade', nome: 'Qualidade', desc: 'o que virou conhecimento sólido' },
-    { id: 'habito', nome: 'Hábito', desc: 'como você se mantém na caminhada' }
+    { id: 'volume',    nome: 'Volume',    ico: '⏳', desc: 'o quanto você já acumulou' },
+    { id: 'amplitude', nome: 'Amplitude', ico: '🗺️', desc: 'quanto terreno você cobriu' },
+    { id: 'qualidade', nome: 'Qualidade', ico: '🎓', desc: 'o que virou conhecimento sólido' },
+    { id: 'habito',    nome: 'Hábito',    ico: '🌗', desc: 'como você se mantém na caminhada' },
+    { id: 'metodo',    nome: 'Método',    ico: '🧭', desc: 'o quanto você usa o próprio sistema' }
   ],
-  badges(entries) {
+  _contexto(entries) {
     const dias = this.porDia(entries);
     const vals = Object.values(dias);
-    const horas = vals.reduce((a, d) => a + d.min, 0) / 60;
-    const questoes = vals.reduce((a, d) => a + d.q, 0);
-    const cards = vals.reduce((a, d) => a + d.cards, 0);
     const hoje = todayLocal();
-    const B = [];
-    // escada de badges: uma linha por nível, marcando o maior alcançado
-    const escada = (cat, ico, nome, valor, niveis, fmt) => {
-      const alcancados = niveis.filter(n => valor >= n.v);
-      const atual = alcancados.length ? alcancados[alcancados.length - 1] : null;
-      const prox = niveis.find(n => valor > 0 && n.v > valor);
-      B.push({
-        cat, ico, nome, conquistada: !!atual,
-        nivel: atual ? atual.rot : null,
-        detalhe: atual ? ('você já tem ' + fmt(valor)) : (niveis[0] ? 'conquista a partir de ' + fmt(niveis[0].v) : ''),
-        progresso: prox ? Math.min(1, (valor - (atual ? atual.v : 0)) / (prox.v - (atual ? atual.v : 0))) : 1,
-        prox: prox && atual ? { rot: prox.rot, falta: fmt(prox.v - valor) } : null,
-        valorAtual: fmt(valor)
-      });
-    };
-    const hFmt = v => Math.round(v) + 'h';
-    const nFmt = v => Math.round(v).toLocaleString('pt-BR');
-    escada('volume', '⏳', 'Horas na cadeira', horas,
-      [{ v: 10, rot: 'Primeiros passos' }, { v: 100, rot: 'Constância' }, { v: 250, rot: 'Rotina firme' },
-       { v: 500, rot: 'Maratonista' }, { v: 1000, rot: 'Mil horas' }, { v: 2000, rot: 'Veterano' }], hFmt);
-    escada('volume', '🎯', 'Questões resolvidas', questoes,
-      [{ v: 100, rot: 'Aquecendo' }, { v: 1000, rot: 'Artilheiro' }, { v: 5000, rot: 'Metralhadora' },
-       { v: 10000, rot: 'Dez mil' }, { v: 25000, rot: 'Fora de série' }], nFmt);
-    escada('volume', '🃏', 'Cards revisados', cards,
-      [{ v: 100, rot: 'Primeiro baralho' }, { v: 1000, rot: 'Memória treinada' },
-       { v: 10000, rot: 'Memória de elefante' }], nFmt);
+    const g = (fn, d) => { try { return fn(); } catch (_) { return d; } };
+    const cards = g(() => DB.getCards(), []);
+    const revlog = g(() => DB.getRevlog(), []);
+    const leis = g(() => DB.getLeis(), []);
+    const extras = g(() => DB.getExtras(), []);
+    const decks = g(() => DB.getDecks(), []);
+    const tec = g(() => DB.getTecSnapshots(), []);
+    const incid = g(() => DB.getIncidencia(), []);
+    const ciclos = g(() => DB.getCycleHistory(), []);
+    const ent = entries || [];
 
-    // AMPLITUDE — recompensa cobrir terreno, não repetir o que já sabe
-    const materias = new Set((entries || []).map(e => e.subject).filter(Boolean)).size;
-    escada('amplitude', '🗺️', 'Matérias estudadas', materias,
-      [{ v: 3, rot: 'Explorando' }, { v: 5, rot: 'Panorama' }, { v: 8, rot: 'Visão ampla' }], nFmt);
-    let leis = 0; try { leis = (DB.getLeis() || []).length; } catch (_) {}
-    escada('amplitude', '§', 'Leis no leitor', leis,
-      [{ v: 3, rot: 'Letra da lei' }, { v: 10, rot: 'Biblioteca' }, { v: 25, rot: 'Acervo' }], nFmt);
-
-    // QUALIDADE — só conta o que virou conhecimento medido
-    let solidos = 0, virada = null;
+    // semanas e meses ativos
+    const semanas = {}, meses = {};
+    Object.keys(dias).forEach(k => {
+      if (!dias[k].temAlgo) return;
+      semanas[this._semanaDe(k)] = true;
+      meses[k.slice(0, 7)] = (meses[k.slice(0, 7)] || 0) + 1;
+    });
+    // maior dia e maior semana em minutos
+    const porSemanaMin = {};
+    Object.keys(dias).forEach(k => { const w = this._semanaDe(k); porSemanaMin[w] = (porSemanaMin[w] || 0) + dias[k].min; });
+    // retomadas: quantas vezes voltou depois de 7+ dias parado
+    const ativos = Object.keys(dias).filter(k => dias[k].temAlgo).sort();
+    let retomadas = 0, maiorPausa = 0, ultimaRetomada = null;
+    for (let i = 1; i < ativos.length; i++) {
+      const gap = this._diasEntre(ativos[i - 1], ativos[i]);
+      if (gap >= 7) { retomadas++; if (gap > maiorPausa) { maiorPausa = gap; ultimaRetomada = ativos[i]; } }
+    }
+    // sequência de semanas com estudo (sem exibir como streak — só para uma badge)
+    const semOrd = Object.keys(semanas).sort();
+    let maiorSeqSem = 0, seq = 0;
+    for (let i = 0; i < semOrd.length; i++) {
+      if (i === 0 || this._diasEntre(semOrd[i - 1], semOrd[i]) === 7) seq++; else seq = 1;
+      if (seq > maiorSeqSem) maiorSeqSem = seq;
+    }
+    // páginas lidas
+    const paginas = ent.reduce((a, e) => a + Math.max(0, (e.pagFim || 0) - (e.pagIni || 0)), 0);
+    // melhor semana de aproveitamento e melhor bateria num dia
+    const semQ = {};
+    ent.forEach(e => { if (!e.date) return; const w = this._semanaDe(e.date);
+      const x = semQ[w] || { q: 0, ac: 0 }; x.q += (e.total || 0); x.ac += (e.correct || 0); semQ[w] = x; });
+    const melhorSemPct = Object.values(semQ).filter(x => x.q >= 50).reduce((m, x) => Math.max(m, x.ac / x.q * 100), 0);
+    const melhorDiaBateria = vals.filter(d => d.q >= 50).reduce((m, d) => Math.max(m, d.ac / d.q * 100), 0);
+    // meses com 15+ dias ativos
+    const mesesFirmes = Object.values(meses).filter(n => n >= 15).length;
+    // Plano
+    let solidos = 0, virada = null, dominio = 0, semCegos = false;
     try {
       const r = PlanoEngine.calcular(DesempenhoTecScreen.scopedSnapshot(), PlanoEngine.prefs());
       if (r && !r.erro) {
-        solidos = r.consolidados || 0;
+        solidos = r.consolidados || 0; dominio = r.dominioPct || 0;
+        semCegos = (r.ignorados === 0 && r.assuntos > 0);
         const v = (r.itens || []).find(x => x.pctHist != null && x.pctHist < 50 && x.taxa >= 80);
         if (v) virada = v.nome;
       }
     } catch (_) {}
-    escada('qualidade', '🎓', 'Assuntos consolidados', solidos,
-      [{ v: 1, rot: 'Primeiro domínio' }, { v: 5, rot: 'Base sólida' }, { v: 15, rot: 'Terreno firme' }], nFmt);
-    B.push({
-      cat: 'qualidade', ico: '📈', nome: 'A virada', conquistada: !!virada,
-      detalhe: virada ? 'você levou "' + virada + '" de menos de 50% para mais de 80%' : 'levar um assunto de menos de 50% para mais de 80%',
-      progresso: virada ? 1 : 0, valorAtual: ''
+    const totQ = vals.reduce((a, d) => a + d.q, 0), totAc = vals.reduce((a, d) => a + d.ac, 0);
+    return {
+      horas: vals.reduce((a, d) => a + d.min, 0) / 60,
+      questoes: totQ, acertos: totAc,
+      aproveitamento: totQ ? totAc / totQ * 100 : 0,
+      cardsRevisados: vals.reduce((a, d) => a + d.cards, 0),
+      sessoes: ent.length, paginas,
+      cardsCriados: cards.length,
+      cardsMaduros: cards.filter(c => (c.s || 0) >= 21).length,
+      cardsSemLapso: cards.filter(c => (c.reps || 0) >= 3 && !(c.lapses || 0)).length,
+      cardsComImagem: cards.filter(c => /<img/i.test((c.frente || '') + (c.verso || ''))).length,
+      leis: leis.length,
+      leisMarcadas: leis.filter(l => (l.marcacoes || []).length > 0).length,
+      leisComMarcador: leis.filter(l => l.bookmark != null).length,
+      decks: decks.length,
+      materias: new Set(ent.map(e => e.subject).filter(Boolean)).size,
+      topicos: new Set(ent.map(e => e.topico).filter(Boolean).concat(cards.map(c => c.topico).filter(Boolean))).size,
+      metodos: new Set(ent.map(e => e.method).filter(Boolean)).size,
+      fases: new Set(ent.map(e => e.fase).filter(Boolean)).size,
+      bancas: new Set(incid.map(r => r.banca).filter(Boolean)).size,
+      retratos: tec.length,
+      assuntosTec: new Set([].concat(...tec.map(t => (t.rows || []).filter(r => r.depth > 0).map(r => r.nome)))).size,
+      discTec: new Set([].concat(...tec.map(t => (t.rows || []).map(r => r.disciplina).filter(Boolean)))).size,
+      temIncidencia: incid.length > 0,
+      ciclos: (ciclos || []).length,
+      temGrade: g(() => Object.keys((DB.getGradeTemplate() || {}).grade || {}).length > 0, false),
+      extrasCriadas: extras.length,
+      extrasConcluidas: extras.filter(x => x.status === 'concluida').length,
+      extrasDoPlano: extras.filter(x => x.origemPlano).length,
+      reforcoQueFuncionou: extras.some(x => x.origemPlano && x.origemPlano.taxaInicial != null && x.status === 'concluida'),
+      diasEstudo: vals.filter(d => d.temAlgo).length,
+      diasFimDeSemana: Object.keys(dias).filter(k => { if (!dias[k].temAlgo) return false; const w = new Date(k + 'T00:00:00').getDay(); return w === 0 || w === 6; }).length,
+      semanasAtivas: Object.keys(semanas).length,
+      mesesAtivos: Object.keys(meses).length,
+      mesesFirmes, maiorSeqSem, retomadas, maiorPausa, ultimaRetomada,
+      diasAtivos30: (() => { let c = 0; for (let i = 0; i < 30; i++) { const d = new Date(hoje + 'T00:00:00'); d.setDate(d.getDate() - i); if ((dias[this._iso(d)] || {}).temAlgo) c++; } return c; })(),
+      maiorDiaMin: vals.reduce((m, d) => Math.max(m, d.min), 0),
+      maiorSemanaMin: Object.values(porSemanaMin).reduce((m, v) => Math.max(m, v), 0),
+      melhorSemPct, melhorDiaBateria,
+      solidos, virada, dominio, semCegos,
+      nuvem: g(() => !!(CloudStore && CloudStore.session), false),
+      planejamentos: g(() => (DB.getPlanejamentos() || []).length, 1)
+    };
+  },
+  // n = número puro · h = horas · pc = percentual
+  DEFS: [
+    // ── VOLUME ──────────────────────────────────────────────────────────────
+    { c: 'volume', i: '⏳', n: 'Horas na cadeira', k: 'horas', f: 'h', ns: [[10, 'Primeiros passos'], [50, 'Aquecendo'], [100, 'Constância'], [250, 'Rotina firme'], [500, 'Maratonista'], [1000, 'Mil horas'], [2000, 'Veterano']] },
+    { c: 'volume', i: '🎯', n: 'Questões resolvidas', k: 'questoes', ns: [[100, 'Primeira leva'], [500, 'Pegando o jeito'], [1000, 'Artilheiro'], [5000, 'Metralhadora'], [10000, 'Dez mil'], [25000, 'Fora de série']] },
+    { c: 'volume', i: '✅', n: 'Acertos acumulados', k: 'acertos', ns: [[100, 'Começou'], [1000, 'Mil certas'], [5000, 'Consistente'], [15000, 'Preciso']] },
+    { c: 'volume', i: '🃏', n: 'Cards revisados', k: 'cardsRevisados', ns: [[100, 'Primeiro baralho'], [500, 'Pegando ritmo'], [1000, 'Memória treinada'], [5000, 'Disciplinado'], [10000, 'Memória de elefante']] },
+    { c: 'volume', i: '✍️', n: 'Cards criados', k: 'cardsCriados', ns: [[10, 'Primeiros cards'], [50, 'Coleção'], [200, 'Baralho sério'], [500, 'Acervo'], [1000, 'Fábrica'] ] },
+    { c: 'volume', i: '📖', n: 'Sessões registradas', k: 'sessoes', ns: [[10, 'Registrando'], [50, 'Hábito'], [200, 'Diário fiel'], [500, 'Arquivo vivo'], [1000, 'Historiador']] },
+    { c: 'volume', i: '📄', n: 'Páginas lidas', k: 'paginas', ns: [[100, 'Primeiras páginas'], [500, 'Leitor'], [2000, 'Devorador'], [5000, 'Biblioteca inteira']] },
+    { c: 'volume', i: '🔥', n: 'Dia mais longo', k: 'maiorDiaMin', f: 'min', ns: [[120, 'Duas horas'], [240, 'Quatro horas'], [360, 'Seis horas'], [480, 'Oito horas']] },
+    { c: 'volume', i: '📅', n: 'Semana mais cheia', k: 'maiorSemanaMin', f: 'min', ns: [[600, 'Dez horas'], [1200, 'Vinte horas'], [1800, 'Trinta horas'], [2400, 'Quarenta horas']] },
+    { c: 'volume', i: '🏁', n: 'Atividades concluídas', k: 'extrasConcluidas', ns: [[1, 'Primeira meta'], [5, 'Cumpridor'], [15, 'Executor'], [50, 'Imparável']] },
+    // ── AMPLITUDE ───────────────────────────────────────────────────────────
+    { c: 'amplitude', i: '📚', n: 'Matérias estudadas', k: 'materias', ns: [[2, 'Dupla'], [4, 'Explorando'], [6, 'Panorama'], [10, 'Visão ampla']] },
+    { c: 'amplitude', i: '🔍', n: 'Tópicos diferentes', k: 'topicos', ns: [[10, 'Mapeando'], [50, 'Detalhista'], [150, 'Profundidade'], [400, 'Cartógrafo']] },
+    { c: 'amplitude', i: '🗂️', n: 'Baralhos criados', k: 'decks', ns: [[1, 'Primeiro baralho'], [3, 'Organizado'], [8, 'Arquiteto'], [15, 'Curador']] },
+    { c: 'amplitude', i: '§', n: 'Leis no leitor', k: 'leis', ns: [[1, 'Letra da lei'], [3, 'Vade mecum'], [10, 'Biblioteca'], [25, 'Acervo jurídico']] },
+    { c: 'amplitude', i: '🖍️', n: 'Leis marcadas', k: 'leisMarcadas', ns: [[1, 'Primeiro grifo'], [5, 'Leitor ativo'], [15, 'Anotador']] },
+    { c: 'amplitude', i: '🏛️', n: 'Bancas mapeadas', k: 'bancas', ns: [[1, 'Uma banca'], [2, 'Comparando'], [3, 'Multibanca'], [5, 'Panorama de bancas']] },
+    { c: 'amplitude', i: '🧪', n: 'Formas de estudo', k: 'metodos', ns: [[2, 'Variando'], [4, 'Repertório'], [6, 'Caixa de ferramentas']] },
+    { c: 'amplitude', i: '📐', n: 'Assuntos medidos no TEC', k: 'assuntosTec', ns: [[10, 'Diagnóstico inicial'], [40, 'Mapa em formação'], [100, 'Mapa detalhado'], [250, 'Raio-x completo']] },
+    { c: 'amplitude', i: '🎓', n: 'Disciplinas no TEC', k: 'discTec', ns: [[1, 'Primeira'], [3, 'Frente ampla'], [6, 'Edital inteiro']] },
+    { c: 'amplitude', i: '🖼️', n: 'Cards com imagem', k: 'cardsComImagem', ns: [[1, 'Primeira imagem'], [10, 'Visual'], [50, 'Memória visual']] },
+    // ── QUALIDADE ───────────────────────────────────────────────────────────
+    { c: 'qualidade', i: '🎓', n: 'Assuntos consolidados', k: 'solidos', ns: [[1, 'Primeiro domínio'], [5, 'Base sólida'], [15, 'Terreno firme'], [30, 'Fortaleza']] },
+    { c: 'qualidade', i: '📈', n: 'Aproveitamento geral', k: 'aproveitamento', f: 'pc', ns: [[50, 'Meio caminho'], [60, 'Acima da média'], [70, 'Bom nível'], [80, 'Alto nível']] },
+    { c: 'qualidade', i: '🏹', n: 'Melhor semana de acerto', k: 'melhorSemPct', f: 'pc', ns: [[70, 'Semana boa'], [80, 'Semana ótima'], [85, 'Semana excelente'], [90, 'Semana perfeita']] },
+    { c: 'qualidade', i: '💪', n: 'Cards maduros', k: 'cardsMaduros', ns: [[10, 'Fixando'], [50, 'Memória firme'], [200, 'Longo prazo'], [500, 'Cristalizado']] },
+    { c: 'qualidade', i: '🛡️', n: 'Cards sem nenhum erro', k: 'cardsSemLapso', ns: [[20, 'Limpos'], [100, 'Sólidos'], [400, 'Impecáveis']] },
+    { c: 'qualidade', i: '🧠', n: 'Domínio da banca', k: 'dominio', f: 'pc', ns: [[40, 'Construindo'], [60, 'Meio do caminho'], [75, 'Bem posicionado'], [85, 'Pronto']] },
+    { c: 'qualidade', i: '🎯', n: 'Bateria certeira', k: 'melhorDiaBateria', f: 'pc', ns: [[70, 'Dia bom'], [80, 'Dia ótimo'], [90, 'Dia perfeito']] },
+    { c: 'qualidade', i: '📊', n: 'Sem pontos cegos', u: 'semCegos', d: 'todos os assuntos que você pratica têm amostra suficiente para diagnóstico', dOff: 'ter todos os assuntos com amostra suficiente' },
+    { c: 'qualidade', i: '🚀', n: 'A virada', u: 'virada', d: (x) => 'você levou "' + x.virada + '" de menos de 50% para mais de 80%', dOff: 'levar um assunto de menos de 50% para mais de 80%' },
+    { c: 'qualidade', i: '🔁', n: 'Reforço que funcionou', u: 'reforcoQueFuncionou', d: 'uma atividade criada pelo Plano foi concluída e o assunto melhorou', dOff: 'concluir uma atividade gerada pelo Plano de pontos fracos' },
+    // ── HÁBITO ──────────────────────────────────────────────────────────────
+    { c: 'habito', i: '🌗', n: 'Dias ativos no mês', k: 'diasAtivos30', ns: [[8, 'Presente'], [15, 'Metade do mês'], [21, 'Ritmo firme'], [26, 'Quase todo dia']] },
+    { c: 'habito', i: '📆', n: 'Meses na caminhada', k: 'mesesAtivos', ns: [[2, 'Dois meses'], [6, 'Meio ano'], [12, 'Um ano'], [24, 'Dois anos'], [36, 'Três anos']] },
+    { c: 'habito', i: '🗓️', n: 'Dias com estudo', k: 'diasEstudo', ns: [[15, 'Começando'], [60, 'Firmeza'], [180, 'Meia maratona'], [365, 'Um ano de dias'], [730, 'Longa jornada']] },
+    { c: 'habito', i: '📈', n: 'Semanas ativas', k: 'semanasAtivas', ns: [[4, 'Um mês'], [12, 'Um trimestre'], [26, 'Um semestre'], [52, 'Um ano'], [104, 'Dois anos']] },
+    { c: 'habito', i: '🏖️', n: 'Estudou no fim de semana', k: 'diasFimDeSemana', ns: [[5, 'Sábado produtivo'], [20, 'Fim de semana firme'], [60, 'Sem folga fixa']] },
+    { c: 'habito', i: '💎', n: 'Meses firmes', k: 'mesesFirmes', d2: 'meses com 15 dias ou mais de estudo', ns: [[1, 'Primeiro mês firme'], [3, 'Trimestre firme'], [6, 'Semestre firme'], [12, 'Ano firme']] },
+    { c: 'habito', i: '🔗', n: 'Semanas seguidas', k: 'maiorSeqSem', d2: 'sua maior sequência de semanas com algum estudo', ns: [[4, 'Um mês seguido'], [12, 'Um trimestre'], [26, 'Meio ano'], [52, 'Um ano']] },
+    { c: 'habito', i: '🌅', n: 'Retomada', u: 'ultimaRetomada', d: (x) => 'você voltou depois de ' + x.maiorPausa + ' dias parado, em ' + formatDateShort(x.ultimaRetomada) + '. Parar acontece — voltar é o que conta.', dOff: 'voltar a estudar depois de uma pausa também é conquista' },
+    { c: 'habito', i: '🦾', n: 'Voltou mais de uma vez', k: 'retomadas', d2: 'quantas vezes você retomou depois de uma pausa', ns: [[2, 'Persistente'], [4, 'Teimoso do bem'], [8, 'Inabalável']] },
+    { c: 'habito', i: '🌱', n: 'Ainda na caminhada', u: 'sempre', d: 'você abriu o app hoje. Todo dia conta, inclusive os leves.', dOff: '' },
+    // ── MÉTODO ──────────────────────────────────────────────────────────────
+    { c: 'metodo', i: '🔄', n: 'Ciclos concluídos', k: 'ciclos', ns: [[1, 'Primeiro ciclo'], [5, 'Rodando'], [15, 'Método rodado'], [30, 'Engrenagem']] },
+    { c: 'metodo', i: '▦', n: 'Grade montada', u: 'temGrade', d: 'você montou sua grade semanal', dOff: 'montar a Grade Semanal' },
+    { c: 'metodo', i: '📥', n: 'Retratos do TEC', k: 'retratos', ns: [[1, 'Primeiro retrato'], [3, 'Acompanhando'], [6, 'Série histórica'], [12, 'Um ano de dados']] },
+    { c: 'metodo', i: '🏛️', n: 'Incidência importada', u: 'temIncidencia', d: 'você mapeou o que a banca cobra', dOff: 'importar o Índice do Caderno na aba Incidência' },
+    { c: 'metodo', i: '🎯', n: 'Atividades do Plano', k: 'extrasDoPlano', ns: [[1, 'Primeiro reforço'], [5, 'Plano em uso'], [15, 'Ciclo fechado']] },
+    { c: 'metodo', i: '📌', n: 'Marcador de leitura', k: 'leisComMarcador', ns: [[1, 'Onde parei'], [3, 'Leitura organizada'], [8, 'Sempre no lugar']] },
+    { c: 'metodo', i: '➕', n: 'Atividades extras criadas', k: 'extrasCriadas', ns: [[1, 'Primeira meta'], [5, 'Metas paralelas'], [15, 'Multitarefa']] },
+    { c: 'metodo', i: '🗺️', n: 'Planejamentos', k: 'planejamentos', ns: [[1, 'Primeiro plano'], [2, 'Duas frentes'], [3, 'Estrategista']] },
+    { c: 'metodo', i: '☁️', n: 'Backup na nuvem', u: 'nuvem', d: 'seus dados estão sincronizados', dOff: 'conectar a sincronização em Configurações' },
+    { c: 'metodo', i: '🧭', n: 'Sistema completo', u: 'sistemaCompleto', d: 'você usa registro, cards, leis, TEC e atividades — o app inteiro trabalhando junto', dOff: 'usar registro, cards, leis, TEC e atividades extras' }
+  ],
+  badges(entries) {
+    const x = this._contexto(entries);
+    x.sempre = true;
+    x.sistemaCompleto = (x.sessoes > 0 && x.cardsCriados > 0 && x.leis > 0 && x.retratos > 0 && x.extrasCriadas > 0);
+    const fmt = (v, f) => f === 'h' ? Math.round(v) + 'h'
+      : f === 'min' ? (v >= 60 ? (v / 60).toFixed(v % 60 ? 1 : 0) + 'h' : Math.round(v) + 'min')
+      : f === 'pc' ? v.toFixed(0) + '%' : Math.round(v).toLocaleString('pt-BR');
+    return this.DEFS.map(d => {
+      if (d.u) {   // badge única (conquistou ou não)
+        const ok = !!x[d.u];
+        return {
+          cat: d.c, ico: d.i, nome: d.n, unica: true, conquistada: ok, nivel: ok ? 'conquistada' : null,
+          detalhe: ok ? (typeof d.d === 'function' ? d.d(x) : d.d) : d.dOff, progresso: ok ? 1 : 0
+        };
+      }
+      const v = x[d.k] || 0;
+      const niveis = d.ns.map(([val, rot]) => ({ v: val, rot }));
+      const alc = niveis.filter(n => v >= n.v);
+      const atual = alc.length ? alc[alc.length - 1] : null;
+      const prox = niveis.find(n => n.v > v);
+      const base = atual ? atual.v : 0;
+      return {
+        cat: d.c, ico: d.i, nome: d.n, conquistada: !!atual, nivel: atual ? atual.rot : null,
+        detalhe: atual ? ('você já tem ' + fmt(v, d.f)) : ((d.d2 ? d.d2 + '. ' : '') + 'conquista a partir de ' + fmt(niveis[0].v, d.f)),
+        progresso: prox ? Math.min(1, (v - base) / (prox.v - base)) : 1,
+        prox: prox ? { rot: prox.rot, falta: fmt(prox.v - v, d.f) } : null,
+        totalNiveis: niveis.length, nivelAtual: alc.length
+      };
     });
-
-    // HÁBITO — sem sequência, sem punição
-    const em30 = (() => { let c = 0; for (let i = 0; i < 30; i++) { const d = new Date(hoje + 'T00:00:00'); d.setDate(d.getDate() - i); if ((dias[this._iso(d)] || {}).temAlgo) c++; } return c; })();
-    escada('habito', '🌗', 'Dias ativos no mês', em30,
-      [{ v: 10, rot: 'Presente' }, { v: 20, rot: 'Ritmo firme' }, { v: 26, rot: 'Quase todo dia' }], nFmt);
-    const meses = new Set(Object.keys(dias).filter(k => dias[k].temAlgo).map(k => k.slice(0, 7))).size;
-    escada('habito', '📅', 'Meses na caminhada', meses,
-      [{ v: 3, rot: 'Três meses' }, { v: 6, rot: 'Meio ano' }, { v: 12, rot: 'Um ano' }, { v: 24, rot: 'Dois anos' }], nFmt);
-    // Retomada: a badge mais importante do conjunto. Voltar depois de uma pausa
-    // é conquista — não uma falha a ser recuperada.
-    const ordenados = Object.keys(dias).filter(k => dias[k].temAlgo).sort();
-    let maiorRetomada = 0, quando = null;
-    for (let i = 1; i < ordenados.length; i++) {
-      const gap = this._diasEntre(ordenados[i - 1], ordenados[i]);
-      if (gap >= 7 && gap > maiorRetomada) { maiorRetomada = gap; quando = ordenados[i]; }
-    }
-    B.push({
-      cat: 'habito', ico: '🌅', nome: 'Retomada', conquistada: !!quando,
-      detalhe: quando
-        ? 'você voltou depois de ' + maiorRetomada + ' dias parado, em ' + formatDateShort(quando) + '. Parar acontece — voltar é o que conta.'
-        : 'voltar a estudar depois de uma pausa também é conquista',
-      progresso: quando ? 1 : 0, valorAtual: ''
-    });
-    return B;
   },
   recordes(entries) {
     const dias = this.porDia(entries);
@@ -11333,98 +11442,95 @@ const EvolucaoScreen = {
   },
   renderConquistas() {
     const box = document.getElementById('conquistas-body');
-    const resumo = document.getElementById('conq-resumo');
     if (!box) return;
-    // Sempre sobre o histórico INTEIRO — conquista não se limita ao filtro de período.
-    const entries = this.scope === 'all' ? DB.getAllEntriesTagged() : DB.getEntries();
+    const entries = DB.getAllEntriesTagged ? DB.getAllEntriesTagged() : DB.getEntries();
     const largo = window.innerWidth >= 900;
     const cal = ConquistasEngine.calendario(entries, largo ? 26 : 14);
     const marcos = ConquistasEngine.marcos(entries);
     const recs = ConquistasEngine.recordes(entries);
     const badges = ConquistasEngine.badges(entries);
     const ganhas = badges.filter(b => b.conquistada).length;
-    if (!marcos.length) {
-      box.innerHTML = `<p class="hint">Registre suas primeiras sessões e sua caminhada começa a aparecer aqui.</p>`;
-      if (resumo) resumo.textContent = '';
-      return;
-    }
-    if (resumo) {
-      const h = marcos.find(m => m.unidade === 'h');
-      resumo.textContent = (h ? h.valor + 'h · ' : '') + ganhas + ' conquistas · ' + cal.em30 + ' dias ativos no mês';
-    }
-    const nomeDia = ['seg', 'ter', 'qua', 'qui', 'sex', 'sáb', 'dom'];
+    const niveisGanhos = badges.reduce((a, b) => a + (b.nivelAtual || (b.conquistada ? 1 : 0)), 0);
+    const niveisTotal = badges.reduce((a, b) => a + (b.totalNiveis || 1), 0);
+
     const celulas = cal.grade.map(d => {
-      const t = d.futuro ? '' :
-        (d.presente
-          ? `${formatDateShort(d.iso)} · ${d.min ? Math.floor(d.min / 60) + 'h' + String(d.min % 60).padStart(2, '0') : 'sem tempo registrado'}${d.q ? ' · ' + d.q + ' questões' : ''}${d.cards ? ' · ' + d.cards + ' cards' : ''}`
-          : `${formatDateShort(d.iso)} · sem registro`);
+      const t = d.futuro ? '' : (d.presente
+        ? `${formatDateShort(d.iso)} · ${d.min ? Math.floor(d.min / 60) + 'h' + String(d.min % 60).padStart(2, '0') : 'sem tempo'}${d.q ? ' · ' + d.q + ' questões' : ''}${d.cards ? ' · ' + d.cards + ' cards' : ''}`
+        : `${formatDateShort(d.iso)} · sem registro`);
       return `<span class="cal-dia n${d.nivel}${d.hoje ? ' hoje' : ''}${d.futuro ? ' futuro' : ''}" title="${escapeHtml(t)}"></span>`;
     }).join('');
+
     box.innerHTML = `
-      <div class="conq-bloco">
+      <div class="card"><div style="padding:18px 22px;">
+        <div class="pl-hero-top" style="margin-bottom:2px;">
+          <span class="pl-hero-num tone-good">${ganhas}</span>
+          <span class="pl-hero-uni">de ${badges.length} conquistas · ${niveisGanhos} de ${niveisTotal} níveis</span>
+        </div>
+        <p class="pl-prosa" style="margin:6px 0 0;">Nenhuma conquista aqui expira, se perde ou tem prazo. São registros do que você já fez.</p>
+      </div></div>
+
+      <div class="card"><div style="padding:18px 22px;">
         <p class="conq-titulo">📅 Calendário de presença</p>
         <div class="cal-grid">${celulas}</div>
         <div class="cal-legenda">
           <span>menos</span>
           <span class="cal-dia n0"></span><span class="cal-dia n1"></span><span class="cal-dia n2"></span><span class="cal-dia n3"></span>
-          <span>mais</span>
-          <span style="margin-left:6px;">· intensidade pelo tempo estudado no dia</span>
+          <span>mais</span><span style="margin-left:6px;">· intensidade pelo tempo estudado</span>
         </div>
-        <p class="conq-presenca">
-          Você estudou em <strong>${cal.em7}</strong> dos últimos 7 dias e em <strong>${cal.em30}</strong> dos últimos 30.
-        </p>
-      </div>
+        <p class="conq-presenca">Você estudou em <strong>${cal.em7}</strong> dos últimos 7 dias e em <strong>${cal.em30}</strong> dos últimos 30.</p>
+      </div></div>
 
-      <div class="conq-bloco">
+      ${marcos.length ? `<div class="card"><div style="padding:18px 22px;">
         <p class="conq-titulo">🎯 Marcos acumulados</p>
         <div class="conq-marcos">
-          ${marcos.map(m => `
-            <div class="conq-marco">
-              <div class="v">${m.valor.toLocaleString('pt-BR')}${m.unidade}</div>
-              <div class="r">${m.rot}</div>
-              ${m.atual ? `<div class="m">✓ marco de ${m.atual.toLocaleString('pt-BR')}${m.unidade} alcançado</div>` : ''}
-              ${m.mostrarProx ? `<div class="p">próximo: ${m.prox.toLocaleString('pt-BR')}${m.unidade} — faltam ${m.falta.toLocaleString('pt-BR')}</div>` : ''}
-            </div>`).join('')}
-        </div>
-      </div>
-
-      <div class="conq-bloco">
-        <p class="conq-titulo">🏅 Conquistas <span style="font-weight:500;text-transform:none;letter-spacing:0;">· ${ganhas} de ${badges.length}</span></p>
-        ${ConquistasEngine.CATEGORIAS.map(c => {
-          const doGrupo = badges.filter(b => b.cat === c.id);
-          if (!doGrupo.length) return '';
-          return `<p class="badge-cat">${c.nome} <span>· ${c.desc}</span></p>
-            <div class="badge-grid">
-              ${doGrupo.map(b => `
-                <div class="badge ${b.conquistada ? 'on' : 'off'}" title="${escapeHtml(b.detalhe || '')}">
-                  <span class="bi">${b.ico}</span>
-                  <div class="bn">${escapeHtml(b.nome)}</div>
-                  ${b.nivel ? `<div class="bl">✓ ${escapeHtml(b.nivel)}</div>` : `<div class="bl">ainda não</div>`}
-                  <div class="bd">${escapeHtml(b.detalhe || '')}</div>
-                  ${(b.prox && b.progresso < 1) ? `<div class="bp"><i style="width:${Math.round(b.progresso * 100)}%"></i></div>
-                    <div class="bd" style="margin-top:4px;">próximo: ${escapeHtml(b.prox.rot)} — faltam ${escapeHtml(b.prox.falta)}</div>` : ''}
-                </div>`).join('')}
-            </div>`;
-        }).join('')}
-      </div>
-
-      ${recs.length ? `<div class="conq-bloco">
-        <p class="conq-titulo">🏆 Seus recordes</p>
-        ${recs.map(r => `
-          <div class="conq-rec">
-            <span class="rot">${r.rot}${r.novo ? ' <span class="conq-novo">novo!</span>' : ''}</span>
-            <span style="text-align:right;">
-              <span class="val">${r.fmt(r.hist.valor)}</span>
-              <span class="qd"> · ${formatDateShort(r.hist.data)}</span>
-              ${r.mostraRec ? `<span class="qd" style="display:block;">melhor dos últimos 90 dias: ${r.fmt(r.rec.valor)}</span>` : ''}
-            </span>
+          ${marcos.map(m => `<div class="conq-marco">
+            <div class="v">${m.valor.toLocaleString('pt-BR')}${m.unidade}</div>
+            <div class="r">${m.rot}</div>
+            ${m.atual ? `<div class="m">✓ marco de ${m.atual.toLocaleString('pt-BR')}${m.unidade} alcançado</div>` : ''}
+            ${m.mostrarProx ? `<div class="p">próximo: ${m.prox.toLocaleString('pt-BR')}${m.unidade} — faltam ${m.falta.toLocaleString('pt-BR')}</div>` : ''}
           </div>`).join('')}
-        <p class="hint" style="margin-top:10px;">Comparação só com você mesmo. Recorde é história, não meta.</p>
-      </div>` : ''}`;
+        </div>
+      </div></div>` : ''}
+
+      ${ConquistasEngine.CATEGORIAS.map(c => {
+        const grupo = badges.filter(b => b.cat === c.id);
+        if (!grupo.length) return '';
+        const g = grupo.filter(b => b.conquistada).length;
+        return `<div class="card"><div style="padding:18px 22px;">
+          <p class="conq-titulo" style="display:flex;align-items:baseline;gap:8px;flex-wrap:wrap;">
+            <span>${c.ico} ${c.nome}</span>
+            <span style="font-weight:500;text-transform:none;letter-spacing:0;">· ${c.desc}</span>
+            <span style="margin-left:auto;font-weight:800;color:var(--good-text);">${g}/${grupo.length}</span>
+          </p>
+          <div class="badge-grid">
+            ${grupo.map(b => `
+              <div class="badge ${b.conquistada ? 'on' : 'off'}">
+                <span class="bi">${b.ico}</span>
+                <div class="bn">${escapeHtml(b.nome)}</div>
+                ${b.nivel ? `<div class="bl">✓ ${escapeHtml(b.nivel)}</div>` : `<div class="bl">ainda não</div>`}
+                <div class="bd">${escapeHtml(b.detalhe || '')}</div>
+                ${(b.prox && b.progresso < 1) ? `<div class="bp"><i style="width:${Math.round(b.progresso * 100)}%"></i></div>
+                  <div class="bd" style="margin-top:4px;">próximo: ${escapeHtml(b.prox.rot)} — faltam ${escapeHtml(b.prox.falta)}</div>` : ''}
+                ${b.totalNiveis ? `<div class="bd" style="margin-top:4px;opacity:0.75;">nível ${b.nivelAtual} de ${b.totalNiveis}</div>` : ''}
+              </div>`).join('')}
+          </div>
+        </div></div>`;
+      }).join('')}
+
+      ${recs.length ? `<div class="card"><div style="padding:18px 22px;">
+        <p class="conq-titulo">🏆 Seus recordes</p>
+        ${recs.map(r => `<div class="conq-rec">
+          <span class="rot">${r.rot}${r.novo ? ' <span class="conq-novo">novo!</span>' : ''}</span>
+          <span style="text-align:right;">
+            <span class="val">${r.fmt(r.hist.valor)}</span><span class="qd"> · ${formatDateShort(r.hist.data)}</span>
+            ${r.mostraRec ? `<span class="qd" style="display:block;">melhor dos últimos 90 dias: ${r.fmt(r.rec.valor)}</span>` : ''}
+          </span>
+        </div>`).join('')}
+        <p class="pl-prosa" style="margin-top:10px;color:var(--text-faint);">Comparação só com você mesmo. Recorde é história, não meta.</p>
+      </div></div>` : ''}`;
   },
   render() {
     const allEntries = this._sourceEntries();
-    this.renderConquistas();
     const emptyEl = document.getElementById('evolucao-empty');
     const contentEl = document.getElementById('evolucao-content');
 
@@ -14379,6 +14485,7 @@ document.querySelectorAll('.rte').forEach(buildRteToolbar);
 })();
 window.addEventListener('screen:activated', (e) => {
   if (e.detail.screen === 'cards') CardsScreen.render();
+  if (e.detail.screen === 'conquistas') EvolucaoScreen.renderConquistas();
 });
 
 /* ============================================================
