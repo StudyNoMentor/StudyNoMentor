@@ -16133,6 +16133,13 @@ const PlanoEngine = {
       s._idx = this._indice(s, opts.apenasFolhas); return s;
     });
     const mHist = this._indice(scoped, opts.apenasFolhas);
+    // Baseline histórico coerente com a JANELA ADAPTATIVA: soma os índices POR RETRATO
+    // (mesma chave por nome), em vez de usar o agregado. Sem isto, quando o mesmo assunto
+    // muda de código entre importações, o agregado + detecção de folha captura uma amostra
+    // menor que a janela — e o delta ▲/▼ ficava espúrio (ex.: "+63pp" num assunto em queda).
+    const mFull = {};
+    for (const s of snapsDesc) { const idx = s._idx || {}; for (const k in idx) { const c = mFull[k] || { q: 0, ac: 0 }; c.q += idx[k].q; c.ac += idx[k].ac; mFull[k] = c; } }
+    const _fullPct = (k, fb) => { const f = mFull[k]; return (f && f.q > 0) ? (f.ac / f.q * 100) : fb; };
     let chaves = Object.keys(mHist);
     if (opts.disciplina && opts.disciplina !== '__todas__') {
       chaves = chaves.filter(k => ReforcoEngine.norm(mHist[k].disciplina || '') === ReforcoEngine.norm(opts.disciplina));
@@ -16156,11 +16163,11 @@ const PlanoEngine = {
         seq: sq.seq, medicoes: sq.medicoes, serie: sq.serie,
         diasDesdeMedicao: sq.diasDesde,
         vencido: sq.diasDesde != null && sq.diasDesde > opts.validadeDias,
-        qHist: h.q, pctHist: h.pct,
+        qHist: (mFull[k] ? mFull[k].q : h.q), pctHist: _fullPct(k, h.pct),
         qJanela: a.q, diasJanela: a.diasJanela, retratosJanela: a.retratos,
         margem: a.margem, conf: a.conf, atingiuAlvo: a.q >= opts.amostraAlvo,
         taxa, amostraFraca, peso, custoQ,
-        delta: (h.pct != null && a.pct != null) ? Math.round((a.pct - h.pct) * 10) / 10 : null
+        delta: (a.pct != null) ? Math.round((a.pct - _fullPct(k, h.pct)) * 10) / 10 : null
       };
     });
     const usados = opts.incluirPequenas ? brutos : brutos.filter(x => !x.amostraFraca);
