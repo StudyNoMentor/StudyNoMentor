@@ -2547,6 +2547,31 @@
   .cal-legenda { display: flex; align-items: center; gap: 6px; margin-top: 10px; font-family: 'Inter', sans-serif; font-size: calc(10px * var(--fs-scale,1)); color: var(--text-faint); flex-wrap: wrap; }
   .cal-legenda .cal-dia { width: 11px; height: 11px; }
   .conq-presenca { font-family: 'Inter', sans-serif; font-size: calc(12px * var(--fs-scale,1)); color: var(--text-soft); margin: 10px 0 0; }
+  /* Calendário MENSAL de presença (um mês por vez, com navegação) */
+  .calm-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin: 4px 0 12px; }
+  .calm-title { font-family: 'Inter', sans-serif; font-size: calc(15px * var(--fs-scale,1)); font-weight: 800; color: var(--text); text-transform: capitalize; }
+  .calm-nav { display: inline-flex; align-items: center; gap: 6px; }
+  .calm-nav button { width: 34px; height: 34px; border-radius: 9px; border: 1.5px solid var(--border); background: var(--surface-sunken); color: var(--text-soft); font-size: calc(16px * var(--fs-scale,1)); cursor: pointer; display: inline-flex; align-items: center; justify-content: center; line-height: 1; }
+  .calm-nav button:hover:not(:disabled) { border-color: var(--accent); color: var(--accent); }
+  .calm-nav button:disabled { opacity: 0.35; cursor: default; }
+  .calm-nav .calm-today { width: auto; padding: 0 12px; font-size: calc(12px * var(--fs-scale,1)); font-weight: 700; }
+  .calm-weekdays { display: grid; grid-template-columns: repeat(7, 1fr); gap: 5px; margin-bottom: 5px; }
+  .calm-weekdays span { text-align: center; font-family: 'Inter', sans-serif; font-size: calc(10px * var(--fs-scale,1)); font-weight: 800; letter-spacing: 0.04em; text-transform: uppercase; color: var(--text-faint); }
+  .calm-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 5px; }
+  .calm-cell { position: relative; aspect-ratio: 1 / 1; border-radius: 10px; border: 1.5px solid var(--border); background: var(--surface-sunken); display: flex; align-items: center; justify-content: center; font-family: 'Space Mono', monospace; font-size: calc(13px * var(--fs-scale,1)); font-weight: 700; color: var(--text-soft); transition: transform 0.1s ease, box-shadow 0.12s ease; }
+  .calm-cell.empty { border: none; background: transparent; }
+  .calm-cell.p1 { background: color-mix(in srgb, var(--good) 22%, var(--surface)); border-color: transparent; color: var(--text); }
+  .calm-cell.p2 { background: color-mix(in srgb, var(--good) 45%, var(--surface)); border-color: transparent; color: var(--text); }
+  .calm-cell.p3 { background: var(--good); border-color: transparent; color: #fff; }
+  .calm-cell.hoje { box-shadow: 0 0 0 2px var(--accent); }
+  .calm-cell.futuro { opacity: 0.4; }
+  .calm-cell:not(.empty):hover { transform: translateY(-1px); box-shadow: var(--shadow-sm); }
+  .calm-cell .calm-dot { position: absolute; bottom: 5px; left: 50%; transform: translateX(-50%); width: 5px; height: 5px; border-radius: 50%; background: currentColor; opacity: 0.55; }
+  .calm-legend { display: flex; align-items: center; gap: 6px; margin-top: 12px; font-family: 'Inter', sans-serif; font-size: calc(10px * var(--fs-scale,1)); color: var(--text-faint); flex-wrap: wrap; }
+  .calm-legend i { width: 13px; height: 13px; border-radius: 4px; display: inline-block; border: 1px solid var(--border); }
+  .calm-legend i.p1 { background: color-mix(in srgb, var(--good) 22%, var(--surface)); border-color: transparent; }
+  .calm-legend i.p2 { background: color-mix(in srgb, var(--good) 45%, var(--surface)); border-color: transparent; }
+  .calm-legend i.p3 { background: var(--good); border-color: transparent; }
   /* marcos */
   .conq-marcos { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; }
   .conq-marco { border: 1.5px solid var(--border); border-radius: 12px; padding: 12px 14px; background: var(--surface-sunken); }
@@ -2726,6 +2751,24 @@
   .pl-acao { font-family: 'Inter', sans-serif; font-size: calc(12px * var(--fs-scale,1)); line-height: 1.5; color: var(--text-soft); margin: 8px 0 0; }
   .pl-base { font-family: 'Inter', sans-serif; font-size: calc(10.5px * var(--fs-scale,1)); line-height: 1.5; color: var(--text-faint); margin: 6px 0 0; }
   .pl-base b { font-family: 'Space Mono', monospace; color: var(--text-soft); font-variant-numeric: tabular-nums; }
+  /* Plano: direção curta + caixinhas numéricas + guia expansível */
+  .pl-direcao { font-family: 'Inter', sans-serif; font-size: calc(12px * var(--fs-scale,1)); font-weight: 700; line-height: 1.45; margin: 8px 0 0; display: flex; align-items: flex-start; gap: 6px; }
+  .pl-direcao .seta { flex-shrink: 0; }
+  .pl-direcao.tone-bad { color: var(--bad-text); } .pl-direcao.tone-warn { color: var(--warn-text); } .pl-direcao.tone-good { color: var(--good-text); }
+  .pl-metrics { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; margin: 10px 0 0; }
+  .pl-metrics .plm { background: var(--surface-sunken); border: 1px solid var(--border); border-radius: 10px; padding: 7px 4px; text-align: center; min-width: 0; }
+  .pl-metrics .plm b { display: block; font-family: 'Space Mono', monospace; font-weight: 800; font-size: calc(15px * var(--fs-scale,1)); color: var(--text); font-variant-numeric: tabular-nums; line-height: 1.1; }
+  .pl-metrics .plm b.tone-bad { color: var(--bad-text); } .pl-metrics .plm b.tone-warn { color: var(--warn-text); } .pl-metrics .plm b.tone-good { color: var(--good-text); }
+  .pl-metrics .plm span { display: block; font-size: calc(9px * var(--fs-scale,1)); font-weight: 700; letter-spacing: 0.02em; text-transform: uppercase; color: var(--text-faint); margin-top: 3px; line-height: 1.2; }
+  @media (max-width: 560px) { .pl-metrics { grid-template-columns: 1fr 1fr; } }
+  .pl-guia { margin: 10px 0 0; border: 1px solid var(--border); border-radius: 10px; background: var(--surface-sunken); overflow: hidden; }
+  .pl-guia > summary { cursor: pointer; list-style: none; padding: 8px 12px; font-family: 'Inter', sans-serif; font-size: calc(11.5px * var(--fs-scale,1)); font-weight: 700; color: var(--text-soft); display: flex; align-items: center; gap: 7px; }
+  .pl-guia > summary::-webkit-details-marker { display: none; }
+  .pl-guia > summary .chev { margin-left: auto; transition: transform 0.18s ease; color: var(--text-faint); font-size: calc(10px * var(--fs-scale,1)); }
+  .pl-guia[open] > summary .chev { transform: rotate(180deg); }
+  .pl-guia > summary:hover { color: var(--accent); }
+  .pl-guia .pl-guia-body { padding: 2px 12px 12px; }
+  .pl-guia .pl-acao { margin-top: 4px; }
   .pl-medidor { position: relative; height: 6px; background: var(--surface-sunken); border-radius: 20px; margin: 9px 0 0; overflow: visible; }
   .pl-medidor i { position: absolute; inset: 0 auto 0 0; display: block; background: var(--accent); border-radius: 20px; }
   .pl-medidor u { position: absolute; top: -3px; bottom: -3px; width: 2px; background: var(--text); opacity: 0.4; }
@@ -3013,12 +3056,13 @@
   .acm-track { position: relative; height: 20px; background: var(--surface-sunken); border: 1px solid var(--border); border-radius: 8px; overflow: visible; }
   .acm-fill { height: 100%; border-radius: 6px 0 0 6px; transition: width 0.5s ease; }
   .acm-ref { position: absolute; top: -5px; bottom: -5px; width: 2px; opacity: 0.9; z-index: 2; }
-  .acm-ref-tag {
-    position: absolute; top: -18px; left: 50%; transform: translateX(-50%);
-    font-family: 'Space Mono', monospace; font-size: calc(10px * var(--fs-scale, 1)); font-weight: 700; color: #fff;
-    padding: 1px 5px; border-radius: 8px; white-space: nowrap;
-  }
-  .acm-row:not(:first-child) .acm-ref-tag { display: none; }
+  /* Régua de metas ACIMA das barras: rótulos escalonados em 2 níveis p/ nunca sobrepor (70/80/85). */
+  .acm-ruler { position: relative; height: 34px; margin: 0 0 2px; }
+  .acm-ruler-lbl { position: absolute; transform: translateX(-50%); font-family: 'Space Mono', monospace; font-size: calc(10px * var(--fs-scale, 1)); font-weight: 700; color: #fff; padding: 1px 6px; border-radius: 8px; white-space: nowrap; line-height: 1.5; }
+  .acm-ruler-lbl::after { content: ''; position: absolute; left: 50%; bottom: -4px; transform: translateX(-50%); width: 2px; height: 4px; background: inherit; }
+  .acm-ruler-lbl.lvl1 { top: 16px; }
+  .acm-ruler-inner { position: absolute; left: 164px; right: 96px; top: 0; bottom: 0; }
+  @media (max-width: 560px) { .acm-ruler-inner { left: 102px; right: 60px; } }
   .acm-val { font-family: 'Space Mono', monospace; font-weight: 700; font-size: calc(13px * var(--fs-scale, 1)); text-align: right; }
   .acm-val .acm-q { display: block; font-size: calc(10px * var(--fs-scale, 1)); color: var(--text-faint); font-weight: 400; }
   @media (max-width: 560px) {
@@ -11147,6 +11191,28 @@ const ConquistasEngine = {
     };
     return { grade, semanas, em7: ultimos(7), em30: ultimos(30) };
   },
+  // Grade de UM mês (calendário tradicional), semana começando na segunda-feira.
+  mesGrade(entries, ano, mes) {
+    const dias = this.porDia(entries);
+    const hoje = todayLocal();
+    const primeiro = new Date(ano, mes, 1);
+    const ultimoDia = new Date(ano, mes + 1, 0).getDate();
+    const offset = (primeiro.getDay() + 6) % 7; // 0 = segunda
+    const celulas = [];
+    for (let i = 0; i < offset; i++) celulas.push(null);
+    let presentes = 0, totMin = 0;
+    for (let d = 1; d <= ultimoDia; d++) {
+      const dt = new Date(ano, mes, d);
+      const iso = this._iso(dt);
+      const info = dias[iso] || { min: 0, q: 0, cards: 0, temAlgo: false };
+      if (info.temAlgo) { presentes++; totMin += info.min; }
+      celulas.push({ dia: d, iso, futuro: iso > hoje, hoje: iso === hoje,
+        min: info.min, q: info.q, cards: info.cards, presente: !!info.temAlgo,
+        nivel: !info.temAlgo ? 0 : info.min >= 180 ? 3 : info.min >= 90 ? 2 : 1 });
+    }
+    while (celulas.length % 7 !== 0) celulas.push(null);
+    return { celulas, ano, mes, presentes, totalMin: totMin, diasNoMes: ultimoDia };
+  },
   marcos(entries) {
     const dias = this.porDia(entries);
     const vals = Object.values(dias);
@@ -11484,6 +11550,44 @@ const EvolucaoScreen = {
     const base = this.scope === 'all' ? DB.getAllEntriesTagged() : DB.getEntries();
     return base.concat(this._extraEntries());
   },
+  // Monta o HTML do calendário MENSAL (um mês, com navegação).
+  _calMensalHtml() {
+    const g = ConquistasEngine.mesGrade(this._calEntries || [], this.calAno, this.calMes);
+    const MES = ['janeiro', 'fevereiro', 'março', 'abril', 'maio', 'junho', 'julho', 'agosto', 'setembro', 'outubro', 'novembro', 'dezembro'];
+    const hoje = new Date();
+    const noFuturo = (this.calAno > hoje.getFullYear()) || (this.calAno === hoje.getFullYear() && this.calMes >= hoje.getMonth());
+    const wds = ['Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb', 'Dom'];
+    const cells = g.celulas.map(c => {
+      if (!c) return '<div class="calm-cell empty"></div>';
+      const cls = c.futuro ? 'futuro' : ('p' + c.nivel);
+      const tip = c.futuro ? formatDateShort(c.iso) : (c.presente
+        ? `${formatDateShort(c.iso)} · ${c.min ? Math.floor(c.min / 60) + 'h' + String(c.min % 60).padStart(2, '0') : 'sem tempo'}${c.q ? ' · ' + c.q + ' questões' : ''}${c.cards ? ' · ' + c.cards + ' cards' : ''}`
+        : `${formatDateShort(c.iso)} · sem registro`);
+      return `<div class="calm-cell ${cls}${c.hoje ? ' hoje' : ''}" data-tip="${escapeHtml(tip)}">${c.dia}${(c.presente && c.q) ? '<span class="calm-dot"></span>' : ''}</div>`;
+    }).join('');
+    const totH = g.totalMin ? (Math.floor(g.totalMin / 60) + 'h' + (g.totalMin % 60 ? String(g.totalMin % 60).padStart(2, '0') : '')) : '0h';
+    return `
+      <div class="calm-head">
+        <div class="calm-title">${MES[this.calMes]} de ${this.calAno}</div>
+        <div class="calm-nav">
+          <button type="button" data-cal="prev" title="Mês anterior">&#8249;</button>
+          <button type="button" class="calm-today" data-cal="today">Hoje</button>
+          <button type="button" data-cal="next" title="Próximo mês" ${noFuturo ? 'disabled' : ''}>&#8250;</button>
+        </div>
+      </div>
+      <div class="calm-weekdays">${wds.map(w => `<span>${w}</span>`).join('')}</div>
+      <div class="calm-grid">${cells}</div>
+      <p class="conq-presenca" style="margin-top:10px;">Neste mês: <strong>${g.presentes}</strong> ${g.presentes === 1 ? 'dia' : 'dias'} com estudo &middot; <strong>${totH}</strong> no total.</p>
+      <div class="calm-legend"><span>menos</span><i class="p0"></i><i class="p1"></i><i class="p2"></i><i class="p3"></i><span>mais</span><span style="margin-left:4px;">&middot; cor pela intensidade (tempo estudado)</span></div>`;
+  },
+  // Navega o calendário: 'prev' | 'next' | 'today'. Repinta só o corpo.
+  _navCal(dir) {
+    if (dir === 'today') { const h = new Date(); this.calAno = h.getFullYear(); this.calMes = h.getMonth(); }
+    else if (dir === 'next') { this.calMes++; if (this.calMes > 11) { this.calMes = 0; this.calAno++; } }
+    else { this.calMes--; if (this.calMes < 0) { this.calMes = 11; this.calAno--; } }
+    const body = document.getElementById('conq-cal-body');
+    if (body) body.innerHTML = this._calMensalHtml();
+  },
   renderConquistas() {
     const box = document.getElementById('conquistas-body');
     if (!box) return;
@@ -11497,12 +11601,9 @@ const EvolucaoScreen = {
     const niveisGanhos = badges.reduce((a, b) => a + (b.nivelAtual || (b.conquistada ? 1 : 0)), 0);
     const niveisTotal = badges.reduce((a, b) => a + (b.totalNiveis || 1), 0);
 
-    const celulas = cal.grade.map(d => {
-      const t = d.futuro ? '' : (d.presente
-        ? `${formatDateShort(d.iso)} · ${d.min ? Math.floor(d.min / 60) + 'h' + String(d.min % 60).padStart(2, '0') : 'sem tempo'}${d.q ? ' · ' + d.q + ' questões' : ''}${d.cards ? ' · ' + d.cards + ' cards' : ''}`
-        : `${formatDateShort(d.iso)} · sem registro`);
-      return `<span class="cal-dia n${d.nivel}${d.hoje ? ' hoje' : ''}${d.futuro ? ' futuro' : ''}" title="${escapeHtml(t)}"></span>`;
-    }).join('');
+    // mês exibido no calendário (1ª vez: mês atual) + guarda entries p/ navegação
+    if (this.calAno == null || this.calMes == null) { const h = new Date(); this.calAno = h.getFullYear(); this.calMes = h.getMonth(); }
+    this._calEntries = entries;
 
     box.innerHTML = `
       <div class="card"><div style="padding:18px 22px;">
@@ -11515,12 +11616,7 @@ const EvolucaoScreen = {
 
       <div class="card"><div style="padding:18px 22px;">
         <p class="conq-titulo">📅 Calendário de presença</p>
-        <div class="cal-grid">${celulas}</div>
-        <div class="cal-legenda">
-          <span>menos</span>
-          <span class="cal-dia n0"></span><span class="cal-dia n1"></span><span class="cal-dia n2"></span><span class="cal-dia n3"></span>
-          <span>mais</span><span style="margin-left:6px;">· intensidade pelo tempo estudado</span>
-        </div>
+        <div id="conq-cal-body">${this._calMensalHtml()}</div>
         <p class="conq-presenca">Você estudou em <strong>${cal.em7}</strong> dos últimos 7 dias e em <strong>${cal.em30}</strong> dos últimos 30.</p>
       </div></div>
 
@@ -11786,8 +11882,10 @@ const EvolucaoScreen = {
     // linhas de referência (metas) desenhadas sobre as barras
     const REFS = metaRefs();
     const refLines = REFS.map(r =>
-      `<div class="acm-ref" style="left:${r.v}%; background:${r.color};"><span class="acm-ref-tag" style="background:${r.color};">${r.v}%</span></div>`
+      `<div class="acm-ref" style="left:${r.v}%; background:${r.color};"></div>`
     ).join('');
+    // régua de metas ACIMA das barras — rótulos escalonados p/ não sobrepor
+    const ruler = `<div class="acm-ruler"><div class="acm-ruler-inner">${REFS.map((r, idx) => `<span class="acm-ruler-lbl ${idx % 2 ? 'lvl1' : ''}" style="left:${r.v}%; background:${r.color};">${r.v}%</span>`).join('')}</div></div>`;
     const bars = rows.map(r => {
       const tone = toneFor(r.pct);
       return `
@@ -11803,7 +11901,7 @@ const EvolucaoScreen = {
     const legend = `<div class="evo-legend" style="padding:14px 0 0;">
       ${REFS.map(r => `<span class="evo-legend-item"><span class="evo-legend-swatch" style="background:${r.color}; width:14px; height:0; border-top:2px dashed ${r.color};"></span>meta ${r.v}%</span>`).join('')}
     </div>`;
-    container.innerHTML = `<div class="acm-chart">${bars}</div>${legend}`;
+    container.innerHTML = `${ruler}<div class="acm-chart">${bars}</div>${legend}`;
   },
 
   // ------- Evolução do aproveitamento no tempo (média geral + por disciplina) -------
@@ -16937,20 +17035,43 @@ const DesempenhoTecScreen = {
       const desdeAtiv = (x.extra && x.extra.origemPlano && x.extra.origemPlano.taxaInicial != null && x.taxa != null)
         ? `<span class="reforco-tag ${x.taxa - x.extra.origemPlano.taxaInicial >= 0 ? 'tone-good' : 'tone-bad'}" title="Evolução desde que você criou a atividade em ${escapeHtml(formatDateShort(x.extra.origemPlano.criadoEm))}">desde a atividade ${x.extra.origemPlano.taxaInicial.toFixed(0)}→${x.taxa.toFixed(0)}%</span>` : '';
       const marca = (i === r.idxMeta) ? `<div class="pl-marco">🏁 Daqui para cima já basta para chegar a ${r.meta}% de domínio</div>` : '';
-      const mostraAcao = (r.idxMeta < 0 || i <= Math.max(r.idxMeta, 2));
+      // Direção curta (onde ir), sempre visível — derivada da faixa de acerto.
+      const faltaMeta = Math.max(0, r.meta - x.taxa);
+      let dir, dirTom;
+      if (x.taxa < r.faixaFragil) { dirTom = 'bad'; dir = 'Retome a teoria e volte às questões pelo caminho do erro.'; }
+      else if (x.taxa < r.meta) { dirTom = 'warn'; dir = 'Faltam ' + faltaMeta.toFixed(0) + ' pts: resolva questões e revise só o que errar.'; }
+      else if (x.status.rot.indexOf('Consolidado') >= 0) { dirTom = 'good'; dir = 'Sustentado — só revisão espaçada leve.'; }
+      else { dirTom = 'warn'; dir = 'Passou da meta há pouco: mantenha um volume pequeno até fixar.'; }
+      // Caixinhas numéricas (leitura rápida do status).
+      const metricas = `
+        <div class="pl-metrics">
+          <div class="plm"><b class="tone-${x.conf.tom}">${x.taxa.toFixed(0)}%</b><span>acerto${x.margem != null ? ' ±' + x.margem.toFixed(0) : ''}</span></div>
+          <div class="plm"><b class="tone-${dirTom}">${faltaMeta > 0 ? faltaMeta.toFixed(0) : '✓'}</b><span>pts p/ meta</span></div>
+          <div class="plm"><b>${x.custoQ}</b><span>questões (custo)</span></div>
+          <div class="plm"><b>${x.qJanela}</b><span>na amostra</span></div>
+        </div>`;
+      // Guia expansível (orientação completa) — aberta nos primeiros itens.
+      const abreGuia = (r.idxMeta < 0 || i <= Math.max(r.idxMeta, 2));
+      const guia = `
+        <details class="pl-guia" ${abreGuia ? 'open' : ''}>
+          <summary>💡 Como estudar este assunto <span class="chev">▾</span></summary>
+          <div class="pl-guia-body">
+            <p class="pl-acao">${escapeHtml(x.status.acao)}</p>
+            <p class="pl-base">Máximo realista ${r.teto}% · faltam <b>${(r.teto - x.taxa).toFixed(0)} pts</b> até lá · medido em <b>${x.qJanela}</b> questões${x.diasJanela ? ' dos últimos <b>' + x.diasJanela + '</b> dias' : ''}${x.qHist > x.qJanela ? ' (de <b>' + x.qHist + '</b> no total)' : ''}.</p>
+          </div>
+        </details>`;
       return `
         <div class="pl-item">
           <div class="pl-rank">${i + 1}</div>
           <div class="pl-nome">${escapeHtml(x.nome)}</div>
           <div class="pl-ganho">
             <b>+${x.ganhoPP.toFixed(1)}pp</b>
-            <span>domínio vai a ${x.acumulado.toFixed(1)}%</span>
+            <span>domínio → ${x.acumulado.toFixed(1)}%</span>
           </div>
           <div class="pl-corpo">
             ${x.disciplina ? `<div class="pl-disc">${escapeHtml(x.disciplina)}</div>` : ''}
             <div class="pl-tags">
               <span class="reforco-tag tone-${x.status.tom}" title="${x.status.seq != null ? x.status.seq + ' importação(ões) seguidas na meta' : 'Faixa de acerto'}">${x.status.rot}${x.status.seq ? ' ' + x.status.seq + '×' : ''}</span>
-              <span class="reforco-tag tone-${x.conf.tom}" title="Acerto e margem de erro a 95% · amostra de ${x.qJanela} questões">${x.taxa.toFixed(0)}%${x.margem != null ? ' ±' + x.margem.toFixed(0) + 'pp' : ''}</span>
               ${(x.incid > 0) ? `<span class="reforco-tag incid" title="Incidência na banca ${escapeHtml(r.banca === '__todas__' ? 'selecionada' : r.banca)}: aparece bastante na prova">🎯 incidência ${x.incid}</span>` : ''}
               ${seta}${desdeAtiv}
               ${x.vencido ? `<span class="reforco-tag tone-bad" title="Sem medição nova — a taxa pode não refletir você hoje">⏳ ${x.diasDesdeMedicao}d</span>` : ''}
@@ -16958,11 +17079,10 @@ const DesempenhoTecScreen = {
             <div class="pl-medidor" title="${x.taxa.toFixed(0)}% de acerto · marcador no máximo realista de ${r.teto}%">
               <i style="width:${Math.min(100, x.taxa)}%"></i><u style="left:${Math.min(100, r.teto)}%"></u>
             </div>
-            ${mostraAcao ? `<p class="pl-acao">${escapeHtml(x.status.acao)}</p>` : ''}
+            <p class="pl-direcao tone-${dirTom}"><span class="seta">➜</span><span>${dir}</span></p>
+            ${metricas}
+            ${guia}
             <div class="pl-rodape">
-              <p class="pl-base">
-                faltam <b>${(r.teto - x.taxa).toFixed(0)} pontos</b> até o máximo · medido em <b>${x.qJanela}</b> questões${x.diasJanela ? ' dos últimos <b>' + x.diasJanela + '</b> dias' : ''}${x.qHist > x.qJanela ? ' (de <b>' + x.qHist + '</b> no total)' : ''} · custo estimado: <b>${x.custoQ}</b> questões
-              </p>
               ${x.extra
                 ? `<span class="reforco-tag ${x.extraConcluida ? 'tone-good' : 'incid'}">${x.extraConcluida ? '✓ meta batida' : '▶ ' + x.extraFeito + '/' + x.extraAlvo}</span>`
                 : `<button type="button" class="btn-secondary plano-nova-extra" style="padding:6px 12px;font-size:calc(11px * var(--fs-scale,1));white-space:nowrap;" data-topico="${escapeHtml(x.nome)}"
@@ -19126,6 +19246,11 @@ const GraficoTip = {
   }
 };
 GraficoTip.init();
+/* Navegação do calendário mensal de presença (delegação única) */
+document.addEventListener('click', (e) => {
+  const b = e.target.closest ? e.target.closest('#conq-cal-body [data-cal]') : null;
+  if (b && window.EvolucaoScreen) EvolucaoScreen._navCal(b.dataset.cal);
+});
 
 /* ---- Alternador de tema claro/escuro (preferência do dispositivo) ---- */
 (function () {
