@@ -2606,8 +2606,13 @@
     border: 5px solid transparent; border-top-color: var(--text); border-bottom: 0;
   }
   .tip-bolha.acima::after { bottom: auto; top: -5px; border-top: 0; border-bottom-color: var(--text); }
-  /* alvo tocado ganha destaque momentâneo */
-  .tip-alvo { outline: 2px solid var(--accent); outline-offset: 1px; border-radius: 3px; }
+  /* Alvo tocado: realce SEM alterar geometria. Usar outline com offset criava
+     recortes brancos em volta das barras preenchidas. */
+  .tip-alvo { filter: brightness(1.18) saturate(1.15); }
+  /* em linhas (não barras preenchidas) o brilho não aparece: usa anel interno */
+  .acm-row.tip-alvo, .tpm-row.tip-alvo, .bar-row.tip-alvo, .reforco-row.tip-alvo, .pl-item.tip-alvo {
+    filter: none; box-shadow: inset 0 0 0 2px var(--accent); border-radius: 8px;
+  }
   /* elementos de gráfico ficam clicáveis */
   .evo-day-bar, .cal-dia, .stat-bar-fill, .acm-row, .tpm-row, .bar-row { cursor: pointer; }
 
@@ -18885,10 +18890,14 @@ const GraficoTip = {
   },
   esconder() {
     if (this._el) this._el.classList.remove('on');
-    if (this._alvo) { this._alvo.classList.remove('tip-alvo'); this._alvo = null; }
+    document.querySelectorAll('.tip-alvo').forEach(x => x.classList.remove('tip-alvo'));
+    this._alvo = null;
   },
   mostrar(el, texto) {
     if (!texto) return;
+    // limpa destaques anteriores. Antes só o último era removido, então tocar em
+    // várias barras deixava todas contornadas ao mesmo tempo.
+    document.querySelectorAll('.tip-alvo').forEach(x => x.classList.remove('tip-alvo'));
     const b = this.bolha();
     b.textContent = texto;
     b.classList.remove('acima');
