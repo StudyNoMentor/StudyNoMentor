@@ -2589,6 +2589,28 @@
   .pl-fchip:hover { border-color: var(--accent); color: var(--accent); }
   .pl-fchip.ativo { background: var(--accent-soft); border-color: var(--accent); color: var(--accent); }
 
+  /* ═══ DICA POR TOQUE — valor do ponto do gráfico ═══════════════════════════
+     Os gráficos usavam apenas `title`, que só aparece no HOVER: no celular nunca
+     era exibido. Esta bolha funciona no toque e no clique, em qualquer gráfico. */
+  .tip-bolha {
+    position: fixed; z-index: 300; pointer-events: none;
+    background: var(--text); color: var(--bg);
+    font-family: 'Inter', sans-serif; font-size: calc(12px * var(--fs-scale,1)); font-weight: 600;
+    line-height: 1.45; padding: 8px 11px; border-radius: 9px; max-width: min(280px, 82vw);
+    box-shadow: 0 6px 22px rgba(0,0,0,0.28);
+    opacity: 0; transform: translateY(4px); transition: opacity .12s ease, transform .12s ease;
+  }
+  .tip-bolha.on { opacity: 1; transform: translateY(0); }
+  .tip-bolha::after {
+    content: ''; position: absolute; left: var(--seta, 50%); bottom: -5px; transform: translateX(-50%);
+    border: 5px solid transparent; border-top-color: var(--text); border-bottom: 0;
+  }
+  .tip-bolha.acima::after { bottom: auto; top: -5px; border-top: 0; border-bottom-color: var(--text); }
+  /* alvo tocado ganha destaque momentâneo */
+  .tip-alvo { outline: 2px solid var(--accent); outline-offset: 1px; border-radius: 3px; }
+  /* elementos de gráfico ficam clicáveis */
+  .evo-day-bar, .cal-dia, .stat-bar-fill, .acm-row, .tpm-row, .bar-row { cursor: pointer; }
+
   /* ═══ MODO FOCO — LEIS SECAS ══════════════════════════════════════════════
      Mesmo princípio dos cards: esconde a interface e dá a tela ao texto.
      A barra de ferramentas some, mas o marca-texto e a borracha continuam
@@ -12167,7 +12189,7 @@ const EvolucaoScreen = {
     container.innerHTML = sorted.map(([name, min]) => {
       const pctTotal = Math.round((min / totalAll) * 100);
       return `
-      <div class="tpm-row">
+      <div class="tpm-row" data-tip="${escapeHtml(name)}: ${CycleEngine.fmtHM(min)} · ${pctTotal}% do seu tempo">
         <div class="tpm-name" title="${escapeHtml(name)}">${escapeHtml(name)}</div>
         <div class="tpm-bar-wrap">
           <div class="tpm-track"><div class="tpm-fill" style="width:${(min / max) * 100}%;"></div></div>
@@ -13435,7 +13457,7 @@ const CardsScreen = {
     const dueNow = cards.filter(c => CardEngine.isDue(c)).length;
     const custom = Array.isArray(cfg.weights) && cfg.weights.length === 19;
     const kpi = (v, l, tone) => `<div class="stat-kpi"><div class="stat-kpi-v ${tone || ''}">${v}</div><div class="stat-kpi-l">${l}</div></div>`;
-    const bars = (arr, max, lbl, tone) => arr.map(p => { const h = Math.round((p.n / max) * 100); return `<div class="stat-bar"><div class="stat-bar-fill ${tone}" style="height:${p.n ? Math.max(6, h) : 0}%"></div><span class="stat-bar-n">${p.n || ''}</span><span class="stat-bar-x">${lbl(p.dia)}</span></div>`; }).join('');
+    const bars = (arr, max, lbl, tone, uni) => arr.map(p => { const h = Math.round((p.n / max) * 100); return `<div class="stat-bar" data-tip="${escapeHtml(formatDateShort(p.dia))}: ${p.n || 0} ${uni || ''}"><div class="stat-bar-fill ${tone}" style="height:${p.n ? Math.max(6, h) : 0}%"></div><span class="stat-bar-n">${p.n || ''}</span><span class="stat-bar-x">${lbl(p.dia)}</span></div>`; }).join('');
     const dm = (iso) => iso.slice(8, 10) + '/' + iso.slice(5, 7);
     const wd = (iso) => ['D', 'S', 'T', 'Q', 'Q', 'S', 'S'][new Date(iso + 'T00:00:00').getDay()];
     box.innerHTML = `
@@ -18843,6 +18865,70 @@ window.StorageMeter = StorageMeter;
   if (b) b.addEventListener('click', () => { StorageMeter.render(); showToast('Espaço recalculado'); });
   window.addEventListener('screen:activated', (e) => { if (e.detail && e.detail.screen === 'config') StorageMeter.render(); });
 })();
+
+
+/* ---- Dica por toque nos gráficos ------------------------------------------
+   Antes, o valor de uma barra só aparecia passando o mouse (atributo title),
+   o que no celular nunca acontece. Agora um toque mostra a bolha com o valor.
+   Funciona por delegação: qualquer elemento com title ou data-tip dentro de uma
+   área de gráfico responde, sem precisar alterar cada gráfico. */
+const GraficoTip = {
+  AREAS: '#screen-evolucao, #screen-conquistas, #tec-panel-plano, #tec-panel-analise, #tec-panel-incidencia, #tec-panel-reforco, #screen-ciclo, #screen-historico',
+  _el: null, _timer: null, _alvo: null,
+  bolha() {
+    if (!this._el) {
+      this._el = document.createElement('div');
+      this._el.className = 'tip-bolha';
+      document.body.appendChild(this._el);
+    }
+    return this._el;
+  },
+  esconder() {
+    if (this._el) this._el.classList.remove('on');
+    if (this._alvo) { this._alvo.classList.remove('tip-alvo'); this._alvo = null; }
+  },
+  mostrar(el, texto) {
+    if (!texto) return;
+    const b = this.bolha();
+    b.textContent = texto;
+    b.classList.remove('acima');
+    b.classList.add('on');
+    const r = el.getBoundingClientRect();
+    const bb = b.getBoundingClientRect();
+    // centraliza na horizontal, mantendo dentro da tela
+    let left = r.left + r.width / 2 - bb.width / 2;
+    left = Math.max(8, Math.min(left, window.innerWidth - bb.width - 8));
+    let top = r.top - bb.height - 9;
+    if (top < 8) { top = r.bottom + 9; b.classList.add('acima'); }   // sem espaço acima: vai abaixo
+    b.style.left = left + 'px';
+    b.style.top = top + 'px';
+    b.style.setProperty('--seta', (r.left + r.width / 2 - left) + 'px');
+    el.classList.add('tip-alvo');
+    this._alvo = el;
+    clearTimeout(this._timer);
+    this._timer = setTimeout(() => this.esconder(), 3200);
+  },
+  init() {
+    document.addEventListener('click', (e) => {
+      const area = e.target.closest ? e.target.closest(this.AREAS) : null;
+      if (!area) { this.esconder(); return; }
+      // sobe até encontrar quem carrega a informação
+      let el = e.target;
+      let texto = null;
+      for (let i = 0; el && i < 4; i++, el = el.parentElement) {
+        texto = el.getAttribute && (el.getAttribute('data-tip') || el.getAttribute('title'));
+        if (texto) break;
+        // <title> dentro de SVG (pontos do gráfico de trajetória)
+        const t = el.querySelector && el.querySelector(':scope > title');
+        if (t && t.textContent) { texto = t.textContent; break; }
+      }
+      if (texto && el) this.mostrar(el, texto); else this.esconder();
+    });
+    window.addEventListener('scroll', () => this.esconder(), true);
+    window.addEventListener('resize', () => this.esconder());
+  }
+};
+GraficoTip.init();
 
 /* ---- Alternador de tema claro/escuro (preferência do dispositivo) ---- */
 (function () {
