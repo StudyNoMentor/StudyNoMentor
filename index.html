@@ -912,8 +912,20 @@
   .extra-tag { font-size: calc(10px * var(--fs-scale, 1)); font-weight: 700; padding: 2px 9px; border-radius: 20px; background: var(--surface-sunken); color: var(--text-soft); border: 1px solid var(--border); }
   .extra-doneflag { display: inline-block; font-family: 'Inter', sans-serif; font-size: calc(11px * var(--fs-scale,1)); font-weight: 800; color: var(--good-text); background: var(--good-soft); border: 1px solid var(--good); border-radius: 20px; padding: 2px 10px; margin: 0 0 6px; }
   /* Saldo de horas do ciclo na Grade (modo edição) */
-  .grade-budget { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; background: var(--surface-sunken); border: 1.5px solid var(--border); border-radius: 12px; padding: 12px 16px; margin: 0 0 14px; }
+  .grade-budget { display: flex; flex-direction: column; gap: 12px; background: var(--surface-sunken); border: 1.5px solid var(--border); border-radius: 12px; padding: 12px 16px; margin: 0 0 14px; }
   .grade-budget.hidden { display: none; }
+  .grade-budget .gb-top { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
+  .gb-discs { border-top: 1px solid var(--border); padding-top: 10px; }
+  .gb-discs-head { font-size: calc(10px * var(--fs-scale,1)); font-weight: 800; letter-spacing: 0.03em; text-transform: uppercase; color: var(--text-faint); margin-bottom: 8px; }
+  .gb-disc-row { display: grid; grid-template-columns: 62px 1fr auto auto; align-items: center; gap: 10px; padding: 3px 0; }
+  .gb-disc-sig { font-family: 'Space Mono', monospace; font-weight: 800; font-size: calc(11px * var(--fs-scale,1)); text-align: center; border: 1.5px solid var(--border); border-radius: 8px; padding: 3px 4px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .gb-disc-bar { height: 8px; background: var(--surface); border: 1px solid var(--border); border-radius: 20px; overflow: hidden; min-width: 60px; }
+  .gb-disc-bar i { display: block; height: 100%; border-radius: 20px; }
+  .gb-disc-val { font-family: 'Space Mono', monospace; font-weight: 700; font-size: calc(12px * var(--fs-scale,1)); color: var(--text); white-space: nowrap; text-align: right; }
+  .gb-disc-val small { color: var(--text-faint); font-weight: 400; }
+  .gb-disc-dif { font-family: 'Space Mono', monospace; font-size: calc(10.5px * var(--fs-scale,1)); font-weight: 700; min-width: 52px; text-align: right; white-space: nowrap; }
+  .gb-disc-dif.tone-good { color: var(--good-text); } .gb-disc-dif.tone-warn { color: var(--warn-text); } .gb-disc-dif.tone-bad { color: var(--bad-text); }
+  @media (max-width: 560px) { .gb-disc-row { grid-template-columns: 52px 1fr auto; } .gb-disc-dif { grid-column: 2 / -1; text-align: left; } }
   .gb-item { display: flex; flex-direction: column; gap: 1px; }
   .gb-item .gb-k { font-size: calc(9.5px * var(--fs-scale,1)); font-weight: 800; letter-spacing: 0.03em; text-transform: uppercase; color: var(--text-faint); }
   .gb-item .gb-v { font-family: 'Space Mono', monospace; font-weight: 800; font-size: calc(16px * var(--fs-scale,1)); color: var(--text); line-height: 1.1; }
@@ -6137,8 +6149,16 @@
               <option value="quinzenal">Quinzenal</option>
               <option value="mensal">Mensal</option>
             </select></div>
-          <div class="field" id="extra-datafim-field" style="display:none;"><label>Fim da recorrência <span class="opt">(opcional)</span></label>
-            <input type="date" id="extra-datafim" title="A meta para de reiniciar depois desta data. Deixe em branco para recorrer sem fim.">
+          <div class="field" id="extra-datainicio-field" style="display:none;"><label>Início da recorrência <span class="opt">(opcional)</span></label>
+            <input type="date" id="extra-datainicio" title="A partir de quando a atividade se repete. Em branco = hoje.">
+          </div>
+        </div>
+        <div class="field-group" id="extra-datafim-field" style="display:none;">
+          <div class="field"><label>Fim da recorrência <span class="opt">(recomendado)</span></label>
+            <input type="date" id="extra-datafim" title="Define até quando a atividade se repete. Com o fim preenchido, o app já vincula as datas ao calendário automaticamente. Em branco: recorre sem fim, sem vincular datas.">
+          </div>
+          <div class="field" style="display:flex; align-items:flex-end;">
+            <p class="hint" id="extra-rec-preview" style="margin:0 0 10px;">&nbsp;</p>
           </div>
         </div>
         <div class="field" style="display:flex; align-items:center;">
@@ -6861,6 +6881,7 @@ const DB = {
       unidade: data.unidade || 'itens',           // cards|paginas|questoes|min|sessoes|itens
       alvo: Math.max(0, parseFloat(data.alvo) || 0),
       periodo: data.periodo || 'unica',           // unica|diaria|semanal|quinzenal|mensal
+      dataInicio: (data.dataInicio || '').trim() || null, // início da recorrência (opcional; padrão: hoje)
       dataFim: (data.dataFim || '').trim() || null, // fim da recorrência (opcional): para de reiniciar depois disso
       progresso: 0,
       datas: Array.isArray(data.datas) ? data.datas : [], // datas agendadas (calendário)
@@ -6870,6 +6891,8 @@ const DB = {
       historico: [],
       createdAt: now, updatedAt: now
     };
+    // Recorrência com data-fim: já calcula e vincula automaticamente as datas do calendário.
+    if (this.extraRecorrente(ex) && ex.dataFim) ex.datas = this._gerarDatasRecorrencia(ex);
     list.push(ex); this.saveExtras(list); return ex;
   },
   updateExtra(id, patch) {
@@ -6880,11 +6903,24 @@ const DB = {
       if ('alvo' in p) p.alvo = Math.max(0, parseFloat(p.alvo) || 0);
       if ('progresso' in p) p.progresso = Math.max(0, parseFloat(p.progresso) || 0);
       if ('dataFim' in p) p.dataFim = (String(p.dataFim || '').trim()) || null;
+      if ('dataInicio' in p) p.dataInicio = (String(p.dataInicio || '').trim()) || null;
       Object.assign(e, p); e.updatedAt = new Date().toISOString();
     }
     this.saveExtras(list); return e;
   },
   deleteExtra(id) { this.saveExtras(this.getExtras().filter(x => x.id !== id)); },
+  // Remove APENAS as ocorrências futuras (a partir de hoje) de uma atividade recorrente,
+  // preservando a atividade e todo o histórico já registrado. Encerra a recorrência hoje.
+  encerrarRecorrenciaFutura(id) {
+    const list = this.getExtras(); const e = list.find(x => x.id === id);
+    if (!e) return null;
+    const hoje = todayLocal();
+    e.datas = (e.datas || []).filter(d => d < hoje);   // mantém só as ocorrências passadas
+    const ontem = this._isoDia(new Date(new Date(hoje + 'T00:00:00').getTime() - 86400000));
+    e.dataFim = ontem;                                 // para de reiniciar/gerar a partir de hoje
+    e.updatedAt = new Date().toISOString();
+    this.saveExtras(list); return e;
+  },
   // Agenda: vincula/desvincula uma atividade a uma data (calendário em linha)
   toggleExtraData(id, dataISO) {
     const list = this.getExtras(); const e = list.find(x => x.id === id);
@@ -6937,6 +6973,56 @@ const DB = {
     this.saveExtras(list); return ultimo;
   },
   _isoDia(d) { return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; },
+  // Gera as DATAS de ocorrência de uma atividade recorrente, do início até a data-fim.
+  // Passo conforme a periodicidade (diária/semanal/quinzenal/mensal). Sem data-fim,
+  // não gera nada (para não criar ocorrências infinitas) — exige o limite de propósito.
+  _gerarDatasRecorrencia(e) {
+    if (!e || !this.extraRecorrente(e)) return [];
+    const fim = (e.dataFim && String(e.dataFim).trim()) || null;
+    if (!fim) return []; // sem limite: não vincula datas automaticamente
+    let inicio = (e.dataInicio && String(e.dataInicio).trim())
+      || (e.createdAt ? String(e.createdAt).slice(0, 10) : todayLocal());
+    if (inicio > fim) return [];
+    const datas = [];
+    const ini = new Date(inicio + 'T00:00:00');
+    const dFim = new Date(fim + 'T00:00:00');
+    let guard = 0;
+    if (e.periodo === 'mensal') {
+      // Passo mensal ancorado no DIA de início, com clamp ao último dia do mês
+      // (31/jan → 28/fev, não 03/mar). Evita a "deriva" do setMonth nativo.
+      const diaAlvo = ini.getDate();
+      let ano = ini.getFullYear(), mes = ini.getMonth();
+      while (guard++ < 4000) {
+        const ultimoDia = new Date(ano, mes + 1, 0).getDate();
+        const d = new Date(ano, mes, Math.min(diaAlvo, ultimoDia));
+        if (d > dFim) break;
+        datas.push(this._isoDia(d));
+        mes++; if (mes > 11) { mes = 0; ano++; }
+      }
+    } else {
+      const passo = e.periodo === 'semanal' ? 7 : e.periodo === 'quinzenal' ? 14 : 1;
+      const d = new Date(ini);
+      while (d <= dFim && guard++ < 4000) {
+        datas.push(this._isoDia(d));
+        d.setDate(d.getDate() + passo);
+      }
+    }
+    return datas;
+  },
+  // Prévia (contagem) de quantas ocorrências serão geradas — para o modal mostrar ao usuário.
+  previewDatasRecorrencia(cfg) { return this._gerarDatasRecorrencia(cfg).length; },
+  // Recalcula e vincula as datas de recorrência de uma atividade já salva.
+  // Recorrente + data-fim → substitui `datas` pelas geradas. Caso contrário, não mexe.
+  sincronizarDatasRecorrencia(id) {
+    const list = this.getExtras(); const e = list.find(x => x.id === id);
+    if (!e) return null;
+    if (this.extraRecorrente(e) && e.dataFim) {
+      e.datas = this._gerarDatasRecorrencia(e);
+      e.updatedAt = new Date().toISOString();
+      this.saveExtras(list);
+    }
+    return e;
+  },
   // É recorrente (reinicia a cada período)? diária, semanal, quinzenal ou mensal.
   extraRecorrente(x) { return x && (x.periodo === 'diaria' || x.periodo === 'semanal' || x.periodo === 'quinzenal' || x.periodo === 'mensal'); },
   // A recorrência terminou? (passou da data-fim escolhida). Depois disso não reinicia mais.
@@ -10597,25 +10683,68 @@ function planCycleMode() {
     const metaH = (cyc && cyc.weeklyHours) || (last && last.weeklyHours) || 0;
     const tmpl = gradeGet();
     let alocMin = 0;
-    DIAS_SEMANA.forEach(dia => { (tmpl.grade[dia] || []).map(normalizeCell).filter(Boolean).forEach(s => { alocMin += (s.minutes || 0); }); });
+    // minutos alocados na grade POR DISCIPLINA (para o detalhamento)
+    const porDisc = {};
+    DIAS_SEMANA.forEach(dia => { (tmpl.grade[dia] || []).map(normalizeCell).filter(Boolean).forEach(s => {
+      alocMin += (s.minutes || 0);
+      const nm = s.subject || '—';
+      porDisc[nm] = (porDisc[nm] || 0) + (s.minutes || 0);
+    }); });
+    // meta POR DISCIPLINA vinda do ciclo (tempo definido de cada matéria), casada por nome
+    const alvoDisc = {};
+    const subsCiclo = (cyc && cyc.subjects) || (last && last.subjects) || [];
+    subsCiclo.forEach(s => { if (s && s.nome != null) alvoDisc[CycleEngine.normKey(s.nome)] = (s.definidoMin || 0); });
     const metaMin = metaH * 60;
     const saldoMin = metaMin - alocMin;
     const pct = metaMin > 0 ? Math.min(100, Math.round(alocMin / metaMin * 100)) : 0;
     const over = metaMin > 0 && alocMin > metaMin;
     const tomSaldo = !metaMin ? '' : (saldoMin < 0 ? 'tone-bad' : (saldoMin === 0 ? 'tone-good' : 'tone-warn'));
+    // Detalhamento por disciplina: sigla, alocado na grade e (se houver) a meta do ciclo.
+    const nomesGrade = Object.keys(porDisc);
+    // inclui matérias do ciclo que ainda não têm nenhuma célula na grade (alocado 0)
+    subsCiclo.forEach(s => { if (s && s.nome && !nomesGrade.some(n => CycleEngine.normKey(n) === CycleEngine.normKey(s.nome))) nomesGrade.push(s.nome); });
+    const discOrdenadas = nomesGrade.sort((a, b) => (porDisc[b] || 0) - (porDisc[a] || 0) || a.localeCompare(b, 'pt-BR'));
+    const discHtml = discOrdenadas.length ? `
+      <div class="gb-discs">
+        <div class="gb-discs-head">Horas planejadas por disciplina</div>
+        ${discOrdenadas.map(nome => {
+          const aloc = porDisc[nome] || 0;
+          const alvo = alvoDisc[CycleEngine.normKey(nome)];
+          const cor = CycleEngine.colorForSubject(nome) || 'var(--accent)';
+          const sig = CycleEngine.siglaForSubject(nome);
+          let tom = '', dica = '';
+          if (alvo != null && alvo > 0) {
+            const dif = aloc - alvo;
+            tom = dif === 0 ? 'tone-good' : (dif > 0 ? 'tone-warn' : 'tone-bad');
+            dica = dif === 0 ? '= meta' : (dif > 0 ? '+' + CycleEngine.fmtHM(dif) : '−' + CycleEngine.fmtHM(-dif));
+          }
+          const barPct = (alvo != null && alvo > 0) ? Math.min(100, Math.round(aloc / alvo * 100)) : (alocMin > 0 ? Math.round(aloc / alocMin * 100) : 0);
+          return `
+            <div class="gb-disc-row">
+              <span class="gb-disc-sig" style="color:${cor};border-color:${cor};" title="${escapeHtml(nome)}">${escapeHtml(sig)}</span>
+              <div class="gb-disc-bar"><i style="width:${barPct}%;background:${cor};"></i></div>
+              <span class="gb-disc-val">${CycleEngine.fmtHM(aloc)}${(alvo != null && alvo > 0) ? ' <small>/ ' + CycleEngine.fmtHM(alvo) + '</small>' : ''}</span>
+              ${dica ? `<span class="gb-disc-dif ${tom}">${dica}</span>` : '<span class="gb-disc-dif"></span>'}
+            </div>`;
+        }).join('')}
+        ${Object.keys(alvoDisc).length ? '<p class="gb-hint" style="margin:8px 0 0;">Comparado com o tempo definido de cada matéria no ciclo.</p>' : ''}
+      </div>` : '';
     if (!metaMin) {
-      host.innerHTML = `<div class="gb-item"><span class="gb-k">Alocado</span><span class="gb-v">${CycleEngine.fmtHM(alocMin)}</span></div>
-        <p class="gb-hint" style="margin:0;">Defina a carga horária semanal ao montar o ciclo para ver o saldo.</p>`;
+      host.innerHTML = `<div class="gb-top"><div class="gb-item"><span class="gb-k">Alocado</span><span class="gb-v">${CycleEngine.fmtHM(alocMin)}</span></div>
+        <p class="gb-hint" style="margin:0;">Defina a carga horária semanal ao montar o ciclo para ver o saldo total.</p></div>${discHtml}`;
       return;
     }
     host.innerHTML = `
-      <div class="gb-item"><span class="gb-k">Meta semanal</span><span class="gb-v">${CycleEngine.fmtHM(metaMin)}</span></div>
-      <div class="gb-item"><span class="gb-k">Alocado</span><span class="gb-v">${CycleEngine.fmtHM(alocMin)}</span></div>
-      <div class="gb-item"><span class="gb-k">${saldoMin < 0 ? 'Excedente' : 'Saldo'}</span><span class="gb-v ${tomSaldo}">${(saldoMin < 0 ? '+' : '') + CycleEngine.fmtHM(Math.abs(saldoMin))}</span></div>
-      <div class="gb-bar-wrap">
-        <div class="gb-bar"><i class="${over ? 'over' : ''}" style="width:${pct}%"></i></div>
-        <p class="gb-hint">${over ? '⚠ Você alocou mais que a meta do ciclo.' : (saldoMin === 0 ? '✓ Grade fechada exatamente na meta.' : 'Faltam ' + CycleEngine.fmtHM(saldoMin) + ' para atingir a meta.')}</p>
-      </div>`;
+      <div class="gb-top">
+        <div class="gb-item"><span class="gb-k">Meta semanal</span><span class="gb-v">${CycleEngine.fmtHM(metaMin)}</span></div>
+        <div class="gb-item"><span class="gb-k">Alocado</span><span class="gb-v">${CycleEngine.fmtHM(alocMin)}</span></div>
+        <div class="gb-item"><span class="gb-k">${saldoMin < 0 ? 'Excedente' : 'Saldo'}</span><span class="gb-v ${tomSaldo}">${(saldoMin < 0 ? '+' : '') + CycleEngine.fmtHM(Math.abs(saldoMin))}</span></div>
+        <div class="gb-bar-wrap">
+          <div class="gb-bar"><i class="${over ? 'over' : ''}" style="width:${pct}%"></i></div>
+          <p class="gb-hint">${over ? '⚠ Você alocou mais que a meta do ciclo.' : (saldoMin === 0 ? '✓ Grade fechada exatamente na meta.' : 'Faltam ' + CycleEngine.fmtHM(saldoMin) + ' para atingir a meta.')}</p>
+        </div>
+      </div>
+      ${discHtml}`;
   }
 
   function renderActiveCycle() {
@@ -15230,6 +15359,10 @@ const ExtrasScreen = {
           ? `<span class="extra-tag" style="background:var(--surface-sunken);color:var(--text-faint);border-style:dashed;">✔ recorrência encerrada em ${escapeHtml(formatDateShort(x.dataFim))}</span>`
           : `<span class="extra-tag" title="A recorrência para de reiniciar depois desta data">⏳ até ${escapeHtml(formatDateShort(x.dataFim))}</span>`)
       : '';
+    // total de datas vinculadas ao calendário (geradas pela recorrência ou manuais)
+    const nDatas = (x.datas || []).length;
+    const datasTag = (recorrente && nDatas > 0)
+      ? `<span class="extra-tag" title="Ocorrências vinculadas ao calendário de atividades">🗓️ ${nDatas} data(s) no calendário</span>` : '';
     return `
       <div class="extra-card ${x.status === 'concluida' ? 'is-done' : ''}" data-id="${x.id}">
         <div class="extra-head">
@@ -15241,6 +15374,7 @@ const ExtrasScreen = {
               ${x.disciplina ? `<span class="extra-tag disc">${escapeHtml(x.disciplina)}</span>` : ''}
               ${recTxt ? `<span class="extra-tag rec">🔁 ${recTxt}</span>` : ''}
               ${fimTag}
+              ${datasTag}
               ${x.tipo === 'leitura' && x.marcador ? `<span class="extra-tag pin">📌 parei em: ${escapeHtml(x.marcador)}</span>` : ''}
               <span class="extra-tag ${x.contaMetricas ? 'count-on' : 'count-off'}">${x.contaMetricas ? '📊 conta nas métricas' : 'fora das métricas'}</span>
             </div>
@@ -15285,13 +15419,7 @@ const ExtrasScreen = {
     list.querySelectorAll('.extra-card').forEach(card => {
       const id = card.dataset.id;
       card.querySelector('.ex-edit').addEventListener('click', () => this.openModal(id));
-      card.querySelector('.ex-del').addEventListener('click', () => {
-        const x = DB.getExtra(id);
-        UI.confirm(`Excluir a atividade "${x ? x.titulo : ''}"?`, { title: 'Excluir atividade', okText: 'Excluir', danger: true }).then(ok => {
-          if (!ok) return;
-          DB.deleteExtra(id); this.render(); showToast('Atividade excluída');
-        });
-      });
+      card.querySelector('.ex-del').addEventListener('click', () => this.excluir(id));
       const advBtn = card.querySelector('.ex-adv-btn');
       if (advBtn) advBtn.addEventListener('click', () => {
         const qtd = card.querySelector('.ex-qtd').value;
@@ -15333,6 +15461,44 @@ const ExtrasScreen = {
       if (reopen) reopen.addEventListener('click', () => { DB.updateExtra(id, { status: 'ativa' }); this.render(); });
     });
   },
+  // Exclusão consciente da recorrência: se a atividade é recorrente e tem ocorrências
+  // FUTURAS vinculadas, pergunta se apaga tudo ou só as ocorrências futuras (mantendo
+  // a atividade e o histórico já registrado).
+  excluir(id) {
+    const x = DB.getExtra(id);
+    if (!x) return;
+    const hoje = todayLocal();
+    const futuras = (x.datas || []).filter(d => d >= hoje).length;
+    const recorrente = DB.extraRecorrente(x) && futuras > 0;
+    if (!recorrente) {
+      UI.confirm(`Excluir a atividade "${x.titulo}"?`, { title: 'Excluir atividade', okText: 'Excluir', danger: true }).then(ok => {
+        if (!ok) return;
+        DB.deleteExtra(id); this.render(); showToast('Atividade excluída');
+      });
+      return;
+    }
+    // recorrente com ocorrências futuras → oferece o escopo da exclusão
+    UI.prompt([{
+      key: 'escopo', label: 'Esta é uma atividade recorrente com ' + futuras + ' ocorrência(s) futura(s) no calendário. O que deseja excluir?',
+      type: 'select', value: 'tudo',
+      options: [
+        { value: 'tudo', label: '🗑️ Toda a série (a atividade e as ' + futuras + ' ocorrência(s))' },
+        { value: 'futuras', label: '⏭️ Só as ocorrências futuras (mantém o histórico)' }
+      ],
+      hint: '"Só as futuras" preserva a atividade e o que você já registrou; a recorrência é encerrada a partir de hoje.'
+    }], { title: 'Excluir atividade recorrente', okText: 'Confirmar' }).then(v => {
+      if (!v) return;
+      if (v.escopo === 'futuras') {
+        DB.encerrarRecorrenciaFutura(id);
+        this.render();
+        showToast('Ocorrências futuras removidas — atividade encerrada hoje ✓');
+      } else {
+        DB.deleteExtra(id);
+        this.render();
+        showToast('Série recorrente excluída ✓');
+      }
+    });
+  },
   openModal(id, prefill) {
     this._editingId = id || null;
     const isEdit = !!id;
@@ -15354,10 +15520,11 @@ const ExtrasScreen = {
     document.getElementById('extra-unidade').value = x.unidade;
     document.getElementById('extra-periodo').value = x.periodo;
     const dfEl = document.getElementById('extra-datafim'); if (dfEl) dfEl.value = x.dataFim || '';
+    const diEl = document.getElementById('extra-datainicio'); if (diEl) diEl.value = x.dataInicio || '';
     document.getElementById('extra-marcador').value = x.marcador || '';
     document.getElementById('extra-conta').checked = x.contaMetricas !== false;
     this.onTipoChange(true); // mostra/oculta o campo marcador
-    this.onPeriodoChange();  // mostra/oculta o campo de fim da recorrência
+    this.onPeriodoChange();  // mostra/oculta os campos de início/fim da recorrência
     document.getElementById('extra-modal').style.display = 'flex';
     setTimeout(() => document.getElementById('extra-titulo').focus(), 50);
   },
@@ -15370,13 +15537,35 @@ const ExtrasScreen = {
     const mf = document.getElementById('extra-marcador-field');
     if (mf) mf.style.display = (tipo === 'leitura') ? 'block' : 'none';
   },
-  // o campo "Fim da recorrência" só faz sentido quando a atividade é recorrente
+  // os campos de início/fim da recorrência só fazem sentido quando a atividade é recorrente
   onPeriodoChange() {
     const per = document.getElementById('extra-periodo').value;
     const recorrente = (per === 'diaria' || per === 'semanal' || per === 'quinzenal' || per === 'mensal');
     const f = document.getElementById('extra-datafim-field');
-    if (f) f.style.display = recorrente ? 'block' : 'none';
-    if (!recorrente) { const dfEl = document.getElementById('extra-datafim'); if (dfEl) dfEl.value = ''; }
+    const iniF = document.getElementById('extra-datainicio-field');
+    if (f) f.style.display = recorrente ? 'flex' : 'none';
+    if (iniF) iniF.style.display = recorrente ? 'block' : 'none';
+    if (!recorrente) {
+      const dfEl = document.getElementById('extra-datafim'); if (dfEl) dfEl.value = '';
+      const diEl = document.getElementById('extra-datainicio'); if (diEl) diEl.value = '';
+    }
+    this.updateRecPreview();
+  },
+  // Mostra ao vivo quantas ocorrências a recorrência vai gerar/vincular no calendário.
+  updateRecPreview() {
+    const el = document.getElementById('extra-rec-preview');
+    if (!el) return;
+    const per = document.getElementById('extra-periodo').value;
+    const recorrente = (per === 'diaria' || per === 'semanal' || per === 'quinzenal' || per === 'mensal');
+    const fim = (document.getElementById('extra-datafim') || {}).value || '';
+    const inicio = (document.getElementById('extra-datainicio') || {}).value || '';
+    if (!recorrente) { el.innerHTML = '&nbsp;'; return; }
+    if (!fim) { el.textContent = 'Defina o fim para vincular as datas automaticamente.'; return; }
+    const n = DB.previewDatasRecorrencia({ periodo: per, dataInicio: inicio, dataFim: fim, createdAt: todayLocal() });
+    const NOME = { diaria: 'diárias', semanal: 'semanais', quinzenal: 'quinzenais', mensal: 'mensais' };
+    el.innerHTML = n > 0
+      ? `📅 <strong>${n}</strong> ocorrência(s) ${NOME[per] || ''} serão vinculadas ao calendário.`
+      : '⚠ Intervalo inválido: o início é depois do fim.';
   },
   save() {
     const titulo = document.getElementById('extra-titulo').value.trim();
@@ -15388,12 +15577,21 @@ const ExtrasScreen = {
       alvo: document.getElementById('extra-alvo').value,
       unidade: document.getElementById('extra-unidade').value,
       periodo: document.getElementById('extra-periodo').value,
+      dataInicio: document.getElementById('extra-datainicio') ? document.getElementById('extra-datainicio').value : '',
       dataFim: document.getElementById('extra-datafim') ? document.getElementById('extra-datafim').value : '',
       marcador: document.getElementById('extra-marcador').value,
       contaMetricas: document.getElementById('extra-conta').checked
     };
-    if (this._editingId) { DB.updateExtra(this._editingId, data); showToast('Atividade atualizada ✓'); }
-    else { DB.addExtra(data); showToast('Atividade criada ✓'); }
+    let savedId;
+    if (this._editingId) { DB.updateExtra(this._editingId, data); savedId = this._editingId; showToast('Atividade atualizada ✓'); }
+    else { const ne = DB.addExtra(data); savedId = ne && ne.id; showToast('Atividade criada ✓'); }
+    // recorrência com data-fim: recalcula e vincula as ocorrências ao calendário
+    if (savedId) {
+      const nDatas = (DB.getExtra(savedId) || {}).datas || [];
+      DB.sincronizarDatasRecorrencia(savedId);
+      const nova = (DB.getExtra(savedId) || {}).datas || [];
+      if (data.periodo !== 'unica' && data.dataFim && nova.length) showToast(`📅 ${nova.length} data(s) vinculadas ao calendário ✓`);
+    }
     document.getElementById('extra-modal').style.display = 'none';
     const okBtn = document.getElementById('extra-save'); if (okBtn) okBtn.textContent = 'Salvar';
     // se veio das sugestões: marca como adicionada e volta para a lista de sugestões
@@ -15674,6 +15872,8 @@ window.ExtrasScreen = ExtrasScreen;
   on('extra-del-btn', 'click', () => ExtrasScreen.deleteCurrent());
   on('extra-tipo', 'change', () => ExtrasScreen.onTipoChange());
   on('extra-periodo', 'change', () => ExtrasScreen.onPeriodoChange());
+  on('extra-datafim', 'change', () => ExtrasScreen.updateRecPreview());
+  on('extra-datainicio', 'change', () => ExtrasScreen.updateRecPreview());
   on('extras-global-toggle', 'click', () => {
     DB.setExtrasCountGlobal(!DB.extrasCountGlobal());
     document.getElementById('extras-global-toggle').classList.toggle('on', DB.extrasCountGlobal());
