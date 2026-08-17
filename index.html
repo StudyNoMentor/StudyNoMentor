@@ -18703,12 +18703,36 @@ window.CloudUI = CloudUI;
   on('profile-modal-close', 'click', () => document.getElementById('profile-modal').style.display = 'none');
   on('pf-save', 'click', () => ProfileUI.saveModal());
   on('pf-delete', 'click', () => ProfileUI.deleteCurrent());
-  on('pf-export', 'click', () => {
+  on('pf-export', 'click', async () => {
     const id = ProfileUI._editingId;
     if (!id) return;
     const meta = (ProfileManager.getProfiles().find(p => p.id === id) || {});
+    const btn = document.getElementById('pf-export');
+    // Se este dispositivo nunca "entrou" neste perfil, os dados dele podem existir
+    // só na nuvem — o formulário de editar (nome/avatar/cor) nunca os baixa.
+    // Sem este resgate, o backup saía vazio (data: {}) mesmo com tudo salvo online.
+    const temDadosLocais = () => {
+      const prefix = 'diario-estudos:u:' + id + ':';
+      for (let i = 0; i < localStorage.length; i++) { if ((localStorage.key(i) || '').startsWith(prefix)) return true; }
+      return false;
+    };
+    if (!temDadosLocais() && window.CloudStore && CloudStore.isLoggedIn()) {
+      if (btn) { btn.disabled = true; btn.textContent = 'Buscando dados na nuvem...'; }
+      try {
+        const res = await CloudStore.fetchPayload(id);
+        ProfileManager.restorePayloadInto(id, (res.payload && res.payload.data) || {});
+      } catch (err) {
+        showToast('Não encontrei dados locais nem na nuvem para este perfil: ' + (err.message || ''));
+        if (btn) { btn.disabled = false; btn.textContent = '⭳ Exportar backup deste perfil (.json)'; }
+        return;
+      }
+      if (btn) { btn.disabled = false; btn.textContent = '⭳ Exportar backup deste perfil (.json)'; }
+    }
     const backup = ProfileManager.exportProfile(id);
-    if (!backup) { showToast('Não foi possível gerar o backup deste perfil'); return; }
+    if (!backup || !Object.keys(backup.data || {}).length) {
+      showToast('⚠ Este perfil ainda não tem dados salvos — nada para exportar.');
+      return;
+    }
     const nomeArq = 'backup-' + (meta.nome || 'perfil').toLowerCase().replace(/[^a-z0-9]+/g, '-') + '-' + todayLocal() + '.json';
     CardsScreen._download(nomeArq, JSON.stringify(backup, null, 2), 'application/json');
     showToast('Backup baixado ✓');
