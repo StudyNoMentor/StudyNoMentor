@@ -910,6 +910,20 @@
   .extra-title .t { font-size: calc(14px * var(--fs-scale, 1)); font-weight: 800; color: var(--text); }
   .extra-title .m { display: flex; gap: 7px; flex-wrap: wrap; margin-top: 5px; }
   .extra-tag { font-size: calc(10px * var(--fs-scale, 1)); font-weight: 700; padding: 2px 9px; border-radius: 20px; background: var(--surface-sunken); color: var(--text-soft); border: 1px solid var(--border); }
+  .extra-doneflag { display: inline-block; font-family: 'Inter', sans-serif; font-size: calc(11px * var(--fs-scale,1)); font-weight: 800; color: var(--good-text); background: var(--good-soft); border: 1px solid var(--good); border-radius: 20px; padding: 2px 10px; margin: 0 0 6px; }
+  /* Saldo de horas do ciclo na Grade (modo edição) */
+  .grade-budget { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; background: var(--surface-sunken); border: 1.5px solid var(--border); border-radius: 12px; padding: 12px 16px; margin: 0 0 14px; }
+  .grade-budget.hidden { display: none; }
+  .gb-item { display: flex; flex-direction: column; gap: 1px; }
+  .gb-item .gb-k { font-size: calc(9.5px * var(--fs-scale,1)); font-weight: 800; letter-spacing: 0.03em; text-transform: uppercase; color: var(--text-faint); }
+  .gb-item .gb-v { font-family: 'Space Mono', monospace; font-weight: 800; font-size: calc(16px * var(--fs-scale,1)); color: var(--text); line-height: 1.1; }
+  .gb-item .gb-v.tone-good { color: var(--good-text); } .gb-item .gb-v.tone-bad { color: var(--bad-text); } .gb-item .gb-v.tone-warn { color: var(--warn-text); }
+  .gb-bar-wrap { flex: 1; min-width: 140px; }
+  .gb-bar { position: relative; height: 10px; background: var(--surface); border: 1px solid var(--border); border-radius: 20px; overflow: hidden; }
+  .gb-bar i { position: absolute; inset: 0 auto 0 0; display: block; border-radius: 20px; background: var(--accent); transition: width .3s ease; }
+  .gb-bar i.over { background: var(--bad); }
+  .gb-hint { font-size: calc(10px * var(--fs-scale,1)); color: var(--text-faint); margin: 4px 0 0; }
+  .grade-budget-toggle { display: inline-flex; align-items: center; gap: 6px; }
   .extra-tag.disc { background: var(--accent-soft); color: var(--accent); border-color: transparent; }
   .extra-tag.count-on { background: var(--good-soft); color: var(--good-text); border-color: transparent; }
   .extra-tag.count-off { background: var(--surface-sunken); color: var(--text-faint); border-style: dashed; }
@@ -4600,12 +4614,14 @@
           <p class="sub">Toque numa célula para escolher a sigla (ou arraste). A mesma matéria pode aparecer em várias células — ajuste a duração de cada uma.</p>
         </div>
         <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
+          <button class="btn-secondary" id="btn-toggle-budget" type="button" title="Mostrar/ocultar o saldo de horas do ciclo">⏱️ Saldo de horas</button>
           <button class="btn-secondary" id="btn-toggle-tray" type="button" title="Minimizar/expandir as siglas">▾ Siglas</button>
           <button class="btn-secondary" id="btn-uncheck-all" type="button">↺ Desmarcar concluídos</button>
           <button class="btn-secondary" id="btn-clear-grade" type="button" title="Esvaziar toda a grade para montar do zero">🗑️ Limpar grade</button>
         </div>
       </div>
       <div style="padding: 8px 20px 26px;">
+        <div class="grade-budget hidden" id="grade-budget"></div>
         <!-- Bandeja compacta: só os chips arrastáveis + botão de editar -->
         <div class="grade-tray-bar" id="grade-tray-bar">
           <div id="grade-chip-tray" class="grade-chip-tray"></div>
@@ -6896,10 +6912,16 @@ const DB = {
     const data = opts.data || todayLocal();          // permite lançamento retroativo
     e.progresso = Math.max(0, (e.progresso || 0) + q);
     e.historico = e.historico || [];
-    const reg = { data, quantidade: q, minutos: Math.max(0, parseFloat(minutos) || 0) };
+    let min = Math.max(0, parseFloat(minutos) || 0);
+    // Atividades medidas em MINUTOS (unidade 'min' ou tipo vídeo): a própria quantidade
+    // já é o tempo. Sem isto, o "registrado hoje" (que soma minutos) ficava 0 e o tempo
+    // não entrava nas métricas de estudo.
+    if (min === 0 && (e.unidade === 'min' || e.tipo === 'video')) min = q;
+    const reg = { data, quantidade: q, minutos: min };
     // questões: guarda os ACERTOS para não zerar o aproveitamento nas métricas
     if (opts.acertos != null && opts.acertos !== '') reg.acertos = Math.max(0, Math.min(q, parseFloat(opts.acertos) || 0));
     e.historico.push(reg);
+    // Conclusão: recorrentes concluem por PERÍODO (reiniciam); únicas concluem no total.
     if (e.alvo > 0 && this.extraProgressoPeriodo(e) >= e.alvo && e.periodo === 'unica') e.status = 'concluida';
     e.updatedAt = new Date().toISOString();
     this.saveExtras(list); return e;
@@ -10558,6 +10580,42 @@ function planCycleMode() {
       const totalMin = slots.reduce((sum, s) => sum + (s.minutes || 0), 0);
       cellEl.textContent = totalMin > 0 ? CycleEngine.fmtHM(totalMin) : '—';
     });
+    updateGradeBudget();
+  }
+  // [NOVO] Saldo de horas do ciclo: mostra a meta semanal, o total já alocado na grade
+  // e o quanto ainda falta (ou o excedente). Atualiza a cada mudança de célula, para
+  // você montar a semana sem trocar de tela.
+  function gradeBudgetKey() { try { return DB._profilePrefix() + 'grade-budget-open'; } catch (_) { return 'diario-estudos:grade-budget-open'; } }
+  function updateGradeBudget() {
+    const host = document.getElementById('grade-budget');
+    if (!host) return;
+    let open = false; try { open = localStorage.getItem(gradeBudgetKey()) === '1'; } catch (_) {}
+    host.classList.toggle('hidden', !open);
+    if (!open) return;
+    const cyc = DB.getCurrentCycle();
+    const last = DB.getLastCycleSetup && DB.getLastCycleSetup();
+    const metaH = (cyc && cyc.weeklyHours) || (last && last.weeklyHours) || 0;
+    const tmpl = gradeGet();
+    let alocMin = 0;
+    DIAS_SEMANA.forEach(dia => { (tmpl.grade[dia] || []).map(normalizeCell).filter(Boolean).forEach(s => { alocMin += (s.minutes || 0); }); });
+    const metaMin = metaH * 60;
+    const saldoMin = metaMin - alocMin;
+    const pct = metaMin > 0 ? Math.min(100, Math.round(alocMin / metaMin * 100)) : 0;
+    const over = metaMin > 0 && alocMin > metaMin;
+    const tomSaldo = !metaMin ? '' : (saldoMin < 0 ? 'tone-bad' : (saldoMin === 0 ? 'tone-good' : 'tone-warn'));
+    if (!metaMin) {
+      host.innerHTML = `<div class="gb-item"><span class="gb-k">Alocado</span><span class="gb-v">${CycleEngine.fmtHM(alocMin)}</span></div>
+        <p class="gb-hint" style="margin:0;">Defina a carga horária semanal ao montar o ciclo para ver o saldo.</p>`;
+      return;
+    }
+    host.innerHTML = `
+      <div class="gb-item"><span class="gb-k">Meta semanal</span><span class="gb-v">${CycleEngine.fmtHM(metaMin)}</span></div>
+      <div class="gb-item"><span class="gb-k">Alocado</span><span class="gb-v">${CycleEngine.fmtHM(alocMin)}</span></div>
+      <div class="gb-item"><span class="gb-k">${saldoMin < 0 ? 'Excedente' : 'Saldo'}</span><span class="gb-v ${tomSaldo}">${(saldoMin < 0 ? '+' : '') + CycleEngine.fmtHM(Math.abs(saldoMin))}</span></div>
+      <div class="gb-bar-wrap">
+        <div class="gb-bar"><i class="${over ? 'over' : ''}" style="width:${pct}%"></i></div>
+        <p class="gb-hint">${over ? '⚠ Você alocou mais que a meta do ciclo.' : (saldoMin === 0 ? '✓ Grade fechada exatamente na meta.' : 'Faltam ' + CycleEngine.fmtHM(saldoMin) + ' para atingir a meta.')}</p>
+      </div>`;
   }
 
   function renderActiveCycle() {
@@ -10725,6 +10783,15 @@ function planCycleMode() {
     btn.textContent = n > 0 ? `↺ Desmarcar ${n} concluído${n === 1 ? '' : 's'}` : '↺ Desmarcar concluídos';
   }
   // minimizar/expandir a bandeja de siglas (lembra a preferência)
+  // [NOVO] Botão que mostra/oculta o saldo de horas do ciclo na Grade (estado salvo por perfil).
+  const _budgetBtn = document.getElementById('btn-toggle-budget');
+  if (_budgetBtn) _budgetBtn.addEventListener('click', () => {
+    let open = false; try { open = localStorage.getItem(gradeBudgetKey()) === '1'; } catch (_) {}
+    try { localStorage.setItem(gradeBudgetKey(), open ? '0' : '1'); } catch (_) {}
+    try { if (window.CloudStore && CloudStore.notifyChange) CloudStore.notifyChange(); } catch (_) {}
+    _budgetBtn.classList.toggle('active', !open);
+    updateGradeBudget();
+  });
   const _trayBtn = document.getElementById('btn-toggle-tray');
   const _trayBar = document.getElementById('grade-tray-bar');
   const _applyTray = () => {
@@ -14930,7 +14997,7 @@ const ExtrasScreen = {
     const ativas = extras.filter(x => x.status === 'ativa');
     const concl = extras.filter(x => x.status === 'concluida');
     const contam = extras.filter(x => x.contaMetricas).length;
-    const minHoje = extras.reduce((s, x) => s + (x.historico || []).filter(h => h.data === todayLocal()).reduce((a, h) => a + (h.minutos || 0), 0), 0);
+    const minHoje = extras.reduce((s, x) => { const emMin = (x.unidade === 'min' || x.tipo === 'video'); return s + (x.historico || []).filter(h => h.data === todayLocal()).reduce((a, h) => a + (h.minutos || (emMin ? (h.quantidade || 0) : 0)), 0); }, 0);
     summary.innerHTML = `
       <div class="extras-sum-card"><div class="v">${ativas.length}</div><div class="l">ativas</div></div>
       <div class="extras-sum-card"><div class="v" style="color:var(--good)">${concl.length}</div><div class="l">concluídas</div></div>
@@ -15183,6 +15250,7 @@ const ExtrasScreen = {
             <button type="button" class="icon-btn danger ex-del" title="Excluir">×</button>
           </div>
         </div>
+        ${(done && recorrente) ? `<div class="extra-doneflag">✓ concluída ${escapeHtml(escopo)}</div>` : ''}
         <div class="extra-progress">
           <div class="bar"><span class="${done ? 'full' : ''}" style="width:${pct}%"></span></div>
           <div class="nums">
@@ -15199,9 +15267,9 @@ const ExtrasScreen = {
         </div>` : ''}
         <div class="extra-foot">
           <div class="extra-adv">
-            <input type="number" class="ex-qtd" min="0" placeholder="qtd" title="Quanto avançou">
+            <input type="number" class="ex-qtd" min="0" placeholder="${(x.tipo === 'video' || x.unidade === 'min') ? 'minutos' : 'qtd'}" title="${(x.tipo === 'video' || x.unidade === 'min') ? 'Minutos estudados' : 'Quanto avançou'}">
             ${x.tipo === 'questoes' ? `<input type="number" class="ex-ac" min="0" placeholder="acertos" title="Acertos (opcional — necessário para entrar no % de acerto)">` : ''}
-            ${x.tipo === 'video' ? '' : `<input type="number" class="ex-min" min="0" placeholder="min" title="Minutos (opcional)">`}
+            ${(x.tipo === 'video' || x.unidade === 'min') ? '' : `<input type="number" class="ex-min" min="0" placeholder="min" title="Minutos (opcional)">`}
             <input type="date" class="ex-data" value="${todayLocal()}" max="${todayLocal()}" title="Data do lançamento (permite retroativo)">
             <button type="button" class="btn-secondary ex-adv-btn">+ Avançar</button>
             ${(x.historico || []).length ? `<button type="button" class="icon-btn ex-undo" title="Desfazer o último lançamento">↶</button>` : ''}
@@ -15232,7 +15300,9 @@ const ExtrasScreen = {
         const dtEl = card.querySelector('.ex-data');
         const x = DB.getExtra(id);
         // vídeo: a própria quantidade é em minutos
-        const min = minEl ? minEl.value : (x && x.tipo === 'video' ? qtd : 0);
+        // atividade em minutos (unidade 'min' ou vídeo): a quantidade JÁ é o tempo
+        const emMinutos = x && (x.tipo === 'video' || x.unidade === 'min');
+        const min = emMinutos ? qtd : (minEl ? minEl.value : 0);
         if (!qtd || parseFloat(qtd) <= 0) { showToast('Informe quanto avançou'); return; }
         if (acEl && acEl.value !== '' && parseFloat(acEl.value) > parseFloat(qtd)) { showToast('Acertos não podem passar do total de questões'); return; }
         const data = (dtEl && dtEl.value) ? dtEl.value : todayLocal();
