@@ -5740,9 +5740,16 @@
                 <label>Ordenar por</label>
                 <select id="plano-ordenar">
                   <option value="pior">🔴 Prioridade — pior acerto primeiro</option>
+                  <option value="banca">🎯 Prioridade na banca — fraqueza × incidência</option>
                   <option value="rendimento">⚡ Melhor retorno — ganho ÷ custo em questões</option>
                   <option value="queda">📉 Maior queda recente</option>
                   <option value="volume">📚 Mais questões já resolvidas</option>
+                </select>
+              </div>
+              <div class="rfc-field" id="plano-banca-field" style="display:none;">
+                <label>Banca (para prioridade)</label>
+                <select id="plano-banca" title="Usada na ordenação '🎯 Prioridade na banca'. Combina a sua fraqueza no assunto com o quanto ele cai nessa banca. Importe a incidência em 🎲 Incidência.">
+                  <option value="__todas__">Todas as bancas</option>
                 </select>
               </div>
               <div class="rfc-field wide" style="align-items:flex-start;">
@@ -15974,7 +15981,8 @@ const PlanoEngine = {
     validadeDias: 120,   // acima disso o dado do assunto é considerado vencido
     amostraAlvo: 50,     // amostra que buscamos para a taxa ser confiável (±14pp a 95%)
     janelaMax: 365,      // até onde recuar no tempo procurando essa amostra
-    cadenciaDias: 30
+    cadenciaDias: 30,
+    banca: '__todas__'   // banca usada na ordenação "prioridade na banca" (opcional)
   },
   prefs() {
     try {
@@ -16175,9 +16183,31 @@ const PlanoEngine = {
     const universo = usados.reduce((a, x) => a + x.peso, 0);
     const dominioPct = usados.reduce((a, x) => a + x.peso * x.taxa / 100, 0) / universo * 100;
 
+    // Incidência da banca (opcional): reusa o mapa tópico→incidência já existente.
+    // Não altera o domínio nem o ganho; serve para ORDENAR por "onde mais cai na prova".
+    let incMap = {}, temIncid = false;
+    try {
+      if (window.ReforcoEngine && ReforcoEngine.hasIncidencia && ReforcoEngine.hasIncidencia()) {
+        incMap = ReforcoEngine.incidenceMap(opts.banca || '__todas__') || {};
+        temIncid = Object.keys(incMap).length > 0;
+      }
+    } catch (_) {}
+    // 1º passo: anexa a incidência de cada assunto e calcula o rendimento.
     usados.forEach(x => {
       x.ganhoPP = Math.max(0, (x.peso * teto - x.peso * x.taxa / 100) / universo * 100);
       x.rendimento = x.ganhoPP / x.custoQ * 100;
+      x.incid = temIncid ? (incMap[ReforcoEngine.norm(x.nome)] || 0) : null;
+    });
+    // Normaliza pela MAIOR incidência ENTRE OS ASSUNTOS DO PLANO (folhas), não pelo mapa
+    // global — senão agregados de disciplina (ex.: 434) achatam todos os assuntos-folha.
+    let incMax = 0;
+    if (temIncid) usados.forEach(x => { if (x.incid > incMax) incMax = x.incid; });
+    usados.forEach(x => {
+      x.incidNorm = (temIncid && incMax > 0) ? (x.incid / incMax) : 0;
+      // Prioridade na banca = retorno do esforço FORTEMENTE amplificado pela frequência
+      // na prova. Mantém o rendimento como base (nada some), mas empurra ao topo o que é
+      // fraco E cai muito. K=6 calibrado com dados reais.
+      x.prioBanca = x.rendimento * (1 + 6 * x.incidNorm);
     });
     // Classificação em linguagem clara, com o que fazer em cada faixa
     // Orientação escrita para o CASO, não genérica: usa a taxa, a distância até a
@@ -16203,7 +16233,8 @@ const PlanoEngine = {
       rendimento: (a, b) => b.rendimento - a.rendimento,
       pior: (a, b) => a.taxa - b.taxa,
       queda: (a, b) => (a.delta == null ? 0 : a.delta) - (b.delta == null ? 0 : b.delta),
-      volume: (a, b) => b.qHist - a.qHist
+      volume: (a, b) => b.qHist - a.qHist,
+      banca: (a, b) => b.prioBanca - a.prioBanca
     };
     const plano = usados.filter(x => x.ganhoPP > 0.001).sort(ordem[opts.ordenar] || ordem.rendimento);
     const meta = opts.metaDominio;
@@ -16232,6 +16263,8 @@ const PlanoEngine = {
       teto: Math.round(teto * 100),
       comAlvo: usados.filter(x => x.atingiuAlvo).length,
       melhorando, piorando, ordenar: opts.ordenar,
+      temIncid, banca: opts.banca,
+      comIncid: usados.filter(x => x.incid > 0).length,
       consolidados: usados.filter(x => x.taxa >= opts.metaDominio && x.seq >= opts.consolidarEm).length,
       recentes: usados.filter(x => x.taxa >= opts.metaDominio && x.seq < opts.consolidarEm).length,
       vencidos: usados.filter(x => x.vencido).length,
@@ -16675,7 +16708,7 @@ const DesempenhoTecScreen = {
     if (tab === 'reforco') this.renderReforco();
     if (tab === 'plano') this.renderPlano();
   },
-  // ---- Plano de aprovação ----
+  // ---- Plano de pontos fracos ----
   // Cria uma Atividade Extra ligada a um assunto do plano — fecha o ciclo:
   // você resolve as questões, importa o novo retrato, e a métrica decide se acabou.
   criarExtraDoPlano(topico, disciplina, alvo, motivo) {
@@ -16727,6 +16760,20 @@ const DesempenhoTecScreen = {
         discs.map(d => `<option value="${escapeHtml(d)}" ${d === p.disciplina ? 'selected' : ''}>${escapeHtml(d)}</option>`).join('');
       if (![...ds.options].some(o => o.value === p.disciplina)) ds.value = '__todas__';
     }
+    // Seletor de banca: só aparece quando há dados de incidência importados.
+    // Alimenta a ordenação "🎯 Prioridade na banca".
+    const bf = document.getElementById('plano-banca-field');
+    const bs = document.getElementById('plano-banca');
+    if (bf && bs) {
+      const temInc = window.ReforcoEngine && ReforcoEngine.hasIncidencia && ReforcoEngine.hasIncidencia();
+      bf.style.display = temInc ? '' : 'none';
+      if (temInc) {
+        const bancas = DB.getBancas();
+        bs.innerHTML = `<option value="__todas__">Todas as bancas</option>` +
+          bancas.map(b => `<option value="${escapeHtml(b)}" ${b === p.banca ? 'selected' : ''}>${escapeHtml(b)}</option>`).join('');
+        if (![...bs.options].some(o => o.value === p.banca)) bs.value = '__todas__';
+      }
+    }
     this.renderPlanoConteudo();
   },
   renderPlanoConteudo() {
@@ -16757,7 +16804,8 @@ const DesempenhoTecScreen = {
       pisoSerie: Math.max(1, num('plano-piso', 5)),
       sensTendencia: Math.max(1, num('plano-sens', 3)),
       validadeDias: Math.max(30, num('plano-validade', 120)),
-      ordenar: val('plano-ordenar', 'rendimento')
+      ordenar: val('plano-ordenar', 'rendimento'),
+      banca: val('plano-banca', '__todas__')
     };
     // O ritmo SEGUE a medição automaticamente. Só vira manual se você digitar algo
     // diferente do medido — assim novos imports atualizam o número sozinhos.
@@ -16903,6 +16951,7 @@ const DesempenhoTecScreen = {
             <div class="pl-tags">
               <span class="reforco-tag tone-${x.status.tom}" title="${x.status.seq != null ? x.status.seq + ' importação(ões) seguidas na meta' : 'Faixa de acerto'}">${x.status.rot}${x.status.seq ? ' ' + x.status.seq + '×' : ''}</span>
               <span class="reforco-tag tone-${x.conf.tom}" title="Acerto e margem de erro a 95% · amostra de ${x.qJanela} questões">${x.taxa.toFixed(0)}%${x.margem != null ? ' ±' + x.margem.toFixed(0) + 'pp' : ''}</span>
+              ${(x.incid > 0) ? `<span class="reforco-tag incid" title="Incidência na banca ${escapeHtml(r.banca === '__todas__' ? 'selecionada' : r.banca)}: aparece bastante na prova">🎯 incidência ${x.incid}</span>` : ''}
               ${seta}${desdeAtiv}
               ${x.vencido ? `<span class="reforco-tag tone-bad" title="Sem medição nova — a taxa pode não refletir você hoje">⏳ ${x.diasDesdeMedicao}d</span>` : ''}
             </div>
@@ -16961,18 +17010,24 @@ const DesempenhoTecScreen = {
           <p style="margin:0 0 10px;"><strong>Medido em N questões dos últimos X dias</strong> mostra de onde veio a taxa. O app usa sempre o dado mais recente e só recua no tempo até juntar amostra suficiente — assim um assunto que você já corrigiu não fica preso ao desempenho antigo.</p>
           <p style="margin:0 0 10px;"><strong>+2,8pp</strong> é quanto o seu domínio sobe se você levar aquele assunto ao acerto máximo realista. <strong>Custo estimado</strong> é a ordem de grandeza de questões para isso — serve para comparar assuntos entre si, não para prever com precisão.</p>
           <p style="margin:0 0 10px;"><strong>🟡 Recém-corrigido × 🟢 Consolidado</strong> é a distinção mais importante. Cruzar a meta uma vez não prova que fixou. Só vira sólido quem sustenta a meta em importações seguidas — e até lá vale manter um volume menor de questões no assunto.</p>
+          <p style="margin:0 0 10px;"><strong>Escopo × taxa:</strong> o seletor de <em>Escopo da análise</em> (no topo) define <em>quais assuntos</em> entram aqui, mas a <em>taxa</em> de cada assunto usa sempre o seu dado mais recente — o Plano responde “como você está hoje”, não como estava no período selecionado.</p>
           <p style="margin:0;"><strong>Como agir:</strong> comece pelo topo. Cada assunto traz a orientação conforme a faixa de acerto — abaixo de 50% o problema costuma ser de teoria, acima de 65% costuma ser falta de volume. A faixa verde marca até onde você precisa ir para bater a meta. Use <strong>+ Atividade</strong> para virar aquilo numa tarefa com meta, e reimporte o TEC quando terminar.</p>
         </div>
       </details>`;
-    const rotOrdem = { rendimento: 'melhor retorno (ganho ÷ custo)', pior: 'pior acerto primeiro',
+    const rotOrdem = { banca: 'prioridade na banca (retorno × incidência)', rendimento: 'melhor retorno (ganho ÷ custo)', pior: 'pior acerto primeiro',
       queda: 'maior queda recente', volume: 'mais questões já resolvidas' }[r.ordenar] || 'pior acerto primeiro';
     // com custo fixo e peso igual, "retorno" e "pior acerto" dão a MESMA ordem — dizer isso
     // evita a impressão de que há uma métrica escondida decidindo por você
     // Só avisa quando o usuário escolheu "rendimento": aí é útil saber que, com custo
     // fixo e peso igual, o resultado é o mesmo de "pior acerto primeiro".
     const mesmaOrdem = (opts.custoModo === 'fixo' && opts.ponderacao === 'igual' && r.ordenar === 'rendimento');
+    const notaBanca = (r.ordenar === 'banca')
+      ? (r.temIncid
+          ? ` — assuntos que <strong>caem mais na banca ${r.banca === '__todas__' ? '' : escapeHtml(r.banca)}</strong> e ainda têm o que melhorar sobem ao topo (${r.comIncid} com incidência)`
+          : ' — importe a incidência em 🎲 Incidência para esta ordenação fazer efeito')
+      : '';
     lista.innerHTML = (linhas
-      ? grafico + comoLer + `<div class="pl-prosa" style="margin:0 0 8px;color:var(--text-faint);">Ordenado por <strong>${rotOrdem}</strong> · ${r.itens.length} ${r.itens.length === 1 ? 'assunto' : 'assuntos'}${mesmaOrdem ? ' — com custo fixo e peso igual, esta ordem é idêntica a "pior acerto primeiro"' : ''}</div>${linhas}`
+      ? grafico + comoLer + `<div class="pl-prosa" style="margin:0 0 8px;color:var(--text-faint);">Ordenado por <strong>${rotOrdem}</strong> · ${r.itens.length} ${r.itens.length === 1 ? 'assunto' : 'assuntos'}${mesmaOrdem ? ' — com custo fixo e peso igual, esta ordem é idêntica a "pior acerto primeiro"' : ''}${notaBanca}</div>${linhas}`
       : `<p class="hint" style="padding:18px 0;">Nenhum assunto abaixo do máximo realista — você já domina tudo que pratica.</p>`) + pequenas;
     lista.querySelectorAll('.plano-nova-extra').forEach(b => b.addEventListener('click', () => {
       this.criarExtraDoPlano(b.dataset.topico, b.dataset.disc, b.dataset.alvo, b.dataset.motivo);
@@ -17872,10 +17927,10 @@ document.getElementById('tec-weak-disc').addEventListener('change', (e) => {
   on('incid-file', 'change', (e) => { if (e.target.files[0]) DT.handleIncidFile(e.target.files[0]); });
   // Reforço (todos salvam a preferência para lembrar entre sessões)
   on('reforco-banca', 'change', (e) => { DT.savePrefs({ banca: e.target.value }); DT.renderReforco(); });
-  // Plano de aprovação
+  // Plano de pontos fracos
   ['plano-disc','plano-meta','plano-ritmo','plano-teto','plano-ponderacao','plano-minamostra',
    'plano-customodo','plano-custofixo','plano-custofator','plano-limite','plano-folhas','plano-pequenas',
-   'plano-amostraalvo','plano-cadencia','plano-janelamax','plano-ordenar','plano-consolidar','plano-validade','plano-critico','plano-fragil','plano-piso','plano-sens'].forEach(id => {
+   'plano-amostraalvo','plano-cadencia','plano-janelamax','plano-ordenar','plano-banca','plano-consolidar','plano-validade','plano-critico','plano-fragil','plano-piso','plano-sens'].forEach(id => {
     on(id, 'change', () => DT.renderPlanoConteudo());
     on(id, 'input', () => DT.renderPlanoConteudo());
   });
