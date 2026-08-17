@@ -17023,7 +17023,7 @@ const DesempenhoTecScreen = {
     const mesmaOrdem = (opts.custoModo === 'fixo' && opts.ponderacao === 'igual' && r.ordenar === 'rendimento');
     const notaBanca = (r.ordenar === 'banca')
       ? (r.temIncid
-          ? ` — assuntos que <strong>caem mais na banca ${r.banca === '__todas__' ? '' : escapeHtml(r.banca)}</strong> e ainda têm o que melhorar sobem ao topo (${r.comIncid} com incidência)`
+          ? ` — assuntos que <strong>caem mais ${r.banca === '__todas__' ? 'nas suas bancas' : 'na banca ' + escapeHtml(r.banca)}</strong> e ainda têm o que melhorar sobem ao topo (${r.comIncid} com incidência)`
           : ' — importe a incidência em 🎲 Incidência para esta ordenação fazer efeito')
       : '';
     lista.innerHTML = (linhas
