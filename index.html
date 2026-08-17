@@ -2579,6 +2579,16 @@
   .badge-cat { font-family: 'Inter', sans-serif; font-size: calc(11px * var(--fs-scale,1)); font-weight: 800; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-faint); margin: 16px 0 8px; }
   .badge-cat span { font-weight: 500; text-transform: none; letter-spacing: 0; }
 
+  /* chips de filtro por matéria (seleção múltipla) */
+  .pl-fchip {
+    font-family: 'Inter', sans-serif; font-size: calc(11px * var(--fs-scale,1)); font-weight: 700;
+    padding: 5px 11px; border-radius: 20px; cursor: pointer;
+    border: 1.5px solid var(--border); background: var(--surface); color: var(--text-soft);
+    transition: all 0.12s ease; white-space: nowrap; max-width: 100%; overflow: hidden; text-overflow: ellipsis;
+  }
+  .pl-fchip:hover { border-color: var(--accent); color: var(--accent); }
+  .pl-fchip.ativo { background: var(--accent-soft); border-color: var(--accent); color: var(--accent); }
+
   /* ═══ MODO FOCO — LEIS SECAS ══════════════════════════════════════════════
      Mesmo princípio dos cards: esconde a interface e dá a tela ao texto.
      A barra de ferramentas some, mas o marca-texto e a borracha continuam
@@ -14556,14 +14566,19 @@ const ExtrasScreen = {
       .filter(x => !jaTem.has(ReforcoEngine.norm(x.nome)));
     if (!cand.length) { showToast('Todos os assuntos prioritários já têm atividade'); return; }
     const discs = [...new Set(cand.map(x => x.disciplina).filter(Boolean))].sort();
+    // Filtro por matéria com seleção MÚLTIPLA: cada chip liga/desliga uma matéria.
+    // Um <select> comum só permitia uma por vez ou todas.
     const filtro = `
-      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:0 0 10px;">
-        <select id="pl-filtro-disc" style="flex:1;min-width:0;">
-          <option value="__todas__">📚 Todas as matérias (${cand.length})</option>
-          ${discs.map(d => `<option value="${escapeHtml(d)}">${escapeHtml(d)} (${cand.filter(x => x.disciplina === d).length})</option>`).join('')}
-        </select>
-        <button type="button" class="btn-secondary" id="pl-marcar" style="white-space:nowrap;">Marcar visíveis</button>
-        <button type="button" class="btn-secondary" id="pl-limpar" style="white-space:nowrap;">Limpar</button>
+      <div style="margin:0 0 10px;">
+        <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px;" id="pl-chips">
+          <button type="button" class="pl-fchip ativo" data-disc="__todas__">📚 Todas (${cand.length})</button>
+          ${discs.map(d => `<button type="button" class="pl-fchip" data-disc="${escapeHtml(d)}">${escapeHtml(d)} (${cand.filter(x => x.disciplina === d).length})</button>`).join('')}
+        </div>
+        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+          <span class="hint" id="pl-conta" style="margin:0;flex:1;min-width:0;"></span>
+          <button type="button" class="btn-secondary" id="pl-marcar" style="white-space:nowrap;">Marcar visíveis</button>
+          <button type="button" class="btn-secondary" id="pl-limpar" style="white-space:nowrap;">Limpar</button>
+        </div>
       </div>`;
     const linhas = cand.map((x, i) => `
       <label class="sug-row pl-linha" data-disc="${escapeHtml(x.disciplina || '')}" style="align-items:flex-start;">
@@ -14612,23 +14627,53 @@ const ExtrasScreen = {
         if (cb) cb.addEventListener('change', () => {
           const i = parseInt(cb.dataset.i);
           if (cb.checked) this._planoSel.add(i); else this._planoSel.delete(i);
+          aplicar();
         });
       });
       const visiveis = () => linhasEl.filter(l => l.style.display !== 'none');
-      const fd = document.getElementById('pl-filtro-disc');
-      if (fd) fd.addEventListener('change', () => {
+      const chips = [...document.querySelectorAll('#ui-modal .pl-fchip')];
+      const sel = new Set();                       // vazio = todas
+      const conta = document.getElementById('pl-conta');
+      const aplicar = () => {
         linhasEl.forEach(l => {
-          l.style.display = (fd.value === '__todas__' || l.dataset.disc === fd.value) ? '' : 'none';
+          l.style.display = (sel.size === 0 || sel.has(l.dataset.disc)) ? '' : 'none';
         });
-      });
+        chips.forEach(c => {
+          const todas = c.dataset.disc === '__todas__';
+          c.classList.toggle('ativo', todas ? sel.size === 0 : sel.has(c.dataset.disc));
+        });
+        const v = visiveis().length;
+        const marcados = this._planoSel ? this._planoSel.size : 0;
+        // mostra quantos estão SELECIONADOS no total, inclusive em matérias ocultas —
+        // senão você filtraria por 2 matérias e criaria uma atividade de uma terceira
+        const ocultos = linhasEl.filter(l => l.style.display === 'none' && l.querySelector('.pl-pick').checked).length;
+        if (conta) conta.innerHTML = (sel.size === 0
+          ? `${v} assunto(s) · toque nas matérias para filtrar`
+          : `${v} assunto(s) em ${sel.size} matéria(s)`)
+          + ` · <strong>${marcados} marcado(s)</strong>`
+          + (ocultos ? ` <span style="color:var(--warn-text);font-weight:700;">(${ocultos} fora do filtro)</span>` : '');
+      };
+      chips.forEach(c => c.addEventListener('click', () => {
+        const d = c.dataset.disc;
+        if (d === '__todas__') sel.clear();
+        else { sel.has(d) ? sel.delete(d) : sel.add(d); }
+        aplicar();
+      }));
+      aplicar();
       const marcar = document.getElementById('pl-marcar');
-      if (marcar) marcar.addEventListener('click', () => visiveis().forEach(l => {
-        const cb = l.querySelector('.pl-pick'); if (cb && !cb.checked) { cb.checked = true; this._planoSel.add(parseInt(cb.dataset.i)); }
-      }));
+      if (marcar) marcar.addEventListener('click', () => {
+        visiveis().forEach(l => {
+          const cb = l.querySelector('.pl-pick'); if (cb && !cb.checked) { cb.checked = true; this._planoSel.add(parseInt(cb.dataset.i)); }
+        });
+        aplicar();
+      });
       const limpar = document.getElementById('pl-limpar');
-      if (limpar) limpar.addEventListener('click', () => linhasEl.forEach(l => {
-        const cb = l.querySelector('.pl-pick'); if (cb && cb.checked) { cb.checked = false; this._planoSel.delete(parseInt(cb.dataset.i)); }
-      }));
+      if (limpar) limpar.addEventListener('click', () => {
+        linhasEl.forEach(l => {
+          const cb = l.querySelector('.pl-pick'); if (cb && cb.checked) { cb.checked = false; this._planoSel.delete(parseInt(cb.dataset.i)); }
+        });
+        aplicar();
+      });
     }, 40);
   },
   cardHtml(x) {
