@@ -19727,6 +19727,7 @@ const ProfileUI = {
           }
         }
         if (!porSecao || !porSecao.ok) {
+          try { SectionSync._saveLast({ ok: false, origem: 'blob', motivo: (porSecao && porSecao.motivo) || 'leitura-por-seção-não-tentada', em: new Date().toISOString() }); } catch (_) {}
           const res = await CloudStore.fetchPayload(id);
           ProfileManager.restorePayloadInto(id, (res.payload && res.payload.data) || {});
           ProfileManager.setRev(id, res.rev);
@@ -20233,9 +20234,22 @@ const SectionSync = {
   // automático sempre que a leitura por seção não passar na verificação.
   // Desligar em tempo real: SectionSync.setReadMode(false)
   READ_FLAG_KEY: 'diario-estudos:secread',
+  LAST_READ_KEY: 'diario-estudos:secread-last',  // fora do prefixo do perfil de propósito:
+                                                 // dentro, viraria uma "seção" e se auto-sincronizaria
   MANIFEST: '__manifest',   // linha especial que lista quais seções existem (trata exclusões)
   FORMAT: 2,                // v2: preserva fielmente o texto bruto do localStorage
-  _lastHydrate: null,       // diagnóstico da última leitura por seção
+  _lastHydrate: null,       // diagnóstico da última leitura por seção (em memória)
+  // A entrada no perfil recarrega a página logo após ler; sem gravar, o diagnóstico
+  // se perdia no reload e status() mostrava sempre "últimaLeitura: null".
+  _saveLast(res) {
+    this._lastHydrate = res;
+    try { localStorage.setItem(this.LAST_READ_KEY, JSON.stringify(res)); } catch (_) {}
+    return res;
+  },
+  lastRead() {
+    if (this._lastHydrate) return this._lastHydrate;
+    try { return JSON.parse(localStorage.getItem(this.LAST_READ_KEY)) || null; } catch (_) { return null; }
+  },
   get readEnabled() {
     try { const v = localStorage.getItem(this.READ_FLAG_KEY); return v === null ? true : v === '1'; }
     catch (_) { return true; }
@@ -20508,22 +20522,23 @@ const SectionSync = {
     opts = opts || {};
     const res = { ok: false, motivo: null, seções: 0, em: new Date().toISOString() };
     try {
-      if (!this.readEnabled && !opts.force) { res.motivo = 'leitura-por-seção-desligada'; this._lastHydrate = res; return res; }
-      if (!window.CloudStore || !CloudStore.isReady() || !CloudStore.isLoggedIn()) { res.motivo = 'sem-conexão'; this._lastHydrate = res; return res; }
+      res.origem = 'seções';
+      if (!this.readEnabled && !opts.force) { res.motivo = 'leitura-por-seção-desligada'; return this._saveLast(res); }
+      if (!window.CloudStore || !CloudStore.isReady() || !CloudStore.isLoggedIn()) { res.motivo = 'sem-conexão'; return this._saveLast(res); }
       const rows = await this.fetchAllSections(id);
       const prep = this._prepare(rows);
-      if (!prep.ok) { res.motivo = prep.motivo; this._lastHydrate = res; return res; }
+      if (!prep.ok) { res.motivo = prep.motivo; return this._saveLast(res); }
       // Rede de segurança antes de sobrescrever o estado local.
       try { if (window.VersionHistory && ProfileManager.getActiveProfileId() === id) await VersionHistory.snapshot('antes de baixar por seção'); } catch (_) {}
       this._applyMap(id, prep.map, prep.revs);
       res.ok = true; res.seções = Object.keys(prep.map).length;
       if (prep.extras && prep.extras.length) res.ignoradas = prep.extras;
-      this._lastHydrate = res;
+      this._saveLast(res);
       console.info('[SectionSync] leitura por seção aplicada:', res.seções, 'seção(ões)');
       return res;
     } catch (e) {
       res.motivo = (e && (e.message || e.code)) || 'erro';
-      this._lastHydrate = res;
+      this._saveLast(res);
       console.warn('[SectionSync] leitura por seção falhou:', res.motivo);
       return res;
     }
@@ -20682,7 +20697,7 @@ const SectionSync = {
     return {
       habilitado: this.enabled,
       leituraPorSeção: this.readEnabled ? 'LIGADA (Fase 2)' : 'desligada (lendo do blob)',
-      últimaLeitura: this._lastHydrate,
+      últimaLeitura: this.lastRead(),
       formato: 'v' + this.FORMAT,
       perfilAtivo: (window.ProfileManager ? ProfileManager.getActiveProfileId() : null) || null,
       logado: !!(window.CloudStore && CloudStore.isLoggedIn && CloudStore.isLoggedIn()),
