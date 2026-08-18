@@ -1012,6 +1012,70 @@
   .extras-empty { text-align: center; padding: 40px 20px; color: var(--text-faint); }
   .extras-empty .big { font-size: calc(30px * var(--fs-scale, 1)); margin-bottom: 8px; }
   .extras-group-title { font-size: calc(11px * var(--fs-scale, 1)); font-weight: 800; letter-spacing: 0.05em; text-transform: uppercase; color: var(--text-faint); margin: 18px 0 10px; }
+  /* ===== Atividades Extras — visão diária (redesenho) ===== */
+  .exx-dayhead { display: flex; align-items: center; justify-content: space-between; gap: 12px 16px; flex-wrap: wrap; padding: 0 2px; }
+  .exx-dayhead .dh-l { min-width: 0; }
+  .exx-dayhead .dh-title { font-family: 'Inter', sans-serif; font-size: calc(16px * var(--fs-scale,1)); font-weight: 800; color: var(--text); text-transform: capitalize; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+  .exx-dayhead .dh-title .hoje { font-size: calc(10px * var(--fs-scale,1)); font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; color: var(--accent); background: var(--accent-soft); padding: 2px 8px; border-radius: 20px; }
+  .exx-dayhead .dh-sub { font-size: calc(12px * var(--fs-scale,1)); color: var(--text-faint); margin-top: 3px; }
+  .exx-dayhead .dh-r { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+  .exx-metric { display: flex; flex-direction: column; align-items: flex-end; background: var(--surface-sunken); border: 1px solid var(--border); border-radius: 12px; padding: 6px 12px; }
+  .exx-metric .mv { font-family: 'Space Mono', monospace; font-weight: 800; font-size: calc(15px * var(--fs-scale,1)); color: var(--text); line-height: 1.15; }
+  .exx-metric .ml { font-size: calc(9px * var(--fs-scale,1)); font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; color: var(--text-faint); }
+  .exx-filters { margin-top: 12px; border: 1.5px solid var(--border); border-radius: 12px; background: var(--surface-sunken); padding: 12px 14px; }
+  .exx-filters.hidden { display: none; }
+  .exx-filters .ef-row { display: flex; align-items: flex-end; gap: 12px; flex-wrap: wrap; }
+  .exx-filters .ef-field { display: flex; flex-direction: column; gap: 4px; }
+  .exx-filters .ef-field label { font-size: calc(10.5px * var(--fs-scale,1)); font-weight: 700; text-transform: uppercase; letter-spacing: 0.03em; color: var(--text-faint); }
+  .exx-filters input[type=date] { padding: 8px 10px; font-size: calc(13px * var(--fs-scale,1)); border-radius: 9px; width: auto; }
+  .exx-filters .ef-quick { display: flex; gap: 6px; }
+  .exx-filters .ef-quick .btn-secondary { padding: 8px 12px; font-size: calc(12px * var(--fs-scale,1)); }
+  .exx-filters .ef-cards { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-top: 12px; }
+  @media (max-width: 560px) { .exx-filters .ef-cards { grid-template-columns: 1fr 1fr; } }
+  .exx-fcard { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 12px; text-align: center; }
+  .exx-fcard .v { font-family: 'Space Mono', monospace; font-weight: 800; font-size: calc(18px * var(--fs-scale,1)); color: var(--text); }
+  .exx-fcard .l { font-size: calc(10px * var(--fs-scale,1)); font-weight: 700; text-transform: uppercase; letter-spacing: 0.03em; color: var(--text-faint); margin-top: 3px; }
+  /* cartão de tarefa do dia */
+  .exd { background: var(--surface); border: 1.5px solid var(--border); border-radius: 16px; padding: 14px 16px; margin-bottom: 12px; box-shadow: var(--shadow-sm); transition: border-color 0.14s ease, box-shadow 0.14s ease; }
+  .exd:hover { border-color: var(--border-strong); }
+  .exd.done { border-color: color-mix(in srgb, var(--good) 45%, var(--border)); background: linear-gradient(180deg, var(--good-soft), var(--surface) 72%); }
+  .exd .opt { color: var(--text-faint); font-weight: 400; }
+  .exd-top { display: grid; grid-template-columns: auto auto 1fr auto; align-items: start; gap: 12px; }
+  .exd-check { width: 30px; height: 30px; border-radius: 50%; border: 2px solid var(--border-strong); background: transparent; color: transparent; display: flex; align-items: center; justify-content: center; cursor: pointer; flex-shrink: 0; margin-top: 3px; transition: all 0.12s ease; padding: 0; }
+  .exd-check svg { width: 15px; height: 15px; }
+  .exd-check:hover { border-color: var(--good); }
+  .exd.done .exd-check { background: var(--good); border-color: var(--good); color: #fff; }
+  .exd-ico { width: 38px; height: 38px; border-radius: 11px; display: flex; align-items: center; justify-content: center; font-size: calc(18px * var(--fs-scale,1)); flex-shrink: 0; }
+  .exd-main { min-width: 0; }
+  .exd-title { font-size: calc(14.5px * var(--fs-scale,1)); font-weight: 800; color: var(--text); line-height: 1.3; overflow-wrap: break-word; }
+  .exd.done .exd-title { text-decoration: line-through; text-decoration-color: color-mix(in srgb, var(--good) 55%, transparent); color: var(--text-soft); }
+  .exd-tags { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 6px; }
+  .exd-edit { flex-shrink: 0; }
+  .exd-doneflag { display: inline-flex; align-items: center; gap: 6px; font-size: calc(11px * var(--fs-scale,1)); font-weight: 800; color: var(--good-text); background: var(--good-soft); border: 1px solid color-mix(in srgb, var(--good) 35%, transparent); border-radius: 20px; padding: 3px 10px; margin-top: 10px; }
+  .exd-prog { margin-top: 12px; }
+  .exd-prog .bar { height: 9px; background: var(--surface-sunken); border: 1px solid var(--border); border-radius: 20px; overflow: hidden; }
+  .exd-prog .bar > i { display: block; height: 100%; border-radius: 20px; background: var(--accent); transition: width 0.4s ease; }
+  .exd-prog .bar > i.full { background: var(--good); }
+  .exd-prog .nums { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; margin-top: 6px; font-size: calc(12px * var(--fs-scale,1)); color: var(--text-soft); }
+  .exd-prog .nums b { font-family: 'Space Mono', monospace; color: var(--text); font-size: calc(14px * var(--fs-scale,1)); }
+  .exd-reg { display: flex; align-items: center; gap: 8px; margin-top: 12px; flex-wrap: wrap; }
+  .exd-reg .exd-num { width: 92px; text-align: center; padding: 9px 10px; border: 1.5px solid var(--border); border-radius: 10px; background: var(--surface-sunken); color: var(--text); font-family: 'Space Mono', monospace; font-size: calc(13px * var(--fs-scale,1)); }
+  .exd-reg .exd-num:focus { outline: none; border-color: var(--accent); background: var(--surface); box-shadow: 0 0 0 3px var(--accent-ring); }
+  .exd-reg .btn-secondary, .exd-reg .btn-primary { padding: 9px 15px; }
+  .exd-reg .exd-spacer { flex: 1; min-width: 0; }
+  @media (max-width: 560px) {
+    .exd-reg .exd-num { width: 76px; }
+    .exd-reg .exd-spacer { flex-basis: 100%; height: 0; }
+  }
+  /* gerenciador de recorrentes / avulsas */
+  .exm-group-title { font-size: calc(11px * var(--fs-scale,1)); font-weight: 800; letter-spacing: 0.05em; text-transform: uppercase; color: var(--text-faint); margin: 16px 0 8px; }
+  .exm-group-title:first-child { margin-top: 0; }
+  .exm-row { display: flex; align-items: center; gap: 12px; padding: 11px 12px; border: 1px solid var(--border); border-radius: 12px; background: var(--surface-sunken); margin-bottom: 8px; }
+  .exm-ico { width: 34px; height: 34px; border-radius: 10px; display: flex; align-items: center; justify-content: center; font-size: calc(16px * var(--fs-scale,1)); flex-shrink: 0; }
+  .exm-body { flex: 1; min-width: 0; }
+  .exm-name { font-size: calc(13.5px * var(--fs-scale,1)); font-weight: 700; color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .exm-sub { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 5px; }
+  .exm-acts { display: flex; gap: 4px; flex-shrink: 0; }
   /* ---------- Ciclo da Semana ---------- */
   .cycle-subject-row {
     display: grid;
@@ -6035,16 +6099,34 @@
         <span>Incluir Atividades Extras (marcadas) nas métricas de Evolução</span>
       </div>
       <div style="display:flex; gap:8px; flex-wrap:wrap;">
-        <button type="button" class="btn-secondary" id="extras-suggest-btn" title="Sugerir atividades com base nos seus pontos fracos do TEC">💡 Sugerir dos pontos fracos</button>
+        <button type="button" class="btn-secondary" id="extras-manage-btn" title="Gerenciar todas as atividades recorrentes e avulsas num só lugar">🔁 Gerenciar</button>
+        <button type="button" class="btn-secondary" id="extras-suggest-btn" title="Sugerir atividades com base nos seus pontos fracos do TEC">💡 Sugerir</button>
         <button type="button" class="btn-secondary" id="extras-plano-btn" title="Puxar os assuntos prioritários do Plano de pontos fracos, com meta já calculada">🏁 Puxar do Plano</button>
         <button type="button" class="btn-primary" id="extras-new-btn">＋ Nova atividade</button>
       </div>
     </div>
-    <div id="extras-summary" class="extras-summary"></div>
-    <!-- Cronograma/agenda das atividades extras -->
+    <!-- Missão do dia: calendário + cabeçalho do dia + carga horária + filtros -->
+    <div id="extras-summary" class="extras-summary" style="display:none;"></div>
     <div id="extras-agenda"></div>
     <div id="extras-list"></div>
   </section>
+  <!-- Modal: gerenciar atividades (recorrentes e avulsas) -->
+  <div id="extras-manage-modal" class="cards-modal" style="display:none; z-index:615;">
+    <div class="cards-modal-box">
+      <div class="cards-modal-head">
+        <div><h2>🔁 Gerenciar atividades</h2><p class="sub">Crie, edite ou exclua as atividades recorrentes e avulsas. A lista do dia mostra só as ocorrências — a gestão fica aqui, separada.</p></div>
+        <button type="button" class="icon-btn" id="extras-manage-close">✕</button>
+      </div>
+      <div class="cards-modal-body">
+        <div id="extras-manage-list"></div>
+      </div>
+      <div class="cards-modal-foot">
+        <span style="flex:1"></span>
+        <button type="button" class="btn-secondary" id="extras-manage-done">Fechar</button>
+        <button type="button" class="btn-primary" id="extras-manage-new">＋ Nova atividade</button>
+      </div>
+    </div>
+  </div>
   <!-- Modal: sugestões a partir dos pontos fracos do TEC -->
   <div id="extra-suggest-modal" class="cards-modal" style="display:none; z-index:610;">
     <div class="cards-modal-box cards-modal-lg">
@@ -15154,40 +15236,109 @@ const ExtrasScreen = {
     video: { ico: '🎬', nome: 'Vídeo', unidade: 'min' },
     livre: { ico: '⭐', nome: 'Livre', unidade: 'itens' }
   },
+  // dia selecionado da "missão do dia" (padrão: hoje)
+  selDay: null,
+  _showFilters: undefined,
+  _fStart: null, _fEnd: null,
+  _CHECK: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>',
   render() {
     // toggle global
     const gt = document.getElementById('extras-global-toggle');
     if (gt) gt.classList.toggle('on', DB.extrasCountGlobal());
-    const extras = DB.getExtras();
-    const list = document.getElementById('extras-list');
     const summary = document.getElementById('extras-summary');
-    // resumo — "concluídas" reflete o DIA de hoje (recorrentes contam por ocorrência)
+    if (summary) { summary.innerHTML = ''; summary.style.display = 'none'; }  // topo agora vive na agenda
+    const list = document.getElementById('extras-list');
     const hoje = todayLocal();
-    const concluidaHoje = (x) => DB.extraConcluidaEm(x, hoje);
-    const ativas = extras.filter(x => !concluidaHoje(x));
-    const concl = extras.filter(x => concluidaHoje(x));
-    const contam = extras.filter(x => x.contaMetricas).length;
-    const minHoje = extras.reduce((s, x) => { const emMin = (x.unidade === 'min' || x.tipo === 'video'); return s + (x.historico || []).filter(h => h.data === todayLocal()).reduce((a, h) => a + (h.minutos || (emMin ? (h.quantidade || 0) : 0)), 0); }, 0);
-    summary.innerHTML = `
-      <div class="extras-sum-card"><div class="v">${ativas.length}</div><div class="l">ativas</div></div>
-      <div class="extras-sum-card"><div class="v" style="color:var(--good)">${concl.length}</div><div class="l">concluídas</div></div>
-      <div class="extras-sum-card"><div class="v">${contam}</div><div class="l">contam nas métricas</div></div>
-      <div class="extras-sum-card"><div class="v">${CycleEngine.fmtHM(minHoje)}</div><div class="l">registrado hoje</div></div>`;
-    this.renderAgenda();
+    if (!this.selDay) this.selDay = hoje;
+    const extras = DB.getExtras();
+    this.renderAgenda(); // calendário + cabeçalho do dia + carga horária + filtros
     if (extras.length === 0) {
-      list.innerHTML = `<div class="extras-empty"><div class="big">✅</div>Nenhuma atividade extra ainda.<br>Clique em <strong>＋ Nova atividade</strong> ou <strong>💡 Sugerir dos pontos fracos</strong> para começar.</div>`;
+      list.innerHTML = `<div class="extras-empty"><div class="big">✅</div>Nenhuma atividade extra ainda.<br>Clique em <strong>＋ Nova atividade</strong> para começar, ou <strong>🔁 Gerenciar</strong> para criar recorrências.</div>`;
+      this._syncManage();
       return;
     }
-    const grupos = [
-      ['A fazer hoje', extras.filter(x => !concluidaHoje(x))],
-      ['Concluídas hoje', extras.filter(x => concluidaHoje(x))]
-    ];
+    const day = this.selDay;
+    const occ = this.occurrencesForDay(day);
+    if (occ.length === 0) {
+      list.innerHTML = `<div class="extras-empty"><div class="big">🗓️</div>Nada agendado para <strong>${escapeHtml(this._prettyDay(day))}</strong>.<br>Vincule uma atividade a este dia no calendário acima, ou crie uma recorrência em <strong>🔁 Gerenciar</strong>.</div>`;
+      this._syncManage();
+      return;
+    }
+    const aFazer = occ.filter(x => !DB.extraConcluidaEm(x, day));
+    const feitas = occ.filter(x => DB.extraConcluidaEm(x, day));
+    const grupos = [['A fazer', aFazer], ['Concluídas', feitas]];
     list.innerHTML = grupos.map(([titulo, arr]) => {
       if (!arr.length) return '';
       return `<div class="extras-group-title">${titulo} (${arr.length})</div>` +
-        arr.map(x => this.cardHtml(x)).join('');
+        arr.map(x => this.cardHtml(x, day)).join('');
     }).join('');
     this.bind(list);
+    this._syncManage();
+  },
+  // ── Ocorrências de um dia ──────────────────────────────────────────────
+  // Recorrentes: aparecem no dia se ele foi gerado (datas) OU, sem datas geradas,
+  // se bate a cadência dentro da janela. Avulsas: aparecem nos dias vinculados;
+  // se não têm nenhum dia vinculado, aparecem HOJE como pendência até concluir.
+  occurrencesForDay(day) {
+    const hoje = todayLocal();
+    return DB.getExtras().filter(x => {
+      const datas = x.datas || [];
+      if (DB.extraRecorrente(x)) {
+        if (datas.length) return datas.includes(day);
+        return this._recurOnDay(x, day);
+      }
+      if (datas.length) return datas.includes(day);
+      return (day === hoje) && x.status !== 'concluida';
+    });
+  },
+  _recurOnDay(x, day) {
+    const inicio = (x.dataInicio && String(x.dataInicio).trim())
+      || (x.createdAt ? String(x.createdAt).slice(0, 10) : null);
+    if (inicio && day < inicio) return false;
+    if (x.dataFim && day > x.dataFim) return false;
+    if (x.periodo === 'diaria') return true;
+    const base = inicio || day;
+    const d1 = new Date(base + 'T00:00:00'), d2 = new Date(day + 'T00:00:00');
+    const diff = Math.round((d2 - d1) / 86400000);
+    if (diff < 0) return false;
+    if (x.periodo === 'semanal') return diff % 7 === 0;
+    if (x.periodo === 'quinzenal') return diff % 14 === 0;
+    if (x.periodo === 'mensal') {
+      const ultimo = new Date(d2.getFullYear(), d2.getMonth() + 1, 0).getDate();
+      return d2.getDate() === Math.min(d1.getDate(), ultimo);
+    }
+    return false;
+  },
+  // ── Carga horária (minutos) ────────────────────────────────────────────
+  _minInDay(day) {
+    return DB.getExtras().reduce((s, x) => {
+      const emMin = (x.unidade === 'min' || x.tipo === 'video');
+      return s + (x.historico || []).filter(h => h.data === day)
+        .reduce((a, h) => a + (h.minutos || (emMin ? (h.quantidade || 0) : 0)), 0);
+    }, 0);
+  },
+  _minInRange(a, b) {
+    return DB.getExtras().reduce((s, x) => {
+      const emMin = (x.unidade === 'min' || x.tipo === 'video');
+      return s + (x.historico || []).filter(h => h.data >= a && h.data <= b)
+        .reduce((acc, h) => acc + (h.minutos || (emMin ? (h.quantidade || 0) : 0)), 0);
+    }, 0);
+  },
+  _minTotal() {
+    return DB.getExtras().reduce((s, x) => {
+      const emMin = (x.unidade === 'min' || x.tipo === 'video');
+      return s + (x.historico || []).reduce((a, h) => a + (h.minutos || (emMin ? (h.quantidade || 0) : 0)), 0);
+    }, 0);
+  },
+  _prettyDay(day) {
+    const d = new Date(day + 'T00:00:00');
+    const wd = ['domingo', 'segunda', 'terça', 'quarta', 'quinta', 'sexta', 'sábado'][d.getDay()];
+    const mes = ['janeiro', 'fevereiro', 'março', 'abril', 'maio', 'junho', 'julho', 'agosto', 'setembro', 'outubro', 'novembro', 'dezembro'][d.getMonth()];
+    return `${wd}, ${String(d.getDate()).padStart(2, '0')} de ${mes}`;
+  },
+  _syncManage() {
+    const m = document.getElementById('extras-manage-modal');
+    if (m && m.style.display === 'flex') this.renderManageList();
   },
   // Puxa os assuntos prioritários do Plano de pontos fracos, com a meta já calculada
   puxarDoPlano() {
@@ -15382,131 +15533,150 @@ const ExtrasScreen = {
     if (limpar) limpar.addEventListener('click', () => { this._planoSel.clear(); this._planoRenderLista(); });
     this._planoRenderLista();
   },
-  cardHtml(x) {
+  // Cartão de TAREFA DO DIA: controle individual por dia (concluir/registrar valem só neste dia)
+  cardHtml(x, day) {
+    day = day || this.selDay || todayLocal();
     const t = this.TIPOS[x.tipo] || this.TIPOS.livre;
-    const encerrada = DB.extraEncerrada(x);
-    const recorrente = DB.extraRecorrente(x) && !encerrada;
-    // metas recorrentes: a barra mostra o PERÍODO ATUAL; encerrada mostra o total acumulado
-    const feito = recorrente ? DB.extraProgressoPeriodo(x) : (x.progresso || 0);
+    const rec = DB.extraRecorrente(x);
+    const done = DB.extraConcluidaEm(x, day);
     const alvo = parseFloat(x.alvo) || 0;
-    const done = alvo > 0 && feito >= alvo;
+    const emMin = (x.tipo === 'video' || x.unidade === 'min');
+    const cor = this._tipoColor(x.tipo);
+    // progresso: recorrente conta o registrado NESTE DIA; avulsa mostra o acumulado
+    const feitoDia = (x.historico || []).filter(h => h.data === day).reduce((a, h) => a + (h.quantidade || 0), 0);
+    const feito = rec ? feitoDia : (x.progresso || 0);
     const pct = alvo > 0 ? Math.min(100, Math.round((feito / alvo) * 100)) : 0;
+    const barFull = alvo > 0 && feito >= alvo;
+    const unidLabel = emMin ? 'min' : escapeHtml(x.unidade);
+    const placeholder = emMin ? 'minutos' : (x.tipo === 'questoes' ? 'questões' : 'qtd');
     const REC_NOME = { diaria: 'diária', semanal: 'semanal', quinzenal: 'quinzenal', mensal: 'mensal' };
-    const REC_ESCOPO = { diaria: 'hoje', semanal: 'nesta semana', quinzenal: 'na quinzena', mensal: 'neste mês' };
-    const recTxt = DB.extraRecorrente(x) ? REC_NOME[x.periodo] : null;
-    const escopo = recorrente ? (REC_ESCOPO[x.periodo] || '') : '';
-    const fimTag = (x.dataFim)
-      ? (encerrada
-          ? `<span class="extra-tag" style="background:var(--surface-sunken);color:var(--text-faint);border-style:dashed;">✔ recorrência encerrada em ${escapeHtml(formatDateShort(x.dataFim))}</span>`
-          : `<span class="extra-tag" title="A recorrência para de reiniciar depois desta data">⏳ até ${escapeHtml(formatDateShort(x.dataFim))}</span>`)
-      : '';
-    // total de datas vinculadas ao calendário (geradas pela recorrência ou manuais)
-    const nDatas = (x.datas || []).length;
-    const datasTag = (recorrente && nDatas > 0)
-      ? `<span class="extra-tag" title="Ocorrências vinculadas ao calendário de atividades">🗓️ ${nDatas} data(s) no calendário</span>` : '';
+    const recTag = rec ? `<span class="extra-tag rec">🔁 ${REC_NOME[x.periodo] || ''}</span>` : '';
+    const discTag = x.disciplina ? `<span class="extra-tag disc">${escapeHtml(x.disciplina)}</span>` : '';
+    const metaTag = `<span class="extra-tag ${x.contaMetricas ? 'count-on' : 'count-off'}" title="${x.contaMetricas ? 'Conta nas métricas de Evolução' : 'Fora das métricas'}">${x.contaMetricas ? '📊 métricas' : 'fora'}</span>`;
+    const progBlock = (alvo > 0)
+      ? `<div class="exd-prog">
+           <div class="bar"><i class="${barFull ? 'full' : ''}" style="width:${pct}%"></i></div>
+           <div class="nums"><span><b>${feito.toLocaleString('pt-BR')}</b> / ${alvo.toLocaleString('pt-BR')} ${unidLabel}${rec ? ' <span class="opt">' + (day === todayLocal() ? 'hoje' : 'no dia') + '</span>' : ''}</span><span>${pct}%</span></div>
+         </div>`
+      : (feitoDia > 0 ? `<div class="exd-prog"><div class="nums"><span><b>${feitoDia.toLocaleString('pt-BR')}</b> ${unidLabel} no dia</span></div></div>` : '');
+    const marcador = x.tipo === 'leitura'
+      ? `<div class="extra-marcador" style="margin-top:10px;">
+           <span class="em-label">📌 Onde parei</span>
+           <input type="text" class="ex-marcador" value="${escapeHtml(x.marcador || '')}" placeholder="ex.: art. 150 · pág. 88">
+           <button type="button" class="btn-primary ex-marcador-save">Salvar</button>
+         </div>` : '';
+    const regRow = done ? '' : `
+        <div class="exd-reg">
+          <input type="number" class="exd-num exd-qtd" min="0" placeholder="${placeholder}" title="Registrar progresso em ${escapeHtml(this._prettyDay(day))}">
+          ${x.tipo === 'questoes' ? `<input type="number" class="exd-num exd-ac" min="0" placeholder="acertos" title="Acertos (opcional)">` : ''}
+          <button type="button" class="btn-secondary exd-reg-btn">+ Registrar</button>
+          <span class="exd-spacer"></span>
+          <button type="button" class="btn-primary exd-done-btn">✓ Concluir</button>
+        </div>`;
     return `
-      <div class="extra-card ${DB.extraConcluidaEm(x, todayLocal()) ? 'is-done' : ''}" data-id="${x.id}">
-        <div class="extra-head">
-          <div class="extra-ico">${t.ico}</div>
-          <div class="extra-title">
-            <div class="t">${escapeHtml(x.titulo)}</div>
-            <div class="m">
+      <div class="exd ${done ? 'done' : ''}" data-id="${x.id}" data-day="${day}">
+        <div class="exd-top">
+          <button type="button" class="exd-check" title="${done ? 'Reabrir' : 'Concluir'} neste dia">${this._CHECK}</button>
+          <div class="exd-ico" style="background:color-mix(in srgb, ${cor} 16%, transparent); color:${cor};">${t.ico}</div>
+          <div class="exd-main">
+            <div class="exd-title">${escapeHtml(x.titulo)}</div>
+            <div class="exd-tags">
               <span class="extra-tag">${t.nome}</span>
-              ${x.disciplina ? `<span class="extra-tag disc">${escapeHtml(x.disciplina)}</span>` : ''}
-              ${recTxt ? `<span class="extra-tag rec">🔁 ${recTxt}</span>` : ''}
-              ${fimTag}
-              ${datasTag}
-              ${x.tipo === 'leitura' && x.marcador ? `<span class="extra-tag pin">📌 parei em: ${escapeHtml(x.marcador)}</span>` : ''}
-              <span class="extra-tag ${x.contaMetricas ? 'count-on' : 'count-off'}">${x.contaMetricas ? '📊 conta nas métricas' : 'fora das métricas'}</span>
+              ${discTag}${recTag}${metaTag}
+              ${x.tipo === 'leitura' && x.marcador ? `<span class="extra-tag pin">📌 ${escapeHtml(x.marcador)}</span>` : ''}
             </div>
           </div>
-          <div class="extra-actions">
-            <button type="button" class="icon-btn ex-edit" title="Editar">✎</button>
-            <button type="button" class="icon-btn danger ex-del" title="Excluir">×</button>
-          </div>
+          <button type="button" class="icon-btn exd-edit" title="Editar / configurar">✎</button>
         </div>
-        ${DB.extraConcluidaEm(x, todayLocal())
-          ? `<div class="extra-doneflag">✓ concluída ${escapeHtml(recorrente ? 'hoje' : '')}${(recorrente ? '' : escapeHtml(escopo))}</div>`
-          : ((done && recorrente) ? `<div class="extra-doneflag" style="background:var(--surface-sunken);color:var(--text-soft);border-color:var(--border);">🎯 meta ${escapeHtml(escopo)} batida</div>` : '')}
-        <div class="extra-progress">
-          <div class="bar"><span class="${done ? 'full' : ''}" style="width:${pct}%"></span></div>
-          <div class="nums">
-            <span><b>${feito.toLocaleString('pt-BR')}</b>${alvo > 0 ? ' / ' + alvo.toLocaleString('pt-BR') : ''} ${escapeHtml(x.unidade)}${escopo ? ' <span class="opt">' + escopo + '</span>' : ''}</span>
-            <span>${alvo > 0 ? pct + '%' : ''}</span>
-          </div>
-          ${recorrente ? `<div class="hint" style="margin:4px 0 0;">Acumulado total: ${(x.progresso || 0).toLocaleString('pt-BR')} ${escapeHtml(x.unidade)}</div>` : ''}
-        </div>
-        ${x.tipo === 'leitura' ? `
-        <div class="extra-marcador">
-          <span class="em-label">📌 Onde parei</span>
-          <input type="text" class="ex-marcador" value="${escapeHtml(x.marcador || '')}" placeholder="ex.: art. 150 · linha 234 · pág. 88">
-          <button type="button" class="btn-primary ex-marcador-save" title="Salvar marcador">Salvar</button>
-        </div>` : ''}
-        <div class="extra-foot">
-          <div class="extra-adv">
-            <input type="number" class="ex-qtd" min="0" placeholder="${(x.tipo === 'video' || x.unidade === 'min') ? 'minutos' : 'qtd'}" title="${(x.tipo === 'video' || x.unidade === 'min') ? 'Minutos estudados' : 'Quanto avançou'}">
-            ${x.tipo === 'questoes' ? `<input type="number" class="ex-ac" min="0" placeholder="acertos" title="Acertos (opcional — necessário para entrar no % de acerto)">` : ''}
-            ${(x.tipo === 'video' || x.unidade === 'min') ? '' : `<input type="number" class="ex-min" min="0" placeholder="min" title="Minutos (opcional)">`}
-            <input type="date" class="ex-data" value="${todayLocal()}" max="${todayLocal()}" title="Data do lançamento (permite retroativo)">
-            <button type="button" class="btn-secondary ex-adv-btn">+ Avançar</button>
-            ${(x.historico || []).length ? `<button type="button" class="icon-btn ex-undo" title="Desfazer o último lançamento">↶</button>` : ''}
-          </div>
-          <span style="flex:1"></span>
-          ${DB.extraConcluidaEm(x, todayLocal())
-            ? `<button type="button" class="btn-secondary ex-reopen">↺ ${DB.extraRecorrente(x) ? 'Reabrir hoje' : 'Reabrir'}</button>`
-            : `<button type="button" class="btn-secondary ex-complete">✓ ${DB.extraRecorrente(x) ? 'Concluir hoje' : 'Concluir'}</button>`}
-        </div>
+        ${done ? `<div class="exd-doneflag">${this._CHECK} concluída ${rec ? 'neste dia' : ''}</div>` : ''}
+        ${progBlock}
+        ${marcador}
+        ${regRow}
       </div>`;
   },
   bind(list) {
-    list.querySelectorAll('.extra-card').forEach(card => {
+    list.querySelectorAll('.exd').forEach(card => {
       const id = card.dataset.id;
-      card.querySelector('.ex-edit').addEventListener('click', () => this.openModal(id));
-      card.querySelector('.ex-del').addEventListener('click', () => this.excluir(id));
-      const advBtn = card.querySelector('.ex-adv-btn');
-      if (advBtn) advBtn.addEventListener('click', () => {
-        const qtd = card.querySelector('.ex-qtd').value;
-        const minEl = card.querySelector('.ex-min');
-        const acEl = card.querySelector('.ex-ac');
-        const dtEl = card.querySelector('.ex-data');
+      const day = card.dataset.day || this.selDay || todayLocal();
+      // marcar/desmarcar conclusão do DIA (checkbox redondo)
+      const check = card.querySelector('.exd-check');
+      if (check) check.addEventListener('click', () => {
         const x = DB.getExtra(id);
-        // vídeo: a própria quantidade é em minutos
-        // atividade em minutos (unidade 'min' ou vídeo): a quantidade JÁ é o tempo
-        const emMinutos = x && (x.tipo === 'video' || x.unidade === 'min');
-        const min = emMinutos ? qtd : (minEl ? minEl.value : 0);
-        if (!qtd || parseFloat(qtd) <= 0) { showToast('Informe quanto avançou'); return; }
-        if (acEl && acEl.value !== '' && parseFloat(acEl.value) > parseFloat(qtd)) { showToast('Acertos não podem passar do total de questões'); return; }
-        const data = (dtEl && dtEl.value) ? dtEl.value : todayLocal();
-        if (data > todayLocal()) { showToast('Não dá para lançar progresso em data futura'); return; }
-        DB.addExtraProgress(id, qtd, min, { data, acertos: acEl ? acEl.value : null });
+        const jaFeita = DB.extraConcluidaEm(x, day);
+        DB.setConcluidaDia(id, day, !jaFeita);
         this.render();
-        showToast(data === todayLocal() ? 'Progresso registrado ✓' : 'Progresso registrado em ' + formatDateShort(data) + ' ✓');
+        if (!jaFeita) showToast(DB.extraRecorrente(x) ? 'Concluída neste dia 🎉' : 'Atividade concluída 🎉');
       });
-      const undoBtn = card.querySelector('.ex-undo');
-      if (undoBtn) undoBtn.addEventListener('click', () => {
-        const u = DB.undoExtraProgress(id);
-        if (!u) { showToast('Nada para desfazer'); return; }
+      const doneBtn = card.querySelector('.exd-done-btn');
+      if (doneBtn) doneBtn.addEventListener('click', () => {
+        const x = DB.getExtra(id);
+        DB.setConcluidaDia(id, day, true);
         this.render();
-        showToast('Lançamento de ' + (u.quantidade || 0) + ' desfeito ↶');
+        showToast(DB.extraRecorrente(x) ? 'Concluída neste dia 🎉 (volta na próxima)' : 'Atividade concluída 🎉');
       });
-      // marcador "onde parei" (leitura): salvar sem re-render (para não perder o foco)
+      const edit = card.querySelector('.exd-edit');
+      if (edit) edit.addEventListener('click', () => this.openModal(id));
+      // registrar progresso NO DIA selecionado (um único campo — sem o antigo "+ Avançar")
+      const regBtn = card.querySelector('.exd-reg-btn');
+      if (regBtn) regBtn.addEventListener('click', () => {
+        const x = DB.getExtra(id);
+        const qEl = card.querySelector('.exd-qtd');
+        const acEl = card.querySelector('.exd-ac');
+        const q = qEl ? qEl.value : '';
+        if (!q || parseFloat(q) <= 0) { showToast('Informe quanto avançou'); return; }
+        if (acEl && acEl.value !== '' && parseFloat(acEl.value) > parseFloat(q)) { showToast('Acertos não podem passar do total'); return; }
+        if (day > todayLocal()) { showToast('Não dá para registrar em data futura'); return; }
+        DB.addExtraProgress(id, q, 0, { data: day, acertos: acEl ? acEl.value : null });
+        this.render();
+        showToast(day === todayLocal() ? 'Registrado ✓' : 'Registrado em ' + formatDateShort(day) + ' ✓');
+      });
+      // marcador "onde parei" (leitura)
       const mkSave = card.querySelector('.ex-marcador-save');
       if (mkSave) mkSave.addEventListener('click', () => {
-        const v = card.querySelector('.ex-marcador').value;
-        DB.updateExtra(id, { marcador: v });
+        DB.updateExtra(id, { marcador: card.querySelector('.ex-marcador').value });
         this.render(); showToast('📌 Marcador salvo');
       });
       const mkInput = card.querySelector('.ex-marcador');
       if (mkInput) mkInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') { DB.updateExtra(id, { marcador: mkInput.value }); this.render(); showToast('📌 Marcador salvo'); } });
-      const comp = card.querySelector('.ex-complete');
-      if (comp) comp.addEventListener('click', () => {
-        const x = DB.getExtra(id);
-        DB.setConcluidaDia(id, todayLocal(), true);
-        this.render();
-        showToast(DB.extraRecorrente(x) ? 'Concluída hoje 🎉 (volta amanhã)' : 'Atividade concluída 🎉');
-      });
-      const reopen = card.querySelector('.ex-reopen');
-      if (reopen) reopen.addEventListener('click', () => { DB.setConcluidaDia(id, todayLocal(), false); this.render(); });
+    });
+  },
+  // ── Gerenciador de atividades (recorrentes + avulsas), separado do dia ──
+  manageOpen() { this.renderManageList(); const m = document.getElementById('extras-manage-modal'); if (m) m.style.display = 'flex'; },
+  manageClose() { const m = document.getElementById('extras-manage-modal'); if (m) m.style.display = 'none'; },
+  renderManageList() {
+    const box = document.getElementById('extras-manage-list');
+    if (!box) return;
+    const extras = DB.getExtras();
+    if (!extras.length) { box.innerHTML = `<p class="hint" style="padding:12px 2px;">Nenhuma atividade ainda. Use <strong>＋ Nova atividade</strong> para criar a primeira.</p>`; return; }
+    const REC_NOME = { diaria: 'diária', semanal: 'semanal', quinzenal: 'quinzenal', mensal: 'mensal' };
+    const rowHtml = (x) => {
+      const t = this.TIPOS[x.tipo] || this.TIPOS.livre;
+      const cor = this._tipoColor(x.tipo);
+      const nDatas = (x.datas || []).length;
+      const sub = [`<span class="extra-tag">${t.nome}</span>`];
+      if (DB.extraRecorrente(x)) sub.push(`<span class="extra-tag rec">🔁 ${REC_NOME[x.periodo] || ''}</span>`);
+      if (x.disciplina) sub.push(`<span class="extra-tag disc">${escapeHtml(x.disciplina)}</span>`);
+      if (x.dataFim) sub.push(`<span class="extra-tag">⏳ até ${escapeHtml(formatDateShort(x.dataFim))}</span>`);
+      if (nDatas) sub.push(`<span class="extra-tag">🗓️ ${nDatas} data(s)</span>`);
+      if (!DB.extraRecorrente(x) && x.status === 'concluida') sub.push(`<span class="extra-tag count-on">✓ concluída</span>`);
+      return `<div class="exm-row" data-id="${x.id}">
+        <div class="exm-ico" style="background:color-mix(in srgb, ${cor} 16%, transparent); color:${cor};">${t.ico}</div>
+        <div class="exm-body"><div class="exm-name">${escapeHtml(x.titulo)}</div><div class="exm-sub">${sub.join('')}</div></div>
+        <div class="exm-acts">
+          <button type="button" class="icon-btn exm-edit" title="Editar">✎</button>
+          <button type="button" class="icon-btn danger exm-del" title="Excluir">×</button>
+        </div>
+      </div>`;
+    };
+    const rec = extras.filter(x => DB.extraRecorrente(x));
+    const uni = extras.filter(x => !DB.extraRecorrente(x));
+    box.innerHTML =
+      (rec.length ? `<div class="exm-group-title">🔁 Recorrentes (${rec.length})</div>` + rec.map(rowHtml).join('') : '') +
+      (uni.length ? `<div class="exm-group-title">⭐ Avulsas / únicas (${uni.length})</div>` + uni.map(rowHtml).join('') : '');
+    box.querySelectorAll('.exm-row').forEach(row => {
+      const id = row.dataset.id;
+      row.querySelector('.exm-edit').addEventListener('click', () => this.openModal(id));
+      row.querySelector('.exm-del').addEventListener('click', () => this.excluir(id));
     });
   },
   // Exclusão consciente da recorrência: se a atividade é recorrente e tem ocorrências
@@ -15659,84 +15829,98 @@ const ExtrasScreen = {
   renderAgenda() {
     const host = document.getElementById('extras-agenda');
     if (!host) return;
-    const extras = DB.getExtras().filter(x => x.status === 'ativa');
+    const extras = DB.getExtras();
     if (!extras.length) { host.innerHTML = ''; return; }
     const hoje = todayLocal();
-    if (!this._calSel) this._calSel = hoje;
-    if (!this._calStart) this._calStart = hoje;
-    const DIAS = 14; // janela do calendário em linha
+    if (!this.selDay) this.selDay = hoje;
+    if (!this._calStart) this._calStart = this._addDays(hoje, -3);   // mostra alguns dias passados
+    if (this._showFilters === undefined) this._showFilters = false;
+    if (!this._fStart || !this._fEnd) { this._fEnd = hoje; this._fStart = this._addDays(hoje, -29); }
+    const DIAS = 14;
     const nomes = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
     const meses = ['jan', 'fev', 'mar', 'abr', 'mai', 'jun', 'jul', 'ago', 'set', 'out', 'nov', 'dez'];
-    // conta atividades agendadas por dia
-    const agendadasNo = (dia) => extras.filter(x => (x.datas || []).includes(dia));
-    const feitoNo = (x, dia) => (x.historico || []).filter(h => h.data === dia).reduce((a, h) => a + (h.quantidade || 0), 0);
-
-    // tira do calendário (strip)
+    // tira do calendário (strip) — dots pelas ocorrências de cada dia
     let strip = '';
     for (let i = 0; i < DIAS; i++) {
       const dia = this._addDays(this._calStart, i);
       const d = new Date(dia + 'T00:00:00');
-      const ags = agendadasNo(dia);
-      const sel = dia === this._calSel;
-      const isHoje = dia === hoje;
-      const dots = ags.slice(0, 4).map(x => `<span class="cal-dot" style="background:${this._tipoColor(x.tipo)}"></span>`).join('');
+      const occ = this.occurrencesForDay(dia);
+      const total = occ.length;
+      const dots = occ.slice(0, 4).map(x => `<span class="cal-dot" style="background:${this._tipoColor(x.tipo)}"></span>`).join('');
+      const sel = dia === this.selDay, isHoje = dia === hoje;
       strip += `<button type="button" class="cal-day ${sel ? 'sel' : ''} ${isHoje ? 'hoje' : ''}" data-dia="${dia}">
         <span class="cal-wd">${nomes[d.getDay()]}</span>
         <span class="cal-dn">${String(d.getDate()).padStart(2, '0')}</span>
         <span class="cal-mo">${meses[d.getMonth()]}</span>
-        <span class="cal-dots">${dots || (ags.length ? '' : '&nbsp;')}${ags.length > 4 ? '<span class="cal-more">+' + (ags.length - 4) + '</span>' : ''}</span>
+        <span class="cal-dots">${dots || '&nbsp;'}${total > 4 ? '<span class="cal-more">+' + (total - 4) + '</span>' : ''}</span>
       </button>`;
     }
-
-    // painel do dia selecionado
-    const selD = new Date(this._calSel + 'T00:00:00');
-    const selLabel = `${nomes[selD.getDay()]}, ${String(selD.getDate()).padStart(2, '0')} de ${['janeiro', 'fevereiro', 'março', 'abril', 'maio', 'junho', 'julho', 'agosto', 'setembro', 'outubro', 'novembro', 'dezembro'][selD.getMonth()]}`;
-    const doDia = agendadasNo(this._calSel);
-    const naoAgendadas = extras.filter(x => !(x.datas || []).includes(this._calSel));
-    const chips = doDia.length
-      ? doDia.map(x => {
-          const t = this.TIPOS[x.tipo] || this.TIPOS.livre;
-          const feito = feitoNo(x, this._calSel);
-          return `<div class="cal-chip" style="border-color:${this._tipoColor(x.tipo)}">
-            <span class="cal-chip-ico">${t.ico}</span>
-            <span class="cal-chip-name" title="${escapeHtml(x.titulo)}">${escapeHtml(x.titulo)}</span>
-            ${feito > 0 ? `<span class="cal-chip-done">✓ ${feito}</span>` : ''}
-            <button type="button" class="cal-chip-x" data-unschedule="${x.id}" title="Desvincular deste dia">×</button>
-          </div>`;
-        }).join('')
-      : `<div class="cal-empty">Nenhuma atividade neste dia. Adicione abaixo 👇</div>`;
-
+    // dados do dia selecionado
+    const occSel = this.occurrencesForDay(this.selDay);
+    const feitosSel = occSel.filter(x => DB.extraConcluidaEm(x, this.selDay)).length;
+    const minDia = this._minInDay(this.selDay);
+    const minTotal = this._minTotal();
+    const minRange = this._minInRange(this._fStart, this._fEnd);
     host.innerHTML = `
       <div class="card cal-card">
         <div class="card-header">
-          <div><h2>🗓️ Calendário de atividades</h2><p class="sub">Clique num dia e vincule atividades extras a ele. Os pontinhos mostram o que já está agendado.</p></div>
+          <div><h2>🗓️ Missão do dia</h2><p class="sub">Escolha um dia e conclua o que está vinculado a ele. Cada dia tem o seu próprio controle — o que você faz aqui vale só para o dia selecionado.</p></div>
           <div class="cal-nav">
-            <button type="button" class="icon-btn" id="cal-prev" title="Semana anterior">‹</button>
+            <button type="button" class="icon-btn" id="cal-prev" title="Recuar uma semana">‹</button>
             <button type="button" class="btn-secondary" id="cal-today">Hoje</button>
-            <button type="button" class="icon-btn" id="cal-next" title="Próxima semana">›</button>
+            <button type="button" class="icon-btn" id="cal-next" title="Avançar uma semana">›</button>
           </div>
         </div>
-        <div class="cal-strip">${strip}</div>
-        <div class="cal-panel">
-          <div class="cal-panel-head">📌 ${selLabel}${this._calSel === hoje ? ' <span class="cal-hoje-badge">hoje</span>' : ''}</div>
-          <div class="cal-chips">${chips}</div>
-          <div class="cal-add-row">
-            <select id="cal-add-select">
-              <option value="">+ Vincular atividade a este dia…</option>
-              ${naoAgendadas.map(x => `<option value="${x.id}">${(this.TIPOS[x.tipo] || this.TIPOS.livre).ico} ${escapeHtml(x.titulo)}</option>`).join('')}
-            </select>
+        <div class="cal-strip" style="padding:6px 24px 14px;">${strip}</div>
+        <div style="padding:2px 24px 18px;">
+          <div class="exx-dayhead">
+            <div class="dh-l">
+              <div class="dh-title">📌 ${escapeHtml(this._prettyDay(this.selDay))} ${this.selDay === hoje ? '<span class="hoje">hoje</span>' : ''}</div>
+              <div class="dh-sub">${occSel.length} atividade(s) · ${feitosSel} concluída(s) neste dia</div>
+            </div>
+            <div class="dh-r">
+              <div class="exx-metric"><span class="mv">${CycleEngine.fmtHM(minDia)}</span><span class="ml">registrado no dia</span></div>
+              <button type="button" class="btn-secondary ${this._showFilters ? 'is-active' : ''}" id="ex-filters-btn" title="Ver carga horária total e filtrar por intervalo">⏱️ Carga horária</button>
+            </div>
+          </div>
+          <div class="exx-filters ${this._showFilters ? '' : 'hidden'}" id="ex-filters">
+            <div class="ef-row">
+              <div class="ef-field"><label>De</label><input type="date" id="ex-f-de" value="${this._fStart}" max="${hoje}"></div>
+              <div class="ef-field"><label>Até</label><input type="date" id="ex-f-ate" value="${this._fEnd}" max="${hoje}"></div>
+              <div class="ef-field"><label>Atalhos</label>
+                <div class="ef-quick">
+                  <button type="button" class="btn-secondary" data-fq="7">7 dias</button>
+                  <button type="button" class="btn-secondary" data-fq="30">30 dias</button>
+                  <button type="button" class="btn-secondary" data-fq="all">Tudo</button>
+                </div>
+              </div>
+            </div>
+            <div class="ef-cards">
+              <div class="exx-fcard"><div class="v">${CycleEngine.fmtHM(minDia)}</div><div class="l">no dia selecionado</div></div>
+              <div class="exx-fcard"><div class="v">${CycleEngine.fmtHM(minRange)}</div><div class="l">no intervalo</div></div>
+              <div class="exx-fcard"><div class="v">${CycleEngine.fmtHM(minTotal)}</div><div class="l">total registrado</div></div>
+            </div>
+            <p class="gb-hint" style="margin-top:8px;">A carga horária soma os minutos registrados nas atividades: minutos/vídeo contam direto; as demais contam quando você informa minutos ao registrar.</p>
           </div>
         </div>
       </div>`;
-
     // interações
-    host.querySelectorAll('.cal-day').forEach(b => b.addEventListener('click', () => { this._calSel = b.dataset.dia; this.renderAgenda(); }));
+    host.querySelectorAll('.cal-day').forEach(b => b.addEventListener('click', () => { this.selDay = b.dataset.dia; this.render(); }));
     const prev = host.querySelector('#cal-prev'); if (prev) prev.addEventListener('click', () => { this._calStart = this._addDays(this._calStart, -7); this.renderAgenda(); });
     const next = host.querySelector('#cal-next'); if (next) next.addEventListener('click', () => { this._calStart = this._addDays(this._calStart, 7); this.renderAgenda(); });
-    const tod = host.querySelector('#cal-today'); if (tod) tod.addEventListener('click', () => { this._calStart = hoje; this._calSel = hoje; this.renderAgenda(); });
-    host.querySelectorAll('[data-unschedule]').forEach(b => b.addEventListener('click', () => { DB.setExtraData(b.dataset.unschedule, this._calSel, false); this.renderAgenda(); showToast('Desvinculado do dia'); }));
-    const addSel = host.querySelector('#cal-add-select');
-    if (addSel) addSel.addEventListener('change', () => { if (addSel.value) { DB.setExtraData(addSel.value, this._calSel, true); this.renderAgenda(); showToast('📅 Atividade vinculada ao dia'); } });
+    const tod = host.querySelector('#cal-today'); if (tod) tod.addEventListener('click', () => { this._calStart = this._addDays(hoje, -3); this.selDay = hoje; this.render(); });
+    const fb = host.querySelector('#ex-filters-btn');
+    if (fb) fb.addEventListener('click', () => { this._showFilters = !this._showFilters; const p = document.getElementById('ex-filters'); if (p) p.classList.toggle('hidden', !this._showFilters); fb.classList.toggle('is-active', this._showFilters); });
+    const de = host.querySelector('#ex-f-de'), ate = host.querySelector('#ex-f-ate');
+    const applyF = () => { if (de && de.value) this._fStart = de.value; if (ate && ate.value) this._fEnd = ate.value; if (this._fStart > this._fEnd) { const t = this._fStart; this._fStart = this._fEnd; this._fEnd = t; } this.renderAgenda(); };
+    if (de) de.addEventListener('change', applyF);
+    if (ate) ate.addEventListener('change', applyF);
+    host.querySelectorAll('[data-fq]').forEach(b => b.addEventListener('click', () => {
+      const q = b.dataset.fq;
+      if (q === 'all') { let min = hoje; DB.getExtras().forEach(x => (x.historico || []).forEach(h => { if (h.data && h.data < min) min = h.data; })); this._fStart = min; this._fEnd = hoje; }
+      else { this._fEnd = hoje; this._fStart = this._addDays(hoje, -(parseInt(q) - 1)); }
+      this._showFilters = true; this.renderAgenda();
+    }));
   },
   _tipoColor(tipo) {
     return { anki: '#7c3aed', leitura: '#0f9d63', questoes: '#2563eb', revisao: '#d97a12', video: '#e0393f', livre: '#0a95a8' }[tipo] || '#6b7280';
@@ -15899,6 +16083,13 @@ window.ExtrasScreen = ExtrasScreen;
   on('extras-new-btn', 'click', () => { ExtrasScreen._fromSuggest = null; ExtrasScreen._sugAdded = new Set(); ExtrasScreen.openModal(null); });
   on('extras-suggest-btn', 'click', () => { ExtrasScreen._sugAdded = new Set(); ExtrasScreen.openSuggest(); });
   on('extras-plano-btn', 'click', () => ExtrasScreen.puxarDoPlano());
+  // Gerenciador de atividades (recorrentes + avulsas), separado da missão do dia
+  on('extras-manage-btn', 'click', () => ExtrasScreen.manageOpen());
+  on('extras-manage-close', 'click', () => ExtrasScreen.manageClose());
+  on('extras-manage-done', 'click', () => ExtrasScreen.manageClose());
+  on('extras-manage-new', 'click', () => { ExtrasScreen._fromSuggest = null; ExtrasScreen._sugAdded = new Set(); ExtrasScreen.openModal(null); });
+  const _mng = document.getElementById('extras-manage-modal');
+  if (_mng) _mng.addEventListener('click', (e) => { if (e.target === _mng) ExtrasScreen.manageClose(); });
   on('extra-suggest-close', 'click', () => { document.getElementById('extra-suggest-modal').style.display = 'none'; ExtrasScreen._sugAdded = new Set(); });
   on('extra-suggest-cancel', 'click', () => { document.getElementById('extra-suggest-modal').style.display = 'none'; ExtrasScreen._sugAdded = new Set(); });
   on('extra-suggest-add', 'click', () => ExtrasScreen.addSuggested());
