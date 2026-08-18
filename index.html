@@ -20168,8 +20168,17 @@ const SectionSync = {
 
   _prefix() { try { return DB._profilePrefix(); } catch (_) { return 'diario-estudos:'; } },
   _revKey() { return this._prefix() + '__secrev'; },
-  _getRevs() { try { return JSON.parse(localStorage.getItem(this._revKey())) || {}; } catch (_) { return {}; } },
+  // Estrutura salva: { section: { rev, hash } } — o hash evita reenviar conteúdo idêntico
+  // (antes, cada sessão re-subia tudo e inflava o rev). Migração automática do formato antigo.
+  _getRevs() {
+    try {
+      const v = JSON.parse(localStorage.getItem(this._revKey())) || {};
+      for (const k in v) { if (typeof v[k] === 'number') v[k] = { rev: v[k], hash: null }; } // formato antigo → novo
+      return v;
+    } catch (_) { return {}; }
+  },
   _saveRevs(r) { try { localStorage.setItem(this._revKey(), JSON.stringify(r)); } catch (_) {} },
+  _hash(str) { let h = 2166136261; for (let i = 0; i < str.length; i++) { h ^= str.charCodeAt(i); h = Math.imul(h, 16777619); } return (h >>> 0).toString(36); },
 
   // Converte uma chave de localStorage na seção correspondente, ou null se não
   // pertence ao perfil ativo / não deve ser sincronizada.
@@ -20187,14 +20196,19 @@ const SectionSync = {
     const sec = this.sectionForKey(fullKey);
     if (sec) this._dirty.add(sec);
   },
-  // Marca TODAS as seções atuais do perfil como sujas — usado uma vez por sessão
-  // para popular a tabela por completo (dados que nunca foram reescritos).
+  // Marca as seções do perfil que REALMENTE MUDARAM (hash diferente do último envio).
+  // Assim a semeadura de cada sessão não re-sobe tudo nem infla o rev à toa.
   markAllDirty() {
     const pfx = this._prefix();
+    const revs = this._getRevs();
     try {
       for (let i = 0; i < localStorage.length; i++) {
-        const sec = this.sectionForKey(localStorage.key(i));
-        if (sec) this._dirty.add(sec);
+        const full = localStorage.key(i);
+        const sec = this.sectionForKey(full);
+        if (!sec) continue;
+        const raw = localStorage.getItem(full) || '';
+        const h = this._hash(raw);
+        if (!revs[sec] || revs[sec].hash !== h) this._dirty.add(sec); // só o que mudou
       }
     } catch (_) {}
   },
@@ -20216,25 +20230,38 @@ const SectionSync = {
     this._pushing = true;
     const pfx = this._prefix();
     const revs = this._getRevs();
+    // Monta as linhas com hash de conteúdo. Só bumpa o rev quando o conteúdo mudou
+    // de verdade (evita inflar o rev quando a semeadura reencontra dados idênticos).
     const secs = [...this._dirty];
-    const rows = secs.map(sec => {
-      const raw = localStorage.getItem(pfx + sec);
-      let val = null;
-      if (raw != null) { try { val = JSON.parse(raw); } catch (_) { val = raw; } }
-      return { profile_id: id, section: sec, data: val, rev: (revs[sec] || 0) + 1, updated_at: new Date().toISOString() };
+    const rows = [];
+    secs.forEach(sec => {
+      const raw = localStorage.getItem(pfx + sec) || '';
+      const h = this._hash(raw);
+      const prev = revs[sec] || { rev: 0, hash: null };
+      if (prev.hash === h) { this._dirty.delete(sec); return; } // idêntico → nada a enviar
+      let val = null; if (raw !== '') { try { val = JSON.parse(raw); } catch (_) { val = raw; } }
+      rows.push({ _sec: sec, _hash: h, profile_id: id, section: sec, data: val, rev: prev.rev + 1, updated_at: new Date().toISOString() });
     });
+    if (rows.length === 0) { this._pushing = false; return; }
+    // Envia em LOTES: um payload gigante (ex.: a seção de incidência, ~300 KB) num
+    // único request é frágil; lotes menores são mais confiáveis e nunca "somem".
+    const CHUNK = 6, ok = [];
     try {
-      const { error } = await CloudStore.client.from(this.TABLE)
-        .upsert(rows, { onConflict: 'profile_id,section' });
-      if (error) throw error;
-      secs.forEach(sec => { revs[sec] = (revs[sec] || 0) + 1; this._dirty.delete(sec); });
+      for (let i = 0; i < rows.length; i += CHUNK) {
+        const lote = rows.slice(i, i + CHUNK).map(({ _sec, _hash, ...r }) => r);
+        const { error } = await CloudStore.client.from(this.TABLE).upsert(lote, { onConflict: 'profile_id,section' });
+        if (error) throw error;
+        rows.slice(i, i + CHUNK).forEach(r => ok.push(r));
+      }
+      ok.forEach(r => { revs[r._sec] = { rev: r.rev, hash: r._hash }; this._dirty.delete(r._sec); });
       this._saveRevs(revs);
-      this._lastError = null; this._lastPushAt = Date.now(); this._pushedCount += secs.length;
-      console.info('[SectionSync] enviou', secs.length, 'seção(ões):', secs.join(', '));
+      this._lastError = null; this._lastPushAt = Date.now(); this._pushedCount += ok.length;
+      console.info('[SectionSync] enviou', ok.length, 'seção(ões):', ok.map(r => r._sec).join(', '));
     } catch (e) {
-      // NÃO engole o erro: guarda para diagnóstico e mantém as seções sujas p/ retry.
+      // salva o progresso parcial (lotes que passaram) e mantém o resto sujo p/ retry
+      if (ok.length) { ok.forEach(r => { revs[r._sec] = { rev: r.rev, hash: r._hash }; this._dirty.delete(r._sec); }); this._saveRevs(revs); }
       this._lastError = (e && (e.message || e.code || JSON.stringify(e))) || 'erro';
-      console.warn('[SectionSync] falha ao enviar:', this._lastError);
+      console.warn('[SectionSync] falha ao enviar:', this._lastError, '(enviadas', ok.length, 'de', rows.length + ')');
     } finally {
       this._pushing = false;
     }
