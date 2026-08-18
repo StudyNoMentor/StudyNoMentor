@@ -6484,6 +6484,10 @@
 // Usar `var` evita o erro de "temporal dead zone" que aconteceria com `typeof CloudStore`
 // caso DB._set seja chamado durante a inicialização, antes do CloudStore existir.
 var _cloudNotifyHook = null;
+// Hook da SINCRONIZAÇÃO POR SEÇÃO (Opção B, Fase 1 = escrita dupla). Marca a seção
+// alterada como "suja" para ser enviada à tabela profile_sections em paralelo ao blob.
+// var (não const) evita erro de zona morta se DB._set rodar antes do SectionSync existir.
+var _sectionMarkHook = null;
 
 /* ============================================================
    CAMADA DE DADOS — usada por todas as telas do app
@@ -6608,6 +6612,7 @@ const DB = {
     }
     // dispara sincronização automática com atraso (se conectado à nuvem) — não bloqueia a escrita
     if (_cloudNotifyHook) _cloudNotifyHook();
+    if (_sectionMarkHook) _sectionMarkHook(key); // marca a seção alterada (sync por seção)
     return true;
   },
   // Quanto o app está ocupando no navegador (útil na mensagem de cota e em Configurações)
@@ -20007,6 +20012,7 @@ const CloudStore = {
       }
       this._lastSyncAt = Date.now();
       if (window.CloudUI) CloudUI.setStatus('ok', 'Sincronizado');
+      try { if (window.SectionSync) SectionSync.afterBlobSave(); } catch (_) {} // escrita dupla (Opção B, Fase 1)
     } catch (err) {
       // erro de rede: NÃO perde a alteração — remarca como pendente e reprograma (auto-recupera)
       this._syncing = false; this._pending = true;
@@ -20104,6 +20110,7 @@ const CloudStore = {
       try {
         // retentativa: garante que a ação do usuário chegue à nuvem antes de recarregar
         const r = await this.saveActiveWithRetry();
+        try { if (window.SectionSync) await SectionSync.afterBlobSave(); } catch (_) {} // sync por seção
         if (r && r.conflict) {
           showToast('Aviso: não foi possível confirmar o salvamento na nuvem. Seus dados estão guardados neste dispositivo.');
         }
@@ -20133,6 +20140,104 @@ const CloudStore = {
   }
 };
 window.CloudStore = CloudStore;
+
+/* ============================================================
+   SECTION SYNC — sincronização POR SEÇÃO (Opção B) · FASE 1: escrita dupla
+   ------------------------------------------------------------
+   O que faz: além de salvar o "blob" único do perfil (como sempre), grava cada
+   SEÇÃO (registros, cards, leis, ciclo, grade... de cada planejamento) como uma
+   linha própria na tabela profile_sections, cada uma com sua revisão.
+   Nesta fase a LEITURA continua vindo do blob — nada muda no seu dia a dia. Isto
+   só POPULA a tabela nova em paralelo, sem risco. Assim dá para verificar no
+   Supabase que as seções estão sendo escritas antes de trocar a leitura (Fase 2).
+   Cada chave do localStorage do perfil (ex.: "p:pl_inicial:entries") vira uma
+   seção. O histórico de versões e a bookkeeping interna ficam de fora.
+   ============================================================ */
+const SectionSync = {
+  TABLE: 'profile_sections',
+  enabled: true,            // Fase 1 ligada (escrita dupla)
+  _dirty: new Set(),        // seções alteradas aguardando envio
+  _pushing: false,
+  _seededProfile: null,     // id do perfil já "semeado" nesta sessão (envio inicial completo)
+
+  _prefix() { try { return DB._profilePrefix(); } catch (_) { return 'diario-estudos:'; } },
+  _revKey() { return this._prefix() + '__secrev'; },
+  _getRevs() { try { return JSON.parse(localStorage.getItem(this._revKey())) || {}; } catch (_) { return {}; } },
+  _saveRevs(r) { try { localStorage.setItem(this._revKey(), JSON.stringify(r)); } catch (_) {} },
+
+  // Converte uma chave de localStorage na seção correspondente, ou null se não
+  // pertence ao perfil ativo / não deve ser sincronizada.
+  sectionForKey(fullKey) {
+    const pfx = this._prefix();
+    if (!fullKey || fullKey.indexOf(pfx) !== 0) return null;
+    const sub = fullKey.slice(pfx.length);
+    if (!sub) return null;
+    if (sub.indexOf('__secrev') === 0) return null; // bookkeeping desta camada
+    if (sub.indexOf('vhist') === 0) return null;     // histórico de versões é local
+    return sub;
+  },
+  markDirty(fullKey) {
+    if (!this.enabled) return;
+    const sec = this.sectionForKey(fullKey);
+    if (sec) this._dirty.add(sec);
+  },
+  // Marca TODAS as seções atuais do perfil como sujas — usado uma vez por sessão
+  // para popular a tabela por completo (dados que nunca foram reescritos).
+  markAllDirty() {
+    const pfx = this._prefix();
+    try {
+      for (let i = 0; i < localStorage.length; i++) {
+        const sec = this.sectionForKey(localStorage.key(i));
+        if (sec) this._dirty.add(sec);
+      }
+    } catch (_) {}
+  },
+  seedOnce() {
+    const id = ProfileManager.getActiveProfileId();
+    if (!id || this._seededProfile === id) return;
+    this._seededProfile = id;
+    this.markAllDirty();
+  },
+  // Envia as seções sujas para profile_sections (upsert por profile_id+section).
+  // Best-effort: qualquer falha mantém a seção suja para a próxima rodada, e NUNCA
+  // interfere no salvamento do blob (que é a fonte de verdade nesta fase).
+  async pushDirty() {
+    if (!this.enabled || this._pushing) return;
+    if (!window.CloudStore || !CloudStore.isReady() || !CloudStore.isLoggedIn()) return;
+    const id = ProfileManager.getActiveProfileId();
+    if (!id) return;
+    if (this._dirty.size === 0) return;
+    this._pushing = true;
+    const pfx = this._prefix();
+    const revs = this._getRevs();
+    const secs = [...this._dirty];
+    const rows = secs.map(sec => {
+      const raw = localStorage.getItem(pfx + sec);
+      let val = null;
+      if (raw != null) { try { val = JSON.parse(raw); } catch (_) { val = raw; } }
+      return { profile_id: id, section: sec, data: val, rev: (revs[sec] || 0) + 1, updated_at: new Date().toISOString() };
+    });
+    try {
+      const { error } = await CloudStore.client.from(this.TABLE)
+        .upsert(rows, { onConflict: 'profile_id,section' });
+      if (error) throw error;
+      secs.forEach(sec => { revs[sec] = (revs[sec] || 0) + 1; this._dirty.delete(sec); });
+      this._saveRevs(revs);
+    } catch (e) {
+      console.warn('SectionSync.pushDirty', e && e.message); // mantém sujo p/ retry
+    } finally {
+      this._pushing = false;
+    }
+  },
+  // Semeia (1x) e envia. Chamado depois de um salvamento de blob bem-sucedido.
+  afterBlobSave() {
+    if (!this.enabled) return;
+    try { this.seedOnce(); this.pushDirty(); } catch (_) {}
+  }
+};
+window.SectionSync = SectionSync;
+// liga o hook do DB._set a esta camada (var definida lá no topo, sem zona morta)
+_sectionMarkHook = function (key) { try { SectionSync.markDirty(key); } catch (_) {} };
 
 /* ============================================================
    CLOUD UI — status da conta em Configurações (simplificado)
