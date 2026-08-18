@@ -7954,6 +7954,11 @@ const ProfileManager = {
 // Modelo cloud-first: os perfis vêm do banco (study_profiles). No load só garantimos
 // que o "espelho" local exista; o plano padrão é semeado ao ENTRAR num perfil.
 ProfileManager.initMirror();
+// Expõe o ProfileManager no window. Sem isto, checagens como
+// "(window.ProfileManager && ...)" davam SEMPRE falso — foi o que fazia o
+// diagnóstico SectionSync.status() reportar "perfilAtivo: null" mesmo com um
+// perfil aberto (falso alarme). O perfil ativo real vem de getActiveProfileId().
+window.ProfileManager = ProfileManager;
 
 /* ============================================================
    VERSION HISTORY — histórico de versões (rede de segurança "A")
@@ -20290,7 +20295,7 @@ const SectionSync = {
   status() {
     return {
       habilitado: this.enabled,
-      perfilAtivo: (window.ProfileManager && ProfileManager.getActiveProfileId()) || null,
+      perfilAtivo: (window.ProfileManager ? ProfileManager.getActiveProfileId() : null) || null,
       logado: !!(window.CloudStore && CloudStore.isLoggedIn && CloudStore.isLoggedIn()),
       seedFeito: this._seededProfile,
       seçõesPendentes: [...this._dirty],
@@ -20298,6 +20303,39 @@ const SectionSync = {
       últimoEnvio: this._lastPushAt ? new Date(this._lastPushAt).toLocaleString('pt-BR') : null,
       últimoErro: this._lastError
     };
+  },
+  // LOCALIZADOR DE DADOS (rode: SectionSync.localizarDados())
+  // Varre o armazenamento e diz ONDE cada dado importante está fisicamente:
+  // no endereço correto do perfil (…:u:<id>:…) ou num endereço "órfão" (sem perfil).
+  // Serve para descobrir se os dados do TEC sumiram de verdade ou só estão no lugar errado.
+  localizarDados() {
+    const pid = (window.ProfileManager ? ProfileManager.getActiveProfileId() : null);
+    const pfx = pid ? ('diario-estudos:u:' + pid + ':') : null;
+    const achados = { perfilAtivo: pid, tec: [], entries: [], cards: [], leis: [], vhist: [] };
+    try {
+      for (let i = 0; i < localStorage.length; i++) {
+        const k = localStorage.key(i);
+        if (!k) continue;
+        const val = localStorage.getItem(k) || '';
+        const tam = val.length;
+        const dentroDoPerfil = pfx && k.indexOf(pfx) === 0;
+        const orfao = k.indexOf('diario-estudos:') === 0 && k.indexOf('diario-estudos:u:') !== 0;
+        let itens = null; try { const p = JSON.parse(val); if (Array.isArray(p)) itens = p.length; } catch (_) {}
+        const info = { chave: k, ondePerfil: dentroDoPerfil, orfao, chars: tam, itens };
+        if (/:tec$/.test(k)) achados.tec.push(info);
+        else if (/:entries$/.test(k)) achados.entries.push(info);
+        else if (/:cards$/.test(k)) achados.cards.push(info);
+        else if (/:leis$/.test(k)) achados.leis.push(info);
+        else if (/:vhist:/.test(k)) achados.vhist.push({ chave: k, chars: tam });
+      }
+    } catch (_) {}
+    const resumo = (arr) => arr.length ? arr.map(x => (x.itens != null ? x.itens + ' itens' : x.chars + ' chars') + (x.orfao ? ' ⚠ÓRFÃO' : '')).join(' · ') : 'NADA ENCONTRADO';
+    console.info('[Localizador] perfil ativo:', pid || '(nenhum)');
+    console.info('[Localizador] TEC:', resumo(achados.tec));
+    console.info('[Localizador] registros:', resumo(achados.entries));
+    console.info('[Localizador] cards:', resumo(achados.cards), '· leis:', resumo(achados.leis));
+    console.info('[Localizador] histórico de versões:', achados.vhist.length, 'backup(s) guardado(s)');
+    return achados;
   }
 };
 window.SectionSync = SectionSync;
