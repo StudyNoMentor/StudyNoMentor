@@ -2867,6 +2867,39 @@
   #tec-panel-plano .rfc-field { min-width: 0; }
   #tec-panel-plano .rfc-field label { font-size: calc(10px * var(--fs-scale,1)); }
   #tec-panel-plano .rfc-field.wide { grid-column: 1 / -1; }
+  /* ── Ajustes avançados do Plano: grade alinhada e legível ──────────────────
+     Antes era um flex com flex-wrap: os campos tinham larguras diferentes, os
+     rótulos quebravam em várias linhas e sobravam vãos enormes. Agora é uma grade
+     regular; cada campo ocupa uma célula, o rótulo tem altura fixa e os checkboxes
+     ficam lado a lado numa linha inteira. */
+  #tec-panel-plano .rfc-advanced { padding: 8px 0 10px; }
+  #tec-panel-plano .rfc-adv-grid {
+    display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+    gap: 14px 16px; align-items: start; padding: 16px; background: var(--surface-sunken);
+    border: 1px solid var(--border); border-radius: 12px;
+  }
+  #tec-panel-plano .rfc-adv-grid .rfc-field { min-width: 0; gap: 6px; }
+  #tec-panel-plano .rfc-adv-grid .rfc-field > label {
+    font-size: calc(10.5px * var(--fs-scale,1)); line-height: 1.3; min-height: calc(2.6em * var(--fs-scale,1));
+    display: flex; align-items: flex-end; text-transform: none; letter-spacing: 0; color: var(--text-soft);
+  }
+  #tec-panel-plano .rfc-adv-grid .rfc-field select,
+  #tec-panel-plano .rfc-adv-grid .rfc-field input[type="number"] { width: 100%; }
+  /* linha dos dois interruptores: ocupa a grade inteira, um ao lado do outro */
+  #tec-panel-plano .rfc-adv-grid .rfc-field.wide { grid-column: 1 / -1; flex-direction: row; flex-wrap: wrap; gap: 10px 20px; align-items: center; }
+  #tec-panel-plano .rfc-check {
+    display: inline-flex; align-items: center; gap: 8px; cursor: pointer;
+    font-size: calc(12px * var(--fs-scale,1)); font-weight: 600; color: var(--text); line-height: 1.35;
+    background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 9px 12px;
+    flex: 1 1 260px; min-width: 0;
+  }
+  #tec-panel-plano .rfc-check input { width: 16px; height: 16px; flex-shrink: 0; accent-color: var(--accent); margin: 0; }
+  #tec-panel-plano #plano-advanced > div:last-child { margin-top: 12px; }
+  @media (max-width: 560px) {
+    #tec-panel-plano .rfc-adv-grid { grid-template-columns: 1fr 1fr; padding: 12px; }
+    #tec-panel-plano .rfc-adv-grid .rfc-field > label { min-height: calc(3.4em * var(--fs-scale,1)); }
+    #tec-panel-plano .rfc-check { flex-basis: 100%; }
+  }
 
   /* ── Painel de resumo ── */
   .pl-hero { background: linear-gradient(180deg, var(--surface-sunken), var(--surface)); border: 1.5px solid var(--border); border-radius: 14px; padding: 18px; margin: 14px 0 18px; }
@@ -3209,12 +3242,14 @@
   .evo-sf-chip.is-geral { cursor: default; background: var(--accent-soft); border-color: var(--accent); color: var(--accent); font-weight: 800; }
   .evo-sf-dot { width: 9px; height: 9px; border-radius: 50%; flex-shrink: 0; }
   /* Ritmo de estudo */
-  .ritmo-table { width: 100%; border-collapse: collapse; }
-  .ritmo-table td { padding: 9px 4px; font-size: calc(13px * var(--fs-scale, 1)); border-bottom: 1px solid var(--border); }
+  /* table-layout fixed + coluna de rótulo greedy = o valor vai para a BORDA DIREITA,
+     preenchendo a largura do card (antes o número parava no meio, deixando vazio). */
+  .ritmo-table { width: 100%; border-collapse: collapse; table-layout: fixed; }
+  .ritmo-table td { padding: 10px 6px; font-size: calc(13px * var(--fs-scale, 1)); border-bottom: 1px solid var(--border); }
   .ritmo-table tr:last-child td { border-bottom: none; }
-  .ritmo-table .rk { color: var(--text-soft); }
+  .ritmo-table .rk { color: var(--text-soft); width: 100%; }
   .ritmo-table .rk-hint { color: var(--text-faint); font-weight: 400; font-size: calc(11px * var(--fs-scale, 1)); }
-  .ritmo-table .rv { text-align: right; font-family: 'Space Mono', monospace; font-weight: 700; color: var(--text); white-space: nowrap; }
+  .ritmo-table .rv { text-align: right; font-family: 'Space Mono', monospace; font-weight: 700; color: var(--text); white-space: nowrap; width: 1%; }
   .ritmo-table .rv-muted { color: var(--text-faint); font-weight: 400; }
   .ritmo-section td {
     font-size: calc(10px * var(--fs-scale, 1)); font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase;
@@ -3246,24 +3281,23 @@
     .ritmo-metric-grid { grid-template-columns: 1fr; }
   }
   /* % de acertos por matéria — barras com linhas de referência */
-  /* padding-top reserva espaço para os rótulos de meta (70/80/85) da 1ª linha,
-     que antes eram cortados pela borda do card */
-  .acm-chart { display: flex; flex-direction: column; gap: 4px; padding-top: 20px; }
+  .acm-chart { display: flex; flex-direction: column; gap: 5px; }
+  /* Régua fixa no topo, alinhada à coluna da barra: mostra os rótulos de meta
+     (70/80/85%) com destaque, sem depender de uma etiqueta espremida na 1ª barra. */
+  .acm-ruler { display: grid; grid-template-columns: 150px 1fr 96px; gap: 14px; align-items: end; margin-bottom: 6px; }
+  .acm-ruler-head { font-size: calc(10px * var(--fs-scale,1)); font-weight: 700; text-transform: uppercase; letter-spacing: 0.03em; color: var(--text-faint); align-self: end; padding-bottom: 3px; }
+  .acm-ruler-track { position: relative; height: 22px; }
+  .acm-ruler-lbl { position: absolute; bottom: 0; transform: translateX(-50%); font-family: 'Space Mono', monospace; font-size: calc(11px * var(--fs-scale,1)); font-weight: 700; color: #fff; padding: 2px 7px; border-radius: 8px; white-space: nowrap; box-shadow: var(--shadow-sm); }
+  .acm-ruler-lbl::after { content: ''; position: absolute; left: 50%; bottom: -5px; transform: translateX(-50%); border: 4px solid transparent; border-top-color: inherit; }
   .acm-row { display: grid; grid-template-columns: 150px 1fr 96px; align-items: center; gap: 14px; padding: 5px 0; }
   .acm-name { font-size: calc(12px * var(--fs-scale, 1)); font-weight: 600; color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .acm-track { position: relative; height: 18px; background: var(--surface-sunken); border: 1px solid var(--border); border-radius: 8px; overflow: visible; }
   .acm-fill { height: 100%; border-radius: 6px 0 0 6px; transition: width 0.5s ease; }
-  .acm-ref { position: absolute; top: -5px; bottom: -5px; width: 2px; opacity: 0.95; z-index: 2; }
-  .acm-ref-tag {
-    position: absolute; top: -19px; left: 50%; transform: translateX(-50%);
-    font-family: 'Space Mono', monospace; font-size: calc(10px * var(--fs-scale, 1)); font-weight: 700; color: #fff;
-    padding: 1px 6px; border-radius: 8px; white-space: nowrap; z-index: 3;
-  }
-  .acm-row:not(:first-child) .acm-ref-tag { display: none; }
+  .acm-ref { position: absolute; top: -4px; bottom: -4px; width: 2px; opacity: 0.9; z-index: 2; }
   .acm-val { font-family: 'Space Mono', monospace; font-weight: 700; font-size: calc(13px * var(--fs-scale, 1)); text-align: right; }
   .acm-val .acm-q { display: block; font-size: calc(10px * var(--fs-scale, 1)); color: var(--text-faint); font-weight: 400; }
   @media (max-width: 560px) {
-    .acm-row { grid-template-columns: 92px 1fr 60px; }
+    .acm-row, .acm-ruler { grid-template-columns: 92px 1fr 60px; }
   }
   /* Tempo por matéria — rótulo de horas destacado */
   .tpm-row { display: grid; grid-template-columns: 160px 1fr 118px; align-items: center; gap: 14px; padding: 7px 0; border-bottom: 1px solid var(--border); }
@@ -12524,18 +12558,28 @@ const EvolucaoScreen = {
       return;
     }
     const REFS = metaRefs();
-    // Eixo com BASE dinâmica: em vez de 0–100 (que espremia tudo à direita e escondia
-    // as linhas de meta), o eixo começa num múltiplo de 5 logo abaixo do menor valor
-    // (menor % de disciplina ou menor meta). Isso espalha as barras e revela 70/80/85.
+    // Eixo com BASE dinâmica ancorada no MENOR percentual de disciplina (pedido do usuário),
+    // arredondado para baixo ao múltiplo de 5 imediatamente abaixo dele. Assim as barras se
+    // espalham e as metas ganham espaço. Nunca corta uma meta: garante base <= menor meta.
     const minPct = Math.min(...rows.map(r => r.pct));
     const minRef = REFS.length ? Math.min(...REFS.map(r => r.v)) : 100;
-    let base = Math.floor(Math.min(minPct, minRef) / 5) * 5 - 5;
-    base = Math.max(0, Math.min(base, 60)); // nunca começa alto demais
+    let base = Math.floor((minPct - 3) / 5) * 5;          // múltiplo de 5 logo abaixo do menor
+    base = Math.min(base, Math.floor(minRef / 5) * 5 - 5); // e sempre abaixo da menor meta (não a esconde)
+    base = Math.max(0, Math.min(base, 60));                // limites de segurança
     const span = Math.max(1, 100 - base);
-    const mp = (v) => Math.max(0, Math.min(100, (v - base) / span * 100)); // v -> posição 0..100 no eixo reescalado
-    // linhas de referência (metas) desenhadas sobre as barras, já reposicionadas
+    const mp = (v) => Math.max(0, Math.min(100, (v - base) / span * 100)); // v -> posição 0..100 no eixo
+    // Régua no topo: um rótulo por meta, alinhado à coluna da barra, sempre legível.
+    const ruler = `
+      <div class="acm-ruler">
+        <div class="acm-ruler-head">metas</div>
+        <div class="acm-ruler-track">
+          ${REFS.map(r => `<span class="acm-ruler-lbl" style="left:${mp(r.v).toFixed(2)}%; background:${r.color}; border-top-color:${r.color};">${r.v}%</span>`).join('')}
+        </div>
+        <div></div>
+      </div>`;
+    // linhas de referência (metas) desenhadas sobre cada barra, na mesma posição da régua
     const refLines = REFS.map(r =>
-      `<div class="acm-ref" style="left:${mp(r.v).toFixed(2)}%; background:${r.color};"><span class="acm-ref-tag" style="background:${r.color};">${r.v}%</span></div>`
+      `<div class="acm-ref" style="left:${mp(r.v).toFixed(2)}%; background:${r.color};"></div>`
     ).join('');
     const bars = rows.map(r => {
       const tone = toneFor(r.pct);
@@ -12553,7 +12597,7 @@ const EvolucaoScreen = {
       <span class="evo-legend-item" style="color:var(--text-faint)">escala do eixo: ${base}%–100%</span>
       ${REFS.map(r => `<span class="evo-legend-item"><span class="evo-legend-swatch" style="background:${r.color}; width:14px; height:0; border-top:2px dashed ${r.color};"></span>meta ${r.v}%</span>`).join('')}
     </div>`;
-    container.innerHTML = `<div class="acm-chart">${bars}</div>${legend}`;
+    container.innerHTML = `<div class="acm-chart">${ruler}${bars}</div>${legend}`;
   },
 
   // ------- Evolução do aproveitamento no tempo (média geral + por disciplina) -------
@@ -12776,7 +12820,7 @@ const EvolucaoScreen = {
       const p = allPoints[0];
       return `<div class="evo-empty-mini">Só há um ponto (${p.label}): ${formatPct(p.pct)}%. Adicione mais dados para ver a linha.</div>`;
     }
-    const w = 700, h = 260, padL = 52, padR = 26, padT = 26, padB = 46;
+    const w = 700, h = 280, padL = 60, padR = 30, padT = 30, padB = 52;
     const n = allPoints.length;
     const refs = metaRefs();
     // EIXO Y com base dinâmica (não mais fixo em 0–100): começa num múltiplo de 10
@@ -12797,7 +12841,7 @@ const EvolucaoScreen = {
       const gv = yMin + (ySpan * k / 4);
       const y = yAt(gv);
       grid += `<line x1="${padL}" y1="${y}" x2="${w - padR}" y2="${y}" stroke="#eceef1" stroke-width="1" stroke-dasharray="${k === 0 ? '0' : '3 3'}"/>`;
-      grid += `<text x="${padL - 8}" y="${y + 3}" font-size="10" fill="#9297a3" text-anchor="end" font-family="Space Mono, monospace">${Math.round(gv)}%</text>`;
+      grid += `<text x="${padL - 10}" y="${y + 4}" font-size="13" fill="#9297a3" text-anchor="end" font-family="Space Mono, monospace">${Math.round(gv)}%</text>`;
     }
     // linhas de meta: sem rótulo numérico solto na direita (era o que sobrepunha os
     // valores dos pontos). A legenda abaixo do gráfico já identifica cada meta.
@@ -12807,28 +12851,28 @@ const EvolucaoScreen = {
       const y = yAt(r.v);
       refLines += `<line x1="${padL}" y1="${y}" x2="${w - padR}" y2="${y}" stroke="${r.color}" stroke-width="1.4" stroke-dasharray="6 4" opacity="0.85"/>`;
     });
-    const yAxisTitle = `<text x="14" y="${padT + (h - padT - padB) / 2}" font-size="10" fill="#5b6270" text-anchor="middle" font-weight="700" transform="rotate(-90 14 ${padT + (h - padT - padB) / 2})" font-family="Inter, sans-serif">${yTitle}</text>`;
+    const yAxisTitle = `<text x="16" y="${padT + (h - padT - padB) / 2}" font-size="12.5" fill="#5b6270" text-anchor="middle" font-weight="700" transform="rotate(-90 16 ${padT + (h - padT - padB) / 2})" font-family="Inter, sans-serif">${yTitle}</text>`;
     const labelEvery = Math.max(1, Math.ceil(n / 8));
     let xlabels = '';
     allPoints.forEach((p, i) => {
       if (i % labelEvery === 0 || i === n - 1) {
-        xlabels += `<text x="${xAt(i)}" y="${h - padB + 18}" font-size="10" fill="#9297a3" text-anchor="middle" font-family="Space Mono, monospace">${p.label}</text>`;
+        xlabels += `<text x="${xAt(i)}" y="${h - padB + 22}" font-size="12.5" fill="#9297a3" text-anchor="middle" font-family="Space Mono, monospace">${p.label}</text>`;
       }
     });
-    const xAxisTitle = xTitle ? `<text x="${padL + (w - padL - padR) / 2}" y="${h - 4}" font-size="10" fill="#5b6270" text-anchor="middle" font-weight="700" font-family="Inter, sans-serif">${xTitle}</text>` : '';
+    const xAxisTitle = xTitle ? `<text x="${padL + (w - padL - padR) / 2}" y="${h - 6}" font-size="12.5" fill="#5b6270" text-anchor="middle" font-weight="700" font-family="Inter, sans-serif">${xTitle}</text>` : '';
     let paths = '';
     series.forEach((s, si) => {
       const d = s.points.map((p, i) => `${i === 0 ? 'M' : 'L'} ${xAt(p.x)} ${yAt(p.pct)}`).join(' ');
-      paths += `<path d="${d}" fill="none" stroke="${s.color}" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>`;
+      paths += `<path d="${d}" fill="none" stroke="${s.color}" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>`;
       // rótulo de valor: alterna acima/abaixo por ponto para não colar no vizinho
       paths += s.points.map((p, i) => {
         const cx = xAt(p.x), cy = yAt(p.pct);
-        const acima = (i % 2 === 0) ? (cy > padT + 16) : false;
-        const ly = acima ? cy - 9 : cy + 17;
+        const acima = (i % 2 === 0) ? (cy > padT + 20) : false;
+        const ly = acima ? cy - 12 : cy + 22;
         const anchor = (i === 0) ? 'start' : (i === s.points.length - 1) ? 'end' : 'middle';
-        const dx = (i === 0) ? 4 : (i === s.points.length - 1) ? -4 : 0;
-        return `<circle cx="${cx}" cy="${cy}" r="4" fill="#fff" stroke="${s.color}" stroke-width="2"><title>${p.label}: ${formatPct(p.pct)}%</title></circle>` +
-               `<text x="${cx + dx}" y="${ly}" font-size="9.5" fill="${s.color}" text-anchor="${anchor}" font-weight="700" font-family="Space Mono, monospace">${Math.round(p.pct)}%</text>`;
+        const dx = (i === 0) ? 5 : (i === s.points.length - 1) ? -5 : 0;
+        return `<circle cx="${cx}" cy="${cy}" r="4.5" fill="#fff" stroke="${s.color}" stroke-width="2.5"><title>${p.label}: ${formatPct(p.pct)}%</title></circle>` +
+               `<text x="${cx + dx}" y="${ly}" font-size="13" fill="${s.color}" text-anchor="${anchor}" font-weight="700" font-family="Space Mono, monospace">${Math.round(p.pct)}%</text>`;
       }).join('');
     });
     return `<svg viewBox="0 0 ${w} ${h}" style="width:100%; height:auto; overflow:visible;">${grid}${refLines}${yAxisTitle}${paths}${xlabels}${xAxisTitle}</svg>`;
