@@ -394,7 +394,7 @@
   .main-content {
     flex: 1;
     min-width: 0;
-    padding: 40px 40px 80px;
+    padding: 28px 36px 72px;
   }
 
   .content-wrap {
@@ -404,19 +404,19 @@
     max-width: 1180px;
   }
 
-  .page-header { margin-bottom: 12px; }
+  .page-header { margin-bottom: 10px; }
   .page-header h2.page-title {
-    font-size: calc(26px * var(--fs-scale, 1));
+    font-size: calc(24px * var(--fs-scale, 1));
     font-weight: 800;
     letter-spacing: -0.02em;
     margin: 0;
   }
   .page-header .page-subtitle {
     color: var(--text-soft);
-    font-size: calc(14px * var(--fs-scale, 1));
-    margin: 6px 0 0;
-    max-width: 60ch;
-    line-height: 1.5;
+    font-size: calc(13.5px * var(--fs-scale, 1));
+    margin: 5px 0 0;
+    max-width: 66ch;
+    line-height: 1.45;
   }
 
   .screen { display: none; }
@@ -521,11 +521,11 @@
     border: 1px solid var(--border);
     border-radius: 16px;
     box-shadow: var(--shadow-md);
-    margin-top: 24px;
+    margin-top: 18px;
     overflow: hidden;
   }
   .card-header {
-    padding: 24px 28px 0;
+    padding: 18px 24px 0;
     display: flex;
     align-items: center;
     justify-content: space-between;
@@ -535,13 +535,13 @@
   .card-header h2 { font-size: calc(16px * var(--fs-scale, 1)); font-weight: 700; margin: 0; letter-spacing: -0.01em; }
   .card-header .sub { font-size: calc(12px * var(--fs-scale, 1)); color: var(--text-faint); margin-top: 3px; }
 
-  form { padding: 20px 28px 28px; }
+  form { padding: 16px 24px 22px; }
 
-  .field-group { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  .field-group { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
   .cycle-hm-input { display: flex; align-items: center; gap: 6px; }
   .cycle-hm-input input { width: 64px; text-align: center; }
   .cycle-hm-input span { font-size: calc(12px * var(--fs-scale, 1)); font-weight: 700; color: var(--text-soft); }
-  .field { margin-bottom: 18px; }
+  .field { margin-bottom: 15px; }
   .field.full { grid-column: 1 / -1; }
 
   label {
@@ -593,7 +593,7 @@
     display: flex;
     align-items: center;
     gap: 14px;
-    margin: 40px 0 4px;
+    margin: 28px 0 4px;
   }
   .section-divider::before, .section-divider::after {
     content: '';
@@ -916,18 +916,21 @@
   .grade-budget.hidden { display: none; }
   .grade-budget .gb-top { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
   .gb-discs { border-top: 1px solid var(--border); padding-top: 12px; }
-  .gb-discs-head { font-size: calc(10px * var(--fs-scale,1)); font-weight: 800; letter-spacing: 0.04em; text-transform: uppercase; color: var(--text-faint); margin-bottom: 10px; }
-  /* Uma barra por disciplina que PREENCHE até a carga desejada (sem rótulo "meta") */
-  .gb-disc-row { display: grid; grid-template-columns: 58px 1fr auto; align-items: center; gap: 10px; padding: 3px 0; }
+  .gb-discs-head { font-size: calc(11px * var(--fs-scale,1)); font-weight: 800; letter-spacing: 0.04em; text-transform: uppercase; color: var(--text-faint); margin-bottom: 10px; }
+  /* Grade em COLUNAS: com muitas disciplinas, a lista de uma coluna ficava
+     longuíssima. Agora ela flui em 2–3 colunas conforme a largura, ocupando
+     bem menos espaço vertical e com fontes maiores e legíveis. */
+  .gb-discs-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 6px 18px; }
+  .gb-disc-row { display: grid; grid-template-columns: 56px 1fr auto; align-items: center; gap: 9px; padding: 4px 0; }
   .gb-disc-sig { font-family: 'Space Mono', monospace; font-weight: 700; font-size: calc(11px * var(--fs-scale,1)); text-align: center; border: 1.5px solid currentColor; border-radius: 7px; padding: 3px 4px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; background: color-mix(in srgb, currentColor 9%, transparent); }
-  .gb-disc-bar { position: relative; height: 15px; background: var(--surface); border: 1px solid var(--border); border-radius: 20px; overflow: hidden; }
+  .gb-disc-bar { position: relative; height: 12px; background: var(--surface); border: 1px solid var(--border); border-radius: 20px; overflow: hidden; }
   .gb-disc-bar i { position: absolute; inset: 0 auto 0 0; height: 100%; border-radius: 20px; transition: width 0.35s ease; }
   .gb-disc-bar .gb-disc-tick { position: absolute; top: -2px; bottom: -2px; width: 2px; background: var(--good); opacity: 0.55; border-radius: 2px; }
-  .gb-disc-val { font-family: 'Space Mono', monospace; font-weight: 700; font-size: calc(12px * var(--fs-scale,1)); color: var(--text); white-space: nowrap; text-align: right; letter-spacing: -0.01em; }
-  .gb-disc-val small { color: var(--text-faint); font-weight: 400; }
-  .gb-disc-val em { font-style: normal; font-size: calc(10px * var(--fs-scale,1)); }
+  .gb-disc-val { font-family: 'Space Mono', monospace; font-weight: 700; font-size: calc(12.5px * var(--fs-scale,1)); color: var(--text); white-space: nowrap; text-align: right; letter-spacing: -0.01em; }
+  .gb-disc-val small { color: var(--text-faint); font-weight: 400; font-size: calc(11px * var(--fs-scale,1)); }
+  .gb-disc-val em { font-style: normal; font-size: calc(10.5px * var(--fs-scale,1)); }
   .gb-disc-val.tone-good { color: var(--good-text); } .gb-disc-val.tone-warn em { color: var(--warn-text); }
-  @media (max-width: 560px) { .gb-disc-row { grid-template-columns: 50px 1fr auto; gap: 8px; } }
+  @media (max-width: 560px) { .gb-discs-grid { grid-template-columns: 1fr; } .gb-disc-row { grid-template-columns: 50px 1fr auto; gap: 8px; } }
   .gb-item { display: flex; flex-direction: column; gap: 1px; }
   .gb-item .gb-k { font-size: calc(9.5px * var(--fs-scale,1)); font-weight: 800; letter-spacing: 0.03em; text-transform: uppercase; color: var(--text-faint); }
   .gb-item .gb-v { font-family: 'Space Mono', monospace; font-weight: 800; font-size: calc(16px * var(--fs-scale,1)); color: var(--text); line-height: 1.1; }
@@ -6110,7 +6113,7 @@
   </section>
 
   <!-- ============ DIÁLOGO GENÉRICO (confirm/prompt bonito) ============ -->
-  <div id="ui-modal" class="cards-modal" style="display:none; z-index:600;">
+  <div id="ui-modal" class="cards-modal" style="display:none; z-index:2000;">
     <div class="cards-modal-box" id="ui-modal-box" style="max-width:460px;">
       <div class="cards-modal-head">
         <div><h2 id="ui-modal-title">Confirmar</h2><p class="sub" id="ui-modal-sub" style="display:none;"></p></div>
@@ -10865,6 +10868,7 @@ function planCycleMode() {
     const discHtml = discOrdenadas.length ? `
       <div class="gb-discs">
         <div class="gb-discs-head">Horas planejadas por disciplina</div>
+        <div class="gb-discs-grid">
         ${discOrdenadas.map(nome => {
           const aloc = porDisc[nome] || 0;
           const alvo = alvoDisc[CycleEngine.normKey(nome)];
@@ -10886,6 +10890,7 @@ function planCycleMode() {
               <span class="gb-disc-val ${valTom}">${CycleEngine.fmtHM(aloc)}${temAlvo ? ' <small>/ ' + CycleEngine.fmtHM(alvo) + '</small>' : ''}${excedente ? ' <em>+' + CycleEngine.fmtHM(aloc - alvo) + '</em>' : ''}</span>
             </div>`;
         }).join('')}
+        </div>
         ${Object.keys(alvoDisc).length ? '<p class="gb-hint" style="margin:9px 0 0;">A barra enche até a carga definida de cada matéria no ciclo · verde = meta batida.</p>' : ''}
       </div>` : '';
     if (!metaMin) {
