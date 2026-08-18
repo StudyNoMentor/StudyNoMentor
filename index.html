@@ -5534,6 +5534,19 @@
       </div>
     </section>
 
+    <section class="card" id="cfg-vhist-card">
+      <div class="card-header">
+        <div>
+          <h2>🛟 Histórico de versões</h2>
+          <p class="sub">Uma rede de segurança: o app guarda neste aparelho as últimas versões do seu perfil (comprimidas). Se algo se perder — você apagou sem querer, ou outro aparelho sobrescreveu —, restaure aqui em 2 cliques. Nada substitui um backup <code>.json</code> guardado à parte, mas isto cobre os sustos do dia a dia.</p>
+        </div>
+        <button type="button" class="btn-secondary" id="cfg-vhist-save">＋ Salvar versão agora</button>
+      </div>
+      <div style="padding: 12px 28px 24px;">
+        <div id="cfg-vhist-body"></div>
+      </div>
+    </section>
+
     <section class="card">
       <div class="card-header">
         <div>
@@ -7936,6 +7949,102 @@ const ProfileManager = {
 // Modelo cloud-first: os perfis vêm do banco (study_profiles). No load só garantimos
 // que o "espelho" local exista; o plano padrão é semeado ao ENTRAR num perfil.
 ProfileManager.initMirror();
+
+/* ============================================================
+   VERSION HISTORY — histórico de versões (rede de segurança "A")
+   ------------------------------------------------------------
+   Guarda no próprio dispositivo as últimas versões do perfil, para você
+   RESTAURAR caso algo se perca (apagou algo sem querer, ou um aparelho
+   sobrescreveu o outro). Cada snapshot é COMPRIMIDO com gzip (CompressionStream),
+   ficando ~5-10x menor — cabe com folga mesmo em perfis grandes.
+   Gatilhos: antes de baixar da nuvem (cobre o clobber, por dispositivo),
+   um backup automático por dia, e manual pelo botão em Configurações.
+   100% no cliente, reversível, e não exige nada do Supabase.
+   ============================================================ */
+const VersionHistory = {
+  MAX: 8,
+  _key(id) { return 'diario-estudos:vhist:' + id; },
+  _dayKey(id) { return 'diario-estudos:vhist-day:' + id; },
+  _list(id) { try { return JSON.parse(localStorage.getItem(this._key(id))) || []; } catch (_) { return []; } },
+  _save(id, arr) {
+    while (true) {
+      try { localStorage.setItem(this._key(id), JSON.stringify(arr)); return true; }
+      catch (e) { if (arr.length > 1) { arr.shift(); continue; } try { localStorage.removeItem(this._key(id)); } catch (_) {} return false; }
+    }
+  },
+  _b64enc(u8) { let s = ''; const CH = 0x8000; for (let i = 0; i < u8.length; i += CH) s += String.fromCharCode.apply(null, u8.subarray(i, i + CH)); return btoa(s); },
+  _b64dec(b64) { const bin = atob(b64); const u8 = new Uint8Array(bin.length); for (let i = 0; i < bin.length; i++) u8[i] = bin.charCodeAt(i); return u8; },
+  _fnv(str) { let h = 2166136261; for (let i = 0; i < str.length; i++) { h ^= str.charCodeAt(i); h = Math.imul(h, 16777619); } return (h >>> 0).toString(36); },
+  async _gzip(str) {
+    try {
+      if (typeof CompressionStream === 'undefined') return { enc: 'raw', data: str };
+      const cs = new CompressionStream('gzip');
+      const ab = await new Response(new Blob([str]).stream().pipeThrough(cs)).arrayBuffer();
+      return { enc: 'gz', data: this._b64enc(new Uint8Array(ab)) };
+    } catch (_) { return { enc: 'raw', data: str }; }
+  },
+  async _gunzip(rec) {
+    if (!rec) return null;
+    if (rec.enc !== 'gz') return rec.data;
+    try {
+      const ds = new DecompressionStream('gzip');
+      const ab = await new Response(new Blob([this._b64dec(rec.data)]).stream().pipeThrough(ds)).arrayBuffer();
+      return new TextDecoder().decode(ab);
+    } catch (_) { return null; }
+  },
+  // Cria uma versão do perfil ATIVO. Não duplica se for idêntica à última.
+  async snapshot(note) {
+    try {
+      const id = ProfileManager.getActiveProfileId(); if (!id) return false;
+      const backup = ProfileManager.exportProfile(id); if (!backup) return false;
+      const json = JSON.stringify(backup.data || {});
+      if (json === '{}' || json.length < 3) return false;
+      const sig = this._fnv(json);
+      const arr = this._list(id);
+      if (arr.length && arr[arr.length - 1].sig === sig) return false;
+      const packed = await this._gzip(json);
+      arr.push({ ts: Date.now(), rev: ProfileManager.getRev(id), note: note || '', sig, enc: packed.enc, data: packed.data, chars: json.length });
+      while (arr.length > this.MAX) arr.shift();
+      this._save(id, arr);
+      return true;
+    } catch (_) { return false; }
+  },
+  maybeDailySnapshot() {
+    try {
+      const id = ProfileManager.getActiveProfileId(); if (!id) return;
+      let last = null; try { last = localStorage.getItem(this._dayKey(id)); } catch (_) {}
+      const hoje = todayLocal(); if (last === hoje) return;
+      try { localStorage.setItem(this._dayKey(id), hoje); } catch (_) {}
+      this.snapshot('backup diário');
+    } catch (_) {}
+  },
+  async buildBackup(id, ts) {
+    const rec = this._list(id).find(r => r.ts === ts);
+    if (!rec) return null;
+    const json = await this._gunzip(rec);
+    if (json == null) return null;
+    let data; try { data = JSON.parse(json); } catch (_) { return null; }
+    const meta = ProfileManager.getProfiles().find(p => p.id === id) || {};
+    return { app: 'diario-estudos', kind: 'profile-backup', version: 1, exportedAt: new Date(rec.ts).toISOString(),
+      profile: { nome: meta.nome, avatar: meta.avatar, cor: meta.cor }, data };
+  },
+  // Restaura uma versão SOBRE o perfil ativo (guarda o estado atual antes, então é reversível).
+  async restore(id, ts) {
+    const rec = this._list(id).find(r => r.ts === ts);
+    if (!rec) return false;
+    const json = await this._gunzip(rec);
+    if (json == null) return false;
+    let data; try { data = JSON.parse(json); } catch (_) { return false; }
+    await this.snapshot('antes de restaurar uma versão');
+    try {
+      if (window.CloudStore) CloudStore._applying = true;
+      ProfileManager.restorePayloadInto(id, data);
+      if (window.CloudStore) { CloudStore._applying = false; CloudStore._pending = true; }
+    } catch (_) { if (window.CloudStore) CloudStore._applying = false; return false; }
+    return true;
+  }
+};
+window.VersionHistory = VersionHistory;
 
 /* ============================================================
    NAVEGAÇÃO ENTRE TELAS
@@ -19766,7 +19875,7 @@ const CloudStore = {
   TABLE: 'study_profiles',
   client: null, session: null, libStatus: 'pending', channel: null,
   _debounce: null, DEBOUNCE_MS: 1500, _applying: false, _cfgMode: 'signin',
-  _pending: false, _lastSyncAt: null, _syncing: false,
+  _pending: false, _lastSyncAt: null, _syncing: false, _dirtyAt: null,
 
   init() {
     try {
@@ -19867,30 +19976,78 @@ const CloudStore = {
     if (this._applying) return;
     if (!this.isReady() || !this.isLoggedIn()) return;
     try { if (!sessionStorage.getItem('diario-estudos:entered')) return; } catch (e) {}
+    try { if (window.VersionHistory) VersionHistory.maybeDailySnapshot(); } catch (e) {} // 1 backup/dia
     this._pending = true;
+    this._dirtyAt = Date.now();          // desde quando há algo não sincronizado
     if (window.CloudUI) CloudUI.refreshSyncBtn();
     clearTimeout(this._debounce);
     this._debounce = setTimeout(() => this.autoSave(), this.DEBOUNCE_MS);
   },
+  // reprograma uma nova tentativa daqui a \`ms\` sem descartar o que está pendente
+  _rearm(ms) { clearTimeout(this._debounce); this._debounce = setTimeout(() => this.autoSave(), ms); },
   async autoSave() {
-    if (this._syncing) return;                 // evita corridas de salvamento
+    // BUG CORRIGIDO: se um salvamento já está em curso, NÃO descartamos a rodada —
+    // reprogramamos uma nova tentativa para logo após, senão a última alteração ficava
+    // presa como "pendente" até o próximo foco/edição (causa de "às vezes não salva").
+    if (this._syncing) { this._rearm(400); return; }
     if (!this.isReady() || !this.isLoggedIn()) return;
+    if (!this._pending) return;                // nada novo a enviar
     clearTimeout(this._debounce);
     this._syncing = true; this._pending = false;
     if (window.CloudUI) CloudUI.setStatus('syncing', 'Sincronizando...');
     try {
       const r = await this.saveActiveWithRetry();
       this._syncing = false;
-      if (r && r.conflict) { if (window.CloudUI) CloudUI.setStatus('error', 'Não foi possível sincronizar agora'); return; }
+      if (r && r.conflict) {
+        // conflito persistente: mantém pendente e tenta de novo (não perde a alteração)
+        this._pending = true;
+        if (window.CloudUI) CloudUI.setStatus('error', 'Reenviando…');
+        this._rearm(5000);
+        return;
+      }
       this._lastSyncAt = Date.now();
       if (window.CloudUI) CloudUI.setStatus('ok', 'Sincronizado');
-    } catch (err) { this._syncing = false; console.error('autoSave', err); if (window.CloudUI) CloudUI.setStatus('error', 'Falha ao sincronizar (verifique a internet)'); }
+    } catch (err) {
+      // erro de rede: NÃO perde a alteração — remarca como pendente e reprograma (auto-recupera)
+      this._syncing = false; this._pending = true;
+      console.error('autoSave', err);
+      if (window.CloudUI) CloudUI.setStatus('error', 'Sem conexão — tentando de novo…');
+      this._rearm(5000);
+      return;
+    }
+    // se surgiram NOVAS mudanças durante o envio (notifyChange remarcou _pending), dispara outro ciclo já
+    if (this._pending) this._rearm(300);
   },
   // Envia AGORA quaisquer alterações pendentes (cancela o debounce e salva já).
   async flushPending() {
     if (!this.isReady() || !this.isLoggedIn()) return;
     clearTimeout(this._debounce);
-    if (this._pending) await this.autoSave();
+    if (this._pending || this._syncing) await this.autoSave();
+  },
+  // SALVAMENTO DE EMERGÊNCIA (keepalive): fetch com keepalive:true sobrevive ao fechamento
+  // da aba/app, coisa que uma chamada async normal em beforeunload NÃO faz — o navegador
+  // aborta a requisição ao descarregar a página. Sem isto, alterações feitas nos últimos
+  // segundos antes de fechar podiam se perder. Não bumpa a rev local de propósito: se der
+  // certo, o próximo acesso baixa; se falhar, o próximo autoSave reenvia.
+  _beaconSave() {
+    try {
+      if (!this.isReady() || !this.isLoggedIn()) return;
+      if (!this._pending && !this._syncing) return; // nada a garantir
+      try { if (!sessionStorage.getItem('diario-estudos:entered')) return; } catch (e) { return; }
+      const id = ProfileManager.getActiveProfileId(); if (!id) return;
+      const meta = ProfileManager.getProfiles().find(p => p.id === id) || {};
+      const rev = ProfileManager.getRev(id);
+      const body = JSON.stringify({ payload: ProfileManager.exportProfile(id), rev: rev + 1,
+        updated_at: new Date().toISOString(), profile_name: meta.nome, avatar: meta.avatar, color: meta.cor });
+      // keepalive tem teto de ~64KB no corpo; acima disso não é confiável — deixa para o autoSave normal.
+      if (body.length > 60000) return;
+      const token = (this.session && this.session.access_token) || this.SUPABASE_KEY;
+      fetch(this.SUPABASE_URL + '/rest/v1/' + this.TABLE + '?id=eq.' + encodeURIComponent(id) + '&rev=eq.' + rev, {
+        method: 'PATCH', keepalive: true,
+        headers: { apikey: this.SUPABASE_KEY, Authorization: 'Bearer ' + token, 'Content-Type': 'application/json', Prefer: 'return=minimal' },
+        body
+      }).catch(() => {});
+    } catch (_) {}
   },
   // Sincronização inteligente ao voltar o foco/rede: se há mudanças locais, ENVIA;
   // se não há nada pendente e a nuvem está mais nova (outro dispositivo salvou), BAIXA.
@@ -19927,6 +20084,10 @@ const CloudStore = {
     const id = ProfileManager.getActiveProfileId(); if (!id) return;
     try {
       const res = await this.fetchPayload(id);
+      // REDE DE SEGURANÇA: antes de sobrescrever o estado local com o da nuvem,
+      // guarda uma versão do que está aqui — assim, se outro aparelho tiver
+      // enviado algo indesejado, você consegue restaurar em Configurações.
+      try { if (window.VersionHistory) await VersionHistory.snapshot('antes de baixar da nuvem'); } catch (e) {}
       this._applying = true;
       ProfileManager.restorePayloadInto(id, (res.payload && res.payload.data) || {});
       ProfileManager.setRev(id, res.rev);
@@ -20184,13 +20345,24 @@ _cloudNotifyHook = () => CloudStore.notifyChange();
   // voltar o foco à aba / janela → sincroniza de forma inteligente
   document.addEventListener('visibilitychange', () => {
     if (document.visibilityState === 'visible') CloudStore.syncOnFocus();
-    else CloudStore.flushPending(); // ao ocultar (trocar de app no celular), envia já
+    else {
+      // ao ocultar (trocar de app/aba): dispara o envio async E o salvamento de emergência
+      // (keepalive). No celular, "ocultar" é o sinal mais confiável de que o app pode ser
+      // encerrado a qualquer momento — o beacon garante que o pendente chegue à nuvem.
+      CloudStore.flushPending();
+      CloudStore._beaconSave();
+    }
   });
   window.addEventListener('focus', () => CloudStore.syncOnFocus());
   window.addEventListener('online', () => { if (window.CloudUI) CloudUI.refreshSyncBtn(); CloudStore.syncOnFocus(); });
   window.addEventListener('offline', () => { if (window.CloudUI) CloudUI.setStatus('error', 'Sem internet'); });
-  // ao fechar a aba, tenta enviar as pendências (melhor esforço)
-  window.addEventListener('beforeunload', () => { try { CloudStore.flushPending(); } catch (e) {} });
+  // fechamento real da página: pagehide é confiável no celular (beforeunload não é).
+  // Ambos usam o salvamento por keepalive, que sobrevive ao descarregamento da aba.
+  window.addEventListener('pagehide', () => { try { CloudStore._beaconSave(); } catch (e) {} });
+  window.addEventListener('beforeunload', () => { try { CloudStore._beaconSave(); } catch (e) {} });
+  // REDE DE SEGURANÇA: a cada 8s, se houver algo pendente e nenhum envio em curso,
+  // garante o salvamento — cobre qualquer alteração que tenha ficado para trás.
+  setInterval(() => { if (CloudStore._pending && !CloudStore._syncing) CloudStore.autoSave(); }, 8000);
   // atualiza o rótulo "há X min" periodicamente
   setInterval(() => { if (window.CloudUI) CloudUI.refreshSyncBtn(); }, 30000);
   // estado inicial do botão
@@ -20356,6 +20528,74 @@ window.StorageMeter = StorageMeter;
   const b = document.getElementById('cfg-storage-refresh');
   if (b) b.addEventListener('click', () => { StorageMeter.render(); showToast('Espaço recalculado'); });
   window.addEventListener('screen:activated', (e) => { if (e.detail && e.detail.screen === 'config') StorageMeter.render(); });
+})();
+
+/* ---- UI do Histórico de versões (Configurações) ---- */
+const VersionHistoryUI = {
+  _quando(ts) {
+    const d = new Date(ts), agora = Date.now();
+    const min = Math.round((agora - ts) / 60000);
+    if (min < 1) return 'agora mesmo';
+    if (min < 60) return 'há ' + min + ' min';
+    const h = Math.round(min / 60);
+    if (h < 24 && d.toDateString() === new Date().toDateString()) return 'hoje ' + d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+    return d.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' }) + ' ' + d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+  },
+  render() {
+    const host = document.getElementById('cfg-vhist-body');
+    if (!host) return;
+    const id = ProfileManager.getActiveProfileId();
+    const arr = id ? VersionHistory._list(id).slice().reverse() : [];
+    if (!arr.length) {
+      host.innerHTML = '<p class="hint">Ainda não há versões guardadas. O app cria uma automaticamente na primeira alteração de cada dia e sempre antes de baixar da nuvem. Você também pode salvar uma agora, com o botão acima.</p>';
+      return;
+    }
+    host.innerHTML = arr.map((r, i) => {
+      const kb = Math.max(1, Math.round(r.chars * 2 / 1024)); // aprox. em KB (UTF-16)
+      const nota = r.note ? escapeHtml(r.note) : 'versão salva';
+      const atual = i === 0 ? '<span class="inactive-tag" style="color:var(--good-text);background:var(--good-soft);border-color:transparent;">mais recente</span>' : '';
+      return `<div class="cloud-slot-row" data-ts="${r.ts}">
+        <div class="cloud-slot-info">
+          <div class="name">${this._quando(r.ts)} ${atual}</div>
+          <div class="meta">${nota} · ~${kb} KB${r.enc === 'gz' ? ' · comprimido' : ''}</div>
+        </div>
+        <div class="cloud-slot-actions">
+          <button type="button" class="btn-secondary vh-download" title="Baixar esta versão como arquivo .json">⭳ Baixar</button>
+          <button type="button" class="btn-primary vh-restore" title="Restaurar esta versão sobre o perfil atual">↺ Restaurar</button>
+        </div>
+      </div>`;
+    }).join('') + '<p class="hint" style="margin-top:10px;">Guardamos as ' + VersionHistory.MAX + ' versões mais recentes. Restaurar cria antes uma cópia do estado atual, então a ação é reversível.</p>';
+    host.querySelectorAll('.cloud-slot-row').forEach(row => {
+      const ts = parseInt(row.dataset.ts);
+      row.querySelector('.vh-download').addEventListener('click', async () => {
+        const backup = await VersionHistory.buildBackup(id, ts);
+        if (!backup) { showToast('Não foi possível ler esta versão'); return; }
+        const meta = ProfileManager.getProfiles().find(p => p.id === id) || {};
+        const nome = 'versao-' + (meta.nome || 'perfil').toLowerCase().replace(/[^a-z0-9]+/g, '-') + '-' + new Date(ts).toISOString().slice(0, 10) + '.json';
+        CardsScreen._download(nome, JSON.stringify(backup, null, 2), 'application/json');
+        showToast('Versão baixada ✓');
+      });
+      row.querySelector('.vh-restore').addEventListener('click', async () => {
+        const ok = await UI.confirm('Restaurar esta versão sobre o perfil atual?\n\nO estado de agora é guardado antes, então você pode voltar atrás. Depois de restaurar, o app recarrega.', { title: '↺ Restaurar versão', okText: 'Restaurar' });
+        if (!ok) return;
+        showToast('Restaurando…');
+        const done = await VersionHistory.restore(id, ts);
+        if (!done) { showToast('Não foi possível restaurar esta versão'); return; }
+        try { await CloudStore.flushPending(); } catch (_) {}
+        setTimeout(() => location.reload(), 600);
+      });
+    });
+  }
+};
+window.VersionHistoryUI = VersionHistoryUI;
+(function () {
+  const b = document.getElementById('cfg-vhist-save');
+  if (b) b.addEventListener('click', async () => {
+    const ok = await VersionHistory.snapshot('salvo manualmente');
+    showToast(ok ? 'Versão salva ✓' : 'Nada mudou desde a última versão');
+    VersionHistoryUI.render();
+  });
+  window.addEventListener('screen:activated', (e) => { if (e.detail && e.detail.screen === 'config') VersionHistoryUI.render(); });
 })();
 
 
