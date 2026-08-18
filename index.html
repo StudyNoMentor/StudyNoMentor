@@ -6867,7 +6867,18 @@ const DB = {
   // ---- Atividades Extras (metas paralelas): anki, lei seca, questões, revisão, vídeo, livre ----
   // Cada extra: { id, titulo, tipo, disciplina, unidade, alvo, periodo, progresso, contaMetricas,
   //               status, historico:[{data, quantidade, minutos}], createdAt, updatedAt }
-  getExtras() { return this._get(this.KEYS.extras, []); },
+  getExtras() {
+    const list = this._get(this.KEYS.extras, []);
+    let mig = false;
+    list.forEach(e => {
+      if (!Array.isArray(e.concluidasEm)) { e.concluidasEm = []; mig = true; }
+      // Migração: recorrente que ficou 'concluida' no modelo antigo (global) volta a ser
+      // ativa — agora a conclusão é por dia (concluidasEm), não trava a atividade toda.
+      if (this.extraRecorrente(e) && e.status === 'concluida') { e.status = 'ativa'; mig = true; }
+    });
+    if (mig) { try { this._set(this.KEYS.extras, list); } catch (_) {} }
+    return list;
+  },
   saveExtras(list) { this._set(this.KEYS.extras, list); },
   getExtra(id) { return this.getExtras().find(x => x.id === id) || null; },
   addExtra(data) {
@@ -6887,7 +6898,8 @@ const DB = {
       datas: Array.isArray(data.datas) ? data.datas : [], // datas agendadas (calendário)
       marcador: (data.marcador || '').trim(),      // "onde parei" (lei seca / leitura)
       contaMetricas: data.contaMetricas !== false, // por atividade (padrão: conta)
-      status: 'ativa',                            // ativa|concluida|pausada
+      status: 'ativa',                            // ativa|concluida|pausada (só para 'unica')
+      concluidasEm: [],                           // datas em que a OCORRÊNCIA foi concluída (recorrentes)
       historico: [],
       createdAt: now, updatedAt: now
     };
@@ -7051,6 +7063,33 @@ const DB = {
     const ini = this._periodoInicio(e.periodo);
     if (!ini) return e.progresso || 0;
     return (e.historico || []).filter(h => h.data >= ini).reduce((a, h) => a + (h.quantidade || 0), 0);
+  },
+  // A OCORRÊNCIA daquele dia está concluída?
+  //   única     → status global (permanente)
+  //   recorrente → só se a data estiver marcada como concluída (por DIA)
+  // Assim, concluir "hoje" não some com a atividade nos dias seguintes: cada dia é
+  // uma tarefa independente, que reaparece limpa no dia seguinte.
+  extraConcluidaEm(e, dia) {
+    if (!e) return false;
+    dia = dia || todayLocal();
+    if (this.extraRecorrente(e)) return (e.concluidasEm || []).includes(dia);
+    return e.status === 'concluida';
+  },
+  // Marca/desmarca a conclusão de uma ocorrência num dia específico.
+  setConcluidaDia(id, dia, on) {
+    const list = this.getExtras(); const e = list.find(x => x.id === id);
+    if (!e) return null;
+    dia = dia || todayLocal();
+    if (this.extraRecorrente(e)) {
+      e.concluidasEm = Array.isArray(e.concluidasEm) ? e.concluidasEm : [];
+      const i = e.concluidasEm.indexOf(dia);
+      if (on && i < 0) e.concluidasEm.push(dia);
+      if (!on && i >= 0) e.concluidasEm.splice(i, 1);
+    } else {
+      e.status = on ? 'concluida' : 'ativa';
+    }
+    e.updatedAt = new Date().toISOString();
+    this.saveExtras(list); return e;
   },
   // Configuração: incluir Atividades Extras nas métricas de Evolução (por PERFIL, sincronizada)
   _extrasMetricsKey() { return this._profilePrefix() + 'extras-in-metrics'; },
@@ -11661,9 +11700,9 @@ const ConquistasEngine = {
       ciclos: (ciclos || []).length,
       temGrade: g(() => Object.keys((DB.getGradeTemplate() || {}).grade || {}).length > 0, false),
       extrasCriadas: extras.length,
-      extrasConcluidas: extras.filter(x => x.status === 'concluida').length,
+      extrasConcluidas: extras.reduce((n, x) => n + (DB.extraRecorrente(x) ? (x.concluidasEm || []).length : (x.status === 'concluida' ? 1 : 0)), 0),
       extrasDoPlano: extras.filter(x => x.origemPlano).length,
-      reforcoQueFuncionou: extras.some(x => x.origemPlano && x.origemPlano.taxaInicial != null && x.status === 'concluida'),
+      reforcoQueFuncionou: extras.some(x => x.origemPlano && x.origemPlano.taxaInicial != null && (x.status === 'concluida' || (x.concluidasEm || []).length > 0)),
       diasEstudo: vals.filter(d => d.temAlgo).length,
       diasFimDeSemana: Object.keys(dias).filter(k => { if (!dias[k].temAlgo) return false; const w = new Date(k + 'T00:00:00').getDay(); return w === 0 || w === 6; }).length,
       semanasAtivas: Object.keys(semanas).length,
@@ -15122,9 +15161,11 @@ const ExtrasScreen = {
     const extras = DB.getExtras();
     const list = document.getElementById('extras-list');
     const summary = document.getElementById('extras-summary');
-    // resumo
-    const ativas = extras.filter(x => x.status === 'ativa');
-    const concl = extras.filter(x => x.status === 'concluida');
+    // resumo — "concluídas" reflete o DIA de hoje (recorrentes contam por ocorrência)
+    const hoje = todayLocal();
+    const concluidaHoje = (x) => DB.extraConcluidaEm(x, hoje);
+    const ativas = extras.filter(x => !concluidaHoje(x));
+    const concl = extras.filter(x => concluidaHoje(x));
     const contam = extras.filter(x => x.contaMetricas).length;
     const minHoje = extras.reduce((s, x) => { const emMin = (x.unidade === 'min' || x.tipo === 'video'); return s + (x.historico || []).filter(h => h.data === todayLocal()).reduce((a, h) => a + (h.minutos || (emMin ? (h.quantidade || 0) : 0)), 0); }, 0);
     summary.innerHTML = `
@@ -15138,8 +15179,8 @@ const ExtrasScreen = {
       return;
     }
     const grupos = [
-      ['Ativas', extras.filter(x => x.status === 'ativa')],
-      ['Concluídas', extras.filter(x => x.status === 'concluida')]
+      ['A fazer hoje', extras.filter(x => !concluidaHoje(x))],
+      ['Concluídas hoje', extras.filter(x => concluidaHoje(x))]
     ];
     list.innerHTML = grupos.map(([titulo, arr]) => {
       if (!arr.length) return '';
@@ -15364,7 +15405,7 @@ const ExtrasScreen = {
     const datasTag = (recorrente && nDatas > 0)
       ? `<span class="extra-tag" title="Ocorrências vinculadas ao calendário de atividades">🗓️ ${nDatas} data(s) no calendário</span>` : '';
     return `
-      <div class="extra-card ${x.status === 'concluida' ? 'is-done' : ''}" data-id="${x.id}">
+      <div class="extra-card ${DB.extraConcluidaEm(x, todayLocal()) ? 'is-done' : ''}" data-id="${x.id}">
         <div class="extra-head">
           <div class="extra-ico">${t.ico}</div>
           <div class="extra-title">
@@ -15384,7 +15425,9 @@ const ExtrasScreen = {
             <button type="button" class="icon-btn danger ex-del" title="Excluir">×</button>
           </div>
         </div>
-        ${(done && recorrente) ? `<div class="extra-doneflag">✓ concluída ${escapeHtml(escopo)}</div>` : ''}
+        ${DB.extraConcluidaEm(x, todayLocal())
+          ? `<div class="extra-doneflag">✓ concluída ${escapeHtml(recorrente ? 'hoje' : '')}${(recorrente ? '' : escapeHtml(escopo))}</div>`
+          : ((done && recorrente) ? `<div class="extra-doneflag" style="background:var(--surface-sunken);color:var(--text-soft);border-color:var(--border);">🎯 meta ${escapeHtml(escopo)} batida</div>` : '')}
         <div class="extra-progress">
           <div class="bar"><span class="${done ? 'full' : ''}" style="width:${pct}%"></span></div>
           <div class="nums">
@@ -15409,9 +15452,9 @@ const ExtrasScreen = {
             ${(x.historico || []).length ? `<button type="button" class="icon-btn ex-undo" title="Desfazer o último lançamento">↶</button>` : ''}
           </div>
           <span style="flex:1"></span>
-          ${x.status === 'concluida'
-            ? `<button type="button" class="btn-secondary ex-reopen">↺ Reabrir</button>`
-            : `<button type="button" class="btn-secondary ex-complete">✓ Concluir</button>`}
+          ${DB.extraConcluidaEm(x, todayLocal())
+            ? `<button type="button" class="btn-secondary ex-reopen">↺ ${DB.extraRecorrente(x) ? 'Reabrir hoje' : 'Reabrir'}</button>`
+            : `<button type="button" class="btn-secondary ex-complete">✓ ${DB.extraRecorrente(x) ? 'Concluir hoje' : 'Concluir'}</button>`}
         </div>
       </div>`;
   },
@@ -15456,9 +15499,14 @@ const ExtrasScreen = {
       const mkInput = card.querySelector('.ex-marcador');
       if (mkInput) mkInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') { DB.updateExtra(id, { marcador: mkInput.value }); this.render(); showToast('📌 Marcador salvo'); } });
       const comp = card.querySelector('.ex-complete');
-      if (comp) comp.addEventListener('click', () => { DB.updateExtra(id, { status: 'concluida' }); this.render(); showToast('Atividade concluída 🎉'); });
+      if (comp) comp.addEventListener('click', () => {
+        const x = DB.getExtra(id);
+        DB.setConcluidaDia(id, todayLocal(), true);
+        this.render();
+        showToast(DB.extraRecorrente(x) ? 'Concluída hoje 🎉 (volta amanhã)' : 'Atividade concluída 🎉');
+      });
       const reopen = card.querySelector('.ex-reopen');
-      if (reopen) reopen.addEventListener('click', () => { DB.updateExtra(id, { status: 'ativa' }); this.render(); });
+      if (reopen) reopen.addEventListener('click', () => { DB.setConcluidaDia(id, todayLocal(), false); this.render(); });
     });
   },
   // Exclusão consciente da recorrência: se a atividade é recorrente e tem ocorrências
