@@ -20170,6 +20170,11 @@ const SectionSync = {
   _lastError: null,         // último erro de envio (para diagnóstico)
   _lastPushAt: null,        // quando o último envio bem-sucedido ocorreu
   _pushedCount: 0,          // total de seções enviadas com sucesso nesta sessão
+  // FASE 1.5 — leitura-sombra: baixa e compara, mas NUNCA aplica no localStorage.
+  _shadowRunning: false,
+  _shadowLastAt: null,
+  _shadowLastError: null,
+  _shadowReport: null,
 
   _prefix() { try { return DB._profilePrefix(); } catch (_) { return 'diario-estudos:'; } },
   _revKey() { return this._prefix() + '__secrev'; },
@@ -20280,17 +20285,126 @@ const SectionSync = {
   },
   // Semeia (1x) e envia — dispara PROATIVAMENTE (não depende de uma edição/salvamento).
   // Chamado no login, ao entrar num perfil, periodicamente, e após cada salvamento.
-  kick() {
+  async kick() {
     if (!this.enabled) return;
     try {
       if (!window.CloudStore || !CloudStore.isReady() || !CloudStore.isLoggedIn()) return;
       try { if (!sessionStorage.getItem('diario-estudos:entered')) return; } catch (_) { return; }
       if (!ProfileManager.getActiveProfileId()) return;
       this.seedOnce();
-      this.pushDirty();
+      await this.pushDirty();
+      // Depois de concluir a escrita dupla e ficar estável, compara em modo sombra.
+      await this.shadowCheck();
     } catch (_) {}
   },
   afterBlobSave() { this.kick(); },
+
+  // ── FASE 1.5: LEITURA-SOMBRA (somente leitura) ────────────────────────────
+  // Normaliza objetos/arrays JSONB do Supabase e strings do localStorage para uma
+  // representação canônica. Ordenar chaves evita falso positivo por ordem diferente.
+  _stable(value) {
+    if (value === null || typeof value !== 'object') return JSON.stringify(value);
+    if (Array.isArray(value)) return '[' + value.map(v => this._stable(v)).join(',') + ']';
+    return '{' + Object.keys(value).sort().map(k => JSON.stringify(k) + ':' + this._stable(value[k])).join(',') + '}';
+  },
+  _localValue(section) {
+    const raw = localStorage.getItem(this._prefix() + section);
+    if (raw === null) return { exists: false, raw: null, value: null };
+    let value; try { value = JSON.parse(raw); } catch (_) { value = raw; }
+    return { exists: true, raw, value };
+  },
+  _count(value) {
+    if (Array.isArray(value)) return value.length;
+    if (value && typeof value === 'object') return Object.keys(value).length;
+    return null;
+  },
+  // Baixa TODAS as seções e COMPARA. Nenhum setItem, restorePayloadInto, DB._set,
+  // reload ou aplicação é feito aqui. O método é deliberadamente somente leitura.
+  async shadowCheck(options) {
+    options = options || {};
+    if (this._shadowRunning) return this._shadowReport;
+    if (!window.CloudStore || !CloudStore.isReady() || !CloudStore.isLoggedIn()) return null;
+    const id = window.ProfileManager ? ProfileManager.getActiveProfileId() : null;
+    if (!id) return null;
+    // Se há alteração local pendente ou envio de seção em curso, adia a comparação para
+    // não registrar uma divergência transitória como problema real.
+    if ((CloudStore._pending || CloudStore._syncing || this._pushing || this._dirty.size) && !options.force) return null;
+    this._shadowRunning = true;
+    try {
+      const { data, error } = await CloudStore.client.from(this.TABLE)
+        .select('section,data,rev,updated_at')
+        .eq('profile_id', id)
+        .order('section', { ascending: true });
+      if (error) throw error;
+      const remoteRows = data || [];
+      const remoteMap = new Map(remoteRows.map(r => [r.section, r]));
+      const localSections = [];
+      const pfx = this._prefix();
+      for (let i = 0; i < localStorage.length; i++) {
+        const key = localStorage.key(i);
+        const sec = this.sectionForKey(key);
+        if (sec) localSections.push(sec);
+      }
+      const all = [...new Set(localSections.concat([...remoteMap.keys()]))].sort();
+      const rows = all.map(section => {
+        const local = this._localValue(section);
+        const remote = remoteMap.get(section) || null;
+        const localCanon = local.exists ? this._stable(local.value) : null;
+        const remoteCanon = remote ? this._stable(remote.data) : null;
+        let status = 'igual';
+        if (!local.exists && remote) status = 'somente_remoto';
+        else if (local.exists && !remote) status = 'somente_local';
+        else if (localCanon !== remoteCanon) status = 'divergente';
+        return {
+          section,
+          status,
+          revRemota: remote ? (remote.rev || 0) : null,
+          atualizadaEm: remote ? remote.updated_at : null,
+          tipoLocal: local.exists ? (Array.isArray(local.value) ? 'array' : local.value === null ? 'null' : typeof local.value) : null,
+          tipoRemoto: remote ? (Array.isArray(remote.data) ? 'array' : remote.data === null ? 'null' : typeof remote.data) : null,
+          itensLocal: local.exists ? this._count(local.value) : null,
+          itensRemoto: remote ? this._count(remote.data) : null,
+          hashLocal: localCanon === null ? null : this._hash(localCanon),
+          hashRemoto: remoteCanon === null ? null : this._hash(remoteCanon)
+        };
+      });
+      const summary = {
+        perfil: id,
+        executadoEm: new Date().toISOString(),
+        modo: 'SOMENTE LEITURA — nenhum dado aplicado',
+        total: rows.length,
+        iguais: rows.filter(r => r.status === 'igual').length,
+        divergentes: rows.filter(r => r.status === 'divergente').length,
+        somenteLocal: rows.filter(r => r.status === 'somente_local').length,
+        somenteRemoto: rows.filter(r => r.status === 'somente_remoto').length,
+        criticas: rows.filter(r => /:(tec|incidencia|entries|cards|leis)$/.test(r.section)),
+        diferenças: rows.filter(r => r.status !== 'igual'),
+        rows
+      };
+      this._shadowReport = summary;
+      this._shadowLastAt = Date.now();
+      this._shadowLastError = null;
+      console.info('[SectionSync sombra]', summary.iguais + '/' + summary.total, 'iguais ·', summary.divergentes, 'divergentes ·', summary.somenteLocal, 'somente local ·', summary.somenteRemoto, 'somente remoto');
+      if (summary.diferenças.length) console.table(summary.diferenças);
+      else console.info('[SectionSync sombra] equivalência total confirmada; nenhum dado foi aplicado.');
+      return summary;
+    } catch (e) {
+      this._shadowLastError = (e && (e.message || e.code || JSON.stringify(e))) || 'erro';
+      console.warn('[SectionSync sombra] falha:', this._shadowLastError);
+      return null;
+    } finally {
+      this._shadowRunning = false;
+    }
+  },
+  shadowReport() {
+    if (!this._shadowReport) {
+      console.info('[SectionSync sombra] ainda não executada. Use: await SectionSync.shadowCheck({force:true})');
+      return null;
+    }
+    console.table(this._shadowReport.rows);
+    return this._shadowReport;
+  },
+
   // Diagnóstico rápido (rode no console: SectionSync.status())
   status() {
     return {
@@ -20301,7 +20415,17 @@ const SectionSync = {
       seçõesPendentes: [...this._dirty],
       enviadasNestaSessão: this._pushedCount,
       últimoEnvio: this._lastPushAt ? new Date(this._lastPushAt).toLocaleString('pt-BR') : null,
-      últimoErro: this._lastError
+      últimoErro: this._lastError,
+      sombraSomenteLeitura: true,
+      sombraÚltimaExecução: this._shadowLastAt ? new Date(this._shadowLastAt).toLocaleString('pt-BR') : null,
+      sombraÚltimoErro: this._shadowLastError,
+      sombraResumo: this._shadowReport ? {
+        total: this._shadowReport.total,
+        iguais: this._shadowReport.iguais,
+        divergentes: this._shadowReport.divergentes,
+        somenteLocal: this._shadowReport.somenteLocal,
+        somenteRemoto: this._shadowReport.somenteRemoto
+      } : null
     };
   },
   // LOCALIZADOR DE DADOS (rode: SectionSync.localizarDados())
