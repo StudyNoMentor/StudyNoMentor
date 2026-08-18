@@ -19907,6 +19907,9 @@ const CloudStore = {
     if (window.ProfileUI) ProfileUI.onAuthChanged();
     if (window.CloudUI) CloudUI.refreshSyncBtn();
     if (this.isLoggedIn()) this.subscribeRealtime(); else this._unsub();
+    // Sync por seção (Opção B): ao logar / restaurar sessão, popula a tabela nova
+    // proativamente — sem depender de uma edição. Pequeno atraso para o perfil ativar.
+    try { if (window.SectionSync) setTimeout(() => SectionSync.kick(), 1500); } catch (_) {}
   },
 
   async signUp(email, password) { const { data, error } = await this._withTimeout(this.client.auth.signUp({ email, password }), 20000, 'A criação de conta'); if (error) throw error; return data; },
@@ -20159,6 +20162,9 @@ const SectionSync = {
   _dirty: new Set(),        // seções alteradas aguardando envio
   _pushing: false,
   _seededProfile: null,     // id do perfil já "semeado" nesta sessão (envio inicial completo)
+  _lastError: null,         // último erro de envio (para diagnóstico)
+  _lastPushAt: null,        // quando o último envio bem-sucedido ocorreu
+  _pushedCount: 0,          // total de seções enviadas com sucesso nesta sessão
 
   _prefix() { try { return DB._profilePrefix(); } catch (_) { return 'diario-estudos:'; } },
   _revKey() { return this._prefix() + '__secrev'; },
@@ -20223,16 +20229,41 @@ const SectionSync = {
       if (error) throw error;
       secs.forEach(sec => { revs[sec] = (revs[sec] || 0) + 1; this._dirty.delete(sec); });
       this._saveRevs(revs);
+      this._lastError = null; this._lastPushAt = Date.now(); this._pushedCount += secs.length;
+      console.info('[SectionSync] enviou', secs.length, 'seção(ões):', secs.join(', '));
     } catch (e) {
-      console.warn('SectionSync.pushDirty', e && e.message); // mantém sujo p/ retry
+      // NÃO engole o erro: guarda para diagnóstico e mantém as seções sujas p/ retry.
+      this._lastError = (e && (e.message || e.code || JSON.stringify(e))) || 'erro';
+      console.warn('[SectionSync] falha ao enviar:', this._lastError);
     } finally {
       this._pushing = false;
     }
   },
-  // Semeia (1x) e envia. Chamado depois de um salvamento de blob bem-sucedido.
-  afterBlobSave() {
+  // Semeia (1x) e envia — dispara PROATIVAMENTE (não depende de uma edição/salvamento).
+  // Chamado no login, ao entrar num perfil, periodicamente, e após cada salvamento.
+  kick() {
     if (!this.enabled) return;
-    try { this.seedOnce(); this.pushDirty(); } catch (_) {}
+    try {
+      if (!window.CloudStore || !CloudStore.isReady() || !CloudStore.isLoggedIn()) return;
+      try { if (!sessionStorage.getItem('diario-estudos:entered')) return; } catch (_) { return; }
+      if (!ProfileManager.getActiveProfileId()) return;
+      this.seedOnce();
+      this.pushDirty();
+    } catch (_) {}
+  },
+  afterBlobSave() { this.kick(); },
+  // Diagnóstico rápido (rode no console: SectionSync.status())
+  status() {
+    return {
+      habilitado: this.enabled,
+      perfilAtivo: (window.ProfileManager && ProfileManager.getActiveProfileId()) || null,
+      logado: !!(window.CloudStore && CloudStore.isLoggedIn && CloudStore.isLoggedIn()),
+      seedFeito: this._seededProfile,
+      seçõesPendentes: [...this._dirty],
+      enviadasNestaSessão: this._pushedCount,
+      últimoEnvio: this._lastPushAt ? new Date(this._lastPushAt).toLocaleString('pt-BR') : null,
+      últimoErro: this._lastError
+    };
   }
 };
 window.SectionSync = SectionSync;
@@ -20468,6 +20499,9 @@ _cloudNotifyHook = () => CloudStore.notifyChange();
   // REDE DE SEGURANÇA: a cada 8s, se houver algo pendente e nenhum envio em curso,
   // garante o salvamento — cobre qualquer alteração que tenha ficado para trás.
   setInterval(() => { if (CloudStore._pending && !CloudStore._syncing) CloudStore.autoSave(); }, 8000);
+  // Sync por seção (Opção B): garante o preenchimento da tabela nova mesmo sem edições.
+  setInterval(() => { try { if (window.SectionSync) SectionSync.kick(); } catch (_) {} }, 12000);
+  setTimeout(() => { try { if (window.SectionSync) SectionSync.kick(); } catch (_) {} }, 4000);
   // atualiza o rótulo "há X min" periodicamente
   setInterval(() => { if (window.CloudUI) CloudUI.refreshSyncBtn(); }, 30000);
   // estado inicial do botão
