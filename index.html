@@ -3246,16 +3246,18 @@
     .ritmo-metric-grid { grid-template-columns: 1fr; }
   }
   /* % de acertos por matéria — barras com linhas de referência */
-  .acm-chart { display: flex; flex-direction: column; gap: 4px; }
-  .acm-row { display: grid; grid-template-columns: 150px 1fr 96px; align-items: center; gap: 14px; padding: 6px 0; }
+  /* padding-top reserva espaço para os rótulos de meta (70/80/85) da 1ª linha,
+     que antes eram cortados pela borda do card */
+  .acm-chart { display: flex; flex-direction: column; gap: 4px; padding-top: 20px; }
+  .acm-row { display: grid; grid-template-columns: 150px 1fr 96px; align-items: center; gap: 14px; padding: 5px 0; }
   .acm-name { font-size: calc(12px * var(--fs-scale, 1)); font-weight: 600; color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .acm-track { position: relative; height: 20px; background: var(--surface-sunken); border: 1px solid var(--border); border-radius: 8px; overflow: visible; }
+  .acm-track { position: relative; height: 18px; background: var(--surface-sunken); border: 1px solid var(--border); border-radius: 8px; overflow: visible; }
   .acm-fill { height: 100%; border-radius: 6px 0 0 6px; transition: width 0.5s ease; }
-  .acm-ref { position: absolute; top: -5px; bottom: -5px; width: 2px; opacity: 0.9; z-index: 2; }
+  .acm-ref { position: absolute; top: -5px; bottom: -5px; width: 2px; opacity: 0.95; z-index: 2; }
   .acm-ref-tag {
-    position: absolute; top: -18px; left: 50%; transform: translateX(-50%);
+    position: absolute; top: -19px; left: 50%; transform: translateX(-50%);
     font-family: 'Space Mono', monospace; font-size: calc(10px * var(--fs-scale, 1)); font-weight: 700; color: #fff;
-    padding: 1px 5px; border-radius: 8px; white-space: nowrap;
+    padding: 1px 6px; border-radius: 8px; white-space: nowrap; z-index: 3;
   }
   .acm-row:not(:first-child) .acm-ref-tag { display: none; }
   .acm-val { font-family: 'Space Mono', monospace; font-weight: 700; font-size: calc(13px * var(--fs-scale, 1)); text-align: right; }
@@ -4063,12 +4065,15 @@
     letter-spacing: 0.02em; border: none;
   }
   .link-card-body { min-width: 0; flex: 1; }
-  .link-card-name { font-size: calc(14px * var(--fs-scale, 1)); font-weight: 800; color: var(--text); letter-spacing: -0.01em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .link-card-name { font-size: calc(14px * var(--fs-scale, 1)); font-weight: 800; color: var(--text); letter-spacing: -0.01em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; padding-right: 24px; }
   .link-card-host { font-size: calc(12px * var(--fs-scale, 1)); color: var(--text-faint); font-family: 'Space Mono', monospace; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; margin-top: 3px; }
+  /* Categoria em FLUXO (não mais absoluta): antes ela sobrepunha o endereço do site.
+     Agora é uma pílula logo abaixo do host, sem nenhuma sobreposição. */
   .link-card-cat {
-    position: absolute; bottom: 10px; right: 12px; font-size: calc(10px * var(--fs-scale, 1)); font-weight: 700;
+    display: inline-block; margin-top: 7px; font-size: calc(10px * var(--fs-scale, 1)); font-weight: 700;
     text-transform: uppercase; letter-spacing: 0.04em; color: var(--text-soft);
-    background: var(--surface-sunken); border: 1px solid var(--border); border-radius: 20px; padding: 2px 8px;
+    background: var(--surface-sunken); border: 1px solid var(--border); border-radius: 20px; padding: 2px 9px;
+    max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; vertical-align: middle;
   }
   .link-card-edit {
     position: absolute; top: 8px; right: 8px; width: 24px; height: 24px; border-radius: 7px;
@@ -4192,7 +4197,9 @@
   /* tabelas largas rolam dentro da própria caixa, sem arrastar a página */
   :where(.card) :where(table) { display: block; overflow-x: auto; max-width: 100%; }
   /* a página nunca rola na horizontal */
-  html, body { overflow-x: hidden; }
+  /* 'clip' (não 'hidden') evita criar um contêiner de rolagem no body — sem isso,
+     a sidebar com position:sticky "descolava" e sumia ao rolar a lista de registros. */
+  html, body { overflow-x: clip; }
 
   /* ── Ajustes finos de auto-ajuste (medidos com navegador em 360/414/768/1280px) ── */
   /* nomes de matéria e selos de percentual não podem empurrar a linha para fora */
@@ -4266,6 +4273,76 @@
     .lei-reader-body { font-size: 11pt; }
     mark { background: transparent !important; border-bottom: 1.5px solid #444; color:#000 !important; }
     @page { margin: 1.6cm 1.4cm; }
+  }
+  /* ══════════════════════════════════════════════════════════════════════════
+     PASSO DE COMPACTAÇÃO — fontes e espaçamentos mais justos no Desempenho TEC
+     e nas listas longas do app. Só ajusta densidade visual (padding/margem/fonte);
+     não muda estrutura nem lógica. Fica ao fim do <style> para prevalecer.
+     ══════════════════════════════════════════════════════════════════════════ */
+  /* — Desempenho TEC: abas, totais e barras de filtro — */
+  .tec-subtabs { margin: 12px 0 4px; gap: 5px; }
+  .tec-subtab { padding: 7px 14px; }
+  #tec-totais { gap: 10px !important; margin-top: 12px !important; }
+  .tec-total-card { padding: 12px 14px; }
+  .tec-total-card .val { font-size: calc(20px * var(--fs-scale,1)); }
+  .tec-filterbar { padding: 10px 14px !important; margin: 10px 20px 6px !important; gap: 10px 14px !important; }
+  /* — Pontos fracos: grupos e linhas mais compactos — */
+  .weak-group { margin-bottom: 10px; }
+  .weak-group-head { padding: 7px 12px; margin-bottom: 3px; }
+  .weak-row { padding: 8px 0; gap: 12px; }
+  .weak-info .wname { font-size: calc(12.5px * var(--fs-scale,1)); }
+  /* — Aproveitamento por disciplina (cascata) — */
+  .tec-disc-head { padding: 10px 14px; }
+  .tec-disc-body { padding: 4px 14px 10px; }
+  .tnode-row { padding-top: 6px; padding-bottom: 6px; padding-right: 12px; }
+  .tec-topic-row { padding: 5px 0; }
+  /* — Reforço e Plano: barras de controle e linhas — */
+  .rfc-toolbar { padding: 10px 20px 4px; gap: 12px; }
+  .rfc-section { padding: 2px 20px 0; }
+  .rfc-list { padding: 6px 20px 18px; }
+  .rfc-status { padding: 4px 20px 0; }
+  .rfc-orderlabel { padding: 6px 20px 0; }
+  .reforco-row { padding: 9px 4px; gap: 11px; }
+  .reforco-proj-banner { padding: 12px 16px; }
+  .rfd-head { padding: 10px 12px; }
+  .rfd-body { padding: 2px 12px 12px; }
+  .pl-item { padding: 11px 2px; }
+  .pl-hero { padding: 14px; margin: 12px 0 14px; }
+  .pl-guia .pl-guia-body { padding: 2px 12px 10px; }
+  /* — Incidência: linhas e árvore — */
+  .incid-banca-row { padding: 8px 12px; margin-bottom: 6px; }
+  .itree-row { padding: 5px 10px; }
+  /* — TEC: encolhe os paddings dos "corpos" de card definidos inline — */
+  #tec-panel-analise .card > div[style*="padding: 6px 24px 24px"],
+  #tec-panel-analise .card > div[style*="padding: 10px 24px 24px"] { padding: 6px 20px 18px !important; }
+  /* ── Compactação de OUTRAS listas longas do app ── */
+  /* Evolução: linhas de desempenho e tempo por matéria */
+  .perf-row { padding: 8px 0; }
+  .tpm-row { padding: 6px 0; }
+  .bar-row { padding: 6px 0; }
+  /* Cards de revisão: grade um pouco mais densa */
+  .cards-grid { gap: 10px; }
+  .mini-card { padding: 11px 13px; gap: 7px; }
+  /* Histórico: cartões de semana mais justos */
+  .week-card { padding: 16px 20px; margin-bottom: 12px; }
+  .week-card-head { margin-bottom: 12px; }
+  .wd-entry { padding: 10px 0; }
+  /* Configurações: linhas de matéria/método/fase/status mais compactas */
+  #screen-config .config-subject-row,
+  #screen-config .config-simple-row,
+  #screen-config .config-status-row { padding-top: 9px; padding-bottom: 9px; }
+  #screen-config .card > div[style*="padding: 16px 28px 24px"] { padding: 14px 22px 18px !important; }
+  /* Ciclo: progresso por matéria mais denso */
+  .subject-progress-item { padding: 13px 16px; margin-bottom: 8px; }
+  /* Leis: cartões da lista mais compactos */
+  .lei-card { padding: 13px 16px; margin-bottom: 8px; }
+  /* Reduz o respiro geral do topo das telas mais densas */
+  #screen-desempenhotec .page-header,
+  #screen-evolucao .page-header,
+  #screen-historico .page-header { margin-bottom: 8px; }
+  @media (max-width: 560px) {
+    .tec-filterbar { margin: 10px 12px 6px !important; }
+    .rfc-toolbar, .rfc-list, .rfc-section, .rfc-status, .rfc-orderlabel { padding-left: 14px; padding-right: 14px; }
   }
 
 </style>
@@ -7105,6 +7182,29 @@ const DB = {
     if (e.status === 'concluida' && e.periodo === 'unica' && e.alvo > 0 && e.progresso < e.alvo) e.status = 'ativa';
     e.updatedAt = new Date().toISOString();
     this.saveExtras(list); return ultimo;
+  },
+  // Desfaz o ÚLTIMO lançamento feito num DIA específico (permite corrigir/diminuir
+  // o registro de qualquer dia, não só o último global). Retorna o lançamento removido.
+  undoExtraProgressDay(id, dia) {
+    const list = this.getExtras(); const e = list.find(x => x.id === id);
+    if (!e || !e.historico || !e.historico.length) return null;
+    dia = dia || todayLocal();
+    for (let i = e.historico.length - 1; i >= 0; i--) {
+      if (e.historico[i].data === dia) {
+        const removido = e.historico.splice(i, 1)[0];
+        e.progresso = Math.max(0, (e.progresso || 0) - (removido.quantidade || 0));
+        if (e.status === 'concluida' && e.periodo === 'unica' && e.alvo > 0 && e.progresso < e.alvo) e.status = 'ativa';
+        e.updatedAt = new Date().toISOString();
+        this.saveExtras(list); return removido;
+      }
+    }
+    return null;
+  },
+  // Quantidade de lançamentos registrados num dia específico
+  extraRegistrosNoDia(e, dia) {
+    if (!e || !e.historico) return 0;
+    dia = dia || todayLocal();
+    return e.historico.filter(h => h.data === dia).length;
   },
   _isoDia(d) { return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; },
   // Gera as DATAS de ocorrência de uma atividade recorrente, do início até a data-fim.
@@ -12423,10 +12523,19 @@ const EvolucaoScreen = {
       container.innerHTML = `<div class="evo-empty-mini">Nenhum dado de questões ainda. Registre acertos e total resolvido para ver este gráfico.</div>`;
       return;
     }
-    // linhas de referência (metas) desenhadas sobre as barras
     const REFS = metaRefs();
+    // Eixo com BASE dinâmica: em vez de 0–100 (que espremia tudo à direita e escondia
+    // as linhas de meta), o eixo começa num múltiplo de 5 logo abaixo do menor valor
+    // (menor % de disciplina ou menor meta). Isso espalha as barras e revela 70/80/85.
+    const minPct = Math.min(...rows.map(r => r.pct));
+    const minRef = REFS.length ? Math.min(...REFS.map(r => r.v)) : 100;
+    let base = Math.floor(Math.min(minPct, minRef) / 5) * 5 - 5;
+    base = Math.max(0, Math.min(base, 60)); // nunca começa alto demais
+    const span = Math.max(1, 100 - base);
+    const mp = (v) => Math.max(0, Math.min(100, (v - base) / span * 100)); // v -> posição 0..100 no eixo reescalado
+    // linhas de referência (metas) desenhadas sobre as barras, já reposicionadas
     const refLines = REFS.map(r =>
-      `<div class="acm-ref" style="left:${r.v}%; background:${r.color};"><span class="acm-ref-tag" style="background:${r.color};">${r.v}%</span></div>`
+      `<div class="acm-ref" style="left:${mp(r.v).toFixed(2)}%; background:${r.color};"><span class="acm-ref-tag" style="background:${r.color};">${r.v}%</span></div>`
     ).join('');
     const bars = rows.map(r => {
       const tone = toneFor(r.pct);
@@ -12434,13 +12543,14 @@ const EvolucaoScreen = {
         <div class="acm-row" title="${r.correct}/${r.total} questões">
           <div class="acm-name" title="${escapeHtml(r.name)}">${escapeHtml(r.name)}</div>
           <div class="acm-track">
-            <div class="acm-fill" style="width:${r.pct}%; background:var(--${tone});"></div>
+            <div class="acm-fill" style="width:${mp(r.pct).toFixed(2)}%; background:var(--${tone});"></div>
             ${refLines}
           </div>
           <div class="acm-val" style="color:var(--${tone}-text);">${formatPct(r.pct)}%<span class="acm-q">${r.correct}/${r.total}</span></div>
         </div>`;
     }).join('');
-    const legend = `<div class="evo-legend" style="padding:14px 0 0;">
+    const legend = `<div class="evo-legend" style="padding:16px 0 0;">
+      <span class="evo-legend-item" style="color:var(--text-faint)">escala do eixo: ${base}%–100%</span>
       ${REFS.map(r => `<span class="evo-legend-item"><span class="evo-legend-swatch" style="background:${r.color}; width:14px; height:0; border-top:2px dashed ${r.color};"></span>meta ${r.v}%</span>`).join('')}
     </div>`;
     container.innerHTML = `<div class="acm-chart">${bars}</div>${legend}`;
@@ -12598,8 +12708,12 @@ const EvolucaoScreen = {
       return;
     }
     const points = hist.map((w, i) => ({ x: i, pct: w.avgPerformancePct, label: formatDateShort(w.endDate) }));
+    const legenda = `<div class="evo-legend" style="padding:12px 0 0;">
+      <span class="evo-legend-item"><span class="evo-legend-swatch" style="background:#4f46e5; height:3px;"></span>% de acerto da semana</span>
+      ${metaRefs().map(r => `<span class="evo-legend-item"><span class="evo-legend-swatch" style="background:${r.color}; height:0; border-top:2px dashed ${r.color};"></span>meta ${r.v}%</span>`).join('')}
+    </div>`;
     container.innerHTML = this.percentLineSVG(points, [{ color: '#4f46e5', points }],
-      { yTitle: '% de acerto', xTitle: 'Semana (data de fechamento)' });
+      { yTitle: '% de acerto', xTitle: 'Semana (data de fechamento)' }) + legenda;
   },
 
   // ------- Evolução no TecConcursos (retratos importados) -------
@@ -12662,28 +12776,38 @@ const EvolucaoScreen = {
       const p = allPoints[0];
       return `<div class="evo-empty-mini">Só há um ponto (${p.label}): ${formatPct(p.pct)}%. Adicione mais dados para ver a linha.</div>`;
     }
-    const w = 700, h = 260, padL = 52, padR = 20, padT = 22, padB = 46;
+    const w = 700, h = 260, padL = 52, padR = 26, padT = 26, padB = 46;
     const n = allPoints.length;
-    const xAt = (i) => padL + (n === 1 ? 0 : (i / (n - 1)) * (w - padL - padR));
-    const yAt = (pct) => padT + (1 - pct / 100) * (h - padT - padB);
-    // grade horizontal 0/25/50/75/100 com rótulos do eixo Y
-    let grid = '';
-    [0, 25, 50, 75, 100].forEach(g => {
-      const y = yAt(g);
-      grid += `<line x1="${padL}" y1="${y}" x2="${w - padR}" y2="${y}" stroke="#eceef1" stroke-width="1" stroke-dasharray="${g === 0 ? '0' : '3 3'}"/>`;
-      grid += `<text x="${padL - 8}" y="${y + 3}" font-size="10" fill="#9297a3" text-anchor="end" font-family="Space Mono, monospace">${g}%</text>`;
-    });
-    // linhas de referência (metas configuráveis), bem visíveis
     const refs = metaRefs();
+    // EIXO Y com base dinâmica (não mais fixo em 0–100): começa num múltiplo de 10
+    // logo abaixo do menor valor/meta e vai a um teto pouco acima do maior. Assim os
+    // pontos deixam de ficar amontoados numa faixa estreita e os rótulos param de colidir.
+    const vals = [].concat(...series.map(s => s.points.map(p => p.pct))).filter(v => v != null);
+    const refVals = refs.map(r => r.v);
+    const lo = Math.min(...vals, ...refVals), hi = Math.max(...vals, ...refVals);
+    let yMin = Math.max(0, Math.floor((lo - 5) / 10) * 10);
+    let yMax = Math.min(100, Math.ceil((hi + 5) / 10) * 10);
+    if (yMax - yMin < 20) { yMin = Math.max(0, yMin - 10); yMax = Math.min(100, yMax + 10); }
+    const ySpan = Math.max(1, yMax - yMin);
+    const xAt = (i) => padL + (n === 1 ? 0 : (i / (n - 1)) * (w - padL - padR));
+    const yAt = (pct) => padT + (1 - (pct - yMin) / ySpan) * (h - padT - padB);
+    // grade horizontal com 4 divisões dentro da faixa reescalada
+    let grid = '';
+    for (let k = 0; k <= 4; k++) {
+      const gv = yMin + (ySpan * k / 4);
+      const y = yAt(gv);
+      grid += `<line x1="${padL}" y1="${y}" x2="${w - padR}" y2="${y}" stroke="#eceef1" stroke-width="1" stroke-dasharray="${k === 0 ? '0' : '3 3'}"/>`;
+      grid += `<text x="${padL - 8}" y="${y + 3}" font-size="10" fill="#9297a3" text-anchor="end" font-family="Space Mono, monospace">${Math.round(gv)}%</text>`;
+    }
+    // linhas de meta: sem rótulo numérico solto na direita (era o que sobrepunha os
+    // valores dos pontos). A legenda abaixo do gráfico já identifica cada meta.
     let refLines = '';
     refs.forEach(r => {
+      if (r.v < yMin || r.v > yMax) return;
       const y = yAt(r.v);
       refLines += `<line x1="${padL}" y1="${y}" x2="${w - padR}" y2="${y}" stroke="${r.color}" stroke-width="1.4" stroke-dasharray="6 4" opacity="0.85"/>`;
-      refLines += `<text x="${w - padR + 2}" y="${y + 3}" font-size="9" fill="${r.color}" text-anchor="start" font-weight="700" font-family="Space Mono, monospace">${r.v}</text>`;
     });
-    // título do eixo Y (vertical)
     const yAxisTitle = `<text x="14" y="${padT + (h - padT - padB) / 2}" font-size="10" fill="#5b6270" text-anchor="middle" font-weight="700" transform="rotate(-90 14 ${padT + (h - padT - padB) / 2})" font-family="Inter, sans-serif">${yTitle}</text>`;
-    // rótulos X
     const labelEvery = Math.max(1, Math.ceil(n / 8));
     let xlabels = '';
     allPoints.forEach((p, i) => {
@@ -12693,16 +12817,18 @@ const EvolucaoScreen = {
     });
     const xAxisTitle = xTitle ? `<text x="${padL + (w - padL - padR) / 2}" y="${h - 4}" font-size="10" fill="#5b6270" text-anchor="middle" font-weight="700" font-family="Inter, sans-serif">${xTitle}</text>` : '';
     let paths = '';
-    series.forEach(s => {
+    series.forEach((s, si) => {
       const d = s.points.map((p, i) => `${i === 0 ? 'M' : 'L'} ${xAt(p.x)} ${yAt(p.pct)}`).join(' ');
       paths += `<path d="${d}" fill="none" stroke="${s.color}" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>`;
-      // pontos + rótulo de valor sobre cada ponto
-      paths += s.points.map(p => {
+      // rótulo de valor: alterna acima/abaixo por ponto para não colar no vizinho
+      paths += s.points.map((p, i) => {
         const cx = xAt(p.x), cy = yAt(p.pct);
-        const above = cy > padT + 16;
-        const ly = above ? cy - 9 : cy + 16;
+        const acima = (i % 2 === 0) ? (cy > padT + 16) : false;
+        const ly = acima ? cy - 9 : cy + 17;
+        const anchor = (i === 0) ? 'start' : (i === s.points.length - 1) ? 'end' : 'middle';
+        const dx = (i === 0) ? 4 : (i === s.points.length - 1) ? -4 : 0;
         return `<circle cx="${cx}" cy="${cy}" r="4" fill="#fff" stroke="${s.color}" stroke-width="2"><title>${p.label}: ${formatPct(p.pct)}%</title></circle>` +
-               `<text x="${cx}" y="${ly}" font-size="9.5" fill="${s.color}" text-anchor="middle" font-weight="700" font-family="Space Mono, monospace">${Math.round(p.pct)}%</text>`;
+               `<text x="${cx + dx}" y="${ly}" font-size="9.5" fill="${s.color}" text-anchor="${anchor}" font-weight="700" font-family="Space Mono, monospace">${Math.round(p.pct)}%</text>`;
       }).join('');
     });
     return `<svg viewBox="0 0 ${w} ${h}" style="width:100%; height:auto; overflow:visible;">${grid}${refLines}${yAxisTitle}${paths}${xlabels}${xAxisTitle}</svg>`;
@@ -15601,12 +15727,16 @@ const ExtrasScreen = {
            <input type="text" class="ex-marcador" value="${escapeHtml(x.marcador || '')}" placeholder="ex.: art. 150 · pág. 88">
            <button type="button" class="btn-primary ex-marcador-save">Salvar</button>
          </div>` : '';
+    // nº de lançamentos feitos neste dia → habilita o botão de desfazer (corrigir/diminuir)
+    const nReg = (x.historico || []).filter(h => h.data === day).length;
+    const undoBtn = nReg > 0 ? `<button type="button" class="icon-btn exd-undo" title="Desfazer o último lançamento deste dia (${nReg} registrado${nReg === 1 ? '' : 's'})">↶</button>` : '';
     const regRow = done ? '' : `
         <div class="exd-reg">
           <div class="exd-reg-group">
             <input type="number" class="exd-num exd-qtd" min="0" placeholder="${placeholder}" title="Registrar progresso em ${escapeHtml(this._prettyDay(day))}">
             ${x.tipo === 'questoes' ? `<input type="number" class="exd-num exd-ac" min="0" placeholder="acertos" title="Acertos (opcional)">` : ''}
             <button type="button" class="btn-secondary exd-reg-btn">+ REGISTRAR</button>
+            ${undoBtn}
           </div>
           <button type="button" class="btn-primary exd-done-btn">✓ CONCLUIR</button>
         </div>`;
@@ -15666,6 +15796,14 @@ const ExtrasScreen = {
         DB.addExtraProgress(id, q, 0, { data: day, acertos: acEl ? acEl.value : null });
         this.render();
         showToast(day === todayLocal() ? 'Registrado ✓' : 'Registrado em ' + formatDateShort(day) + ' ✓');
+      });
+      // desfazer/diminuir o último lançamento deste dia (corrige erro de digitação)
+      const undo = card.querySelector('.exd-undo');
+      if (undo) undo.addEventListener('click', () => {
+        const u = DB.undoExtraProgressDay(id, day);
+        if (!u) { showToast('Nada para desfazer neste dia'); return; }
+        this.render();
+        showToast('Lançamento de ' + (u.quantidade || 0) + ' desfeito ↶');
       });
       // marcador "onde parei" (leitura)
       const mkSave = card.querySelector('.ex-marcador-save');
@@ -16195,8 +16333,8 @@ const LinksScreen = {
         <div class="link-card-body">
           <div class="link-card-name" title="${escapeHtml(l.nome)}">${escapeHtml(l.nome)}</div>
           <div class="link-card-host">${escapeHtml(this.hostname(l.url))}</div>
+          ${l.categoria ? `<span class="link-card-cat">${escapeHtml(l.categoria)}</span>` : ''}
         </div>
-        ${l.categoria ? `<span class="link-card-cat">${escapeHtml(l.categoria)}</span>` : ''}
         <button type="button" class="link-card-edit" data-edit="${l.id}" title="Editar">✎</button>
       </a>`).join('');
     grid.querySelectorAll('[data-edit]').forEach(b => b.addEventListener('click', (e) => {
