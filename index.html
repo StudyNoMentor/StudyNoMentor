@@ -19712,10 +19712,25 @@ const ProfileUI = {
     if (window.CloudStore && CloudStore.isLoggedIn()) {
       showToast('Carregando perfil...');
       try {
-        const res = await CloudStore.fetchPayload(id);
         CloudStore._applying = true;
-        ProfileManager.restorePayloadInto(id, (res.payload && res.payload.data) || {});
-        ProfileManager.setRev(id, res.rev);
+        // FASE 2 — a leitura vem de profile_sections. Se o conjunto de seções não
+        // passar na verificação (manifesto ausente, seção faltando, rede), caímos
+        // automaticamente no blob de study_profiles, que continua
+        // sendo escrito. Nenhum caminho fica sem plano B.
+        let porSecao = null;
+        if (window.SectionSync && SectionSync.readEnabled) {
+          porSecao = await SectionSync.hydrate(id);
+          if (porSecao.ok) {
+            try { ProfileManager.setRev(id, await CloudStore._fetchRev(id) || ProfileManager.getRev(id)); } catch (_) {}
+          } else {
+            console.warn('[SectionSync] entrando pelo blob (motivo:', porSecao.motivo + ')');
+          }
+        }
+        if (!porSecao || !porSecao.ok) {
+          const res = await CloudStore.fetchPayload(id);
+          ProfileManager.restorePayloadInto(id, (res.payload && res.payload.data) || {});
+          ProfileManager.setRev(id, res.rev);
+        }
         ProfileManager.setActiveProfile(id);
         PlanManager.init();
         CloudStore._applying = false;
@@ -19883,7 +19898,7 @@ const CloudStore = {
   SUPABASE_URL: 'https://gizhxgnbmmhhniubelbz.supabase.co',
   SUPABASE_KEY: 'sb_publishable_5t8P8QpVF4tLoWNjQVWsSQ_3dpbxG94',
   TABLE: 'study_profiles',
-  client: null, session: null, libStatus: 'pending', channel: null,
+  client: null, session: null, libStatus: 'pending', channel: null, secChannel: null, _secRtTimer: null,
   _debounce: null, DEBOUNCE_MS: 1500, _applying: false, _cfgMode: 'signin',
   _pending: false, _lastSyncAt: null, _syncing: false, _dirtyAt: null,
 
@@ -19911,7 +19926,7 @@ const CloudStore = {
   onAuth() {
     if (window.ProfileUI) ProfileUI.onAuthChanged();
     if (window.CloudUI) CloudUI.refreshSyncBtn();
-    if (this.isLoggedIn()) this.subscribeRealtime(); else this._unsub();
+    if (this.isLoggedIn()) { this.subscribeRealtime(); this.subscribeSections(); } else this._unsub();
     // Sync por seção (Opção B): ao logar / restaurar sessão, popula a tabela nova
     // proativamente — sem depender de uma edição. Pequeno atraso para o perfil ativar.
     try { if (window.SectionSync) setTimeout(() => SectionSync.kick(), 1500); } catch (_) {}
@@ -20072,8 +20087,16 @@ const CloudStore = {
     if (this._pending || this._debounce) { await this.flushPending(); return; }
     const id = ProfileManager.getActiveProfileId(); if (!id) return;
     try {
-      const remoteRev = await this._fetchRev(id);
-      if (remoteRev != null && remoteRev > ProfileManager.getRev(id)) {
+      // FASE 2: a novidade é detectada pelas revisões DAS SEÇÕES. Vantagem sobre a
+      // rev do blob: só baixa quando o conteúdo em si mudou, e sabemos o que mudou.
+      let novidade;
+      if (window.SectionSync && SectionSync.readEnabled) {
+        novidade = await SectionSync.hasRemoteUpdates(id);
+      } else {
+        const remoteRev = await this._fetchRev(id);
+        novidade = (remoteRev != null && remoteRev > ProfileManager.getRev(id));
+      }
+      if (novidade) {
         if (window.CloudUI) CloudUI.setStatus('syncing', 'Baixando atualizações...');
         await this.pullActiveAndReload();
       }
@@ -20087,8 +20110,10 @@ const CloudStore = {
       if (this._pending || this._debounce) await this.flushPending();
       else {
         const id = ProfileManager.getActiveProfileId();
-        const remoteRev = id ? await this._fetchRev(id) : null;
-        if (remoteRev != null && remoteRev > ProfileManager.getRev(id)) { await this.pullActiveAndReload(); return; }
+        let novidade = false;
+        if (id && window.SectionSync && SectionSync.readEnabled) novidade = await SectionSync.hasRemoteUpdates(id);
+        else if (id) { const rr = await this._fetchRev(id); novidade = (rr != null && rr > ProfileManager.getRev(id)); }
+        if (novidade) { await this.pullActiveAndReload(); return; }
         else { await this.autoSave(); } // reenvia o estado atual como confirmação
       }
       showToast('Sincronizado ✓');
@@ -20096,6 +20121,10 @@ const CloudStore = {
   },
   async pullActiveAndReload() {
     const id = ProfileManager.getActiveProfileId(); if (!id) return;
+    // FASE 2: tenta primeiro por seção; só usa o blob se a leitura por seção falhar.
+    if (window.SectionSync && SectionSync.readEnabled) {
+      try { if (await SectionSync.pullAndReload()) return; } catch (e) { console.warn('pull por seção', e); }
+    }
     try {
       const res = await this.fetchPayload(id);
       // REDE DE SEGURANÇA: antes de sobrescrever o estado local com o da nuvem,
@@ -20135,13 +20164,46 @@ const CloudStore = {
         .subscribe();
     } catch (e) { console.warn('realtime indisponível', e); }
   },
-  _unsub() { if (this.channel) { try { this.client.removeChannel(this.channel); } catch (e) {} this.channel = null; } },
+  // Tempo real das SEÇÕES: escuta profile_sections do perfil aberto. O gatilho não
+  // recarrega direto — pergunta antes se há revisão nova de verdade (hasRemoteUpdates).
+  // Sem essa checagem, os nossos PRÓPRIOS envios disparariam um loop de recarga.
+  subscribeSections() {
+    if (!this.isReady() || !this.isLoggedIn() || this.secChannel) return;
+    const pid = ProfileManager.getActiveProfileId(); if (!pid) return;
+    try {
+      this.secChannel = this.client.channel('sec_rt')
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'profile_sections', filter: 'profile_id=eq.' + pid }, () => {
+          clearTimeout(this._secRtTimer);
+          this._secRtTimer = setTimeout(() => this._onSectionRealtime(pid), 1200);
+        })
+        .subscribe();
+    } catch (e) { console.warn('realtime de seções indisponível', e); }
+  },
+  async _onSectionRealtime(pid) {
+    if (this._applying || this._pending || this._syncing || this._debounce) return; // edição local em curso: não atropela
+    if (!window.SectionSync || !SectionSync.readEnabled) return;
+    if (SectionSync._pushing || SectionSync._dirty.size) return;
+    try {
+      if (await SectionSync.hasRemoteUpdates(pid)) {
+        showToast('Atualizado em tempo real ✓');
+        await SectionSync.pullAndReload();
+      }
+    } catch (_) {}
+  },
+  _unsub() {
+    if (this.channel) { try { this.client.removeChannel(this.channel); } catch (e) {} this.channel = null; }
+    if (this.secChannel) { try { this.client.removeChannel(this.secChannel); } catch (e) {} this.secChannel = null; }
+    clearTimeout(this._secRtTimer);
+  },
   _onRealtime(evt) {
     const row = evt.new || evt.old || {};
     if (window.ProfileUI && ProfileUI.isGateOpen() && ProfileUI._stage === 'profiles') ProfileUI.loadCloudProfiles();
     const activeId = ProfileManager.getActiveProfileId();
     if (row.id && row.id === activeId && (row.rev || 0) > ProfileManager.getRev(activeId)) {
       if (this._debounce) return;
+      // Na Fase 2 quem manda na leitura é o canal das seções — o blob chegar primeiro
+      // não deve provocar uma recarga com dados mais velhos que os das seções.
+      if (window.SectionSync && SectionSync.readEnabled) return;
       showToast('Atualizado em tempo real ✓');
       this.pullActiveAndReload();
     }
@@ -20163,7 +20225,26 @@ window.CloudStore = CloudStore;
    ============================================================ */
 const SectionSync = {
   TABLE: 'profile_sections',
-  enabled: true,            // Fase 1 ligada (escrita dupla)
+  enabled: true,            // escrita por seção ligada
+  // ── FASE 2: LEITURA POR SEÇÃO ───────────────────────────────────────────
+  // Quando ligada, ENTRAR num perfil e BAIXAR atualizações passa a ler a tabela
+  // profile_sections (uma linha por seção) em vez do blob de study_profiles.
+  // O blob CONTINUA sendo escrito como rede de segurança e é usado como PLANO B
+  // automático sempre que a leitura por seção não passar na verificação.
+  // Desligar em tempo real: SectionSync.setReadMode(false)
+  READ_FLAG_KEY: 'diario-estudos:secread',
+  MANIFEST: '__manifest',   // linha especial que lista quais seções existem (trata exclusões)
+  FORMAT: 2,                // v2: preserva fielmente o texto bruto do localStorage
+  _lastHydrate: null,       // diagnóstico da última leitura por seção
+  get readEnabled() {
+    try { const v = localStorage.getItem(this.READ_FLAG_KEY); return v === null ? true : v === '1'; }
+    catch (_) { return true; }
+  },
+  setReadMode(on) {
+    try { localStorage.setItem(this.READ_FLAG_KEY, on ? '1' : '0'); } catch (_) {}
+    console.info('[SectionSync] leitura por seção', on ? 'LIGADA (Fase 2)' : 'DESLIGADA (volta ao blob)');
+    return this.readEnabled;
+  },
   _dirty: new Set(),        // seções alteradas aguardando envio
   _pushing: false,
   _seededProfile: null,     // id do perfil já "semeado" nesta sessão (envio inicial completo)
@@ -20188,12 +20269,30 @@ const SectionSync = {
     } catch (_) { return {}; }
   },
   _saveRevs(r) { try { localStorage.setItem(this._revKey(), JSON.stringify(r)); } catch (_) {} },
+
+  // ── CODEC v2 ──────────────────────────────────────────────────────────────
+  // O localStorage guarda TEXTO. Se gravarmos no JSONB só o objeto já parseado,
+  // valores que não voltam idênticos (strings cruas como "default", números com
+  // formatação própria, JSON com ordem numérica de chaves) voltariam corrompidos
+  // na leitura. Por isso: só guardamos o objeto quando o ida-e-volta é EXATO;
+  // caso contrário guardamos o texto bruto em { __raw__ }. Assim a hidratação
+  // reproduz byte a byte o que estava aqui.
+  _encode(raw) {
+    try { const v = JSON.parse(raw); if (JSON.stringify(v) === raw) return v; } catch (_) {}
+    return { __raw__: String(raw) };
+  },
+  // Retorna a STRING que deve ir para o localStorage, ou null se a linha for inválida.
+  _decode(data) {
+    if (data && typeof data === 'object' && !Array.isArray(data) && typeof data.__raw__ === 'string') return data.__raw__;
+    if (data === undefined) return null;
+    try { const s = JSON.stringify(data); return (s === undefined) ? null : s; } catch (_) { return null; }
+  },
   _hash(str) { let h = 2166136261; for (let i = 0; i < str.length; i++) { h ^= str.charCodeAt(i); h = Math.imul(h, 16777619); } return (h >>> 0).toString(36); },
 
   // Converte uma chave de localStorage na seção correspondente, ou null se não
   // pertence ao perfil ativo / não deve ser sincronizada.
-  sectionForKey(fullKey) {
-    const pfx = this._prefix();
+  sectionForKey(fullKey, prefixo) {
+    const pfx = prefixo || this._prefix();
     if (!fullKey || fullKey.indexOf(pfx) !== 0) return null;
     const sub = fullKey.slice(pfx.length);
     if (!sub) return null;
@@ -20236,7 +20335,6 @@ const SectionSync = {
     if (!window.CloudStore || !CloudStore.isReady() || !CloudStore.isLoggedIn()) return;
     const id = ProfileManager.getActiveProfileId();
     if (!id) return;
-    if (this._dirty.size === 0) return;
     this._pushing = true;
     const pfx = this._prefix();
     const revs = this._getRevs();
@@ -20249,10 +20347,16 @@ const SectionSync = {
       const h = this._hash(raw);
       const prev = revs[sec] || { rev: 0, hash: null };
       if (prev.hash === h) { this._dirty.delete(sec); return; } // idêntico → nada a enviar
-      let val = null; if (raw !== '') { try { val = JSON.parse(raw); } catch (_) { val = raw; } }
-      rows.push({ _sec: sec, _hash: h, profile_id: id, section: sec, data: val, rev: prev.rev + 1, updated_at: new Date().toISOString() });
+      rows.push({ _sec: sec, _hash: h, profile_id: id, section: sec, data: this._encode(raw), rev: prev.rev + 1, updated_at: new Date().toISOString() });
     });
-    if (rows.length === 0) { this._pushing = false; return; }
+    if (rows.length === 0) {
+      // Nada de conteúdo novo, mas o MANIFESTO ainda pode estar desatualizado
+      // (ex.: uma seção foi APAGADA localmente). Sem isto, exclusões nunca chegariam
+      // à nuvem e a leitura por seção "ressuscitaria" dados apagados.
+      try { await this._syncManifest(id, revs); } catch (_) {}
+      this._saveRevs(revs);
+      this._pushing = false; return;
+    }
     // Envio UMA SEÇÃO POR VEZ: assim uma seção grande (ex.: incidência, ~300 KB) fica
     // ISOLADA — se ela falhar (tamanho/timeout), não derruba as outras, o erro dela é
     // registrado individualmente, e ela reenvia sozinha na próxima rodada. Mais lento,
@@ -20272,6 +20376,10 @@ const SectionSync = {
         // mantém a seção suja para o próximo retry
       }
     }
+    // O MANIFESTO só é atualizado quando TODAS as seções sujas subiram. Se alguma
+    // falhou, a nuvem ainda está incompleta — publicar o manifesto agora faria a
+    // leitura por seção esperar uma linha que não existe (e cair no plano B à toa).
+    if (!falhas.length) { try { await this._syncManifest(id, revs); } catch (_) {} }
     this._saveRevs(revs);
     if (okCount) { this._lastPushAt = Date.now(); this._pushedCount += okCount; }
     if (falhas.length) {
@@ -20283,6 +20391,46 @@ const SectionSync = {
     }
     this._pushing = false;
   },
+  // ── MANIFESTO ─────────────────────────────────────────────────────────────
+  // Uma linha (section = '__manifest') que diz QUAIS seções o perfil tem agora.
+  // É o que torna a leitura por seção segura: sem ele, um upsert nunca apaga nada
+  // e uma seção excluída aqui voltaria à vida no próximo download. Com ele, a
+  // hidratação usa a lista como verdade e ignora/limpa o que sobrou.
+  localSections() {
+    const out = [];
+    try {
+      for (let i = 0; i < localStorage.length; i++) {
+        const sec = this.sectionForKey(localStorage.key(i));
+        if (sec) out.push(sec);
+      }
+    } catch (_) {}
+    return out.sort();
+  },
+  async _syncManifest(id, revs) {
+    const list = this.localSections();
+    const body = { v: this.FORMAT, sections: list, at: new Date().toISOString() };
+    const h = this._hash(list.join('|'));
+    const prev = revs[this.MANIFEST] || { rev: 0, hash: null };
+    if (prev.hash === h) return false;               // lista inalterada → nada a fazer
+    const rev = prev.rev + 1;
+    const { error } = await CloudStore.client.from(this.TABLE)
+      .upsert({ profile_id: id, section: this.MANIFEST, data: body, rev, updated_at: body.at }, { onConflict: 'profile_id,section' });
+    if (error) throw error;
+    revs[this.MANIFEST] = { rev, hash: h };
+    // Remove da nuvem as seções que não existem mais aqui (exclusões de verdade).
+    try {
+      const { data: remote } = await CloudStore.client.from(this.TABLE).select('section').eq('profile_id', id);
+      const sobra = (remote || []).map(r => r.section)
+        .filter(s => s !== this.MANIFEST && list.indexOf(s) === -1);
+      if (sobra.length) {
+        await CloudStore.client.from(this.TABLE).delete().eq('profile_id', id).in('section', sobra);
+        sobra.forEach(s => { delete revs[s]; });
+        console.info('[SectionSync] removidas da nuvem', sobra.length, 'seção(ões) excluída(s)');
+      }
+    } catch (e) { console.warn('[SectionSync] limpeza de seções órfãs falhou', e); }
+    return true;
+  },
+
   // Semeia (1x) e envia — dispara PROATIVAMENTE (não depende de uma edição/salvamento).
   // Chamado no login, ao entrar num perfil, periodicamente, e após cada salvamento.
   async kick() {
@@ -20298,6 +20446,123 @@ const SectionSync = {
     } catch (_) {}
   },
   afterBlobSave() { this.kick(); },
+
+  /* ── FASE 2: LEITURA POR SEÇÃO ────────────────────────────────────────────
+     Baixa profile_sections e reconstrói o localStorage do perfil a partir das
+     linhas. Só aplica se o conjunto passar na verificação (manifesto presente e
+     todas as seções que ele lista realmente vieram). Qualquer falha devolve
+     { ok:false, motivo } — e quem chamou cai no blob, sem perder nada. */
+  async fetchAllSections(id) {
+    const { data, error } = await CloudStore._withTimeout(
+      CloudStore.client.from(this.TABLE).select('section,data,rev,updated_at').eq('profile_id', id),
+      20000, 'Baixar as seções do perfil');
+    if (error) throw error;
+    return data || [];
+  },
+  // Monta o mapa seção→texto e valida. NÃO escreve nada.
+  _prepare(rows) {
+    const map = {}, revs = {};
+    let manifesto = null;
+    (rows || []).forEach(r => {
+      if (r.section === this.MANIFEST) { manifesto = r.data || null; return; }
+      const txt = this._decode(r.data);
+      if (txt === null) return;                  // linha ilegível → tratada como ausente
+      map[r.section] = txt;
+      revs[r.section] = r.rev || 1;
+    });
+    const secoes = Object.keys(map);
+    if (!manifesto || !Array.isArray(manifesto.sections)) {
+      return { ok: false, motivo: secoes.length ? 'sem-manifesto' : 'sem-seções', map, revs };
+    }
+    const faltando = manifesto.sections.filter(s => !(s in map));
+    if (faltando.length) return { ok: false, motivo: 'seções-faltando: ' + faltando.join(', '), map, revs, faltando };
+    // O manifesto manda: o que não está nele é resto de versão anterior e é descartado.
+    const finalMap = {};
+    manifesto.sections.forEach(s => { finalMap[s] = map[s]; });
+    return { ok: true, map: finalMap, revs, manifesto, extras: secoes.filter(s => manifesto.sections.indexOf(s) === -1) };
+  },
+  // Escreve o mapa no localStorage do perfil. Preserva o histórico de versões local
+  // (vhist) — ao contrário do restore do blob, que apagava tudo do namespace.
+  _applyMap(id, map, revs) {
+    const prefix = 'diario-estudos:u:' + id + ':';
+    const apagar = [];
+    for (let i = 0; i < localStorage.length; i++) {
+      const k = localStorage.key(i);
+      if (k && k.indexOf(prefix) === 0 && this.sectionForKey(k, prefix)) apagar.push(k);
+    }
+    apagar.forEach(k => localStorage.removeItem(k));
+    const novoRev = {};
+    Object.keys(map).forEach(sec => {
+      const txt = map[sec];
+      localStorage.setItem(prefix + sec, txt);
+      novoRev[sec] = { rev: (revs && revs[sec]) || 1, hash: this._hash(txt) };
+    });
+    // Alinha a contabilidade local com o que acabou de vir: sem isto, a próxima
+    // rodada acharia tudo "sujo" e re-subiria o perfil inteiro sem necessidade.
+    try { localStorage.setItem('diario-estudos:u:' + id + ':__secrev', JSON.stringify(novoRev)); } catch (_) {}
+    this._seededProfile = id;
+    this._dirty.clear();
+  },
+  // Fluxo completo de leitura. Retorna { ok, motivo, seções }.
+  async hydrate(id, opts) {
+    opts = opts || {};
+    const res = { ok: false, motivo: null, seções: 0, em: new Date().toISOString() };
+    try {
+      if (!this.readEnabled && !opts.force) { res.motivo = 'leitura-por-seção-desligada'; this._lastHydrate = res; return res; }
+      if (!window.CloudStore || !CloudStore.isReady() || !CloudStore.isLoggedIn()) { res.motivo = 'sem-conexão'; this._lastHydrate = res; return res; }
+      const rows = await this.fetchAllSections(id);
+      const prep = this._prepare(rows);
+      if (!prep.ok) { res.motivo = prep.motivo; this._lastHydrate = res; return res; }
+      // Rede de segurança antes de sobrescrever o estado local.
+      try { if (window.VersionHistory && ProfileManager.getActiveProfileId() === id) await VersionHistory.snapshot('antes de baixar por seção'); } catch (_) {}
+      this._applyMap(id, prep.map, prep.revs);
+      res.ok = true; res.seções = Object.keys(prep.map).length;
+      if (prep.extras && prep.extras.length) res.ignoradas = prep.extras;
+      this._lastHydrate = res;
+      console.info('[SectionSync] leitura por seção aplicada:', res.seções, 'seção(ões)');
+      return res;
+    } catch (e) {
+      res.motivo = (e && (e.message || e.code)) || 'erro';
+      this._lastHydrate = res;
+      console.warn('[SectionSync] leitura por seção falhou:', res.motivo);
+      return res;
+    }
+  },
+  // Checagem barata "tem novidade na nuvem?" — compara as revisões remotas com as
+  // que este aparelho já conhece. Substitui a comparação de rev do blob.
+  async hasRemoteUpdates(id) {
+    if (!window.CloudStore || !CloudStore.isReady() || !CloudStore.isLoggedIn()) return false;
+    const { data, error } = await CloudStore.client.from(this.TABLE).select('section,rev').eq('profile_id', id);
+    if (error) throw error;
+    const locais = this._getRevs();
+    let novidade = false;
+    (data || []).forEach(r => {
+      const meu = locais[r.section] ? locais[r.section].rev : 0;
+      if ((r.rev || 0) > meu) novidade = true;
+    });
+    return novidade;
+  },
+  // Baixa por seção e recarrega a tela (equivalente ao pullActiveAndReload do blob).
+  async pullAndReload() {
+    const id = ProfileManager.getActiveProfileId(); if (!id) return false;
+    CloudStore._applying = true;
+    const r = await this.hydrate(id);
+    CloudStore._applying = false;
+    if (!r.ok) return false;
+    showToast('Sincronizado da nuvem ✓');
+    setTimeout(() => location.reload(), 500);
+    return true;
+  },
+  // Reenvia TUDO no formato atual (v2). Use uma vez ao migrar para a Fase 2, ou
+  // se desconfiar de alguma linha antiga: SectionSync.reenviarTudo()
+  async reenviarTudo() {
+    try { localStorage.removeItem(this._revKey()); } catch (_) {}
+    this._seededProfile = null;
+    this._dirty.clear();
+    this.markAllDirty();
+    await this.pushDirty();
+    return this.status();
+  },
 
   // ── FASE 1.5: LEITURA-SOMBRA (somente leitura) ────────────────────────────
   // Normaliza objetos/arrays JSONB do Supabase e strings do localStorage para uma
@@ -20349,8 +20614,15 @@ const SectionSync = {
       const rows = all.map(section => {
         const local = this._localValue(section);
         const remote = remoteMap.get(section) || null;
+        // v2: a nuvem pode guardar { __raw__ }. Comparamos o TEXTO decodificado; se
+        // diferir, ainda tentamos a comparação canônica (tolera linhas no formato antigo).
+        const remoteTxt = remote ? this._decode(remote.data) : null;
         const localCanon = local.exists ? this._stable(local.value) : null;
-        const remoteCanon = remote ? this._stable(remote.data) : null;
+        let remoteCanon = null;
+        if (remote) {
+          if (remoteTxt !== null && remoteTxt === local.raw) remoteCanon = localCanon;
+          else { let rv; try { rv = JSON.parse(remoteTxt); } catch (_) { rv = remote.data; } remoteCanon = this._stable(rv); }
+        }
         let status = 'igual';
         if (!local.exists && remote) status = 'somente_remoto';
         else if (local.exists && !remote) status = 'somente_local';
@@ -20409,6 +20681,9 @@ const SectionSync = {
   status() {
     return {
       habilitado: this.enabled,
+      leituraPorSeção: this.readEnabled ? 'LIGADA (Fase 2)' : 'desligada (lendo do blob)',
+      últimaLeitura: this._lastHydrate,
+      formato: 'v' + this.FORMAT,
       perfilAtivo: (window.ProfileManager ? ProfileManager.getActiveProfileId() : null) || null,
       logado: !!(window.CloudStore && CloudStore.isLoggedIn && CloudStore.isLoggedIn()),
       seedFeito: this._seededProfile,
