@@ -20243,28 +20243,35 @@ const SectionSync = {
       rows.push({ _sec: sec, _hash: h, profile_id: id, section: sec, data: val, rev: prev.rev + 1, updated_at: new Date().toISOString() });
     });
     if (rows.length === 0) { this._pushing = false; return; }
-    // Envia em LOTES: um payload gigante (ex.: a seção de incidência, ~300 KB) num
-    // único request é frágil; lotes menores são mais confiáveis e nunca "somem".
-    const CHUNK = 6, ok = [];
-    try {
-      for (let i = 0; i < rows.length; i += CHUNK) {
-        const lote = rows.slice(i, i + CHUNK).map(({ _sec, _hash, ...r }) => r);
-        const { error } = await CloudStore.client.from(this.TABLE).upsert(lote, { onConflict: 'profile_id,section' });
+    // Envio UMA SEÇÃO POR VEZ: assim uma seção grande (ex.: incidência, ~300 KB) fica
+    // ISOLADA — se ela falhar (tamanho/timeout), não derruba as outras, o erro dela é
+    // registrado individualmente, e ela reenvia sozinha na próxima rodada. Mais lento,
+    // porém à prova de "seção presa" (era o caso da incidencia travada no rev 1).
+    let okCount = 0; const falhas = [];
+    for (const r of rows) {
+      const { _sec, _hash, ...row } = r;
+      try {
+        const { error } = await CloudStore.client.from(this.TABLE).upsert(row, { onConflict: 'profile_id,section' });
         if (error) throw error;
-        rows.slice(i, i + CHUNK).forEach(r => ok.push(r));
+        revs[_sec] = { rev: row.rev, hash: _hash };
+        this._dirty.delete(_sec);
+        okCount++;
+      } catch (e) {
+        const msg = (e && (e.message || e.code || JSON.stringify(e))) || 'erro';
+        falhas.push(_sec + ' (' + (row.data ? JSON.stringify(row.data).length : 0) + ' bytes): ' + msg);
+        // mantém a seção suja para o próximo retry
       }
-      ok.forEach(r => { revs[r._sec] = { rev: r.rev, hash: r._hash }; this._dirty.delete(r._sec); });
-      this._saveRevs(revs);
-      this._lastError = null; this._lastPushAt = Date.now(); this._pushedCount += ok.length;
-      console.info('[SectionSync] enviou', ok.length, 'seção(ões):', ok.map(r => r._sec).join(', '));
-    } catch (e) {
-      // salva o progresso parcial (lotes que passaram) e mantém o resto sujo p/ retry
-      if (ok.length) { ok.forEach(r => { revs[r._sec] = { rev: r.rev, hash: r._hash }; this._dirty.delete(r._sec); }); this._saveRevs(revs); }
-      this._lastError = (e && (e.message || e.code || JSON.stringify(e))) || 'erro';
-      console.warn('[SectionSync] falha ao enviar:', this._lastError, '(enviadas', ok.length, 'de', rows.length + ')');
-    } finally {
-      this._pushing = false;
     }
+    this._saveRevs(revs);
+    if (okCount) { this._lastPushAt = Date.now(); this._pushedCount += okCount; }
+    if (falhas.length) {
+      this._lastError = falhas.join(' | ');
+      console.warn('[SectionSync] falharam', falhas.length, 'de', rows.length + ':', this._lastError);
+    } else {
+      this._lastError = null;
+      console.info('[SectionSync] enviou', okCount, 'seção(ões)');
+    }
+    this._pushing = false;
   },
   // Semeia (1x) e envia — dispara PROATIVAMENTE (não depende de uma edição/salvamento).
   // Chamado no login, ao entrar num perfil, periodicamente, e após cada salvamento.
