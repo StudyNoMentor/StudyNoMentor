@@ -12696,7 +12696,9 @@ const EvolucaoScreen = {
 
   // Gráfico de linha MULTI-SÉRIE (0-100%) com grade, metas e legenda. Lida com pontos nulos (lacunas).
   multiLineSVG(weeks, series, opts = {}) {
-    const w = 720, h = 280, padL = 48, padR = 22, padT = 20, padB = 44;
+    // padR maior para caber a "régua de metas" (pílulas 70/80/85) à direita — mesmo
+    // padrão visual do gráfico "% de acertos por matéria", para leitura consistente.
+    const w = 720, h = 280, padL = 48, padR = 44, padT = 20, padB = 44;
     const n = weeks.length;
     const xAt = (i) => padL + (n <= 1 ? 0 : (i / (n - 1)) * (w - padL - padR));
     const yAt = (pct) => padT + (1 - pct / 100) * (h - padT - padB);
@@ -12706,10 +12708,12 @@ const EvolucaoScreen = {
       grid += `<line x1="${padL}" y1="${y}" x2="${w - padR}" y2="${y}" stroke="#eceef1" stroke-width="1" stroke-dasharray="${g === 0 ? '0' : '3 3'}"/>`;
       grid += `<text x="${padL - 8}" y="${y + 3}" font-size="10" fill="#9297a3" text-anchor="end" font-family="Space Mono, monospace">${g}%</text>`;
     });
-    // metas 70/80/85
+    // metas 70/80/85 — linha tracejada + RÉGUA: pílula colorida com o valor na direita
     metaRefs().map(r => ({ v: r.v, c: r.color })).forEach(r => {
       const y = yAt(r.v);
-      grid += `<line x1="${padL}" y1="${y}" x2="${w - padR}" y2="${y}" stroke="${r.c}" stroke-width="1.2" stroke-dasharray="6 4" opacity="0.6"/>`;
+      grid += `<line x1="${padL}" y1="${y}" x2="${w - padR}" y2="${y}" stroke="${r.c}" stroke-width="1.3" stroke-dasharray="6 4" opacity="0.85"/>`;
+      grid += `<rect x="${w - padR + 2}" y="${y - 8}" width="30" height="16" rx="8" fill="${r.c}"/>`;
+      grid += `<text x="${w - padR + 17}" y="${y + 4}" font-size="10" fill="#fff" text-anchor="middle" font-weight="700" font-family="Space Mono, monospace">${r.v}%</text>`;
     });
     // rótulos X
     const labelEvery = Math.max(1, Math.ceil(n / 9));
@@ -12733,10 +12737,10 @@ const EvolucaoScreen = {
       s.points.forEach(p => { if (p.pct === null) flush(); else seg.push(p); });
       flush();
     });
-    // legenda
+    // legenda: séries + uma entrada por meta (cor batendo com a régua)
     const legend = `<div class="evo-legend" style="padding:12px 20px 0;">` +
       series.map(s => `<span class="evo-legend-item"><span class="evo-legend-swatch" style="background:${s.color}; height:3px;"></span>${escapeHtml(s.name)}</span>`).join('') +
-      `<span class="evo-legend-item" style="color:var(--text-faint)"><span class="evo-legend-swatch" style="background:#0f9d63; height:0; border-top:2px dashed #0f9d63;"></span>metas 70/80/85%</span>` +
+      metaRefs().map(r => `<span class="evo-legend-item"><span class="evo-legend-swatch" style="background:${r.color}; height:0; border-top:2px dashed ${r.color};"></span>meta ${r.v}%</span>`).join('') +
       `</div>`;
     return `<svg viewBox="0 0 ${w} ${h}" style="width:100%; height:auto; overflow:visible;">${grid}${yTitle}${paths}${xlabels}</svg>${legend}`;
   },
@@ -15187,6 +15191,74 @@ function rteSanitize(html) {
   return tmp.innerHTML;
 }
 function rteExec(area, cmd, val) { area.focus(); try { document.execCommand(cmd, false, val || null); } catch (e) {} }
+// Converte HTML em TEXTO PURO preservando as quebras de linha (blocos/br viram \n).
+// Base do botão "Limpar formatação" — remove cor, fonte, fundo, negrito etc. do texto colado.
+function rtePlainFromHtml(html) {
+  const tmp = document.createElement('div');
+  tmp.innerHTML = String(html || '');
+  tmp.querySelectorAll('br').forEach(br => br.replaceWith('\n'));
+  // isola cada bloco com quebras antes e depois, para não grudar parágrafos/linhas/células
+  // (mesmo quando um bloco vem logo após texto inline)
+  tmp.querySelectorAll('p, div, li, tr, h1, h2, h3, h4, blockquote, pre').forEach(el => {
+    el.insertBefore(document.createTextNode('\n'), el.firstChild);
+    el.appendChild(document.createTextNode('\n'));
+  });
+  return (tmp.textContent || '').replace(/\u00a0/g, ' ').replace(/[ \t]+\n/g, '\n').replace(/\n{3,}/g, '\n\n').trim();
+}
+// Insere TEXTO PURO num range (substituindo o conteúdo) sem herdar cor/fonte/fundo.
+// O truque é reconstruir com nós de texto reais (não execCommand, que herda o estilo
+// do ponto de inserção) e, em seguida, "desembrulhar" spans que passaram a envolver
+// somente o texto limpo — assim uma palavra colorida totalmente selecionada fica limpa.
+function _rteInsertPlain(range, txt, area) {
+  range.deleteContents();
+  const frag = document.createDocumentFragment();
+  const nodes = [];
+  String(txt).split('\n').forEach((line, i) => {
+    if (i) { const br = document.createElement('br'); frag.appendChild(br); nodes.push(br); }
+    const tn = document.createTextNode(line); frag.appendChild(tn); nodes.push(tn);
+  });
+  range.insertNode(frag);
+  // desembrulha ancestrais inline que envolvem APENAS o texto recém-inserido
+  const INLINE = new Set(['B', 'STRONG', 'I', 'EM', 'U', 'S', 'STRIKE', 'FONT', 'SPAN', 'MARK', 'SUB', 'SUP', 'SMALL', 'BIG']);
+  let el = nodes[0] && nodes[0].parentNode;
+  while (el && el !== area && INLINE.has(el.tagName)) {
+    const outros = [...el.childNodes].filter(k => !nodes.includes(k) && !(k.nodeType === 3 && !k.textContent.trim()));
+    if (outros.length) break;                 // tem outro conteúdo → preserva a formatação dele
+    const parent = el.parentNode;
+    while (el.firstChild) parent.insertBefore(el.firstChild, el);
+    parent.removeChild(el);
+    el = parent;
+  }
+  // posiciona o cursor ao fim do texto inserido
+  const last = nodes[nodes.length - 1];
+  if (last) {
+    const sel = window.getSelection();
+    const r = document.createRange();
+    r.setStartAfter(last); r.collapse(true);
+    sel.removeAllRanges(); sel.addRange(r);
+  }
+}
+// Limpa a formatação: com um trecho selecionado, limpa só ele; senão, limpa o editor todo.
+function rteClearFormatting(area) {
+  area.focus();
+  const sel = window.getSelection ? window.getSelection() : null;
+  const dentro = sel && sel.rangeCount && area.contains(sel.anchorNode) && area.contains(sel.focusNode);
+  const temSelecao = dentro && !sel.getRangeAt(0).collapsed;
+  if (temSelecao) {
+    const range = sel.getRangeAt(0);
+    const div = document.createElement('div'); div.appendChild(range.cloneContents());
+    const txt = rtePlainFromHtml(div.innerHTML);
+    _rteInsertPlain(range, txt, area);
+    showToast('Formatação removida da seleção ✓');
+  } else {
+    const txt = rtePlainFromHtml(area.innerHTML);
+    if (!txt) { showToast('Nada para limpar'); return; }
+    const range = document.createRange();
+    range.selectNodeContents(area);
+    _rteInsertPlain(range, txt, area);
+    showToast('Formatação de todo o texto removida ✓');
+  }
+}
 // paleta compacta: [rótulo, cor]
 const RTE_TEXT_COLORS = [['Preto', '#1a1c20'], ['Vermelho', '#e0393f'], ['Verde', '#0f9d63'], ['Azul', '#2563eb'], ['Roxo', '#7c3aed'], ['Laranja', '#d97a12']];
 const RTE_HILITE_COLORS = [['Amarelo', '#fde68a'], ['Verde', '#bbf7d0'], ['Azul', '#bfdbfe'], ['Rosa', '#fbcfe8'], ['Laranja', '#fed7aa']];
@@ -15247,7 +15319,8 @@ function buildRteToolbar(rte) {
     <div class="rte-grp">
       <button type="button" data-cmd="undo" title="Desfazer (Ctrl+Z)">↶</button>
       <button type="button" data-cmd="redo" title="Refazer (Ctrl+Y)">↷</button>
-      <button type="button" data-cmd="removeFormat" title="Limpar formatação">✕</button>
+      <button type="button" data-plain="1" title="Limpar formatação do texto colado (deixa como texto puro). Com um trecho selecionado, limpa só ele.">🧹 Limpar</button>
+      <button type="button" data-cmd="removeFormat" title="Remover só negrito/itálico/cor da seleção">✕</button>
     </div>`;
 
   // preserva seleção: nenhum controle da toolbar pode roubar o foco
@@ -15259,6 +15332,9 @@ function buildRteToolbar(rte) {
     if (cmd === 'removeHilite') rteExec(area, 'hiliteColor', 'transparent');
     else rteExec(area, cmd);
   }));
+  // 🧹 Limpar formatação: converte o texto colado (seleção ou tudo) em texto puro
+  const plainBtn = tb.querySelector('[data-plain]');
+  if (plainBtn) plainBtn.addEventListener('click', () => rteClearFormatting(area));
   // cores de texto e marca-texto
   tb.querySelectorAll('[data-color]').forEach(sw => sw.addEventListener('click', () => rteExec(area, 'foreColor', sw.dataset.color)));
   tb.querySelectorAll('[data-hilite]').forEach(sw => sw.addEventListener('click', () => rteExec(area, 'hiliteColor', sw.dataset.hilite)));
