@@ -18794,6 +18794,10 @@ const DesempenhoTecScreen = {
         if (!block.classList.contains('open')) this._incidBuildTree(block.querySelector('.itree[data-tree-banca]'));
         block.classList.toggle('open');
       });
+      // Quando há uma única banca o bloco JÁ NASCE aberto (autoOpen) — e nesse caso
+      // ninguém clica no cabeçalho para disparar a montagem. Sem isto, o caso mais
+      // comum de todos (um só caderno) exibiria uma árvore vazia.
+      if (block.classList.contains('open')) this._incidBuildTree(block.querySelector('.itree[data-tree-banca]'));
       del.addEventListener('click', (e) => {
         e.stopPropagation();
         const b = block.dataset.banca;
