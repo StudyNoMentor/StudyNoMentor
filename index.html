@@ -6626,6 +6626,49 @@ const DB = {
       return (n * 2 / 1048576).toFixed(1); // UTF-16: ~2 bytes por caractere
     } catch (_) { return '?'; }
   },
+  /* ── AVISO ANTECIPADO DE ESPAÇO ────────────────────────────────────────────
+     O tratamento de QuotaExceededError em _set já existe, mas age DEPOIS do
+     estouro: você descobre que acabou o espaço no instante em que um dado deixa
+     de ser salvo — no meio de uma revisão, por exemplo. Este aviso chega antes,
+     enquanto ainda dá tempo de exportar um backup com calma.
+
+     O limite depende de ONDE o app está gravando:
+       · sobre a fachada de IndexedDB (o normal) → centenas de MB; o alerta só
+         faz sentido perto do teto real informado pelo navegador;
+       · caída no localStorage nativo (modo privado antigo, navegador sem
+         suporte) → ~5 MB, e aí o aperto chega rápido.
+     Sem essa distinção, o aviso dispararia com 4 MB mesmo havendo 500 MB livres. */
+  LIMITE_NATIVO_MB: 5,
+  _quotaAvisoKey() { return 'diario-estudos:quota-aviso'; },
+  async checarEspaco() {
+    try {
+      const hoje = todayLocal();
+      if (localStorage.getItem(this._quotaAvisoKey()) === hoje) return; // 1x por dia
+      const usoMB = parseFloat(this.storageUsageMB());
+      if (!isFinite(usoMB)) return;
+
+      let limiteMB = this.LIMITE_NATIVO_MB, sobreIDB = false;
+      if (window.__idbShim) {
+        sobreIDB = true;
+        limiteMB = 512; // piso conservador se o navegador não informar a cota
+        try {
+          if (navigator.storage && navigator.storage.estimate) {
+            const est = await navigator.storage.estimate();
+            if (est && est.quota) limiteMB = est.quota / 1048576;
+          }
+        } catch (_) {}
+      }
+      const pct = usoMB / limiteMB;
+      const gatilho = sobreIDB ? 0.85 : 0.75;
+      if (pct < gatilho) return;
+
+      localStorage.setItem(this._quotaAvisoKey(), hoje);
+      const msg = pct >= 0.95
+        ? '🛑 Espaço quase no fim (' + usoMB.toFixed(1) + ' MB de ~' + Math.round(limiteMB) + ' MB). Exporte um backup AGORA — a partir daqui alterações podem deixar de ser salvas.'
+        : '⚠ Armazenamento em ' + Math.round(pct * 100) + '% (' + usoMB.toFixed(1) + ' MB). Veja o medidor em Configurações e considere limpar imagens de cards ou retratos antigos do TEC.';
+      setTimeout(() => { try { showToast(msg); } catch (_) {} }, 2500);
+    } catch (_) {}
+  },
   _uid() {
     // UUID v4 real quando disponível. crypto.randomUUID exige contexto seguro —
     // funciona em file:// e https://, mas NÃO em http:// simples (ex.: servir de um NAS).
@@ -7028,8 +7071,10 @@ const DB = {
       tipo: data.tipo || '',
       kind: data.kind || 'basic',      // 'basic' | 'cloze'
       reversedOf: data.reversedOf || null, // id do card original (cartão invertido)
-      frente: data.frente || '',
-      verso: data.verso || '',
+      // Higienizado na ENTRADA: cobre o editor, a importação de .tsv/.json e
+      // qualquer outro caminho que crie card. Ver sanitizeCardHtml().
+      frente: _sanCard(data.frente),
+      verso: _sanCard(data.verso),
       favorito: false,
       status: 'pendente',
       ease: 2.5, intervalo: 0, due: todayLocal(), reps: 0, lapses: 0,
@@ -7041,8 +7086,30 @@ const DB = {
   },
   updateCard(id, patch) {
     const list = this.getCards(); const c = list.find(x => x.id === id);
+    // Só sanea quando o texto do card está de fato no patch — a maioria das
+    // chamadas é agendamento do FSRS (due, s, d, reps) e não toca em frente/verso.
+    if (patch && ('frente' in patch || 'verso' in patch)) {
+      patch = { ...patch };
+      if ('frente' in patch) patch.frente = _sanCard(patch.frente);
+      if ('verso' in patch) patch.verso = _sanCard(patch.verso);
+    }
     if (c) { Object.assign(c, patch); c.updatedAt = new Date().toISOString(); }
     this.saveCards(list); return c;
+  },
+  // Varredura de segurança: usada depois de IMPORTAR UM BACKUP DE PERFIL, que
+  // escreve direto no localStorage e por isso não passa por addCard/updateCard.
+  // Retorna quantos cards foram alterados (0 = arquivo estava limpo).
+  sanitizeCardsInPlace() {
+    try {
+      const list = this.getCards();
+      let n = 0;
+      list.forEach(c => {
+        const f = _sanCard(c.frente), v = _sanCard(c.verso);
+        if (f !== c.frente || v !== c.verso) { c.frente = f; c.verso = v; n++; }
+      });
+      if (n) this.saveCards(list);
+      return n;
+    } catch (_) { return 0; }
   },
   deleteCard(id) { this.saveCards(this.getCards().filter(c => c.id !== id)); },
 
@@ -7890,11 +7957,34 @@ const ProfileManager = {
       // sem PIN: perfil importado entra sem trava; o usuário define depois se quiser
     });
     const prefix = 'diario-estudos:u:' + id + ':';
+    let saneados = 0;
     Object.keys(obj.data || {}).forEach(subKey => {
       // ignora eventuais chaves de perfil aninhadas por segurança
       if (subKey.startsWith('u:')) return;
-      localStorage.setItem(prefix + subKey, obj.data[subKey]);
+      let valor = obj.data[subKey];
+      // Um backup pode vir de fora (colega, grupo de estudos, download). Os cards
+      // são o único conteúdo renderizado como HTML, então passam pelo saneamento
+      // ANTES de tocar o localStorage — este caminho não usa DB.addCard.
+      if (/(^|:)cards$/.test(subKey)) {
+        try {
+          const arr = JSON.parse(valor);
+          if (Array.isArray(arr)) {
+            arr.forEach(c => {
+              if (!c || typeof c !== 'object') return;
+              const f = _sanCard(c.frente), v = _sanCard(c.verso);
+              if (f !== (c.frente || '') || v !== (c.verso || '')) saneados++;
+              c.frente = f; c.verso = v;
+            });
+            valor = JSON.stringify(arr);
+          }
+        } catch (_) { /* chave ilegível: entra como veio, e falhará na leitura normal */ }
+      }
+      localStorage.setItem(prefix + subKey, valor);
     });
+    if (saneados) {
+      try { showToast('⚠ ' + saneados + ' card(is) do backup tinham conteúdo suspeito e foram limpos na importação.'); } catch (_) {}
+      console.warn('[importProfile] cards saneados:', saneados);
+    }
     return id;
   },
 
@@ -8222,6 +8312,14 @@ function formatPct(pct) {
 const _ESC_MAP = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' };
 function escapeHtml(str) {
   return String(str == null ? '' : str).replace(/[&<>"']/g, ch => _ESC_MAP[ch]);
+}
+
+// Atalho tolerante para o saneamento de cards (definido junto do editor rico).
+// O try/catch existe só para o caso de ser chamado antes do script terminar de
+// carregar: nesse cenário nada é perdido, apenas não se sanea naquele instante.
+function _sanCard(html) {
+  const s = html == null ? '' : String(html);
+  try { return sanitizeCardHtml(s); } catch (_) { return s; }
 }
 
 function formatDateShort(iso) {
@@ -14557,14 +14655,18 @@ const CardsScreen = {
   },
   // renderiza as faces conforme o tipo (cloze ou básico)
   faceHtml(c) {
+    // Saneia também na SAÍDA (além da entrada, em DB.addCard): assim um card que já
+    // estivesse gravado de antes, ou vindo por um caminho novo, nunca executa nada.
+    // Custo desprezível — é um card por vez, com memória de resultado.
+    const cFrente = _sanCard(c.frente), cVerso = _sanCard(c.verso);
     if (c.kind === 'cloze') {
-      const front = CardEngine.clozeRender(c.frente, false);
-      const back = CardEngine.clozeRender(c.frente, true) + (CardEngine.plain(c.verso) ? `<hr style="border:none;border-top:1px solid var(--border);margin:12px 0">${c.verso}` : '');
+      const front = CardEngine.clozeRender(cFrente, false);
+      const back = CardEngine.clozeRender(cFrente, true) + (CardEngine.plain(cVerso) ? `<hr style="border:none;border-top:1px solid var(--border);margin:12px 0">${cVerso}` : '');
       return `<div class="cards-face cards-front">${front || '<em>(vazio)</em>'}</div>
         <div class="cards-face cards-back" style="display:${this._flipped ? 'block' : 'none'}">${back}</div>`;
     }
-    return `<div class="cards-face cards-front">${c.frente || '<em style="color:var(--text-faint)">(frente vazia)</em>'}</div>
-      <div class="cards-face cards-back" style="display:${this._flipped ? 'block' : 'none'}">${c.verso || '<em style="color:var(--text-faint)">(verso vazio)</em>'}</div>`;
+    return `<div class="cards-face cards-front">${cFrente || '<em style="color:var(--text-faint)">(frente vazia)</em>'}</div>
+      <div class="cards-face cards-back" style="display:${this._flipped ? 'block' : 'none'}">${cVerso || '<em style="color:var(--text-faint)">(verso vazio)</em>'}</div>`;
   },
   // renderiza os botões: "Mostrar resposta" OU os 4 botões de avaliação
   renderActions(box, c) {
@@ -14740,21 +14842,16 @@ const CardsScreen = {
     }
     this.renderReviewCard(box);
   },
-  renderMeus(box) {
-    const filtered = this.currentFilteredCards().sort((a, b) => (b.updatedAt || '').localeCompare(a.updatedAt || ''));
-    if (DB.getCards().length === 0) {
-      box.innerHTML = this.emptyState('Você ainda não criou nenhum card', 'Clique em <strong>＋ Criar card</strong> no topo pra começar.');
-      return;
-    }
-    if (filtered.length === 0) {
-      box.innerHTML = this.emptyState('Nenhum card nos filtros', 'Ajuste a busca ou os filtros acima.');
-      return;
-    }
-    const st = CardEngine.stats(filtered);
-    box.innerHTML = `
-      <div class="cards-count-bar">${filtered.length} card(s) · <span style="color:var(--good)">${st.sei} sei</span> · <span style="color:var(--bad)">${st.naosei} não sei</span> · <span style="color:var(--text-soft)">${st.pendente} pendente(s)</span>${st.suspensos ? ` · <span style="color:var(--bad)">🚫 ${st.suspensos} suspenso(s)</span>` : ''}</div>
-      <div class="cards-grid">` +
-      filtered.map(c => `
+  // Quantos cards a lista mostra por vez. Antes ela montava TODOS os cards
+  // filtrados de uma vez — cada um com o HTML rico completo, imagens em base64
+  // incluídas — e refazia a lista inteira a cada clique numa estrela. Com alguns
+  // milhares de cards isso congelava a tela por segundos.
+  PAGINA_CARDS: 60,
+  _meusMostrando: 0,
+  miniCardHtml(c) {
+    // saneado no preview também: a lista é HTML rico como a tela de revisão
+    const frenteSan = _sanCard(c.frente);
+    return `
         <div class="mini-card" data-id="${c.id}">
           <div class="mini-card-top">
             <span class="mini-card-badges">
@@ -14764,7 +14861,7 @@ const CardsScreen = {
             </span>
             <button type="button" class="cards-fav-star ${c.favorito ? 'on' : ''}" data-fav="${c.id}" title="Favoritar">${c.favorito ? '★' : '☆'}</button>
           </div>
-          <div class="mini-card-front">${c.kind === 'cloze' ? CardEngine.clozeRender(c.frente, false) : (c.frente || '<em style="color:var(--text-faint)">(vazio)</em>')}</div>
+          <div class="mini-card-front">${c.kind === 'cloze' ? CardEngine.clozeRender(frenteSan, false) : (frenteSan || '<em style="color:var(--text-faint)">(vazio)</em>')}</div>
           <div class="mini-card-foot">
             <span class="cards-status-dot ${c.status || 'pendente'}"></span>
             <span class="mini-card-status">${c.status === 'sei' ? 'Sei' : c.status === 'naosei' ? 'Não sei' : 'Pendente'}</span>
@@ -14778,20 +14875,82 @@ const CardsScreen = {
             <button type="button" class="icon-btn mini-edit" data-edit="${c.id}" title="Editar">✎</button>
             <button type="button" class="icon-btn danger mini-del" data-del="${c.id}" title="Excluir">×</button>
           </div>
-        </div>`).join('') + `</div>`;
-    box.querySelectorAll('[data-fav]').forEach(b => b.addEventListener('click', () => {
-      const c = DB.getCard(b.dataset.fav); DB.updateCard(c.id, { favorito: !c.favorito }); this.updateFavCount(); this.renderMeus(box);
-    }));
-    box.querySelectorAll('[data-edit]').forEach(b => b.addEventListener('click', () => this.openCardModal(b.dataset.edit)));
-    box.querySelectorAll('[data-unsusp]').forEach(b => b.addEventListener('click', () => {
-      DB.updateCard(b.dataset.unsusp, { suspenso: false, due: todayLocal(), dueTs: null });
-      CardEngine.invalidateDueCache();
-      showToast('Card reativado ✓'); this.renderMeus(box);
-    }));
-    box.querySelectorAll('[data-del]').forEach(b => b.addEventListener('click', () => {
-      if (!confirm('Excluir este card?')) return;
-      DB.deleteCard(b.dataset.del); this.render();
-    }));
+        </div>`;
+  },
+  renderMeus(box) {
+    const filtered = this.currentFilteredCards().sort((a, b) => (b.updatedAt || '').localeCompare(a.updatedAt || ''));
+    if (DB.getCards().length === 0) {
+      box.innerHTML = this.emptyState('Você ainda não criou nenhum card', 'Clique em <strong>＋ Criar card</strong> no topo pra começar.');
+      return;
+    }
+    if (filtered.length === 0) {
+      box.innerHTML = this.emptyState('Nenhum card nos filtros', 'Ajuste a busca ou os filtros acima.');
+      return;
+    }
+    const st = CardEngine.stats(filtered);
+    // Ao voltar de uma edição, mantém a quantidade que já estava aberta — senão a
+    // lista "encolheria" sozinha depois de você carregar mais e mexer num card.
+    // O teto existe para que um re-render nunca volte a montar milhares de cards
+    // de uma vez, mesmo que você tenha clicado muito em "Carregar mais".
+    const jaAberto = Math.min(240, Math.max(this.PAGINA_CARDS, this._meusMostrando || 0));
+    let n = Math.min(jaAberto, filtered.length);
+    this._meusMostrando = n;
+
+    box.innerHTML = `
+      <div class="cards-count-bar">${filtered.length} card(s) · <span style="color:var(--good)">${st.sei} sei</span> · <span style="color:var(--bad)">${st.naosei} não sei</span> · <span style="color:var(--text-soft)">${st.pendente} pendente(s)</span>${st.suspensos ? ` · <span style="color:var(--bad)">🚫 ${st.suspensos} suspenso(s)</span>` : ''}</div>
+      <div class="cards-grid" id="cards-grid-meus">${filtered.slice(0, n).map(c => this.miniCardHtml(c)).join('')}</div>
+      <div id="cards-mais-wrap" style="text-align:center;padding:14px 0;"></div>`;
+
+    const grid = box.querySelector('#cards-grid-meus');
+    const maisWrap = box.querySelector('#cards-mais-wrap');
+    const pintarMais = () => {
+      if (n >= filtered.length) {
+        maisWrap.innerHTML = filtered.length > this.PAGINA_CARDS
+          ? `<span class="hint">Fim da lista · ${filtered.length} card(s).</span>` : '';
+        return;
+      }
+      const restam = filtered.length - n;
+      maisWrap.innerHTML = `<button type="button" class="btn-secondary" id="cards-carregar-mais">Carregar mais ${Math.min(this.PAGINA_CARDS, restam)} (restam ${restam})</button>`;
+      maisWrap.querySelector('#cards-carregar-mais').addEventListener('click', () => {
+        const lote = filtered.slice(n, n + this.PAGINA_CARDS);
+        grid.insertAdjacentHTML('beforeend', lote.map(c => this.miniCardHtml(c)).join(''));
+        n += lote.length; this._meusMostrando = n;
+        pintarMais();
+      });
+    };
+    pintarMais();
+
+    // Um listener para a lista inteira, em vez de quatro por card. Além de mais
+    // barato, é o que faz os cards carregados depois já nascerem funcionando.
+    grid.addEventListener('click', (e) => {
+      const fav = e.target.closest('[data-fav]');
+      if (fav) {
+        const c = DB.getCard(fav.dataset.fav);
+        if (!c) return;
+        const novo = !c.favorito;
+        DB.updateCard(c.id, { favorito: novo });
+        this.updateFavCount();
+        // Atualiza SÓ a estrela clicada. Antes, favoritar refazia a lista toda —
+        // e ainda fazia a página saltar de volta para o topo.
+        fav.classList.toggle('on', novo);
+        fav.textContent = novo ? '★' : '☆';
+        return;
+      }
+      const ed = e.target.closest('[data-edit]');
+      if (ed) { this.openCardModal(ed.dataset.edit); return; }
+      const un = e.target.closest('[data-unsusp]');
+      if (un) {
+        DB.updateCard(un.dataset.unsusp, { suspenso: false, due: todayLocal(), dueTs: null });
+        CardEngine.invalidateDueCache();
+        showToast('Card reativado ✓'); this.renderMeus(box);
+        return;
+      }
+      const del = e.target.closest('[data-del]');
+      if (del) {
+        if (!confirm('Excluir este card?')) return;
+        DB.deleteCard(del.dataset.del); this.render();
+      }
+    });
   },
   emptyState(title, sub) {
     return `<div class="card"><div class="empty-state" style="padding:40px 20px;"><div class="big">🗂️</div><h3 style="margin:4px 0;">${title}</h3><p style="color:var(--text-faint)">${sub}</p></div></div>`;
@@ -15273,13 +15432,114 @@ const RTE_TAGS_OK = new Set(['B','STRONG','I','EM','U','S','STRIKE','BR','P','DI
 // Estas saem com o CONTEÚDO junto (não só a tag): senão o texto interno de um bloco de
 // script colado vazaria como texto solto dentro do card.
 const RTE_TAGS_FORA = new Set(['SCRIPT','STYLE','NOSCRIPT','IFRAME','OBJECT','EMBED','LINK','META','FORM','INPUT','BUTTON','SVG','CANVAS','VIDEO','AUDIO']);
+
+/* ════════════════════════════════════════════════════════════════════════════
+   SANITIZAÇÃO DE CARDS — proteção do conteúdo que vira HTML de verdade
+   ────────────────────────────────────────────────────────────────────────────
+   Os cards são renderizados com innerHTML de propósito (negrito, cores, imagens,
+   tabelas — é um editor de texto rico). Isso é seguro para o que VOCÊ digita.
+   O risco está no que vem DE FORA: um .tsv/.json de baralho trocado com colega
+   ou baixado da internet podia trazer <img src=x onerror="..."> e executar
+   script dentro do app — com acesso ao token do Supabase guardado no
+   localStorage (ou seja: acesso à sua conta na nuvem).
+
+   Diferente do rteSanitize (usado ao COLAR), aqui as CORES são preservadas:
+   um baralho importado deve manter o realce original do autor.
+
+   Por que DOMParser e não innerHTML num <div> solto: o documento do DOMParser é
+   INERTE — não busca imagens nem dispara onerror durante a análise. Atribuir
+   innerHTML a um div desanexado, em alguns navegadores, já inicia o carregamento
+   das imagens ANTES de removermos o onerror.
+   ══════════════════════════════════════════════════════════════════════════ */
+// FONT entra na lista porque o próprio editor produz <font color> / <font size>
+// (é o que o execCommand gera no Chrome) — sem ela, sanear apagaria as cores que
+// você aplicou pela barra de ferramentas.
+const CARD_TAGS_OK = new Set([...RTE_TAGS_OK, 'FONT']);
+const CARD_CSS_OK = /^(font-weight|font-style|font-size|font-family|text-decoration|text-align|color|background-color|background|border|border-color|padding|margin|width|height|vertical-align|line-height|list-style-type|white-space)$/;
+const _sanCache = new Map();   // memória curta: sanear o mesmo card em cada re-render sai caro
+
+function sanitizeCardHtml(html) {
+  const s = String(html == null ? '' : html);
+  if (!s || s.indexOf('<') < 0) return s;          // texto puro: nada a fazer
+  const hit = _sanCache.get(s);
+  if (hit !== undefined) return hit;
+  let out;
+  try {
+    const doc = new DOMParser().parseFromString('<body>' + s + '</body>', 'text/html');
+    const body = doc.body;
+    body.querySelectorAll('*').forEach(el => {
+      // toUpperCase é ESSENCIAL: elementos em namespace SVG/MathML preservam a
+      // caixa original ("svg", "script"), então comparar com a lista em maiúsculas
+      // deixava <svg><script> passar batido — a tag era só desembrulhada e o corpo
+      // do script sobrava como texto solto dentro do card.
+      const tag = (el.tagName || '').toUpperCase();
+      // Estas saem COM o conteúdo (senão o corpo de um <script> vazaria como texto)
+      if (RTE_TAGS_FORA.has(tag)) { el.remove(); return; }
+      // Tag desconhecida: some a tag, o texto de dentro fica
+      if (!CARD_TAGS_OK.has(tag)) { el.replaceWith(...el.childNodes); return; }
+      [...el.attributes].forEach(a => {
+        const nome = a.name.toLowerCase();
+        const val = String(a.value || '');
+        // qualquer manipulador de evento (onerror, onload, onclick...) cai aqui
+        if (nome.startsWith('on') || nome === 'srcdoc' || nome === 'formaction' || nome === 'xlink:href') {
+          el.removeAttribute(a.name); return;
+        }
+        if (nome === 'style') {
+          const manter = [];
+          val.split(';').forEach(d => {
+            const i = d.indexOf(':');
+            if (i < 0) return;
+            const prop = d.slice(0, i).trim().toLowerCase(), v = d.slice(i + 1).trim();
+            if (!v || !CARD_CSS_OK.test(prop)) return;
+            // url() traria rastreamento externo; expression()/@import executam CSS ativo
+            if (/url\s*\(|expression|javascript:|@import|behavior/i.test(v)) return;
+            manter.push(prop + ':' + v);
+          });
+          if (manter.length) el.setAttribute('style', manter.join(';')); else el.removeAttribute('style');
+          return;
+        }
+        // 'class' fica de fora de propósito: um card importado não deve poder vestir
+        // as classes do app e quebrar o layout da tela de revisão.
+        if (!['href','src','alt','title','colspan','rowspan','color','size','face'].includes(nome)) {
+          el.removeAttribute(a.name); return;
+        }
+        if (nome === 'href' || nome === 'src') {
+          // \u0000-\u0020 fora: "java\tscript:" e afins driblariam a checagem
+          const url = val.trim().replace(/[\u0000-\u0020]/g, '');
+          const ok = (nome === 'src')
+            ? (/^data:image\/(png|jpe?g|gif|webp|bmp);base64,/i.test(url) || /^https?:\/\//i.test(url))
+            : /^(https?:|mailto:)/i.test(url);
+          if (!ok) el.removeAttribute(a.name);
+        }
+      });
+      if (tag === 'A') {
+        if (!el.getAttribute('href')) el.replaceWith(...el.childNodes);
+        else { el.setAttribute('target', '_blank'); el.setAttribute('rel', 'noopener noreferrer'); }
+      }
+      if (tag === 'IMG' && !el.getAttribute('src')) el.remove();
+    });
+    out = body.innerHTML;
+  } catch (_) {
+    out = s.replace(/</g, '&lt;');   // sem DOMParser: degrada para texto puro (nunca executa)
+  }
+  if (_sanCache.size > 600) _sanCache.clear();
+  _sanCache.set(s, out);
+  return out;
+}
+window.sanitizeCardHtml = sanitizeCardHtml;
+
 function rteSanitize(html) {
-  const tmp = document.createElement('div');
-  tmp.innerHTML = String(html || '');
+  // Mesma razão do DOMParser acima: análise inerte, sem carregar recurso nenhum.
+  let tmp;
+  try { tmp = new DOMParser().parseFromString('<body>' + String(html || '') + '</body>', 'text/html').body; }
+  catch (_) { tmp = document.createElement('div'); tmp.textContent = String(html || ''); return tmp.innerHTML; }
   tmp.querySelectorAll('*').forEach(el => {
     if (!el.isConnected && !tmp.contains(el)) return;
-    if (RTE_TAGS_FORA.has(el.tagName)) { el.remove(); return; }
-    if (!RTE_TAGS_OK.has(el.tagName)) { el.replaceWith(...el.childNodes); return; }
+    // toUpperCase: elementos SVG/MathML mantêm a caixa original, então <svg> e o
+    // <script> dentro dele escapavam da comparação com as listas em maiúsculas.
+    const tag = (el.tagName || '').toUpperCase();
+    if (RTE_TAGS_FORA.has(tag)) { el.remove(); return; }
+    if (!RTE_TAGS_OK.has(tag)) { el.replaceWith(...el.childNodes); return; }
     [...el.attributes].forEach(a => {
       const nome = a.name.toLowerCase();
       // qualquer on* (onerror, onclick...) e URLs javascript: saem
@@ -15301,11 +15561,11 @@ function rteSanitize(html) {
       }
       if (!['href', 'src', 'alt', 'title', 'colspan', 'rowspan'].includes(nome)) el.removeAttribute(a.name);
     });
-    if (el.tagName === 'A') {
+    if (tag === 'A') {
       if (!el.getAttribute('href')) el.replaceWith(...el.childNodes);
       else { el.setAttribute('target', '_blank'); el.setAttribute('rel', 'noopener noreferrer'); }
     }
-    if (el.tagName === 'IMG' && !el.getAttribute('src')) el.remove();
+    if (tag === 'IMG' && !el.getAttribute('src')) el.remove();
   });
   return tmp.innerHTML;
 }
@@ -18449,6 +18709,10 @@ const DesempenhoTecScreen = {
   // ---- Incidência ----
   _incidParsed: null,
   renderIncidencia() {
+    // Render novo = árvores novas. Sem limpar, uma banca excluída (ou renomeada)
+    // deixaria a floresta antiga guardada e o bloco poderia nascer com dado velho.
+    this._incidForests = {};
+    this._incidLazy.clear();
     // datalist de bancas
     document.getElementById('incid-banca-list').innerHTML = DB.getBancas().map(b => `<option value="${escapeHtml(b)}">`).join('');
     const bancas = DB.getBancas();
@@ -18489,8 +18753,13 @@ const DesempenhoTecScreen = {
       const forest = this._buildIncidForest(rows);
       // base das barras de nível 0 = maior disciplina (barras relativas aos irmãos)
       const rootMax = Math.max(1, ...forest.map(n => n.incidencia || 0));
+      // A ÁRVORE NÃO É MONTADA AQUI. Antes, o índice inteiro de TODAS as bancas
+      // virava HTML já no primeiro render — inclusive o de bancas fechadas, que
+      // ninguém estava olhando. Agora a floresta fica guardada e só vira HTML
+      // quando o bloco da banca é aberto (e, dentro dele, nível a nível).
+      this._incidForests[b] = { forest, rootMax };
       const treeHtml = forest.length
-        ? `<div class="itree">${forest.map(n => this._incidNodeHtml(n, 0, rootMax)).join('')}</div>`
+        ? `<div class="itree" data-tree-banca="${escapeHtml(b)}"></div>`
         : '<div class="incid-detail-empty">Nenhum tópico.</div>';
       return `<div class="incid-banca-block ${autoOpen ? 'open' : ''}" data-banca="${escapeHtml(b)}">
         <div class="incid-banca-row expandable">
@@ -18520,6 +18789,9 @@ const DesempenhoTecScreen = {
       const del = block.querySelector('.incid-banca-del');
       head.addEventListener('click', (e) => {
         if (e.target.closest('.incid-banca-del')) return;
+        // monta a árvore desta banca na primeira abertura (custo pago só uma vez,
+        // e só para a banca que você realmente quis ver)
+        if (!block.classList.contains('open')) this._incidBuildTree(block.querySelector('.itree[data-tree-banca]'));
         block.classList.toggle('open');
       });
       del.addEventListener('click', (e) => {
@@ -18531,13 +18803,21 @@ const DesempenhoTecScreen = {
         });
         return;
       });
-      // toggle de cada nó com filhos
-      block.querySelectorAll('.itree-row.has-kids').forEach(row => {
-        row.addEventListener('click', (e) => { if (e.target.closest('.itree-edit')) return; e.stopPropagation(); row.closest('.itree-node').classList.toggle('open'); });
+      // Toggle e edição por DELEGAÇÃO: as linhas passam a nascer sob demanda, então
+      // não dá mais para registrar um listener por linha no momento do render —
+      // e isso também elimina milhares de listeners de uma vez só.
+      block.addEventListener('click', (e) => {
+        const row = e.target.closest('.itree-row.has-kids');
+        if (!row || !block.contains(row) || e.target.closest('.itree-edit')) return;
+        e.stopPropagation();
+        const nodeEl = row.closest('.itree-node');
+        if (!nodeEl.classList.contains('open')) this._incidHydrate(nodeEl.querySelector(':scope > .itree-children'));
+        nodeEl.classList.toggle('open');
       });
       // editar/renomear item de incidência
-      block.querySelectorAll('.itree-edit').forEach(btn => {
-        btn.addEventListener('click', (e) => {
+      block.addEventListener('click', (e) => {
+        const btn = e.target.closest('.itree-edit');
+        if (btn && block.contains(btn)) {
           e.stopPropagation();
           const id = btn.dataset.id;
           const nomeAtual = btn.dataset.nome;
@@ -18551,15 +18831,20 @@ const DesempenhoTecScreen = {
             this.renderIncidencia();
             showToast('Incidência atualizada ✓');
           });
-        });
+        }
       });
       // expandir/recolher tudo
-      const setAll = (open) => block.querySelectorAll('.itree-node').forEach(n => { if (n.querySelector(':scope > .itree-children')) n.classList.toggle('open', open); });
+      const setAll = (open) => {
+        if (open) this._incidHydrateAll(block);   // só ao expandir vale montar a árvore inteira
+        block.querySelectorAll('.itree-node').forEach(n => { if (n.querySelector(':scope > .itree-children')) n.classList.toggle('open', open); });
+      };
       const exp = block.querySelector('.itree-expand'); if (exp) exp.addEventListener('click', (e) => { e.stopPropagation(); setAll(true); });
       const col = block.querySelector('.itree-collapse'); if (col) col.addEventListener('click', (e) => { e.stopPropagation(); setAll(false); });
       // busca hierárquica (mostra o nó se ele OU um descendente casar; expande os caminhos)
       const search = block.querySelector('.incid-detail-search');
-      const roots = Array.from(block.querySelectorAll('.itree > .itree-node'));
+      // As raízes são lidas na hora do uso (não mais fixadas no render): com a árvore
+      // sob demanda, elas podem ainda não existir quando os listeners são criados.
+      const getRoots = () => Array.from(block.querySelectorAll('.itree > .itree-node'));
       const filterNode = (node, q) => {
         const nameEl = node.querySelector(':scope > .itree-row .itree-label');
         const selfMatch = !q || (nameEl && nameEl.dataset.s.includes(q));
@@ -18573,13 +18858,20 @@ const DesempenhoTecScreen = {
       };
       if (search) {
         search.addEventListener('click', (e) => e.stopPropagation());
-        search.addEventListener('input', () => { const q = this._normSearch(search.value); roots.forEach(r => filterNode(r, q)); });
+        search.addEventListener('input', () => {
+          const q = this._normSearch(search.value);
+          // BUSCAR exige a árvore inteira em memória — um tópico ainda não
+          // materializado seria um falso negativo. Custo pago na 1ª tecla, uma vez.
+          if (q) this._incidHydrateAll(block);
+          getRoots().forEach(r => filterNode(r, q));
+        });
       }
       // filtro por DISCIPLINA: mostra só o ramo escolhido (ou todos)
       const discSel = block.querySelector('.incid-disc-filter');
       if (discSel) discSel.addEventListener('change', () => {
         const val = discSel.value;
-        roots.forEach(r => {
+        this._incidBuildTree(block.querySelector('.itree[data-tree-banca]'));
+        getRoots().forEach(r => {
           const nameEl = r.querySelector(':scope > .itree-row .itree-label');
           const nome = nameEl ? nameEl.getAttribute('title') : '';
           const show = (val === '__todas__') || (nome === val);
@@ -18607,6 +18899,49 @@ const DesempenhoTecScreen = {
     });
     return forest;
   },
+  // floresta de cada banca, guardada para virar HTML sob demanda
+  _incidForests: {},
+  _incidLazy: new Map(),
+  _incidSeq: 0,
+  // Monta a árvore de UMA banca (chamado ao abrir o bloco). Os níveis abaixo do
+  // primeiro continuam sendo promessas até serem abertos.
+  _incidBuildTree(box) {
+    if (!box || box.dataset.built === '1') return;
+    const b = box.getAttribute('data-tree-banca');
+    const reg = this._incidForests[b];
+    if (!reg) return;
+    box.dataset.built = '1';
+    box.innerHTML = reg.forest.map(n => this._incidNodeHtml(n, 0, reg.rootMax)).join('');
+    // o nível 0 já nasce aberto (classe "open"), então os filhos dele precisam existir
+    box.querySelectorAll(':scope > .itree-node.open').forEach(n =>
+      this._incidHydrate(n.querySelector(':scope > .itree-children')));
+  },
+  _incidHydrate(box) {
+    if (!box) return false;
+    const lid = box.getAttribute('data-ilazy');
+    if (!lid) return false;
+    const reg = this._incidLazy.get(lid);
+    box.removeAttribute('data-ilazy');
+    this._incidLazy.delete(lid);
+    if (!reg) return false;
+    const childMax = Math.max(1, ...reg.node.children.map(c => c.incidencia || 0));
+    box.innerHTML = reg.node.children.map(k => this._incidNodeHtml(k, reg.level + 1, childMax)).join('');
+    return true;
+  },
+  // Materializa toda a árvore de um bloco — necessário antes de BUSCAR ou de
+  // "Expandir tudo": um assunto que ainda não nasceu não poderia ser encontrado.
+  _incidHydrateAll(block) {
+    const box = block.querySelector('.itree[data-tree-banca]');
+    if (box) this._incidBuildTree(box);
+    // Por NÍVEL (ver a nota em _hydrateAll da árvore do TEC): resolver um marcador
+    // por varredura completa seria O(n²) e travaria a tela no índice de um caderno grande.
+    let pend = block.querySelectorAll('.itree-children[data-ilazy]');
+    let nivel = 0;
+    while (pend.length && nivel++ < 64) {
+      pend.forEach(b => this._incidHydrate(b));
+      pend = block.querySelectorAll('.itree-children[data-ilazy]');
+    }
+  },
   _incidNodeHtml(node, level, siblingMax) {
     const hasKids = node.children && node.children.length > 0;
     // Barra RELATIVA AOS IRMÃOS (não ao total do caderno): o maior item de cada
@@ -18615,8 +18950,12 @@ const DesempenhoTecScreen = {
     const pct = Math.max(3, Math.round((node.incidencia / base) * 100)); // piso de 3% para não sumir
     const indent = 10 + level * 16;
     const caret = hasKids ? '<span class="itree-caret">▶</span>' : '<span class="itree-dot"></span>';
-    const childMax = hasKids ? Math.max(1, ...node.children.map(c => c.incidencia || 0)) : 1;
-    const kids = hasKids ? `<div class="itree-children">${node.children.map(k => this._incidNodeHtml(k, level + 1, childMax)).join('')}</div>` : '';
+    let kids = '';
+    if (hasKids) {
+      const lid = 'il' + (++this._incidSeq);
+      this._incidLazy.set(lid, { node, level });
+      kids = `<div class="itree-children" data-ilazy="${lid}"></div>`;
+    }
     const ns = this._normSearch(node.nome);
     const editBtn = node.id ? `<button type="button" class="itree-edit" data-id="${node.id}" data-nome="${escapeHtml(node.nome)}" data-inc="${node.incidencia}" title="Editar/renomear">✎</button>` : '';
     return `<div class="itree-node ${level === 0 ? 'open' : ''}">
@@ -19133,7 +19472,17 @@ const DesempenhoTecScreen = {
     const arrow = diff > 0 ? '▲' : '▼';
     return `<span class="tec-delta ${cls}">${arrow} ${diff > 0 ? '+' : ''}${diff}</span>`;
   },
-  // Renderiza recursivamente um nó da árvore (cascata completa)
+  /* ── ÁRVORE SOB DEMANDA ────────────────────────────────────────────────────
+     Antes, a árvore inteira do caderno virava HTML de uma vez — milhares de nós
+     em disciplina → assunto → tópico → subtópico, todos montados mesmo estando
+     recolhidos e invisíveis. Em cadernos grandes isso travava a tela por
+     segundos a cada render.
+     Agora cada nó nasce com um marcador vazio no lugar dos filhos e só se
+     materializa quando você o abre. Nada muda no que você vê: o conteúdo é o
+     mesmo, e "Expandir tudo" materializa a árvore completa antes de abrir. */
+  _lazyReg: new Map(),   // id do marcador → { node, level }  (só o que ainda não nasceu)
+  _lazySeq: 0,
+  // Renderiza UM nó; os filhos ficam como promessa até serem abertos
   treeNodeHtml(node, prevIdx, level) {
     const pct = this.nodePct(node);
     const tone = this.toneOf(pct);
@@ -19142,14 +19491,12 @@ const DesempenhoTecScreen = {
     const delta = this.deltaHtml(node, prevIdx);
     const nameCls = level === 0 ? 'tnode-name lvl0' : 'tnode-name';
     const caret = hasKids ? `<span class="tnode-caret">▶</span>` : `<span class="tnode-dot"></span>`;
-    // ordena os filhos SEMPRE do mais fraco para o mais forte (em cada nível e subnível),
-    // para que os pontos fracos fiquem no topo em qualquer profundidade
-    const kids = hasKids
-      ? node.children.slice().sort((a, b) => this.nodePct(a) - this.nodePct(b) || b.questoes - a.questoes)
-      : [];
-    const kidsHtml = hasKids
-      ? `<div class="tnode-children">${kids.map(c => this.treeNodeHtml(c, prevIdx, level + 1)).join('')}</div>`
-      : '';
+    let kidsHtml = '';
+    if (hasKids) {
+      const lid = 'tl' + (++this._lazySeq);
+      this._lazyReg.set(lid, { node, level, prevIdx });
+      kidsHtml = `<div class="tnode-children" data-lazy="${lid}"></div>`;
+    }
     return `
       <div class="tnode ${level === 0 ? 'lvl0' : ''}" data-haskids="${hasKids ? '1' : '0'}">
         <div class="tnode-row ${hasKids ? 'has-kids' : ''}" style="padding-left:${indent}px;">
@@ -19160,6 +19507,36 @@ const DesempenhoTecScreen = {
         </div>
         ${kidsHtml}
       </div>`;
+  },
+  // Materializa os filhos de UM contêiner marcado. Idempotente: se já nasceu, sai.
+  _hydrate(box) {
+    if (!box) return false;
+    const lid = box.getAttribute('data-lazy');
+    if (!lid) return false;
+    const reg = this._lazyReg.get(lid);
+    box.removeAttribute('data-lazy');
+    this._lazyReg.delete(lid);
+    if (!reg) return false;
+    // ordena os filhos SEMPRE do mais fraco para o mais forte (em cada nível e subnível),
+    // para que os pontos fracos fiquem no topo em qualquer profundidade
+    const kids = reg.node.children.slice()
+      .sort((a, b) => this.nodePct(a) - this.nodePct(b) || b.questoes - a.questoes);
+    box.innerHTML = kids.map(c => this.treeNodeHtml(c, reg.prevIdx, reg.level + 1)).join('');
+    return true;
+  },
+  // Materializa tudo o que ainda falta dentro de um contêiner (usado por "Expandir tudo"
+  // e antes de qualquer operação que precise enxergar a árvore inteira).
+  _hydrateAll(root) {
+    // POR NÍVEL, não um a um: procurar o próximo marcador varrendo a árvore inteira
+    // a cada nó custaria O(n²) — em cadernos grandes, segundos de tela travada.
+    // Aqui cada rodada resolve todos os marcadores existentes de uma vez, e a
+    // rodada seguinte cuida do nível que acabou de nascer.
+    let pend = root.querySelectorAll('.tnode-children[data-lazy]');
+    let nivel = 0;
+    while (pend.length && nivel++ < 64) {
+      pend.forEach(b => this._hydrate(b));
+      pend = root.querySelectorAll('.tnode-children[data-lazy]');
+    }
   },
   discFilter: '__todas__', // '__todas__' = todas as disciplinas | nome = focar numa
   renderDisciplinas(snap) {
@@ -19220,17 +19597,30 @@ const DesempenhoTecScreen = {
         <button type="button" class="tec-tree-btn" id="tec-collapse-all">⊟ Recolher tudo</button>
       </div>`;
     // ao focar numa disciplina, já abre o primeiro nível para leitura imediata
+    this._lazyReg.clear();   // render novo: descarta promessas do render anterior
     container.innerHTML = toolbar + `<div class="tec-tree">${shown.map(d => this.treeNodeHtml(d, prevIdx, 0)).join('')}</div>`;
-    if (focused) container.querySelectorAll('.tnode.lvl0[data-haskids="1"]').forEach(n => n.classList.add('open'));
-
-    // toggle por nó (só linhas com filhos)
-    container.querySelectorAll('.tnode-row.has-kids').forEach(row => {
-      row.addEventListener('click', (e) => {
-        e.stopPropagation();
-        row.closest('.tnode').classList.toggle('open');
-      });
+    // ao focar numa disciplina o primeiro nível já abre — então precisa nascer agora
+    if (focused) container.querySelectorAll('.tnode.lvl0[data-haskids="1"]').forEach(n => {
+      n.classList.add('open');
+      this._hydrate(n.querySelector(':scope > .tnode-children'));
     });
-    const setAll = (open) => container.querySelectorAll('.tnode[data-haskids="1"]').forEach(n => n.classList.toggle('open', open));
+
+    // Toggle por DELEGAÇÃO: um único listener no contêiner, em vez de um por linha.
+    // Necessário porque as linhas passam a ser criadas depois (sob demanda) — e de
+    // quebra elimina milhares de listeners que antes eram registrados de uma vez.
+    container.addEventListener('click', (e) => {
+      const row = e.target.closest('.tnode-row.has-kids');
+      if (!row || !container.contains(row)) return;
+      e.stopPropagation();
+      const nodeEl = row.closest('.tnode');
+      const box = nodeEl.querySelector(':scope > .tnode-children');
+      if (!nodeEl.classList.contains('open')) this._hydrate(box);  // abrindo: materializa
+      nodeEl.classList.toggle('open');
+    });
+    const setAll = (open) => {
+      if (open) this._hydrateAll(container);   // só ao expandir é que vale pagar a árvore toda
+      container.querySelectorAll('.tnode[data-haskids="1"]').forEach(n => n.classList.toggle('open', open));
+    };
     container.querySelector('#tec-expand-all').addEventListener('click', () => setAll(true));
     container.querySelector('#tec-collapse-all').addEventListener('click', () => setAll(false));
   }
@@ -19597,7 +19987,12 @@ const ProfileUI = {
     let entered = null;
     try { entered = sessionStorage.getItem(this.SESSION_KEY); } catch (e) {}
     const active = ProfileManager.getActiveProfileId();
-    if (entered && entered === active && this._hasLocalData(active)) { this.hideGate(); return; }
+    if (entered && entered === active && this._hasLocalData(active)) {
+      this.hideGate();
+      // Só depois de entrar de fato: no gate o aviso não teria o que fazer.
+      try { DB.checarEspaco(); } catch (_) {}
+      return;
+    }
     this.showGate();
   },
   _hasLocalData(id) {
@@ -20014,6 +20409,41 @@ const CloudStore = {
   },
   // reprograma uma nova tentativa daqui a \`ms\` sem descartar o que está pendente
   _rearm(ms) { clearTimeout(this._debounce); this._debounce = setTimeout(() => this.autoSave(), ms); },
+  /* ── ESCRITA DUPLA: quando o BLOB precisa mesmo subir ──────────────────────
+     O blob é o perfil INTEIRO (exportProfile varre todo o localStorage do perfil).
+     Enviá-lo a cada mudança significa subir megabytes para marcar um "Concluir"
+     numa atividade extra — caro no 4G e lento no 3G. Com a leitura por seção
+     ligada (Fase 2), quem carrega a verdade do dia a dia é profile_sections, que
+     envia só o que mudou. Então o blob passa a ser uma REDE DE SEGURANÇA
+     periódica, não o caminho principal.
+
+     O blob ainda sobe SEMPRE que: (a) o sync por seção está desligado ou falhou
+     — aí ele volta a ser a única fonte; (b) passou o intervalo mínimo; (c) o app
+     vai para segundo plano/fecha (flushPending, _beaconSave, saveThenReload);
+     (d) é o primeiro salvamento da sessão. Assim o plano B nunca fica velho
+     demais nem desatualizado num momento crítico. */
+  BLOB_MIN_INTERVAL_MS: 180000,   // 3 min
+  _lastBlobAt: 0,
+  _forceBlob: false,
+  _blobDue() {
+    if (this._forceBlob) return true;
+    if (!this._lastBlobAt) return true;                       // nada subiu ainda nesta sessão
+    if (!window.SectionSync || !SectionSync.enabled || !SectionSync.readEnabled) return true;
+    if (SectionSync._lastError) return true;                  // seções com problema: blob assume
+    if (SectionSync._seededProfile !== ProfileManager.getActiveProfileId()) return true;
+    return (Date.now() - this._lastBlobAt) >= this.BLOB_MIN_INTERVAL_MS;
+  },
+  // Empurra as seções e diz se ficou tudo entregue. É isto que substitui o blob
+  // nas rodadas leves — se sobrar seção suja ou houver erro, a rodada não conta
+  // como sincronizada e a pendência é mantida para nova tentativa.
+  async _pushSectionsNow() {
+    if (!window.SectionSync || !SectionSync.enabled) return false;
+    try {
+      SectionSync.seedOnce();
+      await SectionSync.pushDirty();
+      return SectionSync._dirty.size === 0 && !SectionSync._lastError;
+    } catch (_) { return false; }
+  },
   async autoSave() {
     // BUG CORRIGIDO: se um salvamento já está em curso, NÃO descartamos a rodada —
     // reprogramamos uma nova tentativa para logo após, senão a última alteração ficava
@@ -20025,6 +20455,28 @@ const CloudStore = {
     this._syncing = true; this._pending = false;
     if (window.CloudUI) CloudUI.setStatus('syncing', 'Sincronizando...');
     try {
+      if (!this._blobDue()) {
+        // ── ROTA LEVE: só as seções alteradas ──────────────────────────────
+        // Se o envio periódico de seções já está em curso, esperamos a vez: forçar
+        // o blob aqui seria tratar concorrência normal como se fosse falha.
+        if (SectionSync._pushing) {
+          this._syncing = false; this._pending = true; this._rearm(800); return;
+        }
+        const ok = await this._pushSectionsNow();
+        this._syncing = false;
+        if (!ok) {
+          // alguma seção não subiu: promove esta rodada a envio de blob e repete
+          this._pending = true; this._forceBlob = true;
+          if (window.CloudUI) CloudUI.setStatus('error', 'Reenviando…');
+          this._rearm(3000);
+          return;
+        }
+        this._lastSyncAt = Date.now();
+        if (window.CloudUI) CloudUI.setStatus('ok', 'Sincronizado');
+        if (this._pending) this._rearm(300);
+        return;
+      }
+      // ── ROTA COMPLETA: blob + seções ─────────────────────────────────────
       const r = await this.saveActiveWithRetry();
       this._syncing = false;
       if (r && r.conflict) {
@@ -20034,6 +20486,7 @@ const CloudStore = {
         this._rearm(5000);
         return;
       }
+      this._lastBlobAt = Date.now(); this._forceBlob = false;
       this._lastSyncAt = Date.now();
       if (window.CloudUI) CloudUI.setStatus('ok', 'Sincronizado');
       try { if (window.SectionSync) SectionSync.afterBlobSave(); } catch (_) {} // escrita dupla (Opção B, Fase 1)
@@ -20052,6 +20505,10 @@ const CloudStore = {
   async flushPending() {
     if (!this.isReady() || !this.isLoggedIn()) return;
     clearTimeout(this._debounce);
+    // flushPending é chamado nos momentos críticos (app indo para segundo plano,
+    // "Sincronizar agora", troca de perfil). Aqui o blob SOBE, custe o que custar:
+    // é a hora em que a rede de segurança precisa estar em dia.
+    this._forceBlob = true;
     if (this._pending || this._syncing) await this.autoSave();
   },
   // SALVAMENTO DE EMERGÊNCIA (keepalive): fetch com keepalive:true sobrevive ao fechamento
@@ -20992,6 +21449,7 @@ _cloudNotifyHook = () => CloudStore.notifyChange();
   setInterval(() => { if (window.CloudUI) CloudUI.refreshSyncBtn(); }, 30000);
   // estado inicial do botão
   setTimeout(() => { if (window.CloudUI) CloudUI.refreshSyncBtn(); }, 300);
+
 })();
 
 /* ---- Tamanho do texto (A− / A+): escala global, salva por perfil ---- */
@@ -21473,11 +21931,16 @@ else CloudStore.init();
   Object.defineProperty(LS, 'length', { get: function () { return cache.size; } });
 
   function installShim() {
+    // __idbShim informa ao app se ele está rodando sobre o IndexedDB (cota grande)
+    // ou caiu para o localStorage nativo (~5 MB). O aviso antecipado de espaço usa
+    // isso para não gritar "quase cheio" com 4 MB quando há centenas de MB livres.
     try {
       Object.defineProperty(window, 'localStorage', { configurable: true, get: function () { return LS; } });
+      window.__idbShim = true;
       return true;
     } catch (e) {
-      try { window.localStorage = LS; return true; } catch (e2) { return false; }
+      try { window.localStorage = LS; window.__idbShim = true; return true; }
+      catch (e2) { window.__idbShim = false; return false; }
     }
   }
 
