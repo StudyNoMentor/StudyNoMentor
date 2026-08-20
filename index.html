@@ -3603,6 +3603,117 @@
     box-shadow: 0 6px 18px var(--accent-ring);
   }
 
+  /* ══════════════════════════════════════════════════════════════════════════
+     REGISTRAR — PASSO A PASSO
+     Em vez de um formulário único e denso, a tela vira uma trilha numerada:
+     cada bloco é uma etapa, ligada à seguinte por uma linha vertical. O olho
+     sabe onde está e o que falta, e no celular cada etapa ocupa a tela inteira
+     em vez de virar uma parede de campos.
+     ═════════════════════════════════════════════════════════════════════════ */
+  #screen-registrar .steps { position: relative; }
+  #screen-registrar .step {
+    position: relative;
+    padding: 0 0 26px 46px;      /* espaço à esquerda para a coluna do número */
+  }
+  #screen-registrar .step:last-of-type { padding-bottom: 6px; }
+  /* a linha que costura as etapas: nasce abaixo do círculo e vai até a próxima */
+  #screen-registrar .step::before {
+    content: '';
+    position: absolute;
+    left: 15px; top: 34px; bottom: 0;
+    width: 2px;
+    background: linear-gradient(180deg, var(--border) 0%, color-mix(in srgb, var(--border) 35%, transparent) 100%);
+  }
+  #screen-registrar .step:last-of-type::before { display: none; }
+  #screen-registrar .step-num {
+    position: absolute;
+    left: 0; top: 0;
+    width: 32px; height: 32px;
+    display: grid; place-items: center;
+    border-radius: 50%;
+    background: var(--surface);
+    border: 2px solid var(--border);
+    color: var(--text-soft);
+    font-family: 'Space Mono', monospace;
+    font-size: calc(13px * var(--fs-scale, 1));
+    font-weight: 700;
+    transition: background .18s ease, border-color .18s ease, color .18s ease, box-shadow .18s ease;
+  }
+  /* Etapa preenchida: o número vira um "✓" via CSS, sem tocar no HTML */
+  #screen-registrar .step.done .step-num {
+    background: var(--accent);
+    border-color: var(--accent);
+    color: #fff;
+    box-shadow: 0 0 0 4px var(--accent-ring);
+  }
+  #screen-registrar .step.done .step-num span { display: none; }
+  #screen-registrar .step.done .step-num::after { content: '✓'; font-size: 15px; font-weight: 700; }
+  #screen-registrar .step.active .step-num {
+    border-color: var(--accent);
+    color: var(--accent);
+    box-shadow: 0 0 0 4px var(--accent-ring);
+  }
+  #screen-registrar .step-head { margin: 4px 0 14px; }
+  #screen-registrar .step-title {
+    margin: 0;
+    font-size: calc(15px * var(--fs-scale, 1));
+    font-weight: 700;
+    letter-spacing: -0.01em;
+    color: var(--text);
+  }
+  #screen-registrar .step-desc {
+    margin: 3px 0 0;
+    font-size: calc(12.5px * var(--fs-scale, 1));
+    line-height: 1.5;
+    color: var(--text-soft);
+  }
+  #screen-registrar .step-opt {
+    display: inline-block;
+    margin-left: 7px;
+    padding: 1px 7px;
+    border-radius: 999px;
+    background: var(--surface-sunken);
+    border: 1px solid var(--border);
+    font-size: calc(10px * var(--fs-scale, 1));
+    font-weight: 700;
+    letter-spacing: .04em;
+    text-transform: uppercase;
+    color: var(--text-faint);
+    vertical-align: middle;
+  }
+  /* a barra fina de progresso no topo do formulário */
+  #screen-registrar .step-progress {
+    display: flex; align-items: center; gap: 12px;
+    padding: 14px 28px 0;
+  }
+  #screen-registrar .step-progress-track {
+    flex: 1; height: 5px; border-radius: 999px;
+    background: var(--surface-sunken); overflow: hidden;
+  }
+  #screen-registrar .step-progress-fill {
+    height: 100%; width: 0%;
+    border-radius: 999px;
+    background: linear-gradient(90deg, var(--accent), color-mix(in srgb, var(--accent) 60%, #7dd3fc));
+    transition: width .3s cubic-bezier(.4,0,.2,1);
+  }
+  #screen-registrar .step-progress-label {
+    font-family: 'Space Mono', monospace;
+    font-size: calc(11px * var(--fs-scale, 1));
+    font-weight: 700;
+    color: var(--text-soft);
+    white-space: nowrap;
+  }
+  #screen-registrar .steps-body { padding: 18px 28px 0; }
+  /* No celular a coluna do número encolhe para não roubar largura dos campos */
+  @media (max-width: 640px) {
+    #screen-registrar .step { padding-left: 36px; padding-bottom: 22px; }
+    #screen-registrar .step::before { left: 12px; top: 30px; }
+    #screen-registrar .step-num { width: 26px; height: 26px; font-size: 12px; }
+    #screen-registrar .step.done .step-num::after { font-size: 13px; }
+    #screen-registrar .steps-body { padding: 14px 16px 0; }
+    #screen-registrar .step-progress { padding: 12px 16px 0; }
+  }
+
   /* Configurações: painel mais didático e legível */
   #screen-config .card {
     border-color: color-mix(in srgb, var(--border) 86%, var(--accent) 14%);
@@ -4609,8 +4720,20 @@
             </div>
             <button type="button" class="btn-secondary" id="btn-cancel-edit" style="display:none;">Cancelar edição</button>
           </div>
+          <div class="step-progress">
+            <span class="step-progress-label" id="step-progress-label">Etapa 1 de 5</span>
+            <div class="step-progress-track"><div class="step-progress-fill" id="step-progress-fill"></div></div>
+          </div>
           <form id="study-form">
-            <p class="section-label">O quê</p>
+           <div class="steps steps-body">
+
+            <!-- ETAPA 1 -->
+            <div class="step" id="step-1" data-step="1">
+              <div class="step-num"><span>1</span></div>
+              <div class="step-head">
+                <p class="step-title">O que você estudou</p>
+                <p class="step-desc">A matéria alimenta o ciclo da semana e os gráficos de evolução.</p>
+              </div>
             <div class="field-group">
               <div class="field">
                 <label for="subject">Matéria</label>
@@ -4622,6 +4745,15 @@
               </div>
             </div>
 
+            </div>
+
+            <!-- ETAPA 2 -->
+            <div class="step" id="step-2" data-step="2">
+              <div class="step-num"><span>2</span></div>
+              <div class="step-head">
+                <p class="step-title">Como e quando</p>
+                <p class="step-desc">A forma de estudo define quais campos aparecem adiante (vídeo abre campos próprios).</p>
+              </div>
             <div class="field-group">
               <div class="field">
                 <label for="method">Forma de estudo</label>
@@ -4633,9 +4765,15 @@
               </div>
             </div>
 
-            <hr class="divider">
+            </div>
 
-            <p class="section-label">Onde parou</p>
+            <!-- ETAPA 3 -->
+            <div class="step" id="step-3" data-step="3">
+              <div class="step-num"><span>3</span></div>
+              <div class="step-head">
+                <p class="step-title">Onde parou e por quanto tempo<span class="step-opt">páginas opcionais</span></p>
+                <p class="step-desc">O tempo é o que conta para o ciclo. As páginas viram seu ritmo de leitura.</p>
+              </div>
             <div class="row-3">
               <div class="field">
                 <label for="page-start">Página inicial <span class="opt">(opcional)</span></label>
@@ -4677,9 +4815,15 @@
               <p class="hint" id="video-hint">💡 Informe a posição no vídeo (não o relógio). Em 1h de estudo a 1,5x você assiste ~90&nbsp;min de conteúdo — isso alimenta seu ritmo real de vídeo na Evolução.</p>
             </div>
 
-            <hr class="divider">
+            </div>
 
-            <p class="section-label">Desempenho</p>
+            <!-- ETAPA 4 -->
+            <div class="step" id="step-4" data-step="4">
+              <div class="step-num"><span>4</span></div>
+              <div class="step-head">
+                <p class="step-title">Desempenho em questões<span class="step-opt">opcional</span></p>
+                <p class="step-desc">Deixe em branco se a sessão não teve questões — o registro continua válido.</p>
+              </div>
             <div class="performance-panel" id="perf-panel">
               <div class="performance-inputs">
                 <div class="field">
@@ -4703,11 +4847,22 @@
               </div>
             </div>
 
-            <div class="field full">
-              <label for="comment">Comentário <span class="opt">(opcional)</span></label>
-              <textarea id="comment" placeholder="O que ficou claro, o que precisa revisar, observações sobre o material..."></textarea>
             </div>
 
+            <!-- ETAPA 5 -->
+            <div class="step" id="step-5" data-step="5">
+              <div class="step-num"><span>5</span></div>
+              <div class="step-head">
+                <p class="step-title">Observações<span class="step-opt">opcional</span></p>
+                <p class="step-desc">O que ficou confuso hoje é o que você vai querer reler daqui a um mês.</p>
+              </div>
+              <div class="field full">
+                <label for="comment">Comentário</label>
+                <textarea id="comment" placeholder="O que ficou claro, o que precisa revisar, observações sobre o material..."></textarea>
+              </div>
+            </div>
+
+           </div>
             <div class="submit-row">
               <span class="save-note"><span class="dot"></span>salvo neste dispositivo</span>
               <button type="submit" class="btn-primary" id="submit-btn">Registrar estudo</button>
@@ -6756,18 +6911,24 @@ const DB = {
     this._set(this.KEYS.entries, entries);
     return entry;
   },
+  /* Comparação por TEXTO, de propósito. Registros antigos têm id NUMÉRICO
+     (Date.now()) e os novos têm UUID em texto. Além disso o id passa pelo DOM
+     via data-id, que sempre devolve texto. Comparar com === puro faria o app
+     "não achar" o registro conforme o tipo, e editar/excluir falhariam em
+     silêncio. String() dos dois lados atende os dois formatos. */
+  _mesmoId(a, b) { return String(a) === String(b); },
   deleteEntry(id) {
-    const entries = this.getEntries().filter(e => e.id !== id);
+    const entries = this.getEntries().filter(e => !this._mesmoId(e.id, id));
     this._set(this.KEYS.entries, entries);
   },
   updateEntry(id, patch) {
     const entries = this.getEntries();
-    const e = entries.find(x => x.id === id);
+    const e = entries.find(x => this._mesmoId(x.id, id));
     if (e) Object.assign(e, patch);
     this._set(this.KEYS.entries, entries);
     return e;
   },
-  getEntry(id) { return this.getEntries().find(e => e.id === id); },
+  getEntry(id) { return this.getEntries().find(e => this._mesmoId(e.id, id)); },
 
   // --- Subjects (cadastro mestre de matérias) ---
   getSubjects() {
@@ -9365,6 +9526,7 @@ const ReforcoEngine = {
     refreshSubjectSelect();
     document.getElementById('subject').value = '';
     updateGauge();
+    atualizarEtapas();   // trilha volta ao início junto com o formulário
     updatePagesHint();
     updateVideoConsumed();
     updateVideoFieldsVisibility();
@@ -9450,7 +9612,9 @@ const ReforcoEngine = {
     }).join('');
 
     recentList.querySelectorAll('.recent-item').forEach(row => {
-      const id = parseFloat(row.dataset.id);
+      // Sem parseFloat: o id agora pode ser UUID (texto). parseFloat devolveria
+      // NaN e os botões parariam de funcionar sem erro visível.
+      const id = row.dataset.id;
       row.querySelector('.btn-edit-entry').addEventListener('click', () => {
         const entry = DB.getEntry(id);
         if (entry) enterEditMode(entry);
@@ -9460,7 +9624,7 @@ const ReforcoEngine = {
         if (!entry) return;
         if (!confirm(`Excluir o registro de "${entry.subject}" em ${formatDateShort(entry.date)}? Essa ação não pode ser desfeita.`)) return;
         DB.deleteEntry(id);
-        if (editingId === id) exitEditMode();
+        if (DB._mesmoId(editingId, id)) exitEditMode();
         showToast('Registro excluído');
         renderRecent();
         window.dispatchEvent(new CustomEvent('data:entry-changed'));
@@ -9509,7 +9673,11 @@ const ReforcoEngine = {
       refreshSubjectSelect();
       window.dispatchEvent(new CustomEvent('data:entry-changed'));
     } else {
-      const entry = { id: Date.now(), ...fields, createdAt: new Date().toISOString() };
+      // ID por UUID, não por Date.now(): dois registros criados no MESMO milissegundo
+      // (duplo toque no botão, importação em lote, celular lento que dispara o submit
+      // duas vezes) recebiam o mesmo id — e a partir daí editar ou apagar um deles
+      // atingia o outro. DB._uid() já é usado pelos cards e não colide.
+      const entry = { id: DB._uid(), ...fields, createdAt: new Date().toISOString() };
       DB.saveEntry(entry);
       DB.upsertSubjectName(subject);
       showToast('Estudo registrado ✓');
@@ -9519,6 +9687,7 @@ const ReforcoEngine = {
       refreshSubjectSelect();
       document.getElementById('subject').value = ''; // matéria em branco p/ o usuário escolher
       updateGauge();
+      atualizarEtapas();   // trilha volta ao início junto com o formulário
       updatePagesHint();
       updateVideoConsumed();
       updateVideoFieldsVisibility();
@@ -9535,7 +9704,60 @@ const ReforcoEngine = {
   renderRecent();
 
   // expõe pra outras telas poderem forçar refresh se precisarem
-  window.RegistrarScreen = { refreshSubjectSelect, refreshMethodSelect, renderRecent };
+  /* ── TRILHA DE ETAPAS ──────────────────────────────────────────────────────
+     Acende cada etapa conforme ela é preenchida e move a barra de progresso.
+     Só LÊ o formulário — não valida nada e não bloqueia o envio: a ordem é uma
+     sugestão visual, não uma prisão. Quem quiser pular direto para o comentário
+     e salvar, continua podendo.
+     As etapas 4 e 5 são opcionais, então contam como concluídas quando têm
+     conteúdo; do contrário ficam neutras, sem parecer pendência. */
+  function atualizarEtapas() {
+    const val = (id) => { const el = document.getElementById(id); return el ? String(el.value || '').trim() : ''; };
+    const preenchida = {
+      1: !!val('subject'),
+      2: !!val('date'),
+      3: (Number(val('duration-h')) > 0 || Number(val('duration-m')) > 0),
+      4: (!!val('correct') && !!val('total')),
+      5: !!val('comment')
+    };
+    // "obrigatórias" para a barra: 1, 2 e 3. As opcionais somam bônus quando usadas.
+    const base = [1, 2, 3].filter(n => preenchida[n]).length;
+    const extra = [4, 5].filter(n => preenchida[n]).length;
+    const pct = Math.round(((base + extra) / 5) * 100);
+
+    let ativa = 0;
+    for (let n = 1; n <= 5; n++) {
+      const el = document.getElementById('step-' + n);
+      if (!el) continue;
+      el.classList.toggle('done', preenchida[n]);
+      el.classList.remove('active');
+      if (!ativa && !preenchida[n]) ativa = n;
+    }
+    if (ativa) { const a = document.getElementById('step-' + ativa); if (a) a.classList.add('active'); }
+
+    const fill = document.getElementById('step-progress-fill');
+    if (fill) fill.style.width = pct + '%';
+    const lab = document.getElementById('step-progress-label');
+    if (lab) {
+      // O rótulo segue a etapa REALMENTE destacada. Antes ele usava a contagem de
+      // concluídas, o que fazia dizer "Etapa 2" enquanto a 1 estava acesa — a data
+      // e a forma de estudo já vêm preenchidas, então a etapa 2 nasce concluída e
+      // as duas contas divergiam.
+      lab.textContent = ativa ? ('Etapa ' + ativa + ' de 5')
+        : (extra === 2 ? 'Tudo preenchido' : 'Pronto para registrar');
+    }
+  }
+  // Um só listener no formulário (delegação): cobre campos que aparecem depois,
+  // como os de vídeo, sem precisar religar nada.
+  (function ligarEtapas() {
+    const form = document.getElementById('study-form');
+    if (!form) return;
+    ['input', 'change'].forEach(ev => form.addEventListener(ev, atualizarEtapas));
+    atualizarEtapas();
+  })();
+  window.atualizarEtapasRegistrar = atualizarEtapas;
+
+  window.RegistrarScreen = { refreshSubjectSelect, refreshMethodSelect, renderRecent, atualizarEtapas };
 })();
 
 /* ============================================================
@@ -9922,32 +10144,135 @@ const LawEngine = {
    CARD ENGINE — repetição espaçada (SM-2 simplificado) + filtros
    ============================================================ */
 /* ============================================================
-   FSRS-5 — Free Spaced Repetition Scheduler (o algoritmo padrão do Anki).
+   FSRS-6 — Free Spaced Repetition Scheduler (o algoritmo padrão do Anki 25.07+).
+   Mesma versão que roda hoje no Anki desktop, AnkiWeb e AnkiDroid.
    Modela a memória por card com Dificuldade (D) e Estabilidade (S) e agenda
    cada card no dia em que sua chance de lembrar cai para a RETENÇÃO-ALVO.
    ============================================================ */
 const FSRS = {
-  DEFAULT_W: [0.40255, 1.18385, 3.173, 15.69105, 7.1949, 0.5345, 1.4604, 0.0046,
+  VERSAO: 6,
+  N_W: 21,                       // FSRS-6 usa 21 parâmetros (o FSRS-5 usava 19)
+  // Pesos padrão oficiais do FSRS-6 (open-spaced-repetition), treinados sobre
+  // centenas de milhões de revisões reais.
+  DEFAULT_W: [0.212, 1.2931, 2.3065, 8.2956, 6.4133, 0.8334, 3.0194, 0.001,
+    1.8722, 0.1666, 0.796, 1.4835, 0.0614, 0.2629, 1.6483, 0.6014, 1.8729,
+    0.5425, 0.0912, 0.0658, 0.1542],
+  // Pesos padrão do FSRS-5, mantidos só para migrar quem tinha pesos antigos.
+  W5_DEFAULT: [0.40255, 1.18385, 3.173, 15.69105, 7.1949, 0.5345, 1.4604, 0.0046,
     1.54575, 0.1192, 1.01925, 1.9395, 0.11, 0.29605, 2.2698, 0.2315, 2.9898, 0.51655, 0.6621],
-  DECAY: -0.5,
+
+  /* ── CURVA DE ESQUECIMENTO PERSONALIZÁVEL (a grande novidade do FSRS-6) ────
+     No FSRS-5 o decaimento era FIXO em -0,5 para todo mundo: assumia-se que
+     todas as pessoas esquecem no mesmo formato de curva, variando só a
+     velocidade. No FSRS-6 o formato virou o parâmetro treinável w20, então a
+     curva se molda ao SEU padrão de esquecimento.
+       decay  = -w20
+       factor = 0.9^(-1/w20) - 1   (garante R = 90% quando t = S)
+     Com w20 = 0.5 a conta cai exatamente no comportamento do FSRS-5 — é isso
+     que torna a migração de pesos antigos indolor. */
+  DECAY_PADRAO: 0.5,
+  _w20(w) {
+    const v = (w && w.length > 20) ? w[20] : this.DECAY_PADRAO;
+    // Sem "apertar" a faixa aqui: a referência usa w20 como veio. Quem limita é o
+    // otimizador (LO/HI). Aqui só nos protegemos de valor ausente/inválido, que
+    // faria a curva virar NaN.
+    return (isFinite(v) && v > 0) ? v : this.DECAY_PADRAO;
+  },
+  decayOf(w) { return -this._w20(w); },
+  factorOf(w) { return Math.pow(0.9, -1 / this._w20(w)) - 1; },
+  // Compatibilidade: código antigo que lia FSRS.DECAY / FSRS.FACTOR continua funcionando
+  get DECAY() { return -this.DECAY_PADRAO; },
   get FACTOR() { return Math.pow(0.9, 1 / this.DECAY) - 1; }, // ≈ 0.234568
   clampD(d) { return Math.min(10, Math.max(1, d)); },
-  clampS(s) { return Math.max(0.01, s); },
-  R(t, S) { return Math.pow(1 + this.FACTOR * t / S, this.DECAY); },
-  interval(S, r) { return Math.max(1, Math.round((S / this.FACTOR) * (Math.pow(r, 1 / this.DECAY) - 1))); },
+  // Limites idênticos aos do Anki (fsrs-rs: S_MIN 0.001, S_MAX 36500, D 1..10).
+  // O TETO de 36500 dias faltava aqui: sem ele, uma sequência longa de "Fácil"
+  // podia empurrar a estabilidade para valores absurdos e, no limite, para
+  // Infinity — que contaminaria todo cálculo seguinte com NaN.
+  S_MIN: 0.001,
+  S_MAX: 36500,
+  clampS(s) { return Math.min(this.S_MAX, Math.max(this.S_MIN, isFinite(s) ? s : this.S_MIN)); },
+  /* ── SANEAMENTO DAS ENTRADAS ──────────────────────────────────────────────
+     O fsrs-rs limita S e D logo na entrada de cada passo (step()), e por um bom
+     motivo: se um card chega com S=NaN — por importação estragada, sincronização
+     interrompida ou divisão por zero antiga — todo cálculo seguinte vira NaN e o
+     card fica INAGENDÁVEL PARA SEMPRE, sem erro visível. Aqui a entrada ruim é
+     absorvida e o card volta a um estado válido em vez de morrer em silêncio. */
+  _S(s) { return this.clampS(s); },
+  _D(d) { return this.clampD(isFinite(d) ? d : 5); },
+  _t(t) { return (isFinite(t) && t > 0) ? t : 0; },
+  _r(r) { return (isFinite(r) && r > 0 && r < 1) ? r : 0.9; },
+  // R e interval agora recebem os pesos para usar a curva personalizada.
+  // Sem w, caem no decaimento padrão — nenhum chamador antigo quebra.
+  R(t, S, w) {
+    const dec = this.decayOf(w), fac = this.factorOf(w);
+    const v = Math.pow(1 + fac * this._t(t) / this._S(S), dec);
+    return isFinite(v) ? Math.min(1, Math.max(0, v)) : 0;
+  },
+  interval(S, r, w) {
+    const dec = this.decayOf(w), fac = this.factorOf(w);
+    const v = Math.round((this._S(S) / fac) * (Math.pow(this._r(r), 1 / dec) - 1));
+    return isFinite(v) ? Math.min(this.S_MAX, Math.max(1, v)) : 1;
+  },
+  // Converte pesos do FSRS-5 (19) para FSRS-6 (21). w19=0 anula o termo S^(-w19)
+  // e w20=0.5 reproduz o decaimento fixo antigo: o agendamento sai IDÊNTICO ao
+  // que você já tinha, até rodar o otimizador de novo. Migração oficial do projeto.
+  migrarW(w) {
+    if (!Array.isArray(w)) return null;
+    if (w.length === this.N_W) return w.slice();
+    if (w.length === 19) return w.concat([0.0, 0.5]);
+    return null;
+  },
+  pesosValidos(w) { return Array.isArray(w) && (w.length === this.N_W || w.length === 19); },
   initS(G, w) { return this.clampS(w[G - 1]); },
   D0(G, w) { return w[4] - Math.exp(w[5] * (G - 1)) + 1; },
   initD(G, w) { return this.clampD(this.D0(G, w)); },
-  nextD(D, G, w) { const dp = D - w[6] * (G - 3) * (10 - D) / 9; return this.clampD(w[7] * this.D0(4, w) + (1 - w[7]) * dp); },
+  nextD(D, G, w) { const d0 = this._D(D); const dp = d0 - w[6] * (G - 3) * (10 - d0) / 9; return this.clampD(w[7] * this.D0(4, w) + (1 - w[7]) * dp); },
   nextS_recall(D, S, R, G, w) {
+    const S0 = this._S(S), D0 = this._D(D), R0 = isFinite(R) ? Math.min(1, Math.max(0, R)) : 0.9;
     const hard = (G === 2) ? w[15] : 1, easy = (G === 4) ? w[16] : 1;
-    return this.clampS(S * (1 + Math.exp(w[8]) * (11 - D) * Math.pow(S, -w[9]) * (Math.exp(w[10] * (1 - R)) - 1) * hard * easy));
+    return this.clampS(S0 * (1 + Math.exp(w[8]) * (11 - D0) * Math.pow(S0, -w[9]) * (Math.exp(w[10] * (1 - R0)) - 1) * hard * easy));
   },
-  nextS_forget(D, S, R, w) { return this.clampS(Math.min(w[11] * Math.pow(D, -w[12]) * (Math.pow(S + 1, w[13]) - 1) * Math.exp(w[14] * (1 - R)), S)); },
-  // FSRS-5 — MEMÓRIA DE CURTO PRAZO: usada nos passos de aprendizado/reaprendizado e em
-  // qualquer revisão feita no MESMO dia. Sem ela, cada clique extra no mesmo dia era
-  // tratado como um intervalo cheio e inflava S sem limite.
-  nextS_short(S, G, w) { return this.clampS(S * Math.exp(w[17] * (G - 3 + w[18]))); },
+  /* ── ESTABILIDADE APÓS ESQUECER (post-lapse) ──────────────────────────────
+     O teto NÃO é S, é S / e^(w17·w18). Parece detalhe, mas é uma correção que o
+     próprio projeto FSRS aplicou ("consider short term params when clipping
+     post-lapse stability"): o teto tem de considerar os parâmetros de curto
+     prazo, senão errar um card podia deixar a estabilidade alta demais.
+     Com os pesos padrão, e^(0.5425·0.0912) ≈ 1.0507 — ou seja, o teto real é
+     ~95,2% de S, não 100%. */
+  nextS_forget(D, S, R, w) {
+    const S0 = this._S(S), D0 = this._D(D), R0 = isFinite(R) ? Math.min(1, Math.max(0, R)) : 0.9;
+    const longo = w[11] * Math.pow(D0, -w[12]) * (Math.pow(S0 + 1, w[13]) - 1) * Math.exp(w[14] * (1 - R0));
+    const tetoCurto = S0 / Math.exp(w[17] * w[18]);
+    return this.clampS(Math.min(longo, tetoCurto));
+  },
+  /* ── MEMÓRIA DE CURTO PRAZO (revisões no MESMO dia) ───────────────────────
+     Usada nos passos de aprendizado/reaprendizado — é o que acontece quando um
+     card volta 10min/1h depois na mesma sessão.
+
+     FSRS-5:  S' = S · e^(w17·(G-3+w18))
+     FSRS-6:  S' = S · e^(w17·(G-3+w18)) · S^(-w19)
+
+     O termo S^(-w19) faz a estabilidade subir MAIS rápido quando ela é pequena
+     e mais devagar quando já é grande — antes, repetir um card maduro no mesmo
+     dia inflava S tanto quanto repetir um card novo, o que era irreal.
+
+     A trava SInc >= 1 para G >= 3 é exigida pela especificação: Bom e Fácil
+     nunca podem DIMINUIR a estabilidade. Só Errei e Difícil podem. */
+  nextS_short(S, G, w) {
+    // ATENÇÃO: S entra CRU na fórmula. Limitá-lo antes (eu limitava a 0.01)
+    // distorcia cards de estabilidade muito baixa — justo os que estão em
+    // aprendizado, que é onde esta fórmula mais atua. A referência só limita
+    // o RESULTADO. Isso valeu 413 divergências no teste diferencial.
+    const S0 = this._S(S);
+    const w17 = w[17], w18 = w[18], w19 = (w.length > 19 && isFinite(w[19])) ? w[19] : 0;
+    let sInc = Math.exp(w17 * (G - 3 + w18)) * Math.pow(S0, -w19);
+    // Trava: Difícil, Bom e Fácil (G >= 2) não podem REDUZIR a estabilidade.
+    // A wiki do projeto diz "G >= 3", mas tanto a implementação de referência
+    // (py-fsrs) quanto o Rust que o Anki roda usam G >= 2. Seguimos o código,
+    // que é o que define o comportamento real do Anki.
+    if (G >= 2) sInc = Math.max(1, sInc);
+    return this.clampS(S0 * sInc);
+  },
 
   // ---- FUZZ (dispersão) — mesma fórmula do Anki: delta acumulado por faixa ----
   fuzzDelta(iv) {
@@ -9972,7 +10297,7 @@ const FSRS = {
     return lo + Math.floor(this._hash(String(seed)) * (hi - lo + 1));
   },
 
-  // ---- OTIMIZADOR (personaliza os 19 pesos a partir do seu histórico) ----
+  // ---- OTIMIZADOR (personaliza os 21 pesos a partir do seu histórico) ----
   // Reconstrói sequências (elapsed, grade) por card e minimiza o log-loss por gradient descent.
   _buildSequences(revlog) {
     const byCard = {};
@@ -9988,7 +10313,9 @@ const FSRS = {
       let S = this.initS(seq[0].grade, w), D = this.initD(seq[0].grade, w);
       for (let i = 1; i < seq.length; i++) {
         const t = Math.max(0.01, seq[i].elapsed);
-        const R = this.R(t, S), y = seq[i].grade >= 2 ? 1 : 0;
+        // w PRECISA ir junto: é através de R que o w20 (formato da curva) entra na
+        // perda. Sem isso o gradiente de w20 seria sempre zero e ele nunca treinaria.
+        const R = this.R(t, S, w), y = seq[i].grade >= 2 ? 1 : 0;
         const p = Math.min(1 - EPS, Math.max(EPS, R));
         loss += -(y * Math.log(p) + (1 - y) * Math.log(1 - p)); n++;
         if (seq[i].grade >= 2) { S = this.nextS_recall(D, S, R, seq[i].grade, w); D = this.nextD(D, seq[i].grade, w); }
@@ -10001,18 +10328,29 @@ const FSRS = {
     opts = opts || {};
     const seqs = this._buildSequences(revlog);
     const reviews = seqs.reduce((a, s) => a + (s.length - 1), 0);
-    const w0 = (opts.startW || this.DEFAULT_W).slice();
+    // Se vier peso antigo de 19 posições, migra antes de otimizar
+    const w0 = (this.migrarW(opts.startW) || this.DEFAULT_W).slice();
     if (reviews < (opts.minReviews || 40)) return { w: w0, lossBefore: null, lossAfter: null, improved: false, reviews, reason: 'few' };
-    const LO = [0.01, 0.1, 0.1, 0.5, 1, 0.001, 0.01, 0, 0.01, 0, 0.01, 0.01, 0.001, 0.001, 0.1, 0, 1, 0, 0];
-    const HI = [50, 50, 100, 100, 10, 4, 6, 0.6, 3, 0.8, 3.5, 5, 0.25, 0.9, 4, 1, 6, 2, 2];
-    const clampW = (w) => w.map((v, i) => Math.min(HI[i], Math.max(LO[i], v)));
+    // Limites OFICIAIS do FSRS-6 (LOWER/UPPER_BOUNDS_PARAMETERS da implementação
+    // de referência). Antes eu usava faixas próprias, aproximadas, que divergiam
+    // em 6 posições — o otimizador podia produzir pesos que o Anki recusaria.
+    const LO = [0.001, 0.001, 0.001, 0.001, 1.0, 0.001, 0.001, 0.001, 0.0, 0.0, 0.001,
+                0.001, 0.001, 0.001, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.1];
+    const HI = [100, 100, 100, 100, 10.0, 4.0, 4.0, 0.75, 4.5, 0.8, 3.5,
+                5.0, 0.25, 0.9, 4.0, 1.0, 6.0, 2.0, 2.0, 0.8, 0.8];
+    const N = this.N_W;
+    const clampW = (w) => {
+      const out = w.slice(0, N);
+      while (out.length < N) out.push(this.DEFAULT_W[out.length]);
+      return out.map((v, i) => Math.min(HI[i], Math.max(LO[i], isFinite(v) ? v : this.DEFAULT_W[i])));
+    };
     let w = clampW(w0);
     const lossBefore = this._logLoss(w0, seqs);
     let cur = this._logLoss(w, seqs);
     const lr = opts.lr || 0.03, iters = opts.iters || 50, h = 1e-4;
     for (let it = 0; it < iters; it++) {
-      const grad = new Array(19).fill(0);
-      for (let k = 0; k < 19; k++) { const wp = w.slice(); wp[k] += h; const wm = w.slice(); wm[k] -= h; grad[k] = (this._logLoss(wp, seqs) - this._logLoss(wm, seqs)) / (2 * h); }
+      const grad = new Array(N).fill(0);
+      for (let k = 0; k < N; k++) { const wp = w.slice(); wp[k] += h; const wm = w.slice(); wm[k] -= h; grad[k] = (this._logLoss(wp, seqs) - this._logLoss(wm, seqs)) / (2 * h); }
       const gnorm = Math.sqrt(grad.reduce((a, g) => a + g * g, 0)) || 1;
       const next = clampW(w.map((v, k) => v - lr * grad[k] / gnorm));
       const nl = this._logLoss(next, seqs);
@@ -10038,8 +10376,8 @@ const FSRS = {
     const costPerCard = (r) => {
       let S = this.initS(3, w), D = this.initD(3, w), day = 0, reviews = 0, guard = 0;
       while (day < horizon && guard++ < 2000) {
-        const iv = this.interval(S, r); day += iv; if (day > horizon) break;
-        reviews++; const R = this.R(iv, S);
+        const iv = this.interval(S, r, w); day += iv; if (day > horizon) break;
+        reviews++; const R = this.R(iv, S, w);
         if (Math.random() < R) { S = this.nextS_recall(D, S, R, 3, w); D = this.nextD(D, 3, w); }
         else { S = this.nextS_forget(D, S, R, w); D = this.nextD(D, 1, w); reviews += 1; }
       }
@@ -10124,9 +10462,12 @@ const CardsConfig = {
     if (!Array.isArray(merged.relearnSteps) || !merged.relearnSteps.length) merged.relearnSteps = base.relearnSteps;
     return merged;
   },
-  weightsFor(deckId) { const c = this.forDeck(deckId); return (Array.isArray(c.weights) && c.weights.length === 19) ? c.weights : FSRS.DEFAULT_W; },
+  // Pesos salvos de antes (19 posições, FSRS-5) são migrados para 21 na leitura.
+  // Não reescrevemos o que está gravado: se você voltar para uma versão anterior
+  // do app, seus pesos originais continuam lá, intactos.
+  weightsFor(deckId) { const c = this.forDeck(deckId); return FSRS.migrarW(c.weights) || FSRS.DEFAULT_W; },
   // pesos ativos globais (compatibilidade)
-  weights() { const w = this.get().weights; return (Array.isArray(w) && w.length === 19) ? w : FSRS.DEFAULT_W; },
+  weights() { return FSRS.migrarW(this.get().weights) || FSRS.DEFAULT_W; },
   // ---- Contadores diários (novos/revisões introduzidos hoje) — resetam a cada dia ----
   _daily() { let d = this._read(this.DKEY, this.LEGACY_DKEY); if (!d || d.date !== todayLocal()) d = { date: todayLocal(), newDone: 0, revDone: 0 }; return d; },
   _saveDaily(d) { try { localStorage.setItem(this.DKEY, JSON.stringify(d)); } catch (_) {} this._notify(); },
@@ -10206,7 +10547,7 @@ const CardEngine = {
       };
     };
     const graduate = (g, st) => {
-      const S = st.s, D = st.d, iv = place(FSRS.interval(S, r));
+      const S = st.s, D = st.d, iv = place(FSRS.interval(S, r, w));
       return Object.assign(patch, { phase: 'review', learnStep: 0, s: S, d: D, due: this.addDays(tdy, iv), dueTs: null, status: 'sei', _kind: 'day', _val: iv });
     };
     if (c.phase === 'new' || c.phase === 'learning') {
@@ -10228,14 +10569,14 @@ const CardEngine = {
       const elapsed = this._daysBetween(c.lastReview || tdy, tdy);
       // Revisão feita no MESMO dia (elapsed 0): memória de curto prazo, como no Anki.
       if (elapsed <= 0 && G > 1) {
-        const S2 = FSRS.nextS_short(c.s || 1, G, w), D2 = FSRS.nextD(c.d, G, w), iv = place(FSRS.interval(S2, r));
+        const S2 = FSRS.nextS_short(c.s || 1, G, w), D2 = FSRS.nextD(c.d, G, w), iv = place(FSRS.interval(S2, r, w));
         Object.assign(patch, { phase: 'review', s: S2, d: D2, due: this.addDays(tdy, iv), dueTs: null, status: 'sei' });
         patch._kind = 'day'; patch._val = iv;
         return patch;
       }
-      const R = FSRS.R(elapsed, c.s || 1);
+      const R = FSRS.R(elapsed, c.s || 1, w);
       if (G === 1) { const Sf = FSRS.nextS_forget(c.d, c.s, R, w), D2 = FSRS.nextD(c.d, 1, w); Object.assign(patch, { phase: 'relearning', learnStep: 0, s: Sf, d: D2, lapses: (c.lapses || 0) + 1, status: 'naosei' }, stepDue(relearn[0])); patch._kind = 'min'; patch._val = relearn[0]; }
-      else { const S2 = FSRS.nextS_recall(c.d, c.s, R, G, w), D2 = FSRS.nextD(c.d, G, w), iv = place(FSRS.interval(S2, r)); Object.assign(patch, { phase: 'review', s: S2, d: D2, due: this.addDays(tdy, iv), dueTs: null, status: 'sei' }); patch._kind = 'day'; patch._val = iv; }
+      else { const S2 = FSRS.nextS_recall(c.d, c.s, R, G, w), D2 = FSRS.nextD(c.d, G, w), iv = place(FSRS.interval(S2, r, w)); Object.assign(patch, { phase: 'review', s: S2, d: D2, due: this.addDays(tdy, iv), dueTs: null, status: 'sei' }); patch._kind = 'day'; patch._val = iv; }
     } else if (c.phase === 'relearning') {
       const st = shortTerm(G);
       const cur = c.learnStep || 0;
@@ -14648,7 +14989,7 @@ const CardsScreen = {
     for (let i = 13; i >= 0; i--) { const dia = CardEngine.addDays(todayLocal(), -i); act.push({ dia, n: revlog.filter(r => r.date === dia).length }); }
     const maxAct = Math.max(1, ...act.map(a => a.n));
     const dueNow = cards.filter(c => CardEngine.isDue(c)).length;
-    const custom = Array.isArray(cfg.weights) && cfg.weights.length === 19;
+    const custom = FSRS.pesosValidos(cfg.weights);
     const kpi = (v, l, tone) => `<div class="stat-kpi"><div class="stat-kpi-v ${tone || ''}">${v}</div><div class="stat-kpi-l">${l}</div></div>`;
     const bars = (arr, max, lbl, tone, uni) => arr.map(p => { const h = Math.round((p.n / max) * 100); return `<div class="stat-bar" data-tip="${escapeHtml(formatDateShort(p.dia))}: ${p.n || 0} ${uni || ''}"><div class="stat-bar-fill ${tone}" style="height:${p.n ? Math.max(6, h) : 0}%"></div><span class="stat-bar-n">${p.n || ''}</span><span class="stat-bar-x">${lbl(p.dia)}</span></div>`; }).join('');
     const dm = (iso) => iso.slice(8, 10) + '/' + iso.slice(5, 7);
@@ -14662,7 +15003,7 @@ const CardsScreen = {
       </div>
       <div class="stat-grid">
         <div class="card stat-card">
-          <div class="card-header"><div><h2>🧩 Maturidade dos cards</h2><p class="sub">Total: ${cards.length} · algoritmo: ${cfg.algo === 'fsrs' ? 'FSRS' + (custom ? ' (pesos personalizados)' : '') : 'Clássico'}</p></div></div>
+          <div class="card-header"><div><h2>🧩 Maturidade dos cards</h2><p class="sub">Total: ${cards.length} · algoritmo: ${cfg.algo === 'fsrs' ? 'FSRS-6' + (custom ? ' (pesos personalizados)' : '') : 'Clássico'}</p></div></div>
           <div class="stat-mat">
             <div class="stat-mat-bar">
               <span style="flex:${novos || 0.001};background:var(--text-faint)"></span><span style="flex:${aprend || 0.001};background:var(--warn)"></span>
@@ -15312,7 +15653,7 @@ CardsScreen.openAlgoConfigFor = function (deckId) {
   const hasPreset = isDeck && CardsConfig.hasDeckPreset(deckId);
   const fields = [
     { key: 'algo', label: '🧠 Algoritmo de repetição espaçada', type: 'select', value: cfg.algo,
-      options: [{ value: 'fsrs', label: 'FSRS (recomendado — igual ao Anki atual)' }, { value: 'sm2', label: 'Clássico (SM-2)' }],
+      options: [{ value: 'fsrs', label: 'FSRS-6 (recomendado — igual ao Anki atual)' }, { value: 'sm2', label: 'Clássico (SM-2)' }],
       hint: 'FSRS agenda cada card no dia exato da sua meta de retenção — 20–30% mais eficiente.' },
     { key: 'retention', label: '🎯 Retenção-alvo (%) — só FSRS', type: 'number', value: Math.round(cfg.retention * 100), min: 70, max: 97,
       hint: 'Maior = revê mais e esquece menos. Padrão do Anki: 90%.' },
@@ -15369,13 +15710,13 @@ CardsScreen.openAlgoConfigFor = function (deckId) {
 CardsScreen.openFsrsTools = function () {
   const scope = CardsScreen._fsrsScope || null;
   const cfg = scope ? CardsConfig.forDeck(scope) : CardsConfig.get();
-  const custom = Array.isArray(cfg.weights) && cfg.weights.length === 19;
+  const custom = FSRS.pesosValidos(cfg.weights);
   const last = cfg.lastOptim ? new Date(cfg.lastOptim).toLocaleDateString('pt-BR') : null;
   const alvo = scope ? ('baralho "' + ((DB.getDecks().find(d => d.id === scope) || {}).nome || '') + '"') : 'global';
   const nRev = scope ? (DB.getRevlog() || []).filter(r => { const c = DB.getCard(r.cardId); return c && c.deckId === scope; }).length : (DB.getRevlog() || []).length;
   UI.confirm(
     `Escopo: ${alvo} · ${nRev} revisão(ões) registrada(s).\n\n` +
-    (custom ? `✔ Usando pesos PERSONALIZADOS${last ? ' (otimizados em ' + last + ')' : ''}.` : 'Usando os pesos PADRÃO do FSRS-5.') +
+    (custom ? `✔ Usando pesos PERSONALIZADOS${last ? ' (otimizados em ' + last + ')' : ''}.` : 'Usando os pesos PADRÃO do FSRS-6.') +
     `\n\nEscolha uma ação avançada:`,
     { title: '🧠 Ferramentas FSRS', okText: '⚡ Otimizar meus parâmetros', cancelText: 'Fechar' }
   ).then(ok => { if (ok) CardsScreen.runOptimizer(); });
@@ -15396,7 +15737,7 @@ CardsScreen.runOptimizer = function () {
   let revlog = DB.getRevlog() || [];
   if (scope) { const ids = new Set(DB.getCards().filter(c => c.deckId === scope).map(c => c.id)); revlog = revlog.filter(r => ids.has(r.cardId)); }
   const alvo = scope ? ('do baralho "' + ((DB.getDecks().find(d => d.id === scope) || {}).nome || '') + '"') : 'global';
-  UI.alert('Analisando seu histórico ' + alvo + ' e ajustando os 19 parâmetros… pode levar alguns segundos.', { title: '⚡ Otimizando FSRS', okText: 'Aguarde…' });
+  UI.alert('Analisando seu histórico ' + alvo + ' e ajustando os 21 parâmetros do FSRS-6… pode levar alguns segundos.', { title: '⚡ Otimizando FSRS-6', okText: 'Aguarde…' });
   setTimeout(() => {
     const startW = scope ? CardsConfig.weightsFor(scope) : CardsConfig.weights();
     const res = FSRS.optimize(revlog, { startW, iters: 50, lr: 0.03, minReviews: 40 });
@@ -22131,7 +22472,64 @@ const StudyReport = {
 })();
 
 
-/* ===== REVISAO V5: AUDITORIA VISUAL, TODOS OS DADOS E PAGINACAO SEGURA ===== */
+/* ═══════════════════════════════════════════════════════════════════════════
+   FIDELIDADE A4 EM QUALQUER APARELHO
+   ───────────────────────────────────────────────────────────────────────────
+   O problema: o documento do relatório usava viewport "width=device-width".
+   Num celular de 390px, a regra @media screen and (max-width:900px) disparava e
+   REFLUÍA todo o layout — página de 100% de largura, padding de 24px, KPIs em 2
+   colunas. Ou seja: o que você via (e em vários navegadores, o que saía no PDF)
+   era um layout DIFERENTE do desktop. Tablet caía num terceiro estado.
+
+   A correção: travar o viewport em 794px, que é exatamente 210mm a 96dpi — a
+   largura de uma folha A4. O navegador passa a diagramar SEMPRE em tamanho A4 e
+   apenas reduz a escala visual para caber na tela. Nada reflui, então celular,
+   tablet e computador produzem o MESMO PDF.
+
+   Como 794 < 900, a antiga regra de 900px passaria a valer sempre — por isso ela
+   é desativada logo abaixo, em vez de apenas ignorada.
+   ═══════════════════════════════════════════════════════════════════════════ */
+(function a4FidelidadeMultiDispositivo(){
+  const A4_PX = 794;   // 210mm a 96dpi
+
+  const cssAntes = StudyReport.css.bind(StudyReport);
+  StudyReport.css = function () {
+    // Desativa o reflow de tela pequena: ele era a causa de o celular gerar
+    // um layout diferente. A folha continua A4 em qualquer largura.
+    const base = cssAntes().replace(
+      /@media screen and \(max-width:900px\)\{[^}]*\{[^}]*\}[^}]*\{[^}]*\}[^}]*\{[^}]*\}[^}]*\{[^}]*\}\}/g,
+      ''
+    );
+    return base + `
+    /* A folha nunca reflui: largura fixa de A4 em qualquer aparelho */
+    html{-webkit-text-size-adjust:100%;text-size-adjust:100%}
+    body{min-width:${A4_PX}px}
+    .paper{width:210mm!important;max-width:210mm!important;margin-left:auto;margin-right:auto}
+    .page{width:210mm!important}
+    .kpis{grid-template-columns:repeat(4,1fr)!important}
+    .toolbar{width:100%}
+    @media print{
+      html,body{min-width:0!important;background:#fff!important}
+      .toolbar{display:none!important}
+      .paper{width:210mm!important;max-width:210mm!important;margin:0!important;box-shadow:none!important}
+      .page{width:210mm!important;padding:15mm 15mm 17mm!important}
+      /* garante que fundos e cores das barras saiam impressos (padrão é descartar) */
+      *{-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important}
+    }`;
+  };
+
+  const buildAntes = StudyReport.build.bind(StudyReport);
+  StudyReport.build = function (cfg, entries) {
+    let doc = buildAntes(cfg, entries);
+    // A troca do viewport é o coração da correção (ver bloco acima).
+    doc = doc.replace(
+      /<meta name="viewport"[^>]*>/,
+      `<meta name="viewport" content="width=${A4_PX}">`
+    );
+    return doc;
+  };
+})();
+
 (function exhaustiveLayoutAuditV5(){
   const cssBefore=StudyReport.css.bind(StudyReport);
   StudyReport.css=function(){return cssBefore()+`
