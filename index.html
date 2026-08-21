@@ -1770,15 +1770,42 @@
   }
 
   /* Evolução */
+  /* ══════════════════════════════════════════════════════════════════════════
+     EVOLUCAO — os tres numeros do topo
+     Sao a resposta imediata da tela: quanto tempo, quantos dias, que taxa de
+     acerto. Cada um ganha um icone e uma cor propria, para virarem tres coisas
+     distintas de relance em vez de tres caixas iguais. O detalhe em cor no topo
+     de cada cartao e o unico enfeite — o resto fica quieto, porque quem manda
+     aqui e o numero. */
   .evo-stat-card {
+    position: relative;
     background: var(--surface);
     border: 1px solid var(--border);
     border-radius: 16px;
     box-shadow: var(--shadow-sm);
-    padding: 18px 18px;
+    padding: 16px 18px 18px;
+    overflow: hidden;
+    transition: border-color .14s ease, transform .14s ease, box-shadow .14s ease;
   }
-  .evo-stat-card .value { font-family: 'Space Mono', monospace; font-weight: 800; font-size: calc(22px * var(--fs-scale, 1)); color: var(--text); }
-  .evo-stat-card .label { font-size: calc(11px * var(--fs-scale, 1)); color: var(--text-faint); margin-top: 4px; }
+  .evo-stat-card::before { content: ''; position: absolute; left: 0; right: 0; top: 0; height: 3px; background: var(--evo-cor, var(--accent)); }
+  .evo-stat-card:hover { transform: translateY(-1px); border-color: var(--border-strong); box-shadow: var(--shadow-md, var(--shadow-sm)); }
+  .evo-stat-card .ico {
+    width: 30px; height: 30px; border-radius: 9px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: calc(15px * var(--fs-scale, 1));
+    background: color-mix(in srgb, var(--evo-cor, var(--accent)) 14%, transparent);
+    margin-bottom: 10px;
+  }
+  .evo-stat-card .value { font-family: 'Space Mono', monospace; font-weight: 800; font-size: calc(24px * var(--fs-scale, 1)); color: var(--text); letter-spacing: -0.02em; line-height: 1.1; }
+  .evo-stat-card .label { font-size: calc(11px * var(--fs-scale, 1)); color: var(--text-faint); margin-top: 5px; line-height: 1.45; }
+  /* numero de apoio (ex.: "102 de 202") — conta a origem da porcentagem */
+  .evo-stat-sub { display: block; font-family: 'Space Mono', monospace; color: var(--text-soft); font-weight: 700; margin-top: 2px; }
+  @media (prefers-reduced-motion: reduce) { .evo-stat-card { transition: none; } }
+  @media (max-width: 620px) {
+    .evo-stat-card { padding: 13px 14px 14px; }
+    .evo-stat-card .ico { width: 26px; height: 26px; margin-bottom: 7px; }
+    .evo-stat-card .value { font-size: calc(19px * var(--fs-scale, 1)); }
+  }
 
   .bar-row { display: grid; grid-template-columns: 140px 1fr 56px; align-items: center; gap: 12px; padding: 8px 0; }
   .bar-row .name { font-size: calc(12px * var(--fs-scale, 1)); font-weight: 600; color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -13778,22 +13805,39 @@ const EvolucaoScreen = {
     const totalMin = entries.reduce((s, e) => s + (e.durationMin || 0), 0);
     const uniqueDays = new Set(entries.map(e => e.date)).size;
     const withPct = entries.filter(e => e.total > 0);
-    const avgPct = withPct.length
-      ? Math.round((withPct.reduce((s, e) => s + (e.correct / e.total) * 100, 0) / withPct.length) * 100) / 100
-      : 0;
+    /* BUG CORRIGIDO — media de percentuais x percentual real.
+       Antes: somava o % de cada sessao e dividia pelo numero de sessoes. Isso da
+       o mesmo peso a uma sessao de 2 questoes e a uma de 200. Um dia com
+       2/2 (100%) e 100/200 (50%) resultava em 75%, quando o acerto real e
+       102/202 = 50,5%.
+       Agora: soma acertos, soma questoes, divide. E o mesmo criterio que os
+       outros cartoes desta tela ja usavam — o KPI do topo era o unico fora. */
+    const somaAcertos = withPct.reduce((s, e) => s + (e.correct || 0), 0);
+    const somaQuestoes = withPct.reduce((s, e) => s + (e.total || 0), 0);
+    const avgPct = somaQuestoes > 0 ? Math.round((somaAcertos / somaQuestoes) * 10000) / 100 : 0;
 
+    // cor do cartao de acerto segue as metas configuradas (verde/amarelo/vermelho),
+    // para o numero se explicar sozinho sem precisar consultar a legenda
+    // Cor pela mesma regra do resto do app: toneFor() ja le as metas de "⚙ Metas".
+    // Reimplementar a comparacao aqui criaria duas fontes de verdade que podiam
+    // divergir quando voce mudasse as metas.
+    const TOM = { good: 'var(--good)', warn: 'var(--warn)', bad: 'var(--bad, #e0393f)' };
+    const corAcerto = somaQuestoes === 0 ? 'var(--text-faint)' : (TOM[toneFor(avgPct)] || 'var(--accent)');
     document.getElementById('evolucao-stats').innerHTML = `
-      <div class="evo-stat-card">
+      <div class="evo-stat-card" style="--evo-cor: var(--accent);">
+        <div class="ico">⏱️</div>
         <div class="value">${CycleEngine.fmtHM(totalMin)}</div>
         <div class="label">tempo total estudado</div>
       </div>
-      <div class="evo-stat-card">
+      <div class="evo-stat-card" style="--evo-cor: #7c3aed;">
+        <div class="ico">📅</div>
         <div class="value">${uniqueDays}</div>
         <div class="label">dias com registro</div>
       </div>
-      <div class="evo-stat-card">
+      <div class="evo-stat-card" style="--evo-cor: ${corAcerto};">
+        <div class="ico">🎯</div>
         <div class="value">${formatPct(avgPct)}%</div>
-        <div class="label">acerto médio em questões</div>
+        <div class="label">acerto em questões${somaQuestoes ? ' <span class="evo-stat-sub">' + somaAcertos.toLocaleString('pt-BR') + ' de ' + somaQuestoes.toLocaleString('pt-BR') + '</span>' : ''}</div>
       </div>
     `;
   },
