@@ -10576,13 +10576,33 @@ const CardEngine = {
       if (c.lastReview && c.due) return this._daysBetween(c.lastReview, c.due);
       return 0;
     };
-    // Primeira nota do card define S/D; as seguintes evoluem pela memória de curto prazo.
+    /* ── CURTO PRAZO vs LONGO PRAZO: a regra e o TEMPO, nao a FASE ──────────────
+       Antes, todo card em aprendizado usava a formula de curto prazo, qualquer que
+       fosse o tempo decorrido. Mas a implementacao de referencia decide por
+       "days_since_last_review < 1":
+
+           if stability is None      -> valores iniciais
+           elif dias_decorridos < 1  -> _short_term_stability
+           else                      -> _next_forget/_next_recall (longo prazo)
+
+       O caso real: voce comeca cards novos hoje, nao termina os passos, e volta
+       amanha. Aqueles cards ficaram em "aprendizado" mas passou um DIA inteiro —
+       ha esquecimento de verdade a considerar. Tratar isso como revisao de mesmo
+       dia subestimava a estabilidade e encurtava demais os intervalos.
+       Isto valia 6.267 divergencias de S em 10.550 respostas no teste diferencial. */
+    const diasDesdeUltima = c.lastReview ? this._daysBetween(c.lastReview, tdy) : null;
     const shortTerm = (g) => {
-      const first = (c.s == null);
-      return {
-        s: first ? FSRS.initS(g, w) : FSRS.nextS_short(c.s, g, w),
-        d: first ? FSRS.initD(g, w) : FSRS.nextD(c.d, g, w)
-      };
+      if (c.s == null) return { s: FSRS.initS(g, w), d: FSRS.initD(g, w) };
+      const D2 = FSRS.nextD(c.d, g, w);
+      if (diasDesdeUltima != null && diasDesdeUltima >= 1) {
+        // Passou pelo menos um dia: vale a curva de esquecimento, como numa revisao.
+        const R2 = FSRS.R(diasDesdeUltima, c.s, w);
+        const S2 = (g === 1)
+          ? FSRS.nextS_forget(c.d, c.s, R2, w)
+          : FSRS.nextS_recall(c.d, c.s, R2, g, w);
+        return { s: S2, d: D2 };
+      }
+      return { s: FSRS.nextS_short(c.s, g, w), d: D2 };
     };
     const graduate = (g, st) => {
       // Ao graduar, o Anki usa min_and_max_review_intervals(1) — piso 1, sem a regra
@@ -10606,26 +10626,32 @@ const CardEngine = {
         patch._kind = 'min'; patch._val = delay;
       }
     } else if (c.phase === 'review') {
+      /* Mesma regra do bloco de aprendizado: quem decide curto/longo prazo e o
+         TEMPO, nao a nota. Antes o "mesmo dia" so valia para G > 1 — errar no
+         mesmo dia caia na formula de esquecimento de longo prazo, o que nao e o
+         que a referencia faz. Ela usa _short_term_stability sempre que
+         days_since_last_review < 1, inclusive no Again. */
       const elapsed = this._daysBetween(c.lastReview || tdy, tdy);
-      // Revisão feita no MESMO dia (elapsed 0): memória de curto prazo, como no Anki.
-      if (elapsed <= 0 && G > 1) {
-        const S2 = FSRS.nextS_short(c.s || 1, G, w), D2 = FSRS.nextD(c.d, G, w);
-        const ivRaw2 = FSRS.interval(S2, r, w);
-        const piso2 = Math.max(1, FSRS.minReviewFuzzInterval(ivRaw2, ivPrevio(), maxIv));
-        const iv = place(ivRaw2, piso2);
-        Object.assign(patch, { phase: 'review', s: S2, d: D2, due: this.addDays(tdy, iv), dueTs: null, status: 'sei', intervalo: iv });
-        patch._kind = 'day'; patch._val = iv;
-        return patch;
+      const mesmoDia = elapsed < 1;
+      const D2 = FSRS.nextD(c.d, G, w);
+      let S2;
+      if (mesmoDia) {
+        S2 = FSRS.nextS_short(c.s || 1, G, w);
+      } else {
+        const R = FSRS.R(elapsed, c.s || 1, w);
+        S2 = (G === 1) ? FSRS.nextS_forget(c.d, c.s, R, w) : FSRS.nextS_recall(c.d, c.s, R, G, w);
       }
-      const R = FSRS.R(elapsed, c.s || 1, w);
-      if (G === 1) { const Sf = FSRS.nextS_forget(c.d, c.s, R, w), D2 = FSRS.nextD(c.d, 1, w); Object.assign(patch, { phase: 'relearning', learnStep: 0, s: Sf, d: D2, lapses: (c.lapses || 0) + 1, status: 'naosei' }, stepDue(relearn[0])); patch._kind = 'min'; patch._val = relearn[0]; }
-      else {
-        const S2 = FSRS.nextS_recall(c.d, c.s, R, G, w), D2 = FSRS.nextD(c.d, G, w);
+      if (G === 1) {
+        Object.assign(patch, { phase: 'relearning', learnStep: 0, s: S2, d: D2,
+          lapses: (c.lapses || 0) + 1, status: 'naosei' }, stepDue(relearn[0]));
+        patch._kind = 'min'; patch._val = relearn[0];
+      } else {
         const ivRaw = FSRS.interval(S2, r, w);
-        // Piso do Anki: acerto nunca encolhe o intervalo (ver minReviewFuzzInterval)
+        // Piso do Anki (rslib): acerto nunca encolhe o intervalo
         const piso = Math.max(1, FSRS.minReviewFuzzInterval(ivRaw, ivPrevio(), maxIv));
         const iv = place(ivRaw, piso);
-        Object.assign(patch, { phase: 'review', s: S2, d: D2, due: this.addDays(tdy, iv), dueTs: null, status: 'sei', intervalo: iv });
+        Object.assign(patch, { phase: 'review', s: S2, d: D2, due: this.addDays(tdy, iv),
+          dueTs: null, status: 'sei', intervalo: iv });
         patch._kind = 'day'; patch._val = iv;
       }
     } else if (c.phase === 'relearning') {
