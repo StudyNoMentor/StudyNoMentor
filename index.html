@@ -17148,44 +17148,28 @@ const ExtrasScreen = {
          </div>` : '';
     // nº de lançamentos feitos neste dia → habilita o botão de desfazer (corrigir/diminuir)
     const nReg = (x.historico || []).filter(h => h.data === day).length;
-    const undoBtn = nReg > 0 ? `<button type="button" class="icon-btn exd-undo" title="Desfazer o último lançamento deste dia (${nReg} registrado${nReg === 1 ? '' : 's'})">↶</button>` : '';
-    /* RODAPE DO CARTAO
-       Antes eram DOIS passos: preencher e "Registrar", depois clicar "Concluir".
-       Na pratica ninguem quer registrar e concluir separado — voce faz a
-       atividade, informa quanto fez e acabou. Agora "Concluir" faz as duas
-       coisas de uma vez, e fica DESABILITADO enquanto o campo estiver vazio
-       (quando a atividade tem meta). O "＋" continua ali, discreto, para quem
-       precisa somar um avanco parcial sem encerrar o dia. */
-    const precisaValor = alvo > 0;
-    const regRow = done ? `
-        <div class="exd-reg exd-reg-done">
-          <button type="button" class="btn-secondary exd-reopen-btn" title="Desmarcar e voltar a atividade para a lista de pendentes">
-            <span class="exd-btn-ico" aria-hidden="true">↺</span> Reabrir
-          </button>
-          <button type="button" class="btn-secondary exd-edit-btn" title="Editar título, meta, tipo ou recorrência">
-            <span class="exd-btn-ico" aria-hidden="true">✎</span> Editar
-          </button>
-          ${undoBtn}
-        </div>` : `
+    const undoBtn = nReg > 0 ? `<button type="button" class="exd-undo" title="Desfazer o último registro deste dia (${nReg} registrado${nReg === 1 ? '' : 's'})"><span aria-hidden="true">↶</span> Desfazer registro</button>` : '';
+    /* Registro de tempo independente da conclusão: pode ser parcial ou integral. */
+    const regRow = done ? '' : `
         <div class="exd-reg">
           <div class="exd-reg-group">
             <input type="number" class="exd-num exd-qtd" min="0" placeholder="${placeholder}"
                    title="Quanto você fez ${escapeHtml(this._prettyDay(day))}">
             ${x.tipo === 'questoes' ? `<input type="number" class="exd-num exd-ac" min="0" placeholder="acertos" title="Acertos (opcional)">` : ''}
-            <button type="button" class="icon-btn exd-reg-btn" title="Somar ao progresso SEM encerrar — para avanço parcial">＋</button>
+            <button type="button" class="btn-primary exd-reg-btn" title="Registrar o tempo informado">Registrar tempo</button>
+            <span class="exd-info-wrap">
+              <button type="button" class="exd-info-btn" aria-expanded="false" title="Informação sobre o registro">i</button>
+              <span class="exd-info-pop" role="tooltip">O registro pode representar o tempo integral da atividade ou apenas uma parte. Você pode fazer novos registros no mesmo dia.</span>
+            </span>
             ${undoBtn}
           </div>
-          <button type="button" class="btn-primary exd-done-btn" ${precisaValor ? 'disabled' : ''}
-                  title="${precisaValor ? 'Informe quanto você fez para poder concluir' : 'Marcar como concluída'}">
-            <span class="exd-btn-ico" aria-hidden="true">✓</span> Concluir${rec ? ' o dia' : ''}
-          </button>
         </div>`;
     return `
       <div class="exd ${done ? 'done' : ''}" data-id="${x.id}" data-day="${day}" style="--exd-cor:${cor}; --exd-fill:${alvo > 0 ? pct : (done ? 100 : 0)}%;">
         <div class="exd-top">
           <button type="button" class="exd-check" aria-pressed="${done}"
                   title="${done ? 'Clique para REABRIR esta atividade' : 'Clique para marcar como concluída'}">
-            ${this._CHECK}<span class="exd-check-lbl">${done ? 'Concluída' : 'Marcar'}</span>
+            ${this._CHECK}<span class="exd-check-lbl">${done ? 'Reabrir' : 'Concluir'}</span>
           </button>
           <div class="exd-ico" style="background:color-mix(in srgb, ${cor} 16%, transparent); color:${cor};">${t.ico}</div>
           <div class="exd-main">
@@ -17198,8 +17182,7 @@ const ExtrasScreen = {
           </div>
           <button type="button" class="icon-btn exd-edit" title="Editar / configurar">✎</button>
         </div>
-        ${done ? `<div class="exd-doneflag">${this._CHECK} concluída ${rec ? 'neste dia' : ''}</div>` : ''}
-        ${progBlock}
+                ${progBlock}
         ${marcador}
         ${regRow}
       </div>`;
@@ -17217,47 +17200,17 @@ const ExtrasScreen = {
         this.render();
         if (!jaFeita) showToast(DB.extraRecorrente(x) ? 'Concluída neste dia 🎉' : 'Atividade concluída 🎉');
       });
-      const doneBtn = card.querySelector('.exd-done-btn');
-      const qEl0 = card.querySelector('.exd-qtd');
-      // Habilita "Concluir" so quando ha valor — o botao ensina a regra sozinho,
-      // em vez de deixar clicar e depois reclamar num toast.
-      if (doneBtn && qEl0 && doneBtn.hasAttribute('disabled')) {
-        const sync = () => {
-          const ok = qEl0.value !== '' && parseFloat(qEl0.value) > 0;
-          doneBtn.disabled = !ok;
-          doneBtn.title = ok ? 'Registrar o valor e concluir' : 'Informe quanto você fez para poder concluir';
-        };
-        qEl0.addEventListener('input', sync);
-        sync();
-      }
-      if (doneBtn) doneBtn.addEventListener('click', () => {
-        const x = DB.getExtra(id);
-        // Concluir JA REGISTRA o que foi feito: um passo so, em vez de
-        // "Registrar" e depois "Concluir".
-        const acEl = card.querySelector('.exd-ac');
-        const q = qEl0 ? qEl0.value : '';
-        if (q !== '' && parseFloat(q) > 0) {
-          if (day > todayLocal()) { showToast('Não dá para registrar em data futura'); return; }
-          if (acEl && acEl.value !== '' && parseFloat(acEl.value) > parseFloat(q)) {
-            showToast('Acertos não podem passar do total'); return;
-          }
-          DB.addExtraProgress(id, q, 0, { data: day, acertos: acEl ? acEl.value : null });
-        }
-        DB.setConcluidaDia(id, day, true);
-        this.render();
-        showToast(DB.extraRecorrente(x) ? 'Concluída neste dia 🎉 (volta na próxima)' : 'Atividade concluída 🎉');
-      });
-      // Reabrir: desfaz a conclusao daquele dia sem apagar o progresso registrado
-      const reopen = card.querySelector('.exd-reopen-btn');
-      if (reopen) reopen.addEventListener('click', () => {
-        DB.setConcluidaDia(id, day, false);
-        this.render();
-        showToast('Atividade reaberta ↺');
-      });
       const edit = card.querySelector('.exd-edit');
       if (edit) edit.addEventListener('click', () => this.openModal(id));
-      const editBtn2 = card.querySelector('.exd-edit-btn');
-      if (editBtn2) editBtn2.addEventListener('click', () => this.openModal(id));
+      const infoBtn = card.querySelector('.exd-info-btn');
+      if (infoBtn) infoBtn.addEventListener('click', (ev) => {
+        ev.stopPropagation();
+        const wrap = infoBtn.closest('.exd-info-wrap');
+        const open = !wrap.classList.contains('open');
+        document.querySelectorAll('.exd-info-wrap.open').forEach(el => el.classList.remove('open'));
+        wrap.classList.toggle('open', open);
+        infoBtn.setAttribute('aria-expanded', open ? 'true' : 'false');
+      });
       // registrar progresso NO DIA selecionado (um único campo — sem o antigo "+ Avançar")
       const regBtn = card.querySelector('.exd-reg-btn');
       if (regBtn) regBtn.addEventListener('click', () => {
@@ -17718,12 +17671,8 @@ const ExtrasScreen = {
   deleteCurrent() {
     if (!this._editingId) return;
     const idToDel = this._editingId;
-    UI.confirm('Excluir esta atividade?', { title: 'Excluir atividade', okText: 'Excluir', danger: true }).then(ok => {
-      if (!ok) return;
-      DB.deleteExtra(idToDel);
-      document.getElementById('extra-modal').style.display = 'none';
-      this.render(); showToast('Atividade excluída');
-    });
+    document.getElementById('extra-modal').style.display = 'none';
+    this.excluir(idToDel);
     return;
   }
 };
@@ -22880,7 +22829,30 @@ const StudyReport = {
     if(cfg.sections.has('tec')){const rows=this.snapshotRows(cfg);pages+=`<section class="page">${this.pageHead('Desempenho no TecConcursos',cfg)}<table class="table"><thead><tr><th>Data de referência</th><th class="num">Questões identificadas</th><th class="num">Acertos identificados</th><th class="num">Aproveitamento</th></tr></thead><tbody>${rows.map(x=>`<tr><td>${this.date(x.date)}</td><td class="num">${Math.round(x.q)}</td><td class="num">${Math.round(x.c)}</td><td class="num">${x.q?x.p.toFixed(1).replace('.',',')+'%':'Dados agregados não disponíveis'}</td></tr>`).join('')||'<tr><td colspan="4">Não há retratos do TecConcursos no período selecionado.</td></tr>'}</tbody></table></section>`;}
     if(cfg.sections.has('extras')){const rows=this.extras(cfg), sumQ=rows.reduce((s,x)=>s+x.quantity,0),sumM=rows.reduce((s,x)=>s+x.minutes,0);pages+=`<section class="page">${this.pageHead('Atividades extras',cfg)}<div class="kpis"><div class="kpi"><b>${rows.length}</b><span>Lançamentos</span></div><div class="kpi"><b>${Math.round(sumQ)}</b><span>Quantidade registrada</span></div><div class="kpi"><b>${this.hm(sumM)}</b><span>Tempo registrado</span></div></div><table class="table" style="margin-top:16px"><thead><tr><th>Data</th><th>Atividade</th><th class="num">Quantidade</th><th class="num">Tempo</th></tr></thead><tbody>${rows.slice(0,80).map(x=>`<tr><td>${this.date(x.date)}</td><td>${this.esc(x.title)}</td><td class="num">${x.quantity||'-'}</td><td class="num">${x.minutes?this.hm(x.minutes):'-'}</td></tr>`).join('')||'<tr><td colspan="4">Nenhuma atividade extra registrada no período.</td></tr>'}</tbody></table>${rows.length>80?'<p class="note">Exibindo os 80 primeiros lançamentos.</p>':''}</section>`;}
     if(cfg.sections.has('historico')){const chunks=[];for(let i=0;i<entries.length;i+=28)chunks.push(entries.slice(i,i+28));if(!chunks.length)chunks.push([]);chunks.forEach((chunk,idx)=>{pages+=`<section class="page">${this.pageHead('Histórico detalhado'+(chunks.length>1?' '+(idx+1)+'/'+chunks.length:''),cfg)}<table class="table"><thead><tr><th>Data</th><th>Disciplina</th><th>Modalidade</th><th>Conteúdo</th><th class="num">Duração</th><th class="num">Questões</th><th class="num">Acertos</th></tr></thead><tbody>${chunk.map(e=>`<tr><td>${this.date(this.dayKey(e))}</td><td>${this.esc(e.subject||e.materia||'-')}</td><td>${this.esc(e.method||e.modalidade||'-')}</td><td>${this.esc(e.lesson||e.conteudo||'-')}</td><td class="num">${this.hm(this.n(e.durationMin||e.minutes||e.minutos))}</td><td class="num">${Math.round(this.n(e.total||e.questoes))}</td><td class="num">${Math.round(this.n(e.correct||e.acertos))}</td></tr>`).join('')||'<tr><td colspan="7">Sem registros.</td></tr>'}</tbody></table></section>`;});}
-    return `<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Relatório de evolução - ${this.esc(this.rangeLabel(cfg))}</title><style>${this.css()}</style></head><body><div class="toolbar"><div><strong>Pré-visualização do relatório</strong><div style="font-size:11px;opacity:.75">${this.esc(this.rangeLabel(cfg))}</div></div><div><button onclick="window.close()">Fechar</button> <button class="primary" onclick="window.print()">Salvar em PDF</button></div></div><main class="paper">${pages}</main></body></html>`;
+    return `<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Relatório de evolução - ${this.esc(this.rangeLabel(cfg))}</title><style>${this.css()}
+  /* Ajustes dirigidos de UX nas atividades extras */
+  .exd { padding: 12px 14px; }
+  .exd-top { align-items: center; gap: 9px; }
+  .exd-check { margin-top: 0; min-width: 92px; justify-content: center; }
+  .exd-prog { margin-top: 8px; }
+  .exd-reg { margin-top: 8px; gap: 7px; }
+  .exd-reg-group { gap: 7px; }
+  .exd-reg .exd-num { padding: 7px 9px; min-height: 36px; }
+  .exd-reg .exd-reg-btn, .exd-reg .exd-undo { min-height: 36px; height: 36px; padding: 0 12px; display:inline-flex; align-items:center; gap:6px; border-radius:10px; white-space:nowrap; font-weight:700; }
+  .exd-reg .exd-undo { color:var(--text-soft); background:var(--surface); border:1.5px solid var(--border); }
+  .exd-info-wrap { position:relative; display:inline-flex; align-items:center; }
+  .exd-info-btn { width:28px; height:28px; border-radius:50%; border:1px solid var(--border); background:var(--surface); color:var(--accent); font-weight:800; cursor:pointer; }
+  .exd-info-pop { display:none; position:absolute; z-index:20; left:0; bottom:34px; width:min(280px,72vw); padding:9px 11px; border:1px solid var(--border); border-radius:10px; background:var(--surface); box-shadow:var(--shadow-md); color:var(--text-soft); font-size:calc(11px * var(--fs-scale,1)); line-height:1.4; }
+  .exd-info-wrap.open .exd-info-pop { display:block; }
+  .exd.done { padding-bottom:12px; }
+  @media (max-width:640px) {
+    .exd { padding:11px 12px; }
+    .exd-top { grid-template-columns:auto auto 1fr auto; gap:7px; }
+    .exd-check { min-width:82px; padding:0 9px; }
+    .exd-reg-group { flex-wrap:wrap; }
+    .exd-reg .exd-reg-btn { flex:1 1 auto; justify-content:center; }
+  }
+</style></head><body><div class="toolbar"><div><strong>Pré-visualização do relatório</strong><div style="font-size:11px;opacity:.75">${this.esc(this.rangeLabel(cfg))}</div></div><div><button onclick="window.close()">Fechar</button> <button class="primary" onclick="window.print()">Salvar em PDF</button></div></div><main class="paper">${pages}</main></body></html>`;
   },
   generate(printNow) {
     const cfg=this.config();
