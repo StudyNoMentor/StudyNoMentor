@@ -1084,8 +1084,8 @@
   .exd.done .exd-check { background: var(--good); border-color: var(--good); color: #fff; }
   .exd.done .exd-check:hover { background: var(--warn); border-color: var(--warn); color: #fff; }
   /* ao passar o mouse numa concluida o rotulo avisa que o clique REABRE */
-  .exd.done .exd-check:hover .exd-check-lbl { visibility: hidden; }
-  .exd.done .exd-check:hover::after { content: 'Reabrir'; margin-left: -52px; }
+  .exd.done .exd-check:hover .exd-check-lbl { visibility: visible; }
+  .exd.done .exd-check:hover::after { content: none; }
   /* rodape da atividade ja concluida: acoes claras em vez de nada */
   .exd-reg-done { display: flex; gap: 8px; flex-wrap: wrap; }
   /* ── SELECAO EM MASSA NA LISTA DE CARDS ────────────────────────────────── */
@@ -4678,6 +4678,74 @@
     .rfc-toolbar, .rfc-list, .rfc-section, .rfc-status, .rfc-orderlabel { padding-left: 14px; padding-right: 14px; }
   }
 
+
+  /* Correções finais de alinhamento e interação */
+  .cards-bulk { display:flex !important; align-items:center !important; gap:10px !important; flex-wrap:wrap !important; }
+  .cards-select-toggle { display:inline-flex !important; align-items:center !important; gap:8px !important; min-height:36px !important; height:36px !important; padding:0 12px !important; box-sizing:border-box !important; white-space:nowrap !important; line-height:1 !important; border:1px solid var(--border) !important; border-radius:10px !important; }
+  .cards-select-toggle input { flex:0 0 16px !important; width:16px !important; height:16px !important; margin:0 !important; }
+  .cards-select-toggle span { display:inline-flex !important; align-items:center !important; height:100% !important; white-space:nowrap !important; line-height:1 !important; }
+  .cards-bulk-count { white-space:nowrap !important; }
+  .cards-bulk .btn-danger { min-height:36px !important; height:36px !important; display:inline-flex !important; align-items:center !important; white-space:nowrap !important; }
+  .exd.done .exd-check:hover .exd-check-lbl { visibility:visible !important; display:inline !important; opacity:1 !important; }
+  .exd.done .exd-check:hover { background:var(--warn) !important; border-color:var(--warn) !important; color:#fff !important; }
+  .exd.done .exd-check:hover::before, .exd.done .exd-check:hover::after { content:none !important; display:none !important; }
+  .exd-reg-saved { display:inline-flex; align-items:center; gap:10px; min-height:36px; }
+  .exd-reg-value { display:inline-flex; align-items:center; min-height:34px; padding:0 11px; border:1px solid var(--border); border-radius:9px; background:var(--surface-sunken); color:var(--text-soft); font-family:'Space Mono',monospace; font-size:calc(12px * var(--fs-scale,1)); font-weight:700; }
+  @media (max-width:520px) {
+    .cards-bulk { align-items:stretch !important; }
+    .cards-select-toggle { width:100% !important; justify-content:flex-start !important; }
+    .cards-bulk .btn-danger { width:100% !important; justify-content:center !important; margin-left:0 !important; }
+  }
+
+  /* Checkbox de seleção: sem borda residual após clique; foco visível só por teclado */
+  .cards-select-toggle input[type="checkbox"] { outline:none !important; box-shadow:none !important; border:0 !important; }
+  .cards-select-toggle input[type="checkbox"]:focus { outline:none !important; box-shadow:none !important; }
+  .cards-select-toggle input[type="checkbox"]:focus-visible { outline:2px solid var(--accent) !important; outline-offset:2px !important; }
+  .cards-select-toggle:has(input:focus:not(:focus-visible)) { box-shadow:none !important; }
+
+  /* Cards: navegação clara e atalhos agrupados */
+  .cards-review-nav { justify-content:center; gap:8px; }
+  .cards-review-nav .cards-review-edit { margin:0 6px; }
+  .cards-kbd-hint-row { margin:12px auto 0; padding:9px 12px; max-width:720px; border:1px solid var(--border); border-radius:10px; background:var(--surface-sunken); }
+  .cards-kbd-hint { display:flex; align-items:center; justify-content:center; gap:8px 14px; flex-wrap:wrap; line-height:1.5; }
+  .cards-kbd-group { display:inline-flex; align-items:center; gap:5px; white-space:nowrap; }
+  /* Conquistas: calendário compacto em desktop */
+  #conq-cal-body { max-width:700px; }
+  .calm-grid, .calm-weekdays { gap:4px; }
+  .calm-cell { aspect-ratio:auto; height:58px; border-radius:8px; font-size:calc(11.5px * var(--fs-scale,1)); }
+  @media (min-width:900px) {
+    #conq-cal-body { max-width:660px; }
+    .calm-cell { height:52px; }
+  }
+  @media (max-width:640px) {
+    #conq-cal-body { max-width:none; }
+    .calm-cell { height:auto; aspect-ratio:1/1; }
+  }
+
+  .grade-title-line { display:flex; align-items:center; gap:10px; flex-wrap:wrap; }
+  .grade-min-alert { color:var(--bad); font-size:calc(10.5px * var(--fs-scale,1)); font-weight:700; letter-spacing:0; text-transform:none; white-space:nowrap; }
+
+  /* Seletor compacto de ocorrências recorrentes */
+  .occ-del-overlay{position:fixed;inset:0;z-index:10050;background:rgba(15,23,42,.48);display:flex;align-items:center;justify-content:center;padding:16px}
+  .occ-del-modal{width:min(520px,96vw);max-height:min(640px,88vh);display:flex;flex-direction:column;background:var(--surface);border:1px solid var(--border);border-radius:18px;box-shadow:var(--shadow-lg);overflow:hidden}
+  .occ-del-head{display:flex;align-items:center;justify-content:space-between;padding:15px 18px;border-bottom:1px solid var(--border)}
+  .occ-del-head h3{margin:0;font-size:calc(15px * var(--fs-scale,1))}.occ-del-close{border:0;background:transparent;color:var(--text-faint);font-size:20px;cursor:pointer}
+  .occ-del-body{padding:14px 16px;overflow:auto}.occ-del-quick{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px}.occ-del-quick button{border:1px solid var(--border);background:var(--surface-sunken);color:var(--text-soft);border-radius:999px;padding:6px 10px;font-size:11px;font-weight:700;cursor:pointer}.occ-del-quick button:hover{border-color:var(--accent);color:var(--accent)}
+  .occ-del-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:7px}.occ-del-item{position:relative;display:flex;flex-direction:column;gap:3px;padding:9px 8px;border:1px solid var(--border);border-radius:10px;background:var(--surface-sunken);cursor:pointer}.occ-del-item:has(input:checked){border-color:var(--bad);background:var(--bad-soft)}.occ-del-item input{position:absolute;right:7px;top:7px;accent-color:var(--bad)}.occ-del-date{font-weight:800;font-size:12px}.occ-del-time{font-size:10px;color:var(--text-faint)}
+  .occ-del-foot{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:12px 16px;border-top:1px solid var(--border)}.occ-del-count{font-size:11px;color:var(--text-soft)}.occ-del-actions{display:flex;gap:8px}
+  @media(max-width:520px){.occ-del-grid{grid-template-columns:repeat(3,minmax(0,1fr))}}
+
+  /* Refinamento visual do seletor de ocorrências */
+  .occ-del-quick button{display:inline-flex;align-items:center;gap:6px;min-height:32px;outline:none!important;box-shadow:none!important;transition:border-color .12s ease,background .12s ease,color .12s ease}
+  .occ-del-quick button.active{border-color:var(--accent)!important;background:var(--accent-soft)!important;color:var(--accent)!important;box-shadow:inset 0 0 0 1px var(--accent)!important}
+  .occ-del-grid{align-items:stretch}
+  .occ-del-item{min-width:0;min-height:58px;padding:10px 34px 9px 9px;box-sizing:border-box;overflow:hidden;outline:none!important;box-shadow:none!important}
+  .occ-del-item:focus,.occ-del-item:focus-within{outline:none!important;box-shadow:none!important}
+  .occ-del-item input{position:absolute;right:9px;top:9px;width:16px;height:16px;margin:0;border:0!important;outline:none!important;box-shadow:none!important;accent-color:var(--bad)}
+  .occ-del-item input:focus,.occ-del-item input:active{outline:none!important;box-shadow:none!important;border:0!important}
+  .occ-del-item input:focus-visible{outline:2px solid var(--accent)!important;outline-offset:2px!important}
+  .occ-del-date,.occ-del-time{display:block;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .occ-del-date{line-height:1.25}.occ-del-time{line-height:1.25}
 </style>
 
 <style id="study-report-styles">
@@ -5197,7 +5265,7 @@
     <div class="card">
       <div class="card-header">
         <div>
-          <h2>Grade da semana</h2>
+          <h2 class="grade-title-line">Grade da semana <span class="grade-min-alert">❗ Digite os tempos em minutos</span></h2>
           <p class="sub">Toque numa célula para escolher a sigla (ou arraste). A mesma matéria pode aparecer em várias células — ajuste a duração de cada uma.</p>
         </div>
         <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
@@ -5445,6 +5513,7 @@
       <button type="button" class="btn-secondary" id="cards-algo-btn" title="Algoritmo de repetição espaçada">⚙ Algoritmo</button>
       <button type="button" class="btn-secondary" id="cards-import-btn">⭱ Importar</button>
       <button type="button" class="btn-secondary" id="cards-export-btn">⭳ Exportar p/ Anki</button>
+      <button type="button" class="btn-secondary" id="cards-audit-export-btn" title="Exportar cards, histórico, configurações e diagnóstico do agendador">🩺 Exportar auditoria</button>
       <button type="button" class="btn-secondary" id="cards-deck-btn">📁 Criar baralho</button>
       <button type="button" class="btn-primary" id="cards-new-btn">＋ Criar card</button>
       <button type="button" class="btn-primary" id="cards-foco-btn" title="Estudar sem distração, em tela cheia (Esc para sair)">🎯 Modo foco</button>
@@ -7634,7 +7703,7 @@ const DB = {
       createdAt: now, updatedAt: now
     };
     // Recorrência com data-fim: já calcula e vincula automaticamente as datas do calendário.
-    if (this.extraRecorrente(ex) && ex.dataFim) ex.datas = this._gerarDatasRecorrencia(ex);
+    if (this.extraRecorrente(ex) && ex.dataFim) ex.datas = this._gerarDatasRecorrencia(ex).filter(d => !(ex.excluidasEm || []).includes(d));
     list.push(ex); this.saveExtras(list); return ex;
   },
   updateExtra(id, patch) {
@@ -7651,6 +7720,57 @@ const DB = {
     this.saveExtras(list); return e;
   },
   deleteExtra(id) { this.saveExtras(this.getExtras().filter(x => x.id !== id)); },
+  // Exclui somente a ocorrência escolhida, preservando a série e as demais datas.
+  deleteExtraOccurrence(id, dia) {
+    const list = this.getExtras(); const e = list.find(x => x.id === id);
+    if (!e) return null;
+    dia = dia || todayLocal();
+    e.excluidasEm = Array.isArray(e.excluidasEm) ? e.excluidasEm : [];
+    if (!e.excluidasEm.includes(dia)) e.excluidasEm.push(dia);
+    e.datas = (Array.isArray(e.datas) ? e.datas : []).filter(d => d !== dia);
+    e.concluidasEm = (Array.isArray(e.concluidasEm) ? e.concluidasEm : []).filter(d => d !== dia);
+    const removidos = (Array.isArray(e.historico) ? e.historico : []).filter(h => h.data === dia);
+    e.historico = (Array.isArray(e.historico) ? e.historico : []).filter(h => h.data !== dia);
+    const qtdRemovida = removidos.reduce((n, h) => n + (parseFloat(h.quantidade) || 0), 0);
+    e.progresso = Math.max(0, (parseFloat(e.progresso) || 0) - qtdRemovida);
+    if (e.periodo === 'unica' && e.status === 'concluida' && e.alvo > 0 && e.progresso < e.alvo) e.status = 'ativa';
+    e.updatedAt = new Date().toISOString();
+    this.saveExtras(list); return e;
+  },
+  // Exclui um conjunto explícito de ocorrências sem afetar datas não selecionadas.
+  deleteExtraOccurrences(id, dias) {
+    const list = this.getExtras(); const e = list.find(x => x.id === id);
+    if (!e) return null;
+    const set = new Set((dias || []).filter(Boolean));
+    if (!set.size) return e;
+    e.excluidasEm = [...new Set([...(e.excluidasEm || []), ...set])].sort();
+    e.datas = (e.datas || []).filter(d => !set.has(d));
+    e.concluidasEm = (e.concluidasEm || []).filter(d => !set.has(d));
+    const removidos = (e.historico || []).filter(h => set.has(h.data));
+    e.historico = (e.historico || []).filter(h => !set.has(h.data));
+    const qtd = removidos.reduce((n,h) => n + (parseFloat(h.quantidade) || 0), 0);
+    e.progresso = Math.max(0, (parseFloat(e.progresso) || 0) - qtd);
+    e.updatedAt = new Date().toISOString();
+    this.saveExtras(list); return e;
+  },
+  // Exclui a ocorrência escolhida e todas as posteriores, preservando apenas o histórico anterior.
+  deleteExtraFromDate(id, dia) {
+    const list = this.getExtras(); const e = list.find(x => x.id === id);
+    if (!e) return null;
+    dia = dia || todayLocal();
+    e.datas = (Array.isArray(e.datas) ? e.datas : []).filter(d => d < dia);
+    e.concluidasEm = (Array.isArray(e.concluidasEm) ? e.concluidasEm : []).filter(d => d < dia);
+    e.excluidasEm = (Array.isArray(e.excluidasEm) ? e.excluidasEm : []).filter(d => d < dia);
+    const removidos = (Array.isArray(e.historico) ? e.historico : []).filter(h => h.data >= dia);
+    e.historico = (Array.isArray(e.historico) ? e.historico : []).filter(h => h.data < dia);
+    const qtdRemovida = removidos.reduce((n, h) => n + (parseFloat(h.quantidade) || 0), 0);
+    e.progresso = Math.max(0, (parseFloat(e.progresso) || 0) - qtdRemovida);
+    const base = new Date(dia + 'T00:00:00');
+    e.dataFim = this._isoDia(new Date(base.getTime() - 86400000));
+    if (e.periodo === 'unica' && e.status === 'concluida' && e.alvo > 0 && e.progresso < e.alvo) e.status = 'ativa';
+    e.updatedAt = new Date().toISOString();
+    this.saveExtras(list); return e;
+  },
   // Remove APENAS as ocorrências futuras (a partir de hoje) de uma atividade recorrente,
   // preservando a atividade e todo o histórico já registrado. Encerra a recorrência hoje.
   encerrarRecorrenciaFutura(id) {
@@ -7782,7 +7902,7 @@ const DB = {
     const list = this.getExtras(); const e = list.find(x => x.id === id);
     if (!e) return null;
     if (this.extraRecorrente(e) && e.dataFim) {
-      e.datas = this._gerarDatasRecorrencia(e);
+      e.datas = this._gerarDatasRecorrencia(e).filter(d => !(e.excluidasEm || []).includes(d));
       e.updatedAt = new Date().toISOString();
       this.saveExtras(list);
     }
@@ -10750,11 +10870,17 @@ const CardsConfig = {
   // pesos ativos globais (compatibilidade)
   weights() { return FSRS.migrarW(this.get().weights) || FSRS.DEFAULT_W; },
   // ---- Contadores diários (novos/revisões introduzidos hoje) — resetam a cada dia ----
-  _daily() { let d = this._read(this.DKEY, this.LEGACY_DKEY); if (!d || d.date !== todayCards()) d = { date: todayCards(), newDone: 0, revDone: 0 }; return d; },
+  _daily() {
+    let d = this._read(this.DKEY, this.LEGACY_DKEY);
+    if (!d || d.date !== todayCards()) d = { date: todayCards(), newIds: [], revIds: [] };
+    d.newIds = Array.isArray(d.newIds) ? d.newIds : [];
+    d.revIds = Array.isArray(d.revIds) ? d.revIds : [];
+    return d;
+  },
   _saveDaily(d) { try { localStorage.setItem(this.DKEY, JSON.stringify(d)); } catch (_) {} this._notify(); },
-  newDoneToday() { return this._daily().newDone; }, revDoneToday() { return this._daily().revDone; },
-  markIntroduced(kind) { const d = this._daily(); if (kind === 'new') d.newDone++; else d.revDone++; this._saveDaily(d); },
-  unmarkIntroduced(kind) { const d = this._daily(); if (kind === 'new') d.newDone = Math.max(0, d.newDone - 1); else d.revDone = Math.max(0, d.revDone - 1); this._saveDaily(d); },
+  newDoneToday() { return this._daily().newIds.length; }, revDoneToday() { return this._daily().revIds.length; },
+  markIntroduced(kind, id) { const d = this._daily(); const a = kind === 'new' ? d.newIds : d.revIds; if (id && !a.includes(id)) a.push(id); this._saveDaily(d); },
+  unmarkIntroduced(kind, id) { const d = this._daily(); const k = kind === 'new' ? 'newIds' : 'revIds'; d[k] = id ? d[k].filter(x => x !== id) : d[k]; this._saveDaily(d); },
   newRemaining() { return Math.max(0, (this.get().newPerDay || 0) - this.newDoneToday()); },
   revRemaining() { return Math.max(0, (this.get().revPerDay || 0) - this.revDoneToday()); }
 };
@@ -11757,7 +11883,7 @@ function planCycleMode() {
           <button type="button" class="chip-remove" title="Remover desta célula">×</button>
         </div>
         <div class="chip-bottom-row">
-          <span class="chip-duration-wrap"><input type="text" inputmode="numeric" class="chip-duration-input" value="${minutes}" title="Duração em minutos"><span class="chip-duration-unit">min</span></span>
+          <span class="chip-duration-wrap"><input type="text" inputmode="numeric" class="chip-duration-input" value="${minutes}" title="Duração em minutos"></span>
           <button type="button" class="chip-done-toggle" title="${done ? 'Marcar como não concluída' : 'Marcar como concluída'}">${CHECK_ICON}</button>
         </div>
       </div>
@@ -15439,9 +15565,9 @@ const CardsScreen = {
     const done = this._reviewIdx; // já revisados nesta sessão
     box.innerHTML = `
       <div class="card cards-review-wrap">
-        <div class="cards-review-progress"><span>${done + 1} de ${total}</span>
+        <div class="cards-review-progress"><span title="Posição atual na fila">Card ${done + 1} de ${total}</span>
           <div class="cards-review-bar"><div style="width:${((done) / total) * 100}%"></div></div>
-          <span class="cards-limit-chip" title="Novos e revisões introduzidos hoje / limite diário">🆕 ${CardsConfig.newDoneToday()}/${CardsConfig.get().newPerDay} · 🔄 ${CardsConfig.revDoneToday()}/${CardsConfig.get().revPerDay}</span>
+          <span class="cards-limit-chip" title="Cards únicos respondidos hoje: novos / limite diário e revisões / limite diário">🆕 ${CardsConfig.newDoneToday()}/${CardsConfig.get().newPerDay} · 🔄 ${CardsConfig.revDoneToday()}/${CardsConfig.get().revPerDay}</span>
         </div>
         <div class="cards-review-meta">
           <span class="lei-tag mat">${escapeHtml(this.materiaLabel(c))}</span>
@@ -15452,12 +15578,17 @@ const CardsScreen = {
         ${this.faceHtml(c)}
         <div class="cards-review-actions" id="cards-review-actions"></div>
         <div class="cards-review-nav">
-          <button type="button" class="cards-nav-btn" id="cards-undo" ${(this._undoStack || []).length === 0 ? 'disabled' : ''} title="Desfazer a última avaliação (Ctrl+Z)">↶ Desfazer</button>
+          <button type="button" class="cards-nav-btn" id="cards-prev" ${this._reviewIdx <= 0 ? 'disabled' : ''} title="Voltar ao card anterior (seta esquerda)">← Voltar</button>
           <button type="button" class="icon-btn cards-review-edit" id="cards-review-edit" title="Editar card">✎ Editar</button>
-          <button type="button" class="cards-nav-btn" id="cards-next" ${this._reviewIdx >= total - 1 ? 'disabled' : ''}>Pular →</button>
+          <button type="button" class="cards-nav-btn" id="cards-next" ${this._reviewIdx >= total - 1 ? 'disabled' : ''} title="Avançar para o próximo card (seta direita)">Avançar →</button>
         </div>
         <div class="cards-kbd-hint-row">
-          <span class="cards-kbd-hint"><kbd>Espaço</kbd> vira · <kbd>1</kbd><kbd>2</kbd><kbd>3</kbd><kbd>4</kbd> avaliam · <kbd>Ctrl</kbd>+<kbd>Z</kbd> desfaz · <kbd>→</kbd> pula</span>
+          <span class="cards-kbd-hint">
+            <span class="cards-kbd-group"><kbd>Espaço</kbd> Mostrar resposta</span>
+            <span class="cards-kbd-group"><kbd>1</kbd><kbd>2</kbd><kbd>3</kbd><kbd>4</kbd> Avaliar</span>
+            <span class="cards-kbd-group"><kbd>←</kbd> Voltar</span>
+            <span class="cards-kbd-group"><kbd>→</kbd> Avançar</span>
+          </span>
         </div>
       </div>`;
     this.renderActions(box, c);
@@ -15465,7 +15596,7 @@ const CardsScreen = {
       DB.updateCard(c.id, { favorito: !c.favorito }); this.updateFavCount(); this.renderReviewCard(box);
     });
     document.getElementById('cards-review-edit').addEventListener('click', () => this.openCardModal(c.id));
-    const un = document.getElementById('cards-undo'); if (un) un.addEventListener('click', () => this.undoAnswer());
+    const pv = document.getElementById('cards-prev'); if (pv) pv.addEventListener('click', () => this.navCard(-1));
     const nx = document.getElementById('cards-next'); if (nx) nx.addEventListener('click', () => this.navCard(1));
   },
   // renderiza as faces conforme o tipo (cloze ou básico)
@@ -15521,9 +15652,9 @@ const CardsScreen = {
       if (!this._flipped) this.flip(box);
       return;
     }
-    // → pula o card sem avaliar; ← desfaz a última avaliação
+    // ← volta ao card anterior; → avança para o próximo card
     if (e.code === 'ArrowRight') { e.preventDefault(); this.navCard(1); return; }
-    if (e.code === 'ArrowLeft') { e.preventDefault(); this.undoAnswer(); return; }
+    if (e.code === 'ArrowLeft') { e.preventDefault(); this.navCard(-1); return; }
     if (!this._flipped) return;
     const map = { Digit1: 'errei', Numpad1: 'errei', Digit2: 'dificil', Numpad2: 'dificil', Digit3: 'bom', Numpad3: 'bom', Digit4: 'facil', Numpad4: 'facil' };
     if (map[e.code]) { e.preventDefault(); this.answer(map[e.code]); }
@@ -15587,7 +15718,7 @@ const CardsScreen = {
     DB.updateCard(u.id, u.antes);
     CardEngine.invalidateDueCache();
     DB.removeRevlog(u.revTs);
-    if (u.contou) CardsConfig.unmarkIntroduced(u.contou);
+    if (u.contou) CardsConfig.unmarkIntroduced(u.contou, u.id);
     if (this._seenThisSession && !(this._undoStack || []).some(x => x.id === u.id)) this._seenThisSession.delete(u.id);
     // desfaz a reinserção do card na fila, se houve
     const dup = this._reviewQueue.lastIndexOf(u.id);
@@ -15616,7 +15747,7 @@ const CardsScreen = {
       const bucketAntes = this._bucket(c);
       if (!this._seenThisSession) this._seenThisSession = new Set();
       const primeiraVez = !this._seenThisSession.has(id) && (bucketAntes === 'new' || bucketAntes === 'review');
-      if (primeiraVez) CardsConfig.markIntroduced(bucketAntes);
+      if (primeiraVez) CardsConfig.markIntroduced(bucketAntes, id);
       this._seenThisSession.add(id);
       // snapshot para o DESFAZER — capturado ANTES de gravar (Anki: Ctrl+Z)
       const antes = {};
@@ -15743,10 +15874,12 @@ const CardsScreen = {
            inteiro. É isso que torna a exclusão em lote útil e segura — você filtra
            por matéria, deck ou busca e apaga só aquele recorte. -->
       <div class="cards-bulk">
-        <button type="button" class="btn-secondary" id="cards-sel-all">☑ Selecionar todos (${filtered.length})</button>
-        <button type="button" class="btn-secondary" id="cards-sel-none" style="display:none;">☐ Limpar seleção</button>
+        <label class="cards-select-toggle" title="Selecionar ou limpar todos os cards exibidos pelo filtro atual">
+          <input type="checkbox" id="cards-sel-toggle">
+          <span id="cards-sel-toggle-label">Selecionar todos</span>
+        </label>
         <span class="cards-bulk-count" id="cards-sel-count"></span>
-        <button type="button" class="btn-danger" id="cards-del-sel" style="display:none;">🗑 Excluir selecionados</button>
+        <button type="button" class="btn-danger" id="cards-del-sel" style="display:none;">Excluir selecionados</button>
       </div>
       <div class="cards-grid" id="cards-grid-meus">${filtered.slice(0, n).map(c => this.miniCardHtml(c)).join('')}</div>
       <div id="cards-mais-wrap" style="text-align:center;padding:14px 0;"></div>`;
@@ -15760,15 +15893,17 @@ const CardsScreen = {
        outro contexto. "Selecionar todos" cobre o FILTRO ATUAL, inclusive os
        cards ainda nao renderizados pela paginacao. */
     const sel = new Set();
-    const btnAll = box.querySelector('#cards-sel-all');
-    const btnNone = box.querySelector('#cards-sel-none');
+    const selToggle = box.querySelector('#cards-sel-toggle');
+    const selToggleLabel = box.querySelector('#cards-sel-toggle-label');
     const btnDel = box.querySelector('#cards-del-sel');
     const lblSel = box.querySelector('#cards-sel-count');
     const syncSel = () => {
       lblSel.textContent = sel.size ? sel.size + ' selecionado(s)' : '';
       btnDel.style.display = sel.size ? '' : 'none';
-      btnNone.style.display = sel.size ? '' : 'none';
-      btnAll.textContent = '☑ Selecionar todos (' + filtered.length + ')';
+      const todos = filtered.length > 0 && sel.size === filtered.length;
+      selToggle.checked = todos;
+      selToggle.indeterminate = sel.size > 0 && !todos;
+      selToggleLabel.textContent = todos ? 'Limpar seleção' : 'Selecionar todos';
       grid.querySelectorAll('.mini-card').forEach(mc => {
         const marcado = sel.has(mc.dataset.id);
         mc.classList.toggle('is-sel', marcado);
@@ -15784,8 +15919,10 @@ const CardsScreen = {
     });
     // clique no checkbox nao deve abrir o card para edicao
     grid.addEventListener('click', (e) => { if (e.target.closest('.mini-card-sel')) e.stopPropagation(); }, true);
-    btnAll.addEventListener('click', () => { filtered.forEach(c => sel.add(c.id)); syncSel(); });
-    btnNone.addEventListener('click', () => { sel.clear(); syncSel(); });
+    selToggle.addEventListener('change', () => {
+      if (selToggle.checked) filtered.forEach(c => sel.add(c.id)); else sel.clear();
+      syncSel();
+    });
     btnDel.addEventListener('click', () => {
       const qtd = sel.size;
       if (!qtd) return;
@@ -16032,6 +16169,47 @@ const CardsScreen = {
     const a = document.createElement('a'); a.href = url; a.download = filename;
     document.body.appendChild(a); a.click(); a.remove();
     setTimeout(() => URL.revokeObjectURL(url), 1000);
+  },
+  exportAudit() {
+    try {
+    const cards = DB.getCards();
+    const revlog = DB.getRevlog();
+    const cfg = CardsConfig.get();
+    const daily = CardsConfig._daily();
+    const decks = DB.getDecks();
+    const now = new Date();
+    const byCard = {};
+    cards.forEach(c => {
+      const logs = revlog.filter(r => r.cardId === c.id).sort((a,b) => (a.ts||0) - (b.ts||0));
+      byCard[c.id] = {
+        id:c.id, deckId:c.deckId||null, materia:c.materia||null, topico:c.topico||null, tipo:c.tipo||null,
+        createdAt:c.createdAt||null, updatedAt:c.updatedAt||null, phase:c.phase||null, learnStep:c.learnStep??null,
+        due:c.due||null, dueTs:c.dueTs||null, intervalo:c.intervalo??null, reps:c.reps||0, lapses:c.lapses||0,
+        ease:c.ease??null, s:c.s??null, d:c.d??null, status:c.status||null, suspenso:!!c.suspenso,
+        reviewCount:logs.length, reviewLog:logs
+      };
+    });
+    const anomalies = [];
+    cards.forEach(c => {
+      if ((c.phase === 'learning' || c.phase === 'relearning') && !c.dueTs && !c.due) anomalies.push({cardId:c.id,type:'learning_without_due'});
+      if (c.dueTs && Number(c.dueTs) < 0) anomalies.push({cardId:c.id,type:'negative_dueTs'});
+      if ((c.reps||0) > 0 && !revlog.some(r => r.cardId === c.id)) anomalies.push({cardId:c.id,type:'reps_without_revlog',reps:c.reps});
+    });
+    const payload = {
+      schema:'diario-estudos-cards-audit', version:1, exportedAt:now.toISOString(), appDate:todayCards(),
+      purpose:'Diagnóstico do agendador de cards, limites diários e possíveis repetições em loop.',
+      environment:{ userAgent:navigator.userAgent, language:navigator.language, timezone:Intl.DateTimeFormat().resolvedOptions().timeZone, online:navigator.onLine },
+      configuration:cfg, dailyCounters:daily, decks,
+      summary:{cards:cards.length, revisionEntries:revlog.length, newCards:cards.filter(c=>CardsScreen._bucket(c)==='new').length, learningCards:cards.filter(c=>CardsScreen._bucket(c)==='learn').length, reviewCards:cards.filter(c=>CardsScreen._bucket(c)==='review').length, anomalies:anomalies.length},
+      queueSnapshot:{generatedAt:now.toISOString(), cardIds:(CardsScreen._reviewQueue || []).slice(), position:CardsScreen._reviewIdx, newRemaining:CardsConfig.newRemaining(), reviewRemaining:CardsConfig.revRemaining()},
+      cards:byCard, rawReviewLog:revlog, detectedAnomalies:anomalies
+    };
+    this._download('auditoria-cards_' + todayLocal() + '.json', JSON.stringify(payload, null, 2), 'application/json');
+    showToast('Arquivo de auditoria exportado ✓');
+    } catch (err) {
+      console.error('Falha ao exportar auditoria dos cards:', err);
+      showToast('Não foi possível exportar. Detalhe: ' + (err && err.message ? err.message : 'erro desconhecido'));
+    }
   },
   exportAnki() {
     const cards = DB.getCards();
@@ -16730,6 +16908,7 @@ document.querySelectorAll('.rte').forEach(buildRteToolbar);
   on('foco-undo', 'click', () => CardsScreen.undoAnswer());
   on('cards-deck-btn', 'click', () => CardsScreen.openDeckModal());
   on('cards-export-btn', 'click', () => CardsScreen.openExportModal());
+    on('cards-audit-export-btn', 'click', () => CardsScreen.exportAudit());
   on('cards-import-btn', 'click', () => CardsScreen.openImportModal());
   // modal card
   on('card-modal-close', 'click', () => CardsScreen.fecharCardComAviso());
@@ -16849,6 +17028,7 @@ const ExtrasScreen = {
     return DB.getExtras().filter(x => {
       const datas = x.datas || [];
       if (DB.extraRecorrente(x)) {
+        if ((x.excluidasEm || []).includes(day)) return false;
         if (datas.length) return datas.includes(day);
         return this._recurOnDay(x, day);
       }
@@ -17147,28 +17327,29 @@ const ExtrasScreen = {
            <button type="button" class="btn-primary ex-marcador-save">Salvar</button>
          </div>` : '';
     // nº de lançamentos feitos neste dia → habilita o botão de desfazer (corrigir/diminuir)
-    const nReg = (x.historico || []).filter(h => h.data === day).length;
-    const undoBtn = nReg > 0 ? `<button type="button" class="exd-undo" title="Desfazer o último registro deste dia (${nReg} registrado${nReg === 1 ? '' : 's'})"><span aria-hidden="true">↶</span> Desfazer registro</button>` : '';
+    const regsDia = (x.historico || []).filter(h => h.data === day);
+    const nReg = regsDia.length;
+    const ultimoReg = nReg ? regsDia[nReg - 1] : null;
     /* Registro de tempo independente da conclusão: pode ser parcial ou integral. */
     const regRow = done ? '' : `
         <div class="exd-reg">
-          <div class="exd-reg-group">
-            <input type="number" class="exd-num exd-qtd" min="0" placeholder="${placeholder}"
-                   title="Quanto você fez ${escapeHtml(this._prettyDay(day))}">
-            ${x.tipo === 'questoes' ? `<input type="number" class="exd-num exd-ac" min="0" placeholder="acertos" title="Acertos (opcional)">` : ''}
-            <button type="button" class="btn-primary exd-reg-btn" title="Registrar o tempo informado">Registrar tempo</button>
-            <span class="exd-info-wrap">
-              <button type="button" class="exd-info-btn" aria-expanded="false" title="Informação sobre o registro">i</button>
-              <span class="exd-info-pop" role="tooltip">O registro pode representar o tempo integral da atividade ou apenas uma parte. Você pode fazer novos registros no mesmo dia.</span>
-            </span>
-            ${undoBtn}
-          </div>
+          ${ultimoReg ? `
+            <div class="exd-reg-saved">
+              <span class="exd-reg-value">${escapeHtml(String(ultimoReg.quantidade || 0))} ${escapeHtml(unidLabel)}</span>
+              <button type="button" class="btn-secondary exd-reg-edit">Editar</button>
+            </div>` : `
+            <div class="exd-reg-group">
+              <input type="number" inputmode="decimal" class="exd-num exd-qtd" min="0"
+                     placeholder="${placeholder}" title="Informe o valor a registrar">
+              ${x.tipo === 'questoes' ? `<input type="number" inputmode="numeric" class="exd-num exd-ac" min="0" placeholder="acertos" title="Acertos (opcional)">` : ''}
+              <button type="button" class="btn-primary exd-reg-btn">Registrar</button>
+            </div>`}
         </div>`;
     return `
       <div class="exd ${done ? 'done' : ''}" data-id="${x.id}" data-day="${day}" style="--exd-cor:${cor}; --exd-fill:${alvo > 0 ? pct : (done ? 100 : 0)}%;">
         <div class="exd-top">
           <button type="button" class="exd-check" aria-pressed="${done}"
-                  title="${done ? 'Clique para REABRIR esta atividade' : 'Clique para marcar como concluída'}">
+                  aria-label="${done ? 'Reabrir atividade' : 'Concluir atividade'}">
             ${this._CHECK}<span class="exd-check-lbl">${done ? 'Reabrir' : 'Concluir'}</span>
           </button>
           <div class="exd-ico" style="background:color-mix(in srgb, ${cor} 16%, transparent); color:${cor};">${t.ico}</div>
@@ -17180,7 +17361,10 @@ const ExtrasScreen = {
               ${x.tipo === 'leitura' && x.marcador ? `<span class="extra-tag pin">📌 ${escapeHtml(x.marcador)}</span>` : ''}
             </div>
           </div>
-          <button type="button" class="icon-btn exd-edit" title="Editar / configurar">✎</button>
+          <div class="exd-actions">
+            <button type="button" class="icon-btn exd-edit" title="Editar / configurar">✎</button>
+            <button type="button" class="icon-btn exd-delete" title="Excluir atividade">🗑</button>
+          </div>
         </div>
                 ${progBlock}
         ${marcador}
@@ -17202,36 +17386,39 @@ const ExtrasScreen = {
       });
       const edit = card.querySelector('.exd-edit');
       if (edit) edit.addEventListener('click', () => this.openModal(id));
-      const infoBtn = card.querySelector('.exd-info-btn');
-      if (infoBtn) infoBtn.addEventListener('click', (ev) => {
-        ev.stopPropagation();
-        const wrap = infoBtn.closest('.exd-info-wrap');
-        const open = !wrap.classList.contains('open');
-        document.querySelectorAll('.exd-info-wrap.open').forEach(el => el.classList.remove('open'));
-        wrap.classList.toggle('open', open);
-        infoBtn.setAttribute('aria-expanded', open ? 'true' : 'false');
-      });
-      // registrar progresso NO DIA selecionado (um único campo — sem o antigo "+ Avançar")
+      const del = card.querySelector('.exd-delete');
+      if (del) del.addEventListener('click', () => this.excluir(id, day));
+      // Registra um novo valor; a edição ocorre em uma caixa separada.
       const regBtn = card.querySelector('.exd-reg-btn');
       if (regBtn) regBtn.addEventListener('click', () => {
-        const x = DB.getExtra(id);
         const qEl = card.querySelector('.exd-qtd');
         const acEl = card.querySelector('.exd-ac');
         const q = qEl ? qEl.value : '';
-        if (!q || parseFloat(q) <= 0) { showToast('Informe quanto avançou'); return; }
+        if (!q || parseFloat(q) <= 0) { showToast('Informe um valor válido'); return; }
         if (acEl && acEl.value !== '' && parseFloat(acEl.value) > parseFloat(q)) { showToast('Acertos não podem passar do total'); return; }
         if (day > todayLocal()) { showToast('Não dá para registrar em data futura'); return; }
         DB.addExtraProgress(id, q, 0, { data: day, acertos: acEl ? acEl.value : null });
         this.render();
         showToast(day === todayLocal() ? 'Registrado ✓' : 'Registrado em ' + formatDateShort(day) + ' ✓');
       });
-      // desfazer/diminuir o último lançamento deste dia (corrige erro de digitação)
-      const undo = card.querySelector('.exd-undo');
-      if (undo) undo.addEventListener('click', () => {
-        const u = DB.undoExtraProgressDay(id, day);
-        if (!u) { showToast('Nada para desfazer neste dia'); return; }
-        this.render();
-        showToast('Lançamento de ' + (u.quantidade || 0) + ' desfeito ↶');
+      const editReg = card.querySelector('.exd-reg-edit');
+      if (editReg) editReg.addEventListener('click', () => {
+        const xAtual = DB.getExtra(id);
+        const regs = (xAtual.historico || []).filter(h => h.data === day);
+        const atual = regs.length ? regs[regs.length - 1] : null;
+        if (!atual) { this.render(); return; }
+        const campos = [{ key: 'quantidade', label: 'Novo valor', type: 'number', value: String(atual.quantidade || ''), min: 0 }];
+        if (xAtual.tipo === 'questoes') campos.push({ key: 'acertos', label: 'Acertos', type: 'number', value: atual.acertos == null ? '' : String(atual.acertos), min: 0 });
+        UI.prompt(campos, { title: 'Editar registro', okText: 'Salvar' }).then(v => {
+          if (!v) return;
+          const novo = parseFloat(v.quantidade);
+          if (!novo || novo <= 0) { showToast('Informe um valor válido'); return; }
+          if (v.acertos !== undefined && v.acertos !== '' && parseFloat(v.acertos) > novo) { showToast('Acertos não podem passar do total'); return; }
+          DB.undoExtraProgressDay(id, day);
+          DB.addExtraProgress(id, novo, 0, { data: day, acertos: v.acertos == null ? null : v.acertos });
+          this.render();
+          showToast('Registro atualizado ✓');
+        });
       });
       // marcador "onde parei" (leitura)
       const mkSave = card.querySelector('.ex-marcador-save');
@@ -17285,39 +17472,53 @@ const ExtrasScreen = {
   // Exclusão consciente da recorrência: se a atividade é recorrente e tem ocorrências
   // FUTURAS vinculadas, pergunta se apaga tudo ou só as ocorrências futuras (mantendo
   // a atividade e o histórico já registrado).
-  excluir(id) {
+  _openOccurrencePicker(x, dia) {
+    const dates = [...new Set([...(x.datas || []), ...(x.concluidasEm || []), ...(x.historico || []).map(h => h.data)])].sort();
+    return new Promise(resolve => {
+      const ov = document.createElement('div'); ov.className = 'occ-del-overlay';
+      const minDia = d => (x.historico || []).filter(h => h.data === d).reduce((n,h) => n + (parseFloat(h.minutos) || ((x.unidade === 'min' || x.tipo === 'video') ? (parseFloat(h.quantidade)||0) : 0)), 0);
+      ov.innerHTML = `<div class="occ-del-modal"><div class="occ-del-head"><h3>Selecionar ocorrências para excluir</h3><button class="occ-del-close" type="button">×</button></div><div class="occ-del-body"><div class="occ-del-quick"><button data-scope="all">Selecionar todas</button><button data-scope="future">Futuras</button><button data-scope="presentFuture">Presente e futuras</button><button data-scope="none" title="Limpar filtros e desmarcar todas as ocorrências">🧹 <span>Limpar filtros</span></button></div><div class="occ-del-grid">${dates.map(d => `<label class="occ-del-item"><input type="checkbox" value="${d}"><span class="occ-del-date">${formatDateShort(d)}</span><span class="occ-del-time">${minDia(d) ? minDia(d) + ' min' : 'sem tempo'}</span></label>`).join('')}</div></div><div class="occ-del-foot"><span class="occ-del-count">0 selecionadas</span><div class="occ-del-actions"><button type="button" class="btn-secondary occ-cancel">Cancelar</button><button type="button" class="btn-danger occ-confirm" disabled>Excluir</button></div></div></div>`;
+      document.body.appendChild(ov);
+      const boxes = [...ov.querySelectorAll('input[type=checkbox]')], count = ov.querySelector('.occ-del-count'), ok = ov.querySelector('.occ-confirm');
+      const sync = () => { const n=boxes.filter(b=>b.checked).length; count.textContent=n+' selecionada(s)'; ok.disabled=!n; };
+      const close = v => { ov.remove(); resolve(v); };
+      const quick = [...ov.querySelectorAll('[data-scope]')];
+      const setActive = btn => quick.forEach(q => q.classList.toggle('active', q === btn && btn.dataset.scope !== 'none'));
+      boxes.forEach(b=>b.addEventListener('change',()=>{ setActive(null); sync(); }));
+      quick.forEach(b=>b.addEventListener('click',()=>{
+        const sc=b.dataset.scope;
+        boxes.forEach(c=>{c.checked=sc==='all'||(sc==='future'&&c.value>dia)||(sc==='presentFuture'&&c.value>=dia);});
+        setActive(b); sync();
+      }));
+      ov.querySelector('.occ-del-close').onclick=()=>close(null); ov.querySelector('.occ-cancel').onclick=()=>close(null);
+      ok.onclick=()=>close(boxes.filter(b=>b.checked).map(b=>b.value));
+      ov.addEventListener('click',e=>{if(e.target===ov)close(null)});
+      sync();
+    });
+  },
+  excluir(id, dia) {
     const x = DB.getExtra(id);
     if (!x) return;
-    const hoje = todayLocal();
-    const futuras = (x.datas || []).filter(d => d >= hoje).length;
-    const recorrente = DB.extraRecorrente(x) && futuras > 0;
-    if (!recorrente) {
-      UI.confirm(`Excluir a atividade "${x.titulo}"?`, { title: 'Excluir atividade', okText: 'Excluir', danger: true }).then(ok => {
+    dia = dia || todayLocal();
+    if (!DB.extraRecorrente(x)) {
+      UI.confirm(`Excluir a atividade "${x.titulo}" deste dia?`, { title: 'Excluir atividade', okText: 'Excluir', danger: true }).then(ok => {
         if (!ok) return;
         DB.deleteExtra(id); this.render(); showToast('Atividade excluída');
       });
       return;
     }
-    // recorrente com ocorrências futuras → oferece o escopo da exclusão
-    UI.prompt([{
-      key: 'escopo', label: 'Esta é uma atividade recorrente com ' + futuras + ' ocorrência(s) futura(s) no calendário. O que deseja excluir?',
-      type: 'select', value: 'tudo',
-      options: [
-        { value: 'tudo', label: '🗑️ Toda a série (a atividade e as ' + futuras + ' ocorrência(s))' },
-        { value: 'futuras', label: '⏭️ Só as ocorrências futuras (mantém o histórico)' }
-      ],
-      hint: '"Só as futuras" preserva a atividade e o que você já registrou; a recorrência é encerrada a partir de hoje.'
-    }], { title: 'Excluir atividade recorrente', okText: 'Confirmar' }).then(v => {
-      if (!v) return;
-      if (v.escopo === 'futuras') {
-        DB.encerrarRecorrenciaFutura(id);
-        this.render();
-        showToast('Ocorrências futuras removidas — atividade encerrada hoje ✓');
-      } else {
-        DB.deleteExtra(id);
-        this.render();
-        showToast('Série recorrente excluída ✓');
+    this._openOccurrencePicker(x, dia).then(dias => {
+      if (!dias || !dias.length) return;
+      const todas = [...new Set([...(x.datas || []), ...(x.concluidasEm || []), ...(x.historico || []).map(h => h.data)])];
+      if (dias.length === todas.length && todas.every(d => dias.includes(d))) {
+        UI.confirm('Excluir toda a recorrência e todos os registros vinculados?', { title: 'Excluir toda a recorrência', okText: 'Excluir tudo', danger: true }).then(ok => {
+          if (!ok) return; DB.deleteExtra(id); this.render(); showToast('Toda a recorrência foi excluída');
+        });
+        return;
       }
+      DB.deleteExtraOccurrences(id, dias);
+      this.render();
+      showToast(dias.length + ' ocorrência(s) excluída(s)');
     });
   },
   openModal(id, prefill) {
@@ -22852,6 +23053,32 @@ const StudyReport = {
     .exd-reg-group { flex-wrap:wrap; }
     .exd-reg .exd-reg-btn { flex:1 1 auto; justify-content:center; }
   }
+
+  /* Refinamento visual: seleção em massa e registro das atividades extras */
+  .cards-bulk { display:flex; align-items:center; gap:8px; flex-wrap:wrap; padding:8px 10px; margin:0 0 12px; border:1px solid var(--border); border-radius:12px; background:var(--surface-sunken); }
+  .cards-select-toggle { display:inline-flex; align-items:center; gap:8px; min-height:34px; padding:0 11px; border:1px solid var(--border); border-radius:9px; background:var(--surface); color:var(--text-soft); font-size:calc(11.5px * var(--fs-scale,1)); font-weight:700; cursor:pointer; }
+  .cards-select-toggle:hover { border-color:var(--accent); color:var(--accent); }
+  .cards-select-toggle input { width:15px; height:15px; accent-color:var(--accent); }
+  .cards-bulk-count { min-height:26px; display:inline-flex; align-items:center; padding:0 9px; border-radius:999px; background:var(--accent-soft); color:var(--accent); font-family:'Inter',sans-serif; font-size:calc(11px * var(--fs-scale,1)); font-weight:800; }
+  .cards-bulk-count:empty { display:none; }
+  .cards-bulk .btn-danger { min-height:34px; padding:0 12px; margin-left:auto; border-radius:9px; font-size:calc(11.5px * var(--fs-scale,1)); }
+  .exd.done .exd-check:hover::before, .exd.done .exd-check:hover::after { content:none !important; display:none !important; }
+  .exd-reg { align-items:center; }
+  .exd-reg-group { flex:0 1 auto; }
+  .exd-reg .exd-num { flex:0 0 92px; width:92px; appearance:textfield; -moz-appearance:textfield; }
+  .exd-reg .exd-num::-webkit-inner-spin-button, .exd-reg .exd-num::-webkit-outer-spin-button { -webkit-appearance:none; margin:0; }
+  .exd-reg .exd-reg-btn { min-width:92px; justify-content:center; padding:0 15px; }
+  @media (max-width:640px) {
+    .cards-bulk .btn-danger { width:auto; margin-left:0; }
+    .exd-reg-group { width:100%; }
+    .exd-reg .exd-num { flex:1 1 90px; width:auto; }
+    .exd-reg .exd-reg-btn { flex:0 0 auto; }
+  }
+
+  .exd-actions { display:flex; align-items:center; gap:4px; flex-shrink:0; }
+  .exd-actions .exd-edit, .exd-actions .exd-delete { margin:0; }
+  .exd-actions .exd-delete { color:var(--text-faint); }
+  .exd-actions .exd-delete:hover { color:var(--bad); background:var(--bad-soft); border-color:color-mix(in srgb,var(--bad) 35%,var(--border)); }
 </style></head><body><div class="toolbar"><div><strong>Pré-visualização do relatório</strong><div style="font-size:11px;opacity:.75">${this.esc(this.rangeLabel(cfg))}</div></div><div><button onclick="window.close()">Fechar</button> <button class="primary" onclick="window.print()">Salvar em PDF</button></div></div><main class="paper">${pages}</main></body></html>`;
   },
   generate(printNow) {
