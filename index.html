@@ -1041,7 +1041,25 @@
   .exx-fcard .v { font-family: 'Space Mono', monospace; font-weight: 800; font-size: calc(18px * var(--fs-scale,1)); color: var(--text); }
   .exx-fcard .l { font-size: calc(10px * var(--fs-scale,1)); font-weight: 700; text-transform: uppercase; letter-spacing: 0.03em; color: var(--text-faint); margin-top: 3px; }
   /* cartão de tarefa do dia */
-  .exd { background: var(--surface); border: 1.5px solid var(--border); border-radius: 16px; padding: 14px 16px; margin-bottom: 12px; box-shadow: var(--shadow-sm); transition: border-color 0.14s ease, box-shadow 0.14s ease; }
+  /* ══════════════════════════════════════════════════════════════════════════
+     ATIVIDADES EXTRAS — cartao da ocorrencia do dia
+     O trabalho desta tela e responder uma pergunta so: "o que ainda devo hoje,
+     e quanto falta". Tudo aqui serve a leitura em pilha — bater o olho numa
+     coluna de cartoes e saber o estado de cada um sem ler numero nenhum.
+
+     ASSINATURA: o TRILHO lateral. Cada tipo de atividade tem sua cor (Anki,
+     lei seca, questoes...). O trilho fica cinza e vai sendo preenchido de baixo
+     para cima com a cor do tipo, na proporcao do progresso. Cor = que tipo e;
+     altura = quanto falta. Duas informacoes num elemento so, legivel de relance.
+     ═══════════════════════════════════════════════════════════════════════ */
+  .exd { position: relative; background: var(--surface); border: 1.5px solid var(--border); border-radius: 16px; padding: 14px 16px 14px 22px; margin-bottom: 12px; box-shadow: var(--shadow-sm); transition: border-color .14s ease, box-shadow .14s ease, transform .14s ease; overflow: hidden; }
+  .exd:hover { transform: translateY(-1px); box-shadow: var(--shadow-md, var(--shadow-sm)); }
+  /* trilho: canaleta cinza encostada na borda esquerda */
+  .exd::before { content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 5px; background: var(--surface-sunken); }
+  /* preenchimento do trilho — a altura vem de --exd-fill, definida no card */
+  .exd::after { content: ''; position: absolute; left: 0; bottom: 0; width: 5px; height: var(--exd-fill, 0%); background: var(--exd-cor, var(--accent)); transition: height .45s cubic-bezier(.4,0,.2,1); }
+  .exd.done::after { height: 100%; background: var(--good); }
+  @media (prefers-reduced-motion: reduce) { .exd, .exd::after { transition: none; } }
   .exd:hover { border-color: var(--border-strong); }
   .exd.done { border-color: color-mix(in srgb, var(--good) 45%, var(--border)); background: linear-gradient(180deg, var(--good-soft), var(--surface) 72%); }
   .exd .opt { color: var(--text-faint); font-weight: 400; }
@@ -1057,9 +1075,21 @@
   .exd-tags { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 6px; }
   .exd-edit { flex-shrink: 0; }
   .exd-doneflag { display: inline-flex; align-items: center; gap: 6px; font-size: calc(11px * var(--fs-scale,1)); font-weight: 800; color: var(--good-text); background: var(--good-soft); border: 1px solid color-mix(in srgb, var(--good) 35%, transparent); border-radius: 20px; padding: 3px 10px; margin-top: 10px; }
+  /* Botoes do rodape: rotulo em frase (nao em caixa alta gritada), icone
+     proprio a esquerda e alvo de toque confortavel no celular. */
+  .exd-btn-ico { font-weight: 800; margin-right: 2px; display: inline-block; }
+  .exd-reg .exd-reg-btn, .exd-reg .exd-done-btn { display: inline-flex; align-items: center; gap: 6px; min-height: 40px; border-radius: 11px; font-weight: 700; }
+  .exd-reg .exd-done-btn { box-shadow: 0 4px 12px var(--accent-ring); }
+  .exd-reg .exd-done-btn:hover { transform: translateY(-1px); }
+  /* Caixa de conclusao: alvo maior e um anel no foco, para funcionar no teclado */
+  .exd-check { transition: background .12s ease, border-color .12s ease, box-shadow .12s ease; }
+  .exd-check:hover { border-color: var(--good); background: var(--good-soft); color: var(--good); }
+  .exd-check:focus-visible { outline: none; box-shadow: 0 0 0 3px var(--accent-ring); border-color: var(--accent); }
+  /* Icone do tipo: anel sutil na cor do proprio tipo, amarrando com o trilho */
+  .exd-ico { box-shadow: inset 0 0 0 1.5px color-mix(in srgb, currentColor 26%, transparent); }
   .exd-prog { margin-top: 12px; }
   .exd-prog .bar { height: 9px; background: var(--surface-sunken); border: 1px solid var(--border); border-radius: 20px; overflow: hidden; }
-  .exd-prog .bar > i { display: block; height: 100%; border-radius: 20px; background: var(--accent); transition: width 0.4s ease; }
+  .exd-prog .bar > i { display: block; height: 100%; border-radius: 20px; background: var(--exd-cor, var(--accent)); transition: width 0.4s ease; }
   .exd-prog .bar > i.full { background: var(--good); }
   .exd-prog .nums { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; margin-top: 6px; font-size: calc(12px * var(--fs-scale,1)); color: var(--text-soft); }
   .exd-prog .nums b { font-family: 'Space Mono', monospace; color: var(--text); font-size: calc(14px * var(--fs-scale,1)); }
@@ -16836,9 +16866,19 @@ const ExtrasScreen = {
     const alvo = parseFloat(x.alvo) || 0;
     const emMin = (x.tipo === 'video' || x.unidade === 'min');
     const cor = this._tipoColor(x.tipo);
-    // progresso: recorrente conta o registrado NESTE DIA; avulsa mostra o acumulado
+    /* PROGRESSO — a barra tem de medir o MESMO periodo da meta.
+       Bug corrigido: para toda atividade recorrente a barra somava so o dia.
+       Numa meta SEMANAL de 100 questoes com 60 feitas ontem e 30 hoje, o card
+       exibia "30/100" — parecia que quase nada tinha sido feito, quando faltavam
+       apenas 10. Agora: meta diaria continua medindo o dia; semanal, quinzenal e
+       mensal medem o periodo corrente (DB.extraProgressoPeriodo), que e o mesmo
+       criterio ja usado para decidir se a meta foi batida. */
     const feitoDia = (x.historico || []).filter(h => h.data === day).reduce((a, h) => a + (h.quantidade || 0), 0);
-    const feito = rec ? feitoDia : (x.progresso || 0);
+    const diaria = x.periodo === 'diaria';
+    const feito = !rec ? (x.progresso || 0) : (diaria ? feitoDia : DB.extraProgressoPeriodo(x));
+    // rotulo do que a barra esta medindo, para nao restar duvida
+    const PER_LABEL = { semanal: 'na semana', quinzenal: 'na quinzena', mensal: 'no mês' };
+    const escopo = !rec ? '' : (diaria ? (day === todayLocal() ? 'hoje' : 'no dia') : (PER_LABEL[x.periodo] || ''));
     const pct = alvo > 0 ? Math.min(100, Math.round((feito / alvo) * 100)) : 0;
     const barFull = alvo > 0 && feito >= alvo;
     const unidLabel = emMin ? 'min' : escapeHtml(x.unidade);
@@ -16846,11 +16886,11 @@ const ExtrasScreen = {
     const REC_NOME = { diaria: 'diária', semanal: 'semanal', quinzenal: 'quinzenal', mensal: 'mensal' };
     const recTag = rec ? `<span class="extra-tag rec">🔁 ${REC_NOME[x.periodo] || ''}</span>` : '';
     const discTag = x.disciplina ? `<span class="extra-tag disc">${escapeHtml(x.disciplina)}</span>` : '';
-    const metaTag = `<span class="extra-tag ${x.contaMetricas ? 'count-on' : 'count-off'}" title="${x.contaMetricas ? 'Conta nas métricas de Evolução' : 'Fora das métricas'}">${x.contaMetricas ? '📊 métricas' : 'fora'}</span>`;
+    const metaTag = `<span class="extra-tag ${x.contaMetricas ? 'count-on' : 'count-off'}" title="${x.contaMetricas ? 'Conta nas métricas de Evolução' : 'Fora das métricas'}">${x.contaMetricas ? '📊 conta na Evolução' : '🚫 não conta'}</span>`;
     const progBlock = (alvo > 0)
       ? `<div class="exd-prog">
            <div class="bar"><i class="${barFull ? 'full' : ''}" style="width:${pct}%"></i></div>
-           <div class="nums"><span><b>${feito.toLocaleString('pt-BR')}</b> / ${alvo.toLocaleString('pt-BR')} ${unidLabel}${rec ? ' <span class="opt">' + (day === todayLocal() ? 'hoje' : 'no dia') + '</span>' : ''}</span><span>${pct}%</span></div>
+           <div class="nums"><span><b>${feito.toLocaleString('pt-BR')}</b> / ${alvo.toLocaleString('pt-BR')} ${unidLabel}${escopo ? ' <span class="opt">' + escopo + '</span>' : ''}</span><span>${pct}%</span></div>
          </div>`
       : (feitoDia > 0 ? `<div class="exd-prog"><div class="nums"><span><b>${feitoDia.toLocaleString('pt-BR')}</b> ${unidLabel} no dia</span></div></div>` : '');
     const marcador = x.tipo === 'leitura'
@@ -16867,13 +16907,17 @@ const ExtrasScreen = {
           <div class="exd-reg-group">
             <input type="number" class="exd-num exd-qtd" min="0" placeholder="${placeholder}" title="Registrar progresso em ${escapeHtml(this._prettyDay(day))}">
             ${x.tipo === 'questoes' ? `<input type="number" class="exd-num exd-ac" min="0" placeholder="acertos" title="Acertos (opcional)">` : ''}
-            <button type="button" class="btn-secondary exd-reg-btn">+ REGISTRAR</button>
+            <button type="button" class="btn-secondary exd-reg-btn" title="Somar este valor ao progresso, sem encerrar a atividade">
+              <span class="exd-btn-ico" aria-hidden="true">＋</span> Registrar
+            </button>
             ${undoBtn}
           </div>
-          <button type="button" class="btn-primary exd-done-btn">✓ CONCLUIR</button>
+          <button type="button" class="btn-primary exd-done-btn" title="Marcar a atividade como concluída ${rec ? 'neste dia' : ''}">
+            <span class="exd-btn-ico" aria-hidden="true">✓</span> Concluir${rec ? ' o dia' : ''}
+          </button>
         </div>`;
     return `
-      <div class="exd ${done ? 'done' : ''}" data-id="${x.id}" data-day="${day}">
+      <div class="exd ${done ? 'done' : ''}" data-id="${x.id}" data-day="${day}" style="--exd-cor:${cor}; --exd-fill:${alvo > 0 ? pct : (done ? 100 : 0)}%;">
         <div class="exd-top">
           <button type="button" class="exd-check" title="${done ? 'Reabrir' : 'Concluir'} neste dia">${this._CHECK}</button>
           <div class="exd-ico" style="background:color-mix(in srgb, ${cor} 16%, transparent); color:${cor};">${t.ico}</div>
