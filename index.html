@@ -15232,6 +15232,29 @@ const CardsScreen = {
     this.atualizarFoco();
     const box = document.getElementById('cards-content');
     if (this._reviewIdx >= this._reviewQueue.length) {
+      /* ── FIDELIDADE AO ANKI: antecipados fazem parte da MESMA fila ───────────
+         No Anki (rslib/src/scheduler/queue/mod.rs) a ordem de apresentação é um
+         único iterador encadeado:
+             aprendizado vencido AGORA → revisões e novos → aprendizado ANTECIPADO
+         O "learn ahead" (padrão 1200s = 20 min) é o último elo desse mesmo
+         iterador — não uma fila separada. Por isso o Anki NUNCA diz "concluído"
+         para depois trazer os cards de volta: ele simplesmente continua.
+
+         Aqui os antecipados viviam fora da fila, então ela esvaziava, aparecia o
+         🎉 e os cards ressurgiam ao reabrir a tela. Mesma matemática, sensação
+         completamente diferente — e era isto que destoava do Anki.
+         Agora eles entram no fim da fila corrente, e o encerramento só acontece
+         quando não há mais nada dentro da janela de antecipação. */
+      const antecipados = (this._learnAheadQueue() || []).filter(id => {
+        const c = DB.getCard(id);
+        return c && !c.suspenso;
+      });
+      if (antecipados.length) {
+        this._reviewQueue = this._reviewQueue.concat(antecipados);
+        this._skipNotDue();
+        this.renderReviewCard(box);
+        return;
+      }
       // conta CARDS DISTINTOS, não as repetições dos passos de aprendizado
       const distintos = new Set(this._reviewQueue).size;
       box.innerHTML = `<div class="card"><div class="cards-review-done"><div class="big">🎉</div><h3>Sessão concluída!</h3><p>Você revisou ${distintos} card(s). O app agendou a próxima revisão de cada um.</p><button type="button" class="btn-primary" id="cards-review-restart">Ver se há mais</button></div></div>`;
