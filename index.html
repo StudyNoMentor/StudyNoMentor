@@ -2542,9 +2542,38 @@
   .tec-subtab:hover { border-color: var(--border-strong); color: var(--text); }
   .tec-subtab.active { background: var(--accent-soft); border-color: var(--accent); color: var(--accent); }
   /* Ocultar filtros/configurações da tela (mostra só as informações) */
+  /* ── FILTROS OCULTAVEIS ────────────────────────────────────────────────────
+     "🔧 Filtros" recolhe TODA a configuracao da tela de uma vez, deixando so os
+     resultados. O estado fica salvo por perfil: quem prefere a tela limpa nao
+     precisa recolher de novo a cada visita.
+     A barra de filtros vira grade fluida — em vez de campos espremidos lado a
+     lado, cada um recebe largura minima e quebra sozinho no celular. */
   #tec-analysis.hide-cfg .tec-cfg { display: none !important; }
   #tec-toggle-cfg.is-active { background: var(--accent); color: #fff; border-color: var(--accent); }
   #tec-toggle-cfg.is-active:hover { background: var(--accent-hover); color: #fff; }
+  .tec-filterbar {
+    display: grid !important;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    align-items: end;
+    gap: 12px 14px;
+  }
+  .tec-filterbar .field { min-width: 0; }
+  .tec-filterbar .field select, .tec-filterbar .field input[type="number"] { width: 100%; }
+  /* o "só folhas" e uma opcao, nao um campo: ocupa a linha inteira quando sobra espaco */
+  .tec-filterbar .co-check {
+    grid-column: 1 / -1;
+    display: inline-flex; align-items: center; gap: 8px;
+    margin: 0 !important; padding: 8px 10px;
+    background: var(--surface); border: 1px solid var(--border); border-radius: 10px;
+    font-size: calc(12px * var(--fs-scale, 1)); cursor: pointer;
+  }
+  .tec-filterbar .co-check:hover { border-color: var(--border-strong); }
+  @media (min-width: 900px) { .tec-filterbar .co-check { grid-column: auto; } }
+  @media (max-width: 560px) {
+    .tec-filterbar { grid-template-columns: 1fr 1fr; }
+    .tec-filterbar .field:first-child { grid-column: 1 / -1; }
+    .tec-filterbar .time-input input, .tec-filterbar input[type="number"] { width: 100% !important; }
+  }
   /* Barra de filtros dos pontos fracos: caixa delimitada (não "texto solto") */
   .tec-filterbar { background: var(--surface-sunken); border: 1.5px solid var(--border); border-radius: 12px; }
   /* Escopo da análise: seleção de retratos + intervalo */
@@ -3054,9 +3083,31 @@
   .tec-or-divider span { font-size: calc(11px * var(--fs-scale, 1)); font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-faint); }
 
   /* ---------- Desempenho TEC ---------- */
+  /* ══════════════════════════════════════════════════════════════════════════
+     DESEMPENHO TEC — os quatro numeros do topo
+     Cada um ganha icone e um filete de cor, para virarem quatro coisas
+     distintas de relance. O de aproveitamento colore pela meta configurada
+     (verde/amarelo/vermelho), entao o numero se explica sozinho.
+     ═══════════════════════════════════════════════════════════════════════ */
   .tec-total-card {
+    position: relative; overflow: hidden;
     background: var(--surface); border: 1.5px solid var(--border); border-radius: 16px;
-    box-shadow: var(--shadow-sm); padding: 16px 18px; text-align: center;
+    box-shadow: var(--shadow-sm); padding: 15px 16px 16px; text-align: center;
+    transition: transform .14s ease, border-color .14s ease, box-shadow .14s ease;
+  }
+  .tec-total-card::before { content: ''; position: absolute; left: 0; right: 0; top: 0; height: 3px; background: var(--tec-cor, var(--border-strong)); }
+  .tec-total-card:hover { transform: translateY(-1px); border-color: var(--border-strong); }
+  .tec-total-card .tico {
+    width: 28px; height: 28px; border-radius: 9px; margin: 0 auto 8px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: calc(14px * var(--fs-scale, 1));
+    background: color-mix(in srgb, var(--tec-cor, var(--accent)) 15%, transparent);
+  }
+  @media (prefers-reduced-motion: reduce) { .tec-total-card { transition: none; } }
+  @media (max-width: 700px) {
+    #tec-totais { grid-template-columns: repeat(2, 1fr) !important; }
+    .tec-total-card { padding: 12px 10px 13px; }
+    .tec-total-card .tico { width: 24px; height: 24px; margin-bottom: 6px; }
   }
   .tec-total-card.hero { background: linear-gradient(180deg, var(--accent-soft), var(--surface) 92%); border-color: var(--accent); }
   .tec-total-card .val { font-family: 'Space Mono', monospace; font-weight: 800; font-size: calc(22px * var(--fs-scale, 1)); color: var(--text); letter-spacing: -0.02em; }
@@ -18924,14 +18975,35 @@ const DesempenhoTecScreen = {
     const rows = TecEngine.parse(text);
     const discs = TecEngine.disciplinas({ rows });
     const prev = document.getElementById('tec-import-preview');
+    /* BUG CORRIGIDO — o preview declarava sucesso em dado inutilizavel.
+       Se nenhuma DISCIPLINA e reconhecida (acontece quando a coluna Hierarquia
+       vem preenchida tambem nas disciplinas, ou quando faltam colunas), o app
+       exibia "✓ 0 disciplina(s)" em VERDE e deixava salvar. O retrato entrava
+       zerado e a tela inteira mostrava 0% sem explicar nada.
+       Agora o preview diz o que houve e como resolver — antes de salvar. */
     if (rows.length === 0) {
-      prev.textContent = 'Nenhuma linha reconhecida ainda...';
-      prev.style.color = 'var(--text-faint)';
-    } else {
-      const tot = TecEngine.totais({ rows });
-      prev.textContent = `✓ ${discs.length} disciplina(s), ${rows.length} linha(s) · ${tot.questoes} questões · ${tot.pct}% de acerto geral`;
-      prev.style.color = 'var(--good)';
+      prev.textContent = text.trim()
+        ? '⚠ Nenhuma linha reconhecida. Confira se copiou a tabela inteira, com as colunas de questões e % de acertos.'
+        : 'Aguardando dados...';
+      prev.style.color = text.trim() ? 'var(--warn-text, var(--warn))' : 'var(--text-faint)';
+      return;
     }
+    const tot = TecEngine.totais({ rows });
+    if (discs.length === 0) {
+      prev.textContent = '⚠ ' + rows.length + ' linha(s) lida(s), mas nenhuma DISCIPLINA foi reconhecida. '
+        + 'No export do TecConcursos a linha da disciplina vem com a coluna "Hierarquia" VAZIA — só os tópicos têm código (01, 01.01). '
+        + 'Verifique se essa coluna foi copiada junto.';
+      prev.style.color = 'var(--bad)';
+      return;
+    }
+    if (tot.questoes === 0) {
+      prev.textContent = '⚠ ' + discs.length + ' disciplina(s) reconhecida(s), mas nenhuma questão. '
+        + 'Confira se as colunas de "Questões Resolvidas" e "% de acertos" vieram no que foi colado.';
+      prev.style.color = 'var(--bad)';
+      return;
+    }
+    prev.textContent = `✓ ${discs.length} disciplina(s), ${rows.length} linha(s) · ${tot.questoes.toLocaleString('pt-BR')} questões · ${tot.pct}% de acerto geral`;
+    prev.style.color = 'var(--good)';
   },
   saveImport() {
     if (!this.validateRange()) { showToast('Ajuste o intervalo de datas antes de salvar'); return; }
@@ -20086,20 +20158,28 @@ const DesempenhoTecScreen = {
       const arrow = d > 0 ? '▲' : d < 0 ? '▼' : '=';
       deltaHtml = `<span class="tec-delta ${cls}">${arrow} ${d > 0 ? '+' : ''}${d} p.p.</span>`;
     }
+    // cor do aproveitamento pela MESMA regra do resto do app (metas de ⚙ Metas)
+    const TOM = { good: 'var(--good)', warn: 'var(--warn)', bad: 'var(--bad, #e0393f)' };
+    const corPct = tot.questoes === 0 ? 'var(--text-faint)' : (TOM[toneFor(tot.pct)] || 'var(--accent)');
+    const erros = Math.max(0, tot.questoes - tot.acertos);
     document.getElementById('tec-totais').innerHTML = `
-      <div class="tec-total-card hero">
+      <div class="tec-total-card hero" style="--tec-cor:${corPct};">
+        <div class="tico">🎯</div>
         <div class="val">${tot.pct}%${deltaHtml}</div>
         <div class="lbl">Aproveitamento geral</div>
       </div>
-      <div class="tec-total-card">
+      <div class="tec-total-card" style="--tec-cor: var(--accent);">
+        <div class="tico">📝</div>
         <div class="val">${tot.questoes.toLocaleString('pt-BR')}</div>
         <div class="lbl">Questões resolvidas</div>
       </div>
-      <div class="tec-total-card">
+      <div class="tec-total-card" style="--tec-cor: var(--good);">
+        <div class="tico">✅</div>
         <div class="val tone-good">${tot.acertos.toLocaleString('pt-BR')}</div>
-        <div class="lbl">Acertos</div>
+        <div class="lbl">Acertos${erros ? ' <span class="tec-total-sub">' + erros.toLocaleString('pt-BR') + ' erros</span>' : ''}</div>
       </div>
-      <div class="tec-total-card">
+      <div class="tec-total-card" style="--tec-cor: #7c3aed;">
+        <div class="tico">📚</div>
         <div class="val">${tot.disciplinas}</div>
         <div class="lbl">Disciplinas</div>
       </div>
