@@ -10276,23 +10276,54 @@ const FSRS = {
 
   // ---- FUZZ (dispersão) — mesma fórmula do Anki: delta acumulado por faixa ----
   fuzzDelta(iv) {
+    // Guarda do Anki (fuzz_delta): intervalos curtos NAO recebem fuzz.
+    // Antes isso vivia dentro de fuzzRange; ao replicar constrained_fuzz_bounds
+    // a guarda precisa estar AQUI, que e onde o Anki a coloca.
+    if (iv < 2.5) return 0.0;
     let delta = 1.0;
     [[2.5, 7, 0.15], [7, 20, 0.1], [20, Infinity, 0.05]].forEach(([a, b, f]) => {
       delta += f * Math.max(0, Math.min(iv, b) - a);
     });
     return delta;
   },
-  fuzzRange(iv, maxIv) {
-    if (iv < 2.5) return [iv, iv];
-    const d = this.fuzzDelta(iv);
-    const lo = Math.max(2, Math.round(iv - d));
-    const hi = Math.min(maxIv || 36500, Math.max(lo, Math.round(iv + d)));
+  // f32::round do Rust arredonda "meio para longe do zero"; aqui iv é sempre >= 0.
+  _arred(x) { return Math.floor(x + 0.5); },
+  // Réplica de fuzz_bounds (rslib/src/scheduler/states/fuzz.rs)
+  fuzzBounds(iv) { const d = this.fuzzDelta(iv); return [this._arred(iv - d), this._arred(iv + d)]; },
+  /* Réplica de constrained_fuzz_bounds. Antes o app devolvia [iv, iv] sem arredondar
+     para iv < 2.5 e usava piso fixo 2 — o Anki arredonda e respeita o "minimum"
+     recebido. Na prática place() já arredondava antes de chamar, então isto não
+     mudava agendamento; agora a função é correta mesmo se chamada isolada. */
+  constrainedFuzzBounds(iv, minimum, maximum) {
+    const max = Math.max(1, maximum || 36500);
+    const min = Math.min(Math.max(1, minimum || 1), max);
+    const v = Math.min(max, Math.max(min, iv));
+    let [lo, hi] = this.fuzzBounds(v);
+    lo = Math.min(max, Math.max(min, lo));
+    hi = Math.min(max, Math.max(min, hi));
+    if (hi === lo && hi > 2 && hi < max) hi = lo + 1;
     return [lo, hi];
+  },
+  fuzzRange(iv, maxIv, minIv) { return this.constrainedFuzzBounds(iv, minIv || 1, maxIv || 36500); },
+  /* Réplica de minimum_review_fuzz_interval — REGRA QUE FALTAVA NO APP.
+     No Anki, acertar uma revisão nunca pode resultar num intervalo menor ou igual
+     ao anterior: se o novo intervalo cresceu, o piso vira "anterior + 1", e o fuzz
+     não pode desfazer esse crescimento. Sem isso, um card de 30 dias respondido
+     como "Bom" podia ser reagendado para 28 dias pelo fuzz ou pelo balanceador de
+     carga — comportamento que o Anki impede. Devolve 0 quando o intervalo
+     realmente encolheu (troca de parâmetros ou de retenção-alvo). */
+  minReviewFuzzInterval(iv, previo, maxIv) {
+    const arred = this._arred(iv);
+    const [, hi] = this.constrainedFuzzBounds(iv, 1, maxIv || 36500);
+    const prev = Math.max(0, previo || 0);
+    if (arred > prev) return prev + 1;
+    if (prev <= hi) return prev;
+    return 0;
   },
   // Fuzz DETERMINÍSTICO (semeado pelo card+nota): a prévia do botão bate com o que é agendado.
   _hash(str) { let h = 2166136261; for (let i = 0; i < str.length; i++) { h ^= str.charCodeAt(i); h = Math.imul(h, 16777619); } return (h >>> 0) / 4294967296; },
-  fuzzed(iv, seed, maxIv) {
-    const [lo, hi] = this.fuzzRange(iv, maxIv);
+  fuzzed(iv, seed, maxIv, minIv) {
+    const [lo, hi] = this.fuzzRange(iv, maxIv, minIv);
     if (hi <= lo) return lo;
     return lo + Math.floor(this._hash(String(seed)) * (hi - lo + 1));
   },
@@ -10360,8 +10391,8 @@ const FSRS = {
     return { w: improved ? w : w0, lossBefore, lossAfter: cur, improved, reviews };
   },
   // ---- LOAD BALANCING: dentro da MESMA janela de fuzz do Anki, escolhe o dia de menor carga ----
-  loadBalance(iv, dueCountByDay, maxIv) {
-    const [lo, hi] = this.fuzzRange(iv, maxIv);
+  loadBalance(iv, dueCountByDay, maxIv, minIv) {
+    const [lo, hi] = this.fuzzRange(iv, maxIv, minIv);
     if (hi <= lo) return lo;
     let best = lo, bestLoad = Infinity;
     for (let d = lo; d <= hi; d++) { const load = dueCountByDay(d); if (load < bestLoad) { bestLoad = load; best = d; } }
@@ -10533,10 +10564,17 @@ const CardEngine = {
     const stepDue = (min) => ({ dueTs: nowTs + Math.round(min * 60000), due: tdy });
     // Dia de vencimento: fuzz determinístico do Anki; com Load Balancing, o dia de MENOR
     // carga dentro da mesma janela. Determinístico = a prévia do botão bate com o agendado.
-    const place = (ivRaw) => {
+    const place = (ivRaw, minIv) => {
       const iv = Math.max(1, Math.min(maxIv, Math.round(ivRaw)));
-      if (cfg.loadBalance) return Math.min(maxIv, FSRS.loadBalance(iv, (d) => this._dueCountInDays(d), maxIv));
-      return Math.min(maxIv, FSRS.fuzzed(iv, (c.id || 'c') + '|' + G + '|' + (c.reps || 0) + '|' + iv, maxIv));
+      const piso = Math.max(1, Math.min(maxIv, minIv || 1));
+      if (cfg.loadBalance) return Math.min(maxIv, FSRS.loadBalance(iv, (d) => this._dueCountInDays(d), maxIv, piso));
+      return Math.min(maxIv, FSRS.fuzzed(iv, (c.id || 'c') + '|' + G + '|' + (c.reps || 0) + '|' + iv, maxIv, piso));
+    };
+    // Intervalo que estava agendado antes desta resposta (base do piso do Anki).
+    const ivPrevio = () => {
+      if (c.intervalo > 0) return c.intervalo;
+      if (c.lastReview && c.due) return this._daysBetween(c.lastReview, c.due);
+      return 0;
     };
     // Primeira nota do card define S/D; as seguintes evoluem pela memória de curto prazo.
     const shortTerm = (g) => {
@@ -10547,8 +10585,10 @@ const CardEngine = {
       };
     };
     const graduate = (g, st) => {
-      const S = st.s, D = st.d, iv = place(FSRS.interval(S, r, w));
-      return Object.assign(patch, { phase: 'review', learnStep: 0, s: S, d: D, due: this.addDays(tdy, iv), dueTs: null, status: 'sei', _kind: 'day', _val: iv });
+      // Ao graduar, o Anki usa min_and_max_review_intervals(1) — piso 1, sem a regra
+      // de crescimento (não havia intervalo anterior de revisão).
+      const S = st.s, D = st.d, iv = place(FSRS.interval(S, r, w), 1);
+      return Object.assign(patch, { phase: 'review', learnStep: 0, s: S, d: D, due: this.addDays(tdy, iv), dueTs: null, status: 'sei', intervalo: iv, _kind: 'day', _val: iv });
     };
     if (c.phase === 'new' || c.phase === 'learning') {
       const st = shortTerm(G);
@@ -10569,14 +10609,25 @@ const CardEngine = {
       const elapsed = this._daysBetween(c.lastReview || tdy, tdy);
       // Revisão feita no MESMO dia (elapsed 0): memória de curto prazo, como no Anki.
       if (elapsed <= 0 && G > 1) {
-        const S2 = FSRS.nextS_short(c.s || 1, G, w), D2 = FSRS.nextD(c.d, G, w), iv = place(FSRS.interval(S2, r, w));
-        Object.assign(patch, { phase: 'review', s: S2, d: D2, due: this.addDays(tdy, iv), dueTs: null, status: 'sei' });
+        const S2 = FSRS.nextS_short(c.s || 1, G, w), D2 = FSRS.nextD(c.d, G, w);
+        const ivRaw2 = FSRS.interval(S2, r, w);
+        const piso2 = Math.max(1, FSRS.minReviewFuzzInterval(ivRaw2, ivPrevio(), maxIv));
+        const iv = place(ivRaw2, piso2);
+        Object.assign(patch, { phase: 'review', s: S2, d: D2, due: this.addDays(tdy, iv), dueTs: null, status: 'sei', intervalo: iv });
         patch._kind = 'day'; patch._val = iv;
         return patch;
       }
       const R = FSRS.R(elapsed, c.s || 1, w);
       if (G === 1) { const Sf = FSRS.nextS_forget(c.d, c.s, R, w), D2 = FSRS.nextD(c.d, 1, w); Object.assign(patch, { phase: 'relearning', learnStep: 0, s: Sf, d: D2, lapses: (c.lapses || 0) + 1, status: 'naosei' }, stepDue(relearn[0])); patch._kind = 'min'; patch._val = relearn[0]; }
-      else { const S2 = FSRS.nextS_recall(c.d, c.s, R, G, w), D2 = FSRS.nextD(c.d, G, w), iv = place(FSRS.interval(S2, r, w)); Object.assign(patch, { phase: 'review', s: S2, d: D2, due: this.addDays(tdy, iv), dueTs: null, status: 'sei' }); patch._kind = 'day'; patch._val = iv; }
+      else {
+        const S2 = FSRS.nextS_recall(c.d, c.s, R, G, w), D2 = FSRS.nextD(c.d, G, w);
+        const ivRaw = FSRS.interval(S2, r, w);
+        // Piso do Anki: acerto nunca encolhe o intervalo (ver minReviewFuzzInterval)
+        const piso = Math.max(1, FSRS.minReviewFuzzInterval(ivRaw, ivPrevio(), maxIv));
+        const iv = place(ivRaw, piso);
+        Object.assign(patch, { phase: 'review', s: S2, d: D2, due: this.addDays(tdy, iv), dueTs: null, status: 'sei', intervalo: iv });
+        patch._kind = 'day'; patch._val = iv;
+      }
     } else if (c.phase === 'relearning') {
       const st = shortTerm(G);
       const cur = c.learnStep || 0;
