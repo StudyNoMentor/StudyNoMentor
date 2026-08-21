@@ -10424,12 +10424,41 @@ const FSRS = {
     return { w: improved ? w : w0, lossBefore, lossAfter: cur, improved, reviews };
   },
   // ---- LOAD BALANCING: dentro da MESMA janela de fuzz do Anki, escolhe o dia de menor carga ----
+  /* ── BALANCEADOR DE CARGA (rslib/scheduler/states/load_balancer.rs) ─────────
+     Duas diferencas reais em relacao ao Anki foram corrigidas aqui:
+
+     1) TETO DE 90 DIAS. O Anki so balanceia intervalos ate 90 dias
+        (MAX_LOAD_BALANCE_INTERVAL). Acima disso ele nao mexe. O app balanceava
+        qualquer intervalo, inclusive de anos, onde isso nao faz sentido nenhum.
+
+     2) SORTEIO PONDERADO, nao o minimo. O app escolhia sempre o dia MAIS VAZIO
+        da janela. Isso e deterministico e se auto-destroi: todos os cards da
+        rodada caem no mesmo dia, que deixa de ser o mais vazio. O Anki sorteia
+        com peso, e o comentario do proprio codigo explica a formula:
+            peso = (1/qtd_cards)^2.15 * (1/intervalo)^3
+        (dia vazio recebe peso 1,0). O termo do intervalo inclina levemente para
+        datas mais cedo, senao o balanceador puxa tudo para o fim da janela.
+     Modificadores de irmaos e "easy days" nao se aplicam: o app nao tem notas
+     com varios cards nem dias de carga reduzida. */
+  MAX_LOAD_BALANCE_INTERVAL: 90,
   loadBalance(iv, dueCountByDay, maxIv, minIv) {
     const [lo, hi] = this.fuzzRange(iv, maxIv, minIv);
     if (hi <= lo) return lo;
-    let best = lo, bestLoad = Infinity;
-    for (let d = lo; d <= hi; d++) { const load = dueCountByDay(d); if (load < bestLoad) { bestLoad = load; best = d; } }
-    return best;
+    // acima de 90 dias o Anki nao balanceia: devolve o proprio intervalo
+    if (iv > this.MAX_LOAD_BALANCE_INTERVAL || (minIv || 1) > this.MAX_LOAD_BALANCE_INTERVAL) {
+      return Math.min(hi, Math.max(lo, Math.round(iv)));
+    }
+    const dias = [], pesos = [];
+    let soma = 0;
+    for (let d = lo; d <= hi; d++) {
+      const n = dueCountByDay(d) || 0;
+      const peso = (n === 0) ? 1.0 : Math.pow(1 / n, 2.15) * Math.pow(1 / d, 3);
+      dias.push(d); pesos.push(peso); soma += peso;
+    }
+    if (!(soma > 0)) return lo;
+    let alvo = Math.random() * soma;
+    for (let i = 0; i < dias.length; i++) { alvo -= pesos[i]; if (alvo <= 0) return dias[i]; }
+    return dias[dias.length - 1];
   },
   // ---- RETENÇÃO RECOMENDADA: custo de revisões por retenção-alvo (menor custo = ótimo) ----
   recommendRetention(nCards, minutesPerDay, opts) {
@@ -10594,7 +10623,29 @@ const CardEngine = {
     const c = this._ensureFsrsState(card);
     const nowTs = Date.now(), tdy = todayCards();
     let patch = { reps: (c.reps || 0) + 1, lastReview: tdy, algo: 'fsrs' };
-    const stepDue = (min) => ({ dueTs: nowTs + Math.round(min * 60000), due: tdy });
+    /* ── PASSO INTRADIARIO (rslib/scheduler/answering/learning.rs + states/interval_kind.rs) ──
+       Duas regras do Anki que faltavam:
+
+       1) FUZZ NO PASSO. "Adiciona ate 25% aos segundos, no maximo 5 minutos"
+          (learning_ivl_with_fuzz). Sem isso, 20 cards respondidos em sequencia
+          voltavam todos exatamente juntos, no mesmo segundo.
+
+       2) PASSO QUE ATRAVESSA A VIRADA VIRA DIA (maybe_as_days). Se o passo passa
+          da proxima virada (4h), o Anki para de agenda-lo por horario e passa a
+          agenda-lo por DIA: ((secs - ate_virada) / 86400) + 1. Importa para quem
+          usa passos longos, e para um passo curto respondido de madrugada. */
+    const stepDue = (min) => {
+      const segs = Math.max(0, Math.round(min * 60));
+      // fuzz: [segs, segs + min(25%, 5min))
+      const teto = Math.floor(Math.min(segs * 0.25, 300));
+      const segsFuzz = teto > 0 ? segs + Math.floor(Math.random() * teto) : segs;
+      const ateVirada = Math.max(0, Math.round((proximaViradaTs() - nowTs) / 1000));
+      if (segsFuzz >= ateVirada) {
+        const dias = Math.floor((segsFuzz - ateVirada) / 86400) + 1;
+        return { dueTs: null, due: this.addDays(tdy, dias) };
+      }
+      return { dueTs: nowTs + segsFuzz * 1000, due: tdy };
+    };
     // Dia de vencimento: fuzz determinístico do Anki; com Load Balancing, o dia de MENOR
     // carga dentro da mesma janela. Determinístico = a prévia do botão bate com o agendado.
     const place = (ivRaw, minIv) => {
@@ -10637,6 +10688,20 @@ const CardEngine = {
       }
       return { s: FSRS.nextS_short(c.s, g, w), d: D2 };
     };
+    /* ── ATRASO DO "DIFICIL" (rslib/scheduler/states/steps.rs) ──────────────────
+       Regra do Anki, com os tres casos que os testes dele fixam:
+         [1,10] no passo 0  -> (1+10)/2 = 5,5 min
+         [1,10] no passo 1  -> 10 min (o proprio passo)
+         [10] passo unico   -> min(10*1,5 ; 10+1dia) = 15 min   <-- FALTAVA
+       O caso do passo UNICO estava errado: o app devolvia o proprio passo (10),
+       nao 15. Isso importa justamente em quem usa um so passo de aprendizado.
+       maybe_round_in_days: acima de 1 dia, arredonda para dias inteiros. */
+    const atrasoDificil = (passos, idx) => {
+      const arredDias = (min) => (min > 1440 ? Math.round(min / 1440) * 1440 : min);
+      if (idx !== 0) return passos[idx];
+      if (passos.length > 1) return arredDias((passos[0] + passos[1]) / 2);
+      return arredDias(Math.min(passos[0] * 1.5, passos[0] + 1440));
+    };
     const graduate = (g, st) => {
       // Ao graduar, o Anki usa min_and_max_review_intervals(1) — piso 1, sem a regra
       // de crescimento (não havia intervalo anterior de revisão).
@@ -10654,7 +10719,7 @@ const CardEngine = {
         else { Object.assign(patch, { phase: 'learning', learnStep: next, s: st.s, d: st.d, status: 'naosei' }, stepDue(learn[next])); patch._kind = 'min'; patch._val = learn[next]; }
       } else {
         // Difícil (Anki): no 1º passo = média entre o passo atual e o próximo; depois, repete o passo.
-        const delay = (cur === 0 && learn.length > 1) ? (learn[0] + learn[1]) / 2 : learn[cur];
+        const delay = atrasoDificil(learn, cur);
         Object.assign(patch, { phase: 'learning', learnStep: cur, s: st.s, d: st.d, status: 'naosei' }, stepDue(delay));
         patch._kind = 'min'; patch._val = delay;
       }
@@ -10694,7 +10759,7 @@ const CardEngine = {
       else if (G === 4) { graduate(4, st); }
       else if (G === 3) { const next = cur + 1; if (next >= relearn.length) graduate(3, st); else { Object.assign(patch, { learnStep: next, s: st.s, d: st.d, status: 'naosei' }, stepDue(relearn[next])); patch._kind = 'min'; patch._val = relearn[next]; } }
       else {
-        const delay = (cur === 0 && relearn.length > 1) ? (relearn[0] + relearn[1]) / 2 : relearn[cur];
+        const delay = atrasoDificil(relearn, cur);
         Object.assign(patch, { learnStep: cur, s: st.s, d: st.d, status: 'naosei' }, stepDue(delay));
         patch._kind = 'min'; patch._val = delay;
       }
@@ -10722,11 +10787,15 @@ const CardEngine = {
     const patch = (cfg.algo === 'fsrs')
       ? this._scheduleFSRS(card, this.GRADE_NUM[grade] || 3)
       : this._scheduleSM2(card, grade);
-    // LEECH (Anki): ao atingir o limite de lapsos — e a cada metade dele depois —
-    // o card é marcado como problemático e (por padrão) suspenso.
+    // LEECH (Anki, rslib/scheduler/states/review.rs::leech_threshold_met): ao
+    // atingir o limite de lapsos — e a cada metade dele depois — o card é
+    // marcado como problemático. O passo é ARREDONDADO PARA CIMA (ceil), não
+    // para baixo: com limiar padrão 8 não fazia diferença (8/2=4 nos dois
+    // casos), mas em qualquer limiar ÍMPAR editado na tela (3, 5, 7, 9, 15...)
+    // floor() disparava o aviso em lapsos errados a partir da segunda rodada.
     const lim = cfg.leechThreshold || 0;
     if (lim > 0 && patch.lapses && patch.lapses > (card.lapses || 0) && patch.lapses >= lim) {
-      const passo = Math.max(1, Math.floor(lim / 2));
+      const passo = Math.max(1, Math.ceil(lim / 2));
       if ((patch.lapses - lim) % passo === 0) {
         patch.leech = true;
         patch._leechNow = true;
@@ -15011,8 +15080,35 @@ const CardsScreen = {
     const novos = [], revisoes = [], aprend = [];
     due.forEach(c => { const b = this._bucket(c); if (b === 'new') novos.push(c); else if (b === 'review') revisoes.push(c); else aprend.push(c); });
     const novosLim = novos.slice(0, newRem), revLim = revisoes.slice(0, revRem);
+    /* ── MISTURA NOVOS x REVISOES (rslib/scheduler/queue/builder/intersperser.rs) ──
+       O padrao do Anki e new_mix: MixWithReviews, e a mistura NAO e aleatoria:
+       os novos sao DISTRIBUIDOS proporcionalmente entre as revisoes, de modo que
+       fiquem espacados por igual do inicio ao fim da sessao.
+
+       O app embaralhava (shuffle). Com 20 novos e 200 revisoes, o acaso podia
+       amontoar varios novos seguidos — cansativo, porque card novo custa muito
+       mais esforco que uma revisao — ou joga-los todos para o fim.
+
+       ratio = (len1 + 1) / (len2 + 1); a cada passo entra o item do lado cujo
+       indice relativo esta "atrasado". Replica exata dos vetores de teste do Anki. */
+    const intercalar = (um, dois) => {
+      const n1 = um.length, n2 = dois.length;
+      const ratio = (n1 + 1) / (n2 + 1);
+      const out = [];
+      let i1 = 0, i2 = 0;
+      while (i1 < n1 || i2 < n2) {
+        if (i1 < n1 && i2 < n2) {
+          if (((i2 + 1) * ratio) < (i1 + 1)) out.push(dois[i2++]);
+          else out.push(um[i1++]);
+        } else if (i1 < n1) out.push(um[i1++]);
+        else out.push(dois[i2++]);
+      }
+      return out;
+    };
+    // ordem interna de cada grupo continua sorteada; o que muda e o ESPACAMENTO entre grupos
     const shuffle = (a) => { for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1));[a[i], a[j]] = [a[j], a[i]]; } return a; };
-    const queue = aprend.concat(shuffle(revLim.concat(novosLim))).map(c => c.id);
+    const queue = aprend.concat(intercalar(shuffle(novosLim.slice()), shuffle(revLim.slice()))).map(c => c.id);
+    CardEngine._intercalar = intercalar;
     // cards em aprendizado cujo passo ainda não venceu (base do "learn ahead" do Anki)
     const pendentes = filtered
       .filter(c => c.dueTs && c.dueTs > Date.now() && (c.due || todayCards()) <= todayCards())
