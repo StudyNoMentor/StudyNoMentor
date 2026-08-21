@@ -8565,6 +8565,39 @@ function progressBadgeHtml(e) {
 }
 
 // Data de HOJE no fuso local (evita o desvio de 1 dia que o toISOString/UTC causa à noite)
+/* ── VIRADA DO DIA PARA OS CARDS (rollover) ────────────────────────────────
+   O Anki NAO vira o dia a meia-noite: o padrao e 4h da manha
+   (rslib/src/scheduler/mod.rs -> set_v2_rollover(4)). Quem estuda ate 1h da
+   madrugada continua "no dia de ontem": o limite diario nao reinicia e voce
+   termina o dia que comecou. Com virada a meia-noite, um lote novo de cards
+   aparecia do nada no meio da sessao.
+
+   Esta funcao vale SO para o agendamento de cards. O diario de estudos, ciclos
+   e demais telas continuam usando todayLocal() (data de calendario), que e o
+   que faz sentido para um registro do dia. */
+function cardsRolloverHour() {
+  try {
+    const h = (window.CardsConfig && CardsConfig.get) ? CardsConfig.get().rolloverHour : 4;
+    return (Number.isFinite(h) && h >= 0 && h <= 23) ? Math.floor(h) : 4;
+  } catch (_) { return 4; }
+}
+function todayCards() {
+  const d = new Date();
+  if (d.getHours() < cardsRolloverHour()) d.setDate(d.getDate() - 1);
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+}
+// Instante da PROXIMA virada — usado para reprogramar a tela sozinha.
+function proximaViradaTs() {
+  const h = cardsRolloverHour(), d = new Date();
+  const alvo = new Date(d.getFullYear(), d.getMonth(), d.getDate(), h, 0, 0, 0);
+  if (alvo.getTime() <= d.getTime()) alvo.setDate(alvo.getDate() + 1);
+  return alvo.getTime();
+}
+window.todayCards = todayCards;
+
 function todayLocal() {
   const d = new Date();
   const y = d.getFullYear();
@@ -10440,7 +10473,7 @@ const CardsConfig = {
   DEFAULTS: {
     algo: 'fsrs', retention: 0.9, learnSteps: [1, 10], relearnSteps: [10], weights: null,
     loadBalance: true, lastOptim: null, newPerDay: 20, revPerDay: 200,
-    maxInterval: 36500, leechThreshold: 8, leechAction: 'suspend'
+    maxInterval: 36500, leechThreshold: 8, leechAction: 'tag', rolloverHour: 4
   },
   _c: null, _cKey: null,
   _notify() { try { if (window.CloudStore && CloudStore.notifyChange) CloudStore.notifyChange(); } catch (_) {} },
@@ -10500,7 +10533,7 @@ const CardsConfig = {
   // pesos ativos globais (compatibilidade)
   weights() { return FSRS.migrarW(this.get().weights) || FSRS.DEFAULT_W; },
   // ---- Contadores diários (novos/revisões introduzidos hoje) — resetam a cada dia ----
-  _daily() { let d = this._read(this.DKEY, this.LEGACY_DKEY); if (!d || d.date !== todayLocal()) d = { date: todayLocal(), newDone: 0, revDone: 0 }; return d; },
+  _daily() { let d = this._read(this.DKEY, this.LEGACY_DKEY); if (!d || d.date !== todayCards()) d = { date: todayCards(), newDone: 0, revDone: 0 }; return d; },
   _saveDaily(d) { try { localStorage.setItem(this.DKEY, JSON.stringify(d)); } catch (_) {} this._notify(); },
   newDoneToday() { return this._daily().newDone; }, revDoneToday() { return this._daily().revDone; },
   markIntroduced(kind) { const d = this._daily(); if (kind === 'new') d.newDone++; else d.revDone++; this._saveDaily(d); },
@@ -10525,7 +10558,7 @@ const CardEngine = {
   invalidateDueCache() { this._dueCache = null; },
   _dueCountInDays(n) {
     try {
-      if (!this._dueCache || this._dueCache.day !== todayLocal()) {
+      if (!this._dueCache || this._dueCache.day !== todayCards()) {
         const map = {};
         DB.getCards().forEach(c => {
           if (c.suspenso) return;
@@ -10533,9 +10566,9 @@ const CardEngine = {
           if (!(c.phase === 'review' || ((c.reps || 0) > 0 && (c.intervalo || 0) > 0))) return;
           const k = c.due || ''; map[k] = (map[k] || 0) + 1;
         });
-        this._dueCache = { day: todayLocal(), map };
+        this._dueCache = { day: todayCards(), map };
       }
-      return this._dueCache.map[this.addDays(todayLocal(), n)] || 0;
+      return this._dueCache.map[this.addDays(todayCards(), n)] || 0;
     } catch (_) { return 0; }
   },
   // Migração/normalização: garante que todo card tenha estado FSRS quando o algoritmo é FSRS.
@@ -10559,7 +10592,7 @@ const CardEngine = {
     const learn = cfg.learnSteps, relearn = cfg.relearnSteps;
     const maxIv = Math.max(1, cfg.maxInterval || 36500);
     const c = this._ensureFsrsState(card);
-    const nowTs = Date.now(), tdy = todayLocal();
+    const nowTs = Date.now(), tdy = todayCards();
     let patch = { reps: (c.reps || 0) + 1, lastReview: tdy, algo: 'fsrs' };
     const stepDue = (min) => ({ dueTs: nowTs + Math.round(min * 60000), due: tdy });
     // Dia de vencimento: fuzz determinístico do Anki; com Load Balancing, o dia de MENOR
@@ -10679,7 +10712,7 @@ const CardEngine = {
     else if (isNew) { reps += 1; status = 'sei'; if (grade === 'facil') { intervalo = this.GRAD_EASY; ease = clampE(ease + 0.15); } else if (grade === 'dificil') { intervalo = 1; ease = clampE(ease - 0.15); } else intervalo = this.GRAD_GOOD; }
     else { reps += 1; status = 'sei'; if (grade === 'dificil') { intervalo = cap(intervalo * this.HARD_FACTOR); ease = clampE(ease - 0.15); } else if (grade === 'facil') { intervalo = cap(intervalo * ease * this.EASY_BONUS); ease = clampE(ease + 0.15); } else intervalo = cap(intervalo * ease); }
     intervalo = cap(intervalo);
-    return { status, grade, ease, intervalo, reps, lapses, due: this.addDays(todayLocal(), intervalo), dueTs: null, lastReview: todayLocal(), algo: 'sm2', _kind: 'day', _val: intervalo };
+    return { status, grade, ease, intervalo, reps, lapses, due: this.addDays(todayCards(), intervalo), dueTs: null, lastReview: todayCards(), algo: 'sm2', _kind: 'day', _val: intervalo };
   },
   // Ponto único de entrada. grade: 'errei'|'dificil'|'bom'|'facil' (ou 'sei'/'naosei')
   schedule(card, grade) {
@@ -10733,7 +10766,7 @@ const CardEngine = {
   },
   isDue(card) {
     if (card.dueTs) return Date.now() >= card.dueTs;   // passo em minutos (aprendizado/reaprendizado)
-    return (card.due || todayLocal()) <= todayLocal(); // agendamento por dia
+    return (card.due || todayCards()) <= todayCards(); // agendamento por dia
   },
   // Aplica os filtros a uma lista de cards. f = { busca, materias:Set, topico, tipo, status, favorito, deckId }
   applyFilters(cards, f) {
@@ -14982,7 +15015,7 @@ const CardsScreen = {
     const queue = aprend.concat(shuffle(revLim.concat(novosLim))).map(c => c.id);
     // cards em aprendizado cujo passo ainda não venceu (base do "learn ahead" do Anki)
     const pendentes = filtered
-      .filter(c => c.dueTs && c.dueTs > Date.now() && (c.due || todayLocal()) <= todayLocal())
+      .filter(c => c.dueTs && c.dueTs > Date.now() && (c.due || todayCards()) <= todayCards())
       .sort((a, b) => a.dueTs - b.dueTs);
     this._queueMeta = {
       bloqueadosNovos: Math.max(0, novos.length - novosLim.length),
@@ -15051,7 +15084,7 @@ const CardsScreen = {
     const revlog = DB.getRevlog();
     const revs = revlog.filter(r => r.phase === 'review' && (r.elapsed || 0) >= 1);
     const retReal = revs.length ? Math.round((revs.filter(r => r.acerto).length / revs.length) * 1000) / 10 : null;
-    const lim30 = CardEngine.addDays(todayLocal(), -30);
+    const lim30 = CardEngine.addDays(todayCards(), -30);
     const revs30 = revs.filter(r => r.date >= lim30);
     const ret30 = revs30.length ? Math.round((revs30.filter(r => r.acerto).length / revs30.length) * 1000) / 10 : null;
     const est = (c) => (c.s != null ? c.s : (c.intervalo || 0));
@@ -15060,10 +15093,10 @@ const CardsScreen = {
     const jovens = cards.filter(c => this._bucket(c) === 'review' && est(c) < 21).length;
     const maduros = cards.filter(c => this._bucket(c) === 'review' && est(c) >= 21).length;
     const prev = [];
-    for (let i = 0; i < 14; i++) { const dia = CardEngine.addDays(todayLocal(), i); prev.push({ dia, n: cards.filter(c => !c.dueTs && (c.due || todayLocal()) === dia && this._bucket(c) === 'review').length }); }
+    for (let i = 0; i < 14; i++) { const dia = CardEngine.addDays(todayCards(), i); prev.push({ dia, n: cards.filter(c => !c.dueTs && (c.due || todayCards()) === dia && this._bucket(c) === 'review').length }); }
     const maxPrev = Math.max(1, ...prev.map(p => p.n));
     const act = [];
-    for (let i = 13; i >= 0; i--) { const dia = CardEngine.addDays(todayLocal(), -i); act.push({ dia, n: revlog.filter(r => r.date === dia).length }); }
+    for (let i = 13; i >= 0; i--) { const dia = CardEngine.addDays(todayCards(), -i); act.push({ dia, n: revlog.filter(r => r.date === dia).length }); }
     const maxAct = Math.max(1, ...act.map(a => a.n));
     const dueNow = cards.filter(c => CardEngine.isDue(c)).length;
     const custom = FSRS.pesosValidos(cfg.weights);
@@ -15275,9 +15308,9 @@ const CardsScreen = {
     if (c) {
       // registra no histórico (revlog) ANTES de reagendar — base para o otimizador FSRS
       const G = CardEngine.GRADE_NUM[grade] || 3;
-      const elapsed = c.lastReview ? Math.max(0, Math.round((new Date(todayLocal() + 'T00:00:00') - new Date(c.lastReview + 'T00:00:00')) / 86400000)) : 0;
+      const elapsed = c.lastReview ? Math.max(0, Math.round((new Date(todayCards() + 'T00:00:00') - new Date(c.lastReview + 'T00:00:00')) / 86400000)) : 0;
       const revTs = Date.now();
-      DB.addRevlog({ ts: revTs, date: todayLocal(), cardId: id, grade: G, acerto: G > 1, phase: (c.phase || 'new'), elapsed, s: (c.s || null), d: (c.d || null) });
+      DB.addRevlog({ ts: revTs, date: todayCards(), cardId: id, grade: G, acerto: G > 1, phase: (c.phase || 'new'), elapsed, s: (c.s || null), d: (c.d || null) });
       // conta introdução no limite diário só na 1ª vez que o card aparece nesta sessão
       const bucketAntes = this._bucket(c);
       if (!this._seenThisSession) this._seenThisSession = new Set();
@@ -15444,7 +15477,7 @@ const CardsScreen = {
       if (ed) { this.openCardModal(ed.dataset.edit); return; }
       const un = e.target.closest('[data-unsusp]');
       if (un) {
-        DB.updateCard(un.dataset.unsusp, { suspenso: false, due: todayLocal(), dueTs: null });
+        DB.updateCard(un.dataset.unsusp, { suspenso: false, due: todayCards(), dueTs: null });
         CardEngine.invalidateDueCache();
         showToast('Card reativado ✓'); this.renderMeus(box);
         return;
