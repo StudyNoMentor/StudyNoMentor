@@ -1064,10 +1064,43 @@
   .exd.done { border-color: color-mix(in srgb, var(--good) 45%, var(--border)); background: linear-gradient(180deg, var(--good-soft), var(--surface) 72%); }
   .exd .opt { color: var(--text-faint); font-weight: 400; }
   .exd-top { display: grid; grid-template-columns: auto auto 1fr auto; align-items: start; gap: 12px; }
-  .exd-check { width: 30px; height: 30px; border-radius: 50%; border: 2px solid var(--border-strong); background: transparent; color: transparent; display: flex; align-items: center; justify-content: center; cursor: pointer; flex-shrink: 0; margin-top: 3px; transition: all 0.12s ease; padding: 0; }
-  .exd-check svg { width: 15px; height: 15px; }
-  .exd-check:hover { border-color: var(--good); }
+  /* CONTROLE DE CONCLUSAO
+     Antes era um circulo vazio, sem rotulo e sem sinal nenhum do que fazia —
+     dava para olhar e nao imaginar que ali se conclui a atividade. Agora e uma
+     pastilha com o ✓ SEMPRE visivel (apagado quando pendente) e a palavra ao
+     lado: "Marcar" quando pendente, "Concluída" quando feita. */
+  .exd-check {
+    display: inline-flex; align-items: center; gap: 6px;
+    height: 30px; padding: 0 11px 0 8px;
+    border-radius: 999px; border: 1.5px solid var(--border-strong);
+    background: var(--surface); color: var(--text-faint);
+    cursor: pointer; flex-shrink: 0; margin-top: 3px;
+    font-size: calc(11.5px * var(--fs-scale,1)); font-weight: 700;
+    transition: background .12s ease, border-color .12s ease, color .12s ease, box-shadow .12s ease;
+  }
+  .exd-check svg { width: 14px; height: 14px; flex-shrink: 0; }
+  .exd-check-lbl { white-space: nowrap; }
+  .exd-check:hover { border-color: var(--good); color: var(--good-text); background: var(--good-soft); }
   .exd.done .exd-check { background: var(--good); border-color: var(--good); color: #fff; }
+  .exd.done .exd-check:hover { background: var(--warn); border-color: var(--warn); color: #fff; }
+  /* ao passar o mouse numa concluida o rotulo avisa que o clique REABRE */
+  .exd.done .exd-check:hover .exd-check-lbl { visibility: hidden; }
+  .exd.done .exd-check:hover::after { content: 'Reabrir'; margin-left: -52px; }
+  /* rodape da atividade ja concluida: acoes claras em vez de nada */
+  .exd-reg-done { display: flex; gap: 8px; flex-wrap: wrap; }
+  /* ── SELECAO EM MASSA NA LISTA DE CARDS ────────────────────────────────── */
+  .cards-bulk { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; padding: 0 0 12px; }
+  .cards-bulk-count { font-family: 'Space Mono', monospace; font-size: calc(12px * var(--fs-scale,1)); font-weight: 700; color: var(--accent); }
+  .btn-danger {
+    background: var(--bad, #e0393f); color: #fff; border: 1px solid var(--bad, #e0393f);
+    border-radius: 10px; padding: 8px 14px; font-weight: 700; cursor: pointer;
+    font-size: calc(12.5px * var(--fs-scale,1));
+  }
+  .btn-danger:hover { filter: brightness(.93); }
+  .mini-card-sel { display: inline-flex; align-items: center; margin-right: 8px; cursor: pointer; }
+  .mini-card-sel input { width: 17px; height: 17px; cursor: pointer; accent-color: var(--accent); }
+  .mini-card.is-sel { border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent-ring); }
+  @media (max-width: 420px) { .exd-check-lbl { display: none; } .exd-check { padding: 0 8px; } }
   .exd-ico { width: 38px; height: 38px; border-radius: 11px; display: flex; align-items: center; justify-content: center; font-size: calc(18px * var(--fs-scale,1)); flex-shrink: 0; }
   .exd-main { min-width: 0; }
   .exd-title { font-size: calc(14.5px * var(--fs-scale,1)); font-weight: 800; color: var(--text); line-height: 1.3; overflow-wrap: break-word; }
@@ -2608,14 +2641,46 @@
   .incid-topic-val { font-family: 'Space Mono', monospace; font-size: calc(12px * var(--fs-scale, 1)); font-weight: 700; color: var(--accent); text-align: right; }
   .incid-topic-row.is-disc .incid-topic-val { color: var(--good); }
   .incid-detail-empty { padding: 10px; font-size: calc(12px * var(--fs-scale, 1)); color: var(--text-faint); text-align: center; }
-  .incid-detail-summary { font-size: calc(12px * var(--fs-scale, 1)); color: var(--text-soft); margin: 2px 2px 8px; }
+  .incid-detail-summary { display: flex; flex-wrap: wrap; gap: 8px; align-items: stretch; margin: 4px 2px 12px; }
+  .incid-pill {
+    display: flex; flex-direction: column; gap: 1px;
+    padding: 7px 12px; border-radius: 11px;
+    background: var(--surface-sunken); border: 1px solid var(--border);
+  }
+  .incid-pill b { font-family: 'Space Mono', monospace; font-weight: 800; font-size: calc(15px * var(--fs-scale, 1)); line-height: 1.1; color: var(--text); }
+  .incid-pill i { font-style: normal; font-size: calc(10.5px * var(--fs-scale, 1)); color: var(--text-faint); letter-spacing: .01em; }
+  .incid-pill.roxo b { color: #7c3aed; }
+  .incid-pill.azul b { color: var(--accent); }
+  .incid-pill.verde b { color: var(--good-text); }
+  .incid-pill.cinza b { color: var(--text-soft); }
+  .incid-legend { flex-basis: 100%; font-size: calc(11px * var(--fs-scale, 1)); color: var(--text-faint); line-height: 1.5; margin-top: 2px; }
+  /* Barra de ferramentas da arvore: grade fluida, igual a dos filtros da Analise */
+  .itree-toolbar { display: grid !important; grid-template-columns: minmax(150px, 1fr) minmax(150px, 1.4fr) auto auto; gap: 8px; }
+  .itree-toolbar .incid-detail-search { margin: 0 !important; }
+  @media (max-width: 620px) {
+    .itree-toolbar { grid-template-columns: 1fr 1fr; }
+    .itree-toolbar .incid-disc-filter, .itree-toolbar .incid-detail-search { grid-column: 1 / -1; }
+  }
   .incid-detail-summary b { color: var(--text); }
   /* Incidência: árvore hierárquica (disciplina → assunto → tópico) */
   .itree { border: 1px solid var(--border); border-radius: 10px; overflow: hidden; }
   .itree-toolbar { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; padding: 6px 4px 10px; }
   .itree-node > .itree-children { display: none; }
   .itree-node.open > .itree-children { display: block; }
-  .itree-row { display: grid; grid-template-columns: 1fr 110px 52px 28px; align-items: center; gap: 10px; padding: 6px 10px; border-top: 1px solid var(--border); }
+  /* ══════════════════════════════════════════════════════════════════════════
+     INCIDENCIA — arvore de topicos da banca
+     Mesma linguagem visual da aba Analise (cabecalho da disciplina com pilula
+     de numero + linhas de topico), adaptada ao dado daqui: em vez de "% de
+     acerto" o que importa e QUANTAS VEZES o topico caiu, e o peso dele em
+     relacao ao mais cobrado do grupo.
+
+     BUG CORRIGIDO: no celular a regra antiga escondia a barra e deixava a grade
+     com 2 colunas para 3 itens restantes — o botao de editar caia numa SEGUNDA
+     LINHA, criando aquele vao vertical enorme em cada linha da arvore. Alem
+     disso a legenda prometia "Barras = peso relativo" e nenhuma barra aparecia.
+     Agora a barra desce para baixo do nome (largura cheia) em vez de sumir.
+     ═══════════════════════════════════════════════════════════════════════ */
+  .itree-row { display: grid; grid-template-columns: 1fr 110px auto auto; align-items: center; gap: 6px 10px; padding: 7px 10px; border-top: 1px solid var(--border); }
   .itree-edit { background: transparent; border: none; color: var(--text-faint); cursor: pointer; font-size: calc(13px * var(--fs-scale, 1)); padding: 2px 4px; border-radius: 6px; opacity: 0; transition: opacity 0.13s ease, background 0.13s ease; }
   .itree-row:hover .itree-edit { opacity: 1; }
   .itree-edit:hover { background: var(--accent-soft); color: var(--accent); }
@@ -2630,12 +2695,27 @@
   .itree-dot { width: 5px; height: 5px; border-radius: 50%; background: var(--border-strong); flex-shrink: 0; margin: 0 2px; }
   .itree-label { font-size: calc(12px * var(--fs-scale, 1)); color: var(--text-soft); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .itree-row.lvl0 .itree-label { font-size: calc(13px * var(--fs-scale, 1)); font-weight: 800; color: var(--text); }
-  .itree-bar { height: 8px; background: var(--surface); border: 1px solid var(--border); border-radius: 20px; overflow: hidden; }
-  .itree-bar > span { display: block; height: 100%; border-radius: 20px; background: var(--accent); }
+  .itree-bar { height: 7px; background: var(--surface-sunken); border: 1px solid var(--border); border-radius: 20px; overflow: hidden; }
+  .itree-bar > span { display: block; height: 100%; border-radius: 20px; background: var(--accent); transition: width .35s cubic-bezier(.4,0,.2,1); }
   .itree-row.lvl0 .itree-bar > span { background: var(--good); }
-  .itree-val { font-family: 'Space Mono', monospace; font-size: calc(12px * var(--fs-scale, 1)); font-weight: 700; color: var(--accent); text-align: right; }
-  .itree-row.lvl0 .itree-val { color: var(--good); }
-  @media (max-width: 560px) { .itree-row { grid-template-columns: 1fr 48px; } .itree-bar { display: none; } }
+  /* numero do topico: monoespacado, alinhado a direita, com largura estavel
+     para as colunas nao dancarem de uma linha para outra */
+  .itree-val { font-family: 'Space Mono', monospace; font-size: calc(12px * var(--fs-scale, 1)); font-weight: 700; color: var(--accent); text-align: right; min-width: 40px; }
+  /* disciplina: o numero vira PILULA, como no cabecalho da aba Analise */
+  .itree-row.lvl0 .itree-val {
+    color: var(--good-text); background: var(--good-soft);
+    border: 1px solid color-mix(in srgb, var(--good) 30%, transparent);
+    border-radius: 20px; padding: 2px 10px; text-align: center;
+  }
+  .itree-edit { justify-self: end; }
+  @media (prefers-reduced-motion: reduce) { .itree-bar > span { transition: none; } }
+  @media (max-width: 620px) {
+    /* 3 colunas reais (nome · numero · editar) e a BARRA desce para a linha de
+       baixo ocupando a largura toda — visivel, e sem quebrar a grade. */
+    .itree-row { grid-template-columns: 1fr auto auto; }
+    .itree-bar { grid-column: 1 / -1; grid-row: 2; height: 6px; margin-top: 1px; }
+    .itree-label { white-space: normal; }
+  }
   /* Reforço */
   .reforco-controls { display: flex; gap: 16px; align-items: flex-end; flex-wrap: wrap; }
   .reforco-slider { width: 100%; accent-color: var(--accent); cursor: pointer; margin-top: 4px; }
@@ -15612,6 +15692,9 @@ const CardsScreen = {
     return `
         <div class="mini-card" data-id="${c.id}">
           <div class="mini-card-top">
+            <label class="mini-card-sel" title="Selecionar este card">
+              <input type="checkbox" class="mini-sel" data-id="${c.id}">
+            </label>
             <span class="mini-card-badges">
               <span class="lei-tag mat">${escapeHtml(this.materiaLabel(c))}</span>
               ${c.topico ? `<span class="lei-tag ref">${escapeHtml(c.topico)}</span>` : ''}
@@ -15656,11 +15739,74 @@ const CardsScreen = {
 
     box.innerHTML = `
       <div class="cards-count-bar">${filtered.length} card(s) · <span style="color:var(--good)">${st.sei} sei</span> · <span style="color:var(--bad)">${st.naosei} não sei</span> · <span style="color:var(--text-soft)">${st.pendente} pendente(s)</span>${st.suspensos ? ` · <span style="color:var(--bad)">🚫 ${st.suspensos} suspenso(s)</span>` : ''}</div>
+      <!-- Ações em massa: agem sobre os cards DO FILTRO ATUAL, não sobre o baralho
+           inteiro. É isso que torna a exclusão em lote útil e segura — você filtra
+           por matéria, deck ou busca e apaga só aquele recorte. -->
+      <div class="cards-bulk">
+        <button type="button" class="btn-secondary" id="cards-sel-all">☑ Selecionar todos (${filtered.length})</button>
+        <button type="button" class="btn-secondary" id="cards-sel-none" style="display:none;">☐ Limpar seleção</button>
+        <span class="cards-bulk-count" id="cards-sel-count"></span>
+        <button type="button" class="btn-danger" id="cards-del-sel" style="display:none;">🗑 Excluir selecionados</button>
+      </div>
       <div class="cards-grid" id="cards-grid-meus">${filtered.slice(0, n).map(c => this.miniCardHtml(c)).join('')}</div>
       <div id="cards-mais-wrap" style="text-align:center;padding:14px 0;"></div>`;
 
     const grid = box.querySelector('#cards-grid-meus');
     const maisWrap = box.querySelector('#cards-mais-wrap');
+
+    /* ── SELECAO EM MASSA ──────────────────────────────────────────────────
+       O conjunto vive em memoria (nao no card), entao mudar de filtro ou sair
+       da tela limpa a selecao — nao existe risco de apagar algo marcado em
+       outro contexto. "Selecionar todos" cobre o FILTRO ATUAL, inclusive os
+       cards ainda nao renderizados pela paginacao. */
+    const sel = new Set();
+    const btnAll = box.querySelector('#cards-sel-all');
+    const btnNone = box.querySelector('#cards-sel-none');
+    const btnDel = box.querySelector('#cards-del-sel');
+    const lblSel = box.querySelector('#cards-sel-count');
+    const syncSel = () => {
+      lblSel.textContent = sel.size ? sel.size + ' selecionado(s)' : '';
+      btnDel.style.display = sel.size ? '' : 'none';
+      btnNone.style.display = sel.size ? '' : 'none';
+      btnAll.textContent = '☑ Selecionar todos (' + filtered.length + ')';
+      grid.querySelectorAll('.mini-card').forEach(mc => {
+        const marcado = sel.has(mc.dataset.id);
+        mc.classList.toggle('is-sel', marcado);
+        const cb = mc.querySelector('.mini-sel');
+        if (cb) cb.checked = marcado;
+      });
+    };
+    grid.addEventListener('change', (e) => {
+      const cb = e.target.closest('.mini-sel');
+      if (!cb) return;
+      if (cb.checked) sel.add(cb.dataset.id); else sel.delete(cb.dataset.id);
+      syncSel();
+    });
+    // clique no checkbox nao deve abrir o card para edicao
+    grid.addEventListener('click', (e) => { if (e.target.closest('.mini-card-sel')) e.stopPropagation(); }, true);
+    btnAll.addEventListener('click', () => { filtered.forEach(c => sel.add(c.id)); syncSel(); });
+    btnNone.addEventListener('click', () => { sel.clear(); syncSel(); });
+    btnDel.addEventListener('click', () => {
+      const qtd = sel.size;
+      if (!qtd) return;
+      // Exclusao em lote e irreversivel: a confirmacao diz o NUMERO exato e avisa
+      // que nao ha como desfazer, em vez de um "tem certeza?" generico.
+      UI.confirm(
+        'Excluir ' + qtd + ' card(s)? Esta ação não pode ser desfeita.',
+        { title: '🗑 Excluir cards', okText: 'Excluir ' + qtd, danger: true }
+      ).then((ok) => {
+        if (!ok) return;
+        const ids = new Set(sel);
+        const restantes = DB.getCards().filter(c => !ids.has(c.id));
+        DB.saveCards(restantes);
+        CardEngine.invalidateDueCache();
+        sel.clear();
+        this._meusMostrando = 0;
+        this.render();
+        showToast(qtd + ' card(s) excluído(s) 🗑');
+      });
+    });
+    syncSel();
     const pintarMais = () => {
       if (n >= filtered.length) {
         maisWrap.innerHTML = filtered.length > this.PAGINA_CARDS
@@ -16707,7 +16853,13 @@ const ExtrasScreen = {
         return this._recurOnDay(x, day);
       }
       if (datas.length) return datas.includes(day);
-      return (day === hoje) && x.status !== 'concluida';
+      /* BUG CORRIGIDO: a atividade AVULSA sumia da tela assim que era concluida
+         (o filtro descartava status === 'concluida'). Sem ela na lista nao havia
+         como editar, consultar o que foi feito, nem reabrir se voce marcou por
+         engano — restava recriar do zero.
+         Agora ela FICA, marcada como concluida, com o botao virando "Reabrir".
+         Continua aparecendo so no dia de hoje quando nao tem data propria. */
+      return (day === hoje);
     });
   },
   _recurOnDay(x, day) {
@@ -16997,24 +17149,44 @@ const ExtrasScreen = {
     // nº de lançamentos feitos neste dia → habilita o botão de desfazer (corrigir/diminuir)
     const nReg = (x.historico || []).filter(h => h.data === day).length;
     const undoBtn = nReg > 0 ? `<button type="button" class="icon-btn exd-undo" title="Desfazer o último lançamento deste dia (${nReg} registrado${nReg === 1 ? '' : 's'})">↶</button>` : '';
-    const regRow = done ? '' : `
+    /* RODAPE DO CARTAO
+       Antes eram DOIS passos: preencher e "Registrar", depois clicar "Concluir".
+       Na pratica ninguem quer registrar e concluir separado — voce faz a
+       atividade, informa quanto fez e acabou. Agora "Concluir" faz as duas
+       coisas de uma vez, e fica DESABILITADO enquanto o campo estiver vazio
+       (quando a atividade tem meta). O "＋" continua ali, discreto, para quem
+       precisa somar um avanco parcial sem encerrar o dia. */
+    const precisaValor = alvo > 0;
+    const regRow = done ? `
+        <div class="exd-reg exd-reg-done">
+          <button type="button" class="btn-secondary exd-reopen-btn" title="Desmarcar e voltar a atividade para a lista de pendentes">
+            <span class="exd-btn-ico" aria-hidden="true">↺</span> Reabrir
+          </button>
+          <button type="button" class="btn-secondary exd-edit-btn" title="Editar título, meta, tipo ou recorrência">
+            <span class="exd-btn-ico" aria-hidden="true">✎</span> Editar
+          </button>
+          ${undoBtn}
+        </div>` : `
         <div class="exd-reg">
           <div class="exd-reg-group">
-            <input type="number" class="exd-num exd-qtd" min="0" placeholder="${placeholder}" title="Registrar progresso em ${escapeHtml(this._prettyDay(day))}">
+            <input type="number" class="exd-num exd-qtd" min="0" placeholder="${placeholder}"
+                   title="Quanto você fez ${escapeHtml(this._prettyDay(day))}">
             ${x.tipo === 'questoes' ? `<input type="number" class="exd-num exd-ac" min="0" placeholder="acertos" title="Acertos (opcional)">` : ''}
-            <button type="button" class="btn-secondary exd-reg-btn" title="Somar este valor ao progresso, sem encerrar a atividade">
-              <span class="exd-btn-ico" aria-hidden="true">＋</span> Registrar
-            </button>
+            <button type="button" class="icon-btn exd-reg-btn" title="Somar ao progresso SEM encerrar — para avanço parcial">＋</button>
             ${undoBtn}
           </div>
-          <button type="button" class="btn-primary exd-done-btn" title="Marcar a atividade como concluída ${rec ? 'neste dia' : ''}">
+          <button type="button" class="btn-primary exd-done-btn" ${precisaValor ? 'disabled' : ''}
+                  title="${precisaValor ? 'Informe quanto você fez para poder concluir' : 'Marcar como concluída'}">
             <span class="exd-btn-ico" aria-hidden="true">✓</span> Concluir${rec ? ' o dia' : ''}
           </button>
         </div>`;
     return `
       <div class="exd ${done ? 'done' : ''}" data-id="${x.id}" data-day="${day}" style="--exd-cor:${cor}; --exd-fill:${alvo > 0 ? pct : (done ? 100 : 0)}%;">
         <div class="exd-top">
-          <button type="button" class="exd-check" title="${done ? 'Reabrir' : 'Concluir'} neste dia">${this._CHECK}</button>
+          <button type="button" class="exd-check" aria-pressed="${done}"
+                  title="${done ? 'Clique para REABRIR esta atividade' : 'Clique para marcar como concluída'}">
+            ${this._CHECK}<span class="exd-check-lbl">${done ? 'Concluída' : 'Marcar'}</span>
+          </button>
           <div class="exd-ico" style="background:color-mix(in srgb, ${cor} 16%, transparent); color:${cor};">${t.ico}</div>
           <div class="exd-main">
             <div class="exd-title">${escapeHtml(x.titulo)}</div>
@@ -17046,14 +17218,46 @@ const ExtrasScreen = {
         if (!jaFeita) showToast(DB.extraRecorrente(x) ? 'Concluída neste dia 🎉' : 'Atividade concluída 🎉');
       });
       const doneBtn = card.querySelector('.exd-done-btn');
+      const qEl0 = card.querySelector('.exd-qtd');
+      // Habilita "Concluir" so quando ha valor — o botao ensina a regra sozinho,
+      // em vez de deixar clicar e depois reclamar num toast.
+      if (doneBtn && qEl0 && doneBtn.hasAttribute('disabled')) {
+        const sync = () => {
+          const ok = qEl0.value !== '' && parseFloat(qEl0.value) > 0;
+          doneBtn.disabled = !ok;
+          doneBtn.title = ok ? 'Registrar o valor e concluir' : 'Informe quanto você fez para poder concluir';
+        };
+        qEl0.addEventListener('input', sync);
+        sync();
+      }
       if (doneBtn) doneBtn.addEventListener('click', () => {
         const x = DB.getExtra(id);
+        // Concluir JA REGISTRA o que foi feito: um passo so, em vez de
+        // "Registrar" e depois "Concluir".
+        const acEl = card.querySelector('.exd-ac');
+        const q = qEl0 ? qEl0.value : '';
+        if (q !== '' && parseFloat(q) > 0) {
+          if (day > todayLocal()) { showToast('Não dá para registrar em data futura'); return; }
+          if (acEl && acEl.value !== '' && parseFloat(acEl.value) > parseFloat(q)) {
+            showToast('Acertos não podem passar do total'); return;
+          }
+          DB.addExtraProgress(id, q, 0, { data: day, acertos: acEl ? acEl.value : null });
+        }
         DB.setConcluidaDia(id, day, true);
         this.render();
         showToast(DB.extraRecorrente(x) ? 'Concluída neste dia 🎉 (volta na próxima)' : 'Atividade concluída 🎉');
       });
+      // Reabrir: desfaz a conclusao daquele dia sem apagar o progresso registrado
+      const reopen = card.querySelector('.exd-reopen-btn');
+      if (reopen) reopen.addEventListener('click', () => {
+        DB.setConcluidaDia(id, day, false);
+        this.render();
+        showToast('Atividade reaberta ↺');
+      });
       const edit = card.querySelector('.exd-edit');
       if (edit) edit.addEventListener('click', () => this.openModal(id));
+      const editBtn2 = card.querySelector('.exd-edit-btn');
+      if (editBtn2) editBtn2.addEventListener('click', () => this.openModal(id));
       // registrar progresso NO DIA selecionado (um único campo — sem o antigo "+ Avançar")
       const regBtn = card.querySelector('.exd-reg-btn');
       if (regBtn) regBtn.addEventListener('click', () => {
@@ -19539,9 +19743,18 @@ const DesempenhoTecScreen = {
       const headCount = (cadernoTotal != null && naoClass > 0)
         ? `${nDisc} disc. · ~${cadernoTotal.toLocaleString('pt-BR')} questões no caderno`
         : `${nDisc} disc. · ${soma.toLocaleString('pt-BR')} questões`;
-      const summaryHtml = (cadernoTotal != null && naoClass > 0)
-        ? `<b>~${cadernoTotal.toLocaleString('pt-BR')}</b> questões no caderno · <b>${soma.toLocaleString('pt-BR')}</b> classificadas em <b>${nDisc}</b> disciplina(s)/<b>${nSub}</b> subtópico(s) · <b>${naoClass.toLocaleString('pt-BR')}</b> sem assunto no índice. Barras = peso relativo ao mais cobrado.`
-        : `<b>${nDisc}</b> disciplina(s) · <b>${nSub}</b> subtópico(s) · <b>${soma.toLocaleString('pt-BR')}</b> questões no total. Barras = peso relativo ao mais cobrado.`;
+      /* Resumo em PILULAS, no lugar do paragrafo corrido de antes.
+         Cada numero vira um bloco com rotulo proprio — a mesma leitura de
+         relance dos cartoes da aba Analise, so que com o dado daqui. */
+      const pilula = (val, rot, tom) =>
+        `<span class="incid-pill ${tom || ''}"><b>${val}</b><i>${rot}</i></span>`;
+      const summaryHtml = [
+        pilula(nDisc.toLocaleString('pt-BR'), nDisc === 1 ? 'disciplina' : 'disciplinas', 'roxo'),
+        pilula(nSub.toLocaleString('pt-BR'), nSub === 1 ? 'subtópico' : 'subtópicos', 'azul'),
+        pilula((cadernoTotal != null && naoClass > 0 ? '~' + cadernoTotal.toLocaleString('pt-BR') : soma.toLocaleString('pt-BR')), 'questões', 'verde'),
+        (cadernoTotal != null && naoClass > 0)
+          ? pilula(naoClass.toLocaleString('pt-BR'), 'sem assunto no índice', 'cinza') : ''
+      ].join('') + `<span class="incid-legend">As barras mostram o peso de cada tópico em relação ao mais cobrado do grupo.</span>`;
       // Reconstrói a HIERARQUIA (disciplina → assunto → tópico) a partir das linhas salvas
       const forest = this._buildIncidForest(rows);
       // base das barras de nível 0 = maior disciplina (barras relativas aos irmãos)
