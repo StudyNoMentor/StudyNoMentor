@@ -4295,6 +4295,10 @@
   .cards-back { border: 1.5px solid var(--good); background: var(--good-soft); margin-top: 12px; }
   .cards-review-actions { display: flex; align-items: stretch; gap: 8px; margin-top: 18px; }
   /* Bandeiras do Anki: 4 cores fixas, clique alterna, Ctrl+0 remove */
+  /* Plano — duas métricas de ganho lado a lado (modo "🔀 Mostrar as duas") */
+  .pl-g-dom { color: var(--accent); }
+  .pl-g-ger { color: var(--good-text); margin-top: 4px; }
+  .pl-ganho span { font-size: calc(10px * var(--fs-scale,1)); line-height: 1.3; }
   .cards-flagbar { display: inline-flex; gap: 5px; align-items: center; margin-left: auto; }
   .cards-flag { width: 19px; height: 19px; border-radius: 50%; cursor: pointer; padding: 0;
     border: 2px solid var(--border-strong); background: transparent; transition: all .12s ease; }
@@ -6330,6 +6334,7 @@
             </div>
             <div style="display:flex; gap:8px; flex-wrap:wrap;">
               <button class="btn-secondary" id="tec-toggle-cfg" type="button" title="Mostrar/ocultar os filtros e configurações desta tela">🔧 Filtros</button>
+              <button class="btn-secondary" id="tec-enxuto-btn" type="button" title="Esconde textos de ajuda e legendas — deixa só números, barras e listas">🔎 Modo enxuto</button>
               <button class="btn-secondary" id="tec-btn-new-import" type="button">+ Nova importação</button>
             </div>
           </div>
@@ -6584,6 +6589,8 @@
                 <label>Ordenar por</label>
                 <select id="plano-ordenar">
                   <option value="pior">🔴 Prioridade — pior acerto primeiro</option>
+                  <option value="ganhoGeral">📊 Maior ganho no Aproveitamento geral (por questão)</option>
+                  <option value="ganhoDominio">⚖️ Maior ganho no Domínio (assuntos pesam igual)</option>
                   <option value="banca">🎯 Prioridade na banca — fraqueza × incidência</option>
                   <option value="rendimento">⚡ Melhor retorno — ganho ÷ custo em questões</option>
                   <option value="queda">📉 Maior queda recente</option>
@@ -6608,8 +6615,9 @@
                 <div class="rfc-field wide">
                   <label>Como pesar cada assunto</label>
                   <select id="plano-ponderacao">
-                    <option value="igual">Todo assunto pesa igual — nada se esconde atrás de pouco volume</option>
-                    <option value="volume">Pelo volume que você pratica — reflete sua própria prioridade</option>
+                    <option value="igual">⚖️ Todo assunto pesa igual — nada se esconde atrás de pouco volume</option>
+                    <option value="volume">📊 Pelo volume de questões — maximiza o Aproveitamento geral desta tela</option>
+                    <option value="ambas">🔀 Mostrar as duas — decida item a item</option>
                   </select>
                 </div>
                 <div class="rfc-field">
@@ -17456,6 +17464,8 @@ const ExtrasScreen = {
 
     const ORDENS = [
       ['pior', '🔴 Pior acerto primeiro'],
+      ['ganhoGeral', '📊 Maior ganho no Aproveitamento geral'],
+      ['ganhoDominio', '⚖️ Maior ganho no Domínio'],
       ['banca', '🎯 Prioridade na banca'],
       ['rendimento', '⚡ Melhor retorno'],
       ['queda', '📉 Maior queda recente'],
@@ -19290,8 +19300,27 @@ const PlanoEngine = {
       }
     } catch (_) {}
     // 1º passo: anexa a incidência de cada assunto e calcula o rendimento.
+    /* DUAS MÉTRICAS DE GANHO, sempre calculadas — a escolha do usuário decide
+       qual manda na ordem e o que aparece na tela.
+
+       ganhoDominio  (peso 'igual'): quanto sobe o DOMÍNIO, onde cada assunto vale
+         o mesmo. Um tópico de 4 questões a 0% rende muito aqui — é o que impede
+         que assunto pequeno e mal dominado se esconda.
+       ganhoGeral    (peso 'volume'): quanto sobe o APROVEITAMENTO GERAL mostrado
+         no topo desta tela, que é ponderado por questão. Aqui manda o volume.
+
+       Os dois respondem perguntas diferentes e podem discordar: 300 questões a
+       60% valem 10pp de domínio mas 90 questões recuperadas; 4 questões a 0%
+       valem 30pp de domínio e só 3,6 questões. Nenhum está errado — por isso a
+       opção "🔀 Mostrar as duas". */
+    const universoQ = usados.reduce((a, x) => a + (x.qHist || x.q || 0), 0) || 1;
     usados.forEach(x => {
-      x.ganhoPP = Math.max(0, (x.peso * teto - x.peso * x.taxa / 100) / universo * 100);
+      x.ganhoDominio = Math.max(0, (teto - x.taxa / 100) / usados.length * 100);
+      x.ganhoQuestoes = Math.max(0, (teto - x.taxa / 100) * (x.qHist || x.q || 0));
+      x.ganhoGeral = Math.max(0, x.ganhoQuestoes / universoQ * 100);
+      x.ganhoPP = (opts.ponderacao === 'volume') ? x.ganhoGeral
+        : Math.max(0, (x.peso * teto - x.peso * x.taxa / 100) / universo * 100);
+      x.ganhoDominio = Math.max(0, (x.peso * teto - x.peso * x.taxa / 100) / universo * 100);
       x.rendimento = x.ganhoPP / x.custoQ * 100;
       x.incid = temIncid ? (incMap[ReforcoEngine.norm(x.nome)] || 0) : null;
     });
@@ -19331,9 +19360,16 @@ const PlanoEngine = {
       pior: (a, b) => a.taxa - b.taxa,
       queda: (a, b) => (a.delta == null ? 0 : a.delta) - (b.delta == null ? 0 : b.delta),
       volume: (a, b) => b.qHist - a.qHist,
-      banca: (a, b) => b.prioBanca - a.prioBanca
+      banca: (a, b) => b.prioBanca - a.prioBanca,
+      // Ordenar diretamente por cada métrica de ganho — responde "o que mexe
+      // mais no número que EU escolhi acompanhar", sem depender do custo.
+      ganhoDominio: (a, b) => b.ganhoDominio - a.ganhoDominio,
+      ganhoGeral: (a, b) => b.ganhoGeral - a.ganhoGeral
     };
-    const plano = usados.filter(x => x.ganhoPP > 0.001).sort(ordem[opts.ordenar] || ordem.rendimento);
+    // Desempate ESTÁVEL por nome: duas execuções com os mesmos dados dão a mesma ordem
+    const base = ordem[opts.ordenar] || ordem.rendimento;
+    const cmp = (a, b) => base(a, b) || (a.nome || '').localeCompare(b.nome || '', 'pt-BR');
+    const plano = usados.filter(x => x.ganhoPP > 0.001).sort(cmp);
     const meta = opts.metaDominio;
     let acum = dominioPct, idxMeta = -1, qAteMeta = 0;
     plano.forEach((x, i) => {
@@ -19443,6 +19479,7 @@ const DesempenhoTecScreen = {
     this.renderAnalysis();
     this.switchTecTab(this.tecTab || 'analise'); // reaplica a aba ativa
     this.applyCfgHidden();
+    this.applyEnxuto();
   },
   // Mostra/oculta todos os filtros e configurações da tela (classe .tec-cfg),
   // deixando só os resultados. Estado salvo por perfil.
@@ -19452,6 +19489,16 @@ const DesempenhoTecScreen = {
     if (wrap) wrap.classList.toggle('hide-cfg', on);
     const btn = document.getElementById('tec-toggle-cfg');
     if (btn) { btn.classList.toggle('is-active', on); btn.textContent = on ? '🔧 Mostrar filtros' : '🔧 Filtros'; }
+  },
+  /* MODO ENXUTO — depois que você entende a tela, textos de ajuda, legendas e
+     dicas viram ruído. Este modo esconde tudo isso e deixa só o que muda de
+     valor: números, barras e listas. Fica salvo por perfil. */
+  applyEnxuto() {
+    const on = !!this._loadPrefs().enxuto;
+    const tela = document.getElementById('screen-desempenhotec');
+    if (tela) tela.classList.toggle('tec-enxuto', on);
+    const b = document.getElementById('tec-enxuto-btn');
+    if (b) { b.classList.toggle('is-active', on); b.textContent = on ? '🔎 Modo completo' : '🔎 Modo enxuto'; }
   },
   // normaliza texto p/ casar tópicos entre retratos (sem acento/caixa/espaços extras)
   _nk(s) { return String(s == null ? '' : s).normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/\s+/g, ' ').trim(); },
@@ -20097,8 +20144,15 @@ const DesempenhoTecScreen = {
           <div class="pl-rank">${i + 1}</div>
           <div class="pl-nome">${escapeHtml(x.nome)}</div>
           <div class="pl-ganho">
-            <b>+${x.ganhoPP.toFixed(1)}pp</b>
-            <span>domínio → ${x.acumulado.toFixed(1)}%</span>
+            ${r.ponderacao === 'ambas' ? `
+              <b class="pl-g-dom" title="Sobe o DOMÍNIO: cada assunto pesa igual">+${x.ganhoDominio.toFixed(1)}pp</b>
+              <span title="Sobe o DOMÍNIO">⚖️ domínio</span>
+              <b class="pl-g-ger" title="Sobe o APROVEITAMENTO GERAL (ponderado por questão): recupera ${Math.round(x.ganhoQuestoes)} questões">+${x.ganhoGeral.toFixed(2)}pp</b>
+              <span title="Aproveitamento geral desta tela">📊 geral · ${Math.round(x.ganhoQuestoes)}q</span>
+            ` : `
+              <b>+${x.ganhoPP.toFixed(1)}pp</b>
+              <span>${r.ponderacao === 'volume' ? '📊 geral → ' : '⚖️ domínio → '}${x.acumulado.toFixed(1)}%</span>
+            `}
           </div>
           <div class="pl-corpo">
             ${x.disciplina ? `<div class="pl-disc">${escapeHtml(x.disciplina)}</div>` : ''}
@@ -21133,6 +21187,11 @@ document.getElementById('tec-toggle-cfg').addEventListener('click', () => {
   const p = DesempenhoTecScreen._loadPrefs();
   DesempenhoTecScreen.savePrefs({ hideCfg: !p.hideCfg });
   DesempenhoTecScreen.applyCfgHidden();
+});
+document.getElementById('tec-enxuto-btn').addEventListener('click', () => {
+  const p = DesempenhoTecScreen._loadPrefs();
+  DesempenhoTecScreen.savePrefs({ enxuto: !p.enxuto });
+  DesempenhoTecScreen.applyEnxuto();
 });
 document.getElementById('tec-import-cancel').addEventListener('click', () => DesempenhoTecScreen.render());
 document.getElementById('tec-import-save').addEventListener('click', () => DesempenhoTecScreen.saveImport());
