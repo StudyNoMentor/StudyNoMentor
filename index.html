@@ -15513,6 +15513,17 @@ const CardsScreen = {
     // para o destino, valor de matéria = "sub:Nome"; baralho = "deck:id"
     const subOpts = DB.getActiveSubjects().map(s => `<option value="sub:${escapeHtml(s.nome)}"${selected === 'sub:' + s.nome ? ' selected' : ''}>${escapeHtml(s.nome)}</option>`).join('');
     const deckOpts = DB.getDecks().map(d => `<option value="deck:${d.id}"${selected === 'deck:' + d.id ? ' selected' : ''}>📁 ${escapeHtml(d.nome)}</option>`).join('');
+    /* BUG CORRIGIDO — perfil novo não conseguia criar o PRIMEIRO card.
+       Sem disciplina no Plano e sem baralho criado, este seletor vinha só com o
+       texto de instrução. Ao salvar, o app pedia "Escolha o destino" apontando
+       para uma lista vazia: beco sem saída, achado simulando o uso real.
+       O Anki resolve isso tendo SEMPRE um baralho "Padrão". É o que fazemos:
+       quando não há nenhum destino, oferecemos "📁 Padrão", criado na hora em
+       que o card for salvo. */
+    if (!subOpts && !deckOpts) {
+      return `<option value="">Escolha onde este card fica...</option>`
+        + `<option value="novo:Padrão"${selected === 'novo:Padrão' ? ' selected' : ''}>📁 Padrão</option>`;
+    }
     return `<option value="">Escolha onde este card fica...</option>` + subOpts + deckOpts;
   },
   currentFilteredCards() {
@@ -16332,7 +16343,15 @@ const CardsScreen = {
     this.closeCardModal();
   },
   _readCardForm() {
-    const dest = document.getElementById('card-destino').value;
+    let dest = document.getElementById('card-destino').value;
+    // "novo:Nome" = baralho padrão oferecido quando o perfil ainda não tem destino
+    // nenhum. Só é criado de fato agora, quando o card vai ser salvo.
+    if (dest.startsWith('novo:')) {
+      const nome = dest.slice(5);
+      const existente = DB.getDecks().find(d => d.nome === nome);
+      const deck = existente || DB.addDeck(nome);
+      dest = 'deck:' + deck.id;
+    }
     const kind = document.getElementById('card-kind').value;
     const frente = document.getElementById('card-frente').innerHTML.trim();
     const verso = document.getElementById('card-verso').innerHTML.trim();
