@@ -4294,6 +4294,13 @@
   .cards-front { border: 1.5px solid var(--border); }
   .cards-back { border: 1.5px solid var(--good); background: var(--good-soft); margin-top: 12px; }
   .cards-review-actions { display: flex; align-items: stretch; gap: 8px; margin-top: 18px; }
+  /* aviso de card ja avaliado (equivalente ao "so da para desfazer" do Anki) */
+  .cards-already { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; width: 100%;
+    padding: 13px 15px; border-radius: 13px; background: var(--surface-sunken); border: 1px solid var(--border); }
+  .cards-already-txt { display: flex; flex-direction: column; gap: 2px; min-width: 0; flex: 1 1 240px; }
+  .cards-already-txt b { font-size: calc(13px * var(--fs-scale,1)); color: var(--text); }
+  .cards-already-txt span { font-size: calc(11.5px * var(--fs-scale,1)); color: var(--text-faint); line-height: 1.45; }
+  .cards-already-acts { display: flex; gap: 8px; flex-wrap: wrap; }
   .cards-flip { flex: 1; padding: 13px; font-size: calc(14px * var(--fs-scale, 1)); }
   /* 4 botões (Errei/Difícil/Bom/Fácil) */
   .cards-ans4 {
@@ -7558,7 +7565,11 @@ const DB = {
       verso: _sanCard(data.verso),
       favorito: false,
       status: 'pendente',
-      ease: 2.5, intervalo: 0, due: todayLocal(), reps: 0, lapses: 0,
+      // BUG CORRIGIDO: usava todayLocal() (data de CALENDARIO) enquanto o agendador
+      // compara com todayCards() (dia de estudo, que vira as 4h como no Anki). Um
+      // card criado entre a meia-noite e as 4h nascia vencendo "amanha" e sumia da
+      // fila ate o dia virar — o card existia, mas nao aparecia para revisar.
+      ease: 2.5, intervalo: 0, due: todayCards(), reps: 0, lapses: 0,
       // estado FSRS (Anki): fase, passo de aprendizado, estabilidade (S), dificuldade (D)
       phase: 'new', learnStep: 0, s: null, d: null, dueTs: null,
       createdAt: now, updatedAt: now
@@ -10873,8 +10884,19 @@ const CardsConfig = {
   _daily() {
     let d = this._read(this.DKEY, this.LEGACY_DKEY);
     if (!d || d.date !== todayCards()) d = { date: todayCards(), newIds: [], revIds: [] };
-    d.newIds = Array.isArray(d.newIds) ? d.newIds : [];
-    d.revIds = Array.isArray(d.revIds) ? d.revIds : [];
+    /* MIGRACAO do formato antigo ({newDone: 7}) para o novo (lista de IDs).
+       Sem isto, quem atualizasse o app no meio do dia via o contador voltar a
+       zero e ganhava um lote extra de cards novos. Os IDs reais nao existem
+       mais, entao preenchemos com marcadores so para PRESERVAR A CONTAGEM —
+       eles nunca colidem com um id de card real e somem na virada do dia. */
+    if (!Array.isArray(d.newIds)) {
+      const n = Number(d.newDone) || 0;
+      d.newIds = Array.from({ length: n }, (_, i) => '__legado_new_' + i);
+    }
+    if (!Array.isArray(d.revIds)) {
+      const n = Number(d.revDone) || 0;
+      d.revIds = Array.from({ length: n }, (_, i) => '__legado_rev_' + i);
+    }
     return d;
   },
   _saveDaily(d) { try { localStorage.setItem(this.DKEY, JSON.stringify(d)); } catch (_) {} this._notify(); },
@@ -15622,6 +15644,34 @@ const CardsScreen = {
       document.getElementById('cards-flip').addEventListener('click', () => this.flip(box));
       return;
     }
+    /* ── FIDELIDADE AO ANKI: um card so e avaliado UMA VEZ por passagem ────────
+       No Anki nao existe "card anterior": a fila avanca e voce so pode DESFAZER
+       (Ctrl+Z). Aqui a navegacao para tras foi mantida — e util para reler o que
+       passou — mas avaliar de novo um card ja avaliado nesta sessao criaria uma
+       SEGUNDA entrada no historico. O agendamento nao quebrava (a trava de mesmo
+       dia do FSRS-6 segura a estabilidade, e o contador diario ja e por ID), mas
+       o revlog inflava e contaminava as estatisticas e o otimizador.
+       Solucao igual a do Anki: o card ja avaliado nao reoferece as notas; oferece
+       DESFAZER, que e a unica forma de mudar uma avaliacao no Anki. */
+    const jaAvaliado = (this._undoStack || []).some(u => u.id === c.id);
+    if (jaAvaliado) {
+      el.innerHTML = `
+        <div class="cards-already">
+          <div class="cards-already-txt">
+            <b>Você já avaliou este card nesta sessão.</b>
+            <span>No Anki não é possível reavaliar — para mudar a nota, desfaça a avaliação.</span>
+          </div>
+          <div class="cards-already-acts">
+            <button type="button" class="cards-nav-btn" id="cards-already-undo">↶ Desfazer avaliação</button>
+            <button type="button" class="btn-primary" id="cards-already-next">Continuar →</button>
+          </div>
+        </div>`;
+      const bu = document.getElementById('cards-already-undo');
+      if (bu) bu.addEventListener('click', () => this.undoAnswer());
+      const bn = document.getElementById('cards-already-next');
+      if (bn) bn.addEventListener('click', () => this.navCard(1));
+      return;
+    }
     const iv = CardEngine.previewIntervals(c);
     el.innerHTML = `
       <button type="button" class="cards-ans4 a-errei" data-g="errei"><span class="a-kbd">1</span>✗ Errei<span>${CardEngine.fmtInterval(iv.errei)}</span></button>
@@ -15657,7 +15707,16 @@ const CardsScreen = {
     if (e.code === 'ArrowLeft') { e.preventDefault(); this.navCard(-1); return; }
     if (!this._flipped) return;
     const map = { Digit1: 'errei', Numpad1: 'errei', Digit2: 'dificil', Numpad2: 'dificil', Digit3: 'bom', Numpad3: 'bom', Digit4: 'facil', Numpad4: 'facil' };
-    if (map[e.code]) { e.preventDefault(); this.answer(map[e.code]); }
+    if (map[e.code]) {
+      e.preventDefault();
+      // mesma regra do botao: card ja avaliado nesta sessao nao aceita nova nota
+      const atual = (this._reviewQueue || [])[this._reviewIdx];
+      if (atual && (this._undoStack || []).some(u => u.id === atual)) {
+        showToast('Card já avaliado nesta sessão — use Ctrl+Z para desfazer');
+        return;
+      }
+      this.answer(map[e.code]);
+    }
   },
   // pula (rotacionando para o fim) cards cujo passo de aprendizado ainda não venceu,
   // desde que exista outro card disponível agora
@@ -15736,6 +15795,15 @@ const CardsScreen = {
   answer(grade) {
     const id = this._reviewQueue[this._reviewIdx];
     const c = DB.getCard(id);
+    /* GUARDA NA ORIGEM — igual ao Anki, um card recebe UMA avaliacao por passagem.
+       O aviso na tela ja impede o clique, mas a protecao precisa estar AQUI: sem
+       ela, qualquer outro caminho (atalho, chamada interna, um bug futuro) ainda
+       gravaria uma segunda entrada no revlog. No Anki a unica forma de mudar uma
+       nota e desfazer, entao e isso que oferecemos. */
+    if (c && (this._undoStack || []).some(u => u.id === id)) {
+      showToast('Card já avaliado nesta sessão — desfaça (Ctrl+Z) para mudar a nota');
+      return;
+    }
     let patch = null;
     if (c) {
       // registra no histórico (revlog) ANTES de reagendar — base para o otimizador FSRS
