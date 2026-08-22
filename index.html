@@ -4302,12 +4302,7 @@
   .cards-flag:hover { border-color: var(--fl); }
   .cards-flag.on { background: var(--fl); border-color: var(--fl); box-shadow: 0 0 0 3px color-mix(in srgb, var(--fl) 24%, transparent); }
   .cards-review-nav { flex-wrap: wrap; gap: 6px; }
-  .cards-already { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; width: 100%;
     padding: 13px 15px; border-radius: 13px; background: var(--surface-sunken); border: 1px solid var(--border); }
-  .cards-already-txt { display: flex; flex-direction: column; gap: 2px; min-width: 0; flex: 1 1 240px; }
-  .cards-already-txt b { font-size: calc(13px * var(--fs-scale,1)); color: var(--text); }
-  .cards-already-txt span { font-size: calc(11.5px * var(--fs-scale,1)); color: var(--text-faint); line-height: 1.45; }
-  .cards-already-acts { display: flex; gap: 8px; flex-wrap: wrap; }
   .cards-flip { flex: 1; padding: 13px; font-size: calc(14px * var(--fs-scale, 1)); }
   /* 4 botões (Errei/Difícil/Bom/Fácil) */
   .cards-ans4 {
@@ -15827,23 +15822,6 @@ const CardsScreen = {
        o revlog inflava e contaminava as estatisticas e o otimizador.
        Solucao igual a do Anki: o card ja avaliado nao reoferece as notas; oferece
        DESFAZER, que e a unica forma de mudar uma avaliacao no Anki. */
-    const jaAvaliado = (this._undoStack || []).some(u => u.id === c.id);
-    if (jaAvaliado) {
-      el.innerHTML = `
-        <div class="cards-already">
-          <div class="cards-already-txt">
-            <b>Você já avaliou este card nesta sessão.</b>
-            <span>No Anki não é possível reavaliar — para mudar a nota, desfaça a avaliação.</span>
-          </div>
-          <div class="cards-already-acts">
-            <button type="button" class="cards-nav-btn" id="cards-already-undo">↶ Desfazer avaliação</button>
-
-          </div>
-        </div>`;
-      const bu = document.getElementById('cards-already-undo');
-      if (bu) bu.addEventListener('click', () => this.undoAnswer());
-      return;
-    }
     const iv = CardEngine.previewIntervals(c);
     el.innerHTML = `
       <button type="button" class="cards-ans4 a-errei" data-g="errei"><span class="a-kbd">1</span>✗ Errei<span>${CardEngine.fmtInterval(iv.errei)}</span></button>
@@ -15931,16 +15909,7 @@ const CardsScreen = {
     // avaliação é DESFAZER (Ctrl+Z), e é assim que fica aqui.
     if (!this._flipped) return;
     const map = { Digit1: 'errei', Numpad1: 'errei', Digit2: 'dificil', Numpad2: 'dificil', Digit3: 'bom', Numpad3: 'bom', Digit4: 'facil', Numpad4: 'facil' };
-    if (map[e.code]) {
-      e.preventDefault();
-      // mesma regra do botao: card ja avaliado nesta sessao nao aceita nova nota
-      const atual = (this._reviewQueue || [])[this._reviewIdx];
-      if (atual && (this._undoStack || []).some(u => u.id === atual)) {
-        showToast('Card já avaliado nesta sessão — use Ctrl+Z para desfazer');
-        return;
-      }
-      this.answer(map[e.code]);
-    }
+    if (map[e.code]) { e.preventDefault(); this.answer(map[e.code]); }
   },
   // pula (rotacionando para o fim) cards cujo passo de aprendizado ainda não venceu,
   // desde que exista outro card disponível agora
@@ -16025,15 +15994,13 @@ const CardsScreen = {
   answer(grade) {
     const id = this._reviewQueue[this._reviewIdx];
     const c = DB.getCard(id);
-    /* GUARDA NA ORIGEM — igual ao Anki, um card recebe UMA avaliacao por passagem.
-       O aviso na tela ja impede o clique, mas a protecao precisa estar AQUI: sem
-       ela, qualquer outro caminho (atalho, chamada interna, um bug futuro) ainda
-       gravaria uma segunda entrada no revlog. No Anki a unica forma de mudar uma
-       nota e desfazer, entao e isso que oferecemos. */
-    if (c && (this._undoStack || []).some(u => u.id === id)) {
-      showToast('Card já avaliado nesta sessão — desfaça (Ctrl+Z) para mudar a nota');
-      return;
-    }
+    /* Sem guarda de "já avaliado": ela estava ERRADA. Um card de aprendizado
+       respondido com "Errei" volta em 1 minuto e PRECISA ser avaliado de novo —
+       é assim que os passos do Anki funcionam. A guarda baseada no histórico de
+       desfazer bloqueava justamente essa volta legítima.
+       A proteção real contra reavaliar a MESMA apresentação é estrutural: sem
+       "voltar" e sem "pular", não existe caminho para retornar a um card já
+       avaliado na mesma posição da fila — exatamente como no Anki. */
     let patch = null;
     if (c) {
       // registra no histórico (revlog) ANTES de reagendar — base para o otimizador FSRS
