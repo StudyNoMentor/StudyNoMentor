@@ -2581,6 +2581,58 @@
      precisa recolher de novo a cada visita.
      A barra de filtros vira grade fluida — em vez de campos espremidos lado a
      lado, cada um recebe largura minima e quebra sozinho no celular. */
+  /* ══════════════════════════════════════════════════════════════════════════
+     CORREÇÕES DE LAYOUT — auditoria por viewport (360 / 768 / 1280)
+     ══════════════════════════════════════════════════════════════════════════ */
+
+  /* 1) GRADES LARGAS CORTADAS NO CELULAR
+     .track-row e .cycle-subject-row.pos somam ~500px de colunas fixas. Como
+     html/body usam overflow-x: hidden/clip, o excedente era CORTADO — as últimas
+     colunas simplesmente sumiam da tela, sem barra de rolagem para alcançá-las.
+     Solução: no celular a linha vira duas faixas (nome em cima, números embaixo),
+     em vez de espremer ou esconder. */
+  @media (max-width: 560px) {
+    .track-header-row { display: none; }
+    .track-row {
+      grid-template-columns: 28px 1fr auto !important;
+      grid-auto-rows: min-content;
+      row-gap: 4px; padding: 10px 12px;
+    }
+    .track-row > *:nth-child(n+4) { grid-column: 2 / -1; }
+    .cycle-subject-row.pos {
+      grid-template-columns: minmax(0, 1fr) auto !important;
+      row-gap: 6px;
+    }
+    .cycle-subject-row.pos > *:nth-child(n+3) { grid-column: 1 / -1; }
+  }
+
+  /* 2) TEXTO CORTADO SECO (nowrap sem reticências)
+     Sem text-overflow o texto some na borda, sem sinal de que continua. */
+  .extra-marcador .em-label,
+  #screen-registrar .step-progress-label,
+  .leis-auto-label { overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+  @media (max-width: 820px) {
+    .track-stage .ts-label { overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+  }
+
+  /* 3) ALVOS DE TOQUE PEQUENOS DEMAIS
+     Apple e Google recomendam 44px e 48px. Vários botões estavam em 28–36px.
+     Aumentamos só no TOQUE (ponteiro grosso), preservando o visual compacto
+     no mouse — onde a precisão é outra. */
+  @media (pointer: coarse) {
+    .calm-nav button, .foco-bar button,
+    .font-size-ctl button, .occ-del-quick button,
+    .exd-info-btn, .cards-bulk .btn-danger,
+    .exd-reg .exd-reg-btn, .exd-reg .exd-undo,
+    .cards-pill, .evo-chip, .evo-sf-chip, .scope-tog {
+      min-height: 44px;
+      min-width: 44px;
+    }
+    .cards-flag { width: 26px; height: 26px; }
+    /* o alvo cresce sem engordar o desenho: o ponto continua pequeno */
+    .cloud-sync-btn { min-height: 44px; min-width: 44px; }
+  }
+
   #tec-analysis.hide-cfg .tec-cfg { display: none !important; }
   #tec-toggle-cfg.is-active { background: var(--accent); color: #fff; border-color: var(--accent); }
   #tec-toggle-cfg.is-active:hover { background: var(--accent-hover); color: #fff; }
