@@ -7603,7 +7603,33 @@ const DB = {
       return n;
     } catch (_) { return 0; }
   },
-  deleteCard(id) { this.saveCards(this.getCards().filter(c => c.id !== id)); },
+  /* Excluir um card tem de levar embora TUDO que era dele. A auditoria real
+     mostrou 178 entradas de histórico para 4 cards existentes: 16 cards apagados
+     tinham deixado o histórico para trás. Pior, o contador diário guardava os IDs
+     deles e continuava consumindo a cota de 20 novos do dia — cards que nem
+     existiam mais ocupavam vaga na fila. */
+  deleteCard(id) {
+    this.saveCards(this.getCards().filter(c => c.id !== id));
+    try {
+      const l = this.getRevlog().filter(r => r.cardId !== id);
+      this._set(this.KEYS.revlog, l);
+    } catch (_) {}
+    try { CardsConfig.forgetCardId(id); } catch (_) {}
+  },
+  // Faxina geral: remove do histórico e dos contadores tudo que aponta para card
+  // inexistente. Devolve quantos registros foram descartados.
+  limparOrfaos() {
+    const ids = new Set(this.getCards().map(c => c.id));
+    let n = 0;
+    try {
+      const l = this.getRevlog();
+      const limpo = l.filter(r => ids.has(r.cardId));
+      n = l.length - limpo.length;
+      if (n) this._set(this.KEYS.revlog, limpo);
+    } catch (_) {}
+    try { n += CardsConfig.limparContadorOrfao(ids); } catch (_) {}
+    return n;
+  },
 
   // ---- Links úteis: [{ id, nome, url, categoria, cor, logo(dataURL|null), createdAt }] ----
   DEFAULT_LINKS: [
@@ -10903,6 +10929,27 @@ const CardsConfig = {
   newDoneToday() { return this._daily().newIds.length; }, revDoneToday() { return this._daily().revIds.length; },
   markIntroduced(kind, id) { const d = this._daily(); const a = kind === 'new' ? d.newIds : d.revIds; if (id && !a.includes(id)) a.push(id); this._saveDaily(d); },
   unmarkIntroduced(kind, id) { const d = this._daily(); const k = kind === 'new' ? 'newIds' : 'revIds'; d[k] = id ? d[k].filter(x => x !== id) : d[k]; this._saveDaily(d); },
+  // Tira um card dos contadores do dia (usado ao excluir o card)
+  forgetCardId(id) {
+    const d = this._daily();
+    const antes = d.newIds.length + d.revIds.length;
+    d.newIds = d.newIds.filter(x => x !== id);
+    d.revIds = d.revIds.filter(x => x !== id);
+    if (antes !== d.newIds.length + d.revIds.length) this._saveDaily(d);
+  },
+  // Remove do contador os IDs que não correspondem a card nenhum. Marcadores de
+  // migração (__legado_*) são preservados: eles existem justamente para manter a
+  // contagem de quem atualizou o app no meio do dia.
+  limparContadorOrfao(ids) {
+    const d = this._daily();
+    const vale = (x) => ids.has(x) || String(x).startsWith('__legado_');
+    const antes = d.newIds.length + d.revIds.length;
+    d.newIds = d.newIds.filter(vale);
+    d.revIds = d.revIds.filter(vale);
+    const n = antes - (d.newIds.length + d.revIds.length);
+    if (n) this._saveDaily(d);
+    return n;
+  },
   newRemaining() { return Math.max(0, (this.get().newPerDay || 0) - this.newDoneToday()); },
   revRemaining() { return Math.max(0, (this.get().revPerDay || 0) - this.revDoneToday()); }
 };
@@ -15600,7 +15647,6 @@ const CardsScreen = {
         ${this.faceHtml(c)}
         <div class="cards-review-actions" id="cards-review-actions"></div>
         <div class="cards-review-nav">
-          <button type="button" class="cards-nav-btn" id="cards-prev" ${this._reviewIdx <= 0 ? 'disabled' : ''} title="Voltar ao card anterior (seta esquerda)">← Voltar</button>
           <button type="button" class="icon-btn cards-review-edit" id="cards-review-edit" title="Editar card">✎ Editar</button>
           <button type="button" class="cards-nav-btn" id="cards-next" ${this._reviewIdx >= total - 1 ? 'disabled' : ''} title="Avançar para o próximo card (seta direita)">Avançar →</button>
         </div>
@@ -15618,7 +15664,6 @@ const CardsScreen = {
       DB.updateCard(c.id, { favorito: !c.favorito }); this.updateFavCount(); this.renderReviewCard(box);
     });
     document.getElementById('cards-review-edit').addEventListener('click', () => this.openCardModal(c.id));
-    const pv = document.getElementById('cards-prev'); if (pv) pv.addEventListener('click', () => this.navCard(-1));
     const nx = document.getElementById('cards-next'); if (nx) nx.addEventListener('click', () => this.navCard(1));
   },
   // renderiza as faces conforme o tipo (cloze ou básico)
@@ -15704,7 +15749,8 @@ const CardsScreen = {
     }
     // ← volta ao card anterior; → avança para o próximo card
     if (e.code === 'ArrowRight') { e.preventDefault(); this.navCard(1); return; }
-    if (e.code === 'ArrowLeft') { e.preventDefault(); this.navCard(-1); return; }
+    // ← NÃO faz nada: o Anki não tem "card anterior". A única forma de mudar uma
+    // avaliação é DESFAZER (Ctrl+Z), e é assim que fica aqui.
     if (!this._flipped) return;
     const map = { Digit1: 'errei', Numpad1: 'errei', Digit2: 'dificil', Numpad2: 'dificil', Digit3: 'bom', Numpad3: 'bom', Digit4: 'facil', Numpad4: 'facil' };
     if (map[e.code]) {
@@ -15763,6 +15809,12 @@ const CardsScreen = {
   // navega entre os cards da fila sem avaliar (pular)
   navCard(dir) {
     if (!this._reviewQueue || this._reviewQueue.length === 0) return;
+    /* Só AVANÇA. Voltar foi removido: no Anki não existe "card anterior" — a fila
+       anda para frente e a única forma de mudar uma nota é desfazer. Enquanto
+       existiu, dava para reavaliar o mesmo card em rajada; uma auditoria real
+       mostrou 4 cards com 178 entradas no histórico, uma delas com 28 revisões
+       do mesmo card, 164 delas com menos de 2 segundos entre si. */
+    if (dir < 0) return;
     const ni = this._reviewIdx + dir;
     if (ni < 0 || ni >= this._reviewQueue.length) return;
     this._reviewIdx = ni;
@@ -21227,6 +21279,16 @@ const ProfileUI = {
       this.hideGate();
       // Só depois de entrar de fato: no gate o aviso não teria o que fazer.
       try { DB.checarEspaco(); } catch (_) {}
+      // Faxina de dados órfãos deixados por versões anteriores (histórico e
+      // contadores apontando para cards já excluídos). Silenciosa quando não há
+      // nada a limpar; avisa quando limpa, para você saber que aconteceu.
+      try {
+        const nOrf = DB.limparOrfaos();
+        if (nOrf > 0) {
+          console.warn('[faxina] registros órfãos removidos:', nOrf);
+          setTimeout(() => { try { showToast('🧹 ' + nOrf + ' registro(s) órfão(s) de cards excluídos foram limpos'); } catch (_) {} }, 3500);
+        }
+      } catch (_) {}
       return;
     }
     this.showGate();
