@@ -7616,6 +7616,29 @@ const DB = {
     } catch (_) {}
     try { CardsConfig.forgetCardId(id); } catch (_) {}
   },
+  /* Zera TODO o progresso dos cards, preservando o conteúdo. Equivale a aplicar
+     o "Esquecer" (Forget) do Anki em todos os cards, mais limpar o histórico e
+     os contadores do dia. Devolve o que foi afetado, para o aviso na tela. */
+  zerarProgressoCards() {
+    const cards = this.getCards();
+    const nRev = this.getRevlog().length;
+    cards.forEach(c => {
+      c.phase = 'new'; c.learnStep = 0;
+      c.due = todayCards(); c.dueTs = null;
+      c.intervalo = 0; c.reps = 0; c.lapses = 0;
+      c.ease = 2.5; c.s = null; c.d = null;
+      c.lastReview = null; c.status = 'pendente';
+      c.leech = false; c.suspenso = false;
+      c.updatedAt = new Date().toISOString();
+    });
+    this.saveCards(cards);
+    this._set(this.KEYS.revlog, []);
+    try {
+      localStorage.setItem(CardsConfig.DKEY, JSON.stringify({ date: todayCards(), newIds: [], revIds: [] }));
+      CardsConfig._notify();
+    } catch (_) {}
+    return { cards: cards.length, revlog: nRev };
+  },
   // Faxina geral: remove do histórico e dos contadores tudo que aponta para card
   // inexistente. Devolve quantos registros foram descartados.
   limparOrfaos() {
@@ -16431,16 +16454,57 @@ const CardsScreen = {
 // Passo 1: escolher o ESCOPO (global ou um baralho específico) — como o Anki (presets por baralho)
 CardsScreen.openAlgoConfig = function () {
   const decks = DB.getDecks();
-  if (!decks.length) { CardsScreen.openAlgoConfigFor(null); return; }
   const opts = [{ value: '__global__', label: '🌐 Global (padrão de todos)' }].concat(
     decks.map(d => ({ value: d.id, label: '📁 ' + d.nome + (CardsConfig.hasDeckPreset(d.id) ? '  • personalizado' : '  • herda global') }))
   );
+  opts.push({ value: '__reset__', label: '🧹 Zerar estatísticas e resíduos…' });
   UI.prompt([{ key: 'scope', label: '⚙ Configurar qual conjunto?', type: 'select', value: '__global__', options: opts,
     hint: 'Cada baralho pode ter seu próprio algoritmo/retenção (ex.: lei seca em 95%, teoria em 88%). Sem preset, o baralho herda o global.' }],
     { title: '⚙ Parâmetros dos Cards', okText: 'Continuar' }).then(v => {
       if (!v) return;
+      if (v.scope === '__reset__') { CardsScreen.zerarEstatisticas(); return; }
       CardsScreen.openAlgoConfigFor(v.scope === '__global__' ? null : v.scope);
     });
+};
+
+/* ── ZERAR ESTATÍSTICAS E RESÍDUOS ──────────────────────────────────────────
+   Serve para começar um teste do zero: apaga o histórico de revisões, os
+   contadores do dia e devolve TODOS os cards ao estado "novo" (como o
+   "Esquecer"/Forget do Anki, que restaura a posição na fila de novos).
+   O CONTEÚDO dos cards é preservado — frente, verso, matéria, baralho, tudo
+   fica. Some só o que é progresso.
+   Duas confirmações de propósito: a primeira explica o que vai acontecer, a
+   segunda exige digitar ZERAR. É irreversível e não passa pelo desfazer. */
+CardsScreen.zerarEstatisticas = function () {
+  const nCards = DB.getCards().length;
+  const nRev = DB.getRevlog().length;
+  UI.confirm(
+    'Isto vai:\n\n' +
+    '• apagar as ' + nRev.toLocaleString('pt-BR') + ' entrada(s) do histórico de revisões\n' +
+    '• devolver os ' + nCards.toLocaleString('pt-BR') + ' card(s) ao estado "novo"\n' +
+    '• zerar os contadores de hoje (novos/revisões)\n' +
+    '• limpar resíduos de cards já excluídos\n\n' +
+    'O conteúdo dos cards NÃO é apagado — frente, verso, matéria e baralho continuam.\n' +
+    'Não há como desfazer.',
+    { title: '🧹 Zerar estatísticas dos cards', okText: 'Continuar', danger: true }
+  ).then(ok => {
+    if (!ok) return;
+    UI.prompt([{ key: 'txt', label: 'Digite ZERAR para confirmar', type: 'text', value: '',
+      hint: 'Confirmação extra porque a ação é irreversível.' }],
+      { title: '🧹 Confirmar', okText: 'Zerar agora' }).then(v => {
+        if (!v || String(v.txt || '').trim().toUpperCase() !== 'ZERAR') {
+          showToast('Cancelado — nada foi alterado');
+          return;
+        }
+        const r = DB.zerarProgressoCards();
+        CardEngine.invalidateDueCache();
+        CardsScreen._meusMostrando = 0;
+        CardsScreen._reviewQueue = []; CardsScreen._reviewIdx = 0;
+        CardsScreen._undoStack = []; CardsScreen._seenThisSession = new Set();
+        CardsScreen.render();
+        showToast('🧹 Zerado: ' + r.revlog + ' revisão(ões) e ' + r.cards + ' card(s) reiniciado(s)');
+      });
+  });
 };
 // Passo 2: formulário para o escopo escolhido (deckId=null → global)
 CardsScreen.openAlgoConfigFor = function (deckId) {
