@@ -4295,6 +4295,13 @@
   .cards-back { border: 1.5px solid var(--good); background: var(--good-soft); margin-top: 12px; }
   .cards-review-actions { display: flex; align-items: stretch; gap: 8px; margin-top: 18px; }
   /* aviso de card ja avaliado (equivalente ao "so da para desfazer" do Anki) */
+  /* Bandeiras do Anki: 4 cores fixas, clique alterna, Ctrl+0 remove */
+  .cards-flagbar { display: inline-flex; gap: 5px; align-items: center; margin-left: auto; }
+  .cards-flag { width: 19px; height: 19px; border-radius: 50%; cursor: pointer; padding: 0;
+    border: 2px solid var(--border-strong); background: transparent; transition: all .12s ease; }
+  .cards-flag:hover { border-color: var(--fl); }
+  .cards-flag.on { background: var(--fl); border-color: var(--fl); box-shadow: 0 0 0 3px color-mix(in srgb, var(--fl) 24%, transparent); }
+  .cards-review-nav { flex-wrap: wrap; gap: 6px; }
   .cards-already { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; width: 100%;
     padding: 13px 15px; border-radius: 13px; background: var(--surface-sunken); border: 1px solid var(--border); }
   .cards-already-txt { display: flex; flex-direction: column; gap: 2px; min-width: 0; flex: 1 1 240px; }
@@ -7619,6 +7626,44 @@ const DB = {
   /* Zera TODO o progresso dos cards, preservando o conteúdo. Equivale a aplicar
      o "Esquecer" (Forget) do Anki em todos os cards, mais limpar o histórico e
      os contadores do dia. Devolve o que foi afetado, para o aviso na tela. */
+  /* ══════════════════════════════════════════════════════════════════════════
+     AÇÕES DO REVIEWER DO ANKI (qt/aqt/reviewer.py :: _shortcutKeys)
+     Implementadas aqui com o MESMO significado do original. Este app tem um
+     card por nota, então "enterrar nota" e "enterrar card" coincidem — no Anki
+     eles diferem só quando uma nota gera vários cards.
+     ═══════════════════════════════════════════════════════════════════════ */
+  // ENTERRAR (bury, tecla "-"): tira o card da fila até o próximo dia.
+  // Diferente de suspender, que o remove por tempo indeterminado.
+  buryCard(id) {
+    const c = this.getCard(id); if (!c) return null;
+    const amanha = CardEngine.addDays(todayCards(), 1);
+    this.updateCard(id, { enterradoAte: amanha, dueTs: null });
+    return amanha;
+  },
+  unburyCard(id) { this.updateCard(id, { enterradoAte: null }); },
+  // ESQUECER (forget, Ctrl+Alt+N): devolve o card ao estado de novo, apagando
+  // a memória do FSRS. O conteúdo permanece.
+  forgetCard(id) {
+    const c = this.getCard(id); if (!c) return;
+    this.updateCard(id, {
+      phase: 'new', learnStep: 0, due: todayCards(), dueTs: null,
+      intervalo: 0, reps: 0, lapses: 0, ease: 2.5, s: null, d: null,
+      lastReview: null, status: 'pendente', leech: false
+    });
+  },
+  // DEFINIR DATA (Ctrl+Shift+D): agenda o card para daqui a N dias.
+  setDueDays(id, dias) {
+    const n = Math.max(0, Math.round(Number(dias) || 0));
+    const c = this.getCard(id); if (!c) return null;
+    const data = CardEngine.addDays(todayCards(), n);
+    this.updateCard(id, { due: data, dueTs: null, enterradoAte: null,
+      phase: (c.phase === 'new' ? 'review' : c.phase), status: c.status || 'sei' });
+    return data;
+  },
+  // BANDEIRAS (Ctrl+1..4 / 0 remove) — mesmas cores e ordem do Anki
+  FLAGS: [null, { nome: 'Vermelha', cor: '#e0393f' }, { nome: 'Laranja', cor: '#e07a1f' },
+          { nome: 'Verde', cor: '#0f9d63' }, { nome: 'Azul', cor: '#2563eb' }],
+  setFlag(id, n) { this.updateCard(id, { flag: (n >= 1 && n <= 4) ? n : 0 }); },
   zerarProgressoCards() {
     const cards = this.getCards();
     const nRev = this.getRevlog().length;
@@ -8811,7 +8856,11 @@ const UI = {
   alert(message, opts = {}) {
     return new Promise((resolve) => {
       this._resolve = resolve; this._mode = 'confirm';
-      const body = `<p style="margin:0; font-size:14px; line-height:1.55; color:var(--text-soft); white-space:pre-line;">${escapeHtml(message)}</p>`;
+      // opts.html: conteúdo já montado por nós (ex.: Informações do card).
+      // Continua passando pelo saneador, então nada vindo de card importado executa.
+      const body = opts.html
+        ? `<div style="font-size:13px;line-height:1.5;color:var(--text)">${_sanCard(message)}</div>`
+        : `<p style="margin:0; font-size:14px; line-height:1.55; color:var(--text-soft); white-space:pre-line;">${escapeHtml(message)}</p>`;
       this._open(opts.title || 'Aviso', opts.sub || '', body, { okText: opts.okText || 'OK', hideCancel: true });
     });
   },
@@ -11239,7 +11288,10 @@ const CardEngine = {
     return String(html || '').replace(/\{\{(?:c\d+::)?([\s\S]*?)\}\}/g, (m, inner) =>
       reveal ? `<span class="cloze-reveal">${inner}</span>` : `<span class="cloze-blank">[&nbsp;…&nbsp;]</span>`);
   },
+  // Card ENTERRADO não entra na fila até a data marcada (bury do Anki)
+  estaEnterrado(card) { return !!(card && card.enterradoAte && card.enterradoAte > todayCards()); },
   isDue(card) {
+    if (this.estaEnterrado(card)) return false;
     if (card.dueTs) return Date.now() >= card.dueTs;   // passo em minutos (aprendizado/reaprendizado)
     return (card.due || todayCards()) <= todayCards(); // agendamento por dia
   },
@@ -15669,20 +15721,74 @@ const CardsScreen = {
         </div>
         ${this.faceHtml(c)}
         <div class="cards-review-actions" id="cards-review-actions"></div>
+        <!-- Barra de ações do reviewer do Anki (qt/aqt/reviewer.py::_shortcutKeys).
+             "Pular/Avançar" foi REMOVIDO: não existe no Anki. O equivalente de
+             lá para tirar um card da frente é ENTERRAR, que está aqui. -->
         <div class="cards-review-nav">
-          <button type="button" class="icon-btn cards-review-edit" id="cards-review-edit" title="Editar card">✎ Editar</button>
-          <button type="button" class="cards-nav-btn" id="cards-next" ${this._reviewIdx >= total - 1 ? 'disabled' : ''} title="Avançar para o próximo card (seta direita)">Avançar →</button>
+          <button type="button" class="icon-btn cards-review-edit" id="cards-review-edit" title="Editar card (E)">✎ Editar</button>
+          <button type="button" class="icon-btn" id="cards-act-mark" title="Marcar/desmarcar nota (*)">${c.favorito ? '★ Marcada' : '☆ Marcar'}</button>
+          <button type="button" class="icon-btn" id="cards-act-bury" title="Enterrar: some da fila até amanhã (−)">⤓ Enterrar</button>
+          <button type="button" class="icon-btn" id="cards-act-susp" title="Suspender: some até você reativar (@)">🚫 Suspender</button>
+          <button type="button" class="icon-btn" id="cards-act-forget" title="Esquecer: volta a ser card novo (Ctrl+Alt+N)">↺ Esquecer</button>
+          <button type="button" class="icon-btn" id="cards-act-due" title="Definir data de vencimento (Ctrl+Shift+D)">📅 Data</button>
+          <button type="button" class="icon-btn" id="cards-act-info" title="Informações do card (I)">ℹ Info</button>
+          <button type="button" class="icon-btn" id="cards-act-del" title="Excluir card (Ctrl+Del)">🗑</button>
+          <span class="cards-flagbar" title="Bandeiras (Ctrl+1..4, Ctrl+0 remove)">
+            ${[1,2,3,4].map(n => `<button type="button" class="cards-flag ${(c.flag||0)===n?'on':''}" data-flag="${n}" style="--fl:${DB.FLAGS[n].cor}" title="${DB.FLAGS[n].nome} (Ctrl+${n})"></button>`).join('')}
+          </span>
         </div>
         <div class="cards-kbd-hint-row">
           <span class="cards-kbd-hint">
             <span class="cards-kbd-group"><kbd>Espaço</kbd> Mostrar resposta</span>
             <span class="cards-kbd-group"><kbd>1</kbd><kbd>2</kbd><kbd>3</kbd><kbd>4</kbd> Avaliar</span>
-            <span class="cards-kbd-group"><kbd>→</kbd> Avançar</span>
-            <span class="cards-kbd-group"><kbd>Ctrl</kbd>+<kbd>Z</kbd> Desfazer</span>
+            <span class="cards-kbd-group"><kbd>E</kbd> Editar</span>
+            <span class="cards-kbd-group"><kbd>-</kbd> Enterrar</span>
+            <span class="cards-kbd-group"><kbd>@</kbd> Suspender</span>
+            <span class="cards-kbd-group"><kbd>*</kbd> Marcar</span>
+            <span class="cards-kbd-group"><kbd>I</kbd> Info</span>
+            <span class="cards-kbd-group"><kbd>U</kbd> Desfazer</span>
           </span>
         </div>
       </div>`;
     this.renderActions(box, c);
+    /* Ligações das ações do reviewer — mesmos efeitos do Anki. Todas avançam a
+       fila depois de agir (o Anki também tira o card da frente ao enterrar,
+       suspender ou excluir). */
+    const proximo = () => {
+      CardEngine.invalidateDueCache();
+      this._reviewQueue = (this._reviewQueue || []).filter(x => x !== c.id);
+      if (this._reviewIdx > this._reviewQueue.length) this._reviewIdx = this._reviewQueue.length;
+      this.renderReviewCard(box);
+    };
+    const liga = (id, fn) => { const b = document.getElementById(id); if (b) b.addEventListener('click', fn); };
+    liga('cards-act-mark', () => { DB.updateCard(c.id, { favorito: !c.favorito }); this.updateFavCount(); this.renderReviewCard(box); showToast(c.favorito ? 'Desmarcada' : '★ Marcada'); });
+    liga('cards-act-bury', () => { const d2 = DB.buryCard(c.id); proximo(); showToast('⤓ Enterrado até ' + formatDateShort(d2)); });
+    liga('cards-act-susp', () => { DB.updateCard(c.id, { suspenso: true }); proximo(); showToast('🚫 Suspenso — reative em Meus cards'); });
+    liga('cards-act-forget', () => {
+      UI.confirm('Esquecer este card? Ele volta a ser um card novo e perde o histórico de agendamento.',
+        { title: '↺ Esquecer card', okText: 'Esquecer', danger: true }).then(ok => {
+          if (!ok) return; DB.forgetCard(c.id); proximo(); showToast('↺ Card voltou a ser novo');
+        });
+    });
+    liga('cards-act-due', () => {
+      UI.prompt([{ key: 'd', label: 'Vencer daqui a quantos dias?', type: 'number', value: '1',
+        hint: '0 = hoje. Equivale ao "Set Due Date" do Anki.' }],
+        { title: '📅 Definir data', okText: 'Agendar' }).then(v => {
+          if (!v) return;
+          const data = DB.setDueDays(c.id, v.d);
+          proximo(); showToast('📅 Agendado para ' + formatDateShort(data));
+        });
+    });
+    liga('cards-act-info', () => this.cardInfo(c.id));
+    liga('cards-act-del', () => {
+      UI.confirm('Excluir este card? Não há como desfazer.', { title: '🗑 Excluir card', okText: 'Excluir', danger: true })
+        .then(ok => { if (!ok) return; DB.deleteCard(c.id); proximo(); showToast('Card excluído'); });
+    });
+    document.querySelectorAll('.cards-flag').forEach(b => b.addEventListener('click', () => {
+      const n = Number(b.dataset.flag);
+      DB.setFlag(c.id, (c.flag || 0) === n ? 0 : n);
+      this.renderReviewCard(box);
+    }));
     document.getElementById('cards-review-fav').addEventListener('click', () => {
       DB.updateCard(c.id, { favorito: !c.favorito }); this.updateFavCount(); this.renderReviewCard(box);
     });
@@ -15731,13 +15837,11 @@ const CardsScreen = {
           </div>
           <div class="cards-already-acts">
             <button type="button" class="cards-nav-btn" id="cards-already-undo">↶ Desfazer avaliação</button>
-            <button type="button" class="btn-primary" id="cards-already-next">Continuar →</button>
+
           </div>
         </div>`;
       const bu = document.getElementById('cards-already-undo');
       if (bu) bu.addEventListener('click', () => this.undoAnswer());
-      const bn = document.getElementById('cards-already-next');
-      if (bn) bn.addEventListener('click', () => this.navCard(1));
       return;
     }
     const iv = CardEngine.previewIntervals(c);
@@ -15747,6 +15851,39 @@ const CardsScreen = {
       <button type="button" class="cards-ans4 a-bom" data-g="bom"><span class="a-kbd">3</span>Bom<span>${CardEngine.fmtInterval(iv.bom)}</span></button>
       <button type="button" class="cards-ans4 a-facil" data-g="facil"><span class="a-kbd">4</span>Fácil<span>${CardEngine.fmtInterval(iv.facil)}</span></button>`;
     el.querySelectorAll('.cards-ans4').forEach(b => b.addEventListener('click', () => this.answer(b.dataset.g)));
+  },
+  /* INFORMAÇÕES DO CARD (tecla I) — equivalente ao "Card Info" do Anki:
+     estado atual, memória do FSRS e o histórico completo de revisões. */
+  cardInfo(id) {
+    const c = DB.getCard(id); if (!c) return;
+    const log = DB.getRevlog().filter(r => r.cardId === id).sort((a, b) => (b.ts || 0) - (a.ts || 0));
+    const NOTA = { 1: '✗ Errei', 2: 'Difícil', 3: 'Bom', 4: 'Fácil' };
+    const FASE = { new: 'Novo', learning: 'Aprendendo', review: 'Revisão', relearning: 'Reaprendendo' };
+    const linha = (r, v) => `<tr><td style="padding:4px 10px 4px 0;color:var(--text-faint)">${r}</td><td style="padding:4px 0;font-family:'Space Mono',monospace">${v}</td></tr>`;
+    const corpo = `
+      <table style="width:100%;font-size:12.5px;border-collapse:collapse">
+        ${linha('Estado', FASE[c.phase] || c.phase || '—')}
+        ${linha('Vencimento', c.dueTs ? new Date(c.dueTs).toLocaleString('pt-BR') : (c.due || '—'))}
+        ${linha('Estabilidade (S)', c.s != null ? Number(c.s).toFixed(2) + ' dias' : '—')}
+        ${linha('Dificuldade (D)', c.d != null ? Number(c.d).toFixed(2) + ' / 10' : '—')}
+        ${linha('Revisões', c.reps || 0)}
+        ${linha('Lapsos', c.lapses || 0)}
+        ${linha('Intervalo', c.intervalo ? c.intervalo + ' dia(s)' : '—')}
+        ${linha('Suspenso', c.suspenso ? 'sim' : 'não')}
+        ${linha('Enterrado até', c.enterradoAte || '—')}
+        ${linha('Bandeira', (c.flag && DB.FLAGS[c.flag]) ? DB.FLAGS[c.flag].nome : '—')}
+        ${linha('Criado em', (c.createdAt || '').slice(0, 10) || '—')}
+      </table>
+      <p style="margin:14px 0 6px;font-weight:700;font-size:12.5px">Histórico (${log.length})</p>
+      ${log.length ? `<div style="max-height:230px;overflow:auto">
+        <table style="width:100%;font-size:12px;border-collapse:collapse">
+          ${log.slice(0, 60).map(r => `<tr style="border-top:1px solid var(--border)">
+            <td style="padding:4px 8px 4px 0;color:var(--text-faint)">${r.date || ''}</td>
+            <td style="padding:4px 8px 4px 0">${NOTA[r.grade] || r.grade}</td>
+            <td style="padding:4px 0;color:var(--text-faint)">${r.elapsed != null ? r.elapsed + 'd' : ''}</td>
+          </tr>`).join('')}
+        </table></div>` : '<p style="color:var(--text-faint);font-size:12px">Nenhuma revisão ainda.</p>'}`;
+    UI.alert(corpo, { title: 'ℹ Informações do card', html: true, okText: 'Fechar' });
   },
   flip(box) { this._flipped = true; this.renderReviewCard(box || document.getElementById('cards-content')); },
   // atalhos de teclado durante a revisão
@@ -15764,6 +15901,23 @@ const CardsScreen = {
     const box = document.getElementById('cards-content');
     // Ctrl+Z / Cmd+Z: desfazer a última avaliação (como no Anki)
     if ((e.ctrlKey || e.metaKey) && e.code === 'KeyZ') { e.preventDefault(); this.undoAnswer(); return; }
+    /* Atalhos do reviewer do Anki (qt/aqt/reviewer.py::_shortcutKeys) */
+    const idAtual = (this._reviewQueue || [])[this._reviewIdx];
+    const clique = (bid) => { const b = document.getElementById(bid); if (b) b.click(); };
+    if (e.code === 'KeyU' && !e.ctrlKey && !e.metaKey) { e.preventDefault(); this.undoAnswer(); return; }   // u = desfazer
+    if (e.code === 'KeyE' && !e.ctrlKey && !e.metaKey) { e.preventDefault(); clique('cards-review-edit'); return; }
+    if (e.code === 'KeyI' && !e.ctrlKey && !e.metaKey) { e.preventDefault(); clique('cards-act-info'); return; }
+    if (e.key === '-') { e.preventDefault(); clique('cards-act-bury'); return; }
+    if (e.key === '@' || (e.shiftKey && e.code === 'Digit2')) { e.preventDefault(); clique('cards-act-susp'); return; }
+    if (e.key === '*' || (e.shiftKey && e.code === 'Digit8')) { e.preventDefault(); clique('cards-act-mark'); return; }
+    if ((e.ctrlKey || e.metaKey) && e.altKey && e.code === 'KeyN') { e.preventDefault(); clique('cards-act-forget'); return; }
+    if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.code === 'KeyD') { e.preventDefault(); clique('cards-act-due'); return; }
+    if ((e.ctrlKey || e.metaKey) && (e.code === 'Delete' || e.code === 'Backspace')) { e.preventDefault(); clique('cards-act-del'); return; }
+    if ((e.ctrlKey || e.metaKey) && /^Digit[0-4]$/.test(e.code)) {   // bandeiras
+      e.preventDefault();
+      if (idAtual) { const n = Number(e.code.slice(5)); DB.setFlag(idAtual, n); this.renderReviewCard(document.getElementById('cards-content')); }
+      return;
+    }
     if (e.code === 'Escape' && this.emFoco()) { e.preventDefault(); this.sairFoco(); return; }
     if (e.code === 'Space') {
       e.preventDefault();
@@ -15771,7 +15925,8 @@ const CardsScreen = {
       return;
     }
     // ← volta ao card anterior; → avança para o próximo card
-    if (e.code === 'ArrowRight') { e.preventDefault(); this.navCard(1); return; }
+    // → NÃO pula: o Anki não permite passar um card sem avaliar. Para tirar o
+    // card da frente, use ENTERRAR (-) ou SUSPENDER (@), como no original.
     // ← NÃO faz nada: o Anki não tem "card anterior". A única forma de mudar uma
     // avaliação é DESFAZER (Ctrl+Z), e é assim que fica aqui.
     if (!this._flipped) return;
