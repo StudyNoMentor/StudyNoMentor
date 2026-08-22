@@ -4294,7 +4294,6 @@
   .cards-front { border: 1.5px solid var(--border); }
   .cards-back { border: 1.5px solid var(--good); background: var(--good-soft); margin-top: 12px; }
   .cards-review-actions { display: flex; align-items: stretch; gap: 8px; margin-top: 18px; }
-  /* aviso de card ja avaliado (equivalente ao "so da para desfazer" do Anki) */
   /* Bandeiras do Anki: 4 cores fixas, clique alterna, Ctrl+0 remove */
   .cards-flagbar { display: inline-flex; gap: 5px; align-items: center; margin-left: auto; }
   .cards-flag { width: 19px; height: 19px; border-radius: 50%; cursor: pointer; padding: 0;
@@ -4302,8 +4301,16 @@
   .cards-flag:hover { border-color: var(--fl); }
   .cards-flag.on { background: var(--fl); border-color: var(--fl); box-shadow: 0 0 0 3px color-mix(in srgb, var(--fl) 24%, transparent); }
   .cards-review-nav { flex-wrap: wrap; gap: 6px; }
-    padding: 13px 15px; border-radius: 13px; background: var(--surface-sunken); border: 1px solid var(--border); }
-  .cards-flip { flex: 1; padding: 13px; font-size: calc(14px * var(--fs-scale, 1)); }
+  /* "Mostrar resposta" ocupa a LARGURA TODA da área de ação, centralizado.
+     Uma remoção anterior deixou uma linha CSS órfã logo acima desta regra; o
+     navegador descartava o bloco inteiro e o botão voltava ao tamanho do texto,
+     encostado à esquerda. */
+  .cards-flip {
+    flex: 1 1 100%;
+    width: 100%;
+    display: flex; align-items: center; justify-content: center; gap: 8px;
+    padding: 14px; font-size: calc(14px * var(--fs-scale, 1)); font-weight: 700;
+  }
   /* 4 botões (Errei/Difícil/Bom/Fácil) */
   .cards-ans4 {
     flex: 1; display: flex; flex-direction: column; align-items: center; gap: 3px;
