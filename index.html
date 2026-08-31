@@ -62,6 +62,22 @@
     --shadow-lg: 0 12px 32px rgba(20,22,26,0.08);
   }
 
+  /* ---------- Bloqueio de sessão única (multi-aba) ---------- */
+  .single-session-overlay {
+    position: fixed; inset: 0; z-index: 9999;
+    display: flex; align-items: center; justify-content: center; padding: 24px;
+    background: rgba(15,17,21,0.72); backdrop-filter: blur(4px);
+  }
+  .single-session-box {
+    background: var(--surface); border: 1px solid var(--border); border-radius: 18px;
+    box-shadow: 0 24px 60px rgba(0,0,0,0.35); padding: 30px 28px; max-width: 460px; text-align: center;
+  }
+  .single-session-box .ss-ico { font-size: 40px; margin-bottom: 8px; }
+  .single-session-box h2 { margin: 0 0 10px; font-size: calc(20px * var(--fs-scale,1)); font-weight: 800; color: var(--text); }
+  .single-session-box p { margin: 0 0 10px; font-size: calc(14px * var(--fs-scale,1)); line-height: 1.55; color: var(--text-soft); }
+  .single-session-box .ss-sub { font-size: calc(12px * var(--fs-scale,1)); color: var(--text-faint); }
+  .single-session-box .ss-actions { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; margin-top: 18px; }
+
   /* ---------- Modo escuro ---------- */
   html[data-theme="dark"] {
     --bg: #0f1115;
@@ -439,8 +455,12 @@
       padding: 12px 16px;
       border-right: none;
       border-bottom: 1px solid var(--border);
+      overflow: visible;   /* deixa o menu de planejamentos SAIR da barra em vez de ser cortado */
     }
-    .sidebar-brand { margin-bottom: 10px; }
+    .sidebar-brand { margin-bottom: 10px; position: relative; z-index: 70; }
+    /* O menu de planejamentos sobrepõe a tela de Registrar (não fica atrás dela) */
+    .plan-switcher { position: relative; z-index: 90; }
+    .plan-switcher-menu { z-index: 95; max-height: 60vh; overflow-y: auto; box-shadow: var(--shadow-lg); }
 
     /* ── Navegação no celular: barra fixa no rodapé, ícone + rótulo curto ──────
        Antes era uma faixa de texto rolável no topo, onde só cabiam 3 abas e as
@@ -454,15 +474,19 @@
       box-shadow: 0 -2px 12px rgba(0,0,0,0.06);
       padding: 6px 6px calc(6px + env(safe-area-inset-bottom));
       scrollbar-width: none;
+      /* barra deslizante: arraste para o lado para alcançar qualquer tela */
+      scroll-behavior: smooth; scroll-snap-type: x proximity;
+      -webkit-overflow-scrolling: touch; overscroll-behavior-x: contain;
     }
+    .tabs.dragging { scroll-behavior: auto; scroll-snap-type: none; cursor: grabbing; }
     .tabs::-webkit-scrollbar { display: none; }
     .tab {
-      width: auto; flex: 1 1 0;
+      width: auto; flex: 0 0 auto;   /* largura fixa: a faixa transborda e desliza */
       flex-direction: column; align-items: center; justify-content: center; gap: 3px;
-      min-width: 0; padding: 7px 4px;
+      min-width: 60px; padding: 7px 4px;
       border-radius: 10px;
       font-size: var(--fs-3xs); font-weight: 700; line-height: 1.1;
-      text-align: center;
+      text-align: center; scroll-snap-align: center;
     }
     .tab .tab-icon { font-size: var(--fs-lg); width: auto; }
     /* mostra o rótulo CURTO no lugar do nome completo */
@@ -470,15 +494,17 @@
     .tab::after { content: attr(data-short); }
     .tab.active { background: var(--accent-soft); color: var(--accent); }
     .tab.active::before { display: none; }   /* a barrinha lateral é só do menu vertical */
-    /* fora das 5 principais: só aparecem dentro do menu "Mais" */
-    .tab:not([data-primary]) { display: none; }
+    /* TODAS as telas aparecem na faixa deslizante (o menu "Mais" continua como atalho) */
 
-    /* botão "Mais" e a folha que ele abre */
+    /* botão "Mais": fica ANCORADO à direita enquanto a faixa desliza por baixo */
     .nav-more-btn {
-      flex: 1 1 0; min-width: 0; display: flex; flex-direction: column;
+      position: sticky; right: 0; z-index: 2;
+      flex: 0 0 auto; min-width: 56px; display: flex; flex-direction: column;
       align-items: center; justify-content: center; gap: 3px;
-      padding: 7px 4px; border: none; background: transparent; cursor: pointer;
+      padding: 7px 4px; border: none; cursor: pointer;
       border-radius: 10px; color: var(--text-soft);
+      background: var(--surface);
+      box-shadow: -10px 0 12px -6px rgba(0,0,0,0.16);
       font-family: 'Inter', sans-serif; font-size: var(--fs-3xs); font-weight: 700; line-height: 1.1;
     }
     .nav-more-btn .tab-icon { font-size: var(--fs-lg); }
@@ -846,8 +872,11 @@
   .empty-state .big { font-size: calc(26px * var(--fs-scale, 1)); margin-bottom: 8px; }
 
   @media (max-width: 560px) {
-    .field-group, .row-3, .performance-inputs { grid-template-columns: 1fr; }
-    .performance-panel { grid-template-columns: 1fr; justify-items: center; text-align: center; }
+    .field-group, .row-3 { grid-template-columns: 1fr; }
+    /* Acertos e Total ficam lado a lado, com o círculo de % ao lado (não empilhados) */
+    .performance-inputs { grid-template-columns: 1fr 1fr; gap: 10px; }
+    .performance-panel { grid-template-columns: 1fr auto; align-items: center; gap: 12px; padding: 14px; }
+    .performance-panel .gauge { width: 66px; height: 66px; }
     .page-header h2.page-title { font-size: calc(22px * var(--fs-scale, 1)); }
 
     /* ── Registro de estudo no celular ──────────────────────────────────────
@@ -922,7 +951,37 @@
      bem menos espaço vertical e com fontes maiores e legíveis. */
   .gb-discs-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 6px 18px; }
   .gb-disc-row { display: grid; grid-template-columns: 56px 1fr auto; align-items: center; gap: 9px; padding: 4px 0; }
-  .gb-disc-sig { font-family: 'Space Mono', monospace; font-weight: 700; font-size: calc(11px * var(--fs-scale,1)); text-align: center; border: 1.5px solid currentColor; border-radius: 7px; padding: 3px 4px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; background: color-mix(in srgb, currentColor 9%, transparent); }
+  .gb-disc-sig { font-family: 'Space Mono', monospace; font-weight: 700; font-size: calc(11px * var(--fs-scale,1)); text-transform: uppercase; text-align: center; border: 1.5px solid currentColor; border-radius: 7px; padding: 3px 4px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; background: color-mix(in srgb, currentColor 9%, transparent); }
+
+  /* ── Seletor de visão da Grade (Semanal / Meta diária) ── */
+  .grade-view-toggle { display: inline-flex; background: var(--surface-sunken); border: 1.5px solid var(--border); border-radius: 20px; padding: 3px; gap: 2px; }
+  .gvt-btn { background: transparent; border: none; border-radius: 16px; padding: 6px 13px; font-family: 'Inter', sans-serif; font-size: calc(12px * var(--fs-scale,1)); font-weight: 700; color: var(--text-soft); cursor: pointer; transition: all 0.14s ease; }
+  .gvt-btn:hover { color: var(--text); }
+  .gvt-btn.active { background: var(--accent-soft); color: var(--accent); box-shadow: var(--shadow-sm); }
+
+  /* ── Visão "Meta diária": lista compacta do alvo de cada dia ── */
+  .grade-daily { display: grid; gap: 10px; }
+  .gd-day { border: 1.5px solid var(--border); border-radius: 12px; padding: 12px 14px; background: var(--surface); transition: border-color 0.15s ease; }
+  .gd-day.is-today { border-color: var(--accent); background: var(--accent-soft); }
+  .gd-day-head { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; margin-bottom: 8px; flex-wrap: wrap; }
+  .gd-day-name { font-family: 'Inter', sans-serif; font-weight: 800; font-size: calc(14px * var(--fs-scale,1)); color: var(--text); text-transform: capitalize; }
+  .gd-day-name .gd-today-tag { font-size: calc(9.5px * var(--fs-scale,1)); font-weight: 800; letter-spacing: 0.04em; text-transform: uppercase; color: var(--accent); background: var(--surface); border: 1px solid var(--accent); border-radius: 20px; padding: 1px 7px; margin-left: 8px; vertical-align: middle; }
+  .gd-day-total { font-family: 'Space Mono', monospace; font-weight: 700; font-size: calc(14px * var(--fs-scale,1)); color: var(--text); }
+  .gd-day-total.zero { color: var(--text-faint); font-weight: 600; }
+  .gd-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+  .gd-chip { display: inline-flex; align-items: center; gap: 6px; border: 1.5px solid currentColor; border-radius: 8px; padding: 3px 8px; font-family: 'Space Mono', monospace; font-weight: 700; font-size: calc(11px * var(--fs-scale,1)); text-transform: uppercase; background: color-mix(in srgb, currentColor 9%, transparent); }
+  .gd-chip small { font-family: 'Inter', sans-serif; font-weight: 600; text-transform: none; color: var(--text-soft); }
+  .gd-empty { color: var(--text-faint); font-size: calc(12px * var(--fs-scale,1)); font-style: italic; }
+
+  /* ── Lista de grades salvas ── */
+  .saved-grades-list { display: grid; gap: 8px; }
+  .sg-item { display: flex; align-items: center; gap: 10px; border: 1.5px solid var(--border); border-radius: 10px; padding: 10px 12px; background: var(--surface); }
+  .sg-info { flex: 1; min-width: 0; }
+  .sg-name { font-weight: 700; font-size: calc(13px * var(--fs-scale,1)); color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .sg-meta { font-size: calc(11px * var(--fs-scale,1)); color: var(--text-faint); font-family: 'Space Mono', monospace; }
+  .sg-actions { display: flex; gap: 6px; flex-shrink: 0; }
+  .sg-actions .btn-secondary { padding: 6px 10px; font-size: calc(12px * var(--fs-scale,1)); }
+  .sg-empty { color: var(--text-faint); font-size: calc(12px * var(--fs-scale,1)); text-align: center; padding: 16px; }
   .gb-disc-bar { position: relative; height: 12px; background: var(--surface); border: 1px solid var(--border); border-radius: 20px; overflow: hidden; }
   .gb-disc-bar i { position: absolute; inset: 0 auto 0 0; height: 100%; border-radius: 20px; transition: width 0.35s ease; }
   .gb-disc-bar .gb-disc-tick { position: absolute; top: -2px; bottom: -2px; width: 2px; background: var(--good); opacity: 0.55; border-radius: 2px; }
@@ -1335,6 +1394,9 @@
     padding: 3px 9px;
     white-space: nowrap;
   }
+  .subject-progress-head .subject-meta-tag.tone-good { color: var(--good-text); background: var(--good-soft); border-color: var(--good-text); }
+  .subject-progress-head .subject-meta-tag.tone-warn { color: var(--warn-text); background: var(--warn-soft); border-color: var(--warn-text); }
+  .subject-progress-head .subject-meta-tag.tone-bad { color: var(--bad-text); background: var(--bad-soft); border-color: var(--bad-text); }
 
   .status-badge {
     font-size: calc(10px * var(--fs-scale, 1));
@@ -3034,7 +3096,12 @@
     padding: 8px 14px; background: var(--surface);
     border-bottom: 1px solid var(--border); box-shadow: 0 2px 10px rgba(0,0,0,0.05);
   }
-  body.leis-foco #lei-foco-bar .foco-info { font-family: 'Inter', sans-serif; }
+  body.leis-foco #lei-foco-bar .foco-info { font-family: 'Inter', sans-serif; flex-shrink: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  /* barra de foco com as ferramentas de leitura (marca-texto, borracha, linhas):
+     em telas estreitas os botões podem deslizar horizontalmente sem quebrar o topo */
+  body.leis-foco #lei-foco-bar .foco-acoes { display: flex; gap: 6px; flex-shrink: 0; max-width: 72%; overflow-x: auto; scrollbar-width: none; }
+  body.leis-foco #lei-foco-bar .foco-acoes::-webkit-scrollbar { display: none; }
+  body.leis-foco #lei-foco-bar .foco-acoes button { flex: 0 0 auto; min-height: 34px; padding: 6px 11px; font-size: calc(12px * var(--fs-scale,1)); white-space: nowrap; }
   /* no modo dos cards a barra da lei some, e vice-versa */
   body.cards-foco #lei-foco-bar { display: none !important; }
   body.leis-foco #foco-bar { display: none !important; }
@@ -4276,6 +4343,9 @@
   .cards-tab.active { background: var(--accent-soft); border-color: var(--accent); color: var(--accent); }
   .cards-filter-head { cursor: pointer; user-select: none; }
   .cards-filter-head:hover { background: var(--surface-sunken); }
+  /* Ao colapsar os filtros, o corpo (que fornecia o respiro inferior) some;
+     sem isto o título "Buscar e filtrar" cola na borda e parece cortado. */
+  #cards-filter-card.collapsed .cards-filter-head { padding-bottom: 14px; border-radius: 14px; }
   .cards-pills-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-top: 14px; }
   .cards-pills-label { font-size: calc(11px * var(--fs-scale, 1)); font-weight: 800; letter-spacing: 0.04em; text-transform: uppercase; color: var(--text-faint); }
   .cards-pills { display: inline-flex; gap: 5px; }
@@ -4878,7 +4948,10 @@
         </div>
         <p class="hint" id="gate-auth-msg" style="display:none;"></p>
         <button type="button" class="btn-primary" id="gate-auth-submit" style="width:100%;">Entrar</button>
-        <p class="hint" id="gate-offline-line" style="margin-top:14px; text-align:center;">
+        <p class="hint" id="gate-forgot-line" style="margin-top:10px; text-align:center;">
+          <button type="button" id="gate-forgot-btn" style="background:none;border:none;color:var(--accent);font-weight:700;cursor:pointer;padding:0;font-size:12px;">Esqueci minha senha</button>
+        </p>
+        <p class="hint" id="gate-offline-line" style="margin-top:8px; text-align:center;">
           Sem internet? <button type="button" id="gate-offline-btn" style="background:none;border:none;color:var(--accent);font-weight:700;cursor:pointer;padding:0;font-size:12px;">Usar offline neste dispositivo</button>
         </p>
       </div>
@@ -4948,6 +5021,21 @@
         <button type="button" class="btn-secondary" id="pin-cancel">Voltar</button>
         <button type="button" class="btn-primary" id="pin-confirm">Entrar</button>
       </div>
+    </div>
+  </div>
+</div>
+
+<!-- Bloqueio de sessão única: evita a MESMA conta aberta em várias abas/janelas
+     ao mesmo tempo, que causa conflito de cache e de registros. -->
+<div id="single-session-overlay" class="single-session-overlay" style="display:none;">
+  <div class="single-session-box">
+    <div class="ss-ico">🔒</div>
+    <h2>Diário já aberto em outra janela</h2>
+    <p>Para proteger seus dados, o Diário de Estudos funciona em <strong>uma aba/janela por vez</strong>. Já existe uma sessão ativa deste app neste navegador.</p>
+    <p class="ss-sub">Continuar em duas ao mesmo tempo pode misturar registros e sobrescrever alterações na sincronização.</p>
+    <div class="ss-actions">
+      <button type="button" class="btn-primary" id="single-session-takeover">Usar aqui (fechar as outras)</button>
+      <button type="button" class="btn-secondary" id="single-session-reload">Já fechei — recarregar</button>
     </div>
   </div>
 </div>
@@ -5099,18 +5187,10 @@
             <div class="step" id="step-3" data-step="3">
               <div class="step-num"><span>3</span></div>
               <div class="step-head">
-                <p class="step-title">Onde parou e por quanto tempo<span class="step-opt">páginas opcionais</span></p>
+                <p class="step-title">Por quanto tempo e onde parou<span class="step-opt">páginas opcionais</span></p>
                 <p class="step-desc">O tempo é o que conta para o ciclo. As páginas viram seu ritmo de leitura.</p>
               </div>
             <div class="row-3">
-              <div class="field">
-                <label for="page-start">Página inicial <span class="opt">(opcional)</span></label>
-                <input type="number" id="page-start" min="0" placeholder="0">
-              </div>
-              <div class="field">
-                <label for="page-end">Página final <span class="opt">(opcional)</span></label>
-                <input type="number" id="page-end" min="0" placeholder="0">
-              </div>
               <div class="field">
                 <label for="duration">Tempo de estudo</label>
                 <div class="time-input">
@@ -5119,6 +5199,14 @@
                   <input type="text" inputmode="numeric" id="duration-m" placeholder="0">
                   <span>min</span>
                 </div>
+              </div>
+              <div class="field">
+                <label for="page-start">Página inicial <span class="opt">(opcional)</span></label>
+                <input type="number" id="page-start" min="0" placeholder="0">
+              </div>
+              <div class="field">
+                <label for="page-end">Página final <span class="opt">(opcional)</span></label>
+                <input type="number" id="page-end" min="0" placeholder="0">
               </div>
             </div>
             <p class="hint" id="pages-hint">&nbsp;</p>
@@ -5304,22 +5392,15 @@
           </div>
         </div>
         <div style="padding: 18px 28px 26px;">
-          <div id="ciclo-overview-gauges" style="display:grid; grid-template-columns: repeat(4,1fr); gap: 12px; margin-bottom: 22px;"></div>
+          <div id="ciclo-overview-gauges" style="display:grid; grid-template-columns: repeat(5,1fr); gap: 12px; margin-bottom: 22px;"></div>
 
           <p class="section-label">Progresso por matéria</p>
           <div id="ciclo-subjects-progress"></div>
 
           <hr class="divider">
           <div class="grade-shortcut">
-            <div>
-              <p class="section-label" style="margin:0;">Grade da semana</p>
-              <p class="hint" style="margin:4px 0 0;">Sua rotina semanal agora fica no menu <strong>Grade Semanal</strong> — persistente e reutilizada a cada ciclo, sem retrabalho.</p>
-            </div>
+            <p class="section-label" style="margin:0;">Grade da semana</p>
             <button class="btn-secondary" id="btn-goto-grade" type="button">▦ Abrir Grade Semanal</button>
-          </div>
-
-          <div class="submit-row" style="margin-top: 22px;">
-            <span class="save-note"><span class="dot"></span>atualizado a cada estudo registrado · use <strong>✓ Fechar semana</strong> no topo para arquivar</span>
           </div>
         </div>
       </div>
@@ -5341,6 +5422,11 @@
           <p class="sub">Toque numa célula para escolher a sigla (ou arraste). A mesma matéria pode aparecer em várias células — ajuste a duração de cada uma.</p>
         </div>
         <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
+          <div class="grade-view-toggle" id="grade-view-toggle" role="tablist" aria-label="Modo de visualização da grade">
+            <button type="button" class="gvt-btn active" data-gview="semana" role="tab" aria-selected="true">▦ Semanal</button>
+            <button type="button" class="gvt-btn" data-gview="dia" role="tab" aria-selected="false">◷ Meta diária</button>
+          </div>
+          <button class="btn-secondary" id="btn-saved-grades" type="button" title="Salvar a grade atual ou restaurar uma grade guardada">💾 Grades salvas</button>
           <button class="btn-secondary" id="btn-toggle-budget" type="button" title="Mostrar/ocultar o saldo de horas do ciclo">⏱️ Saldo de horas</button>
           <button class="btn-secondary" id="btn-toggle-tray" type="button" title="Minimizar/expandir as siglas">▾ Siglas</button>
           <button class="btn-secondary" id="btn-uncheck-all" type="button">↺ Desmarcar concluídos</button>
@@ -5392,6 +5478,33 @@
       </div>
       <div class="siglas-modal-foot">
         <button type="button" class="btn-primary" id="siglas-modal-done">Concluído</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal: grades salvas (salvar/trocar/restaurar) -->
+  <div id="saved-grades-modal" class="siglas-modal" style="display:none;">
+    <div class="siglas-modal-box">
+      <div class="siglas-modal-head">
+        <div>
+          <h2>💾 Grades salvas</h2>
+          <p class="sub">Guarde a grade atual sob um nome. Ao mudar de planejamento ou de meta, você pode restaurar exatamente a grade de antes.</p>
+        </div>
+        <button type="button" class="icon-btn" id="saved-grades-close" title="Fechar">✕</button>
+      </div>
+      <div class="siglas-modal-body">
+        <div class="siglas-add-block">
+          <p class="section-label" style="margin:0 0 8px;">Salvar a grade atual</p>
+          <div class="config-add-row">
+            <input type="text" id="new-saved-grade-name" placeholder="Nome (ex.: Pré-edital · 20h)" maxlength="40">
+            <button class="btn-primary" id="btn-save-current-grade" type="button">Salvar grade atual</button>
+          </div>
+        </div>
+        <p class="section-label" style="margin:18px 0 8px;">Suas grades salvas</p>
+        <div id="saved-grades-list" class="saved-grades-list"></div>
+      </div>
+      <div class="siglas-modal-foot">
+        <button type="button" class="btn-primary" id="saved-grades-done">Concluído</button>
       </div>
     </div>
   </div>
@@ -5453,6 +5566,9 @@
   <div class="foco-bar" id="lei-foco-bar">
     <span class="foco-info" id="lei-foco-info">Leitura</span>
     <span class="foco-acoes">
+      <button type="button" class="btn-secondary leis-tool-mark" id="lei-foco-mark" title="Marca-texto: com ele ativo, selecione o texto para destacar">🖍️ Marca-texto</button>
+      <button type="button" class="btn-secondary leis-tool-erase" id="lei-foco-erase" title="Borracha: com ela ativa, selecione um destaque para apagá-lo">🧽 Borracha</button>
+      <button type="button" class="btn-secondary" id="lei-foco-lines" title="Mostrar/ocultar a numeração das linhas">🔢 Linhas</button>
       <button type="button" class="btn-secondary" id="lei-foco-marcar" title="Marcar onde parei (linha do topo da tela)">📌 Marcar aqui</button>
       <button type="button" class="btn-secondary" id="lei-foco-sair" title="Sair do modo foco (Esc)">✕ Sair</button>
     </span>
@@ -6169,7 +6285,10 @@
               <div class="cloud-status-email" id="cloud-user-email">—</div>
               <div class="cloud-status-sub" id="cloud-sync-status">Conectado</div>
             </div>
-            <button type="button" class="btn-secondary" id="cloud-signout">Sair</button>
+            <div style="display:flex; gap:8px; flex-shrink:0;">
+              <button type="button" class="btn-secondary" id="cloud-change-pass" title="Alterar a senha da sua conta">🔑 Alterar senha</button>
+              <button type="button" class="btn-secondary" id="cloud-signout">Sair</button>
+            </div>
           </div>
 
           <hr class="divider">
@@ -7087,6 +7206,7 @@ const DB = {
       tracks: base + 'tracks',
       tec: base + 'tec',
       gradeTemplate: base + 'grade-template',
+      savedGrades: base + 'saved-grades',
       customSiglas: base + 'custom-siglas',
       leis: base + 'leis',
       decks: base + 'decks',
@@ -7557,6 +7677,54 @@ const DB = {
     return t;
   },
   saveGradeTemplate(t) { this._set(this.KEYS.gradeTemplate, t); },
+
+  // ---- Grades salvas: [{ id, nome, grade, sessions, createdAt }] ----
+  // Permite guardar a grade atual sob um nome, trocar de planejamento/meta e depois
+  // restaurar exatamente a grade anterior sem precisar remontá-la.
+  getSavedGrades() { return this._get(this.KEYS.savedGrades, []); },
+  saveSavedGrades(list) { this._set(this.KEYS.savedGrades, list); },
+  addSavedGrade(nome) {
+    const t = this.getGradeTemplate();
+    const list = this.getSavedGrades();
+    const item = {
+      id: this._uid(),
+      nome: (nome || 'Grade salva').trim().slice(0, 40) || 'Grade salva',
+      grade: JSON.parse(JSON.stringify(t.grade || {})),
+      sessions: t.sessions || 3,
+      createdAt: new Date().toISOString()
+    };
+    list.push(item);
+    this.saveSavedGrades(list);
+    return item;
+  },
+  // Sobrescreve uma grade salva com a grade atual (mantém o nome).
+  overwriteSavedGrade(id) {
+    const t = this.getGradeTemplate();
+    const list = this.getSavedGrades();
+    const s = list.find(x => x.id === id);
+    if (!s) return false;
+    s.grade = JSON.parse(JSON.stringify(t.grade || {}));
+    s.sessions = t.sessions || 3;
+    s.createdAt = new Date().toISOString();
+    this.saveSavedGrades(list);
+    return true;
+  },
+  renameSavedGrade(id, nome) {
+    const list = this.getSavedGrades();
+    const s = list.find(x => x.id === id);
+    if (s) { s.nome = (nome || '').trim().slice(0, 40) || s.nome; this.saveSavedGrades(list); }
+  },
+  deleteSavedGrade(id) { this.saveSavedGrades(this.getSavedGrades().filter(x => x.id !== id)); },
+  // Aplica uma grade salva ao modelo ativo (substitui a grade atual).
+  applySavedGrade(id) {
+    const s = this.getSavedGrades().find(x => x.id === id);
+    if (!s) return false;
+    const t = this.getGradeTemplate();
+    t.grade = JSON.parse(JSON.stringify(s.grade || {}));
+    t.sessions = s.sessions || t.sessions || 3;
+    this.saveGradeTemplate(t);
+    return true;
+  },
 
   // ---- Siglas customizadas: [{ id, sigla, nome, color }] ----
   // 'nome' opcional casa a sigla a uma matéria; sem nome, é uma etiqueta livre.
@@ -8857,7 +9025,14 @@ function switchScreen(name) {
   document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
   alvo.classList.add('active');
   const tabBtn = document.querySelector(`.tab[data-screen="${name}"]`);
-  if (tabBtn) tabBtn.classList.add('active');
+  if (tabBtn) {
+    tabBtn.classList.add('active');
+    // na barra deslizante do celular, traz a aba ativa para o centro da visão
+    const tabsEl = document.getElementById('tabs');
+    if (tabsEl && tabsEl.scrollWidth > tabsEl.clientWidth + 4) {
+      try { tabBtn.scrollIntoView({ inline: 'center', block: 'nearest', behavior: 'smooth' }); } catch (_) {}
+    }
+  }
   const wrap = document.querySelector('.content-wrap');
   if (wrap) wrap.classList.toggle('wide', name === 'estudonovo' || name === 'ciclo' || name === 'grade');
   // a Grade Semanal renderiza a bandeja + grade ao ficar visível
@@ -10343,6 +10518,14 @@ const CycleEngine = {
     return DB.getEntries()
       .filter(e => this.normKey(e.subject) === key && e.date >= startDate && e.date <= endDate)
       .reduce((sum, e) => sum + (e.durationMin || 0), 0);
+  },
+  // Questões resolvidas e acertos desta matéria no intervalo (para o % de aproveitamento).
+  // subjectName === null soma TODAS as matérias (aproveitamento geral da semana).
+  questionsStudied(subjectName, startDate, endDate) {
+    const key = subjectName == null ? null : this.normKey(subjectName);
+    return DB.getEntries()
+      .filter(e => (key === null || this.normKey(e.subject) === key) && e.date >= startDate && e.date <= endDate)
+      .reduce((acc, e) => { acc.total += (Number(e.total) || 0); acc.correct += (Number(e.correct) || 0); return acc; }, { total: 0, correct: 0 });
   },
   // Fim efetivo do ciclo para CONTAGEM na visão ao vivo: nunca antes de hoje, para que
   // estudos registrados após o 7º dia teórico ainda contem (consistente com o fechamento).
@@ -11839,6 +12022,10 @@ function planCycleMode() {
     const finalizadasAccent = cycle.subjects.length > 0 && finalizadas === cycle.subjects.length ? 'accent-good' : '';
     const remaining = Math.max(0, totalTarget - totalStudied);
     const remAccent = remaining === 0 ? 'accent-good' : '';
+    // Aproveitamento geral da semana (acertos ÷ resolvidas em todas as matérias do intervalo)
+    const q = CycleEngine.questionsStudied(null, cycle.startDate, CycleEngine.effectiveEnd(cycle));
+    const acc = q.total > 0 ? Math.round((q.correct / q.total) * 100) : null;
+    const accAccent = acc == null ? '' : (acc >= 70 ? 'accent-good' : acc >= 50 ? 'accent-warn' : 'accent-bad');
 
     container.innerHTML = `
       <div class="mini-gauge-card ${overallAccent}">
@@ -11852,6 +12039,10 @@ function planCycleMode() {
       <div class="mini-gauge-card ${remAccent}">
         <div class="value">${remaining === 0 ? '✓' : CycleEngine.fmtHM(remaining)}</div>
         <div class="label">${remaining === 0 ? 'meta batida' : 'faltam'}</div>
+      </div>
+      <div class="mini-gauge-card ${accAccent}" title="${q.total ? q.correct + ' de ' + q.total + ' questões' : 'Registre questões para ver o aproveitamento'}">
+        <div class="value">${acc == null ? '—' : acc + '%'}</div>
+        <div class="label">aproveitamento</div>
       </div>
       <div class="mini-gauge-card ${finalizadasAccent}">
         <div class="value">${finalizadas}/${cycle.subjects.length}</div>
@@ -11870,6 +12061,10 @@ function planCycleMode() {
       const pct = Math.min(100, Math.round((studied / s.definidoMin) * 100));
       const over = studied > s.definidoMin;
       const remaining = Math.max(0, s.definidoMin - studied);
+      // aproveitamento em questões desta matéria na semana
+      const q = CycleEngine.questionsStudied(s.nome, cycle.startDate, CycleEngine.effectiveEnd(cycle));
+      const acc = q.total > 0 ? Math.round((q.correct / q.total) * 100) : null;
+      const accTone = acc == null ? '' : (acc >= 70 ? 'tone-good' : acc >= 50 ? 'tone-warn' : 'tone-bad');
       return `
         <div class="subject-progress-item status-${status}">
           <div class="subject-progress-head">
@@ -11896,6 +12091,7 @@ function planCycleMode() {
           <div class="subject-progress-head" style="margin-top:10px; margin-bottom:0;">
             <span class="subject-meta-tag">dificuldade ${s.dificuldade} · ${escapeHtml(s.fase)}</span>
             <span class="subject-meta-tag">${pct}% da meta</span>
+            <span class="subject-meta-tag ${accTone}" title="${q.total ? q.correct + ' de ' + q.total + ' questões nesta semana' : 'Sem questões registradas nesta semana'}">${acc == null ? '— aproveit.' : acc + '% aproveit.'}</span>
           </div>
         </div>
       `;
@@ -12377,13 +12573,73 @@ function planCycleMode() {
   }
 
   // Renderiza a TELA da Grade Semanal (bandeja + grade), independente do ciclo.
+  /* ---- Visão da Grade: 'semana' (grade completa) | 'dia' (só a meta diária) ---- */
+  function gradeViewMode() { return gradePrefGet('grade-view', null, 'semana') === 'dia' ? 'dia' : 'semana'; }
+  function setGradeViewMode(v) { gradePrefSet('grade-view', v === 'dia' ? 'dia' : 'semana'); }
+
+  // Nome do dia da semana de hoje, no vocabulário interno da grade
+  function _todayWeekdayName() {
+    return ['Domingo', 'Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado'][new Date().getDay()];
+  }
+
+  // Visão "Meta diária": lista compacta com o alvo de cada dia (total + matérias planejadas).
+  function renderGradeDaily() {
+    const container = document.getElementById('ciclo-grade');
+    if (!container) return;
+    const tmpl = gradeGet();
+    const days = gradeDaysOrder();
+    const hoje = _todayWeekdayName();
+    const html = days.map(dia => {
+      const slots = (tmpl.grade[dia] || []).map(normalizeCell).filter(Boolean);
+      const totalMin = slots.reduce((s, c) => s + (c.minutes || 0), 0);
+      const chips = slots.map(c => {
+        const cor = CycleEngine.colorForSubject(c.subject) || 'var(--accent)';
+        const sig = CycleEngine.siglaForSubject(c.subject);
+        return `<span class="gd-chip" style="color:${cor};" title="${escapeHtml(c.subject)}">${escapeHtml(sig)} <small>${CycleEngine.fmtHM(c.minutes || 0)}</small></span>`;
+      }).join('');
+      const isToday = dia === hoje;
+      return `
+        <div class="gd-day ${isToday ? 'is-today' : ''}">
+          <div class="gd-day-head">
+            <span class="gd-day-name">${dia}${isToday ? '<span class="gd-today-tag">hoje</span>' : ''}</span>
+            <span class="gd-day-total ${totalMin === 0 ? 'zero' : ''}">${totalMin === 0 ? '— sem meta' : CycleEngine.fmtHM(totalMin)}</span>
+          </div>
+          ${slots.length ? `<div class="gd-chips">${chips}</div>` : `<p class="gd-empty">Nenhuma matéria planejada para este dia.</p>`}
+        </div>`;
+    }).join('');
+    container.innerHTML = `<div class="grade-daily">${html}</div>`;
+  }
+
+  // Alterna a exibição entre a grade semanal completa e a meta diária.
+  function applyGradeView() {
+    const mode = gradeViewMode();
+    const trayBar = document.getElementById('grade-tray-bar');
+    const scrollHint = document.getElementById('grade-scroll-hint');
+    const minAlert = document.querySelector('#screen-grade .grade-min-alert');
+    document.querySelectorAll('#grade-view-toggle .gvt-btn').forEach(b => {
+      const on = b.dataset.gview === mode;
+      b.classList.toggle('active', on);
+      b.setAttribute('aria-selected', on ? 'true' : 'false');
+    });
+    if (mode === 'dia') {
+      if (trayBar) trayBar.style.display = 'none';
+      if (scrollHint) scrollHint.style.display = 'none';
+      if (minAlert) minAlert.style.display = 'none';
+      renderGradeDaily();
+    } else {
+      if (trayBar) trayBar.style.display = '';
+      if (scrollHint) scrollHint.style.display = '';
+      if (minAlert) minAlert.style.display = '';
+      renderChipTray();
+      renderGrade();
+      if (typeof window._applyGradeTray === 'function') window._applyGradeTray();
+    }
+  }
+
   function renderGradeScreen() {
-    renderChipTray();
-    renderGrade();
     const ws = document.getElementById('grade-weekstart-select');
     if (ws) ws.value = gradeWeekStart();
-    // reaplica a preferência salva da bandeja de siglas (vale também após trocar de perfil)
-    if (typeof window._applyGradeTray === 'function') window._applyGradeTray();
+    applyGradeView();
     // o gerenciador só é renderizado quando o modal abre (renderCustomSiglaManager)
   }
   // exposto para a navegação abrir a tela e para o botão de atalho do ciclo
@@ -12585,6 +12841,110 @@ function planCycleMode() {
     renderGrade();
     showToast('Grade limpa — monte do zero ✓');
   });
+
+  /* ---- Item 1: seletor de visão (Semanal / Meta diária) ---- */
+  const _viewToggle = document.getElementById('grade-view-toggle');
+  if (_viewToggle) _viewToggle.addEventListener('click', (e) => {
+    const btn = e.target.closest('.gvt-btn');
+    if (!btn) return;
+    setGradeViewMode(btn.dataset.gview);
+    applyGradeView();
+  });
+
+  /* ---- Item 2: grades salvas (salvar / trocar / restaurar) ---- */
+  function renderSavedGradesList() {
+    const box = document.getElementById('saved-grades-list');
+    if (!box) return;
+    const list = DB.getSavedGrades();
+    if (!list.length) {
+      box.innerHTML = `<p class="sg-empty">Nenhuma grade salva ainda. Dê um nome acima e clique em <strong>Salvar grade atual</strong>.</p>`;
+      return;
+    }
+    box.innerHTML = list.slice().reverse().map(s => {
+      let ocupadas = 0;
+      DIAS_SEMANA.forEach(d => (s.grade[d] || []).forEach(c => { if (normalizeCell(c)) ocupadas++; }));
+      const dt = s.createdAt ? new Date(s.createdAt).toLocaleDateString('pt-BR') : '';
+      return `<div class="sg-item" data-id="${s.id}">
+        <div class="sg-info">
+          <div class="sg-name">${escapeHtml(s.nome)}</div>
+          <div class="sg-meta">${ocupadas} matéria(s) · ${s.sessions || 3} sessões${dt ? ' · ' + dt : ''}</div>
+        </div>
+        <div class="sg-actions">
+          <button type="button" class="btn-secondary" data-sg-load="${s.id}" title="Substituir a grade atual por esta">↺ Restaurar</button>
+          <button type="button" class="btn-secondary" data-sg-over="${s.id}" title="Atualizar esta grade salva com a grade atual">⭯ Atualizar</button>
+          <button type="button" class="btn-secondary" data-sg-ren="${s.id}" title="Renomear">✎</button>
+          <button type="button" class="btn-secondary" data-sg-del="${s.id}" title="Excluir">🗑️</button>
+        </div>
+      </div>`;
+    }).join('');
+    box.querySelectorAll('[data-sg-load]').forEach(b => b.addEventListener('click', () => {
+      const id = b.dataset.sgLoad;
+      const s = DB.getSavedGrades().find(x => x.id === id);
+      if (!s) return;
+      if (!confirm(`Restaurar a grade "${s.nome}"? A grade atual será substituída (salve-a antes se quiser mantê-la).`)) return;
+      DB.applySavedGrade(id);
+      applyGradeView();
+      renderSavedGradesList();
+      showToast('Grade restaurada ✓');
+    }));
+    box.querySelectorAll('[data-sg-over]').forEach(b => b.addEventListener('click', () => {
+      const id = b.dataset.sgOver;
+      const s = DB.getSavedGrades().find(x => x.id === id);
+      if (!s) return;
+      if (!confirm(`Atualizar "${s.nome}" com a grade atual? O conteúdo salvo anterior será sobrescrito.`)) return;
+      DB.overwriteSavedGrade(id);
+      renderSavedGradesList();
+      showToast('Grade salva atualizada ✓');
+    }));
+    box.querySelectorAll('[data-sg-ren]').forEach(b => b.addEventListener('click', () => {
+      const id = b.dataset.sgRen;
+      const s = DB.getSavedGrades().find(x => x.id === id);
+      if (!s) return;
+      const nome = prompt('Novo nome da grade:', s.nome);
+      if (nome == null) return;
+      DB.renameSavedGrade(id, nome);
+      renderSavedGradesList();
+    }));
+    box.querySelectorAll('[data-sg-del]').forEach(b => b.addEventListener('click', () => {
+      const id = b.dataset.sgDel;
+      const s = DB.getSavedGrades().find(x => x.id === id);
+      if (!s) return;
+      if (!confirm(`Excluir a grade salva "${s.nome}"? Isto não altera a grade atual em uso.`)) return;
+      DB.deleteSavedGrade(id);
+      renderSavedGradesList();
+      showToast('Grade salva excluída');
+    }));
+  }
+  function openSavedGrades() {
+    const m = document.getElementById('saved-grades-modal');
+    if (!m) return;
+    renderSavedGradesList();
+    const inp = document.getElementById('new-saved-grade-name');
+    if (inp) inp.value = '';
+    m.style.display = 'flex';
+  }
+  function closeSavedGrades() { const m = document.getElementById('saved-grades-modal'); if (m) m.style.display = 'none'; }
+  const _savedBtn = document.getElementById('btn-saved-grades');
+  if (_savedBtn) _savedBtn.addEventListener('click', openSavedGrades);
+  const _savedClose = document.getElementById('saved-grades-close');
+  if (_savedClose) _savedClose.addEventListener('click', closeSavedGrades);
+  const _savedDone = document.getElementById('saved-grades-done');
+  if (_savedDone) _savedDone.addEventListener('click', closeSavedGrades);
+  const _saveCurBtn = document.getElementById('btn-save-current-grade');
+  if (_saveCurBtn) _saveCurBtn.addEventListener('click', () => {
+    const inp = document.getElementById('new-saved-grade-name');
+    const nome = (inp && inp.value.trim()) || ('Grade ' + new Date().toLocaleDateString('pt-BR'));
+    let ocupadas = 0;
+    const t = gradeGet();
+    DIAS_SEMANA.forEach(d => (t.grade[d] || []).forEach(c => { if (normalizeCell(c)) ocupadas++; }));
+    if (ocupadas === 0 && !confirm('A grade atual está vazia. Salvar mesmo assim?')) return;
+    DB.addSavedGrade(nome);
+    if (inp) inp.value = '';
+    renderSavedGradesList();
+    showToast('Grade atual salva ✓');
+  });
+  const _savedModal = document.getElementById('saved-grades-modal');
+  if (_savedModal) _savedModal.addEventListener('click', (e) => { if (e.target === _savedModal) closeSavedGrades(); });
 
   document.getElementById('btn-close-cycle').addEventListener('click', () => {
     const cycle = DB.getCurrentCycle();
@@ -15241,7 +15601,12 @@ const LeisScreen = {
     if (!this.currentId) { showToast('Abra uma lei primeiro'); return; }
     document.body.classList.add('leis-foco');
     this.atualizarFoco();
-    showToast('Modo foco · Esc sai · o marca-texto continua funcionando');
+    // reflete o estado atual da ferramenta (marca-texto/borracha) nos botões da barra de foco
+    const fMark = document.getElementById('lei-foco-mark');
+    const fErase = document.getElementById('lei-foco-erase');
+    if (fMark) fMark.classList.toggle('active', this.hlMode === 'mark');
+    if (fErase) fErase.classList.toggle('active', this.hlMode === 'erase');
+    showToast('Modo foco · Esc sai · marca-texto e borracha disponíveis na barra do topo');
   },
   sairFoco() { document.body.classList.remove('leis-foco'); this.atualizarFoco(); },
   emFoco() { return document.body.classList.contains('leis-foco'); },
@@ -15351,6 +15716,11 @@ const LeisScreen = {
     const eraseBtn = document.getElementById('lei-unmark-btn');
     if (markBtn) markBtn.classList.toggle('active', this.hlMode === 'mark');
     if (eraseBtn) eraseBtn.classList.toggle('active', this.hlMode === 'erase');
+    // espelha o estado nos botões da barra do MODO FOCO
+    const fMark = document.getElementById('lei-foco-mark');
+    const fErase = document.getElementById('lei-foco-erase');
+    if (fMark) fMark.classList.toggle('active', this.hlMode === 'mark');
+    if (fErase) fErase.classList.toggle('active', this.hlMode === 'erase');
     const body = document.getElementById('lei-reader-body');
     if (body) {
       body.classList.toggle('tool-mark', this.hlMode === 'mark');
@@ -15519,6 +15889,9 @@ window.LeisScreen = LeisScreen;
   on('lei-lines-btn', 'click', () => LeisScreen.toggleLines());
   on('lei-goto-mark-btn', 'click', () => LeisScreen.gotoBookmark());
   on('lei-foco-btn', 'click', () => LeisScreen.entrarFoco());
+  on('lei-foco-mark', 'click', () => LeisScreen.setTool('mark'));
+  on('lei-foco-erase', 'click', () => LeisScreen.setTool('erase'));
+  on('lei-foco-lines', 'click', () => LeisScreen.toggleLines());
   // Esc sai do modo foco da leitura. Não conflita com o dos cards: cada um só
   // reage quando a sua própria classe está no body.
   document.addEventListener('keydown', (e) => {
@@ -17266,6 +17639,7 @@ document.querySelectorAll('.rte').forEach(buildRteToolbar);
     const body = document.getElementById('cards-filter-body');
     const open = body.style.display !== 'none';
     body.style.display = open ? 'none' : 'block';
+    if (card) card.classList.toggle('collapsed', open);
     document.getElementById('cards-filter-caret').textContent = open ? '▸' : '▾';
   });
   // busca
@@ -21885,6 +22259,37 @@ const ProfileUI = {
     if (m.includes('demorou') || m.includes('timeout') || m.includes('failed to fetch') || m.includes('network')) return 'Sem resposta do servidor. Verifique sua internet.';
     return (err && err.message) ? err.message : 'Não foi possível autenticar.';
   },
+  // Recuperação de senha: envia o e-mail de redefinição do Supabase.
+  async forgotPassword() {
+    const emailEl = document.getElementById('gate-email');
+    const email = (emailEl && emailEl.value.trim()) || '';
+    const msg = document.getElementById('gate-auth-msg');
+    const show = (t, kind) => { if (msg) { msg.textContent = t; msg.className = 'gate-alert ' + (kind || 'bad'); msg.style.display = 'block'; } };
+    const CS = window.CloudStore;
+    if (!CS || !CS.isReady()) { show('Servidor indisponível. Verifique a internet.', 'warn'); return; }
+    if (!email || !/.+@.+\..+/.test(email)) { show('Digite seu e-mail no campo acima e clique de novo em "Esqueci minha senha".', 'bad'); if (emailEl) emailEl.focus(); return; }
+    show('Enviando e-mail de recuperação...', 'info');
+    try {
+      await CS.resetPassword(email);
+      show('Enviamos um link de recuperação para ' + email + '. Abra o e-mail, clique no link e defina uma nova senha.', 'good');
+    } catch (err) {
+      show(this._friendlyAuthError(err), 'bad');
+    }
+  },
+  // Quando o usuário volta pelo link de recuperação, pede a nova senha e a aplica.
+  async promptNewPasswordAfterRecovery() {
+    const CS = window.CloudStore;
+    if (!CS || !CS.isReady()) return;
+    const vals = await UI.prompt([
+      { key: 'p1', label: 'Nova senha', type: 'password', placeholder: 'Mínimo 6 caracteres' },
+      { key: 'p2', label: 'Confirme a nova senha', type: 'password', placeholder: 'Repita a senha' }
+    ], { title: '🔑 Definir nova senha', sub: 'Você chegou pelo link de recuperação. Escolha uma nova senha.', okText: 'Salvar senha' });
+    if (!vals) return;
+    if (!vals.p1 || vals.p1.length < 6) { showToast('A senha precisa ter ao menos 6 caracteres'); return this.promptNewPasswordAfterRecovery(); }
+    if (vals.p1 !== vals.p2) { showToast('As senhas não coincidem'); return this.promptNewPasswordAfterRecovery(); }
+    try { await CS.changePassword(vals.p1); showToast('Senha alterada com sucesso ✓'); }
+    catch (err) { showToast('Não foi possível alterar a senha: ' + (err.message || '')); }
+  },
   useOffline() { this._offline = true; this.refreshStage(); showToast('Modo offline — os dados ficam só neste dispositivo'); },
   async gateLogout() {
     if (window.CloudStore && CloudStore.isReady() && CloudStore.isLoggedIn()) { try { await CloudStore.signOut(); } catch (e) {} }
@@ -21930,7 +22335,14 @@ const CloudStore = {
       this.client = lib.createClient(this.SUPABASE_URL, this.SUPABASE_KEY, { auth: { persistSession: true, autoRefreshToken: true } });
       this.libStatus = 'ready';
       this.client.auth.getSession().then(({ data }) => { this.session = (data && data.session) || null; this.onAuth(); }).catch(e => console.warn('getSession', e));
-      this.client.auth.onAuthStateChange((_e, session) => { this.session = session; this.onAuth(); });
+      this.client.auth.onAuthStateChange((_e, session) => {
+        this.session = session;
+        this.onAuth();
+        // Usuário chegou pelo link de recuperação: pede a nova senha na hora.
+        if (_e === 'PASSWORD_RECOVERY' && window.ProfileUI && ProfileUI.promptNewPasswordAfterRecovery) {
+          setTimeout(() => ProfileUI.promptNewPasswordAfterRecovery(), 300);
+        }
+      });
     } catch (err) { this.libStatus = 'error'; console.error('CloudStore.init', err); }
     if (window.ProfileUI && ProfileUI.isGateOpen()) ProfileUI.refreshStage();
   },
@@ -21952,6 +22364,19 @@ const CloudStore = {
   async signUp(email, password) { const { data, error } = await this._withTimeout(this.client.auth.signUp({ email, password }), 20000, 'A criação de conta'); if (error) throw error; return data; },
   async signIn(email, password) { const { data, error } = await this._withTimeout(this.client.auth.signInWithPassword({ email, password }), 20000, 'O login'); if (error) throw error; return data; },
   async signOut() { clearTimeout(this._debounce); this._unsub(); try { await this.client.auth.signOut(); } catch (e) {} this.session = null; },
+  // Envia e-mail de recuperação de senha (usuário não logado que esqueceu a senha).
+  async resetPassword(email) {
+    const redirectTo = (typeof location !== 'undefined') ? location.href.split('#')[0] : undefined;
+    const { error } = await this._withTimeout(
+      this.client.auth.resetPasswordForEmail(email, redirectTo ? { redirectTo } : undefined),
+      20000, 'O envio do e-mail de recuperação');
+    if (error) throw error; return true;
+  },
+  // Altera a senha do usuário LOGADO (ou de quem chegou pelo link de recuperação).
+  async changePassword(newPassword) {
+    const { error } = await this._withTimeout(this.client.auth.updateUser({ password: newPassword }), 20000, 'A alteração de senha');
+    if (error) throw error; return true;
+  },
 
   async listProfiles() {
     const { data, error } = await this._withTimeout(
@@ -22909,6 +23334,19 @@ const CloudUI = {
       else { await CloudStore.signIn(email, password); showToast('Conectado à nuvem ✓'); }
       this.render();
     } catch (err) { msg.textContent = (err.message || 'Erro ao autenticar'); msg.style.color = 'var(--bad)'; msg.style.display = 'block'; }
+  },
+  async changePassword() {
+    const CS = window.CloudStore;
+    if (!CS || !CS.isReady() || !CS.isLoggedIn()) { showToast('Entre na sua conta primeiro'); return; }
+    const vals = await UI.prompt([
+      { key: 'p1', label: 'Nova senha', type: 'password', placeholder: 'Mínimo 6 caracteres' },
+      { key: 'p2', label: 'Confirme a nova senha', type: 'password', placeholder: 'Repita a senha' }
+    ], { title: '🔑 Alterar senha', sub: 'Defina uma nova senha para ' + (CS.userEmail() || 'sua conta') + '.', okText: 'Salvar senha' });
+    if (!vals) return;
+    if (!vals.p1 || vals.p1.length < 6) { showToast('A senha precisa ter ao menos 6 caracteres'); return; }
+    if (vals.p1 !== vals.p2) { showToast('As senhas não coincidem'); return; }
+    try { await CS.changePassword(vals.p1); showToast('Senha alterada com sucesso ✓'); }
+    catch (err) { showToast('Não foi possível alterar a senha: ' + (err.message || '')); }
   }
 };
 window.CloudUI = CloudUI;
@@ -22920,6 +23358,7 @@ window.CloudUI = CloudUI;
   on('gate-password', 'keydown', (e) => { if (e.key === 'Enter') ProfileUI.submitGateAuth(); });
   document.querySelectorAll('#gate-login .cloud-auth-tab').forEach(tab => tab.addEventListener('click', () => ProfileUI.setGateAuthMode(tab.dataset.gatemode)));
   on('gate-offline-btn', 'click', () => ProfileUI.useOffline());
+  on('gate-forgot-btn', 'click', () => ProfileUI.forgotPassword());
   on('gate-logout-btn', 'click', () => ProfileUI.gateLogout());
   on('pf-cancel', 'click', () => document.getElementById('profile-modal').style.display = 'none');
   on('profile-modal-close', 'click', () => document.getElementById('profile-modal').style.display = 'none');
@@ -23026,6 +23465,7 @@ window.CloudUI = CloudUI;
     const b = document.getElementById('cloud-auth-submit'); if (b) b.textContent = tab.dataset.mode === 'signup' ? 'Criar conta' : 'Entrar';
   }));
   on('cloud-signout', 'click', async () => { await CloudStore.signOut(); CloudUI.render(); showToast('Desconectado da nuvem'); });
+  on('cloud-change-pass', 'click', () => CloudUI.changePassword());
   on('cloud-push-now', 'click', () => CloudStore.autoSave());
   on('cloud-pull-now', 'click', () => CloudStore.pullActiveAndReload());
 })();
@@ -23104,6 +23544,41 @@ _cloudNotifyHook = () => CloudStore.notifyChange();
   window.aplicarEscalaFonte = () => aplicar(atual(), false); // reaplica ao trocar de perfil
 })();
 
+/* ---- Sessão única: uma aba/janela por vez (evita conflito de cache e registros) ----
+   Usa BroadcastChannel para as abas do mesmo navegador se enxergarem. A aba mais
+   antiga é a "dona"; uma nova aba é bloqueada até o usuário escolher "Usar aqui",
+   que então libera esta e bloqueia as demais. Navegadores sem BroadcastChannel
+   ficam sem bloqueio (para não gerar falso positivo). */
+(function () {
+  let bc = null;
+  try { bc = ('BroadcastChannel' in window) ? new BroadcastChannel('diario-estudos-single') : null; } catch (_) { bc = null; }
+  if (!bc) return;
+  const myId = Math.random().toString(36).slice(2);
+  const myStart = Date.now();
+  let blocked = false, owner = true;
+  const overlay = () => document.getElementById('single-session-overlay');
+  function block() { blocked = true; owner = false; const o = overlay(); if (o) o.style.display = 'flex'; }
+  function unblock() { blocked = false; owner = true; const o = overlay(); if (o) o.style.display = 'none'; }
+  // "mais antiga" ganha; empate desempata pelo id (determinístico entre as abas)
+  function outraEhDona(m) { return (m.start < myStart) || (m.start === myStart && m.id < myId); }
+  bc.onmessage = (e) => {
+    const m = e.data || {};
+    if (!m || m.id === myId) return;
+    if (m.type === 'hello') { if (!blocked) bc.postMessage({ type: 'here', id: myId, start: myStart }); }
+    else if (m.type === 'here') { if (outraEhDona(m)) block(); }
+    else if (m.type === 'takeover') { if (m.id !== myId) block(); }
+  };
+  // ao entrar, pergunta se já há dona
+  try { bc.postMessage({ type: 'hello', id: myId, start: myStart }); } catch (_) {}
+  document.addEventListener('click', (e) => {
+    const t = e.target;
+    if (!t) return;
+    if (t.id === 'single-session-takeover') { try { bc.postMessage({ type: 'takeover', id: myId, start: myStart }); } catch (_) {} unblock(); }
+    else if (t.id === 'single-session-reload') { location.reload(); }
+  });
+  try { window.addEventListener('beforeunload', () => { try { bc.postMessage({ type: 'bye', id: myId }); } catch (_) {} }); } catch (_) {}
+})();
+
 /* ---- Menu "Mais" da navegação no celular ---- */
 (function () {
   const btn = document.getElementById('nav-more-btn');
@@ -23142,6 +23617,31 @@ _cloudNotifyHook = () => CloudStore.notifyChange();
   document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && sheet.classList.contains('open')) fechar(); });
   // trocar de tela por qualquer caminho fecha a folha
   window.addEventListener('screen:activated', fechar);
+
+  /* ---- Arraste horizontal na faixa de navegação (mouse/caneta) ----
+     No toque o navegador já rola; aqui damos o mesmo "puxar para o lado" ao mouse.
+     Um pequeno limiar evita que um clique normal na aba seja tratado como arraste. */
+  const tabsEl = document.getElementById('tabs');
+  if (tabsEl) {
+    let down = false, moved = false, startX = 0, startScroll = 0;
+    tabsEl.addEventListener('pointerdown', (e) => {
+      if (e.pointerType === 'touch') return; // toque usa a rolagem nativa
+      if (e.target.closest('#nav-more-btn')) return;
+      down = true; moved = false; startX = e.clientX; startScroll = tabsEl.scrollLeft;
+    });
+    tabsEl.addEventListener('pointermove', (e) => {
+      if (!down) return;
+      const dx = e.clientX - startX;
+      if (Math.abs(dx) > 4) { moved = true; tabsEl.classList.add('dragging'); }
+      if (moved) { tabsEl.scrollLeft = startScroll - dx; e.preventDefault(); }
+    });
+    const end = () => { down = false; setTimeout(() => tabsEl.classList.remove('dragging'), 0); };
+    tabsEl.addEventListener('pointerup', end);
+    tabsEl.addEventListener('pointercancel', end);
+    tabsEl.addEventListener('pointerleave', end);
+    // se houve arraste, cancela o clique que abriria a tela por engano
+    tabsEl.addEventListener('click', (e) => { if (moved) { e.stopPropagation(); e.preventDefault(); moved = false; } }, true);
+  }
 })();
 
 /* ---- Medidor de espaço: consumo REAL por módulo e quanto ainda cabe ---- */
