@@ -1507,9 +1507,27 @@
     vertical-align: middle;
   }
   /* Tabela de Horas por modalidade: largura automática + rolagem, evita sobreposição de texto */
-  .modality-table { table-layout: auto; min-width: 100%; width: auto; }
-  .modality-table th, .modality-table td { white-space: nowrap; padding: 8px 14px; }
-  .modality-table td:first-child, .modality-table th:first-child {
+  /* ── Tabela "Horas por modalidade e matéria" (redesenhada) ── */
+  .modality-wrap { overflow-x: auto; border: 1px solid var(--border); border-radius: 12px; -webkit-overflow-scrolling: touch; }
+  .modality-table { border-collapse: collapse; width: 100%; min-width: 480px; font-family: 'Inter', sans-serif; }
+  .modality-table th { position: sticky; top: 0; background: var(--surface-sunken); color: var(--text-faint); font-size: calc(10.5px * var(--fs-scale,1)); font-weight: 800; text-transform: uppercase; letter-spacing: 0.03em; padding: 10px 12px; text-align: center; white-space: nowrap; border-bottom: 1.5px solid var(--border); }
+  .modality-table th.mt-sticky { text-align: left; }
+  .modality-table td { padding: 9px 12px; border-bottom: 1px solid var(--border); }
+  .modality-table tbody tr:last-child td { border-bottom: none; }
+  .modality-table .mt-cell { text-align: center; font-family: 'Space Mono', monospace; font-size: calc(11.5px * var(--fs-scale,1)); font-weight: 600; color: var(--text); white-space: nowrap; }
+  .modality-table .mt-zero { color: var(--text-faint); font-weight: 400; }
+  .modality-table .mt-name { font-size: calc(12.5px * var(--fs-scale,1)); font-weight: 600; color: var(--text); max-width: 180px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .modality-table .mt-sticky { position: sticky; left: 0; background: var(--surface); z-index: 1; box-shadow: 1px 0 0 var(--border); }
+  .modality-table thead .mt-sticky { background: var(--surface-sunken); z-index: 2; }
+  .modality-table .mt-total-col { font-weight: 800; color: var(--accent-text); background: color-mix(in srgb, var(--accent) 5%, transparent); }
+  .modality-table .mt-foot td { border-top: 1.5px solid var(--border-strong); font-weight: 800; background: var(--surface-sunken); }
+  .modality-table .mt-foot .mt-cell { color: var(--text); }
+  .modality-table tbody tr:hover td { background: color-mix(in srgb, var(--accent) 4%, transparent); }
+  .modality-table tbody tr:hover .mt-sticky { background: color-mix(in srgb, var(--accent) 6%, var(--surface)); }
+
+  .modality-table-legacy { table-layout: auto; min-width: 100%; width: auto; }
+  .modality-table-legacy th, .modality-table-legacy td { white-space: nowrap; padding: 8px 14px; }
+  .modality-table-legacy td:first-child, .modality-table-legacy th:first-child {
     text-align: left;
     width: auto;
     position: sticky;
@@ -1888,6 +1906,38 @@
      distintas de relance em vez de tres caixas iguais. O detalhe em cor no topo
      de cada cartao e o unico enfeite — o resto fica quieto, porque quem manda
      aqui e o numero. */
+  /* ═══ LAYOUT COMPACTO DA EVOLUÇÃO ═══════════════════════════════════════════
+     Grade de 2 colunas no desktop: os gráficos grandes ocupam a linha inteira
+     (.evo-wide) e os cartões menores emparelham (.evo-col). Em telas estreitas
+     tudo colapsa para 1 coluna. Isso reduz drasticamente a rolagem e organiza a
+     leitura em blocos comparáveis lado a lado. */
+  .evo-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; align-items: start; margin-top: 22px; }
+  .evo-grid > .card { margin: 0; }               /* a grade controla o espaçamento */
+  .evo-grid > .evo-wide { grid-column: 1 / -1; }
+  .evo-grid > .evo-stats-band { grid-column: 1 / -1; }
+  @media (max-width: 960px) {
+    .evo-grid { grid-template-columns: 1fr; gap: 14px; }
+  }
+  /* Faixa de KPIs no topo */
+  .evo-stats-band { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; }
+  @media (max-width: 560px) { .evo-stats-band { grid-template-columns: 1fr 1fr; gap: 10px; } }
+
+  /* ── Refinamentos mobile da Evolução ── */
+  @media (max-width: 640px) {
+    /* cabeçalhos de card: título em cima, controles embaixo (sem apertar) */
+    .evo-card-head { padding: 16px 16px 0; }
+    .evo-card-head > div:last-child { width: 100%; align-items: stretch !important; }
+    .evo-chip-group { width: 100%; justify-content: flex-start; overflow-x: auto; flex-wrap: nowrap; padding-bottom: 2px; scrollbar-width: none; }
+    .evo-chip-group::-webkit-scrollbar { display: none; }
+    .evo-tempo-range { width: 100%; }
+    .evo-day-bar-row { height: 150px; }
+    /* gráficos SVG mantêm proporção; garante respiro lateral */
+    #evolucao-line-chart, #evolucao-acerto-linha, #evolucao-meta-chart,
+    #evolucao-tec-chart, #evolucao-day-chart { padding-left: 8px !important; padding-right: 8px !important; }
+    .evo-legend { padding: 10px 12px 2px; gap: 8px 12px; }
+    .evo-line-controls { width: 100%; justify-content: center; }
+  }
+
   .evo-stat-card {
     position: relative;
     background: var(--surface);
@@ -3539,9 +3589,9 @@
   }
   .evo-chip:hover { border-color: var(--border-strong); color: var(--text); }
   .evo-chip.active { background: var(--accent); color: #fff; border-color: var(--accent); }
-  .evo-day-bar-row { display: flex; align-items: flex-end; gap: 3px; height: 180px; padding: 8px 4px 0; }
-  .evo-day-bar { flex: 1; background: var(--accent); border-radius: 4px 4px 0 0; min-height: 2px; position: relative; transition: height 0.3s ease, background 0.2s ease; }
-  .evo-day-bar:hover { background: var(--accent-hover); }
+  .evo-day-bar-row { display: flex; align-items: flex-end; gap: 4px; height: 180px; padding: 8px 4px 0; }
+  .evo-day-bar { flex: 1; background: linear-gradient(180deg, var(--accent), color-mix(in srgb, var(--accent) 72%, transparent)); border-radius: 5px 5px 0 0; min-height: 2px; position: relative; transition: height 0.3s ease, filter 0.15s ease; }
+  .evo-day-bar:hover { filter: brightness(1.08) saturate(1.1); }
   .evo-day-bar.empty { background: var(--border); }
   .evo-day-axis { display: flex; gap: 3px; padding: 6px 4px 0; }
   .evo-day-axis span { flex: 1; text-align: center; font-family: 'Space Mono', monospace; font-size: calc(10px * var(--fs-scale, 1)); color: var(--text-faint); overflow: hidden; white-space: nowrap; }
@@ -3567,11 +3617,12 @@
   /* Ritmo de estudo */
   /* table-layout fixed + coluna de rótulo greedy = o valor vai para a BORDA DIREITA,
      preenchendo a largura do card (antes o número parava no meio, deixando vazio). */
-  .ritmo-table { width: 100%; border-collapse: collapse; table-layout: fixed; }
-  .ritmo-table td { padding: 10px 6px; font-size: calc(13px * var(--fs-scale, 1)); border-bottom: 1px solid var(--border); }
+  .ritmo-table { width: 100%; border-collapse: collapse; table-layout: fixed; font-family: 'Inter', sans-serif; }
+  .ritmo-table td { padding: 8px 8px; font-size: calc(12.5px * var(--fs-scale, 1)); border-bottom: 1px solid var(--border); }
   .ritmo-table tr:last-child td { border-bottom: none; }
+  .ritmo-table tbody tr:not(.ritmo-section):hover td { background: color-mix(in srgb, var(--accent) 4%, transparent); }
   .ritmo-table .rk { color: var(--text-soft); width: 100%; }
-  .ritmo-table .rk-hint { color: var(--text-faint); font-weight: 400; font-size: calc(11px * var(--fs-scale, 1)); }
+  .ritmo-table .rk-hint { color: var(--text-faint); font-weight: 400; font-size: calc(10.5px * var(--fs-scale, 1)); }
   .ritmo-table .rv { text-align: right; font-family: 'Space Mono', monospace; font-weight: 700; color: var(--text); white-space: nowrap; width: 1%; }
   .ritmo-table .rv-muted { color: var(--text-faint); font-weight: 400; }
   .ritmo-section td {
@@ -6062,10 +6113,10 @@
       <div class="big">📊</div>
       <span id="evolucao-empty-text">Registre alguns estudos para ver sua evolução aqui.</span>
     </div>
-    <div id="evolucao-content" style="display:none;">
-      <div style="display:grid; grid-template-columns: repeat(3,1fr); gap: 14px; margin-top: 24px;" id="evolucao-stats"></div>
+    <div id="evolucao-content" class="evo-grid" style="display:none;">
+      <div class="evo-stats-band" id="evolucao-stats"></div>
 
-      <div class="card">
+      <div class="card evo-wide">
         <div class="evo-card-head">
           <div>
             <h2>Tempo de estudo</h2>
@@ -6092,12 +6143,12 @@
         <div style="padding: 8px 20px 20px;" id="evolucao-day-chart"></div>
       </div>
 
-      <div class="card">
+      <div class="card evo-col">
         <div class="card-header"><h2>Horas acumuladas</h2><p class="sub" id="evolucao-chart-sub"></p></div>
         <div style="padding: 8px 20px 24px;" id="evolucao-line-chart"></div>
       </div>
 
-      <div class="card">
+      <div class="card evo-wide">
         <div class="evo-card-head">
           <div>
             <h2>📈 Evolução do aproveitamento</h2>
@@ -6112,17 +6163,17 @@
         <div style="padding: 6px 20px 22px;" id="evolucao-acerto-linha"></div>
       </div>
 
-      <div class="card">
+      <div class="card evo-col">
         <div class="card-header"><div><h2>% de acertos por matéria</h2><p class="sub">Aproveitamento em questões no período · <span id="metas-sub">metas 70/80/85</span></p></div><button type="button" class="icon-btn" id="btn-edit-metas" title="Editar metas e cores (verde/amarelo/vermelho)">⚙ Metas</button></div>
         <div style="padding: 8px 24px 24px;" id="evolucao-acerto-materia"></div>
       </div>
 
-      <div class="card">
+      <div class="card evo-col">
         <div class="card-header"><h2>Aproveitamento por semana fechada</h2><p class="sub">% médio de acerto de cada semana concluída no histórico</p></div>
         <div style="padding: 8px 20px 24px;" id="evolucao-meta-chart"></div>
       </div>
 
-      <div class="card" id="evolucao-tec-card">
+      <div class="card evo-wide" id="evolucao-tec-card">
         <div class="evo-card-head">
           <div>
             <h2>Evolução no TecConcursos</h2>
@@ -6142,22 +6193,22 @@
         <div class="evo-legend" id="evolucao-tec-legend"></div>
       </div>
 
-      <div class="card">
+      <div class="card evo-col">
         <div class="card-header"><h2>Tempo por matéria</h2><p class="sub">Total de horas dedicadas, por matéria, no período</p></div>
         <div style="padding: 8px 28px 24px;" id="evolucao-bar-chart"></div>
       </div>
 
-      <div class="card">
+      <div class="card evo-col">
         <div class="card-header"><h2>Desempenho por matéria</h2><p class="sub">Percentual médio de acerto em questões, no período</p></div>
         <div style="padding: 4px 28px 20px;" id="evolucao-performance-list"></div>
       </div>
 
-      <div class="card">
+      <div class="card evo-wide">
         <div class="card-header"><h2>Horas por modalidade e matéria</h2><p class="sub">Como o tempo se distribui entre formas de estudo, por matéria</p></div>
         <div style="padding: 8px 28px 24px;" id="evolucao-modality-table"></div>
       </div>
 
-      <div class="card">
+      <div class="card evo-col">
         <div class="card-header">
           <div>
             <h2>Ritmo de estudo</h2>
@@ -13852,6 +13903,50 @@ const EvolucaoScreen = {
   },
   _palette: ['#4f46e5', '#e0393f', '#0f9d63', '#d97a12', '#0a95a8', '#b3308a', '#7c3aed', '#2563eb', '#059669', '#dc2626'],
 
+  /* Tema dos gráficos — lê as variáveis CSS em tempo de render, então TODO gráfico
+     SVG passa a respeitar o modo claro/escuro automaticamente. Antes as cores eram
+     fixas (grade #eceef1, rótulos #9297a3, centro dos pontos #fff), o que deixava
+     os gráficos ilegíveis no tema escuro. Fonte e geometria também padronizadas. */
+  _ctheme() {
+    const cs = getComputedStyle(document.documentElement);
+    const v = (name, fb) => { const s = (cs.getPropertyValue(name) || '').trim(); return s || fb; };
+    return {
+      grid: v('--border', '#e5e7eb'),
+      gridStrong: v('--border-strong', '#d1d5db'),
+      label: v('--text-faint', '#9297a3'),
+      axis: v('--text-soft', '#5b6270'),
+      accent: v('--accent', '#4f46e5'),
+      surface: v('--surface', '#ffffff'),
+      text: v('--text', '#14161a'),
+      fMono: "'Space Mono', ui-monospace, monospace",
+      fSans: "'Inter', system-ui, sans-serif"
+    };
+  },
+  // Largura da viewport (para decidir densidade de rótulos e tamanho de fonte).
+  _vw() { try { return window.innerWidth || document.documentElement.clientWidth || 1024; } catch (_) { return 1024; } },
+  /* Métricas RESPONSIVAS de gráfico. O problema no celular: o SVG tem viewBox fixo
+     (ex.: 720 de largura) e é reduzido para caber na tela — uma fonte 11 vira ~5px,
+     ilegível, e as datas se sobrepõem. Aqui, quando a tela é estreita, aumentamos a
+     fonte (em unidades do SVG, para compensar a redução) e mostramos MENOS rótulos
+     de data (1 a cada N), evitando o amontoado. Também encurtamos a data (dd/mm). */
+  _chartMetrics(n) {
+    const vw = this._vw();
+    const narrow = vw < 640, tiny = vw < 400;
+    // nº alvo de rótulos no eixo X conforme a largura
+    const targetLabels = tiny ? 3 : narrow ? 4 : 8;
+    const labelEvery = Math.max(1, Math.ceil(n / targetLabels));
+    return {
+      narrow, tiny, labelEvery,
+      fLabel: narrow ? 15 : 11,   // rótulos de eixo (datas / %)
+      fVal: narrow ? 15 : 12,     // valores nos pontos
+      fAxisTitle: narrow ? 14 : 11,
+      dot: narrow ? 4 : 3.5
+    };
+  },
+  // Rótulo de data curto para o eixo (dd/mm). A legibilidade no celular é garantida
+  // pela densidade responsiva (labelEvery) + fonte maior, não por truncar a data.
+  _shortDate(iso, _narrow) { return formatDateShort(iso); },
+
   // soma/subtrai dias a uma data 'YYYY-MM-DD' mantendo o fuso local
   addDaysLocal(isoDate, delta) {
     const d = new Date(isoDate + 'T00:00:00');
@@ -14249,8 +14344,8 @@ const EvolucaoScreen = {
       container.innerHTML = `<div class="evo-empty-mini">Nenhum tempo registrado ${usaRange ? 'no intervalo de ' + formatDateShort(start) + ' a ' + formatDateShort(end) : 'nos últimos ' + nDias + ' dias'}.</div>`;
       return;
     }
-    // com muitos dias, mostra rótulo a cada N
-    const labelEvery = Math.max(1, Math.ceil(days.length / 12));
+    // com muitos dias, mostra rótulo a cada N (menos rótulos no celular)
+    const labelEvery = Math.max(1, Math.ceil(days.length / (this._vw() < 640 ? 6 : 12)));
     const bars = days.map(d => {
       const min = byDate[d] || 0;
       const h = Math.round((min / maxMin) * 100);
@@ -14422,30 +14517,33 @@ const EvolucaoScreen = {
   multiLineSVG(weeks, series, opts = {}) {
     // padR maior para caber a "régua de metas" (pílulas 70/80/85) à direita — mesmo
     // padrão visual do gráfico "% de acertos por matéria", para leitura consistente.
-    const w = 720, h = 280, padL = 48, padR = 44, padT = 20, padB = 44;
+    const T = this._ctheme();
+    const M = this._chartMetrics(weeks.length);
+    const w = 720, h = 280, padL = M.narrow ? 44 : 48, padR = 44, padT = 22, padB = M.narrow ? 50 : 44;
     const n = weeks.length;
     const xAt = (i) => padL + (n <= 1 ? 0 : (i / (n - 1)) * (w - padL - padR));
     const yAt = (pct) => padT + (1 - pct / 100) * (h - padT - padB);
     let grid = '';
-    [0, 25, 50, 75, 100].forEach(g => {
+    // no celular, menos linhas de grade (0/50/100) para não competir com os rótulos
+    (M.narrow ? [0, 50, 100] : [0, 25, 50, 75, 100]).forEach(g => {
       const y = yAt(g);
-      grid += `<line x1="${padL}" y1="${y}" x2="${w - padR}" y2="${y}" stroke="#eceef1" stroke-width="1" stroke-dasharray="${g === 0 ? '0' : '3 3'}"/>`;
-      grid += `<text x="${padL - 8}" y="${y + 3}" font-size="10" fill="#9297a3" text-anchor="end" font-family="Space Mono, monospace">${g}%</text>`;
+      grid += `<line x1="${padL}" y1="${y}" x2="${w - padR}" y2="${y}" stroke="${T.grid}" stroke-width="1" stroke-dasharray="${g === 0 ? '0' : '3 3'}"/>`;
+      grid += `<text x="${padL - 8}" y="${y + 3.5}" font-size="${M.fLabel}" fill="${T.label}" text-anchor="end" font-family="${T.fMono}">${g}%</text>`;
     });
     // metas 70/80/85 — linha tracejada + RÉGUA: pílula colorida com o valor na direita
     metaRefs().map(r => ({ v: r.v, c: r.color })).forEach(r => {
       const y = yAt(r.v);
+      const pw = M.narrow ? 36 : 30, ph = M.narrow ? 20 : 16;
       grid += `<line x1="${padL}" y1="${y}" x2="${w - padR}" y2="${y}" stroke="${r.c}" stroke-width="1.3" stroke-dasharray="6 4" opacity="0.85"/>`;
-      grid += `<rect x="${w - padR + 2}" y="${y - 8}" width="30" height="16" rx="8" fill="${r.c}"/>`;
-      grid += `<text x="${w - padR + 17}" y="${y + 4}" font-size="10" fill="#fff" text-anchor="middle" font-weight="700" font-family="Space Mono, monospace">${r.v}%</text>`;
+      grid += `<rect x="${w - padR + 2}" y="${y - ph / 2}" width="${pw}" height="${ph}" rx="${ph / 2}" fill="${r.c}"/>`;
+      grid += `<text x="${w - padR + 2 + pw / 2}" y="${y + 4}" font-size="${M.narrow ? 13 : 10.5}" fill="#fff" text-anchor="middle" font-weight="700" font-family="${T.fMono}">${r.v}%</text>`;
     });
-    // rótulos X
-    const labelEvery = Math.max(1, Math.ceil(n / 9));
+    // rótulos X (densidade responsiva)
     let xlabels = '';
     weeks.forEach((wk, i) => {
-      if (i % labelEvery === 0 || i === n - 1) xlabels += `<text x="${xAt(i)}" y="${h - padB + 18}" font-size="9.5" fill="#9297a3" text-anchor="middle" font-family="Space Mono, monospace">${formatDateShort(wk)}</text>`;
+      if (i % M.labelEvery === 0 || i === n - 1) xlabels += `<text x="${xAt(i)}" y="${h - padB + (M.narrow ? 22 : 18)}" font-size="${M.fLabel}" fill="${T.label}" text-anchor="middle" font-family="${T.fMono}">${this._shortDate(wk, M.narrow)}</text>`;
     });
-    const yTitle = `<text x="13" y="${padT + (h - padT - padB) / 2}" font-size="10" fill="#5b6270" text-anchor="middle" font-weight="700" transform="rotate(-90 13 ${padT + (h - padT - padB) / 2})" font-family="Inter, sans-serif">${opts.yTitle || '%'}</text>`;
+    const yTitle = M.narrow ? '' : `<text x="14" y="${padT + (h - padT - padB) / 2}" font-size="11" fill="${T.axis}" text-anchor="middle" font-weight="700" transform="rotate(-90 14 ${padT + (h - padT - padB) / 2})" font-family="${T.fSans}">${opts.yTitle || '%'}</text>`;
     // desenha cada série (segmentando em lacunas de pct nulo)
     let paths = '';
     series.forEach((s, si) => {
@@ -14455,7 +14553,7 @@ const EvolucaoScreen = {
         if (seg.length === 0) return;
         const d = seg.map((p, k) => `${k === 0 ? 'M' : 'L'} ${xAt(p.x)} ${yAt(p.pct)}`).join(' ');
         paths += `<path d="${d}" fill="none" stroke="${s.color}" stroke-width="${isGeral ? 3 : 2}" stroke-linecap="round" stroke-linejoin="round" ${isGeral ? '' : 'opacity="0.9"'}/>`;
-        paths += seg.map(p => `<circle cx="${xAt(p.x)}" cy="${yAt(p.pct)}" r="${isGeral ? 3.5 : 3}" fill="#fff" stroke="${s.color}" stroke-width="2"><title>${escapeHtml(s.name)} · ${p.label}: ${formatPct(p.pct)}%</title></circle>`).join('');
+        paths += seg.map(p => `<circle cx="${xAt(p.x)}" cy="${yAt(p.pct)}" r="${M.narrow ? (isGeral ? 4.5 : 4) : (isGeral ? 3.5 : 3)}" fill="${T.surface}" stroke="${s.color}" stroke-width="2"><title>${escapeHtml(s.name)} · ${p.label}: ${formatPct(p.pct)}%</title></circle>`).join('');
         seg = [];
       };
       s.points.forEach(p => { if (p.pct === null) flush(); else seg.push(p); });
@@ -14466,7 +14564,7 @@ const EvolucaoScreen = {
       series.map(s => `<span class="evo-legend-item"><span class="evo-legend-swatch" style="background:${s.color}; height:3px;"></span>${escapeHtml(s.name)}</span>`).join('') +
       metaRefs().map(r => `<span class="evo-legend-item"><span class="evo-legend-swatch" style="background:${r.color}; height:0; border-top:2px dashed ${r.color};"></span>meta ${r.v}%</span>`).join('') +
       `</div>`;
-    return `<svg viewBox="0 0 ${w} ${h}" style="width:100%; height:auto; overflow:visible;">${grid}${yTitle}${paths}${xlabels}</svg>${legend}`;
+    return `<svg viewBox="0 0 ${w} ${h}" style="width:100%; height:auto; overflow:visible;" preserveAspectRatio="xMidYMid meet">${grid}${yTitle}${paths}${xlabels}</svg>${legend}`;
   },
 
   // ------- Aproveitamento por semana fechada (histórico de ciclos) -------
@@ -14481,10 +14579,10 @@ const EvolucaoScreen = {
     }
     const points = hist.map((w, i) => ({ x: i, pct: w.avgPerformancePct, label: formatDateShort(w.endDate) }));
     const legenda = `<div class="evo-legend" style="padding:12px 0 0;">
-      <span class="evo-legend-item"><span class="evo-legend-swatch" style="background:#4f46e5; height:3px;"></span>% de acerto da semana</span>
+      <span class="evo-legend-item"><span class="evo-legend-swatch" style="background:var(--accent); height:3px;"></span>% de acerto da semana</span>
       ${metaRefs().map(r => `<span class="evo-legend-item"><span class="evo-legend-swatch" style="background:${r.color}; height:0; border-top:2px dashed ${r.color};"></span>meta ${r.v}%</span>`).join('')}
     </div>`;
-    container.innerHTML = this.percentLineSVG(points, [{ color: '#4f46e5', points }],
+    container.innerHTML = this.percentLineSVG(points, [{ color: this._ctheme().accent, points }],
       { yTitle: '% de acerto', xTitle: 'Semana (data de fechamento)' }) + legenda;
   },
 
@@ -14532,12 +14630,10 @@ const EvolucaoScreen = {
       }
       return { x: i, pct, label: formatDateShort(s.date) };
     }).filter(p => p.pct !== null);
-    container.innerHTML = this.percentLineSVG(points, [{ color: '#4f46e5', points }],
+    container.innerHTML = this.percentLineSVG(points, [{ color: this._ctheme().accent, points }],
       { yTitle: '% de acerto', xTitle: 'Data do retrato importado' });
-    legend.innerHTML = `<span class="evo-legend-item"><span class="evo-legend-swatch" style="background:#4f46e5;"></span>${showDisc ? escapeHtml(showDisc) : 'Aproveitamento geral'}</span>`
-      + `<span class="evo-legend-item"><span class="evo-legend-swatch" style="background:#0f9d63;"></span>meta 70%</span>`
-      + `<span class="evo-legend-item"><span class="evo-legend-swatch" style="background:#d97a12;"></span>meta 80%</span>`
-      + `<span class="evo-legend-item"><span class="evo-legend-swatch" style="background:#4f46e5;"></span>meta 85%</span>`;
+    legend.innerHTML = `<span class="evo-legend-item"><span class="evo-legend-swatch" style="background:var(--accent); height:3px;"></span>${showDisc ? escapeHtml(showDisc) : 'Aproveitamento geral'}</span>`
+      + metaRefs().map(r => `<span class="evo-legend-item"><span class="evo-legend-swatch" style="background:${r.color}; height:0; border-top:2px dashed ${r.color};"></span>meta ${r.v}%</span>`).join('');
   },
 
   // Desenha um gráfico de linha de PERCENTUAL (0-100) com grade e rótulos
@@ -14548,7 +14644,9 @@ const EvolucaoScreen = {
       const p = allPoints[0];
       return `<div class="evo-empty-mini">Só há um ponto (${p.label}): ${formatPct(p.pct)}%. Adicione mais dados para ver a linha.</div>`;
     }
-    const w = 700, h = 280, padL = 60, padR = 30, padT = 30, padB = 52;
+    const T = this._ctheme();
+    const M = this._chartMetrics(allPoints.length);
+    const w = 720, h = 280, padL = M.narrow ? 52 : 60, padR = 30, padT = 28, padB = M.narrow ? 58 : 52;
     const n = allPoints.length;
     const refs = metaRefs();
     // EIXO Y com base dinâmica (não mais fixo em 0–100): começa num múltiplo de 10
@@ -14568,8 +14666,8 @@ const EvolucaoScreen = {
     for (let k = 0; k <= 4; k++) {
       const gv = yMin + (ySpan * k / 4);
       const y = yAt(gv);
-      grid += `<line x1="${padL}" y1="${y}" x2="${w - padR}" y2="${y}" stroke="#eceef1" stroke-width="1" stroke-dasharray="${k === 0 ? '0' : '3 3'}"/>`;
-      grid += `<text x="${padL - 10}" y="${y + 4}" font-size="13" fill="#9297a3" text-anchor="end" font-family="Space Mono, monospace">${Math.round(gv)}%</text>`;
+      grid += `<line x1="${padL}" y1="${y}" x2="${w - padR}" y2="${y}" stroke="${T.grid}" stroke-width="1" stroke-dasharray="${k === 0 ? '0' : '3 3'}"/>`;
+      grid += `<text x="${padL - 10}" y="${y + 4}" font-size="${M.fLabel}" fill="${T.label}" text-anchor="end" font-family="${T.fMono}">${Math.round(gv)}%</text>`;
     }
     // linhas de meta: sem rótulo numérico solto na direita (era o que sobrepunha os
     // valores dos pontos). A legenda abaixo do gráfico já identifica cada meta.
@@ -14579,31 +14677,33 @@ const EvolucaoScreen = {
       const y = yAt(r.v);
       refLines += `<line x1="${padL}" y1="${y}" x2="${w - padR}" y2="${y}" stroke="${r.color}" stroke-width="1.4" stroke-dasharray="6 4" opacity="0.85"/>`;
     });
-    const yAxisTitle = `<text x="16" y="${padT + (h - padT - padB) / 2}" font-size="12.5" fill="#5b6270" text-anchor="middle" font-weight="700" transform="rotate(-90 16 ${padT + (h - padT - padB) / 2})" font-family="Inter, sans-serif">${yTitle}</text>`;
-    const labelEvery = Math.max(1, Math.ceil(n / 8));
+    const yAxisTitle = M.narrow ? '' : `<text x="16" y="${padT + (h - padT - padB) / 2}" font-size="12" fill="${T.axis}" text-anchor="middle" font-weight="700" transform="rotate(-90 16 ${padT + (h - padT - padB) / 2})" font-family="${T.fSans}">${yTitle}</text>`;
     let xlabels = '';
     allPoints.forEach((p, i) => {
-      if (i % labelEvery === 0 || i === n - 1) {
-        xlabels += `<text x="${xAt(i)}" y="${h - padB + 22}" font-size="12.5" fill="#9297a3" text-anchor="middle" font-family="Space Mono, monospace">${p.label}</text>`;
+      if (i % M.labelEvery === 0 || i === n - 1) {
+        // labels aqui já vêm curtos (dd/mm) — a densidade responsiva (labelEvery) já evita o amontoado
+        xlabels += `<text x="${xAt(i)}" y="${h - padB + (M.narrow ? 26 : 22)}" font-size="${M.fLabel}" fill="${T.label}" text-anchor="middle" font-family="${T.fMono}">${p.label || ''}</text>`;
       }
     });
-    const xAxisTitle = xTitle ? `<text x="${padL + (w - padL - padR) / 2}" y="${h - 6}" font-size="12.5" fill="#5b6270" text-anchor="middle" font-weight="700" font-family="Inter, sans-serif">${xTitle}</text>` : '';
+    const xAxisTitle = xTitle ? `<text x="${padL + (w - padL - padR) / 2}" y="${h - 6}" font-size="${M.fAxisTitle}" fill="${T.axis}" text-anchor="middle" font-weight="700" font-family="${T.fSans}">${xTitle}</text>` : '';
     let paths = '';
     series.forEach((s, si) => {
       const d = s.points.map((p, i) => `${i === 0 ? 'M' : 'L'} ${xAt(p.x)} ${yAt(p.pct)}`).join(' ');
       paths += `<path d="${d}" fill="none" stroke="${s.color}" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>`;
-      // rótulo de valor: alterna acima/abaixo por ponto para não colar no vizinho
+      // rótulo de valor: no celular, rotula 1 a cada N pontos (evita amontoado); alterna acima/abaixo
       paths += s.points.map((p, i) => {
         const cx = xAt(p.x), cy = yAt(p.pct);
+        const mostra = !M.narrow || (i % M.labelEvery === 0) || (i === s.points.length - 1);
         const acima = (i % 2 === 0) ? (cy > padT + 20) : false;
         const ly = acima ? cy - 12 : cy + 22;
         const anchor = (i === 0) ? 'start' : (i === s.points.length - 1) ? 'end' : 'middle';
         const dx = (i === 0) ? 5 : (i === s.points.length - 1) ? -5 : 0;
-        return `<circle cx="${cx}" cy="${cy}" r="4.5" fill="#fff" stroke="${s.color}" stroke-width="2.5"><title>${p.label}: ${formatPct(p.pct)}%</title></circle>` +
-               `<text x="${cx + dx}" y="${ly}" font-size="13" fill="${s.color}" text-anchor="${anchor}" font-weight="700" font-family="Space Mono, monospace">${Math.round(p.pct)}%</text>`;
+        const dot = `<circle cx="${cx}" cy="${cy}" r="${M.narrow ? 5 : 4.5}" fill="${T.surface}" stroke="${s.color}" stroke-width="2.5"><title>${p.label}: ${formatPct(p.pct)}%</title></circle>`;
+        const lbl = mostra ? `<text x="${cx + dx}" y="${ly}" font-size="${M.fVal}" fill="${s.color}" text-anchor="${anchor}" font-weight="700" font-family="${T.fMono}">${Math.round(p.pct)}%</text>` : '';
+        return dot + lbl;
       }).join('');
     });
-    return `<svg viewBox="0 0 ${w} ${h}" style="width:100%; height:auto; overflow:visible;">${grid}${refLines}${yAxisTitle}${paths}${xlabels}${xAxisTitle}</svg>`;
+    return `<svg viewBox="0 0 ${w} ${h}" style="width:100%; height:auto; overflow:visible;" preserveAspectRatio="xMidYMid meet">${grid}${refLines}${yAxisTitle}${paths}${xlabels}${xAxisTitle}</svg>`;
   },
 
   // Reflete o estado (datas + atalho ativo) nos controles da tela
@@ -14726,8 +14826,11 @@ const EvolucaoScreen = {
       return;
     }
 
-    // padL generoso para caber "23h 24min" sem sobrepor (sem título de eixo vertical)
-    const w = 700, h = 240, padL = 70, padR = 20, padT = 20, padB = 46;
+    // Geometria padronizada entre todos os gráficos desta tela.
+    const T = this._ctheme();
+    const M = this._chartMetrics(points.length);
+    const gid = 'areaGrad_' + Math.random().toString(36).slice(2, 8);
+    const w = 720, h = 250, padL = M.narrow ? 76 : 68, padR = 22, padT = 22, padB = M.narrow ? 52 : 46;
     const maxAcc = Math.max(...points.map(p => p.acc));
     const n = points.length;
     const xAt = (i) => padL + (i / (n - 1)) * (w - padL - padR);
@@ -14739,35 +14842,33 @@ const EvolucaoScreen = {
     for (let s = 0; s <= steps; s++) {
       const val = (maxAcc / steps) * s;
       const y = yAt(val);
-      grid += `<line x1="${padL}" y1="${y}" x2="${w - padR}" y2="${y}" stroke="#eceef1" stroke-width="1" stroke-dasharray="${s === 0 ? '0' : '3 3'}"/>`;
-      grid += `<text x="${padL - 10}" y="${y + 3}" font-size="9.5" fill="#9297a3" text-anchor="end" font-family="Space Mono, monospace">${CycleEngine.fmtHM(Math.round(val))}</text>`;
+      grid += `<line x1="${padL}" y1="${y}" x2="${w - padR}" y2="${y}" stroke="${T.grid}" stroke-width="1" stroke-dasharray="${s === 0 ? '0' : '3 3'}"/>`;
+      grid += `<text x="${padL - 10}" y="${y + 3.5}" font-size="${M.fLabel}" fill="${T.label}" text-anchor="end" font-family="${T.fMono}">${CycleEngine.fmtHM(Math.round(val))}</text>`;
     }
-    // (sem título de eixo vertical — os próprios rótulos já indicam as horas)
 
     const pathD = points.map((p, i) => `${i === 0 ? 'M' : 'L'} ${xAt(i)} ${yAt(p.acc)}`).join(' ');
     const areaD = pathD + ` L ${xAt(n - 1)} ${h - padB} L ${xAt(0)} ${h - padB} Z`;
 
-    const labelEvery = Math.max(1, Math.ceil(n / 8));
-    const labels = points.map((p, i) => (i % labelEvery === 0 || i === n - 1)
-      ? `<text x="${xAt(i)}" y="${h - padB + 18}" font-size="10" fill="#9297a3" text-anchor="middle" font-family="Space Mono, monospace">${formatDateShort(p.date)}</text>`
+    const labels = points.map((p, i) => (i % M.labelEvery === 0 || i === n - 1)
+      ? `<text x="${xAt(i)}" y="${h - padB + (M.narrow ? 24 : 20)}" font-size="${M.fLabel}" fill="${T.label}" text-anchor="middle" font-family="${T.fMono}">${this._shortDate(p.date, M.narrow)}</text>`
       : '').join('');
     // rótulo do valor final acumulado
     const last = points[n - 1];
-    const endLabel = `<text x="${xAt(n - 1)}" y="${yAt(last.acc) - 9}" font-size="9.5" fill="#4f46e5" text-anchor="end" font-weight="700" font-family="Space Mono, monospace">${CycleEngine.fmtHM(last.acc)}</text>`;
-    const xAxisTitle = `<text x="${padL + (w - padL - padR) / 2}" y="${h - 4}" font-size="10" fill="#5b6270" text-anchor="middle" font-weight="700" font-family="Inter, sans-serif">Data</text>`;
+    const endLabel = `<text x="${xAt(n - 1)}" y="${yAt(last.acc) - 10}" font-size="${M.fVal}" fill="${T.accent}" text-anchor="end" font-weight="700" font-family="${T.fMono}">${CycleEngine.fmtHM(last.acc)}</text>`;
+    const xAxisTitle = `<text x="${padL + (w - padL - padR) / 2}" y="${h - 5}" font-size="${M.fAxisTitle}" fill="${T.axis}" text-anchor="middle" font-weight="700" font-family="${T.fSans}">Data</text>`;
 
     container.innerHTML = `
-      <svg viewBox="0 0 ${w} ${h}" style="width:100%; height:auto; overflow:visible;">
+      <svg viewBox="0 0 ${w} ${h}" style="width:100%; height:auto; overflow:visible;" preserveAspectRatio="xMidYMid meet">
         <defs>
-          <linearGradient id="areaGrad" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stop-color="#4f46e5" stop-opacity="0.18"/>
-            <stop offset="100%" stop-color="#4f46e5" stop-opacity="0"/>
+          <linearGradient id="${gid}" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stop-color="${T.accent}" stop-opacity="0.20"/>
+            <stop offset="100%" stop-color="${T.accent}" stop-opacity="0"/>
           </linearGradient>
         </defs>
         ${grid}
-        <path d="${areaD}" fill="url(#areaGrad)" />
-        <path d="${pathD}" fill="none" stroke="#4f46e5" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
-        ${points.map((p, i) => `<circle cx="${xAt(i)}" cy="${yAt(p.acc)}" r="3.5" fill="#4f46e5"/><circle cx="${xAt(i)}" cy="${yAt(p.acc)}" r="13" fill="transparent" style="cursor:pointer" data-tip="${formatDateShort(p.date)}: ${CycleEngine.fmtHM(p.acc)} acumuladas"></circle>`).join('')}
+        <path d="${areaD}" fill="url(#${gid})" />
+        <path d="${pathD}" fill="none" stroke="${T.accent}" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+        ${points.map((p, i) => `<circle cx="${xAt(i)}" cy="${yAt(p.acc)}" r="${M.dot}" fill="${T.accent}"/><circle cx="${xAt(i)}" cy="${yAt(p.acc)}" r="13" fill="transparent" style="cursor:pointer" data-tip="${formatDateShort(p.date)}: ${CycleEngine.fmtHM(p.acc)} acumuladas"></circle>`).join('')}
         ${labels}${endLabel}${xAxisTitle}
       </svg>
     `;
@@ -14840,18 +14941,31 @@ const EvolucaoScreen = {
     entries.forEach(e => { matrix[e.subject][e.method] += (e.durationMin || 0); });
 
     const subjectTotals = subjects.map(s => methods.reduce((sum, m) => sum + matrix[s][m], 0));
+    const methodTotals = methods.map(m => subjects.reduce((sum, s) => sum + matrix[s][m], 0));
+    const grandTotal = subjectTotals.reduce((a, b) => a + b, 0) || 1;
+    // ordena matérias por total (as com mais tempo primeiro) e realça a célula
+    // mais intensa de cada linha com uma tênue tarja da cor de acento (heatmap leve).
+    const order = subjects.map((s, i) => i).sort((a, b) => subjectTotals[b] - subjectTotals[a]);
+    const maxCell = Math.max(1, ...subjects.flatMap(s => methods.map(m => matrix[s][m])));
 
-    let html = '<div style="overflow-x:auto;"><table class="grade-table modality-table"><thead><tr><th>Matéria</th>';
+    let html = '<div class="modality-wrap"><table class="modality-table"><thead><tr><th class="mt-sticky">Matéria</th>';
     methods.forEach(m => html += `<th>${escapeHtml(m)}</th>`);
-    html += '<th>Total</th></tr></thead><tbody>';
-    subjects.forEach((s, i) => {
-      html += `<tr><td>${escapeHtml(s)}</td>`;
+    html += '<th class="mt-total-col">Total</th></tr></thead><tbody>';
+    order.forEach(i => {
+      const s = subjects[i];
+      html += `<tr><td class="mt-sticky mt-name" title="${escapeHtml(s)}">${escapeHtml(s)}</td>`;
       methods.forEach(m => {
         const min = matrix[s][m];
-        html += `<td style="text-align:center; font-family:'Space Mono',monospace; font-size:11.5px; ${min === 0 ? 'color:var(--text-faint);' : ''}">${min > 0 ? CycleEngine.fmtHM(min) : '—'}</td>`;
+        const intensity = min > 0 ? (0.06 + 0.20 * (min / maxCell)).toFixed(3) : 0;
+        const bg = min > 0 ? `background:color-mix(in srgb, var(--accent) ${(intensity * 100).toFixed(1)}%, transparent);` : '';
+        html += `<td class="mt-cell${min === 0 ? ' mt-zero' : ''}" style="${bg}">${min > 0 ? CycleEngine.fmtHM(min) : '·'}</td>`;
       });
-      html += `<td style="text-align:center; font-family:'Space Mono',monospace; font-size:11.5px; font-weight:700;">${CycleEngine.fmtHM(subjectTotals[i])}</td></tr>`;
+      html += `<td class="mt-cell mt-total-col">${CycleEngine.fmtHM(subjectTotals[i])}</td></tr>`;
     });
+    // rodapé com o total por modalidade + participação
+    html += '<tr class="mt-foot"><td class="mt-sticky">Total</td>';
+    methodTotals.forEach(mt => html += `<td class="mt-cell">${mt > 0 ? CycleEngine.fmtHM(mt) : '·'}</td>`);
+    html += `<td class="mt-cell mt-total-col">${CycleEngine.fmtHM(grandTotal === 1 && subjectTotals.reduce((a, b) => a + b, 0) === 0 ? 0 : subjectTotals.reduce((a, b) => a + b, 0))}</td></tr>`;
     html += '</tbody></table></div>';
     container.innerHTML = html;
   }
@@ -14860,6 +14974,21 @@ const EvolucaoScreen = {
 window.addEventListener('screen:activated', (e) => {
   if (e.detail.screen === 'evolucao') EvolucaoScreen.render();
 });
+
+// Redesenha os gráficos ao girar/redimensionar (recalcula densidade de rótulos e
+// fontes responsivas). Só age quando a Evolução está visível, e cruza um limiar de
+// largura, para não re-renderizar à toa a cada pixel.
+(function () {
+  let t = null, lastNarrow = null;
+  window.addEventListener('resize', () => {
+    const scr = document.getElementById('screen-evolucao');
+    if (!scr || !scr.classList.contains('active')) return;
+    const narrow = (window.innerWidth || 1024) < 640;
+    if (lastNarrow === null) lastNarrow = narrow;
+    clearTimeout(t);
+    t = setTimeout(() => { EvolucaoScreen.render(); lastNarrow = narrow; }, 220);
+  }, { passive: true });
+})();
 
 // Filtro de período: inputs manuais e atalhos rápidos
 document.getElementById('evo-date-start').addEventListener('change', (e) => EvolucaoScreen.onStartChange(e.target.value));
