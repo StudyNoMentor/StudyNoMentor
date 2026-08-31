@@ -1033,7 +1033,13 @@
   .cal-day .cal-wd { font-size: calc(10px * var(--fs-scale, 1)); font-weight: 700; text-transform: uppercase; color: var(--text-faint); letter-spacing: 0.03em; }
   .cal-day .cal-dn { font-family: 'Space Mono', monospace; font-size: calc(18px * var(--fs-scale, 1)); font-weight: 800; color: var(--text); line-height: 1.1; }
   .cal-day .cal-mo { font-size: calc(10px * var(--fs-scale, 1)); color: var(--text-faint); text-transform: uppercase; }
-  .cal-day .cal-dots { display: flex; gap: 3px; align-items: center; margin-top: 4px; min-height: 7px; }
+  .cal-day .cal-dots { display: flex; gap: 3px; align-items: center; justify-content: center; margin-top: 4px; min-height: 14px; }
+  /* dia inteiramente concluído: anel verde + check (visão de relance) */
+  .cal-day.alldone { border-color: color-mix(in srgb, var(--good) 55%, var(--border)); background: var(--good-soft); }
+  .cal-day.alldone.sel { box-shadow: 0 0 0 3px var(--good-soft); }
+  .cal-day .cal-alldone { display: inline-flex; align-items: center; justify-content: center; width: 15px; height: 15px; margin-top: 3px; border-radius: 50%; background: var(--good); color: #fff; font-size: calc(9px * var(--fs-scale,1)); font-weight: 900; line-height: 1; }
+  .cal-day.partial .cal-dots { position: relative; }
+  .cal-day.partial::after { content: ''; position: absolute; top: 6px; right: 6px; width: 6px; height: 6px; border-radius: 50%; background: var(--warn); }
   .cal-dot { width: 6px; height: 6px; border-radius: 50%; }
   .cal-more { font-size: calc(10px * var(--fs-scale, 1)); color: var(--text-faint); font-weight: 700; }
   .cal-panel { padding: 4px 24px 20px; }
@@ -1199,6 +1205,16 @@
     .exd-reg .exd-num { flex: 1 1 0; }
     .exd-reg .exd-done-btn { flex: 1 1 100%; margin-left: 0; }
   }
+  /* Resumo do que foi feito no dia (card já concluído) */
+  .exd-reg-donerow { margin-top: 10px; }
+  .exd-doneinfo { display: inline-flex; align-items: center; gap: 4px; font-size: calc(12px * var(--fs-scale,1)); font-weight: 700; color: var(--good-text); background: var(--good-soft); border: 1px solid color-mix(in srgb, var(--good) 40%, var(--border)); border-radius: 20px; padding: 4px 12px; }
+  /* Registro já salvo no dia (não concluído): valor + ações compactas */
+  .exd-reg-saved { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; flex: 1 1 auto; }
+  .exd-reg-value { font-size: calc(12.5px * var(--fs-scale,1)); font-weight: 700; color: var(--text); font-family: 'Space Mono', monospace; }
+  .exd-reg-saved .exd-reg-more { margin-left: auto; }
+  .exd-reg .exd-reg-more, .exd-reg .exd-reg-edit, .exd-reg .exd-reg-cancel { padding: 7px 12px; font-size: calc(12px * var(--fs-scale,1)); }
+  /* Aviso de dia futuro (planejamento) */
+  .exd-planejado { font-size: calc(12px * var(--fs-scale,1)); font-weight: 600; color: var(--text-faint); font-style: italic; }
   /* caixa alta nas etiquetas das atividades (mais limpo e legível) */
   .exd-tags .extra-tag, .exm-sub .extra-tag { text-transform: uppercase; letter-spacing: 0.02em; font-size: calc(9.5px * var(--fs-scale,1)); }
   /* gerenciador de recorrentes / avulsas */
@@ -3784,6 +3800,24 @@
   .cloud-status-sub .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--good); box-shadow: 0 0 0 3px var(--good-soft); }
   .cloud-status-sub.syncing .dot { background: var(--warn); box-shadow: 0 0 0 3px var(--warn-soft); }
   .cloud-status-sub.error .dot { background: var(--bad); box-shadow: 0 0 0 3px var(--bad-soft); }
+
+  /* ── Gerenciar sessões ativas (login único entre dispositivos) ── */
+  .cloud-sessions-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+  .cloud-sessions-head .sess-refresh { padding: 4px 10px; font-size: calc(13px * var(--fs-scale,1)); line-height: 1; }
+  .cloud-sessions-list { display: grid; gap: 8px; }
+  .sess-card { display: flex; align-items: center; gap: 12px; border: 1.5px solid var(--border); border-radius: 12px; padding: 11px 14px; background: var(--surface); }
+  .sess-card.is-this { border-color: var(--good-text); background: var(--good-soft); }
+  .sess-ico { font-size: calc(20px * var(--fs-scale,1)); flex-shrink: 0; }
+  .sess-info { flex: 1; min-width: 0; }
+  .sess-name { font-weight: 700; font-size: calc(13px * var(--fs-scale,1)); color: var(--text); display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+  .sess-badge { font-size: calc(9px * var(--fs-scale,1)); font-weight: 800; letter-spacing: 0.04em; text-transform: uppercase; border-radius: 20px; padding: 1px 8px; white-space: nowrap; }
+  .sess-badge.this { color: var(--good-text); background: var(--surface); border: 1px solid var(--good-text); }
+  .sess-badge.other { color: var(--warn-text); background: var(--surface); border: 1px solid var(--warn-text); }
+  .sess-meta { font-size: calc(11px * var(--fs-scale,1)); color: var(--text-faint); font-family: 'Space Mono', monospace; margin-top: 2px; }
+  .sess-actions { flex-shrink: 0; display: flex; gap: 6px; }
+  .sess-actions .btn-secondary { padding: 6px 11px; font-size: calc(12px * var(--fs-scale,1)); }
+  .cloud-sessions-empty { color: var(--text-faint); font-size: calc(12px * var(--fs-scale,1)); padding: 12px; text-align: center; border: 1px dashed var(--border); border-radius: 10px; }
+  .cloud-sessions-off { color: var(--text-faint); font-size: calc(12px * var(--fs-scale,1)); padding: 12px 14px; background: var(--surface-sunken); border-radius: 10px; line-height: 1.5; }
   .cloud-slot-row {
     display: flex; align-items: center; justify-content: space-between; gap: 10px;
     padding: 10px 12px; border: 1px solid var(--border); border-radius: 12px; background: var(--surface-sunken);
@@ -6292,6 +6326,14 @@
           </div>
 
           <hr class="divider">
+          <div class="cloud-sessions-head">
+            <p class="section-label" style="margin:0;">Aparelho com sessão ativa</p>
+            <button type="button" class="btn-secondary sess-refresh" id="cloud-sessions-refresh" title="Atualizar">↻</button>
+          </div>
+          <p class="hint" style="margin:4px 0 10px;">Sua conta mantém <strong>um aparelho ativo por vez</strong>. Aqui você vê qual está com a sessão e pode encerrá-lo ou trazer a sessão para este aparelho.</p>
+          <div id="cloud-sessions-list" class="cloud-sessions-list"></div>
+
+          <hr class="divider">
           <p class="section-label">Este perfil: <span id="cloud-current-profile-name">—</span></p>
           <div class="field">
             <label for="cloud-slot-name">Nome deste espaço na nuvem</label>
@@ -8288,6 +8330,8 @@ const DB = {
     const list = this.getExtras(); const e = list.find(x => x.id === id);
     if (!e) return null;
     dia = dia || todayLocal();
+    // Guarda de integridade: nunca conclui um dia futuro (planejamento, não execução).
+    if (on && dia > todayLocal()) return e;
     if (this.extraRecorrente(e)) {
       e.concluidasEm = Array.isArray(e.concluidasEm) ? e.concluidasEm : [];
       const i = e.concluidasEm.indexOf(dia);
@@ -17750,6 +17794,7 @@ const ExtrasScreen = {
   selDay: null,
   _showFilters: undefined,
   _fStart: null, _fEnd: null,
+  _addMoreFor: null,   // "id@dia" cujo card está com o input de "registrar mais" aberto
   _CHECK: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>',
   render() {
     // toggle global
@@ -17759,6 +17804,12 @@ const ExtrasScreen = {
     if (summary) { summary.innerHTML = ''; summary.style.display = 'none'; }  // topo agora vive na agenda
     const list = document.getElementById('extras-list');
     const hoje = todayLocal();
+    // Bug corrigido (contexto): ao trocar de planejamento/perfil, o dia e a janela
+    // do calendário ficavam presos no contexto anterior. Reseta para hoje quando o
+    // contexto muda, para nunca exibir a data de outro planejamento.
+    let ctx = 'p'; try { ctx = DB._profilePrefix() + '|' + DB._activePlanId(); } catch (_) {}
+    if (this._ctxKey !== ctx) { this._ctxKey = ctx; this.selDay = hoje; this._calStart = this._addDays(hoje, -3); this._addMoreFor = null; }
+    // se a data selecionada ficou no futuro por navegação, ainda é válida; só garante um valor
     if (!this.selDay) this.selDay = hoje;
     const extras = DB.getExtras();
     this.renderAgenda(); // calendário + cabeçalho do dia + carga horária + filtros
@@ -17770,7 +17821,16 @@ const ExtrasScreen = {
     const day = this.selDay;
     const occ = this.occurrencesForDay(day);
     if (occ.length === 0) {
-      list.innerHTML = `<div class="extras-empty"><div class="big">🗓️</div>Nada agendado para <strong>${escapeHtml(this._prettyDay(day))}</strong>.<br>Vincule uma atividade a este dia no calendário acima, ou crie uma recorrência em <strong>🔁 Gerenciar</strong>.</div>`;
+      const ehHoje = day === hoje;
+      const futuro = day > hoje;
+      const dica = futuro
+        ? 'Vincule atividades a este dia no calendário para planejar com antecedência.'
+        : (ehHoje
+          ? 'Crie uma atividade ou uma recorrência em <strong>🔁 Gerenciar</strong>.'
+          : 'Nenhum registro ou atividade neste dia.');
+      list.innerHTML = `<div class="extras-empty"><div class="big">🗓️</div>Nada em <strong>${escapeHtml(this._prettyDay(day))}</strong>.<br>${dica}${!ehHoje ? '<br><button type="button" class="btn-secondary" id="ex-empty-hoje" style="margin-top:14px;">→ Ir para hoje</button>' : ''}</div>`;
+      const bh = document.getElementById('ex-empty-hoje');
+      if (bh) bh.addEventListener('click', () => { this.selDay = hoje; this._calStart = this._addDays(hoje, -3); this.render(); });
       this._syncManage();
       return;
     }
@@ -17799,13 +17859,24 @@ const ExtrasScreen = {
         return this._recurOnDay(x, day);
       }
       if (datas.length) return datas.includes(day);
-      /* BUG CORRIGIDO: a atividade AVULSA sumia da tela assim que era concluida
+      /* BUG CORRIGIDO (A): a atividade AVULSA sumia da tela assim que era concluida
          (o filtro descartava status === 'concluida'). Sem ela na lista nao havia
          como editar, consultar o que foi feito, nem reabrir se voce marcou por
          engano — restava recriar do zero.
          Agora ela FICA, marcada como concluida, com o botao virando "Reabrir".
-         Continua aparecendo so no dia de hoje quando nao tem data propria. */
-      return (day === hoje);
+
+         BUG CORRIGIDO (A2 — preservacao de data): a avulsa aparecia SOMENTE hoje.
+         Se voce registrasse progresso num dia passado, ao voltar aquele dia a
+         atividade nao aparecia e o registro "sumia" da visao (parecia perda de
+         dado). Agora ela tambem aparece em QUALQUER dia onde houve registro,
+         preservando o historico exatamente no dia correto. */
+      const temHistoricoNoDia = (x.historico || []).some(h => h.data === day);
+      if (temHistoricoNoDia) return true;
+      // pendencia: enquanto nao concluida, fica visivel no dia de hoje
+      if (day === hoje && x.status !== 'concluida') return true;
+      // concluida (sem data propria): permanece acessivel no dia de hoje
+      if (day === hoje) return true;
+      return false;
     });
   },
   _recurOnDay(x, day) {
@@ -18098,21 +18169,43 @@ const ExtrasScreen = {
     const regsDia = (x.historico || []).filter(h => h.data === day);
     const nReg = regsDia.length;
     const ultimoReg = nReg ? regsDia[nReg - 1] : null;
-    /* Registro de tempo independente da conclusão: pode ser parcial ou integral. */
-    const regRow = done ? '' : `
-        <div class="exd-reg">
-          ${ultimoReg ? `
-            <div class="exd-reg-saved">
-              <span class="exd-reg-value">${escapeHtml(String(ultimoReg.quantidade || 0))} ${escapeHtml(unidLabel)}</span>
-              <button type="button" class="btn-secondary exd-reg-edit">Editar</button>
-            </div>` : `
+    const totalDia = regsDia.reduce((a, h) => a + (h.quantidade || 0), 0);
+    const acertosDia = regsDia.reduce((a, h) => a + (h.acertos != null ? (parseFloat(h.acertos) || 0) : 0), 0);
+    const temAcertos = x.tipo === 'questoes' && regsDia.some(h => h.acertos != null);
+    const futuro = day > todayLocal();
+    /* Registro independente da conclusão: pode ser parcial ou integral.
+       Bug corrigido (C): quando concluída, o card ESCONDIA tudo o que foi feito.
+       Agora mostra um resumo do que foi registrado no dia (inclusive acertos). */
+    let regRow;
+    if (done) {
+      regRow = totalDia > 0
+        ? `<div class="exd-reg exd-reg-donerow">
+             <span class="exd-doneinfo">✓ <b>${totalDia.toLocaleString('pt-BR')}</b> ${escapeHtml(unidLabel)} registrado(s) neste dia${temAcertos ? ` · <b>${acertosDia.toLocaleString('pt-BR')}</b> acerto(s)` : ''}</span>
+           </div>`
+        : '';
+    } else if (futuro) {
+      // Dia futuro é planejamento: sem registro/conclusão, só um aviso discreto.
+      regRow = `<div class="exd-reg"><span class="exd-planejado">🗓️ Planejado para ${escapeHtml(formatDateShort(day))} — registre a partir do dia</span></div>`;
+    } else {
+      const forceInput = (this._addMoreFor === x.id + '@' + day);
+      const inputGroup = `
             <div class="exd-reg-group">
               <input type="number" inputmode="decimal" class="exd-num exd-qtd" min="0"
                      placeholder="${placeholder}" title="Informe o valor a registrar">
               ${x.tipo === 'questoes' ? `<input type="number" inputmode="numeric" class="exd-num exd-ac" min="0" placeholder="acertos" title="Acertos (opcional)">` : ''}
               <button type="button" class="btn-primary exd-reg-btn">Registrar</button>
-            </div>`}
+              ${ultimoReg ? `<button type="button" class="btn-secondary exd-reg-cancel">Cancelar</button>` : ''}
+            </div>`;
+      regRow = `
+        <div class="exd-reg">
+          ${(ultimoReg && !forceInput) ? `
+            <div class="exd-reg-saved">
+              <span class="exd-reg-value">✓ ${totalDia.toLocaleString('pt-BR')} ${escapeHtml(unidLabel)} no dia${temAcertos ? ` · ${acertosDia.toLocaleString('pt-BR')} acerto(s)` : ''}</span>
+              <button type="button" class="btn-secondary exd-reg-more">＋ Registrar mais</button>
+              <button type="button" class="btn-secondary exd-reg-edit">Editar último</button>
+            </div>` : inputGroup}
         </div>`;
+    }
     return `
       <div class="exd ${done ? 'done' : ''}" data-id="${x.id}" data-day="${day}" style="--exd-cor:${cor}; --exd-fill:${alvo > 0 ? pct : (done ? 100 : 0)}%;">
         <div class="exd-top">
@@ -18146,6 +18239,8 @@ const ExtrasScreen = {
       // marcar/desmarcar conclusão do DIA (checkbox redondo)
       const check = card.querySelector('.exd-check');
       if (check) check.addEventListener('click', () => {
+        // Bug corrigido (B): concluir só faz sentido até hoje — dia futuro é planejamento.
+        if (day > todayLocal()) { showToast('Este dia ainda não chegou — conclua a partir da data de hoje'); return; }
         const x = DB.getExtra(id);
         const jaFeita = DB.extraConcluidaEm(x, day);
         DB.setConcluidaDia(id, day, !jaFeita);
@@ -18166,9 +18261,15 @@ const ExtrasScreen = {
         if (acEl && acEl.value !== '' && parseFloat(acEl.value) > parseFloat(q)) { showToast('Acertos não podem passar do total'); return; }
         if (day > todayLocal()) { showToast('Não dá para registrar em data futura'); return; }
         DB.addExtraProgress(id, q, 0, { data: day, acertos: acEl ? acEl.value : null });
+        this._addMoreFor = null;
         this.render();
         showToast(day === todayLocal() ? 'Registrado ✓' : 'Registrado em ' + formatDateShort(day) + ' ✓');
       });
+      // "Registrar mais": revela o campo de entrada mesmo já havendo um registro no dia
+      const moreBtn = card.querySelector('.exd-reg-more');
+      if (moreBtn) moreBtn.addEventListener('click', () => { this._addMoreFor = id + '@' + day; this.render(); setTimeout(() => { const inp = list.querySelector(`.exd[data-id="${id}"][data-day="${day}"] .exd-qtd`); if (inp) inp.focus(); }, 30); });
+      const cancelBtn = card.querySelector('.exd-reg-cancel');
+      if (cancelBtn) cancelBtn.addEventListener('click', () => { this._addMoreFor = null; this.render(); });
       const editReg = card.querySelector('.exd-reg-edit');
       if (editReg) editReg.addEventListener('click', () => {
         const xAtual = DB.getExtra(id);
@@ -18184,6 +18285,7 @@ const ExtrasScreen = {
           if (v.acertos !== undefined && v.acertos !== '' && parseFloat(v.acertos) > novo) { showToast('Acertos não podem passar do total'); return; }
           DB.undoExtraProgressDay(id, day);
           DB.addExtraProgress(id, novo, 0, { data: day, acertos: v.acertos == null ? null : v.acertos });
+          this._addMoreFor = null;
           this.render();
           showToast('Registro atualizado ✓');
         });
@@ -18418,13 +18520,18 @@ const ExtrasScreen = {
       const d = new Date(dia + 'T00:00:00');
       const occ = this.occurrencesForDay(dia);
       const total = occ.length;
+      const feitos = occ.filter(x => DB.extraConcluidaEm(x, dia)).length;
+      const allDone = total > 0 && feitos === total && dia <= hoje;
+      const partial = total > 0 && feitos > 0 && feitos < total;
       const dots = occ.slice(0, 4).map(x => `<span class="cal-dot" style="background:${this._tipoColor(x.tipo)}"></span>`).join('');
       const sel = dia === this.selDay, isHoje = dia === hoje;
-      strip += `<button type="button" class="cal-day ${sel ? 'sel' : ''} ${isHoje ? 'hoje' : ''}" data-dia="${dia}">
+      const marca = allDone ? '<span class="cal-alldone">✓</span>'
+        : (total > 0 ? `<span class="cal-dots">${dots}${total > 4 ? '<span class="cal-more">+' + (total - 4) + '</span>' : ''}</span>` : '<span class="cal-dots">&nbsp;</span>');
+      strip += `<button type="button" class="cal-day ${sel ? 'sel' : ''} ${isHoje ? 'hoje' : ''} ${allDone ? 'alldone' : ''} ${partial ? 'partial' : ''}" data-dia="${dia}" title="${total ? feitos + '/' + total + ' concluída(s)' : 'sem atividades'}">
         <span class="cal-wd">${nomes[d.getDay()]}</span>
         <span class="cal-dn">${String(d.getDate()).padStart(2, '0')}</span>
         <span class="cal-mo">${meses[d.getMonth()]}</span>
-        <span class="cal-dots">${dots || '&nbsp;'}${total > 4 ? '<span class="cal-more">+' + (total - 4) + '</span>' : ''}</span>
+        ${marca}
       </button>`;
     }
     // dados do dia selecionado
@@ -22853,6 +22960,8 @@ const SessionGuard = {
           if (!row.device_id) return;
           if (row.device_id !== this.deviceId()) this._takenBy(row);
           else if (window.SessionLock && SessionLock.isBlocked() && SessionLock._origin === 'remote') SessionLock.unblock();
+          // se a tela de Configurações estiver aberta, reflete a mudança na hora
+          try { const cfg = document.getElementById('screen-config'); if (cfg && cfg.classList.contains('active') && window.CloudUI) CloudUI.renderSessions(); } catch (_) {}
         })
         .subscribe((status) => { if (status === 'SUBSCRIBED') this.check(uid); });
     } catch (e) { console.warn('[SessionGuard] realtime indisponível', e); }
@@ -22867,6 +22976,36 @@ const SessionGuard = {
     // interrompe qualquer envio pendente para não sobrescrever o outro aparelho
     try { const CS = window.CloudStore; if (CS) { clearTimeout(CS._debounce); CS._debounce = null; CS._pending = false; } } catch (_) {}
     if (window.CloudUI) CloudUI.refreshSyncBtn();
+  },
+
+  // ---- Usado pela tela de Configurações ----
+  // status: 'ok' (leu a linha), 'empty' (sem sessão registrada), 'disabled'
+  // (tabela ausente/guard desligado), 'offline' (sem conexão/login), 'error'.
+  async fetchActive() {
+    if (!this.enabled) return { status: 'disabled' };
+    const CS = window.CloudStore;
+    if (!CS || !CS.isReady() || !CS.isLoggedIn()) return { status: 'offline' };
+    try {
+      const { data, error } = await CS.client.from(this.TABLE)
+        .select('device_id,device_label,updated_at').eq('user_id', CS.session.user.id).maybeSingle();
+      if (error) { if (this._isMissingTable(error)) { this._disable(error); return { status: 'disabled' }; } return { status: 'error', message: error.message }; }
+      if (!data || !data.device_id) return { status: 'empty' };
+      return {
+        status: 'ok',
+        row: data,
+        isThisDevice: data.device_id === this.deviceId(),
+        thisDeviceId: this.deviceId(),
+        thisLabel: this.deviceLabel()
+      };
+    } catch (err) { if (this._isMissingTable(err)) { this._disable(err); return { status: 'disabled' }; } return { status: 'error', message: err && err.message }; }
+  },
+  // Encerra a sessão do outro aparelho trazendo a posse para ESTE (reivindica).
+  // O outro aparelho recebe o evento em tempo real e é bloqueado.
+  async endRemoteAndClaimHere() {
+    const ok = await this.claim();
+    if (ok && window.SessionLock && SessionLock.isBlocked() && SessionLock._origin === 'remote') SessionLock.unblock();
+    if (window.CloudUI) CloudUI.refreshSyncBtn();
+    return ok;
   }
 };
 window.SessionGuard = SessionGuard;
@@ -23441,6 +23580,63 @@ const CloudUI = {
       const auto = document.getElementById('cloud-autosync'); if (auto && auto.closest('label')) auto.closest('label').style.display = 'none';
       const slots = document.getElementById('cloud-slots-list'); if (slots) slots.innerHTML = '<p class="hint">A sincronização é automática. Use os botões acima só para forçar envio/baixa manual.</p>';
       this.setStatus('ok', 'Sincronização automática ativa');
+      this.renderSessions();
+    }
+  },
+  // Painel "Aparelho com sessão ativa" (login único entre dispositivos).
+  async renderSessions() {
+    const box = document.getElementById('cloud-sessions-list');
+    if (!box) return;
+    if (!window.SessionGuard) { box.innerHTML = '<p class="cloud-sessions-off">Controle de sessões indisponível nesta versão.</p>'; return; }
+    box.innerHTML = '<p class="hint" style="text-align:center; padding:10px;">Carregando…</p>';
+    const r = await SessionGuard.fetchActive();
+    if (r.status === 'disabled') {
+      box.innerHTML = '<div class="cloud-sessions-off">🔒 O <strong>login único entre dispositivos</strong> ainda não está ativado. Rode o script SQL (tabela <code>active_sessions</code>) no Supabase para habilitar. O bloqueio entre abas do mesmo navegador já funciona.</div>';
+      return;
+    }
+    if (r.status === 'offline') { box.innerHTML = '<div class="cloud-sessions-off">Sem conexão com a conta agora. Tente novamente.</div>'; return; }
+    if (r.status === 'error') { box.innerHTML = '<div class="cloud-sessions-off">Não foi possível carregar: ' + escapeHtml(r.message || '') + '</div>'; return; }
+    if (r.status === 'empty') {
+      box.innerHTML = '<div class="cloud-sessions-empty">Nenhuma sessão registrada ainda. Ela aparece assim que você usar a conta em um aparelho.</div>';
+      return;
+    }
+    // status 'ok'
+    const row = r.row;
+    const isThis = r.isThisDevice;
+    const quando = row.updated_at ? new Date(row.updated_at).toLocaleString('pt-BR') : '';
+    const nome = escapeHtml(row.device_label || 'Aparelho');
+    const idCurto = escapeHtml(String(row.device_id || '').slice(0, 8));
+    if (isThis) {
+      box.innerHTML = `<div class="sess-card is-this">
+        <span class="sess-ico">💻</span>
+        <div class="sess-info">
+          <div class="sess-name">${nome} <span class="sess-badge this">este aparelho</span></div>
+          <div class="sess-meta">ativo desde ${escapeHtml(quando)} · id ${idCurto}</div>
+        </div>
+      </div>
+      <p class="hint" style="margin:8px 0 0;">Esta é a única sessão ativa. Ao entrar em outro aparelho, ele assume e esta é encerrada automaticamente.</p>`;
+    } else {
+      box.innerHTML = `<div class="sess-card">
+        <span class="sess-ico">📱</span>
+        <div class="sess-info">
+          <div class="sess-name">${nome} <span class="sess-badge other">outro aparelho</span></div>
+          <div class="sess-meta">ativo desde ${escapeHtml(quando)} · id ${idCurto}</div>
+        </div>
+        <div class="sess-actions">
+          <button type="button" class="btn-primary" id="cloud-sess-endother">Encerrar e usar aqui</button>
+        </div>
+      </div>
+      <p class="hint" style="margin:8px 0 0;">Este aparelho (${escapeHtml(r.thisLabel)}) não está com a sessão. "Encerrar e usar aqui" bloqueia o outro e traz a sessão para cá.</p>`;
+      const btn = document.getElementById('cloud-sess-endother');
+      if (btn) btn.addEventListener('click', async () => {
+        const ok = await UI.confirm('Encerrar a sessão em "' + (row.device_label || 'outro aparelho') + '" e trazer a sessão para este aparelho?\n\nO outro aparelho será bloqueado e sua sincronização, pausada.', { title: '📵 Encerrar sessão', okText: 'Encerrar e usar aqui' });
+        if (!ok) return;
+        btn.disabled = true; btn.textContent = 'Encerrando…';
+        const done = await SessionGuard.endRemoteAndClaimHere();
+        if (done) { showToast('Sessão trazida para este aparelho ✓'); }
+        else { showToast('Não foi possível agora — verifique a internet'); }
+        this.renderSessions();
+      });
     }
   },
   setStatus(tone, text) {
@@ -23631,6 +23827,7 @@ window.CloudUI = CloudUI;
   }));
   on('cloud-signout', 'click', async () => { await CloudStore.signOut(); CloudUI.render(); showToast('Desconectado da nuvem'); });
   on('cloud-change-pass', 'click', () => CloudUI.changePassword());
+  on('cloud-sessions-refresh', 'click', () => CloudUI.renderSessions());
   on('cloud-push-now', 'click', () => CloudStore.autoSave());
   on('cloud-pull-now', 'click', () => CloudStore.pullActiveAndReload());
 })();
