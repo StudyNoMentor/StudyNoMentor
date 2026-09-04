@@ -4416,6 +4416,12 @@
     max-width: 76ch;
     margin: 0 auto;
   }
+  /* Texto corrido justificado (aparência de vade mecum). Aplico no BLOCO
+     (o alinhamento de texto é do container, não do <span> inline interno).
+     Cabeçalhos continuam centralizados pela regra .law-head; linhas curtas
+     (incisos/alíneas) não esticam porque não chegam a quebrar. */
+  .lei-reader-body .law-block { text-align: justify; text-justify: inter-word; -webkit-hyphens: auto; hyphens: auto; }
+  .lei-reader-body .law-block.law-head { text-align: center; hyphens: manual; }
   .law-block { margin: 3px 0; position: relative; }
   .law-gap { height: 14px; }
   /* Numeração de linha (gutter) — some por padrão; aparece com .show-lines */
@@ -7472,10 +7478,13 @@
   border-width: 1.5px; flex: 0 0 auto; order: 0;
 }
 #screen-registrar[data-reg-mode="compacto"] .step.done .step-num::after { font-size: 12px; }
-#screen-registrar[data-reg-mode="compacto"] .step-head { order: 1; flex: 1 1 auto; min-width: 0; margin: 0 0 10px; }
-#screen-registrar[data-reg-mode="compacto"] .step-title { font-size: calc(13px * var(--fs-scale, 1)); }
+/* margin ZERO no título: assim o círculo (align-items:center) centraliza contra o
+   texto do título, e não contra "título + margem" — o que antes o deslocava p/ cima.
+   O respiro que era do título passa para o bloco de campos (margin-top). */
+#screen-registrar[data-reg-mode="compacto"] .step-head { order: 1; flex: 1 1 auto; min-width: 0; margin: 0; }
+#screen-registrar[data-reg-mode="compacto"] .step-title { font-size: calc(13px * var(--fs-scale, 1)); line-height: 1.25; }
 #screen-registrar[data-reg-mode="compacto"] .step-desc { display: none; }
-#screen-registrar[data-reg-mode="compacto"] .step > *:not(.step-num):not(.step-head) { order: 2; flex: 1 0 100%; }
+#screen-registrar[data-reg-mode="compacto"] .step > *:not(.step-num):not(.step-head) { order: 2; flex: 1 0 100%; margin-top: 10px; }
 #screen-registrar[data-reg-mode="compacto"] #step-3,
 #screen-registrar[data-reg-mode="compacto"] #step-5 { grid-column: 1 / -1; }
 #screen-registrar[data-reg-mode="compacto"] #step-5 { border-bottom: none; margin-bottom: 4px; padding-bottom: 4px !important; }
@@ -7502,6 +7511,28 @@
 @media (max-width: 640px) {
   #screen-registrar[data-reg-mode="compacto"] #step-3 .row-3 { grid-template-columns: 1fr 1fr; }
   #screen-registrar[data-reg-mode="compacto"] #step-3 .row-3 > .field:first-child { grid-column: 1 / -1; }
+}
+
+/* ── Registrar no celular: acabamento dos círculos e do medidor ────────────
+   Consolido aqui os ajustes de mobile pedidos: os números-círculo não podem
+   parecer deslocados nem "querer sobrepor", e o anel de % precisa caber. */
+@media (max-width: 560px) {
+  /* MODO COMPACTO (padrão no celular): círculo perfeitamente centrado ao título */
+  #screen-registrar[data-reg-mode="compacto"] .step { align-items: center; column-gap: 10px; }
+  #screen-registrar[data-reg-mode="compacto"] .step-num {
+    width: 22px; height: 22px; line-height: 1;
+    align-self: center;                 /* trava a centralização vertical do círculo */
+  }
+  /* o anel de % não pode encolher ao ponto de o texto estourar por dentro */
+  #screen-registrar[data-reg-mode="compacto"] .gauge { width: 72px; height: 72px; }
+
+  /* MODO GUIADO (trilha vertical): círculo e linha no MESMO eixo, sem overlap */
+  #screen-registrar:not([data-reg-mode="compacto"]) .step { padding-left: 40px; }
+  #screen-registrar:not([data-reg-mode="compacto"]) .step-num { width: 28px; height: 28px; }
+  #screen-registrar:not([data-reg-mode="compacto"]) .step::before { left: 13px; top: 32px; }
+  /* anel de foco/concluído menor no mobile, para não "vazar" além do círculo */
+  #screen-registrar:not([data-reg-mode="compacto"]) .step.done .step-num,
+  #screen-registrar:not([data-reg-mode="compacto"]) .step.active .step-num { box-shadow: 0 0 0 3px var(--accent-ring); }
 }
 
 /* ---------------------------------------------------------------------------
@@ -12077,11 +12108,29 @@ const LawEngine = {
         spans.push({ start: m.index, end: m.index + m[0].length, cls: cat.cls });
       }
     });
-    // manuais: destaca as ocorrências da substring na linha, respeitando limites de palavra
-    // (antes, marcar "do" acendia o "do" dentro de "servidor" e "notificado")
+    // manuais:
+    //  • Marca ANCORADA {t,l,s} → acende SÓ a ocorrência exata que o usuário marcou.
+    //    (é o comportamento correto: marcar uma palavra não deve acender todas as iguais).
+    //  • String (legado) → mantém o modo antigo: todas as ocorrências na linha,
+    //    respeitando limites de palavra (marcar "do" não acende o "do" de "servidor").
     (manualList || []).forEach(sub => {
+      if (sub && typeof sub === 'object') {
+        if (sub.l !== ln) return;
+        const t = String(sub.t || '');
+        if (!t) return;
+        let s = sub.s;
+        // valida a âncora; se o texto foi editado e a posição não bate mais,
+        // reencontra a 1ª ocorrência na linha para o destaque não se perder.
+        if (!(typeof s === 'number' && s >= 0 && line.substr(s, t.length).toLowerCase() === t.toLowerCase())) {
+          const idx = line.toLowerCase().indexOf(t.toLowerCase());
+          if (idx === -1) return;
+          s = idx;
+        }
+        spans.push({ start: s, end: s + t.length, cls: 'lawmark-manual' });
+        return;
+      }
       if (!sub || sub.length < 2) return;
-      const low = line.toLowerCase(), needle = sub.toLowerCase();
+      const low = line.toLowerCase(), needle = String(sub).toLowerCase();
       const inicioPal = /[\wÀ-ÿ]/.test(needle[0]);
       const fimPal = /[\wÀ-ÿ]/.test(needle[needle.length - 1]);
       let from = 0, i;
@@ -17119,11 +17168,16 @@ const LeisScreen = {
     let html = '';
     if (marks.length) {
       html += `<p class="section-label" style="margin:0 0 8px;">Seus destaques</p>` +
-        marks.map((m, i) => `
+        marks.map((m, i) => {
+          const mt = (typeof m === 'string') ? m : (m.t || '');
+          const ln = (typeof m === 'string') ? null : m.l;
+          return `
           <div class="lei-mark-row" data-mark="${i}">
-            <span class="lawmark-manual lei-mark-text">${escapeHtml(m)}</span>
+            <span class="lawmark-manual lei-mark-text">${escapeHtml(mt)}</span>
+            ${ln != null ? `<span class="hint" style="margin:0 8px 0 auto; white-space:nowrap;">linha ${ln}</span>` : ''}
             <button type="button" class="icon-btn danger lei-mark-del" title="Remover destaque">×</button>
-          </div>`).join('');
+          </div>`;
+        }).join('');
     }
     if (suppressed.length) {
       html += `<div style="display:flex; align-items:center; justify-content:space-between; margin:14px 0 8px;">
@@ -17186,36 +17240,61 @@ const LeisScreen = {
   onBodyMouseUp() {
     if (!this.hlMode) return;
     const sel = window.getSelection ? window.getSelection() : null;
-    const txt = sel ? String(sel).trim() : '';
+    const raw = sel ? String(sel) : '';
+    const txt = raw.trim();
     if (!txt || txt.length < 2) return;
     if (txt.length > 200) { showToast('Seleção muito longa'); return; }
-    // descobre em que linha a seleção começou (para apagar só ali)
-    let linha = null;
+    // Descobre a LINHA e o DESLOCAMENTO exato da seleção dentro do texto puro da
+    // linha. Com isso a marcação manual acende só ESTA ocorrência — não todas as
+    // palavras iguais da lei (o "marcar todas" segue valendo só para o automático).
+    let linha = null, offset = null;
     try {
-      const nó = sel.anchorNode;
-      const el = nó && (nó.nodeType === 3 ? nó.parentNode : nó);
+      const range = sel.getRangeAt(0);
+      const node = range.startContainer;
+      const el = node && (node.nodeType === 3 ? node.parentNode : node);
       const bloco = el && el.closest ? el.closest('.law-block') : null;
+      const content = el && el.closest ? el.closest('.law-content') : null;
       if (bloco) linha = parseInt(bloco.dataset.line);
+      if (content) {
+        const pre = range.cloneRange();
+        pre.selectNodeContents(content);
+        pre.setEnd(range.startContainer, range.startOffset);
+        const lead = raw.length - raw.replace(/^\s+/, '').length; // espaços aparados à esquerda
+        offset = pre.toString().length + lead;
+      }
     } catch (_) {}
-    if (this.hlMode === 'mark') this.applyMark(txt);
+    if (this.hlMode === 'mark') this.applyMark(txt, linha, offset);
     else if (this.hlMode === 'erase') this.applyErase(txt, linha);
     if (sel && sel.removeAllRanges) sel.removeAllRanges();
   },
-  applyMark(txt) {
+  applyMark(txt, linha, offset) {
     const lei = DB.getLei(this.currentId);
-    const marks = lei.marcacoes || [];
-    if (!marks.some(m => m.toLowerCase() === txt.toLowerCase())) {
+    const marks = (lei.marcacoes || []).slice();
+    const norm = (m) => (typeof m === 'string' ? m : (m && m.t) || '').toLowerCase();
+    if (linha != null && typeof offset === 'number' && offset >= 0) {
+      // Marcação ANCORADA: aquela ocorrência específica (linha + posição).
+      const existe = marks.some(m => m && typeof m === 'object' && m.l === linha && m.s === offset && norm(m) === txt.toLowerCase());
+      if (existe) return;
+      marks.push({ t: txt, l: linha, s: offset });
+    } else {
+      // Fallback sem âncora: mantém o comportamento antigo por texto.
+      if (marks.some(m => norm(m) === txt.toLowerCase())) return;
       marks.push(txt);
-      DB.updateLei(this.currentId, { marcacoes: marks });
-      this.renderBody(); this.renderMarks();
     }
+    DB.updateLei(this.currentId, { marcacoes: marks });
+    this.renderBody(); this.renderMarks();
   },
   // Borracha: remove destaque MANUAL e suprime os automáticos daquele trecho — só na LINHA
   // em que você apagou (quando conhecida), não na lei inteira.
   applyErase(txt, linha) {
     const lei = DB.getLei(this.currentId);
     const key = txt.toLowerCase();
-    const marks = (lei.marcacoes || []).filter(m => m.toLowerCase() !== key);
+    const marks = (lei.marcacoes || []).filter(m => {
+      if (typeof m === 'string') return m.toLowerCase() !== key;        // legado: remove os iguais
+      if ((m.t || '').toLowerCase() !== key) return true;               // texto diferente: mantém
+      if (linha != null && m.l != null && m.l !== linha) return true;   // outra linha: mantém
+      return false;                                                     // mesma ocorrência: remove
+    });
     const suppressed = (lei.suppressed || []).slice();
     const jaTem = (t) => suppressed.some(s => (typeof s === 'string' ? s.toLowerCase() === t.toLowerCase()
       : String(s.t).toLowerCase() === t.toLowerCase() && s.l === linha));
@@ -17241,7 +17320,12 @@ const LeisScreen = {
     const lei = DB.getLei(this.currentId);
     const key = (text || '').trim().toLowerCase();
     if (!key) return;
-    const marks = (lei.marcacoes || []).filter(m => m.toLowerCase() !== key);
+    const marks = (lei.marcacoes || []).filter(m => {
+      if (typeof m === 'string') return m.toLowerCase() !== key;
+      if ((m.t || '').toLowerCase() !== key) return true;
+      if (linha != null && m.l != null && m.l !== linha) return true;
+      return false;
+    });
     const suppressed = (lei.suppressed || []).slice();
     const jaTem = suppressed.some(s => (typeof s === 'string' ? s.toLowerCase() === key
       : String(s.t).toLowerCase() === key && s.l === linha));
