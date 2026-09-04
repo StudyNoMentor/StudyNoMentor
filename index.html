@@ -3767,16 +3767,68 @@
 
   /* ---------- Tela de acesso (perfis) ---------- */
   .profile-gate {
-    position: fixed; inset: 0; z-index: 500;
-    background: radial-gradient(1200px 600px at 50% -10%, #eef0fd, var(--bg) 60%);
-    display: flex; align-items: center; justify-content: center; padding: 32px 20px; overflow-y: auto;
+    /* z-index acima do cloud-menu (1400) e dos popovers (1500): a tela de acesso
+       nunca pode ficar atrás de nenhum painel solto. */
+    position: fixed; inset: 0; z-index: 1600;
+    background: var(--bg);
+    display: flex; align-items: stretch; justify-content: center; padding: 0; overflow-y: auto;
   }
-  .profile-gate-inner { width: 100%; max-width: 720px; text-align: center; }
-  .profile-gate-brand { margin-bottom: 30px; }
-  .profile-gate-brand .eyebrow { margin: 0 auto 14px; }
-  .profile-gate-brand h1 { font-size: calc(30px * var(--fs-scale, 1)); font-weight: 800; letter-spacing: -0.02em; margin: 0; }
-  .profile-gate-brand p { color: var(--text-soft); font-size: calc(14px * var(--fs-scale, 1)); margin: 8px 0 0; }
-  .profile-grid { display: flex; flex-wrap: wrap; gap: 18px; justify-content: center; }
+  /* ── Tela de acesso MODERNA: dois painéis (apresentação + formulário) ── */
+  .gate-shell {
+    width: 100%; min-height: 100dvh; display: grid;
+    grid-template-columns: 1.05fr 0.95fr;
+  }
+  /* Painel esquerdo — apresentação (marketing) */
+  .gate-hero {
+    position: relative; overflow: hidden;
+    background:
+      radial-gradient(900px 500px at 12% -10%, rgba(255,255,255,0.18), transparent 60%),
+      linear-gradient(150deg, var(--accent) 0%, #4338ca 45%, #6d28d9 100%);
+    color: #fff; padding: clamp(28px, 4vw, 56px);
+    display: flex; flex-direction: column; justify-content: space-between; gap: 28px;
+  }
+  .gate-hero::after {
+    content: ''; position: absolute; right: -120px; bottom: -120px;
+    width: 360px; height: 360px; border-radius: 50%;
+    background: radial-gradient(circle, rgba(255,255,255,0.14), transparent 70%);
+  }
+  .gate-hero-brand { display: flex; align-items: center; gap: 11px; font-weight: 800; letter-spacing: -0.01em; }
+  .gate-hero-logo { font-size: 26px; }
+  .gate-hero-name { font-size: calc(18px * var(--fs-scale, 1)); }
+  .gate-hero-body { position: relative; z-index: 1; }
+  .gate-hero-title { font-size: clamp(24px, 3vw, 34px); font-weight: 800; line-height: 1.15; letter-spacing: -0.02em; margin: 0 0 14px; max-width: 15ch; }
+  .gate-hero-sub { font-size: calc(14.5px * var(--fs-scale, 1)); line-height: 1.6; color: rgba(255,255,255,0.88); margin: 0 0 26px; max-width: 46ch; }
+  .gate-hero-feats { list-style: none; margin: 0; padding: 0; display: grid; gap: 14px; }
+  .gate-hero-feats li { display: flex; align-items: flex-start; gap: 12px; }
+  .gate-hero-feats .gf-ico {
+    flex: 0 0 auto; width: 38px; height: 38px; border-radius: 11px;
+    background: rgba(255,255,255,0.16); display: flex; align-items: center; justify-content: center; font-size: 19px;
+  }
+  .gate-hero-feats li span:last-child { display: flex; flex-direction: column; }
+  .gate-hero-feats b { font-size: calc(14px * var(--fs-scale, 1)); font-weight: 700; }
+  .gate-hero-feats small { font-size: calc(12px * var(--fs-scale, 1)); color: rgba(255,255,255,0.78); margin-top: 1px; }
+  .gate-hero-foot { position: relative; z-index: 1; font-size: calc(12.5px * var(--fs-scale, 1)); color: rgba(255,255,255,0.8); font-weight: 600; }
+
+  /* Painel direito — acesso */
+  .gate-panel { display: flex; align-items: center; justify-content: center; padding: clamp(28px, 4vw, 48px) 22px; background: var(--bg); }
+  .gate-panel-inner { width: 100%; max-width: 400px; }
+  .gate-panel-head { margin-bottom: 22px; }
+  .gate-panel-head h1 { font-size: calc(26px * var(--fs-scale, 1)); font-weight: 800; letter-spacing: -0.02em; margin: 0; }
+  .gate-panel-head p { color: var(--text-soft); font-size: calc(14px * var(--fs-scale, 1)); margin: 7px 0 0; line-height: 1.5; }
+  .gate-profile-actions { margin-top: 22px; display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; }
+
+  @media (max-width: 860px) {
+    .gate-shell { grid-template-columns: 1fr; }
+    /* no celular a apresentação vira um cabeçalho compacto acima do formulário */
+    .gate-hero { padding: 26px 22px; gap: 18px; }
+    .gate-hero-feats { display: none; }
+    .gate-hero-title { font-size: 22px; margin-bottom: 8px; max-width: none; }
+    .gate-hero-sub { margin-bottom: 0; font-size: 13.5px; }
+    .gate-hero-foot { display: none; }
+    .gate-panel { padding: 26px 20px 40px; }
+  }
+
+  .profile-grid { display: flex; flex-wrap: wrap; gap: 14px; justify-content: center; }
   .profile-card {
     width: 148px; padding: 20px 14px; border-radius: 16px; cursor: pointer;
     background: var(--surface); border: 1.5px solid var(--border); box-shadow: var(--shadow-sm);
@@ -3803,11 +3855,8 @@
   .profile-card.add .profile-card-avatar { background: var(--border-strong) !important; font-weight: 300; }
   .profile-card.add:hover .profile-card-avatar { background: var(--accent) !important; }
   .profile-gate-note { font-size: calc(11px * var(--fs-scale, 1)); color: var(--text-faint); margin-top: 30px; max-width: 52ch; margin-left: auto; margin-right: auto; line-height: 1.5; }
-  .gate-login-box {
-    max-width: 380px; margin: 0 auto; background: var(--surface);
-    border: 1.5px solid var(--border); border-radius: 16px; box-shadow: var(--shadow-md);
-    padding: 26px 24px; text-align: left;
-  }
+  /* tabs Entrar/Criar conta com respiro no painel de acesso */
+  .gate-panel .cloud-auth-tabs { margin-bottom: 18px; }
   /* indicador de conexão com o servidor */
   .gate-conn {
     display: flex; align-items: center; gap: 7px; justify-content: center;
@@ -4387,6 +4436,25 @@
   #lei-hl-toggles.auto-off .leis-hl-chip { opacity: 0.45; pointer-events: none; }
   /* botões de ação */
   .leis-toolbar-actions { border-top: 1px solid var(--border); padding-top: 10px; }
+  /* Gerenciador de palavras destacadas */
+  .lei-kw-add { display: flex; gap: 8px; flex-wrap: wrap; align-items: stretch; }
+  .lei-kw-add #lei-kw-input { flex: 1 1 180px; min-width: 0; }
+  .lei-kw-add #lei-kw-cat { flex: 0 0 auto; }
+  .lei-kw-add .btn-primary { flex: 0 0 auto; }
+  .lei-kw-list { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 6px; min-height: 24px; }
+  .lei-kw-empty { color: var(--text-faint); font-size: calc(12px * var(--fs-scale,1)); padding: 6px 2px; }
+  .lei-kw-item {
+    display: inline-flex; align-items: center; gap: 7px;
+    padding: 5px 6px 5px 10px; border-radius: 20px; border: 1.5px solid var(--border);
+    background: var(--surface); font-size: calc(12.5px * var(--fs-scale,1)); font-weight: 600;
+  }
+  .lei-kw-item mark { padding: 1px 7px; border-radius: 6px; font-weight: 700; }
+  .lei-kw-item .lei-kw-del {
+    width: 20px; height: 20px; border-radius: 50%; border: none; cursor: pointer;
+    background: var(--surface-sunken); color: var(--text-soft); font-size: 13px; line-height: 1;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .lei-kw-item .lei-kw-del:hover { background: var(--bad-soft); color: var(--bad-text); }
   /* Ferramentas (marca-texto / borracha) como toggles */
   .leis-tool-btn {
     padding: 8px 14px; font-size: calc(13px * var(--fs-scale, 1)); font-weight: 700; border-radius: 10px; cursor: pointer;
@@ -5132,51 +5200,71 @@
 
 <!-- ============ TELA DE ACESSO (seleção de perfil) ============ -->
 <div id="profile-gate" class="profile-gate" style="display:none;">
-  <div class="profile-gate-inner">
-    <div class="profile-gate-brand">
-      <h1 id="profile-gate-title">Quem vai estudar?</h1>
-      <p id="profile-gate-sub">Selecione seu perfil para entrar no seu diário.</p>
-    </div>
+  <div class="gate-shell">
 
-    <!-- ETAPA 1: LOGIN (aparece quando não há sessão) -->
-    <div id="gate-login" style="display:none;">
-      <div class="gate-login-box">
-        <div class="gate-conn" id="gate-conn-status"><span class="cdot"></span> Conectando ao servidor...</div>
-        <div class="cloud-auth-tabs" style="margin-bottom:18px;">
-          <button type="button" class="cloud-auth-tab active" data-gatemode="signin">Entrar</button>
-          <button type="button" class="cloud-auth-tab" data-gatemode="signup">Criar conta</button>
+    <!-- PAINEL ESQUERDO: apresentação do produto (encanta quem chega pela 1ª vez) -->
+    <aside class="gate-hero">
+      <div class="gate-hero-brand">
+        <span class="gate-hero-logo">📚</span>
+        <span class="gate-hero-name">Diário de Estudos</span>
+      </div>
+      <div class="gate-hero-body">
+        <h2 class="gate-hero-title">Sua aprovação começa por um estudo bem medido.</h2>
+        <p class="gate-hero-sub">Registre cada sessão, monte seu ciclo semanal, revise com flashcards inteligentes e enxergue sua evolução em gráficos claros — tudo sincronizado na nuvem.</p>
+        <ul class="gate-hero-feats">
+          <li><span class="gf-ico">📈</span><span><b>Evolução real</b><small>Gráficos e metas por matéria, sem planilha.</small></span></li>
+          <li><span class="gf-ico">🃏</span><span><b>Revisão espaçada (FSRS)</b><small>Os flashcards voltam na hora certa de lembrar.</small></span></li>
+          <li><span class="gf-ico">📜</span><span><b>Leis secas inteligentes</b><small>Destaque automático das pegadinhas de prova.</small></span></li>
+          <li><span class="gf-ico">☁️</span><span><b>Na nuvem</b><small>Seus dados iguais em qualquer aparelho.</small></span></li>
+        </ul>
+      </div>
+      <div class="gate-hero-foot">Feito para concurseiros exigentes.</div>
+    </aside>
+
+    <!-- PAINEL DIREITO: acesso -->
+    <div class="gate-panel">
+      <div class="gate-panel-inner">
+        <div class="gate-panel-head">
+          <h1 id="profile-gate-title">Bem-vindo de volta</h1>
+          <p id="profile-gate-sub">Entre para continuar seus estudos.</p>
         </div>
-        <div class="field">
-          <label for="gate-email">E-mail</label>
-          <input type="email" id="gate-email" placeholder="voce@email.com" autocomplete="email">
+
+        <!-- ETAPA 1: LOGIN -->
+        <div id="gate-login" style="display:none;">
+          <div class="gate-conn" id="gate-conn-status"><span class="cdot"></span> Conectando ao servidor...</div>
+          <div class="cloud-auth-tabs">
+            <button type="button" class="cloud-auth-tab active" data-gatemode="signin">Entrar</button>
+            <button type="button" class="cloud-auth-tab" data-gatemode="signup">Criar conta</button>
+          </div>
+          <div class="field">
+            <label for="gate-email">E-mail</label>
+            <input type="email" id="gate-email" placeholder="voce@email.com" autocomplete="email">
+          </div>
+          <div class="field">
+            <label for="gate-password">Senha</label>
+            <input type="password" id="gate-password" placeholder="Mínimo 6 caracteres" autocomplete="current-password">
+          </div>
+          <p class="hint" id="gate-auth-msg" style="display:none;"></p>
+          <button type="button" class="btn-primary" id="gate-auth-submit" style="width:100%;">Entrar</button>
+          <p class="hint" id="gate-forgot-line" style="margin-top:12px; text-align:center;">
+            <button type="button" id="gate-forgot-btn" style="background:none;border:none;color:var(--accent);font-weight:700;cursor:pointer;padding:0;font-size:12px;">Esqueci minha senha</button>
+          </p>
         </div>
-        <div class="field">
-          <label for="gate-password">Senha</label>
-          <input type="password" id="gate-password" placeholder="Mínimo 6 caracteres" autocomplete="current-password">
+
+        <!-- ETAPA 2: PERFIS -->
+        <div id="gate-profiles" style="display:none;">
+          <div id="profile-gate-grid" class="profile-grid"></div>
+          <div class="gate-profile-actions">
+            <button type="button" class="btn-secondary" id="profile-import-btn">⭱ Importar de um backup (.json)</button>
+            <button type="button" class="btn-secondary" id="gate-logout-btn" style="display:none;">↩ Sair da conta</button>
+            <input type="file" id="profile-import-file" accept=".json,application/json" style="display:none;">
+          </div>
+          <p class="profile-gate-note" id="gate-profiles-note">🔒 Seus perfis e dados ficam vinculados à sua conta e sincronizados na nuvem — aparecem iguais em qualquer aparelho onde você entrar.</p>
         </div>
-        <p class="hint" id="gate-auth-msg" style="display:none;"></p>
-        <button type="button" class="btn-primary" id="gate-auth-submit" style="width:100%;">Entrar</button>
-        <p class="hint" id="gate-forgot-line" style="margin-top:10px; text-align:center;">
-          <button type="button" id="gate-forgot-btn" style="background:none;border:none;color:var(--accent);font-weight:700;cursor:pointer;padding:0;font-size:12px;">Esqueci minha senha</button>
-        </p>
-        <p class="hint" id="gate-offline-line" style="margin-top:8px; text-align:center;">
-          Sem internet? <button type="button" id="gate-offline-btn" style="background:none;border:none;color:var(--accent);font-weight:700;cursor:pointer;padding:0;font-size:12px;">Usar offline neste dispositivo</button>
-        </p>
+
+        <p class="profile-gate-note" id="gate-generic-note" style="display:none;">🔒 App de uso pessoal. Seus dados de estudo ficam protegidos pelo seu login.</p>
       </div>
     </div>
-
-    <!-- ETAPA 2: PERFIS (aparece quando logado, ou em modo offline) -->
-    <div id="gate-profiles" style="display:none;">
-      <div id="profile-gate-grid" class="profile-grid"></div>
-      <div style="margin-top:22px; display:flex; gap:10px; justify-content:center; flex-wrap:wrap;">
-        <button type="button" class="btn-secondary" id="profile-import-btn">⭱ Importar perfil de um backup (.json)</button>
-        <button type="button" class="btn-secondary" id="gate-logout-btn" style="display:none;">↩ Sair da conta</button>
-        <input type="file" id="profile-import-file" accept=".json,application/json" style="display:none;">
-      </div>
-      <p class="profile-gate-note" id="gate-profiles-note">🔒 Seus perfis e dados ficam vinculados à sua conta e sincronizados na nuvem — aparecem iguais em qualquer dispositivo onde você entrar.</p>
-    </div>
-
-    <p class="profile-gate-note" id="gate-generic-note" style="display:none;">🔒 App de uso pessoal. Seus dados de estudo ficam protegidos pelo seu login.</p>
   </div>
 
   <!-- Modal: criar/editar perfil -->
@@ -5873,6 +5961,7 @@
           <button type="button" class="leis-tool-btn leis-tool-erase" id="lei-unmark-btn" title="Borracha: com ela ativa, selecione um destaque para apagá-lo (inclusive os automáticos)">🧽 Borracha</button>
           <span id="lei-mark-count" class="leis-mark-count"></span>
           <span class="leis-toolbar-spacer"></span>
+          <button type="button" class="leis-tool-btn" id="lei-kw-btn" title="Gerenciar as palavras que são destacadas automaticamente em todas as leis">🎨 Palavras destacadas</button>
           <button type="button" class="leis-tool-btn" id="lei-lines-btn" title="Mostrar/ocultar a numeração das linhas">🔢 Linhas</button>
           <button type="button" class="leis-tool-btn" id="lei-goto-mark-btn" title="Ir para a linha onde você parou">📌 Onde parei</button>
           <button type="button" class="leis-tool-btn" id="lei-foco-btn" title="Ler sem distração, em tela cheia (Esc para sair)">🎯 Modo foco</button>
@@ -5892,6 +5981,36 @@
       <div class="card" id="lei-marks-panel" style="display:none;">
         <div class="card-header"><div><h2>Seus destaques</h2><p class="sub">Trechos que você marcou manualmente nesta lei</p></div></div>
         <div style="padding: 12px 24px 22px;" id="lei-marks-list"></div>
+      </div>
+    </div>
+
+    <!-- Modal: gerenciar palavras de destaque automático (vale para todas as leis) -->
+    <div id="lei-kw-modal" class="cards-modal" style="display:none;">
+      <div class="cards-modal-box">
+        <div class="cards-modal-head">
+          <div><h2>🎨 Palavras destacadas por padrão</h2><p class="sub">Estas palavras são realçadas automaticamente em <strong>todas as leis</strong> (inclusive as novas). A cor segue a categoria escolhida.</p></div>
+          <button type="button" class="icon-btn" id="lei-kw-close">✕</button>
+        </div>
+        <div class="cards-modal-body">
+          <div class="lei-kw-add">
+            <input type="text" id="lei-kw-input" placeholder="Ex.: usucapião, responsabilidade objetiva…" maxlength="40">
+            <select id="lei-kw-cat" aria-label="Cor/categoria da palavra">
+              <option value="ressalvas">⚖️ Ressalvas</option>
+              <option value="restricoes">🚫 Restrições</option>
+              <option value="competencias" selected>🏛️ Poder/Dever</option>
+              <option value="prazos">⏱️ Prazos</option>
+              <option value="efeitos">⚠️ Sanções</option>
+              <option value="relacoes">🔗 Causalidade</option>
+            </select>
+            <button type="button" class="btn-primary" id="lei-kw-add-btn">Adicionar</button>
+          </div>
+          <p class="hint" style="margin:8px 0 4px;">Suas palavras:</p>
+          <div id="lei-kw-list" class="lei-kw-list"></div>
+        </div>
+        <div class="cards-modal-foot">
+          <span class="save-note" style="flex:1"><span class="dot"></span>salvo no seu perfil e sincronizado</span>
+          <button type="button" class="btn-primary" id="lei-kw-done">Concluído</button>
+        </div>
       </div>
     </div>
   </section>
@@ -8303,60 +8422,69 @@
 /* a barra de ordenação por select só é útil no mobile (no desktop clica-se no cabeçalho) */
 .reg-sort-field { display: none; }
 
-/* Contêiner rolável (desktop/tablet). Rola nos dois eixos e prende o cabeçalho. */
-.reg-table-wrap {
+/* ══════════════════════════════════════════════════════════════════════════
+   LISTA DE REGISTROS — reconstruída em CSS GRID (não usa <table>).
+   Motivo: o helper global ":where(.card) table{display:block}" e o
+   "overflow-wrap:break-word" global vinham colapsando a <table> (texto quebrando
+   letra a letra / linhas partidas). Grid com colunas de largura FIXA é imune a
+   esses helpers e garante alinhamento perfeito entre cabeçalho e linhas.
+   Colunas (mesmas p/ head e linhas): Data | Matéria | Aula | Forma | Tempo | Acertos | % | Ações
+   ══════════════════════════════════════════════════════════════════════════ */
+:root { --reg-cols: 96px minmax(140px,1.5fr) minmax(150px,1.8fr) minmax(96px,1fr) 78px 84px 68px 84px; }
+.reg-grid-scroll {
   overflow: auto; -webkit-overflow-scrolling: touch;
-  max-height: min(68vh, 760px);
-  border: 1.5px solid var(--border); border-radius: 12px;
-  background: var(--surface);
+  max-height: min(70vh, 780px);
+  border: 1.5px solid var(--border); border-radius: 14px; background: var(--surface);
 }
-.reg-table {
-  display: table;
-  width: 100%; min-width: 720px;
-  table-layout: fixed;
-  border-collapse: separate; border-spacing: 0; font-size: var(--fs-sm);
+.reg-grid { min-width: 800px; }   /* soma dos mínimos: força rolagem horizontal só quando não cabe */
+.reg-grid-head, .reg-row {
+  display: grid;
+  grid-template-columns: var(--reg-cols);
+  align-items: center;
+  column-gap: 0;
 }
-.reg-table col.c-data    { width: 92px; }
-.reg-table col.c-subject { width: 150px; }
-.reg-table col.c-lesson  { width: 168px; }
-.reg-table col.c-method  { width: 104px; }
-.reg-table col.c-time    { width: 74px; }
-.reg-table col.c-hits    { width: 78px; }
-.reg-table col.c-pct     { width: 66px; }
-.reg-table col.c-act     { width: 84px; }
-.reg-table th, .reg-table td { padding: 9px 12px; text-align: left; vertical-align: middle; }
-.reg-table thead th {
-  position: sticky; top: 0; z-index: 3; background: var(--surface-sunken);
-  border-bottom: 1.5px solid var(--border); white-space: nowrap;
+/* Cabeçalho fixo no topo ao rolar verticalmente */
+.reg-grid-head {
+  position: sticky; top: 0; z-index: 4;
+  background: var(--surface-sunken);
+  border-bottom: 1.5px solid var(--border);
 }
-.reg-table thead th.sortable { cursor: pointer; user-select: none; }
-.reg-table thead th.sortable:hover { color: var(--accent); }
-.reg-th-actions { text-align: right; }
-.reg-th-label { display: inline-flex; align-items: center; gap: 5px; font-weight: 700; font-size: var(--fs-2xs);
-  letter-spacing: .04em; text-transform: uppercase; color: var(--text-faint); }
-.reg-th-label .sort-ind { font-size: var(--fs-xs); color: var(--accent); width: 10px; display: inline-block; }
-.reg-table tbody tr { transition: background .12s ease; }
-.reg-table tbody tr:nth-child(even) { background: color-mix(in srgb, var(--surface-sunken) 45%, transparent); }
-.reg-table tbody tr:hover { background: var(--surface-sunken); }
-.reg-table tbody td { border-bottom: 1px solid var(--border); }
-.reg-table tbody tr:last-child td { border-bottom: none; }
-.reg-td-date { font-family: 'Space Mono', monospace; font-size: var(--fs-xs); color: var(--text-soft); white-space: nowrap; }
-/* No desktop: UMA linha por célula, com reticências (o texto completo fica no
-   title e no cartão do mobile). nowrap neutraliza o overflow-wrap global — a
-   célula nunca quebra letra a letra. */
-.reg-td-subject { font-weight: 700; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.reg-td-lesson  { color: var(--text-soft); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.reg-td-method  { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.reg-td-num { font-variant-numeric: tabular-nums; white-space: nowrap; }
-.reg-td-pct { font-weight: 800; font-variant-numeric: tabular-nums; white-space: nowrap; }
-.reg-td-pct.tone-good { color: var(--good-text); }
-.reg-td-pct.tone-warn { color: var(--warn-text); }
-.reg-td-pct.tone-bad { color: var(--bad-text); }
-.reg-td-pct.tone-none { color: var(--text-faint); font-weight: 600; }
+.reg-h {
+  display: inline-flex; align-items: center; gap: 5px;
+  padding: 11px 12px; margin: 0; width: 100%;
+  background: transparent; border: none; text-align: left;
+  font-weight: 700; font-size: var(--fs-2xs); letter-spacing: .04em; text-transform: uppercase;
+  color: var(--text-faint); white-space: nowrap;
+}
+.reg-h.sortable { cursor: pointer; user-select: none; }
+.reg-h.sortable:hover { color: var(--accent); }
+.reg-h.is-sorted { color: var(--accent); }
+.reg-h .sort-ind { font-size: var(--fs-xs); color: var(--accent); }
+.reg-h-num { justify-content: flex-end; text-align: right; }
+.reg-h-act { justify-content: flex-end; text-align: right; }
+/* Linhas de dados */
+.reg-row { border-bottom: 1px solid var(--border); transition: background .12s ease; }
+.reg-row:nth-child(even) { background: color-mix(in srgb, var(--surface-sunken) 45%, transparent); }
+.reg-row:hover { background: var(--surface-sunken); }
+.reg-row:last-child { border-bottom: none; }
+.reg-c {
+  padding: 10px 12px; min-width: 0; font-size: var(--fs-sm);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;   /* nunca quebra letra a letra */
+}
+.reg-c-date { font-family: 'Space Mono', monospace; font-size: var(--fs-xs); color: var(--text-soft); }
+.reg-c-subject { font-weight: 700; color: var(--text); }
+.reg-c-lesson { color: var(--text-soft); }
+.reg-c-method { color: var(--text); }
+.reg-c-num { font-variant-numeric: tabular-nums; text-align: right; white-space: nowrap; }
+.reg-c-pct { font-weight: 800; font-variant-numeric: tabular-nums; text-align: right; white-space: nowrap; }
+.reg-c-pct.tone-good { color: var(--good-text); }
+.reg-c-pct.tone-warn { color: var(--warn-text); }
+.reg-c-pct.tone-bad { color: var(--bad-text); }
+.reg-c-pct.tone-none { color: var(--text-faint); font-weight: 600; }
 .reg-empty { color: var(--text-faint); }
-.reg-td-actions { white-space: nowrap; text-align: right; }
-.reg-td-actions .icon-btn { padding: 5px 7px; }
-.reg-table-empty { padding: 22px 12px; text-align: center; color: var(--text-faint); font-size: var(--fs-sm); }
+.reg-c-act { display: flex; justify-content: flex-end; gap: 4px; overflow: visible; padding: 6px 8px; }
+.reg-c-act .icon-btn { padding: 5px 7px; }
+.reg-noresult { padding: 26px 16px; text-align: center; color: var(--text-faint); font-size: var(--fs-sm); }
 .reg-table-foot { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; padding: 10px 2px 2px; }
 .reg-table-foot .count { font-size: var(--fs-xs); color: var(--text-faint); }
 
@@ -8366,56 +8494,48 @@
   .reg-filter-clear { grid-column: 1 / -1; }
 }
 
-/* ══ MOBILE: a tabela vira CARTÕES EMPILHADOS — leitura vertical, zero colapso ══ */
+/* ══ MOBILE: cada linha vira um CARTÃO empilhado — leitura vertical, zero colapso ══ */
 @media (max-width: 600px) {
-  .reg-sort-field { display: flex; }             /* ordenação por select aparece */
+  .reg-sort-field { display: flex; }
   .reg-filterbar { grid-template-columns: 1fr 1fr; gap: 9px; padding: 11px; }
-  .reg-sort-field { grid-column: 1 / -1; }        /* ordenação ocupa a linha toda */
+  .reg-sort-field { grid-column: 1 / -1; }
   .reg-filter-clear { grid-column: 1 / -1; }
 
-  .reg-table-wrap { max-height: none; overflow: visible; border: none; background: transparent; border-radius: 0; }
-  .reg-table { display: block; min-width: 0; width: 100%; font-size: var(--fs-md); }
-  .reg-table colgroup, .reg-table thead { display: none; }   /* cabeçalho some; ordenação vem da barra */
-  .reg-table tbody { display: block; }
-  .reg-table tbody tr.recent-item {
-    display: flex; flex-direction: column; position: relative;  /* flex = os "order" abaixo funcionam */
-    border: 1.5px solid var(--border); border-radius: 14px;
-    background: var(--surface) !important; box-shadow: var(--shadow-sm);
-    padding: 14px 14px 12px; margin-bottom: 12px;
+  .reg-grid-scroll { max-height: none; overflow: visible; border: none; background: transparent; border-radius: 0; }
+  .reg-grid { min-width: 0; }
+  .reg-grid-head { display: none; }              /* cabeçalho some; ordenação vem da barra */
+  .reg-row {
+    display: flex; flex-direction: column; position: relative;
+    border: 1.5px solid var(--border); border-radius: 14px; background: var(--surface);
+    box-shadow: var(--shadow-sm); padding: 14px 14px 12px; margin-bottom: 12px; column-gap: 0;
   }
-  .reg-table tbody td {
+  .reg-row:nth-child(even) { background: var(--surface); }
+  .reg-c {
     display: flex; align-items: baseline; gap: 12px;
-    padding: 5px 0; border: none !important; white-space: normal;
-    overflow: visible; text-overflow: clip; line-height: 1.4;
+    padding: 5px 0; white-space: normal; overflow: visible; text-overflow: clip; line-height: 1.4;
   }
-  /* rótulo da coluna à esquerda de cada valor */
-  .reg-table tbody td[data-label]::before {
+  .reg-c[data-label]::before {
     content: attr(data-label);
-    flex: 0 0 74px;
+    flex: 0 0 76px;
     font-size: var(--fs-2xs); font-weight: 700; text-transform: uppercase; letter-spacing: .04em;
     color: var(--text-faint); padding-top: 1px;
   }
-  /* Matéria vira o TÍTULO do cartão (sem rótulo, destaque no topo) */
-  .reg-td-subject {
+  /* Matéria = título do cartão */
+  .reg-c-subject {
     order: -2; display: block; white-space: normal; overflow: visible; text-overflow: clip;
     font-size: var(--fs-lg); font-weight: 800; line-height: 1.25;
-    padding: 0 64px 8px 0; margin-bottom: 6px; border-bottom: 1px solid var(--border) !important;
+    padding: 0 64px 8px 0; margin-bottom: 6px; border-bottom: 1px solid var(--border);
   }
-  .reg-td-subject::before { display: none; }
-  /* Aula logo abaixo, também com respiro */
-  .reg-td-lesson { order: -1; white-space: normal; overflow: visible; text-overflow: clip; }
-  /* Ações no canto superior direito do cartão */
-  .reg-td-actions {
-    position: absolute; top: 10px; right: 10px; padding: 0; display: flex; gap: 4px;
+  .reg-c-subject::before { display: none; }
+  .reg-c-lesson { order: -1; }
+  .reg-c-num, .reg-c-pct { text-align: left; }
+  .reg-c-pct { font-size: var(--fs-md); }
+  .reg-c-act {
+    position: absolute; top: 10px; right: 10px; padding: 0; justify-content: flex-end; gap: 4px;
   }
-  .reg-td-actions::before { display: none; }
-  .reg-td-actions .icon-btn { padding: 7px 8px; }
-  /* % ganha destaque de selo colorido */
-  .reg-td-pct { font-size: var(--fs-md); }
-  /* linha "sem resultado" ocupa o cartão inteiro */
-  .reg-table tbody tr.reg-noresult { display: block; border: 1px dashed var(--border); border-radius: 12px; background: var(--surface-sunken) !important; }
-  .reg-table tbody tr.reg-noresult td { display: block; padding: 16px; border: none !important; }
-  .reg-table tbody tr.reg-noresult td::before { display: none; }
+  .reg-c-act::before { display: none; }
+  .reg-c-act .icon-btn { padding: 7px 8px; }
+  .reg-noresult { border: 1px dashed var(--border); border-radius: 12px; background: var(--surface-sunken); }
 }
 @media (max-width: 720px) {
   #recent-list { padding-left: 12px !important; padding-right: 12px !important; }
@@ -8545,6 +8665,7 @@ const DB = {
       savedGrades: base + 'saved-grades',
       customSiglas: base + 'custom-siglas',
       leis: base + 'leis',
+      leiKeywords: base + 'lei-keywords',
       decks: base + 'decks',
       cards: base + 'cards',
       links: base + 'links',
@@ -9090,6 +9211,23 @@ const DB = {
     this.saveLeis(list);
   },
   deleteLei(id) { this.saveLeis(this.getLeis().filter(l => l.id !== id)); },
+  // ---- Palavras de destaque automático personalizadas (aplicam-se a TODAS as leis) ----
+  // Formato: [{ t: 'termo', cat: 'ressalvas'|'restricoes'|'competencias'|'prazos'|'efeitos'|'relacoes' }]
+  getLeiKeywords() { return this._get(this.KEYS.leiKeywords, []); },
+  saveLeiKeywords(list) { this._set(this.KEYS.leiKeywords, list); },
+  addLeiKeyword(t, cat) {
+    const termo = String(t || '').trim();
+    if (termo.length < 2) return false;
+    const list = this.getLeiKeywords();
+    if (list.some(k => k.t.toLowerCase() === termo.toLowerCase())) return false; // já existe
+    list.push({ t: termo, cat: cat || 'competencias' });
+    this.saveLeiKeywords(list);
+    return true;
+  },
+  removeLeiKeyword(termo) {
+    const key = String(termo || '').toLowerCase();
+    this.saveLeiKeywords(this.getLeiKeywords().filter(k => k.t.toLowerCase() !== key));
+  },
 
   // ---- Cards de Revisão: baralhos + cards com repetição espaçada ----
   // Baralho: { id, nome, createdAt }
@@ -11705,7 +11843,8 @@ const ReforcoEngine = {
     if (cmp) { rows.sort(cmp); if (tblSort.dir === 'desc') rows.reverse(); }
 
     const arrow = k => tblSort.key === k ? (tblSort.dir === 'asc' ? '▲' : '▼') : '';
-    const th = (k, label, extra) => `<th class="sortable" data-sort="${k}" ${extra || ''}><span class="reg-th-label">${label}<span class="sort-ind">${arrow(k)}</span></span></th>`;
+    // Cabeçalhos: botões de verdade (clicáveis/acessíveis). Grid, não <table>.
+    const hCell = (k, label, extraCls) => `<button type="button" class="reg-h sortable ${extraCls || ''} ${tblSort.key === k ? 'is-sorted' : ''}" data-sort="${k}">${label}<span class="sort-ind">${arrow(k)}</span></button>`;
 
     const opt = (arr, sel) => ['<option value="">Todas</option>'].concat(
       arr.map(v => `<option value="${escapeHtml(v)}" ${v === sel ? 'selected' : ''}>${escapeHtml(v)}</option>`)).join('');
@@ -11722,19 +11861,19 @@ const ReforcoEngine = {
       const less = e.lesson ? escapeHtml(e.lesson) : '';
       const meth = escapeHtml(e.method);
       return `
-        <tr class="recent-item" data-id="${e.id}">
-          <td class="reg-td-date" data-label="Data">${d}/${m}/${y}</td>
-          <td class="reg-td-subject" data-label="Matéria" title="${subj}">${subj}</td>
-          <td class="reg-td-lesson" data-label="Aula" title="${less}">${less || '<span class="reg-empty">—</span>'}</td>
-          <td class="reg-td-method" data-label="Forma" title="${meth}">${meth}</td>
-          <td class="reg-td-num" data-label="Tempo">${timeStr}</td>
-          <td class="reg-td-num" data-label="Acertos">${hasPct ? e.correct + '/' + e.total : '<span class="reg-empty">—</span>'}</td>
-          <td class="reg-td-pct tone-${tone}" data-label="%">${hasPct ? formatPct(pct) + '%' : '<span class="reg-empty">—</span>'}</td>
-          <td class="reg-td-actions" data-label="Ações">
+        <div class="reg-row recent-item" data-id="${e.id}" role="row">
+          <div class="reg-c reg-c-date" data-label="Data">${d}/${m}/${y}</div>
+          <div class="reg-c reg-c-subject" data-label="Matéria" title="${subj}">${subj}</div>
+          <div class="reg-c reg-c-lesson" data-label="Aula" title="${less}">${less || '<span class="reg-empty">—</span>'}</div>
+          <div class="reg-c reg-c-method" data-label="Forma" title="${meth}">${meth}</div>
+          <div class="reg-c reg-c-num" data-label="Tempo">${timeStr}</div>
+          <div class="reg-c reg-c-num" data-label="Acertos">${hasPct ? e.correct + '/' + e.total : '<span class="reg-empty">—</span>'}</div>
+          <div class="reg-c reg-c-pct tone-${tone}" data-label="%">${hasPct ? formatPct(pct) + '%' : '<span class="reg-empty">—</span>'}</div>
+          <div class="reg-c reg-c-act" data-label="Ações">
             <button type="button" class="icon-btn btn-edit-entry" title="Editar">✎</button>
             <button type="button" class="icon-btn danger btn-delete-entry" title="Excluir">×</button>
-          </td>
-        </tr>`;
+          </div>
+        </div>`;
     }).join('');
 
     const anyFilter = tblFilters.subject || tblFilters.method || tblFilters.lesson || tblFilters.date;
@@ -11772,35 +11911,27 @@ const ReforcoEngine = {
         ${anyFilter ? '<button type="button" class="reg-filter-clear" id="reg-filter-clear">✕ Limpar filtros</button>' : ''}
       </div>
 
-      <div class="reg-table-wrap">
-        <table class="reg-table">
-          <colgroup>
-            <col class="c-data"><col class="c-subject"><col class="c-lesson"><col class="c-method">
-            <col class="c-time"><col class="c-hits"><col class="c-pct"><col class="c-act">
-          </colgroup>
-          <thead>
-            <tr>
-              ${th('date', 'Data')}
-              ${th('subject', 'Matéria')}
-              ${th('lesson', 'Aula')}
-              ${th('method', 'Forma')}
-              ${th('time', 'Tempo')}
-              ${th('correct', 'Acertos')}
-              ${th('pct', '%')}
-              <th class="reg-th-actions"><span class="reg-th-label">Ações</span></th>
-            </tr>
-          </thead>
-          <tbody>
-            ${bodyRows || `<tr class="reg-noresult"><td colspan="8" class="reg-table-empty">Nenhum registro atende aos filtros aplicados.</td></tr>`}
-          </tbody>
-        </table>
+      <div class="reg-grid-scroll">
+        <div class="reg-grid" role="table">
+          <div class="reg-grid-head" role="row">
+            ${hCell('date', 'Data', 'reg-h-date')}
+            ${hCell('subject', 'Matéria')}
+            ${hCell('lesson', 'Aula')}
+            ${hCell('method', 'Forma')}
+            ${hCell('time', 'Tempo', 'reg-h-num')}
+            ${hCell('correct', 'Acertos', 'reg-h-num')}
+            ${hCell('pct', '%', 'reg-h-num')}
+            <div class="reg-h reg-h-act">Ações</div>
+          </div>
+          ${bodyRows || `<div class="reg-noresult">Nenhum registro atende aos filtros aplicados.</div>`}
+        </div>
       </div>
       <div class="reg-table-foot">
         <span class="count">Mostrando <strong>${rows.length}</strong> de ${baseEntries.length} registro${baseEntries.length === 1 ? '' : 's'}${anyFilter ? ' (filtrados)' : ''}.</span>
       </div>`;
 
     // Ordenação por clique no cabeçalho (desktop)
-    recentList.querySelectorAll('th.sortable').forEach(h => {
+    recentList.querySelectorAll('.reg-h.sortable').forEach(h => {
       h.addEventListener('click', () => {
         const k = h.dataset.sort;
         if (tblSort.key === k) tblSort.dir = (tblSort.dir === 'asc' ? 'desc' : 'asc');
@@ -12251,7 +12382,7 @@ const LawEngine = {
   // Constrói os spans de destaque de UMA linha (offsets locais).
   // suppressed: itens apagados pelo usuário. Aceita texto puro (formato antigo = vale para a
   // lei inteira) ou { t, l } = apagar SÓ na linha l — apagar um "deve" não some com todos.
-  _spansForLine(line, opts, manualList, suppressed, ln) {
+  _spansForLine(line, opts, manualList, suppressed, ln, extraKw) {
     const spans = [];
     let suppGlobal = null, suppLinha = null;
     if (suppressed && suppressed.length) {
@@ -12277,6 +12408,29 @@ const LawEngine = {
         spans.push({ start: m.index, end: m.index + m[0].length, cls: cat.cls });
       }
     });
+    // PALAVRAS PERSONALIZADAS: destaque automático definido pelo usuário (aplica-se
+    // a todas as leis, inclusive as recém-cadastradas). Marca TODAS as ocorrências
+    // na linha, respeitando limites de palavra e a supressão do usuário.
+    if (!autoOff && extraKw && extraKw.length) {
+      const low = line.toLowerCase();
+      extraKw.forEach(kw => {
+        const needle = String(kw.t || '').toLowerCase();
+        if (needle.length < 2) return;
+        if (suppGlobal && (suppGlobal.includes(needle) || suppLinha.includes(needle))) return;
+        const cls = (this.categories[kw.cat] && this.categories[kw.cat].cls) || 'lawmark-manual';
+        const iniPal = /[\wÀ-ÿ]/.test(needle[0]);
+        const fimPal = /[\wÀ-ÿ]/.test(needle[needle.length - 1]);
+        let from = 0, i;
+        while ((i = low.indexOf(needle, from)) !== -1) {
+          const antes = i > 0 ? low[i - 1] : '';
+          const depois = (i + needle.length) < low.length ? low[i + needle.length] : '';
+          const okI = !iniPal || !/[\wÀ-ÿ]/.test(antes);
+          const okF = !fimPal || !/[\wÀ-ÿ]/.test(depois);
+          if (okI && okF) spans.push({ start: i, end: i + needle.length, cls });
+          from = i + needle.length;
+        }
+      });
+    }
     // manuais:
     //  • Marca ANCORADA {t,l,s} → acende SÓ a ocorrência exata que o usuário marcou.
     //    (é o comportamento correto: marcar uma palavra não deve acender todas as iguais).
@@ -12361,7 +12515,8 @@ const LawEngine = {
     return i >= 0 ? i + 1 : alvo;
   },
   // Gera o HTML final estruturado + destacado de uma lei.
-  toHtml(lei) {
+  // extraKw: palavras de destaque personalizadas do usuário (opcional).
+  toHtml(lei, extraKw) {
     const text = this.normalize(lei.texto);
     const opts = lei.opts || {};
     const manual = lei.marcacoes || [];
@@ -12374,7 +12529,7 @@ const LawEngine = {
       if (!line.trim()) { buf.push('<div class="law-gap"></div>'); return; }
       ln++;
       const cls = this._classify(line);
-      const spans = this._spansForLine(line, opts, manual, suppressed, ln);
+      const spans = this._spansForLine(line, opts, manual, suppressed, ln, extraKw);
       const isBk = (ln === bookmark);
       buf.push(`<div class="law-block ${cls} ${isBk ? 'law-bookmarked' : ''}" data-line="${ln}">` +
         `<span class="law-lnum" data-line="${ln}" title="Clique para marcar aqui (onde parei)">${ln}</span>` +
@@ -17217,7 +17372,7 @@ const LeisScreen = {
     const lei = DB.getLei(this.currentId);
     if (!lei) return;
     const body = document.getElementById('lei-reader-body');
-    body.innerHTML = LawEngine.toHtml(lei);
+    body.innerHTML = LawEngine.toHtml(lei, DB.getLeiKeywords());
     body.style.fontSize = (100 + this.fontStep * 8) + '%';
     body.classList.toggle('tool-mark', this.hlMode === 'mark');
     body.classList.toggle('tool-erase', this.hlMode === 'erase');
@@ -17508,6 +17663,56 @@ const LeisScreen = {
     this.renderBody(); this.renderMarks();
     showToast('Destaques automáticos restaurados');
   },
+  // ── Gerenciador de palavras destacadas por padrão (aplica-se a todas as leis) ──
+  _kwCatMeta: {
+    ressalvas: { cls: 'lawmark-ressalvas', label: '⚖️ Ressalvas' },
+    restricoes: { cls: 'lawmark-restricoes', label: '🚫 Restrições' },
+    competencias: { cls: 'lawmark-competencias', label: '🏛️ Poder/Dever' },
+    prazos: { cls: 'lawmark-prazos', label: '⏱️ Prazos' },
+    efeitos: { cls: 'lawmark-efeitos', label: '⚠️ Sanções' },
+    relacoes: { cls: 'lawmark-relacoes', label: '🔗 Causalidade' }
+  },
+  openKeywords() {
+    const m = document.getElementById('lei-kw-modal');
+    if (m) m.style.display = 'flex';
+    this.renderKeywords();
+    setTimeout(() => { const i = document.getElementById('lei-kw-input'); if (i) i.focus(); }, 40);
+  },
+  closeKeywords() {
+    const m = document.getElementById('lei-kw-modal');
+    if (m) m.style.display = 'none';
+  },
+  addKeywordFromForm() {
+    const inp = document.getElementById('lei-kw-input');
+    const sel = document.getElementById('lei-kw-cat');
+    const termo = (inp.value || '').trim();
+    if (termo.length < 2) { showToast('Digite ao menos 2 letras'); return; }
+    if (!DB.addLeiKeyword(termo, sel.value)) { showToast('Essa palavra já está na lista'); inp.value = ''; inp.focus(); return; }
+    inp.value = '';
+    this.renderKeywords();
+    if (this.currentId) this.renderBody();   // reaplica na lei aberta imediatamente
+    inp.focus();
+  },
+  renderKeywords() {
+    const list = document.getElementById('lei-kw-list');
+    if (!list) return;
+    const kws = DB.getLeiKeywords();
+    if (!kws.length) { list.innerHTML = '<span class="lei-kw-empty">Nenhuma palavra ainda. Adicione acima — ela será destacada em todas as suas leis.</span>'; return; }
+    list.innerHTML = kws.map(k => {
+      const meta = this._kwCatMeta[k.cat] || this._kwCatMeta.competencias;
+      return `<span class="lei-kw-item" data-kw="${escapeHtml(k.t)}">
+        <mark class="${meta.cls}">${escapeHtml(k.t)}</mark>
+        <button type="button" class="lei-kw-del" title="Remover">×</button>
+      </span>`;
+    }).join('');
+    list.querySelectorAll('.lei-kw-item').forEach(el => {
+      el.querySelector('.lei-kw-del').addEventListener('click', () => {
+        DB.removeLeiKeyword(el.dataset.kw);
+        this.renderKeywords();
+        if (this.currentId) this.renderBody();
+      });
+    });
+  },
   _clearSel() {
     this._selText = '';
     const s = window.getSelection ? window.getSelection() : null;
@@ -17595,6 +17800,13 @@ window.LeisScreen = LeisScreen;
   on('lei-lines-btn', 'click', () => LeisScreen.toggleLines());
   on('lei-goto-mark-btn', 'click', () => LeisScreen.gotoBookmark());
   on('lei-foco-btn', 'click', () => LeisScreen.entrarFoco());
+  // Gerenciador de palavras destacadas
+  on('lei-kw-btn', 'click', () => LeisScreen.openKeywords());
+  on('lei-kw-close', 'click', () => LeisScreen.closeKeywords());
+  on('lei-kw-done', 'click', () => LeisScreen.closeKeywords());
+  on('lei-kw-add-btn', 'click', () => LeisScreen.addKeywordFromForm());
+  on('lei-kw-input', 'keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); LeisScreen.addKeywordFromForm(); } });
+  (function () { const m = document.getElementById('lei-kw-modal'); if (m) m.addEventListener('click', (e) => { if (e.target === m) LeisScreen.closeKeywords(); }); })();
   on('lei-foco-mark', 'click', () => LeisScreen.setTool('mark'));
   on('lei-foco-erase', 'click', () => LeisScreen.setTool('erase'));
   on('lei-foco-lines', 'click', () => LeisScreen.toggleLines());
@@ -23751,18 +23963,23 @@ const ProfileUI = {
   AUTO_ENTER_KEY: 'diario-estudos:auto-enter',
   autoEnterOn() { try { return localStorage.getItem(this.AUTO_ENTER_KEY) !== '0'; } catch (e) { return true; } },
   setAutoEnter(on) { try { localStorage.setItem(this.AUTO_ENTER_KEY, on ? '1' : '0'); } catch (e) {} },
+  // Último perfil usado POR CONTA (uid). Assim, ao logar, entramos direto nele
+  // sem re-perguntar — mesmo num dispositivo novo, onde não há dados locais ainda.
+  _uid() { try { const s = window.CloudStore && CloudStore.session; return (s && s.user && s.user.id) || null; } catch (e) { return null; } },
+  _lastProfileKey() { const u = this._uid(); return u ? 'diario-estudos:last-profile:' + u : null; },
+  getLastProfile() { try { const k = this._lastProfileKey(); return k ? localStorage.getItem(k) : null; } catch (e) { return null; } },
+  setLastProfile(id) { try { const k = this._lastProfileKey(); if (k && id) localStorage.setItem(k, id); } catch (e) {} },
+  _autoEnterTried: false,   // evita repetir o auto-enter dentro da mesma sessão de gate
   boot() {
     this.renderChip();
     let entered = null;
     try { entered = sessionStorage.getItem(this.SESSION_KEY); } catch (e) {}
     const active = ProfileManager.getActiveProfileId();
-    // Perfil padrão: se a preferência estiver ligada (padrão), entra direto no
-    // último perfil usado sem re-perguntar a cada abertura de sessão. A troca
-    // continua disponível pelo botão \"⇄ Trocar de perfil\".
-    if (!entered && this.autoEnterOn() && active && this._hasLocalData(active)) {
-      entered = active;
-      try { sessionStorage.setItem(this.SESSION_KEY, active); } catch (e) {}
-    }
+    // IMPORTANTE: só entramos direto quando há o marcador de sessão desta aba
+    // (SESSION_KEY). NÃO entramos apenas por existir dado local — senão, após
+    // deslogar + F5, o app abria SEM sessão e disparava aquele painel feio de
+    // "Sem sessão ativa". O "perfil padrão" agora acontece DEPOIS do login
+    // confirmado (ver loadCloudProfiles → auto-enter do último perfil).
     if (entered && entered === active && this._hasLocalData(active)) {
       this.hideGate();
       // Só depois de entrar de fato: no gate o aviso não teria o que fazer.
@@ -23852,6 +24069,21 @@ const ProfileUI = {
       const rows = await CloudStore.listProfiles();
       if (token !== this._gridToken) return; // chegou uma resposta mais nova
       ProfileManager.syncMirrorFromCloud(rows);
+      // PERFIL PADRÃO: entra direto no último perfil usado nesta conta, sem
+      // re-perguntar. Só quando: preferência ligada, existe um "último" válido
+      // na lista, e ainda não tentamos nesta sessão de gate (evita loop).
+      if (this.autoEnterOn() && !this._autoEnterTried && !this._offline) {
+        let alvo = this.getLastProfile();
+        // se não há "último" salvo mas a conta tem exatamente 1 perfil, entra nele
+        if (!alvo && rows.length === 1) alvo = rows[0].id;
+        if (alvo && rows.some(r => r.id === alvo)) {
+          this._autoEnterTried = true;
+          const grid = document.getElementById('profile-gate-grid');
+          if (grid) grid.innerHTML = '<p class="hint" style="text-align:center; padding:20px;">Entrando no seu perfil…</p>';
+          this.enterProfile(alvo);
+          return;
+        }
+      }
       this.renderGrid(rows.map(r => ({ id: r.id, nome: r.profile_name, avatar: r.avatar, cor: r.color })));
     } catch (err) {
       if (token !== this._gridToken) return;
@@ -23926,6 +24158,7 @@ const ProfileUI = {
       PlanManager.init();
     }
     try { sessionStorage.setItem(this.SESSION_KEY, id); } catch (e) {}
+    this.setLastProfile(id);   // lembra este perfil para esta conta (entra direto no próximo login)
     location.reload();
   },
 
@@ -24019,7 +24252,7 @@ const ProfileUI = {
     const show = (t, kind) => { msg.textContent = t; msg.className = 'gate-alert ' + (kind || 'bad'); msg.style.display = 'block'; };
     msg.style.display = 'none';
     const CS = window.CloudStore;
-    if (!CS || !CS.isReady()) { show('Servidor da nuvem indisponível. Verifique a internet ou use "Usar offline".', 'warn'); return; }
+    if (!CS || !CS.isReady()) { show('Servidor indisponível no momento. Verifique sua internet e tente novamente.', 'warn'); return; }
     if (!email) { show('Informe seu e-mail.', 'bad'); return; }
     if (password.length < 6) { show('A senha precisa ter ao menos 6 caracteres.', 'bad'); return; }
     const btn = document.getElementById('gate-auth-submit');
@@ -24089,7 +24322,9 @@ const ProfileUI = {
     this.refreshStage();
   },
 
-  switchProfile() { try { sessionStorage.removeItem(this.SESSION_KEY); } catch (e) {} this.showGate(); },
+  // Trocar de perfil: mostra o seletor de propósito — NÃO auto-entra (senão
+  // voltaria direto ao mesmo perfil). O auto-enter volta a valer no próximo login.
+  switchProfile() { try { sessionStorage.removeItem(this.SESSION_KEY); } catch (e) {} this._autoEnterTried = true; this.showGate(); },
   renderChipMobile() {
     const p = ProfileManager.getActiveProfile(); if (!p) return;
     const av = document.getElementById('mobile-profile-avatar'); if (av) { av.textContent = p.avatar; av.style.background = p.cor; }
@@ -25402,7 +25637,7 @@ window.CloudUI = CloudUI;
   on('gate-auth-submit', 'click', () => ProfileUI.submitGateAuth());
   on('gate-password', 'keydown', (e) => { if (e.key === 'Enter') ProfileUI.submitGateAuth(); });
   document.querySelectorAll('#gate-login .cloud-auth-tab').forEach(tab => tab.addEventListener('click', () => ProfileUI.setGateAuthMode(tab.dataset.gatemode)));
-  on('gate-offline-btn', 'click', () => ProfileUI.useOffline());
+
   on('gate-forgot-btn', 'click', () => ProfileUI.forgotPassword());
   on('gate-logout-btn', 'click', () => ProfileUI.gateLogout());
   on('pf-cancel', 'click', () => document.getElementById('profile-modal').style.display = 'none');
