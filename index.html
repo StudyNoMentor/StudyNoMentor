@@ -2450,14 +2450,21 @@
   }
 
   /* ---------- Configurações: Status do Estudo Novo ---------- */
+  /* Layout flexível: os controles quebram para a linha de baixo em vez de
+     espremer/cortar o texto (o grid rígido de 5 colunas apertava tudo). */
   .config-status-row {
-    display: grid;
-    grid-template-columns: 1fr auto auto auto auto;
-    gap: 12px;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px 12px;
     align-items: center;
-    padding: 12px 0;
+    padding: 12px 14px;
     border-bottom: 1px solid var(--border);
   }
+  .config-status-row .cfg-status-name { flex: 1 1 150px; min-width: 130px; }
+  .config-status-row .status-preview { flex: 0 0 auto; }
+  .config-status-row .status-swatches { flex: 0 0 auto; margin-left: auto; }
+  .config-status-row .status-done-toggle { flex: 0 0 auto; }
+  .config-status-row .config-row-actions { flex: 0 0 auto; }
   .config-status-row:last-child { border-bottom: none; }
   .config-status-row.inactive { opacity: 0.45; }
   .cfg-status-name {
@@ -2489,7 +2496,8 @@
     color: var(--good-text); background: var(--good-soft); padding: 2px 7px; border-radius: 12px; white-space: nowrap;
   }
   @media (max-width: 640px) {
-    .config-status-row { grid-template-columns: 1fr auto; grid-auto-rows: auto; }
+    .config-status-row .cfg-status-name { flex: 1 1 100%; }
+    .config-status-row .status-swatches { margin-left: 0; }
   }
 
   /* ---------- Estudo Novo: card de aula com etapas (acertos/total) ---------- */
@@ -3862,8 +3870,15 @@
 
   .brand-top-actions {
     display: flex; align-items: center; gap: 8px;
-    width: 100%; min-width: 0; justify-content: space-between; flex-wrap: nowrap;
+    width: 100%; min-width: 0; justify-content: space-between; flex-wrap: wrap;
   }
+  /* A−/A+ e o tema ficam na linha de cima; o botão de sincronizar ganha a
+     linha inteira de baixo — assim o rótulo (\"Sincronizado agora\") nunca é
+     cortado. */
+  .brand-top-actions .font-size-ctl { order: 1; }
+  .brand-top-actions .mobile-profile-btn { order: 2; }
+  .brand-top-actions .theme-toggle { order: 3; }
+  .brand-top-actions .cloud-sync-btn { order: 4; flex: 1 1 100%; justify-content: center; }
   /* Botão de sincronização na nuvem — sempre visível (topo, desktop e mobile) */
   .cloud-sync-btn {
     display: inline-flex; align-items: center; gap: 7px;
@@ -3871,14 +3886,14 @@
     border-radius: 20px; padding: 5px 11px 5px 9px; cursor: pointer;
     font-size: calc(12px * var(--fs-scale, 1)); font-weight: 700; color: var(--text-soft);
     transition: border-color 0.15s ease, color 0.15s ease, background 0.15s ease;
-    white-space: nowrap;
-    min-width: 0; flex: 0 1 auto; overflow: hidden;
+    white-space: normal; line-height: 1.15;
+    min-width: 0; overflow: visible;
   }
   .cloud-sync-btn:hover { border-color: var(--accent); color: var(--text); }
   .cloud-sync-btn:active { transform: scale(0.97); }
   .cloud-sync-btn .csb-ico { font-size: calc(13px * var(--fs-scale, 1)); line-height: 1; }
   .cloud-sync-btn .csb-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--text-faint); flex-shrink: 0; }
-  .cloud-sync-btn .csb-text { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .cloud-sync-btn .csb-text { min-width: 0; overflow: visible; white-space: normal; text-align: center; }
   /* estados */
   .cloud-sync-btn.st-ok { color: var(--good); border-color: color-mix(in srgb, var(--good) 40%, var(--border)); }
   .cloud-sync-btn.st-ok .csb-dot { background: var(--good); box-shadow: 0 0 0 3px var(--good-soft); }
@@ -3893,8 +3908,8 @@
   .cloud-sync-btn.st-off .csb-dot { background: var(--text-faint); }
   @keyframes csbPulse { 0%,100% { opacity: 1; } 50% { opacity: 0.35; } }
   @keyframes csbSpin { to { transform: rotate(360deg); } }
-  /* no mobile, esconde o texto para caber (mantém dot + ícone) */
-  @media (max-width: 560px) { .cloud-sync-btn .csb-text { display: none; } .cloud-sync-btn { padding: 6px 9px; } }
+  /* no mobile o botão ocupa a linha inteira, então o texto continua visível e centralizado */
+  @media (max-width: 560px) { .cloud-sync-btn { padding: 7px 12px; } }
   .mobile-profile-btn { display: none; align-items: center; gap: 7px; background: var(--surface-sunken); border: 1.5px solid var(--border); border-radius: 20px; padding: 4px 10px 4px 4px; cursor: pointer; max-width: 190px; }
   .mobile-profile-btn:hover { border-color: var(--accent); }
   .mobile-profile-avatar { width: 26px; height: 26px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: calc(14px * var(--fs-scale, 1)); color: #fff; flex-shrink: 0; }
@@ -4179,11 +4194,19 @@
   #screen-config .card-header {
     background: linear-gradient(180deg, var(--surface) 0%, var(--surface-sunken) 100%);
     border-bottom: 1px solid var(--border);
+    /* antes herdava padding-bottom:0 da base e o subtítulo encostava na borda,
+       deixando o cabeçalho \"cortado\". Agora respira acima do divisor. */
+    padding: 16px 24px 15px;
+    align-items: flex-start;
+    row-gap: 6px;
+    min-height: 0;
   }
+  #screen-config .card-header > div:first-child { min-width: 0; flex: 1 1 auto; }
   #screen-config .card-header h2 {
     display: flex;
     align-items: center;
     gap: 8px;
+    line-height: 1.3;
   }
   #screen-config .sub {
     max-width: 78ch;
@@ -5467,9 +5490,15 @@
         </div>
 
         <section class="recent" id="recent-section" style="display:none;">
-          <div class="card-header" style="padding: 0; margin-bottom: 14px;">
+          <div class="card-header recent-head" style="padding: 0; margin-bottom: 14px;">
             <p class="sub" style="margin:0;" id="recent-count"></p>
-            <input type="text" id="recent-search" placeholder="Buscar por matéria, aula ou data..." style="width: 260px; padding: 7px 11px; font-size: 13px;">
+            <div class="recent-head-controls">
+              <input type="text" id="recent-search" placeholder="Buscar por matéria, aula ou data..." style="width: 240px; padding: 7px 11px; font-size: 13px;">
+              <div class="ux-seg" id="recent-view-seg" role="group" aria-label="Formato da lista">
+                <button type="button" data-v="cartoes" title="Ver como cartões">▤ Cartões</button>
+                <button type="button" data-v="tabela" title="Ver como tabela, com filtros por coluna">▦ Tabela</button>
+              </div>
+            </div>
           </div>
           <div class="card" style="margin-top:0;">
             <div style="padding: 4px 28px;" id="recent-list"></div>
@@ -6495,6 +6524,11 @@
           </div>
 
           <hr class="divider">
+          <p class="section-label">Perfil ao abrir</p>
+          <label class="co-check" style="margin:6px 0 0;"><input type="checkbox" id="pref-auto-enter" checked> Entrar direto no último perfil usado (não perguntar toda vez)</label>
+          <p class="hint" style="margin:6px 0 0;">Com isso ligado, o app abre já no seu perfil. Para trocar, use <strong>⇄ Trocar de perfil</strong> no topo a qualquer momento.</p>
+
+          <hr class="divider">
           <p class="section-label">Outros espaços salvos na sua conta</p>
           <div id="cloud-slots-list"></div>
         </div>
@@ -7363,7 +7397,7 @@
 
 /* Popover genérico ancorado a um botão */
 .ux-pop {
-  position: absolute; z-index: 900; min-width: 268px; max-width: min(340px, calc(100vw - 24px));
+  position: absolute; z-index: 1500; min-width: 268px; max-width: min(340px, calc(100vw - 24px));
   background: var(--surface); border: 1.5px solid var(--border); border-radius: 14px;
   box-shadow: var(--shadow-lg); overflow: hidden;
   animation: uxPopIn .13s ease;
@@ -8182,6 +8216,86 @@
 }
 .idle-warn p { margin: 0 0 10px; font-size: var(--fs-sm); color: var(--text); line-height: 1.55; }
 .idle-warn .row { display: flex; gap: 8px; justify-content: flex-end; }
+
+/* ── Registrar: cabeçalho da lista + visão em tabela com filtros ── */
+.recent-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+.recent-head-controls { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+#recent-view-seg button { display: inline-flex; align-items: center; gap: 5px; }
+.reg-table-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; padding: 6px 0 2px; }
+.reg-table { width: 100%; border-collapse: separate; border-spacing: 0; font-size: var(--fs-sm); min-width: 720px; }
+.reg-table th, .reg-table td { padding: 9px 12px; text-align: left; vertical-align: middle; }
+.reg-table thead th {
+  position: sticky; top: 0; z-index: 3; background: var(--surface-sunken);
+  border-bottom: 1.5px solid var(--border); white-space: nowrap;
+}
+.reg-table thead th.sortable { cursor: pointer; user-select: none; }
+.reg-table thead th.sortable:hover { color: var(--accent); }
+.reg-th-label { display: inline-flex; align-items: center; gap: 5px; font-weight: 700; font-size: var(--fs-2xs);
+  letter-spacing: .04em; text-transform: uppercase; color: var(--text-faint); }
+.reg-th-label .sort-ind { font-size: var(--fs-xs); color: var(--accent); width: 10px; display: inline-block; }
+.reg-table tr.reg-filter-row th { position: sticky; top: 33px; z-index: 2; background: var(--surface); border-bottom: 1px solid var(--border); padding: 6px 10px 10px; }
+.reg-table tr.reg-filter-row input,
+.reg-table tr.reg-filter-row select {
+  width: 100%; min-width: 70px; padding: 5px 8px; font-size: var(--fs-xs);
+  border: 1.5px solid var(--border); border-radius: 8px; background: var(--surface); color: var(--text);
+}
+.reg-table tr.reg-filter-row input:focus,
+.reg-table tr.reg-filter-row select:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-ring); }
+.reg-table tbody tr { border-bottom: 1px solid var(--border); transition: background .12s ease; }
+.reg-table tbody tr:hover { background: var(--surface-sunken); }
+.reg-table tbody td { border-bottom: 1px solid var(--border); }
+.reg-table tbody tr:last-child td { border-bottom: none; }
+.reg-td-date { font-family: 'Space Mono', monospace; font-size: var(--fs-xs); color: var(--text-soft); white-space: nowrap; }
+.reg-td-subject { font-weight: 700; color: var(--text); }
+.reg-td-lesson { color: var(--text-soft); }
+.reg-td-num { font-variant-numeric: tabular-nums; white-space: nowrap; }
+.reg-td-pct { font-weight: 800; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.reg-td-pct.tone-good { color: var(--good-text); }
+.reg-td-pct.tone-warn { color: var(--warn-text); }
+.reg-td-pct.tone-bad { color: var(--bad-text); }
+.reg-td-pct.tone-none { color: var(--text-faint); font-weight: 600; }
+.reg-td-actions { white-space: nowrap; text-align: right; }
+.reg-table-empty { padding: 22px 12px; text-align: center; color: var(--text-faint); font-size: var(--fs-sm); }
+.reg-filter-clear { display: inline-flex; align-items: center; gap: 5px; font-size: var(--fs-xs); font-weight: 700;
+  color: var(--accent); background: var(--accent-soft); border: 1px solid transparent; border-radius: 8px;
+  padding: 5px 10px; cursor: pointer; }
+.reg-filter-clear:hover { border-color: var(--accent); }
+.reg-table-foot { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; padding: 10px 4px 4px; }
+.reg-table-foot .count { font-size: var(--fs-xs); color: var(--text-faint); }
+@media (max-width: 720px) {
+  #recent-list { padding-left: 12px !important; padding-right: 12px !important; }
+}
+
+/* ── Leis Secas: acabamento mais profissional (aditivo, sem mudar estrutura) ── */
+.leis-reader-topbar {
+  background: var(--surface); border: 1.5px solid var(--border); border-radius: 16px;
+  box-shadow: var(--shadow-sm); padding: 14px 18px;
+}
+.leis-reader-topbar h2 { letter-spacing: -0.02em; }
+.leis-reader-meta { display: inline-block; margin-top: 4px; padding: 2px 9px; border-radius: 20px;
+  background: var(--surface-sunken); border: 1px solid var(--border); color: var(--text-soft); }
+.leis-sticky { border-radius: 16px; box-shadow: var(--shadow-md); }
+.leis-tool-btn { border-radius: 11px; }
+.leis-hl-chip span { box-shadow: inset 0 0 0 1px rgba(0,0,0,0.02); }
+.leis-reader-card {
+  background: var(--surface); border: 1.5px solid var(--border); border-radius: 18px;
+  box-shadow: var(--shadow-md); position: relative; overflow: hidden;
+}
+.leis-reader-card::before {
+  content: ''; position: absolute; top: 0; left: 0; right: 0; height: 4px;
+  background: linear-gradient(90deg, var(--accent), color-mix(in srgb, var(--accent) 30%, transparent));
+}
+.lei-reader-body { letter-spacing: 0.003em; }
+.law-art { font-size: 1.05em; letter-spacing: -0.005em; }
+.law-art strong, .law-art b { color: var(--accent); }
+.law-head { font-weight: 800; }
+/* cartões da lista de leis um pouco mais \"produto\" */
+.lei-card { border-radius: 16px; }
+.lei-card-title { letter-spacing: -0.02em; }
+@media (max-width: 640px) {
+  .leis-reader-topbar { padding: 12px 14px; border-radius: 14px; }
+  .leis-reader-card { border-radius: 14px; }
+}
 
 
 /* ---------- 9. Complementos v47 ---------- */
@@ -11171,6 +11285,12 @@ const ReforcoEngine = {
 
   let editingId = null; // null = modo "novo registro"; caso contrário, id do registro em edição
   let searchTerm = '';
+  // Visão da lista de registros: 'cartoes' (padrão) ou 'tabela' (com filtros por coluna)
+  let recentView = 'cartoes';
+  try { recentView = localStorage.getItem('diario-estudos:recent-view') || 'cartoes'; } catch (e) {}
+  let tblFilters = { subject: '', lesson: '', method: '', date: '' };
+  let tblSort = { key: 'date', dir: 'desc' };
+  let _pendingFocus = null; // { fk, pos } — devolve o foco ao filtro de texto após re-render
 
   dateInput.value = todayLocal();
   gaugeFill.style.strokeDasharray = CIRC;
@@ -11329,6 +11449,8 @@ const ReforcoEngine = {
       return;
     }
 
+    if (recentView === 'tabela') { renderRecentTable(entries); return; }
+
     recentList.innerHTML = entries.map(e => {
       const hasPct = e.total > 0;
       const pct = hasPct ? calcPct(e.correct, e.total) : null;
@@ -11367,15 +11489,23 @@ const ReforcoEngine = {
       `;
     }).join('');
 
+    wireEntryRows();
+  }
+
+  // Liga os botões de editar/excluir de cada linha — funciona tanto para os
+  // cartões (.recent-item div) quanto para as linhas da tabela (.recent-item tr).
+  function wireEntryRows() {
     recentList.querySelectorAll('.recent-item').forEach(row => {
       // Sem parseFloat: o id agora pode ser UUID (texto). parseFloat devolveria
       // NaN e os botões parariam de funcionar sem erro visível.
       const id = row.dataset.id;
-      row.querySelector('.btn-edit-entry').addEventListener('click', () => {
+      const eb = row.querySelector('.btn-edit-entry');
+      const db = row.querySelector('.btn-delete-entry');
+      if (eb) eb.addEventListener('click', () => {
         const entry = DB.getEntry(id);
         if (entry) enterEditMode(entry);
       });
-      row.querySelector('.btn-delete-entry').addEventListener('click', () => {
+      if (db) db.addEventListener('click', () => {
         const entry = DB.getEntry(id);
         if (!entry) return;
         if (!confirm(`Excluir o registro de "${entry.subject}" em ${formatDateShort(entry.date)}? Essa ação não pode ser desfeita.`)) return;
@@ -11388,10 +11518,153 @@ const ReforcoEngine = {
     });
   }
 
+  // ── Visão em TABELA: colunas ordenáveis + filtros inteligentes por coluna ──
+  function renderRecentTable(baseEntries) {
+    // Opções de filtro (matéria/forma) a partir do universo já buscado
+    const subjects = Array.from(new Set(baseEntries.map(e => e.subject))).sort((a, b) => a.localeCompare(b, 'pt'));
+    const methods = Array.from(new Set(baseEntries.map(e => e.method))).sort((a, b) => a.localeCompare(b, 'pt'));
+
+    // Aplica os filtros por coluna
+    const inc = (v, q) => String(v || '').toLowerCase().includes(q.toLowerCase());
+    let rows = baseEntries.filter(e => {
+      const [y, m, d] = e.date.split('-');
+      const dateStr = `${d}/${m}/${y}`;
+      if (tblFilters.subject && e.subject !== tblFilters.subject) return false;
+      if (tblFilters.method && e.method !== tblFilters.method) return false;
+      if (tblFilters.lesson && !inc(e.lesson, tblFilters.lesson)) return false;
+      if (tblFilters.date && !inc(dateStr, tblFilters.date) && !inc(`${d}/${m}`, tblFilters.date)) return false;
+      return true;
+    });
+
+    // Ordenação
+    const pctOf = e => (e.total > 0 ? (e.correct / e.total) : -1);
+    const cmp = {
+      date: (a, b) => a.date < b.date ? -1 : (a.date > b.date ? 1 : ((a.id || 0) - (b.id || 0))),
+      subject: (a, b) => a.subject.localeCompare(b.subject, 'pt'),
+      lesson: (a, b) => String(a.lesson || '').localeCompare(String(b.lesson || ''), 'pt'),
+      method: (a, b) => a.method.localeCompare(b.method, 'pt'),
+      time: (a, b) => (a.durationMin || 0) - (b.durationMin || 0),
+      correct: (a, b) => (a.total || 0) - (b.total || 0),
+      pct: (a, b) => pctOf(a) - pctOf(b)
+    }[tblSort.key] || null;
+    if (cmp) { rows.sort(cmp); if (tblSort.dir === 'desc') rows.reverse(); }
+
+    const arrow = k => tblSort.key === k ? (tblSort.dir === 'asc' ? '▲' : '▼') : '';
+    const th = (k, label, extra) => `<th class="sortable" data-sort="${k}" ${extra || ''}><span class="reg-th-label">${label}<span class="sort-ind">${arrow(k)}</span></span></th>`;
+
+    const opt = (arr, sel) => ['<option value="">Todas</option>'].concat(
+      arr.map(v => `<option value="${escapeHtml(v)}" ${v === sel ? 'selected' : ''}>${escapeHtml(v)}</option>`)).join('');
+
+    const bodyRows = rows.map(e => {
+      const hasPct = e.total > 0;
+      const pct = hasPct ? calcPct(e.correct, e.total) : null;
+      const tone = hasPct ? toneFor(pct) : 'none';
+      const hours = Math.floor(e.durationMin / 60);
+      const mins = e.durationMin % 60;
+      const timeStr = (hours > 0 ? hours + 'h ' : '') + (mins > 0 || hours === 0 ? mins + 'min' : '');
+      const [y, m, d] = e.date.split('-');
+      return `
+        <tr class="recent-item" data-id="${e.id}">
+          <td class="reg-td-date">${d}/${m}/${y}</td>
+          <td class="reg-td-subject">${escapeHtml(e.subject)}</td>
+          <td class="reg-td-lesson">${e.lesson ? escapeHtml(e.lesson) : '<span style="color:var(--text-faint)">—</span>'}</td>
+          <td>${escapeHtml(e.method)}</td>
+          <td class="reg-td-num">${timeStr}</td>
+          <td class="reg-td-num">${hasPct ? e.correct + '/' + e.total : '<span style="color:var(--text-faint)">—</span>'}</td>
+          <td class="reg-td-pct tone-${tone}">${hasPct ? formatPct(pct) + '%' : '—'}</td>
+          <td class="reg-td-actions">
+            <button type="button" class="icon-btn btn-edit-entry" title="Editar">✎</button>
+            <button type="button" class="icon-btn danger btn-delete-entry" title="Excluir">×</button>
+          </td>
+        </tr>`;
+    }).join('');
+
+    const anyFilter = tblFilters.subject || tblFilters.method || tblFilters.lesson || tblFilters.date;
+    recentList.innerHTML = `
+      <div class="reg-table-wrap">
+        <table class="reg-table">
+          <thead>
+            <tr>
+              ${th('date', 'Data')}
+              ${th('subject', 'Matéria')}
+              ${th('lesson', 'Aula')}
+              ${th('method', 'Forma')}
+              ${th('time', 'Tempo')}
+              ${th('correct', 'Acertos')}
+              ${th('pct', '%')}
+              <th style="text-align:right;"><span class="reg-th-label">Ações</span></th>
+            </tr>
+            <tr class="reg-filter-row">
+              <th><input type="text" data-fk="date" value="${escapeHtml(tblFilters.date)}" placeholder="dd/mm" aria-label="Filtrar por data"></th>
+              <th><select data-fk="subject" aria-label="Filtrar por matéria">${opt(subjects, tblFilters.subject)}</select></th>
+              <th><input type="text" data-fk="lesson" value="${escapeHtml(tblFilters.lesson)}" placeholder="Buscar aula" aria-label="Filtrar por aula"></th>
+              <th><select data-fk="method" aria-label="Filtrar por forma">${opt(methods, tblFilters.method)}</select></th>
+              <th colspan="3"></th>
+              <th style="text-align:right;">${anyFilter ? '<button type="button" class="reg-filter-clear" id="reg-filter-clear">✕ Limpar</button>' : ''}</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${bodyRows || `<tr><td colspan="8" class="reg-table-empty">Nenhum registro atende aos filtros aplicados.</td></tr>`}
+          </tbody>
+        </table>
+      </div>
+      <div class="reg-table-foot">
+        <span class="count">Mostrando <strong>${rows.length}</strong> de ${baseEntries.length} registro${baseEntries.length === 1 ? '' : 's'}${anyFilter ? ' (filtrados)' : ''}.</span>
+      </div>`;
+
+    // Ordenação por clique no cabeçalho
+    recentList.querySelectorAll('th.sortable').forEach(h => {
+      h.addEventListener('click', () => {
+        const k = h.dataset.sort;
+        if (tblSort.key === k) tblSort.dir = (tblSort.dir === 'asc' ? 'desc' : 'asc');
+        else { tblSort.key = k; tblSort.dir = (k === 'subject' || k === 'lesson' || k === 'method') ? 'asc' : 'desc'; }
+        renderRecent();
+      });
+    });
+    // Filtros por coluna
+    recentList.querySelectorAll('.reg-filter-row [data-fk]').forEach(inp => {
+      const ev = inp.tagName === 'SELECT' ? 'change' : 'input';
+      inp.addEventListener(ev, () => {
+        if (inp.tagName !== 'SELECT') { try { _pendingFocus = { fk: inp.dataset.fk, pos: inp.selectionStart }; } catch (e) { _pendingFocus = { fk: inp.dataset.fk, pos: null }; } }
+        tblFilters[inp.dataset.fk] = inp.value;
+        renderRecent();
+      });
+    });
+    const clr = document.getElementById('reg-filter-clear');
+    if (clr) clr.addEventListener('click', () => { tblFilters = { subject: '', lesson: '', method: '', date: '' }; renderRecent(); });
+
+    // Devolve o foco (e a posição do cursor) ao filtro de texto que estava sendo digitado
+    if (_pendingFocus) {
+      const back = recentList.querySelector(`.reg-filter-row [data-fk="${_pendingFocus.fk}"]`);
+      if (back) {
+        back.focus();
+        if (_pendingFocus.pos != null) { try { back.setSelectionRange(_pendingFocus.pos, _pendingFocus.pos); } catch (e) {} }
+      }
+      _pendingFocus = null;
+    }
+
+    wireEntryRows();
+  }
+
   searchInput.addEventListener('input', () => {
     searchTerm = searchInput.value.trim();
     renderRecent();
   });
+
+  // Alternador de visão: Cartões ⇄ Tabela (com filtros por coluna)
+  (function () {
+    const seg = document.getElementById('recent-view-seg');
+    if (!seg) return;
+    const paint = () => seg.querySelectorAll('button').forEach(b => b.classList.toggle('active', b.dataset.v === recentView));
+    seg.querySelectorAll('button').forEach(b => b.addEventListener('click', () => {
+      if (recentView === b.dataset.v) return;
+      recentView = b.dataset.v;
+      try { localStorage.setItem('diario-estudos:recent-view', recentView); } catch (e) {}
+      paint();
+      renderRecent();
+    }));
+    paint();
+  })();
 
   form.addEventListener('submit', function (e) {
     e.preventDefault();
@@ -23222,11 +23495,21 @@ const ProfileUI = {
   _draftAvatar: null,
   _draftColor: null,
 
+  AUTO_ENTER_KEY: 'diario-estudos:auto-enter',
+  autoEnterOn() { try { return localStorage.getItem(this.AUTO_ENTER_KEY) !== '0'; } catch (e) { return true; } },
+  setAutoEnter(on) { try { localStorage.setItem(this.AUTO_ENTER_KEY, on ? '1' : '0'); } catch (e) {} },
   boot() {
     this.renderChip();
     let entered = null;
     try { entered = sessionStorage.getItem(this.SESSION_KEY); } catch (e) {}
     const active = ProfileManager.getActiveProfileId();
+    // Perfil padrão: se a preferência estiver ligada (padrão), entra direto no
+    // último perfil usado sem re-perguntar a cada abertura de sessão. A troca
+    // continua disponível pelo botão \"⇄ Trocar de perfil\".
+    if (!entered && this.autoEnterOn() && active && this._hasLocalData(active)) {
+      entered = active;
+      try { sessionStorage.setItem(this.SESSION_KEY, active); } catch (e) {}
+    }
     if (entered && entered === active && this._hasLocalData(active)) {
       this.hideGate();
       // Só depois de entrar de fato: no gate o aviso não teria o que fazer.
@@ -24978,6 +25261,17 @@ window.CloudUI = CloudUI;
   on('cloud-sessions-refresh', 'click', () => CloudUI.renderSessions());
   on('cloud-push-now', 'click', () => CloudStore.autoSave());
   on('cloud-pull-now', 'click', () => CloudStore.pullActiveAndReload());
+  // Preferência \"entrar direto no último perfil\" — reflete o estado salvo e persiste ao mudar.
+  (function () {
+    const pae = document.getElementById('pref-auto-enter');
+    if (pae) {
+      pae.checked = ProfileUI.autoEnterOn();
+      pae.addEventListener('change', () => {
+        ProfileUI.setAutoEnter(pae.checked);
+        showToast(pae.checked ? 'O app abrirá direto no seu perfil' : 'O app perguntará o perfil ao abrir');
+      });
+    }
+  })();
 })();
 window.addEventListener('screen:activated', (e) => { if (e.detail.screen === 'config' && window.CloudUI) CloudUI.render(); });
 
