@@ -3767,68 +3767,16 @@
 
   /* ---------- Tela de acesso (perfis) ---------- */
   .profile-gate {
-    /* z-index acima do cloud-menu (1400) e dos popovers (1500): a tela de acesso
-       nunca pode ficar atrás de nenhum painel solto. */
-    position: fixed; inset: 0; z-index: 1600;
-    background: var(--bg);
-    display: flex; align-items: stretch; justify-content: center; padding: 0; overflow-y: auto;
+    position: fixed; inset: 0; z-index: 500;
+    background: radial-gradient(1200px 600px at 50% -10%, #eef0fd, var(--bg) 60%);
+    display: flex; align-items: center; justify-content: center; padding: 32px 20px; overflow-y: auto;
   }
-  /* ── Tela de acesso MODERNA: dois painéis (apresentação + formulário) ── */
-  .gate-shell {
-    width: 100%; min-height: 100dvh; display: grid;
-    grid-template-columns: 1.05fr 0.95fr;
-  }
-  /* Painel esquerdo — apresentação (marketing) */
-  .gate-hero {
-    position: relative; overflow: hidden;
-    background:
-      radial-gradient(900px 500px at 12% -10%, rgba(255,255,255,0.18), transparent 60%),
-      linear-gradient(150deg, var(--accent) 0%, #4338ca 45%, #6d28d9 100%);
-    color: #fff; padding: clamp(28px, 4vw, 56px);
-    display: flex; flex-direction: column; justify-content: space-between; gap: 28px;
-  }
-  .gate-hero::after {
-    content: ''; position: absolute; right: -120px; bottom: -120px;
-    width: 360px; height: 360px; border-radius: 50%;
-    background: radial-gradient(circle, rgba(255,255,255,0.14), transparent 70%);
-  }
-  .gate-hero-brand { display: flex; align-items: center; gap: 11px; font-weight: 800; letter-spacing: -0.01em; }
-  .gate-hero-logo { font-size: 26px; }
-  .gate-hero-name { font-size: calc(18px * var(--fs-scale, 1)); }
-  .gate-hero-body { position: relative; z-index: 1; }
-  .gate-hero-title { font-size: clamp(24px, 3vw, 34px); font-weight: 800; line-height: 1.15; letter-spacing: -0.02em; margin: 0 0 14px; max-width: 15ch; }
-  .gate-hero-sub { font-size: calc(14.5px * var(--fs-scale, 1)); line-height: 1.6; color: rgba(255,255,255,0.88); margin: 0 0 26px; max-width: 46ch; }
-  .gate-hero-feats { list-style: none; margin: 0; padding: 0; display: grid; gap: 14px; }
-  .gate-hero-feats li { display: flex; align-items: flex-start; gap: 12px; }
-  .gate-hero-feats .gf-ico {
-    flex: 0 0 auto; width: 38px; height: 38px; border-radius: 11px;
-    background: rgba(255,255,255,0.16); display: flex; align-items: center; justify-content: center; font-size: 19px;
-  }
-  .gate-hero-feats li span:last-child { display: flex; flex-direction: column; }
-  .gate-hero-feats b { font-size: calc(14px * var(--fs-scale, 1)); font-weight: 700; }
-  .gate-hero-feats small { font-size: calc(12px * var(--fs-scale, 1)); color: rgba(255,255,255,0.78); margin-top: 1px; }
-  .gate-hero-foot { position: relative; z-index: 1; font-size: calc(12.5px * var(--fs-scale, 1)); color: rgba(255,255,255,0.8); font-weight: 600; }
-
-  /* Painel direito — acesso */
-  .gate-panel { display: flex; align-items: center; justify-content: center; padding: clamp(28px, 4vw, 48px) 22px; background: var(--bg); }
-  .gate-panel-inner { width: 100%; max-width: 400px; }
-  .gate-panel-head { margin-bottom: 22px; }
-  .gate-panel-head h1 { font-size: calc(26px * var(--fs-scale, 1)); font-weight: 800; letter-spacing: -0.02em; margin: 0; }
-  .gate-panel-head p { color: var(--text-soft); font-size: calc(14px * var(--fs-scale, 1)); margin: 7px 0 0; line-height: 1.5; }
-  .gate-profile-actions { margin-top: 22px; display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; }
-
-  @media (max-width: 860px) {
-    .gate-shell { grid-template-columns: 1fr; }
-    /* no celular a apresentação vira um cabeçalho compacto acima do formulário */
-    .gate-hero { padding: 26px 22px; gap: 18px; }
-    .gate-hero-feats { display: none; }
-    .gate-hero-title { font-size: 22px; margin-bottom: 8px; max-width: none; }
-    .gate-hero-sub { margin-bottom: 0; font-size: 13.5px; }
-    .gate-hero-foot { display: none; }
-    .gate-panel { padding: 26px 20px 40px; }
-  }
-
-  .profile-grid { display: flex; flex-wrap: wrap; gap: 14px; justify-content: center; }
+  .profile-gate-inner { width: 100%; max-width: 720px; text-align: center; }
+  .profile-gate-brand { margin-bottom: 30px; }
+  .profile-gate-brand .eyebrow { margin: 0 auto 14px; }
+  .profile-gate-brand h1 { font-size: calc(30px * var(--fs-scale, 1)); font-weight: 800; letter-spacing: -0.02em; margin: 0; }
+  .profile-gate-brand p { color: var(--text-soft); font-size: calc(14px * var(--fs-scale, 1)); margin: 8px 0 0; }
+  .profile-grid { display: flex; flex-wrap: wrap; gap: 18px; justify-content: center; }
   .profile-card {
     width: 148px; padding: 20px 14px; border-radius: 16px; cursor: pointer;
     background: var(--surface); border: 1.5px solid var(--border); box-shadow: var(--shadow-sm);
@@ -3855,8 +3803,11 @@
   .profile-card.add .profile-card-avatar { background: var(--border-strong) !important; font-weight: 300; }
   .profile-card.add:hover .profile-card-avatar { background: var(--accent) !important; }
   .profile-gate-note { font-size: calc(11px * var(--fs-scale, 1)); color: var(--text-faint); margin-top: 30px; max-width: 52ch; margin-left: auto; margin-right: auto; line-height: 1.5; }
-  /* tabs Entrar/Criar conta com respiro no painel de acesso */
-  .gate-panel .cloud-auth-tabs { margin-bottom: 18px; }
+  .gate-login-box {
+    max-width: 380px; margin: 0 auto; background: var(--surface);
+    border: 1.5px solid var(--border); border-radius: 16px; box-shadow: var(--shadow-md);
+    padding: 26px 24px; text-align: left;
+  }
   /* indicador de conexão com o servidor */
   .gate-conn {
     display: flex; align-items: center; gap: 7px; justify-content: center;
@@ -3879,8 +3830,40 @@
   .gate-alert.good { background: var(--good-soft); border-color: var(--good-text); color: var(--good-text); }
   .gate-alert.info { background: var(--accent-soft); border-color: var(--accent); color: var(--accent); }
   /* Modais da tela de acesso */
-  .profile-modal { position: fixed; inset: 0; z-index: 510; background: rgba(20,22,26,0.45); display: flex; align-items: center; justify-content: center; padding: 20px; }
-  .profile-modal-box { width: 100%; max-width: 440px; background: var(--surface); border-radius: 16px; box-shadow: var(--shadow-lg); padding: 24px; }
+  .profile-modal { position: fixed; inset: 0; z-index: 1650; background: rgba(20,22,26,0.55); display: flex; align-items: center; justify-content: center; padding: 20px; backdrop-filter: blur(2px); }
+  .profile-modal-box { width: 100%; max-width: 520px; max-height: 90vh; overflow-y: auto; background: var(--surface); border-radius: 18px; box-shadow: var(--shadow-lg); padding: 24px; }
+  .pf-section-divider { display: flex; align-items: center; gap: 12px; margin: 18px 0 12px; }
+  .pf-section-divider::before, .pf-section-divider::after { content: ''; flex: 1; height: 1px; background: var(--border); }
+  .pf-section-divider span { font-size: calc(11px * var(--fs-scale,1)); font-weight: 800; text-transform: uppercase; letter-spacing: .05em; color: var(--text-faint); }
+  .pf-grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  @media (max-width: 480px) { .pf-grid2 { grid-template-columns: 1fr; } }
+
+  /* Menu do perfil (abre ao clicar no nome) */
+  .profile-menu {
+    position: fixed; z-index: 1500; width: 300px; max-width: calc(100vw - 20px);
+    background: var(--surface); border: 1.5px solid var(--border); border-radius: 16px;
+    box-shadow: var(--shadow-lg); overflow: hidden; animation: uxPopIn .14s ease;
+  }
+  .profile-menu-head { display: flex; align-items: center; gap: 12px; padding: 16px; background: linear-gradient(180deg, var(--accent-soft), var(--surface)); border-bottom: 1px solid var(--border); }
+  .profile-menu-avatar { width: 46px; height: 46px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 22px; color: #fff; flex-shrink: 0; }
+  .profile-menu-id { min-width: 0; }
+  .profile-menu-name { font-weight: 800; font-size: calc(15px * var(--fs-scale,1)); color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .profile-menu-sub { font-size: calc(11.5px * var(--fs-scale,1)); color: var(--text-soft); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-top: 1px; }
+  .profile-menu-stats { display: flex; gap: 0; padding: 12px 16px; border-bottom: 1px solid var(--border); }
+  .profile-menu-stat { flex: 1; text-align: center; }
+  .profile-menu-stat b { display: block; font-size: calc(17px * var(--fs-scale,1)); font-weight: 800; color: var(--accent); font-family: 'Space Mono', monospace; }
+  .profile-menu-stat span { font-size: calc(10px * var(--fs-scale,1)); color: var(--text-faint); text-transform: uppercase; letter-spacing: .03em; font-weight: 700; }
+  .profile-menu-list { padding: 6px; }
+  .profile-menu-item { display: flex; align-items: center; gap: 11px; width: 100%; padding: 10px 11px; border: none; background: transparent; border-radius: 10px; cursor: pointer; color: var(--text); font-size: calc(13.5px * var(--fs-scale,1)); font-weight: 600; text-align: left; }
+  .profile-menu-item:hover { background: var(--surface-sunken); }
+  .profile-menu-item .ic { width: 22px; text-align: center; font-size: 15px; flex-shrink: 0; }
+  .profile-menu-item.danger { color: var(--bad-text); }
+  .profile-menu-item.danger:hover { background: var(--bad-soft); }
+  .profile-menu-sec { font-size: calc(10px * var(--fs-scale,1)); font-weight: 800; text-transform: uppercase; letter-spacing: .05em; color: var(--text-faint); padding: 8px 12px 4px; }
+  .profile-menu-switch { display: flex; align-items: center; gap: 10px; width: 100%; padding: 8px 11px; border: none; background: transparent; border-radius: 10px; cursor: pointer; text-align: left; }
+  .profile-menu-switch:hover { background: var(--surface-sunken); }
+  .profile-menu-switch .pm-av { width: 30px; height: 30px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 15px; color: #fff; flex-shrink: 0; }
+  .profile-menu-switch .pm-nm { font-size: calc(13px * var(--fs-scale,1)); font-weight: 600; color: var(--text); min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .profile-modal-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; }
   .profile-modal-head h2 { font-size: calc(18px * var(--fs-scale, 1)); font-weight: 800; margin: 0; }
   .pf-avatar-grid { display: flex; flex-wrap: wrap; gap: 8px; }
@@ -3896,7 +3879,8 @@
   .pf-color-opt.selected { border-color: var(--text); box-shadow: 0 0 0 2px var(--surface), 0 0 0 4px var(--text); }
   .pin-avatar { width: 64px; height: 64px; border-radius: 50%; margin: 0 auto; display: flex; align-items: center; justify-content: center; font-size: calc(30px * var(--fs-scale, 1)); color: #fff; }
   /* Chip de perfil na sidebar */
-  .profile-chip { display: flex; align-items: center; gap: 9px; }
+  .profile-chip { display: flex; align-items: center; gap: 9px; width: 100%; background: transparent; border: 1.5px solid transparent; border-radius: 12px; padding: 6px 8px; cursor: pointer; transition: background .14s ease, border-color .14s ease; text-align: left; }
+  .profile-chip:hover { background: var(--surface-sunken); border-color: var(--border); }
   .profile-chip-avatar { width: 32px; height: 32px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: calc(16px * var(--fs-scale, 1)); color: #fff; flex-shrink: 0; }
   .profile-chip-info { display: flex; flex-direction: column; min-width: 0; flex: 1; }
   .profile-chip-eyebrow { font-size: calc(10px * var(--fs-scale, 1)); font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: var(--text-faint); }
@@ -4437,24 +4421,27 @@
   /* botões de ação */
   .leis-toolbar-actions { border-top: 1px solid var(--border); padding-top: 10px; }
   /* Gerenciador de palavras destacadas */
-  .lei-kw-add { display: flex; gap: 8px; flex-wrap: wrap; align-items: stretch; }
-  .lei-kw-add #lei-kw-input { flex: 1 1 180px; min-width: 0; }
+  .lei-kw-add { display: flex; gap: 8px; flex-wrap: wrap; align-items: stretch; margin-bottom: 14px; }
+  .lei-kw-add #lei-kw-input { flex: 1 1 220px; min-width: 0; }
   .lei-kw-add #lei-kw-cat { flex: 0 0 auto; }
   .lei-kw-add .btn-primary { flex: 0 0 auto; }
-  .lei-kw-list { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 6px; min-height: 24px; }
-  .lei-kw-empty { color: var(--text-faint); font-size: calc(12px * var(--fs-scale,1)); padding: 6px 2px; }
-  .lei-kw-item {
-    display: inline-flex; align-items: center; gap: 7px;
-    padding: 5px 6px 5px 10px; border-radius: 20px; border: 1.5px solid var(--border);
-    background: var(--surface); font-size: calc(12.5px * var(--fs-scale,1)); font-weight: 600;
+  .lei-kw-groups { display: grid; gap: 14px; }
+  .lei-kw-group-head { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+  .lei-kw-group-title { font-size: calc(12px * var(--fs-scale,1)); font-weight: 800; text-transform: uppercase; letter-spacing: .04em; color: var(--text-soft); }
+  .lei-kw-group-count { font-size: calc(11px * var(--fs-scale,1)); color: var(--text-faint); font-family: 'Space Mono', monospace; }
+  .lei-kw-chips { display: flex; flex-wrap: wrap; gap: 8px; }
+  .lei-kw-chip {
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 4px 5px 4px 4px; border-radius: 20px; border: 1.5px solid var(--border); background: var(--surface);
   }
-  .lei-kw-item mark { padding: 1px 7px; border-radius: 6px; font-weight: 700; }
-  .lei-kw-item .lei-kw-del {
+  .lei-kw-chip mark { padding: 2px 9px; border-radius: 14px; font-weight: 700; font-size: calc(12px * var(--fs-scale,1)); }
+  .lei-kw-chip .lei-kw-del {
     width: 20px; height: 20px; border-radius: 50%; border: none; cursor: pointer;
     background: var(--surface-sunken); color: var(--text-soft); font-size: 13px; line-height: 1;
-    display: flex; align-items: center; justify-content: center;
+    display: flex; align-items: center; justify-content: center; flex-shrink: 0;
   }
-  .lei-kw-item .lei-kw-del:hover { background: var(--bad-soft); color: var(--bad-text); }
+  .lei-kw-chip .lei-kw-del:hover { background: var(--bad-soft); color: var(--bad-text); }
+  .lei-kw-empty { color: var(--text-faint); font-size: calc(12px * var(--fs-scale,1)); padding: 8px 0; }
   /* Ferramentas (marca-texto / borracha) como toggles */
   .leis-tool-btn {
     padding: 8px 14px; font-size: calc(13px * var(--fs-scale, 1)); font-weight: 700; border-radius: 10px; cursor: pointer;
@@ -5200,71 +5187,51 @@
 
 <!-- ============ TELA DE ACESSO (seleção de perfil) ============ -->
 <div id="profile-gate" class="profile-gate" style="display:none;">
-  <div class="gate-shell">
+  <div class="profile-gate-inner">
+    <div class="profile-gate-brand">
+      <h1 id="profile-gate-title">Quem vai estudar?</h1>
+      <p id="profile-gate-sub">Selecione seu perfil para entrar no seu diário.</p>
+    </div>
 
-    <!-- PAINEL ESQUERDO: apresentação do produto (encanta quem chega pela 1ª vez) -->
-    <aside class="gate-hero">
-      <div class="gate-hero-brand">
-        <span class="gate-hero-logo">📚</span>
-        <span class="gate-hero-name">Diário de Estudos</span>
-      </div>
-      <div class="gate-hero-body">
-        <h2 class="gate-hero-title">Sua aprovação começa por um estudo bem medido.</h2>
-        <p class="gate-hero-sub">Registre cada sessão, monte seu ciclo semanal, revise com flashcards inteligentes e enxergue sua evolução em gráficos claros — tudo sincronizado na nuvem.</p>
-        <ul class="gate-hero-feats">
-          <li><span class="gf-ico">📈</span><span><b>Evolução real</b><small>Gráficos e metas por matéria, sem planilha.</small></span></li>
-          <li><span class="gf-ico">🃏</span><span><b>Revisão espaçada (FSRS)</b><small>Os flashcards voltam na hora certa de lembrar.</small></span></li>
-          <li><span class="gf-ico">📜</span><span><b>Leis secas inteligentes</b><small>Destaque automático das pegadinhas de prova.</small></span></li>
-          <li><span class="gf-ico">☁️</span><span><b>Na nuvem</b><small>Seus dados iguais em qualquer aparelho.</small></span></li>
-        </ul>
-      </div>
-      <div class="gate-hero-foot">Feito para concurseiros exigentes.</div>
-    </aside>
-
-    <!-- PAINEL DIREITO: acesso -->
-    <div class="gate-panel">
-      <div class="gate-panel-inner">
-        <div class="gate-panel-head">
-          <h1 id="profile-gate-title">Bem-vindo de volta</h1>
-          <p id="profile-gate-sub">Entre para continuar seus estudos.</p>
+    <!-- ETAPA 1: LOGIN (aparece quando não há sessão) -->
+    <div id="gate-login" style="display:none;">
+      <div class="gate-login-box">
+        <div class="gate-conn" id="gate-conn-status"><span class="cdot"></span> Conectando ao servidor...</div>
+        <div class="cloud-auth-tabs" style="margin-bottom:18px;">
+          <button type="button" class="cloud-auth-tab active" data-gatemode="signin">Entrar</button>
+          <button type="button" class="cloud-auth-tab" data-gatemode="signup">Criar conta</button>
         </div>
-
-        <!-- ETAPA 1: LOGIN -->
-        <div id="gate-login" style="display:none;">
-          <div class="gate-conn" id="gate-conn-status"><span class="cdot"></span> Conectando ao servidor...</div>
-          <div class="cloud-auth-tabs">
-            <button type="button" class="cloud-auth-tab active" data-gatemode="signin">Entrar</button>
-            <button type="button" class="cloud-auth-tab" data-gatemode="signup">Criar conta</button>
-          </div>
-          <div class="field">
-            <label for="gate-email">E-mail</label>
-            <input type="email" id="gate-email" placeholder="voce@email.com" autocomplete="email">
-          </div>
-          <div class="field">
-            <label for="gate-password">Senha</label>
-            <input type="password" id="gate-password" placeholder="Mínimo 6 caracteres" autocomplete="current-password">
-          </div>
-          <p class="hint" id="gate-auth-msg" style="display:none;"></p>
-          <button type="button" class="btn-primary" id="gate-auth-submit" style="width:100%;">Entrar</button>
-          <p class="hint" id="gate-forgot-line" style="margin-top:12px; text-align:center;">
-            <button type="button" id="gate-forgot-btn" style="background:none;border:none;color:var(--accent);font-weight:700;cursor:pointer;padding:0;font-size:12px;">Esqueci minha senha</button>
-          </p>
+        <div class="field">
+          <label for="gate-email">E-mail</label>
+          <input type="email" id="gate-email" placeholder="voce@email.com" autocomplete="email">
         </div>
-
-        <!-- ETAPA 2: PERFIS -->
-        <div id="gate-profiles" style="display:none;">
-          <div id="profile-gate-grid" class="profile-grid"></div>
-          <div class="gate-profile-actions">
-            <button type="button" class="btn-secondary" id="profile-import-btn">⭱ Importar de um backup (.json)</button>
-            <button type="button" class="btn-secondary" id="gate-logout-btn" style="display:none;">↩ Sair da conta</button>
-            <input type="file" id="profile-import-file" accept=".json,application/json" style="display:none;">
-          </div>
-          <p class="profile-gate-note" id="gate-profiles-note">🔒 Seus perfis e dados ficam vinculados à sua conta e sincronizados na nuvem — aparecem iguais em qualquer aparelho onde você entrar.</p>
+        <div class="field">
+          <label for="gate-password">Senha</label>
+          <input type="password" id="gate-password" placeholder="Mínimo 6 caracteres" autocomplete="current-password">
         </div>
-
-        <p class="profile-gate-note" id="gate-generic-note" style="display:none;">🔒 App de uso pessoal. Seus dados de estudo ficam protegidos pelo seu login.</p>
+        <p class="hint" id="gate-auth-msg" style="display:none;"></p>
+        <button type="button" class="btn-primary" id="gate-auth-submit" style="width:100%;">Entrar</button>
+        <p class="hint" id="gate-forgot-line" style="margin-top:10px; text-align:center;">
+          <button type="button" id="gate-forgot-btn" style="background:none;border:none;color:var(--accent);font-weight:700;cursor:pointer;padding:0;font-size:12px;">Esqueci minha senha</button>
+        </p>
+        <p class="hint" id="gate-offline-line" style="margin-top:8px; text-align:center;">
+          Sem internet? <button type="button" id="gate-offline-btn" style="background:none;border:none;color:var(--accent);font-weight:700;cursor:pointer;padding:0;font-size:12px;">Usar offline neste dispositivo</button>
+        </p>
       </div>
     </div>
+
+    <!-- ETAPA 2: PERFIS (aparece quando logado, ou em modo offline) -->
+    <div id="gate-profiles" style="display:none;">
+      <div id="profile-gate-grid" class="profile-grid"></div>
+      <div style="margin-top:22px; display:flex; gap:10px; justify-content:center; flex-wrap:wrap;">
+        <button type="button" class="btn-secondary" id="profile-import-btn">⭱ Importar perfil de um backup (.json)</button>
+        <button type="button" class="btn-secondary" id="gate-logout-btn" style="display:none;">↩ Sair da conta</button>
+        <input type="file" id="profile-import-file" accept=".json,application/json" style="display:none;">
+      </div>
+      <p class="profile-gate-note" id="gate-profiles-note">🔒 Seus perfis e dados ficam vinculados à sua conta e sincronizados na nuvem — aparecem iguais em qualquer dispositivo onde você entrar.</p>
+    </div>
+
+    <p class="profile-gate-note" id="gate-generic-note" style="display:none;">🔒 App de uso pessoal. Seus dados de estudo ficam protegidos pelo seu login.</p>
   </div>
 
   <!-- Modal: criar/editar perfil -->
@@ -5286,6 +5253,36 @@
         <label>Cor</label>
         <div class="pf-color-grid" id="pf-color-grid"></div>
       </div>
+
+      <!-- Dados do estudante (profissional) -->
+      <div class="pf-section-divider"><span>Meus dados de estudo</span></div>
+      <div class="pf-grid2">
+        <div class="field">
+          <label for="pf-fullname">Nome completo</label>
+          <input type="text" id="pf-fullname" placeholder="Seu nome" maxlength="80" autocomplete="name">
+        </div>
+        <div class="field">
+          <label for="pf-concurso">Concurso alvo</label>
+          <input type="text" id="pf-concurso" placeholder="Ex.: Receita Federal" maxlength="60">
+        </div>
+        <div class="field">
+          <label for="pf-cargo">Cargo pretendido</label>
+          <input type="text" id="pf-cargo" placeholder="Ex.: Auditor Fiscal" maxlength="60">
+        </div>
+        <div class="field">
+          <label for="pf-banca">Banca</label>
+          <input type="text" id="pf-banca" placeholder="Ex.: FGV, CESPE…" maxlength="40">
+        </div>
+        <div class="field">
+          <label for="pf-prova">Data da prova <span class="opt">(se souber)</span></label>
+          <input type="date" id="pf-prova">
+        </div>
+        <div class="field">
+          <label for="pf-metah">Meta de horas/semana</label>
+          <input type="number" id="pf-metah" min="0" max="120" step="1" placeholder="Ex.: 30">
+        </div>
+      </div>
+
       <div class="field">
         <label for="pf-pin">PIN <span class="opt">(opcional, 4 dígitos — trava leve)</span></label>
         <input type="password" id="pf-pin" inputmode="numeric" maxlength="6" placeholder="Deixe em branco para não usar" autocomplete="off">
@@ -5403,14 +5400,14 @@
     </div>
 
     <div class="sidebar-footer">
-      <div class="profile-chip" id="profile-chip">
+      <button type="button" class="profile-chip" id="profile-chip" title="Meu perfil, dados e troca de conta">
         <span class="profile-chip-avatar" id="profile-chip-avatar">📘</span>
         <span class="profile-chip-info">
           <span class="profile-chip-eyebrow">Perfil</span>
           <span class="profile-chip-name" id="profile-chip-name">—</span>
         </span>
-        <button type="button" class="profile-chip-switch" id="profile-chip-switch" title="Trocar de perfil">⇄</button>
-      </div>
+        <span class="profile-chip-switch" id="profile-chip-switch" aria-hidden="true">⌄</span>
+      </button>
     </div>
   </aside>
 
@@ -5961,7 +5958,7 @@
           <button type="button" class="leis-tool-btn leis-tool-erase" id="lei-unmark-btn" title="Borracha: com ela ativa, selecione um destaque para apagá-lo (inclusive os automáticos)">🧽 Borracha</button>
           <span id="lei-mark-count" class="leis-mark-count"></span>
           <span class="leis-toolbar-spacer"></span>
-          <button type="button" class="leis-tool-btn" id="lei-kw-btn" title="Gerenciar as palavras que são destacadas automaticamente em todas as leis">🎨 Palavras destacadas</button>
+          <button type="button" class="leis-tool-btn" id="lei-kw-btn" title="Gerenciar as palavras destacadas automaticamente em todas as leis">🎨 Palavras destacadas</button>
           <button type="button" class="leis-tool-btn" id="lei-lines-btn" title="Mostrar/ocultar a numeração das linhas">🔢 Linhas</button>
           <button type="button" class="leis-tool-btn" id="lei-goto-mark-btn" title="Ir para a linha onde você parou">📌 Onde parei</button>
           <button type="button" class="leis-tool-btn" id="lei-foco-btn" title="Ler sem distração, em tela cheia (Esc para sair)">🎯 Modo foco</button>
@@ -5984,16 +5981,16 @@
       </div>
     </div>
 
-    <!-- Modal: gerenciar palavras de destaque automático (vale para todas as leis) -->
+    <!-- Modal: gerenciar palavras de destaque automático (todas as leis) -->
     <div id="lei-kw-modal" class="cards-modal" style="display:none;">
-      <div class="cards-modal-box">
+      <div class="cards-modal-box cards-modal-lg">
         <div class="cards-modal-head">
-          <div><h2>🎨 Palavras destacadas por padrão</h2><p class="sub">Estas palavras são realçadas automaticamente em <strong>todas as leis</strong> (inclusive as novas). A cor segue a categoria escolhida.</p></div>
+          <div><h2>🎨 Palavras destacadas por padrão</h2><p class="sub">Estas palavras são realçadas automaticamente em <strong>todas as leis</strong> (inclusive as novas). Inclua ou remova o que quiser — a cor segue a categoria.</p></div>
           <button type="button" class="icon-btn" id="lei-kw-close">✕</button>
         </div>
         <div class="cards-modal-body">
           <div class="lei-kw-add">
-            <input type="text" id="lei-kw-input" placeholder="Ex.: usucapião, responsabilidade objetiva…" maxlength="40">
+            <input type="text" id="lei-kw-input" placeholder="Nova palavra (ex.: usucapião, prescreve, imprescritível…)" maxlength="40">
             <select id="lei-kw-cat" aria-label="Cor/categoria da palavra">
               <option value="ressalvas">⚖️ Ressalvas</option>
               <option value="restricoes">🚫 Restrições</option>
@@ -6004,11 +6001,11 @@
             </select>
             <button type="button" class="btn-primary" id="lei-kw-add-btn">Adicionar</button>
           </div>
-          <p class="hint" style="margin:8px 0 4px;">Suas palavras:</p>
-          <div id="lei-kw-list" class="lei-kw-list"></div>
+          <div id="lei-kw-groups" class="lei-kw-groups"></div>
         </div>
         <div class="cards-modal-foot">
-          <span class="save-note" style="flex:1"><span class="dot"></span>salvo no seu perfil e sincronizado</span>
+          <button type="button" class="btn-secondary" id="lei-kw-restore" title="Voltar à lista de palavras que vem por padrão">↺ Restaurar padrões</button>
+          <span style="flex:1"></span>
           <button type="button" class="btn-primary" id="lei-kw-done">Concluído</button>
         </div>
       </div>
@@ -8388,12 +8385,12 @@
    responsivo, que serve às duas visões (grade no desktop, cartões no mobile). */
 .reg-filterbar {
   display: grid;
-  grid-template-columns: 96px minmax(0,1.2fr) minmax(0,1.4fr) minmax(0,1fr) minmax(0,1fr) auto;
-  gap: 10px; align-items: end;
-  padding: 12px; margin-bottom: 12px;
-  background: var(--surface-sunken); border: 1.5px solid var(--border); border-radius: 12px;
+  grid-template-columns: 104px minmax(0,1.2fr) minmax(0,1.4fr) minmax(0,1fr) minmax(0,1fr) auto;
+  gap: 12px 14px; align-items: end;
+  padding: 16px; margin-bottom: 14px;
+  background: var(--surface-sunken); border: 1.5px solid var(--border); border-radius: 14px;
 }
-.reg-filter-field { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.reg-filter-field { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
 .reg-filter-field > label {
   font-size: var(--fs-2xs); font-weight: 700; text-transform: uppercase; letter-spacing: .04em;
   color: var(--text-faint);
@@ -8423,35 +8420,40 @@
 .reg-sort-field { display: none; }
 
 /* ══════════════════════════════════════════════════════════════════════════
-   LISTA DE REGISTROS — reconstruída em CSS GRID (não usa <table>).
-   Motivo: o helper global ":where(.card) table{display:block}" e o
-   "overflow-wrap:break-word" global vinham colapsando a <table> (texto quebrando
-   letra a letra / linhas partidas). Grid com colunas de largura FIXA é imune a
-   esses helpers e garante alinhamento perfeito entre cabeçalho e linhas.
-   Colunas (mesmas p/ head e linhas): Data | Matéria | Aula | Forma | Tempo | Acertos | % | Ações
-   ══════════════════════════════════════════════════════════════════════════ */
-:root { --reg-cols: 96px minmax(140px,1.5fr) minmax(150px,1.8fr) minmax(96px,1fr) 78px 84px 68px 84px; }
+   LISTA DE REGISTROS — CSS GRID que APROVEITA a largura do desktop.
+   Nada de <table> (os helpers globais quebravam). No desktop o grid preenche
+   100% do cartão, então Matéria/Aula têm espaço e o % nunca é cortado. Só em
+   telas estreitas há rolagem horizontal; no celular vira cartões empilhados. */
 .reg-grid-scroll {
-  overflow: auto; -webkit-overflow-scrolling: touch;
-  max-height: min(70vh, 780px);
+  overflow-x: auto; -webkit-overflow-scrolling: touch;
   border: 1.5px solid var(--border); border-radius: 14px; background: var(--surface);
 }
-.reg-grid { min-width: 800px; }   /* soma dos mínimos: força rolagem horizontal só quando não cabe */
+.reg-grid { width: 100%; }
+/* Colunas em fr: distribuem o espaço livre do desktop. Matéria e Aula crescem;
+   números têm largura própria e o % cabe inteiro (sem reticências). */
 .reg-grid-head, .reg-row {
   display: grid;
-  grid-template-columns: var(--reg-cols);
+  grid-template-columns:
+    108px                    /* Data    */
+    minmax(120px, 1.5fr)     /* Matéria */
+    minmax(130px, 2fr)       /* Aula    */
+    minmax(92px, 1fr)        /* Forma   */
+    92px                     /* Tempo   */
+    92px                     /* Acertos */
+    94px                     /* %       */
+    92px;                    /* Ações   */
   align-items: center;
-  column-gap: 0;
 }
-/* Cabeçalho fixo no topo ao rolar verticalmente */
+/* Cabeçalho: respiro no topo para os rótulos NÃO colarem na borda/sombra */
 .reg-grid-head {
   position: sticky; top: 0; z-index: 4;
   background: var(--surface-sunken);
   border-bottom: 1.5px solid var(--border);
+  border-radius: 14px 14px 0 0;
 }
 .reg-h {
   display: inline-flex; align-items: center; gap: 5px;
-  padding: 11px 12px; margin: 0; width: 100%;
+  padding: 14px 14px 12px; margin: 0; width: 100%;
   background: transparent; border: none; text-align: left;
   font-weight: 700; font-size: var(--fs-2xs); letter-spacing: .04em; text-transform: uppercase;
   color: var(--text-faint); white-space: nowrap;
@@ -8462,27 +8464,28 @@
 .reg-h .sort-ind { font-size: var(--fs-xs); color: var(--accent); }
 .reg-h-num { justify-content: flex-end; text-align: right; }
 .reg-h-act { justify-content: flex-end; text-align: right; }
-/* Linhas de dados */
+/* Linhas */
 .reg-row { border-bottom: 1px solid var(--border); transition: background .12s ease; }
 .reg-row:nth-child(even) { background: color-mix(in srgb, var(--surface-sunken) 45%, transparent); }
 .reg-row:hover { background: var(--surface-sunken); }
 .reg-row:last-child { border-bottom: none; }
 .reg-c {
-  padding: 10px 12px; min-width: 0; font-size: var(--fs-sm);
-  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;   /* nunca quebra letra a letra */
+  padding: 11px 14px; min-width: 0; font-size: var(--fs-sm);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
 .reg-c-date { font-family: 'Space Mono', monospace; font-size: var(--fs-xs); color: var(--text-soft); }
 .reg-c-subject { font-weight: 700; color: var(--text); }
 .reg-c-lesson { color: var(--text-soft); }
 .reg-c-method { color: var(--text); }
 .reg-c-num { font-variant-numeric: tabular-nums; text-align: right; white-space: nowrap; }
-.reg-c-pct { font-weight: 800; font-variant-numeric: tabular-nums; text-align: right; white-space: nowrap; }
+/* % SEM reticências: cabe inteiro sempre (ex.: 100.0%) */
+.reg-c-pct { font-weight: 800; font-variant-numeric: tabular-nums; text-align: right; white-space: nowrap; overflow: visible; text-overflow: clip; }
 .reg-c-pct.tone-good { color: var(--good-text); }
 .reg-c-pct.tone-warn { color: var(--warn-text); }
 .reg-c-pct.tone-bad { color: var(--bad-text); }
 .reg-c-pct.tone-none { color: var(--text-faint); font-weight: 600; }
 .reg-empty { color: var(--text-faint); }
-.reg-c-act { display: flex; justify-content: flex-end; gap: 4px; overflow: visible; padding: 6px 8px; }
+.reg-c-act { display: flex; justify-content: flex-end; gap: 4px; overflow: visible; padding: 7px 10px; }
 .reg-c-act .icon-btn { padding: 5px 7px; }
 .reg-noresult { padding: 26px 16px; text-align: center; color: var(--text-faint); font-size: var(--fs-sm); }
 .reg-table-foot { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; padding: 10px 2px 2px; }
@@ -8493,21 +8496,25 @@
   .reg-filterbar { grid-template-columns: 1fr 1fr; }
   .reg-filter-clear { grid-column: 1 / -1; }
 }
+/* Tablet estreito: mantém a grade, mas garante uma largura mínima legível com rolagem */
+@media (max-width: 820px) and (min-width: 601px) {
+  .reg-grid { min-width: 720px; }
+}
 
-/* ══ MOBILE: cada linha vira um CARTÃO empilhado — leitura vertical, zero colapso ══ */
+/* ══ MOBILE (≤600px): cada linha vira um CARTÃO empilhado ══ */
 @media (max-width: 600px) {
   .reg-sort-field { display: flex; }
   .reg-filterbar { grid-template-columns: 1fr 1fr; gap: 9px; padding: 11px; }
   .reg-sort-field { grid-column: 1 / -1; }
   .reg-filter-clear { grid-column: 1 / -1; }
 
-  .reg-grid-scroll { max-height: none; overflow: visible; border: none; background: transparent; border-radius: 0; }
+  .reg-grid-scroll { overflow: visible; border: none; background: transparent; border-radius: 0; }
   .reg-grid { min-width: 0; }
-  .reg-grid-head { display: none; }              /* cabeçalho some; ordenação vem da barra */
+  .reg-grid-head { display: none; }
   .reg-row {
     display: flex; flex-direction: column; position: relative;
     border: 1.5px solid var(--border); border-radius: 14px; background: var(--surface);
-    box-shadow: var(--shadow-sm); padding: 14px 14px 12px; margin-bottom: 12px; column-gap: 0;
+    box-shadow: var(--shadow-sm); padding: 14px 14px 12px; margin-bottom: 12px;
   }
   .reg-row:nth-child(even) { background: var(--surface); }
   .reg-c {
@@ -8520,7 +8527,6 @@
     font-size: var(--fs-2xs); font-weight: 700; text-transform: uppercase; letter-spacing: .04em;
     color: var(--text-faint); padding-top: 1px;
   }
-  /* Matéria = título do cartão */
   .reg-c-subject {
     order: -2; display: block; white-space: normal; overflow: visible; text-overflow: clip;
     font-size: var(--fs-lg); font-weight: 800; line-height: 1.25;
@@ -9211,15 +9217,52 @@ const DB = {
     this.saveLeis(list);
   },
   deleteLei(id) { this.saveLeis(this.getLeis().filter(l => l.id !== id)); },
-  // ---- Palavras de destaque automático personalizadas (aplicam-se a TODAS as leis) ----
-  // Formato: [{ t: 'termo', cat: 'ressalvas'|'restricoes'|'competencias'|'prazos'|'efeitos'|'relacoes' }]
-  getLeiKeywords() { return this._get(this.KEYS.leiKeywords, []); },
+  // ---- Palavras de destaque automático (gerenciáveis; valem para TODAS as leis) ----
+  // Formato: [{ t:'palavra', cat:'ressalvas'|'restricoes'|'competencias'|'prazos'|'efeitos'|'relacoes', def:true? }]
+  // Na 1ª vez, semeamos a lista com os termos PADRÃO (legíveis), para o usuário
+  // ver, incluir e excluir. A partir daí, a lista dele é a fonte da verdade.
+  LEI_KEYWORDS_DEFAULT: [
+    // Ressalvas / Exceções
+    'salvo','salvo se','exceto','com exceção','ressalvado','ressalvados','excetuado','sem prejuízo','desde que','não obstante',
+    // Restrições / Exclusividade
+    'exclusivamente','somente','apenas','vedado','vedada','vedação','proibido','proibida','independentemente','integralmente','restrito',
+    // Poder / Dever / Competência
+    'deverá','deverão','deve','poderá','poderão','pode','é facultado','facultativo','competência','compete','privativamente','indelegável','obrigatório','dispensável','inexigível',
+    // Prazos / Tempo
+    'dias','horas','meses','anos','maioria absoluta','maioria simples','dois terços','três quintos','úteis','corridos','vigência','em vigor','decadência','prescrição','trânsito em julgado',
+    // Validade / Sanções
+    'nulidade','nulo','anulável','anulação','ineficaz','suspensão','extinção','exclusão','revogação','presume-se','penalidade','multa','sanção','infração','improbidade','crime',
+    // Causalidade / Subordinação
+    'subsidiariamente','supletivamente','solidariamente','pessoalmente','diretamente','indiretamente','conjuntamente'
+  ],
+  _leiKwCatOf(termo) {
+    // Mapeia um termo padrão à sua categoria (para semear com a cor certa).
+    const t = termo.toLowerCase();
+    const G = {
+      ressalvas: ['salvo','salvo se','exceto','com exceção','ressalvado','ressalvados','excetuado','sem prejuízo','desde que','não obstante'],
+      restricoes: ['exclusivamente','somente','apenas','vedado','vedada','vedação','proibido','proibida','independentemente','integralmente','restrito'],
+      competencias: ['deverá','deverão','deve','poderá','poderão','pode','é facultado','facultativo','competência','compete','privativamente','indelegável','obrigatório','dispensável','inexigível'],
+      prazos: ['dias','horas','meses','anos','maioria absoluta','maioria simples','dois terços','três quintos','úteis','corridos','vigência','em vigor','decadência','prescrição','trânsito em julgado'],
+      efeitos: ['nulidade','nulo','anulável','anulação','ineficaz','suspensão','extinção','exclusão','revogação','presume-se','penalidade','multa','sanção','infração','improbidade','crime'],
+      relacoes: ['subsidiariamente','supletivamente','solidariamente','pessoalmente','diretamente','indiretamente','conjuntamente']
+    };
+    for (const k in G) if (G[k].includes(t)) return k;
+    return 'competencias';
+  },
+  getLeiKeywords() {
+    let list = this._get(this.KEYS.leiKeywords, null);
+    if (list === null) {  // 1ª vez: semeia com os padrões
+      list = this.LEI_KEYWORDS_DEFAULT.map(t => ({ t, cat: this._leiKwCatOf(t), def: true }));
+      this._set(this.KEYS.leiKeywords, list);
+    }
+    return list;
+  },
   saveLeiKeywords(list) { this._set(this.KEYS.leiKeywords, list); },
   addLeiKeyword(t, cat) {
     const termo = String(t || '').trim();
     if (termo.length < 2) return false;
     const list = this.getLeiKeywords();
-    if (list.some(k => k.t.toLowerCase() === termo.toLowerCase())) return false; // já existe
+    if (list.some(k => k.t.toLowerCase() === termo.toLowerCase())) return false;
     list.push({ t: termo, cat: cat || 'competencias' });
     this.saveLeiKeywords(list);
     return true;
@@ -9227,6 +9270,11 @@ const DB = {
   removeLeiKeyword(termo) {
     const key = String(termo || '').toLowerCase();
     this.saveLeiKeywords(this.getLeiKeywords().filter(k => k.t.toLowerCase() !== key));
+  },
+  restoreLeiKeywordDefaults() {
+    const list = this.LEI_KEYWORDS_DEFAULT.map(t => ({ t, cat: this._leiKwCatOf(t), def: true }));
+    this.saveLeiKeywords(list);
+    return list;
   },
 
   // ---- Cards de Revisão: baralhos + cards com repetição espaçada ----
@@ -11843,7 +11891,6 @@ const ReforcoEngine = {
     if (cmp) { rows.sort(cmp); if (tblSort.dir === 'desc') rows.reverse(); }
 
     const arrow = k => tblSort.key === k ? (tblSort.dir === 'asc' ? '▲' : '▼') : '';
-    // Cabeçalhos: botões de verdade (clicáveis/acessíveis). Grid, não <table>.
     const hCell = (k, label, extraCls) => `<button type="button" class="reg-h sortable ${extraCls || ''} ${tblSort.key === k ? 'is-sorted' : ''}" data-sort="${k}">${label}<span class="sort-ind">${arrow(k)}</span></button>`;
 
     const opt = (arr, sel) => ['<option value="">Todas</option>'].concat(
@@ -12382,7 +12429,7 @@ const LawEngine = {
   // Constrói os spans de destaque de UMA linha (offsets locais).
   // suppressed: itens apagados pelo usuário. Aceita texto puro (formato antigo = vale para a
   // lei inteira) ou { t, l } = apagar SÓ na linha l — apagar um "deve" não some com todos.
-  _spansForLine(line, opts, manualList, suppressed, ln, extraKw) {
+  _spansForLine(line, opts, manualList, suppressed, ln, keywords) {
     const spans = [];
     let suppGlobal = null, suppLinha = null;
     if (suppressed && suppressed.length) {
@@ -12393,31 +12440,18 @@ const LawEngine = {
       });
     }
     const autoOff = opts && opts._auto === false; // interruptor mestre desligado
-    if (!autoOff) Object.keys(this.categories).forEach(key => {
-      if (opts && opts[key] === false) return;
-      const cat = this.categories[key];
-      const re = this._re(key);
-      let m;
-      while ((m = re.exec(line)) !== null) {
-        if (m.index === re.lastIndex) re.lastIndex++;
-        // pula o destaque automático se o usuário o apagou (na lei toda ou nesta linha)
-        if (suppGlobal) {
-          const low = m[0].toLowerCase();
-          if (suppGlobal.includes(low) || suppLinha.includes(low)) continue;
-        }
-        spans.push({ start: m.index, end: m.index + m[0].length, cls: cat.cls });
-      }
-    });
-    // PALAVRAS PERSONALIZADAS: destaque automático definido pelo usuário (aplica-se
-    // a todas as leis, inclusive as recém-cadastradas). Marca TODAS as ocorrências
-    // na linha, respeitando limites de palavra e a supressão do usuário.
-    if (!autoOff && extraKw && extraKw.length) {
+    // DESTAQUE AUTOMÁTICO por LISTA DE PALAVRAS gerenciável (o que está no gerenciador
+    // é exatamente o que acende). Respeita os toggles por categoria e a supressão.
+    if (!autoOff && keywords && keywords.length) {
       const low = line.toLowerCase();
-      extraKw.forEach(kw => {
+      keywords.forEach(kw => {
+        const cat = kw.cat || 'competencias';
+        if (opts && opts[cat] === false) return;        // categoria desligada na barra
         const needle = String(kw.t || '').toLowerCase();
         if (needle.length < 2) return;
         if (suppGlobal && (suppGlobal.includes(needle) || suppLinha.includes(needle))) return;
-        const cls = (this.categories[kw.cat] && this.categories[kw.cat].cls) || 'lawmark-manual';
+        const catMeta = this.categories[cat];
+        const cls = (catMeta && catMeta.cls) || 'lawmark-manual';
         const iniPal = /[\wÀ-ÿ]/.test(needle[0]);
         const fimPal = /[\wÀ-ÿ]/.test(needle[needle.length - 1]);
         let from = 0, i;
@@ -12515,12 +12549,13 @@ const LawEngine = {
     return i >= 0 ? i + 1 : alvo;
   },
   // Gera o HTML final estruturado + destacado de uma lei.
-  // extraKw: palavras de destaque personalizadas do usuário (opcional).
-  toHtml(lei, extraKw) {
+  // keywords: lista gerenciável de palavras a destacar (padrão: DB.getLeiKeywords()).
+  toHtml(lei, keywords) {
     const text = this.normalize(lei.texto);
     const opts = lei.opts || {};
     const manual = lei.marcacoes || [];
     const suppressed = lei.suppressed || [];
+    const kw = keywords || (typeof DB !== 'undefined' && DB.getLeiKeywords ? DB.getLeiKeywords() : []);
     const lines = text.split('\n');
     const bookmark = this.resolveBookmark(lei);
     const buf = [];
@@ -12529,7 +12564,7 @@ const LawEngine = {
       if (!line.trim()) { buf.push('<div class="law-gap"></div>'); return; }
       ln++;
       const cls = this._classify(line);
-      const spans = this._spansForLine(line, opts, manual, suppressed, ln, extraKw);
+      const spans = this._spansForLine(line, opts, manual, suppressed, ln, kw);
       const isBk = (ln === bookmark);
       buf.push(`<div class="law-block ${cls} ${isBk ? 'law-bookmarked' : ''}" data-line="${ln}">` +
         `<span class="law-lnum" data-line="${ln}" title="Clique para marcar aqui (onde parei)">${ln}</span>` +
@@ -16206,7 +16241,7 @@ const EvolucaoScreen = {
           const ly = acima ? cy - 10 : cy + 18;
           const anchor = (i === 0) ? 'start' : (i === s.points.length - 1) ? 'end' : 'middle';
           const dx = (i === 0) ? 4 : (i === s.points.length - 1) ? -4 : 0;
-          valLabels += `<text x="${cx + dx}" y="${ly}" font-size="${M.fVal}" fill="${s.color}" text-anchor="${anchor}" font-weight="800" font-family="${T.fMono}">${Math.round(p.pct)}%</text>`;
+          valLabels += `<text x="${cx + dx}" y="${ly}" font-size="${M.fVal}" fill="${s.color}" text-anchor="${anchor}" font-weight="800" font-family="${T.fMono}">${formatPct(p.pct)}%</text>`;
         });
       }
     });
@@ -16352,7 +16387,7 @@ const EvolucaoScreen = {
         const anchor = (i === 0) ? 'start' : (i === s.points.length - 1) ? 'end' : 'middle';
         const dx = (i === 0) ? 5 : (i === s.points.length - 1) ? -5 : 0;
         const dot = `<circle cx="${cx}" cy="${cy}" r="${M.narrow ? 5 : 4.5}" fill="${T.surface}" stroke="${s.color}" stroke-width="2.5"><title>${p.label}: ${formatPct(p.pct)}%</title></circle>`;
-        const lbl = mostra ? `<text x="${cx + dx}" y="${ly}" font-size="${M.fVal}" fill="${s.color}" text-anchor="${anchor}" font-weight="700" font-family="${T.fMono}">${Math.round(p.pct)}%</text>` : '';
+        const lbl = mostra ? `<text x="${cx + dx}" y="${ly}" font-size="${M.fVal}" fill="${s.color}" text-anchor="${anchor}" font-weight="700" font-family="${T.fMono}">${formatPct(p.pct)}%</text>` : '';
         return dot + lbl;
       }).join('');
     });
@@ -17663,14 +17698,14 @@ const LeisScreen = {
     this.renderBody(); this.renderMarks();
     showToast('Destaques automáticos restaurados');
   },
-  // ── Gerenciador de palavras destacadas por padrão (aplica-se a todas as leis) ──
+  // ── Gerenciador de palavras destacadas por padrão (todas as leis) ──
   _kwCatMeta: {
-    ressalvas: { cls: 'lawmark-ressalvas', label: '⚖️ Ressalvas' },
-    restricoes: { cls: 'lawmark-restricoes', label: '🚫 Restrições' },
-    competencias: { cls: 'lawmark-competencias', label: '🏛️ Poder/Dever' },
-    prazos: { cls: 'lawmark-prazos', label: '⏱️ Prazos' },
-    efeitos: { cls: 'lawmark-efeitos', label: '⚠️ Sanções' },
-    relacoes: { cls: 'lawmark-relacoes', label: '🔗 Causalidade' }
+    ressalvas:   { cls: 'lawmark-ressalvas',   label: '⚖️ Ressalvas / Exceções' },
+    restricoes:  { cls: 'lawmark-restricoes',  label: '🚫 Restrições / Exclusividade' },
+    competencias:{ cls: 'lawmark-competencias',label: '🏛️ Poder / Dever / Competência' },
+    prazos:      { cls: 'lawmark-prazos',      label: '⏱️ Prazos / Tempo' },
+    efeitos:     { cls: 'lawmark-efeitos',     label: '⚠️ Validade / Sanções' },
+    relacoes:    { cls: 'lawmark-relacoes',    label: '🔗 Causalidade / Subordinação' }
   },
   openKeywords() {
     const m = document.getElementById('lei-kw-modal');
@@ -17678,10 +17713,7 @@ const LeisScreen = {
     this.renderKeywords();
     setTimeout(() => { const i = document.getElementById('lei-kw-input'); if (i) i.focus(); }, 40);
   },
-  closeKeywords() {
-    const m = document.getElementById('lei-kw-modal');
-    if (m) m.style.display = 'none';
-  },
+  closeKeywords() { const m = document.getElementById('lei-kw-modal'); if (m) m.style.display = 'none'; },
   addKeywordFromForm() {
     const inp = document.getElementById('lei-kw-input');
     const sel = document.getElementById('lei-kw-cat');
@@ -17690,28 +17722,47 @@ const LeisScreen = {
     if (!DB.addLeiKeyword(termo, sel.value)) { showToast('Essa palavra já está na lista'); inp.value = ''; inp.focus(); return; }
     inp.value = '';
     this.renderKeywords();
-    if (this.currentId) this.renderBody();   // reaplica na lei aberta imediatamente
+    if (this.currentId) this.renderBody();   // reaplica imediatamente na lei aberta
     inp.focus();
   },
   renderKeywords() {
-    const list = document.getElementById('lei-kw-list');
-    if (!list) return;
+    const host = document.getElementById('lei-kw-groups');
+    if (!host) return;
     const kws = DB.getLeiKeywords();
-    if (!kws.length) { list.innerHTML = '<span class="lei-kw-empty">Nenhuma palavra ainda. Adicione acima — ela será destacada em todas as suas leis.</span>'; return; }
-    list.innerHTML = kws.map(k => {
-      const meta = this._kwCatMeta[k.cat] || this._kwCatMeta.competencias;
-      return `<span class="lei-kw-item" data-kw="${escapeHtml(k.t)}">
-        <mark class="${meta.cls}">${escapeHtml(k.t)}</mark>
-        <button type="button" class="lei-kw-del" title="Remover">×</button>
-      </span>`;
-    }).join('');
-    list.querySelectorAll('.lei-kw-item').forEach(el => {
+    const order = ['ressalvas','restricoes','competencias','prazos','efeitos','relacoes'];
+    let html = '';
+    order.forEach(cat => {
+      const meta = this._kwCatMeta[cat];
+      const itens = kws.filter(k => (k.cat || 'competencias') === cat);
+      html += `<div class="lei-kw-group">
+        <div class="lei-kw-group-head">
+          <span class="lei-kw-group-title">${meta.label}</span>
+          <span class="lei-kw-group-count">${itens.length}</span>
+        </div>
+        <div class="lei-kw-chips">
+          ${itens.length ? itens.map(k => `
+            <span class="lei-kw-chip" data-kw="${escapeHtml(k.t)}">
+              <mark class="${meta.cls}">${escapeHtml(k.t)}</mark>
+              <button type="button" class="lei-kw-del" title="Remover">×</button>
+            </span>`).join('') : '<span class="lei-kw-empty">Nenhuma palavra nesta categoria.</span>'}
+        </div>
+      </div>`;
+    });
+    host.innerHTML = html;
+    host.querySelectorAll('.lei-kw-chip').forEach(el => {
       el.querySelector('.lei-kw-del').addEventListener('click', () => {
         DB.removeLeiKeyword(el.dataset.kw);
         this.renderKeywords();
         if (this.currentId) this.renderBody();
       });
     });
+  },
+  restoreKeywordDefaults() {
+    if (!confirm('Restaurar a lista de palavras que vem por padrão? Suas inclusões/exclusões nesta lista serão substituídas.')) return;
+    DB.restoreLeiKeywordDefaults();
+    this.renderKeywords();
+    if (this.currentId) this.renderBody();
+    showToast('Palavras padrão restauradas');
   },
   _clearSel() {
     this._selText = '';
@@ -17797,16 +17848,16 @@ window.LeisScreen = LeisScreen;
   if (body) body.addEventListener('mouseup', () => setTimeout(() => LeisScreen.onBodyMouseUp(), 0));
   on('lei-font-inc', 'click', () => LeisScreen.changeFont(1));
   on('lei-font-dec', 'click', () => LeisScreen.changeFont(-1));
-  on('lei-lines-btn', 'click', () => LeisScreen.toggleLines());
-  on('lei-goto-mark-btn', 'click', () => LeisScreen.gotoBookmark());
-  on('lei-foco-btn', 'click', () => LeisScreen.entrarFoco());
-  // Gerenciador de palavras destacadas
   on('lei-kw-btn', 'click', () => LeisScreen.openKeywords());
   on('lei-kw-close', 'click', () => LeisScreen.closeKeywords());
   on('lei-kw-done', 'click', () => LeisScreen.closeKeywords());
   on('lei-kw-add-btn', 'click', () => LeisScreen.addKeywordFromForm());
+  on('lei-kw-restore', 'click', () => LeisScreen.restoreKeywordDefaults());
   on('lei-kw-input', 'keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); LeisScreen.addKeywordFromForm(); } });
   (function () { const m = document.getElementById('lei-kw-modal'); if (m) m.addEventListener('click', (e) => { if (e.target === m) LeisScreen.closeKeywords(); }); })();
+  on('lei-lines-btn', 'click', () => LeisScreen.toggleLines());
+  on('lei-goto-mark-btn', 'click', () => LeisScreen.gotoBookmark());
+  on('lei-foco-btn', 'click', () => LeisScreen.entrarFoco());
   on('lei-foco-mark', 'click', () => LeisScreen.setTool('mark'));
   on('lei-foco-erase', 'click', () => LeisScreen.setTool('erase'));
   on('lei-foco-lines', 'click', () => LeisScreen.toggleLines());
@@ -23963,23 +24014,22 @@ const ProfileUI = {
   AUTO_ENTER_KEY: 'diario-estudos:auto-enter',
   autoEnterOn() { try { return localStorage.getItem(this.AUTO_ENTER_KEY) !== '0'; } catch (e) { return true; } },
   setAutoEnter(on) { try { localStorage.setItem(this.AUTO_ENTER_KEY, on ? '1' : '0'); } catch (e) {} },
-  // Último perfil usado POR CONTA (uid). Assim, ao logar, entramos direto nele
-  // sem re-perguntar — mesmo num dispositivo novo, onde não há dados locais ainda.
+  // Último perfil usado POR CONTA (uid): permite entrar direto após o login,
+  // sem mostrar o seletor de perfil (a troca fica dentro do app, no chip do nome).
   _uid() { try { const s = window.CloudStore && CloudStore.session; return (s && s.user && s.user.id) || null; } catch (e) { return null; } },
   _lastProfileKey() { const u = this._uid(); return u ? 'diario-estudos:last-profile:' + u : null; },
   getLastProfile() { try { const k = this._lastProfileKey(); return k ? localStorage.getItem(k) : null; } catch (e) { return null; } },
   setLastProfile(id) { try { const k = this._lastProfileKey(); if (k && id) localStorage.setItem(k, id); } catch (e) {} },
-  _autoEnterTried: false,   // evita repetir o auto-enter dentro da mesma sessão de gate
+  _autoEnterTried: false,   // não repete o auto-enter na mesma sessão de gate
   boot() {
     this.renderChip();
     let entered = null;
     try { entered = sessionStorage.getItem(this.SESSION_KEY); } catch (e) {}
     const active = ProfileManager.getActiveProfileId();
-    // IMPORTANTE: só entramos direto quando há o marcador de sessão desta aba
-    // (SESSION_KEY). NÃO entramos apenas por existir dado local — senão, após
-    // deslogar + F5, o app abria SEM sessão e disparava aquele painel feio de
-    // "Sem sessão ativa". O "perfil padrão" agora acontece DEPOIS do login
-    // confirmado (ver loadCloudProfiles → auto-enter do último perfil).
+    // Só entramos direto quando há o marcador de sessão desta aba (SESSION_KEY).
+    // NÃO entramos apenas por existir dado local — senão, após deslogar + F5, o
+    // app abriria sem sessão. O "entrar direto" acontece após o login confirmado
+    // (loadCloudProfiles → auto-enter do último perfil).
     if (entered && entered === active && this._hasLocalData(active)) {
       this.hideGate();
       // Só depois de entrar de fato: no gate o aviso não teria o que fazer.
@@ -24069,17 +24119,14 @@ const ProfileUI = {
       const rows = await CloudStore.listProfiles();
       if (token !== this._gridToken) return; // chegou uma resposta mais nova
       ProfileManager.syncMirrorFromCloud(rows);
-      // PERFIL PADRÃO: entra direto no último perfil usado nesta conta, sem
-      // re-perguntar. Só quando: preferência ligada, existe um "último" válido
-      // na lista, e ainda não tentamos nesta sessão de gate (evita loop).
+      // ENTRAR DIRETO: após o login, vai direto ao último perfil usado (ou ao
+      // único existente) sem exibir o seletor. A troca fica dentro do app.
       if (this.autoEnterOn() && !this._autoEnterTried && !this._offline) {
         let alvo = this.getLastProfile();
-        // se não há "último" salvo mas a conta tem exatamente 1 perfil, entra nele
         if (!alvo && rows.length === 1) alvo = rows[0].id;
         if (alvo && rows.some(r => r.id === alvo)) {
           this._autoEnterTried = true;
-          const grid = document.getElementById('profile-gate-grid');
-          if (grid) grid.innerHTML = '<p class="hint" style="text-align:center; padding:20px;">Entrando no seu perfil…</p>';
+          if (grid) grid.innerHTML = '<p class="hint" style="text-align:center; padding:20px;">Entrando…</p>';
           this.enterProfile(alvo);
           return;
         }
@@ -24171,10 +24218,14 @@ const ProfileUI = {
     // de dados salvos para gerar o arquivo). Antes ficava sempre escondido —
     // nada no código voltava a exibi-lo depois do reset acima.
     const exp = document.getElementById('pf-export-row'); if (exp) exp.style.display = isNew ? 'none' : 'block';
-    let nome = '', avatar = ProfileManager.DEFAULT_AVATARS[0], cor = ProfileManager.DEFAULT_COLORS[0];
-    if (!isNew) { const p = ProfileManager.getProfiles().find(x => x.id === id); if (p) { nome = p.nome; avatar = p.avatar; cor = p.cor; } }
+    let nome = '', avatar = ProfileManager.DEFAULT_AVATARS[0], cor = ProfileManager.DEFAULT_COLORS[0], meta = {};
+    if (!isNew) { const p = ProfileManager.getProfiles().find(x => x.id === id); if (p) { nome = p.nome; avatar = p.avatar; cor = p.cor; meta = p.meta || {}; } }
     this._draftAvatar = avatar; this._draftColor = cor;
     document.getElementById('pf-nome').value = nome;
+    // dados do estudante (guardados em profile.meta)
+    const setV = (fid, v) => { const el = document.getElementById(fid); if (el) el.value = v || ''; };
+    setV('pf-fullname', meta.fullname); setV('pf-concurso', meta.concurso); setV('pf-cargo', meta.cargo);
+    setV('pf-banca', meta.banca); setV('pf-prova', meta.provaDate); setV('pf-metah', meta.metaHoras);
     const pinField = document.getElementById('pf-pin'); if (pinField && pinField.closest('.field')) pinField.closest('.field').style.display = 'none';
     document.getElementById('pf-avatar-grid').innerHTML = ProfileManager.DEFAULT_AVATARS.map(a =>
       `<button type="button" class="pf-avatar-opt ${a === avatar ? 'selected' : ''}" data-av="${a}">${a}</button>`).join('');
@@ -24197,11 +24248,16 @@ const ProfileUI = {
     const btn = document.getElementById('pf-save');
     btn.disabled = true; btn.textContent = 'Salvando...';
     try {
+      // coleta os dados do estudante
+      const gv = (fid) => { const el = document.getElementById(fid); return el ? el.value.trim() : ''; };
+      const meta = { fullname: gv('pf-fullname'), concurso: gv('pf-concurso'), cargo: gv('pf-cargo'), banca: gv('pf-banca'), provaDate: gv('pf-prova'), metaHoras: gv('pf-metah') };
       if (this._editingId) {
         ProfileManager.addMirror({ id: this._editingId, nome, avatar: this._draftAvatar, cor: this._draftColor });
+        ProfileManager.updateProfile(this._editingId, { meta });   // dados do estudante (local + sincroniza no blob)
         if (window.CloudStore && CloudStore.isLoggedIn()) await CloudStore.updateMeta(this._editingId, { nome, avatar: this._draftAvatar, cor: this._draftColor });
         showToast('Perfil atualizado ✓');
         document.getElementById('profile-modal').style.display = 'none';
+        this.renderChip();
         this.refreshStage();
       } else {
         if (!(window.CloudStore && CloudStore.isLoggedIn())) { showToast('Faça login para criar um perfil.'); btn.disabled = false; btn.textContent = 'Salvar'; return; }
@@ -24252,7 +24308,7 @@ const ProfileUI = {
     const show = (t, kind) => { msg.textContent = t; msg.className = 'gate-alert ' + (kind || 'bad'); msg.style.display = 'block'; };
     msg.style.display = 'none';
     const CS = window.CloudStore;
-    if (!CS || !CS.isReady()) { show('Servidor indisponível no momento. Verifique sua internet e tente novamente.', 'warn'); return; }
+    if (!CS || !CS.isReady()) { show('Servidor da nuvem indisponível. Verifique a internet ou use "Usar offline".', 'warn'); return; }
     if (!email) { show('Informe seu e-mail.', 'bad'); return; }
     if (password.length < 6) { show('A senha precisa ter ao menos 6 caracteres.', 'bad'); return; }
     const btn = document.getElementById('gate-auth-submit');
@@ -24322,8 +24378,8 @@ const ProfileUI = {
     this.refreshStage();
   },
 
-  // Trocar de perfil: mostra o seletor de propósito — NÃO auto-entra (senão
-  // voltaria direto ao mesmo perfil). O auto-enter volta a valer no próximo login.
+  // Trocar de perfil: mostra o seletor de propósito (não auto-entra). O
+  // auto-enter volta a valer no próximo login.
   switchProfile() { try { sessionStorage.removeItem(this.SESSION_KEY); } catch (e) {} this._autoEnterTried = true; this.showGate(); },
   renderChipMobile() {
     const p = ProfileManager.getActiveProfile(); if (!p) return;
@@ -24335,6 +24391,83 @@ const ProfileUI = {
     const p = ProfileManager.getActiveProfile(); if (!p) return;
     const av = document.getElementById('profile-chip-avatar'); if (av) { av.textContent = p.avatar; av.style.background = p.cor; }
     const nm = document.getElementById('profile-chip-name'); if (nm) nm.textContent = p.nome;
+    const eb = document.querySelector('#profile-chip .profile-chip-eyebrow');
+    if (eb && p.meta && p.meta.concurso) eb.textContent = p.meta.concurso; else if (eb) eb.textContent = 'Perfil';
+  },
+  // ── Menu do perfil (abre ao clicar no chip do nome) ──
+  _profileMenuEl: null,
+  closeProfileMenu() {
+    if (this._profileMenuEl) { this._profileMenuEl.remove(); this._profileMenuEl = null; }
+    document.removeEventListener('click', this._pmOutside, true);
+  },
+  _pmOutside(e) {
+    const m = ProfileUI._profileMenuEl;
+    if (m && !m.contains(e.target) && !e.target.closest('#profile-chip, #mobile-profile-btn')) ProfileUI.closeProfileMenu();
+  },
+  _profileStats() {
+    // números rápidos e reais para o cabeçalho do menu
+    let regs = 0, horas = 0;
+    try {
+      const es = DB.getEntries();
+      regs = es.length;
+      horas = Math.round(es.reduce((s, e) => s + (e.durationMin || 0), 0) / 60);
+    } catch (_) {}
+    return { regs, horas };
+  },
+  openProfileMenu(anchorEl) {
+    this.closeProfileMenu();
+    const p = ProfileManager.getActiveProfile(); if (!p) return;
+    const others = ProfileManager.getProfiles().filter(x => x.id !== p.id);
+    const st = this._profileStats();
+    const meta = p.meta || {};
+    const sub = meta.cargo || meta.concurso || 'Estudante';
+    const m = document.createElement('div');
+    m.className = 'profile-menu';
+    m.innerHTML = `
+      <div class="profile-menu-head">
+        <span class="profile-menu-avatar" style="background:${p.cor}">${p.avatar}</span>
+        <div class="profile-menu-id">
+          <div class="profile-menu-name">${escapeHtml(meta.fullname || p.nome)}</div>
+          <div class="profile-menu-sub">${escapeHtml(sub)}</div>
+        </div>
+      </div>
+      <div class="profile-menu-stats">
+        <div class="profile-menu-stat"><b>${st.regs}</b><span>Registros</span></div>
+        <div class="profile-menu-stat"><b>${st.horas}h</b><span>Estudadas</span></div>
+        <div class="profile-menu-stat"><b>${meta.metaHoras ? meta.metaHoras + 'h' : '—'}</b><span>Meta/sem</span></div>
+      </div>
+      <div class="profile-menu-list">
+        <button type="button" class="profile-menu-item" data-a="edit"><span class="ic">✎</span>Meus dados e perfil</button>
+        ${others.length ? `<div class="profile-menu-sec">Trocar de perfil</div>` +
+          others.slice(0, 4).map(o => `<button type="button" class="profile-menu-switch" data-switch="${o.id}"><span class="pm-av" style="background:${o.cor}">${o.avatar}</span><span class="pm-nm">${escapeHtml(o.nome)}</span></button>`).join('') +
+          `<button type="button" class="profile-menu-item" data-a="manage"><span class="ic">⇄</span>Ver todos os perfis</button>` : ''}
+        <button type="button" class="profile-menu-item danger" data-a="logout"><span class="ic">🚪</span>Sair da conta</button>
+      </div>`;
+    document.body.appendChild(m);
+    this._profileMenuEl = m;
+    // posiciona acima/ao lado do chip
+    const r = anchorEl.getBoundingClientRect();
+    const w = m.offsetWidth, h = m.offsetHeight;
+    let left = Math.min(Math.max(10, r.left), window.innerWidth - w - 10);
+    let top = r.top - h - 8;
+    if (top < 10) top = Math.min(r.bottom + 8, window.innerHeight - h - 10);
+    m.style.left = left + 'px'; m.style.top = top + 'px';
+    m.addEventListener('click', (e) => e.stopPropagation());
+    m.querySelectorAll('[data-switch]').forEach(b => b.addEventListener('click', () => {
+      const id = b.dataset.switch;
+      this.closeProfileMenu();
+      // troca direta: define e entra nesse perfil
+      this._autoEnterTried = true;
+      this.enterProfile(id);
+    }));
+    m.querySelectorAll('[data-a]').forEach(b => b.addEventListener('click', () => {
+      const a = b.dataset.a;
+      this.closeProfileMenu();
+      if (a === 'edit') this.openModal(p.id);
+      else if (a === 'manage') this.switchProfile();
+      else if (a === 'logout') this.gateLogout();
+    }));
+    setTimeout(() => document.addEventListener('click', this._pmOutside, true), 0);
   }
 };
 window.ProfileUI = ProfileUI;
@@ -25637,7 +25770,7 @@ window.CloudUI = CloudUI;
   on('gate-auth-submit', 'click', () => ProfileUI.submitGateAuth());
   on('gate-password', 'keydown', (e) => { if (e.key === 'Enter') ProfileUI.submitGateAuth(); });
   document.querySelectorAll('#gate-login .cloud-auth-tab').forEach(tab => tab.addEventListener('click', () => ProfileUI.setGateAuthMode(tab.dataset.gatemode)));
-
+  on('gate-offline-btn', 'click', () => ProfileUI.useOffline());
   on('gate-forgot-btn', 'click', () => ProfileUI.forgotPassword());
   on('gate-logout-btn', 'click', () => ProfileUI.gateLogout());
   on('pf-cancel', 'click', () => document.getElementById('profile-modal').style.display = 'none');
@@ -25678,8 +25811,8 @@ window.CloudUI = CloudUI;
     CardsScreen._download(nomeArq, JSON.stringify(backup, null, 2), 'application/json');
     showToast('Backup baixado ✓');
   });
-  on('profile-chip-switch', 'click', () => ProfileUI.switchProfile());
-  on('mobile-profile-btn', 'click', () => ProfileUI.switchProfile());
+  on('profile-chip', 'click', (e) => { e.stopPropagation(); ProfileUI.openProfileMenu(document.getElementById('profile-chip')); });
+  on('mobile-profile-btn', 'click', (e) => { e.stopPropagation(); ProfileUI.openProfileMenu(document.getElementById('mobile-profile-btn')); });
   // Importar perfil de um backup: o botão existia no HTML mas ficava escondido e
   // sem nenhum clique ligado — a função ProfileManager.importProfile nunca era
   // alcançável pela interface. Importar cria SEMPRE um perfil novo, nunca
