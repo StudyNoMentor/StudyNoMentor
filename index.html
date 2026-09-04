@@ -62,6 +62,22 @@
     --shadow-lg: 0 12px 32px rgba(20,22,26,0.08);
   }
 
+  /* ---------- Bloqueio de sessão única (multi-aba) ---------- */
+  .single-session-overlay {
+    position: fixed; inset: 0; z-index: 9999;
+    display: flex; align-items: center; justify-content: center; padding: 24px;
+    background: rgba(15,17,21,0.72); backdrop-filter: blur(4px);
+  }
+  .single-session-box {
+    background: var(--surface); border: 1px solid var(--border); border-radius: 18px;
+    box-shadow: 0 24px 60px rgba(0,0,0,0.35); padding: 30px 28px; max-width: 460px; text-align: center;
+  }
+  .single-session-box .ss-ico { font-size: 40px; margin-bottom: 8px; }
+  .single-session-box h2 { margin: 0 0 10px; font-size: calc(20px * var(--fs-scale,1)); font-weight: 800; color: var(--text); }
+  .single-session-box p { margin: 0 0 10px; font-size: calc(14px * var(--fs-scale,1)); line-height: 1.55; color: var(--text-soft); }
+  .single-session-box .ss-sub { font-size: calc(12px * var(--fs-scale,1)); color: var(--text-faint); }
+  .single-session-box .ss-actions { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; margin-top: 18px; }
+
   /* ---------- Modo escuro ---------- */
   html[data-theme="dark"] {
     --bg: #0f1115;
@@ -419,6 +435,36 @@
     line-height: 1.45;
   }
 
+  /* ═══ INFO TIPS — textos longos viram um "i" que revela a explicação ═══════════
+     Despolui as telas: os parágrafos de ajuda extensos deixam de ocupar espaço fixo
+     e passam a um ícone discreto ao lado do título. Hover no desktop, toque no mobile. */
+  .info-dot {
+    display: inline-flex; align-items: center; justify-content: center;
+    width: calc(17px * var(--fs-scale, 1)); height: calc(17px * var(--fs-scale, 1));
+    margin-left: 7px; padding: 0; vertical-align: middle;
+    border-radius: 50%; border: 1.4px solid var(--border-strong);
+    background: var(--surface-sunken); color: var(--text-faint);
+    font-family: 'Space Mono', ui-monospace, monospace; font-size: calc(10px * var(--fs-scale, 1));
+    font-weight: 700; font-style: italic; line-height: 1; cursor: help;
+    transition: all 0.14s ease; flex-shrink: 0; position: relative; top: -1px;
+  }
+  .info-dot:hover, .info-dot:focus-visible { border-color: var(--accent); background: var(--accent-soft); color: var(--accent); outline: none; }
+  .page-header h2.page-title .info-dot { width: calc(20px * var(--fs-scale, 1)); height: calc(20px * var(--fs-scale, 1)); font-size: calc(11px * var(--fs-scale, 1)); }
+  .info-pop {
+    position: fixed; z-index: 4000; max-width: 320px; display: none;
+    background: var(--text); color: var(--surface);
+    font-family: 'Inter', system-ui, sans-serif; font-size: calc(12.5px * var(--fs-scale, 1));
+    font-weight: 500; line-height: 1.5; padding: 11px 14px; border-radius: 11px;
+    box-shadow: var(--shadow-lg); pointer-events: auto;
+    animation: info-pop-in 0.14s ease;
+  }
+  .info-pop.open { display: block; }
+  .info-pop strong { color: var(--surface); font-weight: 800; }
+  .info-pop .opt, .info-pop small { opacity: 0.75; }
+  @keyframes info-pop-in { from { opacity: 0; transform: translateY(-3px); } to { opacity: 1; transform: translateY(0); } }
+  html[data-theme="dark"] .info-pop { background: #2a2f3a; color: var(--text); border: 1px solid var(--border-strong); }
+  html[data-theme="dark"] .info-pop strong { color: var(--text); }
+
   .screen { display: none; }
   .screen.active { display: block; animation: screen-in 0.32s cubic-bezier(0.22, 1, 0.36, 1); }
   @keyframes screen-in {
@@ -439,8 +485,12 @@
       padding: 12px 16px;
       border-right: none;
       border-bottom: 1px solid var(--border);
+      overflow: visible;   /* deixa o menu de planejamentos SAIR da barra em vez de ser cortado */
     }
-    .sidebar-brand { margin-bottom: 10px; }
+    .sidebar-brand { margin-bottom: 10px; position: relative; z-index: 70; }
+    /* O menu de planejamentos sobrepõe a tela de Registrar (não fica atrás dela) */
+    .plan-switcher { position: relative; z-index: 90; }
+    .plan-switcher-menu { z-index: 95; max-height: 60vh; overflow-y: auto; box-shadow: var(--shadow-lg); }
 
     /* ── Navegação no celular: barra fixa no rodapé, ícone + rótulo curto ──────
        Antes era uma faixa de texto rolável no topo, onde só cabiam 3 abas e as
@@ -454,15 +504,19 @@
       box-shadow: 0 -2px 12px rgba(0,0,0,0.06);
       padding: 6px 6px calc(6px + env(safe-area-inset-bottom));
       scrollbar-width: none;
+      /* barra deslizante: arraste para o lado para alcançar qualquer tela */
+      scroll-behavior: smooth; scroll-snap-type: x proximity;
+      -webkit-overflow-scrolling: touch; overscroll-behavior-x: contain;
     }
+    .tabs.dragging { scroll-behavior: auto; scroll-snap-type: none; cursor: grabbing; }
     .tabs::-webkit-scrollbar { display: none; }
     .tab {
-      width: auto; flex: 1 1 0;
+      width: auto; flex: 0 0 auto;   /* largura fixa: a faixa transborda e desliza */
       flex-direction: column; align-items: center; justify-content: center; gap: 3px;
-      min-width: 0; padding: 7px 4px;
+      min-width: 60px; padding: 7px 4px;
       border-radius: 10px;
       font-size: var(--fs-3xs); font-weight: 700; line-height: 1.1;
-      text-align: center;
+      text-align: center; scroll-snap-align: center;
     }
     .tab .tab-icon { font-size: var(--fs-lg); width: auto; }
     /* mostra o rótulo CURTO no lugar do nome completo */
@@ -470,15 +524,17 @@
     .tab::after { content: attr(data-short); }
     .tab.active { background: var(--accent-soft); color: var(--accent); }
     .tab.active::before { display: none; }   /* a barrinha lateral é só do menu vertical */
-    /* fora das 5 principais: só aparecem dentro do menu "Mais" */
-    .tab:not([data-primary]) { display: none; }
+    /* TODAS as telas aparecem na faixa deslizante (o menu "Mais" continua como atalho) */
 
-    /* botão "Mais" e a folha que ele abre */
+    /* botão "Mais": fica ANCORADO à direita enquanto a faixa desliza por baixo */
     .nav-more-btn {
-      flex: 1 1 0; min-width: 0; display: flex; flex-direction: column;
+      position: sticky; right: 0; z-index: 2;
+      flex: 0 0 auto; min-width: 56px; display: flex; flex-direction: column;
       align-items: center; justify-content: center; gap: 3px;
-      padding: 7px 4px; border: none; background: transparent; cursor: pointer;
+      padding: 7px 4px; border: none; cursor: pointer;
       border-radius: 10px; color: var(--text-soft);
+      background: var(--surface);
+      box-shadow: -10px 0 12px -6px rgba(0,0,0,0.16);
       font-family: 'Inter', sans-serif; font-size: var(--fs-3xs); font-weight: 700; line-height: 1.1;
     }
     .nav-more-btn .tab-icon { font-size: var(--fs-lg); }
@@ -846,8 +902,17 @@
   .empty-state .big { font-size: calc(26px * var(--fs-scale, 1)); margin-bottom: 8px; }
 
   @media (max-width: 560px) {
-    .field-group, .row-3, .performance-inputs { grid-template-columns: 1fr; }
-    .performance-panel { grid-template-columns: 1fr; justify-items: center; text-align: center; }
+    .field-group, .row-3 { grid-template-columns: 1fr; }
+    /* Acertos e Total ficam lado a lado, com o círculo de % ao lado (não empilhados) */
+    .performance-inputs { grid-template-columns: 1fr 1fr; gap: 10px; }
+    .performance-panel { grid-template-columns: 1fr auto; align-items: center; gap: 12px; padding: 14px; }
+    /* BUG corrigido: no anel de 66px o número (14px) + rótulo estouravam o círculo.
+       Aumento levemente o anel, afino o traço e reduzo o texto para caber com folga. */
+    .performance-panel .gauge { width: 74px; height: 74px; }
+    .performance-panel .gauge circle { stroke-width: 6; }
+    .performance-panel .gauge-text .pct { font-size: calc(13px * var(--fs-scale, 1)); }
+    .performance-panel .gauge-text .pct::after { font-size: calc(8px * var(--fs-scale, 1)); }
+    .performance-panel .gauge-text .label { font-size: calc(7.5px * var(--fs-scale, 1)); margin-top: 2px; letter-spacing: 0.03em; }
     .page-header h2.page-title { font-size: calc(22px * var(--fs-scale, 1)); }
 
     /* ── Registro de estudo no celular ──────────────────────────────────────
@@ -922,7 +987,37 @@
      bem menos espaço vertical e com fontes maiores e legíveis. */
   .gb-discs-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 6px 18px; }
   .gb-disc-row { display: grid; grid-template-columns: 56px 1fr auto; align-items: center; gap: 9px; padding: 4px 0; }
-  .gb-disc-sig { font-family: 'Space Mono', monospace; font-weight: 700; font-size: calc(11px * var(--fs-scale,1)); text-align: center; border: 1.5px solid currentColor; border-radius: 7px; padding: 3px 4px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; background: color-mix(in srgb, currentColor 9%, transparent); }
+  .gb-disc-sig { font-family: 'Space Mono', monospace; font-weight: 700; font-size: calc(11px * var(--fs-scale,1)); text-transform: uppercase; text-align: center; border: 1.5px solid currentColor; border-radius: 7px; padding: 3px 4px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; background: color-mix(in srgb, currentColor 9%, transparent); }
+
+  /* ── Seletor de visão da Grade (Semanal / Meta diária) ── */
+  .grade-view-toggle { display: inline-flex; background: var(--surface-sunken); border: 1.5px solid var(--border); border-radius: 20px; padding: 3px; gap: 2px; }
+  .gvt-btn { background: transparent; border: none; border-radius: 16px; padding: 6px 13px; font-family: 'Inter', sans-serif; font-size: calc(12px * var(--fs-scale,1)); font-weight: 700; color: var(--text-soft); cursor: pointer; transition: all 0.14s ease; }
+  .gvt-btn:hover { color: var(--text); }
+  .gvt-btn.active { background: var(--accent-soft); color: var(--accent); box-shadow: var(--shadow-sm); }
+
+  /* ── Visão "Meta diária": lista compacta do alvo de cada dia ── */
+  .grade-daily { display: grid; gap: 10px; }
+  .gd-day { border: 1.5px solid var(--border); border-radius: 12px; padding: 12px 14px; background: var(--surface); transition: border-color 0.15s ease; }
+  .gd-day.is-today { border-color: var(--accent); background: var(--accent-soft); }
+  .gd-day-head { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; margin-bottom: 8px; flex-wrap: wrap; }
+  .gd-day-name { font-family: 'Inter', sans-serif; font-weight: 800; font-size: calc(14px * var(--fs-scale,1)); color: var(--text); text-transform: capitalize; }
+  .gd-day-name .gd-today-tag { font-size: calc(9.5px * var(--fs-scale,1)); font-weight: 800; letter-spacing: 0.04em; text-transform: uppercase; color: var(--accent); background: var(--surface); border: 1px solid var(--accent); border-radius: 20px; padding: 1px 7px; margin-left: 8px; vertical-align: middle; }
+  .gd-day-total { font-family: 'Space Mono', monospace; font-weight: 700; font-size: calc(14px * var(--fs-scale,1)); color: var(--text); }
+  .gd-day-total.zero { color: var(--text-faint); font-weight: 600; }
+  .gd-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+  .gd-chip { display: inline-flex; align-items: center; gap: 6px; border: 1.5px solid currentColor; border-radius: 8px; padding: 3px 8px; font-family: 'Space Mono', monospace; font-weight: 700; font-size: calc(11px * var(--fs-scale,1)); text-transform: uppercase; background: color-mix(in srgb, currentColor 9%, transparent); }
+  .gd-chip small { font-family: 'Inter', sans-serif; font-weight: 600; text-transform: none; color: var(--text-soft); }
+  .gd-empty { color: var(--text-faint); font-size: calc(12px * var(--fs-scale,1)); font-style: italic; }
+
+  /* ── Lista de grades salvas ── */
+  .saved-grades-list { display: grid; gap: 8px; }
+  .sg-item { display: flex; align-items: center; gap: 10px; border: 1.5px solid var(--border); border-radius: 10px; padding: 10px 12px; background: var(--surface); }
+  .sg-info { flex: 1; min-width: 0; }
+  .sg-name { font-weight: 700; font-size: calc(13px * var(--fs-scale,1)); color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .sg-meta { font-size: calc(11px * var(--fs-scale,1)); color: var(--text-faint); font-family: 'Space Mono', monospace; }
+  .sg-actions { display: flex; gap: 6px; flex-shrink: 0; }
+  .sg-actions .btn-secondary { padding: 6px 10px; font-size: calc(12px * var(--fs-scale,1)); }
+  .sg-empty { color: var(--text-faint); font-size: calc(12px * var(--fs-scale,1)); text-align: center; padding: 16px; }
   .gb-disc-bar { position: relative; height: 12px; background: var(--surface); border: 1px solid var(--border); border-radius: 20px; overflow: hidden; }
   .gb-disc-bar i { position: absolute; inset: 0 auto 0 0; height: 100%; border-radius: 20px; transition: width 0.35s ease; }
   .gb-disc-bar .gb-disc-tick { position: absolute; top: -2px; bottom: -2px; width: 2px; background: var(--good); opacity: 0.55; border-radius: 2px; }
@@ -966,15 +1061,22 @@
   .cal-card { margin-bottom: 16px; }
   .cal-nav { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; flex-shrink: 0; }
   .cal-nav .btn-secondary { padding: 6px 12px; font-size: calc(12px * var(--fs-scale, 1)); }
-  .cal-strip { display: flex; gap: 8px; overflow-x: auto; padding: 6px 24px 14px; scrollbar-width: thin; }
-  .cal-day { flex: 0 0 auto; width: 60px; display: flex; flex-direction: column; align-items: center; gap: 1px; padding: 9px 4px 7px; border: 1.5px solid var(--border); border-radius: 12px; background: var(--surface); cursor: pointer; transition: all 0.13s ease; }
-  .cal-day:hover { border-color: var(--accent); transform: translateY(-1px); }
-  .cal-day.sel { border-color: var(--accent); background: var(--accent-soft); box-shadow: 0 0 0 3px var(--accent-soft); }
+  .cal-strip { display: flex; gap: 8px; overflow-x: auto; padding: 8px 24px 16px; scrollbar-width: thin; }
+  .cal-day { flex: 0 0 auto; width: 58px; display: flex; flex-direction: column; align-items: center; gap: 1px; padding: 10px 4px 8px; border: 1.5px solid var(--border); border-radius: 14px; background: var(--surface); cursor: pointer; transition: transform 0.13s ease, border-color 0.13s ease, box-shadow 0.13s ease; box-shadow: var(--shadow-sm); }
+  .cal-day:hover { border-color: var(--accent); transform: translateY(-2px); box-shadow: var(--shadow-md); }
+  .cal-day.sel { border-color: var(--accent); background: var(--accent-soft); box-shadow: 0 0 0 3px var(--accent-ring); }
+  .cal-day.hoje { border-color: var(--accent); }
   .cal-day.hoje .cal-dn { color: var(--accent); }
   .cal-day .cal-wd { font-size: calc(10px * var(--fs-scale, 1)); font-weight: 700; text-transform: uppercase; color: var(--text-faint); letter-spacing: 0.03em; }
   .cal-day .cal-dn { font-family: 'Space Mono', monospace; font-size: calc(18px * var(--fs-scale, 1)); font-weight: 800; color: var(--text); line-height: 1.1; }
   .cal-day .cal-mo { font-size: calc(10px * var(--fs-scale, 1)); color: var(--text-faint); text-transform: uppercase; }
-  .cal-day .cal-dots { display: flex; gap: 3px; align-items: center; margin-top: 4px; min-height: 7px; }
+  .cal-day .cal-dots { display: flex; gap: 3px; align-items: center; justify-content: center; margin-top: 4px; min-height: 14px; }
+  /* dia inteiramente concluído: anel verde + check (visão de relance) */
+  .cal-day.alldone { border-color: color-mix(in srgb, var(--good) 55%, var(--border)); background: var(--good-soft); }
+  .cal-day.alldone.sel { box-shadow: 0 0 0 3px var(--good-soft); }
+  .cal-day .cal-alldone { display: inline-flex; align-items: center; justify-content: center; width: 15px; height: 15px; margin-top: 3px; border-radius: 50%; background: var(--good); color: #fff; font-size: calc(9px * var(--fs-scale,1)); font-weight: 900; line-height: 1; }
+  .cal-day.partial .cal-dots { position: relative; }
+  .cal-day.partial::after { content: ''; position: absolute; top: 6px; right: 6px; width: 6px; height: 6px; border-radius: 50%; background: var(--warn); }
   .cal-dot { width: 6px; height: 6px; border-radius: 50%; }
   .cal-more { font-size: calc(10px * var(--fs-scale, 1)); color: var(--text-faint); font-weight: 700; }
   .cal-panel { padding: 4px 24px 20px; }
@@ -1018,14 +1120,14 @@
   .extras-empty .big { font-size: calc(30px * var(--fs-scale, 1)); margin-bottom: 8px; }
   .extras-group-title { font-size: calc(11px * var(--fs-scale, 1)); font-weight: 800; letter-spacing: 0.05em; text-transform: uppercase; color: var(--text-faint); margin: 18px 0 10px; }
   /* ===== Atividades Extras — visão diária (redesenho) ===== */
-  .exx-dayhead { display: flex; align-items: center; justify-content: space-between; gap: 12px 16px; flex-wrap: wrap; padding: 0 2px; }
+  .exx-dayhead { display: flex; align-items: center; justify-content: space-between; gap: 12px 16px; flex-wrap: wrap; padding: 14px 16px; background: var(--surface-sunken); border: 1px solid var(--border); border-radius: 14px; margin-bottom: 4px; }
   .exx-dayhead .dh-l { min-width: 0; }
   .exx-dayhead .dh-title { font-family: 'Inter', sans-serif; font-size: calc(16px * var(--fs-scale,1)); font-weight: 800; color: var(--text); text-transform: capitalize; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
-  .exx-dayhead .dh-title .hoje { font-size: calc(10px * var(--fs-scale,1)); font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; color: var(--accent); background: var(--accent-soft); padding: 2px 8px; border-radius: 20px; }
-  .exx-dayhead .dh-sub { font-size: calc(12px * var(--fs-scale,1)); color: var(--text-faint); margin-top: 3px; }
+  .exx-dayhead .dh-title .hoje { font-size: calc(10px * var(--fs-scale,1)); font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; color: #fff; background: var(--accent); padding: 2px 9px; border-radius: 20px; }
+  .exx-dayhead .dh-sub { font-size: calc(12px * var(--fs-scale,1)); color: var(--text-faint); margin-top: 4px; }
   .exx-dayhead .dh-r { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
-  .exx-metric { display: flex; flex-direction: column; align-items: flex-end; background: var(--surface-sunken); border: 1px solid var(--border); border-radius: 12px; padding: 6px 12px; }
-  .exx-metric .mv { font-family: 'Space Mono', monospace; font-weight: 800; font-size: calc(15px * var(--fs-scale,1)); color: var(--text); line-height: 1.15; }
+  .exx-metric { display: flex; flex-direction: column; align-items: flex-end; background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 7px 13px; box-shadow: var(--shadow-sm); }
+  .exx-metric .mv { font-family: 'Space Mono', monospace; font-weight: 800; font-size: calc(15px * var(--fs-scale,1)); color: var(--accent); line-height: 1.15; }
   .exx-metric .ml { font-size: calc(9px * var(--fs-scale,1)); font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; color: var(--text-faint); }
   .exx-filters { margin-top: 12px; border: 1.5px solid var(--border); border-radius: 12px; background: var(--surface-sunken); padding: 12px 14px; }
   .exx-filters.hidden { display: none; }
@@ -1140,6 +1242,16 @@
     .exd-reg .exd-num { flex: 1 1 0; }
     .exd-reg .exd-done-btn { flex: 1 1 100%; margin-left: 0; }
   }
+  /* Resumo do que foi feito no dia (card já concluído) */
+  .exd-reg-donerow { margin-top: 10px; }
+  .exd-doneinfo { display: inline-flex; align-items: center; gap: 4px; font-size: calc(12px * var(--fs-scale,1)); font-weight: 700; color: var(--good-text); background: var(--good-soft); border: 1px solid color-mix(in srgb, var(--good) 40%, var(--border)); border-radius: 20px; padding: 4px 12px; }
+  /* Registro já salvo no dia (não concluído): valor + ações compactas */
+  .exd-reg-saved { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; flex: 1 1 auto; }
+  .exd-reg-value { font-size: calc(12.5px * var(--fs-scale,1)); font-weight: 700; color: var(--text); font-family: 'Space Mono', monospace; }
+  .exd-reg-saved .exd-reg-more { margin-left: auto; }
+  .exd-reg .exd-reg-more, .exd-reg .exd-reg-edit, .exd-reg .exd-reg-cancel { padding: 7px 12px; font-size: calc(12px * var(--fs-scale,1)); }
+  /* Aviso de dia futuro (planejamento) */
+  .exd-planejado { font-size: calc(12px * var(--fs-scale,1)); font-weight: 600; color: var(--text-faint); font-style: italic; }
   /* caixa alta nas etiquetas das atividades (mais limpo e legível) */
   .exd-tags .extra-tag, .exm-sub .extra-tag { text-transform: uppercase; letter-spacing: 0.02em; font-size: calc(9.5px * var(--fs-scale,1)); }
   /* gerenciador de recorrentes / avulsas */
@@ -1298,6 +1410,16 @@
   .mini-gauge-card.accent-warn .value { color: var(--warn); }
   .mini-gauge-card.accent-bad .value { color: var(--bad); }
 
+  /* Filtro rápido de disciplina no "Progresso por matéria" */
+  .csp-filter { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 14px; }
+  .csp-chip {
+    background: var(--surface-sunken); border: 1.5px solid var(--border); border-radius: 20px;
+    padding: 5px 12px; font-family: 'Space Mono', monospace; font-size: calc(11px * var(--fs-scale,1));
+    font-weight: 700; color: var(--text-soft); cursor: pointer; transition: all 0.13s ease; text-transform: uppercase; letter-spacing: 0.02em;
+  }
+  .csp-chip:hover { border-color: var(--border-strong); color: var(--text); }
+  .csp-chip.active { background: var(--accent); border-color: var(--accent); color: #fff; }
+
   .subject-progress-item {
     display: block;
     padding: 16px 18px;
@@ -1335,6 +1457,9 @@
     padding: 3px 9px;
     white-space: nowrap;
   }
+  .subject-progress-head .subject-meta-tag.tone-good { color: var(--good-text); background: var(--good-soft); border-color: var(--good-text); }
+  .subject-progress-head .subject-meta-tag.tone-warn { color: var(--warn-text); background: var(--warn-soft); border-color: var(--warn-text); }
+  .subject-progress-head .subject-meta-tag.tone-bad { color: var(--bad-text); background: var(--bad-soft); border-color: var(--bad-text); }
 
   .status-badge {
     font-size: calc(10px * var(--fs-scale, 1));
@@ -1429,9 +1554,27 @@
     vertical-align: middle;
   }
   /* Tabela de Horas por modalidade: largura automática + rolagem, evita sobreposição de texto */
-  .modality-table { table-layout: auto; min-width: 100%; width: auto; }
-  .modality-table th, .modality-table td { white-space: nowrap; padding: 8px 14px; }
-  .modality-table td:first-child, .modality-table th:first-child {
+  /* ── Tabela "Horas por modalidade e matéria" (redesenhada) ── */
+  .modality-wrap { overflow-x: auto; border: 1px solid var(--border); border-radius: 12px; -webkit-overflow-scrolling: touch; }
+  .modality-table { border-collapse: collapse; width: 100%; min-width: 480px; font-family: 'Inter', sans-serif; }
+  .modality-table th { position: sticky; top: 0; background: var(--surface-sunken); color: var(--text-faint); font-size: calc(10.5px * var(--fs-scale,1)); font-weight: 800; text-transform: uppercase; letter-spacing: 0.03em; padding: 10px 12px; text-align: center; white-space: nowrap; border-bottom: 1.5px solid var(--border); }
+  .modality-table th.mt-sticky { text-align: left; }
+  .modality-table td { padding: 9px 12px; border-bottom: 1px solid var(--border); }
+  .modality-table tbody tr:last-child td { border-bottom: none; }
+  .modality-table .mt-cell { text-align: center; font-family: 'Space Mono', monospace; font-size: calc(11.5px * var(--fs-scale,1)); font-weight: 600; color: var(--text); white-space: nowrap; }
+  .modality-table .mt-zero { color: var(--text-faint); font-weight: 400; }
+  .modality-table .mt-name { font-size: calc(12.5px * var(--fs-scale,1)); font-weight: 600; color: var(--text); max-width: 180px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .modality-table .mt-sticky { position: sticky; left: 0; background: var(--surface); z-index: 1; box-shadow: 1px 0 0 var(--border); }
+  .modality-table thead .mt-sticky { background: var(--surface-sunken); z-index: 2; }
+  .modality-table .mt-total-col { font-weight: 800; color: var(--accent-text); background: color-mix(in srgb, var(--accent) 5%, transparent); }
+  .modality-table .mt-foot td { border-top: 1.5px solid var(--border-strong); font-weight: 800; background: var(--surface-sunken); }
+  .modality-table .mt-foot .mt-cell { color: var(--text); }
+  .modality-table tbody tr:hover td { background: color-mix(in srgb, var(--accent) 4%, transparent); }
+  .modality-table tbody tr:hover .mt-sticky { background: color-mix(in srgb, var(--accent) 6%, var(--surface)); }
+
+  .modality-table-legacy { table-layout: auto; min-width: 100%; width: auto; }
+  .modality-table-legacy th, .modality-table-legacy td { white-space: nowrap; padding: 8px 14px; }
+  .modality-table-legacy td:first-child, .modality-table-legacy th:first-child {
     text-align: left;
     width: auto;
     position: sticky;
@@ -1717,12 +1860,17 @@
   /* Histórico */
   .week-card {
     background: var(--surface);
-    border: 1px solid var(--border);
+    border: 1.5px solid var(--border);
     border-radius: 16px;
-    box-shadow: var(--shadow-sm);
+    box-shadow: var(--shadow-md);
     padding: 20px 24px;
     margin-bottom: 16px;
+    transition: box-shadow 0.16s ease, border-color 0.16s ease, transform 0.16s ease;
+    position: relative; overflow: hidden;
   }
+  /* faixa de acento sutil à esquerda + realce no hover — dá presença e modernidade */
+  .week-card::before { content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 4px; background: linear-gradient(180deg, var(--accent), color-mix(in srgb, var(--accent) 45%, transparent)); opacity: 0.85; }
+  .week-card:hover { box-shadow: var(--shadow-lg); border-color: var(--border-strong); transform: translateY(-2px); }
   .week-card-head {
     display: flex;
     align-items: center;
@@ -1810,6 +1958,38 @@
      distintas de relance em vez de tres caixas iguais. O detalhe em cor no topo
      de cada cartao e o unico enfeite — o resto fica quieto, porque quem manda
      aqui e o numero. */
+  /* ═══ LAYOUT COMPACTO DA EVOLUÇÃO ═══════════════════════════════════════════
+     Grade de 2 colunas no desktop: os gráficos grandes ocupam a linha inteira
+     (.evo-wide) e os cartões menores emparelham (.evo-col). Em telas estreitas
+     tudo colapsa para 1 coluna. Isso reduz drasticamente a rolagem e organiza a
+     leitura em blocos comparáveis lado a lado. */
+  .evo-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; align-items: start; margin-top: 22px; }
+  .evo-grid > .card { margin: 0; }               /* a grade controla o espaçamento */
+  .evo-grid > .evo-wide { grid-column: 1 / -1; }
+  .evo-grid > .evo-stats-band { grid-column: 1 / -1; }
+  @media (max-width: 960px) {
+    .evo-grid { grid-template-columns: 1fr; gap: 14px; }
+  }
+  /* Faixa de KPIs no topo */
+  .evo-stats-band { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; }
+  @media (max-width: 560px) { .evo-stats-band { grid-template-columns: 1fr 1fr; gap: 10px; } }
+
+  /* ── Refinamentos mobile da Evolução ── */
+  @media (max-width: 640px) {
+    /* cabeçalhos de card: título em cima, controles embaixo (sem apertar) */
+    .evo-card-head { padding: 16px 16px 0; }
+    .evo-card-head > div:last-child { width: 100%; align-items: stretch !important; }
+    .evo-chip-group { width: 100%; justify-content: flex-start; overflow-x: auto; flex-wrap: nowrap; padding-bottom: 2px; scrollbar-width: none; }
+    .evo-chip-group::-webkit-scrollbar { display: none; }
+    .evo-tempo-range { width: 100%; }
+    .evo-day-bar-row { height: 150px; }
+    /* gráficos SVG mantêm proporção; garante respiro lateral */
+    #evolucao-line-chart, #evolucao-acerto-linha, #evolucao-meta-chart,
+    #evolucao-tec-chart, #evolucao-day-chart { padding-left: 8px !important; padding-right: 8px !important; }
+    .evo-legend { padding: 10px 12px 2px; gap: 8px 12px; }
+    .evo-line-controls { width: 100%; justify-content: center; }
+  }
+
   .evo-stat-card {
     position: relative;
     background: var(--surface);
@@ -1853,7 +2033,11 @@
 
   @media (max-width: 560px) {
     .cycle-subject-row { grid-template-columns: 1fr; gap: 6px; }
-    #ciclo-overview-gauges { grid-template-columns: 1fr 1fr !important; }
+    /* 5 KPIs do ciclo: compactos em 3 colunas (2 linhas) em vez de caixas enormes */
+    #ciclo-overview-gauges { grid-template-columns: repeat(3, 1fr) !important; gap: 8px !important; }
+    #ciclo-overview-gauges .mini-gauge-card { padding: 10px 6px; border-radius: 10px; }
+    #ciclo-overview-gauges .mini-gauge-card .value { font-size: calc(18px * var(--fs-scale, 1)); }
+    #ciclo-overview-gauges .mini-gauge-card .label { font-size: calc(8px * var(--fs-scale, 1)); margin-top: 3px; letter-spacing: 0.02em; }
     .week-stats-row { grid-template-columns: 1fr 1fr; }
     .bar-row { grid-template-columns: 90px 1fr 46px; }
 
@@ -3040,7 +3224,12 @@
     padding: 8px 14px; background: var(--surface);
     border-bottom: 1px solid var(--border); box-shadow: 0 2px 10px rgba(0,0,0,0.05);
   }
-  body.leis-foco #lei-foco-bar .foco-info { font-family: 'Inter', sans-serif; }
+  body.leis-foco #lei-foco-bar .foco-info { font-family: 'Inter', sans-serif; flex-shrink: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  /* barra de foco com as ferramentas de leitura (marca-texto, borracha, linhas):
+     em telas estreitas os botões podem deslizar horizontalmente sem quebrar o topo */
+  body.leis-foco #lei-foco-bar .foco-acoes { display: flex; gap: 6px; flex-shrink: 0; max-width: 72%; overflow-x: auto; scrollbar-width: none; }
+  body.leis-foco #lei-foco-bar .foco-acoes::-webkit-scrollbar { display: none; }
+  body.leis-foco #lei-foco-bar .foco-acoes button { flex: 0 0 auto; min-height: 34px; padding: 6px 11px; font-size: calc(12px * var(--fs-scale,1)); white-space: nowrap; }
   /* no modo dos cards a barra da lei some, e vice-versa */
   body.cards-foco #lei-foco-bar { display: none !important; }
   body.leis-foco #foco-bar { display: none !important; }
@@ -3290,9 +3479,12 @@
   .weak-pct.tone-good { color: var(--good-text); }
   /* Disciplina expansível */
   .tec-disc {
-    border: 1.5px solid var(--border); border-radius: 12px; margin-bottom: 10px; overflow: hidden;
-    background: var(--surface);
+    border: 1.5px solid var(--border); border-radius: 14px; margin-bottom: 10px; overflow: hidden;
+    background: var(--surface); box-shadow: var(--shadow-sm);
+    transition: box-shadow 0.14s ease, border-color 0.14s ease;
   }
+  .tec-disc:hover { box-shadow: var(--shadow-md); border-color: var(--border-strong); }
+  .tec-disc.open { box-shadow: var(--shadow-md); }
   .tec-disc-head {
     display: grid; grid-template-columns: 18px 1fr 120px 92px; align-items: center; gap: 12px;
     padding: 13px 16px; cursor: pointer; transition: background 0.12s ease;
@@ -3462,9 +3654,9 @@
   }
   .evo-chip:hover { border-color: var(--border-strong); color: var(--text); }
   .evo-chip.active { background: var(--accent); color: #fff; border-color: var(--accent); }
-  .evo-day-bar-row { display: flex; align-items: flex-end; gap: 3px; height: 180px; padding: 8px 4px 0; }
-  .evo-day-bar { flex: 1; background: var(--accent); border-radius: 4px 4px 0 0; min-height: 2px; position: relative; transition: height 0.3s ease, background 0.2s ease; }
-  .evo-day-bar:hover { background: var(--accent-hover); }
+  .evo-day-bar-row { display: flex; align-items: flex-end; gap: 4px; height: 180px; padding: 8px 4px 0; }
+  .evo-day-bar { flex: 1; background: linear-gradient(180deg, var(--accent), color-mix(in srgb, var(--accent) 72%, transparent)); border-radius: 5px 5px 0 0; min-height: 2px; position: relative; transition: height 0.3s ease, filter 0.15s ease; }
+  .evo-day-bar:hover { filter: brightness(1.08) saturate(1.1); }
   .evo-day-bar.empty { background: var(--border); }
   .evo-day-axis { display: flex; gap: 3px; padding: 6px 4px 0; }
   .evo-day-axis span { flex: 1; text-align: center; font-family: 'Space Mono', monospace; font-size: calc(10px * var(--fs-scale, 1)); color: var(--text-faint); overflow: hidden; white-space: nowrap; }
@@ -3490,11 +3682,12 @@
   /* Ritmo de estudo */
   /* table-layout fixed + coluna de rótulo greedy = o valor vai para a BORDA DIREITA,
      preenchendo a largura do card (antes o número parava no meio, deixando vazio). */
-  .ritmo-table { width: 100%; border-collapse: collapse; table-layout: fixed; }
-  .ritmo-table td { padding: 10px 6px; font-size: calc(13px * var(--fs-scale, 1)); border-bottom: 1px solid var(--border); }
+  .ritmo-table { width: 100%; border-collapse: collapse; table-layout: fixed; font-family: 'Inter', sans-serif; }
+  .ritmo-table td { padding: 8px 8px; font-size: calc(12.5px * var(--fs-scale, 1)); border-bottom: 1px solid var(--border); }
   .ritmo-table tr:last-child td { border-bottom: none; }
+  .ritmo-table tbody tr:not(.ritmo-section):hover td { background: color-mix(in srgb, var(--accent) 4%, transparent); }
   .ritmo-table .rk { color: var(--text-soft); width: 100%; }
-  .ritmo-table .rk-hint { color: var(--text-faint); font-weight: 400; font-size: calc(11px * var(--fs-scale, 1)); }
+  .ritmo-table .rk-hint { color: var(--text-faint); font-weight: 400; font-size: calc(10.5px * var(--fs-scale, 1)); }
   .ritmo-table .rv { text-align: right; font-family: 'Space Mono', monospace; font-weight: 700; color: var(--text); white-space: nowrap; width: 1%; }
   .ritmo-table .rv-muted { color: var(--text-faint); font-weight: 400; }
   .ritmo-section td {
@@ -3723,6 +3916,24 @@
   .cloud-status-sub .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--good); box-shadow: 0 0 0 3px var(--good-soft); }
   .cloud-status-sub.syncing .dot { background: var(--warn); box-shadow: 0 0 0 3px var(--warn-soft); }
   .cloud-status-sub.error .dot { background: var(--bad); box-shadow: 0 0 0 3px var(--bad-soft); }
+
+  /* ── Gerenciar sessões ativas (login único entre dispositivos) ── */
+  .cloud-sessions-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+  .cloud-sessions-head .sess-refresh { padding: 4px 10px; font-size: calc(13px * var(--fs-scale,1)); line-height: 1; }
+  .cloud-sessions-list { display: grid; gap: 8px; }
+  .sess-card { display: flex; align-items: center; gap: 12px; border: 1.5px solid var(--border); border-radius: 12px; padding: 11px 14px; background: var(--surface); }
+  .sess-card.is-this { border-color: var(--good-text); background: var(--good-soft); }
+  .sess-ico { font-size: calc(20px * var(--fs-scale,1)); flex-shrink: 0; }
+  .sess-info { flex: 1; min-width: 0; }
+  .sess-name { font-weight: 700; font-size: calc(13px * var(--fs-scale,1)); color: var(--text); display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+  .sess-badge { font-size: calc(9px * var(--fs-scale,1)); font-weight: 800; letter-spacing: 0.04em; text-transform: uppercase; border-radius: 20px; padding: 1px 8px; white-space: nowrap; }
+  .sess-badge.this { color: var(--good-text); background: var(--surface); border: 1px solid var(--good-text); }
+  .sess-badge.other { color: var(--warn-text); background: var(--surface); border: 1px solid var(--warn-text); }
+  .sess-meta { font-size: calc(11px * var(--fs-scale,1)); color: var(--text-faint); font-family: 'Space Mono', monospace; margin-top: 2px; }
+  .sess-actions { flex-shrink: 0; display: flex; gap: 6px; }
+  .sess-actions .btn-secondary { padding: 6px 11px; font-size: calc(12px * var(--fs-scale,1)); }
+  .cloud-sessions-empty { color: var(--text-faint); font-size: calc(12px * var(--fs-scale,1)); padding: 12px; text-align: center; border: 1px dashed var(--border); border-radius: 10px; }
+  .cloud-sessions-off { color: var(--text-faint); font-size: calc(12px * var(--fs-scale,1)); padding: 12px 14px; background: var(--surface-sunken); border-radius: 10px; line-height: 1.5; }
   .cloud-slot-row {
     display: flex; align-items: center; justify-content: space-between; gap: 10px;
     padding: 10px 12px; border: 1px solid var(--border); border-radius: 12px; background: var(--surface-sunken);
@@ -4262,7 +4473,23 @@
   /* ============================================================
      CARDS DE REVISÃO
      ============================================================ */
-  .cards-topbar { display: flex; gap: 8px; flex-wrap: wrap; margin: 14px 0 12px; }
+  .cards-topbar { display: flex; gap: 8px; flex-wrap: wrap; margin: 14px 0 12px; align-items: center; }
+  /* Menu "Mais" dos cards: agrupa ações secundárias e desafoga a barra (sobretudo no mobile) */
+  .cards-more-wrap { position: relative; display: inline-flex; }
+  .cards-more-menu {
+    position: absolute; top: calc(100% + 6px); right: 0; z-index: 50; display: none; min-width: 210px;
+    background: var(--surface); border: 1.5px solid var(--border); border-radius: 12px;
+    box-shadow: var(--shadow-lg); padding: 6px;
+  }
+  .cards-more-menu.open { display: block; }
+  .cards-more-menu button {
+    display: flex; align-items: center; gap: 8px; width: 100%; text-align: left;
+    background: transparent; border: none; border-radius: 8px; padding: 9px 11px;
+    font-family: 'Inter', sans-serif; font-size: calc(13px * var(--fs-scale,1)); font-weight: 600;
+    color: var(--text); cursor: pointer; transition: background 0.12s ease;
+  }
+  .cards-more-menu button:hover { background: var(--surface-sunken); color: var(--accent); }
+  .cards-more-btn.open { background: var(--accent-soft); border-color: var(--accent); color: var(--accent); }
   .cards-tabs { display: flex; gap: 6px; margin-bottom: 14px; }
   /* Gráfico da retenção recomendada (FSRS) */
   .rr-chart { display: flex; align-items: flex-end; gap: 8px; height: 130px; padding: 12px 4px 30px; }
@@ -4282,6 +4509,9 @@
   .cards-tab.active { background: var(--accent-soft); border-color: var(--accent); color: var(--accent); }
   .cards-filter-head { cursor: pointer; user-select: none; }
   .cards-filter-head:hover { background: var(--surface-sunken); }
+  /* Ao colapsar os filtros, o corpo (que fornecia o respiro inferior) some;
+     sem isto o título "Buscar e filtrar" cola na borda e parece cortado. */
+  #cards-filter-card.collapsed .cards-filter-head { padding-bottom: 14px; border-radius: 14px; }
   .cards-pills-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-top: 14px; }
   .cards-pills-label { font-size: calc(11px * var(--fs-scale, 1)); font-weight: 800; letter-spacing: 0.04em; text-transform: uppercase; color: var(--text-faint); }
   .cards-pills { display: inline-flex; gap: 5px; }
@@ -4536,7 +4766,13 @@
     .cards-modal-foot .btn-primary, .cards-modal-foot .btn-secondary { flex: 1; }
     /* topbars que quebram melhor */
     .cards-topbar, .links-topbar, .leis-list-topbar { flex-wrap: wrap; }
-    .cards-topbar button, .links-topbar button { flex: 1; min-width: 130px; }
+    .links-topbar button { flex: 1; min-width: 130px; }
+    /* Cards: as 2 ações primárias dividem a 1ª linha; "Baralho" e "Mais" ficam compactos */
+    .cards-topbar > .btn-primary { flex: 1 1 44%; min-width: 130px; }
+    .cards-topbar > #cards-deck-btn { flex: 1 1 44%; min-width: 120px; }
+    .cards-more-wrap { flex: 1 1 44%; }
+    .cards-more-btn { width: 100%; }
+    .cards-more-menu { min-width: min(260px, 78vw); }
   }
   @media (max-width: 560px) {
     .main-content { padding: 18px 12px 60px; }
@@ -4577,7 +4813,6 @@
     /* barra de ações dos cards não gruda no rodapé do navegador */
     .cards-review-actions { position: sticky; bottom: 8px; z-index: 5; }
     /* topo dos cards: botões ocupam a linha inteira e não quebram feio */
-    .cards-topbar button { flex: 1 1 46%; }
     /* diálogos ocupam melhor a tela pequena */
     .cards-modal-box, #ui-modal-box { max-height: 92vh; }
   }
@@ -4889,7 +5124,10 @@
         </div>
         <p class="hint" id="gate-auth-msg" style="display:none;"></p>
         <button type="button" class="btn-primary" id="gate-auth-submit" style="width:100%;">Entrar</button>
-        <p class="hint" id="gate-offline-line" style="margin-top:14px; text-align:center;">
+        <p class="hint" id="gate-forgot-line" style="margin-top:10px; text-align:center;">
+          <button type="button" id="gate-forgot-btn" style="background:none;border:none;color:var(--accent);font-weight:700;cursor:pointer;padding:0;font-size:12px;">Esqueci minha senha</button>
+        </p>
+        <p class="hint" id="gate-offline-line" style="margin-top:8px; text-align:center;">
           Sem internet? <button type="button" id="gate-offline-btn" style="background:none;border:none;color:var(--accent);font-weight:700;cursor:pointer;padding:0;font-size:12px;">Usar offline neste dispositivo</button>
         </p>
       </div>
@@ -4959,6 +5197,21 @@
         <button type="button" class="btn-secondary" id="pin-cancel">Voltar</button>
         <button type="button" class="btn-primary" id="pin-confirm">Entrar</button>
       </div>
+    </div>
+  </div>
+</div>
+
+<!-- Bloqueio de sessão única: evita a MESMA conta aberta em várias abas/janelas
+     ao mesmo tempo, que causa conflito de cache e de registros. -->
+<div id="single-session-overlay" class="single-session-overlay" style="display:none;">
+  <div class="single-session-box">
+    <div class="ss-ico" id="ss-ico">🔒</div>
+    <h2 id="ss-title">Diário já aberto em outra janela</h2>
+    <p id="ss-desc">Para proteger seus dados, o Diário de Estudos funciona em <strong>uma aba/janela por vez</strong>. Já existe uma sessão ativa deste app neste navegador.</p>
+    <p class="ss-sub" id="ss-sub">Continuar em duas ao mesmo tempo pode misturar registros e sobrescrever alterações na sincronização.</p>
+    <div class="ss-actions">
+      <button type="button" class="btn-primary" id="single-session-takeover">Usar aqui (encerrar as outras)</button>
+      <button type="button" class="btn-secondary" id="single-session-reload">Recarregar</button>
     </div>
   </div>
 </div>
@@ -5115,14 +5368,6 @@
               </div>
             <div class="row-3">
               <div class="field">
-                <label for="page-start">Página inicial <span class="opt">(opcional)</span></label>
-                <input type="number" id="page-start" min="0" placeholder="0">
-              </div>
-              <div class="field">
-                <label for="page-end">Página final <span class="opt">(opcional)</span></label>
-                <input type="number" id="page-end" min="0" placeholder="0">
-              </div>
-              <div class="field">
                 <label for="duration">Tempo de estudo</label>
                 <div class="time-input">
                   <input type="text" inputmode="numeric" id="duration-h" placeholder="0">
@@ -5130,6 +5375,14 @@
                   <input type="text" inputmode="numeric" id="duration-m" placeholder="0">
                   <span>min</span>
                 </div>
+              </div>
+              <div class="field">
+                <label for="page-start">Página inicial <span class="opt">(opcional)</span></label>
+                <input type="number" id="page-start" min="0" placeholder="0">
+              </div>
+              <div class="field">
+                <label for="page-end">Página final <span class="opt">(opcional)</span></label>
+                <input type="number" id="page-end" min="0" placeholder="0">
               </div>
             </div>
             <p class="hint" id="pages-hint">&nbsp;</p>
@@ -5315,22 +5568,15 @@
           </div>
         </div>
         <div style="padding: 18px 28px 26px;">
-          <div id="ciclo-overview-gauges" style="display:grid; grid-template-columns: repeat(4,1fr); gap: 12px; margin-bottom: 22px;"></div>
+          <div id="ciclo-overview-gauges" style="display:grid; grid-template-columns: repeat(5,1fr); gap: 12px; margin-bottom: 22px;"></div>
 
           <p class="section-label">Progresso por matéria</p>
           <div id="ciclo-subjects-progress"></div>
 
           <hr class="divider">
           <div class="grade-shortcut">
-            <div>
-              <p class="section-label" style="margin:0;">Grade da semana</p>
-              <p class="hint" style="margin:4px 0 0;">Sua rotina semanal agora fica no menu <strong>Grade Semanal</strong> — persistente e reutilizada a cada ciclo, sem retrabalho.</p>
-            </div>
+            <p class="section-label" style="margin:0;">Grade da semana</p>
             <button class="btn-secondary" id="btn-goto-grade" type="button">▦ Abrir Grade Semanal</button>
-          </div>
-
-          <div class="submit-row" style="margin-top: 22px;">
-            <span class="save-note"><span class="dot"></span>atualizado a cada estudo registrado · use <strong>✓ Fechar semana</strong> no topo para arquivar</span>
           </div>
         </div>
       </div>
@@ -5352,6 +5598,11 @@
           <p class="sub">Toque numa célula para escolher a sigla (ou arraste). A mesma matéria pode aparecer em várias células — ajuste a duração de cada uma.</p>
         </div>
         <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
+          <div class="grade-view-toggle" id="grade-view-toggle" role="tablist" aria-label="Modo de visualização da grade">
+            <button type="button" class="gvt-btn active" data-gview="semana" role="tab" aria-selected="true">▦ Semanal</button>
+            <button type="button" class="gvt-btn" data-gview="dia" role="tab" aria-selected="false">◷ Meta diária</button>
+          </div>
+          <button class="btn-secondary" id="btn-saved-grades" type="button" title="Salvar a grade atual ou restaurar uma grade guardada">💾 Grades salvas</button>
           <button class="btn-secondary" id="btn-toggle-budget" type="button" title="Mostrar/ocultar o saldo de horas do ciclo">⏱️ Saldo de horas</button>
           <button class="btn-secondary" id="btn-toggle-tray" type="button" title="Minimizar/expandir as siglas">▾ Siglas</button>
           <button class="btn-secondary" id="btn-uncheck-all" type="button">↺ Desmarcar concluídos</button>
@@ -5403,6 +5654,33 @@
       </div>
       <div class="siglas-modal-foot">
         <button type="button" class="btn-primary" id="siglas-modal-done">Concluído</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal: grades salvas (salvar/trocar/restaurar) -->
+  <div id="saved-grades-modal" class="siglas-modal" style="display:none;">
+    <div class="siglas-modal-box">
+      <div class="siglas-modal-head">
+        <div>
+          <h2>💾 Grades salvas</h2>
+          <p class="sub">Guarde a grade atual sob um nome. Ao mudar de planejamento ou de meta, você pode restaurar exatamente a grade de antes.</p>
+        </div>
+        <button type="button" class="icon-btn" id="saved-grades-close" title="Fechar">✕</button>
+      </div>
+      <div class="siglas-modal-body">
+        <div class="siglas-add-block">
+          <p class="section-label" style="margin:0 0 8px;">Salvar a grade atual</p>
+          <div class="config-add-row">
+            <input type="text" id="new-saved-grade-name" placeholder="Nome (ex.: Pré-edital · 20h)" maxlength="40">
+            <button class="btn-primary" id="btn-save-current-grade" type="button">Salvar grade atual</button>
+          </div>
+        </div>
+        <p class="section-label" style="margin:18px 0 8px;">Suas grades salvas</p>
+        <div id="saved-grades-list" class="saved-grades-list"></div>
+      </div>
+      <div class="siglas-modal-foot">
+        <button type="button" class="btn-primary" id="saved-grades-done">Concluído</button>
       </div>
     </div>
   </div>
@@ -5464,6 +5742,9 @@
   <div class="foco-bar" id="lei-foco-bar">
     <span class="foco-info" id="lei-foco-info">Leitura</span>
     <span class="foco-acoes">
+      <button type="button" class="btn-secondary leis-tool-mark" id="lei-foco-mark" title="Marca-texto: com ele ativo, selecione o texto para destacar">🖍️ Marca-texto</button>
+      <button type="button" class="btn-secondary leis-tool-erase" id="lei-foco-erase" title="Borracha: com ela ativa, selecione um destaque para apagá-lo">🧽 Borracha</button>
+      <button type="button" class="btn-secondary" id="lei-foco-lines" title="Mostrar/ocultar a numeração das linhas">🔢 Linhas</button>
       <button type="button" class="btn-secondary" id="lei-foco-marcar" title="Marcar onde parei (linha do topo da tela)">📌 Marcar aqui</button>
       <button type="button" class="btn-secondary" id="lei-foco-sair" title="Sair do modo foco (Esc)">✕ Sair</button>
     </span>
@@ -5592,14 +5873,19 @@
     </div>
 
     <div class="cards-topbar">
-      <button type="button" class="btn-secondary" id="cards-stats-btn" title="Ver estatísticas (retenção, previsão, maturidade)">📊 Estatísticas</button>
-      <button type="button" class="btn-secondary" id="cards-algo-btn" title="Algoritmo de repetição espaçada">⚙ Algoritmo</button>
-      <button type="button" class="btn-secondary" id="cards-import-btn">⭱ Importar</button>
-      <button type="button" class="btn-secondary" id="cards-export-btn">⭳ Exportar p/ Anki</button>
-      <button type="button" class="btn-secondary" id="cards-audit-export-btn" title="Exportar cards, histórico, configurações e diagnóstico do agendador">🩺 Exportar auditoria</button>
-      <button type="button" class="btn-secondary" id="cards-deck-btn">📁 Criar baralho</button>
       <button type="button" class="btn-primary" id="cards-new-btn">＋ Criar card</button>
       <button type="button" class="btn-primary" id="cards-foco-btn" title="Estudar sem distração, em tela cheia (Esc para sair)">🎯 Modo foco</button>
+      <button type="button" class="btn-secondary" id="cards-deck-btn">📁 Criar baralho</button>
+      <div class="cards-more-wrap">
+        <button type="button" class="btn-secondary cards-more-btn" id="cards-more-btn" aria-expanded="false" aria-haspopup="true" title="Mais ações">⋯ Mais</button>
+        <div class="cards-more-menu" id="cards-more-menu" role="menu">
+          <button type="button" role="menuitem" id="cards-stats-btn" title="Ver estatísticas (retenção, previsão, maturidade)">📊 Estatísticas</button>
+          <button type="button" role="menuitem" id="cards-algo-btn" title="Algoritmo de repetição espaçada">⚙ Algoritmo</button>
+          <button type="button" role="menuitem" id="cards-import-btn">⭱ Importar</button>
+          <button type="button" role="menuitem" id="cards-export-btn">⭳ Exportar p/ Anki</button>
+          <button type="button" role="menuitem" id="cards-audit-export-btn" title="Exportar cards, histórico, configurações e diagnóstico do agendador">🩺 Exportar auditoria</button>
+        </div>
+      </div>
     </div>
 
     <div class="cards-tabs">
@@ -5923,10 +6209,10 @@
       <div class="big">📊</div>
       <span id="evolucao-empty-text">Registre alguns estudos para ver sua evolução aqui.</span>
     </div>
-    <div id="evolucao-content" style="display:none;">
-      <div style="display:grid; grid-template-columns: repeat(3,1fr); gap: 14px; margin-top: 24px;" id="evolucao-stats"></div>
+    <div id="evolucao-content" class="evo-grid" style="display:none;">
+      <div class="evo-stats-band" id="evolucao-stats"></div>
 
-      <div class="card">
+      <div class="card evo-wide">
         <div class="evo-card-head">
           <div>
             <h2>Tempo de estudo</h2>
@@ -5953,12 +6239,12 @@
         <div style="padding: 8px 20px 20px;" id="evolucao-day-chart"></div>
       </div>
 
-      <div class="card">
+      <div class="card evo-col">
         <div class="card-header"><h2>Horas acumuladas</h2><p class="sub" id="evolucao-chart-sub"></p></div>
         <div style="padding: 8px 20px 24px;" id="evolucao-line-chart"></div>
       </div>
 
-      <div class="card">
+      <div class="card evo-wide">
         <div class="evo-card-head">
           <div>
             <h2>📈 Evolução do aproveitamento</h2>
@@ -5973,17 +6259,17 @@
         <div style="padding: 6px 20px 22px;" id="evolucao-acerto-linha"></div>
       </div>
 
-      <div class="card">
+      <div class="card evo-col">
         <div class="card-header"><div><h2>% de acertos por matéria</h2><p class="sub">Aproveitamento em questões no período · <span id="metas-sub">metas 70/80/85</span></p></div><button type="button" class="icon-btn" id="btn-edit-metas" title="Editar metas e cores (verde/amarelo/vermelho)">⚙ Metas</button></div>
         <div style="padding: 8px 24px 24px;" id="evolucao-acerto-materia"></div>
       </div>
 
-      <div class="card">
+      <div class="card evo-col">
         <div class="card-header"><h2>Aproveitamento por semana fechada</h2><p class="sub">% médio de acerto de cada semana concluída no histórico</p></div>
         <div style="padding: 8px 20px 24px;" id="evolucao-meta-chart"></div>
       </div>
 
-      <div class="card" id="evolucao-tec-card">
+      <div class="card evo-wide" id="evolucao-tec-card">
         <div class="evo-card-head">
           <div>
             <h2>Evolução no TecConcursos</h2>
@@ -6003,22 +6289,22 @@
         <div class="evo-legend" id="evolucao-tec-legend"></div>
       </div>
 
-      <div class="card">
+      <div class="card evo-col">
         <div class="card-header"><h2>Tempo por matéria</h2><p class="sub">Total de horas dedicadas, por matéria, no período</p></div>
         <div style="padding: 8px 28px 24px;" id="evolucao-bar-chart"></div>
       </div>
 
-      <div class="card">
+      <div class="card evo-col">
         <div class="card-header"><h2>Desempenho por matéria</h2><p class="sub">Percentual médio de acerto em questões, no período</p></div>
         <div style="padding: 4px 28px 20px;" id="evolucao-performance-list"></div>
       </div>
 
-      <div class="card">
+      <div class="card evo-wide">
         <div class="card-header"><h2>Horas por modalidade e matéria</h2><p class="sub">Como o tempo se distribui entre formas de estudo, por matéria</p></div>
         <div style="padding: 8px 28px 24px;" id="evolucao-modality-table"></div>
       </div>
 
-      <div class="card">
+      <div class="card evo-col">
         <div class="card-header">
           <div>
             <h2>Ritmo de estudo</h2>
@@ -6180,8 +6466,19 @@
               <div class="cloud-status-email" id="cloud-user-email">—</div>
               <div class="cloud-status-sub" id="cloud-sync-status">Conectado</div>
             </div>
-            <button type="button" class="btn-secondary" id="cloud-signout">Sair</button>
+            <div style="display:flex; gap:8px; flex-shrink:0;">
+              <button type="button" class="btn-secondary" id="cloud-change-pass" title="Alterar a senha da sua conta">🔑 Alterar senha</button>
+              <button type="button" class="btn-secondary" id="cloud-signout">Sair</button>
+            </div>
           </div>
+
+          <hr class="divider">
+          <div class="cloud-sessions-head">
+            <p class="section-label" style="margin:0;">Aparelho com sessão ativa</p>
+            <button type="button" class="btn-secondary sess-refresh" id="cloud-sessions-refresh" title="Atualizar">↻</button>
+          </div>
+          <p class="hint" style="margin:4px 0 10px;">Sua conta mantém <strong>um aparelho ativo por vez</strong>. Aqui você vê qual está com a sessão e pode encerrá-lo ou trazer a sessão para este aparelho.</p>
+          <div id="cloud-sessions-list" class="cloud-sessions-list"></div>
 
           <hr class="divider">
           <p class="section-label">Este perfil: <span id="cloud-current-profile-name">—</span></p>
@@ -7163,16 +7460,14 @@
   #screen-registrar[data-reg-mode="compacto"] #step-4 { border-bottom: 1px dashed color-mix(in srgb, var(--border) 70%, transparent); }
 }
 
-/* Etapa 3: no compacto o tempo vem primeiro — é o campo que realmente importa */
+/* Etapa 3: o Tempo de estudo ja e o primeiro campo — aqui ele so ganha a coluna
+   mais larga, porque e o dado que alimenta o ciclo. Sem reordenar nada. */
 #screen-registrar[data-reg-mode="compacto"] #step-3 .row-3 {
-  grid-template-columns: minmax(190px, 1.1fr) 1fr 1fr;
+  grid-template-columns: minmax(190px, 1.15fr) 1fr 1fr;
 }
-#screen-registrar[data-reg-mode="compacto"] #step-3 .row-3 > .field:nth-child(1) { order: 2; }
-#screen-registrar[data-reg-mode="compacto"] #step-3 .row-3 > .field:nth-child(2) { order: 3; }
-#screen-registrar[data-reg-mode="compacto"] #step-3 .row-3 > .field:nth-child(3) { order: 1; }
 @media (max-width: 640px) {
   #screen-registrar[data-reg-mode="compacto"] #step-3 .row-3 { grid-template-columns: 1fr 1fr; }
-  #screen-registrar[data-reg-mode="compacto"] #step-3 .row-3 > .field:nth-child(3) { grid-column: 1 / -1; }
+  #screen-registrar[data-reg-mode="compacto"] #step-3 .row-3 > .field:first-child { grid-column: 1 / -1; }
 }
 
 /* ---------------------------------------------------------------------------
@@ -7978,6 +8273,7 @@ const DB = {
       tracks: base + 'tracks',
       tec: base + 'tec',
       gradeTemplate: base + 'grade-template',
+      savedGrades: base + 'saved-grades',
       customSiglas: base + 'custom-siglas',
       leis: base + 'leis',
       decks: base + 'decks',
@@ -8448,6 +8744,54 @@ const DB = {
     return t;
   },
   saveGradeTemplate(t) { this._set(this.KEYS.gradeTemplate, t); },
+
+  // ---- Grades salvas: [{ id, nome, grade, sessions, createdAt }] ----
+  // Permite guardar a grade atual sob um nome, trocar de planejamento/meta e depois
+  // restaurar exatamente a grade anterior sem precisar remontá-la.
+  getSavedGrades() { return this._get(this.KEYS.savedGrades, []); },
+  saveSavedGrades(list) { this._set(this.KEYS.savedGrades, list); },
+  addSavedGrade(nome) {
+    const t = this.getGradeTemplate();
+    const list = this.getSavedGrades();
+    const item = {
+      id: this._uid(),
+      nome: (nome || 'Grade salva').trim().slice(0, 40) || 'Grade salva',
+      grade: JSON.parse(JSON.stringify(t.grade || {})),
+      sessions: t.sessions || 3,
+      createdAt: new Date().toISOString()
+    };
+    list.push(item);
+    this.saveSavedGrades(list);
+    return item;
+  },
+  // Sobrescreve uma grade salva com a grade atual (mantém o nome).
+  overwriteSavedGrade(id) {
+    const t = this.getGradeTemplate();
+    const list = this.getSavedGrades();
+    const s = list.find(x => x.id === id);
+    if (!s) return false;
+    s.grade = JSON.parse(JSON.stringify(t.grade || {}));
+    s.sessions = t.sessions || 3;
+    s.createdAt = new Date().toISOString();
+    this.saveSavedGrades(list);
+    return true;
+  },
+  renameSavedGrade(id, nome) {
+    const list = this.getSavedGrades();
+    const s = list.find(x => x.id === id);
+    if (s) { s.nome = (nome || '').trim().slice(0, 40) || s.nome; this.saveSavedGrades(list); }
+  },
+  deleteSavedGrade(id) { this.saveSavedGrades(this.getSavedGrades().filter(x => x.id !== id)); },
+  // Aplica uma grade salva ao modelo ativo (substitui a grade atual).
+  applySavedGrade(id) {
+    const s = this.getSavedGrades().find(x => x.id === id);
+    if (!s) return false;
+    const t = this.getGradeTemplate();
+    t.grade = JSON.parse(JSON.stringify(s.grade || {}));
+    t.sessions = s.sessions || t.sessions || 3;
+    this.saveGradeTemplate(t);
+    return true;
+  },
 
   // ---- Siglas customizadas: [{ id, sigla, nome, color }] ----
   // 'nome' opcional casa a sigla a uma matéria; sem nome, é uma etiqueta livre.
@@ -9011,6 +9355,8 @@ const DB = {
     const list = this.getExtras(); const e = list.find(x => x.id === id);
     if (!e) return null;
     dia = dia || todayLocal();
+    // Guarda de integridade: nunca conclui um dia futuro (planejamento, não execução).
+    if (on && dia > todayLocal()) return e;
     if (this.extraRecorrente(e)) {
       e.concluidasEm = Array.isArray(e.concluidasEm) ? e.concluidasEm : [];
       const i = e.concluidasEm.indexOf(dia);
@@ -9748,7 +10094,14 @@ function switchScreen(name) {
   document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
   alvo.classList.add('active');
   const tabBtn = document.querySelector(`.tab[data-screen="${name}"]`);
-  if (tabBtn) tabBtn.classList.add('active');
+  if (tabBtn) {
+    tabBtn.classList.add('active');
+    // na barra deslizante do celular, traz a aba ativa para o centro da visão
+    const tabsEl = document.getElementById('tabs');
+    if (tabsEl && tabsEl.scrollWidth > tabsEl.clientWidth + 4) {
+      try { tabBtn.scrollIntoView({ inline: 'center', block: 'nearest', behavior: 'smooth' }); } catch (_) {}
+    }
+  }
   const wrap = document.querySelector('.content-wrap');
   if (wrap) wrap.classList.toggle('wide', name === 'estudonovo' || name === 'ciclo' || name === 'grade');
   // a Grade Semanal renderiza a bandeja + grade ao ficar visível
@@ -11234,6 +11587,14 @@ const CycleEngine = {
     return DB.getEntries()
       .filter(e => this.normKey(e.subject) === key && e.date >= startDate && e.date <= endDate)
       .reduce((sum, e) => sum + (e.durationMin || 0), 0);
+  },
+  // Questões resolvidas e acertos desta matéria no intervalo (para o % de aproveitamento).
+  // subjectName === null soma TODAS as matérias (aproveitamento geral da semana).
+  questionsStudied(subjectName, startDate, endDate) {
+    const key = subjectName == null ? null : this.normKey(subjectName);
+    return DB.getEntries()
+      .filter(e => (key === null || this.normKey(e.subject) === key) && e.date >= startDate && e.date <= endDate)
+      .reduce((acc, e) => { acc.total += (Number(e.total) || 0); acc.correct += (Number(e.correct) || 0); return acc; }, { total: 0, correct: 0 });
   },
   // Fim efetivo do ciclo para CONTAGEM na visão ao vivo: nunca antes de hoje, para que
   // estudos registrados após o 7º dia teórico ainda contem (consistente com o fechamento).
@@ -12730,6 +13091,10 @@ function planCycleMode() {
     const finalizadasAccent = cycle.subjects.length > 0 && finalizadas === cycle.subjects.length ? 'accent-good' : '';
     const remaining = Math.max(0, totalTarget - totalStudied);
     const remAccent = remaining === 0 ? 'accent-good' : '';
+    // Aproveitamento geral da semana (acertos ÷ resolvidas em todas as matérias do intervalo)
+    const q = CycleEngine.questionsStudied(null, cycle.startDate, CycleEngine.effectiveEnd(cycle));
+    const acc = q.total > 0 ? Math.round((q.correct / q.total) * 100) : null;
+    const accAccent = acc == null ? '' : (acc >= 70 ? 'accent-good' : acc >= 50 ? 'accent-warn' : 'accent-bad');
 
     container.innerHTML = `
       <div class="mini-gauge-card ${overallAccent}">
@@ -12744,6 +13109,10 @@ function planCycleMode() {
         <div class="value">${remaining === 0 ? '✓' : CycleEngine.fmtHM(remaining)}</div>
         <div class="label">${remaining === 0 ? 'meta batida' : 'faltam'}</div>
       </div>
+      <div class="mini-gauge-card ${accAccent}" title="${q.total ? q.correct + ' de ' + q.total + ' questões' : 'Registre questões para ver o aproveitamento'}">
+        <div class="value">${acc == null ? '—' : acc + '%'}</div>
+        <div class="label">aproveitamento</div>
+      </div>
       <div class="mini-gauge-card ${finalizadasAccent}">
         <div class="value">${finalizadas}/${cycle.subjects.length}</div>
         <div class="label">finalizadas</div>
@@ -12751,16 +13120,30 @@ function planCycleMode() {
     `;
   }
 
+  let _cicloSubjFilter = null; // nome da disciplina filtrada (null = todas)
   function renderSubjectsProgress(cycle) {
     const container = document.getElementById('ciclo-subjects-progress');
     // exibe em ordem alfabética (sem alterar a ordem salva do ciclo)
     const ordered = cycle.subjects.slice().sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR', { sensitivity: 'base' }));
-    container.innerHTML = ordered.map(s => {
+    // some com o filtro se a disciplina saiu do ciclo
+    if (_cicloSubjFilter && !ordered.some(s => s.nome === _cicloSubjFilter)) _cicloSubjFilter = null;
+    // Filtro rápido por disciplina (chips) — só aparece com 2+ matérias
+    let filterHtml = '';
+    if (ordered.length > 1) {
+      const chip = (nome, label) => `<button type="button" class="csp-chip ${(_cicloSubjFilter === nome) ? 'active' : ''}" data-subj="${nome == null ? '' : escapeHtml(nome)}">${escapeHtml(label)}</button>`;
+      filterHtml = `<div class="csp-filter">${chip(null, 'Todas')}${ordered.map(s => chip(s.nome, CycleEngine.siglaForSubject(s.nome))).join('')}</div>`;
+    }
+    const shown = _cicloSubjFilter ? ordered.filter(s => s.nome === _cicloSubjFilter) : ordered;
+    container.innerHTML = filterHtml + shown.map(s => {
       const studied = CycleEngine.minutesStudied(s.nome, cycle.startDate, cycle.endDate);
       const status = CycleEngine.statusFor(studied, s.definidoMin);
       const pct = Math.min(100, Math.round((studied / s.definidoMin) * 100));
       const over = studied > s.definidoMin;
       const remaining = Math.max(0, s.definidoMin - studied);
+      // aproveitamento em questões desta matéria na semana
+      const q = CycleEngine.questionsStudied(s.nome, cycle.startDate, CycleEngine.effectiveEnd(cycle));
+      const acc = q.total > 0 ? Math.round((q.correct / q.total) * 100) : null;
+      const accTone = acc == null ? '' : (acc >= 70 ? 'tone-good' : acc >= 50 ? 'tone-warn' : 'tone-bad');
       return `
         <div class="subject-progress-item status-${status}">
           <div class="subject-progress-head">
@@ -12787,10 +13170,16 @@ function planCycleMode() {
           <div class="subject-progress-head" style="margin-top:10px; margin-bottom:0;">
             <span class="subject-meta-tag">dificuldade ${s.dificuldade} · ${escapeHtml(s.fase)}</span>
             <span class="subject-meta-tag">${pct}% da meta</span>
+            <span class="subject-meta-tag ${accTone}" title="${q.total ? q.correct + ' de ' + q.total + ' questões nesta semana' : 'Sem questões registradas nesta semana'}">${acc == null ? '— aproveit.' : acc + '% aproveit.'}</span>
           </div>
         </div>
       `;
     }).join('');
+    // liga os chips de filtro
+    container.querySelectorAll('.csp-chip').forEach(b => b.addEventListener('click', () => {
+      _cicloSubjFilter = b.dataset.subj || null;
+      renderSubjectsProgress(cycle);
+    }));
   }
 
   // Duração padrão ao alocar uma matéria numa célula vazia (o usuário pode editar livremente depois)
@@ -13268,13 +13657,73 @@ function planCycleMode() {
   }
 
   // Renderiza a TELA da Grade Semanal (bandeja + grade), independente do ciclo.
+  /* ---- Visão da Grade: 'semana' (grade completa) | 'dia' (só a meta diária) ---- */
+  function gradeViewMode() { return gradePrefGet('grade-view', null, 'semana') === 'dia' ? 'dia' : 'semana'; }
+  function setGradeViewMode(v) { gradePrefSet('grade-view', v === 'dia' ? 'dia' : 'semana'); }
+
+  // Nome do dia da semana de hoje, no vocabulário interno da grade
+  function _todayWeekdayName() {
+    return ['Domingo', 'Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado'][new Date().getDay()];
+  }
+
+  // Visão "Meta diária": lista compacta com o alvo de cada dia (total + matérias planejadas).
+  function renderGradeDaily() {
+    const container = document.getElementById('ciclo-grade');
+    if (!container) return;
+    const tmpl = gradeGet();
+    const days = gradeDaysOrder();
+    const hoje = _todayWeekdayName();
+    const html = days.map(dia => {
+      const slots = (tmpl.grade[dia] || []).map(normalizeCell).filter(Boolean);
+      const totalMin = slots.reduce((s, c) => s + (c.minutes || 0), 0);
+      const chips = slots.map(c => {
+        const cor = CycleEngine.colorForSubject(c.subject) || 'var(--accent)';
+        const sig = CycleEngine.siglaForSubject(c.subject);
+        return `<span class="gd-chip" style="color:${cor};" title="${escapeHtml(c.subject)}">${escapeHtml(sig)} <small>${CycleEngine.fmtHM(c.minutes || 0)}</small></span>`;
+      }).join('');
+      const isToday = dia === hoje;
+      return `
+        <div class="gd-day ${isToday ? 'is-today' : ''}">
+          <div class="gd-day-head">
+            <span class="gd-day-name">${dia}${isToday ? '<span class="gd-today-tag">hoje</span>' : ''}</span>
+            <span class="gd-day-total ${totalMin === 0 ? 'zero' : ''}">${totalMin === 0 ? '— sem meta' : CycleEngine.fmtHM(totalMin)}</span>
+          </div>
+          ${slots.length ? `<div class="gd-chips">${chips}</div>` : `<p class="gd-empty">Nenhuma matéria planejada para este dia.</p>`}
+        </div>`;
+    }).join('');
+    container.innerHTML = `<div class="grade-daily">${html}</div>`;
+  }
+
+  // Alterna a exibição entre a grade semanal completa e a meta diária.
+  function applyGradeView() {
+    const mode = gradeViewMode();
+    const trayBar = document.getElementById('grade-tray-bar');
+    const scrollHint = document.getElementById('grade-scroll-hint');
+    const minAlert = document.querySelector('#screen-grade .grade-min-alert');
+    document.querySelectorAll('#grade-view-toggle .gvt-btn').forEach(b => {
+      const on = b.dataset.gview === mode;
+      b.classList.toggle('active', on);
+      b.setAttribute('aria-selected', on ? 'true' : 'false');
+    });
+    if (mode === 'dia') {
+      if (trayBar) trayBar.style.display = 'none';
+      if (scrollHint) scrollHint.style.display = 'none';
+      if (minAlert) minAlert.style.display = 'none';
+      renderGradeDaily();
+    } else {
+      if (trayBar) trayBar.style.display = '';
+      if (scrollHint) scrollHint.style.display = '';
+      if (minAlert) minAlert.style.display = '';
+      renderChipTray();
+      renderGrade();
+      if (typeof window._applyGradeTray === 'function') window._applyGradeTray();
+    }
+  }
+
   function renderGradeScreen() {
-    renderChipTray();
-    renderGrade();
     const ws = document.getElementById('grade-weekstart-select');
     if (ws) ws.value = gradeWeekStart();
-    // reaplica a preferência salva da bandeja de siglas (vale também após trocar de perfil)
-    if (typeof window._applyGradeTray === 'function') window._applyGradeTray();
+    applyGradeView();
     // o gerenciador só é renderizado quando o modal abre (renderCustomSiglaManager)
   }
   // exposto para a navegação abrir a tela e para o botão de atalho do ciclo
@@ -13476,6 +13925,110 @@ function planCycleMode() {
     renderGrade();
     showToast('Grade limpa — monte do zero ✓');
   });
+
+  /* ---- Item 1: seletor de visão (Semanal / Meta diária) ---- */
+  const _viewToggle = document.getElementById('grade-view-toggle');
+  if (_viewToggle) _viewToggle.addEventListener('click', (e) => {
+    const btn = e.target.closest('.gvt-btn');
+    if (!btn) return;
+    setGradeViewMode(btn.dataset.gview);
+    applyGradeView();
+  });
+
+  /* ---- Item 2: grades salvas (salvar / trocar / restaurar) ---- */
+  function renderSavedGradesList() {
+    const box = document.getElementById('saved-grades-list');
+    if (!box) return;
+    const list = DB.getSavedGrades();
+    if (!list.length) {
+      box.innerHTML = `<p class="sg-empty">Nenhuma grade salva ainda. Dê um nome acima e clique em <strong>Salvar grade atual</strong>.</p>`;
+      return;
+    }
+    box.innerHTML = list.slice().reverse().map(s => {
+      let ocupadas = 0;
+      DIAS_SEMANA.forEach(d => (s.grade[d] || []).forEach(c => { if (normalizeCell(c)) ocupadas++; }));
+      const dt = s.createdAt ? new Date(s.createdAt).toLocaleDateString('pt-BR') : '';
+      return `<div class="sg-item" data-id="${s.id}">
+        <div class="sg-info">
+          <div class="sg-name">${escapeHtml(s.nome)}</div>
+          <div class="sg-meta">${ocupadas} matéria(s) · ${s.sessions || 3} sessões${dt ? ' · ' + dt : ''}</div>
+        </div>
+        <div class="sg-actions">
+          <button type="button" class="btn-secondary" data-sg-load="${s.id}" title="Substituir a grade atual por esta">↺ Restaurar</button>
+          <button type="button" class="btn-secondary" data-sg-over="${s.id}" title="Atualizar esta grade salva com a grade atual">⭯ Atualizar</button>
+          <button type="button" class="btn-secondary" data-sg-ren="${s.id}" title="Renomear">✎</button>
+          <button type="button" class="btn-secondary" data-sg-del="${s.id}" title="Excluir">🗑️</button>
+        </div>
+      </div>`;
+    }).join('');
+    box.querySelectorAll('[data-sg-load]').forEach(b => b.addEventListener('click', () => {
+      const id = b.dataset.sgLoad;
+      const s = DB.getSavedGrades().find(x => x.id === id);
+      if (!s) return;
+      if (!confirm(`Restaurar a grade "${s.nome}"? A grade atual será substituída (salve-a antes se quiser mantê-la).`)) return;
+      DB.applySavedGrade(id);
+      applyGradeView();
+      renderSavedGradesList();
+      showToast('Grade restaurada ✓');
+    }));
+    box.querySelectorAll('[data-sg-over]').forEach(b => b.addEventListener('click', () => {
+      const id = b.dataset.sgOver;
+      const s = DB.getSavedGrades().find(x => x.id === id);
+      if (!s) return;
+      if (!confirm(`Atualizar "${s.nome}" com a grade atual? O conteúdo salvo anterior será sobrescrito.`)) return;
+      DB.overwriteSavedGrade(id);
+      renderSavedGradesList();
+      showToast('Grade salva atualizada ✓');
+    }));
+    box.querySelectorAll('[data-sg-ren]').forEach(b => b.addEventListener('click', () => {
+      const id = b.dataset.sgRen;
+      const s = DB.getSavedGrades().find(x => x.id === id);
+      if (!s) return;
+      const nome = prompt('Novo nome da grade:', s.nome);
+      if (nome == null) return;
+      DB.renameSavedGrade(id, nome);
+      renderSavedGradesList();
+    }));
+    box.querySelectorAll('[data-sg-del]').forEach(b => b.addEventListener('click', () => {
+      const id = b.dataset.sgDel;
+      const s = DB.getSavedGrades().find(x => x.id === id);
+      if (!s) return;
+      if (!confirm(`Excluir a grade salva "${s.nome}"? Isto não altera a grade atual em uso.`)) return;
+      DB.deleteSavedGrade(id);
+      renderSavedGradesList();
+      showToast('Grade salva excluída');
+    }));
+  }
+  function openSavedGrades() {
+    const m = document.getElementById('saved-grades-modal');
+    if (!m) return;
+    renderSavedGradesList();
+    const inp = document.getElementById('new-saved-grade-name');
+    if (inp) inp.value = '';
+    m.style.display = 'flex';
+  }
+  function closeSavedGrades() { const m = document.getElementById('saved-grades-modal'); if (m) m.style.display = 'none'; }
+  const _savedBtn = document.getElementById('btn-saved-grades');
+  if (_savedBtn) _savedBtn.addEventListener('click', openSavedGrades);
+  const _savedClose = document.getElementById('saved-grades-close');
+  if (_savedClose) _savedClose.addEventListener('click', closeSavedGrades);
+  const _savedDone = document.getElementById('saved-grades-done');
+  if (_savedDone) _savedDone.addEventListener('click', closeSavedGrades);
+  const _saveCurBtn = document.getElementById('btn-save-current-grade');
+  if (_saveCurBtn) _saveCurBtn.addEventListener('click', () => {
+    const inp = document.getElementById('new-saved-grade-name');
+    const nome = (inp && inp.value.trim()) || ('Grade ' + new Date().toLocaleDateString('pt-BR'));
+    let ocupadas = 0;
+    const t = gradeGet();
+    DIAS_SEMANA.forEach(d => (t.grade[d] || []).forEach(c => { if (normalizeCell(c)) ocupadas++; }));
+    if (ocupadas === 0 && !confirm('A grade atual está vazia. Salvar mesmo assim?')) return;
+    DB.addSavedGrade(nome);
+    if (inp) inp.value = '';
+    renderSavedGradesList();
+    showToast('Grade atual salva ✓');
+  });
+  const _savedModal = document.getElementById('saved-grades-modal');
+  if (_savedModal) _savedModal.addEventListener('click', (e) => { if (e.target === _savedModal) closeSavedGrades(); });
 
   document.getElementById('btn-close-cycle').addEventListener('click', () => {
     const cycle = DB.getCurrentCycle();
@@ -14339,6 +14892,50 @@ const EvolucaoScreen = {
   },
   _palette: ['#4f46e5', '#e0393f', '#0f9d63', '#d97a12', '#0a95a8', '#b3308a', '#7c3aed', '#2563eb', '#059669', '#dc2626'],
 
+  /* Tema dos gráficos — lê as variáveis CSS em tempo de render, então TODO gráfico
+     SVG passa a respeitar o modo claro/escuro automaticamente. Antes as cores eram
+     fixas (grade #eceef1, rótulos #9297a3, centro dos pontos #fff), o que deixava
+     os gráficos ilegíveis no tema escuro. Fonte e geometria também padronizadas. */
+  _ctheme() {
+    const cs = getComputedStyle(document.documentElement);
+    const v = (name, fb) => { const s = (cs.getPropertyValue(name) || '').trim(); return s || fb; };
+    return {
+      grid: v('--border', '#e5e7eb'),
+      gridStrong: v('--border-strong', '#d1d5db'),
+      label: v('--text-faint', '#9297a3'),
+      axis: v('--text-soft', '#5b6270'),
+      accent: v('--accent', '#4f46e5'),
+      surface: v('--surface', '#ffffff'),
+      text: v('--text', '#14161a'),
+      fMono: "'Space Mono', ui-monospace, monospace",
+      fSans: "'Inter', system-ui, sans-serif"
+    };
+  },
+  // Largura da viewport (para decidir densidade de rótulos e tamanho de fonte).
+  _vw() { try { return window.innerWidth || document.documentElement.clientWidth || 1024; } catch (_) { return 1024; } },
+  /* Métricas RESPONSIVAS de gráfico. O problema no celular: o SVG tem viewBox fixo
+     (ex.: 720 de largura) e é reduzido para caber na tela — uma fonte 11 vira ~5px,
+     ilegível, e as datas se sobrepõem. Aqui, quando a tela é estreita, aumentamos a
+     fonte (em unidades do SVG, para compensar a redução) e mostramos MENOS rótulos
+     de data (1 a cada N), evitando o amontoado. Também encurtamos a data (dd/mm). */
+  _chartMetrics(n) {
+    const vw = this._vw();
+    const narrow = vw < 640, tiny = vw < 400;
+    // nº alvo de rótulos no eixo X conforme a largura
+    const targetLabels = tiny ? 3 : narrow ? 4 : 8;
+    const labelEvery = Math.max(1, Math.ceil(n / targetLabels));
+    return {
+      narrow, tiny, labelEvery,
+      fLabel: narrow ? 15 : 11,   // rótulos de eixo (datas / %)
+      fVal: narrow ? 15 : 12,     // valores nos pontos
+      fAxisTitle: narrow ? 14 : 11,
+      dot: narrow ? 4 : 3.5
+    };
+  },
+  // Rótulo de data curto para o eixo (dd/mm). A legibilidade no celular é garantida
+  // pela densidade responsiva (labelEvery) + fonte maior, não por truncar a data.
+  _shortDate(iso, _narrow) { return formatDateShort(iso); },
+
   // soma/subtrai dias a uma data 'YYYY-MM-DD' mantendo o fuso local
   addDaysLocal(isoDate, delta) {
     const d = new Date(isoDate + 'T00:00:00');
@@ -14736,8 +15333,8 @@ const EvolucaoScreen = {
       container.innerHTML = `<div class="evo-empty-mini">Nenhum tempo registrado ${usaRange ? 'no intervalo de ' + formatDateShort(start) + ' a ' + formatDateShort(end) : 'nos últimos ' + nDias + ' dias'}.</div>`;
       return;
     }
-    // com muitos dias, mostra rótulo a cada N
-    const labelEvery = Math.max(1, Math.ceil(days.length / 12));
+    // com muitos dias, mostra rótulo a cada N (menos rótulos no celular)
+    const labelEvery = Math.max(1, Math.ceil(days.length / (this._vw() < 640 ? 6 : 12)));
     const bars = days.map(d => {
       const min = byDate[d] || 0;
       const h = Math.round((min / maxMin) * 100);
@@ -14909,32 +15506,36 @@ const EvolucaoScreen = {
   multiLineSVG(weeks, series, opts = {}) {
     // padR maior para caber a "régua de metas" (pílulas 70/80/85) à direita — mesmo
     // padrão visual do gráfico "% de acertos por matéria", para leitura consistente.
-    const w = 720, h = 280, padL = 48, padR = 44, padT = 20, padB = 44;
+    const T = this._ctheme();
+    const M = this._chartMetrics(weeks.length);
+    const w = 720, h = 280, padL = M.narrow ? 44 : 48, padR = 44, padT = 22, padB = M.narrow ? 50 : 44;
     const n = weeks.length;
     const xAt = (i) => padL + (n <= 1 ? 0 : (i / (n - 1)) * (w - padL - padR));
     const yAt = (pct) => padT + (1 - pct / 100) * (h - padT - padB);
     let grid = '';
-    [0, 25, 50, 75, 100].forEach(g => {
+    // no celular, menos linhas de grade (0/50/100) para não competir com os rótulos
+    (M.narrow ? [0, 50, 100] : [0, 25, 50, 75, 100]).forEach(g => {
       const y = yAt(g);
-      grid += `<line x1="${padL}" y1="${y}" x2="${w - padR}" y2="${y}" stroke="#eceef1" stroke-width="1" stroke-dasharray="${g === 0 ? '0' : '3 3'}"/>`;
-      grid += `<text x="${padL - 8}" y="${y + 3}" font-size="10" fill="#9297a3" text-anchor="end" font-family="Space Mono, monospace">${g}%</text>`;
+      grid += `<line x1="${padL}" y1="${y}" x2="${w - padR}" y2="${y}" stroke="${T.grid}" stroke-width="1" stroke-dasharray="${g === 0 ? '0' : '3 3'}"/>`;
+      grid += `<text x="${padL - 8}" y="${y + 3.5}" font-size="${M.fLabel}" fill="${T.label}" text-anchor="end" font-family="${T.fMono}">${g}%</text>`;
     });
     // metas 70/80/85 — linha tracejada + RÉGUA: pílula colorida com o valor na direita
     metaRefs().map(r => ({ v: r.v, c: r.color })).forEach(r => {
       const y = yAt(r.v);
+      const pw = M.narrow ? 36 : 30, ph = M.narrow ? 20 : 16;
       grid += `<line x1="${padL}" y1="${y}" x2="${w - padR}" y2="${y}" stroke="${r.c}" stroke-width="1.3" stroke-dasharray="6 4" opacity="0.85"/>`;
-      grid += `<rect x="${w - padR + 2}" y="${y - 8}" width="30" height="16" rx="8" fill="${r.c}"/>`;
-      grid += `<text x="${w - padR + 17}" y="${y + 4}" font-size="10" fill="#fff" text-anchor="middle" font-weight="700" font-family="Space Mono, monospace">${r.v}%</text>`;
+      grid += `<rect x="${w - padR + 2}" y="${y - ph / 2}" width="${pw}" height="${ph}" rx="${ph / 2}" fill="${r.c}"/>`;
+      grid += `<text x="${w - padR + 2 + pw / 2}" y="${y + 4}" font-size="${M.narrow ? 13 : 10.5}" fill="#fff" text-anchor="middle" font-weight="700" font-family="${T.fMono}">${r.v}%</text>`;
     });
-    // rótulos X
-    const labelEvery = Math.max(1, Math.ceil(n / 9));
+    // rótulos X compactos estilo "S1, S2, S3…" (semanas) — curtos e legíveis, como no
+    // gráfico de referência (M1/M2/M3). A data completa fica no tooltip do ponto.
     let xlabels = '';
     weeks.forEach((wk, i) => {
-      if (i % labelEvery === 0 || i === n - 1) xlabels += `<text x="${xAt(i)}" y="${h - padB + 18}" font-size="9.5" fill="#9297a3" text-anchor="middle" font-family="Space Mono, monospace">${formatDateShort(wk)}</text>`;
+      if (i % M.labelEvery === 0 || i === n - 1) xlabels += `<text x="${xAt(i)}" y="${h - padB + (M.narrow ? 22 : 18)}" font-size="${M.fLabel}" fill="${T.label}" text-anchor="middle" font-weight="700" font-family="${T.fMono}">S${i + 1}</text>`;
     });
-    const yTitle = `<text x="13" y="${padT + (h - padT - padB) / 2}" font-size="10" fill="#5b6270" text-anchor="middle" font-weight="700" transform="rotate(-90 13 ${padT + (h - padT - padB) / 2})" font-family="Inter, sans-serif">${opts.yTitle || '%'}</text>`;
+    const yTitle = M.narrow ? '' : `<text x="14" y="${padT + (h - padT - padB) / 2}" font-size="11" fill="${T.axis}" text-anchor="middle" font-weight="700" transform="rotate(-90 14 ${padT + (h - padT - padB) / 2})" font-family="${T.fSans}">${opts.yTitle || '%'}</text>`;
     // desenha cada série (segmentando em lacunas de pct nulo)
-    let paths = '';
+    let paths = '', valLabels = '';
     series.forEach((s, si) => {
       const isGeral = si === 0;
       let seg = [];
@@ -14942,18 +15543,35 @@ const EvolucaoScreen = {
         if (seg.length === 0) return;
         const d = seg.map((p, k) => `${k === 0 ? 'M' : 'L'} ${xAt(p.x)} ${yAt(p.pct)}`).join(' ');
         paths += `<path d="${d}" fill="none" stroke="${s.color}" stroke-width="${isGeral ? 3 : 2}" stroke-linecap="round" stroke-linejoin="round" ${isGeral ? '' : 'opacity="0.9"'}/>`;
-        paths += seg.map(p => `<circle cx="${xAt(p.x)}" cy="${yAt(p.pct)}" r="${isGeral ? 3.5 : 3}" fill="#fff" stroke="${s.color}" stroke-width="2"><title>${escapeHtml(s.name)} · ${p.label}: ${formatPct(p.pct)}%</title></circle>`).join('');
+        paths += seg.map(p => `<circle cx="${xAt(p.x)}" cy="${yAt(p.pct)}" r="${M.narrow ? (isGeral ? 4.5 : 4) : (isGeral ? 3.5 : 3)}" fill="${T.surface}" stroke="${s.color}" stroke-width="2"><title>${escapeHtml(s.name)} · ${p.label}: ${formatPct(p.pct)}%</title></circle>`).join('');
         seg = [];
       };
       s.points.forEach(p => { if (p.pct === null) flush(); else seg.push(p); });
       flush();
+      // RÓTULOS DE VALOR na série geral (a principal), para ver o progresso de relance.
+      // No celular, afina para 1 a cada labelEvery e sempre no último ponto.
+      if (isGeral) {
+        s.points.forEach((p, i) => {
+          if (p.pct === null) return;
+          const mostra = !M.narrow || (i % M.labelEvery === 0) || (i === s.points.length - 1);
+          if (!mostra) return;
+          const cx = xAt(p.x), cy = yAt(p.pct);
+          const acima = cy > padT + 24;
+          const ly = acima ? cy - 10 : cy + 18;
+          const anchor = (i === 0) ? 'start' : (i === s.points.length - 1) ? 'end' : 'middle';
+          const dx = (i === 0) ? 4 : (i === s.points.length - 1) ? -4 : 0;
+          valLabels += `<text x="${cx + dx}" y="${ly}" font-size="${M.fVal}" fill="${s.color}" text-anchor="${anchor}" font-weight="800" font-family="${T.fMono}">${Math.round(p.pct)}%</text>`;
+        });
+      }
     });
-    // legenda: séries + uma entrada por meta (cor batendo com a régua)
+    paths += valLabels;
+    // legenda: séries + uma entrada por meta (cor batendo com a régua) + dica S = semana
     const legend = `<div class="evo-legend" style="padding:12px 20px 0;">` +
       series.map(s => `<span class="evo-legend-item"><span class="evo-legend-swatch" style="background:${s.color}; height:3px;"></span>${escapeHtml(s.name)}</span>`).join('') +
       metaRefs().map(r => `<span class="evo-legend-item"><span class="evo-legend-swatch" style="background:${r.color}; height:0; border-top:2px dashed ${r.color};"></span>meta ${r.v}%</span>`).join('') +
+      `<span class="evo-legend-item" style="color:var(--text-faint)">S1, S2… = semanas (data no ponto)</span>` +
       `</div>`;
-    return `<svg viewBox="0 0 ${w} ${h}" style="width:100%; height:auto; overflow:visible;">${grid}${yTitle}${paths}${xlabels}</svg>${legend}`;
+    return `<svg viewBox="0 0 ${w} ${h}" style="width:100%; height:auto; overflow:visible;" preserveAspectRatio="xMidYMid meet">${grid}${yTitle}${paths}${xlabels}</svg>${legend}`;
   },
 
   // ------- Aproveitamento por semana fechada (histórico de ciclos) -------
@@ -14968,10 +15586,10 @@ const EvolucaoScreen = {
     }
     const points = hist.map((w, i) => ({ x: i, pct: w.avgPerformancePct, label: formatDateShort(w.endDate) }));
     const legenda = `<div class="evo-legend" style="padding:12px 0 0;">
-      <span class="evo-legend-item"><span class="evo-legend-swatch" style="background:#4f46e5; height:3px;"></span>% de acerto da semana</span>
+      <span class="evo-legend-item"><span class="evo-legend-swatch" style="background:var(--accent); height:3px;"></span>% de acerto da semana</span>
       ${metaRefs().map(r => `<span class="evo-legend-item"><span class="evo-legend-swatch" style="background:${r.color}; height:0; border-top:2px dashed ${r.color};"></span>meta ${r.v}%</span>`).join('')}
     </div>`;
-    container.innerHTML = this.percentLineSVG(points, [{ color: '#4f46e5', points }],
+    container.innerHTML = this.percentLineSVG(points, [{ color: this._ctheme().accent, points }],
       { yTitle: '% de acerto', xTitle: 'Semana (data de fechamento)' }) + legenda;
   },
 
@@ -15019,12 +15637,10 @@ const EvolucaoScreen = {
       }
       return { x: i, pct, label: formatDateShort(s.date) };
     }).filter(p => p.pct !== null);
-    container.innerHTML = this.percentLineSVG(points, [{ color: '#4f46e5', points }],
+    container.innerHTML = this.percentLineSVG(points, [{ color: this._ctheme().accent, points }],
       { yTitle: '% de acerto', xTitle: 'Data do retrato importado' });
-    legend.innerHTML = `<span class="evo-legend-item"><span class="evo-legend-swatch" style="background:#4f46e5;"></span>${showDisc ? escapeHtml(showDisc) : 'Aproveitamento geral'}</span>`
-      + `<span class="evo-legend-item"><span class="evo-legend-swatch" style="background:#0f9d63;"></span>meta 70%</span>`
-      + `<span class="evo-legend-item"><span class="evo-legend-swatch" style="background:#d97a12;"></span>meta 80%</span>`
-      + `<span class="evo-legend-item"><span class="evo-legend-swatch" style="background:#4f46e5;"></span>meta 85%</span>`;
+    legend.innerHTML = `<span class="evo-legend-item"><span class="evo-legend-swatch" style="background:var(--accent); height:3px;"></span>${showDisc ? escapeHtml(showDisc) : 'Aproveitamento geral'}</span>`
+      + metaRefs().map(r => `<span class="evo-legend-item"><span class="evo-legend-swatch" style="background:${r.color}; height:0; border-top:2px dashed ${r.color};"></span>meta ${r.v}%</span>`).join('');
   },
 
   // Desenha um gráfico de linha de PERCENTUAL (0-100) com grade e rótulos
@@ -15035,7 +15651,9 @@ const EvolucaoScreen = {
       const p = allPoints[0];
       return `<div class="evo-empty-mini">Só há um ponto (${p.label}): ${formatPct(p.pct)}%. Adicione mais dados para ver a linha.</div>`;
     }
-    const w = 700, h = 280, padL = 60, padR = 30, padT = 30, padB = 52;
+    const T = this._ctheme();
+    const M = this._chartMetrics(allPoints.length);
+    const w = 720, h = 280, padL = M.narrow ? 52 : 60, padR = 30, padT = 28, padB = M.narrow ? 58 : 52;
     const n = allPoints.length;
     const refs = metaRefs();
     // EIXO Y com base dinâmica (não mais fixo em 0–100): começa num múltiplo de 10
@@ -15055,8 +15673,8 @@ const EvolucaoScreen = {
     for (let k = 0; k <= 4; k++) {
       const gv = yMin + (ySpan * k / 4);
       const y = yAt(gv);
-      grid += `<line x1="${padL}" y1="${y}" x2="${w - padR}" y2="${y}" stroke="#eceef1" stroke-width="1" stroke-dasharray="${k === 0 ? '0' : '3 3'}"/>`;
-      grid += `<text x="${padL - 10}" y="${y + 4}" font-size="13" fill="#9297a3" text-anchor="end" font-family="Space Mono, monospace">${Math.round(gv)}%</text>`;
+      grid += `<line x1="${padL}" y1="${y}" x2="${w - padR}" y2="${y}" stroke="${T.grid}" stroke-width="1" stroke-dasharray="${k === 0 ? '0' : '3 3'}"/>`;
+      grid += `<text x="${padL - 10}" y="${y + 4}" font-size="${M.fLabel}" fill="${T.label}" text-anchor="end" font-family="${T.fMono}">${Math.round(gv)}%</text>`;
     }
     // linhas de meta: sem rótulo numérico solto na direita (era o que sobrepunha os
     // valores dos pontos). A legenda abaixo do gráfico já identifica cada meta.
@@ -15066,31 +15684,33 @@ const EvolucaoScreen = {
       const y = yAt(r.v);
       refLines += `<line x1="${padL}" y1="${y}" x2="${w - padR}" y2="${y}" stroke="${r.color}" stroke-width="1.4" stroke-dasharray="6 4" opacity="0.85"/>`;
     });
-    const yAxisTitle = `<text x="16" y="${padT + (h - padT - padB) / 2}" font-size="12.5" fill="#5b6270" text-anchor="middle" font-weight="700" transform="rotate(-90 16 ${padT + (h - padT - padB) / 2})" font-family="Inter, sans-serif">${yTitle}</text>`;
-    const labelEvery = Math.max(1, Math.ceil(n / 8));
+    const yAxisTitle = M.narrow ? '' : `<text x="16" y="${padT + (h - padT - padB) / 2}" font-size="12" fill="${T.axis}" text-anchor="middle" font-weight="700" transform="rotate(-90 16 ${padT + (h - padT - padB) / 2})" font-family="${T.fSans}">${yTitle}</text>`;
     let xlabels = '';
     allPoints.forEach((p, i) => {
-      if (i % labelEvery === 0 || i === n - 1) {
-        xlabels += `<text x="${xAt(i)}" y="${h - padB + 22}" font-size="12.5" fill="#9297a3" text-anchor="middle" font-family="Space Mono, monospace">${p.label}</text>`;
+      if (i % M.labelEvery === 0 || i === n - 1) {
+        // labels aqui já vêm curtos (dd/mm) — a densidade responsiva (labelEvery) já evita o amontoado
+        xlabels += `<text x="${xAt(i)}" y="${h - padB + (M.narrow ? 26 : 22)}" font-size="${M.fLabel}" fill="${T.label}" text-anchor="middle" font-family="${T.fMono}">${p.label || ''}</text>`;
       }
     });
-    const xAxisTitle = xTitle ? `<text x="${padL + (w - padL - padR) / 2}" y="${h - 6}" font-size="12.5" fill="#5b6270" text-anchor="middle" font-weight="700" font-family="Inter, sans-serif">${xTitle}</text>` : '';
+    const xAxisTitle = xTitle ? `<text x="${padL + (w - padL - padR) / 2}" y="${h - 6}" font-size="${M.fAxisTitle}" fill="${T.axis}" text-anchor="middle" font-weight="700" font-family="${T.fSans}">${xTitle}</text>` : '';
     let paths = '';
     series.forEach((s, si) => {
       const d = s.points.map((p, i) => `${i === 0 ? 'M' : 'L'} ${xAt(p.x)} ${yAt(p.pct)}`).join(' ');
       paths += `<path d="${d}" fill="none" stroke="${s.color}" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>`;
-      // rótulo de valor: alterna acima/abaixo por ponto para não colar no vizinho
+      // rótulo de valor: no celular, rotula 1 a cada N pontos (evita amontoado); alterna acima/abaixo
       paths += s.points.map((p, i) => {
         const cx = xAt(p.x), cy = yAt(p.pct);
+        const mostra = !M.narrow || (i % M.labelEvery === 0) || (i === s.points.length - 1);
         const acima = (i % 2 === 0) ? (cy > padT + 20) : false;
         const ly = acima ? cy - 12 : cy + 22;
         const anchor = (i === 0) ? 'start' : (i === s.points.length - 1) ? 'end' : 'middle';
         const dx = (i === 0) ? 5 : (i === s.points.length - 1) ? -5 : 0;
-        return `<circle cx="${cx}" cy="${cy}" r="4.5" fill="#fff" stroke="${s.color}" stroke-width="2.5"><title>${p.label}: ${formatPct(p.pct)}%</title></circle>` +
-               `<text x="${cx + dx}" y="${ly}" font-size="13" fill="${s.color}" text-anchor="${anchor}" font-weight="700" font-family="Space Mono, monospace">${Math.round(p.pct)}%</text>`;
+        const dot = `<circle cx="${cx}" cy="${cy}" r="${M.narrow ? 5 : 4.5}" fill="${T.surface}" stroke="${s.color}" stroke-width="2.5"><title>${p.label}: ${formatPct(p.pct)}%</title></circle>`;
+        const lbl = mostra ? `<text x="${cx + dx}" y="${ly}" font-size="${M.fVal}" fill="${s.color}" text-anchor="${anchor}" font-weight="700" font-family="${T.fMono}">${Math.round(p.pct)}%</text>` : '';
+        return dot + lbl;
       }).join('');
     });
-    return `<svg viewBox="0 0 ${w} ${h}" style="width:100%; height:auto; overflow:visible;">${grid}${refLines}${yAxisTitle}${paths}${xlabels}${xAxisTitle}</svg>`;
+    return `<svg viewBox="0 0 ${w} ${h}" style="width:100%; height:auto; overflow:visible;" preserveAspectRatio="xMidYMid meet">${grid}${refLines}${yAxisTitle}${paths}${xlabels}${xAxisTitle}</svg>`;
   },
 
   // Reflete o estado (datas + atalho ativo) nos controles da tela
@@ -15213,8 +15833,11 @@ const EvolucaoScreen = {
       return;
     }
 
-    // padL generoso para caber "23h 24min" sem sobrepor (sem título de eixo vertical)
-    const w = 700, h = 240, padL = 70, padR = 20, padT = 20, padB = 46;
+    // Geometria padronizada entre todos os gráficos desta tela.
+    const T = this._ctheme();
+    const M = this._chartMetrics(points.length);
+    const gid = 'areaGrad_' + Math.random().toString(36).slice(2, 8);
+    const w = 720, h = 250, padL = M.narrow ? 76 : 68, padR = 22, padT = 22, padB = M.narrow ? 52 : 46;
     const maxAcc = Math.max(...points.map(p => p.acc));
     const n = points.length;
     const xAt = (i) => padL + (i / (n - 1)) * (w - padL - padR);
@@ -15226,35 +15849,33 @@ const EvolucaoScreen = {
     for (let s = 0; s <= steps; s++) {
       const val = (maxAcc / steps) * s;
       const y = yAt(val);
-      grid += `<line x1="${padL}" y1="${y}" x2="${w - padR}" y2="${y}" stroke="#eceef1" stroke-width="1" stroke-dasharray="${s === 0 ? '0' : '3 3'}"/>`;
-      grid += `<text x="${padL - 10}" y="${y + 3}" font-size="9.5" fill="#9297a3" text-anchor="end" font-family="Space Mono, monospace">${CycleEngine.fmtHM(Math.round(val))}</text>`;
+      grid += `<line x1="${padL}" y1="${y}" x2="${w - padR}" y2="${y}" stroke="${T.grid}" stroke-width="1" stroke-dasharray="${s === 0 ? '0' : '3 3'}"/>`;
+      grid += `<text x="${padL - 10}" y="${y + 3.5}" font-size="${M.fLabel}" fill="${T.label}" text-anchor="end" font-family="${T.fMono}">${CycleEngine.fmtHM(Math.round(val))}</text>`;
     }
-    // (sem título de eixo vertical — os próprios rótulos já indicam as horas)
 
     const pathD = points.map((p, i) => `${i === 0 ? 'M' : 'L'} ${xAt(i)} ${yAt(p.acc)}`).join(' ');
     const areaD = pathD + ` L ${xAt(n - 1)} ${h - padB} L ${xAt(0)} ${h - padB} Z`;
 
-    const labelEvery = Math.max(1, Math.ceil(n / 8));
-    const labels = points.map((p, i) => (i % labelEvery === 0 || i === n - 1)
-      ? `<text x="${xAt(i)}" y="${h - padB + 18}" font-size="10" fill="#9297a3" text-anchor="middle" font-family="Space Mono, monospace">${formatDateShort(p.date)}</text>`
+    const labels = points.map((p, i) => (i % M.labelEvery === 0 || i === n - 1)
+      ? `<text x="${xAt(i)}" y="${h - padB + (M.narrow ? 24 : 20)}" font-size="${M.fLabel}" fill="${T.label}" text-anchor="middle" font-family="${T.fMono}">${this._shortDate(p.date, M.narrow)}</text>`
       : '').join('');
     // rótulo do valor final acumulado
     const last = points[n - 1];
-    const endLabel = `<text x="${xAt(n - 1)}" y="${yAt(last.acc) - 9}" font-size="9.5" fill="#4f46e5" text-anchor="end" font-weight="700" font-family="Space Mono, monospace">${CycleEngine.fmtHM(last.acc)}</text>`;
-    const xAxisTitle = `<text x="${padL + (w - padL - padR) / 2}" y="${h - 4}" font-size="10" fill="#5b6270" text-anchor="middle" font-weight="700" font-family="Inter, sans-serif">Data</text>`;
+    const endLabel = `<text x="${xAt(n - 1)}" y="${yAt(last.acc) - 10}" font-size="${M.fVal}" fill="${T.accent}" text-anchor="end" font-weight="700" font-family="${T.fMono}">${CycleEngine.fmtHM(last.acc)}</text>`;
+    const xAxisTitle = `<text x="${padL + (w - padL - padR) / 2}" y="${h - 5}" font-size="${M.fAxisTitle}" fill="${T.axis}" text-anchor="middle" font-weight="700" font-family="${T.fSans}">Data</text>`;
 
     container.innerHTML = `
-      <svg viewBox="0 0 ${w} ${h}" style="width:100%; height:auto; overflow:visible;">
+      <svg viewBox="0 0 ${w} ${h}" style="width:100%; height:auto; overflow:visible;" preserveAspectRatio="xMidYMid meet">
         <defs>
-          <linearGradient id="areaGrad" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stop-color="#4f46e5" stop-opacity="0.18"/>
-            <stop offset="100%" stop-color="#4f46e5" stop-opacity="0"/>
+          <linearGradient id="${gid}" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stop-color="${T.accent}" stop-opacity="0.20"/>
+            <stop offset="100%" stop-color="${T.accent}" stop-opacity="0"/>
           </linearGradient>
         </defs>
         ${grid}
-        <path d="${areaD}" fill="url(#areaGrad)" />
-        <path d="${pathD}" fill="none" stroke="#4f46e5" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
-        ${points.map((p, i) => `<circle cx="${xAt(i)}" cy="${yAt(p.acc)}" r="3.5" fill="#4f46e5"/><circle cx="${xAt(i)}" cy="${yAt(p.acc)}" r="13" fill="transparent" style="cursor:pointer" data-tip="${formatDateShort(p.date)}: ${CycleEngine.fmtHM(p.acc)} acumuladas"></circle>`).join('')}
+        <path d="${areaD}" fill="url(#${gid})" />
+        <path d="${pathD}" fill="none" stroke="${T.accent}" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+        ${points.map((p, i) => `<circle cx="${xAt(i)}" cy="${yAt(p.acc)}" r="${M.dot}" fill="${T.accent}"/><circle cx="${xAt(i)}" cy="${yAt(p.acc)}" r="13" fill="transparent" style="cursor:pointer" data-tip="${formatDateShort(p.date)}: ${CycleEngine.fmtHM(p.acc)} acumuladas"></circle>`).join('')}
         ${labels}${endLabel}${xAxisTitle}
       </svg>
     `;
@@ -15327,18 +15948,31 @@ const EvolucaoScreen = {
     entries.forEach(e => { matrix[e.subject][e.method] += (e.durationMin || 0); });
 
     const subjectTotals = subjects.map(s => methods.reduce((sum, m) => sum + matrix[s][m], 0));
+    const methodTotals = methods.map(m => subjects.reduce((sum, s) => sum + matrix[s][m], 0));
+    const grandTotal = subjectTotals.reduce((a, b) => a + b, 0) || 1;
+    // ordena matérias por total (as com mais tempo primeiro) e realça a célula
+    // mais intensa de cada linha com uma tênue tarja da cor de acento (heatmap leve).
+    const order = subjects.map((s, i) => i).sort((a, b) => subjectTotals[b] - subjectTotals[a]);
+    const maxCell = Math.max(1, ...subjects.flatMap(s => methods.map(m => matrix[s][m])));
 
-    let html = '<div style="overflow-x:auto;"><table class="grade-table modality-table"><thead><tr><th>Matéria</th>';
+    let html = '<div class="modality-wrap"><table class="modality-table"><thead><tr><th class="mt-sticky">Matéria</th>';
     methods.forEach(m => html += `<th>${escapeHtml(m)}</th>`);
-    html += '<th>Total</th></tr></thead><tbody>';
-    subjects.forEach((s, i) => {
-      html += `<tr><td>${escapeHtml(s)}</td>`;
+    html += '<th class="mt-total-col">Total</th></tr></thead><tbody>';
+    order.forEach(i => {
+      const s = subjects[i];
+      html += `<tr><td class="mt-sticky mt-name" title="${escapeHtml(s)}">${escapeHtml(s)}</td>`;
       methods.forEach(m => {
         const min = matrix[s][m];
-        html += `<td style="text-align:center; font-family:'Space Mono',monospace; font-size:11.5px; ${min === 0 ? 'color:var(--text-faint);' : ''}">${min > 0 ? CycleEngine.fmtHM(min) : '—'}</td>`;
+        const intensity = min > 0 ? (0.06 + 0.20 * (min / maxCell)).toFixed(3) : 0;
+        const bg = min > 0 ? `background:color-mix(in srgb, var(--accent) ${(intensity * 100).toFixed(1)}%, transparent);` : '';
+        html += `<td class="mt-cell${min === 0 ? ' mt-zero' : ''}" style="${bg}">${min > 0 ? CycleEngine.fmtHM(min) : '·'}</td>`;
       });
-      html += `<td style="text-align:center; font-family:'Space Mono',monospace; font-size:11.5px; font-weight:700;">${CycleEngine.fmtHM(subjectTotals[i])}</td></tr>`;
+      html += `<td class="mt-cell mt-total-col">${CycleEngine.fmtHM(subjectTotals[i])}</td></tr>`;
     });
+    // rodapé com o total por modalidade + participação
+    html += '<tr class="mt-foot"><td class="mt-sticky">Total</td>';
+    methodTotals.forEach(mt => html += `<td class="mt-cell">${mt > 0 ? CycleEngine.fmtHM(mt) : '·'}</td>`);
+    html += `<td class="mt-cell mt-total-col">${CycleEngine.fmtHM(grandTotal === 1 && subjectTotals.reduce((a, b) => a + b, 0) === 0 ? 0 : subjectTotals.reduce((a, b) => a + b, 0))}</td></tr>`;
     html += '</tbody></table></div>';
     container.innerHTML = html;
   }
@@ -15347,6 +15981,21 @@ const EvolucaoScreen = {
 window.addEventListener('screen:activated', (e) => {
   if (e.detail.screen === 'evolucao') EvolucaoScreen.render();
 });
+
+// Redesenha os gráficos ao girar/redimensionar (recalcula densidade de rótulos e
+// fontes responsivas). Só age quando a Evolução está visível, e cruza um limiar de
+// largura, para não re-renderizar à toa a cada pixel.
+(function () {
+  let t = null, lastNarrow = null;
+  window.addEventListener('resize', () => {
+    const scr = document.getElementById('screen-evolucao');
+    if (!scr || !scr.classList.contains('active')) return;
+    const narrow = (window.innerWidth || 1024) < 640;
+    if (lastNarrow === null) lastNarrow = narrow;
+    clearTimeout(t);
+    t = setTimeout(() => { EvolucaoScreen.render(); lastNarrow = narrow; }, 220);
+  }, { passive: true });
+})();
 
 // Filtro de período: inputs manuais e atalhos rápidos
 document.getElementById('evo-date-start').addEventListener('change', (e) => EvolucaoScreen.onStartChange(e.target.value));
@@ -16132,7 +16781,12 @@ const LeisScreen = {
     if (!this.currentId) { showToast('Abra uma lei primeiro'); return; }
     document.body.classList.add('leis-foco');
     this.atualizarFoco();
-    showToast('Modo foco · Esc sai · o marca-texto continua funcionando');
+    // reflete o estado atual da ferramenta (marca-texto/borracha) nos botões da barra de foco
+    const fMark = document.getElementById('lei-foco-mark');
+    const fErase = document.getElementById('lei-foco-erase');
+    if (fMark) fMark.classList.toggle('active', this.hlMode === 'mark');
+    if (fErase) fErase.classList.toggle('active', this.hlMode === 'erase');
+    showToast('Modo foco · Esc sai · marca-texto e borracha disponíveis na barra do topo');
   },
   sairFoco() { document.body.classList.remove('leis-foco'); this.atualizarFoco(); },
   emFoco() { return document.body.classList.contains('leis-foco'); },
@@ -16242,6 +16896,11 @@ const LeisScreen = {
     const eraseBtn = document.getElementById('lei-unmark-btn');
     if (markBtn) markBtn.classList.toggle('active', this.hlMode === 'mark');
     if (eraseBtn) eraseBtn.classList.toggle('active', this.hlMode === 'erase');
+    // espelha o estado nos botões da barra do MODO FOCO
+    const fMark = document.getElementById('lei-foco-mark');
+    const fErase = document.getElementById('lei-foco-erase');
+    if (fMark) fMark.classList.toggle('active', this.hlMode === 'mark');
+    if (fErase) fErase.classList.toggle('active', this.hlMode === 'erase');
     const body = document.getElementById('lei-reader-body');
     if (body) {
       body.classList.toggle('tool-mark', this.hlMode === 'mark');
@@ -16410,6 +17069,9 @@ window.LeisScreen = LeisScreen;
   on('lei-lines-btn', 'click', () => LeisScreen.toggleLines());
   on('lei-goto-mark-btn', 'click', () => LeisScreen.gotoBookmark());
   on('lei-foco-btn', 'click', () => LeisScreen.entrarFoco());
+  on('lei-foco-mark', 'click', () => LeisScreen.setTool('mark'));
+  on('lei-foco-erase', 'click', () => LeisScreen.setTool('erase'));
+  on('lei-foco-lines', 'click', () => LeisScreen.toggleLines());
   // Esc sai do modo foco da leitura. Não conflita com o dos cards: cada um só
   // reage quando a sua própria classe está no body.
   document.addEventListener('keydown', (e) => {
@@ -18157,6 +18819,7 @@ document.querySelectorAll('.rte').forEach(buildRteToolbar);
     const body = document.getElementById('cards-filter-body');
     const open = body.style.display !== 'none';
     body.style.display = open ? 'none' : 'block';
+    if (card) card.classList.toggle('collapsed', open);
     document.getElementById('cards-filter-caret').textContent = open ? '▸' : '▾';
   });
   // busca
@@ -18187,6 +18850,18 @@ document.querySelectorAll('.rte').forEach(buildRteToolbar);
   });
   on('cards-new-btn', 'click', () => CardsScreen.openCardModal(null));
   on('cards-foco-btn', 'click', () => CardsScreen.entrarFoco());
+  // menu "Mais" da barra de cards (abre/fecha; fecha ao escolher, clicar fora ou Esc)
+  (function () {
+    const btn = document.getElementById('cards-more-btn');
+    const menu = document.getElementById('cards-more-menu');
+    if (!btn || !menu) return;
+    const close = () => { menu.classList.remove('open'); btn.classList.remove('open'); btn.setAttribute('aria-expanded', 'false'); };
+    const toggle = () => { const open = menu.classList.contains('open'); if (open) close(); else { menu.classList.add('open'); btn.classList.add('open'); btn.setAttribute('aria-expanded', 'true'); } };
+    btn.addEventListener('click', (e) => { e.stopPropagation(); toggle(); });
+    menu.querySelectorAll('button').forEach(b => b.addEventListener('click', close));
+    document.addEventListener('click', (e) => { if (!e.target.closest('#cards-more-menu') && !e.target.closest('#cards-more-btn')) close(); });
+    document.addEventListener('keydown', (e) => { if (e.key === 'Escape') close(); });
+  })();
   on('foco-sair', 'click', () => CardsScreen.sairFoco());
   on('foco-undo', 'click', () => CardsScreen.undoAnswer());
   on('cards-deck-btn', 'click', () => CardsScreen.openDeckModal());
@@ -18267,6 +18942,7 @@ const ExtrasScreen = {
   selDay: null,
   _showFilters: undefined,
   _fStart: null, _fEnd: null,
+  _addMoreFor: null,   // "id@dia" cujo card está com o input de "registrar mais" aberto
   _CHECK: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>',
   render() {
     // toggle global
@@ -18276,6 +18952,12 @@ const ExtrasScreen = {
     if (summary) { summary.innerHTML = ''; summary.style.display = 'none'; }  // topo agora vive na agenda
     const list = document.getElementById('extras-list');
     const hoje = todayLocal();
+    // Bug corrigido (contexto): ao trocar de planejamento/perfil, o dia e a janela
+    // do calendário ficavam presos no contexto anterior. Reseta para hoje quando o
+    // contexto muda, para nunca exibir a data de outro planejamento.
+    let ctx = 'p'; try { ctx = DB._profilePrefix() + '|' + DB._activePlanId(); } catch (_) {}
+    if (this._ctxKey !== ctx) { this._ctxKey = ctx; this.selDay = hoje; this._calStart = this._addDays(hoje, -3); this._addMoreFor = null; }
+    // se a data selecionada ficou no futuro por navegação, ainda é válida; só garante um valor
     if (!this.selDay) this.selDay = hoje;
     const extras = DB.getExtras();
     this.renderAgenda(); // calendário + cabeçalho do dia + carga horária + filtros
@@ -18287,7 +18969,16 @@ const ExtrasScreen = {
     const day = this.selDay;
     const occ = this.occurrencesForDay(day);
     if (occ.length === 0) {
-      list.innerHTML = `<div class="extras-empty"><div class="big">🗓️</div>Nada agendado para <strong>${escapeHtml(this._prettyDay(day))}</strong>.<br>Vincule uma atividade a este dia no calendário acima, ou crie uma recorrência em <strong>🔁 Gerenciar</strong>.</div>`;
+      const ehHoje = day === hoje;
+      const futuro = day > hoje;
+      const dica = futuro
+        ? 'Vincule atividades a este dia no calendário para planejar com antecedência.'
+        : (ehHoje
+          ? 'Crie uma atividade ou uma recorrência em <strong>🔁 Gerenciar</strong>.'
+          : 'Nenhum registro ou atividade neste dia.');
+      list.innerHTML = `<div class="extras-empty"><div class="big">🗓️</div>Nada em <strong>${escapeHtml(this._prettyDay(day))}</strong>.<br>${dica}${!ehHoje ? '<br><button type="button" class="btn-secondary" id="ex-empty-hoje" style="margin-top:14px;">→ Ir para hoje</button>' : ''}</div>`;
+      const bh = document.getElementById('ex-empty-hoje');
+      if (bh) bh.addEventListener('click', () => { this.selDay = hoje; this._calStart = this._addDays(hoje, -3); this.render(); });
       this._syncManage();
       return;
     }
@@ -18316,13 +19007,24 @@ const ExtrasScreen = {
         return this._recurOnDay(x, day);
       }
       if (datas.length) return datas.includes(day);
-      /* BUG CORRIGIDO: a atividade AVULSA sumia da tela assim que era concluida
+      /* BUG CORRIGIDO (A): a atividade AVULSA sumia da tela assim que era concluida
          (o filtro descartava status === 'concluida'). Sem ela na lista nao havia
          como editar, consultar o que foi feito, nem reabrir se voce marcou por
          engano — restava recriar do zero.
          Agora ela FICA, marcada como concluida, com o botao virando "Reabrir".
-         Continua aparecendo so no dia de hoje quando nao tem data propria. */
-      return (day === hoje);
+
+         BUG CORRIGIDO (A2 — preservacao de data): a avulsa aparecia SOMENTE hoje.
+         Se voce registrasse progresso num dia passado, ao voltar aquele dia a
+         atividade nao aparecia e o registro "sumia" da visao (parecia perda de
+         dado). Agora ela tambem aparece em QUALQUER dia onde houve registro,
+         preservando o historico exatamente no dia correto. */
+      const temHistoricoNoDia = (x.historico || []).some(h => h.data === day);
+      if (temHistoricoNoDia) return true;
+      // pendencia: enquanto nao concluida, fica visivel no dia de hoje
+      if (day === hoje && x.status !== 'concluida') return true;
+      // concluida (sem data propria): permanece acessivel no dia de hoje
+      if (day === hoje) return true;
+      return false;
     });
   },
   _recurOnDay(x, day) {
@@ -18615,21 +19317,43 @@ const ExtrasScreen = {
     const regsDia = (x.historico || []).filter(h => h.data === day);
     const nReg = regsDia.length;
     const ultimoReg = nReg ? regsDia[nReg - 1] : null;
-    /* Registro de tempo independente da conclusão: pode ser parcial ou integral. */
-    const regRow = done ? '' : `
-        <div class="exd-reg">
-          ${ultimoReg ? `
-            <div class="exd-reg-saved">
-              <span class="exd-reg-value">${escapeHtml(String(ultimoReg.quantidade || 0))} ${escapeHtml(unidLabel)}</span>
-              <button type="button" class="btn-secondary exd-reg-edit">Editar</button>
-            </div>` : `
+    const totalDia = regsDia.reduce((a, h) => a + (h.quantidade || 0), 0);
+    const acertosDia = regsDia.reduce((a, h) => a + (h.acertos != null ? (parseFloat(h.acertos) || 0) : 0), 0);
+    const temAcertos = x.tipo === 'questoes' && regsDia.some(h => h.acertos != null);
+    const futuro = day > todayLocal();
+    /* Registro independente da conclusão: pode ser parcial ou integral.
+       Bug corrigido (C): quando concluída, o card ESCONDIA tudo o que foi feito.
+       Agora mostra um resumo do que foi registrado no dia (inclusive acertos). */
+    let regRow;
+    if (done) {
+      regRow = totalDia > 0
+        ? `<div class="exd-reg exd-reg-donerow">
+             <span class="exd-doneinfo">✓ <b>${totalDia.toLocaleString('pt-BR')}</b> ${escapeHtml(unidLabel)} registrado(s) neste dia${temAcertos ? ` · <b>${acertosDia.toLocaleString('pt-BR')}</b> acerto(s)` : ''}</span>
+           </div>`
+        : '';
+    } else if (futuro) {
+      // Dia futuro é planejamento: sem registro/conclusão, só um aviso discreto.
+      regRow = `<div class="exd-reg"><span class="exd-planejado">🗓️ Planejado para ${escapeHtml(formatDateShort(day))} — registre a partir do dia</span></div>`;
+    } else {
+      const forceInput = (this._addMoreFor === x.id + '@' + day);
+      const inputGroup = `
             <div class="exd-reg-group">
               <input type="number" inputmode="decimal" class="exd-num exd-qtd" min="0"
                      placeholder="${placeholder}" title="Informe o valor a registrar">
               ${x.tipo === 'questoes' ? `<input type="number" inputmode="numeric" class="exd-num exd-ac" min="0" placeholder="acertos" title="Acertos (opcional)">` : ''}
               <button type="button" class="btn-primary exd-reg-btn">Registrar</button>
-            </div>`}
+              ${ultimoReg ? `<button type="button" class="btn-secondary exd-reg-cancel">Cancelar</button>` : ''}
+            </div>`;
+      regRow = `
+        <div class="exd-reg">
+          ${(ultimoReg && !forceInput) ? `
+            <div class="exd-reg-saved">
+              <span class="exd-reg-value">✓ ${totalDia.toLocaleString('pt-BR')} ${escapeHtml(unidLabel)} no dia${temAcertos ? ` · ${acertosDia.toLocaleString('pt-BR')} acerto(s)` : ''}</span>
+              <button type="button" class="btn-secondary exd-reg-more">＋ Registrar mais</button>
+              <button type="button" class="btn-secondary exd-reg-edit">Editar último</button>
+            </div>` : inputGroup}
         </div>`;
+    }
     return `
       <div class="exd ${done ? 'done' : ''}" data-id="${x.id}" data-day="${day}" style="--exd-cor:${cor}; --exd-fill:${alvo > 0 ? pct : (done ? 100 : 0)}%;">
         <div class="exd-top">
@@ -18663,6 +19387,8 @@ const ExtrasScreen = {
       // marcar/desmarcar conclusão do DIA (checkbox redondo)
       const check = card.querySelector('.exd-check');
       if (check) check.addEventListener('click', () => {
+        // Bug corrigido (B): concluir só faz sentido até hoje — dia futuro é planejamento.
+        if (day > todayLocal()) { showToast('Este dia ainda não chegou — conclua a partir da data de hoje'); return; }
         const x = DB.getExtra(id);
         const jaFeita = DB.extraConcluidaEm(x, day);
         DB.setConcluidaDia(id, day, !jaFeita);
@@ -18683,9 +19409,15 @@ const ExtrasScreen = {
         if (acEl && acEl.value !== '' && parseFloat(acEl.value) > parseFloat(q)) { showToast('Acertos não podem passar do total'); return; }
         if (day > todayLocal()) { showToast('Não dá para registrar em data futura'); return; }
         DB.addExtraProgress(id, q, 0, { data: day, acertos: acEl ? acEl.value : null });
+        this._addMoreFor = null;
         this.render();
         showToast(day === todayLocal() ? 'Registrado ✓' : 'Registrado em ' + formatDateShort(day) + ' ✓');
       });
+      // "Registrar mais": revela o campo de entrada mesmo já havendo um registro no dia
+      const moreBtn = card.querySelector('.exd-reg-more');
+      if (moreBtn) moreBtn.addEventListener('click', () => { this._addMoreFor = id + '@' + day; this.render(); setTimeout(() => { const inp = list.querySelector(`.exd[data-id="${id}"][data-day="${day}"] .exd-qtd`); if (inp) inp.focus(); }, 30); });
+      const cancelBtn = card.querySelector('.exd-reg-cancel');
+      if (cancelBtn) cancelBtn.addEventListener('click', () => { this._addMoreFor = null; this.render(); });
       const editReg = card.querySelector('.exd-reg-edit');
       if (editReg) editReg.addEventListener('click', () => {
         const xAtual = DB.getExtra(id);
@@ -18701,6 +19433,7 @@ const ExtrasScreen = {
           if (v.acertos !== undefined && v.acertos !== '' && parseFloat(v.acertos) > novo) { showToast('Acertos não podem passar do total'); return; }
           DB.undoExtraProgressDay(id, day);
           DB.addExtraProgress(id, novo, 0, { data: day, acertos: v.acertos == null ? null : v.acertos });
+          this._addMoreFor = null;
           this.render();
           showToast('Registro atualizado ✓');
         });
@@ -18935,13 +19668,18 @@ const ExtrasScreen = {
       const d = new Date(dia + 'T00:00:00');
       const occ = this.occurrencesForDay(dia);
       const total = occ.length;
+      const feitos = occ.filter(x => DB.extraConcluidaEm(x, dia)).length;
+      const allDone = total > 0 && feitos === total && dia <= hoje;
+      const partial = total > 0 && feitos > 0 && feitos < total;
       const dots = occ.slice(0, 4).map(x => `<span class="cal-dot" style="background:${this._tipoColor(x.tipo)}"></span>`).join('');
       const sel = dia === this.selDay, isHoje = dia === hoje;
-      strip += `<button type="button" class="cal-day ${sel ? 'sel' : ''} ${isHoje ? 'hoje' : ''}" data-dia="${dia}">
+      const marca = allDone ? '<span class="cal-alldone">✓</span>'
+        : (total > 0 ? `<span class="cal-dots">${dots}${total > 4 ? '<span class="cal-more">+' + (total - 4) + '</span>' : ''}</span>` : '<span class="cal-dots">&nbsp;</span>');
+      strip += `<button type="button" class="cal-day ${sel ? 'sel' : ''} ${isHoje ? 'hoje' : ''} ${allDone ? 'alldone' : ''} ${partial ? 'partial' : ''}" data-dia="${dia}" title="${total ? feitos + '/' + total + ' concluída(s)' : 'sem atividades'}">
         <span class="cal-wd">${nomes[d.getDay()]}</span>
         <span class="cal-dn">${String(d.getDate()).padStart(2, '0')}</span>
         <span class="cal-mo">${meses[d.getMonth()]}</span>
-        <span class="cal-dots">${dots || '&nbsp;'}${total > 4 ? '<span class="cal-more">+' + (total - 4) + '</span>' : ''}</span>
+        ${marca}
       </button>`;
     }
     // dados do dia selecionado
@@ -21018,7 +21756,7 @@ const DesempenhoTecScreen = {
       const rendMedio = rend.length ? rend.reduce((a, p) => a + p.rendimento, 0) / rend.length : null;
       const ultimo = S[S.length - 1];
       grafico = `
-        <div class="card" style="background:var(--surface-sunken);box-shadow:none;margin:0 0 16px;">
+        <div class="card" style="background:var(--surface-sunken);box-shadow:var(--shadow-sm);border:1.5px solid var(--border);margin:0 0 16px;">
           <div style="padding:14px 16px;">
             <div style="display:flex;align-items:baseline;justify-content:space-between;gap:10px;flex-wrap:wrap;">
               <strong style="font-size:calc(13px * var(--fs-scale,1));">📈 Sua trajetória</strong>
@@ -22776,6 +23514,37 @@ const ProfileUI = {
     if (m.includes('demorou') || m.includes('timeout') || m.includes('failed to fetch') || m.includes('network')) return 'Sem resposta do servidor. Verifique sua internet.';
     return (err && err.message) ? err.message : 'Não foi possível autenticar.';
   },
+  // Recuperação de senha: envia o e-mail de redefinição do Supabase.
+  async forgotPassword() {
+    const emailEl = document.getElementById('gate-email');
+    const email = (emailEl && emailEl.value.trim()) || '';
+    const msg = document.getElementById('gate-auth-msg');
+    const show = (t, kind) => { if (msg) { msg.textContent = t; msg.className = 'gate-alert ' + (kind || 'bad'); msg.style.display = 'block'; } };
+    const CS = window.CloudStore;
+    if (!CS || !CS.isReady()) { show('Servidor indisponível. Verifique a internet.', 'warn'); return; }
+    if (!email || !/.+@.+\..+/.test(email)) { show('Digite seu e-mail no campo acima e clique de novo em "Esqueci minha senha".', 'bad'); if (emailEl) emailEl.focus(); return; }
+    show('Enviando e-mail de recuperação...', 'info');
+    try {
+      await CS.resetPassword(email);
+      show('Enviamos um link de recuperação para ' + email + '. Abra o e-mail, clique no link e defina uma nova senha.', 'good');
+    } catch (err) {
+      show(this._friendlyAuthError(err), 'bad');
+    }
+  },
+  // Quando o usuário volta pelo link de recuperação, pede a nova senha e a aplica.
+  async promptNewPasswordAfterRecovery() {
+    const CS = window.CloudStore;
+    if (!CS || !CS.isReady()) return;
+    const vals = await UI.prompt([
+      { key: 'p1', label: 'Nova senha', type: 'password', placeholder: 'Mínimo 6 caracteres' },
+      { key: 'p2', label: 'Confirme a nova senha', type: 'password', placeholder: 'Repita a senha' }
+    ], { title: '🔑 Definir nova senha', sub: 'Você chegou pelo link de recuperação. Escolha uma nova senha.', okText: 'Salvar senha' });
+    if (!vals) return;
+    if (!vals.p1 || vals.p1.length < 6) { showToast('A senha precisa ter ao menos 6 caracteres'); return this.promptNewPasswordAfterRecovery(); }
+    if (vals.p1 !== vals.p2) { showToast('As senhas não coincidem'); return this.promptNewPasswordAfterRecovery(); }
+    try { await CS.changePassword(vals.p1); showToast('Senha alterada com sucesso ✓'); }
+    catch (err) { showToast('Não foi possível alterar a senha: ' + (err.message || '')); }
+  },
   useOffline() { this._offline = true; this.refreshStage(); showToast('Modo offline — os dados ficam só neste dispositivo'); },
   async gateLogout() {
     if (window.CloudStore && CloudStore.isReady() && CloudStore.isLoggedIn()) { try { await CloudStore.signOut(); } catch (e) {} }
@@ -22821,7 +23590,14 @@ const CloudStore = {
       this.client = lib.createClient(this.SUPABASE_URL, this.SUPABASE_KEY, { auth: { persistSession: true, autoRefreshToken: true } });
       this.libStatus = 'ready';
       this.client.auth.getSession().then(({ data }) => { this.session = (data && data.session) || null; this.onAuth(); }).catch(e => console.warn('getSession', e));
-      this.client.auth.onAuthStateChange((_e, session) => { this.session = session; this.onAuth(); });
+      this.client.auth.onAuthStateChange((_e, session) => {
+        this.session = session;
+        this.onAuth();
+        // Usuário chegou pelo link de recuperação: pede a nova senha na hora.
+        if (_e === 'PASSWORD_RECOVERY' && window.ProfileUI && ProfileUI.promptNewPasswordAfterRecovery) {
+          setTimeout(() => ProfileUI.promptNewPasswordAfterRecovery(), 300);
+        }
+      });
     } catch (err) { this.libStatus = 'error'; console.error('CloudStore.init', err); }
     if (window.ProfileUI && ProfileUI.isGateOpen()) ProfileUI.refreshStage();
   },
@@ -22834,7 +23610,8 @@ const CloudStore = {
   onAuth() {
     if (window.ProfileUI) ProfileUI.onAuthChanged();
     if (window.CloudUI) CloudUI.refreshSyncBtn();
-    if (this.isLoggedIn()) { this.subscribeRealtime(); this.subscribeSections(); } else this._unsub();
+    if (this.isLoggedIn()) { this.subscribeRealtime(); this.subscribeSections(); if (window.SessionGuard) SessionGuard.onLogin(); }
+    else { this._unsub(); if (window.SessionGuard) SessionGuard.onLogout(); }
     // Sync por seção (Opção B): ao logar / restaurar sessão, popula a tabela nova
     // proativamente — sem depender de uma edição. Pequeno atraso para o perfil ativar.
     try { if (window.SectionSync) setTimeout(() => SectionSync.kick(), 1500); } catch (_) {}
@@ -22843,6 +23620,19 @@ const CloudStore = {
   async signUp(email, password) { const { data, error } = await this._withTimeout(this.client.auth.signUp({ email, password }), 20000, 'A criação de conta'); if (error) throw error; return data; },
   async signIn(email, password) { const { data, error } = await this._withTimeout(this.client.auth.signInWithPassword({ email, password }), 20000, 'O login'); if (error) throw error; return data; },
   async signOut() { clearTimeout(this._debounce); this._unsub(); try { await this.client.auth.signOut(); } catch (e) {} this.session = null; },
+  // Envia e-mail de recuperação de senha (usuário não logado que esqueceu a senha).
+  async resetPassword(email) {
+    const redirectTo = (typeof location !== 'undefined') ? location.href.split('#')[0] : undefined;
+    const { error } = await this._withTimeout(
+      this.client.auth.resetPasswordForEmail(email, redirectTo ? { redirectTo } : undefined),
+      20000, 'O envio do e-mail de recuperação');
+    if (error) throw error; return true;
+  },
+  // Altera a senha do usuário LOGADO (ou de quem chegou pelo link de recuperação).
+  async changePassword(newPassword) {
+    const { error } = await this._withTimeout(this.client.auth.updateUser({ password: newPassword }), 20000, 'A alteração de senha');
+    if (error) throw error; return true;
+  },
 
   async listProfiles() {
     const { data, error } = await this._withTimeout(
@@ -22910,6 +23700,8 @@ const CloudStore = {
 
   notifyChange() {
     if (this._applying) return;
+    // sessão assumida por outro aparelho (ou outra aba): não escreve, para não sobrescrever
+    if (window.SessionLock && SessionLock.isBlocked()) return;
     if (!this.isReady() || !this.isLoggedIn()) return;
     try { if (!sessionStorage.getItem('diario-estudos:entered')) return; } catch (e) {}
     try { if (window.VersionHistory) VersionHistory.maybeDailySnapshot(); } catch (e) {} // 1 backup/dia
@@ -22961,6 +23753,7 @@ const CloudStore = {
     // reprogramamos uma nova tentativa para logo após, senão a última alteração ficava
     // presa como "pendente" até o próximo foco/edição (causa de "às vezes não salva").
     if (this._syncing) { this._rearm(400); return; }
+    if (window.SessionLock && SessionLock.isBlocked()) { this._pending = false; return; } // sessão assumida em outro aparelho
     if (!this.isReady() || !this.isLoggedIn()) return;
     if (!this._pending) return;                // nada novo a enviar
     clearTimeout(this._debounce);
@@ -23180,6 +23973,197 @@ const CloudStore = {
   }
 };
 window.CloudStore = CloudStore;
+
+/* ============================================================================
+   SESSION GUARD — login único REAL entre dispositivos (via Supabase)
+   ----------------------------------------------------------------------------
+   Cada aparelho tem um device_id fixo. Ao logar (ou ao clicar em "Continuar
+   neste aparelho"), este device "reivindica" a conta gravando seu id na tabela
+   `active_sessions` (uma linha por usuário). Um canal Realtime avisa todos os
+   aparelhos: quem vê um device_id diferente do seu entende que outro assumiu,
+   é BLOQUEADO e tem a sincronização PAUSADA (para não sobrescrever dados).
+
+   Requer no Supabase (execute uma vez — SQL fornecido no relatório):
+     create table public.active_sessions (
+       user_id uuid primary key references auth.users(id) on delete cascade,
+       device_id text not null, device_label text, updated_at timestamptz default now());
+     alter table public.active_sessions enable row level security;
+     create policy "own_select" on public.active_sessions for select using (auth.uid()=user_id);
+     create policy "own_insert" on public.active_sessions for insert with check (auth.uid()=user_id);
+     create policy "own_update" on public.active_sessions for update using (auth.uid()=user_id);
+     alter publication supabase_realtime add table public.active_sessions;
+
+   Se a tabela ainda NÃO existir, o guard se desativa sozinho, sem quebrar o app
+   (o bloqueio local por aba continua funcionando).
+   ============================================================================ */
+const SessionGuard = {
+  TABLE: 'active_sessions',
+  DEVICE_KEY: 'diario-estudos:device-id',
+  enabled: true,        // vira false se a tabela não existir
+  channel: null,
+  _deviceId: null,
+  _claimedUid: null,    // uid para o qual já reivindicamos nesta carga de página
+  _avisouSemTabela: false,
+
+  deviceId() {
+    if (this._deviceId) return this._deviceId;
+    let id = null;
+    try { id = localStorage.getItem(this.DEVICE_KEY); } catch (_) {}
+    if (!id) {
+      id = (window.DB && DB._uid) ? DB._uid() : (Date.now().toString(36) + Math.random().toString(36).slice(2));
+      try { localStorage.setItem(this.DEVICE_KEY, id); } catch (_) {}
+    }
+    this._deviceId = id;
+    return id;
+  },
+  // Rótulo legível do aparelho (aparece no aviso do outro dispositivo).
+  deviceLabel() {
+    try {
+      const ua = navigator.userAgent || '';
+      let so = 'Dispositivo';
+      if (/Android/i.test(ua)) so = 'Android';
+      else if (/iPhone|iPad|iPod/i.test(ua)) so = 'iPhone/iPad';
+      else if (/Windows/i.test(ua)) so = 'Windows';
+      else if (/Mac/i.test(ua)) so = 'Mac';
+      else if (/Linux/i.test(ua)) so = 'Linux';
+      let nav = 'navegador';
+      if (/Edg\//i.test(ua)) nav = 'Edge';
+      else if (/CriOS/i.test(ua)) nav = 'Chrome';
+      else if (/FxiOS|Firefox\//i.test(ua)) nav = 'Firefox';
+      else if (/Chrome\//i.test(ua)) nav = 'Chrome';
+      else if (/Safari\//i.test(ua)) nav = 'Safari';
+      // aparelhos Apple sem navegador específico identificado usam Safari
+      if (nav === 'navegador' && (so === 'iPhone/iPad' || so === 'Mac')) nav = 'Safari';
+      return so + ' · ' + nav;
+    } catch (_) { return 'Dispositivo'; }
+  },
+  _isMissingTable(err) {
+    const m = ((err && (err.message || err.code || err.details)) || '').toString().toLowerCase();
+    return m.includes('active_sessions') || m.includes('does not exist') || m.includes('42p01') ||
+           m.includes('could not find the table') || m.includes('schema cache');
+  },
+  _disable(err) {
+    this.enabled = false;
+    this._unsub();
+    if (!this._avisouSemTabela) {
+      this._avisouSemTabela = true;
+      console.info('[SessionGuard] tabela active_sessions ausente — login único entre dispositivos desligado. Rode o SQL do relatório para ativar. Detalhe:', err && (err.message || err));
+    }
+  },
+
+  // Chamado pelo CloudStore quando há sessão (login ou sessão restaurada).
+  async onLogin() {
+    if (!this.enabled) return;
+    const CS = window.CloudStore;
+    if (!CS || !CS.isReady() || !CS.isLoggedIn()) return;
+    const uid = CS.session.user.id;
+    this.subscribe(uid);
+    // reivindica só uma vez por carga/uid (evita re-claim a cada evento de auth)
+    if (this._claimedUid !== uid) { this._claimedUid = uid; await this.claim(uid); }
+  },
+  onLogout() {
+    this._claimedUid = null;
+    this._unsub();
+    if (window.SessionLock && SessionLock.isBlocked() && SessionLock._origin === 'remote') SessionLock.unblock();
+  },
+
+  // Grava este device como o dono ativo da conta (derruba os demais).
+  async claim(uid) {
+    if (!this.enabled) return false;
+    const CS = window.CloudStore;
+    if (!CS || !CS.isReady() || !CS.isLoggedIn()) return false;
+    uid = uid || CS.session.user.id;
+    try {
+      const { error } = await CS.client.from(this.TABLE)
+        .upsert({ user_id: uid, device_id: this.deviceId(), device_label: this.deviceLabel(), updated_at: new Date().toISOString() },
+                { onConflict: 'user_id' });
+      if (error) { if (this._isMissingTable(error)) this._disable(error); else console.warn('[SessionGuard] claim falhou', error); return false; }
+      return true;
+    } catch (err) { if (this._isMissingTable(err)) this._disable(err); else console.warn('[SessionGuard] claim erro', err); return false; }
+  },
+
+  // Verifica quem é o dono atual (na entrada, antes mesmo do primeiro evento realtime).
+  async check(uid) {
+    if (!this.enabled) return;
+    const CS = window.CloudStore;
+    if (!CS || !CS.isReady() || !CS.isLoggedIn()) return;
+    uid = uid || CS.session.user.id;
+    try {
+      const { data, error } = await CS.client.from(this.TABLE).select('device_id,device_label').eq('user_id', uid).maybeSingle();
+      if (error) { if (this._isMissingTable(error)) this._disable(error); return; }
+      if (data && data.device_id && data.device_id !== this.deviceId()) {
+        this._takenBy({ device_id: data.device_id, device_label: data.device_label });
+      }
+    } catch (err) { if (this._isMissingTable(err)) this._disable(err); }
+  },
+
+  subscribe(uid) {
+    if (!this.enabled || this.channel) return;
+    const CS = window.CloudStore;
+    if (!CS || !CS.isReady()) return;
+    try {
+      this.channel = CS.client.channel('sess_guard')
+        .on('postgres_changes', { event: '*', schema: 'public', table: this.TABLE, filter: 'user_id=eq.' + uid }, (p) => {
+          const row = p.new || p.old || {};
+          if (!row.device_id) return;
+          if (row.device_id !== this.deviceId()) this._takenBy(row);
+          else if (window.SessionLock && SessionLock.isBlocked() && SessionLock._origin === 'remote') SessionLock.unblock();
+          // se a tela de Configurações estiver aberta, reflete a mudança na hora
+          try { const cfg = document.getElementById('screen-config'); if (cfg && cfg.classList.contains('active') && window.CloudUI) CloudUI.renderSessions(); } catch (_) {}
+        })
+        .subscribe((status) => { if (status === 'SUBSCRIBED') this.check(uid); });
+    } catch (e) { console.warn('[SessionGuard] realtime indisponível', e); }
+  },
+  _unsub() {
+    if (this.channel) { try { window.CloudStore.client.removeChannel(this.channel); } catch (_) {} this.channel = null; }
+  },
+
+  // Outro aparelho assumiu: bloqueia e pausa a sincronização aqui.
+  _takenBy(row) {
+    if (window.SessionLock) SessionLock.block('remote', { label: row.device_label });
+    // interrompe qualquer envio pendente para não sobrescrever o outro aparelho
+    try { const CS = window.CloudStore; if (CS) { clearTimeout(CS._debounce); CS._debounce = null; CS._pending = false; } } catch (_) {}
+    if (window.CloudUI) CloudUI.refreshSyncBtn();
+  },
+
+  // ---- Usado pela tela de Configurações ----
+  // status: 'ok' (leu a linha), 'empty' (sem sessão registrada), 'disabled'
+  // (tabela ausente/guard desligado), 'offline' (sem conexão/login), 'error'.
+  async fetchActive() {
+    if (!this.enabled) return { status: 'disabled' };
+    const CS = window.CloudStore;
+    if (!CS || !CS.isReady() || !CS.isLoggedIn()) return { status: 'offline' };
+    try {
+      const { data, error } = await CS.client.from(this.TABLE)
+        .select('device_id,device_label,updated_at').eq('user_id', CS.session.user.id).maybeSingle();
+      if (error) { if (this._isMissingTable(error)) { this._disable(error); return { status: 'disabled' }; } return { status: 'error', message: error.message }; }
+      if (!data || !data.device_id) return { status: 'empty' };
+      return {
+        status: 'ok',
+        row: data,
+        isThisDevice: data.device_id === this.deviceId(),
+        thisDeviceId: this.deviceId(),
+        thisLabel: this.deviceLabel()
+      };
+    } catch (err) { if (this._isMissingTable(err)) { this._disable(err); return { status: 'disabled' }; } return { status: 'error', message: err && err.message }; }
+  },
+  // Encerra a sessão do outro aparelho trazendo a posse para ESTE (reivindica).
+  // O outro aparelho recebe o evento em tempo real e é bloqueado.
+  async endRemoteAndClaimHere() {
+    const ok = await this.claim();
+    if (ok && window.SessionLock && SessionLock.isBlocked() && SessionLock._origin === 'remote') SessionLock.unblock();
+    if (window.CloudUI) CloudUI.refreshSyncBtn();
+    return ok;
+  }
+};
+window.SessionGuard = SessionGuard;
+// "Continuar neste aparelho" (no overlay remoto) → reivindica de volta a posse.
+if (window.SessionLock) SessionLock.onTakeover(async (origin) => {
+  if (origin !== 'remote') return;
+  const ok = await SessionGuard.claim();
+  if (ok) { showToast('Sessão retomada neste aparelho ✓'); if (window.CloudUI) CloudUI.refreshSyncBtn(); }
+  else { showToast('Não foi possível retomar agora — verifique a internet'); SessionLock.block('remote', {}); }
+});
 
 /* ============================================================
    SECTION SYNC — sincronização POR SEÇÃO (Opção B) · FASE 1: escrita dupla
@@ -23744,6 +24728,63 @@ const CloudUI = {
       const auto = document.getElementById('cloud-autosync'); if (auto && auto.closest('label')) auto.closest('label').style.display = 'none';
       const slots = document.getElementById('cloud-slots-list'); if (slots) slots.innerHTML = '<p class="hint">A sincronização é automática. Use os botões acima só para forçar envio/baixa manual.</p>';
       this.setStatus('ok', 'Sincronização automática ativa');
+      this.renderSessions();
+    }
+  },
+  // Painel "Aparelho com sessão ativa" (login único entre dispositivos).
+  async renderSessions() {
+    const box = document.getElementById('cloud-sessions-list');
+    if (!box) return;
+    if (!window.SessionGuard) { box.innerHTML = '<p class="cloud-sessions-off">Controle de sessões indisponível nesta versão.</p>'; return; }
+    box.innerHTML = '<p class="hint" style="text-align:center; padding:10px;">Carregando…</p>';
+    const r = await SessionGuard.fetchActive();
+    if (r.status === 'disabled') {
+      box.innerHTML = '<div class="cloud-sessions-off">🔒 O <strong>login único entre dispositivos</strong> ainda não está ativado. Rode o script SQL (tabela <code>active_sessions</code>) no Supabase para habilitar. O bloqueio entre abas do mesmo navegador já funciona.</div>';
+      return;
+    }
+    if (r.status === 'offline') { box.innerHTML = '<div class="cloud-sessions-off">Sem conexão com a conta agora. Tente novamente.</div>'; return; }
+    if (r.status === 'error') { box.innerHTML = '<div class="cloud-sessions-off">Não foi possível carregar: ' + escapeHtml(r.message || '') + '</div>'; return; }
+    if (r.status === 'empty') {
+      box.innerHTML = '<div class="cloud-sessions-empty">Nenhuma sessão registrada ainda. Ela aparece assim que você usar a conta em um aparelho.</div>';
+      return;
+    }
+    // status 'ok'
+    const row = r.row;
+    const isThis = r.isThisDevice;
+    const quando = row.updated_at ? new Date(row.updated_at).toLocaleString('pt-BR') : '';
+    const nome = escapeHtml(row.device_label || 'Aparelho');
+    const idCurto = escapeHtml(String(row.device_id || '').slice(0, 8));
+    if (isThis) {
+      box.innerHTML = `<div class="sess-card is-this">
+        <span class="sess-ico">💻</span>
+        <div class="sess-info">
+          <div class="sess-name">${nome} <span class="sess-badge this">este aparelho</span></div>
+          <div class="sess-meta">ativo desde ${escapeHtml(quando)} · id ${idCurto}</div>
+        </div>
+      </div>
+      <p class="hint" style="margin:8px 0 0;">Esta é a única sessão ativa. Ao entrar em outro aparelho, ele assume e esta é encerrada automaticamente.</p>`;
+    } else {
+      box.innerHTML = `<div class="sess-card">
+        <span class="sess-ico">📱</span>
+        <div class="sess-info">
+          <div class="sess-name">${nome} <span class="sess-badge other">outro aparelho</span></div>
+          <div class="sess-meta">ativo desde ${escapeHtml(quando)} · id ${idCurto}</div>
+        </div>
+        <div class="sess-actions">
+          <button type="button" class="btn-primary" id="cloud-sess-endother">Encerrar e usar aqui</button>
+        </div>
+      </div>
+      <p class="hint" style="margin:8px 0 0;">Este aparelho (${escapeHtml(r.thisLabel)}) não está com a sessão. "Encerrar e usar aqui" bloqueia o outro e traz a sessão para cá.</p>`;
+      const btn = document.getElementById('cloud-sess-endother');
+      if (btn) btn.addEventListener('click', async () => {
+        const ok = await UI.confirm('Encerrar a sessão em "' + (row.device_label || 'outro aparelho') + '" e trazer a sessão para este aparelho?\n\nO outro aparelho será bloqueado e sua sincronização, pausada.', { title: '📵 Encerrar sessão', okText: 'Encerrar e usar aqui' });
+        if (!ok) return;
+        btn.disabled = true; btn.textContent = 'Encerrando…';
+        const done = await SessionGuard.endRemoteAndClaimHere();
+        if (done) { showToast('Sessão trazida para este aparelho ✓'); }
+        else { showToast('Não foi possível agora — verifique a internet'); }
+        this.renderSessions();
+      });
     }
   },
   setStatus(tone, text) {
@@ -23771,6 +24812,8 @@ const CloudUI = {
     const txt = document.getElementById('csb-text');
     const CS = window.CloudStore;
     let tone = forceTone, text = forceText;
+    // sessão assumida em outro aparelho: sincronização pausada aqui
+    if (window.SessionLock && SessionLock.isBlocked() && SessionLock._origin === 'remote') { tone = 'error'; text = 'Pausado (outro aparelho)'; }
     if (!tone) {
       if (!CS || !CS.isReady() || !CS.isLoggedIn()) { tone = 'off'; text = 'Offline'; }
       else if (CS._syncing) { tone = 'syncing'; text = 'Sincronizando...'; }
@@ -23800,6 +24843,19 @@ const CloudUI = {
       else { await CloudStore.signIn(email, password); showToast('Conectado à nuvem ✓'); }
       this.render();
     } catch (err) { msg.textContent = (err.message || 'Erro ao autenticar'); msg.style.color = 'var(--bad)'; msg.style.display = 'block'; }
+  },
+  async changePassword() {
+    const CS = window.CloudStore;
+    if (!CS || !CS.isReady() || !CS.isLoggedIn()) { showToast('Entre na sua conta primeiro'); return; }
+    const vals = await UI.prompt([
+      { key: 'p1', label: 'Nova senha', type: 'password', placeholder: 'Mínimo 6 caracteres' },
+      { key: 'p2', label: 'Confirme a nova senha', type: 'password', placeholder: 'Repita a senha' }
+    ], { title: '🔑 Alterar senha', sub: 'Defina uma nova senha para ' + (CS.userEmail() || 'sua conta') + '.', okText: 'Salvar senha' });
+    if (!vals) return;
+    if (!vals.p1 || vals.p1.length < 6) { showToast('A senha precisa ter ao menos 6 caracteres'); return; }
+    if (vals.p1 !== vals.p2) { showToast('As senhas não coincidem'); return; }
+    try { await CS.changePassword(vals.p1); showToast('Senha alterada com sucesso ✓'); }
+    catch (err) { showToast('Não foi possível alterar a senha: ' + (err.message || '')); }
   }
 };
 window.CloudUI = CloudUI;
@@ -23811,6 +24867,7 @@ window.CloudUI = CloudUI;
   on('gate-password', 'keydown', (e) => { if (e.key === 'Enter') ProfileUI.submitGateAuth(); });
   document.querySelectorAll('#gate-login .cloud-auth-tab').forEach(tab => tab.addEventListener('click', () => ProfileUI.setGateAuthMode(tab.dataset.gatemode)));
   on('gate-offline-btn', 'click', () => ProfileUI.useOffline());
+  on('gate-forgot-btn', 'click', () => ProfileUI.forgotPassword());
   on('gate-logout-btn', 'click', () => ProfileUI.gateLogout());
   on('pf-cancel', 'click', () => document.getElementById('profile-modal').style.display = 'none');
   on('profile-modal-close', 'click', () => document.getElementById('profile-modal').style.display = 'none');
@@ -23917,6 +24974,8 @@ window.CloudUI = CloudUI;
     const b = document.getElementById('cloud-auth-submit'); if (b) b.textContent = tab.dataset.mode === 'signup' ? 'Criar conta' : 'Entrar';
   }));
   on('cloud-signout', 'click', async () => { await CloudStore.signOut(); CloudUI.render(); showToast('Desconectado da nuvem'); });
+  on('cloud-change-pass', 'click', () => CloudUI.changePassword());
+  on('cloud-sessions-refresh', 'click', () => CloudUI.renderSessions());
   on('cloud-push-now', 'click', () => CloudStore.autoSave());
   on('cloud-pull-now', 'click', () => CloudStore.pullActiveAndReload());
 })();
@@ -23995,6 +25054,164 @@ _cloudNotifyHook = () => CloudStore.notifyChange();
   window.aplicarEscalaFonte = () => aplicar(atual(), false); // reaplica ao trocar de perfil
 })();
 
+/* ============================================================================
+   SESSÃO ÚNICA — controlador central do bloqueio
+   Duas camadas cooperam:
+     · LOCAL  (SessionLock._local): abas/janelas do MESMO navegador, via
+       BroadcastChannel — instantâneo e sem custo de rede.
+     · REMOTO (SessionGuard, no CloudStore): entre DISPOSITIVOS diferentes,
+       via Supabase Realtime — quem entra por último "assume" a conta e os
+       demais aparelhos são bloqueados de verdade (login único real).
+   O overlay é compartilhado; a mensagem muda conforme a origem do bloqueio.
+   ============================================================================ */
+window.SessionLock = {
+  _blocked: false,
+  _origin: null,          // 'local' | 'remote'
+  _takeoverFns: [],       // callbacks de "Usar aqui" (uma por camada)
+  isBlocked() { return this._blocked; },
+  _els() {
+    return {
+      o: document.getElementById('single-session-overlay'),
+      ico: document.getElementById('ss-ico'),
+      t: document.getElementById('ss-title'),
+      d: document.getElementById('ss-desc'),
+      s: document.getElementById('ss-sub'),
+      take: document.getElementById('single-session-takeover')
+    };
+  },
+  // Exibe o bloqueio. kind: 'local' (outra aba) | 'remote' (outro aparelho).
+  block(kind, info) {
+    this._blocked = true; this._origin = kind;
+    const e = this._els(); if (!e.o) return;
+    if (kind === 'remote') {
+      if (e.ico) e.ico.textContent = '📵';
+      if (e.t) e.t.textContent = 'Sessão aberta em outro aparelho';
+      if (e.d) e.d.innerHTML = 'Sua conta foi aberta em <strong>outro dispositivo</strong>' + (info && info.label ? ' (' + escapeHtml(info.label) + ')' : '') + '. Para proteger seus dados, o Diário mantém <strong>um aparelho ativo por vez</strong> — a sincronização foi <strong>pausada aqui</strong>.';
+      if (e.s) e.s.textContent = 'Se foi você, pode continuar neste aparelho: isso vai encerrar a sessão no outro.';
+      if (e.take) e.take.textContent = 'Continuar neste aparelho';
+    } else {
+      if (e.ico) e.ico.textContent = '🔒';
+      if (e.t) e.t.textContent = 'Diário já aberto em outra janela';
+      if (e.d) e.d.innerHTML = 'Para proteger seus dados, o Diário funciona em <strong>uma aba/janela por vez</strong> neste navegador.';
+      if (e.s) e.s.textContent = 'Continuar em duas ao mesmo tempo pode misturar registros e sobrescrever a sincronização.';
+      if (e.take) e.take.textContent = 'Usar aqui (encerrar as outras)';
+    }
+    e.o.style.display = 'flex';
+  },
+  unblock() {
+    this._blocked = false; this._origin = null;
+    const e = this._els(); if (e.o) e.o.style.display = 'none';
+  },
+  onTakeover(fn) { if (typeof fn === 'function') this._takeoverFns.push(fn); },
+  _fireTakeover() { this._takeoverFns.forEach(fn => { try { fn(this._origin); } catch (_) {} }); },
+  init() {
+    const e = this._els();
+    if (e.take) e.take.addEventListener('click', () => { const origin = this._origin; this.unblock(); this._takeoverFns.forEach(fn => { try { fn(origin); } catch (_) {} }); });
+    const r = document.getElementById('single-session-reload');
+    if (r) r.addEventListener('click', () => location.reload());
+  }
+};
+
+/* ---- Camada LOCAL: uma aba/janela por vez (BroadcastChannel) ---- */
+(function () {
+  let bc = null;
+  try { bc = ('BroadcastChannel' in window) ? new BroadcastChannel('diario-estudos-single') : null; } catch (_) { bc = null; }
+  if (!bc) return;
+  const myId = Math.random().toString(36).slice(2);
+  const myStart = Date.now();
+  const outraEhDona = (m) => (m.start < myStart) || (m.start === myStart && m.id < myId);
+  bc.onmessage = (e) => {
+    const m = e.data || {};
+    if (!m || m.id === myId) return;
+    if (m.type === 'hello') { if (!(SessionLock.isBlocked() && SessionLock._origin === 'local')) bc.postMessage({ type: 'here', id: myId, start: myStart }); }
+    else if (m.type === 'here') { if (outraEhDona(m)) SessionLock.block('local'); }
+    else if (m.type === 'takeover') { if (m.id !== myId) SessionLock.block('local'); }
+  };
+  SessionLock.onTakeover((origin) => { if (origin === 'local') { try { bc.postMessage({ type: 'takeover', id: myId, start: myStart }); } catch (_) {} } });
+  try { bc.postMessage({ type: 'hello', id: myId, start: myStart }); } catch (_) {}
+  try { window.addEventListener('beforeunload', () => { try { bc.postMessage({ type: 'bye', id: myId }); } catch (_) {} }); } catch (_) {}
+})();
+if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', () => SessionLock.init());
+else SessionLock.init();
+
+/* ============================================================================
+   INFO TIPS — converte textos de ajuda longos em um ícone "i" com popover
+   ----------------------------------------------------------------------------
+   Roda no carregamento e sempre que uma tela é ativada (para pegar cards que
+   só são renderizados sob demanda). Page-subtitles sempre viram "i"; subtítulos
+   de card só quando são longos (curtos e úteis permanecem como rótulo). */
+(function () {
+  const LONG = 60;              // limiar de caracteres p/ recolher um .sub de card
+  let pop = null, hideTimer = null;
+  function ensurePop() {
+    if (pop) return pop;
+    pop = document.createElement('div');
+    pop.className = 'info-pop';
+    pop.setAttribute('role', 'tooltip');
+    pop.addEventListener('mouseenter', () => clearTimeout(hideTimer));
+    pop.addEventListener('mouseleave', scheduleHide);
+    document.body.appendChild(pop);
+    return pop;
+  }
+  function showFor(dot) {
+    const p = ensurePop();
+    p.innerHTML = dot._info || '';
+    p.classList.add('open');
+    p.style.maxWidth = Math.min(320, window.innerWidth - 24) + 'px';
+    p.style.left = '-9999px'; p.style.top = '0px';         // mede fora da tela
+    const pw = p.offsetWidth, ph = p.offsetHeight;
+    const r = dot.getBoundingClientRect();
+    let left = r.left + r.width / 2 - pw / 2;
+    left = Math.max(12, Math.min(left, window.innerWidth - pw - 12));
+    let top = r.bottom + 8;
+    if (top + ph > window.innerHeight - 12) top = r.top - ph - 8; // vira para cima
+    p.style.left = left + 'px';
+    p.style.top = Math.max(12, top) + 'px';
+  }
+  function scheduleHide() { clearTimeout(hideTimer); hideTimer = setTimeout(hide, 140); }
+  function hide() { if (pop) pop.classList.remove('open'); }
+  function makeDot(html) {
+    const b = document.createElement('button');
+    b.type = 'button'; b.className = 'info-dot'; b.setAttribute('aria-label', 'Mais informações');
+    b.textContent = 'i'; b._info = html;
+    b.addEventListener('mouseenter', () => { clearTimeout(hideTimer); showFor(b); });
+    b.addEventListener('mouseleave', scheduleHide);
+    b.addEventListener('focus', () => showFor(b));
+    b.addEventListener('blur', hide);
+    b.addEventListener('click', (e) => { e.stopPropagation(); if (pop && pop.classList.contains('open')) hide(); else showFor(b); });
+    return b;
+  }
+  function upgrade() {
+    // 1) subtítulos de página → sempre recolhem
+    document.querySelectorAll('.page-subtitle').forEach(el => {
+      if (el.dataset.tipped) return;
+      const head = el.closest('.page-header') || el.parentElement;
+      const h = head ? head.querySelector('.page-title, h2') : null;
+      if (!h) return;
+      const html = el.innerHTML.trim(); if (!html) return;
+      h.appendChild(makeDot(html));
+      el.style.display = 'none'; el.dataset.tipped = '1';
+    });
+    // 2) subtítulos de card LONGOS → recolhem (curtos permanecem)
+    document.querySelectorAll('.card-header .sub, .evo-card-head .sub').forEach(el => {
+      if (el.dataset.tipped) return;
+      if ((el.textContent || '').trim().length < LONG) return;
+      const head = el.closest('.card-header, .evo-card-head');
+      const h = head ? head.querySelector('h2') : null;
+      if (!h) return;
+      h.appendChild(makeDot(el.innerHTML));
+      el.style.display = 'none'; el.dataset.tipped = '1';
+    });
+  }
+  document.addEventListener('click', (e) => { if (!e.target.closest('.info-dot') && !e.target.closest('.info-pop')) hide(); });
+  document.addEventListener('keydown', (e) => { if (e.key === 'Escape') hide(); });
+  window.addEventListener('scroll', hide, true);
+  window.addEventListener('resize', hide);
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', upgrade); else upgrade();
+  window.addEventListener('screen:activated', () => setTimeout(upgrade, 40));
+  window.InfoTips = { upgrade };
+})();
+
 /* ---- Menu "Mais" da navegação no celular ---- */
 (function () {
   const btn = document.getElementById('nav-more-btn');
@@ -24033,6 +25250,31 @@ _cloudNotifyHook = () => CloudStore.notifyChange();
   document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && sheet.classList.contains('open')) fechar(); });
   // trocar de tela por qualquer caminho fecha a folha
   window.addEventListener('screen:activated', fechar);
+
+  /* ---- Arraste horizontal na faixa de navegação (mouse/caneta) ----
+     No toque o navegador já rola; aqui damos o mesmo "puxar para o lado" ao mouse.
+     Um pequeno limiar evita que um clique normal na aba seja tratado como arraste. */
+  const tabsEl = document.getElementById('tabs');
+  if (tabsEl) {
+    let down = false, moved = false, startX = 0, startScroll = 0;
+    tabsEl.addEventListener('pointerdown', (e) => {
+      if (e.pointerType === 'touch') return; // toque usa a rolagem nativa
+      if (e.target.closest('#nav-more-btn')) return;
+      down = true; moved = false; startX = e.clientX; startScroll = tabsEl.scrollLeft;
+    });
+    tabsEl.addEventListener('pointermove', (e) => {
+      if (!down) return;
+      const dx = e.clientX - startX;
+      if (Math.abs(dx) > 4) { moved = true; tabsEl.classList.add('dragging'); }
+      if (moved) { tabsEl.scrollLeft = startScroll - dx; e.preventDefault(); }
+    });
+    const end = () => { down = false; setTimeout(() => tabsEl.classList.remove('dragging'), 0); };
+    tabsEl.addEventListener('pointerup', end);
+    tabsEl.addEventListener('pointercancel', end);
+    tabsEl.addEventListener('pointerleave', end);
+    // se houve arraste, cancela o clique que abriria a tela por engano
+    tabsEl.addEventListener('click', (e) => { if (moved) { e.stopPropagation(); e.preventDefault(); moved = false; } }, true);
+  }
 })();
 
 /* ---- Medidor de espaço: consumo REAL por módulo e quanto ainda cabe ---- */
@@ -24997,9 +26239,14 @@ else CloudStore.init();
       const host = $('#ciclo-grade');
       if (!host) return;
       host.setAttribute('data-dens', pget('grade-dens', 'normal'));
-      // dica de rolagem só quando ela realmente existe
+      // A visão "Meta diária" não usa tabela e esconde a bandeja: aqui não mexemos
+      // em nada, senão a dica de rolagem voltaria a aparecer fora de hora.
+      const tabela = host.querySelector('.grade-table');
+      host.setAttribute('data-view', tabela ? 'semana' : 'dia');
       const hint = $('#grade-scroll-hint');
-      if (hint) hint.style.display = (host.scrollWidth > host.clientWidth + 4) ? 'block' : 'none';
+      if (!hint) return;
+      if (!tabela) { hint.style.display = 'none'; return; }
+      hint.style.display = (host.scrollWidth > host.clientWidth + 4) ? 'block' : 'none';
     }
   };
 
@@ -25867,6 +27114,7 @@ else CloudStore.init();
           <input type="email" id="cmr-mail" placeholder="voce@email.com" autocomplete="email" value="${esc(pget('last-mail', ''))}">
           <input type="password" id="cmr-pass" placeholder="Senha" autocomplete="current-password">
           <button type="button" class="btn-primary" data-a="relogin" style="width:100%">Entrar novamente</button>
+          <button type="button" class="cloud-menu-item" data-a="forgot" style="justify-content:center;margin-top:6px;font-size:var(--fs-2xs);"><span class="tx">Esqueci minha senha</span></button>
         </div>` : ''}
         <div class="cloud-menu-foot">O envio é automático. Este menu existe para as horas em que você quer certeza — ou quer encerrar a sessão.</div>`;
       document.body.appendChild(m);
@@ -25885,6 +27133,7 @@ else CloudStore.init();
           if (a === 'single') { const on = el.classList.toggle('on'); pset('single-session', on ? '1' : '0'); toast(on ? 'Sessão única ligada' : 'Sessão única desligada'); return; }
           if (a === 'idle') return;
           if (a === 'relogin') { await this.relogin(m); return; }
+          if (a === 'forgot') { this.closeMenu(); const f = $('#gate-forgot-btn'); if (f) f.click(); else toast('Use “Esqueci minha senha” na tela de acesso.'); return; }
           this.closeMenu();
           if (a === 'sync') { try { await CS.syncNow(); } catch (_) {} }
           else if (a === 'push') { try { CS._forceBlob = true; CS._pending = true; await CS.flushPending(); toast('Enviado ✓'); } catch (_) { toast('Não foi possível enviar agora.'); } }
