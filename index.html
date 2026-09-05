@@ -368,14 +368,15 @@
     display: flex;
     flex-direction: column;
     gap: 2px;
-    /* SÓ o menu rola quando não cabe. Assim o perfil (rodapé) fica SEMPRE visível,
-       mesmo em tablet/monitor baixo, sem precisar rolar a lista inteira. */
+    /* SÓ o menu rola quando não cabe. flex + min-height:0 mantém o perfil (rodapé)
+       sempre visível. scrollbar-gutter: stable RESERVA o espaço da barra: assim ela
+       aparecer/sumir NÃO empurra o conteúdo (fim do "dançando"). */
     flex: 1 1 auto;
     min-height: 0;
     overflow-y: auto;
     overflow-x: hidden;
-    margin: 0 -6px;               /* a barrinha de rolagem não encosta no texto */
-    padding: 0 6px;
+    scrollbar-gutter: stable;
+    padding-right: 2px;
     scrollbar-width: thin;
     scrollbar-color: var(--border-strong) transparent;
   }
@@ -428,6 +429,45 @@
     color: var(--text-faint);
     border-top: 1px solid var(--border);
   }
+
+  /* ── Botão de recolher/expandir a barra lateral ── */
+  .sidebar-collapse-btn {
+    flex-shrink: 0; display: flex; align-items: center; justify-content: center; gap: 8px;
+    margin-top: 8px; padding: 8px; width: 100%;
+    border: 1.5px solid var(--border); border-radius: 10px; background: var(--surface);
+    color: var(--text-faint); font-size: calc(12px * var(--fs-scale,1)); font-weight: 700; cursor: pointer;
+    transition: border-color .14s ease, color .14s ease, background .14s ease;
+  }
+  .sidebar-collapse-btn:hover { border-color: var(--accent); color: var(--accent); background: var(--accent-soft); }
+  .sidebar-collapse-btn .scb-ico { font-size: 15px; line-height: 1; }
+
+  /* ══ ESTADO RECOLHIDO: barra fina só com ícones ══ */
+  @media (min-width: 861px) {
+    .app-shell.nav-collapsed .sidebar { width: 72px; padding: 22px 10px; }
+    /* topo: só o tema e o sync (empilhados, centrados) */
+    .app-shell.nav-collapsed .brand-top-actions { flex-direction: column; gap: 8px; }
+    .app-shell.nav-collapsed .font-size-ctl,
+    .app-shell.nav-collapsed .plan-switcher { display: none; }
+    /* abas: só ícone, centralizado, com tooltip nativo (title) */
+    .app-shell.nav-collapsed .tab { justify-content: center; padding: 11px 0; }
+    .app-shell.nav-collapsed .tab .tab-label { display: none; }
+    .app-shell.nav-collapsed .tab .tab-icon { width: auto; font-size: calc(17px * var(--fs-scale,1)); }
+    .app-shell.nav-collapsed .tab.active::before { display: none; }
+    .app-shell.nav-collapsed .tab.active { box-shadow: inset 0 0 0 1.5px var(--accent); }
+    /* rodapé: só o avatar + sair, empilhados */
+    .app-shell.nav-collapsed .sidebar-footer-row { flex-direction: column; gap: 8px; align-items: stretch; }
+    .app-shell.nav-collapsed .profile-chip { justify-content: center; padding: 8px; }
+    .app-shell.nav-collapsed .profile-chip-info,
+    .app-shell.nav-collapsed .profile-chip-switch { display: none; }
+    .app-shell.nav-collapsed .sidebar-logout-btn { width: 100%; }
+    /* botão de recolher vira só a seta »  */
+    .app-shell.nav-collapsed .sidebar-collapse-btn .scb-txt { display: none; }
+    .app-shell.nav-collapsed .sidebar-collapse-btn .scb-ico::before { content: '»'; }
+    .app-shell.nav-collapsed .sidebar-collapse-btn .scb-ico { font-size: 0; }
+    .app-shell.nav-collapsed .sidebar-collapse-btn .scb-ico::before { font-size: 15px; }
+  }
+  /* no celular a barra vira rodapé fixo — o recolher não se aplica */
+  @media (max-width: 860px) { .sidebar-collapse-btn { display: none; } }
 
   .main-content {
     flex: 1;
@@ -4013,12 +4053,12 @@
   .sidebar-footer-row { display: flex; align-items: stretch; gap: 8px; }
   .sidebar-footer-row .profile-chip { flex: 1 1 auto; min-width: 0; }
   .sidebar-logout-btn {
-    flex: 0 0 auto; width: 40px; border: 1.5px solid var(--border); border-radius: 14px;
+    flex: 0 0 auto; width: 40px; height: 40px; border: 1.5px solid var(--border); border-radius: 14px;
     background: var(--surface-sunken); color: var(--text-faint); cursor: pointer;
-    font-size: calc(17px * var(--fs-scale, 1)); line-height: 1;
     display: flex; align-items: center; justify-content: center;
     transition: border-color .14s ease, color .14s ease, background .14s ease;
   }
+  .sidebar-logout-btn svg { display: block; }
   .sidebar-logout-btn:hover { border-color: var(--bad); color: var(--bad-text); background: var(--bad-soft); }
   @media (max-width: 860px) { .profile-chip, .sidebar-logout-btn { display: none; } }
   /* Botão de perfil no topo (aparece só no mobile/tablet, onde a sidebar-footer some) */
@@ -4046,39 +4086,46 @@
      cortado. */
   .brand-top-actions .font-size-ctl { order: 1; }
   .brand-top-actions .mobile-profile-btn { order: 2; }
-  .brand-top-actions .theme-toggle { order: 3; }
-  .brand-top-actions .cloud-sync-btn { order: 4; flex: 1 1 100%; justify-content: center; }
+  .brand-top-actions .cloud-sync-btn { order: 3; }
+  .brand-top-actions .theme-toggle { order: 4; }
   /* Botão de sincronização na nuvem — sempre visível (topo, desktop e mobile) */
+  /* Indicador de sincronização = ÍCONE circular (sem texto). Estados por cor:
+     verde = sincronizado/salvo · azul girando = enviando · vermelho = erro. */
   .cloud-sync-btn {
-    display: inline-flex; align-items: center; gap: 7px;
+    position: relative; flex-shrink: 0;
+    width: 34px; height: 34px; padding: 0;
+    display: inline-flex; align-items: center; justify-content: center;
     background: var(--surface-sunken); border: 1.5px solid var(--border);
-    border-radius: 20px; padding: 5px 11px 5px 9px; cursor: pointer;
-    font-size: calc(12px * var(--fs-scale, 1)); font-weight: 700; color: var(--text-soft);
+    border-radius: 50%; cursor: pointer;
     transition: border-color 0.15s ease, color 0.15s ease, background 0.15s ease;
-    white-space: normal; line-height: 1.15;
-    min-width: 0; overflow: visible;
   }
-  .cloud-sync-btn:hover { border-color: var(--accent); color: var(--text); }
-  .cloud-sync-btn:active { transform: scale(0.97); }
-  .cloud-sync-btn .csb-ico { font-size: calc(13px * var(--fs-scale, 1)); line-height: 1; }
-  .cloud-sync-btn .csb-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--text-faint); flex-shrink: 0; }
-  .cloud-sync-btn .csb-text { min-width: 0; overflow: visible; white-space: normal; text-align: center; }
+  .cloud-sync-btn:hover { filter: brightness(0.98); }
+  .cloud-sync-btn:active { transform: scale(0.94); }
+  .cloud-sync-btn .csb-ico { font-size: calc(15px * var(--fs-scale, 1)); line-height: 1; }
+  /* anel do spinner (aparece só no estado "syncing") */
+  .cloud-sync-btn .csb-spin {
+    position: absolute; inset: -1.5px; border-radius: 50%; display: none;
+    border: 2.5px solid color-mix(in srgb, var(--info, #2563eb) 22%, transparent);
+    border-top-color: var(--info, #2563eb);
+    animation: csbSpin 0.8s linear infinite;
+  }
   /* estados */
-  .cloud-sync-btn.st-ok { color: var(--good); border-color: color-mix(in srgb, var(--good) 40%, var(--border)); }
-  .cloud-sync-btn.st-ok .csb-dot { background: var(--good); box-shadow: 0 0 0 3px var(--good-soft); }
-  /* "Salvando…" — tom calmo (azul/info), sem alarme. Já está salvo no aparelho. */
-  .cloud-sync-btn.st-syncing { color: var(--info, #2563eb); border-color: color-mix(in srgb, var(--info, #2563eb) 40%, var(--border)); }
-  .cloud-sync-btn.st-syncing .csb-dot { background: var(--info, #2563eb); box-shadow: 0 0 0 3px color-mix(in srgb, var(--info, #2563eb) 20%, transparent); }
-  .cloud-sync-btn.st-pending { color: var(--info, #2563eb); border-color: color-mix(in srgb, var(--info, #2563eb) 40%, var(--border)); }
-  .cloud-sync-btn.st-pending .csb-dot { background: var(--info, #2563eb); }
-  .cloud-sync-btn.st-error { color: var(--bad-text); border-color: color-mix(in srgb, var(--bad) 50%, var(--border)); background: var(--bad-soft); }
-  .cloud-sync-btn.st-error .csb-dot { background: var(--bad); box-shadow: 0 0 0 3px var(--bad-soft); }
-  .cloud-sync-btn.st-off { opacity: 0.75; }
-  .cloud-sync-btn.st-off .csb-dot { background: var(--text-faint); }
+  .cloud-sync-btn.st-ok  { color: var(--good); border-color: color-mix(in srgb, var(--good) 45%, var(--border)); background: var(--good-soft); }
+  .cloud-sync-btn.st-ok .csb-ico::before  { content: '✓'; }
+  .cloud-sync-btn.st-off { color: var(--text-soft); border-color: var(--border); background: var(--surface-sunken); }
+  .cloud-sync-btn.st-off .csb-ico::before { content: '☁'; }
+  .cloud-sync-btn.st-syncing { color: var(--info, #2563eb); border-color: transparent; background: var(--surface-sunken); }
+  .cloud-sync-btn.st-syncing .csb-spin { display: block; }
+  .cloud-sync-btn.st-syncing .csb-ico { display: none; }
+  .cloud-sync-btn.st-error { color: var(--bad-text); border-color: color-mix(in srgb, var(--bad) 55%, var(--border)); background: var(--bad-soft); }
+  .cloud-sync-btn.st-error .csb-ico::before { content: '!'; font-weight: 800; }
+  /* o glyph do HTML é fallback; os estados definem o ícone via ::before */
+  .cloud-sync-btn.st-ok .csb-ico, .cloud-sync-btn.st-off .csb-ico,
+  .cloud-sync-btn.st-error .csb-ico { font-size: 0; }
+  .cloud-sync-btn.st-ok .csb-ico::before, .cloud-sync-btn.st-off .csb-ico::before,
+  .cloud-sync-btn.st-error .csb-ico::before { font-size: calc(15px * var(--fs-scale, 1)); }
   @keyframes csbPulse { 0%,100% { opacity: 1; } 50% { opacity: 0.35; } }
   @keyframes csbSpin { to { transform: rotate(360deg); } }
-  /* no mobile o botão ocupa a linha inteira, então o texto continua visível e centralizado */
-  @media (max-width: 560px) { .cloud-sync-btn { padding: 7px 12px; } }
   .mobile-profile-btn { display: none; align-items: center; gap: 7px; background: var(--surface-sunken); border: 1.5px solid var(--border); border-radius: 20px; padding: 4px 10px 4px 4px; cursor: pointer; max-width: 190px; }
   .mobile-profile-btn:hover { border-color: var(--accent); }
   .mobile-profile-avatar { width: 26px; height: 26px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: calc(14px * var(--fs-scale, 1)); color: #fff; flex-shrink: 0; }
@@ -5383,7 +5430,7 @@
         <div id="gate-profiles" style="display:none;">
           <div id="profile-gate-grid" class="profile-grid"></div>
           <div class="gate-profile-actions">
-            <button type="button" class="btn-secondary" id="profile-import-btn">⭱ Importar de um backup (.json)</button>
+            <button type="button" class="btn-secondary" id="profile-import-btn">↑ Importar de um backup (.json)</button>
             <button type="button" class="btn-secondary" id="gate-logout-btn" style="display:none;">↩ Sair da conta</button>
             <input type="file" id="profile-import-file" accept=".json,application/json" style="display:none;">
           </div>
@@ -5471,7 +5518,7 @@
               <input type="password" id="pf-pin" inputmode="numeric" maxlength="6" placeholder="Deixe em branco para não usar" autocomplete="off">
             </div>
             <div id="pf-export-row" style="display:none;">
-              <button type="button" class="btn-secondary" id="pf-export" style="width:100%;">⭳ Exportar backup deste perfil (.json)</button>
+              <button type="button" class="btn-secondary" id="pf-export" style="width:100%;">↓ Exportar backup deste perfil (.json)</button>
               <p class="hint" style="margin-top:6px;">Gera um arquivo com todos os dados do perfil, para guardar ou levar a outro aparelho. O PIN não é incluído no backup.</p>
             </div>
           </div>
@@ -5529,10 +5576,9 @@
             <button type="button" id="fs-menor" class="a-menor" title="Diminuir o tamanho do texto" aria-label="Diminuir o tamanho do texto">A</button>
             <button type="button" id="fs-maior" class="a-maior" title="Aumentar o tamanho do texto" aria-label="Aumentar o tamanho do texto">A</button>
           </span>
-          <button type="button" class="cloud-sync-btn" id="cloud-sync-btn" title="Sincronizar agora">
-            <span class="csb-dot" id="csb-dot"></span>
-            <span class="csb-ico" id="csb-ico">☁</span>
-            <span class="csb-text" id="csb-text">—</span>
+          <button type="button" class="cloud-sync-btn" id="cloud-sync-btn" title="Sincronização" aria-label="Status de sincronização">
+            <span class="csb-spin" id="csb-spin" aria-hidden="true"></span>
+            <span class="csb-ico" id="csb-ico">✓</span>
           </button>
           <button type="button" class="mobile-profile-btn" id="mobile-profile-btn" title="Trocar de perfil / sair">
             <span class="mobile-profile-avatar" id="mobile-profile-avatar">📘</span>
@@ -5586,6 +5632,10 @@
       <div class="nav-sheet-grid" id="nav-sheet-grid"></div>
     </div>
 
+    <button type="button" class="sidebar-collapse-btn" id="sidebar-collapse-btn" title="Recolher o menu" aria-label="Recolher o menu">
+      <span class="scb-ico" aria-hidden="true">«</span><span class="scb-txt">Recolher menu</span>
+    </button>
+
     <div class="sidebar-footer">
       <div class="sidebar-footer-row">
         <button type="button" class="profile-chip" id="profile-chip" title="Meu perfil, dados e troca de conta">
@@ -5596,7 +5646,7 @@
           </span>
           <span class="profile-chip-switch" id="profile-chip-switch" aria-hidden="true">⌄</span>
         </button>
-        <button type="button" class="sidebar-logout-btn" id="sidebar-logout-btn" title="Sair da conta" aria-label="Sair da conta">⏻</button>
+        <button type="button" class="sidebar-logout-btn" id="sidebar-logout-btn" title="Sair da conta" aria-label="Sair da conta"><svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg></button>
       </div>
     </div>
   </aside>
@@ -6232,8 +6282,8 @@
         <div class="cards-more-menu" id="cards-more-menu" role="menu">
           <button type="button" role="menuitem" id="cards-stats-btn" title="Ver estatísticas (retenção, previsão, maturidade)">📊 Estatísticas</button>
           <button type="button" role="menuitem" id="cards-algo-btn" title="Algoritmo de repetição espaçada">⚙ Algoritmo</button>
-          <button type="button" role="menuitem" id="cards-import-btn">⭱ Importar</button>
-          <button type="button" role="menuitem" id="cards-export-btn">⭳ Exportar p/ Anki</button>
+          <button type="button" role="menuitem" id="cards-import-btn">↑ Importar</button>
+          <button type="button" role="menuitem" id="cards-export-btn">↓ Exportar p/ Anki</button>
           <button type="button" role="menuitem" id="cards-audit-export-btn" title="Exportar cards, histórico, configurações e diagnóstico do agendador">🩺 Exportar auditoria</button>
         </div>
       </div>
@@ -6373,7 +6423,7 @@
   <div id="cards-import-modal" class="cards-modal" style="display:none;">
     <div class="cards-modal-box">
       <div class="cards-modal-head">
-        <div><h2>⭱ Importar cards</h2><p class="sub">Aceita um backup do app (.json) ou um arquivo de texto do Anki (.txt/.csv, com Frente e Verso separados por tabulação ou ponto-e-vírgula).</p></div>
+        <div><h2>↑ Importar cards</h2><p class="sub">Aceita um backup do app (.json) ou um arquivo de texto do Anki (.txt/.csv, com Frente e Verso separados por tabulação ou ponto-e-vírgula).</p></div>
         <button type="button" class="icon-btn" id="cards-import-close">✕</button>
       </div>
       <div class="cards-modal-body">
@@ -6399,7 +6449,7 @@
   <div id="cards-export-modal" class="cards-modal" style="display:none;">
     <div class="cards-modal-box">
       <div class="cards-modal-head">
-        <div><h2>⭳ Exportar cards</h2><p class="sub">Escolha o formato. O <strong>Anki</strong> importa arquivos de texto nativamente.</p></div>
+        <div><h2>↓ Exportar cards</h2><p class="sub">Escolha o formato. O <strong>Anki</strong> importa arquivos de texto nativamente.</p></div>
         <button type="button" class="icon-btn" id="cards-export-close">✕</button>
       </div>
       <div class="cards-modal-body" id="cards-export-body"></div>
@@ -6840,8 +6890,8 @@
           <div class="submit-row" style="margin-top:4px;">
             <label class="co-check" style="margin:0;"><input type="checkbox" id="cloud-autosync" checked> Sincronizar automaticamente</label>
             <div style="display:flex; gap:8px;">
-              <button type="button" class="btn-secondary" id="cloud-push-now">⭱ Enviar agora</button>
-              <button type="button" class="btn-primary" id="cloud-pull-now">⭳ Baixar da nuvem</button>
+              <button type="button" class="btn-secondary" id="cloud-push-now">↑ Enviar agora</button>
+              <button type="button" class="btn-primary" id="cloud-pull-now">↓ Baixar da nuvem</button>
             </div>
           </div>
 
@@ -8663,16 +8713,19 @@
 }
 .reg-tbl-scroll::-webkit-scrollbar { height: 0; width: 0; }
 
-/* FULL-BLEED: na visão tabela, a lista de registros usa a largura TOTAL da área de
-   conteúdo (não os 820px do formulário) — assim as 8 colunas cabem folgadas, sem
-   cortar e sem precisar rolar no desktop. Testado em 1280/1440px. */
+/* LARGURA NA VISÃO TABELA: em vez de "full-bleed" com 100vw (que empurrava a tabela
+   para DEBAIXO da sidebar), alargamos o próprio .content-wrap via a classe
+   .wrap-reg-table. Como o .content-wrap vive DENTRO de .main-content (que já começa
+   depois da sidebar, por flexbox), é impossível a tabela invadir a barra lateral.
+   O formulário e o divisor ficam com largura confortável para não esticarem demais. */
+.content-wrap.wrap-reg-table { max-width: 1240px; }
 @media (min-width: 861px) {
-  .recent.reg-mode-table {
-    width: calc(100vw - 248px - 72px);
-    max-width: 1240px;
-    margin-left: calc((100% - min(calc(100vw - 248px - 72px), 1240px)) / 2);
+  .content-wrap.wrap-reg-table > #screen-registrar > .card:first-of-type,
+  .content-wrap.wrap-reg-table > #screen-registrar > .section-divider {
+    max-width: 860px;
   }
 }
+.recent.reg-mode-table { width: 100%; }
 
 /* display:table !important anula o helper global ":where(.card) table{display:block}" */
 .reg-tbl {
@@ -10798,6 +10851,8 @@ function switchScreen(name) {
   }
   const wrap = document.querySelector('.content-wrap');
   if (wrap) wrap.classList.toggle('wide', name === 'estudonovo' || name === 'ciclo' || name === 'grade');
+  // ao sair de Registrar, remove a largura extra da visão tabela (evita "vazar" para outras telas)
+  if (wrap && name !== 'registrar') wrap.classList.remove('wrap-reg-table');
   // a Grade Semanal renderiza a bandeja + grade ao ficar visível
   if (name === 'grade' && window.GradeScreen) window.GradeScreen.render();
   // dispara evento para a tela recarregar seus dados ao ficar visível
@@ -10970,6 +11025,9 @@ function _sanCard(html) {
 }
 
 function formatDateShort(iso) {
+  // defensivo: datas ausentes/malformadas (ciclos legados, importações) não podem
+  // derrubar a renderização inteira da tela. Devolve '—' em vez de estourar.
+  if (!iso || typeof iso !== 'string' || iso.indexOf('-') === -1) return '—';
   const [y, m, d] = iso.split('-');
   return `${d}/${m}`;
 }
@@ -12030,8 +12088,12 @@ const ReforcoEngine = {
       });
     }
 
-    // full-bleed só na visão tabela (a lista usa a largura total da área de conteúdo)
-    recentSection.classList.toggle('reg-mode-table', recentView === 'tabela');
+    // Na visão TABELA, alarga a área de conteúdo (fica DENTRO do main-content,
+    // nunca sobre a sidebar). O toggle é limpo ao voltar para Cartões.
+    const _isTable = recentView === 'tabela';
+    recentSection.classList.toggle('reg-mode-table', _isTable);
+    const _wrap = document.querySelector('.content-wrap');
+    if (_wrap) _wrap.classList.toggle('wrap-reg-table', _isTable);
 
     if (entries.length === 0) {
       recentList.innerHTML = `<p style="color:var(--text-faint); font-size:13px; padding: 16px 0;">Nenhum registro encontrado para "${escapeHtml(searchTerm)}".</p>`;
@@ -12649,6 +12711,9 @@ const CycleEngine = {
     return `${y}-${m}-${day}`;
   },
   fmtHM(min) {
+    // defensivo: minutos ausentes/NaN (semanas legadas, importações) não podem
+    // gerar "NaNh NaNmin" na tela. Trata como 0.
+    if (typeof min !== 'number' || !isFinite(min)) min = 0;
     const h = Math.floor(min / 60), m = Math.round(min % 60);
     return (h > 0 ? h + 'h ' : '') + (m > 0 || h === 0 ? m + 'min' : '');
   },
@@ -14143,7 +14208,7 @@ function planCycleMode() {
     container.innerHTML = filterHtml + shown.map(s => {
       const studied = CycleEngine.minutesStudied(s.nome, cycle.startDate, cycle.endDate);
       const status = CycleEngine.statusFor(studied, s.definidoMin);
-      const pct = Math.min(100, Math.round((studied / s.definidoMin) * 100));
+      const pct = (s.definidoMin > 0) ? Math.min(100, Math.round((studied / s.definidoMin) * 100)) : 0;
       const over = studied > s.definidoMin;
       const remaining = Math.max(0, s.definidoMin - studied);
       // aproveitamento em questões desta matéria na semana
@@ -15191,6 +15256,14 @@ const HistoricoScreen = {
     const ini = subjects.filter(s => s.status === 'iniciada').length;
     const pen = subjects.filter(s => s.status === 'pendente').length;
     const sessions = this.getPeriodEntries(w, consolidated).length;
+    // DEFENSIVO: semanas legadas/importadas podem não ter todos os campos calculados.
+    // Sem estes fallbacks, o cartão exibia "NaN%" e "undefined/und…" (visto na auditoria).
+    const _num = (v) => (typeof v === 'number' && isFinite(v)) ? v : 0;
+    w.pctCumprido    = _num(w.pctCumprido);
+    w.totalStudiedMin = _num(w.totalStudiedMin);
+    w.weeklyHours    = _num(w.weeklyHours);
+    w.finalizadas    = (w.finalizadas != null) ? w.finalizadas : fin;
+    w.totalSubjects  = (w.totalSubjects != null) ? w.totalSubjects : subjects.length;
     const cumpTone = w.pctCumprido >= 100 ? 'finalizada' : w.pctCumprido >= 40 ? 'iniciada' : 'pendente';
 
     return `
@@ -26208,35 +26281,33 @@ const CloudUI = {
   refreshSyncBtn(forceTone, forceText) {
     const btn = document.getElementById('cloud-sync-btn');
     if (!btn) return;
-    const dot = document.getElementById('csb-dot');
-    const ico = document.getElementById('csb-ico');
-    const txt = document.getElementById('csb-text');
     const CS = window.CloudStore;
     let tone = forceTone, text = forceText;
-    // sessão assumida em outro aparelho: sincronização pausada aqui
+    // sessão assumida em outro aparelho
     if (window.SessionLock && SessionLock.isBlocked() && SessionLock._origin === 'remote') { tone = 'error'; text = 'Pausado (outro aparelho)'; }
-    // Indicador TRANQUILIZADOR: o app salva SEMPRE no aparelho na hora, então nada
-    // aqui pode dar impressão de perda/instabilidade. "Pendente" e "sincronizando"
-    // viram um calmo "Salvando…" (azul), e "não logado" vira "Salvo no aparelho"
-    // (cinza neutro) — nunca um alarmante "Offline".
+    // Estado tranquilizador — o app salva SEMPRE no aparelho na hora. O spinner
+    // (azul) só aparece durante um envio REAL e curto; o resto é verde "ok".
     if (!tone) {
-      if (!CS || !CS.isReady()) { tone = 'ok'; text = 'Salvo no aparelho'; }
-      else if (!CS.isLoggedIn()) { tone = 'ok'; text = 'Salvo no aparelho'; }
-      else if (CS._syncing || CS._pending || CS._debounce) { tone = 'syncing'; text = 'Salvando…'; }
-      else if (CS._lastSyncAt) { tone = 'ok'; text = 'Sincronizado'; }
+      if (!CS || !CS.isReady() || !CS.isLoggedIn()) { tone = 'off'; text = 'Salvo neste aparelho'; }
+      else if (CS._syncing) { tone = 'syncing'; text = 'Enviando para a nuvem…'; }
+      else if (CS._pending || CS._debounce) { tone = 'ok'; text = 'Salvo · será enviado em instantes'; }
+      else if (CS._lastSyncAt) { tone = 'ok'; text = 'Sincronizado ' + this._timeAgo(CS._lastSyncAt); }
       else { tone = 'ok'; text = 'Sincronizado'; }
     } else {
-      // normaliza rótulos vindos do setStatus para o botão compacto
-      if (tone === 'pending') { tone = 'syncing'; text = 'Salvando…'; }
-      if (tone === 'off') { tone = 'ok'; text = 'Salvo no aparelho'; }
-      if (tone === 'ok') text = 'Sincronizado';
+      if (tone === 'pending') { tone = 'ok'; text = 'Salvo · será enviado em instantes'; }
+      if (tone === 'off') text = 'Salvo neste aparelho';
+      if (tone === 'ok' && CS && CS._lastSyncAt) text = 'Sincronizado ' + this._timeAgo(CS._lastSyncAt);
+    }
+    // Trava anti-"eterno-Salvando": se ficar em syncing por muito tempo, cai para ok.
+    if (tone === 'syncing') {
+      clearTimeout(this._syncStuckT);
+      this._syncStuckT = setTimeout(() => { try { this.refreshSyncBtn('ok', 'Salvo neste aparelho'); } catch (_) {} }, 8000);
+    } else {
+      clearTimeout(this._syncStuckT);
     }
     btn.className = 'cloud-sync-btn st-' + tone;
-    if (dot) dot.className = 'csb-dot';
-    if (ico) ico.textContent = (tone === 'error' ? '⚠' : '☁');
-    if (txt) txt.textContent = text || '';
-    btn.title = (tone === 'error') ? 'Não foi possível sincronizar agora — toque para tentar de novo'
-      : 'Conta e sincronização' + (CS && CS._lastSyncAt ? ' · último envio ' + this._timeAgo(CS._lastSyncAt) : '');
+    btn.title = (tone === 'error') ? (text || 'Erro na sincronização — toque para tentar de novo')
+      : (text || 'Sincronização');
   },
   async submitAuth() {
     const email = document.getElementById('cloud-email').value.trim();
@@ -26309,10 +26380,10 @@ window.CloudUI = CloudUI;
         ProfileManager.restorePayloadInto(id, (res.payload && res.payload.data) || {});
       } catch (err) {
         showToast('Não encontrei dados locais nem na nuvem para este perfil: ' + (err.message || ''));
-        if (btn) { btn.disabled = false; btn.textContent = '⭳ Exportar backup deste perfil (.json)'; }
+        if (btn) { btn.disabled = false; btn.textContent = '↓ Exportar backup deste perfil (.json)'; }
         return;
       }
-      if (btn) { btn.disabled = false; btn.textContent = '⭳ Exportar backup deste perfil (.json)'; }
+      if (btn) { btn.disabled = false; btn.textContent = '↓ Exportar backup deste perfil (.json)'; }
     }
     const backup = ProfileManager.exportProfile(id);
     if (!backup || !Object.keys(backup.data || {}).length) {
@@ -26330,6 +26401,31 @@ window.CloudUI = CloudUI;
     await ProfileUI.gateLogout();
   });
   on('mobile-profile-btn', 'click', (e) => { e.stopPropagation(); ProfileUI.openProfileMenu(document.getElementById('mobile-profile-btn')); });
+  // ── Recolher / expandir a barra lateral (estado salvo) ──
+  (function () {
+    const shell = document.querySelector('.app-shell');
+    const btn = document.getElementById('sidebar-collapse-btn');
+    if (!shell || !btn) return;
+    const KEY = 'diario-estudos:nav-collapsed';
+    // dá um title a cada aba = seu rótulo (tooltip quando recolhida)
+    document.querySelectorAll('#tabs .tab[data-screen]').forEach(t => {
+      const lbl = t.querySelector('.tab-label');
+      if (lbl && !t.title) t.title = lbl.textContent.trim();
+    });
+    const apply = (collapsed) => {
+      shell.classList.toggle('nav-collapsed', collapsed);
+      btn.setAttribute('aria-label', collapsed ? 'Expandir o menu' : 'Recolher o menu');
+      btn.title = collapsed ? 'Expandir o menu' : 'Recolher o menu';
+      const tx = btn.querySelector('.scb-txt'); if (tx) tx.textContent = collapsed ? 'Expandir' : 'Recolher menu';
+    };
+    let init = false; try { init = localStorage.getItem(KEY) === '1'; } catch (_) {}
+    apply(init);
+    btn.addEventListener('click', () => {
+      const now = !shell.classList.contains('nav-collapsed');
+      apply(now);
+      try { localStorage.setItem(KEY, now ? '1' : '0'); } catch (_) {}
+    });
+  })();
   // Importar perfil de um backup: o botão existia no HTML mas ficava escondido e
   // sem nenhum clique ligado — a função ProfileManager.importProfile nunca era
   // alcançável pela interface. Importar cria SEMPRE um perfil novo, nunca
@@ -26355,7 +26451,7 @@ window.CloudUI = CloudUI;
       const quando = obj.exportedAt ? formatDateShort(obj.exportedAt.slice(0, 10)) : 'data desconhecida';
       const ok = await UI.confirm(
         `Importar o perfil "${escapeHtml(nomeOrig)}"?\n\nBackup de ${quando} · ${qtd} conjunto(s) de dados.\n\nSerá criado um perfil NOVO. Nenhum perfil existente é alterado.`,
-        { title: '⭱ Importar perfil', okText: 'Importar' });
+        { title: '↑ Importar perfil', okText: 'Importar' });
       if (!ok) return;
       try {
         // Se já existe um perfil com o mesmo nome, diferencia — dois cards
@@ -26867,7 +26963,7 @@ const VersionHistoryUI = {
           <div class="meta">${nota} · ~${kb} KB${r.enc === 'gz' ? ' · comprimido' : ''}</div>
         </div>
         <div class="cloud-slot-actions">
-          <button type="button" class="btn-secondary vh-download" title="Baixar esta versão como arquivo .json">⭳ Baixar</button>
+          <button type="button" class="btn-secondary vh-download" title="Baixar esta versão como arquivo .json">↓ Baixar</button>
           <button type="button" class="btn-primary vh-restore" title="Restaurar esta versão sobre o perfil atual">↺ Restaurar</button>
         </div>
       </div>`;
@@ -28296,8 +28392,8 @@ else CloudStore.init();
       this.card('dados', '📦 Backup em arquivo',
         'O histórico de versões acima protege dos sustos do dia a dia. Um arquivo <code>.json</code> guardado fora do navegador protege do resto.', `
         <div class="cfg-action-grid">
-          <button type="button" class="cfg-action" id="cfgd-export"><span class="ic">⭳</span><span class="t">Exportar backup deste perfil</span><span class="d">Baixa um .json com tudo: registros, ciclos, cards, leis, trilhas e configurações.</span></button>
-          <button type="button" class="cfg-action" id="cfgd-import"><span class="ic">⭱</span><span class="t">Importar backup</span><span class="d">Cria sempre um perfil novo. Nenhum perfil existente é alterado ou sobrescrito.</span></button>
+          <button type="button" class="cfg-action" id="cfgd-export"><span class="ic">↓</span><span class="t">Exportar backup deste perfil</span><span class="d">Baixa um .json com tudo: registros, ciclos, cards, leis, trilhas e configurações.</span></button>
+          <button type="button" class="cfg-action" id="cfgd-import"><span class="ic">↑</span><span class="t">Importar backup</span><span class="d">Cria sempre um perfil novo. Nenhum perfil existente é alterado ou sobrescrito.</span></button>
           <button type="button" class="cfg-action" id="cfgd-snap"><span class="ic">🛟</span><span class="t">Salvar versão agora</span><span class="d">Congela o estado atual no histórico de versões deste aparelho.</span></button>
           <button type="button" class="cfg-action" id="cfgd-recalc"><span class="ic">↻</span><span class="t">Recalcular espaço usado</span><span class="d">Refaz a medição de quanto cada módulo ocupa no navegador.</span></button>
         </div>`);
@@ -28614,8 +28710,8 @@ else CloudStore.init();
         <div class="cloud-menu-body">
           <div class="cloud-menu-sec">Sincronização</div>
           <button type="button" class="cloud-menu-item" data-a="sync" ${logged ? '' : 'disabled'}><span class="ic">⟳</span><span class="tx">Sincronizar agora<small>Envia o que está pendente e baixa novidades.</small></span></button>
-          <button type="button" class="cloud-menu-item" data-a="push" ${logged ? '' : 'disabled'}><span class="ic">⭱</span><span class="tx">Forçar envio deste dispositivo<small>Este aparelho passa a valer como a versão mais recente.</small></span></button>
-          <button type="button" class="cloud-menu-item" data-a="pull" ${logged ? '' : 'disabled'}><span class="ic">⭳</span><span class="tx">Baixar da nuvem<small>Guarda uma versão de segurança antes de sobrescrever.</small></span></button>
+          <button type="button" class="cloud-menu-item" data-a="push" ${logged ? '' : 'disabled'}><span class="ic">↑</span><span class="tx">Forçar envio deste dispositivo<small>Este aparelho passa a valer como a versão mais recente.</small></span></button>
+          <button type="button" class="cloud-menu-item" data-a="pull" ${logged ? '' : 'disabled'}><span class="ic">↓</span><span class="tx">Baixar da nuvem<small>Guarda uma versão de segurança antes de sobrescrever.</small></span></button>
           <button type="button" class="cloud-menu-item" data-a="recon"><span class="ic">🔌</span><span class="tx">Reconectar sessão<small>Renova o acesso sem digitar a senha.</small></span></button>
           <div class="cloud-menu-sep"></div>
           <div class="cloud-menu-sec">Segurança da conta</div>
