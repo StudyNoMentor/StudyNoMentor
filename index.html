@@ -144,8 +144,7 @@
     position: sticky;
     top: 0;
     height: 100vh;
-    overflow-y: auto;
-    overflow-x: hidden;            /* nunca gera barra horizontal */
+    overflow: hidden;              /* a sidebar em si NÃO rola: só o nav rola */
     display: flex;
     flex-direction: column;
     scrollbar-width: thin;         /* Firefox: barra fina */
@@ -161,6 +160,7 @@
     padding: 0 4px;
     margin-bottom: 18px;
     min-width: 0;
+    flex-shrink: 0;                /* topo fixo: nunca encolhe nem rola junto */
   }
   .brand-top-row {
     display: flex;
@@ -360,7 +360,21 @@
     display: flex;
     flex-direction: column;
     gap: 2px;
+    /* SÓ o menu rola quando não cabe. Assim o perfil (rodapé) fica SEMPRE visível,
+       mesmo em tablet/monitor baixo, sem precisar rolar a lista inteira. */
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow-y: auto;
+    overflow-x: hidden;
+    margin: 0 -6px;               /* a barrinha de rolagem não encosta no texto */
+    padding: 0 6px;
+    scrollbar-width: thin;
+    scrollbar-color: var(--border-strong) transparent;
   }
+  .tabs::-webkit-scrollbar { width: 6px; }
+  .tabs::-webkit-scrollbar-track { background: transparent; }
+  .tabs::-webkit-scrollbar-thumb { background: transparent; border-radius: 6px; }
+  .tabs:hover::-webkit-scrollbar-thumb { background: var(--border-strong); }
   /* botão "Mais" e a folha existem só no celular */
   .nav-more-btn, .nav-sheet, .nav-scrim { display: none; }
   .tab {
@@ -399,12 +413,12 @@
   }
 
   .sidebar-footer {
-    margin-top: auto;
-    padding: 12px 10px 0;
+    flex-shrink: 0;               /* rodapé fixo: o perfil fica sempre à vista */
+    margin-top: 12px;
+    padding: 14px 4px 0;
     font-size: calc(11px * var(--fs-scale, 1));
     color: var(--text-faint);
     border-top: 1px solid var(--border);
-    padding-top: 16px;
   }
 
   .main-content {
@@ -497,6 +511,7 @@
        demais ficavam escondidas — obrigava a arrastar para achar qualquer tela. */
     .tabs {
       position: fixed; left: 0; right: 0; bottom: 0; z-index: 60;
+      flex: none; margin: 0;   /* zera o flex/margens do layout de desktop */
       flex-direction: row; gap: 0;
       overflow-x: auto; overflow-y: hidden;
       background: var(--surface);
@@ -3766,17 +3781,52 @@
   }
 
   /* ---------- Tela de acesso (perfis) ---------- */
+  /* ── Tela de acesso MODERNA: dois painéis (apresentação + formulário) ── */
   .profile-gate {
-    position: fixed; inset: 0; z-index: 500;
-    background: radial-gradient(1200px 600px at 50% -10%, #eef0fd, var(--bg) 60%);
-    display: flex; align-items: center; justify-content: center; padding: 32px 20px; overflow-y: auto;
+    position: fixed; inset: 0; z-index: 1600;   /* acima de qualquer painel/menu */
+    background: var(--bg);
+    display: block; overflow-y: auto;
   }
-  .profile-gate-inner { width: 100%; max-width: 720px; text-align: center; }
-  .profile-gate-brand { margin-bottom: 30px; }
-  .profile-gate-brand .eyebrow { margin: 0 auto 14px; }
-  .profile-gate-brand h1 { font-size: calc(30px * var(--fs-scale, 1)); font-weight: 800; letter-spacing: -0.02em; margin: 0; }
-  .profile-gate-brand p { color: var(--text-soft); font-size: calc(14px * var(--fs-scale, 1)); margin: 8px 0 0; }
-  .profile-grid { display: flex; flex-wrap: wrap; gap: 18px; justify-content: center; }
+  .gate-shell { min-height: 100dvh; display: grid; grid-template-columns: 1.05fr 0.95fr; }
+  /* Painel esquerdo — apresentação */
+  .gate-hero {
+    position: relative; overflow: hidden; color: #fff;
+    padding: clamp(28px, 4vw, 56px);
+    display: flex; flex-direction: column; justify-content: space-between; gap: 26px;
+    background:
+      radial-gradient(900px 500px at 12% -10%, rgba(255,255,255,0.18), transparent 60%),
+      linear-gradient(150deg, var(--accent) 0%, #4338ca 45%, #6d28d9 100%);
+  }
+  .gate-hero::after { content:''; position:absolute; right:-120px; bottom:-120px; width:360px; height:360px; border-radius:50%; background: radial-gradient(circle, rgba(255,255,255,0.14), transparent 70%); }
+  .gate-hero-brand { display: flex; align-items: center; gap: 11px; font-weight: 800; font-size: calc(18px * var(--fs-scale,1)); position: relative; z-index: 1; }
+  .gate-hero-logo { font-size: 24px; }
+  .gate-hero-mid { position: relative; z-index: 1; }
+  .gate-hero-title { font-size: clamp(24px, 3vw, 34px); font-weight: 800; line-height: 1.15; letter-spacing: -0.02em; margin: 0 0 14px; max-width: 15ch; }
+  .gate-hero-sub { font-size: calc(14.5px * var(--fs-scale,1)); line-height: 1.6; color: rgba(255,255,255,0.9); margin: 0 0 26px; max-width: 46ch; }
+  .gate-hero-feats { list-style: none; margin: 0; padding: 0; display: grid; gap: 14px; }
+  .gate-hero-feats li { display: flex; align-items: flex-start; gap: 12px; }
+  .gate-hero-feats .gf-ico { flex: 0 0 auto; width: 38px; height: 38px; border-radius: 11px; background: rgba(255,255,255,0.16); display: flex; align-items: center; justify-content: center; font-size: 18px; }
+  .gate-hero-feats b { display: block; font-size: calc(14px * var(--fs-scale,1)); font-weight: 700; }
+  .gate-hero-feats small { font-size: calc(12px * var(--fs-scale,1)); color: rgba(255,255,255,0.78); }
+  .gate-hero-foot { position: relative; z-index: 1; font-size: calc(12.5px * var(--fs-scale,1)); color: rgba(255,255,255,0.8); font-weight: 600; }
+  /* Painel direito — formulário */
+  .gate-panel { display: flex; align-items: center; justify-content: center; padding: clamp(28px, 4vw, 48px) 22px; background: var(--bg); }
+  .gate-panel-inner { width: 100%; max-width: 400px; }
+  .gate-mobile-brand { display: none; align-items: center; gap: 10px; font-weight: 800; font-size: calc(18px * var(--fs-scale,1)); color: var(--accent); margin-bottom: 20px; }
+  .gate-panel-head { margin-bottom: 22px; }
+  .gate-panel-head h1 { font-size: calc(26px * var(--fs-scale,1)); font-weight: 800; letter-spacing: -0.02em; margin: 0; }
+  .gate-panel-head p { color: var(--text-soft); font-size: calc(14px * var(--fs-scale,1)); margin: 7px 0 0; line-height: 1.5; }
+  .gate-panel .cloud-auth-tabs { margin-bottom: 18px; }
+  .gate-profile-actions { margin-top: 22px; display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; }
+  @media (max-width: 860px) {
+    .gate-shell { grid-template-columns: 1fr; }
+    .gate-hero { display: none; }               /* no celular, foco total no acesso */
+    .gate-mobile-brand { display: flex; }
+    .gate-panel { padding: 30px 22px 44px; align-items: flex-start; }
+    .gate-panel-inner { max-width: 440px; margin: 0 auto; padding-top: 6vh; }
+  }
+
+  .profile-grid { display: flex; flex-wrap: wrap; gap: 16px; justify-content: center; }
   .profile-card {
     width: 148px; padding: 20px 14px; border-radius: 16px; cursor: pointer;
     background: var(--surface); border: 1.5px solid var(--border); box-shadow: var(--shadow-sm);
@@ -3803,11 +3853,6 @@
   .profile-card.add .profile-card-avatar { background: var(--border-strong) !important; font-weight: 300; }
   .profile-card.add:hover .profile-card-avatar { background: var(--accent) !important; }
   .profile-gate-note { font-size: calc(11px * var(--fs-scale, 1)); color: var(--text-faint); margin-top: 30px; max-width: 52ch; margin-left: auto; margin-right: auto; line-height: 1.5; }
-  .gate-login-box {
-    max-width: 380px; margin: 0 auto; background: var(--surface);
-    border: 1.5px solid var(--border); border-radius: 16px; box-shadow: var(--shadow-md);
-    padding: 26px 24px; text-align: left;
-  }
   /* indicador de conexão com o servidor */
   .gate-conn {
     display: flex; align-items: center; gap: 7px; justify-content: center;
@@ -3879,14 +3924,14 @@
   .pf-color-opt.selected { border-color: var(--text); box-shadow: 0 0 0 2px var(--surface), 0 0 0 4px var(--text); }
   .pin-avatar { width: 64px; height: 64px; border-radius: 50%; margin: 0 auto; display: flex; align-items: center; justify-content: center; font-size: calc(30px * var(--fs-scale, 1)); color: #fff; }
   /* Chip de perfil na sidebar */
-  .profile-chip { display: flex; align-items: center; gap: 9px; width: 100%; background: transparent; border: 1.5px solid transparent; border-radius: 12px; padding: 6px 8px; cursor: pointer; transition: background .14s ease, border-color .14s ease; text-align: left; }
-  .profile-chip:hover { background: var(--surface-sunken); border-color: var(--border); }
-  .profile-chip-avatar { width: 32px; height: 32px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: calc(16px * var(--fs-scale, 1)); color: #fff; flex-shrink: 0; }
+  .profile-chip { display: flex; align-items: center; gap: 10px; width: 100%; background: var(--surface-sunken); border: 1.5px solid var(--border); border-radius: 14px; padding: 8px 10px; cursor: pointer; transition: background .14s ease, border-color .14s ease, box-shadow .14s ease; text-align: left; }
+  .profile-chip:hover { border-color: var(--accent); box-shadow: 0 2px 10px var(--accent-ring); }
+  .profile-chip-avatar { width: 38px; height: 38px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: calc(18px * var(--fs-scale, 1)); color: #fff; flex-shrink: 0; box-shadow: 0 2px 8px rgba(20,22,26,0.14); }
   .profile-chip-info { display: flex; flex-direction: column; min-width: 0; flex: 1; }
-  .profile-chip-eyebrow { font-size: calc(10px * var(--fs-scale, 1)); font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: var(--text-faint); }
-  .profile-chip-name { font-size: calc(12px * var(--fs-scale, 1)); font-weight: 700; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .profile-chip-switch { flex-shrink: 0; background: var(--surface-sunken); border: 1.5px solid var(--border); border-radius: 8px; width: 30px; height: 30px; font-size: calc(14px * var(--fs-scale, 1)); color: var(--text-soft); cursor: pointer; transition: border-color 0.15s ease, color 0.15s ease; }
-  .profile-chip-switch:hover { border-color: var(--accent); color: var(--accent); }
+  .profile-chip-eyebrow { font-size: calc(9.5px * var(--fs-scale, 1)); font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase; color: var(--text-faint); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .profile-chip-name { font-size: calc(13px * var(--fs-scale, 1)); font-weight: 800; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-top: 1px; }
+  .profile-chip-switch { flex-shrink: 0; color: var(--text-faint); font-size: calc(16px * var(--fs-scale, 1)); line-height: 1; padding-right: 2px; transition: color 0.15s ease; }
+  .profile-chip:hover .profile-chip-switch { color: var(--accent); }
   @media (max-width: 860px) { .profile-chip { display: none; } }
   /* Botão de perfil no topo (aparece só no mobile/tablet, onde a sidebar-footer some) */
   /* Controle de tamanho de fonte (A− / A+) */
@@ -5187,51 +5232,70 @@
 
 <!-- ============ TELA DE ACESSO (seleção de perfil) ============ -->
 <div id="profile-gate" class="profile-gate" style="display:none;">
-  <div class="profile-gate-inner">
-    <div class="profile-gate-brand">
-      <h1 id="profile-gate-title">Quem vai estudar?</h1>
-      <p id="profile-gate-sub">Selecione seu perfil para entrar no seu diário.</p>
-    </div>
+  <div class="gate-shell">
+    <!-- PAINEL ESQUERDO: apresentação (encanta quem chega pela 1ª vez) -->
+    <aside class="gate-hero">
+      <div class="gate-hero-top">
+        <div class="gate-hero-brand"><span class="gate-hero-logo">📚</span><span>Diário de Estudos</span></div>
+      </div>
+      <div class="gate-hero-mid">
+        <h2 class="gate-hero-title">Sua aprovação começa por um estudo bem medido.</h2>
+        <p class="gate-hero-sub">Registre cada sessão, monte seu ciclo, revise com flashcards inteligentes e acompanhe sua evolução — tudo sincronizado na nuvem.</p>
+        <ul class="gate-hero-feats">
+          <li><span class="gf-ico">📈</span><div><b>Evolução real</b><small>Gráficos e metas por matéria.</small></div></li>
+          <li><span class="gf-ico">🃏</span><div><b>Revisão espaçada (FSRS)</b><small>Os cards voltam na hora certa.</small></div></li>
+          <li><span class="gf-ico">📜</span><div><b>Leis secas inteligentes</b><small>Destaque das pegadinhas de prova.</small></div></li>
+          <li><span class="gf-ico">☁️</span><div><b>Na nuvem</b><small>Seus dados iguais em qualquer aparelho.</small></div></li>
+        </ul>
+      </div>
+      <div class="gate-hero-foot">Feito para concurseiros exigentes.</div>
+    </aside>
 
-    <!-- ETAPA 1: LOGIN (aparece quando não há sessão) -->
-    <div id="gate-login" style="display:none;">
-      <div class="gate-login-box">
-        <div class="gate-conn" id="gate-conn-status"><span class="cdot"></span> Conectando ao servidor...</div>
-        <div class="cloud-auth-tabs" style="margin-bottom:18px;">
-          <button type="button" class="cloud-auth-tab active" data-gatemode="signin">Entrar</button>
-          <button type="button" class="cloud-auth-tab" data-gatemode="signup">Criar conta</button>
+    <!-- PAINEL DIREITO: acesso -->
+    <div class="gate-panel">
+      <div class="gate-panel-inner">
+        <div class="gate-mobile-brand"><span class="gate-hero-logo">📚</span><span>Diário de Estudos</span></div>
+        <div class="gate-panel-head">
+          <h1 id="profile-gate-title">Bem-vindo de volta</h1>
+          <p id="profile-gate-sub">Entre para continuar seus estudos.</p>
         </div>
-        <div class="field">
-          <label for="gate-email">E-mail</label>
-          <input type="email" id="gate-email" placeholder="voce@email.com" autocomplete="email">
+
+        <!-- ETAPA 1: LOGIN -->
+        <div id="gate-login" style="display:none;">
+          <div class="gate-conn" id="gate-conn-status"><span class="cdot"></span> Conectando ao servidor...</div>
+          <div class="cloud-auth-tabs">
+            <button type="button" class="cloud-auth-tab active" data-gatemode="signin">Entrar</button>
+            <button type="button" class="cloud-auth-tab" data-gatemode="signup">Criar conta</button>
+          </div>
+          <div class="field">
+            <label for="gate-email">E-mail</label>
+            <input type="email" id="gate-email" placeholder="voce@email.com" autocomplete="email">
+          </div>
+          <div class="field">
+            <label for="gate-password">Senha</label>
+            <input type="password" id="gate-password" placeholder="Mínimo 6 caracteres" autocomplete="current-password">
+          </div>
+          <p class="hint" id="gate-auth-msg" style="display:none;"></p>
+          <button type="button" class="btn-primary" id="gate-auth-submit" style="width:100%;">Entrar</button>
+          <p class="hint" id="gate-forgot-line" style="margin-top:14px; text-align:center;">
+            <button type="button" id="gate-forgot-btn" style="background:none;border:none;color:var(--accent);font-weight:700;cursor:pointer;padding:0;font-size:12px;">Esqueci minha senha</button>
+          </p>
         </div>
-        <div class="field">
-          <label for="gate-password">Senha</label>
-          <input type="password" id="gate-password" placeholder="Mínimo 6 caracteres" autocomplete="current-password">
+
+        <!-- ETAPA 2: PERFIS -->
+        <div id="gate-profiles" style="display:none;">
+          <div id="profile-gate-grid" class="profile-grid"></div>
+          <div class="gate-profile-actions">
+            <button type="button" class="btn-secondary" id="profile-import-btn">⭱ Importar de um backup (.json)</button>
+            <button type="button" class="btn-secondary" id="gate-logout-btn" style="display:none;">↩ Sair da conta</button>
+            <input type="file" id="profile-import-file" accept=".json,application/json" style="display:none;">
+          </div>
+          <p class="profile-gate-note" id="gate-profiles-note">🔒 Seus perfis e dados ficam vinculados à sua conta e sincronizados na nuvem — aparecem iguais em qualquer aparelho onde você entrar.</p>
         </div>
-        <p class="hint" id="gate-auth-msg" style="display:none;"></p>
-        <button type="button" class="btn-primary" id="gate-auth-submit" style="width:100%;">Entrar</button>
-        <p class="hint" id="gate-forgot-line" style="margin-top:10px; text-align:center;">
-          <button type="button" id="gate-forgot-btn" style="background:none;border:none;color:var(--accent);font-weight:700;cursor:pointer;padding:0;font-size:12px;">Esqueci minha senha</button>
-        </p>
-        <p class="hint" id="gate-offline-line" style="margin-top:8px; text-align:center;">
-          Sem internet? <button type="button" id="gate-offline-btn" style="background:none;border:none;color:var(--accent);font-weight:700;cursor:pointer;padding:0;font-size:12px;">Usar offline neste dispositivo</button>
-        </p>
+
+        <p class="profile-gate-note" id="gate-generic-note" style="display:none;">🔒 App de uso pessoal. Seus dados de estudo ficam protegidos pelo seu login.</p>
       </div>
     </div>
-
-    <!-- ETAPA 2: PERFIS (aparece quando logado, ou em modo offline) -->
-    <div id="gate-profiles" style="display:none;">
-      <div id="profile-gate-grid" class="profile-grid"></div>
-      <div style="margin-top:22px; display:flex; gap:10px; justify-content:center; flex-wrap:wrap;">
-        <button type="button" class="btn-secondary" id="profile-import-btn">⭱ Importar perfil de um backup (.json)</button>
-        <button type="button" class="btn-secondary" id="gate-logout-btn" style="display:none;">↩ Sair da conta</button>
-        <input type="file" id="profile-import-file" accept=".json,application/json" style="display:none;">
-      </div>
-      <p class="profile-gate-note" id="gate-profiles-note">🔒 Seus perfis e dados ficam vinculados à sua conta e sincronizados na nuvem — aparecem iguais em qualquer dispositivo onde você entrar.</p>
-    </div>
-
-    <p class="profile-gate-note" id="gate-generic-note" style="display:none;">🔒 App de uso pessoal. Seus dados de estudo ficam protegidos pelo seu login.</p>
   </div>
 
   <!-- Modal: criar/editar perfil -->
@@ -8352,13 +8416,6 @@
 }
 .cloud-sync-btn.has-pend .csb-badge { display: inline-flex; }
 
-/* saída rápida no rodapé da barra lateral */
-.profile-chip-logout {
-  background: transparent; border: none; cursor: pointer; color: var(--text-faint);
-  padding: 6px 7px; border-radius: 8px; font-size: var(--fs-xs); line-height: 1; flex-shrink: 0;
-}
-.profile-chip-logout:hover { background: var(--bad-soft); color: var(--bad-text); }
-
 /* aviso de inatividade */
 .idle-warn {
   position: fixed; left: 50%; bottom: 26px; transform: translateX(-50%);
@@ -8501,46 +8558,87 @@
   .reg-grid { min-width: 720px; }
 }
 
-/* ══ MOBILE (≤600px): cada linha vira um CARTÃO empilhado ══ */
+/* ══ MOBILE (≤600px): cada linha vira um CARTÃO premium (sem cascata) ══
+   Estrutura do cartão:
+     • Topo: Matéria (título) à esquerda + selo de % à direita
+     • Aula (subtítulo, se houver)
+     • Faixa de "stats": Data · Forma · Tempo · Acertos (pílulas compactas)
+     • Ações (editar/excluir) no rodapé, alinhadas à direita
+   Uso CSS Grid nomeado para posicionar cada célula sem markup novo. */
 @media (max-width: 600px) {
   .reg-sort-field { display: flex; }
-  .reg-filterbar { grid-template-columns: 1fr 1fr; gap: 9px; padding: 11px; }
+  .reg-filterbar { grid-template-columns: 1fr 1fr; gap: 9px; padding: 12px; }
   .reg-sort-field { grid-column: 1 / -1; }
   .reg-filter-clear { grid-column: 1 / -1; }
 
   .reg-grid-scroll { overflow: visible; border: none; background: transparent; border-radius: 0; }
-  .reg-grid { min-width: 0; }
+  .reg-grid { min-width: 0; display: flex; flex-direction: column; gap: 12px; }
   .reg-grid-head { display: none; }
+
+  /* flexbox com wrap + order: título e % na 1ª linha, aula na 2ª, pílulas fluindo,
+     ações no rodapé. flex-basis 100% força quebra de linha onde eu quero. */
   .reg-row {
-    display: flex; flex-direction: column; position: relative;
-    border: 1.5px solid var(--border); border-radius: 14px; background: var(--surface);
-    box-shadow: var(--shadow-sm); padding: 14px 14px 12px; margin-bottom: 12px;
+    display: flex; flex-wrap: wrap; align-items: center; position: relative;
+    row-gap: 8px; column-gap: 8px;
+    border: 1.5px solid var(--border); border-radius: 16px; background: var(--surface);
+    box-shadow: var(--shadow-sm); padding: 14px 15px 12px; margin: 0;
+    border-bottom: 1.5px solid var(--border);
   }
   .reg-row:nth-child(even) { background: var(--surface); }
-  .reg-c {
-    display: flex; align-items: baseline; gap: 12px;
-    padding: 5px 0; white-space: normal; overflow: visible; text-overflow: clip; line-height: 1.4;
-  }
-  .reg-c[data-label]::before {
-    content: attr(data-label);
-    flex: 0 0 76px;
-    font-size: var(--fs-2xs); font-weight: 700; text-transform: uppercase; letter-spacing: .04em;
-    color: var(--text-faint); padding-top: 1px;
-  }
+  .reg-row:active { background: var(--surface-sunken); }
+
+  /* reset do esquema desktop */
+  .reg-c { display: inline-flex; align-items: center; padding: 0; white-space: nowrap; overflow: visible; text-overflow: clip; line-height: 1.3; }
+  .reg-c[data-label]::before { content: none; }
+
+  /* 1ª linha: Matéria (cresce) + % (selo à direita) */
   .reg-c-subject {
-    order: -2; display: block; white-space: normal; overflow: visible; text-overflow: clip;
-    font-size: var(--fs-lg); font-weight: 800; line-height: 1.25;
-    padding: 0 64px 8px 0; margin-bottom: 6px; border-bottom: 1px solid var(--border);
+    order: 1; flex: 1 1 auto; min-width: 0;
+    font-size: var(--fs-lg); font-weight: 800; color: var(--text); letter-spacing: -0.01em;
+    white-space: normal; line-height: 1.2;
   }
-  .reg-c-subject::before { display: none; }
-  .reg-c-lesson { order: -1; }
-  .reg-c-num, .reg-c-pct { text-align: left; }
-  .reg-c-pct { font-size: var(--fs-md); }
+  .reg-c-pct {
+    order: 2; flex: 0 0 auto;
+    font-size: var(--fs-sm); font-weight: 800; font-variant-numeric: tabular-nums;
+    padding: 4px 11px; border-radius: 20px; white-space: nowrap;
+  }
+  .reg-c-pct.tone-good { background: var(--good-soft); color: var(--good-text); }
+  .reg-c-pct.tone-warn { background: var(--warn-soft); color: var(--warn-text); }
+  .reg-c-pct.tone-bad  { background: var(--bad-soft);  color: var(--bad-text); }
+  .reg-c-pct.tone-none { background: var(--surface-sunken); color: var(--text-faint); font-weight: 700; }
+
+  /* 2ª linha: Aula (subtítulo, ocupa toda a largura). Some quando vazia. */
+  .reg-c-lesson {
+    order: 3; flex: 1 1 100%;
+    color: var(--text-soft); font-size: var(--fs-sm); white-space: normal;
+  }
+  .reg-c-lesson:has(.reg-empty) { display: none; }
+
+  /* 3ª faixa: pílulas Data · Forma · Tempo · Acertos (fluem e quebram sozinhas) */
+  .reg-c-date  { order: 4; }
+  .reg-c-method{ order: 5; }
+  .reg-c-time  { order: 6; }
+  .reg-c-hits  { order: 7; }
+  .reg-c-date, .reg-c-method, .reg-c-time, .reg-c-hits {
+    flex: 0 0 auto; gap: 6px;
+    background: var(--surface-sunken); border: 1px solid var(--border);
+    padding: 5px 10px; border-radius: 20px; white-space: nowrap;
+    font-size: var(--fs-xs); color: var(--text-soft); font-variant-numeric: tabular-nums;
+  }
+  .reg-c-date::before   { content: "📅"; }
+  .reg-c-method::before { content: "✎"; color: var(--text-faint); }
+  .reg-c-time::before   { content: "⏱"; }
+  .reg-c-hits::before   { content: "✓"; color: var(--good-text); }
+  .reg-c-hits:has(.reg-empty) { display: none; }
+
+  /* Rodapé: ações à direita, com divisória */
   .reg-c-act {
-    position: absolute; top: 10px; right: 10px; padding: 0; justify-content: flex-end; gap: 4px;
+    order: 8; flex: 1 1 100%; display: flex; justify-content: flex-end; gap: 8px;
+    margin-top: 6px; padding-top: 10px; border-top: 1px solid var(--border);
   }
-  .reg-c-act::before { display: none; }
-  .reg-c-act .icon-btn { padding: 7px 8px; }
+  .reg-c-act .icon-btn { padding: 8px 13px; border: 1.5px solid var(--border); border-radius: 10px; }
+  .reg-c-act .icon-btn.danger { color: var(--bad-text); }
+
   .reg-noresult { border: 1px dashed var(--border); border-radius: 12px; background: var(--surface-sunken); }
 }
 @media (max-width: 720px) {
@@ -11913,8 +12011,8 @@ const ReforcoEngine = {
           <div class="reg-c reg-c-subject" data-label="Matéria" title="${subj}">${subj}</div>
           <div class="reg-c reg-c-lesson" data-label="Aula" title="${less}">${less || '<span class="reg-empty">—</span>'}</div>
           <div class="reg-c reg-c-method" data-label="Forma" title="${meth}">${meth}</div>
-          <div class="reg-c reg-c-num" data-label="Tempo">${timeStr}</div>
-          <div class="reg-c reg-c-num" data-label="Acertos">${hasPct ? e.correct + '/' + e.total : '<span class="reg-empty">—</span>'}</div>
+          <div class="reg-c reg-c-num reg-c-time" data-label="Tempo">${timeStr}</div>
+          <div class="reg-c reg-c-num reg-c-hits" data-label="Acertos">${hasPct ? e.correct + '/' + e.total : '<span class="reg-empty">—</span>'}</div>
           <div class="reg-c reg-c-pct tone-${tone}" data-label="%">${hasPct ? formatPct(pct) + '%' : '<span class="reg-empty">—</span>'}</div>
           <div class="reg-c reg-c-act" data-label="Ações">
             <button type="button" class="icon-btn btn-edit-entry" title="Editar">✎</button>
@@ -24055,7 +24153,7 @@ const ProfileUI = {
     return false;
   },
   isGateOpen() { const g = document.getElementById('profile-gate'); return g && g.style.display !== 'none'; },
-  showGate() { document.getElementById('profile-gate').style.display = 'flex'; this.refreshStage(); },
+  showGate() { document.getElementById('profile-gate').style.display = 'block'; this.refreshStage(); },
   hideGate() { document.getElementById('profile-gate').style.display = 'none'; },
   // O Supabase dispara vários eventos de auth (INITIAL_SESSION, SIGNED_IN, TOKEN_REFRESHED...).
   // Sem este guarda, cada evento re-renderizava o gate e causava a "piscada" nos perfis.
@@ -25770,7 +25868,7 @@ window.CloudUI = CloudUI;
   on('gate-auth-submit', 'click', () => ProfileUI.submitGateAuth());
   on('gate-password', 'keydown', (e) => { if (e.key === 'Enter') ProfileUI.submitGateAuth(); });
   document.querySelectorAll('#gate-login .cloud-auth-tab').forEach(tab => tab.addEventListener('click', () => ProfileUI.setGateAuthMode(tab.dataset.gatemode)));
-  on('gate-offline-btn', 'click', () => ProfileUI.useOffline());
+
   on('gate-forgot-btn', 'click', () => ProfileUI.forgotPassword());
   on('gate-logout-btn', 'click', () => ProfileUI.gateLogout());
   on('pf-cancel', 'click', () => document.getElementById('profile-modal').style.display = 'none');
@@ -26989,6 +27087,19 @@ window.StudyReport=StudyReport;
   });
 })();
 
+// Os modais de editar perfil e de PIN estavam DENTRO de #profile-gate, que fica
+// display:none quando você está logado — por isso "editar perfil" não aparecia
+// dentro do app. Movemos ambos para o <body> para que possam ser exibidos a
+// qualquer momento, independentemente do estado do gate.
+(function relocateProfileModals() {
+  ['profile-modal', 'pin-modal'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el && el.parentElement && el.parentElement.id === 'profile-gate') {
+      document.body.appendChild(el);
+    }
+  });
+})();
+
 ProfileUI.boot();
 // Os scripts externos agora usam defer (não travam a abertura do app). Eles executam
 // antes do DOMContentLoaded, então é aqui que a nuvem pode ser iniciada com segurança.
@@ -27782,15 +27893,9 @@ else CloudStore.init();
         clone.addEventListener('click', (e) => this.toggleMenu(e.currentTarget));
         clone.title = 'Conta e sincronização';
       }
-      // saída rápida no rodapé da barra lateral
-      const chip = $('#profile-chip');
-      if (chip && !$('#profile-chip-logout')) {
-        const b = document.createElement('button');
-        b.type = 'button'; b.id = 'profile-chip-logout'; b.className = 'profile-chip-logout';
-        b.title = 'Sair da conta'; b.innerHTML = '⏻';
-        b.addEventListener('click', (e) => { e.stopPropagation(); this.logout('local'); });
-        chip.appendChild(b);
-      }
+      // (Removido) O antigo botão de logout era injetado DENTRO do .profile-chip,
+      // que hoje é um <button> — botão dentro de botão é HTML inválido e quebrava o
+      // layout do rodapé. A saída da conta agora vive no menu do perfil (clique no nome).
       this.patchStore();
       this.watchSession();
       this.watchIdle();
