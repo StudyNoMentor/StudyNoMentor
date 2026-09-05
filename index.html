@@ -1010,6 +1010,32 @@
   .gvt-btn:hover { color: var(--text); }
   .gvt-btn.active { background: var(--accent-soft); color: var(--accent); box-shadow: var(--shadow-sm); }
 
+  /* ── Cabeçalho da Grade: só o essencial + engrenagem de opções ── */
+  .grade-head-actions { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+  .grade-gear-wrap { position: relative; }
+  .grade-gear-btn { white-space: nowrap; }
+  .grade-gear-btn.open { background: var(--accent-soft); color: var(--accent); border-color: var(--accent); }
+  .grade-gear-menu {
+    position: absolute; right: 0; top: calc(100% + 8px); z-index: 40;
+    min-width: 236px; background: var(--surface); border: 1.5px solid var(--border);
+    border-radius: 14px; box-shadow: var(--shadow-lg); padding: 6px;
+    display: none; animation: uxPopIn .14s ease;
+  }
+  .grade-gear-menu.open { display: block; }
+  .grade-gear-item {
+    display: flex; align-items: center; gap: 11px; width: 100%; text-align: left;
+    padding: 10px 11px; border: none; background: transparent; border-radius: 10px;
+    font-family: 'Inter', sans-serif; font-size: calc(13px * var(--fs-scale,1)); font-weight: 600;
+    color: var(--text); cursor: pointer; transition: background .12s ease;
+  }
+  .grade-gear-item:hover { background: var(--surface-sunken); }
+  .grade-gear-item .gg-ic { width: 20px; text-align: center; font-size: 15px; flex-shrink: 0; }
+  .grade-gear-item.danger { color: var(--bad-text); }
+  .grade-gear-item.danger:hover { background: var(--bad-soft); }
+  .grade-gear-item.is-collapsed, .grade-gear-item.active { background: var(--accent-soft); color: var(--accent); }
+  .grade-gear-sep { height: 1px; background: var(--border); margin: 5px 6px; }
+  @media (max-width: 560px) { .grade-gear-menu { right: auto; left: 0; min-width: 210px; } }
+
   /* ── Visão "Meta diária": lista compacta do alvo de cada dia ── */
   .grade-daily { display: grid; gap: 10px; }
   .gd-day { border: 1.5px solid var(--border); border-radius: 12px; padding: 12px 14px; background: var(--surface); transition: border-color 0.15s ease; }
@@ -3814,6 +3840,13 @@
   .gate-panel-inner { width: 100%; max-width: 400px; }
   .gate-mobile-brand { display: none; align-items: center; gap: 10px; font-weight: 800; font-size: calc(18px * var(--fs-scale,1)); color: var(--accent); margin-bottom: 20px; }
   .gate-panel-head { margin-bottom: 22px; }
+  /* tela limpa "Entrando…" (entre login e app) — sem flash do seletor de perfil */
+  .gate-entering-box { display: flex; flex-direction: column; align-items: center; text-align: center; padding: 30px 10px; }
+  .gate-spinner { width: 44px; height: 44px; border-radius: 50%; border: 4px solid var(--accent-soft); border-top-color: var(--accent); animation: gateSpin .8s linear infinite; margin-bottom: 18px; }
+  @keyframes gateSpin { to { transform: rotate(360deg); } }
+  @media (prefers-reduced-motion: reduce) { .gate-spinner { animation: none; } }
+  .gate-entering-text { font-size: calc(16px * var(--fs-scale,1)); font-weight: 800; color: var(--text); }
+  .gate-entering-sub { font-size: calc(13px * var(--fs-scale,1)); color: var(--text-soft); margin-top: 4px; }
   .gate-panel-head h1 { font-size: calc(26px * var(--fs-scale,1)); font-weight: 800; letter-spacing: -0.02em; margin: 0; }
   .gate-panel-head p { color: var(--text-soft); font-size: calc(14px * var(--fs-scale,1)); margin: 7px 0 0; line-height: 1.5; }
   .gate-panel .cloud-auth-tabs { margin-bottom: 18px; }
@@ -3922,6 +3955,36 @@
   .pf-color-opt { width: 30px; height: 30px; border-radius: 50%; cursor: pointer; border: 2px solid transparent; transition: transform 0.1s ease; }
   .pf-color-opt:hover { transform: scale(1.12); }
   .pf-color-opt.selected { border-color: var(--text); box-shadow: 0 0 0 2px var(--surface), 0 0 0 4px var(--text); }
+
+  /* ── Editor de perfil PROFISSIONAL ── */
+  .profile-modal-box.pf-pro { max-width: 560px; padding: 0; overflow: hidden; display: flex; flex-direction: column; }
+  .pf-pro .profile-modal-head { padding: 20px 24px 0; margin-bottom: 14px; }
+  .pf-preview {
+    margin: 0 24px 6px; padding: 16px 18px; border-radius: 16px; display: flex; align-items: center; gap: 14px;
+    background: linear-gradient(135deg, var(--accent-soft), var(--surface) 90%); border: 1.5px solid var(--border);
+  }
+  .pf-preview-avatar { width: 54px; height: 54px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 26px; color: #fff; flex-shrink: 0; box-shadow: 0 4px 14px rgba(20,22,26,0.16); transition: background .15s ease; }
+  .pf-preview-info { min-width: 0; flex: 1; }
+  .pf-preview-name { font-size: calc(17px * var(--fs-scale,1)); font-weight: 800; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .pf-preview-sub { font-size: calc(12.5px * var(--fs-scale,1)); color: var(--text-soft); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-top: 2px; }
+  .pf-preview-countdown { flex-shrink: 0; text-align: center; background: var(--surface); border: 1.5px solid var(--accent); border-radius: 12px; padding: 6px 12px; }
+  .pf-preview-countdown b { display: block; font-size: calc(18px * var(--fs-scale,1)); font-weight: 800; color: var(--accent); font-family: 'Space Mono', monospace; line-height: 1; }
+  .pf-preview-countdown span { font-size: calc(9px * var(--fs-scale,1)); text-transform: uppercase; letter-spacing: .04em; color: var(--text-faint); font-weight: 700; }
+  .pf-body { padding: 8px 24px 4px; overflow-y: auto; }
+  .pf-fieldset { padding: 14px 0; border-top: 1px solid var(--border); }
+  .pf-fieldset:first-child { border-top: none; padding-top: 6px; }
+  .pf-fieldset-title { font-size: calc(11px * var(--fs-scale,1)); font-weight: 800; text-transform: uppercase; letter-spacing: .05em; color: var(--text-faint); margin-bottom: 12px; }
+  .pf-identity-row { display: grid; grid-template-columns: 1fr auto; gap: 16px; align-items: start; }
+  .pf-grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px 14px; }
+  .pf-grid2 .pf-span2 { grid-column: 1 / -1; }
+  @media (max-width: 480px) { .pf-grid2 { grid-template-columns: 1fr; } .pf-identity-row { grid-template-columns: 1fr; } }
+  .pf-advanced { border-top: 1px solid var(--border); padding: 12px 0 6px; }
+  .pf-advanced > summary { cursor: pointer; font-size: calc(12.5px * var(--fs-scale,1)); font-weight: 700; color: var(--text-soft); list-style: none; display: flex; align-items: center; gap: 6px; }
+  .pf-advanced > summary::before { content: '⚙'; }
+  .pf-advanced > summary::-webkit-details-marker { display: none; }
+  .pf-advanced[open] > summary { color: var(--text); margin-bottom: 4px; }
+  .pf-foot { display: flex; align-items: center; gap: 10px; padding: 14px 24px; border-top: 1px solid var(--border); background: var(--surface-sunken); }
+  .pf-foot-actions { display: flex; gap: 8px; margin-left: auto; }
   .pin-avatar { width: 64px; height: 64px; border-radius: 50%; margin: 0 auto; display: flex; align-items: center; justify-content: center; font-size: calc(30px * var(--fs-scale, 1)); color: #fff; }
   /* Chip de perfil na sidebar */
   .profile-chip { display: flex; align-items: center; gap: 10px; width: 100%; background: var(--surface-sunken); border: 1.5px solid var(--border); border-radius: 14px; padding: 8px 10px; cursor: pointer; transition: background .14s ease, border-color .14s ease, box-shadow .14s ease; text-align: left; }
@@ -5282,6 +5345,15 @@
           </p>
         </div>
 
+        <!-- ETAPA "ENTRANDO": tela limpa entre o login e o app (evita o flash do seletor) -->
+        <div id="gate-entering" style="display:none;">
+          <div class="gate-entering-box">
+            <div class="gate-spinner" aria-hidden="true"></div>
+            <div class="gate-entering-text">Entrando no seu perfil…</div>
+            <div class="gate-entering-sub">Carregando seus estudos</div>
+          </div>
+        </div>
+
         <!-- ETAPA 2: PERFIS -->
         <div id="gate-profiles" style="display:none;">
           <div id="profile-gate-grid" class="profile-grid"></div>
@@ -5300,64 +5372,86 @@
 
   <!-- Modal: criar/editar perfil -->
   <div id="profile-modal" class="profile-modal" style="display:none;">
-    <div class="profile-modal-box">
+    <div class="profile-modal-box pf-pro">
       <div class="profile-modal-head">
-        <h2 id="profile-modal-title">Novo perfil</h2>
+        <h2 id="profile-modal-title">Editar perfil</h2>
         <button type="button" class="icon-btn" id="profile-modal-close">✕</button>
       </div>
-      <div class="field">
-        <label for="pf-nome">Nome do perfil</label>
-        <input type="text" id="pf-nome" placeholder="Ex.: Concurso SEFAZ" maxlength="40">
-      </div>
-      <div class="field">
-        <label>Avatar</label>
-        <div class="pf-avatar-grid" id="pf-avatar-grid"></div>
-      </div>
-      <div class="field">
-        <label>Cor</label>
-        <div class="pf-color-grid" id="pf-color-grid"></div>
+
+      <!-- Cartão de pré-visualização (atualiza ao vivo) -->
+      <div class="pf-preview" id="pf-preview">
+        <div class="pf-preview-avatar" id="pf-preview-avatar">📘</div>
+        <div class="pf-preview-info">
+          <div class="pf-preview-name" id="pf-preview-name">Seu perfil</div>
+          <div class="pf-preview-sub" id="pf-preview-sub">Estudante</div>
+        </div>
+        <div class="pf-preview-countdown" id="pf-preview-countdown" style="display:none;"></div>
       </div>
 
-      <!-- Dados do estudante (profissional) -->
-      <div class="pf-section-divider"><span>Meus dados de estudo</span></div>
-      <div class="pf-grid2">
-        <div class="field">
-          <label for="pf-fullname">Nome completo</label>
-          <input type="text" id="pf-fullname" placeholder="Seu nome" maxlength="80" autocomplete="name">
-        </div>
-        <div class="field">
-          <label for="pf-concurso">Concurso alvo</label>
-          <input type="text" id="pf-concurso" placeholder="Ex.: Receita Federal" maxlength="60">
-        </div>
-        <div class="field">
-          <label for="pf-cargo">Cargo pretendido</label>
-          <input type="text" id="pf-cargo" placeholder="Ex.: Auditor Fiscal" maxlength="60">
-        </div>
-        <div class="field">
-          <label for="pf-banca">Banca</label>
-          <input type="text" id="pf-banca" placeholder="Ex.: FGV, CESPE…" maxlength="40">
-        </div>
-        <div class="field">
-          <label for="pf-prova">Data da prova <span class="opt">(se souber)</span></label>
-          <input type="date" id="pf-prova">
-        </div>
-        <div class="field">
-          <label for="pf-metah">Meta de horas/semana</label>
-          <input type="number" id="pf-metah" min="0" max="120" step="1" placeholder="Ex.: 30">
-        </div>
+      <div class="pf-body">
+        <!-- IDENTIDADE -->
+        <section class="pf-fieldset">
+          <div class="pf-fieldset-title">Identidade</div>
+          <div class="field">
+            <label for="pf-nome">Nome do perfil</label>
+            <input type="text" id="pf-nome" placeholder="Ex.: Concurso SEFAZ" maxlength="40">
+          </div>
+          <div class="pf-identity-row">
+            <div class="field">
+              <label>Avatar</label>
+              <div class="pf-avatar-grid" id="pf-avatar-grid"></div>
+            </div>
+            <div class="field">
+              <label>Cor</label>
+              <div class="pf-color-grid" id="pf-color-grid"></div>
+            </div>
+          </div>
+        </section>
+
+        <!-- OBJETIVO -->
+        <section class="pf-fieldset">
+          <div class="pf-fieldset-title">Meu objetivo</div>
+          <div class="pf-grid2">
+            <div class="field">
+              <label for="pf-concurso">Concurso alvo</label>
+              <input type="text" id="pf-concurso" placeholder="Ex.: Receita Federal" maxlength="60">
+            </div>
+            <div class="field">
+              <label for="pf-cargo">Cargo pretendido</label>
+              <input type="text" id="pf-cargo" placeholder="Ex.: Auditor Fiscal" maxlength="60">
+            </div>
+            <div class="field">
+              <label for="pf-banca">Banca</label>
+              <input type="text" id="pf-banca" placeholder="Ex.: FGV, CEBRASPE…" maxlength="40">
+            </div>
+            <div class="field">
+              <label for="pf-metah">Meta de horas/semana</label>
+              <input type="number" id="pf-metah" min="0" max="120" step="1" placeholder="Ex.: 30" inputmode="numeric">
+            </div>
+            <div class="field pf-span2">
+              <label for="pf-prova">Data da prova <span class="opt">(mostra a contagem regressiva)</span></label>
+              <input type="date" id="pf-prova">
+            </div>
+          </div>
+        </section>
+
+        <!-- avançado, discreto -->
+        <details class="pf-advanced" id="pf-advanced">
+          <summary>Opções avançadas</summary>
+          <div class="field" style="margin-top:12px;">
+            <label for="pf-pin">PIN de acesso <span class="opt">(opcional — trava leve neste aparelho)</span></label>
+            <input type="password" id="pf-pin" inputmode="numeric" maxlength="6" placeholder="Deixe em branco para não usar" autocomplete="off">
+          </div>
+          <div id="pf-export-row" style="display:none;">
+            <button type="button" class="btn-secondary" id="pf-export" style="width:100%;">⭳ Exportar backup deste perfil (.json)</button>
+            <p class="hint" style="margin-top:6px;">Gera um arquivo com todos os dados do perfil, para guardar ou levar a outro aparelho. O PIN não é incluído no backup.</p>
+          </div>
+        </details>
       </div>
 
-      <div class="field">
-        <label for="pf-pin">PIN <span class="opt">(opcional, 4 dígitos — trava leve)</span></label>
-        <input type="password" id="pf-pin" inputmode="numeric" maxlength="6" placeholder="Deixe em branco para não usar" autocomplete="off">
-      </div>
-      <div id="pf-export-row" style="display:none; margin: 4px 0 14px;">
-        <button type="button" class="btn-secondary" id="pf-export" style="width:100%;">⭳ Exportar backup deste perfil (.json)</button>
-        <p class="hint" style="margin-top:6px;">Gera um arquivo com todos os dados do perfil, para guardar ou levar a outro dispositivo. O PIN não é incluído no backup.</p>
-      </div>
-      <div class="submit-row" style="margin-top:6px;">
+      <div class="pf-foot">
         <button type="button" class="btn-danger-text" id="pf-delete" style="display:none;">Excluir perfil</button>
-        <div style="display:flex; gap:8px; margin-left:auto;">
+        <div class="pf-foot-actions">
           <button type="button" class="btn-secondary" id="pf-cancel">Cancelar</button>
           <button type="button" class="btn-primary" id="pf-save">Salvar</button>
         </div>
@@ -5784,16 +5878,23 @@
           <h2 class="grade-title-line">Grade da semana <span class="grade-min-alert">❗ Digite os tempos em minutos</span></h2>
           <p class="sub">Toque numa célula para escolher a sigla (ou arraste). A mesma matéria pode aparecer em várias células — ajuste a duração de cada uma.</p>
         </div>
-        <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
+        <div class="grade-head-actions">
           <div class="grade-view-toggle" id="grade-view-toggle" role="tablist" aria-label="Modo de visualização da grade">
             <button type="button" class="gvt-btn active" data-gview="semana" role="tab" aria-selected="true">▦ Semanal</button>
             <button type="button" class="gvt-btn" data-gview="dia" role="tab" aria-selected="false">◷ Meta diária</button>
           </div>
-          <button class="btn-secondary" id="btn-saved-grades" type="button" title="Salvar a grade atual ou restaurar uma grade guardada">💾 Grades salvas</button>
-          <button class="btn-secondary" id="btn-toggle-budget" type="button" title="Mostrar/ocultar o saldo de horas do ciclo">⏱️ Saldo de horas</button>
-          <button class="btn-secondary" id="btn-toggle-tray" type="button" title="Minimizar/expandir as siglas">▾ Siglas</button>
-          <button class="btn-secondary" id="btn-uncheck-all" type="button">↺ Desmarcar concluídos</button>
-          <button class="btn-secondary" id="btn-clear-grade" type="button" title="Esvaziar toda a grade para montar do zero">🗑️ Limpar grade</button>
+          <!-- Todos os comandos secundários agora vivem numa engrenagem, deixando só o essencial à vista -->
+          <div class="grade-gear-wrap">
+            <button class="btn-secondary grade-gear-btn" id="grade-gear-btn" type="button" title="Opções da grade" aria-haspopup="true" aria-expanded="false">⚙ Opções</button>
+            <div class="grade-gear-menu" id="grade-gear-menu" role="menu" aria-hidden="true">
+              <button class="grade-gear-item" id="btn-saved-grades" type="button" role="menuitem" title="Salvar a grade atual ou restaurar uma grade guardada"><span class="gg-ic">💾</span>Grades salvas</button>
+              <button class="grade-gear-item" id="btn-toggle-budget" type="button" role="menuitem" title="Mostrar/ocultar o saldo de horas do ciclo"><span class="gg-ic">⏱️</span>Saldo de horas</button>
+              <button class="grade-gear-item" id="btn-toggle-tray" type="button" role="menuitem" title="Minimizar/expandir as siglas"><span class="gg-ic">▾</span>Siglas (minimizar)</button>
+              <div class="grade-gear-sep"></div>
+              <button class="grade-gear-item" id="btn-uncheck-all" type="button" role="menuitem"><span class="gg-ic">↺</span>Desmarcar concluídos</button>
+              <button class="grade-gear-item danger" id="btn-clear-grade" type="button" role="menuitem" title="Esvaziar toda a grade para montar do zero"><span class="gg-ic">🗑️</span>Limpar grade</button>
+            </div>
+          </div>
         </div>
       </div>
       <div style="padding: 8px 20px 26px;">
@@ -6714,8 +6815,14 @@
 
           <hr class="divider">
           <p class="section-label">Perfil ao abrir</p>
-          <label class="co-check" style="margin:6px 0 0;"><input type="checkbox" id="pref-auto-enter" checked> Entrar direto no último perfil usado (não perguntar toda vez)</label>
-          <p class="hint" style="margin:6px 0 0;">Com isso ligado, o app abre já no seu perfil. Para trocar, use <strong>⇄ Trocar de perfil</strong> no topo a qualquer momento.</p>
+          <label class="co-check" style="margin:6px 0 0;"><input type="checkbox" id="pref-auto-enter" checked> Entrar direto no perfil ao logar (não mostrar o seletor)</label>
+          <div class="field" style="margin:12px 0 0;">
+            <label for="pref-default-profile">Perfil padrão</label>
+            <select id="pref-default-profile">
+              <option value="">Último perfil usado</option>
+            </select>
+          </div>
+          <p class="hint" style="margin:6px 0 0;">Ao entrar com e-mail e senha, o app abre <strong>direto neste perfil</strong>, sem mostrar a tela de seleção. Para trocar, clique no seu nome na barra lateral.</p>
 
           <hr class="divider">
           <p class="section-label">Outros espaços salvos na sua conta</p>
@@ -6915,10 +7022,15 @@
                 <button type="button" data-scope="range">Intervalo de datas</button>
               </div>
             </div>
-            <div style="display:flex; gap:8px; flex-wrap:wrap;">
-              <button class="btn-secondary" id="tec-toggle-cfg" type="button" title="Mostrar/ocultar os filtros e configurações desta tela">🔧 Filtros</button>
-              <button class="btn-secondary" id="tec-enxuto-btn" type="button" title="Esconde textos de ajuda e legendas — deixa só números, barras e listas">🔎 Modo enxuto</button>
-              <button class="btn-secondary" id="tec-btn-new-import" type="button">+ Nova importação</button>
+            <div class="grade-head-actions">
+              <div class="grade-gear-wrap">
+                <button class="btn-secondary grade-gear-btn" id="tec-gear-btn" type="button" title="Opções de exibição" aria-haspopup="true" aria-expanded="false">⚙ Exibição</button>
+                <div class="grade-gear-menu" id="tec-gear-menu" role="menu" aria-hidden="true">
+                  <button class="grade-gear-item" id="tec-toggle-cfg" type="button" role="menuitem" title="Mostrar/ocultar os filtros e configurações desta tela"><span class="gg-ic">🔧</span>Filtros e configurações</button>
+                  <button class="grade-gear-item" id="tec-enxuto-btn" type="button" role="menuitem" title="Esconde textos de ajuda e legendas — deixa só números, barras e listas"><span class="gg-ic">🔎</span>Modo enxuto</button>
+                </div>
+              </div>
+              <button class="btn-primary" id="tec-btn-new-import" type="button">+ Nova importação</button>
             </div>
           </div>
           <span class="hint" id="tec-snap-meta"></span>
@@ -8258,11 +8370,24 @@
   margin: 0; font-size: var(--fs-xl); font-weight: 700; letter-spacing: -0.01em; color: var(--text);
 }
 .cfg-group-head p { margin: 5px 0 0; font-size: var(--fs-sm); color: var(--text-soft); line-height: 1.55; max-width: 76ch; }
+/* ── Padronização PROFISSIONAL das configurações ──
+   Cada card tinha um padding inline diferente (16/28, 12/28, 16/24…). Aqui
+   unificamos o espaçamento e o acabamento, para tudo ficar alinhado e coeso. */
+.cfg-group > .card { margin: 0 0 16px; border-radius: 16px; border: 1.5px solid var(--border); box-shadow: var(--shadow-sm); overflow: hidden; }
+.cfg-group > .card > .card-header { padding: 18px 22px 14px; align-items: flex-start; }
+.cfg-group > .card > .card-header h2 { font-size: var(--fs-lg); font-weight: 800; letter-spacing: -0.01em; }
+.cfg-group > .card > .card-header .sub { margin-top: 4px; }
+/* corpo do card: padding uniforme, sobrescrevendo os estilos inline antigos */
+.cfg-group > .card > div:not(.card-header) { padding: 6px 22px 20px !important; }
+.cfg-group > .card > .card-header + div { padding-top: 4px !important; }
 @media (max-width: 900px) {
   .cfg-shell { grid-template-columns: 1fr; gap: 14px; }
-  .cfg-nav { position: static; display: flex; gap: 6px; overflow-x: auto; padding: 8px; }
+  .cfg-nav { position: sticky; top: 0; z-index: 5; display: flex; gap: 6px; overflow-x: auto; padding: 8px; background: var(--surface); border: 1.5px solid var(--border); border-radius: 12px; scrollbar-width: none; }
+  .cfg-nav::-webkit-scrollbar { display: none; }
   .cfg-nav-title { display: none; }
-  .cfg-nav button { width: auto; white-space: nowrap; padding: 8px 12px; }
+  .cfg-nav button { width: auto; white-space: nowrap; padding: 8px 14px; flex-shrink: 0; }
+  .cfg-group > .card > .card-header { padding: 16px 16px 12px; }
+  .cfg-group > .card > div:not(.card-header) { padding: 6px 16px 18px !important; }
 }
 
 /* 7.4 — Cartão de espaço usado: números e barras alinhados de verdade */
@@ -8558,88 +8683,44 @@
   .reg-grid { min-width: 720px; }
 }
 
-/* ══ MOBILE (≤600px): cada linha vira um CARTÃO premium (sem cascata) ══
-   Estrutura do cartão:
-     • Topo: Matéria (título) à esquerda + selo de % à direita
-     • Aula (subtítulo, se houver)
-     • Faixa de "stats": Data · Forma · Tempo · Acertos (pílulas compactas)
-     • Ações (editar/excluir) no rodapé, alinhadas à direita
-   Uso CSS Grid nomeado para posicionar cada célula sem markup novo. */
+/* ══ MOBILE (≤600px): CONTINUA TABELA (rola na horizontal) ══
+   A visão "Tabela" deve permanecer uma tabela alinhada — não cartões. Mantemos
+   exatamente as MESMAS colunas do desktop e apenas garantimos uma largura mínima
+   para a tabela rolar lateralmente dentro do seu contêiner. Assim cada valor fica
+   SEMPRE na sua coluna (a Data nunca "muda de linha"), padronizado e alinhado. */
 @media (max-width: 600px) {
   .reg-sort-field { display: flex; }
   .reg-filterbar { grid-template-columns: 1fr 1fr; gap: 9px; padding: 12px; }
   .reg-sort-field { grid-column: 1 / -1; }
   .reg-filter-clear { grid-column: 1 / -1; }
 
-  .reg-grid-scroll { overflow: visible; border: none; background: transparent; border-radius: 0; }
-  .reg-grid { min-width: 0; display: flex; flex-direction: column; gap: 12px; }
-  .reg-grid-head { display: none; }
+  /* a tabela rola dentro da caixa; a página em si não ganha barra horizontal */
+  .reg-grid-scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+  .reg-grid { min-width: 760px; }        /* soma das colunas → habilita a rolagem */
 
-  /* flexbox com wrap + order: título e % na 1ª linha, aula na 2ª, pílulas fluindo,
-     ações no rodapé. flex-basis 100% força quebra de linha onde eu quero. */
-  .reg-row {
-    display: flex; flex-wrap: wrap; align-items: center; position: relative;
-    row-gap: 8px; column-gap: 8px;
-    border: 1.5px solid var(--border); border-radius: 16px; background: var(--surface);
-    box-shadow: var(--shadow-sm); padding: 14px 15px 12px; margin: 0;
-    border-bottom: 1.5px solid var(--border);
+  /* colunas um pouco mais compactas no celular, mas idênticas em head e linhas */
+  .reg-grid-head, .reg-row {
+    grid-template-columns:
+      96px                     /* Data    */
+      minmax(120px, 1.4fr)     /* Matéria */
+      minmax(120px, 1.6fr)     /* Aula    */
+      minmax(84px, 1fr)        /* Forma   */
+      72px                     /* Tempo   */
+      78px                     /* Acertos */
+      78px                     /* %       */
+      82px;                    /* Ações   */
   }
-  .reg-row:nth-child(even) { background: var(--surface); }
-  .reg-row:active { background: var(--surface-sunken); }
+  .reg-h { padding: 12px 12px 10px; }
+  .reg-c { padding: 11px 12px; font-size: var(--fs-sm); }
+  .reg-c-act { padding: 8px 10px; }
 
-  /* reset do esquema desktop */
-  .reg-c { display: inline-flex; align-items: center; padding: 0; white-space: nowrap; overflow: visible; text-overflow: clip; line-height: 1.3; }
-  .reg-c[data-label]::before { content: none; }
-
-  /* 1ª linha: Matéria (cresce) + % (selo à direita) */
-  .reg-c-subject {
-    order: 1; flex: 1 1 auto; min-width: 0;
-    font-size: var(--fs-lg); font-weight: 800; color: var(--text); letter-spacing: -0.01em;
-    white-space: normal; line-height: 1.2;
-  }
-  .reg-c-pct {
-    order: 2; flex: 0 0 auto;
-    font-size: var(--fs-sm); font-weight: 800; font-variant-numeric: tabular-nums;
-    padding: 4px 11px; border-radius: 20px; white-space: nowrap;
-  }
-  .reg-c-pct.tone-good { background: var(--good-soft); color: var(--good-text); }
-  .reg-c-pct.tone-warn { background: var(--warn-soft); color: var(--warn-text); }
-  .reg-c-pct.tone-bad  { background: var(--bad-soft);  color: var(--bad-text); }
-  .reg-c-pct.tone-none { background: var(--surface-sunken); color: var(--text-faint); font-weight: 700; }
-
-  /* 2ª linha: Aula (subtítulo, ocupa toda a largura). Some quando vazia. */
-  .reg-c-lesson {
-    order: 3; flex: 1 1 100%;
-    color: var(--text-soft); font-size: var(--fs-sm); white-space: normal;
-  }
-  .reg-c-lesson:has(.reg-empty) { display: none; }
-
-  /* 3ª faixa: pílulas Data · Forma · Tempo · Acertos (fluem e quebram sozinhas) */
-  .reg-c-date  { order: 4; }
-  .reg-c-method{ order: 5; }
-  .reg-c-time  { order: 6; }
-  .reg-c-hits  { order: 7; }
-  .reg-c-date, .reg-c-method, .reg-c-time, .reg-c-hits {
-    flex: 0 0 auto; gap: 6px;
-    background: var(--surface-sunken); border: 1px solid var(--border);
-    padding: 5px 10px; border-radius: 20px; white-space: nowrap;
-    font-size: var(--fs-xs); color: var(--text-soft); font-variant-numeric: tabular-nums;
-  }
-  .reg-c-date::before   { content: "📅"; }
-  .reg-c-method::before { content: "✎"; color: var(--text-faint); }
-  .reg-c-time::before   { content: "⏱"; }
-  .reg-c-hits::before   { content: "✓"; color: var(--good-text); }
-  .reg-c-hits:has(.reg-empty) { display: none; }
-
-  /* Rodapé: ações à direita, com divisória */
-  .reg-c-act {
-    order: 8; flex: 1 1 100%; display: flex; justify-content: flex-end; gap: 8px;
-    margin-top: 6px; padding-top: 10px; border-top: 1px solid var(--border);
-  }
-  .reg-c-act .icon-btn { padding: 8px 13px; border: 1.5px solid var(--border); border-radius: 10px; }
-  .reg-c-act .icon-btn.danger { color: var(--bad-text); }
-
-  .reg-noresult { border: 1px dashed var(--border); border-radius: 12px; background: var(--surface-sunken); }
+  /* dica sutil de que a tabela rola para o lado */
+  .reg-scroll-hint { display: flex; }
+}
+/* aviso "deslize para ver mais" — some no desktop */
+.reg-scroll-hint {
+  display: none; align-items: center; gap: 6px; justify-content: center;
+  font-size: var(--fs-2xs); color: var(--text-faint); padding: 8px 4px 0;
 }
 @media (max-width: 720px) {
   #recent-list { padding-left: 12px !important; padding-right: 12px !important; }
@@ -12056,6 +12137,7 @@ const ReforcoEngine = {
         ${anyFilter ? '<button type="button" class="reg-filter-clear" id="reg-filter-clear">✕ Limpar filtros</button>' : ''}
       </div>
 
+      <div class="reg-scroll-hint">↔ deslize a tabela para o lado para ver todas as colunas</div>
       <div class="reg-grid-scroll">
         <div class="reg-grid" role="table">
           <div class="reg-grid-head" role="row">
@@ -14646,7 +14728,8 @@ function planCycleMode() {
     // botão SEMPRE visível (descoberta), apenas desabilitado quando não há nada a desmarcar
     btn.disabled = n === 0;
     btn.style.opacity = n === 0 ? '0.5' : '';
-    btn.textContent = n > 0 ? `↺ Desmarcar ${n} concluído${n === 1 ? '' : 's'}` : '↺ Desmarcar concluídos';
+    const lbl = n > 0 ? `Desmarcar ${n} concluído${n === 1 ? '' : 's'}` : 'Desmarcar concluídos';
+    btn.innerHTML = `<span class="gg-ic">↺</span>${lbl}`;
   }
   // minimizar/expandir a bandeja de siglas (lembra a preferência)
   // [NOVO] Botão que mostra/oculta o saldo de horas do ciclo na Grade (estado salvo por perfil).
@@ -14665,7 +14748,7 @@ function planCycleMode() {
     if (_trayBar) _trayBar.classList.toggle('tray-collapsed', collapsed);
     if (_trayBtn) {
       _trayBtn.classList.toggle('is-collapsed', collapsed);
-      _trayBtn.textContent = collapsed ? '▸ Siglas' : '▾ Siglas';
+      _trayBtn.innerHTML = `<span class="gg-ic">${collapsed ? '▸' : '▾'}</span>${collapsed ? 'Siglas (mostrar)' : 'Siglas (minimizar)'}`;
       _trayBtn.title = collapsed ? 'Mostrar as siglas arrastáveis' : 'Ocultar as siglas arrastáveis';
     }
   };
@@ -14704,6 +14787,30 @@ function planCycleMode() {
     renderGrade();
     showToast('Grade limpa — monte do zero ✓');
   });
+
+  /* ---- Engrenagem de opções da grade (agrupa os comandos secundários) ---- */
+  (function () {
+    const gbtn = document.getElementById('grade-gear-btn');
+    const gmenu = document.getElementById('grade-gear-menu');
+    if (!gbtn || !gmenu) return;
+    const closeGear = () => {
+      gmenu.classList.remove('open'); gbtn.classList.remove('open');
+      gbtn.setAttribute('aria-expanded', 'false'); gmenu.setAttribute('aria-hidden', 'true');
+      document.removeEventListener('click', onDoc, true);
+    };
+    const onDoc = (e) => { if (!gmenu.contains(e.target) && e.target !== gbtn && !gbtn.contains(e.target)) closeGear(); };
+    gbtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const open = gmenu.classList.toggle('open');
+      gbtn.classList.toggle('open', open);
+      gbtn.setAttribute('aria-expanded', open ? 'true' : 'false');
+      gmenu.setAttribute('aria-hidden', open ? 'false' : 'true');
+      if (open) setTimeout(() => document.addEventListener('click', onDoc, true), 0);
+      else document.removeEventListener('click', onDoc, true);
+    });
+    // fecha ao escolher um item (mas deixa o clique do próprio item executar antes)
+    gmenu.querySelectorAll('.grade-gear-item').forEach(it => it.addEventListener('click', () => setTimeout(closeGear, 0)));
+  })();
 
   /* ---- Item 1: seletor de visão (Semanal / Meta diária) ---- */
   const _viewToggle = document.getElementById('grade-view-toggle');
@@ -22056,7 +22163,7 @@ const DesempenhoTecScreen = {
     const wrap = document.getElementById('tec-analysis');
     if (wrap) wrap.classList.toggle('hide-cfg', on);
     const btn = document.getElementById('tec-toggle-cfg');
-    if (btn) { btn.classList.toggle('is-active', on); btn.textContent = on ? '🔧 Mostrar filtros' : '🔧 Filtros'; }
+    if (btn) { btn.classList.toggle('is-active', on); btn.innerHTML = `<span class="gg-ic">🔧</span>${on ? 'Mostrar filtros' : 'Filtros e configurações'}`; }
   },
   /* MODO ENXUTO — depois que você entende a tela, textos de ajuda, legendas e
      dicas viram ruído. Este modo esconde tudo isso e deixa só o que muda de
@@ -22066,7 +22173,7 @@ const DesempenhoTecScreen = {
     const tela = document.getElementById('screen-desempenhotec');
     if (tela) tela.classList.toggle('tec-enxuto', on);
     const b = document.getElementById('tec-enxuto-btn');
-    if (b) { b.classList.toggle('is-active', on); b.textContent = on ? '🔎 Modo completo' : '🔎 Modo enxuto'; }
+    if (b) { b.classList.toggle('is-active', on); b.innerHTML = `<span class="gg-ic">🔎</span>${on ? 'Modo completo' : 'Modo enxuto'}`; }
   },
   // normaliza texto p/ casar tópicos entre retratos (sem acento/caixa/espaços extras)
   _nk(s) { return String(s == null ? '' : s).normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/\s+/g, ' ').trim(); },
@@ -24101,6 +24208,7 @@ const ProfileUI = {
   SESSION_KEY: 'diario-estudos:entered',
   _stage: 'login',
   _offline: false,
+  _entering: false,   // true enquanto entra num perfil (trava o gate na tela "Entrando…")
   _lastAuthKey: null,   // evita re-render do gate a cada evento de auth repetido
   _gridToken: 0,        // ignora respostas fora de ordem ao listar perfis
   _gridSig: null,       // assinatura do grid já pintado (evita repintar igual)
@@ -24118,6 +24226,11 @@ const ProfileUI = {
   _lastProfileKey() { const u = this._uid(); return u ? 'diario-estudos:last-profile:' + u : null; },
   getLastProfile() { try { const k = this._lastProfileKey(); return k ? localStorage.getItem(k) : null; } catch (e) { return null; } },
   setLastProfile(id) { try { const k = this._lastProfileKey(); if (k && id) localStorage.setItem(k, id); } catch (e) {} },
+  // Perfil PADRÃO por conta (definido nas Configurações). Se existir, entra nele
+  // direto ao logar, com prioridade sobre o "último usado".
+  _defaultProfileKey() { const u = this._uid(); return u ? 'diario-estudos:default-profile:' + u : null; },
+  getDefaultProfile() { try { const k = this._defaultProfileKey(); return k ? localStorage.getItem(k) : null; } catch (e) { return null; } },
+  setDefaultProfile(id) { try { const k = this._defaultProfileKey(); if (!k) return; if (id) localStorage.setItem(k, id); else localStorage.removeItem(k); } catch (e) {} },
   _autoEnterTried: false,   // não repete o auto-enter na mesma sessão de gate
   boot() {
     this.renderChip();
@@ -24168,12 +24281,17 @@ const ProfileUI = {
   },
 
   refreshStage() {
+    // Se já estamos entrando num perfil (reload a caminho), não repinta o gate —
+    // evita qualquer flash do seletor por um evento de auth tardio.
+    if (this._entering) return;
     const CS = window.CloudStore;
     const logged = !!(CS && CS.isReady && CS.isReady() && CS.isLoggedIn());
     const loginEl = document.getElementById('gate-login');
     const profilesEl = document.getElementById('gate-profiles');
+    const enteringEl = document.getElementById('gate-entering');
     const title = document.getElementById('profile-gate-title');
     const sub = document.getElementById('profile-gate-sub');
+    const head = document.querySelector('#profile-gate .gate-panel-head');
     if (!logged && !this._offline) {
       this._stage = 'login';
       this._gridSig = null;
@@ -24182,8 +24300,10 @@ const ProfileUI = {
       if (g) g.innerHTML = '';
       if (loginEl) loginEl.style.display = 'block';
       if (profilesEl) profilesEl.style.display = 'none';
-      if (title) title.textContent = 'Entrar na sua conta';
-      if (sub) sub.textContent = 'Faça login para acessar seus perfis em qualquer dispositivo.';
+      if (enteringEl) enteringEl.style.display = 'none';
+      if (head) head.style.display = '';
+      if (title) title.textContent = 'Bem-vindo de volta';
+      if (sub) sub.textContent = 'Entre para continuar seus estudos.';
       const st = document.getElementById('gate-conn-status');
       if (st) {
         const s = CS ? CS.libStatus : 'pending';
@@ -24192,16 +24312,46 @@ const ProfileUI = {
         else { st.innerHTML = '<span class="cdot bad"></span> Servidor indisponível — verifique a internet'; st.className = 'gate-conn bad'; }
       }
     } else {
-      this._stage = 'profiles';
+      // Logado. Se vamos ENTRAR DIRETO (perfil padrão), NÃO mostramos o seletor:
+      // exibimos a tela limpa "Entrando…" até o app recarregar. O seletor só
+      // aparece se o auto-enter falhar (sem perfil válido) ou se você pediu para trocar.
+      const willAutoEnter = logged && this.autoEnterOn() && !this._autoEnterTried && !this._offline;
       if (loginEl) loginEl.style.display = 'none';
-      if (profilesEl) profilesEl.style.display = 'block';
-      if (title) title.textContent = 'Quem vai estudar?';
-      if (sub) sub.textContent = 'Selecione seu perfil para entrar no seu diário.';
-      const lo = document.getElementById('gate-logout-btn');
-      if (lo) lo.style.display = logged ? 'inline-block' : 'none';
-      if (logged) this.loadCloudProfiles();
-      else this.renderGrid(ProfileManager.getProfiles());
+      if (willAutoEnter) {
+        this._stage = 'entering';
+        if (enteringEl) enteringEl.style.display = 'block';
+        if (profilesEl) profilesEl.style.display = 'none';
+        if (head) head.style.display = 'none';   // esconde "Quem vai estudar?"
+        this.loadCloudProfiles();                 // vai auto-entrar (ou cair no picker)
+      } else {
+        this._stage = 'profiles';
+        if (enteringEl) enteringEl.style.display = 'none';
+        if (profilesEl) profilesEl.style.display = 'block';
+        if (head) head.style.display = '';
+        if (title) title.textContent = 'Quem vai estudar?';
+        if (sub) sub.textContent = 'Selecione seu perfil para entrar no seu diário.';
+        const lo = document.getElementById('gate-logout-btn');
+        if (lo) lo.style.display = logged ? 'inline-block' : 'none';
+        if (logged) this.loadCloudProfiles();
+        else this.renderGrid(ProfileManager.getProfiles());
+      }
     }
+  },
+  // Mostra o seletor de perfis quando o auto-enter NÃO acontece (fallback).
+  _showProfilePicker() {
+    const profilesEl = document.getElementById('gate-profiles');
+    const enteringEl = document.getElementById('gate-entering');
+    const head = document.querySelector('#profile-gate .gate-panel-head');
+    const title = document.getElementById('profile-gate-title');
+    const sub = document.getElementById('profile-gate-sub');
+    const lo = document.getElementById('gate-logout-btn');
+    this._stage = 'profiles';
+    if (enteringEl) enteringEl.style.display = 'none';
+    if (profilesEl) profilesEl.style.display = 'block';
+    if (head) head.style.display = '';
+    if (title) title.textContent = 'Quem vai estudar?';
+    if (sub) sub.textContent = 'Selecione seu perfil para entrar no seu diário.';
+    if (lo) lo.style.display = 'inline-block';
   },
 
   async loadCloudProfiles() {
@@ -24217,21 +24367,25 @@ const ProfileUI = {
       const rows = await CloudStore.listProfiles();
       if (token !== this._gridToken) return; // chegou uma resposta mais nova
       ProfileManager.syncMirrorFromCloud(rows);
-      // ENTRAR DIRETO: após o login, vai direto ao último perfil usado (ou ao
-      // único existente) sem exibir o seletor. A troca fica dentro do app.
+      // ENTRAR DIRETO: após o login, vai direto ao perfil padrão/último usado (ou
+      // ao único existente) sem exibir o seletor. A troca fica dentro do app.
       if (this.autoEnterOn() && !this._autoEnterTried && !this._offline) {
-        let alvo = this.getLastProfile();
-        if (!alvo && rows.length === 1) alvo = rows[0].id;
+        let alvo = this.getDefaultProfile();               // perfil padrão definido nas configurações
+        if (!alvo || !rows.some(r => r.id === alvo)) alvo = this.getLastProfile();
+        if (!alvo && rows.length === 1) alvo = rows[0].id;  // conta com 1 perfil: entra nele
         if (alvo && rows.some(r => r.id === alvo)) {
           this._autoEnterTried = true;
-          if (grid) grid.innerHTML = '<p class="hint" style="text-align:center; padding:20px;">Entrando…</p>';
-          this.enterProfile(alvo);
+          this._entering = true;     // trava o gate na tela "Entrando…" até o reload
+          this.enterProfile(alvo);   // a tela "Entrando…" já está visível
           return;
         }
       }
+      // Fallback: nenhum alvo válido → mostra o seletor de perfis de propósito
+      this._showProfilePicker();
       this.renderGrid(rows.map(r => ({ id: r.id, nome: r.profile_name, avatar: r.avatar, cor: r.color })));
     } catch (err) {
       if (token !== this._gridToken) return;
+      this._showProfilePicker();
       if (grid.querySelector('.profile-card')) return; // mantém o que já está na tela
       grid.innerHTML = '<p class="hint" style="color:var(--bad); text-align:center; padding:20px;">Não foi possível carregar seus perfis: ' + escapeHtml(err.message || '') + '<br>Tente recarregar a página.</p>';
     }
@@ -24295,7 +24449,10 @@ const ProfileUI = {
         CloudStore._applying = false;
       } catch (err) {
         CloudStore._applying = false;
+        this._entering = false;   // libera o gate para mostrar o seletor de novo
+        this._autoEnterTried = true;
         showToast('Erro ao carregar o perfil: ' + (err.message || ''));
+        this._showProfilePicker();
         return;
       }
     } else {
@@ -24322,9 +24479,10 @@ const ProfileUI = {
     document.getElementById('pf-nome').value = nome;
     // dados do estudante (guardados em profile.meta)
     const setV = (fid, v) => { const el = document.getElementById(fid); if (el) el.value = v || ''; };
-    setV('pf-fullname', meta.fullname); setV('pf-concurso', meta.concurso); setV('pf-cargo', meta.cargo);
+    setV('pf-concurso', meta.concurso); setV('pf-cargo', meta.cargo);
     setV('pf-banca', meta.banca); setV('pf-prova', meta.provaDate); setV('pf-metah', meta.metaHoras);
-    const pinField = document.getElementById('pf-pin'); if (pinField && pinField.closest('.field')) pinField.closest('.field').style.display = 'none';
+    // o PIN agora vive na seção "Opções avançadas" (recolhida) — nada de escondê-lo por JS
+    const advanced = document.getElementById('pf-advanced'); if (advanced) advanced.open = false;
     document.getElementById('pf-avatar-grid').innerHTML = ProfileManager.DEFAULT_AVATARS.map(a =>
       `<button type="button" class="pf-avatar-opt ${a === avatar ? 'selected' : ''}" data-av="${a}">${a}</button>`).join('');
     document.getElementById('pf-color-grid').innerHTML = ProfileManager.DEFAULT_COLORS.map(c =>
@@ -24332,13 +24490,45 @@ const ProfileUI = {
     document.querySelectorAll('#pf-avatar-grid .pf-avatar-opt').forEach(b => b.addEventListener('click', () => {
       this._draftAvatar = b.dataset.av;
       document.querySelectorAll('#pf-avatar-grid .pf-avatar-opt').forEach(x => x.classList.toggle('selected', x === b));
+      this._pfUpdatePreview();
     }));
     document.querySelectorAll('#pf-color-grid .pf-color-opt').forEach(b => b.addEventListener('click', () => {
       this._draftColor = b.dataset.color;
       document.querySelectorAll('#pf-color-grid .pf-color-opt').forEach(x => x.classList.toggle('selected', x === b));
+      this._pfUpdatePreview();
     }));
+    // pré-visualização ao vivo enquanto edita
+    ['pf-nome', 'pf-concurso', 'pf-cargo', 'pf-prova'].forEach(fid => {
+      const el = document.getElementById(fid);
+      if (el && !el._pfBound) { el._pfBound = true; el.addEventListener('input', () => this._pfUpdatePreview()); el.addEventListener('change', () => this._pfUpdatePreview()); }
+    });
+    this._pfUpdatePreview();
     document.getElementById('profile-modal').style.display = 'flex';
     setTimeout(() => document.getElementById('pf-nome').focus(), 50);
+  },
+  _pfUpdatePreview() {
+    const g = (id) => { const el = document.getElementById(id); return el ? el.value.trim() : ''; };
+    const av = document.getElementById('pf-preview-avatar');
+    const nm = document.getElementById('pf-preview-name');
+    const sb = document.getElementById('pf-preview-sub');
+    const cd = document.getElementById('pf-preview-countdown');
+    if (av) { av.textContent = this._draftAvatar || '📘'; av.style.background = this._draftColor || 'var(--accent)'; }
+    if (nm) nm.textContent = g('pf-nome') || 'Seu perfil';
+    if (sb) {
+      const cargo = g('pf-cargo'), conc = g('pf-concurso');
+      sb.textContent = [cargo, conc].filter(Boolean).join(' · ') || 'Estudante';
+    }
+    if (cd) {
+      const d = g('pf-prova');
+      if (d) {
+        const alvo = new Date(d + 'T00:00:00'), hoje = new Date(); hoje.setHours(0, 0, 0, 0);
+        const dias = Math.round((alvo - hoje) / 86400000);
+        if (!isNaN(dias)) {
+          cd.style.display = 'block';
+          cd.innerHTML = dias >= 0 ? `<b>${dias}</b><span>dias p/ prova</span>` : `<b>${Math.abs(dias)}</b><span>dias atrás</span>`;
+        } else cd.style.display = 'none';
+      } else cd.style.display = 'none';
+    }
   },
   async saveModal() {
     const nome = document.getElementById('pf-nome').value.trim();
@@ -24348,7 +24538,7 @@ const ProfileUI = {
     try {
       // coleta os dados do estudante
       const gv = (fid) => { const el = document.getElementById(fid); return el ? el.value.trim() : ''; };
-      const meta = { fullname: gv('pf-fullname'), concurso: gv('pf-concurso'), cargo: gv('pf-cargo'), banca: gv('pf-banca'), provaDate: gv('pf-prova'), metaHoras: gv('pf-metah') };
+      const meta = { concurso: gv('pf-concurso'), cargo: gv('pf-cargo'), banca: gv('pf-banca'), provaDate: gv('pf-prova'), metaHoras: gv('pf-metah') };
       if (this._editingId) {
         ProfileManager.addMirror({ id: this._editingId, nome, avatar: this._draftAvatar, cor: this._draftColor });
         ProfileManager.updateProfile(this._editingId, { meta });   // dados do estudante (local + sincroniza no blob)
@@ -24420,7 +24610,11 @@ const ProfileUI = {
       } else {
         await CS.signIn(email, password);
         show('Entrando...', 'good');
-        setTimeout(() => { if (this.isGateOpen()) this.refreshStage(); }, 2000);
+        // transição imediata para a tela limpa "Entrando…" (sem esperar 2s nem
+        // mostrar o seletor de perfil). refreshStage detecta o login e auto-entra.
+        this._autoEnterTried = false;   // garante que o auto-enter rode neste login
+        this.refreshStage();
+        setTimeout(() => { if (this.isGateOpen() && this._stage === 'login') this.refreshStage(); }, 1500);
       }
     } catch (err) {
       show(this._friendlyAuthError(err), 'bad');
@@ -24525,7 +24719,7 @@ const ProfileUI = {
       <div class="profile-menu-head">
         <span class="profile-menu-avatar" style="background:${p.cor}">${p.avatar}</span>
         <div class="profile-menu-id">
-          <div class="profile-menu-name">${escapeHtml(meta.fullname || p.nome)}</div>
+          <div class="profile-menu-name">${escapeHtml(p.nome)}</div>
           <div class="profile-menu-sub">${escapeHtml(sub)}</div>
         </div>
       </div>
@@ -25980,16 +26174,35 @@ window.CloudUI = CloudUI;
   on('cloud-sessions-refresh', 'click', () => CloudUI.renderSessions());
   on('cloud-push-now', 'click', () => CloudStore.autoSave());
   on('cloud-pull-now', 'click', () => CloudStore.pullActiveAndReload());
-  // Preferência \"entrar direto no último perfil\" — reflete o estado salvo e persiste ao mudar.
+  // Preferência "entrar direto" + seletor de PERFIL PADRÃO — reflete o estado salvo e persiste.
   (function () {
     const pae = document.getElementById('pref-auto-enter');
+    const sel = document.getElementById('pref-default-profile');
+    const fillDefaultSel = () => {
+      if (!sel) return;
+      const profs = (window.ProfileManager && ProfileManager.getProfiles) ? ProfileManager.getProfiles() : [];
+      const cur = ProfileUI.getDefaultProfile() || '';
+      sel.innerHTML = '<option value="">Último perfil usado</option>' +
+        profs.map(p => `<option value="${p.id}" ${p.id === cur ? 'selected' : ''}>${escapeHtml(p.nome)}</option>`).join('');
+      sel.disabled = !(pae && pae.checked);
+    };
     if (pae) {
       pae.checked = ProfileUI.autoEnterOn();
       pae.addEventListener('change', () => {
         ProfileUI.setAutoEnter(pae.checked);
+        if (sel) sel.disabled = !pae.checked;
         showToast(pae.checked ? 'O app abrirá direto no seu perfil' : 'O app perguntará o perfil ao abrir');
       });
     }
+    if (sel) {
+      sel.addEventListener('change', () => {
+        ProfileUI.setDefaultProfile(sel.value || null);
+        showToast(sel.value ? 'Perfil padrão definido ✓' : 'Usando o último perfil usado');
+      });
+    }
+    // popula sempre que a tela de configurações for aberta (perfis podem ter mudado)
+    fillDefaultSel();
+    window.addEventListener('screen:activated', (e) => { if (e.detail && e.detail.screen === 'config') fillDefaultSel(); });
   })();
 })();
 window.addEventListener('screen:activated', (e) => { if (e.detail.screen === 'config' && window.CloudUI) CloudUI.render(); });
@@ -27116,12 +27329,41 @@ else CloudStore.init();
 (function () {
   'use strict';
 
-  const PFX = 'diario-estudos:ux47:';
-  function pget(k, d) { try { const v = localStorage.getItem(PFX + k); return v === null ? d : v; } catch (_) { return d; } }
-  function pset(k, v) { try { localStorage.setItem(PFX + k, String(v)); } catch (_) {} }
-  function pdel(k) { try { localStorage.removeItem(PFX + k); } catch (_) {} }
-  function jget(k, d) { try { return JSON.parse(localStorage.getItem(PFX + k)) ?? d; } catch (_) { return d; } }
-  function jset(k, v) { try { localStorage.setItem(PFX + k, JSON.stringify(v)); } catch (_) {} }
+  // PREFERÊNCIAS DE UI (abas visíveis, blocos, linhas de meta, etc.)
+  // Antes ficavam num prefixo GLOBAL (não sincronizava entre aparelhos). Agora são
+  // gravadas DENTRO do namespace do perfil ativo (diario-estudos:u:<id>:ux47:*),
+  // então entram no blob sincronizado e aparecem iguais em qualquer dispositivo.
+  const OLD_PFX = 'diario-estudos:ux47:';
+  function _activePfx() {
+    try {
+      const pid = localStorage.getItem('diario-estudos:active-profile');
+      return pid ? ('diario-estudos:u:' + pid + ':ux47:') : OLD_PFX;
+    } catch (_) { return OLD_PFX; }
+  }
+  // Migração única (por perfil): copia as preferências globais antigas para o
+  // namespace do perfil ativo, para você não perder o que já tinha configurado.
+  (function migrateUxPrefs() {
+    try {
+      const npfx = _activePfx();
+      if (npfx === OLD_PFX) return;
+      const flag = npfx + '__migrated';
+      if (localStorage.getItem(flag)) return;
+      for (let i = 0; i < localStorage.length; i++) {
+        const k = localStorage.key(i);
+        if (k && k.startsWith(OLD_PFX)) {
+          const nk = npfx + k.slice(OLD_PFX.length);
+          if (localStorage.getItem(nk) === null) localStorage.setItem(nk, localStorage.getItem(k));
+        }
+      }
+      localStorage.setItem(flag, '1');
+    } catch (_) {}
+  })();
+  function _syncSoon() { try { if (window.CloudStore && CloudStore.notifyChange) CloudStore.notifyChange(); } catch (_) {} }
+  function pget(k, d) { try { const v = localStorage.getItem(_activePfx() + k); return v === null ? d : v; } catch (_) { return d; } }
+  function pset(k, v) { try { localStorage.setItem(_activePfx() + k, String(v)); _syncSoon(); } catch (_) {} }
+  function pdel(k) { try { localStorage.removeItem(_activePfx() + k); _syncSoon(); } catch (_) {} }
+  function jget(k, d) { try { return JSON.parse(localStorage.getItem(_activePfx() + k)) ?? d; } catch (_) { return d; } }
+  function jset(k, v) { try { localStorage.setItem(_activePfx() + k, JSON.stringify(v)); _syncSoon(); } catch (_) {} }
   const $ = (s, r) => (r || document).querySelector(s);
   const $$ = (s, r) => Array.from((r || document).querySelectorAll(s));
   const esc = (s) => (typeof escapeHtml === 'function' ? escapeHtml(s) : String(s == null ? '' : s));
@@ -27582,6 +27824,24 @@ else CloudStore.init();
       return ok.length ? ok : TEC_TABS.map(t => t.id);
     },
     init() {
+      // engrenagem "Exibição" no topo do TEC (agrupa Filtros + Modo enxuto)
+      (function () {
+        const gbtn = $('#tec-gear-btn'), gmenu = $('#tec-gear-menu');
+        if (!gbtn || !gmenu || gbtn._ux) return;
+        gbtn._ux = true;
+        const close = () => { gmenu.classList.remove('open'); gbtn.classList.remove('open'); gbtn.setAttribute('aria-expanded', 'false'); gmenu.setAttribute('aria-hidden', 'true'); document.removeEventListener('click', onDoc, true); };
+        const onDoc = (e) => { if (!gmenu.contains(e.target) && e.target !== gbtn && !gbtn.contains(e.target)) close(); };
+        gbtn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          const open = gmenu.classList.toggle('open');
+          gbtn.classList.toggle('open', open);
+          gbtn.setAttribute('aria-expanded', open ? 'true' : 'false');
+          gmenu.setAttribute('aria-hidden', open ? 'false' : 'true');
+          if (open) setTimeout(() => document.addEventListener('click', onDoc, true), 0);
+          else document.removeEventListener('click', onDoc, true);
+        });
+        gmenu.querySelectorAll('.grade-gear-item').forEach(it => it.addEventListener('click', () => setTimeout(close, 0)));
+      })();
       const tabs = $('#tec-subtabs');
       if (!tabs) return;
       if (!$('#tec-tabs-gear')) {
