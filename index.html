@@ -10056,6 +10056,7 @@ const DB = {
     try { n += CardsConfig.limparContadorOrfao(ids); } catch (_) { _quiet(_); }
     // A cura de cards FSRS roda em silêncio (não entra na contagem de "órfãos"):
     // é uma correção de metadados, não uma remoção de lixo.
+    try { const migradas = this.migrarAproveitamentoAgregado(); if (migradas > 0) console.info('[migração] ' + migradas + ' semana(s) com aproveitamento recalculado'); } catch (e) { _quiet(e, 'mig-aprov'); }
     try { const curados = this.curarCardsFSRS(); if (curados > 0) console.warn('[cura FSRS] cards com metadados corrigidos:', curados); } catch (_) { _quiet(_); }
     return n;
   },
@@ -10066,6 +10067,40 @@ const DB = {
      — mas deixava a EXIBIÇÃO e as ESTATÍSTICAS erradas (intervalo 0 dias num card
      maduro). Aqui reconstruímos o intervalo a partir de lastReview↔due, sem tocar
      no S/D nem no agendamento. Também sanea S/D fora de faixa e NaN. */
+  /* ── MIGRAÇÃO: aproveitamento do histórico para a régua agregada ───────────
+     As semanas fechadas guardam `avgPerformancePct` calculado no fechamento.
+     Mudar a fórmula sem tocar nelas deixaria o gráfico "por semana fechada"
+     misturando DUAS réguas — semanas antigas pela média das sessões, novas pelo
+     agregado. Seria pior que o problema original.
+
+     Recalculamos a partir dos registros, que continuam gravados. Só mexe onde
+     há sessões no intervalo (semana vazia fica como está) e roda UMA vez,
+     marcada por flag. O valor anterior vai para `avgPerformancePctLegado`
+     para o número antigo não sumir sem rastro. */
+  migrarAproveitamentoAgregado() {
+    const FLAG = 'mig-aprov-agregado-v1';
+    try {
+      if (this._get(FLAG, null)) return 0;
+      const hist = this.getCycleHistory() || [];
+      const todas = this.getEntries() || [];
+      let n = 0;
+      hist.forEach(w => {
+        if (!w || !w.startDate || !w.endDate) return;
+        const novo = CycleEngine.aproveitamentoNoPeriodo(w.startDate, w.endDate, todas);
+        if (novo == null) return;
+        const antigo = w.avgPerformancePct;
+        if (antigo != null && Math.abs(antigo - novo) < 0.005) return;
+        if (antigo != null && w.avgPerformancePctLegado === undefined) w.avgPerformancePctLegado = antigo;
+        w.avgPerformancePct = novo;
+        n++;
+      });
+      if (n) this._set(this.KEYS.cycleHistory, hist);
+      this._set(FLAG, 1);
+      if (n) { try { console.info('[migração] aproveitamento recalculado em ' + n + ' semana(s).'); } catch (e) {} }
+      return n;
+    } catch (e) { _quiet(e, 'migrar-aproveitamento'); return 0; }
+  },
+
   curarCardsFSRS() {
     const list = this.getCards();
     let mudou = 0;
@@ -13242,6 +13277,31 @@ const CycleEngine = {
   // dado o snapshot (com suas matérias/metas) e um intervalo [start,end], soma os
   // registros reais e devolve um patch com os valores derivados. As mesmas fórmulas
   // usadas no fechamento do ciclo — garante coesão total entre telas.
+  /* ── APROVEITAMENTO DE UM PERÍODO ─────────────────────────────────────────
+     Fonte ÚNICA da métrica. Antes a fórmula estava escrita duas vezes (no
+     fechamento da semana e no recálculo) e ainda por cima DIFERIA da usada na
+     tela de Evolução — a mesma semana aparecia com dois números.
+
+     A regra correta é a AGREGADA: soma de acertos ÷ soma de questões.
+     Cada questão vale uma.
+
+     A regra antiga era a média aritmética dos percentuais de cada sessão, o
+     que dá peso igual a sessões de tamanhos muito diferentes: uma tentativa de
+     9 questões pesava o mesmo que uma de 100. Como sessões curtas produzem
+     percentuais mais extremos, elas puxavam o resultado — nos dados reais que
+     motivaram esta correção, o desvio ia de 0,47 a 2,62 pontos, SEMPRE para
+     baixo. "Aproveitamento" significa quantas questões você acertou, não a
+     média das suas sessões. */
+  aproveitamentoNoPeriodo(startDate, endDate, entries) {
+    const lista = (entries || DB.getEntries())
+      .filter(e => e.date >= startDate && e.date <= endDate && (Number(e.total) || 0) > 0);
+    if (!lista.length) return null;
+    let acertos = 0, questoes = 0;
+    lista.forEach(e => { acertos += (Number(e.correct) || 0); questoes += (Number(e.total) || 0); });
+    if (questoes <= 0) return null;
+    return Math.round((acertos / questoes) * 10000) / 100;   // 2 casas
+  },
+
   recomputeWeek(snapshot, opts) {
     opts = opts || {};
     const startDate = opts.startDate || (snapshot && snapshot.startDate);
@@ -13250,10 +13310,7 @@ const CycleEngine = {
     const metas = opts.metas || null; // mapa normKey(nome) -> meta(min) editada (opcional)
     const entries = DB.getEntries().filter(e => e.date >= startDate && e.date <= endDate);
     const totalStudied = entries.reduce((sum, e) => sum + (e.durationMin || 0), 0);
-    const withPct = entries.filter(e => e.total > 0);
-    const avgPct = withPct.length
-      ? Math.round((withPct.reduce((sum, e) => sum + (e.correct / e.total) * 100, 0) / withPct.length) * 100) / 100
-      : null;
+    const avgPct = this.aproveitamentoNoPeriodo(startDate, endDate, entries);
     const baseSubjects = (snapshot && snapshot.subjects) || [];
     const subjectsSnapshot = baseSubjects.map(s => {
       // meta editável (se fornecida) sobrescreve a definida no snapshot
@@ -15851,10 +15908,7 @@ function planCycleMode() {
     // monta snapshot completo com desempenho, considerando os estudos dentro do intervalo
     const entries = DB.getEntries().filter(e => e.date >= cycle.startDate && e.date <= realEndDate);
     const totalStudied = entries.reduce((sum, e) => sum + (e.durationMin || 0), 0);
-    const withPct = entries.filter(e => e.total > 0);
-    const avgPct = withPct.length
-      ? Math.round((withPct.reduce((sum, e) => sum + (e.correct / e.total) * 100, 0) / withPct.length) * 100) / 100
-      : null;
+    const avgPct = CycleEngine.aproveitamentoNoPeriodo(cycle.startDate, realEndDate, entries);
 
     const subjectsSnapshot = cycle.subjects.map(s => {
       const studied = CycleEngine.minutesStudied(s.nome, cycle.startDate, cycle.endDate);
@@ -16203,7 +16257,7 @@ const HistoricoScreen = {
           <div class="wk-metric"><div class="wk-metric-val wk-c-studied">—</div><div class="wk-metric-lbl">estudado</div></div>
           <div class="wk-metric"><div class="wk-metric-val wk-c-final">—</div><div class="wk-metric-lbl">finalizadas</div></div>
           <div class="wk-metric"><div class="wk-metric-val wk-c-total">—</div><div class="wk-metric-lbl">matérias</div></div>
-          <div class="wk-metric"><div class="wk-metric-val wk-c-perf">—</div><div class="wk-metric-lbl">% acerto médio</div></div>
+          <div class="wk-metric"><div class="wk-metric-val wk-c-perf">—</div><div class="wk-metric-lbl" title="Acertos ÷ questões no período — cada questão pesa uma">% de acerto</div></div>
         </div>
 
         ${subjRows ? `<div class="wk-subj-list"><div class="wk-subj-title">Metas por matéria</div>${subjRows}</div>` : ''}
@@ -17431,7 +17485,7 @@ const EvolucaoScreen = {
     }
     const points = hist.map((w, i) => ({ x: i, pct: w.avgPerformancePct, label: formatDateShort(w.endDate) }));
     const legenda = `<div class="evo-legend" style="padding:12px 0 0;">
-      <span class="evo-legend-item"><span class="evo-legend-swatch" style="background:var(--accent); height:3px;"></span>% de acerto da semana</span>
+      <span class="evo-legend-item"><span class="evo-legend-swatch" style="background:var(--accent); height:3px;"></span>% de acerto da semana (acertos ÷ questões)</span>
       ${metaRefs().map(r => `<span class="evo-legend-item"><span class="evo-legend-swatch" style="background:${r.color}; height:0; border-top:2px dashed ${r.color};"></span>meta ${r.v}%</span>`).join('')}
     </div>`;
     container.innerHTML = this.percentLineSVG(points, [{ color: this._ctheme().accent, points }],
@@ -20672,6 +20726,32 @@ const AutoTeste = {
     this._ok('4.000 respostas: fase sempre válida', faseRuim === 0, faseRuim);
   },
 
+  /* Aproveitamento: a métrica precisa ser AGREGADA e igual em todas as telas. */
+  aproveitamento() {
+    const ent = [
+      { date: '2026-01-01', total: 3, correct: 3 },      // 100% em 3 questões
+      { date: '2026-01-02', total: 97, correct: 70 },    // 72,2% em 97
+      { date: '2026-01-03', total: 0, correct: 0 }       // sessão sem questões
+    ];
+    const r = CycleEngine.aproveitamentoNoPeriodo('2026-01-01', '2026-01-03', ent);
+    this._ok('agregado = 73/100 = 73%', r === 73, r);
+    /* A média das sessões daria 86,1% — o viés que motivou a unificação: uma
+       sessão de 3 questões pesava igual a uma de 97. */
+    this._ok('não é a média das sessões (86,1%)', Math.abs(r - 86.1) > 1, r);
+    this._ok('sessão sem questões é ignorada',
+      CycleEngine.aproveitamentoNoPeriodo('2026-01-03', '2026-01-03', ent) === null);
+    this._ok('período vazio devolve null',
+      CycleEngine.aproveitamentoNoPeriodo('2020-01-01', '2020-01-07', ent) === null);
+    this._ok('2 casas decimais',
+      CycleEngine.aproveitamentoNoPeriodo('2026-01-02', '2026-01-02', ent) === 72.16,
+      CycleEngine.aproveitamentoNoPeriodo('2026-01-02', '2026-01-02', ent));
+    /* Invariante que garante a coerência entre as telas: o agregado de um
+       período é sempre igual a somar acertos e questões na mão. */
+    const ss = ent.filter(e => e.total > 0);
+    const manual = Math.round(ss.reduce((a, e) => a + e.correct, 0) / ss.reduce((a, e) => a + e.total, 0) * 10000) / 100;
+    this._ok('Histórico e Evolução usam a MESMA conta', r === manual, [r, manual]);
+  },
+
   /* Colagem de lista de aulas: cada caso é um formato real de índice de curso. */
   lote() {
     const L = (x) => EstudoNovoScreen._limparLinha(x);
@@ -20747,7 +20827,8 @@ const AutoTeste = {
     const t0 = Date.now();
     [['FSRS-6', 'fsrs'], ['Dispersão (fuzz)', 'fuzz'], ['Agendador', 'agendador'],
      ['Parser TEC', 'tec'], ['Robustez', 'robustez'],
-     ['Colagem em lote', 'lote'], ['Eixo dos gráficos', 'eixo']].forEach(([nome, fn]) => {
+     ['Colagem em lote', 'lote'], ['Eixo dos gráficos', 'eixo'],
+     ['Aproveitamento', 'aproveitamento']].forEach(([nome, fn]) => {
       try { this[fn](); }
       catch (e) { this._r.total++; this._r.falhou++; this._r.falhas.push({ nome: nome + ' — exceção', obtido: String(e && e.message || e) }); }
     });
