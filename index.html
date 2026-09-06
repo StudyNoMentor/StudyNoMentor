@@ -7,11 +7,15 @@
 <meta name="description" content="Diário de Estudos — registro, ciclo de estudos, flashcards com FSRS, leis secas e acompanhamento de desempenho.">
 <meta name="theme-color" content="#ffffff" id="meta-theme-color">
 <link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&amp;family=Space+Mono:wght@400;700&amp;display=swap" rel="stylesheet">
-<!-- SheetJS: leitura de planilhas .xlsx/.xls/.csv no upload do Desempenho TEC (opcional; a colagem funciona sem ele) -->
-<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js" defer></script>
-<!-- Supabase: sincronização opcional na nuvem (login + backup do perfil) -->
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js" defer></script>
+<!-- SheetJS NÃO é mais carregado aqui: (1) tinha CVE nas versões <=0.19.2 e (2) pesava
+     no caminho crítico mesmo sem uso. O leitor .xlsx EMBUTIDO (MiniXLSX) é o primário;
+     o SheetJS (versão CORRIGIDA 0.20.x do CDN oficial) só é baixado SOB DEMANDA, quando
+     o embutido não dá conta (ex.: .xls binário antigo). Ver ensureSheetJS(). -->
+<!-- Supabase: sincronização opcional na nuvem (login + backup do perfil). Versão FIXADA
+     (não mais "@2" solto) para uma mudança dentro do major não quebrar o app sem aviso. -->
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js" defer></script>
 <style>
   :root {
     --fs-scale: 1;   /* ajustável pelo usuário: A− / A+ no topo */
@@ -34,6 +38,10 @@
     --surface-sunken: #f8f9fb;
     --border: #e5e7eb;
     --border-strong: #d1d5db;
+    /* Borda de CONTROLE (input/select/textarea). WCAG 2.1 §1.4.11 exige ≥3:1 para o
+       elemento que identifica um campo. As bordas cinza-claras davam ~1,2:1 (o campo
+       "sumia" sob luz forte). #9aa1ad dá ~3,0:1 sobre o fundo rebaixado. */
+    --border-field: #9aa1ad;
     --text: #14161a;
     --text-soft: #5b6270;
     --text-faint: #656b78;   /* 5.35:1 sobre branco, 5.08:1 sobre o fundo rebaixado */
@@ -85,6 +93,7 @@
     --surface-sunken: #12141a;
     --border: #2a2f3a;
     --border-strong: #3a4150;
+    --border-field: #6b7280;   /* ≥3:1 sobre o fundo escuro rebaixado */
     --text: #e8eaed;
     --text-soft: #a6adba;
     --text-faint: #868d9b;   /* 5.17:1 — o valor antigo era mais ESCURO que no tema claro */
@@ -678,7 +687,7 @@
     font-size: calc(14px * var(--fs-scale, 1));
     color: var(--text);
     background: var(--surface-sunken);
-    border: 1.5px solid var(--border);
+    border: 1.5px solid var(--border-field);   /* contraste ≥3:1 (WCAG 1.4.11) */
     border-radius: 12px;
     padding: 10px 12px;
     transition: border-color 0.15s ease, box-shadow 0.15s ease, background 0.15s ease;
@@ -7725,8 +7734,8 @@
   </main>
 </div>
 
-<div class="toast" id="toast">
-  <span class="check"><svg viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg></span>
+<div class="toast" id="toast" role="status" aria-live="polite" aria-atomic="true">
+  <span class="check"><svg viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12"></polyline></svg></span>
   <span id="toast-text">Estudo registrado</span>
 </div>
 
@@ -9737,7 +9746,50 @@ const DB = {
       if (n) this._set(this.KEYS.revlog, limpo);
     } catch (_) {}
     try { n += CardsConfig.limparContadorOrfao(ids); } catch (_) {}
+    // A cura de cards FSRS roda em silêncio (não entra na contagem de "órfãos"):
+    // é uma correção de metadados, não uma remoção de lixo.
+    try { const curados = this.curarCardsFSRS(); if (curados > 0) console.warn('[cura FSRS] cards com metadados corrigidos:', curados); } catch (_) {}
     return n;
+  },
+  /* CURA de cards FSRS legados (migração indolor, roda no boot).
+     Versões antigas graduavam um card para 'review' sem gravar o campo
+     `intervalo` (ficava 0). Isso NÃO quebrava o agendamento — o `due` está
+     correto e o próprio scheduler tem fallback (ivPrevio calcula por lastReview↔due)
+     — mas deixava a EXIBIÇÃO e as ESTATÍSTICAS erradas (intervalo 0 dias num card
+     maduro). Aqui reconstruímos o intervalo a partir de lastReview↔due, sem tocar
+     no S/D nem no agendamento. Também sanea S/D fora de faixa e NaN. */
+  curarCardsFSRS() {
+    const list = this.getCards();
+    let mudou = 0;
+    const daysBetween = (a, b) => {
+      try { const A = new Date(a + 'T00:00:00'), B = new Date(b + 'T00:00:00');
+        return Math.round((B - A) / 86400000); } catch (_) { return 0; }
+    };
+    list.forEach(c => {
+      let alterou = false;
+      // 1) review/relearning com intervalo<=0: reconstrói pelo due
+      if ((c.phase === 'review' || c.phase === 'relearning') && (!(c.intervalo > 0))) {
+        let iv = 0;
+        if (c.lastReview && c.due) iv = daysBetween(c.lastReview, c.due);
+        if (!(iv > 0) && c.due) iv = Math.max(1, daysBetween(todayCards(), c.due));
+        if (iv > 0) { c.intervalo = Math.min(36500, iv); alterou = true; }
+      }
+      // 2) S fora dos limites do Anki (S_MIN 0.001 · S_MAX 36500)
+      if (typeof c.s === 'number') {
+        if (!isFinite(c.s)) { c.s = 0.001; alterou = true; }
+        else if (c.s < 0.001) { c.s = 0.001; alterou = true; }
+        else if (c.s > 36500) { c.s = 36500; alterou = true; }
+      }
+      // 3) D fora de 1..10 (ou NaN)
+      if (typeof c.d === 'number') {
+        if (!isFinite(c.d)) { c.d = 5; alterou = true; }
+        else if (c.d < 1) { c.d = 1; alterou = true; }
+        else if (c.d > 10) { c.d = 10; alterou = true; }
+      }
+      if (alterou) { c.updatedAt = new Date().toISOString(); mudou++; }
+    });
+    if (mudou) this.saveCards(list);
+    return mudou;
   },
 
   // ---- Links úteis: [{ id, nome, url, categoria, cor, logo(dataURL|null), createdAt }] ----
@@ -10874,11 +10926,16 @@ document.getElementById('tabs').addEventListener('click', (e) => {
 /* ============================================================
    TOAST util (compartilhado)
    ============================================================ */
+let _toastTimer = null;
 function showToast(text) {
   const toast = document.getElementById('toast');
+  if (!toast) return;
   document.getElementById('toast-text').textContent = text;
   toast.classList.add('show');
-  setTimeout(() => toast.classList.remove('show'), 2400);
+  // BUG CORRIGIDO: o timer do toast anterior não era cancelado, então dois toasts
+  // em <2,4s faziam o primeiro timer apagar o segundo antes da hora.
+  clearTimeout(_toastTimer);
+  _toastTimer = setTimeout(() => toast.classList.remove('show'), 2400);
 }
 
 // ============================================================
@@ -11098,6 +11155,29 @@ function todayLocal() {
    (essencial: a 1ª coluna vem vazia nas linhas de disciplina).
    Usado como fallback quando a biblioteca SheetJS (CDN) não carrega.
    ============================================================ */
+
+/* Carregador SOB DEMANDA do SheetJS (versão CORRIGIDA, sem o CVE do 0.18.5).
+   Só é chamado quando o leitor embutido (MiniXLSX) não resolve — ex.: .xls
+   binário antigo. Retorna uma Promise que resolve quando window.XLSX existe.
+   Fica em cache: baixa no máximo uma vez por sessão. */
+let _sheetjsPromise = null;
+function ensureSheetJS() {
+  if (typeof XLSX !== 'undefined') return Promise.resolve(true);
+  if (_sheetjsPromise) return _sheetjsPromise;
+  _sheetjsPromise = new Promise((resolve) => {
+    try {
+      const s = document.createElement('script');
+      // CDN oficial do SheetJS com a correção do Prototype Pollution / ReDoS.
+      s.src = 'https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js';
+      s.async = true;
+      s.onload = () => resolve(typeof XLSX !== 'undefined');
+      s.onerror = () => { _sheetjsPromise = null; resolve(false); };
+      document.head.appendChild(s);
+    } catch (_) { _sheetjsPromise = null; resolve(false); }
+  });
+  return _sheetjsPromise;
+}
+
 const MiniXLSX = {
   _dv(u8) { return new DataView(u8.buffer, u8.byteOffset, u8.byteLength); },
   // Lê o diretório central do ZIP e devolve um mapa nome -> { method, compSize, localOff }
@@ -22574,9 +22654,12 @@ const DesempenhoTecScreen = {
       reader.readAsText(file);
       return;
     }
-    // Fallback via SheetJS (usado só se o leitor embutido falhar OU para .xls antigo)
-    const trySheetJS = () => {
-      if (typeof XLSX === 'undefined') {
+    // Fallback via SheetJS (usado só se o leitor embutido falhar OU para .xls antigo).
+    // Carrega a biblioteca SOB DEMANDA (não vem no caminho crítico da abertura).
+    const trySheetJS = async () => {
+      prev.textContent = 'Carregando leitor de planilha…'; prev.style.color = 'var(--text-faint)';
+      const ok = await ensureSheetJS();
+      if (!ok || typeof XLSX === 'undefined') {
         prev.textContent = (ext === 'xls')
           ? '⚠ Formato .xls antigo requer internet. No Excel/Calc, salve como .xlsx e reenvie.'
           : '⚠ Não consegui ler a planilha. Exporte como .csv ou cole os dados manualmente.';
@@ -22619,7 +22702,7 @@ const DesempenhoTecScreen = {
       MiniXLSX.readFirstSheet(file)
         .then((res) => {
           const rows = TecEngine.parseCellRows(res.rows);
-          if (rows.length === 0 && typeof XLSX !== 'undefined') { trySheetJS(); return; }
+          if (rows.length === 0) { trySheetJS(); return; }  // embutido não achou linhas → tenta SheetJS sob demanda
           finish(rows);
         })
         .catch((err) => { console.error(err); trySheetJS(); });
@@ -23506,8 +23589,10 @@ const DesempenhoTecScreen = {
       reader.readAsText(file);
       return;
     }
-    const trySheetJS = () => {
-      if (typeof XLSX === 'undefined') {
+    const trySheetJS = async () => {
+      prev.textContent = 'Carregando leitor de planilha…'; prev.style.color = 'var(--text-faint)';
+      const ok = await ensureSheetJS();
+      if (!ok || typeof XLSX === 'undefined') {
         prev.textContent = (ext === 'xls')
           ? '⚠ Formato .xls antigo requer internet. Salve como .xlsx e reenvie.'
           : '⚠ Não consegui ler a planilha. Exporte como .csv ou cole os dados.';
@@ -23533,7 +23618,7 @@ const DesempenhoTecScreen = {
       MiniXLSX.readFirstSheet(file)
         .then((res) => {
           const rows = ReforcoEngine.parseIncidenciaCells(res.rows, banca);
-          if (rows.length === 0 && typeof XLSX !== 'undefined') { trySheetJS(); return; }
+          if (rows.length === 0) { trySheetJS(); return; }
           finish(rows);
         })
         .catch((err) => { console.error(err); trySheetJS(); });
