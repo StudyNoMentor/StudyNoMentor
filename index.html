@@ -3,6 +3,20 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
+<!-- ═══════════════ SEGURANÇA — Content-Security-Policy ═══════════════
+     Rede de contenção: mesmo que o sanitizador de HTML falhasse, o navegador
+     recusa scripts/conexões fora desta allowlist. Cada origem abaixo é EXIGIDA
+     por um recurso real do app (não há origem "solta"):
+       • script-src  : o próprio app (inline, exigido pelo padrão #app-code) +
+                       os CDNs do Supabase (jsDelivr) e do SheetJS sob demanda.
+       • connect-src : Supabase (REST https + realtime wss) e os CDNs.
+       • style-src   : estilos inline do app + Google Fonts.
+       • font-src    : os .woff2 do Google Fonts.
+       • img-src     : imagens do usuário (data:/blob:) e https.
+       • object-src  : NENHUM (bloqueia <object>/<embed>).
+       • base-uri / form-action: só o próprio documento. -->
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://cdn.sheetjs.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com data:; img-src 'self' data: blob: https:; connect-src 'self' https://*.supabase.co wss://*.supabase.co https://cdn.jsdelivr.net https://cdn.sheetjs.com; object-src 'none'; base-uri 'self'; form-action 'self'; worker-src 'self' blob:; frame-src 'none'">
+<meta name="referrer" content="strict-origin-when-cross-origin">
 <title>Diário de Estudos</title>
 <meta name="description" content="Diário de Estudos — registro, ciclo de estudos, flashcards com FSRS, leis secas e acompanhamento de desempenho.">
 <meta name="theme-color" content="#ffffff" id="meta-theme-color">
@@ -17,6 +31,33 @@
      (não mais "@2" solto) para uma mudança dentro do major não quebrar o app sem aviso. -->
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js" defer></script>
 <style>
+  /* Skip link (acessibilidade): fica oculto até receber foco pelo teclado.
+     Permite pular a barra lateral e ir direto ao conteúdo — WCAG 2.4.1. */
+  .skip-link {
+    position: fixed; top: -60px; left: 12px; z-index: 100000;
+    background: var(--accent, #4f46e5); color: #fff; padding: 10px 16px;
+    border-radius: 0 0 10px 10px; font-weight: 700; font-size: 14px; text-decoration: none;
+    transition: top .15s ease;
+  }
+  .skip-link:focus { top: 0; outline: 3px solid #fff; outline-offset: 2px; }
+  /* Overlay de carregamento inicial */
+  #app-loading {
+    position: fixed; inset: 0; z-index: 99999;
+    display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 16px;
+    background: #f4f5f7; color: #5b6270;
+    font-family: 'Inter', system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+    transition: opacity .28s ease;
+  }
+  html[data-theme="dark"] #app-loading { background: #12141a; color: #a6adba; }
+  #app-loading.hide { opacity: 0; pointer-events: none; }
+  .app-loading-spin {
+    width: 44px; height: 44px; border-radius: 50%;
+    border: 4px solid rgba(79,70,229,0.22); border-top-color: #4f46e5;
+    animation: appSpin .8s linear infinite;
+  }
+  .app-loading-txt { font-size: 14px; font-weight: 700; }
+  @keyframes appSpin { to { transform: rotate(360deg); } }
+  @media (prefers-reduced-motion: reduce) { .app-loading-spin { animation: none; } }
   :root {
     --fs-scale: 1;   /* ajustável pelo usuário: A− / A+ no topo */
     /* ── Escala tipográfica ── um passo para cada função. Antes havia 31 tamanhos
@@ -5576,8 +5617,16 @@
   </div>
 </div>
 
+<a href="#main-content" class="skip-link">Pular para o conteúdo</a>
+<!-- Overlay de carregamento: cobre a UI enquanto o IndexedDB hidrata e o app-code
+     ainda não rodou. Sem ele, a tela pintava clicável mas os cliques eram engolidos
+     (o usuário achava que travou). É removido no fim de runApp(). -->
+<div id="app-loading" role="status" aria-live="polite" aria-label="Carregando o aplicativo">
+  <div class="app-loading-spin" aria-hidden="true"></div>
+  <div class="app-loading-txt">Carregando seus estudos…</div>
+</div>
 <div class="app-shell">
-  <aside class="sidebar">
+  <aside class="sidebar" role="navigation" aria-label="Menu principal">
     <div class="sidebar-brand">
       <div class="brand-top-row">
         <div class="brand-top-actions">
@@ -5660,7 +5709,7 @@
     </div>
   </aside>
 
-  <main class="main-content">
+  <main class="main-content" id="main-content" tabindex="-1">
     <div class="content-wrap">
 
       <!-- ============ TELA: REGISTRAR ============ -->
@@ -5744,11 +5793,11 @@
               </div>
               <div class="field">
                 <label for="page-start">Página inicial <span class="opt">(opcional)</span></label>
-                <input type="number" id="page-start" min="0" placeholder="0">
+                <input type="number" inputmode="numeric" id="page-start" min="0" placeholder="0">
               </div>
               <div class="field">
                 <label for="page-end">Página final <span class="opt">(opcional)</span></label>
-                <input type="number" id="page-end" min="0" placeholder="0">
+                <input type="number" inputmode="numeric" id="page-end" min="0" placeholder="0">
               </div>
             </div>
             <p class="hint" id="pages-hint">&nbsp;</p>
@@ -5757,11 +5806,11 @@
               <div class="row-3">
                 <div class="field">
                   <label for="video-start">Minuto inicial do vídeo <span class="opt">(opcional)</span></label>
-                  <input type="number" id="video-start" min="0" step="0.1" placeholder="0">
+                  <input type="number" inputmode="decimal" id="video-start" min="0" step="0.1" placeholder="0">
                 </div>
                 <div class="field">
                   <label for="video-end">Minuto final do vídeo <span class="opt">(opcional)</span></label>
-                  <input type="number" id="video-end" min="0" step="0.1" placeholder="0">
+                  <input type="number" inputmode="decimal" id="video-end" min="0" step="0.1" placeholder="0">
                 </div>
                 <div class="field">
                   <label>Vídeo assistido</label>
@@ -6368,18 +6417,18 @@
       </div>
       <div class="cards-modal-body">
         <div class="field-group">
-          <div class="field"><label>Baralho ou disciplina <span class="req">*</span></label>
+          <div class="field"><label for="card-destino">Baralho ou disciplina <span class="req">*</span></label>
             <select id="card-destino"></select></div>
-          <div class="field"><label>Tópico <span class="opt">(opcional)</span></label>
+          <div class="field"><label for="card-topico">Tópico <span class="opt">(opcional)</span></label>
             <input type="text" id="card-topico" list="card-topico-list" placeholder="Ex.: Crimes contra a Adm.">
             <datalist id="card-topico-list"></datalist></div>
-          <div class="field"><label>Banca <span class="opt">(opcional)</span></label>
+          <div class="field"><label for="card-banca">Banca <span class="opt">(opcional)</span></label>
             <input type="text" id="card-banca" list="card-banca-list" placeholder="Ex.: FCC, FGV, Cebraspe">
             <datalist id="card-banca-list"></datalist></div>
-          <div class="field"><label>Categoria <span class="opt">(opcional)</span></label>
+          <div class="field"><label for="card-tipo">Categoria <span class="opt">(opcional)</span></label>
             <select id="card-tipo"></select></div>
         </div>
-        <div class="field"><label>Formato do card</label>
+        <div class="field"><label for="card-kind">Formato do card</label>
           <select id="card-kind">
             <option value="basic">Básico (frente e verso)</option>
             <option value="basic_reversed">Básico + cartão invertido (gera 2 cards)</option>
@@ -6436,7 +6485,7 @@
         <button type="button" class="icon-btn" id="cards-import-close">✕</button>
       </div>
       <div class="cards-modal-body">
-        <div class="field"><label>Destino dos cards importados</label>
+        <div class="field"><label for="cards-import-destino">Destino dos cards importados</label>
           <select id="cards-import-destino"></select></div>
         <div id="cards-import-drop" class="tec-dropzone">
           <input type="file" id="cards-import-file" accept=".json,.csv,.tsv,.txt" style="display:none;">
@@ -6492,13 +6541,13 @@
       </div>
       <div class="cards-modal-body">
         <div class="field-group">
-          <div class="field"><label>Nome <span class="req">*</span></label>
+          <div class="field"><label for="link-nome">Nome <span class="req">*</span></label>
             <input type="text" id="link-nome" placeholder="Ex.: TecConcursos"></div>
-          <div class="field"><label>Categoria <span class="opt">(opcional)</span></label>
+          <div class="field"><label for="link-categoria">Categoria <span class="opt">(opcional)</span></label>
             <input type="text" id="link-categoria" list="link-cat-list" placeholder="Ex.: Questões, Curso, IA">
             <datalist id="link-cat-list"></datalist></div>
         </div>
-        <div class="field"><label>Endereço (URL) <span class="req">*</span></label>
+        <div class="field"><label for="link-url">Endereço (URL) <span class="req">*</span></label>
           <input type="url" id="link-url" placeholder="https://..."></div>
         <div class="field"><label>Logo <span class="opt">(opcional)</span></label>
           <div class="link-logo-row">
@@ -6639,9 +6688,9 @@
             </div>
             <div class="evo-tempo-range" id="evo-tempo-range">
               <span class="evo-tempo-range-lbl">Intervalo:</span>
-              <input type="date" id="evo-tempo-de" title="Data inicial">
+              <input type="date" id="evo-tempo-de" title="Data inicial" aria-label="Data inicial do intervalo">
               <span class="evo-tempo-range-sep">→</span>
-              <input type="date" id="evo-tempo-ate" title="Data final">
+              <input type="date" id="evo-tempo-ate" title="Data final" aria-label="Data final do intervalo">
               <button type="button" class="evo-tempo-clear" id="evo-tempo-clear" title="Voltar aos atalhos rápidos" style="display:none;">✕</button>
             </div>
           </div>
@@ -6965,21 +7014,21 @@
           <div class="field-group">
             <div class="field">
               <label for="est-paginas">Total de páginas a estudar (PDF)</label>
-              <input type="number" id="est-paginas" min="0" value="3000">
+              <input type="number" inputmode="numeric" id="est-paginas" min="0" value="3000">
             </div>
             <div class="field">
               <label for="est-pph">Média de páginas por hora (PDF)</label>
-              <input type="number" id="est-pph" min="0" step="0.1" value="12.3">
+              <input type="number" inputmode="decimal" id="est-pph" min="0" step="0.1" value="12.3">
             </div>
           </div>
           <div class="field-group">
             <div class="field">
               <label for="est-minvideo">Total de minutos de videoaulas</label>
-              <input type="number" id="est-minvideo" min="0" value="0">
+              <input type="number" inputmode="numeric" id="est-minvideo" min="0" value="0">
             </div>
             <div class="field">
               <label for="est-mph">Minutos de vídeo assistidos por hora de estudo</label>
-              <input type="number" id="est-mph" min="0" step="1" value="0">
+              <input type="number" inputmode="numeric" id="est-mph" min="0" step="1" value="0">
             </div>
           </div>
 
@@ -6988,11 +7037,11 @@
           <div class="field-group">
             <div class="field">
               <label for="est-horas-sem">Horas de estudo semanais</label>
-              <input type="number" id="est-horas-sem" min="1" step="0.5" value="36">
+              <input type="number" inputmode="decimal" id="est-horas-sem" min="1" step="0.5" value="36">
             </div>
             <div class="field">
               <label for="est-pct-novo">% do tempo dedicado ao estudo novo <span class="opt">(pós-edital)</span></label>
-              <input type="number" id="est-pct-novo" min="1" max="100" step="1" value="40">
+              <input type="number" inputmode="numeric" id="est-pct-novo" min="1" max="100" step="1" value="40">
             </div>
           </div>
 
@@ -7003,15 +7052,15 @@
           <div class="row-3">
             <div class="field">
               <label for="est-semanas-disp">Semanas disponíveis</label>
-              <input type="number" id="est-semanas-disp" min="0" value="14">
+              <input type="number" inputmode="numeric" id="est-semanas-disp" min="0" value="14">
             </div>
             <div class="field">
               <label for="est-carga-realista">Carga realista (h/sem)</label>
-              <input type="number" id="est-carga-realista" min="0" step="0.5" value="36">
+              <input type="number" inputmode="decimal" id="est-carga-realista" min="0" step="0.5" value="36">
             </div>
             <div class="field">
               <label for="est-carga-otimista">Carga otimista (h/sem)</label>
-              <input type="number" id="est-carga-otimista" min="0" step="0.5" value="42">
+              <input type="number" inputmode="decimal" id="est-carga-otimista" min="0" step="0.5" value="42">
             </div>
           </div>
           <div id="est-avail-results" class="tool-results"></div>
@@ -7187,16 +7236,16 @@
         </div>
         <div class="tec-cfg tec-filterbar" style="margin:12px 24px 8px; display:flex; gap:14px; align-items:flex-end; flex-wrap:wrap;">
           <div class="field" style="margin-bottom:0; min-width:210px;">
-            <label>Agrupar / filtrar por disciplina</label>
+            <label for="tec-weak-disc">Agrupar / filtrar por disciplina</label>
             <select id="tec-weak-disc"></select>
           </div>
           <div class="field" style="margin-bottom:0;">
             <label>Aproveitamento abaixo de</label>
-            <div class="time-input"><input type="number" id="tec-weak-threshold" min="1" max="100" value="70" style="width:70px; text-align:center;"><span>%</span></div>
+            <div class="time-input"><input type="number" inputmode="numeric" id="tec-weak-threshold" min="1" max="100" value="70" style="width:70px; text-align:center;"><span>%</span></div>
           </div>
           <div class="field" style="margin-bottom:0;">
-            <label>Mínimo de questões</label>
-            <input type="number" id="tec-weak-minq" min="1" value="3" style="width:80px; text-align:center;">
+            <label for="tec-weak-minq">Mínimo de questões</label>
+            <input type="number" inputmode="numeric" id="tec-weak-minq" min="1" value="3" style="width:80px; text-align:center;">
           </div>
           <label class="co-check" style="margin-bottom:6px;"><input type="checkbox" id="tec-weak-leaves" checked> Só tópicos específicos (folhas)</label>
         </div>
@@ -7280,11 +7329,11 @@
           <!-- 2) BARRA principal: banca + visão + ordenação (o essencial, sempre visível) -->
           <div class="rfc-toolbar tec-cfg">
             <div class="rfc-field">
-              <label>Banca-alvo</label>
+              <label for="reforco-banca">Banca-alvo</label>
               <select id="reforco-banca"></select>
             </div>
             <div class="rfc-field">
-              <label>Disciplina</label>
+              <label for="reforco-disc">Disciplina</label>
               <select id="reforco-disc"><option value="__todas__">📚 Todas</option></select>
             </div>
             <div class="rfc-field">
@@ -7295,7 +7344,7 @@
               </div>
             </div>
             <div class="rfc-field">
-              <label>Ordenar por</label>
+              <label for="reforco-ordenar">Ordenar por</label>
               <select id="reforco-ordenar">
                 <option value="oportunidade" selected>🎯 Oportunidade de pontos</option>
                 <option value="erro">🔴 Maior erro (mais fraco)</option>
@@ -7311,22 +7360,22 @@
           <div class="rfc-advanced" id="reforco-advanced" hidden>
             <div class="rfc-adv-grid">
               <div class="rfc-field wide">
-                <label>Estratégia: <span id="reforco-estrat-label" class="lbl-accent">equilíbrio</span></label>
+                <label for="reforco-estrat">Estratégia: <span id="reforco-estrat-label" class="lbl-accent">equilíbrio</span></label>
                 <input type="range" id="reforco-estrat" min="0" max="100" value="50" class="reforco-slider">
                 <div class="reforco-slider-legend"><span>Recuperar erros</span><span>Maximizar incidência</span></div>
               </div>
               <div class="rfc-field wide">
-                <label>Granularidade: <span id="reforco-gran-label" class="lbl-accent">Assunto (auto)</span></label>
+                <label for="reforco-gran">Granularidade: <span id="reforco-gran-label" class="lbl-accent">Assunto (auto)</span></label>
                 <input type="range" id="reforco-gran" min="0" max="100" value="50" class="reforco-slider">
                 <div class="reforco-slider-legend"><span>Disciplina</span><span>Assunto</span><span>Tópico</span></div>
               </div>
               <div class="rfc-field">
-                <label>Mín. de questões</label>
-                <input type="number" id="reforco-minq" min="1" value="10">
+                <label for="reforco-minq">Mín. de questões</label>
+                <input type="number" inputmode="numeric" id="reforco-minq" min="1" value="10">
               </div>
               <div class="rfc-field">
-                <label>Qtd. de tópicos</label>
-                <input type="number" id="reforco-limite" min="1" value="12">
+                <label for="reforco-limite">Qtd. de tópicos</label>
+                <input type="number" inputmode="numeric" id="reforco-limite" min="1" value="12">
               </div>
             </div>
           </div>
@@ -7366,15 +7415,15 @@
           <div style="padding: 4px 28px 20px;">
             <div class="rfc-toolbar tec-cfg" style="margin-bottom:4px;">
               <div class="rfc-field wide">
-                <label>Disciplina</label>
+                <label for="plano-disc">Disciplina</label>
                 <select id="plano-disc"><option value="__todas__">📚 Todas</option></select>
               </div>
               <div class="rfc-field">
-                <label>Meta de domínio (%)</label>
-                <input type="number" id="plano-meta" min="30" max="100" step="1">
+                <label for="plano-meta">Meta de domínio (%)</label>
+                <input type="number" inputmode="numeric" id="plano-meta" min="30" max="100" step="1">
               </div>
               <div class="rfc-field">
-                <label>Amostra desejada por assunto</label>
+                <label for="plano-amostraalvo">Amostra desejada por assunto</label>
                 <select id="plano-amostraalvo" title="Para cada assunto o app parte da importação mais recente e só volta no tempo até juntar esta quantidade de questões. Quanto maior, mais confiável a taxa — e mais antigo o dado que ela usa.">
                   <option value="30">30 questões (±18pp)</option>
                   <option value="50">50 questões (±14pp)</option>
@@ -7383,11 +7432,11 @@
                 </select>
               </div>
               <div class="rfc-field">
-                <label>Ritmo (q/semana)</label>
-                <input type="number" id="plano-ritmo" min="1" max="2000" step="1" title="Segue sozinho o que você produz. Digite outro valor para simular.">
+                <label for="plano-ritmo">Ritmo (q/semana)</label>
+                <input type="number" inputmode="numeric" id="plano-ritmo" min="1" max="2000" step="1" title="Segue sozinho o que você produz. Digite outro valor para simular.">
               </div>
               <div class="rfc-field wide">
-                <label>Ordenar por</label>
+                <label for="plano-ordenar">Ordenar por</label>
                 <select id="plano-ordenar">
                   <option value="pior">🔴 Prioridade — pior acerto primeiro</option>
                   <option value="ganhoGeral">📊 Maior ganho no Aproveitamento geral (por questão)</option>
@@ -7399,7 +7448,7 @@
                 </select>
               </div>
               <div class="rfc-field" id="plano-banca-field" style="display:none;">
-                <label>Banca (para prioridade)</label>
+                <label for="plano-banca">Banca (para prioridade)</label>
                 <select id="plano-banca" title="Usada na ordenação '🎯 Prioridade na banca'. Combina a sua fraqueza no assunto com o quanto ele cai nessa banca. Importe a incidência em 🎲 Incidência.">
                   <option value="__todas__">Todas as bancas</option>
                 </select>
@@ -7414,7 +7463,7 @@
             <div class="rfc-advanced" id="plano-advanced" hidden>
               <div class="rfc-adv-grid">
                 <div class="rfc-field wide">
-                  <label>Como pesar cada assunto</label>
+                  <label for="plano-ponderacao">Como pesar cada assunto</label>
                   <select id="plano-ponderacao">
                     <option value="igual">⚖️ Todo assunto pesa igual — nada se esconde atrás de pouco volume</option>
                     <option value="volume">📊 Pelo volume de questões — maximiza o Aproveitamento geral desta tela</option>
@@ -7422,63 +7471,63 @@
                   </select>
                 </div>
                 <div class="rfc-field">
-                  <label>Acerto máximo realista (%)</label>
-                  <input type="number" id="plano-teto" min="50" max="100" step="1" title="Ninguém acerta 100% nem no assunto que domina. Este é o alvo por assunto — e a base do cálculo de ganho.">
+                  <label for="plano-teto">Acerto máximo realista (%)</label>
+                  <input type="number" inputmode="numeric" id="plano-teto" min="50" max="100" step="1" title="Ninguém acerta 100% nem no assunto que domina. Este é o alvo por assunto — e a base do cálculo de ganho.">
                 </div>
                 <div class="rfc-field">
-                  <label>Mínimo para entrar no cálculo</label>
-                  <input type="number" id="plano-minamostra" min="0" max="500" step="1" title="Assuntos com menos questões que isso saem da média de domínio e vão para o segundo plano. Três erros em seis questões não é fraqueza comprovada, é falta de dado.">
+                  <label for="plano-minamostra">Mínimo para entrar no cálculo</label>
+                  <input type="number" inputmode="numeric" id="plano-minamostra" min="0" max="500" step="1" title="Assuntos com menos questões que isso saem da média de domínio e vão para o segundo plano. Três erros em seis questões não é fraqueza comprovada, é falta de dado.">
                 </div>
                 <div class="rfc-field wide">
-                  <label>Como estimar o custo de cada assunto</label>
+                  <label for="plano-customodo">Como estimar o custo de cada assunto</label>
                   <select id="plano-customodo">
                     <option value="fixo">Número fixo de questões por assunto</option>
                     <option value="proporcional">Proporcional ao que você já praticou</option>
                   </select>
                 </div>
                 <div class="rfc-field">
-                  <label>· se fixo: questões</label>
-                  <input type="number" id="plano-custofixo" min="10" max="1000" step="5">
+                  <label for="plano-custofixo">· se fixo: questões</label>
+                  <input type="number" inputmode="numeric" id="plano-custofixo" min="10" max="1000" step="5">
                 </div>
                 <div class="rfc-field">
-                  <label>· se proporcional: fator</label>
-                  <input type="number" id="plano-custofator" min="0.1" max="3" step="0.1">
+                  <label for="plano-custofator">· se proporcional: fator</label>
+                  <input type="number" inputmode="decimal" id="plano-custofator" min="0.1" max="3" step="0.1">
                 </div>
                 <div class="rfc-field">
-                  <label>Mostrar até (assuntos)</label>
-                  <input type="number" id="plano-limite" min="5" max="200" step="5">
+                  <label for="plano-limite">Mostrar até (assuntos)</label>
+                  <input type="number" inputmode="numeric" id="plano-limite" min="5" max="200" step="5">
                 </div>
                 <div class="rfc-field">
-                  <label>Importações p/ consolidar</label>
-                  <input type="number" id="plano-consolidar" min="1" max="10" step="1" title="Quantas importações seguidas na meta um assunto precisa sustentar para ser considerado sólido.">
+                  <label for="plano-consolidar">Importações p/ consolidar</label>
+                  <input type="number" inputmode="numeric" id="plano-consolidar" min="1" max="10" step="1" title="Quantas importações seguidas na meta um assunto precisa sustentar para ser considerado sólido.">
                 </div>
                 <div class="rfc-field">
-                  <label>Dado vence em (dias)</label>
-                  <input type="number" id="plano-validade" min="30" max="720" step="15" title="Sem medição nova nesse prazo, o assunto é marcado como dado vencido.">
+                  <label for="plano-validade">Dado vence em (dias)</label>
+                  <input type="number" inputmode="numeric" id="plano-validade" min="30" max="720" step="15" title="Sem medição nova nesse prazo, o assunto é marcado como dado vencido.">
                 </div>
                 <div class="rfc-field">
-                  <label>Frequência de importação (dias)</label>
-                  <input type="number" id="plano-cadencia" min="7" max="365" step="1" title="Se o último retrato ficar mais velho que isso, o app avisa que a leitura está defasada.">
+                  <label for="plano-cadencia">Frequência de importação (dias)</label>
+                  <input type="number" inputmode="numeric" id="plano-cadencia" min="7" max="365" step="1" title="Se o último retrato ficar mais velho que isso, o app avisa que a leitura está defasada.">
                 </div>
                 <div class="rfc-field">
-                  <label>Não usar dado mais velho que (dias)</label>
-                  <input type="number" id="plano-janelamax" min="30" max="1825" step="30" title="Trava de segurança: mesmo faltando amostra, o app não usa dado mais antigo que isso. Acima desse prazo o desempenho já não representa você hoje.">
+                  <label for="plano-janelamax">Não usar dado mais velho que (dias)</label>
+                  <input type="number" inputmode="numeric" id="plano-janelamax" min="30" max="1825" step="30" title="Trava de segurança: mesmo faltando amostra, o app não usa dado mais antigo que isso. Acima desse prazo o desempenho já não representa você hoje.">
                 </div>
                 <div class="rfc-field">
-                  <label>Faixa crítica: abaixo de (%)</label>
-                  <input type="number" id="plano-critico" min="0" max="100" step="5" title="Abaixo disso o diagnóstico é problema de teoria, não de treino.">
+                  <label for="plano-critico">Faixa crítica: abaixo de (%)</label>
+                  <input type="number" inputmode="numeric" id="plano-critico" min="0" max="100" step="5" title="Abaixo disso o diagnóstico é problema de teoria, não de treino.">
                 </div>
                 <div class="rfc-field">
-                  <label>Faixa frágil: abaixo de (%)</label>
-                  <input type="number" id="plano-fragil" min="0" max="100" step="5" title="Entre crítico e este valor: revisar teoria e alternar com questões.">
+                  <label for="plano-fragil">Faixa frágil: abaixo de (%)</label>
+                  <input type="number" inputmode="numeric" id="plano-fragil" min="0" max="100" step="5" title="Entre crítico e este valor: revisar teoria e alternar com questões.">
                 </div>
                 <div class="rfc-field">
-                  <label>Mínimo por importação (trajetória)</label>
-                  <input type="number" id="plano-piso" min="1" max="100" step="1" title="Diferente do campo acima: aqui é o mínimo dentro de UMA importação para ela valer como medição no gráfico de trajetória e na contagem de importações seguidas.">
+                  <label for="plano-piso">Mínimo por importação (trajetória)</label>
+                  <input type="number" inputmode="numeric" id="plano-piso" min="1" max="100" step="1" title="Diferente do campo acima: aqui é o mínimo dentro de UMA importação para ela valer como medição no gráfico de trajetória e na contagem de importações seguidas.">
                 </div>
                 <div class="rfc-field">
-                  <label>Sensibilidade da tendência (pp)</label>
-                  <input type="number" id="plano-sens" min="1" max="30" step="1" title="Variação mínima para marcar um assunto como melhorando ou piorando.">
+                  <label for="plano-sens">Sensibilidade da tendência (pp)</label>
+                  <input type="number" inputmode="numeric" id="plano-sens" min="1" max="30" step="1" title="Variação mínima para marcar um assunto como melhorando ou piorando.">
                 </div>
                 <div class="rfc-field wide">
                   <label class="rfc-check"><input type="checkbox" id="plano-folhas"> Só assuntos específicos (ignorar tópicos-pai)</label>
@@ -7563,15 +7612,15 @@
       <div class="cards-modal-body">
         <div class="sug-filters">
           <div class="sug-tool-field">
-            <label>Banca</label>
+            <label for="extra-suggest-banca">Banca</label>
             <select id="extra-suggest-banca"></select>
           </div>
           <div class="sug-tool-field">
-            <label>Disciplina</label>
+            <label for="extra-suggest-disc">Disciplina</label>
             <select id="extra-suggest-disc"><option value="__todas__">📚 Todas</option></select>
           </div>
           <div class="sug-tool-field">
-            <label>Ordenar por</label>
+            <label for="extra-suggest-ordenar">Ordenar por</label>
             <select id="extra-suggest-ordenar">
               <option value="oportunidade" selected>🎯 Oportunidade</option>
               <option value="erro">🔴 Maior erro</option>
@@ -7579,13 +7628,13 @@
             </select>
           </div>
           <div class="sug-tool-field">
-            <label>Mín. questões</label>
-            <input type="number" id="extra-suggest-minq" min="1" value="8">
+            <label for="extra-suggest-minq">Mín. questões</label>
+            <input type="number" inputmode="numeric" id="extra-suggest-minq" min="1" value="8">
           </div>
         </div>
         <div class="sug-toolbar">
           <div class="sug-tool-field">
-            <label>Gerar cada uma como</label>
+            <label for="extra-suggest-tipo">Gerar cada uma como</label>
             <select id="extra-suggest-tipo">
               <option value="revisao" selected>🔁 Revisão do ponto fraco</option>
               <option value="questoes">❓ Questões do assunto</option>
@@ -7612,10 +7661,10 @@
         <button type="button" class="icon-btn" id="extra-modal-close">✕</button>
       </div>
       <div class="cards-modal-body">
-        <div class="field"><label>Título <span class="req">*</span></label>
+        <div class="field"><label for="extra-titulo">Título <span class="req">*</span></label>
           <input type="text" id="extra-titulo" placeholder="Ex.: 300 flashcards de Tributário"></div>
         <div class="field-group">
-          <div class="field"><label>Tipo</label>
+          <div class="field"><label for="extra-tipo">Tipo</label>
             <select id="extra-tipo">
               <option value="anki">🃏 Anki (cards)</option>
               <option value="leitura">📜 Lei seca (páginas)</option>
@@ -7624,14 +7673,14 @@
               <option value="video">🎬 Vídeo / véspera</option>
               <option value="livre">⭐ Livre</option>
             </select></div>
-          <div class="field"><label>Disciplina <span class="opt">(opcional)</span></label>
+          <div class="field"><label for="extra-disciplina">Disciplina <span class="opt">(opcional)</span></label>
             <input type="text" id="extra-disciplina" list="extra-disc-list" placeholder="Ex.: Direito Tributário">
             <datalist id="extra-disc-list"></datalist></div>
         </div>
         <div class="field-group">
-          <div class="field"><label>Meta (alvo)</label>
-            <input type="number" id="extra-alvo" min="0" placeholder="Ex.: 300"></div>
-          <div class="field"><label>Unidade</label>
+          <div class="field"><label for="extra-alvo">Meta (alvo)</label>
+            <input type="number" inputmode="numeric" id="extra-alvo" min="0" placeholder="Ex.: 300"></div>
+          <div class="field"><label for="extra-unidade">Unidade</label>
             <select id="extra-unidade">
               <option value="cards">cards</option>
               <option value="paginas">páginas</option>
@@ -7645,11 +7694,11 @@
         </div>
         <!-- Marcador de leitura (aparece para Lei seca): onde parei -->
         <div class="field" id="extra-marcador-field" style="display:none;">
-          <label>📌 Onde parei <span class="opt">(marcador de leitura)</span></label>
+          <label for="extra-marcador">📌 Onde parei <span class="opt">(marcador de leitura)</span></label>
           <input type="text" id="extra-marcador" placeholder="Ex.: parei no art. 150 / linha 234 / pág. 88">
         </div>
         <div class="field-group">
-          <div class="field"><label>Recorrência</label>
+          <div class="field"><label for="extra-periodo">Recorrência</label>
             <select id="extra-periodo">
               <option value="unica">Única (meta total)</option>
               <option value="diaria">Diária</option>
@@ -7657,12 +7706,12 @@
               <option value="quinzenal">Quinzenal</option>
               <option value="mensal">Mensal</option>
             </select></div>
-          <div class="field" id="extra-datainicio-field" style="display:none;"><label>Início da recorrência <span class="opt">(opcional)</span></label>
+          <div class="field" id="extra-datainicio-field" style="display:none;"><label for="extra-datainicio">Início da recorrência <span class="opt">(opcional)</span></label>
             <input type="date" id="extra-datainicio" title="A partir de quando a atividade se repete. Em branco = hoje.">
           </div>
         </div>
         <div class="field-group" id="extra-datafim-field" style="display:none;">
-          <div class="field"><label>Fim da recorrência <span class="opt">(recomendado)</span></label>
+          <div class="field"><label for="extra-datafim">Fim da recorrência <span class="opt">(recomendado)</span></label>
             <input type="date" id="extra-datafim" title="Define até quando a atividade se repete. Com o fim preenchido, o app já vincula as datas ao calendário automaticamente. Em branco: recorre sem fim, sem vincular datas.">
           </div>
           <div class="field" style="display:flex; align-items:flex-end;">
@@ -10926,6 +10975,94 @@ document.getElementById('tabs').addEventListener('click', (e) => {
 /* ============================================================
    TOAST util (compartilhado)
    ============================================================ */
+/* ═══════════════ ACESSIBILIDADE — Aprisionamento de foco em modais ═══════════════
+   WCAG 2.4.3 / 2.1.2: com um modal aberto, o Tab deve CICLAR dentro dele, o Esc
+   deve fechar, e o foco deve VOLTAR para quem abriu. Em vez de tocar em cada um
+   dos ~20 modais, um único observador detecta quando um contêiner de modal fica
+   visível (display != none) e ativa/desativa o trap automaticamente. */
+const FocusTrap = {
+  _stack: [],                 // pilha de modais ativos (o topo é o que recebe o trap)
+  _lastFocus: null,           // elemento que tinha o foco antes de abrir
+  MODAL_SELECTOR: '.profile-modal, .cards-modal, .siglas-modal, .niv-modal, .tec-modal, .ui-modal, .report-modal, #ui-modal',
+  FOCUSABLE: 'a[href], button:not([disabled]), input:not([disabled]):not([type="hidden"]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])',
+  // NÃO usa offsetParent: elementos position:fixed têm offsetParent=null mesmo
+  // visíveis. Checa display/visibility computados e tamanho real.
+  _visible(el) {
+    if (!el) return false;
+    const cs = getComputedStyle(el);
+    if (cs.display === 'none' || cs.visibility === 'hidden' || cs.opacity === '0') return false;
+    const r = el.getBoundingClientRect();
+    return r.width > 0 && r.height > 0;
+  },
+  _focusables(modal) {
+    return Array.from(modal.querySelectorAll(this.FOCUSABLE)).filter(el => {
+      const r = el.getBoundingClientRect();
+      return r.width > 0 && r.height > 0 && !el.hasAttribute('aria-hidden');
+    });
+  },
+  activate(modal) {
+    if (this._stack.includes(modal)) return;
+    if (this._stack.length === 0) this._lastFocus = document.activeElement;
+    this._stack.push(modal);
+    // semântica ARIA de diálogo
+    if (!modal.getAttribute('role')) modal.setAttribute('role', 'dialog');
+    modal.setAttribute('aria-modal', 'true');
+    // foca o primeiro elemento útil (ou o próprio modal)
+    const f = this._focusables(modal);
+    setTimeout(() => { try { (f[0] || modal).focus(); } catch (_) {} }, 30);
+  },
+  deactivate(modal) {
+    const i = this._stack.indexOf(modal);
+    if (i === -1) return;
+    this._stack.splice(i, 1);
+    modal.removeAttribute('aria-modal');
+    // restaura o foco quando não há mais modais abertos
+    if (this._stack.length === 0 && this._lastFocus) {
+      try { this._lastFocus.focus(); } catch (_) {}
+      this._lastFocus = null;
+    }
+  },
+  _onKeydown(e) {
+    const top = FocusTrap._stack[FocusTrap._stack.length - 1];
+    if (!top) return;
+    if (e.key === 'Tab') {
+      const f = FocusTrap._focusables(top);
+      if (!f.length) { e.preventDefault(); return; }
+      const first = f[0], last = f[f.length - 1], act = document.activeElement;
+      if (e.shiftKey && (act === first || !top.contains(act))) { e.preventDefault(); last.focus(); }
+      else if (!e.shiftKey && (act === last || !top.contains(act))) { e.preventDefault(); first.focus(); }
+    }
+    // Esc: fecha o modal do topo clicando no seu botão de fechar/cancelar, se houver.
+    else if (e.key === 'Escape') {
+      const btn = top.querySelector('[id$="-close"], [id$="-cancel"], .modal-close, [data-close]');
+      if (btn) { e.stopPropagation(); btn.click(); }
+    }
+  },
+  init() {
+    document.addEventListener('keydown', this._onKeydown, true);
+    // Observa mudanças de display/style em todos os contêineres de modal
+    const observe = (modal) => {
+      const mo = new MutationObserver(() => {
+        if (this._visible(modal)) this.activate(modal); else this.deactivate(modal);
+      });
+      mo.observe(modal, { attributes: true, attributeFilter: ['style', 'class'] });
+      // estado inicial
+      if (this._visible(modal)) this.activate(modal);
+    };
+    document.querySelectorAll(this.MODAL_SELECTOR).forEach(observe);
+    // modais criados/movidos depois (ex.: profile-modal realocado) também entram
+    const bodyMo = new MutationObserver((muts) => {
+      muts.forEach(m => m.addedNodes && m.addedNodes.forEach(n => {
+        if (n.nodeType === 1) {
+          if (n.matches && n.matches(this.MODAL_SELECTOR)) observe(n);
+          n.querySelectorAll && n.querySelectorAll(this.MODAL_SELECTOR).forEach(observe);
+        }
+      }));
+    });
+    bodyMo.observe(document.body, { childList: true, subtree: true });
+  }
+};
+
 let _toastTimer = null;
 function showToast(text) {
   const toast = document.getElementById('toast');
@@ -13803,6 +13940,8 @@ function planCycleMode() {
 }
 
 (function initCiclo() {
+  // helper com guarda de nulo: um ID renomeado não derruba mais o boot inteiro.
+  const on = (id, ev, fn) => { const el = document.getElementById(id); if (el) el.addEventListener(ev, fn); };
   const elEmpty = document.getElementById('ciclo-empty');
   const elSetup = document.getElementById('ciclo-setup');
   const elReview = document.getElementById('ciclo-review');
@@ -13879,15 +14018,15 @@ function planCycleMode() {
         </div>
         <div class="field">
           <label title="Quantidade de questões na prova">Qtd. Q.</label>
-          <input type="number" class="cs-qtd cs-num" min="0" value="${qtd}" placeholder="0">
+          <input type="number" inputmode="numeric" class="cs-qtd cs-num" min="0" value="${qtd}" placeholder="0">
         </div>
         <div class="field">
           <label title="Pontos por questão">Pts/Q</label>
-          <input type="number" class="cs-pts cs-num" min="0" step="0.1" value="${pts}">
+          <input type="number" inputmode="decimal" class="cs-pts cs-num" min="0" step="0.1" value="${pts}">
         </div>
         <div class="field">
           <label title="Peso da matéria na prova">Peso</label>
-          <input type="number" class="cs-peso cs-num" min="0" step="0.5" value="${peso}">
+          <input type="number" inputmode="decimal" class="cs-peso cs-num" min="0" step="0.5" value="${peso}">
         </div>
         <div class="field">
           <label>Dif.</label>
@@ -13934,7 +14073,7 @@ function planCycleMode() {
     subjectsListEl.innerHTML = list.map(subjectRowTemplate).join('');
   }
 
-  document.getElementById('btn-add-cycle-subject').addEventListener('click', () => {
+  on('btn-add-cycle-subject', 'click', () => {
     subjectsListEl.insertAdjacentHTML('beforeend', subjectRowTemplate(null));
   });
 
@@ -14003,12 +14142,12 @@ function planCycleMode() {
     showState('setup');
   }
 
-  document.getElementById('btn-start-cycle').addEventListener('click', () => openSetup(null));
-  document.getElementById('btn-cancel-cycle').addEventListener('click', () => {
+  on('btn-start-cycle', 'click', () => openSetup(null));
+  on('btn-cancel-cycle', 'click', () => {
     const existing = DB.getCurrentCycle();
     showState(existing ? 'active' : 'empty');
   });
-  document.getElementById('btn-edit-cycle').addEventListener('click', () => {
+  on('btn-edit-cycle', 'click', () => {
     // reabre a revisão de tempo do ciclo já ativo, mantendo os tempos já definidos
     const existing = DB.getCurrentCycle();
     if (existing) {
@@ -14027,7 +14166,7 @@ function planCycleMode() {
     }
   });
 
-  document.getElementById('btn-calc-cycle').addEventListener('click', () => {
+  on('btn-calc-cycle', 'click', () => {
     const weeklyHours = readWeeklyHours();
     const startDate = cycleStartInput.value || todayLocal();
     // término editável (fallback = início + 6). Garante término >= início.
@@ -14164,8 +14303,8 @@ function planCycleMode() {
           </div>
           <div class="suggested">sugestão<br>${CycleEngine.fmtHM(s.sugeridoMin)}</div>
           <div class="cycle-review-time-input">
-            <input type="number" class="cr-h" min="0" value="${h}"><span>h</span>
-            <input type="number" class="cr-m" min="0" max="59" value="${m}"><span>min</span>
+            <input type="number" inputmode="numeric" class="cr-h" min="0" value="${h}"><span>h</span>
+            <input type="number" inputmode="numeric" class="cr-m" min="0" max="59" value="${m}"><span>min</span>
           </div>
           ${changed ? `<button type="button" class="btn-reset-suggestion" data-idx="${idx}">usar sugestão</button>` : '<span></span>'}
         </div>
@@ -14195,13 +14334,13 @@ function planCycleMode() {
     });
   }
 
-  document.getElementById('btn-back-to-setup').addEventListener('click', () => {
+  on('btn-back-to-setup', 'click', () => {
     // repopula o formulário com as matérias que já estavam no rascunho em edição,
     // em vez de deixar a tela "setup" vazia ou desatualizada
     openSetup(pendingCycle);
   });
 
-  document.getElementById('btn-confirm-cycle').addEventListener('click', () => {
+  on('btn-confirm-cycle', 'click', () => {
     const cycle = {
       startDate: pendingCycle.startDate,
       endDate: pendingCycle.endDate || CycleEngine.weekEndDate(pendingCycle.startDate),
@@ -15206,7 +15345,7 @@ function planCycleMode() {
   const _savedModal = document.getElementById('saved-grades-modal');
   if (_savedModal) _savedModal.addEventListener('click', (e) => { if (e.target === _savedModal) closeSavedGrades(); });
 
-  document.getElementById('btn-close-cycle').addEventListener('click', () => {
+  on('btn-close-cycle', 'click', () => {
     const cycle = DB.getCurrentCycle();
     if (!cycle) return;
     if (!confirm('Fechar esta semana? Ela será salva no histórico permanentemente e uma nova semana começará zerada.')) return;
@@ -15541,7 +15680,7 @@ const HistoricoScreen = {
       <div class="wk-subj-row" data-subj="${escapeHtml(s.nome)}">
         <span class="wk-subj-name">${escapeHtml(s.nome)}</span>
         <label class="wk-subj-meta">Meta (min)
-          <input type="number" class="wk-subj-target" value="${s.definidoMin || 0}" min="0" step="5">
+          <input type="number" inputmode="numeric" class="wk-subj-target" value="${s.definidoMin || 0}" min="0" step="5">
         </label>
         <span class="wk-subj-done">Estudado <b class="wk-subj-studied">—</b></span>
       </div>`).join('');
@@ -15559,7 +15698,7 @@ const HistoricoScreen = {
           </div>
           <div class="field" style="margin-bottom:0;">
             <label>Horas planejadas</label>
-            <input type="number" class="wk-hours" value="${w.weeklyHours}" min="0" step="0.5">
+            <input type="number" inputmode="decimal" class="wk-hours" value="${w.weeklyHours}" min="0" step="0.5">
           </div>
         </div>
         <p class="wk-range-warn" style="display:none;"></p>
@@ -17565,9 +17704,9 @@ const EstudoNovoScreen = {
           <div class="track-stage">
             <div class="ts-label">${def.label}</div>
             <div class="ts-inputs">
-              <input type="number" class="ts-num ts-ac" data-stage="${def.key}" data-part="acertos" value="${acertos ?? ''}" placeholder="ac." min="0">
+              <input type="number" inputmode="numeric" class="ts-num ts-ac" data-stage="${def.key}" data-part="acertos" value="${acertos ?? ''}" placeholder="ac." min="0">
               <span class="ts-slash">/</span>
-              <input type="number" class="ts-num ts-tot" data-stage="${def.key}" data-part="total" value="${total ?? ''}" placeholder="tot." min="0">
+              <input type="number" inputmode="numeric" class="ts-num ts-tot" data-stage="${def.key}" data-part="total" value="${total ?? ''}" placeholder="tot." min="0">
               <span class="ts-pct ${toneCls}" data-pct="${def.key}">${pct === null ? '—' : formatPct(pct) + '%'}</span>
             </div>
           </div>`;
@@ -21043,8 +21182,8 @@ const ExtrasScreen = {
           </div>
           <div class="exx-filters ${this._showFilters ? '' : 'hidden'}" id="ex-filters">
             <div class="ef-row">
-              <div class="ef-field"><label>De</label><input type="date" id="ex-f-de" value="${this._fStart}" max="${hoje}"></div>
-              <div class="ef-field"><label>Até</label><input type="date" id="ex-f-ate" value="${this._fEnd}" max="${hoje}"></div>
+              <div class="ef-field"><label for="ex-f-de">De</label><input type="date" id="ex-f-de" value="${this._fStart}" max="${hoje}"></div>
+              <div class="ef-field"><label for="ex-f-ate">Até</label><input type="date" id="ex-f-ate" value="${this._fEnd}" max="${hoje}"></div>
               <div class="ef-field"><label>Atalhos</label>
                 <div class="ef-quick">
                   <button type="button" class="btn-secondary" data-fq="7">7 dias</button>
@@ -21495,7 +21634,7 @@ const ConfigScreen = {
 
     container.innerHTML = subjects.map(s => `
       <div class="config-subject-row ${s.ativo ? '' : 'inactive'}" data-id="${s.id}">
-        <input type="text" class="cfg-subj-name" value="${escapeHtml(s.nome)}" ${s.ativo ? '' : 'disabled'}>
+        <input type="text" class="cfg-subj-name" aria-label="Nome da matéria" value="${escapeHtml(s.nome)}" ${s.ativo ? '' : 'disabled'}>
         <label class="cfg-field"><span>Dificuldade</span>
           <select class="cfg-subj-dif" ${s.ativo ? '' : 'disabled'}>
             ${[1,2,3,4,5].map(n => `<option value="${n}" ${n===s.dificuldade?'selected':''}>Dif. ${n}</option>`).join('')}
@@ -21681,7 +21820,7 @@ const ConfigScreen = {
     }
     container.innerHTML = statuses.map(s => `
       <div class="config-status-row ${s.ativo ? '' : 'inactive'}" data-id="${s.id}">
-        <input type="text" class="cfg-status-name" value="${escapeHtml(s.nome)}" ${s.ativo ? '' : 'disabled'}>
+        <input type="text" class="cfg-status-name" aria-label="Nome do status" value="${escapeHtml(s.nome)}" ${s.ativo ? '' : 'disabled'}>
         <span class="status-preview" style="color:${s.color}; background:${s.bg}; border-color:${s.color}44;">${escapeHtml(s.nome)}</span>
         <div class="status-swatches">
           ${DB.STATUS_PALETTE.map(p => `<button type="button" class="status-swatch ${p.color === s.color ? 'selected' : ''}" aria-label="Cor ${p.nome || p.color}" data-color="${p.color}" data-bg="${p.bg}" style="background:${p.color};" title="Usar esta cor"></button>`).join('')}
@@ -21760,7 +21899,7 @@ const ConfigScreen = {
   simpleRowTemplate(item) {
     return `
       <div class="config-simple-row ${item.ativo ? '' : 'inactive'}" data-id="${item.id}">
-        <span class="name"><input type="text" class="simple-name-input" value="${escapeHtml(item.nome)}" ${item.ativo ? '' : 'disabled'}></span>
+        <span class="name"><input type="text" class="simple-name-input" aria-label="Nome do item" value="${escapeHtml(item.nome)}" ${item.ativo ? '' : 'disabled'}></span>
         <div class="config-row-actions">
           ${item.ativo ? '' : '<span class="inactive-tag">inativa</span>'}
           <button type="button" class="toggle-switch ${item.ativo ? 'on' : ''}" role="switch" aria-checked="${item.ativo ? 'true' : 'false'}" aria-label="${item.ativo ? 'Desativar' : 'Reativar'}" title="${item.ativo ? 'Desativar' : 'Reativar'}"></button>
@@ -27738,6 +27877,37 @@ window.StudyReport=StudyReport;
   });
 })();
 
+/* ═══════════════ ROBUSTEZ — Rede de segurança global de erros ═══════════════
+   Num app de escopo global único, um erro não tratado num listener pode deixar
+   uma ação pela metade sem nenhum aviso. Este boundary registra o erro (para
+   diagnóstico) e, se algo falhar de forma visível ao usuário, oferece uma saída
+   clara em vez de um estado travado. Não muda o fluxo normal — só age em falhas. */
+(function installErrorBoundary() {
+  var _lastShown = 0;
+  function avisar(origem, msg) {
+    try { console.warn('[erro capturado · ' + origem + ']', msg); } catch (_) {}
+    // Evita spam: no máximo um aviso a cada 8s, e só depois do app carregado.
+    var agora = Date.now();
+    if (agora - _lastShown < 8000) return;
+    _lastShown = agora;
+    try {
+      if (typeof showToast === 'function' && document.getElementById('app-loading') === null) {
+        // Mensagem tranquilizadora: os dados estão salvos localmente na hora.
+        showToast('⚠ Algo não respondeu como esperado — seus dados estão salvos. Se algo ficou estranho, recarregue a página.');
+      }
+    } catch (_) {}
+  }
+  window.addEventListener('error', function (e) {
+    // ignora erros de recursos (img/script externos) — não afetam os dados
+    if (e && e.target && (e.target.tagName === 'IMG' || e.target.tagName === 'SCRIPT' || e.target.tagName === 'LINK')) return;
+    avisar('error', e && (e.message || e.error));
+  });
+  window.addEventListener('unhandledrejection', function (e) {
+    avisar('promise', e && e.reason && (e.reason.message || e.reason));
+  });
+})();
+
+try { FocusTrap.init(); } catch (_) {}
 ProfileUI.boot();
 // Os scripts externos agora usam defer (não travam a abertura do app). Eles executam
 // antes do DOMContentLoaded, então é aqui que a nuvem pode ser iniciada com segurança.
@@ -29085,6 +29255,11 @@ else CloudStore.init();
     var s = document.createElement('script');
     s.textContent = codeEl.textContent; // executa em escopo global (idêntico ao original)
     document.body.appendChild(s);
+    // app-code já rodou (é síncrono): esconde o overlay de carregamento.
+    try {
+      var ov = document.getElementById('app-loading');
+      if (ov) { ov.classList.add('hide'); setTimeout(function () { if (ov && ov.parentNode) ov.parentNode.removeChild(ov); }, 320); }
+    } catch (e) {}
   }
 
   openIDB()
