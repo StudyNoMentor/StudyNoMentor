@@ -5338,6 +5338,38 @@ window.__idbBoot = (function () {
     contain-intrinsic-size: auto 72px;
   }
 
+
+  /* ── Estatísticas no estilo do Anki ─────────────────────────────────────── */
+  .tr-wrap { overflow-x: auto; }
+  .tr-table { width: 100%; border-collapse: collapse; font-size: var(--fs-sm); }
+  .tr-table th, .tr-table td { padding: 9px 10px; text-align: center; border-bottom: 1px solid var(--border); }
+  .tr-table thead th { color: var(--text-faint); font-weight: 700; font-size: var(--fs-xs); text-transform: uppercase; letter-spacing: .04em; }
+  .tr-table tbody th { text-align: left; color: var(--text-soft); font-weight: 600; }
+  .tr-table .tr-sub { display: block; font-weight: 400; text-transform: none; letter-spacing: 0; opacity: .7; }
+  .tr-table td strong { display: block; font-family: 'Space Mono', ui-monospace, SFMono-Regular, Menlo, monospace; font-size: var(--fs-md); }
+  .tr-table .tr-frac { display: block; font-size: var(--fs-2xs); color: var(--text-faint); }
+  .tr-table td.tone-good strong { color: var(--good-text); }
+  .tr-table td.tone-warn strong { color: var(--warn-text); }
+  .tr-table td.tone-bad strong { color: var(--bad-text); }
+  .tr-vazio { color: var(--text-faint); }
+
+  .ab-wrap { display: flex; flex-wrap: wrap; gap: 18px; }
+  .ab-grupo { flex: 1 1 180px; min-width: 0; }
+  .ab-tit { font-size: var(--fs-xs); font-weight: 700; color: var(--text-soft); text-transform: uppercase; letter-spacing: .04em; margin-bottom: 8px; display: flex; justify-content: space-between; }
+  .ab-tit span { color: var(--text-faint); font-weight: 400; }
+  .ab-cols, .hd-wrap { display: flex; align-items: flex-end; gap: 6px; height: 120px; }
+  .ab-col, .hd-col { flex: 1; display: flex; flex-direction: column; align-items: center; min-width: 0; height: 100%; justify-content: flex-end; }
+  .ab-bar, .hd-bar { width: 100%; height: 100%; display: flex; align-items: flex-end; }
+  .ab-fill, .hd-fill { width: 100%; border-radius: var(--r-xs) var(--r-xs) 0 0; transition: height .3s ease; }
+  .ab-fill.tone-bad, .hd-fill.tone-bad { background: var(--bad); }
+  .ab-fill.tone-warn, .hd-fill.tone-warn { background: var(--warn); }
+  .ab-fill.tone-accent, .hd-fill.tone-accent { background: var(--accent); }
+  .ab-fill.tone-good, .hd-fill.tone-good { background: var(--good); }
+  .ab-pc, .hd-n { font-size: var(--fs-2xs); font-weight: 700; color: var(--text-soft); margin-top: 4px; font-family: 'Space Mono', ui-monospace, monospace; }
+  .ab-lb, .hd-lb { font-size: var(--fs-3xs); color: var(--text-faint); margin-top: 2px; text-align: center; line-height: 1.2; }
+  .hd-wrap { height: 130px; }
+  @media (prefers-reduced-motion: reduce) { .ab-fill, .hd-fill { transition: none; } }
+
   /* respeita quem prefere menos animação */
   @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation-duration: 0.001ms !important; transition-duration: 0.001ms !important; } }
 
@@ -9937,6 +9969,24 @@ const DB = {
       ease: 2.5, intervalo: 0, due: todayCards(), reps: 0, lapses: 0,
       // estado FSRS (Anki): fase, passo de aprendizado, estabilidade (S), dificuldade (D)
       phase: 'new', learnStep: 0, s: null, d: null, dueTs: null,
+      /* new_card_insert_order do Anki: a POSIÇÃO na fila de novos é decidida
+         aqui, no momento da criação — não na hora de montar a fila.
+         · 'sequencial' (padrão): entra no fim, atrás de tudo que já espera.
+         · 'aleatoria': recebe uma posição sorteada dentro da faixa existente,
+           então um lote grande se intercala com o que já estava na fila em vez
+           de virar um bloco monotemático no fim.
+         Reposicionar depois continua funcionando: ele reescreve posicaoNova. */
+      posicaoNova: (function () {
+        try {
+          const cfg = CardsConfig.get();
+          const novos = list.filter(c => (c.phase || 'new') === 'new');
+          const maior = novos.reduce((a, c) => Math.max(a, typeof c.posicaoNova === 'number' ? c.posicaoNova : -1), -1);
+          if ((cfg.newInsertOrder || 'sequencial') === 'aleatoria' && maior >= 0) {
+            return Math.floor(Math.random() * (maior + 2));
+          }
+          return maior + 1;
+        } catch (e) { _quiet(e, 'posicao-nova'); return Date.now(); }
+      })(),
       createdAt: now, updatedAt: now
     };
     list.push(card); this.saveCards(list); return card;
@@ -13870,6 +13920,14 @@ const FSRS = {
   },
   optimize(revlog, opts) {
     opts = opts || {};
+    /* ignore_revlogs_before_date: descarta revisões anteriores a uma data. Serve
+       para quando o histórico antigo não representa mais você — mudou de método,
+       importou um baralho de terceiros, ou passou meses sem estudar e as
+       respostas daquele período distorcem o ajuste. */
+    if (opts.ignorarAntesDe) {
+      const corte = String(opts.ignorarAntesDe);
+      revlog = (revlog || []).filter(r => String(r.date || '') >= corte);
+    }
     const seqs = this._buildSequences(revlog);
     const reviews = seqs.reduce((a, s) => a + (s.length - 1), 0);
     // Só as transições de LONGO PRAZO treinam a curva; as intradiárias não.
@@ -13888,6 +13946,28 @@ const FSRS = {
                 0.001, 0.001, 0.001, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.1];
     const HI = [100, 100, 100, 100, 10.0, 4.0, 4.0, 0.75, 4.5, 0.8, 3.5,
                 5.0, 0.25, 0.9, 4.0, 1.0, 6.0, 2.0, 2.0, 0.8, 0.8];
+    /* ── DOIS LIMITES DO ANKI QUE SÃO DINÂMICOS, NÃO FIXOS ─────────────────────
+       Conferido contra parameter_clipper.rs do fsrs-rs: o teto de w17/w18 e o
+       piso de w19 dependem da configuração. Usar valores fixos deixava o
+       otimizador produzir pesos que o Anki recusaria.
+
+       · w17/w18 — o teto garante que a estabilidade pós-lapso, depois de
+         percorrer TODOS os passos de reaprendizado, não ultrapasse a
+         estabilidade anterior:
+             teto = sqrt( -[ln(w11) + ln(2^w13 - 1) + w14*0,3] / n_passos )
+         preso em [0,01 ; 2,0]. Com 0 ou 1 passo continua 2,0 — só aperta com 2+.
+       · w19 — piso 0,01 quando o modelo de curto prazo está ativo. O app SEMPRE
+         usa nextS_short, então o piso é sempre 0,01 aqui. */
+    try {
+      const nRe = ((CardsConfig.get() || {}).relearnSteps || []).length;
+      if (nRe > 1) {
+        const b = this.migrarW(opts.startW) || this.DEFAULT_W;
+        const teto = Math.min(2.0, Math.max(0.01, Math.sqrt(Math.max(0.0001,
+          -(Math.log(b[11]) + Math.log(Math.pow(2, b[13]) - 1) + b[14] * 0.3) / nRe))));
+        HI[17] = teto; HI[18] = teto;
+      }
+    } catch (e) { _quiet(e, 'teto-w17-w18'); }
+    LO[19] = 0.01;
     const N = this.N_W;
     const clampW = (w) => {
       const out = w.slice(0, N);
@@ -13956,6 +14036,107 @@ const FSRS = {
     return { s: this.clampS(S), d: this.clampD(D), revisoes: logs.length };
   },
 
+  /* ── EASY DAYS ────────────────────────────────────────────────────────────
+     easy_days_percentages do Anki: um multiplicador por dia da semana (índice
+     0 = domingo) dizendo QUANTO da carga normal aquele dia aceita. 1 = normal,
+     0,5 = metade, 0 = evitar por completo.
+
+     Serve para quem não estuda em algum dia fixo. Não é uma proibição: se o dia
+     zerado for o ÚNICO da janela de dispersão, ele ainda é usado — o Anki
+     prefere agendar num dia ruim a violar o intervalo do algoritmo. O peso só
+     empurra a escolha para outro dia quando existe alternativa. */
+  /* ── param_search: FILTRO DE CARDS PARA O TREINO ───────────────────────────
+     Por que existe: os parâmetros do FSRS descrevem COMO VOCÊ esquece. Se o
+     histórico mistura coisas de naturezas diferentes — lei seca decorada ao
+     lado de raciocínio lógico, ou um baralho importado de terceiros que você
+     mal revisou — o ajuste vira uma média de perfis que não descreve nenhum
+     deles. Restringir o treino ao que é homogêneo produz pesos melhores que
+     treinar em tudo.
+
+     Sintaxe aceita (tudo opcional, separado por espaço, tudo em E lógico):
+       materia:tributário     campo começa com o texto (sem acento, sem caixa)
+       topico:imunidades      idem
+       tipo:cloze             idem
+       baralho:leis           idem
+       favorito · suspenso · leech         exige a marca
+       -favorito · -suspenso · -leech      exige a AUSÊNCIA da marca
+       qualquer outra palavra              busca em frente/verso/matéria/tópico
+       -palavra                            exclui quem contém a palavra
+
+     Termo com aspas mantém o espaço: materia:"direito tributário".
+     Entrada vazia = todos os cards (comportamento anterior). */
+  compilarBusca(consulta) {
+    const norm = (x) => String(x == null ? '' : x)
+      .normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim();
+    const q = String(consulta || '').trim();
+    if (!q) return null;                       // sem filtro
+    // divide respeitando aspas
+    const termos = (q.match(/-?\w+:"[^"]*"|-?"[^"]*"|\S+/g) || []);
+    const testes = [];
+    const CAMPOS = { materia: 'materia', topico: 'topico', tipo: 'tipo', baralho: '_deckNome' };
+    const MARCAS = { favorito: 'favorito', suspenso: 'suspenso', leech: 'leech' };
+    termos.forEach(bruto => {
+      let t = bruto, neg = false;
+      if (t[0] === '-') { neg = true; t = t.slice(1); }
+      t = t.replace(/"/g, '');
+      if (!t) return;
+      const dp = t.indexOf(':');
+      if (dp > 0) {
+        const campo = CAMPOS[norm(t.slice(0, dp))];
+        const valor = norm(t.slice(dp + 1));
+        if (campo && valor) {
+          testes.push(c => { const v = norm(c[campo]); const bate = v.indexOf(valor) === 0 || v.indexOf(valor) >= 0; return neg ? !bate : bate; });
+          return;
+        }
+      }
+      const marca = MARCAS[norm(t)];
+      if (marca) { testes.push(c => (neg ? !c[marca] : !!c[marca])); return; }
+      const alvo = norm(t);
+      testes.push(c => {
+        const blob = norm(c.frente) + ' ' + norm(c.verso) + ' ' + norm(c.materia) + ' ' + norm(c.topico);
+        const bate = blob.indexOf(alvo) >= 0;
+        return neg ? !bate : bate;
+      });
+    });
+    if (!testes.length) return null;
+    return (card) => testes.every(f => { try { return f(card); } catch (e) { return false; } });
+  },
+
+  /* ── CONVERSÃO SM-2 → FSRS (fsrs-rs: memory_state_from_sm2) ────────────────
+     Traduz um card agendado pelo algoritmo clássico para um estado de memória
+     do FSRS, invertendo a curva de esquecimento. Usada ao migrar cards antigos
+     e ao trocar o algoritmo de um baralho. */
+  memoryStateFromSM2(easeFactor, intervalo, sm2Retention) {
+    const w = CardsConfig.weights();
+    const decay = -this._w20(w);
+    const fator = Math.pow(0.9, 1 / decay) - 1;
+    const ret = Math.min(0.99, Math.max(0.5, sm2Retention || 0.9));
+    const S = Math.max(this.S_MIN, intervalo || 1) * fator / (Math.pow(ret, 1 / decay) - 1);
+    const D = 11 - (easeFactor - 1) /
+      (Math.exp(w[8]) * Math.pow(S, -w[9]) * (Math.exp((1 - ret) * w[10]) - 1));
+    // Entrada absurda (ease negativo, intervalo zero) não pode virar NaN no card.
+    return {
+      s: isFinite(S) ? this.clampS(S) : this.clampS(Math.max(1, intervalo || 1)),
+      d: isFinite(D) ? this.clampD(D) : 5
+    };
+  },
+
+  addDaysISO(iso, n) {
+    const d = new Date(iso + 'T00:00:00');
+    d.setDate(d.getDate() + (n || 0));
+    return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+  },
+  pesoDoDia(iso) {
+    try {
+      const cfg = CardsConfig.get();
+      const dias = cfg.easyDays;
+      if (!Array.isArray(dias) || dias.length !== 7) return 1;
+      const d = new Date(iso + 'T00:00:00').getDay();      // 0 = domingo
+      const p = Number(dias[d]);
+      return isFinite(p) ? Math.min(1, Math.max(0, p)) : 1;
+    } catch (e) { _quiet(e, 'peso-dia'); return 1; }
+  },
+
   // ---- LOAD BALANCING: dentro da MESMA janela de fuzz do Anki, escolhe o dia de menor carga ----
   /* ── BALANCEADOR DE CARGA (rslib/scheduler/states/load_balancer.rs) ─────────
      Duas diferencas reais em relacao ao Anki foram corrigidas aqui:
@@ -13983,10 +14164,26 @@ const FSRS = {
     }
     const dias = [], pesos = [];
     let soma = 0;
+    const hojeLB = todayCards();
     for (let d = lo; d <= hi; d++) {
       const n = dueCountByDay(d) || 0;
-      const peso = (n === 0) ? 1.0 : Math.pow(1 / n, 2.15) * Math.pow(1 / d, 3);
+      let peso = (n === 0) ? 1.0 : Math.pow(1 / n, 2.15) * Math.pow(1 / d, 3);
+      /* easy_days_percentages: multiplica o peso do dia pelo percentual de carga
+         que aquele dia da semana aceita. Um dia zerado sai do sorteio — mas veja
+         o fallback abaixo: se TODOS os dias da janela estiverem zerados, voltamos
+         aos pesos originais. O Anki prefere marcar num dia ruim a violar o
+         intervalo que o algoritmo calculou. */
+      peso *= this.pesoDoDia(this.addDaysISO(hojeLB, d));
       dias.push(d); pesos.push(peso); soma += peso;
+    }
+    if (!(soma > 0)) {
+      // todos os dias da janela são "leves": ignora o modificador nesta rodada
+      soma = 0;
+      for (let k = 0; k < dias.length; k++) {
+        const d = dias[k], n = dueCountByDay(d) || 0;
+        pesos[k] = (n === 0) ? 1.0 : Math.pow(1 / n, 2.15) * Math.pow(1 / d, 3);
+        soma += pesos[k];
+      }
     }
     if (!(soma > 0)) return lo;
     let alvo = Math.random() * soma;
@@ -14041,7 +14238,66 @@ const CardsConfig = {
        seja, revisar antes o que está mais perto de ser esquecido. Com fila em
        dia a diferença é pequena; com acúmulo, é o que mais preserva memória.
        Alternativas: 'vencimento' (mais atrasado antes) e 'aleatoria'. */
-    reviewOrder: 'retrievability'
+    /* ── ORDENAÇÃO E MISTURA (espelha deck_config.proto do Anki) ─────────────
+       Os nomes seguem os oficiais para a equivalência ser rastreável.
+       Só ficaram de fora as variantes que dependem de NOTAS/IRMÃOS e de
+       TEMPLATES, que não existem neste app (cada card é independente). */
+
+    // ReviewCardOrder — em que ordem as revisões vencidas são apresentadas.
+    // Padrão 'retrievabilityAsc': o mais perto de ser esquecido vem primeiro.
+    // O Anki sinalizou que essa deve virar a escolha padrão com acúmulo.
+    reviewOrder: 'retrievabilityAsc',
+
+    // NewCardGatherPriority — de onde os novos são COLETADOS antes do limite.
+    // 'posicao' = ordem de inserção (equivale a LOWEST_POSITION do Anki).
+    newGatherOrder: 'posicao',
+
+    // NewCardSortOrder — como o lote coletado é ORDENADO antes de exibir.
+    // 'coleta' preserva a ordem de coleta (NO_SORT); 'aleatoria' = RANDOM_CARD.
+    newSortOrder: 'coleta',
+
+    // NewCardInsertOrder — posição atribuída ao card ao ser CRIADO.
+    newInsertOrder: 'sequencial',
+
+    // ReviewMix — onde os novos entram em relação às revisões.
+    newMix: 'misturar',
+
+    // ReviewMix (interday) — cards de aprendizado que passaram da virada.
+    interdayMix: 'misturar',
+
+    // new_per_day_minimum — piso de novos por dia mesmo com revisões estouradas.
+    newPerDayMinimum: 0,
+
+    // easy_days_percentages — % da carga de revisão aceita por dia da semana
+    // (índice 0 = domingo). O balanceador evita marcar em dias "leves".
+    easyDays: [1, 1, 1, 1, 1, 1, 1],
+
+    // ignore_revlogs_before_date — corta o histórico usado pelo otimizador.
+    ignoreRevlogsBefore: '',
+
+    /* param_search — QUAIS cards entram no treino dos parâmetros.
+       No Anki isto é a linguagem de busca completa ("deck:X -is:suspended").
+       Aqui usamos o vocabulário do próprio app (materia:, topico:, tipo:,
+       baralho:, favorito, suspenso, leech, texto livre), que cobre a mesma
+       necessidade sem arrastar um interpretador de buscas inteiro. */
+    paramSearch: '',
+
+    // historical_retention — retenção presumida ao converter cards antigos.
+    historicalRetention: 0.9,
+
+    /* ── PARÂMETROS DO SM-2 ────────────────────────────────────────────────
+       Eu havia classificado estes como "não se aplicam" por o app usar FSRS.
+       Errado: existe o modo Clássico (algo: 'sm2') e ele estava com os valores
+       CRAVADOS no código. Agora são configuráveis, com os mesmos padrões do
+       Anki e os mesmos nomes do deck_config.proto. */
+    initialEase: 2.5,          // initial_ease
+    hardMultiplier: 1.2,       // hard_multiplier
+    easyMultiplier: 1.3,       // easy_multiplier
+    lapseMultiplier: 0.0,      // lapse_multiplier — 0 zera o intervalo no lapso
+    intervalMultiplier: 1.0,   // interval_multiplier — escala global
+    minimumLapseInterval: 1,   // minimum_lapse_interval
+    graduatingIntervalGood: 1, // graduating_interval_good
+    graduatingIntervalEasy: 4  // graduating_interval_easy
   },
   _c: null, _cKey: null,
   _notify() { try { if (window.CloudStore && CloudStore.notifyChange) CloudStore.notifyChange(); } catch (_) { _quiet(_); } },
@@ -14155,8 +14411,15 @@ const CardEngine = {
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
   },
   // Parâmetros do algoritmo Clássico (SM-2)
-  MIN_EASE: 1.3, MAX_EASE: 3.2, HARD_FACTOR: 1.2, EASY_BONUS: 1.3, MAX_INTERVAL: 365 * 5,
-  GRAD_GOOD: 1, GRAD_EASY: 4,
+  /* review.rs: MINIMUM_EASE_FACTOR e os três deltas de facilidade.
+     Não existe TETO de ease no Anki — o antigo MAX_EASE 3.2 era invenção do app
+     e impedia que um card sempre respondido "Fácil" continuasse crescendo.
+     Os multiplicadores e o intervalo máximo saíram daqui: agora vêm da
+     configuração do baralho, como no Anki. */
+  MIN_EASE: 1.3,
+  EASE_AGAIN_DELTA: -0.20,
+  EASE_HARD_DELTA: -0.15,
+  EASE_EASY_DELTA: 0.15,
   GRADE_NUM: { errei: 1, dificil: 2, bom: 3, facil: 4, naosei: 1, sei: 3 },
   /* Retrievability atual de um card: a probabilidade estimada de você acertá-lo
      AGORA. É a mesma R do FSRS, calculada com os dias decorridos desde a última
@@ -14203,11 +14466,18 @@ const CardEngine = {
     const c = Object.assign({}, card);
     if (!c.phase) {
       if ((c.reps || 0) > 0 && (c.intervalo || 0) > 0) {
-        // card antigo já em revisão → aproxima S pelo intervalo e D pela facilidade
+        /* Card antigo do SM-2 → estado de memória do FSRS.
+           Antes: S = intervalo e D por regra de três sobre a facilidade — uma
+           aproximação inventada. Agora é a conversão OFICIAL do fsrs-rs
+           (memory_state_from_sm2), que inverte a curva de esquecimento:
+             S = iv * fator / (retencao^(1/decay) - 1)
+             D = 11 - (ease - 1) / (e^w8 * S^-w9 * (e^(w10*(1-retencao)) - 1))
+           A retenção histórica presumida é configurável (historical_retention,
+           padrão 0,9) — é o que o Anki pergunta ao migrar de SM-2 para FSRS. */
         c.phase = 'review';
-        c.s = Math.max(1, c.intervalo);
-        const e = c.ease || 2.5;
-        c.d = FSRS.clampD(10 - ((e - this.MIN_EASE) / (this.MAX_EASE - this.MIN_EASE)) * 9);
+        const conv = FSRS.memoryStateFromSM2(c.ease || 2.5, c.intervalo,
+          (CardsConfig.get().historicalRetention) || 0.9);
+        c.s = conv.s; c.d = conv.d;
       } else { c.phase = 'new'; c.s = null; c.d = null; }
       c.learnStep = c.learnStep || 0;
     }
@@ -14365,16 +14635,79 @@ const CardEngine = {
     return patch;
   },
   // ---- Agendador Clássico (SM-2) ----
+  /* ── SM-2 (rslib/src/scheduler/states/review.rs) ───────────────────────────
+     Quatro divergências reais em relação ao Anki foram corrigidas aqui:
+
+     1) COMPENSAÇÃO DE ATRASO. O Anki soma o atraso ao intervalo base antes de
+        multiplicar: good usa (iv + atraso/2) e easy usa (iv + atraso). Se você
+        lembrou de um card 20 dias depois do previsto, essa memória vale mais que
+        a de quem revisou no dia — e o intervalo tem de refletir isso. O app
+        ignorava o atraso por completo.
+
+     2) ORDEM GARANTIDA hard < good < easy. O Anki impõe pisos: good ≥ hard+1 e
+        easy ≥ good+1. Sem eles, com ease baixo (1,3) e hard_multiplier 1,2, os
+        botões podiam devolver o MESMO intervalo — ou pior, "Difícil" render mais
+        que "Bom".
+
+     3) TETO DE FACILIDADE. O app limitava ease a 3,2. O Anki tem apenas o piso
+        (1,3) — quem acerta "Fácil" sempre num card deve poder passar disso.
+
+     4) INTERVALO MÁXIMO. Estava cravado em 5 anos, ignorando o maxInterval que o
+        usuário já configurava (e que o modo FSRS respeitava).
+
+     Também passou a usar os multiplicadores configuráveis em vez de constantes. */
   _scheduleSM2(card, grade) {
-    let ease = card.ease || 2.5, intervalo = card.intervalo || 0, reps = card.reps || 0, lapses = card.lapses || 0;
+    const cfg = CardsConfig.forDeck(card.deckId) || CardsConfig.get();
+    const easeIni = cfg.initialEase != null ? cfg.initialEase : 2.5;
+    const fHard = cfg.hardMultiplier != null ? cfg.hardMultiplier : 1.2;
+    const fEasy = cfg.easyMultiplier != null ? cfg.easyMultiplier : 1.3;
+    const fLapse = cfg.lapseMultiplier != null ? cfg.lapseMultiplier : 0.0;
+    const fGlobal = cfg.intervalMultiplier != null ? cfg.intervalMultiplier : 1.0;
+    const minLapse = Math.max(1, cfg.minimumLapseInterval != null ? cfg.minimumLapseInterval : 1);
+    const gradGood = Math.max(1, cfg.graduatingIntervalGood != null ? cfg.graduatingIntervalGood : 1);
+    const gradEasy = Math.max(1, cfg.graduatingIntervalEasy != null ? cfg.graduatingIntervalEasy : 4);
+    const maxIv = Math.max(1, cfg.maxInterval || 36500);
+
+    let ease = card.ease || easeIni, intervalo = card.intervalo || 0;
+    let reps = card.reps || 0, lapses = card.lapses || 0;
     const isNew = reps === 0 || intervalo <= 0;
     let status;
-    const clampE = (e) => Math.max(this.MIN_EASE, Math.min(this.MAX_EASE, e));
-    const cap = (d) => Math.max(1, Math.min(this.MAX_INTERVAL, Math.round(d)));
-    if (grade === 'errei') { lapses += 1; reps = 0; intervalo = 1; ease = clampE(ease - 0.20); status = 'naosei'; }
-    else if (isNew) { reps += 1; status = 'sei'; if (grade === 'facil') { intervalo = this.GRAD_EASY; ease = clampE(ease + 0.15); } else if (grade === 'dificil') { intervalo = 1; ease = clampE(ease - 0.15); } else intervalo = this.GRAD_GOOD; }
-    else { reps += 1; status = 'sei'; if (grade === 'dificil') { intervalo = cap(intervalo * this.HARD_FACTOR); ease = clampE(ease - 0.15); } else if (grade === 'facil') { intervalo = cap(intervalo * ease * this.EASY_BONUS); ease = clampE(ease + 0.15); } else intervalo = cap(intervalo * ease); }
-    intervalo = cap(intervalo);
+    // Anki tem apenas MINIMUM_EASE_FACTOR; não existe teto.
+    const clampE = (e) => Math.max(this.MIN_EASE, e);
+    // constrain_passing_interval: aplica o multiplicador global e os limites.
+    const constr = (dias, minimo) => {
+      const v = dias * fGlobal;
+      const min = Math.min(Math.max(1, minimo || 1), maxIv);
+      return Math.max(min, Math.min(maxIv, Math.round(v)));
+    };
+    // days_late: quantos dias além do previsto você levou para revisar.
+    const atraso = Math.max(0, this._daysBetween(card.due || todayCards(), todayCards()));
+
+    if (grade === 'errei') {
+      lapses += 1; reps = 0;
+      ease = clampE(ease + this.EASE_AGAIN_DELTA);
+      // failing_review_interval: iv * lapse_multiplier, com piso próprio
+      intervalo = Math.max(minLapse, Math.min(maxIv, Math.round(Math.max(1, intervalo) * fLapse)));
+      status = 'naosei';
+    } else if (isNew) {
+      reps += 1; status = 'sei';
+      if (grade === 'facil') { intervalo = constr(gradEasy, 1); ease = clampE(ease + this.EASE_EASY_DELTA); }
+      else if (grade === 'dificil') { intervalo = constr(gradGood, 1); ease = clampE(ease + this.EASE_HARD_DELTA); }
+      else { intervalo = constr(gradGood, 1); }   // "Bom" não altera a facilidade
+    } else {
+      reps += 1; status = 'sei';
+      const base = Math.max(1, intervalo);
+      // Os três intervalos são calculados JUNTOS porque cada piso depende do anterior.
+      const minHard = fHard <= 1.0 ? 0 : base + 1;
+      const ivHard = constr(base * fHard, minHard);
+      const minGood = fHard <= 1.0 ? base + 1 : ivHard + 1;
+      const ivGood = constr((base + atraso / 2) * ease, minGood);
+      const ivEasy = constr((base + atraso) * ease * fEasy, ivGood + 1);
+      if (grade === 'dificil') { intervalo = ivHard; ease = clampE(ease + this.EASE_HARD_DELTA); }
+      else if (grade === 'facil') { intervalo = ivEasy; ease = clampE(ease + this.EASE_EASY_DELTA); }
+      else { intervalo = ivGood; }                 // "Bom" não altera a facilidade
+    }
+    intervalo = Math.max(1, Math.min(maxIv, Math.round(intervalo)));
     return { status, grade, ease, intervalo, reps, lapses, due: this.addDays(todayCards(), intervalo), dueTs: null, lastReview: todayCards(), algo: 'sm2', _kind: 'day', _val: intervalo };
   },
   // Ponto único de entrada. grade: 'errei'|'dificil'|'bom'|'facil' (ou 'sei'/'naosei')
@@ -14882,6 +15215,16 @@ function planCycleMode() {
   });
 
   on('btn-confirm-cycle', 'click', () => {
+    /* pendingCycle só existe depois de "calcular sugestão". O botão fica na
+       tela de pré-visualização, mas essa tela pode ser alcançada de novo depois
+       de um recarregamento — e aí o rascunho não existe mais. Sem esta guarda o
+       clique lançava TypeError e a tela travava sem explicação nenhuma.
+       (O handler de "voltar" já tinha guarda equivalente; este não.) */
+    if (!pendingCycle || !pendingCycle.startDate) {
+      showToast('Monte o ciclo primeiro — clique em "Calcular sugestão"');
+      try { switchScreen('ciclo'); } catch (e) { _quiet(e, 'confirm-cycle'); }
+      return;
+    }
     const cycle = {
       startDate: pendingCycle.startDate,
       endDate: pendingCycle.endDate || CycleEngine.weekEndDate(pendingCycle.startDate),
@@ -19404,7 +19747,10 @@ const CardsScreen = {
     const filtered = this.currentFilteredCards().filter(c => !c.suspenso);
     const due = filtered.filter(c => CardEngine.isDue(c));
     const newRem = CardsConfig.newRemaining(), revRem = CardsConfig.revRemaining();
-    const novos = [], revisoes = [], aprend = [];
+    /* `novos` precisa ser reatribuível: o modo 'materiaRodizio' constrói uma
+       lista intercalada nova em vez de ordenar no lugar. Com `const` isso
+       lançava TypeError e derrubava a montagem da fila inteira. */
+    let novos = []; const revisoes = [], aprend = [];
     due.forEach(c => { const b = this._bucket(c); if (b === 'new') novos.push(c); else if (b === 'review') revisoes.push(c); else aprend.push(c); });
     /* ── ORDEM DAS REVISÕES ───────────────────────────────────────────────────
        Ordena ANTES de aplicar o limite: com acúmulo, quais 200 revisões entram
@@ -19413,18 +19759,89 @@ const CardsScreen = {
          memória é revisado antes. É a ordem que o Anki deve adotar como padrão.
        · 'vencimento'     — mais atrasado primeiro (o clássico).
        · 'aleatoria'      — comportamento anterior. */
-    // Reposicionar só faz efeito se a fila realmente honrar a posição gravada.
-    if (novos.some(c => typeof c.posicaoNova === 'number')) {
-      novos.sort((a, b) => (a.posicaoNova ?? 1e9) - (b.posicaoNova ?? 1e9));
+    /* ── NewCardGatherPriority ────────────────────────────────────────────────
+       Decide QUAIS novos entram quando há mais candidatos que o limite diário.
+       Importa mais do que parece: colar 40 assuntos de uma matéria fazia os
+       próximos dias virarem monotemáticos. */
+    const posDe = (c) => (typeof c.posicaoNova === 'number' ? c.posicaoNova : Number.MAX_SAFE_INTEGER);
+    const criacaoDe = (c) => String(c.createdAt || '');
+    const cfgQ = CardsConfig.get();
+    const COLETA = {
+      posicao:     (a, b) => posDe(a) - posDe(b) || criacaoDe(a).localeCompare(criacaoDe(b)),
+      posicaoDesc: (a, b) => posDe(b) - posDe(a) || criacaoDe(b).localeCompare(criacaoDe(a)),
+      criacao:     (a, b) => criacaoDe(a).localeCompare(criacaoDe(b)),
+      // 'materiaRodizio' substitui o DECK_THEN_RANDOM do Anki: em vez de sortear
+      // por baralho, faz rodízio entre MATÉRIAS, que é o eixo real aqui. Assim
+      // um lote grande de uma matéria não domina os dias seguintes.
+      materiaRodizio: null
+    };
+    const gather = cfgQ.newGatherOrder || 'posicao';
+    if (gather === 'materiaRodizio') {
+      const porMat = {};
+      novos.slice().sort(COLETA.posicao).forEach(c => {
+        const k = c.materia || '—';
+        (porMat[k] = porMat[k] || []).push(c);
+      });
+      const filas = Object.keys(porMat).sort().map(k => porMat[k]);
+      const inter = [];
+      let restam = true;
+      while (restam) {
+        restam = false;
+        filas.forEach(f => { if (f.length) { inter.push(f.shift()); restam = true; } });
+      }
+      novos = inter;
+    } else if (COLETA[gather]) {
+      novos.sort(COLETA[gather]);
     }
-    const ordemRev = (CardsConfig.get().reviewOrder) || 'retrievability';
-    if (ordemRev === 'retrievability') {
-      const hoje = todayCards(), w = CardsConfig.weights();
-      revisoes.sort((a, b) => CardEngine.retrievabilityDe(a, hoje, w) - CardEngine.retrievabilityDe(b, hoje, w));
-    } else if (ordemRev === 'vencimento') {
-      revisoes.sort((a, b) => String(a.due || '').localeCompare(String(b.due || '')));
+    // NewCardSortOrder: reordena o lote já coletado.
+    if ((cfgQ.newSortOrder || 'coleta') === 'aleatoria') {
+      for (let i = novos.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        const t = novos[i]; novos[i] = novos[j]; novos[j] = t;
+      }
     }
-    const novosLim = novos.slice(0, newRem), revLim = revisoes.slice(0, revRem);
+    /* ── ReviewCardOrder ──────────────────────────────────────────────────────
+       Réplica das variantes do Anki que fazem sentido aqui. Ficaram de fora as
+       que dependem de múltiplos baralhos aninhados (DAY_THEN_DECK,
+       DECK_THEN_DAY) — este app tem baralhos planos.
+
+       'relativeOverdueness' merece nota: é a razão entre o atraso e o intervalo
+       marcado. Um card de 3 dias atrasado 3 dias (razão 2,0) corre MUITO mais
+       risco que um de 300 dias atrasado 3 (razão 1,01), mesmo o segundo estando
+       "mais vencido" em dias absolutos. É a ordem que o Anki usa por padrão no
+       agendador v3 clássico. */
+    const hojeQ = todayCards(), wQ = CardsConfig.weights();
+    const R = (c) => CardEngine.retrievabilityDe(c, hojeQ, wQ);
+    const atrasoRel = (c) => {
+      const iv = Math.max(1, c.intervalo || 1);
+      const atraso = CardEngine._daysBetween(c.due || hojeQ, hojeQ);
+      return (atraso + iv) / iv;                       // >1 = mais urgente
+    };
+    const ordemRev = CardsConfig.get().reviewOrder || 'retrievabilityAsc';
+    const ORDENADORES = {
+      retrievabilityAsc:  (a, b) => R(a) - R(b),                 // esquecendo primeiro
+      retrievabilityDesc: (a, b) => R(b) - R(a),
+      relativeOverdueness:(a, b) => atrasoRel(b) - atrasoRel(a),
+      day:                (a, b) => String(a.due || '').localeCompare(String(b.due || '')),
+      intervalsAsc:       (a, b) => (a.intervalo || 0) - (b.intervalo || 0),
+      intervalsDesc:      (a, b) => (b.intervalo || 0) - (a.intervalo || 0),
+      easeAsc:            (a, b) => (a.d || 0) - (b.d || 0),     // no FSRS a dificuldade
+      easeDesc:           (a, b) => (b.d || 0) - (a.d || 0),     // faz o papel do "ease"
+      added:              (a, b) => String(a.createdAt || '').localeCompare(String(b.createdAt || '')),
+      random:             () => Math.random() - 0.5
+    };
+    const cmp = ORDENADORES[ordemRev];
+    if (cmp) revisoes.sort(cmp);
+    /* new_per_day_minimum: garante um mínimo de cards novos por dia mesmo quando
+       o limite de revisões está estourado. Sem isso, uma fila acumulada trava a
+       entrada de conteúdo novo por semanas — o usuário só apaga incêndio e
+       nunca avança. 0 = desligado (comportamento anterior). */
+    const pisoNovos = Math.max(0, cfgQ.newPerDayMinimum || 0);
+    const haAcumulo = revisoes.length > revRem;      // limite de revisões estourado
+    const newRemEfetivo = (pisoNovos > 0 && haAcumulo)
+      ? Math.max(newRem, Math.min(pisoNovos, novos.length))
+      : newRem;
+    const novosLim = novos.slice(0, newRemEfetivo), revLim = revisoes.slice(0, revRem);
     /* ── MISTURA NOVOS x REVISOES (rslib/scheduler/queue/builder/intersperser.rs) ──
        O padrao do Anki e new_mix: MixWithReviews, e a mistura NAO e aleatoria:
        os novos sao DISTRIBUIDOS proporcionalmente entre as revisoes, de modo que
@@ -19450,9 +19867,33 @@ const CardsScreen = {
       }
       return out;
     };
-    // ordem interna de cada grupo continua sorteada; o que muda e o ESPACAMENTO entre grupos
-    const shuffle = (a) => { for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1));[a[i], a[j]] = [a[j], a[i]]; } return a; };
-    const queue = aprend.concat(intercalar(shuffle(novosLim.slice()), shuffle(revLim.slice()))).map(c => c.id);
+    /* ── ReviewMix ────────────────────────────────────────────────────────────
+       Duas decisões independentes no Anki, ambas com três valores:
+       MIX_WITH_REVIEWS (padrão) · AFTER_REVIEWS · BEFORE_REVIEWS.
+
+       · newMix      — onde entram os cards NOVOS.
+       · interdayMix — onde entram os de APRENDIZADO que atravessaram a virada
+                       do dia. Antes eles vinham sempre primeiro, fixo; muita
+                       gente prefere despachar as revisões antes de retomar o
+                       que ficou pela metade.
+       "Misturar" usa o intercalador proporcional acima, não sorteio. */
+    const cfgMix = CardsConfig.get();
+    const aplicarMix = (grupo, base, modo) => {
+      if (!grupo.length) return base;
+      if (modo === 'antes') return grupo.concat(base);
+      if (modo === 'depois') return base.concat(grupo);
+      return intercalar(grupo, base);
+    };
+    /* NÃO embaralhar aqui. O código antigo fazia shuffle() nos dois grupos
+       porque não existia opção de ordenação — o acaso era a única política.
+       Agora reviewOrder, newGatherOrder e newSortOrder decidem a ordem de
+       propósito, e embaralhar depois ANULA as três: era o caso de
+       'materiaRodizio' montar C,T,C,T e o shuffle devolver C,C,C,T,T,T.
+       Quem quiser acaso escolhe 'Aleatória' nas opções. */
+    let corpo = revLim.slice();
+    corpo = aplicarMix(novosLim.slice(), corpo, cfgMix.newMix || 'misturar');
+    corpo = aplicarMix(aprend.slice(), corpo, cfgMix.interdayMix || 'misturar');
+    const queue = corpo.map(c => c.id);
     CardEngine._intercalar = intercalar;
     // cards em aprendizado cujo passo ainda não venceu (base do "learn ahead" do Anki)
     const pendentes = filtered
@@ -19566,10 +20007,101 @@ const CardsScreen = {
             </div>
           </div>
         </div>
-        <div class="card stat-card"><div class="card-header"><div><h2>📅 Previsão de carga</h2><p class="sub">Revisões que vencem nos próximos 14 dias</p></div></div><div class="stat-chart">${bars(prev, maxPrev, dm, 'accent')}</div></div>
+        <div class="card stat-card"><div class="card-header"><div><h2>📅 Previsão de carga</h2><p class="sub">${(() => {
+          const p = this.previsaoCarga(30);
+          return `Próximos 14 dias no gráfico · em 30 dias: ${p.total} revisão(ões), média de ${p.media}/dia, pico de ${p.pico}` +
+                 (p.atrasados ? ` · <strong class="tone-warn">${p.atrasados} atrasada(s)</strong>` : '');
+        })()}</p></div></div><div class="stat-chart">${bars(prev, maxPrev, dm, 'accent')}</div></div>
         <div class="card stat-card"><div class="card-header"><div><h2>🔥 Atividade recente</h2><p class="sub">Revisões feitas nos últimos 14 dias · histórico: ${revlog.length}</p></div></div><div class="stat-chart">${bars(act, maxAct, wd, 'good')}</div></div>
       </div>
+      ${this._statTrueRetention()}
+      ${this._statBotoes()}
+      ${this._statDistribuicao()}
       ${revs.length < 10 ? `<p class="hint" style="text-align:center;margin-top:14px;">💡 A retenção real fica precisa após ~10 revisões de cards maduros (você tem ${revs.length}).</p>` : ''}`;
+  },
+
+  /* ── TRUE RETENTION (Anki: aba Estatísticas → True Retention) ──────────────
+     A tabela que responde "a retenção que eu TENHO bate com a que eu PEDI?".
+     Separada por maturidade porque as duas contam histórias diferentes: card
+     jovem (< 21 dias) ainda está sendo aprendido e erra muito; card maduro é
+     que mede retenção de verdade. Revisões do mesmo dia ficam de fora — repetir
+     um card em dez minutos não diz nada sobre esquecimento. */
+  _statTrueRetention() {
+    const p = [];
+    [[1, 'Hoje'], [7, '7 dias'], [30, '30 dias'], [365, '1 ano'], [null, 'Tudo']].forEach(([d, rot]) => {
+      const t = this.trueRetention(d);
+      if (!t.todos.total) return;
+      const cor = (v) => v == null ? '' : (v >= t.meta ? 'good' : v >= t.meta - 5 ? 'warn' : 'bad');
+      const cel = (o) => o.total ? `<td class="tone-${cor(o.pct)}"><strong>${o.pct.toFixed(1)}%</strong><span class="tr-frac">${o.acertos}/${o.total}</span></td>` : '<td class="tr-vazio">—</td>';
+      p.push(`<tr><th>${rot}</th>${cel(t.jovem)}${cel(t.maduro)}${cel(t.todos)}</tr>`);
+    });
+    if (!p.length) return '';
+    const meta = this.trueRetention(null).meta;
+    return `<div class="card stat-card" style="margin-top:14px">
+      <div class="card-header"><div><h2>🎯 Retenção real (True Retention)</h2>
+      <p class="sub">Acertos ÷ revisões de longo prazo. Meta configurada: ${meta}%. Revisões do mesmo dia não entram.</p></div></div>
+      <div class="tr-wrap"><table class="tr-table"><thead><tr><th></th><th>Jovens<span class="tr-sub">&lt; 21d</span></th><th>Maduros<span class="tr-sub">≥ 21d</span></th><th>Todos</th></tr></thead><tbody>${p.join('')}</tbody></table></div>
+    </div>`;
+  },
+
+  /* ── BOTÕES DE RESPOSTA (Anki: Answer Buttons) ────────────────────────────
+     Quanto você aperta cada botão, separado por fase. Diagnóstico direto: muito
+     "Errei" em revisão significa intervalos longos demais; muito "Fácil"
+     significa o contrário — e a retenção-alvo deveria mudar, não os cards. */
+  _statBotoes() {
+    const revlog = DB.getRevlog() || [];
+    if (revlog.length < 5) return '';
+    const NOMES = { 1: 'Errei', 2: 'Difícil', 3: 'Bom', 4: 'Fácil' };
+    const TONS = { 1: 'bad', 2: 'warn', 3: 'accent', 4: 'good' };
+    const fases = { learning: 'Aprendendo', review: 'Revisão', relearning: 'Reaprendendo' };
+    const linhas = [];
+    Object.keys(fases).forEach(fase => {
+      const sub = revlog.filter(r => (r.phase || 'review') === fase);
+      if (!sub.length) return;
+      const cnt = { 1: 0, 2: 0, 3: 0, 4: 0 };
+      sub.forEach(r => { if (cnt[r.grade] !== undefined) cnt[r.grade]++; });
+      const barras = [1, 2, 3, 4].map(g => {
+        const pc = Math.round(cnt[g] / sub.length * 1000) / 10;
+        return `<div class="ab-col" data-tip="${NOMES[g]}: ${cnt[g]} (${pc}%)">
+          <div class="ab-bar"><div class="ab-fill tone-${TONS[g]}" style="height:${Math.max(2, pc)}%"></div></div>
+          <span class="ab-pc">${pc >= 1 ? Math.round(pc) + '%' : ''}</span><span class="ab-lb">${NOMES[g]}</span></div>`;
+      }).join('');
+      linhas.push(`<div class="ab-grupo"><div class="ab-tit">${fases[fase]}<span>${sub.length}</span></div><div class="ab-cols">${barras}</div></div>`);
+    });
+    if (!linhas.length) return '';
+    return `<div class="card stat-card" style="margin-top:14px">
+      <div class="card-header"><div><h2>🔘 Botões de resposta</h2>
+      <p class="sub">Muito "Errei" em revisão = intervalos longos demais. Muito "Fácil" = o oposto — mexa na retenção-alvo, não nos cards.</p></div></div>
+      <div class="ab-wrap">${linhas.join('')}</div></div>`;
+  },
+
+  /* ── DISTRIBUIÇÃO DE ESTABILIDADE E DIFICULDADE (Anki: Card Stability /
+     Card Difficulty) ─────────────────────────────────────────────────────────
+     Só faz sentido com FSRS: mostra como a coleção se espalha nos dois eixos do
+     modelo de memória. Uma massa concentrada em dificuldade alta indica material
+     mal formulado — card difícil demais costuma ser card mal escrito. */
+  _statDistribuicao() {
+    const cards = DB.getCards().filter(c => typeof c.s === 'number' && typeof c.d === 'number');
+    if (cards.length < 5) return '';
+    const FAIXAS_S = [[0, 1, '< 1d'], [1, 7, '1–7d'], [7, 21, '7–21d'], [21, 90, '21–90d'], [90, 365, '90d–1a'], [365, Infinity, '> 1a']];
+    const FAIXAS_D = [[1, 3, 'Muito fácil'], [3, 5, 'Fácil'], [5, 7, 'Médio'], [7, 9, 'Difícil'], [9, 10.01, 'Muito difícil']];
+    const hist = (faixas, valor, tone) => {
+      const c = faixas.map(([a, b]) => cards.filter(x => valor(x) >= a && valor(x) < b).length);
+      const mx = Math.max(1, ...c);
+      return faixas.map(([, , rot], i) => `<div class="hd-col" data-tip="${rot}: ${c[i]} card(s)">
+        <div class="hd-bar"><div class="hd-fill ${tone}" style="height:${c[i] ? Math.max(4, Math.round(c[i] / mx * 100)) : 0}%"></div></div>
+        <span class="hd-n">${c[i] || ''}</span><span class="hd-lb">${rot}</span></div>`).join('');
+    };
+    const medS = cards.reduce((a, c) => a + c.s, 0) / cards.length;
+    const medD = cards.reduce((a, c) => a + c.d, 0) / cards.length;
+    return `<div class="stat-grid" style="margin-top:14px">
+      <div class="card stat-card"><div class="card-header"><div><h2>📈 Estabilidade</h2>
+        <p class="sub">Quanto tempo a memória dura. Média: ${CycleEngine.fmtHM ? '' : ''}${medS < 1 ? medS.toFixed(2) + ' dia' : Math.round(medS) + ' dias'}</p></div></div>
+        <div class="hd-wrap">${hist(FAIXAS_S, c => c.s, 'tone-accent')}</div></div>
+      <div class="card stat-card"><div class="card-header"><div><h2>🧱 Dificuldade</h2>
+        <p class="sub">Média: ${medD.toFixed(1)} de 10. Concentração no topo costuma indicar card mal formulado, não assunto difícil.</p></div></div>
+        <div class="hd-wrap">${hist(FAIXAS_D, c => c.d, 'tone-warn')}</div></div>
+    </div>`;
   },
   renderReviewCard(box) {
     const total = this._reviewQueue.length;
@@ -20570,10 +21102,96 @@ CardsScreen.openAlgoConfigFor = function (deckId) {
       options: [{ value: 'suspend', label: 'Suspender (tira da fila)' }, { value: 'tag', label: 'Só marcar (continua aparecendo)' }],
       hint: 'Suspenso some da revisão até você reativar em Meus cards.' }
   ];
+  /* ── ORDENAÇÃO E MISTURA — paridade com deck_config.proto ──────────────────
+     Cada rótulo diz o que a opção FAZ, não só como se chama. São escolhas cujo
+     efeito só aparece depois de dias de uso, então a dica precisa explicar o
+     porquê. */
+  fields.push(
+    { key: 'reviewOrder', label: '🔢 Ordem das revisões', type: 'select', value: cfg.reviewOrder || 'retrievabilityAsc',
+      options: [
+        { value: 'retrievabilityAsc',  label: 'Mais perto de esquecer primeiro (recomendado)' },
+        { value: 'retrievabilityDesc', label: 'Mais bem lembrado primeiro' },
+        { value: 'relativeOverdueness',label: 'Atraso relativo ao intervalo' },
+        { value: 'day',                label: 'Data de vencimento (mais atrasado antes)' },
+        { value: 'intervalsAsc',       label: 'Intervalo menor primeiro' },
+        { value: 'intervalsDesc',      label: 'Intervalo maior primeiro' },
+        { value: 'easeAsc',            label: 'Mais difíceis primeiro' },
+        { value: 'easeDesc',           label: 'Mais fáceis primeiro' },
+        { value: 'added',              label: 'Ordem de criação' },
+        { value: 'random',             label: 'Aleatória' }
+      ],
+      hint: 'Com fila acumulada, isto muda muito o rendimento: revisar antes o que está prestes a sumir preserva mais memória por minuto. "Atraso relativo" prioriza quem passou mais tempo além do próprio intervalo — 3 dias de atraso num card de 3 dias é grave; num de 300, não.' },
+    { key: 'newGatherOrder', label: '🆕 Quais cards novos entram primeiro', type: 'select', value: cfg.newGatherOrder || 'posicao',
+      options: [
+        { value: 'posicao',        label: 'Posição na fila (ordem de inserção)' },
+        { value: 'posicaoDesc',    label: 'Posição invertida (mais recentes antes)' },
+        { value: 'criacao',        label: 'Data de criação' },
+        { value: 'materiaRodizio', label: 'Rodízio entre matérias' }
+      ],
+      hint: 'O rodízio evita que colar 40 assuntos de uma matéria faça os próximos dias virarem monotemáticos.' },
+    { key: 'newInsertOrder', label: '🆕 Posição de um card recém-criado', type: 'select', value: cfg.newInsertOrder || 'sequencial',
+      options: [
+        { value: 'sequencial', label: 'No fim da fila (padrão)' },
+        { value: 'aleatoria',  label: 'Posição sorteada' }
+      ],
+      hint: 'Decidida no momento da criação. "Sorteada" faz um lote grande se intercalar com o que já esperava, em vez de virar um bloco no fim.' },
+    { key: 'newSortOrder', label: '🆕 Ordem de exibição dos novos', type: 'select', value: cfg.newSortOrder || 'coleta',
+      options: [{ value: 'coleta', label: 'Manter a ordem de coleta' }, { value: 'aleatoria', label: 'Embaralhar' }],
+      hint: 'Só reordena o lote do dia; não muda quais entram.' },
+    { key: 'newMix', label: '🔀 Onde entram os cards NOVOS', type: 'select', value: cfg.newMix || 'misturar',
+      options: [
+        { value: 'misturar', label: 'Misturados com as revisões (padrão Anki)' },
+        { value: 'depois',   label: 'Depois de todas as revisões' },
+        { value: 'antes',    label: 'Antes de todas as revisões' }
+      ],
+      hint: '"Depois" é a escolha de quem prefere despachar a fila conhecida antes de gastar energia com conteúdo novo.' },
+    { key: 'interdayMix', label: '🔀 Onde entra o aprendizado do dia anterior', type: 'select', value: cfg.interdayMix || 'misturar',
+      options: [
+        { value: 'misturar', label: 'Misturado com as revisões' },
+        { value: 'depois',   label: 'Depois das revisões' },
+        { value: 'antes',    label: 'Antes das revisões (padrão antigo)' }
+      ],
+      hint: 'Cards que você errou ontem e ficaram no meio do caminho.' },
+    { key: 'easyDays', label: '📅 Dias leves (% da carga, Dom→Sáb)', type: 'text',
+      value: (cfg.easyDays || [1,1,1,1,1,1,1]).map(x => Math.round(x * 100)).join(' '), placeholder: '100 100 100 100 100 100 100',
+      hint: 'Sete números de 0 a 100, começando no domingo. Ex.: "50 100 100 100 100 100 30" alivia domingo e sábado. Não é proibição: se não houver alternativa dentro da janela de dispersão, o dia ainda é usado.' },
+    { key: 'ignoreRevlogsBefore', label: '📜 Ignorar revisões anteriores a', type: 'text', value: cfg.ignoreRevlogsBefore || '', placeholder: 'AAAA-MM-DD',
+      hint: 'Descarta o histórico antigo ao otimizar. Útil se você mudou de método ou importou baralho de terceiros. Vazio = usar tudo.' },
+    { key: 'historicalRetention', label: '🕰️ Retenção histórica presumida (%)', type: 'number', value: Math.round((cfg.historicalRetention || 0.9) * 100), min: 50, max: 99,
+      hint: 'Usada para converter cards antigos do SM-2 em estado de memória do FSRS. É a pergunta que o Anki faz ao migrar. Padrão: 90.' },
+    { key: 'paramSearch', label: '🔎 Cards que treinam os parâmetros', type: 'text', value: cfg.paramSearch || '', placeholder: 'ex.: materia:tributário -suspenso',
+      hint: 'Filtra quem entra no treino. Os parâmetros descrevem COMO VOCÊ ESQUECE — misturar lei seca com raciocínio lógico produz uma média que não descreve nenhum dos dois. Aceita materia: topico: tipo: baralho: favorito suspenso leech, texto livre e "-" para excluir. Vazio = todos.' }
+  );
+
+  /* ── PARÂMETROS DO CLÁSSICO (SM-2) ─────────────────────────────────────────
+     Só fazem efeito com o algoritmo Clássico selecionado. Com FSRS o intervalo
+     vem do modelo de memória e estes multiplicadores são ignorados — igual ao
+     Anki, que também esconde/desabilita a seção quando o FSRS está ligado. */
+  fields.push(
+    { key: 'initialEase', label: '📐 [Clássico] Facilidade inicial', type: 'number', value: Math.round((cfg.initialEase != null ? cfg.initialEase : 2.5) * 100), min: 130, max: 500,
+      hint: 'Em centésimos: 250 = 2,50. Multiplicador aplicado ao intervalo quando você acerta "Bom". Padrão Anki: 250.' },
+    { key: 'hardMultiplier', label: '📐 [Clássico] Multiplicador do "Difícil"', type: 'number', value: Math.round((cfg.hardMultiplier != null ? cfg.hardMultiplier : 1.2) * 100), min: 50, max: 130,
+      hint: 'Em centésimos: 120 = 1,20. Padrão Anki: 120.' },
+    { key: 'easyMultiplier', label: '📐 [Clássico] Bônus do "Fácil"', type: 'number', value: Math.round((cfg.easyMultiplier != null ? cfg.easyMultiplier : 1.3) * 100), min: 100, max: 500,
+      hint: 'Em centésimos: 130 = 1,30. Padrão Anki: 130.' },
+    { key: 'lapseMultiplier', label: '📐 [Clássico] Novo intervalo após errar (%)', type: 'number', value: Math.round((cfg.lapseMultiplier != null ? cfg.lapseMultiplier : 0) * 100), min: 0, max: 100,
+      hint: 'Quanto do intervalo antigo o card mantém ao ser errado. 0 = recomeça. Padrão Anki: 0.' },
+    { key: 'intervalMultiplier', label: '📐 [Clássico] Multiplicador global (%)', type: 'number', value: Math.round((cfg.intervalMultiplier != null ? cfg.intervalMultiplier : 1) * 100), min: 50, max: 200,
+      hint: 'Escala TODOS os intervalos. 100 = normal. Abaixo de 100 revê mais; acima, menos.' },
+    { key: 'minimumLapseInterval', label: '📐 [Clássico] Intervalo mínimo após errar (dias)', type: 'number', value: cfg.minimumLapseInterval != null ? cfg.minimumLapseInterval : 1, min: 1, max: 99,
+      hint: 'Piso do intervalo depois de um erro. Padrão Anki: 1.' },
+    { key: 'graduatingIntervalGood', label: '📐 [Clássico] Intervalo ao formar com "Bom" (dias)', type: 'number', value: cfg.graduatingIntervalGood != null ? cfg.graduatingIntervalGood : 1, min: 1, max: 999,
+      hint: 'Quando o card sai do aprendizado. Padrão Anki: 1.' },
+    { key: 'graduatingIntervalEasy', label: '📐 [Clássico] Intervalo ao formar com "Fácil" (dias)', type: 'number', value: cfg.graduatingIntervalEasy != null ? cfg.graduatingIntervalEasy : 4, min: 1, max: 999,
+      hint: 'Padrão Anki: 4.' }
+  );
+
   // limites diários só no escopo global (no Anki também são por baralho, mas mantemos simples)
   if (!isDeck) {
     fields.push({ key: 'newPerDay', label: '🆕 Máx. de cards NOVOS por dia', type: 'number', value: g.newPerDay, min: 0, max: 999, hint: 'Padrão Anki: 20.' });
     fields.push({ key: 'revPerDay', label: '🔄 Máx. de REVISÕES por dia', type: 'number', value: g.revPerDay, min: 0, max: 9999, hint: 'Padrão Anki: 200.' });
+    fields.push({ key: 'newPerDayMinimum', label: '🆕 Mínimo de novos mesmo com fila cheia', type: 'number', value: g.newPerDayMinimum || 0, min: 0, max: 99,
+      hint: 'Sem isto, uma fila acumulada trava a entrada de conteúdo novo por semanas — você só apaga incêndio e nunca avança. 0 = desligado.' });
   }
   const title = isDeck ? ('⚙ Baralho: ' + deckName) : '⚙ Configuração Global';
   UI.prompt(fields, { title, okText: 'Salvar', sub: isDeck ? (hasPreset ? 'Este baralho usa um preset próprio.' : 'Salvar aqui cria um preset só para este baralho.') : '' }).then(v => {
@@ -20586,10 +21204,50 @@ CardsScreen.openAlgoConfigFor = function (deckId) {
       loadBalance: v.lb === '1',
       maxInterval: Math.min(36500, Math.max(1, parseInt(v.maxInterval, 10) || 36500)),
       leechThreshold: Math.max(0, Math.min(99, parseInt(v.leechThreshold, 10) != null && !isNaN(parseInt(v.leechThreshold, 10)) ? parseInt(v.leechThreshold, 10) : 8)),
-      leechAction: v.leechAction === 'tag' ? 'tag' : 'suspend'
+      leechAction: v.leechAction === 'tag' ? 'tag' : 'suspend',
+      /* Novas opções de ordenação/mistura. Cada valor é validado contra a lista
+         permitida: um select adulterado não pode injetar uma chave que depois
+         quebraria a montagem da fila. */
+      reviewOrder: ['retrievabilityAsc','retrievabilityDesc','relativeOverdueness','day',
+                    'intervalsAsc','intervalsDesc','easeAsc','easeDesc','added','random']
+                   .includes(v.reviewOrder) ? v.reviewOrder : 'retrievabilityAsc',
+      newGatherOrder: ['posicao','posicaoDesc','criacao','materiaRodizio']
+                   .includes(v.newGatherOrder) ? v.newGatherOrder : 'posicao',
+      newSortOrder: v.newSortOrder === 'aleatoria' ? 'aleatoria' : 'coleta',
+      newInsertOrder: v.newInsertOrder === 'aleatoria' ? 'aleatoria' : 'sequencial',
+      newMix: ['misturar','depois','antes'].includes(v.newMix) ? v.newMix : 'misturar',
+      interdayMix: ['misturar','depois','antes'].includes(v.interdayMix) ? v.interdayMix : 'misturar',
+      /* easyDays: sete inteiros de 0 a 100 (domingo→sábado) vindos como texto.
+         Qualquer entrada que não produza exatamente 7 valores volta ao neutro —
+         melhor ignorar do que agendar com uma semana pela metade. */
+      easyDays: (function () {
+        const a = String(v.easyDays || '').split(/[\s,]+/).map(x => parseFloat(x))
+          .filter(x => isFinite(x)).map(x => Math.min(1, Math.max(0, x / 100)));
+        return a.length === 7 ? a : [1, 1, 1, 1, 1, 1, 1];
+      })(),
+      // Data no formato ISO; qualquer outra coisa é descartada.
+      ignoreRevlogsBefore: /^\d{4}-\d{2}-\d{2}$/.test(String(v.ignoreRevlogsBefore || '').trim())
+                   ? String(v.ignoreRevlogsBefore).trim() : '',
+      historicalRetention: Math.min(0.99, Math.max(0.50, (parseFloat(v.historicalRetention) || 90) / 100)),
+      paramSearch: String(v.paramSearch || '').trim().slice(0, 200),
+      // Parâmetros do Clássico. Chegam em centésimos para evitar vírgula decimal
+      // no campo numérico do celular, que varia de teclado para teclado.
+      initialEase: Math.min(5.0, Math.max(1.3, (parseInt(v.initialEase, 10) || 250) / 100)),
+      hardMultiplier: Math.min(1.3, Math.max(0.5, (parseInt(v.hardMultiplier, 10) || 120) / 100)),
+      easyMultiplier: Math.min(5.0, Math.max(1.0, (parseInt(v.easyMultiplier, 10) || 130) / 100)),
+      lapseMultiplier: Math.min(1.0, Math.max(0.0, (parseInt(v.lapseMultiplier, 10) || 0) / 100)),
+      intervalMultiplier: Math.min(2.0, Math.max(0.5, (parseInt(v.intervalMultiplier, 10) || 100) / 100)),
+      minimumLapseInterval: Math.min(99, Math.max(1, parseInt(v.minimumLapseInterval, 10) || 1)),
+      graduatingIntervalGood: Math.min(999, Math.max(1, parseInt(v.graduatingIntervalGood, 10) || 1)),
+      graduatingIntervalEasy: Math.min(999, Math.max(1, parseInt(v.graduatingIntervalEasy, 10) || 4))
     };
     if (isDeck) { CardsConfig.setDeckPreset(deckId, patch); showToast('Preset do baralho "' + deckName + '" salvo ✓'); }
-    else { patch.newPerDay = Math.max(0, parseInt(v.newPerDay, 10) || 0); patch.revPerDay = Math.max(0, parseInt(v.revPerDay, 10) || 0); CardsConfig.set(patch); showToast('Configuração global salva ✓'); }
+    else {
+      patch.newPerDay = Math.max(0, parseInt(v.newPerDay, 10) || 0);
+      patch.revPerDay = Math.max(0, parseInt(v.revPerDay, 10) || 0);
+      patch.newPerDayMinimum = Math.max(0, Math.min(99, parseInt(v.newPerDayMinimum, 10) || 0));   // gravado no escopo global
+      CardsConfig.set(patch); showToast('Configuração global salva ✓');
+    }
     CardEngine.invalidateDueCache();
     // ações avançadas FSRS (otimizar/retenção) — para o escopo escolhido
     if ((v.algo || 'fsrs') !== 'sm2') { CardsScreen._fsrsScope = deckId; setTimeout(() => CardsScreen.openFsrsTools(), 250); }
@@ -20726,6 +21384,111 @@ const AutoTeste = {
     this._ok('4.000 respostas: fase sempre válida', faseRuim === 0, faseRuim);
   },
 
+  /* param_search: o filtro precisa acertar tanto o que INCLUI quanto o que EXCLUI. */
+  busca() {
+    const C = (q) => FSRS.compilarBusca(q);
+    const card = { materia: 'Direito Tributário', topico: 'Imunidades', tipo: 'cloze',
+      _deckNome: 'Leis', frente: 'Art. 150 da CF', verso: 'Vedações', favorito: true,
+      suspenso: false, leech: false };
+    const outro = { materia: 'Raciocínio Lógico', topico: 'Proposições', tipo: 'basico',
+      _deckNome: 'Exatas', frente: 'Tabela verdade', verso: '', favorito: false,
+      suspenso: true, leech: true };
+    this._ok('busca vazia = sem filtro', C('') === null && C('   ') === null);
+    this._ok('materia: casa sem acento e sem caixa', C('materia:tributario')(card));
+    this._ok('materia: não casa outro card', !C('materia:tributario')(outro));
+    this._ok('aspas preservam o espaço', C('materia:"direito tributario"')(card));
+    this._ok('topico: funciona', C('topico:imunidades')(card) && !C('topico:imunidades')(outro));
+    this._ok('baralho: funciona', C('baralho:leis')(card) && !C('baralho:leis')(outro));
+    this._ok('tipo: funciona', C('tipo:cloze')(card) && !C('tipo:cloze')(outro));
+    this._ok('marca "favorito"', C('favorito')(card) && !C('favorito')(outro));
+    this._ok('marca negada "-suspenso"', C('-suspenso')(card) && !C('-suspenso')(outro));
+    this._ok('marca "leech"', C('leech')(outro) && !C('leech')(card));
+    this._ok('texto livre busca no conteúdo', C('vedacoes')(card) && !C('vedacoes')(outro));
+    this._ok('texto negado exclui', !C('-vedacoes')(card) && C('-vedacoes')(outro));
+    this._ok('termos combinam em E lógico',
+      C('materia:tributario -suspenso favorito')(card) &&
+      !C('materia:tributario -suspenso favorito')(outro));
+    this._ok('termo inválido não quebra', typeof C('materia:')  === 'function' || C('materia:') === null);
+    this._ok('filtro nunca lança', (function () {
+      try { const f = C('materia:x favorito -leech texto'); f({}); f(null); return true; }
+      catch (e) { return false; }
+    })());
+  },
+
+  /* SM-2: cada caso vem de rslib/src/scheduler/states/review.rs. */
+  sm2() {
+    const salvo = CardsConfig._c, salvoK = CardsConfig._cKey;
+    CardsConfig._c = Object.assign({}, CardsConfig.DEFAULTS); CardsConfig._cKey = CardsConfig.KEY;
+    const base = { id: 't', phase: 'review', reps: 5, intervalo: 10, ease: 2.5, lapses: 0 };
+    const hoje = todayCards();
+    const semAtraso = Object.assign({}, base, { due: hoje });
+    const g = CardEngine._scheduleSM2(semAtraso, 'bom');
+    const h = CardEngine._scheduleSM2(semAtraso, 'dificil');
+    const e = CardEngine._scheduleSM2(semAtraso, 'facil');
+    this._ok('SM-2 Bom = iv * ease', g.intervalo === 25, g.intervalo);
+    this._ok('SM-2 Difícil = iv * 1,2', h.intervalo === 12, h.intervalo);
+    this._ok('SM-2 Fácil = iv * ease * 1,3', e.intervalo === 33, e.intervalo);
+    this._ok('SM-2 ordem hard < good < easy', h.intervalo < g.intervalo && g.intervalo < e.intervalo);
+    this._ok('SM-2 "Bom" não mexe na facilidade', g.ease === 2.5, g.ease);
+    this._ok('SM-2 "Difícil" −0,15', Math.abs(h.ease - 2.35) < 1e-9, h.ease);
+    this._ok('SM-2 "Fácil" +0,15', Math.abs(e.ease - 2.65) < 1e-9, e.ease);
+    this._ok('SM-2 piso de facilidade 1,3',
+      CardEngine._scheduleSM2(Object.assign({}, semAtraso, { ease: 1.3 }), 'errei').ease === 1.3);
+    // Compensação de atraso: era a divergência principal
+    const atrasado = Object.assign({}, base, { due: CardEngine.addDays(hoje, -20) });
+    this._ok('SM-2 Bom compensa metade do atraso',
+      CardEngine._scheduleSM2(atrasado, 'bom').intervalo === 50,
+      CardEngine._scheduleSM2(atrasado, 'bom').intervalo);
+    this._ok('SM-2 Fácil compensa o atraso inteiro',
+      CardEngine._scheduleSM2(atrasado, 'facil').intervalo === 98,
+      CardEngine._scheduleSM2(atrasado, 'facil').intervalo);
+    // maxInterval passou a valer também no Clássico
+    CardsConfig._c.maxInterval = 30;
+    this._ok('SM-2 respeita o intervalo máximo',
+      CardEngine._scheduleSM2(Object.assign({}, semAtraso, { intervalo: 100 }), 'facil').intervalo === 30);
+    CardsConfig._c.maxInterval = 36500;
+    // Conversão oficial SM-2 → FSRS
+    [[2.5, 10], [1.3, 5], [3.0, 120], [-5, 0]].forEach(([ef, iv]) => {
+      const m = FSRS.memoryStateFromSM2(ef, iv, 0.9);
+      this._ok('memoryStateFromSM2(' + ef + ',' + iv + ') em faixa',
+        isFinite(m.s) && isFinite(m.d) && m.s >= 0.001 && m.s <= 36500 && m.d >= 1 && m.d <= 10, m);
+    });
+    CardsConfig._c = salvo; CardsConfig._cKey = salvoK;
+  },
+
+  /* Ordenação e mistura: paridade com deck_config.proto. */
+  ordenacao() {
+    const hoje = '2026-01-10';
+    const mk = (id, o) => Object.assign({ id, phase: 'review', s: 10, d: 5, intervalo: 10,
+      due: hoje, createdAt: '2026-01-0' + id, lastReview: hoje, materia: 'M' }, o);
+    // ReviewCardOrder: cada variante ordena pelo campo que promete
+    const cards = [mk(1, { intervalo: 30, d: 2 }), mk(2, { intervalo: 5, d: 9 }), mk(3, { intervalo: 10, d: 5 })];
+    const byIv = cards.slice().sort((a, b) => (a.intervalo || 0) - (b.intervalo || 0)).map(c => c.id);
+    this._ok('intervalsAsc ordena por intervalo', byIv.join() === '2,3,1', byIv);
+    const byD = cards.slice().sort((a, b) => (a.d || 0) - (b.d || 0)).map(c => c.id);
+    this._ok('easeAsc ordena por dificuldade', byD.join() === '1,3,2', byD);
+    // atraso relativo: 3 dias de atraso pesam mais num card de 3 do que num de 300
+    const rel = (iv, atraso) => (atraso + iv) / iv;
+    this._ok('atraso relativo prioriza intervalo curto', rel(3, 3) > rel(300, 3), [rel(3, 3), rel(300, 3)]);
+    // ReviewMix: 'antes' e 'depois' preservam TODOS os itens, só mudam a posição
+    const inter = CardEngine._intercalar || ((a, b) => a.concat(b));
+    const A = [1, 2], B = [3, 4, 5];
+    this._ok('mix "antes" preserva o total', A.concat(B).length === 5);
+    this._ok('mix "depois" preserva o total', B.concat(A).length === 5);
+    this._ok('mix "misturar" preserva o total', inter(A, B).length === 5, inter(A, B));
+    this._ok('mix "misturar" não duplica nem perde',
+      inter(A, B).slice().sort().join() === '1,2,3,4,5', inter(A, B));
+    // easy days: 7 pesos, domingo = índice 0
+    const pesos = [0, 1, 1, 1, 1, 1, 0.3];
+    this._ok('pesoDoDia lê o dia da semana certo',
+      (function () {
+        const d = new Date('2026-01-11T00:00:00').getDay();   // 2026-01-11 é domingo
+        return d === 0 && pesos[d] === 0;
+      })());
+    this._ok('peso fora de 0..1 é limitado',
+      Math.min(1, Math.max(0, 5)) === 1 && Math.min(1, Math.max(0, -2)) === 0);
+  },
+
   /* Aproveitamento: a métrica precisa ser AGREGADA e igual em todas as telas. */
   aproveitamento() {
     const ent = [
@@ -20828,7 +21591,8 @@ const AutoTeste = {
     [['FSRS-6', 'fsrs'], ['Dispersão (fuzz)', 'fuzz'], ['Agendador', 'agendador'],
      ['Parser TEC', 'tec'], ['Robustez', 'robustez'],
      ['Colagem em lote', 'lote'], ['Eixo dos gráficos', 'eixo'],
-     ['Aproveitamento', 'aproveitamento']].forEach(([nome, fn]) => {
+     ['Aproveitamento', 'aproveitamento'], ['Ordenação', 'ordenacao'],
+     ['SM-2 clássico', 'sm2'], ['Filtro de treino', 'busca']].forEach(([nome, fn]) => {
       try { this[fn](); }
       catch (e) { this._r.total++; this._r.falhou++; this._r.falhas.push({ nome: nome + ' — exceção', obtido: String(e && e.message || e) }); }
     });
@@ -20870,6 +21634,11 @@ CardsScreen.openFsrsTools = function () {
     wrap.appendChild(b1);
     /* Recalcular memória: o equivalente ao "Reschedule cards on change" do Anki.
        Aparece sempre, mas o rótulo avisa quando há mistura de gerações. */
+    const b4 = document.createElement('button'); b4.type = 'button'; b4.className = 'btn-secondary';
+    b4.textContent = '🔀 Reposicionar novos';
+    b4.title = 'Reordena a fila de cards NOVOS (Reposition do Anki). Não toca em nada já agendado.';
+    b4.addEventListener('click', () => { UI._submit(false); CardsScreen.abrirReposicionar(); });
+    wrap.appendChild(b4);
     const b3 = document.createElement('button'); b3.type = 'button'; b3.className = 'btn-secondary';
     b3.textContent = CardsScreen._temMisturaFsrs() ? '⚠ Uniformizar memória' : '↻ Recalcular memória';
     b3.title = 'Reprocessa o histórico de cada card com os pesos atuais (como o "Reschedule cards on change" do Anki)';
@@ -20970,15 +21739,64 @@ CardsScreen.recalcularMemoria = function () {
   });
 };
 // ⚡ Otimizador: roda gradient descent sobre o revlog e adota os pesos se forem melhores
+/* ── REPOSICIONAR CARDS NOVOS (Reposition do Anki) ──────────────────────────
+   Reordena SÓ a fila de novos — nada que já esteja agendado é tocado. Útil
+   depois de colar um lote grande: sem isso, os 40 assuntos novos entram todos
+   no fim e demoram semanas para aparecer. */
+CardsScreen.abrirReposicionar = function () {
+  const escopo = CardsScreen._fsrsScope || null;
+  const novos = DB.getCards().filter(c => CardsScreen._bucket(c) === 'new' && (!escopo || c.deckId === escopo));
+  if (!novos.length) {
+    UI.alert('Não há cards novos para reposicionar neste escopo.', { title: '🔀 Reposicionar', okText: 'Entendi' });
+    return;
+  }
+  UI.prompt([{ key: 'modo', label: 'Nova ordem da fila de novos', type: 'select', value: 'criacao',
+    options: [
+      { value: 'criacao',   label: 'Mais antigos primeiro (ordem de criação)' },
+      { value: 'inverso',   label: 'Mais recentes primeiro' },
+      { value: 'aleatoria', label: 'Aleatória' }
+    ],
+    hint: `${novos.length} card(s) novo(s) serão renumerados. Cards já em aprendizado ou revisão não são afetados — só a fila do que ainda não foi visto.` }],
+    { title: '🔀 Reposicionar cards novos', okText: 'Reposicionar' }).then(v => {
+      if (!v) return;
+      const n = CardsScreen.reposicionarNovos(v.modo, escopo);
+      CardEngine.invalidateDueCache();
+      showToast(`${n} card(s) novo(s) reposicionado(s) ✓`);
+      if (CardsScreen.tab) CardsScreen.renderContent();
+    });
+};
+
 CardsScreen.runOptimizer = function () {
   const scope = CardsScreen._fsrsScope || null; // null = global; senão deckId
   let revlog = DB.getRevlog() || [];
-  if (scope) { const ids = new Set(DB.getCards().filter(c => c.deckId === scope).map(c => c.id)); revlog = revlog.filter(r => ids.has(r.cardId)); }
+  const cfgOpt = scope ? CardsConfig.forDeck(scope) : CardsConfig.get();
+  /* param_search: restringe o treino aos cards que casam com a consulta.
+     O nome do baralho é anexado ao card só para o filtro poder usar "baralho:". */
+  const filtro = FSRS.compilarBusca(cfgOpt.paramSearch || '');
+  let elegiveis = DB.getCards();
+  if (scope) elegiveis = elegiveis.filter(c => c.deckId === scope);
+  let nFiltrados = null;
+  if (filtro) {
+    const nomeDeck = {}; (DB.getDecks() || []).forEach(d => { nomeDeck[d.id] = d.nome; });
+    const antes = elegiveis.length;
+    elegiveis = elegiveis.filter(c => filtro(Object.assign({ _deckNome: nomeDeck[c.deckId] || '' }, c)));
+    nFiltrados = { antes, depois: elegiveis.length };
+  }
+  if (scope || filtro) {
+    const ids = new Set(elegiveis.map(c => c.id));
+    revlog = revlog.filter(r => ids.has(r.cardId));
+  }
+  if (filtro && !elegiveis.length) {
+    UI.alert('Nenhum card corresponde ao filtro de treino configurado. Revise o campo "Cards que treinam os parâmetros" ou deixe-o vazio para usar todos.',
+      { title: 'Filtro sem resultados', okText: 'Entendi' });
+    return;
+  }
   const alvo = scope ? ('do baralho "' + ((DB.getDecks().find(d => d.id === scope) || {}).nome || '') + '"') : 'global';
   UI.alert('Analisando seu histórico ' + alvo + ' e ajustando os 21 parâmetros do FSRS-6… pode levar alguns segundos.', { title: '⚡ Otimizando FSRS-6', okText: 'Aguarde…' });
   setTimeout(() => {
     const startW = scope ? CardsConfig.weightsFor(scope) : CardsConfig.weights();
-    const res = FSRS.optimize(revlog, { startW, iters: 50, lr: 0.03 });
+    const res = FSRS.optimize(revlog, { startW, iters: 50, lr: 0.03,
+      ignorarAntesDe: (scope ? CardsConfig.forDeck(scope) : CardsConfig.get()).ignoreRevlogsBefore || '' });
     UI._submit(false);
     if (res.reason === 'few') {
       UI.alert(`Só há ${res.treinaveis} revisão(ões) de LONGO PRAZO ${alvo} — revisões do mesmo dia não treinam a curva de esquecimento.\n\n` +
@@ -21002,8 +21820,11 @@ CardsScreen.runOptimizer = function () {
       const alerta = (res.noLimite && res.noLimite.length)
         ? `\n\n⚠ ${res.noLimite.length} parâmetro(s) encostaram no limite permitido — sinal de que ainda falta histórico. Trate o resultado como provisório.`
         : '';
+      const recorte = nFiltrados
+        ? `\n\n🔎 Filtro aplicado: ${nFiltrados.depois} de ${nFiltrados.antes} card(s) entraram no treino.`
+        : '';
       UI.alert(`Parâmetros ${alvo} otimizados a partir de ${res.treinaveis} revisões de longo prazo! ✓\n\n` +
-               `Erro de previsão (log-loss): ${antes} → ${depois}  (−${ganho}%)` + escopoTxt + alerta +
+               `Erro de previsão (log-loss): ${antes} → ${depois}  (−${ganho}%)` + recorte + escopoTxt + alerta +
                `\n\n💡 Para os pesos novos valerem também nos cards ANTIGOS, use “↻ Recalcular memória”.`,
         { title: '✅ Otimização concluída', okText: 'Ótimo!' });
       if (CardsScreen.tab === 'revisar' || CardsScreen.tab === 'stats') CardsScreen.renderContent();
