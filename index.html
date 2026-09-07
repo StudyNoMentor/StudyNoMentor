@@ -9473,13 +9473,21 @@ button.is-saving {
    Com o título ocupando a largura inteira, o botão caía para a linha de baixo e
    deixava uma faixa vazia acima — desperdício justamente do espaço que este
    redesenho queria recuperar. */
-#screen-grade .card-header { position: relative; padding-right: 62px; }
-#screen-grade .grade-head-actions {
-  position: absolute; top: 14px; right: 14px; margin: 0; z-index: 2;
+/* A engrenagem fica na MESMA linha do titulo, mas em FLUXO (nao absoluta).
+   Posicionar de forma absoluta obrigava a reservar espaco com um padding-right
+   "magico" (62px) que era menor que o botao real (~100px com a palavra
+   "Opcoes") — o titulo e o subtitulo passavam POR BAIXO do botao. Em fluxo,
+   o proprio flexbox reserva a largura exata do botao em qualquer tela. */
+#screen-grade .card-header {
+  position: relative;
+  flex-wrap: nowrap;
+  align-items: flex-start;
+  column-gap: 14px;
 }
-@media (max-width: 560px) {
-  #screen-grade .card-header { padding-right: 56px; }
-  #screen-grade .grade-head-actions { top: 12px; right: 12px; }
+#screen-grade .card-header > :first-child { flex: 1 1 auto; min-width: 0; }
+#screen-grade .grade-head-actions {
+  position: static; margin: 0; z-index: 2;
+  flex: 0 0 auto; align-self: flex-start;
 }
 /* o menu abre alinhado à direita, sem estourar a tela */
 #screen-grade .grade-gear-menu { right: 0; left: auto; }
@@ -15182,8 +15190,12 @@ const FSRS = {
       const nRe = ((CardsConfig.get() || {}).relearnSteps || []).length;
       if (nRe > 1) {
         const b = this.migrarW(opts.startW) || this.DEFAULT_W;
-        const teto = Math.min(2.0, Math.max(0.01, Math.sqrt(Math.max(0.0001,
-          -(Math.log(b[11]) + Math.log(Math.pow(2, b[13]) - 1) + b[14] * 0.3) / nRe))));
+        /* A ordem das operacoes e a da referencia: `.max(0.01).sqrt().min(2.0)`.
+           Aplicar o piso 0,01 DEPOIS da raiz (como estava) dava 0,01 onde o Anki
+           da 0,1 — divergencia real sempre que o radicando fica abaixo de 0,01
+           (inclusive negativo, alcancavel com w11/w13/w14 altos no otimizador). */
+        const teto = Math.min(2.0, Math.sqrt(Math.max(0.01,
+          -(Math.log(b[11]) + Math.log(Math.pow(2, b[13]) - 1) + b[14] * 0.3) / nRe)));
         HI[17] = teto; HI[18] = teto;
       }
     } catch (e) { _quiet(e, 'teto-w17-w18'); }
@@ -15736,11 +15748,16 @@ const CardEngine = {
     };
     // Dia de vencimento: fuzz determinístico do Anki; com Load Balancing, o dia de MENOR
     // carga dentro da mesma janela. Determinístico = a prévia do botão bate com o agendado.
+    const sementeFuzz = (c.id || 'c') + '|' + (c.reps || 0);
     const place = (ivRaw, minIv) => {
       const iv = Math.max(1, Math.min(maxIv, Math.round(ivRaw)));
       const piso = Math.max(1, Math.min(maxIv, minIv || 1));
       if (cfg.loadBalance) return Math.min(maxIv, FSRS.loadBalance(iv, (d) => this._dueCountInDays(d), maxIv, piso));
-      return Math.min(maxIv, FSRS.fuzzed(iv, (c.id || 'c') + '|' + G + '|' + (c.reps || 0) + '|' + iv, maxIv, piso));
+      /* O Anki sorteia UM fuzz_factor por card+reps (card.get_fuzz_factor) e usa
+         o MESMO para os quatro botoes. Semear por nota/intervalo, como estava,
+         dava a cada botao um sorteio proprio — os intervalos podiam se cruzar
+         mesmo com os pisos abaixo. Agora a semente e a mesma da resposta inteira. */
+      return Math.min(maxIv, FSRS.fuzzed(iv, sementeFuzz, maxIv, piso));
     };
     // Intervalo que estava agendado antes desta resposta (base do piso do Anki).
     const ivPrevio = () => {
@@ -15791,9 +15808,21 @@ const CardEngine = {
       return arredDias(Math.min(passos[0] * 1.5, passos[0] + 1440));
     };
     const graduate = (g, st) => {
-      // Ao graduar, o Anki usa min_and_max_review_intervals(1) — piso 1, sem a regra
-      // de crescimento (não havia intervalo anterior de revisão).
-      const S = st.s, D = st.d, iv = place(FSRS.interval(S, r, w), 1);
+      /* Ao graduar, o Anki usa min_and_max_review_intervals(1) — piso 1, sem a
+         regra de crescimento (não havia intervalo anterior de revisão).
+
+         EXCEÇÃO do "Fácil" (learning.rs::answer_easy e relearning.rs::answer_easy):
+         o piso não é 1, é o intervalo do "Bom" JÁ SORTEADO + 1. Sem isso, um
+         card graduado com "Fácil" podia receber intervalo IGUAL OU MENOR que o
+         do "Bom" — os botões apareciam fora de ordem e o algoritmo premiava
+         menos quem achou o card fácil. */
+      const S = st.s, D = st.d;
+      let piso = 1;
+      if (g === 4) {
+        const stBom = shortTerm(3);
+        piso = place(FSRS.interval(stBom.s, r, w), 1) + 1;
+      }
+      const iv = place(FSRS.interval(S, r, w), piso);
       return Object.assign(patch, { phase: 'review', learnStep: 0, s: S, d: D, due: this.addDays(tdy, iv), dueTs: null, status: 'sei', intervalo: iv, _kind: 'day', _val: iv });
     };
     if (c.phase === 'new' || c.phase === 'learning') {
@@ -15820,22 +15849,41 @@ const CardEngine = {
       const elapsed = this._daysBetween(c.lastReview || tdy, tdy);
       const mesmoDia = elapsed < 1;
       const D2 = FSRS.nextD(c.d, G, w);
-      let S2;
-      if (mesmoDia) {
-        S2 = FSRS.nextS_short(c.s || 1, G, w);
-      } else {
+      // A estabilidade resultante de UMA nota qualquer — precisamos das três
+      // (Difícil/Bom/Fácil) para impor a ordem entre elas, mesmo gravando uma só.
+      const sDaNota = (g) => {
+        if (mesmoDia) return FSRS.nextS_short(c.s || 1, g, w);
         const R = FSRS.R(elapsed, c.s || 1, w);
-        S2 = (G === 1) ? FSRS.nextS_forget(c.d, c.s, R, w) : FSRS.nextS_recall(c.d, c.s, R, G, w);
-      }
+        return (g === 1) ? FSRS.nextS_forget(c.d, c.s, R, w) : FSRS.nextS_recall(c.d, c.s, R, g, w);
+      };
+      const S2 = sDaNota(G);
       if (G === 1) {
         Object.assign(patch, { phase: 'relearning', learnStep: 0, s: S2, d: D2,
           lapses: (c.lapses || 0) + 1, status: 'naosei' }, stepDue(relearn[0]));
         patch._kind = 'min'; patch._val = relearn[0];
       } else {
-        const ivRaw = FSRS.interval(S2, r, w);
-        // Piso do Anki (rslib): acerto nunca encolhe o intervalo
-        const piso = Math.max(1, FSRS.minReviewFuzzInterval(ivRaw, ivPrevio(), maxIv));
-        const iv = place(ivRaw, piso);
+        /* ── ORDEM GARANTIDA: Difícil < Bom < Fácil ───────────────────────────
+           rslib/scheduler/states/review.rs::passing_fsrs_review_intervals calcula
+           os TRÊS intervalos juntos porque o piso de cada um é o anterior + 1:
+
+             hard = fuzz(hard.interval, piso = max(1, minFuzz(...)))
+             good = fuzz(good.interval, piso = max(hard + 1, minFuzz(...)))
+             easy = fuzz(easy.interval, piso = max(good + 1, minFuzz(...)))
+
+           O app calculava só o intervalo da nota respondida, com piso 1. Como o
+           fuzz sorteia dentro de uma faixa, "Fácil" podia sair IGUAL ou MENOR que
+           "Bom" — os quatro botões apareciam fora de ordem e a resposta gravada
+           contradizia o algoritmo. Aqui os três são calculados juntos e só o da
+           nota respondida é gravado, exatamente como o Anki faz. */
+        const prevIv = ivPrevio();
+        const ivDaNota = (g, pisoMin) => {
+          const raw = FSRS.interval(sDaNota(g), r, w);
+          const piso = Math.max(pisoMin, FSRS.minReviewFuzzInterval(raw, prevIv, maxIv));
+          return place(raw, piso);
+        };
+        const ivHard = ivDaNota(2, 1);
+        const ivGood = (G === 2) ? 0 : ivDaNota(3, ivHard + 1);
+        const iv = (G === 2) ? ivHard : (G === 3 ? ivGood : ivDaNota(4, ivGood + 1));
         Object.assign(patch, { phase: 'review', s: S2, d: D2, due: this.addDays(tdy, iv),
           dueTs: null, status: 'sei', intervalo: iv });
         patch._kind = 'day'; patch._val = iv;
