@@ -8,15 +8,16 @@
 
      1. src/ monta exatamente o index.html   (build.mjs --check)
      2. cada módulo JS de src/ tem sintaxe válida isoladamente
-     3. o index.html publicado não tem id duplicado nem referência quebrada
-     4. o app carrega no Chromium sem um único erro de console
-     5. as 14 telas navegam e a suíte interna AutoTeste passa 100%
+     3. o agendador bate com o Anki   (testes/paridade-anki.mjs, ~21 mil pontos)
+     4. o index.html publicado não tem id duplicado nem referência quebrada
+     5. o app carrega no Chromium sem um único erro de console
+     6. as 14 telas navegam e a suíte interna AutoTeste passa 100%
 
-   As checagens 4 e 5 precisam do Chromium (Playwright). Se ele não estiver
-   instalado, elas são PULADAS com aviso — as três primeiras sempre rodam.
+   As checagens 5 e 6 precisam do Chromium (Playwright). Se ele não estiver
+   instalado, elas são PULADAS com aviso — as quatro primeiras sempre rodam.
 
    Uso:  node verificar.mjs        (tudo)
-         node verificar.mjs --rapido   (só 1 a 3, sem navegador)
+         node verificar.mjs --rapido   (só 1 a 4, sem navegador)
    ═══════════════════════════════════════════════════════════════════════════ */
 import { readFileSync, readdirSync } from 'node:fs';
 import { execFileSync } from 'node:child_process';
@@ -48,8 +49,17 @@ for (const m of mods) {
 }
 if (!ruins) ok(`${mods.length} modulos analisam isoladamente`);
 
-// ── 3. integridade estática do HTML ────────────────────────────────────────
-console.log('\n3) integridade do index.html');
+// ── 3. paridade com o Anki (teste diferencial, sem navegador) ──────────────
+console.log('\n3) o agendador bate com o Anki');
+try {
+  const saida = execFileSync(process.execPath, [join(RAIZ, 'testes', 'paridade-anki.mjs')], { stdio: 'pipe' });
+  ok(String(saida).trim());
+} catch (e) {
+  erro('divergencia contra a referencia:\n' + String(e.stdout || '') + String(e.stderr || ''));
+}
+
+// ── 4. integridade estática do HTML ────────────────────────────────────────
+console.log('\n4) integridade do index.html');
 const html = readFileSync(join(RAIZ, 'index.html'), 'utf8');
 const semCodigo = html.replace(/<script[\s\S]*?<\/script>/g, '').replace(/<style[\s\S]*?<\/style>/g, '');
 const ids = [...semCodigo.matchAll(/\sid="([^"]+)"/g)].map((m) => m[1]);
@@ -95,12 +105,12 @@ if (process.argv.includes('--rapido')) {
   process.exit(falhas ? 1 : 0);
 }
 
-// ── 4 e 5. app real no Chromium ────────────────────────────────────────────
+// ── 5 e 6. app real no Chromium ────────────────────────────────────────────
 let chromium;
 for (const alvo of ['playwright', '/opt/node22/lib/node_modules/playwright/index.mjs']) {
   try { ({ chromium } = await import(alvo)); break; } catch { /* tenta o proximo */ }
 }
-if (!chromium) { console.log('\n4-5) PULADAS: Playwright nao encontrado (npm i -D playwright).'); process.exit(falhas ? 1 : 0); }
+if (!chromium) { console.log('\n5-6) PULADAS: Playwright nao encontrado (npm i -D playwright).'); process.exit(falhas ? 1 : 0); }
 
 const TIPOS = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8',
   '.webmanifest': 'application/manifest+json', '.json': 'application/json' };
@@ -115,7 +125,7 @@ const servidor = createServer((req, res) => {
 await new Promise((r) => servidor.listen(0, '127.0.0.1', r));
 const base = `http://127.0.0.1:${servidor.address().port}/index.html`;
 
-console.log('\n4) o app carrega sem erro de console');
+console.log('\n5) o app carrega sem erro de console');
 const nav = await chromium.launch();
 const pag = await nav.newPage({ viewport: { width: 1280, height: 900 } });
 const ruido = [];
@@ -128,7 +138,7 @@ try {
   ruido.length ? erro('erros no carregamento:\n    ' + ruido.slice(0, 8).join('\n    ')) : ok('carregou limpo');
 } catch (e) { erro('o app nao inicializou: ' + e.message); }
 
-console.log('\n5) telas + suite interna');
+console.log('\n6) telas + suite interna');
 try {
   await pag.evaluate(() => { try { ProfileUI.hideGate(); } catch (e) {} });
   const telas = await pag.evaluate(() => [...new Set([...document.querySelectorAll('[data-screen]')].map((b) => b.dataset.screen))]);

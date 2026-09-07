@@ -65,16 +65,43 @@ correspondente (o `src/manifesto.json` diz qual faixa de linhas veio de onde).
 |---|----------|:---:|
 | 1 | `src/` monta exatamente o `index.html` publicado | não |
 | 2 | cada módulo de `src/js` tem sintaxe válida isoladamente | não |
-| 3 | id duplicado, tag estrutural desbalanceada, CSP íntegra, trava anti-moldura presente | não |
-| 4 | o app carrega no Chromium sem **um único** erro de console | sim |
-| 5 | as 14 telas navegam, `AutoTeste` passa 100%, o botão "Opções" da Grade não vaza do cabeçalho | sim |
+| 3 | o agendador bate com o Anki — 21.080 pontos (`testes/paridade-anki.mjs`) | não |
+| 4 | id duplicado, tag estrutural desbalanceada, CSP íntegra, trava anti-moldura presente | não |
+| 5 | o app carrega no Chromium sem **um único** erro de console | sim |
+| 6 | as 14 telas navegam, `AutoTeste` passa 100%, o botão "Opções" da Grade não vaza do cabeçalho | sim |
 
-`node verificar.mjs --rapido` roda só 1–3 (segundos, sem navegador).
+`node verificar.mjs --rapido` roda só 1–4 (segundos, sem navegador).
 A CI (`.github/workflows/verificar.yml`) roda tudo em cada push e PR.
 
-## A suíte interna
+## As duas suítes de teste
 
-O próprio app carrega uma suíte de testes. No console do navegador:
+### `testes/paridade-anki.mjs` — teste diferencial (Node, sem navegador)
+
+Recorta os módulos puros (`src/js/30-fsrs.js`, `31`, `32`), roda cada um num
+contexto isolado e compara **21.080 pontos** contra `testes/referencia-anki.js`
+— um porte linha a linha de `fsrs-rs/src/model.rs`,
+`fsrs-rs/src/parameter_clipper.rs` e `anki/rslib/.../fuzz.rs`.
+
+Cobre três coisas distintas:
+
+- **fórmulas** (~12.700 comparações numéricas, tolerância 1e-12);
+- **comportamento que o Anki impõe acima das fórmulas** (~8.300 asserções): a
+  ordem Difícil < Bom < Fácil, o piso de crescimento, os limites de S/D/intervalo,
+  o "Errei" voltando ao primeiro passo;
+- **limites do otimizador** (`parameter_clipper.rs`), incluindo o teto dinâmico
+  de w17/w18.
+
+Ao atualizar a referência, **traduza o Rust de novo** — nunca "ajuste até bater
+com o app". Se os dois divergirem, quem está errado é o app até prova em
+contrário.
+
+```bash
+node testes/paridade-anki.mjs
+```
+
+### `AutoTeste` — suíte interna (navegador)
+
+O próprio app carrega 139 asserções. No console do navegador:
 
 ```js
 AutoTeste.rodar()     // 139 asserções: FSRS-6, fuzz, agendador, parser TEC,

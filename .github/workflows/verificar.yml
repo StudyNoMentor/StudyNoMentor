@@ -3,6 +3,7 @@
 # O que ela impede, na pratica:
 #   · index.html e src/ sairem de sincronia (alguem edita um e esquece o outro);
 #   · um modulo de src/js com erro de sintaxe;
+#   · o agendador divergir do Anki (21 mil pontos contra fsrs-rs + rslib);
 #   · id duplicado ou tag estrutural desbalanceada no HTML publicado;
 #   · o app quebrar no carregamento ou alguma das 14 telas lancar erro;
 #   · a suite AutoTeste (FSRS, fuzz, agendador, parser TEC...) regredir;
