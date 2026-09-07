@@ -1,0 +1,2 @@
+    #cfg-storage-card .acm-row { grid-template-columns: minmax(0,1.5fr) 1fr auto; gap: 10px; }
+    #cfg-storage-card .acm-name { white-space: normal; overflow: visible; text-overflow: clip; font-size: 12.5px; }

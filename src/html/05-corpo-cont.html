@@ -1,0 +1,1041 @@
+  <section class="card" id="cfg-storage-card">
+      <div class="card-header">
+        <div>
+          <h2>Espaço usado</h2>
+          <p class="sub">Quanto os seus dados ocupam no navegador e quanto ainda cabe</p>
+        </div>
+        <button type="button" class="btn-secondary" id="cfg-storage-refresh">↻ Recalcular</button>
+      </div>
+      <div style="padding: 16px 28px 24px;">
+        <div id="cfg-storage-body"></div>
+      </div>
+    </section>
+
+    <section class="card" id="cfg-vhist-card">
+      <div class="card-header">
+        <div>
+          <h2>🛟 Histórico de versões</h2>
+          <p class="sub">Uma rede de segurança: o app guarda neste aparelho as últimas versões do seu perfil (comprimidas). Se algo se perder — você apagou sem querer, ou outro aparelho sobrescreveu —, restaure aqui em 2 cliques. Nada substitui um backup <code>.json</code> guardado à parte, mas isto cobre os sustos do dia a dia.</p>
+        </div>
+        <button type="button" class="btn-secondary" id="cfg-vhist-save">＋ Salvar versão agora</button>
+      </div>
+      <div style="padding: 12px 28px 24px;">
+        <div id="cfg-vhist-body"></div>
+      </div>
+    </section>
+
+    <section class="card">
+      <div class="card-header">
+        <div>
+          <h2>Matérias</h2>
+          <p class="sub">Nome, dificuldade e fase padrão usados no Ciclo da Semana</p>
+        </div>
+      </div>
+      <div style="padding: 16px 28px 24px;">
+        <div id="config-subjects-list"></div>
+        <button class="btn-secondary" id="btn-add-subject" type="button" style="margin-top: 12px;">+ Nova matéria</button>
+      </div>
+    </section>
+
+    <section class="card">
+      <div class="card-header">
+        <div>
+          <h2>Formas de estudo</h2>
+          <p class="sub">Opções disponíveis ao registrar uma sessão</p>
+        </div>
+      </div>
+      <div style="padding: 16px 28px 24px;">
+        <div id="config-methods-list"></div>
+        <div class="config-add-row">
+          <input type="text" id="new-method-input" placeholder="Ex.: Fichamento">
+          <button class="btn-secondary" id="btn-add-method" type="button">Adicionar</button>
+        </div>
+      </div>
+    </section>
+
+    <section class="card">
+      <div class="card-header">
+        <div>
+          <h2>Fases de estudo</h2>
+          <p class="sub">Usadas no Ciclo para calcular o peso de cada matéria</p>
+        </div>
+      </div>
+      <div style="padding: 16px 28px 24px;">
+        <div id="config-phases-list"></div>
+        <div class="config-add-row">
+          <input type="text" id="new-phase-input" placeholder="Ex.: Revisão final">
+          <button class="btn-secondary" id="btn-add-phase" type="button">Adicionar</button>
+        </div>
+      </div>
+    </section>
+
+    <section class="card">
+      <div class="card-header">
+        <div>
+          <h2>Status do Estudo Novo</h2>
+          <p class="sub">Etapas de andamento de cada aula na trilha. Escolha o nome, a cor e marque quais contam como "concluída" no progresso.</p>
+        </div>
+      </div>
+      <div style="padding: 16px 28px 24px;">
+        <div id="config-statuses-list"></div>
+        <div class="config-add-row">
+          <input type="text" id="new-status-input" placeholder="Ex.: Revisar de novo">
+          <button class="btn-secondary" id="btn-add-status" type="button">Adicionar</button>
+        </div>
+      </div>
+    </section>
+
+    <section class="card">
+      <div class="card-header">
+        <div>
+          <h2>Modos de estudo</h2>
+          <p class="sub">Como cada disciplina está sendo estudada (ex.: Resumo + Mapa, Passo Estratégico, Teoria). Você escolhe o modo de cada matéria na tela Estudo Novo.</p>
+        </div>
+      </div>
+      <div style="padding: 16px 28px 24px;">
+        <div id="config-modes-list"></div>
+        <div class="config-add-row">
+          <input type="text" id="new-mode-input" placeholder="Ex.: Revisão por questões">
+          <button class="btn-secondary" id="btn-add-mode" type="button">Adicionar</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- ────────── Sincronização na nuvem (Supabase) ────────── -->
+    <section class="card">
+      <div class="card-header">
+        <div>
+          <h2>☁️ Sincronização na nuvem</h2>
+          <p class="sub">Acesse este perfil de qualquer máquina. Ao entrar, o app sincroniza sozinho com a versão mais recente; as gravações são protegidas para um dispositivo nunca sobrescrever o outro.</p>
+        </div>
+      </div>
+      <div style="padding: 16px 28px 26px;">
+
+        <!-- Estado: não logado -->
+        <div id="cloud-auth-box">
+          <div class="cloud-auth-tabs">
+            <button type="button" class="cloud-auth-tab active" data-mode="signin">Entrar</button>
+            <button type="button" class="cloud-auth-tab" data-mode="signup">Criar conta</button>
+          </div>
+          <div class="field">
+            <label for="cloud-email">E-mail</label>
+            <input type="email" id="cloud-email" placeholder="voce@email.com" autocomplete="email">
+          </div>
+          <div class="field">
+            <label for="cloud-password">Senha</label>
+            <input type="password" id="cloud-password" placeholder="Mínimo 6 caracteres" autocomplete="current-password">
+          </div>
+          <p class="hint" id="cloud-auth-msg" style="display:none;"></p>
+          <button type="button" class="btn-primary" id="cloud-auth-submit" style="width:100%;">Entrar</button>
+          <p class="hint" style="margin-top:10px; text-align:center;">Seus dados de estudo ficam protegidos por login — só você acessa.</p>
+        </div>
+
+        <!-- Estado: logado -->
+        <div id="cloud-connected-box" style="display:none;">
+          <div class="cloud-status-row">
+            <div>
+              <div class="cloud-status-email" id="cloud-user-email">—</div>
+              <div class="cloud-status-sub" id="cloud-sync-status">Conectado</div>
+            </div>
+            <div style="display:flex; gap:8px; flex-shrink:0;">
+              <button type="button" class="btn-secondary" id="cloud-change-pass" title="Alterar a senha da sua conta">🔑 Alterar senha</button>
+              <button type="button" class="btn-secondary" id="cloud-signout">Sair</button>
+            </div>
+          </div>
+
+          <hr class="divider">
+          <div class="cloud-sessions-head">
+            <p class="section-label" style="margin:0;">Aparelho com sessão ativa</p>
+            <button type="button" class="btn-secondary sess-refresh" id="cloud-sessions-refresh" title="Atualizar" aria-label="Atualizar">↻</button>
+          </div>
+          <p class="hint" style="margin:4px 0 10px;">Sua conta mantém <strong>um aparelho ativo por vez</strong>. Aqui você vê qual está com a sessão e pode encerrá-lo ou trazer a sessão para este aparelho.</p>
+          <div id="cloud-sessions-list" class="cloud-sessions-list"></div>
+
+          <hr class="divider">
+          <p class="section-label">Este perfil: <span id="cloud-current-profile-name">—</span></p>
+          <div class="field">
+            <label for="cloud-slot-name">Nome deste espaço na nuvem</label>
+            <input type="text" id="cloud-slot-name" placeholder="Ex.: Meu perfil">
+          </div>
+          <div class="submit-row" style="margin-top:4px;">
+            <label class="co-check" style="margin:0;"><input type="checkbox" id="cloud-autosync" checked> Sincronizar automaticamente</label>
+            <div style="display:flex; gap:8px;">
+              <button type="button" class="btn-secondary" id="cloud-push-now">↑ Enviar agora</button>
+              <button type="button" class="btn-primary" id="cloud-pull-now">↓ Baixar da nuvem</button>
+            </div>
+          </div>
+
+          <hr class="divider">
+          <p class="section-label">Perfil ao abrir</p>
+          <label class="co-check" style="margin:6px 0 0;"><input type="checkbox" id="pref-auto-enter" checked> Entrar direto no perfil ao logar (não mostrar o seletor)</label>
+          <div class="field" style="margin:12px 0 0;">
+            <label for="pref-default-profile">Perfil padrão</label>
+            <select id="pref-default-profile">
+              <option value="">Último perfil usado</option>
+            </select>
+          </div>
+          <p class="hint" style="margin:6px 0 0;">Ao entrar com e-mail e senha, o app abre <strong>direto neste perfil</strong>, sem mostrar a tela de seleção. Para trocar, clique no seu nome na barra lateral.</p>
+
+          <hr class="divider">
+          <p class="section-label">Segurança da sessão</p>
+          <label class="co-check" style="margin:6px 0 0;"><input type="checkbox" id="cfg-single-session"> Sessão única — ao entrar, encerra a sessão nos outros aparelhos</label>
+          <div class="field" style="margin:12px 0 0;">
+            <label for="cfg-idle-mins">Sair automaticamente por inatividade</label>
+            <select id="cfg-idle-mins">
+              <option value="0">Nunca (recomendado)</option>
+              <option value="30">Após 30 minutos</option>
+              <option value="60">Após 1 hora</option>
+              <option value="240">Após 4 horas</option>
+              <option value="720">Após 12 horas</option>
+            </select>
+          </div>
+          <p class="hint" style="margin:6px 0 0;">Estas opções ficam salvas e valem sempre neste aparelho.</p>
+
+          <hr class="divider">
+          <p class="section-label">Outros espaços salvos na sua conta</p>
+          <div id="cloud-slots-list"></div>
+        </div>
+      </div>
+    </section>
+
+  </section>
+
+  <!-- ============ TELA: FERRAMENTAS ============ -->
+  <section role="region" tabindex="-1" class="screen" id="screen-ferramentas">
+    <div class="page-header">
+      <h2 class="page-title">Ferramentas</h2>
+      <p class="page-subtitle">Ferramentas auxiliares e independentes para apoiar sua estratégia — especialmente útil no pós-edital. Elas não alteram os dados das outras telas: servem para você fazer análises e inferências antes de decidir.</p>
+    </div>
+
+    <div class="tool-tabs" id="tool-tabs">
+      <button type="button" class="tool-tab active" data-tool="estimativa">⏱️ Estimativa de Tempo</button>
+      <button type="button" class="tool-tab" data-tool="selecao">🎯 Seleção de Matérias</button>
+    </div>
+
+    <!-- ────────── FERRAMENTA: ESTIMATIVA DE TEMPO ────────── -->
+    <div class="tool-panel active" id="tool-estimativa">
+      <section class="card">
+        <div class="card-header">
+          <div>
+            <h2>Estimativa de tempo de estudo novo</h2>
+            <p class="sub">Quanto tempo você precisa para cobrir todo o conteúdo novo, e se isso cabe no prazo até a prova.</p>
+          </div>
+        </div>
+        <div style="padding: 18px 28px 26px;">
+          <p class="section-label">Volume de conteúdo</p>
+          <div class="field-group">
+            <div class="field">
+              <label for="est-paginas">Total de páginas a estudar (PDF)</label>
+              <input type="number" inputmode="numeric" id="est-paginas" min="0" value="3000">
+            </div>
+            <div class="field">
+              <label for="est-pph">Média de páginas por hora (PDF)</label>
+              <input type="number" inputmode="decimal" id="est-pph" min="0" step="0.1" value="12.3">
+            </div>
+          </div>
+          <div class="field-group">
+            <div class="field">
+              <label for="est-minvideo">Total de minutos de videoaulas</label>
+              <input type="number" inputmode="numeric" id="est-minvideo" min="0" value="0">
+            </div>
+            <div class="field">
+              <label for="est-mph">Minutos de vídeo assistidos por hora de estudo</label>
+              <input type="number" inputmode="numeric" id="est-mph" min="0" step="1" value="0">
+            </div>
+          </div>
+
+          <hr class="divider">
+          <p class="section-label">Ritmo e estratégia</p>
+          <div class="field-group">
+            <div class="field">
+              <label for="est-horas-sem">Horas de estudo semanais</label>
+              <input type="number" inputmode="decimal" id="est-horas-sem" min="1" step="0.5" value="36">
+            </div>
+            <div class="field">
+              <label for="est-pct-novo">% do tempo dedicado ao estudo novo <span class="opt">(pós-edital)</span></label>
+              <input type="number" inputmode="numeric" id="est-pct-novo" min="1" max="100" step="1" value="40">
+            </div>
+          </div>
+
+          <div id="est-results" class="tool-results"></div>
+
+          <hr class="divider">
+          <p class="section-label">Tempo disponível até a prova</p>
+          <div class="row-3">
+            <div class="field">
+              <label for="est-semanas-disp">Semanas disponíveis</label>
+              <input type="number" inputmode="numeric" id="est-semanas-disp" min="0" value="14">
+            </div>
+            <div class="field">
+              <label for="est-carga-realista">Carga realista (h/sem)</label>
+              <input type="number" inputmode="decimal" id="est-carga-realista" min="0" step="0.5" value="36">
+            </div>
+            <div class="field">
+              <label for="est-carga-otimista">Carga otimista (h/sem)</label>
+              <input type="number" inputmode="decimal" id="est-carga-otimista" min="0" step="0.5" value="42">
+            </div>
+          </div>
+          <div id="est-avail-results" class="tool-results"></div>
+          <div id="est-verdict"></div>
+        </div>
+      </section>
+    </div>
+
+    <!-- ────────── FERRAMENTA: SELEÇÃO DE MATÉRIAS ────────── -->
+    <div class="tool-panel" id="tool-selecao">
+      <section class="card">
+        <div class="card-header">
+          <div>
+            <h2>Seleção de matérias por incidência</h2>
+            <p class="sub">Liste as matérias de editais que te interessam (mesma banca ou área). A ferramenta mostra quais matérias mais se repetem — ajudando a priorizar o que tem maior chance de cair. Use uma matéria por linha em cada edital.</p>
+          </div>
+        </div>
+        <div style="padding: 18px 28px 26px;">
+          <div id="selecao-editais" class="selecao-editais"></div>
+          <button type="button" class="btn-secondary" id="btn-add-edital" style="margin-top: 14px;">+ Adicionar edital</button>
+          <div class="submit-row" style="margin-top: 18px;">
+            <span class="save-note"><span class="dot"></span>ferramenta auxiliar — não afeta suas matérias cadastradas</span>
+            <button type="button" class="btn-primary" id="btn-calc-incidencia">Calcular incidência</button>
+          </div>
+        </div>
+      </section>
+      <div id="selecao-resultado"></div>
+    </div>
+  </section>
+
+  <!-- ============ TELA: DESEMPENHO TEC ============ -->
+  <section role="region" tabindex="-1" class="screen" id="screen-desempenhotec">
+    <div class="page-header">
+      <h2 class="page-title">Desempenho TEC</h2>
+      <p class="page-subtitle">Importe periodicamente sua planilha de desempenho do TecConcursos para mapear pontos fracos por disciplina e tópico, e acompanhar sua evolução ao longo do tempo. Cada importação vira um retrato datado.</p>
+    </div>
+
+    <!-- Estado vazio -->
+    <div id="tec-empty" class="card" style="display:none;">
+      <div class="card-header"><h2>Nenhuma importação ainda</h2></div>
+      <div style="padding: 16px 28px 26px;">
+        <p style="color:var(--text-soft); font-size:14px; line-height:1.6; margin: 0 0 18px;">
+          No TecConcursos, acesse seu <strong>Desempenho por Assunto</strong>, selecione a tabela (disciplinas e tópicos com questões resolvidas e % de acertos) e copie. Depois cole abaixo — o app organiza tudo automaticamente.
+        </p>
+        <button class="btn-primary" id="tec-btn-first-import">Importar planilha</button>
+      </div>
+    </div>
+
+    <!-- Formulário de importação (colar) -->
+    <div id="tec-import" class="card" style="display:none;">
+      <div class="card-header">
+        <div>
+          <h2>Nova importação</h2>
+          <p class="sub">Envie o arquivo exportado do TecConcursos (.xlsx, .xls ou .csv) ou cole a tabela manualmente.</p>
+        </div>
+      </div>
+      <div style="padding: 16px 28px 26px;">
+        <p class="section-label" style="margin-top:0;">Intervalo de referência</p>
+        <div class="row-3">
+          <div class="field">
+            <label for="tec-import-start">Início do período</label>
+            <input type="date" id="tec-import-start">
+          </div>
+          <div class="field">
+            <label for="tec-import-end">Fim do período</label>
+            <input type="date" id="tec-import-end">
+          </div>
+          <div class="field">
+            <label for="tec-import-label">Rótulo <span class="opt">(opcional)</span></label>
+            <input type="text" id="tec-import-label" placeholder="Ex.: 1º ciclo de revisão">
+          </div>
+          <div class="field">
+            <label for="tec-import-bancas">Banca(s) do caderno <span class="opt">(opcional)</span></label>
+            <input type="text" id="tec-import-bancas" list="tec-bancas-list" placeholder="Ex.: FCC+FGV+CEBRASPE">
+            <datalist id="tec-bancas-list"></datalist>
+          </div>
+        </div>
+        <p class="hint" id="tec-range-warn" style="color:var(--bad); display:none;"></p>
+
+        <p class="section-label" style="margin-top:12px;">Enviar arquivo</p>
+        <div id="tec-dropzone" class="tec-dropzone">
+          <input type="file" id="tec-file-input" accept=".xlsx,.xls,.csv,.tsv,.txt" style="display:none;">
+          <div class="tec-dropzone-icon">📄</div>
+          <div class="tec-dropzone-text"><strong>Clique para selecionar</strong> ou arraste o arquivo aqui</div>
+          <div class="tec-dropzone-hint">Formatos aceitos: .xlsx, .xls, .csv</div>
+          <div id="tec-file-name" class="tec-file-name" style="display:none;"></div>
+        </div>
+
+        <div class="tec-or-divider"><span>ou cole manualmente</span></div>
+
+        <div class="field full">
+          <label for="tec-import-text">Dados colados</label>
+          <textarea id="tec-import-text" style="min-height: 130px; font-family:'Space Mono', ui-monospace, SFMono-Regular, Menlo, monospace; font-size:12px;" placeholder="Cole aqui a tabela do TecConcursos (Ctrl+V)..."></textarea>
+          <p class="hint" id="tec-import-preview">Aguardando dados...</p>
+        </div>
+        <div class="submit-row" style="margin-top: 6px;">
+          <button class="btn-secondary" id="tec-import-cancel" type="button">Cancelar</button>
+          <button class="btn-primary" id="tec-import-save" type="button">Salvar importação</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Análise do snapshot mais recente -->
+    <div id="tec-analysis" style="display:none;">
+      <!-- Barra superior: ESCOPO da análise (consolidado / seleção / intervalo) + ações -->
+      <div class="card">
+        <div style="padding: 16px 24px;">
+          <div style="display:flex; align-items:center; justify-content:space-between; gap:14px; flex-wrap:wrap; margin-bottom:8px;">
+            <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
+              <span class="section-label" style="margin:0;">Escopo da análise</span>
+              <div class="scope-toggle" id="tec-scope-toggle">
+                <button type="button" data-scope="consolidado" class="active">Consolidado (todos)</button>
+                <button type="button" data-scope="select">Selecionar retratos</button>
+                <button type="button" data-scope="range">Intervalo de datas</button>
+              </div>
+            </div>
+            <div class="grade-head-actions">
+              <div class="grade-gear-wrap">
+                <button class="btn-secondary grade-gear-btn" id="tec-gear-btn" type="button" title="Opções de exibição" aria-haspopup="true" aria-expanded="false">⚙ Exibição</button>
+                <div class="grade-gear-menu" id="tec-gear-menu" role="menu" aria-hidden="true">
+                  <button class="grade-gear-item" id="tec-toggle-cfg" type="button" role="menuitem" title="Mostrar/ocultar os filtros e configurações desta tela"><span class="gg-ic">🔧</span>Filtros e configurações</button>
+                  <button class="grade-gear-item" id="tec-enxuto-btn" type="button" role="menuitem" title="Esconde textos de ajuda e legendas — deixa só números, barras e listas"><span class="gg-ic">🔎</span>Modo enxuto</button>
+                </div>
+              </div>
+              <button class="btn-primary" id="tec-btn-new-import" type="button">+ Nova importação</button>
+            </div>
+          </div>
+          <span class="hint" id="tec-snap-meta"></span>
+          <!-- Painel: seleção de retratos específicos (aparece no modo "Selecionar") -->
+          <div id="tec-scope-select" style="display:none; margin-top:12px;"></div>
+          <!-- Painel: intervalo de datas (aparece no modo "Intervalo") -->
+          <div id="tec-scope-range" style="display:none; margin-top:12px;">
+            <div style="display:flex; gap:12px; align-items:flex-end; flex-wrap:wrap;">
+              <div class="field" style="margin-bottom:0;">
+                <label for="tec-range-start" style="margin-bottom:4px;">De</label>
+                <input type="date" id="tec-range-start">
+              </div>
+              <div class="field" style="margin-bottom:0;">
+                <label for="tec-range-end" style="margin-bottom:4px;">Até</label>
+                <input type="date" id="tec-range-end">
+              </div>
+              <div style="display:flex; gap:8px; flex-wrap:wrap; padding-bottom:2px;">
+                <button type="button" class="btn-secondary tec-range-quick" data-range="3">Últimos 3 meses</button>
+                <button type="button" class="btn-secondary tec-range-quick" data-range="6">6 meses</button>
+                <button type="button" class="btn-secondary tec-range-quick" data-range="12">1 ano</button>
+                <button type="button" class="btn-secondary tec-range-quick" data-range="all">Tudo</button>
+              </div>
+            </div>
+            <p class="hint" id="tec-range-hint" style="margin-top:8px;">Inclui todo retrato cujo período se sobrepõe ao intervalo escolhido.</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- Abas do Desempenho TEC -->
+      <div class="tec-subtabs" id="tec-subtabs">
+        <button type="button" class="tec-subtab active" data-tectab="analise">📊 Análise</button>
+        <button type="button" class="tec-subtab" data-tectab="incidencia">🏛️ Incidência</button>
+        <button type="button" class="tec-subtab" data-tectab="reforco">🎯 Reforço</button>
+        <button type="button" class="tec-subtab" data-tectab="plano">🏁 Plano</button>
+      </div>
+
+      <div id="tec-panel-analise">
+      <!-- Cards de totais -->
+      <div id="tec-totais" style="display:grid; grid-template-columns: repeat(4,1fr); gap:14px; margin-top:16px;"></div>
+
+      <!-- Pontos fracos -->
+      <div class="card">
+        <div class="card-header">
+          <div>
+            <h2>🎯 Pontos fracos — onde focar</h2>
+            <p class="sub">Tópicos com menor aproveitamento e volume relevante de questões</p>
+          </div>
+        </div>
+        <div class="tec-cfg tec-filterbar" style="margin:12px 24px 8px; display:flex; gap:14px; align-items:flex-end; flex-wrap:wrap;">
+          <div class="field" style="margin-bottom:0; min-width:210px;">
+            <label for="tec-weak-disc">Agrupar / filtrar por disciplina</label>
+            <select id="tec-weak-disc"></select>
+          </div>
+          <div class="field" style="margin-bottom:0;">
+            <label>Aproveitamento abaixo de</label>
+            <div class="time-input"><input type="number" inputmode="numeric" id="tec-weak-threshold" min="1" max="100" value="70" style="width:70px; text-align:center;"><span>%</span></div>
+          </div>
+          <div class="field" style="margin-bottom:0;">
+            <label for="tec-weak-minq">Mínimo de questões</label>
+            <input type="number" inputmode="numeric" id="tec-weak-minq" min="1" value="3" style="width:80px; text-align:center;">
+          </div>
+          <label class="co-check" style="margin-bottom:6px;"><input type="checkbox" id="tec-weak-leaves" checked> Só tópicos específicos (folhas)</label>
+        </div>
+        <div style="padding: 6px 24px 24px;" id="tec-weak-list"></div>
+      </div>
+
+      <!-- Desempenho por disciplina -->
+      <div class="card">
+        <div class="evo-card-head">
+          <div>
+            <h2>Aproveitamento por disciplina</h2>
+            <p class="sub">Filtre por uma disciplina para analisá-la individualmente, ou veja todas em cascata</p>
+          </div>
+          <div class="field tec-cfg" style="margin-bottom:0; min-width:230px;">
+            <select id="tec-disc-filter"></select>
+          </div>
+        </div>
+        <div id="tec-disc-focus"></div>
+        <div style="padding: 10px 24px 24px;" id="tec-disc-list"></div>
+      </div>
+      </div><!-- /tec-panel-analise -->
+
+      <!-- ABA INCIDÊNCIA -->
+      <div id="tec-panel-incidencia" style="display:none;">
+        <div class="card">
+          <div class="card-header">
+            <div>
+              <h2>🏛️ Incidência da banca</h2>
+              <p class="sub">Cadastre quantas vezes cada tópico já caiu no histórico da banca. É isso que o Reforço cruza com seus erros para achar onde você ganha mais pontos.</p>
+            </div>
+          </div>
+          <div style="padding: 14px 24px 22px;">
+            <div class="field-group">
+              <div class="field">
+                <label for="incid-banca">Banca <span class="req">*</span></label>
+                <input type="text" id="incid-banca" list="incid-banca-list" placeholder="Ex.: FCC, Cebraspe, FGV">
+                <datalist id="incid-banca-list"></datalist>
+              </div>
+              <div class="field" style="display:flex; align-items:flex-end;">
+                <label class="co-check" style="margin:0;"><input type="checkbox" id="incid-replace" checked> Substituir o que já existe desta banca</label>
+              </div>
+            </div>
+            <div id="incid-dropzone" class="tec-dropzone">
+              <input type="file" id="incid-file" accept=".xlsx,.xls,.csv,.tsv,.txt" style="display:none;">
+              <div class="tec-dropzone-icon">🏛️</div>
+              <div class="tec-dropzone-text"><strong>Clique para enviar</strong> ou arraste o arquivo</div>
+              <div class="tec-dropzone-hint">Colunas: Disciplina · Tópico · Incidência (a banca vem do campo acima)</div>
+              <div id="incid-file-name" class="tec-file-name" style="display:none;"></div>
+            </div>
+            <div class="tec-or-divider"><span>ou cole manualmente</span></div>
+            <div class="field full">
+              <label for="incid-text">Dados colados <span class="opt">(Disciplina · Tópico · Incidência — separados por TAB, ; ou ,)</span></label>
+              <textarea id="incid-text" style="min-height: 120px; font-family:'Space Mono', ui-monospace, SFMono-Regular, Menlo, monospace; font-size:12px;" placeholder="Contabilidade Geral&#9;Balanço Patrimonial&#9;12&#10;Direito Tributário&#9;Crédito Tributário&#9;30"></textarea>
+              <p class="hint" id="incid-preview">Aguardando dados...</p>
+            </div>
+            <div class="submit-row" style="margin-top:6px;">
+              <span class="save-note"><span class="dot"></span>fica salvo no seu perfil e sincroniza</span>
+              <button class="btn-primary" id="incid-save" type="button">Salvar incidência</button>
+            </div>
+          </div>
+        </div>
+        <div class="card" id="incid-bancas-card" style="display:none;">
+          <div class="card-header"><div><h2>Bancas cadastradas</h2><p class="sub">Clique em uma banca para ver e filtrar os tópicos importados</p></div></div>
+          <div style="padding: 12px 24px 22px;" id="incid-bancas-list"></div>
+        </div>
+      </div>
+
+      <!-- ABA REFORÇO -->
+      <div id="tec-panel-reforco" style="display:none;">
+        <div class="card rfc-card">
+          <div class="card-header">
+            <div>
+              <h2>🎯 Reforço inteligente</h2>
+              <p class="sub">Onde investir seu tempo para <strong>ganhar mais pontos</strong>: cruza seu desempenho com a incidência da banca.</p>
+            </div>
+          </div>
+
+          <!-- 1) BANNER de projeção (destaque no topo) -->
+          <div id="reforco-proj" class="rfc-section"></div>
+
+          <!-- 2) BARRA principal: banca + visão + ordenação (o essencial, sempre visível) -->
+          <div class="rfc-toolbar tec-cfg">
+            <div class="rfc-field">
+              <label for="reforco-banca">Banca-alvo</label>
+              <select id="reforco-banca"></select>
+            </div>
+            <div class="rfc-field">
+              <label for="reforco-disc">Disciplina</label>
+              <select id="reforco-disc"><option value="__todas__">📚 Todas</option></select>
+            </div>
+            <div class="rfc-field">
+              <label>Visão</label>
+              <div class="scope-toggle" id="reforco-view-toggle">
+                <button type="button" data-view="global" class="active">🏆 Ranking</button>
+                <button type="button" data-view="disc">📚 Disciplinas</button>
+              </div>
+            </div>
+            <div class="rfc-field">
+              <label for="reforco-ordenar">Ordenar por</label>
+              <select id="reforco-ordenar">
+                <option value="oportunidade" selected>🎯 Oportunidade de pontos</option>
+                <option value="erro">🔴 Maior erro (mais fraco)</option>
+                <option value="incidencia">🏛️ Maior incidência</option>
+              </select>
+            </div>
+            <button type="button" class="rfc-adv-btn" id="reforco-adv-btn" aria-expanded="false">
+              <span class="chev">▸</span> Ajustes avançados
+            </button>
+          </div>
+
+          <!-- 3) AJUSTES AVANÇADOS (recolhível — tira a poluição da tela) -->
+          <div class="rfc-advanced" id="reforco-advanced" hidden>
+            <div class="rfc-adv-grid">
+              <div class="rfc-field wide">
+                <label for="reforco-estrat">Estratégia: <span id="reforco-estrat-label" class="lbl-accent">equilíbrio</span></label>
+                <input type="range" id="reforco-estrat" min="0" max="100" value="50" class="reforco-slider">
+                <div class="reforco-slider-legend"><span>Recuperar erros</span><span>Maximizar incidência</span></div>
+              </div>
+              <div class="rfc-field wide">
+                <label for="reforco-gran">Granularidade: <span id="reforco-gran-label" class="lbl-accent">Assunto (auto)</span></label>
+                <input type="range" id="reforco-gran" min="0" max="100" value="50" class="reforco-slider">
+                <div class="reforco-slider-legend"><span>Disciplina</span><span>Assunto</span><span>Tópico</span></div>
+              </div>
+              <div class="rfc-field">
+                <label for="reforco-minq">Mín. de questões</label>
+                <input type="number" inputmode="numeric" id="reforco-minq" min="1" value="10">
+              </div>
+              <div class="rfc-field">
+                <label for="reforco-limite">Qtd. de tópicos</label>
+                <input type="number" inputmode="numeric" id="reforco-limite" min="1" value="12">
+              </div>
+            </div>
+          </div>
+
+          <!-- 4) RÓTULO explícito da ordenação (didático) -->
+          <div class="rfc-orderlabel" id="reforco-orderlabel"></div>
+
+          <!-- status compacto -->
+          <p class="hint rfc-status" id="reforco-status"></p>
+
+          <!-- 5) LISTA -->
+          <div class="rfc-list" id="reforco-list"></div>
+        </div>
+
+        <!-- Cards secundários: só na visão Ranking (na visão Disciplinas já aparecem embutidos) -->
+        <div class="reforco-side-grid">
+          <div class="card rfc-side" id="reforco-blind-card" style="display:none;">
+            <div class="card-header"><div><h2>🕳️ Pontos cegos</h2><p class="sub">Alta incidência, você quase não praticou — risco silencioso</p></div></div>
+            <div class="rfc-side-body" id="reforco-blind-list"></div>
+          </div>
+          <div class="card rfc-side" id="reforco-over-card" style="display:none;">
+            <div class="card-header"><div><h2>⚖️ Sobre-investimento</h2><p class="sub">Você treina muito além do peso do tópico na banca</p></div></div>
+            <div class="rfc-side-body" id="reforco-over-list"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ============ PLANO DE PONTOS FRACOS ============ -->
+      <div id="tec-panel-plano" style="display:none;">
+        <div class="card">
+          <div class="card-header">
+            <div>
+              <h2>🏁 Plano de pontos fracos</h2>
+              <p class="sub">Baseado só no seu desempenho no TEC. Mede o quanto você já domina do que estuda e mostra por onde atacar para fechar a lacuna resolvendo o menor número de questões.</p>
+            </div>
+          </div>
+          <div style="padding: 4px 28px 20px;">
+            <div class="rfc-toolbar tec-cfg" style="margin-bottom:4px;">
+              <div class="rfc-field wide">
+                <label for="plano-disc">Disciplina</label>
+                <select id="plano-disc"><option value="__todas__">📚 Todas</option></select>
+              </div>
+              <div class="rfc-field">
+                <label for="plano-meta">Meta de domínio (%)</label>
+                <input type="number" inputmode="numeric" id="plano-meta" min="30" max="100" step="1">
+              </div>
+              <div class="rfc-field">
+                <label for="plano-amostraalvo">Amostra desejada por assunto</label>
+                <select id="plano-amostraalvo" title="Para cada assunto o app parte da importação mais recente e só volta no tempo até juntar esta quantidade de questões. Quanto maior, mais confiável a taxa — e mais antigo o dado que ela usa.">
+                  <option value="30">30 questões (±18pp)</option>
+                  <option value="50">50 questões (±14pp)</option>
+                  <option value="100">100 questões (±10pp)</option>
+                  <option value="200">200 questões (±7pp)</option>
+                </select>
+              </div>
+              <div class="rfc-field">
+                <label for="plano-ritmo">Ritmo (q/semana)</label>
+                <input type="number" inputmode="numeric" id="plano-ritmo" min="1" max="2000" step="1" title="Segue sozinho o que você produz. Digite outro valor para simular." aria-label="Segue sozinho o que você produz. Digite outro valor para simular.">
+              </div>
+              <div class="rfc-field wide">
+                <label for="plano-ordenar">Ordenar por</label>
+                <select id="plano-ordenar">
+                  <option value="pior">🔴 Prioridade — pior acerto primeiro</option>
+                  <option value="ganhoGeral">📊 Maior ganho no Aproveitamento geral (por questão)</option>
+                  <option value="ganhoDominio">⚖️ Maior ganho no Domínio (assuntos pesam igual)</option>
+                  <option value="banca">🎯 Prioridade na banca — fraqueza × incidência</option>
+                  <option value="rendimento">⚡ Melhor retorno — ganho ÷ custo em questões</option>
+                  <option value="queda">📉 Maior queda recente</option>
+                  <option value="volume">📚 Mais questões já resolvidas</option>
+                </select>
+              </div>
+              <div class="rfc-field" id="plano-banca-field" style="display:none;">
+                <label for="plano-banca">Banca (para prioridade)</label>
+                <select id="plano-banca" title="Usada na ordenação '🎯 Prioridade na banca'. Combina a sua fraqueza no assunto com o quanto ele cai nessa banca. Importe a incidência em 🎲 Incidência.">
+                  <option value="__todas__">Todas as bancas</option>
+                </select>
+              </div>
+              <div class="rfc-field wide" style="align-items:flex-start;">
+                <button type="button" class="rfc-adv-btn" id="plano-adv-btn" aria-expanded="false">
+                  <span class="chev">▸</span> Ajustes avançados
+                </button>
+              </div>
+            </div>
+
+            <div class="rfc-advanced" id="plano-advanced" hidden>
+              <div class="rfc-adv-grid">
+                <div class="rfc-field wide">
+                  <label for="plano-ponderacao">Como pesar cada assunto</label>
+                  <select id="plano-ponderacao">
+                    <option value="igual">⚖️ Todo assunto pesa igual — nada se esconde atrás de pouco volume</option>
+                    <option value="volume">📊 Pelo volume de questões — maximiza o Aproveitamento geral desta tela</option>
+                    <option value="ambas">🔀 Mostrar as duas — decida item a item</option>
+                  </select>
+                </div>
+                <div class="rfc-field">
+                  <label for="plano-teto">Acerto máximo realista (%)</label>
+                  <input type="number" inputmode="numeric" id="plano-teto" min="50" max="100" step="1" title="Ninguém acerta 100% nem no assunto que domina. Este é o alvo por assunto — e a base do cálculo de ganho." aria-label="Ninguém acerta 100% nem no assunto que domina. Este é o alvo por assunto — e a base do cálculo de ganho.">
+                </div>
+                <div class="rfc-field">
+                  <label for="plano-minamostra">Mínimo para entrar no cálculo</label>
+                  <input type="number" inputmode="numeric" id="plano-minamostra" min="0" max="500" step="1" title="Assuntos com menos questões que isso saem da média de domínio e vão para o segundo plano. Três erros em seis questões não é fraqueza comprovada, é falta de dado." aria-label="Assuntos com menos questões que isso saem da média de domínio e vão para o segundo plano. Três erros em seis questões não é fraqueza comprovada, é falta de dado.">
+                </div>
+                <div class="rfc-field wide">
+                  <label for="plano-customodo">Como estimar o custo de cada assunto</label>
+                  <select id="plano-customodo">
+                    <option value="fixo">Número fixo de questões por assunto</option>
+                    <option value="proporcional">Proporcional ao que você já praticou</option>
+                  </select>
+                </div>
+                <div class="rfc-field">
+                  <label for="plano-custofixo">· se fixo: questões</label>
+                  <input type="number" inputmode="numeric" id="plano-custofixo" min="10" max="1000" step="5">
+                </div>
+                <div class="rfc-field">
+                  <label for="plano-custofator">· se proporcional: fator</label>
+                  <input type="number" inputmode="decimal" id="plano-custofator" min="0.1" max="3" step="0.1">
+                </div>
+                <div class="rfc-field">
+                  <label for="plano-limite">Mostrar até (assuntos)</label>
+                  <input type="number" inputmode="numeric" id="plano-limite" min="5" max="200" step="5">
+                </div>
+                <div class="rfc-field">
+                  <label for="plano-consolidar">Importações p/ consolidar</label>
+                  <input type="number" inputmode="numeric" id="plano-consolidar" min="1" max="10" step="1" title="Quantas importações seguidas na meta um assunto precisa sustentar para ser considerado sólido." aria-label="Quantas importações seguidas na meta um assunto precisa sustentar para ser considerado sólido.">
+                </div>
+                <div class="rfc-field">
+                  <label for="plano-validade">Dado vence em (dias)</label>
+                  <input type="number" inputmode="numeric" id="plano-validade" min="30" max="720" step="15" title="Sem medição nova nesse prazo, o assunto é marcado como dado vencido." aria-label="Sem medição nova nesse prazo, o assunto é marcado como dado vencido.">
+                </div>
+                <div class="rfc-field">
+                  <label for="plano-cadencia">Frequência de importação (dias)</label>
+                  <input type="number" inputmode="numeric" id="plano-cadencia" min="7" max="365" step="1" title="Se o último retrato ficar mais velho que isso, o app avisa que a leitura está defasada." aria-label="Se o último retrato ficar mais velho que isso, o app avisa que a leitura está defasada.">
+                </div>
+                <div class="rfc-field">
+                  <label for="plano-janelamax">Não usar dado mais velho que (dias)</label>
+                  <input type="number" inputmode="numeric" id="plano-janelamax" min="30" max="1825" step="30" title="Trava de segurança: mesmo faltando amostra, o app não usa dado mais antigo que isso. Acima desse prazo o desempenho já não representa você hoje." aria-label="Trava de segurança: mesmo faltando amostra, o app não usa dado mais antigo que isso. Acima desse prazo o desempenho já não representa você hoje.">
+                </div>
+                <div class="rfc-field">
+                  <label for="plano-critico">Faixa crítica: abaixo de (%)</label>
+                  <input type="number" inputmode="numeric" id="plano-critico" min="0" max="100" step="5" title="Abaixo disso o diagnóstico é problema de teoria, não de treino." aria-label="Abaixo disso o diagnóstico é problema de teoria, não de treino.">
+                </div>
+                <div class="rfc-field">
+                  <label for="plano-fragil">Faixa frágil: abaixo de (%)</label>
+                  <input type="number" inputmode="numeric" id="plano-fragil" min="0" max="100" step="5" title="Entre crítico e este valor: revisar teoria e alternar com questões." aria-label="Entre crítico e este valor: revisar teoria e alternar com questões.">
+                </div>
+                <div class="rfc-field">
+                  <label for="plano-piso">Mínimo por importação (trajetória)</label>
+                  <input type="number" inputmode="numeric" id="plano-piso" min="1" max="100" step="1" title="Diferente do campo acima: aqui é o mínimo dentro de UMA importação para ela valer como medição no gráfico de trajetória e na contagem de importações seguidas." aria-label="Diferente do campo acima: aqui é o mínimo dentro de UMA importação para ela valer como medição no gráfico de trajetória e na contagem de importações seguidas.">
+                </div>
+                <div class="rfc-field">
+                  <label for="plano-sens">Sensibilidade da tendência (pp)</label>
+                  <input type="number" inputmode="numeric" id="plano-sens" min="1" max="30" step="1" title="Variação mínima para marcar um assunto como melhorando ou piorando." aria-label="Variação mínima para marcar um assunto como melhorando ou piorando.">
+                </div>
+                <div class="rfc-field wide">
+                  <label class="rfc-check"><input type="checkbox" id="plano-folhas"> Só assuntos específicos (ignorar tópicos-pai)</label>
+                  <label class="rfc-check"><input type="checkbox" id="plano-pequenas"> Incluir assuntos com amostra pequena no cálculo</label>
+                </div>
+              </div>
+              <div style="display:flex;justify-content:flex-end;margin-top:12px;">
+                <button type="button" class="btn-secondary" id="plano-reset">↺ Restaurar padrões</button>
+              </div>
+            </div>
+
+            <div id="plano-proj"></div>
+            <div id="plano-lista"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ DIÁLOGO GENÉRICO (confirm/prompt bonito) ============ -->
+  <div id="ui-modal" class="cards-modal" style="display:none; z-index:2000;">
+    <div class="cards-modal-box" id="ui-modal-box" style="max-width:460px;">
+      <div class="cards-modal-head">
+        <div><h2 id="ui-modal-title">Confirmar</h2><p class="sub" id="ui-modal-sub" style="display:none;"></p></div>
+        <button type="button" class="icon-btn" id="ui-modal-x" aria-label="Fechar">✕</button>
+      </div>
+      <div class="cards-modal-body" id="ui-modal-body"></div>
+      <div class="cards-modal-foot">
+        <span style="flex:1"></span>
+        <button type="button" class="btn-secondary" id="ui-modal-cancel">Cancelar</button>
+        <button type="button" class="btn-primary" id="ui-modal-ok">Confirmar</button>
+      </div>
+    </div>
+  </div>
+  <!-- ============ TELA: ATIVIDADES EXTRAS ============ -->
+  <section role="region" tabindex="-1" class="screen" id="screen-extras">
+    <div class="page-header">
+      <h2 class="page-title">✅ Atividades Extras</h2>
+      <p class="page-subtitle">Metas paralelas ao seu planejamento obrigatório: baralhos de Anki, leitura de lei seca, questões de um assunto, revisão de pontos fracos, vídeos e revisões de véspera. Você decide, por atividade, se ela entra ou não nas métricas de Evolução.</p>
+    </div>
+    <div class="extras-toolbar">
+      <div class="extras-global">
+        <button type="button" class="toggle-switch" id="extras-global-toggle" role="switch" aria-checked="false" aria-label="Incluir atividades extras nas métricas de Evolução" title="Somar as atividades marcadas às métricas de Evolução"></button>
+        <span>Incluir Atividades Extras (marcadas) nas métricas de Evolução</span>
+      </div>
+      <div style="display:flex; gap:8px; flex-wrap:wrap;">
+        <button type="button" class="btn-secondary" id="extras-manage-btn" title="Gerenciar todas as atividades recorrentes e avulsas num só lugar">🔁 Gerenciar</button>
+        <button type="button" class="btn-secondary" id="extras-suggest-btn" title="Sugerir atividades com base nos seus pontos fracos do TEC">💡 Sugerir</button>
+        <button type="button" class="btn-secondary" id="extras-plano-btn" title="Puxar os assuntos prioritários do Plano de pontos fracos, com meta já calculada">🏁 Puxar do Plano</button>
+        <button type="button" class="btn-primary" id="extras-new-btn">＋ Nova atividade</button>
+      </div>
+    </div>
+    <!-- Missão do dia: calendário + cabeçalho do dia + carga horária + filtros -->
+    <div id="extras-summary" class="extras-summary" style="display:none;"></div>
+    <div id="extras-agenda"></div>
+    <div id="extras-list"></div>
+  </section>
+  <!-- Modal: gerenciar atividades (recorrentes e avulsas) -->
+  <div id="extras-manage-modal" class="cards-modal" style="display:none; z-index:615;">
+    <div class="cards-modal-box">
+      <div class="cards-modal-head">
+        <div><h2>🔁 Gerenciar atividades</h2><p class="sub">Crie, edite ou exclua as atividades recorrentes e avulsas. A lista do dia mostra só as ocorrências — a gestão fica aqui, separada.</p></div>
+        <button type="button" class="icon-btn" id="extras-manage-close" aria-label="Fechar">✕</button>
+      </div>
+      <div class="cards-modal-body">
+        <div id="extras-manage-list"></div>
+      </div>
+      <div class="cards-modal-foot">
+        <span style="flex:1"></span>
+        <button type="button" class="btn-secondary" id="extras-manage-done">Fechar</button>
+        <button type="button" class="btn-primary" id="extras-manage-new">＋ Nova atividade</button>
+      </div>
+    </div>
+  </div>
+  <!-- Modal: sugestões a partir dos pontos fracos do TEC -->
+  <div id="extra-suggest-modal" class="cards-modal" style="display:none; z-index:610;">
+    <div class="cards-modal-box cards-modal-lg">
+      <div class="cards-modal-head">
+        <div><h2>💡 Sugestões de atividades</h2><p class="sub">Baseadas nos seus pontos fracos do TEC. Use <strong>⚙ Configurar</strong> para ajustar a meta de cada uma, ou marque várias e adicione em lote.</p></div>
+        <button type="button" class="icon-btn" id="extra-suggest-close" aria-label="Fechar">✕</button>
+      </div>
+      <div class="cards-modal-body">
+        <div class="sug-filters">
+          <div class="sug-tool-field">
+            <label for="extra-suggest-banca">Banca</label>
+            <select id="extra-suggest-banca"></select>
+          </div>
+          <div class="sug-tool-field">
+            <label for="extra-suggest-disc">Disciplina</label>
+            <select id="extra-suggest-disc"><option value="__todas__">📚 Todas</option></select>
+          </div>
+          <div class="sug-tool-field">
+            <label for="extra-suggest-ordenar">Ordenar por</label>
+            <select id="extra-suggest-ordenar">
+              <option value="oportunidade" selected>🎯 Oportunidade</option>
+              <option value="erro">🔴 Maior erro</option>
+              <option value="incidencia">🏛️ Maior incidência</option>
+            </select>
+          </div>
+          <div class="sug-tool-field">
+            <label for="extra-suggest-minq">Mín. questões</label>
+            <input type="number" inputmode="numeric" id="extra-suggest-minq" min="1" value="8">
+          </div>
+        </div>
+        <div class="sug-toolbar">
+          <div class="sug-tool-field">
+            <label for="extra-suggest-tipo">Gerar cada uma como</label>
+            <select id="extra-suggest-tipo">
+              <option value="revisao" selected>🔁 Revisão do ponto fraco</option>
+              <option value="questoes">❓ Questões do assunto</option>
+              <option value="video">🎬 Vídeo do assunto</option>
+              <option value="anki">🃏 Flashcards do assunto</option>
+            </select>
+          </div>
+          <button type="button" class="btn-secondary" id="extra-suggest-all">☑ Marcar todos</button>
+        </div>
+        <div id="extra-suggest-list"></div>
+      </div>
+      <div class="cards-modal-foot">
+        <span class="hint" id="extra-suggest-count" style="flex:1; margin:0;"></span>
+        <button type="button" class="btn-secondary" id="extra-suggest-cancel">Cancelar</button>
+        <button type="button" class="btn-primary" id="extra-suggest-add">Adicionar selecionadas</button>
+      </div>
+    </div>
+  </div>
+  <!-- Modal: criar/editar atividade extra -->
+  <div id="extra-modal" class="cards-modal" style="display:none; z-index:620;">
+    <div class="cards-modal-box">
+      <div class="cards-modal-head">
+        <div><h2 id="extra-modal-title">＋ Nova atividade</h2><p class="sub">Defina a meta e se ela conta nas suas métricas.</p></div>
+        <button type="button" class="icon-btn" id="extra-modal-close" aria-label="Fechar">✕</button>
+      </div>
+      <div class="cards-modal-body">
+        <div class="field"><label for="extra-titulo">Título <span class="req">*</span></label>
+          <input type="text" id="extra-titulo" placeholder="Ex.: 300 flashcards de Tributário"></div>
+        <div class="field-group">
+          <div class="field"><label for="extra-tipo">Tipo</label>
+            <select id="extra-tipo">
+              <option value="anki">🃏 Anki (cards)</option>
+              <option value="leitura">📜 Lei seca (páginas)</option>
+              <option value="questoes">❓ Questões</option>
+              <option value="revisao">🔁 Revisão ponto fraco</option>
+              <option value="video">🎬 Vídeo / véspera</option>
+              <option value="livre">⭐ Livre</option>
+            </select></div>
+          <div class="field"><label for="extra-disciplina">Disciplina <span class="opt">(opcional)</span></label>
+            <input type="text" id="extra-disciplina" list="extra-disc-list" placeholder="Ex.: Direito Tributário">
+            <datalist id="extra-disc-list"></datalist></div>
+        </div>
+        <div class="field-group">
+          <div class="field"><label for="extra-alvo">Meta (alvo)</label>
+            <input type="number" inputmode="numeric" id="extra-alvo" min="0" placeholder="Ex.: 300"></div>
+          <div class="field"><label for="extra-unidade">Unidade</label>
+            <select id="extra-unidade">
+              <option value="cards">cards</option>
+              <option value="paginas">páginas</option>
+              <option value="linhas">linhas</option>
+              <option value="artigos">artigos</option>
+              <option value="questoes">questões</option>
+              <option value="min">minutos</option>
+              <option value="sessoes">sessões</option>
+              <option value="itens">itens</option>
+            </select></div>
+        </div>
+        <!-- Marcador de leitura (aparece para Lei seca): onde parei -->
+        <div class="field" id="extra-marcador-field" style="display:none;">
+          <label for="extra-marcador">📌 Onde parei <span class="opt">(marcador de leitura)</span></label>
+          <input type="text" id="extra-marcador" placeholder="Ex.: parei no art. 150 / linha 234 / pág. 88">
+        </div>
+        <div class="field-group">
+          <div class="field"><label for="extra-periodo">Recorrência</label>
+            <select id="extra-periodo">
+              <option value="unica">Única (meta total)</option>
+              <option value="diaria">Diária</option>
+              <option value="semanal">Semanal</option>
+              <option value="quinzenal">Quinzenal</option>
+              <option value="mensal">Mensal</option>
+            </select></div>
+          <div class="field" id="extra-datainicio-field" style="display:none;"><label for="extra-datainicio">Início da recorrência <span class="opt">(opcional)</span></label>
+            <input type="date" id="extra-datainicio" title="A partir de quando a atividade se repete. Em branco = hoje." aria-label="A partir de quando a atividade se repete. Em branco = hoje.">
+          </div>
+        </div>
+        <div class="field-group" id="extra-datafim-field" style="display:none;">
+          <div class="field"><label for="extra-datafim">Fim da recorrência <span class="opt">(recomendado)</span></label>
+            <input type="date" id="extra-datafim" title="Define até quando a atividade se repete. Com o fim preenchido, o app já vincula as datas ao calendário automaticamente. Em branco: recorre sem fim, sem vincular datas." aria-label="Define até quando a atividade se repete. Com o fim preenchido, o app já vincula as datas ao calendário automaticamente. Em branco: recorre sem fim, sem vincular datas.">
+          </div>
+          <div class="field" style="display:flex; align-items:flex-end;">
+            <p class="hint" id="extra-rec-preview" style="margin:0 0 10px;">&nbsp;</p>
+          </div>
+        </div>
+        <div class="field" style="display:flex; align-items:center;">
+          <label class="co-check" style="margin:0;"><input type="checkbox" id="extra-conta" checked> Contar esta atividade nas métricas</label>
+        </div>
+      </div>
+      <div class="cards-modal-foot">
+        <button type="button" class="btn-danger-text" id="extra-del-btn" style="display:none;">Excluir</button>
+        <span style="flex:1"></span>
+        <button type="button" class="btn-secondary" id="extra-cancel">Cancelar</button>
+        <button type="button" class="btn-primary" id="extra-save">Salvar</button>
+      </div>
+    </div>
+  </div>
+  <!-- ============ TELA: PLANEJAMENTOS ============ -->
+  <section role="region" tabindex="-1" class="screen" id="screen-planejamentos">
+    <div class="page-header">
+      <h2 class="page-title">Planejamentos</h2>
+      <p class="page-subtitle">Cada planejamento é um espaço isolado com seus próprios registros, matérias, ciclos e trilhas. Alterne entre eles a qualquer momento — o Histórico e a Evolução podem ser vistos só deste planejamento ou de forma consolidada, somando toda a sua trajetória.</p>
+    </div>
+
+    <section class="card">
+      <div class="card-header">
+        <div>
+          <h2>Novo planejamento</h2>
+          <p class="sub">Comece do zero ou aproveite a estrutura de um planejamento existente</p>
+        </div>
+      </div>
+      <div style="padding: 18px 28px 26px;">
+        <div class="field-group">
+          <div class="field">
+            <label for="np-nome">Nome</label>
+            <input type="text" id="np-nome" placeholder="Ex.: Pós-edital SEFAZ-SP">
+          </div>
+          <div class="field">
+            <label for="np-tipo">Tipo</label>
+            <select id="np-tipo"></select>
+          </div>
+        </div>
+        <div class="field full">
+          <label for="np-source">Aproveitar estrutura de <span class="opt">(opcional)</span></label>
+          <select id="np-source"></select>
+          <p class="hint" id="np-source-hint">Deixe em "Começar do zero" para um espaço totalmente vazio (só com as formas e fases padrão).</p>
+        </div>
+        <div class="copy-options" id="np-copy-options" style="display:none;">
+          <div class="co-title">O que trazer do planejamento escolhido</div>
+          <label class="co-check"><input type="checkbox" id="np-copy-subjects" checked> Matérias (nome, dificuldade e fase)</label>
+          <label class="co-check"><input type="checkbox" id="np-copy-tracks" checked> Trilhas de Estudo Novo (aulas, checkpoints e status)</label>
+          <label class="co-check"><input type="checkbox" id="np-copy-methods" checked> Formas de estudo</label>
+          <label class="co-check"><input type="checkbox" id="np-copy-phases" checked> Fases de estudo</label>
+          <p class="hint" style="margin-top:8px;">Registros do diário, ciclos e histórico <strong>nunca</strong> são copiados — o novo planejamento sempre começa com a contagem zerada.</p>
+        </div>
+        <div class="submit-row" style="margin-top: 6px;">
+          <span class="save-note"><span class="dot"></span>cada planejamento guarda seus próprios dados</span>
+          <button type="button" class="btn-primary" id="np-create">Criar planejamento</button>
+        </div>
+      </div>
+    </section>
+
+    <div class="section-divider"><span>Seus planejamentos</span></div>
+    <div id="plan-cards-list"></div>
+  </section>
+
+    </div>
+  </main>
+</div>
+
+<div class="toast" id="toast" role="status" aria-live="polite" aria-atomic="true">
+  <span class="check"><svg viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12"></polyline></svg></span>
+  <span id="toast-text">Estudo registrado</span>
+</div>
+
+
+
+
+<div id="study-report-modal" class="report-modal" role="dialog" aria-modal="true" aria-labelledby="study-report-title">
+  <div class="report-dialog">
+    <div class="report-dialog-head">
+      <div><h2 id="study-report-title">📄 Relatório de evolução</h2><p>Escolha o período e o nível de detalhamento do PDF.</p></div>
+      <button type="button" class="icon-btn" id="study-report-close" aria-label="Fechar">✕</button>
+    </div>
+    <div class="report-dialog-body">
+      <div class="report-section-title" style="margin-top:0">Escopo</div>
+      <div class="report-grid">
+        <div class="report-field"><label for="study-report-scope">Planejamentos</label><select id="study-report-scope"><option value="plan">Planejamento atual</option><option value="all">Todos os planejamentos</option></select></div>
+        <div class="report-field"><label for="study-report-detail">Formato</label><select id="study-report-detail"><option value="summary">Relatório resumido</option><option value="complete">Relatório completo</option></select></div>
+      </div>
+      <div class="report-section-title">Período</div>
+      <div class="report-presets" id="study-report-presets">
+        <button type="button" class="btn-secondary" data-days="7">7 dias</button><button type="button" class="btn-secondary active" data-days="30">30 dias</button><button type="button" class="btn-secondary" data-days="90">90 dias</button><button type="button" class="btn-secondary" data-days="180">6 meses</button><button type="button" class="btn-secondary" data-days="365">1 ano</button><button type="button" class="btn-secondary" data-days="all">Tudo</button>
+      </div>
+      <div class="report-grid" style="margin-top:12px">
+        <div class="report-field"><label for="study-report-start">De</label><input type="date" id="study-report-start"></div>
+        <div class="report-field"><label for="study-report-end">Até</label><input type="date" id="study-report-end"></div>
+      </div>
+      <div class="report-section-title">Seções do relatório</div>
+      <div class="report-check-grid" id="study-report-sections">
+        <label class="report-check"><input type="checkbox" value="tempo" checked><span><strong>Tempo e consistência</strong><small>Carga total, média, frequência e gráfico temporal.</small></span></label>
+        <label class="report-check"><input type="checkbox" value="questoes" checked><span><strong>Questões e aproveitamento</strong><small>Acertos, erros, volume e evolução.</small></span></label>
+        <label class="report-check"><input type="checkbox" value="disciplinas" checked><span><strong>Análise por disciplina</strong><small>Tempo, sessões, questões e percentual.</small></span></label>
+        <label class="report-check"><input type="checkbox" value="modalidades" checked><span><strong>Modalidades de estudo</strong><small>Distribuição do tempo por forma de estudo.</small></span></label>
+        <label class="report-check"><input type="checkbox" value="ciclos" checked><span><strong>Ciclos e metas</strong><small>Semanas fechadas e cumprimento planejado.</small></span></label>
+        <label class="report-check"><input type="checkbox" value="tec" checked><span><strong>TecConcursos</strong><small>Retratos importados dentro do período.</small></span></label>
+        <label class="report-check"><input type="checkbox" value="extras" data-complete checked><span><strong>Atividades extras</strong><small>Histórico e volume realizado.</small></span></label>
+        <label class="report-check"><input type="checkbox" value="historico" data-complete><span><strong>Histórico detalhado</strong><small>Lista de todos os registros filtrados.</small></span></label>
+      </div>
+      <div class="report-note">O relatório é gerado somente para leitura. Ele não altera registros e não aciona a sincronização. Na visualização, use <strong>Salvar em PDF</strong> para abrir a impressão do navegador.</div>
+    </div>
+    <div class="report-dialog-foot"><button type="button" class="btn-secondary" id="study-report-cancel">Cancelar</button><button type="button" class="btn-secondary" id="study-report-preview">Visualizar</button><button type="button" class="btn-primary" id="study-report-generate">Gerar PDF</button></div>
+  </div>
+</div>

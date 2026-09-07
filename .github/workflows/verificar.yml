@@ -1,0 +1,37 @@
+# Barreira de qualidade: nada entra no main sem passar por aqui.
+#
+# O que ela impede, na pratica:
+#   · index.html e src/ sairem de sincronia (alguem edita um e esquece o outro);
+#   · um modulo de src/js com erro de sintaxe;
+#   · o agendador divergir do Anki (21 mil pontos contra fsrs-rs + rslib);
+#   · id duplicado ou tag estrutural desbalanceada no HTML publicado;
+#   · o app quebrar no carregamento ou alguma das 14 telas lancar erro;
+#   · a suite AutoTeste (FSRS, fuzz, agendador, parser TEC...) regredir;
+#   · o botao "Opcoes" da Grade voltar a vazar do cabecalho.
+name: Verificacao
+
+on:
+  push:
+    branches: ['**']
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  verificar:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      # Playwright so e usado pelas checagens 4 e 5 (app real no Chromium).
+      - name: Instalar Chromium
+        run: |
+          npm install --no-save playwright@1.56.1
+          npx playwright install --with-deps chromium
+
+      - name: Verificar
+        run: node verificar.mjs

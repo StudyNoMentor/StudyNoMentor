@@ -14,8 +14,43 @@
        • font-src    : os .woff2 do Google Fonts.
        • img-src     : imagens do usuário (data:/blob:) e https.
        • object-src  : NENHUM (bloqueia <object>/<embed>).
-       • base-uri / form-action: só o próprio documento. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://cdn.sheetjs.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com data:; img-src 'self' data: blob: https:; connect-src 'self' https://*.supabase.co wss://*.supabase.co https://cdn.jsdelivr.net https://cdn.sheetjs.com; object-src 'none'; base-uri 'self'; form-action 'self'; worker-src 'self' blob:; frame-src 'none'; manifest-src 'self'; frame-ancestors 'none'">
+       • base-uri / form-action: só o próprio documento.
+
+     frame-ancestors NÃO entra aqui: o navegador IGNORA essa diretiva quando ela
+     vem por <meta> (só vale como cabeçalho HTTP) e ainda registra um erro no
+     console a cada carregamento. Quem hospeda com controle de cabeçalhos deve
+     enviar `Content-Security-Policy: frame-ancestors 'none'`. Em hospedagem
+     estática sem cabeçalhos (GitHub Pages), quem protege é a trava anti-moldura
+     em JavaScript logo abaixo — essa, sim, funciona. -->
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://cdn.sheetjs.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com data:; img-src 'self' data: blob: https:; connect-src 'self' https://*.supabase.co wss://*.supabase.co https://cdn.jsdelivr.net https://cdn.sheetjs.com; object-src 'none'; base-uri 'self'; form-action 'self'; worker-src 'self' blob:; frame-src 'none'; manifest-src 'self'">
+<script>
+/* ── TRAVA ANTI-MOLDURA (clickjacking) ────────────────────────────────────
+   Sem cabeçalho HTTP não há frame-ancestors, e o app trata dados de estudo,
+   backups e a sessão da nuvem: um site hostil podia embutir esta página numa
+   moldura invisível e induzir cliques em ações destrutivas ("Limpar grade",
+   "Apagar perfil", exportar backup).
+
+   Duas camadas: se der para escapar da moldura, escapamos (top.location);
+   se o navegador barrar a navegação por ser origem cruzada (o try falha),
+   o documento é esvaziado e um aviso substitui a interface — em nenhum dos
+   casos existe uma tela clicável dentro de uma moldura de terceiros.
+
+   Roda no <head>, antes de qualquer pintura, para não haver janela de clique. */
+(function travaAntiMoldura() {
+  try {
+    if (window.self === window.top) return;      // aberto normalmente: nada a fazer
+  } catch (e) { /* acesso a window.top barrado => estamos emoldurados */ }
+  try { window.top.location = window.self.location.href; return; } catch (e) {}
+  try {
+    document.documentElement.innerHTML =
+      '<head><meta charset="utf-8"><title>Bloqueado</title></head><body style="margin:0">' +
+      '<div style="font:16px/1.6 system-ui,-apple-system,sans-serif;padding:40px;text-align:center">' +
+      '<div style="font-size:44px">\uD83D\uDD12</div>' +
+      '<h1 style="font-size:20px;margin:10px 0">Esta pagina nao pode ser exibida dentro de outro site</h1>' +
+      '<p style="color:#5b6270">Abra o Diario de Estudos diretamente, em uma aba propria.</p></div></body>';
+  } catch (e) {}
+})();
+</script>
 <meta name="referrer" content="strict-origin-when-cross-origin">
 <script>
 /* ── ARRANQUE: abre o IndexedDB AGORA, em paralelo com o parse do documento ──
@@ -79,7 +114,7 @@ window.__idbBoot = (function () {
      Permite pular a barra lateral e ir direto ao conteúdo — WCAG 2.4.1. */
   .skip-link {
     position: fixed; top: -60px; left: 12px; z-index: 100000;
-    background: var(--accent, #4f46e5); color: #fff; padding: 10px 16px;
+    background: var(--accent, #4f46e5); color: var(--on-accent); padding: 10px 16px;
     border-radius: 0 0 10px 10px; font-weight: 700; font-size: 14px; text-decoration: none;
     transition: top .15s ease;
   }
@@ -153,6 +188,13 @@ window.__idbBoot = (function () {
     --info-text: #1d4ed8;
     --info-soft: #eaf1fe;
     --accent-text: #3f37c9;   /* accent como TEXTO precisa ser mais escuro */
+    /* Tinta que fica EM CIMA de um preenchimento de accent (botão primário,
+       chip ativo, skip link). No tema claro o accent é escuro, então a tinta é
+       branca — exatamente o que estava escrito à mão em 14 regras. No tema
+       escuro o accent é lavanda CLARO, e branco sobre ele dava 3,62:1, abaixo
+       do mínimo 4,5:1 do WCAG AA — inclusive no botão primário do app inteiro
+       e no próprio link de pular para o conteúdo. Lá a tinta vira quase preta. */
+    --on-accent: #ffffff;
     --bad-soft: #fdecee;
 
 
@@ -210,7 +252,10 @@ window.__idbBoot = (function () {
 
     --accent: #7c74ff;
     --accent-hover: #938cff;
-    --accent-soft: #22243a;
+    /* Escurecido de #22243a: o rótulo da aba ativa (--accent #7c74ff sobre este
+       fundo) ficava em 4,20:1, logo abaixo do 4,5:1 exigido. Com #1b1d2e sobe
+       para 4,59:1 sem mexer em nenhuma cor de texto. */
+    --accent-soft: #1b1d2e;
     --accent-ring: rgba(124,116,255,0.24);
 
     --good: #34d399;
@@ -225,6 +270,7 @@ window.__idbBoot = (function () {
     --info-text: #6ea8fe;   /* 7.1:1 no escuro — o antigo #2563eb dava 3.3:1 */
     --info-soft: #1b2436;
     --accent-text: #a99dff;
+    --on-accent: #12141a;   /* 5,1:1 sobre #7c74ff — branco dava 3,6:1 */
     --bad-soft: #2a1618;
 
     --shadow-sm: 0 1px 2px rgba(0,0,0,0.30);
@@ -470,9 +516,9 @@ window.__idbBoot = (function () {
     background: transparent; border: none; border-radius: 8px; padding: 7px 12px;
     font-size: var(--fs-xs); font-weight: 700; color: var(--text-soft); cursor: pointer; white-space: nowrap;
   }
-  .scope-toggle button.active { background: var(--accent); color: #fff; box-shadow: var(--shadow-sm); }
+  .scope-toggle button.active { background: var(--accent); color: var(--on-accent); box-shadow: var(--shadow-sm); }
   /* Atalho de período ativo na Evolução */
-  .btn-secondary.is-active { background: var(--accent); color: #fff; border-color: var(--accent); }
+  .btn-secondary.is-active { background: var(--accent); color: var(--on-accent); border-color: var(--accent); }
   .btn-secondary.is-active:hover { background: var(--accent-hover); color: #fff; border-color: var(--accent-hover); }
   .plan-tag-badge {
     font-size: var(--fs-3xs); font-weight: 700; padding: 3px 9px; border-radius: 12px;
@@ -918,12 +964,18 @@ window.__idbBoot = (function () {
     font-family: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
     cursor: pointer;
     border: none;
+    /* Sem isto, um <button> que nao declare `color` cai no `buttontext` do
+       navegador — PRETO — em vez de seguir o tema. No tema claro ninguem nota;
+       no escuro vira texto preto sobre fundo quase preto. Foi assim que o
+       indicador de sincronizacao ficou em 1,14:1. `inherit` faz todo botao
+       seguir a cor do container, que e a cor do tema. */
+    color: inherit;
   }
 
   .btn-primary {
     font-weight: 700;
     font-size: var(--fs-md);
-    color: #fff;
+    color: var(--on-accent);
     background: var(--accent);
     border-radius: 12px;
     padding: 11px 22px;
@@ -963,7 +1015,12 @@ window.__idbBoot = (function () {
     left: 50%;
     transform: translateX(-50%) translateY(16px);
     background: var(--text);
-    color: #fff;
+    /* O fundo é var(--text), que INVERTE com o tema. A tinta tinha de inverter
+       junto e não invertia: no tema escuro dava branco sobre #e8eaed — 1,21:1,
+       ou seja, o aviso ficava ilegível justamente para quem usa o modo escuro.
+       var(--surface) é o par natural: #fff no claro (idêntico ao que era) e
+       #181b21 no escuro (14,3:1). */
+    color: var(--surface);
     font-size: var(--fs-sm);
     font-weight: 500;
     padding: 11px 18px;
@@ -1340,7 +1397,7 @@ window.__idbBoot = (function () {
   .exx-dayhead { display: flex; align-items: center; justify-content: space-between; gap: 12px 16px; flex-wrap: wrap; padding: 14px 16px; background: var(--surface-sunken); border: 1px solid var(--border); border-radius: 14px; margin-bottom: 4px; }
   .exx-dayhead .dh-l { min-width: 0; }
   .exx-dayhead .dh-title { font-family: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif; font-size: var(--fs-lg); font-weight: 800; color: var(--text); text-transform: capitalize; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
-  .exx-dayhead .dh-title .hoje { font-size: var(--fs-3xs); font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; color: #fff; background: var(--accent); padding: 2px 9px; border-radius: 20px; }
+  .exx-dayhead .dh-title .hoje { font-size: var(--fs-3xs); font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; color: var(--on-accent); background: var(--accent); padding: 2px 9px; border-radius: 20px; }
   .exx-dayhead .dh-sub { font-size: var(--fs-xs); color: var(--text-faint); margin-top: 4px; }
   .exx-dayhead .dh-r { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
   .exx-metric { display: flex; flex-direction: column; align-items: flex-end; background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 7px 13px; box-shadow: var(--shadow-sm); }
@@ -1635,7 +1692,7 @@ window.__idbBoot = (function () {
     font-weight: 700; color: var(--text-soft); cursor: pointer; transition: all 0.13s ease; text-transform: uppercase; letter-spacing: 0.02em;
   }
   .csp-chip:hover { border-color: var(--border-strong); color: var(--text); }
-  .csp-chip.active { background: var(--accent); border-color: var(--accent); color: #fff; }
+  .csp-chip.active { background: var(--accent); border-color: var(--accent); color: var(--on-accent); }
 
   .subject-progress-item {
     display: block;
@@ -3053,7 +3110,7 @@ window.__idbBoot = (function () {
   }
 
   #tec-analysis.hide-cfg .tec-cfg { display: none !important; }
-  #tec-toggle-cfg.is-active { background: var(--accent); color: #fff; border-color: var(--accent); }
+  #tec-toggle-cfg.is-active { background: var(--accent); color: var(--on-accent); border-color: var(--accent); }
   #tec-toggle-cfg.is-active:hover { background: var(--accent-hover); color: #fff; }
   .tec-filterbar {
     display: grid !important;
@@ -3203,7 +3260,7 @@ window.__idbBoot = (function () {
   .reforco-tag.tone-warn { color: var(--warn-text); background: var(--warn-soft); }
   .reforco-tag.tone-bad { color: var(--bad-text); background: var(--bad-soft); }
   .reforco-tag.incid { color: var(--accent); background: var(--accent-soft); }
-  .reforco-tag.pts { color: #fff; background: var(--accent); }
+  .reforco-tag.pts { color: var(--on-accent); background: var(--accent); }
   /* Reforço por disciplina (acordeão) */
   .rfd-card { border: 1px solid var(--border); border-radius: 12px; margin-bottom: 10px; overflow: hidden; background: var(--surface); }
   .rfd-head { display: grid; grid-template-columns: 16px 1fr auto; align-items: center; gap: 12px; padding: 12px 14px; cursor: pointer; }
@@ -3844,7 +3901,7 @@ window.__idbBoot = (function () {
   .evo-sf-toggle:hover { border-color: var(--accent); color: var(--accent); }
   .evo-sf-toggle .chev { transition: transform 0.18s ease; font-size: var(--fs-3xs); }
   .evo-sf-toggle.open .chev { transform: rotate(180deg); }
-  .evo-sf-count { background: var(--accent); color: #fff; font-size: var(--fs-3xs); font-weight: 800; border-radius: 10px; padding: 1px 7px; }
+  .evo-sf-count { background: var(--accent); color: var(--on-accent); font-size: var(--fs-3xs); font-weight: 800; border-radius: 10px; padding: 1px 7px; }
   .evo-sf-panel { margin-top: 10px; border: 1.5px solid var(--border); border-radius: 12px; background: var(--surface); padding: 8px; display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 4px; }
   .evo-sf-check { display: flex; align-items: center; gap: 8px; padding: 7px 9px; border-radius: 9px; cursor: pointer; font-family: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif; font-size: var(--fs-xs); color: var(--text); }
   .evo-sf-check:hover { background: var(--surface-sunken); }
@@ -3856,7 +3913,9 @@ window.__idbBoot = (function () {
   .evo-sf-actions button:hover { border-color: var(--accent); color: var(--accent); }
   .badge { cursor: pointer; }
   .badge:hover { border-color: var(--accent); box-shadow: var(--shadow-sm); }
-  .badge .bmore { font-size: calc(9.5px * var(--fs-scale,1)); color: var(--accent); font-weight: 700; margin-top: 6px; opacity: 0.9; }
+  /* --accent-text (e nao --accent) porque aqui ele e TEXTO sobre o fundo tingido
+     da medalha: com --accent dava 4,49:1, um centesimo abaixo do AA. */
+  .badge .bmore { font-size: calc(9.5px * var(--fs-scale,1)); color: var(--accent-text); font-weight: 700; margin-top: 6px; opacity: 1; }
   .niv-overlay { position: fixed; inset: 0; background: rgba(15,18,25,0.55); z-index: 3000; display: flex; align-items: center; justify-content: center; padding: 18px; }
   .niv-modal { background: var(--surface); border-radius: 18px; box-shadow: var(--shadow-lg); max-width: 420px; width: 100%; max-height: 84vh; overflow-y: auto; padding: 22px; }
   .niv-head { display: flex; align-items: center; gap: 12px; margin-bottom: 6px; }
@@ -3874,7 +3933,7 @@ window.__idbBoot = (function () {
   .niv-rot { font-family: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif; font-size: var(--fs-sm); font-weight: 700; color: var(--text); }
   .niv-req { font-family: 'Space Mono', ui-monospace, SFMono-Regular, Menlo, monospace; font-size: var(--fs-2xs); color: var(--text-faint); margin-top: 1px; }
   .niv-item.next .niv-req { color: var(--accent); font-weight: 700; }
-  .niv-close { margin-top: 18px; width: 100%; padding: 11px; border-radius: 11px; border: none; background: var(--accent); color: #fff; font-weight: 800; font-size: var(--fs-sm); cursor: pointer; }
+  .niv-close { margin-top: 18px; width: 100%; padding: 11px; border-radius: 11px; border: none; background: var(--accent); color: var(--on-accent); font-weight: 800; font-size: var(--fs-sm); cursor: pointer; }
   .niv-foot { font-size: var(--fs-2xs); color: var(--text-faint); margin: 14px 0 0; text-align: center; }
   .evo-chip {
     background: var(--surface-sunken); border: 1.5px solid var(--border); border-radius: 20px;
@@ -3882,7 +3941,7 @@ window.__idbBoot = (function () {
     transition: all 0.12s ease;
   }
   .evo-chip:hover { border-color: var(--border-strong); color: var(--text); }
-  .evo-chip.active { background: var(--accent); color: #fff; border-color: var(--accent); }
+  .evo-chip.active { background: var(--accent); color: var(--on-accent); border-color: var(--accent); }
   .evo-day-bar-row { display: flex; align-items: flex-end; gap: 4px; height: 180px; padding: 8px 4px 0; }
   .evo-day-bar { flex: 1; background: linear-gradient(180deg, var(--accent), color-mix(in srgb, var(--accent) 72%, transparent)); border-radius: 5px 5px 0 0; min-height: 2px; position: relative; transition: height 0.3s ease, filter 0.15s ease; }
   .evo-day-bar:hover { filter: brightness(1.08) saturate(1.1); }
@@ -3896,7 +3955,7 @@ window.__idbBoot = (function () {
   /* Evolução do aproveitamento — controles e filtro por disciplina */
   .evo-line-controls { display: inline-flex; gap: 4px; background: var(--surface-sunken); border: 1.5px solid var(--border); border-radius: 20px; padding: 3px; }
   .evo-line-controls .evo-chip { border: none; background: transparent; border-radius: 16px; }
-  .evo-line-controls .evo-chip.active { background: var(--accent); color: #fff; }
+  .evo-line-controls .evo-chip.active { background: var(--accent); color: var(--on-accent); }
   .evo-subject-filter { display: flex; align-items: center; gap: 7px; flex-wrap: wrap; padding: 4px 20px 8px; }
   .evo-sf-label { font-size: var(--fs-xs); font-weight: 700; color: var(--text-soft); margin-right: 2px; }
   .evo-sf-chip {
@@ -4228,6 +4287,10 @@ window.__idbBoot = (function () {
     width: 34px; height: 34px; padding: 0;
     display: inline-flex; align-items: center; justify-content: center;
     background: var(--surface-sunken); border: 1.5px solid var(--border);
+    /* Cor de partida explicita: as classes de estado (st-ok/st-off/st-syncing/
+       st-error) sao aplicadas pelo CloudUI DEPOIS que a nuvem responde. Ate la
+       — e se o estado vier vazio — o botao nao tinha cor nenhuma. */
+    color: var(--text-soft);
     border-radius: 50%; cursor: pointer;
     transition: border-color 0.15s ease, color 0.15s ease, background 0.15s ease;
   }
@@ -4242,7 +4305,9 @@ window.__idbBoot = (function () {
     animation: csbSpin 0.8s linear infinite;
   }
   /* estados */
-  .cloud-sync-btn.st-ok  { color: var(--good); border-color: color-mix(in srgb, var(--good) 45%, var(--border)); background: var(--good-soft); }
+  /* --good-text, nao --good: e TEXTO sobre --good-soft. Com --good dava 3,47:1
+     no tema claro, e este e o estado mais comum do botao (sincronizado). */
+  .cloud-sync-btn.st-ok  { color: var(--good-text); border-color: color-mix(in srgb, var(--good) 45%, var(--border)); background: var(--good-soft); }
   .cloud-sync-btn.st-ok .csb-ico::before  { content: '✓'; }
   .cloud-sync-btn.st-off { color: var(--text-soft); border-color: var(--border); background: var(--surface-sunken); }
   .cloud-sync-btn.st-off .csb-ico::before { content: '☁'; }
@@ -4463,7 +4528,7 @@ window.__idbBoot = (function () {
   #screen-registrar .step.done .step-num {
     background: var(--accent);
     border-color: var(--accent);
-    color: #fff;
+    color: var(--on-accent);
     box-shadow: 0 0 0 4px var(--accent-ring);
   }
   #screen-registrar .step.done .step-num span { display: none; }
@@ -4924,7 +4989,8 @@ window.__idbBoot = (function () {
   .cards-pill.naosei.active { background: var(--bad); border-color: var(--bad); color: #fff; }
   .cards-fav-toggle {
     margin-left: auto; background: var(--surface-sunken); border: 1.5px solid var(--border); border-radius: 20px;
-    padding: 5px 12px; font-size: var(--fs-xs); font-weight: 700; color: var(--warn); cursor: pointer;
+    /* --warn-text: o --warn (#d97a12) sobre o fundo rebaixado dava 2,96:1. */
+    padding: 5px 12px; font-size: var(--fs-xs); font-weight: 700; color: var(--warn-text); cursor: pointer;
   }
   .cards-fav-toggle.active { background: var(--warn-soft); border-color: var(--warn-text); }
   /* Grid "Meus cards" */
@@ -5101,6 +5167,9 @@ window.__idbBoot = (function () {
   }
   .link-card-logo img { width: 100%; height: 100%; object-fit: contain; }
   .link-card-logo.mono {
+    /* Ver LinksScreen: --marca e a cor escolhida pelo usuario; o escurecimento
+       de 30% e o que garante 4,8:1 no pior caso da paleta. */
+    background: color-mix(in srgb, var(--marca, #4f46e5) 70%, #000);
     color: #fff; font-family: 'Space Mono', ui-monospace, SFMono-Regular, Menlo, monospace; font-weight: 800; font-size: var(--fs-lg);
     letter-spacing: 0.02em; border: none;
   }
@@ -5511,7 +5580,10 @@ window.__idbBoot = (function () {
   }
 
   .grade-title-line { display:flex; align-items:center; gap:10px; flex-wrap:wrap; }
-  .grade-min-alert { color:var(--bad); font-size:calc(10.5px * var(--fs-scale,1)); font-weight:700; letter-spacing:0; text-transform:none; white-space:nowrap; }
+  /* --bad-text, nao --bad: como TEXTO sobre o cartao branco o #e0393f dava
+     4,35:1, logo abaixo do 4,5:1 do AA — e este aviso e justamente o que pede
+     uma correcao ao usuario. */
+  .grade-min-alert { color:var(--bad-text); font-size:calc(10.5px * var(--fs-scale,1)); font-weight:700; letter-spacing:0; text-transform:none; white-space:nowrap; }
 
   /* Seletor compacto de ocorrências recorrentes */
   .occ-del-overlay{position:fixed;inset:0;z-index:10050;background:rgba(15,23,42,.48);display:flex;align-items:center;justify-content:center;padding:16px}
@@ -5547,7 +5619,7 @@ window.__idbBoot = (function () {
   .report-dialog-body{padding:20px 24px}.report-dialog-foot{position:sticky;bottom:0;display:flex;justify-content:flex-end;gap:9px;padding:14px 24px;background:var(--surface);border-top:1px solid var(--border)}
   .report-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px}.report-field label{display:block;margin-bottom:7px;font-size:12px;font-weight:700}
   .report-section-title{margin:22px 0 10px;font-size:11px;font-weight:800;letter-spacing:.07em;text-transform:uppercase;color:var(--text-faint)}
-  .report-presets{display:flex;gap:7px;flex-wrap:wrap}.report-presets button.active{background:var(--accent);border-color:var(--accent);color:white}
+  .report-presets{display:flex;gap:7px;flex-wrap:wrap}.report-presets button.active{background:var(--accent);border-color:var(--accent);color: var(--on-accent)}
   .report-check-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px}
   .report-check{display:flex;align-items:flex-start;gap:9px;padding:10px 11px;border:1px solid var(--border);border-radius:11px;background:var(--surface-sunken);cursor:pointer}
   .report-check input{width:auto;margin:2px 0 0}.report-check strong{font-size:12.5px}.report-check small{display:block;margin-top:2px;color:var(--text-faint);font-size:10.5px;line-height:1.35}
@@ -9473,13 +9545,34 @@ button.is-saving {
    Com o título ocupando a largura inteira, o botão caía para a linha de baixo e
    deixava uma faixa vazia acima — desperdício justamente do espaço que este
    redesenho queria recuperar. */
-#screen-grade .card-header { position: relative; padding-right: 62px; }
-#screen-grade .grade-head-actions {
-  position: absolute; top: 14px; right: 14px; margin: 0; z-index: 2;
+/* A engrenagem fica na MESMA linha do titulo, mas em FLUXO (nao absoluta).
+   Posicionar de forma absoluta obrigava a reservar espaco com um padding-right
+   "magico" (62px) que era menor que o botao real (~100px com a palavra
+   "Opcoes") — o titulo e o subtitulo passavam POR BAIXO do botao. Em fluxo,
+   o proprio flexbox reserva a largura exata do botao em qualquer tela. */
+#screen-grade .card-header {
+  /* O menu de "Opcoes" abre POR CIMA da tabela, e a tabela tem cabecalho fixo
+     (position: sticky). O navegador promove celula fixa a camada composta, e
+     essa camada vencia o z-index: 40 do menu — a faixa SEG..DOM era desenhada
+     ATRAVES do painel aberto. Subir o z-index do menu nao resolvia (testado:
+     40, 100 — sem efeito), porque a disputa nao era entre os dois elementos:
+     era entre a camada da tabela e a do cabecalho, que nem contexto de
+     empilhamento tinha.
+
+     Com position + z-index, o cabecalho INTEIRO vira um contexto proprio e
+     passa a ser pintado depois do irmao que contem a tabela. --z-suspenso e o
+     token que a propria escala do app reserva para menus suspensos (100), bem
+     acima de --z-grudado (50, barras fixas) e abaixo de --z-modal (1500). */
+  position: relative;
+  z-index: var(--z-suspenso, 100);
+  flex-wrap: nowrap;
+  align-items: flex-start;
+  column-gap: 14px;
 }
-@media (max-width: 560px) {
-  #screen-grade .card-header { padding-right: 56px; }
-  #screen-grade .grade-head-actions { top: 12px; right: 12px; }
+#screen-grade .card-header > :first-child { flex: 1 1 auto; min-width: 0; }
+#screen-grade .grade-head-actions {
+  position: static; margin: 0; z-index: 2;
+  flex: 0 0 auto; align-self: flex-start;
 }
 /* o menu abre alinhado à direita, sem estourar a tela */
 #screen-grade .grade-gear-menu { right: 0; left: auto; }
@@ -9491,12 +9584,19 @@ button.is-saving {
   text-transform: uppercase; color: var(--text-faint); margin-bottom: 7px;
 }
 .grade-gear-group .grade-view-toggle { display: flex; width: 100%; }
-.grade-gear-group .gvt-btn { flex: 1 1 0; justify-content: center; text-align: center; }
+/* Dentro do menu o seletor tem ~211px para dois botoes. Com o padding de 13px
+   herdado, sobravam 79px de texto por botao e "Meta diaria" QUEBRAVA em duas
+   linhas — o controle segmentado ficava com 48px de altura e aparencia de
+   defeito. Padding menor + nowrap devolvem a linha unica. */
+.grade-gear-group .gvt-btn {
+  flex: 1 1 0; justify-content: center; text-align: center;
+  padding-left: 6px; padding-right: 6px; white-space: nowrap;
+}
 .grade-gear-select {
   width: 100%; padding: 7px 32px 7px 10px; font-size: var(--fs-sm);
   border-radius: 9px; border: 1.5px solid var(--border); background: var(--surface);
 }
-.grade-gear-menu { min-width: 244px; }
+.grade-gear-menu { min-width: 252px; }   /* folga para o seletor caber em uma linha */
 
 /* A bandeja perdeu a barra de ações: os chips ocupam a faixa inteira */
 .grade-tray-bar .grade-chip-tray { width: 100%; }
@@ -10238,16 +10338,21 @@ const DB = {
   DEFAULT_MODES: ['Resumo + Mapa', 'Passo Estratégico', 'Teoria'],
   // Status das aulas na trilha de Estudo Novo. "done" marca quais contam como concluída no progresso.
   DEFAULT_STATUSES: [
-    { nome: 'ESTUDAR', color: '#e0393f', bg: '#fdecee', done: false },
-    { nome: 'ESTUDANDO', color: '#d97a12', bg: '#fdf1e2', done: false },
-    { nome: 'CONCLUÍDO', color: '#0f9d63', bg: '#e5f7ee', done: true }
+    /* Tons de TEXTO, nao os de preenchimento: sobre o proprio fundo suave, o
+       #e0393f dava 3,81:1, o #d97a12 dava 2,80:1 e o #0f9d63 dava 3,13:1 — os
+       tres abaixo do minimo 4,5:1 do WCAG AA. Os tons abaixo ficam entre 5,2:1
+       e 6,0:1, com a mesma leitura de cor (vermelho / laranja / verde).
+       Vale so para perfis NOVOS: quem ja escolheu suas cores mantem as dele. */
+    { nome: 'ESTUDAR', color: '#b3282e', bg: '#fdecee', done: false },
+    { nome: 'ESTUDANDO', color: '#9a5200', bg: '#fdf1e2', done: false },
+    { nome: 'CONCLUÍDO', color: '#0a6b44', bg: '#e5f7ee', done: true }
   ],
   // Paleta de cores oferecida ao personalizar um status (cor forte + tinta clara de fundo)
   STATUS_PALETTE: [
-    { color: '#e0393f', bg: '#fdecee' },
-    { color: '#d97a12', bg: '#fdf1e2' },
+    { color: '#b3282e', bg: '#fdecee' },
+    { color: '#9a5200', bg: '#fdf1e2' },
     { color: '#c9a20a', bg: '#fbf6df' },
-    { color: '#0f9d63', bg: '#e5f7ee' },
+    { color: '#0a6b44', bg: '#e5f7ee' },
     { color: '#0a95a8', bg: '#e2f6f8' },
     { color: '#4f46e5', bg: '#eef0fd' },
     { color: '#b3308a', bg: '#fbe8f4' },
@@ -11060,7 +11165,7 @@ const DB = {
       });
       if (n) this._set(this.KEYS.cycleHistory, hist);
       this._set(FLAG, 1);
-      if (n) { try { console.info('[migração] aproveitamento recalculado em ' + n + ' semana(s).'); } catch (e) {} }
+      if (n) { try { console.info('[migração] aproveitamento recalculado em ' + n + ' semana(s).'); } catch (e) { _quiet(e, 'log-migracao'); } }
       return n;
     } catch (e) { _quiet(e, 'migrar-aproveitamento'); return 0; }
   },
@@ -15182,8 +15287,12 @@ const FSRS = {
       const nRe = ((CardsConfig.get() || {}).relearnSteps || []).length;
       if (nRe > 1) {
         const b = this.migrarW(opts.startW) || this.DEFAULT_W;
-        const teto = Math.min(2.0, Math.max(0.01, Math.sqrt(Math.max(0.0001,
-          -(Math.log(b[11]) + Math.log(Math.pow(2, b[13]) - 1) + b[14] * 0.3) / nRe))));
+        /* A ordem das operacoes e a da referencia: `.max(0.01).sqrt().min(2.0)`.
+           Aplicar o piso 0,01 DEPOIS da raiz (como estava) dava 0,01 onde o Anki
+           da 0,1 — divergencia real sempre que o radicando fica abaixo de 0,01
+           (inclusive negativo, alcancavel com w11/w13/w14 altos no otimizador). */
+        const teto = Math.min(2.0, Math.sqrt(Math.max(0.01,
+          -(Math.log(b[11]) + Math.log(Math.pow(2, b[13]) - 1) + b[14] * 0.3) / nRe)));
         HI[17] = teto; HI[18] = teto;
       }
     } catch (e) { _quiet(e, 'teto-w17-w18'); }
@@ -15532,14 +15641,76 @@ const CardsConfig = {
     }
     return v;
   },
+  /* ── SANEAMENTO DA CONFIGURAÇÃO ───────────────────────────────────────────
+     A tela de opções já valida o que você digita (parseSteps descarta o que não
+     é número positivo, os campos têm min/max). Mas a tela NÃO é o único caminho
+     até aqui: a configuração também chega pela sincronização na nuvem, por um
+     backup importado e por um armazenamento editado à mão.
+
+     Por esses caminhos entravam valores que a tela nunca produziria — e o
+     estrago era SILENCIOSO e PERMANENTE. Um `learnSteps: ["abc"]` fazia
+     stepDue() calcular `Math.round(NaN * 60)`, e o card era gravado com
+     `dueTs: NaN`; um `maxInterval: "muito"` gravava `due: "NaN-NaN-NaN"`.
+     Card com data NaN nunca mais vence: some da fila para sempre, sem erro,
+     sem aviso, sem jeito de perceber. Eram 21 combinações de configuração
+     inválida × fase × nota que produziam isso.
+
+     O saneamento fica AQUI, na leitura, porque este é o funil único: agendador,
+     prévia dos botões, otimizador e telas leem todos por get()/forDeck(). Uma
+     validação em cada consumidor seria uma peneira com furos.
+
+     Regra: valor inválido volta ao PADRÃO, não a um chute. Valor válido, mesmo
+     fora da faixa da tela, é PRESERVADO — quem editou o arquivo de propósito
+     tem o direito de usar 60% de retenção; quem sincronizou lixo, não tem o
+     direito de perder cards. */
+  _passosValidos(v, padrao) {
+    if (!Array.isArray(v)) return padrao.slice();
+    const limpos = v.map(Number).filter((x) => isFinite(x) && x > 0);
+    return limpos.length ? limpos : padrao.slice();
+  },
+  _numValido(v, padrao, min, max) {
+    const n = Number(v);
+    if (!isFinite(n)) return padrao;
+    if (min != null && n < min) return padrao;
+    if (max != null && n > max) return padrao;
+    return n;
+  },
+  _sanear(c) {
+    const D = this.DEFAULTS;
+    c.learnSteps = this._passosValidos(c.learnSteps, D.learnSteps);
+    c.relearnSteps = this._passosValidos(c.relearnSteps, D.relearnSteps);
+    // Retenção-alvo: a fórmula do intervalo faz r^(1/decay); fora de (0,1) ela
+    // não tem significado e produz intervalo negativo, zero ou infinito.
+    c.retention = this._numValido(c.retention, D.retention, 0.0001, 0.9999);
+    // Intervalo máximo: é o teto de TODO agendamento; 0, negativo ou texto
+    // colapsava place() para NaN.
+    c.maxInterval = Math.round(this._numValido(c.maxInterval, D.maxInterval, 1, 36500));
+    c.leechThreshold = Math.round(this._numValido(c.leechThreshold, D.leechThreshold, 0, 9999));
+    c.newPerDay = Math.round(this._numValido(c.newPerDay, D.newPerDay, 0, 999999));
+    c.revPerDay = Math.round(this._numValido(c.revPerDay, D.revPerDay, 0, 999999));
+    c.newPerDayMinimum = Math.round(this._numValido(c.newPerDayMinimum, D.newPerDayMinimum, 0, 999999));
+    c.rolloverHour = Math.round(this._numValido(c.rolloverHour, D.rolloverHour, 0, 23));
+    // Multiplicadores do SM-2: um NaN aqui zerava o intervalo do card clássico.
+    ['initialEase', 'hardMultiplier', 'easyMultiplier', 'lapseMultiplier', 'intervalMultiplier',
+     'minimumLapseInterval', 'graduatingIntervalGood', 'graduatingIntervalEasy'].forEach((k) => {
+      if (c[k] == null) return;                       // ausente = usa o padrão do agendador
+      const n = Number(c[k]);
+      if (!isFinite(n) || n < 0) delete c[k];
+    });
+    // easy_days_percentages: 7 posições, cada uma em [0,1].
+    if (!Array.isArray(c.easyDays) || c.easyDays.length !== 7
+        || c.easyDays.some((x) => !isFinite(Number(x)) || Number(x) < 0 || Number(x) > 1)) {
+      c.easyDays = D.easyDays.slice();
+    }
+    return c;
+  },
+
   get() {
     const k = this.KEY;
     if (this._c && this._cKey === k) return this._c;   // cache inválido ao trocar de perfil
     const v = this._read(k, this.LEGACY_KEY);
-    this._c = Object.assign({}, this.DEFAULTS, v || {});
+    this._c = this._sanear(Object.assign({}, this.DEFAULTS, v || {}));
     this._cKey = k;
-    if (!Array.isArray(this._c.learnSteps) || !this._c.learnSteps.length) this._c.learnSteps = this.DEFAULTS.learnSteps.slice();
-    if (!Array.isArray(this._c.relearnSteps) || !this._c.relearnSteps.length) this._c.relearnSteps = this.DEFAULTS.relearnSteps.slice();
     return this._c;
   },
   set(patch) {
@@ -15565,10 +15736,9 @@ const CardsConfig = {
     const base = this.get();
     const ov = this.deckPreset(deckId);
     if (!ov) return base;
-    const merged = Object.assign({}, base, ov);
-    if (!Array.isArray(merged.learnSteps) || !merged.learnSteps.length) merged.learnSteps = base.learnSteps;
-    if (!Array.isArray(merged.relearnSteps) || !merged.relearnSteps.length) merged.relearnSteps = base.relearnSteps;
-    return merged;
+    // O preset do baralho vem pelos mesmos caminhos não confiáveis da config
+    // global (nuvem, backup, armazenamento editado): mesmo saneamento.
+    return this._sanear(Object.assign({}, base, ov));
   },
   // Pesos salvos de antes (19 posições, FSRS-5) são migrados para 21 na leitura.
   // Não reescrevemos o que está gravado: se você voltar para uma versão anterior
@@ -15736,11 +15906,16 @@ const CardEngine = {
     };
     // Dia de vencimento: fuzz determinístico do Anki; com Load Balancing, o dia de MENOR
     // carga dentro da mesma janela. Determinístico = a prévia do botão bate com o agendado.
+    const sementeFuzz = (c.id || 'c') + '|' + (c.reps || 0);
     const place = (ivRaw, minIv) => {
       const iv = Math.max(1, Math.min(maxIv, Math.round(ivRaw)));
       const piso = Math.max(1, Math.min(maxIv, minIv || 1));
       if (cfg.loadBalance) return Math.min(maxIv, FSRS.loadBalance(iv, (d) => this._dueCountInDays(d), maxIv, piso));
-      return Math.min(maxIv, FSRS.fuzzed(iv, (c.id || 'c') + '|' + G + '|' + (c.reps || 0) + '|' + iv, maxIv, piso));
+      /* O Anki sorteia UM fuzz_factor por card+reps (card.get_fuzz_factor) e usa
+         o MESMO para os quatro botoes. Semear por nota/intervalo, como estava,
+         dava a cada botao um sorteio proprio — os intervalos podiam se cruzar
+         mesmo com os pisos abaixo. Agora a semente e a mesma da resposta inteira. */
+      return Math.min(maxIv, FSRS.fuzzed(iv, sementeFuzz, maxIv, piso));
     };
     // Intervalo que estava agendado antes desta resposta (base do piso do Anki).
     const ivPrevio = () => {
@@ -15791,9 +15966,21 @@ const CardEngine = {
       return arredDias(Math.min(passos[0] * 1.5, passos[0] + 1440));
     };
     const graduate = (g, st) => {
-      // Ao graduar, o Anki usa min_and_max_review_intervals(1) — piso 1, sem a regra
-      // de crescimento (não havia intervalo anterior de revisão).
-      const S = st.s, D = st.d, iv = place(FSRS.interval(S, r, w), 1);
+      /* Ao graduar, o Anki usa min_and_max_review_intervals(1) — piso 1, sem a
+         regra de crescimento (não havia intervalo anterior de revisão).
+
+         EXCEÇÃO do "Fácil" (learning.rs::answer_easy e relearning.rs::answer_easy):
+         o piso não é 1, é o intervalo do "Bom" JÁ SORTEADO + 1. Sem isso, um
+         card graduado com "Fácil" podia receber intervalo IGUAL OU MENOR que o
+         do "Bom" — os botões apareciam fora de ordem e o algoritmo premiava
+         menos quem achou o card fácil. */
+      const S = st.s, D = st.d;
+      let piso = 1;
+      if (g === 4) {
+        const stBom = shortTerm(3);
+        piso = place(FSRS.interval(stBom.s, r, w), 1) + 1;
+      }
+      const iv = place(FSRS.interval(S, r, w), piso);
       return Object.assign(patch, { phase: 'review', learnStep: 0, s: S, d: D, due: this.addDays(tdy, iv), dueTs: null, status: 'sei', intervalo: iv, _kind: 'day', _val: iv });
     };
     if (c.phase === 'new' || c.phase === 'learning') {
@@ -15820,22 +16007,41 @@ const CardEngine = {
       const elapsed = this._daysBetween(c.lastReview || tdy, tdy);
       const mesmoDia = elapsed < 1;
       const D2 = FSRS.nextD(c.d, G, w);
-      let S2;
-      if (mesmoDia) {
-        S2 = FSRS.nextS_short(c.s || 1, G, w);
-      } else {
+      // A estabilidade resultante de UMA nota qualquer — precisamos das três
+      // (Difícil/Bom/Fácil) para impor a ordem entre elas, mesmo gravando uma só.
+      const sDaNota = (g) => {
+        if (mesmoDia) return FSRS.nextS_short(c.s || 1, g, w);
         const R = FSRS.R(elapsed, c.s || 1, w);
-        S2 = (G === 1) ? FSRS.nextS_forget(c.d, c.s, R, w) : FSRS.nextS_recall(c.d, c.s, R, G, w);
-      }
+        return (g === 1) ? FSRS.nextS_forget(c.d, c.s, R, w) : FSRS.nextS_recall(c.d, c.s, R, g, w);
+      };
+      const S2 = sDaNota(G);
       if (G === 1) {
         Object.assign(patch, { phase: 'relearning', learnStep: 0, s: S2, d: D2,
           lapses: (c.lapses || 0) + 1, status: 'naosei' }, stepDue(relearn[0]));
         patch._kind = 'min'; patch._val = relearn[0];
       } else {
-        const ivRaw = FSRS.interval(S2, r, w);
-        // Piso do Anki (rslib): acerto nunca encolhe o intervalo
-        const piso = Math.max(1, FSRS.minReviewFuzzInterval(ivRaw, ivPrevio(), maxIv));
-        const iv = place(ivRaw, piso);
+        /* ── ORDEM GARANTIDA: Difícil < Bom < Fácil ───────────────────────────
+           rslib/scheduler/states/review.rs::passing_fsrs_review_intervals calcula
+           os TRÊS intervalos juntos porque o piso de cada um é o anterior + 1:
+
+             hard = fuzz(hard.interval, piso = max(1, minFuzz(...)))
+             good = fuzz(good.interval, piso = max(hard + 1, minFuzz(...)))
+             easy = fuzz(easy.interval, piso = max(good + 1, minFuzz(...)))
+
+           O app calculava só o intervalo da nota respondida, com piso 1. Como o
+           fuzz sorteia dentro de uma faixa, "Fácil" podia sair IGUAL ou MENOR que
+           "Bom" — os quatro botões apareciam fora de ordem e a resposta gravada
+           contradizia o algoritmo. Aqui os três são calculados juntos e só o da
+           nota respondida é gravado, exatamente como o Anki faz. */
+        const prevIv = ivPrevio();
+        const ivDaNota = (g, pisoMin) => {
+          const raw = FSRS.interval(sDaNota(g), r, w);
+          const piso = Math.max(pisoMin, FSRS.minReviewFuzzInterval(raw, prevIv, maxIv));
+          return place(raw, piso);
+        };
+        const ivHard = ivDaNota(2, 1);
+        const ivGood = (G === 2) ? 0 : ivDaNota(3, ivHard + 1);
+        const iv = (G === 2) ? ivHard : (G === 3 ? ivGood : ivDaNota(4, ivGood + 1));
         Object.assign(patch, { phase: 'review', s: S2, d: D2, due: this.addDays(tdy, iv),
           dueTs: null, status: 'sei', intervalo: iv });
         patch._kind = 'day'; patch._val = iv;
@@ -24823,7 +25029,11 @@ const LinksScreen = {
   hostname(url) { try { return new URL(url).hostname.replace(/^www\./, ''); } catch (e) { return url || ''; } },
   logoHtml(l) {
     if (l.logo) return `<div class="link-card-logo"><img src="${l.logo}" alt="${escapeHtml(l.nome)}"></div>`;
-    return `<div class="link-card-logo mono" style="background:${l.cor}">${escapeHtml(this.monogram(l.nome))}</div>`;
+    /* A cor da marca vai como --marca e o CSS a ESCURECE 30% para desenhar o
+       fundo. Aplicada crua, o monograma branco ficava em 2,5:1 sobre o verde e
+       2,6:1 sobre o azul-claro — abaixo do minimo 4,5:1 do WCAG AA. Escurecida,
+       o menor caso sobe para 4,8:1 e a marca continua reconhecivel. */
+    return `<div class="link-card-logo mono" style="--marca:${l.cor}">${escapeHtml(this.monogram(l.nome))}</div>`;
   },
   renderGrid() {
     const grid = document.getElementById('links-grid');
@@ -31346,7 +31556,7 @@ else CloudStore.init();
       if (v !== null) return v;
       if (_activePfx() !== OLD_PFX) {
         const g = localStorage.getItem(OLD_PFX + k);
-        if (g !== null) { try { localStorage.setItem(_activePfx() + k, g); } catch (_) {} return g; }
+        if (g !== null) { try { localStorage.setItem(_activePfx() + k, g); } catch (e) { _quiet(e, 'promover-chave-global'); } return g; }
       }
       return d;
     } catch (_) { return d; }

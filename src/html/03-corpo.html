@@ -1,0 +1,1402 @@
+</head>
+<body>
+<script>
+  // Aplica o tema salvo IMEDIATAMENTE (antes de renderizar) para evitar "flash" de tela clara.
+  (function () {
+    try {
+      var saved = localStorage.getItem('diario-estudos:theme');
+      if (!saved) saved = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+      document.documentElement.setAttribute('data-theme', saved);
+    } catch (e) { document.documentElement.setAttribute('data-theme', 'light'); }
+  })();
+</script>
+
+<!-- ============ TELA DE ACESSO (seleção de perfil) ============ -->
+<div id="profile-gate" class="profile-gate" style="display:none;">
+  <div class="gate-shell">
+    <!-- PAINEL ESQUERDO: apresentação (encanta quem chega pela 1ª vez) -->
+    <aside class="gate-hero">
+      <div class="gate-hero-top">
+        <div class="gate-hero-brand"><span class="gate-hero-logo">📚</span><span>Diário de Estudos</span></div>
+      </div>
+      <div class="gate-hero-mid">
+        <h2 class="gate-hero-title">Sua aprovação começa por um estudo bem medido.</h2>
+        <p class="gate-hero-sub">Registre cada sessão, monte seu ciclo, revise com flashcards inteligentes e acompanhe sua evolução — tudo sincronizado na nuvem.</p>
+        <ul class="gate-hero-feats">
+          <li><span class="gf-ico">📈</span><div><b>Evolução real</b><small>Gráficos e metas por matéria.</small></div></li>
+          <li><span class="gf-ico">🃏</span><div><b>Revisão espaçada (FSRS)</b><small>Os cards voltam na hora certa.</small></div></li>
+          <li><span class="gf-ico">📜</span><div><b>Leis secas inteligentes</b><small>Destaque das pegadinhas de prova.</small></div></li>
+          <li><span class="gf-ico">☁️</span><div><b>Na nuvem</b><small>Seus dados iguais em qualquer aparelho.</small></div></li>
+        </ul>
+      </div>
+      <div class="gate-hero-foot">Feito para concurseiros exigentes.</div>
+    </aside>
+
+    <!-- PAINEL DIREITO: acesso -->
+    <div class="gate-panel">
+      <div class="gate-panel-inner">
+        <div class="gate-mobile-brand"><span class="gate-hero-logo">📚</span><span>Diário de Estudos</span></div>
+        <div class="gate-panel-head">
+          <h1 id="profile-gate-title">Bem-vindo de volta</h1>
+          <p id="profile-gate-sub">Entre para continuar seus estudos.</p>
+        </div>
+
+        <!-- ETAPA 1: LOGIN -->
+        <div id="gate-login" style="display:none;">
+          <div class="gate-conn" id="gate-conn-status"><span class="cdot"></span> Conectando ao servidor...</div>
+          <div class="cloud-auth-tabs">
+            <button type="button" class="cloud-auth-tab active" data-gatemode="signin">Entrar</button>
+            <button type="button" class="cloud-auth-tab" data-gatemode="signup">Criar conta</button>
+          </div>
+          <div class="field">
+            <label for="gate-email">E-mail</label>
+            <input type="email" id="gate-email" placeholder="voce@email.com" autocomplete="email">
+          </div>
+          <div class="field">
+            <label for="gate-password">Senha</label>
+            <input type="password" id="gate-password" placeholder="Mínimo 6 caracteres" autocomplete="current-password">
+          </div>
+          <p class="hint" id="gate-auth-msg" style="display:none;"></p>
+          <button type="button" class="btn-primary" id="gate-auth-submit" style="width:100%;">Entrar</button>
+          <p class="hint" id="gate-forgot-line" style="margin-top:14px; text-align:center;">
+            <button type="button" id="gate-forgot-btn" style="background:none;border:none;color:var(--accent);font-weight:700;cursor:pointer;padding:0;font-size:12px;">Esqueci minha senha</button>
+          </p>
+        </div>
+
+        <!-- ETAPA "ENTRANDO": tela limpa entre o login e o app (evita o flash do seletor) -->
+        <div id="gate-entering" style="display:none;">
+          <div class="gate-entering-box">
+            <div class="gate-spinner" aria-hidden="true"></div>
+            <div class="gate-entering-text">Entrando no seu perfil…</div>
+            <div class="gate-entering-sub">Carregando seus estudos</div>
+          </div>
+        </div>
+
+        <!-- ETAPA 2: PERFIS -->
+        <div id="gate-profiles" style="display:none;">
+          <div id="profile-gate-grid" class="profile-grid"></div>
+          <div class="gate-profile-actions">
+            <button type="button" class="btn-secondary" id="profile-import-btn">↑ Importar de um backup (.json)</button>
+            <button type="button" class="btn-secondary" id="gate-logout-btn" style="display:none;">↩ Sair da conta</button>
+            <input type="file" id="profile-import-file" accept=".json,application/json" style="display:none;">
+          </div>
+          <p class="profile-gate-note" id="gate-profiles-note">🔒 Seus perfis e dados ficam vinculados à sua conta e sincronizados na nuvem — aparecem iguais em qualquer aparelho onde você entrar.</p>
+        </div>
+
+        <p class="profile-gate-note" id="gate-generic-note" style="display:none;">🔒 App de uso pessoal. Seus dados de estudo ficam protegidos pelo seu login.</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal: criar/editar perfil -->
+  <div id="profile-modal" class="profile-modal" style="display:none;">
+    <div class="profile-modal-box pf-pro">
+      <div class="profile-modal-head">
+        <h2 id="profile-modal-title">Editar perfil</h2>
+        <button type="button" class="icon-btn" id="profile-modal-close" aria-label="Fechar">✕</button>
+      </div>
+
+      <!-- Cartão de pré-visualização (atualiza ao vivo) -->
+      <div class="pf-preview" id="pf-preview">
+        <div class="pf-preview-avatar" id="pf-preview-avatar">📘</div>
+        <div class="pf-preview-info">
+          <div class="pf-preview-name" id="pf-preview-name">Seu perfil</div>
+          <div class="pf-preview-sub" id="pf-preview-sub">Estudante</div>
+        </div>
+        <div class="pf-preview-countdown" id="pf-preview-countdown" style="display:none;"></div>
+      </div>
+
+      <div class="pf-body">
+        <!-- IDENTIDADE -->
+        <section class="pf-fieldset">
+          <div class="pf-fieldset-title">Identidade</div>
+          <div class="field">
+            <label for="pf-nome">Nome do perfil</label>
+            <input type="text" id="pf-nome" placeholder="Ex.: Concurso SEFAZ" maxlength="40">
+          </div>
+          <div class="pf-identity-row">
+            <div class="field">
+              <label>Avatar</label>
+              <div class="pf-avatar-grid" id="pf-avatar-grid"></div>
+            </div>
+            <div class="field">
+              <label>Cor</label>
+              <div class="pf-color-grid" id="pf-color-grid"></div>
+            </div>
+          </div>
+        </section>
+
+        <!-- OBJETIVO -->
+        <section class="pf-fieldset">
+          <div class="pf-fieldset-title">Meu objetivo</div>
+          <div class="pf-grid2">
+            <div class="field">
+              <label for="pf-concurso">Concurso alvo</label>
+              <input type="text" id="pf-concurso" placeholder="Ex.: Receita Federal" maxlength="60">
+            </div>
+            <div class="field">
+              <label for="pf-cargo">Cargo pretendido</label>
+              <input type="text" id="pf-cargo" placeholder="Ex.: Auditor Fiscal" maxlength="60">
+            </div>
+            <div class="field">
+              <label for="pf-banca">Banca</label>
+              <input type="text" id="pf-banca" placeholder="Ex.: FGV, CEBRASPE…" maxlength="40">
+            </div>
+            <div class="field">
+              <label for="pf-metah">Meta de horas/semana</label>
+              <input type="number" id="pf-metah" min="0" max="120" step="1" placeholder="Ex.: 30" inputmode="numeric">
+            </div>
+            <div class="field pf-span2">
+              <label for="pf-prova">Data da prova <span class="opt">(mostra a contagem regressiva)</span></label>
+              <input type="date" id="pf-prova">
+            </div>
+          </div>
+        </section>
+
+        <!-- avançado, discreto -->
+        <div class="pf-advanced" id="pf-advanced">
+          <button type="button" class="pf-advanced-toggle" id="pf-advanced-toggle" aria-expanded="false" aria-controls="pf-advanced-body">
+            <span class="pf-adv-ic">⚙</span><span>Opções avançadas</span><span class="pf-adv-chev">▾</span>
+          </button>
+          <div class="pf-advanced-body" id="pf-advanced-body" hidden>
+            <div class="field" style="margin-top:12px;">
+              <label for="pf-pin">PIN de acesso <span class="opt">(opcional — trava leve neste aparelho)</span></label>
+              <input type="password" id="pf-pin" inputmode="numeric" maxlength="6" placeholder="Deixe em branco para não usar" autocomplete="off">
+            </div>
+            <div id="pf-export-row" style="display:none;">
+              <button type="button" class="btn-secondary" id="pf-export" style="width:100%;">↓ Exportar backup deste perfil (.json)</button>
+              <p class="hint" style="margin-top:6px;">Gera um arquivo com todos os dados do perfil, para guardar ou levar a outro aparelho. O PIN não é incluído no backup.</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="pf-foot">
+        <button type="button" class="btn-danger-text" id="pf-delete" style="display:none;">Excluir perfil</button>
+        <div class="pf-foot-actions">
+          <button type="button" class="btn-secondary" id="pf-cancel">Cancelar</button>
+          <button type="button" class="btn-primary" id="pf-save">Salvar</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal: digitar PIN ao entrar -->
+  <div id="pin-modal" class="profile-modal" style="display:none;">
+    <div class="profile-modal-box" style="max-width:340px; text-align:center;">
+      <div class="pin-avatar" id="pin-avatar">📘</div>
+      <h2 id="pin-name" style="margin:8px 0 2px;">Perfil</h2>
+      <p class="sub" style="color:var(--text-faint); margin:0 0 16px;">Digite o PIN para entrar</p>
+      <input type="password" id="pin-input" inputmode="numeric" maxlength="6" placeholder="••••" autocomplete="off"
+        style="text-align:center; font-size:22px; letter-spacing:8px; font-family:'Space Mono',monospace;">
+      <p class="hint" id="pin-error" style="color:var(--bad); display:none; text-align:center;">PIN incorreto</p>
+      <div class="submit-row" style="margin-top:12px; justify-content:center;">
+        <button type="button" class="btn-secondary" id="pin-cancel">Voltar</button>
+        <button type="button" class="btn-primary" id="pin-confirm">Entrar</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Bloqueio de sessão única: evita a MESMA conta aberta em várias abas/janelas
+     ao mesmo tempo, que causa conflito de cache e de registros. -->
+<div id="single-session-overlay" class="single-session-overlay" style="display:none;">
+  <div class="single-session-box">
+    <div class="ss-ico" id="ss-ico">🔒</div>
+    <h2 id="ss-title">Diário já aberto em outra janela</h2>
+    <p id="ss-desc">Para proteger seus dados, o Diário de Estudos funciona em <strong>uma aba/janela por vez</strong>. Já existe uma sessão ativa deste app neste navegador.</p>
+    <p class="ss-sub" id="ss-sub">Continuar em duas ao mesmo tempo pode misturar registros e sobrescrever alterações na sincronização.</p>
+    <div class="ss-actions">
+      <button type="button" class="btn-primary" id="single-session-takeover">Usar aqui (encerrar as outras)</button>
+      <button type="button" class="btn-secondary" id="single-session-reload">Recarregar</button>
+    </div>
+  </div>
+</div>
+
+<a href="#main-content" class="skip-link" id="skip-link">Pular para o conteúdo</a>
+<noscript>
+  <div style="position:fixed;inset:0;z-index:100001;display:flex;align-items:center;justify-content:center;padding:28px;background:#f4f5f7;color:#14161a;font-family:system-ui,-apple-system,'Segoe UI',Roboto,sans-serif;text-align:center">
+    <div style="max-width:420px">
+      <div style="font-size:44px;margin-bottom:10px">📚</div>
+      <h1 style="margin:0 0 10px;font-size:21px">O Diário de Estudos precisa de JavaScript</h1>
+      <p style="margin:0;line-height:1.6;color:#5b6270">Todo o app — registro, ciclo de estudos, flashcards e desempenho — roda no seu próprio navegador, sem servidor. Ative o JavaScript para continuar. Seus dados salvos não foram afetados.</p>
+    </div>
+  </div>
+</noscript>
+<!-- Overlay de carregamento: cobre a UI enquanto o IndexedDB hidrata e o app-code
+     ainda não rodou. Sem ele, a tela pintava clicável mas os cliques eram engolidos
+     (o usuário achava que travou). É removido no fim de runApp(). -->
+<div id="app-loading" role="status" aria-live="polite" aria-label="Carregando o aplicativo">
+  <div class="app-loading-spin" aria-hidden="true"></div>
+  <div class="app-loading-txt">Carregando seus estudos…</div>
+</div>
+<div class="app-shell">
+  <aside class="sidebar" role="navigation" aria-label="Menu principal">
+    <div class="sidebar-brand">
+      <div class="brand-top-row">
+        <div class="brand-top-actions">
+          <span class="font-size-ctl">
+            <button type="button" id="fs-menor" class="a-menor" title="Diminuir o tamanho do texto" aria-label="Diminuir o tamanho do texto">A</button>
+            <button type="button" id="fs-maior" class="a-maior" title="Aumentar o tamanho do texto" aria-label="Aumentar o tamanho do texto">A</button>
+          </span>
+          <button type="button" class="cloud-sync-btn" id="cloud-sync-btn" title="Sincronização" aria-label="Status de sincronização">
+            <span class="csb-spin" id="csb-spin" aria-hidden="true"></span>
+            <span class="csb-ico" id="csb-ico">✓</span>
+          </button>
+          <button type="button" class="mobile-profile-btn" id="mobile-profile-btn" title="Trocar de perfil / sair">
+            <span class="mobile-profile-avatar" id="mobile-profile-avatar">📘</span>
+            <span class="mobile-profile-name" id="mobile-profile-name">—</span>
+            <span class="mobile-profile-caret">⇄</span>
+          </button>
+          <button type="button" class="theme-toggle" id="theme-toggle" title="Alternar modo claro/escuro" aria-label="Alternar tema">
+            <span class="theme-toggle-icon">🌙</span>
+          </button>
+        </div>
+      </div>
+      <div class="plan-switcher" id="plan-switcher">
+        <button type="button" class="plan-switcher-btn" id="plan-switcher-btn">
+          <span class="plan-switcher-label">
+            <span class="plan-switcher-eyebrow">Planejamento ativo</span>
+            <span class="plan-switcher-name" id="active-plan-name">—</span>
+          </span>
+          <span class="plan-switcher-caret">▾</span>
+        </button>
+        <div class="plan-switcher-menu" id="plan-switcher-menu">
+          <div class="plan-switcher-list" id="plan-switcher-list"></div>
+          <div class="plan-switcher-actions">
+            <button type="button" class="plan-switcher-action" id="plan-manage">⚙ Gerenciar planejamentos</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <nav class="tabs" id="tabs">
+      <button class="tab active" data-screen="registrar" data-primary data-short="Registrar"><span class="tab-icon" aria-hidden="true">✎</span><span class="tab-label">Registrar</span></button>
+      <button class="tab" data-screen="ciclo" data-primary data-short="Ciclo"><span class="tab-icon" aria-hidden="true">◔</span><span class="tab-label">Ciclo da Semana</span></button>
+      <button class="tab" data-screen="grade" data-primary data-short="Grade"><span class="tab-icon" aria-hidden="true">▦</span><span class="tab-label">Grade Semanal</span></button>
+      <button class="tab" data-screen="estudonovo" data-short="Novo"><span class="tab-icon" aria-hidden="true">▥</span><span class="tab-label">Estudo Novo</span></button>
+      <button class="tab" data-screen="leis" data-short="Leis"><span class="tab-icon" aria-hidden="true">§</span><span class="tab-label">Leis Secas</span></button>
+      <button class="tab" data-screen="cards" data-primary data-short="Cards"><span class="tab-icon" aria-hidden="true">🗂️</span><span class="tab-label">Cards de Revisão</span></button>
+      <button class="tab" data-screen="extras" data-short="Extras"><span class="tab-icon" aria-hidden="true">✅</span><span class="tab-label">Atividades Extras</span></button>
+      <button class="tab" data-screen="links" data-short="Links"><span class="tab-icon" aria-hidden="true">🔗</span><span class="tab-label">Links Úteis</span></button>
+      <button class="tab" data-screen="historico" data-short="Histórico"><span class="tab-icon" aria-hidden="true">▤</span><span class="tab-label">Histórico</span></button>
+      <button class="tab" data-screen="evolucao" data-short="Evolução"><span class="tab-icon" aria-hidden="true">📈</span><span class="tab-label">Evolução</span></button>
+      <button class="tab" data-screen="conquistas" data-short="Conquistas"><span class="tab-icon" aria-hidden="true">🏅</span><span class="tab-label">Conquistas</span></button>
+      <button class="tab" data-screen="desempenhotec" data-short="TEC"><span class="tab-icon" aria-hidden="true">🎯</span><span class="tab-label">Desempenho TEC</span></button>
+      <button class="tab" data-screen="ferramentas" data-short="Ferram."><span class="tab-icon" aria-hidden="true">🧰</span><span class="tab-label">Ferramentas</span></button>
+      <button class="tab" data-screen="config" data-short="Ajustes"><span class="tab-icon" aria-hidden="true">⚙</span><span class="tab-label">Configurações</span></button>
+      <button type="button" class="nav-more-btn" id="nav-more-btn" aria-expanded="false" aria-controls="nav-sheet"><span class="tab-icon" aria-hidden="true">☰</span>Mais</button>
+    </nav>
+
+    <!-- Menu "Mais" do celular: todas as telas em dois toques, nada escondido -->
+    <div class="nav-scrim" id="nav-scrim"></div>
+    <div class="nav-sheet" id="nav-sheet" role="dialog" aria-label="Todas as telas" aria-hidden="true">
+      <div class="nav-sheet-grip"></div>
+      <div class="nav-sheet-grid" id="nav-sheet-grid"></div>
+    </div>
+
+    <button type="button" class="sidebar-collapse-btn" id="sidebar-collapse-btn" title="Recolher o menu" aria-label="Recolher o menu">
+      <span class="scb-ico" aria-hidden="true">«</span><span class="scb-txt">Recolher menu</span>
+    </button>
+
+    <div class="sidebar-footer">
+      <div class="sidebar-footer-row" role="contentinfo">
+        <button type="button" class="profile-chip" id="profile-chip" title="Meu perfil, dados e troca de conta">
+          <span class="profile-chip-avatar" id="profile-chip-avatar">📘</span>
+          <span class="profile-chip-info">
+            <span class="profile-chip-eyebrow">Perfil</span>
+            <span class="profile-chip-name" id="profile-chip-name">—</span>
+          </span>
+          <span class="profile-chip-switch" id="profile-chip-switch" aria-hidden="true">⌄</span>
+        </button>
+        <button type="button" class="sidebar-logout-btn" id="sidebar-logout-btn" title="Sair da conta" aria-label="Sair da conta"><svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg></button>
+      </div>
+    </div>
+  </aside>
+
+  <main class="main-content" id="main-content" tabindex="-1">
+    <div class="content-wrap">
+
+      <!-- ============ TELA: REGISTRAR ============ -->
+      <section role="region" tabindex="-1" aria-label="Registrar estudo" class="screen active" id="screen-registrar">
+        <div class="page-header">
+          <h2 class="page-title">Registrar</h2>
+          <p class="page-subtitle">Cada sessão registrada aqui vira dado: onde você estuda mais, onde acerta menos, e onde vale revisar.</p>
+        </div>
+
+        <section class="card">
+          <div class="card-header">
+            <div>
+              <h2 id="form-title">Nova sessão de estudo</h2>
+              <p class="sub" id="form-edit-note" style="display:none; color: var(--accent);">Editando registro existente</p>
+            </div>
+            <button type="button" class="btn-secondary" id="btn-cancel-edit" style="display:none;">Cancelar edição</button>
+          </div>
+          <div class="step-progress">
+            <span class="step-progress-label" id="step-progress-label">Etapa 1 de 5</span>
+            <div class="step-progress-track"><div class="step-progress-fill" id="step-progress-fill"></div></div>
+          </div>
+          <form id="study-form">
+           <div class="steps steps-body">
+
+            <!-- ETAPA 1 -->
+            <div class="step" id="step-1" data-step="1">
+              <div class="step-num"><span>1</span></div>
+              <div class="step-head">
+                <p class="step-title">O que você estudou</p>
+                <p class="step-desc">A matéria alimenta o ciclo da semana e os gráficos de evolução.</p>
+              </div>
+            <div class="field-group">
+              <div class="field">
+                <label for="subject">Matéria</label>
+                <select id="subject" required></select>
+              </div>
+              <div class="field">
+                <label for="lesson">Aula / Assunto</label>
+                <input type="text" id="lesson" placeholder="Ex.: Controle de constitucionalidade">
+              </div>
+            </div>
+
+            </div>
+
+            <!-- ETAPA 2 -->
+            <div class="step" id="step-2" data-step="2">
+              <div class="step-num"><span>2</span></div>
+              <div class="step-head">
+                <p class="step-title">Como e quando</p>
+                <p class="step-desc">A forma de estudo define quais campos aparecem adiante (vídeo abre campos próprios).</p>
+              </div>
+            <div class="field-group">
+              <div class="field">
+                <label for="method">Forma de estudo</label>
+                <select id="method"></select>
+              </div>
+              <div class="field">
+                <label for="date">Data</label>
+                <input type="date" id="date" required>
+              </div>
+            </div>
+
+            </div>
+
+            <!-- ETAPA 3 -->
+            <div class="step" id="step-3" data-step="3">
+              <div class="step-num"><span>3</span></div>
+              <div class="step-head">
+                <p class="step-title">Por quanto tempo e onde parou<span class="step-opt">páginas opcionais</span></p>
+                <p class="step-desc">O tempo é o que conta para o ciclo. As páginas viram seu ritmo de leitura.</p>
+              </div>
+            <div class="row-3">
+              <div class="field">
+                <label for="duration">Tempo de estudo</label>
+                <div class="time-input">
+                  <input type="text" inputmode="numeric" id="duration-h" placeholder="0">
+                  <span>h</span>
+                  <input type="text" inputmode="numeric" id="duration-m" placeholder="0">
+                  <span>min</span>
+                </div>
+              </div>
+              <div class="field">
+                <label for="page-start">Página inicial <span class="opt">(opcional)</span></label>
+                <input type="number" inputmode="numeric" id="page-start" min="0" placeholder="0">
+              </div>
+              <div class="field">
+                <label for="page-end">Página final <span class="opt">(opcional)</span></label>
+                <input type="number" inputmode="numeric" id="page-end" min="0" placeholder="0">
+              </div>
+            </div>
+            <p class="hint" id="pages-hint">&nbsp;</p>
+
+            <div id="video-fields" style="display:none;">
+              <div class="row-3">
+                <div class="field">
+                  <label for="video-start">Minuto inicial do vídeo <span class="opt">(opcional)</span></label>
+                  <input type="number" inputmode="decimal" id="video-start" min="0" step="0.1" placeholder="0">
+                </div>
+                <div class="field">
+                  <label for="video-end">Minuto final do vídeo <span class="opt">(opcional)</span></label>
+                  <input type="number" inputmode="decimal" id="video-end" min="0" step="0.1" placeholder="0">
+                </div>
+                <div class="field">
+                  <label>Vídeo assistido</label>
+                  <div class="time-input" style="justify-content:flex-start;">
+                    <input type="text" id="video-consumed" readonly value="—" style="text-align:center; font-family:'Space Mono',monospace; font-weight:700; color:var(--accent); background:var(--accent-soft); border-color:transparent; cursor:default;">
+                  </div>
+                </div>
+              </div>
+              <p class="hint" id="video-hint">💡 Informe a posição no vídeo (não o relógio). Em 1h de estudo a 1,5x você assiste ~90&nbsp;min de conteúdo — isso alimenta seu ritmo real de vídeo na Evolução.</p>
+            </div>
+
+            </div>
+
+            <!-- ETAPA 4 -->
+            <div class="step" id="step-4" data-step="4">
+              <div class="step-num"><span>4</span></div>
+              <div class="step-head">
+                <p class="step-title">Desempenho em questões<span class="step-opt">opcional</span></p>
+                <p class="step-desc">Deixe em branco se a sessão não teve questões — o registro continua válido.</p>
+              </div>
+            <div class="performance-panel" id="perf-panel">
+              <div class="performance-inputs">
+                <div class="field">
+                  <label for="correct">Acertos</label>
+                  <input type="text" inputmode="numeric" id="correct" placeholder="0">
+                </div>
+                <div class="field">
+                  <label for="total">Total resolvido</label>
+                  <input type="text" inputmode="numeric" id="total" placeholder="0">
+                </div>
+              </div>
+              <div class="gauge" id="gauge">
+                <svg viewBox="0 0 80 80">
+                  <circle class="track" cx="40" cy="40" r="35"></circle>
+                  <circle class="fill" id="gauge-fill" cx="40" cy="40" r="35"></circle>
+                </svg>
+                <div class="gauge-text">
+                  <span class="pct" id="gauge-pct">—</span>
+                  <span class="label">acerto</span>
+                </div>
+              </div>
+            </div>
+
+            </div>
+
+            <!-- ETAPA 5 -->
+            <div class="step" id="step-5" data-step="5">
+              <div class="step-num"><span>5</span></div>
+              <div class="step-head">
+                <p class="step-title">Observações<span class="step-opt">opcional</span></p>
+                <p class="step-desc">O que ficou confuso hoje é o que você vai querer reler daqui a um mês.</p>
+              </div>
+              <div class="field full">
+                <label for="comment">Comentário</label>
+                <textarea id="comment" placeholder="O que ficou claro, o que precisa revisar, observações sobre o material..."></textarea>
+              </div>
+            </div>
+
+           </div>
+            <div class="submit-row">
+              <span class="save-note"><span class="dot"></span>salvo neste dispositivo</span>
+              <button type="submit" class="btn-primary" id="submit-btn">Registrar estudo</button>
+            </div>
+          </form>
+        </section>
+
+        <div class="section-divider">
+          <span>Todos os registros</span>
+        </div>
+
+        <section class="recent" id="recent-section" style="display:none;">
+          <div class="card-header recent-head" style="padding: 0; margin-bottom: 14px;">
+            <p class="sub" style="margin:0;" id="recent-count"></p>
+            <div class="recent-head-controls">
+              <input type="text" id="recent-search" placeholder="Buscar por matéria, aula ou data..." style="width: 240px; padding: 7px 11px; font-size: 13px;">
+              <div class="ux-seg" id="recent-view-seg" role="group" aria-label="Formato da lista">
+                <button type="button" data-v="cartoes" title="Ver como cartões">▤ Cartões</button>
+                <button type="button" data-v="tabela" title="Ver como tabela, com filtros por coluna">▦ Tabela</button>
+              </div>
+            </div>
+          </div>
+          <div class="card" style="margin-top:0;">
+            <div style="padding: 4px 28px;" id="recent-list"></div>
+          </div>
+        </section>
+      </section>
+
+      <!-- ============ TELA: CICLO DA SEMANA ============ -->
+      <section role="region" tabindex="-1" class="screen" id="screen-ciclo">
+        <div class="page-header">
+          <h2 class="page-title">Ciclo da Semana</h2>
+          <p class="page-subtitle">Defina suas horas disponíveis e acompanhe o progresso por matéria em tempo real.</p>
+        </div>
+
+    <!-- Estado: nenhum ciclo ativo -->
+    <div id="ciclo-empty" class="card" style="display:none;">
+      <div class="card-header"><h2>Nenhum ciclo ativo</h2></div>
+      <div style="padding: 20px 28px 28px;">
+        <p style="color:var(--text-soft); font-size:14px; line-height:1.6; margin: 0 0 20px;">
+          Um ciclo organiza sua semana de estudos: você define quantas horas tem disponíveis, escolhe as matérias, e o app sugere quanto tempo dedicar a cada uma com base na dificuldade.
+        </p>
+        <button class="btn-primary" id="btn-start-cycle">Montar novo ciclo</button>
+      </div>
+    </div>
+
+    <!-- Configuração do ciclo -->
+    <div id="ciclo-setup" class="card" style="display:none;">
+      <div class="card-header">
+        <div>
+          <h2>Montar ciclo da semana</h2>
+          <p class="sub" id="ciclo-setup-mode-hint"></p>
+        </div>
+      </div>
+      <div style="padding: 20px 28px 28px;">
+        <div class="field-group">
+          <div class="field">
+            <label>Carga horária semanal</label>
+            <div class="cycle-hm-input">
+              <input type="text" inputmode="numeric" id="cycle-hours" value="20"><span>h</span>
+              <input type="text" inputmode="numeric" id="cycle-minutes" value="0" maxlength="2"><span>min</span>
+            </div>
+          </div>
+          <div class="field">
+            <label for="cycle-start">Início da semana</label>
+            <input type="date" id="cycle-start">
+          </div>
+          <div class="field">
+            <label for="cycle-end">Término da semana</label>
+            <input type="date" id="cycle-end">
+          </div>
+        </div>
+        <p class="hint" id="cycle-dates-hint" style="margin-top:-6px;">O término é preenchido automaticamente como o 7º dia (início + 6), mas você pode ajustar livremente. Só os estudos com data dentro deste intervalo são contabilizados neste ciclo.</p>
+
+        <hr class="divider">
+        <p class="section-label" id="ciclo-setup-subjects-label">Matérias no ciclo</p>
+        <div id="cycle-subjects-list"></div>
+        <datalist id="cycle-subject-list"></datalist>
+        <button class="btn-secondary" id="btn-add-cycle-subject" type="button" style="margin-top: 4px;">+ Adicionar matéria</button>
+
+        <div class="submit-row" style="margin-top: 24px;">
+          <button class="btn-secondary" id="btn-cancel-cycle" type="button">Cancelar</button>
+          <button class="btn-primary" id="btn-calc-cycle" type="button">Calcular sugestão de tempo</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Revisão: ajustar tempo por matéria antes de confirmar o ciclo -->
+    <div id="ciclo-review" class="card" style="display:none;">
+      <div class="card-header">
+        <div>
+          <h2>Ajustar tempo por matéria</h2>
+          <p class="sub">A sugestão é calculada pela dificuldade e fase. Ajuste livremente — o indicador mostra o quanto falta ou passou da carga semanal.</p>
+        </div>
+      </div>
+      <div style="padding: 8px 28px 28px;">
+        <div id="cycle-budget-indicator" class="cycle-budget-indicator"></div>
+        <div id="cycle-review-list" style="margin-top: 16px;"></div>
+        <div class="submit-row" style="margin-top: 20px;">
+          <button class="btn-secondary" id="btn-back-to-setup" type="button">Voltar</button>
+          <button class="btn-primary" id="btn-confirm-cycle" type="button">Confirmar e iniciar semana</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Ciclo ativo: acompanhamento -->
+    <div id="ciclo-active" style="display:none;">
+      <div class="card">
+        <div class="card-header">
+          <div>
+            <h2 id="ciclo-active-title">Semana atual</h2>
+            <p class="sub" id="ciclo-active-dates"></p>
+          </div>
+          <div class="ciclo-head-actions">
+            <button class="btn-secondary ciclo-head-btn" id="btn-edit-cycle">✎ Editar</button>
+            <button class="btn-primary ciclo-head-btn ciclo-close-btn" id="btn-close-cycle">✓ Fechar semana</button>
+          </div>
+        </div>
+        <div style="padding: 18px 28px 26px;">
+          <div id="ciclo-overview-gauges" class="ciclo-gauges" style="display:grid; grid-template-columns: repeat(6,1fr); gap: 12px; margin-bottom: 22px;"></div>
+
+          <p class="section-label">Progresso por matéria</p>
+          <div id="ciclo-subjects-progress"></div>
+
+          <hr class="divider">
+          <div class="grade-shortcut">
+            <p class="section-label" style="margin:0;">Grade da semana</p>
+            <button class="btn-secondary" id="btn-goto-grade" type="button">▦ Abrir Grade Semanal</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </section>
+
+  <!-- ============ TELA: GRADE SEMANAL ============ -->
+  <section role="region" tabindex="-1" class="screen" id="screen-grade">
+    <div class="page-header">
+      <h2 class="page-title">Grade Semanal</h2>
+      <p class="page-subtitle">Sua rotina de estudos — persistente e reutilizada a cada ciclo. Monte uma vez e não precise arrastar tudo de novo toda semana. Esta é uma ferramenta de planejamento: os números reais vêm dos seus registros.</p>
+    </div>
+
+    <div class="card">
+      <div class="card-header">
+        <div>
+          <h2 class="grade-title-line">Grade da semana <span class="grade-min-alert">❗ Digite os tempos em minutos</span></h2>
+          <p class="sub">Toque numa célula para escolher a sigla (ou arraste). A mesma matéria pode aparecer em várias células — ajuste a duração de cada uma.</p>
+        </div>
+        <!-- TUDO o que e secundario vive dentro da engrenagem. Antes o seletor de
+             visao, o "Inicio da semana" e o "Editar siglas" ocupavam duas faixas
+             inteiras da tela so para ficarem parados esperando um clique raro. -->
+        <div class="grade-head-actions">
+          <div class="grade-gear-wrap">
+            <button class="btn-secondary grade-gear-btn grade-gear-mini" id="grade-gear-btn" type="button" title="Opções da grade" aria-haspopup="true" aria-expanded="false"><span class="gg-gear">⚙</span><span class="gg-word">Opções</span></button>
+            <div class="grade-gear-menu" id="grade-gear-menu" role="menu" aria-hidden="true">
+              <div class="grade-gear-group">
+                <span class="grade-gear-lbl">Visualização</span>
+                <div class="grade-view-toggle" id="grade-view-toggle" role="tablist" aria-label="Modo de visualização da grade">
+                  <button type="button" class="gvt-btn active" data-gview="semana" role="tab" aria-selected="true">▦ Semanal</button>
+                  <button type="button" class="gvt-btn" data-gview="dia" role="tab" aria-selected="false">◷ Meta diária</button>
+                </div>
+              </div>
+              <div class="grade-gear-group">
+                <span class="grade-gear-lbl">Início da semana</span>
+                <select id="grade-weekstart-select" class="grade-gear-select" title="Dia em que a semana começa">
+                  <option value="mon">Segunda-feira</option>
+                  <option value="sun">Domingo</option>
+                </select>
+              </div>
+              <div class="grade-gear-sep"></div>
+              <button class="grade-gear-item" id="btn-edit-siglas" type="button" role="menuitem" title="Editar, criar e excluir siglas"><span class="gg-ic">✎</span>Editar siglas</button>
+              <button class="grade-gear-item" id="btn-saved-grades" type="button" role="menuitem" title="Salvar a grade atual ou restaurar uma grade guardada"><span class="gg-ic">💾</span>Grades salvas</button>
+              <button class="grade-gear-item" id="btn-toggle-budget" type="button" role="menuitem" title="Mostrar/ocultar o saldo de horas do ciclo"><span class="gg-ic">⏱️</span>Saldo de horas</button>
+              <button class="grade-gear-item" id="btn-toggle-tray" type="button" role="menuitem" title="Minimizar/expandir as siglas"><span class="gg-ic">▾</span>Siglas (minimizar)</button>
+              <div class="grade-gear-sep"></div>
+              <button class="grade-gear-item" id="btn-uncheck-all" type="button" role="menuitem"><span class="gg-ic">↺</span>Desmarcar concluídos</button>
+              <button class="grade-gear-item danger" id="btn-clear-grade" type="button" role="menuitem" title="Esvaziar toda a grade para montar do zero"><span class="gg-ic">🗑️</span>Limpar grade</button>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div style="padding: 8px 20px 26px;">
+        <div class="grade-budget hidden" id="grade-budget"></div>
+        <!-- Bandeja compacta: só os chips arrastáveis + botão de editar -->
+        <div class="grade-tray-bar" id="grade-tray-bar">
+          <div id="grade-chip-tray" class="grade-chip-tray"></div>
+        </div>
+        <p class="grade-scroll-hint" id="grade-scroll-hint">↔ Deslize para ver os outros dias</p>
+        <div id="ciclo-grade" class="grade-scroll" style="overflow-x:auto;"></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Modal: gerenciar siglas -->
+  <div id="siglas-modal" class="siglas-modal" style="display:none;">
+    <div class="siglas-modal-box">
+      <div class="siglas-modal-head">
+        <div>
+          <h2>Gerenciar siglas</h2>
+          <p class="sub">Edite a sigla e a cor de cada matéria, ou crie siglas livres. As siglas ficam em MAIÚSCULAS.</p>
+        </div>
+        <button type="button" class="icon-btn" id="siglas-modal-close" title="Fechar" aria-label="Fechar">✕</button>
+      </div>
+      <div class="siglas-modal-body">
+        <div id="custom-sigla-manager" class="custom-sigla-manager"></div>
+        <div class="siglas-add-block">
+          <p class="section-label" style="margin:16px 0 8px;">Criar sigla livre</p>
+          <div class="config-add-row">
+            <input type="text" id="new-sigla-input" placeholder="Sigla (ex.: REVGERAL)" maxlength="12" style="max-width:200px; text-transform:uppercase;">
+            <input type="text" id="new-sigla-nome" placeholder="Nome / descrição (opcional)">
+            <button class="btn-secondary" id="btn-add-sigla" type="button">Criar sigla</button>
+          </div>
+        </div>
+      </div>
+      <div class="siglas-modal-foot">
+        <button type="button" class="btn-primary" id="siglas-modal-done">Concluído</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal: grades salvas (salvar/trocar/restaurar) -->
+  <div id="saved-grades-modal" class="siglas-modal" style="display:none;">
+    <div class="siglas-modal-box">
+      <div class="siglas-modal-head">
+        <div>
+          <h2>💾 Grades salvas</h2>
+          <p class="sub">Guarde a grade atual sob um nome. Ao mudar de planejamento ou de meta, você pode restaurar exatamente a grade de antes.</p>
+        </div>
+        <button type="button" class="icon-btn" id="saved-grades-close" title="Fechar" aria-label="Fechar">✕</button>
+      </div>
+      <div class="siglas-modal-body">
+        <div class="siglas-add-block">
+          <p class="section-label" style="margin:0 0 8px;">Salvar a grade atual</p>
+          <div class="config-add-row">
+            <input type="text" id="new-saved-grade-name" placeholder="Nome (ex.: Pré-edital · 20h)" maxlength="40">
+            <button class="btn-primary" id="btn-save-current-grade" type="button">Salvar grade atual</button>
+          </div>
+        </div>
+        <p class="section-label" style="margin:18px 0 8px;">Suas grades salvas</p>
+        <div id="saved-grades-list" class="saved-grades-list"></div>
+      </div>
+      <div class="siglas-modal-foot">
+        <button type="button" class="btn-primary" id="saved-grades-done">Concluído</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ TELA: ESTUDO NOVO ============ -->
+  <section role="region" tabindex="-1" class="screen" id="screen-estudonovo">
+    <div class="page-header">
+      <h2 class="page-title">Estudo Novo</h2>
+      <p class="page-subtitle">Acompanhe aula por aula o avanço em cada matéria, com checkpoints de revisão posicionados onde você quiser.</p>
+    </div>
+
+    <div id="en-empty-subject" class="empty-state" style="display:none;">
+      <div class="big">▥</div>
+      Cadastre matérias em Configurações para começar a montar a trilha de estudo novo.
+    </div>
+
+    <div id="en-layout" class="en-layout" style="display:none;">
+      <aside class="en-subject-sidebar">
+        <div class="en-subject-sidebar-head">
+          <span>Matérias</span>
+          <input type="text" id="en-subject-filter" placeholder="Buscar...">
+        </div>
+        <div id="en-subject-list"></div>
+      </aside>
+
+      <div class="en-main">
+        <div id="en-no-selection" class="empty-state" style="display:none;">
+          <div class="big">☚</div>
+          Selecione uma matéria na lista ao lado.
+        </div>
+
+        <div id="en-track-area" style="display:none;">
+          <section class="card" style="margin-top:0;">
+            <div class="card-header">
+              <div>
+                <h2 id="en-track-title">Trilha de aulas</h2>
+                <p class="sub" id="en-track-summary"></p>
+              </div>
+              <div class="en-mode-picker">
+                <label for="en-subject-mode">Modo de estudo</label>
+                <select id="en-subject-mode"></select>
+              </div>
+            </div>
+            <div style="padding: 8px 0 20px;">
+              <div id="en-track-averages"></div>
+              <div id="en-track-list"></div>
+              <div style="padding: 0 28px; margin-top: 14px; display:flex; gap: 10px;">
+                <input type="text" id="en-new-lesson-input" placeholder="Nome da aula/assunto" style="flex:1;">
+                <button type="button" class="btn-primary" id="en-add-lesson-btn">+ Adicionar aula</button>
+                <button type="button" class="btn-secondary" id="en-bulk-lesson-btn" title="Colar uma lista de assuntos e criar todas as aulas de uma vez">📋 Colar lista</button>
+              </div>
+            </div>
+          </section>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ TELA: LEIS SECAS ============ -->
+  <div class="foco-bar" id="lei-foco-bar">
+    <span class="foco-info" id="lei-foco-info">Leitura</span>
+    <span class="foco-acoes">
+      <button type="button" class="btn-secondary leis-tool-mark" id="lei-foco-mark" title="Marca-texto: com ele ativo, selecione o texto para destacar">🖍️ Marca-texto</button>
+      <button type="button" class="btn-secondary leis-tool-erase" id="lei-foco-erase" title="Borracha: com ela ativa, selecione um destaque para apagá-lo">🧽 Borracha</button>
+      <button type="button" class="btn-secondary" id="lei-foco-lines" title="Mostrar/ocultar a numeração das linhas">🔢 Linhas</button>
+      <button type="button" class="btn-secondary" id="lei-foco-marcar" title="Marcar onde parei (linha do topo da tela)">📌 Marcar aqui</button>
+      <button type="button" class="btn-secondary" id="lei-foco-sair" title="Sair do modo foco (Esc)">✕ Sair</button>
+    </span>
+  </div>
+  <section role="region" tabindex="-1" class="screen" id="screen-leis">
+    <!-- LISTA de leis -->
+    <div id="leis-list-view">
+      <div class="page-header">
+        <h2 class="page-title">Leis Secas</h2>
+        <p class="page-subtitle">Seu vade mecum inteligente: cadastre as leis que quiser, leia com formatação limpa e destaque automático das clássicas pegadinhas de prova (prazos, exceções, competências…). Marque também seus próprios pontos-chave.</p>
+      </div>
+
+      <div class="leis-list-topbar">
+        <div class="section-divider" style="flex:1; margin:0;"><span>Suas leis</span></div>
+        <button type="button" class="btn-primary" id="lei-open-form-btn">＋ Nova lei</button>
+      </div>
+      <div id="leis-cards"></div>
+    </div>
+
+    <!-- Modal: cadastrar nova lei -->
+    <div id="lei-form-modal" class="cards-modal" style="display:none;">
+      <div class="cards-modal-box cards-modal-lg">
+        <div class="cards-modal-head">
+          <div><h2>＋ Nova lei</h2><p class="sub">Cole o texto — o app organiza a estrutura e destaca os termos de risco.</p></div>
+          <button type="button" class="icon-btn" id="lei-form-close" aria-label="Fechar">✕</button>
+        </div>
+        <div class="cards-modal-body">
+          <div class="field-group">
+            <div class="field">
+              <label for="lei-titulo">Título</label>
+              <input type="text" id="lei-titulo" placeholder="Ex.: Crimes contra a Administração Pública">
+            </div>
+            <div class="field">
+              <label for="lei-ref">Referência <span class="opt">(opcional)</span></label>
+              <input type="text" id="lei-ref" placeholder="Ex.: CP, arts. 312 a 327">
+            </div>
+            <div class="field">
+              <label for="lei-materia">Matéria <span class="opt">(opcional)</span></label>
+              <input type="text" id="lei-materia" placeholder="Ex.: Direito Penal">
+            </div>
+          </div>
+          <div class="field full">
+            <label for="lei-texto">Texto da lei</label>
+            <textarea id="lei-texto" style="min-height: 220px; line-height:1.6;" placeholder="Cole aqui o texto da lei seca..."></textarea>
+          </div>
+        </div>
+        <div class="cards-modal-foot">
+          <span class="save-note" style="flex:1"><span class="dot"></span>salvo no seu perfil e sincronizado</span>
+          <button type="button" class="btn-secondary" id="lei-form-cancel">Cancelar</button>
+          <button type="button" class="btn-primary" id="lei-add-btn">Cadastrar lei</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- LEITOR de uma lei -->
+    <div id="leis-reader-view" style="display:none;">
+      <div class="leis-reader-topbar">
+        <button type="button" class="btn-secondary leis-back" id="lei-back-btn">← Voltar</button>
+        <div class="leis-reader-title">
+          <h2 id="lei-reader-titulo">—</h2>
+          <span id="lei-reader-meta" class="leis-reader-meta"></span>
+        </div>
+        <div class="leis-reader-actions">
+          <button type="button" class="reg-act-btn" id="lei-edit-btn" title="Editar dados da lei" aria-label="Editar dados da lei">✎</button>
+          <button type="button" class="reg-act-btn danger" id="lei-del-btn" title="Excluir lei" aria-label="Excluir lei">✕</button>
+        </div>
+      </div>
+
+      <!-- A barra de ferramentas do leitor RECOLHE: são 12 controles que se usam
+           uma vez e depois só ocupam a metade de cima da tela de leitura. -->
+      <div class="leis-sticky" id="leis-sticky-toolbar">
+        <button type="button" class="leis-tools-toggle" id="lei-tools-toggle" aria-expanded="true" aria-controls="leis-tools-body">
+          <span class="ltt-ic">🛠️</span>
+          <span class="ltt-txt">Ferramentas de leitura</span>
+          <span class="ltt-caret">▾</span>
+        </button>
+        <div class="leis-tools-body" id="leis-tools-body">
+        <div class="leis-toolbar-row">
+          <div class="leis-hl-group" id="lei-hl-toggles">
+            <label class="leis-auto-switch" title="Liga/desliga todo o destaque automático desta lei">
+              <input type="checkbox" id="lei-auto-master" checked>
+              <span class="leis-auto-track"><span class="leis-auto-thumb"></span></span>
+              <span class="leis-auto-label">🖍️ Destaque automático</span>
+            </label>
+            <span class="leis-hl-sep"></span>
+            <label class="leis-hl-chip"><input type="checkbox" data-cat="ressalvas" checked><span class="lawmark-ressalvas">⚖️ Ressalvas</span></label>
+            <label class="leis-hl-chip"><input type="checkbox" data-cat="restricoes" checked><span class="lawmark-restricoes">🚫 Restrições</span></label>
+            <label class="leis-hl-chip"><input type="checkbox" data-cat="competencias" checked><span class="lawmark-competencias">🏛️ Poder/Dever</span></label>
+            <label class="leis-hl-chip"><input type="checkbox" data-cat="prazos" checked><span class="lawmark-prazos">⏱️ Prazos</span></label>
+            <label class="leis-hl-chip"><input type="checkbox" data-cat="efeitos" checked><span class="lawmark-efeitos">⚠️ Sanções</span></label>
+            <label class="leis-hl-chip"><input type="checkbox" data-cat="relacoes" checked><span class="lawmark-relacoes">🔗 Causalidade</span></label>
+          </div>
+        </div>
+        <div class="leis-toolbar-row leis-toolbar-actions">
+          <button type="button" class="leis-tool-btn leis-tool-mark" id="lei-mark-btn" title="Marca-texto: com ele ativo, basta selecionar o texto para destacar">🖍️ Marca-texto</button>
+          <button type="button" class="leis-tool-btn leis-tool-erase" id="lei-unmark-btn" title="Borracha: com ela ativa, selecione um destaque para apagá-lo (inclusive os automáticos)">🧽 Borracha</button>
+          <span id="lei-mark-count" class="leis-mark-count"></span>
+          <span class="leis-toolbar-spacer"></span>
+          <button type="button" class="leis-tool-btn" id="lei-kw-btn" title="Gerenciar as palavras destacadas automaticamente em todas as leis">🎨 Palavras destacadas</button>
+          <button type="button" class="leis-tool-btn" id="lei-lines-btn" title="Mostrar/ocultar a numeração das linhas">🔢 Linhas</button>
+          <button type="button" class="leis-tool-btn" id="lei-goto-mark-btn" title="Ir para a linha onde você parou">📌 Onde parei</button>
+          <button type="button" class="leis-tool-btn" id="lei-foco-btn" title="Ler sem distração, em tela cheia (Esc para sair)">🎯 Modo foco</button>
+          <div class="leis-reader-controls">
+            <button type="button" class="icon-btn" id="lei-font-dec" title="Diminuir fonte" aria-label="Diminuir fonte">A−</button>
+            <button type="button" class="icon-btn" id="lei-font-inc" title="Aumentar fonte" aria-label="Aumentar fonte">A+</button>
+          </div>
+        </div>
+        </div>
+      </div>
+
+      <div class="leis-mark-hint" id="lei-mark-hint">💡 Ative o <strong>🖍️ Marca-texto</strong> e vá selecionando os trechos para destacar. Ative a <strong>🧽 Borracha</strong> e selecione um destaque (seu ou automático) para apagá-lo.</div>
+
+      <div class="card leis-reader-card">
+        <div id="lei-reader-body" class="lei-reader-body"></div>
+      </div>
+
+      <div class="card" id="lei-marks-panel" style="display:none;">
+        <div class="card-header"><div><h2>Seus destaques</h2><p class="sub">Trechos que você marcou manualmente nesta lei</p></div></div>
+        <div style="padding: 12px 24px 22px;" id="lei-marks-list"></div>
+      </div>
+    </div>
+
+    <!-- Modal: gerenciar palavras de destaque automático (todas as leis) -->
+    <div id="lei-kw-modal" class="cards-modal" style="display:none;">
+      <div class="cards-modal-box cards-modal-lg">
+        <div class="cards-modal-head">
+          <div><h2>🎨 Palavras destacadas por padrão</h2><p class="sub">Estas palavras são realçadas automaticamente em <strong>todas as leis</strong> (inclusive as novas). Inclua ou remova o que quiser — a cor segue a categoria.</p></div>
+          <button type="button" class="icon-btn" id="lei-kw-close" aria-label="Fechar">✕</button>
+        </div>
+        <div class="cards-modal-body">
+          <div class="lei-kw-add">
+            <input type="text" id="lei-kw-input" placeholder="Nova palavra (ex.: usucapião, prescreve, imprescritível…)" maxlength="40">
+            <select id="lei-kw-cat" aria-label="Cor/categoria da palavra">
+              <option value="ressalvas">⚖️ Ressalvas</option>
+              <option value="restricoes">🚫 Restrições</option>
+              <option value="competencias" selected>🏛️ Poder/Dever</option>
+              <option value="prazos">⏱️ Prazos</option>
+              <option value="efeitos">⚠️ Sanções</option>
+              <option value="relacoes">🔗 Causalidade</option>
+            </select>
+            <button type="button" class="btn-primary" id="lei-kw-add-btn">Adicionar</button>
+          </div>
+          <div id="lei-kw-groups" class="lei-kw-groups"></div>
+        </div>
+        <div class="cards-modal-foot">
+          <button type="button" class="btn-secondary" id="lei-kw-restore" title="Voltar à lista de palavras que vem por padrão">↺ Restaurar padrões</button>
+          <span style="flex:1"></span>
+          <button type="button" class="btn-primary" id="lei-kw-done">Concluído</button>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ TELA: CARDS DE REVISÃO ============ -->
+  <div class="foco-bar" id="foco-bar">
+    <span class="foco-info" id="foco-info">Modo foco</span>
+    <span class="foco-acoes">
+      <button type="button" class="btn-secondary" id="foco-undo" title="Desfazer a última avaliação (Ctrl+Z)" aria-label="Desfazer a última avaliação (Ctrl+Z)">↶</button>
+      <button type="button" class="btn-secondary" id="foco-sair" title="Sair do modo foco (Esc)">✕ Sair</button>
+    </span>
+  </div>
+  <section role="region" tabindex="-1" class="screen" id="screen-cards">
+    <div class="page-header">
+      <h2 class="page-title">🗂️ Cards de Revisão</h2>
+      <p class="page-subtitle">Revise por disciplina e tópico com repetição espaçada. Marque o que você já sabe e o app agenda a próxima revisão de cada card automaticamente.</p>
+    </div>
+
+    <div class="cards-topbar">
+      <button type="button" class="btn-primary" id="cards-new-btn">＋ Criar card</button>
+      <button type="button" class="btn-primary" id="cards-foco-btn" title="Estudar sem distração, em tela cheia (Esc para sair)">🎯 Modo foco</button>
+      <button type="button" class="btn-secondary" id="cards-deck-btn">📁 Criar baralho</button>
+      <div class="cards-more-wrap">
+        <button type="button" class="btn-secondary cards-more-btn" id="cards-more-btn" aria-expanded="false" aria-haspopup="true" title="Mais ações">⋯ Mais</button>
+        <div class="cards-more-menu" id="cards-more-menu" role="menu">
+          <button type="button" role="menuitem" id="cards-stats-btn" title="Ver estatísticas (retenção, previsão, maturidade)">📊 Estatísticas</button>
+          <button type="button" role="menuitem" id="cards-algo-btn" title="Algoritmo de repetição espaçada">⚙ Algoritmo</button>
+          <button type="button" role="menuitem" id="cards-import-btn">↑ Importar</button>
+          <button type="button" role="menuitem" id="cards-export-btn">↓ Exportar p/ Anki</button>
+          <button type="button" role="menuitem" id="cards-audit-export-btn" title="Exportar cards, histórico, configurações e diagnóstico do agendador">🩺 Exportar auditoria</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="cards-tabs">
+      <button type="button" class="cards-tab active" data-ctab="revisar">🎴 Revisar</button>
+      <button type="button" class="cards-tab" data-ctab="meus">🗃️ Meus cards</button>
+      <button type="button" class="cards-tab" data-ctab="stats">📊 Estatísticas</button>
+    </div>
+
+    <!-- Filtros -->
+    <div class="card" id="cards-filter-card">
+      <div class="card-header cards-filter-head" id="cards-filter-toggle">
+        <div><h2>🔎 Buscar e filtrar</h2></div>
+        <span class="siglas-caret" id="cards-filter-caret">▾</span>
+      </div>
+      <div id="cards-filter-body" style="padding: 14px 24px 20px;">
+        <div class="field"><label for="cards-search">Buscar</label>
+          <input type="text" id="cards-search" placeholder="Buscar na frente, verso, tópico ou matéria..."></div>
+        <div class="field-group">
+          <div class="field"><label for="cards-f-materia">Disciplina / baralho</label>
+            <select id="cards-f-materia"><option value="">Todas</option></select></div>
+          <div class="field"><label for="cards-f-topico">Tópico</label>
+            <select id="cards-f-topico"><option value="">Todos os tópicos</option></select></div>
+          <div class="field"><label for="cards-f-tipo">Tipo</label>
+            <select id="cards-f-tipo"><option value="">Todos os tipos</option></select></div>
+        </div>
+        <div class="cards-pills-row">
+          <span class="cards-pills-label">Status</span>
+          <div class="cards-pills" id="cards-f-status">
+            <button type="button" class="cards-pill active" data-status="todos">Todos</button>
+            <button type="button" class="cards-pill" data-status="pendente">Pendente</button>
+            <button type="button" class="cards-pill sei" data-status="sei">Sei</button>
+            <button type="button" class="cards-pill naosei" data-status="naosei">Não sei</button>
+          </div>
+          <button type="button" class="cards-fav-toggle" id="cards-f-fav">★ Favoritos <span id="cards-fav-count">0</span></button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Área de conteúdo (revisar OU meus cards) -->
+    <div id="cards-content"></div>
+  </section>
+
+  <!-- Modal: resumo/anotação de uma aula do Estudo Novo -->
+  <div id="resumo-modal" class="cards-modal" style="display:none;">
+    <div class="cards-modal-box cards-modal-lg">
+      <div class="cards-modal-head">
+        <div><h2>📄 Resumo da aula</h2><p class="sub" id="resumo-modal-sub">—</p></div>
+        <button type="button" class="icon-btn" id="resumo-modal-close" aria-label="Fechar">✕</button>
+      </div>
+      <div class="cards-modal-body">
+        <div class="rte" data-target="resumo-editor">
+          <div class="rte-toolbar"></div>
+          <div class="rte-area" id="resumo-editor" contenteditable="true" style="min-height:260px;"></div>
+        </div>
+        <p class="hint" style="margin-top:8px;">Cole ou escreva aqui um resumo mais completo desta aula — fica salvo e sincronizado, separado do comentário rápido.</p>
+      </div>
+      <div class="cards-modal-foot"><span style="flex:1"></span>
+        <button type="button" class="btn-secondary" id="resumo-modal-cancel">Cancelar</button>
+        <button type="button" class="btn-primary" id="resumo-modal-save">Salvar resumo</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal: criar/editar card -->
+  <div id="card-modal" class="cards-modal" style="display:none;">
+    <div class="cards-modal-box cards-modal-lg">
+      <div class="cards-modal-head">
+        <div><h2 id="card-modal-title">＋ Criar card</h2><p class="sub">Só você vê os cards que cria. Eles entram nas suas revisões.</p></div>
+        <button type="button" class="icon-btn" id="card-modal-close" aria-label="Fechar">✕</button>
+      </div>
+      <div class="cards-modal-body">
+        <div class="field-group">
+          <div class="field"><label for="card-destino">Baralho ou disciplina <span class="req">*</span></label>
+            <select id="card-destino"></select></div>
+          <div class="field"><label for="card-topico">Tópico <span class="opt">(opcional)</span></label>
+            <input type="text" id="card-topico" list="card-topico-list" placeholder="Ex.: Crimes contra a Adm.">
+            <datalist id="card-topico-list"></datalist></div>
+          <div class="field"><label for="card-banca">Banca <span class="opt">(opcional)</span></label>
+            <input type="text" id="card-banca" list="card-banca-list" placeholder="Ex.: FCC, FGV, Cebraspe">
+            <datalist id="card-banca-list"></datalist></div>
+          <div class="field"><label for="card-tipo">Categoria <span class="opt">(opcional)</span></label>
+            <select id="card-tipo"></select></div>
+        </div>
+        <div class="field"><label for="card-kind">Formato do card</label>
+          <select id="card-kind">
+            <option value="basic">Básico (frente e verso)</option>
+            <option value="basic_reversed">Básico + cartão invertido (gera 2 cards)</option>
+            <option value="cloze">Cloze — omissão de palavras {{ }}</option>
+          </select>
+          <p class="hint" id="card-kind-hint" style="margin-top:6px;"></p>
+        </div>
+        <div class="field"><label id="card-frente-label">Frente (pergunta) <span class="req">*</span></label>
+          <div class="rte" data-target="card-frente" data-cloze="1">
+            <div class="rte-toolbar"></div>
+            <div class="rte-area" id="card-frente" contenteditable="true"></div>
+          </div>
+        </div>
+        <div class="field" id="card-verso-field"><label id="card-verso-label">Verso (resposta) <span class="req">*</span></label>
+          <div class="rte" data-target="card-verso">
+            <div class="rte-toolbar"></div>
+            <div class="rte-area" id="card-verso" contenteditable="true"></div>
+          </div>
+        </div>
+      </div>
+      <div class="cards-modal-foot">
+        <button type="button" class="btn-danger-text" id="card-del-btn" style="display:none;">Excluir card</button>
+        <span style="flex:1"></span>
+        <button type="button" class="btn-secondary" id="card-cancel">Cancelar</button>
+        <button type="button" class="btn-secondary" id="card-save-another">Salvar e criar outro</button>
+        <button type="button" class="btn-primary" id="card-save-close">Salvar e fechar</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal: baralhos -->
+  <div id="deck-modal" class="cards-modal" style="display:none;">
+    <div class="cards-modal-box">
+      <div class="cards-modal-head">
+        <div><h2>📁 Meus baralhos</h2><p class="sub">Um baralho é um agrupamento seu de cards. Depois, escolha-o no "Destino" ao criar um card.</p></div>
+        <button type="button" class="icon-btn" id="deck-modal-close" aria-label="Fechar">✕</button>
+      </div>
+      <div class="cards-modal-body">
+        <div class="config-add-row">
+          <input type="text" id="deck-new-input" placeholder="Nome do novo baralho (ex.: Meus erros de RLM)">
+          <button class="btn-primary" id="deck-add-btn" type="button">Criar</button>
+        </div>
+        <div id="deck-list" style="margin-top:14px;"></div>
+      </div>
+      <div class="cards-modal-foot"><span style="flex:1"></span><button type="button" class="btn-secondary" id="deck-modal-done">Fechar</button></div>
+    </div>
+  </div>
+
+  <!-- Modal: importar -->
+  <div id="cards-import-modal" class="cards-modal" style="display:none;">
+    <div class="cards-modal-box">
+      <div class="cards-modal-head">
+        <div><h2>↑ Importar cards</h2><p class="sub">Aceita um backup do app (.json) ou um arquivo de texto do Anki (.txt/.csv, com Frente e Verso separados por tabulação ou ponto-e-vírgula).</p></div>
+        <button type="button" class="icon-btn" id="cards-import-close" aria-label="Fechar">✕</button>
+      </div>
+      <div class="cards-modal-body">
+        <div class="field"><label for="cards-import-destino">Destino dos cards importados</label>
+          <select id="cards-import-destino"></select></div>
+        <div id="cards-import-drop" class="tec-dropzone">
+          <input type="file" id="cards-import-file" accept=".json,.csv,.tsv,.txt" style="display:none;">
+          <div class="tec-dropzone-icon">🗂️</div>
+          <div class="tec-dropzone-text"><strong>Clique para escolher</strong> ou arraste o arquivo aqui</div>
+          <div class="tec-dropzone-hint">.json (nosso) · .csv / .txt (Anki)</div>
+          <div id="cards-import-name" class="tec-file-name" style="display:none;"></div>
+        </div>
+        <p class="hint" id="cards-import-preview">Aguardando arquivo...</p>
+      </div>
+      <div class="cards-modal-foot"><span style="flex:1"></span>
+        <button type="button" class="btn-secondary" id="cards-import-cancel">Cancelar</button>
+        <button type="button" class="btn-primary" id="cards-import-do">Importar</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal: exportar -->
+  <div id="cards-export-modal" class="cards-modal" style="display:none;">
+    <div class="cards-modal-box">
+      <div class="cards-modal-head">
+        <div><h2>↓ Exportar cards</h2><p class="sub">Escolha o formato. O <strong>Anki</strong> importa arquivos de texto nativamente.</p></div>
+        <button type="button" class="icon-btn" id="cards-export-close" aria-label="Fechar">✕</button>
+      </div>
+      <div class="cards-modal-body" id="cards-export-body"></div>
+      <div class="cards-modal-foot"><span style="flex:1"></span>
+        <button type="button" class="btn-secondary" id="cards-export-cancel">Cancelar</button>
+        <button type="button" class="btn-secondary" id="cards-export-json">Backup (.json)</button>
+        <button type="button" class="btn-primary" id="cards-export-anki">Anki (.txt)</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ TELA: LINKS ÚTEIS ============ -->
+  <section role="region" tabindex="-1" class="screen" id="screen-links">
+    <div class="page-header">
+      <h2 class="page-title">🔗 Links Úteis</h2>
+      <p class="page-subtitle">Seus atalhos de estudo num só lugar. Clique para abrir em nova aba. Personalize com o logo de cada site e gerencie quando um link mudar.</p>
+    </div>
+    <div class="links-topbar">
+      <button type="button" class="btn-primary" id="link-add-btn">＋ Novo link</button>
+      <button type="button" class="btn-secondary" id="link-manage-btn">⚙ Gerenciar</button>
+    </div>
+    <div id="links-grid" class="links-grid"></div>
+  </section>
+
+  <!-- Modal: criar/editar link -->
+  <div id="link-modal" class="cards-modal" style="display:none;">
+    <div class="cards-modal-box">
+      <div class="cards-modal-head">
+        <div><h2 id="link-modal-title">＋ Novo link</h2><p class="sub">Fica salvo no seu perfil e sincroniza entre dispositivos.</p></div>
+        <button type="button" class="icon-btn" id="link-modal-close" aria-label="Fechar">✕</button>
+      </div>
+      <div class="cards-modal-body">
+        <div class="field-group">
+          <div class="field"><label for="link-nome">Nome <span class="req">*</span></label>
+            <input type="text" id="link-nome" placeholder="Ex.: TecConcursos"></div>
+          <div class="field"><label for="link-categoria">Categoria <span class="opt">(opcional)</span></label>
+            <input type="text" id="link-categoria" list="link-cat-list" placeholder="Ex.: Questões, Curso, IA">
+            <datalist id="link-cat-list"></datalist></div>
+        </div>
+        <div class="field"><label for="link-url">Endereço (URL) <span class="req">*</span></label>
+          <input type="url" id="link-url" placeholder="https://..."></div>
+        <div class="field"><label>Logo <span class="opt">(opcional)</span></label>
+          <div class="link-logo-row">
+            <div class="link-logo-preview" id="link-logo-preview"><span>sem logo</span></div>
+            <div class="link-logo-controls">
+              <input type="file" id="link-logo-file" accept="image/png,image/jpeg,image/webp,image/svg+xml" style="display:none;">
+              <button type="button" class="btn-secondary" id="link-logo-pick">Escolher imagem</button>
+              <button type="button" class="btn-secondary" id="link-logo-clear" style="display:none;">Remover</button>
+              <p class="hint" style="margin:6px 0 0;">Recomendado: <strong>PNG quadrado</strong> (mín. 128×128, ideal 256×256), fundo transparente. Máx. 400&nbsp;KB. Sem logo, usamos um monograma colorido.</p>
+            </div>
+          </div>
+        </div>
+        <div class="field"><label>Cor de fundo <span class="opt">(quando não há logo)</span></label>
+          <div class="link-color-row">
+            <input type="color" id="link-cor" value="#4f46e5">
+            <div class="link-color-swatches" id="link-color-swatches"></div>
+          </div>
+        </div>
+      </div>
+      <div class="cards-modal-foot">
+        <button type="button" class="btn-danger-text" id="link-del-btn" style="display:none;">Excluir link</button>
+        <span style="flex:1"></span>
+        <button type="button" class="btn-secondary" id="link-cancel">Cancelar</button>
+        <button type="button" class="btn-primary" id="link-save">Salvar</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal: gerenciar links (lista) -->
+  <div id="link-manage-modal" class="cards-modal" style="display:none;">
+    <div class="cards-modal-box">
+      <div class="cards-modal-head">
+        <div><h2>⚙ Gerenciar links</h2><p class="sub">Edite ou remova. Arraste para reordenar não está disponível — use os botões.</p></div>
+        <button type="button" class="icon-btn" id="link-manage-close" aria-label="Fechar">✕</button>
+      </div>
+      <div class="cards-modal-body"><div id="link-manage-list"></div></div>
+      <div class="cards-modal-foot"><span style="flex:1"></span><button type="button" class="btn-secondary" id="link-manage-done">Fechar</button></div>
+    </div>
+  </div>
+
+  <!-- ============ TELA: HISTÓRICO ============ -->
+  <section role="region" tabindex="-1" class="screen" id="screen-historico">
+    <div class="page-header">
+      <h2 class="page-title">Histórico</h2>
+      <p class="page-subtitle">Todas as semanas já fechadas, com o detalhamento completo por matéria.</p>
+    </div>
+    <div style="display:flex; align-items:center; gap: 10px; margin: 18px 0 4px; flex-wrap: wrap;">
+      <span class="section-label" style="margin:0;">Escopo</span>
+      <div class="scope-toggle" id="hist-scope-toggle">
+        <button type="button" data-scope="plan" class="active">Este planejamento</button>
+        <button type="button" data-scope="all">Todos os planejamentos</button>
+      </div>
+    </div>
+    <div id="historico-empty" class="empty-state" style="display:none;">
+      <div class="big">📭</div>
+      Nenhuma semana fechada ainda.<br>Feche seu primeiro ciclo para começar o histórico.
+    </div>
+    <div id="historico-list"></div>
+  </section>
+
+  <!-- ============ TELA: EVOLUÇÃO ============ -->
+  <!-- ============ TELA: CONQUISTAS ============ -->
+  <section role="region" tabindex="-1" class="screen" id="screen-conquistas">
+    <div class="page-header">
+      <h2 class="page-title">🏅 Conquistas</h2>
+      <p class="page-subtitle">O registro da sua caminhada. Nada aqui expira, nada se perde e nada tem prazo — são fatos sobre o que você já construiu.</p>
+    </div>
+    <div id="conquistas-body"></div>
+  </section>
+
+  <section role="region" tabindex="-1" class="screen" id="screen-evolucao">
+    <div class="page-header" style="display:flex;justify-content:space-between;align-items:flex-start;gap:14px;flex-wrap:wrap;">
+      <div>
+        <h2 class="page-title">Evolução</h2>
+        <p class="page-subtitle">Sua trajetória cruzando todos os registros do Diário.</p>
+      </div>
+      <div class="report-trigger-wrap">
+        <button type="button" class="btn-primary report-btn" id="study-report-open" title="Criar relatório consolidado do período">📄 Gerar relatório</button>
+      </div>
+    </div>
+
+    <section class="card" id="evo-scope-card">
+      <div style="padding: 18px 24px;">
+        <div class="evo-scope-head">
+          <span class="section-label" style="margin:0;">Escopo e período</span>
+          <button type="button" class="evo-collapse-btn" id="evo-scope-collapse" aria-expanded="true" title="Minimizar ou expandir os filtros">
+            <span id="evo-scope-collapse-txt">Ocultar filtros</span><span class="chev">&#9662;</span>
+          </button>
+        </div>
+        <div id="evo-scope-body" style="margin-top:14px;">
+          <div style="display:flex; align-items:center; gap: 10px; margin-bottom: 16px; flex-wrap: wrap;">
+            <div class="scope-toggle" id="evo-scope-toggle">
+              <button type="button" data-scope="plan" class="active">Este planejamento</button>
+              <button type="button" data-scope="all">Todos os planejamentos</button>
+            </div>
+          </div>
+          <div style="display:flex; align-items:flex-end; gap: 14px; flex-wrap: wrap;">
+            <div class="field" style="margin-bottom:0;">
+              <label for="evo-date-start">De</label>
+              <input type="date" id="evo-date-start">
+            </div>
+            <div class="field" style="margin-bottom:0;">
+              <label for="evo-date-end">Até</label>
+              <input type="date" id="evo-date-end">
+            </div>
+            <div style="display:flex; gap:8px; margin-bottom: 0;">
+              <button type="button" class="btn-secondary" id="evo-period-7d">7 dias</button>
+              <button type="button" class="btn-secondary" id="evo-period-30d">30 dias</button>
+              <button type="button" class="btn-secondary" id="evo-period-all">Tudo</button>
+            </div>
+            <span class="hint" id="evo-period-label" style="margin-top: 0; padding-bottom: 10px;"></span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <div id="evolucao-empty" class="empty-state" style="display:none;">
+      <div class="big">📊</div>
+      <span id="evolucao-empty-text">Registre alguns estudos para ver sua evolução aqui.</span>
+    </div>
+    <div id="evolucao-content" class="evo-grid" style="display:none;">
+      <div class="evo-stats-band" id="evolucao-stats"></div>
+
+      <div class="card evo-wide">
+        <div class="evo-card-head">
+          <div>
+            <h2>Tempo de estudo</h2>
+            <p class="sub">Tempo registrado por dia</p>
+          </div>
+          <div style="display:flex; flex-direction:column; gap:8px; align-items:flex-end;">
+            <div class="evo-chip-group" id="evo-tempo-periodo">
+              <button type="button" class="evo-chip active" data-days="7">1 semana</button>
+              <button type="button" class="evo-chip" data-days="14">2 semanas</button>
+              <button type="button" class="evo-chip" data-days="30">1 mês</button>
+              <button type="button" class="evo-chip" data-days="90">3 meses</button>
+              <button type="button" class="evo-chip" data-days="180">6 meses</button>
+              <button type="button" class="evo-chip" data-days="365">1 ano</button>
+            </div>
+            <div class="evo-tempo-range" id="evo-tempo-range">
+              <span class="evo-tempo-range-lbl">Intervalo:</span>
+              <input type="date" id="evo-tempo-de" title="Data inicial" aria-label="Data inicial do intervalo">
+              <span class="evo-tempo-range-sep">→</span>
+              <input type="date" id="evo-tempo-ate" title="Data final" aria-label="Data final do intervalo">
+              <button type="button" class="evo-tempo-clear" id="evo-tempo-clear" title="Voltar aos atalhos rápidos" style="display:none;" aria-label="Voltar aos atalhos rápidos">✕</button>
+            </div>
+          </div>
+        </div>
+        <div style="padding: 8px 20px 20px;" id="evolucao-day-chart"></div>
+      </div>
+
+      <div class="card evo-col">
+        <div class="card-header"><h2>Horas acumuladas</h2><p class="sub" id="evolucao-chart-sub"></p></div>
+        <div style="padding: 8px 20px 24px;" id="evolucao-line-chart"></div>
+      </div>
+
+      <div class="card evo-wide">
+        <div class="evo-card-head">
+          <div>
+            <h2>📈 Evolução do aproveitamento</h2>
+            <p class="sub">% de acerto ao longo do tempo (por semana). Veja a média geral e compare disciplinas.</p>
+          </div>
+          <div class="evo-line-controls">
+            <button type="button" class="evo-chip" id="evo-line-mode-week" data-mode="week">Semanal</button>
+            <button type="button" class="evo-chip" id="evo-line-mode-cum" data-mode="cum">Acumulada</button>
+          </div>
+        </div>
+        <div id="evo-line-subject-filter" class="evo-subject-filter"></div>
+        <div style="padding: 6px 20px 22px;" id="evolucao-acerto-linha"></div>
+      </div>
+
+      <div class="card evo-col">
+        <div class="card-header"><div><h2>% de acertos por matéria</h2><p class="sub">Aproveitamento em questões no período · <span id="metas-sub">metas 70/80/85</span></p></div><button type="button" class="icon-btn" id="btn-edit-metas" title="Editar metas e cores (verde/amarelo/vermelho)">⚙ Metas</button></div>
+        <div style="padding: 8px 24px 24px;" id="evolucao-acerto-materia"></div>
+      </div>
+
+      <div class="card evo-col">
+        <div class="card-header"><h2>Aproveitamento por semana fechada</h2><p class="sub">% médio de acerto de cada semana concluída no histórico</p></div>
+        <div style="padding: 8px 20px 24px;" id="evolucao-meta-chart"></div>
+      </div>
+
+      <div class="card evo-wide" id="evolucao-tec-card">
+        <div class="evo-card-head">
+          <div>
+            <h2>Evolução no TecConcursos</h2>
+            <p class="sub">% de acertos por retrato importado — geral e por disciplina</p>
+          </div>
+          <div class="field" style="margin-bottom:0; min-width:200px;">
+            <select id="evo-tec-disc"></select>
+          </div>
+        </div>
+        <div class="evo-chip-group" id="evo-tec-periodo" style="padding: 2px 20px 4px;">
+          <button type="button" class="evo-chip" data-tecdays="90">3 meses</button>
+          <button type="button" class="evo-chip" data-tecdays="180">6 meses</button>
+          <button type="button" class="evo-chip" data-tecdays="365">1 ano</button>
+          <button type="button" class="evo-chip active" data-tecdays="all">Tudo</button>
+        </div>
+        <div style="padding: 8px 20px 20px;" id="evolucao-tec-chart"></div>
+        <div class="evo-legend" id="evolucao-tec-legend"></div>
+      </div>
+
+      <div class="card evo-col">
+        <div class="card-header"><h2>Tempo por matéria</h2><p class="sub">Total de horas dedicadas, por matéria, no período</p></div>
+        <div style="padding: 8px 28px 24px;" id="evolucao-bar-chart"></div>
+      </div>
+
+      <div class="card evo-col">
+        <div class="card-header"><h2>Desempenho por matéria</h2><p class="sub">Percentual médio de acerto em questões, no período</p></div>
+        <div style="padding: 4px 28px 20px;" id="evolucao-performance-list"></div>
+      </div>
+
+      <div class="card evo-wide">
+        <div class="card-header"><h2>Horas por modalidade e matéria</h2><p class="sub">Como o tempo se distribui entre formas de estudo, por matéria</p></div>
+        <div style="padding: 8px 28px 24px;" id="evolucao-modality-table"></div>
+      </div>
+
+      <div class="card evo-col">
+        <div class="card-header">
+          <div>
+            <h2>Ritmo de estudo</h2>
+            <p class="sub">Avanço, tempo por modalidade e — o mais importante — seu <strong>ritmo real</strong> de leitura e vídeo, para alimentar a Estimativa de Tempo</p>
+          </div>
+        </div>
+        <div style="padding: 8px 28px 26px;" id="evolucao-ritmo"></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ TELA: CONFIGURAÇÕES ============ -->
+  <section role="region" tabindex="-1" class="screen" id="screen-config">
+    <div class="page-header">
+      <h2 class="page-title">Configurações</h2>
+      <p class="page-subtitle">Gerencie matérias, formas de estudo e fases usadas em todo o app.</p>
+    </div>

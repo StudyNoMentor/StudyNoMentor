@@ -1,0 +1,915 @@
+/* ═══════════════════════════════════════════════════════════════════════════
+   ACABAMENTO v48 — alinhamento, molduras e densidade
+   Camada de apresentação. Nenhuma regra de negócio muda aqui.
+
+   O fio condutor: onde dois elementos são irmãos (dois campos, três cartões,
+   sete dias), eles têm de começar e terminar na MESMA linha. Quase todos os
+   desalinhamentos desta versão vinham de colunas dimensionadas por conteúdo
+   (`auto`, `1fr` sem piso) — rótulos de tamanhos diferentes empurravam cada
+   caixa para uma altura diferente. A correção é sempre a mesma: dar às colunas
+   uma largura previsível e às linhas uma base comum.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* ---------------------------------------------------------------------------
+   0. PEÇAS COMUNS
+   --------------------------------------------------------------------------- */
+
+/* ── Spinner de salvamento ────────────────────────────────────────────────
+   Aparece dentro do próprio botão enquanto o SaveGuard confirma a gravação.
+   O botão fica travado nesse intervalo: é a garantia visual de que o registro
+   está sendo persistido, não uma animação decorativa. */
+@keyframes sgSpin { to { transform: rotate(360deg); } }
+.sg-spin {
+  width: 14px; height: 14px; border-radius: 50%;
+  border: 2px solid currentColor; border-top-color: transparent;
+  display: inline-block; animation: sgSpin .7s linear infinite; flex-shrink: 0;
+}
+button.is-saving {
+  display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+  cursor: progress; opacity: .92;
+}
+@media (prefers-reduced-motion: reduce) { .sg-spin { animation-duration: 2.4s; } }
+
+/* ── Botão de ação com moldura (editar / excluir) ─────────────────────────
+   Os ícones apareciam soltos sobre o fundo, sem borda nem sombra: pareciam
+   texto, não botão, e no celular não davam alvo de toque. Agora são um
+   controle de verdade, com o mesmo desenho em TODAS as telas. */
+.reg-act-btn {
+  width: 32px; height: 32px; flex: 0 0 32px;
+  display: inline-flex; align-items: center; justify-content: center;
+  border: 1.5px solid var(--border); border-radius: 9px;
+  background: var(--surface); color: var(--text-soft);
+  font-size: var(--fs-sm); font-weight: 700; line-height: 1; cursor: pointer;
+  box-shadow: var(--shadow-sm); padding: 0;
+  transition: border-color .13s ease, color .13s ease, background .13s ease,
+              transform .13s ease, box-shadow .13s ease;
+}
+.reg-act-btn:hover {
+  border-color: var(--accent); color: var(--accent); background: var(--accent-soft);
+  transform: translateY(-1px); box-shadow: var(--shadow-md, var(--shadow-sm));
+}
+.reg-act-btn:focus-visible { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-ring); }
+.reg-act-btn:active { transform: translateY(0); }
+.reg-act-btn.danger:hover {
+  border-color: var(--bad, #e0393f); color: var(--bad, #e0393f); background: var(--bad-soft);
+}
+@media (max-width: 834px) { .reg-act-btn { width: 36px; height: 36px; flex-basis: 36px; } }
+
+/* ── Diálogo com palavra digitada (limpezas gerais) ───────────────────────── */
+.ui-typed {
+  border: 1.5px solid color-mix(in srgb, var(--bad, #e0393f) 35%, var(--border));
+  background: var(--bad-soft); border-radius: 12px; padding: 12px 13px;
+}
+.ui-typed label {
+  display: block; font-size: var(--fs-2xs); font-weight: 700;
+  color: var(--text-soft); margin-bottom: 7px; letter-spacing: .01em;
+}
+.ui-typed label strong {
+  font-family: 'Space Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+  color: var(--bad, #e0393f); letter-spacing: .08em;
+}
+.ui-typed input {
+  width: 100%; text-transform: uppercase; letter-spacing: .12em;
+  font-family: 'Space Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-weight: 700; text-align: center;
+}
+.ui-typed input.ok { border-color: var(--good); box-shadow: 0 0 0 3px color-mix(in srgb, var(--good) 22%, transparent); }
+.ui-typed-hint { margin: 7px 0 0; font-size: var(--fs-3xs); color: var(--text-faint); }
+#ui-modal-ok:disabled { opacity: .45; cursor: not-allowed; transform: none; box-shadow: none; }
+
+/* Medalha por faixa de aproveitamento */
+.reg-medal { margin-right: 4px; font-size: 1.05em; line-height: 1; }
+
+/* ---------------------------------------------------------------------------
+   1. REGISTRAR — alinhamento dos campos, cartões e tabela
+   --------------------------------------------------------------------------- */
+
+/* ── O desalinhamento de "Página inicial / Página final" e "Acertos / Total
+   resolvido" ──────────────────────────────────────────────────────────────
+   Os rótulos têm comprimentos diferentes: "Página inicial (opcional)" quebra
+   em duas linhas, "Página final (opcional)" fica em uma. Como cada campo era
+   um bloco independente, o input do primeiro descia e o do segundo não — as
+   caixas irmãs terminavam em alturas diferentes.
+   Correção: o campo vira uma coluna flex; o rótulo ocupa uma FAIXA DE ALTURA
+   FIXA (duas linhas) e o input é empurrado para o fim. Assim todos os inputs
+   da mesma linha nascem na mesma altura, quebrando o rótulo ou não. */
+#screen-registrar .row-3,
+#screen-registrar .performance-inputs,
+#screen-registrar .field-group { align-items: stretch; }
+
+#screen-registrar .row-3 > .field,
+#screen-registrar .performance-inputs > .field {
+  display: flex; flex-direction: column; min-width: 0;
+}
+#screen-registrar .row-3 > .field > label,
+#screen-registrar .performance-inputs > .field > label {
+  align-items: flex-start;
+  min-height: calc(2.45em * var(--fs-scale, 1));   /* espaço de duas linhas */
+  line-height: 1.22;
+  margin-bottom: 6px;
+  flex-wrap: wrap; row-gap: 0;
+}
+#screen-registrar .row-3 > .field > label > .opt,
+#screen-registrar .performance-inputs > .field > label > .opt { flex-shrink: 0; }
+#screen-registrar .row-3 > .field > input,
+#screen-registrar .row-3 > .field > .time-input,
+#screen-registrar .performance-inputs > .field > input { margin-top: auto; }
+
+/* O painel de desempenho: rótulos e caixas alinhados, medidor centrado */
+#screen-registrar .performance-panel { align-items: center; }
+#screen-registrar .performance-inputs { align-items: stretch; }
+
+/* ── Respiro no topo das listas ───────────────────────────────────────────
+   Tanto o primeiro cartão quanto o cabeçalho da tabela nasciam colados na
+   moldura do contêiner: a borda de cima do registro e a borda do cartão viravam
+   praticamente a mesma linha, e a leitura começava sem nenhuma folga. */
+#recent-list { padding-top: 10px; }
+#recent-list .reg-tbl-scroll {
+  padding: 10px 10px 4px;
+  border-radius: 14px;
+}
+#recent-list .reg-tbl { border-collapse: separate; border-spacing: 0; }
+#recent-list .reg-tbl thead th { padding-top: 12px; padding-bottom: 12px; }
+#recent-list .reg-filterbar { margin-bottom: 12px; }
+
+/* ── Cartões de registro: cada um é um cartão, não uma faixa ──────────────
+   Antes as linhas eram separadas só por um traço fino; com fundo igual ao da
+   página, um registro se misturava ao seguinte. Agora cada um tem superfície,
+   moldura e sombra próprias — e uma fita na cor do desempenho à esquerda,
+   que dá a leitura antes mesmo de ler o número. */
+#recent-list .recent-item {
+  position: relative;
+  background: var(--surface);
+  border: 1.5px solid var(--border);
+  border-radius: 14px;
+  padding: 13px 15px 13px 19px;
+  margin-bottom: 10px;
+  box-shadow: var(--shadow-sm);
+  overflow: hidden;
+  transition: border-color .14s ease, box-shadow .14s ease, transform .14s ease;
+}
+#recent-list .recent-item::before {
+  content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 4px;
+  background: var(--ri-cor, var(--border-strong, var(--border)));
+}
+#recent-list .recent-item:hover {
+  border-color: var(--border-strong, var(--accent));
+  box-shadow: var(--shadow-md, var(--shadow-sm));
+  transform: translateY(-1px);
+}
+#recent-list .recent-item:last-child { margin-bottom: 2px; }
+#recent-list .recent-item .recent-date-block {
+  border-right: 1px solid var(--border); padding-right: 13px; margin-right: 2px;
+}
+#recent-list .recent-item .recent-actions { display: flex; align-items: center; gap: 7px; }
+#recent-list .recent-item .comment {
+  margin-top: 8px; padding: 7px 10px;
+  background: var(--surface-sunken); border-left: 2px solid var(--border);
+  border-radius: 0 8px 8px 0;
+}
+#recent-list .recent-item:has(.recent-pct.tone-good) { --ri-cor: var(--good); }
+#recent-list .recent-item:has(.recent-pct.tone-warn) { --ri-cor: var(--warn); }
+#recent-list .recent-item:has(.recent-pct.tone-bad)  { --ri-cor: var(--bad, #e0393f); }
+@media (max-width: 560px) {
+  #recent-list .recent-item { padding: 12px 12px 12px 16px; border-radius: 13px; }
+  #recent-list .recent-item .recent-date-block { border-right: none; padding-right: 0; }
+}
+
+/* ── Tabela: cabeçalho uniforme e coluna de observação ────────────────────
+   A célula "Ações" era o único <th> sem o botão interno, então não recebia o
+   padding, a altura nem a borda das demais — destoava do cabeçalho inteiro.
+   Agora ela usa o mesmo invólucro (.reg-h), só que sem a ação de ordenar. */
+.reg-h-static {
+  display: inline-flex; align-items: center;
+  cursor: default; background: none; border: none;
+}
+.reg-th-act, .reg-th-obs { text-align: left; }
+.reg-th-act .reg-h-static { justify-content: center; width: 100%; }
+.reg-c-act { text-align: center; vertical-align: middle; }
+.reg-act-group { display: inline-flex; align-items: center; gap: 6px; justify-content: center; }
+.rc-act { width: 96px; }
+.rc-obs { width: 260px; }
+.reg-c-obs {
+  color: var(--text-soft); font-size: var(--fs-2xs); line-height: 1.45;
+  vertical-align: middle;
+  white-space: normal;      /* .reg-c é nowrap; aqui o comentário precisa quebrar */
+  overflow: hidden;
+}
+.reg-obs-txt {
+  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;
+  overflow: hidden; overflow-wrap: anywhere;
+}
+.reg-pct-badge { display: inline-flex; align-items: center; white-space: nowrap; }
+
+/* ---------------------------------------------------------------------------
+   2. CICLO DA SEMANA
+   --------------------------------------------------------------------------- */
+
+/* Ações do cabeçalho: encostadas à esquerda e menores. "Fechar semana" é uma
+   ação de fim de ciclo, usada uma vez por semana — não precisa do peso visual
+   de um botão principal de tela inteira. */
+.ciclo-head-actions {
+  display: flex; gap: 8px; flex-shrink: 0;
+  justify-content: flex-start; margin-right: auto;
+}
+.ciclo-head-actions .ciclo-head-btn {
+  padding: 7px 13px; font-size: var(--fs-xs); border-radius: 10px; min-height: 34px;
+}
+.ciclo-close-btn { box-shadow: none; }
+.ciclo-close-btn:hover { box-shadow: 0 4px 12px var(--accent-ring); }
+@media (max-width: 640px) {
+  .ciclo-head-actions { width: 100%; }
+  .ciclo-head-actions .ciclo-head-btn { flex: 0 0 auto; }
+}
+
+/* Seis indicadores: três colunas em telas médias, duas no celular — nunca uma
+   fileira de seis caixas espremidas. */
+.ciclo-gauges { grid-template-columns: repeat(6, minmax(0, 1fr)); }
+@media (max-width: 1100px) { .ciclo-gauges { grid-template-columns: repeat(3, minmax(0, 1fr)) !important; } }
+@media (max-width: 560px)  { .ciclo-gauges { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; gap: 8px !important; } }
+.ciclo-gauges .mini-gauge-card { min-width: 0; }
+.ciclo-gauges .mini-gauge-card .value { overflow-wrap: anywhere; line-height: 1.15; }
+/* "aproveitamento" e "por dia p/ fechar" nao cabem numa linha em coluna
+   estreita e quebravam no meio da palavra ("APROVEITAMENT / O"). O rotulo passa
+   a encolher e a quebrar entre palavras, com duas linhas de altura reservada
+   para que os seis cartoes continuem com a mesma altura. */
+.ciclo-gauges .mini-gauge-card .label {
+  font-size: clamp(7.5px, calc(9px * var(--fs-scale, 1)), 10.5px);
+  line-height: 1.25; letter-spacing: .015em;
+  overflow-wrap: normal; word-break: keep-all; hyphens: none;
+  min-height: 2.5em; display: flex; align-items: center; justify-content: center; text-align: center;
+}
+
+/* ── Bandeja de siglas: grade justificada + recolher/expandir ─────────────
+   Era um wrap de chips de larguras diferentes: as linhas ficavam com buracos
+   no fim e nada se alinhava na vertical. Colunas iguais resolvem os dois
+   eixos ao mesmo tempo — e a lista recolhe, porque com 20 matérias ela
+   empurrava o conteúdo útil para fora da tela. */
+.csp-wrap { margin: 0 0 14px; }
+.csp-head {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 10px; margin-bottom: 9px; flex-wrap: wrap;
+}
+.csp-head-lbl {
+  font-size: var(--fs-3xs); font-weight: 800; letter-spacing: .07em;
+  text-transform: uppercase; color: var(--text-faint);
+}
+.csp-toggle {
+  display: inline-flex; align-items: center; gap: 6px;
+  background: var(--surface); border: 1.5px solid var(--border); border-radius: 9px;
+  padding: 5px 10px; font-size: var(--fs-3xs); font-weight: 700;
+  color: var(--text-soft); cursor: pointer; line-height: 1.2; min-height: 30px;
+  transition: border-color .13s ease, color .13s ease, background .13s ease;
+}
+.csp-toggle:hover { border-color: var(--accent); color: var(--accent); background: var(--accent-soft); }
+.csp-caret { transition: transform .16s ease; display: inline-block; }
+.csp-wrap.closed .csp-caret { transform: rotate(-90deg); }
+.csp-wrap.closed .csp-filter { display: none; }
+.csp-filter {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(78px, 1fr));
+  gap: 6px;
+}
+.csp-filter .csp-chip {
+  width: 100%; min-width: 0; margin: 0;
+  display: inline-flex; align-items: center; justify-content: center;
+  text-align: center; white-space: nowrap;
+  overflow: hidden; text-overflow: ellipsis;
+  font-family: 'Space Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+  letter-spacing: .01em; min-height: 32px;
+}
+@media (max-width: 560px) {
+  .csp-filter { grid-template-columns: repeat(auto-fill, minmax(66px, 1fr)); gap: 5px; }
+  .csp-filter .csp-chip { min-height: 34px; font-size: var(--fs-3xs); }
+}
+
+/* ── Aproveitamento ao lado do status ─────────────────────────────────────
+   Ele vivia na linha de baixo, junto de "dificuldade" e "% da meta", como se
+   fosse um metadado. É o número de desempenho da matéria: sobe para o topo,
+   ao lado do status, com duas casas decimais. */
+.subject-progress-head { gap: 10px; }
+.sp-head-right { display: inline-flex; align-items: center; gap: 9px; flex-shrink: 0; }
+.subject-acc {
+  display: inline-flex; align-items: baseline; gap: 5px;
+  padding: 3px 9px; border-radius: 20px;
+  background: var(--surface-sunken); border: 1px solid var(--border);
+  color: var(--text-soft); white-space: nowrap;
+}
+.subject-acc b {
+  font-family: 'Space Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-weight: 700; font-size: var(--fs-xs); font-variant-numeric: tabular-nums;
+}
+.sp-acc-lbl { font-size: var(--fs-3xs); color: var(--text-faint); font-weight: 600; }
+.subject-acc.tone-good { background: var(--good-soft); border-color: transparent; color: var(--good-text); }
+.subject-acc.tone-warn { background: var(--warn-soft); border-color: transparent; color: var(--warn-text); }
+.subject-acc.tone-bad  { background: var(--bad-soft);  border-color: transparent; color: var(--bad-text); }
+.subject-acc.tone-good .sp-acc-lbl,
+.subject-acc.tone-warn .sp-acc-lbl,
+.subject-acc.tone-bad  .sp-acc-lbl { color: inherit; opacity: .78; }
+@media (max-width: 480px) {
+  .sp-acc-lbl { display: none; }          /* no celular o rótulo é ruído: o formato % já diz */
+  .sp-head-right { gap: 6px; }
+}
+
+/* ---------------------------------------------------------------------------
+   3. GRADE SEMANAL
+   --------------------------------------------------------------------------- */
+
+/* Engrenagem compacta, encostada na moldura do cartão */
+.grade-gear-mini {
+  padding: 6px 11px; font-size: var(--fs-xs); min-height: 32px; border-radius: 10px;
+  display: inline-flex; align-items: center; gap: 6px;
+}
+.grade-gear-mini .gg-gear { font-size: var(--fs-sm); line-height: 1; }
+@media (max-width: 560px) {
+  .grade-gear-mini { padding: 6px 9px; min-height: 34px; }
+  .grade-gear-mini .gg-word { display: none; }   /* só a engrenagem, no cantinho */
+}
+/* A engrenagem vai para o CANTO do cartão, não para uma linha só dela.
+   Com o título ocupando a largura inteira, o botão caía para a linha de baixo e
+   deixava uma faixa vazia acima — desperdício justamente do espaço que este
+   redesenho queria recuperar. */
+/* A engrenagem fica na MESMA linha do titulo, mas em FLUXO (nao absoluta).
+   Posicionar de forma absoluta obrigava a reservar espaco com um padding-right
+   "magico" (62px) que era menor que o botao real (~100px com a palavra
+   "Opcoes") — o titulo e o subtitulo passavam POR BAIXO do botao. Em fluxo,
+   o proprio flexbox reserva a largura exata do botao em qualquer tela. */
+#screen-grade .card-header {
+  /* O menu de "Opcoes" abre POR CIMA da tabela, e a tabela tem cabecalho fixo
+     (position: sticky). O navegador promove celula fixa a camada composta, e
+     essa camada vencia o z-index: 40 do menu — a faixa SEG..DOM era desenhada
+     ATRAVES do painel aberto. Subir o z-index do menu nao resolvia (testado:
+     40, 100 — sem efeito), porque a disputa nao era entre os dois elementos:
+     era entre a camada da tabela e a do cabecalho, que nem contexto de
+     empilhamento tinha.
+
+     Com position + z-index, o cabecalho INTEIRO vira um contexto proprio e
+     passa a ser pintado depois do irmao que contem a tabela. --z-suspenso e o
+     token que a propria escala do app reserva para menus suspensos (100), bem
+     acima de --z-grudado (50, barras fixas) e abaixo de --z-modal (1500). */
+  position: relative;
+  z-index: var(--z-suspenso, 100);
+  flex-wrap: nowrap;
+  align-items: flex-start;
+  column-gap: 14px;
+}
+#screen-grade .card-header > :first-child { flex: 1 1 auto; min-width: 0; }
+#screen-grade .grade-head-actions {
+  position: static; margin: 0; z-index: 2;
+  flex: 0 0 auto; align-self: flex-start;
+}
+/* o menu abre alinhado à direita, sem estourar a tela */
+#screen-grade .grade-gear-menu { right: 0; left: auto; }
+
+/* Grupos rotulados dentro do menu (visão e início da semana) */
+.grade-gear-group { padding: 9px 12px 10px; }
+.grade-gear-lbl {
+  display: block; font-size: var(--fs-3xs); font-weight: 800; letter-spacing: .07em;
+  text-transform: uppercase; color: var(--text-faint); margin-bottom: 7px;
+}
+.grade-gear-group .grade-view-toggle { display: flex; width: 100%; }
+/* Dentro do menu o seletor tem ~211px para dois botoes. Com o padding de 13px
+   herdado, sobravam 79px de texto por botao e "Meta diaria" QUEBRAVA em duas
+   linhas — o controle segmentado ficava com 48px de altura e aparencia de
+   defeito. Padding menor + nowrap devolvem a linha unica. */
+.grade-gear-group .gvt-btn {
+  flex: 1 1 0; justify-content: center; text-align: center;
+  padding-left: 6px; padding-right: 6px; white-space: nowrap;
+}
+.grade-gear-select {
+  width: 100%; padding: 7px 32px 7px 10px; font-size: var(--fs-sm);
+  border-radius: 9px; border: 1.5px solid var(--border); background: var(--surface);
+}
+.grade-gear-menu { min-width: 252px; }   /* folga para o seletor caber em uma linha */
+
+/* A bandeja perdeu a barra de ações: os chips ocupam a faixa inteira */
+.grade-tray-bar .grade-chip-tray { width: 100%; }
+
+/* ── Meta diária: o que já foi concluído fica VERDE ───────────────────────── */
+.gd-chip.is-done {
+  color: var(--good-text) !important;
+  background: var(--good-soft);
+  border-color: color-mix(in srgb, var(--good) 45%, transparent);
+}
+.gd-chip-check { font-weight: 900; margin-right: 4px; color: var(--good); }
+.gd-day.is-complete {
+  border-color: color-mix(in srgb, var(--good) 45%, var(--border));
+  background: color-mix(in srgb, var(--good-soft) 55%, var(--surface));
+}
+.gd-done-tag {
+  margin-left: 8px; padding: 2px 8px; border-radius: 20px;
+  background: var(--good-soft); color: var(--good-text);
+  font-size: var(--fs-3xs); font-weight: 800; letter-spacing: .02em; white-space: nowrap;
+}
+.gd-day-count {
+  display: inline-block; margin-right: 8px; padding: 2px 8px; border-radius: 20px;
+  background: var(--surface-sunken); border: 1px solid var(--border);
+  font-family: 'Space Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: var(--fs-3xs); color: var(--text-faint); font-weight: 700;
+}
+.gd-day-count.has { background: var(--good-soft); border-color: transparent; color: var(--good-text); }
+
+/* ---------------------------------------------------------------------------
+   4. ESTUDO NOVO
+   --------------------------------------------------------------------------- */
+
+/* ── Média geral de acertos: três cartões, uma linha de base ──────────────
+   "1ª Resolução" quebrava em duas linhas e "Checkpoint" não: o percentual do
+   primeiro cartão descia e os três deixavam de se alinhar. O rótulo passa a
+   ocupar uma faixa de altura fixa e o valor a nascer sempre na mesma altura;
+   quando não couber, o texto encolhe em vez de quebrar. */
+.track-averages { align-items: stretch; }
+.track-avg-card {
+  display: flex; flex-direction: column; align-items: center;
+  min-width: 0;
+}
+.track-avg-card .lbl {
+  display: flex; align-items: center; justify-content: center; text-align: center;
+  min-height: calc(2.2em * var(--fs-scale, 1));
+  width: 100%; white-space: nowrap; letter-spacing: .02em;
+  font-size: clamp(8px, calc(9.5px * var(--fs-scale, 1)), 11px);
+  margin-bottom: 6px;
+}
+.track-avg-card .val {
+  font-variant-numeric: tabular-nums; line-height: 1.1;
+  display: flex; align-items: center; justify-content: center; min-height: 1.15em;
+}
+.track-avg-card .cnt { margin-top: auto; padding-top: 4px; text-align: center; }
+@media (max-width: 420px) {
+  .track-averages { gap: 7px; }
+  .track-avg-card { padding: 10px 5px; }
+  .track-avg-card .lbl { font-size: clamp(7.5px, 2.35vw, 10px); }
+}
+
+/* ── Etapas da aula: rótulos de tamanhos diferentes, inputs na mesma coluna
+   No celular a etapa virava "rótulo | campos" com o rótulo em largura
+   automática: "1ª RESOLUÇÃO", "CHECKPOINT" e "REVISÃO" produziam três larguras
+   e as caixas de acertos ficavam em três posições. Coluna fixa resolve. */
+/* ── Etapas da aula no celular ────────────────────────────────────────────
+   Duas coisas erradas de uma vez.
+   (1) O cartão só tinha ~250px úteis: entre a margem do trecho, a do cartão e
+       um recuo de 54px herdado do desktop, metade da largura da tela ia embora
+       antes do primeiro pixel de conteúdo.
+   (2) Nesse espaço, "rótulo | acertos / total | %" não cabia — e como a linha
+       de campos era `justify-content: flex-end`, o excesso transbordava para a
+       ESQUERDA, POR CIMA do rótulo. Era isso que cortava "1ª RESOLUÇÃO" no meio
+       e fazia cada etapa parecer desalinhada da anterior.
+   Agora: o cartão recupera a largura, o rótulo tem coluna fixa (podendo usar
+   duas linhas, o que mantém o alinhamento) e os campos partem da esquerda, sem
+   nada podendo invadir o rótulo. */
+@media (max-width: 820px) {
+  .track-segment { margin: 0 10px 12px; padding: 10px; }
+  .track-card { padding: 11px 12px; }
+  .track-stages { padding-left: 0; }
+  .track-stage {
+    grid-template-columns: 92px minmax(0, 1fr);
+    column-gap: 8px; padding: 7px 10px;
+  }
+  .track-stage .ts-label {
+    min-width: 0; white-space: normal; overflow-wrap: anywhere; hyphens: none;
+    font-size: clamp(8px, 2.3vw, 9.5px); letter-spacing: 0; line-height: 1.2;
+    display: flex; align-items: center; min-height: 2.2em;
+  }
+  .track-stage .ts-inputs { justify-content: flex-start; gap: 5px; min-width: 0; }
+  .track-stage .ts-num { flex: 1 1 0; width: auto; min-width: 0; max-width: 54px; padding: 6px 2px; }
+  .track-stage .ts-pct {
+    margin-left: auto; flex: 0 0 auto; min-width: 0;
+    padding: 4px 7px; font-size: var(--fs-3xs);
+  }
+}
+@media (max-width: 380px) {
+  .track-stage { grid-template-columns: 80px minmax(0, 1fr); padding: 6px 8px; }
+  .track-stage .ts-num { max-width: 46px; }
+}
+
+/* ── O título da aula em telas estreitas ──────────────────────────────────
+   O enunciado dividia a linha com a alça de arrastar, o número e o X, sobrando
+   ~154px: um título longo virava uma coluna de uma palavra por linha, com
+   quebra no meio da palavra ("desdobrament/os"). No celular ele passa a ocupar
+   a linha inteira e os controles ficam numa faixa própria acima. */
+@media (max-width: 620px) {
+  .track-card-head {
+    grid-template-columns: 20px 26px minmax(0, 1fr) 28px;
+    row-gap: 8px; align-items: center;
+  }
+  .track-card-head .track-lesson-text {
+    grid-column: 1 / -1; grid-row: 2; width: 100%;
+    overflow-wrap: anywhere; line-height: 1.35;
+  }
+  .track-card-head .track-status-select { grid-column: 3 / 4; grid-row: 1; align-self: center; }
+  .track-card-head .track-remove-btn { grid-column: 4 / 5; grid-row: 1; }
+}
+
+/* ---------------------------------------------------------------------------
+   5. LEIS SECAS
+   --------------------------------------------------------------------------- */
+
+/* Metadados em chips: alinham entre si e quebram por inteiro */
+.leis-reader-meta {
+  display: flex !important; flex-wrap: wrap; gap: 6px;
+  margin-top: 7px; padding: 0 !important;
+  background: none !important; border: none !important; border-radius: 0 !important;
+}
+.lei-meta-chip {
+  display: inline-flex; align-items: center; gap: 5px;
+  padding: 3px 10px; border-radius: 20px;
+  background: var(--surface-sunken); border: 1px solid var(--border);
+  color: var(--text-soft); font-size: var(--fs-3xs); font-weight: 600;
+  line-height: 1.5; white-space: nowrap; max-width: 100%;
+  overflow: hidden; text-overflow: ellipsis;
+}
+.lmc-ic { opacity: .75; font-size: .95em; }
+.leis-reader-topbar { align-items: flex-start; }
+.leis-reader-topbar .leis-back { flex-shrink: 0; align-self: center; }
+.leis-reader-title { min-width: 0; flex: 1 1 auto; }
+.leis-reader-title h2 { overflow-wrap: anywhere; }
+.leis-reader-actions { display: flex; gap: 7px; flex-shrink: 0; align-self: center; }
+/* No celular o cabeçalho vira duas faixas: comandos em cima (voltar à esquerda,
+   editar/excluir à direita) e a identificação da lei embaixo, com a largura
+   inteira. Antes o "Voltar" tomava uma linha só dele e os dois botões de ação
+   sobravam soltos no rodapé do bloco, sem relação visível com nada. */
+@media (max-width: 640px) {
+  .leis-reader-topbar { display: grid; grid-template-columns: auto 1fr auto; gap: 10px 8px; }
+  .leis-reader-topbar .leis-back { grid-column: 1; grid-row: 1; }
+  .leis-reader-actions { grid-column: 3; grid-row: 1; }
+  .leis-reader-title { grid-column: 1 / -1; grid-row: 2; }
+  .leis-reader-title h2 { font-size: var(--fs-lg); line-height: 1.25; }
+}
+
+/* Barra de ferramentas recolhível */
+.leis-tools-toggle {
+  display: flex; align-items: center; gap: 8px; width: 100%;
+  background: transparent; border: none; cursor: pointer;
+  padding: 9px 12px; border-radius: 12px;
+  font-size: var(--fs-2xs); font-weight: 800; letter-spacing: .05em;
+  text-transform: uppercase; color: var(--text-faint);
+}
+.leis-tools-toggle:hover { color: var(--accent); background: var(--accent-soft); }
+.leis-tools-toggle .ltt-txt { flex: 1 1 auto; text-align: left; }
+.leis-tools-toggle .ltt-caret { transition: transform .16s ease; }
+.leis-sticky.tools-collapsed .leis-tools-toggle .ltt-caret { transform: rotate(-90deg); }
+.leis-sticky.tools-collapsed .leis-tools-body { display: none; }
+.leis-sticky.tools-collapsed { padding-bottom: 2px; }
+
+/* ---------------------------------------------------------------------------
+   6. EXTRAS — cartões compactos e uniformes
+   (Bloco resgatado: estes ajustes estavam presos, por engano, dentro do
+    template do relatório em PDF, onde nunca chegaram a valer para o app.)
+   --------------------------------------------------------------------------- */
+.exd { padding: 11px 13px 11px 18px; margin-bottom: 9px; }
+.exd-top { align-items: center; gap: 9px; }
+.exd-check { margin-top: 0; min-width: 88px; justify-content: center; }
+.exd-ico { width: 32px; height: 32px; border-radius: 9px; font-size: var(--fs-md); }
+.exd-title { font-size: calc(13.5px * var(--fs-scale, 1)); }
+.exd-tags { margin-top: 4px; gap: 5px; }
+.exd-prog { margin-top: 7px; }
+.exd-reg { margin-top: 8px; gap: 7px; align-items: center; }
+.exd-reg-group { gap: 7px; flex: 0 1 auto; }
+.exd.done { padding-bottom: 11px; }
+
+/* A caixa de minutos ocupava a largura inteira do cartão para receber
+   dois dígitos. Largura fixa, do tamanho do dado. */
+.exd-reg .exd-num {
+  flex: 0 0 104px; width: 104px; min-height: 36px; padding: 7px 9px;
+  text-align: center; appearance: textfield; -moz-appearance: textfield;
+}
+.exd-reg .exd-num::-webkit-inner-spin-button,
+.exd-reg .exd-num::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
+.exd-reg .exd-reg-btn, .exd-reg .exd-undo, .exd-reg .exd-done-btn {
+  min-height: 36px; height: 36px; padding: 0 14px;
+  display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+  border-radius: 10px; white-space: nowrap; font-weight: 700;
+}
+.exd-reg .exd-reg-btn { min-width: 96px; }
+.exd-reg .exd-undo { color: var(--text-soft); background: var(--surface); border: 1.5px solid var(--border); }
+.exd-actions { display: flex; align-items: center; gap: 7px; flex-shrink: 0; align-self: flex-start; }
+.exd-info-wrap { position: relative; display: inline-flex; align-items: center; }
+.exd-info-btn {
+  width: 28px; height: 28px; border-radius: 50%; border: 1px solid var(--border);
+  background: var(--surface); color: var(--accent); font-weight: 800; cursor: pointer;
+}
+.exd-info-pop {
+  display: none; position: absolute; z-index: 20; left: 0; bottom: 34px;
+  width: min(280px, 72vw); padding: 9px 11px;
+  border: 1px solid var(--border); border-radius: 10px; background: var(--surface);
+  box-shadow: var(--shadow-md); color: var(--text-soft);
+  font-size: calc(11px * var(--fs-scale, 1)); line-height: 1.4;
+}
+.exd-info-wrap.open .exd-info-pop { display: block; }
+.exd.done .exd-check:hover::before, .exd.done .exd-check:hover::after { content: none !important; display: none !important; }
+@media (max-width: 640px) {
+  .exd { padding: 10px 11px 10px 16px; }
+  .exd-top { grid-template-columns: auto auto minmax(0, 1fr) auto; gap: 7px; }
+  /* O botão de concluir vira só o ✓ (o rótulo já some abaixo de 420px): manter
+     78px de largura para um ícone empurrava o título para uma segunda linha. */
+  .exd-check { min-width: 0; padding: 0 10px; }
+  .exd-ico { width: 30px; height: 30px; }
+  .exd-reg-group { flex-wrap: nowrap; width: 100%; }
+  /* A caixa de minutos ficava gigante: ocupava toda a sobra da linha para
+     receber dois dígitos. Largura do dado, não do espaço disponível. */
+  .exd-reg .exd-num { flex: 0 1 128px; width: 128px; min-width: 0; max-width: 150px; }
+  .exd-reg .exd-reg-btn { flex: 0 0 auto; min-width: 92px; }
+}
+@media (max-width: 420px) {
+  .exd-check { padding: 0 9px; }
+  .exd-reg .exd-num { flex: 1 1 0; width: auto; max-width: 120px; }
+  .exd-reg .exd-reg-btn { min-width: 84px; padding: 0 10px; }
+}
+
+/* Seleção em massa (mesmo bloco resgatado) */
+.cards-bulk {
+  display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+  padding: 8px 10px; margin: 0 0 12px;
+  border: 1px solid var(--border); border-radius: 12px; background: var(--surface-sunken);
+}
+.cards-select-toggle {
+  display: inline-flex; align-items: center; gap: 8px; min-height: 34px; padding: 0 11px;
+  border: 1px solid var(--border); border-radius: 9px; background: var(--surface);
+  color: var(--text-soft); font-size: calc(11.5px * var(--fs-scale, 1)); font-weight: 700; cursor: pointer;
+}
+.cards-select-toggle:hover { border-color: var(--accent); color: var(--accent); }
+.cards-select-toggle input { width: 15px; height: 15px; accent-color: var(--accent); }
+.cards-bulk-count {
+  min-height: 26px; display: inline-flex; align-items: center; padding: 0 9px;
+  border-radius: 999px; background: var(--accent-soft); color: var(--accent);
+  font-size: calc(11px * var(--fs-scale, 1)); font-weight: 800;
+}
+.cards-bulk-count:empty { display: none; }
+.cards-bulk .btn-danger { min-height: 34px; padding: 0 12px; margin-left: auto; border-radius: 9px; font-size: calc(11.5px * var(--fs-scale, 1)); }
+@media (max-width: 640px) { .cards-bulk .btn-danger { width: auto; margin-left: 0; } }
+
+/* ---------------------------------------------------------------------------
+   7. HISTÓRICO — cartão compacto e período com moldura
+   --------------------------------------------------------------------------- */
+
+/* O período era texto solto sobre o cartão. Vira uma etiqueta com moldura,
+   que é o que ela é: a identidade daquela semana. */
+.wk-period-box {
+  display: inline-flex; align-items: center; gap: 8px; flex-wrap: wrap;
+  padding: 6px 12px; border-radius: 11px;
+  background: var(--surface-sunken); border: 1.5px solid var(--border);
+}
+.wk-period-ic { font-size: var(--fs-sm); line-height: 1; opacity: .85; }
+.wk-period-dates {
+  display: inline-flex; align-items: center; gap: 7px;
+  font-family: 'Space Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-weight: 700; font-size: var(--fs-sm); color: var(--text);
+  white-space: nowrap; letter-spacing: -.01em;
+}
+.wk-period-dates .arrow { color: var(--text-faint); font-weight: 400; }
+.wk-head-right { display: flex; align-items: center; gap: 7px; flex-shrink: 0; margin-left: auto; }
+#historico-list .week-card-head { align-items: center; gap: 9px; flex-wrap: wrap; }
+/* período + aproveitamento + ações cabem na mesma linha até em tela estreita */
+@media (max-width: 560px) {
+  .wk-head-right .status-badge { font-size: var(--fs-3xs); padding: 3px 8px; }
+  .wk-period-box { gap: 6px; }
+  .wk-period-ic { font-size: var(--fs-xs); }
+}
+
+/* Compactação: o cartão ocupava quase uma tela inteira para UMA semana. */
+#historico-list .week-card { padding-bottom: 12px; margin-bottom: 12px; }
+#historico-list .week-stats-row { gap: 9px; }
+#historico-list .week-stat { padding: 9px 8px; }
+#historico-list .week-stat .value { font-size: calc(17px * var(--fs-scale, 1)); line-height: 1.15; white-space: nowrap; }
+#historico-list .week-stat .label { font-size: var(--fs-3xs); margin-top: 2px; white-space: nowrap; }
+#historico-list .week-cumprido-wrap { margin-top: 10px; }
+#historico-list .week-cumprido-head { gap: 8px; flex-wrap: wrap; }
+#historico-list .week-cumprido-head .val { white-space: nowrap; font-variant-numeric: tabular-nums; }
+#historico-list .week-status-dist { margin-top: 9px; gap: 6px; }
+#historico-list .wsd-chip { padding: 3px 9px; font-size: var(--fs-3xs); white-space: nowrap; }
+#historico-list .btn-toggle-detail { margin-top: 10px; padding: 8px 12px; }
+@media (max-width: 560px) {
+  #historico-list .week-stats-row { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; gap: 7px; }
+  #historico-list .week-stat .value { font-size: calc(15px * var(--fs-scale, 1)); }
+  .wk-period-dates { font-size: var(--fs-xs); }
+  .wk-period-box { padding: 5px 10px; }
+}
+
+/* ---------------------------------------------------------------------------
+   8. EVOLUÇÃO
+   --------------------------------------------------------------------------- */
+
+/* Quatro indicadores: dois a dois no celular, nunca uma coluna só */
+#screen-evolucao .evo-stats-band { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+@media (max-width: 1100px) { #screen-evolucao .evo-stats-band { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 420px)  { #screen-evolucao .evo-stats-band { gap: 9px !important; } }
+.evo-stat-card { min-width: 0; }
+.evo-stat-card .value { overflow-wrap: anywhere; }
+
+/* ── Filtros de escopo e período: uma grade, não uma fila que quebra ──────
+   Eram flex com wrap: "De", "Até" e os três atalhos caíam em posições
+   diferentes a cada largura, e o rótulo do período ficava pendurado no fim
+   de uma linha qualquer. Grade com colunas iguais e base comum. */
+#evo-scope-body .evo-filter-row,
+#evo-scope-body > div:last-child {
+  display: grid !important;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto;
+  align-items: end; gap: 12px 14px;
+}
+#evo-scope-body > div:last-child > .field { margin-bottom: 0; min-width: 0; }
+#evo-scope-body > div:last-child > .field > label { margin-bottom: 5px; }
+#evo-scope-body > div:last-child > .field > input { width: 100%; }
+#evo-scope-body > div:last-child > div:not(.field) { display: flex; gap: 8px; flex-wrap: wrap; }
+#evo-scope-body > div:last-child > .hint {
+  grid-column: 1 / -1; margin: 0 !important; padding: 0 !important;
+  color: var(--text-faint);
+}
+@media (max-width: 620px) {
+  #evo-scope-body > div:last-child { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+  #evo-scope-body > div:last-child > div:not(.field) { grid-column: 1 / -1; }
+  #evo-scope-body > div:last-child > div:not(.field) > button { flex: 1 1 0; }
+}
+/* Os dois escopos lado a lado, sempre. `white-space: nowrap` no botão obrigava
+   "Todos os planejamentos" a caber inteiro numa linha e, sem espaço, o par
+   quebrava em duas faixas empilhadas. Aqui o texto pode reduzir e, no limite,
+   quebrar dentro do próprio botão — os dois continuam a dividir a linha. */
+#screen-evolucao .scope-toggle { display: flex; flex-wrap: nowrap; width: 100%; }
+#screen-evolucao .scope-toggle button {
+  flex: 1 1 0; min-width: 0; justify-content: center; text-align: center;
+  white-space: normal; line-height: 1.25; padding: 7px 8px;
+  font-size: clamp(10px, 2.9vw, 13px);
+}
+
+/* Cabeçalho do gráfico de tempo: chips e intervalo alinhados à direita, sem
+   se espalhar por três alturas diferentes. */
+#screen-evolucao .evo-card-head { align-items: flex-start; gap: 12px; flex-wrap: wrap; }
+.evo-chip-group { display: flex; flex-wrap: wrap; gap: 6px; justify-content: flex-end; }
+.evo-chip-group .evo-chip { flex: 0 0 auto; }
+.evo-tempo-range {
+  display: flex; align-items: center; gap: 7px; flex-wrap: nowrap;
+  padding: 5px 9px; border-radius: 10px;
+  background: var(--surface-sunken); border: 1px solid var(--border);
+}
+.evo-tempo-range input[type="date"] { min-width: 0; flex: 1 1 0; padding: 5px 8px; font-size: var(--fs-2xs); }
+.evo-tempo-range-lbl { font-size: var(--fs-3xs); font-weight: 700; color: var(--text-faint); white-space: nowrap; }
+@media (max-width: 720px) {
+  #screen-evolucao .evo-card-head > div:last-child { width: 100%; align-items: stretch !important; }
+  .evo-chip-group { justify-content: flex-start; }
+  .evo-chip-group .evo-chip { flex: 1 1 auto; text-align: center; justify-content: center; }
+  .evo-tempo-range { width: 100%; }
+}
+
+/* ── Tempo por matéria: o rótulo de horas sobrepunha a barra ──────────────
+   A coluna do valor tinha largura fixa de 90px; "30h 2min" precisa de mais e
+   transbordava por cima do trilho. Agora a coluna se dimensiona pelo maior
+   rótulo (auto) e quem cede espaço é a barra, que é elástica por natureza. */
+.tpm-row { grid-template-columns: minmax(0, 150px) minmax(40px, 1fr) auto; column-gap: 12px; }
+.tpm-bar-wrap { min-width: 0; }
+.tpm-val { flex-wrap: nowrap; white-space: nowrap; }
+.tpm-hours { font-variant-numeric: tabular-nums; }
+@media (max-width: 720px) {
+  .tpm-row { grid-template-columns: minmax(0, 104px) minmax(32px, 1fr) auto; column-gap: 8px; }
+  .tpm-hours { padding: 3px 7px; font-size: var(--fs-2xs); }
+  .tpm-pct { min-width: 26px; }
+}
+@media (max-width: 400px) {
+  /* abaixo disto os três não cabem lado a lado sem se atropelar: o nome ganha
+     a linha inteira e a barra fica embaixo, inteira e legível. */
+  .tpm-row { grid-template-columns: minmax(32px, 1fr) auto; row-gap: 5px; padding: 9px 0; }
+  .tpm-name { grid-column: 1 / -1; white-space: normal; }
+}
+
+/* ---------------------------------------------------------------------------
+   9. CONQUISTAS
+   --------------------------------------------------------------------------- */
+.conq-resumo {
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(122px, 1fr));
+  gap: 9px; margin-top: 14px;
+}
+.conq-mini {
+  background: var(--surface-sunken); border: 1.5px solid var(--border);
+  border-radius: 12px; padding: 10px 11px; text-align: center; min-width: 0;
+}
+.conq-mini .cm-v {
+  font-family: 'Space Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-weight: 800; font-size: calc(16px * var(--fs-scale, 1)); color: var(--text);
+  line-height: 1.15; overflow-wrap: anywhere;
+}
+.conq-mini .cm-r {
+  font-size: var(--fs-3xs); color: var(--text-faint); margin-top: 3px; line-height: 1.35;
+}
+.conq-recs { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 8px; }
+.conq-rec { align-items: center; gap: 10px; }
+.conq-rec-vals { text-align: right; white-space: nowrap; }
+@media (max-width: 560px) {
+  .conq-resumo { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .conq-recs { grid-template-columns: 1fr; }
+}
+
+/* ---------------------------------------------------------------------------
+   10. DESEMPENHO TEC — cabeçalhos enxutos quando os filtros estão recolhidos
+   --------------------------------------------------------------------------- */
+#tec-analysis.hide-heads .card-header .sub,
+#tec-analysis.hide-heads .evo-card-head .sub { display: none; }
+#tec-analysis.hide-heads .card-header,
+#tec-analysis.hide-heads .evo-card-head { padding-top: 14px; padding-bottom: 12px; }
+
+/* ---------------------------------------------------------------------------
+   11. CONFIGURAÇÕES — Estrutura do estudo
+   --------------------------------------------------------------------------- */
+
+/* ── A linha de matéria, refeita ──────────────────────────────────────────
+   O layout antigo era uma grade de quatro colunas em que, sem espaço, a coluna
+   da dificuldade colapsava para poucos pixels: o rótulo "DIFICULDADE" descia
+   letra por letra e o nome da matéria ficava cortado. Agora a linha tem dois
+   blocos com estrutura própria — cabeçalho e campos — e cada um se resolve
+   sozinho, sem depender de sobrar largura para o vizinho. */
+#screen-config .config-subject-row,
+.config-subject-row {
+  display: block !important;
+  border: 1.5px solid var(--border);
+  border-radius: 13px;
+  background: var(--surface);
+  padding: 12px 14px !important;
+  margin-bottom: 9px;
+}
+.config-subject-row .csr-head {
+  display: flex; align-items: center; gap: 10px; min-width: 0;
+}
+.config-subject-row .csr-head > .cfg-subj-name {
+  flex: 1 1 auto; min-width: 0; width: auto;
+  font-weight: 700; font-size: var(--fs-md);
+  text-overflow: ellipsis;
+}
+.config-subject-row .csr-head > .config-row-actions {
+  flex: 0 0 auto; display: flex; align-items: center; gap: 8px;
+}
+.config-subject-row .csr-fields {
+  display: grid; grid-template-columns: 132px minmax(0, 1fr);
+  gap: 10px; margin-top: 11px; align-items: end;
+}
+.config-subject-row .cfg-field { display: flex !important; flex-direction: column; min-width: 0; }
+.config-subject-row .cfg-field > span {
+  display: block !important;
+  font-size: var(--fs-3xs); font-weight: 800; letter-spacing: .05em;
+  text-transform: uppercase; color: var(--text-faint);
+  margin-bottom: 5px; white-space: nowrap;
+}
+.config-subject-row .cfg-field > select {
+  width: 100%; min-width: 0; padding: 8px 32px 8px 10px; font-size: var(--fs-sm);
+}
+@media (max-width: 480px) {
+  .config-subject-row .csr-fields { grid-template-columns: minmax(0, 1fr); gap: 9px; }
+}
+
+/* Nome em cima, ações embaixo à direita.
+   Dividir a linha com o interruptor e o excluir deixava ~200px para o campo, e
+   "Estatuto da Pessoa com Deficiência" saía cortado em qualquer celular. Com a
+   linha inteira o nome cabe, e as ações ficam num lugar previsível. */
+@media (max-width: 620px) {
+  .config-subject-row .csr-head,
+  .config-status-row .csr-head { flex-wrap: wrap; row-gap: 9px; }
+  .config-subject-row .csr-head > .cfg-subj-name,
+  .config-status-row .csr-head > .cfg-status-name { flex: 1 1 100%; }
+  .config-subject-row .csr-head > .config-row-actions,
+  .config-status-row .csr-head > .config-row-actions { margin-left: auto; }
+}
+
+/* ── Status do Estudo Novo: três seções delimitadas ──────────────────────── */
+.config-status-row {
+  display: block !important;
+  border: 1.5px solid var(--border) !important;
+  border-radius: 13px; background: var(--surface);
+  padding: 12px 14px !important; margin-bottom: 9px;
+}
+.config-status-row .csr-head { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.config-status-row .csr-head > .cfg-status-name {
+  flex: 1 1 auto; min-width: 0; width: auto; font-weight: 700; font-size: var(--fs-md);
+}
+.config-status-row .csr-head > .config-row-actions {
+  flex: 0 0 auto; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; justify-content: flex-end;
+}
+.cst-blocks {
+  display: grid; grid-template-columns: auto minmax(0, 1fr) auto;
+  gap: 10px 14px; margin-top: 11px; align-items: start;
+}
+.cst-block {
+  min-width: 0; padding: 9px 11px;
+  background: var(--surface-sunken); border: 1px solid var(--border); border-radius: 11px;
+}
+.cst-lbl {
+  display: block; font-size: var(--fs-3xs); font-weight: 800; letter-spacing: .05em;
+  text-transform: uppercase; color: var(--text-faint); margin-bottom: 7px; white-space: nowrap;
+}
+.cst-block .status-preview { display: inline-flex; align-items: center; }
+.cst-block .status-swatches { display: flex; flex-wrap: wrap; gap: 6px; }
+.cst-block .status-done-toggle { display: inline-flex; align-items: center; gap: 8px; margin: 0; white-space: nowrap; }
+.status-done-badge { white-space: nowrap; font-size: var(--fs-3xs); }
+/* Com pouco espaço a badge some: a mesma informação já está, por extenso e
+   editável, no bloco "Progresso" logo abaixo. */
+@media (max-width: 720px) { .config-status-row .status-done-badge { display: none; } }
+@media (max-width: 860px) {
+  .cst-blocks { grid-template-columns: minmax(0, 1fr); }
+  .cst-block .status-done-toggle { white-space: normal; }
+}
+
+/* ---------------------------------------------------------------------------
+   12. Modais — o fundo desfocado não fecha mais nada, então o X precisa ser
+       encontrável em qualquer diálogo.
+   --------------------------------------------------------------------------- */
+.cards-modal-head .icon-btn, .siglas-modal-head .icon-btn {
+  border: 1.5px solid var(--border); border-radius: 9px; background: var(--surface);
+}
+.cards-modal-head .icon-btn:hover, .siglas-modal-head .icon-btn:hover {
+  border-color: var(--bad, #e0393f); color: var(--bad, #e0393f); background: var(--bad-soft);
+}
