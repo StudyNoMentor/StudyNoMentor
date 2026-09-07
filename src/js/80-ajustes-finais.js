@@ -90,7 +90,7 @@ else CloudStore.init();
       if (v !== null) return v;
       if (_activePfx() !== OLD_PFX) {
         const g = localStorage.getItem(OLD_PFX + k);
-        if (g !== null) { try { localStorage.setItem(_activePfx() + k, g); } catch (_) {} return g; }
+        if (g !== null) { try { localStorage.setItem(_activePfx() + k, g); } catch (e) { _quiet(e, 'promover-chave-global'); } return g; }
       }
       return d;
     } catch (_) { return d; }

@@ -889,7 +889,7 @@ const DB = {
       });
       if (n) this._set(this.KEYS.cycleHistory, hist);
       this._set(FLAG, 1);
-      if (n) { try { console.info('[migração] aproveitamento recalculado em ' + n + ' semana(s).'); } catch (e) {} }
+      if (n) { try { console.info('[migração] aproveitamento recalculado em ' + n + ' semana(s).'); } catch (e) { _quiet(e, 'log-migracao'); } }
       return n;
     } catch (e) { _quiet(e, 'migrar-aproveitamento'); return 0; }
   },

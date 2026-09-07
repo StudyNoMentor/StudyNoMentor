@@ -103,6 +103,14 @@ if (!meta) erro('<meta> de Content-Security-Policy ausente');
 else if (/frame-ancestors/.test(meta[1])) erro('frame-ancestors voltou ao <meta> CSP (o navegador ignora e loga erro)');
 else if (!/object-src 'none'/.test(meta[1]) || !/base-uri 'self'/.test(meta[1])) erro('CSP perdeu object-src/base-uri');
 else ok('CSP do <meta> integra e sem diretivas ignoradas');
+/* Nenhum catch VAZIO dentro do codigo do app. Fora dele (os dois scripts de
+   arranque no <head> e o shim de armazenamento) e legitimo: _quiet ainda nao
+   existe la. Dentro, catch vazio e uma falha que o usuario nunca vai ver. */
+if (inerte) {
+  const vazios = (inerte[1].match(/catch\s*\([A-Za-z_$][\w$]*\)\s*\{\s*\}/g) || []).length;
+  vazios === 0 ? ok('nenhum catch vazio no codigo do app')
+    : erro(`${vazios} catch vazio(s) no codigo do app — use _quiet(e, 'contexto')`);
+}
 // a trava anti-moldura tem de continuar no <head>, antes de qualquer pintura
 /travaAntiMoldura/.test(html.slice(0, 6000)) ? ok('trava anti-moldura presente no <head>')
   : erro('trava anti-moldura sumiu do <head> (clickjacking volta a ser possivel)');
