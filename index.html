@@ -2192,7 +2192,7 @@ window.__idbBoot = (function () {
     .evo-grid { grid-template-columns: 1fr; gap: 14px; }
   }
   /* Faixa de KPIs no topo */
-  .evo-stats-band { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; }
+  .evo-stats-band { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; }
   @media (max-width: 560px) { .evo-stats-band { grid-template-columns: 1fr 1fr; gap: 10px; } }
 
   /* ── Refinamentos mobile da Evolução ── */
@@ -6145,13 +6145,13 @@ window.__idbBoot = (function () {
             <h2 id="ciclo-active-title">Semana atual</h2>
             <p class="sub" id="ciclo-active-dates"></p>
           </div>
-          <div style="display:flex; gap:8px; flex-shrink:0;">
-            <button class="btn-secondary" id="btn-edit-cycle">✎ Editar</button>
-            <button class="btn-primary" id="btn-close-cycle">✓ Fechar semana</button>
+          <div class="ciclo-head-actions">
+            <button class="btn-secondary ciclo-head-btn" id="btn-edit-cycle">✎ Editar</button>
+            <button class="btn-primary ciclo-head-btn ciclo-close-btn" id="btn-close-cycle">✓ Fechar semana</button>
           </div>
         </div>
         <div style="padding: 18px 28px 26px;">
-          <div id="ciclo-overview-gauges" style="display:grid; grid-template-columns: repeat(5,1fr); gap: 12px; margin-bottom: 22px;"></div>
+          <div id="ciclo-overview-gauges" class="ciclo-gauges" style="display:grid; grid-template-columns: repeat(6,1fr); gap: 12px; margin-bottom: 22px;"></div>
 
           <p class="section-label">Progresso por matéria</p>
           <div id="ciclo-subjects-progress"></div>
@@ -6180,15 +6180,29 @@ window.__idbBoot = (function () {
           <h2 class="grade-title-line">Grade da semana <span class="grade-min-alert">❗ Digite os tempos em minutos</span></h2>
           <p class="sub">Toque numa célula para escolher a sigla (ou arraste). A mesma matéria pode aparecer em várias células — ajuste a duração de cada uma.</p>
         </div>
+        <!-- TUDO o que e secundario vive dentro da engrenagem. Antes o seletor de
+             visao, o "Inicio da semana" e o "Editar siglas" ocupavam duas faixas
+             inteiras da tela so para ficarem parados esperando um clique raro. -->
         <div class="grade-head-actions">
-          <div class="grade-view-toggle" id="grade-view-toggle" role="tablist" aria-label="Modo de visualização da grade">
-            <button type="button" class="gvt-btn active" data-gview="semana" role="tab" aria-selected="true">▦ Semanal</button>
-            <button type="button" class="gvt-btn" data-gview="dia" role="tab" aria-selected="false">◷ Meta diária</button>
-          </div>
-          <!-- Todos os comandos secundários agora vivem numa engrenagem, deixando só o essencial à vista -->
           <div class="grade-gear-wrap">
-            <button class="btn-secondary grade-gear-btn" id="grade-gear-btn" type="button" title="Opções da grade" aria-haspopup="true" aria-expanded="false">⚙ Opções</button>
+            <button class="btn-secondary grade-gear-btn grade-gear-mini" id="grade-gear-btn" type="button" title="Opções da grade" aria-haspopup="true" aria-expanded="false"><span class="gg-gear">⚙</span><span class="gg-word">Opções</span></button>
             <div class="grade-gear-menu" id="grade-gear-menu" role="menu" aria-hidden="true">
+              <div class="grade-gear-group">
+                <span class="grade-gear-lbl">Visualização</span>
+                <div class="grade-view-toggle" id="grade-view-toggle" role="tablist" aria-label="Modo de visualização da grade">
+                  <button type="button" class="gvt-btn active" data-gview="semana" role="tab" aria-selected="true">▦ Semanal</button>
+                  <button type="button" class="gvt-btn" data-gview="dia" role="tab" aria-selected="false">◷ Meta diária</button>
+                </div>
+              </div>
+              <div class="grade-gear-group">
+                <span class="grade-gear-lbl">Início da semana</span>
+                <select id="grade-weekstart-select" class="grade-gear-select" title="Dia em que a semana começa">
+                  <option value="mon">Segunda-feira</option>
+                  <option value="sun">Domingo</option>
+                </select>
+              </div>
+              <div class="grade-gear-sep"></div>
+              <button class="grade-gear-item" id="btn-edit-siglas" type="button" role="menuitem" title="Editar, criar e excluir siglas"><span class="gg-ic">✎</span>Editar siglas</button>
               <button class="grade-gear-item" id="btn-saved-grades" type="button" role="menuitem" title="Salvar a grade atual ou restaurar uma grade guardada"><span class="gg-ic">💾</span>Grades salvas</button>
               <button class="grade-gear-item" id="btn-toggle-budget" type="button" role="menuitem" title="Mostrar/ocultar o saldo de horas do ciclo"><span class="gg-ic">⏱️</span>Saldo de horas</button>
               <button class="grade-gear-item" id="btn-toggle-tray" type="button" role="menuitem" title="Minimizar/expandir as siglas"><span class="gg-ic">▾</span>Siglas (minimizar)</button>
@@ -6204,16 +6218,6 @@ window.__idbBoot = (function () {
         <!-- Bandeja compacta: só os chips arrastáveis + botão de editar -->
         <div class="grade-tray-bar" id="grade-tray-bar">
           <div id="grade-chip-tray" class="grade-chip-tray"></div>
-          <div class="grade-tray-actions">
-            <label class="grade-weekstart" title="Dia em que a semana começa">
-              <span>Início:</span>
-              <select id="grade-weekstart-select">
-                <option value="mon">Segunda</option>
-                <option value="sun">Domingo</option>
-              </select>
-            </label>
-            <button type="button" class="btn-secondary grade-edit-siglas" id="btn-edit-siglas" title="Editar, criar e excluir siglas">✎ Editar siglas</button>
-          </div>
         </div>
         <p class="grade-scroll-hint" id="grade-scroll-hint">↔ Deslize para ver os outros dias</p>
         <div id="ciclo-grade" class="grade-scroll" style="overflow-x:auto;"></div>
@@ -6393,18 +6397,26 @@ window.__idbBoot = (function () {
     <!-- LEITOR de uma lei -->
     <div id="leis-reader-view" style="display:none;">
       <div class="leis-reader-topbar">
-        <button type="button" class="btn-secondary" id="lei-back-btn">← Voltar</button>
+        <button type="button" class="btn-secondary leis-back" id="lei-back-btn">← Voltar</button>
         <div class="leis-reader-title">
           <h2 id="lei-reader-titulo">—</h2>
           <span id="lei-reader-meta" class="leis-reader-meta"></span>
         </div>
         <div class="leis-reader-actions">
-          <button type="button" class="icon-btn" id="lei-edit-btn" title="Editar dados da lei" aria-label="Editar dados da lei">✎</button>
-          <button type="button" class="icon-btn danger" id="lei-del-btn" title="Excluir lei" aria-label="Excluir lei">×</button>
+          <button type="button" class="reg-act-btn" id="lei-edit-btn" title="Editar dados da lei" aria-label="Editar dados da lei">✎</button>
+          <button type="button" class="reg-act-btn danger" id="lei-del-btn" title="Excluir lei" aria-label="Excluir lei">✕</button>
         </div>
       </div>
 
+      <!-- A barra de ferramentas do leitor RECOLHE: são 12 controles que se usam
+           uma vez e depois só ocupam a metade de cima da tela de leitura. -->
       <div class="leis-sticky" id="leis-sticky-toolbar">
+        <button type="button" class="leis-tools-toggle" id="lei-tools-toggle" aria-expanded="true" aria-controls="leis-tools-body">
+          <span class="ltt-ic">🛠️</span>
+          <span class="ltt-txt">Ferramentas de leitura</span>
+          <span class="ltt-caret">▾</span>
+        </button>
+        <div class="leis-tools-body" id="leis-tools-body">
         <div class="leis-toolbar-row">
           <div class="leis-hl-group" id="lei-hl-toggles">
             <label class="leis-auto-switch" title="Liga/desliga todo o destaque automático desta lei">
@@ -6434,6 +6446,7 @@ window.__idbBoot = (function () {
             <button type="button" class="icon-btn" id="lei-font-dec" title="Diminuir fonte" aria-label="Diminuir fonte">A−</button>
             <button type="button" class="icon-btn" id="lei-font-inc" title="Aumentar fonte" aria-label="Aumentar fonte">A+</button>
           </div>
+        </div>
         </div>
       </div>
 
@@ -8955,15 +8968,23 @@ window.__idbBoot = (function () {
   border-collapse: separate; border-spacing: 0;
   font-size: var(--fs-sm);
 }
-/* Colunas fixas para números; Matéria e Aula ganham o espaço restante (Matéria maior) */
-.reg-tbl col.rc-date    { width: 104px; }
-.reg-tbl col.rc-subject { width: 32%; }
-.reg-tbl col.rc-lesson  { width: 20%; }
+/* Colunas em PIXELS + min-width na tabela.
+   Antes Matéria e Aula eram percentuais (32% / 20%). Com a coluna de Observação
+   entrando na grade, os percentuais passaram a ser calculados sobre um espaço
+   menor e os nomes viraram "Conhecime…" / "A…". Larguras em px dão a cada
+   coluna o tamanho do dado que ela carrega; a tabela ganha uma largura mínima e
+   rola na horizontal (a barra de rolagem própria já existe para isso). Em telas
+   largas o `width:100%` distribui a sobra proporcionalmente, sem cortar nada. */
+.reg-tbl { min-width: 1220px; }
+.reg-tbl col.rc-date    { width: 106px; }
+.reg-tbl col.rc-subject { width: 232px; }
+.reg-tbl col.rc-lesson  { width: 190px; }
 .reg-tbl col.rc-method  { width: 122px; }
 .reg-tbl col.rc-time    { width: 84px;  }
 .reg-tbl col.rc-hits    { width: 92px;  }
-.reg-tbl col.rc-pct     { width: 98px;  }
-.reg-tbl col.rc-act     { width: 84px;  }
+.reg-tbl col.rc-pct     { width: 118px; }
+.reg-tbl col.rc-act     { width: 96px;  }
+.reg-tbl col.rc-obs     { width: 240px; }
 
 /* Cabeçalho fixo no topo ao rolar verticalmente */
 .reg-tbl thead th {
@@ -8972,7 +8993,7 @@ window.__idbBoot = (function () {
   border-bottom: 1.5px solid var(--border);
   padding: 0; text-align: left; white-space: nowrap;
 }
-.reg-th .reg-h, .reg-th.reg-th-act {
+.reg-th .reg-h {
   display: flex; align-items: center; gap: 5px; width: 100%;
   padding: 13px 14px 12px; margin: 0; background: transparent; border: none;
   font-weight: 800; font-size: var(--fs-2xs); letter-spacing: .04em; text-transform: uppercase;
@@ -8983,7 +9004,6 @@ window.__idbBoot = (function () {
 .reg-th.is-sorted .reg-h { color: var(--accent); }
 .reg-th .sort-ind { font-size: var(--fs-xs); color: var(--accent); }
 .reg-th-num .reg-h { justify-content: flex-end; text-align: right; }
-.reg-th-act { justify-content: flex-end; text-align: right; }
 
 /* Linhas / células */
 .reg-tbl tbody tr { transition: background .12s ease; }
@@ -9119,6 +9139,896 @@ window.__idbBoot = (function () {
   #screen-registrar .reg-modebar .ux-seg button { flex: 1 1 0; justify-content: center; }
 }
 
+</style>
+
+<style id="ux-v48">
+/* ═══════════════════════════════════════════════════════════════════════════
+   ACABAMENTO v48 — alinhamento, molduras e densidade
+   Camada de apresentação. Nenhuma regra de negócio muda aqui.
+
+   O fio condutor: onde dois elementos são irmãos (dois campos, três cartões,
+   sete dias), eles têm de começar e terminar na MESMA linha. Quase todos os
+   desalinhamentos desta versão vinham de colunas dimensionadas por conteúdo
+   (`auto`, `1fr` sem piso) — rótulos de tamanhos diferentes empurravam cada
+   caixa para uma altura diferente. A correção é sempre a mesma: dar às colunas
+   uma largura previsível e às linhas uma base comum.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* ---------------------------------------------------------------------------
+   0. PEÇAS COMUNS
+   --------------------------------------------------------------------------- */
+
+/* ── Spinner de salvamento ────────────────────────────────────────────────
+   Aparece dentro do próprio botão enquanto o SaveGuard confirma a gravação.
+   O botão fica travado nesse intervalo: é a garantia visual de que o registro
+   está sendo persistido, não uma animação decorativa. */
+@keyframes sgSpin { to { transform: rotate(360deg); } }
+.sg-spin {
+  width: 14px; height: 14px; border-radius: 50%;
+  border: 2px solid currentColor; border-top-color: transparent;
+  display: inline-block; animation: sgSpin .7s linear infinite; flex-shrink: 0;
+}
+button.is-saving {
+  display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+  cursor: progress; opacity: .92;
+}
+@media (prefers-reduced-motion: reduce) { .sg-spin { animation-duration: 2.4s; } }
+
+/* ── Botão de ação com moldura (editar / excluir) ─────────────────────────
+   Os ícones apareciam soltos sobre o fundo, sem borda nem sombra: pareciam
+   texto, não botão, e no celular não davam alvo de toque. Agora são um
+   controle de verdade, com o mesmo desenho em TODAS as telas. */
+.reg-act-btn {
+  width: 32px; height: 32px; flex: 0 0 32px;
+  display: inline-flex; align-items: center; justify-content: center;
+  border: 1.5px solid var(--border); border-radius: 9px;
+  background: var(--surface); color: var(--text-soft);
+  font-size: var(--fs-sm); font-weight: 700; line-height: 1; cursor: pointer;
+  box-shadow: var(--shadow-sm); padding: 0;
+  transition: border-color .13s ease, color .13s ease, background .13s ease,
+              transform .13s ease, box-shadow .13s ease;
+}
+.reg-act-btn:hover {
+  border-color: var(--accent); color: var(--accent); background: var(--accent-soft);
+  transform: translateY(-1px); box-shadow: var(--shadow-md, var(--shadow-sm));
+}
+.reg-act-btn:focus-visible { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-ring); }
+.reg-act-btn:active { transform: translateY(0); }
+.reg-act-btn.danger:hover {
+  border-color: var(--bad, #e0393f); color: var(--bad, #e0393f); background: var(--bad-soft);
+}
+@media (max-width: 834px) { .reg-act-btn { width: 36px; height: 36px; flex-basis: 36px; } }
+
+/* ── Diálogo com palavra digitada (limpezas gerais) ───────────────────────── */
+.ui-typed {
+  border: 1.5px solid color-mix(in srgb, var(--bad, #e0393f) 35%, var(--border));
+  background: var(--bad-soft); border-radius: 12px; padding: 12px 13px;
+}
+.ui-typed label {
+  display: block; font-size: var(--fs-2xs); font-weight: 700;
+  color: var(--text-soft); margin-bottom: 7px; letter-spacing: .01em;
+}
+.ui-typed label strong {
+  font-family: 'Space Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+  color: var(--bad, #e0393f); letter-spacing: .08em;
+}
+.ui-typed input {
+  width: 100%; text-transform: uppercase; letter-spacing: .12em;
+  font-family: 'Space Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-weight: 700; text-align: center;
+}
+.ui-typed input.ok { border-color: var(--good); box-shadow: 0 0 0 3px color-mix(in srgb, var(--good) 22%, transparent); }
+.ui-typed-hint { margin: 7px 0 0; font-size: var(--fs-3xs); color: var(--text-faint); }
+#ui-modal-ok:disabled { opacity: .45; cursor: not-allowed; transform: none; box-shadow: none; }
+
+/* Medalha por faixa de aproveitamento */
+.reg-medal { margin-right: 4px; font-size: 1.05em; line-height: 1; }
+
+/* ---------------------------------------------------------------------------
+   1. REGISTRAR — alinhamento dos campos, cartões e tabela
+   --------------------------------------------------------------------------- */
+
+/* ── O desalinhamento de "Página inicial / Página final" e "Acertos / Total
+   resolvido" ──────────────────────────────────────────────────────────────
+   Os rótulos têm comprimentos diferentes: "Página inicial (opcional)" quebra
+   em duas linhas, "Página final (opcional)" fica em uma. Como cada campo era
+   um bloco independente, o input do primeiro descia e o do segundo não — as
+   caixas irmãs terminavam em alturas diferentes.
+   Correção: o campo vira uma coluna flex; o rótulo ocupa uma FAIXA DE ALTURA
+   FIXA (duas linhas) e o input é empurrado para o fim. Assim todos os inputs
+   da mesma linha nascem na mesma altura, quebrando o rótulo ou não. */
+#screen-registrar .row-3,
+#screen-registrar .performance-inputs,
+#screen-registrar .field-group { align-items: stretch; }
+
+#screen-registrar .row-3 > .field,
+#screen-registrar .performance-inputs > .field {
+  display: flex; flex-direction: column; min-width: 0;
+}
+#screen-registrar .row-3 > .field > label,
+#screen-registrar .performance-inputs > .field > label {
+  align-items: flex-start;
+  min-height: calc(2.45em * var(--fs-scale, 1));   /* espaço de duas linhas */
+  line-height: 1.22;
+  margin-bottom: 6px;
+  flex-wrap: wrap; row-gap: 0;
+}
+#screen-registrar .row-3 > .field > label > .opt,
+#screen-registrar .performance-inputs > .field > label > .opt { flex-shrink: 0; }
+#screen-registrar .row-3 > .field > input,
+#screen-registrar .row-3 > .field > .time-input,
+#screen-registrar .performance-inputs > .field > input { margin-top: auto; }
+
+/* O painel de desempenho: rótulos e caixas alinhados, medidor centrado */
+#screen-registrar .performance-panel { align-items: center; }
+#screen-registrar .performance-inputs { align-items: stretch; }
+
+/* ── Respiro no topo das listas ───────────────────────────────────────────
+   Tanto o primeiro cartão quanto o cabeçalho da tabela nasciam colados na
+   moldura do contêiner: a borda de cima do registro e a borda do cartão viravam
+   praticamente a mesma linha, e a leitura começava sem nenhuma folga. */
+#recent-list { padding-top: 10px; }
+#recent-list .reg-tbl-scroll {
+  padding: 10px 10px 4px;
+  border-radius: 14px;
+}
+#recent-list .reg-tbl { border-collapse: separate; border-spacing: 0; }
+#recent-list .reg-tbl thead th { padding-top: 12px; padding-bottom: 12px; }
+#recent-list .reg-filterbar { margin-bottom: 12px; }
+
+/* ── Cartões de registro: cada um é um cartão, não uma faixa ──────────────
+   Antes as linhas eram separadas só por um traço fino; com fundo igual ao da
+   página, um registro se misturava ao seguinte. Agora cada um tem superfície,
+   moldura e sombra próprias — e uma fita na cor do desempenho à esquerda,
+   que dá a leitura antes mesmo de ler o número. */
+#recent-list .recent-item {
+  position: relative;
+  background: var(--surface);
+  border: 1.5px solid var(--border);
+  border-radius: 14px;
+  padding: 13px 15px 13px 19px;
+  margin-bottom: 10px;
+  box-shadow: var(--shadow-sm);
+  overflow: hidden;
+  transition: border-color .14s ease, box-shadow .14s ease, transform .14s ease;
+}
+#recent-list .recent-item::before {
+  content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 4px;
+  background: var(--ri-cor, var(--border-strong, var(--border)));
+}
+#recent-list .recent-item:hover {
+  border-color: var(--border-strong, var(--accent));
+  box-shadow: var(--shadow-md, var(--shadow-sm));
+  transform: translateY(-1px);
+}
+#recent-list .recent-item:last-child { margin-bottom: 2px; }
+#recent-list .recent-item .recent-date-block {
+  border-right: 1px solid var(--border); padding-right: 13px; margin-right: 2px;
+}
+#recent-list .recent-item .recent-actions { display: flex; align-items: center; gap: 7px; }
+#recent-list .recent-item .comment {
+  margin-top: 8px; padding: 7px 10px;
+  background: var(--surface-sunken); border-left: 2px solid var(--border);
+  border-radius: 0 8px 8px 0;
+}
+#recent-list .recent-item:has(.recent-pct.tone-good) { --ri-cor: var(--good); }
+#recent-list .recent-item:has(.recent-pct.tone-warn) { --ri-cor: var(--warn); }
+#recent-list .recent-item:has(.recent-pct.tone-bad)  { --ri-cor: var(--bad, #e0393f); }
+@media (max-width: 560px) {
+  #recent-list .recent-item { padding: 12px 12px 12px 16px; border-radius: 13px; }
+  #recent-list .recent-item .recent-date-block { border-right: none; padding-right: 0; }
+}
+
+/* ── Tabela: cabeçalho uniforme e coluna de observação ────────────────────
+   A célula "Ações" era o único <th> sem o botão interno, então não recebia o
+   padding, a altura nem a borda das demais — destoava do cabeçalho inteiro.
+   Agora ela usa o mesmo invólucro (.reg-h), só que sem a ação de ordenar. */
+.reg-h-static {
+  display: inline-flex; align-items: center;
+  cursor: default; background: none; border: none;
+}
+.reg-th-act, .reg-th-obs { text-align: left; }
+.reg-th-act .reg-h-static { justify-content: center; width: 100%; }
+.reg-c-act { text-align: center; vertical-align: middle; }
+.reg-act-group { display: inline-flex; align-items: center; gap: 6px; justify-content: center; }
+.rc-act { width: 96px; }
+.rc-obs { width: 260px; }
+.reg-c-obs {
+  color: var(--text-soft); font-size: var(--fs-2xs); line-height: 1.45;
+  vertical-align: middle;
+  white-space: normal;      /* .reg-c é nowrap; aqui o comentário precisa quebrar */
+  overflow: hidden;
+}
+.reg-obs-txt {
+  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;
+  overflow: hidden; overflow-wrap: anywhere;
+}
+.reg-pct-badge { display: inline-flex; align-items: center; white-space: nowrap; }
+
+/* ---------------------------------------------------------------------------
+   2. CICLO DA SEMANA
+   --------------------------------------------------------------------------- */
+
+/* Ações do cabeçalho: encostadas à esquerda e menores. "Fechar semana" é uma
+   ação de fim de ciclo, usada uma vez por semana — não precisa do peso visual
+   de um botão principal de tela inteira. */
+.ciclo-head-actions {
+  display: flex; gap: 8px; flex-shrink: 0;
+  justify-content: flex-start; margin-right: auto;
+}
+.ciclo-head-actions .ciclo-head-btn {
+  padding: 7px 13px; font-size: var(--fs-xs); border-radius: 10px; min-height: 34px;
+}
+.ciclo-close-btn { box-shadow: none; }
+.ciclo-close-btn:hover { box-shadow: 0 4px 12px var(--accent-ring); }
+@media (max-width: 640px) {
+  .ciclo-head-actions { width: 100%; }
+  .ciclo-head-actions .ciclo-head-btn { flex: 0 0 auto; }
+}
+
+/* Seis indicadores: três colunas em telas médias, duas no celular — nunca uma
+   fileira de seis caixas espremidas. */
+.ciclo-gauges { grid-template-columns: repeat(6, minmax(0, 1fr)); }
+@media (max-width: 1100px) { .ciclo-gauges { grid-template-columns: repeat(3, minmax(0, 1fr)) !important; } }
+@media (max-width: 560px)  { .ciclo-gauges { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; gap: 8px !important; } }
+.ciclo-gauges .mini-gauge-card { min-width: 0; }
+.ciclo-gauges .mini-gauge-card .value { overflow-wrap: anywhere; line-height: 1.15; }
+/* "aproveitamento" e "por dia p/ fechar" nao cabem numa linha em coluna
+   estreita e quebravam no meio da palavra ("APROVEITAMENT / O"). O rotulo passa
+   a encolher e a quebrar entre palavras, com duas linhas de altura reservada
+   para que os seis cartoes continuem com a mesma altura. */
+.ciclo-gauges .mini-gauge-card .label {
+  font-size: clamp(7.5px, calc(9px * var(--fs-scale, 1)), 10.5px);
+  line-height: 1.25; letter-spacing: .015em;
+  overflow-wrap: normal; word-break: keep-all; hyphens: none;
+  min-height: 2.5em; display: flex; align-items: center; justify-content: center; text-align: center;
+}
+
+/* ── Bandeja de siglas: grade justificada + recolher/expandir ─────────────
+   Era um wrap de chips de larguras diferentes: as linhas ficavam com buracos
+   no fim e nada se alinhava na vertical. Colunas iguais resolvem os dois
+   eixos ao mesmo tempo — e a lista recolhe, porque com 20 matérias ela
+   empurrava o conteúdo útil para fora da tela. */
+.csp-wrap { margin: 0 0 14px; }
+.csp-head {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 10px; margin-bottom: 9px; flex-wrap: wrap;
+}
+.csp-head-lbl {
+  font-size: var(--fs-3xs); font-weight: 800; letter-spacing: .07em;
+  text-transform: uppercase; color: var(--text-faint);
+}
+.csp-toggle {
+  display: inline-flex; align-items: center; gap: 6px;
+  background: var(--surface); border: 1.5px solid var(--border); border-radius: 9px;
+  padding: 5px 10px; font-size: var(--fs-3xs); font-weight: 700;
+  color: var(--text-soft); cursor: pointer; line-height: 1.2; min-height: 30px;
+  transition: border-color .13s ease, color .13s ease, background .13s ease;
+}
+.csp-toggle:hover { border-color: var(--accent); color: var(--accent); background: var(--accent-soft); }
+.csp-caret { transition: transform .16s ease; display: inline-block; }
+.csp-wrap.closed .csp-caret { transform: rotate(-90deg); }
+.csp-wrap.closed .csp-filter { display: none; }
+.csp-filter {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(78px, 1fr));
+  gap: 6px;
+}
+.csp-filter .csp-chip {
+  width: 100%; min-width: 0; margin: 0;
+  display: inline-flex; align-items: center; justify-content: center;
+  text-align: center; white-space: nowrap;
+  overflow: hidden; text-overflow: ellipsis;
+  font-family: 'Space Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+  letter-spacing: .01em; min-height: 32px;
+}
+@media (max-width: 560px) {
+  .csp-filter { grid-template-columns: repeat(auto-fill, minmax(66px, 1fr)); gap: 5px; }
+  .csp-filter .csp-chip { min-height: 34px; font-size: var(--fs-3xs); }
+}
+
+/* ── Aproveitamento ao lado do status ─────────────────────────────────────
+   Ele vivia na linha de baixo, junto de "dificuldade" e "% da meta", como se
+   fosse um metadado. É o número de desempenho da matéria: sobe para o topo,
+   ao lado do status, com duas casas decimais. */
+.subject-progress-head { gap: 10px; }
+.sp-head-right { display: inline-flex; align-items: center; gap: 9px; flex-shrink: 0; }
+.subject-acc {
+  display: inline-flex; align-items: baseline; gap: 5px;
+  padding: 3px 9px; border-radius: 20px;
+  background: var(--surface-sunken); border: 1px solid var(--border);
+  color: var(--text-soft); white-space: nowrap;
+}
+.subject-acc b {
+  font-family: 'Space Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-weight: 700; font-size: var(--fs-xs); font-variant-numeric: tabular-nums;
+}
+.sp-acc-lbl { font-size: var(--fs-3xs); color: var(--text-faint); font-weight: 600; }
+.subject-acc.tone-good { background: var(--good-soft); border-color: transparent; color: var(--good-text); }
+.subject-acc.tone-warn { background: var(--warn-soft); border-color: transparent; color: var(--warn-text); }
+.subject-acc.tone-bad  { background: var(--bad-soft);  border-color: transparent; color: var(--bad-text); }
+.subject-acc.tone-good .sp-acc-lbl,
+.subject-acc.tone-warn .sp-acc-lbl,
+.subject-acc.tone-bad  .sp-acc-lbl { color: inherit; opacity: .78; }
+@media (max-width: 480px) {
+  .sp-acc-lbl { display: none; }          /* no celular o rótulo é ruído: o formato % já diz */
+  .sp-head-right { gap: 6px; }
+}
+
+/* ---------------------------------------------------------------------------
+   3. GRADE SEMANAL
+   --------------------------------------------------------------------------- */
+
+/* Engrenagem compacta, encostada na moldura do cartão */
+.grade-gear-mini {
+  padding: 6px 11px; font-size: var(--fs-xs); min-height: 32px; border-radius: 10px;
+  display: inline-flex; align-items: center; gap: 6px;
+}
+.grade-gear-mini .gg-gear { font-size: var(--fs-sm); line-height: 1; }
+@media (max-width: 560px) {
+  .grade-gear-mini { padding: 6px 9px; min-height: 34px; }
+  .grade-gear-mini .gg-word { display: none; }   /* só a engrenagem, no cantinho */
+}
+/* A engrenagem vai para o CANTO do cartão, não para uma linha só dela.
+   Com o título ocupando a largura inteira, o botão caía para a linha de baixo e
+   deixava uma faixa vazia acima — desperdício justamente do espaço que este
+   redesenho queria recuperar. */
+#screen-grade .card-header { position: relative; padding-right: 62px; }
+#screen-grade .grade-head-actions {
+  position: absolute; top: 14px; right: 14px; margin: 0; z-index: 2;
+}
+@media (max-width: 560px) {
+  #screen-grade .card-header { padding-right: 56px; }
+  #screen-grade .grade-head-actions { top: 12px; right: 12px; }
+}
+/* o menu abre alinhado à direita, sem estourar a tela */
+#screen-grade .grade-gear-menu { right: 0; left: auto; }
+
+/* Grupos rotulados dentro do menu (visão e início da semana) */
+.grade-gear-group { padding: 9px 12px 10px; }
+.grade-gear-lbl {
+  display: block; font-size: var(--fs-3xs); font-weight: 800; letter-spacing: .07em;
+  text-transform: uppercase; color: var(--text-faint); margin-bottom: 7px;
+}
+.grade-gear-group .grade-view-toggle { display: flex; width: 100%; }
+.grade-gear-group .gvt-btn { flex: 1 1 0; justify-content: center; text-align: center; }
+.grade-gear-select {
+  width: 100%; padding: 7px 32px 7px 10px; font-size: var(--fs-sm);
+  border-radius: 9px; border: 1.5px solid var(--border); background: var(--surface);
+}
+.grade-gear-menu { min-width: 244px; }
+
+/* A bandeja perdeu a barra de ações: os chips ocupam a faixa inteira */
+.grade-tray-bar .grade-chip-tray { width: 100%; }
+
+/* ── Meta diária: o que já foi concluído fica VERDE ───────────────────────── */
+.gd-chip.is-done {
+  color: var(--good-text) !important;
+  background: var(--good-soft);
+  border-color: color-mix(in srgb, var(--good) 45%, transparent);
+}
+.gd-chip-check { font-weight: 900; margin-right: 4px; color: var(--good); }
+.gd-day.is-complete {
+  border-color: color-mix(in srgb, var(--good) 45%, var(--border));
+  background: color-mix(in srgb, var(--good-soft) 55%, var(--surface));
+}
+.gd-done-tag {
+  margin-left: 8px; padding: 2px 8px; border-radius: 20px;
+  background: var(--good-soft); color: var(--good-text);
+  font-size: var(--fs-3xs); font-weight: 800; letter-spacing: .02em; white-space: nowrap;
+}
+.gd-day-count {
+  display: inline-block; margin-right: 8px; padding: 2px 8px; border-radius: 20px;
+  background: var(--surface-sunken); border: 1px solid var(--border);
+  font-family: 'Space Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: var(--fs-3xs); color: var(--text-faint); font-weight: 700;
+}
+.gd-day-count.has { background: var(--good-soft); border-color: transparent; color: var(--good-text); }
+
+/* ---------------------------------------------------------------------------
+   4. ESTUDO NOVO
+   --------------------------------------------------------------------------- */
+
+/* ── Média geral de acertos: três cartões, uma linha de base ──────────────
+   "1ª Resolução" quebrava em duas linhas e "Checkpoint" não: o percentual do
+   primeiro cartão descia e os três deixavam de se alinhar. O rótulo passa a
+   ocupar uma faixa de altura fixa e o valor a nascer sempre na mesma altura;
+   quando não couber, o texto encolhe em vez de quebrar. */
+.track-averages { align-items: stretch; }
+.track-avg-card {
+  display: flex; flex-direction: column; align-items: center;
+  min-width: 0;
+}
+.track-avg-card .lbl {
+  display: flex; align-items: center; justify-content: center; text-align: center;
+  min-height: calc(2.2em * var(--fs-scale, 1));
+  width: 100%; white-space: nowrap; letter-spacing: .02em;
+  font-size: clamp(8px, calc(9.5px * var(--fs-scale, 1)), 11px);
+  margin-bottom: 6px;
+}
+.track-avg-card .val {
+  font-variant-numeric: tabular-nums; line-height: 1.1;
+  display: flex; align-items: center; justify-content: center; min-height: 1.15em;
+}
+.track-avg-card .cnt { margin-top: auto; padding-top: 4px; text-align: center; }
+@media (max-width: 420px) {
+  .track-averages { gap: 7px; }
+  .track-avg-card { padding: 10px 5px; }
+  .track-avg-card .lbl { font-size: clamp(7.5px, 2.35vw, 10px); }
+}
+
+/* ── Etapas da aula: rótulos de tamanhos diferentes, inputs na mesma coluna
+   No celular a etapa virava "rótulo | campos" com o rótulo em largura
+   automática: "1ª RESOLUÇÃO", "CHECKPOINT" e "REVISÃO" produziam três larguras
+   e as caixas de acertos ficavam em três posições. Coluna fixa resolve. */
+/* ── Etapas da aula no celular ────────────────────────────────────────────
+   Duas coisas erradas de uma vez.
+   (1) O cartão só tinha ~250px úteis: entre a margem do trecho, a do cartão e
+       um recuo de 54px herdado do desktop, metade da largura da tela ia embora
+       antes do primeiro pixel de conteúdo.
+   (2) Nesse espaço, "rótulo | acertos / total | %" não cabia — e como a linha
+       de campos era `justify-content: flex-end`, o excesso transbordava para a
+       ESQUERDA, POR CIMA do rótulo. Era isso que cortava "1ª RESOLUÇÃO" no meio
+       e fazia cada etapa parecer desalinhada da anterior.
+   Agora: o cartão recupera a largura, o rótulo tem coluna fixa (podendo usar
+   duas linhas, o que mantém o alinhamento) e os campos partem da esquerda, sem
+   nada podendo invadir o rótulo. */
+@media (max-width: 820px) {
+  .track-segment { margin: 0 10px 12px; padding: 10px; }
+  .track-card { padding: 11px 12px; }
+  .track-stages { padding-left: 0; }
+  .track-stage {
+    grid-template-columns: 92px minmax(0, 1fr);
+    column-gap: 8px; padding: 7px 10px;
+  }
+  .track-stage .ts-label {
+    min-width: 0; white-space: normal; overflow-wrap: anywhere; hyphens: none;
+    font-size: clamp(8px, 2.3vw, 9.5px); letter-spacing: 0; line-height: 1.2;
+    display: flex; align-items: center; min-height: 2.2em;
+  }
+  .track-stage .ts-inputs { justify-content: flex-start; gap: 5px; min-width: 0; }
+  .track-stage .ts-num { flex: 1 1 0; width: auto; min-width: 0; max-width: 54px; padding: 6px 2px; }
+  .track-stage .ts-pct {
+    margin-left: auto; flex: 0 0 auto; min-width: 0;
+    padding: 4px 7px; font-size: var(--fs-3xs);
+  }
+}
+@media (max-width: 380px) {
+  .track-stage { grid-template-columns: 80px minmax(0, 1fr); padding: 6px 8px; }
+  .track-stage .ts-num { max-width: 46px; }
+}
+
+/* ── O título da aula em telas estreitas ──────────────────────────────────
+   O enunciado dividia a linha com a alça de arrastar, o número e o X, sobrando
+   ~154px: um título longo virava uma coluna de uma palavra por linha, com
+   quebra no meio da palavra ("desdobrament/os"). No celular ele passa a ocupar
+   a linha inteira e os controles ficam numa faixa própria acima. */
+@media (max-width: 620px) {
+  .track-card-head {
+    grid-template-columns: 20px 26px minmax(0, 1fr) 28px;
+    row-gap: 8px; align-items: center;
+  }
+  .track-card-head .track-lesson-text {
+    grid-column: 1 / -1; grid-row: 2; width: 100%;
+    overflow-wrap: anywhere; line-height: 1.35;
+  }
+  .track-card-head .track-status-select { grid-column: 3 / 4; grid-row: 1; align-self: center; }
+  .track-card-head .track-remove-btn { grid-column: 4 / 5; grid-row: 1; }
+}
+
+/* ---------------------------------------------------------------------------
+   5. LEIS SECAS
+   --------------------------------------------------------------------------- */
+
+/* Metadados em chips: alinham entre si e quebram por inteiro */
+.leis-reader-meta {
+  display: flex !important; flex-wrap: wrap; gap: 6px;
+  margin-top: 7px; padding: 0 !important;
+  background: none !important; border: none !important; border-radius: 0 !important;
+}
+.lei-meta-chip {
+  display: inline-flex; align-items: center; gap: 5px;
+  padding: 3px 10px; border-radius: 20px;
+  background: var(--surface-sunken); border: 1px solid var(--border);
+  color: var(--text-soft); font-size: var(--fs-3xs); font-weight: 600;
+  line-height: 1.5; white-space: nowrap; max-width: 100%;
+  overflow: hidden; text-overflow: ellipsis;
+}
+.lmc-ic { opacity: .75; font-size: .95em; }
+.leis-reader-topbar { align-items: flex-start; }
+.leis-reader-topbar .leis-back { flex-shrink: 0; align-self: center; }
+.leis-reader-title { min-width: 0; flex: 1 1 auto; }
+.leis-reader-title h2 { overflow-wrap: anywhere; }
+.leis-reader-actions { display: flex; gap: 7px; flex-shrink: 0; align-self: center; }
+/* No celular o cabeçalho vira duas faixas: comandos em cima (voltar à esquerda,
+   editar/excluir à direita) e a identificação da lei embaixo, com a largura
+   inteira. Antes o "Voltar" tomava uma linha só dele e os dois botões de ação
+   sobravam soltos no rodapé do bloco, sem relação visível com nada. */
+@media (max-width: 640px) {
+  .leis-reader-topbar { display: grid; grid-template-columns: auto 1fr auto; gap: 10px 8px; }
+  .leis-reader-topbar .leis-back { grid-column: 1; grid-row: 1; }
+  .leis-reader-actions { grid-column: 3; grid-row: 1; }
+  .leis-reader-title { grid-column: 1 / -1; grid-row: 2; }
+  .leis-reader-title h2 { font-size: var(--fs-lg); line-height: 1.25; }
+}
+
+/* Barra de ferramentas recolhível */
+.leis-tools-toggle {
+  display: flex; align-items: center; gap: 8px; width: 100%;
+  background: transparent; border: none; cursor: pointer;
+  padding: 9px 12px; border-radius: 12px;
+  font-size: var(--fs-2xs); font-weight: 800; letter-spacing: .05em;
+  text-transform: uppercase; color: var(--text-faint);
+}
+.leis-tools-toggle:hover { color: var(--accent); background: var(--accent-soft); }
+.leis-tools-toggle .ltt-txt { flex: 1 1 auto; text-align: left; }
+.leis-tools-toggle .ltt-caret { transition: transform .16s ease; }
+.leis-sticky.tools-collapsed .leis-tools-toggle .ltt-caret { transform: rotate(-90deg); }
+.leis-sticky.tools-collapsed .leis-tools-body { display: none; }
+.leis-sticky.tools-collapsed { padding-bottom: 2px; }
+
+/* ---------------------------------------------------------------------------
+   6. EXTRAS — cartões compactos e uniformes
+   (Bloco resgatado: estes ajustes estavam presos, por engano, dentro do
+    template do relatório em PDF, onde nunca chegaram a valer para o app.)
+   --------------------------------------------------------------------------- */
+.exd { padding: 11px 13px 11px 18px; margin-bottom: 9px; }
+.exd-top { align-items: center; gap: 9px; }
+.exd-check { margin-top: 0; min-width: 88px; justify-content: center; }
+.exd-ico { width: 32px; height: 32px; border-radius: 9px; font-size: var(--fs-md); }
+.exd-title { font-size: calc(13.5px * var(--fs-scale, 1)); }
+.exd-tags { margin-top: 4px; gap: 5px; }
+.exd-prog { margin-top: 7px; }
+.exd-reg { margin-top: 8px; gap: 7px; align-items: center; }
+.exd-reg-group { gap: 7px; flex: 0 1 auto; }
+.exd.done { padding-bottom: 11px; }
+
+/* A caixa de minutos ocupava a largura inteira do cartão para receber
+   dois dígitos. Largura fixa, do tamanho do dado. */
+.exd-reg .exd-num {
+  flex: 0 0 104px; width: 104px; min-height: 36px; padding: 7px 9px;
+  text-align: center; appearance: textfield; -moz-appearance: textfield;
+}
+.exd-reg .exd-num::-webkit-inner-spin-button,
+.exd-reg .exd-num::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
+.exd-reg .exd-reg-btn, .exd-reg .exd-undo, .exd-reg .exd-done-btn {
+  min-height: 36px; height: 36px; padding: 0 14px;
+  display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+  border-radius: 10px; white-space: nowrap; font-weight: 700;
+}
+.exd-reg .exd-reg-btn { min-width: 96px; }
+.exd-reg .exd-undo { color: var(--text-soft); background: var(--surface); border: 1.5px solid var(--border); }
+.exd-actions { display: flex; align-items: center; gap: 7px; flex-shrink: 0; align-self: flex-start; }
+.exd-info-wrap { position: relative; display: inline-flex; align-items: center; }
+.exd-info-btn {
+  width: 28px; height: 28px; border-radius: 50%; border: 1px solid var(--border);
+  background: var(--surface); color: var(--accent); font-weight: 800; cursor: pointer;
+}
+.exd-info-pop {
+  display: none; position: absolute; z-index: 20; left: 0; bottom: 34px;
+  width: min(280px, 72vw); padding: 9px 11px;
+  border: 1px solid var(--border); border-radius: 10px; background: var(--surface);
+  box-shadow: var(--shadow-md); color: var(--text-soft);
+  font-size: calc(11px * var(--fs-scale, 1)); line-height: 1.4;
+}
+.exd-info-wrap.open .exd-info-pop { display: block; }
+.exd.done .exd-check:hover::before, .exd.done .exd-check:hover::after { content: none !important; display: none !important; }
+@media (max-width: 640px) {
+  .exd { padding: 10px 11px 10px 16px; }
+  .exd-top { grid-template-columns: auto auto minmax(0, 1fr) auto; gap: 7px; }
+  /* O botão de concluir vira só o ✓ (o rótulo já some abaixo de 420px): manter
+     78px de largura para um ícone empurrava o título para uma segunda linha. */
+  .exd-check { min-width: 0; padding: 0 10px; }
+  .exd-ico { width: 30px; height: 30px; }
+  .exd-reg-group { flex-wrap: nowrap; width: 100%; }
+  /* A caixa de minutos ficava gigante: ocupava toda a sobra da linha para
+     receber dois dígitos. Largura do dado, não do espaço disponível. */
+  .exd-reg .exd-num { flex: 0 1 128px; width: 128px; min-width: 0; max-width: 150px; }
+  .exd-reg .exd-reg-btn { flex: 0 0 auto; min-width: 92px; }
+}
+@media (max-width: 420px) {
+  .exd-check { padding: 0 9px; }
+  .exd-reg .exd-num { flex: 1 1 0; width: auto; max-width: 120px; }
+  .exd-reg .exd-reg-btn { min-width: 84px; padding: 0 10px; }
+}
+
+/* Seleção em massa (mesmo bloco resgatado) */
+.cards-bulk {
+  display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+  padding: 8px 10px; margin: 0 0 12px;
+  border: 1px solid var(--border); border-radius: 12px; background: var(--surface-sunken);
+}
+.cards-select-toggle {
+  display: inline-flex; align-items: center; gap: 8px; min-height: 34px; padding: 0 11px;
+  border: 1px solid var(--border); border-radius: 9px; background: var(--surface);
+  color: var(--text-soft); font-size: calc(11.5px * var(--fs-scale, 1)); font-weight: 700; cursor: pointer;
+}
+.cards-select-toggle:hover { border-color: var(--accent); color: var(--accent); }
+.cards-select-toggle input { width: 15px; height: 15px; accent-color: var(--accent); }
+.cards-bulk-count {
+  min-height: 26px; display: inline-flex; align-items: center; padding: 0 9px;
+  border-radius: 999px; background: var(--accent-soft); color: var(--accent);
+  font-size: calc(11px * var(--fs-scale, 1)); font-weight: 800;
+}
+.cards-bulk-count:empty { display: none; }
+.cards-bulk .btn-danger { min-height: 34px; padding: 0 12px; margin-left: auto; border-radius: 9px; font-size: calc(11.5px * var(--fs-scale, 1)); }
+@media (max-width: 640px) { .cards-bulk .btn-danger { width: auto; margin-left: 0; } }
+
+/* ---------------------------------------------------------------------------
+   7. HISTÓRICO — cartão compacto e período com moldura
+   --------------------------------------------------------------------------- */
+
+/* O período era texto solto sobre o cartão. Vira uma etiqueta com moldura,
+   que é o que ela é: a identidade daquela semana. */
+.wk-period-box {
+  display: inline-flex; align-items: center; gap: 8px; flex-wrap: wrap;
+  padding: 6px 12px; border-radius: 11px;
+  background: var(--surface-sunken); border: 1.5px solid var(--border);
+}
+.wk-period-ic { font-size: var(--fs-sm); line-height: 1; opacity: .85; }
+.wk-period-dates {
+  display: inline-flex; align-items: center; gap: 7px;
+  font-family: 'Space Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-weight: 700; font-size: var(--fs-sm); color: var(--text);
+  white-space: nowrap; letter-spacing: -.01em;
+}
+.wk-period-dates .arrow { color: var(--text-faint); font-weight: 400; }
+.wk-head-right { display: flex; align-items: center; gap: 7px; flex-shrink: 0; margin-left: auto; }
+#historico-list .week-card-head { align-items: center; gap: 9px; flex-wrap: wrap; }
+/* período + aproveitamento + ações cabem na mesma linha até em tela estreita */
+@media (max-width: 560px) {
+  .wk-head-right .status-badge { font-size: var(--fs-3xs); padding: 3px 8px; }
+  .wk-period-box { gap: 6px; }
+  .wk-period-ic { font-size: var(--fs-xs); }
+}
+
+/* Compactação: o cartão ocupava quase uma tela inteira para UMA semana. */
+#historico-list .week-card { padding-bottom: 12px; margin-bottom: 12px; }
+#historico-list .week-stats-row { gap: 9px; }
+#historico-list .week-stat { padding: 9px 8px; }
+#historico-list .week-stat .value { font-size: calc(17px * var(--fs-scale, 1)); line-height: 1.15; white-space: nowrap; }
+#historico-list .week-stat .label { font-size: var(--fs-3xs); margin-top: 2px; white-space: nowrap; }
+#historico-list .week-cumprido-wrap { margin-top: 10px; }
+#historico-list .week-cumprido-head { gap: 8px; flex-wrap: wrap; }
+#historico-list .week-cumprido-head .val { white-space: nowrap; font-variant-numeric: tabular-nums; }
+#historico-list .week-status-dist { margin-top: 9px; gap: 6px; }
+#historico-list .wsd-chip { padding: 3px 9px; font-size: var(--fs-3xs); white-space: nowrap; }
+#historico-list .btn-toggle-detail { margin-top: 10px; padding: 8px 12px; }
+@media (max-width: 560px) {
+  #historico-list .week-stats-row { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; gap: 7px; }
+  #historico-list .week-stat .value { font-size: calc(15px * var(--fs-scale, 1)); }
+  .wk-period-dates { font-size: var(--fs-xs); }
+  .wk-period-box { padding: 5px 10px; }
+}
+
+/* ---------------------------------------------------------------------------
+   8. EVOLUÇÃO
+   --------------------------------------------------------------------------- */
+
+/* Quatro indicadores: dois a dois no celular, nunca uma coluna só */
+#screen-evolucao .evo-stats-band { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+@media (max-width: 1100px) { #screen-evolucao .evo-stats-band { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 420px)  { #screen-evolucao .evo-stats-band { gap: 9px !important; } }
+.evo-stat-card { min-width: 0; }
+.evo-stat-card .value { overflow-wrap: anywhere; }
+
+/* ── Filtros de escopo e período: uma grade, não uma fila que quebra ──────
+   Eram flex com wrap: "De", "Até" e os três atalhos caíam em posições
+   diferentes a cada largura, e o rótulo do período ficava pendurado no fim
+   de uma linha qualquer. Grade com colunas iguais e base comum. */
+#evo-scope-body .evo-filter-row,
+#evo-scope-body > div:last-child {
+  display: grid !important;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto;
+  align-items: end; gap: 12px 14px;
+}
+#evo-scope-body > div:last-child > .field { margin-bottom: 0; min-width: 0; }
+#evo-scope-body > div:last-child > .field > label { margin-bottom: 5px; }
+#evo-scope-body > div:last-child > .field > input { width: 100%; }
+#evo-scope-body > div:last-child > div:not(.field) { display: flex; gap: 8px; flex-wrap: wrap; }
+#evo-scope-body > div:last-child > .hint {
+  grid-column: 1 / -1; margin: 0 !important; padding: 0 !important;
+  color: var(--text-faint);
+}
+@media (max-width: 620px) {
+  #evo-scope-body > div:last-child { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+  #evo-scope-body > div:last-child > div:not(.field) { grid-column: 1 / -1; }
+  #evo-scope-body > div:last-child > div:not(.field) > button { flex: 1 1 0; }
+}
+/* Os dois escopos lado a lado, sempre. `white-space: nowrap` no botão obrigava
+   "Todos os planejamentos" a caber inteiro numa linha e, sem espaço, o par
+   quebrava em duas faixas empilhadas. Aqui o texto pode reduzir e, no limite,
+   quebrar dentro do próprio botão — os dois continuam a dividir a linha. */
+#screen-evolucao .scope-toggle { display: flex; flex-wrap: nowrap; width: 100%; }
+#screen-evolucao .scope-toggle button {
+  flex: 1 1 0; min-width: 0; justify-content: center; text-align: center;
+  white-space: normal; line-height: 1.25; padding: 7px 8px;
+  font-size: clamp(10px, 2.9vw, 13px);
+}
+
+/* Cabeçalho do gráfico de tempo: chips e intervalo alinhados à direita, sem
+   se espalhar por três alturas diferentes. */
+#screen-evolucao .evo-card-head { align-items: flex-start; gap: 12px; flex-wrap: wrap; }
+.evo-chip-group { display: flex; flex-wrap: wrap; gap: 6px; justify-content: flex-end; }
+.evo-chip-group .evo-chip { flex: 0 0 auto; }
+.evo-tempo-range {
+  display: flex; align-items: center; gap: 7px; flex-wrap: nowrap;
+  padding: 5px 9px; border-radius: 10px;
+  background: var(--surface-sunken); border: 1px solid var(--border);
+}
+.evo-tempo-range input[type="date"] { min-width: 0; flex: 1 1 0; padding: 5px 8px; font-size: var(--fs-2xs); }
+.evo-tempo-range-lbl { font-size: var(--fs-3xs); font-weight: 700; color: var(--text-faint); white-space: nowrap; }
+@media (max-width: 720px) {
+  #screen-evolucao .evo-card-head > div:last-child { width: 100%; align-items: stretch !important; }
+  .evo-chip-group { justify-content: flex-start; }
+  .evo-chip-group .evo-chip { flex: 1 1 auto; text-align: center; justify-content: center; }
+  .evo-tempo-range { width: 100%; }
+}
+
+/* ── Tempo por matéria: o rótulo de horas sobrepunha a barra ──────────────
+   A coluna do valor tinha largura fixa de 90px; "30h 2min" precisa de mais e
+   transbordava por cima do trilho. Agora a coluna se dimensiona pelo maior
+   rótulo (auto) e quem cede espaço é a barra, que é elástica por natureza. */
+.tpm-row { grid-template-columns: minmax(0, 150px) minmax(40px, 1fr) auto; column-gap: 12px; }
+.tpm-bar-wrap { min-width: 0; }
+.tpm-val { flex-wrap: nowrap; white-space: nowrap; }
+.tpm-hours { font-variant-numeric: tabular-nums; }
+@media (max-width: 720px) {
+  .tpm-row { grid-template-columns: minmax(0, 104px) minmax(32px, 1fr) auto; column-gap: 8px; }
+  .tpm-hours { padding: 3px 7px; font-size: var(--fs-2xs); }
+  .tpm-pct { min-width: 26px; }
+}
+@media (max-width: 400px) {
+  /* abaixo disto os três não cabem lado a lado sem se atropelar: o nome ganha
+     a linha inteira e a barra fica embaixo, inteira e legível. */
+  .tpm-row { grid-template-columns: minmax(32px, 1fr) auto; row-gap: 5px; padding: 9px 0; }
+  .tpm-name { grid-column: 1 / -1; white-space: normal; }
+}
+
+/* ---------------------------------------------------------------------------
+   9. CONQUISTAS
+   --------------------------------------------------------------------------- */
+.conq-resumo {
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(122px, 1fr));
+  gap: 9px; margin-top: 14px;
+}
+.conq-mini {
+  background: var(--surface-sunken); border: 1.5px solid var(--border);
+  border-radius: 12px; padding: 10px 11px; text-align: center; min-width: 0;
+}
+.conq-mini .cm-v {
+  font-family: 'Space Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-weight: 800; font-size: calc(16px * var(--fs-scale, 1)); color: var(--text);
+  line-height: 1.15; overflow-wrap: anywhere;
+}
+.conq-mini .cm-r {
+  font-size: var(--fs-3xs); color: var(--text-faint); margin-top: 3px; line-height: 1.35;
+}
+.conq-recs { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 8px; }
+.conq-rec { align-items: center; gap: 10px; }
+.conq-rec-vals { text-align: right; white-space: nowrap; }
+@media (max-width: 560px) {
+  .conq-resumo { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .conq-recs { grid-template-columns: 1fr; }
+}
+
+/* ---------------------------------------------------------------------------
+   10. DESEMPENHO TEC — cabeçalhos enxutos quando os filtros estão recolhidos
+   --------------------------------------------------------------------------- */
+#tec-analysis.hide-heads .card-header .sub,
+#tec-analysis.hide-heads .evo-card-head .sub { display: none; }
+#tec-analysis.hide-heads .card-header,
+#tec-analysis.hide-heads .evo-card-head { padding-top: 14px; padding-bottom: 12px; }
+
+/* ---------------------------------------------------------------------------
+   11. CONFIGURAÇÕES — Estrutura do estudo
+   --------------------------------------------------------------------------- */
+
+/* ── A linha de matéria, refeita ──────────────────────────────────────────
+   O layout antigo era uma grade de quatro colunas em que, sem espaço, a coluna
+   da dificuldade colapsava para poucos pixels: o rótulo "DIFICULDADE" descia
+   letra por letra e o nome da matéria ficava cortado. Agora a linha tem dois
+   blocos com estrutura própria — cabeçalho e campos — e cada um se resolve
+   sozinho, sem depender de sobrar largura para o vizinho. */
+#screen-config .config-subject-row,
+.config-subject-row {
+  display: block !important;
+  border: 1.5px solid var(--border);
+  border-radius: 13px;
+  background: var(--surface);
+  padding: 12px 14px !important;
+  margin-bottom: 9px;
+}
+.config-subject-row .csr-head {
+  display: flex; align-items: center; gap: 10px; min-width: 0;
+}
+.config-subject-row .csr-head > .cfg-subj-name {
+  flex: 1 1 auto; min-width: 0; width: auto;
+  font-weight: 700; font-size: var(--fs-md);
+  text-overflow: ellipsis;
+}
+.config-subject-row .csr-head > .config-row-actions {
+  flex: 0 0 auto; display: flex; align-items: center; gap: 8px;
+}
+.config-subject-row .csr-fields {
+  display: grid; grid-template-columns: 132px minmax(0, 1fr);
+  gap: 10px; margin-top: 11px; align-items: end;
+}
+.config-subject-row .cfg-field { display: flex !important; flex-direction: column; min-width: 0; }
+.config-subject-row .cfg-field > span {
+  display: block !important;
+  font-size: var(--fs-3xs); font-weight: 800; letter-spacing: .05em;
+  text-transform: uppercase; color: var(--text-faint);
+  margin-bottom: 5px; white-space: nowrap;
+}
+.config-subject-row .cfg-field > select {
+  width: 100%; min-width: 0; padding: 8px 32px 8px 10px; font-size: var(--fs-sm);
+}
+@media (max-width: 480px) {
+  .config-subject-row .csr-fields { grid-template-columns: minmax(0, 1fr); gap: 9px; }
+}
+
+/* Nome em cima, ações embaixo à direita.
+   Dividir a linha com o interruptor e o excluir deixava ~200px para o campo, e
+   "Estatuto da Pessoa com Deficiência" saía cortado em qualquer celular. Com a
+   linha inteira o nome cabe, e as ações ficam num lugar previsível. */
+@media (max-width: 620px) {
+  .config-subject-row .csr-head,
+  .config-status-row .csr-head { flex-wrap: wrap; row-gap: 9px; }
+  .config-subject-row .csr-head > .cfg-subj-name,
+  .config-status-row .csr-head > .cfg-status-name { flex: 1 1 100%; }
+  .config-subject-row .csr-head > .config-row-actions,
+  .config-status-row .csr-head > .config-row-actions { margin-left: auto; }
+}
+
+/* ── Status do Estudo Novo: três seções delimitadas ──────────────────────── */
+.config-status-row {
+  display: block !important;
+  border: 1.5px solid var(--border) !important;
+  border-radius: 13px; background: var(--surface);
+  padding: 12px 14px !important; margin-bottom: 9px;
+}
+.config-status-row .csr-head { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.config-status-row .csr-head > .cfg-status-name {
+  flex: 1 1 auto; min-width: 0; width: auto; font-weight: 700; font-size: var(--fs-md);
+}
+.config-status-row .csr-head > .config-row-actions {
+  flex: 0 0 auto; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; justify-content: flex-end;
+}
+.cst-blocks {
+  display: grid; grid-template-columns: auto minmax(0, 1fr) auto;
+  gap: 10px 14px; margin-top: 11px; align-items: start;
+}
+.cst-block {
+  min-width: 0; padding: 9px 11px;
+  background: var(--surface-sunken); border: 1px solid var(--border); border-radius: 11px;
+}
+.cst-lbl {
+  display: block; font-size: var(--fs-3xs); font-weight: 800; letter-spacing: .05em;
+  text-transform: uppercase; color: var(--text-faint); margin-bottom: 7px; white-space: nowrap;
+}
+.cst-block .status-preview { display: inline-flex; align-items: center; }
+.cst-block .status-swatches { display: flex; flex-wrap: wrap; gap: 6px; }
+.cst-block .status-done-toggle { display: inline-flex; align-items: center; gap: 8px; margin: 0; white-space: nowrap; }
+.status-done-badge { white-space: nowrap; font-size: var(--fs-3xs); }
+/* Com pouco espaço a badge some: a mesma informação já está, por extenso e
+   editável, no bloco "Progresso" logo abaixo. */
+@media (max-width: 720px) { .config-status-row .status-done-badge { display: none; } }
+@media (max-width: 860px) {
+  .cst-blocks { grid-template-columns: minmax(0, 1fr); }
+  .cst-block .status-done-toggle { white-space: normal; }
+}
+
+/* ---------------------------------------------------------------------------
+   12. Modais — o fundo desfocado não fecha mais nada, então o X precisa ser
+       encontrável em qualquer diálogo.
+   --------------------------------------------------------------------------- */
+.cards-modal-head .icon-btn, .siglas-modal-head .icon-btn {
+  border: 1.5px solid var(--border); border-radius: 9px; background: var(--surface);
+}
+.cards-modal-head .icon-btn:hover, .siglas-modal-head .icon-btn:hover {
+  border-color: var(--bad, #e0393f); color: var(--bad, #e0393f); background: var(--bad-soft);
+}
 </style>
 
 <script id="app-code" type="application/x-diario-inert">
@@ -9375,7 +10285,7 @@ const DB = {
           const uso = DB.storageUsageMB();
           try {
             showToast('⚠ Armazenamento cheio (' + uso + ' MB): este dado NÃO foi salvo. Libere espaço em Configurações → exporte um backup e apague imagens de cards ou leis antigas.');
-          } catch (_) { alert('Armazenamento do navegador cheio (' + uso + ' MB). O último dado não foi salvo. Faça um backup e libere espaço.'); }
+          } catch (_) { try { UI.alert('Armazenamento do navegador cheio (' + uso + ' MB). O último dado não foi salvo. Faça um backup e libere espaço.', { title: 'Armazenamento cheio' }); } catch (__) { _quiet(__); } }
         }
       } else {
         try { showToast('⚠ Não foi possível salvar. Verifique se o navegador não está em modo privado.'); } catch (_) { _quiet(_); }
@@ -9459,10 +10369,14 @@ const DB = {
 
   // --- Entries (Diário) ---
   getEntries() { return this._get(this.KEYS.entries, []); },
+  /* Devolve o ENTRY quando a gravacao deu certo e null quando falhou (cota
+     estourada, modo privado). Antes devolvia sempre o entry, entao a tela dizia
+     "Estudo registrado" mesmo quando o localStorage recusou a escrita — foi
+     assim que registros "sumiram" sem aviso nenhum. */
   saveEntry(entry) {
     const entries = this.getEntries();
     entries.push(entry);
-    this._set(this.KEYS.entries, entries);
+    if (this._set(this.KEYS.entries, entries) === false) return null;
     return entry;
   },
   /* Comparação por TEXTO, de propósito. Registros antigos têm id NUMÉRICO
@@ -9473,13 +10387,13 @@ const DB = {
   _mesmoId(a, b) { return String(a) === String(b); },
   deleteEntry(id) {
     const entries = this.getEntries().filter(e => !this._mesmoId(e.id, id));
-    this._set(this.KEYS.entries, entries);
+    return this._set(this.KEYS.entries, entries) !== false;
   },
   updateEntry(id, patch) {
     const entries = this.getEntries();
     const e = entries.find(x => this._mesmoId(x.id, id));
     if (e) Object.assign(e, patch);
-    this._set(this.KEYS.entries, entries);
+    if (this._set(this.KEYS.entries, entries) === false) return null;
     return e;
   },
   getEntry(id) { return this.getEntries().find(e => this._mesmoId(e.id, id)); },
@@ -11186,12 +12100,53 @@ window.ProfileManager = ProfileManager;
    um backup automático por dia, e manual pelo botão em Configurações.
    100% no cliente, reversível, e não exige nada do Supabase.
    ============================================================ */
+/* ═══════════════════ HISTORICO DE VERSOES (rede de seguranca) ═══════════════
+   Antes: 1 foto por dia, 8 no total. Quem apagasse algo por engano de manha e
+   percebesse a tarde so tinha a foto da meia-noite — perdia o dia inteiro de
+   trabalho. Agora as fotos sao FREQUENTES (a cada 20 min de uso, e sempre que
+   uma acao destrutiva acontece) e a lista se AUTOLIMPA:
+
+     • JANELA de 7 dias — nada mais velho que isso e mantido; um backup de duas
+       semanas atras nao ajuda e ocupa espaco.
+     • PISO de 3 versoes — mesmo depois de 7 dias parado, voce sempre volta as
+       tres ultimas fotos. A limpeza nunca deixa o usuario sem rede.
+     • ORCAMENTO de espaco — o conjunto nunca passa de ~3 MB (ja comprimido em
+       gzip). Estourou, as mais antigas saem primeiro.
+   O resultado e uma protecao continua que nao cresce sem limite.
+   ═══════════════════════════════════════════════════════════════════════════ */
 const VersionHistory = {
-  MAX: 8,
+  MAX: 24,                       // teto de fotos guardadas
+  MIN_KEEP: 3,                   // nunca limpa abaixo disto, custe o que custar
+  MAX_AGE_MS: 7 * 24 * 3600 * 1000,   // janela de 7 dias
+  MAX_BYTES: 3 * 1024 * 1024,    // orcamento total (~3 MB comprimidos)
+  AUTO_EVERY_MS: 20 * 60 * 1000, // foto automatica a cada 20 min de uso
   _key(id) { return 'diario-estudos:vhist:' + id; },
   _dayKey(id) { return 'diario-estudos:vhist-day:' + id; },
+  _autoKey(id) { return 'diario-estudos:vhist-auto:' + id; },
   _list(id) { try { return JSON.parse(localStorage.getItem(this._key(id))) || []; } catch (_) { return []; } },
+
+  /* Autolimpeza: idade > orcamento > teto, sempre respeitando MIN_KEEP.
+     Roda antes de cada gravacao, entao a lista nunca "engorda calada". */
+  _prune(arr) {
+    if (!Array.isArray(arr)) return [];
+    const agora = Date.now();
+    // 1) idade — descarta o que passou da janela, preservando o piso
+    let out = arr.filter(r => (agora - (r.ts || 0)) <= this.MAX_AGE_MS);
+    if (out.length < this.MIN_KEEP) out = arr.slice(-this.MIN_KEEP);
+    // 2) teto de quantidade
+    while (out.length > this.MAX) out.shift();
+    // 3) orcamento de espaco — as mais antigas saem primeiro
+    const peso = (r) => ((r && r.data) ? String(r.data).length : 0) * 2; // UTF-16
+    let total = out.reduce((a, r) => a + peso(r), 0);
+    while (total > this.MAX_BYTES && out.length > this.MIN_KEEP) {
+      total -= peso(out[0]);
+      out.shift();
+    }
+    return out;
+  },
+
   _save(id, arr) {
+    arr = this._prune(arr);
     while (true) {
       try { localStorage.setItem(this._key(id), JSON.stringify(arr)); return true; }
       catch (e) { if (arr.length > 1) { arr.shift(); continue; } try { localStorage.removeItem(this._key(id)); } catch (_) { _quiet(_); } return false; }
@@ -11238,9 +12193,45 @@ const VersionHistory = {
     try {
       const id = ProfileManager.getActiveProfileId(); if (!id) return;
       let last = null; try { last = localStorage.getItem(this._dayKey(id)); } catch (_) { _quiet(_); }
-      const hoje = todayLocal(); if (last === hoje) return;
-      try { localStorage.setItem(this._dayKey(id), hoje); } catch (_) { _quiet(_); }
-      this.snapshot('backup diário');
+      const hoje = todayLocal();
+      if (last !== hoje) {
+        try { localStorage.setItem(this._dayKey(id), hoje); } catch (_) { _quiet(_); }
+        this.snapshot('backup diário');
+        return;
+      }
+      this.maybeAutoSnapshot();
+    } catch (_) { _quiet(_); }
+  },
+
+  /* Foto periodica durante o uso. E o que transforma a rede de seguranca de
+     "uma vez por dia" em "sempre por perto": no maximo 20 min de trabalho entre
+     uma foto e outra. snapshot() ja ignora estados identicos, entao ficar com o
+     app aberto sem mexer em nada NAO gera copias repetidas. */
+  maybeAutoSnapshot() {
+    try {
+      const id = ProfileManager.getActiveProfileId(); if (!id) return false;
+      let last = 0; try { last = parseInt(localStorage.getItem(this._autoKey(id)), 10) || 0; } catch (_) { _quiet(_); }
+      if (Date.now() - last < this.AUTO_EVERY_MS) return false;
+      try { localStorage.setItem(this._autoKey(id), String(Date.now())); } catch (_) { _quiet(_); }
+      this.snapshot('cópia automática');
+      return true;
+    } catch (_) { return false; }
+  },
+
+  /* Foto AGORA, antes de uma acao destrutiva (limpar grade, excluir semana,
+     apagar planejamento). E o backup que salva o dia — literalmente o caso de
+     "limpei a grade sem querer". Nao espera intervalo nenhum. */
+  async antesDe(acao) {
+    try { return await this.snapshot('antes de ' + acao); } catch (_) { return false; }
+  },
+
+  // Faxina avulsa (chamada na abertura do app): aplica a janela de 7 dias.
+  limpar() {
+    try {
+      const id = ProfileManager.getActiveProfileId(); if (!id) return;
+      const arr = this._list(id);
+      const limpo = this._prune(arr.slice());
+      if (limpo.length !== arr.length) this._save(id, limpo);
     } catch (_) { _quiet(_); }
   },
   async buildBackup(id, ts) {
@@ -11479,6 +12470,7 @@ const UI = {
     const ok = document.getElementById('ui-modal-ok');
     ok.textContent = okText;
     ok.className = 'btn-primary' + (danger ? ' btn-danger' : '');
+    ok.disabled = false;   // confirmTyped desabilita; um dialogo comum sempre nasce habilitado
     const cancel = document.getElementById('ui-modal-cancel');
     cancel.textContent = cancelText;
     cancel.style.display = hideCancel ? 'none' : 'inline-flex';
@@ -11493,6 +12485,41 @@ const UI = {
       this._mode = 'confirm';
       const body = `<p style="margin:0; font-size:14px; line-height:1.55; color:var(--text-soft); white-space:pre-line;">${escapeHtml(message)}</p>`;
       this._open(opts.title || 'Confirmar', opts.sub || '', body, { okText: opts.okText || 'Confirmar', danger: opts.danger });
+    });
+  },
+  /* Confirmacao COM PALAVRA DIGITADA — para limpezas gerais (apagar a grade
+     inteira, um planejamento, um perfil, os dados locais). Um toque acidental
+     no botao nao basta: o usuario precisa escrever a palavra exata. O botao so
+     habilita quando o texto confere, entao nao ha como "confirmar sem querer". */
+  confirmTyped(message, opts = {}) {
+    const palavra = String(opts.word || 'APAGAR').toUpperCase();
+    return new Promise((resolve) => {
+      this._resolve = resolve;
+      this._mode = 'confirm';
+      const body = `
+        <p style="margin:0 0 14px; font-size:14px; line-height:1.55; color:var(--text-soft); white-space:pre-line;">${escapeHtml(message)}</p>
+        <div class="ui-typed">
+          <label for="ui-typed-input">Para confirmar, digite <strong>${escapeHtml(palavra)}</strong></label>
+          <input type="text" id="ui-typed-input" autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="${escapeHtml(palavra)}">
+          <p class="ui-typed-hint" id="ui-typed-hint">Esta ação não pode ser desfeita.</p>
+        </div>`;
+      this._open(opts.title || 'Confirmar limpeza', opts.sub || '', body, { okText: opts.okText || 'Confirmar', danger: true });
+      const ok = document.getElementById('ui-modal-ok');
+      const inp = document.getElementById('ui-typed-input');
+      const hint = document.getElementById('ui-typed-hint');
+      if (!ok || !inp) return;
+      ok.disabled = true;
+      const check = () => {
+        const bate = inp.value.trim().toUpperCase() === palavra;
+        ok.disabled = !bate;
+        inp.classList.toggle('ok', bate);
+        if (hint) hint.textContent = bate ? '✓ Confirmado — pode prosseguir.' : 'Esta ação não pode ser desfeita.';
+      };
+      inp.addEventListener('input', check);
+      /* Enter so vale quando a palavra confere: o atalho global de Enter do
+         modal enviaria o formulario com o campo vazio. */
+      inp.addEventListener('keydown', (e) => { if (e.key === 'Enter' && ok.disabled) e.stopPropagation(); });
+      setTimeout(() => { try { inp.focus(); } catch (_) { _quiet(_); } }, 70);
     });
   },
   alert(message, opts = {}) {
@@ -11537,16 +12564,137 @@ const UI = {
     const ok = document.getElementById('ui-modal-ok'); if (ok) ok.addEventListener('click', () => UI._submit(true));
     const c = document.getElementById('ui-modal-cancel'); if (c) c.addEventListener('click', () => UI._submit(false));
     const x = document.getElementById('ui-modal-x'); if (x) x.addEventListener('click', () => UI._submit(false));
-    const m = document.getElementById('ui-modal'); if (m) m.addEventListener('click', (e) => { if (e.target === m) UI._submit(false); });
+    /* Clicar no fundo desfocado NAO fecha o dialogo: um toque acidental fora da
+       caixa cancelava o que estava sendo confirmado ou preenchido. Fecha-se pelo
+       X, pelo Cancelar ou pelo Esc — sempre por uma acao deliberada. */
     document.addEventListener('keydown', (e) => {
       const m = document.getElementById('ui-modal');
       if (!m || m.style.display === 'none') return;
       if (e.key === 'Escape') UI._submit(false);
-      else if (e.key === 'Enter' && (e.target.tagName !== 'TEXTAREA')) { e.preventDefault(); UI._submit(true); }
+      else if (e.key === 'Enter' && (e.target.tagName !== 'TEXTAREA')) {
+        const ok = document.getElementById('ui-modal-ok');
+        if (ok && ok.disabled) return;      // confirmacao por palavra ainda nao confere
+        e.preventDefault(); UI._submit(true);
+      }
     });
   };
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', bind); else bind();
 })();
+
+/* ============================================================
+   SAVEGUARD — gravar com PROVA de que gravou
+   ────────────────────────────────────────────────────────────
+   O pilar do diário são os registros de estudo. Antes, salvar era otimista:
+   escrevia no localStorage, mostrava "Estudo registrado ✓" e seguia a vida. Se
+   a escrita falhasse (cota estourada, aba anônima, storage bloqueado) ou se o
+   envio para a nuvem nunca acontecesse, o usuário só descobria depois — abrindo
+   o app em outro aparelho e não encontrando o registro.
+
+   SaveGuard.run() faz três coisas, nesta ordem:
+     1. GRAVA           — executa a operação de escrita pedida.
+     2. RELÊ do disco   — abre o localStorage de novo e confere que o registro
+                          está lá. É a prova real de que persistiu; sem isso
+                          "salvo" era só uma suposição.
+     3. ENVIA à nuvem   — força o flush e espera o resultado, com timeout. Se a
+                          rede falhar, o dado JÁ está no aparelho e continua na
+                          fila de envio: a mensagem diz exatamente isso em vez
+                          de mentir "sincronizado".
+   Devolve { ok, local, cloud, motivo } para a tela decidir o que exibir.
+   ============================================================ */
+const SaveGuard = {
+  CLOUD_TIMEOUT_MS: 12000,
+  /* Piso de tempo do estado "Salvando…". Sem conta na nuvem a gravação local
+     termina em poucos milissegundos e o spinner aparecia e sumia no mesmo
+     quadro — ninguém via nada, e "será que salvou?" continuava sem resposta.
+     Uns 400 ms bastam para o retorno ser LIDO, sem virar espera artificial. */
+  MIN_BUSY_MS: 400,
+
+  // Espera o CloudStore ficar sem nada pendente (ou estourar o tempo).
+  async _aguardaNuvem(ms) {
+    const CS = window.CloudStore;
+    if (!CS || !CS.isReady || !CS.isReady() || !CS.isLoggedIn || !CS.isLoggedIn()) {
+      return { enviado: false, motivo: 'offline' };   // sem conta: local basta
+    }
+    if (window.SessionLock && SessionLock.isBlocked && SessionLock.isBlocked()) {
+      return { enviado: false, motivo: 'sessao-em-outro-aparelho' };
+    }
+    const limite = Date.now() + (ms || this.CLOUD_TIMEOUT_MS);
+    try { await CS.flushPending(); } catch (_) { _quiet(_); }
+    /* flushPending pode reprogramar novas tentativas (rede instável). Esperamos
+       a fila esvaziar de verdade em vez de confiar no retorno da primeira. */
+    while (Date.now() < limite) {
+      if (!CS._pending && !CS._syncing) return { enviado: true, motivo: '' };
+      await new Promise(r => setTimeout(r, 250));
+    }
+    return { enviado: false, motivo: 'tempo-esgotado' };
+  },
+
+  /* opts:
+       escrever()  -> executa a gravação; devolve algo "falsy" se falhou
+       verificar() -> relê do armazenamento e devolve true se o dado está lá
+       nuvem       -> false para não esperar a nuvem (ex.: rascunhos)          */
+  async run(opts) {
+    const t0 = Date.now();
+    const escrever = opts.escrever;
+    const verificar = opts.verificar;
+    // garante que o estado "Salvando…" fique visível tempo suficiente para ser lido
+    const comPiso = async (r) => {
+      const falta = this.MIN_BUSY_MS - (Date.now() - t0);
+      if (falta > 0) await new Promise(res => setTimeout(res, falta));
+      return r;
+    };
+    /* Falha = a gravacao devolveu explicitamente false ou null (foi o que DB._set
+       passou a sinalizar). undefined conta como sucesso: e o retorno natural de
+       uma funcao de escrita que nao devolve nada. */
+    let retorno;
+    try { retorno = escrever(); } catch (e) { console.error('SaveGuard.escrever', e); retorno = false; }
+    if (retorno === false || retorno === null) return comPiso({ ok: false, local: false, cloud: false, motivo: 'escrita-recusada' });
+
+    // Prova de persistência: relê do armazenamento, não da memória.
+    if (typeof verificar === 'function') {
+      let confere = false;
+      try { confere = !!verificar(); } catch (e) { console.error('SaveGuard.verificar', e); }
+      if (!confere) return comPiso({ ok: false, local: false, cloud: false, motivo: 'nao-persistiu' });
+    }
+
+    if (opts.nuvem === false) return comPiso({ ok: true, local: true, cloud: false, motivo: 'sem-nuvem' });
+    const r = await this._aguardaNuvem(opts.timeout);
+    return comPiso({ ok: true, local: true, cloud: r.enviado, motivo: r.motivo });
+  },
+
+  /* Botão em estado "salvando": trava contra duplo toque e mostra o giro.
+     Devolve uma função que restaura o botão exatamente como estava. */
+  ocupar(btn, texto) {
+    if (!btn) return () => {};
+    const rotuloOriginal = btn.innerHTML;
+    const larguraOriginal = btn.style.minWidth;
+    // trava a largura para o botão não "pular" ao trocar o texto
+    try { btn.style.minWidth = btn.getBoundingClientRect().width + 'px'; } catch (_) { _quiet(_); }
+    btn.disabled = true;
+    btn.classList.add('is-saving');
+    btn.innerHTML = '<span class="sg-spin" aria-hidden="true"></span><span>' + escapeHtml(texto || 'Salvando…') + '</span>';
+    return () => {
+      btn.disabled = false;
+      btn.classList.remove('is-saving');
+      btn.innerHTML = rotuloOriginal;
+      btn.style.minWidth = larguraOriginal;
+    };
+  },
+
+  // Mensagem honesta sobre onde o dado ficou.
+  toast(res, okTexto) {
+    if (!res.ok) {
+      showToast(res.motivo === 'nao-persistiu'
+        ? '⚠ O navegador recusou a gravação. NADA foi salvo — libere espaço e tente de novo.'
+        : '⚠ Não foi possível salvar. Verifique o espaço do navegador ou o modo privado.');
+      return;
+    }
+    if (res.cloud) { showToast(okTexto + ' — salvo e sincronizado ✓'); return; }
+    if (res.motivo === 'offline') { showToast(okTexto + ' — salvo neste aparelho ✓'); return; }
+    showToast(okTexto + ' ✓ salvo no aparelho · envio para a nuvem em andamento');
+  }
+};
+window.SaveGuard = SaveGuard;
 
 // ---- Metas/limiares de aproveitamento (editáveis pelo usuário) ----
 // good = verde a partir de METAS.bom; warn entre METAS.atencao e METAS.bom; bad abaixo.
@@ -11588,6 +12736,26 @@ function calcPct(correct, total) {
 
 function formatPct(pct) {
   return pct === null || pct === undefined ? '—' : pct.toFixed(2);
+}
+
+/* Medalha por faixa de aproveitamento — o olho encontra a linha boa antes de
+   ler o numero. As faixas nao se sobrepoem: cada percentual cai em uma so.
+     >= 90 .......... 👽  (fora da curva)
+     85 a 89,99 ..... 🥇
+     80 a 84,99 ..... 🥈
+     75 a 79,99 ..... 🥉
+   Abaixo de 75 nao ha medalha — premiar tudo tiraria o sentido de premiar. */
+function medalFor(pct) {
+  if (pct == null) return null;
+  if (pct >= 90) return { emoji: '👽', titulo: 'Fora da curva — 90% ou mais' };
+  if (pct >= 85) return { emoji: '🥇', titulo: 'Ouro — de 85% a 89,99%' };
+  if (pct >= 80) return { emoji: '🥈', titulo: 'Prata — de 80% a 84,99%' };
+  if (pct >= 75) return { emoji: '🥉', titulo: 'Bronze — de 75% a 79,99%' };
+  return null;
+}
+function medalHtml(pct) {
+  const m = medalFor(pct);
+  return m ? `<span class="reg-medal" title="${m.titulo}" aria-label="${m.titulo}">${m.emoji}</span>` : '';
 }
 
 // Escape por substituição direta: ~25x mais rápido que criar um nó DOM a cada chamada,
@@ -12801,8 +13969,8 @@ const ReforcoEngine = {
             </div>
           ` : '<div class="recent-pct-block is-empty"></div>'}
           <div class="recent-actions">
-            <button type="button" class="icon-btn btn-edit-entry" title="Editar" aria-label="Editar">✎</button>
-            <button type="button" class="icon-btn danger btn-delete-entry" title="Excluir" aria-label="Excluir">×</button>
+            <button type="button" class="reg-act-btn btn-edit-entry" title="Editar registro" aria-label="Editar registro">✎</button>
+            <button type="button" class="reg-act-btn danger btn-delete-entry" title="Excluir registro" aria-label="Excluir registro">✕</button>
           </div>
         </div>
       `;
@@ -12824,13 +13992,18 @@ const ReforcoEngine = {
         const entry = DB.getEntry(id);
         if (entry) enterEditMode(entry);
       });
-      if (db) db.addEventListener('click', () => {
+      if (db) db.addEventListener('click', async () => {
         const entry = DB.getEntry(id);
         if (!entry) return;
-        if (!confirm(`Excluir o registro de "${entry.subject}" em ${formatDateShort(entry.date)}? Essa ação não pode ser desfeita.`)) return;
-        DB.deleteEntry(id);
+        if (!await UI.confirm(`Excluir o registro de "${entry.subject}" em ${formatDateShort(entry.date)}?\n\nEssa ação não pode ser desfeita.`,
+          { title: '🗑️ Excluir registro', okText: 'Excluir', danger: true })) return;
+        const res = await SaveGuard.run({
+          escrever: () => DB.deleteEntry(id),
+          verificar: () => !DB.getEntry(id)            // prova: sumiu mesmo do disco
+        });
+        if (!res.ok) { SaveGuard.toast(res, ''); return; }
         if (DB._mesmoId(editingId, id)) exitEditMode();
-        showToast('Registro excluído');
+        SaveGuard.toast(res, 'Registro excluído');
         renderRecent();
         window.dispatchEvent(new CustomEvent('data:entry-changed'));
       });
@@ -12948,8 +14121,9 @@ const ReforcoEngine = {
       const less = e.lesson ? escapeHtml(e.lesson) : '';
       const meth = escapeHtml(e.method);
       const pctBadge = hasPct
-        ? `<span class="reg-pct-badge tone-${tone}">${formatPct(pct)}%</span>`
+        ? `<span class="reg-pct-badge tone-${tone}">${medalHtml(pct)}${formatPct(pct)}%</span>`
         : '<span class="reg-empty">—</span>';
+      const obs = e.comment ? escapeHtml(e.comment) : '';
       return `
         <tr class="reg-row" data-id="${e.id}">
           <td class="reg-c reg-c-date">${d}/${m}/${y}</td>
@@ -12960,9 +14134,12 @@ const ReforcoEngine = {
           <td class="reg-c reg-c-num reg-c-hits">${hasPct ? e.correct + '/' + e.total : '<span class="reg-empty">—</span>'}</td>
           <td class="reg-c reg-c-pct">${pctBadge}</td>
           <td class="reg-c reg-c-act">
-            <button type="button" class="icon-btn btn-edit-entry" title="Editar" aria-label="Editar">✎</button>
-            <button type="button" class="icon-btn danger btn-delete-entry" title="Excluir" aria-label="Excluir">×</button>
+            <div class="reg-act-group">
+              <button type="button" class="reg-act-btn btn-edit-entry" title="Editar registro" aria-label="Editar registro">✎</button>
+              <button type="button" class="reg-act-btn danger btn-delete-entry" title="Excluir registro" aria-label="Excluir registro">✕</button>
+            </div>
           </td>
+          <td class="reg-c reg-c-obs" title="${obs}">${obs ? `<span class="reg-obs-txt">${obs}</span>` : '<span class="reg-empty">—</span>'}</td>
         </tr>`;
     }).join('');
 
@@ -13005,7 +14182,7 @@ const ReforcoEngine = {
         <table class="reg-tbl">
           <colgroup>
             <col class="rc-date"><col class="rc-subject"><col class="rc-lesson"><col class="rc-method">
-            <col class="rc-time"><col class="rc-hits"><col class="rc-pct"><col class="rc-act">
+            <col class="rc-time"><col class="rc-hits"><col class="rc-pct"><col class="rc-act"><col class="rc-obs">
           </colgroup>
           <thead>
             <tr>
@@ -13016,11 +14193,12 @@ const ReforcoEngine = {
               ${hCell('time', 'Tempo', 'reg-th-num')}
               ${hCell('correct', 'Acertos', 'reg-th-num')}
               ${hCell('pct', '%', 'reg-th-num')}
-              <th class="reg-th reg-th-act" scope="col">Ações</th>
+              <th class="reg-th reg-th-act" scope="col"><span class="reg-h reg-h-static">Ações</span></th>
+              <th class="reg-th reg-th-obs" scope="col"><span class="reg-h reg-h-static">Observação</span></th>
             </tr>
           </thead>
           <tbody>
-            ${bodyRows || `<tr class="reg-noresult-row"><td colspan="8" class="reg-noresult">Nenhum registro atende aos filtros aplicados.</td></tr>`}
+            ${bodyRows || `<tr class="reg-noresult-row"><td colspan="9" class="reg-noresult">Nenhum registro atende aos filtros aplicados.</td></tr>`}
           </tbody>
         </table>
       </div>
@@ -13099,8 +14277,9 @@ const ReforcoEngine = {
     paint();
   })();
 
-  form.addEventListener('submit', function (e) {
+  form.addEventListener('submit', async function (e) {
     e.preventDefault();
+    if (form.dataset.saving === '1') return;   // trava contra duplo toque / duplo submit
 
     const subject = $id('subject').value.trim();
     const lesson = $id('lesson').value.trim();
@@ -13126,35 +14305,64 @@ const ReforcoEngine = {
 
     const fields = { subject, lesson, method, date, pageStart: pStart, pageEnd: pEnd, videoStart: vStart, videoEnd: vEnd, durationMin, correct, total, comment };
 
-    if (editingId !== null) {
-      DB.updateEntry(editingId, fields);
-      DB.upsertSubjectName(subject);
-      showToast('Registro atualizado ✓');
-      exitEditMode();
-      renderRecent();
-      refreshSubjectSelect();
-      window.dispatchEvent(new CustomEvent('data:entry-changed'));
-    } else {
-      // ID por UUID, não por Date.now(): dois registros criados no MESMO milissegundo
-      // (duplo toque no botão, importação em lote, celular lento que dispara o submit
-      // duas vezes) recebiam o mesmo id — e a partir daí editar ou apagar um deles
-      // atingia o outro. DB._uid() já é usado pelos cards e não colide.
-      const entry = { id: DB._uid(), ...fields, createdAt: new Date().toISOString() };
-      DB.saveEntry(entry);
-      DB.upsertSubjectName(subject);
-      showToast('Estudo registrado ✓');
-      form.reset();
-      dateInput.value = todayLocal();
-      refreshMethodSelect(true); // volta ao padrão "Questões"
-      refreshSubjectSelect();
-      $id('subject').value = ''; // matéria em branco p/ o usuário escolher
-      updateGauge();
-      atualizarEtapas();   // trilha volta ao início junto com o formulário
-      updatePagesHint();
-      updateVideoConsumed();
-      updateVideoFieldsVisibility();
-      renderRecent();
-      window.dispatchEvent(new CustomEvent('data:entry-added', { detail: entry }));
+    /* ── GRAVACAO COM PROVA ──────────────────────────────────────────────────
+       Esta e a tela que sustenta o diario inteiro. Enquanto o registro nao
+       estiver comprovadamente no armazenamento (e a caminho da nuvem), o botao
+       fica girando e travado. Se a gravacao falhar, o formulario NAO e limpo —
+       o que foi digitado continua na tela para ser reenviado. */
+    const submitBtn = document.getElementById('submit-btn');
+    form.dataset.saving = '1';
+    const soltarBotao = SaveGuard.ocupar(submitBtn, 'Salvando…');
+
+    try {
+      if (editingId !== null) {
+        const alvo = editingId;
+        const res = await SaveGuard.run({
+          escrever: () => DB.updateEntry(alvo, fields),
+          // prova: rele do armazenamento e confere que o patch esta la
+          verificar: () => {
+            const e2 = DB.getEntry(alvo);
+            return !!e2 && e2.date === date && e2.subject === subject && (e2.durationMin || 0) === durationMin;
+          }
+        });
+        if (!res.ok) { SaveGuard.toast(res, ''); return; }
+        DB.upsertSubjectName(subject);
+        SaveGuard.toast(res, 'Registro atualizado');
+        exitEditMode();
+        renderRecent();
+        refreshSubjectSelect();
+        window.dispatchEvent(new CustomEvent('data:entry-changed'));
+      } else {
+        // ID por UUID, não por Date.now(): dois registros criados no MESMO milissegundo
+        // (duplo toque no botão, importação em lote, celular lento que dispara o submit
+        // duas vezes) recebiam o mesmo id — e a partir daí editar ou apagar um deles
+        // atingia o outro. DB._uid() já é usado pelos cards e não colide.
+        const entry = { id: DB._uid(), ...fields, createdAt: new Date().toISOString() };
+        const res = await SaveGuard.run({
+          escrever: () => DB.saveEntry(entry),
+          verificar: () => !!DB.getEntry(entry.id)     // prova: esta no disco
+        });
+        if (!res.ok) { SaveGuard.toast(res, ''); return; }   // formulario preservado de proposito
+        DB.upsertSubjectName(subject);
+        SaveGuard.toast(res, 'Estudo registrado');
+        form.reset();
+        dateInput.value = todayLocal();
+        refreshMethodSelect(true); // volta ao padrão "Questões"
+        refreshSubjectSelect();
+        $id('subject').value = ''; // matéria em branco p/ o usuário escolher
+        updateGauge();
+        atualizarEtapas();   // trilha volta ao início junto com o formulário
+        updatePagesHint();
+        updateVideoConsumed();
+        updateVideoFieldsVisibility();
+        renderRecent();
+        window.dispatchEvent(new CustomEvent('data:entry-added', { detail: entry }));
+      }
+    } finally {
+      form.dataset.saving = '0';
+      soltarBotao();
+      // exitEditMode() troca o rotulo do botao; garante o texto certo depois do restore
+      if (editingId === null) submitBtn.textContent = 'Registrar estudo';
     }
   });
 
@@ -13307,6 +14515,18 @@ const CycleEngine = {
   effectiveEnd(cycle) {
     const today = todayLocal();
     return (cycle && cycle.endDate && cycle.endDate > today) ? cycle.endDate : today;
+  },
+  /* BUG CORRIGIDO — fim do intervalo do ciclo.
+     Varios pontos passavam `cycle.endDate` cru para minutesStudied(). Quando o
+     ciclo nao tinha endDate gravado (ciclos legados e importados nao tem), a
+     comparacao `e.date <= undefined` e SEMPRE falsa: o filtro devolvia zero e a
+     tela mostrava "0h realizado" em todas as matérias — enquanto o total da
+     semana, que somava os registros por outro caminho, mostrava as horas certas.
+     Era exatamente a divergencia de contabilizacao entre os numeros do topo e os
+     das matérias. rangeEnd() garante uma data valida sempre. */
+  rangeEnd(cycle) {
+    if (!cycle) return todayLocal();
+    return cycle.endDate || this.weekEndDate(cycle.startDate);
   },
   // Conta minutos estudados desta matéria a partir do INÍCIO do ciclo, SEM limite superior.
   // O ciclo ativo acumula tudo o que você registra desde que ele começou, até você fechá-lo —
@@ -15264,7 +16484,7 @@ function planCycleMode() {
     const container = document.getElementById('ciclo-overview-gauges');
     let totalTarget = 0, totalStudied = 0, finalizadas = 0;
     cycle.subjects.forEach(s => {
-      const studied = CycleEngine.minutesStudied(s.nome, cycle.startDate, cycle.endDate);
+      const studied = CycleEngine.minutesStudied(s.nome, cycle.startDate, CycleEngine.rangeEnd(cycle));
       totalTarget += s.definidoMin;
       totalStudied += Math.min(studied, s.definidoMin * 3); // evita distorcer muito o total
       if (CycleEngine.statusFor(studied, s.definidoMin) === 'finalizada') finalizadas++;
@@ -15280,6 +16500,26 @@ function planCycleMode() {
     const q = CycleEngine.questionsStudied(null, cycle.startDate, CycleEngine.effectiveEnd(cycle));
     const acc = q.total > 0 ? Math.round((q.correct / q.total) * 10000) / 100 : null;
     const accAccent = acc == null ? '' : (acc >= 70 ? 'accent-good' : acc >= 50 ? 'accent-warn' : 'accent-bad');
+
+    /* 6º indicador — RITMO NECESSARIO. Os outros cinco contam o que ja passou;
+       este responde a unica pergunta sobre a qual ainda da para agir: "quanto
+       preciso estudar por dia, daqui ate o fim da semana, para fechar a meta?".
+       Divide o que falta pelos dias restantes (hoje incluido). Se a semana ja
+       terminou, cai para 1 dia — o numero vira "o que falta", sem dividir por
+       zero nem prometer um prazo que nao existe mais. */
+    const _fimSemana = CycleEngine.rangeEnd(cycle);
+    const _hojeIso = todayLocal();
+    let diasRestantes = 1;
+    try {
+      const d1 = new Date((_hojeIso > cycle.startDate ? _hojeIso : cycle.startDate) + 'T00:00:00');
+      const d2 = new Date(_fimSemana + 'T00:00:00');
+      diasRestantes = Math.max(1, Math.round((d2 - d1) / 86400000) + 1);
+    } catch (_) { diasRestantes = 1; }
+    const porDia = remaining > 0 ? Math.round(remaining / diasRestantes) : 0;
+    const ritmoAccent = remaining === 0 ? 'accent-good' : (porDia > 300 ? 'accent-bad' : porDia > 180 ? 'accent-warn' : '');
+    const ritmoTitulo = remaining === 0
+      ? 'Meta da semana já cumprida'
+      : `Faltam ${CycleEngine.fmtHM(remaining)} em ${diasRestantes} dia(s) — até ${formatDateShort(_fimSemana)}`;
 
     container.innerHTML = `
       <div class="mini-gauge-card ${overallAccent}">
@@ -15302,10 +16542,15 @@ function planCycleMode() {
         <div class="value">${finalizadas}/${cycle.subjects.length}</div>
         <div class="label">finalizadas</div>
       </div>
+      <div class="mini-gauge-card ${ritmoAccent}" title="${escapeHtml(ritmoTitulo)}">
+        <div class="value">${remaining === 0 ? '✓' : CycleEngine.fmtHM(porDia)}</div>
+        <div class="label">${remaining === 0 ? 'nada a fazer' : 'por dia p/ fechar'}</div>
+      </div>
     `;
   }
 
-  let _cicloSubjFilter = null; // nome da disciplina filtrada (null = todas)
+  let _cicloSubjFilter = null;   // nome da disciplina filtrada (null = todas)
+  let _cicloChipsAbertos = true; // bandeja de siglas expandida/recolhida (por sessao)
   function renderSubjectsProgress(cycle) {
     const container = document.getElementById('ciclo-subjects-progress');
     // exibe em ordem alfabética (sem alterar a ordem salva do ciclo)
@@ -15315,12 +16560,27 @@ function planCycleMode() {
     // Filtro rápido por disciplina (chips) — só aparece com 2+ matérias
     let filterHtml = '';
     if (ordered.length > 1) {
-      const chip = (nome, label) => `<button type="button" class="csp-chip ${(_cicloSubjFilter === nome) ? 'active' : ''}" data-subj="${nome == null ? '' : escapeHtml(nome)}">${escapeHtml(label)}</button>`;
-      filterHtml = `<div class="csp-filter">${chip(null, 'Todas')}${ordered.map(s => chip(s.nome, CycleEngine.siglaForSubject(s.nome))).join('')}</div>`;
+      const chip = (nome, label) => `<button type="button" class="csp-chip ${(_cicloSubjFilter === nome) ? 'active' : ''}" data-subj="${nome == null ? '' : escapeHtml(nome)}" title="${nome == null ? 'Ver todas as matérias' : escapeHtml(nome)}">${escapeHtml(label)}</button>`;
+      /* A bandeja de siglas virou um GRID de colunas iguais, nao um wrap solto:
+         com chips de larguras diferentes as linhas ficavam com buracos no fim e
+         nada se alinhava na vertical. Colunas iguais resolvem os dois eixos de
+         uma vez. E ela RECOLHE: com 20 matérias a lista empurrava o conteudo
+         util para fora da tela no celular. */
+      filterHtml = `
+        <div class="csp-wrap ${_cicloChipsAbertos ? 'open' : 'closed'}">
+          <div class="csp-head">
+            <span class="csp-head-lbl">Filtrar por matéria</span>
+            <button type="button" class="csp-toggle" id="csp-toggle" aria-expanded="${_cicloChipsAbertos}" aria-controls="csp-filter">
+              <span>${_cicloChipsAbertos ? 'Ocultar' : 'Mostrar'} siglas (${ordered.length})</span>
+              <span class="csp-caret">▾</span>
+            </button>
+          </div>
+          <div class="csp-filter" id="csp-filter">${chip(null, 'TODAS')}${ordered.map(s => chip(s.nome, CycleEngine.siglaForSubject(s.nome))).join('')}</div>
+        </div>`;
     }
     const shown = _cicloSubjFilter ? ordered.filter(s => s.nome === _cicloSubjFilter) : ordered;
     container.innerHTML = filterHtml + shown.map(s => {
-      const studied = CycleEngine.minutesStudied(s.nome, cycle.startDate, cycle.endDate);
+      const studied = CycleEngine.minutesStudied(s.nome, cycle.startDate, CycleEngine.rangeEnd(cycle));
       const status = CycleEngine.statusFor(studied, s.definidoMin);
       const pct = (s.definidoMin > 0) ? Math.min(100, Math.round((studied / s.definidoMin) * 100)) : 0;
       const over = studied > s.definidoMin;
@@ -15333,7 +16593,10 @@ function planCycleMode() {
         <div class="subject-progress-item status-${status}">
           <div class="subject-progress-head">
             <span class="name">${escapeHtml(s.nome)}</span>
-            <span class="status-badge ${status}">${status}</span>
+            <span class="sp-head-right">
+              <span class="subject-acc ${accTone}" title="${q.total ? q.correct + ' de ' + q.total + ' questões nesta semana' : 'Sem questões registradas nesta semana'}"><b>${acc == null ? '—' : fmtPct2(acc) + '%'}</b><span class="sp-acc-lbl">aproveit.</span></span>
+              <span class="status-badge ${status}">${status}</span>
+            </span>
           </div>
           <div class="progress-track">
             <div class="progress-fill ${over ? 'tone-over' : 'tone-' + status}" style="width:${pct}%;"></div>
@@ -15352,10 +16615,9 @@ function planCycleMode() {
               <div class="hl">total</div>
             </div>
           </div>
-          <div class="subject-progress-head" style="margin-top:10px; margin-bottom:0;">
+          <div class="subject-progress-head sp-foot" style="margin-top:10px; margin-bottom:0;">
             <span class="subject-meta-tag">dificuldade ${s.dificuldade} · ${escapeHtml(s.fase)}</span>
             <span class="subject-meta-tag">${pct}% da meta</span>
-            <span class="subject-meta-tag ${accTone}" title="${q.total ? q.correct + ' de ' + q.total + ' questões nesta semana' : 'Sem questões registradas nesta semana'}">${acc == null ? '— aproveit.' : fmtPct2(acc) + '% aproveit.'}</span>
           </div>
         </div>
       `;
@@ -15365,6 +16627,8 @@ function planCycleMode() {
       _cicloSubjFilter = b.dataset.subj || null;
       renderSubjectsProgress(cycle);
     }));
+    const cspT = document.getElementById('csp-toggle');
+    if (cspT) cspT.addEventListener('click', () => { _cicloChipsAbertos = !_cicloChipsAbertos; renderSubjectsProgress(cycle); });
   }
 
   // Duração padrão ao alocar uma matéria numa célula vazia (o usuário pode editar livremente depois)
@@ -15593,8 +16857,8 @@ function planCycleMode() {
       updateUncheckAllBtn(); // <- FIX: reflete no botão "Desmarcar concluídos"
     });
 
-    cell.querySelector('.chip-remove').addEventListener('click', () => {
-      if (!confirm(`Remover "${subject}" desta célula da grade?`)) return;
+    cell.querySelector('.chip-remove').addEventListener('click', async () => {
+      if (!await UI.confirm(`Remover "${subject}" desta célula da grade?`)) return;
       setCellData(dia, idx, null);
       cell.innerHTML = `<span class="grade-cell-empty-hint">+ escolher</span>`;
       bindCellClick(cell);
@@ -15861,17 +17125,24 @@ function planCycleMode() {
     const html = days.map(dia => {
       const slots = (tmpl.grade[dia] || []).map(normalizeCell).filter(Boolean);
       const totalMin = slots.reduce((s, c) => s + (c.minutes || 0), 0);
+      /* A meta diaria mostrava tudo com a mesma cara: nao dava para saber o que
+         ja foi feito sem voltar para a visao semanal. Agora o que esta marcado
+         como concluido vem em VERDE, com o visto — e o cabecalho do dia diz
+         quantas das sessoes ja sairam. */
+      const feitos = slots.filter(c => c.done).length;
+      const diaCompleto = slots.length > 0 && feitos === slots.length;
       const chips = slots.map(c => {
         const cor = CycleEngine.colorForSubject(c.subject) || 'var(--accent)';
         const sig = CycleEngine.siglaForSubject(c.subject);
-        return `<span class="gd-chip" style="color:${cor};" title="${escapeHtml(c.subject)}">${escapeHtml(sig)} <small>${CycleEngine.fmtHM(c.minutes || 0)}</small></span>`;
+        const feito = !!c.done;
+        return `<span class="gd-chip ${feito ? 'is-done' : ''}"${feito ? '' : ` style="color:${cor};"`} title="${escapeHtml(c.subject)}${feito ? ' — concluída' : ''}">${feito ? '<span class="gd-chip-check">✓</span>' : ''}${escapeHtml(sig)} <small>${CycleEngine.fmtHM(c.minutes || 0)}</small></span>`;
       }).join('');
       const isToday = dia === hoje;
       return `
-        <div class="gd-day ${isToday ? 'is-today' : ''}">
+        <div class="gd-day ${isToday ? 'is-today' : ''} ${diaCompleto ? 'is-complete' : ''}">
           <div class="gd-day-head">
-            <span class="gd-day-name">${dia}${isToday ? '<span class="gd-today-tag">hoje</span>' : ''}</span>
-            <span class="gd-day-total ${totalMin === 0 ? 'zero' : ''}">${totalMin === 0 ? '— sem meta' : CycleEngine.fmtHM(totalMin)}</span>
+            <span class="gd-day-name">${dia}${isToday ? '<span class="gd-today-tag">hoje</span>' : ''}${diaCompleto ? '<span class="gd-done-tag">✓ concluído</span>' : ''}</span>
+            <span class="gd-day-total ${totalMin === 0 ? 'zero' : ''}">${slots.length ? `<span class="gd-day-count ${feitos ? 'has' : ''}">${feitos}/${slots.length}</span>` : ''}${totalMin === 0 ? '— sem meta' : CycleEngine.fmtHM(totalMin)}</span>
           </div>
           ${slots.length ? `<div class="gd-chips">${chips}</div>` : `<p class="gd-empty">Nenhuma matéria planejada para este dia.</p>`}
         </div>`;
@@ -15890,6 +17161,9 @@ function planCycleMode() {
       b.classList.toggle('active', on);
       b.setAttribute('aria-selected', on ? 'true' : 'false');
     });
+    // o item "Siglas" so faz sentido na visao semanal (a bandeja arrastavel)
+    const trayItem = document.getElementById('btn-toggle-tray');
+    if (trayItem) trayItem.style.display = (mode === 'dia') ? 'none' : '';
     if (mode === 'dia') {
       if (trayBar) trayBar.style.display = 'none';
       if (scrollHint) scrollHint.style.display = 'none';
@@ -15990,8 +17264,8 @@ function planCycleMode() {
       row.querySelector('.cs-sigla').addEventListener('change', commit);
       row.querySelector('.cs-nome').addEventListener('change', commit);
       row.querySelector('.cs-color').addEventListener('change', commit);
-      row.querySelector('.cs-del').addEventListener('click', () => {
-        if (!confirm('Excluir esta sigla livre? As células da grade que a usam não são afetadas.')) return;
+      row.querySelector('.cs-del').addEventListener('click', async () => {
+        if (!await UI.confirm('Excluir esta sigla livre? As células da grade que a usam não são afetadas.')) return;
         DB.removeCustomSigla(id);
         refresh();
       });
@@ -16030,14 +17304,15 @@ function planCycleMode() {
   const _wsSel = document.getElementById('grade-weekstart-select');
   if (_wsSel) {
     _wsSel.value = gradeWeekStart();
-    _wsSel.addEventListener('change', () => { setGradeWeekStart(_wsSel.value); renderGrade(); });
+    // renderGradeDaily tambem depende da ordem dos dias: applyGradeView cobre as duas visoes
+    _wsSel.addEventListener('change', () => { setGradeWeekStart(_wsSel.value); applyGradeView(); });
   }
   const _mClose = document.getElementById('siglas-modal-close');
   if (_mClose) _mClose.addEventListener('click', closeSiglasModal);
   const _mDone = document.getElementById('siglas-modal-done');
   if (_mDone) _mDone.addEventListener('click', closeSiglasModal);
   const _modal = document.getElementById('siglas-modal');
-  if (_modal) _modal.addEventListener('click', (e) => { if (e.target === _modal) closeSiglasModal(); });
+  /* fundo desfocado nao fecha o modal: so o X / Concluido / Esc fecham */
 
   // --- Desmarcar todos os concluídos da grade ---
   function countDoneCells() {
@@ -16083,10 +17358,12 @@ function planCycleMode() {
   });
   _applyTray();
   const _uncheckBtn = document.getElementById('btn-uncheck-all');
-  if (_uncheckBtn) _uncheckBtn.addEventListener('click', () => {
+  if (_uncheckBtn) _uncheckBtn.addEventListener('click', async () => {
     const n = countDoneCells();
     if (n === 0) { showToast('Nenhuma célula marcada como concluída'); return; }
-    if (!confirm(`Desmarcar as ${n} célula(s) concluída(s) da grade? As matérias e durações são mantidas.`)) return;
+    if (!await UI.confirm(`Desmarcar as ${n} célula(s) concluída(s)?\n\nAs matérias e durações da grade são mantidas.`,
+      { title: '↺ Desmarcar concluídos', okText: 'Desmarcar' })) return;
+    try { if (window.VersionHistory) await VersionHistory.antesDe('desmarcar a grade'); } catch (_) { _quiet(_); }
     const t = gradeGet();
     DIAS_SEMANA.forEach(d => {
       if (!Array.isArray(t.grade[d])) return;
@@ -16099,12 +17376,15 @@ function planCycleMode() {
   // Limpar grade: esvazia TODAS as células (mantém o nº de sessões), para remontar do zero.
   // As siglas/matérias cadastradas não são apagadas — só saem da grade.
   const _clearGradeBtn = document.getElementById('btn-clear-grade');
-  if (_clearGradeBtn) _clearGradeBtn.addEventListener('click', () => {
+  if (_clearGradeBtn) _clearGradeBtn.addEventListener('click', async () => {
     const t = gradeGet();
     let ocupadas = 0;
     DIAS_SEMANA.forEach(d => (t.grade[d] || []).forEach(c => { if (normalizeCell(c)) ocupadas++; }));
     if (ocupadas === 0) { showToast('A grade já está vazia'); return; }
-    if (!confirm(`Limpar toda a grade? As ${ocupadas} matéria(s) alocadas serão removidas das células (as siglas cadastradas são mantidas). Use isto para refazer o planejamento do zero.`)) return;
+    if (!await UI.confirmTyped(`Limpar toda a grade?\n\nAs ${ocupadas} matéria(s) alocadas serão removidas das células. As siglas cadastradas são mantidas.`,
+      { word: 'LIMPAR', title: '🗑️ Limpar grade inteira', okText: 'Limpar grade' })) return;
+    // foto de seguranca ANTES de esvaziar: e exatamente este o caso de "limpei sem querer"
+    try { if (window.VersionHistory) await VersionHistory.antesDe('limpar a grade'); } catch (_) { _quiet(_); }
     const n = sessionCount(t);
     DIAS_SEMANA.forEach(d => { t.grade[d] = Array.from({ length: n }, () => ''); });
     gradeSave(t);
@@ -16134,6 +17414,12 @@ function planCycleMode() {
     });
     // fecha ao escolher um item (mas deixa o clique do próprio item executar antes)
     gmenu.querySelectorAll('.grade-gear-item').forEach(it => it.addEventListener('click', () => setTimeout(closeGear, 0)));
+    /* O seletor de visao mora dentro do menu agora: escolher "Semanal" ou
+       "Meta diaria" e uma decisao final, entao o menu se fecha junto. Ja o
+       select de inicio da semana NAO fecha — quem esta ajustando isso costuma
+       querer conferir o resultado com o menu ainda aberto. */
+    const vt = gmenu.querySelector('#grade-view-toggle');
+    if (vt) vt.addEventListener('click', (e) => { if (e.target.closest('.gvt-btn')) setTimeout(closeGear, 0); });
   })();
 
   /* ---- Item 1: seletor de visão (Semanal / Meta diária) ---- */
@@ -16171,39 +17457,39 @@ function planCycleMode() {
         </div>
       </div>`;
     }).join('');
-    box.querySelectorAll('[data-sg-load]').forEach(b => b.addEventListener('click', () => {
+    box.querySelectorAll('[data-sg-load]').forEach(b => b.addEventListener('click', async () => {
       const id = b.dataset.sgLoad;
       const s = DB.getSavedGrades().find(x => x.id === id);
       if (!s) return;
-      if (!confirm(`Restaurar a grade "${s.nome}"? A grade atual será substituída (salve-a antes se quiser mantê-la).`)) return;
+      if (!await UI.confirm(`Restaurar a grade "${s.nome}"? A grade atual será substituída (salve-a antes se quiser mantê-la).`)) return;
       DB.applySavedGrade(id);
       applyGradeView();
       renderSavedGradesList();
       showToast('Grade restaurada ✓');
     }));
-    box.querySelectorAll('[data-sg-over]').forEach(b => b.addEventListener('click', () => {
+    box.querySelectorAll('[data-sg-over]').forEach(b => b.addEventListener('click', async () => {
       const id = b.dataset.sgOver;
       const s = DB.getSavedGrades().find(x => x.id === id);
       if (!s) return;
-      if (!confirm(`Atualizar "${s.nome}" com a grade atual? O conteúdo salvo anterior será sobrescrito.`)) return;
+      if (!await UI.confirm(`Atualizar "${s.nome}" com a grade atual? O conteúdo salvo anterior será sobrescrito.`)) return;
       DB.overwriteSavedGrade(id);
       renderSavedGradesList();
       showToast('Grade salva atualizada ✓');
     }));
-    box.querySelectorAll('[data-sg-ren]').forEach(b => b.addEventListener('click', () => {
+    box.querySelectorAll('[data-sg-ren]').forEach(b => b.addEventListener('click', async () => {
       const id = b.dataset.sgRen;
       const s = DB.getSavedGrades().find(x => x.id === id);
       if (!s) return;
-      const nome = prompt('Novo nome da grade:', s.nome);
-      if (nome == null) return;
-      DB.renameSavedGrade(id, nome);
+      const v = await UI.prompt([{ key: 'nome', label: 'Novo nome da grade', value: s.nome }], { title: 'Renomear grade', okText: 'Renomear' });
+      if (!v || v.nome == null) return;
+      DB.renameSavedGrade(id, v.nome);
       renderSavedGradesList();
     }));
-    box.querySelectorAll('[data-sg-del]').forEach(b => b.addEventListener('click', () => {
+    box.querySelectorAll('[data-sg-del]').forEach(b => b.addEventListener('click', async () => {
       const id = b.dataset.sgDel;
       const s = DB.getSavedGrades().find(x => x.id === id);
       if (!s) return;
-      if (!confirm(`Excluir a grade salva "${s.nome}"? Isto não altera a grade atual em uso.`)) return;
+      if (!await UI.confirm(`Excluir a grade salva "${s.nome}"? Isto não altera a grade atual em uso.`)) return;
       DB.deleteSavedGrade(id);
       renderSavedGradesList();
       showToast('Grade salva excluída');
@@ -16225,25 +17511,27 @@ function planCycleMode() {
   const _savedDone = document.getElementById('saved-grades-done');
   if (_savedDone) _savedDone.addEventListener('click', closeSavedGrades);
   const _saveCurBtn = document.getElementById('btn-save-current-grade');
-  if (_saveCurBtn) _saveCurBtn.addEventListener('click', () => {
+  if (_saveCurBtn) _saveCurBtn.addEventListener('click', async () => {
     const inp = document.getElementById('new-saved-grade-name');
     const nome = (inp && inp.value.trim()) || ('Grade ' + new Date().toLocaleDateString('pt-BR'));
     let ocupadas = 0;
     const t = gradeGet();
     DIAS_SEMANA.forEach(d => (t.grade[d] || []).forEach(c => { if (normalizeCell(c)) ocupadas++; }));
-    if (ocupadas === 0 && !confirm('A grade atual está vazia. Salvar mesmo assim?')) return;
+    if (ocupadas === 0 && !await UI.confirm('A grade atual está vazia. Salvar mesmo assim?')) return;
     DB.addSavedGrade(nome);
     if (inp) inp.value = '';
     renderSavedGradesList();
     showToast('Grade atual salva ✓');
   });
   const _savedModal = document.getElementById('saved-grades-modal');
-  if (_savedModal) _savedModal.addEventListener('click', (e) => { if (e.target === _savedModal) closeSavedGrades(); });
+  /* fundo desfocado nao fecha o modal: so o X / Cancelar / Esc fecham */
 
-  on('btn-close-cycle', 'click', () => {
+  on('btn-close-cycle', 'click', async () => {
     const cycle = DB.getCurrentCycle();
     if (!cycle) return;
-    if (!confirm('Fechar esta semana? Ela será salva no histórico permanentemente e uma nova semana começará zerada.')) return;
+    if (!await UI.confirm('Ela será salva no histórico permanentemente e uma nova semana começará zerada.\n\nOs registros de estudo não são apagados — continuam contando em Evolução e Conquistas.',
+      { title: '✓ Fechar semana', sub: 'Encerrar o ciclo atual e arquivá-lo', okText: 'Fechar semana' })) return;
+    try { if (window.VersionHistory) await VersionHistory.antesDe('fechar a semana'); } catch (_) { _quiet(_); }
 
     // a semana no histórico usa exatamente o intervalo definido no ciclo (início → término)
     const realEndDate = cycle.endDate || CycleEngine.weekEndDate(cycle.startDate);
@@ -16253,8 +17541,12 @@ function planCycleMode() {
     const totalStudied = entries.reduce((sum, e) => sum + (e.durationMin || 0), 0);
     const avgPct = CycleEngine.aproveitamentoNoPeriodo(cycle.startDate, realEndDate, entries);
 
+    /* O snapshot mede as matérias no MESMO intervalo usado para somar as
+       sessões (startDate → realEndDate). Antes usava cycle.endDate, que podia
+       ser nulo: as horas por matéria zeravam enquanto o total da semana
+       continuava certo, e o histórico guardava essa divergência para sempre. */
     const subjectsSnapshot = cycle.subjects.map(s => {
-      const studied = CycleEngine.minutesStudied(s.nome, cycle.startDate, cycle.endDate);
+      const studied = CycleEngine.minutesStudied(s.nome, cycle.startDate, realEndDate);
       return { ...s, estudadoMin: studied, status: CycleEngine.statusFor(studied, s.definidoMin) };
     });
     const finalizadas = subjectsSnapshot.filter(s => s.status === 'finalizada').length;
@@ -16359,8 +17651,8 @@ const HistoricoScreen = {
     const planBadge = consolidated && w._planNome
       ? `<span class="plan-tag-badge">${escapeHtml(w._planNome)}</span>` : '';
     const actions = consolidated ? '' : `
-            <button type="button" class="icon-btn btn-edit-week" title="Editar" aria-label="Editar">✎</button>
-            <button type="button" class="icon-btn danger btn-delete-week" title="Excluir" aria-label="Excluir">×</button>`;
+            <button type="button" class="reg-act-btn btn-edit-week" title="Editar semana" aria-label="Editar semana">✎</button>
+            <button type="button" class="reg-act-btn danger btn-delete-week" title="Excluir semana" aria-label="Excluir semana">✕</button>`;
 
     const subjects = w.subjects || [];
     const fin = subjects.filter(s => s.status === 'finalizada').length;
@@ -16376,12 +17668,25 @@ const HistoricoScreen = {
     w.finalizadas    = (w.finalizadas != null) ? w.finalizadas : fin;
     w.totalSubjects  = (w.totalSubjects != null) ? w.totalSubjects : subjects.length;
     const cumpTone = w.pctCumprido >= 100 ? 'finalizada' : w.pctCumprido >= 40 ? 'iniciada' : 'pendente';
+    /* BUG CORRIGIDO — dois numeros de "planejado" na mesma tela.
+       O cartao mostrava weeklyHours (a carga que voce PEDIU ao montar o ciclo) e
+       logo abaixo a barra comparava com totalTargetMin (a soma do que voce
+       DEFINIU por matéria, depois de ajustar). Quem mexeu no tempo de alguma
+       matéria via "36h planejadas" acima de "28h de 40h" — sem erro em nenhum
+       dos dois, mas impossivel de conciliar. Agora os dois leem a MESMA meta. */
+    const _metaMin = (typeof w.totalTargetMin === 'number' && isFinite(w.totalTargetMin) && w.totalTargetMin > 0)
+      ? w.totalTargetMin
+      : Math.round(_num(w.weeklyHours) * 60);
 
     return `
       <div class="week-card" data-id="${w.id}">
         <div class="week-card-head">
-          <div class="period">${planBadge}${formatDateShort(w.startDate)}<span class="arrow">→</span>${formatDateShort(w.endDate)}</div>
-          <div style="display:flex; align-items:center; gap:8px;">
+          <div class="wk-period-box">
+            ${planBadge}
+            <span class="wk-period-ic">🗓️</span>
+            <span class="wk-period-dates">${formatDateShort(w.startDate)}<span class="arrow">→</span>${formatDateShort(w.endDate)}</span>
+          </div>
+          <div class="wk-head-right">
             ${perfBadge}${actions}
           </div>
         </div>
@@ -16399,14 +17704,14 @@ const HistoricoScreen = {
             <div class="label">finalizadas</div>
           </div>
           <div class="week-stat">
-            <div class="value">${CycleEngine.fmtWeeklyHours(w.weeklyHours)}</div>
+            <div class="value">${CycleEngine.fmtHM(_metaMin)}</div>
             <div class="label">planejadas</div>
           </div>
         </div>
         <div class="week-cumprido-wrap">
           <div class="week-cumprido-head">
             <span class="lbl">Meta da semana</span>
-            <span class="val">${CycleEngine.fmtHM(w.totalStudiedMin)} de ${CycleEngine.fmtHM(w.totalTargetMin ?? (w.weeklyHours*60))}</span>
+            <span class="val">${CycleEngine.fmtHM(w.totalStudiedMin)} de ${CycleEngine.fmtHM(_metaMin)}</span>
           </div>
           <div class="progress-track">
             <div class="progress-fill tone-${cumpTone}" style="width:${Math.min(100, w.pctCumprido)}%;"></div>
@@ -16416,7 +17721,7 @@ const HistoricoScreen = {
           <span class="wsd-chip fin"><span class="n">${fin}</span> finalizada${fin===1?'':'s'}</span>
           <span class="wsd-chip ini"><span class="n">${ini}</span> iniciada${ini===1?'':'s'}</span>
           <span class="wsd-chip pen"><span class="n">${pen}</span> pendente${pen===1?'':'s'}</span>
-          <span class="wsd-chip ses"><span class="n">${sessions}</span> sessão${sessions===1?'':'es'} registrada${sessions===1?'':'s'}</span>
+          <span class="wsd-chip ses"><span class="n">${sessions}</span> ${sessions === 1 ? 'sessão registrada' : 'sessões registradas'}</span>
         </div>
         <button type="button" class="btn-toggle-detail" data-id="${w.id}">
           <span class="ttl">Ver detalhes da semana</span><span class="caret">▾</span>
@@ -16442,6 +17747,9 @@ const HistoricoScreen = {
   subjectsProgressHtml(w) {
     const subjects = w.subjects || [];
     if (subjects.length === 0) return `<p class="wd-empty">Nenhuma matéria estava neste ciclo.</p>`;
+    /* Mesma lista do Ciclo da Semana, inclusive o aproveitamento ao lado do
+       status: antes o detalhe do historico mostrava so horas, entao a semana
+       arquivada perdia a informacao de desempenho que a semana viva tinha. */
     return subjects.map(s => {
       const definido = s.definidoMin || 0;
       const estudado = s.estudadoMin || 0;
@@ -16449,11 +17757,18 @@ const HistoricoScreen = {
       const pct = definido > 0 ? Math.min(100, Math.round((estudado / definido) * 100)) : 0;
       const over = estudado > definido;
       const remaining = Math.max(0, definido - estudado);
+      const q = CycleEngine.questionsStudied(s.nome, w.startDate, w.endDate);
+      const acc = q.total > 0 ? Math.round((q.correct / q.total) * 10000) / 100 : null;
+      const accTone = acc == null ? '' : (acc >= 70 ? 'tone-good' : acc >= 50 ? 'tone-warn' : 'tone-bad');
+      const fmt2 = (v) => { const r = Math.round(v * 100) / 100; return Number.isInteger(r) ? String(r) : r.toFixed(2).replace('.', ','); };
       return `
         <div class="subject-progress-item status-${status}">
           <div class="subject-progress-head">
             <span class="name">${escapeHtml(s.nome)}</span>
-            <span class="status-badge ${status}">${status}</span>
+            <span class="sp-head-right">
+              <span class="subject-acc ${accTone}" title="${q.total ? q.correct + ' de ' + q.total + ' questões nesta semana' : 'Sem questões registradas nesta semana'}"><b>${acc == null ? '—' : fmt2(acc) + '%'}</b><span class="sp-acc-lbl">aproveit.</span></span>
+              <span class="status-badge ${status}">${status}</span>
+            </span>
           </div>
           <div class="progress-track">
             <div class="progress-fill ${over ? 'tone-over' : 'tone-' + status}" style="width:${pct}%;"></div>
@@ -16472,7 +17787,7 @@ const HistoricoScreen = {
               <div class="hl">meta</div>
             </div>
           </div>
-          <div class="subject-progress-head" style="margin-top:10px; margin-bottom:0;">
+          <div class="subject-progress-head sp-foot" style="margin-top:10px; margin-bottom:0;">
             <span class="subject-meta-tag">dificuldade ${s.dificuldade ?? '—'} · ${escapeHtml(s.fase || '—')}</span>
             <span class="subject-meta-tag">${pct}% da meta</span>
           </div>
@@ -16647,9 +17962,11 @@ const HistoricoScreen = {
       if (editBtn) editBtn.addEventListener('click', () => { this.editingId = id; this.render(); });
 
       const deleteBtn = card.querySelector('.btn-delete-week');
-      if (deleteBtn) deleteBtn.addEventListener('click', () => {
+      if (deleteBtn) deleteBtn.addEventListener('click', async () => {
         const w = DB.getCycleHistory().find(x => x.id === id);
-        if (!confirm(`Excluir a semana de ${formatDateShort(w.startDate)} a ${formatDateShort(w.endDate)} do histórico? Essa ação não pode ser desfeita.`)) return;
+        if (!await UI.confirm(`Excluir a semana de ${formatDateShort(w.startDate)} a ${formatDateShort(w.endDate)} do histórico?\n\nEssa ação não pode ser desfeita.`,
+          { title: '🗑️ Excluir semana', okText: 'Excluir', danger: true })) return;
+        try { if (window.VersionHistory) await VersionHistory.antesDe('excluir uma semana do histórico'); } catch (_) { _quiet(_); }
         DB.deleteCycleHistoryEntry(id);
         showToast('Semana removida do histórico');
         this.render();
@@ -17080,12 +18397,21 @@ const ConquistasEngine = {
         mostraRec: !!rec && rec.data !== hist.data && Math.abs(rec.valor - hist.valor) > 0.05
       };
     };
+    /* Recordes de DIA entram junto com os de semana: quem estuda todo dia so
+       via marca semanal e nunca reconhecia o proprio melhor dia. O minimo de
+       questoes evita que um 2/2 vire "melhor aproveitamento" e desvalorize o
+       recorde de quem resolveu 80 com 88%. */
+    const MIN_Q_DIA = Math.max(10, Math.round((this.MIN_Q_SEMANA || 30) / 3));
     return [
       par(semArr, v => v.min, null, 'Melhor semana em tempo', v => (v / 60).toFixed(1) + 'h'),
       par(semArr, v => v.q, null, 'Melhor semana em questões', v => Math.round(v) + ' questões'),
       par(semArr, v => v.q >= this.MIN_Q_SEMANA ? v.ac / v.q * 100 : -1,
         v => v.q >= this.MIN_Q_SEMANA, 'Melhor aproveitamento semanal', v => v.toFixed(0) + '%'),
-      par(diaArr, v => v.min, null, 'Melhor dia', v => (v / 60).toFixed(1) + 'h')
+      par(semArr, v => v.dias, v => v.dias > 0, 'Semana com mais dias de estudo', v => Math.round(v) + ' dia(s)'),
+      par(diaArr, v => v.min, null, 'Melhor dia em tempo', v => (v / 60).toFixed(1) + 'h'),
+      par(diaArr, v => v.q, v => v.q > 0, 'Melhor dia em questões', v => Math.round(v) + ' questões'),
+      par(diaArr, v => v.q >= MIN_Q_DIA ? v.ac / v.q * 100 : -1,
+        v => v.q >= MIN_Q_DIA, 'Melhor aproveitamento em um dia', v => v.toFixed(0) + '%')
     ].filter(Boolean);
   }
 };
@@ -17307,6 +18633,47 @@ const EvolucaoScreen = {
     if (this.calAno == null || this.calMes == null) { const h = new Date(); this.calAno = h.getFullYear(); this.calMes = h.getMonth(); }
     this._calEntries = entries;
 
+    /* Resumo de presença — números que o calendário mostra em forma de quadrado
+       mas nunca soletra: sequência atual, maior sequência, total de dias e
+       quanto do tempo já acumulado. Sem eles a tela dizia "você esteve aqui"
+       sem dizer "quanto". Tudo derivado dos mesmos registros; nenhum dado novo. */
+    const _dias = ConquistasEngine.porDia(entries);
+    const _isoAtivos = Object.keys(_dias).filter(k => _dias[k].temAlgo).sort();
+    const _totalMin = Object.values(_dias).reduce((a, v) => a + (v.min || 0), 0);
+    const _totalQ = Object.values(_dias).reduce((a, v) => a + (v.q || 0), 0);
+    const _totalAc = Object.values(_dias).reduce((a, v) => a + (v.ac || 0), 0);
+    // sequência: dias consecutivos até hoje (ou até ontem, para não zerar antes do fim do dia)
+    /* Data local, NUNCA toISOString(): em fuso negativo (Brasil) o ISO em UTC
+       devolve o dia seguinte e a sequencia quebraria sozinha na virada. */
+    const _iso = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+    const _diaAnterior = (iso) => { const d = new Date(iso + 'T00:00:00'); d.setDate(d.getDate() - 1); return _iso(d); };
+    const _ativo = new Set(_isoAtivos);
+    let _seqAtual = 0;
+    {
+      let cur = todayLocal();
+      if (!_ativo.has(cur)) cur = _diaAnterior(cur);   // ainda da tempo de estudar hoje
+      while (_ativo.has(cur)) { _seqAtual++; cur = _diaAnterior(cur); }
+    }
+    let _seqMax = 0, _run = 0, _prev = null;
+    _isoAtivos.forEach(iso => {
+      _run = (_prev && _diaAnterior(iso) === _prev) ? _run + 1 : 1;
+      if (_run > _seqMax) _seqMax = _run;
+      _prev = iso;
+    });
+    const _mediaDia = _isoAtivos.length ? Math.round(_totalMin / _isoAtivos.length) : 0;
+    const _accGeral = _totalQ > 0 ? Math.round((_totalAc / _totalQ) * 10000) / 100 : null;
+    const _mini = (v, r, t) => `<div class="conq-mini" title="${escapeHtml(t)}"><div class="cm-v">${v}</div><div class="cm-r">${r}</div></div>`;
+    const resumoHtml = `
+      <div class="conq-resumo">
+        ${_mini(_seqAtual + (_seqAtual === 1 ? ' dia' : ' dias'), 'sequência atual', 'Dias consecutivos com registro, contando até hoje')}
+        ${_mini(_seqMax + (_seqMax === 1 ? ' dia' : ' dias'), 'maior sequência', 'A sua melhor sequência de dias seguidos')}
+        ${_mini(String(_isoAtivos.length), 'dias com estudo', 'Total de dias diferentes com pelo menos um registro')}
+        ${_mini(CycleEngine.fmtHM(_totalMin), 'tempo acumulado', 'Soma de todo o tempo registrado')}
+        ${_mini(CycleEngine.fmtHM(_mediaDia), 'média por dia', 'Tempo acumulado dividido pelos dias com estudo')}
+        ${_mini(_totalQ.toLocaleString('pt-BR'), 'questões resolvidas', 'Total de questões registradas')}
+        ${_mini(_accGeral == null ? '—' : _accGeral.toFixed(2) + '%', 'aproveitamento geral', 'Acertos divididos por questões resolvidas, em todo o período')}
+      </div>`;
+
     box.innerHTML = `
       <div class="card"><div style="padding:18px 22px;">
         <div class="pl-hero-top" style="margin-bottom:2px;">
@@ -17320,7 +18687,22 @@ const EvolucaoScreen = {
         <p class="conq-titulo">📅 Calendário de presença</p>
         <div id="conq-cal-body">${this._calMensalHtml()}</div>
         <p class="conq-presenca" style="margin-top:6px;">Você estudou em <strong>${cal.em7}</strong> dos últimos 7 dias e em <strong>${cal.em30}</strong> dos últimos 30.</p>
+        ${resumoHtml}
       </div></div>
+
+      ${recs.length ? `<div class="card"><div style="padding:18px 22px;">
+        <p class="conq-titulo">🏆 Seus recordes</p>
+        <div class="conq-recs">
+        ${recs.map(r => `<div class="conq-rec">
+          <span class="rot">${r.rot}${r.novo ? ' <span class="conq-novo">novo!</span>' : ''}</span>
+          <span class="conq-rec-vals">
+            <span class="val">${r.fmt(r.hist.valor)}</span><span class="qd"> · ${formatDateShort(r.hist.data)}</span>
+            ${r.mostraRec ? `<span class="qd" style="display:block;">melhor dos últimos 90 dias: ${r.fmt(r.rec.valor)}</span>` : ''}
+          </span>
+        </div>`).join('')}
+        </div>
+        <p class="pl-prosa" style="margin-top:10px;color:var(--text-faint);">Comparação só com você mesmo. Recorde é história, não meta.</p>
+      </div></div>` : ''}
 
       ${marcos.length ? `<div class="card"><div style="padding:18px 22px;">
         <p class="conq-titulo">🎯 Marcos acumulados</p>
@@ -17360,17 +18742,7 @@ const EvolucaoScreen = {
         </div></div>`;
       }).join('')}
 
-      ${recs.length ? `<div class="card"><div style="padding:18px 22px;">
-        <p class="conq-titulo">🏆 Seus recordes</p>
-        ${recs.map(r => `<div class="conq-rec">
-          <span class="rot">${r.rot}${r.novo ? ' <span class="conq-novo">novo!</span>' : ''}</span>
-          <span style="text-align:right;">
-            <span class="val">${r.fmt(r.hist.valor)}</span><span class="qd"> · ${formatDateShort(r.hist.data)}</span>
-            ${r.mostraRec ? `<span class="qd" style="display:block;">melhor dos últimos 90 dias: ${r.fmt(r.rec.valor)}</span>` : ''}
-          </span>
-        </div>`).join('')}
-        <p class="pl-prosa" style="margin-top:10px;color:var(--text-faint);">Comparação só com você mesmo. Recorde é história, não meta.</p>
-      </div></div>` : ''}`;
+      `;
   },
   render() {
     const allEntries = this._sourceEntries();
@@ -18056,6 +19428,11 @@ const EvolucaoScreen = {
         <div class="ico">🎯</div>
         <div class="value">${formatPct(avgPct)}%</div>
         <div class="label">acerto em questões${somaQuestoes ? ' <span class="evo-stat-sub">' + somaAcertos.toLocaleString('pt-BR') + ' de ' + somaQuestoes.toLocaleString('pt-BR') + '</span>' : ''}</div>
+      </div>
+      <div class="evo-stat-card" style="--evo-cor: #0f9d63;" title="Tempo total dividido pelos dias em que houve registro — mede o TAMANHO da sua sessão típica, não a frequência.">
+        <div class="ico">📈</div>
+        <div class="value">${uniqueDays > 0 ? CycleEngine.fmtHM(Math.round(totalMin / uniqueDays)) : '—'}</div>
+        <div class="label">média por dia estudado${uniqueDays ? ' <span class="evo-stat-sub">em ' + uniqueDays + ' dia' + (uniqueDays === 1 ? '' : 's') + '</span>' : ''}</div>
       </div>
     `;
   },
@@ -18777,10 +20154,10 @@ const EstudoNovoScreen = {
 
     // remover aula
     listEl.querySelectorAll('.btn-remove-lesson').forEach(btn => {
-      btn.addEventListener('click', () => {
+      btn.addEventListener('click', async () => {
         const row = btn.closest('.track-row-wrap');
         const item = DB.getTrack(subject).find(i => i.id === row.dataset.id);
-        if (!confirm(`Remover a aula "${item.text}" da trilha?`)) return;
+        if (!await UI.confirm(`Remover a aula "${item.text}" da trilha?`)) return;
         DB.removeTrackItem(subject, row.dataset.id);
         this.renderTrack();
       });
@@ -18788,9 +20165,9 @@ const EstudoNovoScreen = {
 
     // remover checkpoint
     listEl.querySelectorAll('.btn-remove-checkpoint').forEach(btn => {
-      btn.addEventListener('click', () => {
+      btn.addEventListener('click', async () => {
         const row = btn.closest('.track-row-wrap');
-        if (!confirm('Remover este checkpoint?')) return;
+        if (!await UI.confirm('Remover este checkpoint?')) return;
         DB.removeTrackItem(subject, row.dataset.id);
         this.renderTrack();
       });
@@ -19082,11 +20459,16 @@ const LeisScreen = {
     $id('leis-reader-view').style.display = 'block';
     $id('lei-reader-titulo').textContent = lei.titulo;
     const st = LawEngine.stats(lei);
-    const metaParts = [];
-    if (lei.referencia) metaParts.push(lei.referencia);
-    if (lei.materia) metaParts.push(lei.materia);
-    metaParts.push(`${st.artigos} artigos · ${st.palavras} palavras`);
-    $id('lei-reader-meta').textContent = metaParts.join(' · ');
+    /* Antes os metadados iam todos numa unica caixa cinza, colada ao titulo e
+       quebrando em qualquer largura. Agora cada informacao e um chip proprio:
+       alinham entre si, quebram por inteiro e nunca cortam palavra no meio. */
+    const chips = [];
+    if (lei.materia) chips.push({ ic: '📚', txt: lei.materia });
+    if (lei.referencia) chips.push({ ic: '🏷️', txt: lei.referencia });
+    chips.push({ ic: '§', txt: `${st.artigos} artigo${st.artigos === 1 ? '' : 's'}` });
+    chips.push({ ic: '📝', txt: `${Number(st.palavras).toLocaleString('pt-BR')} palavras` });
+    $id('lei-reader-meta').innerHTML = chips
+      .map(c => `<span class="lei-meta-chip"><span class="lmc-ic">${c.ic}</span>${escapeHtml(String(c.txt))}</span>`).join('');
     // sincroniza os toggles com as opções salvas da lei
     const opts = lei.opts || {};
     const autoOn = opts._auto !== false;
@@ -19458,8 +20840,8 @@ const LeisScreen = {
       });
     });
   },
-  restoreKeywordDefaults() {
-    if (!confirm('Restaurar a lista de palavras que vem por padrão? Suas inclusões/exclusões nesta lista serão substituídas.')) return;
+  async restoreKeywordDefaults() {
+    if (!await UI.confirm('Restaurar a lista de palavras que vem por padrão? Suas inclusões/exclusões nesta lista serão substituídas.')) return;
     DB.restoreLeiKeywordDefaults();
     this.renderKeywords();
     if (this.currentId) this.renderBody();
@@ -19516,10 +20898,10 @@ const LeisScreen = {
       showToast('Lei atualizada ✓');
     });
   },
-  deleteCurrent() {
+  async deleteCurrent() {
     const lei = DB.getLei(this.currentId);
     if (!lei) return;
-    if (!confirm(`Excluir a lei "${lei.titulo}"? Esta ação não pode ser desfeita.`)) return;
+    if (!await UI.confirm(`Excluir a lei "${lei.titulo}"? Esta ação não pode ser desfeita.`)) return;
     DB.deleteLei(this.currentId);
     showToast('Lei excluída');
     this.showList();
@@ -19555,7 +20937,30 @@ window.LeisScreen = LeisScreen;
   on('lei-kw-add-btn', 'click', () => LeisScreen.addKeywordFromForm());
   on('lei-kw-restore', 'click', () => LeisScreen.restoreKeywordDefaults());
   on('lei-kw-input', 'keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); LeisScreen.addKeywordFromForm(); } });
-  (function () { const m = document.getElementById('lei-kw-modal'); if (m) m.addEventListener('click', (e) => { if (e.target === m) LeisScreen.closeKeywords(); }); })();
+  /* fundo desfocado nao fecha (ver UI._open): so o X / Cancelar / Esc fecham */
+
+  /* Barra de ferramentas do leitor: recolher/expandir, com a escolha lembrada.
+     Comeca ABERTA na primeira visita (para as ferramentas serem descobertas) e
+     depois respeita o que o usuario deixou. */
+  (function () {
+    const KEY = 'diario-estudos:leis-tools-open';
+    const btn = document.getElementById('lei-tools-toggle');
+    const box = document.getElementById('leis-sticky-toolbar');
+    if (!btn || !box) return;
+    const ler = () => { try { return localStorage.getItem(KEY) !== '0'; } catch (_) { return true; } };
+    const pintar = (aberto) => {
+      box.classList.toggle('tools-collapsed', !aberto);
+      btn.setAttribute('aria-expanded', aberto ? 'true' : 'false');
+      const t = btn.querySelector('.ltt-txt');
+      if (t) t.textContent = aberto ? 'Ferramentas de leitura' : 'Mostrar ferramentas de leitura';
+    };
+    btn.addEventListener('click', () => {
+      const novo = !ler();
+      try { localStorage.setItem(KEY, novo ? '1' : '0'); } catch (_) { _quiet(_); }
+      pintar(novo);
+    });
+    pintar(ler());
+  })();
   on('lei-lines-btn', 'click', () => LeisScreen.toggleLines());
   on('lei-goto-mark-btn', 'click', () => LeisScreen.gotoBookmark());
   on('lei-foco-btn', 'click', () => LeisScreen.entrarFoco());
@@ -20635,7 +22040,7 @@ const CardsScreen = {
 
     // Um listener para a lista inteira, em vez de quatro por card. Além de mais
     // barato, é o que faz os cards carregados depois já nascerem funcionando.
-    grid.addEventListener('click', (e) => {
+    grid.addEventListener('click', async (e) => {
       const fav = e.target.closest('[data-fav]');
       if (fav) {
         const c = DB.getCard(fav.dataset.fav);
@@ -20660,7 +22065,7 @@ const CardsScreen = {
       }
       const del = e.target.closest('[data-del]');
       if (del) {
-        if (!confirm('Excluir este card?')) return;
+        if (!await UI.confirm('Excluir este card?')) return;
         DB.deleteCard(del.dataset.del); this.render();
       }
     });
@@ -20792,9 +22197,9 @@ const CardsScreen = {
     }
     this.render();
   },
-  deleteCard() {
+  async deleteCard() {
     if (!this._editingId) return;
-    if (!confirm('Excluir este card?')) return;
+    if (!await UI.confirm('Excluir este card?')) return;
     DB.deleteCard(this._editingId); this.closeCardModal(); this.render(); showToast('Card excluído');
   },
 
@@ -20815,8 +22220,8 @@ const CardsScreen = {
     box.querySelectorAll('.deck-row').forEach(row => {
       const id = row.dataset.id;
       row.querySelector('.deck-name').addEventListener('change', (e) => { DB.renameDeck(id, e.target.value); this.render(); });
-      row.querySelector('.deck-del').addEventListener('click', () => {
-        if (!confirm('Excluir este baralho? Os cards dele NÃO são apagados (ficam sem destino).')) return;
+      row.querySelector('.deck-del').addEventListener('click', async () => {
+        if (!await UI.confirm('Excluir este baralho? Os cards dele NÃO são apagados (ficam sem destino).')) return;
         DB.deleteDeck(id); this.renderDeckList(); this.render();
       });
     });
@@ -22358,7 +23763,7 @@ document.querySelectorAll('.rte').forEach(buildRteToolbar);
   // Fechar esses dois é sempre explícito (✕, Cancelar ou Esc).
   ['deck-modal', 'cards-import-modal', 'cards-export-modal'].forEach(id => {
     const m = document.getElementById(id);
-    if (m) m.addEventListener('click', (e) => { if (e.target === m) m.style.display = 'none'; });
+    /* fundo desfocado nao fecha o modal: so o X / Cancelar / Esc fecham */
   });
   // Esc fecha o card, confirmando quando há conteúdo
   document.addEventListener('keydown', (e) => {
@@ -22823,8 +24228,8 @@ const ExtrasScreen = {
             </div>
           </div>
           <div class="exd-actions">
-            <button type="button" class="icon-btn exd-edit" title="Editar / configurar" aria-label="Editar / configurar">✎</button>
-            <button type="button" class="icon-btn exd-delete" title="Excluir atividade" aria-label="Excluir atividade">🗑</button>
+            <button type="button" class="reg-act-btn exd-edit" title="Editar / configurar" aria-label="Editar / configurar">✎</button>
+            <button type="button" class="reg-act-btn danger exd-delete" title="Excluir atividade" aria-label="Excluir atividade">✕</button>
           </div>
         </div>
                 ${progBlock}
@@ -23394,7 +24799,7 @@ window.ExtrasScreen = ExtrasScreen;
     showToast(DB.extrasCountGlobal() ? 'Atividades marcadas entram nas métricas' : 'Atividades fora das métricas');
   });
   const m = document.getElementById('extra-modal');
-  if (m) m.addEventListener('click', (e) => { if (e.target === m) closeExtraModal(); });
+  /* fundo desfocado nao fecha o modal: so o X / Cancelar / Esc fecham */
 })();
 window.addEventListener('screen:activated', (e) => {
   if (e.detail.screen === 'extras') ExtrasScreen.render();
@@ -23531,10 +24936,10 @@ const LinksScreen = {
     this.renderGrid();
     if ($id('link-manage-modal').style.display === 'flex') this.renderManageList();
   },
-  deleteCurrent() {
+  async deleteCurrent() {
     if (!this._editingId) return;
     const l = DB.getLinks().find(x => x.id === this._editingId);
-    if (!confirm(`Excluir o link "${l ? l.nome : ''}"?`)) return;
+    if (!await UI.confirm(`Excluir o link "${l ? l.nome : ''}"?`)) return;
     DB.deleteLink(this._editingId); this.closeModal(); this.renderGrid();
     if ($id('link-manage-modal').style.display === 'flex') this.renderManageList();
     showToast('Link excluído');
@@ -23557,9 +24962,9 @@ const LinksScreen = {
     box.querySelectorAll('.link-manage-row').forEach(row => {
       const id = row.dataset.id;
       row.querySelector('.link-manage-edit').addEventListener('click', () => this.openModal(id));
-      row.querySelector('.link-manage-del').addEventListener('click', () => {
+      row.querySelector('.link-manage-del').addEventListener('click', async () => {
         const l = DB.getLinks().find(x => x.id === id);
-        if (!confirm(`Excluir o link "${l ? l.nome : ''}"?`)) return;
+        if (!await UI.confirm(`Excluir o link "${l ? l.nome : ''}"?`)) return;
         DB.deleteLink(id); this.renderManageList(); this.renderGrid(); showToast('Link excluído');
       });
     });
@@ -23584,7 +24989,7 @@ window.LinksScreen = LinksScreen;
   on('link-manage-done', 'click', () => $id('link-manage-modal').style.display = 'none');
   ['link-modal', 'link-manage-modal'].forEach(id => {
     const m = document.getElementById(id);
-    if (m) m.addEventListener('click', (e) => { if (e.target === m) m.style.display = 'none'; });
+    /* fundo desfocado nao fecha o modal: so o X / Cancelar / Esc fecham */
   });
 })();
 window.addEventListener('screen:activated', (e) => {
@@ -23614,23 +25019,32 @@ const ConfigScreen = {
       return;
     }
 
+    /* ESTRUTURA REFEITA. A linha era uma grade de 4 colunas que, apertada, dava
+       uma coluna de ~15px para a "Dificuldade": o rotulo descia letra por letra
+       e o nome da matéria ficava cortado. Agora sao dois blocos explicitos —
+       cabecalho (nome + acoes) e campos (dois seletores rotulados) — que o CSS
+       empilha sem depender de nenhuma coluna sobrar com largura suficiente. */
     container.innerHTML = subjects.map(s => `
       <div class="config-subject-row ${s.ativo ? '' : 'inactive'}" data-id="${s.id}">
-        <input type="text" class="cfg-subj-name" aria-label="Nome da matéria" value="${escapeHtml(s.nome)}" ${s.ativo ? '' : 'disabled'}>
-        <label class="cfg-field"><span>Dificuldade</span>
-          <select class="cfg-subj-dif" ${s.ativo ? '' : 'disabled'}>
-            ${[1,2,3,4,5].map(n => `<option value="${n}" ${n===s.dificuldade?'selected':''}>Dif. ${n}</option>`).join('')}
-          </select>
-        </label>
-        <label class="cfg-field"><span>Fase padrão</span>
-          <select class="cfg-subj-fase" ${s.ativo ? '' : 'disabled'}>
-            ${phases.map(p => `<option ${p.nome===s.fase?'selected':''}>${escapeHtml(p.nome)}</option>`).join('')}
-          </select>
-        </label>
-        <div class="config-row-actions">
-          ${s.ativo ? '' : '<span class="inactive-tag">inativa</span>'}
-          <button type="button" class="toggle-switch ${s.ativo ? 'on' : ''}" role="switch" aria-checked="${s.ativo ? 'true' : 'false'}" aria-label="${s.ativo ? 'Desativar' : 'Reativar'}" title="${s.ativo ? 'Desativar' : 'Reativar'}"></button>
-          <button type="button" class="icon-btn danger btn-delete-subject" title="Excluir" aria-label="Excluir">×</button>
+        <div class="csr-head">
+          <input type="text" class="cfg-subj-name" aria-label="Nome da matéria" value="${escapeHtml(s.nome)}" title="${escapeHtml(s.nome)}" ${s.ativo ? '' : 'disabled'}>
+          <div class="config-row-actions">
+            ${s.ativo ? '' : '<span class="inactive-tag">inativa</span>'}
+            <button type="button" class="toggle-switch ${s.ativo ? 'on' : ''}" role="switch" aria-checked="${s.ativo ? 'true' : 'false'}" aria-label="${s.ativo ? 'Desativar' : 'Reativar'}" title="${s.ativo ? 'Desativar matéria' : 'Reativar matéria'}"></button>
+            <button type="button" class="reg-act-btn danger btn-delete-subject" title="Excluir matéria" aria-label="Excluir matéria">✕</button>
+          </div>
+        </div>
+        <div class="csr-fields">
+          <label class="cfg-field"><span>Dificuldade</span>
+            <select class="cfg-subj-dif" ${s.ativo ? '' : 'disabled'}>
+              ${[1,2,3,4,5].map(n => `<option value="${n}" ${n===s.dificuldade?'selected':''}>Dif. ${n}</option>`).join('')}
+            </select>
+          </label>
+          <label class="cfg-field"><span>Fase padrão</span>
+            <select class="cfg-subj-fase" ${s.ativo ? '' : 'disabled'}>
+              ${phases.map(p => `<option ${p.nome===s.fase?'selected':''}>${escapeHtml(p.nome)}</option>`).join('')}
+            </select>
+          </label>
         </div>
       </div>
     `).join('');
@@ -23678,13 +25092,13 @@ const ConfigScreen = {
         showToast(subj.ativo ? 'Matéria desativada' : 'Matéria reativada');
       });
 
-      deleteBtn.addEventListener('click', () => {
+      deleteBtn.addEventListener('click', async () => {
         const subj = DB.getSubjects().find(x => x.id === id);
         const hasHistory = DB.subjectHasEntries(subj.nome);
         const msg = hasHistory
           ? `"${subj.nome}" tem estudos registrados. Ela será apenas ocultada das opções — o histórico continua contando nas estatísticas. Confirma?`
           : `Excluir "${subj.nome}" definitivamente? Ela não tem estudos registrados, então não há histórico a preservar.`;
-        if (!confirm(msg)) return;
+        if (!await UI.confirm(msg)) return;
         DB.removeSubjectSafely(id);
         this.renderSubjects();
         window.RegistrarScreen?.refreshSubjectSelect();
@@ -23800,22 +25214,39 @@ const ConfigScreen = {
       container.innerHTML = `<p style="color:var(--text-faint); font-size:13px; padding: 8px 0;">Nenhum status cadastrado.</p>`;
       return;
     }
+    /* Cada status vira um CARTAO com tres seçoes rotuladas — nome, cor e regra
+       de progresso. Antes eram cinco controles soltos na mesma linha, sem
+       separacao nem rotulo: a paleta de cores encostava na caixa de texto e
+       ninguem sabia o que o interruptor do fim desligava. */
     container.innerHTML = statuses.map(s => `
       <div class="config-status-row ${s.ativo ? '' : 'inactive'}" data-id="${s.id}">
-        <input type="text" class="cfg-status-name" aria-label="Nome do status" value="${escapeHtml(s.nome)}" ${s.ativo ? '' : 'disabled'}>
-        <span class="status-preview" style="color:${s.color}; background:${s.bg}; border-color:${s.color}44;">${escapeHtml(s.nome)}</span>
-        <div class="status-swatches">
-          ${DB.STATUS_PALETTE.map(p => `<button type="button" class="status-swatch ${p.color === s.color ? 'selected' : ''}" aria-label="Cor ${p.nome || p.color}" data-color="${p.color}" data-bg="${p.bg}" style="background:${p.color};" title="Usar esta cor"></button>`).join('')}
+        <div class="csr-head">
+          <input type="text" class="cfg-status-name" aria-label="Nome do status" value="${escapeHtml(s.nome)}" ${s.ativo ? '' : 'disabled'}>
+          <div class="config-row-actions">
+            ${s.done ? '<span class="status-done-badge">conta como concluída</span>' : ''}
+            ${s.ativo ? '' : '<span class="inactive-tag">inativo</span>'}
+            <button type="button" class="toggle-switch ${s.ativo ? 'on' : ''}" role="switch" aria-checked="${s.ativo ? 'true' : 'false'}" aria-label="${s.ativo ? 'Desativar' : 'Reativar'}" title="${s.ativo ? 'Desativar status' : 'Reativar status'}"></button>
+            <button type="button" class="reg-act-btn danger btn-delete-status" title="Excluir status" aria-label="Excluir status">✕</button>
+          </div>
         </div>
-        <label class="status-done-toggle" title="Aulas com este status contam como concluídas no progresso">
-          <input type="checkbox" class="cfg-status-done" ${s.done ? 'checked' : ''} ${s.ativo ? '' : 'disabled'}>
-          <span>Conta como concluída</span>
-        </label>
-        <div class="config-row-actions">
-          ${s.done ? '<span class="status-done-badge">Concluída</span>' : ''}
-          ${s.ativo ? '' : '<span class="inactive-tag">inativo</span>'}
-          <button type="button" class="toggle-switch ${s.ativo ? 'on' : ''}" role="switch" aria-checked="${s.ativo ? 'true' : 'false'}" aria-label="${s.ativo ? 'Desativar' : 'Reativar'}" title="${s.ativo ? 'Desativar' : 'Reativar'}"></button>
-          <button type="button" class="icon-btn danger btn-delete-status" title="Excluir" aria-label="Excluir">×</button>
+        <div class="cst-blocks">
+          <div class="cst-block">
+            <span class="cst-lbl">Como aparece na trilha</span>
+            <span class="status-preview" style="color:${s.color}; background:${s.bg}; border-color:${s.color}44;">${escapeHtml(s.nome)}</span>
+          </div>
+          <div class="cst-block">
+            <span class="cst-lbl">Cor</span>
+            <div class="status-swatches">
+              ${DB.STATUS_PALETTE.map(p => `<button type="button" class="status-swatch ${p.color === s.color ? 'selected' : ''}" aria-label="Cor ${p.nome || p.color}" data-color="${p.color}" data-bg="${p.bg}" style="background:${p.color};" title="Usar esta cor"></button>`).join('')}
+            </div>
+          </div>
+          <div class="cst-block">
+            <span class="cst-lbl">Progresso</span>
+            <label class="status-done-toggle" title="Aulas com este status contam como concluídas no progresso">
+              <input type="checkbox" class="cfg-status-done" ${s.done ? 'checked' : ''} ${s.ativo ? '' : 'disabled'}>
+              <span>Conta como aula concluída</span>
+            </label>
+          </div>
         </div>
       </div>
     `).join('');
@@ -23853,14 +25284,14 @@ const ConfigScreen = {
         showToast(st.ativo ? 'Status desativado' : 'Status reativado');
       });
 
-      deleteBtn.addEventListener('click', () => {
+      deleteBtn.addEventListener('click', async () => {
         const st = DB.getStatuses().find(x => x.id === id);
         if (DB.getStatuses().length <= 1) { showToast('É preciso ter ao menos um status'); return; }
         const used = DB.statusInUse(st);
         const msg = used
           ? `"${st.nome}" já está em uso por aulas na trilha. Será apenas ocultado das opções novas, sem alterar as aulas existentes. Confirma?`
           : `Excluir o status "${st.nome}" definitivamente?`;
-        if (!confirm(msg)) return;
+        if (!await UI.confirm(msg)) return;
         DB.removeStatusSafely(id);
         this.renderStatuses();
         showToast('Status removido');
@@ -23912,13 +25343,13 @@ const ConfigScreen = {
         showToast(item.ativo ? 'Desativado' : 'Reativado');
       });
 
-      deleteBtn.addEventListener('click', () => {
+      deleteBtn.addEventListener('click', async () => {
         const item = cfg.toggleGet(id);
         const used = cfg.inUse(item.nome);
         const msg = used
           ? `"${item.nome}" já foi usado em registros. Será apenas ocultado das opções novas, sem afetar o histórico. Confirma?`
           : `Excluir "${item.nome}" definitivamente?`;
-        if (!confirm(msg)) return;
+        if (!await UI.confirm(msg)) return;
         cfg.remove(id);
         cfg.rerender();
         cfg.afterChange();
@@ -24562,6 +25993,11 @@ const DesempenhoTecScreen = {
   _loadPrefs() {
     if (this._prefs) return this._prefs;
     this._prefs = DB._get(this._prefsKey(), {}) || {};
+    /* Filtros e configuracoes nascem RECOLHIDOS. A tela e densa: ao abrir, o
+       que interessa sao os resultados, nao os controles que os produziram.
+       Quem quiser ajustar abre pela engrenagem — e a escolha fica salva.
+       Só o padrao inicial muda; quem ja escolheu mostrar continua vendo. */
+    if (this._prefs.hideCfg === undefined) this._prefs.hideCfg = true;
     return this._prefs;
   },
   savePrefs(patch) {
@@ -24619,9 +26055,11 @@ const DesempenhoTecScreen = {
   applyCfgHidden() {
     const on = !!this._loadPrefs().hideCfg;
     const wrap = document.getElementById('tec-analysis');
-    if (wrap) wrap.classList.toggle('hide-cfg', on);
+    // hide-cfg esconde os filtros; hide-heads enxuga tambem os subtitulos longos
+    // dos cabecalhos de cartao, que so explicam o que a tela ja mostra.
+    if (wrap) { wrap.classList.toggle('hide-cfg', on); wrap.classList.toggle('hide-heads', on); }
     const btn = document.getElementById('tec-toggle-cfg');
-    if (btn) { btn.classList.toggle('is-active', on); btn.innerHTML = `<span class="gg-ic">🔧</span>${on ? 'Mostrar filtros' : 'Filtros e configurações'}`; }
+    if (btn) { btn.classList.toggle('is-active', on); btn.innerHTML = `<span class="gg-ic">🔧</span>${on ? 'Mostrar filtros' : 'Ocultar filtros'}`; }
   },
   /* MODO ENXUTO — depois que você entende a tela, textos de ajuda, legendas e
      dicas viram ruído. Este modo esconde tudo isso e deixa só o que muda de
@@ -26594,15 +28032,17 @@ const PlanUI = {
           }
         });
       });
-      card.querySelector('.btn-delete-plan').addEventListener('click', () => {
+      card.querySelector('.btn-delete-plan').addEventListener('click', async () => {
         const plans = PlanManager.getPlans();
         if (plans.length <= 1) {
-          alert('Este é o único planejamento. Crie outro antes de excluí-lo.');
+          await UI.alert('Este é o único planejamento. Crie outro antes de excluí-lo.', { title: 'Não é possível excluir' });
           return;
         }
         const p = plans.find(x => x.id === id);
         const entries = DB.getEntriesForPlan(id).length;
-        if (!confirm(`Excluir o planejamento "${p.nome}"?\n\nTodos os seus dados (${entries} registro(s), matérias, ciclos, histórico e trilhas) serão apagados permanentemente. Esta ação não pode ser desfeita.`)) return;
+        if (!await UI.confirmTyped(`Excluir o planejamento "${p.nome}"?\n\nTodos os seus dados (${entries} registro(s), matérias, ciclos, histórico e trilhas) serão apagados permanentemente.`,
+          { word: 'EXCLUIR', title: '🗑️ Excluir planejamento', okText: 'Excluir definitivamente' })) return;
+        try { if (window.VersionHistory) await VersionHistory.antesDe('excluir um planejamento'); } catch (_) { _quiet(_); }
         const wasActive = PlanManager.getActivePlanId() === id;
         PlanManager.deletePlan(id);
         if (wasActive) { CloudStore.saveThenReload(); return; }
@@ -27034,7 +28474,8 @@ const ProfileUI = {
   async deleteCurrent() {
     const id = this._editingId; if (!id) return;
     const p = ProfileManager.getProfiles().find(x => x.id === id);
-    if (!confirm(`Excluir o perfil "${p ? p.nome : ''}"?\n\nTODOS os dados dele serão apagados permanentemente (inclusive na nuvem). Esta ação não pode ser desfeita.`)) return;
+    if (!await UI.confirmTyped(`Excluir o perfil "${p ? p.nome : ''}"?\n\nTODOS os dados dele serão apagados permanentemente, inclusive na nuvem.`,
+      { word: 'EXCLUIR', title: '🗑️ Excluir perfil', okText: 'Excluir definitivamente' })) return;
     try {
       if (window.CloudStore && CloudStore.isLoggedIn()) await CloudStore.deleteRow(id);
     } catch (err) { showToast('Erro ao excluir na nuvem: ' + (err.message || '')); return; }
@@ -27295,6 +28736,8 @@ const CloudStore = {
     // Sync por seção (Opção B): ao logar / restaurar sessão, popula a tabela nova
     // proativamente — sem depender de uma edição. Pequeno atraso para o perfil ativar.
     try { if (window.SectionSync) setTimeout(() => SectionSync.kick(), 1500); } catch (_) { _quiet(_); }
+    // faxina do historico de versoes (janela de 7 dias) logo na abertura
+    try { if (window.VersionHistory) setTimeout(() => VersionHistory.limpar(), 2500); } catch (_) { _quiet(_); }
   },
 
   async signUp(email, password) { const { data, error } = await this._withTimeout(this.client.auth.signUp({ email, password }), 20000, 'A criação de conta'); if (error) throw error; return data; },
@@ -28603,7 +30046,7 @@ window.CloudUI = CloudUI;
   on('profile-chip', 'click', (e) => { e.stopPropagation(); ProfileUI.openProfileMenu(document.getElementById('profile-chip')); });
   on('sidebar-logout-btn', 'click', async (e) => {
     e.stopPropagation();
-    if (!confirm('Sair da conta neste dispositivo?\n\nO que estiver pendente é enviado antes. Seus dados continuam salvos na nuvem.')) return;
+    if (!await UI.confirm('Sair da conta neste dispositivo?\n\nO que estiver pendente é enviado antes. Seus dados continuam salvos na nuvem.')) return;
     await ProfileUI.gateLogout();
   });
   on('mobile-profile-btn', 'click', (e) => { e.stopPropagation(); ProfileUI.openProfileMenu(document.getElementById('mobile-profile-btn')); });
@@ -29173,7 +30616,7 @@ const VersionHistoryUI = {
           <button type="button" class="btn-primary vh-restore" title="Restaurar esta versão sobre o perfil atual">↺ Restaurar</button>
         </div>
       </div>`;
-    }).join('') + '<p class="hint" style="margin-top:10px;">Guardamos as ' + VersionHistory.MAX + ' versões mais recentes. Restaurar cria antes uma cópia do estado atual, então a ação é reversível.</p>';
+    }).join('') + '<p class="hint" style="margin-top:10px;">Guardamos até ' + VersionHistory.MAX + ' versões dos últimos 7 dias (uma cópia automática a cada 20 min de uso e sempre antes de uma limpeza). As mais antigas saem sozinhas, então o histórico nunca ocupa espaço demais. Restaurar cria antes uma cópia do estado atual, então a ação é reversível.</p>';
     host.querySelectorAll('.cloud-slot-row').forEach(row => {
       const ts = parseInt(row.dataset.ts, 10);
       row.querySelector('.vh-download').addEventListener('click', async () => {
@@ -29306,7 +30749,7 @@ const StudyReport = {
     if (!this.modal || !open) return;
     open.addEventListener('click', () => this.open());
     ['study-report-close','study-report-cancel'].forEach(id => document.getElementById(id).addEventListener('click', () => this.close()));
-    this.modal.addEventListener('click', e => { if (e.target === this.modal) this.close(); });
+    /* fundo desfocado nao fecha o modal: so o X / Cancelar / Esc fecham */
     $id('study-report-presets').addEventListener('click', e => { const b=e.target.closest('[data-days]'); if(b) this.preset(b.dataset.days,b); });
     this.start().addEventListener('change', () => this.clearPreset()); this.end().addEventListener('change', () => this.clearPreset());
     $id('study-report-detail').addEventListener('change', e => this.applyDetail(e.target.value));
@@ -29389,54 +30832,6 @@ const StudyReport = {
     if(cfg.sections.has('extras')){const rows=this.extras(cfg), sumQ=rows.reduce((s,x)=>s+x.quantity,0),sumM=rows.reduce((s,x)=>s+x.minutes,0);pages+=`<section class="page">${this.pageHead('Atividades extras',cfg)}<div class="kpis"><div class="kpi"><b>${rows.length}</b><span>Lançamentos</span></div><div class="kpi"><b>${Math.round(sumQ)}</b><span>Quantidade registrada</span></div><div class="kpi"><b>${this.hm(sumM)}</b><span>Tempo registrado</span></div></div><table class="table" style="margin-top:16px"><thead><tr><th>Data</th><th>Atividade</th><th class="num">Quantidade</th><th class="num">Tempo</th></tr></thead><tbody>${rows.slice(0,80).map(x=>`<tr><td>${this.date(x.date)}</td><td>${this.esc(x.title)}</td><td class="num">${x.quantity||'-'}</td><td class="num">${x.minutes?this.hm(x.minutes):'-'}</td></tr>`).join('')||'<tr><td colspan="4">Nenhuma atividade extra registrada no período.</td></tr>'}</tbody></table>${rows.length>80?'<p class="note">Exibindo os 80 primeiros lançamentos.</p>':''}</section>`;}
     if(cfg.sections.has('historico')){const chunks=[];for(let i=0;i<entries.length;i+=28)chunks.push(entries.slice(i,i+28));if(!chunks.length)chunks.push([]);chunks.forEach((chunk,idx)=>{pages+=`<section class="page">${this.pageHead('Histórico detalhado'+(chunks.length>1?' '+(idx+1)+'/'+chunks.length:''),cfg)}<table class="table"><thead><tr><th>Data</th><th>Disciplina</th><th>Modalidade</th><th>Conteúdo</th><th class="num">Duração</th><th class="num">Questões</th><th class="num">Acertos</th></tr></thead><tbody>${chunk.map(e=>`<tr><td>${this.date(this.dayKey(e))}</td><td>${this.esc(e.subject||e.materia||'-')}</td><td>${this.esc(e.method||e.modalidade||'-')}</td><td>${this.esc(e.lesson||e.conteudo||'-')}</td><td class="num">${this.hm(this.n(e.durationMin||e.minutes||e.minutos))}</td><td class="num">${Math.round(this.n(e.total||e.questoes))}</td><td class="num">${Math.round(this.n(e.correct||e.acertos))}</td></tr>`).join('')||'<tr><td colspan="7">Sem registros.</td></tr>'}</tbody></table></section>`;});}
     return `<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Relatório de evolução - ${this.esc(this.rangeLabel(cfg))}</title><style>${this.css()}
-  /* Ajustes dirigidos de UX nas atividades extras */
-  .exd { padding: 12px 14px; }
-  .exd-top { align-items: center; gap: 9px; }
-  .exd-check { margin-top: 0; min-width: 92px; justify-content: center; }
-  .exd-prog { margin-top: 8px; }
-  .exd-reg { margin-top: 8px; gap: 7px; }
-  .exd-reg-group { gap: 7px; }
-  .exd-reg .exd-num { padding: 7px 9px; min-height: 36px; }
-  .exd-reg .exd-reg-btn, .exd-reg .exd-undo { min-height: 36px; height: 36px; padding: 0 12px; display:inline-flex; align-items:center; gap:6px; border-radius:10px; white-space:nowrap; font-weight:700; }
-  .exd-reg .exd-undo { color:var(--text-soft); background:var(--surface); border:1.5px solid var(--border); }
-  .exd-info-wrap { position:relative; display:inline-flex; align-items:center; }
-  .exd-info-btn { width:28px; height:28px; border-radius:50%; border:1px solid var(--border); background:var(--surface); color:var(--accent); font-weight:800; cursor:pointer; }
-  .exd-info-pop { display:none; position:absolute; z-index:20; left:0; bottom:34px; width:min(280px,72vw); padding:9px 11px; border:1px solid var(--border); border-radius:10px; background:var(--surface); box-shadow:var(--shadow-md); color:var(--text-soft); font-size:calc(11px * var(--fs-scale,1)); line-height:1.4; }
-  .exd-info-wrap.open .exd-info-pop { display:block; }
-  .exd.done { padding-bottom:12px; }
-  @media (max-width:640px) {
-    .exd { padding:11px 12px; }
-    .exd-top { grid-template-columns:auto auto 1fr auto; gap:7px; }
-    .exd-check { min-width:82px; padding:0 9px; }
-    .exd-reg-group { flex-wrap:wrap; }
-    .exd-reg .exd-reg-btn { flex:1 1 auto; justify-content:center; }
-  }
-
-  /* Refinamento visual: seleção em massa e registro das atividades extras */
-  .cards-bulk { display:flex; align-items:center; gap:8px; flex-wrap:wrap; padding:8px 10px; margin:0 0 12px; border:1px solid var(--border); border-radius:12px; background:var(--surface-sunken); }
-  .cards-select-toggle { display:inline-flex; align-items:center; gap:8px; min-height:34px; padding:0 11px; border:1px solid var(--border); border-radius:9px; background:var(--surface); color:var(--text-soft); font-size:calc(11.5px * var(--fs-scale,1)); font-weight:700; cursor:pointer; }
-  .cards-select-toggle:hover { border-color:var(--accent); color:var(--accent); }
-  .cards-select-toggle input { width:15px; height:15px; accent-color:var(--accent); }
-  .cards-bulk-count { min-height:26px; display:inline-flex; align-items:center; padding:0 9px; border-radius:999px; background:var(--accent-soft); color:var(--accent); font-family:'Inter',sans-serif; font-size:calc(11px * var(--fs-scale,1)); font-weight:800; }
-  .cards-bulk-count:empty { display:none; }
-  .cards-bulk .btn-danger { min-height:34px; padding:0 12px; margin-left:auto; border-radius:9px; font-size:calc(11.5px * var(--fs-scale,1)); }
-  .exd.done .exd-check:hover::before, .exd.done .exd-check:hover::after { content:none !important; display:none !important; }
-  .exd-reg { align-items:center; }
-  .exd-reg-group { flex:0 1 auto; }
-  .exd-reg .exd-num { flex:0 0 92px; width:92px; appearance:textfield; -moz-appearance:textfield; }
-  .exd-reg .exd-num::-webkit-inner-spin-button, .exd-reg .exd-num::-webkit-outer-spin-button { -webkit-appearance:none; margin:0; }
-  .exd-reg .exd-reg-btn { min-width:92px; justify-content:center; padding:0 15px; }
-  @media (max-width:640px) {
-    .cards-bulk .btn-danger { width:auto; margin-left:0; }
-    .exd-reg-group { width:100%; }
-    .exd-reg .exd-num { flex:1 1 90px; width:auto; }
-    .exd-reg .exd-reg-btn { flex:0 0 auto; }
-  }
-
-  .exd-actions { display:flex; align-items:center; gap:4px; flex-shrink:0; }
-  .exd-actions .exd-edit, .exd-actions .exd-delete { margin:0; }
-  .exd-actions .exd-delete { color:var(--text-faint); }
-  .exd-actions .exd-delete:hover { color:var(--bad); background:var(--bad-soft); border-color:color-mix(in srgb,var(--bad) 35%,var(--border)); }
 </style></head><body><div class="toolbar"><div><strong>Pré-visualização do relatório</strong><div style="font-size:11px;opacity:.75">${this.esc(this.rangeLabel(cfg))}</div></div><div><button onclick="window.close()">Fechar</button> <button class="primary" onclick="window.print()">Salvar em PDF</button></div></div><main class="paper">${pages}</main></body></html>`;
   },
   generate(printNow) {
@@ -30914,8 +32309,8 @@ else CloudStore.init();
       const ok1 = await UI.confirm('Apagar a cópia local deste perfil e baixar tudo da nuvem de novo?\n\nUse quando este aparelho parecer dessincronizado. Uma versão de segurança é guardada antes.',
         { title: '🧹 Limpar dados locais', okText: 'Continuar', danger: true });
       if (!ok1) return;
-      const ok2 = await UI.confirm('Confirmação final.\n\nTudo que existir SÓ neste navegador e ainda não tiver subido será perdido.',
-        { title: '🧹 Tem certeza?', okText: 'Apagar e rebaixar', danger: true });
+      const ok2 = await UI.confirmTyped('Confirmação final.\n\nTudo que existir SÓ neste navegador e ainda não tiver subido será perdido.',
+        { word: 'LIMPAR', title: '🧹 Tem certeza?', okText: 'Apagar e rebaixar' });
       if (!ok2) return;
       try {
         if (window.VersionHistory) await VersionHistory.snapshot('antes de limpar dados locais');
