@@ -1,0 +1,283 @@
+</script>
+
+<!-- ============================================================
+     CAMADA DE PERSISTÊNCIA: IndexedDB
+     ------------------------------------------------------------
+     O app inteiro foi escrito sobre a API SÍNCRONA do localStorage
+     (getItem/setItem/removeItem/key/length), que tem cota de ~5 MB.
+     Em vez de reescrever as ~80 chamadas para a API assíncrona do
+     IndexedDB, instalamos aqui uma FACHADA compatível:
+
+       1) Ao carregar, todos os pares chave/valor são lidos do
+          IndexedDB para um cache em memória (hidratação).
+       2) window.localStorage é substituído por uma implementação
+          que lê do cache (síncrono) e grava no IndexedDB de forma
+          assíncrona (write-through), sem bloquear a interface.
+       3) Só então o código do app (script inerte "app-code") é
+          executado — passando a usar o IndexedDB de forma transparente.
+
+     Ganho: a cota deixa de ser ~5 MB e passa a ser a do IndexedDB
+     (centenas de MB), eliminando os avisos de "armazenamento cheio".
+     ============================================================ -->
+<script>
+(function () {
+  'use strict';
+
+  var IDB_NAME = 'diario-estudos-db', IDB_STORE = 'kv', IDB_VERSION = 1;
+  var MIRROR_MAX = 100000; // espelha no localStorage nativo só chaves pequenas (evita cota)
+
+  var nativeLS = null;
+  try { nativeLS = window.localStorage; } catch (e) { nativeLS = null; }
+
+  var cache = new Map();   // fonte da verdade em memória (síncrona)
+  var _keys = null;        // cache do Array de chaves p/ .key(i)
+  function invalidateKeys() { _keys = null; }
+
+  var db = null, queue = [], flushing = false;
+
+  function openIDB() {
+    /* Reaproveita a abertura disparada no <head> (roda em paralelo com o parse).
+       Só abre de novo se aquela não existir ou tiver falhado — assim o caminho
+       de erro continua idêntico ao de antes. */
+    if (window.__idbBoot && typeof window.__idbBoot.then === 'function') {
+      return window.__idbBoot.catch(function () { return abrirDireto(); });
+    }
+    return abrirDireto();
+  }
+  function abrirDireto() {
+    return new Promise(function (resolve, reject) {
+      var req;
+      try { req = indexedDB.open(IDB_NAME, IDB_VERSION); }
+      catch (e) { reject(e); return; }
+      req.onupgradeneeded = function () {
+        try {
+          var d = req.result;
+          if (!d.objectStoreNames.contains(IDB_STORE)) d.createObjectStore(IDB_STORE);
+        } catch (e) { _quiet(e); }
+      };
+      req.onsuccess = function () { resolve(req.result); };
+      req.onerror = function () { reject(req.error); };
+    });
+  }
+
+  // ---- write-through assíncrono (lote por microtask) ----
+  function scheduleFlush() { if (!flushing) { flushing = true; Promise.resolve().then(flush); } }
+  function flush() {
+    if (!db) { flushing = false; return; }
+    var ops = queue; queue = [];
+    if (!ops.length) { flushing = false; return; }
+    var tx, store;
+    try { tx = db.transaction(IDB_STORE, 'readwrite'); store = tx.objectStore(IDB_STORE); }
+    catch (e) { flushing = false; return; }
+    for (var i = 0; i < ops.length; i++) {
+      var op = ops[i];
+      try {
+        if (op.t === 'set') store.put(op.v, op.k);
+        else if (op.t === 'del') store.delete(op.k);
+        else if (op.t === 'clear') store.clear();
+      } catch (e) { _quiet(e); }
+    }
+    tx.oncomplete = function () { flushing = false; if (queue.length) scheduleFlush(); };
+    tx.onerror = function () { flushing = false; };
+    tx.onabort = function () { flushing = false; };
+  }
+  function enqueue(op) { queue.push(op); scheduleFlush(); }
+
+  // Espelho best-effort no localStorage nativo: mantém chaves pequenas (ex.: tema)
+  // acessíveis ao script que evita o "flash" de tela clara. Erros de cota são ignorados.
+  function mirrorNative(t, k, v) {
+    if (!nativeLS) return;
+    try {
+      if (t === 'set') { if (v.length < MIRROR_MAX) nativeLS.setItem(k, v); else nativeLS.removeItem(k); }
+      else if (t === 'del') nativeLS.removeItem(k);
+    } catch (e) { _quiet(e); }
+  }
+
+  // ---- fachada compatível com a Storage API ----
+  var LS = {
+    getItem: function (k) { k = String(k); return cache.has(k) ? cache.get(k) : null; },
+    setItem: function (k, v) {
+      k = String(k); v = String(v);
+      if (!cache.has(k)) invalidateKeys();
+      cache.set(k, v);
+      enqueue({ t: 'set', k: k, v: v });
+      mirrorNative('set', k, v);
+    },
+    removeItem: function (k) {
+      k = String(k);
+      if (cache.has(k)) { cache.delete(k); invalidateKeys(); }
+      enqueue({ t: 'del', k: k });
+      mirrorNative('del', k);
+    },
+    clear: function () {
+      cache.clear(); invalidateKeys();
+      enqueue({ t: 'clear' });
+      try { if (nativeLS) nativeLS.clear(); } catch (e) { _quiet(e); }
+    },
+    key: function (i) {
+      i = i >> 0;
+      if (!_keys) _keys = Array.from(cache.keys());
+      return (i >= 0 && i < _keys.length) ? _keys[i] : null;
+    }
+  };
+  Object.defineProperty(LS, 'length', { get: function () { return cache.size; } });
+
+  function installShim() {
+    // __idbShim informa ao app se ele está rodando sobre o IndexedDB (cota grande)
+    // ou caiu para o localStorage nativo (~5 MB). O aviso antecipado de espaço usa
+    // isso para não gritar "quase cheio" com 4 MB quando há centenas de MB livres.
+    try {
+      Object.defineProperty(window, 'localStorage', { configurable: true, get: function () { return LS; } });
+      window.__idbShim = true;
+      return true;
+    } catch (e) {
+      try { window.localStorage = LS; window.__idbShim = true; return true; }
+      catch (e2) { window.__idbShim = false; return false; }
+    }
+  }
+
+  function hydrate() {
+    return new Promise(function (resolve) {
+      if (!db) { resolve(); return; }
+      var tx, store, req;
+      try { tx = db.transaction(IDB_STORE, 'readonly'); store = tx.objectStore(IDB_STORE); req = store.openCursor(); }
+      catch (e) { resolve(); return; }
+      req.onsuccess = function () {
+        var cur = req.result;
+        if (cur) { cache.set(String(cur.key), String(cur.value)); cur.continue(); }
+        else { invalidateKeys(); resolve(); }
+      };
+      req.onerror = function () { resolve(); };
+    });
+  }
+
+  // Migração única: se o IndexedDB está vazio mas há dados no localStorage antigo,
+  // importa TODAS as chaves para o IndexedDB (executa só na primeira vez).
+  function migrateFromNative() {
+    if (cache.size > 0 || !nativeLS) return;
+    try {
+      for (var i = 0; i < nativeLS.length; i++) {
+        var k = nativeLS.key(i); if (k == null) continue;
+        var v = nativeLS.getItem(k); if (v == null) continue;
+        cache.set(k, v);
+        enqueue({ t: 'set', k: k, v: v });
+      }
+      invalidateKeys();
+    } catch (e) { _quiet(e); }
+  }
+
+  // Reaplica o tema a partir do cache já hidratado (garante o tema certo mesmo
+  // quando o dado existe só no IndexedDB e não no localStorage nativo).
+  function applyTheme() {
+    try {
+      var saved = cache.get('diario-estudos:theme');
+      if (!saved) saved = (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) ? 'dark' : 'light';
+      document.documentElement.setAttribute('data-theme', saved);
+    } catch (e) { _quiet(e); }
+  }
+
+  // Espera o DOM/scripts deferidos (xlsx, supabase) ficarem prontos antes de rodar o app.
+  var domReady = new Promise(function (resolve) {
+    if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', resolve, { once: true });
+    else resolve();
+  });
+
+  function runApp() {
+    var codeEl = document.getElementById('app-code');
+    if (!codeEl) return;
+    var s = document.createElement('script');
+    s.textContent = codeEl.textContent; // executa em escopo global (idêntico ao original)
+    document.body.appendChild(s);
+    // app-code já rodou (é síncrono): esconde o overlay de carregamento.
+    try {
+      var ov = document.getElementById('app-loading');
+      if (ov) { ov.classList.add('hide'); setTimeout(function () { if (ov && ov.parentNode) ov.parentNode.removeChild(ov); }, 320); }
+    } catch (e) { _quiet(e); }
+  }
+
+  /* ── SERVICE WORKER (opcional) ────────────────────────────────────────────
+     Registrado DEPOIS que o app já carregou, para não competir por banda no
+     arranque. Se sw.js não existir ao lado do arquivo, o registro falha e o
+     erro é ignorado: o app segue idêntico, só sem funcionar offline.
+     Protocolo file:// não suporta service worker — nem tentamos. */
+  /* Sonda se os arquivos opcionais existem ANTES de usá-los.
+
+     Por que sondar em vez de simplesmente tentar: num host estático como o
+     GitHub Pages, pedir um arquivo inexistente devolve a PÁGINA 404 do host
+     (HTML, status 404) — não um erro limpo. O navegador registra isso no
+     console e o JavaScript não tem como silenciar. Sondando primeiro, quem
+     sobe só o index.html não vê ruído nenhum: o app simplesmente não ativa o
+     que não está lá.
+
+     A checagem de Content-Type importa: um 404 que devolve HTML com status 200
+     (alguns hosts fazem isso) passaria no teste de `ok` e o navegador tentaria
+     executar HTML como service worker. */
+  function existe(url, tipoEsperado) {
+    return fetch(url, { method: 'HEAD', cache: 'no-store' })
+      .then(function (r) {
+        if (!r || !r.ok) return false;
+        var ct = (r.headers.get('content-type') || '').toLowerCase();
+        return ct.indexOf(tipoEsperado) >= 0;
+      })
+      .catch(function () { return false; });
+  }
+
+  function ativarManifest() {
+    // Sem manifest não há instalação na tela inicial — e nada mais muda.
+    existe('manifest.webmanifest', 'json').then(function (temMf) {
+      if (!temMf) return;
+      try {
+        var l = document.createElement('link');
+        l.rel = 'manifest'; l.href = 'manifest.webmanifest';
+        document.head.appendChild(l);
+      } catch (e) {}
+    });
+  }
+
+  function registrarSW() {
+    try {
+      if (!('serviceWorker' in navigator)) return;
+      if (location.protocol === 'file:') return;   // file:// não suporta SW
+      ativarManifest();
+      existe('sw.js', 'javascript').then(function (temSw) {
+        if (!temSw) return;                        // modo arquivo único: tudo normal
+        registrarDeFato();
+      });
+    } catch (e) {}
+  }
+
+  function registrarDeFato() {
+    try {
+      navigator.serviceWorker.register('sw.js', { scope: './' })
+        .then(function (reg) {
+          // Atualização disponível: aplica na próxima abertura, sem interromper.
+          reg.addEventListener('updatefound', function () {
+            var novo = reg.installing;
+            if (!novo) return;
+            novo.addEventListener('statechange', function () {
+              if (novo.state === 'installed' && navigator.serviceWorker.controller) {
+                try { if (window.showToast) showToast('Nova versão pronta — recarregue quando quiser'); } catch (e) {}
+              }
+            });
+          });
+        })
+        .catch(function () { /* sw.js ausente: modo arquivo único, tudo normal */ });
+    } catch (e) {}
+  }
+
+  openIDB()
+    .then(function (database) { db = database; return hydrate(); })
+    .then(function () { migrateFromNative(); installShim(); applyTheme(); })
+    .catch(function (err) {
+      // IndexedDB indisponível (modo privado antigo, navegador sem suporte, etc.):
+      // o app continua funcionando sobre o localStorage nativo, sem a fachada.
+      try { console.error('IndexedDB indisponível — usando localStorage nativo:', err); } catch (e) { _quiet(e); }
+    })
+    .then(function () { return domReady; })
+    .then(runApp)
+    .then(function () { setTimeout(registrarSW, 1200); });   // banda livre primeiro
+})();
+</script>
+
+</body>
+</html>

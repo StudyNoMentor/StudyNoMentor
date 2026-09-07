@@ -14,8 +14,43 @@
        • font-src    : os .woff2 do Google Fonts.
        • img-src     : imagens do usuário (data:/blob:) e https.
        • object-src  : NENHUM (bloqueia <object>/<embed>).
-       • base-uri / form-action: só o próprio documento. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://cdn.sheetjs.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com data:; img-src 'self' data: blob: https:; connect-src 'self' https://*.supabase.co wss://*.supabase.co https://cdn.jsdelivr.net https://cdn.sheetjs.com; object-src 'none'; base-uri 'self'; form-action 'self'; worker-src 'self' blob:; frame-src 'none'; manifest-src 'self'; frame-ancestors 'none'">
+       • base-uri / form-action: só o próprio documento.
+
+     frame-ancestors NÃO entra aqui: o navegador IGNORA essa diretiva quando ela
+     vem por <meta> (só vale como cabeçalho HTTP) e ainda registra um erro no
+     console a cada carregamento. Quem hospeda com controle de cabeçalhos deve
+     enviar `Content-Security-Policy: frame-ancestors 'none'`. Em hospedagem
+     estática sem cabeçalhos (GitHub Pages), quem protege é a trava anti-moldura
+     em JavaScript logo abaixo — essa, sim, funciona. -->
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://cdn.sheetjs.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com data:; img-src 'self' data: blob: https:; connect-src 'self' https://*.supabase.co wss://*.supabase.co https://cdn.jsdelivr.net https://cdn.sheetjs.com; object-src 'none'; base-uri 'self'; form-action 'self'; worker-src 'self' blob:; frame-src 'none'; manifest-src 'self'">
+<script>
+/* ── TRAVA ANTI-MOLDURA (clickjacking) ────────────────────────────────────
+   Sem cabeçalho HTTP não há frame-ancestors, e o app trata dados de estudo,
+   backups e a sessão da nuvem: um site hostil podia embutir esta página numa
+   moldura invisível e induzir cliques em ações destrutivas ("Limpar grade",
+   "Apagar perfil", exportar backup).
+
+   Duas camadas: se der para escapar da moldura, escapamos (top.location);
+   se o navegador barrar a navegação por ser origem cruzada (o try falha),
+   o documento é esvaziado e um aviso substitui a interface — em nenhum dos
+   casos existe uma tela clicável dentro de uma moldura de terceiros.
+
+   Roda no <head>, antes de qualquer pintura, para não haver janela de clique. */
+(function travaAntiMoldura() {
+  try {
+    if (window.self === window.top) return;      // aberto normalmente: nada a fazer
+  } catch (e) { /* acesso a window.top barrado => estamos emoldurados */ }
+  try { window.top.location = window.self.location.href; return; } catch (e) {}
+  try {
+    document.documentElement.innerHTML =
+      '<head><meta charset="utf-8"><title>Bloqueado</title></head><body style="margin:0">' +
+      '<div style="font:16px/1.6 system-ui,-apple-system,sans-serif;padding:40px;text-align:center">' +
+      '<div style="font-size:44px">\uD83D\uDD12</div>' +
+      '<h1 style="font-size:20px;margin:10px 0">Esta pagina nao pode ser exibida dentro de outro site</h1>' +
+      '<p style="color:#5b6270">Abra o Diario de Estudos diretamente, em uma aba propria.</p></div></body>';
+  } catch (e) {}
+})();
+</script>
 <meta name="referrer" content="strict-origin-when-cross-origin">
 <script>
 /* ── ARRANQUE: abre o IndexedDB AGORA, em paralelo com o parse do documento ──

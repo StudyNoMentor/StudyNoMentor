@@ -1,0 +1,1133 @@
+/* ═══════════════════════════════════════════════════════════════════════════
+   EVOLUÇÃO v47 — Registrar · Grade · Estudo Novo · Histórico · Evolução ·
+                  Desempenho TEC · Configurações · Conta e nuvem
+   Só camada de apresentação + componentes novos. Nenhuma regra de negócio muda.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* ---------------------------------------------------------------------------
+   0. PEÇAS COMUNS — usadas por várias telas
+   --------------------------------------------------------------------------- */
+
+/* Botão-engrenagem padrão (aparece em vários cabeçalhos) */
+.ux-gear {
+  display: inline-flex; align-items: center; gap: 6px;
+  background: var(--surface); color: var(--text-soft);
+  border: 1.5px solid var(--border); border-radius: 10px;
+  padding: 6px 11px; font-size: var(--fs-xs); font-weight: 700;
+  cursor: pointer; line-height: 1.2; white-space: nowrap;
+  transition: border-color .15s ease, color .15s ease, background .15s ease;
+}
+.ux-gear:hover { border-color: var(--accent); color: var(--accent); background: var(--accent-soft); }
+.ux-gear.on { border-color: var(--accent); color: var(--accent); background: var(--accent-soft); }
+
+/* Popover genérico ancorado a um botão */
+.ux-pop {
+  position: absolute; z-index: 1500; min-width: 268px; max-width: min(340px, calc(100vw - 24px));
+  background: var(--surface); border: 1.5px solid var(--border); border-radius: 14px;
+  box-shadow: var(--shadow-lg); overflow: hidden;
+  animation: uxPopIn .13s ease;
+}
+@keyframes uxPopIn { from { opacity: 0; transform: translateY(-5px); } to { opacity: 1; transform: none; } }
+.ux-pop-head {
+  padding: 12px 14px 8px; font-size: var(--fs-2xs); font-weight: 800;
+  letter-spacing: .06em; text-transform: uppercase; color: var(--text-faint);
+  border-bottom: 1px solid var(--border);
+}
+.ux-pop-body { padding: 8px; max-height: min(60vh, 460px); overflow-y: auto; }
+.ux-pop-foot { padding: 10px 12px; border-top: 1px solid var(--border); display: flex; gap: 8px; justify-content: flex-end; background: var(--surface-sunken); }
+.ux-pop-note { padding: 2px 6px 8px; font-size: var(--fs-2xs); color: var(--text-faint); line-height: 1.5; }
+.ux-pop-opt {
+  display: flex; align-items: center; gap: 10px; width: 100%; text-align: left;
+  padding: 9px 10px; border-radius: 10px; border: none; background: transparent;
+  color: var(--text); font-size: var(--fs-sm); font-weight: 600; cursor: pointer;
+}
+.ux-pop-opt:hover { background: var(--surface-sunken); }
+.ux-pop-opt input[type="checkbox"] { width: 15px; height: 15px; accent-color: var(--accent); flex-shrink: 0; }
+.ux-pop-opt .ux-pop-sub { display: block; font-weight: 500; font-size: var(--fs-2xs); color: var(--text-faint); margin-top: 2px; }
+.ux-pop-opt.disabled { opacity: .45; cursor: not-allowed; }
+.ux-pop-sep { height: 1px; background: var(--border); margin: 6px 4px; }
+
+/* Segmented control reutilizável (visão tabela/cartão, etc.) */
+.ux-seg { display: inline-flex; background: var(--surface-sunken); border: 1.5px solid var(--border); border-radius: 11px; padding: 3px; gap: 3px; }
+.ux-seg button {
+  background: transparent; border: none; border-radius: 8px; cursor: pointer;
+  padding: 6px 12px; font-size: var(--fs-xs); font-weight: 700; color: var(--text-faint);
+  display: inline-flex; align-items: center; gap: 6px; white-space: nowrap;
+  transition: background .14s ease, color .14s ease, box-shadow .14s ease;
+}
+.ux-seg button:hover { color: var(--text); }
+.ux-seg button.active { background: var(--surface); color: var(--accent); box-shadow: var(--shadow-sm); }
+
+/* ---------------------------------------------------------------------------
+   1. REGISTRAR — modo compacto (objetivo, sem parede de texto)
+   --------------------------------------------------------------------------- */
+
+#screen-registrar .reg-modebar {
+  display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+  margin-left: auto;
+}
+#screen-registrar .reg-quick {
+  display: inline-flex; align-items: center; gap: 6px;
+  background: var(--accent-soft); color: var(--accent-text);
+  border: 1.5px solid color-mix(in srgb, var(--accent) 30%, transparent);
+  border-radius: 10px; padding: 6px 11px; font-size: var(--fs-xs); font-weight: 700; cursor: pointer;
+}
+#screen-registrar .reg-quick:hover { border-color: var(--accent); }
+#screen-registrar .reg-quick[disabled] { opacity: .45; cursor: not-allowed; }
+
+/* — MODO COMPACTO — */
+#screen-registrar[data-reg-mode="compacto"] .step-progress { display: none; }
+#screen-registrar[data-reg-mode="compacto"] .steps-body {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  column-gap: 26px;
+  row-gap: 2px;
+  padding: 18px 26px 4px;
+}
+#screen-registrar[data-reg-mode="compacto"] .step {
+  display: flex; flex-wrap: wrap; align-items: center;
+  column-gap: 9px; row-gap: 0;
+  padding: 0 0 16px 0 !important;
+  border-bottom: 1px dashed color-mix(in srgb, var(--border) 70%, transparent);
+  margin-bottom: 16px;
+}
+#screen-registrar[data-reg-mode="compacto"] .step::before { display: none; }
+#screen-registrar[data-reg-mode="compacto"] .step-num {
+  position: static; width: 21px; height: 21px; font-size: var(--fs-2xs);
+  border-width: 1.5px; flex: 0 0 auto; order: 0;
+}
+#screen-registrar[data-reg-mode="compacto"] .step.done .step-num::after { font-size: 12px; }
+/* margin ZERO no título: assim o círculo (align-items:center) centraliza contra o
+   texto do título, e não contra "título + margem" — o que antes o deslocava p/ cima.
+   O respiro que era do título passa para o bloco de campos (margin-top). */
+#screen-registrar[data-reg-mode="compacto"] .step-head { order: 1; flex: 1 1 auto; min-width: 0; margin: 0; }
+#screen-registrar[data-reg-mode="compacto"] .step-title { font-size: var(--fs-sm); line-height: 1.25; }
+#screen-registrar[data-reg-mode="compacto"] .step-desc { display: none; }
+#screen-registrar[data-reg-mode="compacto"] .step > *:not(.step-num):not(.step-head) { order: 2; flex: 1 0 100%; margin-top: 10px; }
+#screen-registrar[data-reg-mode="compacto"] #step-3,
+#screen-registrar[data-reg-mode="compacto"] #step-5 { grid-column: 1 / -1; }
+#screen-registrar[data-reg-mode="compacto"] #step-5 { border-bottom: none; margin-bottom: 4px; padding-bottom: 4px !important; }
+#screen-registrar[data-reg-mode="compacto"] #step-4 { border-bottom: none; }
+#screen-registrar[data-reg-mode="compacto"] .field-group,
+#screen-registrar[data-reg-mode="compacto"] .row-3 { gap: 12px; }
+#screen-registrar[data-reg-mode="compacto"] .field { margin-bottom: 0; }
+#screen-registrar[data-reg-mode="compacto"] #comment { min-height: 62px; }
+#screen-registrar[data-reg-mode="compacto"] .performance-panel { padding: 12px 14px; gap: 14px; }
+#screen-registrar[data-reg-mode="compacto"] .gauge { width: 64px; height: 64px; }
+#screen-registrar[data-reg-mode="compacto"] .hint { margin-top: 4px; }
+#screen-registrar[data-reg-mode="compacto"] #pages-hint:empty,
+#screen-registrar[data-reg-mode="compacto"] #pages-hint { min-height: 0; }
+@media (max-width: 860px) {
+  #screen-registrar[data-reg-mode="compacto"] .steps-body { grid-template-columns: 1fr; column-gap: 0; padding: 14px 16px 4px; }
+  #screen-registrar[data-reg-mode="compacto"] #step-4 { border-bottom: 1px dashed color-mix(in srgb, var(--border) 70%, transparent); }
+}
+
+/* Etapa 3: o Tempo de estudo ja e o primeiro campo — aqui ele so ganha a coluna
+   mais larga, porque e o dado que alimenta o ciclo. Sem reordenar nada. */
+#screen-registrar[data-reg-mode="compacto"] #step-3 .row-3 {
+  grid-template-columns: minmax(190px, 1.15fr) 1fr 1fr;
+}
+@media (max-width: 640px) {
+  #screen-registrar[data-reg-mode="compacto"] #step-3 .row-3 { grid-template-columns: 1fr 1fr; }
+  #screen-registrar[data-reg-mode="compacto"] #step-3 .row-3 > .field:first-child { grid-column: 1 / -1; }
+}
+
+/* ── Registrar no celular: acabamento dos círculos e do medidor ────────────
+   Consolido aqui os ajustes de mobile pedidos: os números-círculo não podem
+   parecer deslocados nem "querer sobrepor", e o anel de % precisa caber. */
+@media (max-width: 560px) {
+  /* MODO COMPACTO (padrão no celular): círculo perfeitamente centrado ao título */
+  #screen-registrar[data-reg-mode="compacto"] .step { align-items: center; column-gap: 10px; }
+  #screen-registrar[data-reg-mode="compacto"] .step-num {
+    width: 22px; height: 22px; line-height: 1;
+    align-self: center;                 /* trava a centralização vertical do círculo */
+  }
+  /* o anel de % não pode encolher ao ponto de o texto estourar por dentro */
+  #screen-registrar[data-reg-mode="compacto"] .gauge { width: 72px; height: 72px; }
+
+  /* MODO GUIADO (trilha vertical): círculo e linha no MESMO eixo, sem overlap */
+  #screen-registrar:not([data-reg-mode="compacto"]) .step { padding-left: 40px; }
+  #screen-registrar:not([data-reg-mode="compacto"]) .step-num { width: 28px; height: 28px; }
+  #screen-registrar:not([data-reg-mode="compacto"]) .step::before { left: 13px; top: 32px; }
+  /* anel de foco/concluído menor no mobile, para não "vazar" além do círculo */
+  #screen-registrar:not([data-reg-mode="compacto"]) .step.done .step-num,
+  #screen-registrar:not([data-reg-mode="compacto"]) .step.active .step-num { box-shadow: 0 0 0 3px var(--accent-ring); }
+}
+
+/* ---------------------------------------------------------------------------
+   2. GRADE SEMANAL — colunas de largura padrão + zero sobreposição
+   --------------------------------------------------------------------------- */
+
+#ciclo-grade {
+  --grade-col: 118px;
+  --grade-col-first: 92px;
+  overflow-x: auto;
+  padding-bottom: 4px;
+  scrollbar-width: thin;
+}
+#ciclo-grade .grade-table {
+  table-layout: fixed !important;
+  width: max-content !important;
+  min-width: 100% !important;
+  border-collapse: separate;
+  border-spacing: 0;
+}
+#ciclo-grade .grade-table th,
+#ciclo-grade .grade-table td {
+  width: var(--grade-col) !important;
+  min-width: var(--grade-col) !important;
+  max-width: var(--grade-col) !important;
+  border: 1px solid var(--border);
+  border-right-width: 0; border-bottom-width: 0;
+  padding: 5px;
+}
+#ciclo-grade .grade-table tr > th:last-child,
+#ciclo-grade .grade-table tr > td:last-child { border-right-width: 1px; }
+#ciclo-grade .grade-table tbody tr:last-child > td { border-bottom-width: 1px; }
+#ciclo-grade .grade-table thead th:first-child { border-top-left-radius: 12px; }
+#ciclo-grade .grade-table thead th:last-child { border-top-right-radius: 12px; }
+#ciclo-grade .grade-table tbody tr:last-child td:first-child { border-bottom-left-radius: 12px; }
+#ciclo-grade .grade-table tbody tr:last-child td:last-child { border-bottom-right-radius: 12px; }
+#ciclo-grade .grade-table th:first-child,
+#ciclo-grade .grade-table td:first-child {
+  width: var(--grade-col-first) !important;
+  min-width: var(--grade-col-first) !important;
+  max-width: var(--grade-col-first) !important;
+  position: sticky; left: 0; z-index: 3;
+  background: var(--surface-sunken);
+  box-shadow: 1px 0 0 var(--border);
+}
+#ciclo-grade .grade-table thead th {
+  position: sticky; top: 0; z-index: 2;
+  background: var(--surface-sunken);
+  padding-top: 9px; padding-bottom: 9px;
+}
+#ciclo-grade .grade-table thead th:first-child { z-index: 4; }
+#ciclo-grade .grade-table tbody tr:nth-child(even) td:not(:first-child) {
+  background: color-mix(in srgb, var(--surface-sunken) 45%, transparent);
+}
+#ciclo-grade .grade-summary-row td { background: var(--surface-sunken) !important; padding-top: 8px; padding-bottom: 8px; }
+
+/* Chip da célula: três zonas fixas, o círculo de concluído nunca invade o resto */
+#ciclo-grade .grade-cell-drop { min-height: 62px; }
+#ciclo-grade .grade-cell-drop .subject-chip {
+  display: grid;
+  grid-template-rows: auto 1fr;
+  gap: 6px;
+  padding: 8px 8px 7px;
+  overflow: visible;
+}
+#ciclo-grade .chip-top-row { padding-right: 14px; min-height: 15px; }
+#ciclo-grade .chip-acronym-label { font-size: calc(11.5px * var(--fs-scale, 1)); }
+#ciclo-grade .chip-bottom-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 24px;
+  align-items: center;
+  column-gap: 6px;
+  min-height: 24px;
+}
+#ciclo-grade .chip-duration-wrap { min-width: 0; }
+#ciclo-grade .chip-duration-input { width: 100%; min-width: 0; max-width: 52px; height: 23px; }
+#ciclo-grade .chip-done-toggle {
+  width: 22px; height: 22px; justify-self: end; border-radius: 999px;
+  border-width: 2px;
+}
+#ciclo-grade .chip-done-toggle svg { width: 12px; height: 12px; }
+#ciclo-grade .chip-remove { top: 2px; right: 2px; width: 15px; height: 15px; }
+
+/* Correção do bug do tablet: o alvo de toque de 40px estourava a célula de 96–118px
+   e cobria o campo de minutos. Dentro da grade o alvo passa a respeitar a célula. */
+@media (max-width: 834px) {
+  #ciclo-grade .chip-done-toggle::after,
+  #ciclo-grade .chip-remove::after {
+    width: max(100%, 26px) !important;
+    height: max(100%, 26px) !important;
+  }
+  #ciclo-grade .chip-done-toggle { width: 24px; height: 24px; }
+  #ciclo-grade .chip-remove { width: 18px; height: 18px; }
+}
+@media (max-width: 1180px) { #ciclo-grade { --grade-col: 110px; --grade-col-first: 84px; } }
+@media (max-width: 900px)  { #ciclo-grade { --grade-col: 104px; --grade-col-first: 74px; } }
+@media (max-width: 720px)  {
+  #ciclo-grade { --grade-col: 100px; --grade-col-first: 62px; }
+  #ciclo-grade .chip-duration-input { width: 100%; min-width: 0; padding: 3px 0; }
+  #ciclo-grade .chip-bottom-row { grid-template-columns: minmax(0, 1fr) 22px; column-gap: 5px; }
+}
+/* Densidade escolhida pelo usuário */
+#ciclo-grade[data-dens="compacta"] { --grade-col: 96px; --grade-col-first: 74px; }
+#ciclo-grade[data-dens="compacta"] .grade-cell-drop { min-height: 54px; }
+#ciclo-grade[data-dens="ampla"] { --grade-col: 142px; --grade-col-first: 104px; }
+#ciclo-grade[data-dens="ampla"] .grade-cell-drop { min-height: 70px; }
+
+.grade-density-ctl { display: inline-flex; align-items: center; gap: 7px; font-size: var(--fs-xs); font-weight: 600; color: var(--text-soft); }
+
+/* ---------------------------------------------------------------------------
+   3. ESTUDO NOVO — visão tabela + percentuais que não quebram
+   --------------------------------------------------------------------------- */
+
+/* percentuais: número tabular, nunca quebra, escala com o espaço */
+.ts-pct, .track-avg-card .val, .en-tb-pct {
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum" 1;
+  white-space: nowrap;
+}
+.ts-pct { font-size: var(--fs-2xs); padding: 3px 7px; letter-spacing: -0.02em; }
+.track-avg-card .val { font-size: clamp(15px, calc(19px * var(--fs-scale, 1)), 26px); letter-spacing: -0.03em; }
+.track-avg-card { padding: 11px 10px; }
+@media (max-width: 1100px) { .ts-pct { font-size: calc(10.5px * var(--fs-scale, 1)); padding: 3px 6px; } }
+
+/* Barra de ferramentas da trilha */
+.en-track-toolbar {
+  display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+  padding: 10px 26px 0;
+}
+.en-track-toolbar .spacer { flex: 1 1 auto; }
+.en-track-legend { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; font-size: var(--fs-2xs); color: var(--text-faint); }
+.en-track-legend b { font-weight: 700; color: var(--text-soft); }
+
+/* ---- TABELA DE TRILHA (inspirada na planilha, em versão profissional) ---- */
+.en-table-wrap {
+  margin: 12px 26px 4px;
+  border: 1.5px solid var(--border);
+  border-radius: 14px;
+  overflow: auto;
+  background: var(--surface);
+  box-shadow: var(--shadow-sm);
+  max-height: min(72vh, 900px);
+}
+/* display:table explícito neutraliza o helper ":where(.card) table{display:block}",
+   que senão anularia o min-width e colapsaria as colunas no mobile. */
+.en-table { display: table; width: 100%; border-collapse: separate; border-spacing: 0; min-width: 720px; }
+.en-table thead th {
+  position: sticky; top: 0; z-index: 3;
+  background: linear-gradient(180deg, var(--surface-sunken), color-mix(in srgb, var(--surface-sunken) 70%, var(--surface)));
+  border-bottom: 1.5px solid var(--border-strong);
+  font-size: var(--fs-2xs); font-weight: 800; letter-spacing: .06em; text-transform: uppercase;
+  color: var(--text-soft); text-align: center; padding: 10px 8px; white-space: nowrap;
+}
+.en-table thead th.col-nome { text-align: left; }
+.en-table thead th.grp {
+  border-bottom: 1px solid var(--border);
+  background: color-mix(in srgb, var(--accent-soft) 55%, var(--surface-sunken));
+  color: var(--accent-text);
+}
+.en-table tbody td {
+  border-bottom: 1px solid var(--border);
+  padding: 9px 8px; font-size: var(--fs-sm); color: var(--text); vertical-align: middle;
+}
+.en-table tbody tr:last-child td { border-bottom: none; }
+.en-table tbody tr.en-tb-lesson:hover td { background: var(--surface-sunken); cursor: pointer; }
+.en-table tbody tr.en-tb-lesson.is-target td { background: var(--accent-soft); }
+.en-table .col-num {
+  width: 58px; text-align: center; font-family: 'Space Mono', ui-monospace, SFMono-Regular, Menlo, monospace; font-weight: 700;
+  color: var(--text-faint); font-size: var(--fs-2xs);
+}
+.en-table .col-nome { text-align: left; min-width: 260px; }
+.en-table .en-tb-name { display: block; line-height: 1.45; font-weight: 500; }
+.en-table .col-sit { width: 132px; text-align: center; }
+.en-table .col-pct { width: 108px; text-align: center; }
+.en-tb-badge {
+  display: inline-flex; align-items: center; gap: 6px; max-width: 100%;
+  padding: 4px 10px; border-radius: 999px; font-size: var(--fs-2xs); font-weight: 700;
+  border: 1px solid currentColor; line-height: 1.3;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.en-tb-badge .dot { width: 7px; height: 7px; border-radius: 50%; background: currentColor; flex-shrink: 0; }
+.en-tb-pct {
+  display: inline-block; min-width: 62px; padding: 4px 8px; border-radius: 8px;
+  font-family: 'Space Mono', ui-monospace, SFMono-Regular, Menlo, monospace; font-weight: 700; font-size: calc(11.5px * var(--fs-scale, 1));
+  letter-spacing: -0.02em;
+}
+.en-tb-pct.tone-good { color: var(--good-text); background: var(--good-soft); }
+.en-tb-pct.tone-warn { color: var(--warn-text); background: var(--warn-soft); }
+.en-tb-pct.tone-bad  { color: var(--bad-text);  background: var(--bad-soft); }
+.en-tb-pct.empty { color: var(--text-faint); background: transparent; }
+.en-tb-frac { display: block; font-size: var(--fs-3xs); color: var(--text-faint); margin-top: 2px; font-family: 'Space Mono', ui-monospace, SFMono-Regular, Menlo, monospace; }
+.en-table tbody tr.en-tb-check td {
+  background: color-mix(in srgb, var(--warn-soft) 65%, var(--surface));
+  color: var(--warn-text); font-weight: 800; font-size: var(--fs-2xs);
+  letter-spacing: .07em; text-transform: uppercase; text-align: center; padding: 7px 10px;
+  border-top: 1px solid color-mix(in srgb, var(--warn) 35%, transparent);
+  border-bottom: 1px solid color-mix(in srgb, var(--warn) 35%, transparent);
+}
+.en-table tbody tr.en-tb-total td {
+  position: sticky; bottom: 0; z-index: 2;
+  background: var(--surface-sunken);
+  border-top: 1.5px solid var(--border-strong);
+  font-weight: 800; font-size: var(--fs-2xs); text-transform: uppercase; letter-spacing: .05em;
+  color: var(--text-soft); text-align: center;
+}
+.en-table tbody tr.en-tb-total td.col-nome { text-align: left; }
+.en-tb-editcue {
+  display: inline-flex; align-items: center; gap: 5px; opacity: 0;
+  font-size: var(--fs-3xs); color: var(--accent); font-weight: 700; transition: opacity .14s ease;
+}
+.en-table tbody tr.en-tb-lesson:hover .en-tb-editcue { opacity: 1; }
+.en-table-note {
+  margin: 8px 26px 0; font-size: var(--fs-2xs); color: var(--text-faint); line-height: 1.55;
+  display: flex; align-items: flex-start; gap: 7px;
+}
+@media (max-width: 700px) {
+  .en-table-wrap { margin: 12px 14px 4px; }
+  .en-table-note { margin: 8px 14px 0; }
+  .en-track-toolbar { padding: 10px 14px 0; }
+}
+
+/* ---------------------------------------------------------------------------
+   4. HISTÓRICO — cartões de semana com hierarquia, relevo e contorno
+   --------------------------------------------------------------------------- */
+
+#historico-list .week-card {
+  position: relative;
+  background: var(--surface);
+  border: 1.5px solid var(--border);
+  border-radius: 18px;
+  padding: 0;
+  margin-bottom: 16px;
+  box-shadow: var(--shadow-md);
+  overflow: hidden;
+  transition: box-shadow .18s ease, border-color .18s ease, transform .18s ease;
+}
+#historico-list .week-card:hover { box-shadow: var(--shadow-lg); border-color: var(--border-strong); transform: translateY(-1px); }
+#historico-list .week-card::before {
+  content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 4px;
+  background: var(--wk-accent, var(--accent));
+}
+#historico-list .week-card[data-tone="good"] { --wk-accent: var(--good); }
+#historico-list .week-card[data-tone="warn"] { --wk-accent: var(--warn); }
+#historico-list .week-card[data-tone="bad"]  { --wk-accent: var(--bad); }
+
+/* faixa de cabeçalho */
+#historico-list .week-card-head {
+  margin: 0;
+  padding: 15px 22px 14px 24px;
+  background: linear-gradient(180deg, color-mix(in srgb, var(--surface-sunken) 78%, var(--surface)), var(--surface));
+  border-bottom: 1px solid var(--border);
+  display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap;
+}
+#historico-list .week-card-head .period {
+  display: inline-flex; align-items: center; gap: 9px; flex-wrap: wrap;
+  font-family: 'Space Mono', ui-monospace, SFMono-Regular, Menlo, monospace; font-weight: 700;
+  font-size: calc(15px * var(--fs-scale, 1)); color: var(--text); letter-spacing: -0.01em;
+}
+#historico-list .week-card-head .period .arrow { color: var(--text-faint); font-weight: 400; }
+
+/* faixa de números */
+#historico-list .week-stats-row {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+  margin: 0;
+  padding: 16px 22px 4px 24px;
+}
+#historico-list .week-stat {
+  background: var(--surface-sunken);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 11px 13px;
+  text-align: left;
+  min-width: 0;
+  transition: border-color .15s ease, background .15s ease;
+}
+#historico-list .week-stat:hover { border-color: var(--border-strong); background: var(--surface); }
+#historico-list .week-stat .value {
+  font-family: 'Space Mono', ui-monospace, SFMono-Regular, Menlo, monospace; font-weight: 800;
+  font-size: clamp(15px, calc(19px * var(--fs-scale, 1)), 24px);
+  letter-spacing: -0.03em; line-height: 1.15; color: var(--text);
+  font-variant-numeric: tabular-nums; white-space: nowrap;
+  overflow: hidden; text-overflow: ellipsis;
+}
+#historico-list .week-stat .label {
+  font-size: var(--fs-3xs); font-weight: 700; letter-spacing: .07em; text-transform: uppercase;
+  color: var(--text-faint); margin-top: 4px;
+}
+#historico-list .week-stat:first-child .value { color: var(--wk-accent, var(--accent)); }
+
+/* meta da semana */
+#historico-list .week-cumprido-wrap {
+  margin: 14px 22px 0 24px;
+  padding: 12px 14px;
+  background: var(--surface-sunken);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+}
+#historico-list .week-cumprido-head { margin-bottom: 8px; }
+#historico-list .week-cumprido-head .lbl {
+  font-size: var(--fs-3xs); font-weight: 800; letter-spacing: .07em; text-transform: uppercase; color: var(--text-faint);
+}
+#historico-list .week-cumprido-head .val { font-family: 'Space Mono', ui-monospace, SFMono-Regular, Menlo, monospace; font-weight: 700; font-size: var(--fs-xs); color: var(--text-soft); }
+#historico-list .week-cumprido-wrap .progress-track { height: 9px; border-radius: 999px; background: color-mix(in srgb, var(--border) 65%, transparent); overflow: hidden; }
+#historico-list .week-cumprido-wrap .progress-fill { border-radius: 999px; box-shadow: inset 0 -1px 0 rgba(0,0,0,.06); }
+
+/* selos */
+#historico-list .week-status-dist {
+  display: flex; flex-wrap: wrap; gap: 7px;
+  padding: 14px 22px 4px 24px;
+}
+#historico-list .wsd-chip {
+  border: 1px solid color-mix(in srgb, currentColor 26%, transparent);
+  padding: 5px 11px; font-weight: 700; font-size: var(--fs-2xs);
+}
+#historico-list .wsd-chip.ses { background: var(--surface-sunken); color: var(--text-soft); border-color: var(--border); }
+
+/* rodapé de detalhes */
+#historico-list .btn-toggle-detail {
+  width: calc(100% - 46px);
+  margin: 14px 22px 16px 24px;
+  border-radius: 11px;
+  border: 1.5px dashed var(--border-strong);
+  background: var(--surface-sunken);
+  font-weight: 700;
+}
+#historico-list .btn-toggle-detail:hover { background: var(--accent-soft); border-color: var(--accent); color: var(--accent); }
+#historico-list .week-detail { padding: 0 22px 18px 24px; }
+#historico-list .wd-section-title {
+  margin-top: 18px;
+  padding-bottom: 6px;
+  border-bottom: 1px solid var(--border);
+}
+#historico-list .plan-tag-badge { vertical-align: middle; }
+
+@media (max-width: 720px) {
+  #historico-list .week-stats-row { grid-template-columns: repeat(2, minmax(0, 1fr)); padding-left: 18px; padding-right: 16px; }
+  #historico-list .week-card-head,
+  #historico-list .week-status-dist { padding-left: 18px; padding-right: 16px; }
+  #historico-list .week-cumprido-wrap { margin-left: 18px; margin-right: 16px; }
+  #historico-list .btn-toggle-detail { width: calc(100% - 34px); margin-left: 18px; margin-right: 16px; }
+  #historico-list .week-detail { padding-left: 18px; padding-right: 16px; }
+}
+
+/* ---------------------------------------------------------------------------
+   5. EVOLUÇÃO — respiro entre blocos, rótulos e engrenagem de exibição
+   --------------------------------------------------------------------------- */
+
+#screen-evolucao #evolucao-content > .card { margin-top: 26px; }
+#screen-evolucao #evolucao-stats { gap: 18px !important; margin-top: 26px !important; margin-bottom: 4px; }
+#screen-evolucao .card-header,
+#screen-evolucao .evo-card-head { padding: 20px 24px 2px; }
+#screen-evolucao .card-header + div[id],
+#screen-evolucao .evo-card-head + div[id] { padding-top: 16px !important; }
+#screen-evolucao .card > div[id^="evolucao-"],
+#screen-evolucao .card > div[id^="evo-"] { padding-bottom: 26px !important; }
+#screen-evolucao .evo-chip-group { gap: 5px; }
+#screen-evolucao .evo-legend { padding: 14px 24px 18px !important; gap: 14px; }
+#screen-evolucao .evo-subject-filter { padding: 10px 24px 4px; }
+#screen-evolucao svg { overflow: visible; }
+#screen-evolucao .evo-empty-mini { margin: 6px 0 10px; }
+
+/* cabeçalho de card com ações à direita, sem colar no gráfico */
+.evo-head-actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+
+/* barra de opções de exibição da tela */
+.evo-viewbar {
+  display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+  margin-top: 16px; padding: 10px 16px;
+  background: var(--surface); border: 1.5px solid var(--border); border-radius: 14px;
+  box-shadow: var(--shadow-sm);
+}
+.evo-viewbar .lbl {
+  font-size: var(--fs-2xs); font-weight: 800; letter-spacing: .06em; text-transform: uppercase; color: var(--text-faint);
+}
+.evo-viewbar .spacer { flex: 1 1 auto; }
+.evo-hidden-card { display: none !important; }
+
+/* rótulo de valor no topo das barras do gráfico diário */
+.evo-bar-value {
+  font-family: 'Space Mono', ui-monospace, SFMono-Regular, Menlo, monospace; font-size: var(--fs-3xs); font-weight: 700;
+  color: var(--text-soft); text-align: center; display: block; margin-bottom: 3px;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+
+/* ---------------------------------------------------------------------------
+   6. DESEMPENHO TEC — abas configuráveis e Plano didático
+   --------------------------------------------------------------------------- */
+
+.tec-subtabs-wrap { display: flex; align-items: center; gap: 8px; margin: 16px 0 4px; flex-wrap: wrap; }
+.tec-subtabs-wrap .tec-subtabs { margin: 0; flex: 1 1 auto; }
+.tec-subtab.ux-off { display: none !important; }
+
+/* — Plano: blocos organizados por finalidade — */
+.pl-toolgroup {
+  border: 1.5px solid var(--border);
+  border-radius: 14px;
+  background: var(--surface-sunken);
+  padding: 12px 14px 14px;
+  margin-bottom: 12px;
+}
+.pl-toolgroup > .pl-toolgroup-head {
+  display: flex; align-items: baseline; gap: 9px; flex-wrap: wrap; margin-bottom: 10px;
+}
+.pl-toolgroup-title {
+  font-size: var(--fs-2xs); font-weight: 800; letter-spacing: .07em; text-transform: uppercase;
+  color: var(--accent-text);
+}
+.pl-toolgroup-desc { font-size: var(--fs-2xs); color: var(--text-faint); line-height: 1.5; }
+.pl-toolgroup .rfc-toolbar { padding: 0 !important; margin: 0 !important; gap: 12px; }
+.pl-toolgroup .rfc-field label { color: var(--text-soft); }
+
+#tec-panel-plano .rfc-advanced { margin-top: 6px; }
+#tec-panel-plano .rfc-adv-grid { gap: 14px 16px; }
+
+/* passos didáticos do plano */
+.pl-steps { display: grid; grid-template-columns: repeat(auto-fit, minmax(215px, 1fr)); gap: 12px; margin: 4px 0 18px; }
+.pl-step {
+  position: relative; background: var(--surface); border: 1.5px solid var(--border); border-radius: 14px;
+  padding: 14px 14px 13px 15px; box-shadow: var(--shadow-sm);
+}
+.pl-step::before {
+  content: ''; position: absolute; left: 0; top: 12px; bottom: 12px; width: 3px; border-radius: 0 3px 3px 0;
+  background: var(--pl-step-color, var(--accent));
+}
+.pl-step .n {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 20px; height: 20px; border-radius: 50%;
+  background: var(--pl-step-color, var(--accent)); color: #fff;
+  font-family: 'Space Mono', ui-monospace, SFMono-Regular, Menlo, monospace; font-size: var(--fs-3xs); font-weight: 800; margin-bottom: 8px;
+}
+.pl-step .t { font-size: var(--fs-sm); font-weight: 700; color: var(--text); margin-bottom: 4px; }
+.pl-step .d { font-size: var(--fs-2xs); color: var(--text-soft); line-height: 1.55; }
+.pl-step .v {
+  display: block; margin-top: 8px; font-family: 'Space Mono', ui-monospace, SFMono-Regular, Menlo, monospace; font-weight: 800;
+  font-size: clamp(14px, calc(17px * var(--fs-scale, 1)), 21px); color: var(--pl-step-color, var(--accent));
+  font-variant-numeric: tabular-nums; letter-spacing: -0.02em;
+}
+
+/* números grandes do plano nunca estouram */
+.pl-hero-num { font-size: clamp(26px, calc(34px * var(--fs-scale, 1)), 44px) !important; letter-spacing: -0.04em; font-variant-numeric: tabular-nums; }
+.pl-hero { padding: 18px 20px !important; }
+#tec-panel-plano .pl-chips { gap: 7px; }
+
+/* projeção do Reforço: percentuais grandes controlados */
+.rfc-card .rfc-section .rf-proj-num,
+#reforco-proj [style*="font-size"] { font-variant-numeric: tabular-nums; }
+#reforco-proj { padding: 4px 22px 0 !important; }
+
+/* cartões laterais do reforço */
+.reforco-side-grid { gap: 18px; margin-top: 18px; }
+
+/* números grandes de qualquer painel TEC: tabulares e sem quebra feia */
+#screen-desempenhotec .tone-good,
+#screen-desempenhotec .tone-warn,
+#screen-desempenhotec .tone-bad { font-variant-numeric: tabular-nums; }
+
+/* ---------------------------------------------------------------------------
+   7. CONFIGURAÇÕES — tela de gestão de verdade
+   --------------------------------------------------------------------------- */
+
+/* 7.1 — BUG: a seta do <select> ficava por cima do texto.
+   `.config-subject-row select { padding: 8px 10px }` anulava o padding-right: 32px
+   que abre espaço para o ícone. Reposto aqui, com reticências no texto longo. */
+.config-subject-row select,
+.cfg-field > select,
+#screen-config select,
+.rfc-field select,
+.en-mode-picker select,
+.tec-cfg select {
+  padding-right: 34px !important;
+  text-overflow: ellipsis;
+  background-position: right 12px center;
+}
+#screen-config select option { padding: 4px; }
+
+/* 7.2 — Linha de matéria: colunas com folga (o motivo real do texto espremido) */
+#screen-config .config-subject-row {
+  grid-template-columns: minmax(0, 1fr) 118px 190px auto;
+  gap: 12px;
+  padding: 12px 14px;
+  margin-bottom: 8px;
+  border: 1.5px solid var(--border);
+  border-bottom: 1.5px solid var(--border);
+  background: var(--surface);
+}
+#screen-config .config-subject-row:last-child { border-bottom: 1.5px solid var(--border); }
+#screen-config .config-subject-row .cfg-subj-name { font-weight: 600; }
+#screen-config .config-simple-row {
+  padding: 10px 14px; margin-bottom: 7px;
+  border: 1.5px solid var(--border); border-radius: 12px; background: var(--surface);
+}
+#screen-config .config-simple-row:last-child { border-bottom: 1.5px solid var(--border); }
+@media (max-width: 980px) {
+  #screen-config .config-subject-row { grid-template-columns: minmax(0, 1fr) 106px 156px auto; }
+}
+@media (max-width: 760px) and (min-width: 561px) {
+  #screen-config .config-subject-row {
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-areas: "nome acoes" "dif fase";
+    row-gap: 10px;
+  }
+  #screen-config .config-subject-row > input.cfg-subj-name { grid-area: nome; }
+  #screen-config .config-subject-row > .config-row-actions { grid-area: acoes; }
+  #screen-config .config-subject-row > .cfg-field:nth-of-type(1) { grid-area: dif; }
+  #screen-config .config-subject-row > .cfg-field:nth-of-type(2) { grid-area: fase; }
+  #screen-config .config-subject-row .cfg-field > span {
+    display: block; font-size: var(--fs-3xs); font-weight: 700; text-transform: uppercase;
+    letter-spacing: .05em; color: var(--text-faint); margin-bottom: 3px;
+  }
+}
+
+/* 7.3 — Navegação lateral por seções (a tela deixa de ser uma lista infinita) */
+.cfg-shell { display: grid; grid-template-columns: 214px minmax(0, 1fr); gap: 22px; align-items: start; margin-top: 18px; }
+.cfg-nav {
+  position: sticky; top: 12px;
+  background: var(--surface); border: 1.5px solid var(--border); border-radius: 16px;
+  padding: 10px; box-shadow: var(--shadow-sm);
+}
+.cfg-nav-title {
+  font-size: var(--fs-3xs); font-weight: 800; letter-spacing: .08em; text-transform: uppercase;
+  color: var(--text-faint); padding: 6px 10px 8px;
+}
+.cfg-nav button {
+  display: flex; align-items: center; gap: 9px; width: 100%; text-align: left;
+  background: transparent; border: none; border-radius: 10px; cursor: pointer;
+  padding: 9px 10px; font-size: var(--fs-sm); font-weight: 600; color: var(--text-soft);
+  transition: background .14s ease, color .14s ease;
+}
+.cfg-nav button:hover { background: var(--surface-sunken); color: var(--text); }
+.cfg-nav button.active { background: var(--accent-soft); color: var(--accent); font-weight: 700; }
+.cfg-nav button .ic { width: 18px; text-align: center; flex-shrink: 0; }
+.cfg-group { display: none; }
+.cfg-group.active { display: block; animation: uxFade .16s ease; }
+@keyframes uxFade { from { opacity: 0; transform: translateY(3px); } to { opacity: 1; transform: none; } }
+.cfg-group > .card:first-child { margin-top: 0; }
+.cfg-group-head { margin: 0 0 4px; }
+.cfg-group-head h3 {
+  margin: 0; font-size: var(--fs-xl); font-weight: 700; letter-spacing: -0.01em; color: var(--text);
+}
+.cfg-group-head p { margin: 5px 0 0; font-size: var(--fs-sm); color: var(--text-soft); line-height: 1.55; max-width: 76ch; }
+/* ── Padronização PROFISSIONAL das configurações ──
+   Cada card tinha um padding inline diferente (16/28, 12/28, 16/24…). Aqui
+   unificamos o espaçamento e o acabamento, para tudo ficar alinhado e coeso. */
+.cfg-group > .card { margin: 0 0 16px; border-radius: 16px; border: 1.5px solid var(--border); box-shadow: var(--shadow-sm); overflow: hidden; }
+.cfg-group > .card > .card-header { padding: 18px 22px 14px; align-items: flex-start; }
+.cfg-group > .card > .card-header h2 { font-size: var(--fs-lg); font-weight: 800; letter-spacing: -0.01em; }
+.cfg-group > .card > .card-header .sub { margin-top: 4px; }
+/* corpo do card: padding uniforme, sobrescrevendo os estilos inline antigos */
+.cfg-group > .card > div:not(.card-header) { padding: 6px 22px 20px !important; }
+.cfg-group > .card > .card-header + div { padding-top: 4px !important; }
+@media (max-width: 900px) {
+  .cfg-shell { grid-template-columns: 1fr; gap: 14px; }
+  .cfg-nav { position: sticky; top: 0; z-index: 5; display: flex; gap: 6px; overflow-x: auto; padding: 8px; background: var(--surface); border: 1.5px solid var(--border); border-radius: 12px; scrollbar-width: none; }
+  .cfg-nav::-webkit-scrollbar { display: none; }
+  .cfg-nav-title { display: none; }
+  .cfg-nav button { width: auto; white-space: nowrap; padding: 8px 14px; flex-shrink: 0; }
+  .cfg-group > .card > .card-header { padding: 16px 16px 12px; }
+  .cfg-group > .card > div:not(.card-header) { padding: 6px 16px 18px !important; }
+}
+
+/* 7.4 — Cartão de espaço usado: números e barras alinhados de verdade */
+#cfg-storage-card .acm-row {
+  display: grid !important;
+  grid-template-columns: minmax(140px, 1.35fr) minmax(90px, 2fr) 78px !important;
+  align-items: center; gap: 12px !important; padding: 6px 0;
+}
+#cfg-storage-card .acm-name {
+  font-size: var(--fs-xs) !important; font-weight: 600; color: var(--text-soft);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+#cfg-storage-card .acm-q {
+  font-family: 'Space Mono', ui-monospace, SFMono-Regular, Menlo, monospace; font-size: var(--fs-2xs); font-weight: 700;
+  text-align: right; color: var(--text); font-variant-numeric: tabular-nums; white-space: nowrap;
+}
+#cfg-storage-card .bar-track { height: 7px; border-radius: 999px; }
+.cfg-storage-hero {
+  display: flex; align-items: flex-end; gap: 14px; flex-wrap: wrap; margin-bottom: 4px;
+}
+.cfg-storage-num {
+  font-family: 'Space Mono', ui-monospace, SFMono-Regular, Menlo, monospace; font-weight: 800; letter-spacing: -0.03em;
+  font-size: clamp(24px, calc(30px * var(--fs-scale, 1)), 38px); line-height: 1;
+  font-variant-numeric: tabular-nums;
+}
+.cfg-storage-meta { font-size: var(--fs-xs); color: var(--text-faint); line-height: 1.5; padding-bottom: 3px; }
+@media (max-width: 620px) {
+  #cfg-storage-card .acm-row { grid-template-columns: minmax(0, 1fr) 70px !important; grid-template-areas: "nome q" "bar bar"; row-gap: 4px; }
+  #cfg-storage-card .acm-name { grid-area: nome; }
+  #cfg-storage-card .acm-q { grid-area: q; }
+  #cfg-storage-card .bar-track { grid-area: bar; }
+}
+
+/* 7.5 — Histórico de versões: linhas legíveis */
+#cfg-vhist-body .cloud-slot-row {
+  display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap;
+  padding: 11px 14px; margin-bottom: 8px;
+  border: 1.5px solid var(--border); border-radius: 12px; background: var(--surface);
+}
+#cfg-vhist-body .cloud-slot-row:hover { border-color: var(--border-strong); }
+#cfg-vhist-body .cloud-slot-info { min-width: 0; flex: 1 1 220px; }
+#cfg-vhist-body .cloud-slot-info .name {
+  display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+  font-size: var(--fs-sm); font-weight: 700; color: var(--text);
+}
+#cfg-vhist-body .cloud-slot-info .meta { font-family: 'Space Mono', ui-monospace, SFMono-Regular, Menlo, monospace; font-size: var(--fs-3xs); color: var(--text-faint); margin-top: 3px; }
+#cfg-vhist-body .cloud-slot-actions { display: flex; gap: 7px; flex-shrink: 0; }
+#cfg-vhist-body .cloud-slot-actions button { padding: 6px 12px; font-size: var(--fs-xs); }
+
+/* 7.6 — Preferências em grade */
+.cfg-pref-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 14px; }
+.cfg-pref {
+  border: 1.5px solid var(--border); border-radius: 13px; background: var(--surface);
+  padding: 13px 14px; display: flex; flex-direction: column; gap: 8px;
+}
+.cfg-pref-lbl { font-size: var(--fs-sm); font-weight: 700; color: var(--text); }
+.cfg-pref-desc { font-size: var(--fs-2xs); color: var(--text-faint); line-height: 1.5; }
+.cfg-pref select, .cfg-pref input[type="number"] { width: 100%; }
+.cfg-pref-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+
+/* 7.7 — Ações e zona de risco */
+.cfg-action-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 12px; }
+.cfg-action {
+  display: flex; flex-direction: column; align-items: flex-start; gap: 6px; text-align: left;
+  border: 1.5px solid var(--border); border-radius: 13px; background: var(--surface);
+  padding: 14px; cursor: pointer; transition: border-color .15s ease, box-shadow .15s ease, transform .15s ease;
+  font: inherit; color: inherit; width: 100%;
+}
+.cfg-action:hover { border-color: var(--accent); box-shadow: var(--shadow-sm); transform: translateY(-1px); }
+.cfg-action .ic { font-size: 18px; line-height: 1; }
+.cfg-action .t { font-size: var(--fs-sm); font-weight: 700; color: var(--text); }
+.cfg-action .d { font-size: var(--fs-2xs); color: var(--text-faint); line-height: 1.5; }
+.cfg-danger { border-color: color-mix(in srgb, var(--bad) 45%, var(--border)); background: color-mix(in srgb, var(--bad-soft) 40%, var(--surface)); }
+.cfg-danger:hover { border-color: var(--bad); }
+.cfg-danger .t { color: var(--bad-text); }
+
+/* 7.8 — Diagnóstico */
+.cfg-diag { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 10px; }
+.cfg-diag-item { border: 1px solid var(--border); border-radius: 11px; background: var(--surface-sunken); padding: 10px 12px; min-width: 0; }
+.cfg-diag-item .k { font-size: var(--fs-3xs); font-weight: 800; letter-spacing: .06em; text-transform: uppercase; color: var(--text-faint); }
+.cfg-diag-item .v {
+  font-family: 'Space Mono', ui-monospace, SFMono-Regular, Menlo, monospace; font-size: var(--fs-xs); font-weight: 700; color: var(--text);
+  margin-top: 4px; overflow-wrap: anywhere; line-height: 1.45;
+}
+.cfg-diag-item .v.ok { color: var(--good-text); }
+.cfg-diag-item .v.warn { color: var(--warn-text); }
+.cfg-diag-item .v.bad { color: var(--bad-text); }
+
+/* ---------------------------------------------------------------------------
+   8. CONTA E NUVEM — menu suspenso confiável
+   --------------------------------------------------------------------------- */
+
+.cloud-sync-btn { position: relative; }
+.cloud-menu {
+  position: fixed; z-index: 1400; width: 336px; max-width: calc(100vw - 20px);
+  background: var(--surface); border: 1.5px solid var(--border); border-radius: 16px;
+  box-shadow: var(--shadow-lg); overflow: hidden; animation: uxPopIn .14s ease;
+}
+.cloud-menu-head { padding: 14px 16px 12px; border-bottom: 1px solid var(--border); background: var(--surface-sunken); }
+.cloud-menu-state { display: flex; align-items: center; gap: 9px; }
+.cloud-menu-dot { width: 10px; height: 10px; border-radius: 50%; background: var(--text-faint); flex-shrink: 0; }
+.cloud-menu.st-ok .cloud-menu-dot { background: var(--good); box-shadow: 0 0 0 3px var(--good-soft); }
+.cloud-menu.st-syncing .cloud-menu-dot { background: var(--info); animation: csbPulse 1s infinite; }
+.cloud-menu.st-pending .cloud-menu-dot { background: var(--warn); box-shadow: 0 0 0 3px var(--warn-soft); }
+.cloud-menu.st-error .cloud-menu-dot { background: var(--bad); box-shadow: 0 0 0 3px var(--bad-soft); }
+.cloud-menu.st-off .cloud-menu-dot { background: var(--text-faint); }
+.cloud-menu-title { font-size: var(--fs-md); font-weight: 700; color: var(--text); line-height: 1.25; }
+.cloud-menu-sub { font-size: var(--fs-2xs); color: var(--text-faint); margin-top: 3px; line-height: 1.5; font-family: 'Space Mono', ui-monospace, SFMono-Regular, Menlo, monospace; }
+.cloud-menu-mail {
+  margin-top: 10px; padding: 8px 10px; border-radius: 10px; background: var(--surface);
+  border: 1px solid var(--border); font-size: var(--fs-xs); color: var(--text-soft);
+  display: flex; align-items: center; gap: 8px; overflow: hidden;
+}
+.cloud-menu-mail b { color: var(--text); font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cloud-menu-body { padding: 8px; max-height: min(64vh, 520px); overflow-y: auto; }
+.cloud-menu-sec {
+  font-size: var(--fs-3xs); font-weight: 800; letter-spacing: .08em; text-transform: uppercase;
+  color: var(--text-faint); padding: 10px 10px 6px;
+}
+.cloud-menu-item {
+  display: flex; align-items: center; gap: 10px; width: 100%; text-align: left;
+  background: transparent; border: none; border-radius: 10px; cursor: pointer;
+  padding: 10px; font-size: var(--fs-sm); font-weight: 600; color: var(--text);
+  transition: background .13s ease;
+}
+.cloud-menu-item:hover { background: var(--surface-sunken); }
+.cloud-menu-item .ic { width: 20px; text-align: center; flex-shrink: 0; font-size: 14px; }
+.cloud-menu-item .tx { min-width: 0; }
+.cloud-menu-item small { display: block; font-weight: 500; font-size: var(--fs-3xs); color: var(--text-faint); margin-top: 2px; line-height: 1.45; }
+.cloud-menu-item.danger { color: var(--bad-text); }
+.cloud-menu-item.danger:hover { background: var(--bad-soft); }
+.cloud-menu-item[disabled] { opacity: .45; cursor: not-allowed; }
+.cloud-menu-toggle { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px; }
+.cloud-menu-toggle .tx { font-size: var(--fs-sm); font-weight: 600; color: var(--text); }
+.cloud-menu-toggle small { display: block; font-weight: 500; font-size: var(--fs-3xs); color: var(--text-faint); margin-top: 2px; line-height: 1.45; }
+.cloud-menu-sel { padding: 4px 10px 10px; }
+.cloud-menu-sel label { display: block; font-size: var(--fs-3xs); font-weight: 700; text-transform: uppercase; letter-spacing: .05em; color: var(--text-faint); margin-bottom: 5px; }
+.cloud-menu-sel select { width: 100%; padding: 8px 34px 8px 10px; font-size: var(--fs-xs); }
+.cloud-menu-foot { padding: 10px 12px; border-top: 1px solid var(--border); background: var(--surface-sunken); font-size: var(--fs-3xs); color: var(--text-faint); line-height: 1.55; }
+.cloud-menu-relogin { padding: 10px; border-top: 1px solid var(--border); background: var(--bad-soft); }
+.cloud-menu-relogin p { margin: 0 0 8px; font-size: var(--fs-2xs); color: var(--bad-text); line-height: 1.55; }
+.cloud-menu-relogin input { width: 100%; margin-bottom: 8px; padding: 8px 10px; font-size: var(--fs-xs); }
+.cloud-scrim { position: fixed; inset: 0; z-index: 1399; background: transparent; }
+
+/* botão do topo: estado "reconectando" e contagem de pendências */
+.cloud-sync-btn.st-recon .csb-dot { background: var(--info); animation: csbPulse 1s infinite; }
+/* O badge "!" de pendências foi removido: dava impressão de problema. O estado
+   "Salvando…" (calmo) já comunica que há algo subindo, sem alarmar. */
+.cloud-sync-btn .csb-badge { display: none !important; }
+.cloud-sync-btn.has-pend .csb-badge { display: none !important; }
+
+/* aviso de inatividade */
+.idle-warn {
+  position: fixed; left: 50%; bottom: 26px; transform: translateX(-50%);
+  z-index: 2100; max-width: min(420px, calc(100vw - 24px));
+  background: var(--surface); border: 1.5px solid var(--warn); border-radius: 14px;
+  box-shadow: var(--shadow-lg); padding: 14px 16px;
+}
+.idle-warn p { margin: 0 0 10px; font-size: var(--fs-sm); color: var(--text); line-height: 1.55; }
+.idle-warn .row { display: flex; gap: 8px; justify-content: flex-end; }
+
+/* ── Registrar: cabeçalho da lista + visão em tabela com filtros ──────────────
+   Reescrito para ser à prova de colapso. A causa do bug (texto quebrando letra
+   a letra) era o helper global ":where(.card) table{display:block}" + o
+   "overflow-wrap:break-word" global nas células: a tabela deixava de ser tabela,
+   o min-width era ignorado e cada coluna encolhia ao mínimo. Aqui a tabela é
+   display:table EXPLÍCITO + table-layout:fixed + <colgroup>, e no celular ela
+   VIRA CARTÕES EMPILHADOS (impossível colapsar). */
+.recent-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+.recent-head-controls { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+#recent-view-seg button { display: inline-flex; align-items: center; gap: 5px; }
+
+/* Barra de filtros — FORA da tabela (antes ficava dentro do <thead> sticky, o que
+   era frágil dentro de um contêiner com rolagem). Agora é um bloco próprio,
+   responsivo, que serve às duas visões (grade no desktop, cartões no mobile). */
+.reg-filterbar {
+  display: grid;
+  grid-template-columns: 104px minmax(0,1.2fr) minmax(0,1.4fr) minmax(0,1fr) minmax(0,1fr) auto;
+  gap: 12px 14px; align-items: end;
+  padding: 16px; margin-bottom: 14px;
+  background: var(--surface-sunken); border: 1.5px solid var(--border); border-radius: 14px;
+}
+.reg-filter-field { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.reg-filter-field > label {
+  font-size: var(--fs-2xs); font-weight: 700; text-transform: uppercase; letter-spacing: .04em;
+  color: var(--text-faint);
+}
+.reg-filter-field input, .reg-filter-field select {
+  width: 100%; min-width: 0; box-sizing: border-box; padding: 7px 9px; font-size: var(--fs-xs);
+  border: 1.5px solid var(--border); border-radius: 9px; background: var(--surface); color: var(--text);
+}
+.reg-filter-field input:focus, .reg-filter-field select:focus {
+  outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-ring);
+}
+.reg-sort-row { display: flex; gap: 6px; }
+.reg-sort-row select { flex: 1 1 auto; }
+.reg-sort-dir {
+  flex: 0 0 auto; width: 34px; border: 1.5px solid var(--border); border-radius: 9px;
+  background: var(--surface); color: var(--text); cursor: pointer; font-size: var(--fs-sm); font-weight: 700;
+}
+.reg-sort-dir:hover { border-color: var(--accent); color: var(--accent); }
+.reg-filter-clear {
+  display: inline-flex; align-items: center; justify-content: center; gap: 5px;
+  font-size: var(--fs-xs); font-weight: 700; white-space: nowrap;
+  color: var(--accent); background: var(--accent-soft); border: 1px solid transparent; border-radius: 9px;
+  padding: 8px 12px; cursor: pointer; align-self: end; height: fit-content;
+}
+.reg-filter-clear:hover { border-color: var(--accent); }
+/* a barra de ordenação por select só é útil no mobile (no desktop clica-se no cabeçalho) */
+.reg-sort-field { display: none; }
+
+/* ══════════════════════════════════════════════════════════════════════════
+   LISTA DE REGISTROS — <table> REAL (padrão profissional tipo Gran/Estratégia)
+   • table-layout:fixed + <colgroup> = cabeçalho e corpo SEMPRE alinhados (é o
+     algoritmo NATIVO da tabela; dois grids separados nunca garantiam isso e por
+     isso as colunas iam desalinhando progressivamente).
+   • Cabeçalho fixo no topo + 1ª coluna (Matéria) congelada à esquerda.
+   • Barra de rolagem horizontal SEMPRE VISÍVEL para arrastar e ver tudo.
+   ══════════════════════════════════════════════════════════════════════════ */
+.reg-tbl-scroll {
+  overflow-x: auto; overflow-y: hidden; -webkit-overflow-scrolling: touch;
+  border: 1.5px solid var(--border); border-radius: 14px; background: var(--surface);
+  /* escondemos a barra NATIVA (é overlay/invisível em muitos navegadores) e usamos
+     uma barra CUSTOM sempre visível abaixo — ver .reg-hbar. */
+  scrollbar-width: none;
+}
+.reg-tbl-scroll::-webkit-scrollbar { height: 0; width: 0; }
+
+/* LARGURA NA VISÃO TABELA: em vez de "full-bleed" com 100vw (que empurrava a tabela
+   para DEBAIXO da sidebar), alargamos o próprio .content-wrap via a classe
+   .wrap-reg-table. Como o .content-wrap vive DENTRO de .main-content (que já começa
+   depois da sidebar, por flexbox), é impossível a tabela invadir a barra lateral.
+   O formulário e o divisor ficam com largura confortável para não esticarem demais. */
+.content-wrap.wrap-reg-table { max-width: 1240px; }
+@media (min-width: 861px) {
+  .content-wrap.wrap-reg-table > #screen-registrar > .card:first-of-type,
+  .content-wrap.wrap-reg-table > #screen-registrar > .section-divider {
+    max-width: 860px;
+  }
+}
+.recent.reg-mode-table { width: 100%; }
+
+/* display:table !important anula o helper global ":where(.card) table{display:block}" */
+.reg-tbl {
+  display: table !important;
+  width: 100%; table-layout: fixed;
+  border-collapse: separate; border-spacing: 0;
+  font-size: var(--fs-sm);
+}
+/* Colunas em PIXELS + min-width na tabela.
+   Antes Matéria e Aula eram percentuais (32% / 20%). Com a coluna de Observação
+   entrando na grade, os percentuais passaram a ser calculados sobre um espaço
+   menor e os nomes viraram "Conhecime…" / "A…". Larguras em px dão a cada
+   coluna o tamanho do dado que ela carrega; a tabela ganha uma largura mínima e
+   rola na horizontal (a barra de rolagem própria já existe para isso). Em telas
+   largas o `width:100%` distribui a sobra proporcionalmente, sem cortar nada. */
+.reg-tbl { min-width: 1220px; }
+.reg-tbl col.rc-date    { width: 106px; }
+.reg-tbl col.rc-subject { width: 232px; }
+.reg-tbl col.rc-lesson  { width: 190px; }
+.reg-tbl col.rc-method  { width: 122px; }
+.reg-tbl col.rc-time    { width: 84px;  }
+.reg-tbl col.rc-hits    { width: 92px;  }
+.reg-tbl col.rc-pct     { width: 118px; }
+.reg-tbl col.rc-act     { width: 96px;  }
+.reg-tbl col.rc-obs     { width: 240px; }
+
+/* Cabeçalho fixo no topo ao rolar verticalmente */
+.reg-tbl thead th {
+  position: sticky; top: 0; z-index: 3;
+  background: var(--surface-sunken);
+  border-bottom: 1.5px solid var(--border);
+  padding: 0; text-align: left; white-space: nowrap;
+}
+.reg-th .reg-h {
+  display: flex; align-items: center; gap: 5px; width: 100%;
+  padding: 13px 14px 12px; margin: 0; background: transparent; border: none;
+  font-weight: 800; font-size: var(--fs-2xs); letter-spacing: .04em; text-transform: uppercase;
+  color: var(--text-faint); white-space: nowrap; text-align: left; font-family: inherit;
+}
+.reg-th .reg-h.sortable { cursor: pointer; user-select: none; }
+.reg-th .reg-h.sortable:hover { color: var(--accent); }
+.reg-th.is-sorted .reg-h { color: var(--accent); }
+.reg-th .sort-ind { font-size: var(--fs-xs); color: var(--accent); }
+.reg-th-num .reg-h { justify-content: flex-end; text-align: right; }
+
+/* Linhas / células */
+.reg-tbl tbody tr { transition: background .12s ease; }
+.reg-tbl tbody tr:nth-child(even) td, .reg-tbl tbody tr:nth-child(even) th { background: color-mix(in srgb, var(--surface-sunken) 50%, var(--surface)); }
+.reg-tbl tbody tr:nth-child(odd) td,  .reg-tbl tbody tr:nth-child(odd) th  { background: var(--surface); }
+.reg-tbl tbody tr:hover td, .reg-tbl tbody tr:hover th { background: var(--accent-soft); }
+.reg-c {
+  padding: 12px 14px; font-size: var(--fs-sm); vertical-align: middle;
+  border-bottom: 1px solid var(--border);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.reg-tbl tbody tr:last-child .reg-c { border-bottom: none; }
+.reg-c-date { font-family: 'Space Mono', ui-monospace, SFMono-Regular, Menlo, monospace; font-size: var(--fs-xs); color: var(--text-soft); }
+/* Matéria = coluna principal: mostra o nome COMPLETO em até 2 linhas (não corta feio) */
+.reg-c-subject { font-weight: 700; color: var(--text); text-align: left; white-space: normal; }
+.reg-c-subject > span { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; line-height: 1.3; }
+.reg-c-lesson { color: var(--text-soft); }
+.reg-method-chip {
+  display: inline-block; max-width: 100%; overflow: hidden; text-overflow: ellipsis; vertical-align: bottom;
+  padding: 3px 10px; border-radius: 20px; background: var(--accent-soft); color: var(--accent);
+  font-size: var(--fs-2xs); font-weight: 700;
+}
+.reg-c-num { font-variant-numeric: tabular-nums; text-align: right; white-space: nowrap; }
+.reg-c-pct { text-align: right; white-space: nowrap; overflow: visible; }
+/* % como SELO colorido (visual moderno, tipo os grandes players) */
+.reg-pct-badge {
+  display: inline-block; padding: 4px 10px; border-radius: 20px;
+  font-weight: 800; font-variant-numeric: tabular-nums; font-size: var(--fs-xs); white-space: nowrap;
+}
+.reg-pct-badge.tone-good { background: var(--good-soft); color: var(--good-text); }
+.reg-pct-badge.tone-warn { background: var(--warn-soft); color: var(--warn-text); }
+.reg-pct-badge.tone-bad  { background: var(--bad-soft);  color: var(--bad-text); }
+.reg-pct-badge.tone-none { background: var(--surface-sunken); color: var(--text-faint); font-weight: 700; }
+.reg-empty { color: var(--text-faint); }
+.reg-c-act { text-align: right; white-space: nowrap; overflow: visible; }
+.reg-c-act .icon-btn { padding: 5px 7px; }
+.reg-noresult { padding: 26px 16px; text-align: center; color: var(--text-faint); font-size: var(--fs-sm); }
+.reg-table-foot { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; padding: 10px 2px 2px; }
+.reg-table-foot .count { font-size: var(--fs-xs); color: var(--text-faint); }
+
+/* ── BARRA DE ROLAGEM CUSTOM (sempre visível quando a tabela transborda) ──
+   A barra nativa é overlay/invisível em muitos navegadores; esta é sincronizada
+   por JS e aparece só quando há o que rolar. */
+.reg-hbar { display: none; height: 12px; margin-top: 8px; border-radius: 8px;
+  background: var(--surface-sunken); border: 1px solid var(--border); cursor: pointer; position: relative; }
+.reg-hbar.show { display: block; }
+.reg-hbar-thumb { position: absolute; top: 1px; bottom: 1px; left: 0; min-width: 40px;
+  border-radius: 7px; background: var(--border-strong); cursor: grab; transition: background .12s ease; }
+.reg-hbar-thumb:hover { background: var(--text-faint); }
+.reg-hbar-thumb:active { cursor: grabbing; background: var(--accent); }
+.reg-scroll-hint { display: none; }   /* substituído pela barra custom */
+
+/* filtros em 2 colunas em telas médias */
+@media (max-width: 900px) {
+  .reg-filterbar { grid-template-columns: 1fr 1fr; }
+  .reg-filter-clear { grid-column: 1 / -1; }
+}
+/* MOBILE/TABLET estreito: tabela rola na horizontal, com colunas de largura mínima
+   legível (Matéria não fica espremida) e a barra custom para arrastar. */
+@media (max-width: 860px) {
+  .reg-sort-field { display: flex; }
+  .reg-filterbar { grid-template-columns: 1fr 1fr; gap: 9px; padding: 12px; }
+  .reg-sort-field { grid-column: 1 / -1; }
+  .reg-filter-clear { grid-column: 1 / -1; }
+  .reg-tbl { table-layout: fixed; min-width: 860px; }
+  .reg-tbl col.rc-subject { width: 200px; }
+  .reg-tbl col.rc-lesson  { width: 160px; }
+  .reg-c { padding: 11px 12px; }
+}
+@media (max-width: 720px) {
+  #recent-list { padding-left: 12px !important; padding-right: 12px !important; }
+}
+
+/* ── Leis Secas: acabamento mais profissional (aditivo, sem mudar estrutura) ── */
+.leis-reader-topbar {
+  background: var(--surface); border: 1.5px solid var(--border); border-radius: 16px;
+  box-shadow: var(--shadow-sm); padding: 14px 18px;
+}
+.leis-reader-topbar h2 { letter-spacing: -0.02em; }
+.leis-reader-meta { display: inline-block; margin-top: 4px; padding: 2px 9px; border-radius: 20px;
+  background: var(--surface-sunken); border: 1px solid var(--border); color: var(--text-soft); }
+.leis-sticky { border-radius: 16px; box-shadow: var(--shadow-md); }
+.leis-tool-btn { border-radius: 11px; }
+.leis-hl-chip span { box-shadow: inset 0 0 0 1px rgba(0,0,0,0.02); }
+.leis-reader-card {
+  background: var(--surface); border: 1.5px solid var(--border); border-radius: 18px;
+  box-shadow: var(--shadow-md); position: relative; overflow: hidden;
+}
+.leis-reader-card::before {
+  content: ''; position: absolute; top: 0; left: 0; right: 0; height: 4px;
+  background: linear-gradient(90deg, var(--accent), color-mix(in srgb, var(--accent) 30%, transparent));
+}
+.lei-reader-body { letter-spacing: 0.003em; }
+.law-art { font-size: 1.05em; letter-spacing: -0.005em; }
+.law-art strong, .law-art b { color: var(--accent); }
+.law-head { font-weight: 800; }
+/* cartões da lista de leis um pouco mais \"produto\" */
+.lei-card { border-radius: 16px; }
+.lei-card-title { letter-spacing: -0.02em; }
+@media (max-width: 640px) {
+  .leis-reader-topbar { padding: 12px 14px; border-radius: 14px; }
+  .leis-reader-card { border-radius: 14px; }
+}
+
+
+/* ---------- 9. Complementos v47 ---------- */
+/* Os rotulos de valor ficam ACIMA da barra: o container precisa de folga no topo
+   e nao pode recortar. O padding inline do HTML exige !important aqui. */
+#evolucao-day-chart { padding-top: 24px !important; overflow: visible !important; }
+#evolucao-day-chart > div { overflow: visible !important; }
+.evo-day-bar { position: relative; overflow: visible; }
+.evo-day-bar > .evo-bar-value {
+  position: absolute; left: 50%; bottom: 100%; transform: translateX(-50%);
+  margin-bottom: 5px; pointer-events: none;
+}
+.cloud-menu-sep { height: 1px; background: var(--border); margin: 8px 6px; }
+.track-row-wrap.is-target > .track-card {
+  box-shadow: 0 0 0 3px var(--accent-ring); border-color: var(--accent);
+}
+#en-table-host { min-width: 0; }
+/* engrenagens novas herdam o alvo de toque das telas pequenas */
+@media (max-width: 834px) {
+  .ux-gear, .cloud-menu-item, .ux-pop-opt, .cfg-nav button, .ux-seg button { min-height: 38px; }
+}
+/* barra de exibição da Evolução não cola no cartão de escopo */
+#evo-viewbar + .empty-state, #evo-viewbar + #evolucao-content { margin-top: 4px; }
+/* Plano: a linha que sobrou na barra original (botão de avançados) */
+.pl-toolbar-rest { padding: 0 !important; }
+/* Registrar: barra de modo não estoura no celular */
+@media (max-width: 560px) {
+  #screen-registrar .reg-modebar { margin-left: 0; width: 100%; }
+  #screen-registrar .reg-modebar .ux-seg { flex: 1 1 auto; }
+  #screen-registrar .reg-modebar .ux-seg button { flex: 1 1 0; justify-content: center; }
+}

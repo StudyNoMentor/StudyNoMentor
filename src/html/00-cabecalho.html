@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<!-- ═══════════════ SEGURANÇA — Content-Security-Policy ═══════════════
+     Rede de contenção: mesmo que o sanitizador de HTML falhasse, o navegador
+     recusa scripts/conexões fora desta allowlist. Cada origem abaixo é EXIGIDA
+     por um recurso real do app (não há origem "solta"):
+       • script-src  : o próprio app (inline, exigido pelo padrão #app-code) +
+                       os CDNs do Supabase (jsDelivr) e do SheetJS sob demanda.
+       • connect-src : Supabase (REST https + realtime wss) e os CDNs.
+       • style-src   : estilos inline do app + Google Fonts.
+       • font-src    : os .woff2 do Google Fonts.
+       • img-src     : imagens do usuário (data:/blob:) e https.
+       • object-src  : NENHUM (bloqueia <object>/<embed>).
+       • base-uri / form-action: só o próprio documento.
+
+     frame-ancestors NÃO entra aqui: o navegador IGNORA essa diretiva quando ela
+     vem por <meta> (só vale como cabeçalho HTTP) e ainda registra um erro no
+     console a cada carregamento. Quem hospeda com controle de cabeçalhos deve
+     enviar `Content-Security-Policy: frame-ancestors 'none'`. Em hospedagem
+     estática sem cabeçalhos (GitHub Pages), quem protege é a trava anti-moldura
+     em JavaScript logo abaixo — essa, sim, funciona. -->
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://cdn.sheetjs.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com data:; img-src 'self' data: blob: https:; connect-src 'self' https://*.supabase.co wss://*.supabase.co https://cdn.jsdelivr.net https://cdn.sheetjs.com; object-src 'none'; base-uri 'self'; form-action 'self'; worker-src 'self' blob:; frame-src 'none'; manifest-src 'self'">
+<script>
+/* ── TRAVA ANTI-MOLDURA (clickjacking) ────────────────────────────────────
+   Sem cabeçalho HTTP não há frame-ancestors, e o app trata dados de estudo,
+   backups e a sessão da nuvem: um site hostil podia embutir esta página numa
+   moldura invisível e induzir cliques em ações destrutivas ("Limpar grade",
+   "Apagar perfil", exportar backup).
+
+   Duas camadas: se der para escapar da moldura, escapamos (top.location);
+   se o navegador barrar a navegação por ser origem cruzada (o try falha),
+   o documento é esvaziado e um aviso substitui a interface — em nenhum dos
+   casos existe uma tela clicável dentro de uma moldura de terceiros.
+
+   Roda no <head>, antes de qualquer pintura, para não haver janela de clique. */
+(function travaAntiMoldura() {
+  try {
+    if (window.self === window.top) return;      // aberto normalmente: nada a fazer
+  } catch (e) { /* acesso a window.top barrado => estamos emoldurados */ }
+  try { window.top.location = window.self.location.href; return; } catch (e) {}
+  try {
+    document.documentElement.innerHTML =
+      '<head><meta charset="utf-8"><title>Bloqueado</title></head><body style="margin:0">' +
+      '<div style="font:16px/1.6 system-ui,-apple-system,sans-serif;padding:40px;text-align:center">' +
+      '<div style="font-size:44px">\uD83D\uDD12</div>' +
+      '<h1 style="font-size:20px;margin:10px 0">Esta pagina nao pode ser exibida dentro de outro site</h1>' +
+      '<p style="color:#5b6270">Abra o Diario de Estudos diretamente, em uma aba propria.</p></div></body>';
+  } catch (e) {}
+})();
+</script>
+<meta name="referrer" content="strict-origin-when-cross-origin">
+<script>
+/* ── ARRANQUE: abre o IndexedDB AGORA, em paralelo com o parse do documento ──
+   A fachada de armazenamento vive no fim do <body>, depois de ~1,7 MB de HTML.
+   Como indexedDB.open() é assíncrono mas só COMEÇA quando a linha executa, o
+   custo era serial: parse inteiro → abrir → hidratar → rodar o app.
+   Disparando a abertura aqui, ela corre junto com o parse. O shim lá embaixo
+   apenas AGUARDA esta promessa em vez de criar a sua.
+   Se algo falhar, a promessa rejeita e o shim cai no caminho antigo — nenhum
+   comportamento novo, só antecipação. */
+window.__idbBoot = (function () {
+  try {
+    return new Promise(function (resolve, reject) {
+      var req;
+      try { req = indexedDB.open('diario-estudos-db', 1); }
+      catch (e) { reject(e); return; }
+      req.onupgradeneeded = function () {
+        try {
+          var d = req.result;
+          if (!d.objectStoreNames.contains('kv')) d.createObjectStore('kv');
+        } catch (e) {}
+      };
+      req.onsuccess = function () { resolve(req.result); };
+      req.onerror = function () { reject(req.error); };
+      req.onblocked = function () { reject(new Error('IndexedDB bloqueado por outra aba')); };
+    });
+  } catch (e) { return Promise.reject(e); }
+})();
+</script>
+<title>Diário de Estudos</title>
+<!-- PWA OPCIONAL: se manifest.webmanifest e sw.js estiverem NA MESMA PASTA que
+     este arquivo, o app fica instalável e abre sem internet. Se não estiverem,
+     o navegador ignora estas duas linhas e nada muda — o app continua
+     funcionando exatamente como antes, em arquivo único. -->
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='22' fill='%234f46e5'/%3E%3Ctext y='72' x='50' font-size='58' text-anchor='middle'%3E%F0%9F%93%9A%3C/text%3E%3C/svg%3E">
+<link rel="apple-touch-icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='22' fill='%234f46e5'/%3E%3Ctext y='72' x='50' font-size='58' text-anchor='middle'%3E%F0%9F%93%9A%3C/text%3E%3C/svg%3E">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Diário">
+<meta name="description" content="Diário de Estudos — registro, ciclo de estudos, flashcards com FSRS, leis secas e acompanhamento de desempenho.">
+<meta name="theme-color" content="#ffffff" id="meta-theme-color">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<!-- A folha do Google Fonts era um recurso BLOQUEANTE: a primeira pintura
+     esperava a ida e volta até fonts.googleapis.com. Com media="print" o
+     navegador baixa sem bloquear e o onload devolve para "all". A pilha de
+     fallback de sistema (system-ui, -apple-system…) cobre o intervalo, e
+     display=swap evita texto invisível. O <noscript> mantém a fonte para
+     quem desabilitou JavaScript. -->
+<link rel="stylesheet" media="print" onload="this.media='all';this.onload=null"
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&amp;family=Space+Mono:wght@400;700&amp;display=swap">
+<noscript><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&amp;family=Space+Mono:wght@400;700&amp;display=swap"></noscript>
+<!-- SheetJS NÃO é mais carregado aqui: (1) tinha CVE nas versões <=0.19.2 e (2) pesava
+     no caminho crítico mesmo sem uso. O leitor .xlsx EMBUTIDO (MiniXLSX) é o primário;
+     o SheetJS (versão CORRIGIDA 0.20.x do CDN oficial) só é baixado SOB DEMANDA, quando
+     o embutido não dá conta (ex.: .xls binário antigo). Ver ensureSheetJS(). -->
+<!-- Supabase: sincronização opcional na nuvem (login + backup do perfil). Versão FIXADA
+     (não mais "@2" solto) para uma mudança dentro do major não quebrar o app sem aviso. -->
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js" integrity="sha256-hZaWX+kY5lZgChtWjToWj1wNPSKmAIhrtvRKZVXbAec=" crossorigin="anonymous" defer></script>
