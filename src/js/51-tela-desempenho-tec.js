@@ -740,6 +740,9 @@ const DesempenhoTecScreen = {
     rangePanel.style.display = this.scopeMode === 'range' ? 'block' : 'none';
     if (this.scopeMode === 'select') this.renderScopeSelectPanel(snaps);
     if (this.scopeMode === 'range') this.syncRangeInputs(snaps);
+    // com os filtros recolhidos, o cabecalho precisa dizer o que esta valendo
+    try { if (window.PainelRecolhivel) PainelRecolhivel.sincronizar('tec-escopo'); }
+    catch (e) { _quiet(e, 'resumo-escopo-tec'); }
     // meta (resumo do que está sendo analisado)
     const active = this.activeSnapshots();
     const meta = document.getElementById('tec-snap-meta');
@@ -912,6 +915,9 @@ const DesempenhoTecScreen = {
     const proj = document.getElementById('plano-proj');
     const lista = document.getElementById('plano-lista');
     if (!proj || !lista) return;
+    // com os ajustes recolhidos, o cabecalho mostra o que esta valendo
+    try { if (window.PainelRecolhivel) PainelRecolhivel.sincronizar('plano-filtros'); }
+    catch (e) { _quiet(e, 'resumo-plano'); }
     const num = (id, d) => { const e = document.getElementById(id); const n = parseFloat(e && e.value); return isNaN(n) ? d : n; };
     const val = (id, d) => { const e = document.getElementById(id); return (e && e.value) || d; };
     const bool = (id) => { const e = document.getElementById(id); return !!(e && e.checked); };
@@ -2177,6 +2183,30 @@ $id('tec-disc-filter').addEventListener('change', (e) => {
   });
 })();
 // --- Escopo da análise: consolidado / selecionar / intervalo ---
+/* Filtros de escopo recolhidos por padrao: o normal e querer ver o RESULTADO
+   da analise, nao os controles. O resumo no cabecalho evita que recolher vire
+   esconder — o escopo ativo continua legivel sem abrir. */
+PainelRecolhivel.registrar({
+  id: 'tec-escopo',
+  corpo: 'tec-scope-body',
+  botao: 'tec-scope-collapse',
+  texto: 'tec-scope-collapse-txt',
+  resumo: 'tec-scope-resumo',
+  calcResumo() {
+    const m = DesempenhoTecScreen.scopeMode;
+    if (m === 'select') {
+      const set = DesempenhoTecScreen.selectedSnapIds;
+      const n = set ? set.size : 0;
+      return n ? `${n} retrato(s) selecionado(s)` : 'Retratos selecionados';
+    }
+    if (m === 'range') {
+      const a = DesempenhoTecScreen.rangeStart, b = DesempenhoTecScreen.rangeEnd;
+      return (a && b) ? `${formatDateShort(a)} → ${formatDateShort(b)}` : 'Intervalo de datas';
+    }
+    return 'Consolidado (todos)';
+  },
+});
+
 $id('tec-scope-toggle').addEventListener('click', (e) => {
   const btn = e.target.closest('button[data-scope]');
   if (!btn) return;
@@ -2259,6 +2289,27 @@ $id('tec-weak-disc').addEventListener('change', (e) => {
     on(id, 'change', () => DT.renderPlanoConteudo());
     on(id, 'input', () => DT.renderPlanoConteudo());
   });
+  /* Ajustes do Plano recolhidos por padrao. O resumo traz os tres que mudam a
+     leitura da lista: a disciplina, a ordenacao e a meta de dominio. */
+  PainelRecolhivel.registrar({
+    id: 'plano-filtros',
+    corpo: 'plano-filtros-body',
+    botao: 'plano-filtros-collapse',
+    texto: 'plano-filtros-collapse-txt',
+    resumo: 'plano-filtros-resumo',
+    rotuloAberto: 'Ocultar ajustes',
+    rotuloFechado: 'Mostrar ajustes',
+    calcResumo() {
+      const sel = (id) => { const e = document.getElementById(id); return e && e.options && e.options[e.selectedIndex] ? e.options[e.selectedIndex].text : ''; };
+      const num = (id) => { const e = document.getElementById(id); return e && e.value ? e.value : ''; };
+      const disc = sel('plano-disc') || 'Todas';
+      // a ordenacao vem com emoji no rotulo; aqui so o texto interessa
+      const ord = (sel('plano-ordenar') || '').replace(/^[^\p{L}]+/u, '').split(' — ')[0];
+      const meta = num('plano-meta');
+      return [disc, ord, meta ? 'meta ' + meta + '%' : ''].filter(Boolean).join(' · ');
+    },
+  });
+
   on('plano-reset', 'click', async () => {
     if (!await UI.confirm('Voltar todos os ajustes do Plano aos valores padrão?', { title: 'Restaurar padrões' })) return;
     try { localStorage.removeItem(DB._profilePrefix() + PlanoEngine.KEY_PREF); } catch (_) { _quiet(_); }

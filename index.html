@@ -3964,6 +3964,19 @@ window.__idbBoot = (function () {
   #evo-tempo-periodo.range-active .evo-chip.active { background: var(--surface-sunken); color: var(--text-soft); border-color: var(--border); }
   /* [MELHORIAS Evolução] */
   .evo-scope-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+  /* Cabeçalho de um painel de filtros recolhível: rótulo à esquerda, resumo do
+     que está valendo no meio, ações e o botão de abrir/fechar à direita. */
+  .painel-head { display: flex; align-items: center; gap: 10px 14px; flex-wrap: wrap; }
+  .painel-head-acoes { margin-left: auto; }
+  .painel-resumo {
+    font-size: var(--fs-xs); font-weight: 700; color: var(--accent-text);
+    background: var(--accent-soft); border-radius: 20px; padding: 3px 11px;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%;
+  }
+  @media (max-width: 560px) {
+    .painel-head-acoes { margin-left: 0; width: 100%; }
+    .painel-resumo { max-width: 100%; }
+  }
   .evo-collapse-btn { display: inline-flex; align-items: center; gap: 6px; background: transparent; border: none; cursor: pointer; font-family: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif; font-size: var(--fs-xs); font-weight: 700; color: var(--text-soft); padding: 4px 6px; border-radius: 8px; }
   .evo-collapse-btn:hover { color: var(--accent); }
   .evo-collapse-btn .chev { transition: transform 0.18s ease; display: inline-block; font-size: var(--fs-3xs); }
@@ -7521,16 +7534,15 @@ window.__idbBoot = (function () {
       <!-- Barra superior: ESCOPO da análise (consolidado / seleção / intervalo) + ações -->
       <div class="card">
         <div style="padding: 16px 24px;">
-          <div style="display:flex; align-items:center; justify-content:space-between; gap:14px; flex-wrap:wrap; margin-bottom:8px;">
-            <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
-              <span class="section-label" style="margin:0;">Escopo da análise</span>
-              <div class="scope-toggle" id="tec-scope-toggle">
-                <button type="button" data-scope="consolidado" class="active">Consolidado (todos)</button>
-                <button type="button" data-scope="select">Selecionar retratos</button>
-                <button type="button" data-scope="range">Intervalo de datas</button>
-              </div>
-            </div>
-            <div class="grade-head-actions">
+          <!-- CABEÇALHO — sempre visível. Só o essencial: o que está valendo,
+               as ações primárias e o botão que abre os filtros. Os controles de
+               escopo (Consolidado / Selecionar retratos / Intervalo) moraram
+               aqui abertos o tempo todo, ocupando o topo da tela para esperar
+               um clique raro. Agora ficam no corpo recolhível abaixo. -->
+          <div class="painel-head">
+            <span class="section-label" style="margin:0;">Escopo da análise</span>
+            <span class="painel-resumo" id="tec-scope-resumo" hidden></span>
+            <div class="grade-head-actions painel-head-acoes">
               <div class="grade-gear-wrap">
                 <button class="btn-secondary grade-gear-btn" id="tec-gear-btn" type="button" title="Opções de exibição" aria-haspopup="true" aria-expanded="false">⚙ Exibição</button>
                 <div class="grade-gear-menu" id="tec-gear-menu" role="menu" aria-hidden="true">
@@ -7539,9 +7551,18 @@ window.__idbBoot = (function () {
                 </div>
               </div>
               <button class="btn-primary" id="tec-btn-new-import" type="button">+ Nova importação</button>
+              <button type="button" class="evo-collapse-btn" id="tec-scope-collapse" aria-expanded="false" title="Mostrar ou ocultar os filtros de escopo">
+                <span id="tec-scope-collapse-txt">Mostrar filtros</span><span class="chev">&#9662;</span>
+              </button>
             </div>
           </div>
-          <span class="hint" id="tec-snap-meta"></span>
+          <div id="tec-scope-body" hidden>
+            <div class="scope-toggle" id="tec-scope-toggle" style="margin-top:12px;">
+              <button type="button" data-scope="consolidado" class="active">Consolidado (todos)</button>
+              <button type="button" data-scope="select">Selecionar retratos</button>
+              <button type="button" data-scope="range">Intervalo de datas</button>
+            </div>
+            <span class="hint" id="tec-snap-meta"></span>
           <!-- Painel: seleção de retratos específicos (aparece no modo "Selecionar") -->
           <div id="tec-scope-select" style="display:none; margin-top:12px;"></div>
           <!-- Painel: intervalo de datas (aparece no modo "Intervalo") -->
@@ -7564,6 +7585,7 @@ window.__idbBoot = (function () {
             </div>
             <p class="hint" id="tec-range-hint" style="margin-top:8px;">Inclui todo retrato cujo período se sobrepõe ao intervalo escolhido.</p>
           </div>
+          </div><!-- /#tec-scope-body -->
         </div>
       </div>
 
@@ -7764,9 +7786,25 @@ window.__idbBoot = (function () {
               <h2>🏁 Plano de pontos fracos</h2>
               <p class="sub">Baseado só no seu desempenho no TEC. Mede o quanto você já domina do que estuda e mostra por onde atacar para fechar a lacuna resolvendo o menor número de questões.</p>
             </div>
+            <!-- Sete campos ficavam abertos aqui o tempo todo, mais dezesseis
+                 avançados logo abaixo — a tela abria em configuração, não em
+                 resultado. Agora tudo isso mora num painel recolhido, e o que
+                 está valendo aparece resumido ao lado do título. -->
+            <div class="painel-head-acoes" style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+              <span class="painel-resumo" id="plano-filtros-resumo" hidden></span>
+              <button type="button" class="evo-collapse-btn" id="plano-filtros-collapse" aria-expanded="false" title="Mostrar ou ocultar os ajustes do plano">
+                <span id="plano-filtros-collapse-txt">Mostrar ajustes</span><span class="chev">&#9662;</span>
+              </button>
+            </div>
           </div>
           <div style="padding: 4px 28px 20px;">
-            <div class="rfc-toolbar tec-cfg" style="margin-bottom:4px;">
+            <div id="plano-filtros-body" hidden>
+            <!-- Sem a classe `tec-cfg` de proposito: esta barra agora vive dentro
+                 de #plano-filtros-body, que ja a esconde e mostra. Com as duas
+                 coisas juntas, "Ocultar filtros" do menu Exibicao a deixava com
+                 display:none !important — e abrir "Mostrar ajustes" revelava um
+                 painel pela metade, só com os avançados. -->
+            <div class="rfc-toolbar" style="margin-bottom:4px;">
               <div class="rfc-field wide">
                 <label for="plano-disc">Disciplina</label>
                 <select id="plano-disc"><option value="__todas__">📚 Todas</option></select>
@@ -7891,6 +7929,7 @@ window.__idbBoot = (function () {
                 <button type="button" class="btn-secondary" id="plano-reset">↺ Restaurar padrões</button>
               </div>
             </div>
+            </div><!-- /#plano-filtros-body -->
 
             <div id="plano-proj"></div>
             <div id="plano-lista"></div>
@@ -12548,6 +12587,83 @@ $id('tabs').addEventListener('click', (e) => {
   if (!btn) return;
   switchScreen(btn.dataset.screen);
 });
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   PAINEL RECOLHÍVEL — filtros que ficam fora do caminho
+   ───────────────────────────────────────────────────────────────────────────
+   Três telas tinham a mesma barra de filtros ocupando o topo o tempo todo para
+   esperar um clique raro. A Evolução já resolvia isso com um botão "Ocultar
+   filtros" próprio; em vez de copiar aquele código mais duas vezes, ele vira
+   uma peça só.
+
+   Duas decisões que valem explicação:
+
+   · RECOLHIDO POR PADRÃO. Um filtro é a exceção, não a rotina — o normal é
+     querer ver o RESULTADO. Quem prefere o contrário expande uma vez e o
+     estado fica salvo por perfil.
+   · RESUMO NO CABEÇALHO. Recolher filtros sem dizer qual está valendo esconde
+     informação, não ruído. Com o painel fechado, o cabeçalho mostra o escopo
+     ativo ("Consolidado (todos)"), então dá para conferir sem abrir.
+   ═══════════════════════════════════════════════════════════════════════════ */
+const PainelRecolhivel = {
+  _registro: Object.create(null),
+  _chave(id) {
+    try { return DB._profilePrefix() + 'painel:' + id; }
+    catch (_) { return 'diario-estudos:painel:' + id; }
+  },
+  /* cfg = { id, corpo, botao, texto, resumo?, rotuloAberto?, rotuloFechado?,
+             padraoRecolhido?, calcResumo? } — tudo por ID de elemento. */
+  registrar(cfg) {
+    const botao = document.getElementById(cfg.botao);
+    if (!botao) return;                      // tela ausente: nada a fazer
+    this._registro[cfg.id] = cfg;
+    botao.addEventListener('click', () => {
+      const aberto = botao.getAttribute('aria-expanded') === 'true';
+      this.aplicar(cfg.id, aberto, true);    // aberto -> recolhe
+    });
+    let recolhido = cfg.padraoRecolhido !== false;
+    try {
+      const g = localStorage.getItem(this._chave(cfg.id));
+      if (g !== null) recolhido = (g === '1');
+    } catch (e) { _quiet(e, 'painel-ler'); }
+    this.aplicar(cfg.id, recolhido, false);
+  },
+  aplicar(id, recolhido, persistir) {
+    const cfg = this._registro[id]; if (!cfg) return;
+    const corpo = document.getElementById(cfg.corpo);
+    const botao = document.getElementById(cfg.botao);
+    const texto = cfg.texto ? document.getElementById(cfg.texto) : null;
+    if (!corpo || !botao) return;
+    corpo.hidden = !!recolhido;
+    botao.setAttribute('aria-expanded', recolhido ? 'false' : 'true');
+    if (texto) texto.textContent = recolhido
+      ? (cfg.rotuloFechado || 'Mostrar filtros')
+      : (cfg.rotuloAberto || 'Ocultar filtros');
+    this.atualizarResumo(id);
+    if (persistir) {
+      try { localStorage.setItem(this._chave(id), recolhido ? '1' : '0'); }
+      catch (e) { _quiet(e, 'painel-gravar'); }
+    }
+  },
+  /* O resumo só aparece com o painel FECHADO: aberto, ele repetiria o que já
+     está à vista logo abaixo. */
+  atualizarResumo(id) {
+    const cfg = this._registro[id]; if (!cfg || !cfg.resumo) return;
+    const el = document.getElementById(cfg.resumo);
+    const botao = document.getElementById(cfg.botao);
+    if (!el || !botao) return;
+    const recolhido = botao.getAttribute('aria-expanded') !== 'true';
+    let txt = '';
+    if (recolhido && typeof cfg.calcResumo === 'function') {
+      try { txt = cfg.calcResumo() || ''; } catch (e) { _quiet(e, 'painel-resumo'); }
+    }
+    el.textContent = txt;
+    el.hidden = !txt;
+  },
+  /* Chamado pelas telas quando o filtro muda, para o resumo não mentir. */
+  sincronizar(id) { this.atualizarResumo(id); },
+};
+window.PainelRecolhivel = PainelRecolhivel;
 
 /* ============================================================
    TOAST util (compartilhado)
@@ -26691,6 +26807,9 @@ const DesempenhoTecScreen = {
     rangePanel.style.display = this.scopeMode === 'range' ? 'block' : 'none';
     if (this.scopeMode === 'select') this.renderScopeSelectPanel(snaps);
     if (this.scopeMode === 'range') this.syncRangeInputs(snaps);
+    // com os filtros recolhidos, o cabecalho precisa dizer o que esta valendo
+    try { if (window.PainelRecolhivel) PainelRecolhivel.sincronizar('tec-escopo'); }
+    catch (e) { _quiet(e, 'resumo-escopo-tec'); }
     // meta (resumo do que está sendo analisado)
     const active = this.activeSnapshots();
     const meta = document.getElementById('tec-snap-meta');
@@ -26863,6 +26982,9 @@ const DesempenhoTecScreen = {
     const proj = document.getElementById('plano-proj');
     const lista = document.getElementById('plano-lista');
     if (!proj || !lista) return;
+    // com os ajustes recolhidos, o cabecalho mostra o que esta valendo
+    try { if (window.PainelRecolhivel) PainelRecolhivel.sincronizar('plano-filtros'); }
+    catch (e) { _quiet(e, 'resumo-plano'); }
     const num = (id, d) => { const e = document.getElementById(id); const n = parseFloat(e && e.value); return isNaN(n) ? d : n; };
     const val = (id, d) => { const e = document.getElementById(id); return (e && e.value) || d; };
     const bool = (id) => { const e = document.getElementById(id); return !!(e && e.checked); };
@@ -28128,6 +28250,30 @@ $id('tec-disc-filter').addEventListener('change', (e) => {
   });
 })();
 // --- Escopo da análise: consolidado / selecionar / intervalo ---
+/* Filtros de escopo recolhidos por padrao: o normal e querer ver o RESULTADO
+   da analise, nao os controles. O resumo no cabecalho evita que recolher vire
+   esconder — o escopo ativo continua legivel sem abrir. */
+PainelRecolhivel.registrar({
+  id: 'tec-escopo',
+  corpo: 'tec-scope-body',
+  botao: 'tec-scope-collapse',
+  texto: 'tec-scope-collapse-txt',
+  resumo: 'tec-scope-resumo',
+  calcResumo() {
+    const m = DesempenhoTecScreen.scopeMode;
+    if (m === 'select') {
+      const set = DesempenhoTecScreen.selectedSnapIds;
+      const n = set ? set.size : 0;
+      return n ? `${n} retrato(s) selecionado(s)` : 'Retratos selecionados';
+    }
+    if (m === 'range') {
+      const a = DesempenhoTecScreen.rangeStart, b = DesempenhoTecScreen.rangeEnd;
+      return (a && b) ? `${formatDateShort(a)} → ${formatDateShort(b)}` : 'Intervalo de datas';
+    }
+    return 'Consolidado (todos)';
+  },
+});
+
 $id('tec-scope-toggle').addEventListener('click', (e) => {
   const btn = e.target.closest('button[data-scope]');
   if (!btn) return;
@@ -28210,6 +28356,27 @@ $id('tec-weak-disc').addEventListener('change', (e) => {
     on(id, 'change', () => DT.renderPlanoConteudo());
     on(id, 'input', () => DT.renderPlanoConteudo());
   });
+  /* Ajustes do Plano recolhidos por padrao. O resumo traz os tres que mudam a
+     leitura da lista: a disciplina, a ordenacao e a meta de dominio. */
+  PainelRecolhivel.registrar({
+    id: 'plano-filtros',
+    corpo: 'plano-filtros-body',
+    botao: 'plano-filtros-collapse',
+    texto: 'plano-filtros-collapse-txt',
+    resumo: 'plano-filtros-resumo',
+    rotuloAberto: 'Ocultar ajustes',
+    rotuloFechado: 'Mostrar ajustes',
+    calcResumo() {
+      const sel = (id) => { const e = document.getElementById(id); return e && e.options && e.options[e.selectedIndex] ? e.options[e.selectedIndex].text : ''; };
+      const num = (id) => { const e = document.getElementById(id); return e && e.value ? e.value : ''; };
+      const disc = sel('plano-disc') || 'Todas';
+      // a ordenacao vem com emoji no rotulo; aqui so o texto interessa
+      const ord = (sel('plano-ordenar') || '').replace(/^[^\p{L}]+/u, '').split(' — ')[0];
+      const meta = num('plano-meta');
+      return [disc, ord, meta ? 'meta ' + meta + '%' : ''].filter(Boolean).join(' · ');
+    },
+  });
+
   on('plano-reset', 'click', async () => {
     if (!await UI.confirm('Voltar todos os ajustes do Plano aos valores padrão?', { title: 'Restaurar padrões' })) return;
     try { localStorage.removeItem(DB._profilePrefix() + PlanoEngine.KEY_PREF); } catch (_) { _quiet(_); }

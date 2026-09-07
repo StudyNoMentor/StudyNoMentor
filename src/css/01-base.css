@@ -3852,6 +3852,19 @@
   #evo-tempo-periodo.range-active .evo-chip.active { background: var(--surface-sunken); color: var(--text-soft); border-color: var(--border); }
   /* [MELHORIAS Evolução] */
   .evo-scope-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+  /* Cabeçalho de um painel de filtros recolhível: rótulo à esquerda, resumo do
+     que está valendo no meio, ações e o botão de abrir/fechar à direita. */
+  .painel-head { display: flex; align-items: center; gap: 10px 14px; flex-wrap: wrap; }
+  .painel-head-acoes { margin-left: auto; }
+  .painel-resumo {
+    font-size: var(--fs-xs); font-weight: 700; color: var(--accent-text);
+    background: var(--accent-soft); border-radius: 20px; padding: 3px 11px;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%;
+  }
+  @media (max-width: 560px) {
+    .painel-head-acoes { margin-left: 0; width: 100%; }
+    .painel-resumo { max-width: 100%; }
+  }
   .evo-collapse-btn { display: inline-flex; align-items: center; gap: 6px; background: transparent; border: none; cursor: pointer; font-family: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif; font-size: var(--fs-xs); font-weight: 700; color: var(--text-soft); padding: 4px 6px; border-radius: 8px; }
   .evo-collapse-btn:hover { color: var(--accent); }
   .evo-collapse-btn .chev { transition: transform 0.18s ease; display: inline-block; font-size: var(--fs-3xs); }

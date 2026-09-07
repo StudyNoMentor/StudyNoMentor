@@ -380,16 +380,15 @@
       <!-- Barra superior: ESCOPO da análise (consolidado / seleção / intervalo) + ações -->
       <div class="card">
         <div style="padding: 16px 24px;">
-          <div style="display:flex; align-items:center; justify-content:space-between; gap:14px; flex-wrap:wrap; margin-bottom:8px;">
-            <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
-              <span class="section-label" style="margin:0;">Escopo da análise</span>
-              <div class="scope-toggle" id="tec-scope-toggle">
-                <button type="button" data-scope="consolidado" class="active">Consolidado (todos)</button>
-                <button type="button" data-scope="select">Selecionar retratos</button>
-                <button type="button" data-scope="range">Intervalo de datas</button>
-              </div>
-            </div>
-            <div class="grade-head-actions">
+          <!-- CABEÇALHO — sempre visível. Só o essencial: o que está valendo,
+               as ações primárias e o botão que abre os filtros. Os controles de
+               escopo (Consolidado / Selecionar retratos / Intervalo) moraram
+               aqui abertos o tempo todo, ocupando o topo da tela para esperar
+               um clique raro. Agora ficam no corpo recolhível abaixo. -->
+          <div class="painel-head">
+            <span class="section-label" style="margin:0;">Escopo da análise</span>
+            <span class="painel-resumo" id="tec-scope-resumo" hidden></span>
+            <div class="grade-head-actions painel-head-acoes">
               <div class="grade-gear-wrap">
                 <button class="btn-secondary grade-gear-btn" id="tec-gear-btn" type="button" title="Opções de exibição" aria-haspopup="true" aria-expanded="false">⚙ Exibição</button>
                 <div class="grade-gear-menu" id="tec-gear-menu" role="menu" aria-hidden="true">
@@ -398,9 +397,18 @@
                 </div>
               </div>
               <button class="btn-primary" id="tec-btn-new-import" type="button">+ Nova importação</button>
+              <button type="button" class="evo-collapse-btn" id="tec-scope-collapse" aria-expanded="false" title="Mostrar ou ocultar os filtros de escopo">
+                <span id="tec-scope-collapse-txt">Mostrar filtros</span><span class="chev">&#9662;</span>
+              </button>
             </div>
           </div>
-          <span class="hint" id="tec-snap-meta"></span>
+          <div id="tec-scope-body" hidden>
+            <div class="scope-toggle" id="tec-scope-toggle" style="margin-top:12px;">
+              <button type="button" data-scope="consolidado" class="active">Consolidado (todos)</button>
+              <button type="button" data-scope="select">Selecionar retratos</button>
+              <button type="button" data-scope="range">Intervalo de datas</button>
+            </div>
+            <span class="hint" id="tec-snap-meta"></span>
           <!-- Painel: seleção de retratos específicos (aparece no modo "Selecionar") -->
           <div id="tec-scope-select" style="display:none; margin-top:12px;"></div>
           <!-- Painel: intervalo de datas (aparece no modo "Intervalo") -->
@@ -423,6 +431,7 @@
             </div>
             <p class="hint" id="tec-range-hint" style="margin-top:8px;">Inclui todo retrato cujo período se sobrepõe ao intervalo escolhido.</p>
           </div>
+          </div><!-- /#tec-scope-body -->
         </div>
       </div>
 
@@ -623,9 +632,25 @@
               <h2>🏁 Plano de pontos fracos</h2>
               <p class="sub">Baseado só no seu desempenho no TEC. Mede o quanto você já domina do que estuda e mostra por onde atacar para fechar a lacuna resolvendo o menor número de questões.</p>
             </div>
+            <!-- Sete campos ficavam abertos aqui o tempo todo, mais dezesseis
+                 avançados logo abaixo — a tela abria em configuração, não em
+                 resultado. Agora tudo isso mora num painel recolhido, e o que
+                 está valendo aparece resumido ao lado do título. -->
+            <div class="painel-head-acoes" style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+              <span class="painel-resumo" id="plano-filtros-resumo" hidden></span>
+              <button type="button" class="evo-collapse-btn" id="plano-filtros-collapse" aria-expanded="false" title="Mostrar ou ocultar os ajustes do plano">
+                <span id="plano-filtros-collapse-txt">Mostrar ajustes</span><span class="chev">&#9662;</span>
+              </button>
+            </div>
           </div>
           <div style="padding: 4px 28px 20px;">
-            <div class="rfc-toolbar tec-cfg" style="margin-bottom:4px;">
+            <div id="plano-filtros-body" hidden>
+            <!-- Sem a classe `tec-cfg` de proposito: esta barra agora vive dentro
+                 de #plano-filtros-body, que ja a esconde e mostra. Com as duas
+                 coisas juntas, "Ocultar filtros" do menu Exibicao a deixava com
+                 display:none !important — e abrir "Mostrar ajustes" revelava um
+                 painel pela metade, só com os avançados. -->
+            <div class="rfc-toolbar" style="margin-bottom:4px;">
               <div class="rfc-field wide">
                 <label for="plano-disc">Disciplina</label>
                 <select id="plano-disc"><option value="__todas__">📚 Todas</option></select>
@@ -750,6 +775,7 @@
                 <button type="button" class="btn-secondary" id="plano-reset">↺ Restaurar padrões</button>
               </div>
             </div>
+            </div><!-- /#plano-filtros-body -->
 
             <div id="plano-proj"></div>
             <div id="plano-lista"></div>
