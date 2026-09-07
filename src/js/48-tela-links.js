@@ -16,7 +16,11 @@ const LinksScreen = {
   hostname(url) { try { return new URL(url).hostname.replace(/^www\./, ''); } catch (e) { return url || ''; } },
   logoHtml(l) {
     if (l.logo) return `<div class="link-card-logo"><img src="${l.logo}" alt="${escapeHtml(l.nome)}"></div>`;
-    return `<div class="link-card-logo mono" style="background:${l.cor}">${escapeHtml(this.monogram(l.nome))}</div>`;
+    /* A cor da marca vai como --marca e o CSS a ESCURECE 30% para desenhar o
+       fundo. Aplicada crua, o monograma branco ficava em 2,5:1 sobre o verde e
+       2,6:1 sobre o azul-claro — abaixo do minimo 4,5:1 do WCAG AA. Escurecida,
+       o menor caso sobe para 4,8:1 e a marca continua reconhecivel. */
+    return `<div class="link-card-logo mono" style="--marca:${l.cor}">${escapeHtml(this.monogram(l.nome))}</div>`;
   },
   renderGrid() {
     const grid = document.getElementById('links-grid');

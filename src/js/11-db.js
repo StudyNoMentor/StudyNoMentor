@@ -67,16 +67,21 @@ const DB = {
   DEFAULT_MODES: ['Resumo + Mapa', 'Passo Estratégico', 'Teoria'],
   // Status das aulas na trilha de Estudo Novo. "done" marca quais contam como concluída no progresso.
   DEFAULT_STATUSES: [
-    { nome: 'ESTUDAR', color: '#e0393f', bg: '#fdecee', done: false },
-    { nome: 'ESTUDANDO', color: '#d97a12', bg: '#fdf1e2', done: false },
-    { nome: 'CONCLUÍDO', color: '#0f9d63', bg: '#e5f7ee', done: true }
+    /* Tons de TEXTO, nao os de preenchimento: sobre o proprio fundo suave, o
+       #e0393f dava 3,81:1, o #d97a12 dava 2,80:1 e o #0f9d63 dava 3,13:1 — os
+       tres abaixo do minimo 4,5:1 do WCAG AA. Os tons abaixo ficam entre 5,2:1
+       e 6,0:1, com a mesma leitura de cor (vermelho / laranja / verde).
+       Vale so para perfis NOVOS: quem ja escolheu suas cores mantem as dele. */
+    { nome: 'ESTUDAR', color: '#b3282e', bg: '#fdecee', done: false },
+    { nome: 'ESTUDANDO', color: '#9a5200', bg: '#fdf1e2', done: false },
+    { nome: 'CONCLUÍDO', color: '#0a6b44', bg: '#e5f7ee', done: true }
   ],
   // Paleta de cores oferecida ao personalizar um status (cor forte + tinta clara de fundo)
   STATUS_PALETTE: [
-    { color: '#e0393f', bg: '#fdecee' },
-    { color: '#d97a12', bg: '#fdf1e2' },
+    { color: '#b3282e', bg: '#fdecee' },
+    { color: '#9a5200', bg: '#fdf1e2' },
     { color: '#c9a20a', bg: '#fbf6df' },
-    { color: '#0f9d63', bg: '#e5f7ee' },
+    { color: '#0a6b44', bg: '#e5f7ee' },
     { color: '#0a95a8', bg: '#e2f6f8' },
     { color: '#4f46e5', bg: '#eef0fd' },
     { color: '#b3308a', bg: '#fbe8f4' },

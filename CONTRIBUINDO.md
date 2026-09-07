@@ -69,6 +69,7 @@ correspondente (o `src/manifesto.json` diz qual faixa de linhas veio de onde).
 | 4 | id duplicado, tag estrutural desbalanceada, CSP íntegra, trava anti-moldura presente | não |
 | 5 | o app carrega no Chromium sem **um único** erro de console | sim |
 | 6 | as 14 telas navegam, `AutoTeste` passa 100%, o botão "Opções" da Grade não vaza do cabeçalho | sim |
+| 7 | nenhum texto abaixo do contraste WCAG AA — nos temas claro **e** escuro | sim |
 
 `node verificar.mjs --rapido` roda só 1–4 (segundos, sem navegador).
 A CI (`.github/workflows/verificar.yml`) roda tudo em cada push e PR.
@@ -143,6 +144,30 @@ Os pontos onde o código dá um passo além da fórmula (pisos entre os botões,
 `fuzz_factor` único por resposta, tetos dinâmicos do otimizador) estão comentados
 no lugar com o arquivo de origem. **Não remova esses comentários** — eles são o
 que permite reconferir a paridade sem reler o Rust inteiro.
+
+## Cor e contraste
+
+O tema escuro **inverte tokens**, então um par de cores aprovado no claro pode
+reprovar no escuro sem ninguém notar. Foi assim que o aviso flutuante ficou
+branco sobre fundo claro (1,21:1 — ilegível) e o botão primário do app inteiro
+ficou em 3,62:1. A checagem 7 mede os dois temas em todas as telas e reprova
+abaixo do WCAG AA.
+
+Três tokens existem justamente para isso — use o certo:
+
+| token | para quê |
+|---|---|
+| `--accent` | preenchimento (fundo de botão, barra de progresso, pontinho) |
+| `--accent-text` | o accent usado como **texto** sobre fundo claro/suave |
+| `--on-accent` | a **tinta em cima** de um preenchimento de accent |
+
+O mesmo padrão vale para `--bad`/`--bad-text`, `--warn`/`--warn-text`,
+`--good`/`--good-text`. **Cor de preenchimento nunca vira cor de texto**: no
+tema claro elas são vivas demais (o `--warn` sobre fundo rebaixado dava 2,96:1).
+
+Cor escolhida pelo usuário (paleta de links, cores de status) não dá para
+garantir por token — aí o CSS escurece o fundo (`color-mix(... 70%, #000)`) para
+a tinta branca passar no pior caso da paleta.
 
 ## Regras que não se negociam
 

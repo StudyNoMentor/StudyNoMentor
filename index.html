@@ -114,7 +114,7 @@ window.__idbBoot = (function () {
      Permite pular a barra lateral e ir direto ao conteúdo — WCAG 2.4.1. */
   .skip-link {
     position: fixed; top: -60px; left: 12px; z-index: 100000;
-    background: var(--accent, #4f46e5); color: #fff; padding: 10px 16px;
+    background: var(--accent, #4f46e5); color: var(--on-accent); padding: 10px 16px;
     border-radius: 0 0 10px 10px; font-weight: 700; font-size: 14px; text-decoration: none;
     transition: top .15s ease;
   }
@@ -188,6 +188,13 @@ window.__idbBoot = (function () {
     --info-text: #1d4ed8;
     --info-soft: #eaf1fe;
     --accent-text: #3f37c9;   /* accent como TEXTO precisa ser mais escuro */
+    /* Tinta que fica EM CIMA de um preenchimento de accent (botão primário,
+       chip ativo, skip link). No tema claro o accent é escuro, então a tinta é
+       branca — exatamente o que estava escrito à mão em 14 regras. No tema
+       escuro o accent é lavanda CLARO, e branco sobre ele dava 3,62:1, abaixo
+       do mínimo 4,5:1 do WCAG AA — inclusive no botão primário do app inteiro
+       e no próprio link de pular para o conteúdo. Lá a tinta vira quase preta. */
+    --on-accent: #ffffff;
     --bad-soft: #fdecee;
 
 
@@ -245,7 +252,10 @@ window.__idbBoot = (function () {
 
     --accent: #7c74ff;
     --accent-hover: #938cff;
-    --accent-soft: #22243a;
+    /* Escurecido de #22243a: o rótulo da aba ativa (--accent #7c74ff sobre este
+       fundo) ficava em 4,20:1, logo abaixo do 4,5:1 exigido. Com #1b1d2e sobe
+       para 4,59:1 sem mexer em nenhuma cor de texto. */
+    --accent-soft: #1b1d2e;
     --accent-ring: rgba(124,116,255,0.24);
 
     --good: #34d399;
@@ -260,6 +270,7 @@ window.__idbBoot = (function () {
     --info-text: #6ea8fe;   /* 7.1:1 no escuro — o antigo #2563eb dava 3.3:1 */
     --info-soft: #1b2436;
     --accent-text: #a99dff;
+    --on-accent: #12141a;   /* 5,1:1 sobre #7c74ff — branco dava 3,6:1 */
     --bad-soft: #2a1618;
 
     --shadow-sm: 0 1px 2px rgba(0,0,0,0.30);
@@ -505,9 +516,9 @@ window.__idbBoot = (function () {
     background: transparent; border: none; border-radius: 8px; padding: 7px 12px;
     font-size: var(--fs-xs); font-weight: 700; color: var(--text-soft); cursor: pointer; white-space: nowrap;
   }
-  .scope-toggle button.active { background: var(--accent); color: #fff; box-shadow: var(--shadow-sm); }
+  .scope-toggle button.active { background: var(--accent); color: var(--on-accent); box-shadow: var(--shadow-sm); }
   /* Atalho de período ativo na Evolução */
-  .btn-secondary.is-active { background: var(--accent); color: #fff; border-color: var(--accent); }
+  .btn-secondary.is-active { background: var(--accent); color: var(--on-accent); border-color: var(--accent); }
   .btn-secondary.is-active:hover { background: var(--accent-hover); color: #fff; border-color: var(--accent-hover); }
   .plan-tag-badge {
     font-size: var(--fs-3xs); font-weight: 700; padding: 3px 9px; border-radius: 12px;
@@ -958,7 +969,7 @@ window.__idbBoot = (function () {
   .btn-primary {
     font-weight: 700;
     font-size: var(--fs-md);
-    color: #fff;
+    color: var(--on-accent);
     background: var(--accent);
     border-radius: 12px;
     padding: 11px 22px;
@@ -998,7 +1009,12 @@ window.__idbBoot = (function () {
     left: 50%;
     transform: translateX(-50%) translateY(16px);
     background: var(--text);
-    color: #fff;
+    /* O fundo é var(--text), que INVERTE com o tema. A tinta tinha de inverter
+       junto e não invertia: no tema escuro dava branco sobre #e8eaed — 1,21:1,
+       ou seja, o aviso ficava ilegível justamente para quem usa o modo escuro.
+       var(--surface) é o par natural: #fff no claro (idêntico ao que era) e
+       #181b21 no escuro (14,3:1). */
+    color: var(--surface);
     font-size: var(--fs-sm);
     font-weight: 500;
     padding: 11px 18px;
@@ -1375,7 +1391,7 @@ window.__idbBoot = (function () {
   .exx-dayhead { display: flex; align-items: center; justify-content: space-between; gap: 12px 16px; flex-wrap: wrap; padding: 14px 16px; background: var(--surface-sunken); border: 1px solid var(--border); border-radius: 14px; margin-bottom: 4px; }
   .exx-dayhead .dh-l { min-width: 0; }
   .exx-dayhead .dh-title { font-family: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif; font-size: var(--fs-lg); font-weight: 800; color: var(--text); text-transform: capitalize; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
-  .exx-dayhead .dh-title .hoje { font-size: var(--fs-3xs); font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; color: #fff; background: var(--accent); padding: 2px 9px; border-radius: 20px; }
+  .exx-dayhead .dh-title .hoje { font-size: var(--fs-3xs); font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; color: var(--on-accent); background: var(--accent); padding: 2px 9px; border-radius: 20px; }
   .exx-dayhead .dh-sub { font-size: var(--fs-xs); color: var(--text-faint); margin-top: 4px; }
   .exx-dayhead .dh-r { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
   .exx-metric { display: flex; flex-direction: column; align-items: flex-end; background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 7px 13px; box-shadow: var(--shadow-sm); }
@@ -1670,7 +1686,7 @@ window.__idbBoot = (function () {
     font-weight: 700; color: var(--text-soft); cursor: pointer; transition: all 0.13s ease; text-transform: uppercase; letter-spacing: 0.02em;
   }
   .csp-chip:hover { border-color: var(--border-strong); color: var(--text); }
-  .csp-chip.active { background: var(--accent); border-color: var(--accent); color: #fff; }
+  .csp-chip.active { background: var(--accent); border-color: var(--accent); color: var(--on-accent); }
 
   .subject-progress-item {
     display: block;
@@ -3088,7 +3104,7 @@ window.__idbBoot = (function () {
   }
 
   #tec-analysis.hide-cfg .tec-cfg { display: none !important; }
-  #tec-toggle-cfg.is-active { background: var(--accent); color: #fff; border-color: var(--accent); }
+  #tec-toggle-cfg.is-active { background: var(--accent); color: var(--on-accent); border-color: var(--accent); }
   #tec-toggle-cfg.is-active:hover { background: var(--accent-hover); color: #fff; }
   .tec-filterbar {
     display: grid !important;
@@ -3238,7 +3254,7 @@ window.__idbBoot = (function () {
   .reforco-tag.tone-warn { color: var(--warn-text); background: var(--warn-soft); }
   .reforco-tag.tone-bad { color: var(--bad-text); background: var(--bad-soft); }
   .reforco-tag.incid { color: var(--accent); background: var(--accent-soft); }
-  .reforco-tag.pts { color: #fff; background: var(--accent); }
+  .reforco-tag.pts { color: var(--on-accent); background: var(--accent); }
   /* Reforço por disciplina (acordeão) */
   .rfd-card { border: 1px solid var(--border); border-radius: 12px; margin-bottom: 10px; overflow: hidden; background: var(--surface); }
   .rfd-head { display: grid; grid-template-columns: 16px 1fr auto; align-items: center; gap: 12px; padding: 12px 14px; cursor: pointer; }
@@ -3879,7 +3895,7 @@ window.__idbBoot = (function () {
   .evo-sf-toggle:hover { border-color: var(--accent); color: var(--accent); }
   .evo-sf-toggle .chev { transition: transform 0.18s ease; font-size: var(--fs-3xs); }
   .evo-sf-toggle.open .chev { transform: rotate(180deg); }
-  .evo-sf-count { background: var(--accent); color: #fff; font-size: var(--fs-3xs); font-weight: 800; border-radius: 10px; padding: 1px 7px; }
+  .evo-sf-count { background: var(--accent); color: var(--on-accent); font-size: var(--fs-3xs); font-weight: 800; border-radius: 10px; padding: 1px 7px; }
   .evo-sf-panel { margin-top: 10px; border: 1.5px solid var(--border); border-radius: 12px; background: var(--surface); padding: 8px; display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 4px; }
   .evo-sf-check { display: flex; align-items: center; gap: 8px; padding: 7px 9px; border-radius: 9px; cursor: pointer; font-family: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif; font-size: var(--fs-xs); color: var(--text); }
   .evo-sf-check:hover { background: var(--surface-sunken); }
@@ -3891,7 +3907,9 @@ window.__idbBoot = (function () {
   .evo-sf-actions button:hover { border-color: var(--accent); color: var(--accent); }
   .badge { cursor: pointer; }
   .badge:hover { border-color: var(--accent); box-shadow: var(--shadow-sm); }
-  .badge .bmore { font-size: calc(9.5px * var(--fs-scale,1)); color: var(--accent); font-weight: 700; margin-top: 6px; opacity: 0.9; }
+  /* --accent-text (e nao --accent) porque aqui ele e TEXTO sobre o fundo tingido
+     da medalha: com --accent dava 4,49:1, um centesimo abaixo do AA. */
+  .badge .bmore { font-size: calc(9.5px * var(--fs-scale,1)); color: var(--accent-text); font-weight: 700; margin-top: 6px; opacity: 1; }
   .niv-overlay { position: fixed; inset: 0; background: rgba(15,18,25,0.55); z-index: 3000; display: flex; align-items: center; justify-content: center; padding: 18px; }
   .niv-modal { background: var(--surface); border-radius: 18px; box-shadow: var(--shadow-lg); max-width: 420px; width: 100%; max-height: 84vh; overflow-y: auto; padding: 22px; }
   .niv-head { display: flex; align-items: center; gap: 12px; margin-bottom: 6px; }
@@ -3909,7 +3927,7 @@ window.__idbBoot = (function () {
   .niv-rot { font-family: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif; font-size: var(--fs-sm); font-weight: 700; color: var(--text); }
   .niv-req { font-family: 'Space Mono', ui-monospace, SFMono-Regular, Menlo, monospace; font-size: var(--fs-2xs); color: var(--text-faint); margin-top: 1px; }
   .niv-item.next .niv-req { color: var(--accent); font-weight: 700; }
-  .niv-close { margin-top: 18px; width: 100%; padding: 11px; border-radius: 11px; border: none; background: var(--accent); color: #fff; font-weight: 800; font-size: var(--fs-sm); cursor: pointer; }
+  .niv-close { margin-top: 18px; width: 100%; padding: 11px; border-radius: 11px; border: none; background: var(--accent); color: var(--on-accent); font-weight: 800; font-size: var(--fs-sm); cursor: pointer; }
   .niv-foot { font-size: var(--fs-2xs); color: var(--text-faint); margin: 14px 0 0; text-align: center; }
   .evo-chip {
     background: var(--surface-sunken); border: 1.5px solid var(--border); border-radius: 20px;
@@ -3917,7 +3935,7 @@ window.__idbBoot = (function () {
     transition: all 0.12s ease;
   }
   .evo-chip:hover { border-color: var(--border-strong); color: var(--text); }
-  .evo-chip.active { background: var(--accent); color: #fff; border-color: var(--accent); }
+  .evo-chip.active { background: var(--accent); color: var(--on-accent); border-color: var(--accent); }
   .evo-day-bar-row { display: flex; align-items: flex-end; gap: 4px; height: 180px; padding: 8px 4px 0; }
   .evo-day-bar { flex: 1; background: linear-gradient(180deg, var(--accent), color-mix(in srgb, var(--accent) 72%, transparent)); border-radius: 5px 5px 0 0; min-height: 2px; position: relative; transition: height 0.3s ease, filter 0.15s ease; }
   .evo-day-bar:hover { filter: brightness(1.08) saturate(1.1); }
@@ -3931,7 +3949,7 @@ window.__idbBoot = (function () {
   /* Evolução do aproveitamento — controles e filtro por disciplina */
   .evo-line-controls { display: inline-flex; gap: 4px; background: var(--surface-sunken); border: 1.5px solid var(--border); border-radius: 20px; padding: 3px; }
   .evo-line-controls .evo-chip { border: none; background: transparent; border-radius: 16px; }
-  .evo-line-controls .evo-chip.active { background: var(--accent); color: #fff; }
+  .evo-line-controls .evo-chip.active { background: var(--accent); color: var(--on-accent); }
   .evo-subject-filter { display: flex; align-items: center; gap: 7px; flex-wrap: wrap; padding: 4px 20px 8px; }
   .evo-sf-label { font-size: var(--fs-xs); font-weight: 700; color: var(--text-soft); margin-right: 2px; }
   .evo-sf-chip {
@@ -4498,7 +4516,7 @@ window.__idbBoot = (function () {
   #screen-registrar .step.done .step-num {
     background: var(--accent);
     border-color: var(--accent);
-    color: #fff;
+    color: var(--on-accent);
     box-shadow: 0 0 0 4px var(--accent-ring);
   }
   #screen-registrar .step.done .step-num span { display: none; }
@@ -4959,7 +4977,8 @@ window.__idbBoot = (function () {
   .cards-pill.naosei.active { background: var(--bad); border-color: var(--bad); color: #fff; }
   .cards-fav-toggle {
     margin-left: auto; background: var(--surface-sunken); border: 1.5px solid var(--border); border-radius: 20px;
-    padding: 5px 12px; font-size: var(--fs-xs); font-weight: 700; color: var(--warn); cursor: pointer;
+    /* --warn-text: o --warn (#d97a12) sobre o fundo rebaixado dava 2,96:1. */
+    padding: 5px 12px; font-size: var(--fs-xs); font-weight: 700; color: var(--warn-text); cursor: pointer;
   }
   .cards-fav-toggle.active { background: var(--warn-soft); border-color: var(--warn-text); }
   /* Grid "Meus cards" */
@@ -5136,6 +5155,9 @@ window.__idbBoot = (function () {
   }
   .link-card-logo img { width: 100%; height: 100%; object-fit: contain; }
   .link-card-logo.mono {
+    /* Ver LinksScreen: --marca e a cor escolhida pelo usuario; o escurecimento
+       de 30% e o que garante 4,8:1 no pior caso da paleta. */
+    background: color-mix(in srgb, var(--marca, #4f46e5) 70%, #000);
     color: #fff; font-family: 'Space Mono', ui-monospace, SFMono-Regular, Menlo, monospace; font-weight: 800; font-size: var(--fs-lg);
     letter-spacing: 0.02em; border: none;
   }
@@ -5546,7 +5568,10 @@ window.__idbBoot = (function () {
   }
 
   .grade-title-line { display:flex; align-items:center; gap:10px; flex-wrap:wrap; }
-  .grade-min-alert { color:var(--bad); font-size:calc(10.5px * var(--fs-scale,1)); font-weight:700; letter-spacing:0; text-transform:none; white-space:nowrap; }
+  /* --bad-text, nao --bad: como TEXTO sobre o cartao branco o #e0393f dava
+     4,35:1, logo abaixo do 4,5:1 do AA — e este aviso e justamente o que pede
+     uma correcao ao usuario. */
+  .grade-min-alert { color:var(--bad-text); font-size:calc(10.5px * var(--fs-scale,1)); font-weight:700; letter-spacing:0; text-transform:none; white-space:nowrap; }
 
   /* Seletor compacto de ocorrências recorrentes */
   .occ-del-overlay{position:fixed;inset:0;z-index:10050;background:rgba(15,23,42,.48);display:flex;align-items:center;justify-content:center;padding:16px}
@@ -5582,7 +5607,7 @@ window.__idbBoot = (function () {
   .report-dialog-body{padding:20px 24px}.report-dialog-foot{position:sticky;bottom:0;display:flex;justify-content:flex-end;gap:9px;padding:14px 24px;background:var(--surface);border-top:1px solid var(--border)}
   .report-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px}.report-field label{display:block;margin-bottom:7px;font-size:12px;font-weight:700}
   .report-section-title{margin:22px 0 10px;font-size:11px;font-weight:800;letter-spacing:.07em;text-transform:uppercase;color:var(--text-faint)}
-  .report-presets{display:flex;gap:7px;flex-wrap:wrap}.report-presets button.active{background:var(--accent);border-color:var(--accent);color:white}
+  .report-presets{display:flex;gap:7px;flex-wrap:wrap}.report-presets button.active{background:var(--accent);border-color:var(--accent);color: var(--on-accent)}
   .report-check-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px}
   .report-check{display:flex;align-items:flex-start;gap:9px;padding:10px 11px;border:1px solid var(--border);border-radius:11px;background:var(--surface-sunken);cursor:pointer}
   .report-check input{width:auto;margin:2px 0 0}.report-check strong{font-size:12.5px}.report-check small{display:block;margin-top:2px;color:var(--text-faint);font-size:10.5px;line-height:1.35}
@@ -10281,16 +10306,21 @@ const DB = {
   DEFAULT_MODES: ['Resumo + Mapa', 'Passo Estratégico', 'Teoria'],
   // Status das aulas na trilha de Estudo Novo. "done" marca quais contam como concluída no progresso.
   DEFAULT_STATUSES: [
-    { nome: 'ESTUDAR', color: '#e0393f', bg: '#fdecee', done: false },
-    { nome: 'ESTUDANDO', color: '#d97a12', bg: '#fdf1e2', done: false },
-    { nome: 'CONCLUÍDO', color: '#0f9d63', bg: '#e5f7ee', done: true }
+    /* Tons de TEXTO, nao os de preenchimento: sobre o proprio fundo suave, o
+       #e0393f dava 3,81:1, o #d97a12 dava 2,80:1 e o #0f9d63 dava 3,13:1 — os
+       tres abaixo do minimo 4,5:1 do WCAG AA. Os tons abaixo ficam entre 5,2:1
+       e 6,0:1, com a mesma leitura de cor (vermelho / laranja / verde).
+       Vale so para perfis NOVOS: quem ja escolheu suas cores mantem as dele. */
+    { nome: 'ESTUDAR', color: '#b3282e', bg: '#fdecee', done: false },
+    { nome: 'ESTUDANDO', color: '#9a5200', bg: '#fdf1e2', done: false },
+    { nome: 'CONCLUÍDO', color: '#0a6b44', bg: '#e5f7ee', done: true }
   ],
   // Paleta de cores oferecida ao personalizar um status (cor forte + tinta clara de fundo)
   STATUS_PALETTE: [
-    { color: '#e0393f', bg: '#fdecee' },
-    { color: '#d97a12', bg: '#fdf1e2' },
+    { color: '#b3282e', bg: '#fdecee' },
+    { color: '#9a5200', bg: '#fdf1e2' },
     { color: '#c9a20a', bg: '#fbf6df' },
-    { color: '#0f9d63', bg: '#e5f7ee' },
+    { color: '#0a6b44', bg: '#e5f7ee' },
     { color: '#0a95a8', bg: '#e2f6f8' },
     { color: '#4f46e5', bg: '#eef0fd' },
     { color: '#b3308a', bg: '#fbe8f4' },
@@ -24967,7 +24997,11 @@ const LinksScreen = {
   hostname(url) { try { return new URL(url).hostname.replace(/^www\./, ''); } catch (e) { return url || ''; } },
   logoHtml(l) {
     if (l.logo) return `<div class="link-card-logo"><img src="${l.logo}" alt="${escapeHtml(l.nome)}"></div>`;
-    return `<div class="link-card-logo mono" style="background:${l.cor}">${escapeHtml(this.monogram(l.nome))}</div>`;
+    /* A cor da marca vai como --marca e o CSS a ESCURECE 30% para desenhar o
+       fundo. Aplicada crua, o monograma branco ficava em 2,5:1 sobre o verde e
+       2,6:1 sobre o azul-claro — abaixo do minimo 4,5:1 do WCAG AA. Escurecida,
+       o menor caso sobe para 4,8:1 e a marca continua reconhecivel. */
+    return `<div class="link-card-logo mono" style="--marca:${l.cor}">${escapeHtml(this.monogram(l.nome))}</div>`;
   },
   renderGrid() {
     const grid = document.getElementById('links-grid');

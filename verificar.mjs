@@ -2,7 +2,7 @@
 /* ═══════════════════════════════════════════════════════════════════════════
    VERIFICAÇÃO — roda antes de publicar
    ───────────────────────────────────────────────────────────────────────────
-   Cinco checagens, da mais barata para a mais cara. Qualquer falha derruba o
+   Sete checagens, da mais barata para a mais cara. Qualquer falha derruba o
    processo (código 1), então isto serve tanto para rodar na mão quanto para o
    GitHub Actions.
 
@@ -13,8 +13,9 @@
      4. o index.html publicado não tem id duplicado nem referência quebrada
      5. o app carrega no Chromium sem um único erro de console
      6. as 14 telas navegam e a suíte interna AutoTeste passa 100%
+     7. nenhum texto abaixo do contraste WCAG AA — nos temas claro E escuro
 
-   As checagens 5 e 6 precisam do Chromium (Playwright). Se ele não estiver
+   As checagens 5 a 7 precisam do Chromium (Playwright). Se ele não estiver
    instalado, elas são PULADAS com aviso — as quatro primeiras sempre rodam.
 
    Uso:  node verificar.mjs        (tudo)
@@ -170,6 +171,71 @@ try {
   });
   vaza === 0 ? ok('botao "Opcoes" da Grade contido no cabecalho') : erro(`botao "Opcoes" vaza ${vaza}px do cabecalho`);
 } catch (e) { erro('falha na navegacao: ' + e.message); }
+
+/* ── 7. contraste WCAG AA nos DOIS temas ───────────────────────────────────
+   O tema escuro nao e uma variacao cosmetica: ele inverte tokens, e um par que
+   passa no claro pode reprovar no escuro sem ninguem notar. Foi assim que o
+   aviso (toast) ficou branco sobre fundo claro — 1,21:1, ilegivel — e que o
+   botao primario do app inteiro ficou em 3,62:1.
+
+   Emoji sao ignorados de proposito: a cor renderizada deles nao vem de `color`,
+   entao medi-los so gera alarme falso. */
+console.log('\n7) contraste WCAG AA (temas claro e escuro)');
+const MEDIR = () => {
+  const lum = (c) => { const [r, g, b] = c.map((v) => { v /= 255; return v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4); });
+    return 0.2126 * r + 0.7152 * g + 0.0722 * b; };
+  /* Aceita rgb()/rgba() E color(srgb r g b) — o segundo formato e o que o
+     navegador devolve para um background feito com color-mix(). Sem ele, um
+     fundo valido era lido como "transparente" e a medida saia errada. */
+  const cor = (s) => {
+    const t = String(s);
+    const cs = t.match(/color\(srgb\s+([\d.eE+-]+)\s+([\d.eE+-]+)\s+([\d.eE+-]+)(?:\s*\/\s*([\d.eE+-]+))?\)/);
+    if (cs) { if (cs[4] != null && Number(cs[4]) < 0.95) return null;
+      return [1, 2, 3].map((i) => Math.round(Number(cs[i]) * 255)); }
+    const m = t.match(/rgba?\(([^)]+)\)/); if (!m) return null;
+    const q = m[1].split(',').map(Number); if (q.length > 3 && q[3] < 0.95) return null; return q.slice(0, 3);
+  };
+  const raiz = cor(getComputedStyle(document.body).backgroundColor) || [255, 255, 255];
+  const caminho = (el) => { const v = []; let e = el;
+    while (e && e !== document.documentElement) { v.unshift(e.tagName.toLowerCase() + (e.className ? '.' + String(e.className).trim().split(/\s+/)[0] : '')); e = e.parentElement; }
+    return v.slice(-3).join('>'); };
+  const ruins = [];
+  document.querySelectorAll('*').forEach((el) => {
+    const r = el.getBoundingClientRect(); if (r.width < 4 || r.height < 4) return;
+    const txt = [...el.childNodes].filter((x) => x.nodeType === 3 && x.textContent.trim()).map((x) => x.textContent.trim()).join('');
+    if (!txt || /^[\p{Emoji_Presentation}\p{Extended_Pictographic}\s]+$/u.test(txt)) return;
+    const st = getComputedStyle(el); if (st.visibility === 'hidden' || st.opacity === '0') return;
+    const fg = cor(st.color); if (!fg) return;
+    let bg = null, e = el;
+    while (e) { const c = cor(getComputedStyle(e).backgroundColor); if (c) { bg = c; break; } e = e.parentElement; }
+    bg = bg || raiz;
+    const l1 = lum(fg), l2 = lum(bg);
+    const razao = (Math.max(l1, l2) + 0.05) / (Math.min(l1, l2) + 0.05);
+    const px = parseFloat(st.fontSize);
+    const minimo = (px >= 24 || (px >= 18.66 && parseInt(st.fontWeight) >= 700)) ? 3 : 4.5;
+    if (razao < minimo) ruins.push(`"${txt.slice(0, 22)}" ${razao.toFixed(2)}:1 (min ${minimo}) rgb(${fg}) sobre rgb(${bg}) [${caminho(el)}]`);
+  });
+  return ruins;
+};
+try {
+  for (const tema of ['light', 'dark']) {
+    const achados = new Set();
+    await pag.evaluate((t) => document.documentElement.setAttribute('data-theme', t), tema);
+    const telas = await pag.evaluate(() => [...new Set([...document.querySelectorAll('[data-screen]')].map((b) => b.dataset.screen))]);
+    for (const t of telas) {
+      await pag.evaluate((n) => { try { switchScreen(n); } catch (e) {} }, t);
+      await pag.waitForTimeout(150);
+      (await pag.evaluate(MEDIR)).forEach((x) => achados.add(x));
+    }
+    // o aviso flutuante so existe depois de disparado
+    await pag.evaluate(() => { try { showToast('Verificacao de contraste'); } catch (e) {} });
+    await pag.waitForTimeout(400);
+    (await pag.evaluate(MEDIR)).forEach((x) => achados.add(x));
+    achados.size === 0 ? ok(`tema ${tema}: nenhum texto abaixo do WCAG AA`)
+      : erro(`tema ${tema}: ${achados.size} texto(s) abaixo do WCAG AA\n    ` + [...achados].slice(0, 10).join('\n    '));
+  }
+  await pag.evaluate(() => document.documentElement.removeAttribute('data-theme'));
+} catch (e) { erro('falha ao medir contraste: ' + e.message); }
 
 await nav.close();
 servidor.close();
