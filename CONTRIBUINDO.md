@@ -65,7 +65,7 @@ correspondente (o `src/manifesto.json` diz qual faixa de linhas veio de onde).
 |---|----------|:---:|
 | 1 | `src/` monta exatamente o `index.html` publicado | não |
 | 2 | cada módulo de `src/js` tem sintaxe válida isoladamente | não |
-| 3 | o agendador bate com o Anki — 21.080 pontos (`testes/paridade-anki.mjs`) | não |
+| 3 | o agendador bate com o Anki — 21.080 pontos (`testes/paridade-anki.mjs`) e sobrevive a configuração corrompida (`testes/robustez-config.mjs`) | não |
 | 4 | id duplicado, tag estrutural desbalanceada, CSP íntegra, trava anti-moldura presente | não |
 | 5 | o app carrega no Chromium sem **um único** erro de console | sim |
 | 6 | as 14 telas navegam, `AutoTeste` passa 100%, o botão "Opções" da Grade não vaza do cabeçalho | sim |
@@ -97,6 +97,22 @@ contrário.
 
 ```bash
 node testes/paridade-anki.mjs
+```
+
+### `testes/robustez-config.mjs` — configuração que vem de fora
+
+A tela de opções valida o que você digita. A **nuvem, um backup importado e o
+armazenamento editado à mão** não validam nada. Este teste joga 12 configurações
+inválidas (`learnSteps: ["abc"]`, `maxInterval: "muito"`, `retention: 0`…) contra
+as 4 fases × 4 notas e exige que nenhuma produza um card com `due: "NaN-NaN-NaN"`
+ou `dueTs: NaN` — um card assim **nunca mais vence**: some da fila em silêncio.
+
+O saneamento vive em `CardsConfig._sanear()`, no funil único de leitura
+(`get()` / `forDeck()`). Se você adicionar uma opção nova que entra em cálculo,
+**adicione a validação dela lá** e um caso aqui.
+
+```bash
+node testes/robustez-config.mjs
 ```
 
 ### `AutoTeste` — suíte interna (navegador)

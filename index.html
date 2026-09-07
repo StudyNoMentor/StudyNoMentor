@@ -15579,14 +15579,76 @@ const CardsConfig = {
     }
     return v;
   },
+  /* ── SANEAMENTO DA CONFIGURAÇÃO ───────────────────────────────────────────
+     A tela de opções já valida o que você digita (parseSteps descarta o que não
+     é número positivo, os campos têm min/max). Mas a tela NÃO é o único caminho
+     até aqui: a configuração também chega pela sincronização na nuvem, por um
+     backup importado e por um armazenamento editado à mão.
+
+     Por esses caminhos entravam valores que a tela nunca produziria — e o
+     estrago era SILENCIOSO e PERMANENTE. Um `learnSteps: ["abc"]` fazia
+     stepDue() calcular `Math.round(NaN * 60)`, e o card era gravado com
+     `dueTs: NaN`; um `maxInterval: "muito"` gravava `due: "NaN-NaN-NaN"`.
+     Card com data NaN nunca mais vence: some da fila para sempre, sem erro,
+     sem aviso, sem jeito de perceber. Eram 21 combinações de configuração
+     inválida × fase × nota que produziam isso.
+
+     O saneamento fica AQUI, na leitura, porque este é o funil único: agendador,
+     prévia dos botões, otimizador e telas leem todos por get()/forDeck(). Uma
+     validação em cada consumidor seria uma peneira com furos.
+
+     Regra: valor inválido volta ao PADRÃO, não a um chute. Valor válido, mesmo
+     fora da faixa da tela, é PRESERVADO — quem editou o arquivo de propósito
+     tem o direito de usar 60% de retenção; quem sincronizou lixo, não tem o
+     direito de perder cards. */
+  _passosValidos(v, padrao) {
+    if (!Array.isArray(v)) return padrao.slice();
+    const limpos = v.map(Number).filter((x) => isFinite(x) && x > 0);
+    return limpos.length ? limpos : padrao.slice();
+  },
+  _numValido(v, padrao, min, max) {
+    const n = Number(v);
+    if (!isFinite(n)) return padrao;
+    if (min != null && n < min) return padrao;
+    if (max != null && n > max) return padrao;
+    return n;
+  },
+  _sanear(c) {
+    const D = this.DEFAULTS;
+    c.learnSteps = this._passosValidos(c.learnSteps, D.learnSteps);
+    c.relearnSteps = this._passosValidos(c.relearnSteps, D.relearnSteps);
+    // Retenção-alvo: a fórmula do intervalo faz r^(1/decay); fora de (0,1) ela
+    // não tem significado e produz intervalo negativo, zero ou infinito.
+    c.retention = this._numValido(c.retention, D.retention, 0.0001, 0.9999);
+    // Intervalo máximo: é o teto de TODO agendamento; 0, negativo ou texto
+    // colapsava place() para NaN.
+    c.maxInterval = Math.round(this._numValido(c.maxInterval, D.maxInterval, 1, 36500));
+    c.leechThreshold = Math.round(this._numValido(c.leechThreshold, D.leechThreshold, 0, 9999));
+    c.newPerDay = Math.round(this._numValido(c.newPerDay, D.newPerDay, 0, 999999));
+    c.revPerDay = Math.round(this._numValido(c.revPerDay, D.revPerDay, 0, 999999));
+    c.newPerDayMinimum = Math.round(this._numValido(c.newPerDayMinimum, D.newPerDayMinimum, 0, 999999));
+    c.rolloverHour = Math.round(this._numValido(c.rolloverHour, D.rolloverHour, 0, 23));
+    // Multiplicadores do SM-2: um NaN aqui zerava o intervalo do card clássico.
+    ['initialEase', 'hardMultiplier', 'easyMultiplier', 'lapseMultiplier', 'intervalMultiplier',
+     'minimumLapseInterval', 'graduatingIntervalGood', 'graduatingIntervalEasy'].forEach((k) => {
+      if (c[k] == null) return;                       // ausente = usa o padrão do agendador
+      const n = Number(c[k]);
+      if (!isFinite(n) || n < 0) delete c[k];
+    });
+    // easy_days_percentages: 7 posições, cada uma em [0,1].
+    if (!Array.isArray(c.easyDays) || c.easyDays.length !== 7
+        || c.easyDays.some((x) => !isFinite(Number(x)) || Number(x) < 0 || Number(x) > 1)) {
+      c.easyDays = D.easyDays.slice();
+    }
+    return c;
+  },
+
   get() {
     const k = this.KEY;
     if (this._c && this._cKey === k) return this._c;   // cache inválido ao trocar de perfil
     const v = this._read(k, this.LEGACY_KEY);
-    this._c = Object.assign({}, this.DEFAULTS, v || {});
+    this._c = this._sanear(Object.assign({}, this.DEFAULTS, v || {}));
     this._cKey = k;
-    if (!Array.isArray(this._c.learnSteps) || !this._c.learnSteps.length) this._c.learnSteps = this.DEFAULTS.learnSteps.slice();
-    if (!Array.isArray(this._c.relearnSteps) || !this._c.relearnSteps.length) this._c.relearnSteps = this.DEFAULTS.relearnSteps.slice();
     return this._c;
   },
   set(patch) {
@@ -15612,10 +15674,9 @@ const CardsConfig = {
     const base = this.get();
     const ov = this.deckPreset(deckId);
     if (!ov) return base;
-    const merged = Object.assign({}, base, ov);
-    if (!Array.isArray(merged.learnSteps) || !merged.learnSteps.length) merged.learnSteps = base.learnSteps;
-    if (!Array.isArray(merged.relearnSteps) || !merged.relearnSteps.length) merged.relearnSteps = base.relearnSteps;
-    return merged;
+    // O preset do baralho vem pelos mesmos caminhos não confiáveis da config
+    // global (nuvem, backup, armazenamento editado): mesmo saneamento.
+    return this._sanear(Object.assign({}, base, ov));
   },
   // Pesos salvos de antes (19 posições, FSRS-5) são migrados para 21 na leitura.
   // Não reescrevemos o que está gravado: se você voltar para uma versão anterior

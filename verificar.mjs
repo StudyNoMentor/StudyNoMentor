@@ -8,7 +8,8 @@
 
      1. src/ monta exatamente o index.html   (build.mjs --check)
      2. cada módulo JS de src/ tem sintaxe válida isoladamente
-     3. o agendador bate com o Anki   (testes/paridade-anki.mjs, ~21 mil pontos)
+     3. o agendador bate com o Anki e sobrevive a configuracao corrompida
+        (testes/paridade-anki.mjs · testes/robustez-config.mjs)
      4. o index.html publicado não tem id duplicado nem referência quebrada
      5. o app carrega no Chromium sem um único erro de console
      6. as 14 telas navegam e a suíte interna AutoTeste passa 100%
@@ -50,12 +51,18 @@ for (const m of mods) {
 if (!ruins) ok(`${mods.length} modulos analisam isoladamente`);
 
 // ── 3. paridade com o Anki (teste diferencial, sem navegador) ──────────────
-console.log('\n3) o agendador bate com o Anki');
+console.log('\n3) agendador: paridade com o Anki + robustez da configuracao');
 try {
   const saida = execFileSync(process.execPath, [join(RAIZ, 'testes', 'paridade-anki.mjs')], { stdio: 'pipe' });
   ok(String(saida).trim());
 } catch (e) {
   erro('divergencia contra a referencia:\n' + String(e.stdout || '') + String(e.stderr || ''));
+}
+try {
+  const saida = execFileSync(process.execPath, [join(RAIZ, 'testes', 'robustez-config.mjs')], { stdio: 'pipe' });
+  ok(String(saida).trim());
+} catch (e) {
+  erro('configuracao invalida ainda torna cards inagendaveis:\n' + String(e.stdout || '') + String(e.stderr || ''));
 }
 
 // ── 4. integridade estática do HTML ────────────────────────────────────────
