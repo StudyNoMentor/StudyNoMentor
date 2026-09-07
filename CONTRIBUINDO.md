@@ -169,6 +169,13 @@ Cor escolhida pelo usuário (paleta de links, cores de status) não dá para
 garantir por token — aí o CSS escurece o fundo (`color-mix(... 70%, #000)`) para
 a tinta branca passar no pior caso da paleta.
 
+**Todo `<button>` herda `color` da regra global.** Não declarar `color` num botão
+não o deixa "neutro": sem `color: inherit` ele cairia no `buttontext` do
+navegador (preto), que no tema escuro é preto sobre quase preto. Se um botão
+precisa de cor própria, declare — e declare também a cor de **partida**, não só
+a dos estados: o indicador de sincronização ficou em 1,14:1 porque a cor só
+existia nas classes `st-*`, aplicadas depois que a nuvem responde.
+
 ## Regras que não se negociam
 
 - **Sem dependência nova em tempo de execução.** O app carrega com 1 requisição.

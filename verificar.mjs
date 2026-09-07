@@ -209,6 +209,12 @@ try {
    Emoji sao ignorados de proposito: a cor renderizada deles nao vem de `color`,
    entao medi-los so gera alarme falso. */
 console.log('\n7) contraste WCAG AA (temas claro e escuro)');
+/* Transicoes e animacoes desligadas durante a medicao. Sem isto, medir logo
+   apos uma troca de tela pega a cor INTERMEDIARIA de uma transicao (a aba ativa
+   a meio caminho entre --text-soft e --accent, por exemplo) e reprova um par de
+   cores que na verdade passa. Falso alarme intermitente e pior que checagem
+   nenhuma: ensina a ignorar a CI. */
+await pag.addStyleTag({ content: '*,*::before,*::after{transition:none!important;animation:none!important}' });
 const MEDIR = () => {
   const lum = (c) => { const [r, g, b] = c.map((v) => { v /= 255; return v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4); });
     return 0.2126 * r + 0.7152 * g + 0.0722 * b; };
@@ -259,6 +265,19 @@ try {
     await pag.evaluate(() => { try { showToast('Verificacao de contraste'); } catch (e) {} });
     await pag.waitForTimeout(400);
     (await pag.evaluate(MEDIR)).forEach((x) => achados.add(x));
+    /* O indicador de sincronizacao muda de classe conforme a NUVEM responde, e
+       so ha nuvem quando ha rede. Medir "o tom que aparecer" fez um bug real
+       passar aqui e so aparecer na CI: sem um `st-*` conhecido, o botao caia no
+       preto do navegador — 1,14:1 no tema escuro. Agora percorremos os tons na
+       marra, incluindo um DESCONHECIDO, para a cobertura nao depender de rede. */
+    for (const tom of ['ok', 'off', 'syncing', 'error', 'desconhecido']) {
+      await pag.evaluate((t) => {
+        const b = document.getElementById('cloud-sync-btn');
+        if (b) b.className = 'cloud-sync-btn st-' + t;
+      }, tom);
+      await pag.waitForTimeout(80);
+      (await pag.evaluate(MEDIR)).forEach((x) => achados.add(x));
+    }
     achados.size === 0 ? ok(`tema ${tema}: nenhum texto abaixo do WCAG AA`)
       : erro(`tema ${tema}: ${achados.size} texto(s) abaixo do WCAG AA\n    ` + [...achados].slice(0, 10).join('\n    '));
   }

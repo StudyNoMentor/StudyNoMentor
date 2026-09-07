@@ -852,6 +852,12 @@
     font-family: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
     cursor: pointer;
     border: none;
+    /* Sem isto, um <button> que nao declare `color` cai no `buttontext` do
+       navegador — PRETO — em vez de seguir o tema. No tema claro ninguem nota;
+       no escuro vira texto preto sobre fundo quase preto. Foi assim que o
+       indicador de sincronizacao ficou em 1,14:1. `inherit` faz todo botao
+       seguir a cor do container, que e a cor do tema. */
+    color: inherit;
   }
 
   .btn-primary {
@@ -4169,6 +4175,10 @@
     width: 34px; height: 34px; padding: 0;
     display: inline-flex; align-items: center; justify-content: center;
     background: var(--surface-sunken); border: 1.5px solid var(--border);
+    /* Cor de partida explicita: as classes de estado (st-ok/st-off/st-syncing/
+       st-error) sao aplicadas pelo CloudUI DEPOIS que a nuvem responde. Ate la
+       — e se o estado vier vazio — o botao nao tinha cor nenhuma. */
+    color: var(--text-soft);
     border-radius: 50%; cursor: pointer;
     transition: border-color 0.15s ease, color 0.15s ease, background 0.15s ease;
   }
@@ -4183,7 +4193,9 @@
     animation: csbSpin 0.8s linear infinite;
   }
   /* estados */
-  .cloud-sync-btn.st-ok  { color: var(--good); border-color: color-mix(in srgb, var(--good) 45%, var(--border)); background: var(--good-soft); }
+  /* --good-text, nao --good: e TEXTO sobre --good-soft. Com --good dava 3,47:1
+     no tema claro, e este e o estado mais comum do botao (sincronizado). */
+  .cloud-sync-btn.st-ok  { color: var(--good-text); border-color: color-mix(in srgb, var(--good) 45%, var(--border)); background: var(--good-soft); }
   .cloud-sync-btn.st-ok .csb-ico::before  { content: '✓'; }
   .cloud-sync-btn.st-off { color: var(--text-soft); border-color: var(--border); background: var(--surface-sunken); }
   .cloud-sync-btn.st-off .csb-ico::before { content: '☁'; }

@@ -241,8 +241,26 @@ Correção por **tokens**, não por remendo: entrou `--on-accent` (a tinta *em c
 de um preenchimento de accent), o `--accent-soft` do escuro foi escurecido, os
 usos de cor de preenchimento como texto passaram para as variantes `-text`, e as
 cores de marca escolhidas pelo usuário são escurecidas 30% via `color-mix` para
-a tinta branca passar no pior caso da paleta. **12 reprovações antes, 0 depois,
-nos dois temas** — agora medido pela checagem 7 da CI.
+a tinta branca passar no pior caso da paleta. **15 reprovações
+ao todo, 0 depois, nos dois temas** — agora medido pela checagem 7 da CI.
+
+Mais três apareceram depois, quando a CI rodou **com rede** — e por isso são as
+mais instrutivas:
+
+- **`button` sem `color` cai no preto do navegador.** A regra global de `button`
+  não declarava `color`, então qualquer botão que não trouxesse a sua caía no
+  `buttontext` do navegador. No claro ninguém nota; no escuro é preto sobre
+  quase preto. Pegou o indicador de sincronização em **1,14:1** — invisível.
+  Corrigido na raiz com `color: inherit` na regra global, mais uma cor de
+  partida explícita no próprio botão.
+- **Estado "sincronizado" em 3,47:1** no tema claro: `--good` (cor de
+  preenchimento) usada como texto sobre `--good-soft`. É o estado mais comum do
+  botão. Passou para `--good-text`.
+- **A cobertura dependia de rede.** O indicador muda de classe conforme a nuvem
+  responde — sem rede, um dos tons nunca aparecia e o bug se escondia. Hoje a
+  checagem percorre os cinco tons na marra (incluindo um desconhecido), e mede
+  com transições CSS desligadas, para não ler cor intermediária de animação e
+  reprovar um par que na verdade passa.
 
 **O que já estava bom:** 0 botões sem nome acessível, 0 campos sem nome, 0
 imagens sem `alt`, sem estouro horizontal, skip link, foco preso em modais
