@@ -1296,21 +1296,26 @@
             <h2>Tempo de estudo</h2>
             <p class="sub">Tempo registrado por dia</p>
           </div>
-          <div style="display:flex; flex-direction:column; gap:8px; align-items:flex-end;">
-            <div class="evo-chip-group" id="evo-tempo-periodo">
-              <button type="button" class="evo-chip active" data-days="7">1 semana</button>
-              <button type="button" class="evo-chip" data-days="14">2 semanas</button>
-              <button type="button" class="evo-chip" data-days="30">1 mês</button>
-              <button type="button" class="evo-chip" data-days="90">3 meses</button>
-              <button type="button" class="evo-chip" data-days="180">6 meses</button>
-              <button type="button" class="evo-chip" data-days="365">1 ano</button>
-            </div>
-            <div class="evo-tempo-range" id="evo-tempo-range">
-              <span class="evo-tempo-range-lbl">Intervalo:</span>
+          <!-- Antes: 6 botões de período SEMPRE visíveis + dois campos de data,
+               ocupando duas faixas inteiras do cabeçalho só para esperar um
+               clique raro. Agora uma lista suspensa faz o mesmo em uma linha, e
+               o intervalo personalizado só aparece quando é escolhido. -->
+          <div class="evo-periodo-ctl">
+            <select id="evo-tempo-periodo-sel" class="evo-periodo-sel" title="Período do gráfico"
+                    aria-label="Período do gráfico de tempo de estudo">
+              <option value="7" selected>Última semana</option>
+              <option value="14">Últimas 2 semanas</option>
+              <option value="30">Último mês</option>
+              <option value="90">Últimos 3 meses</option>
+              <option value="180">Últimos 6 meses</option>
+              <option value="365">Último ano</option>
+              <option value="custom">Intervalo personalizado…</option>
+            </select>
+            <div class="evo-tempo-range" id="evo-tempo-range" hidden>
               <input type="date" id="evo-tempo-de" title="Data inicial" aria-label="Data inicial do intervalo">
               <span class="evo-tempo-range-sep">→</span>
               <input type="date" id="evo-tempo-ate" title="Data final" aria-label="Data final do intervalo">
-              <button type="button" class="evo-tempo-clear" id="evo-tempo-clear" title="Voltar aos atalhos rápidos" style="display:none;" aria-label="Voltar aos atalhos rápidos">✕</button>
+              <button type="button" class="evo-tempo-clear" id="evo-tempo-clear" title="Voltar aos períodos prontos" aria-label="Voltar aos períodos prontos">✕</button>
             </div>
           </div>
         </div>

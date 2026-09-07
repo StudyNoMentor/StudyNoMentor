@@ -209,7 +209,11 @@ const UI = {
     ok.disabled = false;   // confirmTyped desabilita; um dialogo comum sempre nasce habilitado
     const cancel = document.getElementById('ui-modal-cancel');
     cancel.textContent = cancelText;
-    cancel.style.display = hideCancel ? 'none' : 'inline-flex';
+    /* Devolve o display do CSS em vez de cravar 'inline-flex'. Num botao que e
+       container flex, `text-align: center` NAO vale — o texto vai para o inicio
+       da linha. Era por isso que "Cancelar" aparecia encostado a esquerda
+       enquanto "Salvar", que continuou block, ficava centrado. */
+    cancel.style.display = hideCancel ? 'none' : '';
     modal.style.display = 'flex';
     const first = modal.querySelector('.cards-modal-body input, .cards-modal-body textarea, .cards-modal-body select');
     if (first) setTimeout(() => first.focus(), 60);

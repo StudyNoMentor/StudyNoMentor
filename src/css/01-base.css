@@ -1725,7 +1725,11 @@
   .modality-table tbody tr:last-child td { border-bottom: none; }
   .modality-table .mt-cell { text-align: center; font-family: 'Space Mono', ui-monospace, SFMono-Regular, Menlo, monospace; font-size: calc(11.5px * var(--fs-scale,1)); font-weight: 600; color: var(--text); white-space: nowrap; }
   .modality-table .mt-zero { color: var(--text-faint); font-weight: 400; }
-  .modality-table .mt-name { font-size: calc(12.5px * var(--fs-scale,1)); font-weight: 600; color: var(--text); max-width: 180px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .modality-table .mt-name {
+    font-size: calc(12.5px * var(--fs-scale,1)); font-weight: 600; color: var(--text);
+    max-width: 200px; white-space: normal; line-height: 1.25;
+    overflow-wrap: normal; word-break: normal; hyphens: auto;
+  }
   .modality-table .mt-sticky { position: sticky; left: 0; background: var(--surface); z-index: 1; box-shadow: 1px 0 0 var(--border); }
   .modality-table thead .mt-sticky { background: var(--surface-sunken); z-index: 2; }
   .modality-table .mt-total-col { font-weight: 800; color: var(--accent-text); background: color-mix(in srgb, var(--accent) 5%, transparent); }
@@ -2148,6 +2152,9 @@
     .evo-chip-group { width: 100%; justify-content: flex-start; overflow-x: auto; flex-wrap: nowrap; padding-bottom: 2px; scrollbar-width: none; }
     .evo-chip-group::-webkit-scrollbar { display: none; }
     .evo-tempo-range { width: 100%; }
+    .evo-periodo-ctl { width: 100%; align-items: stretch; }
+    .evo-periodo-sel { width: 100%; min-width: 0; }
+    .evo-tempo-range input[type="date"] { flex: 1 1 130px; min-width: 0; }
     .evo-day-bar-row { height: 150px; }
     /* gráficos SVG mantêm proporção; garante respiro lateral */
     #evolucao-line-chart, #evolucao-acerto-linha, #evolucao-meta-chart,
@@ -2197,8 +2204,51 @@
   .perf-row .name { font-size: var(--fs-sm); font-weight: 600; }
   .perf-row .pct-badge { font-family: 'Space Mono', ui-monospace, SFMono-Regular, Menlo, monospace; font-weight: 700; font-size: var(--fs-xs); padding: 4px 10px; border-radius: 20px; }
 
+  /* ══════════════════════════════════════════════════════════════════════
+     CICLO DA SEMANA NO CELULAR
+     ──────────────────────────────────────────────────────────────────────
+     O sintoma era o nome da disciplina saindo QUEBRADO LETRA POR LETRA. A
+     mecânica, medida no Chromium:
+
+       .cycle-review-row usava `1fr 90px 120px 90px` + 3 gaps de 12px = 336px
+       de colunas FIXAS. Num cartão de 348px sobravam 12px para o `1fr` — e,
+       como o app define `overflow-wrap: break-word` no body, o mínimo de
+       conteúdo de um bloco deixa de ser "a maior palavra" e passa a ser UMA
+       LETRA. Resultado: "Direito Administrativo" em 12px de largura, 270px de
+       altura, 15 linhas. Uma letra por linha.
+
+       Na etapa de montar, o mesmo em outra dose: no modo Pós-edital o celular
+       recebia `minmax(0,1fr) auto`, e a coluna `auto` (Qtd. Q.) comia o espaço
+       — o select de Matéria ficava com 116px a 430px, 76px a 390px e 46px a
+       360px. A 320px o próprio rótulo "Matéria" virava 6px de largura por 91px
+       de altura.
+
+     A correção é dar a cada etapa um layout de celular de verdade, em fluxo,
+     sem coluna fixa que não caiba. Nenhuma delas depende de `overflow: hidden`
+     nem de reticências: o nome inteiro fica visível. */
   @media (max-width: 560px) {
-    .cycle-subject-row { grid-template-columns: 1fr; gap: 6px; }
+    /* MONTAR — pré-edital: Matéria ocupa a linha, com o × ao lado;
+       Dificuldade e Fase dividem a linha de baixo. */
+    .cycle-subject-row {
+      grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto;
+      column-gap: 8px; row-gap: 10px;
+      align-items: end;
+    }
+    .cycle-subject-row > .field:nth-child(1) { grid-column: 1 / 3; grid-row: 1; }
+    .cycle-subject-row > .remove-btn { grid-column: 3; grid-row: 1; align-self: end; }
+
+    /* REVISÃO — era a pior: nome + meta na coluna espremida a 12px.
+       Vira duas faixas: identificação em cima, tempo e sugestão embaixo. */
+    .cycle-review-row {
+      grid-template-columns: minmax(0, 1fr) auto;
+      column-gap: 10px; row-gap: 8px;
+      align-items: center;
+      padding: 12px 0;
+    }
+    .cycle-review-row > *:nth-child(1) { grid-column: 1 / -1; min-width: 0; }
+    .cycle-review-row .suggested { text-align: left; }
+    .cycle-review-row .cycle-review-time-input { justify-self: end; }
+    .btn-reset-suggestion { grid-column: 1 / -1; justify-self: start; padding-left: 0; }
     /* 5 KPIs do ciclo: compactos em 3 colunas (2 linhas) em vez de caixas enormes */
     #ciclo-overview-gauges { grid-template-columns: repeat(3, 1fr) !important; gap: 8px !important; }
     #ciclo-overview-gauges .mini-gauge-card { padding: 10px 6px; border-radius: 10px; }
@@ -2963,11 +3013,24 @@
       row-gap: 4px; padding: 10px 12px;
     }
     .track-row > *:nth-child(n+4) { grid-column: 2 / -1; }
+    /* MONTAR — pós-edital: 6 colunas virtuais dão um encaixe exato para
+       "Matéria + ×" na primeira faixa, os três primeiros números na segunda e
+       os dois últimos na terceira. Tudo em fluxo, nenhuma coluna fixa. */
     .cycle-subject-row.pos {
-      grid-template-columns: minmax(0, 1fr) auto !important;
-      row-gap: 6px;
+      grid-template-columns: repeat(6, minmax(0, 1fr)) !important;
+      column-gap: 8px; row-gap: 10px;
+      align-items: end;
     }
-    .cycle-subject-row.pos > *:nth-child(n+3) { grid-column: 1 / -1; }
+    .cycle-subject-row.pos > .field:nth-child(1) { grid-column: 1 / 6; grid-row: 1; }
+    .cycle-subject-row.pos > .remove-btn { grid-column: 6 / 7; grid-row: 1; }
+    .cycle-subject-row.pos > .field:nth-child(2),
+    .cycle-subject-row.pos > .field:nth-child(3),
+    .cycle-subject-row.pos > .field:nth-child(4) { grid-column: span 2; }
+    .cycle-subject-row.pos > .field:nth-child(5) { grid-column: 1 / 4; }
+    .cycle-subject-row.pos > .field:nth-child(6) { grid-column: 4 / 7; }
+    /* Os rótulos curtos ("Qtd. Q.", "Pts/Q") não podem quebrar em duas linhas
+       e desalinhar a faixa de números. */
+    .cycle-subject-row.pos label { white-space: nowrap; }
   }
 
   /* 2) TEXTO CORTADO SECO (nowrap sem reticências)
@@ -3771,6 +3834,15 @@
   .evo-card-head .sub { font-size: var(--fs-xs); color: var(--text-faint); margin-top: 3px; }
   .evo-chip-group { display: inline-flex; gap: 4px; flex-wrap: wrap; }
   /* [MELHORIA] Intervalo de datas do gráfico "Tempo de estudo" */
+  /* Controle de período do gráfico de tempo: uma lista suspensa no lugar dos
+     seis botões que ficavam abertos o tempo todo, e os campos de data só
+     visíveis quando o intervalo personalizado é escolhido. */
+  .evo-periodo-ctl { display: flex; flex-direction: column; gap: 8px; align-items: flex-end; }
+  .evo-periodo-sel {
+    width: auto; min-width: 190px; padding: 7px 30px 7px 11px;
+    font-size: var(--fs-xs); font-weight: 600;
+    border-radius: 10px; border: 1.5px solid var(--border); background: var(--surface);
+  }
   .evo-tempo-range { display: inline-flex; align-items: center; gap: 6px; flex-wrap: wrap; }
   .evo-tempo-range-lbl { font-size: var(--fs-2xs); font-weight: 700; color: var(--text-faint); text-transform: uppercase; letter-spacing: 0.03em; }
   .evo-tempo-range-sep { color: var(--text-faint); font-weight: 700; }
@@ -3907,20 +3979,38 @@
   .acm-ruler-track { position: relative; height: 22px; }
   .acm-ruler-lbl { position: absolute; bottom: 0; transform: translateX(-50%); font-family: 'Space Mono', ui-monospace, SFMono-Regular, Menlo, monospace; font-size: var(--fs-2xs); font-weight: 700; color: #fff; padding: 2px 7px; border-radius: 8px; white-space: nowrap; box-shadow: var(--shadow-sm); }
   .acm-ruler-lbl::after { content: ''; position: absolute; left: 50%; bottom: -5px; transform: translateX(-50%); border: 4px solid transparent; border-top-color: inherit; }
-  .acm-row { display: grid; grid-template-columns: 150px 1fr 96px; align-items: center; gap: 14px; padding: 5px 0; }
-  .acm-name { font-size: var(--fs-xs); font-weight: 600; color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  /* ── NOME DE DISCIPLINA: inteiro, ou em duas linhas — nunca cortado ──────
+     Estes três rótulos usavam `white-space: nowrap` + reticências numa coluna
+     de largura fixa. Com nomes reais ("Raciocínio Lógico-Matemático",
+     "Legislação Extravagante e Especial") o texto era cortado em TODAS as
+     larguras: medido em 150px de coluna precisando de 112px a 122px.
+     Agora quebram em linha, com a coluna um pouco mais larga.
+
+     `overflow-wrap: normal` é deliberado: o app define `break-word` no body, e
+     numa coluna estreita isso quebraria a palavra NO MEIO. Aqui a quebra é
+     entre palavras (ou no hífen, via `hyphens`), como se lê de verdade. */
+  .acm-row { display: grid; grid-template-columns: minmax(0, 168px) 1fr 96px; align-items: center; gap: 14px; padding: 5px 0; }
+  .acm-name {
+    font-size: var(--fs-xs); font-weight: 600; color: var(--text);
+    white-space: normal; line-height: 1.25; min-width: 0;
+    overflow-wrap: normal; word-break: normal; hyphens: auto;
+  }
   .acm-track { position: relative; height: 18px; background: var(--surface-sunken); border: 1px solid var(--border); border-radius: 8px; overflow: visible; }
   .acm-fill { height: 100%; border-radius: 6px 0 0 6px; transition: width 0.5s ease; }
   .acm-ref { position: absolute; top: -4px; bottom: -4px; width: 2px; opacity: 0.9; z-index: 2; }
   .acm-val { font-family: 'Space Mono', ui-monospace, SFMono-Regular, Menlo, monospace; font-weight: 700; font-size: var(--fs-sm); text-align: right; }
   .acm-val .acm-q { display: block; font-size: var(--fs-3xs); color: var(--text-faint); font-weight: 400; }
   @media (max-width: 560px) {
-    .acm-row, .acm-ruler { grid-template-columns: 92px 1fr 60px; }
+    .acm-row, .acm-ruler { grid-template-columns: minmax(0, 118px) 1fr 58px; gap: 10px; }
   }
   /* Tempo por matéria — rótulo de horas destacado */
-  .tpm-row { display: grid; grid-template-columns: 160px 1fr 118px; align-items: center; gap: 14px; padding: 7px 0; border-bottom: 1px solid var(--border); }
+  .tpm-row { display: grid; grid-template-columns: minmax(0, 176px) 1fr 118px; align-items: center; gap: 14px; padding: 7px 0; border-bottom: 1px solid var(--border); }
   .tpm-row:last-child { border-bottom: none; }
-  .tpm-name { font-size: var(--fs-sm); font-weight: 600; color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .tpm-name {
+    font-size: var(--fs-sm); font-weight: 600; color: var(--text);
+    white-space: normal; line-height: 1.25; min-width: 0;
+    overflow-wrap: normal; word-break: normal; hyphens: auto;
+  }
   .tpm-track { height: 12px; background: var(--surface-sunken); border: 1px solid var(--border); border-radius: 20px; overflow: hidden; }
   .tpm-fill { height: 100%; border-radius: 20px; background: var(--accent); }
   .tpm-val { display: flex; align-items: center; justify-content: flex-end; gap: 8px; }
@@ -3930,7 +4020,11 @@
   }
   .tpm-pct { font-family: 'Space Mono', ui-monospace, SFMono-Regular, Menlo, monospace; font-size: var(--fs-2xs); color: var(--text-faint); min-width: 30px; text-align: right; }
   @media (max-width: 560px) {
-    .tpm-row { grid-template-columns: 96px 1fr 90px; }
+    /* No celular nem 124px bastam para "Raciocínio Lógico-Matemático" — ele
+       quebrava em TRÊS linhas. O nome passa a ocupar a faixa inteira e a barra
+       com o valor vão para a linha de baixo: uma linha só, nome inteiro. */
+    .tpm-row { grid-template-columns: 1fr auto; gap: 4px 10px; align-items: center; }
+    .tpm-name { grid-column: 1 / -1; }
   }
 
   /* ---------- Tela de acesso (perfis) ---------- */
@@ -4996,6 +5090,12 @@
   .cards-modal-head .sub { margin: 0; font-size: var(--fs-xs); color: var(--text-faint); }
   .cards-modal-body { padding: 16px 22px; overflow-y: auto; }
   .cards-modal-foot { display: flex; align-items: center; gap: 8px; padding: 14px 22px; border-top: 1px solid var(--border); flex-wrap: wrap; }
+  /* Centraliza o rotulo dos botoes do rodape seja qual for o display que eles
+     acabem tendo. `text-align` cobre o caso block/inline-block; `justify-content`
+     cobre o caso em que algum codigo os torne flex. Sem o segundo, um botao flex
+     joga o texto para a esquerda e so ele fica torto ao lado dos outros. */
+  .cards-modal-foot .btn-primary,
+  .cards-modal-foot .btn-secondary { text-align: center; justify-content: center; align-items: center; }
   .req { color: var(--bad); }
   /* Editor de texto rico */
   .rte { border: 1.5px solid var(--border); border-radius: 12px; overflow: hidden; background: var(--surface); }
