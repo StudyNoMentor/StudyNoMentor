@@ -170,6 +170,34 @@ try {
     return Math.round(Math.max(0, b.getBoundingClientRect().bottom - h.getBoundingClientRect().bottom));
   });
   vaza === 0 ? ok('botao "Opcoes" da Grade contido no cabecalho') : erro(`botao "Opcoes" vaza ${vaza}px do cabecalho`);
+  /* E o menu, uma vez aberto, tem de ficar INTEIRO por cima da tabela. O
+     cabecalho fixo da grade e promovido a camada composta pelo navegador e ja
+     atravessou o painel aberto uma vez — z-index no menu nao resolvia. */
+  await pag.click('#grade-gear-btn');
+  await pag.waitForTimeout(400);
+  const furos = await pag.evaluate(() => {
+    const m = document.getElementById('grade-gear-menu'); if (!m) return -1;
+    const q = m.getBoundingClientRect();
+    if (q.width < 10 || q.height < 10) return -1;
+    let n = 0;
+    for (let y = q.top + 6; y < q.bottom - 4; y += 6) {
+      for (const x of [q.left + 20, q.left + q.width / 2, q.right - 20]) {
+        const el = document.elementFromPoint(x, y);
+        if (!(el === m || m.contains(el))) n++;
+      }
+    }
+    return n;
+  });
+  furos === 0 ? ok('menu "Opcoes" aberto sem nada por cima')
+    : erro(furos < 0 ? 'menu "Opcoes" nao abriu' : `menu "Opcoes" coberto em ${furos} ponto(s) — a tabela volta a atravessar o painel`);
+  // o rotulo do seletor de visao nao pode voltar a quebrar em duas linhas
+  const alturaSeletor = await pag.evaluate(() => {
+    const t = document.querySelector('#grade-gear-menu .grade-view-toggle');
+    return t ? Math.round(t.getBoundingClientRect().height) : -1;
+  });
+  alturaSeletor > 0 && alturaSeletor <= 38 ? ok(`seletor Semanal/Meta diaria em uma linha (${alturaSeletor}px)`)
+    : erro(`seletor de visao com ${alturaSeletor}px — o rotulo quebrou em duas linhas`);
+  await pag.evaluate(() => { const b = document.getElementById('grade-gear-btn'); if (b) b.click(); });
 } catch (e) { erro('falha na navegacao: ' + e.message); }
 
 /* ── 7. contraste WCAG AA nos DOIS temas ───────────────────────────────────

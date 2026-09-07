@@ -9539,7 +9539,20 @@ button.is-saving {
    "Opcoes") — o titulo e o subtitulo passavam POR BAIXO do botao. Em fluxo,
    o proprio flexbox reserva a largura exata do botao em qualquer tela. */
 #screen-grade .card-header {
+  /* O menu de "Opcoes" abre POR CIMA da tabela, e a tabela tem cabecalho fixo
+     (position: sticky). O navegador promove celula fixa a camada composta, e
+     essa camada vencia o z-index: 40 do menu — a faixa SEG..DOM era desenhada
+     ATRAVES do painel aberto. Subir o z-index do menu nao resolvia (testado:
+     40, 100 — sem efeito), porque a disputa nao era entre os dois elementos:
+     era entre a camada da tabela e a do cabecalho, que nem contexto de
+     empilhamento tinha.
+
+     Com position + z-index, o cabecalho INTEIRO vira um contexto proprio e
+     passa a ser pintado depois do irmao que contem a tabela. --z-suspenso e o
+     token que a propria escala do app reserva para menus suspensos (100), bem
+     acima de --z-grudado (50, barras fixas) e abaixo de --z-modal (1500). */
   position: relative;
+  z-index: var(--z-suspenso, 100);
   flex-wrap: nowrap;
   align-items: flex-start;
   column-gap: 14px;
@@ -9559,12 +9572,19 @@ button.is-saving {
   text-transform: uppercase; color: var(--text-faint); margin-bottom: 7px;
 }
 .grade-gear-group .grade-view-toggle { display: flex; width: 100%; }
-.grade-gear-group .gvt-btn { flex: 1 1 0; justify-content: center; text-align: center; }
+/* Dentro do menu o seletor tem ~211px para dois botoes. Com o padding de 13px
+   herdado, sobravam 79px de texto por botao e "Meta diaria" QUEBRAVA em duas
+   linhas — o controle segmentado ficava com 48px de altura e aparencia de
+   defeito. Padding menor + nowrap devolvem a linha unica. */
+.grade-gear-group .gvt-btn {
+  flex: 1 1 0; justify-content: center; text-align: center;
+  padding-left: 6px; padding-right: 6px; white-space: nowrap;
+}
 .grade-gear-select {
   width: 100%; padding: 7px 32px 7px 10px; font-size: var(--fs-sm);
   border-radius: 9px; border: 1.5px solid var(--border); background: var(--surface);
 }
-.grade-gear-menu { min-width: 244px; }
+.grade-gear-menu { min-width: 252px; }   /* folga para o seletor caber em uma linha */
 
 /* A bandeja perdeu a barra de ações: os chips ocupam a faixa inteira */
 .grade-tray-bar .grade-chip-tray { width: 100%; }
