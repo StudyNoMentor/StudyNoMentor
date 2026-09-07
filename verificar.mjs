@@ -198,6 +198,44 @@ try {
   alturaSeletor > 0 && alturaSeletor <= 38 ? ok(`seletor Semanal/Meta diaria em uma linha (${alturaSeletor}px)`)
     : erro(`seletor de visao com ${alturaSeletor}px — o rotulo quebrou em duas linhas`);
   await pag.evaluate(() => { const b = document.getElementById('grade-gear-btn'); if (b) b.click(); });
+
+  /* Painéis de filtro recolhíveis: têm de nascer RECOLHIDOS e com o resumo do
+     que está valendo à mostra. Sem o resumo, recolher esconde informação em vez
+     de esconder ruído. */
+  for (const [tela, corpo, botao, resumo] of [
+    ['desempenhotec', 'tec-scope-body', 'tec-scope-collapse', 'tec-scope-resumo'],
+    ['desempenhotec', 'plano-filtros-body', 'plano-filtros-collapse', 'plano-filtros-resumo'],
+  ]) {
+    await pag.evaluate((t) => switchScreen(t), tela);
+    await pag.waitForTimeout(250);
+    const r = await pag.evaluate(([c, b]) => {
+      const corpoEl = document.getElementById(c), botaoEl = document.getElementById(b);
+      if (!corpoEl || !botaoEl) return { faltando: true };
+      const antes = corpoEl.hidden;
+      botaoEl.click();
+      const depois = corpoEl.hidden;
+      botaoEl.click();                       // devolve ao estado inicial
+      return { recolhidoDeInicio: antes, alterna: antes !== depois };
+    }, [corpo, botao]);
+    r.faltando ? erro(`painel recolhivel ausente: #${corpo}`)
+      : (r.recolhidoDeInicio && r.alterna) ? ok(`painel #${corpo} nasce recolhido e alterna`)
+      : erro(`painel #${corpo}: recolhidoDeInicio=${r.recolhidoDeInicio} alterna=${r.alterna}`);
+  }
+
+  /* A lista suspensa de período do gráfico de tempo substituiu seis botões que
+     ficavam abertos o tempo todo. Se os chips voltarem, é regressão. */
+  await pag.evaluate(() => switchScreen('evolucao'));
+  await pag.waitForTimeout(300);
+  const per = await pag.evaluate(() => {
+    const sel = document.getElementById('evo-tempo-periodo-sel');
+    const faixa = document.getElementById('evo-tempo-range');
+    return { temSelect: !!sel, opcoes: sel ? sel.options.length : 0,
+      faixaOculta: faixa ? faixa.hidden : null,
+      chipsAntigos: document.querySelectorAll('#evo-tempo-periodo .evo-chip').length };
+  });
+  (per.temSelect && per.opcoes >= 7 && per.faixaOculta && per.chipsAntigos === 0)
+    ? ok('periodo do grafico de tempo e lista suspensa, com intervalo recolhido')
+    : erro('periodo do grafico de tempo: ' + JSON.stringify(per));
 } catch (e) { erro('falha na navegacao: ' + e.message); }
 
 /* ── 7. contraste WCAG AA nos DOIS temas ───────────────────────────────────

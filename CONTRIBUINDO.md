@@ -176,6 +176,22 @@ precisa de cor própria, declare — e declare também a cor de **partida**, nã
 a dos estados: o indicador de sincronização ficou em 1,14:1 porque a cor só
 existia nas classes `st-*`, aplicadas depois que a nuvem responde.
 
+## Filtros de tela
+
+Barra de filtros nasce **recolhida** e mostra um **resumo do que está valendo**
+no cabeçalho. As duas coisas juntas, sempre: recolher sem resumo esconde
+informação, não ruído.
+
+Use `PainelRecolhivel.registrar({ id, corpo, botao, texto, resumo, calcResumo })`
+— o estado fica salvo por perfil. Quando o filtro mudar, chame
+`PainelRecolhivel.sincronizar(id)` para o resumo não mentir.
+
+Cuidado com **dois mecanismos de ocultar sobre o mesmo elemento**: no Desempenho
+TEC, a classe `.tec-cfg` (menu ⚙ Exibição → "Filtros e configurações") aplica
+`display: none !important` em toda a tela. A barra do Plano saiu dessa classe ao
+ganhar painel próprio — com as duas, abrir "Mostrar ajustes" revelava um painel
+pela metade.
+
 ## Regras que não se negociam
 
 - **Sem dependência nova em tempo de execução.** O app carrega com 1 requisição.

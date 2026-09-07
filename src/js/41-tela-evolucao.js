@@ -891,11 +891,14 @@ const EvolucaoScreen = {
     } else {
       end = hoje; start = this.addDaysLocal(hoje, -(this.tempoDias - 1)); nDias = this.tempoDias;
     }
-    // reflete o estado nos controles
-    const chipGroup = document.getElementById('evo-tempo-periodo');
-    if (chipGroup) chipGroup.classList.toggle('range-active', usaRange);
-    const clearBtn = document.getElementById('evo-tempo-clear');
-    if (clearBtn) clearBtn.style.display = usaRange ? '' : 'none';
+    /* Reflete o estado nos controles. A lista suspensa mostra "Intervalo
+       personalizado…" quando ha um intervalo em uso, e os dois campos de data
+       so existem na tela nesse caso — e essa e a razao de eles terem deixado de
+       ficar permanentemente abertos no cabecalho. */
+    const sel = document.getElementById('evo-tempo-periodo-sel');
+    if (sel) sel.value = usaRange ? 'custom' : String(this.tempoDias);
+    const faixa = document.getElementById('evo-tempo-range');
+    if (faixa) faixa.hidden = !usaRange;
     const deEl = document.getElementById('evo-tempo-de'); if (deEl) { deEl.value = usaRange ? start : ''; deEl.max = hoje; }
     const ateEl = document.getElementById('evo-tempo-ate'); if (ateEl) { ateEl.value = usaRange ? end : ''; ateEl.max = hoje; }
     // agrega minutos por dia dentro da janela (independe do filtro de data principal)
@@ -1706,13 +1709,21 @@ window.addEventListener('screen:activated', (e) => {
   }
 });
 
-// atalho de período do gráfico "Tempo de estudo por dia"
-$id('evo-tempo-periodo').addEventListener('click', (e) => {
-  const btn = e.target.closest('.evo-chip');
-  if (!btn) return;
-  EvolucaoScreen.tempoDias = parseInt(btn.dataset.days, 10);
-  EvolucaoScreen.tempoStart = null; EvolucaoScreen.tempoEnd = null; // atalho anula o intervalo custom
-  document.querySelectorAll('#evo-tempo-periodo .evo-chip').forEach(b => b.classList.toggle('active', b === btn));
+// período do gráfico "Tempo de estudo por dia" — lista suspensa
+$id('evo-tempo-periodo-sel').addEventListener('change', (e) => {
+  const v = e.target.value;
+  const faixa = document.getElementById('evo-tempo-range');
+  if (v === 'custom') {
+    // Abre os campos de data e para por aqui: o gráfico só muda quando as DUAS
+    // datas estiverem preenchidas (ver o bloco de intervalo abaixo).
+    if (faixa) faixa.hidden = false;
+    const de = document.getElementById('evo-tempo-de');
+    if (de) setTimeout(() => { try { de.focus(); } catch (err) { _quiet(err, 'foco-intervalo'); } }, 40);
+    return;
+  }
+  EvolucaoScreen.tempoDias = parseInt(v, 10) || 7;
+  EvolucaoScreen.tempoStart = null; EvolucaoScreen.tempoEnd = null;  // período pronto anula o intervalo
+  if (faixa) faixa.hidden = true;
   EvolucaoScreen.renderDayChart(EvolucaoScreen._sourceEntries());
 });
 // [MELHORIA] Intervalo de datas personalizado no "Tempo de estudo"
@@ -1734,6 +1745,9 @@ $id('evo-tempo-periodo').addEventListener('click', (e) => {
   if (ate) ate.addEventListener('change', apply);
   if (clear) clear.addEventListener('click', () => {
     EvolucaoScreen.tempoStart = null; EvolucaoScreen.tempoEnd = null;
+    if (de) de.value = ''; if (ate) ate.value = '';
+    const faixa = document.getElementById('evo-tempo-range');
+    if (faixa) faixa.hidden = true;   // some junto: era isso que faltava
     EvolucaoScreen.renderDayChart(EvolucaoScreen._sourceEntries());
   });
 })();

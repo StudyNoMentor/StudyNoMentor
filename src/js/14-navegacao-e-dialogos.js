@@ -75,6 +75,83 @@ $id('tabs').addEventListener('click', (e) => {
   switchScreen(btn.dataset.screen);
 });
 
+/* ═══════════════════════════════════════════════════════════════════════════
+   PAINEL RECOLHÍVEL — filtros que ficam fora do caminho
+   ───────────────────────────────────────────────────────────────────────────
+   Três telas tinham a mesma barra de filtros ocupando o topo o tempo todo para
+   esperar um clique raro. A Evolução já resolvia isso com um botão "Ocultar
+   filtros" próprio; em vez de copiar aquele código mais duas vezes, ele vira
+   uma peça só.
+
+   Duas decisões que valem explicação:
+
+   · RECOLHIDO POR PADRÃO. Um filtro é a exceção, não a rotina — o normal é
+     querer ver o RESULTADO. Quem prefere o contrário expande uma vez e o
+     estado fica salvo por perfil.
+   · RESUMO NO CABEÇALHO. Recolher filtros sem dizer qual está valendo esconde
+     informação, não ruído. Com o painel fechado, o cabeçalho mostra o escopo
+     ativo ("Consolidado (todos)"), então dá para conferir sem abrir.
+   ═══════════════════════════════════════════════════════════════════════════ */
+const PainelRecolhivel = {
+  _registro: Object.create(null),
+  _chave(id) {
+    try { return DB._profilePrefix() + 'painel:' + id; }
+    catch (_) { return 'diario-estudos:painel:' + id; }
+  },
+  /* cfg = { id, corpo, botao, texto, resumo?, rotuloAberto?, rotuloFechado?,
+             padraoRecolhido?, calcResumo? } — tudo por ID de elemento. */
+  registrar(cfg) {
+    const botao = document.getElementById(cfg.botao);
+    if (!botao) return;                      // tela ausente: nada a fazer
+    this._registro[cfg.id] = cfg;
+    botao.addEventListener('click', () => {
+      const aberto = botao.getAttribute('aria-expanded') === 'true';
+      this.aplicar(cfg.id, aberto, true);    // aberto -> recolhe
+    });
+    let recolhido = cfg.padraoRecolhido !== false;
+    try {
+      const g = localStorage.getItem(this._chave(cfg.id));
+      if (g !== null) recolhido = (g === '1');
+    } catch (e) { _quiet(e, 'painel-ler'); }
+    this.aplicar(cfg.id, recolhido, false);
+  },
+  aplicar(id, recolhido, persistir) {
+    const cfg = this._registro[id]; if (!cfg) return;
+    const corpo = document.getElementById(cfg.corpo);
+    const botao = document.getElementById(cfg.botao);
+    const texto = cfg.texto ? document.getElementById(cfg.texto) : null;
+    if (!corpo || !botao) return;
+    corpo.hidden = !!recolhido;
+    botao.setAttribute('aria-expanded', recolhido ? 'false' : 'true');
+    if (texto) texto.textContent = recolhido
+      ? (cfg.rotuloFechado || 'Mostrar filtros')
+      : (cfg.rotuloAberto || 'Ocultar filtros');
+    this.atualizarResumo(id);
+    if (persistir) {
+      try { localStorage.setItem(this._chave(id), recolhido ? '1' : '0'); }
+      catch (e) { _quiet(e, 'painel-gravar'); }
+    }
+  },
+  /* O resumo só aparece com o painel FECHADO: aberto, ele repetiria o que já
+     está à vista logo abaixo. */
+  atualizarResumo(id) {
+    const cfg = this._registro[id]; if (!cfg || !cfg.resumo) return;
+    const el = document.getElementById(cfg.resumo);
+    const botao = document.getElementById(cfg.botao);
+    if (!el || !botao) return;
+    const recolhido = botao.getAttribute('aria-expanded') !== 'true';
+    let txt = '';
+    if (recolhido && typeof cfg.calcResumo === 'function') {
+      try { txt = cfg.calcResumo() || ''; } catch (e) { _quiet(e, 'painel-resumo'); }
+    }
+    el.textContent = txt;
+    el.hidden = !txt;
+  },
+  /* Chamado pelas telas quando o filtro muda, para o resumo não mentir. */
+  sincronizar(id) { this.atualizarResumo(id); },
+};
+window.PainelRecolhivel = PainelRecolhivel;
+
 /* ============================================================
    TOAST util (compartilhado)
    ============================================================ */
@@ -209,7 +286,11 @@ const UI = {
     ok.disabled = false;   // confirmTyped desabilita; um dialogo comum sempre nasce habilitado
     const cancel = document.getElementById('ui-modal-cancel');
     cancel.textContent = cancelText;
-    cancel.style.display = hideCancel ? 'none' : 'inline-flex';
+    /* Devolve o display do CSS em vez de cravar 'inline-flex'. Num botao que e
+       container flex, `text-align: center` NAO vale — o texto vai para o inicio
+       da linha. Era por isso que "Cancelar" aparecia encostado a esquerda
+       enquanto "Salvar", que continuou block, ficava centrado. */
+    cancel.style.display = hideCancel ? 'none' : '';
     modal.style.display = 'flex';
     const first = modal.querySelector('.cards-modal-body input, .cards-modal-body textarea, .cards-modal-body select');
     if (first) setTimeout(() => first.focus(), 60);

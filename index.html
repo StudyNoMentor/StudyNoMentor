@@ -1837,7 +1837,11 @@ window.__idbBoot = (function () {
   .modality-table tbody tr:last-child td { border-bottom: none; }
   .modality-table .mt-cell { text-align: center; font-family: 'Space Mono', ui-monospace, SFMono-Regular, Menlo, monospace; font-size: calc(11.5px * var(--fs-scale,1)); font-weight: 600; color: var(--text); white-space: nowrap; }
   .modality-table .mt-zero { color: var(--text-faint); font-weight: 400; }
-  .modality-table .mt-name { font-size: calc(12.5px * var(--fs-scale,1)); font-weight: 600; color: var(--text); max-width: 180px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .modality-table .mt-name {
+    font-size: calc(12.5px * var(--fs-scale,1)); font-weight: 600; color: var(--text);
+    max-width: 200px; white-space: normal; line-height: 1.25;
+    overflow-wrap: normal; word-break: normal; hyphens: auto;
+  }
   .modality-table .mt-sticky { position: sticky; left: 0; background: var(--surface); z-index: 1; box-shadow: 1px 0 0 var(--border); }
   .modality-table thead .mt-sticky { background: var(--surface-sunken); z-index: 2; }
   .modality-table .mt-total-col { font-weight: 800; color: var(--accent-text); background: color-mix(in srgb, var(--accent) 5%, transparent); }
@@ -2260,6 +2264,9 @@ window.__idbBoot = (function () {
     .evo-chip-group { width: 100%; justify-content: flex-start; overflow-x: auto; flex-wrap: nowrap; padding-bottom: 2px; scrollbar-width: none; }
     .evo-chip-group::-webkit-scrollbar { display: none; }
     .evo-tempo-range { width: 100%; }
+    .evo-periodo-ctl { width: 100%; align-items: stretch; }
+    .evo-periodo-sel { width: 100%; min-width: 0; }
+    .evo-tempo-range input[type="date"] { flex: 1 1 130px; min-width: 0; }
     .evo-day-bar-row { height: 150px; }
     /* gráficos SVG mantêm proporção; garante respiro lateral */
     #evolucao-line-chart, #evolucao-acerto-linha, #evolucao-meta-chart,
@@ -2309,8 +2316,51 @@ window.__idbBoot = (function () {
   .perf-row .name { font-size: var(--fs-sm); font-weight: 600; }
   .perf-row .pct-badge { font-family: 'Space Mono', ui-monospace, SFMono-Regular, Menlo, monospace; font-weight: 700; font-size: var(--fs-xs); padding: 4px 10px; border-radius: 20px; }
 
+  /* ══════════════════════════════════════════════════════════════════════
+     CICLO DA SEMANA NO CELULAR
+     ──────────────────────────────────────────────────────────────────────
+     O sintoma era o nome da disciplina saindo QUEBRADO LETRA POR LETRA. A
+     mecânica, medida no Chromium:
+
+       .cycle-review-row usava `1fr 90px 120px 90px` + 3 gaps de 12px = 336px
+       de colunas FIXAS. Num cartão de 348px sobravam 12px para o `1fr` — e,
+       como o app define `overflow-wrap: break-word` no body, o mínimo de
+       conteúdo de um bloco deixa de ser "a maior palavra" e passa a ser UMA
+       LETRA. Resultado: "Direito Administrativo" em 12px de largura, 270px de
+       altura, 15 linhas. Uma letra por linha.
+
+       Na etapa de montar, o mesmo em outra dose: no modo Pós-edital o celular
+       recebia `minmax(0,1fr) auto`, e a coluna `auto` (Qtd. Q.) comia o espaço
+       — o select de Matéria ficava com 116px a 430px, 76px a 390px e 46px a
+       360px. A 320px o próprio rótulo "Matéria" virava 6px de largura por 91px
+       de altura.
+
+     A correção é dar a cada etapa um layout de celular de verdade, em fluxo,
+     sem coluna fixa que não caiba. Nenhuma delas depende de `overflow: hidden`
+     nem de reticências: o nome inteiro fica visível. */
   @media (max-width: 560px) {
-    .cycle-subject-row { grid-template-columns: 1fr; gap: 6px; }
+    /* MONTAR — pré-edital: Matéria ocupa a linha, com o × ao lado;
+       Dificuldade e Fase dividem a linha de baixo. */
+    .cycle-subject-row {
+      grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto;
+      column-gap: 8px; row-gap: 10px;
+      align-items: end;
+    }
+    .cycle-subject-row > .field:nth-child(1) { grid-column: 1 / 3; grid-row: 1; }
+    .cycle-subject-row > .remove-btn { grid-column: 3; grid-row: 1; align-self: end; }
+
+    /* REVISÃO — era a pior: nome + meta na coluna espremida a 12px.
+       Vira duas faixas: identificação em cima, tempo e sugestão embaixo. */
+    .cycle-review-row {
+      grid-template-columns: minmax(0, 1fr) auto;
+      column-gap: 10px; row-gap: 8px;
+      align-items: center;
+      padding: 12px 0;
+    }
+    .cycle-review-row > *:nth-child(1) { grid-column: 1 / -1; min-width: 0; }
+    .cycle-review-row .suggested { text-align: left; }
+    .cycle-review-row .cycle-review-time-input { justify-self: end; }
+    .btn-reset-suggestion { grid-column: 1 / -1; justify-self: start; padding-left: 0; }
     /* 5 KPIs do ciclo: compactos em 3 colunas (2 linhas) em vez de caixas enormes */
     #ciclo-overview-gauges { grid-template-columns: repeat(3, 1fr) !important; gap: 8px !important; }
     #ciclo-overview-gauges .mini-gauge-card { padding: 10px 6px; border-radius: 10px; }
@@ -3075,11 +3125,24 @@ window.__idbBoot = (function () {
       row-gap: 4px; padding: 10px 12px;
     }
     .track-row > *:nth-child(n+4) { grid-column: 2 / -1; }
+    /* MONTAR — pós-edital: 6 colunas virtuais dão um encaixe exato para
+       "Matéria + ×" na primeira faixa, os três primeiros números na segunda e
+       os dois últimos na terceira. Tudo em fluxo, nenhuma coluna fixa. */
     .cycle-subject-row.pos {
-      grid-template-columns: minmax(0, 1fr) auto !important;
-      row-gap: 6px;
+      grid-template-columns: repeat(6, minmax(0, 1fr)) !important;
+      column-gap: 8px; row-gap: 10px;
+      align-items: end;
     }
-    .cycle-subject-row.pos > *:nth-child(n+3) { grid-column: 1 / -1; }
+    .cycle-subject-row.pos > .field:nth-child(1) { grid-column: 1 / 6; grid-row: 1; }
+    .cycle-subject-row.pos > .remove-btn { grid-column: 6 / 7; grid-row: 1; }
+    .cycle-subject-row.pos > .field:nth-child(2),
+    .cycle-subject-row.pos > .field:nth-child(3),
+    .cycle-subject-row.pos > .field:nth-child(4) { grid-column: span 2; }
+    .cycle-subject-row.pos > .field:nth-child(5) { grid-column: 1 / 4; }
+    .cycle-subject-row.pos > .field:nth-child(6) { grid-column: 4 / 7; }
+    /* Os rótulos curtos ("Qtd. Q.", "Pts/Q") não podem quebrar em duas linhas
+       e desalinhar a faixa de números. */
+    .cycle-subject-row.pos label { white-space: nowrap; }
   }
 
   /* 2) TEXTO CORTADO SECO (nowrap sem reticências)
@@ -3883,6 +3946,15 @@ window.__idbBoot = (function () {
   .evo-card-head .sub { font-size: var(--fs-xs); color: var(--text-faint); margin-top: 3px; }
   .evo-chip-group { display: inline-flex; gap: 4px; flex-wrap: wrap; }
   /* [MELHORIA] Intervalo de datas do gráfico "Tempo de estudo" */
+  /* Controle de período do gráfico de tempo: uma lista suspensa no lugar dos
+     seis botões que ficavam abertos o tempo todo, e os campos de data só
+     visíveis quando o intervalo personalizado é escolhido. */
+  .evo-periodo-ctl { display: flex; flex-direction: column; gap: 8px; align-items: flex-end; }
+  .evo-periodo-sel {
+    width: auto; min-width: 190px; padding: 7px 30px 7px 11px;
+    font-size: var(--fs-xs); font-weight: 600;
+    border-radius: 10px; border: 1.5px solid var(--border); background: var(--surface);
+  }
   .evo-tempo-range { display: inline-flex; align-items: center; gap: 6px; flex-wrap: wrap; }
   .evo-tempo-range-lbl { font-size: var(--fs-2xs); font-weight: 700; color: var(--text-faint); text-transform: uppercase; letter-spacing: 0.03em; }
   .evo-tempo-range-sep { color: var(--text-faint); font-weight: 700; }
@@ -3892,6 +3964,19 @@ window.__idbBoot = (function () {
   #evo-tempo-periodo.range-active .evo-chip.active { background: var(--surface-sunken); color: var(--text-soft); border-color: var(--border); }
   /* [MELHORIAS Evolução] */
   .evo-scope-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+  /* Cabeçalho de um painel de filtros recolhível: rótulo à esquerda, resumo do
+     que está valendo no meio, ações e o botão de abrir/fechar à direita. */
+  .painel-head { display: flex; align-items: center; gap: 10px 14px; flex-wrap: wrap; }
+  .painel-head-acoes { margin-left: auto; }
+  .painel-resumo {
+    font-size: var(--fs-xs); font-weight: 700; color: var(--accent-text);
+    background: var(--accent-soft); border-radius: 20px; padding: 3px 11px;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%;
+  }
+  @media (max-width: 560px) {
+    .painel-head-acoes { margin-left: 0; width: 100%; }
+    .painel-resumo { max-width: 100%; }
+  }
   .evo-collapse-btn { display: inline-flex; align-items: center; gap: 6px; background: transparent; border: none; cursor: pointer; font-family: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif; font-size: var(--fs-xs); font-weight: 700; color: var(--text-soft); padding: 4px 6px; border-radius: 8px; }
   .evo-collapse-btn:hover { color: var(--accent); }
   .evo-collapse-btn .chev { transition: transform 0.18s ease; display: inline-block; font-size: var(--fs-3xs); }
@@ -4019,20 +4104,38 @@ window.__idbBoot = (function () {
   .acm-ruler-track { position: relative; height: 22px; }
   .acm-ruler-lbl { position: absolute; bottom: 0; transform: translateX(-50%); font-family: 'Space Mono', ui-monospace, SFMono-Regular, Menlo, monospace; font-size: var(--fs-2xs); font-weight: 700; color: #fff; padding: 2px 7px; border-radius: 8px; white-space: nowrap; box-shadow: var(--shadow-sm); }
   .acm-ruler-lbl::after { content: ''; position: absolute; left: 50%; bottom: -5px; transform: translateX(-50%); border: 4px solid transparent; border-top-color: inherit; }
-  .acm-row { display: grid; grid-template-columns: 150px 1fr 96px; align-items: center; gap: 14px; padding: 5px 0; }
-  .acm-name { font-size: var(--fs-xs); font-weight: 600; color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  /* ── NOME DE DISCIPLINA: inteiro, ou em duas linhas — nunca cortado ──────
+     Estes três rótulos usavam `white-space: nowrap` + reticências numa coluna
+     de largura fixa. Com nomes reais ("Raciocínio Lógico-Matemático",
+     "Legislação Extravagante e Especial") o texto era cortado em TODAS as
+     larguras: medido em 150px de coluna precisando de 112px a 122px.
+     Agora quebram em linha, com a coluna um pouco mais larga.
+
+     `overflow-wrap: normal` é deliberado: o app define `break-word` no body, e
+     numa coluna estreita isso quebraria a palavra NO MEIO. Aqui a quebra é
+     entre palavras (ou no hífen, via `hyphens`), como se lê de verdade. */
+  .acm-row { display: grid; grid-template-columns: minmax(0, 168px) 1fr 96px; align-items: center; gap: 14px; padding: 5px 0; }
+  .acm-name {
+    font-size: var(--fs-xs); font-weight: 600; color: var(--text);
+    white-space: normal; line-height: 1.25; min-width: 0;
+    overflow-wrap: normal; word-break: normal; hyphens: auto;
+  }
   .acm-track { position: relative; height: 18px; background: var(--surface-sunken); border: 1px solid var(--border); border-radius: 8px; overflow: visible; }
   .acm-fill { height: 100%; border-radius: 6px 0 0 6px; transition: width 0.5s ease; }
   .acm-ref { position: absolute; top: -4px; bottom: -4px; width: 2px; opacity: 0.9; z-index: 2; }
   .acm-val { font-family: 'Space Mono', ui-monospace, SFMono-Regular, Menlo, monospace; font-weight: 700; font-size: var(--fs-sm); text-align: right; }
   .acm-val .acm-q { display: block; font-size: var(--fs-3xs); color: var(--text-faint); font-weight: 400; }
   @media (max-width: 560px) {
-    .acm-row, .acm-ruler { grid-template-columns: 92px 1fr 60px; }
+    .acm-row, .acm-ruler { grid-template-columns: minmax(0, 118px) 1fr 58px; gap: 10px; }
   }
   /* Tempo por matéria — rótulo de horas destacado */
-  .tpm-row { display: grid; grid-template-columns: 160px 1fr 118px; align-items: center; gap: 14px; padding: 7px 0; border-bottom: 1px solid var(--border); }
+  .tpm-row { display: grid; grid-template-columns: minmax(0, 176px) 1fr 118px; align-items: center; gap: 14px; padding: 7px 0; border-bottom: 1px solid var(--border); }
   .tpm-row:last-child { border-bottom: none; }
-  .tpm-name { font-size: var(--fs-sm); font-weight: 600; color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .tpm-name {
+    font-size: var(--fs-sm); font-weight: 600; color: var(--text);
+    white-space: normal; line-height: 1.25; min-width: 0;
+    overflow-wrap: normal; word-break: normal; hyphens: auto;
+  }
   .tpm-track { height: 12px; background: var(--surface-sunken); border: 1px solid var(--border); border-radius: 20px; overflow: hidden; }
   .tpm-fill { height: 100%; border-radius: 20px; background: var(--accent); }
   .tpm-val { display: flex; align-items: center; justify-content: flex-end; gap: 8px; }
@@ -4042,7 +4145,11 @@ window.__idbBoot = (function () {
   }
   .tpm-pct { font-family: 'Space Mono', ui-monospace, SFMono-Regular, Menlo, monospace; font-size: var(--fs-2xs); color: var(--text-faint); min-width: 30px; text-align: right; }
   @media (max-width: 560px) {
-    .tpm-row { grid-template-columns: 96px 1fr 90px; }
+    /* No celular nem 124px bastam para "Raciocínio Lógico-Matemático" — ele
+       quebrava em TRÊS linhas. O nome passa a ocupar a faixa inteira e a barra
+       com o valor vão para a linha de baixo: uma linha só, nome inteiro. */
+    .tpm-row { grid-template-columns: 1fr auto; gap: 4px 10px; align-items: center; }
+    .tpm-name { grid-column: 1 / -1; }
   }
 
   /* ---------- Tela de acesso (perfis) ---------- */
@@ -5108,6 +5215,12 @@ window.__idbBoot = (function () {
   .cards-modal-head .sub { margin: 0; font-size: var(--fs-xs); color: var(--text-faint); }
   .cards-modal-body { padding: 16px 22px; overflow-y: auto; }
   .cards-modal-foot { display: flex; align-items: center; gap: 8px; padding: 14px 22px; border-top: 1px solid var(--border); flex-wrap: wrap; }
+  /* Centraliza o rotulo dos botoes do rodape seja qual for o display que eles
+     acabem tendo. `text-align` cobre o caso block/inline-block; `justify-content`
+     cobre o caso em que algum codigo os torne flex. Sem o segundo, um botao flex
+     joga o texto para a esquerda e so ele fica torto ao lado dos outros. */
+  .cards-modal-foot .btn-primary,
+  .cards-modal-foot .btn-secondary { text-align: center; justify-content: center; align-items: center; }
   .req { color: var(--bad); }
   /* Editor de texto rico */
   .rte { border: 1.5px solid var(--border); border-radius: 12px; overflow: hidden; background: var(--surface); }
@@ -6925,21 +7038,26 @@ window.__idbBoot = (function () {
             <h2>Tempo de estudo</h2>
             <p class="sub">Tempo registrado por dia</p>
           </div>
-          <div style="display:flex; flex-direction:column; gap:8px; align-items:flex-end;">
-            <div class="evo-chip-group" id="evo-tempo-periodo">
-              <button type="button" class="evo-chip active" data-days="7">1 semana</button>
-              <button type="button" class="evo-chip" data-days="14">2 semanas</button>
-              <button type="button" class="evo-chip" data-days="30">1 mês</button>
-              <button type="button" class="evo-chip" data-days="90">3 meses</button>
-              <button type="button" class="evo-chip" data-days="180">6 meses</button>
-              <button type="button" class="evo-chip" data-days="365">1 ano</button>
-            </div>
-            <div class="evo-tempo-range" id="evo-tempo-range">
-              <span class="evo-tempo-range-lbl">Intervalo:</span>
+          <!-- Antes: 6 botões de período SEMPRE visíveis + dois campos de data,
+               ocupando duas faixas inteiras do cabeçalho só para esperar um
+               clique raro. Agora uma lista suspensa faz o mesmo em uma linha, e
+               o intervalo personalizado só aparece quando é escolhido. -->
+          <div class="evo-periodo-ctl">
+            <select id="evo-tempo-periodo-sel" class="evo-periodo-sel" title="Período do gráfico"
+                    aria-label="Período do gráfico de tempo de estudo">
+              <option value="7" selected>Última semana</option>
+              <option value="14">Últimas 2 semanas</option>
+              <option value="30">Último mês</option>
+              <option value="90">Últimos 3 meses</option>
+              <option value="180">Últimos 6 meses</option>
+              <option value="365">Último ano</option>
+              <option value="custom">Intervalo personalizado…</option>
+            </select>
+            <div class="evo-tempo-range" id="evo-tempo-range" hidden>
               <input type="date" id="evo-tempo-de" title="Data inicial" aria-label="Data inicial do intervalo">
               <span class="evo-tempo-range-sep">→</span>
               <input type="date" id="evo-tempo-ate" title="Data final" aria-label="Data final do intervalo">
-              <button type="button" class="evo-tempo-clear" id="evo-tempo-clear" title="Voltar aos atalhos rápidos" style="display:none;" aria-label="Voltar aos atalhos rápidos">✕</button>
+              <button type="button" class="evo-tempo-clear" id="evo-tempo-clear" title="Voltar aos períodos prontos" aria-label="Voltar aos períodos prontos">✕</button>
             </div>
           </div>
         </div>
@@ -7416,16 +7534,15 @@ window.__idbBoot = (function () {
       <!-- Barra superior: ESCOPO da análise (consolidado / seleção / intervalo) + ações -->
       <div class="card">
         <div style="padding: 16px 24px;">
-          <div style="display:flex; align-items:center; justify-content:space-between; gap:14px; flex-wrap:wrap; margin-bottom:8px;">
-            <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
-              <span class="section-label" style="margin:0;">Escopo da análise</span>
-              <div class="scope-toggle" id="tec-scope-toggle">
-                <button type="button" data-scope="consolidado" class="active">Consolidado (todos)</button>
-                <button type="button" data-scope="select">Selecionar retratos</button>
-                <button type="button" data-scope="range">Intervalo de datas</button>
-              </div>
-            </div>
-            <div class="grade-head-actions">
+          <!-- CABEÇALHO — sempre visível. Só o essencial: o que está valendo,
+               as ações primárias e o botão que abre os filtros. Os controles de
+               escopo (Consolidado / Selecionar retratos / Intervalo) moraram
+               aqui abertos o tempo todo, ocupando o topo da tela para esperar
+               um clique raro. Agora ficam no corpo recolhível abaixo. -->
+          <div class="painel-head">
+            <span class="section-label" style="margin:0;">Escopo da análise</span>
+            <span class="painel-resumo" id="tec-scope-resumo" hidden></span>
+            <div class="grade-head-actions painel-head-acoes">
               <div class="grade-gear-wrap">
                 <button class="btn-secondary grade-gear-btn" id="tec-gear-btn" type="button" title="Opções de exibição" aria-haspopup="true" aria-expanded="false">⚙ Exibição</button>
                 <div class="grade-gear-menu" id="tec-gear-menu" role="menu" aria-hidden="true">
@@ -7434,9 +7551,18 @@ window.__idbBoot = (function () {
                 </div>
               </div>
               <button class="btn-primary" id="tec-btn-new-import" type="button">+ Nova importação</button>
+              <button type="button" class="evo-collapse-btn" id="tec-scope-collapse" aria-expanded="false" title="Mostrar ou ocultar os filtros de escopo">
+                <span id="tec-scope-collapse-txt">Mostrar filtros</span><span class="chev">&#9662;</span>
+              </button>
             </div>
           </div>
-          <span class="hint" id="tec-snap-meta"></span>
+          <div id="tec-scope-body" hidden>
+            <div class="scope-toggle" id="tec-scope-toggle" style="margin-top:12px;">
+              <button type="button" data-scope="consolidado" class="active">Consolidado (todos)</button>
+              <button type="button" data-scope="select">Selecionar retratos</button>
+              <button type="button" data-scope="range">Intervalo de datas</button>
+            </div>
+            <span class="hint" id="tec-snap-meta"></span>
           <!-- Painel: seleção de retratos específicos (aparece no modo "Selecionar") -->
           <div id="tec-scope-select" style="display:none; margin-top:12px;"></div>
           <!-- Painel: intervalo de datas (aparece no modo "Intervalo") -->
@@ -7459,6 +7585,7 @@ window.__idbBoot = (function () {
             </div>
             <p class="hint" id="tec-range-hint" style="margin-top:8px;">Inclui todo retrato cujo período se sobrepõe ao intervalo escolhido.</p>
           </div>
+          </div><!-- /#tec-scope-body -->
         </div>
       </div>
 
@@ -7659,9 +7786,25 @@ window.__idbBoot = (function () {
               <h2>🏁 Plano de pontos fracos</h2>
               <p class="sub">Baseado só no seu desempenho no TEC. Mede o quanto você já domina do que estuda e mostra por onde atacar para fechar a lacuna resolvendo o menor número de questões.</p>
             </div>
+            <!-- Sete campos ficavam abertos aqui o tempo todo, mais dezesseis
+                 avançados logo abaixo — a tela abria em configuração, não em
+                 resultado. Agora tudo isso mora num painel recolhido, e o que
+                 está valendo aparece resumido ao lado do título. -->
+            <div class="painel-head-acoes" style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+              <span class="painel-resumo" id="plano-filtros-resumo" hidden></span>
+              <button type="button" class="evo-collapse-btn" id="plano-filtros-collapse" aria-expanded="false" title="Mostrar ou ocultar os ajustes do plano">
+                <span id="plano-filtros-collapse-txt">Mostrar ajustes</span><span class="chev">&#9662;</span>
+              </button>
+            </div>
           </div>
           <div style="padding: 4px 28px 20px;">
-            <div class="rfc-toolbar tec-cfg" style="margin-bottom:4px;">
+            <div id="plano-filtros-body" hidden>
+            <!-- Sem a classe `tec-cfg` de proposito: esta barra agora vive dentro
+                 de #plano-filtros-body, que ja a esconde e mostra. Com as duas
+                 coisas juntas, "Ocultar filtros" do menu Exibicao a deixava com
+                 display:none !important — e abrir "Mostrar ajustes" revelava um
+                 painel pela metade, só com os avançados. -->
+            <div class="rfc-toolbar" style="margin-bottom:4px;">
               <div class="rfc-field wide">
                 <label for="plano-disc">Disciplina</label>
                 <select id="plano-disc"><option value="__todas__">📚 Todas</option></select>
@@ -7786,6 +7929,7 @@ window.__idbBoot = (function () {
                 <button type="button" class="btn-secondary" id="plano-reset">↺ Restaurar padrões</button>
               </div>
             </div>
+            </div><!-- /#plano-filtros-body -->
 
             <div id="plano-proj"></div>
             <div id="plano-lista"></div>
@@ -12444,6 +12588,83 @@ $id('tabs').addEventListener('click', (e) => {
   switchScreen(btn.dataset.screen);
 });
 
+/* ═══════════════════════════════════════════════════════════════════════════
+   PAINEL RECOLHÍVEL — filtros que ficam fora do caminho
+   ───────────────────────────────────────────────────────────────────────────
+   Três telas tinham a mesma barra de filtros ocupando o topo o tempo todo para
+   esperar um clique raro. A Evolução já resolvia isso com um botão "Ocultar
+   filtros" próprio; em vez de copiar aquele código mais duas vezes, ele vira
+   uma peça só.
+
+   Duas decisões que valem explicação:
+
+   · RECOLHIDO POR PADRÃO. Um filtro é a exceção, não a rotina — o normal é
+     querer ver o RESULTADO. Quem prefere o contrário expande uma vez e o
+     estado fica salvo por perfil.
+   · RESUMO NO CABEÇALHO. Recolher filtros sem dizer qual está valendo esconde
+     informação, não ruído. Com o painel fechado, o cabeçalho mostra o escopo
+     ativo ("Consolidado (todos)"), então dá para conferir sem abrir.
+   ═══════════════════════════════════════════════════════════════════════════ */
+const PainelRecolhivel = {
+  _registro: Object.create(null),
+  _chave(id) {
+    try { return DB._profilePrefix() + 'painel:' + id; }
+    catch (_) { return 'diario-estudos:painel:' + id; }
+  },
+  /* cfg = { id, corpo, botao, texto, resumo?, rotuloAberto?, rotuloFechado?,
+             padraoRecolhido?, calcResumo? } — tudo por ID de elemento. */
+  registrar(cfg) {
+    const botao = document.getElementById(cfg.botao);
+    if (!botao) return;                      // tela ausente: nada a fazer
+    this._registro[cfg.id] = cfg;
+    botao.addEventListener('click', () => {
+      const aberto = botao.getAttribute('aria-expanded') === 'true';
+      this.aplicar(cfg.id, aberto, true);    // aberto -> recolhe
+    });
+    let recolhido = cfg.padraoRecolhido !== false;
+    try {
+      const g = localStorage.getItem(this._chave(cfg.id));
+      if (g !== null) recolhido = (g === '1');
+    } catch (e) { _quiet(e, 'painel-ler'); }
+    this.aplicar(cfg.id, recolhido, false);
+  },
+  aplicar(id, recolhido, persistir) {
+    const cfg = this._registro[id]; if (!cfg) return;
+    const corpo = document.getElementById(cfg.corpo);
+    const botao = document.getElementById(cfg.botao);
+    const texto = cfg.texto ? document.getElementById(cfg.texto) : null;
+    if (!corpo || !botao) return;
+    corpo.hidden = !!recolhido;
+    botao.setAttribute('aria-expanded', recolhido ? 'false' : 'true');
+    if (texto) texto.textContent = recolhido
+      ? (cfg.rotuloFechado || 'Mostrar filtros')
+      : (cfg.rotuloAberto || 'Ocultar filtros');
+    this.atualizarResumo(id);
+    if (persistir) {
+      try { localStorage.setItem(this._chave(id), recolhido ? '1' : '0'); }
+      catch (e) { _quiet(e, 'painel-gravar'); }
+    }
+  },
+  /* O resumo só aparece com o painel FECHADO: aberto, ele repetiria o que já
+     está à vista logo abaixo. */
+  atualizarResumo(id) {
+    const cfg = this._registro[id]; if (!cfg || !cfg.resumo) return;
+    const el = document.getElementById(cfg.resumo);
+    const botao = document.getElementById(cfg.botao);
+    if (!el || !botao) return;
+    const recolhido = botao.getAttribute('aria-expanded') !== 'true';
+    let txt = '';
+    if (recolhido && typeof cfg.calcResumo === 'function') {
+      try { txt = cfg.calcResumo() || ''; } catch (e) { _quiet(e, 'painel-resumo'); }
+    }
+    el.textContent = txt;
+    el.hidden = !txt;
+  },
+  /* Chamado pelas telas quando o filtro muda, para o resumo não mentir. */
+  sincronizar(id) { this.atualizarResumo(id); },
+};
+window.PainelRecolhivel = PainelRecolhivel;
+
 /* ============================================================
    TOAST util (compartilhado)
    ============================================================ */
@@ -12578,7 +12799,11 @@ const UI = {
     ok.disabled = false;   // confirmTyped desabilita; um dialogo comum sempre nasce habilitado
     const cancel = document.getElementById('ui-modal-cancel');
     cancel.textContent = cancelText;
-    cancel.style.display = hideCancel ? 'none' : 'inline-flex';
+    /* Devolve o display do CSS em vez de cravar 'inline-flex'. Num botao que e
+       container flex, `text-align: center` NAO vale — o texto vai para o inicio
+       da linha. Era por isso que "Cancelar" aparecia encostado a esquerda
+       enquanto "Salvar", que continuou block, ficava centrado. */
+    cancel.style.display = hideCancel ? 'none' : '';
     modal.style.display = 'flex';
     const first = modal.querySelector('.cards-modal-body input, .cards-modal-body textarea, .cards-modal-body select');
     if (first) setTimeout(() => first.focus(), 60);
@@ -19126,11 +19351,14 @@ const EvolucaoScreen = {
     } else {
       end = hoje; start = this.addDaysLocal(hoje, -(this.tempoDias - 1)); nDias = this.tempoDias;
     }
-    // reflete o estado nos controles
-    const chipGroup = document.getElementById('evo-tempo-periodo');
-    if (chipGroup) chipGroup.classList.toggle('range-active', usaRange);
-    const clearBtn = document.getElementById('evo-tempo-clear');
-    if (clearBtn) clearBtn.style.display = usaRange ? '' : 'none';
+    /* Reflete o estado nos controles. A lista suspensa mostra "Intervalo
+       personalizado…" quando ha um intervalo em uso, e os dois campos de data
+       so existem na tela nesse caso — e essa e a razao de eles terem deixado de
+       ficar permanentemente abertos no cabecalho. */
+    const sel = document.getElementById('evo-tempo-periodo-sel');
+    if (sel) sel.value = usaRange ? 'custom' : String(this.tempoDias);
+    const faixa = document.getElementById('evo-tempo-range');
+    if (faixa) faixa.hidden = !usaRange;
     const deEl = document.getElementById('evo-tempo-de'); if (deEl) { deEl.value = usaRange ? start : ''; deEl.max = hoje; }
     const ateEl = document.getElementById('evo-tempo-ate'); if (ateEl) { ateEl.value = usaRange ? end : ''; ateEl.max = hoje; }
     // agrega minutos por dia dentro da janela (independe do filtro de data principal)
@@ -19941,13 +20169,21 @@ window.addEventListener('screen:activated', (e) => {
   }
 });
 
-// atalho de período do gráfico "Tempo de estudo por dia"
-$id('evo-tempo-periodo').addEventListener('click', (e) => {
-  const btn = e.target.closest('.evo-chip');
-  if (!btn) return;
-  EvolucaoScreen.tempoDias = parseInt(btn.dataset.days, 10);
-  EvolucaoScreen.tempoStart = null; EvolucaoScreen.tempoEnd = null; // atalho anula o intervalo custom
-  document.querySelectorAll('#evo-tempo-periodo .evo-chip').forEach(b => b.classList.toggle('active', b === btn));
+// período do gráfico "Tempo de estudo por dia" — lista suspensa
+$id('evo-tempo-periodo-sel').addEventListener('change', (e) => {
+  const v = e.target.value;
+  const faixa = document.getElementById('evo-tempo-range');
+  if (v === 'custom') {
+    // Abre os campos de data e para por aqui: o gráfico só muda quando as DUAS
+    // datas estiverem preenchidas (ver o bloco de intervalo abaixo).
+    if (faixa) faixa.hidden = false;
+    const de = document.getElementById('evo-tempo-de');
+    if (de) setTimeout(() => { try { de.focus(); } catch (err) { _quiet(err, 'foco-intervalo'); } }, 40);
+    return;
+  }
+  EvolucaoScreen.tempoDias = parseInt(v, 10) || 7;
+  EvolucaoScreen.tempoStart = null; EvolucaoScreen.tempoEnd = null;  // período pronto anula o intervalo
+  if (faixa) faixa.hidden = true;
   EvolucaoScreen.renderDayChart(EvolucaoScreen._sourceEntries());
 });
 // [MELHORIA] Intervalo de datas personalizado no "Tempo de estudo"
@@ -19969,6 +20205,9 @@ $id('evo-tempo-periodo').addEventListener('click', (e) => {
   if (ate) ate.addEventListener('change', apply);
   if (clear) clear.addEventListener('click', () => {
     EvolucaoScreen.tempoStart = null; EvolucaoScreen.tempoEnd = null;
+    if (de) de.value = ''; if (ate) ate.value = '';
+    const faixa = document.getElementById('evo-tempo-range');
+    if (faixa) faixa.hidden = true;   // some junto: era isso que faltava
     EvolucaoScreen.renderDayChart(EvolucaoScreen._sourceEntries());
   });
 })();
@@ -26568,6 +26807,9 @@ const DesempenhoTecScreen = {
     rangePanel.style.display = this.scopeMode === 'range' ? 'block' : 'none';
     if (this.scopeMode === 'select') this.renderScopeSelectPanel(snaps);
     if (this.scopeMode === 'range') this.syncRangeInputs(snaps);
+    // com os filtros recolhidos, o cabecalho precisa dizer o que esta valendo
+    try { if (window.PainelRecolhivel) PainelRecolhivel.sincronizar('tec-escopo'); }
+    catch (e) { _quiet(e, 'resumo-escopo-tec'); }
     // meta (resumo do que está sendo analisado)
     const active = this.activeSnapshots();
     const meta = document.getElementById('tec-snap-meta');
@@ -26740,6 +26982,9 @@ const DesempenhoTecScreen = {
     const proj = document.getElementById('plano-proj');
     const lista = document.getElementById('plano-lista');
     if (!proj || !lista) return;
+    // com os ajustes recolhidos, o cabecalho mostra o que esta valendo
+    try { if (window.PainelRecolhivel) PainelRecolhivel.sincronizar('plano-filtros'); }
+    catch (e) { _quiet(e, 'resumo-plano'); }
     const num = (id, d) => { const e = document.getElementById(id); const n = parseFloat(e && e.value); return isNaN(n) ? d : n; };
     const val = (id, d) => { const e = document.getElementById(id); return (e && e.value) || d; };
     const bool = (id) => { const e = document.getElementById(id); return !!(e && e.checked); };
@@ -28005,6 +28250,30 @@ $id('tec-disc-filter').addEventListener('change', (e) => {
   });
 })();
 // --- Escopo da análise: consolidado / selecionar / intervalo ---
+/* Filtros de escopo recolhidos por padrao: o normal e querer ver o RESULTADO
+   da analise, nao os controles. O resumo no cabecalho evita que recolher vire
+   esconder — o escopo ativo continua legivel sem abrir. */
+PainelRecolhivel.registrar({
+  id: 'tec-escopo',
+  corpo: 'tec-scope-body',
+  botao: 'tec-scope-collapse',
+  texto: 'tec-scope-collapse-txt',
+  resumo: 'tec-scope-resumo',
+  calcResumo() {
+    const m = DesempenhoTecScreen.scopeMode;
+    if (m === 'select') {
+      const set = DesempenhoTecScreen.selectedSnapIds;
+      const n = set ? set.size : 0;
+      return n ? `${n} retrato(s) selecionado(s)` : 'Retratos selecionados';
+    }
+    if (m === 'range') {
+      const a = DesempenhoTecScreen.rangeStart, b = DesempenhoTecScreen.rangeEnd;
+      return (a && b) ? `${formatDateShort(a)} → ${formatDateShort(b)}` : 'Intervalo de datas';
+    }
+    return 'Consolidado (todos)';
+  },
+});
+
 $id('tec-scope-toggle').addEventListener('click', (e) => {
   const btn = e.target.closest('button[data-scope]');
   if (!btn) return;
@@ -28087,6 +28356,27 @@ $id('tec-weak-disc').addEventListener('change', (e) => {
     on(id, 'change', () => DT.renderPlanoConteudo());
     on(id, 'input', () => DT.renderPlanoConteudo());
   });
+  /* Ajustes do Plano recolhidos por padrao. O resumo traz os tres que mudam a
+     leitura da lista: a disciplina, a ordenacao e a meta de dominio. */
+  PainelRecolhivel.registrar({
+    id: 'plano-filtros',
+    corpo: 'plano-filtros-body',
+    botao: 'plano-filtros-collapse',
+    texto: 'plano-filtros-collapse-txt',
+    resumo: 'plano-filtros-resumo',
+    rotuloAberto: 'Ocultar ajustes',
+    rotuloFechado: 'Mostrar ajustes',
+    calcResumo() {
+      const sel = (id) => { const e = document.getElementById(id); return e && e.options && e.options[e.selectedIndex] ? e.options[e.selectedIndex].text : ''; };
+      const num = (id) => { const e = document.getElementById(id); return e && e.value ? e.value : ''; };
+      const disc = sel('plano-disc') || 'Todas';
+      // a ordenacao vem com emoji no rotulo; aqui so o texto interessa
+      const ord = (sel('plano-ordenar') || '').replace(/^[^\p{L}]+/u, '').split(' — ')[0];
+      const meta = num('plano-meta');
+      return [disc, ord, meta ? 'meta ' + meta + '%' : ''].filter(Boolean).join(' · ');
+    },
+  });
+
   on('plano-reset', 'click', async () => {
     if (!await UI.confirm('Voltar todos os ajustes do Plano aos valores padrão?', { title: 'Restaurar padrões' })) return;
     try { localStorage.removeItem(DB._profilePrefix() + PlanoEngine.KEY_PREF); } catch (_) { _quiet(_); }
