@@ -222,6 +222,13 @@ const ProfileUI = {
   },
 
   async enterProfile(id) {
+    // Entrar no MESMO perfil que já está aberto neste aparelho e não haver
+    // nenhuma novidade na nuvem é o caso mais comum de todos — e era justamente
+    // o que provocava o recarregamento visível ("a tela pisca e carrega de
+    // novo") logo depois do login. Guardamos o estado de partida para saber, no
+    // fim, se a recarga é mesmo necessária.
+    const jaEraOAtivo = (ProfileManager.getActiveProfileId() === id);
+    let mudou = 1;   // pessimista: sem informação, recarrega (comportamento antigo)
     if (window.CloudStore && CloudStore.isLoggedIn()) {
       showToast('Carregando perfil...');
       try {
@@ -234,6 +241,7 @@ const ProfileUI = {
         if (window.SectionSync && SectionSync.readEnabled) {
           porSecao = await SectionSync.hydrate(id);
           if (porSecao.ok) {
+            mudou = porSecao.mudou || 0;
             try { ProfileManager.setRev(id, await CloudStore._fetchRev(id) || ProfileManager.getRev(id)); } catch (_) { _quiet(_); }
           } else {
             console.warn('[SectionSync] entrando pelo blob (motivo:', porSecao.motivo + ')');
@@ -246,7 +254,7 @@ const ProfileUI = {
           let preservar = [];
           try { if (window.SectionSync) preservar = await SectionSync.flushBeforeRead(id); } catch (e) { _quiet(e, 'entrar-pendencia'); }
           const res = await CloudStore.fetchPayload(id);
-          ProfileManager.restorePayloadInto(id, (res.payload && res.payload.data) || {}, preservar);
+          mudou = ProfileManager.restorePayloadInto(id, (res.payload && res.payload.data) || {}, preservar);
           ProfileManager.setRev(id, res.rev);
         }
         ProfileManager.setActiveProfile(id);
@@ -266,7 +274,19 @@ const ProfileUI = {
     }
     try { sessionStorage.setItem(this.SESSION_KEY, id); } catch (e) { _quiet(e); }
     this.setLastProfile(id);   // lembra este perfil para esta conta (entra direto no próximo login)
-    location.reload();
+    /* SEM RECARGA quando não há o que recarregar. As telas já foram montadas na
+       abertura a partir DESTE mesmo perfil; se a nuvem não trouxe uma linha
+       sequer diferente, o conteúdo em tela já é o correto e um location.reload()
+       só serviria para piscar. Qualquer outra situação (perfil diferente, dado
+       novo, plano B) continua recarregando, que é o caminho seguro. */
+    if (jaEraOAtivo && mudou === 0) {
+      this._entering = false;
+      this.hideGate();
+      this.renderChip();
+      try { DB.checarEspaco(); } catch (_) { _quiet(_); }
+      return;
+    }
+    recarregarApp('entrada no perfil com dados novos', { imediato: true });
   },
 
   openModal(id) {
@@ -365,7 +385,7 @@ const ProfileUI = {
         await CloudStore.saveActive();
         $id('profile-modal').style.display = 'none';
         try { sessionStorage.setItem(this.SESSION_KEY, row.id); } catch (e) { _quiet(e); }
-        location.reload();
+        recarregarApp('perfil novo criado', { imediato: true });
       }
     } catch (err) {
       showToast('Erro: ' + (err.message || ''));
@@ -387,7 +407,7 @@ const ProfileUI = {
     ProfileManager.saveProfiles(ProfileManager.getProfiles().filter(x => x.id !== id));
     $id('profile-modal').style.display = 'none';
     const wasActive = ProfileManager.getActiveProfileId() === id;
-    if (wasActive) { try { sessionStorage.removeItem(this.SESSION_KEY); } catch (e) { _quiet(e); } location.reload(); return; }
+    if (wasActive) { try { sessionStorage.removeItem(this.SESSION_KEY); } catch (e) { _quiet(e); } recarregarApp('perfil ativo excluído', { imediato: true }); return; }
     this.refreshStage();
     showToast('Perfil excluído');
   },
@@ -494,7 +514,7 @@ const ProfileUI = {
     // Recarrega para um estado 100% limpo. Sem isto o app continuava na tela
     // atual (logado por baixo), só com "Offline" no indicador — o reload faz o
     // boot() reabrir a tela de login corretamente.
-    setTimeout(() => location.reload(), 200);
+    setTimeout(() => recarregarApp('saída da conta pelo portão', { imediato: true }), 200);
   },
 
   // Trocar de perfil: mostra o seletor de propósito (não auto-entra). O

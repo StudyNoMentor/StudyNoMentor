@@ -142,6 +142,39 @@ A fila fica visível em Configurações → Nuvem ("Fila de envio para a nuvem")
 está vazia, ou lista o que falta subir. Coberto por 16 asserções novas no
 `AutoTeste` (grupo "Garantia de salvamento").
 
+**O terceiro achado: a tela recarregava sozinha, em laço.**
+
+`SectionSync._prepare()` lia todas as linhas da nuvem e guardava a revisão de
+cada seção — menos a do `__manifest`, que era descartada. Só que
+`hasRemoteUpdates()` compara TODAS as linhas remotas com as locais: o manifesto
+aparecia como rev 7 na nuvem contra 0 aqui, então a resposta era *sempre* "tem
+novidade". Consequência: cada foco na janela e cada evento em tempo real
+disparavam um download seguido de `location.reload()` — a tela piscando e
+recarregando sozinha, inclusive logo depois do login.
+
+Três camadas de correção, para que nem um erro futuro volte a causar isso:
+
+1. a revisão do manifesto passa a ser gravada como a de qualquer seção;
+2. `_applyMap()` e `restorePayloadInto()` **contam o que realmente mudou**, e a
+   recarga só acontece se esse número for maior que zero — um falso positivo na
+   checagem deixou de custar um reload;
+3. entrar no perfil que **já está aberto**, sem nenhuma diferença vinda da
+   nuvem, não recarrega mais nada: as telas montadas na abertura já estão
+   corretas.
+
+Os `location.reload()` espalhados por nove pontos viraram um só,
+`recarregarApp()`, com duas garantias: espera o IndexedDB confirmar a gravação
+(um reload no meio da escrita abortava a transação — era assim que a sessão
+recém-gravada do login às vezes sumia, obrigando a entrar de novo) e, quando a
+recarga vem de fora (atualização de outro aparelho), espera você sair do campo
+ou fechar o diálogo antes de atualizar a tela.
+
+No cache: o service worker é registrado com `updateViaCache: 'none'` (sem isso o
+navegador podia servir o **próprio** `sw.js` do cache HTTP por até 24 h e manter
+o app preso numa versão antiga), procura versão nova ao voltar o foco, e o menu
+☁ ganhou "Atualizar o app (limpar cache)" para o caso de o navegador travar numa
+versão antiga — não apaga nenhum dado de estudo.
+
 **Por que 97.** A sincronização é último-a-escrever-vence com retentativa: a
 ação local nunca é descartada nem apagada por um download, mas um conflito real
 entre dois aparelhos editando a MESMA seção pode perder a edição do outro. O
@@ -197,7 +230,7 @@ navegação de topo. Verificados os dois caminhos no Chromium.
 
 ## 4. Testabilidade e verificação — 62 → 97
 
-**Antes:** só a suíte interna `AutoTeste` (155 asserções, roda no console do
+**Antes:** só a suíte interna `AutoTeste` (164 asserções, roda no console do
 navegador). Sem CI, sem execução headless, sem forma de rodar nada num pipeline.
 As quatro divergências do item 1 existiam justamente porque nada as media.
 
@@ -207,7 +240,7 @@ As quatro divergências do item 1 existiam justamente porque nada as media.
 |---|---|---|
 | `testes/paridade-anki.mjs` | Node, sem navegador | 21.080 pontos contra o porte do Rust |
 | `testes/robustez-config.mjs` | Node, sem navegador | 12 configurações inválidas × 4 fases × 4 notas |
-| `AutoTeste` | navegador | 155 asserções (FSRS, fuzz, agendador, parser TEC, SM-2, filtros, gráficos, garantia de salvamento) |
+| `AutoTeste` | navegador | 164 asserções (FSRS, fuzz, agendador, parser TEC, SM-2, filtros, gráficos, garantia de salvamento) |
 | `verificar.mjs` | 7 checagens | montagem, sintaxe, paridade, integridade do HTML, carregamento limpo, telas, contraste |
 | `.github/workflows/verificar.yml` | CI | tudo isso em cada push e PR |
 

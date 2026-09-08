@@ -2820,12 +2820,20 @@
   }
   /* inputs numa única linha: ac / tot [%] — nunca quebram (antes o % pulava de linha) */
   .ts-inputs { display: flex; align-items: center; gap: 5px; min-width: 0; flex-wrap: nowrap; }
+  /* PISO DE 3 DÍGITOS. A caixa é monoespaçada, então `ch` mede exatamente um
+     dígito: 3ch + o padding + as bordas é a largura em que "100" cabe inteiro.
+     min-width vence max-width no CSS, então os limites menores das faixas
+     estreitas (54px, 46px) não conseguem mais espremer a caixa abaixo disso —
+     era o que fazia o terceiro dígito sumir no celular.
+     appearance:none tira as setinhas de incremento (e o input agora é text). */
   .ts-num {
-    flex: 1 1 0; width: auto; min-width: 0; max-width: 62px;
+    flex: 1 1 0; width: auto; min-width: calc(3ch + 14px); max-width: 62px;
     text-align: center; padding: 6px 4px; border-radius: 8px;
     border: 1px solid var(--border); background: var(--surface);
     font-family: 'Space Mono', ui-monospace, SFMono-Regular, Menlo, monospace; font-size: var(--fs-xs); color: var(--text);
+    appearance: none; -webkit-appearance: none; -moz-appearance: textfield;
   }
+  .ts-num::-webkit-outer-spin-button, .ts-num::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
   .ts-num:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-ring); }
   .ts-slash { color: var(--text-faint); font-weight: 700; font-size: var(--fs-xs); flex-shrink: 0; }
   .ts-pct {

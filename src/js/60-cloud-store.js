@@ -356,11 +356,12 @@ const CloudStore = {
       // enviado algo indesejado, você consegue restaurar em Configurações.
       try { if (window.VersionHistory) await VersionHistory.snapshot('antes de baixar da nuvem'); } catch (e) { _quiet(e); }
       this._applying = true;
-      ProfileManager.restorePayloadInto(id, (res.payload && res.payload.data) || {}, preservar);
+      const mudou = ProfileManager.restorePayloadInto(id, (res.payload && res.payload.data) || {}, preservar);
       ProfileManager.setRev(id, res.rev);
       this._applying = false;
+      if (!mudou) { console.info('[CloudStore] nuvem conferida: nada mudou, sem recarregar'); return; }
       showToast('Sincronizado da nuvem ✓');
-      setTimeout(() => location.reload(), 500);
+      recarregarApp('dados novos da nuvem (blob)');
     } catch (e) { this._applying = false; console.error('pullActiveAndReload', e); }
   },
   // Salva o estado atual na nuvem ANTES de recarregar a página. Essencial: sem isto,
@@ -377,7 +378,7 @@ const CloudStore = {
         }
       } catch (e) { console.error('saveThenReload', e); showToast('Aviso: não foi possível salvar na nuvem agora. Verifique a internet.'); }
     }
-    location.reload();
+    recarregarApp('troca que exige recarregar a tela', { imediato: true });
   },
 
   subscribeRealtime() {
@@ -408,10 +409,10 @@ const CloudStore = {
     if (!window.SectionSync || !SectionSync.readEnabled) return;
     if (SectionSync._pushing || SectionSync._dirty.size) return;
     try {
-      if (await SectionSync.hasRemoteUpdates(pid)) {
-        showToast('Atualizado em tempo real ✓');
-        await SectionSync.pullAndReload();
-      }
+      // O aviso e a recarga saíam ANTES de saber se havia mudança de verdade —
+      // era o "Atualizado em tempo real ✓" seguido de um reload à toa. Agora
+      // quem avisa é o pullAndReload, e só quando alguma seção realmente mudou.
+      if (await SectionSync.hasRemoteUpdates(pid)) await SectionSync.pullAndReload();
     } catch (_) { _quiet(_); }
   },
   _unsub() {
@@ -428,8 +429,7 @@ const CloudStore = {
       // Na Fase 2 quem manda na leitura é o canal das seções — o blob chegar primeiro
       // não deve provocar uma recarga com dados mais velhos que os das seções.
       if (window.SectionSync && SectionSync.readEnabled) return;
-      showToast('Atualizado em tempo real ✓');
-      this.pullActiveAndReload();
+      this.pullActiveAndReload();   // ele mesmo avisa (e só recarrega) se algo mudou
     }
   }
 };

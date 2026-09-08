@@ -283,7 +283,7 @@ const VersionHistoryUI = {
         const done = await VersionHistory.restore(id, ts);
         if (!done) { showToast('Não foi possível restaurar esta versão'); return; }
         try { await CloudStore.flushPending(); } catch (_) { _quiet(_); }
-        setTimeout(() => location.reload(), 600);
+        setTimeout(() => recarregarApp('versão restaurada', { imediato: true }), 600);
       });
     });
   }

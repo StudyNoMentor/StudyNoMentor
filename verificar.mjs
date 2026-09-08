@@ -236,6 +236,38 @@ try {
   (per.temSelect && per.opcoes >= 7 && per.faixaOculta && per.chipsAntigos === 0)
     ? ok('periodo do grafico de tempo e lista suspensa, com intervalo recolhido')
     : erro('periodo do grafico de tempo: ' + JSON.stringify(per));
+
+  /* As caixas de acertos/total do Estudo Novo: sem setinha de incremento (que
+     roubava largura e mudava o valor num giro de roda) e largas o bastante para
+     mostrar TRES digitos ate na tela mais estreita. */
+  await pag.setViewportSize({ width: 360, height: 780 });
+  await pag.evaluate(() => {
+    DB.addSubject({ nome: 'Materia de teste', color: '#4f46e5' });
+    DB.addTrackLesson('Materia de teste', 'Aula de teste');
+    EstudoNovoScreen.currentSubject = 'Materia de teste';
+    switchScreen('estudonovo');
+    EstudoNovoScreen.render();
+  });
+  await pag.waitForTimeout(350);
+  const caixa = await pag.evaluate(() => {
+    const els = [...document.querySelectorAll('.ts-num')];
+    if (!els.length) return { faltando: true };
+    const el = els[0];
+    const cs = getComputedStyle(el);
+    // largura que 3 digitos ocupam de fato, medida com a mesma fonte da caixa
+    const cv = document.createElement('canvas').getContext('2d');
+    cv.font = cs.fontWeight + ' ' + cs.fontSize + ' ' + cs.fontFamily;
+    const tresDigitos = cv.measureText('100').width;
+    const util = el.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight);
+    return { tipos: [...new Set(els.map((e) => e.type))], util: Math.round(util * 10) / 10,
+      precisa: Math.round(tresDigitos * 10) / 10, largura: Math.round(el.getBoundingClientRect().width) };
+  });
+  await pag.evaluate(() => { DB.saveTrack('Materia de teste', []); DB.saveSubjects(DB.getSubjects().filter((s) => s.nome !== 'Materia de teste')); });
+  await pag.setViewportSize({ width: 1280, height: 900 });
+  if (caixa.faltando) erro('nenhuma caixa .ts-num renderizada no Estudo Novo');
+  else if (caixa.tipos.includes('number')) erro('as caixas de acertos voltaram a ser type="number" (setinha de incremento)');
+  else if (caixa.util < caixa.precisa) erro(`caixa de acertos com ${caixa.util}px uteis a 360px — "100" precisa de ${caixa.precisa}px`);
+  else ok(`caixa de acertos sem setinha e com 3 digitos a 360px (${caixa.largura}px, ${caixa.util} >= ${caixa.precisa})`);
 } catch (e) { erro('falha na navegacao: ' + e.message); }
 
 /* ── 7. contraste WCAG AA nos DOIS temas ───────────────────────────────────

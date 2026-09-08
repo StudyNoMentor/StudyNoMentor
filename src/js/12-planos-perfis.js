@@ -350,12 +350,19 @@ const ProfileManager = {
       if (manter.has(sub) || local.indexOf(sub) !== -1) continue;
       toRemove.push(k);
     }
-    toRemove.forEach(k => localStorage.removeItem(k));
-    Object.keys(dataObj || {}).forEach(sub => {
+    // Conta o que REALMENTE mudou: é o que permite a quem chamou decidir se vale
+    // recarregar a tela. Recarregar "por precaução" era o que fazia o app piscar.
+    let mudou = 0;
+    const vindas = dataObj || {};
+    toRemove.forEach(k => { if (!(k.slice(prefix.length) in vindas)) { localStorage.removeItem(k); mudou++; } });
+    Object.keys(vindas).forEach(sub => {
       if (sub.startsWith('u:')) return;
       if (manter.has(sub) || local.indexOf(sub) !== -1) return;
-      localStorage.setItem(prefix + sub, dataObj[sub]);
+      if (localStorage.getItem(prefix + sub) === vindas[sub]) return;
+      localStorage.setItem(prefix + sub, vindas[sub]);
+      mudou++;
     });
+    return mudou;
   }
 };
 

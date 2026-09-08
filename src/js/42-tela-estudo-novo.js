@@ -225,9 +225,9 @@ const EstudoNovoScreen = {
           <div class="track-stage">
             <div class="ts-label">${def.label}</div>
             <div class="ts-inputs">
-              <input type="number" inputmode="numeric" class="ts-num ts-ac" data-stage="${def.key}" data-part="acertos" value="${acertos ?? ''}" placeholder="ac." min="0">
+              <input type="text" inputmode="numeric" maxlength="4" class="ts-num ts-ac" data-stage="${def.key}" data-part="acertos" value="${acertos ?? ''}" placeholder="ac." aria-label="Acertos — ${def.label}">
               <span class="ts-slash">/</span>
-              <input type="number" inputmode="numeric" class="ts-num ts-tot" data-stage="${def.key}" data-part="total" value="${total ?? ''}" placeholder="tot." min="0">
+              <input type="text" inputmode="numeric" maxlength="4" class="ts-num ts-tot" data-stage="${def.key}" data-part="total" value="${total ?? ''}" placeholder="tot." aria-label="Total de questões — ${def.label}">
               <span class="ts-pct ${toneCls}" data-pct="${def.key}">${pct === null ? '—' : formatPct(pct) + '%'}</span>
             </div>
           </div>`;
@@ -353,8 +353,16 @@ const EstudoNovoScreen = {
       const itemId = row.dataset.id;
       const stageKey = input.dataset.stage;
       const part = input.dataset.part;
+      /* type="text" + inputmode="numeric" (o mesmo padrão da duração na Grade):
+         tira as setinhas de incremento — que roubavam largura da caixa e mudavam
+         o valor num giro de roda por engano — e mantém o teclado numérico no
+         celular. Só dígitos entram, então nada de "e", "+" ou "-". */
+      input.addEventListener('input', () => {
+        const limpo = input.value.replace(/\D/g, '').slice(0, 4);
+        if (limpo !== input.value) input.value = limpo;
+      });
       input.addEventListener('change', () => {
-        const value = input.value === '' ? null : Math.max(0, parseInt(input.value, 10));
+        const value = input.value === '' ? null : Math.max(0, parseInt(input.value, 10) || 0);
         DB.updateTrackStage(subject, itemId, stageKey, part, value);
         this.renderTrack(); // atualiza o % da etapa e as médias no topo
       });

@@ -118,10 +118,10 @@ node testes/robustez-config.mjs
 
 ### `AutoTeste` — suíte interna (navegador)
 
-O próprio app carrega 155 asserções. No console do navegador:
+O próprio app carrega 164 asserções. No console do navegador:
 
 ```js
-AutoTeste.rodar()     // 155 asserções: FSRS-6, fuzz, agendador, parser TEC,
+AutoTeste.rodar()     // 164 asserções: FSRS-6, fuzz, agendador, parser TEC,
                       // robustez, SM-2, filtros, gráficos, garantia de salvamento
 __diag()              // erros engolidos, ids ausentes, contadores
 ```
@@ -213,6 +213,14 @@ pela metade.
   gravação direta sobe no blob mas deixa a linha da seção velha — e como a
   leitura vem das seções, o valor volta desatualizado ao abrir em outro
   aparelho. Foi assim que conclusões marcadas na grade "sumiam" no dia seguinte.
+- **Nada de `location.reload()` novo.** Use `recarregarApp(motivo)`: ele espera o
+  IndexedDB confirmar a gravação (um reload no meio da escrita aborta a
+  transação e perde o que acabou de ser salvo — inclusive a sessão do login) e,
+  para recargas que vêm de fora, espera a pessoa sair do campo ou fechar o
+  diálogo. Passe `{ imediato: true }` só quando a recarga foi PEDIDA por ela.
+- **Recarregar só com mudança de verdade.** `_applyMap` e `restorePayloadInto`
+  devolvem quantas chaves mudaram; recarregue apenas se for maior que zero. Um
+  download que traz exatamente o que já está aqui não justifica reiniciar a tela.
 - **Download nunca apaga o que ainda não subiu.** Qualquer caminho novo que
   sobrescreva o armazenamento com dados da nuvem tem de chamar antes
   `SectionSync.flushBeforeRead(id)` e preservar as seções que a chamada devolver

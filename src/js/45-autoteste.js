@@ -382,7 +382,45 @@ const AutoTeste = {
         localStorage.getItem(pfx + 'p:pl:grade-template'));
       this._ok('blob aplica o resto normalmente', localStorage.getItem(pfx + 'p:pl:leis') === 'NUVEM');
 
-      // 7. toda escrita crua avisa as duas camadas de sincronização
+      // 7. A REVISÃO DO MANIFESTO tem de ser guardada como a de qualquer seção.
+      //    Sem isso, a nuvem parecia ter novidade para sempre e o app recarregava
+      //    sozinho a cada foco na janela — a tela "piscando".
+      const prep = SectionSync._prepare([
+        { section: '__manifest', data: { v: 2, sections: ['p:pl:entries'] }, rev: 7 },
+        { section: 'p:pl:entries', data: [1, 2], rev: 4 }
+      ]);
+      this._ok('_prepare lê a revisão do manifesto', prep.ok && prep.manifestoRev === 7, prep.manifestoRev);
+      criadas.push(pfx + 'p:pl:entries');
+      SectionSync._applyMap(PID, prep.map, prep.revs, [], prep.manifestoRev);
+      const revsPos = SectionSync._getRevs(PID);
+      this._ok('a revisão do manifesto fica gravada',
+        revsPos['__manifest'] && revsPos['__manifest'].rev === 7, revsPos['__manifest']);
+
+      // 8. baixar o MESMO conteúdo não conta como mudança (logo, não recarrega)
+      const semMudanca = SectionSync._applyMap(PID, prep.map, prep.revs, [], prep.manifestoRev);
+      this._ok('download idêntico não reporta mudança', semMudanca === 0, semMudanca);
+      const comMudanca = SectionSync._applyMap(PID, { 'p:pl:entries': '[9]' }, { 'p:pl:entries': 5 }, [], 8);
+      this._ok('download diferente reporta mudança', comMudanca === 1, comMudanca);
+
+      // 9. o mesmo para o caminho do blob
+      const blobIgual = ProfileManager.restorePayloadInto(PID, { 'p:pl:entries': '[9]' }, []);
+      this._ok('blob idêntico não reporta mudança', blobIgual === 0, blobIgual);
+      const blobDif = ProfileManager.restorePayloadInto(PID, { 'p:pl:entries': '[10]' }, []);
+      this._ok('blob diferente reporta mudança', blobDif === 1, blobDif);
+
+      // 10. a recarga espera a pessoa terminar o que está fazendo
+      this._ok('app livre não está ocupado', _appOcupado() === false);
+      const campo = document.createElement('input');
+      document.body.appendChild(campo); campo.focus();
+      const ocupadoComFoco = _appOcupado();
+      campo.blur(); campo.remove();
+      this._ok('digitando num campo conta como ocupado', ocupadoComFoco === true);
+      const dlg = document.getElementById('ui-modal');
+      let ocupadoComModal = null;
+      if (dlg) { const antes = dlg.style.display; dlg.style.display = 'flex'; ocupadoComModal = _appOcupado(); dlg.style.display = antes; }
+      this._ok('diálogo aberto conta como ocupado', ocupadoComModal === true, ocupadoComModal);
+
+      // 11. toda escrita crua avisa as duas camadas de sincronização
       const marcadas = [];
       const mHook = _sectionMarkHook, cHook = _cloudNotifyHook, dHook = _sectionDropHook;
       let avisouNuvem = 0, apagou = null;
