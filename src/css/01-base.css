@@ -3475,6 +3475,15 @@
   body.leis-foco #lei-foco-bar .foco-acoes { display: flex; gap: 6px; flex-shrink: 0; max-width: 72%; overflow-x: auto; scrollbar-width: none; }
   body.leis-foco #lei-foco-bar .foco-acoes::-webkit-scrollbar { display: none; }
   body.leis-foco #lei-foco-bar .foco-acoes button { flex: 0 0 auto; min-height: 34px; padding: 6px 11px; font-size: var(--fs-xs); white-space: nowrap; }
+  /* A faixa de botões rola na horizontal. Com cinco botões num celular, o
+     "✕ Sair" saía da área visível — e como o modo foco esconde a navegação
+     inteira (abas, menu) e o Esc não existe no toque, a tela ficava TRAVADA
+     sem saída. Ele agora fica grudado na borda direita, sempre ao alcance. */
+  body.leis-foco #lei-foco-bar .foco-acoes #lei-foco-sair {
+    position: sticky; right: 0; z-index: 2;
+    background: var(--surface); border-color: var(--border-strong);
+    box-shadow: -10px 0 10px -6px rgba(0,0,0,0.22);
+  }
   /* no modo dos cards a barra da lei some, e vice-versa */
   body.cards-foco #lei-foco-bar { display: none !important; }
   body.leis-foco #foco-bar { display: none !important; }
@@ -5411,10 +5420,20 @@
      content-visibility:auto o navegador só calcula layout do que está perto da
      janela; contain-intrinsic-size reserva a altura estimada para a barra de
      rolagem não pular enquanto o usuário desce. */
-  .card-row, .weak-row, .tec-tree-row, .law-block, .lei-art, .extra-card, .link-row {
+  .card-row, .weak-row, .tec-tree-row, .lei-art, .extra-card, .link-row {
     content-visibility: auto;
     contain-intrinsic-size: auto 72px;
   }
+  /* .law-block ficou DE FORA de propósito. content-visibility:auto implica
+     `contain: layout style paint`, e a contenção de PINTURA recorta tudo o que
+     sai da caixa do elemento. Na lei isso apagava, de uma vez:
+       • a numeração da linha (.law-lnum é absoluta em left:-44px) — por isso o
+         botão "🔢 Linhas" parecia não fazer nada e, sem número para clicar,
+         o marcador "📌 Onde parei" nunca podia ser criado;
+       • a barrinha do marcador (box-shadow -3px) e o anel da animação de flash.
+     Além disso o contain-intrinsic-size de 72px superestimava linhas de ~30px:
+     a barra de rolagem pulava a cada bloco que entrava na tela. São divs
+     simples, algumas centenas por lei — o ganho não pagava nada disso. */
 
 
   /* ── Estatísticas no estilo do Anki ─────────────────────────────────────── */

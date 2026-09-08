@@ -22,13 +22,22 @@ const LeisScreen = {
     this.showList();
   },
   showList() {
+    // Sair do leitor tem de sair TAMBÉM do modo foco: ele esconde abas e menu,
+    // e voltar para a lista com a interface escondida deixava o app sem saída.
+    this.sairFoco();
+    this._esconderFab();
     $id('leis-list-view').style.display = 'block';
     $id('leis-reader-view').style.display = 'none';
     this.currentId = null;
+    this.hlMode = null;
+    ['lei-mark-btn', 'lei-unmark-btn', 'lei-foco-mark', 'lei-foco-erase'].forEach(bid => {
+      const b = document.getElementById(bid); if (b) b.classList.remove('active');
+    });
     this.renderCards();
   },
   renderCards() {
     const wrap = document.getElementById('leis-cards');
+    if (!wrap) return;
     const leis = DB.getLeis().slice().sort((a, b) => (b.updatedAt || '').localeCompare(a.updatedAt || ''));
     if (leis.length === 0) {
       wrap.innerHTML = `<div class="empty-state"><div class="big">§</div>Nenhuma lei cadastrada ainda. Clique em <strong>＋ Nova lei</strong> para começar seu vade mecum.</div>`;
@@ -86,7 +95,8 @@ const LeisScreen = {
     if (!lei) { this.showList(); return; }
     this.currentId = id;
     this.hlMode = null; // reseta a ferramenta ativa ao abrir
-    ['lei-mark-btn', 'lei-unmark-btn'].forEach(bid => { const b = document.getElementById(bid); if (b) b.classList.remove('active'); });
+    ['lei-mark-btn', 'lei-unmark-btn', 'lei-foco-mark', 'lei-foco-erase'].forEach(bid => { const b = document.getElementById(bid); if (b) b.classList.remove('active'); });
+    this._esconderFab();
     $id('leis-list-view').style.display = 'none';
     $id('leis-reader-view').style.display = 'block';
     $id('lei-reader-titulo').textContent = lei.titulo;
@@ -114,7 +124,8 @@ const LeisScreen = {
     // restaura preferência de numeração de linhas
     this.showLines = this._prefGet('show-lines', 'diario-estudos:lei-show-lines', '0') === '1';
     this.fontStep = Math.max(-2, Math.min(5, parseInt(this._prefGet('font-step', null, '0'), 10) || 0));
-    const lb = document.getElementById('lei-lines-btn'); if (lb) lb.classList.toggle('active', !!this.showLines);
+    this._pintarBarraFerramentas();
+    this._pintarBotaoLinhas();
     this.renderBody();
     this.renderMarks();
   },
@@ -122,6 +133,7 @@ const LeisScreen = {
     const lei = DB.getLei(this.currentId);
     if (!lei) return;
     const body = document.getElementById('lei-reader-body');
+    if (!body) return;
     body.innerHTML = LawEngine.toHtml(lei, DB.getLeiKeywords());
     body.style.fontSize = (100 + this.fontStep * 8) + '%';
     body.classList.toggle('tool-mark', this.hlMode === 'mark');
@@ -143,34 +155,99 @@ const LeisScreen = {
       });
     }
     this.atualizarFoco();
-    // atualiza o rótulo do botão "Onde parei"
+    this._pintarBotaoMarcador(lei.bookmark != null);
+  },
+  /* Re-renderizar a lei inteira custa caro (é o innerHTML de centenas de
+     blocos). Quando o usuário desliga três categorias em sequência, isso
+     acontecia três vezes seguidas e a tela engasgava. Aqui as chamadas
+     seguidas colapsam num único render no próximo quadro. */
+  renderBodySoon() {
+    if (this._rafRender) return;
+    this._rafRender = requestAnimationFrame(() => { this._rafRender = 0; this.renderBody(); });
+  },
+  /* Estado recolhido/aberto da barra de ferramentas do leitor.
+     A escolha passa pelo mesmo caminho das outras preferências do leitor
+     (fonte, numeração): por PERFIL e sincronizada. Antes era uma chave solta
+     gravada direto no localStorage — não subia para a nuvem e valia para todos
+     os perfis do aparelho. Como o perfil só é conhecido depois do portão de
+     acesso, o estado é repintado também ao abrir uma lei. */
+  ferramentasAbertas() { return this._prefGet('tools-open', 'diario-estudos:leis-tools-open', '1') !== '0'; },
+  _pintarBarraFerramentas() {
+    const btn = document.getElementById('lei-tools-toggle');
+    const box = document.getElementById('leis-sticky-toolbar');
+    if (!btn || !box) return;
+    const aberto = this.ferramentasAbertas();
+    box.classList.toggle('tools-collapsed', !aberto);
+    btn.setAttribute('aria-expanded', aberto ? 'true' : 'false');
+    const t = btn.querySelector('.ltt-txt');
+    if (t) t.textContent = aberto ? 'Ferramentas de leitura' : 'Mostrar ferramentas de leitura';
+  },
+  _pintarBotaoLinhas() {
+    const on = !!this.showLines;
+    ['lei-lines-btn', 'lei-foco-lines'].forEach(id => {
+      const b = document.getElementById(id);
+      if (b) { b.classList.toggle('active', on); b.setAttribute('aria-pressed', on ? 'true' : 'false'); }
+    });
+  },
+  // Estado do botão "📌 Onde parei": ele serve para MARCAR quando não há
+  // marcador e para IR até ele quando há. O rótulo tem de dizer qual dos dois.
+  _pintarBotaoMarcador(tem) {
     const gb = document.getElementById('lei-goto-mark-btn');
-    if (gb) { const bk = LawEngine.resolveBookmark(lei); const has = lei.bookmark != null; gb.style.opacity = has ? '1' : '0.55'; gb.title = has ? 'Ir para a linha ' + bk : 'Nenhuma linha marcada ainda — clique no número de uma linha'; }
+    if (!gb) return;
+    gb.classList.toggle('has-mark', !!tem);
+    gb.style.opacity = '1';
+    gb.title = tem
+      ? 'Ir para a linha onde você parou (clique no número da linha para trocar ou tirar)'
+      : 'Marcar onde você parou: fixa a linha que está no topo da tela';
+  },
+  // Move o pin "onde parei" no HTML já montado. Antes isto redesenhava a lei
+  // inteira só para deslocar um emoji — em leis grandes, meio segundo travado.
+  _pintarMarcador(ln) {
+    const body = document.getElementById('lei-reader-body');
+    if (body) {
+      body.querySelectorAll('.law-bookmarked').forEach(b => {
+        b.classList.remove('law-bookmarked', 'law-bk-flash');
+        const p = b.querySelector('.law-pin'); if (p) p.remove();
+      });
+      if (ln != null) {
+        const alvo = body.querySelector('.law-block[data-line="' + ln + '"]');
+        if (alvo) {
+          alvo.classList.add('law-bookmarked');
+          if (!alvo.querySelector('.law-pin')) {
+            const pin = document.createElement('span');
+            pin.className = 'law-pin'; pin.title = 'Você parou aqui'; pin.textContent = '📌';
+            alvo.appendChild(pin);
+          }
+        }
+      }
+    }
+    this._pintarBotaoMarcador(ln != null);
+    this.atualizarFoco();
   },
   // clicar no NÚMERO da linha → fixa/retira o pin "onde parei"
-  onLineNumClick(ln) {
-    if (!ln && ln !== 0) return;
+  onLineNumClick(ln, semRolar) {
+    if (ln == null || !isFinite(ln)) return;
     const cur = DB.getLei(this.currentId);
     if (!cur) return;
     const atual = LawEngine.resolveBookmark(cur);
     const novo = (atual === ln) ? null : ln; // clicar de novo remove
     // guarda também um trecho da linha: se o texto for editado, o pin se reancora
     let ancora = null;
-    if (novo != null) {
-      const linhas = LawEngine.normalize(cur.texto).split('\n').filter(l => l.trim());
-      ancora = (linhas[novo - 1] || '').trim().slice(0, 40) || null;
-    }
+    if (novo != null) ancora = (LawEngine.lines(cur.texto)[novo - 1] || '').trim().slice(0, 40) || null;
     DB.updateLei(this.currentId, { bookmark: novo, bookmarkTxt: ancora });
-    this.renderBody();
-    if (novo != null) { this.gotoBookmark(); showToast('📌 Marcado: você parou na linha ' + novo); }
+    this._pintarMarcador(novo);
+    if (novo != null) { if (!semRolar) this.gotoBookmark(); showToast('📌 Marcado: você parou na linha ' + novo); }
     else showToast('Marcador removido');
   },
   toggleLines() {
     this.showLines = !this.showLines;
-    const btn = document.getElementById('lei-lines-btn');
-    if (btn) btn.classList.toggle('active', this.showLines);
     this._prefSet('show-lines', this.showLines ? '1' : '0');
-    this.renderBody();
+    this._pintarBotaoLinhas();
+    // Só a CLASSE muda — o HTML da lei é o mesmo com ou sem numeração. Antes
+    // este botão redesenhava a lei inteira, e num texto grande a tela parecia
+    // ter travado no clique.
+    const body = document.getElementById('lei-reader-body');
+    if (body) body.classList.toggle('show-lines', !!this.showLines);
   },
   // ── Modo foco: ler a lei em tela cheia ──
   entrarFoco() {
@@ -182,9 +259,14 @@ const LeisScreen = {
     const fErase = document.getElementById('lei-foco-erase');
     if (fMark) fMark.classList.toggle('active', this.hlMode === 'mark');
     if (fErase) fErase.classList.toggle('active', this.hlMode === 'erase');
-    showToast('Modo foco · Esc sai · marca-texto e borracha disponíveis na barra do topo');
+    this._pintarBotaoLinhas();
+    showToast('Modo foco · toque em ✕ Sair (ou Esc) para voltar');
   },
-  sairFoco() { document.body.classList.remove('leis-foco'); this.atualizarFoco(); },
+  sairFoco() {
+    if (!document.body.classList.contains('leis-foco')) return;
+    document.body.classList.remove('leis-foco');
+    this._esconderFab();
+  },
   emFoco() { return document.body.classList.contains('leis-foco'); },
   atualizarFoco() {
     if (!this.emFoco()) return;
@@ -198,21 +280,93 @@ const LeisScreen = {
   // marca a linha que está no topo da tela — no modo foco a numeração fica oculta
   marcarLinhaVisivel() {
     const body = document.getElementById('lei-reader-body');
-    if (!body || !this.currentId) return;
-    const blocos = [...body.querySelectorAll('.law-block')];
-    const topo = 70; // abaixo da barra fixa
-    const alvo = blocos.find(b => b.getBoundingClientRect().bottom > topo) || blocos[0];
-    if (!alvo) return;
-    this.onLineNumClick(parseInt(alvo.dataset.line, 10));
-    this.atualizarFoco();
+    if (!body || !this.currentId) { showToast('Abra uma lei primeiro'); return; }
+    const blocos = body.querySelectorAll('.law-block');
+    if (!blocos.length) return;
+    // O "topo útil" depende da barra que estiver por cima agora: a de foco
+    // (fixa no alto) ou a de ferramentas (sticky). Antes eram 70px fixos, o que
+    // no leitor normal marcava uma linha já escondida sob a barra.
+    let topo = 70;
+    const barra = document.getElementById(this.emFoco() ? 'lei-foco-bar' : 'leis-sticky-toolbar');
+    if (barra && barra.offsetParent !== null) {
+      const r = barra.getBoundingClientRect();
+      if (r.height) topo = Math.max(topo, r.bottom + 6);
+    }
+    let alvo = null;
+    for (const b of blocos) { if (b.getBoundingClientRect().bottom > topo) { alvo = b; break; } }
+    if (!alvo) alvo = blocos[0];
+    const ln = parseInt(alvo.dataset.line, 10);
+    const cur = DB.getLei(this.currentId);
+    // Sem esta guarda, marcar duas vezes na mesma linha APAGAVA o marcador —
+    // o botão "Marcar aqui" desmarcaria em vez de confirmar.
+    if (cur && LawEngine.resolveBookmark(cur) === ln) { showToast('📌 Já estava marcado na linha ' + ln); return; }
+    this.onLineNumClick(ln, true);   // sem rolar: o leitor já está aqui
   },
+  /* "📌 Onde parei" faz as DUAS pontas do fluxo. Antes ele só sabia ir até um
+     marcador — e o único jeito de criar um era clicar no número da linha, que
+     estava invisível por um recorte do CSS. Resultado: o botão nunca funcionava.
+     Agora, sem marcador, ele marca onde a leitura está; com marcador, ele leva
+     até lá. Trocar ou tirar continua sendo o clique no número da linha. */
   gotoBookmark() {
     const lei = DB.getLei(this.currentId);
-    if (!lei || lei.bookmark == null) { showToast('Marque uma linha primeiro: clique no 🔢 Linhas e depois no número onde parou'); if (!this.showLines) this.toggleLines(); return; }
-    // garante que a numeração esteja visível para orientação
+    if (!lei) { showToast('Abra uma lei primeiro'); return; }
+    if (lei.bookmark == null) { this.marcarLinhaVisivel(); return; }
     const body = document.getElementById('lei-reader-body');
-    const alvo = body.querySelector(`.law-block[data-line="${LawEngine.resolveBookmark(lei)}"]`);
-    if (alvo) { alvo.scrollIntoView({ behavior: 'smooth', block: 'center' }); alvo.classList.add('law-bk-flash'); setTimeout(() => alvo.classList.remove('law-bk-flash'), 1200); }
+    const ln = LawEngine.resolveBookmark(lei);
+    const alvo = (body && ln > 0) ? body.querySelector('.law-block[data-line="' + ln + '"]') : null;
+    if (!alvo) {
+      // o texto encolheu depois da edição e a linha não existe mais
+      DB.updateLei(this.currentId, { bookmark: null, bookmarkTxt: null });
+      this._pintarMarcador(null);
+      showToast('A linha marcada não existe mais neste texto — o marcador foi retirado');
+      return;
+    }
+    alvo.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    alvo.classList.add('law-bk-flash');
+    setTimeout(() => alvo.classList.remove('law-bk-flash'), 1200);
+  },
+  /* ── APLICAR A SELEÇÃO NO TOQUE ──────────────────────────────────────────
+     A marcação dependia só do evento "mouseup" no corpo da lei. Num celular
+     não existe mouseup ao fim de uma seleção por toque longo (o dedo sai sobre
+     as alças de seleção), então o marca-texto e a borracha simplesmente não
+     respondiam. Com a ferramenta ativa e um trecho selecionado, aparece uma
+     faixa: tocar nela aplica. No mouse nada muda — lá o mouseup segue
+     aplicando na hora e a faixa nem chega a aparecer. */
+  _selecaoValida() {
+    const body = document.getElementById('lei-reader-body');
+    const sel = window.getSelection ? window.getSelection() : null;
+    if (!body || !sel || sel.rangeCount === 0 || sel.isCollapsed) return '';
+    const no = sel.anchorNode;
+    const el = no && (no.nodeType === 3 ? no.parentNode : no);
+    if (!el || !body.contains(el)) return '';
+    const t = String(sel).trim();
+    return (t.length >= 2 && t.length <= 200) ? t : '';
+  },
+  _fab() {
+    let el = document.getElementById('lei-sel-fab');
+    if (!el) {
+      el = document.createElement('button');
+      el.type = 'button';
+      el.id = 'lei-sel-fab';
+      el.className = 'lei-sel-fab';
+      el.hidden = true;
+      // pointerdown: no toque, o clique chegaria DEPOIS de o navegador já ter
+      // descartado a seleção ao tirar o foco do texto.
+      el.addEventListener('pointerdown', (e) => { e.preventDefault(); this.onBodyMouseUp(); });
+      document.body.appendChild(el);
+    }
+    return el;
+  },
+  _esconderFab() { const el = document.getElementById('lei-sel-fab'); if (el) el.hidden = true; },
+  _atualizarFab() {
+    if (!this.currentId || !this.hlMode) { this._esconderFab(); return; }
+    const leitorAberto = $id('leis-reader-view').style.display !== 'none';
+    const txt = leitorAberto ? this._selecaoValida() : '';
+    if (!txt) { this._esconderFab(); return; }
+    const el = this._fab();
+    el.textContent = this.hlMode === 'mark' ? '🖍️ Destacar seleção' : '🧽 Apagar destaque';
+    el.classList.toggle('is-erase', this.hlMode === 'erase');
+    el.hidden = false;
   },
   // captura a seleção atual DENTRO do corpo do leitor (chamado no mouseup/keyup)
   captureSelection() {
@@ -237,6 +391,7 @@ const LeisScreen = {
     $id('lei-mark-count').textContent = parts.join(' · ');
     const panel = document.getElementById('lei-marks-panel');
     const list = document.getElementById('lei-marks-list');
+    if (!panel || !list) return;
     if (marks.length === 0 && suppressed.length === 0) { panel.style.display = 'none'; return; }
     panel.style.display = 'block';
     let html = '';
@@ -273,7 +428,9 @@ const LeisScreen = {
     list.querySelectorAll('[data-mark]').forEach(row => {
       row.querySelector('.lei-mark-del').addEventListener('click', () => {
         const idx = parseInt(row.dataset.mark, 10);
-        const l = DB.getLei(this.currentId); l.marcacoes.splice(idx, 1);
+        const l = DB.getLei(this.currentId);
+        if (!l || !Array.isArray(l.marcacoes)) return;
+        l.marcacoes.splice(idx, 1);
         DB.updateLei(this.currentId, { marcacoes: l.marcacoes });
         this.renderBody(); this.renderMarks();
       });
@@ -281,7 +438,9 @@ const LeisScreen = {
     list.querySelectorAll('[data-supp]').forEach(row => {
       row.querySelector('.supp-restore').addEventListener('click', () => {
         const idx = parseInt(row.dataset.supp, 10);
-        const l = DB.getLei(this.currentId); const sup = (l.suppressed || []).slice(); sup.splice(idx, 1);
+        const l = DB.getLei(this.currentId);
+        if (!l) return;
+        const sup = (l.suppressed || []).slice(); sup.splice(idx, 1);
         DB.updateLei(this.currentId, { suppressed: sup });
         this.renderBody(); this.renderMarks();
       });
@@ -307,8 +466,10 @@ const LeisScreen = {
       body.classList.toggle('tool-mark', this.hlMode === 'mark');
       body.classList.toggle('tool-erase', this.hlMode === 'erase');
     }
+    this._atualizarFab();
     if (this.hlMode === 'mark') showToast('Marca-texto ativo — selecione trechos para destacar');
     else if (this.hlMode === 'erase') showToast('Borracha ativa — selecione um destaque para apagar');
+    else showToast('Ferramenta desligada');
   },
   // Chamado no mouseup do corpo: aplica a ferramenta ativa à seleção atual
   onBodyMouseUp() {
@@ -340,9 +501,11 @@ const LeisScreen = {
     if (this.hlMode === 'mark') this.applyMark(txt, linha, offset);
     else if (this.hlMode === 'erase') this.applyErase(txt, linha);
     if (sel && sel.removeAllRanges) sel.removeAllRanges();
+    this._esconderFab();
   },
   applyMark(txt, linha, offset) {
     const lei = DB.getLei(this.currentId);
+    if (!lei) return;
     const marks = (lei.marcacoes || []).slice();
     const norm = (m) => (typeof m === 'string' ? m : (m && m.t) || '').toLowerCase();
     if (linha != null && typeof offset === 'number' && offset >= 0) {
@@ -362,6 +525,7 @@ const LeisScreen = {
   // em que você apagou (quando conhecida), não na lei inteira.
   applyErase(txt, linha) {
     const lei = DB.getLei(this.currentId);
+    if (!lei) return;
     const key = txt.toLowerCase();
     const marks = (lei.marcacoes || []).filter(m => {
       if (typeof m === 'string') return m.toLowerCase() !== key;        // legado: remove os iguais
@@ -393,7 +557,7 @@ const LeisScreen = {
   eraseHighlight(text, linha) {
     const lei = DB.getLei(this.currentId);
     const key = (text || '').trim().toLowerCase();
-    if (!key) return;
+    if (!lei || !key) return;
     const marks = (lei.marcacoes || []).filter(m => {
       if (typeof m === 'string') return m.toLowerCase() !== key;
       if ((m.t || '').toLowerCase() !== key) return true;
@@ -409,6 +573,7 @@ const LeisScreen = {
   },
   // restaura todos os destaques automáticos suprimidos
   restoreAuto() {
+    if (!this.currentId) return;
     DB.updateLei(this.currentId, { suppressed: [] });
     this.renderBody(); this.renderMarks();
     showToast('Destaques automáticos restaurados');
@@ -437,7 +602,7 @@ const LeisScreen = {
     if (!DB.addLeiKeyword(termo, sel.value)) { showToast('Essa palavra já está na lista'); inp.value = ''; inp.focus(); return; }
     inp.value = '';
     this.renderKeywords();
-    if (this.currentId) this.renderBody();   // reaplica imediatamente na lei aberta
+    if (this.currentId) this.renderBodySoon();   // reaplica imediatamente na lei aberta
     inp.focus();
   },
   renderKeywords() {
@@ -468,7 +633,7 @@ const LeisScreen = {
       el.querySelector('.lei-kw-del').addEventListener('click', () => {
         DB.removeLeiKeyword(el.dataset.kw);
         this.renderKeywords();
-        if (this.currentId) this.renderBody();
+        if (this.currentId) this.renderBodySoon();
       });
     });
   },
@@ -490,7 +655,7 @@ const LeisScreen = {
     const opts = Object.assign({}, lei.opts || {});
     opts[cat] = on;
     DB.updateLei(this.currentId, { opts });
-    this.renderBody();
+    this.renderBodySoon();
   },
   // Interruptor mestre: liga/desliga TODO o destaque automático desta lei
   setAutoMaster(on) {
@@ -502,13 +667,13 @@ const LeisScreen = {
     // desabilita visualmente as categorias individuais quando o mestre está off
     document.querySelectorAll('#lei-hl-toggles input[data-cat]').forEach(cb => { cb.disabled = !on; });
     $id('lei-hl-toggles').classList.toggle('auto-off', !on);
-    this.renderBody();
+    this.renderBodySoon();
   },
   changeFont(delta) {
     this.fontStep = Math.max(-2, Math.min(5, this.fontStep + delta));
     this._prefSet('font-step', this.fontStep);
     const body = document.getElementById('lei-reader-body');
-    body.style.fontSize = (100 + this.fontStep * 8) + '%';
+    if (body) body.style.fontSize = (100 + this.fontStep * 8) + '%';
   },
   editCurrent() {
     const lei = DB.getLei(this.currentId);
@@ -561,6 +726,15 @@ window.LeisScreen = LeisScreen;
   // aplica a ferramenta ativa ao soltar a seleção
   const body = document.getElementById('lei-reader-body');
   if (body) body.addEventListener('mouseup', () => setTimeout(() => LeisScreen.onBodyMouseUp(), 0));
+  /* No toque não há mouseup ao fim da seleção: quem avisa é o selectionchange.
+     Ele dispara muito (a cada arrasto da alça), então a atualização da faixa
+     "Destacar seleção" espera o gesto assentar. */
+  let _selTimer = 0;
+  document.addEventListener('selectionchange', () => {
+    if (!LeisScreen.currentId || !LeisScreen.hlMode) return;
+    clearTimeout(_selTimer);
+    _selTimer = setTimeout(() => LeisScreen._atualizarFab(), 260);
+  });
   on('lei-font-inc', 'click', () => LeisScreen.changeFont(1));
   on('lei-font-dec', 'click', () => LeisScreen.changeFont(-1));
   on('lei-kw-btn', 'click', () => LeisScreen.openKeywords());
@@ -574,25 +748,12 @@ window.LeisScreen = LeisScreen;
   /* Barra de ferramentas do leitor: recolher/expandir, com a escolha lembrada.
      Comeca ABERTA na primeira visita (para as ferramentas serem descobertas) e
      depois respeita o que o usuario deixou. */
-  (function () {
-    const KEY = 'diario-estudos:leis-tools-open';
-    const btn = document.getElementById('lei-tools-toggle');
-    const box = document.getElementById('leis-sticky-toolbar');
-    if (!btn || !box) return;
-    const ler = () => { try { return localStorage.getItem(KEY) !== '0'; } catch (_) { return true; } };
-    const pintar = (aberto) => {
-      box.classList.toggle('tools-collapsed', !aberto);
-      btn.setAttribute('aria-expanded', aberto ? 'true' : 'false');
-      const t = btn.querySelector('.ltt-txt');
-      if (t) t.textContent = aberto ? 'Ferramentas de leitura' : 'Mostrar ferramentas de leitura';
-    };
-    btn.addEventListener('click', () => {
-      const novo = !ler();
-      try { localStorage.setItem(KEY, novo ? '1' : '0'); } catch (_) { _quiet(_); }
-      pintar(novo);
-    });
-    pintar(ler());
-  })();
+  const btnTools = document.getElementById('lei-tools-toggle');
+  if (btnTools) btnTools.addEventListener('click', () => {
+    LeisScreen._prefSet('tools-open', LeisScreen.ferramentasAbertas() ? '0' : '1');
+    LeisScreen._pintarBarraFerramentas();
+  });
+  LeisScreen._pintarBarraFerramentas();
   on('lei-lines-btn', 'click', () => LeisScreen.toggleLines());
   on('lei-goto-mark-btn', 'click', () => LeisScreen.gotoBookmark());
   on('lei-foco-btn', 'click', () => LeisScreen.entrarFoco());
@@ -616,5 +777,11 @@ window.LeisScreen = LeisScreen;
   });
 })();
 window.addEventListener('screen:activated', (e) => {
-  if (e.detail.screen === 'leis') LeisScreen.render();
+  const tela = e && e.detail && e.detail.screen;
+  if (tela === 'leis') { LeisScreen.render(); return; }
+  /* Trocar de aba com o modo foco ligado deixava body.leis-foco no ar: abas,
+     menu e as outras telas continuavam escondidos por CSS e o app parecia
+     travado, sem nenhum caminho de volta no celular. */
+  LeisScreen.sairFoco();
+  LeisScreen._esconderFab();
 });

@@ -11,13 +11,47 @@ const LawEngine = {
       .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
       .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
   },
+  /* ── MEMÓRIA CURTA DO TEXTO JÁ PREPARADO ────────────────────────────────
+     normalize() percorre a lei inteira com cinco expressões regulares. Ela era
+     chamada de quatro a seis vezes A CADA clique no leitor (toHtml,
+     resolveBookmark, stats, âncora do marcador) — numa lei de 10 mil palavras
+     isso sozinho segurava a tela por centenas de milissegundos e era a causa
+     das travadas ao abrir a lei e ao mexer nos filtros.
+     O memo guarda as últimas 6 leis vistas: o texto normalizado, as linhas de
+     conteúdo e as estatísticas. Chave é o próprio texto cru, então qualquer
+     edição da lei invalida a entrada naturalmente. */
+  _memo: [],
+  _memoDe(raw) {
+    const s = String(raw || '');
+    const i = this._memo.findIndex(e => e.raw === s);
+    if (i >= 0) {
+      const e = this._memo[i];
+      if (i > 0) { this._memo.splice(i, 1); this._memo.unshift(e); }  // mais recente na frente
+      return e;
+    }
+    const novo = { raw: s, txt: null, linhas: null, stats: null };
+    this._memo.unshift(novo);
+    if (this._memo.length > 6) this._memo.length = 6;
+    return novo;
+  },
   normalize(raw) {
-    return String(raw || '')
-      .replace(/\r\n?/g, '\n')
-      .replace(/[ \t]+\n/g, '\n')
-      .replace(/[ \t]{2,}/g, ' ')
-      .replace(/\n{3,}/g, '\n\n')
-      .trim();
+    const e = this._memoDe(raw);
+    if (e.txt === null) {
+      e.txt = e.raw
+        .replace(/\r\n?/g, '\n')
+        .replace(/[ \t]+\n/g, '\n')
+        .replace(/[ \t]{2,}/g, ' ')
+        .replace(/\n{3,}/g, '\n\n')
+        .trim();
+    }
+    return e.txt;
+  },
+  // Linhas de CONTEÚDO (as em branco não contam) — é a base da numeração e do
+  // marcador "onde parei". Antes cada ponto refazia normalize+split+filter.
+  lines(raw) {
+    const e = this._memoDe(raw);
+    if (!e.linhas) e.linhas = this.normalize(raw).split('\n').filter(l => l.trim());
+    return e.linhas;
   },
   // Categorias de destaque automático (classes CSS: lawmark-<chave>)
   categories: {
@@ -157,7 +191,7 @@ const LawEngine = {
     const alvo = (lei.bookmark != null) ? lei.bookmark : -1;
     const ref = lei.bookmarkTxt;
     if (alvo < 0 || !ref) return alvo;
-    const linhas = this.normalize(lei.texto).split('\n').filter(l => l.trim());
+    const linhas = this.lines(lei.texto);
     if (linhas[alvo - 1] && linhas[alvo - 1].trim().startsWith(ref)) return alvo;
     const i = linhas.findIndex(l => l.trim().startsWith(ref));
     return i >= 0 ? i + 1 : alvo;
@@ -190,11 +224,16 @@ const LawEngine = {
   },
   // Estatísticas rápidas para o cabeçalho do leitor.
   stats(lei) {
-    const text = this.normalize(lei.texto);
-    // Conta só as linhas que INICIAM um artigo. Antes, cada citação ("nos termos do
-    // art. 5º") era contada como um artigo novo e o total saía inflado.
-    const arts = text.split('\n').filter(l => /^\s*art(?:\.|igo)?\s*\d+/i.test(l)).length;
-    const palavras = (text.match(/\S+/g) || []).length;
-    return { artigos: arts, palavras, marcacoes: (lei.marcacoes || []).length };
+    const bruto = lei && lei.texto;
+    const e = this._memoDe(bruto);
+    if (!e.stats) {
+      const text = this.normalize(bruto);
+      // Conta só as linhas que INICIAM um artigo. Antes, cada citação ("nos termos do
+      // art. 5º") era contada como um artigo novo e o total saía inflado.
+      const arts = text.split('\n').filter(l => /^\s*art(?:\.|igo)?\s*\d+/i.test(l)).length;
+      e.stats = { artigos: arts, palavras: (text.match(/\S+/g) || []).length };
+    }
+    // 'marcacoes' muda sem o texto mudar: fica FORA do memo.
+    return { artigos: e.stats.artigos, palavras: e.stats.palavras, marcacoes: ((lei && lei.marcacoes) || []).length };
   }
 };
