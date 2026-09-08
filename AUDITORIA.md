@@ -440,6 +440,78 @@ substitui um índice de decisões.
 
 ---
 
+## 11. Auditoria de métricas — coerência entre telas
+
+Auditoria específica dos **indicadores**: percentuais, tempos, médias e
+projeções de todas as telas, olhando duas coisas — se a conta corresponde ao que
+o rótulo promete e se a mesma grandeza dá o mesmo número em telas diferentes.
+
+Treze correções, agrupadas pelo tipo de erro.
+
+### A. A mesma grandeza com dois números
+
+| # | Onde | O que acontecia |
+|---|------|-----------------|
+| 1 | Ciclo × Histórico | A semana era medida por **três** fórmulas: ao vivo (só as matérias do ciclo, com teto de 3× a meta por matéria), no fechamento (todos os registros do período, teto global de 150%) e no recálculo (cópia do fechamento). **Fechar a semana mudava "estudado" e "% cumprido" sem nenhum registro ter sido tocado** — num caso real de teste, 80% ao vivo virava 150% no arquivo |
+| 2 | Ciclo (mesmo cartão) | Os minutos paravam no fim da semana (`rangeEnd`) e as questões continuavam somando até hoje (`effectiveEnd`). Tempo de um intervalo, aproveitamento de outro |
+| 3 | Cards | "Retenção real" aparecia duas vezes na mesma tela, com o mesmo rótulo e contas diferentes: o KPI do topo filtrava a fase de revisão, a tabela abaixo somava também aprendizado e reaprendizado |
+| 4 | Relatório × Desempenho TEC | A página do TecConcursos somava **todas** as linhas do retrato — disciplina, tópico, subtópico —, contando a mesma questão uma vez por nível. O total saía várias vezes maior que o da tela de origem |
+| 5 | Relatório × Evolução | "Páginas por hora" do relatório contava páginas de qualquer sessão (Questões, Revisão); a Evolução já contava só leitura. Divisor inflado, ritmo subestimado |
+| 6 | Conquistas × Evolução | As Conquistas somavam **toda** Atividade Extra, ignorando o interruptor "conta na Evolução". Quem desligava via a Evolução descontar as horas e as Conquistas continuarem com elas |
+
+**Correção estrutural:** `CycleEngine.progressoSemana()` passou a ser a fonte
+única do progresso da semana — a tela ao vivo, o fechamento e o recálculo do
+Histórico chamam a mesma função, com o mesmo intervalo. Os dois tetos artificiais
+saíram: eles mentiam nos dois sentidos (escondiam o excesso de quem estudou muito
+e transformavam 220% em 150%). As semanas já arquivadas são recalculadas uma vez
+no boot (`migrarCumprimentoSemana`), guardando o valor anterior em
+`pctCumpridoLegado` — sem isso o Histórico compararia semanas medidas com duas
+réguas, que é pior que o problema original.
+
+### B. Métricas que nunca saíam do zero
+
+| # | Onde | Causa |
+|---|------|-------|
+| 7 | Conquistas → "Páginas lidas" | Lia `e.pagIni`/`e.pagFim`; os campos são `pageStart`/`pageEnd`. A conquista era inalcançável enquanto o painel de Ritmo, na mesma tela, exibia o total certo. A página final também passou a contar (da 10 à 12 são três páginas) |
+| 8 | Cards → coluna "Maduros" | A maturidade era lida de `r.intervalo`, campo que **nunca era gravado** no revlog. Toda revisão caía em "Jovens" e a coluna que dá sentido à tabela ficava vazia para sempre. Agora o intervalo é gravado; o histórico antigo usa o tempo decorrido como aproximação |
+
+### C. Contas que não correspondiam ao rótulo
+
+| # | Onde | O que estava errado |
+|---|------|--------------------|
+| 9 | Estudo Novo → "Média geral de acertos" | Média aritmética dos percentuais das aulas — o mesmo erro que o Ciclo e a Evolução já haviam corrigido. Uma aula de 2/2 pesava como uma de 40/80: dava 75% onde o acerto real é 51,2%. Agora é agregada (Σ acertos ÷ Σ questões), com o rótulo dizendo qual base está na tela |
+| 10 | Desempenho TEC → Plano | `ganhoDominio` era calculado com peso igual e **sobrescrito** logo abaixo pela versão ponderada. Com a ponderação "volume", as duas colunas do "🔀 Mostrar as duas" mediam a mesma coisa e o rótulo "cada assunto pesa igual" era falso |
+| 11 | Ciclo (documentação) | `minutesStudiedSince()`/`lastEntryDateSince()` documentavam uma regra que o app não segue ("o ciclo acumula tudo, sem limite superior") e não eram chamadas por ninguém. Removidas — documentação que descreve métrica inexistente é pior que nenhuma |
+
+### D. Dados impossíveis entrando no sistema
+
+| # | Onde | O que acontecia |
+|---|------|-----------------|
+| 12 | Registrar / trilha do Estudo Novo | Nada impedia gravar **30 acertos de 20 questões**. O medidor limitava a *exibição* a 100%, o que escondia o erro: a barra dizia 100% e o banco guardava 150% — que vazava para o Ciclo, o Histórico, a Evolução e o Relatório, todos somando acertos e questões sem como desconfiar. Agora o envio é barrado com a explicação, o medidor mostra "—" em vermelho, e a trilha ajusta o campo que não foi digitado |
+
+### E. Notação
+
+| # | O que |
+|---|-------|
+| 13 | `formatPct()` escrevia "67.36" com **ponto** em 20 pontos do app, enquanto o Ciclo, a Grade e o Relatório escreviam "67,36". Havia ainda um `fmtPct2` duplicado na Grade e um `fmt2` no Histórico. Uma única função agora: vírgula decimal e casas só quando dizem algo (100% continua "100"; 67,36% não vira "67") |
+
+### O que foi verificado
+
+`node verificar.mjs` completo: paridade com o Anki 21.080/21.080, AutoTeste
+164/164, 14 telas sem erro de console, contraste AA nos dois temas. Além disso,
+um teste dirigido no Chromium com dados semeados confirmou que:
+
+- a mesma semana dá **420 min / 600 min = 70%** ao vivo, no fechamento e no
+  recálculo do Histórico (antes: 80% ao vivo, 150% arquivada);
+- o aproveitamento do período bate nos três caminhos (74,19%);
+- "Páginas lidas" conta 3 para um registro de 10 a 12;
+- a Retenção Real separa maduros (3 revisões) de jovens (2), ignora a
+  intradiária e exclui a fase de aprendizado;
+- os totais do TEC no relatório dão 100 questões — não 220, a soma dos três
+  níveis da hierarquia.
+
+---
+
 ## O que ficou de fora
 
 Duas coisas, ambas conscientes:

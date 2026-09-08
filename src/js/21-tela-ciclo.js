@@ -70,20 +70,26 @@ const CycleEngine = {
       .filter(e => this.normKey(e.subject) === key && e.date >= startDate && e.date <= endDate)
       .reduce((sum, e) => sum + (e.durationMin || 0), 0);
   },
-  // Questões resolvidas e acertos desta matéria no intervalo (para o % de aproveitamento).
-  // subjectName === null soma TODAS as matérias (aproveitamento geral da semana).
-  questionsStudied(subjectName, startDate, endDate) {
+  /* Questões resolvidas e acertos desta matéria no intervalo (para o % de aproveitamento).
+     subjectName === null soma TODAS as matérias (aproveitamento geral da semana).
+
+     `entries` existe para o HISTÓRICO CONSOLIDADO (escopo "todos os
+     planejamentos"): sem ele a função lia sempre DB.getEntries(), ou seja, os
+     registros do planejamento ATIVO — e o detalhe de uma semana de OUTRO
+     planejamento mostrava o aproveitamento do plano errado, brigando com o
+     próprio selo de acerto daquele cartão. */
+  questionsStudied(subjectName, startDate, endDate, entries) {
     const key = subjectName == null ? null : this.normKey(subjectName);
-    return DB.getEntries()
+    return (entries || DB.getEntries())
       .filter(e => (key === null || this.normKey(e.subject) === key) && e.date >= startDate && e.date <= endDate)
       .reduce((acc, e) => { acc.total += (Number(e.total) || 0); acc.correct += (Number(e.correct) || 0); return acc; }, { total: 0, correct: 0 });
   },
-  // Fim efetivo do ciclo para CONTAGEM na visão ao vivo: nunca antes de hoje, para que
-  // estudos registrados após o 7º dia teórico ainda contem (consistente com o fechamento).
-  effectiveEnd(cycle) {
-    const today = todayLocal();
-    return (cycle && cycle.endDate && cycle.endDate > today) ? cycle.endDate : today;
-  },
+  /* effectiveEnd() foi REMOVIDA na auditoria de métricas. Ela estendia o fim do
+     ciclo até hoje e era usada SÓ para as questões — os minutos usavam rangeEnd().
+     Resultado: na mesma tela, o tempo parava no término da semana e o
+     aproveitamento continuava somando questões de depois dele. E o comentário
+     dizia ser "consistente com o fechamento", que usa cycle.endDate. Agora TODA
+     medição do ciclo (minutos, questões, aproveitamento) usa rangeEnd(). */
   /* BUG CORRIGIDO — fim do intervalo do ciclo.
      Varios pontos passavam `cycle.endDate` cru para minutesStudied(). Quando o
      ciclo nao tinha endDate gravado (ciclos legados e importados nao tem), a
@@ -96,21 +102,11 @@ const CycleEngine = {
     if (!cycle) return todayLocal();
     return cycle.endDate || this.weekEndDate(cycle.startDate);
   },
-  // Conta minutos estudados desta matéria a partir do INÍCIO do ciclo, SEM limite superior.
-  // O ciclo ativo acumula tudo o que você registra desde que ele começou, até você fechá-lo —
-  // assim nenhum estudo "some" por estar datado além do 7º dia planejado.
-  minutesStudiedSince(subjectName, startDate) {
-    const key = this.normKey(subjectName);
-    return DB.getEntries()
-      .filter(e => this.normKey(e.subject) === key && e.date >= startDate)
-      .reduce((sum, e) => sum + (e.durationMin || 0), 0);
-  },
-  // Data do último estudo registrado a partir do início do ciclo (>= today se não houver nenhum além)
-  lastEntryDateSince(startDate) {
-    return DB.getEntries()
-      .filter(e => e.date >= startDate)
-      .reduce((mx, e) => (e.date > mx ? e.date : mx), todayLocal());
-  },
+  /* minutesStudiedSince()/lastEntryDateSince() também saíram: ninguém as
+     chamava e a documentação delas afirmava uma regra que o app NÃO segue
+     ("o ciclo acumula tudo, sem limite superior"). Documentação que descreve
+     uma métrica inexistente é pior que nenhuma — quem lesse concluiria que os
+     números da tela contam mais do que contam. */
   // Recalcula os AGREGADOS de uma semana do histórico de forma fiel aos registros:
   // dado o snapshot (com suas matérias/metas) e um intervalo [start,end], soma os
   // registros reais e devolve um patch com os valores derivados. As mesmas fórmulas
@@ -140,38 +136,71 @@ const CycleEngine = {
     return Math.round((acertos / questoes) * 10000) / 100;   // 2 casas
   },
 
-  recomputeWeek(snapshot, opts) {
-    opts = opts || {};
-    const startDate = opts.startDate || (snapshot && snapshot.startDate);
-    const endDate = opts.endDate || (snapshot && snapshot.endDate);
-    const weeklyHours = (opts.weeklyHours != null) ? opts.weeklyHours : (snapshot && snapshot.weeklyHours) || 0;
-    const metas = opts.metas || null; // mapa normKey(nome) -> meta(min) editada (opcional)
-    const entries = DB.getEntries().filter(e => e.date >= startDate && e.date <= endDate);
-    const totalStudied = entries.reduce((sum, e) => sum + (e.durationMin || 0), 0);
-    const avgPct = this.aproveitamentoNoPeriodo(startDate, endDate, entries);
-    const baseSubjects = (snapshot && snapshot.subjects) || [];
-    const subjectsSnapshot = baseSubjects.map(s => {
-      // meta editável (se fornecida) sobrescreve a definida no snapshot
+  /* ── PROGRESSO DA SEMANA — FONTE ÚNICA ────────────────────────────────────
+     A MESMA semana era medida por TRÊS fórmulas diferentes, e por isso mudava
+     de número ao ser arquivada:
+
+       · Ciclo ao vivo  — somava só as matérias do ciclo, com teto de 3× a meta
+                          por matéria, e mostrava o % com 2 casas;
+       · Fechar semana  — somava TODOS os registros do período (inclusive de
+                          matérias fora do ciclo), com teto global de 150%, e
+                          mostrava o % inteiro;
+       · Recalcular     — repetia a fórmula do fechamento.
+
+     Fechar a semana podia, sozinho, mudar "estudado" e "% cumprido" — sem que
+     um único registro tivesse sido tocado. Pior: no fechamento o "estudado"
+     incluía matérias fora do ciclo, mas era comparado com a meta que só
+     considera as matérias DO ciclo; a barra media uma coisa contra outra.
+
+     Regra única, agora: o progresso da semana é o das matérias que ESTÃO na
+     semana, sem teto artificial nenhum. Σ realizado ÷ Σ meta. Quem quiser o
+     tempo total do período (todas as matérias) tem a tela de Evolução, que é
+     onde essa pergunta mora. O teto some porque ele mentia nos dois sentidos:
+     escondia o excesso real de quem estudou muito e, no fechamento, ainda
+     transformava 220% em 150%.                                             */
+  progressoSemana(subjects, startDate, endDate, metas) {
+    const lista = (subjects || []).map(s => {
+      // meta editável (quando fornecida) sobrescreve a definida no ciclo/snapshot
       let definido = s.definidoMin || 0;
       if (metas) {
         const ov = metas[this.normKey(s.nome)];
         if (ov !== undefined && ov !== '' && ov !== null) definido = Math.max(0, parseInt(ov, 10) || 0);
       }
-      const studied = this.minutesStudied(s.nome, startDate, endDate);
-      return { ...s, definidoMin: definido, estudadoMin: studied, status: this.statusFor(studied, definido) };
+      const estudado = this.minutesStudied(s.nome, startDate, endDate);
+      return { ...s, definidoMin: definido, estudadoMin: estudado, status: this.statusFor(estudado, definido) };
     });
-    const finalizadas = subjectsSnapshot.filter(s => s.status === 'finalizada').length;
-    const targetTotal = subjectsSnapshot.reduce((sum, s) => sum + (s.definidoMin || 0), 0);
+    const totalTargetMin = lista.reduce((a, s) => a + (s.definidoMin || 0), 0);
+    const totalStudiedMin = lista.reduce((a, s) => a + (s.estudadoMin || 0), 0);
+    return {
+      subjects: lista,
+      totalTargetMin,
+      totalStudiedMin,
+      // 2 casas: com metas em minutos, 1 casa esconde progresso real
+      // (ex.: 8h05 de 12h = 67,36%, que aparecia como 67% por horas a fio).
+      pctCumprido: totalTargetMin > 0 ? Math.round((totalStudiedMin / totalTargetMin) * 10000) / 100 : 0,
+      finalizadas: lista.filter(s => s.status === 'finalizada').length,
+      totalSubjects: lista.length,
+      restanteMin: Math.max(0, totalTargetMin - totalStudiedMin)
+    };
+  },
+
+  recomputeWeek(snapshot, opts) {
+    opts = opts || {};
+    const startDate = opts.startDate || (snapshot && snapshot.startDate);
+    const endDate = opts.endDate || (snapshot && snapshot.endDate);
+    const weeklyHours = (opts.weeklyHours != null) ? opts.weeklyHours : (snapshot && snapshot.weeklyHours) || 0;
+    const entries = DB.getEntries().filter(e => e.date >= startDate && e.date <= endDate);
+    const prog = this.progressoSemana((snapshot && snapshot.subjects) || [], startDate, endDate, opts.metas || null);
     return {
       startDate, endDate,
       weeklyHours: weeklyHours,
-      subjects: subjectsSnapshot,
-      totalTargetMin: targetTotal,
-      totalStudiedMin: totalStudied,
-      pctCumprido: targetTotal > 0 ? Math.round((Math.min(totalStudied, targetTotal * 1.5) / targetTotal) * 100) : 0,
-      finalizadas,
-      totalSubjects: subjectsSnapshot.length,
-      avgPerformancePct: avgPct
+      subjects: prog.subjects,
+      totalTargetMin: prog.totalTargetMin,
+      totalStudiedMin: prog.totalStudiedMin,
+      pctCumprido: prog.pctCumprido,
+      finalizadas: prog.finalizadas,
+      totalSubjects: prog.totalSubjects,
+      avgPerformancePct: this.aproveitamentoNoPeriodo(startDate, endDate, entries)
     };
   },
   statusFor(studiedMin, targetMin) {

@@ -151,8 +151,16 @@ function calcPct(correct, total) {
   return Math.round((correct / total) * 10000) / 100;
 }
 
+/* Percentual na notacao do app: virgula decimal (pt-BR) e sem casas inuteis.
+   Antes esta funcao devolvia "67.36" com PONTO, enquanto o Ciclo, a Grade e o
+   Relatorio ja escreviam "67,36" — a mesma metrica aparecia com dois formatos
+   conforme a tela. Agora ha UMA notacao para todo o app.
+   As duas casas so aparecem quando dizem algo: 100% continua "100", 67,36%
+   nao vira "67". Evita a falsa precisao ("100,00%") e a perda de informacao. */
 function formatPct(pct) {
-  return pct === null || pct === undefined ? '—' : pct.toFixed(2);
+  if (pct === null || pct === undefined || !isFinite(pct)) return '—';
+  const r = Math.round(pct * 100) / 100;
+  return Number.isInteger(r) ? String(r) : r.toFixed(2).replace('.', ',');
 }
 
 /* Medalha por faixa de aproveitamento — o olho encontra a linha boa antes de

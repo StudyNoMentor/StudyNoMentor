@@ -445,33 +445,30 @@ function planCycleMode() {
     showState('active');
   });
 
-  /* Mostra 2 casas só quando elas dizem algo: 100% continua "100", mas
-     67,36% não vira "67". Evita tanto a falsa precisão ("100,00%") quanto a
-     perda de informação. */
-  function fmtPct2(v) {
-    if (v == null) return '—';
-    const r = Math.round(v * 100) / 100;
-    return Number.isInteger(r) ? String(r) : r.toFixed(2).replace('.', ',');
-  }
+  /* fmtPct2 local saiu: era uma segunda régua de formatação, idêntica em
+     intenção à formatPct() global mas divergente na prática (a global escrevia
+     "67.36" com ponto). Uma métrica, uma notação — formatPct() agora é a única.  */
 
   function renderOverviewGauges(cycle) {
     const container = document.getElementById('ciclo-overview-gauges');
-    let totalTarget = 0, totalStudied = 0, finalizadas = 0;
-    cycle.subjects.forEach(s => {
-      const studied = CycleEngine.minutesStudied(s.nome, cycle.startDate, CycleEngine.rangeEnd(cycle));
-      totalTarget += s.definidoMin;
-      totalStudied += Math.min(studied, s.definidoMin * 3); // evita distorcer muito o total
-      if (CycleEngine.statusFor(studied, s.definidoMin) === 'finalizada') finalizadas++;
-    });
-    // 2 casas: com metas em minutos, 1 casa esconde progresso real
-    // (ex.: 8h05 de 12h = 67,36%, que aparecia como 67% por horas a fio).
-    const pctGeral = totalTarget > 0 ? Math.round((totalStudied / totalTarget) * 10000) / 100 : 0;
+    /* Uma única fonte para o progresso da semana (CycleEngine.progressoSemana):
+       exatamente os mesmos números que o fechamento grava no histórico. Antes
+       esta tela tinha fórmula própria — com teto de 3× a meta por matéria — e
+       o cartão do Histórico, outra. A semana mudava de número ao ser fechada. */
+    const prog = CycleEngine.progressoSemana(cycle.subjects, cycle.startDate, CycleEngine.rangeEnd(cycle));
+    const totalTarget = prog.totalTargetMin;
+    const totalStudied = prog.totalStudiedMin;
+    const finalizadas = prog.finalizadas;
+    const pctGeral = prog.pctCumprido;
     const overallAccent = pctGeral >= 100 ? 'accent-good' : pctGeral >= 40 ? 'accent-warn' : 'accent-bad';
     const finalizadasAccent = cycle.subjects.length > 0 && finalizadas === cycle.subjects.length ? 'accent-good' : '';
-    const remaining = Math.max(0, totalTarget - totalStudied);
+    const remaining = prog.restanteMin;
     const remAccent = remaining === 0 ? 'accent-good' : '';
-    // Aproveitamento geral da semana (acertos ÷ resolvidas em todas as matérias do intervalo)
-    const q = CycleEngine.questionsStudied(null, cycle.startDate, CycleEngine.effectiveEnd(cycle));
+    /* Aproveitamento geral da semana (acertos ÷ resolvidas em todas as matérias
+       do intervalo). Mesmo intervalo dos minutos — antes as questões usavam
+       effectiveEnd(), que ia até hoje, e o mesmo cartão media tempo até o fim
+       da semana e acerto até depois dele. */
+    const q = CycleEngine.questionsStudied(null, cycle.startDate, CycleEngine.rangeEnd(cycle));
     const acc = q.total > 0 ? Math.round((q.correct / q.total) * 10000) / 100 : null;
     const accAccent = acc == null ? '' : (acc >= 70 ? 'accent-good' : acc >= 50 ? 'accent-warn' : 'accent-bad');
 
@@ -497,7 +494,7 @@ function planCycleMode() {
 
     container.innerHTML = `
       <div class="mini-gauge-card ${overallAccent}">
-        <div class="value">${fmtPct2(pctGeral)}%</div>
+        <div class="value">${formatPct(pctGeral)}%</div>
         <div class="label">cumprido</div>
       </div>
       <div class="mini-gauge-card">
@@ -509,7 +506,7 @@ function planCycleMode() {
         <div class="label">${remaining === 0 ? 'meta batida' : 'faltam'}</div>
       </div>
       <div class="mini-gauge-card ${accAccent}" title="${q.total ? q.correct + ' de ' + q.total + ' questões' : 'Registre questões para ver o aproveitamento'}">
-        <div class="value">${acc == null ? '—' : fmtPct2(acc) + '%'}</div>
+        <div class="value">${acc == null ? '—' : formatPct(acc) + '%'}</div>
         <div class="label">aproveitamento</div>
       </div>
       <div class="mini-gauge-card ${finalizadasAccent}">
@@ -560,7 +557,7 @@ function planCycleMode() {
       const over = studied > s.definidoMin;
       const remaining = Math.max(0, s.definidoMin - studied);
       // aproveitamento em questões desta matéria na semana
-      const q = CycleEngine.questionsStudied(s.nome, cycle.startDate, CycleEngine.effectiveEnd(cycle));
+      const q = CycleEngine.questionsStudied(s.nome, cycle.startDate, CycleEngine.rangeEnd(cycle));
       const acc = q.total > 0 ? Math.round((q.correct / q.total) * 10000) / 100 : null;
       const accTone = acc == null ? '' : (acc >= 70 ? 'tone-good' : acc >= 50 ? 'tone-warn' : 'tone-bad');
       return `
@@ -568,7 +565,7 @@ function planCycleMode() {
           <div class="subject-progress-head">
             <span class="name">${escapeHtml(s.nome)}</span>
             <span class="sp-head-right">
-              <span class="subject-acc ${accTone}" title="${q.total ? q.correct + ' de ' + q.total + ' questões nesta semana' : 'Sem questões registradas nesta semana'}"><b>${acc == null ? '—' : fmtPct2(acc) + '%'}</b><span class="sp-acc-lbl">aproveit.</span></span>
+              <span class="subject-acc ${accTone}" title="${q.total ? q.correct + ' de ' + q.total + ' questões nesta semana' : 'Sem questões registradas nesta semana'}"><b>${acc == null ? '—' : formatPct(acc) + '%'}</b><span class="sp-acc-lbl">aproveit.</span></span>
               <span class="status-badge ${status}">${status}</span>
             </span>
           </div>
@@ -1507,36 +1504,26 @@ function planCycleMode() {
     // a semana no histórico usa exatamente o intervalo definido no ciclo (início → término)
     const realEndDate = cycle.endDate || CycleEngine.weekEndDate(cycle.startDate);
 
-    // monta snapshot completo com desempenho, considerando os estudos dentro do intervalo
+    /* O snapshot arquivado é EXATAMENTE o que a tela mostrava ao vivo: mesma
+       função, mesmo intervalo (startDate → realEndDate), mesmas matérias.
+       Fechar a semana não altera mais nenhum número. */
     const entries = DB.getEntries().filter(e => e.date >= cycle.startDate && e.date <= realEndDate);
-    const totalStudied = entries.reduce((sum, e) => sum + (e.durationMin || 0), 0);
-    const avgPct = CycleEngine.aproveitamentoNoPeriodo(cycle.startDate, realEndDate, entries);
-
-    /* O snapshot mede as matérias no MESMO intervalo usado para somar as
-       sessões (startDate → realEndDate). Antes usava cycle.endDate, que podia
-       ser nulo: as horas por matéria zeravam enquanto o total da semana
-       continuava certo, e o histórico guardava essa divergência para sempre. */
-    const subjectsSnapshot = cycle.subjects.map(s => {
-      const studied = CycleEngine.minutesStudied(s.nome, cycle.startDate, realEndDate);
-      return { ...s, estudadoMin: studied, status: CycleEngine.statusFor(studied, s.definidoMin) };
-    });
-    const finalizadas = subjectsSnapshot.filter(s => s.status === 'finalizada').length;
-    const targetTotal = cycle.subjects.reduce((sum, s) => sum + s.definidoMin, 0);
+    const prog = CycleEngine.progressoSemana(cycle.subjects, cycle.startDate, realEndDate);
 
     const snapshot = {
       id: Date.now(),
       startDate: cycle.startDate,
       endDate: realEndDate,
       weeklyHours: cycle.weeklyHours,
-      subjects: subjectsSnapshot,
+      subjects: prog.subjects,
       grade: JSON.parse(JSON.stringify(gradeGet().grade)),
       sessions: gradeGet().sessions,
-      totalTargetMin: targetTotal,
-      totalStudiedMin: totalStudied,
-      pctCumprido: targetTotal > 0 ? Math.round((Math.min(totalStudied, targetTotal * 1.5) / targetTotal) * 100) : 0,
-      finalizadas,
-      totalSubjects: subjectsSnapshot.length,
-      avgPerformancePct: avgPct,
+      totalTargetMin: prog.totalTargetMin,
+      totalStudiedMin: prog.totalStudiedMin,
+      pctCumprido: prog.pctCumprido,
+      finalizadas: prog.finalizadas,
+      totalSubjects: prog.totalSubjects,
+      avgPerformancePct: CycleEngine.aproveitamentoNoPeriodo(cycle.startDate, realEndDate, entries),
       closedAt: new Date().toISOString()
     };
 

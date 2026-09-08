@@ -89,7 +89,7 @@ const HistoricoScreen = {
         </div>
         <div class="week-stats-row">
           <div class="week-stat">
-            <div class="value">${Math.min(w.pctCumprido,999)}%</div>
+            <div class="value">${formatPct(Math.min(w.pctCumprido, 999))}%</div>
             <div class="label">cumprido</div>
           </div>
           <div class="week-stat">
@@ -133,7 +133,7 @@ const HistoricoScreen = {
   detailHtml(w, consolidated) {
     return `
       <div class="wd-section-title">Progresso por matéria</div>
-      ${this.subjectsProgressHtml(w)}
+      ${this.subjectsProgressHtml(w, consolidated)}
       <div class="wd-section-title">Grade planejada da semana</div>
       ${this.gradeDetailHtml(w)}
       <div class="wd-section-title">Sessões registradas no período</div>
@@ -141,9 +141,15 @@ const HistoricoScreen = {
     `;
   },
 
-  subjectsProgressHtml(w) {
+  subjectsProgressHtml(w, consolidated) {
     const subjects = w.subjects || [];
     if (subjects.length === 0) return `<p class="wd-empty">Nenhuma matéria estava neste ciclo.</p>`;
+    /* Os registros vêm do planejamento DA SEMANA. No escopo consolidado ("todos
+       os planejamentos") a lista de sessões logo abaixo já respeitava isso, mas
+       o aproveitamento por matéria lia sempre o planejamento ATIVO: a mesma
+       semana exibia um % de acerto que não tinha relação com os registros
+       mostrados dois blocos adiante. */
+    const fonte = this.getPeriodEntries(w, consolidated);
     /* Mesma lista do Ciclo da Semana, inclusive o aproveitamento ao lado do
        status: antes o detalhe do historico mostrava so horas, entao a semana
        arquivada perdia a informacao de desempenho que a semana viva tinha. */
@@ -154,16 +160,15 @@ const HistoricoScreen = {
       const pct = definido > 0 ? Math.min(100, Math.round((estudado / definido) * 100)) : 0;
       const over = estudado > definido;
       const remaining = Math.max(0, definido - estudado);
-      const q = CycleEngine.questionsStudied(s.nome, w.startDate, w.endDate);
+      const q = CycleEngine.questionsStudied(s.nome, w.startDate, w.endDate, fonte);
       const acc = q.total > 0 ? Math.round((q.correct / q.total) * 10000) / 100 : null;
       const accTone = acc == null ? '' : (acc >= 70 ? 'tone-good' : acc >= 50 ? 'tone-warn' : 'tone-bad');
-      const fmt2 = (v) => { const r = Math.round(v * 100) / 100; return Number.isInteger(r) ? String(r) : r.toFixed(2).replace('.', ','); };
       return `
         <div class="subject-progress-item status-${status}">
           <div class="subject-progress-head">
             <span class="name">${escapeHtml(s.nome)}</span>
             <span class="sp-head-right">
-              <span class="subject-acc ${accTone}" title="${q.total ? q.correct + ' de ' + q.total + ' questões nesta semana' : 'Sem questões registradas nesta semana'}"><b>${acc == null ? '—' : fmt2(acc) + '%'}</b><span class="sp-acc-lbl">aproveit.</span></span>
+              <span class="subject-acc ${accTone}" title="${q.total ? q.correct + ' de ' + q.total + ' questões nesta semana' : 'Sem questões registradas nesta semana'}"><b>${acc == null ? '—' : formatPct(acc) + '%'}</b><span class="sp-acc-lbl">aproveit.</span></span>
               <span class="status-badge ${status}">${status}</span>
             </span>
           </div>
@@ -340,7 +345,7 @@ const HistoricoScreen = {
   },
   _paintComputed(card, r) {
     const set = (sel, txt) => { const el = card.querySelector(sel); if (el) el.textContent = txt; };
-    set('.wk-c-pct', Math.min(r.pctCumprido, 999) + '%');
+    set('.wk-c-pct', formatPct(Math.min(r.pctCumprido, 999)) + '%');
     set('.wk-c-studied', CycleEngine.fmtHM(r.totalStudiedMin));
     set('.wk-c-final', r.finalizadas + '/' + r.totalSubjects);
     set('.wk-c-total', r.totalSubjects);
