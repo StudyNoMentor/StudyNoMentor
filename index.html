@@ -6546,14 +6546,17 @@ window.__idbBoot = (function () {
   </section>
 
   <!-- ============ TELA: LEIS SECAS ============ -->
+  <!-- Barra do MODO FOCO. Os rótulos somem no celular (ficam no title/aria-label)
+       para que os CINCO botões caibam na faixa: antes três deles ficavam fora da
+       área visível, num rolamento horizontal sem barra e sem pista nenhuma. -->
   <div class="foco-bar" id="lei-foco-bar">
     <span class="foco-info" id="lei-foco-info">Leitura</span>
     <span class="foco-acoes">
-      <button type="button" class="btn-secondary leis-tool-mark" id="lei-foco-mark" title="Marca-texto: com ele ativo, selecione o texto para destacar">🖍️ Marca-texto</button>
-      <button type="button" class="btn-secondary leis-tool-erase" id="lei-foco-erase" title="Borracha: com ela ativa, selecione um destaque para apagá-lo">🧽 Borracha</button>
-      <button type="button" class="btn-secondary" id="lei-foco-lines" title="Mostrar/ocultar a numeração das linhas">🔢 Linhas</button>
-      <button type="button" class="btn-secondary" id="lei-foco-marcar" title="Marcar onde parei (linha do topo da tela)">📌 Marcar aqui</button>
-      <button type="button" class="btn-secondary" id="lei-foco-sair" title="Sair do modo foco (Esc)">✕ Sair</button>
+      <button type="button" class="btn-secondary leis-tool-mark" id="lei-foco-mark" title="Marca-texto: com ele ativo, selecione o texto para destacar" aria-label="Marca-texto"><span class="fb-ic">🖍️</span><span class="fb-tx">Marca-texto</span></button>
+      <button type="button" class="btn-secondary leis-tool-erase" id="lei-foco-erase" title="Borracha: com ela ativa, selecione um destaque para apagá-lo" aria-label="Borracha"><span class="fb-ic">🧽</span><span class="fb-tx">Borracha</span></button>
+      <button type="button" class="btn-secondary" id="lei-foco-lines" title="Mostrar/ocultar a numeração das linhas" aria-label="Numeração das linhas"><span class="fb-ic">🔢</span><span class="fb-tx">Linhas</span></button>
+      <button type="button" class="btn-secondary" id="lei-foco-marcar" title="Marcar onde parei (linha do topo da tela)" aria-label="Marcar onde parei"><span class="fb-ic">📌</span><span class="fb-tx">Marcar aqui</span></button>
+      <button type="button" class="btn-secondary foco-sair" id="lei-foco-sair" title="Sair do modo foco (Esc)" aria-label="Sair do modo foco"><span class="fb-ic">✕</span><span class="fb-tx">Sair</span></button>
     </span>
   </div>
   <section role="region" tabindex="-1" class="screen" id="screen-leis">
@@ -6565,9 +6568,14 @@ window.__idbBoot = (function () {
       </div>
 
       <div class="leis-list-topbar">
-        <div class="section-divider" style="flex:1; margin:0;"><span>Suas leis</span></div>
-        <button type="button" class="btn-primary" id="lei-open-form-btn">＋ Nova lei</button>
+        <label class="leis-busca" for="lei-busca">
+          <span class="leis-busca-ic" aria-hidden="true">🔎</span>
+          <input type="search" id="lei-busca" placeholder="Buscar por título, referência ou matéria" autocomplete="off">
+          <button type="button" class="leis-busca-x" id="lei-busca-limpar" aria-label="Limpar busca" hidden>✕</button>
+        </label>
+        <button type="button" class="btn-primary leis-nova" id="lei-open-form-btn">＋ Nova lei</button>
       </div>
+      <p class="leis-list-contagem" id="leis-list-contagem"></p>
       <div id="leis-cards"></div>
     </div>
 
@@ -6620,49 +6628,60 @@ window.__idbBoot = (function () {
         </div>
       </div>
 
-      <!-- A barra de ferramentas do leitor RECOLHE: são 12 controles que se usam
-           uma vez e depois só ocupam a metade de cima da tela de leitura. -->
+      <!-- BARRA DO LEITOR, em duas camadas.
+           Camada 1 (sempre visível): as quatro ações que se usam LENDO. Antes
+           tudo — os seis chips de cor, o gerenciador de palavras, a fonte —
+           ficava na mesma faixa, e recolher a barra levava junto o marca-texto.
+           Camada 2 (recolhível): o que se ajusta uma vez e não se mexe mais. -->
       <div class="leis-sticky" id="leis-sticky-toolbar">
+        <div class="leis-acoes" id="leis-acoes-primarias">
+          <button type="button" class="leis-acao leis-tool-mark" id="lei-mark-btn" title="Marca-texto: com ele ativo, basta selecionar o texto para destacar">
+            <span class="la-ic">🖍️</span><span class="la-tx">Marcar</span></button>
+          <button type="button" class="leis-acao leis-tool-erase" id="lei-unmark-btn" title="Borracha: com ela ativa, selecione um destaque para apagá-lo (inclusive os automáticos)">
+            <span class="la-ic">🧽</span><span class="la-tx">Apagar</span></button>
+          <button type="button" class="leis-acao" id="lei-goto-mark-btn" title="Marcar onde você parou, ou voltar para lá">
+            <span class="la-ic">📌</span><span class="la-tx">Onde parei</span></button>
+          <button type="button" class="leis-acao" id="lei-foco-btn" title="Ler sem distração, em tela cheia">
+            <span class="la-ic">🎯</span><span class="la-tx">Foco</span></button>
+        </div>
         <button type="button" class="leis-tools-toggle" id="lei-tools-toggle" aria-expanded="true" aria-controls="leis-tools-body">
           <span class="ltt-ic">🛠️</span>
-          <span class="ltt-txt">Ferramentas de leitura</span>
+          <span class="ltt-txt">Ajustes da leitura</span>
           <span class="ltt-caret">▾</span>
         </button>
         <div class="leis-tools-body" id="leis-tools-body">
-        <div class="leis-toolbar-row">
-          <div class="leis-hl-group" id="lei-hl-toggles">
-            <label class="leis-auto-switch" title="Liga/desliga todo o destaque automático desta lei">
-              <input type="checkbox" id="lei-auto-master" checked>
-              <span class="leis-auto-track"><span class="leis-auto-thumb"></span></span>
-              <span class="leis-auto-label">🖍️ Destaque automático</span>
-            </label>
-            <span class="leis-hl-sep"></span>
-            <label class="leis-hl-chip"><input type="checkbox" data-cat="ressalvas" checked><span class="lawmark-ressalvas">⚖️ Ressalvas</span></label>
-            <label class="leis-hl-chip"><input type="checkbox" data-cat="restricoes" checked><span class="lawmark-restricoes">🚫 Restrições</span></label>
-            <label class="leis-hl-chip"><input type="checkbox" data-cat="competencias" checked><span class="lawmark-competencias">🏛️ Poder/Dever</span></label>
-            <label class="leis-hl-chip"><input type="checkbox" data-cat="prazos" checked><span class="lawmark-prazos">⏱️ Prazos</span></label>
-            <label class="leis-hl-chip"><input type="checkbox" data-cat="efeitos" checked><span class="lawmark-efeitos">⚠️ Sanções</span></label>
-            <label class="leis-hl-chip"><input type="checkbox" data-cat="relacoes" checked><span class="lawmark-relacoes">🔗 Causalidade</span></label>
+          <div class="leis-toolbar-row">
+            <div class="leis-hl-group" id="lei-hl-toggles">
+              <label class="leis-auto-switch" title="Liga/desliga todo o destaque automático desta lei">
+                <input type="checkbox" id="lei-auto-master" checked>
+                <span class="leis-auto-track"><span class="leis-auto-thumb"></span></span>
+                <span class="leis-auto-label">Destaque automático</span>
+              </label>
+              <div class="leis-hl-chips" id="lei-hl-chips">
+                <label class="leis-hl-chip"><input type="checkbox" data-cat="ressalvas" checked><span class="lawmark-ressalvas">⚖️ Ressalvas</span></label>
+                <label class="leis-hl-chip"><input type="checkbox" data-cat="restricoes" checked><span class="lawmark-restricoes">🚫 Restrições</span></label>
+                <label class="leis-hl-chip"><input type="checkbox" data-cat="competencias" checked><span class="lawmark-competencias">🏛️ Poder/Dever</span></label>
+                <label class="leis-hl-chip"><input type="checkbox" data-cat="prazos" checked><span class="lawmark-prazos">⏱️ Prazos</span></label>
+                <label class="leis-hl-chip"><input type="checkbox" data-cat="efeitos" checked><span class="lawmark-efeitos">⚠️ Sanções</span></label>
+                <label class="leis-hl-chip"><input type="checkbox" data-cat="relacoes" checked><span class="lawmark-relacoes">🔗 Causalidade</span></label>
+              </div>
+            </div>
           </div>
-        </div>
-        <div class="leis-toolbar-row leis-toolbar-actions">
-          <button type="button" class="leis-tool-btn leis-tool-mark" id="lei-mark-btn" title="Marca-texto: com ele ativo, basta selecionar o texto para destacar">🖍️ Marca-texto</button>
-          <button type="button" class="leis-tool-btn leis-tool-erase" id="lei-unmark-btn" title="Borracha: com ela ativa, selecione um destaque para apagá-lo (inclusive os automáticos)">🧽 Borracha</button>
-          <span id="lei-mark-count" class="leis-mark-count"></span>
-          <span class="leis-toolbar-spacer"></span>
-          <button type="button" class="leis-tool-btn" id="lei-kw-btn" title="Gerenciar as palavras destacadas automaticamente em todas as leis">🎨 Palavras destacadas</button>
-          <button type="button" class="leis-tool-btn" id="lei-lines-btn" title="Mostrar/ocultar a numeração das linhas">🔢 Linhas</button>
-          <button type="button" class="leis-tool-btn" id="lei-goto-mark-btn" title="Ir para a linha onde você parou">📌 Onde parei</button>
-          <button type="button" class="leis-tool-btn" id="lei-foco-btn" title="Ler sem distração, em tela cheia (Esc para sair)">🎯 Modo foco</button>
-          <div class="leis-reader-controls">
-            <button type="button" class="icon-btn" id="lei-font-dec" title="Diminuir fonte" aria-label="Diminuir fonte">A−</button>
-            <button type="button" class="icon-btn" id="lei-font-inc" title="Aumentar fonte" aria-label="Aumentar fonte">A+</button>
+          <div class="leis-toolbar-row leis-toolbar-actions">
+            <button type="button" class="leis-tool-btn" id="lei-lines-btn" title="Mostrar/ocultar a numeração das linhas">🔢 Linhas</button>
+            <button type="button" class="leis-tool-btn" id="lei-kw-btn" title="Gerenciar as palavras destacadas automaticamente em todas as leis">🎨 Palavras</button>
+            <button type="button" class="leis-tool-btn" id="lei-prefs-btn" title="Escolher o que aparece nesta tela">⚙️ Exibição</button>
+            <div class="leis-reader-controls" role="group" aria-label="Tamanho do texto">
+              <button type="button" class="icon-btn" id="lei-font-dec" title="Diminuir fonte" aria-label="Diminuir fonte">A−</button>
+              <span class="leis-font-val" id="lei-font-val">100%</span>
+              <button type="button" class="icon-btn" id="lei-font-inc" title="Aumentar fonte" aria-label="Aumentar fonte">A+</button>
+            </div>
           </div>
-        </div>
+          <p class="leis-mark-count" id="lei-mark-count"></p>
         </div>
       </div>
 
-      <div class="leis-mark-hint" id="lei-mark-hint">💡 Ative o <strong>🖍️ Marca-texto</strong> e vá selecionando os trechos para destacar. Ative a <strong>🧽 Borracha</strong> e selecione um destaque (seu ou automático) para apagá-lo.</div>
+      <div class="leis-mark-hint" id="lei-mark-hint">💡 Ative o <strong>🖍️ Marcar</strong> e vá selecionando os trechos para destacar. Ative o <strong>🧽 Apagar</strong> e selecione um destaque (seu ou automático) para removê-lo.<button type="button" class="leis-hint-x" id="lei-mark-hint-x" title="Não mostrar mais esta dica" aria-label="Não mostrar mais esta dica">✕</button></div>
 
       <div class="card leis-reader-card">
         <div id="lei-reader-body" class="lei-reader-body"></div>
@@ -6671,6 +6690,34 @@ window.__idbBoot = (function () {
       <div class="card" id="lei-marks-panel" style="display:none;">
         <div class="card-header"><div><h2>Seus destaques</h2><p class="sub">Trechos que você marcou manualmente nesta lei</p></div></div>
         <div style="padding: 12px 24px 22px;" id="lei-marks-list"></div>
+      </div>
+    </div>
+
+    <!-- Modal: o que aparece na tela de Leis (preferências do leitor).
+         O pedido era poder OCULTAR o que não se usa: cada item aqui apaga uma
+         faixa inteira da tela, e a escolha vale para todas as leis do perfil. -->
+    <div id="lei-prefs-modal" class="cards-modal" style="display:none;">
+      <div class="cards-modal-box">
+        <div class="cards-modal-head">
+          <div><h2>⚙️ Exibição da tela de Leis</h2><p class="sub">Desligue o que você não usa. Vale para todas as leis deste perfil e pode ser revertido a qualquer momento.</p></div>
+          <button type="button" class="icon-btn" id="lei-prefs-close" aria-label="Fechar">✕</button>
+        </div>
+        <div class="cards-modal-body">
+          <p class="section-label" style="margin:0 0 8px;">Leitura</p>
+          <div class="lei-prefs-grupo" data-lei-prefs="leitura"></div>
+          <p class="section-label" style="margin:18px 0 8px;">Conforto do texto</p>
+          <div class="ux-seg lei-prefs-seg" data-lei-conforto role="group" aria-label="Espaçamento do texto">
+            <button type="button" data-conforto="compacto">Compacto</button>
+            <button type="button" data-conforto="normal">Normal</button>
+            <button type="button" data-conforto="amplo">Amplo</button>
+          </div>
+          <p class="section-label" style="margin:18px 0 8px;">O que aparece na tela</p>
+          <div class="lei-prefs-grupo" data-lei-prefs="partes"></div>
+        </div>
+        <div class="cards-modal-foot">
+          <button type="button" class="btn-secondary" id="lei-prefs-reset">↺ Restaurar padrão</button>
+          <button type="button" class="btn-primary" id="lei-prefs-done">Concluído</button>
+        </div>
       </div>
     </div>
 
@@ -7283,6 +7330,32 @@ window.__idbBoot = (function () {
     </section>
 
     <!-- ────────── Sincronização na nuvem (Supabase) ────────── -->
+    <!-- Os mesmos controles do ⚙️ Exibição da tela de Leis. São pintados pelo
+         MESMO código (LeisScreen.renderPrefs) e escrevem nas MESMAS chaves: os
+         dois lugares são uma janela para o mesmo ajuste, não duas cópias que
+         podem se desencontrar. -->
+    <section class="card" id="cfg-leis-card">
+      <div class="card-header">
+        <div>
+          <h2>§ Leis Secas — exibição</h2>
+          <p class="sub">O que aparece na tela de leitura das leis — os mesmos controles do botão <strong>⚙️ Exibição</strong> lá dentro. Desligue o que você não usa: vale para todas as leis do perfil e acompanha o perfil na nuvem.</p>
+        </div>
+      </div>
+      <div style="padding: 16px 28px 24px;">
+        <p class="section-label" style="margin:0 0 8px;">Leitura</p>
+        <div class="lei-prefs-grupo" data-lei-prefs="leitura"></div>
+        <p class="section-label" style="margin:18px 0 8px;">Conforto do texto</p>
+        <div class="ux-seg lei-prefs-seg" data-lei-conforto role="group" aria-label="Espaçamento do texto">
+          <button type="button" data-conforto="compacto">Compacto</button>
+          <button type="button" data-conforto="normal">Normal</button>
+          <button type="button" data-conforto="amplo">Amplo</button>
+        </div>
+        <p class="section-label" style="margin:18px 0 8px;">O que aparece na tela</p>
+        <div class="lei-prefs-grupo" data-lei-prefs="partes"></div>
+        <button type="button" class="btn-secondary" id="cfg-leis-reset" style="margin-top:16px;">↺ Restaurar padrão</button>
+      </div>
+    </section>
+
     <section class="card">
       <div class="card-header">
         <div>
@@ -9950,7 +10023,7 @@ button.is-saving {
 .leis-sticky.tools-collapsed .leis-tools-body { display: none; }
 /* Recolhida a caixa não tem segunda linha: o padding some e quem dá a altura é
    o próprio botão, que ocupa a faixa inteira. */
-.leis-sticky.tools-collapsed { padding: 6px; gap: 0; }
+.leis-sticky.tools-collapsed { padding: 6px; gap: 6px; }
 .leis-sticky.tools-collapsed .leis-tools-toggle {
   min-height: 46px; background: var(--surface-sunken); color: var(--text);
   border: 1px solid var(--border); border-radius: 11px;
@@ -9963,11 +10036,9 @@ button.is-saving {
    distribuem em duas colunas regulares. */
 @media (max-width: 720px) {
   .leis-toolbar-actions .leis-toolbar-spacer { display: none; }
-  .leis-toolbar-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; align-items: stretch; }
-  .leis-toolbar-actions .leis-tool-btn { width: 100%; min-height: 42px; padding: 8px 10px; text-align: center; }
-  .leis-toolbar-actions .leis-mark-count { grid-column: 1 / -1; text-align: center; white-space: normal; }
-  .leis-toolbar-actions .leis-reader-controls { grid-column: 1 / -1; justify-content: center; gap: 10px; }
-  .leis-toolbar-actions .leis-reader-controls .icon-btn { flex: 1 1 0; min-height: 42px; }
+  .leis-toolbar-actions { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; align-items: stretch; }
+  .leis-toolbar-actions .leis-tool-btn { width: 100%; min-height: 42px; padding: 8px 6px; text-align: center; font-size: var(--fs-xs); }
+  .leis-toolbar-actions .leis-reader-controls { grid-column: 1 / -1; justify-self: center; }
 }
 
 /* "Onde parei" com marcador fixado ganha a cor do pin — assim dá para ver, sem
@@ -10360,6 +10431,191 @@ body.leis-foco .lei-sel-fab { --lei-fab-lift: 8px; }
 .cards-modal-head .icon-btn:hover, .siglas-modal-head .icon-btn:hover {
   border-color: var(--bad, #e0393f); color: var(--bad, #e0393f); background: var(--bad-soft);
 }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   LEIS SECAS — arrumação da tela (v48.1)
+   ───────────────────────────────────────────────────────────────────────────
+   A tela empilhava seis faixas antes de mostrar uma linha de lei: cabeçalho,
+   etiquetas, interruptor, seis filtros de cor, sete botões, dica. Nenhuma
+   errada sozinha; juntas, viravam parede. A arrumação tem três movimentos:
+
+     1. HIERARQUIA — o que se usa LENDO (marcar, apagar, onde parei, foco) vira
+        uma fileira própria, sempre visível. O resto (cores, palavras, fonte,
+        exibição) desce para a gaveta recolhível.
+     2. ESCOLHA — cada faixa restante pode ser desligada em ⚙️ Exibição. As
+        classes .leis-cfg-sem-* abaixo são o efeito dessa escolha.
+     3. RESPIRO — conforto de leitura em três níveis e texto sem justificação
+        forçada, que em tela estreita abria buracos entre as palavras.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* ── 1. Fileira de ações primárias ─────────────────────────────────────── */
+.leis-acoes {
+  display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px;
+}
+.leis-acao {
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px;
+  min-height: 54px; padding: 7px 4px; cursor: pointer;
+  background: var(--surface-sunken); border: 1.5px solid var(--border); border-radius: 12px;
+  color: var(--text-soft); font-weight: 700; font-size: var(--fs-3xs); line-height: 1.15;
+  text-align: center; transition: background .14s ease, border-color .14s ease, color .14s ease;
+}
+.leis-acao .la-ic { font-size: var(--fs-md); line-height: 1; }
+.leis-acao .la-tx { overflow: hidden; text-overflow: ellipsis; max-width: 100%; white-space: nowrap; }
+.leis-acao:hover { border-color: var(--border-strong); color: var(--text); }
+.leis-acao.leis-tool-mark.active { background: #fde68a; border-color: #f5c518; color: var(--warn-text); }
+.leis-acao.leis-tool-erase.active { background: var(--bad-soft); border-color: var(--bad-text); color: var(--bad-text); }
+.leis-acao.has-mark { background: var(--warn-soft); border-color: var(--warn); color: var(--warn-text); }
+/* Em tela larga cabe rótulo ao lado do ícone: a fileira fica mais discreta. */
+@media (min-width: 721px) {
+  .leis-acoes { display: flex; flex-wrap: wrap; gap: 8px; }
+  .leis-acao { flex-direction: row; gap: 8px; min-height: 42px; padding: 8px 16px; font-size: var(--fs-sm); }
+}
+
+/* ── 2. Gaveta de ajustes ──────────────────────────────────────────────── */
+.leis-sticky .leis-tools-toggle { margin-top: 2px; }
+.leis-sticky:not(.tools-collapsed) .leis-tools-toggle { border-top: 1px solid var(--border); border-radius: 0; padding-top: 12px; }
+.leis-hl-group { flex-direction: column; align-items: stretch !important; gap: 10px !important; }
+.leis-hl-chips { display: flex; flex-wrap: wrap; gap: 7px; }
+.leis-auto-switch { align-self: flex-start; }
+.leis-auto-label { display: inline !important; }   /* o rótulo cabe: ele agora tem a linha só para si */
+.leis-toolbar-actions { border-top: 1px solid var(--border); padding-top: 10px; }
+.leis-font-val {
+  min-width: 46px; text-align: center; font-size: var(--fs-2xs); font-weight: 700; color: var(--text-faint);
+  font-family: 'Space Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+.leis-reader-controls { align-items: center; }
+.leis-mark-count { margin: 0; padding-top: 2px; }
+
+/* ── 3. Dica dispensável no próprio lugar ──────────────────────────────── */
+.leis-mark-hint { position: relative; padding-right: 40px !important; }
+.leis-hint-x {
+  position: absolute; top: 6px; right: 6px; width: 28px; height: 28px;
+  border: none; border-radius: 8px; background: transparent; cursor: pointer;
+  color: var(--text-faint); font-size: var(--fs-sm); line-height: 1;
+}
+.leis-hint-x:hover { background: var(--surface); color: var(--text); }
+
+/* ── 4. O que a escolha em ⚙️ Exibição desliga ─────────────────────────── */
+#screen-leis.leis-cfg-sem-chips #lei-reader-meta { display: none !important; }
+#screen-leis.leis-cfg-sem-cores #lei-hl-chips { display: none !important; }
+#screen-leis.leis-cfg-sem-dica .leis-mark-hint { display: none !important; }
+#screen-leis.leis-cfg-sem-painel #lei-marks-panel { display: none !important; }
+#screen-leis.leis-cfg-sem-sticky .leis-sticky { position: static; }
+
+/* ── 5. Conforto de leitura ────────────────────────────────────────────── */
+#screen-leis.leis-cfg-conf-compacto .lei-reader-body { line-height: 1.65; }
+#screen-leis.leis-cfg-conf-compacto .law-block { margin: 1px 0; }
+#screen-leis.leis-cfg-conf-compacto .law-art { margin: 14px 0 4px; padding-top: 5px; padding-bottom: 5px; }
+#screen-leis.leis-cfg-conf-compacto .law-head { margin: 18px 0 8px; }
+#screen-leis.leis-cfg-conf-compacto .law-gap { height: 8px; }
+#screen-leis.leis-cfg-conf-amplo .lei-reader-body { line-height: 2.1; }
+#screen-leis.leis-cfg-conf-amplo .law-block { margin: 6px 0; }
+#screen-leis.leis-cfg-conf-amplo .law-art { margin: 32px 0 10px; }
+#screen-leis.leis-cfg-conf-amplo .law-gap { height: 20px; }
+
+/* ── 6. Justificação opcional ──────────────────────────────────────────── */
+/* Justificar com coluna estreita produz "rios" de espaço entre as palavras —
+   é a maior fonte da sensação de texto mal montado no celular. Passa a ser
+   escolha, e o padrão é alinhado à esquerda. */
+.lei-reader-body.sem-justificar .law-block { text-align: left; -webkit-hyphens: manual; hyphens: manual; }
+.lei-reader-body.sem-justificar .law-block.law-head { text-align: center; }
+
+/* ── 7. Lista de leis: busca, contagem e cartões ───────────────────────── */
+.leis-list-topbar { flex-wrap: wrap; gap: 10px; }
+.leis-busca {
+  flex: 1 1 220px; min-width: 0; position: relative; display: flex; align-items: center;
+  background: var(--surface); border: 1.5px solid var(--border); border-radius: 12px;
+  padding: 0 8px 0 12px; min-height: 44px;
+}
+.leis-busca:focus-within { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-ring); }
+.leis-busca-ic { flex: 0 0 auto; opacity: .6; font-size: var(--fs-sm); }
+.leis-busca input {
+  flex: 1 1 auto; min-width: 0; border: none !important; background: transparent !important;
+  box-shadow: none !important; padding: 8px 6px !important; font-size: var(--fs-sm);
+}
+.leis-busca input:focus { outline: none; }
+.leis-busca input::-webkit-search-cancel-button { display: none; }
+.leis-busca-x {
+  flex: 0 0 auto; width: 30px; height: 30px; border: none; border-radius: 8px; cursor: pointer;
+  background: var(--surface-sunken); color: var(--text-soft); font-size: var(--fs-xs);
+}
+.leis-nova { flex: 0 0 auto; min-height: 44px; margin-left: auto; }  /* fica à direita mesmo sem a busca */
+.leis-list-contagem {
+  margin: 0 0 10px; font-size: var(--fs-2xs); color: var(--text-faint); font-weight: 600;
+  text-transform: uppercase; letter-spacing: .05em;
+}
+/* O cartão inteiro é o botão: antes metade dele abria a lei por um listener
+   invisível e a outra metade era um botão "Ler →" que fazia a mesma coisa. */
+.lei-card {
+  width: 100%; text-align: left; font: inherit; color: inherit; cursor: pointer;
+  display: flex; align-items: center; gap: 12px;
+}
+.lei-card-main { display: flex; flex-direction: column; gap: 7px; flex: 1 1 auto; min-width: 0; }
+.lei-card-title { display: block; line-height: 1.3; overflow-wrap: anywhere; }
+.lei-card-meta { margin-top: 0 !important; }
+.lei-card-meta:empty { display: none; }
+.lei-card-stats {
+  display: flex; flex-wrap: wrap; gap: 4px 12px; align-items: center;
+  font-size: var(--fs-3xs); color: var(--text-faint); font-weight: 600;
+  font-family: 'Space Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+.lei-card-bk { color: var(--warn-text); font-weight: 700; }
+.lei-card-go {
+  flex: 0 0 auto; width: 34px; height: 34px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  background: var(--surface-sunken); color: var(--text-soft); font-size: var(--fs-md); font-weight: 700;
+  transition: background .15s ease, color .15s ease;
+}
+.lei-card:hover .lei-card-go { background: var(--accent); color: #fff; }
+
+/* ── 8. Painel ⚙️ Exibição ─────────────────────────────────────────────── */
+.lei-prefs-grupo { display: grid; gap: 4px; }
+.lei-pref-item {
+  display: flex; align-items: flex-start; gap: 11px; cursor: pointer;
+  padding: 10px 11px; border-radius: 11px; border: 1.5px solid transparent;
+}
+.lei-pref-item:hover { background: var(--surface-sunken); }
+.lei-pref-item input { width: 17px; height: 17px; margin: 2px 0 0; accent-color: var(--accent); flex-shrink: 0; }
+.lei-pref-txt { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.lei-pref-lbl { font-size: var(--fs-sm); font-weight: 700; color: var(--text); }
+.lei-pref-sub { font-size: var(--fs-2xs); color: var(--text-faint); line-height: 1.45; }
+.lei-prefs-seg { display: flex; width: 100%; }
+.lei-prefs-seg button { flex: 1 1 0; justify-content: center; min-height: 40px; }
+
+/* ── 9. Modo foco ──────────────────────────────────────────────────────── */
+/* A numeração é absoluta FORA da caixa da linha; com o recuo de 4px do modo
+   foco ela caía em x negativo e o cartão (overflow:hidden) a comia. Some o
+   recorte e volta o recuo quando a numeração está ligada. */
+body.leis-foco .leis-reader-card { overflow: visible; }
+body.leis-foco .lei-reader-body.show-lines { padding-left: 42px; }
+@media (min-width: 641px) { body.leis-foco .lei-reader-body.show-lines { padding-left: 56px; } }
+/* Cinco botões não cabiam com rótulo: três ficavam fora da faixa, num
+   rolamento horizontal sem barra e sem nenhuma pista de que existiam. */
+.foco-bar .fb-ic { font-size: var(--fs-md); line-height: 1; }
+@media (max-width: 700px) {
+  body.leis-foco #lei-foco-bar { gap: 8px; padding: 8px 10px; }
+  body.leis-foco #lei-foco-bar .foco-info { font-size: var(--fs-2xs); }
+  body.leis-foco #lei-foco-bar .foco-acoes { max-width: none; flex: 0 0 auto; overflow: visible; gap: 5px; }
+  body.leis-foco #lei-foco-bar .foco-acoes .fb-tx { display: none; }
+  body.leis-foco #lei-foco-bar .foco-acoes button {
+    width: 44px; min-width: 44px; padding: 0; justify-content: center;
+  }
+  body.leis-foco #lei-foco-bar .foco-acoes #lei-foco-sair { box-shadow: none; }
+}
+
+/* ── 10. Acabamentos ───────────────────────────────────────────────────── */
+/* O A−/A+ era uma dupla de botões soltos nas pontas de uma linha vazia. Vira
+   um controle único, com o valor no meio, do tamanho do que mostra. */
+.leis-reader-controls {
+  display: inline-flex; align-items: center; gap: 2px;
+  background: var(--surface-sunken); border: 1.5px solid var(--border); border-radius: 11px; padding: 3px;
+}
+.leis-reader-controls .icon-btn { min-width: 40px; min-height: 36px; border-radius: 8px; }
+.lei-pref-sub { font-weight: 500 !important; }
+/* No modo foco o cartão perde borda e fundo; a faixa colorida do topo ficava
+   sozinha no ar, sem cartão nenhum a que pertencer. */
+body.leis-foco .leis-reader-card::before { display: none; }
+
 </style>
 
 <script id="app-code" type="application/x-diario-inert">
@@ -21214,8 +21470,59 @@ const LeisScreen = {
   },
   _prefSet(nome, valor) { DB.setRaw(this._prefKey(nome), String(valor)); },
 
+  /* ── O QUE APARECE NA TELA (preferências do leitor) ──────────────────────
+     A tela nasceu acumulando faixas: chips de metadados, seis filtros de cor,
+     a dica do marca-texto, o painel de destaques, a barra fixa. Cada uma se
+     justifica sozinha; juntas, empurram a lei para baixo da dobra e fazem a
+     tela parecer desarrumada. Aqui cada faixa vira uma escolha do usuário,
+     guardada por PERFIL e sincronizada como as demais preferências.
+     'classe' é a classe que a ausência liga em #screen-leis — a regra de CSS
+     correspondente esconde a faixa. */
+  PREFS: [
+    { k: 'p-linhas', grupo: 'leitura', padrao: '0', lbl: '🔢 Numeração das linhas',
+      sub: 'Numera cada linha e permite fixar onde você parou' },
+    { k: 'p-justificado', grupo: 'leitura', padrao: '0', lbl: '⚖️ Texto justificado',
+      sub: 'Alinha os dois lados, como no papel. Em tela estreita abre buracos entre as palavras' },
+    { k: 'p-chips', grupo: 'partes', padrao: '1', classe: 'leis-cfg-sem-chips', lbl: '🏷️ Etiquetas do cabeçalho',
+      sub: 'Matéria, referência, nº de artigos e de palavras' },
+    { k: 'p-cores', grupo: 'partes', padrao: '1', classe: 'leis-cfg-sem-cores', lbl: '🎨 Filtros de cor',
+      sub: 'A fileira de categorias do destaque automático' },
+    { k: 'p-dica', grupo: 'partes', padrao: '1', classe: 'leis-cfg-sem-dica', lbl: '💡 Dica do marca-texto',
+      sub: 'O lembrete azul entre a barra e o texto da lei' },
+    { k: 'p-painel', grupo: 'partes', padrao: '1', classe: 'leis-cfg-sem-painel', lbl: '📋 Painel "Seus destaques"',
+      sub: 'A lista dos trechos marcados, no fim da página' },
+    { k: 'p-sticky', grupo: 'partes', padrao: '1', classe: 'leis-cfg-sem-sticky', lbl: '📌 Barra fixa no topo',
+      sub: 'Desligada, a barra rola junto com o texto e libera a tela' }
+  ],
+  prefOn(k) {
+    const d = this.PREFS.find(x => x.k === k);
+    return this._prefGet(k, null, d ? d.padrao : '1') === '1';
+  },
+  prefSetOn(k, on) { this._prefSet(k, on ? '1' : '0'); },
+  conforto() {
+    const v = this._prefGet('p-conforto', null, 'normal');
+    return ['compacto', 'normal', 'amplo'].includes(v) ? v : 'normal';
+  },
+  // Aplica TODAS as preferências de uma vez: é o único ponto que mexe nas
+  // classes da tela, então não há como um ajuste ficar meio aplicado.
+  aplicarPrefs() {
+    const tela = document.getElementById('screen-leis');
+    if (tela) {
+      this.PREFS.forEach(d => { if (d.classe) tela.classList.toggle(d.classe, !this.prefOn(d.k)); });
+      const c = this.conforto();
+      ['compacto', 'normal', 'amplo'].forEach(v => tela.classList.toggle('leis-cfg-conf-' + v, v === c));
+    }
+    const body = document.getElementById('lei-reader-body');
+    if (body) body.classList.toggle('sem-justificar', !this.prefOn('p-justificado'));
+    // a numeração é a mesma preferência do botão "🔢 Linhas": um estado só
+    this.showLines = this.prefOn('p-linhas');
+    if (body) body.classList.toggle('show-lines', !!this.showLines);
+    this._pintarBotaoLinhas();
+  },
+
   render() {
     // ao ativar a aba, volta sempre para a lista
+    this.aplicarPrefs();
     this.showList();
   },
   showList() {
@@ -21232,34 +21539,55 @@ const LeisScreen = {
     });
     this.renderCards();
   },
+  _busca: '',
   renderCards() {
     const wrap = document.getElementById('leis-cards');
     if (!wrap) return;
-    const leis = DB.getLeis().slice().sort((a, b) => (b.updatedAt || '').localeCompare(a.updatedAt || ''));
+    const todas = DB.getLeis().slice().sort((a, b) => (b.updatedAt || '').localeCompare(a.updatedAt || ''));
+    // A busca só aparece quando há leis o bastante para valer a pena procurar.
+    const barra = document.querySelector('.leis-busca');
+    if (barra) barra.hidden = todas.length < 4;
+    const q = (this._busca || '').trim().toLowerCase();
+    const leis = q
+      ? todas.filter(l => [l.titulo, l.referencia, l.materia].some(v => String(v || '').toLowerCase().includes(q)))
+      : todas;
+    const contagem = document.getElementById('leis-list-contagem');
+    if (contagem) {
+      contagem.textContent = todas.length === 0 ? ''
+        : q ? `${leis.length} de ${todas.length} lei${todas.length === 1 ? '' : 's'}`
+            : `${todas.length} lei${todas.length === 1 ? '' : 's'} no seu vade mecum`;
+    }
+    if (todas.length === 0) {
+      wrap.innerHTML = `<div class="empty-state"><div class="big">§</div>Nenhuma lei cadastrada ainda. Toque em <strong>＋ Nova lei</strong> para começar seu vade mecum.</div>`;
+      return;
+    }
     if (leis.length === 0) {
-      wrap.innerHTML = `<div class="empty-state"><div class="big">§</div>Nenhuma lei cadastrada ainda. Clique em <strong>＋ Nova lei</strong> para começar seu vade mecum.</div>`;
+      wrap.innerHTML = `<div class="empty-state"><div class="big">🔎</div>Nenhuma lei encontrada para <strong>${escapeHtml(this._busca)}</strong>.</div>`;
       return;
     }
     wrap.innerHTML = leis.map(l => {
       const st = LawEngine.stats(l);
+      const bk = (l.bookmark != null) ? LawEngine.resolveBookmark(l) : null;
       return `
-        <div class="lei-card" data-id="${l.id}">
-          <div class="lei-card-main">
-            <div class="lei-card-title">${escapeHtml(l.titulo)}</div>
-            <div class="lei-card-meta">
-              ${l.referencia ? `<span class="lei-tag ref">${escapeHtml(l.referencia)}</span>` : ''}
+        <button type="button" class="lei-card" data-id="${l.id}" aria-label="Abrir ${escapeHtml(l.titulo)}">
+          <span class="lei-card-main">
+            <span class="lei-card-title">${escapeHtml(l.titulo)}</span>
+            <span class="lei-card-meta">
               ${l.materia ? `<span class="lei-tag mat">${escapeHtml(l.materia)}</span>` : ''}
-              <span class="lei-card-stats">${st.artigos} art. · ${st.palavras} palavras${st.marcacoes ? ' · ' + st.marcacoes + ' destaque(s)' : ''}</span>
-            </div>
-          </div>
-          <button type="button" class="btn-secondary lei-open">Ler →</button>
-        </div>`;
+              ${l.referencia ? `<span class="lei-tag ref">${escapeHtml(l.referencia)}</span>` : ''}
+            </span>
+            <span class="lei-card-stats">
+              <span>§ ${st.artigos} art.</span>
+              <span>📝 ${Number(st.palavras).toLocaleString('pt-BR')} palavras</span>
+              ${st.marcacoes ? `<span>🖍️ ${st.marcacoes} destaque${st.marcacoes === 1 ? '' : 's'}</span>` : ''}
+              ${bk != null && bk > 0 ? `<span class="lei-card-bk">📌 parou na linha ${bk}</span>` : ''}
+            </span>
+          </span>
+          <span class="lei-card-go" aria-hidden="true">→</span>
+        </button>`;
     }).join('');
     wrap.querySelectorAll('.lei-card').forEach(card => {
-      const id = card.dataset.id;
-      const open = () => this.openReader(id);
-      card.querySelector('.lei-open').addEventListener('click', open);
-      card.querySelector('.lei-card-main').addEventListener('click', open);
+      card.addEventListener('click', () => this.openReader(card.dataset.id));
     });
   },
 
@@ -21318,11 +21646,9 @@ const LeisScreen = {
       cb.disabled = !autoOn;
     });
     $id('lei-hl-toggles').classList.toggle('auto-off', !autoOn);
-    // restaura preferência de numeração de linhas
-    this.showLines = this._prefGet('show-lines', 'diario-estudos:lei-show-lines', '0') === '1';
     this.fontStep = Math.max(-2, Math.min(5, parseInt(this._prefGet('font-step', null, '0'), 10) || 0));
     this._pintarBarraFerramentas();
-    this._pintarBotaoLinhas();
+    this.aplicarPrefs();
     this.renderBody();
     this.renderMarks();
   },
@@ -21332,10 +21658,11 @@ const LeisScreen = {
     const body = document.getElementById('lei-reader-body');
     if (!body) return;
     body.innerHTML = LawEngine.toHtml(lei, DB.getLeiKeywords());
-    body.style.fontSize = (100 + this.fontStep * 8) + '%';
+    this._pintarFonte();
     body.classList.toggle('tool-mark', this.hlMode === 'mark');
     body.classList.toggle('tool-erase', this.hlMode === 'erase');
     body.classList.toggle('show-lines', !!this.showLines);
+    body.classList.toggle('sem-justificar', !this.prefOn('p-justificado'));
     // DELEGAÇÃO: um único listener no corpo. Antes registrava um por destaque e um por
     // número de linha — em leis grandes eram dezenas de milhares a cada re-render.
     if (!body._leiDelegado) {
@@ -21377,7 +21704,7 @@ const LeisScreen = {
     box.classList.toggle('tools-collapsed', !aberto);
     btn.setAttribute('aria-expanded', aberto ? 'true' : 'false');
     const t = btn.querySelector('.ltt-txt');
-    if (t) t.textContent = aberto ? 'Ferramentas de leitura' : 'Mostrar ferramentas de leitura';
+    if (t) t.textContent = aberto ? 'Ajustes da leitura' : 'Mostrar ajustes da leitura';
   },
   _pintarBotaoLinhas() {
     const on = !!this.showLines;
@@ -21385,6 +21712,17 @@ const LeisScreen = {
       const b = document.getElementById(id);
       if (b) { b.classList.toggle('active', on); b.setAttribute('aria-pressed', on ? 'true' : 'false'); }
     });
+    const cx = document.querySelector('#lei-prefs-modal input[data-pref="p-linhas"]');
+    if (cx) cx.checked = on;
+  },
+  // O A−/A+ mexia num tamanho invisível: dois toques e não dava para saber
+  // onde se estava, nem voltar ao original. Agora o valor aparece entre eles.
+  _pintarFonte() {
+    const body = document.getElementById('lei-reader-body');
+    const pct = 100 + this.fontStep * 8;
+    if (body) body.style.fontSize = pct + '%';
+    const v = document.getElementById('lei-font-val');
+    if (v) v.textContent = pct + '%';
   },
   // Estado do botão "📌 Onde parei": ele serve para MARCAR quando não há
   // marcador e para IR até ele quando há. O rótulo tem de dizer qual dos dois.
@@ -21438,7 +21776,9 @@ const LeisScreen = {
   },
   toggleLines() {
     this.showLines = !this.showLines;
-    this._prefSet('show-lines', this.showLines ? '1' : '0');
+    // Mesma chave da caixa "Numeração das linhas" em ⚙️ Exibição: o botão e a
+    // preferência são o MESMO estado, não dois que se desencontram.
+    this.prefSetOn('p-linhas', this.showLines);
     this._pintarBotaoLinhas();
     // Só a CLASSE muda — o HTML da lei é o mesmo com ou sem numeração. Antes
     // este botão redesenhava a lei inteira, e num texto grande a tela parecia
@@ -21775,6 +22115,61 @@ const LeisScreen = {
     this.renderBody(); this.renderMarks();
     showToast('Destaques automáticos restaurados');
   },
+  // ── Painel "⚙️ Exibição": liga e desliga cada faixa da tela ──
+  openPrefs() {
+    const m = document.getElementById('lei-prefs-modal');
+    if (m) m.style.display = 'flex';
+    this.renderPrefs();
+  },
+  closePrefs() { const m = document.getElementById('lei-prefs-modal'); if (m) m.style.display = 'none'; },
+  /* Os controles existem em DOIS lugares: o ⚙️ Exibição da própria tela de
+     Leis e o cartão "Leis Secas — exibição" em Configurações. Os dois são
+     pintados aqui e gravam nas mesmas chaves — são uma janela para o mesmo
+     ajuste, não duas cópias que podem se desencontrar. Por isso a marcação usa
+     data-attributes (repetíveis) em vez de id (único), e o listener é um só,
+     delegado no documento. */
+  renderPrefs() {
+    const linha = (d) => `
+      <label class="lei-pref-item">
+        <input type="checkbox" data-pref="${d.k}" ${this.prefOn(d.k) ? 'checked' : ''}>
+        <span class="lei-pref-txt"><span class="lei-pref-lbl">${d.lbl}</span><span class="lei-pref-sub">${d.sub}</span></span>
+      </label>`;
+    document.querySelectorAll('[data-lei-prefs]').forEach(host => {
+      host.innerHTML = this.PREFS.filter(d => d.grupo === host.dataset.leiPrefs).map(linha).join('');
+    });
+    const c = this.conforto();
+    document.querySelectorAll('[data-lei-conforto] button[data-conforto]').forEach(b => {
+      const on = b.dataset.conforto === c;
+      b.classList.toggle('active', on);
+      b.setAttribute('aria-pressed', on ? 'true' : 'false');
+    });
+    if (document._leiPrefsDelegado) return;
+    document._leiPrefsDelegado = true;
+    document.addEventListener('change', (e) => {
+      const cx = e.target.closest ? e.target.closest('[data-lei-prefs] input[data-pref]') : null;
+      if (!cx) return;
+      this.prefSetOn(cx.dataset.pref, cx.checked);
+      this.aplicarPrefs();
+      this.renderPrefs();                                    // espelha no outro lugar
+      if (cx.dataset.pref === 'p-cores' && this.currentId) this.renderBodySoon();
+    });
+    document.addEventListener('click', (e) => {
+      const b = e.target.closest ? e.target.closest('[data-lei-conforto] button[data-conforto]') : null;
+      if (!b) return;
+      this._prefSet('p-conforto', b.dataset.conforto);
+      this.aplicarPrefs();
+      this.renderPrefs();
+    });
+  },
+  async resetPrefs() {
+    if (!await UI.confirm('Voltar todas as opções de exibição da tela de Leis ao padrão?')) return;
+    this.PREFS.forEach(d => this._prefSet(d.k, d.padrao));
+    this._prefSet('p-conforto', 'normal');
+    this.aplicarPrefs();
+    this.renderPrefs();
+    if (this.currentId) this.renderBodySoon();
+    showToast('Exibição restaurada ao padrão');
+  },
   // ── Gerenciador de palavras destacadas por padrão (todas as leis) ──
   _kwCatMeta: {
     ressalvas:   { cls: 'lawmark-ressalvas',   label: '⚖️ Ressalvas / Exceções' },
@@ -21869,8 +22264,7 @@ const LeisScreen = {
   changeFont(delta) {
     this.fontStep = Math.max(-2, Math.min(5, this.fontStep + delta));
     this._prefSet('font-step', this.fontStep);
-    const body = document.getElementById('lei-reader-body');
-    if (body) body.style.fontSize = (100 + this.fontStep * 8) + '%';
+    this._pintarFonte();
   },
   editCurrent() {
     const lei = DB.getLei(this.currentId);
@@ -21934,6 +22328,32 @@ window.LeisScreen = LeisScreen;
   });
   on('lei-font-inc', 'click', () => LeisScreen.changeFont(1));
   on('lei-font-dec', 'click', () => LeisScreen.changeFont(-1));
+  on('lei-prefs-btn', 'click', () => LeisScreen.openPrefs());
+  on('lei-prefs-close', 'click', () => LeisScreen.closePrefs());
+  on('lei-prefs-done', 'click', () => LeisScreen.closePrefs());
+  on('lei-prefs-reset', 'click', () => LeisScreen.resetPrefs());
+  on('cfg-leis-reset', 'click', () => LeisScreen.resetPrefs());
+  // a dica do marca-texto se dispensa no próprio lugar, sem procurar ajuste
+  on('lei-mark-hint-x', 'click', () => {
+    LeisScreen.prefSetOn('p-dica', false);
+    LeisScreen.aplicarPrefs();
+    showToast('Dica ocultada — volte em ⚙️ Exibição se quiser vê-la de novo');
+  });
+  // busca na lista de leis
+  on('lei-busca', 'input', (e) => {
+    LeisScreen._busca = e.target.value;
+    const x = document.getElementById('lei-busca-limpar');
+    if (x) x.hidden = !e.target.value;
+    LeisScreen.renderCards();
+  });
+  on('lei-busca-limpar', 'click', () => {
+    const i = document.getElementById('lei-busca');
+    if (i) { i.value = ''; i.focus(); }
+    LeisScreen._busca = '';
+    const x = document.getElementById('lei-busca-limpar');
+    if (x) x.hidden = true;
+    LeisScreen.renderCards();
+  });
   on('lei-kw-btn', 'click', () => LeisScreen.openKeywords());
   on('lei-kw-close', 'click', () => LeisScreen.closeKeywords());
   on('lei-kw-done', 'click', () => LeisScreen.closeKeywords());
@@ -21975,6 +22395,8 @@ window.LeisScreen = LeisScreen;
 })();
 window.addEventListener('screen:activated', (e) => {
   const tela = e && e.detail && e.detail.screen;
+  // o cartão de exibição das Leis vive em Configurações: pinta ao abrir a tela
+  if (tela === 'config') LeisScreen.renderPrefs();
   if (tela === 'leis') { LeisScreen.render(); return; }
   /* Trocar de aba com o modo foco ligado deixava body.leis-foco no ar: abas,
      menu e as outras telas continuavam escondidos por CSS e o app parecia
@@ -33432,6 +33854,10 @@ else CloudStore.init();
       to('#cfg-storage-body', 'dados');
       to('#cfg-vhist-body', 'dados');
       this.buildPrefs();
+      // O cartão de exibição das Leis é marcação fixa (os mesmos controles do
+      // ⚙️ Exibição da tela de Leis) e entra depois dos cartões montados aqui,
+      // para não passar à frente do tema e do tamanho de fonte.
+      to('#cfg-leis-card', 'prefs');
       this.buildDados();
       this.buildDiag();
       this.show(pget('cfg-group', 'estudo'));

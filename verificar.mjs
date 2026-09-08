@@ -300,13 +300,62 @@ try {
     // e, com marcador, tem de ir ate ele sem apaga-lo
     document.getElementById('lei-goto-mark-btn').click();
     out.marcadorSobreviveu = DB.getLei(lei.id).bookmark != null;
-    // modo foco: a saida tem de estar dentro da barra e clicavel
+    // MODO FOCO. Ali a numeracao caia em x negativo (o recuo do modo foco e de
+    // 4px) e o cartao, com overflow:hidden, a comia; e os CINCO botoes com
+    // rotulo nao cabiam na faixa, entao tres ficavam fora da area visivel num
+    // rolamento horizontal sem barra e sem pista nenhuma de que existiam.
     LeisScreen.entrarFoco();
     const barra = document.getElementById('lei-foco-bar').getBoundingClientRect();
-    const sair = document.getElementById('lei-foco-sair').getBoundingClientRect();
-    const emCima = document.elementFromPoint(Math.round(sair.left + sair.width / 2), Math.round(sair.top + sair.height / 2));
-    out.saidaVisivel = sair.right <= barra.right + 1 && sair.left >= barra.left - 1
-      && !!(emCima && (emCima.id === 'lei-foco-sair' || (emCima.closest && emCima.closest('#lei-foco-sair'))));
+    const dentro = (el) => {
+      const q = el.getBoundingClientRect();
+      const em = document.elementFromPoint(Math.round(q.left + q.width / 2), Math.round(q.top + q.height / 2));
+      return q.right <= barra.right + 1 && q.left >= barra.left - 1 && !!(em && em.closest && em.closest('#' + el.id));
+    };
+    out.saidaVisivel = dentro(document.getElementById('lei-foco-sair'));
+    out.botoesDoFocoVisiveis = ['lei-foco-mark', 'lei-foco-erase', 'lei-foco-lines', 'lei-foco-marcar']
+      .every((bid) => dentro(document.getElementById(bid)));
+    const numF = corpo.querySelector('.law-lnum').getBoundingClientRect();
+    const cartao = document.querySelector('.leis-reader-card').getBoundingClientRect();
+    out.numeroVisivelNoFoco = numF.width > 0 && numF.left >= cartao.left - 1;
+    LeisScreen.sairFoco();
+    /* ⚙️ EXIBICAO: o pedido era poder ocultar o que nao se usa. Cada opcao tem
+       de apagar MESMO a faixa correspondente — e devolve-la ao ser religada. */
+    const faixa = { 'p-chips': '#lei-reader-meta', 'p-cores': '#lei-hl-chips',
+      'p-dica': '.leis-mark-hint', 'p-painel': '#lei-marks-panel' };
+    LeisScreen.applyMark('contribuinte', 1, 3);   // garante o painel de destaques na tela
+    out.exibicaoDesliga = Object.keys(faixa).every((k) => {
+      const el = document.querySelector(faixa[k]);
+      if (!el) return false;
+      LeisScreen.prefSetOn(k, false); LeisScreen.aplicarPrefs();
+      const sumiu = getComputedStyle(el).display === 'none';
+      LeisScreen.prefSetOn(k, true); LeisScreen.aplicarPrefs();
+      return sumiu && getComputedStyle(el).display !== 'none';
+    });
+    // o botao "🔢 Linhas" e a caixa "Numeracao das linhas" sao UM estado so
+    LeisScreen.toggleLines();
+    out.linhasUmEstadoSo = LeisScreen.prefOn('p-linhas') === LeisScreen.showLines;
+    LeisScreen.toggleLines();
+    /* Os MESMOS controles existem em Configuracoes > Preferencias. Sao dois
+       lugares para um ajuste so: mexer num tem de valer na lei e aparecer no
+       outro — duas copias que se desencontram seriam pior que um lugar so. */
+    switchScreen('config');
+    const cartaoCfg = document.getElementById('cfg-leis-card');
+    out.cartaoNasPreferencias = !!(cartaoCfg && cartaoCfg.closest('.cfg-group')
+      && cartaoCfg.closest('.cfg-group').id === 'cfg-g-prefs');
+    const cxDe = (raiz, k) => document.querySelector(raiz + ' input[data-pref="' + k + '"]');
+    const noCartao = cxDe('#cfg-leis-card', 'p-justificado');
+    const noModal = cxDe('#lei-prefs-modal', 'p-justificado');
+    if (!noCartao || !noModal) { out.cartaoEspelhaModal = false; }
+    else {
+      const antes = LeisScreen.prefOn('p-justificado');
+      noCartao.checked = !antes; noCartao.dispatchEvent(new Event('change', { bubbles: true }));
+      out.cartaoEspelhaModal = LeisScreen.prefOn('p-justificado') === !antes
+        && cxDe('#lei-prefs-modal', 'p-justificado').checked === !antes
+        && corpo.classList.contains('sem-justificar') === antes;
+      const volta = cxDe('#cfg-leis-card', 'p-justificado');
+      volta.checked = antes; volta.dispatchEvent(new Event('change', { bubbles: true }));
+    }
+    switchScreen('leis');
     // trocar de aba nao pode deixar body.leis-foco no ar (app sem navegacao)
     switchScreen('ciclo');
     out.focoLimpoAoTrocarDeAba = !document.body.classList.contains('leis-foco');
@@ -318,7 +367,7 @@ try {
   const leisFalhas = Object.keys(leis).filter((k) => !leis[k] && k !== 'pinNoTexto');
   if (leis.pinNoTexto !== 1) leisFalhas.push('pinNoTexto=' + leis.pinNoTexto);
   leisFalhas.length ? erro('leitor de Leis Secas: ' + leisFalhas.join(', '))
-    : ok('Leis Secas: numeracao visivel e clicavel, "Onde parei" marca e volta, modo foco com saida');
+    : ok('Leis Secas: numeracao e "Onde parei" funcionais, modo foco completo, exibicao ajustavel na tela E em Configuracoes');
 } catch (e) { erro('falha na navegacao: ' + e.message); }
 
 /* ── 7. contraste WCAG AA nos DOIS temas ───────────────────────────────────

@@ -712,6 +712,10 @@ else CloudStore.init();
       to('#cfg-storage-body', 'dados');
       to('#cfg-vhist-body', 'dados');
       this.buildPrefs();
+      // O cartão de exibição das Leis é marcação fixa (os mesmos controles do
+      // ⚙️ Exibição da tela de Leis) e entra depois dos cartões montados aqui,
+      // para não passar à frente do tema e do tamanho de fonte.
+      to('#cfg-leis-card', 'prefs');
       this.buildDados();
       this.buildDiag();
       this.show(pget('cfg-group', 'estudo'));
