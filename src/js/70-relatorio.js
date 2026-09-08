@@ -73,9 +73,16 @@ const StudyReport = {
     const pts=vals.map((v,i)=>`${p+i*(w-2*p)/Math.max(1,vals.length-1)},${h-p-v*(h-2*p)/max}`).join(' ');
     return `<svg class="chart" viewBox="0 0 ${w} ${h}"><line x1="${p}" y1="${h-p}" x2="${w-p}" y2="${h-p}" stroke="#cbd5e1"/><polyline points="${pts}" fill="none" stroke="#4f46e5" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>${pts.split(' ').map(pt=>{const [x,y]=pt.split(',');return `<circle cx="${x}" cy="${y}" r="4" fill="#4f46e5"/>`}).join('')}<text x="${p}" y="${h-8}" class="svg-label">${this.date(keys[0])}</text><text x="${w-p}" y="${h-8}" text-anchor="end" class="svg-label">${this.date(keys[keys.length-1])}</text></svg>`;
   },
+  /* Totais do TecConcursos pela MESMA função da tela de Desempenho TEC
+     (TecEngine.totais), que soma apenas o nível de disciplina.
+     Antes esta página somava TODAS as linhas do retrato — disciplina, tópico,
+     subtópico e sub-subtópico —, contando a mesma questão uma vez por nível da
+     hierarquia. O relatório mostrava um total várias vezes maior que a tela de
+     onde o dado veio; o aproveitamento até sobrevivia (numerador e denominador
+     inflavam juntos), mas "questões" e "acertos" não. */
   snapshotRows(cfg) {
     const snaps=(DB.getTecSnapshots?DB.getTecSnapshots():[]).filter(x=>{const a=String(x.startDate||x.date||'').slice(0,10),b=String(x.endDate||x.date||a).slice(0,10);return(!cfg.start||b>=cfg.start)&&(!cfg.end||a<=cfg.end)});
-    return snaps.map(s=>{ let q=0,c=0; (s.rows||s.disciplinas||[]).forEach(r=>{q+=this.n(r.total||r.questoes);c+=this.n(r.correct||r.acertos)}); return {date:s.endDate||s.date||s.startDate,q,c,p:this.pct(c,q)}; });
+    return snaps.map(s=>{ const t=TecEngine.totais(s); return {date:s.endDate||s.date||s.startDate,q:t.questoes,c:t.acertos,p:this.pct(t.acertos,t.questoes)}; });
   },
   extras(cfg) {
     const out=[]; (DB.getExtras?DB.getExtras():[]).forEach(x=>(x.historico||[]).forEach(h=>{const d=String(h.data||'').slice(0,10);if(d&&(!cfg.start||d>=cfg.start)&&(!cfg.end||d<=cfg.end))out.push({title:x.titulo||'Atividade',date:d,quantity:this.n(h.quantidade),minutes:this.n(h.minutos)});})); return out;
@@ -160,7 +167,12 @@ const StudyReport = {
     const read=[], video=[]; let pages=0,readMin=0,videoConsumed=0,videoStudyMin=0;
     entries.forEach(e=>{
       const min=this.n(e.durationMin||e.minutes||e.minutos), method=String(e.method||'').toLowerCase();
-      const p1=this.n(e.pageStart),p2=this.n(e.pageEnd); const pg=(p1&&p2&&p2>=p1)?p2-p1+1:0;
+      /* Ritmo de LEITURA só com sessões de leitura. A tela de Evolução já fazia
+         assim; aqui ainda entrava qualquer sessão com páginas preenchidas
+         (Questões, Revisão...), inflando o divisor e derrubando o "páginas por
+         hora" — a mesma métrica saía diferente na tela e no relatório. */
+      const leitura=!/quest|revis|video|aula/.test(method.normalize('NFD').replace(/[\u0300-\u036f]/g,''));
+      const p1=this.n(e.pageStart),p2=this.n(e.pageEnd); const pg=(leitura&&p1&&p2&&p2>=p1)?p2-p1+1:0;
       if(pg>0&&min>0){pages+=pg;readMin+=min;read.push({subject:e.subject||'Sem disciplina',pages:pg,min,date:this.dayKey(e)});}
       const v1=this.n(e.videoStart),v2=this.n(e.videoEnd); const vc=(v2>v1)?v2-v1:0;
       if(vc>0&&min>0){videoConsumed+=vc;videoStudyMin+=min;video.push({subject:e.subject||'Sem disciplina',content:vc,min,date:this.dayKey(e)});}

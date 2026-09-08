@@ -265,7 +265,12 @@ const PlanoEngine = {
       x.ganhoGeral = Math.max(0, x.ganhoQuestoes / universoQ * 100);
       x.ganhoPP = (opts.ponderacao === 'volume') ? x.ganhoGeral
         : Math.max(0, (x.peso * teto - x.peso * x.taxa / 100) / universo * 100);
-      x.ganhoDominio = Math.max(0, (x.peso * teto - x.peso * x.taxa / 100) / universo * 100);
+      /* Aqui havia uma SEGUNDA atribuição de x.ganhoDominio, ponderada por
+         x.peso, que apagava a de peso igual calculada acima. Com a ponderação
+         "volume" as duas colunas do "🔀 Mostrar as duas" passavam a medir a
+         mesma coisa e o rótulo "cada assunto pesa igual" ficava falso.
+         ganhoDominio é sempre de peso igual; ganhoGeral é sempre por volume;
+         ganhoPP é o que a ponderação escolhida manda somar no acumulado. */
       x.rendimento = x.ganhoPP / x.custoQ * 100;
       x.incid = temIncid ? (incMap[ReforcoEngine.norm(x.nome)] || 0) : null;
     });

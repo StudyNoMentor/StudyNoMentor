@@ -72,6 +72,16 @@
       gaugeFill.style.strokeDashoffset = CIRC;
       return;
     }
+    /* Acertos > total é dado impossível: o medidor deixa isso VISÍVEL ("—" com
+       tom de erro) em vez de exibir 100%, que era o que o clamp fazia — a
+       pessoa via um número plausível e só descobria o engano depois. */
+    if (correct > total) {
+      gaugePct.textContent = '—';
+      gaugeFill.style.strokeDashoffset = CIRC;
+      gauge.classList.add('tone-bad');
+      perfPanel.classList.add('tone-bad');
+      return;
+    }
     const pct = Math.max(0, Math.min(100, calcPct(correct, total)));
     gaugePct.textContent = formatPct(pct);
     gaugeFill.style.strokeDashoffset = CIRC - (CIRC * pct / 100);
@@ -585,6 +595,24 @@
 
     if (!subject || !date) {
       showToast('Preencha matéria e data');
+      return;
+    }
+    /* ── ACERTOS NUNCA PASSAM DO TOTAL ────────────────────────────────────────
+       Este é o portão de entrada de TODA questão do app. Sem esta checagem dava
+       para gravar "30 acertos de 20 questões", e o aproveitamento acima de 100%
+       vazava para o Ciclo, o Histórico, a Evolução e o Relatório — que somam
+       acertos e questões e não têm como desconfiar do dado. O medidor da própria
+       tela já limitava a exibição a 100%, o que escondia o erro em vez de
+       impedi-lo: a barra dizia 100% e o banco guardava 150%. */
+    if (total > 0 && correct > total) {
+      showToast('Os acertos (' + correct + ') não podem passar do total de questões (' + total + ')');
+      correctInput.focus();
+      correctInput.select();
+      return;
+    }
+    if (total <= 0 && correct > 0) {
+      showToast('Informe o total de questões resolvidas');
+      totalInput.focus();
       return;
     }
 

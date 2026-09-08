@@ -69,8 +69,6 @@ const CardsScreen = {
      nada sobre esquecimento. */
   trueRetention(dias) {
     const revlog = DB.getRevlog() || [];
-    const cards = DB.getCards();
-    const porId = {}; cards.forEach(c => { porId[c.id] = c; });
     const limite = dias ? CardEngine.addDays(todayCards(), -dias) : null;
     const acc = {
       jovem: { total: 0, acertos: 0 }, maduro: { total: 0, acertos: 0 },
@@ -78,10 +76,19 @@ const CardsScreen = {
     };
     revlog.forEach(r => {
       if (!r || !r.grade) return;
+      /* Só respostas dadas em REVISÃO, como no Anki (revlog do tipo Review) —
+         e como o KPI "Retenção real" do topo desta mesma tela, que filtrava
+         phase === 'review' enquanto esta tabela não filtrava nada. Os dois
+         cartões diziam "retenção real" e mostravam números diferentes. */
+      if ((r.phase || 'review') !== 'review') return;
       if (limite && String(r.date || '') < limite) return;
       if ((r.elapsed || 0) < 1) { acc.mesmoDia++; return; }   // intradiária: fora da conta
-      const maduro = (r.intervalo || 0) >= 21;
-      const alvo = maduro ? acc.maduro : acc.jovem;
+      /* Maturidade pelo intervalo que o card tinha na hora (≥ 21 dias = maduro).
+         Revisões antigas não guardavam esse campo: para elas usamos o tempo
+         realmente decorrido desde a última revisão, que é a melhor aproximação
+         disponível — melhor que jogar todo o histórico na coluna "Jovens". */
+      const ivl = (r.intervalo != null) ? r.intervalo : (r.elapsed || 0);
+      const alvo = ivl >= 21 ? acc.maduro : acc.jovem;
       alvo.total++; acc.todos.total++;
       if (r.grade >= 2) { alvo.acertos++; acc.todos.acertos++; }
     });
@@ -380,11 +387,12 @@ const CardsScreen = {
     if (cards.length === 0) { box.innerHTML = this.emptyState('Sem estatísticas ainda', 'Crie e revise alguns cards para ver seus dados.'); return; }
     const cfg = CardsConfig.get();
     const revlog = DB.getRevlog();
-    const revs = revlog.filter(r => r.phase === 'review' && (r.elapsed || 0) >= 1);
-    const retReal = revs.length ? Math.round((revs.filter(r => r.acerto).length / revs.length) * 1000) / 10 : null;
-    const lim30 = CardEngine.addDays(todayCards(), -30);
-    const revs30 = revs.filter(r => r.date >= lim30);
-    const ret30 = revs30.length ? Math.round((revs30.filter(r => r.acerto).length / revs30.length) * 1000) / 10 : null;
+    /* Os KPIs de retenção e a tabela "Retenção real" abaixo leem a MESMA
+       função. Antes cada um tinha sua conta e os dois números apareciam lado a
+       lado, com o mesmo rótulo e valores diferentes. */
+    const trTudo = this.trueRetention(null), tr30 = this.trueRetention(30);
+    const retReal = trTudo.todos.pct;
+    const ret30 = tr30.todos.pct;
     const est = (c) => (c.s != null ? c.s : (c.intervalo || 0));
     const novos = cards.filter(c => this._bucket(c) === 'new').length;
     const aprend = cards.filter(c => this._bucket(c) === 'learn').length;
@@ -433,7 +441,7 @@ const CardsScreen = {
       ${this._statTrueRetention()}
       ${this._statBotoes()}
       ${this._statDistribuicao()}
-      ${revs.length < 10 ? `<p class="hint" style="text-align:center;margin-top:14px;">💡 A retenção real fica precisa após ~10 revisões de cards maduros (você tem ${revs.length}).</p>` : ''}`;
+      ${trTudo.maduro.total < 10 ? `<p class="hint" style="text-align:center;margin-top:14px;">💡 A retenção real fica precisa após ~10 revisões de cards maduros (você tem ${trTudo.maduro.total}).</p>` : ''}`;
   },
 
   /* ── TRUE RETENTION (Anki: aba Estatísticas → True Retention) ──────────────
@@ -830,7 +838,11 @@ const CardsScreen = {
       const G = CardEngine.GRADE_NUM[grade] || 3;
       const elapsed = c.lastReview ? Math.max(0, Math.round((new Date(todayCards() + 'T00:00:00') - new Date(c.lastReview + 'T00:00:00')) / 86400000)) : 0;
       const revTs = Date.now();
-      DB.addRevlog({ ts: revTs, date: todayCards(), cardId: id, grade: G, acerto: G > 1, phase: (c.phase || 'new'), elapsed, s: (c.s || null), d: (c.d || null) });
+      /* `intervalo` = o intervalo que o card TINHA ao ser respondido (o lastIvl
+         do revlog do Anki). Sem ele a tabela de Retenção Real não conseguia
+         separar card jovem de card maduro: a coluna "Maduros" ficava vazia
+         para sempre, porque a linha do histórico não guardava essa informação. */
+      DB.addRevlog({ ts: revTs, date: todayCards(), cardId: id, grade: G, acerto: G > 1, phase: (c.phase || 'new'), elapsed, intervalo: (c.intervalo || 0), s: (c.s || null), d: (c.d || null) });
       // conta introdução no limite diário só na 1ª vez que o card aparece nesta sessão
       const bucketAntes = this._bucket(c);
       if (!this._seenThisSession) this._seenThisSession = new Set();

@@ -885,6 +885,7 @@ const DB = {
     // A cura de cards FSRS roda em silêncio (não entra na contagem de "órfãos"):
     // é uma correção de metadados, não uma remoção de lixo.
     try { const migradas = this.migrarAproveitamentoAgregado(); if (migradas > 0) console.info('[migração] ' + migradas + ' semana(s) com aproveitamento recalculado'); } catch (e) { _quiet(e, 'mig-aprov'); }
+    try { const recump = this.migrarCumprimentoSemana(); if (recump > 0) console.info('[migração] ' + recump + ' semana(s) com % cumprido recalculado'); } catch (e) { _quiet(e, 'mig-cumprido'); }
     try { const curados = this.curarCardsFSRS(); if (curados > 0) console.warn('[cura FSRS] cards com metadados corrigidos:', curados); } catch (_) { _quiet(_); }
     return n;
   },
@@ -927,6 +928,45 @@ const DB = {
       if (n) { try { console.info('[migração] aproveitamento recalculado em ' + n + ' semana(s).'); } catch (e) { _quiet(e, 'log-migracao'); } }
       return n;
     } catch (e) { _quiet(e, 'migrar-aproveitamento'); return 0; }
+  },
+
+  /* ── MIGRAÇÃO: "estudado" e "% cumprido" das semanas fechadas ─────────────
+     A auditoria de métricas unificou o progresso da semana numa fórmula só
+     (CycleEngine.progressoSemana). As semanas fechadas ANTES disso guardam
+     números de outra régua: o "estudado" incluía matérias fora do ciclo e o
+     "% cumprido" era limitado a 150%. Deixá-las como estavam faria o Histórico
+     comparar semanas medidas de dois jeitos — exatamente o problema que a
+     unificação resolve.
+
+     Recalculamos a partir dos registros, que continuam gravados. Roda UMA vez,
+     marcada por flag, e guarda o valor anterior em `totalStudiedMinLegado` /
+     `pctCumpridoLegado` para nada sumir sem rastro. */
+  migrarCumprimentoSemana() {
+    const FLAG = 'mig-cumprido-semana-v1';
+    try {
+      if (this._get(FLAG, null)) return 0;
+      const hist = this.getCycleHistory() || [];
+      let n = 0;
+      hist.forEach(w => {
+        if (!w || !w.startDate || !w.endDate || !Array.isArray(w.subjects) || !w.subjects.length) return;
+        const prog = CycleEngine.progressoSemana(w.subjects, w.startDate, w.endDate);
+        const mudouMin = Math.abs((w.totalStudiedMin || 0) - prog.totalStudiedMin) >= 1;
+        const mudouPct = Math.abs((w.pctCumprido || 0) - prog.pctCumprido) >= 0.005;
+        if (!mudouMin && !mudouPct) return;
+        if (w.totalStudiedMinLegado === undefined) w.totalStudiedMinLegado = w.totalStudiedMin;
+        if (w.pctCumpridoLegado === undefined) w.pctCumpridoLegado = w.pctCumprido;
+        w.subjects = prog.subjects;
+        w.totalStudiedMin = prog.totalStudiedMin;
+        w.totalTargetMin = prog.totalTargetMin;
+        w.pctCumprido = prog.pctCumprido;
+        w.finalizadas = prog.finalizadas;
+        w.totalSubjects = prog.totalSubjects;
+        n++;
+      });
+      if (n) this._set(this.KEYS.cycleHistory, hist);
+      this._set(FLAG, 1);
+      return n;
+    } catch (e) { _quiet(e, 'migrar-cumprimento'); return 0; }
   },
 
   curarCardsFSRS() {
@@ -1505,12 +1545,21 @@ const DB = {
     this.saveTrack(subjectName, items);
   },
   // Grava os valores (acertos/total) de uma etapa de uma aula
+  /* Acertos nunca podem passar do total. Sem esta trava dava para gravar
+     "12 de 8" e a etapa exibia 150% de acerto — número impossível que ainda
+     entrava na média da trilha. O ajuste é feito no dado, não só na exibição:
+     percentual acima de 100% contamina qualquer agregado que o some depois. */
   updateTrackStage(subjectName, itemId, stageKey, part, value) {
     const items = this.getTrack(subjectName);
     const item = items.find(i => i.id === itemId);
     if (item) {
       if (!item[stageKey] || typeof item[stageKey] !== 'object') item[stageKey] = { acertos: null, total: null };
       item[stageKey][part] = value;
+      const st = item[stageKey];
+      if (st.total != null && st.acertos != null && st.acertos > st.total) {
+        // quem acabou de digitar manda: ajusta o OUTRO campo para caber
+        if (part === 'total') st.acertos = st.total; else st.total = st.acertos;
+      }
     }
     this.saveTrack(subjectName, items);
   },

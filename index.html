@@ -11445,6 +11445,7 @@ const DB = {
     // A cura de cards FSRS roda em silêncio (não entra na contagem de "órfãos"):
     // é uma correção de metadados, não uma remoção de lixo.
     try { const migradas = this.migrarAproveitamentoAgregado(); if (migradas > 0) console.info('[migração] ' + migradas + ' semana(s) com aproveitamento recalculado'); } catch (e) { _quiet(e, 'mig-aprov'); }
+    try { const recump = this.migrarCumprimentoSemana(); if (recump > 0) console.info('[migração] ' + recump + ' semana(s) com % cumprido recalculado'); } catch (e) { _quiet(e, 'mig-cumprido'); }
     try { const curados = this.curarCardsFSRS(); if (curados > 0) console.warn('[cura FSRS] cards com metadados corrigidos:', curados); } catch (_) { _quiet(_); }
     return n;
   },
@@ -11487,6 +11488,45 @@ const DB = {
       if (n) { try { console.info('[migração] aproveitamento recalculado em ' + n + ' semana(s).'); } catch (e) { _quiet(e, 'log-migracao'); } }
       return n;
     } catch (e) { _quiet(e, 'migrar-aproveitamento'); return 0; }
+  },
+
+  /* ── MIGRAÇÃO: "estudado" e "% cumprido" das semanas fechadas ─────────────
+     A auditoria de métricas unificou o progresso da semana numa fórmula só
+     (CycleEngine.progressoSemana). As semanas fechadas ANTES disso guardam
+     números de outra régua: o "estudado" incluía matérias fora do ciclo e o
+     "% cumprido" era limitado a 150%. Deixá-las como estavam faria o Histórico
+     comparar semanas medidas de dois jeitos — exatamente o problema que a
+     unificação resolve.
+
+     Recalculamos a partir dos registros, que continuam gravados. Roda UMA vez,
+     marcada por flag, e guarda o valor anterior em `totalStudiedMinLegado` /
+     `pctCumpridoLegado` para nada sumir sem rastro. */
+  migrarCumprimentoSemana() {
+    const FLAG = 'mig-cumprido-semana-v1';
+    try {
+      if (this._get(FLAG, null)) return 0;
+      const hist = this.getCycleHistory() || [];
+      let n = 0;
+      hist.forEach(w => {
+        if (!w || !w.startDate || !w.endDate || !Array.isArray(w.subjects) || !w.subjects.length) return;
+        const prog = CycleEngine.progressoSemana(w.subjects, w.startDate, w.endDate);
+        const mudouMin = Math.abs((w.totalStudiedMin || 0) - prog.totalStudiedMin) >= 1;
+        const mudouPct = Math.abs((w.pctCumprido || 0) - prog.pctCumprido) >= 0.005;
+        if (!mudouMin && !mudouPct) return;
+        if (w.totalStudiedMinLegado === undefined) w.totalStudiedMinLegado = w.totalStudiedMin;
+        if (w.pctCumpridoLegado === undefined) w.pctCumpridoLegado = w.pctCumprido;
+        w.subjects = prog.subjects;
+        w.totalStudiedMin = prog.totalStudiedMin;
+        w.totalTargetMin = prog.totalTargetMin;
+        w.pctCumprido = prog.pctCumprido;
+        w.finalizadas = prog.finalizadas;
+        w.totalSubjects = prog.totalSubjects;
+        n++;
+      });
+      if (n) this._set(this.KEYS.cycleHistory, hist);
+      this._set(FLAG, 1);
+      return n;
+    } catch (e) { _quiet(e, 'migrar-cumprimento'); return 0; }
   },
 
   curarCardsFSRS() {
@@ -12065,12 +12105,21 @@ const DB = {
     this.saveTrack(subjectName, items);
   },
   // Grava os valores (acertos/total) de uma etapa de uma aula
+  /* Acertos nunca podem passar do total. Sem esta trava dava para gravar
+     "12 de 8" e a etapa exibia 150% de acerto — número impossível que ainda
+     entrava na média da trilha. O ajuste é feito no dado, não só na exibição:
+     percentual acima de 100% contamina qualquer agregado que o some depois. */
   updateTrackStage(subjectName, itemId, stageKey, part, value) {
     const items = this.getTrack(subjectName);
     const item = items.find(i => i.id === itemId);
     if (item) {
       if (!item[stageKey] || typeof item[stageKey] !== 'object') item[stageKey] = { acertos: null, total: null };
       item[stageKey][part] = value;
+      const st = item[stageKey];
+      if (st.total != null && st.acertos != null && st.acertos > st.total) {
+        // quem acabou de digitar manda: ajusta o OUTRO campo para caber
+        if (part === 'total') st.acertos = st.total; else st.total = st.acertos;
+      }
     }
     this.saveTrack(subjectName, items);
   },
@@ -13261,8 +13310,16 @@ function calcPct(correct, total) {
   return Math.round((correct / total) * 10000) / 100;
 }
 
+/* Percentual na notacao do app: virgula decimal (pt-BR) e sem casas inuteis.
+   Antes esta funcao devolvia "67.36" com PONTO, enquanto o Ciclo, a Grade e o
+   Relatorio ja escreviam "67,36" — a mesma metrica aparecia com dois formatos
+   conforme a tela. Agora ha UMA notacao para todo o app.
+   As duas casas so aparecem quando dizem algo: 100% continua "100", 67,36%
+   nao vira "67". Evita a falsa precisao ("100,00%") e a perda de informacao. */
 function formatPct(pct) {
-  return pct === null || pct === undefined ? '—' : pct.toFixed(2);
+  if (pct === null || pct === undefined || !isFinite(pct)) return '—';
+  const r = Math.round(pct * 100) / 100;
+  return Number.isInteger(r) ? String(r) : r.toFixed(2).replace('.', ',');
 }
 
 /* Medalha por faixa de aproveitamento — o olho encontra a linha boa antes de
@@ -14314,6 +14371,16 @@ const ReforcoEngine = {
       gaugeFill.style.strokeDashoffset = CIRC;
       return;
     }
+    /* Acertos > total é dado impossível: o medidor deixa isso VISÍVEL ("—" com
+       tom de erro) em vez de exibir 100%, que era o que o clamp fazia — a
+       pessoa via um número plausível e só descobria o engano depois. */
+    if (correct > total) {
+      gaugePct.textContent = '—';
+      gaugeFill.style.strokeDashoffset = CIRC;
+      gauge.classList.add('tone-bad');
+      perfPanel.classList.add('tone-bad');
+      return;
+    }
     const pct = Math.max(0, Math.min(100, calcPct(correct, total)));
     gaugePct.textContent = formatPct(pct);
     gaugeFill.style.strokeDashoffset = CIRC - (CIRC * pct / 100);
@@ -14829,6 +14896,24 @@ const ReforcoEngine = {
       showToast('Preencha matéria e data');
       return;
     }
+    /* ── ACERTOS NUNCA PASSAM DO TOTAL ────────────────────────────────────────
+       Este é o portão de entrada de TODA questão do app. Sem esta checagem dava
+       para gravar "30 acertos de 20 questões", e o aproveitamento acima de 100%
+       vazava para o Ciclo, o Histórico, a Evolução e o Relatório — que somam
+       acertos e questões e não têm como desconfiar do dado. O medidor da própria
+       tela já limitava a exibição a 100%, o que escondia o erro em vez de
+       impedi-lo: a barra dizia 100% e o banco guardava 150%. */
+    if (total > 0 && correct > total) {
+      showToast('Os acertos (' + correct + ') não podem passar do total de questões (' + total + ')');
+      correctInput.focus();
+      correctInput.select();
+      return;
+    }
+    if (total <= 0 && correct > 0) {
+      showToast('Informe o total de questões resolvidas');
+      totalInput.focus();
+      return;
+    }
 
     const fields = { subject, lesson, method, date, pageStart: pStart, pageEnd: pEnd, videoStart: vStart, videoEnd: vEnd, durationMin, correct, total, comment };
 
@@ -15029,20 +15114,26 @@ const CycleEngine = {
       .filter(e => this.normKey(e.subject) === key && e.date >= startDate && e.date <= endDate)
       .reduce((sum, e) => sum + (e.durationMin || 0), 0);
   },
-  // Questões resolvidas e acertos desta matéria no intervalo (para o % de aproveitamento).
-  // subjectName === null soma TODAS as matérias (aproveitamento geral da semana).
-  questionsStudied(subjectName, startDate, endDate) {
+  /* Questões resolvidas e acertos desta matéria no intervalo (para o % de aproveitamento).
+     subjectName === null soma TODAS as matérias (aproveitamento geral da semana).
+
+     `entries` existe para o HISTÓRICO CONSOLIDADO (escopo "todos os
+     planejamentos"): sem ele a função lia sempre DB.getEntries(), ou seja, os
+     registros do planejamento ATIVO — e o detalhe de uma semana de OUTRO
+     planejamento mostrava o aproveitamento do plano errado, brigando com o
+     próprio selo de acerto daquele cartão. */
+  questionsStudied(subjectName, startDate, endDate, entries) {
     const key = subjectName == null ? null : this.normKey(subjectName);
-    return DB.getEntries()
+    return (entries || DB.getEntries())
       .filter(e => (key === null || this.normKey(e.subject) === key) && e.date >= startDate && e.date <= endDate)
       .reduce((acc, e) => { acc.total += (Number(e.total) || 0); acc.correct += (Number(e.correct) || 0); return acc; }, { total: 0, correct: 0 });
   },
-  // Fim efetivo do ciclo para CONTAGEM na visão ao vivo: nunca antes de hoje, para que
-  // estudos registrados após o 7º dia teórico ainda contem (consistente com o fechamento).
-  effectiveEnd(cycle) {
-    const today = todayLocal();
-    return (cycle && cycle.endDate && cycle.endDate > today) ? cycle.endDate : today;
-  },
+  /* effectiveEnd() foi REMOVIDA na auditoria de métricas. Ela estendia o fim do
+     ciclo até hoje e era usada SÓ para as questões — os minutos usavam rangeEnd().
+     Resultado: na mesma tela, o tempo parava no término da semana e o
+     aproveitamento continuava somando questões de depois dele. E o comentário
+     dizia ser "consistente com o fechamento", que usa cycle.endDate. Agora TODA
+     medição do ciclo (minutos, questões, aproveitamento) usa rangeEnd(). */
   /* BUG CORRIGIDO — fim do intervalo do ciclo.
      Varios pontos passavam `cycle.endDate` cru para minutesStudied(). Quando o
      ciclo nao tinha endDate gravado (ciclos legados e importados nao tem), a
@@ -15055,21 +15146,11 @@ const CycleEngine = {
     if (!cycle) return todayLocal();
     return cycle.endDate || this.weekEndDate(cycle.startDate);
   },
-  // Conta minutos estudados desta matéria a partir do INÍCIO do ciclo, SEM limite superior.
-  // O ciclo ativo acumula tudo o que você registra desde que ele começou, até você fechá-lo —
-  // assim nenhum estudo "some" por estar datado além do 7º dia planejado.
-  minutesStudiedSince(subjectName, startDate) {
-    const key = this.normKey(subjectName);
-    return DB.getEntries()
-      .filter(e => this.normKey(e.subject) === key && e.date >= startDate)
-      .reduce((sum, e) => sum + (e.durationMin || 0), 0);
-  },
-  // Data do último estudo registrado a partir do início do ciclo (>= today se não houver nenhum além)
-  lastEntryDateSince(startDate) {
-    return DB.getEntries()
-      .filter(e => e.date >= startDate)
-      .reduce((mx, e) => (e.date > mx ? e.date : mx), todayLocal());
-  },
+  /* minutesStudiedSince()/lastEntryDateSince() também saíram: ninguém as
+     chamava e a documentação delas afirmava uma regra que o app NÃO segue
+     ("o ciclo acumula tudo, sem limite superior"). Documentação que descreve
+     uma métrica inexistente é pior que nenhuma — quem lesse concluiria que os
+     números da tela contam mais do que contam. */
   // Recalcula os AGREGADOS de uma semana do histórico de forma fiel aos registros:
   // dado o snapshot (com suas matérias/metas) e um intervalo [start,end], soma os
   // registros reais e devolve um patch com os valores derivados. As mesmas fórmulas
@@ -15099,38 +15180,71 @@ const CycleEngine = {
     return Math.round((acertos / questoes) * 10000) / 100;   // 2 casas
   },
 
-  recomputeWeek(snapshot, opts) {
-    opts = opts || {};
-    const startDate = opts.startDate || (snapshot && snapshot.startDate);
-    const endDate = opts.endDate || (snapshot && snapshot.endDate);
-    const weeklyHours = (opts.weeklyHours != null) ? opts.weeklyHours : (snapshot && snapshot.weeklyHours) || 0;
-    const metas = opts.metas || null; // mapa normKey(nome) -> meta(min) editada (opcional)
-    const entries = DB.getEntries().filter(e => e.date >= startDate && e.date <= endDate);
-    const totalStudied = entries.reduce((sum, e) => sum + (e.durationMin || 0), 0);
-    const avgPct = this.aproveitamentoNoPeriodo(startDate, endDate, entries);
-    const baseSubjects = (snapshot && snapshot.subjects) || [];
-    const subjectsSnapshot = baseSubjects.map(s => {
-      // meta editável (se fornecida) sobrescreve a definida no snapshot
+  /* ── PROGRESSO DA SEMANA — FONTE ÚNICA ────────────────────────────────────
+     A MESMA semana era medida por TRÊS fórmulas diferentes, e por isso mudava
+     de número ao ser arquivada:
+
+       · Ciclo ao vivo  — somava só as matérias do ciclo, com teto de 3× a meta
+                          por matéria, e mostrava o % com 2 casas;
+       · Fechar semana  — somava TODOS os registros do período (inclusive de
+                          matérias fora do ciclo), com teto global de 150%, e
+                          mostrava o % inteiro;
+       · Recalcular     — repetia a fórmula do fechamento.
+
+     Fechar a semana podia, sozinho, mudar "estudado" e "% cumprido" — sem que
+     um único registro tivesse sido tocado. Pior: no fechamento o "estudado"
+     incluía matérias fora do ciclo, mas era comparado com a meta que só
+     considera as matérias DO ciclo; a barra media uma coisa contra outra.
+
+     Regra única, agora: o progresso da semana é o das matérias que ESTÃO na
+     semana, sem teto artificial nenhum. Σ realizado ÷ Σ meta. Quem quiser o
+     tempo total do período (todas as matérias) tem a tela de Evolução, que é
+     onde essa pergunta mora. O teto some porque ele mentia nos dois sentidos:
+     escondia o excesso real de quem estudou muito e, no fechamento, ainda
+     transformava 220% em 150%.                                             */
+  progressoSemana(subjects, startDate, endDate, metas) {
+    const lista = (subjects || []).map(s => {
+      // meta editável (quando fornecida) sobrescreve a definida no ciclo/snapshot
       let definido = s.definidoMin || 0;
       if (metas) {
         const ov = metas[this.normKey(s.nome)];
         if (ov !== undefined && ov !== '' && ov !== null) definido = Math.max(0, parseInt(ov, 10) || 0);
       }
-      const studied = this.minutesStudied(s.nome, startDate, endDate);
-      return { ...s, definidoMin: definido, estudadoMin: studied, status: this.statusFor(studied, definido) };
+      const estudado = this.minutesStudied(s.nome, startDate, endDate);
+      return { ...s, definidoMin: definido, estudadoMin: estudado, status: this.statusFor(estudado, definido) };
     });
-    const finalizadas = subjectsSnapshot.filter(s => s.status === 'finalizada').length;
-    const targetTotal = subjectsSnapshot.reduce((sum, s) => sum + (s.definidoMin || 0), 0);
+    const totalTargetMin = lista.reduce((a, s) => a + (s.definidoMin || 0), 0);
+    const totalStudiedMin = lista.reduce((a, s) => a + (s.estudadoMin || 0), 0);
+    return {
+      subjects: lista,
+      totalTargetMin,
+      totalStudiedMin,
+      // 2 casas: com metas em minutos, 1 casa esconde progresso real
+      // (ex.: 8h05 de 12h = 67,36%, que aparecia como 67% por horas a fio).
+      pctCumprido: totalTargetMin > 0 ? Math.round((totalStudiedMin / totalTargetMin) * 10000) / 100 : 0,
+      finalizadas: lista.filter(s => s.status === 'finalizada').length,
+      totalSubjects: lista.length,
+      restanteMin: Math.max(0, totalTargetMin - totalStudiedMin)
+    };
+  },
+
+  recomputeWeek(snapshot, opts) {
+    opts = opts || {};
+    const startDate = opts.startDate || (snapshot && snapshot.startDate);
+    const endDate = opts.endDate || (snapshot && snapshot.endDate);
+    const weeklyHours = (opts.weeklyHours != null) ? opts.weeklyHours : (snapshot && snapshot.weeklyHours) || 0;
+    const entries = DB.getEntries().filter(e => e.date >= startDate && e.date <= endDate);
+    const prog = this.progressoSemana((snapshot && snapshot.subjects) || [], startDate, endDate, opts.metas || null);
     return {
       startDate, endDate,
       weeklyHours: weeklyHours,
-      subjects: subjectsSnapshot,
-      totalTargetMin: targetTotal,
-      totalStudiedMin: totalStudied,
-      pctCumprido: targetTotal > 0 ? Math.round((Math.min(totalStudied, targetTotal * 1.5) / targetTotal) * 100) : 0,
-      finalizadas,
-      totalSubjects: subjectsSnapshot.length,
-      avgPerformancePct: avgPct
+      subjects: prog.subjects,
+      totalTargetMin: prog.totalTargetMin,
+      totalStudiedMin: prog.totalStudiedMin,
+      pctCumprido: prog.pctCumprido,
+      finalizadas: prog.finalizadas,
+      totalSubjects: prog.totalSubjects,
+      avgPerformancePct: this.aproveitamentoNoPeriodo(startDate, endDate, entries)
     };
   },
   statusFor(studiedMin, targetMin) {
@@ -17136,33 +17250,30 @@ function planCycleMode() {
     showState('active');
   });
 
-  /* Mostra 2 casas só quando elas dizem algo: 100% continua "100", mas
-     67,36% não vira "67". Evita tanto a falsa precisão ("100,00%") quanto a
-     perda de informação. */
-  function fmtPct2(v) {
-    if (v == null) return '—';
-    const r = Math.round(v * 100) / 100;
-    return Number.isInteger(r) ? String(r) : r.toFixed(2).replace('.', ',');
-  }
+  /* fmtPct2 local saiu: era uma segunda régua de formatação, idêntica em
+     intenção à formatPct() global mas divergente na prática (a global escrevia
+     "67.36" com ponto). Uma métrica, uma notação — formatPct() agora é a única.  */
 
   function renderOverviewGauges(cycle) {
     const container = document.getElementById('ciclo-overview-gauges');
-    let totalTarget = 0, totalStudied = 0, finalizadas = 0;
-    cycle.subjects.forEach(s => {
-      const studied = CycleEngine.minutesStudied(s.nome, cycle.startDate, CycleEngine.rangeEnd(cycle));
-      totalTarget += s.definidoMin;
-      totalStudied += Math.min(studied, s.definidoMin * 3); // evita distorcer muito o total
-      if (CycleEngine.statusFor(studied, s.definidoMin) === 'finalizada') finalizadas++;
-    });
-    // 2 casas: com metas em minutos, 1 casa esconde progresso real
-    // (ex.: 8h05 de 12h = 67,36%, que aparecia como 67% por horas a fio).
-    const pctGeral = totalTarget > 0 ? Math.round((totalStudied / totalTarget) * 10000) / 100 : 0;
+    /* Uma única fonte para o progresso da semana (CycleEngine.progressoSemana):
+       exatamente os mesmos números que o fechamento grava no histórico. Antes
+       esta tela tinha fórmula própria — com teto de 3× a meta por matéria — e
+       o cartão do Histórico, outra. A semana mudava de número ao ser fechada. */
+    const prog = CycleEngine.progressoSemana(cycle.subjects, cycle.startDate, CycleEngine.rangeEnd(cycle));
+    const totalTarget = prog.totalTargetMin;
+    const totalStudied = prog.totalStudiedMin;
+    const finalizadas = prog.finalizadas;
+    const pctGeral = prog.pctCumprido;
     const overallAccent = pctGeral >= 100 ? 'accent-good' : pctGeral >= 40 ? 'accent-warn' : 'accent-bad';
     const finalizadasAccent = cycle.subjects.length > 0 && finalizadas === cycle.subjects.length ? 'accent-good' : '';
-    const remaining = Math.max(0, totalTarget - totalStudied);
+    const remaining = prog.restanteMin;
     const remAccent = remaining === 0 ? 'accent-good' : '';
-    // Aproveitamento geral da semana (acertos ÷ resolvidas em todas as matérias do intervalo)
-    const q = CycleEngine.questionsStudied(null, cycle.startDate, CycleEngine.effectiveEnd(cycle));
+    /* Aproveitamento geral da semana (acertos ÷ resolvidas em todas as matérias
+       do intervalo). Mesmo intervalo dos minutos — antes as questões usavam
+       effectiveEnd(), que ia até hoje, e o mesmo cartão media tempo até o fim
+       da semana e acerto até depois dele. */
+    const q = CycleEngine.questionsStudied(null, cycle.startDate, CycleEngine.rangeEnd(cycle));
     const acc = q.total > 0 ? Math.round((q.correct / q.total) * 10000) / 100 : null;
     const accAccent = acc == null ? '' : (acc >= 70 ? 'accent-good' : acc >= 50 ? 'accent-warn' : 'accent-bad');
 
@@ -17188,7 +17299,7 @@ function planCycleMode() {
 
     container.innerHTML = `
       <div class="mini-gauge-card ${overallAccent}">
-        <div class="value">${fmtPct2(pctGeral)}%</div>
+        <div class="value">${formatPct(pctGeral)}%</div>
         <div class="label">cumprido</div>
       </div>
       <div class="mini-gauge-card">
@@ -17200,7 +17311,7 @@ function planCycleMode() {
         <div class="label">${remaining === 0 ? 'meta batida' : 'faltam'}</div>
       </div>
       <div class="mini-gauge-card ${accAccent}" title="${q.total ? q.correct + ' de ' + q.total + ' questões' : 'Registre questões para ver o aproveitamento'}">
-        <div class="value">${acc == null ? '—' : fmtPct2(acc) + '%'}</div>
+        <div class="value">${acc == null ? '—' : formatPct(acc) + '%'}</div>
         <div class="label">aproveitamento</div>
       </div>
       <div class="mini-gauge-card ${finalizadasAccent}">
@@ -17251,7 +17362,7 @@ function planCycleMode() {
       const over = studied > s.definidoMin;
       const remaining = Math.max(0, s.definidoMin - studied);
       // aproveitamento em questões desta matéria na semana
-      const q = CycleEngine.questionsStudied(s.nome, cycle.startDate, CycleEngine.effectiveEnd(cycle));
+      const q = CycleEngine.questionsStudied(s.nome, cycle.startDate, CycleEngine.rangeEnd(cycle));
       const acc = q.total > 0 ? Math.round((q.correct / q.total) * 10000) / 100 : null;
       const accTone = acc == null ? '' : (acc >= 70 ? 'tone-good' : acc >= 50 ? 'tone-warn' : 'tone-bad');
       return `
@@ -17259,7 +17370,7 @@ function planCycleMode() {
           <div class="subject-progress-head">
             <span class="name">${escapeHtml(s.nome)}</span>
             <span class="sp-head-right">
-              <span class="subject-acc ${accTone}" title="${q.total ? q.correct + ' de ' + q.total + ' questões nesta semana' : 'Sem questões registradas nesta semana'}"><b>${acc == null ? '—' : fmtPct2(acc) + '%'}</b><span class="sp-acc-lbl">aproveit.</span></span>
+              <span class="subject-acc ${accTone}" title="${q.total ? q.correct + ' de ' + q.total + ' questões nesta semana' : 'Sem questões registradas nesta semana'}"><b>${acc == null ? '—' : formatPct(acc) + '%'}</b><span class="sp-acc-lbl">aproveit.</span></span>
               <span class="status-badge ${status}">${status}</span>
             </span>
           </div>
@@ -18198,36 +18309,26 @@ function planCycleMode() {
     // a semana no histórico usa exatamente o intervalo definido no ciclo (início → término)
     const realEndDate = cycle.endDate || CycleEngine.weekEndDate(cycle.startDate);
 
-    // monta snapshot completo com desempenho, considerando os estudos dentro do intervalo
+    /* O snapshot arquivado é EXATAMENTE o que a tela mostrava ao vivo: mesma
+       função, mesmo intervalo (startDate → realEndDate), mesmas matérias.
+       Fechar a semana não altera mais nenhum número. */
     const entries = DB.getEntries().filter(e => e.date >= cycle.startDate && e.date <= realEndDate);
-    const totalStudied = entries.reduce((sum, e) => sum + (e.durationMin || 0), 0);
-    const avgPct = CycleEngine.aproveitamentoNoPeriodo(cycle.startDate, realEndDate, entries);
-
-    /* O snapshot mede as matérias no MESMO intervalo usado para somar as
-       sessões (startDate → realEndDate). Antes usava cycle.endDate, que podia
-       ser nulo: as horas por matéria zeravam enquanto o total da semana
-       continuava certo, e o histórico guardava essa divergência para sempre. */
-    const subjectsSnapshot = cycle.subjects.map(s => {
-      const studied = CycleEngine.minutesStudied(s.nome, cycle.startDate, realEndDate);
-      return { ...s, estudadoMin: studied, status: CycleEngine.statusFor(studied, s.definidoMin) };
-    });
-    const finalizadas = subjectsSnapshot.filter(s => s.status === 'finalizada').length;
-    const targetTotal = cycle.subjects.reduce((sum, s) => sum + s.definidoMin, 0);
+    const prog = CycleEngine.progressoSemana(cycle.subjects, cycle.startDate, realEndDate);
 
     const snapshot = {
       id: Date.now(),
       startDate: cycle.startDate,
       endDate: realEndDate,
       weeklyHours: cycle.weeklyHours,
-      subjects: subjectsSnapshot,
+      subjects: prog.subjects,
       grade: JSON.parse(JSON.stringify(gradeGet().grade)),
       sessions: gradeGet().sessions,
-      totalTargetMin: targetTotal,
-      totalStudiedMin: totalStudied,
-      pctCumprido: targetTotal > 0 ? Math.round((Math.min(totalStudied, targetTotal * 1.5) / targetTotal) * 100) : 0,
-      finalizadas,
-      totalSubjects: subjectsSnapshot.length,
-      avgPerformancePct: avgPct,
+      totalTargetMin: prog.totalTargetMin,
+      totalStudiedMin: prog.totalStudiedMin,
+      pctCumprido: prog.pctCumprido,
+      finalizadas: prog.finalizadas,
+      totalSubjects: prog.totalSubjects,
+      avgPerformancePct: CycleEngine.aproveitamentoNoPeriodo(cycle.startDate, realEndDate, entries),
       closedAt: new Date().toISOString()
     };
 
@@ -18354,7 +18455,7 @@ const HistoricoScreen = {
         </div>
         <div class="week-stats-row">
           <div class="week-stat">
-            <div class="value">${Math.min(w.pctCumprido,999)}%</div>
+            <div class="value">${formatPct(Math.min(w.pctCumprido, 999))}%</div>
             <div class="label">cumprido</div>
           </div>
           <div class="week-stat">
@@ -18398,7 +18499,7 @@ const HistoricoScreen = {
   detailHtml(w, consolidated) {
     return `
       <div class="wd-section-title">Progresso por matéria</div>
-      ${this.subjectsProgressHtml(w)}
+      ${this.subjectsProgressHtml(w, consolidated)}
       <div class="wd-section-title">Grade planejada da semana</div>
       ${this.gradeDetailHtml(w)}
       <div class="wd-section-title">Sessões registradas no período</div>
@@ -18406,9 +18507,15 @@ const HistoricoScreen = {
     `;
   },
 
-  subjectsProgressHtml(w) {
+  subjectsProgressHtml(w, consolidated) {
     const subjects = w.subjects || [];
     if (subjects.length === 0) return `<p class="wd-empty">Nenhuma matéria estava neste ciclo.</p>`;
+    /* Os registros vêm do planejamento DA SEMANA. No escopo consolidado ("todos
+       os planejamentos") a lista de sessões logo abaixo já respeitava isso, mas
+       o aproveitamento por matéria lia sempre o planejamento ATIVO: a mesma
+       semana exibia um % de acerto que não tinha relação com os registros
+       mostrados dois blocos adiante. */
+    const fonte = this.getPeriodEntries(w, consolidated);
     /* Mesma lista do Ciclo da Semana, inclusive o aproveitamento ao lado do
        status: antes o detalhe do historico mostrava so horas, entao a semana
        arquivada perdia a informacao de desempenho que a semana viva tinha. */
@@ -18419,16 +18526,15 @@ const HistoricoScreen = {
       const pct = definido > 0 ? Math.min(100, Math.round((estudado / definido) * 100)) : 0;
       const over = estudado > definido;
       const remaining = Math.max(0, definido - estudado);
-      const q = CycleEngine.questionsStudied(s.nome, w.startDate, w.endDate);
+      const q = CycleEngine.questionsStudied(s.nome, w.startDate, w.endDate, fonte);
       const acc = q.total > 0 ? Math.round((q.correct / q.total) * 10000) / 100 : null;
       const accTone = acc == null ? '' : (acc >= 70 ? 'tone-good' : acc >= 50 ? 'tone-warn' : 'tone-bad');
-      const fmt2 = (v) => { const r = Math.round(v * 100) / 100; return Number.isInteger(r) ? String(r) : r.toFixed(2).replace('.', ','); };
       return `
         <div class="subject-progress-item status-${status}">
           <div class="subject-progress-head">
             <span class="name">${escapeHtml(s.nome)}</span>
             <span class="sp-head-right">
-              <span class="subject-acc ${accTone}" title="${q.total ? q.correct + ' de ' + q.total + ' questões nesta semana' : 'Sem questões registradas nesta semana'}"><b>${acc == null ? '—' : fmt2(acc) + '%'}</b><span class="sp-acc-lbl">aproveit.</span></span>
+              <span class="subject-acc ${accTone}" title="${q.total ? q.correct + ' de ' + q.total + ' questões nesta semana' : 'Sem questões registradas nesta semana'}"><b>${acc == null ? '—' : formatPct(acc) + '%'}</b><span class="sp-acc-lbl">aproveit.</span></span>
               <span class="status-badge ${status}">${status}</span>
             </span>
           </div>
@@ -18605,7 +18711,7 @@ const HistoricoScreen = {
   },
   _paintComputed(card, r) {
     const set = (sel, txt) => { const el = card.querySelector(sel); if (el) el.textContent = txt; };
-    set('.wk-c-pct', Math.min(r.pctCumprido, 999) + '%');
+    set('.wk-c-pct', formatPct(Math.min(r.pctCumprido, 999)) + '%');
     set('.wk-c-studied', CycleEngine.fmtHM(r.totalStudiedMin));
     set('.wk-c-final', r.finalizadas + '/' + r.totalSubjects);
     set('.wk-c-total', r.totalSubjects);
@@ -18732,11 +18838,29 @@ const ConquistasEngine = {
     try {
       (DB.getRevlog() || []).forEach(r => { if (r.date) get(r.date).cards++; });
     } catch (_) { _quiet(_); }
+    /* As Atividades Extras só entram AQUI se entrarem também na Evolução: o
+       interruptor global ("Atividades marcadas entram nas métricas") e o
+       "conta na Evolução" de cada atividade. Antes as Conquistas somavam TODA
+       atividade, ligada ou não — quem desligava o interruptor via a Evolução
+       descontar as horas e as Conquistas continuarem contando com elas. */
     try {
-      (DB.getExtras() || []).forEach(x => (x.historico || []).forEach(h => {
-        if (!h.data) return;
-        const d = get(h.data); d.min += (h.minutos || 0);
-      }));
+      if (DB.extrasCountGlobal()) {
+        (DB.getExtras() || []).forEach(x => {
+          if (!x.contaMetricas) return;
+          (x.historico || []).forEach(h => {
+            if (!h.data) return;
+            const d = get(h.data);
+            d.min += Math.max(0, h.minutos || (x.tipo === 'video' ? h.quantidade : 0) || 0);
+            // Questões extras só contam com os ACERTOS informados — mesma regra
+            // de _extraEntries(), senão toda questão extra viraria "0 acertos"
+            // e derrubaria o aproveitamento.
+            if (x.tipo === 'questoes' && h.acertos != null) {
+              d.q += Math.round(h.quantidade || 0);
+              d.ac += Math.round(h.acertos);
+            }
+          });
+        });
+      }
     } catch (_) { _quiet(_); }
     Object.values(m).forEach(d => { d.temAlgo = (d.min > 0 || d.q > 0 || d.cards > 0); });
     return m;
@@ -18869,8 +18993,13 @@ const ConquistasEngine = {
       if (i === 0 || this._diasEntre(semOrd[i - 1], semOrd[i]) === 7) seq++; else seq = 1;
       if (seq > maiorSeqSem) maiorSeqSem = seq;
     }
-    // páginas lidas
-    const paginas = ent.reduce((a, e) => a + Math.max(0, (e.pagFim || 0) - (e.pagIni || 0)), 0);
+    /* Páginas lidas. Os campos são pageStart/pageEnd — `pagIni`/`pagFim` NÃO
+       existem em registro nenhum, então esta conta dava zero sempre e a
+       conquista era inalcançável, enquanto o painel de Ritmo, na mesma tela,
+       exibia o total certo. A página final também conta (ler da 10 à 12 são
+       três páginas), como no badge de avanço e no Relatório. */
+    const paginas = ent.reduce((a, e) => a +
+      ((e.pageStart != null && e.pageEnd != null && e.pageEnd >= e.pageStart) ? (e.pageEnd - e.pageStart + 1) : 0), 0);
     // melhor semana de aproveitamento e melhor bateria num dia
     const semQ = {};
     ent.forEach(e => { if (!e.date) return; const w = this._semanaDe(e.date);
@@ -20724,19 +20853,39 @@ const EstudoNovoScreen = {
     this.bindTrackEvents();
   },
 
-  // Barra com a média de acerto de cada etapa, sobre todas as aulas que têm percentual
+  /* Média de acerto de cada etapa — AGREGADA (Σ acertos ÷ Σ questões), a mesma
+     régua do Ciclo, do Histórico e da Evolução.
+     Antes era a média dos percentuais das aulas: uma aula de 2/2 (100%) pesava
+     o mesmo que uma de 40/80 (50%) e o resultado saía 75%, quando o acerto real
+     é 42/82 = 51,2%. Aproveitamento é quantas questões você acertou, não a
+     média das suas aulas.
+     Aulas antigas que guardam só o percentual (sem acertos/total) não têm como
+     entrar no agregado; quando SÓ existem aulas assim, a média dos percentuais
+     continua sendo o melhor disponível — e o rótulo diz qual das duas está na
+     tela, para o número nunca se explicar errado. */
   averagesHtml(items) {
     const lessons = items.filter(i => i.type === 'aula');
     const cards = DB.STAGE_DEFS.map(def => {
+      let acertos = 0, questoes = 0, nAgregadas = 0;
+      lessons.forEach(i => {
+        const v = DB.getStageValues(i, def);
+        if (v.total > 0) { acertos += (v.acertos || 0); questoes += v.total; nAgregadas++; }
+      });
       const pcts = lessons.map(i => DB.getStagePct(i, def)).filter(p => p !== null);
-      if (pcts.length === 0) {
+      if (questoes <= 0 && pcts.length === 0) {
         return `<div class="track-avg-card"><div class="lbl">${def.label}</div><div class="val">—</div><div class="cnt">sem dados</div></div>`;
       }
-      const avg = Math.round((pcts.reduce((a, b) => a + b, 0) / pcts.length) * 100) / 100;
+      const agregada = questoes > 0;
+      const avg = agregada
+        ? Math.round((acertos / questoes) * 10000) / 100
+        : Math.round((pcts.reduce((a, b) => a + b, 0) / pcts.length) * 100) / 100;
+      const nota = agregada
+        ? `${acertos.toLocaleString('pt-BR')} de ${questoes.toLocaleString('pt-BR')} em ${nAgregadas} aula${nAgregadas === 1 ? '' : 's'}`
+        : `média de ${pcts.length} percentual${pcts.length === 1 ? '' : 'is'} lançado${pcts.length === 1 ? '' : 's'}`;
       return `<div class="track-avg-card">
         <div class="lbl">${def.label}</div>
         <div class="val tone-${toneFor(avg)}">${formatPct(avg)}%</div>
-        <div class="cnt">média de ${pcts.length} aula${pcts.length === 1 ? '' : 's'}</div>
+        <div class="cnt">${nota}</div>
       </div>`;
     }).join('');
     return `
@@ -21905,8 +22054,6 @@ const CardsScreen = {
      nada sobre esquecimento. */
   trueRetention(dias) {
     const revlog = DB.getRevlog() || [];
-    const cards = DB.getCards();
-    const porId = {}; cards.forEach(c => { porId[c.id] = c; });
     const limite = dias ? CardEngine.addDays(todayCards(), -dias) : null;
     const acc = {
       jovem: { total: 0, acertos: 0 }, maduro: { total: 0, acertos: 0 },
@@ -21914,10 +22061,19 @@ const CardsScreen = {
     };
     revlog.forEach(r => {
       if (!r || !r.grade) return;
+      /* Só respostas dadas em REVISÃO, como no Anki (revlog do tipo Review) —
+         e como o KPI "Retenção real" do topo desta mesma tela, que filtrava
+         phase === 'review' enquanto esta tabela não filtrava nada. Os dois
+         cartões diziam "retenção real" e mostravam números diferentes. */
+      if ((r.phase || 'review') !== 'review') return;
       if (limite && String(r.date || '') < limite) return;
       if ((r.elapsed || 0) < 1) { acc.mesmoDia++; return; }   // intradiária: fora da conta
-      const maduro = (r.intervalo || 0) >= 21;
-      const alvo = maduro ? acc.maduro : acc.jovem;
+      /* Maturidade pelo intervalo que o card tinha na hora (≥ 21 dias = maduro).
+         Revisões antigas não guardavam esse campo: para elas usamos o tempo
+         realmente decorrido desde a última revisão, que é a melhor aproximação
+         disponível — melhor que jogar todo o histórico na coluna "Jovens". */
+      const ivl = (r.intervalo != null) ? r.intervalo : (r.elapsed || 0);
+      const alvo = ivl >= 21 ? acc.maduro : acc.jovem;
       alvo.total++; acc.todos.total++;
       if (r.grade >= 2) { alvo.acertos++; acc.todos.acertos++; }
     });
@@ -22216,11 +22372,12 @@ const CardsScreen = {
     if (cards.length === 0) { box.innerHTML = this.emptyState('Sem estatísticas ainda', 'Crie e revise alguns cards para ver seus dados.'); return; }
     const cfg = CardsConfig.get();
     const revlog = DB.getRevlog();
-    const revs = revlog.filter(r => r.phase === 'review' && (r.elapsed || 0) >= 1);
-    const retReal = revs.length ? Math.round((revs.filter(r => r.acerto).length / revs.length) * 1000) / 10 : null;
-    const lim30 = CardEngine.addDays(todayCards(), -30);
-    const revs30 = revs.filter(r => r.date >= lim30);
-    const ret30 = revs30.length ? Math.round((revs30.filter(r => r.acerto).length / revs30.length) * 1000) / 10 : null;
+    /* Os KPIs de retenção e a tabela "Retenção real" abaixo leem a MESMA
+       função. Antes cada um tinha sua conta e os dois números apareciam lado a
+       lado, com o mesmo rótulo e valores diferentes. */
+    const trTudo = this.trueRetention(null), tr30 = this.trueRetention(30);
+    const retReal = trTudo.todos.pct;
+    const ret30 = tr30.todos.pct;
     const est = (c) => (c.s != null ? c.s : (c.intervalo || 0));
     const novos = cards.filter(c => this._bucket(c) === 'new').length;
     const aprend = cards.filter(c => this._bucket(c) === 'learn').length;
@@ -22269,7 +22426,7 @@ const CardsScreen = {
       ${this._statTrueRetention()}
       ${this._statBotoes()}
       ${this._statDistribuicao()}
-      ${revs.length < 10 ? `<p class="hint" style="text-align:center;margin-top:14px;">💡 A retenção real fica precisa após ~10 revisões de cards maduros (você tem ${revs.length}).</p>` : ''}`;
+      ${trTudo.maduro.total < 10 ? `<p class="hint" style="text-align:center;margin-top:14px;">💡 A retenção real fica precisa após ~10 revisões de cards maduros (você tem ${trTudo.maduro.total}).</p>` : ''}`;
   },
 
   /* ── TRUE RETENTION (Anki: aba Estatísticas → True Retention) ──────────────
@@ -22666,7 +22823,11 @@ const CardsScreen = {
       const G = CardEngine.GRADE_NUM[grade] || 3;
       const elapsed = c.lastReview ? Math.max(0, Math.round((new Date(todayCards() + 'T00:00:00') - new Date(c.lastReview + 'T00:00:00')) / 86400000)) : 0;
       const revTs = Date.now();
-      DB.addRevlog({ ts: revTs, date: todayCards(), cardId: id, grade: G, acerto: G > 1, phase: (c.phase || 'new'), elapsed, s: (c.s || null), d: (c.d || null) });
+      /* `intervalo` = o intervalo que o card TINHA ao ser respondido (o lastIvl
+         do revlog do Anki). Sem ele a tabela de Retenção Real não conseguia
+         separar card jovem de card maduro: a coluna "Maduros" ficava vazia
+         para sempre, porque a linha do histórico não guardava essa informação. */
+      DB.addRevlog({ ts: revTs, date: todayCards(), cardId: id, grade: G, acerto: G > 1, phase: (c.phase || 'new'), elapsed, intervalo: (c.intervalo || 0), s: (c.s || null), d: (c.d || null) });
       // conta introdução no limite diário só na 1ª vez que o card aparece nesta sessão
       const bucketAntes = this._bucket(c);
       if (!this._seenThisSession) this._seenThisSession = new Set();
@@ -26857,7 +27018,12 @@ const PlanoEngine = {
       x.ganhoGeral = Math.max(0, x.ganhoQuestoes / universoQ * 100);
       x.ganhoPP = (opts.ponderacao === 'volume') ? x.ganhoGeral
         : Math.max(0, (x.peso * teto - x.peso * x.taxa / 100) / universo * 100);
-      x.ganhoDominio = Math.max(0, (x.peso * teto - x.peso * x.taxa / 100) / universo * 100);
+      /* Aqui havia uma SEGUNDA atribuição de x.ganhoDominio, ponderada por
+         x.peso, que apagava a de peso igual calculada acima. Com a ponderação
+         "volume" as duas colunas do "🔀 Mostrar as duas" passavam a medir a
+         mesma coisa e o rótulo "cada assunto pesa igual" ficava falso.
+         ganhoDominio é sempre de peso igual; ganhoGeral é sempre por volume;
+         ganhoPP é o que a ponderação escolhida manda somar no acumulado. */
       x.rendimento = x.ganhoPP / x.custoQ * 100;
       x.incid = temIncid ? (incMap[ReforcoEngine.norm(x.nome)] || 0) : null;
     });
@@ -32090,9 +32256,16 @@ const StudyReport = {
     const pts=vals.map((v,i)=>`${p+i*(w-2*p)/Math.max(1,vals.length-1)},${h-p-v*(h-2*p)/max}`).join(' ');
     return `<svg class="chart" viewBox="0 0 ${w} ${h}"><line x1="${p}" y1="${h-p}" x2="${w-p}" y2="${h-p}" stroke="#cbd5e1"/><polyline points="${pts}" fill="none" stroke="#4f46e5" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>${pts.split(' ').map(pt=>{const [x,y]=pt.split(',');return `<circle cx="${x}" cy="${y}" r="4" fill="#4f46e5"/>`}).join('')}<text x="${p}" y="${h-8}" class="svg-label">${this.date(keys[0])}</text><text x="${w-p}" y="${h-8}" text-anchor="end" class="svg-label">${this.date(keys[keys.length-1])}</text></svg>`;
   },
+  /* Totais do TecConcursos pela MESMA função da tela de Desempenho TEC
+     (TecEngine.totais), que soma apenas o nível de disciplina.
+     Antes esta página somava TODAS as linhas do retrato — disciplina, tópico,
+     subtópico e sub-subtópico —, contando a mesma questão uma vez por nível da
+     hierarquia. O relatório mostrava um total várias vezes maior que a tela de
+     onde o dado veio; o aproveitamento até sobrevivia (numerador e denominador
+     inflavam juntos), mas "questões" e "acertos" não. */
   snapshotRows(cfg) {
     const snaps=(DB.getTecSnapshots?DB.getTecSnapshots():[]).filter(x=>{const a=String(x.startDate||x.date||'').slice(0,10),b=String(x.endDate||x.date||a).slice(0,10);return(!cfg.start||b>=cfg.start)&&(!cfg.end||a<=cfg.end)});
-    return snaps.map(s=>{ let q=0,c=0; (s.rows||s.disciplinas||[]).forEach(r=>{q+=this.n(r.total||r.questoes);c+=this.n(r.correct||r.acertos)}); return {date:s.endDate||s.date||s.startDate,q,c,p:this.pct(c,q)}; });
+    return snaps.map(s=>{ const t=TecEngine.totais(s); return {date:s.endDate||s.date||s.startDate,q:t.questoes,c:t.acertos,p:this.pct(t.acertos,t.questoes)}; });
   },
   extras(cfg) {
     const out=[]; (DB.getExtras?DB.getExtras():[]).forEach(x=>(x.historico||[]).forEach(h=>{const d=String(h.data||'').slice(0,10);if(d&&(!cfg.start||d>=cfg.start)&&(!cfg.end||d<=cfg.end))out.push({title:x.titulo||'Atividade',date:d,quantity:this.n(h.quantidade),minutes:this.n(h.minutos)});})); return out;
@@ -32177,7 +32350,12 @@ const StudyReport = {
     const read=[], video=[]; let pages=0,readMin=0,videoConsumed=0,videoStudyMin=0;
     entries.forEach(e=>{
       const min=this.n(e.durationMin||e.minutes||e.minutos), method=String(e.method||'').toLowerCase();
-      const p1=this.n(e.pageStart),p2=this.n(e.pageEnd); const pg=(p1&&p2&&p2>=p1)?p2-p1+1:0;
+      /* Ritmo de LEITURA só com sessões de leitura. A tela de Evolução já fazia
+         assim; aqui ainda entrava qualquer sessão com páginas preenchidas
+         (Questões, Revisão...), inflando o divisor e derrubando o "páginas por
+         hora" — a mesma métrica saía diferente na tela e no relatório. */
+      const leitura=!/quest|revis|video|aula/.test(method.normalize('NFD').replace(/[\u0300-\u036f]/g,''));
+      const p1=this.n(e.pageStart),p2=this.n(e.pageEnd); const pg=(leitura&&p1&&p2&&p2>=p1)?p2-p1+1:0;
       if(pg>0&&min>0){pages+=pg;readMin+=min;read.push({subject:e.subject||'Sem disciplina',pages:pg,min,date:this.dayKey(e)});}
       const v1=this.n(e.videoStart),v2=this.n(e.videoEnd); const vc=(v2>v1)?v2-v1:0;
       if(vc>0&&min>0){videoConsumed+=vc;videoStudyMin+=min;video.push({subject:e.subject||'Sem disciplina',content:vc,min,date:this.dayKey(e)});}

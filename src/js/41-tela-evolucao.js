@@ -41,11 +41,29 @@ const ConquistasEngine = {
     try {
       (DB.getRevlog() || []).forEach(r => { if (r.date) get(r.date).cards++; });
     } catch (_) { _quiet(_); }
+    /* As Atividades Extras só entram AQUI se entrarem também na Evolução: o
+       interruptor global ("Atividades marcadas entram nas métricas") e o
+       "conta na Evolução" de cada atividade. Antes as Conquistas somavam TODA
+       atividade, ligada ou não — quem desligava o interruptor via a Evolução
+       descontar as horas e as Conquistas continuarem contando com elas. */
     try {
-      (DB.getExtras() || []).forEach(x => (x.historico || []).forEach(h => {
-        if (!h.data) return;
-        const d = get(h.data); d.min += (h.minutos || 0);
-      }));
+      if (DB.extrasCountGlobal()) {
+        (DB.getExtras() || []).forEach(x => {
+          if (!x.contaMetricas) return;
+          (x.historico || []).forEach(h => {
+            if (!h.data) return;
+            const d = get(h.data);
+            d.min += Math.max(0, h.minutos || (x.tipo === 'video' ? h.quantidade : 0) || 0);
+            // Questões extras só contam com os ACERTOS informados — mesma regra
+            // de _extraEntries(), senão toda questão extra viraria "0 acertos"
+            // e derrubaria o aproveitamento.
+            if (x.tipo === 'questoes' && h.acertos != null) {
+              d.q += Math.round(h.quantidade || 0);
+              d.ac += Math.round(h.acertos);
+            }
+          });
+        });
+      }
     } catch (_) { _quiet(_); }
     Object.values(m).forEach(d => { d.temAlgo = (d.min > 0 || d.q > 0 || d.cards > 0); });
     return m;
@@ -178,8 +196,13 @@ const ConquistasEngine = {
       if (i === 0 || this._diasEntre(semOrd[i - 1], semOrd[i]) === 7) seq++; else seq = 1;
       if (seq > maiorSeqSem) maiorSeqSem = seq;
     }
-    // páginas lidas
-    const paginas = ent.reduce((a, e) => a + Math.max(0, (e.pagFim || 0) - (e.pagIni || 0)), 0);
+    /* Páginas lidas. Os campos são pageStart/pageEnd — `pagIni`/`pagFim` NÃO
+       existem em registro nenhum, então esta conta dava zero sempre e a
+       conquista era inalcançável, enquanto o painel de Ritmo, na mesma tela,
+       exibia o total certo. A página final também conta (ler da 10 à 12 são
+       três páginas), como no badge de avanço e no Relatório. */
+    const paginas = ent.reduce((a, e) => a +
+      ((e.pageStart != null && e.pageEnd != null && e.pageEnd >= e.pageStart) ? (e.pageEnd - e.pageStart + 1) : 0), 0);
     // melhor semana de aproveitamento e melhor bateria num dia
     const semQ = {};
     ent.forEach(e => { if (!e.date) return; const w = this._semanaDe(e.date);

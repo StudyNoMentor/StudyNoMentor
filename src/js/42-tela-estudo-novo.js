@@ -257,19 +257,39 @@ const EstudoNovoScreen = {
     this.bindTrackEvents();
   },
 
-  // Barra com a média de acerto de cada etapa, sobre todas as aulas que têm percentual
+  /* Média de acerto de cada etapa — AGREGADA (Σ acertos ÷ Σ questões), a mesma
+     régua do Ciclo, do Histórico e da Evolução.
+     Antes era a média dos percentuais das aulas: uma aula de 2/2 (100%) pesava
+     o mesmo que uma de 40/80 (50%) e o resultado saía 75%, quando o acerto real
+     é 42/82 = 51,2%. Aproveitamento é quantas questões você acertou, não a
+     média das suas aulas.
+     Aulas antigas que guardam só o percentual (sem acertos/total) não têm como
+     entrar no agregado; quando SÓ existem aulas assim, a média dos percentuais
+     continua sendo o melhor disponível — e o rótulo diz qual das duas está na
+     tela, para o número nunca se explicar errado. */
   averagesHtml(items) {
     const lessons = items.filter(i => i.type === 'aula');
     const cards = DB.STAGE_DEFS.map(def => {
+      let acertos = 0, questoes = 0, nAgregadas = 0;
+      lessons.forEach(i => {
+        const v = DB.getStageValues(i, def);
+        if (v.total > 0) { acertos += (v.acertos || 0); questoes += v.total; nAgregadas++; }
+      });
       const pcts = lessons.map(i => DB.getStagePct(i, def)).filter(p => p !== null);
-      if (pcts.length === 0) {
+      if (questoes <= 0 && pcts.length === 0) {
         return `<div class="track-avg-card"><div class="lbl">${def.label}</div><div class="val">—</div><div class="cnt">sem dados</div></div>`;
       }
-      const avg = Math.round((pcts.reduce((a, b) => a + b, 0) / pcts.length) * 100) / 100;
+      const agregada = questoes > 0;
+      const avg = agregada
+        ? Math.round((acertos / questoes) * 10000) / 100
+        : Math.round((pcts.reduce((a, b) => a + b, 0) / pcts.length) * 100) / 100;
+      const nota = agregada
+        ? `${acertos.toLocaleString('pt-BR')} de ${questoes.toLocaleString('pt-BR')} em ${nAgregadas} aula${nAgregadas === 1 ? '' : 's'}`
+        : `média de ${pcts.length} percentual${pcts.length === 1 ? '' : 'is'} lançado${pcts.length === 1 ? '' : 's'}`;
       return `<div class="track-avg-card">
         <div class="lbl">${def.label}</div>
         <div class="val tone-${toneFor(avg)}">${formatPct(avg)}%</div>
-        <div class="cnt">média de ${pcts.length} aula${pcts.length === 1 ? '' : 's'}</div>
+        <div class="cnt">${nota}</div>
       </div>`;
     }).join('');
     return `
