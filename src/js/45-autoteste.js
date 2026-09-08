@@ -321,6 +321,90 @@ const AutoTeste = {
     this._ok('Object.prototype está congelado', Object.isFrozen(Object.prototype));
   },
 
+  /* ── GARANTIA DE SALVAMENTO ────────────────────────────────────────────────
+     O bug que estes testes travam: uma alteração que ainda não subiu para a
+     nuvem era APAGADA do próprio aparelho na hora de baixar o perfil. Todo o
+     trabalho roda sobre um perfil de mentira ('__t_sync__'), nunca sobre os
+     dados reais, e o que for escrito é apagado ao fim. */
+  sincronizacao() {
+    const PID = '__t_sync__';
+    const pfx = 'diario-estudos:u:' + PID + ':';
+    const criadas = [];
+    const escrever = (sub, txt) => { const k = pfx + sub; criadas.push(k); localStorage.setItem(k, txt); };
+    // guarda o estado vivo da camada: os testes mexem em campos de memória dela
+    const seedAntes = SectionSync._seededProfile;
+    const sujasAntes = new Set(SectionSync._dirty);
+    try {
+      // 1. a contabilidade da própria camada nunca vira "seção" (senão sincronizaria a si mesma)
+      this._ok('sectionForKey ignora __secrev', SectionSync.sectionForKey(pfx + '__secrev', pfx) === null);
+      this._ok('sectionForKey ignora a caixa de saída', SectionSync.sectionForKey(pfx + SectionSync.PEND, pfx) === null);
+      this._ok('sectionForKey ignora o histórico local', SectionSync.sectionForKey(pfx + 'vhist:1', pfx) === null);
+      this._ok('sectionForKey aceita uma seção real', SectionSync.sectionForKey(pfx + 'p:pl:entries', pfx) === 'p:pl:entries');
+
+      // 2. conteúdo diferente do último envio = pendente, mesmo sem lista em memória
+      escrever('p:pl:grade-template', '{"grade":{"Segunda":[{"done":true}]}}');
+      escrever('__secrev', JSON.stringify({ 'p:pl:grade-template': { rev: 3, hash: 'hash-antigo' } }));
+      this._ok('alteração local não enviada é detectada',
+        SectionSync.pendingSections(PID).indexOf('p:pl:grade-template') !== -1,
+        SectionSync.pendingSections(PID));
+
+      // 3. a caixa de saída sobrevive a um recarregamento (está no armazenamento)
+      escrever(SectionSync.PEND, JSON.stringify(['p:pl:cards']));
+      this._ok('caixa de saída gravada é lida de volta',
+        SectionSync._loadPend(PID).indexOf('p:pl:cards') !== -1, SectionSync._loadPend(PID));
+
+      // 4. O CORAÇÃO: baixar da nuvem não pode apagar o que ainda não subiu.
+      criadas.push(pfx + 'p:pl:entries');
+      SectionSync._applyMap(PID,
+        { 'p:pl:grade-template': '{"grade":{}}', 'p:pl:entries': '[1]' },
+        { 'p:pl:grade-template': 9, 'p:pl:entries': 9 },
+        ['p:pl:grade-template']);
+      this._ok('seção pendente sobrevive ao download',
+        localStorage.getItem(pfx + 'p:pl:grade-template') === '{"grade":{"Segunda":[{"done":true}]}}',
+        localStorage.getItem(pfx + 'p:pl:grade-template'));
+      this._ok('as demais seções são atualizadas pela nuvem',
+        localStorage.getItem(pfx + 'p:pl:entries') === '[1]');
+      this._ok('a seção preservada continua na fila de envio',
+        SectionSync._loadPend(PID).indexOf('p:pl:grade-template') !== -1, SectionSync._loadPend(PID));
+
+      // 5. sem nada pendente, a nuvem manda — e a fila fica vazia
+      SectionSync._applyMap(PID, { 'p:pl:grade-template': '{"grade":{}}' }, { 'p:pl:grade-template': 10 }, []);
+      this._ok('sem pendência, o download vale',
+        localStorage.getItem(pfx + 'p:pl:grade-template') === '{"grade":{}}');
+      this._ok('fila esvazia quando tudo foi entregue', SectionSync._loadPend(PID).length === 0);
+
+      // 6. o mesmo vale para o caminho do blob (plano B)
+      escrever('p:pl:grade-template', 'LOCAL');
+      ProfileManager.restorePayloadInto(PID, { 'p:pl:grade-template': 'NUVEM', 'p:pl:leis': 'NUVEM' }, ['p:pl:grade-template']);
+      criadas.push(pfx + 'p:pl:leis');
+      this._ok('blob também preserva o que não subiu',
+        localStorage.getItem(pfx + 'p:pl:grade-template') === 'LOCAL',
+        localStorage.getItem(pfx + 'p:pl:grade-template'));
+      this._ok('blob aplica o resto normalmente', localStorage.getItem(pfx + 'p:pl:leis') === 'NUVEM');
+
+      // 7. toda escrita crua avisa as duas camadas de sincronização
+      const marcadas = [];
+      const mHook = _sectionMarkHook, cHook = _cloudNotifyHook, dHook = _sectionDropHook;
+      let avisouNuvem = 0, apagou = null;
+      _sectionMarkHook = (k) => marcadas.push(k);
+      _cloudNotifyHook = () => { avisouNuvem++; };
+      _sectionDropHook = (k) => { apagou = k; };
+      try {
+        criadas.push(pfx + 'pref-x');
+        DB.setRaw(pfx + 'pref-x', 'sun');
+        DB.delRaw(pfx + 'pref-x');
+      } finally { _sectionMarkHook = mHook; _cloudNotifyHook = cHook; _sectionDropHook = dHook; }
+      this._ok('setRaw marca a seção alterada', marcadas.indexOf(pfx + 'pref-x') !== -1, marcadas);
+      this._ok('setRaw e delRaw avisam a nuvem', avisouNuvem === 2, avisouNuvem);
+      this._ok('delRaw tira a seção da fila (a exclusão vai pelo manifesto)', apagou === pfx + 'pref-x', apagou);
+    } finally {
+      criadas.forEach(k => { try { localStorage.removeItem(k); } catch (_) { _quiet(_); } });
+      try { localStorage.removeItem(pfx + '__secrev'); localStorage.removeItem(pfx + SectionSync.PEND); } catch (_) { _quiet(_); }
+      SectionSync._seededProfile = seedAntes;
+      SectionSync._dirty = sujasAntes;
+    }
+  },
+
   rodar(imprimir) {
     this._r = { total: 0, passou: 0, falhou: 0, falhas: [], ms: 0 };
     const t0 = Date.now();
@@ -328,7 +412,8 @@ const AutoTeste = {
      ['Parser TEC', 'tec'], ['Robustez', 'robustez'],
      ['Colagem em lote', 'lote'], ['Eixo dos gráficos', 'eixo'],
      ['Aproveitamento', 'aproveitamento'], ['Ordenação', 'ordenacao'],
-     ['SM-2 clássico', 'sm2'], ['Filtro de treino', 'busca']].forEach(([nome, fn]) => {
+     ['SM-2 clássico', 'sm2'], ['Filtro de treino', 'busca'],
+     ['Garantia de salvamento', 'sincronizacao']].forEach(([nome, fn]) => {
       try { this[fn](); }
       catch (e) { this._r.total++; this._r.falhou++; this._r.falhas.push({ nome: nome + ' — exceção', obtido: String(e && e.message || e) }); }
     });

@@ -79,7 +79,6 @@ const CardsConfig = {
     graduatingIntervalEasy: 4  // graduating_interval_easy
   },
   _c: null, _cKey: null,
-  _notify() { try { if (window.CloudStore && CloudStore.notifyChange) CloudStore.notifyChange(); } catch (_) { _quiet(_); } },
   _read(key, legacyKey) {
     let v = null;
     try { v = JSON.parse(localStorage.getItem(key)); } catch (_) { _quiet(_); }
@@ -165,8 +164,7 @@ const CardsConfig = {
   },
   set(patch) {
     const v = Object.assign(this.get(), patch || {}); this._c = v; this._cKey = this.KEY;
-    try { localStorage.setItem(this.KEY, JSON.stringify(v)); } catch (_) { _quiet(_); }
-    this._notify();
+    DB.setRaw(this.KEY, JSON.stringify(v));
   },
   // ---- Presets POR BARALHO (como o Anki): overrides que herdam do global ----
   _presets: null, _pKey: null,
@@ -176,7 +174,7 @@ const CardsConfig = {
     this._presets = this._read(k, this.LEGACY_PKEY) || {}; this._pKey = k;
     return this._presets;
   },
-  _savePresets() { try { localStorage.setItem(this.PKEY, JSON.stringify(this._presets || {})); } catch (_) { _quiet(_); } this._notify(); },
+  _savePresets() { DB.setRaw(this.PKEY, JSON.stringify(this._presets || {})); },
   hasDeckPreset(deckId) { return !!(deckId && this._getPresets()[deckId]); },
   deckPreset(deckId) { return (deckId && this._getPresets()[deckId]) || null; },
   setDeckPreset(deckId, patch) { if (!deckId) return; const p = this._getPresets(); p[deckId] = Object.assign(p[deckId] || {}, patch || {}); this._savePresets(); },
@@ -215,7 +213,7 @@ const CardsConfig = {
     }
     return d;
   },
-  _saveDaily(d) { try { localStorage.setItem(this.DKEY, JSON.stringify(d)); } catch (_) { _quiet(_); } this._notify(); },
+  _saveDaily(d) { DB.setRaw(this.DKEY, JSON.stringify(d)); },
   newDoneToday() { return this._daily().newIds.length; }, revDoneToday() { return this._daily().revIds.length; },
   markIntroduced(kind, id) { const d = this._daily(); const a = kind === 'new' ? d.newIds : d.revIds; if (id && !a.includes(id)) a.push(id); this._saveDaily(d); },
   unmarkIntroduced(kind, id) { const d = this._daily(); const k = kind === 'new' ? 'newIds' : 'revIds'; d[k] = id ? d[k].filter(x => x !== id) : d[k]; this._saveDaily(d); },

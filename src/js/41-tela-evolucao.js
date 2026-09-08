@@ -1693,8 +1693,7 @@ function evoApplyScopeCollapsed(collapsed, persist) {
   body.hidden = collapsed;
   btn.setAttribute('aria-expanded', collapsed ? 'false' : 'true');
   if (txt) txt.textContent = collapsed ? 'Mostrar filtros' : 'Ocultar filtros';
-  if (persist) { try { localStorage.setItem(_evoScopeKey(), collapsed ? '1' : '0'); } catch (_) { _quiet(_); }
-    try { if (window.CloudStore && CloudStore.notifyChange) CloudStore.notifyChange(); } catch (_) { _quiet(_); } }
+  if (persist) DB.setRaw(_evoScopeKey(), collapsed ? '1' : '0');
 }
 (function () { const b = document.getElementById('evo-scope-collapse');
   if (b) b.addEventListener('click', () => {

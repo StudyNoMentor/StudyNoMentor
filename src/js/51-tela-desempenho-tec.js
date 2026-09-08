@@ -45,8 +45,7 @@ const PlanoEngine = {
   },
   salvarPrefs(patch) {
     const v = Object.assign(this.prefs(), patch || {});
-    try { localStorage.setItem(DB._profilePrefix() + this.KEY_PREF, JSON.stringify(v)); } catch (_) { _quiet(_); }
-    try { if (window.CloudStore && CloudStore.notifyChange) CloudStore.notifyChange(); } catch (_) { _quiet(_); }
+    DB.setRaw(DB._profilePrefix() + this.KEY_PREF, JSON.stringify(v));
     return v;
   },
   _diasDesde(iso) {
@@ -385,7 +384,7 @@ const DesempenhoTecScreen = {
   savePrefs(patch) {
     const p = Object.assign(this._loadPrefs(), patch || {});
     this._prefs = p;
-    try { localStorage.setItem(this._prefsKey(), JSON.stringify(p)); } catch (_) { _quiet(_); }
+    DB.setRaw(this._prefsKey(), JSON.stringify(p));
   },
   // aplica as preferências salvas aos controles do Reforço (chamado ao renderizar)
   applyReforcoPrefs() {
@@ -2312,7 +2311,7 @@ $id('tec-weak-disc').addEventListener('change', (e) => {
 
   on('plano-reset', 'click', async () => {
     if (!await UI.confirm('Voltar todos os ajustes do Plano aos valores padrão?', { title: 'Restaurar padrões' })) return;
-    try { localStorage.removeItem(DB._profilePrefix() + PlanoEngine.KEY_PREF); } catch (_) { _quiet(_); }
+    DB.delRaw(DB._profilePrefix() + PlanoEngine.KEY_PREF);
     PlanoEngine._c = null;
     DT.renderPlano();
     showToast('Ajustes restaurados ✓');

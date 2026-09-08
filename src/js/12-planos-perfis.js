@@ -11,7 +11,9 @@ const PlanManager = {
   savePlans(list) { DB._set(this.GK.plans, list); },
   getActivePlanId() { try { return localStorage.getItem(this.GK.active); } catch (e) { return null; } },
   getActivePlan() { return this.getPlans().find(p => p.id === this.getActivePlanId()) || null; },
-  setActivePlan(id) { localStorage.setItem(this.GK.active, id); },
+  // Trocar de planejamento é uma alteração do perfil como qualquer outra: passa
+  // pelo canal único para chegar à nuvem (antes só subia no blob periódico).
+  setActivePlan(id) { DB.setRaw(this.GK.active, id); },
 
   // Semeia formas de estudo e fases padrão para um planejamento novo,
   // para que todas as telas já funcionem "de fábrica".
@@ -226,7 +228,12 @@ const ProfileManager = {
     const data = {};
     for (let i = 0; i < localStorage.length; i++) {
       const k = localStorage.key(i);
-      if (k && k.startsWith(prefix)) data[k.slice(prefix.length)] = localStorage.getItem(k);
+      if (!k || !k.startsWith(prefix)) continue;
+      const sub = k.slice(prefix.length);
+      // A contabilidade da sincronização por seção é local a cada aparelho: levá-la
+      // no backup faria o aparelho que importa herdar a fila de envio de outro.
+      if (sub === '__secrev' || sub === '__secpend') continue;
+      data[sub] = localStorage.getItem(k);
     }
     // não exporta o PIN (backup não deve carregar credencial); o usuário redefine se quiser
     const metaOut = { nome: meta.nome, avatar: meta.avatar, cor: meta.cor };
@@ -325,14 +332,28 @@ const ProfileManager = {
     this.saveProfiles(list);
     (rows || []).forEach(r => { if (r.rev) this.setRev(r.id, r.rev); });
   },
-  // apaga o namespace local de um perfil e aplica um payload baixado (data map)
-  restorePayloadInto(id, dataObj) {
+  /* Apaga o namespace local de um perfil e aplica um payload baixado (data map).
+     `preservar` lista as seções que este aparelho ainda NÃO conseguiu enviar: elas
+     ficam intactas, com o valor local, e continuam na fila. Sem isso, baixar da
+     nuvem apagava do próprio aparelho a alteração que ainda não tinha subido. */
+  restorePayloadInto(id, dataObj, preservar) {
     const prefix = 'diario-estudos:u:' + id + ':';
+    const manter = new Set(preservar || []);
+    // A contabilidade da sincronização é DESTE aparelho (o que ele já enviou e o
+    // que falta): vinda no backup de outro, faria este achar que está em dia.
+    const local = ['__secrev', '__secpend'];
     const toRemove = [];
-    for (let i = 0; i < localStorage.length; i++) { const k = localStorage.key(i); if (k && k.startsWith(prefix)) toRemove.push(k); }
+    for (let i = 0; i < localStorage.length; i++) {
+      const k = localStorage.key(i);
+      if (!k || !k.startsWith(prefix)) continue;
+      const sub = k.slice(prefix.length);
+      if (manter.has(sub) || local.indexOf(sub) !== -1) continue;
+      toRemove.push(k);
+    }
     toRemove.forEach(k => localStorage.removeItem(k));
     Object.keys(dataObj || {}).forEach(sub => {
       if (sub.startsWith('u:')) return;
+      if (manter.has(sub) || local.indexOf(sub) !== -1) return;
       localStorage.setItem(prefix + sub, dataObj[sub]);
     });
   }

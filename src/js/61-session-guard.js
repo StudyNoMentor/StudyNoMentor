@@ -145,8 +145,12 @@ const SessionGuard = {
   // Outro aparelho assumiu: bloqueia e pausa a sincronização aqui.
   _takenBy(row) {
     if (window.SessionLock) SessionLock.block('remote', { label: row.device_label });
-    // interrompe qualquer envio pendente para não sobrescrever o outro aparelho
-    try { const CS = window.CloudStore; if (CS) { clearTimeout(CS._debounce); CS._debounce = null; CS._pending = false; } } catch (_) { _quiet(_); }
+    /* Interrompe o ENVIO para não sobrescrever o outro aparelho — mas mantém a
+       pendência. Zerar _pending aqui apagava a alteração da fila: ela nunca mais
+       era tentada, e o download seguinte a removia também do armazenamento local.
+       A caixa de saída da camada por seção continua gravada e reenvia quando esta
+       sessão for retomada. */
+    try { const CS = window.CloudStore; if (CS) { clearTimeout(CS._debounce); CS._debounce = null; } } catch (_) { _quiet(_); }
     if (window.CloudUI) CloudUI.refreshSyncBtn();
   },
 

@@ -630,10 +630,7 @@ function planCycleMode() {
     } catch (e) { _quiet(e); }
     return fallback;
   }
-  function gradePrefSet(name, value) {
-    try { localStorage.setItem(_gradePrefKey(name), String(value)); } catch (e) { _quiet(e); }
-    try { if (window.CloudStore && CloudStore.notifyChange) CloudStore.notifyChange(); } catch (e) { _quiet(e); }
-  }
+  function gradePrefSet(name, value) { DB.setRaw(_gradePrefKey(name), String(value)); }
   // preferência de início da semana ('mon' = segunda | 'sun' = domingo) — só afeta a ORDEM de exibição
   function gradeWeekStart() { return gradePrefGet('grade-weekstart', GRADE_WS_LEGACY, 'mon') === 'sun' ? 'sun' : 'mon'; }
   function setGradeWeekStart(v) { gradePrefSet('grade-weekstart', v === 'sun' ? 'sun' : 'mon'); }
@@ -1309,7 +1306,7 @@ function planCycleMode() {
   const _budgetBtn = document.getElementById('btn-toggle-budget');
   if (_budgetBtn) _budgetBtn.addEventListener('click', () => {
     let open = false; try { open = localStorage.getItem(gradeBudgetKey()) === '1'; } catch (_) { _quiet(_); }
-    try { localStorage.setItem(gradeBudgetKey(), open ? '0' : '1'); } catch (_) { _quiet(_); }
+    DB.setRaw(gradeBudgetKey(), open ? '0' : '1');
     try { if (window.CloudStore && CloudStore.notifyChange) CloudStore.notifyChange(); } catch (_) { _quiet(_); }
     _budgetBtn.classList.toggle('active', !open);
     updateGradeBudget();

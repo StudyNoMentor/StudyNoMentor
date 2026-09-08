@@ -15,10 +15,7 @@ const LeisScreen = {
     } catch (_) { _quiet(_); }
     return padrao;
   },
-  _prefSet(nome, valor) {
-    try { localStorage.setItem(this._prefKey(nome), String(valor)); } catch (_) { _quiet(_); }
-    try { if (window.CloudStore && CloudStore.notifyChange) CloudStore.notifyChange(); } catch (_) { _quiet(_); }
-  },
+  _prefSet(nome, valor) { DB.setRaw(this._prefKey(nome), String(valor)); },
 
   render() {
     // ao ativar a aba, volta sempre para a lista

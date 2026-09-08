@@ -17,8 +17,53 @@ const CloudUI = {
       const auto = document.getElementById('cloud-autosync'); if (auto && auto.closest('label')) auto.closest('label').style.display = 'none';
       const slots = document.getElementById('cloud-slots-list'); if (slots) slots.innerHTML = '<p class="hint">A sincronização é automática. Use os botões acima só para forçar envio/baixa manual.</p>';
       this.setStatus('ok', 'Sincronização automática ativa');
+      this.renderQueue();
       this.renderSessions();
     }
+  },
+  /* ── FILA DE ENVIO ────────────────────────────────────────────────────────
+     A pergunta que o usuário faz é simples — "o que eu marquei está salvo lá?".
+     Aqui ela tem resposta direta: ou a fila está vazia (tudo entregue), ou ela
+     lista o que falta subir. O que aparece nesta lista está guardado NESTE
+     aparelho e não é apagado por nenhum download até ser entregue. */
+  _nomeSecao(sec) {
+    const s = String(sec || '');
+    const semPlano = s.replace(/^p:[^:]+:/, '');
+    const mapa = {
+      entries: 'registros de estudo', subjects: 'matérias', methods: 'métodos', phases: 'fases',
+      statuses: 'status das aulas', modes: 'modos de estudo', 'current-cycle': 'ciclo atual',
+      'cycle-history': 'histórico de ciclos', tracks: 'trilha de Estudo Novo', tec: 'Desempenho TEC',
+      'grade-template': 'grade semanal', 'saved-grades': 'grades salvas', 'custom-siglas': 'siglas',
+      leis: 'leis', 'lei-keywords': 'palavras-chave das leis', decks: 'baralhos', cards: 'cards',
+      links: 'links', incidencia: 'incidência', extras: 'atividades extras', revlog: 'histórico de revisões',
+      'last-cycle-setup': 'preferências do ciclo', planejamentos: 'lista de planejamentos',
+      'active-plan': 'planejamento ativo'
+    };
+    if (mapa[semPlano]) return mapa[semPlano];
+    if (semPlano.indexOf('pref-') === 0 || semPlano.indexOf('painel:') === 0 || semPlano.indexOf('ux47:') === 0) return 'preferências de tela';
+    return semPlano;
+  },
+  renderQueue() {
+    const box = document.getElementById('cloud-queue-box');
+    if (!box) return;
+    let fila = [];
+    try { if (window.SectionSync) fila = SectionSync.pendingSections(); } catch (_) { _quiet(_); }
+    if (!fila.length) {
+      box.innerHTML = '<p class="hint" style="margin:4px 0 0;">✓ <strong>Nada pendente.</strong> Tudo o que você registrou já está na nuvem e aparece ao entrar em outro aparelho.</p>';
+      return;
+    }
+    const nomes = [...new Set(fila.map(s => this._nomeSecao(s)))];
+    box.innerHTML = '<p class="hint" style="margin:4px 0 8px;"><strong>' + fila.length +
+      (fila.length === 1 ? ' alteração ainda não enviada' : ' alterações ainda não enviadas') +
+      '.</strong> Está salvo neste aparelho e sobe sozinho assim que houver conexão — nada é perdido, e nenhum download apaga o que está aqui.</p>' +
+      '<p class="hint" style="margin:0 0 10px;">Aguardando: ' + escapeHtml(nomes.join(' · ')) + '</p>' +
+      '<button type="button" class="btn-primary" id="cloud-queue-flush">↑ Enviar agora</button>';
+    const b = document.getElementById('cloud-queue-flush');
+    if (b) b.addEventListener('click', async () => {
+      b.disabled = true; b.textContent = 'Enviando…';
+      try { await CloudStore.flushPending(); } catch (_) { _quiet(_); }
+      this.renderQueue();
+    });
   },
   // Painel "Aparelho com sessão ativa" (login único entre dispositivos).
   async renderSessions() {
@@ -102,10 +147,14 @@ const CloudUI = {
     if (window.SessionLock && SessionLock.isBlocked() && SessionLock._origin === 'remote') { tone = 'error'; text = 'Pausado (outro aparelho)'; }
     // Estado tranquilizador — o app salva SEMPRE no aparelho na hora. O spinner
     // (azul) só aparece durante um envio REAL e curto; o resto é verde "ok".
+    // Fila real de envio (sobrevive a recarregamentos): é o que permite dizer
+    // "tudo sincronizado" só quando é verdade — e quanto falta quando não é.
+    let fila = 0;
+    try { if (window.SectionSync) fila = SectionSync.pendingQuick(); } catch (_) { _quiet(_); }
     if (!tone) {
       if (!CS || !CS.isReady() || !CS.isLoggedIn()) { tone = 'off'; text = 'Salvo neste aparelho'; }
       else if (CS._syncing) { tone = 'syncing'; text = 'Enviando para a nuvem…'; }
-      else if (CS._pending || CS._debounce) { tone = 'ok'; text = 'Salvo · será enviado em instantes'; }
+      else if (CS._pending || CS._debounce || fila) { tone = 'ok'; text = fila ? ('Salvo · ' + fila + (fila === 1 ? ' alteração aguardando envio' : ' alterações aguardando envio')) : 'Salvo · será enviado em instantes'; }
       else if (CS._lastSyncAt) { tone = 'ok'; text = 'Sincronizado ' + this._timeAgo(CS._lastSyncAt); }
       else { tone = 'ok'; text = 'Sincronizado'; }
     } else {
@@ -308,6 +357,7 @@ window.CloudUI = CloudUI;
   on('cloud-signout', 'click', async () => { await CloudStore.signOut(); CloudUI.render(); showToast('Desconectado da nuvem'); });
   on('cloud-change-pass', 'click', () => CloudUI.changePassword());
   on('cloud-sessions-refresh', 'click', () => CloudUI.renderSessions());
+  on('cloud-queue-refresh', 'click', () => CloudUI.renderQueue());
   on('cloud-push-now', 'click', () => CloudStore.autoSave());
   on('cloud-pull-now', 'click', () => CloudStore.pullActiveAndReload());
   // Segurança da sessão em Configurações (mesmas chaves ux47 → persistem e ficam
@@ -317,7 +367,7 @@ window.CloudUI = CloudUI;
     // indicador e esta tela leem/gravam exatamente as mesmas preferências.
     const apfx = () => { try { const pid = localStorage.getItem('diario-estudos:active-profile'); return pid ? ('diario-estudos:u:' + pid + ':ux47:') : 'diario-estudos:ux47:'; } catch (_) { return 'diario-estudos:ux47:'; } };
     const g = (k, d) => { try { const v = localStorage.getItem(apfx() + k); return v === null ? d : v; } catch (_) { return d; } };
-    const s = (k, v) => { try { localStorage.setItem(apfx() + k, String(v)); if (window.CloudStore && CloudStore.notifyChange) CloudStore.notifyChange(); } catch (_) { _quiet(_); } };
+    const s = (k, v) => DB.setRaw(apfx() + k, String(v));
     const ss = document.getElementById('cfg-single-session');
     const im = document.getElementById('cfg-idle-mins');
     const sync = () => {
@@ -399,6 +449,13 @@ _cloudNotifyHook = () => CloudStore.notifyChange();
   setTimeout(() => { try { if (window.SectionSync) SectionSync.kick(); } catch (_) { _quiet(_); } }, 4000);
   // atualiza o rótulo "há X min" periodicamente
   setInterval(() => { if (window.CloudUI) CloudUI.refreshSyncBtn(); }, 30000);
+  // com a tela de Configurações aberta, a fila se atualiza sozinha (o envio é assíncrono)
+  setInterval(() => {
+    try {
+      const cfg = document.getElementById('screen-config');
+      if (cfg && cfg.classList.contains('active') && window.CloudUI) CloudUI.renderQueue();
+    } catch (_) { _quiet(_); }
+  }, 5000);
   // estado inicial do botão
   setTimeout(() => { if (window.CloudUI) CloudUI.refreshSyncBtn(); }, 300);
 
@@ -417,8 +474,7 @@ _cloudNotifyHook = () => CloudStore.notifyChange();
   }
   function aplicar(v, avisar) {
     document.documentElement.style.setProperty('--fs-scale', String(v));
-    try { localStorage.setItem(chave(), String(v)); } catch (_) { _quiet(_); }
-    try { if (window.CloudStore && CloudStore.notifyChange) CloudStore.notifyChange(); } catch (_) { _quiet(_); }
+    DB.setRaw(chave(), String(v));
     const i = PASSOS.indexOf(v);
     if (menor) menor.disabled = (i <= 0);
     if (maior) maior.disabled = (i >= PASSOS.length - 1);

@@ -74,7 +74,6 @@ else CloudStore.init();
       localStorage.setItem(flag, '1');
     } catch (_) { _quiet(_); }
   })();
-  function _syncSoon() { try { if (window.CloudStore && CloudStore.notifyChange) CloudStore.notifyChange(); } catch (_) { _quiet(_); } }
   /* Leitura resiliente ao namespace.
      O valor mora em <perfil>:ux47:<k>. Mas se ele foi gravado num momento em
      que não havia perfil ativo (gate aberto, primeiro acesso, troca de
@@ -90,22 +89,17 @@ else CloudStore.init();
       if (v !== null) return v;
       if (_activePfx() !== OLD_PFX) {
         const g = localStorage.getItem(OLD_PFX + k);
-        if (g !== null) { try { localStorage.setItem(_activePfx() + k, g); } catch (e) { _quiet(e, 'promover-chave-global'); } return g; }
+        if (g !== null) { DB.setRaw(_activePfx() + k, g); return g; }
       }
       return d;
     } catch (_) { return d; }
   }
   /* Grava sempre no namespace do perfil. Se ainda NÃO há perfil ativo, o
      prefixo é o global — e aí o pget acima recupera na próxima abertura. */
-  function pset(k, v) {
-    try {
-      localStorage.setItem(_activePfx() + k, String(v));
-      _syncSoon();
-    } catch (_) { _quiet(_); }
-  }
-  function pdel(k) { try { localStorage.removeItem(_activePfx() + k); _syncSoon(); } catch (_) { _quiet(_); } }
+  function pset(k, v) { DB.setRaw(_activePfx() + k, String(v)); }
+  function pdel(k) { DB.delRaw(_activePfx() + k); }
   function jget(k, d) { try { return JSON.parse(localStorage.getItem(_activePfx() + k)) ?? d; } catch (_) { return d; } }
-  function jset(k, v) { try { localStorage.setItem(_activePfx() + k, JSON.stringify(v)); _syncSoon(); } catch (_) { _quiet(_); } }
+  function jset(k, v) { DB.setRaw(_activePfx() + k, JSON.stringify(v)); }
   const $ = (s, r) => (r || document).querySelector(s);
   const $$ = (s, r) => Array.from((r || document).querySelectorAll(s));
   const esc = (s) => (typeof escapeHtml === 'function' ? escapeHtml(s) : String(s == null ? '' : s));
@@ -1049,7 +1043,9 @@ else CloudStore.init();
     async wipeLocal() {
       const CS = window.CloudStore;
       if (!CS || !CS.isLoggedIn()) { toast('Conecte a conta antes: sem nuvem, apagar o local apaga tudo.'); return; }
-      if (CS._pending || CS._debounce) { toast('Há alterações não enviadas. Sincronize antes de limpar.'); return; }
+      let fila = 0;
+      try { if (window.SectionSync) fila = SectionSync.pendingQuick(); } catch (_) { _quiet(_); }
+      if (CS._pending || CS._debounce || fila) { toast('Há alterações não enviadas. Sincronize antes de limpar.'); return; }
       const ok1 = await UI.confirm('Apagar a cópia local deste perfil e baixar tudo da nuvem de novo?\n\nUse quando este aparelho parecer dessincronizado. Uma versão de segurança é guardada antes.',
         { title: '🧹 Limpar dados locais', okText: 'Continuar', danger: true });
       if (!ok1) return;
@@ -1083,7 +1079,18 @@ else CloudStore.init();
       if (!CS || !CS.isReady()) return { tone: 'ok', title: 'Salvo neste aparelho', sub: 'A nuvem conecta automaticamente quando disponível.' };
       if (!CS.isLoggedIn()) return { tone: 'ok', title: 'Salvo neste aparelho', sub: 'Entre na sua conta para sincronizar entre aparelhos.' };
       if (this._recon) return { tone: 'syncing', title: 'Reconectando…', sub: 'Renovando o acesso sem pedir a senha.' };
-      if (CS._syncing || CS._pending || CS._debounce) return { tone: 'syncing', title: 'Salvando…', sub: 'Já está salvo no aparelho; enviando para a nuvem.' };
+      let fila = 0;
+      try { if (window.SectionSync) fila = SectionSync.pendingQuick(); } catch (_) { _quiet(_); }
+      if (window.SessionLock && SessionLock.isBlocked() && SessionLock._origin === 'remote') {
+        return { tone: 'syncing', title: 'Envio pausado', sub: fila
+          ? (fila + (fila === 1 ? ' alteração está guardada' : ' alterações estão guardadas') + ' e sobe quando a sessão voltar para cá.')
+          : 'A sessão está em outro aparelho. Nada foi perdido.' };
+      }
+      if (CS._syncing || CS._pending || CS._debounce || fila) {
+        return { tone: 'syncing', title: 'Salvando…', sub: fila
+          ? ('Já está salvo no aparelho; ' + fila + (fila === 1 ? ' alteração na fila' : ' alterações na fila') + ' para a nuvem.')
+          : 'Já está salvo no aparelho; enviando para a nuvem.' };
+      }
       const t = CS._lastSyncAt ? (window.CloudUI ? CloudUI._timeAgo(CS._lastSyncAt) : '') : '';
       return { tone: 'ok', title: 'Tudo sincronizado', sub: t ? ('Último envio ' + t + '.') : 'Seus dados estão salvos e sincronizados.' };
     },
@@ -1188,7 +1195,9 @@ else CloudStore.init();
       const CS = window.CloudStore;
       const btn = $('#cloud-sync-btn');
       if (!btn || !CS) return;
-      const pend = !!(CS.isLoggedIn() && (CS._pending || CS._debounce));
+      let fila = 0;
+      try { if (window.SectionSync) fila = SectionSync.pendingQuick(); } catch (_) { _quiet(_); }
+      const pend = !!(CS.isLoggedIn() && (CS._pending || CS._debounce || fila));
       btn.classList.toggle('has-pend', pend);
       if (this._recon) btn.classList.add('st-recon');
     }

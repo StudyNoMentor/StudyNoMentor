@@ -134,3 +134,8 @@ var _cloudNotifyHook = null;
 // alterada como "suja" para ser enviada à tabela profile_sections em paralelo ao blob.
 // var (não const) evita erro de zona morta se DB._set rodar antes do SectionSync existir.
 var _sectionMarkHook = null;
+// Hook do APAGAMENTO de uma chave do perfil. Apagar também é uma alteração que
+// precisa chegar aos outros aparelhos — mas pelo MANIFESTO (a lista de seções que
+// o perfil tem), não como conteúdo. Marcar a seção como "suja" aqui faria subir
+// uma linha vazia em vez de removê-la; por isso o apagamento tem hook próprio.
+var _sectionDropHook = null;

@@ -127,10 +127,7 @@ const PainelRecolhivel = {
       ? (cfg.rotuloFechado || 'Mostrar filtros')
       : (cfg.rotuloAberto || 'Ocultar filtros');
     this.atualizarResumo(id);
-    if (persistir) {
-      try { localStorage.setItem(this._chave(id), recolhido ? '1' : '0'); }
-      catch (e) { _quiet(e, 'painel-gravar'); }
-    }
+    if (persistir) DB.setRaw(this._chave(id), recolhido ? '1' : '0');
   },
   /* O resumo só aparece com o painel FECHADO: aberto, ele repetiria o que já
      está à vista logo abaixo. */

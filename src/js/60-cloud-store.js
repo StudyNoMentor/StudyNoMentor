@@ -132,8 +132,17 @@ const CloudStore = {
 
   notifyChange() {
     if (this._applying) return;
-    // sessão assumida por outro aparelho (ou outra aba): não escreve, para não sobrescrever
-    if (window.SessionLock && SessionLock.isBlocked()) return;
+    /* Sessão assumida por outro aparelho (ou outra aba): não ENVIA, para não
+       sobrescrever o que o outro está fazendo — mas a alteração continua marcada
+       como pendente. Antes ela era simplesmente esquecida: o dado ficava só neste
+       navegador e a abertura seguinte, ao baixar da nuvem, o apagava. A caixa de
+       saída da camada por seção já guardou a seção; aqui basta não perder o
+       estado "há algo por enviar" para quando a sessão voltar. */
+    if (window.SessionLock && SessionLock.isBlocked()) {
+      this._pending = true; this._dirtyAt = this._dirtyAt || Date.now();
+      if (window.CloudUI) CloudUI.refreshSyncBtn();
+      return;
+    }
     if (!this.isReady() || !this.isLoggedIn()) return;
     try { if (!sessionStorage.getItem('diario-estudos:entered')) return; } catch (e) { _quiet(e); }
     try { if (window.VersionHistory) VersionHistory.maybeDailySnapshot(); } catch (e) { _quiet(e); } // 1 backup/dia
@@ -185,7 +194,9 @@ const CloudStore = {
     // reprogramamos uma nova tentativa para logo após, senão a última alteração ficava
     // presa como "pendente" até o próximo foco/edição (causa de "às vezes não salva").
     if (this._syncing) { this._rearm(400); return; }
-    if (window.SessionLock && SessionLock.isBlocked()) { this._pending = false; return; } // sessão assumida em outro aparelho
+    // Sessão assumida em outro aparelho: adia, NÃO descarta. Descartar era perder
+    // a alteração de vez — ela nunca mais era tentada nesta ou em outra sessão.
+    if (window.SessionLock && SessionLock.isBlocked()) { this._pending = true; return; }
     if (!this.isReady() || !this.isLoggedIn()) return;
     if (!this._pending) return;                // nada novo a enviar
     clearTimeout(this._debounce);
@@ -246,6 +257,9 @@ const CloudStore = {
     // "Sincronizar agora", troca de perfil). Aqui o blob SOBE, custe o que custar:
     // é a hora em que a rede de segurança precisa estar em dia.
     this._forceBlob = true;
+    // Alteração que sobreviveu a um recarregamento (caixa de saída gravada) também
+    // conta como pendente: sem isto, "Sincronizar agora" não a enviava.
+    try { if (window.SectionSync && SectionSync.pendingQuick() > 0) this._pending = true; } catch (e) { _quiet(e, 'flush-pendencia'); }
     if (this._pending || this._syncing) await this.autoSave();
   },
   // SALVAMENTO DE EMERGÊNCIA (keepalive): fetch com keepalive:true sobrevive ao fechamento
@@ -281,6 +295,15 @@ const CloudStore = {
     try { if (!sessionStorage.getItem('diario-estudos:entered')) return; } catch (e) { return; }
     if (this._pending || this._debounce) { await this.flushPending(); return; }
     const id = ProfileManager.getActiveProfileId(); if (!id) return;
+    // Pendência que sobreviveu a um recarregamento (caixa de saída gravada):
+    // ENVIA antes de qualquer coisa; baixar primeiro sobrescreveria o que falta subir.
+    try {
+      if (window.SectionSync && SectionSync.pendingQuick() > 0) {
+        this._pending = true;
+        await this.flushPending();
+        return;
+      }
+    } catch (e) { _quiet(e, 'syncOnFocus-pendencia'); }
     try {
       // FASE 2: a novidade é detectada pelas revisões DAS SEÇÕES. Vantagem sobre a
       // rev do blob: só baixa quando o conteúdo em si mudou, e sabemos o que mudou.
@@ -301,8 +324,10 @@ const CloudStore = {
   async syncNow() {
     if (!this.isReady() || !this.isLoggedIn()) { showToast('Entre na sua conta para sincronizar (Configurações → Nuvem).'); return; }
     if (window.CloudUI) CloudUI.setStatus('syncing', 'Sincronizando...');
+    let fila = 0;
+    try { if (window.SectionSync) fila = SectionSync.pendingQuick(); } catch (e) { _quiet(e, 'syncNow-fila'); }
     try {
-      if (this._pending || this._debounce) await this.flushPending();
+      if (this._pending || this._debounce || fila) await this.flushPending();
       else {
         const id = ProfileManager.getActiveProfileId();
         let novidade = false;
@@ -321,13 +346,17 @@ const CloudStore = {
       try { if (await SectionSync.pullAndReload()) return; } catch (e) { console.warn('pull por seção', e); }
     }
     try {
+      // Mesma regra do caminho por seção: primeiro ENTREGA o que este aparelho
+      // ainda não enviou; o que não subir é preservado e não é sobrescrito.
+      let preservar = [];
+      try { if (window.SectionSync) preservar = await SectionSync.flushBeforeRead(id); } catch (e) { _quiet(e, 'pull-pendencia'); }
       const res = await this.fetchPayload(id);
       // REDE DE SEGURANÇA: antes de sobrescrever o estado local com o da nuvem,
       // guarda uma versão do que está aqui — assim, se outro aparelho tiver
       // enviado algo indesejado, você consegue restaurar em Configurações.
       try { if (window.VersionHistory) await VersionHistory.snapshot('antes de baixar da nuvem'); } catch (e) { _quiet(e); }
       this._applying = true;
-      ProfileManager.restorePayloadInto(id, (res.payload && res.payload.data) || {});
+      ProfileManager.restorePayloadInto(id, (res.payload && res.payload.data) || {}, preservar);
       ProfileManager.setRev(id, res.rev);
       this._applying = false;
       showToast('Sincronizado da nuvem ✓');
