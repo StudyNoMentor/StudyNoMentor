@@ -61,11 +61,37 @@
   }
 
   // ---- write-through assíncrono (lote por microtask) ----
+  /* Quem está esperando o DISCO confirmar. `setItem` volta na hora (cache em
+     memória), mas a gravação real no IndexedDB acontece depois. Recarregar a
+     página nesse intervalo ABORTA a transação — e era assim que a sessão
+     recém-gravada do login às vezes não estava lá na abertura seguinte.
+     window.__idbFlush() permite ao app esperar a confirmação antes de recarregar. */
+  var esperandoDisco = [];
+  function avisarDisco() {
+    var lista = esperandoDisco; esperandoDisco = [];
+    for (var i = 0; i < lista.length; i++) { try { lista[i](); } catch (e) {} }
+  }
+  window.__idbFlush = function () {
+    if (!db || (!queue.length && !flushing)) return Promise.resolve();
+    return new Promise(function (resolve) {
+      esperandoDisco.push(resolve);
+      scheduleFlush();
+      setTimeout(resolve, 2000);   // teto: nunca travar a interface esperando o disco
+    });
+  };
+  // App indo para segundo plano/fechando: garante a descarga do que está na fila.
+  try {
+    window.addEventListener('pagehide', function () { try { window.__idbFlush(); } catch (e) {} });
+    document.addEventListener('visibilitychange', function () {
+      if (document.visibilityState === 'hidden') { try { window.__idbFlush(); } catch (e) {} }
+    });
+  } catch (e) {}
+
   function scheduleFlush() { if (!flushing) { flushing = true; Promise.resolve().then(flush); } }
   function flush() {
-    if (!db) { flushing = false; return; }
+    if (!db) { flushing = false; avisarDisco(); return; }
     var ops = queue; queue = [];
-    if (!ops.length) { flushing = false; return; }
+    if (!ops.length) { flushing = false; avisarDisco(); return; }
     var tx, store;
     try { tx = db.transaction(IDB_STORE, 'readwrite'); store = tx.objectStore(IDB_STORE); }
     catch (e) { flushing = false; return; }
@@ -77,9 +103,9 @@
         else if (op.t === 'clear') store.clear();
       } catch (e) { _quiet(e); }
     }
-    tx.oncomplete = function () { flushing = false; if (queue.length) scheduleFlush(); };
-    tx.onerror = function () { flushing = false; };
-    tx.onabort = function () { flushing = false; };
+    tx.oncomplete = function () { flushing = false; if (queue.length) scheduleFlush(); else avisarDisco(); };
+    tx.onerror = function () { flushing = false; avisarDisco(); };
+    tx.onabort = function () { flushing = false; avisarDisco(); };
   }
   function enqueue(op) { queue.push(op); scheduleFlush(); }
 
@@ -248,7 +274,12 @@
 
   function registrarDeFato() {
     try {
-      navigator.serviceWorker.register('sw.js', { scope: './' })
+      /* updateViaCache:'none' é o detalhe que evita ficar preso numa versão
+         antiga: sem ele o navegador pode servir o PRÓPRIO sw.js do cache HTTP
+         por até 24h, e o worker velho continua entregando o index.html velho —
+         o app "não atualiza" e um login que depende de código novo falha sem
+         explicação. Com 'none', o sw.js é sempre buscado da rede. */
+      navigator.serviceWorker.register('sw.js', { scope: './', updateViaCache: 'none' })
         .then(function (reg) {
           // Atualização disponível: aplica na próxima abertura, sem interromper.
           reg.addEventListener('updatefound', function () {
@@ -260,10 +291,39 @@
               }
             });
           });
+          /* Procura versão nova ao voltar o foco (e a cada 30 min). O navegador
+             só checa sozinho na navegação; num app instalado que fica aberto por
+             dias, isso significava rodar código velho por dias. NÃO recarregamos
+             sozinhos: o worker novo assume na próxima abertura. */
+          var checar = function () { try { reg.update(); } catch (e) {} };
+          document.addEventListener('visibilitychange', function () {
+            if (document.visibilityState === 'visible') checar();
+          });
+          setInterval(checar, 1800000);
         })
         .catch(function () { /* sw.js ausente: modo arquivo único, tudo normal */ });
+      /* Um worker novo assumindo o controle NÃO recarrega a página: recarga
+         automática no meio do uso é exatamente o "pisca e carrega de novo" que
+         queremos evitar. A versão nova entra na próxima abertura. */
     } catch (e) {}
   }
+  /* Reparo manual, para quando o navegador ficar com uma versão antiga presa:
+     window.__repararCache() apaga os caches, remove os workers e recarrega.
+     Não toca em NENHUM dado de estudo — eles moram no IndexedDB. */
+  window.__repararCache = function () {
+    var tarefas = [];
+    try { if (window.caches) tarefas.push(caches.keys().then(function (n) { return Promise.all(n.map(function (k) { return caches.delete(k); })); })); } catch (e) {}
+    try {
+      if (navigator.serviceWorker && navigator.serviceWorker.getRegistrations) {
+        tarefas.push(navigator.serviceWorker.getRegistrations().then(function (rs) {
+          return Promise.all(rs.map(function (r) { return r.unregister(); }));
+        }));
+      }
+    } catch (e) {}
+    return Promise.all(tarefas).catch(function () {}).then(function () {
+      return window.__idbFlush ? window.__idbFlush() : null;
+    }).then(function () { location.reload(); });
+  };
 
   openIDB()
     .then(function (database) { db = database; return hydrate(); })

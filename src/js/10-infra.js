@@ -134,6 +134,59 @@ var _cloudNotifyHook = null;
 // alterada como "suja" para ser enviada à tabela profile_sections em paralelo ao blob.
 // var (não const) evita erro de zona morta se DB._set rodar antes do SectionSync existir.
 var _sectionMarkHook = null;
+/* ── RECARGA SEGURA E EDUCADA ──────────────────────────────────────────────
+   Havia `location.reload()` espalhado por nove pontos do app. Dois problemas:
+
+   1. RECARREGAR NO MEIO DE UMA DIGITAÇÃO. Uma atualização vinda da nuvem podia
+      reiniciar a tela enquanto você escrevia um card ou preenchia um registro.
+      Aqui a recarga ESPERA você terminar: se há um diálogo aberto ou o cursor
+      está dentro de um campo, ela fica agendada e acontece quando a mão sai.
+
+   2. RECARREGAR ANTES DO DISCO TERMINAR DE GRAVAR. O armazenamento do app é uma
+      fachada síncrona sobre o IndexedDB: `setItem` volta na hora, mas a gravação
+      real acontece logo depois, de forma assíncrona. Um reload imediato podia
+      abortar essa transação — e era assim que a sessão recém-gravada do login
+      às vezes não estava lá na abertura seguinte ("tive que entrar de novo").
+      Agora a recarga espera o disco confirmar (com teto de 2 s, para nunca
+      travar a interface). */
+function _appOcupado() {
+  try {
+    const a = document.activeElement;
+    // offsetParent nulo = o campo não está mais à vista (ex.: o campo de senha do
+    // portão, que continua "focado" depois de o portão fechar). Só um campo VISÍVEL
+    // significa alguém digitando.
+    if (a && a.offsetParent !== null &&
+        (a.tagName === 'INPUT' || a.tagName === 'TEXTAREA' || a.tagName === 'SELECT' || a.isContentEditable)) return true;
+    // qualquer diálogo/modal visível: recarregar aqui descartaria o que a pessoa está fazendo
+    const abertos = document.querySelectorAll('.cards-modal, .profile-modal, .siglas-modal, [role="dialog"]');
+    for (let i = 0; i < abertos.length; i++) {
+      if (abertos[i].style.display && abertos[i].style.display !== 'none') return true;
+    }
+  } catch (e) { _quiet(e, 'app-ocupado'); }
+  return false;
+}
+var _recargaAgendada = null;
+/* opts.imediato = a recarga foi PEDIDA pela pessoa (entrar num perfil, sair da
+   conta, restaurar uma versão). Aí ela não espera nada: só a confirmação do
+   disco. A espera educada é para as recargas que vêm de FORA — uma atualização
+   chegando de outro aparelho no meio do seu trabalho. */
+function recarregarApp(motivo, opts) {
+  const ir = () => {
+    try { console.info('[recarga]', motivo || 'sem motivo declarado'); } catch (e) { _quiet(e, 'recarga-log'); }
+    const disco = (window.__idbFlush ? window.__idbFlush() : Promise.resolve());
+    Promise.resolve(disco).catch(() => {}).then(() => location.reload());
+  };
+  if ((opts && opts.imediato) || !_appOcupado()) { ir(); return; }
+  if (_recargaAgendada) return;                 // já há uma esperando a sua vez
+  try { showToast('Há dados novos — a tela será atualizada quando você terminar aqui'); } catch (e) { _quiet(e, 'recarga-aviso'); }
+  _recargaAgendada = setInterval(() => {
+    if (_appOcupado()) return;
+    clearInterval(_recargaAgendada); _recargaAgendada = null;
+    ir();
+  }, 1500);
+}
+window.recarregarApp = recarregarApp;
+
 // Hook do APAGAMENTO de uma chave do perfil. Apagar também é uma alteração que
 // precisa chegar aos outros aparelhos — mas pelo MANIFESTO (a lista de seções que
 // o perfil tem), não como conteúdo. Marcar a seção como "suja" aqui faria subir

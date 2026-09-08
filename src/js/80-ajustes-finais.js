@@ -781,7 +781,7 @@ else CloudStore.init();
         const ok = await UI.confirm('Voltar todas as preferências de exibição ao padrão?\n\nNenhum dado de estudo é afetado — só a aparência.', { title: '↺ Restaurar exibição', okText: 'Restaurar' });
         if (!ok) return;
         ['reg-mode', 'grade-dens', 'en-view', 'evo-metalines', 'evo-barlabels', 'evo-hidden', 'tec-tabs', 'cfg-group'].forEach(pdel);
-        location.reload();
+        recarregarApp('preferências de exibição restauradas', { imediato: true });
       });
     },
     buildDados() {
@@ -1038,7 +1038,7 @@ else CloudStore.init();
       try { await CS.signOut(scope || 'local'); } catch (_) { _quiet(_); }
       try { sessionStorage.removeItem('diario-estudos:entered'); } catch (_) { _quiet(_); }
       toast('Sessão encerrada ✓');
-      setTimeout(() => location.reload(), 500);
+      setTimeout(() => recarregarApp('saída da conta', { imediato: true }), 500);
     },
     async wipeLocal() {
       const CS = window.CloudStore;
@@ -1122,6 +1122,7 @@ else CloudStore.init();
           <button type="button" class="cloud-menu-item" data-a="push" ${logged ? '' : 'disabled'}><span class="ic">↑</span><span class="tx">Forçar envio deste dispositivo<small>Este aparelho passa a valer como a versão mais recente.</small></span></button>
           <button type="button" class="cloud-menu-item" data-a="pull" ${logged ? '' : 'disabled'}><span class="ic">↓</span><span class="tx">Baixar da nuvem<small>Guarda uma versão de segurança antes de sobrescrever.</small></span></button>
           <button type="button" class="cloud-menu-item" data-a="recon"><span class="ic">🔌</span><span class="tx">Reconectar sessão<small>Renova o acesso sem digitar a senha.</small></span></button>
+          <button type="button" class="cloud-menu-item" data-a="cache"><span class="ic">🔄</span><span class="tx">Atualizar o app (limpar cache)<small>Use se o app parecer travado numa versão antiga ou o login falhar sem motivo. Não apaga nenhum dado de estudo.</small></span></button>
           <div class="cloud-menu-sep"></div>
           <div class="cloud-menu-sec">Segurança da conta</div>
           <div class="cloud-menu-toggle"><div class="tx">Sessão única<small>Ao entrar, derruba a sessão dos outros aparelhos.</small></div>
@@ -1169,6 +1170,7 @@ else CloudStore.init();
           else if (a === 'push') { try { CS._forceBlob = true; CS._pending = true; await CS.flushPending(); toast('Enviado ✓'); } catch (_) { toast('Não foi possível enviar agora.'); } }
           else if (a === 'pull') { try { await CS.pullActiveAndReload(); } catch (_) { _quiet(_); } }
           else if (a === 'recon') { await this.reconnect(true); }
+          else if (a === 'cache') { await this.repararCache(); }
           else if (a === 'cfg') { try { switchScreen('config'); } catch (_) { _quiet(_); } setTimeout(() => ConfigUX.show('conta'), 60); }
           else if (a === 'out1') { this.logout('local'); }
           else if (a === 'outall') { this.logout('global'); }
@@ -1189,6 +1191,20 @@ else CloudStore.init();
         try { await CloudStore.syncOnFocus(); } catch (_) { _quiet(_); }
         this.refreshBadge();
       } catch (err) { toast(err && err.message ? err.message : 'Não foi possível entrar.'); }
+    },
+    /* Versão antiga presa no cache do navegador é a causa clássica de "o app não
+       atualiza" e de login que falha sem explicação: o worker antigo continua
+       servindo o index.html antigo. Isto apaga os caches e os workers e recarrega
+       — os dados de estudo vivem no IndexedDB e não são tocados. Antes de tudo,
+       envia o que estiver pendente, para não recarregar por cima de uma fila. */
+    async repararCache() {
+      const ok = await UI.confirm('Baixar de novo a versão mais recente do app?\n\nO cache do navegador é limpo e a página recarrega. Nenhum dado de estudo é apagado — o que estiver pendente é enviado antes.',
+        { title: '🔄 Atualizar o app', okText: 'Atualizar agora' });
+      if (!ok) return;
+      toast('Atualizando…');
+      try { const CS = window.CloudStore; if (CS && CS.isLoggedIn()) await CS.flushPending(); } catch (_) { _quiet(_); }
+      if (window.__repararCache) { try { await window.__repararCache(); return; } catch (_) { _quiet(_); } }
+      recarregarApp('reparo de cache', { imediato: true });
     },
     setBtn(tone, text) { try { if (window.CloudUI) CloudUI.refreshSyncBtn(tone, text); } catch (_) { _quiet(_); } },
     refreshBadge() {

@@ -2932,12 +2932,20 @@ window.__idbBoot = (function () {
   }
   /* inputs numa única linha: ac / tot [%] — nunca quebram (antes o % pulava de linha) */
   .ts-inputs { display: flex; align-items: center; gap: 5px; min-width: 0; flex-wrap: nowrap; }
+  /* PISO DE 3 DÍGITOS. A caixa é monoespaçada, então `ch` mede exatamente um
+     dígito: 3ch + o padding + as bordas é a largura em que "100" cabe inteiro.
+     min-width vence max-width no CSS, então os limites menores das faixas
+     estreitas (54px, 46px) não conseguem mais espremer a caixa abaixo disso —
+     era o que fazia o terceiro dígito sumir no celular.
+     appearance:none tira as setinhas de incremento (e o input agora é text). */
   .ts-num {
-    flex: 1 1 0; width: auto; min-width: 0; max-width: 62px;
+    flex: 1 1 0; width: auto; min-width: calc(3ch + 14px); max-width: 62px;
     text-align: center; padding: 6px 4px; border-radius: 8px;
     border: 1px solid var(--border); background: var(--surface);
     font-family: 'Space Mono', ui-monospace, SFMono-Regular, Menlo, monospace; font-size: var(--fs-xs); color: var(--text);
+    appearance: none; -webkit-appearance: none; -moz-appearance: textfield;
   }
+  .ts-num::-webkit-outer-spin-button, .ts-num::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
   .ts-num:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-ring); }
   .ts-slash { color: var(--text-faint); font-weight: 700; font-size: var(--fs-xs); flex-shrink: 0; }
   .ts-pct {
@@ -10419,6 +10427,59 @@ var _cloudNotifyHook = null;
 // alterada como "suja" para ser enviada à tabela profile_sections em paralelo ao blob.
 // var (não const) evita erro de zona morta se DB._set rodar antes do SectionSync existir.
 var _sectionMarkHook = null;
+/* ── RECARGA SEGURA E EDUCADA ──────────────────────────────────────────────
+   Havia `location.reload()` espalhado por nove pontos do app. Dois problemas:
+
+   1. RECARREGAR NO MEIO DE UMA DIGITAÇÃO. Uma atualização vinda da nuvem podia
+      reiniciar a tela enquanto você escrevia um card ou preenchia um registro.
+      Aqui a recarga ESPERA você terminar: se há um diálogo aberto ou o cursor
+      está dentro de um campo, ela fica agendada e acontece quando a mão sai.
+
+   2. RECARREGAR ANTES DO DISCO TERMINAR DE GRAVAR. O armazenamento do app é uma
+      fachada síncrona sobre o IndexedDB: `setItem` volta na hora, mas a gravação
+      real acontece logo depois, de forma assíncrona. Um reload imediato podia
+      abortar essa transação — e era assim que a sessão recém-gravada do login
+      às vezes não estava lá na abertura seguinte ("tive que entrar de novo").
+      Agora a recarga espera o disco confirmar (com teto de 2 s, para nunca
+      travar a interface). */
+function _appOcupado() {
+  try {
+    const a = document.activeElement;
+    // offsetParent nulo = o campo não está mais à vista (ex.: o campo de senha do
+    // portão, que continua "focado" depois de o portão fechar). Só um campo VISÍVEL
+    // significa alguém digitando.
+    if (a && a.offsetParent !== null &&
+        (a.tagName === 'INPUT' || a.tagName === 'TEXTAREA' || a.tagName === 'SELECT' || a.isContentEditable)) return true;
+    // qualquer diálogo/modal visível: recarregar aqui descartaria o que a pessoa está fazendo
+    const abertos = document.querySelectorAll('.cards-modal, .profile-modal, .siglas-modal, [role="dialog"]');
+    for (let i = 0; i < abertos.length; i++) {
+      if (abertos[i].style.display && abertos[i].style.display !== 'none') return true;
+    }
+  } catch (e) { _quiet(e, 'app-ocupado'); }
+  return false;
+}
+var _recargaAgendada = null;
+/* opts.imediato = a recarga foi PEDIDA pela pessoa (entrar num perfil, sair da
+   conta, restaurar uma versão). Aí ela não espera nada: só a confirmação do
+   disco. A espera educada é para as recargas que vêm de FORA — uma atualização
+   chegando de outro aparelho no meio do seu trabalho. */
+function recarregarApp(motivo, opts) {
+  const ir = () => {
+    try { console.info('[recarga]', motivo || 'sem motivo declarado'); } catch (e) { _quiet(e, 'recarga-log'); }
+    const disco = (window.__idbFlush ? window.__idbFlush() : Promise.resolve());
+    Promise.resolve(disco).catch(() => {}).then(() => location.reload());
+  };
+  if ((opts && opts.imediato) || !_appOcupado()) { ir(); return; }
+  if (_recargaAgendada) return;                 // já há uma esperando a sua vez
+  try { showToast('Há dados novos — a tela será atualizada quando você terminar aqui'); } catch (e) { _quiet(e, 'recarga-aviso'); }
+  _recargaAgendada = setInterval(() => {
+    if (_appOcupado()) return;
+    clearInterval(_recargaAgendada); _recargaAgendada = null;
+    ir();
+  }, 1500);
+}
+window.recarregarApp = recarregarApp;
+
 // Hook do APAGAMENTO de uma chave do perfil. Apagar também é uma alteração que
 // precisa chegar aos outros aparelhos — mas pelo MANIFESTO (a lista de seções que
 // o perfil tem), não como conteúdo. Marcar a seção como "suja" aqui faria subir
@@ -12379,12 +12440,19 @@ const ProfileManager = {
       if (manter.has(sub) || local.indexOf(sub) !== -1) continue;
       toRemove.push(k);
     }
-    toRemove.forEach(k => localStorage.removeItem(k));
-    Object.keys(dataObj || {}).forEach(sub => {
+    // Conta o que REALMENTE mudou: é o que permite a quem chamou decidir se vale
+    // recarregar a tela. Recarregar "por precaução" era o que fazia o app piscar.
+    let mudou = 0;
+    const vindas = dataObj || {};
+    toRemove.forEach(k => { if (!(k.slice(prefix.length) in vindas)) { localStorage.removeItem(k); mudou++; } });
+    Object.keys(vindas).forEach(sub => {
       if (sub.startsWith('u:')) return;
       if (manter.has(sub) || local.indexOf(sub) !== -1) return;
-      localStorage.setItem(prefix + sub, dataObj[sub]);
+      if (localStorage.getItem(prefix + sub) === vindas[sub]) return;
+      localStorage.setItem(prefix + sub, vindas[sub]);
+      mudou++;
     });
+    return mudou;
   }
 };
 
@@ -20513,9 +20581,9 @@ const EstudoNovoScreen = {
           <div class="track-stage">
             <div class="ts-label">${def.label}</div>
             <div class="ts-inputs">
-              <input type="number" inputmode="numeric" class="ts-num ts-ac" data-stage="${def.key}" data-part="acertos" value="${acertos ?? ''}" placeholder="ac." min="0">
+              <input type="text" inputmode="numeric" maxlength="4" class="ts-num ts-ac" data-stage="${def.key}" data-part="acertos" value="${acertos ?? ''}" placeholder="ac." aria-label="Acertos — ${def.label}">
               <span class="ts-slash">/</span>
-              <input type="number" inputmode="numeric" class="ts-num ts-tot" data-stage="${def.key}" data-part="total" value="${total ?? ''}" placeholder="tot." min="0">
+              <input type="text" inputmode="numeric" maxlength="4" class="ts-num ts-tot" data-stage="${def.key}" data-part="total" value="${total ?? ''}" placeholder="tot." aria-label="Total de questões — ${def.label}">
               <span class="ts-pct ${toneCls}" data-pct="${def.key}">${pct === null ? '—' : formatPct(pct) + '%'}</span>
             </div>
           </div>`;
@@ -20641,8 +20709,16 @@ const EstudoNovoScreen = {
       const itemId = row.dataset.id;
       const stageKey = input.dataset.stage;
       const part = input.dataset.part;
+      /* type="text" + inputmode="numeric" (o mesmo padrão da duração na Grade):
+         tira as setinhas de incremento — que roubavam largura da caixa e mudavam
+         o valor num giro de roda por engano — e mantém o teclado numérico no
+         celular. Só dígitos entram, então nada de "e", "+" ou "-". */
+      input.addEventListener('input', () => {
+        const limpo = input.value.replace(/\D/g, '').slice(0, 4);
+        if (limpo !== input.value) input.value = limpo;
+      });
       input.addEventListener('change', () => {
-        const value = input.value === '' ? null : Math.max(0, parseInt(input.value, 10));
+        const value = input.value === '' ? null : Math.max(0, parseInt(input.value, 10) || 0);
         DB.updateTrackStage(subject, itemId, stageKey, part, value);
         this.renderTrack(); // atualiza o % da etapa e as médias no topo
       });
@@ -23544,7 +23620,45 @@ const AutoTeste = {
         localStorage.getItem(pfx + 'p:pl:grade-template'));
       this._ok('blob aplica o resto normalmente', localStorage.getItem(pfx + 'p:pl:leis') === 'NUVEM');
 
-      // 7. toda escrita crua avisa as duas camadas de sincronização
+      // 7. A REVISÃO DO MANIFESTO tem de ser guardada como a de qualquer seção.
+      //    Sem isso, a nuvem parecia ter novidade para sempre e o app recarregava
+      //    sozinho a cada foco na janela — a tela "piscando".
+      const prep = SectionSync._prepare([
+        { section: '__manifest', data: { v: 2, sections: ['p:pl:entries'] }, rev: 7 },
+        { section: 'p:pl:entries', data: [1, 2], rev: 4 }
+      ]);
+      this._ok('_prepare lê a revisão do manifesto', prep.ok && prep.manifestoRev === 7, prep.manifestoRev);
+      criadas.push(pfx + 'p:pl:entries');
+      SectionSync._applyMap(PID, prep.map, prep.revs, [], prep.manifestoRev);
+      const revsPos = SectionSync._getRevs(PID);
+      this._ok('a revisão do manifesto fica gravada',
+        revsPos['__manifest'] && revsPos['__manifest'].rev === 7, revsPos['__manifest']);
+
+      // 8. baixar o MESMO conteúdo não conta como mudança (logo, não recarrega)
+      const semMudanca = SectionSync._applyMap(PID, prep.map, prep.revs, [], prep.manifestoRev);
+      this._ok('download idêntico não reporta mudança', semMudanca === 0, semMudanca);
+      const comMudanca = SectionSync._applyMap(PID, { 'p:pl:entries': '[9]' }, { 'p:pl:entries': 5 }, [], 8);
+      this._ok('download diferente reporta mudança', comMudanca === 1, comMudanca);
+
+      // 9. o mesmo para o caminho do blob
+      const blobIgual = ProfileManager.restorePayloadInto(PID, { 'p:pl:entries': '[9]' }, []);
+      this._ok('blob idêntico não reporta mudança', blobIgual === 0, blobIgual);
+      const blobDif = ProfileManager.restorePayloadInto(PID, { 'p:pl:entries': '[10]' }, []);
+      this._ok('blob diferente reporta mudança', blobDif === 1, blobDif);
+
+      // 10. a recarga espera a pessoa terminar o que está fazendo
+      this._ok('app livre não está ocupado', _appOcupado() === false);
+      const campo = document.createElement('input');
+      document.body.appendChild(campo); campo.focus();
+      const ocupadoComFoco = _appOcupado();
+      campo.blur(); campo.remove();
+      this._ok('digitando num campo conta como ocupado', ocupadoComFoco === true);
+      const dlg = document.getElementById('ui-modal');
+      let ocupadoComModal = null;
+      if (dlg) { const antes = dlg.style.display; dlg.style.display = 'flex'; ocupadoComModal = _appOcupado(); dlg.style.display = antes; }
+      this._ok('diálogo aberto conta como ocupado', ocupadoComModal === true, ocupadoComModal);
+
+      // 11. toda escrita crua avisa as duas camadas de sincronização
       const marcadas = [];
       const mHook = _sectionMarkHook, cHook = _cloudNotifyHook, dHook = _sectionDropHook;
       let avisouNuvem = 0, apagou = null;
@@ -28956,6 +29070,13 @@ const ProfileUI = {
   },
 
   async enterProfile(id) {
+    // Entrar no MESMO perfil que já está aberto neste aparelho e não haver
+    // nenhuma novidade na nuvem é o caso mais comum de todos — e era justamente
+    // o que provocava o recarregamento visível ("a tela pisca e carrega de
+    // novo") logo depois do login. Guardamos o estado de partida para saber, no
+    // fim, se a recarga é mesmo necessária.
+    const jaEraOAtivo = (ProfileManager.getActiveProfileId() === id);
+    let mudou = 1;   // pessimista: sem informação, recarrega (comportamento antigo)
     if (window.CloudStore && CloudStore.isLoggedIn()) {
       showToast('Carregando perfil...');
       try {
@@ -28968,6 +29089,7 @@ const ProfileUI = {
         if (window.SectionSync && SectionSync.readEnabled) {
           porSecao = await SectionSync.hydrate(id);
           if (porSecao.ok) {
+            mudou = porSecao.mudou || 0;
             try { ProfileManager.setRev(id, await CloudStore._fetchRev(id) || ProfileManager.getRev(id)); } catch (_) { _quiet(_); }
           } else {
             console.warn('[SectionSync] entrando pelo blob (motivo:', porSecao.motivo + ')');
@@ -28980,7 +29102,7 @@ const ProfileUI = {
           let preservar = [];
           try { if (window.SectionSync) preservar = await SectionSync.flushBeforeRead(id); } catch (e) { _quiet(e, 'entrar-pendencia'); }
           const res = await CloudStore.fetchPayload(id);
-          ProfileManager.restorePayloadInto(id, (res.payload && res.payload.data) || {}, preservar);
+          mudou = ProfileManager.restorePayloadInto(id, (res.payload && res.payload.data) || {}, preservar);
           ProfileManager.setRev(id, res.rev);
         }
         ProfileManager.setActiveProfile(id);
@@ -29000,7 +29122,19 @@ const ProfileUI = {
     }
     try { sessionStorage.setItem(this.SESSION_KEY, id); } catch (e) { _quiet(e); }
     this.setLastProfile(id);   // lembra este perfil para esta conta (entra direto no próximo login)
-    location.reload();
+    /* SEM RECARGA quando não há o que recarregar. As telas já foram montadas na
+       abertura a partir DESTE mesmo perfil; se a nuvem não trouxe uma linha
+       sequer diferente, o conteúdo em tela já é o correto e um location.reload()
+       só serviria para piscar. Qualquer outra situação (perfil diferente, dado
+       novo, plano B) continua recarregando, que é o caminho seguro. */
+    if (jaEraOAtivo && mudou === 0) {
+      this._entering = false;
+      this.hideGate();
+      this.renderChip();
+      try { DB.checarEspaco(); } catch (_) { _quiet(_); }
+      return;
+    }
+    recarregarApp('entrada no perfil com dados novos', { imediato: true });
   },
 
   openModal(id) {
@@ -29099,7 +29233,7 @@ const ProfileUI = {
         await CloudStore.saveActive();
         $id('profile-modal').style.display = 'none';
         try { sessionStorage.setItem(this.SESSION_KEY, row.id); } catch (e) { _quiet(e); }
-        location.reload();
+        recarregarApp('perfil novo criado', { imediato: true });
       }
     } catch (err) {
       showToast('Erro: ' + (err.message || ''));
@@ -29121,7 +29255,7 @@ const ProfileUI = {
     ProfileManager.saveProfiles(ProfileManager.getProfiles().filter(x => x.id !== id));
     $id('profile-modal').style.display = 'none';
     const wasActive = ProfileManager.getActiveProfileId() === id;
-    if (wasActive) { try { sessionStorage.removeItem(this.SESSION_KEY); } catch (e) { _quiet(e); } location.reload(); return; }
+    if (wasActive) { try { sessionStorage.removeItem(this.SESSION_KEY); } catch (e) { _quiet(e); } recarregarApp('perfil ativo excluído', { imediato: true }); return; }
     this.refreshStage();
     showToast('Perfil excluído');
   },
@@ -29228,7 +29362,7 @@ const ProfileUI = {
     // Recarrega para um estado 100% limpo. Sem isto o app continuava na tela
     // atual (logado por baixo), só com "Offline" no indicador — o reload faz o
     // boot() reabrir a tela de login corretamente.
-    setTimeout(() => location.reload(), 200);
+    setTimeout(() => recarregarApp('saída da conta pelo portão', { imediato: true }), 200);
   },
 
   // Trocar de perfil: mostra o seletor de propósito (não auto-entra). O
@@ -29683,11 +29817,12 @@ const CloudStore = {
       // enviado algo indesejado, você consegue restaurar em Configurações.
       try { if (window.VersionHistory) await VersionHistory.snapshot('antes de baixar da nuvem'); } catch (e) { _quiet(e); }
       this._applying = true;
-      ProfileManager.restorePayloadInto(id, (res.payload && res.payload.data) || {}, preservar);
+      const mudou = ProfileManager.restorePayloadInto(id, (res.payload && res.payload.data) || {}, preservar);
       ProfileManager.setRev(id, res.rev);
       this._applying = false;
+      if (!mudou) { console.info('[CloudStore] nuvem conferida: nada mudou, sem recarregar'); return; }
       showToast('Sincronizado da nuvem ✓');
-      setTimeout(() => location.reload(), 500);
+      recarregarApp('dados novos da nuvem (blob)');
     } catch (e) { this._applying = false; console.error('pullActiveAndReload', e); }
   },
   // Salva o estado atual na nuvem ANTES de recarregar a página. Essencial: sem isto,
@@ -29704,7 +29839,7 @@ const CloudStore = {
         }
       } catch (e) { console.error('saveThenReload', e); showToast('Aviso: não foi possível salvar na nuvem agora. Verifique a internet.'); }
     }
-    location.reload();
+    recarregarApp('troca que exige recarregar a tela', { imediato: true });
   },
 
   subscribeRealtime() {
@@ -29735,10 +29870,10 @@ const CloudStore = {
     if (!window.SectionSync || !SectionSync.readEnabled) return;
     if (SectionSync._pushing || SectionSync._dirty.size) return;
     try {
-      if (await SectionSync.hasRemoteUpdates(pid)) {
-        showToast('Atualizado em tempo real ✓');
-        await SectionSync.pullAndReload();
-      }
+      // O aviso e a recarga saíam ANTES de saber se havia mudança de verdade —
+      // era o "Atualizado em tempo real ✓" seguido de um reload à toa. Agora
+      // quem avisa é o pullAndReload, e só quando alguma seção realmente mudou.
+      if (await SectionSync.hasRemoteUpdates(pid)) await SectionSync.pullAndReload();
     } catch (_) { _quiet(_); }
   },
   _unsub() {
@@ -29755,8 +29890,7 @@ const CloudStore = {
       // Na Fase 2 quem manda na leitura é o canal das seções — o blob chegar primeiro
       // não deve provocar uma recarga com dados mais velhos que os das seções.
       if (window.SectionSync && SectionSync.readEnabled) return;
-      showToast('Atualizado em tempo real ✓');
-      this.pullActiveAndReload();
+      this.pullActiveAndReload();   // ele mesmo avisa (e só recarrega) se algo mudou
     }
   }
 };
@@ -30328,9 +30462,9 @@ const SectionSync = {
   // Monta o mapa seção→texto e valida. NÃO escreve nada.
   _prepare(rows) {
     const map = {}, revs = {};
-    let manifesto = null;
+    let manifesto = null, manifestoRev = 0;
     (rows || []).forEach(r => {
-      if (r.section === this.MANIFEST) { manifesto = r.data || null; return; }
+      if (r.section === this.MANIFEST) { manifesto = r.data || null; manifestoRev = r.rev || 0; return; }
       const txt = this._decode(r.data);
       if (txt === null) return;                  // linha ilegível → tratada como ausente
       map[r.section] = txt;
@@ -30345,33 +30479,44 @@ const SectionSync = {
     // O manifesto manda: o que não está nele é resto de versão anterior e é descartado.
     const finalMap = {};
     manifesto.sections.forEach(s => { finalMap[s] = map[s]; });
-    return { ok: true, map: finalMap, revs, manifesto, extras: secoes.filter(s => manifesto.sections.indexOf(s) === -1) };
+    return { ok: true, map: finalMap, revs, manifesto, manifestoRev, extras: secoes.filter(s => manifesto.sections.indexOf(s) === -1) };
   },
   // Escreve o mapa no localStorage do perfil. Preserva o histórico de versões local
   // (vhist) — ao contrário do restore do blob, que apagava tudo do namespace.
-  _applyMap(id, map, revs, preservar) {
+  _applyMap(id, map, revs, preservar, manifestoRev) {
     const prefix = 'diario-estudos:u:' + id + ':';
     /* REGRA DE OURO: o download NUNCA apaga uma alteração que ainda não subiu.
        As seções de `preservar` mantêm o valor deste aparelho e continuam na fila
        de envio; todo o resto é substituído pelo que veio da nuvem. */
     const manter = new Set(preservar || []);
     const antigos = this._getRevs(id);
+    /* CONTA O QUE REALMENTE MUDOU. Sem isso, quem chamou não tem como saber se
+       valeu a pena recarregar a tela — e recarregar "por precaução" a cada
+       download era a origem do pisca-pisca. */
+    let mudou = 0;
     const apagar = [];
     for (let i = 0; i < localStorage.length; i++) {
       const k = localStorage.key(i);
       if (!k || k.indexOf(prefix) !== 0) continue;
       const sec = this.sectionForKey(k, prefix);
-      if (sec && !manter.has(sec)) apagar.push(k);
+      if (sec && !manter.has(sec) && !(sec in map)) apagar.push(k);   // sumiu na nuvem
     }
-    apagar.forEach(k => localStorage.removeItem(k));
+    apagar.forEach(k => { localStorage.removeItem(k); mudou++; });
     const novoRev = {};
     manter.forEach(sec => { if (antigos[sec]) novoRev[sec] = antigos[sec]; }); // segue "suja" e será reenviada
     Object.keys(map).forEach(sec => {
       if (manter.has(sec)) return;
       const txt = map[sec];
-      localStorage.setItem(prefix + sec, txt);
+      if (localStorage.getItem(prefix + sec) !== txt) { localStorage.setItem(prefix + sec, txt); mudou++; }
       novoRev[sec] = { rev: (revs && revs[sec]) || 1, hash: this._hash(txt) };
     });
+    /* A REVISÃO DO MANIFESTO precisa ser guardada como a de qualquer outra seção.
+       Ela não era — e como hasRemoteUpdates compara TODAS as linhas remotas com as
+       locais, o manifesto (rev 7 na nuvem, 0 aqui) anunciava "tem novidade" para
+       sempre. Cada foco na janela disparava um download e um location.reload():
+       era exatamente a tela piscando e recarregando sozinha. */
+    if (manifestoRev) novoRev[this.MANIFEST] = { rev: manifestoRev, hash: this._hash(Object.keys(map).sort().join('|')) };
+    else if (antigos[this.MANIFEST]) novoRev[this.MANIFEST] = antigos[this.MANIFEST];
     // Alinha a contabilidade local com o que acabou de vir: sem isto, a próxima
     // rodada acharia tudo "sujo" e re-subiria o perfil inteiro sem necessidade.
     try { localStorage.setItem('diario-estudos:u:' + id + ':__secrev', JSON.stringify(novoRev)); } catch (_) { _quiet(_); }
@@ -30383,6 +30528,7 @@ const SectionSync = {
       if (manter.size) localStorage.setItem(pk, JSON.stringify([...manter]));
       else localStorage.removeItem(pk);
     } catch (_) { _quiet(_); }
+    return mudou;
   },
   // Fluxo completo de leitura. Retorna { ok, motivo, seções }.
   async hydrate(id, opts) {
@@ -30402,7 +30548,7 @@ const SectionSync = {
       if (!prep.ok) { res.motivo = prep.motivo; return this._saveLast(res); }
       // Rede de segurança antes de sobrescrever o estado local.
       try { if (window.VersionHistory && ProfileManager.getActiveProfileId() === id) await VersionHistory.snapshot('antes de baixar por seção'); } catch (_) { _quiet(_); }
-      this._applyMap(id, prep.map, prep.revs, preservar);
+      res.mudou = this._applyMap(id, prep.map, prep.revs, preservar, prep.manifestoRev);
       res.ok = true; res.seções = Object.keys(prep.map).length;
       if (preservar.length) res.preservadas = preservar;   // ficaram com o valor local, ainda na fila
       if (prep.extras && prep.extras.length) res.ignoradas = prep.extras;
@@ -30431,14 +30577,18 @@ const SectionSync = {
     return novidade;
   },
   // Baixa por seção e recarrega a tela (equivalente ao pullActiveAndReload do blob).
+  /* Baixa por seção e recarrega a tela — MAS SÓ SE ALGO MUDOU DE VERDADE.
+     Antes recarregava sempre que a checagem dissesse "pode haver novidade", e
+     bastava um falso positivo para a tela reiniciar do nada no meio do uso. */
   async pullAndReload() {
     const id = ProfileManager.getActiveProfileId(); if (!id) return false;
     CloudStore._applying = true;
     const r = await this.hydrate(id);
     CloudStore._applying = false;
     if (!r.ok) return false;
+    if (!r.mudou) { console.info('[SectionSync] nuvem conferida: nada mudou, sem recarregar'); return true; }
     showToast('Sincronizado da nuvem ✓');
-    setTimeout(() => location.reload(), 500);
+    recarregarApp('dados novos da nuvem');
     return true;
   },
   // Reenvia TUDO no formato atual (v2). Use uma vez ao migrar para a Fase 2, ou
@@ -31181,7 +31331,7 @@ window.SessionLock = {
     const e = this._els();
     if (e.take) e.take.addEventListener('click', () => { const origin = this._origin; this.unblock(); this._takeoverFns.forEach(fn => { try { fn(origin); } catch (_) { _quiet(_); } }); });
     const r = document.getElementById('single-session-reload');
-    if (r) r.addEventListener('click', () => location.reload());
+    if (r) r.addEventListener('click', () => recarregarApp('recarga pedida no aviso de sessão', { imediato: true }));
   }
 };
 
@@ -31492,7 +31642,7 @@ const VersionHistoryUI = {
         const done = await VersionHistory.restore(id, ts);
         if (!done) { showToast('Não foi possível restaurar esta versão'); return; }
         try { await CloudStore.flushPending(); } catch (_) { _quiet(_); }
-        setTimeout(() => location.reload(), 600);
+        setTimeout(() => recarregarApp('versão restaurada', { imediato: true }), 600);
       });
     });
   }
@@ -32895,7 +33045,7 @@ else CloudStore.init();
         const ok = await UI.confirm('Voltar todas as preferências de exibição ao padrão?\n\nNenhum dado de estudo é afetado — só a aparência.', { title: '↺ Restaurar exibição', okText: 'Restaurar' });
         if (!ok) return;
         ['reg-mode', 'grade-dens', 'en-view', 'evo-metalines', 'evo-barlabels', 'evo-hidden', 'tec-tabs', 'cfg-group'].forEach(pdel);
-        location.reload();
+        recarregarApp('preferências de exibição restauradas', { imediato: true });
       });
     },
     buildDados() {
@@ -33152,7 +33302,7 @@ else CloudStore.init();
       try { await CS.signOut(scope || 'local'); } catch (_) { _quiet(_); }
       try { sessionStorage.removeItem('diario-estudos:entered'); } catch (_) { _quiet(_); }
       toast('Sessão encerrada ✓');
-      setTimeout(() => location.reload(), 500);
+      setTimeout(() => recarregarApp('saída da conta', { imediato: true }), 500);
     },
     async wipeLocal() {
       const CS = window.CloudStore;
@@ -33236,6 +33386,7 @@ else CloudStore.init();
           <button type="button" class="cloud-menu-item" data-a="push" ${logged ? '' : 'disabled'}><span class="ic">↑</span><span class="tx">Forçar envio deste dispositivo<small>Este aparelho passa a valer como a versão mais recente.</small></span></button>
           <button type="button" class="cloud-menu-item" data-a="pull" ${logged ? '' : 'disabled'}><span class="ic">↓</span><span class="tx">Baixar da nuvem<small>Guarda uma versão de segurança antes de sobrescrever.</small></span></button>
           <button type="button" class="cloud-menu-item" data-a="recon"><span class="ic">🔌</span><span class="tx">Reconectar sessão<small>Renova o acesso sem digitar a senha.</small></span></button>
+          <button type="button" class="cloud-menu-item" data-a="cache"><span class="ic">🔄</span><span class="tx">Atualizar o app (limpar cache)<small>Use se o app parecer travado numa versão antiga ou o login falhar sem motivo. Não apaga nenhum dado de estudo.</small></span></button>
           <div class="cloud-menu-sep"></div>
           <div class="cloud-menu-sec">Segurança da conta</div>
           <div class="cloud-menu-toggle"><div class="tx">Sessão única<small>Ao entrar, derruba a sessão dos outros aparelhos.</small></div>
@@ -33283,6 +33434,7 @@ else CloudStore.init();
           else if (a === 'push') { try { CS._forceBlob = true; CS._pending = true; await CS.flushPending(); toast('Enviado ✓'); } catch (_) { toast('Não foi possível enviar agora.'); } }
           else if (a === 'pull') { try { await CS.pullActiveAndReload(); } catch (_) { _quiet(_); } }
           else if (a === 'recon') { await this.reconnect(true); }
+          else if (a === 'cache') { await this.repararCache(); }
           else if (a === 'cfg') { try { switchScreen('config'); } catch (_) { _quiet(_); } setTimeout(() => ConfigUX.show('conta'), 60); }
           else if (a === 'out1') { this.logout('local'); }
           else if (a === 'outall') { this.logout('global'); }
@@ -33303,6 +33455,20 @@ else CloudStore.init();
         try { await CloudStore.syncOnFocus(); } catch (_) { _quiet(_); }
         this.refreshBadge();
       } catch (err) { toast(err && err.message ? err.message : 'Não foi possível entrar.'); }
+    },
+    /* Versão antiga presa no cache do navegador é a causa clássica de "o app não
+       atualiza" e de login que falha sem explicação: o worker antigo continua
+       servindo o index.html antigo. Isto apaga os caches e os workers e recarrega
+       — os dados de estudo vivem no IndexedDB e não são tocados. Antes de tudo,
+       envia o que estiver pendente, para não recarregar por cima de uma fila. */
+    async repararCache() {
+      const ok = await UI.confirm('Baixar de novo a versão mais recente do app?\n\nO cache do navegador é limpo e a página recarrega. Nenhum dado de estudo é apagado — o que estiver pendente é enviado antes.',
+        { title: '🔄 Atualizar o app', okText: 'Atualizar agora' });
+      if (!ok) return;
+      toast('Atualizando…');
+      try { const CS = window.CloudStore; if (CS && CS.isLoggedIn()) await CS.flushPending(); } catch (_) { _quiet(_); }
+      if (window.__repararCache) { try { await window.__repararCache(); return; } catch (_) { _quiet(_); } }
+      recarregarApp('reparo de cache', { imediato: true });
     },
     setBtn(tone, text) { try { if (window.CloudUI) CloudUI.refreshSyncBtn(tone, text); } catch (_) { _quiet(_); } },
     refreshBadge() {
@@ -33407,11 +33573,37 @@ else CloudStore.init();
   }
 
   // ---- write-through assíncrono (lote por microtask) ----
+  /* Quem está esperando o DISCO confirmar. `setItem` volta na hora (cache em
+     memória), mas a gravação real no IndexedDB acontece depois. Recarregar a
+     página nesse intervalo ABORTA a transação — e era assim que a sessão
+     recém-gravada do login às vezes não estava lá na abertura seguinte.
+     window.__idbFlush() permite ao app esperar a confirmação antes de recarregar. */
+  var esperandoDisco = [];
+  function avisarDisco() {
+    var lista = esperandoDisco; esperandoDisco = [];
+    for (var i = 0; i < lista.length; i++) { try { lista[i](); } catch (e) {} }
+  }
+  window.__idbFlush = function () {
+    if (!db || (!queue.length && !flushing)) return Promise.resolve();
+    return new Promise(function (resolve) {
+      esperandoDisco.push(resolve);
+      scheduleFlush();
+      setTimeout(resolve, 2000);   // teto: nunca travar a interface esperando o disco
+    });
+  };
+  // App indo para segundo plano/fechando: garante a descarga do que está na fila.
+  try {
+    window.addEventListener('pagehide', function () { try { window.__idbFlush(); } catch (e) {} });
+    document.addEventListener('visibilitychange', function () {
+      if (document.visibilityState === 'hidden') { try { window.__idbFlush(); } catch (e) {} }
+    });
+  } catch (e) {}
+
   function scheduleFlush() { if (!flushing) { flushing = true; Promise.resolve().then(flush); } }
   function flush() {
-    if (!db) { flushing = false; return; }
+    if (!db) { flushing = false; avisarDisco(); return; }
     var ops = queue; queue = [];
-    if (!ops.length) { flushing = false; return; }
+    if (!ops.length) { flushing = false; avisarDisco(); return; }
     var tx, store;
     try { tx = db.transaction(IDB_STORE, 'readwrite'); store = tx.objectStore(IDB_STORE); }
     catch (e) { flushing = false; return; }
@@ -33423,9 +33615,9 @@ else CloudStore.init();
         else if (op.t === 'clear') store.clear();
       } catch (e) { _quiet(e); }
     }
-    tx.oncomplete = function () { flushing = false; if (queue.length) scheduleFlush(); };
-    tx.onerror = function () { flushing = false; };
-    tx.onabort = function () { flushing = false; };
+    tx.oncomplete = function () { flushing = false; if (queue.length) scheduleFlush(); else avisarDisco(); };
+    tx.onerror = function () { flushing = false; avisarDisco(); };
+    tx.onabort = function () { flushing = false; avisarDisco(); };
   }
   function enqueue(op) { queue.push(op); scheduleFlush(); }
 
@@ -33594,7 +33786,12 @@ else CloudStore.init();
 
   function registrarDeFato() {
     try {
-      navigator.serviceWorker.register('sw.js', { scope: './' })
+      /* updateViaCache:'none' é o detalhe que evita ficar preso numa versão
+         antiga: sem ele o navegador pode servir o PRÓPRIO sw.js do cache HTTP
+         por até 24h, e o worker velho continua entregando o index.html velho —
+         o app "não atualiza" e um login que depende de código novo falha sem
+         explicação. Com 'none', o sw.js é sempre buscado da rede. */
+      navigator.serviceWorker.register('sw.js', { scope: './', updateViaCache: 'none' })
         .then(function (reg) {
           // Atualização disponível: aplica na próxima abertura, sem interromper.
           reg.addEventListener('updatefound', function () {
@@ -33606,10 +33803,39 @@ else CloudStore.init();
               }
             });
           });
+          /* Procura versão nova ao voltar o foco (e a cada 30 min). O navegador
+             só checa sozinho na navegação; num app instalado que fica aberto por
+             dias, isso significava rodar código velho por dias. NÃO recarregamos
+             sozinhos: o worker novo assume na próxima abertura. */
+          var checar = function () { try { reg.update(); } catch (e) {} };
+          document.addEventListener('visibilitychange', function () {
+            if (document.visibilityState === 'visible') checar();
+          });
+          setInterval(checar, 1800000);
         })
         .catch(function () { /* sw.js ausente: modo arquivo único, tudo normal */ });
+      /* Um worker novo assumindo o controle NÃO recarrega a página: recarga
+         automática no meio do uso é exatamente o "pisca e carrega de novo" que
+         queremos evitar. A versão nova entra na próxima abertura. */
     } catch (e) {}
   }
+  /* Reparo manual, para quando o navegador ficar com uma versão antiga presa:
+     window.__repararCache() apaga os caches, remove os workers e recarrega.
+     Não toca em NENHUM dado de estudo — eles moram no IndexedDB. */
+  window.__repararCache = function () {
+    var tarefas = [];
+    try { if (window.caches) tarefas.push(caches.keys().then(function (n) { return Promise.all(n.map(function (k) { return caches.delete(k); })); })); } catch (e) {}
+    try {
+      if (navigator.serviceWorker && navigator.serviceWorker.getRegistrations) {
+        tarefas.push(navigator.serviceWorker.getRegistrations().then(function (rs) {
+          return Promise.all(rs.map(function (r) { return r.unregister(); }));
+        }));
+      }
+    } catch (e) {}
+    return Promise.all(tarefas).catch(function () {}).then(function () {
+      return window.__idbFlush ? window.__idbFlush() : null;
+    }).then(function () { location.reload(); });
+  };
 
   openIDB()
     .then(function (database) { db = database; return hydrate(); })

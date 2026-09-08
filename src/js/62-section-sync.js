@@ -369,9 +369,9 @@ const SectionSync = {
   // Monta o mapa seção→texto e valida. NÃO escreve nada.
   _prepare(rows) {
     const map = {}, revs = {};
-    let manifesto = null;
+    let manifesto = null, manifestoRev = 0;
     (rows || []).forEach(r => {
-      if (r.section === this.MANIFEST) { manifesto = r.data || null; return; }
+      if (r.section === this.MANIFEST) { manifesto = r.data || null; manifestoRev = r.rev || 0; return; }
       const txt = this._decode(r.data);
       if (txt === null) return;                  // linha ilegível → tratada como ausente
       map[r.section] = txt;
@@ -386,33 +386,44 @@ const SectionSync = {
     // O manifesto manda: o que não está nele é resto de versão anterior e é descartado.
     const finalMap = {};
     manifesto.sections.forEach(s => { finalMap[s] = map[s]; });
-    return { ok: true, map: finalMap, revs, manifesto, extras: secoes.filter(s => manifesto.sections.indexOf(s) === -1) };
+    return { ok: true, map: finalMap, revs, manifesto, manifestoRev, extras: secoes.filter(s => manifesto.sections.indexOf(s) === -1) };
   },
   // Escreve o mapa no localStorage do perfil. Preserva o histórico de versões local
   // (vhist) — ao contrário do restore do blob, que apagava tudo do namespace.
-  _applyMap(id, map, revs, preservar) {
+  _applyMap(id, map, revs, preservar, manifestoRev) {
     const prefix = 'diario-estudos:u:' + id + ':';
     /* REGRA DE OURO: o download NUNCA apaga uma alteração que ainda não subiu.
        As seções de `preservar` mantêm o valor deste aparelho e continuam na fila
        de envio; todo o resto é substituído pelo que veio da nuvem. */
     const manter = new Set(preservar || []);
     const antigos = this._getRevs(id);
+    /* CONTA O QUE REALMENTE MUDOU. Sem isso, quem chamou não tem como saber se
+       valeu a pena recarregar a tela — e recarregar "por precaução" a cada
+       download era a origem do pisca-pisca. */
+    let mudou = 0;
     const apagar = [];
     for (let i = 0; i < localStorage.length; i++) {
       const k = localStorage.key(i);
       if (!k || k.indexOf(prefix) !== 0) continue;
       const sec = this.sectionForKey(k, prefix);
-      if (sec && !manter.has(sec)) apagar.push(k);
+      if (sec && !manter.has(sec) && !(sec in map)) apagar.push(k);   // sumiu na nuvem
     }
-    apagar.forEach(k => localStorage.removeItem(k));
+    apagar.forEach(k => { localStorage.removeItem(k); mudou++; });
     const novoRev = {};
     manter.forEach(sec => { if (antigos[sec]) novoRev[sec] = antigos[sec]; }); // segue "suja" e será reenviada
     Object.keys(map).forEach(sec => {
       if (manter.has(sec)) return;
       const txt = map[sec];
-      localStorage.setItem(prefix + sec, txt);
+      if (localStorage.getItem(prefix + sec) !== txt) { localStorage.setItem(prefix + sec, txt); mudou++; }
       novoRev[sec] = { rev: (revs && revs[sec]) || 1, hash: this._hash(txt) };
     });
+    /* A REVISÃO DO MANIFESTO precisa ser guardada como a de qualquer outra seção.
+       Ela não era — e como hasRemoteUpdates compara TODAS as linhas remotas com as
+       locais, o manifesto (rev 7 na nuvem, 0 aqui) anunciava "tem novidade" para
+       sempre. Cada foco na janela disparava um download e um location.reload():
+       era exatamente a tela piscando e recarregando sozinha. */
+    if (manifestoRev) novoRev[this.MANIFEST] = { rev: manifestoRev, hash: this._hash(Object.keys(map).sort().join('|')) };
+    else if (antigos[this.MANIFEST]) novoRev[this.MANIFEST] = antigos[this.MANIFEST];
     // Alinha a contabilidade local com o que acabou de vir: sem isto, a próxima
     // rodada acharia tudo "sujo" e re-subiria o perfil inteiro sem necessidade.
     try { localStorage.setItem('diario-estudos:u:' + id + ':__secrev', JSON.stringify(novoRev)); } catch (_) { _quiet(_); }
@@ -424,6 +435,7 @@ const SectionSync = {
       if (manter.size) localStorage.setItem(pk, JSON.stringify([...manter]));
       else localStorage.removeItem(pk);
     } catch (_) { _quiet(_); }
+    return mudou;
   },
   // Fluxo completo de leitura. Retorna { ok, motivo, seções }.
   async hydrate(id, opts) {
@@ -443,7 +455,7 @@ const SectionSync = {
       if (!prep.ok) { res.motivo = prep.motivo; return this._saveLast(res); }
       // Rede de segurança antes de sobrescrever o estado local.
       try { if (window.VersionHistory && ProfileManager.getActiveProfileId() === id) await VersionHistory.snapshot('antes de baixar por seção'); } catch (_) { _quiet(_); }
-      this._applyMap(id, prep.map, prep.revs, preservar);
+      res.mudou = this._applyMap(id, prep.map, prep.revs, preservar, prep.manifestoRev);
       res.ok = true; res.seções = Object.keys(prep.map).length;
       if (preservar.length) res.preservadas = preservar;   // ficaram com o valor local, ainda na fila
       if (prep.extras && prep.extras.length) res.ignoradas = prep.extras;
@@ -472,14 +484,18 @@ const SectionSync = {
     return novidade;
   },
   // Baixa por seção e recarrega a tela (equivalente ao pullActiveAndReload do blob).
+  /* Baixa por seção e recarrega a tela — MAS SÓ SE ALGO MUDOU DE VERDADE.
+     Antes recarregava sempre que a checagem dissesse "pode haver novidade", e
+     bastava um falso positivo para a tela reiniciar do nada no meio do uso. */
   async pullAndReload() {
     const id = ProfileManager.getActiveProfileId(); if (!id) return false;
     CloudStore._applying = true;
     const r = await this.hydrate(id);
     CloudStore._applying = false;
     if (!r.ok) return false;
+    if (!r.mudou) { console.info('[SectionSync] nuvem conferida: nada mudou, sem recarregar'); return true; }
     showToast('Sincronizado da nuvem ✓');
-    setTimeout(() => location.reload(), 500);
+    recarregarApp('dados novos da nuvem');
     return true;
   },
   // Reenvia TUDO no formato atual (v2). Use uma vez ao migrar para a Fase 2, ou

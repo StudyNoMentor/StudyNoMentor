@@ -545,7 +545,7 @@ window.SessionLock = {
     const e = this._els();
     if (e.take) e.take.addEventListener('click', () => { const origin = this._origin; this.unblock(); this._takeoverFns.forEach(fn => { try { fn(origin); } catch (_) { _quiet(_); } }); });
     const r = document.getElementById('single-session-reload');
-    if (r) r.addEventListener('click', () => location.reload());
+    if (r) r.addEventListener('click', () => recarregarApp('recarga pedida no aviso de sessão', { imediato: true }));
   }
 };
 
