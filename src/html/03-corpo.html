@@ -777,14 +777,17 @@
   </section>
 
   <!-- ============ TELA: LEIS SECAS ============ -->
+  <!-- Barra do MODO FOCO. Os rótulos somem no celular (ficam no title/aria-label)
+       para que os CINCO botões caibam na faixa: antes três deles ficavam fora da
+       área visível, num rolamento horizontal sem barra e sem pista nenhuma. -->
   <div class="foco-bar" id="lei-foco-bar">
     <span class="foco-info" id="lei-foco-info">Leitura</span>
     <span class="foco-acoes">
-      <button type="button" class="btn-secondary leis-tool-mark" id="lei-foco-mark" title="Marca-texto: com ele ativo, selecione o texto para destacar">🖍️ Marca-texto</button>
-      <button type="button" class="btn-secondary leis-tool-erase" id="lei-foco-erase" title="Borracha: com ela ativa, selecione um destaque para apagá-lo">🧽 Borracha</button>
-      <button type="button" class="btn-secondary" id="lei-foco-lines" title="Mostrar/ocultar a numeração das linhas">🔢 Linhas</button>
-      <button type="button" class="btn-secondary" id="lei-foco-marcar" title="Marcar onde parei (linha do topo da tela)">📌 Marcar aqui</button>
-      <button type="button" class="btn-secondary" id="lei-foco-sair" title="Sair do modo foco (Esc)">✕ Sair</button>
+      <button type="button" class="btn-secondary leis-tool-mark" id="lei-foco-mark" title="Marca-texto: com ele ativo, selecione o texto para destacar" aria-label="Marca-texto"><span class="fb-ic">🖍️</span><span class="fb-tx">Marca-texto</span></button>
+      <button type="button" class="btn-secondary leis-tool-erase" id="lei-foco-erase" title="Borracha: com ela ativa, selecione um destaque para apagá-lo" aria-label="Borracha"><span class="fb-ic">🧽</span><span class="fb-tx">Borracha</span></button>
+      <button type="button" class="btn-secondary" id="lei-foco-lines" title="Mostrar/ocultar a numeração das linhas" aria-label="Numeração das linhas"><span class="fb-ic">🔢</span><span class="fb-tx">Linhas</span></button>
+      <button type="button" class="btn-secondary" id="lei-foco-marcar" title="Marcar onde parei (linha do topo da tela)" aria-label="Marcar onde parei"><span class="fb-ic">📌</span><span class="fb-tx">Marcar aqui</span></button>
+      <button type="button" class="btn-secondary foco-sair" id="lei-foco-sair" title="Sair do modo foco (Esc)" aria-label="Sair do modo foco"><span class="fb-ic">✕</span><span class="fb-tx">Sair</span></button>
     </span>
   </div>
   <section role="region" tabindex="-1" class="screen" id="screen-leis">
@@ -796,9 +799,14 @@
       </div>
 
       <div class="leis-list-topbar">
-        <div class="section-divider" style="flex:1; margin:0;"><span>Suas leis</span></div>
-        <button type="button" class="btn-primary" id="lei-open-form-btn">＋ Nova lei</button>
+        <label class="leis-busca" for="lei-busca">
+          <span class="leis-busca-ic" aria-hidden="true">🔎</span>
+          <input type="search" id="lei-busca" placeholder="Buscar por título, referência ou matéria" autocomplete="off">
+          <button type="button" class="leis-busca-x" id="lei-busca-limpar" aria-label="Limpar busca" hidden>✕</button>
+        </label>
+        <button type="button" class="btn-primary leis-nova" id="lei-open-form-btn">＋ Nova lei</button>
       </div>
+      <p class="leis-list-contagem" id="leis-list-contagem"></p>
       <div id="leis-cards"></div>
     </div>
 
@@ -851,49 +859,60 @@
         </div>
       </div>
 
-      <!-- A barra de ferramentas do leitor RECOLHE: são 12 controles que se usam
-           uma vez e depois só ocupam a metade de cima da tela de leitura. -->
+      <!-- BARRA DO LEITOR, em duas camadas.
+           Camada 1 (sempre visível): as quatro ações que se usam LENDO. Antes
+           tudo — os seis chips de cor, o gerenciador de palavras, a fonte —
+           ficava na mesma faixa, e recolher a barra levava junto o marca-texto.
+           Camada 2 (recolhível): o que se ajusta uma vez e não se mexe mais. -->
       <div class="leis-sticky" id="leis-sticky-toolbar">
+        <div class="leis-acoes" id="leis-acoes-primarias">
+          <button type="button" class="leis-acao leis-tool-mark" id="lei-mark-btn" title="Marca-texto: com ele ativo, basta selecionar o texto para destacar">
+            <span class="la-ic">🖍️</span><span class="la-tx">Marcar</span></button>
+          <button type="button" class="leis-acao leis-tool-erase" id="lei-unmark-btn" title="Borracha: com ela ativa, selecione um destaque para apagá-lo (inclusive os automáticos)">
+            <span class="la-ic">🧽</span><span class="la-tx">Apagar</span></button>
+          <button type="button" class="leis-acao" id="lei-goto-mark-btn" title="Marcar onde você parou, ou voltar para lá">
+            <span class="la-ic">📌</span><span class="la-tx">Onde parei</span></button>
+          <button type="button" class="leis-acao" id="lei-foco-btn" title="Ler sem distração, em tela cheia">
+            <span class="la-ic">🎯</span><span class="la-tx">Foco</span></button>
+        </div>
         <button type="button" class="leis-tools-toggle" id="lei-tools-toggle" aria-expanded="true" aria-controls="leis-tools-body">
           <span class="ltt-ic">🛠️</span>
-          <span class="ltt-txt">Ferramentas de leitura</span>
+          <span class="ltt-txt">Ajustes da leitura</span>
           <span class="ltt-caret">▾</span>
         </button>
         <div class="leis-tools-body" id="leis-tools-body">
-        <div class="leis-toolbar-row">
-          <div class="leis-hl-group" id="lei-hl-toggles">
-            <label class="leis-auto-switch" title="Liga/desliga todo o destaque automático desta lei">
-              <input type="checkbox" id="lei-auto-master" checked>
-              <span class="leis-auto-track"><span class="leis-auto-thumb"></span></span>
-              <span class="leis-auto-label">🖍️ Destaque automático</span>
-            </label>
-            <span class="leis-hl-sep"></span>
-            <label class="leis-hl-chip"><input type="checkbox" data-cat="ressalvas" checked><span class="lawmark-ressalvas">⚖️ Ressalvas</span></label>
-            <label class="leis-hl-chip"><input type="checkbox" data-cat="restricoes" checked><span class="lawmark-restricoes">🚫 Restrições</span></label>
-            <label class="leis-hl-chip"><input type="checkbox" data-cat="competencias" checked><span class="lawmark-competencias">🏛️ Poder/Dever</span></label>
-            <label class="leis-hl-chip"><input type="checkbox" data-cat="prazos" checked><span class="lawmark-prazos">⏱️ Prazos</span></label>
-            <label class="leis-hl-chip"><input type="checkbox" data-cat="efeitos" checked><span class="lawmark-efeitos">⚠️ Sanções</span></label>
-            <label class="leis-hl-chip"><input type="checkbox" data-cat="relacoes" checked><span class="lawmark-relacoes">🔗 Causalidade</span></label>
+          <div class="leis-toolbar-row">
+            <div class="leis-hl-group" id="lei-hl-toggles">
+              <label class="leis-auto-switch" title="Liga/desliga todo o destaque automático desta lei">
+                <input type="checkbox" id="lei-auto-master" checked>
+                <span class="leis-auto-track"><span class="leis-auto-thumb"></span></span>
+                <span class="leis-auto-label">Destaque automático</span>
+              </label>
+              <div class="leis-hl-chips" id="lei-hl-chips">
+                <label class="leis-hl-chip"><input type="checkbox" data-cat="ressalvas" checked><span class="lawmark-ressalvas">⚖️ Ressalvas</span></label>
+                <label class="leis-hl-chip"><input type="checkbox" data-cat="restricoes" checked><span class="lawmark-restricoes">🚫 Restrições</span></label>
+                <label class="leis-hl-chip"><input type="checkbox" data-cat="competencias" checked><span class="lawmark-competencias">🏛️ Poder/Dever</span></label>
+                <label class="leis-hl-chip"><input type="checkbox" data-cat="prazos" checked><span class="lawmark-prazos">⏱️ Prazos</span></label>
+                <label class="leis-hl-chip"><input type="checkbox" data-cat="efeitos" checked><span class="lawmark-efeitos">⚠️ Sanções</span></label>
+                <label class="leis-hl-chip"><input type="checkbox" data-cat="relacoes" checked><span class="lawmark-relacoes">🔗 Causalidade</span></label>
+              </div>
+            </div>
           </div>
-        </div>
-        <div class="leis-toolbar-row leis-toolbar-actions">
-          <button type="button" class="leis-tool-btn leis-tool-mark" id="lei-mark-btn" title="Marca-texto: com ele ativo, basta selecionar o texto para destacar">🖍️ Marca-texto</button>
-          <button type="button" class="leis-tool-btn leis-tool-erase" id="lei-unmark-btn" title="Borracha: com ela ativa, selecione um destaque para apagá-lo (inclusive os automáticos)">🧽 Borracha</button>
-          <span id="lei-mark-count" class="leis-mark-count"></span>
-          <span class="leis-toolbar-spacer"></span>
-          <button type="button" class="leis-tool-btn" id="lei-kw-btn" title="Gerenciar as palavras destacadas automaticamente em todas as leis">🎨 Palavras destacadas</button>
-          <button type="button" class="leis-tool-btn" id="lei-lines-btn" title="Mostrar/ocultar a numeração das linhas">🔢 Linhas</button>
-          <button type="button" class="leis-tool-btn" id="lei-goto-mark-btn" title="Ir para a linha onde você parou">📌 Onde parei</button>
-          <button type="button" class="leis-tool-btn" id="lei-foco-btn" title="Ler sem distração, em tela cheia (Esc para sair)">🎯 Modo foco</button>
-          <div class="leis-reader-controls">
-            <button type="button" class="icon-btn" id="lei-font-dec" title="Diminuir fonte" aria-label="Diminuir fonte">A−</button>
-            <button type="button" class="icon-btn" id="lei-font-inc" title="Aumentar fonte" aria-label="Aumentar fonte">A+</button>
+          <div class="leis-toolbar-row leis-toolbar-actions">
+            <button type="button" class="leis-tool-btn" id="lei-lines-btn" title="Mostrar/ocultar a numeração das linhas">🔢 Linhas</button>
+            <button type="button" class="leis-tool-btn" id="lei-kw-btn" title="Gerenciar as palavras destacadas automaticamente em todas as leis">🎨 Palavras</button>
+            <button type="button" class="leis-tool-btn" id="lei-prefs-btn" title="Escolher o que aparece nesta tela">⚙️ Exibição</button>
+            <div class="leis-reader-controls" role="group" aria-label="Tamanho do texto">
+              <button type="button" class="icon-btn" id="lei-font-dec" title="Diminuir fonte" aria-label="Diminuir fonte">A−</button>
+              <span class="leis-font-val" id="lei-font-val">100%</span>
+              <button type="button" class="icon-btn" id="lei-font-inc" title="Aumentar fonte" aria-label="Aumentar fonte">A+</button>
+            </div>
           </div>
-        </div>
+          <p class="leis-mark-count" id="lei-mark-count"></p>
         </div>
       </div>
 
-      <div class="leis-mark-hint" id="lei-mark-hint">💡 Ative o <strong>🖍️ Marca-texto</strong> e vá selecionando os trechos para destacar. Ative a <strong>🧽 Borracha</strong> e selecione um destaque (seu ou automático) para apagá-lo.</div>
+      <div class="leis-mark-hint" id="lei-mark-hint">💡 Ative o <strong>🖍️ Marcar</strong> e vá selecionando os trechos para destacar. Ative o <strong>🧽 Apagar</strong> e selecione um destaque (seu ou automático) para removê-lo.<button type="button" class="leis-hint-x" id="lei-mark-hint-x" title="Não mostrar mais esta dica" aria-label="Não mostrar mais esta dica">✕</button></div>
 
       <div class="card leis-reader-card">
         <div id="lei-reader-body" class="lei-reader-body"></div>
@@ -902,6 +921,34 @@
       <div class="card" id="lei-marks-panel" style="display:none;">
         <div class="card-header"><div><h2>Seus destaques</h2><p class="sub">Trechos que você marcou manualmente nesta lei</p></div></div>
         <div style="padding: 12px 24px 22px;" id="lei-marks-list"></div>
+      </div>
+    </div>
+
+    <!-- Modal: o que aparece na tela de Leis (preferências do leitor).
+         O pedido era poder OCULTAR o que não se usa: cada item aqui apaga uma
+         faixa inteira da tela, e a escolha vale para todas as leis do perfil. -->
+    <div id="lei-prefs-modal" class="cards-modal" style="display:none;">
+      <div class="cards-modal-box">
+        <div class="cards-modal-head">
+          <div><h2>⚙️ Exibição da tela de Leis</h2><p class="sub">Desligue o que você não usa. Vale para todas as leis deste perfil e pode ser revertido a qualquer momento.</p></div>
+          <button type="button" class="icon-btn" id="lei-prefs-close" aria-label="Fechar">✕</button>
+        </div>
+        <div class="cards-modal-body">
+          <p class="section-label" style="margin:0 0 8px;">Leitura</p>
+          <div class="lei-prefs-grupo" id="lei-prefs-leitura"></div>
+          <p class="section-label" style="margin:18px 0 8px;">Conforto do texto</p>
+          <div class="ux-seg lei-prefs-seg" id="lei-conforto-seg" role="group" aria-label="Espaçamento do texto">
+            <button type="button" data-conforto="compacto">Compacto</button>
+            <button type="button" data-conforto="normal">Normal</button>
+            <button type="button" data-conforto="amplo">Amplo</button>
+          </div>
+          <p class="section-label" style="margin:18px 0 8px;">O que aparece na tela</p>
+          <div class="lei-prefs-grupo" id="lei-prefs-partes"></div>
+        </div>
+        <div class="cards-modal-foot">
+          <button type="button" class="btn-secondary" id="lei-prefs-reset">↺ Restaurar padrão</button>
+          <button type="button" class="btn-primary" id="lei-prefs-done">Concluído</button>
+        </div>
       </div>
     </div>
 

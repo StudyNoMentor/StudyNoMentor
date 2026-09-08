@@ -17,8 +17,59 @@ const LeisScreen = {
   },
   _prefSet(nome, valor) { DB.setRaw(this._prefKey(nome), String(valor)); },
 
+  /* ── O QUE APARECE NA TELA (preferências do leitor) ──────────────────────
+     A tela nasceu acumulando faixas: chips de metadados, seis filtros de cor,
+     a dica do marca-texto, o painel de destaques, a barra fixa. Cada uma se
+     justifica sozinha; juntas, empurram a lei para baixo da dobra e fazem a
+     tela parecer desarrumada. Aqui cada faixa vira uma escolha do usuário,
+     guardada por PERFIL e sincronizada como as demais preferências.
+     'classe' é a classe que a ausência liga em #screen-leis — a regra de CSS
+     correspondente esconde a faixa. */
+  PREFS: [
+    { k: 'p-linhas', grupo: 'leitura', padrao: '0', lbl: '🔢 Numeração das linhas',
+      sub: 'Numera cada linha e permite fixar onde você parou' },
+    { k: 'p-justificado', grupo: 'leitura', padrao: '0', lbl: '⚖️ Texto justificado',
+      sub: 'Alinha os dois lados, como no papel. Em tela estreita abre buracos entre as palavras' },
+    { k: 'p-chips', grupo: 'partes', padrao: '1', classe: 'leis-cfg-sem-chips', lbl: '🏷️ Etiquetas do cabeçalho',
+      sub: 'Matéria, referência, nº de artigos e de palavras' },
+    { k: 'p-cores', grupo: 'partes', padrao: '1', classe: 'leis-cfg-sem-cores', lbl: '🎨 Filtros de cor',
+      sub: 'A fileira de categorias do destaque automático' },
+    { k: 'p-dica', grupo: 'partes', padrao: '1', classe: 'leis-cfg-sem-dica', lbl: '💡 Dica do marca-texto',
+      sub: 'O lembrete azul entre a barra e o texto da lei' },
+    { k: 'p-painel', grupo: 'partes', padrao: '1', classe: 'leis-cfg-sem-painel', lbl: '📋 Painel "Seus destaques"',
+      sub: 'A lista dos trechos marcados, no fim da página' },
+    { k: 'p-sticky', grupo: 'partes', padrao: '1', classe: 'leis-cfg-sem-sticky', lbl: '📌 Barra fixa no topo',
+      sub: 'Desligada, a barra rola junto com o texto e libera a tela' }
+  ],
+  prefOn(k) {
+    const d = this.PREFS.find(x => x.k === k);
+    return this._prefGet(k, null, d ? d.padrao : '1') === '1';
+  },
+  prefSetOn(k, on) { this._prefSet(k, on ? '1' : '0'); },
+  conforto() {
+    const v = this._prefGet('p-conforto', null, 'normal');
+    return ['compacto', 'normal', 'amplo'].includes(v) ? v : 'normal';
+  },
+  // Aplica TODAS as preferências de uma vez: é o único ponto que mexe nas
+  // classes da tela, então não há como um ajuste ficar meio aplicado.
+  aplicarPrefs() {
+    const tela = document.getElementById('screen-leis');
+    if (tela) {
+      this.PREFS.forEach(d => { if (d.classe) tela.classList.toggle(d.classe, !this.prefOn(d.k)); });
+      const c = this.conforto();
+      ['compacto', 'normal', 'amplo'].forEach(v => tela.classList.toggle('leis-cfg-conf-' + v, v === c));
+    }
+    const body = document.getElementById('lei-reader-body');
+    if (body) body.classList.toggle('sem-justificar', !this.prefOn('p-justificado'));
+    // a numeração é a mesma preferência do botão "🔢 Linhas": um estado só
+    this.showLines = this.prefOn('p-linhas');
+    if (body) body.classList.toggle('show-lines', !!this.showLines);
+    this._pintarBotaoLinhas();
+  },
+
   render() {
     // ao ativar a aba, volta sempre para a lista
+    this.aplicarPrefs();
     this.showList();
   },
   showList() {
@@ -35,34 +86,55 @@ const LeisScreen = {
     });
     this.renderCards();
   },
+  _busca: '',
   renderCards() {
     const wrap = document.getElementById('leis-cards');
     if (!wrap) return;
-    const leis = DB.getLeis().slice().sort((a, b) => (b.updatedAt || '').localeCompare(a.updatedAt || ''));
+    const todas = DB.getLeis().slice().sort((a, b) => (b.updatedAt || '').localeCompare(a.updatedAt || ''));
+    // A busca só aparece quando há leis o bastante para valer a pena procurar.
+    const barra = document.querySelector('.leis-busca');
+    if (barra) barra.hidden = todas.length < 4;
+    const q = (this._busca || '').trim().toLowerCase();
+    const leis = q
+      ? todas.filter(l => [l.titulo, l.referencia, l.materia].some(v => String(v || '').toLowerCase().includes(q)))
+      : todas;
+    const contagem = document.getElementById('leis-list-contagem');
+    if (contagem) {
+      contagem.textContent = todas.length === 0 ? ''
+        : q ? `${leis.length} de ${todas.length} lei${todas.length === 1 ? '' : 's'}`
+            : `${todas.length} lei${todas.length === 1 ? '' : 's'} no seu vade mecum`;
+    }
+    if (todas.length === 0) {
+      wrap.innerHTML = `<div class="empty-state"><div class="big">§</div>Nenhuma lei cadastrada ainda. Toque em <strong>＋ Nova lei</strong> para começar seu vade mecum.</div>`;
+      return;
+    }
     if (leis.length === 0) {
-      wrap.innerHTML = `<div class="empty-state"><div class="big">§</div>Nenhuma lei cadastrada ainda. Clique em <strong>＋ Nova lei</strong> para começar seu vade mecum.</div>`;
+      wrap.innerHTML = `<div class="empty-state"><div class="big">🔎</div>Nenhuma lei encontrada para <strong>${escapeHtml(this._busca)}</strong>.</div>`;
       return;
     }
     wrap.innerHTML = leis.map(l => {
       const st = LawEngine.stats(l);
+      const bk = (l.bookmark != null) ? LawEngine.resolveBookmark(l) : null;
       return `
-        <div class="lei-card" data-id="${l.id}">
-          <div class="lei-card-main">
-            <div class="lei-card-title">${escapeHtml(l.titulo)}</div>
-            <div class="lei-card-meta">
-              ${l.referencia ? `<span class="lei-tag ref">${escapeHtml(l.referencia)}</span>` : ''}
+        <button type="button" class="lei-card" data-id="${l.id}" aria-label="Abrir ${escapeHtml(l.titulo)}">
+          <span class="lei-card-main">
+            <span class="lei-card-title">${escapeHtml(l.titulo)}</span>
+            <span class="lei-card-meta">
               ${l.materia ? `<span class="lei-tag mat">${escapeHtml(l.materia)}</span>` : ''}
-              <span class="lei-card-stats">${st.artigos} art. · ${st.palavras} palavras${st.marcacoes ? ' · ' + st.marcacoes + ' destaque(s)' : ''}</span>
-            </div>
-          </div>
-          <button type="button" class="btn-secondary lei-open">Ler →</button>
-        </div>`;
+              ${l.referencia ? `<span class="lei-tag ref">${escapeHtml(l.referencia)}</span>` : ''}
+            </span>
+            <span class="lei-card-stats">
+              <span>§ ${st.artigos} art.</span>
+              <span>📝 ${Number(st.palavras).toLocaleString('pt-BR')} palavras</span>
+              ${st.marcacoes ? `<span>🖍️ ${st.marcacoes} destaque${st.marcacoes === 1 ? '' : 's'}</span>` : ''}
+              ${bk != null && bk > 0 ? `<span class="lei-card-bk">📌 parou na linha ${bk}</span>` : ''}
+            </span>
+          </span>
+          <span class="lei-card-go" aria-hidden="true">→</span>
+        </button>`;
     }).join('');
     wrap.querySelectorAll('.lei-card').forEach(card => {
-      const id = card.dataset.id;
-      const open = () => this.openReader(id);
-      card.querySelector('.lei-open').addEventListener('click', open);
-      card.querySelector('.lei-card-main').addEventListener('click', open);
+      card.addEventListener('click', () => this.openReader(card.dataset.id));
     });
   },
 
@@ -121,11 +193,9 @@ const LeisScreen = {
       cb.disabled = !autoOn;
     });
     $id('lei-hl-toggles').classList.toggle('auto-off', !autoOn);
-    // restaura preferência de numeração de linhas
-    this.showLines = this._prefGet('show-lines', 'diario-estudos:lei-show-lines', '0') === '1';
     this.fontStep = Math.max(-2, Math.min(5, parseInt(this._prefGet('font-step', null, '0'), 10) || 0));
     this._pintarBarraFerramentas();
-    this._pintarBotaoLinhas();
+    this.aplicarPrefs();
     this.renderBody();
     this.renderMarks();
   },
@@ -135,10 +205,11 @@ const LeisScreen = {
     const body = document.getElementById('lei-reader-body');
     if (!body) return;
     body.innerHTML = LawEngine.toHtml(lei, DB.getLeiKeywords());
-    body.style.fontSize = (100 + this.fontStep * 8) + '%';
+    this._pintarFonte();
     body.classList.toggle('tool-mark', this.hlMode === 'mark');
     body.classList.toggle('tool-erase', this.hlMode === 'erase');
     body.classList.toggle('show-lines', !!this.showLines);
+    body.classList.toggle('sem-justificar', !this.prefOn('p-justificado'));
     // DELEGAÇÃO: um único listener no corpo. Antes registrava um por destaque e um por
     // número de linha — em leis grandes eram dezenas de milhares a cada re-render.
     if (!body._leiDelegado) {
@@ -180,7 +251,7 @@ const LeisScreen = {
     box.classList.toggle('tools-collapsed', !aberto);
     btn.setAttribute('aria-expanded', aberto ? 'true' : 'false');
     const t = btn.querySelector('.ltt-txt');
-    if (t) t.textContent = aberto ? 'Ferramentas de leitura' : 'Mostrar ferramentas de leitura';
+    if (t) t.textContent = aberto ? 'Ajustes da leitura' : 'Mostrar ajustes da leitura';
   },
   _pintarBotaoLinhas() {
     const on = !!this.showLines;
@@ -188,6 +259,17 @@ const LeisScreen = {
       const b = document.getElementById(id);
       if (b) { b.classList.toggle('active', on); b.setAttribute('aria-pressed', on ? 'true' : 'false'); }
     });
+    const cx = document.querySelector('#lei-prefs-modal input[data-pref="p-linhas"]');
+    if (cx) cx.checked = on;
+  },
+  // O A−/A+ mexia num tamanho invisível: dois toques e não dava para saber
+  // onde se estava, nem voltar ao original. Agora o valor aparece entre eles.
+  _pintarFonte() {
+    const body = document.getElementById('lei-reader-body');
+    const pct = 100 + this.fontStep * 8;
+    if (body) body.style.fontSize = pct + '%';
+    const v = document.getElementById('lei-font-val');
+    if (v) v.textContent = pct + '%';
   },
   // Estado do botão "📌 Onde parei": ele serve para MARCAR quando não há
   // marcador e para IR até ele quando há. O rótulo tem de dizer qual dos dois.
@@ -241,7 +323,9 @@ const LeisScreen = {
   },
   toggleLines() {
     this.showLines = !this.showLines;
-    this._prefSet('show-lines', this.showLines ? '1' : '0');
+    // Mesma chave da caixa "Numeração das linhas" em ⚙️ Exibição: o botão e a
+    // preferência são o MESMO estado, não dois que se desencontram.
+    this.prefSetOn('p-linhas', this.showLines);
     this._pintarBotaoLinhas();
     // Só a CLASSE muda — o HTML da lei é o mesmo com ou sem numeração. Antes
     // este botão redesenhava a lei inteira, e num texto grande a tela parecia
@@ -578,6 +662,59 @@ const LeisScreen = {
     this.renderBody(); this.renderMarks();
     showToast('Destaques automáticos restaurados');
   },
+  // ── Painel "⚙️ Exibição": liga e desliga cada faixa da tela ──
+  openPrefs() {
+    const m = document.getElementById('lei-prefs-modal');
+    if (m) m.style.display = 'flex';
+    this.renderPrefs();
+  },
+  closePrefs() { const m = document.getElementById('lei-prefs-modal'); if (m) m.style.display = 'none'; },
+  renderPrefs() {
+    const linha = (d) => `
+      <label class="lei-pref-item">
+        <input type="checkbox" data-pref="${d.k}" ${this.prefOn(d.k) ? 'checked' : ''}>
+        <span class="lei-pref-txt"><span class="lei-pref-lbl">${d.lbl}</span><span class="lei-pref-sub">${d.sub}</span></span>
+      </label>`;
+    [['leitura', 'lei-prefs-leitura'], ['partes', 'lei-prefs-partes']].forEach(([g, id]) => {
+      const host = document.getElementById(id);
+      if (host) host.innerHTML = this.PREFS.filter(d => d.grupo === g).map(linha).join('');
+    });
+    const seg = document.getElementById('lei-conforto-seg');
+    if (seg) {
+      const c = this.conforto();
+      seg.querySelectorAll('button[data-conforto]').forEach(b => {
+        b.classList.toggle('active', b.dataset.conforto === c);
+        b.setAttribute('aria-pressed', b.dataset.conforto === c ? 'true' : 'false');
+      });
+    }
+    const modal = document.getElementById('lei-prefs-modal');
+    if (!modal || modal._leiPrefsDelegado) return;
+    modal._leiPrefsDelegado = true;   // delegação: sobrevive a cada re-render
+    modal.addEventListener('change', (e) => {
+      const cx = e.target.closest ? e.target.closest('input[data-pref]') : null;
+      if (!cx) return;
+      this.prefSetOn(cx.dataset.pref, cx.checked);
+      this.aplicarPrefs();
+      // as cores e a justificação mudam o HTML da lei, não só a moldura
+      if (cx.dataset.pref === 'p-cores' && this.currentId) this.renderBodySoon();
+    });
+    modal.addEventListener('click', (e) => {
+      const b = e.target.closest ? e.target.closest('button[data-conforto]') : null;
+      if (!b) return;
+      this._prefSet('p-conforto', b.dataset.conforto);
+      this.aplicarPrefs();
+      this.renderPrefs();
+    });
+  },
+  async resetPrefs() {
+    if (!await UI.confirm('Voltar todas as opções de exibição ao padrão?')) return;
+    this.PREFS.forEach(d => this._prefSet(d.k, d.padrao));
+    this._prefSet('p-conforto', 'normal');
+    this.aplicarPrefs();
+    this.renderPrefs();
+    if (this.currentId) this.renderBodySoon();
+    showToast('Exibição restaurada ao padrão');
+  },
   // ── Gerenciador de palavras destacadas por padrão (todas as leis) ──
   _kwCatMeta: {
     ressalvas:   { cls: 'lawmark-ressalvas',   label: '⚖️ Ressalvas / Exceções' },
@@ -672,8 +809,7 @@ const LeisScreen = {
   changeFont(delta) {
     this.fontStep = Math.max(-2, Math.min(5, this.fontStep + delta));
     this._prefSet('font-step', this.fontStep);
-    const body = document.getElementById('lei-reader-body');
-    if (body) body.style.fontSize = (100 + this.fontStep * 8) + '%';
+    this._pintarFonte();
   },
   editCurrent() {
     const lei = DB.getLei(this.currentId);
@@ -737,6 +873,31 @@ window.LeisScreen = LeisScreen;
   });
   on('lei-font-inc', 'click', () => LeisScreen.changeFont(1));
   on('lei-font-dec', 'click', () => LeisScreen.changeFont(-1));
+  on('lei-prefs-btn', 'click', () => LeisScreen.openPrefs());
+  on('lei-prefs-close', 'click', () => LeisScreen.closePrefs());
+  on('lei-prefs-done', 'click', () => LeisScreen.closePrefs());
+  on('lei-prefs-reset', 'click', () => LeisScreen.resetPrefs());
+  // a dica do marca-texto se dispensa no próprio lugar, sem procurar ajuste
+  on('lei-mark-hint-x', 'click', () => {
+    LeisScreen.prefSetOn('p-dica', false);
+    LeisScreen.aplicarPrefs();
+    showToast('Dica ocultada — volte em ⚙️ Exibição se quiser vê-la de novo');
+  });
+  // busca na lista de leis
+  on('lei-busca', 'input', (e) => {
+    LeisScreen._busca = e.target.value;
+    const x = document.getElementById('lei-busca-limpar');
+    if (x) x.hidden = !e.target.value;
+    LeisScreen.renderCards();
+  });
+  on('lei-busca-limpar', 'click', () => {
+    const i = document.getElementById('lei-busca');
+    if (i) { i.value = ''; i.focus(); }
+    LeisScreen._busca = '';
+    const x = document.getElementById('lei-busca-limpar');
+    if (x) x.hidden = true;
+    LeisScreen.renderCards();
+  });
   on('lei-kw-btn', 'click', () => LeisScreen.openKeywords());
   on('lei-kw-close', 'click', () => LeisScreen.closeKeywords());
   on('lei-kw-done', 'click', () => LeisScreen.closeKeywords());

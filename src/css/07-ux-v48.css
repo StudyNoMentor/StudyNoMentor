@@ -556,7 +556,7 @@ button.is-saving {
 .leis-sticky.tools-collapsed .leis-tools-body { display: none; }
 /* Recolhida a caixa não tem segunda linha: o padding some e quem dá a altura é
    o próprio botão, que ocupa a faixa inteira. */
-.leis-sticky.tools-collapsed { padding: 6px; gap: 0; }
+.leis-sticky.tools-collapsed { padding: 6px; gap: 6px; }
 .leis-sticky.tools-collapsed .leis-tools-toggle {
   min-height: 46px; background: var(--surface-sunken); color: var(--text);
   border: 1px solid var(--border); border-radius: 11px;
@@ -569,11 +569,9 @@ button.is-saving {
    distribuem em duas colunas regulares. */
 @media (max-width: 720px) {
   .leis-toolbar-actions .leis-toolbar-spacer { display: none; }
-  .leis-toolbar-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; align-items: stretch; }
-  .leis-toolbar-actions .leis-tool-btn { width: 100%; min-height: 42px; padding: 8px 10px; text-align: center; }
-  .leis-toolbar-actions .leis-mark-count { grid-column: 1 / -1; text-align: center; white-space: normal; }
-  .leis-toolbar-actions .leis-reader-controls { grid-column: 1 / -1; justify-content: center; gap: 10px; }
-  .leis-toolbar-actions .leis-reader-controls .icon-btn { flex: 1 1 0; min-height: 42px; }
+  .leis-toolbar-actions { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; align-items: stretch; }
+  .leis-toolbar-actions .leis-tool-btn { width: 100%; min-height: 42px; padding: 8px 6px; text-align: center; font-size: var(--fs-xs); }
+  .leis-toolbar-actions .leis-reader-controls { grid-column: 1 / -1; justify-self: center; }
 }
 
 /* "Onde parei" com marcador fixado ganha a cor do pin — assim dá para ver, sem
@@ -966,3 +964,187 @@ body.leis-foco .lei-sel-fab { --lei-fab-lift: 8px; }
 .cards-modal-head .icon-btn:hover, .siglas-modal-head .icon-btn:hover {
   border-color: var(--bad, #e0393f); color: var(--bad, #e0393f); background: var(--bad-soft);
 }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   LEIS SECAS — arrumação da tela (v48.1)
+   ───────────────────────────────────────────────────────────────────────────
+   A tela empilhava seis faixas antes de mostrar uma linha de lei: cabeçalho,
+   etiquetas, interruptor, seis filtros de cor, sete botões, dica. Nenhuma
+   errada sozinha; juntas, viravam parede. A arrumação tem três movimentos:
+
+     1. HIERARQUIA — o que se usa LENDO (marcar, apagar, onde parei, foco) vira
+        uma fileira própria, sempre visível. O resto (cores, palavras, fonte,
+        exibição) desce para a gaveta recolhível.
+     2. ESCOLHA — cada faixa restante pode ser desligada em ⚙️ Exibição. As
+        classes .leis-cfg-sem-* abaixo são o efeito dessa escolha.
+     3. RESPIRO — conforto de leitura em três níveis e texto sem justificação
+        forçada, que em tela estreita abria buracos entre as palavras.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* ── 1. Fileira de ações primárias ─────────────────────────────────────── */
+.leis-acoes {
+  display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px;
+}
+.leis-acao {
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px;
+  min-height: 54px; padding: 7px 4px; cursor: pointer;
+  background: var(--surface-sunken); border: 1.5px solid var(--border); border-radius: 12px;
+  color: var(--text-soft); font-weight: 700; font-size: var(--fs-3xs); line-height: 1.15;
+  text-align: center; transition: background .14s ease, border-color .14s ease, color .14s ease;
+}
+.leis-acao .la-ic { font-size: var(--fs-md); line-height: 1; }
+.leis-acao .la-tx { overflow: hidden; text-overflow: ellipsis; max-width: 100%; white-space: nowrap; }
+.leis-acao:hover { border-color: var(--border-strong); color: var(--text); }
+.leis-acao.leis-tool-mark.active { background: #fde68a; border-color: #f5c518; color: var(--warn-text); }
+.leis-acao.leis-tool-erase.active { background: var(--bad-soft); border-color: var(--bad-text); color: var(--bad-text); }
+.leis-acao.has-mark { background: var(--warn-soft); border-color: var(--warn); color: var(--warn-text); }
+/* Em tela larga cabe rótulo ao lado do ícone: a fileira fica mais discreta. */
+@media (min-width: 721px) {
+  .leis-acoes { display: flex; flex-wrap: wrap; gap: 8px; }
+  .leis-acao { flex-direction: row; gap: 8px; min-height: 42px; padding: 8px 16px; font-size: var(--fs-sm); }
+}
+
+/* ── 2. Gaveta de ajustes ──────────────────────────────────────────────── */
+.leis-sticky .leis-tools-toggle { margin-top: 2px; }
+.leis-sticky:not(.tools-collapsed) .leis-tools-toggle { border-top: 1px solid var(--border); border-radius: 0; padding-top: 12px; }
+.leis-hl-group { flex-direction: column; align-items: stretch !important; gap: 10px !important; }
+.leis-hl-chips { display: flex; flex-wrap: wrap; gap: 7px; }
+.leis-auto-switch { align-self: flex-start; }
+.leis-auto-label { display: inline !important; }   /* o rótulo cabe: ele agora tem a linha só para si */
+.leis-toolbar-actions { border-top: 1px solid var(--border); padding-top: 10px; }
+.leis-font-val {
+  min-width: 46px; text-align: center; font-size: var(--fs-2xs); font-weight: 700; color: var(--text-faint);
+  font-family: 'Space Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+.leis-reader-controls { align-items: center; }
+.leis-mark-count { margin: 0; padding-top: 2px; }
+
+/* ── 3. Dica dispensável no próprio lugar ──────────────────────────────── */
+.leis-mark-hint { position: relative; padding-right: 40px !important; }
+.leis-hint-x {
+  position: absolute; top: 6px; right: 6px; width: 28px; height: 28px;
+  border: none; border-radius: 8px; background: transparent; cursor: pointer;
+  color: var(--text-faint); font-size: var(--fs-sm); line-height: 1;
+}
+.leis-hint-x:hover { background: var(--surface); color: var(--text); }
+
+/* ── 4. O que a escolha em ⚙️ Exibição desliga ─────────────────────────── */
+#screen-leis.leis-cfg-sem-chips #lei-reader-meta { display: none !important; }
+#screen-leis.leis-cfg-sem-cores #lei-hl-chips { display: none !important; }
+#screen-leis.leis-cfg-sem-dica .leis-mark-hint { display: none !important; }
+#screen-leis.leis-cfg-sem-painel #lei-marks-panel { display: none !important; }
+#screen-leis.leis-cfg-sem-sticky .leis-sticky { position: static; }
+
+/* ── 5. Conforto de leitura ────────────────────────────────────────────── */
+#screen-leis.leis-cfg-conf-compacto .lei-reader-body { line-height: 1.65; }
+#screen-leis.leis-cfg-conf-compacto .law-block { margin: 1px 0; }
+#screen-leis.leis-cfg-conf-compacto .law-art { margin: 14px 0 4px; padding-top: 5px; padding-bottom: 5px; }
+#screen-leis.leis-cfg-conf-compacto .law-head { margin: 18px 0 8px; }
+#screen-leis.leis-cfg-conf-compacto .law-gap { height: 8px; }
+#screen-leis.leis-cfg-conf-amplo .lei-reader-body { line-height: 2.1; }
+#screen-leis.leis-cfg-conf-amplo .law-block { margin: 6px 0; }
+#screen-leis.leis-cfg-conf-amplo .law-art { margin: 32px 0 10px; }
+#screen-leis.leis-cfg-conf-amplo .law-gap { height: 20px; }
+
+/* ── 6. Justificação opcional ──────────────────────────────────────────── */
+/* Justificar com coluna estreita produz "rios" de espaço entre as palavras —
+   é a maior fonte da sensação de texto mal montado no celular. Passa a ser
+   escolha, e o padrão é alinhado à esquerda. */
+.lei-reader-body.sem-justificar .law-block { text-align: left; -webkit-hyphens: manual; hyphens: manual; }
+.lei-reader-body.sem-justificar .law-block.law-head { text-align: center; }
+
+/* ── 7. Lista de leis: busca, contagem e cartões ───────────────────────── */
+.leis-list-topbar { flex-wrap: wrap; gap: 10px; }
+.leis-busca {
+  flex: 1 1 220px; min-width: 0; position: relative; display: flex; align-items: center;
+  background: var(--surface); border: 1.5px solid var(--border); border-radius: 12px;
+  padding: 0 8px 0 12px; min-height: 44px;
+}
+.leis-busca:focus-within { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-ring); }
+.leis-busca-ic { flex: 0 0 auto; opacity: .6; font-size: var(--fs-sm); }
+.leis-busca input {
+  flex: 1 1 auto; min-width: 0; border: none !important; background: transparent !important;
+  box-shadow: none !important; padding: 8px 6px !important; font-size: var(--fs-sm);
+}
+.leis-busca input:focus { outline: none; }
+.leis-busca input::-webkit-search-cancel-button { display: none; }
+.leis-busca-x {
+  flex: 0 0 auto; width: 30px; height: 30px; border: none; border-radius: 8px; cursor: pointer;
+  background: var(--surface-sunken); color: var(--text-soft); font-size: var(--fs-xs);
+}
+.leis-nova { flex: 0 0 auto; min-height: 44px; margin-left: auto; }  /* fica à direita mesmo sem a busca */
+.leis-list-contagem {
+  margin: 0 0 10px; font-size: var(--fs-2xs); color: var(--text-faint); font-weight: 600;
+  text-transform: uppercase; letter-spacing: .05em;
+}
+/* O cartão inteiro é o botão: antes metade dele abria a lei por um listener
+   invisível e a outra metade era um botão "Ler →" que fazia a mesma coisa. */
+.lei-card {
+  width: 100%; text-align: left; font: inherit; color: inherit; cursor: pointer;
+  display: flex; align-items: center; gap: 12px;
+}
+.lei-card-main { display: flex; flex-direction: column; gap: 7px; flex: 1 1 auto; min-width: 0; }
+.lei-card-title { display: block; line-height: 1.3; overflow-wrap: anywhere; }
+.lei-card-meta { margin-top: 0 !important; }
+.lei-card-meta:empty { display: none; }
+.lei-card-stats {
+  display: flex; flex-wrap: wrap; gap: 4px 12px; align-items: center;
+  font-size: var(--fs-3xs); color: var(--text-faint); font-weight: 600;
+  font-family: 'Space Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+.lei-card-bk { color: var(--warn-text); font-weight: 700; }
+.lei-card-go {
+  flex: 0 0 auto; width: 34px; height: 34px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  background: var(--surface-sunken); color: var(--text-soft); font-size: var(--fs-md); font-weight: 700;
+  transition: background .15s ease, color .15s ease;
+}
+.lei-card:hover .lei-card-go { background: var(--accent); color: #fff; }
+
+/* ── 8. Painel ⚙️ Exibição ─────────────────────────────────────────────── */
+.lei-prefs-grupo { display: grid; gap: 4px; }
+.lei-pref-item {
+  display: flex; align-items: flex-start; gap: 11px; cursor: pointer;
+  padding: 10px 11px; border-radius: 11px; border: 1.5px solid transparent;
+}
+.lei-pref-item:hover { background: var(--surface-sunken); }
+.lei-pref-item input { width: 17px; height: 17px; margin: 2px 0 0; accent-color: var(--accent); flex-shrink: 0; }
+.lei-pref-txt { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.lei-pref-lbl { font-size: var(--fs-sm); font-weight: 700; color: var(--text); }
+.lei-pref-sub { font-size: var(--fs-2xs); color: var(--text-faint); line-height: 1.45; }
+.lei-prefs-seg { display: flex; width: 100%; }
+.lei-prefs-seg button { flex: 1 1 0; justify-content: center; min-height: 40px; }
+
+/* ── 9. Modo foco ──────────────────────────────────────────────────────── */
+/* A numeração é absoluta FORA da caixa da linha; com o recuo de 4px do modo
+   foco ela caía em x negativo e o cartão (overflow:hidden) a comia. Some o
+   recorte e volta o recuo quando a numeração está ligada. */
+body.leis-foco .leis-reader-card { overflow: visible; }
+body.leis-foco .lei-reader-body.show-lines { padding-left: 42px; }
+@media (min-width: 641px) { body.leis-foco .lei-reader-body.show-lines { padding-left: 56px; } }
+/* Cinco botões não cabiam com rótulo: três ficavam fora da faixa, num
+   rolamento horizontal sem barra e sem nenhuma pista de que existiam. */
+.foco-bar .fb-ic { font-size: var(--fs-md); line-height: 1; }
+@media (max-width: 700px) {
+  body.leis-foco #lei-foco-bar { gap: 8px; padding: 8px 10px; }
+  body.leis-foco #lei-foco-bar .foco-info { font-size: var(--fs-2xs); }
+  body.leis-foco #lei-foco-bar .foco-acoes { max-width: none; flex: 0 0 auto; overflow: visible; gap: 5px; }
+  body.leis-foco #lei-foco-bar .foco-acoes .fb-tx { display: none; }
+  body.leis-foco #lei-foco-bar .foco-acoes button {
+    width: 44px; min-width: 44px; padding: 0; justify-content: center;
+  }
+  body.leis-foco #lei-foco-bar .foco-acoes #lei-foco-sair { box-shadow: none; }
+}
+
+/* ── 10. Acabamentos ───────────────────────────────────────────────────── */
+/* O A−/A+ era uma dupla de botões soltos nas pontas de uma linha vazia. Vira
+   um controle único, com o valor no meio, do tamanho do que mostra. */
+.leis-reader-controls {
+  display: inline-flex; align-items: center; gap: 2px;
+  background: var(--surface-sunken); border: 1.5px solid var(--border); border-radius: 11px; padding: 3px;
+}
+.leis-reader-controls .icon-btn { min-width: 40px; min-height: 36px; border-radius: 8px; }
+.lei-pref-sub { font-weight: 500 !important; }
+/* No modo foco o cartão perde borda e fundo; a faixa colorida do topo ficava
+   sozinha no ar, sem cartão nenhum a que pertencer. */
+body.leis-foco .leis-reader-card::before { display: none; }
