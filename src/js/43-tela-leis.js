@@ -669,37 +669,39 @@ const LeisScreen = {
     this.renderPrefs();
   },
   closePrefs() { const m = document.getElementById('lei-prefs-modal'); if (m) m.style.display = 'none'; },
+  /* Os controles existem em DOIS lugares: o ⚙️ Exibição da própria tela de
+     Leis e o cartão "Leis Secas — exibição" em Configurações. Os dois são
+     pintados aqui e gravam nas mesmas chaves — são uma janela para o mesmo
+     ajuste, não duas cópias que podem se desencontrar. Por isso a marcação usa
+     data-attributes (repetíveis) em vez de id (único), e o listener é um só,
+     delegado no documento. */
   renderPrefs() {
     const linha = (d) => `
       <label class="lei-pref-item">
         <input type="checkbox" data-pref="${d.k}" ${this.prefOn(d.k) ? 'checked' : ''}>
         <span class="lei-pref-txt"><span class="lei-pref-lbl">${d.lbl}</span><span class="lei-pref-sub">${d.sub}</span></span>
       </label>`;
-    [['leitura', 'lei-prefs-leitura'], ['partes', 'lei-prefs-partes']].forEach(([g, id]) => {
-      const host = document.getElementById(id);
-      if (host) host.innerHTML = this.PREFS.filter(d => d.grupo === g).map(linha).join('');
+    document.querySelectorAll('[data-lei-prefs]').forEach(host => {
+      host.innerHTML = this.PREFS.filter(d => d.grupo === host.dataset.leiPrefs).map(linha).join('');
     });
-    const seg = document.getElementById('lei-conforto-seg');
-    if (seg) {
-      const c = this.conforto();
-      seg.querySelectorAll('button[data-conforto]').forEach(b => {
-        b.classList.toggle('active', b.dataset.conforto === c);
-        b.setAttribute('aria-pressed', b.dataset.conforto === c ? 'true' : 'false');
-      });
-    }
-    const modal = document.getElementById('lei-prefs-modal');
-    if (!modal || modal._leiPrefsDelegado) return;
-    modal._leiPrefsDelegado = true;   // delegação: sobrevive a cada re-render
-    modal.addEventListener('change', (e) => {
-      const cx = e.target.closest ? e.target.closest('input[data-pref]') : null;
+    const c = this.conforto();
+    document.querySelectorAll('[data-lei-conforto] button[data-conforto]').forEach(b => {
+      const on = b.dataset.conforto === c;
+      b.classList.toggle('active', on);
+      b.setAttribute('aria-pressed', on ? 'true' : 'false');
+    });
+    if (document._leiPrefsDelegado) return;
+    document._leiPrefsDelegado = true;
+    document.addEventListener('change', (e) => {
+      const cx = e.target.closest ? e.target.closest('[data-lei-prefs] input[data-pref]') : null;
       if (!cx) return;
       this.prefSetOn(cx.dataset.pref, cx.checked);
       this.aplicarPrefs();
-      // as cores e a justificação mudam o HTML da lei, não só a moldura
+      this.renderPrefs();                                    // espelha no outro lugar
       if (cx.dataset.pref === 'p-cores' && this.currentId) this.renderBodySoon();
     });
-    modal.addEventListener('click', (e) => {
-      const b = e.target.closest ? e.target.closest('button[data-conforto]') : null;
+    document.addEventListener('click', (e) => {
+      const b = e.target.closest ? e.target.closest('[data-lei-conforto] button[data-conforto]') : null;
       if (!b) return;
       this._prefSet('p-conforto', b.dataset.conforto);
       this.aplicarPrefs();
@@ -707,7 +709,7 @@ const LeisScreen = {
     });
   },
   async resetPrefs() {
-    if (!await UI.confirm('Voltar todas as opções de exibição ao padrão?')) return;
+    if (!await UI.confirm('Voltar todas as opções de exibição da tela de Leis ao padrão?')) return;
     this.PREFS.forEach(d => this._prefSet(d.k, d.padrao));
     this._prefSet('p-conforto', 'normal');
     this.aplicarPrefs();
@@ -877,6 +879,7 @@ window.LeisScreen = LeisScreen;
   on('lei-prefs-close', 'click', () => LeisScreen.closePrefs());
   on('lei-prefs-done', 'click', () => LeisScreen.closePrefs());
   on('lei-prefs-reset', 'click', () => LeisScreen.resetPrefs());
+  on('cfg-leis-reset', 'click', () => LeisScreen.resetPrefs());
   // a dica do marca-texto se dispensa no próprio lugar, sem procurar ajuste
   on('lei-mark-hint-x', 'click', () => {
     LeisScreen.prefSetOn('p-dica', false);
@@ -939,6 +942,8 @@ window.LeisScreen = LeisScreen;
 })();
 window.addEventListener('screen:activated', (e) => {
   const tela = e && e.detail && e.detail.screen;
+  // o cartão de exibição das Leis vive em Configurações: pinta ao abrir a tela
+  if (tela === 'config') LeisScreen.renderPrefs();
   if (tela === 'leis') { LeisScreen.render(); return; }
   /* Trocar de aba com o modo foco ligado deixava body.leis-foco no ar: abas,
      menu e as outras telas continuavam escondidos por CSS e o app parecia

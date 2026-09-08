@@ -102,6 +102,32 @@
     </section>
 
     <!-- ────────── Sincronização na nuvem (Supabase) ────────── -->
+    <!-- Os mesmos controles do ⚙️ Exibição da tela de Leis. São pintados pelo
+         MESMO código (LeisScreen.renderPrefs) e escrevem nas MESMAS chaves: os
+         dois lugares são uma janela para o mesmo ajuste, não duas cópias que
+         podem se desencontrar. -->
+    <section class="card" id="cfg-leis-card">
+      <div class="card-header">
+        <div>
+          <h2>§ Leis Secas — exibição</h2>
+          <p class="sub">O que aparece na tela de leitura das leis — os mesmos controles do botão <strong>⚙️ Exibição</strong> lá dentro. Desligue o que você não usa: vale para todas as leis do perfil e acompanha o perfil na nuvem.</p>
+        </div>
+      </div>
+      <div style="padding: 16px 28px 24px;">
+        <p class="section-label" style="margin:0 0 8px;">Leitura</p>
+        <div class="lei-prefs-grupo" data-lei-prefs="leitura"></div>
+        <p class="section-label" style="margin:18px 0 8px;">Conforto do texto</p>
+        <div class="ux-seg lei-prefs-seg" data-lei-conforto role="group" aria-label="Espaçamento do texto">
+          <button type="button" data-conforto="compacto">Compacto</button>
+          <button type="button" data-conforto="normal">Normal</button>
+          <button type="button" data-conforto="amplo">Amplo</button>
+        </div>
+        <p class="section-label" style="margin:18px 0 8px;">O que aparece na tela</p>
+        <div class="lei-prefs-grupo" data-lei-prefs="partes"></div>
+        <button type="button" class="btn-secondary" id="cfg-leis-reset" style="margin-top:16px;">↺ Restaurar padrão</button>
+      </div>
+    </section>
+
     <section class="card">
       <div class="card-header">
         <div>

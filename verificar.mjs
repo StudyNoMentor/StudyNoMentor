@@ -335,6 +335,27 @@ try {
     LeisScreen.toggleLines();
     out.linhasUmEstadoSo = LeisScreen.prefOn('p-linhas') === LeisScreen.showLines;
     LeisScreen.toggleLines();
+    /* Os MESMOS controles existem em Configuracoes > Preferencias. Sao dois
+       lugares para um ajuste so: mexer num tem de valer na lei e aparecer no
+       outro — duas copias que se desencontram seriam pior que um lugar so. */
+    switchScreen('config');
+    const cartaoCfg = document.getElementById('cfg-leis-card');
+    out.cartaoNasPreferencias = !!(cartaoCfg && cartaoCfg.closest('.cfg-group')
+      && cartaoCfg.closest('.cfg-group').id === 'cfg-g-prefs');
+    const cxDe = (raiz, k) => document.querySelector(raiz + ' input[data-pref="' + k + '"]');
+    const noCartao = cxDe('#cfg-leis-card', 'p-justificado');
+    const noModal = cxDe('#lei-prefs-modal', 'p-justificado');
+    if (!noCartao || !noModal) { out.cartaoEspelhaModal = false; }
+    else {
+      const antes = LeisScreen.prefOn('p-justificado');
+      noCartao.checked = !antes; noCartao.dispatchEvent(new Event('change', { bubbles: true }));
+      out.cartaoEspelhaModal = LeisScreen.prefOn('p-justificado') === !antes
+        && cxDe('#lei-prefs-modal', 'p-justificado').checked === !antes
+        && corpo.classList.contains('sem-justificar') === antes;
+      const volta = cxDe('#cfg-leis-card', 'p-justificado');
+      volta.checked = antes; volta.dispatchEvent(new Event('change', { bubbles: true }));
+    }
+    switchScreen('leis');
     // trocar de aba nao pode deixar body.leis-foco no ar (app sem navegacao)
     switchScreen('ciclo');
     out.focoLimpoAoTrocarDeAba = !document.body.classList.contains('leis-foco');
@@ -346,7 +367,7 @@ try {
   const leisFalhas = Object.keys(leis).filter((k) => !leis[k] && k !== 'pinNoTexto');
   if (leis.pinNoTexto !== 1) leisFalhas.push('pinNoTexto=' + leis.pinNoTexto);
   leisFalhas.length ? erro('leitor de Leis Secas: ' + leisFalhas.join(', '))
-    : ok('Leis Secas: numeracao visivel e clicavel, "Onde parei" marca e volta, modo foco completo, ⚙️ Exibicao desliga cada faixa');
+    : ok('Leis Secas: numeracao e "Onde parei" funcionais, modo foco completo, exibicao ajustavel na tela E em Configuracoes');
 } catch (e) { erro('falha na navegacao: ' + e.message); }
 
 /* ── 7. contraste WCAG AA nos DOIS temas ───────────────────────────────────
