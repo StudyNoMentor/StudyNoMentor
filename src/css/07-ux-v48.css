@@ -536,20 +536,73 @@ button.is-saving {
   .leis-reader-title h2 { font-size: var(--fs-lg); line-height: 1.25; }
 }
 
-/* Barra de ferramentas recolhível */
+/* Barra de ferramentas recolhível.
+   Recolhida, a barra virava uma tirinha: rótulo minúsculo em versalete cinza,
+   10px de folga em cima e 2px embaixo, sem alvo de toque decente. Ela agora é
+   uma FAIXA de verdade — altura de toque, texto legível e as duas metades do
+   respiro iguais —, tanto aberta quanto fechada. */
 .leis-tools-toggle {
-  display: flex; align-items: center; gap: 8px; width: 100%;
+  display: flex; align-items: center; gap: 9px; width: 100%;
   background: transparent; border: none; cursor: pointer;
-  padding: 9px 12px; border-radius: 12px;
-  font-size: var(--fs-2xs); font-weight: 800; letter-spacing: .05em;
-  text-transform: uppercase; color: var(--text-faint);
+  padding: 10px 12px; min-height: 42px; border-radius: 12px;
+  font-size: var(--fs-xs); font-weight: 800; letter-spacing: .03em;
+  text-transform: uppercase; color: var(--text-soft);
 }
 .leis-tools-toggle:hover { color: var(--accent); background: var(--accent-soft); }
-.leis-tools-toggle .ltt-txt { flex: 1 1 auto; text-align: left; }
-.leis-tools-toggle .ltt-caret { transition: transform .16s ease; }
+.leis-tools-toggle .ltt-ic { font-size: var(--fs-md); line-height: 1; flex: 0 0 auto; }
+.leis-tools-toggle .ltt-txt { flex: 1 1 auto; text-align: left; overflow-wrap: anywhere; }
+.leis-tools-toggle .ltt-caret { flex: 0 0 auto; transition: transform .16s ease; font-size: var(--fs-sm); }
 .leis-sticky.tools-collapsed .leis-tools-toggle .ltt-caret { transform: rotate(-90deg); }
 .leis-sticky.tools-collapsed .leis-tools-body { display: none; }
-.leis-sticky.tools-collapsed { padding-bottom: 2px; }
+/* Recolhida a caixa não tem segunda linha: o padding some e quem dá a altura é
+   o próprio botão, que ocupa a faixa inteira. */
+.leis-sticky.tools-collapsed { padding: 6px; gap: 0; }
+.leis-sticky.tools-collapsed .leis-tools-toggle {
+  min-height: 46px; background: var(--surface-sunken); color: var(--text);
+  border: 1px solid var(--border); border-radius: 11px;
+}
+.leis-sticky.tools-collapsed .leis-tools-toggle:hover { background: var(--accent-soft); color: var(--accent); }
+
+/* Barra ABERTA no celular: com o espaçador elástico no meio de um flex que
+   quebra linha, os botões da segunda fileira ficavam centralizados ao acaso —
+   um encostado à direita, três soltos no meio. Sem o espaçador eles se
+   distribuem em duas colunas regulares. */
+@media (max-width: 720px) {
+  .leis-toolbar-actions .leis-toolbar-spacer { display: none; }
+  .leis-toolbar-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; align-items: stretch; }
+  .leis-toolbar-actions .leis-tool-btn { width: 100%; min-height: 42px; padding: 8px 10px; text-align: center; }
+  .leis-toolbar-actions .leis-mark-count { grid-column: 1 / -1; text-align: center; white-space: normal; }
+  .leis-toolbar-actions .leis-reader-controls { grid-column: 1 / -1; justify-content: center; gap: 10px; }
+  .leis-toolbar-actions .leis-reader-controls .icon-btn { flex: 1 1 0; min-height: 42px; }
+}
+
+/* "Onde parei" com marcador fixado ganha a cor do pin — assim dá para ver, sem
+   abrir a lei toda, se já existe um ponto salvo. */
+.leis-tool-btn.has-mark { background: var(--warn-soft); border-color: var(--warn); color: var(--warn-text); }
+/* Havia estado ".active" só para o marca-texto e a borracha. "🔢 Linhas" ligava
+   a classe e nada mudava na tela: o botão não dava sinal nenhum de estar ativo,
+   o que reforçava a impressão de que ele não fazia nada. */
+.leis-tool-btn.active, .foco-acoes .btn-secondary.active {
+  background: var(--accent-soft); border-color: var(--accent); color: var(--accent);
+}
+
+/* Aplicar a seleção pelo toque.
+   No celular não existe "mouseup" ao fim de uma seleção por toque longo — o
+   marca-texto e a borracha simplesmente nunca eram aplicados. Com a ferramenta
+   ativa e um trecho selecionado, esta faixa aparece e transforma a seleção numa
+   ação explícita (que também é mais previsível que aplicar sozinho). */
+.lei-sel-fab {
+  position: fixed; left: 50%; transform: translateX(-50%);
+  bottom: calc(16px + env(safe-area-inset-bottom, 0px) + var(--lei-fab-lift, 72px));
+  z-index: 80; max-width: min(92vw, 380px);
+  padding: 11px 18px; min-height: 46px; border-radius: 999px; cursor: pointer;
+  border: 1.5px solid #f5c518; background: #fde68a; color: var(--warn-text);
+  font-size: var(--fs-sm); font-weight: 800; white-space: nowrap;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.22);
+}
+.lei-sel-fab.is-erase { background: var(--bad-soft); border-color: var(--bad-text); color: var(--bad-text); }
+body.leis-foco .lei-sel-fab { --lei-fab-lift: 8px; }
+@media (min-width: 835px) { .lei-sel-fab { --lei-fab-lift: 8px; } }
 
 /* ---------------------------------------------------------------------------
    6. EXTRAS — cartões compactos e uniformes

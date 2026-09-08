@@ -268,6 +268,57 @@ try {
   else if (caixa.tipos.includes('number')) erro('as caixas de acertos voltaram a ser type="number" (setinha de incremento)');
   else if (caixa.util < caixa.precisa) erro(`caixa de acertos com ${caixa.util}px uteis a 360px — "100" precisa de ${caixa.precisa}px`);
   else ok(`caixa de acertos sem setinha e com 3 digitos a 360px (${caixa.largura}px, ${caixa.util} >= ${caixa.precisa})`);
+
+  /* ── LEIS SECAS: leitor utilizavel de ponta a ponta ─────────────────────
+     Tres regressoes que andaram juntas e so aparecem no aparelho:
+       • .law-block ganhou content-visibility:auto, e a contencao de PINTURA
+         recortou a numeracao da linha (absoluta, fora da caixa). O botao
+         "Linhas" ligava a classe e nada aparecia;
+       • sem numero para clicar, o marcador "Onde parei" nunca podia nascer —
+         o botao so sabia ir ate um marcador que era impossivel criar;
+       • no modo foco a navegacao inteira some, e o "Sair" saia da faixa
+         rolavel: sem Esc no toque, a tela ficava sem saida.
+     Medido no viewport de celular, que e onde o usuario viu o problema. */
+  await pag.setViewportSize({ width: 412, height: 900 });
+  const leis = await pag.evaluate(() => {
+    switchScreen('leis');
+    const texto = Array.from({ length: 60 }, (_, i) =>
+      'Art. ' + (i + 1) + 'o O contribuinte devera, salvo disposicao em contrario, observar o prazo de 30 dias.').join('\n\n');
+    const lei = DB.addLei({ titulo: 'LEI DE TESTE', referencia: '', materia: '', texto });
+    LeisScreen.openReader(lei.id);
+    if (!LeisScreen.showLines) LeisScreen.toggleLines();
+    const corpo = document.getElementById('lei-reader-body');
+    const num = corpo.querySelector('.law-lnum');
+    const r = num.getBoundingClientRect();
+    const sob = document.elementFromPoint(Math.round(r.left + r.width / 2), Math.round(r.top + r.height / 2));
+    const out = { numeroVisivel: r.width > 0 && r.height > 0,
+      numeroClicavel: !!(sob && sob.classList.contains('law-lnum')) };
+    // "Onde parei" sem marcador tem de CRIAR o marcador (e nao so reclamar)
+    document.getElementById('lei-goto-mark-btn').click();
+    out.marcadorCriado = DB.getLei(lei.id).bookmark != null;
+    out.pinNoTexto = corpo.querySelectorAll('.law-bookmarked .law-pin').length;
+    // e, com marcador, tem de ir ate ele sem apaga-lo
+    document.getElementById('lei-goto-mark-btn').click();
+    out.marcadorSobreviveu = DB.getLei(lei.id).bookmark != null;
+    // modo foco: a saida tem de estar dentro da barra e clicavel
+    LeisScreen.entrarFoco();
+    const barra = document.getElementById('lei-foco-bar').getBoundingClientRect();
+    const sair = document.getElementById('lei-foco-sair').getBoundingClientRect();
+    const emCima = document.elementFromPoint(Math.round(sair.left + sair.width / 2), Math.round(sair.top + sair.height / 2));
+    out.saidaVisivel = sair.right <= barra.right + 1 && sair.left >= barra.left - 1
+      && !!(emCima && (emCima.id === 'lei-foco-sair' || (emCima.closest && emCima.closest('#lei-foco-sair'))));
+    // trocar de aba nao pode deixar body.leis-foco no ar (app sem navegacao)
+    switchScreen('ciclo');
+    out.focoLimpoAoTrocarDeAba = !document.body.classList.contains('leis-foco');
+    switchScreen('leis');
+    DB.deleteLei(lei.id);
+    return out;
+  });
+  await pag.setViewportSize({ width: 1280, height: 900 });
+  const leisFalhas = Object.keys(leis).filter((k) => !leis[k] && k !== 'pinNoTexto');
+  if (leis.pinNoTexto !== 1) leisFalhas.push('pinNoTexto=' + leis.pinNoTexto);
+  leisFalhas.length ? erro('leitor de Leis Secas: ' + leisFalhas.join(', '))
+    : ok('Leis Secas: numeracao visivel e clicavel, "Onde parei" marca e volta, modo foco com saida');
 } catch (e) { erro('falha na navegacao: ' + e.message); }
 
 /* ── 7. contraste WCAG AA nos DOIS temas ───────────────────────────────────
