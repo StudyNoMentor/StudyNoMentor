@@ -7299,6 +7299,13 @@ window.__idbBoot = (function () {
 
           <hr class="divider">
           <div class="cloud-sessions-head">
+            <p class="section-label" style="margin:0;">Fila de envio para a nuvem</p>
+            <button type="button" class="btn-secondary sess-refresh" id="cloud-queue-refresh" title="Atualizar a fila" aria-label="Atualizar a fila">↻</button>
+          </div>
+          <div id="cloud-queue-box"></div>
+
+          <hr class="divider">
+          <div class="cloud-sessions-head">
             <p class="section-label" style="margin:0;">Aparelho com sessão ativa</p>
             <button type="button" class="btn-secondary sess-refresh" id="cloud-sessions-refresh" title="Atualizar" aria-label="Atualizar">↻</button>
           </div>
@@ -10412,6 +10419,11 @@ var _cloudNotifyHook = null;
 // alterada como "suja" para ser enviada à tabela profile_sections em paralelo ao blob.
 // var (não const) evita erro de zona morta se DB._set rodar antes do SectionSync existir.
 var _sectionMarkHook = null;
+// Hook do APAGAMENTO de uma chave do perfil. Apagar também é uma alteração que
+// precisa chegar aos outros aparelhos — mas pelo MANIFESTO (a lista de seções que
+// o perfil tem), não como conteúdo. Marcar a seção como "suja" aqui faria subir
+// uma linha vazia em vez de removê-la; por isso o apagamento tem hook próprio.
+var _sectionDropHook = null;
 
 /* ============================================================
    CAMADA DE DADOS — usada por todas as telas do app
@@ -10546,6 +10558,37 @@ const DB = {
     if (_sectionMarkHook) _sectionMarkHook(key); // marca a seção alterada (sync por seção)
     return true;
   },
+  /* ── CANAL ÚNICO DE ESCRITA ────────────────────────────────────────────────
+     _set serve para valores JSON. Mas dezenas de pontos do app guardam TEXTO
+     puro (preferências de tela, sinalizadores de painel recolhido, escala da
+     fonte...) e chamavam localStorage.setItem direto. Isso pulava o aviso da
+     camada por seção: o dado subia só no "blob" periódico e a linha da seção
+     correspondente ficava velha na nuvem. Como a LEITURA hoje vem das seções,
+     ao abrir em outro aparelho o valor voltava desatualizado — parecia que a
+     alteração "não tinha salvo".
+
+     setRaw/delRaw dão a esses pontos o mesmo caminho de _set: grava, avisa a
+     nuvem e marca a seção. Toda escrita no namespace do perfil deve passar por
+     _set, setRaw ou delRaw — nunca por localStorage direto. */
+  setRaw(key, value) {
+    try {
+      localStorage.setItem(key, String(value));
+    } catch (e) {
+      console.error('Falha ao gravar', key, e);
+      try { showToast('⚠ Não foi possível salvar. Verifique o espaço do navegador ou o modo privado.'); } catch (_) { _quiet(_, 'setRaw-aviso'); }
+      return false;
+    }
+    if (_cloudNotifyHook) _cloudNotifyHook();
+    if (_sectionMarkHook) _sectionMarkHook(key);
+    return true;
+  },
+  delRaw(key) {
+    try { localStorage.removeItem(key); } catch (e) { _quiet(e, 'delRaw'); return false; }
+    if (_cloudNotifyHook) _cloudNotifyHook();
+    if (_sectionDropHook) _sectionDropHook(key);
+    return true;
+  },
+  _del(key) { return this.delRaw(key); },
   // Quanto o app está ocupando no navegador (útil na mensagem de cota e em Configurações)
   storageUsageMB() {
     try {
@@ -11250,8 +11293,7 @@ const DB = {
     this.saveCards(cards);
     this._set(this.KEYS.revlog, []);
     try {
-      localStorage.setItem(CardsConfig.DKEY, JSON.stringify({ date: todayCards(), newIds: [], revIds: [] }));
-      CardsConfig._notify();
+      this.setRaw(CardsConfig.DKEY, JSON.stringify({ date: todayCards(), newIds: [], revIds: [] }));
     } catch (_) { _quiet(_); }
     return { cards: cards.length, revlog: nRev };
   },
@@ -11727,15 +11769,12 @@ const DB = {
       let v = localStorage.getItem(this._extrasMetricsKey());
       if (v === null) { // migra a chave global antiga
         const legado = localStorage.getItem('diario-estudos:extras-in-metrics');
-        if (legado !== null) { localStorage.setItem(this._extrasMetricsKey(), legado); v = legado; }
+        if (legado !== null) { this.setRaw(this._extrasMetricsKey(), legado); v = legado; }
       }
       return v === null ? false : v === '1';
     } catch (_) { return false; }
   },
-  setExtrasCountGlobal(on) {
-    try { localStorage.setItem(this._extrasMetricsKey(), on ? '1' : '0'); } catch (_) { _quiet(_); }
-    try { if (window.CloudStore && CloudStore.notifyChange) CloudStore.notifyChange(); } catch (_) { _quiet(_); }
-  },
+  setExtrasCountGlobal(on) { this.setRaw(this._extrasMetricsKey(), on ? '1' : '0'); },
   addCustomSigla({ sigla, nome, color }) {
     const list = this.getCustomSiglas();
     list.push({ id: this._uid(), sigla: (sigla || '').trim().toUpperCase(), nome: (nome || '').trim(), color: color || '#4f46e5' });
@@ -12001,7 +12040,9 @@ const PlanManager = {
   savePlans(list) { DB._set(this.GK.plans, list); },
   getActivePlanId() { try { return localStorage.getItem(this.GK.active); } catch (e) { return null; } },
   getActivePlan() { return this.getPlans().find(p => p.id === this.getActivePlanId()) || null; },
-  setActivePlan(id) { localStorage.setItem(this.GK.active, id); },
+  // Trocar de planejamento é uma alteração do perfil como qualquer outra: passa
+  // pelo canal único para chegar à nuvem (antes só subia no blob periódico).
+  setActivePlan(id) { DB.setRaw(this.GK.active, id); },
 
   // Semeia formas de estudo e fases padrão para um planejamento novo,
   // para que todas as telas já funcionem "de fábrica".
@@ -12216,7 +12257,12 @@ const ProfileManager = {
     const data = {};
     for (let i = 0; i < localStorage.length; i++) {
       const k = localStorage.key(i);
-      if (k && k.startsWith(prefix)) data[k.slice(prefix.length)] = localStorage.getItem(k);
+      if (!k || !k.startsWith(prefix)) continue;
+      const sub = k.slice(prefix.length);
+      // A contabilidade da sincronização por seção é local a cada aparelho: levá-la
+      // no backup faria o aparelho que importa herdar a fila de envio de outro.
+      if (sub === '__secrev' || sub === '__secpend') continue;
+      data[sub] = localStorage.getItem(k);
     }
     // não exporta o PIN (backup não deve carregar credencial); o usuário redefine se quiser
     const metaOut = { nome: meta.nome, avatar: meta.avatar, cor: meta.cor };
@@ -12315,14 +12361,28 @@ const ProfileManager = {
     this.saveProfiles(list);
     (rows || []).forEach(r => { if (r.rev) this.setRev(r.id, r.rev); });
   },
-  // apaga o namespace local de um perfil e aplica um payload baixado (data map)
-  restorePayloadInto(id, dataObj) {
+  /* Apaga o namespace local de um perfil e aplica um payload baixado (data map).
+     `preservar` lista as seções que este aparelho ainda NÃO conseguiu enviar: elas
+     ficam intactas, com o valor local, e continuam na fila. Sem isso, baixar da
+     nuvem apagava do próprio aparelho a alteração que ainda não tinha subido. */
+  restorePayloadInto(id, dataObj, preservar) {
     const prefix = 'diario-estudos:u:' + id + ':';
+    const manter = new Set(preservar || []);
+    // A contabilidade da sincronização é DESTE aparelho (o que ele já enviou e o
+    // que falta): vinda no backup de outro, faria este achar que está em dia.
+    const local = ['__secrev', '__secpend'];
     const toRemove = [];
-    for (let i = 0; i < localStorage.length; i++) { const k = localStorage.key(i); if (k && k.startsWith(prefix)) toRemove.push(k); }
+    for (let i = 0; i < localStorage.length; i++) {
+      const k = localStorage.key(i);
+      if (!k || !k.startsWith(prefix)) continue;
+      const sub = k.slice(prefix.length);
+      if (manter.has(sub) || local.indexOf(sub) !== -1) continue;
+      toRemove.push(k);
+    }
     toRemove.forEach(k => localStorage.removeItem(k));
     Object.keys(dataObj || {}).forEach(sub => {
       if (sub.startsWith('u:')) return;
+      if (manter.has(sub) || local.indexOf(sub) !== -1) return;
       localStorage.setItem(prefix + sub, dataObj[sub]);
     });
   }
@@ -12640,10 +12700,7 @@ const PainelRecolhivel = {
       ? (cfg.rotuloFechado || 'Mostrar filtros')
       : (cfg.rotuloAberto || 'Ocultar filtros');
     this.atualizarResumo(id);
-    if (persistir) {
-      try { localStorage.setItem(this._chave(id), recolhido ? '1' : '0'); }
-      catch (e) { _quiet(e, 'painel-gravar'); }
-    }
+    if (persistir) DB.setRaw(this._chave(id), recolhido ? '1' : '0');
   },
   /* O resumo só aparece com o painel FECHADO: aberto, ele repetiria o que já
      está à vista logo abaixo. */
@@ -15854,7 +15911,6 @@ const CardsConfig = {
     graduatingIntervalEasy: 4  // graduating_interval_easy
   },
   _c: null, _cKey: null,
-  _notify() { try { if (window.CloudStore && CloudStore.notifyChange) CloudStore.notifyChange(); } catch (_) { _quiet(_); } },
   _read(key, legacyKey) {
     let v = null;
     try { v = JSON.parse(localStorage.getItem(key)); } catch (_) { _quiet(_); }
@@ -15940,8 +15996,7 @@ const CardsConfig = {
   },
   set(patch) {
     const v = Object.assign(this.get(), patch || {}); this._c = v; this._cKey = this.KEY;
-    try { localStorage.setItem(this.KEY, JSON.stringify(v)); } catch (_) { _quiet(_); }
-    this._notify();
+    DB.setRaw(this.KEY, JSON.stringify(v));
   },
   // ---- Presets POR BARALHO (como o Anki): overrides que herdam do global ----
   _presets: null, _pKey: null,
@@ -15951,7 +16006,7 @@ const CardsConfig = {
     this._presets = this._read(k, this.LEGACY_PKEY) || {}; this._pKey = k;
     return this._presets;
   },
-  _savePresets() { try { localStorage.setItem(this.PKEY, JSON.stringify(this._presets || {})); } catch (_) { _quiet(_); } this._notify(); },
+  _savePresets() { DB.setRaw(this.PKEY, JSON.stringify(this._presets || {})); },
   hasDeckPreset(deckId) { return !!(deckId && this._getPresets()[deckId]); },
   deckPreset(deckId) { return (deckId && this._getPresets()[deckId]) || null; },
   setDeckPreset(deckId, patch) { if (!deckId) return; const p = this._getPresets(); p[deckId] = Object.assign(p[deckId] || {}, patch || {}); this._savePresets(); },
@@ -15990,7 +16045,7 @@ const CardsConfig = {
     }
     return d;
   },
-  _saveDaily(d) { try { localStorage.setItem(this.DKEY, JSON.stringify(d)); } catch (_) { _quiet(_); } this._notify(); },
+  _saveDaily(d) { DB.setRaw(this.DKEY, JSON.stringify(d)); },
   newDoneToday() { return this._daily().newIds.length; }, revDoneToday() { return this._daily().revIds.length; },
   markIntroduced(kind, id) { const d = this._daily(); const a = kind === 'new' ? d.newIds : d.revIds; if (id && !a.includes(id)) a.push(id); this._saveDaily(d); },
   unmarkIntroduced(kind, id) { const d = this._daily(); const k = kind === 'new' ? 'newIds' : 'revIds'; d[k] = id ? d[k].filter(x => x !== id) : d[k]; this._saveDaily(d); },
@@ -17087,10 +17142,7 @@ function planCycleMode() {
     } catch (e) { _quiet(e); }
     return fallback;
   }
-  function gradePrefSet(name, value) {
-    try { localStorage.setItem(_gradePrefKey(name), String(value)); } catch (e) { _quiet(e); }
-    try { if (window.CloudStore && CloudStore.notifyChange) CloudStore.notifyChange(); } catch (e) { _quiet(e); }
-  }
+  function gradePrefSet(name, value) { DB.setRaw(_gradePrefKey(name), String(value)); }
   // preferência de início da semana ('mon' = segunda | 'sun' = domingo) — só afeta a ORDEM de exibição
   function gradeWeekStart() { return gradePrefGet('grade-weekstart', GRADE_WS_LEGACY, 'mon') === 'sun' ? 'sun' : 'mon'; }
   function setGradeWeekStart(v) { gradePrefSet('grade-weekstart', v === 'sun' ? 'sun' : 'mon'); }
@@ -17766,7 +17818,7 @@ function planCycleMode() {
   const _budgetBtn = document.getElementById('btn-toggle-budget');
   if (_budgetBtn) _budgetBtn.addEventListener('click', () => {
     let open = false; try { open = localStorage.getItem(gradeBudgetKey()) === '1'; } catch (_) { _quiet(_); }
-    try { localStorage.setItem(gradeBudgetKey(), open ? '0' : '1'); } catch (_) { _quiet(_); }
+    DB.setRaw(gradeBudgetKey(), open ? '0' : '1');
     try { if (window.CloudStore && CloudStore.notifyChange) CloudStore.notifyChange(); } catch (_) { _quiet(_); }
     _budgetBtn.classList.toggle('active', !open);
     updateGradeBudget();
@@ -20153,8 +20205,7 @@ function evoApplyScopeCollapsed(collapsed, persist) {
   body.hidden = collapsed;
   btn.setAttribute('aria-expanded', collapsed ? 'false' : 'true');
   if (txt) txt.textContent = collapsed ? 'Mostrar filtros' : 'Ocultar filtros';
-  if (persist) { try { localStorage.setItem(_evoScopeKey(), collapsed ? '1' : '0'); } catch (_) { _quiet(_); }
-    try { if (window.CloudStore && CloudStore.notifyChange) CloudStore.notifyChange(); } catch (_) { _quiet(_); } }
+  if (persist) DB.setRaw(_evoScopeKey(), collapsed ? '1' : '0');
 }
 (function () { const b = document.getElementById('evo-scope-collapse');
   if (b) b.addEventListener('click', () => {
@@ -20825,10 +20876,7 @@ const LeisScreen = {
     } catch (_) { _quiet(_); }
     return padrao;
   },
-  _prefSet(nome, valor) {
-    try { localStorage.setItem(this._prefKey(nome), String(valor)); } catch (_) { _quiet(_); }
-    try { if (window.CloudStore && CloudStore.notifyChange) CloudStore.notifyChange(); } catch (_) { _quiet(_); }
-  },
+  _prefSet(nome, valor) { DB.setRaw(this._prefKey(nome), String(valor)); },
 
   render() {
     // ao ativar a aba, volta sempre para a lista
@@ -23435,6 +23483,90 @@ const AutoTeste = {
     this._ok('Object.prototype está congelado', Object.isFrozen(Object.prototype));
   },
 
+  /* ── GARANTIA DE SALVAMENTO ────────────────────────────────────────────────
+     O bug que estes testes travam: uma alteração que ainda não subiu para a
+     nuvem era APAGADA do próprio aparelho na hora de baixar o perfil. Todo o
+     trabalho roda sobre um perfil de mentira ('__t_sync__'), nunca sobre os
+     dados reais, e o que for escrito é apagado ao fim. */
+  sincronizacao() {
+    const PID = '__t_sync__';
+    const pfx = 'diario-estudos:u:' + PID + ':';
+    const criadas = [];
+    const escrever = (sub, txt) => { const k = pfx + sub; criadas.push(k); localStorage.setItem(k, txt); };
+    // guarda o estado vivo da camada: os testes mexem em campos de memória dela
+    const seedAntes = SectionSync._seededProfile;
+    const sujasAntes = new Set(SectionSync._dirty);
+    try {
+      // 1. a contabilidade da própria camada nunca vira "seção" (senão sincronizaria a si mesma)
+      this._ok('sectionForKey ignora __secrev', SectionSync.sectionForKey(pfx + '__secrev', pfx) === null);
+      this._ok('sectionForKey ignora a caixa de saída', SectionSync.sectionForKey(pfx + SectionSync.PEND, pfx) === null);
+      this._ok('sectionForKey ignora o histórico local', SectionSync.sectionForKey(pfx + 'vhist:1', pfx) === null);
+      this._ok('sectionForKey aceita uma seção real', SectionSync.sectionForKey(pfx + 'p:pl:entries', pfx) === 'p:pl:entries');
+
+      // 2. conteúdo diferente do último envio = pendente, mesmo sem lista em memória
+      escrever('p:pl:grade-template', '{"grade":{"Segunda":[{"done":true}]}}');
+      escrever('__secrev', JSON.stringify({ 'p:pl:grade-template': { rev: 3, hash: 'hash-antigo' } }));
+      this._ok('alteração local não enviada é detectada',
+        SectionSync.pendingSections(PID).indexOf('p:pl:grade-template') !== -1,
+        SectionSync.pendingSections(PID));
+
+      // 3. a caixa de saída sobrevive a um recarregamento (está no armazenamento)
+      escrever(SectionSync.PEND, JSON.stringify(['p:pl:cards']));
+      this._ok('caixa de saída gravada é lida de volta',
+        SectionSync._loadPend(PID).indexOf('p:pl:cards') !== -1, SectionSync._loadPend(PID));
+
+      // 4. O CORAÇÃO: baixar da nuvem não pode apagar o que ainda não subiu.
+      criadas.push(pfx + 'p:pl:entries');
+      SectionSync._applyMap(PID,
+        { 'p:pl:grade-template': '{"grade":{}}', 'p:pl:entries': '[1]' },
+        { 'p:pl:grade-template': 9, 'p:pl:entries': 9 },
+        ['p:pl:grade-template']);
+      this._ok('seção pendente sobrevive ao download',
+        localStorage.getItem(pfx + 'p:pl:grade-template') === '{"grade":{"Segunda":[{"done":true}]}}',
+        localStorage.getItem(pfx + 'p:pl:grade-template'));
+      this._ok('as demais seções são atualizadas pela nuvem',
+        localStorage.getItem(pfx + 'p:pl:entries') === '[1]');
+      this._ok('a seção preservada continua na fila de envio',
+        SectionSync._loadPend(PID).indexOf('p:pl:grade-template') !== -1, SectionSync._loadPend(PID));
+
+      // 5. sem nada pendente, a nuvem manda — e a fila fica vazia
+      SectionSync._applyMap(PID, { 'p:pl:grade-template': '{"grade":{}}' }, { 'p:pl:grade-template': 10 }, []);
+      this._ok('sem pendência, o download vale',
+        localStorage.getItem(pfx + 'p:pl:grade-template') === '{"grade":{}}');
+      this._ok('fila esvazia quando tudo foi entregue', SectionSync._loadPend(PID).length === 0);
+
+      // 6. o mesmo vale para o caminho do blob (plano B)
+      escrever('p:pl:grade-template', 'LOCAL');
+      ProfileManager.restorePayloadInto(PID, { 'p:pl:grade-template': 'NUVEM', 'p:pl:leis': 'NUVEM' }, ['p:pl:grade-template']);
+      criadas.push(pfx + 'p:pl:leis');
+      this._ok('blob também preserva o que não subiu',
+        localStorage.getItem(pfx + 'p:pl:grade-template') === 'LOCAL',
+        localStorage.getItem(pfx + 'p:pl:grade-template'));
+      this._ok('blob aplica o resto normalmente', localStorage.getItem(pfx + 'p:pl:leis') === 'NUVEM');
+
+      // 7. toda escrita crua avisa as duas camadas de sincronização
+      const marcadas = [];
+      const mHook = _sectionMarkHook, cHook = _cloudNotifyHook, dHook = _sectionDropHook;
+      let avisouNuvem = 0, apagou = null;
+      _sectionMarkHook = (k) => marcadas.push(k);
+      _cloudNotifyHook = () => { avisouNuvem++; };
+      _sectionDropHook = (k) => { apagou = k; };
+      try {
+        criadas.push(pfx + 'pref-x');
+        DB.setRaw(pfx + 'pref-x', 'sun');
+        DB.delRaw(pfx + 'pref-x');
+      } finally { _sectionMarkHook = mHook; _cloudNotifyHook = cHook; _sectionDropHook = dHook; }
+      this._ok('setRaw marca a seção alterada', marcadas.indexOf(pfx + 'pref-x') !== -1, marcadas);
+      this._ok('setRaw e delRaw avisam a nuvem', avisouNuvem === 2, avisouNuvem);
+      this._ok('delRaw tira a seção da fila (a exclusão vai pelo manifesto)', apagou === pfx + 'pref-x', apagou);
+    } finally {
+      criadas.forEach(k => { try { localStorage.removeItem(k); } catch (_) { _quiet(_); } });
+      try { localStorage.removeItem(pfx + '__secrev'); localStorage.removeItem(pfx + SectionSync.PEND); } catch (_) { _quiet(_); }
+      SectionSync._seededProfile = seedAntes;
+      SectionSync._dirty = sujasAntes;
+    }
+  },
+
   rodar(imprimir) {
     this._r = { total: 0, passou: 0, falhou: 0, falhas: [], ms: 0 };
     const t0 = Date.now();
@@ -23442,7 +23574,8 @@ const AutoTeste = {
      ['Parser TEC', 'tec'], ['Robustez', 'robustez'],
      ['Colagem em lote', 'lote'], ['Eixo dos gráficos', 'eixo'],
      ['Aproveitamento', 'aproveitamento'], ['Ordenação', 'ordenacao'],
-     ['SM-2 clássico', 'sm2'], ['Filtro de treino', 'busca']].forEach(([nome, fn]) => {
+     ['SM-2 clássico', 'sm2'], ['Filtro de treino', 'busca'],
+     ['Garantia de salvamento', 'sincronizacao']].forEach(([nome, fn]) => {
       try { this[fn](); }
       catch (e) { this._r.total++; this._r.falhou++; this._r.falhas.push({ nome: nome + ' — exceção', obtido: String(e && e.message || e) }); }
     });
@@ -26112,8 +26245,7 @@ const PlanoEngine = {
   },
   salvarPrefs(patch) {
     const v = Object.assign(this.prefs(), patch || {});
-    try { localStorage.setItem(DB._profilePrefix() + this.KEY_PREF, JSON.stringify(v)); } catch (_) { _quiet(_); }
-    try { if (window.CloudStore && CloudStore.notifyChange) CloudStore.notifyChange(); } catch (_) { _quiet(_); }
+    DB.setRaw(DB._profilePrefix() + this.KEY_PREF, JSON.stringify(v));
     return v;
   },
   _diasDesde(iso) {
@@ -26452,7 +26584,7 @@ const DesempenhoTecScreen = {
   savePrefs(patch) {
     const p = Object.assign(this._loadPrefs(), patch || {});
     this._prefs = p;
-    try { localStorage.setItem(this._prefsKey(), JSON.stringify(p)); } catch (_) { _quiet(_); }
+    DB.setRaw(this._prefsKey(), JSON.stringify(p));
   },
   // aplica as preferências salvas aos controles do Reforço (chamado ao renderizar)
   applyReforcoPrefs() {
@@ -28379,7 +28511,7 @@ $id('tec-weak-disc').addEventListener('change', (e) => {
 
   on('plano-reset', 'click', async () => {
     if (!await UI.confirm('Voltar todos os ajustes do Plano aos valores padrão?', { title: 'Restaurar padrões' })) return;
-    try { localStorage.removeItem(DB._profilePrefix() + PlanoEngine.KEY_PREF); } catch (_) { _quiet(_); }
+    DB.delRaw(DB._profilePrefix() + PlanoEngine.KEY_PREF);
     PlanoEngine._c = null;
     DT.renderPlano();
     showToast('Ajustes restaurados ✓');
@@ -28843,8 +28975,12 @@ const ProfileUI = {
         }
         if (!porSecao || !porSecao.ok) {
           try { SectionSync._saveLast({ ok: false, origem: 'blob', motivo: (porSecao && porSecao.motivo) || 'leitura-por-seção-não-tentada', em: new Date().toISOString() }); } catch (_) { _quiet(_); }
+          /* Também aqui o download não pode apagar o que este aparelho ainda não
+             enviou: tenta entregar primeiro e preserva o que não subir. */
+          let preservar = [];
+          try { if (window.SectionSync) preservar = await SectionSync.flushBeforeRead(id); } catch (e) { _quiet(e, 'entrar-pendencia'); }
           const res = await CloudStore.fetchPayload(id);
-          ProfileManager.restorePayloadInto(id, (res.payload && res.payload.data) || {});
+          ProfileManager.restorePayloadInto(id, (res.payload && res.payload.data) || {}, preservar);
           ProfileManager.setRev(id, res.rev);
         }
         ProfileManager.setActiveProfile(id);
@@ -29323,8 +29459,17 @@ const CloudStore = {
 
   notifyChange() {
     if (this._applying) return;
-    // sessão assumida por outro aparelho (ou outra aba): não escreve, para não sobrescrever
-    if (window.SessionLock && SessionLock.isBlocked()) return;
+    /* Sessão assumida por outro aparelho (ou outra aba): não ENVIA, para não
+       sobrescrever o que o outro está fazendo — mas a alteração continua marcada
+       como pendente. Antes ela era simplesmente esquecida: o dado ficava só neste
+       navegador e a abertura seguinte, ao baixar da nuvem, o apagava. A caixa de
+       saída da camada por seção já guardou a seção; aqui basta não perder o
+       estado "há algo por enviar" para quando a sessão voltar. */
+    if (window.SessionLock && SessionLock.isBlocked()) {
+      this._pending = true; this._dirtyAt = this._dirtyAt || Date.now();
+      if (window.CloudUI) CloudUI.refreshSyncBtn();
+      return;
+    }
     if (!this.isReady() || !this.isLoggedIn()) return;
     try { if (!sessionStorage.getItem('diario-estudos:entered')) return; } catch (e) { _quiet(e); }
     try { if (window.VersionHistory) VersionHistory.maybeDailySnapshot(); } catch (e) { _quiet(e); } // 1 backup/dia
@@ -29376,7 +29521,9 @@ const CloudStore = {
     // reprogramamos uma nova tentativa para logo após, senão a última alteração ficava
     // presa como "pendente" até o próximo foco/edição (causa de "às vezes não salva").
     if (this._syncing) { this._rearm(400); return; }
-    if (window.SessionLock && SessionLock.isBlocked()) { this._pending = false; return; } // sessão assumida em outro aparelho
+    // Sessão assumida em outro aparelho: adia, NÃO descarta. Descartar era perder
+    // a alteração de vez — ela nunca mais era tentada nesta ou em outra sessão.
+    if (window.SessionLock && SessionLock.isBlocked()) { this._pending = true; return; }
     if (!this.isReady() || !this.isLoggedIn()) return;
     if (!this._pending) return;                // nada novo a enviar
     clearTimeout(this._debounce);
@@ -29437,6 +29584,9 @@ const CloudStore = {
     // "Sincronizar agora", troca de perfil). Aqui o blob SOBE, custe o que custar:
     // é a hora em que a rede de segurança precisa estar em dia.
     this._forceBlob = true;
+    // Alteração que sobreviveu a um recarregamento (caixa de saída gravada) também
+    // conta como pendente: sem isto, "Sincronizar agora" não a enviava.
+    try { if (window.SectionSync && SectionSync.pendingQuick() > 0) this._pending = true; } catch (e) { _quiet(e, 'flush-pendencia'); }
     if (this._pending || this._syncing) await this.autoSave();
   },
   // SALVAMENTO DE EMERGÊNCIA (keepalive): fetch com keepalive:true sobrevive ao fechamento
@@ -29472,6 +29622,15 @@ const CloudStore = {
     try { if (!sessionStorage.getItem('diario-estudos:entered')) return; } catch (e) { return; }
     if (this._pending || this._debounce) { await this.flushPending(); return; }
     const id = ProfileManager.getActiveProfileId(); if (!id) return;
+    // Pendência que sobreviveu a um recarregamento (caixa de saída gravada):
+    // ENVIA antes de qualquer coisa; baixar primeiro sobrescreveria o que falta subir.
+    try {
+      if (window.SectionSync && SectionSync.pendingQuick() > 0) {
+        this._pending = true;
+        await this.flushPending();
+        return;
+      }
+    } catch (e) { _quiet(e, 'syncOnFocus-pendencia'); }
     try {
       // FASE 2: a novidade é detectada pelas revisões DAS SEÇÕES. Vantagem sobre a
       // rev do blob: só baixa quando o conteúdo em si mudou, e sabemos o que mudou.
@@ -29492,8 +29651,10 @@ const CloudStore = {
   async syncNow() {
     if (!this.isReady() || !this.isLoggedIn()) { showToast('Entre na sua conta para sincronizar (Configurações → Nuvem).'); return; }
     if (window.CloudUI) CloudUI.setStatus('syncing', 'Sincronizando...');
+    let fila = 0;
+    try { if (window.SectionSync) fila = SectionSync.pendingQuick(); } catch (e) { _quiet(e, 'syncNow-fila'); }
     try {
-      if (this._pending || this._debounce) await this.flushPending();
+      if (this._pending || this._debounce || fila) await this.flushPending();
       else {
         const id = ProfileManager.getActiveProfileId();
         let novidade = false;
@@ -29512,13 +29673,17 @@ const CloudStore = {
       try { if (await SectionSync.pullAndReload()) return; } catch (e) { console.warn('pull por seção', e); }
     }
     try {
+      // Mesma regra do caminho por seção: primeiro ENTREGA o que este aparelho
+      // ainda não enviou; o que não subir é preservado e não é sobrescrito.
+      let preservar = [];
+      try { if (window.SectionSync) preservar = await SectionSync.flushBeforeRead(id); } catch (e) { _quiet(e, 'pull-pendencia'); }
       const res = await this.fetchPayload(id);
       // REDE DE SEGURANÇA: antes de sobrescrever o estado local com o da nuvem,
       // guarda uma versão do que está aqui — assim, se outro aparelho tiver
       // enviado algo indesejado, você consegue restaurar em Configurações.
       try { if (window.VersionHistory) await VersionHistory.snapshot('antes de baixar da nuvem'); } catch (e) { _quiet(e); }
       this._applying = true;
-      ProfileManager.restorePayloadInto(id, (res.payload && res.payload.data) || {});
+      ProfileManager.restorePayloadInto(id, (res.payload && res.payload.data) || {}, preservar);
       ProfileManager.setRev(id, res.rev);
       this._applying = false;
       showToast('Sincronizado da nuvem ✓');
@@ -29744,8 +29909,12 @@ const SessionGuard = {
   // Outro aparelho assumiu: bloqueia e pausa a sincronização aqui.
   _takenBy(row) {
     if (window.SessionLock) SessionLock.block('remote', { label: row.device_label });
-    // interrompe qualquer envio pendente para não sobrescrever o outro aparelho
-    try { const CS = window.CloudStore; if (CS) { clearTimeout(CS._debounce); CS._debounce = null; CS._pending = false; } } catch (_) { _quiet(_); }
+    /* Interrompe o ENVIO para não sobrescrever o outro aparelho — mas mantém a
+       pendência. Zerar _pending aqui apagava a alteração da fila: ela nunca mais
+       era tentada, e o download seguinte a removia também do armazenamento local.
+       A caixa de saída da camada por seção continua gravada e reenvia quando esta
+       sessão for retomada. */
+    try { const CS = window.CloudStore; if (CS) { clearTimeout(CS._debounce); CS._debounce = null; } } catch (_) { _quiet(_); }
     if (window.CloudUI) CloudUI.refreshSyncBtn();
   },
 
@@ -29841,6 +30010,7 @@ const SectionSync = {
   _lastError: null,         // último erro de envio (para diagnóstico)
   _lastPushAt: null,        // quando o último envio bem-sucedido ocorreu
   _pushedCount: 0,          // total de seções enviadas com sucesso nesta sessão
+  _restoredFor: null,       // perfil cuja caixa de saída já foi recuperada nesta carga
   // FASE 1.5 — leitura-sombra: baixa e compara, mas NUNCA aplica no localStorage.
   _shadowRunning: false,
   _shadowLastAt: null,
@@ -29848,17 +30018,103 @@ const SectionSync = {
   _shadowReport: null,
 
   _prefix() { try { return DB._profilePrefix(); } catch (_) { return 'diario-estudos:'; } },
-  _revKey() { return this._prefix() + '__secrev'; },
+  // Prefixo de um perfil QUALQUER (não só o ativo). Necessário porque ao ENTRAR
+  // num perfil a leitura acontece antes de ele virar o ativo: sem isto, a checagem
+  // de pendências olharia para o namespace do perfil anterior.
+  _prefixFor(id) { return id ? ('diario-estudos:u:' + id + ':') : this._prefix(); },
+  _revKey(id) { return this._prefixFor(id) + '__secrev'; },
   // Estrutura salva: { section: { rev, hash } } — o hash evita reenviar conteúdo idêntico
   // (antes, cada sessão re-subia tudo e inflava o rev). Migração automática do formato antigo.
-  _getRevs() {
+  _getRevs(id) {
     try {
-      const v = JSON.parse(localStorage.getItem(this._revKey())) || {};
+      const v = JSON.parse(localStorage.getItem(this._revKey(id))) || {};
       for (const k in v) { if (typeof v[k] === 'number') v[k] = { rev: v[k], hash: null }; } // formato antigo → novo
       return v;
     } catch (_) { return {}; }
   },
-  _saveRevs(r) { try { localStorage.setItem(this._revKey(), JSON.stringify(r)); } catch (_) { _quiet(_); } },
+  _saveRevs(r, id) { try { localStorage.setItem(this._revKey(id), JSON.stringify(r)); } catch (_) { _quiet(_); } },
+
+  /* ── CAIXA DE SAÍDA DURÁVEL ───────────────────────────────────────────────
+     _dirty morava só na memória. Um recarregamento, o fechamento do app, uma
+     queda de rede ou uma sessão assumida por outro aparelho levavam a lista
+     embora — e a alteração ficava presa NESTE navegador, sem ninguém para
+     reenviá-la. Pior: na abertura seguinte a leitura da nuvem sobrescrevia o
+     local, e a alteração sumia também daqui. Era assim que "marquei duas
+     disciplinas como concluídas" desaparecia no dia seguinte.
+
+     Agora a lista das seções não enviadas também é GRAVADA. Enquanto uma seção
+     estiver nela, ela é tratada como não sincronizada: volta para a fila sozinha
+     na próxima abertura e NUNCA é sobrescrita por um download. */
+  PEND: '__secpend',
+  _pendKey(id) { return this._prefixFor(id) + this.PEND; },
+  _loadPend(id) {
+    try { const a = JSON.parse(localStorage.getItem(this._pendKey(id))); return Array.isArray(a) ? a : []; }
+    catch (_) { return []; }
+  },
+  // Espelha _dirty no armazenamento. Chamado a cada marcação e a cada envio.
+  _savePend() {
+    try {
+      const lista = [...this._dirty];
+      if (lista.length) localStorage.setItem(this._pendKey(), JSON.stringify(lista));
+      else localStorage.removeItem(this._pendKey());
+    } catch (_) { _quiet(_); }
+  },
+  // Recarrega a caixa de saída gravada para a memória (na abertura do app).
+  restorePending() {
+    const antes = this._dirty.size;
+    this._loadPend().forEach(s => this._dirty.add(s));
+    const novas = this._dirty.size - antes;
+    if (novas) console.info('[SectionSync] ' + novas + ' alteração(ões) recuperada(s) da caixa de saída');
+    return novas;
+  },
+  /* Tudo que ainda não foi confirmado na nuvem para um perfil. Soma duas fontes:
+       1. a caixa de saída gravada (o que sabemos que ficou por enviar);
+       2. o CONTEÚDO real — se o texto de uma seção não bate com o hash do último
+          envio, ela mudou aqui depois disso, mesmo que a lista tenha se perdido.
+     Seções sem envio anterior registrado ficam de fora: não dá para saber se são
+     novidade local ou sobra de uma versão antiga, e a semeadura normal cuida delas. */
+  pendingSections(id) {
+    const ativo = (window.ProfileManager ? ProfileManager.getActiveProfileId() : null);
+    const mesmo = !id || id === ativo;
+    const out = new Set();
+    if (mesmo) this._dirty.forEach(s => out.add(s));
+    this._loadPend(id).forEach(s => out.add(s));
+    const revs = this._getRevs(id), pfx = this._prefixFor(id);
+    try {
+      for (let i = 0; i < localStorage.length; i++) {
+        const full = localStorage.key(i);
+        const sec = this.sectionForKey(full, pfx);
+        if (!sec || !revs[sec] || !revs[sec].hash) continue;
+        if (revs[sec].hash !== this._hash(localStorage.getItem(full) || '')) out.add(sec);
+      }
+    } catch (_) { _quiet(_); }
+    return [...out];
+  },
+  hasLocalPending(id) { return this.pendingSections(id).length > 0; },
+  /* Contagem BARATA, sem varrer nem re-hashear o conteúdo: é a que alimenta o
+     indicador na tela, chamado a cada foco e a cada 30 s. A checagem completa
+     (pendingSections) fica para os momentos em que ela é decisiva — antes de um
+     download sobrescrever o local. */
+  pendingQuick() {
+    const out = new Set(this._dirty);
+    this._loadPend().forEach(s => out.add(s));
+    return out.size;
+  },
+  /* Tenta ENTREGAR o que está pendente antes de qualquer download sobrescrever o
+     local. Devolve o que CONTINUA pendente depois da tentativa — quem chamou usa
+     essa lista para preservar essas seções em vez de apagá-las. */
+  async flushBeforeRead(id) {
+    const pend = this.pendingSections(id);
+    if (!pend.length) return [];
+    const ativo = (window.ProfileManager ? ProfileManager.getActiveProfileId() : null);
+    if (id && id !== ativo) return pend;   // outro perfil: não há como enviar daqui agora
+    pend.forEach(s => this._dirty.add(s));
+    this._savePend();
+    try { await this.pushDirty(); } catch (e) { console.warn('[SectionSync] envio antes da leitura falhou', e); }
+    const resta = this.pendingSections(id);
+    if (resta.length) console.warn('[SectionSync] preservando ' + resta.length + ' seção(ões) não enviada(s):', resta.join(', '));
+    return resta;
+  },
 
   // ── CODEC v2 ──────────────────────────────────────────────────────────────
   // O localStorage guarda TEXTO. Se gravarmos no JSONB só o objeto já parseado,
@@ -29887,13 +30143,25 @@ const SectionSync = {
     const sub = fullKey.slice(pfx.length);
     if (!sub) return null;
     if (sub.indexOf('__secrev') === 0) return null; // bookkeeping desta camada
+    if (sub.indexOf(this.PEND) === 0) return null;   // caixa de saída: também é local
     if (sub.indexOf('vhist') === 0) return null;     // histórico de versões é local
     return sub;
   },
   markDirty(fullKey) {
     if (!this.enabled) return;
     const sec = this.sectionForKey(fullKey);
-    if (sec) this._dirty.add(sec);
+    if (sec) { this._dirty.add(sec); this._savePend(); }
+  },
+  /* Uma chave APAGADA não vira linha suja (subiria vazia em vez de sumir): sai da
+     fila e a exclusão viaja pelo MANIFESTO, que é recalculado no próximo envio. */
+  dropSection(fullKey) {
+    if (!this.enabled) return;
+    const sec = this.sectionForKey(fullKey);
+    if (!sec) return;
+    this._dirty.delete(sec);
+    this._savePend();
+    const revs = this._getRevs();
+    if (revs[sec]) { delete revs[sec]; this._saveRevs(revs); }
   },
   // Marca as seções do perfil que REALMENTE MUDARAM (hash diferente do último envio).
   // Assim a semeadura de cada sessão não re-sobe tudo nem infla o rev à toa.
@@ -29910,6 +30178,7 @@ const SectionSync = {
         if (!revs[sec] || revs[sec].hash !== h) this._dirty.add(sec); // só o que mudou
       }
     } catch (_) { _quiet(_); }
+    this._savePend();
   },
   seedOnce() {
     const id = ProfileManager.getActiveProfileId();
@@ -29945,6 +30214,7 @@ const SectionSync = {
       // à nuvem e a leitura por seção "ressuscitaria" dados apagados.
       try { await this._syncManifest(id, revs); } catch (_) { _quiet(_); }
       this._saveRevs(revs);
+      this._savePend();
       this._pushing = false; return;
     }
     // Envio UMA SEÇÃO POR VEZ: assim uma seção grande (ex.: incidência, ~300 KB) fica
@@ -29971,6 +30241,7 @@ const SectionSync = {
     // leitura por seção esperar uma linha que não existe (e cair no plano B à toa).
     if (!falhas.length) { try { await this._syncManifest(id, revs); } catch (_) { _quiet(_); } }
     this._saveRevs(revs);
+    this._savePend();   // o que sobrou na fila continua gravado: sobrevive ao fechamento
     if (okCount) { this._lastPushAt = Date.now(); this._pushedCount += okCount; }
     if (falhas.length) {
       this._lastError = falhas.join(' | ');
@@ -30029,6 +30300,11 @@ const SectionSync = {
       if (!window.CloudStore || !CloudStore.isReady() || !CloudStore.isLoggedIn()) return;
       try { if (!sessionStorage.getItem('diario-estudos:entered')) return; } catch (_) { return; }
       if (!ProfileManager.getActiveProfileId()) return;
+      // Recupera, uma vez por perfil, o que ficou por enviar na sessão anterior.
+      if (this._restoredFor !== ProfileManager.getActiveProfileId()) {
+        this._restoredFor = ProfileManager.getActiveProfileId();
+        this.restorePending();
+      }
       this.seedOnce();
       await this.pushDirty();
       // Depois de concluir a escrita dupla e ficar estável, compara em modo sombra.
@@ -30073,16 +30349,25 @@ const SectionSync = {
   },
   // Escreve o mapa no localStorage do perfil. Preserva o histórico de versões local
   // (vhist) — ao contrário do restore do blob, que apagava tudo do namespace.
-  _applyMap(id, map, revs) {
+  _applyMap(id, map, revs, preservar) {
     const prefix = 'diario-estudos:u:' + id + ':';
+    /* REGRA DE OURO: o download NUNCA apaga uma alteração que ainda não subiu.
+       As seções de `preservar` mantêm o valor deste aparelho e continuam na fila
+       de envio; todo o resto é substituído pelo que veio da nuvem. */
+    const manter = new Set(preservar || []);
+    const antigos = this._getRevs(id);
     const apagar = [];
     for (let i = 0; i < localStorage.length; i++) {
       const k = localStorage.key(i);
-      if (k && k.indexOf(prefix) === 0 && this.sectionForKey(k, prefix)) apagar.push(k);
+      if (!k || k.indexOf(prefix) !== 0) continue;
+      const sec = this.sectionForKey(k, prefix);
+      if (sec && !manter.has(sec)) apagar.push(k);
     }
     apagar.forEach(k => localStorage.removeItem(k));
     const novoRev = {};
+    manter.forEach(sec => { if (antigos[sec]) novoRev[sec] = antigos[sec]; }); // segue "suja" e será reenviada
     Object.keys(map).forEach(sec => {
+      if (manter.has(sec)) return;
       const txt = map[sec];
       localStorage.setItem(prefix + sec, txt);
       novoRev[sec] = { rev: (revs && revs[sec]) || 1, hash: this._hash(txt) };
@@ -30092,6 +30377,12 @@ const SectionSync = {
     try { localStorage.setItem('diario-estudos:u:' + id + ':__secrev', JSON.stringify(novoRev)); } catch (_) { _quiet(_); }
     this._seededProfile = id;
     this._dirty.clear();
+    manter.forEach(s => this._dirty.add(s));
+    try {
+      const pk = prefix + this.PEND;
+      if (manter.size) localStorage.setItem(pk, JSON.stringify([...manter]));
+      else localStorage.removeItem(pk);
+    } catch (_) { _quiet(_); }
   },
   // Fluxo completo de leitura. Retorna { ok, motivo, seções }.
   async hydrate(id, opts) {
@@ -30101,13 +30392,19 @@ const SectionSync = {
       res.origem = 'seções';
       if (!this.readEnabled && !opts.force) { res.motivo = 'leitura-por-seção-desligada'; return this._saveLast(res); }
       if (!window.CloudStore || !CloudStore.isReady() || !CloudStore.isLoggedIn()) { res.motivo = 'sem-conexão'; return this._saveLast(res); }
+      /* ANTES de ler: entrega o que este aparelho ainda não enviou. O que não
+         conseguir subir volta como `preservar` e sai ileso do download — é o que
+         garante que uma alteração feita offline (ou com a sessão em outro
+         aparelho) não seja apagada pela cópia mais velha da nuvem. */
+      const preservar = await this.flushBeforeRead(id);
       const rows = await this.fetchAllSections(id);
       const prep = this._prepare(rows);
       if (!prep.ok) { res.motivo = prep.motivo; return this._saveLast(res); }
       // Rede de segurança antes de sobrescrever o estado local.
       try { if (window.VersionHistory && ProfileManager.getActiveProfileId() === id) await VersionHistory.snapshot('antes de baixar por seção'); } catch (_) { _quiet(_); }
-      this._applyMap(id, prep.map, prep.revs);
+      this._applyMap(id, prep.map, prep.revs, preservar);
       res.ok = true; res.seções = Object.keys(prep.map).length;
+      if (preservar.length) res.preservadas = preservar;   // ficaram com o valor local, ainda na fila
       if (prep.extras && prep.extras.length) res.ignoradas = prep.extras;
       this._saveLast(res);
       console.info('[SectionSync] leitura por seção aplicada:', res.seções, 'seção(ões)');
@@ -30279,6 +30576,7 @@ const SectionSync = {
       logado: !!(window.CloudStore && CloudStore.isLoggedIn && CloudStore.isLoggedIn()),
       seedFeito: this._seededProfile,
       seçõesPendentes: [...this._dirty],
+      naCaixaDeSaída: this.pendingSections(),   // inclui o que sobreviveu a recarregamentos
       enviadasNestaSessão: this._pushedCount,
       últimoEnvio: this._lastPushAt ? new Date(this._lastPushAt).toLocaleString('pt-BR') : null,
       últimoErro: this._lastError,
@@ -30331,6 +30629,10 @@ const SectionSync = {
 window.SectionSync = SectionSync;
 // liga o hook do DB._set a esta camada (var definida lá no topo, sem zona morta)
 _sectionMarkHook = function (key) { try { SectionSync.markDirty(key); } catch (_) { _quiet(_); } };
+// e o hook do DB.delRaw: apagar sai da fila e viaja pelo manifesto
+_sectionDropHook = function (key) { try { SectionSync.dropSection(key); } catch (_) { _quiet(_); } };
+// Recupera na abertura o que ficou por enviar (antes de qualquer leitura da nuvem).
+try { SectionSync.restorePending(); } catch (_) { _quiet(_); }
 
 /* ============================================================
    CLOUD UI — status da conta em Configurações (simplificado)
@@ -30351,8 +30653,53 @@ const CloudUI = {
       const auto = document.getElementById('cloud-autosync'); if (auto && auto.closest('label')) auto.closest('label').style.display = 'none';
       const slots = document.getElementById('cloud-slots-list'); if (slots) slots.innerHTML = '<p class="hint">A sincronização é automática. Use os botões acima só para forçar envio/baixa manual.</p>';
       this.setStatus('ok', 'Sincronização automática ativa');
+      this.renderQueue();
       this.renderSessions();
     }
+  },
+  /* ── FILA DE ENVIO ────────────────────────────────────────────────────────
+     A pergunta que o usuário faz é simples — "o que eu marquei está salvo lá?".
+     Aqui ela tem resposta direta: ou a fila está vazia (tudo entregue), ou ela
+     lista o que falta subir. O que aparece nesta lista está guardado NESTE
+     aparelho e não é apagado por nenhum download até ser entregue. */
+  _nomeSecao(sec) {
+    const s = String(sec || '');
+    const semPlano = s.replace(/^p:[^:]+:/, '');
+    const mapa = {
+      entries: 'registros de estudo', subjects: 'matérias', methods: 'métodos', phases: 'fases',
+      statuses: 'status das aulas', modes: 'modos de estudo', 'current-cycle': 'ciclo atual',
+      'cycle-history': 'histórico de ciclos', tracks: 'trilha de Estudo Novo', tec: 'Desempenho TEC',
+      'grade-template': 'grade semanal', 'saved-grades': 'grades salvas', 'custom-siglas': 'siglas',
+      leis: 'leis', 'lei-keywords': 'palavras-chave das leis', decks: 'baralhos', cards: 'cards',
+      links: 'links', incidencia: 'incidência', extras: 'atividades extras', revlog: 'histórico de revisões',
+      'last-cycle-setup': 'preferências do ciclo', planejamentos: 'lista de planejamentos',
+      'active-plan': 'planejamento ativo'
+    };
+    if (mapa[semPlano]) return mapa[semPlano];
+    if (semPlano.indexOf('pref-') === 0 || semPlano.indexOf('painel:') === 0 || semPlano.indexOf('ux47:') === 0) return 'preferências de tela';
+    return semPlano;
+  },
+  renderQueue() {
+    const box = document.getElementById('cloud-queue-box');
+    if (!box) return;
+    let fila = [];
+    try { if (window.SectionSync) fila = SectionSync.pendingSections(); } catch (_) { _quiet(_); }
+    if (!fila.length) {
+      box.innerHTML = '<p class="hint" style="margin:4px 0 0;">✓ <strong>Nada pendente.</strong> Tudo o que você registrou já está na nuvem e aparece ao entrar em outro aparelho.</p>';
+      return;
+    }
+    const nomes = [...new Set(fila.map(s => this._nomeSecao(s)))];
+    box.innerHTML = '<p class="hint" style="margin:4px 0 8px;"><strong>' + fila.length +
+      (fila.length === 1 ? ' alteração ainda não enviada' : ' alterações ainda não enviadas') +
+      '.</strong> Está salvo neste aparelho e sobe sozinho assim que houver conexão — nada é perdido, e nenhum download apaga o que está aqui.</p>' +
+      '<p class="hint" style="margin:0 0 10px;">Aguardando: ' + escapeHtml(nomes.join(' · ')) + '</p>' +
+      '<button type="button" class="btn-primary" id="cloud-queue-flush">↑ Enviar agora</button>';
+    const b = document.getElementById('cloud-queue-flush');
+    if (b) b.addEventListener('click', async () => {
+      b.disabled = true; b.textContent = 'Enviando…';
+      try { await CloudStore.flushPending(); } catch (_) { _quiet(_); }
+      this.renderQueue();
+    });
   },
   // Painel "Aparelho com sessão ativa" (login único entre dispositivos).
   async renderSessions() {
@@ -30436,10 +30783,14 @@ const CloudUI = {
     if (window.SessionLock && SessionLock.isBlocked() && SessionLock._origin === 'remote') { tone = 'error'; text = 'Pausado (outro aparelho)'; }
     // Estado tranquilizador — o app salva SEMPRE no aparelho na hora. O spinner
     // (azul) só aparece durante um envio REAL e curto; o resto é verde "ok".
+    // Fila real de envio (sobrevive a recarregamentos): é o que permite dizer
+    // "tudo sincronizado" só quando é verdade — e quanto falta quando não é.
+    let fila = 0;
+    try { if (window.SectionSync) fila = SectionSync.pendingQuick(); } catch (_) { _quiet(_); }
     if (!tone) {
       if (!CS || !CS.isReady() || !CS.isLoggedIn()) { tone = 'off'; text = 'Salvo neste aparelho'; }
       else if (CS._syncing) { tone = 'syncing'; text = 'Enviando para a nuvem…'; }
-      else if (CS._pending || CS._debounce) { tone = 'ok'; text = 'Salvo · será enviado em instantes'; }
+      else if (CS._pending || CS._debounce || fila) { tone = 'ok'; text = fila ? ('Salvo · ' + fila + (fila === 1 ? ' alteração aguardando envio' : ' alterações aguardando envio')) : 'Salvo · será enviado em instantes'; }
       else if (CS._lastSyncAt) { tone = 'ok'; text = 'Sincronizado ' + this._timeAgo(CS._lastSyncAt); }
       else { tone = 'ok'; text = 'Sincronizado'; }
     } else {
@@ -30642,6 +30993,7 @@ window.CloudUI = CloudUI;
   on('cloud-signout', 'click', async () => { await CloudStore.signOut(); CloudUI.render(); showToast('Desconectado da nuvem'); });
   on('cloud-change-pass', 'click', () => CloudUI.changePassword());
   on('cloud-sessions-refresh', 'click', () => CloudUI.renderSessions());
+  on('cloud-queue-refresh', 'click', () => CloudUI.renderQueue());
   on('cloud-push-now', 'click', () => CloudStore.autoSave());
   on('cloud-pull-now', 'click', () => CloudStore.pullActiveAndReload());
   // Segurança da sessão em Configurações (mesmas chaves ux47 → persistem e ficam
@@ -30651,7 +31003,7 @@ window.CloudUI = CloudUI;
     // indicador e esta tela leem/gravam exatamente as mesmas preferências.
     const apfx = () => { try { const pid = localStorage.getItem('diario-estudos:active-profile'); return pid ? ('diario-estudos:u:' + pid + ':ux47:') : 'diario-estudos:ux47:'; } catch (_) { return 'diario-estudos:ux47:'; } };
     const g = (k, d) => { try { const v = localStorage.getItem(apfx() + k); return v === null ? d : v; } catch (_) { return d; } };
-    const s = (k, v) => { try { localStorage.setItem(apfx() + k, String(v)); if (window.CloudStore && CloudStore.notifyChange) CloudStore.notifyChange(); } catch (_) { _quiet(_); } };
+    const s = (k, v) => DB.setRaw(apfx() + k, String(v));
     const ss = document.getElementById('cfg-single-session');
     const im = document.getElementById('cfg-idle-mins');
     const sync = () => {
@@ -30733,6 +31085,13 @@ _cloudNotifyHook = () => CloudStore.notifyChange();
   setTimeout(() => { try { if (window.SectionSync) SectionSync.kick(); } catch (_) { _quiet(_); } }, 4000);
   // atualiza o rótulo "há X min" periodicamente
   setInterval(() => { if (window.CloudUI) CloudUI.refreshSyncBtn(); }, 30000);
+  // com a tela de Configurações aberta, a fila se atualiza sozinha (o envio é assíncrono)
+  setInterval(() => {
+    try {
+      const cfg = document.getElementById('screen-config');
+      if (cfg && cfg.classList.contains('active') && window.CloudUI) CloudUI.renderQueue();
+    } catch (_) { _quiet(_); }
+  }, 5000);
   // estado inicial do botão
   setTimeout(() => { if (window.CloudUI) CloudUI.refreshSyncBtn(); }, 300);
 
@@ -30751,8 +31110,7 @@ _cloudNotifyHook = () => CloudStore.notifyChange();
   }
   function aplicar(v, avisar) {
     document.documentElement.style.setProperty('--fs-scale', String(v));
-    try { localStorage.setItem(chave(), String(v)); } catch (_) { _quiet(_); }
-    try { if (window.CloudStore && CloudStore.notifyChange) CloudStore.notifyChange(); } catch (_) { _quiet(_); }
+    DB.setRaw(chave(), String(v));
     const i = PASSOS.indexOf(v);
     if (menor) menor.disabled = (i <= 0);
     if (maior) maior.disabled = (i >= PASSOS.length - 1);
@@ -31830,7 +32188,6 @@ else CloudStore.init();
       localStorage.setItem(flag, '1');
     } catch (_) { _quiet(_); }
   })();
-  function _syncSoon() { try { if (window.CloudStore && CloudStore.notifyChange) CloudStore.notifyChange(); } catch (_) { _quiet(_); } }
   /* Leitura resiliente ao namespace.
      O valor mora em <perfil>:ux47:<k>. Mas se ele foi gravado num momento em
      que não havia perfil ativo (gate aberto, primeiro acesso, troca de
@@ -31846,22 +32203,17 @@ else CloudStore.init();
       if (v !== null) return v;
       if (_activePfx() !== OLD_PFX) {
         const g = localStorage.getItem(OLD_PFX + k);
-        if (g !== null) { try { localStorage.setItem(_activePfx() + k, g); } catch (e) { _quiet(e, 'promover-chave-global'); } return g; }
+        if (g !== null) { DB.setRaw(_activePfx() + k, g); return g; }
       }
       return d;
     } catch (_) { return d; }
   }
   /* Grava sempre no namespace do perfil. Se ainda NÃO há perfil ativo, o
      prefixo é o global — e aí o pget acima recupera na próxima abertura. */
-  function pset(k, v) {
-    try {
-      localStorage.setItem(_activePfx() + k, String(v));
-      _syncSoon();
-    } catch (_) { _quiet(_); }
-  }
-  function pdel(k) { try { localStorage.removeItem(_activePfx() + k); _syncSoon(); } catch (_) { _quiet(_); } }
+  function pset(k, v) { DB.setRaw(_activePfx() + k, String(v)); }
+  function pdel(k) { DB.delRaw(_activePfx() + k); }
   function jget(k, d) { try { return JSON.parse(localStorage.getItem(_activePfx() + k)) ?? d; } catch (_) { return d; } }
-  function jset(k, v) { try { localStorage.setItem(_activePfx() + k, JSON.stringify(v)); _syncSoon(); } catch (_) { _quiet(_); } }
+  function jset(k, v) { DB.setRaw(_activePfx() + k, JSON.stringify(v)); }
   const $ = (s, r) => (r || document).querySelector(s);
   const $$ = (s, r) => Array.from((r || document).querySelectorAll(s));
   const esc = (s) => (typeof escapeHtml === 'function' ? escapeHtml(s) : String(s == null ? '' : s));
@@ -32805,7 +33157,9 @@ else CloudStore.init();
     async wipeLocal() {
       const CS = window.CloudStore;
       if (!CS || !CS.isLoggedIn()) { toast('Conecte a conta antes: sem nuvem, apagar o local apaga tudo.'); return; }
-      if (CS._pending || CS._debounce) { toast('Há alterações não enviadas. Sincronize antes de limpar.'); return; }
+      let fila = 0;
+      try { if (window.SectionSync) fila = SectionSync.pendingQuick(); } catch (_) { _quiet(_); }
+      if (CS._pending || CS._debounce || fila) { toast('Há alterações não enviadas. Sincronize antes de limpar.'); return; }
       const ok1 = await UI.confirm('Apagar a cópia local deste perfil e baixar tudo da nuvem de novo?\n\nUse quando este aparelho parecer dessincronizado. Uma versão de segurança é guardada antes.',
         { title: '🧹 Limpar dados locais', okText: 'Continuar', danger: true });
       if (!ok1) return;
@@ -32839,7 +33193,18 @@ else CloudStore.init();
       if (!CS || !CS.isReady()) return { tone: 'ok', title: 'Salvo neste aparelho', sub: 'A nuvem conecta automaticamente quando disponível.' };
       if (!CS.isLoggedIn()) return { tone: 'ok', title: 'Salvo neste aparelho', sub: 'Entre na sua conta para sincronizar entre aparelhos.' };
       if (this._recon) return { tone: 'syncing', title: 'Reconectando…', sub: 'Renovando o acesso sem pedir a senha.' };
-      if (CS._syncing || CS._pending || CS._debounce) return { tone: 'syncing', title: 'Salvando…', sub: 'Já está salvo no aparelho; enviando para a nuvem.' };
+      let fila = 0;
+      try { if (window.SectionSync) fila = SectionSync.pendingQuick(); } catch (_) { _quiet(_); }
+      if (window.SessionLock && SessionLock.isBlocked() && SessionLock._origin === 'remote') {
+        return { tone: 'syncing', title: 'Envio pausado', sub: fila
+          ? (fila + (fila === 1 ? ' alteração está guardada' : ' alterações estão guardadas') + ' e sobe quando a sessão voltar para cá.')
+          : 'A sessão está em outro aparelho. Nada foi perdido.' };
+      }
+      if (CS._syncing || CS._pending || CS._debounce || fila) {
+        return { tone: 'syncing', title: 'Salvando…', sub: fila
+          ? ('Já está salvo no aparelho; ' + fila + (fila === 1 ? ' alteração na fila' : ' alterações na fila') + ' para a nuvem.')
+          : 'Já está salvo no aparelho; enviando para a nuvem.' };
+      }
       const t = CS._lastSyncAt ? (window.CloudUI ? CloudUI._timeAgo(CS._lastSyncAt) : '') : '';
       return { tone: 'ok', title: 'Tudo sincronizado', sub: t ? ('Último envio ' + t + '.') : 'Seus dados estão salvos e sincronizados.' };
     },
@@ -32944,7 +33309,9 @@ else CloudStore.init();
       const CS = window.CloudStore;
       const btn = $('#cloud-sync-btn');
       if (!btn || !CS) return;
-      const pend = !!(CS.isLoggedIn() && (CS._pending || CS._debounce));
+      let fila = 0;
+      try { if (window.SectionSync) fila = SectionSync.pendingQuick(); } catch (_) { _quiet(_); }
+      const pend = !!(CS.isLoggedIn() && (CS._pending || CS._debounce || fila));
       btn.classList.toggle('has-pend', pend);
       if (this._recon) btn.classList.add('st-recon');
     }

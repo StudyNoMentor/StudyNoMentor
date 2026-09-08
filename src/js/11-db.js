@@ -131,6 +131,37 @@ const DB = {
     if (_sectionMarkHook) _sectionMarkHook(key); // marca a seção alterada (sync por seção)
     return true;
   },
+  /* ── CANAL ÚNICO DE ESCRITA ────────────────────────────────────────────────
+     _set serve para valores JSON. Mas dezenas de pontos do app guardam TEXTO
+     puro (preferências de tela, sinalizadores de painel recolhido, escala da
+     fonte...) e chamavam localStorage.setItem direto. Isso pulava o aviso da
+     camada por seção: o dado subia só no "blob" periódico e a linha da seção
+     correspondente ficava velha na nuvem. Como a LEITURA hoje vem das seções,
+     ao abrir em outro aparelho o valor voltava desatualizado — parecia que a
+     alteração "não tinha salvo".
+
+     setRaw/delRaw dão a esses pontos o mesmo caminho de _set: grava, avisa a
+     nuvem e marca a seção. Toda escrita no namespace do perfil deve passar por
+     _set, setRaw ou delRaw — nunca por localStorage direto. */
+  setRaw(key, value) {
+    try {
+      localStorage.setItem(key, String(value));
+    } catch (e) {
+      console.error('Falha ao gravar', key, e);
+      try { showToast('⚠ Não foi possível salvar. Verifique o espaço do navegador ou o modo privado.'); } catch (_) { _quiet(_, 'setRaw-aviso'); }
+      return false;
+    }
+    if (_cloudNotifyHook) _cloudNotifyHook();
+    if (_sectionMarkHook) _sectionMarkHook(key);
+    return true;
+  },
+  delRaw(key) {
+    try { localStorage.removeItem(key); } catch (e) { _quiet(e, 'delRaw'); return false; }
+    if (_cloudNotifyHook) _cloudNotifyHook();
+    if (_sectionDropHook) _sectionDropHook(key);
+    return true;
+  },
+  _del(key) { return this.delRaw(key); },
   // Quanto o app está ocupando no navegador (útil na mensagem de cota e em Configurações)
   storageUsageMB() {
     try {
@@ -835,8 +866,7 @@ const DB = {
     this.saveCards(cards);
     this._set(this.KEYS.revlog, []);
     try {
-      localStorage.setItem(CardsConfig.DKEY, JSON.stringify({ date: todayCards(), newIds: [], revIds: [] }));
-      CardsConfig._notify();
+      this.setRaw(CardsConfig.DKEY, JSON.stringify({ date: todayCards(), newIds: [], revIds: [] }));
     } catch (_) { _quiet(_); }
     return { cards: cards.length, revlog: nRev };
   },
@@ -1312,15 +1342,12 @@ const DB = {
       let v = localStorage.getItem(this._extrasMetricsKey());
       if (v === null) { // migra a chave global antiga
         const legado = localStorage.getItem('diario-estudos:extras-in-metrics');
-        if (legado !== null) { localStorage.setItem(this._extrasMetricsKey(), legado); v = legado; }
+        if (legado !== null) { this.setRaw(this._extrasMetricsKey(), legado); v = legado; }
       }
       return v === null ? false : v === '1';
     } catch (_) { return false; }
   },
-  setExtrasCountGlobal(on) {
-    try { localStorage.setItem(this._extrasMetricsKey(), on ? '1' : '0'); } catch (_) { _quiet(_); }
-    try { if (window.CloudStore && CloudStore.notifyChange) CloudStore.notifyChange(); } catch (_) { _quiet(_); }
-  },
+  setExtrasCountGlobal(on) { this.setRaw(this._extrasMetricsKey(), on ? '1' : '0'); },
   addCustomSigla({ sigla, nome, color }) {
     const list = this.getCustomSiglas();
     list.push({ id: this._uid(), sigla: (sigla || '').trim().toUpperCase(), nome: (nome || '').trim(), color: color || '#4f46e5' });

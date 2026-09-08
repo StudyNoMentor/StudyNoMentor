@@ -107,10 +107,45 @@ cards. Coberto por `testes/robustez-config.mjs` (12 configurações × 4 fases �
   queda para o `localStorage` nativo se o IndexedDB falhar;
 - `SaveGuard` grava com prova de gravação e avisa antes de a cota estourar.
 
+**O segundo achado grave: um download podia apagar o que ainda não tinha subido.**
+
+A fila de envio (`SectionSync._dirty`) vivia só na memória. Fechar o app, um
+recarregamento, ficar sem rede ou a sessão ser assumida por outro aparelho
+levavam a fila embora — e ninguém reenviava aquela alteração. Pior: na abertura
+seguinte, entrar no perfil BAIXA o estado da nuvem e sobrescreve o local sem
+perguntar. A alteração que não subiu era apagada também do próprio aparelho.
+Era assim que "marquei duas disciplinas como concluídas na grade" desaparecia no
+dia seguinte. Três caminhos alimentavam o mesmo buraco:
+
+1. `SessionGuard._takenBy()` zerava `_pending` ao ver outro aparelho assumir — a
+   alteração saía da fila e nunca mais era tentada;
+2. dezenas de telas gravavam com `localStorage.setItem` direto: avisavam o blob,
+   nunca a camada por seção. Como a LEITURA vem das seções, o valor voltava
+   velho ao abrir em outro aparelho;
+3. `restorePayloadInto()` e `_applyMap()` apagavam o namespace inteiro do perfil
+   antes de aplicar o que veio da nuvem.
+
+Correção, em três partes:
+
+- **caixa de saída durável.** A lista de seções não enviadas é gravada
+  (`__secpend`) e recuperada na abertura. Some só quando a entrega é confirmada.
+  A detecção também é feita pelo conteúdo: hash diferente do último envio = há
+  algo por subir, mesmo que a lista tenha se perdido.
+- **nenhum download sobrescreve o que não subiu.** Antes de aplicar qualquer
+  leitura (por seção ou pelo blob), o app tenta ENTREGAR o pendente; o que não
+  conseguir subir é preservado com o valor local e continua na fila.
+- **canal único de escrita.** `DB.setRaw`/`DB.delRaw` dão às gravações de texto
+  puro o mesmo caminho de `DB._set`: grava, avisa a nuvem e marca a seção. As
+  ~15 telas que gravavam direto passaram a usá-lo.
+
+A fila fica visível em Configurações → Nuvem ("Fila de envio para a nuvem"): ou
+está vazia, ou lista o que falta subir. Coberto por 16 asserções novas no
+`AutoTeste` (grupo "Garantia de salvamento").
+
 **Por que 97.** A sincronização é último-a-escrever-vence com retentativa: a
-ação local nunca é descartada, mas um conflito real entre dois aparelhos pode
-perder a edição do outro. O `SessionGuard` (uma sessão por vez) reduz muito a
-janela, não a elimina.
+ação local nunca é descartada nem apagada por um download, mas um conflito real
+entre dois aparelhos editando a MESMA seção pode perder a edição do outro. O
+`SessionGuard` (uma sessão por vez) reduz muito a janela, não a elimina.
 
 ---
 
@@ -162,7 +197,7 @@ navegação de topo. Verificados os dois caminhos no Chromium.
 
 ## 4. Testabilidade e verificação — 62 → 97
 
-**Antes:** só a suíte interna `AutoTeste` (139 asserções, roda no console do
+**Antes:** só a suíte interna `AutoTeste` (155 asserções, roda no console do
 navegador). Sem CI, sem execução headless, sem forma de rodar nada num pipeline.
 As quatro divergências do item 1 existiam justamente porque nada as media.
 
@@ -172,7 +207,7 @@ As quatro divergências do item 1 existiam justamente porque nada as media.
 |---|---|---|
 | `testes/paridade-anki.mjs` | Node, sem navegador | 21.080 pontos contra o porte do Rust |
 | `testes/robustez-config.mjs` | Node, sem navegador | 12 configurações inválidas × 4 fases × 4 notas |
-| `AutoTeste` | navegador | 139 asserções (FSRS, fuzz, agendador, parser TEC, SM-2, filtros, gráficos) |
+| `AutoTeste` | navegador | 155 asserções (FSRS, fuzz, agendador, parser TEC, SM-2, filtros, gráficos, garantia de salvamento) |
 | `verificar.mjs` | 7 checagens | montagem, sintaxe, paridade, integridade do HTML, carregamento limpo, telas, contraste |
 | `.github/workflows/verificar.yml` | CI | tudo isso em cada push e PR |
 

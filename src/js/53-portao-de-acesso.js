@@ -241,8 +241,12 @@ const ProfileUI = {
         }
         if (!porSecao || !porSecao.ok) {
           try { SectionSync._saveLast({ ok: false, origem: 'blob', motivo: (porSecao && porSecao.motivo) || 'leitura-por-seção-não-tentada', em: new Date().toISOString() }); } catch (_) { _quiet(_); }
+          /* Também aqui o download não pode apagar o que este aparelho ainda não
+             enviou: tenta entregar primeiro e preserva o que não subir. */
+          let preservar = [];
+          try { if (window.SectionSync) preservar = await SectionSync.flushBeforeRead(id); } catch (e) { _quiet(e, 'entrar-pendencia'); }
           const res = await CloudStore.fetchPayload(id);
-          ProfileManager.restorePayloadInto(id, (res.payload && res.payload.data) || {});
+          ProfileManager.restorePayloadInto(id, (res.payload && res.payload.data) || {}, preservar);
           ProfileManager.setRev(id, res.rev);
         }
         ProfileManager.setActiveProfile(id);

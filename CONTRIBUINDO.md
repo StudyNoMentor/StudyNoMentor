@@ -118,11 +118,11 @@ node testes/robustez-config.mjs
 
 ### `AutoTeste` — suíte interna (navegador)
 
-O próprio app carrega 139 asserções. No console do navegador:
+O próprio app carrega 155 asserções. No console do navegador:
 
 ```js
-AutoTeste.rodar()     // 139 asserções: FSRS-6, fuzz, agendador, parser TEC,
-                      // robustez, SM-2, filtros, gráficos
+AutoTeste.rodar()     // 155 asserções: FSRS-6, fuzz, agendador, parser TEC,
+                      // robustez, SM-2, filtros, gráficos, garantia de salvamento
 __diag()              // erros engolidos, ids ausentes, contadores
 ```
 
@@ -207,3 +207,14 @@ pela metade.
 - **`$id()` em vez de `getElementById()`** quando o elemento pode não existir:
   ele nunca devolve `null`, então um id renomeado vira um aviso local em vez de
   derrubar a inicialização inteira.
+- **Nunca `localStorage.setItem`/`removeItem` direto numa chave do perfil.** Use
+  `DB._set` (valores JSON), `DB.setRaw` (texto puro) ou `DB.delRaw`. Só eles
+  avisam as DUAS camadas de sincronização: o blob e a tabela por seção. Uma
+  gravação direta sobe no blob mas deixa a linha da seção velha — e como a
+  leitura vem das seções, o valor volta desatualizado ao abrir em outro
+  aparelho. Foi assim que conclusões marcadas na grade "sumiam" no dia seguinte.
+- **Download nunca apaga o que ainda não subiu.** Qualquer caminho novo que
+  sobrescreva o armazenamento com dados da nuvem tem de chamar antes
+  `SectionSync.flushBeforeRead(id)` e preservar as seções que a chamada devolver
+  (é o que `SectionSync.hydrate`, `CloudStore.pullActiveAndReload` e
+  `ProfileUI.enterProfile` fazem).
