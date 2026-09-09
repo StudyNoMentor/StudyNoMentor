@@ -1045,3 +1045,52 @@ banco). O resto ficou recolhido.
 Verificado: `verificar.mjs` completo, AutoTeste 285/285, zero erro de console,
 WCAG AA nos dois temas. As telas foram conferidas por captura, incluindo o
 caso do órfão só-com-semente, que deixou de acender o alarme.
+
+---
+
+## 18. Revisão de layout das três telas — o que o usuário final precisa ver
+
+Complemento do item 17, que tinha corrigido os bugs e mexido na estrutura mas
+não tinha revisado as telas populadas nem a aba de conta no estado LOGADO.
+
+### Conta e nuvem: um cartão com sete blocos empilhados
+
+No estado logado era um bloco só, separado por linhas horizontais: conta, fila
+de envio, sessão ativa, nome do espaço na nuvem, perfil ao abrir, segurança da
+sessão e outros espaços — quatro controles de configuração, seis botões e três
+parágrafos explicativos. Quem abre ali quer saber duas coisas: **estou
+conectado?** e **meus dados subiram?**
+
+Ficaram visíveis a conta, a fila de envio (com "Enviar agora"/"Baixar da
+nuvem") e o aparelho com a sessão. Nome do espaço, perfil ao abrir, segurança
+da sessão, alterar senha e outros espaços foram para um `<details>` — ajustes
+que se mexe uma vez e não se olha mais. Nenhum id foi removido: os 675 ids da
+página seguem íntegros, e todo handler continua achando seu elemento.
+
+### A lista de backups: trinta linhas quase idênticas
+
+Com a retenção em faixas a lista chega a ~30 cópias, e elas eram praticamente
+iguais — mesma nota, mesmo tamanho e mesmo aparelho repetidos linha após linha.
+Repetição não informa: atrapalha achar o que interessa.
+
+- **Agrupadas por período** (Hoje · Últimos 7 dias · Este mês · Meses
+  anteriores). É assim que se procura um backup: "aquele de antes da semana
+  passada".
+- **O aparelho só aparece quando é outro.** "Android · Chrome" trinta vezes
+  não distingue nada; `de Windows · Edge` numa linha só, sim.
+- **Só os grupos recentes ficam abertos**; o resto vai para um `<details>`.
+  O corte respeita grupos inteiros — nunca parte um período ao meio.
+- **"Baixar" virou ícone.** Dois botões rotulados quebravam a linha e dobravam
+  a altura de cada item; Restaurar é a ação principal e ficou rotulado.
+
+### Notas que citavam nomes internos
+
+Uma cópia aparecia como `antes de esvaziar 1 seção(ões): p:pl_inicial:extras`.
+Essa nota existe para alguém ESCOLHER qual cópia restaurar, e um nome interno
+não ajuda a escolher. Passou a usar o rótulo humano — "antes de esvaziar:
+atividades extras". O nome interno continua no console, para diagnóstico.
+
+Verificado por captura em 420px de largura (celular), nos dois casos: cópia
+feita neste aparelho e cópia vinda de outro. `verificar.mjs` completo,
+AutoTeste 285/285, 675 ids íntegros, zero erro de console, WCAG AA nos dois
+temas.

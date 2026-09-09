@@ -542,7 +542,14 @@ const GuardaNuvem = {
   },
   async antesDeEsvaziar(id, secoes) {
     console.warn('[GuardaNuvem] esvaziando na nuvem: ' + secoes.join(', ') + ' — guardando o estado ANTERIOR antes.');
-    await this._proteger(id, 'antes de esvaziar ' + secoes.length + ' seção(ões): ' + secoes.slice(0, 3).join(', '));
+    /* A nota aparece na lista de backups, para uma pessoa escolher qual
+       restaurar. "p:pl_inicial:extras" não ajuda ninguém a escolher; "atividades
+       extras" ajuda. O nome interno continua no console, para diagnóstico. */
+    const legivel = secoes.slice(0, 3).map(sec => {
+      try { return Recuperacao.rotulo(sec); } catch (_) { return sec; }
+    });
+    const sufixo = secoes.length > 3 ? ' e mais ' + (secoes.length - 3) : '';
+    await this._proteger(id, 'antes de esvaziar: ' + legivel.join(', ') + sufixo);
   },
 
   /* ── QUAL ESTADO PRECISA SER GUARDADO ─────────────────────────────────────
@@ -680,25 +687,62 @@ const CloudBackupUI = {
       host.innerHTML = aviso + '<p class="hint">Nenhuma cópia no banco ainda. A primeira é criada sozinha na próxima abertura do dia — ou agora, no botão acima. A primeira de todas vira uma <strong>âncora permanente</strong>, que a limpeza automática nunca remove.</p>';
       return;
     }
+    /* ── A LISTA, SEM A PAREDE ─────────────────────────────────────────────
+       Com a retenção em faixas esta lista chega a ~30 linhas, e elas eram
+       quase idênticas: a mesma nota, o mesmo tamanho e o mesmo aparelho
+       repetidos linha após linha. Repetição não informa — atrapalha achar o
+       que interessa.
+
+       Três decisões: as cópias são AGRUPADAS por período (é assim que se
+       procura um backup: "aquele de antes da semana passada"); o aparelho só
+       aparece quando é OUTRO, porque "Android · Chrome" trinta vezes seguidas
+       não distingue nada; e só os grupos recentes ficam abertos — o resto vai
+       para um `<details>`, a um clique. */
     const ancoras = linhas.filter(r => r.ancora).length;
+    let meuAparelho = null;
+    try { meuAparelho = SessionGuard.deviceLabel(); } catch (e) { _quiet(e, 'cbk-aparelho'); }
+    const linhaHtml = (r) => {
+      const tag = r.ancora
+        ? '<span class="inactive-tag" style="color:var(--good-text);background:var(--good-soft);border-color:transparent;">âncora permanente</span>' : '';
+      const outro = (r.device && r.device !== meuAparelho) ? ' · de ' + escapeHtml(r.device) : '';
+      return `<div class="cloud-slot-row" data-bk="${escapeHtml(String(r.id))}">
+        <div class="cloud-slot-info">
+          <div class="name">${this._quando(r.created_at)} ${tag}</div>
+          <div class="meta">${escapeHtml(r.note || 'backup')} · ${this._kb(r.chars || 0)}${outro}</div>
+        </div>
+        <div class="cloud-slot-actions">
+          <button type="button" class="btn-secondary cbk-download" title="Baixar esta cópia como arquivo .json" aria-label="Baixar esta cópia como arquivo .json">↓</button>
+          <button type="button" class="btn-primary cbk-restore" title="Restaurar esta cópia sobre o perfil atual">↺ Restaurar</button>
+        </div>
+      </div>`;
+    };
+    const agora = Date.now(), DIA = 86400000;
+    const faixaDe = (r) => {
+      const d = agora - new Date(r.created_at).getTime();
+      if (d < DIA) return 'Hoje';
+      if (d < 7 * DIA) return 'Últimos 7 dias';
+      if (d < 31 * DIA) return 'Este mês';
+      return 'Meses anteriores';
+    };
+    const ordem = ['Hoje', 'Últimos 7 dias', 'Este mês', 'Meses anteriores'];
+    const porFaixa = new Map(ordem.map(g => [g, []]));
+    linhas.forEach(r => { const g = faixaDe(r); if (porFaixa.has(g)) porFaixa.get(g).push(r); });
+    const abertos = [], fechados = [];
+    let orcamento = 8;   // grupos inteiros: nunca corta um período ao meio
+    ordem.forEach(g => {
+      const rs = porFaixa.get(g);
+      if (!rs.length) return;
+      const bloco = `<p class="section-label" style="margin:14px 0 6px;">${g} · ${rs.length}</p>` + rs.map(linhaHtml).join('');
+      if (orcamento > 0) { abertos.push(bloco); orcamento -= rs.length; } else fechados.push(bloco);
+    });
     host.innerHTML = aviso +
-      '<p class="hint" style="margin:0 0 10px;">' + linhas.length + ' cópia(s) guardada(s) <strong>no banco de dados</strong>' +
-      (ancoras ? ' — uma delas é a <strong>âncora permanente</strong>, que nunca é apagada' : '') +
-      '. Elas não dependem deste navegador: trocando de aparelho, basta entrar na conta para resgatá-las.</p>' +
-      linhas.map(r => {
-        const tag = r.ancora
-          ? '<span class="inactive-tag" style="color:var(--good-text);background:var(--good-soft);border-color:transparent;">âncora permanente</span>' : '';
-        return `<div class="cloud-slot-row" data-bk="${escapeHtml(String(r.id))}">
-          <div class="cloud-slot-info">
-            <div class="name">${this._quando(r.created_at)} ${tag}</div>
-            <div class="meta">${escapeHtml(r.note || 'backup')} · ${this._kb(r.chars || 0)}${r.device ? ' · ' + escapeHtml(r.device) : ''}</div>
-          </div>
-          <div class="cloud-slot-actions">
-            <button type="button" class="btn-secondary cbk-download" title="Baixar esta cópia como arquivo .json">↓ Baixar</button>
-            <button type="button" class="btn-primary cbk-restore" title="Restaurar esta cópia sobre o perfil atual">↺ Restaurar</button>
-          </div>
-        </div>`;
-      }).join('');
+      '<p class="hint" style="margin:0 0 4px;">' + linhas.length + ' cópia(s) no banco' +
+      (ancoras ? ', incluindo a <strong>âncora permanente</strong>' : '') +
+      '. Não dependem deste navegador — em outro aparelho, basta entrar na conta.</p>' +
+      abertos.join('') +
+      (fechados.length
+        ? '<details style="margin-top:12px;"><summary style="cursor:pointer;font-weight:700;">Cópias mais antigas</summary>' + fechados.join('') + '</details>'
+        : '');
     this._ligar(host);
   },
 
