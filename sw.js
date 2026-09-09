@@ -27,7 +27,7 @@
    no IndexedDB, que já é local e independente disto.
    ═══════════════════════════════════════════════════════════════════════════ */
 
-const VERSAO = 'v0fb59dc657';
+const VERSAO = 'v4c8eaf9a41';
 const CACHE_APP = VERSAO + '-app';
 const CACHE_CDN = VERSAO + '-cdn';
 const TIMEOUT_REDE = 3000;
@@ -65,14 +65,28 @@ self.addEventListener('activate', (evt) => {
 
 // ── Estratégias ─────────────────────────────────────────────────────────────
 
-async function redePrimeiro(req, cacheNome) {
+async function redePrimeiro(req, cacheNome, evt) {
   const cache = await caches.open(cacheNome);
+  /* A busca na rede CONTINUA mesmo depois de perder a corrida do tempo, e é ela
+     que atualiza o cache. Antes, a corrida perdida descartava a resposta: numa
+     conexão lenta — acima de TIMEOUT_REDE, o que em rede móvel ruim é o normal,
+     não a exceção — TODA carga servia o cache e NENHUMA o atualizava. O app
+     ficava preso numa versão antiga indefinidamente, justamente em quem mais
+     precisa da versão nova.
+     O `waitUntil` mantém o worker vivo até a gravação terminar; sem ele, o
+     navegador pode encerrá-lo assim que a resposta é entregue, e a atualização
+     do cache morre no meio. */
+  const daRede = fetch(req).then((r) => {
+    if (r && r.ok) cache.put(req, r.clone()).catch(() => {});
+    return r;
+  });
+  daRede.catch(() => {});   // pode falhar depois da corrida: não vira rejeição solta
+  if (evt && evt.waitUntil) { try { evt.waitUntil(daRede.catch(() => {})); } catch (_) {} }
   try {
     const resp = await Promise.race([
-      fetch(req),
+      daRede,
       new Promise((_, rej) => setTimeout(() => rej(new Error('timeout')), TIMEOUT_REDE))
     ]);
-    if (resp && resp.ok) cache.put(req, resp.clone()).catch(() => {});
     return resp;
   } catch (_) {
     const guardado = (await cache.match(req))
@@ -90,12 +104,15 @@ async function redePrimeiro(req, cacheNome) {
   }
 }
 
-async function cacheERevalida(req, cacheNome) {
+async function cacheERevalida(req, cacheNome, evt) {
   const cache = await caches.open(cacheNome);
   const guardado = await cache.match(req);
   const rede = fetch(req)
     .then((r) => { if (r && (r.ok || r.type === 'opaque')) cache.put(req, r.clone()).catch(() => {}); return r; })
     .catch(() => null);
+  // devolvendo o guardado, a revalidação continua em segundo plano — e sem o
+  // waitUntil o worker pode ser encerrado antes de ela chegar ao cache
+  if (guardado && evt && evt.waitUntil) { try { evt.waitUntil(rede); } catch (_) {} }
   return guardado || (await rede) || fetch(req);
 }
 
@@ -104,7 +121,13 @@ async function cachePrimeiro(req, cacheNome) {
   const guardado = await cache.match(req);
   if (guardado) return guardado;
   const resp = await fetch(req);
-  if (resp && (resp.ok || resp.type === 'opaque')) cache.put(req, resp.clone()).catch(() => {});
+  /* Só o que veio OK entra no cache. Uma resposta OPACA (status 0, corpo
+     ilegível) aqui não é sucesso: é o que sobra de um erro sem CORS — e, guardada
+     numa estratégia "cache primeiro", ficaria servida PARA SEMPRE. As bibliotecas
+     que passam por aqui (Supabase, planilhas) são pedidas com `crossorigin` e
+     SRI, então uma resposta opaca só pode ser falha. Não cachear custa uma nova
+     tentativa; cachear custaria o app sem nuvem até limpar o cache à mão. */
+  if (resp && resp.ok) cache.put(req, resp.clone()).catch(() => {});
   return resp;
 }
 
@@ -120,10 +143,10 @@ self.addEventListener('fetch', (evt) => {
   // Dados vivos e autenticados: passam direto, sempre.
   if (/supabase\.(co|in)$/.test(url.hostname)) return;
 
-  if (req.mode === 'navigate') { evt.respondWith(redePrimeiro(req, CACHE_APP)); return; }
+  if (req.mode === 'navigate') { evt.respondWith(redePrimeiro(req, CACHE_APP, evt)); return; }
 
   if (url.hostname === 'fonts.googleapis.com' || url.hostname === 'fonts.gstatic.com') {
-    evt.respondWith(cacheERevalida(req, CACHE_CDN)); return;
+    evt.respondWith(cacheERevalida(req, CACHE_CDN, evt)); return;
   }
 
   if (url.hostname === 'cdn.sheetjs.com' || url.hostname === 'cdn.jsdelivr.net') {
@@ -131,7 +154,7 @@ self.addEventListener('fetch', (evt) => {
   }
 
   if (url.origin === self.location.origin) {
-    evt.respondWith(redePrimeiro(req, CACHE_APP));
+    evt.respondWith(redePrimeiro(req, CACHE_APP, evt));
   }
 });
 

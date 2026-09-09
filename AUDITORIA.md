@@ -1321,3 +1321,122 @@ o container vira `flex-direction: column`, e nessa direção o `flex-basis` pass
 a valer como **altura** — a barra ocupava cerca de 330 px do celular. Corrigido
 com `.upd-bar .upd-txt { flex: 0 0 auto; }` na consulta de mídia, e conferido em
 captura real nas duas larguras.
+
+---
+
+## 21. As travas que ficavam presas, e a requisição que nunca respondia
+
+A pergunta foi se sobrava algo em estabilidade, sincronização, cache, backup,
+segurança e rede. Sobrava — na camada de **rede** e nas **travas de
+concorrência**, que é onde os defeitos não gritam: eles calam o app.
+
+### 21.1. Nada tinha teto de tempo no caminho de ESCRITA
+
+`_withTimeout` existia e cobria seis chamadas — login, criação de conta, troca
+de senha, o download do perfil. As outras vinte, **inclusive todo o caminho de
+escrita** (`pushDirty`, `saveActive`, o manifesto, os backups, a sessão ativa),
+iam sem teto nenhum.
+
+Uma requisição que **falha** é inofensiva: cai no `catch`, remarca a pendência e
+tenta de novo. A que fica **pendurada** é o problema — e é o caso comum em rede
+móvel ruim e em portal de wi-fi público, onde a conexão abre e nada volta. O
+`await` nunca retornava, `_syncing` continuava `true`, e a sincronização parava
+até alguém recarregar a página. A alteração não se perdia (está no
+armazenamento e na fila), mas **parava de subir, sem aviso**.
+
+A correção não foi cobrir as vinte chamadas — listas assim sempre esquecem a
+próxima. Foi pôr a trava no **transporte**: `createClient` passou a receber um
+`fetch` próprio, e **toda** requisição que a biblioteca fizer — leitura,
+escrita, renovação de token, e as que ainda forem escritas — nasce com teto de
+25 s e um `AbortController` de verdade. `Promise.race` sozinho devolveria o
+controle deixando a requisição viva; o abort a encerra. Um sinal que a própria
+biblioteca tenha passado (`.abortSignal()`) é respeitado e propagado.
+
+Os 25 s são folgados de propósito: os tetos por operação (15-20 s) disparam
+antes, com mensagem melhor. Este é a rede de baixo, para o que não tem teto
+próprio.
+
+### 21.2. Três marcas de "ocupado" que uma exceção deixava ligadas
+
+`_syncing`, `_pushing` e `_applying` governam a sincronização. Todas existem
+para evitar atropelo — e todas, presas em `true`, param tudo em silêncio.
+
+**`_applying` em `SectionSync.pullAndReload`** era o pior:
+
+```js
+CloudStore._applying = true;
+const r = await this.hydrate(id);   // rede, JSON, armazenamento — pode lançar
+CloudStore._applying = false;       // ← pulada pela exceção
+```
+
+`_applying` existe para que gravar o que VEIO da nuvem não dispare um envio de
+volta, em eco. Presa em `true`, ela faz `notifyChange()` **devolver na primeira
+linha** — e toda alteração seguinte deixa de virar pendência. A fila por seção
+continua andando (é marcada por outro gancho, e foi o que impediu que isso
+virasse perda de dado), mas o blob de segurança congela no que era antes, e a
+checagem de novidade da nuvem para. Sem erro, sem aviso.
+
+**`_pushing` em `pushDirty`** tinha a mesma forma. Entre ligar e desligar há
+`_savePend()` e `_saveRevs()`, que gravam no armazenamento e **lançam com o
+disco cheio** — situação que este app alcança, tanto que tem faxina para ela.
+Uma vez presa, `pushDirty` passava a devolver na primeira linha para sempre: a
+fila crescia e nada mais subia.
+
+**`_syncing` em `autoSave`** já tinha `catch`, mas a linha
+`CloudUI.setStatus('syncing', …)` ficava **fora** do `try`.
+
+Correções:
+
+- `CloudStore.aplicando(fn)` — liga a marca, desliga em `finally`, e **restaura
+  o valor anterior** em vez de forçar `false`, para que uma aplicação aninhada
+  não desligue a de fora antes da hora.
+- `pushDirty` virou um invólucro fino (`try { await this._enviarSujas(id) }
+  finally { this._pushing = false }`) com o corpo em método próprio — assim o
+  `finally` cobre tudo sem reindentar 70 linhas.
+- `autoSave` ganhou `finally`, e o `setStatus` entrou no `try`.
+
+E, como terceira camada, um **cão de guarda**: um envio "em curso" há mais de
+60 s é considerado preso e destravado. `finally` cobre exceção; o cão de guarda
+cobre o que nem exceção lança — uma promessa que simplesmente nunca se resolve.
+
+### 21.3. O service worker que, em conexão lenta, nunca atualizava
+
+`redePrimeiro` corria a rede contra um relógio de 3 s. Perdida a corrida,
+servia o cache — e **descartava** a resposta da rede quando ela chegava. Numa
+conexão lenta, isto é permanente: **toda** carga passa dos 3 s, **toda** carga
+serve o cache, e **nenhuma** o atualiza. O app fica preso numa versão antiga
+indefinidamente — justamente para quem tem a pior rede.
+
+Agora a busca continua correndo depois de perder a corrida e é ela quem grava
+no cache, dentro de um `waitUntil` (sem ele o navegador pode encerrar o worker
+assim que a resposta é entregue, e a gravação morre no meio). A mesma proteção
+foi dada à revalidação das fontes.
+
+`cachePrimeiro` deixou de guardar resposta **opaca**. Opaca é status 0 com corpo
+ilegível: numa estratégia "cache primeiro" ela seria servida para sempre. As
+bibliotecas que passam por ali (Supabase, planilhas) são pedidas com
+`crossorigin` e SRI, então uma resposta opaca só pode ser falha — não cachear
+custa uma nova tentativa; cachear custaria o app sem nuvem até limpar o cache
+à mão.
+
+### O que ficou conferido e saudável
+
+- **Roteamento do service worker**: `POST/PUT` nunca são cacheados, e todo
+  tráfego `*.supabase.co` passa direto, sem tocar em cache — dado vivo e
+  autenticado não corre risco de ser servido velho.
+- **Salvamento de emergência** (`_beaconSave`): usa `fetch` cru com `keepalive`
+  de propósito, e fica **fora** do teto de transporte — abortar por tempo numa
+  página que está fechando seria cancelar a última chance de entrega. Mantém a
+  trava de revisão (`rev`) e a recusa de payload vazio.
+- **Fila de envio**: `_serializar` encadeia com `.then(fn, fn)` e nunca trava a
+  fila por uma falha; com o teto de transporte, toda operação agora termina.
+- **Segurança**: CSP restritiva com `object-src 'none'`, `frame-src 'none'` e
+  `base-uri 'self'`; as duas bibliotecas de CDN com `integrity` fixado; a chave
+  publicável do Supabase é a que deve estar no cliente, e o que protege os dados
+  são as políticas de RLS por dono, conferidas nas três tabelas.
+
+Cobertura: **AutoTeste 308 → 317**, com o grupo "Travas não ficam presas" — que
+prova as correções do jeito que importa: fazendo a operação **falhar** e
+conferindo que a marca ficou livre, que o envio preso é destravado, que toda
+requisição nasce com sinal de cancelamento, e que é a criação do cliente que
+entrega o `fetch` com teto à biblioteca.
