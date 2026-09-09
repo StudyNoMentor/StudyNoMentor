@@ -57,7 +57,7 @@
      novo, e o antigo é descartado sozinho na ativação) e o que permite ao app
      dizer qual versão está rodando. Em src/ fica "dev" de propósito: a versão
      é gerada na montagem, não editada à mão. -->
-<meta name="diario-versao" content="v0fb59dc657">
+<meta name="diario-versao" content="ve04249555b">
 <script>
 /* ── ARRANQUE: abre o IndexedDB AGORA, em paralelo com o parse do documento ──
    A fachada de armazenamento vive no fim do <body>, depois de ~1,7 MB de HTML.
@@ -11254,6 +11254,35 @@ const DB = {
        · caída no localStorage nativo (modo privado antigo, navegador sem
          suporte) → ~5 MB, e aí o aperto chega rápido.
      Sem essa distinção, o aviso dispararia com 4 MB mesmo havendo 500 MB livres. */
+  /* ── O DISCO RECUSOU A GRAVAÇÃO ───────────────────────────────────────────
+     A fachada de IndexedDB volta na hora (grava em memória e envia ao disco
+     depois). O `catch` de cota logo acima, portanto, NUNCA dispara no caminho
+     normal: o `setItem` não lança, porque quem lança é a transação, minutos ou
+     milissegundos depois, em outro contexto.
+
+     Esta é a ponta que faltava. A fachada retenta sozinha; quando desiste, chama
+     esta função — e aqui a informação finalmente chega a quem pode agir. O aviso
+     é direto sobre o que está em jogo: o que está na tela ainda NÃO está gravado
+     neste aparelho, e a saída é subir para a nuvem ou exportar um backup.
+
+     A alteração não está perdida: ela segue no cache em memória, na fila do
+     disco (que não é descartada) e na fila de envio para a nuvem — o envio é o
+     que de fato a coloca a salvo, e por isso é o que forçamos aqui. */
+  _falhaDiscoAvisada: false,
+  aoFalharGravacaoLocal(pendentes) {
+    console.error('[armazenamento] o navegador recusou ' + pendentes + ' gravação(ões) no disco');
+    // a nuvem passa a ser a cópia que importa: força a subida imediata
+    try { if (window.CloudStore && CloudStore.isReady() && CloudStore.isLoggedIn()) CloudStore.flushPending(); }
+    catch (e) { _quiet(e, 'falha-disco-envio'); }
+    if (this._falhaDiscoAvisada) return;
+    this._falhaDiscoAvisada = true;
+    setTimeout(() => { this._falhaDiscoAvisada = false; }, 60000);
+    const msg = '🛑 O navegador recusou gravar neste aparelho (armazenamento cheio ou bloqueado). '
+      + 'O que está na tela ainda não está salvo AQUI — mantenha a conexão para que suba para a nuvem '
+      + 'e exporte um backup em Configurações.';
+    try { showToast(msg); }
+    catch (_) { try { UI.alert(msg, { title: 'Não foi possível gravar neste aparelho' }); } catch (__) { _quiet(__); } }
+  },
   LIMITE_NATIVO_MB: 5,
   _quotaAvisoKey() { return 'diario-estudos:quota-aviso'; },
   async checarEspaco() {
@@ -12777,6 +12806,13 @@ const DB = {
     return this.getTecSnapshots().find(s =>
       s.id !== ignoreId && start <= s.endDate && end >= s.startDate) || null;
   }
+};
+
+/* Ponte com a fachada de armazenamento: ela roda antes do código do app, num
+   escopo próprio, e por isso não enxerga `DB`. Sem esta linha, a desistência da
+   gravação continuaria acontecendo em silêncio. */
+window.__idbFalhouAoGravar = function (pendentes) {
+  try { DB.aoFalharGravacaoLocal(pendentes); } catch (e) { _quiet(e, 'ponte-disco'); }
 };
 
 /* ============================================================
@@ -25809,6 +25845,148 @@ const AutoTeste = {
     }
   },
 
+  /* ── UMA TRAVA PRESA É PIOR QUE UM ERRO ───────────────────────────────────
+     Três marcas de "estou ocupado" governam a sincronização: `_syncing` (envio
+     em curso), `_pushing` (envio de seções em curso) e `_applying` (aplicando
+     dado vindo da nuvem). Todas existem para evitar atropelo — e todas, se
+     ficarem LIGADAS por engano, param a sincronização em silêncio: nenhum erro,
+     nenhum aviso, e o app segue gravando só neste aparelho.
+
+     Ficavam presas quando uma exceção pulava por cima da linha que as desligava.
+     Agora desligam em `finally`, e este grupo prova isso do jeito que importa:
+     fazendo a operação FALHAR e conferindo que a marca ficou livre. */
+  travasNaoFicamPresas() {
+    // 1. `aplicando` devolve a marca mesmo quando o que ela embrulha lança
+    const antes = CloudStore._applying;
+    CloudStore._applying = false;
+    CloudStore.aplicando(() => { throw new Error('falha de propósito'); }).catch(() => {});
+    this._ok('aplicar da nuvem libera a marca mesmo falhando', CloudStore._applying === false);
+    // 2. e restaura o valor ANTERIOR, para não desligar uma aplicação de fora
+    CloudStore._applying = true;
+    CloudStore.aplicando(() => { throw new Error('falha aninhada'); }).catch(() => {});
+    this._ok('aplicação aninhada não desliga a de fora', CloudStore._applying === true);
+    CloudStore._applying = antes;
+
+    // 3. o envio de seções libera `_pushing` quando o corpo lança
+    const envioOriginal = SectionSync._enviarSujas;
+    const prontoOriginal = CloudStore.isReady, logadoOriginal = CloudStore.isLoggedIn;
+    const pushingAntes = SectionSync._pushing;
+    try {
+      SectionSync._pushing = false;
+      CloudStore.isReady = () => true; CloudStore.isLoggedIn = () => true;
+      SectionSync._enviarSujas = () => { throw new Error('falha de propósito'); };
+      const pid = ProfileManager.getActiveProfileId();
+      if (pid) {
+        SectionSync.pushDirty().catch(() => {});
+        this._ok('envio de seções libera a marca mesmo falhando', SectionSync._pushing === false);
+      } else {
+        this._ok('envio de seções libera a marca mesmo falhando', true, 'sem perfil ativo: não aplicável');
+      }
+    } finally {
+      SectionSync._enviarSujas = envioOriginal;
+      CloudStore.isReady = prontoOriginal; CloudStore.isLoggedIn = logadoOriginal;
+      SectionSync._pushing = pushingAntes;
+    }
+
+    // 4. o cão de guarda: um envio "em curso" há tempo demais é destravado
+    const sincAntes = CloudStore._syncing, desdeAntes = CloudStore._syncingDesde;
+    try {
+      CloudStore._syncing = true; CloudStore._syncingDesde = Date.now();
+      CloudStore.autoSave().catch(() => {});
+      this._ok('envio recente em curso não é interrompido', CloudStore._syncing === true);
+      CloudStore._syncing = true;
+      CloudStore._syncingDesde = Date.now() - CloudStore.SYNC_TRAVADO_MS - 1000;
+      CloudStore.autoSave().catch(() => {});
+      this._ok('envio preso além do teto é destravado', CloudStore._syncing === false);
+    } finally {
+      clearTimeout(CloudStore._debounce);
+      CloudStore._syncing = sincAntes; CloudStore._syncingDesde = desdeAntes;
+    }
+
+    // 5. toda requisição nasce com teto de tempo e sinal de cancelamento
+    const fetchOriginal = window.fetch;
+    try {
+      let vistoSignal = null;
+      window.fetch = (u, o) => { vistoSignal = o && o.signal; return new Promise(() => {}); };
+      CloudStore._buscarComTeto('https://exemplo.invalido/x', { method: 'GET' });
+      this._ok('requisição nasce com sinal de cancelamento',
+        !!vistoSignal && vistoSignal.aborted === false);
+      // sinal externo já abortado: a requisição nasce abortada junto
+      const ac = new AbortController(); ac.abort();
+      CloudStore._buscarComTeto('https://exemplo.invalido/y', { signal: ac.signal });
+      this._ok('sinal externo abortado propaga para a requisição',
+        !!vistoSignal && vistoSignal.aborted === true);
+    } finally { window.fetch = fetchOriginal; }
+
+    /* 6. e o teto vale para a BIBLIOTECA inteira, não só para quem lembrar de
+       pedir: é `init` que entrega o nosso `fetch` ao cliente do Supabase. Sem
+       esta ligação, cada chamada nova nasceria sem teto de novo. */
+    const clienteAntes = CloudStore.client, statusAntes = CloudStore.libStatus,
+          sessaoAntes = CloudStore.session, libAntes = window.supabase;
+    try {
+      let opcoes = null;
+      window.supabase = {
+        createClient: (_u, _k, o) => {
+          opcoes = o;
+          return { auth: { getSession: () => Promise.resolve({ data: {} }), onAuthStateChange: () => {} } };
+        }
+      };
+      CloudStore.init();
+      this._ok('o cliente da nuvem é criado com o nosso fetch',
+        !!(opcoes && opcoes.global && typeof opcoes.global.fetch === 'function'));
+      this._ok('a sessão continua persistida e o token renovado sozinho',
+        !!(opcoes && opcoes.auth && opcoes.auth.persistSession && opcoes.auth.autoRefreshToken));
+    } finally {
+      window.supabase = libAntes;
+      CloudStore.client = clienteAntes; CloudStore.libStatus = statusAntes;
+      CloudStore.session = sessaoAntes;
+    }
+  },
+
+  /* ── O DISCO PODE RECUSAR, E ISSO PRECISA APARECER ────────────────────────
+     A fachada de armazenamento devolve o controle na hora e grava no disco
+     depois. Uma recusa do navegador (cota, disco cheio, conexão fechada) chega,
+     portanto, DEPOIS — fora do `try` de quem gravou. Era por isso que o dado
+     seguia na tela e só sumia na abertura seguinte, sem erro nenhum.
+     Este grupo cuida da ponta que faltava: a fachada avisa, e o app age. */
+  oDiscoQueRecusa() {
+    this._ok('a fachada tem por onde avisar uma recusa de gravação',
+      typeof window.__idbFalhouAoGravar === 'function');
+    const toastOriginal = window.showToast;
+    const flushOriginal = CloudStore.flushPending;
+    const prontoOriginal = CloudStore.isReady, logadoOriginal = CloudStore.isLoggedIn;
+    const avisadoAntes = DB._falhaDiscoAvisada;
+    try {
+      let avisos = 0, envios = 0;
+      window.showToast = () => { avisos++; };
+      CloudStore.flushPending = () => { envios++; return Promise.resolve(); };
+      CloudStore.isReady = () => true; CloudStore.isLoggedIn = () => true;
+
+      DB._falhaDiscoAvisada = false;
+      window.__idbFalhouAoGravar(3);
+      this._ok('recusa do disco avisa quem está usando', avisos === 1, avisos);
+      this._ok('recusa do disco força a subida para a nuvem', envios === 1, envios);
+
+      // a mesma falha repetida não vira enxurrada de avisos
+      window.__idbFalhouAoGravar(3);
+      window.__idbFalhouAoGravar(3);
+      this._ok('avisos repetidos são contidos', avisos === 1, avisos);
+      this._ok('mas a subida para a nuvem é tentada em toda recusa', envios === 3, envios);
+
+      // sem nuvem disponível, nada lança
+      CloudStore.isLoggedIn = () => false;
+      DB._falhaDiscoAvisada = false;
+      let lancou = false;
+      try { window.__idbFalhouAoGravar(1); } catch (_) { lancou = true; }
+      this._ok('recusa sem nuvem não derruba nada', !lancou && avisos === 2, avisos);
+    } finally {
+      window.showToast = toastOriginal;
+      CloudStore.flushPending = flushOriginal;
+      CloudStore.isReady = prontoOriginal; CloudStore.isLoggedIn = logadoOriginal;
+      DB._falhaDiscoAvisada = avisadoAntes;
+    }
+  },
+
   rodar(imprimir) {
     this._r = { total: 0, passou: 0, falhou: 0, falhas: [], ms: 0 };
     const t0 = Date.now();
@@ -25827,7 +26005,9 @@ const AutoTeste = {
      ['Adota o id do banco', 'adotaOIdDoBanco'],
      ['Isolamento entre contas', 'isolamentoEntreContas'],
      ['Ids de perfil válidos para a nuvem', 'idsDePerfilSaoValidos'],
-     ['Esvaziar deixa rastro', 'esvaziarDeixaRastro']].forEach(([nome, fn]) => {
+     ['Esvaziar deixa rastro', 'esvaziarDeixaRastro'],
+     ['Travas não ficam presas', 'travasNaoFicamPresas'],
+     ['O disco que recusa gravação', 'oDiscoQueRecusa']].forEach(([nome, fn]) => {
       try { this[fn](); }
       catch (e) { this._r.total++; this._r.falhou++; this._r.falhas.push({ nome: nome + ' — exceção', obtido: String(e && e.message || e) }); }
     });
@@ -31673,7 +31853,8 @@ const CloudStore = {
   TABLE: 'study_profiles',
   client: null, session: null, libStatus: 'pending', channel: null, secChannel: null, _secRtTimer: null,
   _debounce: null, DEBOUNCE_MS: 1500, _applying: false, _cfgMode: 'signin',
-  _pending: false, _lastSyncAt: null, _syncing: false, _dirtyAt: null,
+  _pending: false, _lastSyncAt: null, _syncing: false, _dirtyAt: null, _syncingDesde: 0,
+  SYNC_TRAVADO_MS: 60000,   // teto para um envio "em curso" antes de ser considerado preso
 
   init() {
     try {
@@ -31683,7 +31864,10 @@ const CloudStore = {
         if (window.ProfileUI && ProfileUI.isGateOpen()) ProfileUI.refreshStage();
         return;
       }
-      this.client = lib.createClient(this.SUPABASE_URL, this.SUPABASE_KEY, { auth: { persistSession: true, autoRefreshToken: true } });
+      this.client = lib.createClient(this.SUPABASE_URL, this.SUPABASE_KEY, {
+        auth: { persistSession: true, autoRefreshToken: true },
+        global: { fetch: (u, o) => this._buscarComTeto(u, o) },
+      });
       this.libStatus = 'ready';
       this.client.auth.getSession().then(({ data }) => { this.session = (data && data.session) || null; this.onAuth(); }).catch(e => console.warn('getSession', e));
       this.client.auth.onAuthStateChange((_e, session) => {
@@ -31700,8 +31884,62 @@ const CloudStore = {
   isReady() { return !!this.client; },
   isLoggedIn() { return !!this.session; },
   userEmail() { return this.session && this.session.user ? this.session.user.email : null; },
+  /* ── TETO DE TEMPO NO TRANSPORTE ──────────────────────────────────────────
+     Uma requisição que NÃO responde é pior que uma que falha. Falha entra no
+     `catch`, remarca a pendência e tenta de novo; a que fica pendurada — o caso
+     comum em rede móvel ruim e em portal de wi-fi público, onde a conexão abre
+     mas nada volta — deixava `_syncing` em true e a sincronização parada até
+     recarregar a página. A alteração não se perdia (fica no armazenamento e na
+     fila), mas parava de subir, e ninguém era avisado.
+
+     A trava fica no TRANSPORTE, não em cada chamada: toda requisição que a
+     biblioteca fizer — leitura, escrita, renovação de token, e as que ainda
+     forem escritas — nasce com um teto. Cobrir chamada por chamada é o tipo de
+     lista que sempre esquece a próxima.
+
+     São 25 s, folgados de propósito: os tetos por operação (15-20 s, no
+     `_withTimeout`) disparam antes, com mensagem melhor. Este aqui é a rede de
+     baixo, para o que não tem teto próprio.
+
+     `AbortController` de verdade, não só `Promise.race`: a corrida devolve o
+     controle mas deixa a requisição viva consumindo conexão; o abort encerra. */
+  FETCH_TETO_MS: 25000,
+  _buscarComTeto(url, opcoes) {
+    const o = opcoes || {};
+    if (typeof AbortController === 'undefined') return fetch(url, o);
+    const ac = new AbortController();
+    // respeita um sinal que a própria biblioteca tenha passado (.abortSignal())
+    const externo = o.signal;
+    const propagar = () => { try { ac.abort(); } catch (e) { _quiet(e, 'fetch-abort'); } };
+    if (externo) {
+      if (externo.aborted) propagar();
+      else externo.addEventListener('abort', propagar, { once: true });
+    }
+    const t = setTimeout(propagar, this.FETCH_TETO_MS);
+    return fetch(url, { ...o, signal: ac.signal }).finally(() => clearTimeout(t));
+  },
   _withTimeout(p, ms, label) {
     return Promise.race([p, new Promise((_, rej) => setTimeout(() => rej(new Error((label || 'A operação') + ' demorou demais. Verifique sua internet.')), ms))]);
+  },
+
+  /* ── APLICANDO DADO DA NUVEM ──────────────────────────────────────────────
+     `_applying` existe para que escrever o que VEIO da nuvem não seja
+     confundido com uma edição do usuário — sem ele, baixar dispararia um envio
+     de volta, em eco. O risco é o outro: se a marca ficar LIGADA por engano, o
+     `notifyChange` passa a devolver na primeira linha, e **toda alteração
+     seguinte deixa de virar pendência**. O aparelho continua gravando, a fila
+     por seção continua andando (ela é marcada por outro gancho), mas o blob de
+     segurança congela no que era antes — sem erro, sem aviso.
+
+     Era o que acontecia quando um `await` no meio da aplicação falhava: a linha
+     que desliga a marca vinha DEPOIS, e a exceção pulava por cima dela. Aqui a
+     marca desliga em `finally`, que roda mesmo com exceção; e o valor anterior
+     é restaurado, em vez de forçar `false`, para que uma aplicação aninhada não
+     desligue a de fora antes da hora. */
+  async aplicando(fn) {
+    const antes = this._applying;
+    this._applying = true;
+    try { return await fn(); } finally { this._applying = antes; }
   },
   onAuth() {
     if (window.ProfileUI) ProfileUI.onAuthChanged();
@@ -31903,16 +32141,29 @@ const CloudStore = {
     // BUG CORRIGIDO: se um salvamento já está em curso, NÃO descartamos a rodada —
     // reprogramamos uma nova tentativa para logo após, senão a última alteração ficava
     // presa como "pendente" até o próximo foco/edição (causa de "às vezes não salva").
-    if (this._syncing) { this._rearm(400); return; }
+    /* Um envio em curso não descarta a rodada — reprograma. Mas "em curso" tem
+       prazo: se a marca ficar presa (uma promessa que nunca se resolve, um
+       travamento em outra camada), sem este teto a sincronização parava até
+       recarregar a página, reprogramando a cada 400 ms para sempre. */
+    if (this._syncing) {
+      if (Date.now() - this._syncingDesde < this.SYNC_TRAVADO_MS) { this._rearm(400); return; }
+      console.warn('[CloudStore] envio preso há mais de ' + Math.round(this.SYNC_TRAVADO_MS / 1000) + 's — destravando e tentando de novo');
+      this._syncing = false;
+    }
     // Sessão assumida em outro aparelho: adia, NÃO descarta. Descartar era perder
     // a alteração de vez — ela nunca mais era tentada nesta ou em outra sessão.
     if (window.SessionLock && SessionLock.isBlocked()) { this._pending = true; return; }
     if (!this.isReady() || !this.isLoggedIn()) return;
     if (!this._pending) return;                // nada novo a enviar
     clearTimeout(this._debounce);
-    this._syncing = true; this._pending = false;
-    if (window.CloudUI) CloudUI.setStatus('syncing', 'Sincronizando...');
+    this._syncing = true; this._syncingDesde = Date.now(); this._pending = false;
+    /* `finally` e não uma linha no fim: se QUALQUER coisa aqui dentro lançar —
+       inclusive a atualização do rótulo de status, que mexe no DOM —, a marca
+       precisa desligar assim mesmo. Presa em true, ela fazia a sincronização
+       parar de vez até recarregar. As atribuições `_syncing = false` no meio do
+       corpo continuam, inofensivas: apenas antecipam o que o `finally` garante. */
     try {
+      if (window.CloudUI) CloudUI.setStatus('syncing', 'Sincronizando...');
       if (!this._blobDue()) {
         // ── ROTA LEVE: só as seções alteradas ──────────────────────────────
         // Se o envio periódico de seções já está em curso, esperamos a vez: forçar
@@ -31960,11 +32211,13 @@ const CloudStore = {
       try { if (window.SectionSync) SectionSync.afterBlobSave(); } catch (_) { _quiet(_); } // escrita dupla (Opção B, Fase 1)
     } catch (err) {
       // erro de rede: NÃO perde a alteração — remarca como pendente e reprograma (auto-recupera)
-      this._syncing = false; this._pending = true;
+      this._pending = true;
       console.error('autoSave', err);
-      if (window.CloudUI) CloudUI.setStatus('error', 'Sem conexão — tentando de novo…');
+      try { if (window.CloudUI) CloudUI.setStatus('error', 'Sem conexão — tentando de novo…'); } catch (e) { _quiet(e, 'status-erro'); }
       this._rearm(5000);
       return;
+    } finally {
+      this._syncing = false;
     }
     // se surgiram NOVAS mudanças durante o envio (notifyChange remarcou _pending), dispara outro ciclo já
     if (this._pending) this._rearm(300);
@@ -32661,7 +32914,17 @@ const SectionSync = {
     if (!window.CloudStore || !CloudStore.isReady() || !CloudStore.isLoggedIn()) return;
     const id = ProfileManager.getActiveProfileId();
     if (!id) return;
+    /* A marca de "envio em curso" é ligada aqui e desligada em `finally`, e é
+       por isso que o corpo virou um método à parte. Entre um ponto e outro há
+       gravações no armazenamento (`_savePend`, `_saveRevs`) que podem lançar com
+       o disco cheio; antes, a linha que desligava a marca vinha depois e era
+       pulada pela exceção. Presa em true, ela fazia `pushDirty` devolver na
+       primeira linha PARA SEMPRE: a fila seguia crescendo, nada mais subia, e
+       nenhum erro aparecia na tela. */
     this._pushing = true;
+    try { await this._enviarSujas(id); } finally { this._pushing = false; }
+  },
+  async _enviarSujas(id) {
     const pfx = this._prefix();
     const revs = this._getRevs();
     // Monta as linhas com hash de conteúdo. Só bumpa o rev quando o conteúdo mudou
@@ -32691,7 +32954,7 @@ const SectionSync = {
       try { await this._syncManifest(id, revs); } catch (_) { _quiet(_); }
       this._saveRevs(revs);
       this._savePend();
-      this._pushing = false; return;
+      return;
     }
     // Envio UMA SEÇÃO POR VEZ: assim uma seção grande (ex.: incidência, ~300 KB) fica
     // ISOLADA — se ela falhar (tamanho/timeout), não derruba as outras, o erro dela é
@@ -32729,7 +32992,6 @@ const SectionSync = {
       this._lastError = null;
       console.info('[SectionSync] enviou', okCount, 'seção(ões)');
     }
-    this._pushing = false;
   },
   // ── MANIFESTO ─────────────────────────────────────────────────────────────
   // Uma linha (section = '__manifest') que diz QUAIS seções o perfil tem agora.
@@ -32977,9 +33239,10 @@ const SectionSync = {
      bastava um falso positivo para a tela reiniciar do nada no meio do uso. */
   async pullAndReload() {
     const id = ProfileManager.getActiveProfileId(); if (!id) return false;
-    CloudStore._applying = true;
-    const r = await this.hydrate(id);
-    CloudStore._applying = false;
+    /* `aplicando` e não duas atribuições soltas: se `hydrate` lançar (rede,
+       JSON malformado, armazenamento), a linha que desligava a marca era pulada
+       e `notifyChange` passava a ignorar toda alteração seguinte. */
+    const r = await CloudStore.aplicando(() => this.hydrate(id));
     if (!r.ok) return false;
     if (!r.mudou) { console.info('[SectionSync] nuvem conferida: nada mudou, sem recarregar'); return true; }
     showToast('Sincronizado da nuvem ✓');
@@ -35432,6 +35695,41 @@ const Atualizacao = {
     } catch (_) { return 'desconhecida'; }
   },
 
+  /* ── A PÁGINA E O CACHE ESTÃO NA MESMA VERSÃO? ────────────────────────────
+     Esta é a pergunta que ninguém conseguia responder quando algo dava errado
+     depois de uma publicação. A página carrega uma versão; o service worker
+     serve os arquivos de outra. Enquanto as duas coincidem, está tudo bem — o
+     desencontro é que produz o erro sem explicação.
+
+     Agora dá para perguntar ao worker, e a resposta aparece no Diagnóstico. */
+  _versaoWorker: null,
+  async perguntarVersaoAoWorker() {
+    try {
+      const ctrl = navigator.serviceWorker && navigator.serviceWorker.controller;
+      if (!ctrl || typeof MessageChannel === 'undefined') { this._versaoWorker = null; return null; }
+      const resposta = await new Promise((resolve) => {
+        const canal = new MessageChannel();
+        canal.port1.onmessage = (e) => resolve(e.data || null);
+        setTimeout(() => resolve(null), 2000);     // worker mudo não trava a tela
+        ctrl.postMessage('versao', [canal.port2]);
+      });
+      this._versaoWorker = (resposta && resposta.versao) || null;
+      return this._versaoWorker;
+    } catch (e) { _quiet(e, 'upd-versao-sw'); this._versaoWorker = null; return null; }
+  },
+  // Linha pronta para o Diagnóstico (síncrona: usa o que a pergunta acima achou).
+  linhaDeVersao() {
+    const pagina = this.versao();
+    const sw = this._versaoWorker;
+    if (!('serviceWorker' in navigator)) return { v: pagina + ' · sem modo instalável', t: '' };
+    if (!sw) return { v: pagina + ' · cache ainda não respondeu', t: '' };
+    if (sw === pagina) return { v: pagina + ' · app e cache na mesma versão', t: 'ok' };
+    return {
+      v: 'app ' + pagina + ' · cache ' + sw + ' — desencontrados. Use "Procurar atualização" ou "Limpar cache do app".',
+      t: 'warn'
+    };
+  },
+
   /* ── O AVISO ──────────────────────────────────────────────────────────────
      Fica na tela até ser resolvido — um toast some antes de alguém agir. Não
      bloqueia nada: dá para continuar usando e atualizar depois. */
@@ -35487,25 +35785,46 @@ const Atualizacao = {
         { title: '↻ Atualizar mesmo assim?', okText: 'Atualizar assim mesmo' });
       if (!seguir) { this._trocando = false; return; }
     }
+    /* A troca pode levar alguns segundos (o worker antigo precisa ficar livre).
+       Sem dizer isso, a barra fica parada e a pessoa aperta de novo. */
+    if (btn) { btn.disabled = true; btn.textContent = 'Atualizando…'; }
     this._recarregarComWorkerNovo();
   },
 
-  /* A troca em si: manda o worker que está esperando assumir e recarrega
-     UMA vez, quando ele assumir de fato. O `controllerchange` é o sinal certo
-     — recarregar antes dele traria a versão velha de novo. */
+  /* A troca em si: manda o worker que está esperando assumir e recarrega UMA
+     vez, quando ele assumir de fato. O `controllerchange` é o sinal certo —
+     recarregar antes dele traria a versão velha de novo.
+
+     O pedido é REPETIDO, e essa é a parte que só aparece quando se mede: o
+     worker antigo pode ter uma requisição em aberto, e enquanto ela não termina
+     o navegador não o encerra — a troca fica esperando. Num teste com a rede
+     ruim, o primeiro pedido levou 24 SEGUNDOS para surtir efeito. Uma tentativa
+     só, com recarga cega em 4 s, dava no pior resultado possível: a página
+     recarregava com o worker ANTIGO ainda no comando, a mesma versão voltava, e
+     o aviso reaparecia — "atualizei e não mudou nada".
+
+     Repetindo a cada 600 ms, a troca acontece no instante em que o worker antigo
+     fica livre. E o teto agora é honesto: 12 s de espera de verdade, e só então
+     a recarga simples, que ao menos deixa o app num estado limpo. */
   _recarregarComWorkerNovo() {
-    let recarregou = false;
-    const recarregar = () => { if (recarregou) return; recarregou = true; location.reload(); };
+    let recarregou = false, tentativas = 0;
+    const recarregar = () => { if (recarregou) return; recarregou = true; clearInterval(bater); location.reload(); };
     try {
       navigator.serviceWorker.addEventListener('controllerchange', recarregar, { once: true });
     } catch (e) { _quiet(e, 'upd-controller'); }
-    try {
-      const esperando = this._reg && this._reg.waiting;
-      if (esperando) esperando.postMessage('skipWaiting');
-      else recarregar();     // sem worker esperando: só recarregar já resolve
-    } catch (e) { _quiet(e, 'upd-skip'); recarregar(); }
-    // rede de segurança: se o controllerchange não vier, recarrega assim mesmo
-    setTimeout(recarregar, 4000);
+    const pedir = () => {
+      try {
+        const esperando = this._reg && this._reg.waiting;
+        if (esperando) { esperando.postMessage('skipWaiting'); return true; }
+      } catch (e) { _quiet(e, 'upd-skip'); }
+      return false;
+    };
+    if (!pedir()) { recarregar(); return; }     // sem worker esperando: recarregar já resolve
+    const bater = setInterval(() => {
+      tentativas++;
+      if (recarregou || tentativas > 20 || !pedir()) { clearInterval(bater); }
+    }, 600);
+    setTimeout(recarregar, 12000);             // rede de segurança, depois de insistir
   },
 
   /* ── LIMPEZA MANUAL ───────────────────────────────────────────────────────
@@ -35553,6 +35872,7 @@ const Atualizacao = {
       const reg = await navigator.serviceWorker.getRegistration();
       if (!reg) { showToast('Este aparelho não está usando o modo instalável.'); return false; }
       await reg.update();
+      try { await this.perguntarVersaoAoWorker(); } catch (e) { _quiet(e, 'upd-versao'); }
       if (reg.waiting) { this.avisar(reg); return true; }
       showToast('Você já está na versão mais recente ✓');
       return false;
@@ -36956,6 +37276,11 @@ else CloudStore.init();
           <button type="button" class="cfg-action" id="cfgu-limpar"><span class="ic">🧹</span><span class="t">Limpar cache do app e recarregar</span><span class="d">Apaga só os arquivos guardados do app e recarrega do zero. Os dados de estudo ficam intactos.</span></button>
         </div>`);
       $('#cfgu-procurar').addEventListener('click', () => { if (window.Atualizacao) Atualizacao.procurar(); });
+      /* Pergunta a versão ao worker e redesenha: a linha "Versão em execução"
+         só consegue apontar um desencontro depois que a resposta chega. */
+      if (window.Atualizacao) {
+        Atualizacao.perguntarVersaoAoWorker().then(() => { try { this.refreshDiag(); } catch (e) { _quiet(e, 'diag-versao'); } });
+      }
       $('#cfgu-limpar').addEventListener('click', () => { if (window.Atualizacao) Atualizacao.limparCacheERecarregar(); });
       $('#cfgx-refresh').addEventListener('click', () => this.refreshDiag());
       $('#cfgx-copy').addEventListener('click', () => {
@@ -37005,7 +37330,8 @@ else CloudStore.init();
         { k: 'Flashcards', v: nCards, t: '' },
         { k: 'Conexão do navegador', v: navigator.onLine ? 'online' : 'offline', t: navigator.onLine ? 'ok' : 'bad' },
         { k: 'Servidor (Supabase)', v: CS ? ({ ready: 'conectado', pending: 'carregando…', missing: 'biblioteca não carregou', error: 'erro ao iniciar' }[CS.libStatus] || CS.libStatus) : '—', t: (CS && CS.libStatus === 'ready') ? 'ok' : 'warn' },
-        { k: 'Versão em execução', v: (window.Atualizacao ? Atualizacao.versao() : '—'), t: '' },
+        (() => { const l = window.Atualizacao ? Atualizacao.linhaDeVersao() : { v: '—', t: '' };
+                 return { k: 'Versão em execução', v: l.v, t: l.t }; })(),
         { k: 'Armazenamento', v: (window.indexedDB ? 'IndexedDB disponível' : 'só localStorage'), t: window.indexedDB ? 'ok' : 'warn' },
         { k: 'Revisão local do perfil', v: rev, t: '' },
         { k: 'Sessão única ao entrar', v: pget('single-session', '0') === '1' ? 'ligada' : 'desligada', t: '' },
@@ -37513,13 +37839,49 @@ else CloudStore.init();
   } catch (e) {}
 
   function scheduleFlush() { if (!flushing) { flushing = true; Promise.resolve().then(flush); } }
+
+  /* ── QUANDO O DISCO RECUSA ────────────────────────────────────────────────
+     A gravação sai da fila ANTES de a transação terminar. Se ela falhava
+     (cota estourada, disco cheio, a conexão fechada por um `versionchange`), o
+     lote simplesmente sumia: o cache em memória continuava mostrando o valor, a
+     tela continuava mostrando o valor, e ele só deixava de existir na abertura
+     seguinte — sem um único erro no caminho. Este é o modo de perda mais
+     traiçoeiro que existe, porque nada parece errado até ser tarde.
+
+     Agora o lote VOLTA para a fila e é retentado com espera crescente. A ordem
+     é preservada: as operações que falharam entram na frente das que chegaram
+     depois, então uma gravação mais nova para a mesma chave continua vencendo.
+     Esgotadas as tentativas, o app é avisado — porque insistir em silêncio é o
+     que fazia o dado sumir sem ninguém saber. */
+  var falhasSeguidas = 0;
+  var ESPERA_RETENTAR = [400, 2000, 8000];
+  function devolverAFila(ops) {
+    if (ops && ops.length) queue = ops.concat(queue);
+    flushing = false;
+    var tentativa = falhasSeguidas++;
+    if (tentativa < ESPERA_RETENTAR.length) {
+      // ainda vamos tentar: quem espera o disco continua esperando (com o teto
+      // de 2 s do __idbFlush, que já impede a interface de ficar presa)
+      setTimeout(scheduleFlush, ESPERA_RETENTAR[tentativa]);
+      return;
+    }
+    /* Desistimos de retentar sozinhos, mas NÃO jogamos a fila fora: qualquer
+       gravação seguinte dispara uma nova rodada, e se o disco voltar o que está
+       aqui ainda entra. Descartar seria repetir, de propósito, exatamente a
+       perda que este bloco existe para impedir. */
+    falhasSeguidas = 0;
+    try { if (typeof window.__idbFalhouAoGravar === 'function') window.__idbFalhouAoGravar(queue.length); }
+    catch (e) { _quiet(e); }
+    avisarDisco();
+  }
+
   function flush() {
     if (!db) { flushing = false; avisarDisco(); return; }
     var ops = queue; queue = [];
     if (!ops.length) { flushing = false; avisarDisco(); return; }
     var tx, store;
     try { tx = db.transaction(IDB_STORE, 'readwrite'); store = tx.objectStore(IDB_STORE); }
-    catch (e) { flushing = false; return; }
+    catch (e) { _quiet(e); devolverAFila(ops); return; }
     for (var i = 0; i < ops.length; i++) {
       var op = ops[i];
       try {
@@ -37528,9 +37890,12 @@ else CloudStore.init();
         else if (op.t === 'clear') store.clear();
       } catch (e) { _quiet(e); }
     }
-    tx.oncomplete = function () { flushing = false; if (queue.length) scheduleFlush(); else avisarDisco(); };
-    tx.onerror = function () { flushing = false; avisarDisco(); };
-    tx.onabort = function () { flushing = false; avisarDisco(); };
+    tx.oncomplete = function () {
+      flushing = false; falhasSeguidas = 0;
+      if (queue.length) scheduleFlush(); else avisarDisco();
+    };
+    tx.onerror = function () { devolverAFila(ops); };
+    tx.onabort = function () { devolverAFila(ops); };
   }
   function enqueue(op) { queue.push(op); scheduleFlush(); }
 

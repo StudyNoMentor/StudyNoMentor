@@ -88,13 +88,49 @@
   } catch (e) {}
 
   function scheduleFlush() { if (!flushing) { flushing = true; Promise.resolve().then(flush); } }
+
+  /* ── QUANDO O DISCO RECUSA ────────────────────────────────────────────────
+     A gravação sai da fila ANTES de a transação terminar. Se ela falhava
+     (cota estourada, disco cheio, a conexão fechada por um `versionchange`), o
+     lote simplesmente sumia: o cache em memória continuava mostrando o valor, a
+     tela continuava mostrando o valor, e ele só deixava de existir na abertura
+     seguinte — sem um único erro no caminho. Este é o modo de perda mais
+     traiçoeiro que existe, porque nada parece errado até ser tarde.
+
+     Agora o lote VOLTA para a fila e é retentado com espera crescente. A ordem
+     é preservada: as operações que falharam entram na frente das que chegaram
+     depois, então uma gravação mais nova para a mesma chave continua vencendo.
+     Esgotadas as tentativas, o app é avisado — porque insistir em silêncio é o
+     que fazia o dado sumir sem ninguém saber. */
+  var falhasSeguidas = 0;
+  var ESPERA_RETENTAR = [400, 2000, 8000];
+  function devolverAFila(ops) {
+    if (ops && ops.length) queue = ops.concat(queue);
+    flushing = false;
+    var tentativa = falhasSeguidas++;
+    if (tentativa < ESPERA_RETENTAR.length) {
+      // ainda vamos tentar: quem espera o disco continua esperando (com o teto
+      // de 2 s do __idbFlush, que já impede a interface de ficar presa)
+      setTimeout(scheduleFlush, ESPERA_RETENTAR[tentativa]);
+      return;
+    }
+    /* Desistimos de retentar sozinhos, mas NÃO jogamos a fila fora: qualquer
+       gravação seguinte dispara uma nova rodada, e se o disco voltar o que está
+       aqui ainda entra. Descartar seria repetir, de propósito, exatamente a
+       perda que este bloco existe para impedir. */
+    falhasSeguidas = 0;
+    try { if (typeof window.__idbFalhouAoGravar === 'function') window.__idbFalhouAoGravar(queue.length); }
+    catch (e) { _quiet(e); }
+    avisarDisco();
+  }
+
   function flush() {
     if (!db) { flushing = false; avisarDisco(); return; }
     var ops = queue; queue = [];
     if (!ops.length) { flushing = false; avisarDisco(); return; }
     var tx, store;
     try { tx = db.transaction(IDB_STORE, 'readwrite'); store = tx.objectStore(IDB_STORE); }
-    catch (e) { flushing = false; return; }
+    catch (e) { _quiet(e); devolverAFila(ops); return; }
     for (var i = 0; i < ops.length; i++) {
       var op = ops[i];
       try {
@@ -103,9 +139,12 @@
         else if (op.t === 'clear') store.clear();
       } catch (e) { _quiet(e); }
     }
-    tx.oncomplete = function () { flushing = false; if (queue.length) scheduleFlush(); else avisarDisco(); };
-    tx.onerror = function () { flushing = false; avisarDisco(); };
-    tx.onabort = function () { flushing = false; avisarDisco(); };
+    tx.oncomplete = function () {
+      flushing = false; falhasSeguidas = 0;
+      if (queue.length) scheduleFlush(); else avisarDisco();
+    };
+    tx.onerror = function () { devolverAFila(ops); };
+    tx.onabort = function () { devolverAFila(ops); };
   }
   function enqueue(op) { queue.push(op); scheduleFlush(); }
 

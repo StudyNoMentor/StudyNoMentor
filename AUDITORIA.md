@@ -1321,3 +1321,407 @@ o container vira `flex-direction: column`, e nessa direção o `flex-basis` pass
 a valer como **altura** — a barra ocupava cerca de 330 px do celular. Corrigido
 com `.upd-bar .upd-txt { flex: 0 0 auto; }` na consulta de mídia, e conferido em
 captura real nas duas larguras.
+
+---
+
+## 21. As travas que ficavam presas, e a requisição que nunca respondia
+
+A pergunta foi se sobrava algo em estabilidade, sincronização, cache, backup,
+segurança e rede. Sobrava — na camada de **rede** e nas **travas de
+concorrência**, que é onde os defeitos não gritam: eles calam o app.
+
+### 21.1. Nada tinha teto de tempo no caminho de ESCRITA
+
+`_withTimeout` existia e cobria seis chamadas — login, criação de conta, troca
+de senha, o download do perfil. As outras vinte, **inclusive todo o caminho de
+escrita** (`pushDirty`, `saveActive`, o manifesto, os backups, a sessão ativa),
+iam sem teto nenhum.
+
+Uma requisição que **falha** é inofensiva: cai no `catch`, remarca a pendência e
+tenta de novo. A que fica **pendurada** é o problema — e é o caso comum em rede
+móvel ruim e em portal de wi-fi público, onde a conexão abre e nada volta. O
+`await` nunca retornava, `_syncing` continuava `true`, e a sincronização parava
+até alguém recarregar a página. A alteração não se perdia (está no
+armazenamento e na fila), mas **parava de subir, sem aviso**.
+
+A correção não foi cobrir as vinte chamadas — listas assim sempre esquecem a
+próxima. Foi pôr a trava no **transporte**: `createClient` passou a receber um
+`fetch` próprio, e **toda** requisição que a biblioteca fizer — leitura,
+escrita, renovação de token, e as que ainda forem escritas — nasce com teto de
+25 s e um `AbortController` de verdade. `Promise.race` sozinho devolveria o
+controle deixando a requisição viva; o abort a encerra. Um sinal que a própria
+biblioteca tenha passado (`.abortSignal()`) é respeitado e propagado.
+
+Os 25 s são folgados de propósito: os tetos por operação (15-20 s) disparam
+antes, com mensagem melhor. Este é a rede de baixo, para o que não tem teto
+próprio.
+
+### 21.2. Três marcas de "ocupado" que uma exceção deixava ligadas
+
+`_syncing`, `_pushing` e `_applying` governam a sincronização. Todas existem
+para evitar atropelo — e todas, presas em `true`, param tudo em silêncio.
+
+**`_applying` em `SectionSync.pullAndReload`** era o pior:
+
+```js
+CloudStore._applying = true;
+const r = await this.hydrate(id);   // rede, JSON, armazenamento — pode lançar
+CloudStore._applying = false;       // ← pulada pela exceção
+```
+
+`_applying` existe para que gravar o que VEIO da nuvem não dispare um envio de
+volta, em eco. Presa em `true`, ela faz `notifyChange()` **devolver na primeira
+linha** — e toda alteração seguinte deixa de virar pendência. A fila por seção
+continua andando (é marcada por outro gancho, e foi o que impediu que isso
+virasse perda de dado), mas o blob de segurança congela no que era antes, e a
+checagem de novidade da nuvem para. Sem erro, sem aviso.
+
+**`_pushing` em `pushDirty`** tinha a mesma forma. Entre ligar e desligar há
+`_savePend()` e `_saveRevs()`, que gravam no armazenamento e **lançam com o
+disco cheio** — situação que este app alcança, tanto que tem faxina para ela.
+Uma vez presa, `pushDirty` passava a devolver na primeira linha para sempre: a
+fila crescia e nada mais subia.
+
+**`_syncing` em `autoSave`** já tinha `catch`, mas a linha
+`CloudUI.setStatus('syncing', …)` ficava **fora** do `try`.
+
+Correções:
+
+- `CloudStore.aplicando(fn)` — liga a marca, desliga em `finally`, e **restaura
+  o valor anterior** em vez de forçar `false`, para que uma aplicação aninhada
+  não desligue a de fora antes da hora.
+- `pushDirty` virou um invólucro fino (`try { await this._enviarSujas(id) }
+  finally { this._pushing = false }`) com o corpo em método próprio — assim o
+  `finally` cobre tudo sem reindentar 70 linhas.
+- `autoSave` ganhou `finally`, e o `setStatus` entrou no `try`.
+
+E, como terceira camada, um **cão de guarda**: um envio "em curso" há mais de
+60 s é considerado preso e destravado. `finally` cobre exceção; o cão de guarda
+cobre o que nem exceção lança — uma promessa que simplesmente nunca se resolve.
+
+### 21.3. O service worker que, em conexão lenta, nunca atualizava
+
+`redePrimeiro` corria a rede contra um relógio de 3 s. Perdida a corrida,
+servia o cache — e **descartava** a resposta da rede quando ela chegava. Numa
+conexão lenta, isto é permanente: **toda** carga passa dos 3 s, **toda** carga
+serve o cache, e **nenhuma** o atualiza. O app fica preso numa versão antiga
+indefinidamente — justamente para quem tem a pior rede.
+
+Agora a busca continua correndo depois de perder a corrida e é ela quem grava
+no cache, dentro de um `waitUntil` (sem ele o navegador pode encerrar o worker
+assim que a resposta é entregue, e a gravação morre no meio). A mesma proteção
+foi dada à revalidação das fontes.
+
+`cachePrimeiro` deixou de guardar resposta **opaca**. Opaca é status 0 com corpo
+ilegível: numa estratégia "cache primeiro" ela seria servida para sempre. As
+bibliotecas que passam por ali (Supabase, planilhas) são pedidas com
+`crossorigin` e SRI, então uma resposta opaca só pode ser falha — não cachear
+custa uma nova tentativa; cachear custaria o app sem nuvem até limpar o cache
+à mão.
+
+### O que ficou conferido e saudável
+
+- **Roteamento do service worker**: `POST/PUT` nunca são cacheados, e todo
+  tráfego `*.supabase.co` passa direto, sem tocar em cache — dado vivo e
+  autenticado não corre risco de ser servido velho.
+- **Salvamento de emergência** (`_beaconSave`): usa `fetch` cru com `keepalive`
+  de propósito, e fica **fora** do teto de transporte — abortar por tempo numa
+  página que está fechando seria cancelar a última chance de entrega. Mantém a
+  trava de revisão (`rev`) e a recusa de payload vazio.
+- **Fila de envio**: `_serializar` encadeia com `.then(fn, fn)` e nunca trava a
+  fila por uma falha; com o teto de transporte, toda operação agora termina.
+- **Segurança**: CSP restritiva com `object-src 'none'`, `frame-src 'none'` e
+  `base-uri 'self'`; as duas bibliotecas de CDN com `integrity` fixado; a chave
+  publicável do Supabase é a que deve estar no cliente, e o que protege os dados
+  são as políticas de RLS por dono, conferidas nas três tabelas.
+
+Cobertura: **AutoTeste 308 → 317**, com o grupo "Travas não ficam presas" — que
+prova as correções do jeito que importa: fazendo a operação **falhar** e
+conferindo que a marca ficou livre, que o envio preso é destravado, que toda
+requisição nasce com sinal de cancelamento, e que é a criação do cliente que
+entrega o `fetch` com teto à biblioteca.
+
+---
+
+## 22. A gravação que o disco recusava — e ninguém ficava sabendo
+
+Este é o achado mais sério de todas as rodadas, e estava escondido justamente
+onde a auditoria tinha menos motivo para olhar: na peça que faz o app inteiro
+funcionar sem ter sido reescrito.
+
+### O que a fachada faz — e o que ela não fazia
+
+O app foi escrito sobre a API **síncrona** do `localStorage`. Para ganhar a cota
+do IndexedDB (centenas de MB em vez de ~5 MB), há uma fachada que imita aquela
+API: `setItem` grava num cache em memória e **volta na hora**, enquanto a
+gravação real no IndexedDB acontece depois, em lote.
+
+O tratamento de cota em `DB._set` — o que mostra "armazenamento cheio, este dado
+NÃO foi salvo" — está num `try/catch` em volta do `setItem`. Só que **o
+`setItem` da fachada nunca lança**. Quem lança é a transação, depois, em outro
+contexto. Ou seja: no caminho normal do app, **aquele aviso jamais poderia
+disparar**. Ele protegia apenas o caso raro de o app ter caído no
+`localStorage` nativo.
+
+E o que acontecia quando a transação falhava — cota estourada, disco cheio,
+conexão fechada por um `versionchange`, ou a própria abertura da transação
+lançando?
+
+```js
+var ops = queue; queue = [];              // saem da fila ANTES de gravar
+...
+catch (e) { flushing = false; return; }   // ops descartadas
+tx.onerror = function () { flushing = false; avisarDisco(); };   // ops descartadas
+```
+
+O lote **sumia**. O cache em memória continuava com o valor. A tela continuava
+mostrando o valor. A pessoa continuava estudando. E o dado só deixava de existir
+**na abertura seguinte**, sem um único erro em nenhum ponto do caminho.
+
+É o modo de perda mais traiçoeiro que existe, porque nada parece errado até ser
+tarde demais — e é indistinguível, para quem usa, de "o site perdeu meus dados".
+
+### O que passou a acontecer
+
+1. **O lote volta para a fila.** Em toda falha — a abertura da transação, o
+   `onerror` e o `onabort` — as operações são devolvidas, e a ordem é
+   preservada: elas entram **na frente** das que chegaram depois, então uma
+   gravação mais nova para a mesma chave continua vencendo.
+2. **Retentativa com espera crescente** (400 ms, 2 s, 8 s). A maior parte das
+   falhas reais é transitória.
+3. **Esgotadas as tentativas, o app é avisado** — `window.__idbFalhouAoGravar`,
+   a ponte para `DB.aoFalharGravacaoLocal`. E aí a informação chega a quem pode
+   agir: um aviso direto sobre o que está em jogo ("o que está na tela ainda não
+   está salvo AQUI"), contido a um por minuto para não virar enxurrada.
+4. **A nuvem é acionada na hora.** Se o disco local recusou, a cópia que importa
+   passa a ser a da nuvem: toda recusa força um `flushPending()` — a cada
+   recusa, não só na primeira, porque é o envio que de fato põe o dado a salvo.
+5. **A fila NÃO é descartada** ao desistir. Qualquer gravação seguinte dispara
+   nova rodada, e se o disco voltar o que está lá ainda entra. Descartar seria
+   repetir de propósito a perda que este bloco existe para impedir.
+
+O aviso antecipado (`checarEspaco`, que avisa em 85% da cota) continua sendo a
+primeira linha de defesa — ele age **antes** do estouro. Esta correção é a
+segunda: para quando o estouro acontece assim mesmo.
+
+Cobertura: **AutoTeste 317 → 323**, com o grupo "O disco que recusa gravação":
+a ponte existe, a recusa avisa quem está usando, força a subida para a nuvem,
+avisos repetidos são contidos, a subida é tentada em toda recusa, e uma recusa
+sem nuvem disponível não derruba nada.
+
+---
+
+## 23. Revisão profunda do cache — sete defeitos, e um que só a medição revelou
+
+Pedido: trazer para o cache o que houver de mais avançado, com segurança de não
+gerar problema. A parte "com segurança" mudou o método: em vez de confiar na
+leitura, o `sw.js` passou a ser **executado num navegador de verdade** dentro da
+suíte (checagem 6.6) — instala, guarda, é interrogado, e a página é aberta
+**offline** para provar que o que ficou guardado abre. Foi assim que o defeito
+mais grave apareceu, e ele não estava visível em nenhuma linha.
+
+### 23.1. O pré-carregamento guardava a casca VELHA
+
+`cache.add(url)` faz uma busca com o modo de cache **padrão** — ou seja, pode
+ser atendida pelo **cache HTTP do navegador**. Na prática: o worker da versão
+NOVA instalava e guardava, no próprio balde, o `index.html` **ANTIGO** que o
+navegador ainda tinha guardado. O app abria com a casca velha achando que estava
+atualizado.
+
+É o oposto exato do que o arquivo inteiro existe para garantir. A correção é uma
+palavra: `new Request(u, { cache: 'reload' })`, que obriga a ida à rede.
+
+### 23.2. O balde de bibliotecas era jogado fora a cada publicação
+
+`CACHE_CDN` carregava a versão do app no nome. Como a faxina de ativação apaga
+tudo que não é da versão atual, **toda publicação descartava o Supabase, o
+SheetJS e as fontes** — obrigando a rebaixá-los exatamente no pior momento:
+logo depois de atualizar, com a rede já ocupada. Num aparelho com rede ruim,
+isso é o app abrindo sem nuvem.
+
+Aquelas URLs são **imutáveis** (a versão da biblioteca está na própria URL), então
+o conteúdo não pode ficar velho e não há motivo para descartá-lo. O balde passou
+a se chamar `cdn-imutavel-v1`, fora do ciclo de versões, com teto próprio de 60
+entradas (a Cache API devolve as chaves na ordem de inserção, então as mais
+antigas saem primeiro) — sem isso, trocas de biblioteca ao longo dos anos o
+fariam crescer sem fim.
+
+### 23.3. Cada endereço guardava outra cópia de 2 MB
+
+A casca era guardada sob a URL do pedido. `…/`, `…/index.html`, `…?utm=x` —
+três entradas, três cópias de ~2 MB, e o retorno offline dependia de acertar
+exatamente o mesmo endereço da vez anterior. Agora toda navegação escreve e lê
+uma **chave canônica** (`./index.html`). A suíte prova as duas metades: offline
+pelo endereço normal, e offline com query string.
+
+O `match` da casca usa `ignoreVary: true`: se a hospedagem responder com um
+`Vary` que não bate na comparação, a cópia boa existiria e ainda assim não seria
+encontrada — o app diria "sem conexão" com a resposta a um passo.
+
+### 23.4. Pré-carregamento de navegação (o que faltava de moderno)
+
+`navigationPreload` faz o navegador disparar o pedido do documento **em
+paralelo** com o despertar do worker. Sem ele, toda navegação com o worker
+dormindo paga a inicialização antes de a rede sequer começar. Ligado na ativação
+e consumido na navegação (ignorá-lo faria o navegador cancelá-lo e reclamar).
+
+### 23.5. Duas recusas novas no que pode ser guardado
+
+- **`no-store`** passou a ser respeitado: é o servidor dizendo explicitamente
+  para não guardar.
+- **Resposta opaca** (status 0, corpo ilegível) só é aceita onde é normal: o
+  `<link>` do CSS das fontes vai sem `crossorigin`, então ali o opaco é natural
+  e a estratégia se autocorrige revalidando. Em "cache primeiro", opaco só pode
+  ser falha — e ficaria servido para sempre, deixando o app sem nuvem até alguém
+  limpar o cache à mão.
+
+### 23.6. O `waitUntil` que chegava tarde
+
+As gravações no cache eram mantidas vivas por um `waitUntil` registrado **depois**
+de um `await` — quando o evento já podia ter sido encerrado. Agora há **um único**
+`waitUntil`, registrado de forma síncrona, cobrindo a busca **e** a gravação que
+ela dispara.
+
+### 23.7. O defeito que só a medição revelou: a troca que não acontecia
+
+Com o worker exercitado de verdade, o teste falhou num ponto inesperado: depois
+de `postMessage('skipWaiting')`, o worker novo **continuava esperando** e o
+antigo seguia no comando. Medindo, o número apareceu: **24 segundos** até a
+troca — e, sem teto de tempo nas buscas do worker, às vezes ela simplesmente
+não acontecia.
+
+A causa: **uma requisição em aberto mantém o worker OCUPADO**, e o navegador não
+o encerra enquanto isso. Rede ruim é exatamente quando alguém aperta "Atualizar
+agora" — e era exatamente quando não acontecia nada.
+
+Duas correções:
+
+1. **Toda busca do worker tem teto** (`AbortController`, 20 s). Corrida de
+   promessas não serve aqui: ela devolve o controle mas deixa o pedido vivo, que
+   é justamente o que precisa acabar.
+2. **O pedido de troca é repetido**, a cada 600 ms. A versão anterior pedia UMA
+   vez e recarregava cegamente em 4 s — o pior resultado possível: a página
+   recarregava com o worker ANTIGO ainda no comando, a mesma versão voltava e o
+   aviso reaparecia. É literalmente o "atualizei e não mudou nada". Insistindo,
+   a troca acontece no instante em que o worker antigo fica livre; o teto passou
+   a 12 s de espera de verdade, com o botão dizendo "Atualizando…".
+
+### 23.8. "Qual versão está rodando aqui?" agora tem resposta completa
+
+O worker responde à pergunta `versao`, e o Diagnóstico compara com a versão da
+**página**. Enquanto as duas coincidem, está tudo bem; o desencontro é que
+produz o erro sem explicação — e agora ele é dito em uma linha, com o remédio ao
+lado.
+
+### As travas que passam a guardar tudo isso
+
+Checagem **4.5** (estática, sem navegador): o `sw.js` analisa; a versão é um
+carimbo de conteúdo e não um nome fixo; o balde de CDN não é versionado; o
+pré-carregamento usa `cache: 'reload'`; o pré-carregamento de navegação está
+ligado; o Supabase passa direto; só GET é cacheado; **o `skipWaiting` automático
+não voltou para a instalação**; e os carimbos do `index.html` e do `sw.js`
+batem.
+
+Checagem **6.6** (navegador real): instala e ativa; um único balde de versão; a
+casca na chave canônica; o worker responde a própria versão; offline abre a
+casca certa; offline com query string também; **a versão nova instala e espera**;
+quem serve a página continua sendo a antiga até haver ordem; a troca descarta o
+balde anterior; e o balde imutável de CDN sobrevive à publicação.
+
+Cada uma dessas linhas é uma decisão que custou caro para descobrir. Escrita
+como teste, ela não se perde na próxima alteração.
+
+---
+
+## 24. O caminho da nuvem, finalmente executado
+
+Todas as rodadas anteriores auditaram a sincronização e o backup **lendo** o
+código. Nenhuma delas jamais fez o app conversar com um banco. É uma diferença
+que já se provou cara: o `sw.js` também tinha sido lido linha a linha e
+considerado correto, e bastou executá-lo num navegador de verdade para aparecer
+uma troca de versão que levava 24 segundos.
+
+Esta rodada fecha essa lacuna, e fecha **sem tocar em uma linha do app**: as
+alterações são `verificar.mjs`, `test/supabase-falso.mjs`, `package.json`.
+
+### O que foi construído
+
+**`test/supabase-falso.mjs`** — um PostgREST em memória que implementa o
+subconjunto que o app usa (`select`, `insert`, `update`, `upsert` com
+`on_conflict`, `delete`, `eq`/`in`/`gte`, `order`, `limit`,
+`maybeSingle`/`single`, `Prefer: return=representation`) e, o que de fato
+importa, **as constraints de verdade**:
+
+- a **trava otimista por `rev`** cai naturalmente do filtro: um `PATCH` com
+  `rev=eq.<antiga>` não acerta linha nenhuma depois que outro aparelho subiu, e
+  a resposta volta vazia — que é exatamente como o app detecta conflito;
+- o **índice único parcial** de `profile_backups`: no máximo uma âncora por
+  perfil, e a segunda tentativa recebe `23505`;
+- a unicidade de `(profile_id, section)` e de `user_id` em `active_sessions`;
+- o **isolamento por dono**, com `profile_sections` herdando o dono pelo perfil
+  a que pertence — sem isso, o teste de isolamento estaria testando o nada.
+
+**O cliente não é de mentira.** O `supabase-js` do npm bate **byte a byte** com
+o do CDN: o mesmo `sha256-hZaWX+kY5lZg…` que o `index.html` fixa. O
+`verificar.mjs` serve esse arquivo no lugar do CDN, com a verificação de
+integridade da página intacta. A biblioteca que roda no teste é a que roda em
+produção — por isso a versão está **pinada exata**, e a checagem compara os dois
+hashes antes de começar. Se alguém subir a dependência sem atualizar o hash da
+página, a suíte diz isso na primeira linha.
+
+A API falsa mora no **mesmo servidor** que serve a página, porque a CSP só libera
+`connect-src 'self'`: uma API em outra porta seria bloqueada pelo navegador
+antes de sair. Mesma origem, nenhuma exceção aberta na CSP, nenhuma alteração no
+app para poder testá-lo.
+
+### O que passou a ser provado (checagem 6.7)
+
+1. O `supabase-js` instalado é o mesmo build que a página fixa por integridade.
+2. A biblioteca real carrega e o cliente sobe.
+3. Criar conta e perfil grava a linha no banco **com o dono certo**.
+4. Um registro de estudo sai da fila **sem erro**…
+5. …e chega à tabela de seções, na seção certa, com o conteúdo certo.
+6. O **manifesto** de seções é publicado (sem ele, exclusões nunca chegariam à
+   nuvem e a leitura por seção ressuscitaria dado apagado).
+7. O **blob de segurança** sobe.
+8. A **trava otimista detecta** o envio de outro aparelho.
+9. A **retentativa resolve o conflito e o dado local prevalece** — não some.
+10. Depois do ciclo de sincronização, **seções e blob contam a mesma história**.
+    Se divergissem, um aparelho novo — que lê pelas seções — abriria sem a
+    alteração mais recente, mesmo com ela salva no blob.
+11. A primeira foto vira **âncora**.
+12. A **disputa pela âncora é resolvida pelo banco**: duas fotos, exatamente uma
+    âncora, e a corrida perdida é tratada como sucesso normal, não como falha.
+13. **Restaurar traz os registros de volta** — o código mais perigoso do app
+    (ele sobrescreve o local) era, até aqui, o menos exercitado.
+14. A **faxina de retenção nunca escolhe a âncora**.
+15. A **leitura por seção reconstrói o perfil do zero** depois de apagar todo o
+    armazenamento local — o cenário "aparelho novo".
+16. Outra conta **não enxerga** o perfil alheio.
+17. Baixar o perfil de outra conta é **recusado pelo banco**.
+18. Nenhuma exceção não tratada em todo o percurso.
+
+### Duas falhas que apareceram — e eram do teste
+
+Honestidade sobre o processo: a suíte acusou dois problemas na primeira
+execução, e investigar mostrou que os dois eram do teste, não do app.
+
+- A hidratação voltava com um registro só. Causa: o teste chamava `saveActive()`
+  (que grava **apenas** o blob) sem passar pelo ciclo que mantém as seções em
+  dia. O app faz isso; o teste não estava fazendo.
+- O ciclo de sincronização parecia não atualizar a seção. Causa: `SectionSync.kick()`
+  desiste quando `sessionStorage['diario-estudos:entered']` não existe — e com
+  razão, porque sem esse carimbo o app estaria na tela de seleção de perfil, sem
+  nada a sincronizar. O teste não estava simulando a entrada no perfil.
+
+Os dois viraram teste mais fiel: o carimbo de entrada é gravado como o portão de
+acesso faz, e a asserção **espera a fila esvaziar** em vez de supor que a chamada
+que retornou já terminou o trabalho.
+
+### O que continua fora de alcance
+
+Um servidor de mentira prova a **lógica do app** contra as regras do banco. Ele
+não prova as políticas de RLS escritas no Supabase de verdade, nem a latência,
+nem o Realtime. Para isso não há substituto senão o banco real — mas o que
+sobrou de risco agora é de configuração, verificável no painel, e não mais de
+comportamento do código, que é o que ninguém consegue revisar a olho.

@@ -303,7 +303,17 @@ const SectionSync = {
     if (!window.CloudStore || !CloudStore.isReady() || !CloudStore.isLoggedIn()) return;
     const id = ProfileManager.getActiveProfileId();
     if (!id) return;
+    /* A marca de "envio em curso" é ligada aqui e desligada em `finally`, e é
+       por isso que o corpo virou um método à parte. Entre um ponto e outro há
+       gravações no armazenamento (`_savePend`, `_saveRevs`) que podem lançar com
+       o disco cheio; antes, a linha que desligava a marca vinha depois e era
+       pulada pela exceção. Presa em true, ela fazia `pushDirty` devolver na
+       primeira linha PARA SEMPRE: a fila seguia crescendo, nada mais subia, e
+       nenhum erro aparecia na tela. */
     this._pushing = true;
+    try { await this._enviarSujas(id); } finally { this._pushing = false; }
+  },
+  async _enviarSujas(id) {
     const pfx = this._prefix();
     const revs = this._getRevs();
     // Monta as linhas com hash de conteúdo. Só bumpa o rev quando o conteúdo mudou
@@ -333,7 +343,7 @@ const SectionSync = {
       try { await this._syncManifest(id, revs); } catch (_) { _quiet(_); }
       this._saveRevs(revs);
       this._savePend();
-      this._pushing = false; return;
+      return;
     }
     // Envio UMA SEÇÃO POR VEZ: assim uma seção grande (ex.: incidência, ~300 KB) fica
     // ISOLADA — se ela falhar (tamanho/timeout), não derruba as outras, o erro dela é
@@ -371,7 +381,6 @@ const SectionSync = {
       this._lastError = null;
       console.info('[SectionSync] enviou', okCount, 'seção(ões)');
     }
-    this._pushing = false;
   },
   // ── MANIFESTO ─────────────────────────────────────────────────────────────
   // Uma linha (section = '__manifest') que diz QUAIS seções o perfil tem agora.
@@ -619,9 +628,10 @@ const SectionSync = {
      bastava um falso positivo para a tela reiniciar do nada no meio do uso. */
   async pullAndReload() {
     const id = ProfileManager.getActiveProfileId(); if (!id) return false;
-    CloudStore._applying = true;
-    const r = await this.hydrate(id);
-    CloudStore._applying = false;
+    /* `aplicando` e não duas atribuições soltas: se `hydrate` lançar (rede,
+       JSON malformado, armazenamento), a linha que desligava a marca era pulada
+       e `notifyChange` passava a ignorar toda alteração seguinte. */
+    const r = await CloudStore.aplicando(() => this.hydrate(id));
     if (!r.ok) return false;
     if (!r.mudou) { console.info('[SectionSync] nuvem conferida: nada mudou, sem recarregar'); return true; }
     showToast('Sincronizado da nuvem ✓');

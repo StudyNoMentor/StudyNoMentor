@@ -236,3 +236,23 @@ pela metade.
   `SectionSync.flushBeforeRead(id)` e preservar as seções que a chamada devolver
   (é o que `SectionSync.hydrate`, `CloudStore.pullActiveAndReload` e
   `ProfileUI.enterProfile` fazem).
+
+
+## O Supabase de mentira (`test/supabase-falso.mjs`)
+
+Tudo que toca a nuvem — enviar, baixar, resolver conflito de revisão, criar
+backup, aplicar a retenção, **restaurar** — era verificado por leitura. Este
+módulo é a outra metade: um PostgREST de mentira, em memória, que aplica as
+**constraints de verdade** — a trava otimista por `rev`, o índice único parcial
+da âncora, a unicidade de `(profile_id, section)` e o isolamento por dono.
+
+O cliente, esse **não** é de mentira. O `supabase-js` do npm bate byte a byte
+com o do CDN — o mesmo hash de integridade que o `index.html` fixa —, e o
+`verificar.mjs` serve esse arquivo no lugar do CDN. A biblioteca que roda no
+teste é a mesma que roda em produção; por isso a versão está **pinada exata** no
+`package.json`, e a própria checagem compara os dois hashes antes de começar.
+
+A API falsa mora no MESMO servidor que serve a página, e isso é proposital: a
+CSP só libera `connect-src 'self'`, então uma API em outra porta seria bloqueada
+pelo navegador antes de sair. Mesma origem, nenhuma exceção aberta na CSP,
+**nenhuma linha do app alterada** para poder testá-lo.

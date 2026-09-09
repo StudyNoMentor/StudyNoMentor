@@ -1,8 +1,9 @@
 {
   "name": "studynomentor",
   "private": true,
-  "description": "Dependência única do repositório: o Playwright que o verificar.mjs usa nas checagens 5 e 6 (o app em si não tem dependência nenhuma e roda por file://).",
+  "description": "Dependências só de teste. O app em si não tem nenhuma e roda por file://. O supabase-js está PINADO na versão exata porque o index.html fixa o hash de integridade desse build: o verificar.mjs serve este mesmo arquivo no lugar do CDN, e uma versão diferente seria recusada pela verificação de integridade da própria página.",
   "devDependencies": {
+    "@supabase/supabase-js": "2.45.4",
     "playwright": "^1.63.0"
   }
 }

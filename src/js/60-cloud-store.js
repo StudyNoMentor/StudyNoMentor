@@ -7,7 +7,8 @@ const CloudStore = {
   TABLE: 'study_profiles',
   client: null, session: null, libStatus: 'pending', channel: null, secChannel: null, _secRtTimer: null,
   _debounce: null, DEBOUNCE_MS: 1500, _applying: false, _cfgMode: 'signin',
-  _pending: false, _lastSyncAt: null, _syncing: false, _dirtyAt: null,
+  _pending: false, _lastSyncAt: null, _syncing: false, _dirtyAt: null, _syncingDesde: 0,
+  SYNC_TRAVADO_MS: 60000,   // teto para um envio "em curso" antes de ser considerado preso
 
   init() {
     try {
@@ -17,7 +18,10 @@ const CloudStore = {
         if (window.ProfileUI && ProfileUI.isGateOpen()) ProfileUI.refreshStage();
         return;
       }
-      this.client = lib.createClient(this.SUPABASE_URL, this.SUPABASE_KEY, { auth: { persistSession: true, autoRefreshToken: true } });
+      this.client = lib.createClient(this.SUPABASE_URL, this.SUPABASE_KEY, {
+        auth: { persistSession: true, autoRefreshToken: true },
+        global: { fetch: (u, o) => this._buscarComTeto(u, o) },
+      });
       this.libStatus = 'ready';
       this.client.auth.getSession().then(({ data }) => { this.session = (data && data.session) || null; this.onAuth(); }).catch(e => console.warn('getSession', e));
       this.client.auth.onAuthStateChange((_e, session) => {
@@ -34,8 +38,62 @@ const CloudStore = {
   isReady() { return !!this.client; },
   isLoggedIn() { return !!this.session; },
   userEmail() { return this.session && this.session.user ? this.session.user.email : null; },
+  /* ── TETO DE TEMPO NO TRANSPORTE ──────────────────────────────────────────
+     Uma requisição que NÃO responde é pior que uma que falha. Falha entra no
+     `catch`, remarca a pendência e tenta de novo; a que fica pendurada — o caso
+     comum em rede móvel ruim e em portal de wi-fi público, onde a conexão abre
+     mas nada volta — deixava `_syncing` em true e a sincronização parada até
+     recarregar a página. A alteração não se perdia (fica no armazenamento e na
+     fila), mas parava de subir, e ninguém era avisado.
+
+     A trava fica no TRANSPORTE, não em cada chamada: toda requisição que a
+     biblioteca fizer — leitura, escrita, renovação de token, e as que ainda
+     forem escritas — nasce com um teto. Cobrir chamada por chamada é o tipo de
+     lista que sempre esquece a próxima.
+
+     São 25 s, folgados de propósito: os tetos por operação (15-20 s, no
+     `_withTimeout`) disparam antes, com mensagem melhor. Este aqui é a rede de
+     baixo, para o que não tem teto próprio.
+
+     `AbortController` de verdade, não só `Promise.race`: a corrida devolve o
+     controle mas deixa a requisição viva consumindo conexão; o abort encerra. */
+  FETCH_TETO_MS: 25000,
+  _buscarComTeto(url, opcoes) {
+    const o = opcoes || {};
+    if (typeof AbortController === 'undefined') return fetch(url, o);
+    const ac = new AbortController();
+    // respeita um sinal que a própria biblioteca tenha passado (.abortSignal())
+    const externo = o.signal;
+    const propagar = () => { try { ac.abort(); } catch (e) { _quiet(e, 'fetch-abort'); } };
+    if (externo) {
+      if (externo.aborted) propagar();
+      else externo.addEventListener('abort', propagar, { once: true });
+    }
+    const t = setTimeout(propagar, this.FETCH_TETO_MS);
+    return fetch(url, { ...o, signal: ac.signal }).finally(() => clearTimeout(t));
+  },
   _withTimeout(p, ms, label) {
     return Promise.race([p, new Promise((_, rej) => setTimeout(() => rej(new Error((label || 'A operação') + ' demorou demais. Verifique sua internet.')), ms))]);
+  },
+
+  /* ── APLICANDO DADO DA NUVEM ──────────────────────────────────────────────
+     `_applying` existe para que escrever o que VEIO da nuvem não seja
+     confundido com uma edição do usuário — sem ele, baixar dispararia um envio
+     de volta, em eco. O risco é o outro: se a marca ficar LIGADA por engano, o
+     `notifyChange` passa a devolver na primeira linha, e **toda alteração
+     seguinte deixa de virar pendência**. O aparelho continua gravando, a fila
+     por seção continua andando (ela é marcada por outro gancho), mas o blob de
+     segurança congela no que era antes — sem erro, sem aviso.
+
+     Era o que acontecia quando um `await` no meio da aplicação falhava: a linha
+     que desliga a marca vinha DEPOIS, e a exceção pulava por cima dela. Aqui a
+     marca desliga em `finally`, que roda mesmo com exceção; e o valor anterior
+     é restaurado, em vez de forçar `false`, para que uma aplicação aninhada não
+     desligue a de fora antes da hora. */
+  async aplicando(fn) {
+    const antes = this._applying;
+    this._applying = true;
+    try { return await fn(); } finally { this._applying = antes; }
   },
   onAuth() {
     if (window.ProfileUI) ProfileUI.onAuthChanged();
@@ -237,16 +295,29 @@ const CloudStore = {
     // BUG CORRIGIDO: se um salvamento já está em curso, NÃO descartamos a rodada —
     // reprogramamos uma nova tentativa para logo após, senão a última alteração ficava
     // presa como "pendente" até o próximo foco/edição (causa de "às vezes não salva").
-    if (this._syncing) { this._rearm(400); return; }
+    /* Um envio em curso não descarta a rodada — reprograma. Mas "em curso" tem
+       prazo: se a marca ficar presa (uma promessa que nunca se resolve, um
+       travamento em outra camada), sem este teto a sincronização parava até
+       recarregar a página, reprogramando a cada 400 ms para sempre. */
+    if (this._syncing) {
+      if (Date.now() - this._syncingDesde < this.SYNC_TRAVADO_MS) { this._rearm(400); return; }
+      console.warn('[CloudStore] envio preso há mais de ' + Math.round(this.SYNC_TRAVADO_MS / 1000) + 's — destravando e tentando de novo');
+      this._syncing = false;
+    }
     // Sessão assumida em outro aparelho: adia, NÃO descarta. Descartar era perder
     // a alteração de vez — ela nunca mais era tentada nesta ou em outra sessão.
     if (window.SessionLock && SessionLock.isBlocked()) { this._pending = true; return; }
     if (!this.isReady() || !this.isLoggedIn()) return;
     if (!this._pending) return;                // nada novo a enviar
     clearTimeout(this._debounce);
-    this._syncing = true; this._pending = false;
-    if (window.CloudUI) CloudUI.setStatus('syncing', 'Sincronizando...');
+    this._syncing = true; this._syncingDesde = Date.now(); this._pending = false;
+    /* `finally` e não uma linha no fim: se QUALQUER coisa aqui dentro lançar —
+       inclusive a atualização do rótulo de status, que mexe no DOM —, a marca
+       precisa desligar assim mesmo. Presa em true, ela fazia a sincronização
+       parar de vez até recarregar. As atribuições `_syncing = false` no meio do
+       corpo continuam, inofensivas: apenas antecipam o que o `finally` garante. */
     try {
+      if (window.CloudUI) CloudUI.setStatus('syncing', 'Sincronizando...');
       if (!this._blobDue()) {
         // ── ROTA LEVE: só as seções alteradas ──────────────────────────────
         // Se o envio periódico de seções já está em curso, esperamos a vez: forçar
@@ -294,11 +365,13 @@ const CloudStore = {
       try { if (window.SectionSync) SectionSync.afterBlobSave(); } catch (_) { _quiet(_); } // escrita dupla (Opção B, Fase 1)
     } catch (err) {
       // erro de rede: NÃO perde a alteração — remarca como pendente e reprograma (auto-recupera)
-      this._syncing = false; this._pending = true;
+      this._pending = true;
       console.error('autoSave', err);
-      if (window.CloudUI) CloudUI.setStatus('error', 'Sem conexão — tentando de novo…');
+      try { if (window.CloudUI) CloudUI.setStatus('error', 'Sem conexão — tentando de novo…'); } catch (e) { _quiet(e, 'status-erro'); }
       this._rearm(5000);
       return;
+    } finally {
+      this._syncing = false;
     }
     // se surgiram NOVAS mudanças durante o envio (notifyChange remarcou _pending), dispara outro ciclo já
     if (this._pending) this._rearm(300);

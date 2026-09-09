@@ -854,6 +854,11 @@ else CloudStore.init();
           <button type="button" class="cfg-action" id="cfgu-limpar"><span class="ic">🧹</span><span class="t">Limpar cache do app e recarregar</span><span class="d">Apaga só os arquivos guardados do app e recarrega do zero. Os dados de estudo ficam intactos.</span></button>
         </div>`);
       $('#cfgu-procurar').addEventListener('click', () => { if (window.Atualizacao) Atualizacao.procurar(); });
+      /* Pergunta a versão ao worker e redesenha: a linha "Versão em execução"
+         só consegue apontar um desencontro depois que a resposta chega. */
+      if (window.Atualizacao) {
+        Atualizacao.perguntarVersaoAoWorker().then(() => { try { this.refreshDiag(); } catch (e) { _quiet(e, 'diag-versao'); } });
+      }
       $('#cfgu-limpar').addEventListener('click', () => { if (window.Atualizacao) Atualizacao.limparCacheERecarregar(); });
       $('#cfgx-refresh').addEventListener('click', () => this.refreshDiag());
       $('#cfgx-copy').addEventListener('click', () => {
@@ -903,7 +908,8 @@ else CloudStore.init();
         { k: 'Flashcards', v: nCards, t: '' },
         { k: 'Conexão do navegador', v: navigator.onLine ? 'online' : 'offline', t: navigator.onLine ? 'ok' : 'bad' },
         { k: 'Servidor (Supabase)', v: CS ? ({ ready: 'conectado', pending: 'carregando…', missing: 'biblioteca não carregou', error: 'erro ao iniciar' }[CS.libStatus] || CS.libStatus) : '—', t: (CS && CS.libStatus === 'ready') ? 'ok' : 'warn' },
-        { k: 'Versão em execução', v: (window.Atualizacao ? Atualizacao.versao() : '—'), t: '' },
+        (() => { const l = window.Atualizacao ? Atualizacao.linhaDeVersao() : { v: '—', t: '' };
+                 return { k: 'Versão em execução', v: l.v, t: l.t }; })(),
         { k: 'Armazenamento', v: (window.indexedDB ? 'IndexedDB disponível' : 'só localStorage'), t: window.indexedDB ? 'ok' : 'warn' },
         { k: 'Revisão local do perfil', v: rev, t: '' },
         { k: 'Sessão única ao entrar', v: pget('single-session', '0') === '1' ? 'ligada' : 'desligada', t: '' },

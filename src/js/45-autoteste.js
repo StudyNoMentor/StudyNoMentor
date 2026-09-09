@@ -1042,6 +1042,148 @@ const AutoTeste = {
     }
   },
 
+  /* ── UMA TRAVA PRESA É PIOR QUE UM ERRO ───────────────────────────────────
+     Três marcas de "estou ocupado" governam a sincronização: `_syncing` (envio
+     em curso), `_pushing` (envio de seções em curso) e `_applying` (aplicando
+     dado vindo da nuvem). Todas existem para evitar atropelo — e todas, se
+     ficarem LIGADAS por engano, param a sincronização em silêncio: nenhum erro,
+     nenhum aviso, e o app segue gravando só neste aparelho.
+
+     Ficavam presas quando uma exceção pulava por cima da linha que as desligava.
+     Agora desligam em `finally`, e este grupo prova isso do jeito que importa:
+     fazendo a operação FALHAR e conferindo que a marca ficou livre. */
+  travasNaoFicamPresas() {
+    // 1. `aplicando` devolve a marca mesmo quando o que ela embrulha lança
+    const antes = CloudStore._applying;
+    CloudStore._applying = false;
+    CloudStore.aplicando(() => { throw new Error('falha de propósito'); }).catch(() => {});
+    this._ok('aplicar da nuvem libera a marca mesmo falhando', CloudStore._applying === false);
+    // 2. e restaura o valor ANTERIOR, para não desligar uma aplicação de fora
+    CloudStore._applying = true;
+    CloudStore.aplicando(() => { throw new Error('falha aninhada'); }).catch(() => {});
+    this._ok('aplicação aninhada não desliga a de fora', CloudStore._applying === true);
+    CloudStore._applying = antes;
+
+    // 3. o envio de seções libera `_pushing` quando o corpo lança
+    const envioOriginal = SectionSync._enviarSujas;
+    const prontoOriginal = CloudStore.isReady, logadoOriginal = CloudStore.isLoggedIn;
+    const pushingAntes = SectionSync._pushing;
+    try {
+      SectionSync._pushing = false;
+      CloudStore.isReady = () => true; CloudStore.isLoggedIn = () => true;
+      SectionSync._enviarSujas = () => { throw new Error('falha de propósito'); };
+      const pid = ProfileManager.getActiveProfileId();
+      if (pid) {
+        SectionSync.pushDirty().catch(() => {});
+        this._ok('envio de seções libera a marca mesmo falhando', SectionSync._pushing === false);
+      } else {
+        this._ok('envio de seções libera a marca mesmo falhando', true, 'sem perfil ativo: não aplicável');
+      }
+    } finally {
+      SectionSync._enviarSujas = envioOriginal;
+      CloudStore.isReady = prontoOriginal; CloudStore.isLoggedIn = logadoOriginal;
+      SectionSync._pushing = pushingAntes;
+    }
+
+    // 4. o cão de guarda: um envio "em curso" há tempo demais é destravado
+    const sincAntes = CloudStore._syncing, desdeAntes = CloudStore._syncingDesde;
+    try {
+      CloudStore._syncing = true; CloudStore._syncingDesde = Date.now();
+      CloudStore.autoSave().catch(() => {});
+      this._ok('envio recente em curso não é interrompido', CloudStore._syncing === true);
+      CloudStore._syncing = true;
+      CloudStore._syncingDesde = Date.now() - CloudStore.SYNC_TRAVADO_MS - 1000;
+      CloudStore.autoSave().catch(() => {});
+      this._ok('envio preso além do teto é destravado', CloudStore._syncing === false);
+    } finally {
+      clearTimeout(CloudStore._debounce);
+      CloudStore._syncing = sincAntes; CloudStore._syncingDesde = desdeAntes;
+    }
+
+    // 5. toda requisição nasce com teto de tempo e sinal de cancelamento
+    const fetchOriginal = window.fetch;
+    try {
+      let vistoSignal = null;
+      window.fetch = (u, o) => { vistoSignal = o && o.signal; return new Promise(() => {}); };
+      CloudStore._buscarComTeto('https://exemplo.invalido/x', { method: 'GET' });
+      this._ok('requisição nasce com sinal de cancelamento',
+        !!vistoSignal && vistoSignal.aborted === false);
+      // sinal externo já abortado: a requisição nasce abortada junto
+      const ac = new AbortController(); ac.abort();
+      CloudStore._buscarComTeto('https://exemplo.invalido/y', { signal: ac.signal });
+      this._ok('sinal externo abortado propaga para a requisição',
+        !!vistoSignal && vistoSignal.aborted === true);
+    } finally { window.fetch = fetchOriginal; }
+
+    /* 6. e o teto vale para a BIBLIOTECA inteira, não só para quem lembrar de
+       pedir: é `init` que entrega o nosso `fetch` ao cliente do Supabase. Sem
+       esta ligação, cada chamada nova nasceria sem teto de novo. */
+    const clienteAntes = CloudStore.client, statusAntes = CloudStore.libStatus,
+          sessaoAntes = CloudStore.session, libAntes = window.supabase;
+    try {
+      let opcoes = null;
+      window.supabase = {
+        createClient: (_u, _k, o) => {
+          opcoes = o;
+          return { auth: { getSession: () => Promise.resolve({ data: {} }), onAuthStateChange: () => {} } };
+        }
+      };
+      CloudStore.init();
+      this._ok('o cliente da nuvem é criado com o nosso fetch',
+        !!(opcoes && opcoes.global && typeof opcoes.global.fetch === 'function'));
+      this._ok('a sessão continua persistida e o token renovado sozinho',
+        !!(opcoes && opcoes.auth && opcoes.auth.persistSession && opcoes.auth.autoRefreshToken));
+    } finally {
+      window.supabase = libAntes;
+      CloudStore.client = clienteAntes; CloudStore.libStatus = statusAntes;
+      CloudStore.session = sessaoAntes;
+    }
+  },
+
+  /* ── O DISCO PODE RECUSAR, E ISSO PRECISA APARECER ────────────────────────
+     A fachada de armazenamento devolve o controle na hora e grava no disco
+     depois. Uma recusa do navegador (cota, disco cheio, conexão fechada) chega,
+     portanto, DEPOIS — fora do `try` de quem gravou. Era por isso que o dado
+     seguia na tela e só sumia na abertura seguinte, sem erro nenhum.
+     Este grupo cuida da ponta que faltava: a fachada avisa, e o app age. */
+  oDiscoQueRecusa() {
+    this._ok('a fachada tem por onde avisar uma recusa de gravação',
+      typeof window.__idbFalhouAoGravar === 'function');
+    const toastOriginal = window.showToast;
+    const flushOriginal = CloudStore.flushPending;
+    const prontoOriginal = CloudStore.isReady, logadoOriginal = CloudStore.isLoggedIn;
+    const avisadoAntes = DB._falhaDiscoAvisada;
+    try {
+      let avisos = 0, envios = 0;
+      window.showToast = () => { avisos++; };
+      CloudStore.flushPending = () => { envios++; return Promise.resolve(); };
+      CloudStore.isReady = () => true; CloudStore.isLoggedIn = () => true;
+
+      DB._falhaDiscoAvisada = false;
+      window.__idbFalhouAoGravar(3);
+      this._ok('recusa do disco avisa quem está usando', avisos === 1, avisos);
+      this._ok('recusa do disco força a subida para a nuvem', envios === 1, envios);
+
+      // a mesma falha repetida não vira enxurrada de avisos
+      window.__idbFalhouAoGravar(3);
+      window.__idbFalhouAoGravar(3);
+      this._ok('avisos repetidos são contidos', avisos === 1, avisos);
+      this._ok('mas a subida para a nuvem é tentada em toda recusa', envios === 3, envios);
+
+      // sem nuvem disponível, nada lança
+      CloudStore.isLoggedIn = () => false;
+      DB._falhaDiscoAvisada = false;
+      let lancou = false;
+      try { window.__idbFalhouAoGravar(1); } catch (_) { lancou = true; }
+      this._ok('recusa sem nuvem não derruba nada', !lancou && avisos === 2, avisos);
+    } finally {
+      window.showToast = toastOriginal;
+      CloudStore.flushPending = flushOriginal;
+      CloudStore.isReady = prontoOriginal; CloudStore.isLoggedIn = logadoOriginal;
+      DB._falhaDiscoAvisada = avisadoAntes;
+    }
+  },
+
   rodar(imprimir) {
     this._r = { total: 0, passou: 0, falhou: 0, falhas: [], ms: 0 };
     const t0 = Date.now();
@@ -1060,7 +1202,9 @@ const AutoTeste = {
      ['Adota o id do banco', 'adotaOIdDoBanco'],
      ['Isolamento entre contas', 'isolamentoEntreContas'],
      ['Ids de perfil válidos para a nuvem', 'idsDePerfilSaoValidos'],
-     ['Esvaziar deixa rastro', 'esvaziarDeixaRastro']].forEach(([nome, fn]) => {
+     ['Esvaziar deixa rastro', 'esvaziarDeixaRastro'],
+     ['Travas não ficam presas', 'travasNaoFicamPresas'],
+     ['O disco que recusa gravação', 'oDiscoQueRecusa']].forEach(([nome, fn]) => {
       try { this[fn](); }
       catch (e) { this._r.total++; this._r.falhou++; this._r.falhas.push({ nome: nome + ' — exceção', obtido: String(e && e.message || e) }); }
     });
