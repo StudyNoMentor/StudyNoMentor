@@ -153,7 +153,17 @@ const ProfileManager = {
   },
 
   createProfile({ nome, avatar, cor, pin }) {
-    const id = 'u_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+    /* O id precisa ser um UUID de verdade: toda tabela da nuvem (study_profiles,
+       profile_sections, profile_backups) tem a coluna id/profile_id como `uuid`.
+       Um id fora desse formato faz TODA operação de nuvem para este perfil
+       falhar com "invalid input syntax for type uuid" — na maioria dos
+       caminhos, silenciosamente (SectionSync engole erro por seção e só loga
+       no console). O sintoma: o perfil parece normal aqui (o nome muda na
+       hora, é local), mas nunca sincroniza — nunca aparece em outro aparelho,
+       nunca tem backup no banco, e a lista pode "piscar" porque a nuvem nunca
+       tem nada de verdade para ele. Perfis com o formato antigo ('u_...') já
+       existentes são promovidos por ProfileManager.migrarIdsAntigos(). */
+    const id = DB._uid();
     const list = this.getProfiles();
     list.push({
       id, nome: (nome || 'Novo perfil').trim(),
@@ -388,6 +398,79 @@ const ProfileManager = {
   _podeVerLocal(id, uidAtual) {
     const dono = this._getOwner(id);
     return !dono || !uidAtual || dono === uidAtual;
+  },
+
+  /* ── PROMOÇÃO DE IDS ANTIGOS (não-UUID) A IDS DE VERDADE ──────────────────
+     `createProfile` gerava ids como 'u_<timestamp><random>' — uma string
+     curta, não um UUID. Localmente isso nunca importou (localStorage não
+     exige formato de chave nenhum). Mas TODA tabela da nuvem tem a coluna
+     id/profile_id como `uuid`, e um id fora desse formato faz cada operação
+     de nuvem para aquele perfil falhar — na maioria dos caminhos, em
+     silêncio (SectionSync engole erro por seção e só loga no console). Quem
+     usa só vê: o nome muda na hora aqui, mas nunca sincroniza — nunca
+     aparece em outro aparelho, nunca tem backup no banco, e a lista pode
+     "piscar" porque a nuvem nunca tem nada de verdade para esse perfil.
+
+     Esta função promove cada perfil de id antigo a um id novo e válido —
+     movendo TODO o namespace local para a chave nova, sem apagar nada, e
+     enfileirando o envio à nuvem. Só roda com conta logada (é o `createRow`
+     da nuvem quem determina o id novo) e uma vez por perfil. */
+  ID_VALIDO_RE: /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i,
+  idValido(id) { return !!id && this.ID_VALIDO_RE.test(id); },
+  _migMarcaChave(id) { return 'diario-estudos:migrado-uuid:' + id; },
+  async migrarIdsAntigos() {
+    if (!window.CloudStore || !CloudStore.isReady() || !CloudStore.isLoggedIn()) return;
+    const alvos = (this.getProfiles() || []).filter(p => p && p.id && !this.idValido(p.id));
+    for (const p of alvos) {
+      let jaFeito = false;
+      try { jaFeito = !!localStorage.getItem(this._migMarcaChave(p.id)); } catch (_) { _quiet(_); }
+      if (jaFeito) continue;
+      try { await this._migrarUmPerfil(p); } catch (e) { console.warn('[perfis] migração de id falhou para', p.id, e); }
+    }
+  },
+  async _migrarUmPerfil(perfilAntigo) {
+    const idAntigo = perfilAntigo.id;
+    console.info('[perfis] promovendo perfil de id local "' + idAntigo + '" a um id de nuvem válido…');
+    const row = await CloudStore.createRow({ name: perfilAntigo.nome, avatar: perfilAntigo.avatar, color: perfilAntigo.cor, payload: {} });
+    if (!row || !row.id) throw new Error('createRow não devolveu id');
+    const idNovo = row.id;
+    const prefixoAntigo = 'diario-estudos:u:' + idAntigo + ':';
+    const prefixoNovo = 'diario-estudos:u:' + idNovo + ':';
+    // Move o namespace inteiro: copia para a chave nova primeiro, só remove a
+    // antiga depois de confirmar que a cópia bateu — nunca apaga sem provar
+    // que o destino já tem o mesmo valor.
+    const mover = [];
+    for (let i = 0; i < localStorage.length; i++) {
+      const k = localStorage.key(i);
+      if (k && k.indexOf(prefixoAntigo) === 0) mover.push(k);
+    }
+    mover.forEach(k => {
+      const valor = localStorage.getItem(k);
+      try { localStorage.setItem(prefixoNovo + k.slice(prefixoAntigo.length), valor); } catch (e) { _quiet(e, 'mig-copia'); }
+    });
+    mover.forEach(k => {
+      const destino = prefixoNovo + k.slice(prefixoAntigo.length);
+      if (localStorage.getItem(destino) === localStorage.getItem(k)) localStorage.removeItem(k);
+    });
+    // troca o id no índice de perfis, preservando nome/avatar/cor atuais
+    const lista = this.getProfiles();
+    const entrada = lista.find(p => p.id === idAntigo);
+    if (entrada) entrada.id = idNovo;
+    this.saveProfiles(lista);
+    this.setRev(idNovo, row.rev || 1);
+    try { this._setOwner(idNovo, CloudStore.session.user.id); } catch (e) { _quiet(e, 'mig-dono'); }
+    // se este era o perfil ATIVO, o ponteiro precisa apontar para o id novo —
+    // e só nesse caso vale a pena empurrar o conteúdo agora (SectionSync só
+    // enxerga o namespace do perfil ATIVO; migrar um perfil em segundo plano
+    // não deve trocar o que está aberto por baixo do usuário).
+    const eraAtivo = (this.getActiveProfileId() === idAntigo);
+    if (eraAtivo) this.setActiveProfile(idNovo);
+    try { localStorage.setItem(this._migMarcaChave(idAntigo), idNovo); } catch (e) { _quiet(e, 'mig-marca'); }
+    if (eraAtivo) {
+      try { if (window.SectionSync) { SectionSync._seededProfile = null; SectionSync.markAllDirty(); SectionSync.kick(); } } catch (e) { _quiet(e, 'mig-envio'); }
+      try { await CloudStore.saveActiveWithRetry(); } catch (e) { _quiet(e, 'mig-blob'); }
+    }
+    console.info('[perfis] perfil migrado: ' + idAntigo + ' → ' + idNovo + (eraAtivo ? ' (ativo — enviado agora)' : ' (sincroniza ao ser aberto)'));
   },
 
   /* ── ESPELHO DA NUVEM — COM UMA TRAVA ─────────────────────────────────────

@@ -47,6 +47,12 @@ const CloudStore = {
     try { if (window.SectionSync) setTimeout(() => SectionSync.kick(), 1500); } catch (_) { _quiet(_); }
     // faxina do historico de versoes (janela de 7 dias) logo na abertura
     try { if (window.VersionHistory) setTimeout(() => VersionHistory.limpar(), 2500); } catch (_) { _quiet(_); }
+    /* Promove perfis com id antigo (não-UUID) assim que há conta — antes
+       disso, TODA operação de nuvem para esses perfis falhava (na maioria das
+       vezes em silêncio): nada sincronizava, nada tinha backup no banco, e o
+       nome podia "piscar" entre o valor local e o que a nuvem nunca tinha de
+       verdade. Atraso maior que os gatilhos acima: espera a sessão assentar. */
+    try { if (window.ProfileManager) setTimeout(() => ProfileManager.migrarIdsAntigos(), 3500); } catch (_) { _quiet(_); }
   },
 
   async signUp(email, password) { const { data, error } = await this._withTimeout(this.client.auth.signUp({ email, password }), 20000, 'A criação de conta'); if (error) throw error; return data; },

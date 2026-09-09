@@ -53,7 +53,18 @@ create table if not exists public.profile_backups (
 
 create index if not exists profile_backups_perfil_idx
   on public.profile_backups (profile_id, created_at desc);
-create index if not exists profile_backups_ancora_idx
+-- limpa o índice antigo (não-único) de uma versão anterior deste documento,
+-- se ele existir — nenhuma LINHA é afetada, só o índice é substituído
+drop index if exists public.profile_backups_ancora_idx;
+/* ÚNICO, não só um índice de apoio: no máximo UMA linha com ancora=true por
+   perfil. Sem isto, duas gravações concorrentes (o gatilho diário e um clique
+   manual, por exemplo) podiam cada uma checar "existe âncora?", ouvir "não" ao
+   mesmo tempo, e as DUAS virarem âncora "permanente" do mesmo perfil — quebrando
+   exatamente a garantia que ela promete. Com o índice, a segunda tentativa
+   concorrente leva um erro de violação de unicidade; o app trata isso como
+   sucesso normal (grava a foto como rolante) — ver profile_backups_uma_ancora
+   em src/js/66-backup-nuvem.js. */
+create unique index if not exists profile_backups_uma_ancora_por_perfil
   on public.profile_backups (profile_id) where ancora;
 
 -- ── Segurança: cada pessoa só enxerga o que é dela ────────────────────────
@@ -73,6 +84,23 @@ create policy "backups_delete_proprios" on public.profile_backups
 
 -- NENHUMA política de UPDATE, de propósito: uma foto gravada é imutável.
 ```
+
+> **Se a criação do índice único acima falhar** com um erro citando linhas
+> duplicadas, é porque já existem duas (ou mais) fotos marcadas `ancora=true`
+> para o mesmo perfil — só pode ter acontecido numa versão anterior a esta
+> correção. Rode a faxina abaixo primeiro (mantém a âncora mais ANTIGA de cada
+> perfil — a que de fato foi criada primeiro — e rebaixa as demais a fotos
+> rolantes comuns; **nenhuma linha é apagada**, só o rótulo `ancora` muda),
+> depois repita a criação do índice.
+>
+> ```sql
+> with duplicadas as (
+>   select id, row_number() over (partition by profile_id order by created_at asc) as pos
+>   from public.profile_backups where ancora
+> )
+> update public.profile_backups set ancora = false
+> where id in (select id from duplicadas where pos > 1);
+> ```
 
 ### Quando uma foto é criada
 
@@ -103,6 +131,17 @@ resposta correta é não apagar nada.
 ---
 
 ## 2. `study_profiles` — o estado atual (blob)
+
+> **`id` é `uuid`, sempre.** O app usa este mesmo id como chave do namespace
+> local (`diario-estudos:u:<id>:…`) e como `profile_id` em `profile_sections`
+> e `profile_backups` — as três também exigem `uuid`. Um perfil criado com um
+> id fora desse formato (existiu uma versão do app que gerava ids como
+> `u_<algo>`) nunca consegue sincronizar nada: toda escrita na nuvem falha com
+> `invalid input syntax for type uuid`, na maioria dos caminhos em silêncio. O
+> app se autocorrige — `ProfileManager.migrarIdsAntigos()`, chamado a cada
+> login, promove qualquer perfil assim a um id novo e válido, movendo o
+> namespace local inteiro sem apagar nada — mas nenhuma tabela deve receber
+> um id fora desse padrão por nenhum outro caminho.
 
 ```sql
 create table if not exists public.study_profiles (
