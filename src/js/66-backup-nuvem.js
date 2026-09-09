@@ -35,8 +35,12 @@
        da última vez, o estado anterior é fotografado antes. É a defesa contra
        o apagamento acidental que se propaga para todos os aparelhos.
      · FOTO ANTES DE ESVAZIAR uma seção que tinha conteúdo.
-     · A FAXINA NUNCA DESCE DE `MIN_KEEP`, nunca toca na âncora e nunca apaga
-       nada com menos de 24 h. Um bug na faxina não pode virar perda de dados.
+     · RETENÇÃO EM FAIXAS (avô-pai-filho), a prática consolidada de quem faz
+       backup a sério: uma foto por dia nos últimos 14 dias, uma por semana
+       nas últimas 8, uma por mês nos últimos 12. Um ano de histórico em ~30
+       linhas — e um estrago percebido só três semanas depois ainda tem para
+       onde voltar. A faxina nunca desce de `MIN_KEEP`, nunca toca na âncora
+       e nunca apaga nada com menos de 24 h: um bug nela não vira perda.
      · FALHA NUNCA É SILENCIOSA. Um perfil grande demais para uma foto, ou
        qualquer erro de gravação, fica registrado e visível no diagnóstico e
        na própria tela — "ativo" só aparece quando o último envio realmente
@@ -49,7 +53,6 @@
 const CloudBackup = {
   TABLE: 'profile_backups',
   enabled: true,            // vira false se a tabela não existir
-  MAX: 14,                  // fotos "rolantes" mantidas por perfil (além da âncora)
   MIN_KEEP: 5,              // a faxina nunca deixa menos que isto
   IDADE_MINIMA_MS: 24 * 3600 * 1000,   // nada recém-criado é apagado pela faxina
   FRESCO_MS: 15 * 60 * 1000,           // uma foto com menos que isto já serve de proteção
@@ -69,6 +72,21 @@ const CloudBackup = {
   _sigKey(id) { return 'diario-estudos:cbk-sig:' + id; },
   _lerUltimoSig(id) { try { return localStorage.getItem(this._sigKey(id)); } catch (_) { return null; } },
   _gravarUltimoSig(id, sig) { try { localStorage.setItem(this._sigKey(id), sig); } catch (e) { _quiet(e, 'cbk-sig'); } },
+  /* Quando a última foto REALMENTE entrou no banco. Persistido porque é o que
+     permite responder "o backup automático está mesmo funcionando?" sem pedir
+     nada à rede — um app que promete proteção precisa PROVAR isso na tela, não
+     só afirmar. Alimenta o diagnóstico e o cabeçalho da tela de backup. */
+  _emKey(id) { return 'diario-estudos:cbk-em:' + id; },
+  ultimoEnvioEm(id) {
+    const alvo = id || (window.ProfileManager ? ProfileManager.getActiveProfileId() : null);
+    if (!alvo) return 0;
+    if (this._ultimoEm[alvo]) return this._ultimoEm[alvo];
+    try { return parseInt(localStorage.getItem(this._emKey(alvo)), 10) || 0; } catch (_) { return 0; }
+  },
+  _marcarEnvio(id) {
+    this._ultimoEm[id] = Date.now();
+    try { localStorage.setItem(this._emKey(id), String(this._ultimoEm[id])); } catch (e) { _quiet(e, 'cbk-em'); }
+  },
 
   _isMissingTable(err) {
     const m = ((err && (err.message || err.code || err.details)) || '').toString().toLowerCase();
@@ -179,7 +197,7 @@ const CloudBackup = {
       const r = await this._inserirLinha({ id, nota, packed, chars: json.length, sig });
       if (!r.ok) { this._ultimoErro = r.motivo; return r; }
       this._gravarUltimoSig(id, sig);
-      this._ultimoEm[id] = Date.now();
+      this._marcarEnvio(id);
       this._ultimoErro = null;
       console.info('[CloudBackup] foto gravada no banco' + (r.ancora ? ' (ÂNCORA permanente)' : '') + ': ' + nota);
       this.faxina(id);   // best-effort, não bloqueia
@@ -297,29 +315,80 @@ const CloudBackup = {
     return { ok: true, secoes: Object.keys(foto.data).length };
   },
 
-  /* ── FAXINA — a única parte que apaga, e a mais desconfiada de todas ──────
-     Três travas, e todas têm de passar para uma linha sair:
-       1. a âncora nunca entra na conta (nem é preciso confiar que só existe
-          uma — mesmo que o índice único do banco falhasse de algum jeito
-          novo, TODA linha marcada `ancora` aqui é ignorada);
-       2. só o que passa do teto de fotos rolantes E tem mais de 24 h;
-       3. o total nunca desce abaixo de MIN_KEEP.
-     Se qualquer coisa der errado no meio, o efeito é guardar fotos DEMAIS —
-     que é o lado certo de errar. */
+  /* ── RETENÇÃO EM FAIXAS (avô-pai-filho) ───────────────────────────────────
+     A regra anterior era um teto simples: guardava as 14 fotos mais novas e
+     descartava o resto. Com uma foto por dia, isso significa que o histórico
+     inteiro tinha 14 DIAS — e essa é justamente a forma clássica de perder
+     dados sem perceber. Um estrago que só é notado três semanas depois (uma
+     matéria apagada por engano, uma importação que sobrescreveu o ciclo) já
+     não teria nenhuma foto boa: as 14 mais novas já nasceram todas com o
+     estrago dentro, e a única sobrevivente seria a âncora, do primeiro dia.
+
+     A prática consolidada para isso — Time Machine, restic, borg, Backblaze,
+     e todo desenho sério de retenção — é AVÔ-PAI-FILHO: densidade alta perto
+     do presente, esparsa e LONGA no passado. Guardamos:
+
+       · a ÂNCORA, sempre, para sempre;
+       · as N fotos mais recentes, aconteça o que acontecer;
+       · a mais nova de cada DIA, nos últimos 14 dias;
+       · a mais nova de cada SEMANA, nas últimas 8 semanas;
+       · a mais nova de cada MÊS, nos últimos 12 meses.
+
+     Uma foto só é descartada se ficar fora de TODAS as faixas. O resultado é
+     um histórico que cobre um ano inteiro com cerca de 30 linhas por perfil —
+     e que responde "posso voltar ao estado de três meses atrás?" com sim.
+
+     As mesmas travas de antes continuam valendo por cima disso: a âncora
+     nunca sai (mesmo que existisse mais de uma), nada com menos de 24 h sai,
+     e o total nunca desce abaixo de MIN_KEEP. Se alguma coisa der errado no
+     meio, o efeito é guardar fotos DEMAIS — o lado certo de errar. */
+  MANTER_RECENTES: 5,     // as mais novas, independentemente de faixa
+  MANTER_DIAS: 14,
+  MANTER_SEMANAS: 8,
+  MANTER_MESES: 12,
+
+  _faixaDia(d) { return d.getFullYear() + '-' + (d.getMonth() + 1) + '-' + d.getDate(); },
+  _faixaMes(d) { return d.getFullYear() + '-' + (d.getMonth() + 1); },
+  // Semana ISO-8601: a quinta-feira da semana identifica o par ano-semana.
+  _faixaSemana(d) {
+    const t = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()));
+    t.setUTCDate(t.getUTCDate() - ((t.getUTCDay() + 6) % 7) + 3);   // quinta desta semana
+    const q1 = new Date(Date.UTC(t.getUTCFullYear(), 0, 4));
+    q1.setUTCDate(q1.getUTCDate() - ((q1.getUTCDay() + 6) % 7) + 3); // quinta da semana 1
+    return t.getUTCFullYear() + '-S' + (1 + Math.round((t - q1) / 604800000));
+  },
+
   /* A ESCOLHA é pura e testável; só o DELETE é que fala com o banco. Quem
-     apaga dado tem de poder ser interrogado por um teste. O primeiro corte
-     compara contra o número de fotos ROLANTES (não o total de linhas): um
-     total inflado por âncora extra nunca deve, por si só, destravar ou travar
-     a faxina — só a contagem do que realmente é descartável importa. */
+     apaga dado tem de poder ser interrogado por um teste. */
   selecionarParaFaxina(linhas, agora) {
-    const lista = (linhas || []).slice().sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
-    const rolantes = lista.filter(r => !r.ancora);                 // 1. âncora nunca entra na conta
-    if (rolantes.length <= this.MAX) return [];                    // ainda dentro do teto: nada a fazer
-    const candidatas = rolantes.slice(this.MAX)
-      .filter(r => (agora - new Date(r.created_at).getTime()) > this.IDADE_MINIMA_MS); // 2. teto + idade
-    if (!candidatas.length) return [];
-    if (lista.length - candidatas.length < this.MIN_KEEP) return []; // 3. piso absoluto (conta tudo)
-    return candidatas;
+    const lista = (linhas || [])
+      .filter(r => r && r.created_at && !isNaN(new Date(r.created_at).getTime()))
+      .sort((a, b) => new Date(b.created_at) - new Date(a.created_at));   // mais nova primeiro
+    if (lista.length <= this.MIN_KEEP) return [];
+    const manter = new Set();
+    // 1. a âncora, sempre — nem precisa ser única para estar protegida
+    lista.forEach(r => { if (r.ancora) manter.add(r.id); });
+    // 2. as mais recentes
+    lista.slice(0, this.MANTER_RECENTES).forEach(r => manter.add(r.id));
+    // 3. a mais nova de cada faixa (a lista já vem da mais nova para a mais velha,
+    //    então a PRIMEIRA vista em cada faixa é a que representa a faixa)
+    const porFaixa = (chave, limite) => {
+      const vistas = new Map();
+      lista.forEach(r => {
+        const k = chave(new Date(r.created_at));
+        if (!vistas.has(k)) vistas.set(k, r);
+      });
+      [...vistas.values()].slice(0, limite).forEach(r => manter.add(r.id));
+    };
+    porFaixa(d => this._faixaDia(d), this.MANTER_DIAS);
+    porFaixa(d => this._faixaSemana(d), this.MANTER_SEMANAS);
+    porFaixa(d => this._faixaMes(d), this.MANTER_MESES);
+    // fora de todas as faixas E com mais de 24 h
+    const apagar = lista.filter(r => !manter.has(r.id) &&
+      (agora - new Date(r.created_at).getTime()) > this.IDADE_MINIMA_MS);
+    if (!apagar.length) return [];
+    if (lista.length - apagar.length < this.MIN_KEEP) return [];   // piso absoluto
+    return apagar;
   },
   async faxina(id) {
     if (!this._pronto()) return 0;
@@ -345,14 +414,19 @@ const CloudBackup = {
      Uma foto por dia, na primeira abertura. O carimbo é local (uma leitura, sem
      rede); se ele se perder, o pior que acontece é uma foto a mais, e criar()
      descarta a duplicata pela assinatura (persistida — sobrevive a reload). */
+  _diaEmCurso: false,
   async garantirDoDia() {
-    if (!this._pronto()) return false;
+    if (!this._pronto() || this._diaEmCurso) return false;
     const id = ProfileManager.getActiveProfileId();
     if (!id) return false;
     let ultimo = null;
     try { ultimo = localStorage.getItem(this._diaKey(id)); } catch (e) { _quiet(e, 'cbk-dia'); }
     const hoje = todayLocal();
-    if (ultimo === hoje) return false;
+    if (ultimo === hoje) return false;   // já há a foto de hoje: sai em microssegundos
+    this._diaEmCurso = true;
+    try { return await this._fazerDoDia(id, hoje); } finally { this._diaEmCurso = false; }
+  },
+  async _fazerDoDia(id, hoje) {
     const r = await this.criar('backup diário');
     if (r.ok || r.repetido) {
       try { localStorage.setItem(this._diaKey(id), hoje); } catch (e) { _quiet(e, 'cbk-dia2'); }
@@ -364,7 +438,7 @@ const CloudBackup = {
     if (!this._pronto()) return false;
     const id = ProfileManager.getActiveProfileId();
     if (!id) return false;
-    if ((Date.now() - (this._ultimoEm[id] || 0)) < this.FRESCO_MS) return true;  // já há foto fresca
+    if ((Date.now() - this.ultimoEnvioEm(id)) < this.FRESCO_MS) return true;  // já há foto fresca
     const r = await this.criar(motivo || 'antes de uma operação de risco');
     return !!(r.ok || r.repetido);
   },
@@ -503,22 +577,34 @@ const GuardaNuvem = {
 };
 window.GuardaNuvem = GuardaNuvem;
 
-/* Gatilho de abertura: a foto diária sai um pouco depois de o perfil abrir, sem
-   competir com a primeira sincronização. */
+/* ── GATILHO DO BACKUP DIÁRIO ──────────────────────────────────────────────
+   Este gatilho tinha um `feito = true` que o desarmava PARA SEMPRE depois da
+   primeira execução. O efeito real não era "um backup por dia": era "um
+   backup por CARREGAMENTO de página". Num app que fica aberto por dias — PWA
+   instalado no celular, aba fixa no computador, que é exatamente como um
+   diário de estudos é usado — a virada da meia-noite passava sem ninguém
+   olhar, e podiam-se passar semanas sem um único backup diário, com a tela
+   dizendo "ativo" o tempo todo.
+
+   Agora a verificação é PERMANENTE e barata: `garantirDoDia` lê uma chave do
+   armazenamento e desiste em microssegundos se a foto de hoje já existe. Além
+   do intervalo, ela roda quando o app volta ao primeiro plano — que é o
+   instante em que um celular "acorda" depois da virada do dia. */
 (function () {
-  let feito = false;
   const tentar = () => {
-    if (feito) return;
     try {
       if (!window.CloudBackup || !CloudBackup._pronto()) return;
       if (!ProfileManager.getActiveProfileId()) return;
       if (!sessionStorage.getItem('diario-estudos:entered')) return;
     } catch (e) { _quiet(e, 'cbk-gatilho'); return; }
-    feito = true;
     CloudBackup.garantirDoDia();
   };
   setTimeout(tentar, 9000);
-  setInterval(tentar, 60000);
+  setInterval(tentar, 60000);          // permanente: a virada do dia precisa ser vista
+  try {
+    window.addEventListener('focus', tentar);
+    document.addEventListener('visibilitychange', () => { if (!document.hidden) tentar(); });
+  } catch (e) { _quiet(e, 'cbk-gatilho-eventos'); }
 })();
 
 /* ── A TELA (Configurações → Dados) ────────────────────────────────────────

@@ -106,7 +106,7 @@ create policy "backups_delete_proprios" on public.profile_backups
 
 | Gatilho | Nota que aparece na lista |
 |---|---|
-| Primeira abertura do dia | `backup diário` |
+| Primeira vez que o app é usado em cada dia | `backup diário` |
 | Antes de o perfil **encolher** mais de 40% num envio | `antes de uma redução de N% no perfil` |
 | Antes de **esvaziar** seções que tinham conteúdo | `antes de esvaziar N seção(ões): …` |
 | Antes de restaurar outra foto | `antes de restaurar um backup da nuvem` |
@@ -115,18 +115,49 @@ create policy "backups_delete_proprios" on public.profile_backups
 A **primeira foto de cada perfil** recebe `ancora = true` e nunca é removida
 pela limpeza automática, tenha a idade que tiver.
 
-### O que a limpeza automática pode apagar
+> **"Diário" quer dizer por DIA, não por abertura.** O gatilho verifica de
+> minuto em minuto, e também toda vez que o app volta ao primeiro plano — é
+> assim que a virada da meia-noite é vista num app que fica semanas aberto
+> (PWA no celular, aba fixa no computador). A verificação custa uma leitura de
+> chave local e desiste imediatamente se a foto de hoje já existe. O
+> diagnóstico em `Configurações → Diagnóstico` mostra a **data da última
+> cópia** — se ela parar de avançar, o problema aparece ali antes de alguém
+> precisar restaurar.
 
-Uma linha só sai se as **quatro** travas permitirem:
+### Retenção em faixas (avô-pai-filho)
 
-1. não é a âncora;
-2. está além das 14 fotos mais recentes;
-3. tem mais de 24 horas;
-4. sobram pelo menos 5 fotos depois da remoção.
+A regra anterior era um teto simples — "guarde as 14 mais novas". Com uma foto
+por dia, isso dava um histórico de **14 dias**, e essa é a forma clássica de
+perder dados sem perceber: um estrago notado três semanas depois já não teria
+nenhuma foto boa, porque as 14 mais novas nasceram todas com ele dentro.
+
+A política agora é a mesma de quem faz backup a sério (Time Machine, restic,
+borg, Backblaze): **densa perto do presente, esparsa e longa no passado**.
+
+| Faixa | O que é mantido |
+|---|---|
+| Âncora | a primeira foto do perfil, **para sempre** |
+| Recentes | as **5** mais novas, aconteça o que acontecer |
+| Diária | a mais nova de cada dia, nos últimos **14 dias** |
+| Semanal | a mais nova de cada semana, nas últimas **8 semanas** |
+| Mensal | a mais nova de cada mês, nos últimos **12 meses** |
+
+Uma foto só é descartada se ficar fora de **todas** as faixas. O resultado
+cobre um ano inteiro com cerca de 30 linhas por perfil.
+
+Por cima disso, três travas absolutas — uma linha só sai se as três
+permitirem:
+
+1. não é a âncora (mesmo que existisse mais de uma, nenhuma sai);
+2. tem mais de 24 horas;
+3. sobram pelo menos 5 fotos depois da remoção.
 
 A lógica é a função pura `CloudBackup.selecionarParaFaxina`, exercitada pela
-suíte `AutoTeste` — inclusive com o caso "todas as fotos são de hoje", em que a
-resposta correta é não apagar nada.
+suíte `AutoTeste`: um ano de fotos diárias é podado a ≤ 40 linhas mantendo
+cobertura acima de 30 e de 180 dias, os últimos 14 dias ficam dia a dia, a
+âncora sobrevive sendo a mais antiga de todas, uma rajada de fotos no mesmo
+dia não apaga nada, e uma linha com data ilegível é ignorada em vez de virar
+alvo silencioso.
 
 ---
 
