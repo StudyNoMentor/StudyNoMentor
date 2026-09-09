@@ -12081,15 +12081,39 @@ const DB = {
       list = this.DEFAULT_LINKS.map(l => ({ id: this._uid(), ...l, logo: null, createdAt: new Date().toISOString() }));
       this._set(this.KEYS.links, list);
     }
+    // neutraliza esquemas perigosos guardados antes desta trava existir
+    if (this._sanearLinks(list)) this._set(this.KEYS.links, list);
     return list;
   },
   saveLinks(list) { this._set(this.KEYS.links, list); },
+  /* ── URL DE LINK: SÓ http/https ───────────────────────────────────────────
+     `escapeHtml` protege o CONTEÚDO de um atributo, mas não diz nada sobre o
+     ESQUEMA da URL. Um link com `javascript:...` em `href` executa script na
+     origem do app ao ser clicado — com acesso ao armazenamento inteiro e ao
+     token da sessão.
+
+     Pela tela de cadastro isso não passava, mas por acidente: qualquer coisa
+     que não comece com http(s) recebe "https://" na frente. O caminho que
+     passava era a IMPORTAÇÃO de backup — e o próprio app avisa que um backup
+     pode vir "de um colega, de um grupo de estudos, de um download". Cards
+     importados já eram saneados por isso; links não eram.
+
+     A trava fica na CAMADA DE DADOS, não na tela: assim vale para todo
+     caminho de entrada, inclusive os que ainda não existem. */
+  urlSegura(url) {
+    const s = String(url == null ? '' : url).trim();
+    if (!s) return '';
+    if (/^https?:\/\//i.test(s)) return s;
+    // esquema explícito que não é http(s) (javascript:, data:, vbscript:…) é recusado
+    if (/^[a-z][a-z0-9+.-]*:/i.test(s)) return '';
+    return 'https://' + s;    // digitou "site.com" — completa, como a tela já fazia
+  },
   addLink(data) {
     const list = this.getLinks();
     const link = {
       id: this._uid(),
       nome: (data.nome || 'Novo link').trim(),
-      url: (data.url || '').trim(),
+      url: this.urlSegura(data.url),
       categoria: (data.categoria || '').trim(),
       cor: data.cor || '#4f46e5',
       logo: data.logo || null,
@@ -12099,8 +12123,21 @@ const DB = {
   },
   updateLink(id, patch) {
     const list = this.getLinks(); const l = list.find(x => x.id === id);
-    if (l) Object.assign(l, patch);
+    // a mesma trava de esquema do addLink: editar não pode ser a porta de entrada
+    if (l) { Object.assign(l, patch); if ('url' in (patch || {})) l.url = this.urlSegura(l.url); }
     this.saveLinks(list); return l;
+  },
+  /* Links que JÁ estão guardados (de uma importação anterior a esta trava)
+     também precisam ser neutralizados — a leitura é o último ponto por onde
+     todos passam antes de virar `href`. */
+  _sanearLinks(list) {
+    let mudou = false;
+    (list || []).forEach(l => {
+      if (!l || typeof l.url !== 'string') return;
+      const seguro = this.urlSegura(l.url);
+      if (seguro !== l.url) { l.url = seguro; mudou = true; }
+    });
+    return mudou;
   },
   deleteLink(id) { this.saveLinks(this.getLinks().filter(l => l.id !== id)); },
 
@@ -13143,18 +13180,103 @@ const ProfileManager = {
       if (jaFeito) continue;
       try { await this._migrarUmPerfil(p); } catch (e) { console.warn('[perfis] migração de id falhou para', p.id, e); }
     }
+    try { await this.repararSemLinhaNaNuvem(); } catch (e) { console.warn('[perfis] reparo de linha na nuvem falhou', e); }
+  },
+
+  /* ── PERFIL COM DADOS AQUI E SEM LINHA NA NUVEM ───────────────────────────
+     Um perfil nessa situação está mudo para sempre: `saveActive` e `updateMeta`
+     só sabem fazer UPDATE, e um UPDATE sem linha correspondente atinge zero
+     linhas — sem erro, sem aviso. O app mostra "sincronizado" e nada sai daqui.
+
+     Acontecia com todo perfil vindo de IMPORTAÇÃO (o retorno de `createRow`
+     era descartado, ver adotarIdDaNuvem) e acontece também se a linha for
+     apagada na nuvem por qualquer motivo. Este reparo fecha os dois casos.
+
+     Segurança do reparo, porque ele CRIA linha na nuvem:
+       · só roda com a lista da nuvem obtida com SUCESSO — uma falha de rede
+         não pode ser lida como "não existe lá" e virar linha duplicada;
+       · só para perfis que têm dado de verdade neste aparelho;
+       · só para perfis desta conta (ou sem dono conhecido), nunca de outra. */
+  async repararSemLinhaNaNuvem() {
+    let rows;
+    try { rows = await CloudStore.listProfiles(); }
+    catch (e) { _quiet(e, 'reparo-lista'); return 0; }      // sem certeza, não age
+    if (!Array.isArray(rows)) return 0;
+    const naNuvem = new Set(rows.map(r => r.id));
+    const uid = (CloudStore.session && CloudStore.session.user) ? CloudStore.session.user.id : null;
+    const comDados = new Set(this.perfisComDadosLocais().map(d => d.id));
+    /* `_podeVerLocal` deixa passar o perfil SEM dono conhecido — o certo para
+       apenas EXIBIR (não esconder dado de ninguém), e o errado para CRIAR uma
+       linha na nuvem: num aparelho que já foi de outra conta, um perfil antigo
+       sem rótulo seria reivindicado pela conta que estiver logada agora.
+
+       Para criar, a régua é mais dura: ou o dono é comprovadamente esta conta,
+       ou este aparelho nunca viu outra conta (nenhum rótulo de dono aponta
+       para um uid diferente). Na dúvida, não reivindica — o perfil segue
+       local, exatamente como estava, sem regressão. */
+    const outraContaJaUsouEsteAparelho = (() => {
+      try {
+        for (let i = 0; i < localStorage.length; i++) {
+          const k = localStorage.key(i);
+          if (!k || k.indexOf('diario-estudos:owner:') !== 0) continue;
+          const dono = localStorage.getItem(k);
+          if (dono && uid && dono !== uid) return true;
+        }
+      } catch (e) { _quiet(e, 'reparo-donos'); return true; }   // sem certeza: age como se sim
+      return false;
+    })();
+    const podeReivindicar = (id) => {
+      const dono = this._getOwner(id);
+      if (dono) return dono === uid;                 // rótulo explícito manda
+      return !outraContaJaUsouEsteAparelho;          // sem rótulo: só se o aparelho for de uma conta só
+    };
+    const alvos = (this.getProfiles() || []).filter(p =>
+      p && p.id && this.idValido(p.id) && !naNuvem.has(p.id) &&
+      comDados.has(p.id) && podeReivindicar(p.id));
+    let n = 0;
+    for (const p of alvos) {
+      try {
+        console.warn('[perfis] "' + (p.nome || p.id) + '" tem dados aqui e nenhuma linha na nuvem — criando e adotando o id…');
+        const row = await CloudStore.createRow({ name: p.nome, avatar: p.avatar, color: p.cor, payload: {} });
+        await this.adotarIdDaNuvem(p.id, row);
+        n++;
+      } catch (e) { console.warn('[perfis] não foi possível criar a linha de', p.id, e); }
+    }
+    return n;
   },
   async _migrarUmPerfil(perfilAntigo) {
-    const idAntigo = perfilAntigo.id;
-    console.info('[perfis] promovendo perfil de id local "' + idAntigo + '" a um id de nuvem válido…');
+    console.info('[perfis] promovendo perfil de id local "' + perfilAntigo.id + '" a um id de nuvem válido…');
     const row = await CloudStore.createRow({ name: perfilAntigo.nome, avatar: perfilAntigo.avatar, color: perfilAntigo.cor, payload: {} });
+    await this.adotarIdDaNuvem(perfilAntigo.id, row);
+    try { localStorage.setItem(this._migMarcaChave(perfilAntigo.id), row.id); } catch (e) { _quiet(e, 'mig-marca'); }
+  },
+
+  /* ── ADOTAR O ID QUE O BANCO GEROU ────────────────────────────────────────
+     `createRow` NÃO aceita um id: a coluna é `uuid primary key default
+     gen_random_uuid()`, então quem decide o id é o banco, e ele o devolve.
+     Quem chama é obrigado a adotar esse id — e havia um caminho que não
+     adotava: a IMPORTAÇÃO de backup criava o perfil local com um id próprio,
+     mandava `createRow` para a nuvem e DESCARTAVA o retorno.
+
+     O resultado era um perfil partido em dois: o local, com o id antigo, que
+     nunca mais sincronizava (todo UPDATE batia em zero linhas, porque não
+     existia linha com aquele id); e o da nuvem, com outro id, congelado no
+     estado do instante da importação e aparecendo como um SEGUNDO perfil na
+     lista de todos os aparelhos — com o nome de antes, porque renomear
+     depois só mexia no local. Era exatamente o sintoma de "importei um
+     backup, mudei o nome, e agora aparecem dois perfis, um com o nome
+     antigo".
+
+     Adotar significa: mover o namespace local inteiro para o id novo (copiar
+     primeiro, só apagar depois de conferir que a cópia bateu — nunca apagar
+     sem prova), trocar o id no índice, herdar rev e dono, e reapontar o
+     ponteiro de perfil ativo se for o caso. */
+  async adotarIdDaNuvem(idAntigo, row) {
     if (!row || !row.id) throw new Error('createRow não devolveu id');
     const idNovo = row.id;
+    if (idNovo === idAntigo) return idNovo;
     const prefixoAntigo = 'diario-estudos:u:' + idAntigo + ':';
     const prefixoNovo = 'diario-estudos:u:' + idNovo + ':';
-    // Move o namespace inteiro: copia para a chave nova primeiro, só remove a
-    // antiga depois de confirmar que a cópia bateu — nunca apaga sem provar
-    // que o destino já tem o mesmo valor.
     const mover = [];
     for (let i = 0; i < localStorage.length; i++) {
       const k = localStorage.key(i);
@@ -13162,31 +13284,33 @@ const ProfileManager = {
     }
     mover.forEach(k => {
       const valor = localStorage.getItem(k);
-      try { localStorage.setItem(prefixoNovo + k.slice(prefixoAntigo.length), valor); } catch (e) { _quiet(e, 'mig-copia'); }
+      try { localStorage.setItem(prefixoNovo + k.slice(prefixoAntigo.length), valor); } catch (e) { _quiet(e, 'adotar-copia'); }
     });
     mover.forEach(k => {
       const destino = prefixoNovo + k.slice(prefixoAntigo.length);
       if (localStorage.getItem(destino) === localStorage.getItem(k)) localStorage.removeItem(k);
     });
-    // troca o id no índice de perfis, preservando nome/avatar/cor atuais
     const lista = this.getProfiles();
     const entrada = lista.find(p => p.id === idAntigo);
     if (entrada) entrada.id = idNovo;
     this.saveProfiles(lista);
     this.setRev(idNovo, row.rev || 1);
-    try { this._setOwner(idNovo, CloudStore.session.user.id); } catch (e) { _quiet(e, 'mig-dono'); }
-    // se este era o perfil ATIVO, o ponteiro precisa apontar para o id novo —
-    // e só nesse caso vale a pena empurrar o conteúdo agora (SectionSync só
-    // enxerga o namespace do perfil ATIVO; migrar um perfil em segundo plano
-    // não deve trocar o que está aberto por baixo do usuário).
+    try {
+      const uid = (window.CloudStore && CloudStore.session && CloudStore.session.user) ? CloudStore.session.user.id : null;
+      if (uid) this._setOwner(idNovo, uid);
+    } catch (e) { _quiet(e, 'adotar-dono'); }
+    /* Só empurra o conteúdo agora se este for o perfil ABERTO: o SectionSync
+       enxerga apenas o namespace do perfil ativo, e trocar o perfil aberto por
+       baixo de quem está usando seria pior que esperar. Os demais sobem
+       naturalmente quando forem abertos. */
     const eraAtivo = (this.getActiveProfileId() === idAntigo);
-    if (eraAtivo) this.setActiveProfile(idNovo);
-    try { localStorage.setItem(this._migMarcaChave(idAntigo), idNovo); } catch (e) { _quiet(e, 'mig-marca'); }
     if (eraAtivo) {
-      try { if (window.SectionSync) { SectionSync._seededProfile = null; SectionSync.markAllDirty(); SectionSync.kick(); } } catch (e) { _quiet(e, 'mig-envio'); }
-      try { await CloudStore.saveActiveWithRetry(); } catch (e) { _quiet(e, 'mig-blob'); }
+      this.setActiveProfile(idNovo);
+      try { if (window.SectionSync) { SectionSync._seededProfile = null; SectionSync.markAllDirty(); SectionSync.kick(); } } catch (e) { _quiet(e, 'adotar-envio'); }
+      try { await CloudStore.saveActiveWithRetry(); } catch (e) { _quiet(e, 'adotar-blob'); }
     }
-    console.info('[perfis] perfil migrado: ' + idAntigo + ' → ' + idNovo + (eraAtivo ? ' (ativo — enviado agora)' : ' (sincroniza ao ser aberto)'));
+    console.info('[perfis] id adotado da nuvem: ' + idAntigo + ' → ' + idNovo + (eraAtivo ? ' (ativo — enviado agora)' : ' (sobe ao ser aberto)'));
+    return idNovo;
   },
 
   /* ── ESPELHO DA NUVEM — COM UMA TRAVA ─────────────────────────────────────
@@ -24314,7 +24438,7 @@ const CardsScreen = {
       let parsed = null;
       if (/\.json$/i.test(file.name)) {
         try {
-          const obj = JSON.parse(text);
+          const obj = jsonSeguro(text);   // mesmo motivo do import de perfil
           if (obj && obj.kind === 'cards-backup' && Array.isArray(obj.cards)) parsed = { kind: 'json', cards: obj.cards, decks: obj.decks || [] };
           else { prev.textContent = '⚠ JSON não é um backup de cards válido.'; prev.style.color = 'var(--warn)'; return; }
         } catch (err) { prev.textContent = '⚠ JSON inválido.'; prev.style.color = 'var(--bad)'; return; }
@@ -25396,6 +25520,75 @@ const AutoTeste = {
      que a chave caia numa seção reconhecida. Se alguém amanhã guardar uma
      preferência nova numa chave global, isto falha aqui — antes de virar dado
      perdido de alguém. */
+  /* ── UM LINK NUNCA VIRA CÓDIGO ────────────────────────────────────────────
+     `escapeHtml` protege o conteúdo de um atributo, mas não diz nada sobre o
+     ESQUEMA da URL: `javascript:...` num `href` executa script na origem do
+     app, com acesso ao armazenamento inteiro e ao token da sessão. A tela de
+     cadastro barrava por acidente (prefixa "https://" no que não começa com
+     http), mas a IMPORTAÇÃO de backup passava — e o app avisa que um backup
+     pode vir de um colega ou de um download. A trava mora na camada de dados,
+     para valer em todo caminho de entrada, inclusive nos que ainda não
+     existem. */
+  linkNuncaViraCodigo() {
+    const perigosas = [
+      'javascript:alert(1)', 'JavaScript:alert(1)', '  javascript:alert(1)',
+      'data:text/html,<script>alert(1)<\/script>', 'vbscript:msgbox(1)'
+    ];
+    perigosas.forEach(u => {
+      this._ok('URL perigosa é recusada: ' + u.slice(0, 28), DB.urlSegura(u) === '', DB.urlSegura(u));
+    });
+    this._ok('http continua passando', DB.urlSegura('http://x.com/a?b=1') === 'http://x.com/a?b=1');
+    this._ok('https continua passando', DB.urlSegura('https://x.com') === 'https://x.com');
+    this._ok('endereço sem esquema ganha https', DB.urlSegura('tecconcursos.com.br') === 'https://tecconcursos.com.br');
+    this._ok('vazio continua vazio', DB.urlSegura('') === '' && DB.urlSegura(null) === '');
+    // e o saneamento retroativo: link perigoso já guardado é neutralizado na leitura
+    const lista = [{ id: 'x', nome: 'mau', url: 'javascript:alert(1)' }, { id: 'y', nome: 'bom', url: 'https://ok.com' }];
+    const mudou = DB._sanearLinks(lista);
+    this._ok('link perigoso já guardado é neutralizado', mudou === true && lista[0].url === '', lista[0].url);
+    this._ok('link bom não é alterado pelo saneamento', lista[1].url === 'https://ok.com');
+  },
+
+  /* Todo caminho que cria linha na nuvem tem de ADOTAR o id devolvido: a
+     coluna é `uuid` com default no banco, então quem manda no id é o banco.
+     A importação descartava esse retorno e partia o perfil em dois — o local
+     mudo (sem linha, nenhum UPDATE encontrava nada) e o da nuvem congelado,
+     aparecendo como um segundo perfil com o nome de antes. */
+  adotaOIdDoBanco() {
+    const PID_ANTIGO = '__t_id_antigo__', PID_NOVO = '11111111-2222-3333-4444-555555555555';
+    const ativoOriginal = localStorage.getItem(DB.ACTIVE_PROFILE_KEY);
+    const listaOriginal = localStorage.getItem(DB.PROFILES_KEY);
+    const criadas = [];
+    try {
+      const pfxA = 'diario-estudos:u:' + PID_ANTIGO + ':';
+      const pfxN = 'diario-estudos:u:' + PID_NOVO + ':';
+      criadas.push(pfxA + 'p:pl:entries', pfxN + 'p:pl:entries');
+      localStorage.setItem(pfxA + 'p:pl:entries', '[{"id":"e1"}]');
+      localStorage.setItem(DB.PROFILES_KEY, JSON.stringify([{ id: PID_ANTIGO, nome: 'Importado', avatar: '📘', cor: '#333' }]));
+      localStorage.setItem(DB.ACTIVE_PROFILE_KEY, PID_ANTIGO);
+
+      // adota sem tocar na rede (row simula o retorno de createRow)
+      const p = ProfileManager.adotarIdDaNuvem(PID_ANTIGO, { id: PID_NOVO, rev: 1 });
+      this._ok('adotarIdDaNuvem devolve uma promessa', !!(p && typeof p.then === 'function'));
+
+      this._ok('o dado foi movido para o namespace do id novo',
+        localStorage.getItem(pfxN + 'p:pl:entries') === '[{"id":"e1"}]');
+      this._ok('o namespace antigo não ficou duplicado',
+        localStorage.getItem(pfxA + 'p:pl:entries') === null);
+      this._ok('o índice de perfis passou a apontar para o id novo',
+        ProfileManager.getProfiles().some(x => x.id === PID_NOVO), ProfileManager.getProfiles().map(x => x.id));
+      this._ok('o perfil ativo acompanhou a troca',
+        ProfileManager.getActiveProfileId() === PID_NOVO, ProfileManager.getActiveProfileId());
+      this._ok('a revisão da nuvem foi herdada', ProfileManager.getRev(PID_NOVO) === 1);
+    } finally {
+      criadas.forEach(k => { try { localStorage.removeItem(k); } catch (e) { _quiet(e, 'limpeza-adota'); } });
+      [PID_ANTIGO, PID_NOVO].forEach(id => {
+        try { localStorage.removeItem(ProfileManager._ownerKey(id)); localStorage.removeItem('diario-estudos:rev:' + id); } catch (e) { _quiet(e, 'limpeza-adota2'); }
+      });
+      if (ativoOriginal === null) localStorage.removeItem(DB.ACTIVE_PROFILE_KEY); else localStorage.setItem(DB.ACTIVE_PROFILE_KEY, ativoOriginal);
+      if (listaOriginal === null) localStorage.removeItem(DB.PROFILES_KEY); else localStorage.setItem(DB.PROFILES_KEY, listaOriginal);
+    }
+  },
+
   tudoEntraNaSincronizacao() {
     const PID = '__t_cobertura_sync__';
     const ativoOriginal = localStorage.getItem(DB.ACTIVE_PROFILE_KEY);
@@ -25532,6 +25725,8 @@ const AutoTeste = {
      ['Nada se perde', 'nadaSePerde'],
      ['Travas contra perda', 'travasDePerda'],
      ['Tudo entra na sincronização', 'tudoEntraNaSincronizacao'],
+     ['Link nunca vira código', 'linkNuncaViraCodigo'],
+     ['Adota o id do banco', 'adotaOIdDoBanco'],
      ['Isolamento entre contas', 'isolamentoEntreContas'],
      ['Ids de perfil válidos para a nuvem', 'idsDePerfilSaoValidos'],
      ['Esvaziar deixa rastro', 'esvaziarDeixaRastro']].forEach(([nome, fn]) => {
@@ -27666,7 +27861,16 @@ const ConfigScreen = {
     this.bindSimpleRows(container, {
       rename: (id, val) => DB.renameMethod(id, val),
       toggleGet: (id) => DB.getMethods().find(x => x.id === id),
-      toggleSet: (id, ativo) => { const l = DB.getMethods(); l.find(x=>x.id===id).ativo = ativo; DB._set(DB.KEYS.methods, l); },
+      /* O item pode ter deixado de existir entre desenhar a tela e clicar —
+         a sincronização por seção substitui listas com a tela aberta. Sem esta
+         guarda, `find(...)` devolvia undefined, a atribuição lançava, e o
+         `_set` seguinte NEM CHEGAVA A RODAR: a tela parecia inerte e a
+         alteração se perdia sem aviso. */
+      toggleSet: (id, ativo) => {
+        const l = DB.getMethods(); const it = l.find(x => x.id === id);
+        if (!it) { showToast('Este item não existe mais — atualizando a lista.'); ConfigScreen.render(); return; }
+        it.ativo = ativo; DB._set(DB.KEYS.methods, l);
+      },
       remove: (id) => DB.removeMethodSafely(id),
       inUse: (nome) => DB.methodInUse(nome),
       rerender: () => this.renderMethods(),
@@ -27697,7 +27901,16 @@ const ConfigScreen = {
     this.bindSimpleRows(container, {
       rename: (id, val) => DB.renamePhase(id, val),
       toggleGet: (id) => DB.getPhases().find(x => x.id === id),
-      toggleSet: (id, ativo) => { const l = DB.getPhases(); l.find(x=>x.id===id).ativo = ativo; DB._set(DB.KEYS.phases, l); },
+      /* O item pode ter deixado de existir entre desenhar a tela e clicar —
+         a sincronização por seção substitui listas com a tela aberta. Sem esta
+         guarda, `find(...)` devolvia undefined, a atribuição lançava, e o
+         `_set` seguinte NEM CHEGAVA A RODAR: a tela parecia inerte e a
+         alteração se perdia sem aviso. */
+      toggleSet: (id, ativo) => {
+        const l = DB.getPhases(); const it = l.find(x => x.id === id);
+        if (!it) { showToast('Este item não existe mais — atualizando a lista.'); ConfigScreen.render(); return; }
+        it.ativo = ativo; DB._set(DB.KEYS.phases, l);
+      },
       remove: (id) => DB.removePhaseSafely(id),
       inUse: (nome) => DB.phaseInUse(nome),
       rerender: () => this.renderPhases(),
@@ -27727,7 +27940,16 @@ const ConfigScreen = {
     this.bindSimpleRows(container, {
       rename: (id, val) => DB.renameMode(id, val),
       toggleGet: (id) => DB.getModes().find(x => x.id === id),
-      toggleSet: (id, ativo) => { const l = DB.getModes(); l.find(x=>x.id===id).ativo = ativo; DB._set(DB.KEYS.modes, l); },
+      /* O item pode ter deixado de existir entre desenhar a tela e clicar —
+         a sincronização por seção substitui listas com a tela aberta. Sem esta
+         guarda, `find(...)` devolvia undefined, a atribuição lançava, e o
+         `_set` seguinte NEM CHEGAVA A RODAR: a tela parecia inerte e a
+         alteração se perdia sem aviso. */
+      toggleSet: (id, ativo) => {
+        const l = DB.getModes(); const it = l.find(x => x.id === id);
+        if (!it) { showToast('Este item não existe mais — atualizando a lista.'); ConfigScreen.render(); return; }
+        it.ativo = ativo; DB._set(DB.KEYS.modes, l);
+      },
       remove: (id) => DB.removeModeSafely(id),
       inUse: (nome) => { const m = DB.getModes().find(x => x.nome === nome); return m ? DB.modeInUse(m) : false; },
       rerender: () => this.renderModes(),
@@ -33165,7 +33387,12 @@ window.CloudUI = CloudUI;
     const reader = new FileReader();
     reader.onload = async () => {
       let obj;
-      try { obj = JSON.parse(reader.result); }
+      /* jsonSeguro em vez de JSON.parse: existe exatamente para isto — remove
+         `__proto__`, `constructor` e `prototype` de QUALQUER json vindo de
+         fora antes de ele encostar no estado do app. O arquivo aqui é
+         escolhido pelo usuário, e o próprio fluxo avisa que um backup pode vir
+         de um colega ou de um download. */
+      try { obj = jsonSeguro(reader.result); }
       catch (_) { showToast('⚠ Arquivo inválido: não é um JSON válido.'); return; }
       if (!ProfileManager.validateBackup(obj)) {
         showToast('⚠ Este arquivo não é um backup do Diário de Estudos.'); return;
@@ -33194,8 +33421,15 @@ window.CloudUI = CloudUI;
         if (window.CloudStore && CloudStore.isLoggedIn()) {
           try {
             const meta = ProfileManager.getProfiles().find(p => p.id === novoId) || {};
-            await CloudStore.createRow({ name: meta.nome, avatar: meta.avatar, color: meta.cor,
+            const row = await CloudStore.createRow({ name: meta.nome, avatar: meta.avatar, color: meta.cor,
               payload: ProfileManager.exportProfile(novoId) });
+            /* O id de `createRow` vem do BANCO (a coluna é uuid com default) e
+               PRECISA ser adotado. Descartá-lo — o que este trecho fazia —
+               deixava o perfil partido em dois: o local, com o id antigo, que
+               nunca mais sincronizava; e o da nuvem, com outro id, congelado no
+               instante da importação e aparecendo como um SEGUNDO perfil, com o
+               nome de antes, na lista de todos os aparelhos. */
+            await ProfileManager.adotarIdDaNuvem(novoId, row);
           } catch (err) {
             showToast('Importado neste aparelho. Não subiu para a nuvem: ' + (err.message || ''));
           }

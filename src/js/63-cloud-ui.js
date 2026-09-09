@@ -304,7 +304,12 @@ window.CloudUI = CloudUI;
     const reader = new FileReader();
     reader.onload = async () => {
       let obj;
-      try { obj = JSON.parse(reader.result); }
+      /* jsonSeguro em vez de JSON.parse: existe exatamente para isto — remove
+         `__proto__`, `constructor` e `prototype` de QUALQUER json vindo de
+         fora antes de ele encostar no estado do app. O arquivo aqui é
+         escolhido pelo usuário, e o próprio fluxo avisa que um backup pode vir
+         de um colega ou de um download. */
+      try { obj = jsonSeguro(reader.result); }
       catch (_) { showToast('⚠ Arquivo inválido: não é um JSON válido.'); return; }
       if (!ProfileManager.validateBackup(obj)) {
         showToast('⚠ Este arquivo não é um backup do Diário de Estudos.'); return;
@@ -333,8 +338,15 @@ window.CloudUI = CloudUI;
         if (window.CloudStore && CloudStore.isLoggedIn()) {
           try {
             const meta = ProfileManager.getProfiles().find(p => p.id === novoId) || {};
-            await CloudStore.createRow({ name: meta.nome, avatar: meta.avatar, color: meta.cor,
+            const row = await CloudStore.createRow({ name: meta.nome, avatar: meta.avatar, color: meta.cor,
               payload: ProfileManager.exportProfile(novoId) });
+            /* O id de `createRow` vem do BANCO (a coluna é uuid com default) e
+               PRECISA ser adotado. Descartá-lo — o que este trecho fazia —
+               deixava o perfil partido em dois: o local, com o id antigo, que
+               nunca mais sincronizava; e o da nuvem, com outro id, congelado no
+               instante da importação e aparecendo como um SEGUNDO perfil, com o
+               nome de antes, na lista de todos os aparelhos. */
+            await ProfileManager.adotarIdDaNuvem(novoId, row);
           } catch (err) {
             showToast('Importado neste aparelho. Não subiu para a nuvem: ' + (err.message || ''));
           }

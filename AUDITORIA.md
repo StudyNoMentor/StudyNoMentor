@@ -1094,3 +1094,98 @@ Verificado por captura em 420px de largura (celular), nos dois casos: cópia
 feita neste aparelho e cópia vinda de outro. `verificar.mjs` completo,
 AutoTeste 285/285, 675 ids íntegros, zero erro de console, WCAG AA nos dois
 temas.
+
+---
+
+## 19. Auditoria arquivo por arquivo — o perfil que nascia partido em dois
+
+Varredura sistemática por classes de defeito sobre os arquivos que sustentam
+dados, sincronização e segurança, com verificação em cada achado.
+
+### O achado grave: a importação partia o perfil em dois
+
+`CloudStore.createRow` **não aceita um id** — a coluna é `uuid primary key
+default gen_random_uuid()`, então quem decide o id é o banco, e ele o devolve
+em `{ id, rev }`. A importação de backup chamava `createRow` e **descartava o
+retorno**:
+
+```js
+const novoId = ProfileManager.importProfile(obj, nomeFinal);   // id X, local
+await CloudStore.createRow({ ..., payload: exportProfile(novoId) });  // id Y, nuvem
+```
+
+O resultado era um perfil partido em dois. O local, com o id X, ficava **mudo
+para sempre**: `saveActive` e `updateMeta` só sabem fazer UPDATE, e um UPDATE
+sem linha correspondente atinge zero linhas — sem erro, sem aviso, com a tela
+dizendo "sincronizado". O da nuvem, com o id Y, ficava congelado no instante da
+importação e aparecia como um **segundo perfil** na lista de todos os
+aparelhos, com o nome de antes — porque renomear depois só mexia no local.
+
+É exatamente o sintoma relatado em uso real: *"importei um json de backup e
+mudei o nome, e agora aparecem 2 ou 3 perfis, uns com nomes antigos; quando vou
+entrar aparece o nome atualizado"*. O diagnóstico anterior (ids fora do formato
+UUID, item 17) era um bug real, mas não era **este**.
+
+**Correção em duas camadas.** `ProfileManager.adotarIdDaNuvem(idAntigo, row)`
+— extraída da migração de ids, que já fazia isso certo — move o namespace
+local inteiro para o id do banco (copia, confere, só então apaga), troca o id
+no índice, herda rev e dono e reaponta o perfil ativo. A importação passa a
+usá-la. E `repararSemLinhaNaNuvem()`, no login, conserta quem **já está**
+quebrado: perfil com dados aqui e sem linha lá ganha a linha e adota o id.
+
+O reparo cria linha na nuvem, então tem trava própria: só roda com a lista da
+nuvem obtida **com sucesso** (falha de rede não pode virar linha duplicada),
+só para perfis com dado real, e só reivindica um perfil sem dono marcado se
+este aparelho **nunca viu outra conta** — senão um perfil antigo seria
+reivindicado por quem estiver logado agora.
+
+### Um link podia virar código
+
+`escapeHtml` protege o conteúdo de um atributo e não diz nada sobre o **esquema
+da URL**: `javascript:...` num `href` executa script na origem do app, com
+acesso ao armazenamento inteiro e ao token da sessão. A tela de cadastro
+barrava por acidente (prefixa `https://` no que não começa com http), mas a
+**importação de backup** passava — e o próprio app avisa que um backup pode vir
+"de um colega, de um grupo de estudos, de um download". Cards importados já
+eram saneados por isso; links não.
+
+A trava (`DB.urlSegura`) ficou na camada de dados, valendo para todo caminho de
+entrada — inclusive os que ainda não existem —, e `getLinks` neutraliza o que
+já estiver guardado de antes.
+
+### `jsonSeguro` existia e não era usado
+
+A função que remove `__proto__`, `constructor` e `prototype` de JSON externo
+estava escrita, comentada e exercitada só pelo autoteste: os dois pontos reais
+de entrada de arquivo (backup de perfil e backup de cards) usavam
+`JSON.parse` puro. Agora usam `jsonSeguro`.
+
+### Três gravações que a sincronização podia derrubar
+
+Em `49-tela-config.js`, ativar/desativar forma de estudo, fase ou modo fazia
+`l.find(x => x.id === id).ativo = ativo`. Se o item tivesse deixado de existir
+entre desenhar a tela e clicar — e a leitura por seção **substitui listas com
+a tela aberta** —, `find` devolvia `undefined`, a atribuição lançava, e o
+`DB._set` da linha seguinte **nem chegava a rodar**: a tela parecia inerte e a
+alteração se perdia sem aviso. Guardadas as três, com aviso e redesenho.
+
+### O que a varredura mostrou saudável
+
+- **XSS**: o app escapa na ATRIBUIÇÃO da variável (`const obs = escapeHtml(...)`),
+  não na interpolação — o que faz uma busca ingênua acusar centenas de falsos
+  positivos. Conferidos os candidatos de texto digitado: todos escapados, e
+  `UI.confirm`/`confirmTyped` escapam a mensagem inteira.
+- **`JSON.parse` sem proteção**: um único caso em todo o código, e é a própria
+  `jsonSeguro`, que lança de propósito para quem chama tratar.
+- **Escritas fora do canal de sincronização**: todas as encontradas são
+  contabilidade da própria sincronização, preferências de aparelho ou
+  aplicação de dado vindo da nuvem — nenhuma é dado do usuário.
+
+Cobertura: **AutoTeste 285 → 302**, com os grupos "Link nunca vira código"
+(esquemas perigosos recusados, http/https preservados, saneamento retroativo) e
+"Adota o id do banco" (o namespace é movido, o índice aponta para o id novo, o
+perfil ativo acompanha, a revisão é herdada, e nada fica duplicado).
+
+Nota de processo: a primeira versão do teste de URL continha um `</script>`
+literal, que encerrava o bloco de código no HTML montado. A checagem 4 do
+`verificar.mjs` pegou na hora — é para isso que ela existe.

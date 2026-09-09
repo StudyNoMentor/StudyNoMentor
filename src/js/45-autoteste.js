@@ -783,6 +783,75 @@ const AutoTeste = {
      que a chave caia numa seção reconhecida. Se alguém amanhã guardar uma
      preferência nova numa chave global, isto falha aqui — antes de virar dado
      perdido de alguém. */
+  /* ── UM LINK NUNCA VIRA CÓDIGO ────────────────────────────────────────────
+     `escapeHtml` protege o conteúdo de um atributo, mas não diz nada sobre o
+     ESQUEMA da URL: `javascript:...` num `href` executa script na origem do
+     app, com acesso ao armazenamento inteiro e ao token da sessão. A tela de
+     cadastro barrava por acidente (prefixa "https://" no que não começa com
+     http), mas a IMPORTAÇÃO de backup passava — e o app avisa que um backup
+     pode vir de um colega ou de um download. A trava mora na camada de dados,
+     para valer em todo caminho de entrada, inclusive nos que ainda não
+     existem. */
+  linkNuncaViraCodigo() {
+    const perigosas = [
+      'javascript:alert(1)', 'JavaScript:alert(1)', '  javascript:alert(1)',
+      'data:text/html,<script>alert(1)<\/script>', 'vbscript:msgbox(1)'
+    ];
+    perigosas.forEach(u => {
+      this._ok('URL perigosa é recusada: ' + u.slice(0, 28), DB.urlSegura(u) === '', DB.urlSegura(u));
+    });
+    this._ok('http continua passando', DB.urlSegura('http://x.com/a?b=1') === 'http://x.com/a?b=1');
+    this._ok('https continua passando', DB.urlSegura('https://x.com') === 'https://x.com');
+    this._ok('endereço sem esquema ganha https', DB.urlSegura('tecconcursos.com.br') === 'https://tecconcursos.com.br');
+    this._ok('vazio continua vazio', DB.urlSegura('') === '' && DB.urlSegura(null) === '');
+    // e o saneamento retroativo: link perigoso já guardado é neutralizado na leitura
+    const lista = [{ id: 'x', nome: 'mau', url: 'javascript:alert(1)' }, { id: 'y', nome: 'bom', url: 'https://ok.com' }];
+    const mudou = DB._sanearLinks(lista);
+    this._ok('link perigoso já guardado é neutralizado', mudou === true && lista[0].url === '', lista[0].url);
+    this._ok('link bom não é alterado pelo saneamento', lista[1].url === 'https://ok.com');
+  },
+
+  /* Todo caminho que cria linha na nuvem tem de ADOTAR o id devolvido: a
+     coluna é `uuid` com default no banco, então quem manda no id é o banco.
+     A importação descartava esse retorno e partia o perfil em dois — o local
+     mudo (sem linha, nenhum UPDATE encontrava nada) e o da nuvem congelado,
+     aparecendo como um segundo perfil com o nome de antes. */
+  adotaOIdDoBanco() {
+    const PID_ANTIGO = '__t_id_antigo__', PID_NOVO = '11111111-2222-3333-4444-555555555555';
+    const ativoOriginal = localStorage.getItem(DB.ACTIVE_PROFILE_KEY);
+    const listaOriginal = localStorage.getItem(DB.PROFILES_KEY);
+    const criadas = [];
+    try {
+      const pfxA = 'diario-estudos:u:' + PID_ANTIGO + ':';
+      const pfxN = 'diario-estudos:u:' + PID_NOVO + ':';
+      criadas.push(pfxA + 'p:pl:entries', pfxN + 'p:pl:entries');
+      localStorage.setItem(pfxA + 'p:pl:entries', '[{"id":"e1"}]');
+      localStorage.setItem(DB.PROFILES_KEY, JSON.stringify([{ id: PID_ANTIGO, nome: 'Importado', avatar: '📘', cor: '#333' }]));
+      localStorage.setItem(DB.ACTIVE_PROFILE_KEY, PID_ANTIGO);
+
+      // adota sem tocar na rede (row simula o retorno de createRow)
+      const p = ProfileManager.adotarIdDaNuvem(PID_ANTIGO, { id: PID_NOVO, rev: 1 });
+      this._ok('adotarIdDaNuvem devolve uma promessa', !!(p && typeof p.then === 'function'));
+
+      this._ok('o dado foi movido para o namespace do id novo',
+        localStorage.getItem(pfxN + 'p:pl:entries') === '[{"id":"e1"}]');
+      this._ok('o namespace antigo não ficou duplicado',
+        localStorage.getItem(pfxA + 'p:pl:entries') === null);
+      this._ok('o índice de perfis passou a apontar para o id novo',
+        ProfileManager.getProfiles().some(x => x.id === PID_NOVO), ProfileManager.getProfiles().map(x => x.id));
+      this._ok('o perfil ativo acompanhou a troca',
+        ProfileManager.getActiveProfileId() === PID_NOVO, ProfileManager.getActiveProfileId());
+      this._ok('a revisão da nuvem foi herdada', ProfileManager.getRev(PID_NOVO) === 1);
+    } finally {
+      criadas.forEach(k => { try { localStorage.removeItem(k); } catch (e) { _quiet(e, 'limpeza-adota'); } });
+      [PID_ANTIGO, PID_NOVO].forEach(id => {
+        try { localStorage.removeItem(ProfileManager._ownerKey(id)); localStorage.removeItem('diario-estudos:rev:' + id); } catch (e) { _quiet(e, 'limpeza-adota2'); }
+      });
+      if (ativoOriginal === null) localStorage.removeItem(DB.ACTIVE_PROFILE_KEY); else localStorage.setItem(DB.ACTIVE_PROFILE_KEY, ativoOriginal);
+      if (listaOriginal === null) localStorage.removeItem(DB.PROFILES_KEY); else localStorage.setItem(DB.PROFILES_KEY, listaOriginal);
+    }
+  },
+
   tudoEntraNaSincronizacao() {
     const PID = '__t_cobertura_sync__';
     const ativoOriginal = localStorage.getItem(DB.ACTIVE_PROFILE_KEY);
@@ -919,6 +988,8 @@ const AutoTeste = {
      ['Nada se perde', 'nadaSePerde'],
      ['Travas contra perda', 'travasDePerda'],
      ['Tudo entra na sincronização', 'tudoEntraNaSincronizacao'],
+     ['Link nunca vira código', 'linkNuncaViraCodigo'],
+     ['Adota o id do banco', 'adotaOIdDoBanco'],
      ['Isolamento entre contas', 'isolamentoEntreContas'],
      ['Ids de perfil válidos para a nuvem', 'idsDePerfilSaoValidos'],
      ['Esvaziar deixa rastro', 'esvaziarDeixaRastro']].forEach(([nome, fn]) => {
