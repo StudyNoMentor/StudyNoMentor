@@ -222,6 +222,35 @@ const DB = {
        · caída no localStorage nativo (modo privado antigo, navegador sem
          suporte) → ~5 MB, e aí o aperto chega rápido.
      Sem essa distinção, o aviso dispararia com 4 MB mesmo havendo 500 MB livres. */
+  /* ── O DISCO RECUSOU A GRAVAÇÃO ───────────────────────────────────────────
+     A fachada de IndexedDB volta na hora (grava em memória e envia ao disco
+     depois). O `catch` de cota logo acima, portanto, NUNCA dispara no caminho
+     normal: o `setItem` não lança, porque quem lança é a transação, minutos ou
+     milissegundos depois, em outro contexto.
+
+     Esta é a ponta que faltava. A fachada retenta sozinha; quando desiste, chama
+     esta função — e aqui a informação finalmente chega a quem pode agir. O aviso
+     é direto sobre o que está em jogo: o que está na tela ainda NÃO está gravado
+     neste aparelho, e a saída é subir para a nuvem ou exportar um backup.
+
+     A alteração não está perdida: ela segue no cache em memória, na fila do
+     disco (que não é descartada) e na fila de envio para a nuvem — o envio é o
+     que de fato a coloca a salvo, e por isso é o que forçamos aqui. */
+  _falhaDiscoAvisada: false,
+  aoFalharGravacaoLocal(pendentes) {
+    console.error('[armazenamento] o navegador recusou ' + pendentes + ' gravação(ões) no disco');
+    // a nuvem passa a ser a cópia que importa: força a subida imediata
+    try { if (window.CloudStore && CloudStore.isReady() && CloudStore.isLoggedIn()) CloudStore.flushPending(); }
+    catch (e) { _quiet(e, 'falha-disco-envio'); }
+    if (this._falhaDiscoAvisada) return;
+    this._falhaDiscoAvisada = true;
+    setTimeout(() => { this._falhaDiscoAvisada = false; }, 60000);
+    const msg = '🛑 O navegador recusou gravar neste aparelho (armazenamento cheio ou bloqueado). '
+      + 'O que está na tela ainda não está salvo AQUI — mantenha a conexão para que suba para a nuvem '
+      + 'e exporte um backup em Configurações.';
+    try { showToast(msg); }
+    catch (_) { try { UI.alert(msg, { title: 'Não foi possível gravar neste aparelho' }); } catch (__) { _quiet(__); } }
+  },
   LIMITE_NATIVO_MB: 5,
   _quotaAvisoKey() { return 'diario-estudos:quota-aviso'; },
   async checarEspaco() {
@@ -1745,4 +1774,11 @@ const DB = {
     return this.getTecSnapshots().find(s =>
       s.id !== ignoreId && start <= s.endDate && end >= s.startDate) || null;
   }
+};
+
+/* Ponte com a fachada de armazenamento: ela roda antes do código do app, num
+   escopo próprio, e por isso não enxerga `DB`. Sem esta linha, a desistência da
+   gravação continuaria acontecendo em silêncio. */
+window.__idbFalhouAoGravar = function (pendentes) {
+  try { DB.aoFalharGravacaoLocal(pendentes); } catch (e) { _quiet(e, 'ponte-disco'); }
 };

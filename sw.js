@@ -27,7 +27,7 @@
    no IndexedDB, que já é local e independente disto.
    ═══════════════════════════════════════════════════════════════════════════ */
 
-const VERSAO = 'v4c8eaf9a41';
+const VERSAO = 'vf63e33f965';
 const CACHE_APP = VERSAO + '-app';
 const CACHE_CDN = VERSAO + '-cdn';
 const TIMEOUT_REDE = 3000;

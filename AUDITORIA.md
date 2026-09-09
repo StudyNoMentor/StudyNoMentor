@@ -1440,3 +1440,71 @@ prova as correções do jeito que importa: fazendo a operação **falhar** e
 conferindo que a marca ficou livre, que o envio preso é destravado, que toda
 requisição nasce com sinal de cancelamento, e que é a criação do cliente que
 entrega o `fetch` com teto à biblioteca.
+
+---
+
+## 22. A gravação que o disco recusava — e ninguém ficava sabendo
+
+Este é o achado mais sério de todas as rodadas, e estava escondido justamente
+onde a auditoria tinha menos motivo para olhar: na peça que faz o app inteiro
+funcionar sem ter sido reescrito.
+
+### O que a fachada faz — e o que ela não fazia
+
+O app foi escrito sobre a API **síncrona** do `localStorage`. Para ganhar a cota
+do IndexedDB (centenas de MB em vez de ~5 MB), há uma fachada que imita aquela
+API: `setItem` grava num cache em memória e **volta na hora**, enquanto a
+gravação real no IndexedDB acontece depois, em lote.
+
+O tratamento de cota em `DB._set` — o que mostra "armazenamento cheio, este dado
+NÃO foi salvo" — está num `try/catch` em volta do `setItem`. Só que **o
+`setItem` da fachada nunca lança**. Quem lança é a transação, depois, em outro
+contexto. Ou seja: no caminho normal do app, **aquele aviso jamais poderia
+disparar**. Ele protegia apenas o caso raro de o app ter caído no
+`localStorage` nativo.
+
+E o que acontecia quando a transação falhava — cota estourada, disco cheio,
+conexão fechada por um `versionchange`, ou a própria abertura da transação
+lançando?
+
+```js
+var ops = queue; queue = [];              // saem da fila ANTES de gravar
+...
+catch (e) { flushing = false; return; }   // ops descartadas
+tx.onerror = function () { flushing = false; avisarDisco(); };   // ops descartadas
+```
+
+O lote **sumia**. O cache em memória continuava com o valor. A tela continuava
+mostrando o valor. A pessoa continuava estudando. E o dado só deixava de existir
+**na abertura seguinte**, sem um único erro em nenhum ponto do caminho.
+
+É o modo de perda mais traiçoeiro que existe, porque nada parece errado até ser
+tarde demais — e é indistinguível, para quem usa, de "o site perdeu meus dados".
+
+### O que passou a acontecer
+
+1. **O lote volta para a fila.** Em toda falha — a abertura da transação, o
+   `onerror` e o `onabort` — as operações são devolvidas, e a ordem é
+   preservada: elas entram **na frente** das que chegaram depois, então uma
+   gravação mais nova para a mesma chave continua vencendo.
+2. **Retentativa com espera crescente** (400 ms, 2 s, 8 s). A maior parte das
+   falhas reais é transitória.
+3. **Esgotadas as tentativas, o app é avisado** — `window.__idbFalhouAoGravar`,
+   a ponte para `DB.aoFalharGravacaoLocal`. E aí a informação chega a quem pode
+   agir: um aviso direto sobre o que está em jogo ("o que está na tela ainda não
+   está salvo AQUI"), contido a um por minuto para não virar enxurrada.
+4. **A nuvem é acionada na hora.** Se o disco local recusou, a cópia que importa
+   passa a ser a da nuvem: toda recusa força um `flushPending()` — a cada
+   recusa, não só na primeira, porque é o envio que de fato põe o dado a salvo.
+5. **A fila NÃO é descartada** ao desistir. Qualquer gravação seguinte dispara
+   nova rodada, e se o disco voltar o que está lá ainda entra. Descartar seria
+   repetir de propósito a perda que este bloco existe para impedir.
+
+O aviso antecipado (`checarEspaco`, que avisa em 85% da cota) continua sendo a
+primeira linha de defesa — ele age **antes** do estouro. Esta correção é a
+segunda: para quando o estouro acontece assim mesmo.
+
+Cobertura: **AutoTeste 317 → 323**, com o grupo "O disco que recusa gravação":
+a ponte existe, a recusa avisa quem está usando, força a subida para a nuvem,
+avisos repetidos são contidos, a subida é tentada em toda recusa, e uma recusa
+sem nuvem disponível não derruba nada.

@@ -1140,6 +1140,50 @@ const AutoTeste = {
     }
   },
 
+  /* ── O DISCO PODE RECUSAR, E ISSO PRECISA APARECER ────────────────────────
+     A fachada de armazenamento devolve o controle na hora e grava no disco
+     depois. Uma recusa do navegador (cota, disco cheio, conexão fechada) chega,
+     portanto, DEPOIS — fora do `try` de quem gravou. Era por isso que o dado
+     seguia na tela e só sumia na abertura seguinte, sem erro nenhum.
+     Este grupo cuida da ponta que faltava: a fachada avisa, e o app age. */
+  oDiscoQueRecusa() {
+    this._ok('a fachada tem por onde avisar uma recusa de gravação',
+      typeof window.__idbFalhouAoGravar === 'function');
+    const toastOriginal = window.showToast;
+    const flushOriginal = CloudStore.flushPending;
+    const prontoOriginal = CloudStore.isReady, logadoOriginal = CloudStore.isLoggedIn;
+    const avisadoAntes = DB._falhaDiscoAvisada;
+    try {
+      let avisos = 0, envios = 0;
+      window.showToast = () => { avisos++; };
+      CloudStore.flushPending = () => { envios++; return Promise.resolve(); };
+      CloudStore.isReady = () => true; CloudStore.isLoggedIn = () => true;
+
+      DB._falhaDiscoAvisada = false;
+      window.__idbFalhouAoGravar(3);
+      this._ok('recusa do disco avisa quem está usando', avisos === 1, avisos);
+      this._ok('recusa do disco força a subida para a nuvem', envios === 1, envios);
+
+      // a mesma falha repetida não vira enxurrada de avisos
+      window.__idbFalhouAoGravar(3);
+      window.__idbFalhouAoGravar(3);
+      this._ok('avisos repetidos são contidos', avisos === 1, avisos);
+      this._ok('mas a subida para a nuvem é tentada em toda recusa', envios === 3, envios);
+
+      // sem nuvem disponível, nada lança
+      CloudStore.isLoggedIn = () => false;
+      DB._falhaDiscoAvisada = false;
+      let lancou = false;
+      try { window.__idbFalhouAoGravar(1); } catch (_) { lancou = true; }
+      this._ok('recusa sem nuvem não derruba nada', !lancou && avisos === 2, avisos);
+    } finally {
+      window.showToast = toastOriginal;
+      CloudStore.flushPending = flushOriginal;
+      CloudStore.isReady = prontoOriginal; CloudStore.isLoggedIn = logadoOriginal;
+      DB._falhaDiscoAvisada = avisadoAntes;
+    }
+  },
+
   rodar(imprimir) {
     this._r = { total: 0, passou: 0, falhou: 0, falhas: [], ms: 0 };
     const t0 = Date.now();
@@ -1159,7 +1203,8 @@ const AutoTeste = {
      ['Isolamento entre contas', 'isolamentoEntreContas'],
      ['Ids de perfil válidos para a nuvem', 'idsDePerfilSaoValidos'],
      ['Esvaziar deixa rastro', 'esvaziarDeixaRastro'],
-     ['Travas não ficam presas', 'travasNaoFicamPresas']].forEach(([nome, fn]) => {
+     ['Travas não ficam presas', 'travasNaoFicamPresas'],
+     ['O disco que recusa gravação', 'oDiscoQueRecusa']].forEach(([nome, fn]) => {
       try { this[fn](); }
       catch (e) { this._r.total++; this._r.falhou++; this._r.falhas.push({ nome: nome + ' — exceção', obtido: String(e && e.message || e) }); }
     });

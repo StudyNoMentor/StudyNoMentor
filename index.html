@@ -57,7 +57,7 @@
      novo, e o antigo é descartado sozinho na ativação) e o que permite ao app
      dizer qual versão está rodando. Em src/ fica "dev" de propósito: a versão
      é gerada na montagem, não editada à mão. -->
-<meta name="diario-versao" content="v4c8eaf9a41">
+<meta name="diario-versao" content="vf63e33f965">
 <script>
 /* ── ARRANQUE: abre o IndexedDB AGORA, em paralelo com o parse do documento ──
    A fachada de armazenamento vive no fim do <body>, depois de ~1,7 MB de HTML.
@@ -11254,6 +11254,35 @@ const DB = {
        · caída no localStorage nativo (modo privado antigo, navegador sem
          suporte) → ~5 MB, e aí o aperto chega rápido.
      Sem essa distinção, o aviso dispararia com 4 MB mesmo havendo 500 MB livres. */
+  /* ── O DISCO RECUSOU A GRAVAÇÃO ───────────────────────────────────────────
+     A fachada de IndexedDB volta na hora (grava em memória e envia ao disco
+     depois). O `catch` de cota logo acima, portanto, NUNCA dispara no caminho
+     normal: o `setItem` não lança, porque quem lança é a transação, minutos ou
+     milissegundos depois, em outro contexto.
+
+     Esta é a ponta que faltava. A fachada retenta sozinha; quando desiste, chama
+     esta função — e aqui a informação finalmente chega a quem pode agir. O aviso
+     é direto sobre o que está em jogo: o que está na tela ainda NÃO está gravado
+     neste aparelho, e a saída é subir para a nuvem ou exportar um backup.
+
+     A alteração não está perdida: ela segue no cache em memória, na fila do
+     disco (que não é descartada) e na fila de envio para a nuvem — o envio é o
+     que de fato a coloca a salvo, e por isso é o que forçamos aqui. */
+  _falhaDiscoAvisada: false,
+  aoFalharGravacaoLocal(pendentes) {
+    console.error('[armazenamento] o navegador recusou ' + pendentes + ' gravação(ões) no disco');
+    // a nuvem passa a ser a cópia que importa: força a subida imediata
+    try { if (window.CloudStore && CloudStore.isReady() && CloudStore.isLoggedIn()) CloudStore.flushPending(); }
+    catch (e) { _quiet(e, 'falha-disco-envio'); }
+    if (this._falhaDiscoAvisada) return;
+    this._falhaDiscoAvisada = true;
+    setTimeout(() => { this._falhaDiscoAvisada = false; }, 60000);
+    const msg = '🛑 O navegador recusou gravar neste aparelho (armazenamento cheio ou bloqueado). '
+      + 'O que está na tela ainda não está salvo AQUI — mantenha a conexão para que suba para a nuvem '
+      + 'e exporte um backup em Configurações.';
+    try { showToast(msg); }
+    catch (_) { try { UI.alert(msg, { title: 'Não foi possível gravar neste aparelho' }); } catch (__) { _quiet(__); } }
+  },
   LIMITE_NATIVO_MB: 5,
   _quotaAvisoKey() { return 'diario-estudos:quota-aviso'; },
   async checarEspaco() {
@@ -12777,6 +12806,13 @@ const DB = {
     return this.getTecSnapshots().find(s =>
       s.id !== ignoreId && start <= s.endDate && end >= s.startDate) || null;
   }
+};
+
+/* Ponte com a fachada de armazenamento: ela roda antes do código do app, num
+   escopo próprio, e por isso não enxerga `DB`. Sem esta linha, a desistência da
+   gravação continuaria acontecendo em silêncio. */
+window.__idbFalhouAoGravar = function (pendentes) {
+  try { DB.aoFalharGravacaoLocal(pendentes); } catch (e) { _quiet(e, 'ponte-disco'); }
 };
 
 /* ============================================================
@@ -25907,6 +25943,50 @@ const AutoTeste = {
     }
   },
 
+  /* ── O DISCO PODE RECUSAR, E ISSO PRECISA APARECER ────────────────────────
+     A fachada de armazenamento devolve o controle na hora e grava no disco
+     depois. Uma recusa do navegador (cota, disco cheio, conexão fechada) chega,
+     portanto, DEPOIS — fora do `try` de quem gravou. Era por isso que o dado
+     seguia na tela e só sumia na abertura seguinte, sem erro nenhum.
+     Este grupo cuida da ponta que faltava: a fachada avisa, e o app age. */
+  oDiscoQueRecusa() {
+    this._ok('a fachada tem por onde avisar uma recusa de gravação',
+      typeof window.__idbFalhouAoGravar === 'function');
+    const toastOriginal = window.showToast;
+    const flushOriginal = CloudStore.flushPending;
+    const prontoOriginal = CloudStore.isReady, logadoOriginal = CloudStore.isLoggedIn;
+    const avisadoAntes = DB._falhaDiscoAvisada;
+    try {
+      let avisos = 0, envios = 0;
+      window.showToast = () => { avisos++; };
+      CloudStore.flushPending = () => { envios++; return Promise.resolve(); };
+      CloudStore.isReady = () => true; CloudStore.isLoggedIn = () => true;
+
+      DB._falhaDiscoAvisada = false;
+      window.__idbFalhouAoGravar(3);
+      this._ok('recusa do disco avisa quem está usando', avisos === 1, avisos);
+      this._ok('recusa do disco força a subida para a nuvem', envios === 1, envios);
+
+      // a mesma falha repetida não vira enxurrada de avisos
+      window.__idbFalhouAoGravar(3);
+      window.__idbFalhouAoGravar(3);
+      this._ok('avisos repetidos são contidos', avisos === 1, avisos);
+      this._ok('mas a subida para a nuvem é tentada em toda recusa', envios === 3, envios);
+
+      // sem nuvem disponível, nada lança
+      CloudStore.isLoggedIn = () => false;
+      DB._falhaDiscoAvisada = false;
+      let lancou = false;
+      try { window.__idbFalhouAoGravar(1); } catch (_) { lancou = true; }
+      this._ok('recusa sem nuvem não derruba nada', !lancou && avisos === 2, avisos);
+    } finally {
+      window.showToast = toastOriginal;
+      CloudStore.flushPending = flushOriginal;
+      CloudStore.isReady = prontoOriginal; CloudStore.isLoggedIn = logadoOriginal;
+      DB._falhaDiscoAvisada = avisadoAntes;
+    }
+  },
+
   rodar(imprimir) {
     this._r = { total: 0, passou: 0, falhou: 0, falhas: [], ms: 0 };
     const t0 = Date.now();
@@ -25926,7 +26006,8 @@ const AutoTeste = {
      ['Isolamento entre contas', 'isolamentoEntreContas'],
      ['Ids de perfil válidos para a nuvem', 'idsDePerfilSaoValidos'],
      ['Esvaziar deixa rastro', 'esvaziarDeixaRastro'],
-     ['Travas não ficam presas', 'travasNaoFicamPresas']].forEach(([nome, fn]) => {
+     ['Travas não ficam presas', 'travasNaoFicamPresas'],
+     ['O disco que recusa gravação', 'oDiscoQueRecusa']].forEach(([nome, fn]) => {
       try { this[fn](); }
       catch (e) { this._r.total++; this._r.falhou++; this._r.falhas.push({ nome: nome + ' — exceção', obtido: String(e && e.message || e) }); }
     });
@@ -37695,13 +37776,49 @@ else CloudStore.init();
   } catch (e) {}
 
   function scheduleFlush() { if (!flushing) { flushing = true; Promise.resolve().then(flush); } }
+
+  /* ── QUANDO O DISCO RECUSA ────────────────────────────────────────────────
+     A gravação sai da fila ANTES de a transação terminar. Se ela falhava
+     (cota estourada, disco cheio, a conexão fechada por um `versionchange`), o
+     lote simplesmente sumia: o cache em memória continuava mostrando o valor, a
+     tela continuava mostrando o valor, e ele só deixava de existir na abertura
+     seguinte — sem um único erro no caminho. Este é o modo de perda mais
+     traiçoeiro que existe, porque nada parece errado até ser tarde.
+
+     Agora o lote VOLTA para a fila e é retentado com espera crescente. A ordem
+     é preservada: as operações que falharam entram na frente das que chegaram
+     depois, então uma gravação mais nova para a mesma chave continua vencendo.
+     Esgotadas as tentativas, o app é avisado — porque insistir em silêncio é o
+     que fazia o dado sumir sem ninguém saber. */
+  var falhasSeguidas = 0;
+  var ESPERA_RETENTAR = [400, 2000, 8000];
+  function devolverAFila(ops) {
+    if (ops && ops.length) queue = ops.concat(queue);
+    flushing = false;
+    var tentativa = falhasSeguidas++;
+    if (tentativa < ESPERA_RETENTAR.length) {
+      // ainda vamos tentar: quem espera o disco continua esperando (com o teto
+      // de 2 s do __idbFlush, que já impede a interface de ficar presa)
+      setTimeout(scheduleFlush, ESPERA_RETENTAR[tentativa]);
+      return;
+    }
+    /* Desistimos de retentar sozinhos, mas NÃO jogamos a fila fora: qualquer
+       gravação seguinte dispara uma nova rodada, e se o disco voltar o que está
+       aqui ainda entra. Descartar seria repetir, de propósito, exatamente a
+       perda que este bloco existe para impedir. */
+    falhasSeguidas = 0;
+    try { if (typeof window.__idbFalhouAoGravar === 'function') window.__idbFalhouAoGravar(queue.length); }
+    catch (e) { _quiet(e); }
+    avisarDisco();
+  }
+
   function flush() {
     if (!db) { flushing = false; avisarDisco(); return; }
     var ops = queue; queue = [];
     if (!ops.length) { flushing = false; avisarDisco(); return; }
     var tx, store;
     try { tx = db.transaction(IDB_STORE, 'readwrite'); store = tx.objectStore(IDB_STORE); }
-    catch (e) { flushing = false; return; }
+    catch (e) { _quiet(e); devolverAFila(ops); return; }
     for (var i = 0; i < ops.length; i++) {
       var op = ops[i];
       try {
@@ -37710,9 +37827,12 @@ else CloudStore.init();
         else if (op.t === 'clear') store.clear();
       } catch (e) { _quiet(e); }
     }
-    tx.oncomplete = function () { flushing = false; if (queue.length) scheduleFlush(); else avisarDisco(); };
-    tx.onerror = function () { flushing = false; avisarDisco(); };
-    tx.onabort = function () { flushing = false; avisarDisco(); };
+    tx.oncomplete = function () {
+      flushing = false; falhasSeguidas = 0;
+      if (queue.length) scheduleFlush(); else avisarDisco();
+    };
+    tx.onerror = function () { devolverAFila(ops); };
+    tx.onabort = function () { devolverAFila(ops); };
   }
   function enqueue(op) { queue.push(op); scheduleFlush(); }
 
