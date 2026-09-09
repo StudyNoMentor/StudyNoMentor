@@ -822,3 +822,94 @@ não-pura), mas a faxina, `avaliarEncolhimento` e o classificador `idValido`
 `createProfile` já nasce válido) são exercitados como funções puras. O bug de
 layout foi confirmado com uma captura de tela em 380px de largura reproduzindo
 o estado ANTES da correção (botão cortado) e comparando com o DEPOIS.
+
+---
+
+## 15. Auditoria da tela de Configurações — o backup diário que não era diário
+
+**Pedido:** auditar de novo a tela de Configurações (vasculhar, dados, nuvem),
+garantir o backup automático diário no banco que nunca se perde nem é
+sobrescrito, adotar as práticas de quem faz isso a sério, e deixar só o que é
+essencial — a tela tinha informação demais sobre o assunto.
+
+### O achado grave: "diário" era, na verdade, "por carregamento de página"
+
+O gatilho do backup diário tinha um `feito = true` que o desarmava **para
+sempre** depois da primeira execução:
+
+```js
+let feito = false;
+const tentar = () => { if (feito) return; …; feito = true; CloudBackup.garantirDoDia(); };
+setTimeout(tentar, 9000); setInterval(tentar, 60000);
+```
+
+O `setInterval` só servia para reencontrar as condições até a primeira
+execução; depois disso virava um no-op permanente. Num app que fica **aberto
+por dias** — PWA instalado no celular, aba fixa no computador, que é
+exatamente como um diário de estudos é usado — a virada da meia-noite passava
+sem ninguém olhar. Podiam-se passar semanas sem um único backup diário, com a
+tela dizendo "ativo" o tempo todo.
+
+**Correção:** a verificação passou a ser permanente (o custo é uma leitura de
+chave local, que desiste em microssegundos se a foto de hoje já existe) e
+acontece também em `focus` e `visibilitychange` — o instante em que um celular
+acorda depois da virada. Uma trava `_diaEmCurso` impede rajada.
+
+### Retenção: 14 dias de histórico não é histórico
+
+A regra era um teto simples: guardar as 14 fotos mais novas. Com uma foto por
+dia, o histórico inteiro tinha **14 dias** — e essa é a forma clássica de
+perder dados sem perceber. Um estrago notado três semanas depois (uma matéria
+apagada por engano, uma importação que sobrescreveu o ciclo) já não teria
+nenhuma foto boa: as 14 mais novas nasceram todas com o estrago dentro, e a
+única sobrevivente seria a âncora, do primeiro dia.
+
+**Correção — avô-pai-filho**, a política de Time Machine, restic, borg e
+Backblaze: densa perto do presente, esparsa e longa no passado. Âncora para
+sempre + as 5 mais recentes + uma por dia (14 dias) + uma por semana (8
+semanas) + uma por mês (12 meses). Um ano de cobertura em ~30 linhas. As três
+travas absolutas continuam por cima: âncora nunca sai, nada com menos de 24 h
+sai, nunca desce de `MIN_KEEP`.
+
+### O cartão de Recuperação estava fora das abas
+
+`ConfigUX.init()` move cada cartão para o seu grupo com `to()` — e nenhum
+`to()` movia `#cfg-recuperacao-card`. Medido no navegador: `dentroDoShell:
+false`, `grupo: "FORA DAS ABAS"`, `visivel: true`. A ferramenta mais
+importante para quem acha que perdeu algo ficava pendurada embaixo de todas as
+seções, aparecendo em qualquer aba.
+
+### Informação demais dizendo a mesma coisa
+
+O grupo "Dados e backup" tinha cinco cartões, e o de "Backup em arquivo" tinha
+cinco botões — três deles (`Salvar versão agora`, `Guardar cópia no banco`,
+`Recalcular espaço`) apenas disparavam por baixo o clique do botão que já
+existia no cabeçalho do cartão vizinho, na mesma tela. Repetir a mesma ação
+com nomes diferentes a poucos centímetros de distância não é redundância
+inofensiva: faz duvidar se são a mesma coisa, e é assim que alguém acha que
+fez backup quando não fez.
+
+**Correção:** os três atalhos duplicados saíram, e os cartões passaram a ser
+ordenados por **força da proteção** — no servidor (automática, sobrevive a
+perder o aparelho) → neste aparelho (automática) → em arquivo (manual, a única
+que não depende nem do aparelho nem da conta) → resgate → medidor de espaço.
+Quem chega com medo lê de cima para baixo e encontra a proteção mais forte
+primeiro.
+
+### Provar, não afirmar
+
+"Ativo" sozinho não prova nada. O instante da última cópia bem-sucedida passou
+a ser gravado em disco e exibido no diagnóstico (`última cópia 09/09 10:28`) —
+um backup automático que parou de rodar fica visível ali, em vez de ser
+descoberto no dia em que alguém precisa restaurar.
+
+### O que foi verificado
+
+`verificar.mjs` completo: 7 checagens, zero erro de console, 14 telas, WCAG AA
+nos dois temas. **AutoTeste 241 → 246**, com a retenção nova travada por
+testes que exercitam a propriedade central: um ano de fotos diárias é podado a
+≤ 40 linhas **mantendo cobertura acima de 30 e de 180 dias**, os últimos 14
+dias ficam dia a dia, a âncora sobrevive sendo a mais antiga de todas, uma
+rajada no mesmo dia não apaga nada, e uma linha com data ilegível é ignorada
+em vez de virar alvo silencioso. A posição de cada cartão da tela foi medida
+no navegador antes e depois.

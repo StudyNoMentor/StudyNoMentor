@@ -663,29 +663,68 @@ const AutoTeste = {
     this._ok('crescimento nunca é encolhimento', g.avaliarEncolhimento(1000, 50000).encolheu === false);
     this._ok('perfil minúsculo não dispara ruído', g.avaliarEncolhimento(500, 1).encolheu === false);
 
-    // ── 5. a faxina dos backups do banco ──────────────────────────────────
+    /* ── 5. RETENÇÃO EM FAIXAS (avô-pai-filho) ────────────────────────────
+       A regra antiga era um teto simples ("guarde as 14 mais novas"), e com
+       uma foto por dia isso dava um histórico de 14 DIAS. Um estrago notado
+       três semanas depois não tinha para onde voltar: as 14 mais novas já
+       nasceram com ele dentro. Estes testes travam a regra nova — densa perto
+       do presente, esparsa e LONGA no passado — e as três garantias que
+       valem por cima dela (âncora, 24 h, piso). */
     const CB = window.CloudBackup;
     const agora = Date.now(), DIA = 86400000;
-    const gerar = (n, opts) => Array.from({ length: n }, (_, i) => ({
-      id: 'b' + i, ancora: false, created_at: new Date(agora - (i + (opts && opts.desloca || 0)) * DIA).toISOString()
+    // uma foto por dia, indo para trás no tempo a partir de hoje
+    const porDia = (n) => Array.from({ length: n }, (_, i) => ({
+      id: 'd' + i, ancora: false, created_at: new Date(agora - i * DIA).toISOString()
     }));
+
     this._ok('poucas fotos: a faxina não apaga nada',
-      CB.selecionarParaFaxina(gerar(CB.MAX), agora).length === 0);
-    const muitas = gerar(CB.MAX + 6);
-    const cortadas = CB.selecionarParaFaxina(muitas, agora);
-    this._ok('excedente antigo é removido', cortadas.length === 6, cortadas.length);
-    this._ok('a faxina nunca desce do piso',
-      muitas.length - cortadas.length >= CB.MIN_KEEP, muitas.length - cortadas.length);
-    const comAncora = gerar(CB.MAX + 6);
-    comAncora[comAncora.length - 1].ancora = true;   // a mais antiga é a âncora
+      CB.selecionarParaFaxina(porDia(CB.MIN_KEEP), agora).length === 0);
+
+    // Um ano de fotos diárias: o que sobra tem de cobrir o ano inteiro.
+    const ano = porDia(365);
+    const cortadas = CB.selecionarParaFaxina(ano, agora);
+    const mantidos = ano.filter(r => !cortadas.some(c => c.id === r.id));
+    this._ok('um ano de fotos diárias é podado', cortadas.length > 0, cortadas.length);
+    this._ok('o que sobra cabe em poucas dezenas de linhas',
+      mantidos.length <= 40, mantidos.length);
+    const idadeDias = (r) => Math.round((agora - new Date(r.created_at).getTime()) / DIA);
+    // A PROPRIEDADE CENTRAL: o passado distante continua alcançável.
+    this._ok('sobra foto com mais de 30 dias',
+      mantidos.some(r => idadeDias(r) > 30), mantidos.map(idadeDias).slice(-5));
+    this._ok('sobra foto com mais de 180 dias',
+      mantidos.some(r => idadeDias(r) > 180), Math.max(...mantidos.map(idadeDias)));
+    // Densidade perto do presente: os últimos 14 dias ficam dia a dia.
+    const ultimos14 = mantidos.filter(r => idadeDias(r) <= 14).length;
+    this._ok('os últimos 14 dias são mantidos dia a dia', ultimos14 >= 14, ultimos14);
+
+    // A âncora nunca sai, nem sendo a mais antiga de todas.
+    const comAncora = porDia(365);
+    comAncora[comAncora.length - 1].ancora = true;
     const semAncora = CB.selecionarParaFaxina(comAncora, agora);
     this._ok('a âncora permanente nunca é apagada',
       !semAncora.some(r => r.ancora), semAncora.filter(r => r.ancora).length);
-    const recentes = Array.from({ length: CB.MAX + 6 }, (_, i) => ({
+
+    // Nada recém-criado sai, mesmo em rajada (muitas fotos no mesmo dia).
+    const rajada = Array.from({ length: 40 }, (_, i) => ({
       id: 'r' + i, ancora: false, created_at: new Date(agora - i * 60000).toISOString()
     }));
     this._ok('nada com menos de 24 h é apagado',
-      CB.selecionarParaFaxina(recentes, agora).length === 0);
+      CB.selecionarParaFaxina(rajada, agora).length === 0);
+
+    // Piso absoluto: nunca deixa a lista abaixo de MIN_KEEP.
+    const poucasAntigas = Array.from({ length: CB.MIN_KEEP + 1 }, (_, i) => ({
+      id: 'p' + i, ancora: false, created_at: new Date(agora - (400 + i) * DIA).toISOString()
+    }));
+    const cortePiso = CB.selecionarParaFaxina(poucasAntigas, agora);
+    this._ok('a faxina nunca desce do piso',
+      poucasAntigas.length - cortePiso.length >= CB.MIN_KEEP,
+      poucasAntigas.length - cortePiso.length);
+
+    // Linha com data ilegível não derruba a seleção nem vira alvo silencioso.
+    const comLixo = porDia(30).concat([{ id: 'x', ancora: false, created_at: 'sem-data' }]);
+    const corteLixo = CB.selecionarParaFaxina(comLixo, agora);
+    this._ok('linha com data inválida é ignorada, não apagada',
+      !corteLixo.some(r => r.id === 'x'));
   },
 
   /* Esvaziar uma seção deixa o mesmo rastro que apagá-la: é o caminho de perda

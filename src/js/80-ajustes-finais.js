@@ -677,7 +677,7 @@ else CloudStore.init();
     { id: 'estudo', ic: '📚', label: 'Estudo', title: 'Estrutura do seu estudo', desc: 'Matérias, fases, formas e modos. É daqui que saem as opções de todas as outras telas.' },
     { id: 'prefs', ic: '🎛️', label: 'Preferências', title: 'Aparência e comportamento', desc: 'Ajustes deste dispositivo. Não afetam seus dados nem são enviados para a nuvem.' },
     { id: 'conta', ic: '☁️', label: 'Conta e nuvem', title: 'Conta, sessão e sincronização', desc: 'Acesso em vários aparelhos, controle da sessão e envio manual quando você quiser.' },
-    { id: 'dados', ic: '💾', label: 'Dados e backup', title: 'Seus dados', desc: 'Espaço ocupado, versões guardadas neste aparelho e backups em arquivo.' },
+    { id: 'dados', ic: '💾', label: 'Dados e backup', title: 'Seus dados', desc: 'As cópias de segurança em ordem de força: no servidor, neste aparelho e em arquivo — mais a ferramenta de resgate.' },
     { id: 'diag', ic: '🩺', label: 'Diagnóstico', title: 'Diagnóstico e manutenção', desc: 'O estado real do app agora — útil quando algo parece fora do lugar.' }
   ];
   const ConfigUX = {
@@ -709,15 +709,26 @@ else CloudStore.init();
       to('#config-modes-list', 'estudo');
       to('#config-statuses-list', 'estudo');
       to('#cloud-auth-box', 'conta');
-      to('#cfg-storage-body', 'dados');
-      to('#cfg-vhist-body', 'dados');
-      to('#cfg-cloudbk-body', 'dados');
+      /* ── ORDEM DE "DADOS E BACKUP" = FORÇA DA PROTEÇÃO ────────────────────
+         Da mais forte (no servidor, automática, sobrevive a perder este
+         aparelho) para a mais frágil (arquivo que você mesmo guarda), depois
+         a ferramenta de resgate e por fim o medidor de espaço. Quem chega
+         aqui com medo de ter perdido algo lê de cima para baixo e encontra a
+         proteção mais forte primeiro.
+
+         O cartão de Recuperação NÃO era movido por nenhum to(): ficava fora
+         do sistema de abas, pendurado embaixo de todas as seções e visível
+         em qualquer uma delas. */
+      to('#cfg-cloudbk-body', 'dados');   // no servidor, automático
+      to('#cfg-vhist-body', 'dados');     // neste aparelho, automático
+      this.buildDados();                  // em arquivo, manual
+      to('#cfg-rec-body', 'dados');       // resgate, quando algo já deu errado
+      to('#cfg-storage-body', 'dados');   // medidor de espaço
       this.buildPrefs();
       // O cartão de exibição das Leis é marcação fixa (os mesmos controles do
       // ⚙️ Exibição da tela de Leis) e entra depois dos cartões montados aqui,
       // para não passar à frente do tema e do tamanho de fonte.
       to('#cfg-leis-card', 'prefs');
-      this.buildDados();
       this.buildDiag();
       this.show(pget('cfg-group', 'estudo'));
       window.addEventListener('screen:activated', (e) => {
@@ -790,14 +801,18 @@ else CloudStore.init();
       });
     },
     buildDados() {
+      /* Este cartão tinha cinco botões, e três deles ("Salvar versão agora",
+         "Guardar cópia no banco", "Recalcular espaço") apenas disparavam por
+         baixo o clique do botão que já existe no cabeçalho do cartão vizinho,
+         na MESMA tela. Repetir a mesma ação com nomes diferentes a poucos
+         centímetros de distância não é redundância inofensiva: faz duvidar se
+         são a mesma coisa, e é assim que alguém acha que fez backup quando não
+         fez. Ficam só as duas ações que existem SÓ aqui. */
       this.card('dados', '📦 Backup em arquivo',
-        'O histórico de versões acima protege dos sustos do dia a dia. Um arquivo <code>.json</code> guardado fora do navegador protege do resto.', `
+        'As duas proteções acima são automáticas. Esta é a única que sai do app e fica com você: um arquivo <code>.json</code> guardado onde você quiser — o único resgate que não depende nem deste aparelho nem da sua conta.', `
         <div class="cfg-action-grid">
           <button type="button" class="cfg-action" id="cfgd-export"><span class="ic">↓</span><span class="t">Exportar backup deste perfil</span><span class="d">Baixa um .json com tudo: registros, ciclos, cards, leis, trilhas e configurações.</span></button>
           <button type="button" class="cfg-action" id="cfgd-import"><span class="ic">↑</span><span class="t">Importar backup</span><span class="d">Cria sempre um perfil novo. Nenhum perfil existente é alterado ou sobrescrito.</span></button>
-          <button type="button" class="cfg-action" id="cfgd-snap"><span class="ic">🛟</span><span class="t">Salvar versão agora</span><span class="d">Congela o estado atual no histórico de versões deste aparelho.</span></button>
-          <button type="button" class="cfg-action" id="cfgd-cloudbk"><span class="ic">☁️</span><span class="t">Guardar cópia no banco</span><span class="d">Grava uma foto imutável do perfil no servidor — resgatável de qualquer aparelho, mesmo perdendo este.</span></button>
-          <button type="button" class="cfg-action" id="cfgd-recalc"><span class="ic">↻</span><span class="t">Recalcular espaço usado</span><span class="d">Refaz a medição de quanto cada módulo ocupa no navegador.</span></button>
         </div>`);
       $('#cfgd-export').addEventListener('click', () => {
         try {
@@ -811,9 +826,6 @@ else CloudStore.init();
         } catch (e) { toast('Não foi possível gerar o backup agora.'); }
       });
       $('#cfgd-import').addEventListener('click', () => { const b = $('#profile-import-btn'); if (b) b.click(); else toast('Abra a tela de perfis para importar um backup.'); });
-      $('#cfgd-snap').addEventListener('click', () => { const b = $('#cfg-vhist-save'); if (b) b.click(); });
-      $('#cfgd-cloudbk').addEventListener('click', () => { const b = $('#cfg-cloudbk-save'); if (b) b.click(); });
-      $('#cfgd-recalc').addEventListener('click', () => { const b = $('#cfg-storage-refresh'); if (b) b.click(); });
     },
     buildDiag() {
       this.card('diag', '🩺 Estado do app',
@@ -862,12 +874,17 @@ else CloudStore.init();
         { k: 'Registros de estudo', v: nEnt, t: '' },
         { k: 'Flashcards', v: nCards, t: '' },
         { k: 'Armazenamento', v: (window.indexedDB ? 'IndexedDB disponível' : 'só localStorage'), t: window.indexedDB ? 'ok' : 'warn' },
+        /* "Ativo" sozinho não prova nada — a data da última cópia prova. Um
+           backup automático que parou de rodar tem de ser visível AQUI, não
+           descoberto no dia em que alguém precisa restaurar. */
         { k: 'Backup no banco', v: (() => {
             if (!window.CloudBackup) return '—';
             if (!CloudBackup.enabled) return 'tabela ausente — veja BANCO-DE-DADOS.md';
             if (!logged) return 'aguardando a conta';
-            return CloudBackup._ultimoErro ? ('erro: ' + CloudBackup._ultimoErro) : 'ativo';
-          })(), t: (window.CloudBackup && CloudBackup.enabled && logged && !CloudBackup._ultimoErro) ? 'ok' : 'warn' },
+            if (CloudBackup._ultimoErro) return 'erro: ' + CloudBackup._ultimoErro;
+            const em = CloudBackup.ultimoEnvioEm();
+            return em ? ('última cópia ' + new Date(em).toLocaleString('pt-BR')) : 'nenhuma cópia ainda';
+          })(), t: (window.CloudBackup && CloudBackup.enabled && logged && !CloudBackup._ultimoErro && CloudBackup.ultimoEnvioEm()) ? 'ok' : 'warn' },
         { k: 'Sessão única ao entrar', v: pget('single-session', '0') === '1' ? 'ligada' : 'desligada', t: '' },
         { k: 'Sair por inatividade', v: (() => { const m = parseInt(pget('idle-mins', '0'), 10); return m > 0 ? m + ' min' : 'nunca'; })(), t: '' }
       ];

@@ -142,96 +142,96 @@
  {
   "arquivo": "js/45-autoteste.js",
   "de": 24534,
-  "ate": 25662
+  "ate": 25701
  },
  {
   "arquivo": "js/46-sanitizacao-e-editor.js",
-  "de": 25664,
-  "ate": 26127
+  "de": 25703,
+  "ate": 26166
  },
  {
   "arquivo": "js/47-tela-extras.js",
-  "de": 26129,
-  "ate": 27150
+  "de": 26168,
+  "ate": 27189
  },
  {
   "arquivo": "js/48-tela-links.js",
-  "de": 27152,
-  "ate": 27345
+  "de": 27191,
+  "ate": 27384
  },
  {
   "arquivo": "js/49-tela-config.js",
-  "de": 27347,
-  "ate": 27732
+  "de": 27386,
+  "ate": 27771
  },
  {
   "arquivo": "js/50-tela-ferramentas.js",
-  "de": 27734,
-  "ate": 27965
+  "de": 27773,
+  "ate": 28004
  },
  {
   "arquivo": "js/51-tela-desempenho-tec.js",
-  "de": 27967,
-  "ate": 30329
+  "de": 28006,
+  "ate": 30368
  },
  {
   "arquivo": "js/52-tela-planejamentos.js",
-  "de": 30331,
-  "ate": 30504
+  "de": 30370,
+  "ate": 30543
  },
  {
   "arquivo": "js/53-portao-de-acesso.js",
-  "de": 30506,
-  "ate": 31152
+  "de": 30545,
+  "ate": 31191
  },
  {
   "arquivo": "js/60-cloud-store.js",
-  "de": 31154,
-  "ate": 31649
+  "de": 31193,
+  "ate": 31688
  },
  {
   "arquivo": "js/61-session-guard.js",
-  "de": 31651,
-  "ate": 31844
+  "de": 31690,
+  "ate": 31883
  },
  {
   "arquivo": "js/62-section-sync.js",
-  "de": 31846,
-  "ate": 32667
+  "de": 31885,
+  "ate": 32706
  },
  {
   "arquivo": "js/63-cloud-ui.js",
-  "de": 32669,
-  "ate": 33240
+  "de": 32708,
+  "ate": 33279
  },
  {
   "arquivo": "js/64-info-tips.js",
-  "de": 33242,
-  "ate": 33622
+  "de": 33281,
+  "ate": 33661
  },
  {
   "arquivo": "js/65-recuperacao.js",
-  "de": 33624,
-  "ate": 34059
+  "de": 33663,
+  "ate": 34098
  },
  {
   "arquivo": "js/66-backup-nuvem.js",
-  "de": 34061,
-  "ate": 34691
+  "de": 34100,
+  "ate": 34816
  },
  {
   "arquivo": "js/70-relatorio.js",
-  "de": 34693,
-  "ate": 35228
+  "de": 34818,
+  "ate": 35353
  },
  {
   "arquivo": "js/80-ajustes-finais.js",
-  "de": 35230,
-  "ate": 36492
+  "de": 35355,
+  "ate": 36634
  },
  {
   "arquivo": "html/90-rodape.html",
-  "de": 36494,
-  "ate": 36861
+  "de": 36636,
+  "ate": 37003
  }
 ]
