@@ -260,6 +260,41 @@ const SectionSync = {
     this._seededProfile = id;
     this.markAllDirty();
   },
+  /* ── O QUE FAZER COM UMA SEÇÃO SUJA (decisão pura, testável) ──────────────
+     Recebe o texto local e o que sabemos do último envio; devolve a ação. Está
+     separada do envio de propósito: é a regra que impede a perda, e uma regra
+     que impede perda tem de ser exercitada pela suíte de autoteste, não só
+     lida no código.
+
+       'sumida'    — a chave não existe mais aqui, e NINGUÉM mandou apagá-la.
+                     Antes, o `|| ''` transformava isso em "o conteúdo agora é
+                     vazio" e publicava o vazio por cima da linha boa na nuvem:
+                     um sumiço local (cota estourada no meio de uma gravação,
+                     limpeza do navegador pela metade, corrida entre marcar e
+                     apagar) destruía a última cópia que existia. Agora a seção
+                     só sai da fila; nada sobe, e o próximo download a traz de
+                     volta para cá. Uma exclusão DE VERDADE não passa por aqui:
+                     passa por dropSection e viaja pelo manifesto.
+       'idêntico'  — mesmo conteúdo do último envio; não gasta rede nem rev.
+       'enviar'    — sobe. `esvaziando` marca o caso em que um conteúdo que
+                     comprovadamente existia na nuvem está indo embora: é
+                     legítimo, mas o estado anterior é fotografado antes.
+     `len` só existe para seções enviadas depois desta versão; sem ele não dá
+     para provar que havia conteúdo, e a proteção não dispara (não inventamos
+     um passado que não conhecemos). */
+  decidirEnvio(raw, prev) {
+    if (raw === null || raw === undefined) return { acao: 'sumida' };
+    const hash = this._hash(raw);
+    const p = prev || { rev: 0, hash: null };
+    if (p.hash === hash) return { acao: 'idêntico', hash };
+    return {
+      acao: 'enviar',
+      hash,
+      rev: (p.rev || 0) + 1,
+      esvaziando: !!(valorVazio(raw) && p.hash && (p.len || 0) > 40)
+    };
+  },
+
   // Envia as seções sujas para profile_sections (upsert por profile_id+section).
   // Best-effort: qualquer falha mantém a seção suja para a próxima rodada, e NUNCA
   // interfere no salvamento do blob (que é a fonte de verdade nesta fase).
@@ -275,13 +310,22 @@ const SectionSync = {
     // de verdade (evita inflar o rev quando a semeadura reencontra dados idênticos).
     const secs = [...this._dirty];
     const rows = [];
+    const sumidas = [], esvaziando = [];
     secs.forEach(sec => {
-      const raw = localStorage.getItem(pfx + sec) || '';
-      const h = this._hash(raw);
-      const prev = revs[sec] || { rev: 0, hash: null };
-      if (prev.hash === h) { this._dirty.delete(sec); return; } // idêntico → nada a enviar
-      rows.push({ _sec: sec, _hash: h, profile_id: id, section: sec, data: this._encode(raw), rev: prev.rev + 1, updated_at: new Date().toISOString() });
+      const raw = localStorage.getItem(pfx + sec);
+      const d = this.decidirEnvio(raw, revs[sec]);
+      if (d.acao === 'sumida') { this._dirty.delete(sec); sumidas.push(sec); return; }
+      if (d.acao === 'idêntico') { this._dirty.delete(sec); return; }
+      if (d.esvaziando) esvaziando.push(sec);
+      rows.push({ _sec: sec, _hash: d.hash, _len: raw.length, profile_id: id, section: sec, data: this._encode(raw), rev: d.rev, updated_at: new Date().toISOString() });
     });
+    if (sumidas.length) {
+      this._savePend();
+      console.warn('[SectionSync] ' + sumidas.length + ' seção(ões) sumiram deste aparelho sem ordem de exclusão — NADA foi publicado por cima da nuvem: ' + sumidas.join(', '));
+    }
+    if (esvaziando.length) {
+      try { if (window.GuardaNuvem) await GuardaNuvem.antesDeEsvaziar(id, esvaziando); } catch (e) { _quiet(e, 'guarda-esvaziar'); }
+    }
     if (rows.length === 0) {
       // Nada de conteúdo novo, mas o MANIFESTO ainda pode estar desatualizado
       // (ex.: uma seção foi APAGADA localmente). Sem isto, exclusões nunca chegariam
@@ -297,11 +341,14 @@ const SectionSync = {
     // porém à prova de "seção presa" (era o caso da incidencia travada no rev 1).
     let okCount = 0; const falhas = [];
     for (const r of rows) {
-      const { _sec, _hash, ...row } = r;
+      const { _sec, _hash, _len, ...row } = r;
       try {
         const { error } = await CloudStore.client.from(this.TABLE).upsert(row, { onConflict: 'profile_id,section' });
         if (error) throw error;
-        revs[_sec] = { rev: row.rev, hash: _hash };
+        // `len` é a prova de que esta seção JÁ TEVE conteúdo na nuvem: é o que
+        // permite distinguir, no próximo envio, um esvaziamento de um dado que
+        // sempre foi vazio (ver a trava logo acima).
+        revs[_sec] = { rev: row.rev, hash: _hash, len: _len };
         this._dirty.delete(_sec);
         okCount++;
       } catch (e) {
@@ -488,8 +535,17 @@ const SectionSync = {
     Object.keys(map).forEach(sec => {
       if (manter.has(sec)) return;
       const txt = map[sec];
-      if (localStorage.getItem(prefix + sec) !== txt) { localStorage.setItem(prefix + sec, txt); mudou++; }
-      novoRev[sec] = { rev: (revs && revs[sec]) || 1, hash: this._hash(txt) };
+      const atual = localStorage.getItem(prefix + sec);
+      /* A nuvem também pode chegar vazia. Se ela traz `[]` onde este aparelho
+         tem conteúdo, a gravação é legítima (alguém apagou lá) — mas o valor
+         daqui vai para a Lixeira antes, como em qualquer outro apagamento.
+         Sem isto, o único caminho de perda que sobrava era justamente o
+         download: ele escrevia direto, sem passar por DB.setRaw. */
+      if (atual !== txt && valorVazio(txt) && !valorVazio(atual)) {
+        try { Lixeira.guardar(prefix + sec, 'esvaziada pela nuvem'); } catch (e) { _quiet(e, 'hidratar-lixeira'); }
+      }
+      if (atual !== txt) { localStorage.setItem(prefix + sec, txt); mudou++; }
+      novoRev[sec] = { rev: (revs && revs[sec]) || 1, hash: this._hash(txt), len: txt.length };
     });
     /* A REVISÃO DO MANIFESTO precisa ser guardada como a de qualquer outra seção.
        Ela não era — e como hasRemoteUpdates compara TODAS as linhas remotas com as

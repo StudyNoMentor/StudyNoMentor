@@ -711,6 +711,7 @@ else CloudStore.init();
       to('#cloud-auth-box', 'conta');
       to('#cfg-storage-body', 'dados');
       to('#cfg-vhist-body', 'dados');
+      to('#cfg-cloudbk-body', 'dados');
       this.buildPrefs();
       // O cartão de exibição das Leis é marcação fixa (os mesmos controles do
       // ⚙️ Exibição da tela de Leis) e entra depois dos cartões montados aqui,
@@ -795,6 +796,7 @@ else CloudStore.init();
           <button type="button" class="cfg-action" id="cfgd-export"><span class="ic">↓</span><span class="t">Exportar backup deste perfil</span><span class="d">Baixa um .json com tudo: registros, ciclos, cards, leis, trilhas e configurações.</span></button>
           <button type="button" class="cfg-action" id="cfgd-import"><span class="ic">↑</span><span class="t">Importar backup</span><span class="d">Cria sempre um perfil novo. Nenhum perfil existente é alterado ou sobrescrito.</span></button>
           <button type="button" class="cfg-action" id="cfgd-snap"><span class="ic">🛟</span><span class="t">Salvar versão agora</span><span class="d">Congela o estado atual no histórico de versões deste aparelho.</span></button>
+          <button type="button" class="cfg-action" id="cfgd-cloudbk"><span class="ic">☁️</span><span class="t">Guardar cópia no banco</span><span class="d">Grava uma foto imutável do perfil no servidor — resgatável de qualquer aparelho, mesmo perdendo este.</span></button>
           <button type="button" class="cfg-action" id="cfgd-recalc"><span class="ic">↻</span><span class="t">Recalcular espaço usado</span><span class="d">Refaz a medição de quanto cada módulo ocupa no navegador.</span></button>
         </div>`);
       $('#cfgd-export').addEventListener('click', () => {
@@ -810,6 +812,7 @@ else CloudStore.init();
       });
       $('#cfgd-import').addEventListener('click', () => { const b = $('#profile-import-btn'); if (b) b.click(); else toast('Abra a tela de perfis para importar um backup.'); });
       $('#cfgd-snap').addEventListener('click', () => { const b = $('#cfg-vhist-save'); if (b) b.click(); });
+      $('#cfgd-cloudbk').addEventListener('click', () => { const b = $('#cfg-cloudbk-save'); if (b) b.click(); });
       $('#cfgd-recalc').addEventListener('click', () => { const b = $('#cfg-storage-refresh'); if (b) b.click(); });
     },
     buildDiag() {
@@ -859,6 +862,12 @@ else CloudStore.init();
         { k: 'Registros de estudo', v: nEnt, t: '' },
         { k: 'Flashcards', v: nCards, t: '' },
         { k: 'Armazenamento', v: (window.indexedDB ? 'IndexedDB disponível' : 'só localStorage'), t: window.indexedDB ? 'ok' : 'warn' },
+        { k: 'Backup no banco', v: (() => {
+            if (!window.CloudBackup) return '—';
+            if (!CloudBackup.enabled) return 'tabela ausente — veja BANCO-DE-DADOS.md';
+            if (!logged) return 'aguardando a conta';
+            return CloudBackup._ultimoErro ? ('erro: ' + CloudBackup._ultimoErro) : 'ativo';
+          })(), t: (window.CloudBackup && CloudBackup.enabled && logged && !CloudBackup._ultimoErro) ? 'ok' : 'warn' },
         { k: 'Sessão única ao entrar', v: pget('single-session', '0') === '1' ? 'ligada' : 'desligada', t: '' },
         { k: 'Sair por inatividade', v: (() => { const m = parseInt(pget('idle-mins', '0'), 10); return m > 0 ? m + ' min' : 'nunca'; })(), t: '' }
       ];
@@ -1058,6 +1067,9 @@ else CloudStore.init();
       if (!ok2) return;
       try {
         if (window.VersionHistory) await VersionHistory.snapshot('antes de limpar dados locais');
+        /* Esta é a única ação do app que apaga dados de propósito. A foto local
+           acima some junto se o navegador for limpo depois; a do banco, não. */
+        if (window.CloudBackup) await CloudBackup.protegerAgora('antes de limpar os dados locais');
         const id = ProfileManager.getActiveProfileId();
         const pfx = 'diario-estudos:u:' + id + ':';
         const del = [];

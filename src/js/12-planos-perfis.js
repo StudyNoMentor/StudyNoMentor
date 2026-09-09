@@ -444,7 +444,12 @@ const ProfileManager = {
     Object.keys(vindas).forEach(sub => {
       if (sub.startsWith('u:')) return;
       if (manter.has(sub) || local.indexOf(sub) !== -1) return;
-      if (localStorage.getItem(prefix + sub) === vindas[sub]) return;
+      const atual = localStorage.getItem(prefix + sub);
+      if (atual === vindas[sub]) return;
+      // vazio vindo por cima de conteúdo: o local vai para a Lixeira antes (30 dias)
+      if (valorVazio(vindas[sub]) && !valorVazio(atual)) {
+        try { Lixeira.guardar(prefix + sub, 'esvaziada pelo download da nuvem'); } catch (e) { _quiet(e, 'restore-lixeira'); }
+      }
       localStorage.setItem(prefix + sub, vindas[sub]);
       mudou++;
     });

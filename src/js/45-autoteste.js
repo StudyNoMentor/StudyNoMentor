@@ -617,6 +617,108 @@ const AutoTeste = {
     }
   },
 
+  /* ── AS TRAVAS QUE IMPEDEM A PERDA ────────────────────────────────────────
+     As três regras que decidem se um dado pode deixar de existir. Cada uma foi
+     escrita depois de um episódio real, e cada uma é aqui exercitada FORA da
+     rede: são funções puras de propósito, para que a garantia seja testável
+     sem depender de estar logado, online ou com a tabela criada.
+
+       1. um vazio nunca sobe por cima de conteúdo;
+       2. esvaziar deixa rastro, exatamente como apagar;
+       3. quem apaga backup (a faxina) tem piso, âncora e carência. */
+  travasDePerda() {
+    // ── 1. o critério único de "vazio" ────────────────────────────────────
+    [null, undefined, '', '  ', '[]', '{}', 'null', '""'].forEach(v => {
+      this._ok('valorVazio reconhece ' + JSON.stringify(v), valorVazio(v) === true, valorVazio(v));
+    });
+    // '0' é o "desligado" das preferências booleanas: um valor, não uma ausência.
+    ['[1]', '{"a":1}', '0', '0.5', 'texto', '"x"'].forEach(v => {
+      this._ok('valorVazio NÃO derruba ' + JSON.stringify(v), valorVazio(v) === false, valorVazio(v));
+    });
+
+    // ── 2. a trava do blob: perfil sem conteúdo não é publicado ────────────
+    this._ok('payload nulo é recusado', CloudStore._payloadUtil(null) === 0);
+    this._ok('payload sem data é recusado', CloudStore._payloadUtil({}) === 0);
+    this._ok('payload só com seções vazias é recusado',
+      CloudStore._payloadUtil({ data: { a: '[]', b: '{}', c: '' } }) === 0);
+    this._ok('payload com uma seção de conteúdo passa',
+      CloudStore._payloadUtil({ data: { a: '[]', b: '[{"id":1}]' } }) === 1);
+
+    // ── 3. a trava por seção: sumir não é esvaziar ─────────────────────────
+    const dSumida = SectionSync.decidirEnvio(null, { rev: 3, hash: 'x', len: 900 });
+    this._ok('chave sumida NÃO sobe como vazia', dSumida.acao === 'sumida', dSumida.acao);
+    const igual = SectionSync.decidirEnvio('[1]', { rev: 2, hash: SectionSync._hash('[1]'), len: 3 });
+    this._ok('conteúdo idêntico não gasta rev', igual.acao === 'idêntico', igual.acao);
+    const esvazia = SectionSync.decidirEnvio('[]', { rev: 4, hash: 'antigo', len: 5000 });
+    this._ok('esvaziar conteúdo conhecido sobe protegido',
+      esvazia.acao === 'enviar' && esvazia.esvaziando === true && esvazia.rev === 5, esvazia);
+    const semPassado = SectionSync.decidirEnvio('[]', undefined);
+    this._ok('seção sem passado conhecido não inventa proteção',
+      semPassado.acao === 'enviar' && semPassado.esvaziando === false, semPassado);
+
+    // ── 4. encolhimento: o que dispara a foto de segurança ─────────────────
+    const g = GuardaNuvem;
+    this._ok('queda para 10% é encolhimento grande', g.avaliarEncolhimento(100000, 10000).encolheu === true);
+    this._ok('queda para 90% é variação normal', g.avaliarEncolhimento(100000, 90000).encolheu === false);
+    this._ok('crescimento nunca é encolhimento', g.avaliarEncolhimento(1000, 50000).encolheu === false);
+    this._ok('perfil minúsculo não dispara ruído', g.avaliarEncolhimento(500, 1).encolheu === false);
+
+    // ── 5. a faxina dos backups do banco ──────────────────────────────────
+    const CB = window.CloudBackup;
+    const agora = Date.now(), DIA = 86400000;
+    const gerar = (n, opts) => Array.from({ length: n }, (_, i) => ({
+      id: 'b' + i, ancora: false, created_at: new Date(agora - (i + (opts && opts.desloca || 0)) * DIA).toISOString()
+    }));
+    this._ok('poucas fotos: a faxina não apaga nada',
+      CB.selecionarParaFaxina(gerar(CB.MAX), agora).length === 0);
+    const muitas = gerar(CB.MAX + 6);
+    const cortadas = CB.selecionarParaFaxina(muitas, agora);
+    this._ok('excedente antigo é removido', cortadas.length === 6, cortadas.length);
+    this._ok('a faxina nunca desce do piso',
+      muitas.length - cortadas.length >= CB.MIN_KEEP, muitas.length - cortadas.length);
+    const comAncora = gerar(CB.MAX + 6);
+    comAncora[comAncora.length - 1].ancora = true;   // a mais antiga é a âncora
+    const semAncora = CB.selecionarParaFaxina(comAncora, agora);
+    this._ok('a âncora permanente nunca é apagada',
+      !semAncora.some(r => r.ancora), semAncora.filter(r => r.ancora).length);
+    const recentes = Array.from({ length: CB.MAX + 6 }, (_, i) => ({
+      id: 'r' + i, ancora: false, created_at: new Date(agora - i * 60000).toISOString()
+    }));
+    this._ok('nada com menos de 24 h é apagado',
+      CB.selecionarParaFaxina(recentes, agora).length === 0);
+  },
+
+  /* Esvaziar uma seção deixa o mesmo rastro que apagá-la: é o caminho de perda
+     que ficava de fora, porque uma reescrita como `[]` é uma gravação normal. */
+  esvaziarDeixaRastro() {
+    const PID = '__t_vazio_rastro__';
+    const pfx = 'diario-estudos:u:' + PID + ':';
+    const ativo = localStorage.getItem(DB.ACTIVE_PROFILE_KEY);
+    const criadas = [];
+    try {
+      localStorage.setItem(DB.ACTIVE_PROFILE_KEY, PID);
+      const k = pfx + 'p:pl:entries';
+      criadas.push(k);
+      DB._set(k, [{ id: 'e1', date: '2026-01-01' }, { id: 'e2', date: '2026-01-02' }]);
+      this._ok('gravação normal não vai para a lixeira', Lixeira.listar(PID).length === 0);
+      DB._set(k, []);   // o esvaziamento
+      const lixo = Lixeira.listar(PID);
+      this._ok('esvaziar guarda o conteúdo anterior na lixeira',
+        lixo.some(x => x.sec === 'p:pl:entries'), lixo.map(x => x.sec));
+      const guardado = lixo.find(x => x.sec === 'p:pl:entries');
+      this._ok('o que foi guardado tem tamanho de dado real', !!guardado && guardado.bytes > 10, guardado && guardado.bytes);
+      // e restaurar não sobrescreve o que existe hoje sem ordem explícita
+      DB._set(k, [{ id: 'novo' }]);
+      const r = Lixeira.restaurar(guardado.chave, false);
+      this._ok('restaurar não passa por cima do conteúdo atual', r.ok === false, r.motivo);
+    } finally {
+      criadas.forEach(k => { try { localStorage.removeItem(k); } catch (e) { _quiet(e, 'limpeza-vazio'); } });
+      Lixeira.listar(PID).forEach(x => { try { localStorage.removeItem(x.chave); } catch (e) { _quiet(e, 'limpeza-vazio2'); } });
+      if (ativo === null) localStorage.removeItem(DB.ACTIVE_PROFILE_KEY);
+      else localStorage.setItem(DB.ACTIVE_PROFILE_KEY, ativo);
+    }
+  },
+
   rodar(imprimir) {
     this._r = { total: 0, passou: 0, falhou: 0, falhas: [], ms: 0 };
     const t0 = Date.now();
@@ -627,7 +729,9 @@ const AutoTeste = {
      ['SM-2 clássico', 'sm2'], ['Filtro de treino', 'busca'],
      ['Garantia de salvamento', 'sincronizacao'],
      ['Semana fechada é registro', 'historicoFechado'],
-     ['Nada se perde', 'nadaSePerde']].forEach(([nome, fn]) => {
+     ['Nada se perde', 'nadaSePerde'],
+     ['Travas contra perda', 'travasDePerda'],
+     ['Esvaziar deixa rastro', 'esvaziarDeixaRastro']].forEach(([nome, fn]) => {
       try { this[fn](); }
       catch (e) { this._r.total++; this._r.falhou++; this._r.falhas.push({ nome: nome + ' — exceção', obtido: String(e && e.message || e) }); }
     });

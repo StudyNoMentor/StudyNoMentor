@@ -105,7 +105,20 @@ const DB = {
   },
   _set(key, value) {
     try {
-      localStorage.setItem(key, JSON.stringify(value));
+      const txt = JSON.stringify(value);
+      /* ── ESVAZIAR É APAGAR, E APAGAR PASSA PELA LIXEIRA ─────────────────────
+         delRaw já mandava para a Lixeira tudo o que era REMOVIDO. Mas a forma
+         mais comum de perder uma seção nunca foi a remoção: é ela ser
+         REESCRITA como `[]`. Uma tela que renderiza a lista errada e salva, um
+         filtro que zera o array antes de gravar, uma importação parcial — em
+         todos, o localStorage recebe uma gravação perfeitamente normal e o
+         conteúdo anterior deixa de existir sem nada para trás.
+
+         Agora o caminho é o mesmo do apagamento: se o que está entrando é
+         vazio e o que está lá não é, o valor antigo vai para a Lixeira antes.
+         Trinta dias de arrependimento pelo preço de uma leitura. */
+      try { if (valorVazio(txt)) Lixeira.guardar(key, 'esvaziada pelo app'); } catch (e2) { _quiet(e2, 'set-lixeira'); }
+      localStorage.setItem(key, txt);
     } catch (e) {
       // Estouro de cota (imagens coladas em cards, leis longas, muitos retratos do TEC).
       // Antes, a exceção subia e abortava a operação em silêncio — o dado simplesmente
@@ -145,7 +158,10 @@ const DB = {
      _set, setRaw ou delRaw — nunca por localStorage direto. */
   setRaw(key, value) {
     try {
-      localStorage.setItem(key, String(value));
+      const txt = String(value);
+      // mesma regra do _set: esvaziar guarda o anterior na Lixeira antes
+      try { if (valorVazio(txt)) Lixeira.guardar(key, 'esvaziada pelo app'); } catch (e2) { _quiet(e2, 'setraw-lixeira'); }
+      localStorage.setItem(key, txt);
     } catch (e) {
       console.error('Falha ao gravar', key, e);
       try { showToast('⚠ Não foi possível salvar. Verifique o espaço do navegador ou o modo privado.'); } catch (_) { _quiet(_, 'setRaw-aviso'); }

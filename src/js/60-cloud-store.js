@@ -97,11 +97,42 @@ const CloudStore = {
     if (!data) { const e = new Error('Perfil não encontrado na nuvem.'); e.code = 'perfil-inexistente'; throw e; }
     return data;
   },
+  /* ── A TRAVA QUE FALTAVA ──────────────────────────────────────────────────
+     `exportProfile` devolve `null` quando o perfil não está na lista local — e
+     essa lista é um espelho da nuvem, que pode chegar incompleta (RLS negando,
+     resposta parcial, corrida entre o login e a montagem do espelho). Quando
+     isso acontecia, este método gravava `payload: null` na linha do perfil: a
+     ÚNICA cópia remota de tudo era substituída por nada, e a leitura seguinte
+     ainda propagava o vazio para os outros aparelhos.
+
+     Nunca mais. Um envio só sai daqui se levar conteúdo. Um perfil vazio na
+     memória não é uma ordem de apagamento — é sinal de que algo deu errado
+     ANTES, e a resposta certa é não publicar nada, manter a pendência e tentar
+     de novo. A alteração continua guardada neste aparelho o tempo todo. */
+  _payloadUtil(backup) {
+    if (!backup || !backup.data || typeof backup.data !== 'object') return 0;
+    let n = 0;
+    Object.keys(backup.data).forEach(k => { if (!valorVazio(backup.data[k])) n++; });
+    return n;
+  },
+  _tamanhoPayload(backup) {
+    try { return JSON.stringify((backup && backup.data) || {}).length; } catch (_) { return 0; }
+  },
   async saveActive() {
     const id = ProfileManager.getActiveProfileId();
     if (!id || !this.isLoggedIn()) return { skipped: true };
     const meta = ProfileManager.getProfiles().find(p => p.id === id) || {};
     const backup = ProfileManager.exportProfile(id);
+    if (this._payloadUtil(backup) === 0) {
+      console.error('[CloudStore] envio RECUSADO: o perfil ' + id + ' não tem nenhuma seção com conteúdo neste aparelho. A cópia da nuvem foi preservada.');
+      return { recusado: true, motivo: 'payload-vazio' };
+    }
+    /* Encolhimento grande: antes de publicar, o estado ANTERIOR vai para a
+       tabela de backups. Não bloqueia o usuário (apagar de verdade é um direito
+       dele), só garante que o que ele tinha continua resgatável no banco. */
+    try {
+      if (window.GuardaNuvem) await GuardaNuvem.antesDeEncolher(id, this._tamanhoPayload(backup));
+    } catch (e) { _quiet(e, 'guarda-encolhimento'); }
     const rev = ProfileManager.getRev(id);
     const { data, error } = await this.client.from(this.TABLE)
       .update({ payload: backup, rev: rev + 1, updated_at: new Date().toISOString(), profile_name: meta.nome, avatar: meta.avatar, color: meta.cor })
@@ -109,6 +140,7 @@ const CloudStore = {
     if (error) throw error;
     if (!data || data.length === 0) return { conflict: true };
     ProfileManager.setRev(id, rev + 1);
+    try { if (window.GuardaNuvem) GuardaNuvem.registrarEnvio(id, this._tamanhoPayload(backup)); } catch (e) { _quiet(e, 'guarda-registro'); }
     return { rev: rev + 1 };
   },
   // Lê apenas a rev atual do perfil na nuvem (usado para reconciliar antes de reenviar)
@@ -125,7 +157,7 @@ const CloudStore = {
     if (!id || !this.isLoggedIn()) return { skipped: true };
     for (let attempt = 0; attempt < maxTries; attempt++) {
       const r = await this.saveActive();
-      if (!r || !r.conflict) return r; // sucesso (ou skipped)
+      if (!r || !r.conflict) return r; // sucesso, skipped ou RECUSADO pela trava
       // conflito → busca a rev real da nuvem, alinha localmente e tenta de novo (empurra o local)
       let currentRev = null;
       try { currentRev = await this._fetchRev(id); } catch (e) { return { conflict: true, error: e }; }
@@ -240,6 +272,16 @@ const CloudStore = {
         this._rearm(5000);
         return;
       }
+      /* Envio RECUSADO pela trava anti-apagamento: a nuvem continua com a cópia
+         boa, e é assim que tem de ficar. Não marcamos "Sincronizado" (seria
+         mentira), mantemos a pendência e reprogramamos com folga — quando o
+         perfil voltar a ter conteúdo em memória, o envio sai sozinho. */
+      if (r && r.recusado) {
+        this._pending = true;
+        if (window.CloudUI) CloudUI.setStatus('error', 'Envio suspenso — cópia da nuvem protegida');
+        this._rearm(30000);
+        return;
+      }
       this._lastBlobAt = Date.now(); this._forceBlob = false;
       this._lastSyncAt = Date.now();
       if (window.CloudUI) CloudUI.setStatus('ok', 'Sincronizado');
@@ -281,7 +323,11 @@ const CloudStore = {
       const id = ProfileManager.getActiveProfileId(); if (!id) return;
       const meta = ProfileManager.getProfiles().find(p => p.id === id) || {};
       const rev = ProfileManager.getRev(id);
-      const body = JSON.stringify({ payload: ProfileManager.exportProfile(id), rev: rev + 1,
+      const backup = ProfileManager.exportProfile(id);
+      // a mesma trava do saveActive: o salvamento de emergência também não pode
+      // publicar um perfil vazio por cima do que está na nuvem
+      if (this._payloadUtil(backup) === 0) return;
+      const body = JSON.stringify({ payload: backup, rev: rev + 1,
         updated_at: new Date().toISOString(), profile_name: meta.nome, avatar: meta.avatar, color: meta.cor });
       // keepalive tem teto de ~64KB no corpo; acima disso não é confiável — deixa para o autoSave normal.
       if (body.length > 60000) return;
@@ -381,6 +427,8 @@ const CloudStore = {
         try { if (window.SectionSync) await SectionSync.afterBlobSave(); } catch (_) { _quiet(_); } // sync por seção
         if (r && r.conflict) {
           showToast('Aviso: não foi possível confirmar o salvamento na nuvem. Seus dados estão guardados neste dispositivo.');
+        } else if (r && r.recusado) {
+          showToast('Envio suspenso para proteger a cópia da nuvem. Nada foi perdido — seus dados estão neste dispositivo.');
         }
       } catch (e) { console.error('saveThenReload', e); showToast('Aviso: não foi possível salvar na nuvem agora. Verifique a internet.'); }
     }
