@@ -89,7 +89,13 @@ const CloudStore = {
   async fetchPayload(id) {
     const { data, error } = await this._withTimeout(
       this.client.from(this.TABLE).select('payload,rev').eq('id', id).maybeSingle(), 15000, 'Baixar o perfil');
-    if (error) throw error; if (!data) throw new Error('Perfil não encontrado na nuvem.'); return data;
+    if (error) throw error;
+    /* Resposta DEFINITIVA (não é rede, não é timeout): esta conta não tem este
+       perfil. Marcada com código próprio porque quem chama precisa distinguir
+       "a nuvem não tem" de "não deu para perguntar" — no primeiro caso, um
+       perfil com dados locais tem de abrir mesmo assim. */
+    if (!data) { const e = new Error('Perfil não encontrado na nuvem.'); e.code = 'perfil-inexistente'; throw e; }
+    return data;
   },
   async saveActive() {
     const id = ProfileManager.getActiveProfileId();
