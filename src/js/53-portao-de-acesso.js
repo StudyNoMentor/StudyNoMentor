@@ -262,11 +262,26 @@ const ProfileUI = {
         CloudStore._applying = false;
       } catch (err) {
         CloudStore._applying = false;
-        this._entering = false;   // libera o gate para mostrar o seletor de novo
-        this._autoEnterTried = true;
-        showToast('Erro ao carregar o perfil: ' + (err.message || ''));
-        this._showProfilePicker();
-        return;
+        /* A NUVEM NÃO TER O PERFIL NÃO É MOTIVO PARA NÃO ABRIR O QUE ESTÁ AQUI.
+           Antes, qualquer erro devolvia a pessoa ao seletor — e um perfil cujo
+           registro sumiu da nuvem virava uma porta trancada com os dados dela
+           do lado de dentro. Só vale para a resposta DEFINITIVA ('não existe'):
+           erro de rede continua voltando ao seletor, porque aí a nuvem pode ter
+           dado mais novo e entrar às cegas arriscaria subir o local por cima. */
+        const inexistente = err && (err.code === 'perfil-inexistente' || /não encontrado na nuvem/i.test(err.message || ''));
+        if (inexistente && ProfileManager.temDadosLocais(id)) {
+          console.warn('[perfil] a nuvem não tem este perfil, mas há dados aqui — abrindo localmente e enfileirando para envio');
+          ProfileManager.setActiveProfile(id);
+          PlanManager.init();
+          try { if (window.SectionSync) { SectionSync.markAllDirty(); SectionSync.kick(); } } catch (e) { _quiet(e, 'perfil-local-envio'); }
+          showToast('Perfil aberto deste aparelho — enviando para a nuvem');
+        } else {
+          this._entering = false;   // libera o gate para mostrar o seletor de novo
+          this._autoEnterTried = true;
+          showToast('Erro ao carregar o perfil: ' + (err.message || ''));
+          this._showProfilePicker();
+          return;
+        }
       }
     } else {
       ProfileManager.setActiveProfile(id);

@@ -378,6 +378,36 @@ try {
 
    Emoji sao ignorados de proposito: a cor renderizada deles nao vem de `color`,
    entao medi-los so gera alarme falso. */
+/* ── 6.5 NADA FICA INVISÍVEL NO ARMAZENAMENTO ANTIGO ────────────────────────
+   O app guarda tudo no IndexedDB por tras de uma fachada chamada `localStorage`.
+   Dado escrito por versoes anteriores mora no localStorage NATIVO — e a adocao
+   dele so rodava quando o IndexedDB estava COMPLETAMENTE vazio. Bastava o tema
+   existir la para o resto nunca mais ser lido: os dados continuavam no
+   navegador, integros, sem nenhuma porta. Este teste prova que a adocao e uma
+   FUSAO e acontece mesmo com o IndexedDB ja povoado. */
+console.log('\n6.5) dados do armazenamento antigo nao ficam invisiveis');
+try {
+  const ctx = await nav.newContext();
+  const p2 = await ctx.newPage();
+  await p2.addInitScript(() => {
+    try {
+      window.localStorage.setItem('diario-estudos:theme', 'light');   // IndexedDB nasce NAO-vazio
+      window.localStorage.setItem('diario-estudos:u:antigo:p:pl1:entries', JSON.stringify([{ id: 'e1', subject: 'X', date: '2026-01-01', durationMin: 60 }]));
+    } catch (e) { /* sem storage: o teste abaixo acusa */ }
+  });
+  await p2.goto(base, { waitUntil: 'domcontentloaded' });
+  await p2.waitForFunction(() => window.AutoTeste && window.switchScreen, { timeout: 30000 });
+  await p2.waitForTimeout(500);
+  const r = await p2.evaluate(() => ({
+    adotado: (JSON.parse(localStorage.getItem('diario-estudos:u:antigo:p:pl1:entries') || '[]')).length,
+    sobrouNoNativo: window.Recuperacao ? Recuperacao.varrerAntigo().length : -1
+  }));
+  r.adotado === 1 && r.sobrouNoNativo === 0
+    ? ok('armazenamento antigo adotado mesmo com o IndexedDB povoado')
+    : erro(`dado do armazenamento antigo ficou invisivel (adotado=${r.adotado}, sobrou=${r.sobrouNoNativo})`);
+  await ctx.close();
+} catch (e) { erro('teste do armazenamento antigo falhou: ' + e.message); }
+
 console.log('\n7) contraste WCAG AA (temas claro e escuro)');
 /* Transicoes e animacoes desligadas durante a medicao. Sem isto, medir logo
    apos uma troca de tela pega a cor INTERMEDIARIA de uma transicao (a aba ativa

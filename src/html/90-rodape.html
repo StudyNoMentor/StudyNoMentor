@@ -177,20 +177,45 @@
     });
   }
 
-  // Migração única: se o IndexedDB está vazio mas há dados no localStorage antigo,
-  // importa TODAS as chaves para o IndexedDB (executa só na primeira vez).
+  /* ── ADOÇÃO DO ARMAZENAMENTO ANTIGO ──────────────────────────────────────
+     Esta função era tudo-ou-nada: `if (cache.size > 0) return`. Ou seja, bastava
+     UMA chave existir no IndexedDB — o tema, um sinalizador de tela, uma
+     gravação parcial — para o localStorage nativo inteiro nunca mais ser lido.
+     E, como a partir daqui `window.localStorage` passa a apontar para esta
+     fachada, o que ficou lá vira invisível para o app TODO: os dados continuam
+     no navegador, íntegros, sem nenhuma porta.
+
+     Agora é uma FUSÃO, e roda sempre: toda chave que existe no armazenamento
+     antigo e não existe aqui é adotada. O IndexedDB continua mandando quando os
+     dois têm a mesma chave (é o store mais novo), então nada é sobrescrito —
+     só se acrescenta o que estava órfão.
+
+     Ressuscitar algo apagado de propósito não é risco real: remover pela fachada
+     também remove do nativo (mirrorNative 'del'), e o espelho nativo só guarda
+     chaves pequenas — uma seção grande presente lá e ausente aqui é, por
+     construção, dado antigo que nunca foi migrado. */
   function migrateFromNative() {
-    if (cache.size > 0 || !nativeLS) return;
+    if (!nativeLS) return 0;
+    var adotadas = 0, bytes = 0;
     try {
       for (var i = 0; i < nativeLS.length; i++) {
         var k = nativeLS.key(i); if (k == null) continue;
+        if (cache.has(k)) continue;                 // o IndexedDB manda
         var v = nativeLS.getItem(k); if (v == null) continue;
         cache.set(k, v);
         enqueue({ t: 'set', k: k, v: v });
+        adotadas++; bytes += v.length;
       }
-      invalidateKeys();
+      if (adotadas) {
+        invalidateKeys();
+        try { console.warn('[armazenamento] ' + adotadas + ' chave(s) do armazenamento antigo adotadas (' + Math.round(bytes / 1024) + ' KB) — estavam invisíveis para o app'); } catch (e) {}
+      }
     } catch (e) { _quiet(e); }
+    return adotadas;
   }
+  /* O armazenamento antigo continua acessível para a tela de Recuperação: sem
+     isto, depois da fachada instalada não há mais como olhar lá dentro. */
+  try { window.__nativeLS = nativeLS; } catch (e) { _quiet(e); }
 
   // Reaplica o tema a partir do cache já hidratado (garante o tema certo mesmo
   // quando o dado existe só no IndexedDB e não no localStorage nativo).

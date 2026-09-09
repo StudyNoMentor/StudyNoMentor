@@ -113,6 +113,70 @@ const Recuperacao = {
     });
     return Object.values(porPlano).sort((a, b) => b.bytes - a.bytes);
   },
+  /* ── ARMAZENAMENTO ANTIGO (localStorage nativo) ───────────────────────────
+     O app guarda tudo no IndexedDB, através de uma fachada que se chama
+     `localStorage`. Dado escrito por versões anteriores pode ter ficado no
+     localStorage NATIVO — e, depois que a fachada assume o nome, olhar lá vira
+     impossível para o resto do código. Esta função olha. */
+  varrerAntigo() {
+    const nativo = window.__nativeLS;
+    const out = [];
+    if (!nativo) return out;
+    try {
+      for (let i = 0; i < nativo.length; i++) {
+        const k = nativo.key(i);
+        if (!k || k.indexOf('diario-estudos') !== 0) continue;
+        if (localStorage.getItem(k) !== null) continue;   // já está no armazenamento atual
+        const v = nativo.getItem(k) || '';
+        if (v === '' || v === '[]' || v === '{}' || v === 'null') continue;
+        out.push({ chave: k, bytes: v.length });
+      }
+    } catch (e) { _quiet(e, 'rec-antigo'); }
+    return out.sort((a, b) => b.bytes - a.bytes);
+  },
+  /* Traz para o armazenamento atual o que ficou no antigo. Nunca sobrescreve:
+     onde já existe valor, o atual manda. */
+  adotarAntigo() {
+    const achadas = this.varrerAntigo();
+    let n = 0;
+    achadas.forEach(it => {
+      try {
+        const v = window.__nativeLS.getItem(it.chave);
+        if (v == null) return;
+        if (localStorage.getItem(it.chave) !== null) return;
+        if (DB.setRaw(it.chave, v) !== false) n++;
+      } catch (e) { _quiet(e, 'rec-adotar'); }
+    });
+    return n;
+  },
+  /* Chaves sem namespace de perfil ("diario-estudos:entries" e irmãs), de antes
+     de existirem perfis e planejamentos. O app só as consome numa migração que
+     roda uma vez — se ela não rodou, o dado fica parado ali. */
+  varrerLegado() {
+    const out = [];
+    try {
+      Object.keys(DB.LEGACY_KEYS).forEach(nome => {
+        const k = DB.LEGACY_KEYS[nome];
+        const v = localStorage.getItem(k);
+        if (v == null || v === '' || v === '[]' || v === '{}' || v === 'null') return;
+        let itens = null;
+        try { const o = JSON.parse(v); itens = Array.isArray(o) ? o.length : (o && typeof o === 'object' ? Object.keys(o).length : null); } catch (e) { _quiet(e, 'rec-legado-parse'); }
+        out.push({ nome, chave: k, bytes: v.length, itens });
+      });
+    } catch (e) { _quiet(e, 'rec-legado'); }
+    return out;
+  },
+  /* Devolve um PERFIL à lista de perfis. É a irmã de reanexarPlano um nível
+     acima: o namespace do perfil está inteiro no aparelho, só o registro dele
+     no índice se perdeu — e sem o registro não há como entrar nele. */
+  reanexarPerfil(pid, nome) {
+    const list = ProfileManager.getProfiles();
+    if (list.some(p => p.id === pid)) return false;
+    list.push({ id: pid, nome: nome || ('Perfil recuperado ' + String(pid).slice(0, 8)),
+      avatar: '🛟', cor: '#0a95a8', createdAt: new Date().toISOString(), soLocal: true });
+    ProfileManager.saveProfiles(list);
+    return true;
+  },
   /* Devolve um planejamento órfão à lista. Não move, não copia e não apaga
      nada: só torna alcançável o que já está no aparelho. */
   reanexarPlano(planId, nome) {
@@ -189,13 +253,16 @@ const RecuperacaoUI = {
     const meu = perfis.find(p => p.id === ativo) || null;
     const orfaos = Recuperacao.planosOrfaos(ativo);
     const lixo = Lixeira.listar(ativo);
+    const antigo = Recuperacao.varrerAntigo();
+    const legado = Recuperacao.varrerLegado();
     const fotos = await Recuperacao.inspecionarFotos(ativo);
 
     const blocos = [];
 
     /* 1. VEREDITO — a pergunta que a pessoa veio fazer, respondida primeiro. */
     const alcancaveis = meu ? meu.secoes.filter(s => s.alcancavel) : [];
-    const recuperavel = orfaos.length || lixo.length ||
+    const perfisFora = perfis.filter(p => !p.naListaDePerfis && p.secoes.length);
+    const recuperavel = perfisFora.length || orfaos.length || lixo.length || antigo.length || legado.length ||
       fotos.some(f => f.secoes.some(sec => {
         const v = localStorage.getItem('diario-estudos:u:' + ativo + ':' + sec);
         return v === null || v === '' || v === '[]' || v === '{}';
@@ -203,9 +270,44 @@ const RecuperacaoUI = {
     blocos.push(`<div class="cloud-slot-row" style="align-items:flex-start;">
       <div class="cloud-slot-info">
         <div class="name">${recuperavel ? '⚠️ Há dado recuperável neste aparelho' : '✓ Nada fora do lugar'}</div>
-        <div class="meta">${alcancaveis.length} seção(ões) em uso · ${this._kb(meu ? meu.bytes : 0)} no total · ${orfaos.length} planejamento(s) órfão(s) · ${lixo.length} item(ns) na lixeira · ${fotos.length} foto(s) do histórico</div>
+        <div class="meta">${alcancaveis.length} seção(ões) em uso · ${this._kb(meu ? meu.bytes : 0)} no total · ${perfisFora.length} perfil(is) fora da lista · ${orfaos.length} planejamento(s) órfão(s) · ${lixo.length} item(ns) na lixeira · ${antigo.length} chave(s) no armazenamento antigo · ${fotos.length} foto(s) do histórico</div>
       </div>
     </div>`);
+
+    /* 1b. PERFIL FORA DA LISTA — o caso mais grave e o mais fácil de resolver:
+       é onde costuma estar TODO o estudo da pessoa. Vem antes de tudo. */
+    if (perfisFora.length) {
+      const maior = perfisFora.reduce((a, b) => (b.bytes > a.bytes ? b : a), perfisFora[0]);
+      blocos.push(`<div class="wd-section-title">⚠️ Há um perfil com dados fora da lista</div>
+        <p class="hint">O maior deles guarda <strong>${this._kb(maior.bytes)}</strong> em ${maior.secoes.length} seção(ões). Se as suas telas abriram vazias, o seu estudo provavelmente está aqui — role até <strong>“Outros perfis neste aparelho”</strong> e devolva-o à lista.</p>`);
+    }
+
+    /* 1c. ARMAZENAMENTO ANTIGO — dado que o app deixou de enxergar ao trocar de
+       motor de armazenamento. Invisível por definição: só esta tela alcança. */
+    if (antigo.length) {
+      const kb = antigo.reduce((a, x) => a + x.bytes, 0);
+      blocos.push(`<div class="wd-section-title">Armazenamento antigo do navegador</div>
+        <p class="hint">Há <strong>${this._kb(kb)}</strong> em ${antigo.length} chave(s) guardadas pelo motor de armazenamento anterior, que o app não estava lendo. Adotar copia para o armazenamento atual sem sobrescrever nada do que já existe.</p>
+        <div class="cloud-slot-row">
+          <div class="cloud-slot-info">
+            <div class="name">${antigo.length} chave(s) · ${this._kb(kb)}</div>
+            <div class="meta">${antigo.slice(0, 4).map(x => escapeHtml(x.chave.replace('diario-estudos:', ''))).join(', ')}${antigo.length > 4 ? '…' : ''}</div>
+          </div>
+          <div class="cloud-slot-actions"><button type="button" class="btn-primary rec-antigo">⤵ Adotar</button></div>
+        </div>`);
+    }
+
+    /* 1d. CHAVES LEGADAS — de antes de perfis e planejamentos existirem. */
+    if (legado.length) {
+      blocos.push('<div class="wd-section-title">Dados de antes dos planejamentos</div>' +
+        '<p class="hint">Formato antigo, de quando o app ainda não tinha perfis nem planejamentos. Ficam guardados como estão; se algum tiver conteúdo que você não vê em tela nenhuma, me diga qual — a conversão depende do que há dentro.</p>' +
+        legado.map(x => `<div class="cloud-slot-row">
+          <div class="cloud-slot-info">
+            <div class="name">${escapeHtml(x.nome)}</div>
+            <div class="meta">${escapeHtml(x.chave)} · ${this._kb(x.bytes)}${x.itens != null ? ' · ' + x.itens + ' item(ns)' : ''}</div>
+          </div>
+        </div>`).join(''));
+    }
 
     /* 2. PLANEJAMENTOS ÓRFÃOS — a causa mais comum de "sumiu tudo menos os
        registros": os dados existem, o app é que perdeu o caminho até eles. */
@@ -264,14 +366,17 @@ const RecuperacaoUI = {
     /* 6. OUTROS PERFIS — dado de outro perfil também some da vista. */
     const outros = perfis.filter(p => p.id !== ativo);
     if (outros.length) {
+      const fora = outros.filter(p => !p.naListaDePerfis);
       blocos.push('<div class="wd-section-title">Outros perfis neste aparelho</div>' +
-        outros.map(p => `<div class="cloud-slot-row">
+        (fora.length ? '<p class="hint">Um perfil <strong>fora da lista</strong> tem os dados inteiros aqui — o que se perdeu foi só o registro dele no índice, e sem esse registro não há como entrar. Devolver à lista é aditivo: nada é movido, copiado ou apagado.</p>' : '') +
+        outros.map(p => `<div class="cloud-slot-row" data-perfil="${escapeHtml(p.id)}">
           <div class="cloud-slot-info">
             <div class="name">${escapeHtml(p.nome || p.id)} ${p.naListaDePerfis ? '' : '<span class="inactive-tag">fora da lista de perfis</span>'}</div>
             <div class="meta">${p.secoes.length} seção(ões) · ${this._kb(p.bytes)} · ${p.fotos} foto(s)</div>
           </div>
+          ${p.naListaDePerfis ? '' : '<div class="cloud-slot-actions"><button type="button" class="btn-primary rec-perfil">↩ Devolver à lista</button></div>'}
         </div>`).join('') +
-        '<p class="hint">Para ver os dados de outro perfil, entre nele pelo seu nome no topo da tela.</p>');
+        '<p class="hint">Depois de devolvido, o perfil aparece no seletor: toque no seu nome no topo da tela para entrar nele.</p>');
     }
 
     host.innerHTML = blocos.join('');
@@ -298,6 +403,20 @@ const RecuperacaoUI = {
         return;
       }
       showToast('Não foi possível restaurar: ' + (r.motivo || ''));
+    }));
+    host.querySelectorAll('.rec-antigo').forEach(b => b.addEventListener('click', async () => {
+      if (!await UI.confirm('Copiar para o armazenamento atual o que ficou no antigo?\n\nNada é sobrescrito: onde já existe valor, o atual continua valendo.', { title: '⤵ Adotar armazenamento antigo', okText: 'Adotar' })) return;
+      const n = Recuperacao.adotarAntigo();
+      if (!n) { showToast('Nada a adotar'); return; }
+      showToast(n + ' chave(s) adotada(s) ✓ — recarregando');
+      setTimeout(() => recarregarApp('armazenamento antigo adotado', { imediato: true }), 900);
+    }));
+    host.querySelectorAll('.rec-perfil').forEach(b => b.addEventListener('click', async () => {
+      const pid = b.closest('[data-perfil]').dataset.perfil;
+      if (!await UI.confirm('Devolver este perfil à sua lista?\n\nOs dados dele já estão neste aparelho — isto só recria a entrada que dá acesso a eles. Depois, entre nele pelo seu nome no topo da tela.', { title: '↩ Devolver perfil à lista', okText: 'Devolver' })) return;
+      const ok = Recuperacao.reanexarPerfil(pid);
+      showToast(ok ? 'Perfil devolvido à lista ✓ — entre nele pelo topo da tela' : 'Este perfil já estava na lista');
+      this.render();
     }));
     host.querySelectorAll('.rec-fill').forEach(b => b.addEventListener('click', async () => {
       const ts = parseInt(b.closest('[data-foto]').dataset.foto, 10);

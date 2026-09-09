@@ -578,6 +578,34 @@ const AutoTeste = {
       this._ok('o órfão informa quantos registros carrega',
         orfaos.every(o => typeof o.bytes === 'number' && o.bytes > 0), JSON.stringify(orfaos));
 
+      /* 5b. O ÍNDICE NUNCA É MAIS RESTRITIVO QUE O CONTEÚDO. A lista de perfis
+         era reconstruída só com o que a nuvem devolvesse: um perfil ausente na
+         resposta saía da lista e os dados dele ficavam ilhados no aparelho,
+         inteiros e inalcançáveis. Quem tem dado aqui não sai — e, se já tiver
+         saído, volta sozinho. */
+      const listaOriginal = localStorage.getItem(DB.PROFILES_KEY);
+      try {
+        this._ok('perfil com dados locais é reconhecido', ProfileManager.temDadosLocais(PID));
+        localStorage.setItem(DB.PROFILES_KEY, JSON.stringify([{ id: 'outro', nome: 'Outro' }]));
+        ProfileManager.syncMirrorFromCloud([{ id: 'outro', profile_name: 'Outro', rev: 1 }]);
+        const depois = ProfileManager.getProfiles();
+        this._ok('perfil com dados não some quando a nuvem não o traz',
+          depois.some(p => p.id === PID), depois.map(p => p.id));
+        this._ok('perfil readotado é marcado como só-local',
+          (depois.find(p => p.id === PID) || {}).soLocal === true);
+        this._ok('perfil que a nuvem traz continua na lista',
+          depois.some(p => p.id === 'outro'), depois.map(p => p.id));
+        const vazio = 'diario-estudos:u:__t_vazio__:__secrev';
+        localStorage.setItem(vazio, '{}');
+        ProfileManager.syncMirrorFromCloud([{ id: 'outro', profile_name: 'Outro', rev: 1 }]);
+        this._ok('perfil sem dado de verdade não é ressuscitado',
+          !ProfileManager.getProfiles().some(p => p.id === '__t_vazio__'));
+        localStorage.removeItem(vazio);
+      } finally {
+        if (listaOriginal === null) localStorage.removeItem(DB.PROFILES_KEY);
+        else localStorage.setItem(DB.PROFILES_KEY, listaOriginal);
+      }
+
       // 6. a varredura enxerga o perfil inteiro, esteja ele na lista ou não
       const achado = Recuperacao.varrer().find(p => p.id === PID);
       this._ok('varredura encontra perfil fora da lista de perfis',

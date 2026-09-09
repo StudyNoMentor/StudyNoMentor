@@ -12945,10 +12945,77 @@ const ProfileManager = {
     else list.push({ id, nome: nome || 'Perfil', avatar: avatar || '📘', cor: cor || '#4f46e5', createdAt: new Date().toISOString() });
     this.saveProfiles(list);
   },
-  // reconstrói o espelho local a partir das linhas vindas da nuvem
+  /* ── PERFIS QUE TÊM DADOS NESTE APARELHO ──────────────────────────────────
+     Varre o armazenamento atrás de namespaces `diario-estudos:u:<id>:` com
+     conteúdo de verdade (a contabilidade de sync, a lixeira e as fotos não
+     contam — um perfil que só tem isso está vazio). É a fonte da verdade para
+     a regra abaixo: quem tem dado aqui NUNCA some da lista. */
+  perfisComDadosLocais() {
+    const achados = {};
+    const RE = /^diario-estudos:u:([^:]+):(.+)$/;
+    try {
+      for (let i = 0; i < localStorage.length; i++) {
+        const k = localStorage.key(i);
+        if (!k) continue;
+        const m = RE.exec(k);
+        if (!m) continue;
+        const sub = m[2];
+        if (sub === '__secrev' || sub === '__secpend' || sub === '__secdel') continue;
+        if (sub.indexOf('vhist') === 0) continue;
+        if (window.Lixeira && sub.indexOf(Lixeira.PREFIXO) === 0) continue;
+        const v = localStorage.getItem(k) || '';
+        if (v === '' || v === '[]' || v === '{}' || v === 'null') continue;
+        const a = achados[m[1]] || (achados[m[1]] = { id: m[1], bytes: 0, secoes: 0 });
+        a.bytes += v.length; a.secoes++;
+      }
+    } catch (e) { _quiet(e, 'perfis-com-dados'); }
+    return Object.values(achados);
+  },
+  temDadosLocais(id) { return this.perfisComDadosLocais().some(p => p.id === id); },
+
+  /* ── ESPELHO DA NUVEM — COM UMA TRAVA ─────────────────────────────────────
+     Esta função reconstruía a lista de perfis com o que a nuvem devolvesse, e
+     só com isso. Se a resposta viesse sem um perfil — linha apagada, RLS
+     recusando, outra conta, resposta parcial —, a entrada dele sumia da lista
+     e os dados dele ficavam ILHADOS: continuam no aparelho, inteiros, sem
+     nenhuma porta para chegar até eles. Foi assim que um perfil com 1,1 MB de
+     estudo desapareceu da tela enquanto estava todo ali.
+
+     Duas regras agora:
+
+       1. QUEM TEM DADO AQUI NÃO SAI DA LISTA. Um perfil ausente na nuvem mas
+          com conteúdo neste aparelho permanece, marcado `soLocal`.
+       2. QUEM TEM DADO AQUI E NÃO ESTÁ NA LISTA, ENTRA. Se o registro já se
+          perdeu numa versão anterior, ele é readotado sozinho — a pessoa não
+          precisa descobrir que existe uma tela de recuperação para ver o
+          próprio estudo de volta.
+
+     A lista de perfis é um ÍNDICE, e um índice nunca pode ser mais restritivo
+     que o conteúdo que ele indexa. */
   syncMirrorFromCloud(rows) {
-    const list = (rows || []).map(r => ({ id: r.id, nome: r.profile_name, avatar: r.avatar, cor: r.color, createdAt: r.created_at || '' }));
-    this.saveProfiles(list);
+    const daNuvem = (rows || []).map(r => ({ id: r.id, nome: r.profile_name, avatar: r.avatar, cor: r.color, createdAt: r.created_at || '' }));
+    const idsNuvem = new Set(daNuvem.map(p => p.id));
+    const anteriores = this.getProfiles() || [];
+    const porId = {};
+    anteriores.forEach(p => { if (p && p.id) porId[p.id] = p; });
+
+    const sobreviventes = [];
+    this.perfisComDadosLocais().forEach(d => {
+      if (idsNuvem.has(d.id)) return;                 // a nuvem já traz este
+      const antigo = porId[d.id] || {};
+      sobreviventes.push({
+        id: d.id,
+        nome: antigo.nome || ('Perfil recuperado ' + String(d.id).slice(0, 8)),
+        avatar: antigo.avatar || '🛟',
+        cor: antigo.cor || '#0a95a8',
+        createdAt: antigo.createdAt || '',
+        soLocal: true
+      });
+    });
+    if (sobreviventes.length) {
+      try { console.warn('[perfis] ' + sobreviventes.length + ' perfil(is) têm dados neste aparelho e não vieram da nuvem — MANTIDOS na lista: ' + sobreviventes.map(p => p.id).join(', ')); } catch (e) { _quiet(e, 'perfis-log'); }
+    }
+    this.saveProfiles(daNuvem.concat(sobreviventes));
     (rows || []).forEach(r => { if (r.rev) this.setRev(r.id, r.rev); });
   },
   /* Apaga o namespace local de um perfil e aplica um payload baixado (data map).
@@ -24847,6 +24914,34 @@ const AutoTeste = {
       this._ok('o órfão informa quantos registros carrega',
         orfaos.every(o => typeof o.bytes === 'number' && o.bytes > 0), JSON.stringify(orfaos));
 
+      /* 5b. O ÍNDICE NUNCA É MAIS RESTRITIVO QUE O CONTEÚDO. A lista de perfis
+         era reconstruída só com o que a nuvem devolvesse: um perfil ausente na
+         resposta saía da lista e os dados dele ficavam ilhados no aparelho,
+         inteiros e inalcançáveis. Quem tem dado aqui não sai — e, se já tiver
+         saído, volta sozinho. */
+      const listaOriginal = localStorage.getItem(DB.PROFILES_KEY);
+      try {
+        this._ok('perfil com dados locais é reconhecido', ProfileManager.temDadosLocais(PID));
+        localStorage.setItem(DB.PROFILES_KEY, JSON.stringify([{ id: 'outro', nome: 'Outro' }]));
+        ProfileManager.syncMirrorFromCloud([{ id: 'outro', profile_name: 'Outro', rev: 1 }]);
+        const depois = ProfileManager.getProfiles();
+        this._ok('perfil com dados não some quando a nuvem não o traz',
+          depois.some(p => p.id === PID), depois.map(p => p.id));
+        this._ok('perfil readotado é marcado como só-local',
+          (depois.find(p => p.id === PID) || {}).soLocal === true);
+        this._ok('perfil que a nuvem traz continua na lista',
+          depois.some(p => p.id === 'outro'), depois.map(p => p.id));
+        const vazio = 'diario-estudos:u:__t_vazio__:__secrev';
+        localStorage.setItem(vazio, '{}');
+        ProfileManager.syncMirrorFromCloud([{ id: 'outro', profile_name: 'Outro', rev: 1 }]);
+        this._ok('perfil sem dado de verdade não é ressuscitado',
+          !ProfileManager.getProfiles().some(p => p.id === '__t_vazio__'));
+        localStorage.removeItem(vazio);
+      } finally {
+        if (listaOriginal === null) localStorage.removeItem(DB.PROFILES_KEY);
+        else localStorage.setItem(DB.PROFILES_KEY, listaOriginal);
+      }
+
       // 6. a varredura enxerga o perfil inteiro, esteja ele na lista ou não
       const achado = Recuperacao.varrer().find(p => p.id === PID);
       this._ok('varredura encontra perfil fora da lista de perfis',
@@ -30294,11 +30389,26 @@ const ProfileUI = {
         CloudStore._applying = false;
       } catch (err) {
         CloudStore._applying = false;
-        this._entering = false;   // libera o gate para mostrar o seletor de novo
-        this._autoEnterTried = true;
-        showToast('Erro ao carregar o perfil: ' + (err.message || ''));
-        this._showProfilePicker();
-        return;
+        /* A NUVEM NÃO TER O PERFIL NÃO É MOTIVO PARA NÃO ABRIR O QUE ESTÁ AQUI.
+           Antes, qualquer erro devolvia a pessoa ao seletor — e um perfil cujo
+           registro sumiu da nuvem virava uma porta trancada com os dados dela
+           do lado de dentro. Só vale para a resposta DEFINITIVA ('não existe'):
+           erro de rede continua voltando ao seletor, porque aí a nuvem pode ter
+           dado mais novo e entrar às cegas arriscaria subir o local por cima. */
+        const inexistente = err && (err.code === 'perfil-inexistente' || /não encontrado na nuvem/i.test(err.message || ''));
+        if (inexistente && ProfileManager.temDadosLocais(id)) {
+          console.warn('[perfil] a nuvem não tem este perfil, mas há dados aqui — abrindo localmente e enfileirando para envio');
+          ProfileManager.setActiveProfile(id);
+          PlanManager.init();
+          try { if (window.SectionSync) { SectionSync.markAllDirty(); SectionSync.kick(); } } catch (e) { _quiet(e, 'perfil-local-envio'); }
+          showToast('Perfil aberto deste aparelho — enviando para a nuvem');
+        } else {
+          this._entering = false;   // libera o gate para mostrar o seletor de novo
+          this._autoEnterTried = true;
+          showToast('Erro ao carregar o perfil: ' + (err.message || ''));
+          this._showProfilePicker();
+          return;
+        }
       }
     } else {
       ProfileManager.setActiveProfile(id);
@@ -30734,7 +30844,13 @@ const CloudStore = {
   async fetchPayload(id) {
     const { data, error } = await this._withTimeout(
       this.client.from(this.TABLE).select('payload,rev').eq('id', id).maybeSingle(), 15000, 'Baixar o perfil');
-    if (error) throw error; if (!data) throw new Error('Perfil não encontrado na nuvem.'); return data;
+    if (error) throw error;
+    /* Resposta DEFINITIVA (não é rede, não é timeout): esta conta não tem este
+       perfil. Marcada com código próprio porque quem chama precisa distinguir
+       "a nuvem não tem" de "não deu para perguntar" — no primeiro caso, um
+       perfil com dados locais tem de abrir mesmo assim. */
+    if (!data) { const e = new Error('Perfil não encontrado na nuvem.'); e.code = 'perfil-inexistente'; throw e; }
+    return data;
   },
   async saveActive() {
     const id = ProfileManager.getActiveProfileId();
@@ -33110,6 +33226,70 @@ const Recuperacao = {
     });
     return Object.values(porPlano).sort((a, b) => b.bytes - a.bytes);
   },
+  /* ── ARMAZENAMENTO ANTIGO (localStorage nativo) ───────────────────────────
+     O app guarda tudo no IndexedDB, através de uma fachada que se chama
+     `localStorage`. Dado escrito por versões anteriores pode ter ficado no
+     localStorage NATIVO — e, depois que a fachada assume o nome, olhar lá vira
+     impossível para o resto do código. Esta função olha. */
+  varrerAntigo() {
+    const nativo = window.__nativeLS;
+    const out = [];
+    if (!nativo) return out;
+    try {
+      for (let i = 0; i < nativo.length; i++) {
+        const k = nativo.key(i);
+        if (!k || k.indexOf('diario-estudos') !== 0) continue;
+        if (localStorage.getItem(k) !== null) continue;   // já está no armazenamento atual
+        const v = nativo.getItem(k) || '';
+        if (v === '' || v === '[]' || v === '{}' || v === 'null') continue;
+        out.push({ chave: k, bytes: v.length });
+      }
+    } catch (e) { _quiet(e, 'rec-antigo'); }
+    return out.sort((a, b) => b.bytes - a.bytes);
+  },
+  /* Traz para o armazenamento atual o que ficou no antigo. Nunca sobrescreve:
+     onde já existe valor, o atual manda. */
+  adotarAntigo() {
+    const achadas = this.varrerAntigo();
+    let n = 0;
+    achadas.forEach(it => {
+      try {
+        const v = window.__nativeLS.getItem(it.chave);
+        if (v == null) return;
+        if (localStorage.getItem(it.chave) !== null) return;
+        if (DB.setRaw(it.chave, v) !== false) n++;
+      } catch (e) { _quiet(e, 'rec-adotar'); }
+    });
+    return n;
+  },
+  /* Chaves sem namespace de perfil ("diario-estudos:entries" e irmãs), de antes
+     de existirem perfis e planejamentos. O app só as consome numa migração que
+     roda uma vez — se ela não rodou, o dado fica parado ali. */
+  varrerLegado() {
+    const out = [];
+    try {
+      Object.keys(DB.LEGACY_KEYS).forEach(nome => {
+        const k = DB.LEGACY_KEYS[nome];
+        const v = localStorage.getItem(k);
+        if (v == null || v === '' || v === '[]' || v === '{}' || v === 'null') return;
+        let itens = null;
+        try { const o = JSON.parse(v); itens = Array.isArray(o) ? o.length : (o && typeof o === 'object' ? Object.keys(o).length : null); } catch (e) { _quiet(e, 'rec-legado-parse'); }
+        out.push({ nome, chave: k, bytes: v.length, itens });
+      });
+    } catch (e) { _quiet(e, 'rec-legado'); }
+    return out;
+  },
+  /* Devolve um PERFIL à lista de perfis. É a irmã de reanexarPlano um nível
+     acima: o namespace do perfil está inteiro no aparelho, só o registro dele
+     no índice se perdeu — e sem o registro não há como entrar nele. */
+  reanexarPerfil(pid, nome) {
+    const list = ProfileManager.getProfiles();
+    if (list.some(p => p.id === pid)) return false;
+    list.push({ id: pid, nome: nome || ('Perfil recuperado ' + String(pid).slice(0, 8)),
+      avatar: '🛟', cor: '#0a95a8', createdAt: new Date().toISOString(), soLocal: true });
+    ProfileManager.saveProfiles(list);
+    return true;
+  },
   /* Devolve um planejamento órfão à lista. Não move, não copia e não apaga
      nada: só torna alcançável o que já está no aparelho. */
   reanexarPlano(planId, nome) {
@@ -33186,13 +33366,16 @@ const RecuperacaoUI = {
     const meu = perfis.find(p => p.id === ativo) || null;
     const orfaos = Recuperacao.planosOrfaos(ativo);
     const lixo = Lixeira.listar(ativo);
+    const antigo = Recuperacao.varrerAntigo();
+    const legado = Recuperacao.varrerLegado();
     const fotos = await Recuperacao.inspecionarFotos(ativo);
 
     const blocos = [];
 
     /* 1. VEREDITO — a pergunta que a pessoa veio fazer, respondida primeiro. */
     const alcancaveis = meu ? meu.secoes.filter(s => s.alcancavel) : [];
-    const recuperavel = orfaos.length || lixo.length ||
+    const perfisFora = perfis.filter(p => !p.naListaDePerfis && p.secoes.length);
+    const recuperavel = perfisFora.length || orfaos.length || lixo.length || antigo.length || legado.length ||
       fotos.some(f => f.secoes.some(sec => {
         const v = localStorage.getItem('diario-estudos:u:' + ativo + ':' + sec);
         return v === null || v === '' || v === '[]' || v === '{}';
@@ -33200,9 +33383,44 @@ const RecuperacaoUI = {
     blocos.push(`<div class="cloud-slot-row" style="align-items:flex-start;">
       <div class="cloud-slot-info">
         <div class="name">${recuperavel ? '⚠️ Há dado recuperável neste aparelho' : '✓ Nada fora do lugar'}</div>
-        <div class="meta">${alcancaveis.length} seção(ões) em uso · ${this._kb(meu ? meu.bytes : 0)} no total · ${orfaos.length} planejamento(s) órfão(s) · ${lixo.length} item(ns) na lixeira · ${fotos.length} foto(s) do histórico</div>
+        <div class="meta">${alcancaveis.length} seção(ões) em uso · ${this._kb(meu ? meu.bytes : 0)} no total · ${perfisFora.length} perfil(is) fora da lista · ${orfaos.length} planejamento(s) órfão(s) · ${lixo.length} item(ns) na lixeira · ${antigo.length} chave(s) no armazenamento antigo · ${fotos.length} foto(s) do histórico</div>
       </div>
     </div>`);
+
+    /* 1b. PERFIL FORA DA LISTA — o caso mais grave e o mais fácil de resolver:
+       é onde costuma estar TODO o estudo da pessoa. Vem antes de tudo. */
+    if (perfisFora.length) {
+      const maior = perfisFora.reduce((a, b) => (b.bytes > a.bytes ? b : a), perfisFora[0]);
+      blocos.push(`<div class="wd-section-title">⚠️ Há um perfil com dados fora da lista</div>
+        <p class="hint">O maior deles guarda <strong>${this._kb(maior.bytes)}</strong> em ${maior.secoes.length} seção(ões). Se as suas telas abriram vazias, o seu estudo provavelmente está aqui — role até <strong>“Outros perfis neste aparelho”</strong> e devolva-o à lista.</p>`);
+    }
+
+    /* 1c. ARMAZENAMENTO ANTIGO — dado que o app deixou de enxergar ao trocar de
+       motor de armazenamento. Invisível por definição: só esta tela alcança. */
+    if (antigo.length) {
+      const kb = antigo.reduce((a, x) => a + x.bytes, 0);
+      blocos.push(`<div class="wd-section-title">Armazenamento antigo do navegador</div>
+        <p class="hint">Há <strong>${this._kb(kb)}</strong> em ${antigo.length} chave(s) guardadas pelo motor de armazenamento anterior, que o app não estava lendo. Adotar copia para o armazenamento atual sem sobrescrever nada do que já existe.</p>
+        <div class="cloud-slot-row">
+          <div class="cloud-slot-info">
+            <div class="name">${antigo.length} chave(s) · ${this._kb(kb)}</div>
+            <div class="meta">${antigo.slice(0, 4).map(x => escapeHtml(x.chave.replace('diario-estudos:', ''))).join(', ')}${antigo.length > 4 ? '…' : ''}</div>
+          </div>
+          <div class="cloud-slot-actions"><button type="button" class="btn-primary rec-antigo">⤵ Adotar</button></div>
+        </div>`);
+    }
+
+    /* 1d. CHAVES LEGADAS — de antes de perfis e planejamentos existirem. */
+    if (legado.length) {
+      blocos.push('<div class="wd-section-title">Dados de antes dos planejamentos</div>' +
+        '<p class="hint">Formato antigo, de quando o app ainda não tinha perfis nem planejamentos. Ficam guardados como estão; se algum tiver conteúdo que você não vê em tela nenhuma, me diga qual — a conversão depende do que há dentro.</p>' +
+        legado.map(x => `<div class="cloud-slot-row">
+          <div class="cloud-slot-info">
+            <div class="name">${escapeHtml(x.nome)}</div>
+            <div class="meta">${escapeHtml(x.chave)} · ${this._kb(x.bytes)}${x.itens != null ? ' · ' + x.itens + ' item(ns)' : ''}</div>
+          </div>
+        </div>`).join(''));
+    }
 
     /* 2. PLANEJAMENTOS ÓRFÃOS — a causa mais comum de "sumiu tudo menos os
        registros": os dados existem, o app é que perdeu o caminho até eles. */
@@ -33261,14 +33479,17 @@ const RecuperacaoUI = {
     /* 6. OUTROS PERFIS — dado de outro perfil também some da vista. */
     const outros = perfis.filter(p => p.id !== ativo);
     if (outros.length) {
+      const fora = outros.filter(p => !p.naListaDePerfis);
       blocos.push('<div class="wd-section-title">Outros perfis neste aparelho</div>' +
-        outros.map(p => `<div class="cloud-slot-row">
+        (fora.length ? '<p class="hint">Um perfil <strong>fora da lista</strong> tem os dados inteiros aqui — o que se perdeu foi só o registro dele no índice, e sem esse registro não há como entrar. Devolver à lista é aditivo: nada é movido, copiado ou apagado.</p>' : '') +
+        outros.map(p => `<div class="cloud-slot-row" data-perfil="${escapeHtml(p.id)}">
           <div class="cloud-slot-info">
             <div class="name">${escapeHtml(p.nome || p.id)} ${p.naListaDePerfis ? '' : '<span class="inactive-tag">fora da lista de perfis</span>'}</div>
             <div class="meta">${p.secoes.length} seção(ões) · ${this._kb(p.bytes)} · ${p.fotos} foto(s)</div>
           </div>
+          ${p.naListaDePerfis ? '' : '<div class="cloud-slot-actions"><button type="button" class="btn-primary rec-perfil">↩ Devolver à lista</button></div>'}
         </div>`).join('') +
-        '<p class="hint">Para ver os dados de outro perfil, entre nele pelo seu nome no topo da tela.</p>');
+        '<p class="hint">Depois de devolvido, o perfil aparece no seletor: toque no seu nome no topo da tela para entrar nele.</p>');
     }
 
     host.innerHTML = blocos.join('');
@@ -33295,6 +33516,20 @@ const RecuperacaoUI = {
         return;
       }
       showToast('Não foi possível restaurar: ' + (r.motivo || ''));
+    }));
+    host.querySelectorAll('.rec-antigo').forEach(b => b.addEventListener('click', async () => {
+      if (!await UI.confirm('Copiar para o armazenamento atual o que ficou no antigo?\n\nNada é sobrescrito: onde já existe valor, o atual continua valendo.', { title: '⤵ Adotar armazenamento antigo', okText: 'Adotar' })) return;
+      const n = Recuperacao.adotarAntigo();
+      if (!n) { showToast('Nada a adotar'); return; }
+      showToast(n + ' chave(s) adotada(s) ✓ — recarregando');
+      setTimeout(() => recarregarApp('armazenamento antigo adotado', { imediato: true }), 900);
+    }));
+    host.querySelectorAll('.rec-perfil').forEach(b => b.addEventListener('click', async () => {
+      const pid = b.closest('[data-perfil]').dataset.perfil;
+      if (!await UI.confirm('Devolver este perfil à sua lista?\n\nOs dados dele já estão neste aparelho — isto só recria a entrada que dá acesso a eles. Depois, entre nele pelo seu nome no topo da tela.', { title: '↩ Devolver perfil à lista', okText: 'Devolver' })) return;
+      const ok = Recuperacao.reanexarPerfil(pid);
+      showToast(ok ? 'Perfil devolvido à lista ✓ — entre nele pelo topo da tela' : 'Este perfil já estava na lista');
+      this.render();
     }));
     host.querySelectorAll('.rec-fill').forEach(b => b.addEventListener('click', async () => {
       const ts = parseInt(b.closest('[data-foto]').dataset.foto, 10);
@@ -35281,20 +35516,45 @@ else CloudStore.init();
     });
   }
 
-  // Migração única: se o IndexedDB está vazio mas há dados no localStorage antigo,
-  // importa TODAS as chaves para o IndexedDB (executa só na primeira vez).
+  /* ── ADOÇÃO DO ARMAZENAMENTO ANTIGO ──────────────────────────────────────
+     Esta função era tudo-ou-nada: `if (cache.size > 0) return`. Ou seja, bastava
+     UMA chave existir no IndexedDB — o tema, um sinalizador de tela, uma
+     gravação parcial — para o localStorage nativo inteiro nunca mais ser lido.
+     E, como a partir daqui `window.localStorage` passa a apontar para esta
+     fachada, o que ficou lá vira invisível para o app TODO: os dados continuam
+     no navegador, íntegros, sem nenhuma porta.
+
+     Agora é uma FUSÃO, e roda sempre: toda chave que existe no armazenamento
+     antigo e não existe aqui é adotada. O IndexedDB continua mandando quando os
+     dois têm a mesma chave (é o store mais novo), então nada é sobrescrito —
+     só se acrescenta o que estava órfão.
+
+     Ressuscitar algo apagado de propósito não é risco real: remover pela fachada
+     também remove do nativo (mirrorNative 'del'), e o espelho nativo só guarda
+     chaves pequenas — uma seção grande presente lá e ausente aqui é, por
+     construção, dado antigo que nunca foi migrado. */
   function migrateFromNative() {
-    if (cache.size > 0 || !nativeLS) return;
+    if (!nativeLS) return 0;
+    var adotadas = 0, bytes = 0;
     try {
       for (var i = 0; i < nativeLS.length; i++) {
         var k = nativeLS.key(i); if (k == null) continue;
+        if (cache.has(k)) continue;                 // o IndexedDB manda
         var v = nativeLS.getItem(k); if (v == null) continue;
         cache.set(k, v);
         enqueue({ t: 'set', k: k, v: v });
+        adotadas++; bytes += v.length;
       }
-      invalidateKeys();
+      if (adotadas) {
+        invalidateKeys();
+        try { console.warn('[armazenamento] ' + adotadas + ' chave(s) do armazenamento antigo adotadas (' + Math.round(bytes / 1024) + ' KB) — estavam invisíveis para o app'); } catch (e) {}
+      }
     } catch (e) { _quiet(e); }
+    return adotadas;
   }
+  /* O armazenamento antigo continua acessível para a tela de Recuperação: sem
+     isto, depois da fachada instalada não há mais como olhar lá dentro. */
+  try { window.__nativeLS = nativeLS; } catch (e) { _quiet(e); }
 
   // Reaplica o tema a partir do cache já hidratado (garante o tema certo mesmo
   // quando o dado existe só no IndexedDB e não no localStorage nativo).

@@ -327,10 +327,77 @@ const ProfileManager = {
     else list.push({ id, nome: nome || 'Perfil', avatar: avatar || '📘', cor: cor || '#4f46e5', createdAt: new Date().toISOString() });
     this.saveProfiles(list);
   },
-  // reconstrói o espelho local a partir das linhas vindas da nuvem
+  /* ── PERFIS QUE TÊM DADOS NESTE APARELHO ──────────────────────────────────
+     Varre o armazenamento atrás de namespaces `diario-estudos:u:<id>:` com
+     conteúdo de verdade (a contabilidade de sync, a lixeira e as fotos não
+     contam — um perfil que só tem isso está vazio). É a fonte da verdade para
+     a regra abaixo: quem tem dado aqui NUNCA some da lista. */
+  perfisComDadosLocais() {
+    const achados = {};
+    const RE = /^diario-estudos:u:([^:]+):(.+)$/;
+    try {
+      for (let i = 0; i < localStorage.length; i++) {
+        const k = localStorage.key(i);
+        if (!k) continue;
+        const m = RE.exec(k);
+        if (!m) continue;
+        const sub = m[2];
+        if (sub === '__secrev' || sub === '__secpend' || sub === '__secdel') continue;
+        if (sub.indexOf('vhist') === 0) continue;
+        if (window.Lixeira && sub.indexOf(Lixeira.PREFIXO) === 0) continue;
+        const v = localStorage.getItem(k) || '';
+        if (v === '' || v === '[]' || v === '{}' || v === 'null') continue;
+        const a = achados[m[1]] || (achados[m[1]] = { id: m[1], bytes: 0, secoes: 0 });
+        a.bytes += v.length; a.secoes++;
+      }
+    } catch (e) { _quiet(e, 'perfis-com-dados'); }
+    return Object.values(achados);
+  },
+  temDadosLocais(id) { return this.perfisComDadosLocais().some(p => p.id === id); },
+
+  /* ── ESPELHO DA NUVEM — COM UMA TRAVA ─────────────────────────────────────
+     Esta função reconstruía a lista de perfis com o que a nuvem devolvesse, e
+     só com isso. Se a resposta viesse sem um perfil — linha apagada, RLS
+     recusando, outra conta, resposta parcial —, a entrada dele sumia da lista
+     e os dados dele ficavam ILHADOS: continuam no aparelho, inteiros, sem
+     nenhuma porta para chegar até eles. Foi assim que um perfil com 1,1 MB de
+     estudo desapareceu da tela enquanto estava todo ali.
+
+     Duas regras agora:
+
+       1. QUEM TEM DADO AQUI NÃO SAI DA LISTA. Um perfil ausente na nuvem mas
+          com conteúdo neste aparelho permanece, marcado `soLocal`.
+       2. QUEM TEM DADO AQUI E NÃO ESTÁ NA LISTA, ENTRA. Se o registro já se
+          perdeu numa versão anterior, ele é readotado sozinho — a pessoa não
+          precisa descobrir que existe uma tela de recuperação para ver o
+          próprio estudo de volta.
+
+     A lista de perfis é um ÍNDICE, e um índice nunca pode ser mais restritivo
+     que o conteúdo que ele indexa. */
   syncMirrorFromCloud(rows) {
-    const list = (rows || []).map(r => ({ id: r.id, nome: r.profile_name, avatar: r.avatar, cor: r.color, createdAt: r.created_at || '' }));
-    this.saveProfiles(list);
+    const daNuvem = (rows || []).map(r => ({ id: r.id, nome: r.profile_name, avatar: r.avatar, cor: r.color, createdAt: r.created_at || '' }));
+    const idsNuvem = new Set(daNuvem.map(p => p.id));
+    const anteriores = this.getProfiles() || [];
+    const porId = {};
+    anteriores.forEach(p => { if (p && p.id) porId[p.id] = p; });
+
+    const sobreviventes = [];
+    this.perfisComDadosLocais().forEach(d => {
+      if (idsNuvem.has(d.id)) return;                 // a nuvem já traz este
+      const antigo = porId[d.id] || {};
+      sobreviventes.push({
+        id: d.id,
+        nome: antigo.nome || ('Perfil recuperado ' + String(d.id).slice(0, 8)),
+        avatar: antigo.avatar || '🛟',
+        cor: antigo.cor || '#0a95a8',
+        createdAt: antigo.createdAt || '',
+        soLocal: true
+      });
+    });
+    if (sobreviventes.length) {
+      try { console.warn('[perfis] ' + sobreviventes.length + ' perfil(is) têm dados neste aparelho e não vieram da nuvem — MANTIDOS na lista: ' + sobreviventes.map(p => p.id).join(', ')); } catch (e) { _quiet(e, 'perfis-log'); }
+    }
+    this.saveProfiles(daNuvem.concat(sobreviventes));
     (rows || []).forEach(r => { if (r.rev) this.setRev(r.id, r.rev); });
   },
   /* Apaga o namespace local de um perfil e aplica um payload baixado (data map).
