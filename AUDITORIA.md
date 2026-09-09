@@ -541,3 +541,39 @@ node verificar.mjs            # as 7 checagens
 node testes/paridade-anki.mjs # 21.080 pontos contra o Anki
 node build.mjs --check        # src/ monta o index.html byte a byte
 ```
+
+---
+
+## Perda de dados: as três correções e a garantia
+
+O relato foi "os registros e a Evolução aparecem, mas o ciclo, os cards, o TEC e
+a grade sumiram". Três defeitos distintos, um por camada:
+
+| # | Onde | Defeito |
+|---|------|---------|
+| 1 | `SectionSync._applyMap` | O download apagava do aparelho toda seção ausente do manifesto. Mas faltar na nuvem tem dois motivos: exclusão real, ou **nunca ter chegado lá** — o caso das seções grandes (cards, TEC, incidência, grades salvas), que sobem uma a uma e falham por tamanho. Apagava-se o único exemplar existente |
+| 2 | `SectionSync._syncManifest` | O manifesto era "o que existe aqui agora", então o sumiço local do defeito 1 era publicado como exclusão e apagava também as linhas da nuvem — a última cópia ia atrás da primeira |
+| 3 | `ProfileManager.restorePayloadInto` | Mesmo defeito de 1 no caminho do blob (plano B) |
+
+**As regras que passam a valer:**
+
+1. **Ausência não é exclusão.** Só se apaga uma seção local que tenha revisão
+   gravada em `__secrev` — prova de que ela esteve na nuvem. Sem prova, o dado é
+   deste aparelho e só: fica, e entra na fila de envio.
+2. **A nuvem só esquece o que foi mandado esquecer.** Exclusão virou fato
+   registrado (`__secdel`, alimentado por `DB.delRaw`), não dedução por ausência.
+   O manifesto é a união do que existe aqui com o que existe lá e ninguém mandou
+   apagar. Preço aceito: apagar no aparelho A com o B ainda de posse da seção faz
+   B devolvê-la. Dado voltando é aborrecimento; dado sumindo é o trabalho de
+   meses de alguém.
+3. **Apagar não é definitivo.** Toda remoção passa pela `Lixeira`: 30 dias,
+   2 MB de orçamento, fora da sincronização. Restaurar nunca sobrescreve o que
+   existe agora sem confirmação explícita.
+4. **O que está fora do alcance é encontrável.** `Configurações → 🔎 Recuperação
+   de dados` varre o aparelho inteiro — todos os perfis, todos os planejamentos
+   (inclusive os que sumiram da lista), a lixeira e as fotos do histórico — e
+   devolve com um clique. "Trazer o que falta" preenche só as seções vazias, sem
+   desfazer nada feito depois.
+
+Cobertura: AutoTeste 164 → 191, com os grupos "Semana fechada é registro" e
+"Nada se perde", mais as asserções novas em "Garantia de salvamento".

@@ -74,7 +74,7 @@ const PlanManager = {
   deletePlan(id) {
     // apaga todos os dados namespaced do planejamento
     const k = DB.keysForPlan(id);
-    Object.values(k).forEach(key => localStorage.removeItem(key));
+    Object.values(k).forEach(key => DB.delRaw(key, 'planejamento excluído'));
     const plans = this.getPlans().filter(p => p.id !== id);
     this.savePlans(plans);
     if (this.getActivePlanId() === id) {
@@ -232,7 +232,8 @@ const ProfileManager = {
       const sub = k.slice(prefix.length);
       // A contabilidade da sincronização por seção é local a cada aparelho: levá-la
       // no backup faria o aparelho que importa herdar a fila de envio de outro.
-      if (sub === '__secrev' || sub === '__secpend') continue;
+      if (sub === '__secrev' || sub === '__secpend' || sub === '__secdel') continue;
+      if (sub.indexOf(Lixeira.PREFIXO) === 0) continue;   // a lixeira é rede local deste aparelho
       data[sub] = localStorage.getItem(k);
     }
     // não exporta o PIN (backup não deve carregar credencial); o usuário redefine se quiser
@@ -341,7 +342,7 @@ const ProfileManager = {
     const manter = new Set(preservar || []);
     // A contabilidade da sincronização é DESTE aparelho (o que ele já enviou e o
     // que falta): vinda no backup de outro, faria este achar que está em dia.
-    const local = ['__secrev', '__secpend'];
+    const local = ['__secrev', '__secpend', '__secdel'];
     const toRemove = [];
     for (let i = 0; i < localStorage.length; i++) {
       const k = localStorage.key(i);
@@ -366,6 +367,7 @@ const ProfileManager = {
       const sub = k.slice(prefix.length);
       if (sub in vindas) return;                       // vem logo abaixo, atualizada
       if (!jaSincronizadas[sub]) { preservadas.push(sub); return; }   // nunca subiu: fica
+      Lixeira.guardar(k, 'ausente no download da nuvem');
       localStorage.removeItem(k); mudou++;
     });
     if (preservadas.length) {

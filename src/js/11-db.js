@@ -155,7 +155,11 @@ const DB = {
     if (_sectionMarkHook) _sectionMarkHook(key);
     return true;
   },
-  delRaw(key) {
+  /* Apagar deixou de ser definitivo: o valor vai para a LIXEIRA antes de sair.
+     Quem chama continua vendo o mesmo comportamento (a chave some), mas passa a
+     haver 30 dias de arrependimento em Configurações → Recuperação de dados. */
+  delRaw(key, motivo) {
+    try { Lixeira.guardar(key, motivo || 'apagada pelo app'); } catch (e) { _quiet(e, 'delRaw-lixeira'); }
     try { localStorage.removeItem(key); } catch (e) { _quiet(e, 'delRaw'); return false; }
     if (_cloudNotifyHook) _cloudNotifyHook();
     if (_sectionDropHook) _sectionDropHook(key);
@@ -533,7 +537,7 @@ const DB = {
   // --- Current Cycle ---
   getCurrentCycle() { return this._get(this.KEYS.currentCycle, null); },
   saveCurrentCycle(cycle) { this._set(this.KEYS.currentCycle, cycle); },
-  clearCurrentCycle() { localStorage.removeItem(this.KEYS.currentCycle); },
+  clearCurrentCycle() { this.delRaw(this.KEYS.currentCycle, 'semana fechada'); },
   // memória do último ciclo montado (para pré-preencher a próxima semana) — por planejamento
   getLastCycleSetup() { return this._get(this.KEYS.lastCycleSetup, null); },
   saveLastCycleSetup(setup) { this._set(this.KEYS.lastCycleSetup, setup); },

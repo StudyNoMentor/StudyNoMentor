@@ -7239,6 +7239,19 @@ window.__idbBoot = (function () {
       </div>
     </section>
 
+    <section class="card" id="cfg-recuperacao-card">
+      <div class="card-header">
+        <div>
+          <h2>🔎 Recuperação de dados</h2>
+          <p class="sub">Se alguma tela abriu vazia, comece por aqui. Esta ferramenta vasculha o aparelho inteiro — todos os perfis, todos os planejamentos, a lixeira e as fotos do histórico de versões — e mostra tudo o que encontrou, mesmo o que o app hoje não consegue alcançar. Ela nunca apaga: só devolve o que está fora do lugar.</p>
+        </div>
+        <button type="button" class="btn-secondary" id="cfg-rec-scan">🔎 Vasculhar o aparelho</button>
+      </div>
+      <div style="padding: 12px 28px 24px;">
+        <div id="cfg-rec-body"><p class="sub">Clique em <strong>Vasculhar o aparelho</strong> para ver o que existe aqui.</p></div>
+      </div>
+    </section>
+
     <section class="card" id="cfg-vhist-card">
       <div class="card-header">
         <div>
@@ -10814,6 +10827,116 @@ window.recarregarApp = recarregarApp;
 // uma linha vazia em vez de removê-la; por isso o apagamento tem hook próprio.
 var _sectionDropHook = null;
 
+/* ═══════════════════ LIXEIRA — apagar deixou de ser definitivo ═════════════
+   O episódio que originou este código: um download tratou "esta seção não está
+   na nuvem" como "esta seção foi excluída" e removeu do aparelho os cards, os
+   retratos do TEC, a grade e o ciclo — o único exemplar que existia. O bug foi
+   corrigido na origem, mas corrigir a origem não basta: qualquer caminho novo
+   pode errar de novo, e o custo do erro é o trabalho de meses de alguém.
+
+   Então a remoção deixa de ser destrutiva. Toda seção do perfil apagada pelo
+   app passa por aqui: o valor é guardado em `__trash:<seção>` com a data e o
+   motivo, e continua no aparelho por RETENCAO_DIAS. A tela de Recuperação
+   lista e devolve com um clique.
+
+   Regras que mantêm a lixeira barata:
+     · só entra o que tem conteúdo (apagar chave vazia não gera lixo);
+     · uma entrada por seção — reapagar substitui, não empilha;
+     · expira em 30 dias e nunca passa de ORCAMENTO_BYTES (as mais antigas saem
+       primeiro), então ela não come o espaço do navegador;
+     · fica FORA da sincronização (sectionForKey a ignora): é uma rede local,
+       não um dado do perfil.
+   ═══════════════════════════════════════════════════════════════════════════ */
+const Lixeira = {
+  PREFIXO: '__trash:',
+  RETENCAO_DIAS: 30,
+  ORCAMENTO_BYTES: 2 * 1024 * 1024,
+
+  _chave(prefixoPerfil, sec) { return prefixoPerfil + this.PREFIXO + sec; },
+  /* Guarda o valor de uma seção antes de ela ser apagada. Devolve true quando
+     algo foi realmente guardado (havia conteúdo). */
+  guardar(chaveCompleta, motivo) {
+    try {
+      const valor = localStorage.getItem(chaveCompleta);
+      if (valor === null || valor === '') return false;
+      const m = /^(diario-estudos:u:[^:]+:)(.+)$/.exec(chaveCompleta);
+      if (!m) return false;
+      const sec = m[2];
+      if (sec.indexOf(this.PREFIXO) === 0 || sec.indexOf('vhist') === 0) return false;
+      const pacote = JSON.stringify({ sec, em: Date.now(), motivo: motivo || '', valor });
+      localStorage.setItem(this._chave(m[1], sec), pacote);
+      this.faxina(m[1]);
+      return true;
+    } catch (e) { _quiet(e, 'lixeira-guardar'); return false; }
+  },
+  // Lê uma entrada da lixeira a partir da chave completa dela.
+  ler(chaveCompleta) {
+    try {
+      const bruto = localStorage.getItem(chaveCompleta);
+      if (!bruto) return null;
+      const o = JSON.parse(bruto);
+      if (!o || typeof o.valor !== 'string') return null;
+      return { chave: chaveCompleta, sec: o.sec, em: o.em || 0, motivo: o.motivo || '', bytes: o.valor.length };
+    } catch (e) { return null; }
+  },
+  // Tudo que está na lixeira de um perfil, do mais recente para o mais antigo.
+  listar(pid) {
+    const alvo = pid || (window.ProfileManager ? ProfileManager.getActiveProfileId() : null);
+    if (!alvo) return [];
+    const pfx = 'diario-estudos:u:' + alvo + ':' + this.PREFIXO;
+    const out = [];
+    try {
+      for (let i = 0; i < localStorage.length; i++) {
+        const k = localStorage.key(i);
+        if (k && k.indexOf(pfx) === 0) { const it = this.ler(k); if (it) out.push(it); }
+      }
+    } catch (e) { _quiet(e, 'lixeira-listar'); }
+    return out.sort((a, b) => b.em - a.em);
+  },
+  /* Devolve a seção ao lugar de onde saiu. Por padrão NÃO sobrescreve o que
+     estiver lá agora — restaurar nunca pode causar uma segunda perda. */
+  restaurar(chaveCompleta, sobrescrever) {
+    try {
+      const bruto = localStorage.getItem(chaveCompleta);
+      if (!bruto) return { ok: false, motivo: 'não está mais na lixeira' };
+      const o = JSON.parse(bruto);
+      const m = /^(diario-estudos:u:[^:]+:)/.exec(chaveCompleta);
+      if (!o || !m) return { ok: false, motivo: 'entrada ilegível' };
+      const destino = m[1] + o.sec;
+      const atual = localStorage.getItem(destino);
+      const vazio = (atual === null || atual === '' || atual === '[]' || atual === '{}' || atual === 'null');
+      if (!vazio && !sobrescrever) return { ok: false, motivo: 'já existe conteúdo aqui', sec: o.sec };
+      if (DB.setRaw(destino, o.valor) === false) return { ok: false, motivo: 'não foi possível gravar' };
+      localStorage.removeItem(chaveCompleta);
+      return { ok: true, sec: o.sec, bytes: String(o.valor).length };
+    } catch (e) { _quiet(e, 'lixeira-restaurar'); return { ok: false, motivo: 'erro' }; }
+  },
+  /* Expira por idade e por orçamento. Roda a cada guardada e na abertura. */
+  faxina(prefixoPerfil) {
+    try {
+      const pfx = prefixoPerfil + this.PREFIXO;
+      const itens = [];
+      for (let i = 0; i < localStorage.length; i++) {
+        const k = localStorage.key(i);
+        if (!k || k.indexOf(pfx) !== 0) continue;
+        const it = this.ler(k);
+        if (it) itens.push(it); else itens.push({ chave: k, em: 0, bytes: 0 });
+      }
+      const limite = Date.now() - this.RETENCAO_DIAS * 24 * 3600 * 1000;
+      const vivos = [];
+      itens.forEach(it => { if (it.em && it.em >= limite) vivos.push(it); else localStorage.removeItem(it.chave); });
+      vivos.sort((a, b) => a.em - b.em);   // mais antigos primeiro
+      let total = vivos.reduce((a, it) => a + it.bytes, 0);
+      while (total > this.ORCAMENTO_BYTES && vivos.length) {
+        const fora = vivos.shift();
+        total -= fora.bytes;
+        localStorage.removeItem(fora.chave);
+      }
+    } catch (e) { _quiet(e, 'lixeira-faxina'); }
+  }
+};
+window.Lixeira = Lixeira;
+
 /* ============================================================
    CAMADA DE DADOS — usada por todas as telas do app
    ============================================================ */
@@ -10971,7 +11094,11 @@ const DB = {
     if (_sectionMarkHook) _sectionMarkHook(key);
     return true;
   },
-  delRaw(key) {
+  /* Apagar deixou de ser definitivo: o valor vai para a LIXEIRA antes de sair.
+     Quem chama continua vendo o mesmo comportamento (a chave some), mas passa a
+     haver 30 dias de arrependimento em Configurações → Recuperação de dados. */
+  delRaw(key, motivo) {
+    try { Lixeira.guardar(key, motivo || 'apagada pelo app'); } catch (e) { _quiet(e, 'delRaw-lixeira'); }
     try { localStorage.removeItem(key); } catch (e) { _quiet(e, 'delRaw'); return false; }
     if (_cloudNotifyHook) _cloudNotifyHook();
     if (_sectionDropHook) _sectionDropHook(key);
@@ -11349,7 +11476,7 @@ const DB = {
   // --- Current Cycle ---
   getCurrentCycle() { return this._get(this.KEYS.currentCycle, null); },
   saveCurrentCycle(cycle) { this._set(this.KEYS.currentCycle, cycle); },
-  clearCurrentCycle() { localStorage.removeItem(this.KEYS.currentCycle); },
+  clearCurrentCycle() { this.delRaw(this.KEYS.currentCycle, 'semana fechada'); },
   // memória do último ciclo montado (para pré-preencher a próxima semana) — por planejamento
   getLastCycleSetup() { return this._get(this.KEYS.lastCycleSetup, null); },
   saveLastCycleSetup(setup) { this._set(this.KEYS.lastCycleSetup, setup); },
@@ -12565,7 +12692,7 @@ const PlanManager = {
   deletePlan(id) {
     // apaga todos os dados namespaced do planejamento
     const k = DB.keysForPlan(id);
-    Object.values(k).forEach(key => localStorage.removeItem(key));
+    Object.values(k).forEach(key => DB.delRaw(key, 'planejamento excluído'));
     const plans = this.getPlans().filter(p => p.id !== id);
     this.savePlans(plans);
     if (this.getActivePlanId() === id) {
@@ -12723,7 +12850,8 @@ const ProfileManager = {
       const sub = k.slice(prefix.length);
       // A contabilidade da sincronização por seção é local a cada aparelho: levá-la
       // no backup faria o aparelho que importa herdar a fila de envio de outro.
-      if (sub === '__secrev' || sub === '__secpend') continue;
+      if (sub === '__secrev' || sub === '__secpend' || sub === '__secdel') continue;
+      if (sub.indexOf(Lixeira.PREFIXO) === 0) continue;   // a lixeira é rede local deste aparelho
       data[sub] = localStorage.getItem(k);
     }
     // não exporta o PIN (backup não deve carregar credencial); o usuário redefine se quiser
@@ -12832,7 +12960,7 @@ const ProfileManager = {
     const manter = new Set(preservar || []);
     // A contabilidade da sincronização é DESTE aparelho (o que ele já enviou e o
     // que falta): vinda no backup de outro, faria este achar que está em dia.
-    const local = ['__secrev', '__secpend'];
+    const local = ['__secrev', '__secpend', '__secdel'];
     const toRemove = [];
     for (let i = 0; i < localStorage.length; i++) {
       const k = localStorage.key(i);
@@ -12857,6 +12985,7 @@ const ProfileManager = {
       const sub = k.slice(prefix.length);
       if (sub in vindas) return;                       // vem logo abaixo, atualizada
       if (!jaSincronizadas[sub]) { preservadas.push(sub); return; }   // nunca subiu: fica
+      Lixeira.guardar(k, 'ausente no download da nuvem');
       localStorage.removeItem(k); mudou++;
     });
     if (preservadas.length) {
@@ -24655,6 +24784,80 @@ const AutoTeste = {
     this._ok('reparo aguenta entrada vazia', DB._desfazerRecalculoSemana(null) === false);
   },
 
+  /* ── NADA SE PERDE ────────────────────────────────────────────────────────
+     A regra que estas asserções protegem: nenhum caminho do app pode fazer um
+     dado do perfil sumir sem deixar como voltar. Apagar passa pela lixeira,
+     dado fora do alcance é encontrável, e restaurar nunca sobrescreve por
+     conta própria. */
+  nadaSePerde() {
+    const PID = '__t_lixo__';
+    const pfx = 'diario-estudos:u:' + PID + ':';
+    const criadas = [];
+    const escrever = (sub, txt) => { const k = pfx + sub; criadas.push(k); localStorage.setItem(k, txt); };
+    try {
+      // 1. apagar guarda antes: DB.delRaw é o único caminho de remoção do app
+      escrever('p:pl:cards', '[{"id":"c1"}]');
+      DB.delRaw(pfx + 'p:pl:cards', 'teste');
+      this._ok('apagar remove a chave', localStorage.getItem(pfx + 'p:pl:cards') === null);
+      const naLixeira = Lixeira.listar(PID);
+      this._ok('o que foi apagado está na lixeira',
+        naLixeira.some(x => x.sec === 'p:pl:cards'), naLixeira.map(x => x.sec));
+
+      // 2. restaurar devolve o conteúdo idêntico
+      const alvo = naLixeira.find(x => x.sec === 'p:pl:cards');
+      criadas.push(alvo.chave);
+      const r = Lixeira.restaurar(alvo.chave, false);
+      this._ok('restaurar da lixeira devolve o valor exato',
+        r.ok && localStorage.getItem(pfx + 'p:pl:cards') === '[{"id":"c1"}]',
+        localStorage.getItem(pfx + 'p:pl:cards'));
+
+      // 3. restaurar NUNCA sobrescreve sozinho — senão a recuperação viraria uma
+      //    segunda perda para quem já refez o trabalho
+      escrever('p:pl:leis', 'VALOR-NOVO');
+      DB.delRaw(pfx + 'p:pl:leis', 'teste');
+      escrever('p:pl:leis', 'REFIZ-DEPOIS');
+      const lix2 = Lixeira.listar(PID).find(x => x.sec === 'p:pl:leis');
+      criadas.push(lix2.chave);
+      const r2 = Lixeira.restaurar(lix2.chave, false);
+      this._ok('restaurar não passa por cima do que existe agora',
+        r2.ok === false && localStorage.getItem(pfx + 'p:pl:leis') === 'REFIZ-DEPOIS',
+        localStorage.getItem(pfx + 'p:pl:leis'));
+
+      // 4. a lixeira é local: nunca vira "seção" e nunca sobe para a nuvem
+      this._ok('lixeira fora da sincronização',
+        SectionSync.sectionForKey(pfx + Lixeira.PREFIXO + 'p:pl:cards', pfx) === null);
+      this._ok('registro de exclusões fora da sincronização',
+        SectionSync.sectionForKey(pfx + SectionSync.DEL, pfx) === null);
+
+      /* 4b. A NUVEM SÓ ESQUECE O QUE FOI MANDADO ESQUECER. Sumiço local não é
+         ordem de exclusão: sem passar por dropSection, a seção não entra no
+         registro e não pode apagar a linha remota — que é a última cópia. */
+      criadas.push(pfx + SectionSync.DEL);
+      SectionSync._saveDel([], PID);
+      this._ok('sumiço local não vira ordem de exclusão',
+        SectionSync._loadDel(PID).length === 0, SectionSync._loadDel(PID));
+      SectionSync._saveDel(['p:pl:tec'], PID);
+      this._ok('exclusão deliberada fica registrada e é durável',
+        SectionSync._loadDel(PID).indexOf('p:pl:tec') !== -1, SectionSync._loadDel(PID));
+
+      // 5. dado debaixo de planejamento fora da lista é ENCONTRÁVEL
+      const orfaos = Recuperacao.planosOrfaos(PID);
+      this._ok('planejamento fora da lista é detectado como órfão',
+        orfaos.some(o => o.id === 'pl'), orfaos.map(o => o.id));
+      this._ok('o órfão informa quantos registros carrega',
+        orfaos.every(o => typeof o.bytes === 'number' && o.bytes > 0), JSON.stringify(orfaos));
+
+      // 6. a varredura enxerga o perfil inteiro, esteja ele na lista ou não
+      const achado = Recuperacao.varrer().find(p => p.id === PID);
+      this._ok('varredura encontra perfil fora da lista de perfis',
+        !!achado && achado.naListaDePerfis === false, achado && achado.naListaDePerfis);
+      this._ok('varredura mede o que encontrou', !!achado && achado.bytes > 0, achado && achado.bytes);
+    } finally {
+      criadas.forEach(k => { try { localStorage.removeItem(k); } catch (e) { _quiet(e, 'limpeza-teste'); } });
+      Lixeira.listar(PID).forEach(x => { try { localStorage.removeItem(x.chave); } catch (e) { _quiet(e, 'limpeza-lixo'); } });
+    }
+  },
+
   rodar(imprimir) {
     this._r = { total: 0, passou: 0, falhou: 0, falhas: [], ms: 0 };
     const t0 = Date.now();
@@ -24664,7 +24867,8 @@ const AutoTeste = {
      ['Aproveitamento', 'aproveitamento'], ['Ordenação', 'ordenacao'],
      ['SM-2 clássico', 'sm2'], ['Filtro de treino', 'busca'],
      ['Garantia de salvamento', 'sincronizacao'],
-     ['Semana fechada é registro', 'historicoFechado']].forEach(([nome, fn]) => {
+     ['Semana fechada é registro', 'historicoFechado'],
+     ['Nada se perde', 'nadaSePerde']].forEach(([nome, fn]) => {
       try { this[fn](); }
       catch (e) { this._r.total++; this._r.falhou++; this._r.falhas.push({ nome: nome + ' — exceção', obtido: String(e && e.message || e) }); }
     });
@@ -31259,6 +31463,8 @@ const SectionSync = {
     if (sub.indexOf('__secrev') === 0) return null; // bookkeeping desta camada
     if (sub.indexOf(this.PEND) === 0) return null;   // caixa de saída: também é local
     if (sub.indexOf('vhist') === 0) return null;     // histórico de versões é local
+    if (sub.indexOf(Lixeira.PREFIXO) === 0) return null; // lixeira: rede local, não é dado do perfil
+    if (sub.indexOf(this.DEL) === 0) return null;    // registro de exclusões: contabilidade local
     return sub;
   },
   markDirty(fullKey) {
@@ -31266,8 +31472,36 @@ const SectionSync = {
     const sec = this.sectionForKey(fullKey);
     if (sec) { this._dirty.add(sec); this._savePend(); }
   },
+  /* ── EXCLUSÕES DELIBERADAS ────────────────────────────────────────────────
+     A nuvem só pode esquecer o que VOCÊ mandou esquecer. Antes, o manifesto era
+     a lista do que existia neste aparelho AGORA — então qualquer sumiço local
+     (um bug, um download que apagou demais, uma cota estourada no meio de uma
+     gravação) era publicado como "excluído" e apagava as linhas na nuvem: a
+     última cópia do dado ia embora atrás da primeira.
+
+     Agora exclusão é um FATO REGISTRADO, não uma dedução por ausência. Só o que
+     passa por aqui — o caminho de DB.delRaw, isto é, uma remoção que o app
+     realmente pediu — entra nesta lista durável e pode apagar a linha remota.
+     Sumiço não registrado é tratado como acidente: a seção continua no
+     manifesto e volta para o aparelho na próxima leitura.
+
+     O preço é conhecido e aceito: se você apagar algo no aparelho A enquanto o
+     aparelho B ainda tem a seção, B a devolve. Dado voltando é um aborrecimento;
+     dado sumindo é o trabalho de meses de alguém. */
+  DEL: '__secdel',
+  _delKey(id) { return this._prefixFor(id) + this.DEL; },
+  _loadDel(id) {
+    try { const a = JSON.parse(localStorage.getItem(this._delKey(id))); return Array.isArray(a) ? a : []; }
+    catch (_) { return []; }
+  },
+  _saveDel(lista, id) {
+    try {
+      if (lista.length) localStorage.setItem(this._delKey(id), JSON.stringify([...new Set(lista)]));
+      else localStorage.removeItem(this._delKey(id));
+    } catch (e) { _quiet(e, 'secdel-gravar'); }
+  },
   /* Uma chave APAGADA não vira linha suja (subiria vazia em vez de sumir): sai da
-     fila e a exclusão viaja pelo MANIFESTO, que é recalculado no próximo envio. */
+     fila, entra no registro de exclusões e some da nuvem no próximo envio. */
   dropSection(fullKey) {
     if (!this.enabled) return;
     const sec = this.sectionForKey(fullKey);
@@ -31276,6 +31510,9 @@ const SectionSync = {
     this._savePend();
     const revs = this._getRevs();
     if (revs[sec]) { delete revs[sec]; this._saveRevs(revs); }
+    const del = this._loadDel();
+    del.push(sec);
+    this._saveDel(del);
   },
   // Marca as seções do perfil que REALMENTE MUDARAM (hash diferente do último envio).
   // Assim a semeadura de cada sessão não re-sobe tudo nem infla o rev à toa.
@@ -31382,7 +31619,22 @@ const SectionSync = {
     return out.sort();
   },
   async _syncManifest(id, revs) {
-    const list = this.localSections();
+    const locais = this.localSections();
+    const apagadas = this._loadDel(id);
+    /* O manifesto NÃO é mais "o que existe aqui agora". É "o que existe aqui" MAIS
+       "o que existe na nuvem e ninguém mandou apagar". Assim um sumiço local
+       nunca se converte em exclusão remota — e a seção volta para cá na próxima
+       leitura, em vez de deixar de existir no mundo. */
+    let remotas = [];
+    try {
+      const { data } = await CloudStore.client.from(this.TABLE).select('section').eq('profile_id', id);
+      remotas = (data || []).map(r => r.section).filter(sec => sec !== this.MANIFEST);
+    } catch (e) { console.warn('[SectionSync] não deu para ler a lista remota; manifesto sai só com o local', e); }
+    const sobreviventes = remotas.filter(sec => locais.indexOf(sec) === -1 && apagadas.indexOf(sec) === -1);
+    if (sobreviventes.length) {
+      console.warn('[SectionSync] ' + sobreviventes.length + ' seção(ões) existem na nuvem e não aqui, sem ordem de exclusão — MANTIDAS: ' + sobreviventes.join(', '));
+    }
+    const list = [...new Set(locais.concat(sobreviventes))].sort();
     const body = { v: this.FORMAT, sections: list, at: new Date().toISOString() };
     const h = this._hash(list.join('|'));
     const prev = revs[this.MANIFEST] || { rev: 0, hash: null };
@@ -31392,17 +31644,17 @@ const SectionSync = {
       .upsert({ profile_id: id, section: this.MANIFEST, data: body, rev, updated_at: body.at }, { onConflict: 'profile_id,section' });
     if (error) throw error;
     revs[this.MANIFEST] = { rev, hash: h };
-    // Remove da nuvem as seções que não existem mais aqui (exclusões de verdade).
-    try {
-      const { data: remote } = await CloudStore.client.from(this.TABLE).select('section').eq('profile_id', id);
-      const sobra = (remote || []).map(r => r.section)
-        .filter(s => s !== this.MANIFEST && list.indexOf(s) === -1);
-      if (sobra.length) {
+    /* Só some da nuvem o que foi apagado DE PROPÓSITO (passou por dropSection).
+       Ausência local nunca apaga nada lá. */
+    const sobra = remotas.filter(sec => apagadas.indexOf(sec) !== -1);
+    if (sobra.length) {
+      try {
         await CloudStore.client.from(this.TABLE).delete().eq('profile_id', id).in('section', sobra);
-        sobra.forEach(s => { delete revs[s]; });
-        console.info('[SectionSync] removidas da nuvem', sobra.length, 'seção(ões) excluída(s)');
-      }
-    } catch (e) { console.warn('[SectionSync] limpeza de seções órfãs falhou', e); }
+        sobra.forEach(sec => { delete revs[sec]; });
+        this._saveDel(apagadas.filter(sec => sobra.indexOf(sec) === -1), id);
+        console.info('[SectionSync] removidas da nuvem', sobra.length, 'seção(ões) excluída(s) de propósito');
+      } catch (e) { console.warn('[SectionSync] limpeza de seções excluídas falhou', e); }
+    }
     return true;
   },
 
@@ -31503,7 +31755,7 @@ const SectionSync = {
       if (antigos[sec]) apagar.push(k);   // já esteve na nuvem e saiu de lá: exclusão de verdade
       else orfas.push(sec);               // nunca subiu: é o único exemplar que existe
     }
-    apagar.forEach(k => { localStorage.removeItem(k); mudou++; });
+    apagar.forEach(k => { Lixeira.guardar(k, 'excluída em outro aparelho'); localStorage.removeItem(k); mudou++; });
     if (orfas.length) {
       orfas.forEach(sec => manter.add(sec));   // preservadas E na fila, como as pendentes
       try { console.warn('[SectionSync] ' + orfas.length + ' seção(ões) existem só neste aparelho e foram PRESERVADAS (vão subir): ' + orfas.join(', ')); } catch (e) { _quiet(e, 'orfas-log'); }
@@ -32742,6 +32994,324 @@ document.addEventListener('click', (e) => {
   if (card) EvolucaoScreen.abrirNiveisModal(parseInt(card.dataset.badgeIdx, 10));
 });
 
+
+/* ============================================================
+   RECUPERAÇÃO DE DADOS — o vasculhador do aparelho
+   ------------------------------------------------------------
+   Existe porque um dado pode ficar INVISÍVEL sem estar perdido, e as duas
+   situações se parecem na tela: você abre o app e "sumiu tudo". Os caminhos
+   conhecidos até aqui:
+
+     · a seção foi APAGADA no aparelho (era o caso do download que tratava
+       "não está na nuvem" como "foi excluída" — corrigido, e agora tudo o que
+       é apagado passa pela LIXEIRA antes);
+     · a seção existe, mas debaixo de um PLANEJAMENTO que não está mais na
+       lista de planejamentos — o app não tem por onde chegar até ela;
+     · a seção existe debaixo de um PERFIL que sumiu da lista de perfis;
+     · o dado só existe dentro de uma foto do histórico de versões.
+
+   Esta tela varre TODAS essas fontes, mostra o que encontrou com tamanho e
+   data, e restaura. Ela nunca apaga nada: só copia de volta para onde o app
+   sabe procurar. É de propósito uma ferramenta de LEITURA + RESTAURAÇÃO.
+   ============================================================ */
+const Recuperacao = {
+  /* Rótulos legíveis das seções. O nome interno ("p:pl_x:cards") não diz nada
+     a quem está com medo de ter perdido meses de estudo. */
+  ROTULOS: {
+    entries: 'registros de estudo', subjects: 'matérias', methods: 'formas de estudo',
+    phases: 'fases', statuses: 'status do Estudo Novo', modes: 'modos de estudo',
+    'current-cycle': 'ciclo da semana', 'cycle-history': 'histórico de semanas',
+    tracks: 'trilhas do Estudo Novo', tec: 'retratos do TEC',
+    'grade-template': 'grade semanal', 'saved-grades': 'grades salvas',
+    'custom-siglas': 'siglas', leis: 'leis secas', 'lei-keywords': 'palavras-chave das leis',
+    decks: 'baralhos', cards: 'cards', links: 'links', incidencia: 'incidência',
+    'last-cycle-setup': 'última montagem de ciclo', extras: 'atividades extras',
+    revlog: 'histórico de revisões', planejamentos: 'lista de planejamentos',
+    'active-plan': 'planejamento ativo', ferramentas: 'ferramentas'
+  },
+  rotulo(sec) {
+    const m = /^p:([^:]+):(.+)$/.exec(sec);
+    const folha = m ? m[2] : sec;
+    return this.ROTULOS[folha] || folha;
+  },
+  planoDe(sec) { const m = /^p:([^:]+):/.exec(sec); return m ? m[1] : null; },
+
+  /* ── VARREDURA ────────────────────────────────────────────────────────────
+     Percorre o armazenamento inteiro, não só o perfil ativo. Devolve, por
+     perfil: as seções presentes, quais estão alcançáveis hoje e quais estão
+     órfãs (planejamento fora da lista), mais a lixeira e as fotos. */
+  varrer() {
+    const perfis = {};
+    const registrados = {};
+    try { (ProfileManager.getProfiles() || []).forEach(p => { registrados[p.id] = p.nome || p.id; }); } catch (e) { _quiet(e, 'rec-perfis'); }
+    const RE = /^diario-estudos:u:([^:]+):(.+)$/;
+    try {
+      for (let i = 0; i < localStorage.length; i++) {
+        const k = localStorage.key(i);
+        if (!k) continue;
+        const m = RE.exec(k);
+        if (!m) continue;
+        const pid = m[1], sub = m[2];
+        const p = perfis[pid] || (perfis[pid] = {
+          id: pid, nome: registrados[pid] || null, naListaDePerfis: pid in registrados,
+          secoes: [], lixo: [], fotos: 0, bytes: 0
+        });
+        const bytes = (localStorage.getItem(k) || '').length;
+        p.bytes += bytes;
+        if (sub.indexOf('vhist') === 0) continue;          // fotos são contadas à parte
+        if (sub.indexOf(Lixeira.PREFIXO) === 0) {
+          const item = Lixeira.ler(k);
+          if (item) p.lixo.push(item);
+          continue;
+        }
+        if (sub === '__secrev' || sub === '__secpend') continue;
+        p.secoes.push({ chave: k, sec: sub, bytes });
+      }
+    } catch (e) { _quiet(e, 'rec-varrer'); }
+
+    // Quais planejamentos cada perfil consegue ALCANÇAR hoje
+    Object.values(perfis).forEach(p => {
+      let planos = [];
+      try { planos = (JSON.parse(localStorage.getItem('diario-estudos:u:' + p.id + ':planejamentos')) || []).map(x => x.id); }
+      catch (e) { _quiet(e, 'rec-planos'); }
+      p.planos = planos;
+      p.secoes.forEach(s => {
+        const plano = this.planoDe(s.sec);
+        s.plano = plano;
+        s.alcancavel = !plano || planos.indexOf(plano) !== -1;
+      });
+      p.orfas = p.secoes.filter(s => !s.alcancavel);
+      p.fotos = this._contarFotos(p.id);
+    });
+    return Object.values(perfis).sort((a, b) => b.bytes - a.bytes);
+  },
+  /* As fotos NÃO moram no namespace do perfil — a chave é
+     'diario-estudos:vhist:<id>'. Ler pela API do próprio VersionHistory evita
+     que este módulo se desatualize se aquele formato mudar. */
+  _fotosDe(pid) {
+    try { return VersionHistory._list(pid) || []; } catch (e) { _quiet(e, 'rec-lista-fotos'); return []; }
+  },
+  _contarFotos(pid) { return this._fotosDe(pid).length; },
+  /* Planejamentos que TÊM dados mas não estão na lista — a causa mais comum de
+     "os registros aparecem mas o resto sumiu": o ponteiro se perdeu, os dados
+     não. Reanexar é uma operação puramente aditiva. */
+  planosOrfaos(pid) {
+    const alvo = pid || ProfileManager.getActiveProfileId();
+    const perfil = this.varrer().find(p => p.id === alvo);
+    if (!perfil) return [];
+    const porPlano = {};
+    perfil.orfas.forEach(s => {
+      if (!s.plano) return;
+      const g = porPlano[s.plano] || (porPlano[s.plano] = { id: s.plano, secoes: 0, bytes: 0, registros: 0 });
+      g.secoes++; g.bytes += s.bytes;
+      if (/:entries$/.test(s.sec)) {
+        try { g.registros = (JSON.parse(localStorage.getItem(s.chave)) || []).length; } catch (e) { _quiet(e, 'rec-conta'); }
+      }
+    });
+    return Object.values(porPlano).sort((a, b) => b.bytes - a.bytes);
+  },
+  /* Devolve um planejamento órfão à lista. Não move, não copia e não apaga
+     nada: só torna alcançável o que já está no aparelho. */
+  reanexarPlano(planId, nome) {
+    const plans = PlanManager.getPlans();
+    if (plans.some(p => p.id === planId)) return false;
+    plans.push({ id: planId, nome: nome || ('Planejamento recuperado ' + planId.slice(-4)), tipo: 'Outro', createdAt: new Date().toISOString(), recuperadoEm: new Date().toISOString() });
+    PlanManager.savePlans(plans);
+    return true;
+  },
+
+  /* ── FOTOS DO HISTÓRICO DE VERSÕES ────────────────────────────────────────
+     Além de restaurar a foto inteira (o que o Histórico de versões já faz),
+     aqui dá para ver O QUE cada foto tem e trazer de volta SÓ o que falta —
+     sem desfazer o que você fez depois. */
+  async inspecionarFotos(pid) {
+    const alvo = pid || ProfileManager.getActiveProfileId();
+    const out = [];
+    const lista = this._fotosDe(alvo);
+    for (const rec of lista) {
+      let data = null;
+      try { const json = await VersionHistory._gunzip(rec); data = json ? JSON.parse(json) : null; } catch (e) { _quiet(e, 'rec-abrir-foto'); }
+      if (!data) continue;
+      const secoes = Object.keys(data).filter(s => s !== '__secrev' && s !== '__secpend' && s.indexOf('vhist') !== 0);
+      out.push({ ts: rec.ts, nota: rec.note || '', secoes, total: secoes.length,
+        bytes: secoes.reduce((a, s) => a + String(data[s] || '').length, 0) });
+    }
+    return out.sort((a, b) => b.ts - a.ts);
+  },
+  /* Traz de volta, de uma foto, APENAS as seções que hoje não existem ou estão
+     vazias. É a operação segura por construção: nada do estado atual é
+     sobrescrito, então não há como perder o que você fez desde a foto. */
+  async restaurarFaltantes(pid, ts) {
+    const alvo = pid || ProfileManager.getActiveProfileId();
+    const rec = this._fotosDe(alvo).find(r => r.ts === ts);
+    if (!rec) return { ok: false, motivo: 'foto não encontrada' };
+    let data = null;
+    try { const json = await VersionHistory._gunzip(rec); data = json ? JSON.parse(json) : null; } catch (e) { _quiet(e, 'rec-abrir-foto2'); }
+    if (!data) return { ok: false, motivo: 'foto ilegível' };
+    try { await VersionHistory.snapshot('antes de recuperar seções faltantes'); } catch (e) { _quiet(e, 'rec-snap'); }
+    const prefix = 'diario-estudos:u:' + alvo + ':';
+    const trazidas = [];
+    Object.keys(data).forEach(sub => {
+      if (sub === '__secrev' || sub === '__secpend' || sub.indexOf('vhist') === 0) return;
+      const atual = localStorage.getItem(prefix + sub);
+      if (atual !== null && atual !== '' && atual !== '[]' && atual !== '{}' && atual !== 'null') return; // já há algo vivo aqui
+      const valor = data[sub];
+      if (valor == null || valor === '') return;
+      if (DB.setRaw(prefix + sub, valor) !== false) trazidas.push(sub);
+    });
+    return { ok: true, trazidas };
+  }
+};
+window.Recuperacao = Recuperacao;
+
+/* ── A TELA ────────────────────────────────────────────────────────────────
+   Escrita para ser lida por quem está com medo, não por quem escreveu o app:
+   primeiro o veredito em uma frase, depois o que dá para fazer agora, e só no
+   fim os detalhes técnicos. Cada ação diz o que faz ANTES de fazer. */
+const RecuperacaoUI = {
+  _kb(b) { return b < 1024 ? b + ' B' : (b < 1024 * 1024 ? Math.round(b / 1024) + ' KB' : (b / 1048576).toFixed(1) + ' MB'); },
+  _quando(ts) {
+    if (!ts) return '—';
+    const d = new Date(ts);
+    return d.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' }) + ' ' +
+           d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+  },
+
+  async render() {
+    const host = document.getElementById('cfg-rec-body');
+    if (!host) return;
+    host.innerHTML = '<p class="hint">Vasculhando…</p>';
+    const ativo = ProfileManager.getActiveProfileId();
+    const perfis = Recuperacao.varrer();
+    const meu = perfis.find(p => p.id === ativo) || null;
+    const orfaos = Recuperacao.planosOrfaos(ativo);
+    const lixo = Lixeira.listar(ativo);
+    const fotos = await Recuperacao.inspecionarFotos(ativo);
+
+    const blocos = [];
+
+    /* 1. VEREDITO — a pergunta que a pessoa veio fazer, respondida primeiro. */
+    const alcancaveis = meu ? meu.secoes.filter(s => s.alcancavel) : [];
+    const recuperavel = orfaos.length || lixo.length ||
+      fotos.some(f => f.secoes.some(sec => {
+        const v = localStorage.getItem('diario-estudos:u:' + ativo + ':' + sec);
+        return v === null || v === '' || v === '[]' || v === '{}';
+      }));
+    blocos.push(`<div class="cloud-slot-row" style="align-items:flex-start;">
+      <div class="cloud-slot-info">
+        <div class="name">${recuperavel ? '⚠️ Há dado recuperável neste aparelho' : '✓ Nada fora do lugar'}</div>
+        <div class="meta">${alcancaveis.length} seção(ões) em uso · ${this._kb(meu ? meu.bytes : 0)} no total · ${orfaos.length} planejamento(s) órfão(s) · ${lixo.length} item(ns) na lixeira · ${fotos.length} foto(s) do histórico</div>
+      </div>
+    </div>`);
+
+    /* 2. PLANEJAMENTOS ÓRFÃOS — a causa mais comum de "sumiu tudo menos os
+       registros": os dados existem, o app é que perdeu o caminho até eles. */
+    if (orfaos.length) {
+      blocos.push('<div class="wd-section-title">Planejamentos com dados fora da lista</div>' +
+        '<p class="hint">Estes dados estão no aparelho, mas o planejamento deles não consta na sua lista — por isso as telas abrem vazias. Reanexar é aditivo: não move, não copia e não apaga nada, só devolve o caminho.</p>' +
+        orfaos.map(o => `<div class="cloud-slot-row" data-plano="${escapeHtml(o.id)}">
+          <div class="cloud-slot-info">
+            <div class="name">${escapeHtml(o.id)}</div>
+            <div class="meta">${o.secoes} seção(ões) · ${this._kb(o.bytes)}${o.registros ? ' · ' + o.registros + ' registro(s) de estudo' : ''}</div>
+          </div>
+          <div class="cloud-slot-actions">
+            <button type="button" class="btn-primary rec-attach">↩ Reanexar</button>
+          </div>
+        </div>`).join(''));
+    }
+
+    /* 3. LIXEIRA — o que o app apagou nos últimos 30 dias. */
+    if (lixo.length) {
+      blocos.push('<div class="wd-section-title">Lixeira (30 dias)</div>' +
+        '<p class="hint">Tudo o que o app apagou fica aqui antes de sumir de vez. Restaurar só grava onde não houver conteúdo agora — nunca por cima do que existe.</p>' +
+        lixo.map(it => `<div class="cloud-slot-row" data-lixo="${escapeHtml(it.chave)}">
+          <div class="cloud-slot-info">
+            <div class="name">${escapeHtml(Recuperacao.rotulo(it.sec))}</div>
+            <div class="meta">${escapeHtml(it.sec)} · ${this._kb(it.bytes)} · apagada em ${this._quando(it.em)}${it.motivo ? ' · ' + escapeHtml(it.motivo) : ''}</div>
+          </div>
+          <div class="cloud-slot-actions">
+            <button type="button" class="btn-primary rec-untrash">↺ Restaurar</button>
+          </div>
+        </div>`).join(''));
+    }
+
+    /* 4. FOTOS — trazer de volta SÓ o que falta, sem desfazer o resto. */
+    if (fotos.length) {
+      blocos.push('<div class="wd-section-title">Fotos do histórico de versões</div>' +
+        '<p class="hint">Diferente do botão “Restaurar” do histórico (que volta a foto inteira), aqui o app traz da foto <strong>apenas as seções que hoje estão vazias ou não existem</strong>. Nada do que você fez depois é desfeito.</p>' +
+        fotos.map(f => `<div class="cloud-slot-row" data-foto="${f.ts}">
+          <div class="cloud-slot-info">
+            <div class="name">${this._quando(f.ts)}</div>
+            <div class="meta">${f.total} seção(ões) · ${this._kb(f.bytes)}${f.nota ? ' · ' + escapeHtml(f.nota) : ''}</div>
+          </div>
+          <div class="cloud-slot-actions">
+            <button type="button" class="btn-primary rec-fill">⤵ Trazer o que falta</button>
+          </div>
+        </div>`).join(''));
+    }
+
+    /* 5. O QUE EXISTE HOJE — a lista completa, para conferência. */
+    if (meu && meu.secoes.length) {
+      const linhas = meu.secoes.slice().sort((a, b) => b.bytes - a.bytes).map(s =>
+        `<tr><td>${escapeHtml(Recuperacao.rotulo(s.sec))}</td><td>${escapeHtml(s.sec)}</td><td class="num">${this._kb(s.bytes)}</td><td>${s.alcancavel ? '✓ em uso' : '⚠️ fora do alcance'}</td></tr>`).join('');
+      blocos.push('<div class="wd-section-title">Tudo o que existe neste aparelho</div>' +
+        `<div style="overflow-x:auto;"><table class="data-table"><thead><tr><th>O que é</th><th>Seção</th><th class="num">Tamanho</th><th>Situação</th></tr></thead><tbody>${linhas}</tbody></table></div>`);
+    }
+
+    /* 6. OUTROS PERFIS — dado de outro perfil também some da vista. */
+    const outros = perfis.filter(p => p.id !== ativo);
+    if (outros.length) {
+      blocos.push('<div class="wd-section-title">Outros perfis neste aparelho</div>' +
+        outros.map(p => `<div class="cloud-slot-row">
+          <div class="cloud-slot-info">
+            <div class="name">${escapeHtml(p.nome || p.id)} ${p.naListaDePerfis ? '' : '<span class="inactive-tag">fora da lista de perfis</span>'}</div>
+            <div class="meta">${p.secoes.length} seção(ões) · ${this._kb(p.bytes)} · ${p.fotos} foto(s)</div>
+          </div>
+        </div>`).join('') +
+        '<p class="hint">Para ver os dados de outro perfil, entre nele pelo seu nome no topo da tela.</p>');
+    }
+
+    host.innerHTML = blocos.join('');
+    this._ligar(host, ativo);
+  },
+
+  _ligar(host, ativo) {
+    host.querySelectorAll('.rec-attach').forEach(b => b.addEventListener('click', async () => {
+      const id = b.closest('[data-plano]').dataset.plano;
+      if (!await UI.confirm('Devolver o planejamento "' + id + '" à sua lista?\n\nNada é movido nem apagado: os dados já estão no aparelho e voltam a ficar acessíveis.', { title: '↩ Reanexar planejamento', okText: 'Reanexar' })) return;
+      const ok = Recuperacao.reanexarPlano(id);
+      showToast(ok ? 'Planejamento reanexado ✓ — selecione-o em Planejamentos' : 'Este planejamento já estava na lista');
+      this.render();
+    }));
+    host.querySelectorAll('.rec-untrash').forEach(b => b.addEventListener('click', async () => {
+      const chave = b.closest('[data-lixo]').dataset.lixo;
+      const r = Lixeira.restaurar(chave, false);
+      if (r.ok) { showToast('Restaurado ✓ — recarregando'); setTimeout(() => recarregarApp('dado restaurado da lixeira', { imediato: true }), 700); return; }
+      if (r.motivo === 'já existe conteúdo aqui') {
+        if (!await UI.confirm('Já existe conteúdo nesta seção agora.\n\nSubstituir pelo que está na lixeira? O conteúdo atual vai para a lixeira no lugar, então dá para voltar atrás.', { title: '↺ Substituir?', okText: 'Substituir', danger: true })) return;
+        const r2 = Lixeira.restaurar(chave, true);
+        showToast(r2.ok ? 'Restaurado ✓ — recarregando' : 'Não foi possível restaurar');
+        if (r2.ok) setTimeout(() => recarregarApp('dado restaurado da lixeira', { imediato: true }), 700);
+        return;
+      }
+      showToast('Não foi possível restaurar: ' + (r.motivo || ''));
+    }));
+    host.querySelectorAll('.rec-fill').forEach(b => b.addEventListener('click', async () => {
+      const ts = parseInt(b.closest('[data-foto]').dataset.foto, 10);
+      if (!await UI.confirm('Trazer desta foto apenas as seções que hoje estão vazias?\n\nO que já tem conteúdo fica exatamente como está.', { title: '⤵ Trazer o que falta', okText: 'Trazer' })) return;
+      const r = await Recuperacao.restaurarFaltantes(ativo, ts);
+      if (!r.ok) { showToast('Não foi possível: ' + r.motivo); return; }
+      if (!r.trazidas.length) { showToast('Nada faltando — esta foto não tem nada que você já não tenha'); return; }
+      showToast(r.trazidas.length + ' seção(ões) recuperada(s) ✓ — recarregando');
+      setTimeout(() => recarregarApp('seções recuperadas de uma foto', { imediato: true }), 900);
+    }));
+  }
+};
+window.RecuperacaoUI = RecuperacaoUI;
+(function () {
+  const b = document.getElementById('cfg-rec-scan');
+  if (b) b.addEventListener('click', () => RecuperacaoUI.render());
+})();
 
 /* ============================================================
    RELATÓRIO DE EVOLUÇÃO - visualização e exportação em PDF
