@@ -852,6 +852,73 @@ const AutoTeste = {
     }
   },
 
+  /* ── UMA ALTERAÇÃO NÃO PODE MORRER NO APARELHO ────────────────────────────
+     Gravar é só o começo: entre "salvei" e "está no banco" existe uma fila. A
+     pergunta que este grupo responde é se essa fila SOBREVIVE — a um
+     recarregamento, a uma queda de rede, a fechar o app no meio.
+
+     A fila mora em duas camadas: `_dirty`, em memória (rápida, some ao
+     recarregar), e `__secpend`, gravada no armazenamento. É a segunda que
+     garante que nada evapore; e há ainda uma terceira prova, independente das
+     duas: o HASH do conteúdo. Se o texto de uma seção não bate com o hash do
+     último envio, ela mudou depois disso — mesmo que as duas listas tenham se
+     perdido. */
+  filaDeEnvioSobrevive() {
+    const PID = '__t_fila__';
+    const ativoOriginal = localStorage.getItem(DB.ACTIVE_PROFILE_KEY);
+    const dirtyOriginal = new Set(SectionSync._dirty);
+    const criadas = [];
+    try {
+      localStorage.setItem(DB.ACTIVE_PROFILE_KEY, PID);
+      const pfx = 'diario-estudos:u:' + PID + ':';
+      SectionSync._dirty.clear();
+
+      // 1. gravar pelo canal normal enfileira a seção
+      const k = pfx + 'p:pl:entries';
+      criadas.push(k, pfx + SectionSync.PEND, pfx + '__secrev');
+      DB._set(k, [{ id: 'e1' }]);
+      this._ok('gravar enfileira a seção', SectionSync._dirty.has('p:pl:entries'), [...SectionSync._dirty]);
+
+      // 2. a fila foi GRAVADA, não só guardada em memória
+      const gravada = JSON.parse(localStorage.getItem(pfx + SectionSync.PEND) || '[]');
+      this._ok('a fila é persistida no armazenamento', gravada.indexOf('p:pl:entries') !== -1, gravada);
+
+      // 3. simula um recarregamento: a memória some, o armazenamento fica
+      SectionSync._dirty.clear();
+      this._ok('memória zerada não vê pendência', SectionSync._dirty.size === 0);
+      SectionSync.restorePending();
+      this._ok('a fila volta do armazenamento após recarregar',
+        SectionSync._dirty.has('p:pl:entries'), [...SectionSync._dirty]);
+
+      // 4. a terceira prova: mesmo sem as duas listas, o hash denuncia a mudança
+      SectionSync._dirty.clear();
+      try { localStorage.removeItem(pfx + SectionSync.PEND); } catch (e) { _quiet(e, 'fila-limpa'); }
+      // finge que esta seção já subiu com OUTRO conteúdo
+      localStorage.setItem(pfx + '__secrev', JSON.stringify({
+        'p:pl:entries': { rev: 1, hash: SectionSync._hash('[]'), len: 2 }
+      }));
+      const pendentes = SectionSync.pendingSections(PID);
+      this._ok('conteúdo diferente do último envio é detectado como pendente',
+        pendentes.indexOf('p:pl:entries') !== -1, pendentes);
+
+      // 5. e o inverso: conteúdo idêntico ao último envio NÃO vira pendência
+      localStorage.setItem(pfx + '__secrev', JSON.stringify({
+        'p:pl:entries': { rev: 1, hash: SectionSync._hash(localStorage.getItem(k)), len: 12 }
+      }));
+      SectionSync._dirty.clear();
+      const nenhuma = SectionSync.pendingSections(PID);
+      this._ok('conteúdo já enviado não é reenviado à toa',
+        nenhuma.indexOf('p:pl:entries') === -1, nenhuma);
+    } finally {
+      criadas.forEach(x => { try { localStorage.removeItem(x); } catch (e) { _quiet(e, 'limpeza-fila'); } });
+      try { Lixeira.listar(PID).forEach(x => localStorage.removeItem(x.chave)); } catch (e) { _quiet(e, 'limpeza-fila2'); }
+      SectionSync._dirty.clear();
+      dirtyOriginal.forEach(x => SectionSync._dirty.add(x));
+      if (ativoOriginal === null) localStorage.removeItem(DB.ACTIVE_PROFILE_KEY);
+      else localStorage.setItem(DB.ACTIVE_PROFILE_KEY, ativoOriginal);
+    }
+  },
+
   tudoEntraNaSincronizacao() {
     const PID = '__t_cobertura_sync__';
     const ativoOriginal = localStorage.getItem(DB.ACTIVE_PROFILE_KEY);
@@ -988,6 +1055,7 @@ const AutoTeste = {
      ['Nada se perde', 'nadaSePerde'],
      ['Travas contra perda', 'travasDePerda'],
      ['Tudo entra na sincronização', 'tudoEntraNaSincronizacao'],
+     ['A fila de envio sobrevive', 'filaDeEnvioSobrevive'],
      ['Link nunca vira código', 'linkNuncaViraCodigo'],
      ['Adota o id do banco', 'adotaOIdDoBanco'],
      ['Isolamento entre contas', 'isolamentoEntreContas'],

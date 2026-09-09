@@ -27,7 +27,7 @@
    no IndexedDB, que já é local e independente disto.
    ═══════════════════════════════════════════════════════════════════════════ */
 
-const VERSAO = 'diario-v2';
+const VERSAO = 'v0fb59dc657';
 const CACHE_APP = VERSAO + '-app';
 const CACHE_CDN = VERSAO + '-cdn';
 const TIMEOUT_REDE = 3000;
@@ -41,8 +41,15 @@ self.addEventListener('install', (evt) => {
       // addAll é tudo-ou-nada: um único 404 abortaria a instalação inteira.
       // Vamos um a um, ignorando o que falhar — cache parcial é melhor que nenhum.
       .then((c) => Promise.all(ESSENCIAIS.map((u) => c.add(u).catch(() => null))))
-      .then(() => self.skipWaiting())
   );
+  /* Sem skipWaiting() automático, de propósito.
+     Ele fazia o worker novo assumir na hora — passando a servir ativos da
+     versão NOVA para uma página que continua executando o JavaScript da
+     versão VELHA. Essa mistura é a origem clássica de "atualizei e começou a
+     dar erro estranho": duas versões do app vivas ao mesmo tempo, uma no
+     worker e outra na página.
+     O worker novo agora ESPERA. Quem decide a troca é o usuário, pelo aviso
+     de atualização (ou ela acontece sozinha quando todas as abas fecham). */
 });
 
 // ── Ativação: descarta caches de versões antigas ────────────────────────────
@@ -133,6 +140,14 @@ self.addEventListener('message', (evt) => {
   if (!evt.data) return;
   if (evt.data === 'skipWaiting') self.skipWaiting();
   if (evt.data === 'limparCache') {
-    evt.waitUntil(caches.keys().then((n) => Promise.all(n.map((k) => caches.delete(k)))));
+    /* Responde ao final: sem isso, quem pediu não sabia quando podia recarregar
+       e recarregava cedo demais, ainda com o cache pela metade. */
+    const porta = evt.ports && evt.ports[0];
+    evt.waitUntil(
+      caches.keys()
+        .then((n) => Promise.all(n.map((k) => caches.delete(k))))
+        .then(() => { if (porta) porta.postMessage({ ok: true }); })
+        .catch(() => { if (porta) porta.postMessage({ ok: false }); })
+    );
   }
 });

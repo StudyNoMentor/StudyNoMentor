@@ -24,6 +24,7 @@
    A separação em src/ dá a manutenção sem pagar nenhum desses preços.
    ═══════════════════════════════════════════════════════════════════════════ */
 import { readFileSync, writeFileSync } from 'node:fs';
+import { createHash } from 'node:crypto';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -91,6 +92,7 @@ const PARTES = [
     'js/64-info-tips.js',
     'js/65-recuperacao.js',
     'js/66-backup-nuvem.js',
+    'js/67-atualizacao.js',
     'js/70-relatorio.js',
     'js/80-ajustes-finais.js',
   ].map((m, i, todos) => { const t = S(m); if (i < todos.length - 1) SEP('\n'); return t; }).join('\n'),
@@ -98,8 +100,38 @@ const PARTES = [
   S('html/90-rodape.html'),
 ];
 
-const montado = PARTES.join('');
+/* ── CARIMBO DE VERSÃO ─────────────────────────────────────────────────────
+   O nome do cache do service worker era fixo ("diario-v2") e nunca mudava
+   entre publicações. O efeito prático: a limpeza de caches antigos, que roda na
+   ativação e apaga tudo que não começa com a versão atual, NUNCA tinha o que
+   apagar — o cache velho continuava com o mesmo nome do novo. Era daí que vinha
+   "atualizei e o app ficou estranho": ativos de duas versões convivendo no mesmo
+   balde, e código novo esbarrando em resto de código velho.
+
+   A versão passa a ser um resumo do conteúdo de src/. Ela muda sozinha a cada
+   alteração real, dá um nome NOVO ao cache (o antigo é descartado na ativação,
+   sem ninguém precisar pedir) e aparece no diagnóstico, para que "qual versão
+   está rodando aqui?" tenha resposta.
+
+   O resumo é calculado sobre a MONTAGEM SEM O CARIMBO — assim ele não depende
+   de si mesmo, e `--check` reproduz o mesmo byte a byte. */
+const semCarimbo = PARTES.join('');
+const VERSAO = 'v' + createHash('sha256').update(semCarimbo).digest('hex').slice(0, 10);
+const montado = semCarimbo.replace('<meta name="diario-versao" content="dev">',
+                                   `<meta name="diario-versao" content="${VERSAO}">`);
 const destino = join(RAIZ, 'index.html');
+
+/* O sw.js não é montado a partir de src/ (ele é servido como arquivo próprio),
+   então o carimbo é gravado nele por substituição de linha. */
+function carimbarServiceWorker() {
+  const swPath = join(RAIZ, 'sw.js');
+  let sw;
+  try { sw = readFileSync(swPath, 'utf8'); } catch { return null; }
+  const novo = sw.replace(/^const VERSAO = '[^']*';$/m, `const VERSAO = '${VERSAO}';`);
+  if (novo === sw) return sw;      // já estava igual
+  writeFileSync(swPath, novo, 'utf8');
+  return novo;
+}
 
 /* Faixas de linha: "de" é a primeira linha que o arquivo ocupa no index.html e
    "ate" a última. A contagem acompanha as quebras de linha acumuladas, então os
@@ -120,8 +152,17 @@ function montarManifesto() {
 
 if (process.argv.includes('--check')) {
   const atual = readFileSync(destino, 'utf8');
+  // o sw.js publicado tem de carregar a MESMA versão do index.html publicado —
+  // um carimbo defasado ali significa cache com nome errado
+  const swAtual = readFileSync(join(RAIZ, 'sw.js'), 'utf8');
+  const swVersao = (swAtual.match(/^const VERSAO = '([^']*)';$/m) || [])[1];
+  if (swVersao !== VERSAO) {
+    console.error(`DIVERGENCIA: sw.js carimbado como "${swVersao}", src/ monta "${VERSAO}".`);
+    console.error('Rode `node build.mjs` para recarimbar.');
+    process.exit(1);
+  }
   if (atual === montado) {
-    console.log(`OK: src/ monta exatamente o index.html atual (${montado.length} bytes).`);
+    console.log(`OK: src/ monta exatamente o index.html atual (${montado.length} bytes, ${VERSAO}).`);
     process.exit(0);
   }
   // Diagnóstico útil: aponta a PRIMEIRA linha divergente, não só "difere".
@@ -140,4 +181,5 @@ if (process.argv.includes('--check')) {
 
 writeFileSync(destino, montado, 'utf8');
 writeFileSync(join(RAIZ, 'src', 'manifesto.json'), montarManifesto(), 'utf8');
-console.log(`index.html gravado a partir de src/ (${montado.length} bytes) + src/manifesto.json.`);
+carimbarServiceWorker();
+console.log(`index.html gravado a partir de src/ (${montado.length} bytes, ${VERSAO}) + src/manifesto.json + sw.js.`);

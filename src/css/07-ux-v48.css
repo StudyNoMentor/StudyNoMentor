@@ -1148,3 +1148,27 @@ body.leis-foco .lei-reader-body.show-lines { padding-left: 42px; }
 /* No modo foco o cartão perde borda e fundo; a faixa colorida do topo ficava
    sozinha no ar, sem cartão nenhum a que pertencer. */
 body.leis-foco .leis-reader-card::before { display: none; }
+
+/* ── AVISO DE ATUALIZAÇÃO ───────────────────────────────────────────────────
+   Fica sobre o conteúdo, no rodapé, sem bloquear o uso: dá para continuar
+   trabalhando e atualizar depois. Acima da barra de navegação do celular. */
+.upd-bar {
+  position: fixed; left: 12px; right: 12px; bottom: calc(12px + env(safe-area-inset-bottom, 0px));
+  z-index: 9500; display: flex; align-items: center; justify-content: space-between;
+  gap: 14px; flex-wrap: wrap;
+  padding: 12px 16px; border-radius: 14px;
+  background: var(--surface); border: 1.5px solid var(--border-strong);
+  box-shadow: 0 10px 30px rgba(0,0,0,.16);
+}
+.upd-bar .upd-txt { font-size: var(--fs-xs); color: var(--text-soft); line-height: 1.5; flex: 1 1 220px; min-width: 0; }
+.upd-bar .upd-txt strong { color: var(--text); }
+.upd-bar .upd-acoes { display: flex; gap: 8px; flex-shrink: 0; }
+.upd-bar .upd-acoes button { padding: 8px 14px; font-size: var(--fs-xs); }
+@media (max-width: 520px) {
+  .upd-bar { flex-direction: column; align-items: stretch; }
+  /* Em coluna, `flex: 1 1 220px` passa a valer na VERTICAL: o texto virava um
+     bloco de 220px de altura e a barra tomava meia tela. No empilhado, cada
+     parte ocupa só o que precisa. */
+  .upd-bar .upd-txt { flex: 0 0 auto; }
+  .upd-bar .upd-acoes { justify-content: flex-end; }
+}
