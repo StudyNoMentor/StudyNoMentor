@@ -26,9 +26,26 @@ const DB = {
     cycleHistory: 'diario-estudos:cycle-history',
     tracks: 'diario-estudos:tracks'
   },
+  /* ── O ID DO PLANEJAMENTO ATIVO, À PROVA DE ASPAS ─────────────────────────
+     Este id entra na composição de TODAS as chaves do planejamento
+     (`p:<id>:entries`, `p:<id>:cards`…). Se ele vier com aspas — o que acontece
+     quando algum caminho grava com JSON.stringify em vez de texto puro —, cada
+     chave derivada muda de nome de uma vez só: o app passa a ler e gravar em
+     `p:"pl_inicial":entries` enquanto os dados de verdade continuam em
+     `p:pl_inicial:entries`. Nada é apagado, mas as telas abrem vazias, e a tela
+     de Recuperação passa a listar um "planejamento órfão" fantasma com o nome
+     entre aspas — foi exatamente o que apareceu em uso real.
+
+     Uma única linha de saneamento na LEITURA conserta o presente e o passado:
+     qualquer valor gravado torto volta a apontar para o lugar certo. */
   _activePlanId() {
-    try { return localStorage.getItem(this.GLOBAL_KEYS.activePlan) || 'default'; }
-    catch (e) { return 'default'; }
+    try {
+      let v = localStorage.getItem(this.GLOBAL_KEYS.activePlan);
+      if (!v) return 'default';
+      v = String(v).trim();
+      if (v.length > 1 && v[0] === '"' && v[v.length - 1] === '"') v = v.slice(1, -1);
+      return v || 'default';
+    } catch (e) { return 'default'; }
   },
   // Monta o conjunto de chaves namespaced de UM planejamento qualquer (dentro do perfil ativo)
   keysForPlan(planId) {
@@ -1062,15 +1079,39 @@ const DB = {
       list = this.DEFAULT_LINKS.map(l => ({ id: this._uid(), ...l, logo: null, createdAt: new Date().toISOString() }));
       this._set(this.KEYS.links, list);
     }
+    // neutraliza esquemas perigosos guardados antes desta trava existir
+    if (this._sanearLinks(list)) this._set(this.KEYS.links, list);
     return list;
   },
   saveLinks(list) { this._set(this.KEYS.links, list); },
+  /* ── URL DE LINK: SÓ http/https ───────────────────────────────────────────
+     `escapeHtml` protege o CONTEÚDO de um atributo, mas não diz nada sobre o
+     ESQUEMA da URL. Um link com `javascript:...` em `href` executa script na
+     origem do app ao ser clicado — com acesso ao armazenamento inteiro e ao
+     token da sessão.
+
+     Pela tela de cadastro isso não passava, mas por acidente: qualquer coisa
+     que não comece com http(s) recebe "https://" na frente. O caminho que
+     passava era a IMPORTAÇÃO de backup — e o próprio app avisa que um backup
+     pode vir "de um colega, de um grupo de estudos, de um download". Cards
+     importados já eram saneados por isso; links não eram.
+
+     A trava fica na CAMADA DE DADOS, não na tela: assim vale para todo
+     caminho de entrada, inclusive os que ainda não existem. */
+  urlSegura(url) {
+    const s = String(url == null ? '' : url).trim();
+    if (!s) return '';
+    if (/^https?:\/\//i.test(s)) return s;
+    // esquema explícito que não é http(s) (javascript:, data:, vbscript:…) é recusado
+    if (/^[a-z][a-z0-9+.-]*:/i.test(s)) return '';
+    return 'https://' + s;    // digitou "site.com" — completa, como a tela já fazia
+  },
   addLink(data) {
     const list = this.getLinks();
     const link = {
       id: this._uid(),
       nome: (data.nome || 'Novo link').trim(),
-      url: (data.url || '').trim(),
+      url: this.urlSegura(data.url),
       categoria: (data.categoria || '').trim(),
       cor: data.cor || '#4f46e5',
       logo: data.logo || null,
@@ -1080,8 +1121,21 @@ const DB = {
   },
   updateLink(id, patch) {
     const list = this.getLinks(); const l = list.find(x => x.id === id);
-    if (l) Object.assign(l, patch);
+    // a mesma trava de esquema do addLink: editar não pode ser a porta de entrada
+    if (l) { Object.assign(l, patch); if ('url' in (patch || {})) l.url = this.urlSegura(l.url); }
     this.saveLinks(list); return l;
+  },
+  /* Links que JÁ estão guardados (de uma importação anterior a esta trava)
+     também precisam ser neutralizados — a leitura é o último ponto por onde
+     todos passam antes de virar `href`. */
+  _sanearLinks(list) {
+    let mudou = false;
+    (list || []).forEach(l => {
+      if (!l || typeof l.url !== 'string') return;
+      const seguro = this.urlSegura(l.url);
+      if (seguro !== l.url) { l.url = seguro; mudou = true; }
+    });
+    return mudou;
   },
   deleteLink(id) { this.saveLinks(this.getLinks().filter(l => l.id !== id)); },
 

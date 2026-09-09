@@ -977,3 +977,215 @@ entregou o que nunca enviou).
 
 Se alguém amanhã guardar uma preferência nova numa chave global, a suíte falha
 aqui — antes de virar dado perdido de alguém.
+
+---
+
+## 17. Seis backups num dia, planejamentos fantasma e telas que gritavam
+
+Achados a partir de capturas de uso real, não de leitura de código.
+
+### Seis "backup diário" no mesmo dia
+
+A lista mostrava, num só dia, seis fotos de 3 MB com a nota `backup diário`.
+O controle de "já fiz a de hoje" era um **carimbo local** (`cbk-dia:<perfil>`).
+Um carimbo local responde bem enquanto sobrevive — e ele não sobrevive a tudo:
+trocar de aparelho, limpar o navegador, o id do perfil mudar (a migração para
+UUID muda a chave) ou qualquer gravação que não chegue ao disco. Cada vez que
+ele se perde, o app conclui "ainda não fiz a de hoje" e grava outra.
+
+**A regra que faltava:** um trabalho agendado não pode ter como fonte da
+verdade um sinalizador do cliente — a fonte da verdade é o lugar onde o
+resultado é gravado. O carimbo local virou apenas um **caminho rápido** (acerta
+quase sempre, custa zero consulta); quando ele não bate, quem decide é uma
+consulta ao banco (`_jaTemFotoDeHoje`), que sobrevive a recarregamento, troca de
+aparelho e perda da chave. Duplicar deixou de ser possível pelo lado do cliente.
+E se a consulta falhar, **não grava**: uma foto a menos hoje é recuperável no
+minuto seguinte; uma foto duplicada por minuto não é.
+
+### Planejamentos fantasma com aspas no nome
+
+A tela de Recuperação listava dois "planejamentos órfãos": `"pl_inicial"` —
+**com aspas** — e `default`, cada um com 617 B. O id do planejamento entra na
+composição de todas as chaves (`p:<id>:entries`, `p:<id>:cards`…): um id com
+aspas renomeia todas de uma vez, e o app passa a ler e gravar em
+`p:"pl_inicial":entries` enquanto os dados de verdade seguem em
+`p:pl_inicial:entries`. Nada é apagado, mas as telas abrem vazias.
+
+Corrigido no ponto certo — a **leitura** (`DB._activePlanId`) passa a sanear
+aspas ao redor, o que conserta o presente e o passado de uma vez; e
+`PlanManager.getActivePlanId` passou a usar a mesma leitura saneada em vez de
+ler a chave crua.
+
+### Um alarme que disparava por 617 bytes
+
+Os dois órfãos acima continham **apenas as listas semeadas de fábrica**
+(formas de estudo, fases, modos, status) — nada do usuário. Mesmo assim faziam
+a tela estampar "⚠️ Há dado recuperável neste aparelho". Um alarme que dispara
+sem motivo é pior que nenhum alarme: ensina a ignorar o alarme de verdade.
+Agora um órfão que só tem seções semeadas não é reportado, e o histórico de
+fotos parou de acender o alarme (ter uma foto com uma seção vazia é o normal —
+basta não usar aquela parte do app).
+
+### Telas que despejavam vocabulário de banco de dados
+
+**Recuperação** abria com uma linha de jargão ("50 seção(ões) em uso · 0
+perfil(is) fora da lista · 2 planejamento(s) órfão(s)…") e, logo abaixo, uma
+tabela com o nome interno de cada seção (`p:pl_inicial:leis`) — que ocupava a
+maior parte da tela e não responde nada a quem teme ter perdido meses de
+estudo. O veredito passou a ser uma frase em português; a tabela e as chaves
+legadas foram para um `<details>` recolhido, a um clique, para diagnóstico.
+
+**Diagnóstico** tinha 13 linhas, das quais 9 eram detalhe interno (revisão
+local do perfil, motor de armazenamento, tempo de inatividade…). Ele responde
+a uma pergunta só — "meus dados estão salvos e sincronizados?" —, então passou
+a começar por essa resposta em uma frase, seguida das quatro linhas que a
+sustentam (conta, alterações à espera de envio, última sincronização, backup no
+banco). O resto ficou recolhido.
+
+Verificado: `verificar.mjs` completo, AutoTeste 285/285, zero erro de console,
+WCAG AA nos dois temas. As telas foram conferidas por captura, incluindo o
+caso do órfão só-com-semente, que deixou de acender o alarme.
+
+---
+
+## 18. Revisão de layout das três telas — o que o usuário final precisa ver
+
+Complemento do item 17, que tinha corrigido os bugs e mexido na estrutura mas
+não tinha revisado as telas populadas nem a aba de conta no estado LOGADO.
+
+### Conta e nuvem: um cartão com sete blocos empilhados
+
+No estado logado era um bloco só, separado por linhas horizontais: conta, fila
+de envio, sessão ativa, nome do espaço na nuvem, perfil ao abrir, segurança da
+sessão e outros espaços — quatro controles de configuração, seis botões e três
+parágrafos explicativos. Quem abre ali quer saber duas coisas: **estou
+conectado?** e **meus dados subiram?**
+
+Ficaram visíveis a conta, a fila de envio (com "Enviar agora"/"Baixar da
+nuvem") e o aparelho com a sessão. Nome do espaço, perfil ao abrir, segurança
+da sessão, alterar senha e outros espaços foram para um `<details>` — ajustes
+que se mexe uma vez e não se olha mais. Nenhum id foi removido: os 675 ids da
+página seguem íntegros, e todo handler continua achando seu elemento.
+
+### A lista de backups: trinta linhas quase idênticas
+
+Com a retenção em faixas a lista chega a ~30 cópias, e elas eram praticamente
+iguais — mesma nota, mesmo tamanho e mesmo aparelho repetidos linha após linha.
+Repetição não informa: atrapalha achar o que interessa.
+
+- **Agrupadas por período** (Hoje · Últimos 7 dias · Este mês · Meses
+  anteriores). É assim que se procura um backup: "aquele de antes da semana
+  passada".
+- **O aparelho só aparece quando é outro.** "Android · Chrome" trinta vezes
+  não distingue nada; `de Windows · Edge` numa linha só, sim.
+- **Só os grupos recentes ficam abertos**; o resto vai para um `<details>`.
+  O corte respeita grupos inteiros — nunca parte um período ao meio.
+- **"Baixar" virou ícone.** Dois botões rotulados quebravam a linha e dobravam
+  a altura de cada item; Restaurar é a ação principal e ficou rotulado.
+
+### Notas que citavam nomes internos
+
+Uma cópia aparecia como `antes de esvaziar 1 seção(ões): p:pl_inicial:extras`.
+Essa nota existe para alguém ESCOLHER qual cópia restaurar, e um nome interno
+não ajuda a escolher. Passou a usar o rótulo humano — "antes de esvaziar:
+atividades extras". O nome interno continua no console, para diagnóstico.
+
+Verificado por captura em 420px de largura (celular), nos dois casos: cópia
+feita neste aparelho e cópia vinda de outro. `verificar.mjs` completo,
+AutoTeste 285/285, 675 ids íntegros, zero erro de console, WCAG AA nos dois
+temas.
+
+---
+
+## 19. Auditoria arquivo por arquivo — o perfil que nascia partido em dois
+
+Varredura sistemática por classes de defeito sobre os arquivos que sustentam
+dados, sincronização e segurança, com verificação em cada achado.
+
+### O achado grave: a importação partia o perfil em dois
+
+`CloudStore.createRow` **não aceita um id** — a coluna é `uuid primary key
+default gen_random_uuid()`, então quem decide o id é o banco, e ele o devolve
+em `{ id, rev }`. A importação de backup chamava `createRow` e **descartava o
+retorno**:
+
+```js
+const novoId = ProfileManager.importProfile(obj, nomeFinal);   // id X, local
+await CloudStore.createRow({ ..., payload: exportProfile(novoId) });  // id Y, nuvem
+```
+
+O resultado era um perfil partido em dois. O local, com o id X, ficava **mudo
+para sempre**: `saveActive` e `updateMeta` só sabem fazer UPDATE, e um UPDATE
+sem linha correspondente atinge zero linhas — sem erro, sem aviso, com a tela
+dizendo "sincronizado". O da nuvem, com o id Y, ficava congelado no instante da
+importação e aparecia como um **segundo perfil** na lista de todos os
+aparelhos, com o nome de antes — porque renomear depois só mexia no local.
+
+É exatamente o sintoma relatado em uso real: *"importei um json de backup e
+mudei o nome, e agora aparecem 2 ou 3 perfis, uns com nomes antigos; quando vou
+entrar aparece o nome atualizado"*. O diagnóstico anterior (ids fora do formato
+UUID, item 17) era um bug real, mas não era **este**.
+
+**Correção em duas camadas.** `ProfileManager.adotarIdDaNuvem(idAntigo, row)`
+— extraída da migração de ids, que já fazia isso certo — move o namespace
+local inteiro para o id do banco (copia, confere, só então apaga), troca o id
+no índice, herda rev e dono e reaponta o perfil ativo. A importação passa a
+usá-la. E `repararSemLinhaNaNuvem()`, no login, conserta quem **já está**
+quebrado: perfil com dados aqui e sem linha lá ganha a linha e adota o id.
+
+O reparo cria linha na nuvem, então tem trava própria: só roda com a lista da
+nuvem obtida **com sucesso** (falha de rede não pode virar linha duplicada),
+só para perfis com dado real, e só reivindica um perfil sem dono marcado se
+este aparelho **nunca viu outra conta** — senão um perfil antigo seria
+reivindicado por quem estiver logado agora.
+
+### Um link podia virar código
+
+`escapeHtml` protege o conteúdo de um atributo e não diz nada sobre o **esquema
+da URL**: `javascript:...` num `href` executa script na origem do app, com
+acesso ao armazenamento inteiro e ao token da sessão. A tela de cadastro
+barrava por acidente (prefixa `https://` no que não começa com http), mas a
+**importação de backup** passava — e o próprio app avisa que um backup pode vir
+"de um colega, de um grupo de estudos, de um download". Cards importados já
+eram saneados por isso; links não.
+
+A trava (`DB.urlSegura`) ficou na camada de dados, valendo para todo caminho de
+entrada — inclusive os que ainda não existem —, e `getLinks` neutraliza o que
+já estiver guardado de antes.
+
+### `jsonSeguro` existia e não era usado
+
+A função que remove `__proto__`, `constructor` e `prototype` de JSON externo
+estava escrita, comentada e exercitada só pelo autoteste: os dois pontos reais
+de entrada de arquivo (backup de perfil e backup de cards) usavam
+`JSON.parse` puro. Agora usam `jsonSeguro`.
+
+### Três gravações que a sincronização podia derrubar
+
+Em `49-tela-config.js`, ativar/desativar forma de estudo, fase ou modo fazia
+`l.find(x => x.id === id).ativo = ativo`. Se o item tivesse deixado de existir
+entre desenhar a tela e clicar — e a leitura por seção **substitui listas com
+a tela aberta** —, `find` devolvia `undefined`, a atribuição lançava, e o
+`DB._set` da linha seguinte **nem chegava a rodar**: a tela parecia inerte e a
+alteração se perdia sem aviso. Guardadas as três, com aviso e redesenho.
+
+### O que a varredura mostrou saudável
+
+- **XSS**: o app escapa na ATRIBUIÇÃO da variável (`const obs = escapeHtml(...)`),
+  não na interpolação — o que faz uma busca ingênua acusar centenas de falsos
+  positivos. Conferidos os candidatos de texto digitado: todos escapados, e
+  `UI.confirm`/`confirmTyped` escapam a mensagem inteira.
+- **`JSON.parse` sem proteção**: um único caso em todo o código, e é a própria
+  `jsonSeguro`, que lança de propósito para quem chama tratar.
+- **Escritas fora do canal de sincronização**: todas as encontradas são
+  contabilidade da própria sincronização, preferências de aparelho ou
+  aplicação de dado vindo da nuvem — nenhuma é dado do usuário.
+
+Cobertura: **AutoTeste 285 → 302**, com os grupos "Link nunca vira código"
+(esquemas perigosos recusados, http/https preservados, saneamento retroativo) e
+"Adota o id do banco" (o namespace é movido, o índice aponta para o id novo, o
+perfil ativo acompanha, a revisão é herdada, e nada fica duplicado).
+
+Nota de processo: a primeira versão do teste de URL continha um `</script>`
+literal, que encerrava o bloco de código no HTML montado. A checagem 4 do
+`verificar.mjs` pegou na hora — é para isso que ela existe.

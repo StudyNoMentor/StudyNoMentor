@@ -98,6 +98,16 @@ const Recuperacao = {
   /* Planejamentos que TÊM dados mas não estão na lista — a causa mais comum de
      "os registros aparecem mas o resto sumiu": o ponteiro se perdeu, os dados
      não. Reanexar é uma operação puramente aditiva. */
+  /* Seções que TODO planejamento ganha de fábrica ao ser criado. Um "órfão"
+     que só tem isto não guarda nada seu: é a sobra de uma semeadura que não
+     virou planejamento nenhum. Reportá-lo como dado recuperável faz a tela
+     gritar "⚠️ há dado recuperável" por causa de 617 bytes de lista padrão —
+     e um alarme que dispara sem motivo é pior que nenhum alarme, porque ensina
+     a ignorar o alarme de verdade. */
+  SEMEADAS: ['methods', 'phases', 'modes', 'statuses'],
+  _soTemSemente(g) {
+    return g.folhas.length > 0 && g.folhas.every(f => this.SEMEADAS.indexOf(f) !== -1);
+  },
   planosOrfaos(pid) {
     const alvo = pid || ProfileManager.getActiveProfileId();
     const perfil = this.varrer().find(p => p.id === alvo);
@@ -105,13 +115,17 @@ const Recuperacao = {
     const porPlano = {};
     perfil.orfas.forEach(s => {
       if (!s.plano) return;
-      const g = porPlano[s.plano] || (porPlano[s.plano] = { id: s.plano, secoes: 0, bytes: 0, registros: 0 });
+      const g = porPlano[s.plano] || (porPlano[s.plano] = { id: s.plano, secoes: 0, bytes: 0, registros: 0, folhas: [] });
       g.secoes++; g.bytes += s.bytes;
+      const m = /^p:[^:]+:(.+)$/.exec(s.sec);
+      if (m) g.folhas.push(m[1]);
       if (/:entries$/.test(s.sec)) {
         try { g.registros = (JSON.parse(localStorage.getItem(s.chave)) || []).length; } catch (e) { _quiet(e, 'rec-conta'); }
       }
     });
-    return Object.values(porPlano).sort((a, b) => b.bytes - a.bytes);
+    return Object.values(porPlano)
+      .filter(g => !this._soTemSemente(g))
+      .sort((a, b) => b.bytes - a.bytes);
   },
   /* ── ARMAZENAMENTO ANTIGO (localStorage nativo) ───────────────────────────
      O app guarda tudo no IndexedDB, através de uma fachada que se chama
@@ -262,15 +276,19 @@ const RecuperacaoUI = {
     /* 1. VEREDITO — a pergunta que a pessoa veio fazer, respondida primeiro. */
     const alcancaveis = meu ? meu.secoes.filter(s => s.alcancavel) : [];
     const perfisFora = perfis.filter(p => !p.naListaDePerfis && p.secoes.length);
-    const recuperavel = perfisFora.length || orfaos.length || lixo.length || antigo.length || legado.length ||
-      fotos.some(f => f.secoes.some(sec => {
-        const v = localStorage.getItem('diario-estudos:u:' + ativo + ':' + sec);
-        return v === null || v === '' || v === '[]' || v === '{}';
-      }));
+    /* O alarme só acende para o que TEM AÇÃO e é seu de verdade. O histórico de
+       fotos deixou de acender: ter uma foto com uma seção vazia é o normal (você
+       pode simplesmente não usar aquela parte do app), e isso fazia a tela
+       gritar sem motivo. Um alarme que dispara à toa ensina a ignorar o alarme
+       de verdade. */
+    const acoes = perfisFora.length + orfaos.length + lixo.length + antigo.length;
+    const resumo = recuperavel => recuperavel
+      ? 'Encontrei algo que dá para trazer de volta — as opções aparecem abaixo.'
+      : 'Está tudo no lugar. Nada aqui está perdido nem fora de alcance.';
     blocos.push(`<div class="cloud-slot-row" style="align-items:flex-start;">
       <div class="cloud-slot-info">
-        <div class="name">${recuperavel ? '⚠️ Há dado recuperável neste aparelho' : '✓ Nada fora do lugar'}</div>
-        <div class="meta">${alcancaveis.length} seção(ões) em uso · ${this._kb(meu ? meu.bytes : 0)} no total · ${perfisFora.length} perfil(is) fora da lista · ${orfaos.length} planejamento(s) órfão(s) · ${lixo.length} item(ns) na lixeira · ${antigo.length} chave(s) no armazenamento antigo · ${fotos.length} foto(s) do histórico</div>
+        <div class="name">${acoes ? '⚠️ Há algo para recuperar' : '✓ Nada fora do lugar'}</div>
+        <div class="meta">${resumo(acoes)}</div>
       </div>
     </div>`);
 
@@ -297,17 +315,6 @@ const RecuperacaoUI = {
         </div>`);
     }
 
-    /* 1d. CHAVES LEGADAS — de antes de perfis e planejamentos existirem. */
-    if (legado.length) {
-      blocos.push('<div class="wd-section-title">Dados de antes dos planejamentos</div>' +
-        '<p class="hint">Formato antigo, de quando o app ainda não tinha perfis nem planejamentos. Ficam guardados como estão; se algum tiver conteúdo que você não vê em tela nenhuma, me diga qual — a conversão depende do que há dentro.</p>' +
-        legado.map(x => `<div class="cloud-slot-row">
-          <div class="cloud-slot-info">
-            <div class="name">${escapeHtml(x.nome)}</div>
-            <div class="meta">${escapeHtml(x.chave)} · ${this._kb(x.bytes)}${x.itens != null ? ' · ' + x.itens + ' item(ns)' : ''}</div>
-          </div>
-        </div>`).join(''));
-    }
 
     /* 2. PLANEJAMENTOS ÓRFÃOS — a causa mais comum de "sumiu tudo menos os
        registros": os dados existem, o app é que perdeu o caminho até eles. */
@@ -355,12 +362,23 @@ const RecuperacaoUI = {
         </div>`).join(''));
     }
 
-    /* 5. O QUE EXISTE HOJE — a lista completa, para conferência. */
+    /* 5. DETALHES TÉCNICOS — RECOLHIDOS. Esta tabela lista cada seção com o
+       nome interno (`p:pl_inicial:leis`). Para quem está com medo de ter
+       perdido meses de estudo, ela não responde nada: é vocabulário do banco,
+       não do usuário — e aberta por padrão ela era a maior parte da tela.
+       Continua aqui, a um clique, para diagnóstico. */
     if (meu && meu.secoes.length) {
       const linhas = meu.secoes.slice().sort((a, b) => b.bytes - a.bytes).map(s =>
         `<tr><td>${escapeHtml(Recuperacao.rotulo(s.sec))}</td><td>${escapeHtml(s.sec)}</td><td class="num">${this._kb(s.bytes)}</td><td>${s.alcancavel ? '✓ em uso' : '⚠️ fora do alcance'}</td></tr>`).join('');
-      blocos.push('<div class="wd-section-title">Tudo o que existe neste aparelho</div>' +
-        `<div style="overflow-x:auto;"><table class="data-table"><thead><tr><th>O que é</th><th>Seção</th><th class="num">Tamanho</th><th>Situação</th></tr></thead><tbody>${linhas}</tbody></table></div>`);
+      const legadas = legado.length
+        ? '<p class="hint" style="margin-top:12px;">Formato antigo, de antes de existirem perfis e planejamentos: ' +
+          legado.map(x => escapeHtml(x.nome) + ' (' + this._kb(x.bytes) + ')').join(', ') + '.</p>'
+        : '';
+      blocos.push('<details style="margin-top:14px;">' +
+        `<summary style="cursor:pointer;font-weight:700;">Detalhes técnicos — ${meu.secoes.length} seção(ões), ${this._kb(meu.bytes)}</summary>` +
+        '<p class="hint">A lista abaixo é o inventário bruto deste aparelho, com os nomes internos. Serve para diagnóstico; você não precisa entender nem fazer nada com ela.</p>' +
+        `<div style="overflow-x:auto;"><table class="data-table"><thead><tr><th>O que é</th><th>Seção</th><th class="num">Tamanho</th><th>Situação</th></tr></thead><tbody>${linhas}</tbody></table></div>` +
+        legadas + '</details>');
     }
 
     /* 6. OUTROS PERFIS — dado de outro perfil também some da vista. */

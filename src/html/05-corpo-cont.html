@@ -184,39 +184,32 @@
 
         <!-- Estado: logado -->
         <div id="cloud-connected-box" style="display:none;">
+          <!-- ── 1. QUEM ESTÁ CONECTADO ────────────────────────────────────
+               Este cartão era um bloco só, com sete seções separadas por
+               linhas: conta, fila, sessão, nome do espaço, perfil ao abrir,
+               segurança da sessão e outros espaços — quatro controles de
+               configuração e três parágrafos explicativos empilhados. Quem
+               abre aqui quer saber duas coisas: "estou conectado?" e "meus
+               dados subiram?". O resto é ajuste raro, e foi para o fim,
+               recolhido. -->
           <div class="cloud-status-row">
             <div>
               <div class="cloud-status-email" id="cloud-user-email">—</div>
               <div class="cloud-status-sub" id="cloud-sync-status">Conectado</div>
             </div>
             <div style="display:flex; gap:8px; flex-shrink:0;">
-              <button type="button" class="btn-secondary" id="cloud-change-pass" title="Alterar a senha da sua conta">🔑 Alterar senha</button>
               <button type="button" class="btn-secondary" id="cloud-signout">Sair</button>
             </div>
           </div>
 
           <hr class="divider">
+          <!-- ── 2. A SINCRONIZAÇÃO: é o que a pessoa vem conferir ───────── -->
           <div class="cloud-sessions-head">
             <p class="section-label" style="margin:0;">Fila de envio para a nuvem</p>
             <button type="button" class="btn-secondary sess-refresh" id="cloud-queue-refresh" title="Atualizar a fila" aria-label="Atualizar a fila">↻</button>
           </div>
           <div id="cloud-queue-box"></div>
-
-          <hr class="divider">
-          <div class="cloud-sessions-head">
-            <p class="section-label" style="margin:0;">Aparelho com sessão ativa</p>
-            <button type="button" class="btn-secondary sess-refresh" id="cloud-sessions-refresh" title="Atualizar" aria-label="Atualizar">↻</button>
-          </div>
-          <p class="hint" style="margin:4px 0 10px;">Sua conta mantém <strong>um aparelho ativo por vez</strong>. Aqui você vê qual está com a sessão e pode encerrá-lo ou trazer a sessão para este aparelho.</p>
-          <div id="cloud-sessions-list" class="cloud-sessions-list"></div>
-
-          <hr class="divider">
-          <p class="section-label">Este perfil: <span id="cloud-current-profile-name">—</span></p>
-          <div class="field">
-            <label for="cloud-slot-name">Nome deste espaço na nuvem</label>
-            <input type="text" id="cloud-slot-name" placeholder="Ex.: Meu perfil">
-          </div>
-          <div class="submit-row" style="margin-top:4px;">
+          <div class="submit-row" style="margin-top:10px;">
             <label class="co-check" style="margin:0;"><input type="checkbox" id="cloud-autosync" checked> Sincronizar automaticamente</label>
             <div style="display:flex; gap:8px;">
               <button type="button" class="btn-secondary" id="cloud-push-now">↑ Enviar agora</button>
@@ -225,34 +218,59 @@
           </div>
 
           <hr class="divider">
-          <p class="section-label">Perfil ao abrir</p>
-          <label class="co-check" style="margin:6px 0 0;"><input type="checkbox" id="pref-auto-enter" checked> Entrar direto no perfil ao logar (não mostrar o seletor)</label>
-          <div class="field" style="margin:12px 0 0;">
-            <label for="pref-default-profile">Perfil padrão</label>
-            <select id="pref-default-profile">
-              <option value="">Último perfil usado</option>
-            </select>
+          <!-- ── 3. QUAL APARELHO ESTÁ COM A SESSÃO ──────────────────────── -->
+          <div class="cloud-sessions-head">
+            <p class="section-label" style="margin:0;">Aparelho com sessão ativa</p>
+            <button type="button" class="btn-secondary sess-refresh" id="cloud-sessions-refresh" title="Atualizar" aria-label="Atualizar">↻</button>
           </div>
-          <p class="hint" style="margin:6px 0 0;">Ao entrar com e-mail e senha, o app abre <strong>direto neste perfil</strong>, sem mostrar a tela de seleção. Para trocar, clique no seu nome na barra lateral.</p>
+          <p class="hint" style="margin:4px 0 10px;">Sua conta mantém <strong>um aparelho ativo por vez</strong>. Aqui você vê qual está com a sessão e pode trazê-la para este aparelho.</p>
+          <div id="cloud-sessions-list" class="cloud-sessions-list"></div>
 
-          <hr class="divider">
-          <p class="section-label">Segurança da sessão</p>
-          <label class="co-check" style="margin:6px 0 0;"><input type="checkbox" id="cfg-single-session"> Sessão única — ao entrar, encerra a sessão nos outros aparelhos</label>
-          <div class="field" style="margin:12px 0 0;">
-            <label for="cfg-idle-mins">Sair automaticamente por inatividade</label>
-            <select id="cfg-idle-mins">
-              <option value="0">Nunca (recomendado)</option>
-              <option value="30">Após 30 minutos</option>
-              <option value="60">Após 1 hora</option>
-              <option value="240">Após 4 horas</option>
-              <option value="720">Após 12 horas</option>
-            </select>
-          </div>
-          <p class="hint" style="margin:6px 0 0;">Estas opções ficam salvas e valem sempre neste aparelho.</p>
+          <!-- ── 4. AJUSTES RAROS — recolhidos ───────────────────────────── -->
+          <details style="margin-top:16px;">
+            <summary style="cursor:pointer;font-weight:700;">Ajustes avançados desta conta</summary>
 
-          <hr class="divider">
-          <p class="section-label">Outros espaços salvos na sua conta</p>
-          <div id="cloud-slots-list"></div>
+            <p class="section-label" style="margin-top:14px;">Este perfil: <span id="cloud-current-profile-name">—</span></p>
+            <div class="field">
+              <label for="cloud-slot-name">Nome deste espaço na nuvem</label>
+              <input type="text" id="cloud-slot-name" placeholder="Ex.: Meu perfil">
+            </div>
+
+            <hr class="divider">
+            <p class="section-label">Perfil ao abrir</p>
+            <label class="co-check" style="margin:6px 0 0;"><input type="checkbox" id="pref-auto-enter" checked> Entrar direto no perfil ao logar (não mostrar o seletor)</label>
+            <div class="field" style="margin:12px 0 0;">
+              <label for="pref-default-profile">Perfil padrão</label>
+              <select id="pref-default-profile">
+                <option value="">Último perfil usado</option>
+              </select>
+            </div>
+
+            <hr class="divider">
+            <p class="section-label">Segurança da sessão</p>
+            <label class="co-check" style="margin:6px 0 0;"><input type="checkbox" id="cfg-single-session"> Sessão única — ao entrar, encerra a sessão nos outros aparelhos</label>
+            <div class="field" style="margin:12px 0 0;">
+              <label for="cfg-idle-mins">Sair automaticamente por inatividade</label>
+              <select id="cfg-idle-mins">
+                <option value="0">Nunca (recomendado)</option>
+                <option value="30">Após 30 minutos</option>
+                <option value="60">Após 1 hora</option>
+                <option value="240">Após 4 horas</option>
+                <option value="720">Após 12 horas</option>
+              </select>
+            </div>
+            <p class="hint" style="margin:6px 0 0;">Estas opções valem sempre neste aparelho.</p>
+
+            <hr class="divider">
+            <div class="cloud-sessions-head">
+              <p class="section-label" style="margin:0;">Senha da conta</p>
+              <button type="button" class="btn-secondary" id="cloud-change-pass" title="Alterar a senha da sua conta">🔑 Alterar senha</button>
+            </div>
+
+            <hr class="divider">
+            <p class="section-label">Outros espaços salvos na sua conta</p>
+            <div id="cloud-slots-list"></div>
+          </details>
         </div>
       </div>
     </section>

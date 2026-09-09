@@ -7412,39 +7412,32 @@ window.__idbBoot = (function () {
 
         <!-- Estado: logado -->
         <div id="cloud-connected-box" style="display:none;">
+          <!-- ── 1. QUEM ESTÁ CONECTADO ────────────────────────────────────
+               Este cartão era um bloco só, com sete seções separadas por
+               linhas: conta, fila, sessão, nome do espaço, perfil ao abrir,
+               segurança da sessão e outros espaços — quatro controles de
+               configuração e três parágrafos explicativos empilhados. Quem
+               abre aqui quer saber duas coisas: "estou conectado?" e "meus
+               dados subiram?". O resto é ajuste raro, e foi para o fim,
+               recolhido. -->
           <div class="cloud-status-row">
             <div>
               <div class="cloud-status-email" id="cloud-user-email">—</div>
               <div class="cloud-status-sub" id="cloud-sync-status">Conectado</div>
             </div>
             <div style="display:flex; gap:8px; flex-shrink:0;">
-              <button type="button" class="btn-secondary" id="cloud-change-pass" title="Alterar a senha da sua conta">🔑 Alterar senha</button>
               <button type="button" class="btn-secondary" id="cloud-signout">Sair</button>
             </div>
           </div>
 
           <hr class="divider">
+          <!-- ── 2. A SINCRONIZAÇÃO: é o que a pessoa vem conferir ───────── -->
           <div class="cloud-sessions-head">
             <p class="section-label" style="margin:0;">Fila de envio para a nuvem</p>
             <button type="button" class="btn-secondary sess-refresh" id="cloud-queue-refresh" title="Atualizar a fila" aria-label="Atualizar a fila">↻</button>
           </div>
           <div id="cloud-queue-box"></div>
-
-          <hr class="divider">
-          <div class="cloud-sessions-head">
-            <p class="section-label" style="margin:0;">Aparelho com sessão ativa</p>
-            <button type="button" class="btn-secondary sess-refresh" id="cloud-sessions-refresh" title="Atualizar" aria-label="Atualizar">↻</button>
-          </div>
-          <p class="hint" style="margin:4px 0 10px;">Sua conta mantém <strong>um aparelho ativo por vez</strong>. Aqui você vê qual está com a sessão e pode encerrá-lo ou trazer a sessão para este aparelho.</p>
-          <div id="cloud-sessions-list" class="cloud-sessions-list"></div>
-
-          <hr class="divider">
-          <p class="section-label">Este perfil: <span id="cloud-current-profile-name">—</span></p>
-          <div class="field">
-            <label for="cloud-slot-name">Nome deste espaço na nuvem</label>
-            <input type="text" id="cloud-slot-name" placeholder="Ex.: Meu perfil">
-          </div>
-          <div class="submit-row" style="margin-top:4px;">
+          <div class="submit-row" style="margin-top:10px;">
             <label class="co-check" style="margin:0;"><input type="checkbox" id="cloud-autosync" checked> Sincronizar automaticamente</label>
             <div style="display:flex; gap:8px;">
               <button type="button" class="btn-secondary" id="cloud-push-now">↑ Enviar agora</button>
@@ -7453,34 +7446,59 @@ window.__idbBoot = (function () {
           </div>
 
           <hr class="divider">
-          <p class="section-label">Perfil ao abrir</p>
-          <label class="co-check" style="margin:6px 0 0;"><input type="checkbox" id="pref-auto-enter" checked> Entrar direto no perfil ao logar (não mostrar o seletor)</label>
-          <div class="field" style="margin:12px 0 0;">
-            <label for="pref-default-profile">Perfil padrão</label>
-            <select id="pref-default-profile">
-              <option value="">Último perfil usado</option>
-            </select>
+          <!-- ── 3. QUAL APARELHO ESTÁ COM A SESSÃO ──────────────────────── -->
+          <div class="cloud-sessions-head">
+            <p class="section-label" style="margin:0;">Aparelho com sessão ativa</p>
+            <button type="button" class="btn-secondary sess-refresh" id="cloud-sessions-refresh" title="Atualizar" aria-label="Atualizar">↻</button>
           </div>
-          <p class="hint" style="margin:6px 0 0;">Ao entrar com e-mail e senha, o app abre <strong>direto neste perfil</strong>, sem mostrar a tela de seleção. Para trocar, clique no seu nome na barra lateral.</p>
+          <p class="hint" style="margin:4px 0 10px;">Sua conta mantém <strong>um aparelho ativo por vez</strong>. Aqui você vê qual está com a sessão e pode trazê-la para este aparelho.</p>
+          <div id="cloud-sessions-list" class="cloud-sessions-list"></div>
 
-          <hr class="divider">
-          <p class="section-label">Segurança da sessão</p>
-          <label class="co-check" style="margin:6px 0 0;"><input type="checkbox" id="cfg-single-session"> Sessão única — ao entrar, encerra a sessão nos outros aparelhos</label>
-          <div class="field" style="margin:12px 0 0;">
-            <label for="cfg-idle-mins">Sair automaticamente por inatividade</label>
-            <select id="cfg-idle-mins">
-              <option value="0">Nunca (recomendado)</option>
-              <option value="30">Após 30 minutos</option>
-              <option value="60">Após 1 hora</option>
-              <option value="240">Após 4 horas</option>
-              <option value="720">Após 12 horas</option>
-            </select>
-          </div>
-          <p class="hint" style="margin:6px 0 0;">Estas opções ficam salvas e valem sempre neste aparelho.</p>
+          <!-- ── 4. AJUSTES RAROS — recolhidos ───────────────────────────── -->
+          <details style="margin-top:16px;">
+            <summary style="cursor:pointer;font-weight:700;">Ajustes avançados desta conta</summary>
 
-          <hr class="divider">
-          <p class="section-label">Outros espaços salvos na sua conta</p>
-          <div id="cloud-slots-list"></div>
+            <p class="section-label" style="margin-top:14px;">Este perfil: <span id="cloud-current-profile-name">—</span></p>
+            <div class="field">
+              <label for="cloud-slot-name">Nome deste espaço na nuvem</label>
+              <input type="text" id="cloud-slot-name" placeholder="Ex.: Meu perfil">
+            </div>
+
+            <hr class="divider">
+            <p class="section-label">Perfil ao abrir</p>
+            <label class="co-check" style="margin:6px 0 0;"><input type="checkbox" id="pref-auto-enter" checked> Entrar direto no perfil ao logar (não mostrar o seletor)</label>
+            <div class="field" style="margin:12px 0 0;">
+              <label for="pref-default-profile">Perfil padrão</label>
+              <select id="pref-default-profile">
+                <option value="">Último perfil usado</option>
+              </select>
+            </div>
+
+            <hr class="divider">
+            <p class="section-label">Segurança da sessão</p>
+            <label class="co-check" style="margin:6px 0 0;"><input type="checkbox" id="cfg-single-session"> Sessão única — ao entrar, encerra a sessão nos outros aparelhos</label>
+            <div class="field" style="margin:12px 0 0;">
+              <label for="cfg-idle-mins">Sair automaticamente por inatividade</label>
+              <select id="cfg-idle-mins">
+                <option value="0">Nunca (recomendado)</option>
+                <option value="30">Após 30 minutos</option>
+                <option value="60">Após 1 hora</option>
+                <option value="240">Após 4 horas</option>
+                <option value="720">Após 12 horas</option>
+              </select>
+            </div>
+            <p class="hint" style="margin:6px 0 0;">Estas opções valem sempre neste aparelho.</p>
+
+            <hr class="divider">
+            <div class="cloud-sessions-head">
+              <p class="section-label" style="margin:0;">Senha da conta</p>
+              <button type="button" class="btn-secondary" id="cloud-change-pass" title="Alterar a senha da sua conta">🔑 Alterar senha</button>
+            </div>
+
+            <hr class="divider">
+            <p class="section-label">Outros espaços salvos na sua conta</p>
+            <div id="cloud-slots-list"></div>
+          </details>
         </div>
       </div>
     </section>
@@ -11010,9 +11028,26 @@ const DB = {
     cycleHistory: 'diario-estudos:cycle-history',
     tracks: 'diario-estudos:tracks'
   },
+  /* ── O ID DO PLANEJAMENTO ATIVO, À PROVA DE ASPAS ─────────────────────────
+     Este id entra na composição de TODAS as chaves do planejamento
+     (`p:<id>:entries`, `p:<id>:cards`…). Se ele vier com aspas — o que acontece
+     quando algum caminho grava com JSON.stringify em vez de texto puro —, cada
+     chave derivada muda de nome de uma vez só: o app passa a ler e gravar em
+     `p:"pl_inicial":entries` enquanto os dados de verdade continuam em
+     `p:pl_inicial:entries`. Nada é apagado, mas as telas abrem vazias, e a tela
+     de Recuperação passa a listar um "planejamento órfão" fantasma com o nome
+     entre aspas — foi exatamente o que apareceu em uso real.
+
+     Uma única linha de saneamento na LEITURA conserta o presente e o passado:
+     qualquer valor gravado torto volta a apontar para o lugar certo. */
   _activePlanId() {
-    try { return localStorage.getItem(this.GLOBAL_KEYS.activePlan) || 'default'; }
-    catch (e) { return 'default'; }
+    try {
+      let v = localStorage.getItem(this.GLOBAL_KEYS.activePlan);
+      if (!v) return 'default';
+      v = String(v).trim();
+      if (v.length > 1 && v[0] === '"' && v[v.length - 1] === '"') v = v.slice(1, -1);
+      return v || 'default';
+    } catch (e) { return 'default'; }
   },
   // Monta o conjunto de chaves namespaced de UM planejamento qualquer (dentro do perfil ativo)
   keysForPlan(planId) {
@@ -12046,15 +12081,39 @@ const DB = {
       list = this.DEFAULT_LINKS.map(l => ({ id: this._uid(), ...l, logo: null, createdAt: new Date().toISOString() }));
       this._set(this.KEYS.links, list);
     }
+    // neutraliza esquemas perigosos guardados antes desta trava existir
+    if (this._sanearLinks(list)) this._set(this.KEYS.links, list);
     return list;
   },
   saveLinks(list) { this._set(this.KEYS.links, list); },
+  /* ── URL DE LINK: SÓ http/https ───────────────────────────────────────────
+     `escapeHtml` protege o CONTEÚDO de um atributo, mas não diz nada sobre o
+     ESQUEMA da URL. Um link com `javascript:...` em `href` executa script na
+     origem do app ao ser clicado — com acesso ao armazenamento inteiro e ao
+     token da sessão.
+
+     Pela tela de cadastro isso não passava, mas por acidente: qualquer coisa
+     que não comece com http(s) recebe "https://" na frente. O caminho que
+     passava era a IMPORTAÇÃO de backup — e o próprio app avisa que um backup
+     pode vir "de um colega, de um grupo de estudos, de um download". Cards
+     importados já eram saneados por isso; links não eram.
+
+     A trava fica na CAMADA DE DADOS, não na tela: assim vale para todo
+     caminho de entrada, inclusive os que ainda não existem. */
+  urlSegura(url) {
+    const s = String(url == null ? '' : url).trim();
+    if (!s) return '';
+    if (/^https?:\/\//i.test(s)) return s;
+    // esquema explícito que não é http(s) (javascript:, data:, vbscript:…) é recusado
+    if (/^[a-z][a-z0-9+.-]*:/i.test(s)) return '';
+    return 'https://' + s;    // digitou "site.com" — completa, como a tela já fazia
+  },
   addLink(data) {
     const list = this.getLinks();
     const link = {
       id: this._uid(),
       nome: (data.nome || 'Novo link').trim(),
-      url: (data.url || '').trim(),
+      url: this.urlSegura(data.url),
       categoria: (data.categoria || '').trim(),
       cor: data.cor || '#4f46e5',
       logo: data.logo || null,
@@ -12064,8 +12123,21 @@ const DB = {
   },
   updateLink(id, patch) {
     const list = this.getLinks(); const l = list.find(x => x.id === id);
-    if (l) Object.assign(l, patch);
+    // a mesma trava de esquema do addLink: editar não pode ser a porta de entrada
+    if (l) { Object.assign(l, patch); if ('url' in (patch || {})) l.url = this.urlSegura(l.url); }
     this.saveLinks(list); return l;
+  },
+  /* Links que JÁ estão guardados (de uma importação anterior a esta trava)
+     também precisam ser neutralizados — a leitura é o último ponto por onde
+     todos passam antes de virar `href`. */
+  _sanearLinks(list) {
+    let mudou = false;
+    (list || []).forEach(l => {
+      if (!l || typeof l.url !== 'string') return;
+      const seguro = this.urlSegura(l.url);
+      if (seguro !== l.url) { l.url = seguro; mudou = true; }
+    });
+    return mudou;
   },
   deleteLink(id) { this.saveLinks(this.getLinks().filter(l => l.id !== id)); },
 
@@ -12688,7 +12760,9 @@ const PlanManager = {
 
   getPlans() { return DB._get(this.GK.plans, []); },
   savePlans(list) { DB._set(this.GK.plans, list); },
-  getActivePlanId() { try { return localStorage.getItem(this.GK.active); } catch (e) { return null; } },
+  // Mesma leitura saneada do DB._activePlanId: um id com aspas renomearia de uma
+  // vez todas as chaves do planejamento e as telas abririam vazias.
+  getActivePlanId() { try { return DB._activePlanId(); } catch (e) { return null; } },
   getActivePlan() { return this.getPlans().find(p => p.id === this.getActivePlanId()) || null; },
   // Trocar de planejamento é uma alteração do perfil como qualquer outra: passa
   // pelo canal único para chegar à nuvem (antes só subia no blob periódico).
@@ -13106,18 +13180,103 @@ const ProfileManager = {
       if (jaFeito) continue;
       try { await this._migrarUmPerfil(p); } catch (e) { console.warn('[perfis] migração de id falhou para', p.id, e); }
     }
+    try { await this.repararSemLinhaNaNuvem(); } catch (e) { console.warn('[perfis] reparo de linha na nuvem falhou', e); }
+  },
+
+  /* ── PERFIL COM DADOS AQUI E SEM LINHA NA NUVEM ───────────────────────────
+     Um perfil nessa situação está mudo para sempre: `saveActive` e `updateMeta`
+     só sabem fazer UPDATE, e um UPDATE sem linha correspondente atinge zero
+     linhas — sem erro, sem aviso. O app mostra "sincronizado" e nada sai daqui.
+
+     Acontecia com todo perfil vindo de IMPORTAÇÃO (o retorno de `createRow`
+     era descartado, ver adotarIdDaNuvem) e acontece também se a linha for
+     apagada na nuvem por qualquer motivo. Este reparo fecha os dois casos.
+
+     Segurança do reparo, porque ele CRIA linha na nuvem:
+       · só roda com a lista da nuvem obtida com SUCESSO — uma falha de rede
+         não pode ser lida como "não existe lá" e virar linha duplicada;
+       · só para perfis que têm dado de verdade neste aparelho;
+       · só para perfis desta conta (ou sem dono conhecido), nunca de outra. */
+  async repararSemLinhaNaNuvem() {
+    let rows;
+    try { rows = await CloudStore.listProfiles(); }
+    catch (e) { _quiet(e, 'reparo-lista'); return 0; }      // sem certeza, não age
+    if (!Array.isArray(rows)) return 0;
+    const naNuvem = new Set(rows.map(r => r.id));
+    const uid = (CloudStore.session && CloudStore.session.user) ? CloudStore.session.user.id : null;
+    const comDados = new Set(this.perfisComDadosLocais().map(d => d.id));
+    /* `_podeVerLocal` deixa passar o perfil SEM dono conhecido — o certo para
+       apenas EXIBIR (não esconder dado de ninguém), e o errado para CRIAR uma
+       linha na nuvem: num aparelho que já foi de outra conta, um perfil antigo
+       sem rótulo seria reivindicado pela conta que estiver logada agora.
+
+       Para criar, a régua é mais dura: ou o dono é comprovadamente esta conta,
+       ou este aparelho nunca viu outra conta (nenhum rótulo de dono aponta
+       para um uid diferente). Na dúvida, não reivindica — o perfil segue
+       local, exatamente como estava, sem regressão. */
+    const outraContaJaUsouEsteAparelho = (() => {
+      try {
+        for (let i = 0; i < localStorage.length; i++) {
+          const k = localStorage.key(i);
+          if (!k || k.indexOf('diario-estudos:owner:') !== 0) continue;
+          const dono = localStorage.getItem(k);
+          if (dono && uid && dono !== uid) return true;
+        }
+      } catch (e) { _quiet(e, 'reparo-donos'); return true; }   // sem certeza: age como se sim
+      return false;
+    })();
+    const podeReivindicar = (id) => {
+      const dono = this._getOwner(id);
+      if (dono) return dono === uid;                 // rótulo explícito manda
+      return !outraContaJaUsouEsteAparelho;          // sem rótulo: só se o aparelho for de uma conta só
+    };
+    const alvos = (this.getProfiles() || []).filter(p =>
+      p && p.id && this.idValido(p.id) && !naNuvem.has(p.id) &&
+      comDados.has(p.id) && podeReivindicar(p.id));
+    let n = 0;
+    for (const p of alvos) {
+      try {
+        console.warn('[perfis] "' + (p.nome || p.id) + '" tem dados aqui e nenhuma linha na nuvem — criando e adotando o id…');
+        const row = await CloudStore.createRow({ name: p.nome, avatar: p.avatar, color: p.cor, payload: {} });
+        await this.adotarIdDaNuvem(p.id, row);
+        n++;
+      } catch (e) { console.warn('[perfis] não foi possível criar a linha de', p.id, e); }
+    }
+    return n;
   },
   async _migrarUmPerfil(perfilAntigo) {
-    const idAntigo = perfilAntigo.id;
-    console.info('[perfis] promovendo perfil de id local "' + idAntigo + '" a um id de nuvem válido…');
+    console.info('[perfis] promovendo perfil de id local "' + perfilAntigo.id + '" a um id de nuvem válido…');
     const row = await CloudStore.createRow({ name: perfilAntigo.nome, avatar: perfilAntigo.avatar, color: perfilAntigo.cor, payload: {} });
+    await this.adotarIdDaNuvem(perfilAntigo.id, row);
+    try { localStorage.setItem(this._migMarcaChave(perfilAntigo.id), row.id); } catch (e) { _quiet(e, 'mig-marca'); }
+  },
+
+  /* ── ADOTAR O ID QUE O BANCO GEROU ────────────────────────────────────────
+     `createRow` NÃO aceita um id: a coluna é `uuid primary key default
+     gen_random_uuid()`, então quem decide o id é o banco, e ele o devolve.
+     Quem chama é obrigado a adotar esse id — e havia um caminho que não
+     adotava: a IMPORTAÇÃO de backup criava o perfil local com um id próprio,
+     mandava `createRow` para a nuvem e DESCARTAVA o retorno.
+
+     O resultado era um perfil partido em dois: o local, com o id antigo, que
+     nunca mais sincronizava (todo UPDATE batia em zero linhas, porque não
+     existia linha com aquele id); e o da nuvem, com outro id, congelado no
+     estado do instante da importação e aparecendo como um SEGUNDO perfil na
+     lista de todos os aparelhos — com o nome de antes, porque renomear
+     depois só mexia no local. Era exatamente o sintoma de "importei um
+     backup, mudei o nome, e agora aparecem dois perfis, um com o nome
+     antigo".
+
+     Adotar significa: mover o namespace local inteiro para o id novo (copiar
+     primeiro, só apagar depois de conferir que a cópia bateu — nunca apagar
+     sem prova), trocar o id no índice, herdar rev e dono, e reapontar o
+     ponteiro de perfil ativo se for o caso. */
+  async adotarIdDaNuvem(idAntigo, row) {
     if (!row || !row.id) throw new Error('createRow não devolveu id');
     const idNovo = row.id;
+    if (idNovo === idAntigo) return idNovo;
     const prefixoAntigo = 'diario-estudos:u:' + idAntigo + ':';
     const prefixoNovo = 'diario-estudos:u:' + idNovo + ':';
-    // Move o namespace inteiro: copia para a chave nova primeiro, só remove a
-    // antiga depois de confirmar que a cópia bateu — nunca apaga sem provar
-    // que o destino já tem o mesmo valor.
     const mover = [];
     for (let i = 0; i < localStorage.length; i++) {
       const k = localStorage.key(i);
@@ -13125,31 +13284,33 @@ const ProfileManager = {
     }
     mover.forEach(k => {
       const valor = localStorage.getItem(k);
-      try { localStorage.setItem(prefixoNovo + k.slice(prefixoAntigo.length), valor); } catch (e) { _quiet(e, 'mig-copia'); }
+      try { localStorage.setItem(prefixoNovo + k.slice(prefixoAntigo.length), valor); } catch (e) { _quiet(e, 'adotar-copia'); }
     });
     mover.forEach(k => {
       const destino = prefixoNovo + k.slice(prefixoAntigo.length);
       if (localStorage.getItem(destino) === localStorage.getItem(k)) localStorage.removeItem(k);
     });
-    // troca o id no índice de perfis, preservando nome/avatar/cor atuais
     const lista = this.getProfiles();
     const entrada = lista.find(p => p.id === idAntigo);
     if (entrada) entrada.id = idNovo;
     this.saveProfiles(lista);
     this.setRev(idNovo, row.rev || 1);
-    try { this._setOwner(idNovo, CloudStore.session.user.id); } catch (e) { _quiet(e, 'mig-dono'); }
-    // se este era o perfil ATIVO, o ponteiro precisa apontar para o id novo —
-    // e só nesse caso vale a pena empurrar o conteúdo agora (SectionSync só
-    // enxerga o namespace do perfil ATIVO; migrar um perfil em segundo plano
-    // não deve trocar o que está aberto por baixo do usuário).
+    try {
+      const uid = (window.CloudStore && CloudStore.session && CloudStore.session.user) ? CloudStore.session.user.id : null;
+      if (uid) this._setOwner(idNovo, uid);
+    } catch (e) { _quiet(e, 'adotar-dono'); }
+    /* Só empurra o conteúdo agora se este for o perfil ABERTO: o SectionSync
+       enxerga apenas o namespace do perfil ativo, e trocar o perfil aberto por
+       baixo de quem está usando seria pior que esperar. Os demais sobem
+       naturalmente quando forem abertos. */
     const eraAtivo = (this.getActiveProfileId() === idAntigo);
-    if (eraAtivo) this.setActiveProfile(idNovo);
-    try { localStorage.setItem(this._migMarcaChave(idAntigo), idNovo); } catch (e) { _quiet(e, 'mig-marca'); }
     if (eraAtivo) {
-      try { if (window.SectionSync) { SectionSync._seededProfile = null; SectionSync.markAllDirty(); SectionSync.kick(); } } catch (e) { _quiet(e, 'mig-envio'); }
-      try { await CloudStore.saveActiveWithRetry(); } catch (e) { _quiet(e, 'mig-blob'); }
+      this.setActiveProfile(idNovo);
+      try { if (window.SectionSync) { SectionSync._seededProfile = null; SectionSync.markAllDirty(); SectionSync.kick(); } } catch (e) { _quiet(e, 'adotar-envio'); }
+      try { await CloudStore.saveActiveWithRetry(); } catch (e) { _quiet(e, 'adotar-blob'); }
     }
-    console.info('[perfis] perfil migrado: ' + idAntigo + ' → ' + idNovo + (eraAtivo ? ' (ativo — enviado agora)' : ' (sincroniza ao ser aberto)'));
+    console.info('[perfis] id adotado da nuvem: ' + idAntigo + ' → ' + idNovo + (eraAtivo ? ' (ativo — enviado agora)' : ' (sobe ao ser aberto)'));
+    return idNovo;
   },
 
   /* ── ESPELHO DA NUVEM — COM UMA TRAVA ─────────────────────────────────────
@@ -24277,7 +24438,7 @@ const CardsScreen = {
       let parsed = null;
       if (/\.json$/i.test(file.name)) {
         try {
-          const obj = JSON.parse(text);
+          const obj = jsonSeguro(text);   // mesmo motivo do import de perfil
           if (obj && obj.kind === 'cards-backup' && Array.isArray(obj.cards)) parsed = { kind: 'json', cards: obj.cards, decks: obj.decks || [] };
           else { prev.textContent = '⚠ JSON não é um backup de cards válido.'; prev.style.color = 'var(--warn)'; return; }
         } catch (err) { prev.textContent = '⚠ JSON inválido.'; prev.style.color = 'var(--bad)'; return; }
@@ -25359,6 +25520,75 @@ const AutoTeste = {
      que a chave caia numa seção reconhecida. Se alguém amanhã guardar uma
      preferência nova numa chave global, isto falha aqui — antes de virar dado
      perdido de alguém. */
+  /* ── UM LINK NUNCA VIRA CÓDIGO ────────────────────────────────────────────
+     `escapeHtml` protege o conteúdo de um atributo, mas não diz nada sobre o
+     ESQUEMA da URL: `javascript:...` num `href` executa script na origem do
+     app, com acesso ao armazenamento inteiro e ao token da sessão. A tela de
+     cadastro barrava por acidente (prefixa "https://" no que não começa com
+     http), mas a IMPORTAÇÃO de backup passava — e o app avisa que um backup
+     pode vir de um colega ou de um download. A trava mora na camada de dados,
+     para valer em todo caminho de entrada, inclusive nos que ainda não
+     existem. */
+  linkNuncaViraCodigo() {
+    const perigosas = [
+      'javascript:alert(1)', 'JavaScript:alert(1)', '  javascript:alert(1)',
+      'data:text/html,<script>alert(1)<\/script>', 'vbscript:msgbox(1)'
+    ];
+    perigosas.forEach(u => {
+      this._ok('URL perigosa é recusada: ' + u.slice(0, 28), DB.urlSegura(u) === '', DB.urlSegura(u));
+    });
+    this._ok('http continua passando', DB.urlSegura('http://x.com/a?b=1') === 'http://x.com/a?b=1');
+    this._ok('https continua passando', DB.urlSegura('https://x.com') === 'https://x.com');
+    this._ok('endereço sem esquema ganha https', DB.urlSegura('tecconcursos.com.br') === 'https://tecconcursos.com.br');
+    this._ok('vazio continua vazio', DB.urlSegura('') === '' && DB.urlSegura(null) === '');
+    // e o saneamento retroativo: link perigoso já guardado é neutralizado na leitura
+    const lista = [{ id: 'x', nome: 'mau', url: 'javascript:alert(1)' }, { id: 'y', nome: 'bom', url: 'https://ok.com' }];
+    const mudou = DB._sanearLinks(lista);
+    this._ok('link perigoso já guardado é neutralizado', mudou === true && lista[0].url === '', lista[0].url);
+    this._ok('link bom não é alterado pelo saneamento', lista[1].url === 'https://ok.com');
+  },
+
+  /* Todo caminho que cria linha na nuvem tem de ADOTAR o id devolvido: a
+     coluna é `uuid` com default no banco, então quem manda no id é o banco.
+     A importação descartava esse retorno e partia o perfil em dois — o local
+     mudo (sem linha, nenhum UPDATE encontrava nada) e o da nuvem congelado,
+     aparecendo como um segundo perfil com o nome de antes. */
+  adotaOIdDoBanco() {
+    const PID_ANTIGO = '__t_id_antigo__', PID_NOVO = '11111111-2222-3333-4444-555555555555';
+    const ativoOriginal = localStorage.getItem(DB.ACTIVE_PROFILE_KEY);
+    const listaOriginal = localStorage.getItem(DB.PROFILES_KEY);
+    const criadas = [];
+    try {
+      const pfxA = 'diario-estudos:u:' + PID_ANTIGO + ':';
+      const pfxN = 'diario-estudos:u:' + PID_NOVO + ':';
+      criadas.push(pfxA + 'p:pl:entries', pfxN + 'p:pl:entries');
+      localStorage.setItem(pfxA + 'p:pl:entries', '[{"id":"e1"}]');
+      localStorage.setItem(DB.PROFILES_KEY, JSON.stringify([{ id: PID_ANTIGO, nome: 'Importado', avatar: '📘', cor: '#333' }]));
+      localStorage.setItem(DB.ACTIVE_PROFILE_KEY, PID_ANTIGO);
+
+      // adota sem tocar na rede (row simula o retorno de createRow)
+      const p = ProfileManager.adotarIdDaNuvem(PID_ANTIGO, { id: PID_NOVO, rev: 1 });
+      this._ok('adotarIdDaNuvem devolve uma promessa', !!(p && typeof p.then === 'function'));
+
+      this._ok('o dado foi movido para o namespace do id novo',
+        localStorage.getItem(pfxN + 'p:pl:entries') === '[{"id":"e1"}]');
+      this._ok('o namespace antigo não ficou duplicado',
+        localStorage.getItem(pfxA + 'p:pl:entries') === null);
+      this._ok('o índice de perfis passou a apontar para o id novo',
+        ProfileManager.getProfiles().some(x => x.id === PID_NOVO), ProfileManager.getProfiles().map(x => x.id));
+      this._ok('o perfil ativo acompanhou a troca',
+        ProfileManager.getActiveProfileId() === PID_NOVO, ProfileManager.getActiveProfileId());
+      this._ok('a revisão da nuvem foi herdada', ProfileManager.getRev(PID_NOVO) === 1);
+    } finally {
+      criadas.forEach(k => { try { localStorage.removeItem(k); } catch (e) { _quiet(e, 'limpeza-adota'); } });
+      [PID_ANTIGO, PID_NOVO].forEach(id => {
+        try { localStorage.removeItem(ProfileManager._ownerKey(id)); localStorage.removeItem('diario-estudos:rev:' + id); } catch (e) { _quiet(e, 'limpeza-adota2'); }
+      });
+      if (ativoOriginal === null) localStorage.removeItem(DB.ACTIVE_PROFILE_KEY); else localStorage.setItem(DB.ACTIVE_PROFILE_KEY, ativoOriginal);
+      if (listaOriginal === null) localStorage.removeItem(DB.PROFILES_KEY); else localStorage.setItem(DB.PROFILES_KEY, listaOriginal);
+    }
+  },
+
   tudoEntraNaSincronizacao() {
     const PID = '__t_cobertura_sync__';
     const ativoOriginal = localStorage.getItem(DB.ACTIVE_PROFILE_KEY);
@@ -25495,6 +25725,8 @@ const AutoTeste = {
      ['Nada se perde', 'nadaSePerde'],
      ['Travas contra perda', 'travasDePerda'],
      ['Tudo entra na sincronização', 'tudoEntraNaSincronizacao'],
+     ['Link nunca vira código', 'linkNuncaViraCodigo'],
+     ['Adota o id do banco', 'adotaOIdDoBanco'],
      ['Isolamento entre contas', 'isolamentoEntreContas'],
      ['Ids de perfil válidos para a nuvem', 'idsDePerfilSaoValidos'],
      ['Esvaziar deixa rastro', 'esvaziarDeixaRastro']].forEach(([nome, fn]) => {
@@ -27629,7 +27861,16 @@ const ConfigScreen = {
     this.bindSimpleRows(container, {
       rename: (id, val) => DB.renameMethod(id, val),
       toggleGet: (id) => DB.getMethods().find(x => x.id === id),
-      toggleSet: (id, ativo) => { const l = DB.getMethods(); l.find(x=>x.id===id).ativo = ativo; DB._set(DB.KEYS.methods, l); },
+      /* O item pode ter deixado de existir entre desenhar a tela e clicar —
+         a sincronização por seção substitui listas com a tela aberta. Sem esta
+         guarda, `find(...)` devolvia undefined, a atribuição lançava, e o
+         `_set` seguinte NEM CHEGAVA A RODAR: a tela parecia inerte e a
+         alteração se perdia sem aviso. */
+      toggleSet: (id, ativo) => {
+        const l = DB.getMethods(); const it = l.find(x => x.id === id);
+        if (!it) { showToast('Este item não existe mais — atualizando a lista.'); ConfigScreen.render(); return; }
+        it.ativo = ativo; DB._set(DB.KEYS.methods, l);
+      },
       remove: (id) => DB.removeMethodSafely(id),
       inUse: (nome) => DB.methodInUse(nome),
       rerender: () => this.renderMethods(),
@@ -27660,7 +27901,16 @@ const ConfigScreen = {
     this.bindSimpleRows(container, {
       rename: (id, val) => DB.renamePhase(id, val),
       toggleGet: (id) => DB.getPhases().find(x => x.id === id),
-      toggleSet: (id, ativo) => { const l = DB.getPhases(); l.find(x=>x.id===id).ativo = ativo; DB._set(DB.KEYS.phases, l); },
+      /* O item pode ter deixado de existir entre desenhar a tela e clicar —
+         a sincronização por seção substitui listas com a tela aberta. Sem esta
+         guarda, `find(...)` devolvia undefined, a atribuição lançava, e o
+         `_set` seguinte NEM CHEGAVA A RODAR: a tela parecia inerte e a
+         alteração se perdia sem aviso. */
+      toggleSet: (id, ativo) => {
+        const l = DB.getPhases(); const it = l.find(x => x.id === id);
+        if (!it) { showToast('Este item não existe mais — atualizando a lista.'); ConfigScreen.render(); return; }
+        it.ativo = ativo; DB._set(DB.KEYS.phases, l);
+      },
       remove: (id) => DB.removePhaseSafely(id),
       inUse: (nome) => DB.phaseInUse(nome),
       rerender: () => this.renderPhases(),
@@ -27690,7 +27940,16 @@ const ConfigScreen = {
     this.bindSimpleRows(container, {
       rename: (id, val) => DB.renameMode(id, val),
       toggleGet: (id) => DB.getModes().find(x => x.id === id),
-      toggleSet: (id, ativo) => { const l = DB.getModes(); l.find(x=>x.id===id).ativo = ativo; DB._set(DB.KEYS.modes, l); },
+      /* O item pode ter deixado de existir entre desenhar a tela e clicar —
+         a sincronização por seção substitui listas com a tela aberta. Sem esta
+         guarda, `find(...)` devolvia undefined, a atribuição lançava, e o
+         `_set` seguinte NEM CHEGAVA A RODAR: a tela parecia inerte e a
+         alteração se perdia sem aviso. */
+      toggleSet: (id, ativo) => {
+        const l = DB.getModes(); const it = l.find(x => x.id === id);
+        if (!it) { showToast('Este item não existe mais — atualizando a lista.'); ConfigScreen.render(); return; }
+        it.ativo = ativo; DB._set(DB.KEYS.modes, l);
+      },
       remove: (id) => DB.removeModeSafely(id),
       inUse: (nome) => { const m = DB.getModes().find(x => x.nome === nome); return m ? DB.modeInUse(m) : false; },
       rerender: () => this.renderModes(),
@@ -33128,7 +33387,12 @@ window.CloudUI = CloudUI;
     const reader = new FileReader();
     reader.onload = async () => {
       let obj;
-      try { obj = JSON.parse(reader.result); }
+      /* jsonSeguro em vez de JSON.parse: existe exatamente para isto — remove
+         `__proto__`, `constructor` e `prototype` de QUALQUER json vindo de
+         fora antes de ele encostar no estado do app. O arquivo aqui é
+         escolhido pelo usuário, e o próprio fluxo avisa que um backup pode vir
+         de um colega ou de um download. */
+      try { obj = jsonSeguro(reader.result); }
       catch (_) { showToast('⚠ Arquivo inválido: não é um JSON válido.'); return; }
       if (!ProfileManager.validateBackup(obj)) {
         showToast('⚠ Este arquivo não é um backup do Diário de Estudos.'); return;
@@ -33157,8 +33421,15 @@ window.CloudUI = CloudUI;
         if (window.CloudStore && CloudStore.isLoggedIn()) {
           try {
             const meta = ProfileManager.getProfiles().find(p => p.id === novoId) || {};
-            await CloudStore.createRow({ name: meta.nome, avatar: meta.avatar, color: meta.cor,
+            const row = await CloudStore.createRow({ name: meta.nome, avatar: meta.avatar, color: meta.cor,
               payload: ProfileManager.exportProfile(novoId) });
+            /* O id de `createRow` vem do BANCO (a coluna é uuid com default) e
+               PRECISA ser adotado. Descartá-lo — o que este trecho fazia —
+               deixava o perfil partido em dois: o local, com o id antigo, que
+               nunca mais sincronizava; e o da nuvem, com outro id, congelado no
+               instante da importação e aparecendo como um SEGUNDO perfil, com o
+               nome de antes, na lista de todos os aparelhos. */
+            await ProfileManager.adotarIdDaNuvem(novoId, row);
           } catch (err) {
             showToast('Importado neste aparelho. Não subiu para a nuvem: ' + (err.message || ''));
           }
@@ -33877,6 +34148,16 @@ const Recuperacao = {
   /* Planejamentos que TÊM dados mas não estão na lista — a causa mais comum de
      "os registros aparecem mas o resto sumiu": o ponteiro se perdeu, os dados
      não. Reanexar é uma operação puramente aditiva. */
+  /* Seções que TODO planejamento ganha de fábrica ao ser criado. Um "órfão"
+     que só tem isto não guarda nada seu: é a sobra de uma semeadura que não
+     virou planejamento nenhum. Reportá-lo como dado recuperável faz a tela
+     gritar "⚠️ há dado recuperável" por causa de 617 bytes de lista padrão —
+     e um alarme que dispara sem motivo é pior que nenhum alarme, porque ensina
+     a ignorar o alarme de verdade. */
+  SEMEADAS: ['methods', 'phases', 'modes', 'statuses'],
+  _soTemSemente(g) {
+    return g.folhas.length > 0 && g.folhas.every(f => this.SEMEADAS.indexOf(f) !== -1);
+  },
   planosOrfaos(pid) {
     const alvo = pid || ProfileManager.getActiveProfileId();
     const perfil = this.varrer().find(p => p.id === alvo);
@@ -33884,13 +34165,17 @@ const Recuperacao = {
     const porPlano = {};
     perfil.orfas.forEach(s => {
       if (!s.plano) return;
-      const g = porPlano[s.plano] || (porPlano[s.plano] = { id: s.plano, secoes: 0, bytes: 0, registros: 0 });
+      const g = porPlano[s.plano] || (porPlano[s.plano] = { id: s.plano, secoes: 0, bytes: 0, registros: 0, folhas: [] });
       g.secoes++; g.bytes += s.bytes;
+      const m = /^p:[^:]+:(.+)$/.exec(s.sec);
+      if (m) g.folhas.push(m[1]);
       if (/:entries$/.test(s.sec)) {
         try { g.registros = (JSON.parse(localStorage.getItem(s.chave)) || []).length; } catch (e) { _quiet(e, 'rec-conta'); }
       }
     });
-    return Object.values(porPlano).sort((a, b) => b.bytes - a.bytes);
+    return Object.values(porPlano)
+      .filter(g => !this._soTemSemente(g))
+      .sort((a, b) => b.bytes - a.bytes);
   },
   /* ── ARMAZENAMENTO ANTIGO (localStorage nativo) ───────────────────────────
      O app guarda tudo no IndexedDB, através de uma fachada que se chama
@@ -34041,15 +34326,19 @@ const RecuperacaoUI = {
     /* 1. VEREDITO — a pergunta que a pessoa veio fazer, respondida primeiro. */
     const alcancaveis = meu ? meu.secoes.filter(s => s.alcancavel) : [];
     const perfisFora = perfis.filter(p => !p.naListaDePerfis && p.secoes.length);
-    const recuperavel = perfisFora.length || orfaos.length || lixo.length || antigo.length || legado.length ||
-      fotos.some(f => f.secoes.some(sec => {
-        const v = localStorage.getItem('diario-estudos:u:' + ativo + ':' + sec);
-        return v === null || v === '' || v === '[]' || v === '{}';
-      }));
+    /* O alarme só acende para o que TEM AÇÃO e é seu de verdade. O histórico de
+       fotos deixou de acender: ter uma foto com uma seção vazia é o normal (você
+       pode simplesmente não usar aquela parte do app), e isso fazia a tela
+       gritar sem motivo. Um alarme que dispara à toa ensina a ignorar o alarme
+       de verdade. */
+    const acoes = perfisFora.length + orfaos.length + lixo.length + antigo.length;
+    const resumo = recuperavel => recuperavel
+      ? 'Encontrei algo que dá para trazer de volta — as opções aparecem abaixo.'
+      : 'Está tudo no lugar. Nada aqui está perdido nem fora de alcance.';
     blocos.push(`<div class="cloud-slot-row" style="align-items:flex-start;">
       <div class="cloud-slot-info">
-        <div class="name">${recuperavel ? '⚠️ Há dado recuperável neste aparelho' : '✓ Nada fora do lugar'}</div>
-        <div class="meta">${alcancaveis.length} seção(ões) em uso · ${this._kb(meu ? meu.bytes : 0)} no total · ${perfisFora.length} perfil(is) fora da lista · ${orfaos.length} planejamento(s) órfão(s) · ${lixo.length} item(ns) na lixeira · ${antigo.length} chave(s) no armazenamento antigo · ${fotos.length} foto(s) do histórico</div>
+        <div class="name">${acoes ? '⚠️ Há algo para recuperar' : '✓ Nada fora do lugar'}</div>
+        <div class="meta">${resumo(acoes)}</div>
       </div>
     </div>`);
 
@@ -34076,17 +34365,6 @@ const RecuperacaoUI = {
         </div>`);
     }
 
-    /* 1d. CHAVES LEGADAS — de antes de perfis e planejamentos existirem. */
-    if (legado.length) {
-      blocos.push('<div class="wd-section-title">Dados de antes dos planejamentos</div>' +
-        '<p class="hint">Formato antigo, de quando o app ainda não tinha perfis nem planejamentos. Ficam guardados como estão; se algum tiver conteúdo que você não vê em tela nenhuma, me diga qual — a conversão depende do que há dentro.</p>' +
-        legado.map(x => `<div class="cloud-slot-row">
-          <div class="cloud-slot-info">
-            <div class="name">${escapeHtml(x.nome)}</div>
-            <div class="meta">${escapeHtml(x.chave)} · ${this._kb(x.bytes)}${x.itens != null ? ' · ' + x.itens + ' item(ns)' : ''}</div>
-          </div>
-        </div>`).join(''));
-    }
 
     /* 2. PLANEJAMENTOS ÓRFÃOS — a causa mais comum de "sumiu tudo menos os
        registros": os dados existem, o app é que perdeu o caminho até eles. */
@@ -34134,12 +34412,23 @@ const RecuperacaoUI = {
         </div>`).join(''));
     }
 
-    /* 5. O QUE EXISTE HOJE — a lista completa, para conferência. */
+    /* 5. DETALHES TÉCNICOS — RECOLHIDOS. Esta tabela lista cada seção com o
+       nome interno (`p:pl_inicial:leis`). Para quem está com medo de ter
+       perdido meses de estudo, ela não responde nada: é vocabulário do banco,
+       não do usuário — e aberta por padrão ela era a maior parte da tela.
+       Continua aqui, a um clique, para diagnóstico. */
     if (meu && meu.secoes.length) {
       const linhas = meu.secoes.slice().sort((a, b) => b.bytes - a.bytes).map(s =>
         `<tr><td>${escapeHtml(Recuperacao.rotulo(s.sec))}</td><td>${escapeHtml(s.sec)}</td><td class="num">${this._kb(s.bytes)}</td><td>${s.alcancavel ? '✓ em uso' : '⚠️ fora do alcance'}</td></tr>`).join('');
-      blocos.push('<div class="wd-section-title">Tudo o que existe neste aparelho</div>' +
-        `<div style="overflow-x:auto;"><table class="data-table"><thead><tr><th>O que é</th><th>Seção</th><th class="num">Tamanho</th><th>Situação</th></tr></thead><tbody>${linhas}</tbody></table></div>`);
+      const legadas = legado.length
+        ? '<p class="hint" style="margin-top:12px;">Formato antigo, de antes de existirem perfis e planejamentos: ' +
+          legado.map(x => escapeHtml(x.nome) + ' (' + this._kb(x.bytes) + ')').join(', ') + '.</p>'
+        : '';
+      blocos.push('<details style="margin-top:14px;">' +
+        `<summary style="cursor:pointer;font-weight:700;">Detalhes técnicos — ${meu.secoes.length} seção(ões), ${this._kb(meu.bytes)}</summary>` +
+        '<p class="hint">A lista abaixo é o inventário bruto deste aparelho, com os nomes internos. Serve para diagnóstico; você não precisa entender nem fazer nada com ela.</p>' +
+        `<div style="overflow-x:auto;"><table class="data-table"><thead><tr><th>O que é</th><th>Seção</th><th class="num">Tamanho</th><th>Situação</th></tr></thead><tbody>${linhas}</tbody></table></div>` +
+        legadas + '</details>');
     }
 
     /* 6. OUTROS PERFIS — dado de outro perfil também some da vista. */
@@ -34630,17 +34919,51 @@ const CloudBackup = {
      Uma foto por dia, na primeira abertura. O carimbo é local (uma leitura, sem
      rede); se ele se perder, o pior que acontece é uma foto a mais, e criar()
      descarta a duplicata pela assinatura (persistida — sobrevive a reload). */
+  /* ── QUEM SABE SE A FOTO DE HOJE JÁ EXISTE É O BANCO ──────────────────────
+     O controle era só um carimbo local (`cbk-dia:<perfil>`). Um carimbo local
+     responde bem quando sobrevive — e ele não sobrevive a tudo: trocar de
+     aparelho, limpar o navegador, o id do perfil mudar (a migração para UUID
+     muda a chave), ou qualquer gravação que não chegue ao disco. Toda vez que
+     ele se perde, o app conclui "ainda não fiz a de hoje" e grava outra. Foi
+     assim que um único dia acumulou seis fotos de 3 MB.
+
+     Um trabalho agendado não pode ter como fonte da verdade um sinalizador do
+     cliente: a fonte da verdade tem de ser o lugar onde o resultado é gravado.
+     Agora o carimbo local é só um CAMINHO RÁPIDO (acerta quase sempre e custa
+     zero consulta); quando ele não bate, quem decide é uma consulta ao banco
+     — que sobrevive a recarregamento, a troca de aparelho e à perda da chave.
+     Duplicar deixa de ser possível, não importa o que aconteça no cliente. */
+  async _jaTemFotoDeHoje(id) {
+    const inicio = new Date(); inicio.setHours(0, 0, 0, 0);
+    const { data, error } = await CloudStore.client.from(this.TABLE)
+      .select('id').eq('profile_id', id).gte('created_at', inicio.toISOString()).limit(1);
+    if (error) throw error;
+    return !!(data && data.length);
+  },
   _diaEmCurso: false,
   async garantirDoDia() {
     if (!this._pronto() || this._diaEmCurso) return false;
     const id = ProfileManager.getActiveProfileId();
     if (!id) return false;
+    const hoje = todayLocal();
     let ultimo = null;
     try { ultimo = localStorage.getItem(this._diaKey(id)); } catch (e) { _quiet(e, 'cbk-dia'); }
-    const hoje = todayLocal();
-    if (ultimo === hoje) return false;   // já há a foto de hoje: sai em microssegundos
+    if (ultimo === hoje) return false;   // caminho rápido: nem consulta o banco
     this._diaEmCurso = true;
-    try { return await this._fazerDoDia(id, hoje); } finally { this._diaEmCurso = false; }
+    try {
+      if (await this._jaTemFotoDeHoje(id)) {
+        // o banco já tem a de hoje: só reconstrói o carimbo local que se perdeu
+        try { localStorage.setItem(this._diaKey(id), hoje); } catch (e) { _quiet(e, 'cbk-dia3'); }
+        return false;
+      }
+      return await this._fazerDoDia(id, hoje);
+    } catch (e) {
+      /* Não deu para confirmar com o banco: NÃO grava. Uma foto a menos hoje é
+         recuperável (o próximo ciclo, daqui a um minuto, tenta de novo); uma
+         foto duplicada a cada minuto não é. */
+      _quiet(e, 'cbk-dia-checagem');
+      return false;
+    } finally { this._diaEmCurso = false; }
   },
   async _fazerDoDia(id, hoje) {
     const r = await this.criar('backup diário');
@@ -34724,7 +35047,14 @@ const GuardaNuvem = {
   },
   async antesDeEsvaziar(id, secoes) {
     console.warn('[GuardaNuvem] esvaziando na nuvem: ' + secoes.join(', ') + ' — guardando o estado ANTERIOR antes.');
-    await this._proteger(id, 'antes de esvaziar ' + secoes.length + ' seção(ões): ' + secoes.slice(0, 3).join(', '));
+    /* A nota aparece na lista de backups, para uma pessoa escolher qual
+       restaurar. "p:pl_inicial:extras" não ajuda ninguém a escolher; "atividades
+       extras" ajuda. O nome interno continua no console, para diagnóstico. */
+    const legivel = secoes.slice(0, 3).map(sec => {
+      try { return Recuperacao.rotulo(sec); } catch (_) { return sec; }
+    });
+    const sufixo = secoes.length > 3 ? ' e mais ' + (secoes.length - 3) : '';
+    await this._proteger(id, 'antes de esvaziar: ' + legivel.join(', ') + sufixo);
   },
 
   /* ── QUAL ESTADO PRECISA SER GUARDADO ─────────────────────────────────────
@@ -34862,25 +35192,62 @@ const CloudBackupUI = {
       host.innerHTML = aviso + '<p class="hint">Nenhuma cópia no banco ainda. A primeira é criada sozinha na próxima abertura do dia — ou agora, no botão acima. A primeira de todas vira uma <strong>âncora permanente</strong>, que a limpeza automática nunca remove.</p>';
       return;
     }
+    /* ── A LISTA, SEM A PAREDE ─────────────────────────────────────────────
+       Com a retenção em faixas esta lista chega a ~30 linhas, e elas eram
+       quase idênticas: a mesma nota, o mesmo tamanho e o mesmo aparelho
+       repetidos linha após linha. Repetição não informa — atrapalha achar o
+       que interessa.
+
+       Três decisões: as cópias são AGRUPADAS por período (é assim que se
+       procura um backup: "aquele de antes da semana passada"); o aparelho só
+       aparece quando é OUTRO, porque "Android · Chrome" trinta vezes seguidas
+       não distingue nada; e só os grupos recentes ficam abertos — o resto vai
+       para um `<details>`, a um clique. */
     const ancoras = linhas.filter(r => r.ancora).length;
+    let meuAparelho = null;
+    try { meuAparelho = SessionGuard.deviceLabel(); } catch (e) { _quiet(e, 'cbk-aparelho'); }
+    const linhaHtml = (r) => {
+      const tag = r.ancora
+        ? '<span class="inactive-tag" style="color:var(--good-text);background:var(--good-soft);border-color:transparent;">âncora permanente</span>' : '';
+      const outro = (r.device && r.device !== meuAparelho) ? ' · de ' + escapeHtml(r.device) : '';
+      return `<div class="cloud-slot-row" data-bk="${escapeHtml(String(r.id))}">
+        <div class="cloud-slot-info">
+          <div class="name">${this._quando(r.created_at)} ${tag}</div>
+          <div class="meta">${escapeHtml(r.note || 'backup')} · ${this._kb(r.chars || 0)}${outro}</div>
+        </div>
+        <div class="cloud-slot-actions">
+          <button type="button" class="btn-secondary cbk-download" title="Baixar esta cópia como arquivo .json" aria-label="Baixar esta cópia como arquivo .json">↓</button>
+          <button type="button" class="btn-primary cbk-restore" title="Restaurar esta cópia sobre o perfil atual">↺ Restaurar</button>
+        </div>
+      </div>`;
+    };
+    const agora = Date.now(), DIA = 86400000;
+    const faixaDe = (r) => {
+      const d = agora - new Date(r.created_at).getTime();
+      if (d < DIA) return 'Hoje';
+      if (d < 7 * DIA) return 'Últimos 7 dias';
+      if (d < 31 * DIA) return 'Este mês';
+      return 'Meses anteriores';
+    };
+    const ordem = ['Hoje', 'Últimos 7 dias', 'Este mês', 'Meses anteriores'];
+    const porFaixa = new Map(ordem.map(g => [g, []]));
+    linhas.forEach(r => { const g = faixaDe(r); if (porFaixa.has(g)) porFaixa.get(g).push(r); });
+    const abertos = [], fechados = [];
+    let orcamento = 8;   // grupos inteiros: nunca corta um período ao meio
+    ordem.forEach(g => {
+      const rs = porFaixa.get(g);
+      if (!rs.length) return;
+      const bloco = `<p class="section-label" style="margin:14px 0 6px;">${g} · ${rs.length}</p>` + rs.map(linhaHtml).join('');
+      if (orcamento > 0) { abertos.push(bloco); orcamento -= rs.length; } else fechados.push(bloco);
+    });
     host.innerHTML = aviso +
-      '<p class="hint" style="margin:0 0 10px;">' + linhas.length + ' cópia(s) guardada(s) <strong>no banco de dados</strong>' +
-      (ancoras ? ' — uma delas é a <strong>âncora permanente</strong>, que nunca é apagada' : '') +
-      '. Elas não dependem deste navegador: trocando de aparelho, basta entrar na conta para resgatá-las.</p>' +
-      linhas.map(r => {
-        const tag = r.ancora
-          ? '<span class="inactive-tag" style="color:var(--good-text);background:var(--good-soft);border-color:transparent;">âncora permanente</span>' : '';
-        return `<div class="cloud-slot-row" data-bk="${escapeHtml(String(r.id))}">
-          <div class="cloud-slot-info">
-            <div class="name">${this._quando(r.created_at)} ${tag}</div>
-            <div class="meta">${escapeHtml(r.note || 'backup')} · ${this._kb(r.chars || 0)}${r.device ? ' · ' + escapeHtml(r.device) : ''}</div>
-          </div>
-          <div class="cloud-slot-actions">
-            <button type="button" class="btn-secondary cbk-download" title="Baixar esta cópia como arquivo .json">↓ Baixar</button>
-            <button type="button" class="btn-primary cbk-restore" title="Restaurar esta cópia sobre o perfil atual">↺ Restaurar</button>
-          </div>
-        </div>`;
-      }).join('');
+      '<p class="hint" style="margin:0 0 4px;">' + linhas.length + ' cópia(s) no banco' +
+      (ancoras ? ', incluindo a <strong>âncora permanente</strong>' : '') +
+      '. Não dependem deste navegador — em outro aparelho, basta entrar na conta.</p>' +
+      abertos.join('') +
+      (fechados.length
+        ? '<details style="margin-top:12px;"><summary style="cursor:pointer;font-weight:700;">Cópias mais antigas</summary>' + fechados.join('') + '</details>'
+        : '');
     this._ligar(host);
   },
 
@@ -36324,6 +36691,13 @@ else CloudStore.init();
       $('#cfgx-outall').addEventListener('click', () => CloudUX.logout('global'));
       $('#cfgx-wipe').addEventListener('click', () => CloudUX.wipeLocal());
     },
+    /* ── O DIAGNÓSTICO RESPONDE UMA PERGUNTA SÓ ───────────────────────────
+       "Meus dados estão salvos e sincronizados?" Tudo o mais — revisão local
+       do perfil, motor de armazenamento, tempo de inatividade — é vocabulário
+       de quem escreveu o app, não de quem o usa, e ocupava a tela inteira
+       acima da resposta. Agora o veredito vem primeiro, em uma frase; as
+       quatro linhas que o sustentam vêm logo abaixo; e o resto fica a um
+       clique, para quando alguém precisar mesmo diagnosticar. */
     diagData() {
       const CS = window.CloudStore;
       const logged = !!(CS && CS.isReady && CS.isReady() && CS.isLoggedIn());
@@ -36332,39 +36706,61 @@ else CloudStore.init();
       let nEnt = '—', nCards = '—';
       try { nEnt = String((DB.getEntries() || []).length); } catch (_) { _quiet(_); }
       try { nCards = String((DB.getCards() || []).length); } catch (_) { _quiet(_); }
-      const pend = CS ? (CS._pending || !!CS._debounce) : false;
+      let fila = 0;
+      try { if (window.SectionSync) fila = SectionSync.pendingQuick(); } catch (_) { _quiet(_); }
+      const pend = (CS ? (CS._pending || !!CS._debounce) : false) || fila > 0;
       const last = (CS && CS._lastSyncAt) ? new Date(CS._lastSyncAt).toLocaleString('pt-BR') : 'nesta sessão, ainda não';
+      const bkp = (() => {
+        if (!window.CloudBackup) return { v: '—', t: '' };
+        if (!CloudBackup.enabled) return { v: 'tabela ausente — veja BANCO-DE-DADOS.md', t: 'warn' };
+        if (!logged) return { v: 'aguardando a conta', t: 'warn' };
+        if (CloudBackup._ultimoErro) return { v: 'erro: ' + CloudBackup._ultimoErro, t: 'warn' };
+        const em = CloudBackup.ultimoEnvioEm();
+        return em ? { v: 'última cópia ' + new Date(em).toLocaleString('pt-BR'), t: 'ok' }
+                  : { v: 'nenhuma cópia ainda', t: 'warn' };
+      })();
       return [
-        { k: 'Conexão do navegador', v: navigator.onLine ? 'online' : 'offline', t: navigator.onLine ? 'ok' : 'bad' },
-        { k: 'Servidor (Supabase)', v: CS ? ({ ready: 'conectado', pending: 'carregando…', missing: 'biblioteca não carregou', error: 'erro ao iniciar' }[CS.libStatus] || CS.libStatus) : '—', t: (CS && CS.libStatus === 'ready') ? 'ok' : 'warn' },
-        { k: 'Sessão', v: logged ? 'ativa · ' + (CS.userEmail() || '') : 'sem sessão', t: logged ? 'ok' : 'bad' },
-        { k: 'Alterações pendentes', v: pend ? 'sim — há algo por enviar' : 'nenhuma', t: pend ? 'warn' : 'ok' },
-        { k: 'Última sincronização', v: last, t: '' },
+        { k: 'Conta', v: logged ? 'conectada · ' + (CS.userEmail() || '') : 'sem conta conectada', t: logged ? 'ok' : 'bad', ess: 1 },
+        { k: 'Alterações à espera de envio', v: pend ? (fila ? fila + ' — subindo' : 'sim, subindo') : 'nenhuma', t: pend ? 'warn' : 'ok', ess: 1 },
+        { k: 'Última sincronização', v: last, t: '', ess: 1 },
+        { k: 'Backup no banco', v: bkp.v, t: bkp.t, ess: 1 },
         { k: 'Perfil ativo', v: nome, t: '' },
-        { k: 'Revisão local do perfil', v: rev, t: '' },
         { k: 'Registros de estudo', v: nEnt, t: '' },
         { k: 'Flashcards', v: nCards, t: '' },
+        { k: 'Conexão do navegador', v: navigator.onLine ? 'online' : 'offline', t: navigator.onLine ? 'ok' : 'bad' },
+        { k: 'Servidor (Supabase)', v: CS ? ({ ready: 'conectado', pending: 'carregando…', missing: 'biblioteca não carregou', error: 'erro ao iniciar' }[CS.libStatus] || CS.libStatus) : '—', t: (CS && CS.libStatus === 'ready') ? 'ok' : 'warn' },
         { k: 'Armazenamento', v: (window.indexedDB ? 'IndexedDB disponível' : 'só localStorage'), t: window.indexedDB ? 'ok' : 'warn' },
-        /* "Ativo" sozinho não prova nada — a data da última cópia prova. Um
-           backup automático que parou de rodar tem de ser visível AQUI, não
-           descoberto no dia em que alguém precisa restaurar. */
-        { k: 'Backup no banco', v: (() => {
-            if (!window.CloudBackup) return '—';
-            if (!CloudBackup.enabled) return 'tabela ausente — veja BANCO-DE-DADOS.md';
-            if (!logged) return 'aguardando a conta';
-            if (CloudBackup._ultimoErro) return 'erro: ' + CloudBackup._ultimoErro;
-            const em = CloudBackup.ultimoEnvioEm();
-            return em ? ('última cópia ' + new Date(em).toLocaleString('pt-BR')) : 'nenhuma cópia ainda';
-          })(), t: (window.CloudBackup && CloudBackup.enabled && logged && !CloudBackup._ultimoErro && CloudBackup.ultimoEnvioEm()) ? 'ok' : 'warn' },
+        { k: 'Revisão local do perfil', v: rev, t: '' },
         { k: 'Sessão única ao entrar', v: pget('single-session', '0') === '1' ? 'ligada' : 'desligada', t: '' },
         { k: 'Sair por inatividade', v: (() => { const m = parseInt(pget('idle-mins', '0'), 10); return m > 0 ? m + ' min' : 'nunca'; })(), t: '' }
       ];
     },
+    // A frase de cima: o que a pessoa veio saber, sem precisar interpretar nada.
+    diagVeredito(linhas) {
+      const por = (k) => linhas.find(l => l.k === k) || {};
+      if (por('Conta').t === 'bad') {
+        return { t: 'warn', txt: '⚠️ Sem conta conectada — seus dados estão salvos só neste aparelho. Entre na conta para que eles subam e fiquem protegidos.' };
+      }
+      if (por('Alterações à espera de envio').t === 'warn') {
+        return { t: 'warn', txt: '↻ Já está salvo neste aparelho; algumas alterações ainda estão subindo. Basta deixar o app aberto por alguns instantes.' };
+      }
+      if (por('Backup no banco').t === 'warn') {
+        return { t: 'warn', txt: '⚠️ Sincronizado, mas o backup no banco não está em dia — veja a linha "Backup no banco" abaixo.' };
+      }
+      return { t: 'ok', txt: '✓ Tudo salvo, sincronizado e com backup no banco.' };
+    },
     refreshDiag() {
       const host = $('#cfg-diag-grid');
       if (!host) return;
-      host.innerHTML = this.diagData().map(d =>
-        `<div class="cfg-diag-item"><div class="k">${esc(d.k)}</div><div class="v ${d.t || ''}">${esc(d.v)}</div></div>`).join('');
+      const linhas = this.diagData();
+      const ver = this.diagVeredito(linhas);
+      const item = (d) => `<div class="cfg-diag-item"><div class="k">${esc(d.k)}</div><div class="v ${d.t || ''}">${esc(d.v)}</div></div>`;
+      const essenciais = linhas.filter(d => d.ess).map(item).join('');
+      const resto = linhas.filter(d => !d.ess).map(item).join('');
+      host.innerHTML =
+        `<p class="hint ${ver.t === 'ok' ? '' : 'warn'}" style="grid-column:1/-1;margin:0 0 12px;font-weight:700;">${esc(ver.txt)}</p>` +
+        essenciais +
+        `<details style="grid-column:1/-1;margin-top:10px;"><summary style="cursor:pointer;font-weight:700;">Detalhes técnicos</summary><div class="cfg-diag" style="margin-top:10px;">${resto}</div></details>`;
     }
   };
 

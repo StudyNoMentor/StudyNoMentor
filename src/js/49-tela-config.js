@@ -127,7 +127,16 @@ const ConfigScreen = {
     this.bindSimpleRows(container, {
       rename: (id, val) => DB.renameMethod(id, val),
       toggleGet: (id) => DB.getMethods().find(x => x.id === id),
-      toggleSet: (id, ativo) => { const l = DB.getMethods(); l.find(x=>x.id===id).ativo = ativo; DB._set(DB.KEYS.methods, l); },
+      /* O item pode ter deixado de existir entre desenhar a tela e clicar —
+         a sincronização por seção substitui listas com a tela aberta. Sem esta
+         guarda, `find(...)` devolvia undefined, a atribuição lançava, e o
+         `_set` seguinte NEM CHEGAVA A RODAR: a tela parecia inerte e a
+         alteração se perdia sem aviso. */
+      toggleSet: (id, ativo) => {
+        const l = DB.getMethods(); const it = l.find(x => x.id === id);
+        if (!it) { showToast('Este item não existe mais — atualizando a lista.'); ConfigScreen.render(); return; }
+        it.ativo = ativo; DB._set(DB.KEYS.methods, l);
+      },
       remove: (id) => DB.removeMethodSafely(id),
       inUse: (nome) => DB.methodInUse(nome),
       rerender: () => this.renderMethods(),
@@ -158,7 +167,16 @@ const ConfigScreen = {
     this.bindSimpleRows(container, {
       rename: (id, val) => DB.renamePhase(id, val),
       toggleGet: (id) => DB.getPhases().find(x => x.id === id),
-      toggleSet: (id, ativo) => { const l = DB.getPhases(); l.find(x=>x.id===id).ativo = ativo; DB._set(DB.KEYS.phases, l); },
+      /* O item pode ter deixado de existir entre desenhar a tela e clicar —
+         a sincronização por seção substitui listas com a tela aberta. Sem esta
+         guarda, `find(...)` devolvia undefined, a atribuição lançava, e o
+         `_set` seguinte NEM CHEGAVA A RODAR: a tela parecia inerte e a
+         alteração se perdia sem aviso. */
+      toggleSet: (id, ativo) => {
+        const l = DB.getPhases(); const it = l.find(x => x.id === id);
+        if (!it) { showToast('Este item não existe mais — atualizando a lista.'); ConfigScreen.render(); return; }
+        it.ativo = ativo; DB._set(DB.KEYS.phases, l);
+      },
       remove: (id) => DB.removePhaseSafely(id),
       inUse: (nome) => DB.phaseInUse(nome),
       rerender: () => this.renderPhases(),
@@ -188,7 +206,16 @@ const ConfigScreen = {
     this.bindSimpleRows(container, {
       rename: (id, val) => DB.renameMode(id, val),
       toggleGet: (id) => DB.getModes().find(x => x.id === id),
-      toggleSet: (id, ativo) => { const l = DB.getModes(); l.find(x=>x.id===id).ativo = ativo; DB._set(DB.KEYS.modes, l); },
+      /* O item pode ter deixado de existir entre desenhar a tela e clicar —
+         a sincronização por seção substitui listas com a tela aberta. Sem esta
+         guarda, `find(...)` devolvia undefined, a atribuição lançava, e o
+         `_set` seguinte NEM CHEGAVA A RODAR: a tela parecia inerte e a
+         alteração se perdia sem aviso. */
+      toggleSet: (id, ativo) => {
+        const l = DB.getModes(); const it = l.find(x => x.id === id);
+        if (!it) { showToast('Este item não existe mais — atualizando a lista.'); ConfigScreen.render(); return; }
+        it.ativo = ativo; DB._set(DB.KEYS.modes, l);
+      },
       remove: (id) => DB.removeModeSafely(id),
       inUse: (nome) => { const m = DB.getModes().find(x => x.nome === nome); return m ? DB.modeInUse(m) : false; },
       rerender: () => this.renderModes(),

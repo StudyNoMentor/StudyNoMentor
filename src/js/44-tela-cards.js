@@ -1393,7 +1393,7 @@ const CardsScreen = {
       let parsed = null;
       if (/\.json$/i.test(file.name)) {
         try {
-          const obj = JSON.parse(text);
+          const obj = jsonSeguro(text);   // mesmo motivo do import de perfil
           if (obj && obj.kind === 'cards-backup' && Array.isArray(obj.cards)) parsed = { kind: 'json', cards: obj.cards, decks: obj.decks || [] };
           else { prev.textContent = '⚠ JSON não é um backup de cards válido.'; prev.style.color = 'var(--warn)'; return; }
         } catch (err) { prev.textContent = '⚠ JSON inválido.'; prev.style.color = 'var(--bad)'; return; }

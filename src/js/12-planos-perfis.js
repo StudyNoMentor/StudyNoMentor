@@ -9,7 +9,9 @@ const PlanManager = {
 
   getPlans() { return DB._get(this.GK.plans, []); },
   savePlans(list) { DB._set(this.GK.plans, list); },
-  getActivePlanId() { try { return localStorage.getItem(this.GK.active); } catch (e) { return null; } },
+  // Mesma leitura saneada do DB._activePlanId: um id com aspas renomearia de uma
+  // vez todas as chaves do planejamento e as telas abririam vazias.
+  getActivePlanId() { try { return DB._activePlanId(); } catch (e) { return null; } },
   getActivePlan() { return this.getPlans().find(p => p.id === this.getActivePlanId()) || null; },
   // Trocar de planejamento é uma alteração do perfil como qualquer outra: passa
   // pelo canal único para chegar à nuvem (antes só subia no blob periódico).
@@ -427,18 +429,103 @@ const ProfileManager = {
       if (jaFeito) continue;
       try { await this._migrarUmPerfil(p); } catch (e) { console.warn('[perfis] migração de id falhou para', p.id, e); }
     }
+    try { await this.repararSemLinhaNaNuvem(); } catch (e) { console.warn('[perfis] reparo de linha na nuvem falhou', e); }
+  },
+
+  /* ── PERFIL COM DADOS AQUI E SEM LINHA NA NUVEM ───────────────────────────
+     Um perfil nessa situação está mudo para sempre: `saveActive` e `updateMeta`
+     só sabem fazer UPDATE, e um UPDATE sem linha correspondente atinge zero
+     linhas — sem erro, sem aviso. O app mostra "sincronizado" e nada sai daqui.
+
+     Acontecia com todo perfil vindo de IMPORTAÇÃO (o retorno de `createRow`
+     era descartado, ver adotarIdDaNuvem) e acontece também se a linha for
+     apagada na nuvem por qualquer motivo. Este reparo fecha os dois casos.
+
+     Segurança do reparo, porque ele CRIA linha na nuvem:
+       · só roda com a lista da nuvem obtida com SUCESSO — uma falha de rede
+         não pode ser lida como "não existe lá" e virar linha duplicada;
+       · só para perfis que têm dado de verdade neste aparelho;
+       · só para perfis desta conta (ou sem dono conhecido), nunca de outra. */
+  async repararSemLinhaNaNuvem() {
+    let rows;
+    try { rows = await CloudStore.listProfiles(); }
+    catch (e) { _quiet(e, 'reparo-lista'); return 0; }      // sem certeza, não age
+    if (!Array.isArray(rows)) return 0;
+    const naNuvem = new Set(rows.map(r => r.id));
+    const uid = (CloudStore.session && CloudStore.session.user) ? CloudStore.session.user.id : null;
+    const comDados = new Set(this.perfisComDadosLocais().map(d => d.id));
+    /* `_podeVerLocal` deixa passar o perfil SEM dono conhecido — o certo para
+       apenas EXIBIR (não esconder dado de ninguém), e o errado para CRIAR uma
+       linha na nuvem: num aparelho que já foi de outra conta, um perfil antigo
+       sem rótulo seria reivindicado pela conta que estiver logada agora.
+
+       Para criar, a régua é mais dura: ou o dono é comprovadamente esta conta,
+       ou este aparelho nunca viu outra conta (nenhum rótulo de dono aponta
+       para um uid diferente). Na dúvida, não reivindica — o perfil segue
+       local, exatamente como estava, sem regressão. */
+    const outraContaJaUsouEsteAparelho = (() => {
+      try {
+        for (let i = 0; i < localStorage.length; i++) {
+          const k = localStorage.key(i);
+          if (!k || k.indexOf('diario-estudos:owner:') !== 0) continue;
+          const dono = localStorage.getItem(k);
+          if (dono && uid && dono !== uid) return true;
+        }
+      } catch (e) { _quiet(e, 'reparo-donos'); return true; }   // sem certeza: age como se sim
+      return false;
+    })();
+    const podeReivindicar = (id) => {
+      const dono = this._getOwner(id);
+      if (dono) return dono === uid;                 // rótulo explícito manda
+      return !outraContaJaUsouEsteAparelho;          // sem rótulo: só se o aparelho for de uma conta só
+    };
+    const alvos = (this.getProfiles() || []).filter(p =>
+      p && p.id && this.idValido(p.id) && !naNuvem.has(p.id) &&
+      comDados.has(p.id) && podeReivindicar(p.id));
+    let n = 0;
+    for (const p of alvos) {
+      try {
+        console.warn('[perfis] "' + (p.nome || p.id) + '" tem dados aqui e nenhuma linha na nuvem — criando e adotando o id…');
+        const row = await CloudStore.createRow({ name: p.nome, avatar: p.avatar, color: p.cor, payload: {} });
+        await this.adotarIdDaNuvem(p.id, row);
+        n++;
+      } catch (e) { console.warn('[perfis] não foi possível criar a linha de', p.id, e); }
+    }
+    return n;
   },
   async _migrarUmPerfil(perfilAntigo) {
-    const idAntigo = perfilAntigo.id;
-    console.info('[perfis] promovendo perfil de id local "' + idAntigo + '" a um id de nuvem válido…');
+    console.info('[perfis] promovendo perfil de id local "' + perfilAntigo.id + '" a um id de nuvem válido…');
     const row = await CloudStore.createRow({ name: perfilAntigo.nome, avatar: perfilAntigo.avatar, color: perfilAntigo.cor, payload: {} });
+    await this.adotarIdDaNuvem(perfilAntigo.id, row);
+    try { localStorage.setItem(this._migMarcaChave(perfilAntigo.id), row.id); } catch (e) { _quiet(e, 'mig-marca'); }
+  },
+
+  /* ── ADOTAR O ID QUE O BANCO GEROU ────────────────────────────────────────
+     `createRow` NÃO aceita um id: a coluna é `uuid primary key default
+     gen_random_uuid()`, então quem decide o id é o banco, e ele o devolve.
+     Quem chama é obrigado a adotar esse id — e havia um caminho que não
+     adotava: a IMPORTAÇÃO de backup criava o perfil local com um id próprio,
+     mandava `createRow` para a nuvem e DESCARTAVA o retorno.
+
+     O resultado era um perfil partido em dois: o local, com o id antigo, que
+     nunca mais sincronizava (todo UPDATE batia em zero linhas, porque não
+     existia linha com aquele id); e o da nuvem, com outro id, congelado no
+     estado do instante da importação e aparecendo como um SEGUNDO perfil na
+     lista de todos os aparelhos — com o nome de antes, porque renomear
+     depois só mexia no local. Era exatamente o sintoma de "importei um
+     backup, mudei o nome, e agora aparecem dois perfis, um com o nome
+     antigo".
+
+     Adotar significa: mover o namespace local inteiro para o id novo (copiar
+     primeiro, só apagar depois de conferir que a cópia bateu — nunca apagar
+     sem prova), trocar o id no índice, herdar rev e dono, e reapontar o
+     ponteiro de perfil ativo se for o caso. */
+  async adotarIdDaNuvem(idAntigo, row) {
     if (!row || !row.id) throw new Error('createRow não devolveu id');
     const idNovo = row.id;
+    if (idNovo === idAntigo) return idNovo;
     const prefixoAntigo = 'diario-estudos:u:' + idAntigo + ':';
     const prefixoNovo = 'diario-estudos:u:' + idNovo + ':';
-    // Move o namespace inteiro: copia para a chave nova primeiro, só remove a
-    // antiga depois de confirmar que a cópia bateu — nunca apaga sem provar
-    // que o destino já tem o mesmo valor.
     const mover = [];
     for (let i = 0; i < localStorage.length; i++) {
       const k = localStorage.key(i);
@@ -446,31 +533,33 @@ const ProfileManager = {
     }
     mover.forEach(k => {
       const valor = localStorage.getItem(k);
-      try { localStorage.setItem(prefixoNovo + k.slice(prefixoAntigo.length), valor); } catch (e) { _quiet(e, 'mig-copia'); }
+      try { localStorage.setItem(prefixoNovo + k.slice(prefixoAntigo.length), valor); } catch (e) { _quiet(e, 'adotar-copia'); }
     });
     mover.forEach(k => {
       const destino = prefixoNovo + k.slice(prefixoAntigo.length);
       if (localStorage.getItem(destino) === localStorage.getItem(k)) localStorage.removeItem(k);
     });
-    // troca o id no índice de perfis, preservando nome/avatar/cor atuais
     const lista = this.getProfiles();
     const entrada = lista.find(p => p.id === idAntigo);
     if (entrada) entrada.id = idNovo;
     this.saveProfiles(lista);
     this.setRev(idNovo, row.rev || 1);
-    try { this._setOwner(idNovo, CloudStore.session.user.id); } catch (e) { _quiet(e, 'mig-dono'); }
-    // se este era o perfil ATIVO, o ponteiro precisa apontar para o id novo —
-    // e só nesse caso vale a pena empurrar o conteúdo agora (SectionSync só
-    // enxerga o namespace do perfil ATIVO; migrar um perfil em segundo plano
-    // não deve trocar o que está aberto por baixo do usuário).
+    try {
+      const uid = (window.CloudStore && CloudStore.session && CloudStore.session.user) ? CloudStore.session.user.id : null;
+      if (uid) this._setOwner(idNovo, uid);
+    } catch (e) { _quiet(e, 'adotar-dono'); }
+    /* Só empurra o conteúdo agora se este for o perfil ABERTO: o SectionSync
+       enxerga apenas o namespace do perfil ativo, e trocar o perfil aberto por
+       baixo de quem está usando seria pior que esperar. Os demais sobem
+       naturalmente quando forem abertos. */
     const eraAtivo = (this.getActiveProfileId() === idAntigo);
-    if (eraAtivo) this.setActiveProfile(idNovo);
-    try { localStorage.setItem(this._migMarcaChave(idAntigo), idNovo); } catch (e) { _quiet(e, 'mig-marca'); }
     if (eraAtivo) {
-      try { if (window.SectionSync) { SectionSync._seededProfile = null; SectionSync.markAllDirty(); SectionSync.kick(); } } catch (e) { _quiet(e, 'mig-envio'); }
-      try { await CloudStore.saveActiveWithRetry(); } catch (e) { _quiet(e, 'mig-blob'); }
+      this.setActiveProfile(idNovo);
+      try { if (window.SectionSync) { SectionSync._seededProfile = null; SectionSync.markAllDirty(); SectionSync.kick(); } } catch (e) { _quiet(e, 'adotar-envio'); }
+      try { await CloudStore.saveActiveWithRetry(); } catch (e) { _quiet(e, 'adotar-blob'); }
     }
-    console.info('[perfis] perfil migrado: ' + idAntigo + ' → ' + idNovo + (eraAtivo ? ' (ativo — enviado agora)' : ' (sincroniza ao ser aberto)'));
+    console.info('[perfis] id adotado da nuvem: ' + idAntigo + ' → ' + idNovo + (eraAtivo ? ' (ativo — enviado agora)' : ' (sobe ao ser aberto)'));
+    return idNovo;
   },
 
   /* ── ESPELHO DA NUVEM — COM UMA TRAVA ─────────────────────────────────────
