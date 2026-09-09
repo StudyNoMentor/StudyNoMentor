@@ -1630,3 +1630,98 @@ balde anterior; e o balde imutável de CDN sobrevive à publicação.
 
 Cada uma dessas linhas é uma decisão que custou caro para descobrir. Escrita
 como teste, ela não se perde na próxima alteração.
+
+---
+
+## 24. O caminho da nuvem, finalmente executado
+
+Todas as rodadas anteriores auditaram a sincronização e o backup **lendo** o
+código. Nenhuma delas jamais fez o app conversar com um banco. É uma diferença
+que já se provou cara: o `sw.js` também tinha sido lido linha a linha e
+considerado correto, e bastou executá-lo num navegador de verdade para aparecer
+uma troca de versão que levava 24 segundos.
+
+Esta rodada fecha essa lacuna, e fecha **sem tocar em uma linha do app**: as
+alterações são `verificar.mjs`, `test/supabase-falso.mjs`, `package.json`.
+
+### O que foi construído
+
+**`test/supabase-falso.mjs`** — um PostgREST em memória que implementa o
+subconjunto que o app usa (`select`, `insert`, `update`, `upsert` com
+`on_conflict`, `delete`, `eq`/`in`/`gte`, `order`, `limit`,
+`maybeSingle`/`single`, `Prefer: return=representation`) e, o que de fato
+importa, **as constraints de verdade**:
+
+- a **trava otimista por `rev`** cai naturalmente do filtro: um `PATCH` com
+  `rev=eq.<antiga>` não acerta linha nenhuma depois que outro aparelho subiu, e
+  a resposta volta vazia — que é exatamente como o app detecta conflito;
+- o **índice único parcial** de `profile_backups`: no máximo uma âncora por
+  perfil, e a segunda tentativa recebe `23505`;
+- a unicidade de `(profile_id, section)` e de `user_id` em `active_sessions`;
+- o **isolamento por dono**, com `profile_sections` herdando o dono pelo perfil
+  a que pertence — sem isso, o teste de isolamento estaria testando o nada.
+
+**O cliente não é de mentira.** O `supabase-js` do npm bate **byte a byte** com
+o do CDN: o mesmo `sha256-hZaWX+kY5lZg…` que o `index.html` fixa. O
+`verificar.mjs` serve esse arquivo no lugar do CDN, com a verificação de
+integridade da página intacta. A biblioteca que roda no teste é a que roda em
+produção — por isso a versão está **pinada exata**, e a checagem compara os dois
+hashes antes de começar. Se alguém subir a dependência sem atualizar o hash da
+página, a suíte diz isso na primeira linha.
+
+A API falsa mora no **mesmo servidor** que serve a página, porque a CSP só libera
+`connect-src 'self'`: uma API em outra porta seria bloqueada pelo navegador
+antes de sair. Mesma origem, nenhuma exceção aberta na CSP, nenhuma alteração no
+app para poder testá-lo.
+
+### O que passou a ser provado (checagem 6.7)
+
+1. O `supabase-js` instalado é o mesmo build que a página fixa por integridade.
+2. A biblioteca real carrega e o cliente sobe.
+3. Criar conta e perfil grava a linha no banco **com o dono certo**.
+4. Um registro de estudo sai da fila **sem erro**…
+5. …e chega à tabela de seções, na seção certa, com o conteúdo certo.
+6. O **manifesto** de seções é publicado (sem ele, exclusões nunca chegariam à
+   nuvem e a leitura por seção ressuscitaria dado apagado).
+7. O **blob de segurança** sobe.
+8. A **trava otimista detecta** o envio de outro aparelho.
+9. A **retentativa resolve o conflito e o dado local prevalece** — não some.
+10. Depois do ciclo de sincronização, **seções e blob contam a mesma história**.
+    Se divergissem, um aparelho novo — que lê pelas seções — abriria sem a
+    alteração mais recente, mesmo com ela salva no blob.
+11. A primeira foto vira **âncora**.
+12. A **disputa pela âncora é resolvida pelo banco**: duas fotos, exatamente uma
+    âncora, e a corrida perdida é tratada como sucesso normal, não como falha.
+13. **Restaurar traz os registros de volta** — o código mais perigoso do app
+    (ele sobrescreve o local) era, até aqui, o menos exercitado.
+14. A **faxina de retenção nunca escolhe a âncora**.
+15. A **leitura por seção reconstrói o perfil do zero** depois de apagar todo o
+    armazenamento local — o cenário "aparelho novo".
+16. Outra conta **não enxerga** o perfil alheio.
+17. Baixar o perfil de outra conta é **recusado pelo banco**.
+18. Nenhuma exceção não tratada em todo o percurso.
+
+### Duas falhas que apareceram — e eram do teste
+
+Honestidade sobre o processo: a suíte acusou dois problemas na primeira
+execução, e investigar mostrou que os dois eram do teste, não do app.
+
+- A hidratação voltava com um registro só. Causa: o teste chamava `saveActive()`
+  (que grava **apenas** o blob) sem passar pelo ciclo que mantém as seções em
+  dia. O app faz isso; o teste não estava fazendo.
+- O ciclo de sincronização parecia não atualizar a seção. Causa: `SectionSync.kick()`
+  desiste quando `sessionStorage['diario-estudos:entered']` não existe — e com
+  razão, porque sem esse carimbo o app estaria na tela de seleção de perfil, sem
+  nada a sincronizar. O teste não estava simulando a entrada no perfil.
+
+Os dois viraram teste mais fiel: o carimbo de entrada é gravado como o portão de
+acesso faz, e a asserção **espera a fila esvaziar** em vez de supor que a chamada
+que retornou já terminou o trabalho.
+
+### O que continua fora de alcance
+
+Um servidor de mentira prova a **lógica do app** contra as regras do banco. Ele
+não prova as políticas de RLS escritas no Supabase de verdade, nem a latência,
+nem o Realtime. Para isso não há substituto senão o banco real — mas o que
+sobrou de risco agora é de configuração, verificável no painel, e não mais de
+comportamento do código, que é o que ninguém consegue revisar a olho.
