@@ -1,0 +1,8 @@
+{
+  "name": "studynomentor",
+  "private": true,
+  "description": "Dependência única do repositório: o Playwright que o verificar.mjs usa nas checagens 5 e 6 (o app em si não tem dependência nenhuma e roda por file://).",
+  "devDependencies": {
+    "playwright": "^1.63.0"
+  }
+}
