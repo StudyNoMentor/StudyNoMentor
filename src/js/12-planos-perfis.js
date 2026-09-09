@@ -354,7 +354,24 @@ const ProfileManager = {
     // recarregar a tela. Recarregar "por precaução" era o que fazia o app piscar.
     let mudou = 0;
     const vindas = dataObj || {};
-    toRemove.forEach(k => { if (!(k.slice(prefix.length) in vindas)) { localStorage.removeItem(k); mudou++; } });
+    /* MESMA REGRA DO CAMINHO POR SEÇÃO: não estar no que veio da nuvem não prova
+       que a pessoa apagou — prova, no mínimo das vezes, que o dado nunca chegou
+       lá (blob antigo, envio que falhou, uso offline). Só apagamos daqui o que
+       TEM revisão gravada, isto é, o que comprovadamente já esteve na nuvem.
+       O resto é o único exemplar existente e fica. */
+    let jaSincronizadas = {};
+    try { jaSincronizadas = (window.SectionSync ? SectionSync._getRevs(id) : {}) || {}; } catch (e) { _quiet(e, 'revs-blob'); }
+    const preservadas = [];
+    toRemove.forEach(k => {
+      const sub = k.slice(prefix.length);
+      if (sub in vindas) return;                       // vem logo abaixo, atualizada
+      if (!jaSincronizadas[sub]) { preservadas.push(sub); return; }   // nunca subiu: fica
+      localStorage.removeItem(k); mudou++;
+    });
+    if (preservadas.length) {
+      try { console.warn('[perfil] ' + preservadas.length + ' seção(ões) existem só neste aparelho e foram PRESERVADAS: ' + preservadas.join(', ')); } catch (e) { _quiet(e, 'preservadas-log'); }
+      try { if (window.SectionSync) preservadas.forEach(sec => SectionSync.markDirty(prefix + sec)); } catch (e) { _quiet(e, 'preservadas-fila'); }
+    }
     Object.keys(vindas).forEach(sub => {
       if (sub.startsWith('u:')) return;
       if (manter.has(sub) || local.indexOf(sub) !== -1) return;

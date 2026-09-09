@@ -367,7 +367,45 @@ const AutoTeste = {
       this._ok('a seção preservada continua na fila de envio',
         SectionSync._loadPend(PID).indexOf('p:pl:grade-template') !== -1, SectionSync._loadPend(PID));
 
-      // 5. sem nada pendente, a nuvem manda — e a fila fica vazia
+      /* 4b. AUSÊNCIA NA NUVEM NÃO É EXCLUSÃO. Uma seção que nunca subiu (sem
+         revisão gravada) é o único exemplar que existe: o download não pode
+         levá-la embora. Foi assim que "os registros ficaram, mas os cards, o
+         TEC e a grade sumiram" — as seções grandes falhavam no envio e a
+         primeira leitura por seção as apagava. */
+      escrever('p:pl:cards', '[{"id":"c1"}]');            // local, nunca enviada
+      escrever('p:pl:tec', '{"retratos":[1,2,3]}');       // idem
+      escrever('__secrev', JSON.stringify({ 'p:pl:leis': { rev: 2, hash: 'h' } }));
+      escrever('p:pl:leis', 'JA-ESTEVE-NA-NUVEM');        // esta sim já subiu um dia
+      SectionSync._applyMap(PID, { 'p:pl:entries': '[9]' }, { 'p:pl:entries': 3 }, []);
+      this._ok('seção que nunca subiu sobrevive ao download',
+        localStorage.getItem(pfx + 'p:pl:cards') === '[{"id":"c1"}]',
+        localStorage.getItem(pfx + 'p:pl:cards'));
+      this._ok('vale para todas as seções locais, não só uma',
+        localStorage.getItem(pfx + 'p:pl:tec') === '{"retratos":[1,2,3]}',
+        localStorage.getItem(pfx + 'p:pl:tec'));
+      this._ok('seção preservada entra na fila de envio',
+        SectionSync._loadPend(PID).indexOf('p:pl:cards') !== -1, SectionSync._loadPend(PID));
+      this._ok('exclusão de verdade (seção que já esteve na nuvem) continua valendo',
+        localStorage.getItem(pfx + 'p:pl:leis') === null,
+        localStorage.getItem(pfx + 'p:pl:leis'));
+
+      // 4c. o mesmo no caminho do blob (plano B)
+      escrever('p:pl:incidencia', 'SO-AQUI');
+      escrever('__secrev', JSON.stringify({ 'p:pl:links': { rev: 5, hash: 'h' } }));
+      escrever('p:pl:links', 'JA-SUBIU');
+      ProfileManager.restorePayloadInto(PID, { 'p:pl:entries': '[9]' }, []);
+      this._ok('blob não apaga seção que nunca subiu',
+        localStorage.getItem(pfx + 'p:pl:incidencia') === 'SO-AQUI',
+        localStorage.getItem(pfx + 'p:pl:incidencia'));
+      this._ok('blob ainda propaga exclusão do que já esteve na nuvem',
+        localStorage.getItem(pfx + 'p:pl:links') === null,
+        localStorage.getItem(pfx + 'p:pl:links'));
+
+      /* 5. sem nada pendente E sem seção local-only, a nuvem manda — e a fila
+         fica vazia. As seções criadas em 4b/4c saem antes: enquanto existirem
+         só neste aparelho, o correto é que continuem na fila (é o que 4b provou). */
+      criadas.forEach(k => { if (k !== pfx + 'p:pl:grade-template') localStorage.removeItem(k); });
+      escrever('__secrev', JSON.stringify({ 'p:pl:grade-template': { rev: 9, hash: 'h' } }));
       SectionSync._applyMap(PID, { 'p:pl:grade-template': '{"grade":{}}' }, { 'p:pl:grade-template': 10 }, []);
       this._ok('sem pendência, o download vale',
         localStorage.getItem(pfx + 'p:pl:grade-template') === '{"grade":{}}');
