@@ -401,14 +401,40 @@ const SectionSync = {
        valeu a pena recarregar a tela — e recarregar "por precaução" a cada
        download era a origem do pisca-pisca. */
     let mudou = 0;
+    /* ── AUSÊNCIA NA NUVEM NÃO É PROVA DE EXCLUSÃO ────────────────────────────
+       Esta linha apagava do aparelho toda seção que não viesse no manifesto:
+       "sumiu na nuvem". Só que uma seção pode não estar na nuvem por dois
+       motivos MUITO diferentes:
+
+         a) ela foi realmente excluída em outro aparelho — e aí apagar é o certo;
+         b) ela NUNCA CHEGOU LÁ. É o caso das seções grandes (cards, retratos do
+            TEC, incidência, grades salvas), que sobem uma a uma e podem falhar
+            por tamanho ou tempo limite; e o de quem começou a usar offline.
+
+       No caso (b) o download apagava o ÚNICO exemplar do dado que existia no
+       mundo. Era assim que "os registros aparecem, mas o ciclo, os cards, o TEC
+       e a grade sumiram": as seções pequenas subiam, as grandes não, e a
+       primeira leitura por seção levava as grandes embora.
+
+       A prova de que uma seção esteve na nuvem é haver revisão gravada para ela
+       (`antigos[sec]`, escrito só depois de um envio ou download bem-sucedido).
+       Sem essa prova, o dado é deste aparelho e só: fica onde está e entra na
+       fila de envio. Na dúvida, o app guarda — nunca apaga. */
     const apagar = [];
+    const orfas = [];
     for (let i = 0; i < localStorage.length; i++) {
       const k = localStorage.key(i);
       if (!k || k.indexOf(prefix) !== 0) continue;
       const sec = this.sectionForKey(k, prefix);
-      if (sec && !manter.has(sec) && !(sec in map)) apagar.push(k);   // sumiu na nuvem
+      if (!sec || manter.has(sec) || (sec in map)) continue;
+      if (antigos[sec]) apagar.push(k);   // já esteve na nuvem e saiu de lá: exclusão de verdade
+      else orfas.push(sec);               // nunca subiu: é o único exemplar que existe
     }
     apagar.forEach(k => { localStorage.removeItem(k); mudou++; });
+    if (orfas.length) {
+      orfas.forEach(sec => manter.add(sec));   // preservadas E na fila, como as pendentes
+      try { console.warn('[SectionSync] ' + orfas.length + ' seção(ões) existem só neste aparelho e foram PRESERVADAS (vão subir): ' + orfas.join(', ')); } catch (e) { _quiet(e, 'orfas-log'); }
+    }
     const novoRev = {};
     manter.forEach(sec => { if (antigos[sec]) novoRev[sec] = antigos[sec]; }); // segue "suja" e será reenviada
     Object.keys(map).forEach(sec => {

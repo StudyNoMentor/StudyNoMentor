@@ -12845,7 +12845,24 @@ const ProfileManager = {
     // recarregar a tela. Recarregar "por precaução" era o que fazia o app piscar.
     let mudou = 0;
     const vindas = dataObj || {};
-    toRemove.forEach(k => { if (!(k.slice(prefix.length) in vindas)) { localStorage.removeItem(k); mudou++; } });
+    /* MESMA REGRA DO CAMINHO POR SEÇÃO: não estar no que veio da nuvem não prova
+       que a pessoa apagou — prova, no mínimo das vezes, que o dado nunca chegou
+       lá (blob antigo, envio que falhou, uso offline). Só apagamos daqui o que
+       TEM revisão gravada, isto é, o que comprovadamente já esteve na nuvem.
+       O resto é o único exemplar existente e fica. */
+    let jaSincronizadas = {};
+    try { jaSincronizadas = (window.SectionSync ? SectionSync._getRevs(id) : {}) || {}; } catch (e) { _quiet(e, 'revs-blob'); }
+    const preservadas = [];
+    toRemove.forEach(k => {
+      const sub = k.slice(prefix.length);
+      if (sub in vindas) return;                       // vem logo abaixo, atualizada
+      if (!jaSincronizadas[sub]) { preservadas.push(sub); return; }   // nunca subiu: fica
+      localStorage.removeItem(k); mudou++;
+    });
+    if (preservadas.length) {
+      try { console.warn('[perfil] ' + preservadas.length + ' seção(ões) existem só neste aparelho e foram PRESERVADAS: ' + preservadas.join(', ')); } catch (e) { _quiet(e, 'preservadas-log'); }
+      try { if (window.SectionSync) preservadas.forEach(sec => SectionSync.markDirty(prefix + sec)); } catch (e) { _quiet(e, 'preservadas-fila'); }
+    }
     Object.keys(vindas).forEach(sub => {
       if (sub.startsWith('u:')) return;
       if (manter.has(sub) || local.indexOf(sub) !== -1) return;
@@ -24490,7 +24507,45 @@ const AutoTeste = {
       this._ok('a seção preservada continua na fila de envio',
         SectionSync._loadPend(PID).indexOf('p:pl:grade-template') !== -1, SectionSync._loadPend(PID));
 
-      // 5. sem nada pendente, a nuvem manda — e a fila fica vazia
+      /* 4b. AUSÊNCIA NA NUVEM NÃO É EXCLUSÃO. Uma seção que nunca subiu (sem
+         revisão gravada) é o único exemplar que existe: o download não pode
+         levá-la embora. Foi assim que "os registros ficaram, mas os cards, o
+         TEC e a grade sumiram" — as seções grandes falhavam no envio e a
+         primeira leitura por seção as apagava. */
+      escrever('p:pl:cards', '[{"id":"c1"}]');            // local, nunca enviada
+      escrever('p:pl:tec', '{"retratos":[1,2,3]}');       // idem
+      escrever('__secrev', JSON.stringify({ 'p:pl:leis': { rev: 2, hash: 'h' } }));
+      escrever('p:pl:leis', 'JA-ESTEVE-NA-NUVEM');        // esta sim já subiu um dia
+      SectionSync._applyMap(PID, { 'p:pl:entries': '[9]' }, { 'p:pl:entries': 3 }, []);
+      this._ok('seção que nunca subiu sobrevive ao download',
+        localStorage.getItem(pfx + 'p:pl:cards') === '[{"id":"c1"}]',
+        localStorage.getItem(pfx + 'p:pl:cards'));
+      this._ok('vale para todas as seções locais, não só uma',
+        localStorage.getItem(pfx + 'p:pl:tec') === '{"retratos":[1,2,3]}',
+        localStorage.getItem(pfx + 'p:pl:tec'));
+      this._ok('seção preservada entra na fila de envio',
+        SectionSync._loadPend(PID).indexOf('p:pl:cards') !== -1, SectionSync._loadPend(PID));
+      this._ok('exclusão de verdade (seção que já esteve na nuvem) continua valendo',
+        localStorage.getItem(pfx + 'p:pl:leis') === null,
+        localStorage.getItem(pfx + 'p:pl:leis'));
+
+      // 4c. o mesmo no caminho do blob (plano B)
+      escrever('p:pl:incidencia', 'SO-AQUI');
+      escrever('__secrev', JSON.stringify({ 'p:pl:links': { rev: 5, hash: 'h' } }));
+      escrever('p:pl:links', 'JA-SUBIU');
+      ProfileManager.restorePayloadInto(PID, { 'p:pl:entries': '[9]' }, []);
+      this._ok('blob não apaga seção que nunca subiu',
+        localStorage.getItem(pfx + 'p:pl:incidencia') === 'SO-AQUI',
+        localStorage.getItem(pfx + 'p:pl:incidencia'));
+      this._ok('blob ainda propaga exclusão do que já esteve na nuvem',
+        localStorage.getItem(pfx + 'p:pl:links') === null,
+        localStorage.getItem(pfx + 'p:pl:links'));
+
+      /* 5. sem nada pendente E sem seção local-only, a nuvem manda — e a fila
+         fica vazia. As seções criadas em 4b/4c saem antes: enquanto existirem
+         só neste aparelho, o correto é que continuem na fila (é o que 4b provou). */
+      criadas.forEach(k => { if (k !== pfx + 'p:pl:grade-template') localStorage.removeItem(k); });
+      escrever('__secrev', JSON.stringify({ 'p:pl:grade-template': { rev: 9, hash: 'h' } }));
       SectionSync._applyMap(PID, { 'p:pl:grade-template': '{"grade":{}}' }, { 'p:pl:grade-template': 10 }, []);
       this._ok('sem pendência, o download vale',
         localStorage.getItem(pfx + 'p:pl:grade-template') === '{"grade":{}}');
@@ -31419,14 +31474,40 @@ const SectionSync = {
        valeu a pena recarregar a tela — e recarregar "por precaução" a cada
        download era a origem do pisca-pisca. */
     let mudou = 0;
+    /* ── AUSÊNCIA NA NUVEM NÃO É PROVA DE EXCLUSÃO ────────────────────────────
+       Esta linha apagava do aparelho toda seção que não viesse no manifesto:
+       "sumiu na nuvem". Só que uma seção pode não estar na nuvem por dois
+       motivos MUITO diferentes:
+
+         a) ela foi realmente excluída em outro aparelho — e aí apagar é o certo;
+         b) ela NUNCA CHEGOU LÁ. É o caso das seções grandes (cards, retratos do
+            TEC, incidência, grades salvas), que sobem uma a uma e podem falhar
+            por tamanho ou tempo limite; e o de quem começou a usar offline.
+
+       No caso (b) o download apagava o ÚNICO exemplar do dado que existia no
+       mundo. Era assim que "os registros aparecem, mas o ciclo, os cards, o TEC
+       e a grade sumiram": as seções pequenas subiam, as grandes não, e a
+       primeira leitura por seção levava as grandes embora.
+
+       A prova de que uma seção esteve na nuvem é haver revisão gravada para ela
+       (`antigos[sec]`, escrito só depois de um envio ou download bem-sucedido).
+       Sem essa prova, o dado é deste aparelho e só: fica onde está e entra na
+       fila de envio. Na dúvida, o app guarda — nunca apaga. */
     const apagar = [];
+    const orfas = [];
     for (let i = 0; i < localStorage.length; i++) {
       const k = localStorage.key(i);
       if (!k || k.indexOf(prefix) !== 0) continue;
       const sec = this.sectionForKey(k, prefix);
-      if (sec && !manter.has(sec) && !(sec in map)) apagar.push(k);   // sumiu na nuvem
+      if (!sec || manter.has(sec) || (sec in map)) continue;
+      if (antigos[sec]) apagar.push(k);   // já esteve na nuvem e saiu de lá: exclusão de verdade
+      else orfas.push(sec);               // nunca subiu: é o único exemplar que existe
     }
     apagar.forEach(k => { localStorage.removeItem(k); mudou++; });
+    if (orfas.length) {
+      orfas.forEach(sec => manter.add(sec));   // preservadas E na fila, como as pendentes
+      try { console.warn('[SectionSync] ' + orfas.length + ' seção(ões) existem só neste aparelho e foram PRESERVADAS (vão subir): ' + orfas.join(', ')); } catch (e) { _quiet(e, 'orfas-log'); }
+    }
     const novoRev = {};
     manter.forEach(sec => { if (antigos[sec]) novoRev[sec] = antigos[sec]; }); // segue "suja" e será reenviada
     Object.keys(map).forEach(sec => {
