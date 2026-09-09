@@ -116,22 +116,56 @@ window.SaveGuard = SaveGuard;
 // ---- Metas/limiares de aproveitamento (editáveis pelo usuário) ----
 // good = verde a partir de METAS.bom; warn entre METAS.atencao e METAS.bom; bad abaixo.
 // METAS.linhas = linhas de referência exibidas nos gráficos (ex.: 70/80/85).
+/* ── METAS: eram a única configuração do usuário fora da sincronização ──────
+   Esta chave era GLOBAL (`diario-estudos:metas`), e não namespaced pelo perfil.
+   Toda chave fora de `diario-estudos:u:<perfil>:` é invisível para o
+   SectionSync — logo, estas metas nunca entravam em `profile_sections`, nunca
+   iam para o blob e nunca apareciam em backup nenhum. Quem definia "bom = 75%"
+   e as linhas de referência dos gráficos perdia isso ao abrir em outro
+   aparelho, e nem o backup no banco trazia de volta. Como elas alimentam
+   `toneFor()` (a cor de aproveitamento em TODAS as telas) e `metaRefs()` (as
+   linhas dos gráficos), o app inteiro voltava a julgar o desempenho por uma
+   régua diferente da que a pessoa escolheu.
+
+   Além disso gravava com `localStorage.setItem` direto — sem avisar a nuvem e
+   sem marcar a seção — e o cache em memória nunca era invalidado: depois de um
+   download da nuvem, a tela continuava com o valor velho até recarregar.
+
+   As três coisas corrigidas, no mesmo padrão de CardsConfig: chave namespaced,
+   escrita por DB._set (que avisa a nuvem e marca a seção) e cache amarrado à
+   chave que o originou — troca de perfil ou chegada de dado novo o descarta. */
 const AppSettings = {
-  KEY: 'diario-estudos:metas',
+  LEGACY_KEY: 'diario-estudos:metas',
+  _pfx() { try { return DB._profilePrefix(); } catch (_) { return 'diario-estudos:'; } },
+  get KEY() { return this._pfx() + 'metas'; },
   _cache: null,
+  _cacheKey: null,
   DEFAULTS: { atencao: 50, bom: 70, linhas: [70, 80, 85] },
   get() {
-    if (this._cache) return this._cache;
-    let v = null; try { v = JSON.parse(localStorage.getItem(this.KEY)); } catch (_) { _quiet(_); }
+    const k = this.KEY;
+    if (this._cache && this._cacheKey === k) return this._cache;
+    let v = null;
+    try { v = JSON.parse(localStorage.getItem(k)); } catch (_) { _quiet(_); }
+    // migração única: o valor global antigo passa a viver dentro do perfil
+    if (v == null && k !== this.LEGACY_KEY) {
+      try {
+        const antigo = JSON.parse(localStorage.getItem(this.LEGACY_KEY));
+        if (antigo != null) { v = antigo; DB._set(k, antigo); }
+      } catch (_) { _quiet(_); }
+    }
+    this._cacheKey = k;
     this._cache = Object.assign({}, this.DEFAULTS, v || {});
     if (!Array.isArray(this._cache.linhas) || !this._cache.linhas.length) this._cache.linhas = this.DEFAULTS.linhas.slice();
     return this._cache;
   },
   set(patch) {
     const v = Object.assign(this.get(), patch || {});
-    this._cache = v;
-    try { localStorage.setItem(this.KEY, JSON.stringify(v)); } catch (_) { _quiet(_); }
-  }
+    const k = this.KEY;
+    this._cache = v; this._cacheKey = k;
+    DB._set(k, v);   // grava, avisa a nuvem e marca a seção
+  },
+  // chamado quando o perfil muda ou a nuvem aplica dados novos
+  invalidar() { this._cache = null; this._cacheKey = null; }
 };
 function toneFor(pct) {
   const m = AppSettings.get();

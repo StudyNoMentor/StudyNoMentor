@@ -913,3 +913,67 @@ dias ficam dia a dia, a âncora sobrevive sendo a mais antiga de todas, uma
 rajada no mesmo dia não apaga nada, e uma linha com data ilegível é ignorada
 em vez de virar alvo silencioso. A posição de cada cartão da tela foi medida
 no navegador antes e depois.
+
+---
+
+## 16. O que é sincronizado, chave por chave — e a configuração que não era
+
+**Pedido:** verificar se todos os comandos, salvamentos, registros,
+configurações, filtros e demais aspectos são de fato registrados no banco e não
+correm risco de se perder ao abrir em outro dispositivo.
+
+### A regra é binária, e não avisa quando é violada
+
+Só é sincronizado o que mora dentro de `diario-estudos:u:<perfil>:`. Uma chave
+fora desse prefixo é **invisível** para o SectionSync: não entra em
+`profile_sections`, não entra no blob, não entra em backup nenhum, e some
+quando o navegador é limpo. Não há meio-termo nem aviso — a gravação parece
+funcionar perfeitamente e o dado simplesmente não viaja.
+
+Foram extraídas do código **todas** as chaves literais `diario-estudos:*` e
+classificadas uma a uma. O resultado:
+
+| Categoria | Situação |
+|---|---|
+| Dados de estudo (registros, ciclos, cards, leis, trilhas, TEC, grades, links, incidência, extras, revlog…) | ✅ namespaced — sincronizam |
+| Configuração de cards / FSRS, presets, contadores diários | ✅ namespaced (com migração das chaves globais antigas) |
+| Preferências de tela, painéis, leitura das leis, grade | ✅ namespaced |
+| Contabilidade de sync, lixeira, histórico de versões, device-id | ✅ local **de propósito** |
+| Tema, tamanho de fonte, menu recolhido | ✅ local por decisão de produto (ajuste do aparelho) |
+| **Metas de aproveitamento** | ❌ **chave global — nunca sincronizava** |
+| **Visão da lista de registros** | ❌ chave global (única preferência de tela fora do padrão) |
+
+### As metas de aproveitamento nunca saíam deste navegador
+
+`AppSettings` guardava em `diario-estudos:metas` — global. São o limiar de
+"bom"/"atenção" e as linhas de referência dos gráficos: alimentam `toneFor()`,
+que colore o aproveitamento em **todas** as telas, e `metaRefs()`, as linhas
+dos gráficos. Quem definia "bom = 88%" via o app inteiro voltar a julgar o
+desempenho pela régua padrão ao abrir em outro aparelho — e nem o backup no
+banco trazia de volta, porque a chave nunca chegou lá.
+
+Errava nos três pontos ao mesmo tempo: chave global, gravação com
+`localStorage.setItem` direto (sem avisar a nuvem nem marcar a seção) e cache
+em memória nunca invalidado (depois de um download, a tela seguia com o valor
+velho até recarregar).
+
+**Correção**, no mesmo padrão que `CardsConfig` já usava: chave namespaced por
+getter, escrita por `DB._set`, migração única do valor global antigo para
+dentro do perfil, e cache amarrado à chave que o originou. Verificado no
+navegador: a gravação passa a produzir `…u:<perfil>:metas`, o SectionSync a
+reconhece como seção `metas` **e a marca para envio** — o passo que nunca
+acontecia antes.
+
+### A garantia virou um teste, não uma promessa
+
+`AutoTeste 246 → 285`. O grupo novo **"Tudo entra na sincronização"** percorre
+toda gravação de dado e de configuração do app — as ~21 chaves de dados do
+planejamento, o índice de planejamentos, as configurações do usuário e as
+escolhas de tela — e exige que cada uma caia numa seção reconhecida pelo
+SectionSync. E faz a checagem na contramão também: a contabilidade de
+sincronização, a lixeira e o histórico de versões **têm** de ficar de fora
+(levar a fila de envio de um aparelho para outro faria o segundo achar que já
+entregou o que nunca enviou).
+
+Se alguém amanhã guardar uma preferência nova numa chave global, a suíte falha
+aqui — antes de virar dado perdido de alguém.

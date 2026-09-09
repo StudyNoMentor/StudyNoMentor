@@ -13965,22 +13965,56 @@ window.SaveGuard = SaveGuard;
 // ---- Metas/limiares de aproveitamento (editáveis pelo usuário) ----
 // good = verde a partir de METAS.bom; warn entre METAS.atencao e METAS.bom; bad abaixo.
 // METAS.linhas = linhas de referência exibidas nos gráficos (ex.: 70/80/85).
+/* ── METAS: eram a única configuração do usuário fora da sincronização ──────
+   Esta chave era GLOBAL (`diario-estudos:metas`), e não namespaced pelo perfil.
+   Toda chave fora de `diario-estudos:u:<perfil>:` é invisível para o
+   SectionSync — logo, estas metas nunca entravam em `profile_sections`, nunca
+   iam para o blob e nunca apareciam em backup nenhum. Quem definia "bom = 75%"
+   e as linhas de referência dos gráficos perdia isso ao abrir em outro
+   aparelho, e nem o backup no banco trazia de volta. Como elas alimentam
+   `toneFor()` (a cor de aproveitamento em TODAS as telas) e `metaRefs()` (as
+   linhas dos gráficos), o app inteiro voltava a julgar o desempenho por uma
+   régua diferente da que a pessoa escolheu.
+
+   Além disso gravava com `localStorage.setItem` direto — sem avisar a nuvem e
+   sem marcar a seção — e o cache em memória nunca era invalidado: depois de um
+   download da nuvem, a tela continuava com o valor velho até recarregar.
+
+   As três coisas corrigidas, no mesmo padrão de CardsConfig: chave namespaced,
+   escrita por DB._set (que avisa a nuvem e marca a seção) e cache amarrado à
+   chave que o originou — troca de perfil ou chegada de dado novo o descarta. */
 const AppSettings = {
-  KEY: 'diario-estudos:metas',
+  LEGACY_KEY: 'diario-estudos:metas',
+  _pfx() { try { return DB._profilePrefix(); } catch (_) { return 'diario-estudos:'; } },
+  get KEY() { return this._pfx() + 'metas'; },
   _cache: null,
+  _cacheKey: null,
   DEFAULTS: { atencao: 50, bom: 70, linhas: [70, 80, 85] },
   get() {
-    if (this._cache) return this._cache;
-    let v = null; try { v = JSON.parse(localStorage.getItem(this.KEY)); } catch (_) { _quiet(_); }
+    const k = this.KEY;
+    if (this._cache && this._cacheKey === k) return this._cache;
+    let v = null;
+    try { v = JSON.parse(localStorage.getItem(k)); } catch (_) { _quiet(_); }
+    // migração única: o valor global antigo passa a viver dentro do perfil
+    if (v == null && k !== this.LEGACY_KEY) {
+      try {
+        const antigo = JSON.parse(localStorage.getItem(this.LEGACY_KEY));
+        if (antigo != null) { v = antigo; DB._set(k, antigo); }
+      } catch (_) { _quiet(_); }
+    }
+    this._cacheKey = k;
     this._cache = Object.assign({}, this.DEFAULTS, v || {});
     if (!Array.isArray(this._cache.linhas) || !this._cache.linhas.length) this._cache.linhas = this.DEFAULTS.linhas.slice();
     return this._cache;
   },
   set(patch) {
     const v = Object.assign(this.get(), patch || {});
-    this._cache = v;
-    try { localStorage.setItem(this.KEY, JSON.stringify(v)); } catch (_) { _quiet(_); }
-  }
+    const k = this.KEY;
+    this._cache = v; this._cacheKey = k;
+    DB._set(k, v);   // grava, avisa a nuvem e marca a seção
+  },
+  // chamado quando o perfil muda ou a nuvem aplica dados novos
+  invalidar() { this._cache = null; this._cacheKey = null; }
 };
 function toneFor(pct) {
   const m = AppSettings.get();
@@ -15039,9 +15073,18 @@ const ReforcoEngine = {
 
   let editingId = null; // null = modo "novo registro"; caso contrário, id do registro em edição
   let searchTerm = '';
-  // Visão da lista de registros: 'cartoes' (padrão) ou 'tabela' (com filtros por coluna)
+  /* Visão da lista de registros: 'cartoes' (padrão) ou 'tabela' (com filtros por
+     coluna). A chave é NAMESPACED pelo perfil, como todas as outras escolhas do
+     usuário: fora do prefixo `diario-estudos:u:<perfil>:` nada é sincronizado, e
+     esta era a única preferência de tela que ainda morava numa chave global —
+     acompanhava o navegador em vez de acompanhar você. */
+  const _recentViewKey = () => { try { return DB._profilePrefix() + 'recent-view'; } catch (_) { return 'diario-estudos:recent-view'; } };
   let recentView = 'cartoes';
-  try { recentView = localStorage.getItem('diario-estudos:recent-view') || 'cartoes'; } catch (e) { _quiet(e); }
+  try {
+    recentView = localStorage.getItem(_recentViewKey())
+      || localStorage.getItem('diario-estudos:recent-view')   // valor global antigo
+      || 'cartoes';
+  } catch (e) { _quiet(e); }
   let tblFilters = { subject: '', lesson: '', method: '', date: '' };
   let tblSort = { key: 'date', dir: 'desc' };
   let _pendingFocus = null; // { fk, pos } — devolve o foco ao filtro de texto após re-render
@@ -15554,7 +15597,7 @@ const ReforcoEngine = {
     seg.querySelectorAll('button').forEach(b => b.addEventListener('click', () => {
       if (recentView === b.dataset.v) return;
       recentView = b.dataset.v;
-      try { localStorage.setItem('diario-estudos:recent-view', recentView); } catch (e) { _quiet(e); }
+      DB.setRaw(_recentViewKey(), recentView);   // grava, avisa a nuvem e marca a seção
       paint();
       renderRecent();
     }));
@@ -25295,6 +25338,79 @@ const AutoTeste = {
     }
   },
 
+  /* ── TUDO O QUE VOCÊ DIGITA ENTRA NUMA SEÇÃO SINCRONIZADA ────────────────
+     Este grupo responde à pergunta mais simples e mais importante que se pode
+     fazer ao app: "o que eu configurei fica guardado e chega no outro
+     aparelho?".
+
+     A resposta depende de UMA regra, e ela é binária: só é sincronizado o que
+     mora dentro de `diario-estudos:u:<perfil>:`. Uma chave fora desse prefixo
+     é invisível para o SectionSync — não entra em `profile_sections`, não
+     entra no blob, não entra em backup nenhum, e some quando o navegador é
+     limpo. Não existe meio-termo nem aviso: a gravação parece funcionar
+     perfeitamente e o dado simplesmente não viaja.
+
+     Foi exatamente o que acontecia com as METAS de aproveitamento (o limiar de
+     "bom"/"atenção" e as linhas dos gráficos), numa chave global: quem definia
+     as suas metas via o app inteiro voltar a julgar o desempenho pela régua
+     padrão ao abrir em outro aparelho.
+
+     O teste percorre TODA gravação de dado e de configuração do app e exige
+     que a chave caia numa seção reconhecida. Se alguém amanhã guardar uma
+     preferência nova numa chave global, isto falha aqui — antes de virar dado
+     perdido de alguém. */
+  tudoEntraNaSincronizacao() {
+    const PID = '__t_cobertura_sync__';
+    const ativoOriginal = localStorage.getItem(DB.ACTIVE_PROFILE_KEY);
+    try {
+      localStorage.setItem(DB.ACTIVE_PROFILE_KEY, PID);
+      const prefixo = 'diario-estudos:u:' + PID + ':';
+      const checar = (nome, chave) => {
+        const dentro = typeof chave === 'string' && chave.indexOf(prefixo) === 0;
+        const secao = dentro ? SectionSync.sectionForKey(chave, prefixo) : null;
+        this._ok(nome + ' entra numa seção sincronizada', !!secao, chave);
+      };
+
+      // 1. os dados de estudo — todas as chaves do planejamento
+      const K = DB.KEYS;
+      Object.keys(K).forEach(nome => checar('dados: ' + nome, K[nome]));
+      this._ok('há chaves de dados de verdade para conferir', Object.keys(K).length >= 15, Object.keys(K).length);
+
+      // 2. o índice de planejamentos do perfil
+      checar('lista de planejamentos', DB.GLOBAL_KEYS.plans);
+      checar('planejamento ativo', DB.GLOBAL_KEYS.activePlan);
+
+      // 3. as configurações que o usuário define
+      checar('metas de aproveitamento', AppSettings.KEY);
+      checar('configuração dos cards (FSRS)', CardsConfig.KEY);
+      checar('presets de cards', CardsConfig.PKEY);
+      checar('contadores diários dos cards', CardsConfig.DKEY);
+
+      // 4. as escolhas de tela que acompanham o perfil
+      const pfx = DB._profilePrefix();
+      checar('preferências de tela', pfx + 'ux47:reg-mode');
+      checar('visão da lista de registros', pfx + 'recent-view');
+      checar('estado de painel recolhido', pfx + 'painel:tec-scope');
+      checar('leitura das leis (onde parei)', pfx + 'lei-onde-parei');
+      checar('preferência da grade', pfx + 'pref-dens');
+
+      /* 5. a contramão: a contabilidade da sincronização e as redes LOCAIS não
+         podem ser sincronizadas. Levar a fila de envio de um aparelho para
+         outro faria o segundo achar que já entregou o que nunca enviou. */
+      const local = (nome, chave) => this._ok(nome + ' fica FORA da sincronização',
+        SectionSync.sectionForKey(chave, prefixo) === null, chave);
+      local('contabilidade de revisões', prefixo + '__secrev');
+      local('caixa de saída', prefixo + '__secpend');
+      local('registro de exclusões', prefixo + '__secdel');
+      local('lixeira', prefixo + Lixeira.PREFIXO + 'p:pl:cards');
+      local('histórico de versões', prefixo + 'vhist');
+    } finally {
+      if (ativoOriginal === null) localStorage.removeItem(DB.ACTIVE_PROFILE_KEY);
+      else localStorage.setItem(DB.ACTIVE_PROFILE_KEY, ativoOriginal);
+      try { AppSettings.invalidar(); } catch (e) { _quiet(e, 'cobertura-cache'); }
+    }
+  },
+
   isolamentoEntreContas() {
     const PID_A = '__t_conta_a__', PID_B = '__t_conta_b__', PID_SEMDONO = '__t_sem_dono__';
     const criadas = [];
@@ -25378,6 +25494,7 @@ const AutoTeste = {
      ['Semana fechada é registro', 'historicoFechado'],
      ['Nada se perde', 'nadaSePerde'],
      ['Travas contra perda', 'travasDePerda'],
+     ['Tudo entra na sincronização', 'tudoEntraNaSincronizacao'],
      ['Isolamento entre contas', 'isolamentoEntreContas'],
      ['Ids de perfil válidos para a nuvem', 'idsDePerfilSaoValidos'],
      ['Esvaziar deixa rastro', 'esvaziarDeixaRastro']].forEach(([nome, fn]) => {

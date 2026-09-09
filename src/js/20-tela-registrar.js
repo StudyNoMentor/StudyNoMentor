@@ -50,9 +50,18 @@
 
   let editingId = null; // null = modo "novo registro"; caso contrário, id do registro em edição
   let searchTerm = '';
-  // Visão da lista de registros: 'cartoes' (padrão) ou 'tabela' (com filtros por coluna)
+  /* Visão da lista de registros: 'cartoes' (padrão) ou 'tabela' (com filtros por
+     coluna). A chave é NAMESPACED pelo perfil, como todas as outras escolhas do
+     usuário: fora do prefixo `diario-estudos:u:<perfil>:` nada é sincronizado, e
+     esta era a única preferência de tela que ainda morava numa chave global —
+     acompanhava o navegador em vez de acompanhar você. */
+  const _recentViewKey = () => { try { return DB._profilePrefix() + 'recent-view'; } catch (_) { return 'diario-estudos:recent-view'; } };
   let recentView = 'cartoes';
-  try { recentView = localStorage.getItem('diario-estudos:recent-view') || 'cartoes'; } catch (e) { _quiet(e); }
+  try {
+    recentView = localStorage.getItem(_recentViewKey())
+      || localStorage.getItem('diario-estudos:recent-view')   // valor global antigo
+      || 'cartoes';
+  } catch (e) { _quiet(e); }
   let tblFilters = { subject: '', lesson: '', method: '', date: '' };
   let tblSort = { key: 'date', dir: 'desc' };
   let _pendingFocus = null; // { fk, pos } — devolve o foco ao filtro de texto após re-render
@@ -565,7 +574,7 @@
     seg.querySelectorAll('button').forEach(b => b.addEventListener('click', () => {
       if (recentView === b.dataset.v) return;
       recentView = b.dataset.v;
-      try { localStorage.setItem('diario-estudos:recent-view', recentView); } catch (e) { _quiet(e); }
+      DB.setRaw(_recentViewKey(), recentView);   // grava, avisa a nuvem e marca a seção
       paint();
       renderRecent();
     }));

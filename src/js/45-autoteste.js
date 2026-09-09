@@ -762,6 +762,79 @@ const AutoTeste = {
     }
   },
 
+  /* ── TUDO O QUE VOCÊ DIGITA ENTRA NUMA SEÇÃO SINCRONIZADA ────────────────
+     Este grupo responde à pergunta mais simples e mais importante que se pode
+     fazer ao app: "o que eu configurei fica guardado e chega no outro
+     aparelho?".
+
+     A resposta depende de UMA regra, e ela é binária: só é sincronizado o que
+     mora dentro de `diario-estudos:u:<perfil>:`. Uma chave fora desse prefixo
+     é invisível para o SectionSync — não entra em `profile_sections`, não
+     entra no blob, não entra em backup nenhum, e some quando o navegador é
+     limpo. Não existe meio-termo nem aviso: a gravação parece funcionar
+     perfeitamente e o dado simplesmente não viaja.
+
+     Foi exatamente o que acontecia com as METAS de aproveitamento (o limiar de
+     "bom"/"atenção" e as linhas dos gráficos), numa chave global: quem definia
+     as suas metas via o app inteiro voltar a julgar o desempenho pela régua
+     padrão ao abrir em outro aparelho.
+
+     O teste percorre TODA gravação de dado e de configuração do app e exige
+     que a chave caia numa seção reconhecida. Se alguém amanhã guardar uma
+     preferência nova numa chave global, isto falha aqui — antes de virar dado
+     perdido de alguém. */
+  tudoEntraNaSincronizacao() {
+    const PID = '__t_cobertura_sync__';
+    const ativoOriginal = localStorage.getItem(DB.ACTIVE_PROFILE_KEY);
+    try {
+      localStorage.setItem(DB.ACTIVE_PROFILE_KEY, PID);
+      const prefixo = 'diario-estudos:u:' + PID + ':';
+      const checar = (nome, chave) => {
+        const dentro = typeof chave === 'string' && chave.indexOf(prefixo) === 0;
+        const secao = dentro ? SectionSync.sectionForKey(chave, prefixo) : null;
+        this._ok(nome + ' entra numa seção sincronizada', !!secao, chave);
+      };
+
+      // 1. os dados de estudo — todas as chaves do planejamento
+      const K = DB.KEYS;
+      Object.keys(K).forEach(nome => checar('dados: ' + nome, K[nome]));
+      this._ok('há chaves de dados de verdade para conferir', Object.keys(K).length >= 15, Object.keys(K).length);
+
+      // 2. o índice de planejamentos do perfil
+      checar('lista de planejamentos', DB.GLOBAL_KEYS.plans);
+      checar('planejamento ativo', DB.GLOBAL_KEYS.activePlan);
+
+      // 3. as configurações que o usuário define
+      checar('metas de aproveitamento', AppSettings.KEY);
+      checar('configuração dos cards (FSRS)', CardsConfig.KEY);
+      checar('presets de cards', CardsConfig.PKEY);
+      checar('contadores diários dos cards', CardsConfig.DKEY);
+
+      // 4. as escolhas de tela que acompanham o perfil
+      const pfx = DB._profilePrefix();
+      checar('preferências de tela', pfx + 'ux47:reg-mode');
+      checar('visão da lista de registros', pfx + 'recent-view');
+      checar('estado de painel recolhido', pfx + 'painel:tec-scope');
+      checar('leitura das leis (onde parei)', pfx + 'lei-onde-parei');
+      checar('preferência da grade', pfx + 'pref-dens');
+
+      /* 5. a contramão: a contabilidade da sincronização e as redes LOCAIS não
+         podem ser sincronizadas. Levar a fila de envio de um aparelho para
+         outro faria o segundo achar que já entregou o que nunca enviou. */
+      const local = (nome, chave) => this._ok(nome + ' fica FORA da sincronização',
+        SectionSync.sectionForKey(chave, prefixo) === null, chave);
+      local('contabilidade de revisões', prefixo + '__secrev');
+      local('caixa de saída', prefixo + '__secpend');
+      local('registro de exclusões', prefixo + '__secdel');
+      local('lixeira', prefixo + Lixeira.PREFIXO + 'p:pl:cards');
+      local('histórico de versões', prefixo + 'vhist');
+    } finally {
+      if (ativoOriginal === null) localStorage.removeItem(DB.ACTIVE_PROFILE_KEY);
+      else localStorage.setItem(DB.ACTIVE_PROFILE_KEY, ativoOriginal);
+      try { AppSettings.invalidar(); } catch (e) { _quiet(e, 'cobertura-cache'); }
+    }
+  },
+
   isolamentoEntreContas() {
     const PID_A = '__t_conta_a__', PID_B = '__t_conta_b__', PID_SEMDONO = '__t_sem_dono__';
     const criadas = [];
@@ -845,6 +918,7 @@ const AutoTeste = {
      ['Semana fechada é registro', 'historicoFechado'],
      ['Nada se perde', 'nadaSePerde'],
      ['Travas contra perda', 'travasDePerda'],
+     ['Tudo entra na sincronização', 'tudoEntraNaSincronizacao'],
      ['Isolamento entre contas', 'isolamentoEntreContas'],
      ['Ids de perfil válidos para a nuvem', 'idsDePerfilSaoValidos'],
      ['Esvaziar deixa rastro', 'esvaziarDeixaRastro']].forEach(([nome, fn]) => {
