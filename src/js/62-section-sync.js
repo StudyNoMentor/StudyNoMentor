@@ -186,6 +186,8 @@ const SectionSync = {
     if (sub.indexOf('__secrev') === 0) return null; // bookkeeping desta camada
     if (sub.indexOf(this.PEND) === 0) return null;   // caixa de saída: também é local
     if (sub.indexOf('vhist') === 0) return null;     // histórico de versões é local
+    if (sub.indexOf(Lixeira.PREFIXO) === 0) return null; // lixeira: rede local, não é dado do perfil
+    if (sub.indexOf(this.DEL) === 0) return null;    // registro de exclusões: contabilidade local
     return sub;
   },
   markDirty(fullKey) {
@@ -193,8 +195,36 @@ const SectionSync = {
     const sec = this.sectionForKey(fullKey);
     if (sec) { this._dirty.add(sec); this._savePend(); }
   },
+  /* ── EXCLUSÕES DELIBERADAS ────────────────────────────────────────────────
+     A nuvem só pode esquecer o que VOCÊ mandou esquecer. Antes, o manifesto era
+     a lista do que existia neste aparelho AGORA — então qualquer sumiço local
+     (um bug, um download que apagou demais, uma cota estourada no meio de uma
+     gravação) era publicado como "excluído" e apagava as linhas na nuvem: a
+     última cópia do dado ia embora atrás da primeira.
+
+     Agora exclusão é um FATO REGISTRADO, não uma dedução por ausência. Só o que
+     passa por aqui — o caminho de DB.delRaw, isto é, uma remoção que o app
+     realmente pediu — entra nesta lista durável e pode apagar a linha remota.
+     Sumiço não registrado é tratado como acidente: a seção continua no
+     manifesto e volta para o aparelho na próxima leitura.
+
+     O preço é conhecido e aceito: se você apagar algo no aparelho A enquanto o
+     aparelho B ainda tem a seção, B a devolve. Dado voltando é um aborrecimento;
+     dado sumindo é o trabalho de meses de alguém. */
+  DEL: '__secdel',
+  _delKey(id) { return this._prefixFor(id) + this.DEL; },
+  _loadDel(id) {
+    try { const a = JSON.parse(localStorage.getItem(this._delKey(id))); return Array.isArray(a) ? a : []; }
+    catch (_) { return []; }
+  },
+  _saveDel(lista, id) {
+    try {
+      if (lista.length) localStorage.setItem(this._delKey(id), JSON.stringify([...new Set(lista)]));
+      else localStorage.removeItem(this._delKey(id));
+    } catch (e) { _quiet(e, 'secdel-gravar'); }
+  },
   /* Uma chave APAGADA não vira linha suja (subiria vazia em vez de sumir): sai da
-     fila e a exclusão viaja pelo MANIFESTO, que é recalculado no próximo envio. */
+     fila, entra no registro de exclusões e some da nuvem no próximo envio. */
   dropSection(fullKey) {
     if (!this.enabled) return;
     const sec = this.sectionForKey(fullKey);
@@ -203,6 +233,9 @@ const SectionSync = {
     this._savePend();
     const revs = this._getRevs();
     if (revs[sec]) { delete revs[sec]; this._saveRevs(revs); }
+    const del = this._loadDel();
+    del.push(sec);
+    this._saveDel(del);
   },
   // Marca as seções do perfil que REALMENTE MUDARAM (hash diferente do último envio).
   // Assim a semeadura de cada sessão não re-sobe tudo nem infla o rev à toa.
@@ -309,7 +342,22 @@ const SectionSync = {
     return out.sort();
   },
   async _syncManifest(id, revs) {
-    const list = this.localSections();
+    const locais = this.localSections();
+    const apagadas = this._loadDel(id);
+    /* O manifesto NÃO é mais "o que existe aqui agora". É "o que existe aqui" MAIS
+       "o que existe na nuvem e ninguém mandou apagar". Assim um sumiço local
+       nunca se converte em exclusão remota — e a seção volta para cá na próxima
+       leitura, em vez de deixar de existir no mundo. */
+    let remotas = [];
+    try {
+      const { data } = await CloudStore.client.from(this.TABLE).select('section').eq('profile_id', id);
+      remotas = (data || []).map(r => r.section).filter(sec => sec !== this.MANIFEST);
+    } catch (e) { console.warn('[SectionSync] não deu para ler a lista remota; manifesto sai só com o local', e); }
+    const sobreviventes = remotas.filter(sec => locais.indexOf(sec) === -1 && apagadas.indexOf(sec) === -1);
+    if (sobreviventes.length) {
+      console.warn('[SectionSync] ' + sobreviventes.length + ' seção(ões) existem na nuvem e não aqui, sem ordem de exclusão — MANTIDAS: ' + sobreviventes.join(', '));
+    }
+    const list = [...new Set(locais.concat(sobreviventes))].sort();
     const body = { v: this.FORMAT, sections: list, at: new Date().toISOString() };
     const h = this._hash(list.join('|'));
     const prev = revs[this.MANIFEST] || { rev: 0, hash: null };
@@ -319,17 +367,17 @@ const SectionSync = {
       .upsert({ profile_id: id, section: this.MANIFEST, data: body, rev, updated_at: body.at }, { onConflict: 'profile_id,section' });
     if (error) throw error;
     revs[this.MANIFEST] = { rev, hash: h };
-    // Remove da nuvem as seções que não existem mais aqui (exclusões de verdade).
-    try {
-      const { data: remote } = await CloudStore.client.from(this.TABLE).select('section').eq('profile_id', id);
-      const sobra = (remote || []).map(r => r.section)
-        .filter(s => s !== this.MANIFEST && list.indexOf(s) === -1);
-      if (sobra.length) {
+    /* Só some da nuvem o que foi apagado DE PROPÓSITO (passou por dropSection).
+       Ausência local nunca apaga nada lá. */
+    const sobra = remotas.filter(sec => apagadas.indexOf(sec) !== -1);
+    if (sobra.length) {
+      try {
         await CloudStore.client.from(this.TABLE).delete().eq('profile_id', id).in('section', sobra);
-        sobra.forEach(s => { delete revs[s]; });
-        console.info('[SectionSync] removidas da nuvem', sobra.length, 'seção(ões) excluída(s)');
-      }
-    } catch (e) { console.warn('[SectionSync] limpeza de seções órfãs falhou', e); }
+        sobra.forEach(sec => { delete revs[sec]; });
+        this._saveDel(apagadas.filter(sec => sobra.indexOf(sec) === -1), id);
+        console.info('[SectionSync] removidas da nuvem', sobra.length, 'seção(ões) excluída(s) de propósito');
+      } catch (e) { console.warn('[SectionSync] limpeza de seções excluídas falhou', e); }
+    }
     return true;
   },
 
@@ -430,7 +478,7 @@ const SectionSync = {
       if (antigos[sec]) apagar.push(k);   // já esteve na nuvem e saiu de lá: exclusão de verdade
       else orfas.push(sec);               // nunca subiu: é o único exemplar que existe
     }
-    apagar.forEach(k => { localStorage.removeItem(k); mudou++; });
+    apagar.forEach(k => { Lixeira.guardar(k, 'excluída em outro aparelho'); localStorage.removeItem(k); mudou++; });
     if (orfas.length) {
       orfas.forEach(sec => manter.add(sec));   // preservadas E na fila, como as pendentes
       try { console.warn('[SectionSync] ' + orfas.length + ' seção(ões) existem só neste aparelho e foram PRESERVADAS (vão subir): ' + orfas.join(', ')); } catch (e) { _quiet(e, 'orfas-log'); }

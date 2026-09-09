@@ -80,6 +80,7 @@ const PARTES = [
     'js/62-section-sync.js',
     'js/63-cloud-ui.js',
     'js/64-info-tips.js',
+    'js/65-recuperacao.js',
     'js/70-relatorio.js',
     'js/80-ajustes-finais.js',
   ].map(ler).join('\n'),

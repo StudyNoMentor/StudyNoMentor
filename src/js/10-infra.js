@@ -192,3 +192,113 @@ window.recarregarApp = recarregarApp;
 // o perfil tem), não como conteúdo. Marcar a seção como "suja" aqui faria subir
 // uma linha vazia em vez de removê-la; por isso o apagamento tem hook próprio.
 var _sectionDropHook = null;
+
+/* ═══════════════════ LIXEIRA — apagar deixou de ser definitivo ═════════════
+   O episódio que originou este código: um download tratou "esta seção não está
+   na nuvem" como "esta seção foi excluída" e removeu do aparelho os cards, os
+   retratos do TEC, a grade e o ciclo — o único exemplar que existia. O bug foi
+   corrigido na origem, mas corrigir a origem não basta: qualquer caminho novo
+   pode errar de novo, e o custo do erro é o trabalho de meses de alguém.
+
+   Então a remoção deixa de ser destrutiva. Toda seção do perfil apagada pelo
+   app passa por aqui: o valor é guardado em `__trash:<seção>` com a data e o
+   motivo, e continua no aparelho por RETENCAO_DIAS. A tela de Recuperação
+   lista e devolve com um clique.
+
+   Regras que mantêm a lixeira barata:
+     · só entra o que tem conteúdo (apagar chave vazia não gera lixo);
+     · uma entrada por seção — reapagar substitui, não empilha;
+     · expira em 30 dias e nunca passa de ORCAMENTO_BYTES (as mais antigas saem
+       primeiro), então ela não come o espaço do navegador;
+     · fica FORA da sincronização (sectionForKey a ignora): é uma rede local,
+       não um dado do perfil.
+   ═══════════════════════════════════════════════════════════════════════════ */
+const Lixeira = {
+  PREFIXO: '__trash:',
+  RETENCAO_DIAS: 30,
+  ORCAMENTO_BYTES: 2 * 1024 * 1024,
+
+  _chave(prefixoPerfil, sec) { return prefixoPerfil + this.PREFIXO + sec; },
+  /* Guarda o valor de uma seção antes de ela ser apagada. Devolve true quando
+     algo foi realmente guardado (havia conteúdo). */
+  guardar(chaveCompleta, motivo) {
+    try {
+      const valor = localStorage.getItem(chaveCompleta);
+      if (valor === null || valor === '') return false;
+      const m = /^(diario-estudos:u:[^:]+:)(.+)$/.exec(chaveCompleta);
+      if (!m) return false;
+      const sec = m[2];
+      if (sec.indexOf(this.PREFIXO) === 0 || sec.indexOf('vhist') === 0) return false;
+      const pacote = JSON.stringify({ sec, em: Date.now(), motivo: motivo || '', valor });
+      localStorage.setItem(this._chave(m[1], sec), pacote);
+      this.faxina(m[1]);
+      return true;
+    } catch (e) { _quiet(e, 'lixeira-guardar'); return false; }
+  },
+  // Lê uma entrada da lixeira a partir da chave completa dela.
+  ler(chaveCompleta) {
+    try {
+      const bruto = localStorage.getItem(chaveCompleta);
+      if (!bruto) return null;
+      const o = JSON.parse(bruto);
+      if (!o || typeof o.valor !== 'string') return null;
+      return { chave: chaveCompleta, sec: o.sec, em: o.em || 0, motivo: o.motivo || '', bytes: o.valor.length };
+    } catch (e) { return null; }
+  },
+  // Tudo que está na lixeira de um perfil, do mais recente para o mais antigo.
+  listar(pid) {
+    const alvo = pid || (window.ProfileManager ? ProfileManager.getActiveProfileId() : null);
+    if (!alvo) return [];
+    const pfx = 'diario-estudos:u:' + alvo + ':' + this.PREFIXO;
+    const out = [];
+    try {
+      for (let i = 0; i < localStorage.length; i++) {
+        const k = localStorage.key(i);
+        if (k && k.indexOf(pfx) === 0) { const it = this.ler(k); if (it) out.push(it); }
+      }
+    } catch (e) { _quiet(e, 'lixeira-listar'); }
+    return out.sort((a, b) => b.em - a.em);
+  },
+  /* Devolve a seção ao lugar de onde saiu. Por padrão NÃO sobrescreve o que
+     estiver lá agora — restaurar nunca pode causar uma segunda perda. */
+  restaurar(chaveCompleta, sobrescrever) {
+    try {
+      const bruto = localStorage.getItem(chaveCompleta);
+      if (!bruto) return { ok: false, motivo: 'não está mais na lixeira' };
+      const o = JSON.parse(bruto);
+      const m = /^(diario-estudos:u:[^:]+:)/.exec(chaveCompleta);
+      if (!o || !m) return { ok: false, motivo: 'entrada ilegível' };
+      const destino = m[1] + o.sec;
+      const atual = localStorage.getItem(destino);
+      const vazio = (atual === null || atual === '' || atual === '[]' || atual === '{}' || atual === 'null');
+      if (!vazio && !sobrescrever) return { ok: false, motivo: 'já existe conteúdo aqui', sec: o.sec };
+      if (DB.setRaw(destino, o.valor) === false) return { ok: false, motivo: 'não foi possível gravar' };
+      localStorage.removeItem(chaveCompleta);
+      return { ok: true, sec: o.sec, bytes: String(o.valor).length };
+    } catch (e) { _quiet(e, 'lixeira-restaurar'); return { ok: false, motivo: 'erro' }; }
+  },
+  /* Expira por idade e por orçamento. Roda a cada guardada e na abertura. */
+  faxina(prefixoPerfil) {
+    try {
+      const pfx = prefixoPerfil + this.PREFIXO;
+      const itens = [];
+      for (let i = 0; i < localStorage.length; i++) {
+        const k = localStorage.key(i);
+        if (!k || k.indexOf(pfx) !== 0) continue;
+        const it = this.ler(k);
+        if (it) itens.push(it); else itens.push({ chave: k, em: 0, bytes: 0 });
+      }
+      const limite = Date.now() - this.RETENCAO_DIAS * 24 * 3600 * 1000;
+      const vivos = [];
+      itens.forEach(it => { if (it.em && it.em >= limite) vivos.push(it); else localStorage.removeItem(it.chave); });
+      vivos.sort((a, b) => a.em - b.em);   // mais antigos primeiro
+      let total = vivos.reduce((a, it) => a + it.bytes, 0);
+      while (total > this.ORCAMENTO_BYTES && vivos.length) {
+        const fora = vivos.shift();
+        total -= fora.bytes;
+        localStorage.removeItem(fora.chave);
+      }
+    } catch (e) { _quiet(e, 'lixeira-faxina'); }
+  }
+};
+window.Lixeira = Lixeira;

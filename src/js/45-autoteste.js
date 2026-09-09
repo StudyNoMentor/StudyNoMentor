@@ -515,6 +515,80 @@ const AutoTeste = {
     this._ok('reparo aguenta entrada vazia', DB._desfazerRecalculoSemana(null) === false);
   },
 
+  /* ── NADA SE PERDE ────────────────────────────────────────────────────────
+     A regra que estas asserções protegem: nenhum caminho do app pode fazer um
+     dado do perfil sumir sem deixar como voltar. Apagar passa pela lixeira,
+     dado fora do alcance é encontrável, e restaurar nunca sobrescreve por
+     conta própria. */
+  nadaSePerde() {
+    const PID = '__t_lixo__';
+    const pfx = 'diario-estudos:u:' + PID + ':';
+    const criadas = [];
+    const escrever = (sub, txt) => { const k = pfx + sub; criadas.push(k); localStorage.setItem(k, txt); };
+    try {
+      // 1. apagar guarda antes: DB.delRaw é o único caminho de remoção do app
+      escrever('p:pl:cards', '[{"id":"c1"}]');
+      DB.delRaw(pfx + 'p:pl:cards', 'teste');
+      this._ok('apagar remove a chave', localStorage.getItem(pfx + 'p:pl:cards') === null);
+      const naLixeira = Lixeira.listar(PID);
+      this._ok('o que foi apagado está na lixeira',
+        naLixeira.some(x => x.sec === 'p:pl:cards'), naLixeira.map(x => x.sec));
+
+      // 2. restaurar devolve o conteúdo idêntico
+      const alvo = naLixeira.find(x => x.sec === 'p:pl:cards');
+      criadas.push(alvo.chave);
+      const r = Lixeira.restaurar(alvo.chave, false);
+      this._ok('restaurar da lixeira devolve o valor exato',
+        r.ok && localStorage.getItem(pfx + 'p:pl:cards') === '[{"id":"c1"}]',
+        localStorage.getItem(pfx + 'p:pl:cards'));
+
+      // 3. restaurar NUNCA sobrescreve sozinho — senão a recuperação viraria uma
+      //    segunda perda para quem já refez o trabalho
+      escrever('p:pl:leis', 'VALOR-NOVO');
+      DB.delRaw(pfx + 'p:pl:leis', 'teste');
+      escrever('p:pl:leis', 'REFIZ-DEPOIS');
+      const lix2 = Lixeira.listar(PID).find(x => x.sec === 'p:pl:leis');
+      criadas.push(lix2.chave);
+      const r2 = Lixeira.restaurar(lix2.chave, false);
+      this._ok('restaurar não passa por cima do que existe agora',
+        r2.ok === false && localStorage.getItem(pfx + 'p:pl:leis') === 'REFIZ-DEPOIS',
+        localStorage.getItem(pfx + 'p:pl:leis'));
+
+      // 4. a lixeira é local: nunca vira "seção" e nunca sobe para a nuvem
+      this._ok('lixeira fora da sincronização',
+        SectionSync.sectionForKey(pfx + Lixeira.PREFIXO + 'p:pl:cards', pfx) === null);
+      this._ok('registro de exclusões fora da sincronização',
+        SectionSync.sectionForKey(pfx + SectionSync.DEL, pfx) === null);
+
+      /* 4b. A NUVEM SÓ ESQUECE O QUE FOI MANDADO ESQUECER. Sumiço local não é
+         ordem de exclusão: sem passar por dropSection, a seção não entra no
+         registro e não pode apagar a linha remota — que é a última cópia. */
+      criadas.push(pfx + SectionSync.DEL);
+      SectionSync._saveDel([], PID);
+      this._ok('sumiço local não vira ordem de exclusão',
+        SectionSync._loadDel(PID).length === 0, SectionSync._loadDel(PID));
+      SectionSync._saveDel(['p:pl:tec'], PID);
+      this._ok('exclusão deliberada fica registrada e é durável',
+        SectionSync._loadDel(PID).indexOf('p:pl:tec') !== -1, SectionSync._loadDel(PID));
+
+      // 5. dado debaixo de planejamento fora da lista é ENCONTRÁVEL
+      const orfaos = Recuperacao.planosOrfaos(PID);
+      this._ok('planejamento fora da lista é detectado como órfão',
+        orfaos.some(o => o.id === 'pl'), orfaos.map(o => o.id));
+      this._ok('o órfão informa quantos registros carrega',
+        orfaos.every(o => typeof o.bytes === 'number' && o.bytes > 0), JSON.stringify(orfaos));
+
+      // 6. a varredura enxerga o perfil inteiro, esteja ele na lista ou não
+      const achado = Recuperacao.varrer().find(p => p.id === PID);
+      this._ok('varredura encontra perfil fora da lista de perfis',
+        !!achado && achado.naListaDePerfis === false, achado && achado.naListaDePerfis);
+      this._ok('varredura mede o que encontrou', !!achado && achado.bytes > 0, achado && achado.bytes);
+    } finally {
+      criadas.forEach(k => { try { localStorage.removeItem(k); } catch (e) { _quiet(e, 'limpeza-teste'); } });
+      Lixeira.listar(PID).forEach(x => { try { localStorage.removeItem(x.chave); } catch (e) { _quiet(e, 'limpeza-lixo'); } });
+    }
+  },
+
   rodar(imprimir) {
     this._r = { total: 0, passou: 0, falhou: 0, falhas: [], ms: 0 };
     const t0 = Date.now();
@@ -524,7 +598,8 @@ const AutoTeste = {
      ['Aproveitamento', 'aproveitamento'], ['Ordenação', 'ordenacao'],
      ['SM-2 clássico', 'sm2'], ['Filtro de treino', 'busca'],
      ['Garantia de salvamento', 'sincronizacao'],
-     ['Semana fechada é registro', 'historicoFechado']].forEach(([nome, fn]) => {
+     ['Semana fechada é registro', 'historicoFechado'],
+     ['Nada se perde', 'nadaSePerde']].forEach(([nome, fn]) => {
       try { this[fn](); }
       catch (e) { this._r.total++; this._r.falhou++; this._r.falhas.push({ nome: nome + ' — exceção', obtido: String(e && e.message || e) }); }
     });
