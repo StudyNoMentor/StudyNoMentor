@@ -463,10 +463,23 @@ Treze correções, agrupadas pelo tipo de erro.
 única do progresso da semana — a tela ao vivo, o fechamento e o recálculo do
 Histórico chamam a mesma função, com o mesmo intervalo. Os dois tetos artificiais
 saíram: eles mentiam nos dois sentidos (escondiam o excesso de quem estudou muito
-e transformavam 220% em 150%). As semanas já arquivadas são recalculadas uma vez
-no boot (`migrarCumprimentoSemana`), guardando o valor anterior em
-`pctCumpridoLegado` — sem isso o Histórico compararia semanas medidas com duas
-réguas, que é pior que o problema original.
+e transformavam 220% em 150%).
+
+**Correção da correção:** a primeira versão desta unificação também RECALCULAVA,
+no boot e em silêncio, as semanas **já arquivadas** (`migrarCumprimentoSemana`).
+Isso estava errado. Uma semana fechada é o registro do que aconteceu, medido pela
+régua em vigor no dia em que foi fechada; para quem registra estudo em matérias
+fora do ciclo daquela semana, o "estudado" desabava (22h30 exibidas como 7h45)
+sem que um único registro tivesse sido tocado — e a leitura de quem abria o app
+era, com razão, "meus dados sumiram". A migração saiu e no lugar dela entrou
+`DB.restaurarCumprimentoSemana()`, que devolve `totalStudiedMin` e `pctCumprido`
+originais (guardados em `totalStudiedMinLegado`/`pctCumpridoLegado`) a quem já
+tinha sido migrado, em todos os planejamentos do perfil. `subjects`,
+`finalizadas` e `totalSubjects` não precisaram voltar: o fechamento já os
+calculava com a mesma fórmula da migração. O histórico passa, sim, a comparar
+semanas antigas e novas com réguas diferentes — e essa é a escolha certa, porque
+a alternativa é reescrever o passado. O grupo "Semana fechada é registro" do
+AutoTeste guarda a regra.
 
 ### B. Métricas que nunca saíam do zero
 

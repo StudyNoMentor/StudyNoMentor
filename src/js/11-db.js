@@ -885,7 +885,7 @@ const DB = {
     // A cura de cards FSRS roda em silêncio (não entra na contagem de "órfãos"):
     // é uma correção de metadados, não uma remoção de lixo.
     try { const migradas = this.migrarAproveitamentoAgregado(); if (migradas > 0) console.info('[migração] ' + migradas + ' semana(s) com aproveitamento recalculado'); } catch (e) { _quiet(e, 'mig-aprov'); }
-    try { const recump = this.migrarCumprimentoSemana(); if (recump > 0) console.info('[migração] ' + recump + ' semana(s) com % cumprido recalculado'); } catch (e) { _quiet(e, 'mig-cumprido'); }
+    try { const rest = this.restaurarCumprimentoSemana(); if (rest > 0) console.info('[reparo] ' + rest + ' semana(s) do histórico com \'estudado\' e \'% cumprido\' originais restaurados'); } catch (e) { _quiet(e, 'restaurar-cumprido'); }
     try { const curados = this.curarCardsFSRS(); if (curados > 0) console.warn('[cura FSRS] cards com metadados corrigidos:', curados); } catch (_) { _quiet(_); }
     return n;
   },
@@ -930,43 +930,67 @@ const DB = {
     } catch (e) { _quiet(e, 'migrar-aproveitamento'); return 0; }
   },
 
-  /* ── MIGRAÇÃO: "estudado" e "% cumprido" das semanas fechadas ─────────────
-     A auditoria de métricas unificou o progresso da semana numa fórmula só
-     (CycleEngine.progressoSemana). As semanas fechadas ANTES disso guardam
-     números de outra régua: o "estudado" incluía matérias fora do ciclo e o
-     "% cumprido" era limitado a 150%. Deixá-las como estavam faria o Histórico
-     comparar semanas medidas de dois jeitos — exatamente o problema que a
-     unificação resolve.
+  /* ── REPARO: devolve à semana fechada os números com que ela foi fechada ──
+     A auditoria de métricas passou a RECALCULAR, no boot e em silêncio, o
+     "estudado" e o "% cumprido" de todas as semanas já arquivadas, trocando a
+     régua com que cada uma foi fechada pela régua nova (só as matérias do
+     ciclo, sem teto). Para quem registra estudo em matérias que não estavam no
+     ciclo daquela semana, o histórico desabou: semanas de 22h30 passaram a
+     exibir 7h45 sem que um único registro tivesse sido tocado — a leitura de
+     quem abre o app é "meus dados sumiram", e ela está certa.
 
-     Recalculamos a partir dos registros, que continuam gravados. Roda UMA vez,
-     marcada por flag, e guarda o valor anterior em `totalStudiedMinLegado` /
-     `pctCumpridoLegado` para nada sumir sem rastro. */
-  migrarCumprimentoSemana() {
-    const FLAG = 'mig-cumprido-semana-v1';
+     Uma semana fechada é um REGISTRO do que aconteceu, medido pela régua em
+     vigor no dia em que foi fechada. Recalcular depois não corrige nada: só
+     reescreve o passado. Aqui desfazemos — os valores originais, guardados em
+     `totalStudiedMinLegado` / `pctCumpridoLegado`, voltam ao lugar e os campos
+     "legado" saem.
+
+     Nada mais precisa ser desfeito: `subjects`, `finalizadas` e `totalSubjects`
+     já eram calculados NO FECHAMENTO com exatamente a mesma fórmula que a
+     migração aplicou (minutesStudied por matéria do ciclo), então esses três
+     não mudaram de valor. Só `totalStudiedMin` e `pctCumprido` mudaram de
+     verdade, e os dois estavam guardados.
+
+     Roda em TODOS os planejamentos do perfil: a migração só alcançava o ativo
+     (a flag dela nem sequer era namespaced), então o estrago podia estar em um
+     planejamento e a correção precisa alcançar todos. */
+  /* O reparo de UMA semana, isolado: recebe o objeto da semana, devolve true se
+     havia o que desfazer. Separado para poder ser testado sem tocar em nenhum
+     planejamento real (AutoTeste, grupo "Semana fechada é registro"). */
+  _desfazerRecalculoSemana(w) {
+    if (!w) return false;
+    let tocou = false;
+    if (typeof w.totalStudiedMinLegado === 'number') {
+      w.totalStudiedMin = w.totalStudiedMinLegado;
+      delete w.totalStudiedMinLegado;
+      tocou = true;
+    }
+    if (typeof w.pctCumpridoLegado === 'number') {
+      w.pctCumprido = w.pctCumpridoLegado;
+      delete w.pctCumpridoLegado;
+      tocou = true;
+    }
+    return tocou;
+  },
+  restaurarCumprimentoSemana() {
+    let n = 0;
     try {
-      if (this._get(FLAG, null)) return 0;
-      const hist = this.getCycleHistory() || [];
-      let n = 0;
-      hist.forEach(w => {
-        if (!w || !w.startDate || !w.endDate || !Array.isArray(w.subjects) || !w.subjects.length) return;
-        const prog = CycleEngine.progressoSemana(w.subjects, w.startDate, w.endDate);
-        const mudouMin = Math.abs((w.totalStudiedMin || 0) - prog.totalStudiedMin) >= 1;
-        const mudouPct = Math.abs((w.pctCumprido || 0) - prog.pctCumprido) >= 0.005;
-        if (!mudouMin && !mudouPct) return;
-        if (w.totalStudiedMinLegado === undefined) w.totalStudiedMinLegado = w.totalStudiedMin;
-        if (w.pctCumpridoLegado === undefined) w.pctCumpridoLegado = w.pctCumprido;
-        w.subjects = prog.subjects;
-        w.totalStudiedMin = prog.totalStudiedMin;
-        w.totalTargetMin = prog.totalTargetMin;
-        w.pctCumprido = prog.pctCumprido;
-        w.finalizadas = prog.finalizadas;
-        w.totalSubjects = prog.totalSubjects;
-        n++;
+      const planos = (PlanManager.getPlans() || []).map(p => p.id);
+      const ativo = this._activePlanId();
+      if (planos.indexOf(ativo) === -1) planos.push(ativo);
+      planos.forEach(pid => {
+        const chave = this.keysForPlan(pid).cycleHistory;
+        const hist = this._get(chave, []) || [];
+        let mudou = 0;
+        hist.forEach(w => { if (this._desfazerRecalculoSemana(w)) mudou++; });
+        if (mudou) { this._set(chave, hist); n += mudou; }
       });
-      if (n) this._set(this.KEYS.cycleHistory, hist);
-      this._set(FLAG, 1);
-      return n;
-    } catch (e) { _quiet(e, 'migrar-cumprimento'); return 0; }
+      /* A marca da migração desfeita sai junto — inclusive porque ela era
+         gravada FORA do namespace do perfil ("mig-cumprido-semana-v1" cru),
+         valendo para o navegador inteiro. */
+      try { localStorage.removeItem('mig-cumprido-semana-v1'); } catch (e) { _quiet(e, 'flag-mig-cumprido'); }
+    } catch (e) { _quiet(e, 'restaurar-cumprimento'); }
+    return n;
   },
 
   curarCardsFSRS() {

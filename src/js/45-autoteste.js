@@ -443,6 +443,40 @@ const AutoTeste = {
     }
   },
 
+  /* ── SEMANA FECHADA É REGISTRO, NÃO CONTA A REFAZER ───────────────────────
+     Uma versão do app passou a RECALCULAR no boot, em silêncio, o "estudado" e
+     o "% cumprido" de todas as semanas já arquivadas. Quem registra estudo em
+     matérias que não estavam no ciclo daquela semana viu o histórico desabar
+     (22h30 viraram 7h45) sem ter tocado em registro nenhum. Estas asserções
+     existem para que isso não volte por outro caminho. */
+  historicoFechado() {
+    // 1. a migração destrutiva não pode existir mais, com nome nenhum
+    this._ok('não há migração que reescreva semanas fechadas',
+      typeof DB.migrarCumprimentoSemana === 'undefined', typeof DB.migrarCumprimentoSemana);
+    this._ok('o reparo que devolve os números originais existe',
+      typeof DB.restaurarCumprimentoSemana === 'function', typeof DB.restaurarCumprimentoSemana);
+
+    // 2. o reparo devolve exatamente o que a semana tinha ao ser fechada
+    const w = { startDate: '2026-08-19', endDate: '2026-08-25',
+      totalStudiedMin: 480, pctCumprido: 53.33,
+      totalStudiedMinLegado: 820, pctCumpridoLegado: 91 };
+    const mexeu = DB._desfazerRecalculoSemana(w);
+    this._ok('reparo avisa que havia o que desfazer', mexeu === true, mexeu);
+    this._ok('"estudado" volta ao valor do fechamento', w.totalStudiedMin === 820, w.totalStudiedMin);
+    this._ok('"% cumprido" volta ao valor do fechamento', w.pctCumprido === 91, w.pctCumprido);
+    this._ok('os campos "legado" saem depois de usados',
+      w.totalStudiedMinLegado === undefined && w.pctCumpridoLegado === undefined, JSON.stringify(w));
+
+    // 3. semana intocada (nunca recalculada) não pode ser alterada pelo reparo
+    const intacta = { startDate: '2026-08-26', endDate: '2026-09-01', totalStudiedMin: 1350, pctCumprido: 150 };
+    const antes = JSON.stringify(intacta);
+    const mexeu2 = DB._desfazerRecalculoSemana(intacta);
+    this._ok('semana nunca recalculada fica como está',
+      mexeu2 === false && JSON.stringify(intacta) === antes, JSON.stringify(intacta));
+    this._ok('reparo é idempotente', DB._desfazerRecalculoSemana(w) === false, JSON.stringify(w));
+    this._ok('reparo aguenta entrada vazia', DB._desfazerRecalculoSemana(null) === false);
+  },
+
   rodar(imprimir) {
     this._r = { total: 0, passou: 0, falhou: 0, falhas: [], ms: 0 };
     const t0 = Date.now();
@@ -451,7 +485,8 @@ const AutoTeste = {
      ['Colagem em lote', 'lote'], ['Eixo dos gráficos', 'eixo'],
      ['Aproveitamento', 'aproveitamento'], ['Ordenação', 'ordenacao'],
      ['SM-2 clássico', 'sm2'], ['Filtro de treino', 'busca'],
-     ['Garantia de salvamento', 'sincronizacao']].forEach(([nome, fn]) => {
+     ['Garantia de salvamento', 'sincronizacao'],
+     ['Semana fechada é registro', 'historicoFechado']].forEach(([nome, fn]) => {
       try { this[fn](); }
       catch (e) { this._r.total++; this._r.falhou++; this._r.falhas.push({ nome: nome + ' — exceção', obtido: String(e && e.message || e) }); }
     });
