@@ -698,6 +698,31 @@ const AutoTeste = {
      a nuvem confirma um perfil, e filtra por ele nos dois pontos de risco:
      a listagem (syncMirrorFromCloud) e a abertura às cegas (o fallback de
      "nuvem não achou, mas há dado aqui" em enterProfile). */
+  /* ── PERFIS SEMPRE NASCEM COM ID DE NUVEM VÁLIDO ──────────────────────────
+     Episódio real: `createProfile` gerava ids como 'u_<algo>' — não um UUID.
+     Toda tabela da nuvem tem id/profile_id como `uuid`; um perfil com esse id
+     antigo nunca conseguia sincronizar nada, quase sempre em silêncio. Aqui
+     travamos as duas pontas: o classificador `idValido` reconhece um UUID de
+     verdade e rejeita o formato antigo, e `createProfile` (usado tanto para
+     "novo perfil" quanto para importar um backup) já nasce usando `DB._uid()`
+     — que produz UUID de verdade em qualquer navegador real. */
+  idsDePerfilSaoValidos() {
+    this._ok('idValido aceita um UUID de verdade',
+      ProfileManager.idValido('550e8400-e29b-41d4-a716-446655440000') === true);
+    this._ok('idValido rejeita o formato antigo (u_...)',
+      ProfileManager.idValido('u_lz3k9f2a') === false);
+    this._ok('idValido rejeita vazio/indefinido',
+      ProfileManager.idValido('') === false && ProfileManager.idValido(undefined) === false);
+    const criado = ProfileManager.createProfile({ nome: '__t_uuid__' });
+    try {
+      this._ok('createProfile gera um id que passa em idValido',
+        ProfileManager.idValido(criado), criado);
+    } finally {
+      ProfileManager.saveProfiles(ProfileManager.getProfiles().filter(p => p.id !== criado));
+      try { localStorage.removeItem(ProfileManager._ownerKey(criado)); } catch (e) { _quiet(e, 'limpeza-uuid'); }
+    }
+  },
+
   isolamentoEntreContas() {
     const PID_A = '__t_conta_a__', PID_B = '__t_conta_b__', PID_SEMDONO = '__t_sem_dono__';
     const criadas = [];
@@ -782,6 +807,7 @@ const AutoTeste = {
      ['Nada se perde', 'nadaSePerde'],
      ['Travas contra perda', 'travasDePerda'],
      ['Isolamento entre contas', 'isolamentoEntreContas'],
+     ['Ids de perfil válidos para a nuvem', 'idsDePerfilSaoValidos'],
      ['Esvaziar deixa rastro', 'esvaziarDeixaRastro']].forEach(([nome, fn]) => {
       try { this[fn](); }
       catch (e) { this._r.total++; this._r.falhou++; this._r.falhas.push({ nome: nome + ' — exceção', obtido: String(e && e.message || e) }); }

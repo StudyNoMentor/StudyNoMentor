@@ -21,7 +21,15 @@
 
      · UMA ÂNCORA PERMANENTE. A primeira foto de cada perfil é marcada
        `ancora` e NUNCA é apagada pela faxina, tenha a idade que tiver. É o
-       chão: por pior que fique, existe um ponto de retorno.
+       chão: por pior que fique, existe um ponto de retorno. A decisão de
+       quem vira âncora é ARBITRADA PELO BANCO (índice único parcial em
+       BANCO-DE-DADOS.md) — não por um "cheguei primeiro" lido no cliente,
+       que sob concorrência real (o gatilho diário e um clique manual quase
+       ao mesmo tempo) produzia DUAS âncoras para o mesmo perfil.
+     · UMA FILA POR PERFIL. `criar`/`criarDeDados` nunca escrevem em paralelo
+       para o mesmo perfil — a segunda chamada espera a primeira terminar.
+       Sem isto, duas gravações simultâneas podiam duplicar conteúdo e
+       corromper a decisão da âncora acima delas.
      · FOTO DIÁRIA automática, na primeira abertura de cada dia.
      · FOTO ANTES DE ENCOLHER. Se o que vai subir é bem menor que o que subiu
        da última vez, o estado anterior é fotografado antes. É a defesa contra
@@ -29,6 +37,10 @@
      · FOTO ANTES DE ESVAZIAR uma seção que tinha conteúdo.
      · A FAXINA NUNCA DESCE DE `MIN_KEEP`, nunca toca na âncora e nunca apaga
        nada com menos de 24 h. Um bug na faxina não pode virar perda de dados.
+     · FALHA NUNCA É SILENCIOSA. Um perfil grande demais para uma foto, ou
+       qualquer erro de gravação, fica registrado e visível no diagnóstico e
+       na própria tela — "ativo" só aparece quando o último envio realmente
+       deu certo.
 
    Se a tabela ainda não existir no Supabase, o módulo se desliga sozinho e
    avisa no console — o app inteiro continua funcionando como antes. O SQL para
@@ -44,16 +56,31 @@ const CloudBackup = {
   LIMITE_CHARS: 6 * 1024 * 1024,       // teto do texto comprimido enviado numa foto
 
   _avisouSemTabela: false,
-  _ultimoSig: {},           // perfil → assinatura da última foto criada nesta sessão
-  _ultimoEm: {},            // perfil → quando a última foto foi criada nesta sessão
-  _criando: false,
-  _ultimoErro: null,
+  _filas: {},                // perfil → promessa em curso (serializa criar/criarDeDados)
+  _ultimoEm: {},             // perfil → quando a última foto foi criada nesta sessão
+  _ultimoErro: null,         // do último ENVIO REAL (não de "não havia nada a fazer")
 
   _diaKey(id) { return 'diario-estudos:cbk-dia:' + id; },
+  /* Assinatura do último conteúdo publicado, por perfil. GRAVADA em disco (não
+     só em memória): sem isto, um recarregamento — e o app recarrega sozinho
+     depois de quase toda operação de risco, inclusive logo após restaurar um
+     backup — esquecia a última assinatura e podia duplicar a MESMA foto que
+     acabara de subir segundos antes. */
+  _sigKey(id) { return 'diario-estudos:cbk-sig:' + id; },
+  _lerUltimoSig(id) { try { return localStorage.getItem(this._sigKey(id)); } catch (_) { return null; } },
+  _gravarUltimoSig(id, sig) { try { localStorage.setItem(this._sigKey(id), sig); } catch (e) { _quiet(e, 'cbk-sig'); } },
+
   _isMissingTable(err) {
     const m = ((err && (err.message || err.code || err.details)) || '').toString().toLowerCase();
     return m.includes(this.TABLE) || m.includes('does not exist') || m.includes('42p01') ||
            m.includes('could not find the table') || m.includes('schema cache');
+  },
+  // Violação do índice único parcial "uma âncora por perfil" (BANCO-DE-DADOS.md).
+  // NÃO é uma falha: é a garantia de unicidade funcionando sob concorrência.
+  _isUniqueViolation(err) {
+    const code = err && err.code;
+    const m = ((err && (err.message || err.details)) || '').toString().toLowerCase();
+    return code === '23505' || m.includes('duplicate key') || m.includes('unique constraint');
   },
   _disable(err) {
     this.enabled = false;
@@ -71,99 +98,121 @@ const CloudBackup = {
   },
   _device() { try { return SessionGuard.deviceLabel(); } catch (_) { return 'Dispositivo'; } },
 
-  /* ── CRIAR UMA FOTO ───────────────────────────────────────────────────────
-     A compressão e a assinatura são as MESMAS do histórico local (reuso
-     deliberado: um formato só para as duas redes, e uma foto da nuvem abre no
-     leitor local sem conversão nenhuma). */
-  async criar(nota, opts) {
-    opts = opts || {};
-    if (!this._pronto()) return { ok: false, motivo: 'sem-conexão' };
-    if (this._criando && !opts.forcar) return { ok: false, motivo: 'já-em-andamento' };
-    const id = ProfileManager.getActiveProfileId();
-    if (!id) return { ok: false, motivo: 'sem-perfil' };
-    const backup = ProfileManager.exportProfile(id);
-    /* Nunca fotografamos o vazio. Guardar uma foto sem conteúdo seria pior que
-       não guardar: ela empurraria uma foto BOA para fora da faxina. */
-    if (!backup || !backup.data || !Object.keys(backup.data).some(k => !valorVazio(backup.data[k]))) {
-      return { ok: false, motivo: 'perfil-vazio' };
-    }
-    const json = JSON.stringify(backup.data);
-    const sig = VersionHistory._fnv(json);
-    if (!opts.forcar && this._ultimoSig[id] === sig) return { ok: true, repetido: true };
-    this._criando = true;
-    try {
-      const packed = await VersionHistory._gzip(json);
-      if (String(packed.data).length > this.LIMITE_CHARS) {
-        console.warn('[CloudBackup] foto grande demais para enviar (' + String(packed.data).length + ' chars) — pulada.');
-        return { ok: false, motivo: 'grande-demais' };
-      }
-      // A primeira foto de cada perfil vira a ÂNCORA permanente.
-      let ancora = false;
-      try { ancora = !(await this._temAncora(id)); } catch (e) { _quiet(e, 'cbk-ancora'); }
-      const linha = {
-        user_id: CloudStore.session.user.id,
-        profile_id: id,
-        note: String(nota || 'backup'),
-        device: this._device(),
-        ancora,
-        enc: packed.enc,
-        chars: json.length,
-        sig,
-        data: String(packed.data)
-      };
-      const { error } = await CloudStore.client.from(this.TABLE).insert(linha);
-      if (error) throw error;
-      this._ultimoSig[id] = sig;
-      this._ultimoEm[id] = Date.now();
-      this._ultimoErro = null;
-      console.info('[CloudBackup] foto gravada no banco' + (ancora ? ' (ÂNCORA permanente)' : '') + ': ' + linha.note);
-      this.faxina(id);   // best-effort, não bloqueia
-      return { ok: true, ancora, chars: json.length };
-    } catch (err) {
-      if (this._isMissingTable(err)) { this._disable(err); return { ok: false, motivo: 'tabela-ausente' }; }
-      this._ultimoErro = (err && (err.message || err.code)) || 'erro';
-      console.warn('[CloudBackup] não foi possível gravar a foto:', this._ultimoErro);
-      return { ok: false, motivo: this._ultimoErro };
-    } finally {
-      this._criando = false;
-    }
+  /* ── FILA POR PERFIL ───────────────────────────────────────────────────────
+     `criar` e `criarDeDados` escrevem na mesma tabela para o mesmo perfil, e
+     cada gravação decide sozinha "sou eu a âncora?". Sem serialização, duas
+     chamadas simultâneas — o gatilho automático do dia batendo com um clique
+     manual, ou a proteção de encolhimento disparando durante um envio — corriam
+     essa decisão em paralelo. `forcar` (usado pelo botão manual e pelas
+     proteções automáticas) pulava até a trava antiga de propósito — o que
+     reabria exatamente essa corrida nos casos que mais precisavam da trava.
+
+     Esta fila nunca REJEITA uma chamada (nenhum "já-em-andamento" que se perde
+     — a versão antiga tinha isso, e `forcar` o ignorava, então na prática não
+     protegia nada): ela só faz a segunda chamada esperar a primeira terminar
+     antes de decidir qualquer coisa. */
+  _serializar(id, fn) {
+    const anterior = this._filas[id] || Promise.resolve();
+    const atual = anterior.then(fn, fn);
+    this._filas[id] = atual.catch(() => {});   // nunca trava a fila por uma falha
+    return atual;
   },
 
-  /* Fotografa um mapa de dados QUALQUER (não o estado atual). É o que permite
-     preservar o que está NA NUVEM antes de sobrescrevê-lo — o estado que
-     estamos protegendo pode nem existir mais neste aparelho. */
-  async criarDeDados(id, dataObj, nota) {
-    if (!this._pronto() || !id) return { ok: false, motivo: 'sem-conexão' };
-    if (!dataObj || !Object.keys(dataObj).some(k => !valorVazio(dataObj[k]))) return { ok: false, motivo: 'vazio' };
-    try {
-      const json = JSON.stringify(dataObj);
-      const sig = VersionHistory._fnv(json);
-      if (this._ultimoSig[id] === sig) return { ok: true, repetido: true };
-      const packed = await VersionHistory._gzip(json);
-      if (String(packed.data).length > this.LIMITE_CHARS) return { ok: false, motivo: 'grande-demais' };
-      let ancora = false;
-      try { ancora = !(await this._temAncora(id)); } catch (e) { _quiet(e, 'cbk-ancora2'); }
-      const { error } = await CloudStore.client.from(this.TABLE).insert({
-        user_id: CloudStore.session.user.id, profile_id: id, note: String(nota || 'backup'),
-        device: this._device(), ancora, enc: packed.enc, chars: json.length, sig, data: String(packed.data)
-      });
-      if (error) throw error;
-      this._ultimoSig[id] = sig;
-      this._ultimoEm[id] = Date.now();
-      console.info('[CloudBackup] foto do estado REMOTO gravada: ' + nota);
-      return { ok: true, ancora };
-    } catch (err) {
-      if (this._isMissingTable(err)) { this._disable(err); return { ok: false, motivo: 'tabela-ausente' }; }
-      console.warn('[CloudBackup] falha ao fotografar o estado remoto:', err && (err.message || err));
-      return { ok: false, motivo: (err && (err.message || err.code)) || 'erro' };
+  /* ── GRAVAR UMA LINHA + DECIDIR A ÂNCORA, COM O BANCO COMO ÁRBITRO ─────────
+     A âncora não é mais decidida por "perguntei antes e não tinha nenhuma" —
+     essa pergunta ainda é feita (é o caminho barato, acerta quase sempre), mas
+     quem tem a palavra final é um ÍNDICE ÚNICO PARCIAL no banco: no máximo uma
+     linha com `ancora = true` por perfil (ver BANCO-DE-DADOS.md). Se, apesar
+     da checagem, duas gravações concorrentes tentarem virar âncora ao mesmo
+     tempo, a SEGUNDA leva um erro de violação de unicidade — tratado aqui como
+     sucesso normal (grava como foto rolante), não como falha. */
+  async _inserirLinha({ id, nota, packed, chars, sig }) {
+    const uid = (CloudStore.session && CloudStore.session.user) ? CloudStore.session.user.id : null;
+    if (!uid) return { ok: false, motivo: 'sem-conexão' };
+    const base = {
+      user_id: uid, profile_id: id, note: String(nota || 'backup'),
+      device: this._device(), enc: packed.enc, chars, sig, data: String(packed.data)
+    };
+    let tentaAncora = false;
+    try { tentaAncora = !(await this._temAncora(id)); } catch (e) { _quiet(e, 'cbk-ancora'); }
+    let { error } = await CloudStore.client.from(this.TABLE).insert({ ...base, ancora: tentaAncora });
+    if (error && tentaAncora && this._isUniqueViolation(error)) {
+      // outra foto venceu a corrida pela âncora nesse meio-tempo — normal
+      tentaAncora = false;
+      ({ error } = await CloudStore.client.from(this.TABLE).insert({ ...base, ancora: false }));
     }
+    if (error) throw error;
+    return { ok: true, ancora: tentaAncora };
   },
-
   async _temAncora(id) {
     const { data, error } = await CloudStore.client.from(this.TABLE)
       .select('id').eq('profile_id', id).eq('ancora', true).limit(1);
     if (error) throw error;
     return !!(data && data.length);
+  },
+
+  /* ── NÚCLEO COMUM DE PUBLICAÇÃO ────────────────────────────────────────────
+     `criar()` (o estado atual do aparelho) e `criarDeDados()` (um mapa
+     arbitrário — usado para proteger o estado que está NA NUVEM antes de
+     sobrescrevê-lo) convergem aqui. Roda sempre DENTRO de `_serializar`. */
+  async _publicar(id, dataObj, nota, opts) {
+    opts = opts || {};
+    if (!this._pronto()) return { ok: false, motivo: 'sem-conexão' };
+    /* Nunca fotografamos o vazio. Guardar uma foto sem conteúdo seria pior que
+       não guardar: ela empurraria uma foto BOA para fora da faxina. */
+    if (!dataObj || !Object.keys(dataObj).some(k => !valorVazio(dataObj[k]))) {
+      return { ok: false, motivo: 'perfil-vazio' };
+    }
+    const json = JSON.stringify(dataObj);
+    const sig = VersionHistory._fnv(json);
+    if (!opts.forcar && this._lerUltimoSig(id) === sig) return { ok: true, repetido: true };
+    try {
+      const packed = await VersionHistory._gzip(json);
+      if (String(packed.data).length > this.LIMITE_CHARS) {
+        /* Falha que ANTES era muda: nunca marcada em `_ultimoErro`, então o
+           diagnóstico e a tela continuavam dizendo "ativo" enquanto o backup
+           automático de um perfil grande falhava toda vez, silenciosamente. */
+        this._ultimoErro = 'foto grande demais para o banco (' + String(packed.data).length + ' de ' + this.LIMITE_CHARS + ' caracteres). Backup em .json continua funcionando normalmente.';
+        console.warn('[CloudBackup] ' + this._ultimoErro);
+        return { ok: false, motivo: 'grande-demais' };
+      }
+      const r = await this._inserirLinha({ id, nota, packed, chars: json.length, sig });
+      if (!r.ok) { this._ultimoErro = r.motivo; return r; }
+      this._gravarUltimoSig(id, sig);
+      this._ultimoEm[id] = Date.now();
+      this._ultimoErro = null;
+      console.info('[CloudBackup] foto gravada no banco' + (r.ancora ? ' (ÂNCORA permanente)' : '') + ': ' + nota);
+      this.faxina(id);   // best-effort, não bloqueia
+      return { ok: true, ancora: r.ancora, chars: json.length };
+    } catch (err) {
+      if (this._isMissingTable(err)) { this._disable(err); return { ok: false, motivo: 'tabela-ausente' }; }
+      this._ultimoErro = (err && (err.message || err.code)) || 'erro';
+      console.warn('[CloudBackup] não foi possível gravar a foto:', this._ultimoErro);
+      return { ok: false, motivo: this._ultimoErro };
+    }
+  },
+
+  /* ── CRIAR UMA FOTO DO ESTADO ATUAL ────────────────────────────────────────
+     O perfil é relido de dentro da fila — não antes de entrar nela — para que
+     a foto reflita o estado mais próximo possível do instante real da
+     gravação, mesmo que esta chamada tenha esperado outra terminar primeiro. */
+  criar(nota, opts) {
+    const id = ProfileManager.getActiveProfileId();
+    if (!id) return Promise.resolve({ ok: false, motivo: 'sem-perfil' });
+    if (!this._pronto()) return Promise.resolve({ ok: false, motivo: 'sem-conexão' });
+    return this._serializar(id, () => {
+      const backup = ProfileManager.exportProfile(id);
+      return this._publicar(id, backup && backup.data, nota, opts);
+    });
+  },
+
+  /* Fotografa um mapa de dados QUALQUER (não o estado atual). É o que permite
+     preservar o que está NA NUVEM antes de sobrescrevê-lo — o estado que
+     estamos protegendo pode nem existir mais neste aparelho. */
+  criarDeDados(id, dataObj, nota, opts) {
+    if (!id) return Promise.resolve({ ok: false, motivo: 'sem-perfil' });
+    if (!this._pronto()) return Promise.resolve({ ok: false, motivo: 'sem-conexão' });
+    return this._serializar(id, () => this._publicar(id, dataObj, nota, opts));
   },
 
   /* ── LISTAR / LER / RESTAURAR ─────────────────────────────────────────────
@@ -250,22 +299,26 @@ const CloudBackup = {
 
   /* ── FAXINA — a única parte que apaga, e a mais desconfiada de todas ──────
      Três travas, e todas têm de passar para uma linha sair:
-       1. a âncora nunca sai;
-       2. nada com menos de 24 h sai (uma sequência de fotos hoje não pode
-          empurrar para fora a última foto boa de ontem);
+       1. a âncora nunca entra na conta (nem é preciso confiar que só existe
+          uma — mesmo que o índice único do banco falhasse de algum jeito
+          novo, TODA linha marcada `ancora` aqui é ignorada);
+       2. só o que passa do teto de fotos rolantes E tem mais de 24 h;
        3. o total nunca desce abaixo de MIN_KEEP.
      Se qualquer coisa der errado no meio, o efeito é guardar fotos DEMAIS —
      que é o lado certo de errar. */
   /* A ESCOLHA é pura e testável; só o DELETE é que fala com o banco. Quem
-     apaga dado tem de poder ser interrogado por um teste. */
+     apaga dado tem de poder ser interrogado por um teste. O primeiro corte
+     compara contra o número de fotos ROLANTES (não o total de linhas): um
+     total inflado por âncora extra nunca deve, por si só, destravar ou travar
+     a faxina — só a contagem do que realmente é descartável importa. */
   selecionarParaFaxina(linhas, agora) {
     const lista = (linhas || []).slice().sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
-    if (lista.length <= Math.max(this.MIN_KEEP, this.MAX)) return [];
-    const rolantes = lista.filter(r => !r.ancora);        // 1. a âncora nunca entra
-    const candidatas = rolantes.slice(this.MAX)           // 2. só o que passa do teto
-      .filter(r => (agora - new Date(r.created_at).getTime()) > this.IDADE_MINIMA_MS);  // 3. nada novo
+    const rolantes = lista.filter(r => !r.ancora);                 // 1. âncora nunca entra na conta
+    if (rolantes.length <= this.MAX) return [];                    // ainda dentro do teto: nada a fazer
+    const candidatas = rolantes.slice(this.MAX)
+      .filter(r => (agora - new Date(r.created_at).getTime()) > this.IDADE_MINIMA_MS); // 2. teto + idade
     if (!candidatas.length) return [];
-    if (lista.length - candidatas.length < this.MIN_KEEP) return [];                    // 4. piso absoluto
+    if (lista.length - candidatas.length < this.MIN_KEEP) return []; // 3. piso absoluto (conta tudo)
     return candidatas;
   },
   async faxina(id) {
@@ -291,7 +344,7 @@ const CloudBackup = {
   /* ── GATILHOS AUTOMÁTICOS ─────────────────────────────────────────────────
      Uma foto por dia, na primeira abertura. O carimbo é local (uma leitura, sem
      rede); se ele se perder, o pior que acontece é uma foto a mais, e criar()
-     descarta a duplicata pela assinatura. */
+     descarta a duplicata pela assinatura (persistida — sobrevive a reload). */
   async garantirDoDia() {
     if (!this._pronto()) return false;
     const id = ProfileManager.getActiveProfileId();
@@ -391,20 +444,33 @@ const GuardaNuvem = {
      do estado ATUAL — local ou na nuvem — registraria justamente o estrago, e
      seria um backup que não devolve nada.
 
-     O que precisa ser guardado é o que o envio vai SUBSTITUIR:
+     O que precisa ser guardado é o que o envio vai SUBSTITUIR, na ordem do
+     mais fiel ao mais aproximado:
 
-       1. o payload que está na nuvem neste instante. É a definição exata do
-          que deixará de existir daqui a um segundo;
-       2. se a nuvem não responder, a foto local mais recente do histórico de
+       1. as SEÇÕES na nuvem (profile_sections). É o que a leitura por seção
+          (Fase 2) trata como verdade — o blob de baixo é só uma rede de
+          segurança periódica e pode estar minutos atrasado em relação a elas.
+          Proteger com o blob quando as seções têm dado mais fresco seria
+          fotografar um estado JÁ desatualizado, não o que está de fato prestes
+          a ser substituído;
+       2. o blob (study_profiles), se a leitura por seção falhar ou não validar;
+       3. se nem a nuvem responder, a foto local mais recente do histórico de
           versões — ela é de no máximo 20 minutos atrás, e portanto anterior ao
           apagamento.
 
-     Se as duas falharem, nada é publicado como backup e o console diz por quê.
+     Se as três falharem, nada é publicado como backup e o console diz por quê.
      O envio em si continua: travar a sincronização por não conseguir fazer um
      backup criaria um segundo problema em vez de resolver o primeiro — e o
      conteúdo apagado continua na Lixeira e no histórico local deste aparelho. */
   async _estadoAnterior(id) {
     const util = (d) => !!(d && typeof d === 'object' && Object.keys(d).some(k => !valorVazio(d[k])));
+    try {
+      if (window.SectionSync) {
+        const rows = await SectionSync.fetchAllSections(id);
+        const prep = SectionSync._prepare(rows);
+        if (prep.ok && util(prep.map)) return prep.map;
+      }
+    } catch (e) { _quiet(e, 'guarda-secoes'); }
     try {
       const res = await CloudStore.fetchPayload(id);
       const d = res && res.payload && res.payload.data;
@@ -482,12 +548,20 @@ const CloudBackupUI = {
       host.innerHTML = '<p class="hint">⚠️ A tabela <code>profile_backups</code> ainda não existe no banco. As cópias continuam sendo guardadas <strong>neste aparelho</strong> (histórico de versões acima), mas ainda não no servidor. O SQL para criá-la está em <code>BANCO-DE-DADOS.md</code>, no repositório do app — é uma execução única, de menos de um minuto.</p>';
       return;
     }
+    /* Falha do ÚLTIMO envio real (não de "não havia nada a fazer"): antes essa
+       informação só existia no console. Agora aparece aqui mesmo quando já há
+       fotos boas na lista — um perfil grande demais falhando toda vez no
+       gatilho diário não pode passar despercebido só porque fotos antigas
+       (de quando o perfil era menor) continuam na lista. */
+    const aviso = CloudBackup._ultimoErro
+      ? `<p class="hint" style="color:var(--warn-text);background:var(--warn-soft);border-radius:10px;padding:8px 12px;margin:0 0 10px;">⚠️ O último envio ao banco não deu certo: ${escapeHtml(CloudBackup._ultimoErro)}. As fotos abaixo continuam válidas; o histórico local (acima) e o backup em .json seguem funcionando normalmente enquanto isso não for resolvido.</p>`
+      : '';
     if (!linhas.length) {
-      host.innerHTML = '<p class="hint">Nenhuma cópia no banco ainda. A primeira é criada sozinha na próxima abertura do dia — ou agora, no botão acima. A primeira de todas vira uma <strong>âncora permanente</strong>, que a limpeza automática nunca remove.</p>';
+      host.innerHTML = aviso + '<p class="hint">Nenhuma cópia no banco ainda. A primeira é criada sozinha na próxima abertura do dia — ou agora, no botão acima. A primeira de todas vira uma <strong>âncora permanente</strong>, que a limpeza automática nunca remove.</p>';
       return;
     }
     const ancoras = linhas.filter(r => r.ancora).length;
-    host.innerHTML =
+    host.innerHTML = aviso +
       '<p class="hint" style="margin:0 0 10px;">' + linhas.length + ' cópia(s) guardada(s) <strong>no banco de dados</strong>' +
       (ancoras ? ' — uma delas é a <strong>âncora permanente</strong>, que nunca é apagada' : '') +
       '. Elas não dependem deste navegador: trocando de aparelho, basta entrar na conta para resgatá-las.</p>' +
@@ -547,6 +621,7 @@ window.CloudBackupUI = CloudBackupUI;
     if (r.ok) showToast('Cópia guardada no banco ✓');
     else if (r.motivo === 'tabela-ausente') showToast('A tabela de backups ainda não existe no banco — veja BANCO-DE-DADOS.md.');
     else if (r.motivo === 'perfil-vazio') showToast('Este perfil ainda não tem dados para guardar.');
+    else if (r.motivo === 'grande-demais') showToast('Este perfil está grande demais para uma foto no banco agora. Use "Exportar backup" (.json) enquanto isso.');
     else showToast('Não foi possível guardar agora: ' + (r.motivo || ''));
     CloudBackupUI.render();
   });

@@ -727,3 +727,98 @@ Cobertura: `AutoTeste 231 → 237`, grupo "Isolamento entre contas" — testa a
 função pura `_podeVerLocal` (dono próprio passa, dono alheio bloqueia, sem
 dono passa) e o comportamento de `syncMirrorFromCloud` simulando duas contas
 no mesmo `localStorage`.
+
+---
+
+## 14. Revisão do Backup no banco — concorrência, falha silenciosa e um bug de layout
+
+**Pedido do usuário:** revisar as regras do backup no banco de dados (item
+11-12), corrigir bugs de layout e garantir que a lógica não seja afetada por
+outros bugs/comportamentos do app.
+
+### Corrida na âncora — a garantia central podia quebrar sob concorrência
+
+`CloudBackup._temAncora()` fazia "existe âncora? não → esta vira âncora" — um
+ler-depois-escrever sem trava. Duas gravações simultâneas (o gatilho diário
+batendo com um clique manual, ou a proteção de encolhimento disparando durante
+um envio) podiam as duas checar "não existe" ao mesmo tempo e as duas virarem
+âncora — quebrando exatamente a garantia "uma âncora permanente por perfil"
+que o design promete. Piorando: a trava `_criando` que deveria impedir isso
+era **pulada de propósito** por `opts.forcar` — usado justo pelo botão manual
+e pelas proteções automáticas, os casos que mais precisavam da trava.
+
+**Correção — o banco arbitra, não o cliente.** Um índice único parcial
+(`profile_backups_uma_ancora_por_perfil`, `where ancora`) garante no banco que
+nunca existem duas linhas `ancora=true` para o mesmo perfil. O cliente ainda
+faz a checagem barata primeiro (acerta quase sempre), mas se perder a corrida
+o INSERT leva um erro de violação de unicidade — tratado como sucesso normal
+(grava como foto rolante), nunca como falha. E `_criando` virou uma fila real
+por perfil (`_serializar`): `forcar` não pula mais a serialização, só pula o
+atalho "idêntico à última" — a segunda chamada sempre espera a primeira
+terminar antes de decidir qualquer coisa.
+
+### Falha silenciosa em perfis grandes
+
+Se a foto passa de 6 MB comprimidos, o envio falhava — mas isso nunca ficava
+registrado em `_ultimoErro` (só erros de rede/banco ficavam). O diagnóstico em
+Configurações e a própria tela do backup diziam "ativo" mesmo com o backup
+automático de um perfil grande falhando **toda vez**, silenciosamente.
+Corrigido: toda falha de um envio realmente tentado (grande demais, erro de
+banco) agora marca `_ultimoErro`, e a tela mostra um aviso mesmo quando já há
+fotos antigas na lista (de quando o perfil era menor).
+
+### A proteção "antes de encolher" podia fotografar dado desatualizado
+
+`GuardaNuvem._estadoAnterior()` só olhava o blob (`study_profiles`). Mas a
+leitura por seção (Fase 2, item 2) trata `profile_sections` como a verdade — o
+blob é só uma rede de segurança periódica e pode estar minutos atrasado.
+Proteger com o blob nesse caso fotografaria um estado JÁ desatualizado, não o
+que está de fato prestes a ser substituído. Corrigido: agora tenta reconstruir
+o estado a partir das SEÇÕES primeiro, cai para o blob depois, e só por último
+para a foto local mais recente do histórico.
+
+### O bug de layout
+
+A correção de CSS responsivo do histórico de versões local (`min-width:0`,
+`flex-wrap`, botões com `flex-shrink:0`) foi feita só para `#cfg-vhist-body` e
+nunca estendida para o card novo (`#cfg-cloudbk-body`) — que tem linhas ainda
+mais longas (nota + tamanho + nome do aparelho). Confirmado visualmente a
+380px de largura: o botão "Restaurar" aparecia cortado ("Restaura", "Resta") e
+tudo se espremia numa linha só. Corrigido estendendo a mesma regra para as
+duas telas.
+
+### Bug relacionado, achado na mesma revisão: ids de perfil que não são UUID
+
+Investigando um relato do usuário ("perfis com nomes antigos piscando depois
+de importar e renomear um backup"), a causa raiz não era cache nem o backup no
+banco — era mais fundamental: `ProfileManager.createProfile()` (usado tanto
+para "novo perfil" quanto para **importar um backup**, e para o perfil padrão
+de instalações novas) gerava ids como `'u_' + timestamp + random`, **não um
+UUID**. Toda tabela da nuvem (`study_profiles`, `profile_sections`,
+`profile_backups`) tem a coluna id/profile_id como `uuid` — um perfil com id
+fora desse formato faz **toda** operação de nuvem falhar, na maioria dos
+caminhos em silêncio (`SectionSync.pushDirty` engole o erro por seção e só
+loga no console). Resultado: o perfil parece normal localmente (o nome muda na
+hora), mas nunca sincroniza — nunca aparece em outro aparelho, nunca tem
+backup no banco, e a lista de perfis "pisca" porque a nuvem nunca tem nada de
+verdade para ele.
+
+**Correção em duas partes.** `createProfile` agora usa `DB._uid()` (já
+existente, usado em cards/registros — produz UUID de verdade em qualquer
+navegador real): todo perfil novo, importado ou não, nasce compatível.
+`ProfileManager.migrarIdsAntigos()`, chamado a cada login, promove perfis já
+existentes com id antigo: cria a linha na nuvem (`createRow`, que aloca um
+UUID de verdade), move o namespace local inteiro para a chave nova — copia
+primeiro, só remove a antiga depois de confirmar a cópia — e enfileira o
+envio, sem apagar nada em momento algum.
+
+### O que foi verificado
+
+`verificar.mjs` completo: 7 checagens, zero erro de console, 14 telas,
+contraste WCAG AA nos dois temas. **AutoTeste 237 → 241**: a classificação de
+violação de unicidade e a fila por perfil não têm teste de rede direto (função
+não-pura), mas a faxina, `avaliarEncolhimento` e o classificador `idValido`
+(aceita UUID de verdade, rejeita o formato antigo, confirma que
+`createProfile` já nasce válido) são exercitados como funções puras. O bug de
+layout foi confirmado com uma captura de tela em 380px de largura reproduzindo
+o estado ANTES da correção (botão cortado) e comparando com o DEPOIS.
