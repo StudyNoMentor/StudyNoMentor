@@ -222,21 +222,21 @@
  {
   "arquivo": "js/67-atualizacao.js",
   "de": 35663,
-  "ate": 35827
+  "ate": 35884
  },
  {
   "arquivo": "js/70-relatorio.js",
-  "de": 35829,
-  "ate": 36364
+  "de": 35886,
+  "ate": 36421
  },
  {
   "arquivo": "js/80-ajustes-finais.js",
-  "de": 36366,
-  "ate": 37687
+  "de": 36423,
+  "ate": 37750
  },
  {
   "arquivo": "html/90-rodape.html",
-  "de": 37689,
-  "ate": 38104
+  "de": 37752,
+  "ate": 38167
  }
 ]

@@ -1508,3 +1508,125 @@ Cobertura: **AutoTeste 317 → 323**, com o grupo "O disco que recusa gravação
 a ponte existe, a recusa avisa quem está usando, força a subida para a nuvem,
 avisos repetidos são contidos, a subida é tentada em toda recusa, e uma recusa
 sem nuvem disponível não derruba nada.
+
+---
+
+## 23. Revisão profunda do cache — sete defeitos, e um que só a medição revelou
+
+Pedido: trazer para o cache o que houver de mais avançado, com segurança de não
+gerar problema. A parte "com segurança" mudou o método: em vez de confiar na
+leitura, o `sw.js` passou a ser **executado num navegador de verdade** dentro da
+suíte (checagem 6.6) — instala, guarda, é interrogado, e a página é aberta
+**offline** para provar que o que ficou guardado abre. Foi assim que o defeito
+mais grave apareceu, e ele não estava visível em nenhuma linha.
+
+### 23.1. O pré-carregamento guardava a casca VELHA
+
+`cache.add(url)` faz uma busca com o modo de cache **padrão** — ou seja, pode
+ser atendida pelo **cache HTTP do navegador**. Na prática: o worker da versão
+NOVA instalava e guardava, no próprio balde, o `index.html` **ANTIGO** que o
+navegador ainda tinha guardado. O app abria com a casca velha achando que estava
+atualizado.
+
+É o oposto exato do que o arquivo inteiro existe para garantir. A correção é uma
+palavra: `new Request(u, { cache: 'reload' })`, que obriga a ida à rede.
+
+### 23.2. O balde de bibliotecas era jogado fora a cada publicação
+
+`CACHE_CDN` carregava a versão do app no nome. Como a faxina de ativação apaga
+tudo que não é da versão atual, **toda publicação descartava o Supabase, o
+SheetJS e as fontes** — obrigando a rebaixá-los exatamente no pior momento:
+logo depois de atualizar, com a rede já ocupada. Num aparelho com rede ruim,
+isso é o app abrindo sem nuvem.
+
+Aquelas URLs são **imutáveis** (a versão da biblioteca está na própria URL), então
+o conteúdo não pode ficar velho e não há motivo para descartá-lo. O balde passou
+a se chamar `cdn-imutavel-v1`, fora do ciclo de versões, com teto próprio de 60
+entradas (a Cache API devolve as chaves na ordem de inserção, então as mais
+antigas saem primeiro) — sem isso, trocas de biblioteca ao longo dos anos o
+fariam crescer sem fim.
+
+### 23.3. Cada endereço guardava outra cópia de 2 MB
+
+A casca era guardada sob a URL do pedido. `…/`, `…/index.html`, `…?utm=x` —
+três entradas, três cópias de ~2 MB, e o retorno offline dependia de acertar
+exatamente o mesmo endereço da vez anterior. Agora toda navegação escreve e lê
+uma **chave canônica** (`./index.html`). A suíte prova as duas metades: offline
+pelo endereço normal, e offline com query string.
+
+O `match` da casca usa `ignoreVary: true`: se a hospedagem responder com um
+`Vary` que não bate na comparação, a cópia boa existiria e ainda assim não seria
+encontrada — o app diria "sem conexão" com a resposta a um passo.
+
+### 23.4. Pré-carregamento de navegação (o que faltava de moderno)
+
+`navigationPreload` faz o navegador disparar o pedido do documento **em
+paralelo** com o despertar do worker. Sem ele, toda navegação com o worker
+dormindo paga a inicialização antes de a rede sequer começar. Ligado na ativação
+e consumido na navegação (ignorá-lo faria o navegador cancelá-lo e reclamar).
+
+### 23.5. Duas recusas novas no que pode ser guardado
+
+- **`no-store`** passou a ser respeitado: é o servidor dizendo explicitamente
+  para não guardar.
+- **Resposta opaca** (status 0, corpo ilegível) só é aceita onde é normal: o
+  `<link>` do CSS das fontes vai sem `crossorigin`, então ali o opaco é natural
+  e a estratégia se autocorrige revalidando. Em "cache primeiro", opaco só pode
+  ser falha — e ficaria servido para sempre, deixando o app sem nuvem até alguém
+  limpar o cache à mão.
+
+### 23.6. O `waitUntil` que chegava tarde
+
+As gravações no cache eram mantidas vivas por um `waitUntil` registrado **depois**
+de um `await` — quando o evento já podia ter sido encerrado. Agora há **um único**
+`waitUntil`, registrado de forma síncrona, cobrindo a busca **e** a gravação que
+ela dispara.
+
+### 23.7. O defeito que só a medição revelou: a troca que não acontecia
+
+Com o worker exercitado de verdade, o teste falhou num ponto inesperado: depois
+de `postMessage('skipWaiting')`, o worker novo **continuava esperando** e o
+antigo seguia no comando. Medindo, o número apareceu: **24 segundos** até a
+troca — e, sem teto de tempo nas buscas do worker, às vezes ela simplesmente
+não acontecia.
+
+A causa: **uma requisição em aberto mantém o worker OCUPADO**, e o navegador não
+o encerra enquanto isso. Rede ruim é exatamente quando alguém aperta "Atualizar
+agora" — e era exatamente quando não acontecia nada.
+
+Duas correções:
+
+1. **Toda busca do worker tem teto** (`AbortController`, 20 s). Corrida de
+   promessas não serve aqui: ela devolve o controle mas deixa o pedido vivo, que
+   é justamente o que precisa acabar.
+2. **O pedido de troca é repetido**, a cada 600 ms. A versão anterior pedia UMA
+   vez e recarregava cegamente em 4 s — o pior resultado possível: a página
+   recarregava com o worker ANTIGO ainda no comando, a mesma versão voltava e o
+   aviso reaparecia. É literalmente o "atualizei e não mudou nada". Insistindo,
+   a troca acontece no instante em que o worker antigo fica livre; o teto passou
+   a 12 s de espera de verdade, com o botão dizendo "Atualizando…".
+
+### 23.8. "Qual versão está rodando aqui?" agora tem resposta completa
+
+O worker responde à pergunta `versao`, e o Diagnóstico compara com a versão da
+**página**. Enquanto as duas coincidem, está tudo bem; o desencontro é que
+produz o erro sem explicação — e agora ele é dito em uma linha, com o remédio ao
+lado.
+
+### As travas que passam a guardar tudo isso
+
+Checagem **4.5** (estática, sem navegador): o `sw.js` analisa; a versão é um
+carimbo de conteúdo e não um nome fixo; o balde de CDN não é versionado; o
+pré-carregamento usa `cache: 'reload'`; o pré-carregamento de navegação está
+ligado; o Supabase passa direto; só GET é cacheado; **o `skipWaiting` automático
+não voltou para a instalação**; e os carimbos do `index.html` e do `sw.js`
+batem.
+
+Checagem **6.6** (navegador real): instala e ativa; um único balde de versão; a
+casca na chave canônica; o worker responde a própria versão; offline abre a
+casca certa; offline com query string também; **a versão nova instala e espera**;
+quem serve a página continua sendo a antiga até haver ordem; a troca descarta o
+balde anterior; e o balde imutável de CDN sobrevive à publicação.
+
+Cada uma dessas linhas é uma decisão que custou caro para descobrir. Escrita
+como teste, ela não se perde na próxima alteração.

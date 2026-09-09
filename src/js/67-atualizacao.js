@@ -33,6 +33,41 @@ const Atualizacao = {
     } catch (_) { return 'desconhecida'; }
   },
 
+  /* ── A PÁGINA E O CACHE ESTÃO NA MESMA VERSÃO? ────────────────────────────
+     Esta é a pergunta que ninguém conseguia responder quando algo dava errado
+     depois de uma publicação. A página carrega uma versão; o service worker
+     serve os arquivos de outra. Enquanto as duas coincidem, está tudo bem — o
+     desencontro é que produz o erro sem explicação.
+
+     Agora dá para perguntar ao worker, e a resposta aparece no Diagnóstico. */
+  _versaoWorker: null,
+  async perguntarVersaoAoWorker() {
+    try {
+      const ctrl = navigator.serviceWorker && navigator.serviceWorker.controller;
+      if (!ctrl || typeof MessageChannel === 'undefined') { this._versaoWorker = null; return null; }
+      const resposta = await new Promise((resolve) => {
+        const canal = new MessageChannel();
+        canal.port1.onmessage = (e) => resolve(e.data || null);
+        setTimeout(() => resolve(null), 2000);     // worker mudo não trava a tela
+        ctrl.postMessage('versao', [canal.port2]);
+      });
+      this._versaoWorker = (resposta && resposta.versao) || null;
+      return this._versaoWorker;
+    } catch (e) { _quiet(e, 'upd-versao-sw'); this._versaoWorker = null; return null; }
+  },
+  // Linha pronta para o Diagnóstico (síncrona: usa o que a pergunta acima achou).
+  linhaDeVersao() {
+    const pagina = this.versao();
+    const sw = this._versaoWorker;
+    if (!('serviceWorker' in navigator)) return { v: pagina + ' · sem modo instalável', t: '' };
+    if (!sw) return { v: pagina + ' · cache ainda não respondeu', t: '' };
+    if (sw === pagina) return { v: pagina + ' · app e cache na mesma versão', t: 'ok' };
+    return {
+      v: 'app ' + pagina + ' · cache ' + sw + ' — desencontrados. Use "Procurar atualização" ou "Limpar cache do app".',
+      t: 'warn'
+    };
+  },
+
   /* ── O AVISO ──────────────────────────────────────────────────────────────
      Fica na tela até ser resolvido — um toast some antes de alguém agir. Não
      bloqueia nada: dá para continuar usando e atualizar depois. */
@@ -88,25 +123,46 @@ const Atualizacao = {
         { title: '↻ Atualizar mesmo assim?', okText: 'Atualizar assim mesmo' });
       if (!seguir) { this._trocando = false; return; }
     }
+    /* A troca pode levar alguns segundos (o worker antigo precisa ficar livre).
+       Sem dizer isso, a barra fica parada e a pessoa aperta de novo. */
+    if (btn) { btn.disabled = true; btn.textContent = 'Atualizando…'; }
     this._recarregarComWorkerNovo();
   },
 
-  /* A troca em si: manda o worker que está esperando assumir e recarrega
-     UMA vez, quando ele assumir de fato. O `controllerchange` é o sinal certo
-     — recarregar antes dele traria a versão velha de novo. */
+  /* A troca em si: manda o worker que está esperando assumir e recarrega UMA
+     vez, quando ele assumir de fato. O `controllerchange` é o sinal certo —
+     recarregar antes dele traria a versão velha de novo.
+
+     O pedido é REPETIDO, e essa é a parte que só aparece quando se mede: o
+     worker antigo pode ter uma requisição em aberto, e enquanto ela não termina
+     o navegador não o encerra — a troca fica esperando. Num teste com a rede
+     ruim, o primeiro pedido levou 24 SEGUNDOS para surtir efeito. Uma tentativa
+     só, com recarga cega em 4 s, dava no pior resultado possível: a página
+     recarregava com o worker ANTIGO ainda no comando, a mesma versão voltava, e
+     o aviso reaparecia — "atualizei e não mudou nada".
+
+     Repetindo a cada 600 ms, a troca acontece no instante em que o worker antigo
+     fica livre. E o teto agora é honesto: 12 s de espera de verdade, e só então
+     a recarga simples, que ao menos deixa o app num estado limpo. */
   _recarregarComWorkerNovo() {
-    let recarregou = false;
-    const recarregar = () => { if (recarregou) return; recarregou = true; location.reload(); };
+    let recarregou = false, tentativas = 0;
+    const recarregar = () => { if (recarregou) return; recarregou = true; clearInterval(bater); location.reload(); };
     try {
       navigator.serviceWorker.addEventListener('controllerchange', recarregar, { once: true });
     } catch (e) { _quiet(e, 'upd-controller'); }
-    try {
-      const esperando = this._reg && this._reg.waiting;
-      if (esperando) esperando.postMessage('skipWaiting');
-      else recarregar();     // sem worker esperando: só recarregar já resolve
-    } catch (e) { _quiet(e, 'upd-skip'); recarregar(); }
-    // rede de segurança: se o controllerchange não vier, recarrega assim mesmo
-    setTimeout(recarregar, 4000);
+    const pedir = () => {
+      try {
+        const esperando = this._reg && this._reg.waiting;
+        if (esperando) { esperando.postMessage('skipWaiting'); return true; }
+      } catch (e) { _quiet(e, 'upd-skip'); }
+      return false;
+    };
+    if (!pedir()) { recarregar(); return; }     // sem worker esperando: recarregar já resolve
+    const bater = setInterval(() => {
+      tentativas++;
+      if (recarregou || tentativas > 20 || !pedir()) { clearInterval(bater); }
+    }, 600);
+    setTimeout(recarregar, 12000);             // rede de segurança, depois de insistir
   },
 
   /* ── LIMPEZA MANUAL ───────────────────────────────────────────────────────
@@ -154,6 +210,7 @@ const Atualizacao = {
       const reg = await navigator.serviceWorker.getRegistration();
       if (!reg) { showToast('Este aparelho não está usando o modo instalável.'); return false; }
       await reg.update();
+      try { await this.perguntarVersaoAoWorker(); } catch (e) { _quiet(e, 'upd-versao'); }
       if (reg.waiting) { this.avisar(reg); return true; }
       showToast('Você já está na versão mais recente ✓');
       return false;

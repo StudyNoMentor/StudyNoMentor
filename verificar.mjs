@@ -116,6 +116,40 @@ if (inerte) {
 /travaAntiMoldura/.test(html.slice(0, 6000)) ? ok('trava anti-moldura presente no <head>')
   : erro('trava anti-moldura sumiu do <head> (clickjacking volta a ser possivel)');
 
+/* ── 4.5) invariantes do service worker ─────────────────────────────────────
+   O sw.js nao e montado a partir de src/ e nao aparece no index.html, entao
+   nenhuma das checagens acima o enxerga. E ele e o arquivo onde um erro nao da
+   erro: da versao velha servida em silencio. Estas travas guardam as decisoes
+   que custaram caro para descobrir. */
+console.log('\n4.5) invariantes do service worker');
+{
+  const sw = readFileSync(join(RAIZ, 'sw.js'), 'utf8');
+  try { new (await import('node:vm')).Script(sw); ok('sw.js analisa'); }
+  catch (e) { erro('sw.js nao analisa: ' + e.message); }
+
+  const regras = [
+    [/const VERSAO = 'v[0-9a-f]{10}';/, 'a versao e um carimbo de conteudo (nao um nome fixo)'],
+    [/CACHE_CDN = '(?!.*VERSAO)[^']+'/, 'o balde de CDN nao e versionado (nao se perde a cada publicacao)'],
+    [/cache: 'reload'/, "o pre-carregamento usa cache: 'reload' (nao guarda a casca velha)"],
+    [/navigationPreload/, 'o pre-carregamento de navegacao esta ligado'],
+    [/supabase\\\.\(co\|in\)\$/, 'trafego do Supabase passa direto, sem cache'],
+    [/req\.method !== 'GET'/, 'apenas GET pode ser cacheado'],
+  ];
+  regras.forEach(([re, nome]) => (re.test(sw) ? ok(nome) : erro('sw.js: ' + nome)));
+
+  // skipWaiting automatico na instalacao servia ativo novo para pagina velha
+  const instalacao = (sw.match(/addEventListener\('install'[\s\S]*?\n\}\);/) || [''])[0];
+  /skipWaiting\(\)/.test(instalacao.replace(/\/\*[\s\S]*?\*\//g, ''))
+    ? erro('sw.js: skipWaiting() automatico voltou a instalacao (duas versoes vivas ao mesmo tempo)')
+    : ok('a instalacao nao assume por baixo da pagina (sem skipWaiting automatico)');
+
+  // o carimbo do sw.js tem de bater com o do index.html publicado
+  const vSw = (sw.match(/const VERSAO = '([^']+)';/) || [])[1];
+  const vPag = (html.match(/<meta name="diario-versao" content="([^"]+)">/) || [])[1];
+  vSw && vSw === vPag ? ok(`index.html e sw.js na mesma versao (${vSw})`)
+    : erro(`carimbos divergentes: index.html "${vPag}" x sw.js "${vSw}" — rode node build.mjs`);
+}
+
 if (process.argv.includes('--rapido')) {
   console.log(falhas ? `\nFALHOU: ${falhas} problema(s).` : '\nOK (modo rapido).');
   process.exit(falhas ? 1 : 0);
@@ -130,8 +164,17 @@ if (!chromium) { console.log('\n5-6) PULADAS: Playwright nao encontrado (npm i -
 
 const TIPOS = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8',
   '.webmanifest': 'application/manifest+json', '.json': 'application/json' };
+/* Permite a um teste servir uma versao DIFERENTE de um arquivo sem tocar no
+   repositorio — e o que torna possivel encenar uma publicacao nova e observar o
+   worker novo esperar, em vez de assumir por baixo da pagina. */
+const substitutos = new Map();
 const servidor = createServer((req, res) => {
   const nome = (req.url || '/').split('?')[0] === '/' ? '/index.html' : (req.url || '').split('?')[0];
+  if (substitutos.has(nome)) {
+    res.writeHead(200, { 'Content-Type': TIPOS[extname(nome)] || 'application/octet-stream' });
+    res.end(substitutos.get(nome));
+    return;
+  }
   try {
     const corpo = readFileSync(join(RAIZ, decodeURIComponent(nome).replace(/^\/+/, '')));
     res.writeHead(200, { 'Content-Type': TIPOS[extname(nome)] || 'application/octet-stream' });
@@ -407,6 +450,139 @@ try {
     : erro(`dado do armazenamento antigo ficou invisivel (adotado=${r.adotado}, sobrou=${r.sobrouNoNativo})`);
   await ctx.close();
 } catch (e) { erro('teste do armazenamento antigo falhou: ' + e.message); }
+
+/* ── 6.6) o service worker, exercitado de verdade ───────────────────────────
+   Ate aqui o sw.js so era LIDO. Mas ele e o unico arquivo cujo defeito nao
+   aparece como erro: aparece como versao velha servida em silencio, dias
+   depois. Aqui ele instala num navegador real, guarda a casca, responde quem
+   e, e a pagina e aberta OFFLINE para provar que o que ficou guardado abre. */
+console.log('\n6.6) o service worker instala, guarda a casca e abre offline');
+try {
+  const ctx = await nav.newContext();
+  const p3 = await ctx.newPage();
+  await p3.goto(base, { waitUntil: 'domcontentloaded' });
+  const reg = await p3.evaluate(async () => {
+    const r = await navigator.serviceWorker.register('sw.js', { scope: './', updateViaCache: 'none' });
+    await navigator.serviceWorker.ready;
+    return { escopo: r.scope, ativo: !!r.active };
+  });
+  reg.ativo ? ok('instalou e ativou') : erro('o service worker nao ativou');
+
+  // a casca foi guardada sob a CHAVE CANONICA (e nao sob cada variacao de URL)
+  const baldes = await p3.evaluate(async () => {
+    const nomes = await caches.keys();
+    const out = {};
+    for (const n of nomes) out[n] = (await (await caches.open(n)).keys()).map((r) => r.url);
+    return out;
+  });
+  const nomesApp = Object.keys(baldes).filter((n) => n.endsWith('-app'));
+  const urlsApp = nomesApp.flatMap((n) => baldes[n]);
+  nomesApp.length === 1 ? ok(`um unico balde de versao (${nomesApp[0]})`)
+    : erro('baldes de versao inesperados: ' + nomesApp.join(', '));
+  urlsApp.some((u) => u.endsWith('/index.html'))
+    ? ok('a casca do app esta guardada na chave canonica')
+    : erro('a casca do app nao foi pre-carregada: ' + JSON.stringify(urlsApp));
+
+  // o worker sabe dizer qual versao esta servindo (e o que o Diagnostico usa)
+  const vSwVivo = await p3.evaluate(() => new Promise((resolve) => {
+    const c = new MessageChannel();
+    c.port1.onmessage = (e) => resolve(e.data);
+    setTimeout(() => resolve(null), 3000);
+    navigator.serviceWorker.controller.postMessage('versao', [c.port2]);
+  }));
+  const vEsperada = (readFileSync(join(RAIZ, 'sw.js'), 'utf8').match(/const VERSAO = '([^']+)';/) || [])[1];
+  vSwVivo && vSwVivo.versao === vEsperada
+    ? ok(`o worker responde a propria versao (${vSwVivo.versao})`)
+    : erro('o worker nao respondeu a versao: ' + JSON.stringify(vSwVivo));
+
+  // OFFLINE: o servidor continua de pe, mas o navegador e cortado da rede
+  await ctx.setOffline(true);
+  const p4 = await ctx.newPage();
+  const semRede = [];
+  p4.on('pageerror', (e) => semRede.push(e.message));
+  await p4.goto(base, { waitUntil: 'domcontentloaded' });
+  const abriu = await p4.evaluate(() => ({
+    titulo: document.title,
+    temApp: !!document.getElementById('app-code'),
+    versao: (document.querySelector('meta[name="diario-versao"]') || {}).content || null
+  }));
+  await ctx.setOffline(false);
+  abriu.temApp && abriu.versao === vEsperada
+    ? ok(`offline abriu a casca certa (${abriu.versao})`)
+    : erro('offline nao abriu a casca guardada: ' + JSON.stringify(abriu));
+
+  // e a navegacao offline por um endereco DIFERENTE tambem acha a casca
+  const p5 = await ctx.newPage();
+  await ctx.setOffline(true);
+  await p5.goto(base + '?origem=teste', { waitUntil: 'domcontentloaded' });
+  const comQuery = await p5.evaluate(() => !!document.getElementById('app-code'));
+  await ctx.setOffline(false);
+  comQuery ? ok('offline com query string tambem abre (chave canonica funciona)')
+    : erro('offline com query string caiu na pagina de erro');
+  await p4.close(); await p5.close();   // clientes soltos atrapalham a encenacao abaixo
+
+  /* ── A TROCA DE VERSAO, ENCENADA ────────────────────────────────────────
+     Publicamos um sw.js com outro carimbo e observamos as tres regras que
+     custaram caro: o worker novo ESPERA (nao assume por baixo da pagina), o
+     balde da versao velha e descartado na ativacao, e o balde IMUTAVEL de CDN
+     sobrevive a publicacao. */
+  const swAtual = readFileSync(join(RAIZ, 'sw.js'), 'utf8');
+  const vNova = 'v0000000001';
+  substitutos.set('/sw.js', swAtual.replace(/const VERSAO = '[^']+';/, `const VERSAO = '${vNova}';`));
+  try {
+    // marca o balde imutavel com uma entrada nossa, para conferir que ela fica
+    await p3.evaluate(async () => {
+      const c = await caches.open('cdn-imutavel-v1');
+      await c.put('https://cdn.exemplo/teste.js', new Response('/* marca */'));
+    });
+    const esperando = await p3.evaluate(async () => {
+      const r = await navigator.serviceWorker.getRegistration();
+      await r.update();
+      for (let i = 0; i < 60 && !r.waiting; i++) await new Promise((x) => setTimeout(x, 100));
+      return { temEsperando: !!r.waiting, controladorTrocou: false };
+    });
+    esperando.temEsperando ? ok('a versao nova instala e ESPERA (nao assume sozinha)')
+      : erro('a versao nova nao ficou em espera');
+
+    const antesDaTroca = await p3.evaluate(() => new Promise((resolve) => {
+      const c = new MessageChannel();
+      c.port1.onmessage = (e) => resolve(e.data && e.data.versao);
+      setTimeout(() => resolve(null), 3000);
+      navigator.serviceWorker.controller.postMessage('versao', [c.port2]);
+    }));
+    antesDaTroca === vEsperada ? ok('quem serve a pagina continua sendo a versao antiga')
+      : erro(`a versao nova assumiu sem ordem: quem serve e "${antesDaTroca}"`);
+
+    /* Agora a ordem de trocar, exatamente como o botao "Atualizar agora" faz:
+       INSISTINDO. Um pedido so nao basta quando o worker antigo ainda tem
+       requisicao em aberto — foi medindo isto que o valor de 4s da primeira
+       versao se mostrou curto demais (a troca levou 24s numa rede ruim). */
+    const depois = await p3.evaluate(async (vAlvo) => {
+      const r = await navigator.serviceWorker.getRegistration();
+      const trocou = new Promise((res) => navigator.serviceWorker.addEventListener('controllerchange', () => res(true), { once: true }));
+      const bater = setInterval(() => { try { if (r.waiting) r.waiting.postMessage('skipWaiting'); } catch (_) {} }, 600);
+      r.waiting.postMessage('skipWaiting');
+      await Promise.race([trocou, new Promise((res) => setTimeout(() => res(false), 40000))]);
+      clearInterval(bater);
+      for (let i = 0; i < 60; i++) {
+        const nomes = await caches.keys();
+        if (nomes.includes(vAlvo + '-app') && !nomes.some((n) => n.endsWith('-app') && n !== vAlvo + '-app')) break;
+        await new Promise((x) => setTimeout(x, 200));
+      }
+      return await caches.keys();
+    }, vNova);
+    depois.includes(vNova + '-app') && !depois.some((n) => n.endsWith('-app') && n !== vNova + '-app')
+      ? ok('a troca descarta o balde da versao anterior')
+      : erro('baldes apos a troca: ' + JSON.stringify(depois));
+    depois.includes('cdn-imutavel-v1')
+      ? ok('o balde imutavel de CDN sobrevive a publicacao')
+      : erro('o balde imutavel de CDN foi descartado na publicacao');
+  } finally {
+    substitutos.delete('/sw.js');
+  }
+
+  await ctx.close();
+} catch (e) { erro('teste do service worker falhou: ' + e.message); }
 
 console.log('\n7) contraste WCAG AA (temas claro e escuro)');
 /* Transicoes e animacoes desligadas durante a medicao. Sem isto, medir logo
