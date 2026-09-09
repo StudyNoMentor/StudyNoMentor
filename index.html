@@ -52,6 +52,12 @@
 })();
 </script>
 <meta name="referrer" content="strict-origin-when-cross-origin">
+<!-- Carimbo de versão: o build.mjs substitui "dev" por um resumo do conteúdo de
+     src/. É o que dá NOME ao cache do service worker (cada versão, um cache
+     novo, e o antigo é descartado sozinho na ativação) e o que permite ao app
+     dizer qual versão está rodando. Em src/ fica "dev" de propósito: a versão
+     é gerada na montagem, não editada à mão. -->
+<meta name="diario-versao" content="v0fb59dc657">
 <script>
 /* ── ARRANQUE: abre o IndexedDB AGORA, em paralelo com o parse do documento ──
    A fachada de armazenamento vive no fim do <body>, depois de ~1,7 MB de HTML.
@@ -10664,6 +10670,30 @@ body.leis-foco .lei-reader-body.show-lines { padding-left: 42px; }
 /* No modo foco o cartão perde borda e fundo; a faixa colorida do topo ficava
    sozinha no ar, sem cartão nenhum a que pertencer. */
 body.leis-foco .leis-reader-card::before { display: none; }
+
+/* ── AVISO DE ATUALIZAÇÃO ───────────────────────────────────────────────────
+   Fica sobre o conteúdo, no rodapé, sem bloquear o uso: dá para continuar
+   trabalhando e atualizar depois. Acima da barra de navegação do celular. */
+.upd-bar {
+  position: fixed; left: 12px; right: 12px; bottom: calc(12px + env(safe-area-inset-bottom, 0px));
+  z-index: 9500; display: flex; align-items: center; justify-content: space-between;
+  gap: 14px; flex-wrap: wrap;
+  padding: 12px 16px; border-radius: 14px;
+  background: var(--surface); border: 1.5px solid var(--border-strong);
+  box-shadow: 0 10px 30px rgba(0,0,0,.16);
+}
+.upd-bar .upd-txt { font-size: var(--fs-xs); color: var(--text-soft); line-height: 1.5; flex: 1 1 220px; min-width: 0; }
+.upd-bar .upd-txt strong { color: var(--text); }
+.upd-bar .upd-acoes { display: flex; gap: 8px; flex-shrink: 0; }
+.upd-bar .upd-acoes button { padding: 8px 14px; font-size: var(--fs-xs); }
+@media (max-width: 520px) {
+  .upd-bar { flex-direction: column; align-items: stretch; }
+  /* Em coluna, `flex: 1 1 220px` passa a valer na VERTICAL: o texto virava um
+     bloco de 220px de altura e a barra tomava meia tela. No empilhado, cada
+     parte ocupa só o que precisa. */
+  .upd-bar .upd-txt { flex: 0 0 auto; }
+  .upd-bar .upd-acoes { justify-content: flex-end; }
+}
 
 </style>
 
@@ -25589,6 +25619,73 @@ const AutoTeste = {
     }
   },
 
+  /* ── UMA ALTERAÇÃO NÃO PODE MORRER NO APARELHO ────────────────────────────
+     Gravar é só o começo: entre "salvei" e "está no banco" existe uma fila. A
+     pergunta que este grupo responde é se essa fila SOBREVIVE — a um
+     recarregamento, a uma queda de rede, a fechar o app no meio.
+
+     A fila mora em duas camadas: `_dirty`, em memória (rápida, some ao
+     recarregar), e `__secpend`, gravada no armazenamento. É a segunda que
+     garante que nada evapore; e há ainda uma terceira prova, independente das
+     duas: o HASH do conteúdo. Se o texto de uma seção não bate com o hash do
+     último envio, ela mudou depois disso — mesmo que as duas listas tenham se
+     perdido. */
+  filaDeEnvioSobrevive() {
+    const PID = '__t_fila__';
+    const ativoOriginal = localStorage.getItem(DB.ACTIVE_PROFILE_KEY);
+    const dirtyOriginal = new Set(SectionSync._dirty);
+    const criadas = [];
+    try {
+      localStorage.setItem(DB.ACTIVE_PROFILE_KEY, PID);
+      const pfx = 'diario-estudos:u:' + PID + ':';
+      SectionSync._dirty.clear();
+
+      // 1. gravar pelo canal normal enfileira a seção
+      const k = pfx + 'p:pl:entries';
+      criadas.push(k, pfx + SectionSync.PEND, pfx + '__secrev');
+      DB._set(k, [{ id: 'e1' }]);
+      this._ok('gravar enfileira a seção', SectionSync._dirty.has('p:pl:entries'), [...SectionSync._dirty]);
+
+      // 2. a fila foi GRAVADA, não só guardada em memória
+      const gravada = JSON.parse(localStorage.getItem(pfx + SectionSync.PEND) || '[]');
+      this._ok('a fila é persistida no armazenamento', gravada.indexOf('p:pl:entries') !== -1, gravada);
+
+      // 3. simula um recarregamento: a memória some, o armazenamento fica
+      SectionSync._dirty.clear();
+      this._ok('memória zerada não vê pendência', SectionSync._dirty.size === 0);
+      SectionSync.restorePending();
+      this._ok('a fila volta do armazenamento após recarregar',
+        SectionSync._dirty.has('p:pl:entries'), [...SectionSync._dirty]);
+
+      // 4. a terceira prova: mesmo sem as duas listas, o hash denuncia a mudança
+      SectionSync._dirty.clear();
+      try { localStorage.removeItem(pfx + SectionSync.PEND); } catch (e) { _quiet(e, 'fila-limpa'); }
+      // finge que esta seção já subiu com OUTRO conteúdo
+      localStorage.setItem(pfx + '__secrev', JSON.stringify({
+        'p:pl:entries': { rev: 1, hash: SectionSync._hash('[]'), len: 2 }
+      }));
+      const pendentes = SectionSync.pendingSections(PID);
+      this._ok('conteúdo diferente do último envio é detectado como pendente',
+        pendentes.indexOf('p:pl:entries') !== -1, pendentes);
+
+      // 5. e o inverso: conteúdo idêntico ao último envio NÃO vira pendência
+      localStorage.setItem(pfx + '__secrev', JSON.stringify({
+        'p:pl:entries': { rev: 1, hash: SectionSync._hash(localStorage.getItem(k)), len: 12 }
+      }));
+      SectionSync._dirty.clear();
+      const nenhuma = SectionSync.pendingSections(PID);
+      this._ok('conteúdo já enviado não é reenviado à toa',
+        nenhuma.indexOf('p:pl:entries') === -1, nenhuma);
+    } finally {
+      criadas.forEach(x => { try { localStorage.removeItem(x); } catch (e) { _quiet(e, 'limpeza-fila'); } });
+      try { Lixeira.listar(PID).forEach(x => localStorage.removeItem(x.chave)); } catch (e) { _quiet(e, 'limpeza-fila2'); }
+      SectionSync._dirty.clear();
+      dirtyOriginal.forEach(x => SectionSync._dirty.add(x));
+      if (ativoOriginal === null) localStorage.removeItem(DB.ACTIVE_PROFILE_KEY);
+      else localStorage.setItem(DB.ACTIVE_PROFILE_KEY, ativoOriginal);
+    }
+  },
+
   tudoEntraNaSincronizacao() {
     const PID = '__t_cobertura_sync__';
     const ativoOriginal = localStorage.getItem(DB.ACTIVE_PROFILE_KEY);
@@ -25725,6 +25822,7 @@ const AutoTeste = {
      ['Nada se perde', 'nadaSePerde'],
      ['Travas contra perda', 'travasDePerda'],
      ['Tudo entra na sincronização', 'tudoEntraNaSincronizacao'],
+     ['A fila de envio sobrevive', 'filaDeEnvioSobrevive'],
      ['Link nunca vira código', 'linkNuncaViraCodigo'],
      ['Adota o id do banco', 'adotaOIdDoBanco'],
      ['Isolamento entre contas', 'isolamentoEntreContas'],
@@ -35299,6 +35397,172 @@ window.CloudBackupUI = CloudBackupUI;
   });
 })();
 
+/* ═══════════════════ ATUALIZAÇÃO E CACHE ═══════════════════════════════════
+   O problema que este arquivo resolve, dito como quem o vive: "toda vez que
+   atualiza, dá bug e conflito de login".
+
+   Um app instalável guarda seus próprios arquivos. Quando uma versão nova é
+   publicada, três coisas podem ficar desencontradas ao mesmo tempo:
+
+     · o service worker VELHO continuando a servir o app velho;
+     · o service worker NOVO servindo ativos novos para uma página que ainda
+       está executando o JavaScript velho (era o que o `skipWaiting()`
+       automático fazia — duas versões vivas ao mesmo tempo);
+     · o cache com o MESMO NOME entre versões, o que fazia a faxina de
+       ativação nunca ter o que limpar.
+
+   As três foram fechadas: o nome do cache agora carrega a versão (build.mjs
+   carimba um resumo do conteúdo, então cada publicação tem um balde próprio e
+   o antigo é descartado sozinho na ativação); o worker novo ESPERA em vez de
+   assumir por baixo; e o que decide a troca é este aviso.
+
+   A regra que sustenta tudo: TROCAR DE VERSÃO NUNCA PODE PERDER O QUE NÃO
+   SUBIU. Antes de recarregar, a fila de envio é descarregada e esperada. Se
+   não der para entregar, o aviso diz isso e deixa a escolha com quem está lá.
+   ═══════════════════════════════════════════════════════════════════════════ */
+const Atualizacao = {
+  _reg: null,
+  _barra: null,
+  _trocando: false,
+
+  versao() {
+    try {
+      const m = document.querySelector('meta[name="diario-versao"]');
+      return (m && m.getAttribute('content')) || 'desconhecida';
+    } catch (_) { return 'desconhecida'; }
+  },
+
+  /* ── O AVISO ──────────────────────────────────────────────────────────────
+     Fica na tela até ser resolvido — um toast some antes de alguém agir. Não
+     bloqueia nada: dá para continuar usando e atualizar depois. */
+  avisar(reg) {
+    this._reg = reg || this._reg;
+    if (this._barra) return;                       // já está avisando
+    const b = document.createElement('div');
+    b.className = 'upd-bar';
+    b.setAttribute('role', 'status');
+    b.innerHTML =
+      '<div class="upd-txt"><strong>Nova versão disponível.</strong> ' +
+      'Atualizar leva um segundo e evita erros de versões misturadas.</div>' +
+      '<div class="upd-acoes">' +
+      '<button type="button" class="btn-secondary upd-depois">Depois</button>' +
+      '<button type="button" class="btn-primary upd-agora">Atualizar agora</button>' +
+      '</div>';
+    document.body.appendChild(b);
+    this._barra = b;
+    b.querySelector('.upd-depois').addEventListener('click', () => this.fechar());
+    b.querySelector('.upd-agora').addEventListener('click', () => this.aplicar());
+  },
+  fechar() {
+    if (this._barra) { this._barra.remove(); this._barra = null; }
+  },
+
+  /* Espera a fila de envio esvaziar, com teto de tempo. Devolve true se tudo
+     foi entregue. Não é decoração: recarregar com alteração pendente é o
+     jeito mais fácil de perder o trabalho de alguém. */
+  async _entregarPendencias(limiteMs) {
+    const CS = window.CloudStore;
+    if (!CS || !CS.isReady || !CS.isReady() || !CS.isLoggedIn || !CS.isLoggedIn()) return true;
+    const fim = Date.now() + (limiteMs || 8000);
+    try { await CS.flushPending(); } catch (e) { _quiet(e, 'upd-flush'); }
+    while (Date.now() < fim) {
+      let fila = 0;
+      try { if (window.SectionSync) fila = SectionSync.pendingQuick(); } catch (e) { _quiet(e, 'upd-fila'); }
+      if (!CS._pending && !CS._syncing && !fila) return true;
+      await new Promise(r => setTimeout(r, 250));
+    }
+    return false;
+  },
+
+  async aplicar() {
+    if (this._trocando) return;
+    this._trocando = true;
+    const btn = this._barra && this._barra.querySelector('.upd-agora');
+    const restaurar = (window.SaveGuard && SaveGuard.ocupar) ? SaveGuard.ocupar(btn, 'Salvando…') : () => {};
+    const entregue = await this._entregarPendencias(8000);
+    restaurar();
+    if (!entregue) {
+      const seguir = await UI.confirm(
+        'Ainda há alterações subindo para a nuvem.\n\nElas estão salvas neste aparelho e continuam na fila depois de atualizar — mas, se preferir, espere alguns segundos e tente de novo.',
+        { title: '↻ Atualizar mesmo assim?', okText: 'Atualizar assim mesmo' });
+      if (!seguir) { this._trocando = false; return; }
+    }
+    this._recarregarComWorkerNovo();
+  },
+
+  /* A troca em si: manda o worker que está esperando assumir e recarrega
+     UMA vez, quando ele assumir de fato. O `controllerchange` é o sinal certo
+     — recarregar antes dele traria a versão velha de novo. */
+  _recarregarComWorkerNovo() {
+    let recarregou = false;
+    const recarregar = () => { if (recarregou) return; recarregou = true; location.reload(); };
+    try {
+      navigator.serviceWorker.addEventListener('controllerchange', recarregar, { once: true });
+    } catch (e) { _quiet(e, 'upd-controller'); }
+    try {
+      const esperando = this._reg && this._reg.waiting;
+      if (esperando) esperando.postMessage('skipWaiting');
+      else recarregar();     // sem worker esperando: só recarregar já resolve
+    } catch (e) { _quiet(e, 'upd-skip'); recarregar(); }
+    // rede de segurança: se o controllerchange não vier, recarrega assim mesmo
+    setTimeout(recarregar, 4000);
+  },
+
+  /* ── LIMPEZA MANUAL ───────────────────────────────────────────────────────
+     Para quando algo continua estranho depois de atualizar. Apaga APENAS os
+     caches de arquivos do app (o que o service worker guardou) — nunca os seus
+     dados, que vivem no IndexedDB e na nuvem, e não são tocados aqui. */
+  async limparCacheERecarregar() {
+    const ok = await UI.confirm(
+      'Apagar os arquivos do app guardados neste navegador e recarregar?\n\n' +
+      'Serve para quando o app fica estranho depois de uma atualização. ' +
+      'Seus dados de estudo NÃO são afetados: eles ficam no armazenamento do perfil e na nuvem, não neste cache.',
+      { title: '🧹 Limpar cache do app', okText: 'Limpar e recarregar' });
+    if (!ok) return;
+    showToast('Salvando o que falta antes de limpar…');
+    await this._entregarPendencias(8000);
+    // 1. pede ao worker que limpe (ele é o dono dos caches) e espera a resposta
+    try {
+      await new Promise((resolve) => {
+        const ctrl = navigator.serviceWorker && navigator.serviceWorker.controller;
+        if (!ctrl || typeof MessageChannel === 'undefined') { resolve(); return; }
+        const canal = new MessageChannel();
+        canal.port1.onmessage = () => resolve();
+        setTimeout(resolve, 3000);                 // não fica preso se ele não responder
+        ctrl.postMessage('limparCache', [canal.port2]);
+      });
+    } catch (e) { _quiet(e, 'upd-limpar-sw'); }
+    // 2. limpa também do lado da página (cobre o caso de não haver worker ativo)
+    try { if (window.caches) { const n = await caches.keys(); await Promise.all(n.map(k => caches.delete(k))); } }
+    catch (e) { _quiet(e, 'upd-limpar-caches'); }
+    // 3. desregistra os workers: a próxima carga instala o atual, do zero
+    try {
+      if (navigator.serviceWorker && navigator.serviceWorker.getRegistrations) {
+        const regs = await navigator.serviceWorker.getRegistrations();
+        await Promise.all(regs.map(r => r.unregister()));
+      }
+    } catch (e) { _quiet(e, 'upd-desregistrar'); }
+    showToast('Cache limpo ✓ recarregando…');
+    setTimeout(() => location.reload(), 500);
+  },
+
+  // Procura atualização agora (usado pelo botão em Diagnóstico).
+  async procurar() {
+    try {
+      if (!navigator.serviceWorker || !navigator.serviceWorker.getRegistration) return false;
+      const reg = await navigator.serviceWorker.getRegistration();
+      if (!reg) { showToast('Este aparelho não está usando o modo instalável.'); return false; }
+      await reg.update();
+      if (reg.waiting) { this.avisar(reg); return true; }
+      showToast('Você já está na versão mais recente ✓');
+      return false;
+    } catch (e) { _quiet(e, 'upd-procurar'); showToast('Não foi possível verificar agora.'); return false; }
+  }
+};
+window.Atualizacao = Atualizacao;
+// ponte usada pelo registrador do service worker, que roda fora do escopo do app
+window.__avisarAtualizacao = (reg) => { try { Atualizacao.avisar(reg); } catch (e) { _quiet(e, 'upd-ponte'); } };
+
 /* ============================================================
    RELATÓRIO DE EVOLUÇÃO - visualização e exportação em PDF
    Somente leitura: nenhum dado é persistido ou sincronizado.
@@ -36681,6 +36945,18 @@ else CloudStore.init();
           <button type="button" class="cfg-action cfg-danger" id="cfgx-outall"><span class="ic">🌐</span><span class="t">Sair de todos os dispositivos</span><span class="d">Derruba todas as sessões da conta. Use se achar que alguém mais tem acesso.</span></button>
           <button type="button" class="cfg-action cfg-danger" id="cfgx-wipe"><span class="ic">🧹</span><span class="t">Limpar dados locais deste perfil</span><span class="d">Apaga a cópia guardada neste navegador e baixa tudo da nuvem de novo. Só com a conta conectada e sincronizada.</span></button>
         </div>`);
+      /* ── ATUALIZAÇÃO E CACHE ─────────────────────────────────────────────
+         Fica FORA da zona de risco de propósito: limpar o cache do app não
+         apaga dado nenhum — só os arquivos que o navegador guardou. Confundir
+         as duas coisas faria alguém evitar a ação certa por medo. */
+      this.card('diag', '↻ Atualização do app',
+        'O app guarda os próprios arquivos para abrir sem internet. Quando sai uma versão nova, é aqui que se força a troca — e é aqui que se resolve o "atualizei e ficou estranho". <strong>Seus dados de estudo não são afetados por nada desta seção.</strong>', `
+        <div class="cfg-action-grid">
+          <button type="button" class="cfg-action" id="cfgu-procurar"><span class="ic">🔎</span><span class="t">Procurar atualização</span><span class="d">Verifica agora se há uma versão mais nova publicada.</span></button>
+          <button type="button" class="cfg-action" id="cfgu-limpar"><span class="ic">🧹</span><span class="t">Limpar cache do app e recarregar</span><span class="d">Apaga só os arquivos guardados do app e recarrega do zero. Os dados de estudo ficam intactos.</span></button>
+        </div>`);
+      $('#cfgu-procurar').addEventListener('click', () => { if (window.Atualizacao) Atualizacao.procurar(); });
+      $('#cfgu-limpar').addEventListener('click', () => { if (window.Atualizacao) Atualizacao.limparCacheERecarregar(); });
       $('#cfgx-refresh').addEventListener('click', () => this.refreshDiag());
       $('#cfgx-copy').addEventListener('click', () => {
         const t = this.diagData().map(d => d.k + ': ' + d.v).join('\n');
@@ -36729,6 +37005,7 @@ else CloudStore.init();
         { k: 'Flashcards', v: nCards, t: '' },
         { k: 'Conexão do navegador', v: navigator.onLine ? 'online' : 'offline', t: navigator.onLine ? 'ok' : 'bad' },
         { k: 'Servidor (Supabase)', v: CS ? ({ ready: 'conectado', pending: 'carregando…', missing: 'biblioteca não carregou', error: 'erro ao iniciar' }[CS.libStatus] || CS.libStatus) : '—', t: (CS && CS.libStatus === 'ready') ? 'ok' : 'warn' },
+        { k: 'Versão em execução', v: (window.Atualizacao ? Atualizacao.versao() : '—'), t: '' },
         { k: 'Armazenamento', v: (window.indexedDB ? 'IndexedDB disponível' : 'só localStorage'), t: window.indexedDB ? 'ok' : 'warn' },
         { k: 'Revisão local do perfil', v: rev, t: '' },
         { k: 'Sessão única ao entrar', v: pget('single-session', '0') === '1' ? 'ligada' : 'desligada', t: '' },
@@ -37455,15 +37732,24 @@ else CloudStore.init();
       navigator.serviceWorker.register('sw.js', { scope: './', updateViaCache: 'none' })
         .then(function (reg) {
           // Atualização disponível: aplica na próxima abertura, sem interromper.
+          /* Um TOAST não resolvia: ele some em segundos, ninguém age, e a
+             pessoa segue rodando código velho por dias — que é de onde vêm os
+             "conflitos de login e uso" depois de uma publicação. O aviso agora
+             FICA na tela até ser resolvido, e traz o botão que resolve. */
           reg.addEventListener('updatefound', function () {
             var novo = reg.installing;
             if (!novo) return;
             novo.addEventListener('statechange', function () {
               if (novo.state === 'installed' && navigator.serviceWorker.controller) {
-                try { if (window.showToast) showToast('Nova versão pronta — recarregue quando quiser'); } catch (e) {}
+                try { window.__avisarAtualizacao && window.__avisarAtualizacao(reg); } catch (e) {}
               }
             });
           });
+          // Já havia um worker esperando quando esta aba abriu (outra aba viu a
+          // atualização antes): o aviso vale igual.
+          if (reg.waiting && navigator.serviceWorker.controller) {
+            try { window.__avisarAtualizacao && window.__avisarAtualizacao(reg); } catch (e) {}
+          }
           /* Procura versão nova ao voltar o foco (e a cada 30 min). O navegador
              só checa sozinho na navegação; num app instalado que fica aberto por
              dias, isso significava rodar código velho por dias. NÃO recarregamos

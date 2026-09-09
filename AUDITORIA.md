@@ -1189,3 +1189,135 @@ perfil ativo acompanha, a revisão é herdada, e nada fica duplicado).
 Nota de processo: a primeira versão do teste de URL continha um `</script>`
 literal, que encerrava o bloco de código no HTML montado. A checagem 4 do
 `verificar.mjs` pegou na hora — é para isso que ela existe.
+
+---
+
+## 20. O cache que nunca virava — por que "atualizar" dava bug
+
+O relato foi direto: *"sempre que atualizamos tem gerado bugs e diversos
+conflitos de login e uso"*. Não era impressão. Havia três defeitos somados no
+caminho de atualização, e cada um sozinho já bastaria.
+
+### 20.1. O nome do cache era fixo — a faxina nunca tinha o que limpar
+
+`sw.js` abria com `const VERSAO = 'diario-v2';`. Esse valor dá nome aos dois
+baldes de cache (`-app` e `-cdn`) e é o que a ativação usa para descartar o que
+é velho:
+
+```js
+caches.keys().then(n => Promise.all(
+  n.filter(k => !k.startsWith(VERSAO)).map(k => caches.delete(k))))
+```
+
+Como `VERSAO` era escrita à mão e não mudava entre publicações, **nenhuma chave
+jamais deixava de começar com a versão atual**. A faxina rodava a cada ativação
+e apagava zero. O cache de meses atrás continuava lá, com o mesmo nome do novo,
+servindo ativos antigos a código novo. É exatamente a mistura que produz erro
+sem explicação — inclusive em login, onde um arranque velho conversa com um
+fluxo de sessão novo.
+
+**Correção:** a versão passou a ser um resumo (SHA-256, 10 dígitos) do conteúdo
+montado de `src/`. O `build.mjs` a calcula, carimba no `index.html`
+(`<meta name="diario-versao">`) e reescreve a linha `const VERSAO` do `sw.js`.
+Cada alteração real de código gera um nome de cache novo; o antigo passa a
+falhar no `startsWith` e é descartado sozinho na ativação — sem ninguém pedir.
+
+O resumo é calculado sobre a montagem **sem o carimbo**, para não depender de si
+mesmo; assim `node build.mjs --check` reproduz o mesmo byte a byte. E o
+`--check` ganhou uma trava nova: se o `sw.js` publicado estiver carimbado com
+versão diferente da que `src/` monta, ele falha. Um carimbo defasado ali
+significa cache com nome errado, e isso não pode passar despercebido.
+
+### 20.2. `skipWaiting()` automático — duas versões vivas ao mesmo tempo
+
+A instalação terminava com `.then(() => self.skipWaiting())`. O worker novo
+assumia **na hora**, enquanto a aba aberta continuava executando o JavaScript da
+versão anterior. Da ativação em diante, a página velha pedia recursos e recebia
+os da versão nova.
+
+É a origem clássica do "atualizei e começou a dar erro estranho": não há uma
+versão errada, há **duas versões vivas** — uma na página, outra no worker.
+
+**Correção:** o `skipWaiting()` automático saiu. O worker novo **espera**. Quem
+decide a troca é o usuário, pelo aviso; ou ela acontece sozinha quando todas as
+abas fecham, que é o comportamento padrão e seguro da plataforma.
+
+### 20.3. O aviso era um toast — some antes de alguém agir
+
+O registrador mostrava `showToast('Nova versão pronta — recarregue quando
+quiser')`. Um toast dura segundos. Num app instalado que fica aberto por dias,
+o resultado prático é rodar código velho por dias.
+
+**Correção:** uma barra persistente (`.upd-bar`), que fica na tela até ser
+resolvida e traz o botão que resolve — **Depois** e **Atualizar agora**. Ela não
+bloqueia nada: dá para continuar usando.
+
+A regra que sustenta a troca está no novo `src/js/67-atualizacao.js`:
+
+> **trocar de versão nunca pode perder o que não subiu.**
+
+Antes de recarregar, `_entregarPendencias()` chama `CloudStore.flushPending()` e
+**espera** a fila esvaziar (`_pending`, `_syncing`, `SectionSync.pendingQuick()`),
+com teto de 8 s. Se não der para entregar no prazo, o app **diz isso** e deixa a
+escolha com quem está lá — a alteração continua salva no aparelho e na fila
+depois de atualizar, mas quem decide é o usuário, não o relógio.
+
+O recarregamento em si escuta `controllerchange` antes de mandar
+`postMessage('skipWaiting')`: recarregar antes do worker assumir de fato traria
+a versão velha outra vez. Há uma rede de segurança de 4 s caso o evento não
+chegue, e `{ once: true }` mais uma trava `recarregou` garantem uma única
+recarga.
+
+Um caso a mais foi coberto: se **outra aba** já viu a atualização, esta abre com
+`reg.waiting` preenchido e nenhum `updatefound` acontece. O registrador agora
+também avisa nesse caso.
+
+### 20.4. A saída manual, para quando ainda assim algo ficar estranho
+
+Em Diagnóstico há um cartão novo, **↻ Atualização do app**, com duas ações:
+
+- **Procurar atualização** — força `reg.update()` e mostra o aviso se houver
+  worker esperando; senão, confirma que já está na versão mais recente.
+- **Limpar cache do app e recarregar** — o botão de último recurso.
+
+A limpeza é explícita sobre o que faz e o que **não** faz: apaga apenas os
+arquivos do app guardados pelo service worker; os dados de estudo vivem no
+IndexedDB e na nuvem, e não são tocados. Mesmo assim ela descarrega a fila antes
+de agir. A sequência é pedir ao worker (dono dos caches), limpar também do lado
+da página (cobre o caso de não haver worker ativo) e desregistrar os workers,
+para que a próxima carga instale o atual do zero.
+
+O `sw.js` passou a **responder** ao `limparCache` por `MessageChannel`. Sem
+resposta, quem pediu não sabia quando podia recarregar e recarregava cedo demais,
+com o cache pela metade.
+
+A versão em execução também aparece em Diagnóstico. "Qual versão está rodando
+aqui?" passou a ter resposta — que é o primeiro dado de qualquer suporte.
+
+### 20.5. O lado da escrita: a fila de envio sobrevive?
+
+A outra metade do pedido era garantia de que alteração do usuário **chega ao
+banco**, não só ao aparelho. A varredura não encontrou caminho de gravação fora
+do canal de sincronização (item 16 já havia fechado a última exceção, o
+`AppSettings`). O que faltava era prova de que a fila **sobrevive**.
+
+Ela existe em duas camadas: `_dirty`, em memória, e `__secpend`, gravada no
+armazenamento; e há uma terceira prova independente das duas — o **hash** do
+conteúdo: se o texto de uma seção não bate com o hash do último envio, ela mudou
+depois disso, mesmo que as duas listas tenham se perdido. Os drenos periódicos
+(8 s e 12 s) e os ganchos de `focus`/`online`/`visibilitychange` cuidam do resto.
+
+Isso virou o grupo de teste **"Fila de envio sobrevive"**: gravar enfileira;
+a fila é persistida; memória zerada não vê pendência; `restorePending()` a traz
+de volta; conteúdo diferente do último envio é detectado como pendente; e
+conteúdo idêntico **não** é reenviado à toa.
+
+Cobertura: **AutoTeste 302 → 308**.
+
+### Nota de layout
+
+A primeira versão da barra usava `flex: 1 1 220px` no texto. Em telas estreitas
+o container vira `flex-direction: column`, e nessa direção o `flex-basis` passa
+a valer como **altura** — a barra ocupava cerca de 330 px do celular. Corrigido
+com `.upd-bar .upd-txt { flex: 0 0 auto; }` na consulta de mídia, e conferido em
+captura real nas duas larguras.

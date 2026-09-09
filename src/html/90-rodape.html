@@ -307,15 +307,24 @@
       navigator.serviceWorker.register('sw.js', { scope: './', updateViaCache: 'none' })
         .then(function (reg) {
           // Atualização disponível: aplica na próxima abertura, sem interromper.
+          /* Um TOAST não resolvia: ele some em segundos, ninguém age, e a
+             pessoa segue rodando código velho por dias — que é de onde vêm os
+             "conflitos de login e uso" depois de uma publicação. O aviso agora
+             FICA na tela até ser resolvido, e traz o botão que resolve. */
           reg.addEventListener('updatefound', function () {
             var novo = reg.installing;
             if (!novo) return;
             novo.addEventListener('statechange', function () {
               if (novo.state === 'installed' && navigator.serviceWorker.controller) {
-                try { if (window.showToast) showToast('Nova versão pronta — recarregue quando quiser'); } catch (e) {}
+                try { window.__avisarAtualizacao && window.__avisarAtualizacao(reg); } catch (e) {}
               }
             });
           });
+          // Já havia um worker esperando quando esta aba abriu (outra aba viu a
+          // atualização antes): o aviso vale igual.
+          if (reg.waiting && navigator.serviceWorker.controller) {
+            try { window.__avisarAtualizacao && window.__avisarAtualizacao(reg); } catch (e) {}
+          }
           /* Procura versão nova ao voltar o foco (e a cada 30 min). O navegador
              só checa sozinho na navegação; num app instalado que fica aberto por
              dias, isso significava rodar código velho por dias. NÃO recarregamos

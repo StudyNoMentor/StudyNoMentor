@@ -843,6 +843,18 @@ else CloudStore.init();
           <button type="button" class="cfg-action cfg-danger" id="cfgx-outall"><span class="ic">🌐</span><span class="t">Sair de todos os dispositivos</span><span class="d">Derruba todas as sessões da conta. Use se achar que alguém mais tem acesso.</span></button>
           <button type="button" class="cfg-action cfg-danger" id="cfgx-wipe"><span class="ic">🧹</span><span class="t">Limpar dados locais deste perfil</span><span class="d">Apaga a cópia guardada neste navegador e baixa tudo da nuvem de novo. Só com a conta conectada e sincronizada.</span></button>
         </div>`);
+      /* ── ATUALIZAÇÃO E CACHE ─────────────────────────────────────────────
+         Fica FORA da zona de risco de propósito: limpar o cache do app não
+         apaga dado nenhum — só os arquivos que o navegador guardou. Confundir
+         as duas coisas faria alguém evitar a ação certa por medo. */
+      this.card('diag', '↻ Atualização do app',
+        'O app guarda os próprios arquivos para abrir sem internet. Quando sai uma versão nova, é aqui que se força a troca — e é aqui que se resolve o "atualizei e ficou estranho". <strong>Seus dados de estudo não são afetados por nada desta seção.</strong>', `
+        <div class="cfg-action-grid">
+          <button type="button" class="cfg-action" id="cfgu-procurar"><span class="ic">🔎</span><span class="t">Procurar atualização</span><span class="d">Verifica agora se há uma versão mais nova publicada.</span></button>
+          <button type="button" class="cfg-action" id="cfgu-limpar"><span class="ic">🧹</span><span class="t">Limpar cache do app e recarregar</span><span class="d">Apaga só os arquivos guardados do app e recarrega do zero. Os dados de estudo ficam intactos.</span></button>
+        </div>`);
+      $('#cfgu-procurar').addEventListener('click', () => { if (window.Atualizacao) Atualizacao.procurar(); });
+      $('#cfgu-limpar').addEventListener('click', () => { if (window.Atualizacao) Atualizacao.limparCacheERecarregar(); });
       $('#cfgx-refresh').addEventListener('click', () => this.refreshDiag());
       $('#cfgx-copy').addEventListener('click', () => {
         const t = this.diagData().map(d => d.k + ': ' + d.v).join('\n');
@@ -891,6 +903,7 @@ else CloudStore.init();
         { k: 'Flashcards', v: nCards, t: '' },
         { k: 'Conexão do navegador', v: navigator.onLine ? 'online' : 'offline', t: navigator.onLine ? 'ok' : 'bad' },
         { k: 'Servidor (Supabase)', v: CS ? ({ ready: 'conectado', pending: 'carregando…', missing: 'biblioteca não carregou', error: 'erro ao iniciar' }[CS.libStatus] || CS.libStatus) : '—', t: (CS && CS.libStatus === 'ready') ? 'ok' : 'warn' },
+        { k: 'Versão em execução', v: (window.Atualizacao ? Atualizacao.versao() : '—'), t: '' },
         { k: 'Armazenamento', v: (window.indexedDB ? 'IndexedDB disponível' : 'só localStorage'), t: window.indexedDB ? 'ok' : 'warn' },
         { k: 'Revisão local do perfil', v: rev, t: '' },
         { k: 'Sessão única ao entrar', v: pget('single-session', '0') === '1' ? 'ligada' : 'desligada', t: '' },

@@ -13,19 +13,27 @@ funciona igual — só sem offline.
 ## O que existe para quem MANTÉM o código
 
 `index.html` tem ~36.500 linhas. Editar isso direto é onde os erros nascem.
-Por isso o mesmo conteúdo vive também em `src/`, quebrado em 47 arquivos:
+Por isso o mesmo conteúdo vive também em `src/`, quebrado em 48 arquivos:
 
 ```
 src/
   html/   4 pedaços do documento (cabeçalho, corpo, rodapé)
   css/    5 folhas de estilo
-  js/    38 módulos do aplicativo
+  js/    39 módulos do aplicativo
 ```
 
 `build.mjs` junta `src/` de volta em `index.html`. A montagem é uma
 **concatenação literal**: nada é minificado, transpilado, reordenado ou
 reescrito. O `index.html` gerado é **byte a byte** igual ao que está no
 repositório — e `node build.mjs --check` prova isso.
+
+A única coisa que a montagem **escreve** além da concatenação é o carimbo de
+versão: um resumo do conteúdo de `src/`, gravado no `<meta name="diario-versao">`
+do `index.html` e na linha `const VERSAO` do `sw.js`. É o que dá nome ao cache do
+service worker, para que cada publicação tenha um balde próprio e o antigo seja
+descartado sozinho. O resumo é calculado sobre a montagem **sem o carimbo**, para
+não depender de si mesmo; `--check` recalcula, compara e falha se o `sw.js`
+estiver com versão diferente da que `src/` monta.
 
 ### Por que não viramos módulos ES de verdade
 

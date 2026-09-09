@@ -52,6 +52,12 @@
 })();
 </script>
 <meta name="referrer" content="strict-origin-when-cross-origin">
+<!-- Carimbo de versão: o build.mjs substitui "dev" por um resumo do conteúdo de
+     src/. É o que dá NOME ao cache do service worker (cada versão, um cache
+     novo, e o antigo é descartado sozinho na ativação) e o que permite ao app
+     dizer qual versão está rodando. Em src/ fica "dev" de propósito: a versão
+     é gerada na montagem, não editada à mão. -->
+<meta name="diario-versao" content="dev">
 <script>
 /* ── ARRANQUE: abre o IndexedDB AGORA, em paralelo com o parse do documento ──
    A fachada de armazenamento vive no fim do <body>, depois de ~1,7 MB de HTML.
