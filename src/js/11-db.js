@@ -26,9 +26,26 @@ const DB = {
     cycleHistory: 'diario-estudos:cycle-history',
     tracks: 'diario-estudos:tracks'
   },
+  /* ── O ID DO PLANEJAMENTO ATIVO, À PROVA DE ASPAS ─────────────────────────
+     Este id entra na composição de TODAS as chaves do planejamento
+     (`p:<id>:entries`, `p:<id>:cards`…). Se ele vier com aspas — o que acontece
+     quando algum caminho grava com JSON.stringify em vez de texto puro —, cada
+     chave derivada muda de nome de uma vez só: o app passa a ler e gravar em
+     `p:"pl_inicial":entries` enquanto os dados de verdade continuam em
+     `p:pl_inicial:entries`. Nada é apagado, mas as telas abrem vazias, e a tela
+     de Recuperação passa a listar um "planejamento órfão" fantasma com o nome
+     entre aspas — foi exatamente o que apareceu em uso real.
+
+     Uma única linha de saneamento na LEITURA conserta o presente e o passado:
+     qualquer valor gravado torto volta a apontar para o lugar certo. */
   _activePlanId() {
-    try { return localStorage.getItem(this.GLOBAL_KEYS.activePlan) || 'default'; }
-    catch (e) { return 'default'; }
+    try {
+      let v = localStorage.getItem(this.GLOBAL_KEYS.activePlan);
+      if (!v) return 'default';
+      v = String(v).trim();
+      if (v.length > 1 && v[0] === '"' && v[v.length - 1] === '"') v = v.slice(1, -1);
+      return v || 'default';
+    } catch (e) { return 'default'; }
   },
   // Monta o conjunto de chaves namespaced de UM planejamento qualquer (dentro do perfil ativo)
   keysForPlan(planId) {

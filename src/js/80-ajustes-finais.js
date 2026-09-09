@@ -853,6 +853,13 @@ else CloudStore.init();
       $('#cfgx-outall').addEventListener('click', () => CloudUX.logout('global'));
       $('#cfgx-wipe').addEventListener('click', () => CloudUX.wipeLocal());
     },
+    /* ── O DIAGNÓSTICO RESPONDE UMA PERGUNTA SÓ ───────────────────────────
+       "Meus dados estão salvos e sincronizados?" Tudo o mais — revisão local
+       do perfil, motor de armazenamento, tempo de inatividade — é vocabulário
+       de quem escreveu o app, não de quem o usa, e ocupava a tela inteira
+       acima da resposta. Agora o veredito vem primeiro, em uma frase; as
+       quatro linhas que o sustentam vêm logo abaixo; e o resto fica a um
+       clique, para quando alguém precisar mesmo diagnosticar. */
     diagData() {
       const CS = window.CloudStore;
       const logged = !!(CS && CS.isReady && CS.isReady() && CS.isLoggedIn());
@@ -861,39 +868,61 @@ else CloudStore.init();
       let nEnt = '—', nCards = '—';
       try { nEnt = String((DB.getEntries() || []).length); } catch (_) { _quiet(_); }
       try { nCards = String((DB.getCards() || []).length); } catch (_) { _quiet(_); }
-      const pend = CS ? (CS._pending || !!CS._debounce) : false;
+      let fila = 0;
+      try { if (window.SectionSync) fila = SectionSync.pendingQuick(); } catch (_) { _quiet(_); }
+      const pend = (CS ? (CS._pending || !!CS._debounce) : false) || fila > 0;
       const last = (CS && CS._lastSyncAt) ? new Date(CS._lastSyncAt).toLocaleString('pt-BR') : 'nesta sessão, ainda não';
+      const bkp = (() => {
+        if (!window.CloudBackup) return { v: '—', t: '' };
+        if (!CloudBackup.enabled) return { v: 'tabela ausente — veja BANCO-DE-DADOS.md', t: 'warn' };
+        if (!logged) return { v: 'aguardando a conta', t: 'warn' };
+        if (CloudBackup._ultimoErro) return { v: 'erro: ' + CloudBackup._ultimoErro, t: 'warn' };
+        const em = CloudBackup.ultimoEnvioEm();
+        return em ? { v: 'última cópia ' + new Date(em).toLocaleString('pt-BR'), t: 'ok' }
+                  : { v: 'nenhuma cópia ainda', t: 'warn' };
+      })();
       return [
-        { k: 'Conexão do navegador', v: navigator.onLine ? 'online' : 'offline', t: navigator.onLine ? 'ok' : 'bad' },
-        { k: 'Servidor (Supabase)', v: CS ? ({ ready: 'conectado', pending: 'carregando…', missing: 'biblioteca não carregou', error: 'erro ao iniciar' }[CS.libStatus] || CS.libStatus) : '—', t: (CS && CS.libStatus === 'ready') ? 'ok' : 'warn' },
-        { k: 'Sessão', v: logged ? 'ativa · ' + (CS.userEmail() || '') : 'sem sessão', t: logged ? 'ok' : 'bad' },
-        { k: 'Alterações pendentes', v: pend ? 'sim — há algo por enviar' : 'nenhuma', t: pend ? 'warn' : 'ok' },
-        { k: 'Última sincronização', v: last, t: '' },
+        { k: 'Conta', v: logged ? 'conectada · ' + (CS.userEmail() || '') : 'sem conta conectada', t: logged ? 'ok' : 'bad', ess: 1 },
+        { k: 'Alterações à espera de envio', v: pend ? (fila ? fila + ' — subindo' : 'sim, subindo') : 'nenhuma', t: pend ? 'warn' : 'ok', ess: 1 },
+        { k: 'Última sincronização', v: last, t: '', ess: 1 },
+        { k: 'Backup no banco', v: bkp.v, t: bkp.t, ess: 1 },
         { k: 'Perfil ativo', v: nome, t: '' },
-        { k: 'Revisão local do perfil', v: rev, t: '' },
         { k: 'Registros de estudo', v: nEnt, t: '' },
         { k: 'Flashcards', v: nCards, t: '' },
+        { k: 'Conexão do navegador', v: navigator.onLine ? 'online' : 'offline', t: navigator.onLine ? 'ok' : 'bad' },
+        { k: 'Servidor (Supabase)', v: CS ? ({ ready: 'conectado', pending: 'carregando…', missing: 'biblioteca não carregou', error: 'erro ao iniciar' }[CS.libStatus] || CS.libStatus) : '—', t: (CS && CS.libStatus === 'ready') ? 'ok' : 'warn' },
         { k: 'Armazenamento', v: (window.indexedDB ? 'IndexedDB disponível' : 'só localStorage'), t: window.indexedDB ? 'ok' : 'warn' },
-        /* "Ativo" sozinho não prova nada — a data da última cópia prova. Um
-           backup automático que parou de rodar tem de ser visível AQUI, não
-           descoberto no dia em que alguém precisa restaurar. */
-        { k: 'Backup no banco', v: (() => {
-            if (!window.CloudBackup) return '—';
-            if (!CloudBackup.enabled) return 'tabela ausente — veja BANCO-DE-DADOS.md';
-            if (!logged) return 'aguardando a conta';
-            if (CloudBackup._ultimoErro) return 'erro: ' + CloudBackup._ultimoErro;
-            const em = CloudBackup.ultimoEnvioEm();
-            return em ? ('última cópia ' + new Date(em).toLocaleString('pt-BR')) : 'nenhuma cópia ainda';
-          })(), t: (window.CloudBackup && CloudBackup.enabled && logged && !CloudBackup._ultimoErro && CloudBackup.ultimoEnvioEm()) ? 'ok' : 'warn' },
+        { k: 'Revisão local do perfil', v: rev, t: '' },
         { k: 'Sessão única ao entrar', v: pget('single-session', '0') === '1' ? 'ligada' : 'desligada', t: '' },
         { k: 'Sair por inatividade', v: (() => { const m = parseInt(pget('idle-mins', '0'), 10); return m > 0 ? m + ' min' : 'nunca'; })(), t: '' }
       ];
     },
+    // A frase de cima: o que a pessoa veio saber, sem precisar interpretar nada.
+    diagVeredito(linhas) {
+      const por = (k) => linhas.find(l => l.k === k) || {};
+      if (por('Conta').t === 'bad') {
+        return { t: 'warn', txt: '⚠️ Sem conta conectada — seus dados estão salvos só neste aparelho. Entre na conta para que eles subam e fiquem protegidos.' };
+      }
+      if (por('Alterações à espera de envio').t === 'warn') {
+        return { t: 'warn', txt: '↻ Já está salvo neste aparelho; algumas alterações ainda estão subindo. Basta deixar o app aberto por alguns instantes.' };
+      }
+      if (por('Backup no banco').t === 'warn') {
+        return { t: 'warn', txt: '⚠️ Sincronizado, mas o backup no banco não está em dia — veja a linha "Backup no banco" abaixo.' };
+      }
+      return { t: 'ok', txt: '✓ Tudo salvo, sincronizado e com backup no banco.' };
+    },
     refreshDiag() {
       const host = $('#cfg-diag-grid');
       if (!host) return;
-      host.innerHTML = this.diagData().map(d =>
-        `<div class="cfg-diag-item"><div class="k">${esc(d.k)}</div><div class="v ${d.t || ''}">${esc(d.v)}</div></div>`).join('');
+      const linhas = this.diagData();
+      const ver = this.diagVeredito(linhas);
+      const item = (d) => `<div class="cfg-diag-item"><div class="k">${esc(d.k)}</div><div class="v ${d.t || ''}">${esc(d.v)}</div></div>`;
+      const essenciais = linhas.filter(d => d.ess).map(item).join('');
+      const resto = linhas.filter(d => !d.ess).map(item).join('');
+      host.innerHTML =
+        `<p class="hint ${ver.t === 'ok' ? '' : 'warn'}" style="grid-column:1/-1;margin:0 0 12px;font-weight:700;">${esc(ver.txt)}</p>` +
+        essenciais +
+        `<details style="grid-column:1/-1;margin-top:10px;"><summary style="cursor:pointer;font-weight:700;">Detalhes técnicos</summary><div class="cfg-diag" style="margin-top:10px;">${resto}</div></details>`;
     }
   };
 

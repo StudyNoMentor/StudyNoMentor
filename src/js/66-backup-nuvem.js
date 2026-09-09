@@ -414,17 +414,51 @@ const CloudBackup = {
      Uma foto por dia, na primeira abertura. O carimbo é local (uma leitura, sem
      rede); se ele se perder, o pior que acontece é uma foto a mais, e criar()
      descarta a duplicata pela assinatura (persistida — sobrevive a reload). */
+  /* ── QUEM SABE SE A FOTO DE HOJE JÁ EXISTE É O BANCO ──────────────────────
+     O controle era só um carimbo local (`cbk-dia:<perfil>`). Um carimbo local
+     responde bem quando sobrevive — e ele não sobrevive a tudo: trocar de
+     aparelho, limpar o navegador, o id do perfil mudar (a migração para UUID
+     muda a chave), ou qualquer gravação que não chegue ao disco. Toda vez que
+     ele se perde, o app conclui "ainda não fiz a de hoje" e grava outra. Foi
+     assim que um único dia acumulou seis fotos de 3 MB.
+
+     Um trabalho agendado não pode ter como fonte da verdade um sinalizador do
+     cliente: a fonte da verdade tem de ser o lugar onde o resultado é gravado.
+     Agora o carimbo local é só um CAMINHO RÁPIDO (acerta quase sempre e custa
+     zero consulta); quando ele não bate, quem decide é uma consulta ao banco
+     — que sobrevive a recarregamento, a troca de aparelho e à perda da chave.
+     Duplicar deixa de ser possível, não importa o que aconteça no cliente. */
+  async _jaTemFotoDeHoje(id) {
+    const inicio = new Date(); inicio.setHours(0, 0, 0, 0);
+    const { data, error } = await CloudStore.client.from(this.TABLE)
+      .select('id').eq('profile_id', id).gte('created_at', inicio.toISOString()).limit(1);
+    if (error) throw error;
+    return !!(data && data.length);
+  },
   _diaEmCurso: false,
   async garantirDoDia() {
     if (!this._pronto() || this._diaEmCurso) return false;
     const id = ProfileManager.getActiveProfileId();
     if (!id) return false;
+    const hoje = todayLocal();
     let ultimo = null;
     try { ultimo = localStorage.getItem(this._diaKey(id)); } catch (e) { _quiet(e, 'cbk-dia'); }
-    const hoje = todayLocal();
-    if (ultimo === hoje) return false;   // já há a foto de hoje: sai em microssegundos
+    if (ultimo === hoje) return false;   // caminho rápido: nem consulta o banco
     this._diaEmCurso = true;
-    try { return await this._fazerDoDia(id, hoje); } finally { this._diaEmCurso = false; }
+    try {
+      if (await this._jaTemFotoDeHoje(id)) {
+        // o banco já tem a de hoje: só reconstrói o carimbo local que se perdeu
+        try { localStorage.setItem(this._diaKey(id), hoje); } catch (e) { _quiet(e, 'cbk-dia3'); }
+        return false;
+      }
+      return await this._fazerDoDia(id, hoje);
+    } catch (e) {
+      /* Não deu para confirmar com o banco: NÃO grava. Uma foto a menos hoje é
+         recuperável (o próximo ciclo, daqui a um minuto, tenta de novo); uma
+         foto duplicada a cada minuto não é. */
+      _quiet(e, 'cbk-dia-checagem');
+      return false;
+    } finally { this._diaEmCurso = false; }
   },
   async _fazerDoDia(id, hoje) {
     const r = await this.criar('backup diário');

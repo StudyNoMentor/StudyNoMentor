@@ -977,3 +977,71 @@ entregou o que nunca enviou).
 
 Se alguém amanhã guardar uma preferência nova numa chave global, a suíte falha
 aqui — antes de virar dado perdido de alguém.
+
+---
+
+## 17. Seis backups num dia, planejamentos fantasma e telas que gritavam
+
+Achados a partir de capturas de uso real, não de leitura de código.
+
+### Seis "backup diário" no mesmo dia
+
+A lista mostrava, num só dia, seis fotos de 3 MB com a nota `backup diário`.
+O controle de "já fiz a de hoje" era um **carimbo local** (`cbk-dia:<perfil>`).
+Um carimbo local responde bem enquanto sobrevive — e ele não sobrevive a tudo:
+trocar de aparelho, limpar o navegador, o id do perfil mudar (a migração para
+UUID muda a chave) ou qualquer gravação que não chegue ao disco. Cada vez que
+ele se perde, o app conclui "ainda não fiz a de hoje" e grava outra.
+
+**A regra que faltava:** um trabalho agendado não pode ter como fonte da
+verdade um sinalizador do cliente — a fonte da verdade é o lugar onde o
+resultado é gravado. O carimbo local virou apenas um **caminho rápido** (acerta
+quase sempre, custa zero consulta); quando ele não bate, quem decide é uma
+consulta ao banco (`_jaTemFotoDeHoje`), que sobrevive a recarregamento, troca de
+aparelho e perda da chave. Duplicar deixou de ser possível pelo lado do cliente.
+E se a consulta falhar, **não grava**: uma foto a menos hoje é recuperável no
+minuto seguinte; uma foto duplicada por minuto não é.
+
+### Planejamentos fantasma com aspas no nome
+
+A tela de Recuperação listava dois "planejamentos órfãos": `"pl_inicial"` —
+**com aspas** — e `default`, cada um com 617 B. O id do planejamento entra na
+composição de todas as chaves (`p:<id>:entries`, `p:<id>:cards`…): um id com
+aspas renomeia todas de uma vez, e o app passa a ler e gravar em
+`p:"pl_inicial":entries` enquanto os dados de verdade seguem em
+`p:pl_inicial:entries`. Nada é apagado, mas as telas abrem vazias.
+
+Corrigido no ponto certo — a **leitura** (`DB._activePlanId`) passa a sanear
+aspas ao redor, o que conserta o presente e o passado de uma vez; e
+`PlanManager.getActivePlanId` passou a usar a mesma leitura saneada em vez de
+ler a chave crua.
+
+### Um alarme que disparava por 617 bytes
+
+Os dois órfãos acima continham **apenas as listas semeadas de fábrica**
+(formas de estudo, fases, modos, status) — nada do usuário. Mesmo assim faziam
+a tela estampar "⚠️ Há dado recuperável neste aparelho". Um alarme que dispara
+sem motivo é pior que nenhum alarme: ensina a ignorar o alarme de verdade.
+Agora um órfão que só tem seções semeadas não é reportado, e o histórico de
+fotos parou de acender o alarme (ter uma foto com uma seção vazia é o normal —
+basta não usar aquela parte do app).
+
+### Telas que despejavam vocabulário de banco de dados
+
+**Recuperação** abria com uma linha de jargão ("50 seção(ões) em uso · 0
+perfil(is) fora da lista · 2 planejamento(s) órfão(s)…") e, logo abaixo, uma
+tabela com o nome interno de cada seção (`p:pl_inicial:leis`) — que ocupava a
+maior parte da tela e não responde nada a quem teme ter perdido meses de
+estudo. O veredito passou a ser uma frase em português; a tabela e as chaves
+legadas foram para um `<details>` recolhido, a um clique, para diagnóstico.
+
+**Diagnóstico** tinha 13 linhas, das quais 9 eram detalhe interno (revisão
+local do perfil, motor de armazenamento, tempo de inatividade…). Ele responde
+a uma pergunta só — "meus dados estão salvos e sincronizados?" —, então passou
+a começar por essa resposta em uma frase, seguida das quatro linhas que a
+sustentam (conta, alterações à espera de envio, última sincronização, backup no
+banco). O resto ficou recolhido.
+
+Verificado: `verificar.mjs` completo, AutoTeste 285/285, zero erro de console,
+WCAG AA nos dois temas. As telas foram conferidas por captura, incluindo o
+caso do órfão só-com-semente, que deixou de acender o alarme.

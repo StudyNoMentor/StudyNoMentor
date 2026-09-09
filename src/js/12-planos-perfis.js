@@ -9,7 +9,9 @@ const PlanManager = {
 
   getPlans() { return DB._get(this.GK.plans, []); },
   savePlans(list) { DB._set(this.GK.plans, list); },
-  getActivePlanId() { try { return localStorage.getItem(this.GK.active); } catch (e) { return null; } },
+  // Mesma leitura saneada do DB._activePlanId: um id com aspas renomearia de uma
+  // vez todas as chaves do planejamento e as telas abririam vazias.
+  getActivePlanId() { try { return DB._activePlanId(); } catch (e) { return null; } },
   getActivePlan() { return this.getPlans().find(p => p.id === this.getActivePlanId()) || null; },
   // Trocar de planejamento é uma alteração do perfil como qualquer outra: passa
   // pelo canal único para chegar à nuvem (antes só subia no blob periódico).

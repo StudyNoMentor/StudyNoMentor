@@ -11010,9 +11010,26 @@ const DB = {
     cycleHistory: 'diario-estudos:cycle-history',
     tracks: 'diario-estudos:tracks'
   },
+  /* ── O ID DO PLANEJAMENTO ATIVO, À PROVA DE ASPAS ─────────────────────────
+     Este id entra na composição de TODAS as chaves do planejamento
+     (`p:<id>:entries`, `p:<id>:cards`…). Se ele vier com aspas — o que acontece
+     quando algum caminho grava com JSON.stringify em vez de texto puro —, cada
+     chave derivada muda de nome de uma vez só: o app passa a ler e gravar em
+     `p:"pl_inicial":entries` enquanto os dados de verdade continuam em
+     `p:pl_inicial:entries`. Nada é apagado, mas as telas abrem vazias, e a tela
+     de Recuperação passa a listar um "planejamento órfão" fantasma com o nome
+     entre aspas — foi exatamente o que apareceu em uso real.
+
+     Uma única linha de saneamento na LEITURA conserta o presente e o passado:
+     qualquer valor gravado torto volta a apontar para o lugar certo. */
   _activePlanId() {
-    try { return localStorage.getItem(this.GLOBAL_KEYS.activePlan) || 'default'; }
-    catch (e) { return 'default'; }
+    try {
+      let v = localStorage.getItem(this.GLOBAL_KEYS.activePlan);
+      if (!v) return 'default';
+      v = String(v).trim();
+      if (v.length > 1 && v[0] === '"' && v[v.length - 1] === '"') v = v.slice(1, -1);
+      return v || 'default';
+    } catch (e) { return 'default'; }
   },
   // Monta o conjunto de chaves namespaced de UM planejamento qualquer (dentro do perfil ativo)
   keysForPlan(planId) {
@@ -12688,7 +12705,9 @@ const PlanManager = {
 
   getPlans() { return DB._get(this.GK.plans, []); },
   savePlans(list) { DB._set(this.GK.plans, list); },
-  getActivePlanId() { try { return localStorage.getItem(this.GK.active); } catch (e) { return null; } },
+  // Mesma leitura saneada do DB._activePlanId: um id com aspas renomearia de uma
+  // vez todas as chaves do planejamento e as telas abririam vazias.
+  getActivePlanId() { try { return DB._activePlanId(); } catch (e) { return null; } },
   getActivePlan() { return this.getPlans().find(p => p.id === this.getActivePlanId()) || null; },
   // Trocar de planejamento é uma alteração do perfil como qualquer outra: passa
   // pelo canal único para chegar à nuvem (antes só subia no blob periódico).
@@ -33877,6 +33896,16 @@ const Recuperacao = {
   /* Planejamentos que TÊM dados mas não estão na lista — a causa mais comum de
      "os registros aparecem mas o resto sumiu": o ponteiro se perdeu, os dados
      não. Reanexar é uma operação puramente aditiva. */
+  /* Seções que TODO planejamento ganha de fábrica ao ser criado. Um "órfão"
+     que só tem isto não guarda nada seu: é a sobra de uma semeadura que não
+     virou planejamento nenhum. Reportá-lo como dado recuperável faz a tela
+     gritar "⚠️ há dado recuperável" por causa de 617 bytes de lista padrão —
+     e um alarme que dispara sem motivo é pior que nenhum alarme, porque ensina
+     a ignorar o alarme de verdade. */
+  SEMEADAS: ['methods', 'phases', 'modes', 'statuses'],
+  _soTemSemente(g) {
+    return g.folhas.length > 0 && g.folhas.every(f => this.SEMEADAS.indexOf(f) !== -1);
+  },
   planosOrfaos(pid) {
     const alvo = pid || ProfileManager.getActiveProfileId();
     const perfil = this.varrer().find(p => p.id === alvo);
@@ -33884,13 +33913,17 @@ const Recuperacao = {
     const porPlano = {};
     perfil.orfas.forEach(s => {
       if (!s.plano) return;
-      const g = porPlano[s.plano] || (porPlano[s.plano] = { id: s.plano, secoes: 0, bytes: 0, registros: 0 });
+      const g = porPlano[s.plano] || (porPlano[s.plano] = { id: s.plano, secoes: 0, bytes: 0, registros: 0, folhas: [] });
       g.secoes++; g.bytes += s.bytes;
+      const m = /^p:[^:]+:(.+)$/.exec(s.sec);
+      if (m) g.folhas.push(m[1]);
       if (/:entries$/.test(s.sec)) {
         try { g.registros = (JSON.parse(localStorage.getItem(s.chave)) || []).length; } catch (e) { _quiet(e, 'rec-conta'); }
       }
     });
-    return Object.values(porPlano).sort((a, b) => b.bytes - a.bytes);
+    return Object.values(porPlano)
+      .filter(g => !this._soTemSemente(g))
+      .sort((a, b) => b.bytes - a.bytes);
   },
   /* ── ARMAZENAMENTO ANTIGO (localStorage nativo) ───────────────────────────
      O app guarda tudo no IndexedDB, através de uma fachada que se chama
@@ -34041,15 +34074,19 @@ const RecuperacaoUI = {
     /* 1. VEREDITO — a pergunta que a pessoa veio fazer, respondida primeiro. */
     const alcancaveis = meu ? meu.secoes.filter(s => s.alcancavel) : [];
     const perfisFora = perfis.filter(p => !p.naListaDePerfis && p.secoes.length);
-    const recuperavel = perfisFora.length || orfaos.length || lixo.length || antigo.length || legado.length ||
-      fotos.some(f => f.secoes.some(sec => {
-        const v = localStorage.getItem('diario-estudos:u:' + ativo + ':' + sec);
-        return v === null || v === '' || v === '[]' || v === '{}';
-      }));
+    /* O alarme só acende para o que TEM AÇÃO e é seu de verdade. O histórico de
+       fotos deixou de acender: ter uma foto com uma seção vazia é o normal (você
+       pode simplesmente não usar aquela parte do app), e isso fazia a tela
+       gritar sem motivo. Um alarme que dispara à toa ensina a ignorar o alarme
+       de verdade. */
+    const acoes = perfisFora.length + orfaos.length + lixo.length + antigo.length;
+    const resumo = recuperavel => recuperavel
+      ? 'Encontrei algo que dá para trazer de volta — as opções aparecem abaixo.'
+      : 'Está tudo no lugar. Nada aqui está perdido nem fora de alcance.';
     blocos.push(`<div class="cloud-slot-row" style="align-items:flex-start;">
       <div class="cloud-slot-info">
-        <div class="name">${recuperavel ? '⚠️ Há dado recuperável neste aparelho' : '✓ Nada fora do lugar'}</div>
-        <div class="meta">${alcancaveis.length} seção(ões) em uso · ${this._kb(meu ? meu.bytes : 0)} no total · ${perfisFora.length} perfil(is) fora da lista · ${orfaos.length} planejamento(s) órfão(s) · ${lixo.length} item(ns) na lixeira · ${antigo.length} chave(s) no armazenamento antigo · ${fotos.length} foto(s) do histórico</div>
+        <div class="name">${acoes ? '⚠️ Há algo para recuperar' : '✓ Nada fora do lugar'}</div>
+        <div class="meta">${resumo(acoes)}</div>
       </div>
     </div>`);
 
@@ -34076,17 +34113,6 @@ const RecuperacaoUI = {
         </div>`);
     }
 
-    /* 1d. CHAVES LEGADAS — de antes de perfis e planejamentos existirem. */
-    if (legado.length) {
-      blocos.push('<div class="wd-section-title">Dados de antes dos planejamentos</div>' +
-        '<p class="hint">Formato antigo, de quando o app ainda não tinha perfis nem planejamentos. Ficam guardados como estão; se algum tiver conteúdo que você não vê em tela nenhuma, me diga qual — a conversão depende do que há dentro.</p>' +
-        legado.map(x => `<div class="cloud-slot-row">
-          <div class="cloud-slot-info">
-            <div class="name">${escapeHtml(x.nome)}</div>
-            <div class="meta">${escapeHtml(x.chave)} · ${this._kb(x.bytes)}${x.itens != null ? ' · ' + x.itens + ' item(ns)' : ''}</div>
-          </div>
-        </div>`).join(''));
-    }
 
     /* 2. PLANEJAMENTOS ÓRFÃOS — a causa mais comum de "sumiu tudo menos os
        registros": os dados existem, o app é que perdeu o caminho até eles. */
@@ -34134,12 +34160,23 @@ const RecuperacaoUI = {
         </div>`).join(''));
     }
 
-    /* 5. O QUE EXISTE HOJE — a lista completa, para conferência. */
+    /* 5. DETALHES TÉCNICOS — RECOLHIDOS. Esta tabela lista cada seção com o
+       nome interno (`p:pl_inicial:leis`). Para quem está com medo de ter
+       perdido meses de estudo, ela não responde nada: é vocabulário do banco,
+       não do usuário — e aberta por padrão ela era a maior parte da tela.
+       Continua aqui, a um clique, para diagnóstico. */
     if (meu && meu.secoes.length) {
       const linhas = meu.secoes.slice().sort((a, b) => b.bytes - a.bytes).map(s =>
         `<tr><td>${escapeHtml(Recuperacao.rotulo(s.sec))}</td><td>${escapeHtml(s.sec)}</td><td class="num">${this._kb(s.bytes)}</td><td>${s.alcancavel ? '✓ em uso' : '⚠️ fora do alcance'}</td></tr>`).join('');
-      blocos.push('<div class="wd-section-title">Tudo o que existe neste aparelho</div>' +
-        `<div style="overflow-x:auto;"><table class="data-table"><thead><tr><th>O que é</th><th>Seção</th><th class="num">Tamanho</th><th>Situação</th></tr></thead><tbody>${linhas}</tbody></table></div>`);
+      const legadas = legado.length
+        ? '<p class="hint" style="margin-top:12px;">Formato antigo, de antes de existirem perfis e planejamentos: ' +
+          legado.map(x => escapeHtml(x.nome) + ' (' + this._kb(x.bytes) + ')').join(', ') + '.</p>'
+        : '';
+      blocos.push('<details style="margin-top:14px;">' +
+        `<summary style="cursor:pointer;font-weight:700;">Detalhes técnicos — ${meu.secoes.length} seção(ões), ${this._kb(meu.bytes)}</summary>` +
+        '<p class="hint">A lista abaixo é o inventário bruto deste aparelho, com os nomes internos. Serve para diagnóstico; você não precisa entender nem fazer nada com ela.</p>' +
+        `<div style="overflow-x:auto;"><table class="data-table"><thead><tr><th>O que é</th><th>Seção</th><th class="num">Tamanho</th><th>Situação</th></tr></thead><tbody>${linhas}</tbody></table></div>` +
+        legadas + '</details>');
     }
 
     /* 6. OUTROS PERFIS — dado de outro perfil também some da vista. */
@@ -34630,17 +34667,51 @@ const CloudBackup = {
      Uma foto por dia, na primeira abertura. O carimbo é local (uma leitura, sem
      rede); se ele se perder, o pior que acontece é uma foto a mais, e criar()
      descarta a duplicata pela assinatura (persistida — sobrevive a reload). */
+  /* ── QUEM SABE SE A FOTO DE HOJE JÁ EXISTE É O BANCO ──────────────────────
+     O controle era só um carimbo local (`cbk-dia:<perfil>`). Um carimbo local
+     responde bem quando sobrevive — e ele não sobrevive a tudo: trocar de
+     aparelho, limpar o navegador, o id do perfil mudar (a migração para UUID
+     muda a chave), ou qualquer gravação que não chegue ao disco. Toda vez que
+     ele se perde, o app conclui "ainda não fiz a de hoje" e grava outra. Foi
+     assim que um único dia acumulou seis fotos de 3 MB.
+
+     Um trabalho agendado não pode ter como fonte da verdade um sinalizador do
+     cliente: a fonte da verdade tem de ser o lugar onde o resultado é gravado.
+     Agora o carimbo local é só um CAMINHO RÁPIDO (acerta quase sempre e custa
+     zero consulta); quando ele não bate, quem decide é uma consulta ao banco
+     — que sobrevive a recarregamento, a troca de aparelho e à perda da chave.
+     Duplicar deixa de ser possível, não importa o que aconteça no cliente. */
+  async _jaTemFotoDeHoje(id) {
+    const inicio = new Date(); inicio.setHours(0, 0, 0, 0);
+    const { data, error } = await CloudStore.client.from(this.TABLE)
+      .select('id').eq('profile_id', id).gte('created_at', inicio.toISOString()).limit(1);
+    if (error) throw error;
+    return !!(data && data.length);
+  },
   _diaEmCurso: false,
   async garantirDoDia() {
     if (!this._pronto() || this._diaEmCurso) return false;
     const id = ProfileManager.getActiveProfileId();
     if (!id) return false;
+    const hoje = todayLocal();
     let ultimo = null;
     try { ultimo = localStorage.getItem(this._diaKey(id)); } catch (e) { _quiet(e, 'cbk-dia'); }
-    const hoje = todayLocal();
-    if (ultimo === hoje) return false;   // já há a foto de hoje: sai em microssegundos
+    if (ultimo === hoje) return false;   // caminho rápido: nem consulta o banco
     this._diaEmCurso = true;
-    try { return await this._fazerDoDia(id, hoje); } finally { this._diaEmCurso = false; }
+    try {
+      if (await this._jaTemFotoDeHoje(id)) {
+        // o banco já tem a de hoje: só reconstrói o carimbo local que se perdeu
+        try { localStorage.setItem(this._diaKey(id), hoje); } catch (e) { _quiet(e, 'cbk-dia3'); }
+        return false;
+      }
+      return await this._fazerDoDia(id, hoje);
+    } catch (e) {
+      /* Não deu para confirmar com o banco: NÃO grava. Uma foto a menos hoje é
+         recuperável (o próximo ciclo, daqui a um minuto, tenta de novo); uma
+         foto duplicada a cada minuto não é. */
+      _quiet(e, 'cbk-dia-checagem');
+      return false;
+    } finally { this._diaEmCurso = false; }
   },
   async _fazerDoDia(id, hoje) {
     const r = await this.criar('backup diário');
@@ -36324,6 +36395,13 @@ else CloudStore.init();
       $('#cfgx-outall').addEventListener('click', () => CloudUX.logout('global'));
       $('#cfgx-wipe').addEventListener('click', () => CloudUX.wipeLocal());
     },
+    /* ── O DIAGNÓSTICO RESPONDE UMA PERGUNTA SÓ ───────────────────────────
+       "Meus dados estão salvos e sincronizados?" Tudo o mais — revisão local
+       do perfil, motor de armazenamento, tempo de inatividade — é vocabulário
+       de quem escreveu o app, não de quem o usa, e ocupava a tela inteira
+       acima da resposta. Agora o veredito vem primeiro, em uma frase; as
+       quatro linhas que o sustentam vêm logo abaixo; e o resto fica a um
+       clique, para quando alguém precisar mesmo diagnosticar. */
     diagData() {
       const CS = window.CloudStore;
       const logged = !!(CS && CS.isReady && CS.isReady() && CS.isLoggedIn());
@@ -36332,39 +36410,61 @@ else CloudStore.init();
       let nEnt = '—', nCards = '—';
       try { nEnt = String((DB.getEntries() || []).length); } catch (_) { _quiet(_); }
       try { nCards = String((DB.getCards() || []).length); } catch (_) { _quiet(_); }
-      const pend = CS ? (CS._pending || !!CS._debounce) : false;
+      let fila = 0;
+      try { if (window.SectionSync) fila = SectionSync.pendingQuick(); } catch (_) { _quiet(_); }
+      const pend = (CS ? (CS._pending || !!CS._debounce) : false) || fila > 0;
       const last = (CS && CS._lastSyncAt) ? new Date(CS._lastSyncAt).toLocaleString('pt-BR') : 'nesta sessão, ainda não';
+      const bkp = (() => {
+        if (!window.CloudBackup) return { v: '—', t: '' };
+        if (!CloudBackup.enabled) return { v: 'tabela ausente — veja BANCO-DE-DADOS.md', t: 'warn' };
+        if (!logged) return { v: 'aguardando a conta', t: 'warn' };
+        if (CloudBackup._ultimoErro) return { v: 'erro: ' + CloudBackup._ultimoErro, t: 'warn' };
+        const em = CloudBackup.ultimoEnvioEm();
+        return em ? { v: 'última cópia ' + new Date(em).toLocaleString('pt-BR'), t: 'ok' }
+                  : { v: 'nenhuma cópia ainda', t: 'warn' };
+      })();
       return [
-        { k: 'Conexão do navegador', v: navigator.onLine ? 'online' : 'offline', t: navigator.onLine ? 'ok' : 'bad' },
-        { k: 'Servidor (Supabase)', v: CS ? ({ ready: 'conectado', pending: 'carregando…', missing: 'biblioteca não carregou', error: 'erro ao iniciar' }[CS.libStatus] || CS.libStatus) : '—', t: (CS && CS.libStatus === 'ready') ? 'ok' : 'warn' },
-        { k: 'Sessão', v: logged ? 'ativa · ' + (CS.userEmail() || '') : 'sem sessão', t: logged ? 'ok' : 'bad' },
-        { k: 'Alterações pendentes', v: pend ? 'sim — há algo por enviar' : 'nenhuma', t: pend ? 'warn' : 'ok' },
-        { k: 'Última sincronização', v: last, t: '' },
+        { k: 'Conta', v: logged ? 'conectada · ' + (CS.userEmail() || '') : 'sem conta conectada', t: logged ? 'ok' : 'bad', ess: 1 },
+        { k: 'Alterações à espera de envio', v: pend ? (fila ? fila + ' — subindo' : 'sim, subindo') : 'nenhuma', t: pend ? 'warn' : 'ok', ess: 1 },
+        { k: 'Última sincronização', v: last, t: '', ess: 1 },
+        { k: 'Backup no banco', v: bkp.v, t: bkp.t, ess: 1 },
         { k: 'Perfil ativo', v: nome, t: '' },
-        { k: 'Revisão local do perfil', v: rev, t: '' },
         { k: 'Registros de estudo', v: nEnt, t: '' },
         { k: 'Flashcards', v: nCards, t: '' },
+        { k: 'Conexão do navegador', v: navigator.onLine ? 'online' : 'offline', t: navigator.onLine ? 'ok' : 'bad' },
+        { k: 'Servidor (Supabase)', v: CS ? ({ ready: 'conectado', pending: 'carregando…', missing: 'biblioteca não carregou', error: 'erro ao iniciar' }[CS.libStatus] || CS.libStatus) : '—', t: (CS && CS.libStatus === 'ready') ? 'ok' : 'warn' },
         { k: 'Armazenamento', v: (window.indexedDB ? 'IndexedDB disponível' : 'só localStorage'), t: window.indexedDB ? 'ok' : 'warn' },
-        /* "Ativo" sozinho não prova nada — a data da última cópia prova. Um
-           backup automático que parou de rodar tem de ser visível AQUI, não
-           descoberto no dia em que alguém precisa restaurar. */
-        { k: 'Backup no banco', v: (() => {
-            if (!window.CloudBackup) return '—';
-            if (!CloudBackup.enabled) return 'tabela ausente — veja BANCO-DE-DADOS.md';
-            if (!logged) return 'aguardando a conta';
-            if (CloudBackup._ultimoErro) return 'erro: ' + CloudBackup._ultimoErro;
-            const em = CloudBackup.ultimoEnvioEm();
-            return em ? ('última cópia ' + new Date(em).toLocaleString('pt-BR')) : 'nenhuma cópia ainda';
-          })(), t: (window.CloudBackup && CloudBackup.enabled && logged && !CloudBackup._ultimoErro && CloudBackup.ultimoEnvioEm()) ? 'ok' : 'warn' },
+        { k: 'Revisão local do perfil', v: rev, t: '' },
         { k: 'Sessão única ao entrar', v: pget('single-session', '0') === '1' ? 'ligada' : 'desligada', t: '' },
         { k: 'Sair por inatividade', v: (() => { const m = parseInt(pget('idle-mins', '0'), 10); return m > 0 ? m + ' min' : 'nunca'; })(), t: '' }
       ];
     },
+    // A frase de cima: o que a pessoa veio saber, sem precisar interpretar nada.
+    diagVeredito(linhas) {
+      const por = (k) => linhas.find(l => l.k === k) || {};
+      if (por('Conta').t === 'bad') {
+        return { t: 'warn', txt: '⚠️ Sem conta conectada — seus dados estão salvos só neste aparelho. Entre na conta para que eles subam e fiquem protegidos.' };
+      }
+      if (por('Alterações à espera de envio').t === 'warn') {
+        return { t: 'warn', txt: '↻ Já está salvo neste aparelho; algumas alterações ainda estão subindo. Basta deixar o app aberto por alguns instantes.' };
+      }
+      if (por('Backup no banco').t === 'warn') {
+        return { t: 'warn', txt: '⚠️ Sincronizado, mas o backup no banco não está em dia — veja a linha "Backup no banco" abaixo.' };
+      }
+      return { t: 'ok', txt: '✓ Tudo salvo, sincronizado e com backup no banco.' };
+    },
     refreshDiag() {
       const host = $('#cfg-diag-grid');
       if (!host) return;
-      host.innerHTML = this.diagData().map(d =>
-        `<div class="cfg-diag-item"><div class="k">${esc(d.k)}</div><div class="v ${d.t || ''}">${esc(d.v)}</div></div>`).join('');
+      const linhas = this.diagData();
+      const ver = this.diagVeredito(linhas);
+      const item = (d) => `<div class="cfg-diag-item"><div class="k">${esc(d.k)}</div><div class="v ${d.t || ''}">${esc(d.v)}</div></div>`;
+      const essenciais = linhas.filter(d => d.ess).map(item).join('');
+      const resto = linhas.filter(d => !d.ess).map(item).join('');
+      host.innerHTML =
+        `<p class="hint ${ver.t === 'ok' ? '' : 'warn'}" style="grid-column:1/-1;margin:0 0 12px;font-weight:700;">${esc(ver.txt)}</p>` +
+        essenciais +
+        `<details style="grid-column:1/-1;margin-top:10px;"><summary style="cursor:pointer;font-weight:700;">Detalhes técnicos</summary><div class="cfg-diag" style="margin-top:10px;">${resto}</div></details>`;
     }
   };
 
