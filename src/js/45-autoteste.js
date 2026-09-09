@@ -690,6 +690,56 @@ const AutoTeste = {
 
   /* Esvaziar uma seção deixa o mesmo rastro que apagá-la: é o caminho de perda
      que ficava de fora, porque uma reescrita como `[]` é uma gravação normal. */
+  /* ── ISOLAMENTO ENTRE CONTAS NUM MESMO APARELHO ───────────────────────────
+     O episódio: logar com a Conta B num navegador que já teve a Conta A
+     mostrava o perfil da Conta A na lista — e clicar nele abria os dados
+     inteiros dela. A causa era a varredura de "perfis com dados locais" não
+     saber de quem é cada perfil. A correção marca o dono (user_id) sempre que
+     a nuvem confirma um perfil, e filtra por ele nos dois pontos de risco:
+     a listagem (syncMirrorFromCloud) e a abertura às cegas (o fallback de
+     "nuvem não achou, mas há dado aqui" em enterProfile). */
+  isolamentoEntreContas() {
+    const PID_A = '__t_conta_a__', PID_B = '__t_conta_b__', PID_SEMDONO = '__t_sem_dono__';
+    const criadas = [];
+    const escrever = (pid, sub, txt) => { const k = 'diario-estudos:u:' + pid + ':' + sub; criadas.push(k); localStorage.setItem(k, txt); };
+    const profilesAntes = localStorage.getItem(DB.PROFILES_KEY);
+    try {
+      escrever(PID_A, 'p:pl:entries', '[{"id":"e1"}]');
+      escrever(PID_B, 'p:pl:entries', '[{"id":"e2"}]');
+      escrever(PID_SEMDONO, 'p:pl:entries', '[{"id":"e3"}]');   // simula dado de antes desta correção
+
+      ProfileManager._setOwner(PID_A, 'uid-conta-a');
+      ProfileManager._setOwner(PID_B, 'uid-conta-b');
+      // PID_SEMDONO fica sem rótulo de propósito
+
+      // 1. a checagem pura: dono comprovado de outra conta bloqueia; sem dono não
+      this._ok('dono da própria conta pode ver', ProfileManager._podeVerLocal(PID_A, 'uid-conta-a') === true);
+      this._ok('dono de outra conta é bloqueado', ProfileManager._podeVerLocal(PID_A, 'uid-conta-b') === false);
+      this._ok('sem dono conhecido continua visível (sem regressão)', ProfileManager._podeVerLocal(PID_SEMDONO, 'uid-conta-b') === true);
+
+      // 2. syncMirrorFromCloud: logando como a Conta B, a lista não deve trazer PID_A
+      localStorage.setItem(DB.PROFILES_KEY, JSON.stringify([]));
+      const sessaoOriginal = window.CloudStore ? CloudStore.session : undefined;
+      const tinhaCloudStore = !!window.CloudStore;
+      window.CloudStore = window.CloudStore || {};
+      CloudStore.session = { user: { id: 'uid-conta-b' } };
+      try {
+        ProfileManager.syncMirrorFromCloud([]);   // a "conta B" não tem nada na nuvem ainda
+        const lista = ProfileManager.getProfiles();
+        this._ok('perfil de OUTRA conta não aparece na lista de quem loga', !lista.some(p => p.id === PID_A), lista.map(p => p.id));
+        this._ok('perfil da PRÓPRIA conta continua aparecendo', lista.some(p => p.id === PID_B), lista.map(p => p.id));
+        this._ok('perfil sem dono conhecido continua aparecendo (compatibilidade)', lista.some(p => p.id === PID_SEMDONO), lista.map(p => p.id));
+      } finally {
+        if (tinhaCloudStore) CloudStore.session = sessaoOriginal; else delete window.CloudStore;
+      }
+    } finally {
+      criadas.forEach(k => { try { localStorage.removeItem(k); } catch (e) { _quiet(e, 'limpeza-contas'); } });
+      [PID_A, PID_B, PID_SEMDONO].forEach(pid => { try { localStorage.removeItem(ProfileManager._ownerKey(pid)); } catch (e) { _quiet(e, 'limpeza-donos'); } });
+      if (profilesAntes === null) localStorage.removeItem(DB.PROFILES_KEY);
+      else localStorage.setItem(DB.PROFILES_KEY, profilesAntes);
+    }
+  },
+
   esvaziarDeixaRastro() {
     const PID = '__t_vazio_rastro__';
     const pfx = 'diario-estudos:u:' + PID + ':';
@@ -731,6 +781,7 @@ const AutoTeste = {
      ['Semana fechada é registro', 'historicoFechado'],
      ['Nada se perde', 'nadaSePerde'],
      ['Travas contra perda', 'travasDePerda'],
+     ['Isolamento entre contas', 'isolamentoEntreContas'],
      ['Esvaziar deixa rastro', 'esvaziarDeixaRastro']].forEach(([nome, fn]) => {
       try { this[fn](); }
       catch (e) { this._r.total++; this._r.falhou++; this._r.falhas.push({ nome: nome + ' — exceção', obtido: String(e && e.message || e) }); }
