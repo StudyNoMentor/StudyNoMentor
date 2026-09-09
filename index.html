@@ -12837,6 +12837,13 @@ const ProfileManager = {
       createdAt: new Date().toISOString()
     });
     this.saveProfiles(list);
+    // se há conta logada, este perfil nasce já marcado como dela — impede que
+    // ele apareça na lista de outra conta neste mesmo navegador antes mesmo
+    // do primeiro envio à nuvem
+    try {
+      const uid = (window.CloudStore && CloudStore.session && CloudStore.session.user) ? CloudStore.session.user.id : null;
+      if (uid) this._setOwner(id, uid);
+    } catch (e) { _quiet(e, 'owner-create'); }
     return id;
   },
   updateProfile(id, patch) {
@@ -13029,6 +13036,34 @@ const ProfileManager = {
   },
   temDadosLocais(id) { return this.perfisComDadosLocais().some(p => p.id === id); },
 
+  /* ── DE QUAL CONTA É ESTE PERFIL LOCAL ────────────────────────────────────
+     `perfisComDadosLocais` varre o navegador inteiro, sem saber de quem é cada
+     perfil. Isso é intencional para o caso de UMA conta (nunca perder dado que
+     falhou ao sincronizar) — mas em um navegador compartilhado por DUAS contas
+     diferentes, a mesma varredura reaparecia com o perfil da OUTRA conta na
+     lista de quem acabou de logar. Pior: `temDadosLocais` (usado para decidir
+     se abre um perfil "às cegas" quando a nuvem não o encontra) não distinguia
+     isso — clicar no perfil errado abria os dados inteiros de outra pessoa.
+
+     O rótulo é gravado FORA do namespace de qualquer perfil (não é dado do
+     usuário, é bookkeeping deste navegador) e associa profileId → user_id de
+     quem, alguma vez, teve esse perfil confirmado pela nuvem. Perfis gravados
+     ANTES desta correção não têm rótulo — ficam visíveis para qualquer um,
+     exatamente como sempre foram (nenhuma regressão, nenhum dado escondido
+     por engano). A partir daqui, todo perfil que passa pela nuvem uma vez fica
+     marcado, e para de vazar para a próxima conta que logar neste aparelho. */
+  _ownerKey(id) { return 'diario-estudos:owner:' + id; },
+  _getOwner(id) { try { return localStorage.getItem(this._ownerKey(id)) || null; } catch (_) { return null; } },
+  _setOwner(id, uid) { if (!id || !uid) return; try { localStorage.setItem(this._ownerKey(id), uid); } catch (e) { _quiet(e, 'owner-set'); } },
+  /* true quando o perfil pode ser mostrado/aberto por esta sessão: sem dono
+     conhecido (dado anterior à correção, ou nunca sincronizado) OU dono é
+     quem está logado agora. Falso só quando o dono é COMPROVADAMENTE outra
+     conta. */
+  _podeVerLocal(id, uidAtual) {
+    const dono = this._getOwner(id);
+    return !dono || !uidAtual || dono === uidAtual;
+  },
+
   /* ── ESPELHO DA NUVEM — COM UMA TRAVA ─────────────────────────────────────
      Esta função reconstruía a lista de perfis com o que a nuvem devolvesse, e
      só com isso. Se a resposta viesse sem um perfil — linha apagada, RLS
@@ -13055,9 +13090,19 @@ const ProfileManager = {
     const porId = {};
     anteriores.forEach(p => { if (p && p.id) porId[p.id] = p; });
 
+    /* A nuvem ACABOU de confirmar: estes ids são desta conta. Marca o dono
+       agora — é o que impede o mesmo perfil de "vazar" para a lista da
+       próxima conta que logar neste navegador. */
+    const uidAtual = (window.CloudStore && CloudStore.session && CloudStore.session.user) ? CloudStore.session.user.id : null;
+    if (uidAtual) daNuvem.forEach(p => this._setOwner(p.id, uidAtual));
+
     const sobreviventes = [];
+    const deOutraConta = [];
     this.perfisComDadosLocais().forEach(d => {
       if (idsNuvem.has(d.id)) return;                 // a nuvem já traz este
+      // dado físico existe, mas é COMPROVADAMENTE de outra conta: não mostra
+      // aqui (o dado não é apagado — só não aparece para quem não é dono).
+      if (!this._podeVerLocal(d.id, uidAtual)) { deOutraConta.push(d.id); return; }
       const antigo = porId[d.id] || {};
       sobreviventes.push({
         id: d.id,
@@ -13070,6 +13115,9 @@ const ProfileManager = {
     });
     if (sobreviventes.length) {
       try { console.warn('[perfis] ' + sobreviventes.length + ' perfil(is) têm dados neste aparelho e não vieram da nuvem — MANTIDOS na lista: ' + sobreviventes.map(p => p.id).join(', ')); } catch (e) { _quiet(e, 'perfis-log'); }
+    }
+    if (deOutraConta.length) {
+      try { console.info('[perfis] ' + deOutraConta.length + ' perfil(is) locais pertencem a OUTRA conta — ocultados desta sessão (dado preservado, não apagado): ' + deOutraConta.join(', ')); } catch (e) { _quiet(e, 'perfis-log2'); }
     }
     this.saveProfiles(daNuvem.concat(sobreviventes));
     (rows || []).forEach(r => { if (r.rev) this.setRev(r.id, r.rev); });
@@ -25087,6 +25135,56 @@ const AutoTeste = {
 
   /* Esvaziar uma seção deixa o mesmo rastro que apagá-la: é o caminho de perda
      que ficava de fora, porque uma reescrita como `[]` é uma gravação normal. */
+  /* ── ISOLAMENTO ENTRE CONTAS NUM MESMO APARELHO ───────────────────────────
+     O episódio: logar com a Conta B num navegador que já teve a Conta A
+     mostrava o perfil da Conta A na lista — e clicar nele abria os dados
+     inteiros dela. A causa era a varredura de "perfis com dados locais" não
+     saber de quem é cada perfil. A correção marca o dono (user_id) sempre que
+     a nuvem confirma um perfil, e filtra por ele nos dois pontos de risco:
+     a listagem (syncMirrorFromCloud) e a abertura às cegas (o fallback de
+     "nuvem não achou, mas há dado aqui" em enterProfile). */
+  isolamentoEntreContas() {
+    const PID_A = '__t_conta_a__', PID_B = '__t_conta_b__', PID_SEMDONO = '__t_sem_dono__';
+    const criadas = [];
+    const escrever = (pid, sub, txt) => { const k = 'diario-estudos:u:' + pid + ':' + sub; criadas.push(k); localStorage.setItem(k, txt); };
+    const profilesAntes = localStorage.getItem(DB.PROFILES_KEY);
+    try {
+      escrever(PID_A, 'p:pl:entries', '[{"id":"e1"}]');
+      escrever(PID_B, 'p:pl:entries', '[{"id":"e2"}]');
+      escrever(PID_SEMDONO, 'p:pl:entries', '[{"id":"e3"}]');   // simula dado de antes desta correção
+
+      ProfileManager._setOwner(PID_A, 'uid-conta-a');
+      ProfileManager._setOwner(PID_B, 'uid-conta-b');
+      // PID_SEMDONO fica sem rótulo de propósito
+
+      // 1. a checagem pura: dono comprovado de outra conta bloqueia; sem dono não
+      this._ok('dono da própria conta pode ver', ProfileManager._podeVerLocal(PID_A, 'uid-conta-a') === true);
+      this._ok('dono de outra conta é bloqueado', ProfileManager._podeVerLocal(PID_A, 'uid-conta-b') === false);
+      this._ok('sem dono conhecido continua visível (sem regressão)', ProfileManager._podeVerLocal(PID_SEMDONO, 'uid-conta-b') === true);
+
+      // 2. syncMirrorFromCloud: logando como a Conta B, a lista não deve trazer PID_A
+      localStorage.setItem(DB.PROFILES_KEY, JSON.stringify([]));
+      const sessaoOriginal = window.CloudStore ? CloudStore.session : undefined;
+      const tinhaCloudStore = !!window.CloudStore;
+      window.CloudStore = window.CloudStore || {};
+      CloudStore.session = { user: { id: 'uid-conta-b' } };
+      try {
+        ProfileManager.syncMirrorFromCloud([]);   // a "conta B" não tem nada na nuvem ainda
+        const lista = ProfileManager.getProfiles();
+        this._ok('perfil de OUTRA conta não aparece na lista de quem loga', !lista.some(p => p.id === PID_A), lista.map(p => p.id));
+        this._ok('perfil da PRÓPRIA conta continua aparecendo', lista.some(p => p.id === PID_B), lista.map(p => p.id));
+        this._ok('perfil sem dono conhecido continua aparecendo (compatibilidade)', lista.some(p => p.id === PID_SEMDONO), lista.map(p => p.id));
+      } finally {
+        if (tinhaCloudStore) CloudStore.session = sessaoOriginal; else delete window.CloudStore;
+      }
+    } finally {
+      criadas.forEach(k => { try { localStorage.removeItem(k); } catch (e) { _quiet(e, 'limpeza-contas'); } });
+      [PID_A, PID_B, PID_SEMDONO].forEach(pid => { try { localStorage.removeItem(ProfileManager._ownerKey(pid)); } catch (e) { _quiet(e, 'limpeza-donos'); } });
+      if (profilesAntes === null) localStorage.removeItem(DB.PROFILES_KEY);
+      else localStorage.setItem(DB.PROFILES_KEY, profilesAntes);
+    }
+  },
+
   esvaziarDeixaRastro() {
     const PID = '__t_vazio_rastro__';
     const pfx = 'diario-estudos:u:' + PID + ':';
@@ -25128,6 +25226,7 @@ const AutoTeste = {
      ['Semana fechada é registro', 'historicoFechado'],
      ['Nada se perde', 'nadaSePerde'],
      ['Travas contra perda', 'travasDePerda'],
+     ['Isolamento entre contas', 'isolamentoEntreContas'],
      ['Esvaziar deixa rastro', 'esvaziarDeixaRastro']].forEach(([nome, fn]) => {
       try { this[fn](); }
       catch (e) { this._r.total++; this._r.falhou++; this._r.falhas.push({ nome: nome + ' — exceção', obtido: String(e && e.message || e) }); }
@@ -30561,12 +30660,32 @@ const ProfileUI = {
            erro de rede continua voltando ao seletor, porque aí a nuvem pode ter
            dado mais novo e entrar às cegas arriscaria subir o local por cima. */
         const inexistente = err && (err.code === 'perfil-inexistente' || /não encontrado na nuvem/i.test(err.message || ''));
-        if (inexistente && ProfileManager.temDadosLocais(id)) {
+        /* A checagem de dono é a que falta aqui — sem ela, "a nuvem não achou,
+           mas há dado no aparelho" abria os dados de QUALQUER perfil físico no
+           navegador, mesmo que fossem de OUTRA CONTA que usou este mesmo
+           aparelho antes. Num navegador compartilhado, isso expunha o estudo
+           inteiro de uma pessoa (registros, cards, tudo) na tela de outra.
+           `_podeVerLocal` só barra quando o dono é COMPROVADAMENTE outra conta;
+           dado sem dono conhecido (de antes desta correção) continua abrindo
+           como sempre abriu — nenhuma regressão para o caso de uma conta só. */
+        const uidAtual = (CloudStore.session && CloudStore.session.user) ? CloudStore.session.user.id : null;
+        const podeAbrir = inexistente && ProfileManager.temDadosLocais(id) && ProfileManager._podeVerLocal(id, uidAtual);
+        if (podeAbrir) {
           console.warn('[perfil] a nuvem não tem este perfil, mas há dados aqui — abrindo localmente e enfileirando para envio');
           ProfileManager.setActiveProfile(id);
+          ProfileManager._setOwner(id, uidAtual);   // fica marcado desta conta a partir de agora
           PlanManager.init();
           try { if (window.SectionSync) { SectionSync.markAllDirty(); SectionSync.kick(); } } catch (e) { _quiet(e, 'perfil-local-envio'); }
           showToast('Perfil aberto deste aparelho — enviando para a nuvem');
+        } else if (inexistente && ProfileManager.temDadosLocais(id)) {
+          // dado existe, mas comprovadamente pertence a OUTRA conta: recusa
+          // abrir (o dado não é tocado, só não é exibido para quem não é dono)
+          this._entering = false;
+          this._autoEnterTried = true;
+          console.warn('[perfil] dados locais para ' + id + ' pertencem a outra conta — abertura recusada');
+          showToast('Este perfil pertence a outra conta. Ele não foi apagado — entre com a conta correta para acessá-lo.');
+          this._showProfilePicker();
+          return;
         } else {
           this._entering = false;   // libera o gate para mostrar o seletor de novo
           this._autoEnterTried = true;

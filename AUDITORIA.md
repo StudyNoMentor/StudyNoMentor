@@ -680,3 +680,50 @@ periódico para o disco) não existe e não dá para existir sem o usuário: o
 navegador não escreve em disco sozinho. O botão de exportar `.json` continua
 sendo a resposta a "e se a conta do Supabase se perder?", e a tela de Dados diz
 isso com todas as letras.
+
+---
+
+## 13. Vazamento entre contas num aparelho compartilhado
+
+**Relatado pelo usuário:** ao logar com uma segunda conta no mesmo navegador, o
+perfil da PRIMEIRA conta aparecia na lista da segunda.
+
+**A causa não era cache.** `CloudStore.listProfiles()` já era seguro — o
+Supabase só devolve os perfis da conta logada (RLS por `user_id`). O problema
+era o passo seguinte: `ProfileManager.syncMirrorFromCloud()` soma a essa lista
+qualquer perfil com dado FÍSICO no navegador (`perfisComDadosLocais()`), sem
+nenhuma noção de qual conta é dona de cada um — a regra "quem tem dado aqui
+nunca sai da lista" (item 11) não distinguia "a nuvem desta conta ainda não
+trouxe" de "isto é de outra conta".
+
+**Era mais grave do que a lista errada.** `enterProfile()` tem um caminho de
+resgate deliberado: se a nuvem responde "perfil não encontrado" mas há dado
+local, o app abre mesmo assim (para não trancar dados que falharam ao
+sincronizar). Sem checagem de dono, clicar no perfil "vazado" da outra conta
+abria os **dados inteiros** dela — registros, cards, tudo — na tela de quem
+não é dono.
+
+**Correção — dono rastreado, não dado apagado.** Um rótulo local
+(`diario-estudos:owner:<id>` → `user_id`) é gravado sempre que a nuvem confirma
+um perfil para uma conta, e checado nos dois pontos de risco:
+
+1. `syncMirrorFromCloud` — um perfil local cujo dono é comprovadamente outra
+   conta não entra na lista de quem loga;
+2. `enterProfile` — o caminho de resgate ("nuvem não achou, mas há dado aqui")
+   recusa abrir se o dono é comprovadamente outra conta, com uma mensagem
+   explicando que o dado está preservado, só não é desta conta.
+
+**Nenhum dado é apagado nem tocado** — a filtragem é só de exibição/abertura;
+o namespace físico do perfil continua intacto e volta a aparecer normalmente
+para a conta dona.
+
+**Compatibilidade:** perfil sem dono conhecido (criado antes desta correção,
+ou nunca sincronizado com nenhuma conta) continua visível para qualquer
+conta — exatamente como sempre foi, sem regressão para quem usa uma conta só
+no aparelho. A separação entre contas passa a valer para todo perfil que
+passar pela nuvem a partir de agora.
+
+Cobertura: `AutoTeste 231 → 237`, grupo "Isolamento entre contas" — testa a
+função pura `_podeVerLocal` (dono próprio passa, dono alheio bloqueia, sem
+dono passa) e o comportamento de `syncMirrorFromCloud` simulando duas contas
+no mesmo `localStorage`.

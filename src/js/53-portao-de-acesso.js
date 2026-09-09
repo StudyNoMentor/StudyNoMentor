@@ -269,12 +269,32 @@ const ProfileUI = {
            erro de rede continua voltando ao seletor, porque aí a nuvem pode ter
            dado mais novo e entrar às cegas arriscaria subir o local por cima. */
         const inexistente = err && (err.code === 'perfil-inexistente' || /não encontrado na nuvem/i.test(err.message || ''));
-        if (inexistente && ProfileManager.temDadosLocais(id)) {
+        /* A checagem de dono é a que falta aqui — sem ela, "a nuvem não achou,
+           mas há dado no aparelho" abria os dados de QUALQUER perfil físico no
+           navegador, mesmo que fossem de OUTRA CONTA que usou este mesmo
+           aparelho antes. Num navegador compartilhado, isso expunha o estudo
+           inteiro de uma pessoa (registros, cards, tudo) na tela de outra.
+           `_podeVerLocal` só barra quando o dono é COMPROVADAMENTE outra conta;
+           dado sem dono conhecido (de antes desta correção) continua abrindo
+           como sempre abriu — nenhuma regressão para o caso de uma conta só. */
+        const uidAtual = (CloudStore.session && CloudStore.session.user) ? CloudStore.session.user.id : null;
+        const podeAbrir = inexistente && ProfileManager.temDadosLocais(id) && ProfileManager._podeVerLocal(id, uidAtual);
+        if (podeAbrir) {
           console.warn('[perfil] a nuvem não tem este perfil, mas há dados aqui — abrindo localmente e enfileirando para envio');
           ProfileManager.setActiveProfile(id);
+          ProfileManager._setOwner(id, uidAtual);   // fica marcado desta conta a partir de agora
           PlanManager.init();
           try { if (window.SectionSync) { SectionSync.markAllDirty(); SectionSync.kick(); } } catch (e) { _quiet(e, 'perfil-local-envio'); }
           showToast('Perfil aberto deste aparelho — enviando para a nuvem');
+        } else if (inexistente && ProfileManager.temDadosLocais(id)) {
+          // dado existe, mas comprovadamente pertence a OUTRA conta: recusa
+          // abrir (o dado não é tocado, só não é exibido para quem não é dono)
+          this._entering = false;
+          this._autoEnterTried = true;
+          console.warn('[perfil] dados locais para ' + id + ' pertencem a outra conta — abertura recusada');
+          showToast('Este perfil pertence a outra conta. Ele não foi apagado — entre com a conta correta para acessá-lo.');
+          this._showProfilePicker();
+          return;
         } else {
           this._entering = false;   // libera o gate para mostrar o seletor de novo
           this._autoEnterTried = true;
