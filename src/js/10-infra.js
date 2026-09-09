@@ -224,7 +224,12 @@ const Lixeira = {
   guardar(chaveCompleta, motivo) {
     try {
       const valor = localStorage.getItem(chaveCompleta);
-      if (valor === null || valor === '') return false;
+      /* Só entra o que tem CONTEÚDO — e "conteúdo" é o mesmo critério do resto
+         do app (valorVazio). Com o teste antigo, `[]` contava como conteúdo: a
+         partir do momento em que o esvaziamento passou a alertar a lixeira,
+         uma tela que regrava `[]` a cada tecla guardaria um lixo vazio e
+         dispararia a faxina (uma varredura do armazenamento) a cada tecla. */
+      if (valorVazio(valor)) return false;
       const m = /^(diario-estudos:u:[^:]+:)(.+)$/.exec(chaveCompleta);
       if (!m) return false;
       const sec = m[2];
@@ -270,8 +275,7 @@ const Lixeira = {
       if (!o || !m) return { ok: false, motivo: 'entrada ilegível' };
       const destino = m[1] + o.sec;
       const atual = localStorage.getItem(destino);
-      const vazio = (atual === null || atual === '' || atual === '[]' || atual === '{}' || atual === 'null');
-      if (!vazio && !sobrescrever) return { ok: false, motivo: 'já existe conteúdo aqui', sec: o.sec };
+      if (!valorVazio(atual) && !sobrescrever) return { ok: false, motivo: 'já existe conteúdo aqui', sec: o.sec };
       if (DB.setRaw(destino, o.valor) === false) return { ok: false, motivo: 'não foi possível gravar' };
       localStorage.removeItem(chaveCompleta);
       return { ok: true, sec: o.sec, bytes: String(o.valor).length };
@@ -302,3 +306,26 @@ const Lixeira = {
   }
 };
 window.Lixeira = Lixeira;
+
+/* ═══════════════════ VALOR VAZIO — a definição única ═══════════════════════
+   "Esvaziar" e "apagar" são o mesmo estrago com nomes diferentes. Uma seção que
+   vira `[]` perde exatamente o mesmo conteúdo que uma seção removida — só que a
+   remoção passava pela Lixeira e o esvaziamento não passava por lugar nenhum.
+
+   Esta função é o critério ÚNICO de "aqui não há mais nada", usado em três
+   pontos que antes decidiam cada um do seu jeito: a gravação local (que agora
+   guarda o valor anterior antes de esvaziar), a subida para a nuvem (que se
+   recusa a publicar um vazio por cima de conteúdo) e a hidratação vinda da
+   nuvem (que guarda o local antes de sobrescrevê-lo com nada).
+
+   Um único lugar para mudar o critério significa que os três nunca divergem. */
+function valorVazio(txt) {
+  if (txt === null || txt === undefined) return true;
+  const s = String(txt).trim();
+  /* `'0'` NÃO entra aqui, e a distinção importa: as preferências booleanas do
+     app são gravadas como '0'/'1', e '0' quer dizer "desligado" — um valor, não
+     a ausência de um. Tratá-lo como vazio faria cada desligamento de opção
+     parecer um apagamento. */
+  return s === '' || s === '[]' || s === '{}' || s === 'null' || s === '""';
+}
+window.valorVazio = valorVazio;

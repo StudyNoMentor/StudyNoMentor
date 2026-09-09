@@ -12,14 +12,14 @@ funciona igual — só sem offline.
 
 ## O que existe para quem MANTÉM o código
 
-`index.html` tem ~32.800 linhas. Editar isso direto é onde os erros nascem.
-Por isso o mesmo conteúdo vive também em `src/`, quebrado em 45 arquivos:
+`index.html` tem ~36.500 linhas. Editar isso direto é onde os erros nascem.
+Por isso o mesmo conteúdo vive também em `src/`, quebrado em 47 arquivos:
 
 ```
 src/
   html/   4 pedaços do documento (cabeçalho, corpo, rodapé)
   css/    5 folhas de estilo
-  js/    36 módulos do aplicativo
+  js/    38 módulos do aplicativo
 ```
 
 `build.mjs` junta `src/` de volta em `index.html`. A montagem é uma
@@ -55,7 +55,9 @@ node verificar.mjs
 
 Se você já mexeu no `index.html` direto, `node build.mjs --check` vai apontar a
 **primeira linha divergente** — leve a mudança para o arquivo de `src/`
-correspondente (o `src/manifesto.json` diz qual faixa de linhas veio de onde).
+correspondente (o `src/manifesto.json` diz qual faixa de linhas veio de onde —
+ele é **gerado pelo `build.mjs`** junto com o `index.html`, então nunca fica
+desatualizado; não edite na mão).
 
 **Commite `src/` e `index.html` juntos.** Se só um dos dois for, a CI reprova.
 

@@ -577,3 +577,106 @@ a grade sumiram". Três defeitos distintos, um por camada:
 
 Cobertura: AutoTeste 164 → 191, com os grupos "Semana fechada é registro" e
 "Nada se perde", mais as asserções novas em "Garantia de salvamento".
+
+---
+
+## 12. Auditoria de estabilidade e segurança do `main` — o backup que faltava
+
+**A pergunta desta rodada:** existe algum caminho em que um dado deixe de existir
+no mundo? Não "fique escondido", não "volte desatualizado" — deixe de existir.
+
+As auditorias anteriores fecharam os caminhos de **sumiço**: ausência não é
+exclusão, a nuvem só esquece o que mandaram esquecer, apagar passa pela Lixeira,
+o que está fora do alcance é encontrável. O que sobrou foi uma classe diferente
+de risco, e ela tinha três buracos.
+
+### Buraco 1 — as três redes de segurança moravam todas no mesmo lugar
+
+Lixeira (30 dias), Histórico de versões (7 dias, 24 fotos) e a tela de
+Recuperação são excelentes, e são **todas locais**. Elas cobrem "errei e quero
+desfazer aqui". Nenhuma cobre trocar de celular, formatar o computador, limpar
+os dados do navegador, ou abrir o app pela primeira vez num aparelho novo.
+
+E o banco de dados guardava **só o presente**: a linha em `study_profiles` é
+sobrescrita a cada envio, e cada linha de `profile_sections` também. No lugar
+mais durável de todos não havia como voltar atrás um único passo.
+
+**Correção — `profile_backups`.** Fotos imutáveis do perfil, comprimidas em
+gzip, uma linha por foto, nunca sobrescritas — a tabela é a única sem política
+de `UPDATE`, para que a imutabilidade seja regra do banco e não promessa do
+código. Resgatáveis de qualquer aparelho, só com a conta. Uma **âncora
+permanente** (a primeira foto de cada perfil) que a limpeza automática nunca
+remove, mais fotos diárias e fotos disparadas antes de cada operação de risco.
+A limpeza só apaga uma linha se as quatro travas concordarem: não é a âncora,
+passou do teto de 14, tem mais de 24 h, e sobram pelo menos 5. Tela em
+`Configurações → Dados → ☁️ Backup no banco de dados`; SQL e runbook de resgate
+em `BANCO-DE-DADOS.md`.
+
+### Buraco 2 — dois caminhos publicavam o vazio por cima do cheio
+
+| Onde | O que acontecia |
+|---|---|
+| `CloudStore.saveActive` / `_beaconSave` | `exportProfile` devolve `null` quando o perfil não está na lista local — e essa lista é um espelho da nuvem, que pode chegar incompleta (RLS negando, resposta parcial, corrida entre login e montagem do espelho). Nesse caso gravava-se **`payload: null`**: a única cópia remota de tudo virava nada, e a leitura seguinte propagava o vazio para os outros aparelhos |
+| `SectionSync.pushDirty` | `localStorage.getItem(k) \|\| ''` transformava "esta chave não existe mais aqui" em "o conteúdo desta seção agora é vazio", e publicava isso por cima da linha boa. Um sumiço local — cota estourada no meio de uma gravação, limpeza do navegador pela metade — destruía a última cópia |
+
+**As duas regras agora:** um perfil sem nenhuma seção com conteúdo **não é
+publicado** (o envio é recusado, a pendência é mantida, a cópia da nuvem fica
+intacta); e uma chave que sumiu **sem ordem de exclusão** sai da fila sem subir
+nada — o próximo download a traz de volta. Exclusão de verdade continua sendo o
+que passa por `DB.delRaw`, entra em `__secdel` e viaja pelo manifesto.
+
+### Buraco 3 — esvaziar não deixava rastro
+
+`delRaw` mandava para a Lixeira tudo o que era **removido**. Mas a forma mais
+comum de perder uma seção nunca foi a remoção: é ela ser **reescrita como `[]`**.
+Uma tela que renderiza a lista errada e salva, um filtro que zera o array antes
+de gravar, uma importação parcial — em todos, o `localStorage` recebe uma
+gravação perfeitamente normal e o conteúdo anterior deixa de existir.
+
+Agora `valorVazio()` é o critério único de "aqui não há mais nada", e ele guarda
+o valor anterior na Lixeira em **três** pontos que antes decidiam cada um do seu
+jeito: a gravação local (`DB._set` / `DB.setRaw`), a hidratação por seção
+(`_applyMap`) e a do blob (`restorePayloadInto`). Um vazio vindo da nuvem por
+cima de conteúdo local também deixa rastro.
+
+### E quando o apagamento é legítimo
+
+Apagar é um direito de quem digitou, e nenhuma trava aqui bloqueia o usuário. O
+que passa a existir sempre é a cópia: `GuardaNuvem` fotografa o **estado
+anterior** antes de publicar um encolhimento de mais de 40% ou o esvaziamento de
+seções que comprovadamente tinham conteúdo.
+
+A armadilha desta trava era fotografar a coisa errada — quando ela dispara, o
+apagamento já aconteceu localmente, então uma foto do estado atual registraria o
+estrago. Ela fotografa o que o envio vai **substituir**: o payload que está na
+nuvem naquele instante ou, se a rede não responder, a foto local mais recente do
+histórico (no máximo 20 minutos anterior, portanto anterior ao apagamento).
+
+### Segurança do banco
+
+`BANCO-DE-DADOS.md` passa a ser a fonte única do esquema, com o SQL idempotente
+das quatro tabelas e suas políticas RLS. A mais delicada é `profile_sections`:
+ela não tem `user_id` próprio — o dono é o dono do perfil —, e por isso suas
+políticas precisam verificar a posse por consulta a `study_profiles`, nunca
+`using (true)`. O documento traz as duas queries de conferência (`relrowsecurity`
+por tabela e `pg_policies` procurando permissão solta).
+
+### O que foi verificado
+
+- `verificar.mjs` completo no Chromium: 7 checagens, zero erro de console, 14
+  telas, contraste WCAG AA nos dois temas.
+- **AutoTeste 196 → 231.** Os grupos novos — "Travas contra perda" e "Esvaziar
+  deixa rastro" — exercitam as regras como **funções puras**, fora da rede:
+  `valorVazio`, `CloudStore._payloadUtil`, `SectionSync.decidirEnvio` e
+  `CloudBackup.selecionarParaFaxina`. Uma garantia que só existe no comentário
+  não é garantia; estas falham a CI se alguém as afrouxar.
+- O caso "todas as fotos são de hoje" está entre os testes da faxina: a resposta
+  certa é não apagar nada.
+
+### O que continua fora
+
+Backup automático **fora do Supabase** (uma segunda nuvem, ou um `.json`
+periódico para o disco) não existe e não dá para existir sem o usuário: o
+navegador não escreve em disco sozinho. O botão de exportar `.json` continua
+sendo a resposta a "e se a conta do Supabase se perder?", e a tela de Dados diz
+isso com todas as letras.

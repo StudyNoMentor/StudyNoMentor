@@ -280,6 +280,8 @@ const VersionHistoryUI = {
         const ok = await UI.confirm('Restaurar esta versão sobre o perfil atual?\n\nO estado de agora é guardado antes, então você pode voltar atrás. Depois de restaurar, o app recarrega.', { title: '↺ Restaurar versão', okText: 'Restaurar' });
         if (!ok) return;
         showToast('Restaurando…');
+        // rede de segurança no banco antes de sobrescrever o estado atual
+        try { if (window.CloudBackup) await CloudBackup.protegerAgora('antes de restaurar uma versão local'); } catch (e) { _quiet(e, 'vh-cbk'); }
         const done = await VersionHistory.restore(id, ts);
         if (!done) { showToast('Não foi possível restaurar esta versão'); return; }
         try { await CloudStore.flushPending(); } catch (_) { _quiet(_); }
