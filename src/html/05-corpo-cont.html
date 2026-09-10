@@ -614,7 +614,13 @@
           </div>
         </div>
         <div class="card" id="incid-bancas-card" style="display:none;">
-          <div class="card-header"><div><h2>Bancas cadastradas</h2><p class="sub">Clique em uma banca para ver e filtrar os tópicos importados. ✎ renomeia sem perder nada; × exclui.</p></div></div>
+          <div class="card-header">
+            <div><h2>Bancas cadastradas</h2><p class="sub">Clique em uma banca para ver e filtrar os tópicos importados. ✎ renomeia sem perder nada; × exclui.</p></div>
+            <div class="painel-head-acoes">
+              <div class="banca-pick" id="incid-banca-pick"></div>
+            </div>
+          </div>
+          <div id="incid-selecao-resumo"></div>
           <div style="padding: 12px 24px 22px;" id="incid-bancas-list"></div>
         </div>
       </div>
@@ -635,8 +641,8 @@
           <!-- 2) BARRA principal: banca + visão + ordenação (o essencial, sempre visível) -->
           <div class="rfc-toolbar tec-cfg">
             <div class="rfc-field">
-              <label for="reforco-banca" data-info="De qual banca vem a incidência usada no cruzamento. &quot;Todas&quot; soma o histórico de todas as bancas importadas — útil antes do edital; depois dele, escolha a sua.">Banca-alvo</label>
-              <select id="reforco-banca"></select>
+              <label data-info="Quais bancas contam no cruzamento. Marque quantas quiser: quem presta para dois órgãos com bancas diferentes soma só as duas, sem carregar o histórico de bancas que não vai enfrentar. Sem nenhuma marcada, o app soma todas as importadas — útil antes do edital. A escolha vale para o Reforço, o Plano e a aba Incidência ao mesmo tempo.">Bancas do meu concurso</label>
+              <div class="banca-pick" id="reforco-banca-pick"></div>
             </div>
             <div class="rfc-field">
               <label for="reforco-disc" data-info="Filtra o ranking a uma disciplina. As disciplinas listadas vêm da INCIDÊNCIA importada, não do seu desempenho: matéria que você estuda e não está no índice da banca não aparece aqui.">Disciplina</label>
@@ -774,10 +780,8 @@
                 </select>
               </div>
               <div class="rfc-field" id="plano-banca-field" style="display:none;">
-                <label for="plano-banca" data-info="Qual banca conta na ordem &quot;fraqueza × incidência&quot;. A incidência vem do que você importou em 🎲 Incidência. Em Todas as bancas o app soma a frequência de todas elas — use a banca específica assim que o edital sair.">Banca (para prioridade)</label>
-                <select id="plano-banca">
-                  <option value="__todas__">Todas as bancas</option>
-                </select>
+                <label data-info="Quais bancas contam na ordem &quot;fraqueza × incidência&quot;. É a MESMA seleção do Reforço e da aba Incidência: marcar aqui vale para as três. Sem nenhuma marcada, o app soma o histórico de todas as bancas importadas.">Bancas do meu concurso</label>
+                <div class="banca-pick" id="plano-banca-pick"></div>
               </div>
               <div class="rfc-field wide" style="align-items:flex-start;">
                 <button type="button" class="rfc-adv-btn" id="plano-adv-btn" aria-expanded="false">

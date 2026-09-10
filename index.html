@@ -57,7 +57,7 @@
      novo, e o antigo é descartado sozinho na ativação) e o que permite ao app
      dizer qual versão está rodando. Em src/ fica "dev" de propósito: a versão
      é gerada na montagem, não editada à mão. -->
-<meta name="diario-versao" content="vd9008ba61c">
+<meta name="diario-versao" content="vd11dd4ef1d">
 <script>
 /* ── ARRANQUE: abre o IndexedDB AGORA, em paralelo com o parse do documento ──
    A fachada de armazenamento vive no fim do <body>, depois de ~1,7 MB de HTML.
@@ -3755,6 +3755,29 @@ window.__idbBoot = (function () {
   .weak-row .wmeta { font-family: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif; font-size: calc(9.5px * var(--fs-scale,1)); color: var(--text-faint); margin-top: 2px; }
   .weak-row .wmeta b { color: var(--warn-text); font-weight: 700; }
   .tec-inline-lbl { font-size: calc(9.5px * var(--fs-scale,1)); font-weight: 800; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-faint); display: block; margin-bottom: 4px; }
+
+  /* ── SELETOR DE BANCAS ─────────────────────────────────────────────────────
+     Caixas, não lista suspensa: a resposta certa costuma ser mais de uma, e
+     numa lista suspensa a segunda escolha desfaz a primeira. */
+  .banca-pick { position: relative; }
+  .banca-pick-btn { display: inline-flex; align-items: center; gap: 8px; width: 100%; justify-content: space-between; padding: 9px 12px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface); color: var(--text); font-family: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif; font-size: var(--fs-2xs); font-weight: 700; cursor: pointer; }
+  .banca-pick-btn:hover { border-color: var(--accent); }
+  .banca-pick-btn[disabled] { opacity: 0.6; cursor: default; }
+  .banca-pick-btn .chev { color: var(--text-faint); }
+  .banca-pick-panel { position: absolute; z-index: 40; top: calc(100% + 6px); left: 0; min-width: 260px; max-width: min(340px, 92vw); max-height: 320px; overflow: auto; padding: 10px; background: var(--surface); border: 1.5px solid var(--border-strong, var(--border)); border-radius: 12px; box-shadow: var(--shadow-lg, 0 12px 28px rgba(0,0,0,0.18)); }
+  .banca-pick-topo { font-family: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif; font-size: var(--fs-3xs); line-height: 1.5; color: var(--text-faint); margin: 0 0 8px; }
+  .banca-pick-item { display: flex; align-items: flex-start; gap: 9px; padding: 7px 6px; border-radius: 8px; cursor: pointer; }
+  .banca-pick-item:hover { background: var(--surface-sunken); }
+  .banca-pick-item input[type="checkbox"] { flex: 0 0 auto; width: 16px; height: 16px; margin: 2px 0 0; }
+  .banca-pick-item span { display: flex; flex-direction: column; min-width: 0; }
+  .banca-pick-item b { font-size: var(--fs-2xs); color: var(--text); }
+  .banca-pick-item small { font-size: var(--fs-3xs); color: var(--text-faint); }
+  .banca-pick-acoes { margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--border); }
+  .banca-pick-acoes button { width: 100%; padding: 7px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface-sunken); color: var(--text-soft); font-size: var(--fs-3xs); font-weight: 700; cursor: pointer; }
+  .banca-pick-acoes button:hover { border-color: var(--accent); color: var(--accent); }
+  .banca-pick-nota { font-size: var(--fs-3xs); color: var(--text-faint); }
+  .incid-selecao { font-family: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif; font-size: var(--fs-2xs); line-height: 1.55; color: var(--text-soft); margin: 0 24px 4px; padding: 10px 12px; border-left: 3px solid var(--border-strong, var(--border)); background: var(--surface-sunken); border-radius: 0 8px 8px 0; text-align: justify; text-align-last: left; }
+  .incid-selecao.on { border-left-color: var(--accent); }
 
   /* ── AVISO DE CASAMENTO (Reforço) ──────────────────────────────────────── */
   .rfc-casamento { margin: 8px 24px 0; padding: 10px 12px; border-left: 3px solid var(--warn); background: var(--warn-soft); color: var(--warn-text); border-radius: 0 8px 8px 0; font-family: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif; font-size: var(--fs-3xs); line-height: 1.55; }
@@ -7979,7 +8002,13 @@ window.__idbBoot = (function () {
           </div>
         </div>
         <div class="card" id="incid-bancas-card" style="display:none;">
-          <div class="card-header"><div><h2>Bancas cadastradas</h2><p class="sub">Clique em uma banca para ver e filtrar os tópicos importados. ✎ renomeia sem perder nada; × exclui.</p></div></div>
+          <div class="card-header">
+            <div><h2>Bancas cadastradas</h2><p class="sub">Clique em uma banca para ver e filtrar os tópicos importados. ✎ renomeia sem perder nada; × exclui.</p></div>
+            <div class="painel-head-acoes">
+              <div class="banca-pick" id="incid-banca-pick"></div>
+            </div>
+          </div>
+          <div id="incid-selecao-resumo"></div>
           <div style="padding: 12px 24px 22px;" id="incid-bancas-list"></div>
         </div>
       </div>
@@ -8000,8 +8029,8 @@ window.__idbBoot = (function () {
           <!-- 2) BARRA principal: banca + visão + ordenação (o essencial, sempre visível) -->
           <div class="rfc-toolbar tec-cfg">
             <div class="rfc-field">
-              <label for="reforco-banca" data-info="De qual banca vem a incidência usada no cruzamento. &quot;Todas&quot; soma o histórico de todas as bancas importadas — útil antes do edital; depois dele, escolha a sua.">Banca-alvo</label>
-              <select id="reforco-banca"></select>
+              <label data-info="Quais bancas contam no cruzamento. Marque quantas quiser: quem presta para dois órgãos com bancas diferentes soma só as duas, sem carregar o histórico de bancas que não vai enfrentar. Sem nenhuma marcada, o app soma todas as importadas — útil antes do edital. A escolha vale para o Reforço, o Plano e a aba Incidência ao mesmo tempo.">Bancas do meu concurso</label>
+              <div class="banca-pick" id="reforco-banca-pick"></div>
             </div>
             <div class="rfc-field">
               <label for="reforco-disc" data-info="Filtra o ranking a uma disciplina. As disciplinas listadas vêm da INCIDÊNCIA importada, não do seu desempenho: matéria que você estuda e não está no índice da banca não aparece aqui.">Disciplina</label>
@@ -8139,10 +8168,8 @@ window.__idbBoot = (function () {
                 </select>
               </div>
               <div class="rfc-field" id="plano-banca-field" style="display:none;">
-                <label for="plano-banca" data-info="Qual banca conta na ordem &quot;fraqueza × incidência&quot;. A incidência vem do que você importou em 🎲 Incidência. Em Todas as bancas o app soma a frequência de todas elas — use a banca específica assim que o edital sair.">Banca (para prioridade)</label>
-                <select id="plano-banca">
-                  <option value="__todas__">Todas as bancas</option>
-                </select>
+                <label data-info="Quais bancas contam na ordem &quot;fraqueza × incidência&quot;. É a MESMA seleção do Reforço e da aba Incidência: marcar aqui vale para as três. Sem nenhuma marcada, o app soma o histórico de todas as bancas importadas.">Bancas do meu concurso</label>
+                <div class="banca-pick" id="plano-banca-pick"></div>
               </div>
               <div class="rfc-field wide" style="align-items:flex-start;">
                 <button type="button" class="rfc-adv-btn" id="plano-adv-btn" aria-expanded="false">
@@ -15189,10 +15216,38 @@ const ReforcoEngine = {
      específica primeiro e diz, no retorno, qual das duas respondeu. */
   SEP: '\u0001',
   chaveInc(disciplina, topico) { return this.norm(disciplina) + this.SEP + this.norm(topico); },
+  /* ── QUAIS BANCAS ─────────────────────────────────────────────────────────
+     Era "todas" ou UMA. Quem presta concurso para dois órgãos com bancas
+     diferentes — o caso comum de quem estuda a sério — só tinha as duas
+     extremidades: somar o histórico de bancas que não vai enfrentar, ou olhar
+     uma e ignorar a outra. O filtro agora aceita uma LISTA, e todo o resto do
+     motor passa por aqui: um lugar só decide o que é "a minha prova".
+
+     Formas aceitas: '__todas__' (ou vazio) · 'FGV' · ['FGV','Cebraspe'] */
+  filtroBanca(sel) {
+    if (sel == null || sel === '__todas__' || sel === '') return null;      // null = tudo entra
+    const lista = Array.isArray(sel) ? sel : [sel];
+    const set = new Set(lista.map(b => this.norm(b)).filter(Boolean));
+    if (!set.size || set.has(this.norm('__todas__'))) return null;
+    return set;
+  },
+  _daBanca(filtro, banca) { return !filtro || filtro.has(this.norm(banca)); },
+  // rótulo legível da seleção, para a tela nunca falar de "banca" no singular
+  // quando o número na frente soma três históricos diferentes
+  rotuloBancas(sel) {
+    const f = this.filtroBanca(sel);
+    if (!f) return 'todas as bancas';
+    const nomes = DB.getBancas().filter(b => f.has(this.norm(b)));
+    if (!nomes.length) return 'nenhuma banca';
+    if (nomes.length === 1) return nomes[0];
+    if (nomes.length === 2) return nomes[0] + ' e ' + nomes[1];
+    return nomes.slice(0, -1).join(', ') + ' e ' + nomes[nomes.length - 1];
+  },
   incidenceMap(banca) {
     const map = {};
+    const filtro = this.filtroBanca(banca);
     DB.getIncidencia().forEach(r => {
-      if (banca && banca !== '__todas__' && this.norm(r.banca) !== this.norm(banca)) return;
+      if (!this._daBanca(filtro, r.banca)) return;
       const kn = this.norm(r.topico);
       const kd = this.chaveInc(r.disciplina || '', r.topico);
       map[kn] = (map[kn] || 0) + (r.incidencia || 0);
@@ -15209,7 +15264,13 @@ const ReforcoEngine = {
     if (map[kn] != null) return { valor: map[kn], viaNome: true };
     return { valor: 0, viaNome: false, ausente: true };
   },
-  hasIncidencia() { return DB.getIncidencia().length > 0; },
+  // Com uma seleção, responde "há incidência NAS BANCAS QUE EU ESCOLHI?" — que é
+  // a pergunta que a tela precisa fazer antes de prometer prioridade por prova.
+  hasIncidencia(sel) {
+    const filtro = this.filtroBanca(sel);
+    if (!filtro) return DB.getIncidencia().length > 0;
+    return DB.getIncidencia().some(r => this._daBanca(filtro, r.banca));
+  },
   // O retrato TEC mais recente é considerado "nível atual" se for dos últimos 90 dias.
   currentSnapshot() {
     const snaps = DB.getTecSnapshots();
@@ -15288,17 +15349,32 @@ const ReforcoEngine = {
     return n ? Object.assign({ viaNome: true }, n) : null;
   },
   // Incidência agrupada por disciplina (uma banca), normalizando o campo de nome (topico)
+  /* ── UMA LINHA POR ASSUNTO, SOMANDO AS BANCAS ESCOLHIDAS ──────────────────
+     Cada banca traz o seu próprio índice, com a mesma taxonomia. Empilhar as
+     linhas cruas fazia o MESMO assunto virar várias unidades — uma por banca —
+     e o ranking mostrava "Princípios" três vezes, cada uma com a incidência de
+     um caderno diferente, como se fossem assuntos distintos. Com uma banca só
+     ninguém percebia; com "todas" (ou com duas escolhidas), o número que a
+     pessoa lê deixava de ser o total.
+
+     Aqui as bancas do filtro viram UMA linha por (disciplina + código, ou nome
+     quando não há código), com a incidência somada — que é o que "somar o
+     histórico das minhas bancas" sempre quis dizer. */
   _incidByDisc(banca) {
     const by = {};
+    const filtro = this.filtroBanca(banca);
+    const chaves = {};
     DB.getIncidencia().forEach(r => {
-      if (banca && banca !== '__todas__' && this.norm(r.banca) !== this.norm(banca)) return;
-      const row = {
-        codigo: (r.codigo == null || r.codigo === '') ? null : String(r.codigo),
-        nome: r.topico || r.nome || '',
-        disciplina: r.disciplina,
-        incidencia: (r.incidencia != null ? r.incidencia : 0)
-      };
-      (by[r.disciplina] = by[r.disciplina] || []).push(row);
+      if (!this._daBanca(filtro, r.banca)) return;
+      const disc = r.disciplina;
+      const codigo = (r.codigo == null || r.codigo === '') ? null : String(r.codigo);
+      const nome = r.topico || r.nome || '';
+      const k = disc + '|' + (codigo !== null ? '#' + codigo : this.norm(nome));
+      const mapa = (chaves[disc] = chaves[disc] || {});
+      if (mapa[k]) { mapa[k].incidencia += (r.incidencia != null ? r.incidencia : 0); return; }
+      const row = { codigo, nome, disciplina: disc, incidencia: (r.incidencia != null ? r.incidencia : 0) };
+      mapa[k] = row;
+      (by[disc] = by[disc] || []).push(row);
     });
     return by;
   },
@@ -15358,7 +15434,7 @@ const ReforcoEngine = {
     const Qmin = opts.minQuestoes || 10;
     const Imin = opts.incidMin || 5;
     const limite = opts.limite || 12;
-    const banca = opts.banca || '__todas__';
+    const banca = (opts.banca == null || opts.banca === '') ? '__todas__' : opts.banca;
 
     const byDisc = this._incidByDisc(banca);
     const hasAnyIncid = Object.keys(byDisc).length > 0;
@@ -26625,6 +26701,45 @@ const AutoTeste = {
         t80.teto === 80 && t95.teto === 95 && rec(t95) > rec(t80), { t80: rec(t80), t95: rec(t95) });
     });
 
+    /* 5) DUAS BANCAS AO MESMO TEMPO. Quem presta para dois órgãos precisa somar
+       exatamente as duas — nem "todas" (que traz o histórico de bancas que ele
+       não vai enfrentar) nem uma só. */
+    const duasBancas = [
+      { banca: 'FGV', disciplina: 'Direito Constitucional', topico: 'Princípios', incidencia: 30, codigo: '01', depth: 1 },
+      { banca: 'Cebraspe', disciplina: 'Direito Constitucional', topico: 'Princípios', incidencia: 12, codigo: '01', depth: 1 },
+      { banca: 'FCC', disciplina: 'Direito Constitucional', topico: 'Princípios', incidencia: 100, codigo: '01', depth: 1 }
+    ];
+    comInc(duasBancas, () => {
+      const vDe = (sel) => R.incidenciaDe(R.incidenceMap(sel), 'Princípios', 'Direito Constitucional').valor;
+      this._ok('Reforço: uma banca traz só o histórico dela', vDe('FGV') === 30, vDe('FGV'));
+      this._ok('Reforço: duas bancas somam só as duas', vDe(['FGV', 'Cebraspe']) === 42, vDe(['FGV', 'Cebraspe']));
+      this._ok('Reforço: todas somam tudo', vDe('__todas__') === 142 && vDe([]) === 142, vDe('__todas__'));
+      this._ok('Reforço: a ordem da seleção não muda o resultado',
+        vDe(['Cebraspe', 'FGV']) === vDe(['FGV', 'Cebraspe']));
+      this._ok('Reforço: banca inexistente na seleção não derruba nem inventa',
+        vDe(['Não Existe']) === 0 && R.hasIncidencia(['Não Existe']) === false);
+      this._ok('Reforço: hasIncidencia responde pela seleção',
+        R.hasIncidencia(['FGV']) === true && R.hasIncidencia() === true);
+      this._ok('Reforço: o rótulo das bancas é legível no plural',
+        R.rotuloBancas('__todas__') === 'todas as bancas' &&
+        R.rotuloBancas(['FGV']) === 'FGV' &&
+        R.rotuloBancas(['FGV', 'Cebraspe']).indexOf(' e ') > 0 &&
+        /,.* e /.test(R.rotuloBancas(['FGV', 'Cebraspe', 'FCC'])),
+        [R.rotuloBancas(['FGV', 'Cebraspe']), R.rotuloBancas(['FGV', 'Cebraspe', 'FCC'])]);
+      // e a fronteira usa a soma das escolhidas, não a de todas
+      const so2 = R.suggestFrontier(snap, { banca: ['FGV', 'Cebraspe'], minQuestoes: 10, granularidade: 1, limite: 20 });
+      const tudo = R.suggestFrontier(snap, { banca: '__todas__', minQuestoes: 10, granularidade: 1, limite: 20 });
+      const inc2 = (r) => (r.items.find(i => i.nome === 'Princípios') || {}).incidencia;
+      this._ok('Reforço: o ranking usa a incidência somada das bancas escolhidas',
+        inc2(so2) === 42 && inc2(tudo) === 142, { so2: inc2(so2), tudo: inc2(tudo) });
+      /* E o assunto aparece UMA vez, não uma por banca: cada caderno traz o seu
+         índice com a mesma taxonomia, e empilhar as linhas cruas transformava o
+         mesmo assunto em três unidades concorrendo entre si no ranking. */
+      const vezes = (r) => r.items.filter(i => i.nome === 'Princípios').length;
+      this._ok('Reforço: assunto presente em várias bancas aparece uma vez só',
+        vezes(so2) === 1 && vezes(tudo) === 1, { so2: vezes(so2), tudo: vezes(tudo) });
+    });
+
     // 5) ENTRADA HOSTIL: nada disso pode lançar
     const hostis = [
       ['retrato nulo', null],
@@ -30212,7 +30327,6 @@ const DesempenhoTecScreen = {
     if (p.gran != null) set('reforco-gran', p.gran);
     if (p.minq != null) set('reforco-minq', p.minq);
     if (p.limite != null) set('reforco-limite', p.limite);
-    if (p.banca) { const el = document.getElementById('reforco-banca'); if (el && [...el.options].some(o => o.value === p.banca)) el.value = p.banca; }
     if (p.disc) { const el = document.getElementById('reforco-disc'); if (el && [...el.options].some(o => o.value === p.disc)) el.value = p.disc; }
   },
   render() {
@@ -30267,6 +30381,96 @@ const DesempenhoTecScreen = {
     if (tela) tela.classList.toggle('tec-enxuto', on);
     const b = document.getElementById('tec-enxuto-btn');
     if (b) { b.classList.toggle('is-active', on); b.innerHTML = `<span class="gg-ic">🔎</span>${on ? 'Modo completo' : 'Modo enxuto'}`; }
+  },
+  /* ── QUAIS BANCAS SÃO AS MINHAS ───────────────────────────────────────────
+     A escolha da banca existia em DOIS lugares (uma preferência no Reforço,
+     outra no Plano) e em ambos era "todas" ou UMA. Quem mira dois órgãos com
+     bancas diferentes não tinha como somar só as duas — e ainda precisava
+     lembrar de trocar a banca em cada aba.
+
+     Agora é UMA seleção do perfil, com quantas bancas você quiser, e as três
+     abas leem dela. Lista vazia significa "todas": é o padrão, e é o que
+     sobrevive a renomear ou excluir uma banca sem deixar o app apontando para
+     um nome que não existe mais. */
+  bancasSelecionadas() {
+    const p = this._loadPrefs();
+    const existentes = DB.getBancas();
+    const norm = (x) => ReforcoEngine.norm(x);
+    let sel = Array.isArray(p.bancasSel) ? p.bancasSel : null;
+    /* MIGRAÇÃO: quem tinha uma banca escolhida no Reforço (ou no Plano) começa
+       com ela marcada, em vez de ver a seleção "voltar para todas" sozinha. */
+    if (!sel) {
+      const antiga = p.banca && p.banca !== '__todas__' ? p.banca
+        : ((typeof PlanoEngine !== 'undefined' && PlanoEngine.prefs().banca !== '__todas__') ? PlanoEngine.prefs().banca : null);
+      sel = antiga ? [antiga] : [];
+    }
+    return sel.filter(b => existentes.some(e => norm(e) === norm(b)));
+  },
+  // valor pronto para o motor: '__todas__' ou a lista
+  bancaFiltro() {
+    const sel = this.bancasSelecionadas();
+    return sel.length ? sel : '__todas__';
+  },
+  setBancas(lista) {
+    this.savePrefs({ bancasSel: Array.isArray(lista) ? lista : [] });
+    try { if (typeof PlanoEngine !== 'undefined') PlanoEngine.salvarPrefs({ banca: '__todas__' }); } catch (e) { _quiet(e, 'banca-plano'); }
+    this.renderBancaPickers();
+    if (this.tecTab === 'reforco') this.renderReforco();
+    else if (this.tecTab === 'plano') this.renderPlanoConteudo();
+    else if (this.tecTab === 'incidencia') this.renderIncidencia();
+  },
+  renderBancaPickers() {
+    ['reforco-banca-pick', 'plano-banca-pick', 'incid-banca-pick'].forEach(id => this.renderBancaPicker(id));
+  },
+  /* O seletor: um botão que diz o que está valendo e um painel de caixas. Não é
+     uma lista suspensa porque a resposta certa costuma ser MAIS DE UMA — e numa
+     lista suspensa a segunda escolha desfaz a primeira. */
+  renderBancaPicker(hostId) {
+    const host = document.getElementById(hostId);
+    if (!host) return;
+    const bancas = DB.getBancas();
+    const sel = this.bancasSelecionadas();
+    const marcada = (b) => sel.some(x => ReforcoEngine.norm(x) === ReforcoEngine.norm(b));
+    const linhas = DB.getIncidencia();
+    const resumo = (b) => {
+      const rs = linhas.filter(r => ReforcoEngine.norm(r.banca) === ReforcoEngine.norm(b));
+      const raiz = rs.filter(r => r.depth === 0);
+      const q = (raiz.length ? raiz : rs).reduce((a, r) => a + (r.incidencia || 0), 0);
+      return `${rs.length} tópicos · ${q.toLocaleString('pt-BR')} questões`;
+    };
+    const rot = !bancas.length ? 'Nenhuma banca importada'
+      : !sel.length ? '🏛️ Todas as bancas'
+      : sel.length === 1 ? '🏛️ ' + sel[0]
+      : `🏛️ ${sel.length} bancas`;
+    host.innerHTML = `
+      <button type="button" class="banca-pick-btn" aria-expanded="false" ${bancas.length ? '' : 'disabled'}>
+        <span>${escapeHtml(rot)}</span><span class="chev">▾</span>
+      </button>
+      <div class="banca-pick-panel" hidden>
+        <p class="banca-pick-topo">Marque as bancas do seu concurso. Sem nenhuma marcada, o app soma o histórico de todas.</p>
+        ${bancas.map(b => `<label class="banca-pick-item">
+          <input type="checkbox" value="${escapeHtml(b)}" ${marcada(b) ? 'checked' : ''}>
+          <span><b>${escapeHtml(b)}</b><small>${escapeHtml(resumo(b))}</small></span>
+        </label>`).join('')}
+        <div class="banca-pick-acoes">
+          ${sel.length ? '<button type="button" data-acao="todas">↺ Voltar a todas as bancas</button>' : '<span class="banca-pick-nota">Somando todas as bancas importadas.</span>'}
+        </div>
+      </div>`;
+    const btn = host.querySelector('.banca-pick-btn');
+    const painel = host.querySelector('.banca-pick-panel');
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const abrir = painel.hasAttribute('hidden');
+      // um painel por vez em toda a tela
+      document.querySelectorAll('.banca-pick-panel').forEach(p2 => p2.setAttribute('hidden', ''));
+      document.querySelectorAll('.banca-pick-btn').forEach(b2 => b2.setAttribute('aria-expanded', 'false'));
+      if (abrir) { painel.removeAttribute('hidden'); btn.setAttribute('aria-expanded', 'true'); }
+    });
+    painel.addEventListener('click', (e) => e.stopPropagation());
+    painel.querySelectorAll('input[type="checkbox"]').forEach(c => c.addEventListener('change', () => {
+      this.setBancas([...painel.querySelectorAll('input:checked')].map(x => x.value));
+    }));
+    painel.querySelectorAll('[data-acao]').forEach(b => b.addEventListener('click', () => this.setBancas([])));
   },
   // normaliza texto p/ casar tópicos entre retratos (sem acento/caixa/espaços extras)
   _nk(s) { return String(s == null ? '' : s).normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/\s+/g, ' ').trim(); },
@@ -30796,16 +31000,10 @@ const DesempenhoTecScreen = {
     // Seletor de banca: só aparece quando há dados de incidência importados.
     // Alimenta a ordenação "🎯 Prioridade na banca".
     const bf = document.getElementById('plano-banca-field');
-    const bs = document.getElementById('plano-banca');
-    if (bf && bs) {
+    if (bf) {
       const temInc = (typeof ReforcoEngine !== 'undefined') && ReforcoEngine.hasIncidencia && ReforcoEngine.hasIncidencia();
       bf.style.display = temInc ? '' : 'none';
-      if (temInc) {
-        const bancas = DB.getBancas();
-        bs.innerHTML = `<option value="__todas__">Todas as bancas</option>` +
-          bancas.map(b => `<option value="${escapeHtml(b)}" ${b === p.banca ? 'selected' : ''}>${escapeHtml(b)}</option>`).join('');
-        if (![...bs.options].some(o => o.value === p.banca)) bs.value = '__todas__';
-      }
+      if (temInc) this.renderBancaPicker('plano-banca-pick');
     }
     this.renderModosDeAtaque();
     this.renderPlanoConteudo();
@@ -30955,7 +31153,7 @@ const DesempenhoTecScreen = {
       sensTendencia: Math.max(1, num('plano-sens', 3)),
       validadeDias: Math.max(30, num('plano-validade', 120)),
       ordenar: val('plano-ordenar', 'rendimento'),
-      banca: val('plano-banca', '__todas__')
+      banca: this.bancaFiltro()
     };
     // O ritmo SEGUE a medição automaticamente. Só vira manual se você digitar algo
     // diferente do medido — assim novos imports atualizam o número sozinhos.
@@ -31155,7 +31353,7 @@ const DesempenhoTecScreen = {
             ${x.disciplina ? `<div class="pl-disc">${escapeHtml(x.disciplina)}</div>` : ''}
             <div class="pl-tags">
               <span class="reforco-tag tone-${x.status.tom}" title="${x.status.seq != null ? x.status.seq + ' importação(ões) seguidas na meta' : 'Faixa de acerto'}">${x.status.rot}${x.status.seq ? ' ' + x.status.seq + '×' : ''}</span>
-              ${(x.incid > 0) ? `<span class="reforco-tag incid" title="Incidência na banca ${escapeHtml(r.banca === '__todas__' ? 'selecionada' : r.banca)}: aparece bastante na prova">🎯 incidência ${x.incid}</span>` : ''}
+              ${(x.incid > 0) ? `<span class="reforco-tag incid" title="Quantas vezes este assunto já caiu em ${escapeHtml(ReforcoEngine.rotuloBancas(r.banca))}">🎯 incidência ${x.incid}</span>` : ''}
               ${seta}${desdeAtiv}
               ${x.vencido ? `<span class="reforco-tag tone-bad" title="Sem medição nova — a taxa pode não refletir você hoje">⏳ ${x.diasDesdeMedicao}d</span>` : ''}
             </div>
@@ -31288,7 +31486,7 @@ const DesempenhoTecScreen = {
         ${(r.ordenar === 'banca' && !r.temIncid)
           ? `<p class="pl-ordem-txt tone-bad"><b>Sem efeito agora:</b> nenhuma incidência importada — importe em 🎲 Incidência para esta ordem existir de verdade.</p>` : ''}
         ${(r.ordenar === 'banca' && r.temIncid)
-          ? `<p class="pl-ordem-txt">${r.comIncid} dos ${r.itens.length} assuntos listados têm incidência ${r.banca === '__todas__' ? 'em alguma banca' : 'na banca ' + escapeHtml(r.banca)}; a banca pesa ${r.pesoBanca} nesta fila.</p>` : ''}
+          ? `<p class="pl-ordem-txt">${r.comIncid} dos ${r.itens.length} assuntos listados têm incidência em <b>${escapeHtml(ReforcoEngine.rotuloBancas(r.banca))}</b>; a banca pesa ${r.pesoBanca} nesta fila.</p>` : ''}
         ${gemeas.length
           ? `<p class="pl-ordem-txt tone-warn"><b>Com os seus dados e ajustes de agora, esta ordem está dando a mesma lista que:</b> ${gemeas.map(escapeHtml).join(' · ')}. Trocar entre elas não muda uma linha — para separá-las, mude o custo ou a ponderação nos ajustes avançados.</p>` : ''}
       </div>`;
@@ -31372,11 +31570,30 @@ const DesempenhoTecScreen = {
     this._incidLazy.clear();
     // datalist de bancas
     $id('incid-banca-list').innerHTML = DB.getBancas().map(b => `<option value="${escapeHtml(b)}">`).join('');
-    const bancas = DB.getBancas();
+    const todasBancas = DB.getBancas();
     const card = document.getElementById('incid-bancas-card');
     const list = document.getElementById('incid-bancas-list');
-    if (bancas.length === 0) { card.style.display = 'none'; return; }
+    if (todasBancas.length === 0) { card.style.display = 'none'; return; }
     card.style.display = 'block';
+    this.renderBancaPicker('incid-banca-pick');
+    /* A lista mostra as bancas ESCOLHIDAS. Com mais de uma marcada, o resumo do
+       topo soma as duas — é o número que o Reforço e o Plano vão usar, e vê-lo
+       aqui é a única forma de conferir se a soma faz sentido. */
+    const sel = this.bancasSelecionadas();
+    const filtro = ReforcoEngine.filtroBanca(this.bancaFiltro());
+    const bancas = sel.length ? todasBancas.filter(b => ReforcoEngine._daBanca(filtro, b)) : todasBancas;
+    const resumoEl = document.getElementById('incid-selecao-resumo');
+    if (resumoEl) {
+      if (!sel.length) {
+        resumoEl.innerHTML = `<p class="incid-selecao">Somando <b>todas as ${todasBancas.length} bancas</b> importadas. Marque as suas no seletor acima para o Reforço e o Plano priorizarem só o que elas cobram.</p>`;
+      } else {
+        const rs = DB.getIncidencia().filter(r => ReforcoEngine._daBanca(filtro, r.banca));
+        const raiz = rs.filter(r => r.depth === 0);
+        const soma = (raiz.length ? raiz : rs).reduce((a, r) => a + (r.incidencia || 0), 0);
+        const topicos = new Set(rs.filter(r => r.depth !== 0).map(r => ReforcoEngine.chaveInc(r.disciplina, r.topico))).size;
+        resumoEl.innerHTML = `<p class="incid-selecao on">Em vigor: <b>${escapeHtml(ReforcoEngine.rotuloBancas(sel))}</b> — ${topicos.toLocaleString('pt-BR')} tópicos distintos, ${soma.toLocaleString('pt-BR')} questões somadas. É este conjunto que o 🎯 Reforço cruza com os seus erros e que o 🏁 Plano usa na ordem por incidência.${todasBancas.length > bancas.length ? ` As outras ${todasBancas.length - bancas.length} banca(s) continuam salvas, apenas fora da conta.` : ''}</p>`;
+      }
+    }
     const all = DB.getIncidencia();
     const autoOpen = (bancas.length === 1); // se só há uma banca, já abre o detalhe
     list.innerHTML = bancas.map(b => {
@@ -31805,18 +32022,13 @@ const DesempenhoTecScreen = {
   // ---- Reforço ----
   renderReforco() {
     const snap = this.scopedSnapshot() || ReforcoEngine.currentSnapshot();
-    const bancaSel = document.getElementById('reforco-banca');
-    const bancas = DB.getBancas();
-    const cur = bancaSel.value || '__todas__';
-    bancaSel.innerHTML = `<option value="__todas__">Todas as bancas</option>` +
-      bancas.map(b => `<option value="${escapeHtml(b)}" ${b === cur ? 'selected' : ''}>${escapeHtml(b)}</option>`).join('');
-    if (!bancaSel.value) bancaSel.value = cur;
-    // popula o filtro de DISCIPLINA a partir da incidência da banca selecionada
+    this.renderBancaPicker('reforco-banca-pick');
+    // popula o filtro de DISCIPLINA a partir da incidência das bancas escolhidas
     const discSel = document.getElementById('reforco-disc');
     if (discSel) {
-      const bsel = bancaSel.value;
+      const filtro = ReforcoEngine.filtroBanca(this.bancaFiltro());
       const discs = [...new Set(DB.getIncidencia()
-        .filter(r => r.depth === 0 && (bsel === '__todas__' || r.banca === bsel))
+        .filter(r => r.depth === 0 && ReforcoEngine._daBanca(filtro, r.banca))
         .map(r => r.topico))].sort();
       const curD = discSel.value || '__todas__';
       discSel.innerHTML = `<option value="__todas__">📚 Todas as disciplinas</option>` +
@@ -31876,7 +32088,7 @@ const DesempenhoTecScreen = {
     const tetoPlano = (typeof PlanoEngine !== 'undefined') ? Math.max(50, Math.min(100, PlanoEngine.prefs().tetoDominio)) / 100 : 0.90;
     const res = ReforcoEngine.suggestFrontier(snap, {
       teto: tetoPlano,
-      banca: $id('reforco-banca').value,
+      banca: this.bancaFiltro(),
       estrategia: parseInt($id('reforco-estrat').value, 10) / 100,
       granularidade: gEl ? parseInt(gEl.value, 10) / 100 : 0.5,
       minQuestoes: parseInt($id('reforco-minq').value, 10) || 10,
@@ -32451,6 +32663,13 @@ const DesempenhoTecScreen = {
   }
 };
 
+// Um toque fora fecha o seletor de bancas (ele é o único painel flutuante desta
+// tela; sem isto, ficaria aberto por cima da lista que a pessoa quer ler).
+document.addEventListener('click', () => {
+  document.querySelectorAll('.banca-pick-panel').forEach(p => p.setAttribute('hidden', ''));
+  document.querySelectorAll('.banca-pick-btn').forEach(b => b.setAttribute('aria-expanded', 'false'));
+});
+
 // Listeners da tela Desempenho TEC
 $id('tec-btn-first-import').addEventListener('click', () => DesempenhoTecScreen.openImport());
 $id('tec-btn-new-import').addEventListener('click', () => DesempenhoTecScreen.openImport());
@@ -32604,12 +32823,11 @@ $id('tec-weak-disc').addEventListener('change', (e) => {
   }
   on('incid-file', 'change', (e) => { if (e.target.files[0]) DT.handleIncidFile(e.target.files[0]); });
   // Reforço (todos salvam a preferência para lembrar entre sessões)
-  on('reforco-banca', 'change', (e) => { DT.savePrefs({ banca: e.target.value }); DT.renderReforco(); });
   // Plano de pontos fracos
   ['plano-disc','plano-meta','plano-ritmo','plano-teto','plano-ponderacao','plano-minamostra',
    'plano-customodo','plano-custofixo','plano-custofator','plano-custopiso','plano-custoponto',
    'plano-pesobanca','plano-limite','plano-folhas','plano-pequenas',
-   'plano-amostraalvo','plano-cadencia','plano-janelamax','plano-ordenar','plano-banca','plano-consolidar','plano-validade','plano-critico','plano-fragil','plano-piso','plano-sens'].forEach(id => {
+   'plano-amostraalvo','plano-cadencia','plano-janelamax','plano-ordenar','plano-consolidar','plano-validade','plano-critico','plano-fragil','plano-piso','plano-sens'].forEach(id => {
     /* Mexer num campo pode DESFAZER um preset — e o chip aceso tem de deixar de
        estar aceso na mesma hora, senão a tela afirma um modo que não vale mais. */
     const aplicar = () => {

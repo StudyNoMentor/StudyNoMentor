@@ -1300,6 +1300,88 @@ try {
     : erro('rotulo de comparacao ilegivel: ' + d.comparando);
 } catch (e) { erro('o ciclo mensal falhou: ' + e.message); }
 
+
+/* ── 6.12) ESCOLHER QUAIS BANCAS SAO AS MINHAS ─────────────────────────────
+   A escolha vale para tres abas ao mesmo tempo e muda o numero que decide a
+   ordem de estudo. Este bloco percorre o seletor de ponta a ponta: uma banca,
+   duas somadas, e a volta para todas — conferindo, a cada passo, o que o
+   Reforco passa a usar. */
+console.log('\n6.12) selecao de bancas (uma, varias, todas)');
+try {
+  const sel = await pag.evaluate(async () => {
+    const esperar = (ms) => new Promise((r) => setTimeout(r, ms));
+    const linhas = (banca, n) => [
+      { disciplina: 'Direito Administrativo', topico: 'Licitacoes', incidencia: n, codigo: '01', depth: 1 },
+      { disciplina: 'Direito Constitucional', topico: 'Controle de constitucionalidade', incidencia: Math.round(n / 2), codigo: '01', depth: 1 }
+    ];
+    DB.saveIncidencia([]);
+    DB.addIncidenciaRows('FGV', linhas('FGV', 40), true);
+    DB.addIncidenciaRows('Cebraspe', linhas('Cebraspe', 26), true);
+    DB.addIncidenciaRows('FCC', linhas('FCC', 100), true);
+    DesempenhoTecScreen.savePrefs({ bancasSel: [] });
+    DesempenhoTecScreen.switchTecTab('incidencia');
+    await esperar(300);
+
+    const host = document.getElementById('incid-banca-pick');
+    const abrir = () => { host.querySelector('.banca-pick-btn').click(); };
+    const marcar = async (nome) => {
+      abrir(); await esperar(80);
+      const c = [...host.querySelectorAll('.banca-pick-panel input[type=checkbox]')].find((x) => x.value === nome);
+      c.checked = !c.checked; c.dispatchEvent(new Event('change', { bubbles: true }));
+      await esperar(250);
+    };
+    const estado = () => {
+      const r = ReforcoEngine.suggestFrontier(DesempenhoTecScreen.scopedSnapshot(),
+        { banca: DesempenhoTecScreen.bancaFiltro(), minQuestoes: 10, granularidade: 1, limite: 20 });
+      const lic = r.items.find((i) => /Licita/.test(i.nome));
+      return {
+        rotulo: document.querySelector('#incid-banca-pick .banca-pick-btn span').textContent.trim(),
+        blocos: document.querySelectorAll('#incid-bancas-list .incid-banca-block').length,
+        resumo: (document.getElementById('incid-selecao-resumo') || {}).textContent || '',
+        incid: lic ? lic.incidencia : null,
+        vezes: r.items.filter((i) => /Licita/.test(i.nome)).length
+      };
+    };
+    const todas = estado();
+    await marcar('FGV');
+    const uma = estado();
+    await marcar('Cebraspe');
+    const duas = estado();
+    // a mesma selecao tem de valer nas outras abas
+    DesempenhoTecScreen.switchTecTab('plano');
+    await esperar(350);
+    const noPlano = {
+      rotulo: (document.querySelector('#plano-banca-pick .banca-pick-btn span') || {}).textContent || '',
+      filtro: DesempenhoTecScreen.bancaFiltro()
+    };
+    DesempenhoTecScreen.switchTecTab('incidencia');
+    await esperar(250);
+    // volta para todas
+    document.querySelector('#incid-banca-pick .banca-pick-btn').click();
+    await esperar(80);
+    const btnTodas = document.querySelector('#incid-banca-pick .banca-pick-panel [data-acao="todas"]');
+    if (btnTodas) btnTodas.click();
+    await esperar(300);
+    const voltou = estado();
+    return { todas, uma, duas, noPlano, voltou };
+  });
+  (sel.todas.incid === 166 && sel.todas.vezes === 1)
+    ? ok('todas as bancas somam num assunto so (40+26+100 = 166)')
+    : erro('a soma de todas as bancas saiu errada: ' + JSON.stringify(sel.todas));
+  (sel.uma.incid === 40 && /FGV/.test(sel.uma.rotulo) && sel.uma.blocos === 1)
+    ? ok('marcar uma banca restringe a conta e a lista de bancas (FGV, 40)')
+    : erro('a selecao de uma banca nao pegou: ' + JSON.stringify(sel.uma));
+  (sel.duas.incid === 66 && /2 bancas/.test(sel.duas.rotulo) && sel.duas.blocos === 2 && /FGV e Cebraspe|Cebraspe e FGV/.test(sel.duas.resumo))
+    ? ok('duas bancas somam so as duas (40+26 = 66) e o resumo nomeia as duas')
+    : erro('a soma de duas bancas saiu errada: ' + JSON.stringify(sel.duas));
+  (/2 bancas/.test(sel.noPlano.rotulo) && Array.isArray(sel.noPlano.filtro) && sel.noPlano.filtro.length === 2)
+    ? ok('a mesma selecao vale no Plano, sem precisar escolher de novo')
+    : erro('a selecao nao atravessou para o Plano: ' + JSON.stringify(sel.noPlano));
+  (sel.voltou.incid === 166 && /Todas/.test(sel.voltou.rotulo))
+    ? ok('voltar a todas as bancas devolve a soma completa')
+    : erro('nao voltou para todas: ' + JSON.stringify(sel.voltou));
+} catch (e) { erro('o seletor de bancas falhou: ' + e.message); }
+
 console.log('\n7) contraste WCAG AA (temas claro e escuro)');
 /* Transicoes e animacoes desligadas durante a medicao. Sem isto, medir logo
    apos uma troca de tela pega a cor INTERMEDIARIA de uma transicao (a aba ativa

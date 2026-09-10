@@ -1497,6 +1497,45 @@ const AutoTeste = {
         t80.teto === 80 && t95.teto === 95 && rec(t95) > rec(t80), { t80: rec(t80), t95: rec(t95) });
     });
 
+    /* 5) DUAS BANCAS AO MESMO TEMPO. Quem presta para dois órgãos precisa somar
+       exatamente as duas — nem "todas" (que traz o histórico de bancas que ele
+       não vai enfrentar) nem uma só. */
+    const duasBancas = [
+      { banca: 'FGV', disciplina: 'Direito Constitucional', topico: 'Princípios', incidencia: 30, codigo: '01', depth: 1 },
+      { banca: 'Cebraspe', disciplina: 'Direito Constitucional', topico: 'Princípios', incidencia: 12, codigo: '01', depth: 1 },
+      { banca: 'FCC', disciplina: 'Direito Constitucional', topico: 'Princípios', incidencia: 100, codigo: '01', depth: 1 }
+    ];
+    comInc(duasBancas, () => {
+      const vDe = (sel) => R.incidenciaDe(R.incidenceMap(sel), 'Princípios', 'Direito Constitucional').valor;
+      this._ok('Reforço: uma banca traz só o histórico dela', vDe('FGV') === 30, vDe('FGV'));
+      this._ok('Reforço: duas bancas somam só as duas', vDe(['FGV', 'Cebraspe']) === 42, vDe(['FGV', 'Cebraspe']));
+      this._ok('Reforço: todas somam tudo', vDe('__todas__') === 142 && vDe([]) === 142, vDe('__todas__'));
+      this._ok('Reforço: a ordem da seleção não muda o resultado',
+        vDe(['Cebraspe', 'FGV']) === vDe(['FGV', 'Cebraspe']));
+      this._ok('Reforço: banca inexistente na seleção não derruba nem inventa',
+        vDe(['Não Existe']) === 0 && R.hasIncidencia(['Não Existe']) === false);
+      this._ok('Reforço: hasIncidencia responde pela seleção',
+        R.hasIncidencia(['FGV']) === true && R.hasIncidencia() === true);
+      this._ok('Reforço: o rótulo das bancas é legível no plural',
+        R.rotuloBancas('__todas__') === 'todas as bancas' &&
+        R.rotuloBancas(['FGV']) === 'FGV' &&
+        R.rotuloBancas(['FGV', 'Cebraspe']).indexOf(' e ') > 0 &&
+        /,.* e /.test(R.rotuloBancas(['FGV', 'Cebraspe', 'FCC'])),
+        [R.rotuloBancas(['FGV', 'Cebraspe']), R.rotuloBancas(['FGV', 'Cebraspe', 'FCC'])]);
+      // e a fronteira usa a soma das escolhidas, não a de todas
+      const so2 = R.suggestFrontier(snap, { banca: ['FGV', 'Cebraspe'], minQuestoes: 10, granularidade: 1, limite: 20 });
+      const tudo = R.suggestFrontier(snap, { banca: '__todas__', minQuestoes: 10, granularidade: 1, limite: 20 });
+      const inc2 = (r) => (r.items.find(i => i.nome === 'Princípios') || {}).incidencia;
+      this._ok('Reforço: o ranking usa a incidência somada das bancas escolhidas',
+        inc2(so2) === 42 && inc2(tudo) === 142, { so2: inc2(so2), tudo: inc2(tudo) });
+      /* E o assunto aparece UMA vez, não uma por banca: cada caderno traz o seu
+         índice com a mesma taxonomia, e empilhar as linhas cruas transformava o
+         mesmo assunto em três unidades concorrendo entre si no ranking. */
+      const vezes = (r) => r.items.filter(i => i.nome === 'Princípios').length;
+      this._ok('Reforço: assunto presente em várias bancas aparece uma vez só',
+        vezes(so2) === 1 && vezes(tudo) === 1, { so2: vezes(so2), tudo: vezes(tudo) });
+    });
+
     // 5) ENTRADA HOSTIL: nada disso pode lançar
     const hostis = [
       ['retrato nulo', null],
