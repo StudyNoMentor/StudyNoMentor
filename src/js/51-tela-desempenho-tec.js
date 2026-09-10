@@ -155,7 +155,6 @@ const PlanoEngine = {
 
      Os ajustes ficam no perfil, não no retrato: reimportar o TEC todo mês
      recalcula os números, nunca as suas preferências. */
-  MODOS_CAMPOS: ['ordenar', 'ponderacao', 'metaDominio', 'tetoDominio', 'custoModo', 'limite', 'incluirPequenas', 'minAmostra'],
   modoPatch(k) {
     const base = (this.MODOS[k] && this.MODOS[k].patch) || {};
     const custom = (this.prefs().modosCustom || {})[k] || {};
@@ -167,10 +166,21 @@ const PlanoEngine = {
     const base = (this.MODOS[k] && this.MODOS[k].patch) || {};
     return Object.keys(custom).some(c => String(custom[c]) !== String(base[c]));
   },
+  /* Guarda só o que DIFERE do padrão de fábrica, somando ao que já estava
+     ajustado. Gravar o patch inteiro fazia um "salvar" sem mexer em nada
+     marcar o modo como editado — e enfiava no modo campos que ele nunca quis
+     definir (um modo que não fixa a meta passava a fixá-la, mudando o que
+     "aplicar" significa). Campo que volta ao valor de fábrica sai do registro;
+     modo sem nenhuma diferença deixa de existir como personalizado. */
   salvarModo(k, patch) {
-    const p = this.prefs();
-    const m = Object.assign({}, p.modosCustom || {});
-    m[k] = Object.assign({}, this.MODOS[k].patch, patch);
+    const base = (this.MODOS[k] && this.MODOS[k].patch) || {};
+    const m = Object.assign({}, this.prefs().modosCustom || {});
+    const atual = Object.assign({}, m[k] || {}, patch || {});
+    Object.keys(atual).forEach(c => {
+      if (base[c] !== undefined && String(atual[c]) === String(base[c])) delete atual[c];
+      if (atual[c] === undefined || (typeof atual[c] === 'number' && isNaN(atual[c]))) delete atual[c];
+    });
+    if (Object.keys(atual).length) m[k] = atual; else delete m[k];
     this.salvarPrefs({ modosCustom: m });
   },
   restaurarModo(k) {
@@ -192,7 +202,10 @@ const PlanoEngine = {
   },
   // Resumo legível do que um modo aplica — é o que a tela mostra sob os chips.
   resumoModo(k) {
-    const patch = this.modoPatch(k);
+    /* O que vale DEPOIS de aplicar: um modo que não define a meta mantém a que
+       está valendo. Lendo só o patch, o resumo escrevia "meta undefined%" nos
+       três modos que não a fixam. */
+    const patch = Object.assign({}, this.prefs(), this.modoPatch(k));
     const rot = (this.ORDENS[patch.ordenar] || {}).rot || patch.ordenar;
     const pond = patch.ponderacao === 'volume' ? 'peso por volume' : patch.ponderacao === 'ambas' ? 'as duas métricas' : 'peso igual';
     const custo = patch.custoModo === 'fixo' ? 'custo fixo' : patch.custoModo === 'proporcional' ? 'custo proporcional' : 'custo por lacuna';
@@ -697,7 +710,9 @@ const PlanoEngine = {
       ganhoGeral: (a, b) => b.ganhoGeral - a.ganhoGeral
     };
     // Desempate ESTÁVEL por nome: duas execuções com os mesmos dados dão a mesma ordem
-    const base = ordem[opts.ordenar] || ordem.rendimento;
+    // ordem desconhecida (preferência antiga, dado de fora) cai onde a migração
+    // manda: "pior acerto primeiro" — nunca numa terceira fila silenciosa
+    const base = ordem[opts.ordenar] || ordem.pior;
     const cmp = (a, b) => base(a, b) || (a.nome || '').localeCompare(b.nome || '', 'pt-BR');
     const plano = usados.filter(x => x.ganhoPP > 0.001).sort(cmp);
     const meta = opts.metaDominio;
@@ -1268,7 +1283,12 @@ const DesempenhoTecScreen = {
   rotuloComparacao() {
     const u = this.ultimoSnapDoEscopo(), p = this.prevSnap();
     if (!u || !p) return null;
-    return `${this.rangeLabel(p)} → ${this.rangeLabel(u)}`;
+    /* Só as datas de FIM. `rangeLabel` já devolve "início → fim" quando o
+       retrato cobre um intervalo, e juntar dois desses com outra seta produzia
+       "11/08 → 05/09 → 06/09 → 08/09": quatro datas e nenhuma leitura possível
+       de quem é o antes e quem é o depois. */
+    const fim = (s) => formatDateShort(s.endDate || s.date || s.startDate);
+    return `${fim(p)} → ${fim(u)}`;
   },
   renderAnalysis() {
     const snap = this.scopedSnapshot();
@@ -1479,12 +1499,15 @@ const DesempenhoTecScreen = {
     if (!m) return;
     // se o modo em edição é o que está valendo agora, o ajuste tem de valer já
     const eraAtivo = (PlanoEngine.modoAtivo() === k);
-    const p = PlanoEngine.modoPatch(k);
+    /* Valores EFETIVOS: o que vai valer se você aplicar este modo agora. Um
+       modo que não fixa a meta herda a que está valendo — ler só o patch dele
+       abria o diálogo com campos vazios, e salvar assim gravava NaN. */
+    const p = Object.assign({}, PlanoEngine.prefs(), PlanoEngine.modoPatch(k));
     const ordens = Object.keys(PlanoEngine.ORDENS).map(x => ({ value: x, label: PlanoEngine.ORDENS[x].rot }));
     const r = await UI.prompt([
       { key: 'ordenar', label: 'Ordem de ataque', type: 'select', value: p.ordenar, options: ordens },
       { key: 'metaDominio', label: 'Meta de domínio (%)', type: 'number', value: p.metaDominio, min: 30, max: 100 },
-      { key: 'tetoDominio', label: 'Acerto máximo realista (%)', type: 'number', value: p.tetoDominio != null ? p.tetoDominio : PlanoEngine.DEFAULTS.tetoDominio, min: 50, max: 100 },
+      { key: 'tetoDominio', label: 'Acerto máximo realista (%)', type: 'number', value: p.tetoDominio, min: 50, max: 100 },
       { key: 'ponderacao', label: 'Como pesar cada assunto', type: 'select', value: p.ponderacao, options: [
         { value: 'igual', label: '⚖️ Todo assunto pesa igual' },
         { value: 'volume', label: '📊 Pelo volume de questões' },
@@ -1493,7 +1516,7 @@ const DesempenhoTecScreen = {
         { value: 'lacuna', label: '📐 Pela lacuna até o máximo realista' },
         { value: 'fixo', label: 'Número fixo de questões' },
         { value: 'proporcional', label: 'Proporcional ao praticado' }] },
-      { key: 'limite', label: 'Mostrar até (assuntos)', type: 'number', value: p.limite != null ? p.limite : 30, min: 5, max: 200 },
+      { key: 'limite', label: 'Mostrar até (assuntos)', type: 'number', value: p.limite, min: 5, max: 200 },
       { key: 'incluirPequenas', label: 'Incluir amostra pequena', type: 'select', value: p.incluirPequenas ? '1' : '0', options: [
         { value: '0', label: 'Não — amostra curta vai para o segundo plano' },
         { value: '1', label: 'Sim — entra no cálculo (modo diagnóstico)' }] },
@@ -1507,16 +1530,22 @@ const DesempenhoTecScreen = {
       showToast(m.rot + ' voltou ao padrão ✓');
     } else {
       const num = (v, d) => { const n = parseInt(v, 10); return isNaN(n) ? d : n; };
-      PlanoEngine.salvarModo(k, {
+      /* Só os campos que a pessoa REALMENTE mexeu entram no modo. Gravar todos
+         faria um modo herdar decisões que ele não quis tomar, e um "salvar"
+         sem alteração nenhuma marcaria o modo como personalizado. */
+      const novo = {
         ordenar: r.ordenar,
         metaDominio: Math.max(30, Math.min(100, num(r.metaDominio, p.metaDominio))),
         tetoDominio: Math.max(50, Math.min(100, num(r.tetoDominio, p.tetoDominio))),
         ponderacao: r.ponderacao,
         custoModo: r.custoModo,
-        limite: Math.max(5, Math.min(200, num(r.limite, p.limite || 30))),
+        limite: Math.max(5, Math.min(200, num(r.limite, p.limite))),
         incluirPequenas: String(r.incluirPequenas) === '1'
-      });
-      showToast(m.rot + ' ajustado ✓');
+      };
+      const mudou = {};
+      Object.keys(novo).forEach(c => { if (String(novo[c]) !== String(p[c])) mudou[c] = novo[c]; });
+      if (Object.keys(mudou).length) { PlanoEngine.salvarModo(k, mudou); showToast(m.rot + ' ajustado ✓'); }
+      else showToast('Nada mudou neste modo');
     }
     if (eraAtivo) PlanoEngine.salvarPrefs(PlanoEngine.modoPatch(k));
     this.renderPlano();
@@ -2622,8 +2651,11 @@ const DesempenhoTecScreen = {
       /* A mensagem antiga mandava baixar o mínimo de questões ou mudar a
          granularidade — conselhos que não resolvem quando a causa é outra.
          Agora o texto depende do motivo real de a lista estar vazia. */
-      const motivo = (res.totalSemCasamento && !res.totalUnidades)
-        ? 'Nenhum assunto da banca casou com o seu desempenho — confira os nomes no índice importado.'
+      /* A condição anterior exigia `!res.totalUnidades` junto com unidades sem
+         casamento — e uma exclui a outra: se não há unidade, não há como haver
+         unidade sem casamento. A mensagem mais útil das três nunca aparecia. */
+      const motivo = (res.totalSemCasamento > 0)
+        ? `Nenhum assunto com amostra suficiente — e <b>${res.totalSemCasamento}</b> assunto(s) da banca não casaram com nenhum nome do seu desempenho. Comece por aí: é diferença de nome, não falta de estudo.`
         : (res.totalUnidades === 0)
           ? 'Nenhum assunto com questões resolvidas no escopo atual. Importe um retrato em <b>📊 Análise</b> ou amplie o escopo.'
           : 'Nenhum assunto passou do mínimo de questões com erro a corrigir. Baixe o "mín. de questões" nos ajustes, mude a granularidade para Disciplina, ou amplie o escopo.';
@@ -2786,7 +2818,11 @@ const DesempenhoTecScreen = {
     const leaves = $id('tec-weak-leaves').checked;
     const ordEl = document.getElementById('tec-weak-ordenar');
     const modo = ordEl ? ordEl.value : 'taxa';
-    this.savePrefs({ weakLimiar: limiar, weakMinQ: minQ, weakLeaves: leaves, weakOrdenar: modo });
+    /* Repintar NÃO é escolher. Salvar aqui gravava, no primeiro render, o
+       limiar que a tela acabara de herdar da meta do Plano — e a partir daí a
+       "régua única" deixava de acompanhar o Plano em silêncio, porque um valor
+       salvo sempre vence o herdado. Quem grava é o toque na tela (ver os
+       listeners no fim do arquivo). */
     const container = document.getElementById('tec-weak-list');
     const sel = document.getElementById('tec-weak-disc');
 
@@ -3159,6 +3195,15 @@ document.querySelectorAll('.tec-range-quick').forEach(btn => btn.addEventListene
   const el = document.getElementById(id);
   if (!el) return;
   const repintar = () => {
+    // a preferência nasce AQUI, do toque de quem usa — e é isto que faz o
+    // limiar seguir a meta do Plano até você decidir o contrário
+    const num = (i, d) => { const e = document.getElementById(i); const n = parseInt(e && e.value, 10); return isNaN(n) ? d : n; };
+    const sel = document.getElementById('tec-weak-ordenar');
+    const lv = document.getElementById('tec-weak-leaves');
+    DesempenhoTecScreen.savePrefs({
+      weakLimiar: num('tec-weak-threshold', 85), weakMinQ: num('tec-weak-minq', 10),
+      weakLeaves: !!(lv && lv.checked), weakOrdenar: (sel && sel.value) || 'taxa'
+    });
     const snap = DesempenhoTecScreen.scopedSnapshot();
     if (snap) DesempenhoTecScreen.renderWeak(snap);
   };

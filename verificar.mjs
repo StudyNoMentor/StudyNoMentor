@@ -1100,6 +1100,206 @@ try {
   await pag.setViewportSize({ width: 1280, height: 900 });
 } catch (e) { erro('as tres abas nao renderizaram com dado real: ' + e.message); }
 
+
+/* ── 6.10) OS CAMINHOS QUE SO EXISTEM NA TELA ──────────────────────────────
+   O motor tem teste proprio. O que so o navegador exerce — abrir o dialogo do
+   modo, marcar caixas, ver o botao mudar de rotulo — nao tinha nenhum. Sao
+   justamente os pontos onde um listener esquecido nao quebra nada: so deixa de
+   funcionar, calado (foi assim que o seletor de ordem dos pontos fracos nasceu
+   decorativo). */
+console.log('\n6.10) dialogos e escolhas do Plano, no navegador');
+try {
+  await pag.setViewportSize({ width: 390, height: 900 });
+  await pag.evaluate(() => { switchScreen('desempenhotec'); DesempenhoTecScreen.switchTecTab('plano'); });
+  await pag.waitForTimeout(400);
+
+  // ── ✎ EDITAR UM MODO ────────────────────────────────────────────────────
+  const edit = await pag.evaluate(async () => {
+    const esperar = (ms) => new Promise((r) => setTimeout(r, ms));
+    PlanoEngine.restaurarModo('curto');
+    document.querySelector('#plano-modos .pl-modo-edit[data-editar="curto"]').click();
+    await esperar(250);
+    const campo = document.getElementById('uip_metaDominio');
+    if (!campo) return { faltando: true };
+    const antes = campo.value;
+    campo.value = '92';
+    document.getElementById('ui-modal-ok').click();
+    await esperar(350);
+    return { antes, patch: PlanoEngine.modoPatch('curto'), editado: PlanoEngine.modoEditado('curto'),
+      ponto: !!document.querySelector('#plano-modos .pl-modo-edit-dot') };
+  });
+  (!edit.faltando && edit.patch.metaDominio === 92 && edit.editado && edit.ponto)
+    ? ok(`ajustar um modo pelo ✎ guarda o valor (meta ${edit.antes}% → 92%) e marca o chip`)
+    : erro('o dialogo de ajuste do modo nao funcionou: ' + JSON.stringify(edit));
+
+  // aplicar o modo ajustado tem de levar o valor ajustado para a tela
+  const aplicou = await pag.evaluate(async () => {
+    document.querySelector('#plano-modos .pl-modo[data-modo="curto"]').click();
+    await new Promise((r) => setTimeout(r, 350));
+    return { meta: PlanoEngine.prefs().metaDominio, campo: document.getElementById('plano-meta').value,
+      ativo: PlanoEngine.modoAtivo() };
+  });
+  (aplicou.meta === 92 && aplicou.campo === '92' && aplicou.ativo === 'curto')
+    ? ok('aplicar o modo ajustado leva o ajuste para o plano inteiro')
+    : erro('o modo ajustado nao foi aplicado: ' + JSON.stringify(aplicou));
+
+  // ── ↺ RESTAURAR SO AQUELE MODO ──────────────────────────────────────────
+  const rest = await pag.evaluate(async () => {
+    const esperar = (ms) => new Promise((r) => setTimeout(r, ms));
+    PlanoEngine.salvarModo('base', { limite: 7 });          // outro modo tambem ajustado
+    DesempenhoTecScreen.renderPlano();
+    await esperar(150);
+    document.querySelector('#plano-modos .pl-modo-edit[data-editar="curto"]').click();
+    await esperar(250);
+    const sel = document.getElementById('uip_restaurar');
+    if (!sel) return { faltando: true };
+    sel.value = '1';
+    document.getElementById('ui-modal-ok').click();
+    await esperar(350);
+    return { curto: PlanoEngine.modoEditado('curto'), base: PlanoEngine.modoEditado('base'),
+      limiteBase: PlanoEngine.modoPatch('base').limite };
+  });
+  (!rest.faltando && rest.curto === false && rest.base === true && rest.limiteBase === 7)
+    ? ok('restaurar um modo devolve so ele ao padrao, sem tocar nos outros')
+    : erro('o restaurar por modo nao funcionou: ' + JSON.stringify(rest));
+  await pag.evaluate(() => { PlanoEngine.restaurarModo('base'); PlanoEngine.salvarPrefs(PlanoEngine.modoPatch('base')); DesempenhoTecScreen.renderPlano(); });
+  await pag.waitForTimeout(300);
+
+  // ── ESCOLHER O QUE VIRA ATIVIDADE ───────────────────────────────────────
+  const escolha = await pag.evaluate(async () => {
+    const esperar = (ms) => new Promise((r) => setTimeout(r, ms));
+    const caixas = [...document.querySelectorAll('.pl-hoje-sel:not(:disabled)')];
+    if (caixas.length < 2) return { poucas: caixas.length };
+    const btn = document.getElementById('plano-lote');
+    // desmarca tudo: o botao tem de se desabilitar e dizer o que falta
+    caixas.forEach((c) => { if (c.checked) { c.checked = false; c.dispatchEvent(new Event('change', { bubbles: true })); } });
+    await esperar(120);
+    const vazio = { txt: btn.textContent.trim(), off: btn.disabled };
+    // marca SO um dos "proximos" (fora do bloco): tem de criar aquele, e so aquele
+    const alvo = caixas[caixas.length - 1];
+    const nome = alvo.dataset.topico;
+    alvo.checked = true; alvo.dispatchEvent(new Event('change', { bubbles: true }));
+    await esperar(120);
+    const um = { txt: btn.textContent.trim(), off: btn.disabled };
+    const antes = DB.getExtras().length;
+    btn.click();
+    await esperar(400);
+    const criadas = DB.getExtras().slice(antes);
+    return { vazio, um, nome, n: criadas.length, casou: criadas.some((e) => e.origemPlano && e.origemPlano.topico === nome) };
+  });
+  (escolha.vazio && escolha.vazio.off && /Marque ao menos/.test(escolha.vazio.txt))
+    ? ok('sem nada marcado, o botao se desabilita e pede a escolha')
+    : erro('o botao de criar nao reagiu a lista vazia: ' + JSON.stringify(escolha.vazio || escolha));
+  (escolha.n === 1 && escolha.casou && /Criar a atividade marcada/.test(escolha.um.txt))
+    ? ok('marcar um assunto da fila seguinte cria exatamente aquele')
+    : erro('a escolha do bloco nao criou o assunto certo: ' + JSON.stringify(escolha));
+
+  // ── A REGUA UNICA SEGUE O PLANO ATE VOCE MEXER ──────────────────────────
+  const regua = await pag.evaluate(async () => {
+    const esperar = (ms) => new Promise((r) => setTimeout(r, ms));
+    const p = DesempenhoTecScreen._loadPrefs();
+    delete p.weakLimiar;
+    DB.setRaw(DesempenhoTecScreen._prefsKey(), JSON.stringify(p));
+    PlanoEngine.salvarPrefs({ metaDominio: 77 });
+    DesempenhoTecScreen.switchTecTab('analise');
+    DesempenhoTecScreen.renderAnalysis();
+    await esperar(200);
+    const herdado = document.getElementById('tec-weak-threshold').value;
+    // agora a pessoa escolhe outro corte: a partir daqui a escolha manda
+    const el = document.getElementById('tec-weak-threshold');
+    el.value = '60'; el.dispatchEvent(new Event('input', { bubbles: true }));
+    await esperar(200);
+    PlanoEngine.salvarPrefs({ metaDominio: 85 });
+    DesempenhoTecScreen.renderAnalysis();
+    await esperar(200);
+    const proprio = document.getElementById('tec-weak-threshold').value;
+    return { herdado, proprio };
+  });
+  (regua.herdado === '77' && regua.proprio === '60')
+    ? ok('o limiar herda a meta do Plano ate voce escolher o seu (77% → 60%)')
+    : erro('a regua unica nao se comportou: ' + JSON.stringify(regua));
+  await pag.setViewportSize({ width: 1280, height: 900 });
+} catch (e) { erro('os dialogos do Plano falharam: ' + e.message); }
+
+
+/* ── 6.11) O CICLO MENSAL ──────────────────────────────────────────────────
+   O dado desta tela e volatil por natureza: todo mes entra um retrato novo por
+   cima. O que NAO pode mudar nesse momento sao as suas decisoes — o modo
+   ajustado, o limiar escolhido, a atividade em andamento e o vinculo dela com
+   o assunto. E o que TEM de mudar sao os numeros. Este e o unico teste que
+   percorre o ciclo inteiro. */
+console.log('\n6.11) importar um retrato novo por cima de tudo');
+try {
+  const ciclo = await pag.evaluate(async () => {
+    const esperar = (ms) => new Promise((r) => setTimeout(r, ms));
+    const dia = (n) => { const d = new Date(todayLocal() + 'T00:00:00'); d.setDate(d.getDate() - n); return d.toISOString().slice(0, 10); };
+    const L = (c, n, disc, q, ac) => ({ depth: 1, codigo: c, nome: n, disciplina: disc, questoes: q, acertos: ac, pctAcerto: Math.round(ac / q * 1000) / 10 });
+    const D = (n, q, ac) => ({ depth: 0, codigo: null, nome: n, disciplina: n, questoes: q, acertos: ac, pctAcerto: Math.round(ac / q * 1000) / 10 });
+
+    // estado ANTES: preferencias proprias, um modo ajustado e uma atividade em curso
+    PlanoEngine.salvarModo('base', { metaDominio: 88 });
+    PlanoEngine.salvarPrefs(PlanoEngine.modoPatch('base'));
+    DesempenhoTecScreen.savePrefs({ weakLimiar: 62 });
+    DesempenhoTecScreen.switchTecTab('plano');
+    await esperar(300);
+    const alvo = (PlanoEngine.calcular(DesempenhoTecScreen.scopedSnapshot(), PlanoEngine.prefs()).itens[0] || {});
+    DB.getExtras().filter((e) => e.origemPlano).forEach((e) => DB.deleteExtra && DB.deleteExtra(e.id));
+    DesempenhoTecScreen.criarExtraDoPlano(alvo.nome, alvo.disciplina, alvo.custoQ, 'reforco');
+    await esperar(250);
+    const extra = DB.getExtras().find((e) => e.origemPlano && e.origemPlano.topico === alvo.nome);
+    const antes = {
+      taxa: alvo.taxa, dominio: PlanoEngine.calcular(DesempenhoTecScreen.scopedSnapshot(), PlanoEngine.prefs()).dominioPct,
+      taxaInicial: extra && extra.origemPlano.taxaInicial, modo: PlanoEngine.modoPatch('base').metaDominio,
+      limiar: DesempenhoTecScreen._loadPrefs().weakLimiar, retratos: DB.getTecSnapshots().length
+    };
+
+    // O MES SEGUINTE: o assunto do topo melhorou muito; entra um retrato novo
+    const novos = DB.getTecSnapshots().slice();
+    novos.push({ id: 'novo', nome: 'novo', date: dia(2), startDate: dia(4), endDate: dia(2), rows: [
+      D(alvo.disciplina, 120, 96), L('01', alvo.nome, alvo.disciplina, 120, 96),
+      D('Direito Constitucional', 40, 20), L('01', 'Controle de constitucionalidade', 'Direito Constitucional', 40, 20)
+    ] });
+    DB._set(DB.KEYS.tec, novos);
+    DesempenhoTecScreen.selectedSnapIds = null;   // escopo recalcula do zero, como numa abertura
+    DesempenhoTecScreen.render();
+    DesempenhoTecScreen.switchTecTab('plano');
+    await esperar(400);
+    const r2 = PlanoEngine.calcular(DesempenhoTecScreen.scopedSnapshot(), PlanoEngine.prefs());
+    const depoisAlvo = [].concat(r2.itens, r2.pequenas || []).find((x) => x.nome === alvo.nome);
+    const extra2 = DB.getExtras().find((e) => e.origemPlano && e.origemPlano.topico === alvo.nome);
+    return {
+      antes,
+      depois: {
+        taxa: depoisAlvo ? depoisAlvo.taxa : null,
+        dominio: r2.dominioPct,
+        taxaInicial: extra2 && extra2.origemPlano.taxaInicial,
+        modo: PlanoEngine.modoPatch('base').metaDominio,
+        limiar: DesempenhoTecScreen._loadPrefs().weakLimiar,
+        retratos: DB.getTecSnapshots().length,
+        temExtra: !!extra2,
+        comparando: DesempenhoTecScreen.rotuloComparacao()
+      }
+    };
+  });
+  const a = ciclo.antes, d = ciclo.depois;
+  (d.retratos === a.retratos + 1) ? ok(`o retrato novo entrou no escopo (${a.retratos} → ${d.retratos})`)
+    : erro('o retrato novo nao entrou: ' + JSON.stringify(ciclo));
+  (d.taxa != null && a.taxa != null && d.taxa > a.taxa)
+    ? ok(`a taxa do assunto atacado subiu com o dado novo (${a.taxa.toFixed(0)}% → ${d.taxa.toFixed(0)}%)`)
+    : erro('a taxa nao acompanhou o retrato novo: ' + JSON.stringify({ a: a.taxa, d: d.taxa }));
+  (d.modo === 88 && d.limiar === 62)
+    ? ok('o modo ajustado e o limiar escolhido sobrevivem a importacao')
+    : erro('a importacao levou as preferencias junto: ' + JSON.stringify({ modo: d.modo, limiar: d.limiar }));
+  (d.temExtra && d.taxaInicial === a.taxaInicial)
+    ? ok('a atividade continua ligada ao assunto, com a taxa inicial preservada')
+    : erro('o vinculo da atividade se perdeu: ' + JSON.stringify({ t: d.temExtra, i: d.taxaInicial, a: a.taxaInicial }));
+  /* O rotulo tem de dizer DUAS datas — uma para cada retrato. Juntar dois
+     intervalos com seta virava uma sequencia de quatro datas ilegivel. */
+  (d.comparando && (d.comparando.match(/→/g) || []).length === 1)
+    ? ok(`o ▲▼ passa a comparar o retrato novo com o anterior (${d.comparando})`)
+    : erro('rotulo de comparacao ilegivel: ' + d.comparando);
+} catch (e) { erro('o ciclo mensal falhou: ' + e.message); }
+
 console.log('\n7) contraste WCAG AA (temas claro e escuro)');
 /* Transicoes e animacoes desligadas durante a medicao. Sem isto, medir logo
    apos uma troca de tela pega a cor INTERMEDIARIA de uma transicao (a aba ativa

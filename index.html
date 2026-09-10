@@ -57,7 +57,7 @@
      novo, e o antigo é descartado sozinho na ativação) e o que permite ao app
      dizer qual versão está rodando. Em src/ fica "dev" de propósito: a versão
      é gerada na montagem, não editada à mão. -->
-<meta name="diario-versao" content="vc6f725787f">
+<meta name="diario-versao" content="vd9008ba61c">
 <script>
 /* ── ARRANQUE: abre o IndexedDB AGORA, em paralelo com o parse do documento ──
    A fachada de armazenamento vive no fim do <body>, depois de ~1,7 MB de HTML.
@@ -12450,14 +12450,31 @@ const DB = {
     this.saveIncidencia(list);
     return { total: rows.length, novas, repetidas };
   },
-  // Renomear uma banca: "FGV " e "FGV" viravam duas, e só existia excluir.
+  /* Renomear uma banca: "FGV " e "FGV" viravam duas, e só existia excluir.
+     Renomear para um nome que JÁ EXISTE é o caso mais comum (é justamente
+     assim que se conserta a digitação divergente) — e juntar os dois grupos
+     sem mais nada traria de volta a duplicação que a gravação passou a evitar.
+     Por isso o merge desempata pela mesma chave: sobra uma linha por
+     (disciplina + código/nome), com o valor do grupo que está chegando. */
   renameIncidenciaBanca(de, para) {
     const alvo = String(para || '').trim();
     if (!alvo) return 0;
     const list = this.getIncidencia();
     let n = 0;
-    list.forEach(r => { if (r.banca && r.banca.toLowerCase() === String(de).toLowerCase()) { r.banca = alvo; n++; } });
-    if (n) this.saveIncidencia(list);
+    list.forEach(r => { if (r.banca && r.banca.toLowerCase() === String(de).toLowerCase()) { r.banca = alvo; r._renomeada = true; n++; } });
+    if (!n) return 0;
+    const vistos = new Map();
+    const limpa = [];
+    list.forEach(r => {
+      if (!r.banca || r.banca.toLowerCase() !== alvo.toLowerCase()) { limpa.push(r); return; }
+      const k = this._chaveIncid(alvo, r);
+      const antes = vistos.get(k);
+      // a linha renomeada vence a homônima antiga; fora isso, a primeira fica
+      if (antes) { if (r._renomeada) Object.assign(antes, r, { id: antes.id }); return; }
+      vistos.set(k, r); limpa.push(r);
+    });
+    limpa.forEach(r => { delete r._renomeada; });
+    this.saveIncidencia(limpa);
     return n;
   },
   clearIncidenciaBanca(banca) { this.saveIncidencia(this.getIncidencia().filter(r => r.banca.toLowerCase() !== banca.toLowerCase())); },
@@ -15307,8 +15324,17 @@ const ReforcoEngine = {
      pertence a uma unidade só, sem somar pai e filho. */
   _unidadesDoDesempenho(snap, nivelAlvo) {
     const rows = (snap && snap.rows) || [];
-    const temFilho = (r) => rows.some(o => o !== r && o.disciplina === r.disciplina && o.codigo &&
-      r.codigo && String(o.codigo).indexOf(String(r.codigo) + '.') === 0);
+    /* A linha de DISCIPLINA não tem código — e a versão anterior desta função
+       exigia `r.codigo` para procurar filhos, então nenhuma disciplina tinha
+       filhos aos olhos dela. Resultado: a disciplina inteira E cada tópico dela
+       entravam como unidades separadas, contando as mesmas questões duas vezes
+       no ranking e nas fatias de esforço. Para a disciplina, "ter filho" é
+       existir qualquer linha mais funda na mesma matéria. */
+    const temFilho = (r) => rows.some(o => {
+      if (o === r || o.disciplina !== r.disciplina) return false;
+      if (r.depth === 0 || r.codigo == null || r.codigo === '') return (o.depth || 0) > 0;
+      return o.codigo && String(o.codigo).indexOf(String(r.codigo) + '.') === 0;
+    });
     const out = [];
     rows.forEach(r => {
       const d = (r.depth === 0) ? 0 : this._depth(r.codigo);
@@ -26362,6 +26388,12 @@ const AutoTeste = {
         Object.keys(P.ORDENS).length === 5 && !P.ORDENS.ganhoDominio && !P.ORDENS.volume,
         Object.keys(P.ORDENS));
       this._ok('Plano: a meta padrão é 85%', P.DEFAULTS.metaDominio === 85, P.DEFAULTS.metaDominio);
+      /* Uma preferência antiga (ou um dado vindo de fora) com uma ordem que não
+         existe mais tem de cair onde a migração manda — nunca numa terceira
+         fila que ninguém escolheu. */
+      const removida = P.calcular(novo, O({ ordenar: 'volume' })).itens.map(x => x.nome).join('|');
+      const piorOrd = P.calcular(novo, O({ ordenar: 'pior' })).itens.map(x => x.nome).join('|');
+      this._ok('Plano: ordem inexistente cai em "pior acerto primeiro"', removida === piorOrd, removida);
 
       // 6) A MESMA INVARIANTE DO ITEM 2, NA PONDERAÇÃO POR VOLUME
       const vol = P.calcular(novo, O({ ponderacao: 'volume' }));
@@ -26434,9 +26466,51 @@ const AutoTeste = {
       this._ok('Plano: quem estava na meta antiga sobe para 85%', P.prefs().metaDominio === 85, P.prefs().metaDominio);
       DB.setRaw(chaveM, JSON.stringify({ ordenar: 'queda', metaDominio: 70, migracao: 2 }));
       this._ok('Plano: meta escolhida a dedo é respeitada', P.prefs().metaDominio === 70, P.prefs().metaDominio);
+
+      /* 12) O MODO GUARDA SÓ O QUE MUDOU. Gravar o patch inteiro fazia um
+         "salvar" sem alteração marcar o modo como personalizado, e enfiava
+         nele campos que o modo nunca quis definir. */
+      DB.delRaw(chaveM);
+      P.salvarModo('base', { metaDominio: P.MODOS.base.patch.metaDominio, limite: P.MODOS.base.patch.limite });
+      this._ok('Plano: salvar sem mudar nada não personaliza o modo',
+        !P.modoEditado('base') && !(P.prefs().modosCustom || {}).base, P.prefs().modosCustom);
+      P.salvarModo('curto', { metaDominio: 92 });
+      P.salvarModo('curto', { limite: 4 });
+      this._ok('Plano: ajustes sucessivos somam no mesmo modo',
+        P.modoPatch('curto').metaDominio === 92 && P.modoPatch('curto').limite === 4, P.modoPatch('curto'));
+      P.salvarModo('curto', { limite: P.MODOS.curto.patch.limite });
+      this._ok('Plano: campo que volta ao padrão sai do registro',
+        P.modoPatch('curto').limite === P.MODOS.curto.patch.limite && (P.prefs().modosCustom.curto.limite === undefined),
+        P.prefs().modosCustom.curto);
+      P.restaurarModo('curto');
+      // o resumo é lido em voz alta na tela: nunca pode dizer "undefined"
+      Object.keys(P.MODOS).forEach(k => {
+        this._ok('Plano: resumo do modo "' + k + '" não tem buraco', !/undefined|NaN/.test(P.resumoModo(k)), P.resumoModo(k));
+      });
     } finally {
       if (antesM == null) DB.delRaw(chaveM); else DB.setRaw(chaveM, antesM);
     }
+
+    /* 13) O CAMINHO MÍNIMO SOB CARGA. A mochila roda em vetores compartilhados,
+       e uma reconstrução malfeita devolve o MESMO assunto duas vezes — um
+       "caminho mais curto" que conta duas vezes a mesma coisa é pior que
+       nenhum. Aqui as duas invariantes que precisam valer sempre, inclusive na
+       fronteira em que a busca exata dá lugar à aproximação. */
+    [[40, 8], [200, 40], [400, 60], [401, 60], [400, 119]].forEach(([n, falta]) => {
+      const itens = [];
+      for (let i = 0; i < n; i++) itens.push({ nome: 'a' + i, ganhoPP: 0.1 + (i % 37) / 10, custoQ: 20 + (i % 91) });
+      const r = P._caminhoMinimo(itens, falta);
+      const ok1 = !!r && new Set(r.itens.map(x => x.nome)).size === r.n;
+      const ok2 = !!r && r.itens.reduce((a, x) => a + x.ganhoPP, 0) >= falta - 0.06;
+      this._ok('Plano: caminho mínimo com ' + n + ' assuntos não repete nenhum', ok1, r && r.n);
+      this._ok('Plano: caminho mínimo com ' + n + ' assuntos cobre a lacuna de ' + falta + 'pp', ok2,
+        r && Math.round(r.itens.reduce((a, x) => a + x.ganhoPP, 0) * 10) / 10);
+    });
+    this._ok('Plano: sem lacuna não há caminho a percorrer',
+      P._caminhoMinimo([{ nome: 'x', ganhoPP: 5, custoQ: 10 }], 0) === null &&
+      P._caminhoMinimo([{ nome: 'x', ganhoPP: 5, custoQ: 10 }], -3) === null);
+    this._ok('Plano: lacuna maior que tudo que existe não inventa caminho',
+      P._caminhoMinimo([{ nome: 'x', ganhoPP: 5, custoQ: 10 }], 50) === null);
 
     // 8) CONSOLIDADO COM DADO VELHO NÃO É CONSOLIDADO
     const velhos = [
@@ -26449,6 +26523,178 @@ const AutoTeste = {
       this._ok('Plano: sustentou a meta, mas sem medição nova, não vira 🟢',
         e && e.vencido && /sem medição nova/.test(e.status.rot), e && e.status.rot);
     });
+  },
+
+
+  /* ═══ MOTOR DO REFORÇO ═════════════════════════════════════════════════════
+     A fronteira adaptativa decide o que a pessoa vai estudar, e as três coisas
+     que ela pode errar erram calado: contar a mesma questão duas vezes, somar
+     dois assuntos homônimos de disciplinas diferentes, e confundir "não
+     praticou" com "o nome não bateu". Os casos abaixo cobrem as três, mais a
+     entrada hostil (retrato vazio, linha sem questão, incidência sem
+     disciplina). */
+  reforcoMotor() {
+    const R = ReforcoEngine;
+    const L = (c, n, disc, q, ac) => ({ depth: 1, codigo: c, nome: n, disciplina: disc, questoes: q, acertos: ac, pctAcerto: q ? Math.round(ac / q * 1000) / 10 : 0 });
+    const D = (n, q, ac) => ({ depth: 0, codigo: null, nome: n, disciplina: n, questoes: q, acertos: ac, pctAcerto: q ? Math.round(ac / q * 1000) / 10 : 0 });
+    const snap = { id: 's', startDate: todayLocal(), endDate: todayLocal(), rows: [
+      D('Direito Constitucional', 200, 80),
+      L('01', 'Princípios', 'Direito Constitucional', 120, 40),
+      L('02', 'Controle', 'Direito Constitucional', 80, 40),
+      D('Direito Administrativo', 100, 90),
+      L('01', 'Princípios', 'Direito Administrativo', 100, 90),   // homônimo de propósito
+      D('Vazia', 0, 0)
+    ] };
+    const origInc = DB.getIncidencia, origSave = DB.saveIncidencia;
+    const comInc = (linhas, fn) => {
+      DB.getIncidencia = () => linhas;
+      try { return fn(); } finally { DB.getIncidencia = origInc; DB.saveIncidencia = origSave; }
+    };
+
+    // 1) HOMÔNIMOS DE DISCIPLINAS DIFERENTES NÃO SOMAM
+    comInc([
+      { banca: 'X', disciplina: 'Direito Constitucional', topico: 'Princípios', incidencia: 30, codigo: '01', depth: 1 },
+      { banca: 'X', disciplina: 'Direito Administrativo', topico: 'Princípios', incidencia: 12, codigo: '01', depth: 1 }
+    ], () => {
+      const mapa = R.incidenceMap('X');
+      const a = R.incidenciaDe(mapa, 'Princípios', 'Direito Constitucional');
+      const b = R.incidenciaDe(mapa, 'Princípios', 'Direito Administrativo');
+      this._ok('Reforço: incidência por disciplina não mistura homônimos', a.valor === 30 && b.valor === 12, { a, b });
+      this._ok('Reforço: casar só pelo nome fica marcado como queda',
+        R.incidenciaDe(mapa, 'Princípios', 'Disciplina Que Não Existe').viaNome === true);
+      this._ok('Reforço: tópico inexistente devolve zero, não undefined',
+        R.incidenciaDe(mapa, 'Nada disso', 'Direito Constitucional').valor === 0);
+    });
+    // o índice do DESEMPENHO tem de separar os mesmos homônimos
+    const perf = R._perfIndex(snap);
+    const pc = R._perfGet(perf, 'Princípios', 'Direito Constitucional');
+    const pa = R._perfGet(perf, 'Princípios', 'Direito Administrativo');
+    this._ok('Reforço: desempenho de homônimos fica separado por disciplina',
+      pc.q === 120 && pa.q === 100 && Math.abs(pc.pac - 1 / 3) < 0.01, { pc: pc.q, pa: pa.q });
+
+    /* 2) PARTIÇÃO LIMPA: a disciplina e os tópicos dela nunca entram juntos.
+       A linha de disciplina não tem código, e a checagem de "tem filho" exigia
+       um — então toda disciplina entrava junto com os próprios tópicos, e as
+       mesmas questões eram contadas duas vezes no ranking. */
+    const uni1 = R._unidadesDoDesempenho(snap, 1);
+    const nomes1 = uni1.map(u => u.disciplina + '/' + u.nome).sort();
+    this._ok('Reforço: no nível 1, entram os tópicos e NÃO as disciplinas',
+      nomes1.length === 3 && !nomes1.some(n => /Direito Constitucional\/Direito Constitucional/.test(n)),
+      nomes1);
+    this._ok('Reforço: a soma das unidades não conta questão duas vezes',
+      uni1.reduce((a, u) => a + (R._perfGet(perf, u.nome, u.disciplina) || { q: 0 }).q, 0) === 300,
+      uni1.map(u => u.nome));
+    const uni0 = R._unidadesDoDesempenho(snap, 0);
+    this._ok('Reforço: no nível 0, entram só as disciplinas com questões',
+      uni0.length === 2 && uni0.every(u => u.codigo == null), uni0.map(u => u.nome));
+    this._ok('Reforço: disciplina sem questão nenhuma fica de fora',
+      !uni0.some(u => u.nome === 'Vazia'));
+
+    // 3) SEM INCIDÊNCIA A ABA FUNCIONA — e não inventa banca
+    comInc([], () => {
+      const r = R.suggestFrontier(snap, { minQuestoes: 10, granularidade: 0.5, limite: 20 });
+      this._ok('Reforço: sem banca, o ranking sai do seu desempenho', r.items.length > 0, r.items.length);
+      this._ok('Reforço: sem banca, não há ponto cego nem sobre-investimento',
+        r.blindSpots.length === 0 && r.overinvest.length === 0);
+      this._ok('Reforço: sem banca, a projeção da prova não é inventada',
+        r.projAtual === null && r.projPotencial === null && r.unidadeGanho === 'questoes',
+        { p: r.projAtual, u: r.unidadeGanho });
+      this._ok('Reforço: sem banca, o ganho é contado nas suas questões',
+        r.items.every(it => it.pontosRecuperaveis >= 0) && r.items.some(it => it.pontosRecuperaveis > 0));
+      const soma = r.items.reduce((a, it) => a + it.questoes, 0);
+      this._ok('Reforço: sem banca, nenhuma questão é contada duas vezes no ranking',
+        soma <= 300, soma);
+    });
+
+    // 4) COM INCIDÊNCIA: nome que não casa ≠ ponto cego
+    comInc([
+      { banca: 'X', disciplina: 'Direito Constitucional', topico: 'Princípios', incidencia: 30, codigo: '01', depth: 1 },
+      { banca: 'X', disciplina: 'Direito Constitucional', topico: 'Assunto Que Você Nunca Viu', incidencia: 20, codigo: '02', depth: 1 },
+      { banca: 'X', disciplina: 'Direito Constitucional', topico: 'Controle', incidencia: 8, codigo: '03', depth: 1 }
+    ], () => {
+      const r = R.suggestFrontier(snap, { banca: 'X', minQuestoes: 10, granularidade: 1, incidMin: 5, limite: 20 });
+      this._ok('Reforço: assunto sem correspondência vira aviso, não ponto cego',
+        r.totalSemCasamento === 1 && r.semCasamento[0].nome === 'Assunto Que Você Nunca Viu' &&
+        !r.blindSpots.some(b => b.nome === 'Assunto Que Você Nunca Viu'),
+        { sem: r.totalSemCasamento, cegos: r.blindSpots.map(b => b.nome) });
+      // teto configurável (o mesmo do Plano)
+      const t80 = R.suggestFrontier(snap, { banca: 'X', minQuestoes: 10, granularidade: 1, teto: 0.80, limite: 20 });
+      const t95 = R.suggestFrontier(snap, { banca: 'X', minQuestoes: 10, granularidade: 1, teto: 0.95, limite: 20 });
+      const rec = (x) => x.items.reduce((a, it) => a + it.pontosRecuperaveis, 0);
+      this._ok('Reforço: o teto do Plano manda no ganho recuperável',
+        t80.teto === 80 && t95.teto === 95 && rec(t95) > rec(t80), { t80: rec(t80), t95: rec(t95) });
+    });
+
+    // 5) ENTRADA HOSTIL: nada disso pode lançar
+    const hostis = [
+      ['retrato nulo', null],
+      ['retrato sem linhas', { rows: [] }],
+      ['linhas sem questão', { rows: [L('01', 'A', 'D', 0, 0)] }],
+      ['linha sem disciplina', { rows: [{ depth: 1, codigo: '01', nome: 'Solto', questoes: 20, acertos: 5 }] }]
+    ];
+    hostis.forEach(([nome, s]) => {
+      let ok = true, det = '';
+      try {
+        comInc([{ banca: 'X', disciplina: '', topico: 'Solto', incidencia: 9 }], () => {
+          const r = R.suggestFrontier(s, { banca: 'X' });
+          if (!r || !Array.isArray(r.items)) { ok = false; det = 'retorno inválido'; }
+        });
+        R._unidadesDoDesempenho(s, 2);
+      } catch (e) { ok = false; det = String(e && e.message || e); }
+      this._ok('Reforço: ' + nome + ' não derruba o motor', ok, det);
+    });
+  },
+
+
+  /* ═══ INCIDÊNCIA: GRAVAÇÃO E RÓTULO ════════════════════════════════════════
+     O número da incidência é multiplicado por tudo o mais na tela; quando ele
+     dobra, nada acusa — só a ordem muda. Estes casos guardam a chave de
+     deduplicação e o caminho mais fácil de duplicar sem perceber: renomear uma
+     banca para um nome que já existe. */
+  incidenciaGravacao() {
+    const chave = DB.KEYS.incidencia;
+    const antes = localStorage.getItem(DB._profilePrefix ? DB._profilePrefix() + 'x' : 'x');  // só para não sombrear
+    const guardado = DB.getIncidencia();
+    const linhas = (n) => [
+      { disciplina: 'Direito Administrativo', topico: 'Licitações', incidencia: n, codigo: '01', depth: 1 },
+      { disciplina: 'Direito Administrativo', topico: 'Improbidade', incidencia: 25, codigo: '02', depth: 1 },
+      { disciplina: 'Português', topico: 'Crase', incidencia: 7, codigo: null, depth: 1 }   // sem código: dedupe pelo nome
+    ];
+    try {
+      DB.saveIncidencia([]);
+      const a = DB.addIncidenciaRows('FGV', linhas(40), true);
+      this._ok('Incidência: primeira importação entra inteira', a.novas === 3 && a.repetidas === 0, a);
+      const b = DB.addIncidenciaRows('FGV', linhas(40), false);
+      this._ok('Incidência: a mesma planilha de novo não duplica nada',
+        b.novas === 0 && b.repetidas === 3 && DB.getIncidencia().length === 3, { b, n: DB.getIncidencia().length });
+      const c = DB.addIncidenciaRows('FGV', linhas(55), false);
+      const lic = DB.getIncidencia().find(r => r.topico === 'Licitações');
+      this._ok('Incidência: valor repetido é ATUALIZADO, nunca somado',
+        c.repetidas === 3 && lic.incidencia === 55, { c, v: lic.incidencia });
+      // arquivo com a MESMA linha duas vezes dentro dele
+      DB.saveIncidencia([]);
+      const d = DB.addIncidenciaRows('FGV', linhas(10).concat(linhas(10)), true);
+      this._ok('Incidência: linha repetida dentro do próprio arquivo também dedupa',
+        DB.getIncidencia().length === 3 && d.repetidas === 3, { n: DB.getIncidencia().length, d });
+
+      /* Renomear para um nome que JÁ EXISTE é como se conserta "FGV " x "FGV" —
+         e era o caminho de volta para a duplicação que a gravação evita. */
+      DB.saveIncidencia([]);
+      DB.addIncidenciaRows('FGV', linhas(40), true);
+      DB.addIncidenciaRows('FGV ', linhas(60), true);
+      this._ok('Incidência: duas grafias convivem como bancas separadas', DB.getBancas().length === 2, DB.getBancas());
+      DB.renameIncidenciaBanca('FGV ', 'FGV');
+      const depois = DB.getIncidencia();
+      const licF = depois.find(r => r.topico === 'Licitações');
+      this._ok('Incidência: renomear para uma banca existente FUNDE sem duplicar',
+        depois.length === 3 && DB.getBancas().length === 1 && licF.incidencia === 60,
+        { n: depois.length, bancas: DB.getBancas(), v: licF && licF.incidencia });
+      this._ok('Incidência: renomear para vazio não faz nada',
+        DB.renameIncidenciaBanca('FGV', '   ') === 0 && DB.getIncidencia().length === 3);
+    } finally {
+      DB.saveIncidencia(guardado);
+      void antes; void chave;
+    }
   },
 
   rodar(imprimir) {
@@ -26472,7 +26718,9 @@ const AutoTeste = {
      ['Esvaziar deixa rastro', 'esvaziarDeixaRastro'],
      ['Travas não ficam presas', 'travasNaoFicamPresas'],
      ['O disco que recusa gravação', 'oDiscoQueRecusa'],
-     ['Plano de pontos fracos', 'plano']].forEach(([nome, fn]) => {
+     ['Plano de pontos fracos', 'plano'],
+     ['Motor do Reforço', 'reforcoMotor'],
+     ['Incidência: gravação', 'incidenciaGravacao']].forEach(([nome, fn]) => {
       try { this[fn](); }
       catch (e) { this._r.total++; this._r.falhou++; this._r.falhas.push({ nome: nome + ' — exceção', obtido: String(e && e.message || e) }); }
     });
@@ -29277,7 +29525,6 @@ const PlanoEngine = {
 
      Os ajustes ficam no perfil, não no retrato: reimportar o TEC todo mês
      recalcula os números, nunca as suas preferências. */
-  MODOS_CAMPOS: ['ordenar', 'ponderacao', 'metaDominio', 'tetoDominio', 'custoModo', 'limite', 'incluirPequenas', 'minAmostra'],
   modoPatch(k) {
     const base = (this.MODOS[k] && this.MODOS[k].patch) || {};
     const custom = (this.prefs().modosCustom || {})[k] || {};
@@ -29289,10 +29536,21 @@ const PlanoEngine = {
     const base = (this.MODOS[k] && this.MODOS[k].patch) || {};
     return Object.keys(custom).some(c => String(custom[c]) !== String(base[c]));
   },
+  /* Guarda só o que DIFERE do padrão de fábrica, somando ao que já estava
+     ajustado. Gravar o patch inteiro fazia um "salvar" sem mexer em nada
+     marcar o modo como editado — e enfiava no modo campos que ele nunca quis
+     definir (um modo que não fixa a meta passava a fixá-la, mudando o que
+     "aplicar" significa). Campo que volta ao valor de fábrica sai do registro;
+     modo sem nenhuma diferença deixa de existir como personalizado. */
   salvarModo(k, patch) {
-    const p = this.prefs();
-    const m = Object.assign({}, p.modosCustom || {});
-    m[k] = Object.assign({}, this.MODOS[k].patch, patch);
+    const base = (this.MODOS[k] && this.MODOS[k].patch) || {};
+    const m = Object.assign({}, this.prefs().modosCustom || {});
+    const atual = Object.assign({}, m[k] || {}, patch || {});
+    Object.keys(atual).forEach(c => {
+      if (base[c] !== undefined && String(atual[c]) === String(base[c])) delete atual[c];
+      if (atual[c] === undefined || (typeof atual[c] === 'number' && isNaN(atual[c]))) delete atual[c];
+    });
+    if (Object.keys(atual).length) m[k] = atual; else delete m[k];
     this.salvarPrefs({ modosCustom: m });
   },
   restaurarModo(k) {
@@ -29314,7 +29572,10 @@ const PlanoEngine = {
   },
   // Resumo legível do que um modo aplica — é o que a tela mostra sob os chips.
   resumoModo(k) {
-    const patch = this.modoPatch(k);
+    /* O que vale DEPOIS de aplicar: um modo que não define a meta mantém a que
+       está valendo. Lendo só o patch, o resumo escrevia "meta undefined%" nos
+       três modos que não a fixam. */
+    const patch = Object.assign({}, this.prefs(), this.modoPatch(k));
     const rot = (this.ORDENS[patch.ordenar] || {}).rot || patch.ordenar;
     const pond = patch.ponderacao === 'volume' ? 'peso por volume' : patch.ponderacao === 'ambas' ? 'as duas métricas' : 'peso igual';
     const custo = patch.custoModo === 'fixo' ? 'custo fixo' : patch.custoModo === 'proporcional' ? 'custo proporcional' : 'custo por lacuna';
@@ -29819,7 +30080,9 @@ const PlanoEngine = {
       ganhoGeral: (a, b) => b.ganhoGeral - a.ganhoGeral
     };
     // Desempate ESTÁVEL por nome: duas execuções com os mesmos dados dão a mesma ordem
-    const base = ordem[opts.ordenar] || ordem.rendimento;
+    // ordem desconhecida (preferência antiga, dado de fora) cai onde a migração
+    // manda: "pior acerto primeiro" — nunca numa terceira fila silenciosa
+    const base = ordem[opts.ordenar] || ordem.pior;
     const cmp = (a, b) => base(a, b) || (a.nome || '').localeCompare(b.nome || '', 'pt-BR');
     const plano = usados.filter(x => x.ganhoPP > 0.001).sort(cmp);
     const meta = opts.metaDominio;
@@ -30390,7 +30653,12 @@ const DesempenhoTecScreen = {
   rotuloComparacao() {
     const u = this.ultimoSnapDoEscopo(), p = this.prevSnap();
     if (!u || !p) return null;
-    return `${this.rangeLabel(p)} → ${this.rangeLabel(u)}`;
+    /* Só as datas de FIM. `rangeLabel` já devolve "início → fim" quando o
+       retrato cobre um intervalo, e juntar dois desses com outra seta produzia
+       "11/08 → 05/09 → 06/09 → 08/09": quatro datas e nenhuma leitura possível
+       de quem é o antes e quem é o depois. */
+    const fim = (s) => formatDateShort(s.endDate || s.date || s.startDate);
+    return `${fim(p)} → ${fim(u)}`;
   },
   renderAnalysis() {
     const snap = this.scopedSnapshot();
@@ -30601,12 +30869,15 @@ const DesempenhoTecScreen = {
     if (!m) return;
     // se o modo em edição é o que está valendo agora, o ajuste tem de valer já
     const eraAtivo = (PlanoEngine.modoAtivo() === k);
-    const p = PlanoEngine.modoPatch(k);
+    /* Valores EFETIVOS: o que vai valer se você aplicar este modo agora. Um
+       modo que não fixa a meta herda a que está valendo — ler só o patch dele
+       abria o diálogo com campos vazios, e salvar assim gravava NaN. */
+    const p = Object.assign({}, PlanoEngine.prefs(), PlanoEngine.modoPatch(k));
     const ordens = Object.keys(PlanoEngine.ORDENS).map(x => ({ value: x, label: PlanoEngine.ORDENS[x].rot }));
     const r = await UI.prompt([
       { key: 'ordenar', label: 'Ordem de ataque', type: 'select', value: p.ordenar, options: ordens },
       { key: 'metaDominio', label: 'Meta de domínio (%)', type: 'number', value: p.metaDominio, min: 30, max: 100 },
-      { key: 'tetoDominio', label: 'Acerto máximo realista (%)', type: 'number', value: p.tetoDominio != null ? p.tetoDominio : PlanoEngine.DEFAULTS.tetoDominio, min: 50, max: 100 },
+      { key: 'tetoDominio', label: 'Acerto máximo realista (%)', type: 'number', value: p.tetoDominio, min: 50, max: 100 },
       { key: 'ponderacao', label: 'Como pesar cada assunto', type: 'select', value: p.ponderacao, options: [
         { value: 'igual', label: '⚖️ Todo assunto pesa igual' },
         { value: 'volume', label: '📊 Pelo volume de questões' },
@@ -30615,7 +30886,7 @@ const DesempenhoTecScreen = {
         { value: 'lacuna', label: '📐 Pela lacuna até o máximo realista' },
         { value: 'fixo', label: 'Número fixo de questões' },
         { value: 'proporcional', label: 'Proporcional ao praticado' }] },
-      { key: 'limite', label: 'Mostrar até (assuntos)', type: 'number', value: p.limite != null ? p.limite : 30, min: 5, max: 200 },
+      { key: 'limite', label: 'Mostrar até (assuntos)', type: 'number', value: p.limite, min: 5, max: 200 },
       { key: 'incluirPequenas', label: 'Incluir amostra pequena', type: 'select', value: p.incluirPequenas ? '1' : '0', options: [
         { value: '0', label: 'Não — amostra curta vai para o segundo plano' },
         { value: '1', label: 'Sim — entra no cálculo (modo diagnóstico)' }] },
@@ -30629,16 +30900,22 @@ const DesempenhoTecScreen = {
       showToast(m.rot + ' voltou ao padrão ✓');
     } else {
       const num = (v, d) => { const n = parseInt(v, 10); return isNaN(n) ? d : n; };
-      PlanoEngine.salvarModo(k, {
+      /* Só os campos que a pessoa REALMENTE mexeu entram no modo. Gravar todos
+         faria um modo herdar decisões que ele não quis tomar, e um "salvar"
+         sem alteração nenhuma marcaria o modo como personalizado. */
+      const novo = {
         ordenar: r.ordenar,
         metaDominio: Math.max(30, Math.min(100, num(r.metaDominio, p.metaDominio))),
         tetoDominio: Math.max(50, Math.min(100, num(r.tetoDominio, p.tetoDominio))),
         ponderacao: r.ponderacao,
         custoModo: r.custoModo,
-        limite: Math.max(5, Math.min(200, num(r.limite, p.limite || 30))),
+        limite: Math.max(5, Math.min(200, num(r.limite, p.limite))),
         incluirPequenas: String(r.incluirPequenas) === '1'
-      });
-      showToast(m.rot + ' ajustado ✓');
+      };
+      const mudou = {};
+      Object.keys(novo).forEach(c => { if (String(novo[c]) !== String(p[c])) mudou[c] = novo[c]; });
+      if (Object.keys(mudou).length) { PlanoEngine.salvarModo(k, mudou); showToast(m.rot + ' ajustado ✓'); }
+      else showToast('Nada mudou neste modo');
     }
     if (eraAtivo) PlanoEngine.salvarPrefs(PlanoEngine.modoPatch(k));
     this.renderPlano();
@@ -31744,8 +32021,11 @@ const DesempenhoTecScreen = {
       /* A mensagem antiga mandava baixar o mínimo de questões ou mudar a
          granularidade — conselhos que não resolvem quando a causa é outra.
          Agora o texto depende do motivo real de a lista estar vazia. */
-      const motivo = (res.totalSemCasamento && !res.totalUnidades)
-        ? 'Nenhum assunto da banca casou com o seu desempenho — confira os nomes no índice importado.'
+      /* A condição anterior exigia `!res.totalUnidades` junto com unidades sem
+         casamento — e uma exclui a outra: se não há unidade, não há como haver
+         unidade sem casamento. A mensagem mais útil das três nunca aparecia. */
+      const motivo = (res.totalSemCasamento > 0)
+        ? `Nenhum assunto com amostra suficiente — e <b>${res.totalSemCasamento}</b> assunto(s) da banca não casaram com nenhum nome do seu desempenho. Comece por aí: é diferença de nome, não falta de estudo.`
         : (res.totalUnidades === 0)
           ? 'Nenhum assunto com questões resolvidas no escopo atual. Importe um retrato em <b>📊 Análise</b> ou amplie o escopo.'
           : 'Nenhum assunto passou do mínimo de questões com erro a corrigir. Baixe o "mín. de questões" nos ajustes, mude a granularidade para Disciplina, ou amplie o escopo.';
@@ -31908,7 +32188,11 @@ const DesempenhoTecScreen = {
     const leaves = $id('tec-weak-leaves').checked;
     const ordEl = document.getElementById('tec-weak-ordenar');
     const modo = ordEl ? ordEl.value : 'taxa';
-    this.savePrefs({ weakLimiar: limiar, weakMinQ: minQ, weakLeaves: leaves, weakOrdenar: modo });
+    /* Repintar NÃO é escolher. Salvar aqui gravava, no primeiro render, o
+       limiar que a tela acabara de herdar da meta do Plano — e a partir daí a
+       "régua única" deixava de acompanhar o Plano em silêncio, porque um valor
+       salvo sempre vence o herdado. Quem grava é o toque na tela (ver os
+       listeners no fim do arquivo). */
     const container = document.getElementById('tec-weak-list');
     const sel = document.getElementById('tec-weak-disc');
 
@@ -32281,6 +32565,15 @@ document.querySelectorAll('.tec-range-quick').forEach(btn => btn.addEventListene
   const el = document.getElementById(id);
   if (!el) return;
   const repintar = () => {
+    // a preferência nasce AQUI, do toque de quem usa — e é isto que faz o
+    // limiar seguir a meta do Plano até você decidir o contrário
+    const num = (i, d) => { const e = document.getElementById(i); const n = parseInt(e && e.value, 10); return isNaN(n) ? d : n; };
+    const sel = document.getElementById('tec-weak-ordenar');
+    const lv = document.getElementById('tec-weak-leaves');
+    DesempenhoTecScreen.savePrefs({
+      weakLimiar: num('tec-weak-threshold', 85), weakMinQ: num('tec-weak-minq', 10),
+      weakLeaves: !!(lv && lv.checked), weakOrdenar: (sel && sel.value) || 'taxa'
+    });
     const snap = DesempenhoTecScreen.scopedSnapshot();
     if (snap) DesempenhoTecScreen.renderWeak(snap);
   };

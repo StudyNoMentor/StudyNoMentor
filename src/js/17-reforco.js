@@ -256,8 +256,17 @@ const ReforcoEngine = {
      pertence a uma unidade só, sem somar pai e filho. */
   _unidadesDoDesempenho(snap, nivelAlvo) {
     const rows = (snap && snap.rows) || [];
-    const temFilho = (r) => rows.some(o => o !== r && o.disciplina === r.disciplina && o.codigo &&
-      r.codigo && String(o.codigo).indexOf(String(r.codigo) + '.') === 0);
+    /* A linha de DISCIPLINA não tem código — e a versão anterior desta função
+       exigia `r.codigo` para procurar filhos, então nenhuma disciplina tinha
+       filhos aos olhos dela. Resultado: a disciplina inteira E cada tópico dela
+       entravam como unidades separadas, contando as mesmas questões duas vezes
+       no ranking e nas fatias de esforço. Para a disciplina, "ter filho" é
+       existir qualquer linha mais funda na mesma matéria. */
+    const temFilho = (r) => rows.some(o => {
+      if (o === r || o.disciplina !== r.disciplina) return false;
+      if (r.depth === 0 || r.codigo == null || r.codigo === '') return (o.depth || 0) > 0;
+      return o.codigo && String(o.codigo).indexOf(String(r.codigo) + '.') === 0;
+    });
     const out = [];
     rows.forEach(r => {
       const d = (r.depth === 0) ? 0 : this._depth(r.codigo);
