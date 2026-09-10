@@ -316,10 +316,25 @@ const PlanoEngine = {
         String(o.codigo).startsWith(String(r.codigo) + '.'));
     });
   },
+  /* ── A CHAVE DE UM ASSUNTO É DISCIPLINA + NOME ───────────────────────────
+     Era só o NOME. "Princípios" de Constitucional e "Princípios" de
+     Administrativo caíam no mesmo balde e somavam: 100 questões a 90% mais 100
+     a 10% viravam UMA linha a 50% — uma taxa que não é de nenhum dos dois, com
+     a disciplina do primeiro que apareceu colada nela. Daí para baixo tudo
+     herdava o erro: o filtro por disciplina não achava o assunto do outro lado
+     (a tela dizia "sem retrato" com o retrato na mão), a sequência de
+     consolidação misturava dois históricos e o assunto sólido de verdade nunca
+     era contado.
+
+     O mapa de incidência e o índice de desempenho do Reforço já separavam por
+     disciplina; este era o último lugar que ainda somava homônimos — e o mais
+     caro, porque é dele que saem a taxa, o ganho e o custo de cada linha do
+     Plano. A chave é a MESMA do resto do motor (`chaveInc`), para que os dois
+     lados casem sem tradução. */
   _indice(snap, apenasFolhas) {
     const m = {};
     this._folhas(snap, apenasFolhas).forEach(r => {
-      const k = ReforcoEngine.norm(r.nome);
+      const k = ReforcoEngine.chaveInc(r.disciplina || '', r.nome);
       const c = m[k] || { q: 0, ac: 0, nome: r.nome, disciplina: r.disciplina };
       c.q += (r.questoes || 0); c.ac += (r.acertos || 0);
       m[k] = c;
@@ -457,64 +472,130 @@ const PlanoEngine = {
 
      Isto é uma mochila: escolher o subconjunto de assuntos cuja soma de ganhos
      cobre a lacuna com o MENOR total de questões. Programação dinâmica sobre a
-     lacuna discretizada em décimos de ponto — exato dentro dessa resolução,
-     alguns milissegundos para centenas de assuntos, com uma saída pelo guloso
-     se a entrada for grande demais para valer a pena. */
-  _caminhoMinimo(itens, falta) {
+     lacuna discretizada em décimos de ponto, alguns milissegundos para centenas
+     de assuntos, com uma saída pelo guloso se a entrada for grande demais.
+
+     DUAS COISAS QUE A DISCRETIZAÇÃO SOZINHA NÃO GARANTIA — e das quais este
+     número depende inteiramente, porque é o que a tela chama de "mínimo":
+
+     1. COBRIR A LACUNA DE VERDADE. Em décimos, a mochila devolvia conjuntos
+        que somavam 42,63pp quando faltavam 42,74 — até 0,05pp de déficit por
+        assunto, e a meta não fechava. Nenhum conjunto sai daqui sem passar por
+        `cobre`, que soma os ganhos COMO ELES SÃO, sem grade nenhuma.
+     2. NUNCA PERDER PARA A LISTA DA TELA. O mesmo arredondamento fazia a
+        mochila devolver 720 questões enquanto o prefixo da ordem exibida
+        chegava à meta com 660 — o "caminho mais curto" mais caro que o
+        caminho longo, no mesmo cálculo. Os candidatos (mochila, guloso e os
+        percursos que o chamador já conhece) disputam a mesma prova, e vence o
+        mais barato que cobre. */
+  _caminhoMinimo(itens, falta, alternativas) {
     if (!(falta > 0)) return null;                    // a meta já está batida
     const uteis = itens.filter(x => x.ganhoPP > 0.049 && x.custoQ > 0);
-    if (!uteis.length) return null;
-    /* Arredondar o alvo para CIMA e cada ganho para baixo rejeitava o caso
-       exato (três assuntos que somam exatamente a lacuna perdiam por 0,1pp).
-       Os dois lados arredondam igual: o erro fica em 0,05pp por assunto, longe
-       de qualquer decisão real. */
-    const alvo = Math.max(1, Math.round(falta * 10));  // décimos de ponto percentual
-    const somaTudo = uteis.reduce((a, x) => a + Math.round(x.ganhoPP * 10), 0);
-    if (somaTudo < alvo) return null;                 // nem levando tudo ao teto chega lá
+    const custoDe = (lista) => lista.reduce((a, x) => a + (x.custoQ || 0), 0);
     const montar = (lista) => ({
-      q: lista.reduce((a, x) => a + x.custoQ, 0), n: lista.length,
+      q: custoDe(lista), n: lista.length,
       itens: lista.slice().sort((a, b) => (b.ganhoPP / b.custoQ) - (a.ganhoPP / a.custoQ))
     });
-    const guloso = () => {
-      const ord = uteis.slice().sort((a, b) => (b.ganhoPP / b.custoQ) - (a.ganhoPP / a.custoQ));
-      const esc = []; let ac = 0;
-      for (const x of ord) { esc.push(x); ac += x.ganhoPP; if (ac >= falta) break; }
-      return ac >= falta ? montar(esc) : null;
+    /* A ÚNICA prova que vale: somar os ganhos como eles são, sem discretização.
+       Um percurso que não passa aqui não é um percurso — é um arredondamento. */
+    const cobre = (l) => l.reduce((a, x) => a + (x.ganhoPP || 0), 0) >= falta - 1e-9;
+    const candidatos = [];
+    const propor = (l) => { if (l && l.length && cobre(l)) candidatos.push(l); };
+    (alternativas || []).forEach(l => propor((l || []).filter(x => x && x.custoQ > 0)));
+    const fechar = () => {
+      if (!candidatos.length) return null;
+      let melhor = candidatos[0], melhorQ = custoDe(melhor);
+      for (const c of candidatos) { const q = custoDe(c); if (q < melhorQ) { melhor = c; melhorQ = q; } }
+      return montar(melhor);
     };
-    const N = uteis.length, W = alvo + 1;
-    // Entrada grande demais para a mochila exata valer o tempo e a memória.
-    if (N > 400 || W > 1201) return guloso();
+    if (!uteis.length) return fechar();
+    // guloso: o primeiro palpite razoável, e a saída quando a mochila não cabe
+    const ord = uteis.slice().sort((a, b) => (b.ganhoPP / b.custoQ) - (a.ganhoPP / a.custoQ));
+    const esc = []; let ac = 0;
+    for (const x of ord) { esc.push(x); ac += x.ganhoPP; if (ac >= falta) break; }
+    propor(esc);
+    /* A GRADE É FINA E O ARREDONDAMENTO TEM DOIS TEMPOS.
+
+       Em décimos, um conjunto podia perder por 0,1pp: o caso do comentário
+       acima (B+C somam a lacuna EXATAMENTE) era descartado, e a mochila
+       devolvia 320 questões onde 271 bastavam. Em centésimos o erro cai dez
+       vezes — e mesmo assim a grade sozinha não decide nada, porque:
+
+         · ARREDONDANDO AO MAIS PRÓXIMO a mochila enxerga o empate exato e
+           acha o mínimo de verdade. É a passada normal. O conjunto que ela
+           devolve ainda passa por `cobre` antes de valer.
+         · ARREDONDANDO PARA BAIXO nada que ela aceite pode ficar aquém da
+           lacuna. Custa um pouco mais caro e só roda quando a primeira
+           passada devolveu um conjunto que `cobre` recusou.
+
+       O epsilon é contra o ponto flutuante (2,9 × 100 dá 289,999… em JS), não
+       contra a regra. A grade só afrouxa quando a tabela não caberia no
+       orçamento de memória — e aí o guloso e os percursos conhecidos valem. */
+    const N = uteis.length;
+    const ORCAMENTO = 5e6;                            // células da tabela (≈12 MB no pior caso)
+    const grade = [100, 10].find(g => N <= 400 && N * (Math.ceil(falta * g) + 1) <= ORCAMENTO);
+    if (!grade) return fechar();                      // entrada grande demais para a mochila exata
+    const alvo = Math.max(1, Math.ceil(falta * grade - 1e-9));
+    const W = alvo + 1;
     const INF = Infinity;
-    let ant = new Float64Array(W).fill(INF), atual = new Float64Array(W);
-    ant[0] = 0;
-    /* `usou` diz se o assunto i MELHOROU aquele estado (é o que desempata a
-       reconstrução: o valor final ou veio da linha anterior, e então o assunto
-       não entra, ou veio de usar este assunto); `veioDe` guarda de qual estado.
-       Sem esses dois, uma DP feita no mesmo vetor devolve conjuntos com o mesmo
-       assunto duas vezes — e um "caminho mais curto" que conta o mesmo assunto
-       duas vezes é exatamente o tipo de número errado que ninguém confere. */
-    const usou = new Uint8Array(N * W);
-    const veioDe = new Int16Array(N * W).fill(-1);
-    for (let i = 0; i < N; i++) {
-      const g = Math.round(uteis[i].ganhoPP * 10), c = uteis[i].custoQ;
-      atual.set(ant);
-      if (g > 0) {
-        for (let j = 0; j < W; j++) {
-          if (ant[j] === INF) continue;
-          const nj = Math.min(alvo, j + g);
-          const novo = ant[j] + c;
-          if (novo < atual[nj]) { atual[nj] = novo; usou[i * W + nj] = 1; veioDe[i * W + nj] = j; }
+    const mochila = (aoGrao) => {
+      const somaTudo = uteis.reduce((a, x) => a + aoGrao(x.ganhoPP), 0);
+      if (somaTudo < alvo) return null;               // nem levando tudo ao teto chega lá
+      let ant = new Float64Array(W).fill(INF), atual = new Float64Array(W);
+      ant[0] = 0;
+      /* `usou` diz se o assunto i MELHOROU aquele estado (é o que desempata a
+         reconstrução: o valor final ou veio da linha anterior, e então o assunto
+         não entra, ou veio de usar este assunto); `veioDe` guarda de qual estado.
+         Sem esses dois, uma DP feita no mesmo vetor devolve conjuntos com o mesmo
+         assunto duas vezes — e um "caminho mais curto" que conta o mesmo assunto
+         duas vezes é exatamente o tipo de número errado que ninguém confere. */
+      const usou = new Uint8Array(N * W);
+      // `alvo` chega a 10.000 em centésimos — Int32 para o estado nunca estourar
+      const veioDe = new Int32Array(N * W).fill(-1);
+      for (let i = 0; i < N; i++) {
+        const g = aoGrao(uteis[i].ganhoPP), c = uteis[i].custoQ;
+        atual.set(ant);
+        if (g > 0) {
+          for (let j = 0; j < W; j++) {
+            if (ant[j] === INF) continue;
+            const nj = Math.min(alvo, j + g);
+            const novo = ant[j] + c;
+            if (novo < atual[nj]) { atual[nj] = novo; usou[i * W + nj] = 1; veioDe[i * W + nj] = j; }
+          }
         }
+        const t = ant; ant = atual; atual = t;        // `ant` passa a ser a linha i
       }
-      const t = ant; ant = atual; atual = t;          // `ant` passa a ser a linha i
-    }
-    if (ant[alvo] === INF) return guloso();
-    const escolhidos = [];
-    let j = alvo;
-    for (let i = N - 1; i >= 0 && j > 0; i--) {
-      if (usou[i * W + j]) { escolhidos.push(uteis[i]); j = veioDe[i * W + j]; }
-    }
-    return escolhidos.length ? montar(escolhidos) : guloso();
+      /* A TABELA INTEIRA É RESPOSTA, NÃO SÓ A ÚLTIMA CASA.
+         Ler apenas o estado `alvo` joga fora o conjunto que soma a lacuna
+         EXATAMENTE mas cai um ou dois centésimos abaixo dela na grade — três
+         assuntos de 3,3333pp somam 10,00pp e a grade lê 9,99. Era assim que o
+         mínimo real (271 questões) perdia para o palpite óbvio (320). Os
+         estados logo abaixo do alvo guardam justamente esses conjuntos, e
+         `cobre` decide quais valem: varremos a faixa e ficamos com o mais
+         barato que cobre de verdade. Custa N reconstruções de O(N). */
+      const reconstruir = (j0) => {
+        const esc = []; let j = j0;
+        for (let i = N - 1; i >= 0 && j > 0; i--) {
+          if (usou[i * W + j]) { esc.push(uteis[i]); j = veioDe[i * W + j]; }
+        }
+        return esc;
+      };
+      let melhor = null, melhorQ = INF;
+      const piso = Math.max(1, alvo - Math.max(1, N));
+      for (let j = alvo; j >= piso; j--) {
+        const c = ant[j];
+        if (c === INF || c >= melhorQ) continue;
+        const set = reconstruir(j);
+        if (set.length && cobre(set)) { melhor = set; melhorQ = c; }
+      }
+      return melhor;
+    };
+    const antes = candidatos.length;
+    const perto = mochila((v) => Math.round(v * grade));
+    propor(perto);
+    // a passada ao mais próximo não cobriu: repete conservadora, que sempre cobre
+    if (perto && candidatos.length === antes) propor(mochila((v) => Math.floor(v * grade + 1e-9)));
+    return fechar();
   },
   calcular(scoped, opts) {
     opts = Object.assign({}, this.prefs(), opts || {});
@@ -731,7 +812,11 @@ const PlanoEngine = {
        a lista: pegue os assuntos por ganho ÷ custo até cruzar a meta. Agora são
        dois números distintos e rotulados — o mínimo possível, e o que a sua
        ordem atual custa. */
-    const caminho = this._caminhoMinimo(plano, meta - dominioPct);
+    /* O prefixo da ordem exibida É um percurso válido até a meta — e por isso
+       entra como candidato: o número que a tela chama de "mais curto" não pode
+       perder para a própria lista que ela mostra logo abaixo. */
+    const caminho = this._caminhoMinimo(plano, meta - dominioPct,
+      idxMeta >= 0 ? [plano.slice(0, idxMeta + 1)] : []);
     /* ── ORDENS QUE DÃO A MESMA LISTA ────────────────────────────────────────
        Com custo fixo e peso igual, "pior acerto", "maior ganho no domínio" e
        "melhor retorno" produzem EXATAMENTE a mesma sequência — as três são
@@ -1439,11 +1524,26 @@ const DesempenhoTecScreen = {
     this._planoRefC = { t: agora, r };
     return r;
   },
+  /* ── UMA ATIVIDADE PERTENCE A UM ASSUNTO, NÃO A UM NOME ──────────────────
+     O vínculo entre a linha do Plano e a atividade criada para ela era feito só
+     pelo NOME do tópico. Enquanto o motor somava homônimos isso passava; agora
+     que "Atos" de Administrativo e "Atos" de Constitucional são duas linhas de
+     verdade, o nome sozinho junta o que o cálculo separou: criar a segunda
+     atividade era recusado com "já existe", e as duas linhas exibiam o MESMO
+     progresso — uma delas aparecia concluída sem que ninguém a tivesse feito.
+
+     A disciplina entra no casamento; quando um dos lados não a registra (as
+     atividades criadas antes disto), o nome ainda decide, para que nenhum
+     vínculo já existente se perca. */
+  _casaTopico(origem, nome, disciplina) {
+    if (!origem || ReforcoEngine.norm(origem.topico) !== ReforcoEngine.norm(nome)) return false;
+    const a = ReforcoEngine.norm(origem.disciplina || ''), b = ReforcoEngine.norm(disciplina || '');
+    return (!a || !b) ? true : a === b;
+  },
   // `lote` = criação em série: sem aviso por item e sem repintar a cada um.
   // Devolve true quando a atividade nasceu, para o chamador contar.
   criarExtraDoPlano(topico, disciplina, alvo, motivo, lote) {
-    const jaTem = DB.getExtras().find(e => e.origemPlano &&
-      ReforcoEngine.norm(e.origemPlano.topico) === ReforcoEngine.norm(topico));
+    const jaTem = DB.getExtras().find(e => this._casaTopico(e.origemPlano, topico, disciplina));
     if (jaTem) { if (!lote) showToast('Já existe uma atividade para "' + topico + '"'); return false; }
     const diag = motivo === 'diagnostico';
     const e = DB.addExtra({
@@ -1461,7 +1561,7 @@ const DesempenhoTecScreen = {
     if (e) {
       const r0 = this._planoRef();
       const alvoTop = [].concat((r0 && r0.itens) || [], (r0 && r0.pequenas) || [])
-        .find(t => ReforcoEngine.norm(t.nome) === ReforcoEngine.norm(topico));
+        .find(t => this._casaTopico({ topico: t.nome, disciplina: t.disciplina }, topico, disciplina));
       DB.updateExtra(e.id, { origemPlano: { topico, disciplina: disciplina || '', motivo: motivo || 'reforco',
         criadoEm: todayLocal(), taxaInicial: alvoTop && alvoTop.taxa != null ? alvoTop.taxa : null } });
       if (!lote) {
@@ -1684,7 +1784,7 @@ const DesempenhoTecScreen = {
     // liga cada assunto à atividade extra já criada para ele (ciclo de acompanhamento)
     if (r && r.itens) {
       const extras = DB.getExtras().filter(e => e.origemPlano && e.origemPlano.topico);
-      const casar = (x) => extras.find(e => ReforcoEngine.norm(e.origemPlano.topico) === ReforcoEngine.norm(x.nome));
+      const casar = (x) => extras.find(e => this._casaTopico(e.origemPlano, x.nome, x.disciplina));
       [].concat(r.itens, r.pequenas || []).forEach(x => {
         const e = casar(x);
         if (!e) return;

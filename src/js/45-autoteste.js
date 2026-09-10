@@ -1395,6 +1395,149 @@ const AutoTeste = {
       this._ok('Plano: sustentou a meta, mas sem medição nova, não vira 🟢',
         e && e.vencido && /sem medição nova/.test(e.status.rot), e && e.status.rot);
     });
+
+    /* ── 14) DOIS ASSUNTOS COM O MESMO NOME SÃO DOIS ASSUNTOS ───────────────
+       O índice do Plano era chaveado só pelo NOME do tópico. "Princípios" de
+       Constitucional (90%) e "Princípios" de Administrativo (10%) viravam UMA
+       linha a 50% — uma taxa que não é de nenhum dos dois — e filtrar por
+       Administrativo devolvia "sem retrato" com o retrato na mão. */
+    const homDisc = (disc, nome, q, ac) => ({ depth: 1, codigo: '01', nome, disciplina: disc, questoes: q, acertos: ac });
+    const homRaiz = (disc, q, ac) => ({ depth: 0, codigo: null, nome: disc, disciplina: disc, questoes: q, acertos: ac });
+    const homLinhas = (a, b) => [
+      homRaiz('Direito Constitucional', 100, a), homDisc('Direito Constitucional', 'Princípios', 100, a),
+      homRaiz('Direito Administrativo', 100, b), homDisc('Direito Administrativo', 'Princípios', 100, b)];
+    const hom = [retrato('h1', dia(60), dia(40), homLinhas(95, 20)), retrato('h2', dia(30), dia(2), homLinhas(95, 20))];
+    comRetratos(hom, () => {
+      const H = (extra) => O(Object.assign({ minAmostra: 1, tetoDominio: 100, limite: 50, consolidarEm: 2, validadeDias: 400 }, extra || {}));
+      const r = P.calcular(hom[1], H());
+      const todos = [].concat(r.itens, r.pequenas);
+      const cons = todos.find(x => x.disciplina === 'Direito Constitucional');
+      const adm = todos.find(x => x.disciplina === 'Direito Administrativo');
+      this._ok('Plano: homônimos de disciplinas diferentes são dois assuntos', r.assuntos === 2, r.assuntos);
+      this._ok('Plano: cada homônimo mantém a sua própria taxa',
+        cons && adm && Math.round(cons.taxa) === 95 && Math.round(adm.taxa) === 20,
+        { cons: cons && cons.taxa, adm: adm && adm.taxa });
+      this._ok('Plano: só o homônimo que sustenta a meta conta a sequência',
+        cons && adm && cons.seq === 2 && adm.seq === 0, { cons: cons && cons.seq, adm: adm && adm.seq });
+      this._ok('Plano: um consolidado, não dois nem zero', r.consolidados === 1, r.consolidados);
+      const so = P.calcular(hom[1], H({ disciplina: 'Direito Administrativo' }));
+      this._ok('Plano: filtrar por disciplina acha o homônimo certo',
+        !so.erro && so.assuntos === 1 && Math.round(so.dominioPct) === 20, so.erro || so.dominioPct);
+      const serie = P.serieHistorica(H({ disciplina: 'Direito Administrativo' }));
+      this._ok('Plano: a evolução filtrada não soma o homônimo da outra disciplina',
+        serie.length === 2 && serie.every(p => Math.round(p.dominio) === 20), serie.map(p => p.dominio));
+    });
+
+    /* ── 15) O "MÍNIMO" TEM DE SER MÍNIMO E TEM DE CHEGAR LÁ ────────────────
+       Duas falhas que a discretização escondia. A grade em décimos devolvia
+       conjuntos que somavam 42,63pp quando faltavam 42,74 (a meta não fechava)
+       e descartava o empate EXATO, entregando 320 questões onde 271 bastavam.
+       E, sem comparar com o percurso que a própria tela desenha, o "caminho
+       mais curto" chegou a custar 720 onde a lista mostrava 660. */
+    {
+      const tres = [
+        { nome: 'A', ganhoPP: (0.9 - 0.6) / 3 * 100, custoQ: 110 },
+        { nome: 'B', ganhoPP: (0.9 - 0.5) / 3 * 100, custoQ: 210 },
+        { nome: 'C', ganhoPP: (0.9 - 0.85) / 3 * 100, custoQ: 61 }];
+      const exato = P._caminhoMinimo(tres, 15);
+      this._ok('Plano: lacuna que é soma EXATA de dois assuntos escolhe os dois (271, não 320)',
+        exato && exato.q === 271 && exato.n === 2, exato && { q: exato.q, n: exato.n });
+      // cobertura em aritmética exata, sem folga de arredondamento
+      let deficit = 0;
+      for (let t = 0; t < 400; t++) {
+        const itens = [];
+        for (let i = 0; i < 6; i++) itens.push({ nome: 'x' + i, ganhoPP: (i * 7 + t) % 41 / 3 + 0.07, custoQ: 10 + (i * 13 + t) % 300 });
+        const falta = ((t * 17) % 370) / 10 + 0.03;
+        const r = P._caminhoMinimo(itens, falta);
+        if (r && r.itens.reduce((a, x) => a + x.ganhoPP, 0) < falta - 1e-9) deficit++;
+      }
+      this._ok('Plano: nenhum caminho fica aquém da lacuna que promete cobrir', deficit === 0, deficit);
+      // o percurso da ordem exibida é candidato: o "mínimo" nunca perde para ele
+      const caros = [{ nome: 'U', ganhoPP: 9.96, custoQ: 660 },
+        { nome: 'V', ganhoPP: 5.05, custoQ: 400 }, { nome: 'W', ganhoPP: 5.02, custoQ: 400 }];
+      const comPrefixo = P._caminhoMinimo(caros, 9.95, [[caros[0]]]);
+      this._ok('Plano: o caminho mínimo nunca custa mais que a ordem exibida',
+        comPrefixo && comPrefixo.q === 660, comPrefixo && comPrefixo.q);
+      this._ok('Plano: percurso proposto que não cobre a lacuna é recusado',
+        (P._caminhoMinimo([{ nome: 'Z', ganhoPP: 20, custoQ: 500 }], 15,
+          [[{ nome: 'nada', ganhoPP: 1, custoQ: 1 }]]) || {}).q === 500);
+      /* O mecanismo acima só serve se `calcular` REALMENTE entregar o prefixo.
+         Sem esta checagem, apagar o argumento na chamada passaria batido: a
+         proteção existiria na função e não no caminho que a usa. */
+      const orig = P._caminhoMinimo;
+      let visto = null;
+      P._caminhoMinimo = function (itens, falta, alternativas) {
+        visto = { itens, falta, alternativas }; return orig.call(this, itens, falta, alternativas);
+      };
+      let r14;
+      try { comRetratos(base, () => { r14 = P.calcular(novo, O({ ordenar: 'pior', metaDominio: 80 })); }); }
+      finally { P._caminhoMinimo = orig; }
+      const prefixo = visto && visto.alternativas && visto.alternativas[0];
+      this._ok('Plano: o cálculo entrega o percurso da ordem exibida à mochila',
+        !!prefixo && r14 && r14.idxMeta >= 0 && prefixo.length === r14.idxMeta + 1 &&
+        prefixo.reduce((a, x) => a + x.custoQ, 0) === r14.qAteMeta,
+        { entregue: prefixo && prefixo.length, idxMeta: r14 && r14.idxMeta, qAteMeta: r14 && r14.qAteMeta });
+    }
+
+    /* ── 15b) A VARREDURA DAS INVARIANTES ──────────────────────────────────
+       Os casos acima provam pontos específicos. Este varre as combinações de
+       ponderação, custo e ordem sobre dois retratos e cobra, em cada uma, o
+       feixe de invariantes que faz os números da tela significarem o que
+       dizem. É barato (algumas dezenas de execuções) e é o que pega a
+       regressão que nenhum caso nomeado previu. */
+    {
+      const falhas = [];
+      const reg = (m) => { if (falhas.indexOf(m) < 0) falhas.push(m); };
+      comRetratos(base, () => {
+        ['igual', 'volume'].forEach((ponderacao) => {
+          ['lacuna', 'fixo', 'proporcional'].forEach((custoModo) => {
+            Object.keys(P.ORDENS).forEach((ordenar) => {
+              [70, 85, 100].forEach((metaDominio) => {
+                const opts = O({ ponderacao, custoModo, ordenar, metaDominio, minAmostra: 1, limite: 50 });
+                const r = P.calcular(novo, opts);
+                if (r.erro) return;
+                const rot = `${ponderacao}/${custoModo}/${ordenar}/${metaDominio}`;
+                // domínio + ganhos = máximo realista, com o MESMO peso dos dois lados
+                const soma = r.itens.reduce((a, x) => a + x.ganhoPP, 0);
+                if (Math.abs(r.dominioPct + soma - r.teto) > 0.01) reg(rot + ': domínio + ganhos ≠ teto');
+                if (!Number.isFinite(r.dominioPct) || r.dominioPct < 0 || r.dominioPct > 100) reg(rot + ': domínio fora de 0..100');
+                if (Math.abs(r.falta - Math.max(0, r.meta - r.dominioPct)) > 1e-9) reg(rot + ': falta incoerente');
+                if (r.consolidados !== r.solidosAtuais + r.solidosVencidos) reg(rot + ': consolidados ≠ sólidos + vencidos');
+                if (r.itens.some((x) => x.custoQ < 10 || x.ganhoPP < 0 || x.taxa < 0 || x.taxa > 100)) reg(rot + ': item com número impossível');
+                if (r.pequenas.some((p) => r.itens.some((x) => x.nome === p.nome && x.disciplina === p.disciplina))) reg(rot + ': segundo plano repete a lista');
+                if (r.caminho) {
+                  const nomes = r.caminho.itens.map((x) => x.disciplina + '|' + x.nome);
+                  if (new Set(nomes).size !== nomes.length) reg(rot + ': caminho repete assunto');
+                  if (r.caminho.q !== r.caminho.itens.reduce((a, x) => a + x.custoQ, 0)) reg(rot + ': custo do caminho ≠ soma dos itens');
+                  if (r.caminho.itens.reduce((a, x) => a + x.ganhoPP, 0) < r.falta - 1e-9) reg(rot + ': o caminho não cobre a lacuna');
+                  if (r.qAteMeta != null && r.caminho.q > r.qAteMeta) reg(rot + ': o "mínimo" custa mais que a ordem exibida');
+                  if (r.ritmo > 0 && Math.abs(r.semanas - r.caminho.q / r.ritmo) > 1e-9) reg(rot + ': as semanas não seguem o caminho curto');
+                }
+              });
+            });
+          });
+        });
+      });
+      this._ok('Plano: 90 combinações de ponderação × custo × ordem × meta mantêm as invariantes',
+        falhas.length === 0, falhas.slice(0, 3));
+    }
+
+    /* ── 16) A ATIVIDADE PERTENCE AO ASSUNTO, NÃO AO NOME ───────────────────
+       Com os homônimos separados, casar a atividade criada pelo Plano só pelo
+       nome do tópico junta o que o cálculo separou: a segunda atividade era
+       recusada com "já existe", e as duas linhas exibiam o MESMO progresso. */
+    {
+      const T = DesempenhoTecScreen;
+      this._ok('Plano: atividade casa com o assunto da sua disciplina',
+        T._casaTopico({ topico: 'Atos', disciplina: 'Direito Administrativo' }, 'Atos', 'Direito Administrativo'));
+      this._ok('Plano: e não casa com o homônimo da outra disciplina',
+        !T._casaTopico({ topico: 'Atos', disciplina: 'Direito Administrativo' }, 'Atos', 'Direito Constitucional'));
+      this._ok('Plano: atividade antiga, sem disciplina registrada, mantém o vínculo pelo nome',
+        T._casaTopico({ topico: 'Atos', disciplina: '' }, 'Atos', 'Direito Penal'));
+      this._ok('Plano: nome diferente nunca casa',
+        !T._casaTopico({ topico: 'Atos', disciplina: 'X' }, 'Contratos', 'X'));
+      this._ok('Plano: origem ausente não casa com nada', !T._casaTopico(null, 'Atos', 'X'));
+    }
   },
 
 
