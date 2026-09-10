@@ -1173,14 +1173,57 @@ const DB = {
   saveIncidencia(list) { this._set(this.KEYS.incidencia, list); },
   getBancas() { return [...new Set(this.getIncidencia().map(r => r.banca).filter(Boolean))].sort(); },
   // adiciona/substitui em lote as linhas de uma banca (replace = troca todo o histórico daquela banca)
+  /* ── INCIDÊNCIA: GRAVAR SEM DUPLICAR ──────────────────────────────────────
+     Com "Substituir o que já existe" DESMARCADO, isto empilhava as linhas sem
+     olhar para o que já estava lá. Reimportar o mesmo caderno dobrava a
+     incidência de cada tópico — e a incidência dobrada não erra sozinha: ela
+     reordena o Reforço inteiro e a ordem "fraqueza × incidência" do Plano, sem
+     um aviso sequer. Quem conferisse o número no TEC veria o dobro e não teria
+     como saber de onde veio.
+
+     Agora a chave é (banca + disciplina + código, ou o nome quando não há
+     código): linha repetida ATUALIZA a que existe em vez de nascer de novo, e
+     o retorno diz quantas eram novas e quantas eram repetição — para a tela
+     poder contar isso a quem importou. */
+  _chaveIncid(banca, r) {
+    const n = (x) => String(x == null ? '' : x).normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/\s+/g, ' ').trim();
+    const cod = (r.codigo == null || r.codigo === '') ? null : String(r.codigo).trim();
+    return n(banca) + '|' + n(r.disciplina) + '|' + (cod !== null ? '#' + cod : n(r.topico));
+  },
   addIncidenciaRows(banca, rows, replace) {
     let list = this.getIncidencia();
     if (replace) list = list.filter(r => r.banca.toLowerCase() !== banca.toLowerCase());
+    const porChave = new Map();
+    list.forEach(r => { if (r.banca && r.banca.toLowerCase() === banca.toLowerCase()) porChave.set(this._chaveIncid(banca, r), r); });
+    let novas = 0, repetidas = 0;
     rows.forEach(r => {
-      list.push({ id: this._uid(), banca, disciplina: (r.disciplina || '').trim(), topico: (r.topico || '').trim(), incidencia: r.incidencia || 0, codigo: r.codigo || null, depth: (r.depth != null ? r.depth : null), pct: (r.pct != null ? r.pct : null) });
+      const linha = {
+        banca, disciplina: (r.disciplina || '').trim(), topico: (r.topico || '').trim(),
+        incidencia: r.incidencia || 0, codigo: r.codigo || null,
+        depth: (r.depth != null ? r.depth : null), pct: (r.pct != null ? r.pct : null)
+      };
+      const k = this._chaveIncid(banca, linha);
+      const jaTem = porChave.get(k);
+      if (jaTem) {
+        repetidas++;
+        Object.assign(jaTem, linha, { id: jaTem.id });   // vale o valor mais novo, sem somar
+        return;
+      }
+      const nova = Object.assign({ id: this._uid() }, linha);
+      list.push(nova); porChave.set(k, nova); novas++;
     });
     this.saveIncidencia(list);
-    return rows.length;
+    return { total: rows.length, novas, repetidas };
+  },
+  // Renomear uma banca: "FGV " e "FGV" viravam duas, e só existia excluir.
+  renameIncidenciaBanca(de, para) {
+    const alvo = String(para || '').trim();
+    if (!alvo) return 0;
+    const list = this.getIncidencia();
+    let n = 0;
+    list.forEach(r => { if (r.banca && r.banca.toLowerCase() === String(de).toLowerCase()) { r.banca = alvo; n++; } });
+    if (n) this.saveIncidencia(list);
+    return n;
   },
   clearIncidenciaBanca(banca) { this.saveIncidencia(this.getIncidencia().filter(r => r.banca.toLowerCase() !== banca.toLowerCase())); },
   // Edita um item de incidência (renomear tópico e/ou ajustar a incidência).

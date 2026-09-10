@@ -3136,7 +3136,9 @@
   }
   .incid-pill b { font-family: 'Space Mono', ui-monospace, SFMono-Regular, Menlo, monospace; font-weight: 800; font-size: calc(15px * var(--fs-scale, 1)); line-height: 1.1; color: var(--text); }
   .incid-pill i { font-style: normal; font-size: calc(10.5px * var(--fs-scale, 1)); color: var(--text-faint); letter-spacing: .01em; }
-  .incid-pill.roxo b { color: #7c3aed; }
+  /* Roxo fixo não sobrevive à troca de tema: sobre o fundo escuro dava 3,23:1.
+     O token do app já resolve os dois lados. */
+  .incid-pill.roxo b { color: var(--accent); }
   .incid-pill.azul b { color: var(--accent); }
   .incid-pill.verde b { color: var(--good-text); }
   .incid-pill.cinza b { color: var(--text-soft); }
@@ -3627,6 +3629,29 @@
     .pl-hero-num { font-size: calc(34px * var(--fs-scale,1)); }
   }
 
+  /* ── LEGENDAS DA ABA ANÁLISE ───────────────────────────────────────────── */
+  .tec-totais-legenda { grid-column: 1 / -1; margin: 2px 0 0; font-family: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif; font-size: var(--fs-3xs); line-height: 1.55; color: var(--text-faint); }
+  .tec-totais-legenda b { color: var(--text-soft); }
+  .weak-legenda { font-family: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif; font-size: var(--fs-3xs); line-height: 1.55; color: var(--text-faint); margin: 0 0 12px; }
+  .weak-legenda b { color: var(--text-soft); }
+  .weak-row .wmeta { font-family: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif; font-size: calc(9.5px * var(--fs-scale,1)); color: var(--text-faint); margin-top: 2px; }
+  .weak-row .wmeta b { color: var(--warn-text); font-weight: 700; }
+  .tec-inline-lbl { font-size: calc(9.5px * var(--fs-scale,1)); font-weight: 800; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-faint); display: block; margin-bottom: 4px; }
+
+  /* ── AVISO DE CASAMENTO (Reforço) ──────────────────────────────────────── */
+  .rfc-casamento { margin: 8px 24px 0; padding: 10px 12px; border-left: 3px solid var(--warn); background: var(--warn-soft); color: var(--warn-text); border-radius: 0 8px 8px 0; font-family: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif; font-size: var(--fs-3xs); line-height: 1.55; }
+  .rfc-casamento-lista { display: block; margin-top: 6px; color: var(--text-soft); }
+
+  /* ── TEXTO JUSTIFICADO ─────────────────────────────────────────────────────
+     Só nos blocos de PROSA (parágrafos de duas linhas ou mais). A última linha
+     fica à esquerda e a hifenização entra junto: justificar sem hífen, em
+     coluna estreita de celular, abre buracos brancos no meio da frase. */
+  .pl-prosa, .pl-ordem-txt, .pl-modo-nota, .pl-porque, .pl-acao, .pl-direcao span:last-child,
+  .weak-legenda, .tec-totais-legenda, .pl-guia-body .pl-base, .pl-hero-sub, .rfc-casamento,
+  .pl-edital .pl-prosa, .pl-steps .d {
+    text-align: justify; text-align-last: left; hyphens: auto; -webkit-hyphens: auto;
+  }
+
   /* ── MODO DE ATAQUE ───────────────────────────────────────────────────────
      Chips, não uma lista suspensa: a escolha do modo é a primeira decisão da
      tela e precisa estar visível junto com a que está valendo. Numa lista
@@ -3661,6 +3686,24 @@
   .pl-hoje-num.tone-bad { color: var(--bad-text); } .pl-hoje-num.tone-warn { color: var(--warn-text); } .pl-hoje-num.tone-good { color: var(--good-text); }
   .pl-hoje-q { font-family: 'Space Mono', ui-monospace, SFMono-Regular, Menlo, monospace; font-size: var(--fs-3xs); color: var(--text-faint); }
   .pl-hoje .btn-primary { width: 100%; }
+  .pl-hoje .btn-primary:disabled { opacity: 0.55; cursor: default; }
+  /* a fila continua depois do bloco: os próximos ficam visíveis e marcáveis */
+  .pl-hoje-check { display: flex; align-items: center; gap: 8px; flex: 1; min-width: 0; cursor: pointer; }
+  /* O app define `input { width: 100% }` para os campos de formulário. Dentro
+     de um flex, `flex-basis:auto` lê essa largura — e a caixinha de marcar
+     engolia a linha inteira, deixando o nome do assunto com zero pixel (uma
+     letra por linha na tela). Largura explícita resolve na origem. */
+  .pl-hoje-check input[type="checkbox"] { flex: 0 0 auto; width: 16px; height: 16px; margin: 0; }
+  .pl-hoje-lista li.fora { background: transparent; border: 1px dashed var(--border); }
+  .pl-hoje-lista li.fora .pl-hoje-nome { color: var(--text-soft); font-weight: 600; }
+  .pl-hoje-sep { display: block; background: none; padding: 6px 2px 0; font-family: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif; font-size: calc(9.5px * var(--fs-scale,1)); font-weight: 800; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-faint); }
+  .pl-hoje-nota { font-family: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif; font-size: var(--fs-3xs); color: var(--text-soft); margin: 8px 0 0; text-align: center; }
+  /* ✎ ao lado de cada modo, para ajustar os parâmetros dele */
+  .pl-modo-wrap { display: inline-flex; align-items: stretch; gap: 2px; flex: 0 0 auto; }
+  .pl-modo-edit { border: 1.5px solid var(--border); border-radius: 10px; background: var(--surface); color: var(--text-faint); font-size: var(--fs-2xs); padding: 0 8px; cursor: pointer; }
+  .pl-modo-edit:hover { border-color: var(--accent); color: var(--accent); }
+  .pl-modo-edit-dot { color: var(--accent); font-style: normal; }
+  .pl-modo-param { display: block; margin-top: 4px; color: var(--text-soft); font-weight: 600; }
 
   /* ── A ORDEM ESCOLHIDA, POR EXTENSO ── */
   .pl-ordem { border: 1px solid var(--border); border-radius: 12px; padding: 12px 14px; margin: 0 0 12px; background: var(--surface-sunken); }
@@ -3706,7 +3749,9 @@
     .pl-modos { flex-wrap: nowrap; overflow-x: auto; -webkit-overflow-scrolling: touch; scrollbar-width: none; padding-bottom: 2px; }
     .pl-modos::-webkit-scrollbar { display: none; }
     .pl-modos-rot { display: none; }
-    .pl-modo { flex: 0 0 auto; }
+    /* o par chip+✎ é um item só da faixa: sem isto o lápis era o primeiro a
+       ser espremido, e o modo virava não-editável justamente no celular */
+    .pl-modo, .pl-modo-wrap { flex: 0 0 auto; }
   }
 
   .plano-acao { display: flex; flex-direction: column; align-items: flex-end; gap: 4px; white-space: nowrap; }
@@ -5208,7 +5253,11 @@
      joga o texto para a esquerda e so ele fica torto ao lado dos outros. */
   .cards-modal-foot .btn-primary,
   .cards-modal-foot .btn-secondary { text-align: center; justify-content: center; align-items: center; }
-  .req { color: var(--bad); }
+  /* `--bad` é a cor do PREENCHIMENTO (barras, bordas); para texto existe
+     `--bad-text`, que os dois temas garantem em contraste AA. O asterisco de
+     campo obrigatório usava a primeira e ficava em 4,35:1 no tema claro —
+     abaixo do mínimo, num caractere que já é pequeno. */
+  .req { color: var(--bad-text, var(--bad)); }
   /* Editor de texto rico */
   .rte { border: 1.5px solid var(--border); border-radius: 12px; overflow: hidden; background: var(--surface); }
   .rte-toolbar { display: flex; flex-wrap: wrap; gap: 3px; padding: 6px 8px; background: var(--surface-sunken); border-bottom: 1px solid var(--border); }

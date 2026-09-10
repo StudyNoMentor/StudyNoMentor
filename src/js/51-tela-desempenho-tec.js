@@ -21,7 +21,8 @@ const PlanoEngine = {
   //   custoModo   'fixo'   = N questões por assunto
   //               'proporcional' = fator × questões já praticadas
   DEFAULTS: {
-    metaDominio: 80, tetoDominio: 90,
+    // 85% é a régua padrão: numa prova disputada, 80% deixa de ser confortável.
+    metaDominio: 85, tetoDominio: 90,
     ponderacao: 'igual', minAmostra: 20, incluirPequenas: false,
     /* CUSTO POR LACUNA é o padrão. Custo fixo dizia que levar um assunto de 20%
        a 90% custa o mesmo que levar outro de 85% a 90% — e, pior, fazia a ordem
@@ -66,13 +67,13 @@ const PlanoEngine = {
       rot: '🧱 Base ampla', fase: 'pré-edital',
       quando: 'Sem edital publicado, construindo repertório. A pergunta é "o que ainda não sei?".',
       porque: 'Todo assunto pesa igual e o pior acerto vem primeiro: nada se esconde atrás de pouco volume, e nenhuma banca decide por você antes da hora.',
-      patch: { ponderacao: 'igual', ordenar: 'pior', metaDominio: 80, tetoDominio: 90, custoModo: 'lacuna', limite: 30, incluirPequenas: false }
+      patch: { ponderacao: 'igual', ordenar: 'pior', metaDominio: 85, tetoDominio: 90, custoModo: 'lacuna', limite: 30, incluirPequenas: false }
     },
     edital: {
       rot: '🎯 Edital publicado', fase: 'pós-edital',
       quando: 'Edital na mão, banca definida. A pergunta muda para "o que me dá ponto NESTA prova?".',
       porque: 'Ordena por fraqueza × incidência na banca e pesa por volume: assunto que cai muito e que você erra sobe ao topo, mesmo que não seja o seu pior acerto absoluto.',
-      patch: { ponderacao: 'volume', ordenar: 'banca', metaDominio: 80, tetoDominio: 85, custoModo: 'lacuna', limite: 20, incluirPequenas: false },
+      patch: { ponderacao: 'volume', ordenar: 'banca', metaDominio: 85, tetoDominio: 90, custoModo: 'lacuna', limite: 20, incluirPequenas: false },
       exige: 'incidencia'
     },
     curto: {
@@ -94,12 +95,25 @@ const PlanoEngine = {
       patch: { ponderacao: 'igual', ordenar: 'pior', incluirPequenas: true, minAmostra: 5, limite: 40, custoModo: 'lacuna' }
     }
   },
-  /* ── OS SETE CENÁRIOS, EXPLICADOS ────────────────────────────────────────
-     Cada ordem responde a uma pergunta diferente, e três delas podem responder
-     à MESMA pergunta dependendo dos seus ajustes. O que faltava não era mais
-     uma opção: era dizer o que cada uma faz, quando ela é a escolha certa e
-     quando ela engana. `armadilha` não é ressalva de rodapé — é a metade da
-     informação que decide se aquela ordem serve para você hoje. */
+  /* ── AS CINCO ORDENS QUE DECIDEM ALGO ────────────────────────────────────
+     Eram sete. Duas foram embora porque não eram escolha nenhuma:
+
+       · "maior ganho no domínio" é (teto − taxa) ÷ nº de assuntos, ou seja,
+         função SÓ da taxa de acerto — dava exatamente a mesma fila de "pior
+         acerto primeiro", com qualquer ponderação e qualquer custo. Duas
+         entradas no seletor para a mesma lista;
+       · "mais questões já resolvidas" é um raio-x do passado, não uma ordem de
+         ataque: responde onde você gastou tempo, não o que estudar hoje. Essa
+         leitura agora vive na aba 📊 Análise, no modo "mais erros".
+
+     As duas MÉTRICAS continuam na tela (o "🔀 mostrar as duas" segue mostrando
+     ganho no domínio e no aproveitamento). O que saiu foi a opção de ordenar
+     por elas — e quem tinha uma das duas salva cai em "pior acerto primeiro",
+     que é a fila que ele já estava vendo.
+
+     Cada uma das cinco responde a uma pergunta diferente. `armadilha` não é
+     ressalva de rodapé: é a metade da informação que decide se aquela ordem
+     serve para você hoje. */
   ORDENS: {
     pior: {
       rot: '🔴 Pior acerto primeiro',
@@ -112,12 +126,6 @@ const PlanoEngine = {
       oque: 'Ordena pelo quanto o seu aproveitamento ponderado por questão sobe: assunto com amostra grande pesa mais.',
       quando: 'Quando a prova cobra muito daquilo que você já pratica em volume, e é esse número que você acompanha.',
       armadilha: 'Assunto pequeno e mal dominado quase não aparece — e é exatamente o tipo de questão que decide desempate.'
-    },
-    ganhoDominio: {
-      rot: '⚖️ Maior ganho no domínio',
-      oque: 'Ordena pelo quanto o número grande do topo sobe se aquele assunto chegar ao máximo realista, com todo assunto pesando igual.',
-      quando: 'Quando a sua meta É o domínio médio: base ampla, antes do edital.',
-      armadilha: 'Com peso igual esta fila é, matematicamente, a mesma de "pior acerto primeiro" — muda a leitura, não a ordem.'
     },
     banca: {
       rot: '🎯 Fraqueza × incidência na banca',
@@ -136,13 +144,40 @@ const PlanoEngine = {
       oque: 'Ordena pelo tombo entre a janela recente e o período anterior a ela.',
       quando: 'Manutenção e véspera: aqui o inimigo é esquecer, não ignorar.',
       armadilha: 'Um assunto ótimo que caiu de 95% para 88% aparece acima de um crônico de 30% que nunca melhorou.'
-    },
-    volume: {
-      rot: '📚 Mais questões já resolvidas',
-      oque: 'Ordena pelo tamanho da sua amostra no assunto.',
-      quando: 'Para auditar o próprio esforço: onde o meu tempo vem sendo gasto?',
-      armadilha: 'Não é ordem de ataque, é raio-x do passado. Não decide o que estudar hoje.'
     }
+  },
+  /* ── MODOS EDITÁVEIS ──────────────────────────────────────────────────────
+     Os cinco modos são um ponto de partida, não um dogma: a meta que serve para
+     um concurso não serve para outro, e quem estuda é quem sabe. Cada modo pode
+     ser ajustado e guarda o SEU ajuste no perfil; `MODOS` continua sendo o
+     padrão de fábrica, e cada modo pode voltar a ele sozinho, sem levar os
+     outros junto.
+
+     Os ajustes ficam no perfil, não no retrato: reimportar o TEC todo mês
+     recalcula os números, nunca as suas preferências. */
+  MODOS_CAMPOS: ['ordenar', 'ponderacao', 'metaDominio', 'tetoDominio', 'custoModo', 'limite', 'incluirPequenas', 'minAmostra'],
+  modoPatch(k) {
+    const base = (this.MODOS[k] && this.MODOS[k].patch) || {};
+    const custom = (this.prefs().modosCustom || {})[k] || {};
+    return Object.assign({}, base, custom);
+  },
+  modoEditado(k) {
+    const custom = (this.prefs().modosCustom || {})[k];
+    if (!custom) return false;
+    const base = (this.MODOS[k] && this.MODOS[k].patch) || {};
+    return Object.keys(custom).some(c => String(custom[c]) !== String(base[c]));
+  },
+  salvarModo(k, patch) {
+    const p = this.prefs();
+    const m = Object.assign({}, p.modosCustom || {});
+    m[k] = Object.assign({}, this.MODOS[k].patch, patch);
+    this.salvarPrefs({ modosCustom: m });
+  },
+  restaurarModo(k) {
+    const p = this.prefs();
+    const m = Object.assign({}, p.modosCustom || {});
+    delete m[k];
+    this.salvarPrefs({ modosCustom: m });
   },
   // Um preset está "em vigor" quando TODOS os campos que ele define batem com o
   // que está valendo. Basta mexer num deles para a tela voltar a dizer livre.
@@ -150,10 +185,23 @@ const PlanoEngine = {
     p = p || this.prefs();
     const chaves = Object.keys(this.MODOS);
     for (const k of chaves) {
-      const patch = this.MODOS[k].patch;
+      const patch = this.modoPatch(k);
       if (Object.keys(patch).every(c => String(p[c]) === String(patch[c]))) return k;
     }
     return 'livre';
+  },
+  // Resumo legível do que um modo aplica — é o que a tela mostra sob os chips.
+  resumoModo(k) {
+    const patch = this.modoPatch(k);
+    const rot = (this.ORDENS[patch.ordenar] || {}).rot || patch.ordenar;
+    const pond = patch.ponderacao === 'volume' ? 'peso por volume' : patch.ponderacao === 'ambas' ? 'as duas métricas' : 'peso igual';
+    const custo = patch.custoModo === 'fixo' ? 'custo fixo' : patch.custoModo === 'proporcional' ? 'custo proporcional' : 'custo por lacuna';
+    const partes = [rot, 'meta ' + patch.metaDominio + '%'];
+    if (patch.tetoDominio != null) partes.push('teto ' + patch.tetoDominio + '%');
+    partes.push(pond, custo);
+    if (patch.limite != null) partes.push(patch.limite + ' assuntos');
+    if (patch.incluirPequenas) partes.push('inclui amostra pequena');
+    return partes.join(' · ');
   },
   prefs() {
     try {
@@ -171,6 +219,16 @@ const PlanoEngine = {
         p.custoPiso = this.DEFAULTS.custoPiso;
         p.custoPorPonto = this.DEFAULTS.custoPorPonto;
         p.migracao = 2;
+      }
+      /* MIGRAÇÃO 3 — as duas ordens que saíram. "Ganho no domínio" sempre deu a
+         mesma fila de "pior acerto"; "mais questões" era raio-x do passado.
+         Quem tinha uma delas salva vai para "pior acerto primeiro", que é a
+         lista que já estava vendo. A meta também sobe para 85% aqui — mas só
+         para quem nunca mexeu nela, porque meta é decisão de quem estuda. */
+      if (p.migracao < 3) {
+        if (p.ordenar === 'ganhoDominio' || p.ordenar === 'volume') p.ordenar = 'pior';
+        if (v && (v.metaDominio == null || Number(v.metaDominio) === 80)) p.metaDominio = this.DEFAULTS.metaDominio;
+        p.migracao = 3;
       }
       return p;
     } catch (_) { return Object.assign({}, this.DEFAULTS); }
@@ -576,7 +634,9 @@ const PlanoEngine = {
          ganhoDominio é sempre de peso igual; ganhoGeral é sempre por volume;
          ganhoPP é o que a ponderação escolhida manda somar no acumulado. */
       x.rendimento = x.ganhoPP / x.custoQ * 100;
-      x.incid = temIncid ? (incMap[ReforcoEngine.norm(x.nome)] || 0) : null;
+      // por DISCIPLINA + tópico (com queda para só o nome): dois "Princípios" de
+      // disciplinas diferentes deixam de somar no mesmo número
+      x.incid = temIncid ? (ReforcoEngine.incidenciaDe(incMap, x.nome, x.disciplina).valor || 0) : null;
     });
     // Normaliza pela MAIOR incidência ENTRE OS ASSUNTOS DO PLANO (folhas), não pelo mapa
     // global — senão agregados de disciplina (ex.: 434) achatam todos os assuntos-folha.
@@ -632,11 +692,8 @@ const PlanoEngine = {
       rendimento: (a, b) => b.rendimento - a.rendimento,
       pior: (a, b) => a.taxa - b.taxa,
       queda: (a, b) => (a.delta == null ? 0 : a.delta) - (b.delta == null ? 0 : b.delta),
-      volume: (a, b) => b.qHist - a.qHist,
       banca: (a, b) => b.prioBanca - a.prioBanca,
-      // Ordenar diretamente por cada métrica de ganho — responde "o que mexe
-      // mais no número que EU escolhi acompanhar", sem depender do custo.
-      ganhoDominio: (a, b) => b.ganhoDominio - a.ganhoDominio,
+      // "o que mexe mais no aproveitamento geral", sem depender do custo
       ganhoGeral: (a, b) => b.ganhoGeral - a.ganhoGeral
     };
     // Desempate ESTÁVEL por nome: duas execuções com os mesmos dados dão a mesma ordem
@@ -1183,12 +1240,35 @@ const DesempenhoTecScreen = {
   },
   // snapshot anterior ao retrato em foco — só faz sentido quando o escopo é UM retrato.
   // Nesse caso, compara com o retrato imediatamente anterior no tempo (mostra a evolução).
+  /* ── A COMPARAÇÃO QUE NUNCA APARECIA ──────────────────────────────────────
+     `prevSnap` devolvia null sempre que o escopo tinha mais de um retrato — e o
+     escopo padrão é "Consolidado (todos)". Resultado: o ▲▼ do aproveitamento e
+     as setas de TODOS os nós da árvore só existiam para quem soubesse
+     selecionar manualmente um único retrato. Para todo mundo, a evolução
+     simplesmente não vinha — e "sem seta" se lê como "não mudou".
+
+     A comparação agora é sempre entre DOIS RETRATOS: o mais novo do escopo e o
+     imediatamente anterior a ele. É a única comparação honesta possível aqui —
+     confrontar o agregado de cinco retratos com um retrato só compararia
+     coisas de tamanhos diferentes. Por isso todo delta desta aba vem rotulado
+     com o que está sendo comparado. */
+  ultimoSnapDoEscopo() {
+    const active = this.activeSnapshots();
+    return active.length ? active[active.length - 1] : null;
+  },
   prevSnap() {
     const active = this.activeSnapshots();
-    if (active.length !== 1) return null; // sem delta em modo consolidado/múltiplo
+    if (!active.length) return null;
+    if (active.length >= 2) return active[active.length - 2];
     const all = DB.getTecSnapshots();
     const idx = all.findIndex(s => s.id === active[0].id);
     return idx > 0 ? all[idx - 1] : null;
+  },
+  // rótulo curto do que o ▲▼ está comparando (vai no título e na legenda)
+  rotuloComparacao() {
+    const u = this.ultimoSnapDoEscopo(), p = this.prevSnap();
+    if (!u || !p) return null;
+    return `${this.rangeLabel(p)} → ${this.rangeLabel(u)}`;
   },
   renderAnalysis() {
     const snap = this.scopedSnapshot();
@@ -1198,9 +1278,30 @@ const DesempenhoTecScreen = {
       const t = document.getElementById('tec-totais'); if (t) t.innerHTML = '<div class="evo-empty-mini" style="grid-column:1/-1;">Nenhum retrato no escopo atual. Ajuste a seleção ou o intervalo de datas acima.</div>';
       return;
     }
+    this.aplicarPrefsAnalise();
     this.renderTotais(snap);
     this.renderWeak(snap);
     this.renderDisciplinas(snap);
+  },
+  /* ── UMA RÉGUA SÓ ─────────────────────────────────────────────────────────
+     O limiar de "ponto fraco" desta aba nascia com 70%, enquanto o Plano
+     trabalha com meta de 80% e teto realista de 90%. O mesmo tópico podia ser
+     "ponto fraco" aqui e "em desenvolvimento" lá, e nada na tela ligava um
+     número ao outro. Agora o limiar NASCE da meta do Plano — e continua seu
+     para mudar quando quiser, porque a partir daí a escolha fica salva.
+
+     O mínimo de questões também sobe de 3 para 10: com três questões, uma taxa
+     de acerto não é diagnóstico (ver a margem de erro que agora aparece em
+     cada linha). */
+  aplicarPrefsAnalise() {
+    const p = this._loadPrefs();
+    const metaPlano = (typeof PlanoEngine !== 'undefined') ? PlanoEngine.prefs().metaDominio : 70;
+    const set = (id, v) => { const e = document.getElementById(id); if (e && v != null) e.value = v; };
+    set('tec-weak-threshold', p.weakLimiar != null ? p.weakLimiar : metaPlano);
+    set('tec-weak-minq', p.weakMinQ != null ? p.weakMinQ : 10);
+    set('tec-weak-ordenar', p.weakOrdenar || 'taxa');
+    const lv = document.getElementById('tec-weak-leaves');
+    if (lv && p.weakLeaves != null) lv.checked = !!p.weakLeaves;
   },
   // ---- Abas (Análise / Incidência / Reforço) ----
   tecTab: 'analise',
@@ -1337,8 +1438,12 @@ const DesempenhoTecScreen = {
       Object.keys(PlanoEngine.MODOS).map(k => {
         const m = PlanoEngine.MODOS[k];
         const bloqueado = m.exige === 'incidencia' && !temInc;
-        return `<button type="button" class="pl-modo${ativo === k ? ' on' : ''}${bloqueado ? ' off' : ''}" data-modo="${k}"
-          title="${escapeHtml(m.quando)}">${m.rot}<small>${m.fase}</small></button>`;
+        const editado = PlanoEngine.modoEditado(k);
+        return `<span class="pl-modo-wrap">
+          <button type="button" class="pl-modo${ativo === k ? ' on' : ''}${bloqueado ? ' off' : ''}" data-modo="${k}"
+            title="${escapeHtml(m.quando + ' — ' + PlanoEngine.resumoModo(k))}">${m.rot}${editado ? ' <i class="pl-modo-edit-dot" title="Ajustado por você">•</i>' : ''}<small>${m.fase}</small></button>
+          <button type="button" class="pl-modo-edit" data-editar="${k}" title="Ajustar os parâmetros deste modo" aria-label="Ajustar ${escapeHtml(m.rot)}">✎</button>
+        </span>`;
       }).join('') +
       /* "Livre" é ESTADO, não ação: é onde você cai ao mexer num campo, e um
          botão que não faz nada ao ser tocado ensina que a faixa toda é
@@ -1347,19 +1452,74 @@ const DesempenhoTecScreen = {
     if (nota) {
       const m = PlanoEngine.MODOS[ativo];
       nota.innerHTML = m
-        ? `<p class="pl-modo-nota"><strong>${m.rot} · ${escapeHtml(m.fase)}</strong> — ${escapeHtml(m.quando)}<br><span>${escapeHtml(m.porque)}</span>${(m.exige === 'incidencia' && !temInc) ? '<br><em>Sem dados de incidência importados, esta ordem não tem como funcionar: importe em 🎲 Incidência.</em>' : ''}</p>`
+        ? `<p class="pl-modo-nota"><strong>${m.rot} · ${escapeHtml(m.fase)}</strong> — ${escapeHtml(m.quando)}<br><span>${escapeHtml(m.porque)}</span>
+             <br><span class="pl-modo-param">Aplica: ${escapeHtml(PlanoEngine.resumoModo(ativo))}${PlanoEngine.modoEditado(ativo) ? ' · ajustado por você' : ''} — toque em ✎ para mudar.</span>
+             ${(m.exige === 'incidencia' && !temInc) ? '<br><em>Sem dados de incidência importados, esta ordem não tem como funcionar: importe em 🏛️ Incidência.</em>' : ''}</p>`
         : `<p class="pl-modo-nota"><strong>✏️ Modo livre</strong> — seus ajustes não correspondem a nenhum preset. Toque num modo acima para partir de um conjunto coerente; nada do que você configurou se perde antes disso.</p>`;
     }
     box.querySelectorAll('.pl-modo').forEach(b => b.addEventListener('click', () => {
       const k = b.dataset.modo;
       if (k === 'livre') return;
-      const m = PlanoEngine.MODOS[k];
-      if (!m) return;
-      PlanoEngine.salvarPrefs(m.patch);
+      if (!PlanoEngine.MODOS[k]) return;
+      PlanoEngine.salvarPrefs(PlanoEngine.modoPatch(k));
       this.renderPlano();
-      showToast(m.rot + ' aplicado');
+      showToast(PlanoEngine.MODOS[k].rot + ' aplicado');
+    }));
+    box.querySelectorAll('.pl-modo-edit').forEach(b => b.addEventListener('click', (e) => {
+      e.stopPropagation();
+      this.editarModo(b.dataset.editar);
     }));
     try { if (window.InfoTips) InfoTips.upgrade(); } catch (e) { _quiet(e, 'info-modos'); }
+  },
+  /* Editar um modo: os mesmos parâmetros do painel de ajustes, só que salvos
+     COMO o modo — e com a volta ao padrão de fábrica no mesmo lugar, por modo,
+     sem levar os outros quatro junto. */
+  async editarModo(k) {
+    const m = PlanoEngine.MODOS[k];
+    if (!m) return;
+    // se o modo em edição é o que está valendo agora, o ajuste tem de valer já
+    const eraAtivo = (PlanoEngine.modoAtivo() === k);
+    const p = PlanoEngine.modoPatch(k);
+    const ordens = Object.keys(PlanoEngine.ORDENS).map(x => ({ value: x, label: PlanoEngine.ORDENS[x].rot }));
+    const r = await UI.prompt([
+      { key: 'ordenar', label: 'Ordem de ataque', type: 'select', value: p.ordenar, options: ordens },
+      { key: 'metaDominio', label: 'Meta de domínio (%)', type: 'number', value: p.metaDominio, min: 30, max: 100 },
+      { key: 'tetoDominio', label: 'Acerto máximo realista (%)', type: 'number', value: p.tetoDominio != null ? p.tetoDominio : PlanoEngine.DEFAULTS.tetoDominio, min: 50, max: 100 },
+      { key: 'ponderacao', label: 'Como pesar cada assunto', type: 'select', value: p.ponderacao, options: [
+        { value: 'igual', label: '⚖️ Todo assunto pesa igual' },
+        { value: 'volume', label: '📊 Pelo volume de questões' },
+        { value: 'ambas', label: '🔀 Mostrar as duas' }] },
+      { key: 'custoModo', label: 'Como estimar o custo', type: 'select', value: p.custoModo, options: [
+        { value: 'lacuna', label: '📐 Pela lacuna até o máximo realista' },
+        { value: 'fixo', label: 'Número fixo de questões' },
+        { value: 'proporcional', label: 'Proporcional ao praticado' }] },
+      { key: 'limite', label: 'Mostrar até (assuntos)', type: 'number', value: p.limite != null ? p.limite : 30, min: 5, max: 200 },
+      { key: 'incluirPequenas', label: 'Incluir amostra pequena', type: 'select', value: p.incluirPequenas ? '1' : '0', options: [
+        { value: '0', label: 'Não — amostra curta vai para o segundo plano' },
+        { value: '1', label: 'Sim — entra no cálculo (modo diagnóstico)' }] },
+      { key: 'restaurar', label: 'Restaurar o padrão deste modo', type: 'select', value: '0',
+        hint: 'Descarta os seus ajustes SÓ deste modo e volta ao padrão de fábrica.',
+        options: [{ value: '0', label: 'Não, salvar o que está acima' }, { value: '1', label: '↺ Sim, voltar ao padrão' }] }
+    ], { title: 'Ajustar ' + m.rot, sub: m.quando, okText: 'Salvar modo' });
+    if (!r) return;
+    if (String(r.restaurar) === '1') {
+      PlanoEngine.restaurarModo(k);
+      showToast(m.rot + ' voltou ao padrão ✓');
+    } else {
+      const num = (v, d) => { const n = parseInt(v, 10); return isNaN(n) ? d : n; };
+      PlanoEngine.salvarModo(k, {
+        ordenar: r.ordenar,
+        metaDominio: Math.max(30, Math.min(100, num(r.metaDominio, p.metaDominio))),
+        tetoDominio: Math.max(50, Math.min(100, num(r.tetoDominio, p.tetoDominio))),
+        ponderacao: r.ponderacao,
+        custoModo: r.custoModo,
+        limite: Math.max(5, Math.min(200, num(r.limite, p.limite || 30))),
+        incluirPequenas: String(r.incluirPequenas) === '1'
+      });
+      showToast(m.rot + ' ajustado ✓');
+    }
+    if (eraAtivo) PlanoEngine.salvarPrefs(PlanoEngine.modoPatch(k));
+    this.renderPlano();
   },
   renderPlanoConteudo() {
     const proj = document.getElementById('plano-proj');
@@ -1670,7 +1830,13 @@ const DesempenhoTecScreen = {
       /* O bloco é do TAMANHO DO SEU RITMO, e o rótulo diz quanto tempo ele leva
          de verdade. Prometer "esta semana" para um assunto que exige três
          semanas do seu ritmo é o mesmo erro do "caminho mais curto" que não era
-         curto: um número que soa exato e planeja errado. */
+         curto: um número que soa exato e planeja errado.
+
+         E a fila não para no bloco: os próximos vêm listados junto, marcáveis.
+         Fechar a lista no que cabe numa semana escondia a decisão mais comum —
+         "este eu faço agora, aquele eu troco pelo seguinte" — e obrigava a
+         descer a lista inteira para criar a atividade de um assunto que estava
+         em quarto lugar. */
       const capacidade = Math.max(1, r.ritmo || 0);
       const bloco = [];
       let somaQ = 0;
@@ -1679,7 +1845,19 @@ const DesempenhoTecScreen = {
         bloco.push(x); somaQ += x.custoQ;
       }
       const semanasBloco = Math.max(1, Math.round(somaQ / capacidade));
-      const semExtra = bloco.filter(x => !x.extra);
+      // os próximos da fila, para escolher ou apenas enxergar o que vem depois
+      const proximos = r.itens.slice(bloco.length, bloco.length + 8);
+      const linhaHoje = (x, dentro) => `
+        <li class="${dentro ? '' : 'fora'}">
+          <label class="pl-hoje-check">
+            <input type="checkbox" class="pl-hoje-sel" ${dentro ? 'checked' : ''} ${x.extra ? 'disabled' : ''}
+              data-topico="${escapeHtml(x.nome)}" data-disc="${escapeHtml(x.disciplina || '')}" data-alvo="${x.custoQ}">
+            <span class="pl-hoje-nome">${escapeHtml(x.nome)}</span>
+          </label>
+          <span class="pl-hoje-num tone-${x.conf.tom}">${x.taxa.toFixed(0)}%</span>
+          <span class="pl-hoje-q">${x.custoQ}q</span>
+          ${x.extra ? `<span class="reforco-tag ${x.extraConcluida ? 'tone-good' : 'incid'}">${x.extraConcluida ? '✓' : x.extraFeito + '/' + x.extraAlvo}</span>` : ''}
+        </li>`;
       hoje = `
         <div class="pl-hoje">
           <div class="pl-hoje-top">
@@ -1687,16 +1865,11 @@ const DesempenhoTecScreen = {
             <span>${bloco.length} ${bloco.length === 1 ? 'assunto' : 'assuntos'} · ${somaQ.toLocaleString('pt-BR')} questões · ≈${semanasBloco} ${semanasBloco === 1 ? 'semana' : 'semanas'} no seu ritmo de ${capacidade}/sem</span>
           </div>
           <ol class="pl-hoje-lista">
-            ${bloco.map(x => `<li><span class="pl-hoje-nome">${escapeHtml(x.nome)}</span>
-              <span class="pl-hoje-num tone-${x.conf.tom}">${x.taxa.toFixed(0)}%</span>
-              <span class="pl-hoje-q">${x.custoQ}q</span>
-              ${x.extra ? `<span class="reforco-tag ${x.extraConcluida ? 'tone-good' : 'incid'}">${x.extraConcluida ? '✓' : x.extraFeito + '/' + x.extraAlvo}</span>` : ''}</li>`).join('')}
+            ${bloco.map(x => linhaHoje(x, true)).join('')}
+            ${proximos.length ? `<li class="pl-hoje-sep">depois destes, a fila segue com:</li>` + proximos.map(x => linhaHoje(x, false)).join('') : ''}
           </ol>
-          ${semExtra.length
-            ? `<button type="button" class="btn-primary" id="plano-lote"
-                 data-lote='${escapeHtml(JSON.stringify(semExtra.map(x => ({ t: x.nome, d: x.disciplina || '', a: x.custoQ }))))}'>
-                 ＋ Criar ${semExtra.length === 1 ? 'a atividade' : 'as ' + semExtra.length + ' atividades de uma vez'}</button>`
-            : `<p class="pl-prosa" style="margin:8px 0 0;">Todas já viraram atividade. Resolva, reimporte o TEC e volte aqui: é a reimportação que diz se funcionou.</p>`}
+          <button type="button" class="btn-primary" id="plano-lote">＋ Criar as atividades marcadas</button>
+          <p class="pl-hoje-nota">A fila é recalculada a cada retrato importado — marcar aqui não a congela.</p>
         </div>`;
     }
 
@@ -1773,11 +1946,20 @@ const DesempenhoTecScreen = {
       this.criarExtraDoPlano(b.dataset.topico, b.dataset.disc, b.dataset.alvo, b.dataset.motivo);
     }));
     const lote = document.getElementById('plano-lote');
+    const sincLote = () => {
+      if (!lote) return;
+      const n = lista.querySelectorAll('.pl-hoje-sel:checked:not(:disabled)').length;
+      lote.textContent = n === 0 ? '＋ Marque ao menos um assunto'
+        : n === 1 ? '＋ Criar a atividade marcada' : `＋ Criar as ${n} atividades marcadas`;
+      lote.disabled = n === 0;
+    };
+    lista.querySelectorAll('.pl-hoje-sel').forEach(c => c.addEventListener('change', sincLote));
+    sincLote();
     if (lote) lote.addEventListener('click', () => {
-      let itens = [];
-      try { itens = JSON.parse(lote.dataset.lote || '[]'); } catch (e) { _quiet(e, 'plano-lote'); }
       let n = 0;
-      itens.forEach(it => { if (this.criarExtraDoPlano(it.t, it.d, it.a, 'reforco', true)) n++; });
+      lista.querySelectorAll('.pl-hoje-sel:checked:not(:disabled)').forEach(c => {
+        if (this.criarExtraDoPlano(c.dataset.topico, c.dataset.disc, c.dataset.alvo, 'reforco', true)) n++;
+      });
       showToast(n ? n + (n === 1 ? ' atividade criada ✓' : ' atividades criadas ✓') : 'Nenhuma atividade nova a criar');
       this.renderPlanoConteudo();
     });
@@ -1851,6 +2033,7 @@ const DesempenhoTecScreen = {
           <span class="incid-caret">▶</span>
           <span class="incid-banca-name">${escapeHtml(b)}</span>
           <span class="incid-banca-count">${headCount}</span>
+          <button type="button" class="icon-btn incid-banca-ren" title="Renomear esta banca" aria-label="Renomear esta banca">✎</button>
           <button type="button" class="icon-btn danger incid-banca-del" title="Excluir esta banca" aria-label="Excluir esta banca">×</button>
         </div>
         <div class="incid-detail">
@@ -1872,8 +2055,24 @@ const DesempenhoTecScreen = {
     list.querySelectorAll('.incid-banca-block').forEach(block => {
       const head = block.querySelector('.incid-banca-row');
       const del = block.querySelector('.incid-banca-del');
+      /* Renomear: "FGV" e "Fgv " viravam duas bancas e a única saída era apagar
+         tudo e reimportar. O nome é só um rótulo — trocar não deve custar o
+         índice inteiro. */
+      const ren = block.querySelector('.incid-banca-ren');
+      if (ren) ren.addEventListener('click', async (e) => {
+        e.stopPropagation();
+        const atual = block.dataset.banca;
+        const r = await UI.prompt([{ key: 'nome', label: 'Nome da banca', value: atual }],
+          { title: 'Renomear banca', sub: 'Todas as linhas importadas passam a valer sob o novo nome.', okText: 'Renomear' });
+        if (!r) return;
+        const alvo = String(r.nome || '').trim();
+        if (!alvo || alvo === atual) return;
+        const n = DB.renameIncidenciaBanca(atual, alvo);
+        showToast(n ? `${n} linha(s) agora em "${alvo}" ✓` : 'Nada a renomear');
+        this.renderIncidencia();
+      });
       head.addEventListener('click', (e) => {
-        if (e.target.closest('.incid-banca-del')) return;
+        if (e.target.closest('.incid-banca-del') || e.target.closest('.incid-banca-ren')) return;
         // monta a árvore desta banca na primeira abertura (custo pago só uma vez,
         // e só para a banca que você realmente quis ver)
         if (!block.classList.contains('open')) this._incidBuildTree(block.querySelector('.itree[data-tree-banca]'));
@@ -2063,13 +2262,32 @@ const DesempenhoTecScreen = {
   // Fonte dos dados: 'file' (arquivo importado) ou 'paste' (textarea). Guardamos as
   // linhas do arquivo separadamente para que digitar a banca NÃO apague a importação.
   _incidFileRows: null,
+  /* ── O QUE VAI ACONTECER, ANTES DE ACONTECER ──────────────────────────────
+     O preview dizia só quantas linhas foram reconhecidas. Não dizia o que elas
+     fariam com o que já está salvo — e a diferença entre "entram 300 tópicos
+     novos" e "300 tópicos substituem os 300 que já existem" é enorme para quem
+     reimporta um caderno todo mês. Agora o aviso compara com a banca digitada:
+     quantos são novos, quantos já existem, e quantos serão descartados se
+     "Substituir" estiver ligado. */
+  _diffIncidencia(rows) {
+    const banca = $id('incid-banca').value.trim();
+    if (!banca || !rows || !rows.length) return '';
+    const atuais = DB.getIncidencia().filter(r => r.banca && r.banca.toLowerCase() === banca.toLowerCase());
+    const substituir = (document.getElementById('incid-replace') || {}).checked;
+    if (!atuais.length) return ` Banca "${banca}" ainda não tem nada salvo: tudo entra como novo.`;
+    if (substituir) return ` Substituindo: as ${atuais.length} linha(s) atuais de "${banca}" serão trocadas por estas.`;
+    const chaves = new Set(atuais.map(r => DB._chaveIncid(banca, r)));
+    let repetidas = 0;
+    rows.forEach(r => { if (chaves.has(DB._chaveIncid(banca, { disciplina: r.disciplina, topico: r.topico, codigo: r.codigo }))) repetidas++; });
+    return ` Em "${banca}": ${rows.length - repetidas} novo(s), ${repetidas} já existente(s) — repetido é atualizado, nunca somado.`;
+  },
   updateIncidPreview() {
     const prev = document.getElementById('incid-preview');
     const text = $id('incid-text').value;
     // Se há um arquivo importado e o textarea está vazio, mantemos as linhas do arquivo.
     if (this._incidFileRows && !text.trim()) {
       this._incidParsed = this._incidFileRows;
-      prev.textContent = `✓ ${this._incidFileRows.length} tópico(s) reconhecido(s) para importar (arquivo).`;
+      prev.textContent = `✓ ${this._incidFileRows.length} tópico(s) reconhecido(s) para importar (arquivo).` + this._diffIncidencia(this._incidFileRows);
       prev.style.color = 'var(--good)';
       return;
     }
@@ -2079,7 +2297,7 @@ const DesempenhoTecScreen = {
     this._incidParsed = ReforcoEngine.parseIncidencia(text, banca || 'X');
     if (!text.trim()) { prev.textContent = 'Aguardando dados...'; prev.style.color = 'var(--text-faint)'; return; }
     if (this._incidParsed.length === 0) { prev.textContent = '⚠ Nenhuma linha reconhecida (use Disciplina · Tópico · Incidência).'; prev.style.color = 'var(--warn)'; }
-    else { prev.textContent = `✓ ${this._incidParsed.length} tópico(s) reconhecido(s).`; prev.style.color = 'var(--good)'; }
+    else { prev.textContent = `✓ ${this._incidParsed.length} tópico(s) reconhecido(s).` + this._diffIncidencia(this._incidParsed); prev.style.color = 'var(--good)'; }
   },
   // Sugere a sigla da banca a partir do nome do arquivo (ex.: "fcc 10 anos fiscal.xlsx" -> "FCC")
   _bancaFromFilename(name) {
@@ -2167,7 +2385,8 @@ const DesempenhoTecScreen = {
     // aplica a banca do campo (o parse pode ter usado placeholder 'X')
     rows.forEach(r => r.banca = banca);
     const replace = $id('incid-replace').checked;
-    const n = DB.addIncidenciaRows(banca, rows, replace);
+    const r = DB.addIncidenciaRows(banca, rows, replace);
+    const n = r.novas;
     $id('incid-text').value = '';
     $id('incid-file').value = '';
     $id('incid-file-name').style.display = 'none';
@@ -2175,7 +2394,13 @@ const DesempenhoTecScreen = {
     this._incidFileRows = null;
     $id('incid-preview').textContent = 'Aguardando dados...';
     $id('incid-preview').style.color = 'var(--text-faint)';
-    showToast(`${n} tópico(s) de incidência salvos na banca ${banca} ✓`);
+    /* O aviso conta as três coisas: o que entrou, o que já existia e foi
+       atualizado, e a banca. Antes dizia só "N tópicos salvos" — o mesmo texto
+       tanto para uma importação nova quanto para a mesma planilha enviada duas
+       vezes. */
+    showToast(r.repetidas
+      ? `${n} tópico(s) novo(s) · ${r.repetidas} já existia(m) e foi(ram) atualizado(s) — ${banca} ✓`
+      : `${n} tópico(s) de incidência salvos na banca ${banca} ✓`);
     this.renderIncidencia();
   },
   // ---- Reforço ----
@@ -2217,12 +2442,19 @@ const DesempenhoTecScreen = {
     const lbl = document.getElementById('reforco-estrat-label');
     lbl.textContent = v <= 25 ? 'foco no erro' : v >= 75 ? 'foco na incidência' : 'equilíbrio';
   },
+  /* A granularidade era um cursor de 0 a 100 que, por dentro, virava
+     `Math.round(g*3)` — quatro valores. Arrastar de 0 a 16 não mudava nada; de
+     16 a 17 mudava tudo. Agora são três botões, que é o que o controle sempre
+     foi; o campo escondido guarda o mesmo valor de antes, então a preferência
+     salva de quem já usava continua valendo. */
   updateGranLabel() {
     const el = document.getElementById('reforco-gran');
-    if (!el) return;
-    const g = parseInt(el.value, 10) / 100;
-    const lbl = document.getElementById('reforco-gran-label');
-    if (lbl) lbl.textContent = g < 0.33 ? 'Disciplina' : g > 0.66 ? 'Tópico' : 'Assunto (auto)';
+    const tog = document.getElementById('reforco-gran-toggle');
+    if (!el || !tog) return;
+    const v = parseInt(el.value, 10);
+    const alvo = v < 33 ? '0' : v > 66 ? '100' : '50';
+    if (String(v) !== alvo) el.value = alvo;   // normaliza valores antigos do cursor
+    tog.querySelectorAll('button[data-gran]').forEach(b => b.classList.toggle('active', b.dataset.gran === alvo));
   },
   renderReforcoList() {
     const list = document.getElementById('reforco-list');
@@ -2239,7 +2471,12 @@ const DesempenhoTecScreen = {
     const gEl = document.getElementById('reforco-gran');
     const ordEl = document.getElementById('reforco-ordenar');
     const ordenarPor = ordEl ? ordEl.value : 'oportunidade';
+    /* O teto (acerto máximo realista) era 0.90 fixo no motor, enquanto o Plano
+       já expõe esse mesmo conceito como ajuste. Duas telas, dois tetos, um
+       deles invisível. Agora o Reforço lê o do Plano. */
+    const tetoPlano = (typeof PlanoEngine !== 'undefined') ? Math.max(50, Math.min(100, PlanoEngine.prefs().tetoDominio)) / 100 : 0.90;
     const res = ReforcoEngine.suggestFrontier(snap, {
+      teto: tetoPlano,
       banca: $id('reforco-banca').value,
       estrategia: parseInt($id('reforco-estrat').value, 10) / 100,
       granularidade: gEl ? parseInt(gEl.value, 10) / 100 : 0.5,
@@ -2283,9 +2520,26 @@ const DesempenhoTecScreen = {
     // status
     const parts = [];
     if (!res.fresh && res.snapDate) parts.push(`<span style="color:var(--warn)">⚠ Retrato mais recente (${formatDateShort(res.snapDate)}) tem mais de 3 meses — reimporte para dados atuais.</span>`);
-    if (!res.hasAnyIncid) parts.push('Sem incidência cadastrada — o reforço prioriza só pelo seu erro. Cadastre a incidência da banca (aba Incidência) para priorizar por pontos.');
+    if (!res.hasAnyIncid) parts.push(`<b>${res.totalErros}</b> assunto(s) no ranking, ordenados <b>só pelo seu erro</b> — sem incidência cadastrada não há como saber o que a prova cobra. Importe o índice da banca em <b>🏛️ Incidência</b> para a fila passar a valer pontos de prova.`);
     else parts.push(`<b>${res.totalErros}</b> unidade(s) no ranking de erros · <b>${res.totalCegos}</b> ponto(s) cego(s) · fronteira com <b>${res.totalUnidades}</b> unidade(s), sem dupla contagem.`);
     status.innerHTML = parts.join(' · ');
+    /* ── NOME QUE NÃO CASOU NÃO É PONTO CEGO ─────────────────────────────────
+       Uma unidade da banca sem nenhuma linha de desempenho correspondente ia
+       para "🕳️ você quase não praticou" — mesmo que você tivesse trezentas
+       questões resolvidas ali sob outro nome. São coisas opostas: uma pede
+       estudo, a outra pede acertar o nome. */
+    const avisoEl = document.getElementById('reforco-casamento');
+    if (avisoEl) {
+      const n = res.totalSemCasamento || 0;
+      if (!n) avisoEl.innerHTML = '';
+      else avisoEl.innerHTML = `<div class="rfc-casamento">
+        <b>⚠ ${n} ${n === 1 ? 'assunto da banca não casou' : 'assuntos da banca não casaram'} com nenhum nome do seu desempenho.</b>
+        Eles ficam fora do ranking e <b>não</b> entram como ponto cego — sem casar, o app não sabe se você praticou ou não.
+        Costuma ser diferença de nome entre o índice do caderno e o seu relatório de desempenho.
+        ${res.casadosPorNome ? `Outros ${res.casadosPorNome} casaram só pelo nome do tópico, sem bater a disciplina.` : ''}
+        <span class="rfc-casamento-lista">${res.semCasamento.map(x => escapeHtml(x.nome) + ' (' + escapeHtml(x.disciplina || '—') + ', N=' + x.incidencia + ')').join(' · ')}</span>
+      </div>`;
+    }
     // Renderiza conforme a visão escolhida: global (ranking) ou por disciplina (acordeão)
     if ((this.reforcoView || 'global') === 'disc') {
       this._renderReforcoPorDisciplina(list, res);
@@ -2355,7 +2609,9 @@ const DesempenhoTecScreen = {
             <span class="reforco-tag tone-${tone}">${it.taxaErro}% erro · ${it.erros}/${it.questoes}</span>
             ${it.temIncid
               ? `<span class="reforco-tag incid">incidência ${it.incidencia}</span><span class="reforco-tag pts">~${it.pontosRecuperaveis} pts recuperáveis</span>`
-              : `<span class="reforco-tag semincid">sem incidência</span>`}
+              : (it.pontosRecuperaveis > 0
+                  ? `<span class="reforco-tag pts" title="Questões que você passaria a acertar na SUA amostra ao levar este assunto ao máximo realista. Sem incidência importada não dá para falar em pontos da prova.">~${it.pontosRecuperaveis} questões recuperáveis</span>`
+                  : `<span class="reforco-tag semincid">sem incidência</span>`)}
             ${semClassTag}
           </div>
         </div>
@@ -2363,7 +2619,15 @@ const DesempenhoTecScreen = {
   },
   _renderReforcoGlobal(list, res) {
     if (!res.items.length) {
-      list.innerHTML = `<div class="evo-empty-mini">Nenhum ponto fraco com amostra suficiente. Diminua o "mínimo de questões", mude a granularidade, ou importe/consolide mais retratos.</div>`;
+      /* A mensagem antiga mandava baixar o mínimo de questões ou mudar a
+         granularidade — conselhos que não resolvem quando a causa é outra.
+         Agora o texto depende do motivo real de a lista estar vazia. */
+      const motivo = (res.totalSemCasamento && !res.totalUnidades)
+        ? 'Nenhum assunto da banca casou com o seu desempenho — confira os nomes no índice importado.'
+        : (res.totalUnidades === 0)
+          ? 'Nenhum assunto com questões resolvidas no escopo atual. Importe um retrato em <b>📊 Análise</b> ou amplie o escopo.'
+          : 'Nenhum assunto passou do mínimo de questões com erro a corrigir. Baixe o "mín. de questões" nos ajustes, mude a granularidade para Disciplina, ou amplie o escopo.';
+      list.innerHTML = `<div class="evo-empty-mini">${motivo}</div>`;
       return;
     }
     list.innerHTML = res.items.map((it, i) => this._reforcoItemHtml(it, i + 1)).join('');
@@ -2443,14 +2707,19 @@ const DesempenhoTecScreen = {
   toneOf(pct) { return pct >= 70 ? 'good' : pct >= 50 ? 'warn' : 'bad'; },
   renderTotais(snap) {
     const tot = TecEngine.totais(snap);
+    /* O delta compara RETRATO com RETRATO — o último do escopo contra o
+       anterior. Antes confrontava o agregado do escopo inteiro (que pode somar
+       cinco retratos) com um retrato só: números de tamanhos diferentes, com
+       uma seta em cima dando ares de comparação. */
+    const ult = this.ultimoSnapDoEscopo();
     const prev = this.prevSnap();
     let deltaHtml = '';
-    if (prev) {
-      const pt = TecEngine.totais(prev);
-      const d = Math.round((tot.pct - pt.pct) * 10) / 10;
+    if (ult && prev) {
+      const d = Math.round((TecEngine.totais(ult).pct - TecEngine.totais(prev).pct) * 10) / 10;
       const cls = d > 0 ? 'up' : d < 0 ? 'down' : 'flat';
       const arrow = d > 0 ? '▲' : d < 0 ? '▼' : '=';
-      deltaHtml = `<span class="tec-delta ${cls}">${arrow} ${d > 0 ? '+' : ''}${d} p.p.</span>`;
+      const rot = escapeHtml('Último retrato contra o anterior · ' + (this.rotuloComparacao() || '') + ' · p.p. = pontos percentuais');
+      deltaHtml = `<span class="tec-delta ${cls}" title="${rot}">${arrow} ${d > 0 ? '+' : ''}${d} p.p.</span>`;
     }
     // cor do aproveitamento pela MESMA regra do resto do app (metas de ⚙ Metas)
     const TOM = { good: 'var(--good)', warn: 'var(--warn)', bad: 'var(--bad, #e0393f)' };
@@ -2477,16 +2746,35 @@ const DesempenhoTecScreen = {
         <div class="val">${tot.disciplinas}</div>
         <div class="lbl">Disciplinas</div>
       </div>
+      ${/* O que o número grande contém nunca esteve escrito: é a soma das
+            DISCIPLINAS do escopo (não a média dos tópicos), e o escopo pode
+            juntar vários retratos. Sem essa linha, "72%" tanto podia ser a
+            vida inteira quanto o último mês. */''}
+      <p class="tec-totais-legenda">
+        Soma das <b>${tot.disciplinas}</b> ${tot.disciplinas === 1 ? 'disciplina' : 'disciplinas'} do escopo${snap.count > 1 ? ` — <b>${snap.count} retratos</b> juntos` : ''}${snap.startDate ? ` · ${formatDateShort(snap.startDate)} a ${formatDateShort(snap.endDate)}` : ''}.
+        ${(ult && prev)
+          ? `O <b>▲▼</b> compara o último retrato com o anterior (${escapeHtml(this.rotuloComparacao() || '')}) — <b>p.p.</b> é ponto percentual.`
+          : 'Com um só retrato no escopo ainda não há com o que comparar: importe outro período para ver a evolução.'}
+      </p>
     `;
   },
   weakDisc: '__todas__', // '__todas__' = todas (agrupadas) | nome = só aquela disciplina
   weakRowHtml(f, showDisc) {
     const tone = this.toneOf(f.pctAcerto);
+    /* MARGEM DE ERRO na linha. Sem ela, "33%" em três questões e "33%" em
+       trezentas tinham exatamente a mesma cara — e a lista, ordenada por
+       percentual, colocava a primeira acima da segunda. A margem é a diferença
+       entre um diagnóstico e um palpite, e agora está escrita ao lado do
+       número que a pessoa vai usar para decidir o que estudar. */
+    const m = (typeof PlanoEngine !== 'undefined') ? PlanoEngine.margemErro(f.pctAcerto, f.questoes) : null;
+    const erros = Math.max(0, (f.questoes || 0) - (f.acertos || 0));
+    const frouxa = m != null && m >= 15;
     return `
       <div class="weak-row">
         <div class="weak-info">
           <div class="wname">${escapeHtml(f.nome)}</div>
           ${showDisc ? `<div class="wdisc">${escapeHtml(f.disciplina)}</div>` : ''}
+          <div class="wmeta">${erros} ${erros === 1 ? 'erro' : 'erros'}${m != null ? ` · ±${m.toFixed(0)}pp` : ''}${frouxa ? ' <b title="Com esta amostra a taxa real pode estar dezenas de pontos acima ou abaixo — resolva mais questões antes de tratar isto como fraqueza.">amostra curta</b>' : ''}</div>
         </div>
         <div class="weak-track"><div class="weak-fill tone-${tone}" style="width:${f.pctAcerto}%;"></div></div>
         <div class="weak-pct tone-${tone}">${f.pctAcerto}%<span class="q">${f.acertos}/${f.questoes}</span></div>
@@ -2496,11 +2784,24 @@ const DesempenhoTecScreen = {
     const limiar = parseInt($id('tec-weak-threshold').value, 10) || 70;
     const minQ = parseInt($id('tec-weak-minq').value, 10) || 1;
     const leaves = $id('tec-weak-leaves').checked;
+    const ordEl = document.getElementById('tec-weak-ordenar');
+    const modo = ordEl ? ordEl.value : 'taxa';
+    this.savePrefs({ weakLimiar: limiar, weakMinQ: minQ, weakLeaves: leaves, weakOrdenar: modo });
     const container = document.getElementById('tec-weak-list');
     const sel = document.getElementById('tec-weak-disc');
 
     // todos os pontos fracos do retrato (já ordenados do pior para o melhor)
     const todos = TecEngine.pontosFracos(snap, { minQuestoes: minQ, limiar, apenasFolhas: leaves });
+    /* DOIS MODOS DE LEITURA, porque são duas perguntas diferentes:
+         taxa    — "onde eu erro mais por questão?" (a pior taxa primeiro)
+         impacto — "onde eu perco mais questões?"   (o maior número de erros)
+       A lista só existia no primeiro modo, e com ele um tópico de 3 questões a
+       33% ficava acima de um de 300 a 45%: o topo de "onde focar" era, na
+       prática, uma lista de amostras pequenas. */
+    const erroDe = (f) => Math.max(0, (f.questoes || 0) - (f.acertos || 0));
+    const ordenar = (lista) => lista.slice().sort((a, b) => modo === 'impacto'
+      ? (erroDe(b) - erroDe(a) || a.pctAcerto - b.pctAcerto)
+      : (a.pctAcerto - b.pctAcerto || b.questoes - a.questoes));
 
     // popula o seletor: disciplinas que possuem ao menos um ponto fraco, ordenadas pela mais fraca
     const discPct = Object.fromEntries(TecEngine.disciplinas(snap).map(d => [d.nome, this.nodePct(d)]));
@@ -2518,10 +2819,16 @@ const DesempenhoTecScreen = {
       return;
     }
 
+    // legenda: o que a lista está respondendo agora, e com que régua
+    const legenda = `<p class="weak-legenda">${modo === 'impacto'
+      ? 'Ordenado por <b>erros absolutos</b>: onde você perde mais questões, mesmo que a taxa não seja a pior.'
+      : 'Ordenado pela <b>pior taxa de acerto</b>: onde você mais erra por questão resolvida.'}
+      Entram os tópicos abaixo de <b>${limiar}%</b> com pelo menos <b>${minQ}</b> ${minQ === 1 ? 'questão' : 'questões'} — o limiar vem da meta do 🏁 Plano e pode ser mudado aqui.</p>`;
+
     // FILTRO: uma disciplina específica → lista plana, só dela
     if (this.weakDisc !== '__todas__') {
-      const lista = todos.filter(f => f.disciplina === this.weakDisc);
-      container.innerHTML = lista.map(f => this.weakRowHtml(f, false)).join('');
+      const lista = ordenar(todos.filter(f => f.disciplina === this.weakDisc));
+      container.innerHTML = legenda + lista.map(f => this.weakRowHtml(f, false)).join('');
       return;
     }
 
@@ -2529,9 +2836,13 @@ const DesempenhoTecScreen = {
     // e dentro dela os tópicos do pior para o melhor
     const grupos = {};
     todos.forEach(f => { (grupos[f.disciplina] = grupos[f.disciplina] || []).push(f); });
-    const ordemDisc = Object.keys(grupos).sort((a, b) => (discPct[a] ?? 100) - (discPct[b] ?? 100));
-    container.innerHTML = ordemDisc.map(disc => {
-      const itens = grupos[disc].sort((a, b) => a.pctAcerto - b.pctAcerto || b.questoes - a.questoes);
+    const errosDisc = {};
+    Object.keys(grupos).forEach(d => { errosDisc[d] = grupos[d].reduce((a, f) => a + erroDe(f), 0); });
+    const ordemDisc = Object.keys(grupos).sort((a, b) => modo === 'impacto'
+      ? (errosDisc[b] - errosDisc[a])
+      : ((discPct[a] ?? 100) - (discPct[b] ?? 100)));
+    container.innerHTML = legenda + ordemDisc.map(disc => {
+      const itens = ordenar(grupos[disc]);
       const dp = discPct[disc];
       const tone = dp !== undefined ? this.toneOf(dp) : 'bad';
       return `
@@ -2553,23 +2864,32 @@ const DesempenhoTecScreen = {
     if (n.pctAcerto !== null && n.pctAcerto !== undefined) return n.pctAcerto;
     return n.questoes > 0 ? Math.round((n.acertos / n.questoes) * 1000) / 10 : 0;
   },
-  // Índice pct do retrato anterior por chave disciplina|codigo, para mostrar a evolução em cada nó
-  prevPctIndex() {
-    const prev = this.prevSnap();
-    if (!prev) return null;
+  // Índice de % por chave disciplina|codigo de UM retrato
+  pctIndexOf(snap) {
+    if (!snap) return null;
     const idx = {};
-    prev.rows.forEach(r => { idx[(r.disciplina || '') + '|' + (r.codigo || '')] = this.nodePct(r); });
+    (snap.rows || []).forEach(r => { idx[(r.disciplina || '') + '|' + (r.codigo || '')] = this.nodePct(r); });
     return idx;
   },
-  deltaHtml(node, prevIdx) {
-    if (!prevIdx) return '';
+  /* Os dois lados da comparação, sempre de retratos individuais. O % exibido no
+     nó continua sendo o do ESCOPO (que pode agregar vários); o ▲▼ mede a
+     variação entre o último retrato e o anterior — e diz isso no título, para
+     que os dois números nunca sejam lidos como a mesma coisa. */
+  parIndices() {
+    const u = this.pctIndexOf(this.ultimoSnapDoEscopo());
+    const p = this.pctIndexOf(this.prevSnap());
+    return (u && p) ? { u, p, rotulo: this.rotuloComparacao() } : null;
+  },
+  deltaHtml(node, par) {
+    if (!par) return '';
     const key = (node.disciplina || '') + '|' + (node.codigo || '');
-    if (prevIdx[key] === undefined) return '';
-    const diff = Math.round((this.nodePct(node) - prevIdx[key]) * 10) / 10;
-    if (diff === 0) return `<span class="tec-delta flat">=</span>`;
+    if (par.u[key] === undefined || par.p[key] === undefined) return '';
+    const diff = Math.round((par.u[key] - par.p[key]) * 10) / 10;
+    const t = escapeHtml('Último retrato contra o anterior · ' + (par.rotulo || ''));
+    if (diff === 0) return `<span class="tec-delta flat" title="${t}">=</span>`;
     const cls = diff > 0 ? 'up' : 'down';
     const arrow = diff > 0 ? '▲' : '▼';
-    return `<span class="tec-delta ${cls}">${arrow} ${diff > 0 ? '+' : ''}${diff}</span>`;
+    return `<span class="tec-delta ${cls}" title="${t}">${arrow} ${diff > 0 ? '+' : ''}${diff}</span>`;
   },
   /* ── ÁRVORE SOB DEMANDA ────────────────────────────────────────────────────
      Antes, a árvore inteira do caderno virava HTML de uma vez — milhares de nós
@@ -2645,7 +2965,7 @@ const DesempenhoTecScreen = {
     // árvore completa, ordenada do pior para o melhor aproveitamento
     // (desempate: quem tem mais questões aparece antes)
     let forest = TecEngine.buildTree(snap).sort((a, b) => this.nodePct(a) - this.nodePct(b) || b.questoes - a.questoes);
-    const prevIdx = this.prevPctIndex();
+    const prevIdx = this.parIndices();
     if (forest.length === 0) {
       focusEl.innerHTML = '';
       container.innerHTML = `<p class="wd-empty" style="padding:12px 0;">Sem dados neste retrato.</p>`;
@@ -2833,11 +3153,17 @@ document.querySelectorAll('.tec-range-quick').forEach(btn => btn.addEventListene
   DesempenhoTecScreen.renderAnalysis();
   if (DesempenhoTecScreen.tecTab === 'reforco') DesempenhoTecScreen.renderReforco();
 }));
-['tec-weak-threshold', 'tec-weak-minq', 'tec-weak-leaves'].forEach(id => {
-  document.getElementById(id).addEventListener('input', () => {
+/* `input` cobre número e caixa de seleção; `change` é o que um <select>
+   dispara. Sem os dois, o seletor de ordem nasceria decorativo. */
+['tec-weak-threshold', 'tec-weak-minq', 'tec-weak-leaves', 'tec-weak-ordenar'].forEach(id => {
+  const el = document.getElementById(id);
+  if (!el) return;
+  const repintar = () => {
     const snap = DesempenhoTecScreen.scopedSnapshot();
     if (snap) DesempenhoTecScreen.renderWeak(snap);
-  });
+  };
+  el.addEventListener('input', repintar);
+  el.addEventListener('change', repintar);
 });
 $id('tec-weak-disc').addEventListener('change', (e) => {
   DesempenhoTecScreen.weakDisc = e.target.value;
@@ -2852,6 +3178,7 @@ $id('tec-weak-disc').addEventListener('change', (e) => {
   // Incidência
   on('incid-text', 'input', () => DT.updateIncidPreview());
   on('incid-banca', 'input', () => DT.updateIncidPreview());
+  on('incid-replace', 'change', () => DT.updateIncidPreview());
   on('incid-save', 'click', () => DT.saveIncidencia());
   const idz = document.getElementById('incid-dropzone');
   if (idz) {
@@ -2923,7 +3250,18 @@ $id('tec-weak-disc').addEventListener('change', (e) => {
   on('reforco-minq', 'input', (e) => { DT.savePrefs({ minq: e.target.value }); DT.renderReforcoList(); });
   on('reforco-limite', 'input', (e) => { DT.savePrefs({ limite: e.target.value }); DT.renderReforcoList(); });
   on('reforco-estrat', 'input', (e) => { DT.savePrefs({ estrat: e.target.value }); DT.updateEstratLabel(); DT.renderReforcoList(); });
-  on('reforco-gran', 'input', (e) => { DT.savePrefs({ gran: e.target.value }); DT.updateGranLabel(); DT.renderReforcoList(); });
+  {
+    const tog = document.getElementById('reforco-gran-toggle');
+    if (tog) tog.addEventListener('click', (e) => {
+      const b = e.target.closest('button[data-gran]');
+      if (!b) return;
+      const el = document.getElementById('reforco-gran');
+      if (el) el.value = b.dataset.gran;
+      DT.savePrefs({ gran: b.dataset.gran });
+      DT.updateGranLabel();
+      DT.renderReforcoList();
+    });
+  }
   on('reforco-ordenar', 'change', (e) => { DT.savePrefs({ ordenar: e.target.value }); DT.renderReforcoList(); }); // #1 Ordenar por
   // alternador de visão: ranking global x por disciplina
   const vt = document.getElementById('reforco-view-toggle');

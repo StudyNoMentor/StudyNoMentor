@@ -881,13 +881,20 @@ try {
   const plano = await pag.evaluate(() => {
     const dia = (n) => { const d = new Date(todayLocal() + 'T00:00:00'); d.setDate(d.getDate() - n); return d.toISOString().slice(0, 10); };
     const L = (c, n, disc, q, ac) => ({ depth: 1, codigo: c, nome: n, disciplina: disc, questoes: q, acertos: ac });
+    // linha de DISCIPLINA (o export do TEC traz uma para cada): é dela que saem
+    // os totais e é nela que o Reforco procura o desempenho do ramo inteiro
+    const D = (n, q, ac) => ({ depth: 0, codigo: null, nome: n, disciplina: n, questoes: q, acertos: ac });
     const R = (id, i, f, rows) => ({ id, nome: id, date: f, startDate: i, endDate: f, rows });
     DB._set(DB.KEYS.tec, [
-      R('r1', dia(120), dia(95), [L('01', 'Controle de constitucionalidade', 'Direito Constitucional', 100, 40),
-        L('02', 'Licitacoes', 'Direito Administrativo', 500, 240), L('03', 'Crase', 'Portugues', 20, 15)]),
-      R('r2', dia(30), dia(5), [L('01', 'Controle de constitucionalidade', 'Direito Constitucional', 50, 30),
-        L('02', 'Licitacoes', 'Direito Administrativo', 100, 50), L('03', 'Crase', 'Portugues', 40, 34),
-        L('04', 'Orcamento publico', 'AFO', 8, 3)])
+      R('r1', dia(120), dia(95), [
+        D('Direito Constitucional', 100, 40), L('01', 'Controle de constitucionalidade', 'Direito Constitucional', 100, 40),
+        D('Direito Administrativo', 500, 240), L('01', 'Licitacoes', 'Direito Administrativo', 500, 240),
+        D('Portugues', 20, 15), L('01', 'Crase', 'Portugues', 20, 15)]),
+      R('r2', dia(30), dia(5), [
+        D('Direito Constitucional', 50, 30), L('01', 'Controle de constitucionalidade', 'Direito Constitucional', 50, 30),
+        D('Direito Administrativo', 100, 50), L('01', 'Licitacoes', 'Direito Administrativo', 100, 50),
+        D('Portugues', 52, 37), L('01', 'Crase', 'Portugues', 40, 34), L('02', 'Ortografia', 'Portugues', 12, 3),
+        D('AFO', 8, 3), L('01', 'Orcamento publico', 'AFO', 8, 3)])
     ]);
     ['Direito Constitucional', 'Direito Administrativo', 'Portugues', 'AFO', 'Direito Penal']
       .forEach((n) => { if (!DB.getSubjects().some((s) => s.nome === n)) DB.addSubject({ nome: n }); });
@@ -965,6 +972,134 @@ try {
   await pag.setViewportSize({ width: 1280, height: 900 });
 } catch (e) { erro('o Plano nao renderizou com dado real: ' + e.message); }
 
+
+/* ── 6.9) AS OUTRAS TRES ABAS DO DESEMPENHO TEC ────────────────────────────
+   Analise, Incidencia e Reforco tinham a mesma sorte que o Plano tinha antes:
+   nenhuma checagem chegava nelas com dado de verdade. As invariantes abaixo
+   sao as que, quando quebram, quebram calado — um numero plausivel no lugar
+   de um numero certo. */
+console.log('\n6.9) Analise, Incidencia e Reforco com dado real');
+try {
+  await pag.setViewportSize({ width: 360, height: 780 });
+  // ── ANALISE ──────────────────────────────────────────────────────────────
+  const an = await pag.evaluate(async () => {
+    DesempenhoTecScreen.switchTecTab('analise');
+    DesempenhoTecScreen.renderAnalysis();
+    await new Promise((r) => setTimeout(r, 150));
+    /* textContent, nao innerText: `.weak-row` usa content-visibility:auto, e o
+       que esta fora da tela some do innerText — o teste reprovaria o app por
+       uma otimizacao de render. */
+    const txt = (s) => { const e = document.querySelector(s); return e ? e.textContent : ''; };
+    const antes = [...document.querySelectorAll('#tec-weak-list .weak-row .wname')].map((e) => e.textContent);
+    const sel = document.getElementById('tec-weak-ordenar');
+    sel.value = 'impacto'; sel.dispatchEvent(new Event('change', { bubbles: true }));
+    await new Promise((r) => setTimeout(r, 150));
+    const depois = [...document.querySelectorAll('#tec-weak-list .weak-row .wname')].map((e) => e.textContent);
+    sel.value = 'taxa'; sel.dispatchEvent(new Event('change', { bubbles: true }));
+    await new Promise((r) => setTimeout(r, 120));
+    return {
+      legenda: !!document.querySelector('#tec-weak-list .weak-legenda'),
+      margem: /±\d+pp/.test(txt('#tec-weak-list')),
+      delta: !!document.querySelector('#tec-totais .tec-delta'),
+      legendaTotais: /compara o último retrato/i.test(txt('#tec-totais')),
+      ordemTaxa: antes.join('|'),
+      limiar: document.getElementById('tec-weak-threshold').value,
+      metaPlano: String(PlanoEngine.prefs().metaDominio),
+      mudouOrdem: antes.join('|') !== depois.join('|'),
+      itens: antes.length
+    };
+  });
+  an.legenda ? ok('pontos fracos trazem a legenda do criterio') : erro('legenda dos pontos fracos ausente');
+  an.margem ? ok('cada ponto fraco mostra a margem de erro (±pp)') : erro('a margem de erro nao aparece nos pontos fracos');
+  an.delta && an.legendaTotais
+    ? ok('a evolucao aparece no escopo consolidado, dizendo o que compara')
+    : erro('o delta do aproveitamento nao aparece no escopo padrao: ' + JSON.stringify(an));
+  an.limiar === an.metaPlano ? ok(`o limiar de ponto fraco nasce da meta do Plano (${an.limiar}%)`)
+    : erro(`limiar ${an.limiar}% divergente da meta do Plano ${an.metaPlano}%`);
+  an.mudouOrdem ? ok('o modo "mais erros" produz uma fila diferente de "pior taxa"')
+    : erro('os dois modos de leitura dos pontos fracos dao a mesma lista');
+
+  // ── INCIDENCIA: importar duas vezes nao pode dobrar ──────────────────────
+  const inc = await pag.evaluate(async () => {
+    const linhas = [
+      { disciplina: 'Direito Administrativo', topico: 'Licitacoes', incidencia: 40, codigo: '01', depth: 1 },
+      // este NAO existe no desempenho: tem de virar aviso de casamento, nunca ponto cego
+      { disciplina: 'Direito Administrativo', topico: 'Improbidade', incidencia: 25, codigo: '02', depth: 1 },
+      { disciplina: 'Direito Constitucional', topico: 'Controle de constitucionalidade', incidencia: 30, codigo: '01', depth: 1 }
+    ];
+    DB.saveIncidencia([]);
+    const a = DB.addIncidenciaRows('FGV', linhas, true);
+    const b = DB.addIncidenciaRows('FGV', linhas, false);   // de novo, SEM substituir
+    const total = DB.getIncidencia().filter((r) => r.banca === 'FGV').reduce((s, r) => s + r.incidencia, 0);
+    const n = DB.getIncidencia().filter((r) => r.banca === 'FGV').length;
+    DB.renameIncidenciaBanca('FGV', 'FGV 2026');
+    const renomeou = DB.getIncidencia().every((r) => r.banca !== 'FGV') && DB.getBancas().indexOf('FGV 2026') >= 0;
+    DB.renameIncidenciaBanca('FGV 2026', 'FGV');
+    return { primeira: a, segunda: b, total, n, renomeou };
+  });
+  (inc.n === 3 && inc.total === 95 && inc.segunda.repetidas === 3 && inc.segunda.novas === 0)
+    ? ok('reimportar a mesma incidencia atualiza em vez de dobrar (3 linhas, 95 questoes)')
+    : erro('a incidencia duplicou ao reimportar: ' + JSON.stringify(inc));
+  inc.renomeou ? ok('renomear uma banca preserva o que ja foi importado') : erro('renomear banca nao funcionou');
+
+  // ── REFORCO ──────────────────────────────────────────────────────────────
+  const rf = await pag.evaluate(async () => {
+    const ler = () => ({
+      itens: document.querySelectorAll('#reforco-list .reforco-row').length,
+      status: (document.getElementById('reforco-status') || {}).innerText || '',
+      casamento: (document.getElementById('reforco-casamento') || {}).innerText || ''
+    });
+    // 1) SEM incidencia: a aba tem de funcionar pelo erro puro
+    const guardado = DB.getIncidencia();
+    DB.saveIncidencia([]);
+    DesempenhoTecScreen.switchTecTab('reforco');
+    await new Promise((r) => setTimeout(r, 250));
+    const sem = ler();
+    // 2) COM incidencia
+    DB.saveIncidencia(guardado);
+    DesempenhoTecScreen.renderReforco();
+    await new Promise((r) => setTimeout(r, 250));
+    const com = ler();
+    // 3) granularidade em tres estados
+    const tog = document.getElementById('reforco-gran-toggle');
+    const antes = document.getElementById('reforco-gran').value;
+    tog.querySelector('button[data-gran="0"]').click();
+    await new Promise((r) => setTimeout(r, 200));
+    const gran = { valor: document.getElementById('reforco-gran').value, ativos: tog.querySelectorAll('button.active').length };
+    tog.querySelector('button[data-gran="' + antes + '"]').click();
+    await new Promise((r) => setTimeout(r, 200));
+    return { sem, com, gran };
+  });
+  rf.sem.itens > 0 ? ok(`sem incidencia o Reforco ordena pelo seu erro (${rf.sem.itens} assuntos)`)
+    : erro('sem incidencia o Reforco continua vazio: ' + JSON.stringify(rf.sem));
+  /^(?!.*prioriza só pelo seu erro\.).*$/.test(rf.sem.status) && /só pelo seu erro/.test(rf.sem.status)
+    ? ok('e o status explica que a fila esta cega para a prova')
+    : erro('status do Reforco sem incidencia: ' + rf.sem.status.slice(0, 120));
+  rf.com.itens > 0 ? ok(`com incidencia o ranking cruza banca e erro (${rf.com.itens} unidades)`)
+    : erro('o Reforco com incidencia veio vazio');
+  /Improbidade/.test(rf.com.casamento)
+    ? ok('assunto da banca sem correspondencia vira aviso de casamento, nao ponto cego')
+    : erro('o aviso de casamento nao apareceu: ' + rf.com.casamento.slice(0, 120));
+  (rf.gran.valor === '0' && rf.gran.ativos === 1)
+    ? ok('granularidade e um seletor de tres estados, nao um cursor de 101')
+    : erro('o seletor de granularidade nao respondeu: ' + JSON.stringify(rf.gran));
+
+  // ── "i" em todos os controles das tres abas ─────────────────────────────
+  const dicas = await pag.evaluate(() => {
+    const alvos = ['#tec-panel-analise', '#tec-panel-incidencia', '#tec-panel-reforco'];
+    let sem = [];
+    alvos.forEach((a) => {
+      document.querySelectorAll(a + ' .field > label, ' + a + ' .rfc-field > label').forEach((l) => {
+        if (!l.querySelector('.info-dot') && !l.closest('[hidden]')) sem.push(a + ' ' + (l.textContent || '').trim().slice(0, 24));
+      });
+    });
+    return sem;
+  });
+  dicas.length === 0 ? ok('todos os controles das tres abas tem dica explicativa')
+    : erro(`${dicas.length} controle(s) sem "i": ` + dicas.slice(0, 6).join(' | '));
+  await pag.setViewportSize({ width: 1280, height: 900 });
+} catch (e) { erro('as tres abas nao renderizaram com dado real: ' + e.message); }
+
 console.log('\n7) contraste WCAG AA (temas claro e escuro)');
 /* Transicoes e animacoes desligadas durante a medicao. Sem isto, medir logo
    apos uma troca de tela pega a cor INTERMEDIARIA de uma transicao (a aba ativa
@@ -1016,6 +1151,15 @@ try {
     for (const t of telas) {
       await pag.evaluate((n) => { try { switchScreen(n); } catch (e) {} }, t);
       await pag.waitForTimeout(150);
+      (await pag.evaluate(MEDIR)).forEach((x) => achados.add(x));
+    }
+    /* As quatro abas do Desempenho TEC sao PAINEIS dentro da mesma tela: o laco
+       acima mede so a que estiver aberta. Sem passar por todas, tres quartos da
+       maior tela do app ficam fora da medicao de contraste — foi assim que o
+       numero dos passos do Plano ficou em 1,65:1 sem ninguem ver. */
+    for (const aba of ['analise', 'incidencia', 'reforco', 'plano']) {
+      await pag.evaluate((t) => { try { switchScreen('desempenhotec'); DesempenhoTecScreen.switchTecTab(t); } catch (e) {} }, aba);
+      await pag.waitForTimeout(220);
       (await pag.evaluate(MEDIR)).forEach((x) => achados.add(x));
     }
     // o aviso flutuante so existe depois de disparado
