@@ -1255,10 +1255,16 @@ const AutoTeste = {
       this._ok('Plano: com custo por lacuna, "retorno" tem fila própria',
         lac.equivalentes.indexOf('pior') < 0, lac.equivalentes);
       /* As duas ordens que davam sempre a mesma fila saíram do seletor. Se
-         alguém as trouxer de volta, este teste cai. */
-      this._ok('Plano: o seletor tem 5 ordens, sem gêmeas de fábrica',
-        Object.keys(P.ORDENS).length === 5 && !P.ORDENS.ganhoDominio && !P.ORDENS.volume,
-        Object.keys(P.ORDENS));
+         alguém as trouxer de volta, este teste cai.
+
+         "Mais pontos na prova" não conta aqui: ela só existe depois do edital,
+         porque só aí existe prova com composição. Uma ordem que não ordena
+         nada é a forma mais rápida de a pessoa perder a confiança na tela. */
+      const sempre = Object.keys(P.ORDENS).filter(k => !P.ORDENS[k].soPos);
+      this._ok('Plano: o seletor tem 5 ordens de sempre, sem gêmeas de fábrica',
+        sempre.length === 5 && !P.ORDENS.ganhoDominio && !P.ORDENS.volume, sempre);
+      this._ok('Plano: e uma sexta que só existe com edital publicado',
+        !!(P.ORDENS.pontos && P.ORDENS.pontos.soPos), Object.keys(P.ORDENS));
       this._ok('Plano: a meta padrão é 85%', P.DEFAULTS.metaDominio === 85, P.DEFAULTS.metaDominio);
       /* Uma preferência antiga (ou um dado vindo de fora) com uma ordem que não
          existe mais tem de cair onde a migração manda — nunca numa terceira
@@ -1302,6 +1308,22 @@ const AutoTeste = {
       this._ok('Plano: quem escolheu proporcional mantém a escolha', P.prefs().custoModo === 'proporcional');
       DB.setRaw(chave, JSON.stringify({ custoModo: 'fixo', migracao: 2 }));
       this._ok('Plano: escolher fixo DEPOIS da migração é respeitado', P.prefs().custoModo === 'fixo');
+      /* MIGRAÇÃO É DEGRAU, NÃO PORTEIRA. O teste que faltava: a migração 2
+         disparava com `!== 2`, e a migração seguinte grava `migracao: 3` — três
+         é diferente de dois, então ela voltava a rodar em TODA leitura e forçava
+         o custo de volta ao padrão de fábrica. Os dois campos de custo dos
+         ajustes avançados não guardavam nada: você digitava 4, a tela mostrava
+         4, e a leitura seguinte devolvia 2. */
+      DB.setRaw(chave, JSON.stringify({ custoPorPonto: 4, custoPiso: 90, migracao: 3 }));
+      this._ok('Plano: uma migração já cumprida não roda de novo e não pisa no que você ajustou',
+        P.prefs().custoPorPonto === 4 && P.prefs().custoPiso === 90,
+        { porPonto: P.prefs().custoPorPonto, piso: P.prefs().custoPiso });
+      DB.delRaw(chave);
+      P.salvarPrefs({ custoPorPonto: 7.5 });
+      P.salvarPrefs({ custoPiso: 120 });
+      this._ok('Plano: e dois salvamentos seguidos não desfazem um ao outro',
+        P.prefs().custoPorPonto === 7.5 && P.prefs().custoPiso === 120,
+        { porPonto: P.prefs().custoPorPonto, piso: P.prefs().custoPiso });
     } finally {
       if (antesPrefs == null) DB.delRaw(chave); else DB.setRaw(chave, antesPrefs);
     }
@@ -1537,6 +1559,274 @@ const AutoTeste = {
       this._ok('Plano: nome diferente nunca casa',
         !T._casaTopico({ topico: 'Atos', disciplina: 'X' }, 'Contratos', 'X'));
       this._ok('Plano: origem ausente não casa com nada', !T._casaTopico(null, 'Atos', 'X'));
+    }
+  },
+
+
+  /* ═══ O CICLO DE UMA ATIVIDADE DO PLANO ════════════════════════════════════
+     decidi · fiz · funcionou? O app media tudo e não fechava nada: o progresso
+     só andava se você digitasse (contabilidade dobrada sobre o mesmo fato), e o
+     desfecho não existia — o assunto ia de 40% a 95%, saía da lista, e a
+     atividade continuava aberta como pendência de hoje, amanhã e sempre.
+
+     As invariantes abaixo são as que, se quebrarem, quebram calado: um
+     progresso que apaga o que você lançou, um veredito que muda porque você
+     mexeu na meta depois, uma vitória declarada num assunto que sumiu do TEC. */
+  cicloDoPlano() {
+    const P = PlanoEngine, C = PlanoCiclo, T = DesempenhoTecScreen;
+    const dia = (n) => { const d = new Date(todayLocal() + 'T00:00:00'); d.setDate(d.getDate() - n); return d.toISOString().slice(0, 10); };
+    const D = (n, q, ac) => ({ depth: 0, codigo: null, nome: n, disciplina: n, questoes: q, acertos: ac });
+    const L = (c, n, disc, q, ac) => ({ depth: 1, codigo: c, nome: n, disciplina: disc, questoes: q, acertos: ac });
+    const R = (id, i, f, rows) => ({ id, nome: id, date: f, startDate: i, endDate: f, rows });
+    const par = (a, b) => [D('Dir Adm', 200, a + b), L('01', 'Licitacoes', 'Dir Adm', 100, a), L('02', 'Atos', 'Dir Adm', 100, b)];
+    const origSnaps = DB.getTecSnapshots, origExtras = DB.getExtras, origSave = DB.saveExtras;
+    const origEscopo = T.scopedSnapshot;
+    const chaveP = DB._profilePrefix() + P.KEY_PREF;
+    const antesP = localStorage.getItem(chaveP);
+    let banco = [];
+    /* O escopo entra no empréstimo junto com os retratos: `conciliar` lê o
+       retrato consolidado da tela, e sem trocar os dois o teste julgaria o
+       dado novo com o escopo do app real. */
+    const comBanco = (snaps, fn) => {
+      DB.getTecSnapshots = () => snaps;
+      DB.getExtras = () => banco;
+      DB.saveExtras = (l) => { banco = l; };
+      T.scopedSnapshot = () => snaps[snaps.length - 1];
+      try { return fn(); } finally {
+        DB.getTecSnapshots = origSnaps; DB.getExtras = origExtras;
+        DB.saveExtras = origSave; T.scopedSnapshot = origEscopo;
+      }
+    };
+    const criar = (topico, alvo, item) => {
+      const e = DB.addExtra({ titulo: topico, tipo: 'questoes', alvo, periodo: 'unica', contaMetricas: false });
+      DB.updateExtra(e.id, { origemPlano: C.origem(topico, 'Dir Adm', item, { motivo: 'reforco' }) });
+      return DB.getExtras().find(x => x.id === e.id);
+    };
+    const itemDe = (r, nome) => [].concat(r.itens, r.pequenas || []).find(x => x.nome === nome);
+    try {
+      DB.setRaw(chaveP, JSON.stringify({ minAmostra: 1, limite: 20, ordenar: 'pior', metaDominio: 85, tetoDominio: 90, migracao: 3 }));
+      const velhos = [R('a', dia(90), dia(70), par(40, 40)), R('b', dia(60), dia(35), par(40, 40))];
+
+      /* 1) O PROGRESSO SAI DO RETRATO. `qBase` é o contador do assunto no
+         instante zero; o de hoje menos ele é o que você resolveu desde então.
+         Datas não entram na conta — é isto que faz a medida sobreviver a um
+         retrato cujo período atravessa a data de criação. */
+      banco = [];
+      let e1 = comBanco(velhos, () => {
+        const r = P.calcular(velhos[1], P.prefs());
+        return criar('Licitacoes', 120, itemDe(r, 'Licitacoes'));
+      });
+      this._ok('Ciclo: a atividade guarda o contador do assunto na criação',
+        e1.origemPlano.qBase === 200, e1.origemPlano.qBase);
+      this._ok('Ciclo: e a taxa inicial e a META DO DIA, não a de depois',
+        e1.origemPlano.taxaInicial === 40 && e1.origemPlano.metaAlvo === 85, e1.origemPlano);
+      const comNovo = velhos.concat([R('c', dia(20), dia(1), [D('Dir Adm', 80, 48), L('01', 'Licitacoes', 'Dir Adm', 80, 48)])]);
+      let v = comBanco(comNovo, () => C.avaliar(DB.getExtras()[0], P.calcular(comNovo[2], P.prefs())));
+      this._ok('Ciclo: o retrato novo conta as questões sozinho', v.feito === 80 && v.medido === 80, { feito: v.feito, medido: v.medido });
+      this._ok('Ciclo: 80 de 120 ainda é andamento', v.estado === 'andamento' && !v.cumpriu, v.estado);
+
+      /* 2) IMPORTAR SÓ EMPURRA A BARRA PARA CIMA. Quem resolve questão fora do
+         TEC lança na mão; o retrato não pode apagar esse lançamento. */
+      comBanco(comNovo, () => {
+        DB.addExtraProgress(DB.getExtras()[0].id, 100);
+        const w = C.avaliar(DB.getExtras()[0], P.calcular(comNovo[2], P.prefs()));
+        this._ok('Ciclo: lançamento manual maior que o medido prevalece', w.feito === 100 && w.manual === 100, w.feito);
+      });
+
+      /* 3) O VEREDITO. Dois fins legítimos: o objetivo atingido e o trabalho
+         cumprido — e o segundo, sem ganho, é o diagnóstico mais valioso do app:
+         volume não resolve aquele assunto. */
+      banco = [];
+      const venceu = velhos.concat([R('c', dia(20), dia(1), [D('Dir Adm', 150, 138), L('01', 'Licitacoes', 'Dir Adm', 150, 138)])]);
+      comBanco(velhos, () => criar('Licitacoes', 120, itemDe(P.calcular(velhos[1], P.prefs()), 'Licitacoes')));
+      comBanco(venceu, () => {
+        const res = C.conciliar();
+        const e = DB.getExtras()[0];
+        this._ok('Ciclo: atingiu a meta → encerra sozinha, com veredito',
+          e.status === 'concluida' && e.origemPlano.veredito.tipo === 'funcionou', e.origemPlano.veredito);
+        this._ok('Ciclo: e o ganho fica registrado para sempre',
+          e.origemPlano.veredito.ganhoPP > 50, e.origemPlano.veredito.ganhoPP);
+        const foto = JSON.stringify(DB.getExtras());
+        C.conciliar(); C.conciliar();
+        this._ok('Ciclo: conciliar de novo não reescreve nada', JSON.stringify(DB.getExtras()) === foto);
+        this._ok('Ciclo: a conciliação relata o que fechou', res.fechadas.length === 1, res.fechadas.length);
+      });
+      banco = [];
+      const piorou = velhos.concat([R('c', dia(20), dia(1), [D('Dir Adm', 150, 40), L('02', 'Atos', 'Dir Adm', 150, 40)])]);
+      comBanco(velhos, () => criar('Atos', 100, itemDe(P.calcular(velhos[1], P.prefs()), 'Atos')));
+      comBanco(piorou, () => {
+        C.conciliar();
+        const e = DB.getExtras()[0];
+        this._ok('Ciclo: cumpriu o alvo e a taxa não subiu → "não funcionou"',
+          e.status === 'concluida' && e.origemPlano.veredito.tipo === 'naoFuncionou', e.origemPlano.veredito);
+        this._ok('Ciclo: com o prejuízo registrado, não escondido',
+          e.origemPlano.veredito.ganhoPP < 0, e.origemPlano.veredito.ganhoPP);
+      });
+
+      /* 4) A TRAVE NÃO SE MOVE. Julgar pela meta de hoje reescreveria o
+         resultado de uma atividade que já estava correndo sob outra regra. */
+      banco = [];
+      DB.setRaw(chaveP, JSON.stringify({ minAmostra: 1, metaDominio: 70, tetoDominio: 90, migracao: 3 }));
+      comBanco(velhos, () => criar('Licitacoes', 120, itemDe(P.calcular(velhos[1], P.prefs()), 'Licitacoes')));
+      DB.setRaw(chaveP, JSON.stringify({ minAmostra: 1, metaDominio: 99, tetoDominio: 90, migracao: 3 }));
+      comBanco(venceu, () => {
+        C.conciliar();
+        this._ok('Ciclo: subir a meta depois não apaga o gol',
+          DB.getExtras()[0].origemPlano.veredito.tipo === 'funcionou', DB.getExtras()[0].origemPlano.veredito);
+        DB.setRaw(chaveP, JSON.stringify({ minAmostra: 1, limite: 20, metaDominio: 85, tetoDominio: 90, migracao: 3 }));
+      });
+
+      /* 5) SUMIR DA LISTA NÃO É VENCER. O assunto renomeado no TEC sai da lista
+         igual ao resolvido — e declarar vitória nele seria inventar um ganho. */
+      banco = [];
+      const sumiu = [R('z', dia(20), dia(1), [D('Dir Adm', 100, 50), L('07', 'Outro nome', 'Dir Adm', 100, 50)])];
+      comBanco(velhos, () => { const r0 = P.calcular(velhos[1], P.prefs()); criar('Licitacoes', 120, itemDe(r0, 'Licitacoes')); });
+      comBanco(sumiu, () => {
+        const w = C.avaliar(DB.getExtras()[0], P.calcular(sumiu[0], P.prefs()));
+        this._ok('Ciclo: assunto que sumiu do TEC vira órfã, não vitória', w.estado === 'orfa', w.estado);
+        C.conciliar();
+        this._ok('Ciclo: e órfã não encerra sozinha — quem decide é você',
+          DB.getExtras()[0].status !== 'concluida', DB.getExtras()[0].status);
+      });
+
+      /* 6) A CALIBRAGEM. O custo por ponto é um palpite de fábrica até o seu
+         histórico responder a mesma pergunta com o seu dado. */
+      banco = [];
+      comBanco(velhos, () => {
+        this._ok('Ciclo: sem histórico, a calibragem diz quantos ciclos faltam',
+          C.calibragem().pronta === false && C.calibragem().faltam === C.MIN_CICLOS, C.calibragem());
+        const fake = (t, q, ini, fim) => {
+          const e = DB.addExtra({ titulo: t, tipo: 'questoes', alvo: q, periodo: 'unica' });
+          DB.updateExtra(e.id, { status: 'concluida', origemPlano: { topico: t, disciplina: 'Dir Adm', criadoEm: dia(30),
+            veredito: { tipo: 'funcionou', em: todayLocal(), taxaInicial: ini, taxaFinal: fim, ganhoPP: fim - ini, questoes: q, alvo: q } } });
+        };
+        fake('A', 100, 40, 58); fake('B', 200, 50, 86); fake('C', 100, 60, 78);
+        const c = C.calibragem();
+        this._ok('Ciclo: com 3 ciclos a calibragem liga', c.pronta && c.n === 3, c.n);
+        this._ok('Ciclo: 72pp em 400 questões = 18pp por 100', Math.abs(c.ppPorCem - 18) < 0.05, c.ppPorCem);
+        this._ok('Ciclo: e 5,6 questões por ponto, contra o palpite de fábrica',
+          Math.abs(c.qPorPonto - 5.6) < 0.1 && c.divergente === true, { seu: c.qPorPonto, fabrica: c.atual });
+        this._ok('Ciclo: o histórico sai do mais novo para o mais velho e conta certo',
+          C.fechados().length === 3, C.fechados().length);
+      });
+
+      /* 7) OS DOIS PORTÕES GRAVAM O MESMO. Um deles nascia sem `taxaInicial`
+         nem `qBase` — e metade das atividades ficava sem veredito possível. */
+      const o = C.origem('X', 'Dir Adm', { taxa: 33, custoQ: 77 }, { motivo: 'diagnostico' });
+      this._ok('Ciclo: a origem tem todos os campos que o veredito exige',
+        ['topico', 'disciplina', 'motivo', 'criadoEm', 'taxaInicial', 'qBase', 'metaAlvo', 'custoEstimado'].every(k => k in o), Object.keys(o));
+      this._ok('Ciclo: origem sem item não inventa taxa', C.origem('Y', 'Dir Adm', null, {}).taxaInicial === null);
+      this._ok('Ciclo: atividade sem origem do Plano é ignorada pelo ciclo',
+        C.avaliar({ id: 'x', alvo: 10 }, { itens: [], pequenas: [] }) === null);
+    } finally {
+      DB.getTecSnapshots = origSnaps; DB.getExtras = origExtras; DB.saveExtras = origSave;
+      T.scopedSnapshot = origEscopo;
+      if (antesP == null) DB.delRaw(chaveP); else DB.setRaw(chaveP, antesP);
+    }
+  },
+
+
+  /* ═══ A RÉGUA DE PONTOS E A PRIORIZAÇÃO POR MATÉRIA ════════════════════════
+     O Plano otimizava DOMÍNIO — a média do quanto você sabe do que estuda — e
+     isso não é a mesma coisa que ponto na prova. Um assunto de 4 questões a
+     20% é uma cratera de domínio e quase nada de aprovação; um de 40 questões
+     a 70% é onde os pontos estão. E a composição da prova já estava digitada
+     no editor de matérias do ciclo: o Desempenho TEC nunca olhou para lá. */
+  reguaDePontos() {
+    const P = PlanoEngine, PP = PlanoPontos;
+    const dia = (n) => { const d = new Date(todayLocal() + 'T00:00:00'); d.setDate(d.getDate() - n); return d.toISOString().slice(0, 10); };
+    const D = (n, q, ac) => ({ depth: 0, codigo: null, nome: n, disciplina: n, questoes: q, acertos: ac });
+    const L = (c, n, disc, q, ac) => ({ depth: 1, codigo: c, nome: n, disciplina: disc, questoes: q, acertos: ac });
+    const R = (id, i, f, rows) => ({ id, nome: id, date: f, startDate: i, endDate: f, rows });
+    /* Uma matéria PESADA onde vou mal e uma LEVE onde vou péssimo: é o caso em
+       que domínio e ponto discordam, e é o caso que decide aprovação. */
+    const linhas = () => [
+      D('Dir Adm', 200, 100), L('01', 'Licitacoes', 'Dir Adm', 100, 50), L('02', 'Atos', 'Dir Adm', 100, 50),
+      D('Arquivologia', 100, 20), L('01', 'Tabela', 'Arquivologia', 100, 20)];
+    const snaps = [R('a', dia(60), dia(40), linhas()), R('b', dia(30), dia(2), linhas())];
+    const origSnaps = DB.getTecSnapshots, origSubs = DB.getActiveSubjects, origModo = window.planCycleMode;
+    const chaveP = DB._profilePrefix() + P.KEY_PREF;
+    const antesP = localStorage.getItem(chaveP);
+    let mats = [];
+    try {
+      DB.getTecSnapshots = () => snaps;
+      DB.getActiveSubjects = () => mats;
+      DB.setRaw(chaveP, JSON.stringify({ minAmostra: 1, limite: 20, ordenar: 'pior', metaDominio: 85, tetoDominio: 90, migracao: 3 }));
+      mats = [{ nome: 'Dir Adm', qtdQuestoes: 40, pontosPorQuestao: 1, peso: 1 },
+              { nome: 'Arquivologia', qtdQuestoes: 5, pontosPorQuestao: 1, peso: 1 }];
+
+      // 1) SEM EDITAL A RÉGUA NÃO TROCA — pré-edital você encolhe o pior caso
+      window.planCycleMode = () => 'pre';
+      this._ok('Pontos: no pré-edital a régua de pontos não liga',
+        PP.modo() === 'pre' && PP.temComposicao() === false, PP.modo());
+      window.planCycleMode = () => 'pos';
+      this._ok('Pontos: com edital e composição declarada, ela liga', PP.temComposicao() === true);
+
+      // 2) A PROJEÇÃO É ARITMÉTICA SOBRE O QUE VOCÊ DIGITOU
+      const pj = PP.projecao();
+      this._ok('Pontos: o total da prova é a soma declarada (40 + 5)', pj && pj.valorTotal === 45, pj && pj.valorTotal);
+      this._ok('Pontos: a nota de hoje é 40×50% + 5×20% = 21', Math.abs(pj.hoje - 21) < 0.01, pj.hoje);
+      this._ok('Pontos: fechando o Plano seriam 45×90% = 40,5', Math.abs(pj.potencial - 40.5) < 0.01, pj.potencial);
+      this._ok('Pontos: matéria sem medição no TEC fica FORA da conta, declarada',
+        Array.isArray(pj.semDado), pj.semDado);
+
+      // 3) A ORDEM QUE APROVA discorda da que só olha o acerto
+      const rPior = P.calcular(snaps[1], Object.assign({}, P.prefs(), { ordenar: 'pior' }));
+      const rPts = P.calcular(snaps[1], Object.assign({}, P.prefs(), { ordenar: 'pontos' }));
+      this._ok('Pontos: por "pior acerto" vem o assunto de 5 questões na prova',
+        rPior.itens[0].nome === 'Tabela', rPior.itens[0].nome);
+      this._ok('Pontos: por "mais pontos" vem o de 40 questões — é a diferença que aprova',
+        rPts.itens[0].disciplina === 'Dir Adm', rPts.itens[0].disciplina + '/' + rPts.itens[0].nome);
+      this._ok('Pontos: e o ganho de cada item é medido em PONTOS da prova',
+        rPts.itens[0].pontosGanho > 0 && rPts.itens[0].pontosMateria === 40,
+        { ganho: rPts.itens[0].pontosGanho, materia: rPts.itens[0].pontosMateria });
+
+      /* 4) O MÍNIMO ELIMINATÓRIO É RESTRIÇÃO, NÃO PESO. Nenhum total te salva
+         de ser cortado numa matéria — por isso ela vem antes dos pontos. */
+      mats[1].minimoPct = 50;
+      const rElim = P.calcular(snaps[1], Object.assign({}, P.prefs(), { ordenar: 'pontos' }));
+      this._ok('Pontos: matéria abaixo do mínimo eliminatório passa na frente de tudo',
+        rElim.itens[0].nome === 'Tabela' && rElim.itens[0].eliminatoria === true, rElim.itens[0].nome);
+      const pj2 = PP.projecao();
+      this._ok('Pontos: e a projeção denuncia a eliminatória pelo nome',
+        pj2.eliminatorias.length === 1 && pj2.eliminatorias[0].nome === 'Arquivologia', pj2.eliminatorias);
+      mats[1].minimoPct = null;
+
+      // 5) O CORTE É ESTIMATIVA SUA, e some quando você apaga
+      const corteAntes = PP._corte();
+      PP.setCorte(30);
+      const pj3 = PP.projecao();
+      this._ok('Pontos: com corte 30 e nota 21, faltam 9',
+        pj3.corte === 30 && pj3.passaHoje === false && Math.abs(pj3.faltaCorte - 9) < 0.01, pj3.faltaCorte);
+      PP.setCorte(15);
+      this._ok('Pontos: com corte 15 você já passaria', PP.projecao().passaHoje === true);
+      PP.setCorte('');
+      this._ok('Pontos: apagar o corte devolve a tela ao estado sem corte', PP._corte() === null);
+      if (corteAntes != null) PP.setCorte(corteAntes);
+
+      /* 6) A DIFICULDADE DECLARADA CONTRA A MEDIDA. O 1 a 5 do ciclo distribui
+         as suas horas e é um chute; o TEC sabe a resposta. */
+      const m = PP.dificuldadeMedida('Arquivologia');
+      this._ok('Pontos: 20% de acerto vira dificuldade 5 (a mais alta)',
+        m && m.nota === 5 && Math.abs(m.taxa - 20) < 0.01, m);
+      const m2 = PP.dificuldadeMedida('Dir Adm');
+      this._ok('Pontos: 50% vira dificuldade 4', m2 && m2.nota === 4, m2);
+      DB.setRaw(chaveP, JSON.stringify({ minAmostra: 500, metaDominio: 85, tetoDominio: 90, migracao: 3 }));
+      this._ok('Pontos: sem amostra suficiente o app NÃO opina sobre a dificuldade',
+        PP.dificuldadeMedida('Dir Adm') === null);
+      DB.setRaw(chaveP, JSON.stringify({ minAmostra: 1, limite: 20, metaDominio: 85, tetoDominio: 90, migracao: 3 }));
+
+      /* 7) "SÓLIDO" CORTA O PESO DA MATÉRIA PARA 20% — a decisão mais cara do
+         ciclo, hoje um clique sem prova. */
+      const r7 = P.calcular(snaps[1], P.prefs());
+      const sol = PP.solidezDe('Arquivologia', r7);
+      this._ok('Pontos: a solidez declarada pode ser confrontada com o Plano',
+        sol && sol.total >= 1 && sol.abaixo >= 1, sol);
+      this._ok('Pontos: matéria que não existe no Plano não inventa solidez',
+        PP.solidezDe('Matéria Inexistente', r7) === null);
+    } finally {
+      DB.getTecSnapshots = origSnaps; DB.getActiveSubjects = origSubs; window.planCycleMode = origModo;
+      if (antesP == null) DB.delRaw(chaveP); else DB.setRaw(chaveP, antesP);
     }
   },
 
@@ -1840,7 +2130,9 @@ const AutoTeste = {
      ['Plano de pontos fracos', 'plano'],
      ['Motor do Reforço', 'reforcoMotor'],
      ['Incidência: gravação', 'incidenciaGravacao'],
-     ['Folha de ajustes do TEC', 'ajustesTec']].forEach(([nome, fn]) => {
+     ['Folha de ajustes do TEC', 'ajustesTec'],
+     ['Ciclo do Plano', 'cicloDoPlano'],
+     ['Régua de pontos', 'reguaDePontos']].forEach(([nome, fn]) => {
       try { this[fn](); }
       catch (e) { this._r.total++; this._r.falhou++; this._r.falhas.push({ nome: nome + ' — exceção', obtido: String(e && e.message || e) }); }
     });

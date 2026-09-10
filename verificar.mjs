@@ -937,7 +937,8 @@ try {
      exatamente o que aconteceu com o dialogo "Puxar do Plano". */
   const ord = await pag.evaluate(() => {
     const sel = document.getElementById('plano-ordenar');
-    const chaves = Object.keys(PlanoEngine.ORDENS);
+    // as ordens que só existem pós-edital não entram no seletor no pré
+    const chaves = Object.keys(PlanoEngine.ORDENS).filter((k) => !PlanoEngine.ORDENS[k].soPos);
     return {
       opcoes: sel ? [...sel.options].map((o) => o.value) : [],
       semDica: sel ? [...sel.options].filter((o) => !o.title).length : -1,
@@ -1618,6 +1619,42 @@ try {
   (rest.meta === rest.padrao && String(rest.reforcoIntacto) === '44')
     ? ok('restaurar padroes zera SO a aba aberta (meta volta a 85%, o Reforco fica)')
     : erro('restaurar padroes passou dos limites: ' + JSON.stringify(rest));
+  /* 9b) A FITA NAO PODE FUGIR DO DEDO. No celular a folha e ancorada embaixo:
+     a base fica presa na borda da tela e e o TOPO que se move quando o conteudo
+     muda de tamanho. Trocar de secao mexia 219px no topo, e a fita de chips —
+     que e justamente o que se esta tocando — subia junto: voce mira em "Regua"
+     e o botao sai do lugar entre o toque e o dedo chegar. */
+  for (const [larg, alt, rot] of [[390, 844, '390x844'], [360, 640, '360x640'], [1280, 900, 'desktop']]) {
+    await pag.setViewportSize({ width: larg, height: alt });
+    for (const aba of ['plano', 'reforco', 'analise']) {
+      await pag.evaluate((t) => { try { TecAjustes.fechar(); } catch (e) {} DesempenhoTecScreen.switchTecTab(t); }, aba);
+      await pag.waitForTimeout(220);
+      await pag.evaluate((t) => document.querySelector('.tec-cfg-open[data-cfg="' + t + '"]').click(), aba);
+      await pag.waitForTimeout(300);
+      const secs = await pag.evaluate(() => [...document.querySelectorAll('#tec-cfg-nav button')].map((b) => b.dataset.sec));
+      const medidas = [];
+      for (const sec of secs) {
+        await pag.evaluate((x) => TecAjustes.mostrar(x), sec);
+        await pag.waitForTimeout(130);
+        medidas.push(await pag.evaluate(() => {
+          const b = document.querySelector('.tec-cfg-box').getBoundingClientRect();
+          const n = document.querySelector('.tec-cfg-nav').getBoundingClientRect();
+          const f = document.querySelector('.tec-cfg-foot').getBoundingClientRect();
+          return { topo: Math.round(b.top), fita: Math.round(n.top), pe: Math.round(f.top) };
+        }));
+      }
+      await pag.evaluate(() => { try { TecAjustes.fechar(); } catch (e) {} });
+      const osc = (k) => Math.max(...medidas.map((m) => m[k])) - Math.min(...medidas.map((m) => m[k]));
+      const pior = Math.max(osc('topo'), osc('fita'), osc('pe'));
+      pior <= 1
+        ? ok(`${rot} · ${aba}: trocar entre ${secs.length} secao(oes) nao move a folha (topo/fita/pe parados)`)
+        : erro(`${rot} · ${aba}: a folha pula ao trocar de secao — topo ${osc('topo')}px, fita ${osc('fita')}px, pe ${osc('pe')}px`);
+    }
+  }
+  await pag.setViewportSize({ width: 390, height: 844 });
+  await pag.evaluate(() => { DesempenhoTecScreen.switchTecTab('plano'); });
+  await pag.waitForTimeout(250);
+
   /* 10) E nas OUTRAS DUAS ABAS o "Restaurar padroes" tem de mexer nos CAMPOS,
      nao so no armazenamento: o Reforco e a Analise leem os proprios campos a
      cada repintura, entao apagar a preferencia salva deixava a tela igualzinha
@@ -1645,6 +1682,248 @@ try {
   await pag.evaluate(() => { try { TecAjustes.fechar(); } catch (e) {} DesempenhoTecScreen.savePrefs({ minq: null }); });
   await pag.setViewportSize({ width: 1280, height: 900 });
 } catch (e) { erro('a folha de ajustes falhou: ' + e.message); }
+
+/* ── 6.15) O CICLO: DECIDI · FIZ · FUNCIONOU? ──────────────────────────────
+   A tela media tudo e nao fechava nada. O percurso inteiro, no navegador: criar
+   pelo Plano, importar o retrato, e conferir que o app conta as questoes
+   sozinho, encerra o que acabou e diz a verdade sobre o que nao funcionou. */
+console.log('\n6.15) o ciclo de uma atividade do Plano, ponta a ponta');
+try {
+  await pag.setViewportSize({ width: 390, height: 844 });
+  const cria = await pag.evaluate(() => {
+    const dia = (n) => { const d = new Date(todayLocal() + 'T00:00:00'); d.setDate(d.getDate() - n); return d.toISOString().slice(0, 10); };
+    const D = (n, q, ac) => ({ depth: 0, codigo: null, nome: n, disciplina: n, questoes: q, acertos: ac });
+    const L = (c, n, disc, q, ac) => ({ depth: 1, codigo: c, nome: n, disciplina: disc, questoes: q, acertos: ac });
+    const R = (id, i, f, rows) => ({ id, nome: id, date: f, startDate: i, endDate: f, rows });
+    const base = (a, b, c) => [D('Dir Adm', 300, a + b + c), L('01', 'Licitacoes', 'Dir Adm', 100, a),
+      L('02', 'Atos', 'Dir Adm', 100, b), L('03', 'Contratos', 'Dir Adm', 100, c)];
+    DB.saveIncidencia([]); DB._set(DB.KEYS.extras, []);
+    DB._set(DB.KEYS.tec, [R('c1', dia(90), dia(70), base(40, 40, 45)), R('c2', dia(60), dia(35), base(40, 40, 45))]);
+    PlanoEngine.salvarPrefs({ minAmostra: 1, limite: 20, ordenar: 'pior', metaDominio: 85, tetoDominio: 90, disciplina: '__todas__' });
+    DesempenhoTecScreen._planoRefC = null; DesempenhoTecScreen._cicloSel = null;
+    switchScreen('desempenhotec'); DesempenhoTecScreen.render(); DesempenhoTecScreen.switchTecTab('plano');
+    ['Licitacoes', 'Atos', 'Contratos'].forEach((t) => DesempenhoTecScreen.criarExtraDoPlano(t, 'Dir Adm', 120, 'reforco', true));
+    return DB.getExtras().map((e) => ({ t: e.origemPlano.topico, qBase: e.origemPlano.qBase,
+      taxa: e.origemPlano.taxaInicial, meta: e.origemPlano.metaAlvo }));
+  });
+  (cria.length === 3 && cria.every((x) => x.qBase === 200 && x.taxa != null && x.meta === 85))
+    ? ok('criar pelo Plano grava o contador do assunto, a taxa inicial e a meta do dia')
+    : erro('a origem da atividade veio incompleta: ' + JSON.stringify(cria));
+
+  // o retrato novo: um resolveu, um piorou, um esta a meio caminho
+  const dep = await pag.evaluate(() => {
+    const dia = (n) => { const d = new Date(todayLocal() + 'T00:00:00'); d.setDate(d.getDate() - n); return d.toISOString().slice(0, 10); };
+    const D = (n, q, ac) => ({ depth: 0, codigo: null, nome: n, disciplina: n, questoes: q, acertos: ac });
+    const L = (c, n, disc, q, ac) => ({ depth: 1, codigo: c, nome: n, disciplina: disc, questoes: q, acertos: ac });
+    const s = DB.getTecSnapshots();
+    s.push({ id: 'c3', nome: 'c3', date: dia(1), startDate: dia(20), endDate: dia(1), rows: [
+      D('Dir Adm', 350, 195), L('01', 'Licitacoes', 'Dir Adm', 150, 138),
+      L('02', 'Atos', 'Dir Adm', 150, 42), L('03', 'Contratos', 'Dir Adm', 50, 15)] });
+    DB._set(DB.KEYS.tec, s);
+    DesempenhoTecScreen._planoRefC = null; DesempenhoTecScreen._cicloSel = null;
+    DesempenhoTecScreen.render(); DesempenhoTecScreen.switchTecTab('plano');
+    const por = {};
+    DB.getExtras().forEach((e) => { por[e.origemPlano.topico] = { st: e.status,
+      v: e.origemPlano.veredito ? e.origemPlano.veredito.tipo : null,
+      pp: e.origemPlano.veredito ? e.origemPlano.veredito.ganhoPP : null }; });
+    const cx = {};
+    document.querySelectorAll('#plano-lista .pl-hoje-sel').forEach((c) => { cx[c.dataset.topico] = { travada: c.disabled }; });
+    const emCurso = [...document.querySelectorAll('.pl-ciclo:not(.pl-ciclo-hist):not(.pl-calib) .pl-ciclo-lista > li')]
+      .map((li) => li.textContent.replace(/\s+/g, ' ').trim());
+    return { por, cx, emCurso,
+      hist: document.querySelectorAll('.pl-ciclo-hist .pl-ciclo-lista > li').length,
+      txt: document.getElementById('plano-lista').textContent,
+      podre: /\bNaN\b|\bundefined\b|\bInfinity\b/.test(document.getElementById('plano-lista').textContent),
+      vaza: document.documentElement.scrollWidth - document.documentElement.clientWidth };
+  });
+  (dep.por.Licitacoes.st === 'concluida' && dep.por.Licitacoes.v === 'funcionou' && dep.por.Licitacoes.pp > 50)
+    ? ok(`o assunto que atingiu a meta encerra sozinho, com o ganho registrado (+${dep.por.Licitacoes.pp}pp)`)
+    : erro('o veredito de sucesso nao saiu: ' + JSON.stringify(dep.por.Licitacoes));
+  (dep.por.Atos.st === 'concluida' && dep.por.Atos.v === 'naoFuncionou' && dep.por.Atos.pp < 0)
+    ? ok(`cumpriu as questoes e a taxa caiu → veredito "nao funcionou" (${dep.por.Atos.pp}pp), que e o diagnostico`)
+    : erro('o veredito negativo nao saiu: ' + JSON.stringify(dep.por.Atos));
+  (dep.por.Contratos.st === 'ativa' && dep.por.Contratos.v === null)
+    ? ok('e o que ainda esta a meio caminho continua aberto')
+    : erro('atividade em andamento foi encerrada por engano: ' + JSON.stringify(dep.por.Contratos));
+  (dep.emCurso.length === 1 && /50\/120/.test(dep.emCurso[0]) && /pelo retrato/.test(dep.emCurso[0]))
+    ? ok('o bloco "Em curso" conta as questoes a partir do retrato, sem lancamento manual (50/120)')
+    : erro('o progresso automatico nao apareceu: ' + JSON.stringify(dep.emCurso));
+  dep.hist === 2 ? ok('e os dois ciclos fechados entram no historico "o que os retratos ja julgaram"')
+    : erro(`historico com ${dep.hist} ciclo(s), esperado 2`);
+  /* O SELO NAO PODE MENTIR. Uma atividade encerrada com "nao funcionou" exibia
+     um "✓" — o simbolo de sucesso no exato caso em que o volume falhou. */
+  (/não funcionou/.test(dep.txt) && dep.cx.Atos && dep.cx.Atos.travada === false)
+    ? ok('o assunto que nao funcionou aparece como tal, e volta a ser atacavel')
+    : erro('o selo do "nao funcionou" mentiu ou travou o assunto: ' + JSON.stringify(dep.cx));
+  (dep.cx.Contratos && dep.cx.Contratos.travada === true)
+    ? ok('e o que tem atividade ABERTA continua travado, para nao duplicar')
+    : erro('assunto com atividade aberta ficou marcavel: ' + JSON.stringify(dep.cx));
+  (!dep.podre && dep.vaza === 0) ? ok('nenhum numero podre e nenhum vazamento a 390px')
+    : erro(`ciclo na tela: podre=${dep.podre} vazamento=${dep.vaza}px`);
+
+  // a tela de Atividades mostra de onde veio e o que aconteceu
+  const card = await pag.evaluate(() => {
+    switchScreen('extras');
+    if (window.ExtrasScreen) ExtrasScreen.render();
+    const t = (document.getElementById('extras-list') || {}).textContent || '';
+    return { doPlano: /do Plano/.test(t), evo: /45% → 30%/.test(t), retrato: /pelo retrato/.test(t),
+      barra: /50 \/ 120/.test(t) };
+  });
+  (card.doPlano && card.evo && card.barra)
+    ? ok('o cartao da atividade diz que veio do Plano, mostra 45% → 30% e a barra em 50/120')
+    : erro('o cartao nao trouxe o ciclo: ' + JSON.stringify(card));
+
+  // a calibragem so aparece com historico, e propoe o SEU numero
+  const cal = await pag.evaluate(() => {
+    const dia = (n) => { const d = new Date(todayLocal() + 'T00:00:00'); d.setDate(d.getDate() - n); return d.toISOString().slice(0, 10); };
+    const fake = (t, q, ini, fim) => {
+      const e = DB.addExtra({ titulo: t, tipo: 'questoes', alvo: q, periodo: 'unica', contaMetricas: false });
+      DB.updateExtra(e.id, { status: 'concluida', origemPlano: { topico: t, disciplina: 'Dir Adm', criadoEm: dia(30),
+        veredito: { tipo: 'funcionou', em: todayLocal(), taxaInicial: ini, taxaFinal: fim, ganhoPP: fim - ini, questoes: q, alvo: q } } });
+    };
+    const antes = PlanoCiclo.calibragem().pronta;
+    fake('K1', 100, 40, 58); fake('K2', 200, 50, 86);
+    switchScreen('desempenhotec'); DesempenhoTecScreen.switchTecTab('plano');
+    const c = PlanoCiclo.calibragem();
+    const btn = document.getElementById('plano-calibrar');
+    const houve = !!btn;
+    if (btn) btn.click();
+    return { antes, pronta: c.pronta, n: c.n, qPorPonto: c.qPorPonto, atual: c.atual, houve };
+  });
+  (cal.antes === false && cal.pronta && cal.n >= 3 && cal.houve)
+    ? ok(`a calibragem so liga com historico: ${cal.n} ciclos → ${cal.qPorPonto} questoes por ponto (o padrao era ${cal.atual})`)
+    : erro('a calibragem nao apareceu como devia: ' + JSON.stringify(cal));
+  await pag.waitForTimeout(200);
+  const aplicou = await pag.evaluate(async () => {
+    const ok = document.getElementById('ui-modal-ok');
+    if (ok) ok.click();
+    await new Promise((r) => setTimeout(r, 250));
+    return PlanoEngine.prefs().custoPorPonto;
+  });
+  (aplicou === cal.qPorPonto)
+    ? ok(`calibrar leva o numero para os ajustes do Plano (custo por ponto = ${aplicou})`)
+    : erro(`calibrar nao aplicou: custoPorPonto=${aplicou}, esperado ${cal.qPorPonto}`);
+  await pag.evaluate(() => { PlanoEngine.salvarPrefs({ custoPorPonto: PlanoEngine.DEFAULTS.custoPorPonto }); DB._set(DB.KEYS.extras, []); });
+  await pag.setViewportSize({ width: 1280, height: 900 });
+} catch (e) { erro('o ciclo do Plano falhou: ' + e.message); }
+
+/* ── 6.16) GESTÃO NUM LUGAR SÓ, E A RÉGUA QUE APROVA ───────────────────────
+   Duas dores diferentes, no navegador. A primeira: com vários assuntos abertos
+   em disciplinas diferentes, o unico lugar com o progresso de todos era o bloco
+   dentro da aba Plano — tela de decisao, e o lugar errado para perguntar "o que
+   eu tenho em andamento?". A segunda: o Plano mandava atacar a cratera de
+   dominio (4 questoes a 20%) em vez de onde os pontos estao. */
+console.log('\n6.16) a gestao na tela de Atividades e a regua de pontos');
+try {
+  await pag.setViewportSize({ width: 390, height: 844 });
+  const g = await pag.evaluate(() => {
+    const dia = (n) => { const d = new Date(todayLocal() + 'T00:00:00'); d.setDate(d.getDate() - n); return d.toISOString().slice(0, 10); };
+    const D = (n, q, ac) => ({ depth: 0, codigo: null, nome: n, disciplina: n, questoes: q, acertos: ac });
+    const L = (c, n, disc, q, ac) => ({ depth: 1, codigo: c, nome: n, disciplina: disc, questoes: q, acertos: ac });
+    const R = (id, i, f, rows) => ({ id, nome: id, date: f, startDate: i, endDate: f, rows });
+    const linhas = () => [D('Dir Adm', 200, 80), L('01', 'Licitacoes', 'Dir Adm', 100, 40), L('02', 'Atos', 'Dir Adm', 100, 40),
+      D('Portugues', 100, 45), L('01', 'Crase', 'Portugues', 100, 45)];
+    DB.saveIncidencia([]); DB._set(DB.KEYS.extras, []);
+    DB._set(DB.KEYS.tec, [R('g1', dia(60), dia(40), linhas()), R('g2', dia(30), dia(2), linhas())]);
+    PlanoEngine.salvarPrefs({ minAmostra: 1, limite: 20, ordenar: 'pior', metaDominio: 85, tetoDominio: 90, cadenciaDias: 30, disciplina: '__todas__' });
+    DesempenhoTecScreen._planoRefC = null; DesempenhoTecScreen._cicloSel = null;
+    switchScreen('desempenhotec'); DesempenhoTecScreen.render(); DesempenhoTecScreen.switchTecTab('plano');
+    [['Licitacoes', 'Dir Adm'], ['Atos', 'Dir Adm'], ['Crase', 'Portugues']]
+      .forEach(([t, d]) => DesempenhoTecScreen.criarExtraDoPlano(t, d, 120, 'reforco', true));
+    switchScreen('extras'); ExtrasScreen.render();
+    const painel = document.getElementById('extras-curso');
+    return {
+      existe: !!painel.querySelector('.exc-card'),
+      grupos: [...painel.querySelectorAll('.exc-disc')].map((e) => e.textContent),
+      itens: painel.querySelectorAll('.pl-ciclo-lista > li').length,
+      resumo: (painel.querySelector('.exc-resumo') || {}).textContent.replace(/\s+/g, ' '),
+      semDatas: !DB.getExtras().some((e) => (e.datas || []).length),
+      discsNoDia: document.querySelectorAll('#extras-list .extras-disc-title').length,
+      vaza: document.documentElement.scrollWidth - document.documentElement.clientWidth
+    };
+  });
+  (g.existe && g.itens === 3 && g.grupos.length === 2)
+    ? ok(`a tela de Atividades tem o painel dos ${g.itens} reforcos abertos, agrupados por disciplina (${g.grupos.join(', ')})`)
+    : erro('o painel de gestao nao apareceu: ' + JSON.stringify(g));
+  /* O RITMO É DERIVADO, NÃO AGENDADO. Amarrar cada atividade a um dia cria
+     divida vencida: voce nao estudou terca, e terca fica la, cobrando. */
+  (/\/dia até a próxima importação/.test(g.resumo) && g.semDatas)
+    ? ok('com ritmo por dia calculado na hora, e nenhuma atividade amarrada a uma data')
+    : erro('o ritmo derivado falhou: ' + JSON.stringify({ resumo: g.resumo, semDatas: g.semDatas }));
+  (g.discsNoDia >= 2 && g.vaza === 0)
+    ? ok('o dia tambem separa por disciplina, sem vazamento a 390px')
+    : erro(`agrupamento do dia: ${g.discsNoDia} titulo(s), vazamento ${g.vaza}px`);
+  /* SIMPLICIDADE VEM DE MOVER, NÃO DE SOMAR: o Plano abre mao do painel e
+     fica com a linha que leva ate a gestao. */
+  const mini = await pag.evaluate(() => {
+    switchScreen('desempenhotec'); DesempenhoTecScreen.switchTecTab('plano');
+    const d = document.querySelector('.pl-ciclo-mini');
+    return { existe: !!d, recolhido: d ? !d.open : null,
+      texto: d ? d.querySelector('summary').textContent.replace(/\s+/g, ' ') : '',
+      link: !!document.getElementById('plano-ir-extras'),
+      painelInteiro: document.querySelectorAll('#plano-lista .pl-ciclo:not(.pl-ciclo-mini):not(.pl-ciclo-hist):not(.pl-calib):not(.pl-pontos):not(.pl-tempo)').length };
+  });
+  (mini.existe && mini.recolhido && mini.link && mini.painelInteiro === 0)
+    ? ok('no Plano sobrou uma linha recolhida que leva para a gestao — nao um segundo painel')
+    : erro('o Plano nao encolheu: ' + JSON.stringify(mini));
+
+  // ── a regua de pontos ────────────────────────────────────────────────────
+  const pts = await pag.evaluate(() => {
+    const origSubs = DB.getActiveSubjects, origModo = window.planCycleMode, origCiclo = DB.getCurrentCycle;
+    try {
+      DB.getActiveSubjects = () => ([
+        { nome: 'Dir Adm', qtdQuestoes: 40, pontosPorQuestao: 1, peso: 1 },
+        { nome: 'Portugues', qtdQuestoes: 5, pontosPorQuestao: 1, peso: 1, minimoPct: 60 }]);
+      /* O quadro de tempo precisa dos DOIS lados: o peso (edital) e as horas
+         (ciclo). Aqui o ciclo poe 3h em Portugues (5 questoes na prova) e 1h em
+         Dir Adm (40 questoes) — o desalinhamento classico, de proposito. */
+      DB.getCurrentCycle = () => ({ subjects: [
+        { nome: 'Portugues', definidoMin: 180, fase: 'Novo', dificuldade: 2 },
+        { nome: 'Dir Adm', definidoMin: 60, fase: 'Novo', dificuldade: 3 }] });
+      window.planCycleMode = () => 'pos';
+      PlanoPontos.setCorte(30);
+      DesempenhoTecScreen._planoRefC = null;
+      DesempenhoTecScreen.renderPlano();
+      const t = document.getElementById('plano-lista').textContent.replace(/\s+/g, ' ');
+      const r = PlanoEngine.calcular(DesempenhoTecScreen.scopedSnapshot(),
+        Object.assign({}, PlanoEngine.prefs(), { ordenar: 'pontos' }));
+      const out = {
+        bloco: !!document.querySelector('.pl-pontos'),
+        composicao: !!document.querySelector('.pl-comp'),
+        temCorte: /corte que você informou/.test(t),
+        eliminatoria: /abaixo do mínimo/.test(t),
+        primeiroPorPontos: r.itens[0] ? r.itens[0].disciplina + '/' + r.itens[0].nome : null,
+        elim1: r.itens[0] ? !!r.itens[0].eliminatoria : null,
+        tempo: !!document.querySelector('.pl-tempo'),
+        desalinhadas: PlanoPontos.tempoPorMateria().desalinhadas,
+        // os DOIS lados do desalinhamento, nomeados: sem isso o teste passava
+        // com metade da regra desligada
+        vereditos: PlanoPontos.tempoPorMateria().linhas.map((l) => l.nome + ':' + l.veredito).sort(),
+        linhasTempo: document.querySelectorAll('.pl-tempo-tab tbody tr').length,
+        podre: /\bNaN\b|\bundefined\b|\bInfinity\b/.test(t)
+      };
+      PlanoPontos.setCorte('');
+      return out;
+    } finally { DB.getActiveSubjects = origSubs; window.planCycleMode = origModo; DB.getCurrentCycle = origCiclo; }
+  });
+  (pts.bloco && pts.composicao && pts.temCorte)
+    ? ok('a nota projetada aparece com o corte declarado como SEU e a composicao a vista')
+    : erro('o bloco de pontos nao saiu completo: ' + JSON.stringify(pts));
+  (pts.eliminatoria && pts.elim1 === true && /Portugues/.test(pts.primeiroPorPontos || ''))
+    ? ok(`materia abaixo do minimo eliminatorio vem antes de tudo (${pts.primeiroPorPontos})`)
+    : erro('a eliminatoria nao ganhou prioridade: ' + JSON.stringify(pts));
+  /* O QUADRO QUE RESPONDE "QUAIS MATERIAS EU PRIORIZO". 3h em Portugues, que
+     vale 5 das 45 questoes, contra 1h em Dir Adm, que vale 40: e o caso que
+     ninguem percebe sozinho, e que nenhuma tela mostrava. */
+  const temFalta = (pts.vereditos || []).some((v) => /:falta$/.test(v));
+  const temSobra = (pts.vereditos || []).some((v) => /:sobra(Fraco)?$/.test(v));
+  (pts.tempo && pts.linhasTempo === 2 && temFalta && temSobra && pts.desalinhadas === 2)
+    ? ok(`o quadro acusa os DOIS lados: falta tempo onde vale ponto e sobra onde nao vale (${pts.vereditos.join(' · ')})`)
+    : erro('o quadro de tempo por materia falhou: ' + JSON.stringify(pts));
+  !pts.podre ? ok('nenhum numero podre em nada disso') : erro('numero podre na tela de pontos');
+  await pag.evaluate(() => { DB._set(DB.KEYS.extras, []); });
+  await pag.setViewportSize({ width: 1280, height: 900 });
+} catch (e) { erro('a gestao/regua de pontos falhou: ' + e.message); }
 
 console.log('\n7) contraste WCAG AA (temas claro e escuro)');
 /* Transicoes e animacoes desligadas durante a medicao. Sem isto, medir logo
