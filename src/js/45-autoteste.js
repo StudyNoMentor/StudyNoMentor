@@ -1302,6 +1302,22 @@ const AutoTeste = {
       this._ok('Plano: quem escolheu proporcional mantém a escolha', P.prefs().custoModo === 'proporcional');
       DB.setRaw(chave, JSON.stringify({ custoModo: 'fixo', migracao: 2 }));
       this._ok('Plano: escolher fixo DEPOIS da migração é respeitado', P.prefs().custoModo === 'fixo');
+      /* MIGRAÇÃO É DEGRAU, NÃO PORTEIRA. O teste que faltava: a migração 2
+         disparava com `!== 2`, e a migração seguinte grava `migracao: 3` — três
+         é diferente de dois, então ela voltava a rodar em TODA leitura e forçava
+         o custo de volta ao padrão de fábrica. Os dois campos de custo dos
+         ajustes avançados não guardavam nada: você digitava 4, a tela mostrava
+         4, e a leitura seguinte devolvia 2. */
+      DB.setRaw(chave, JSON.stringify({ custoPorPonto: 4, custoPiso: 90, migracao: 3 }));
+      this._ok('Plano: uma migração já cumprida não roda de novo e não pisa no que você ajustou',
+        P.prefs().custoPorPonto === 4 && P.prefs().custoPiso === 90,
+        { porPonto: P.prefs().custoPorPonto, piso: P.prefs().custoPiso });
+      DB.delRaw(chave);
+      P.salvarPrefs({ custoPorPonto: 7.5 });
+      P.salvarPrefs({ custoPiso: 120 });
+      this._ok('Plano: e dois salvamentos seguidos não desfazem um ao outro',
+        P.prefs().custoPorPonto === 7.5 && P.prefs().custoPiso === 120,
+        { porPonto: P.prefs().custoPorPonto, piso: P.prefs().custoPiso });
     } finally {
       if (antesPrefs == null) DB.delRaw(chave); else DB.setRaw(chave, antesPrefs);
     }
@@ -1537,6 +1553,169 @@ const AutoTeste = {
       this._ok('Plano: nome diferente nunca casa',
         !T._casaTopico({ topico: 'Atos', disciplina: 'X' }, 'Contratos', 'X'));
       this._ok('Plano: origem ausente não casa com nada', !T._casaTopico(null, 'Atos', 'X'));
+    }
+  },
+
+
+  /* ═══ O CICLO DE UMA ATIVIDADE DO PLANO ════════════════════════════════════
+     decidi · fiz · funcionou? O app media tudo e não fechava nada: o progresso
+     só andava se você digitasse (contabilidade dobrada sobre o mesmo fato), e o
+     desfecho não existia — o assunto ia de 40% a 95%, saía da lista, e a
+     atividade continuava aberta como pendência de hoje, amanhã e sempre.
+
+     As invariantes abaixo são as que, se quebrarem, quebram calado: um
+     progresso que apaga o que você lançou, um veredito que muda porque você
+     mexeu na meta depois, uma vitória declarada num assunto que sumiu do TEC. */
+  cicloDoPlano() {
+    const P = PlanoEngine, C = PlanoCiclo, T = DesempenhoTecScreen;
+    const dia = (n) => { const d = new Date(todayLocal() + 'T00:00:00'); d.setDate(d.getDate() - n); return d.toISOString().slice(0, 10); };
+    const D = (n, q, ac) => ({ depth: 0, codigo: null, nome: n, disciplina: n, questoes: q, acertos: ac });
+    const L = (c, n, disc, q, ac) => ({ depth: 1, codigo: c, nome: n, disciplina: disc, questoes: q, acertos: ac });
+    const R = (id, i, f, rows) => ({ id, nome: id, date: f, startDate: i, endDate: f, rows });
+    const par = (a, b) => [D('Dir Adm', 200, a + b), L('01', 'Licitacoes', 'Dir Adm', 100, a), L('02', 'Atos', 'Dir Adm', 100, b)];
+    const origSnaps = DB.getTecSnapshots, origExtras = DB.getExtras, origSave = DB.saveExtras;
+    const origEscopo = T.scopedSnapshot;
+    const chaveP = DB._profilePrefix() + P.KEY_PREF;
+    const antesP = localStorage.getItem(chaveP);
+    let banco = [];
+    /* O escopo entra no empréstimo junto com os retratos: `conciliar` lê o
+       retrato consolidado da tela, e sem trocar os dois o teste julgaria o
+       dado novo com o escopo do app real. */
+    const comBanco = (snaps, fn) => {
+      DB.getTecSnapshots = () => snaps;
+      DB.getExtras = () => banco;
+      DB.saveExtras = (l) => { banco = l; };
+      T.scopedSnapshot = () => snaps[snaps.length - 1];
+      try { return fn(); } finally {
+        DB.getTecSnapshots = origSnaps; DB.getExtras = origExtras;
+        DB.saveExtras = origSave; T.scopedSnapshot = origEscopo;
+      }
+    };
+    const criar = (topico, alvo, item) => {
+      const e = DB.addExtra({ titulo: topico, tipo: 'questoes', alvo, periodo: 'unica', contaMetricas: false });
+      DB.updateExtra(e.id, { origemPlano: C.origem(topico, 'Dir Adm', item, { motivo: 'reforco' }) });
+      return DB.getExtras().find(x => x.id === e.id);
+    };
+    const itemDe = (r, nome) => [].concat(r.itens, r.pequenas || []).find(x => x.nome === nome);
+    try {
+      DB.setRaw(chaveP, JSON.stringify({ minAmostra: 1, limite: 20, ordenar: 'pior', metaDominio: 85, tetoDominio: 90, migracao: 3 }));
+      const velhos = [R('a', dia(90), dia(70), par(40, 40)), R('b', dia(60), dia(35), par(40, 40))];
+
+      /* 1) O PROGRESSO SAI DO RETRATO. `qBase` é o contador do assunto no
+         instante zero; o de hoje menos ele é o que você resolveu desde então.
+         Datas não entram na conta — é isto que faz a medida sobreviver a um
+         retrato cujo período atravessa a data de criação. */
+      banco = [];
+      let e1 = comBanco(velhos, () => {
+        const r = P.calcular(velhos[1], P.prefs());
+        return criar('Licitacoes', 120, itemDe(r, 'Licitacoes'));
+      });
+      this._ok('Ciclo: a atividade guarda o contador do assunto na criação',
+        e1.origemPlano.qBase === 200, e1.origemPlano.qBase);
+      this._ok('Ciclo: e a taxa inicial e a META DO DIA, não a de depois',
+        e1.origemPlano.taxaInicial === 40 && e1.origemPlano.metaAlvo === 85, e1.origemPlano);
+      const comNovo = velhos.concat([R('c', dia(20), dia(1), [D('Dir Adm', 80, 48), L('01', 'Licitacoes', 'Dir Adm', 80, 48)])]);
+      let v = comBanco(comNovo, () => C.avaliar(DB.getExtras()[0], P.calcular(comNovo[2], P.prefs())));
+      this._ok('Ciclo: o retrato novo conta as questões sozinho', v.feito === 80 && v.medido === 80, { feito: v.feito, medido: v.medido });
+      this._ok('Ciclo: 80 de 120 ainda é andamento', v.estado === 'andamento' && !v.cumpriu, v.estado);
+
+      /* 2) IMPORTAR SÓ EMPURRA A BARRA PARA CIMA. Quem resolve questão fora do
+         TEC lança na mão; o retrato não pode apagar esse lançamento. */
+      comBanco(comNovo, () => {
+        DB.addExtraProgress(DB.getExtras()[0].id, 100);
+        const w = C.avaliar(DB.getExtras()[0], P.calcular(comNovo[2], P.prefs()));
+        this._ok('Ciclo: lançamento manual maior que o medido prevalece', w.feito === 100 && w.manual === 100, w.feito);
+      });
+
+      /* 3) O VEREDITO. Dois fins legítimos: o objetivo atingido e o trabalho
+         cumprido — e o segundo, sem ganho, é o diagnóstico mais valioso do app:
+         volume não resolve aquele assunto. */
+      banco = [];
+      const venceu = velhos.concat([R('c', dia(20), dia(1), [D('Dir Adm', 150, 138), L('01', 'Licitacoes', 'Dir Adm', 150, 138)])]);
+      comBanco(velhos, () => criar('Licitacoes', 120, itemDe(P.calcular(velhos[1], P.prefs()), 'Licitacoes')));
+      comBanco(venceu, () => {
+        const res = C.conciliar();
+        const e = DB.getExtras()[0];
+        this._ok('Ciclo: atingiu a meta → encerra sozinha, com veredito',
+          e.status === 'concluida' && e.origemPlano.veredito.tipo === 'funcionou', e.origemPlano.veredito);
+        this._ok('Ciclo: e o ganho fica registrado para sempre',
+          e.origemPlano.veredito.ganhoPP > 50, e.origemPlano.veredito.ganhoPP);
+        const foto = JSON.stringify(DB.getExtras());
+        C.conciliar(); C.conciliar();
+        this._ok('Ciclo: conciliar de novo não reescreve nada', JSON.stringify(DB.getExtras()) === foto);
+        this._ok('Ciclo: a conciliação relata o que fechou', res.fechadas.length === 1, res.fechadas.length);
+      });
+      banco = [];
+      const piorou = velhos.concat([R('c', dia(20), dia(1), [D('Dir Adm', 150, 40), L('02', 'Atos', 'Dir Adm', 150, 40)])]);
+      comBanco(velhos, () => criar('Atos', 100, itemDe(P.calcular(velhos[1], P.prefs()), 'Atos')));
+      comBanco(piorou, () => {
+        C.conciliar();
+        const e = DB.getExtras()[0];
+        this._ok('Ciclo: cumpriu o alvo e a taxa não subiu → "não funcionou"',
+          e.status === 'concluida' && e.origemPlano.veredito.tipo === 'naoFuncionou', e.origemPlano.veredito);
+        this._ok('Ciclo: com o prejuízo registrado, não escondido',
+          e.origemPlano.veredito.ganhoPP < 0, e.origemPlano.veredito.ganhoPP);
+      });
+
+      /* 4) A TRAVE NÃO SE MOVE. Julgar pela meta de hoje reescreveria o
+         resultado de uma atividade que já estava correndo sob outra regra. */
+      banco = [];
+      DB.setRaw(chaveP, JSON.stringify({ minAmostra: 1, metaDominio: 70, tetoDominio: 90, migracao: 3 }));
+      comBanco(velhos, () => criar('Licitacoes', 120, itemDe(P.calcular(velhos[1], P.prefs()), 'Licitacoes')));
+      DB.setRaw(chaveP, JSON.stringify({ minAmostra: 1, metaDominio: 99, tetoDominio: 90, migracao: 3 }));
+      comBanco(venceu, () => {
+        C.conciliar();
+        this._ok('Ciclo: subir a meta depois não apaga o gol',
+          DB.getExtras()[0].origemPlano.veredito.tipo === 'funcionou', DB.getExtras()[0].origemPlano.veredito);
+        DB.setRaw(chaveP, JSON.stringify({ minAmostra: 1, limite: 20, metaDominio: 85, tetoDominio: 90, migracao: 3 }));
+      });
+
+      /* 5) SUMIR DA LISTA NÃO É VENCER. O assunto renomeado no TEC sai da lista
+         igual ao resolvido — e declarar vitória nele seria inventar um ganho. */
+      banco = [];
+      const sumiu = [R('z', dia(20), dia(1), [D('Dir Adm', 100, 50), L('07', 'Outro nome', 'Dir Adm', 100, 50)])];
+      comBanco(velhos, () => { const r0 = P.calcular(velhos[1], P.prefs()); criar('Licitacoes', 120, itemDe(r0, 'Licitacoes')); });
+      comBanco(sumiu, () => {
+        const w = C.avaliar(DB.getExtras()[0], P.calcular(sumiu[0], P.prefs()));
+        this._ok('Ciclo: assunto que sumiu do TEC vira órfã, não vitória', w.estado === 'orfa', w.estado);
+        C.conciliar();
+        this._ok('Ciclo: e órfã não encerra sozinha — quem decide é você',
+          DB.getExtras()[0].status !== 'concluida', DB.getExtras()[0].status);
+      });
+
+      /* 6) A CALIBRAGEM. O custo por ponto é um palpite de fábrica até o seu
+         histórico responder a mesma pergunta com o seu dado. */
+      banco = [];
+      comBanco(velhos, () => {
+        this._ok('Ciclo: sem histórico, a calibragem diz quantos ciclos faltam',
+          C.calibragem().pronta === false && C.calibragem().faltam === C.MIN_CICLOS, C.calibragem());
+        const fake = (t, q, ini, fim) => {
+          const e = DB.addExtra({ titulo: t, tipo: 'questoes', alvo: q, periodo: 'unica' });
+          DB.updateExtra(e.id, { status: 'concluida', origemPlano: { topico: t, disciplina: 'Dir Adm', criadoEm: dia(30),
+            veredito: { tipo: 'funcionou', em: todayLocal(), taxaInicial: ini, taxaFinal: fim, ganhoPP: fim - ini, questoes: q, alvo: q } } });
+        };
+        fake('A', 100, 40, 58); fake('B', 200, 50, 86); fake('C', 100, 60, 78);
+        const c = C.calibragem();
+        this._ok('Ciclo: com 3 ciclos a calibragem liga', c.pronta && c.n === 3, c.n);
+        this._ok('Ciclo: 72pp em 400 questões = 18pp por 100', Math.abs(c.ppPorCem - 18) < 0.05, c.ppPorCem);
+        this._ok('Ciclo: e 5,6 questões por ponto, contra o palpite de fábrica',
+          Math.abs(c.qPorPonto - 5.6) < 0.1 && c.divergente === true, { seu: c.qPorPonto, fabrica: c.atual });
+        this._ok('Ciclo: o histórico sai do mais novo para o mais velho e conta certo',
+          C.fechados().length === 3, C.fechados().length);
+      });
+
+      /* 7) OS DOIS PORTÕES GRAVAM O MESMO. Um deles nascia sem `taxaInicial`
+         nem `qBase` — e metade das atividades ficava sem veredito possível. */
+      const o = C.origem('X', 'Dir Adm', { taxa: 33, custoQ: 77 }, { motivo: 'diagnostico' });
+      this._ok('Ciclo: a origem tem todos os campos que o veredito exige',
+        ['topico', 'disciplina', 'motivo', 'criadoEm', 'taxaInicial', 'qBase', 'metaAlvo', 'custoEstimado'].every(k => k in o), Object.keys(o));
+      this._ok('Ciclo: origem sem item não inventa taxa', C.origem('Y', 'Dir Adm', null, {}).taxaInicial === null);
+      this._ok('Ciclo: atividade sem origem do Plano é ignorada pelo ciclo',
+        C.avaliar({ id: 'x', alvo: 10 }, { itens: [], pequenas: [] }) === null);
+    } finally {
+      DB.getTecSnapshots = origSnaps; DB.getExtras = origExtras; DB.saveExtras = origSave;
+      T.scopedSnapshot = origEscopo;
+      if (antesP == null) DB.delRaw(chaveP); else DB.setRaw(chaveP, antesP);
     }
   },
 
@@ -1840,7 +2019,8 @@ const AutoTeste = {
      ['Plano de pontos fracos', 'plano'],
      ['Motor do Reforço', 'reforcoMotor'],
      ['Incidência: gravação', 'incidenciaGravacao'],
-     ['Folha de ajustes do TEC', 'ajustesTec']].forEach(([nome, fn]) => {
+     ['Folha de ajustes do TEC', 'ajustesTec'],
+     ['Ciclo do Plano', 'cicloDoPlano']].forEach(([nome, fn]) => {
       try { this[fn](); }
       catch (e) { this._r.total++; this._r.falhou++; this._r.falhas.push({ nome: nome + ' — exceção', obtido: String(e && e.message || e) }); }
     });

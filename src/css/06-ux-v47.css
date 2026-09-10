@@ -1308,3 +1308,48 @@
 }
 .tec-cfg-sec [data-cfg-se][hidden] { display: none !important; }
 @media (max-width: 400px) { .tec-cfg-reset-longo { display: none; } }
+
+/* ═══ O CICLO DE UMA ATIVIDADE DO PLANO ════════════════════════════════════
+   "Em curso", "o que os retratos já julgaram" e a calibragem. Três blocos com
+   a mesma anatomia: nome + veredito em cima, barra no meio, números embaixo.
+   A repetição é de propósito — quem aprende a ler um lê os três. */
+.pl-ciclo {
+  background: var(--surface-sunken); border: 1.5px solid var(--border);
+  border-radius: 14px; padding: 14px 16px; margin: 0 0 16px;
+}
+.pl-ciclo .pl-hoje-top, .pl-ciclo > summary { margin-bottom: 10px; }
+.pl-ciclo-lista { list-style: none; margin: 0; padding: 0; display: grid; gap: 12px; }
+.pl-ciclo-lista > li { display: grid; gap: 6px; }
+.pl-ciclo-top { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; justify-content: space-between; }
+.pl-ciclo-nome { font-weight: 700; font-size: var(--fs-sm); color: var(--text); min-width: 0; }
+.pl-ciclo-barra {
+  height: 6px; border-radius: 999px; background: var(--border); overflow: hidden;
+}
+.pl-ciclo-barra > i { display: block; height: 100%; background: var(--accent); border-radius: 999px; }
+.pl-ciclo-nums {
+  display: flex; gap: 6px 14px; flex-wrap: wrap;
+  font-size: var(--fs-2xs); color: var(--text-soft);
+}
+.pl-ciclo-nums b { color: var(--text); }
+.pl-ciclo-obs { font-size: var(--fs-3xs); color: var(--text-faint); margin: 0; line-height: 1.5; }
+.pl-ciclo-obs.tone-bad { color: var(--bad-text); }
+.pl-ciclo-acao {
+  background: none; border: 0; padding: 0; font: inherit; cursor: pointer;
+  color: var(--accent); font-weight: 700; text-decoration: underline;
+}
+.pl-ciclo-hist > summary {
+  cursor: pointer; display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+  font-size: var(--fs-sm); list-style: none;
+}
+.pl-ciclo-hist > summary::-webkit-details-marker { display: none; }
+.pl-ciclo-hist > summary span { font-size: var(--fs-2xs); color: var(--text-faint); font-weight: 600; }
+.pl-ciclo-hist > summary .chev { margin-left: auto; transition: transform .18s ease; }
+.pl-ciclo-hist[open] > summary .chev { transform: rotate(180deg); }
+.pl-calib { border-color: var(--accent); }
+.pl-calib .btn-secondary { margin-top: 8px; }
+/* o modo enxuto esconde prosa, não o veredito */
+.tec-enxuto .pl-ciclo-obs { display: none !important; }
+/* selos do Plano no cartão da atividade */
+.extra-tag.plano { background: color-mix(in srgb, var(--accent) 14%, transparent); color: var(--accent); }
+.extra-tag.evo.up { background: var(--good-soft); color: var(--good-text); }
+.extra-tag.evo.down { background: var(--bad-soft); color: var(--bad-text); }

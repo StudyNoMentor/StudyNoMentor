@@ -1682,6 +1682,130 @@ try {
   await pag.setViewportSize({ width: 1280, height: 900 });
 } catch (e) { erro('a folha de ajustes falhou: ' + e.message); }
 
+/* ── 6.15) O CICLO: DECIDI · FIZ · FUNCIONOU? ──────────────────────────────
+   A tela media tudo e nao fechava nada. O percurso inteiro, no navegador: criar
+   pelo Plano, importar o retrato, e conferir que o app conta as questoes
+   sozinho, encerra o que acabou e diz a verdade sobre o que nao funcionou. */
+console.log('\n6.15) o ciclo de uma atividade do Plano, ponta a ponta');
+try {
+  await pag.setViewportSize({ width: 390, height: 844 });
+  const cria = await pag.evaluate(() => {
+    const dia = (n) => { const d = new Date(todayLocal() + 'T00:00:00'); d.setDate(d.getDate() - n); return d.toISOString().slice(0, 10); };
+    const D = (n, q, ac) => ({ depth: 0, codigo: null, nome: n, disciplina: n, questoes: q, acertos: ac });
+    const L = (c, n, disc, q, ac) => ({ depth: 1, codigo: c, nome: n, disciplina: disc, questoes: q, acertos: ac });
+    const R = (id, i, f, rows) => ({ id, nome: id, date: f, startDate: i, endDate: f, rows });
+    const base = (a, b, c) => [D('Dir Adm', 300, a + b + c), L('01', 'Licitacoes', 'Dir Adm', 100, a),
+      L('02', 'Atos', 'Dir Adm', 100, b), L('03', 'Contratos', 'Dir Adm', 100, c)];
+    DB.saveIncidencia([]); DB._set(DB.KEYS.extras, []);
+    DB._set(DB.KEYS.tec, [R('c1', dia(90), dia(70), base(40, 40, 45)), R('c2', dia(60), dia(35), base(40, 40, 45))]);
+    PlanoEngine.salvarPrefs({ minAmostra: 1, limite: 20, ordenar: 'pior', metaDominio: 85, tetoDominio: 90, disciplina: '__todas__' });
+    DesempenhoTecScreen._planoRefC = null; DesempenhoTecScreen._cicloSel = null;
+    switchScreen('desempenhotec'); DesempenhoTecScreen.render(); DesempenhoTecScreen.switchTecTab('plano');
+    ['Licitacoes', 'Atos', 'Contratos'].forEach((t) => DesempenhoTecScreen.criarExtraDoPlano(t, 'Dir Adm', 120, 'reforco', true));
+    return DB.getExtras().map((e) => ({ t: e.origemPlano.topico, qBase: e.origemPlano.qBase,
+      taxa: e.origemPlano.taxaInicial, meta: e.origemPlano.metaAlvo }));
+  });
+  (cria.length === 3 && cria.every((x) => x.qBase === 200 && x.taxa != null && x.meta === 85))
+    ? ok('criar pelo Plano grava o contador do assunto, a taxa inicial e a meta do dia')
+    : erro('a origem da atividade veio incompleta: ' + JSON.stringify(cria));
+
+  // o retrato novo: um resolveu, um piorou, um esta a meio caminho
+  const dep = await pag.evaluate(() => {
+    const dia = (n) => { const d = new Date(todayLocal() + 'T00:00:00'); d.setDate(d.getDate() - n); return d.toISOString().slice(0, 10); };
+    const D = (n, q, ac) => ({ depth: 0, codigo: null, nome: n, disciplina: n, questoes: q, acertos: ac });
+    const L = (c, n, disc, q, ac) => ({ depth: 1, codigo: c, nome: n, disciplina: disc, questoes: q, acertos: ac });
+    const s = DB.getTecSnapshots();
+    s.push({ id: 'c3', nome: 'c3', date: dia(1), startDate: dia(20), endDate: dia(1), rows: [
+      D('Dir Adm', 350, 195), L('01', 'Licitacoes', 'Dir Adm', 150, 138),
+      L('02', 'Atos', 'Dir Adm', 150, 42), L('03', 'Contratos', 'Dir Adm', 50, 15)] });
+    DB._set(DB.KEYS.tec, s);
+    DesempenhoTecScreen._planoRefC = null; DesempenhoTecScreen._cicloSel = null;
+    DesempenhoTecScreen.render(); DesempenhoTecScreen.switchTecTab('plano');
+    const por = {};
+    DB.getExtras().forEach((e) => { por[e.origemPlano.topico] = { st: e.status,
+      v: e.origemPlano.veredito ? e.origemPlano.veredito.tipo : null,
+      pp: e.origemPlano.veredito ? e.origemPlano.veredito.ganhoPP : null }; });
+    const cx = {};
+    document.querySelectorAll('#plano-lista .pl-hoje-sel').forEach((c) => { cx[c.dataset.topico] = { travada: c.disabled }; });
+    const emCurso = [...document.querySelectorAll('.pl-ciclo:not(.pl-ciclo-hist):not(.pl-calib) .pl-ciclo-lista > li')]
+      .map((li) => li.textContent.replace(/\s+/g, ' ').trim());
+    return { por, cx, emCurso,
+      hist: document.querySelectorAll('.pl-ciclo-hist .pl-ciclo-lista > li').length,
+      txt: document.getElementById('plano-lista').textContent,
+      podre: /\bNaN\b|\bundefined\b|\bInfinity\b/.test(document.getElementById('plano-lista').textContent),
+      vaza: document.documentElement.scrollWidth - document.documentElement.clientWidth };
+  });
+  (dep.por.Licitacoes.st === 'concluida' && dep.por.Licitacoes.v === 'funcionou' && dep.por.Licitacoes.pp > 50)
+    ? ok(`o assunto que atingiu a meta encerra sozinho, com o ganho registrado (+${dep.por.Licitacoes.pp}pp)`)
+    : erro('o veredito de sucesso nao saiu: ' + JSON.stringify(dep.por.Licitacoes));
+  (dep.por.Atos.st === 'concluida' && dep.por.Atos.v === 'naoFuncionou' && dep.por.Atos.pp < 0)
+    ? ok(`cumpriu as questoes e a taxa caiu → veredito "nao funcionou" (${dep.por.Atos.pp}pp), que e o diagnostico`)
+    : erro('o veredito negativo nao saiu: ' + JSON.stringify(dep.por.Atos));
+  (dep.por.Contratos.st === 'ativa' && dep.por.Contratos.v === null)
+    ? ok('e o que ainda esta a meio caminho continua aberto')
+    : erro('atividade em andamento foi encerrada por engano: ' + JSON.stringify(dep.por.Contratos));
+  (dep.emCurso.length === 1 && /50\/120/.test(dep.emCurso[0]) && /pelo retrato/.test(dep.emCurso[0]))
+    ? ok('o bloco "Em curso" conta as questoes a partir do retrato, sem lancamento manual (50/120)')
+    : erro('o progresso automatico nao apareceu: ' + JSON.stringify(dep.emCurso));
+  dep.hist === 2 ? ok('e os dois ciclos fechados entram no historico "o que os retratos ja julgaram"')
+    : erro(`historico com ${dep.hist} ciclo(s), esperado 2`);
+  /* O SELO NAO PODE MENTIR. Uma atividade encerrada com "nao funcionou" exibia
+     um "✓" — o simbolo de sucesso no exato caso em que o volume falhou. */
+  (/não funcionou/.test(dep.txt) && dep.cx.Atos && dep.cx.Atos.travada === false)
+    ? ok('o assunto que nao funcionou aparece como tal, e volta a ser atacavel')
+    : erro('o selo do "nao funcionou" mentiu ou travou o assunto: ' + JSON.stringify(dep.cx));
+  (dep.cx.Contratos && dep.cx.Contratos.travada === true)
+    ? ok('e o que tem atividade ABERTA continua travado, para nao duplicar')
+    : erro('assunto com atividade aberta ficou marcavel: ' + JSON.stringify(dep.cx));
+  (!dep.podre && dep.vaza === 0) ? ok('nenhum numero podre e nenhum vazamento a 390px')
+    : erro(`ciclo na tela: podre=${dep.podre} vazamento=${dep.vaza}px`);
+
+  // a tela de Atividades mostra de onde veio e o que aconteceu
+  const card = await pag.evaluate(() => {
+    switchScreen('extras');
+    if (window.ExtrasScreen) ExtrasScreen.render();
+    const t = (document.getElementById('extras-list') || {}).textContent || '';
+    return { doPlano: /do Plano/.test(t), evo: /45% → 30%/.test(t), retrato: /pelo retrato/.test(t),
+      barra: /50 \/ 120/.test(t) };
+  });
+  (card.doPlano && card.evo && card.barra)
+    ? ok('o cartao da atividade diz que veio do Plano, mostra 45% → 30% e a barra em 50/120')
+    : erro('o cartao nao trouxe o ciclo: ' + JSON.stringify(card));
+
+  // a calibragem so aparece com historico, e propoe o SEU numero
+  const cal = await pag.evaluate(() => {
+    const dia = (n) => { const d = new Date(todayLocal() + 'T00:00:00'); d.setDate(d.getDate() - n); return d.toISOString().slice(0, 10); };
+    const fake = (t, q, ini, fim) => {
+      const e = DB.addExtra({ titulo: t, tipo: 'questoes', alvo: q, periodo: 'unica', contaMetricas: false });
+      DB.updateExtra(e.id, { status: 'concluida', origemPlano: { topico: t, disciplina: 'Dir Adm', criadoEm: dia(30),
+        veredito: { tipo: 'funcionou', em: todayLocal(), taxaInicial: ini, taxaFinal: fim, ganhoPP: fim - ini, questoes: q, alvo: q } } });
+    };
+    const antes = PlanoCiclo.calibragem().pronta;
+    fake('K1', 100, 40, 58); fake('K2', 200, 50, 86);
+    switchScreen('desempenhotec'); DesempenhoTecScreen.switchTecTab('plano');
+    const c = PlanoCiclo.calibragem();
+    const btn = document.getElementById('plano-calibrar');
+    const houve = !!btn;
+    if (btn) btn.click();
+    return { antes, pronta: c.pronta, n: c.n, qPorPonto: c.qPorPonto, atual: c.atual, houve };
+  });
+  (cal.antes === false && cal.pronta && cal.n >= 3 && cal.houve)
+    ? ok(`a calibragem so liga com historico: ${cal.n} ciclos → ${cal.qPorPonto} questoes por ponto (o padrao era ${cal.atual})`)
+    : erro('a calibragem nao apareceu como devia: ' + JSON.stringify(cal));
+  await pag.waitForTimeout(200);
+  const aplicou = await pag.evaluate(async () => {
+    const ok = document.getElementById('ui-modal-ok');
+    if (ok) ok.click();
+    await new Promise((r) => setTimeout(r, 250));
+    return PlanoEngine.prefs().custoPorPonto;
+  });
+  (aplicou === cal.qPorPonto)
+    ? ok(`calibrar leva o numero para os ajustes do Plano (custo por ponto = ${aplicou})`)
+    : erro(`calibrar nao aplicou: custoPorPonto=${aplicou}, esperado ${cal.qPorPonto}`);
+  await pag.evaluate(() => { PlanoEngine.salvarPrefs({ custoPorPonto: PlanoEngine.DEFAULTS.custoPorPonto }); DB._set(DB.KEYS.extras, []); });
+  await pag.setViewportSize({ width: 1280, height: 900 });
+} catch (e) { erro('o ciclo do Plano falhou: ' + e.message); }
+
 console.log('\n7) contraste WCAG AA (temas claro e escuro)');
 /* Transicoes e animacoes desligadas durante a medicao. Sem isto, medir logo
    apos uma troca de tela pega a cor INTERMEDIARIA de uma transicao (a aba ativa

@@ -57,7 +57,7 @@
      novo, e o antigo é descartado sozinho na ativação) e o que permite ao app
      dizer qual versão está rodando. Em src/ fica "dev" de propósito: a versão
      é gerada na montagem, não editada à mão. -->
-<meta name="diario-versao" content="v47e94a3994">
+<meta name="diario-versao" content="veaa5199df3">
 <script>
 /* ── ARRANQUE: abre o IndexedDB AGORA, em paralelo com o parse do documento ──
    A fachada de armazenamento vive no fim do <body>, depois de ~1,7 MB de HTML.
@@ -9923,6 +9923,51 @@ window.__idbBoot = (function () {
 }
 .tec-cfg-sec [data-cfg-se][hidden] { display: none !important; }
 @media (max-width: 400px) { .tec-cfg-reset-longo { display: none; } }
+
+/* ═══ O CICLO DE UMA ATIVIDADE DO PLANO ════════════════════════════════════
+   "Em curso", "o que os retratos já julgaram" e a calibragem. Três blocos com
+   a mesma anatomia: nome + veredito em cima, barra no meio, números embaixo.
+   A repetição é de propósito — quem aprende a ler um lê os três. */
+.pl-ciclo {
+  background: var(--surface-sunken); border: 1.5px solid var(--border);
+  border-radius: 14px; padding: 14px 16px; margin: 0 0 16px;
+}
+.pl-ciclo .pl-hoje-top, .pl-ciclo > summary { margin-bottom: 10px; }
+.pl-ciclo-lista { list-style: none; margin: 0; padding: 0; display: grid; gap: 12px; }
+.pl-ciclo-lista > li { display: grid; gap: 6px; }
+.pl-ciclo-top { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; justify-content: space-between; }
+.pl-ciclo-nome { font-weight: 700; font-size: var(--fs-sm); color: var(--text); min-width: 0; }
+.pl-ciclo-barra {
+  height: 6px; border-radius: 999px; background: var(--border); overflow: hidden;
+}
+.pl-ciclo-barra > i { display: block; height: 100%; background: var(--accent); border-radius: 999px; }
+.pl-ciclo-nums {
+  display: flex; gap: 6px 14px; flex-wrap: wrap;
+  font-size: var(--fs-2xs); color: var(--text-soft);
+}
+.pl-ciclo-nums b { color: var(--text); }
+.pl-ciclo-obs { font-size: var(--fs-3xs); color: var(--text-faint); margin: 0; line-height: 1.5; }
+.pl-ciclo-obs.tone-bad { color: var(--bad-text); }
+.pl-ciclo-acao {
+  background: none; border: 0; padding: 0; font: inherit; cursor: pointer;
+  color: var(--accent); font-weight: 700; text-decoration: underline;
+}
+.pl-ciclo-hist > summary {
+  cursor: pointer; display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+  font-size: var(--fs-sm); list-style: none;
+}
+.pl-ciclo-hist > summary::-webkit-details-marker { display: none; }
+.pl-ciclo-hist > summary span { font-size: var(--fs-2xs); color: var(--text-faint); font-weight: 600; }
+.pl-ciclo-hist > summary .chev { margin-left: auto; transition: transform .18s ease; }
+.pl-ciclo-hist[open] > summary .chev { transform: rotate(180deg); }
+.pl-calib { border-color: var(--accent); }
+.pl-calib .btn-secondary { margin-top: 8px; }
+/* o modo enxuto esconde prosa, não o veredito */
+.tec-enxuto .pl-ciclo-obs { display: none !important; }
+/* selos do Plano no cartão da atividade */
+.extra-tag.plano { background: color-mix(in srgb, var(--accent) 14%, transparent); color: var(--accent); }
+.extra-tag.evo.up { background: var(--good-soft); color: var(--good-text); }
+.extra-tag.evo.down { background: var(--bad-soft); color: var(--bad-text); }
 
 </style>
 
@@ -26683,6 +26728,22 @@ const AutoTeste = {
       this._ok('Plano: quem escolheu proporcional mantém a escolha', P.prefs().custoModo === 'proporcional');
       DB.setRaw(chave, JSON.stringify({ custoModo: 'fixo', migracao: 2 }));
       this._ok('Plano: escolher fixo DEPOIS da migração é respeitado', P.prefs().custoModo === 'fixo');
+      /* MIGRAÇÃO É DEGRAU, NÃO PORTEIRA. O teste que faltava: a migração 2
+         disparava com `!== 2`, e a migração seguinte grava `migracao: 3` — três
+         é diferente de dois, então ela voltava a rodar em TODA leitura e forçava
+         o custo de volta ao padrão de fábrica. Os dois campos de custo dos
+         ajustes avançados não guardavam nada: você digitava 4, a tela mostrava
+         4, e a leitura seguinte devolvia 2. */
+      DB.setRaw(chave, JSON.stringify({ custoPorPonto: 4, custoPiso: 90, migracao: 3 }));
+      this._ok('Plano: uma migração já cumprida não roda de novo e não pisa no que você ajustou',
+        P.prefs().custoPorPonto === 4 && P.prefs().custoPiso === 90,
+        { porPonto: P.prefs().custoPorPonto, piso: P.prefs().custoPiso });
+      DB.delRaw(chave);
+      P.salvarPrefs({ custoPorPonto: 7.5 });
+      P.salvarPrefs({ custoPiso: 120 });
+      this._ok('Plano: e dois salvamentos seguidos não desfazem um ao outro',
+        P.prefs().custoPorPonto === 7.5 && P.prefs().custoPiso === 120,
+        { porPonto: P.prefs().custoPorPonto, piso: P.prefs().custoPiso });
     } finally {
       if (antesPrefs == null) DB.delRaw(chave); else DB.setRaw(chave, antesPrefs);
     }
@@ -26918,6 +26979,169 @@ const AutoTeste = {
       this._ok('Plano: nome diferente nunca casa',
         !T._casaTopico({ topico: 'Atos', disciplina: 'X' }, 'Contratos', 'X'));
       this._ok('Plano: origem ausente não casa com nada', !T._casaTopico(null, 'Atos', 'X'));
+    }
+  },
+
+
+  /* ═══ O CICLO DE UMA ATIVIDADE DO PLANO ════════════════════════════════════
+     decidi · fiz · funcionou? O app media tudo e não fechava nada: o progresso
+     só andava se você digitasse (contabilidade dobrada sobre o mesmo fato), e o
+     desfecho não existia — o assunto ia de 40% a 95%, saía da lista, e a
+     atividade continuava aberta como pendência de hoje, amanhã e sempre.
+
+     As invariantes abaixo são as que, se quebrarem, quebram calado: um
+     progresso que apaga o que você lançou, um veredito que muda porque você
+     mexeu na meta depois, uma vitória declarada num assunto que sumiu do TEC. */
+  cicloDoPlano() {
+    const P = PlanoEngine, C = PlanoCiclo, T = DesempenhoTecScreen;
+    const dia = (n) => { const d = new Date(todayLocal() + 'T00:00:00'); d.setDate(d.getDate() - n); return d.toISOString().slice(0, 10); };
+    const D = (n, q, ac) => ({ depth: 0, codigo: null, nome: n, disciplina: n, questoes: q, acertos: ac });
+    const L = (c, n, disc, q, ac) => ({ depth: 1, codigo: c, nome: n, disciplina: disc, questoes: q, acertos: ac });
+    const R = (id, i, f, rows) => ({ id, nome: id, date: f, startDate: i, endDate: f, rows });
+    const par = (a, b) => [D('Dir Adm', 200, a + b), L('01', 'Licitacoes', 'Dir Adm', 100, a), L('02', 'Atos', 'Dir Adm', 100, b)];
+    const origSnaps = DB.getTecSnapshots, origExtras = DB.getExtras, origSave = DB.saveExtras;
+    const origEscopo = T.scopedSnapshot;
+    const chaveP = DB._profilePrefix() + P.KEY_PREF;
+    const antesP = localStorage.getItem(chaveP);
+    let banco = [];
+    /* O escopo entra no empréstimo junto com os retratos: `conciliar` lê o
+       retrato consolidado da tela, e sem trocar os dois o teste julgaria o
+       dado novo com o escopo do app real. */
+    const comBanco = (snaps, fn) => {
+      DB.getTecSnapshots = () => snaps;
+      DB.getExtras = () => banco;
+      DB.saveExtras = (l) => { banco = l; };
+      T.scopedSnapshot = () => snaps[snaps.length - 1];
+      try { return fn(); } finally {
+        DB.getTecSnapshots = origSnaps; DB.getExtras = origExtras;
+        DB.saveExtras = origSave; T.scopedSnapshot = origEscopo;
+      }
+    };
+    const criar = (topico, alvo, item) => {
+      const e = DB.addExtra({ titulo: topico, tipo: 'questoes', alvo, periodo: 'unica', contaMetricas: false });
+      DB.updateExtra(e.id, { origemPlano: C.origem(topico, 'Dir Adm', item, { motivo: 'reforco' }) });
+      return DB.getExtras().find(x => x.id === e.id);
+    };
+    const itemDe = (r, nome) => [].concat(r.itens, r.pequenas || []).find(x => x.nome === nome);
+    try {
+      DB.setRaw(chaveP, JSON.stringify({ minAmostra: 1, limite: 20, ordenar: 'pior', metaDominio: 85, tetoDominio: 90, migracao: 3 }));
+      const velhos = [R('a', dia(90), dia(70), par(40, 40)), R('b', dia(60), dia(35), par(40, 40))];
+
+      /* 1) O PROGRESSO SAI DO RETRATO. `qBase` é o contador do assunto no
+         instante zero; o de hoje menos ele é o que você resolveu desde então.
+         Datas não entram na conta — é isto que faz a medida sobreviver a um
+         retrato cujo período atravessa a data de criação. */
+      banco = [];
+      let e1 = comBanco(velhos, () => {
+        const r = P.calcular(velhos[1], P.prefs());
+        return criar('Licitacoes', 120, itemDe(r, 'Licitacoes'));
+      });
+      this._ok('Ciclo: a atividade guarda o contador do assunto na criação',
+        e1.origemPlano.qBase === 200, e1.origemPlano.qBase);
+      this._ok('Ciclo: e a taxa inicial e a META DO DIA, não a de depois',
+        e1.origemPlano.taxaInicial === 40 && e1.origemPlano.metaAlvo === 85, e1.origemPlano);
+      const comNovo = velhos.concat([R('c', dia(20), dia(1), [D('Dir Adm', 80, 48), L('01', 'Licitacoes', 'Dir Adm', 80, 48)])]);
+      let v = comBanco(comNovo, () => C.avaliar(DB.getExtras()[0], P.calcular(comNovo[2], P.prefs())));
+      this._ok('Ciclo: o retrato novo conta as questões sozinho', v.feito === 80 && v.medido === 80, { feito: v.feito, medido: v.medido });
+      this._ok('Ciclo: 80 de 120 ainda é andamento', v.estado === 'andamento' && !v.cumpriu, v.estado);
+
+      /* 2) IMPORTAR SÓ EMPURRA A BARRA PARA CIMA. Quem resolve questão fora do
+         TEC lança na mão; o retrato não pode apagar esse lançamento. */
+      comBanco(comNovo, () => {
+        DB.addExtraProgress(DB.getExtras()[0].id, 100);
+        const w = C.avaliar(DB.getExtras()[0], P.calcular(comNovo[2], P.prefs()));
+        this._ok('Ciclo: lançamento manual maior que o medido prevalece', w.feito === 100 && w.manual === 100, w.feito);
+      });
+
+      /* 3) O VEREDITO. Dois fins legítimos: o objetivo atingido e o trabalho
+         cumprido — e o segundo, sem ganho, é o diagnóstico mais valioso do app:
+         volume não resolve aquele assunto. */
+      banco = [];
+      const venceu = velhos.concat([R('c', dia(20), dia(1), [D('Dir Adm', 150, 138), L('01', 'Licitacoes', 'Dir Adm', 150, 138)])]);
+      comBanco(velhos, () => criar('Licitacoes', 120, itemDe(P.calcular(velhos[1], P.prefs()), 'Licitacoes')));
+      comBanco(venceu, () => {
+        const res = C.conciliar();
+        const e = DB.getExtras()[0];
+        this._ok('Ciclo: atingiu a meta → encerra sozinha, com veredito',
+          e.status === 'concluida' && e.origemPlano.veredito.tipo === 'funcionou', e.origemPlano.veredito);
+        this._ok('Ciclo: e o ganho fica registrado para sempre',
+          e.origemPlano.veredito.ganhoPP > 50, e.origemPlano.veredito.ganhoPP);
+        const foto = JSON.stringify(DB.getExtras());
+        C.conciliar(); C.conciliar();
+        this._ok('Ciclo: conciliar de novo não reescreve nada', JSON.stringify(DB.getExtras()) === foto);
+        this._ok('Ciclo: a conciliação relata o que fechou', res.fechadas.length === 1, res.fechadas.length);
+      });
+      banco = [];
+      const piorou = velhos.concat([R('c', dia(20), dia(1), [D('Dir Adm', 150, 40), L('02', 'Atos', 'Dir Adm', 150, 40)])]);
+      comBanco(velhos, () => criar('Atos', 100, itemDe(P.calcular(velhos[1], P.prefs()), 'Atos')));
+      comBanco(piorou, () => {
+        C.conciliar();
+        const e = DB.getExtras()[0];
+        this._ok('Ciclo: cumpriu o alvo e a taxa não subiu → "não funcionou"',
+          e.status === 'concluida' && e.origemPlano.veredito.tipo === 'naoFuncionou', e.origemPlano.veredito);
+        this._ok('Ciclo: com o prejuízo registrado, não escondido',
+          e.origemPlano.veredito.ganhoPP < 0, e.origemPlano.veredito.ganhoPP);
+      });
+
+      /* 4) A TRAVE NÃO SE MOVE. Julgar pela meta de hoje reescreveria o
+         resultado de uma atividade que já estava correndo sob outra regra. */
+      banco = [];
+      DB.setRaw(chaveP, JSON.stringify({ minAmostra: 1, metaDominio: 70, tetoDominio: 90, migracao: 3 }));
+      comBanco(velhos, () => criar('Licitacoes', 120, itemDe(P.calcular(velhos[1], P.prefs()), 'Licitacoes')));
+      DB.setRaw(chaveP, JSON.stringify({ minAmostra: 1, metaDominio: 99, tetoDominio: 90, migracao: 3 }));
+      comBanco(venceu, () => {
+        C.conciliar();
+        this._ok('Ciclo: subir a meta depois não apaga o gol',
+          DB.getExtras()[0].origemPlano.veredito.tipo === 'funcionou', DB.getExtras()[0].origemPlano.veredito);
+        DB.setRaw(chaveP, JSON.stringify({ minAmostra: 1, limite: 20, metaDominio: 85, tetoDominio: 90, migracao: 3 }));
+      });
+
+      /* 5) SUMIR DA LISTA NÃO É VENCER. O assunto renomeado no TEC sai da lista
+         igual ao resolvido — e declarar vitória nele seria inventar um ganho. */
+      banco = [];
+      const sumiu = [R('z', dia(20), dia(1), [D('Dir Adm', 100, 50), L('07', 'Outro nome', 'Dir Adm', 100, 50)])];
+      comBanco(velhos, () => { const r0 = P.calcular(velhos[1], P.prefs()); criar('Licitacoes', 120, itemDe(r0, 'Licitacoes')); });
+      comBanco(sumiu, () => {
+        const w = C.avaliar(DB.getExtras()[0], P.calcular(sumiu[0], P.prefs()));
+        this._ok('Ciclo: assunto que sumiu do TEC vira órfã, não vitória', w.estado === 'orfa', w.estado);
+        C.conciliar();
+        this._ok('Ciclo: e órfã não encerra sozinha — quem decide é você',
+          DB.getExtras()[0].status !== 'concluida', DB.getExtras()[0].status);
+      });
+
+      /* 6) A CALIBRAGEM. O custo por ponto é um palpite de fábrica até o seu
+         histórico responder a mesma pergunta com o seu dado. */
+      banco = [];
+      comBanco(velhos, () => {
+        this._ok('Ciclo: sem histórico, a calibragem diz quantos ciclos faltam',
+          C.calibragem().pronta === false && C.calibragem().faltam === C.MIN_CICLOS, C.calibragem());
+        const fake = (t, q, ini, fim) => {
+          const e = DB.addExtra({ titulo: t, tipo: 'questoes', alvo: q, periodo: 'unica' });
+          DB.updateExtra(e.id, { status: 'concluida', origemPlano: { topico: t, disciplina: 'Dir Adm', criadoEm: dia(30),
+            veredito: { tipo: 'funcionou', em: todayLocal(), taxaInicial: ini, taxaFinal: fim, ganhoPP: fim - ini, questoes: q, alvo: q } } });
+        };
+        fake('A', 100, 40, 58); fake('B', 200, 50, 86); fake('C', 100, 60, 78);
+        const c = C.calibragem();
+        this._ok('Ciclo: com 3 ciclos a calibragem liga', c.pronta && c.n === 3, c.n);
+        this._ok('Ciclo: 72pp em 400 questões = 18pp por 100', Math.abs(c.ppPorCem - 18) < 0.05, c.ppPorCem);
+        this._ok('Ciclo: e 5,6 questões por ponto, contra o palpite de fábrica',
+          Math.abs(c.qPorPonto - 5.6) < 0.1 && c.divergente === true, { seu: c.qPorPonto, fabrica: c.atual });
+        this._ok('Ciclo: o histórico sai do mais novo para o mais velho e conta certo',
+          C.fechados().length === 3, C.fechados().length);
+      });
+
+      /* 7) OS DOIS PORTÕES GRAVAM O MESMO. Um deles nascia sem `taxaInicial`
+         nem `qBase` — e metade das atividades ficava sem veredito possível. */
+      const o = C.origem('X', 'Dir Adm', { taxa: 33, custoQ: 77 }, { motivo: 'diagnostico' });
+      this._ok('Ciclo: a origem tem todos os campos que o veredito exige',
+        ['topico', 'disciplina', 'motivo', 'criadoEm', 'taxaInicial', 'qBase', 'metaAlvo', 'custoEstimado'].every(k => k in o), Object.keys(o));
+      this._ok('Ciclo: origem sem item não inventa taxa', C.origem('Y', 'Dir Adm', null, {}).taxaInicial === null);
+      this._ok('Ciclo: atividade sem origem do Plano é ignorada pelo ciclo',
+        C.avaliar({ id: 'x', alvo: 10 }, { itens: [], pequenas: [] }) === null);
+    } finally {
+      DB.getTecSnapshots = origSnaps; DB.getExtras = origExtras; DB.saveExtras = origSave;
+      T.scopedSnapshot = origEscopo;
+      if (antesP == null) DB.delRaw(chaveP); else DB.setRaw(chaveP, antesP);
     }
   },
 
@@ -27221,7 +27445,8 @@ const AutoTeste = {
      ['Plano de pontos fracos', 'plano'],
      ['Motor do Reforço', 'reforcoMotor'],
      ['Incidência: gravação', 'incidenciaGravacao'],
-     ['Folha de ajustes do TEC', 'ajustesTec']].forEach(([nome, fn]) => {
+     ['Folha de ajustes do TEC', 'ajustesTec'],
+     ['Ciclo do Plano', 'cicloDoPlano']].forEach(([nome, fn]) => {
       try { this[fn](); }
       catch (e) { this._r.total++; this._r.falhou++; this._r.falhas.push({ nome: nome + ' — exceção', obtido: String(e && e.message || e) }); }
     });
@@ -28026,6 +28251,8 @@ const ExtrasScreen = {
   _addMoreFor: null,   // "id@dia" cujo card está com o input de "registrar mais" aberto
   _CHECK: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>',
   render() {
+    // o retrato do Plano custa caro: um por repintura, não um por cartão
+    this._planoRefCard = null;
     // toggle global
     const gt = document.getElementById('extras-global-toggle');
     if (gt) gt.classList.toggle('on', DB.extrasCountGlobal());
@@ -28170,11 +28397,18 @@ const ExtrasScreen = {
       const r = PlanoEngine.calcular(DesempenhoTecScreen.scopedSnapshot(),
         Object.assign({}, PlanoEngine.prefs(), { disciplina: '__todas__', limite: 200, ordenar: this._planoOrd }));
       if (!r || r.erro) { this._planoCand = null; this._planoErr = (r && r.erro) || 'erro'; return; }
-      const jaTem = new Set(DB.getExtras().filter(e => e.origemPlano).map(e => ReforcoEngine.norm(e.origemPlano.topico)));
+      /* A DEDUPLICAÇÃO É POR DISCIPLINA + NOME, como no resto do motor. Comparar
+         só o nome fazia criar "Atos" de Administrativo esconder o "Atos" de
+         Constitucional deste diálogo: dois assuntos de verdade, um deles sem
+         porta nenhuma para virar atividade. E uma atividade JÁ CONCLUÍDA não
+         bloqueia: o assunto pode ter voltado a cair, e atacá-lo de novo é o
+         uso normal do app, não uma duplicata. */
+      const abertas = DB.getExtras().filter(e => e.origemPlano && e.status !== 'concluida');
+      const jaTem = (x) => abertas.some(e => DesempenhoTecScreen._casaTopico(e.origemPlano, x.nome, x.disciplina));
       this._planoCand = []
         .concat((r.itens || []).map(x => ({ ...x, motivo: 'reforco', alvo: x.custoQ })))
         .concat((r.pequenas || []).map(x => ({ ...x, motivo: 'diagnostico', alvo: x.faltaAmostra })))
-        .filter(x => !jaTem.has(ReforcoEngine.norm(x.nome)));
+        .filter(x => !jaTem(x));
       this._planoErr = null;
     };
     this._planoRecalc();
@@ -28234,7 +28468,9 @@ const ExtrasScreen = {
           alvo: Math.max(1, x.alvo), periodo: 'unica', contaMetricas: false,
           obs: 'Gerado pelo Plano de pontos fracos.'
         });
-        if (e) { DB.updateExtra(e.id, { origemPlano: { topico: x.nome, disciplina: x.disciplina || '', motivo: x.motivo, criadoEm: todayLocal() } }); n++; }
+        // mesma origem do outro portão: sem isto a atividade nascia sem
+        // `taxaInicial` nem `qBase`, e o ciclo dela nunca teria veredito
+        if (e) { DB.updateExtra(e.id, { origemPlano: PlanoCiclo.origem(x.nome, x.disciplina, x, { motivo: x.motivo }) }); n++; }
       });
       this.render();
       showToast(n ? n + ' atividade(s) criada(s) ✓' : 'Nenhuma selecionada');
@@ -28368,7 +28604,21 @@ const ExtrasScreen = {
        criterio ja usado para decidir se a meta foi batida. */
     const feitoDia = (x.historico || []).filter(h => h.data === day).reduce((a, h) => a + (h.quantidade || 0), 0);
     const diaria = x.periodo === 'diaria';
-    const feito = !rec ? (x.progresso || 0) : (diaria ? feitoDia : DB.extraProgressoPeriodo(x));
+    let feito = !rec ? (x.progresso || 0) : (diaria ? feitoDia : DB.extraProgressoPeriodo(x));
+    /* ── ATIVIDADE DO PLANO: O RETRATO CONTA POR VOCÊ ────────────────────────
+       Resolver 150 questões no TEC e importar o retrato deixava esta barra em
+       0/120: a mesma pessoa lançando o mesmo fato duas vezes, e esquecendo a
+       segunda. Agora o progresso de uma atividade do Plano vale
+       `max(digitado, medido no retrato)` — importar só empurra para cima, e
+       quem resolve questão fora do TEC continua podendo lançar na mão. */
+    let ciclo = null;
+    if (x.origemPlano && x.origemPlano.topico && typeof PlanoCiclo !== 'undefined') {
+      try {
+        ciclo = PlanoCiclo.avaliar(x, this._planoRefCard || (this._planoRefCard =
+          PlanoEngine.calcular(DesempenhoTecScreen.scopedSnapshot(), PlanoEngine.prefs())));
+        if (ciclo && ciclo.feito > feito) feito = ciclo.feito;
+      } catch (e) { _quiet(e, 'card-ciclo'); }
+    }
     // rotulo do que a barra esta medindo, para nao restar duvida
     const PER_LABEL = { semanal: 'na semana', quinzenal: 'na quinzena', mensal: 'no mês' };
     const escopo = !rec ? '' : (diaria ? (day === todayLocal() ? 'hoje' : 'no dia') : (PER_LABEL[x.periodo] || ''));
@@ -28380,10 +28630,17 @@ const ExtrasScreen = {
     const recTag = rec ? `<span class="extra-tag rec">🔁 ${REC_NOME[x.periodo] || ''}</span>` : '';
     const discTag = x.disciplina ? `<span class="extra-tag disc">${escapeHtml(x.disciplina)}</span>` : '';
     const metaTag = `<span class="extra-tag ${x.contaMetricas ? 'count-on' : 'count-off'}" title="${x.contaMetricas ? 'Conta nas métricas de Evolução' : 'Fora das métricas'}">${x.contaMetricas ? '📊 conta na Evolução' : '🚫 não conta'}</span>`;
+    /* De onde a atividade veio e o que aconteceu com o assunto desde então. Sem
+       isto o cartão é um item de lista de compras: não diz que nasceu de uma
+       fraqueza medida, nem se a fraqueza cedeu. */
+    const planoTag = (x.origemPlano && x.origemPlano.topico)
+      ? `<span class="extra-tag plano" title="Criada a partir do 🏁 Plano de pontos fracos em ${escapeHtml(formatDateShort(x.origemPlano.criadoEm || ''))}">🏁 do Plano</span>` : '';
+    const evoTag = (ciclo && ciclo.origem.taxaInicial != null && ciclo.taxa != null)
+      ? `<span class="extra-tag evo ${ciclo.delta != null && ciclo.delta >= 0 ? 'up' : 'down'}" title="Acerto no assunto quando você criou a atividade, e hoje">${ciclo.origem.taxaInicial.toFixed(0)}% → ${ciclo.taxa.toFixed(0)}%</span>` : '';
     const progBlock = (alvo > 0)
       ? `<div class="exd-prog">
            <div class="bar"><i class="${barFull ? 'full' : ''}" style="width:${pct}%"></i></div>
-           <div class="nums"><span><b>${feito.toLocaleString('pt-BR')}</b> / ${alvo.toLocaleString('pt-BR')} ${unidLabel}${escopo ? ' <span class="opt">' + escopo + '</span>' : ''}</span><span>${pct}%</span></div>
+           <div class="nums"><span><b>${feito.toLocaleString('pt-BR')}</b> / ${alvo.toLocaleString('pt-BR')} ${unidLabel}${escopo ? ' <span class="opt">' + escopo + '</span>' : ''}${(ciclo && ciclo.medido > ciclo.manual) ? ' <span class="opt" title="Contadas a partir dos seus retratos do TEC — não precisa lançar à mão.">pelo retrato</span>' : ''}</span><span>${pct}%</span></div>
          </div>`
       : (feitoDia > 0 ? `<div class="exd-prog"><div class="nums"><span><b>${feitoDia.toLocaleString('pt-BR')}</b> ${unidLabel} no dia</span></div></div>` : '');
     const marcador = x.tipo === 'leitura'
@@ -28445,7 +28702,7 @@ const ExtrasScreen = {
             <div class="exd-title">${escapeHtml(x.titulo)}</div>
             <div class="exd-tags">
               <span class="extra-tag">${t.nome}</span>
-              ${discTag}${recTag}${metaTag}
+              ${discTag}${recTag}${planoTag}${evoTag}${metaTag}
               ${x.tipo === 'leitura' && x.marcador ? `<span class="extra-tag pin">📌 ${escapeHtml(x.marcador)}</span>` : ''}
             </div>
           </div>
@@ -30098,7 +30355,15 @@ const PlanoEngine = {
          de "pior acerto" só valeria para quem instalasse o app amanhã.
          Quem escolheu 'proporcional' de propósito mantém a escolha — só o
          'fixo', que era o padrão antigo e não uma decisão, é substituído. */
-      if (p.migracao !== 2) {
+      /* `!== 2` e não `< 2` era uma migração que NUNCA TERMINAVA. A migração
+         seguinte grava `migracao: 3`, e três é diferente de dois: a partir daí
+         este bloco voltava a rodar em toda leitura das preferências e forçava
+         `custoPiso` e `custoPorPonto` de volta ao padrão de fábrica. O efeito
+         para quem usa: os dois campos de custo dos ajustes avançados não
+         guardavam nada — você digitava 4, a tela mostrava 4, e a leitura
+         seguinte devolvia 2, sem aviso. Migração é degrau, não porteira: roda
+         para quem ainda não passou por ela. */
+      if (p.migracao < 2) {
         if (p.custoModo !== 'proporcional') p.custoModo = 'lacuna';
         p.custoPiso = this.DEFAULTS.custoPiso;
         p.custoPorPonto = this.DEFAULTS.custoPorPonto;
@@ -30212,6 +30477,36 @@ const PlanoEngine = {
     });
     Object.values(m).forEach(v => { v.pct = v.q > 0 ? v.ac / v.q * 100 : null; });
     return m;
+  },
+  /* Total histórico de questões por assunto, na MESMA chave que o resto do
+     motor usa. É daqui que o ciclo de uma atividade tira o quanto você já
+     resolveu — antes e depois de criá-la. */
+  totalHistorico(opts) {
+    opts = Object.assign({}, this.prefs(), opts || {});
+    const m = {};
+    (DB.getTecSnapshots() || []).forEach(s => {
+      const idx = this._indice(s, opts.apenasFolhas);
+      for (const k in idx) { const c = m[k] || { q: 0, ac: 0 }; c.q += idx[k].q; c.ac += idx[k].ac; m[k] = c; }
+    });
+    return m;
+  },
+  /* A taxa de um assunto AGORA, pela MESMA janela adaptativa que a lista usa.
+     Existe porque um assunto que passou do teto SAI da lista do Plano — e
+     quem precisa julgá-lo (o ciclo de uma atividade) não pode cair na média da
+     vida inteira: 40% em duzentas questões velhas mais 92% em cento e cinquenta
+     novas dá 62%, e 62% reprova um assunto que está resolvido. */
+  taxaAtualDe(disciplina, nome, opts) {
+    const o = Object.assign({}, this.prefs(), opts || {});
+    const todos = DB.getTecSnapshots();
+    if (!todos.length) return null;
+    const desc = todos.slice().reverse().map(s => { s._idx = this._indice(s, o.apenasFolhas); return s; });
+    const a = this._taxaAdaptativa(ReforcoEngine.chaveInc(disciplina || '', nome), desc, o);
+    return a ? a.pct : null;
+  },
+  qHistDe(disciplina, nome, opts) {
+    const m = (opts && opts._mapa) || this.totalHistorico(opts);
+    const v = m[ReforcoEngine.chaveInc(disciplina || '', nome)];
+    return v ? v.q : 0;
   },
   // ── SÉRIE HISTÓRICA: domínio em cada importação ─────────────────────────
   // Responde "está funcionando?" — a pergunta que nenhum número isolado responde.
@@ -30766,6 +31061,176 @@ const PlanoEngine = {
 };
 
 /* ═══════════════════════════════════════════════════════════════════════════
+   O CICLO DE UMA ATIVIDADE DO PLANO — decidi · fiz · funcionou?
+   ───────────────────────────────────────────────────────────────────────────
+   O app media tudo e não fechava nada. Você criava a atividade a partir do
+   Plano e, dali em diante, ela perdia contato com o dado que a gerou:
+
+   · o PROGRESSO só andava se você digitasse. Resolver 150 questões no TEC e
+     importar o retrato deixava a barra em 0/120 — contabilidade dobrada, feita
+     duas vezes pela mesma pessoa sobre o mesmo fato.
+   · o DESFECHO não existia. O assunto subia de 40% para 95%, saía da lista do
+     Plano, e a atividade continuava aberta como pendência de hoje, amanhã e
+     sempre. O app sabia que tinha acabado e não dizia.
+   · e o caso mais valioso não era medido em lugar nenhum: você cumpriu as 120
+     questões e a taxa NÃO subiu. Isso não é fracasso da pessoa, é diagnóstico:
+     volume não resolve aquele assunto, o buraco é de teoria. Nenhum ranking
+     ensina isso; só o ciclo fechado ensina.
+
+   AS TRÊS DEFINIÇÕES QUE SUSTENTAM O RESTO
+
+   1. PROGRESSO = quantas questões daquele assunto entraram nos seus retratos
+      DESDE a criação. Guardamos `qBase` (o total histórico no instante em que
+      a atividade nasceu) e comparamos com o total de hoje. É exato mesmo
+      quando um retrato atravessa a data de criação — datas não entram na
+      conta, só o contador do assunto. E vale `max(digitado, medido)`: importar
+      só empurra a barra para cima, nunca apaga o que você lançou na mão.
+   2. A META É A DO DIA DA CRIAÇÃO (`metaAlvo`). Mudar a meta do Plano depois
+      não pode reescrever o veredito de uma atividade que já estava correndo:
+      seria mover a trave e declarar gol.
+   3. A ATIVIDADE ACABA QUANDO O SEU OBJETIVO É ATINGIDO **OU** QUANDO O SEU
+      TRABALHO É CUMPRIDO. São dois fins legítimos, e o veredito diz qual foi.
+      Fechar só no primeiro deixaria aberta para sempre a atividade que falhou;
+      fechar só no segundo ignoraria quem chegou lá com menos questões que a
+      estimativa.
+   ═══════════════════════════════════════════════════════════════════════════ */
+const PlanoCiclo = {
+  /* Campos que a atividade carrega do Plano. `criar` é o ÚNICO lugar que os
+     monta — os dois portões (a lista do Plano e o "Puxar do Plano" da tela de
+     Atividades) passam por aqui, e por isso não podem mais divergir: um deles
+     gravava `taxaInicial` e o outro não, e metade das atividades nascia cega. */
+  origem(topico, disciplina, item, opts) {
+    const p = Object.assign({}, PlanoEngine.prefs(), opts || {});
+    return {
+      topico, disciplina: disciplina || '',
+      motivo: (opts && opts.motivo) || 'reforco',
+      criadoEm: todayLocal(),
+      taxaInicial: (item && item.taxa != null) ? item.taxa : null,
+      // o contador do assunto no instante zero: é a régua do progresso
+      qBase: PlanoEngine.qHistDe(disciplina, topico, p),
+      metaAlvo: p.metaDominio,
+      custoEstimado: (item && item.custoQ) || null,
+      tetoAlvo: p.tetoDominio
+    };
+  },
+  /* O retrato de uma atividade AGORA. Não grava nada: quem decide escrever é
+     `conciliar`. Separar as duas coisas é o que deixa a tela desenhar o estado
+     a cada repintura sem efeito colateral nenhum. */
+  avaliar(extra, r, mapa) {
+    const o = extra && extra.origemPlano;
+    if (!o || !o.topico) return null;
+    const p = PlanoEngine.prefs();
+    const alvo = Math.max(1, extra.alvo || o.custoEstimado || 1);
+    const qAgora = PlanoEngine.qHistDe(o.disciplina, o.topico, Object.assign({}, p, { _mapa: mapa }));
+    const medido = (o.qBase != null) ? Math.max(0, qAgora - o.qBase) : 0;
+    const manual = DB.extraProgressoPeriodo ? DB.extraProgressoPeriodo(extra) : (extra.progresso || 0);
+    const feito = Math.max(manual, medido);
+    // o assunto, como o Plano o vê hoje
+    const linhas = [].concat((r && r.itens) || [], (r && r.pequenas) || []);
+    const at = linhas.find(x => DesempenhoTecScreen._casaTopico({ topico: x.nome, disciplina: x.disciplina }, o.topico, o.disciplina));
+    /* Sumiu da lista do Plano por dois motivos OPOSTOS: ou passou do teto (foi
+       resolvido) ou o assunto sumiu do TEC. `qAgora` desempata: sem questão
+       nenhuma no histórico, não é vitória — é um assunto que não existe mais. */
+    const orfa = qAgora === 0;
+    /* A taxa vem SEMPRE da janela adaptativa, esteja o assunto na lista ou
+       não. Ler `at.taxa` quando ele está e a média histórica quando não está
+       eram duas réguas para a mesma pergunta — e a segunda reprovava assunto
+       resolvido, porque carrega o desempenho velho que a janela já descartou. */
+    const taxa = orfa ? null : PlanoEngine.taxaAtualDe(o.disciplina, o.topico, p);
+    const meta = (o.metaAlvo != null) ? o.metaAlvo : p.metaDominio;
+    const delta = (taxa != null && o.taxaInicial != null) ? Math.round((taxa - o.taxaInicial) * 10) / 10 : null;
+    const cumpriu = feito >= alvo;
+    const bateu = (taxa != null) && (taxa >= meta);
+    let estado = 'andamento';
+    if (orfa) estado = 'orfa';
+    else if (bateu) estado = 'funcionou';
+    else if (cumpriu) estado = (delta != null && delta >= (p.sensTendencia || 3)) ? 'subiu' : 'naoFuncionou';
+    return {
+      extra, origem: o, alvo, feito, medido, manual, qAgora,
+      pct: Math.min(100, Math.round(feito / alvo * 100)),
+      taxa, meta, delta, cumpriu, bateu, estado,
+      // o custo que o Plano estimaria HOJE — sem alarde, só o número ao lado
+      custoHoje: at ? at.custoQ : null,
+      encerrada: extra.status === 'concluida'
+    };
+  },
+  /* ── A CONCILIAÇÃO ────────────────────────────────────────────────────────
+     Roda depois de cada importação. Fecha o que acabou e carimba o veredito na
+     própria atividade — é dele que sai, mais tarde, a calibragem.
+
+     Idempotente de propósito: chamar duas vezes no mesmo retrato não fecha
+     nada duas vezes nem reescreve um veredito. */
+  conciliar() {
+    const snaps = DB.getTecSnapshots();
+    if (!snaps.length) return { fechadas: [], vereditos: [] };
+    const r = PlanoEngine.calcular(DesempenhoTecScreen.scopedSnapshot(), PlanoEngine.prefs());
+    if (!r || r.erro) return { fechadas: [], vereditos: [] };
+    const mapa = PlanoEngine.totalHistorico();
+    const ultimo = snaps[snaps.length - 1];
+    const fechadas = [], vereditos = [];
+    DB.getExtras().forEach(e => {
+      if (!e.origemPlano || !e.origemPlano.topico) return;
+      if (e.status === 'concluida' || e.origemPlano.veredito) return;
+      const v = this.avaliar(e, r, mapa);
+      if (!v || (v.estado !== 'funcionou' && v.estado !== 'naoFuncionou')) return;
+      const veredito = {
+        tipo: v.estado, em: todayLocal(), retrato: ultimo.id,
+        taxaInicial: v.origem.taxaInicial, taxaFinal: v.taxa,
+        ganhoPP: v.delta, questoes: v.feito, alvo: v.alvo
+      };
+      DB.updateExtra(e.id, { status: 'concluida', origemPlano: Object.assign({}, e.origemPlano, { veredito }) });
+      fechadas.push(e.id); vereditos.push(veredito);
+    });
+    return { fechadas, vereditos };
+  },
+  // as atividades do Plano ainda abertas, já avaliadas
+  emCurso(r) {
+    const mapa = PlanoEngine.totalHistorico();
+    return DB.getExtras()
+      .filter(e => e.origemPlano && e.origemPlano.topico && e.status !== 'concluida')
+      .map(e => this.avaliar(e, r, mapa))
+      .filter(Boolean)
+      .sort((a, b) => b.pct - a.pct || (a.taxa == null ? 999 : a.taxa) - (b.taxa == null ? 999 : b.taxa));
+  },
+  // os ciclos já fechados, do mais novo para o mais velho
+  fechados() {
+    return DB.getExtras()
+      .filter(e => e.origemPlano && e.origemPlano.veredito)
+      .map(e => Object.assign({ titulo: e.titulo, disciplina: e.origemPlano.disciplina, topico: e.origemPlano.topico }, e.origemPlano.veredito))
+      .sort((a, b) => String(b.em).localeCompare(String(a.em)));
+  },
+  /* ── O APP APRENDE COM VOCÊ ───────────────────────────────────────────────
+     O custo de um assunto no Plano é um palpite de fábrica: piso de 50
+     questões mais 2 por ponto de lacuna. Depois de alguns ciclos fechados, o
+     seu histórico responde a mesma pergunta com o SEU dado: quantos pontos
+     percentuais 100 questões rendem, em média, quando você ataca um assunto.
+
+     Com isso o Plano deixa de estimar e passa a saber — e o "caminho mais
+     curto" passa a ser curto para você, não para um estudante médio que não
+     existe. Três ciclos é o mínimo para a média não ser uma anedota. */
+  MIN_CICLOS: 3,
+  calibragem() {
+    const uteis = this.fechados().filter(v => v.questoes > 0 && v.ganhoPP != null);
+    if (uteis.length < this.MIN_CICLOS) return { n: uteis.length, faltam: this.MIN_CICLOS - uteis.length, pronta: false };
+    const qTotal = uteis.reduce((a, v) => a + v.questoes, 0);
+    const ppTotal = uteis.reduce((a, v) => a + v.ganhoPP, 0);
+    if (!(qTotal > 0) || !(ppTotal > 0)) return { n: uteis.length, pronta: false, semGanho: true };
+    const ppPorCem = ppTotal / qTotal * 100;
+    // o inverso é exatamente a unidade do ajuste "questões por ponto de lacuna"
+    const qPorPonto = Math.round(100 / ppPorCem * 10) / 10;
+    const atual = PlanoEngine.prefs().custoPorPonto;
+    return {
+      n: uteis.length, pronta: true,
+      ppPorCem: Math.round(ppPorCem * 10) / 10,
+      qPorPonto: Math.max(0.5, Math.min(20, qPorPonto)),
+      atual, divergente: Math.abs(qPorPonto - atual) >= 1,
+      funcionaram: uteis.filter(v => v.tipo === 'funcionou').length
+    };
+  }
+};
+window.PlanoCiclo = PlanoCiclo;
+
+/* ═══════════════════════════════════════════════════════════════════════════
    AJUSTES DO DESEMPENHO TEC — a folha suspensa
    ───────────────────────────────────────────────────────────────────────────
    As três abas com configuração tinham a mesma doença: os campos ficavam
@@ -31065,6 +31530,24 @@ const DesempenhoTecScreen = {
     }
     emptyEl.style.display = 'none';
     analysisEl.style.display = 'block';
+    /* O retrato novo é quem fecha os ciclos. Rodar a conciliação aqui pega
+       qualquer caminho que traga dado — importar, excluir, sincronizar da
+       nuvem — em vez de só o botão de importar. A marca `_cicloSel` faz isso
+       acontecer UMA vez por conjunto de retratos: repintar a tela dez vezes
+       não reescreve nada, e o veredito não pisca. */
+    try {
+      const sel = snaps.length + ':' + (snaps[snaps.length - 1] || {}).id;
+      if (this._cicloSel !== sel) {
+        this._cicloSel = sel;
+        const rc = PlanoCiclo.conciliar();
+        if (rc.fechadas.length) {
+          const ok = rc.vereditos.filter(v => v.tipo === 'funcionou').length;
+          const nao = rc.vereditos.length - ok;
+          showToast(`🏁 ${rc.fechadas.length} atividade(s) do Plano encerrada(s) pelo retrato` +
+            (ok ? ' · ' + ok + ' funcionou(ram)' : '') + (nao ? ' · ' + nao + ' não funcionou(ram)' : ''));
+        }
+      }
+    } catch (e) { _quiet(e, 'ciclo-conciliar'); }
     // restaura o modo de escopo salvo (persistência de filtros)
     const _p = this._loadPrefs();
     if (_p.scopeMode && ['consolidado', 'select', 'range'].includes(_p.scopeMode)) this.scopeMode = _p.scopeMode;
@@ -31667,8 +32150,12 @@ const DesempenhoTecScreen = {
   // `lote` = criação em série: sem aviso por item e sem repintar a cada um.
   // Devolve true quando a atividade nasceu, para o chamador contar.
   criarExtraDoPlano(topico, disciplina, alvo, motivo, lote) {
-    const jaTem = DB.getExtras().find(e => this._casaTopico(e.origemPlano, topico, disciplina));
-    if (jaTem) { if (!lote) showToast('Já existe uma atividade para "' + topico + '"'); return false; }
+    /* Só uma atividade ABERTA bloqueia. Uma já encerrada é história: o assunto
+       pode ter voltado a cair — e no caso do veredito "não funcionou" ele
+       PRECISA de um ataque novo, de outro tipo. Recusar por causa dela
+       trancava justamente o assunto que mais pede uma segunda tentativa. */
+    const jaTem = DB.getExtras().find(e => e.status !== 'concluida' && this._casaTopico(e.origemPlano, topico, disciplina));
+    if (jaTem) { if (!lote) showToast('Já existe uma atividade em aberto para "' + topico + '"'); return false; }
     const diag = motivo === 'diagnostico';
     const e = DB.addExtra({
       titulo: (diag ? 'Diagnosticar: ' : 'Reforçar: ') + topico,
@@ -31686,8 +32173,8 @@ const DesempenhoTecScreen = {
       const r0 = this._planoRef();
       const alvoTop = [].concat((r0 && r0.itens) || [], (r0 && r0.pequenas) || [])
         .find(t => this._casaTopico({ topico: t.nome, disciplina: t.disciplina }, topico, disciplina));
-      DB.updateExtra(e.id, { origemPlano: { topico, disciplina: disciplina || '', motivo: motivo || 'reforco',
-        criadoEm: todayLocal(), taxaInicial: alvoTop && alvoTop.taxa != null ? alvoTop.taxa : null } });
+      // um só lugar monta a origem: os dois portões gravam exatamente o mesmo
+      DB.updateExtra(e.id, { origemPlano: PlanoCiclo.origem(topico, disciplina, alvoTop, { motivo: motivo || 'reforco' }) });
       if (!lote) {
         showToast('Atividade criada: ' + (diag ? 'diagnosticar ' : 'reforçar ') + topico);
         this.renderPlanoConteudo();
@@ -31907,13 +32394,21 @@ const DesempenhoTecScreen = {
     // liga cada assunto à atividade extra já criada para ele (ciclo de acompanhamento)
     if (r && r.itens) {
       const extras = DB.getExtras().filter(e => e.origemPlano && e.origemPlano.topico);
-      const casar = (x) => extras.find(e => this._casaTopico(e.origemPlano, x.nome, x.disciplina));
+      const doTopico = (x) => extras.filter(e => this._casaTopico(e.origemPlano, x.nome, x.disciplina));
+      const mapaQ = PlanoEngine.totalHistorico(opts);
       [].concat(r.itens, r.pequenas || []).forEach(x => {
-        const e = casar(x);
-        if (!e) return;
-        x.extra = e; x.extraAlvo = e.alvo || 0;
-        x.extraFeito = DB.extraProgressoPeriodo ? DB.extraProgressoPeriodo(e) : (e.progresso || 0);
-        x.extraConcluida = e.status === 'concluida' || (e.alvo > 0 && x.extraFeito >= e.alvo);
+        const meus = doTopico(x);
+        if (!meus.length) return;
+        /* A ABERTA manda. Se só há encerradas, a linha mostra o VEREDITO da
+           última — e não um "✓" que, no caso do "não funcionou", diria o
+           contrário do que aconteceu. */
+        const aberta = meus.find(e => e.status !== 'concluida');
+        const e = aberta || meus[meus.length - 1];
+        x.extra = e; x.extraAberta = !!aberta; x.extraAlvo = e.alvo || 0;
+        const v = PlanoCiclo.avaliar(e, r, mapaQ);
+        x.extraFeito = v ? v.feito : (DB.extraProgressoPeriodo ? DB.extraProgressoPeriodo(e) : (e.progresso || 0));
+        x.extraVeredito = (e.origemPlano && e.origemPlano.veredito) ? e.origemPlano.veredito.tipo : null;
+        x.extraConcluida = !aberta;
       });
     }
     if (r.erro === 'sem-retrato') {
@@ -32033,6 +32528,10 @@ const DesempenhoTecScreen = {
       if (r.ordenar === 'banca') p.push(x.incid > 0 ? `retorno ${x.rendimento.toFixed(2)} × incidência ${x.incid} na banca` : 'sem incidência registrada — entrou só pelo retorno');
       return `${i + 1}º na ordem "${(PlanoEngine.ORDENS[r.ordenar] || {}).rot || ''}": ${p.join(' · ')}.`;
     };
+    /* UM selo para os dois lugares onde a atividade aparece (a fila do bloco e
+       a lista). Duas cópias divergiam: a do bloco dizia "✓" para uma atividade
+       encerrada com "não funcionou". */
+    const SELO_ATIV = (x) => `<span class="reforco-tag ${x.extraVeredito === 'naoFuncionou' ? 'tone-bad' : x.extraConcluida ? 'tone-good' : 'incid'}" title="${x.extraVeredito === 'naoFuncionou' ? 'Você cumpriu as questões e a taxa não subiu — o buraco é de teoria, não de volume' : x.extraConcluida ? 'Encerrada: o retrato disse que o assunto foi resolvido' : 'Em aberto — o progresso vem dos seus retratos'}">${x.extraVeredito === 'naoFuncionou' ? '⚠️ não funcionou' : x.extraConcluida ? '✓ resolvido' : '▶ ' + x.extraFeito + '/' + x.extraAlvo}</span>`;
     const linhas = r.itens.map((x, i) => {
       const sens = r.sensTendencia || 3;
       /* O ▲▼ agora compara a janela com o período ANTERIOR a ela. Quando não
@@ -32103,7 +32602,7 @@ const DesempenhoTecScreen = {
             ${guia}
             <div class="pl-rodape">
               ${x.extra
-                ? `<span class="reforco-tag ${x.extraConcluida ? 'tone-good' : 'incid'}">${x.extraConcluida ? '✓ meta batida' : '▶ ' + x.extraFeito + '/' + x.extraAlvo}</span>`
+                ? SELO_ATIV(x)
                 : `<button type="button" class="btn-secondary plano-nova-extra" style="padding:6px 12px;font-size: var(--fs-2xs);white-space:nowrap;" data-topico="${escapeHtml(x.nome)}"
                      data-disc="${escapeHtml(x.disciplina || '')}" data-alvo="${x.custoQ}" data-motivo="reforco">+ Atividade</button>`}
             </div>
@@ -32185,13 +32684,13 @@ const DesempenhoTecScreen = {
       const linhaHoje = (x, dentro) => `
         <li class="${dentro ? '' : 'fora'}">
           <label class="pl-hoje-check">
-            <input type="checkbox" class="pl-hoje-sel" ${dentro ? 'checked' : ''} ${x.extra ? 'disabled' : ''}
+            <input type="checkbox" class="pl-hoje-sel" ${dentro && !x.extraAberta ? 'checked' : ''} ${x.extraAberta ? 'disabled' : ''}
               data-topico="${escapeHtml(x.nome)}" data-disc="${escapeHtml(x.disciplina || '')}" data-alvo="${x.custoQ}">
             <span class="pl-hoje-nome">${escapeHtml(x.nome)}</span>
           </label>
           <span class="pl-hoje-num tone-${x.conf.tom}">${x.taxa.toFixed(0)}%</span>
           <span class="pl-hoje-q">${x.custoQ}q</span>
-          ${x.extra ? `<span class="reforco-tag ${x.extraConcluida ? 'tone-good' : 'incid'}">${x.extraConcluida ? '✓' : x.extraFeito + '/' + x.extraAlvo}</span>` : ''}
+          ${x.extra ? SELO_ATIV(x) : ''}
         </li>`;
       hoje = `
         <div class="pl-hoje">
@@ -32274,12 +32773,104 @@ const DesempenhoTecScreen = {
         </div>`;
     }
 
+    /* ── O CICLO NA TELA ──────────────────────────────────────────────────
+       Três blocos que juntos respondem "está funcionando?": o que está aberto
+       agora, o que os retratos já julgaram, e o que o seu histórico ensinou
+       sobre o custo de virar um assunto. Sem eles a tela só sabia mandar. */
+    const emCurso = PlanoCiclo.emCurso(r);
+    const SELO = {
+      funcionou: ['✅', 'tone-good', 'resolvido'],
+      naoFuncionou: ['⚠️', 'tone-bad', 'volume não resolveu'],
+      subiu: ['📈', 'tone-good', 'subindo'],
+      andamento: ['▶', 'incid', 'em andamento'],
+      orfa: ['❓', '', 'sem correspondência no TEC']
+    };
+    const blocoCurso = !emCurso.length ? '' : `
+      <div class="pl-ciclo">
+        <div class="pl-hoje-top">
+          <strong>📌 Em curso</strong>
+          <span>${emCurso.length} ${emCurso.length === 1 ? 'atividade' : 'atividades'} · o progresso vem dos seus retratos</span>
+        </div>
+        <ul class="pl-ciclo-lista">
+          ${emCurso.map(v => {
+            const [ic, tom, rot] = SELO[v.estado] || SELO.andamento;
+            const evo = (v.origem.taxaInicial != null && v.taxa != null)
+              ? `${v.origem.taxaInicial.toFixed(0)}% → <b class="tone-${v.delta != null && v.delta >= 0 ? 'good' : 'bad'}">${v.taxa.toFixed(0)}%</b>`
+              : (v.taxa != null ? `${v.taxa.toFixed(0)}%` : 'sem medição');
+            /* O alvo velho não vira alarme: fica o número de hoje ao lado, para
+               quem quiser ver que a estimativa mudou. Um aviso a cada retrato
+               seria ruído num dado que não muda decisão nenhuma. */
+            const custo = (v.custoHoje && Math.abs(v.custoHoje - v.alvo) >= Math.max(20, v.alvo * 0.35))
+              ? `<span class="pl-ciclo-obs" title="A estimativa do Plano mudou com os retratos novos. O alvo da atividade continua o que você combinou.">o Plano hoje estima ${v.custoHoje}q</span>` : '';
+            return `<li data-extra="${escapeHtml(v.extra.id)}">
+              <div class="pl-ciclo-top">
+                <span class="pl-ciclo-nome">${escapeHtml(v.origem.topico)}</span>
+                <span class="reforco-tag ${tom}">${ic} ${rot}</span>
+              </div>
+              <div class="pl-ciclo-barra"><i style="width:${v.pct}%"></i></div>
+              <div class="pl-ciclo-nums">
+                <span><b>${v.feito}</b>/${v.alvo} questões${v.medido > v.manual ? ' <span class="pl-ciclo-obs" title="Contadas a partir dos seus retratos do TEC — você não precisa lançar à mão.">medidas pelo retrato</span>' : ''}</span>
+                <span>${evo}</span>
+                ${custo}
+              </div>
+              ${v.estado === 'orfa' ? `<p class="pl-ciclo-obs">Este assunto não aparece em nenhum retrato — renomeado ou removido no TEC. <button type="button" class="pl-ciclo-acao" data-ciclo-excluir="${escapeHtml(v.extra.id)}">Excluir a atividade</button></p>` : ''}
+              ${v.estado === 'naoFuncionou' ? `<p class="pl-ciclo-obs tone-bad">Você cumpriu as questões e a taxa não subiu: o buraco é de teoria, não de volume. Retome o conteúdo antes de resolver mais.</p>` : ''}
+            </li>`;
+          }).join('')}
+        </ul>
+      </div>`;
+
+    const fechados = PlanoCiclo.fechados().slice(0, 12);
+    const blocoFeito = !fechados.length ? '' : `
+      <details class="pl-ciclo pl-ciclo-hist">
+        <summary><strong>🏅 O que os retratos já julgaram</strong> <span>${fechados.length} ciclo(s) fechado(s)</span> <span class="chev">▾</span></summary>
+        <ul class="pl-ciclo-lista">
+          ${fechados.map(v => {
+            const bom = v.tipo === 'funcionou';
+            return `<li>
+              <div class="pl-ciclo-top">
+                <span class="pl-ciclo-nome">${escapeHtml(v.topico)}</span>
+                <span class="reforco-tag ${bom ? 'tone-good' : 'tone-bad'}">${bom ? '✅ funcionou' : '⚠️ não funcionou'}</span>
+              </div>
+              <div class="pl-ciclo-nums">
+                <span>${v.taxaInicial != null ? v.taxaInicial.toFixed(0) + '%' : '?'} → <b>${v.taxaFinal != null ? v.taxaFinal.toFixed(0) + '%' : '?'}</b>${v.ganhoPP != null ? ` (${v.ganhoPP >= 0 ? '+' : ''}${v.ganhoPP}pp)` : ''}</span>
+                <span>${v.questoes} questões · ${escapeHtml(formatDateShort(v.em))}</span>
+              </div>
+            </li>`;
+          }).join('')}
+        </ul>
+      </details>`;
+
+    /* A CALIBRAGEM: o custo por ponto do Plano é um palpite de fábrica até o
+       seu histórico responder a mesma pergunta. Aqui ele responde. */
+    const cal = PlanoCiclo.calibragem();
+    const blocoCal = (cal && cal.pronta && cal.divergente) ? `
+      <div class="pl-ciclo pl-calib">
+        <p class="pl-ciclo-top"><strong>🎓 O que o seu histórico ensinou</strong></p>
+        <p class="pl-prosa">Nos seus <b>${cal.n}</b> ciclos fechados, 100 questões renderam em média <b>${cal.ppPorCem}pp</b> de acerto no assunto atacado — ou seja, <b>${cal.qPorPonto} questões por ponto</b>. O Plano está calculando o custo com <b>${cal.atual}</b>. Calibrar deixa o caminho mais curto ser curto <em>para você</em>, e não para uma média que não existe.</p>
+        <button type="button" class="btn-secondary" id="plano-calibrar">Calibrar com o meu histórico (${cal.qPorPonto} q/ponto)</button>
+      </div>` : '';
+
     lista.innerHTML = (linhas
-      ? hoje + grafico + ordemNota + porQue + linhas
-      : `<p class="hint" style="padding:18px 0;">Nenhum assunto abaixo do máximo realista — você já domina tudo que pratica.</p>`) + pequenas + edital + comoLer;
+      ? hoje + blocoCurso + blocoCal + grafico + blocoFeito + ordemNota + porQue + linhas
+      : blocoCurso + blocoCal + blocoFeito + `<p class="hint" style="padding:18px 0;">Nenhum assunto abaixo do máximo realista — você já domina tudo que pratica.</p>`) + pequenas + edital + comoLer;
     lista.querySelectorAll('.plano-nova-extra').forEach(b => b.addEventListener('click', () => {
       this.criarExtraDoPlano(b.dataset.topico, b.dataset.disc, b.dataset.alvo, b.dataset.motivo);
     }));
+    lista.querySelectorAll('[data-ciclo-excluir]').forEach(b => b.addEventListener('click', async () => {
+      const e = DB.getExtras().find(x => x.id === b.dataset.cicloExcluir);
+      if (!e) return;
+      if (!await UI.confirm('Excluir "' + e.titulo + '"? O assunto não aparece mais nos seus retratos.', { title: 'Excluir atividade', okText: 'Excluir', danger: true })) return;
+      DB.deleteExtra(e.id); showToast('Atividade excluída'); this.renderPlanoConteudo();
+    }));
+    const calBtn = document.getElementById('plano-calibrar');
+    if (calBtn) calBtn.addEventListener('click', async () => {
+      const c = PlanoCiclo.calibragem();
+      if (!c || !c.pronta) return;
+      if (!await UI.confirm('Passar o custo por ponto de ' + c.atual + ' para ' + c.qPorPonto + ' questões, com base nos seus ' + c.n + ' ciclos fechados?\n\nIsso muda o custo estimado de cada assunto — e, com ele, o caminho mais curto e a ordem "melhor retorno".', { title: 'Calibrar com o meu histórico', okText: 'Calibrar' })) return;
+      PlanoEngine.salvarPrefs({ custoPorPonto: c.qPorPonto });
+      this.renderPlano(); showToast('Custo calibrado com o seu histórico ✓');
+    });
     const lote = document.getElementById('plano-lote');
     const sincLote = () => {
       if (!lote) return;

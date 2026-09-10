@@ -18,6 +18,8 @@ const ExtrasScreen = {
   _addMoreFor: null,   // "id@dia" cujo card está com o input de "registrar mais" aberto
   _CHECK: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>',
   render() {
+    // o retrato do Plano custa caro: um por repintura, não um por cartão
+    this._planoRefCard = null;
     // toggle global
     const gt = document.getElementById('extras-global-toggle');
     if (gt) gt.classList.toggle('on', DB.extrasCountGlobal());
@@ -162,11 +164,18 @@ const ExtrasScreen = {
       const r = PlanoEngine.calcular(DesempenhoTecScreen.scopedSnapshot(),
         Object.assign({}, PlanoEngine.prefs(), { disciplina: '__todas__', limite: 200, ordenar: this._planoOrd }));
       if (!r || r.erro) { this._planoCand = null; this._planoErr = (r && r.erro) || 'erro'; return; }
-      const jaTem = new Set(DB.getExtras().filter(e => e.origemPlano).map(e => ReforcoEngine.norm(e.origemPlano.topico)));
+      /* A DEDUPLICAÇÃO É POR DISCIPLINA + NOME, como no resto do motor. Comparar
+         só o nome fazia criar "Atos" de Administrativo esconder o "Atos" de
+         Constitucional deste diálogo: dois assuntos de verdade, um deles sem
+         porta nenhuma para virar atividade. E uma atividade JÁ CONCLUÍDA não
+         bloqueia: o assunto pode ter voltado a cair, e atacá-lo de novo é o
+         uso normal do app, não uma duplicata. */
+      const abertas = DB.getExtras().filter(e => e.origemPlano && e.status !== 'concluida');
+      const jaTem = (x) => abertas.some(e => DesempenhoTecScreen._casaTopico(e.origemPlano, x.nome, x.disciplina));
       this._planoCand = []
         .concat((r.itens || []).map(x => ({ ...x, motivo: 'reforco', alvo: x.custoQ })))
         .concat((r.pequenas || []).map(x => ({ ...x, motivo: 'diagnostico', alvo: x.faltaAmostra })))
-        .filter(x => !jaTem.has(ReforcoEngine.norm(x.nome)));
+        .filter(x => !jaTem(x));
       this._planoErr = null;
     };
     this._planoRecalc();
@@ -226,7 +235,9 @@ const ExtrasScreen = {
           alvo: Math.max(1, x.alvo), periodo: 'unica', contaMetricas: false,
           obs: 'Gerado pelo Plano de pontos fracos.'
         });
-        if (e) { DB.updateExtra(e.id, { origemPlano: { topico: x.nome, disciplina: x.disciplina || '', motivo: x.motivo, criadoEm: todayLocal() } }); n++; }
+        // mesma origem do outro portão: sem isto a atividade nascia sem
+        // `taxaInicial` nem `qBase`, e o ciclo dela nunca teria veredito
+        if (e) { DB.updateExtra(e.id, { origemPlano: PlanoCiclo.origem(x.nome, x.disciplina, x, { motivo: x.motivo }) }); n++; }
       });
       this.render();
       showToast(n ? n + ' atividade(s) criada(s) ✓' : 'Nenhuma selecionada');
@@ -360,7 +371,21 @@ const ExtrasScreen = {
        criterio ja usado para decidir se a meta foi batida. */
     const feitoDia = (x.historico || []).filter(h => h.data === day).reduce((a, h) => a + (h.quantidade || 0), 0);
     const diaria = x.periodo === 'diaria';
-    const feito = !rec ? (x.progresso || 0) : (diaria ? feitoDia : DB.extraProgressoPeriodo(x));
+    let feito = !rec ? (x.progresso || 0) : (diaria ? feitoDia : DB.extraProgressoPeriodo(x));
+    /* ── ATIVIDADE DO PLANO: O RETRATO CONTA POR VOCÊ ────────────────────────
+       Resolver 150 questões no TEC e importar o retrato deixava esta barra em
+       0/120: a mesma pessoa lançando o mesmo fato duas vezes, e esquecendo a
+       segunda. Agora o progresso de uma atividade do Plano vale
+       `max(digitado, medido no retrato)` — importar só empurra para cima, e
+       quem resolve questão fora do TEC continua podendo lançar na mão. */
+    let ciclo = null;
+    if (x.origemPlano && x.origemPlano.topico && typeof PlanoCiclo !== 'undefined') {
+      try {
+        ciclo = PlanoCiclo.avaliar(x, this._planoRefCard || (this._planoRefCard =
+          PlanoEngine.calcular(DesempenhoTecScreen.scopedSnapshot(), PlanoEngine.prefs())));
+        if (ciclo && ciclo.feito > feito) feito = ciclo.feito;
+      } catch (e) { _quiet(e, 'card-ciclo'); }
+    }
     // rotulo do que a barra esta medindo, para nao restar duvida
     const PER_LABEL = { semanal: 'na semana', quinzenal: 'na quinzena', mensal: 'no mês' };
     const escopo = !rec ? '' : (diaria ? (day === todayLocal() ? 'hoje' : 'no dia') : (PER_LABEL[x.periodo] || ''));
@@ -372,10 +397,17 @@ const ExtrasScreen = {
     const recTag = rec ? `<span class="extra-tag rec">🔁 ${REC_NOME[x.periodo] || ''}</span>` : '';
     const discTag = x.disciplina ? `<span class="extra-tag disc">${escapeHtml(x.disciplina)}</span>` : '';
     const metaTag = `<span class="extra-tag ${x.contaMetricas ? 'count-on' : 'count-off'}" title="${x.contaMetricas ? 'Conta nas métricas de Evolução' : 'Fora das métricas'}">${x.contaMetricas ? '📊 conta na Evolução' : '🚫 não conta'}</span>`;
+    /* De onde a atividade veio e o que aconteceu com o assunto desde então. Sem
+       isto o cartão é um item de lista de compras: não diz que nasceu de uma
+       fraqueza medida, nem se a fraqueza cedeu. */
+    const planoTag = (x.origemPlano && x.origemPlano.topico)
+      ? `<span class="extra-tag plano" title="Criada a partir do 🏁 Plano de pontos fracos em ${escapeHtml(formatDateShort(x.origemPlano.criadoEm || ''))}">🏁 do Plano</span>` : '';
+    const evoTag = (ciclo && ciclo.origem.taxaInicial != null && ciclo.taxa != null)
+      ? `<span class="extra-tag evo ${ciclo.delta != null && ciclo.delta >= 0 ? 'up' : 'down'}" title="Acerto no assunto quando você criou a atividade, e hoje">${ciclo.origem.taxaInicial.toFixed(0)}% → ${ciclo.taxa.toFixed(0)}%</span>` : '';
     const progBlock = (alvo > 0)
       ? `<div class="exd-prog">
            <div class="bar"><i class="${barFull ? 'full' : ''}" style="width:${pct}%"></i></div>
-           <div class="nums"><span><b>${feito.toLocaleString('pt-BR')}</b> / ${alvo.toLocaleString('pt-BR')} ${unidLabel}${escopo ? ' <span class="opt">' + escopo + '</span>' : ''}</span><span>${pct}%</span></div>
+           <div class="nums"><span><b>${feito.toLocaleString('pt-BR')}</b> / ${alvo.toLocaleString('pt-BR')} ${unidLabel}${escopo ? ' <span class="opt">' + escopo + '</span>' : ''}${(ciclo && ciclo.medido > ciclo.manual) ? ' <span class="opt" title="Contadas a partir dos seus retratos do TEC — não precisa lançar à mão.">pelo retrato</span>' : ''}</span><span>${pct}%</span></div>
          </div>`
       : (feitoDia > 0 ? `<div class="exd-prog"><div class="nums"><span><b>${feitoDia.toLocaleString('pt-BR')}</b> ${unidLabel} no dia</span></div></div>` : '');
     const marcador = x.tipo === 'leitura'
@@ -437,7 +469,7 @@ const ExtrasScreen = {
             <div class="exd-title">${escapeHtml(x.titulo)}</div>
             <div class="exd-tags">
               <span class="extra-tag">${t.nome}</span>
-              ${discTag}${recTag}${metaTag}
+              ${discTag}${recTag}${planoTag}${evoTag}${metaTag}
               ${x.tipo === 'leitura' && x.marcador ? `<span class="extra-tag pin">📌 ${escapeHtml(x.marcador)}</span>` : ''}
             </div>
           </div>
