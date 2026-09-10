@@ -569,6 +569,15 @@
 #tec-panel-plano .rfc-adv-grid { gap: 14px 16px; }
 
 /* passos didáticos do plano */
+/* A faixa do método virou um bloco recolhível abaixo do resultado: o número
+   primeiro, a explicação de como ele nasce logo em seguida, para quem quiser. */
+.pl-steps-wrap { margin: 0 0 18px; border: 1px solid var(--border); border-radius: 12px; background: var(--surface-sunken); overflow: hidden; }
+.pl-steps-wrap > summary { cursor: pointer; list-style: none; padding: 10px 14px; font-family: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif; font-size: var(--fs-2xs); font-weight: 700; color: var(--text-soft); display: flex; align-items: center; gap: 8px; }
+.pl-steps-wrap > summary::-webkit-details-marker { display: none; }
+.pl-steps-wrap > summary .chev { margin-left: auto; color: var(--text-faint); font-size: var(--fs-3xs); transition: transform 0.18s ease; }
+.pl-steps-wrap[open] > summary .chev { transform: rotate(180deg); }
+.pl-steps-wrap > summary:hover { color: var(--accent); }
+.pl-steps-wrap .pl-steps { margin: 0; padding: 0 14px 14px; }
 .pl-steps { display: grid; grid-template-columns: repeat(auto-fit, minmax(215px, 1fr)); gap: 12px; margin: 4px 0 18px; }
 .pl-step {
   position: relative; background: var(--surface); border: 1.5px solid var(--border); border-radius: 14px;
@@ -578,10 +587,16 @@
   content: ''; position: absolute; left: 0; top: 12px; bottom: 12px; width: 3px; border-radius: 0 3px 3px 0;
   background: var(--pl-step-color, var(--accent));
 }
+/* O numero do passo era branco sobre a cor do passo — 1,65:1 no tema escuro
+   com o amarelo, ilegivel. Ninguem tinha visto porque este bloco so existe
+   quando ha retratos importados, e a verificacao de contraste nunca chegava
+   nele. Agora o disco e a cor SUAVE do token e o numero herda a cor forte:
+   o mesmo desenho, com o par de cores que os dois temas ja garantem. */
 .pl-step .n {
   display: inline-flex; align-items: center; justify-content: center;
   width: 20px; height: 20px; border-radius: 50%;
-  background: var(--pl-step-color, var(--accent)); color: #fff;
+  background: var(--surface); border: 1.5px solid var(--pl-step-color, var(--accent));
+  color: var(--pl-step-text, var(--text));
   font-family: 'Space Mono', ui-monospace, SFMono-Regular, Menlo, monospace; font-size: var(--fs-3xs); font-weight: 800; margin-bottom: 8px;
 }
 .pl-step .t { font-size: var(--fs-sm); font-weight: 700; color: var(--text); margin-bottom: 4px; }

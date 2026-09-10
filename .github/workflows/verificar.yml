@@ -27,7 +27,17 @@ jobs:
         with:
           node-version: '22'
 
+      # As dependencias de teste do repositorio. Sem este passo, node_modules
+      # so tem o Playwright instalado abaixo — e a checagem 6.7 (o caminho da
+      # nuvem inteiro contra um PostgREST de mentira, incluindo o token
+      # recusado por deriva de relogio) era PULADA em toda execucao da CI por
+      # falta do supabase-js, sem que ninguem percebesse: ela imprime "PULADA"
+      # e o job segue verde.
+      - name: Instalar dependencias de teste
+        run: npm ci
+
       # Playwright so e usado pelas checagens 4 e 5 (app real no Chromium).
+      # A versao e fixada aqui porque o navegador baixado tem de casar com ela.
       - name: Instalar Chromium
         run: |
           npm install --no-save playwright@1.56.1

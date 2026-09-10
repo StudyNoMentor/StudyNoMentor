@@ -867,6 +867,104 @@ try {
   }
 } catch (e) { erro('teste do caminho da nuvem falhou: ' + e.message); }
 
+
+/* ── 6.8) O PLANO COM DADO DE VERDADE ──────────────────────────────────────
+   A maior tela do app era invisivel para a verificacao: sem retratos
+   importados, o painel do Plano nem existe no DOM, entao a navegacao da etapa 6
+   e o contraste da etapa 7 passavam por cima dele. Aqui os retratos sinteticos
+   entram ANTES da etapa 7 — assim o plano renderizado (modos, bloco da semana,
+   explicacao da ordem, lista, segundo plano e lacunas do edital) tambem e
+   medido nos dois temas, sem nenhum checador novo. */
+console.log('\n6.8) o Plano de pontos fracos renderiza com dado real');
+try {
+  await pag.setViewportSize({ width: 360, height: 780 });
+  const plano = await pag.evaluate(() => {
+    const dia = (n) => { const d = new Date(todayLocal() + 'T00:00:00'); d.setDate(d.getDate() - n); return d.toISOString().slice(0, 10); };
+    const L = (c, n, disc, q, ac) => ({ depth: 1, codigo: c, nome: n, disciplina: disc, questoes: q, acertos: ac });
+    const R = (id, i, f, rows) => ({ id, nome: id, date: f, startDate: i, endDate: f, rows });
+    DB._set(DB.KEYS.tec, [
+      R('r1', dia(120), dia(95), [L('01', 'Controle de constitucionalidade', 'Direito Constitucional', 100, 40),
+        L('02', 'Licitacoes', 'Direito Administrativo', 500, 240), L('03', 'Crase', 'Portugues', 20, 15)]),
+      R('r2', dia(30), dia(5), [L('01', 'Controle de constitucionalidade', 'Direito Constitucional', 50, 30),
+        L('02', 'Licitacoes', 'Direito Administrativo', 100, 50), L('03', 'Crase', 'Portugues', 40, 34),
+        L('04', 'Orcamento publico', 'AFO', 8, 3)])
+    ]);
+    ['Direito Constitucional', 'Direito Administrativo', 'Portugues', 'AFO', 'Direito Penal']
+      .forEach((n) => { if (!DB.getSubjects().some((s) => s.nome === n)) DB.addSubject({ nome: n }); });
+    switchScreen('desempenhotec');
+    DesempenhoTecScreen.render();
+    DesempenhoTecScreen.switchTecTab('plano');
+    return true;
+  });
+  await pag.waitForTimeout(500);
+  const est = await pag.evaluate(() => {
+    const q = (s) => document.querySelector(s);
+    const txt = (s) => { const e = q(s); return e ? e.innerText : ''; };
+    return {
+      modos: document.querySelectorAll('#plano-modos .pl-modo').length,
+      dominio: /\d+\.\d%/.test(txt('#plano-proj')) || /% de dom/i.test(txt('#plano-proj')),
+      bloco: !!q('.pl-hoje'), ordem: !!q('.pl-ordem'), porque: !!q('.pl-porque'),
+      edital: !!q('.pl-edital'), segundo: /SEGUNDO PLANO/i.test(txt('#plano-lista')),
+      itens: document.querySelectorAll('#plano-lista .pl-item').length,
+      overflow: document.documentElement.scrollWidth - document.documentElement.clientWidth,
+      semDica: [...document.querySelectorAll('#tec-panel-plano .rfc-field > label')].filter((l) => !l.querySelector('.info-dot')).length
+    };
+  });
+  est.modos >= 5 ? ok(`${est.modos} modos de ataque com explicacao propria`) : erro('os modos de ataque nao renderizaram: ' + est.modos);
+  (est.bloco && est.ordem && est.porque) ? ok('bloco da semana, explicacao da ordem e "por que o 1o" presentes')
+    : erro('faltam blocos do plano: ' + JSON.stringify(est));
+  est.itens >= 3 ? ok(`${est.itens} assuntos listados`) : erro('a lista do plano veio vazia');
+  est.segundo ? ok('segundo plano (sem diagnostico) presente') : erro('segundo plano ausente');
+  est.edital ? ok('lacunas do planejamento sem medicao no TEC presentes') : erro('bloco de lacunas do edital ausente');
+  est.overflow === 0 ? ok('nenhum vazamento horizontal a 360px') : erro(`o plano vaza ${est.overflow}px na horizontal a 360px`);
+  /* Todo campo de ajuste tem de ter o seu "i". Um campo novo sem explicacao e
+     exatamente como esta tela ficou confusa da primeira vez. */
+  est.semDica === 0 ? ok('todos os campos de ajuste do Plano tem dica explicativa')
+    : erro(`${est.semDica} campo(s) de ajuste do Plano sem o "i" de explicacao`);
+  /* Os rotulos das ordens moram numa tabela so. Se o select voltar a ser uma
+     copia estatica, ele diverge do texto que explica a ordem escolhida — foi
+     exatamente o que aconteceu com o dialogo "Puxar do Plano". */
+  const ord = await pag.evaluate(() => {
+    const sel = document.getElementById('plano-ordenar');
+    const chaves = Object.keys(PlanoEngine.ORDENS);
+    return {
+      opcoes: sel ? [...sel.options].map((o) => o.value) : [],
+      semDica: sel ? [...sel.options].filter((o) => !o.title).length : -1,
+      chaves,
+      textoBate: sel ? [...sel.options].every((o) => o.text === PlanoEngine.ORDENS[o.value].rot) : false
+    };
+  });
+  (ord.opcoes.length === ord.chaves.length && ord.semDica === 0 && ord.textoBate)
+    ? ok(`as ${ord.opcoes.length} ordens de ataque saem da mesma tabela, cada uma com "quando usar"`)
+    : erro('o select de ordem divergiu da tabela do motor: ' + JSON.stringify(ord));
+  /* O botao que vira o plano em TAREFA e o unico ponto da tela que muda dados.
+     Se ele quebra, a tela inteira volta a ser um relatorio bonito. */
+  const lote = await pag.evaluate(() => {
+    const antes = DB.getExtras().length;
+    const b = document.getElementById('plano-lote');
+    if (!b) return { faltando: true };
+    b.click();
+    const depois = DB.getExtras();
+    return { criadas: depois.length - antes, comOrigem: depois.filter((e) => e.origemPlano && e.origemPlano.topico).length };
+  });
+  (!lote.faltando && lote.criadas >= 1 && lote.comOrigem >= 1)
+    ? ok(`criar em lote gerou ${lote.criadas} atividade(s) ligada(s) ao Plano`)
+    : erro('o botao de criar atividades em lote nao funcionou: ' + JSON.stringify(lote));
+  // trocar de modo de ataque tem de reconfigurar o plano de verdade
+  const modo = await pag.evaluate(() => {
+    const b = document.querySelector('#plano-modos .pl-modo[data-modo="curto"]');
+    if (!b) return { faltando: true };
+    b.click();
+    const p = PlanoEngine.prefs();
+    return { ordenar: p.ordenar, limite: p.limite, ativo: PlanoEngine.modoAtivo(p) };
+  });
+  await pag.waitForTimeout(250);
+  (modo.ativo === 'curto' && modo.ordenar === 'rendimento')
+    ? ok('trocar de modo de ataque reconfigura o plano (⏱️ Tempo curto)')
+    : erro('o modo de ataque nao foi aplicado: ' + JSON.stringify(modo));
+  await pag.setViewportSize({ width: 1280, height: 900 });
+} catch (e) { erro('o Plano nao renderizou com dado real: ' + e.message); }
+
 console.log('\n7) contraste WCAG AA (temas claro e escuro)');
 /* Transicoes e animacoes desligadas durante a medicao. Sem isto, medir logo
    apos uma troca de tela pega a cor INTERMEDIARIA de uma transicao (a aba ativa

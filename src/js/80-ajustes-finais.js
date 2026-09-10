@@ -655,18 +655,28 @@ else CloudStore.init();
       // o que sobrou (botão de avançados) fica numa linha própria, embaixo
       toolbar.classList.add('pl-toolbar-rest');
       toolbar.style.marginTop = '2px';
-      // faixa didática explicando o método, acima da projeção
-      const steps = document.createElement('div');
-      steps.className = 'pl-steps';
+      /* Faixa didática do MÉTODO — agora recolhida e ABAIXO do resultado.
+         Quatro cartões empilhados antes do primeiro número enchiam duas telas
+         de celular com a explicação de como a conta é feita, para quem só
+         queria saber o que estudar hoje. Quem precisa da explicação abre; quem
+         já sabe vê o número primeiro. */
+      const steps = document.createElement('details');
+      steps.className = 'pl-steps-wrap';
       steps.id = 'pl-steps';
-      steps.innerHTML = [
+      const corpo = document.createElement('div');
+      corpo.className = 'pl-steps';
+      corpo.innerHTML = [
         { c: 'var(--info)', t: 'Mede', d: 'Para cada assunto, o app volta no tempo nos seus retratos até juntar a amostra que você pediu.' },
         { c: 'var(--warn)', t: 'Compara', d: 'A taxa de acerto de cada assunto é confrontada com a meta de domínio definida acima.' },
         { c: 'var(--accent)', t: 'Ordena', d: 'A lista sai pelo critério escolhido em “Ordem de ataque” — não é ordem alfabética nem aleatória.' },
         { c: 'var(--good)', t: 'Fecha o ciclo', d: 'Você cria a atividade, resolve as questões, importa o próximo retrato e o número se move sozinho.' }
       ].map((s, i) => `<div class="pl-step" style="--pl-step-color:${s.c}"><span class="n">${i + 1}</span><div class="t">${s.t}</div><div class="d">${esc(s.d)}</div></div>`).join('');
+      const resumo = document.createElement('summary');
+      resumo.innerHTML = '⚙️ Como este plano é calculado <span class="chev">▾</span>';
+      steps.appendChild(resumo);
+      steps.appendChild(corpo);
       const proj = $('#plano-proj');
-      if (proj) proj.parentNode.insertBefore(steps, proj);
+      if (proj) proj.parentNode.insertBefore(steps, proj.nextSibling);
     }
   };
 

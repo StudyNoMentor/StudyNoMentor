@@ -729,16 +729,16 @@
                  painel pela metade, só com os avançados. -->
             <div class="rfc-toolbar" style="margin-bottom:4px;">
               <div class="rfc-field wide">
-                <label for="plano-disc">Disciplina</label>
+                <label for="plano-disc" data-info="Restringe TODA a tela a uma disciplina: o domínio do topo, a lista e a trajetória passam a falar só dela. Útil para atacar uma matéria por vez; deixe em Todas para comparar onde o seu tempo rende mais.">Disciplina</label>
                 <select id="plano-disc"><option value="__todas__">📚 Todas</option></select>
               </div>
               <div class="rfc-field">
-                <label for="plano-meta">Meta de domínio (%)</label>
+                <label for="plano-meta" data-info="A nota que você considera suficiente em cada assunto. É a linha tracejada da trajetória e o que define quem é 🟢 sólido. Subir a meta aumenta a lista de pendências; baixar declara vitória cedo. 75–85% cobre a maioria dos concursos.">Meta de domínio (%)</label>
                 <input type="number" inputmode="numeric" id="plano-meta" min="30" max="100" step="1">
               </div>
               <div class="rfc-field">
-                <label for="plano-amostraalvo">Amostra desejada por assunto</label>
-                <select id="plano-amostraalvo" title="Para cada assunto o app parte da importação mais recente e só volta no tempo até juntar esta quantidade de questões. Quanto maior, mais confiável a taxa — e mais antigo o dado que ela usa.">
+                <label for="plano-amostraalvo" data-info="Para cada assunto o app parte da importação mais recente e só volta no tempo até juntar esta quantidade de questões. Quanto maior, mais confiável a taxa — e mais antigo o dado que ela usa. Quem resolve pouco por semana deve manter baixo, senão a taxa vira retrato do ano passado.">Amostra desejada por assunto</label>
+                <select id="plano-amostraalvo">
                   <option value="30">30 questões (±18pp)</option>
                   <option value="50">50 questões (±14pp)</option>
                   <option value="100">100 questões (±10pp)</option>
@@ -746,24 +746,24 @@
                 </select>
               </div>
               <div class="rfc-field">
-                <label for="plano-ritmo">Ritmo (q/semana)</label>
-                <input type="number" inputmode="numeric" id="plano-ritmo" min="1" max="2000" step="1" title="Segue sozinho o que você produz. Digite outro valor para simular." aria-label="Segue sozinho o que você produz. Digite outro valor para simular.">
+                <label for="plano-ritmo" data-info="Quantas questões você resolve por semana. Segue sozinho o que os seus retratos mostram; digite outro valor para simular um cenário (&quot;e se eu dobrasse o ritmo?&quot;). Só afeta a previsão em semanas — não muda nenhuma prioridade.">Ritmo (q/semana)</label>
+                <input type="number" inputmode="numeric" id="plano-ritmo" min="1" max="2000" step="1">
               </div>
               <div class="rfc-field wide">
-                <label for="plano-ordenar">Ordenar por</label>
+                <label for="plano-ordenar" data-info="A ORDEM DE ATAQUE: qual pergunta decide quem vem primeiro na lista. Não muda nenhum número — muda a fila. A explicação do cenário escolhido aparece logo abaixo, com o caso em que ele é a escolha certa e o caso em que é armadilha.">Ordem de ataque</label>
                 <select id="plano-ordenar">
-                  <option value="pior">🔴 Prioridade — pior acerto primeiro</option>
-                  <option value="ganhoGeral">📊 Maior ganho no Aproveitamento geral (por questão)</option>
-                  <option value="ganhoDominio">⚖️ Maior ganho no Domínio (assuntos pesam igual)</option>
-                  <option value="banca">🎯 Prioridade na banca — fraqueza × incidência</option>
-                  <option value="rendimento">⚡ Melhor retorno — ganho ÷ custo em questões</option>
+                  <option value="pior">🔴 Pior acerto primeiro</option>
+                  <option value="ganhoGeral">📊 Maior ganho no aproveitamento geral</option>
+                  <option value="ganhoDominio">⚖️ Maior ganho no domínio</option>
+                  <option value="banca">🎯 Fraqueza × incidência na banca</option>
+                  <option value="rendimento">⚡ Melhor retorno — ganho ÷ custo</option>
                   <option value="queda">📉 Maior queda recente</option>
                   <option value="volume">📚 Mais questões já resolvidas</option>
                 </select>
               </div>
               <div class="rfc-field" id="plano-banca-field" style="display:none;">
-                <label for="plano-banca">Banca (para prioridade)</label>
-                <select id="plano-banca" title="Usada na ordenação '🎯 Prioridade na banca'. Combina a sua fraqueza no assunto com o quanto ele cai nessa banca. Importe a incidência em 🎲 Incidência.">
+                <label for="plano-banca" data-info="Qual banca conta na ordem &quot;fraqueza × incidência&quot;. A incidência vem do que você importou em 🎲 Incidência. Em Todas as bancas o app soma a frequência de todas elas — use a banca específica assim que o edital sair.">Banca (para prioridade)</label>
+                <select id="plano-banca">
                   <option value="__todas__">Todas as bancas</option>
                 </select>
               </div>
@@ -774,78 +774,116 @@
               </div>
             </div>
 
+            <!-- AJUSTES AVANÇADOS — dezenove campos numa grade única não é uma
+                 configuração, é um formulário. Agora são quatro grupos, cada um
+                 com uma pergunta só, e cada campo com o seu "i". -->
             <div class="rfc-advanced" id="plano-advanced" hidden>
-              <div class="rfc-adv-grid">
-                <div class="rfc-field wide">
-                  <label for="plano-ponderacao">Como pesar cada assunto</label>
-                  <select id="plano-ponderacao">
-                    <option value="igual">⚖️ Todo assunto pesa igual — nada se esconde atrás de pouco volume</option>
-                    <option value="volume">📊 Pelo volume de questões — maximiza o Aproveitamento geral desta tela</option>
-                    <option value="ambas">🔀 Mostrar as duas — decida item a item</option>
-                  </select>
+              <div class="pl-grupo">
+                <p class="pl-grupo-tit" data-info="Decide em quem o app CONFIA. Uma taxa de acerto tirada de poucas questões não é medição, é palpite: com 8 questões, 40% de acerto pode significar qualquer coisa entre 4% e 71%. Estes três campos separam medição de palpite.">1 · Rigor da amostra <span>— em quem confiar</span></p>
+                <div class="rfc-adv-grid">
+                  <div class="rfc-field">
+                    <label for="plano-minamostra" data-info="Porta de entrada do cálculo. Assunto com menos questões que isto sai da média de domínio e vai para o segundo plano, onde a ação é outra: resolver questões para descobrir onde você está. Três erros em seis questões não é fraqueza comprovada, é falta de dado.">Mínimo para entrar no cálculo</label>
+                    <input type="number" inputmode="numeric" id="plano-minamostra" min="0" max="500" step="1">
+                  </div>
+                  <div class="rfc-field">
+                    <label for="plano-piso" data-info="Diferente do campo ao lado: aqui é o mínimo dentro de UMA importação para ela valer como medição no gráfico de trajetória e na contagem de importações seguidas na meta. Um assunto com 2 questões num retrato não conta como &quot;mais uma vez na meta&quot;.">Mínimo por importação (trajetória)</label>
+                    <input type="number" inputmode="numeric" id="plano-piso" min="1" max="100" step="1">
+                  </div>
+                  <div class="rfc-field wide">
+                    <label class="rfc-check" data-info="Ligado, os assuntos de amostra pequena entram na média e na lista em vez de ficarem no segundo plano — e o segundo plano some, porque ninguém precisa ver o mesmo assunto duas vezes. Use no modo Diagnóstico, quando o objetivo é justamente medir; desligue depois, ou meia dúzia de questões passa a mover o seu domínio."><input type="checkbox" id="plano-pequenas"> Incluir assuntos com amostra pequena no cálculo</label>
+                    <label class="rfc-check" data-info="O TEC agrupa assunto dentro de assunto (1, 1.1, 1.1.1). Ligado, só o nível mais específico entra na conta — sem isso, o mesmo acerto é contado no filho e no pai, e um tópico grande aparece duas vezes na lista com números diferentes. Desligue apenas se você estuda por blocos grandes e prefere ver o pai."><input type="checkbox" id="plano-folhas"> Só assuntos específicos (ignorar tópicos-pai)</label>
+                  </div>
                 </div>
-                <div class="rfc-field">
-                  <label for="plano-teto">Acerto máximo realista (%)</label>
-                  <input type="number" inputmode="numeric" id="plano-teto" min="50" max="100" step="1" title="Ninguém acerta 100% nem no assunto que domina. Este é o alvo por assunto — e a base do cálculo de ganho." aria-label="Ninguém acerta 100% nem no assunto que domina. Este é o alvo por assunto — e a base do cálculo de ganho.">
+              </div>
+
+              <div class="pl-grupo">
+                <p class="pl-grupo-tit" data-info="Decide até que ponto o passado ainda fala por você. Desempenho de um ano atrás num assunto que você revisou desde então não descreve mais o seu nível — mas jogar fora dado antigo demais deixa o app sem amostra nenhuma. Estes três campos equilibram isso.">2 · Frescor do dado <span>— até onde o passado vale</span></p>
+                <div class="rfc-adv-grid">
+                  <div class="rfc-field">
+                    <label for="plano-janelamax" data-info="Trava de segurança: mesmo faltando amostra, o app NUNCA usa dado mais antigo que isto. Acima desse prazo o desempenho já não representa você. Baixar demais faz muitos assuntos ficarem sem diagnóstico.">Não usar dado mais velho que (dias)</label>
+                    <input type="number" inputmode="numeric" id="plano-janelamax" min="30" max="1825" step="30">
+                  </div>
+                  <div class="rfc-field">
+                    <label for="plano-validade" data-info="Sem medição nova neste prazo, o assunto é marcado com ⏳ dado vencido — e um assunto que sustentava a meta passa a aparecer como 🟠 sólido sem medição nova, em vez de 🟢 resolvido.">Dado vence em (dias)</label>
+                    <input type="number" inputmode="numeric" id="plano-validade" min="30" max="720" step="15">
+                  </div>
+                  <div class="rfc-field">
+                    <label for="plano-cadencia" data-info="Com que frequência você pretende importar um retrato novo do TEC. Se o último ficar mais velho que isto, a tela avisa que a leitura está defasada. É um lembrete seu para você — não altera nenhum cálculo.">Frequência de importação (dias)</label>
+                    <input type="number" inputmode="numeric" id="plano-cadencia" min="7" max="365" step="1">
+                  </div>
                 </div>
-                <div class="rfc-field">
-                  <label for="plano-minamostra">Mínimo para entrar no cálculo</label>
-                  <input type="number" inputmode="numeric" id="plano-minamostra" min="0" max="500" step="1" title="Assuntos com menos questões que isso saem da média de domínio e vão para o segundo plano. Três erros em seis questões não é fraqueza comprovada, é falta de dado." aria-label="Assuntos com menos questões que isso saem da média de domínio e vão para o segundo plano. Três erros em seis questões não é fraqueza comprovada, é falta de dado.">
+              </div>
+
+              <div class="pl-grupo">
+                <p class="pl-grupo-tit" data-info="Define o que conta como bom, o que conta como resolvido e o que conta como mudança. É aqui que a tela deixa de ser um relatório e vira um critério: sem uma régua, todo número é só um número.">3 · Régua de aprovação <span>— o que conta como pronto</span></p>
+                <div class="rfc-adv-grid">
+                  <div class="rfc-field">
+                    <label for="plano-teto" data-info="Ninguém acerta 100% nem no assunto que domina — questão mal formulada, pegadinha, cansaço. Este é o alvo realista por assunto e a base do cálculo de ganho: o ganho de um assunto é o quanto ele sobe SE chegar aqui. Teto alto infla o ganho de todo mundo.">Acerto máximo realista (%)</label>
+                    <input type="number" inputmode="numeric" id="plano-teto" min="50" max="100" step="1">
+                  </div>
+                  <div class="rfc-field">
+                    <label for="plano-critico" data-info="Abaixo disto o diagnóstico muda de natureza: você erra mais do que acerta, então o problema é de teoria e não de treino. Resolver mais questões nessa faixa costuma só repetir o erro.">Faixa crítica: abaixo de (%)</label>
+                    <input type="number" inputmode="numeric" id="plano-critico" min="0" max="100" step="5">
+                  </div>
+                  <div class="rfc-field">
+                    <label for="plano-fragil" data-info="Entre a faixa crítica e este valor: a base existe mas falha em pontos específicos. A orientação vira revisar só o que errou, alternando com blocos de questões.">Faixa frágil: abaixo de (%)</label>
+                    <input type="number" inputmode="numeric" id="plano-fragil" min="0" max="100" step="5">
+                  </div>
+                  <div class="rfc-field">
+                    <label for="plano-consolidar" data-info="Quantas importações SEGUIDAS na meta um assunto precisa sustentar para virar 🟢 sólido. Cruzar a meta uma vez pode ser sorte na amostra; sustentar duas vezes já é outra conversa. Baixar para 1 esvazia a lista rápido demais.">Importações p/ consolidar</label>
+                    <input type="number" inputmode="numeric" id="plano-consolidar" min="1" max="10" step="1">
+                  </div>
+                  <div class="rfc-field">
+                    <label for="plano-sens" data-info="Variação mínima, em pontos percentuais, para o app marcar ▲ melhorando ou ▼ piorando. Abaixo disso é ruído de amostra, não evolução. Com poucas questões por assunto, use um valor maior.">Sensibilidade da tendência (pp)</label>
+                    <input type="number" inputmode="numeric" id="plano-sens" min="1" max="30" step="1">
+                  </div>
                 </div>
-                <div class="rfc-field wide">
-                  <label for="plano-customodo">Como estimar o custo de cada assunto</label>
-                  <select id="plano-customodo">
-                    <option value="fixo">Número fixo de questões por assunto</option>
-                    <option value="proporcional">Proporcional ao que você já praticou</option>
-                  </select>
-                </div>
-                <div class="rfc-field">
-                  <label for="plano-custofixo">· se fixo: questões</label>
-                  <input type="number" inputmode="numeric" id="plano-custofixo" min="10" max="1000" step="5">
-                </div>
-                <div class="rfc-field">
-                  <label for="plano-custofator">· se proporcional: fator</label>
-                  <input type="number" inputmode="decimal" id="plano-custofator" min="0.1" max="3" step="0.1">
-                </div>
-                <div class="rfc-field">
-                  <label for="plano-limite">Mostrar até (assuntos)</label>
-                  <input type="number" inputmode="numeric" id="plano-limite" min="5" max="200" step="5">
-                </div>
-                <div class="rfc-field">
-                  <label for="plano-consolidar">Importações p/ consolidar</label>
-                  <input type="number" inputmode="numeric" id="plano-consolidar" min="1" max="10" step="1" title="Quantas importações seguidas na meta um assunto precisa sustentar para ser considerado sólido." aria-label="Quantas importações seguidas na meta um assunto precisa sustentar para ser considerado sólido.">
-                </div>
-                <div class="rfc-field">
-                  <label for="plano-validade">Dado vence em (dias)</label>
-                  <input type="number" inputmode="numeric" id="plano-validade" min="30" max="720" step="15" title="Sem medição nova nesse prazo, o assunto é marcado como dado vencido." aria-label="Sem medição nova nesse prazo, o assunto é marcado como dado vencido.">
-                </div>
-                <div class="rfc-field">
-                  <label for="plano-cadencia">Frequência de importação (dias)</label>
-                  <input type="number" inputmode="numeric" id="plano-cadencia" min="7" max="365" step="1" title="Se o último retrato ficar mais velho que isso, o app avisa que a leitura está defasada." aria-label="Se o último retrato ficar mais velho que isso, o app avisa que a leitura está defasada.">
-                </div>
-                <div class="rfc-field">
-                  <label for="plano-janelamax">Não usar dado mais velho que (dias)</label>
-                  <input type="number" inputmode="numeric" id="plano-janelamax" min="30" max="1825" step="30" title="Trava de segurança: mesmo faltando amostra, o app não usa dado mais antigo que isso. Acima desse prazo o desempenho já não representa você hoje." aria-label="Trava de segurança: mesmo faltando amostra, o app não usa dado mais antigo que isso. Acima desse prazo o desempenho já não representa você hoje.">
-                </div>
-                <div class="rfc-field">
-                  <label for="plano-critico">Faixa crítica: abaixo de (%)</label>
-                  <input type="number" inputmode="numeric" id="plano-critico" min="0" max="100" step="5" title="Abaixo disso o diagnóstico é problema de teoria, não de treino." aria-label="Abaixo disso o diagnóstico é problema de teoria, não de treino.">
-                </div>
-                <div class="rfc-field">
-                  <label for="plano-fragil">Faixa frágil: abaixo de (%)</label>
-                  <input type="number" inputmode="numeric" id="plano-fragil" min="0" max="100" step="5" title="Entre crítico e este valor: revisar teoria e alternar com questões." aria-label="Entre crítico e este valor: revisar teoria e alternar com questões.">
-                </div>
-                <div class="rfc-field">
-                  <label for="plano-piso">Mínimo por importação (trajetória)</label>
-                  <input type="number" inputmode="numeric" id="plano-piso" min="1" max="100" step="1" title="Diferente do campo acima: aqui é o mínimo dentro de UMA importação para ela valer como medição no gráfico de trajetória e na contagem de importações seguidas." aria-label="Diferente do campo acima: aqui é o mínimo dentro de UMA importação para ela valer como medição no gráfico de trajetória e na contagem de importações seguidas.">
-                </div>
-                <div class="rfc-field">
-                  <label for="plano-sens">Sensibilidade da tendência (pp)</label>
-                  <input type="number" inputmode="numeric" id="plano-sens" min="1" max="30" step="1" title="Variação mínima para marcar um assunto como melhorando ou piorando." aria-label="Variação mínima para marcar um assunto como melhorando ou piorando.">
-                </div>
-                <div class="rfc-field wide">
-                  <label class="rfc-check"><input type="checkbox" id="plano-folhas"> Só assuntos específicos (ignorar tópicos-pai)</label>
-                  <label class="rfc-check"><input type="checkbox" id="plano-pequenas"> Incluir assuntos com amostra pequena no cálculo</label>
+              </div>
+
+              <div class="pl-grupo">
+                <p class="pl-grupo-tit" data-info="Decide o que a fila otimiza. Peso responde &quot;todo assunto vale o mesmo?&quot;; custo responde &quot;quanto trabalho cada um dá?&quot;. São estes dois campos que fazem as ordens de ataque discordarem entre si — com custo fixo e peso igual, três delas dão exatamente a mesma lista.">4 · Esforço e prioridade <span>— o que a fila otimiza</span></p>
+                <div class="rfc-adv-grid">
+                  <div class="rfc-field wide">
+                    <label for="plano-ponderacao" data-info="Peso igual: um assunto de 4 questões conta tanto quanto um de 400 — nada se esconde atrás de pouco volume, e é a leitura certa antes do edital. Por volume: o que você mais pratica manda, o que maximiza o aproveitamento geral do topo desta tela.">Como pesar cada assunto</label>
+                    <select id="plano-ponderacao">
+                      <option value="igual">⚖️ Todo assunto pesa igual — nada se esconde atrás de pouco volume</option>
+                      <option value="volume">📊 Pelo volume de questões — maximiza o Aproveitamento geral desta tela</option>
+                      <option value="ambas">🔀 Mostrar as duas — decida item a item</option>
+                    </select>
+                  </div>
+                  <div class="rfc-field wide">
+                    <label for="plano-customodo" data-info="Por lacuna (padrão): custo = piso para remedir + tanto por ponto percentual até o máximo realista, ajustado pela amplitude do assunto (o quanto o banco já te serviu ali, comparado à sua mediana). É o único modo em que &quot;melhor retorno&quot; produz uma fila diferente de &quot;pior acerto&quot;. Fixo: o mesmo número para todos — vira cópia de &quot;pior acerto primeiro&quot;. Proporcional: fator × o que você já praticou.">Como estimar o custo de cada assunto</label>
+                    <select id="plano-customodo">
+                      <option value="lacuna">📐 Pela lacuna até o máximo realista (recomendado)</option>
+                      <option value="fixo">Número fixo de questões por assunto</option>
+                      <option value="proporcional">Proporcional ao que você já praticou</option>
+                    </select>
+                  </div>
+                  <div class="rfc-field">
+                    <label for="plano-custopiso" data-info="· modo por lacuna: quantas questões você precisa resolver, no mínimo, para o assunto ser REMEDIDO na próxima importação. É o custo de um assunto que já está no máximo realista.">· se por lacuna: piso</label>
+                    <input type="number" inputmode="numeric" id="plano-custopiso" min="10" max="500" step="5">
+                  </div>
+                  <div class="rfc-field">
+                    <label for="plano-custoponto" data-info="· modo por lacuna: quantas questões a mais por ponto percentual de lacuna. Com 2, fechar 30 pontos custa 60 questões além do piso — mais ou menos conforme o assunto seja mais amplo ou mais estreito que a sua média. Aumente se os seus assuntos são densos; diminua se você costuma virar a chave rápido.">· se por lacuna: q/ponto</label>
+                    <input type="number" inputmode="decimal" id="plano-custoponto" min="0" max="20" step="0.5">
+                  </div>
+                  <div class="rfc-field">
+                    <label for="plano-custofixo" data-info="· modo fixo: o mesmo número de questões para todo assunto, independente da distância até a meta.">· se fixo: questões</label>
+                    <input type="number" inputmode="numeric" id="plano-custofixo" min="10" max="1000" step="5">
+                  </div>
+                  <div class="rfc-field">
+                    <label for="plano-custofator" data-info="· modo proporcional: multiplica o que você já resolveu naquele assunto. 0,5 significa &quot;metade do que já fiz&quot;. Assume que assunto grande dá mais trabalho — o que nem sempre vale.">· se proporcional: fator</label>
+                    <input type="number" inputmode="decimal" id="plano-custofator" min="0.1" max="3" step="0.1">
+                  </div>
+                  <div class="rfc-field wide">
+                    <label for="plano-pesobanca" data-info="Só afeta a ordem 🎯 fraqueza × incidência. Em 0 a banca é ignorada e a ordem vira o melhor retorno puro. Quanto maior, mais o assunto que CAI MUITO na prova sobe, mesmo sem ser o seu pior acerto. Acima de 8 a incidência manda praticamente sozinha.">Quanto a banca pesa na prioridade: <span id="plano-pesobanca-label" class="lbl-accent">6</span></label>
+                    <input type="range" id="plano-pesobanca" min="0" max="12" step="1" class="reforco-slider">
+                    <div class="reforco-slider-legend"><span>só o seu erro</span><span>equilíbrio</span><span>só a incidência</span></div>
+                  </div>
+                  <div class="rfc-field">
+                    <label for="plano-limite" data-info="Quantos assuntos a lista mostra. Não altera nenhum cálculo — o domínio e o caminho mais curto usam todos. Listas longas viram paralisia: 10 a 30 é o que se ataca de verdade.">Mostrar até (assuntos)</label>
+                    <input type="number" inputmode="numeric" id="plano-limite" min="5" max="200" step="5">
+                  </div>
                 </div>
               </div>
               <div style="display:flex;justify-content:flex-end;margin-top:12px;">
@@ -853,6 +891,13 @@
               </div>
             </div>
             </div><!-- /#plano-filtros-body -->
+
+            <!-- MODO DE ATAQUE: fica FORA do painel recolhível de propósito. É a
+                 primeira decisão da tela ("qual pergunta eu estou fazendo?"),
+                 não um ajuste fino — esconder isso atrás de "Mostrar ajustes"
+                 era o que deixava a pessoa diante de sete ordens sem critério. -->
+            <div class="pl-modos" id="plano-modos" role="group" aria-label="Modo de ataque"></div>
+            <div id="plano-modo-nota"></div>
 
             <div id="plano-proj"></div>
             <div id="plano-lista"></div>
