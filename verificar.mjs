@@ -921,6 +921,22 @@ try {
      exatamente como esta tela ficou confusa da primeira vez. */
   est.semDica === 0 ? ok('todos os campos de ajuste do Plano tem dica explicativa')
     : erro(`${est.semDica} campo(s) de ajuste do Plano sem o "i" de explicacao`);
+  /* Os rotulos das ordens moram numa tabela so. Se o select voltar a ser uma
+     copia estatica, ele diverge do texto que explica a ordem escolhida — foi
+     exatamente o que aconteceu com o dialogo "Puxar do Plano". */
+  const ord = await pag.evaluate(() => {
+    const sel = document.getElementById('plano-ordenar');
+    const chaves = Object.keys(PlanoEngine.ORDENS);
+    return {
+      opcoes: sel ? [...sel.options].map((o) => o.value) : [],
+      semDica: sel ? [...sel.options].filter((o) => !o.title).length : -1,
+      chaves,
+      textoBate: sel ? [...sel.options].every((o) => o.text === PlanoEngine.ORDENS[o.value].rot) : false
+    };
+  });
+  (ord.opcoes.length === ord.chaves.length && ord.semDica === 0 && ord.textoBate)
+    ? ok(`as ${ord.opcoes.length} ordens de ataque saem da mesma tabela, cada uma com "quando usar"`)
+    : erro('o select de ordem divergiu da tabela do motor: ' + JSON.stringify(ord));
   /* O botao que vira o plano em TAREFA e o unico ponto da tela que muda dados.
      Se ele quebra, a tela inteira volta a ser um relatorio bonito. */
   const lote = await pag.evaluate(() => {

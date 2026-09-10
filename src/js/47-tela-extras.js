@@ -180,15 +180,13 @@ const ExtrasScreen = {
     // marca os 3 primeiros por padrão
     this._planoCand.forEach((_, i) => { if (i < 3) this._planoSel.add(i); });
 
-    const ORDENS = [
-      ['pior', '🔴 Pior acerto primeiro'],
-      ['ganhoGeral', '📊 Maior ganho no Aproveitamento geral'],
-      ['ganhoDominio', '⚖️ Maior ganho no Domínio'],
-      ['banca', '🎯 Prioridade na banca'],
-      ['rendimento', '⚡ Melhor retorno'],
-      ['queda', '📉 Maior queda recente'],
-      ['volume', '📚 Mais questões resolvidas']
-    ];
+    /* Os rótulos vêm do MOTOR, não de uma cópia local: eram sete pares escritos
+       à mão aqui e outros sete na tela do Plano, já divergindo entre si
+       ("Prioridade na banca" x "Fraqueza × incidência"). Cada opção leva junto
+       o "quando usar" como dica — a mesma explicação dos dois lados. */
+    const ORDENS = (typeof PlanoEngine !== 'undefined' && PlanoEngine.ORDENS)
+      ? Object.keys(PlanoEngine.ORDENS).map(k => [k, PlanoEngine.ORDENS[k].rot, PlanoEngine.ORDENS[k].quando])
+      : [['pior', '🔴 Pior acerto primeiro', '']];
     const temInc = (typeof ReforcoEngine !== 'undefined') && ReforcoEngine.hasIncidencia && ReforcoEngine.hasIncidencia();
 
     // HTML fixo do diálogo (a lista e o dropdown de disciplinas são preenchidos por JS)
@@ -198,7 +196,7 @@ const ExtrasScreen = {
         <label class="pl-modal-field">
           <span>Prioridade</span>
           <select id="pl-ordenar">
-            ${ORDENS.map(o => `<option value="${o[0]}" ${o[0] === this._planoOrd ? 'selected' : ''} ${o[0] === 'banca' && !temInc ? 'disabled' : ''}>${o[1]}${o[0] === 'banca' && !temInc ? ' (importe a incidência)' : ''}</option>`).join('')}
+            ${ORDENS.map(o => `<option value="${o[0]}" title="${escapeHtml(o[2] || '')}" ${o[0] === this._planoOrd ? 'selected' : ''} ${o[0] === 'banca' && !temInc ? 'disabled' : ''}>${escapeHtml(o[1])}${o[0] === 'banca' && !temInc ? ' (importe a incidência)' : ''}</option>`).join('')}
           </select>
         </label>
         <div class="pl-modal-field" style="position:relative;">

@@ -48,7 +48,6 @@ const PlanoEngine = {
        Era uma constante 6 escondida no meio da fórmula: quem lia a tela não
        tinha como saber que existia, muito menos que ela decide a ordem. */
     pesoBanca: 6,
-    modo: 'livre',       // preset de ataque em vigor (ver MODOS)
     /* Fica em 1 DE PROPÓSITO: é o valor que um perfil sem marca herda, e é ele
        que faz prefs() rodar a migração para 2. Colocar 2 aqui faria todo perfil
        antigo já nascer "migrado" e a migração nunca aconteceria. */
@@ -108,29 +107,29 @@ const PlanoEngine = {
       quando: 'Pré-edital, ou sempre que a prioridade for não deixar nenhum buraco para trás.',
       armadilha: 'Ignora o quanto o assunto cai na prova e o trabalho que ele dá — dá para gastar um mês no assunto mais difícil e menos cobrado do edital.'
     },
-    ganhoDominio: {
-      rot: '⚖️ Maior ganho no domínio',
-      oque: 'Ordena pelo quanto o número grande do topo sobe se aquele assunto chegar ao máximo realista, com todo assunto pesando igual.',
-      quando: 'Quando a sua meta É o domínio médio: base ampla, antes do edital.',
-      armadilha: 'Com peso igual esta fila é, matematicamente, a mesma de "pior acerto primeiro" — muda a leitura, não a ordem.'
-    },
     ganhoGeral: {
       rot: '📊 Maior ganho no aproveitamento geral',
       oque: 'Ordena pelo quanto o seu aproveitamento ponderado por questão sobe: assunto com amostra grande pesa mais.',
       quando: 'Quando a prova cobra muito daquilo que você já pratica em volume, e é esse número que você acompanha.',
       armadilha: 'Assunto pequeno e mal dominado quase não aparece — e é exatamente o tipo de questão que decide desempate.'
     },
-    rendimento: {
-      rot: '⚡ Melhor retorno (ganho ÷ custo)',
-      oque: 'Divide o ganho pelo custo estimado em questões: primeiro o que fecha rápido.',
-      quando: 'Tempo curto. É esta a ordem que constrói o caminho mais curto até a meta.',
-      armadilha: 'Com custo FIXO a divisão não muda nada e a fila vira cópia de "pior acerto". Só faz sentido com o custo por lacuna.'
+    ganhoDominio: {
+      rot: '⚖️ Maior ganho no domínio',
+      oque: 'Ordena pelo quanto o número grande do topo sobe se aquele assunto chegar ao máximo realista, com todo assunto pesando igual.',
+      quando: 'Quando a sua meta É o domínio médio: base ampla, antes do edital.',
+      armadilha: 'Com peso igual esta fila é, matematicamente, a mesma de "pior acerto primeiro" — muda a leitura, não a ordem.'
     },
     banca: {
       rot: '🎯 Fraqueza × incidência na banca',
       oque: 'Multiplica o retorno pela frequência do assunto na banca escolhida; o quanto ela empurra está no controle "quanto a banca pesa".',
       quando: 'Pós-edital, banca conhecida. É a ordem que mais aproxima o seu estudo da prova que você vai fazer.',
       armadilha: 'Depende de incidência importada. Sem ela, vira silenciosamente a fila do melhor retorno.'
+    },
+    rendimento: {
+      rot: '⚡ Melhor retorno (ganho ÷ custo)',
+      oque: 'Divide o ganho pelo custo estimado em questões: primeiro o que fecha rápido.',
+      quando: 'Tempo curto. É esta a ordem que constrói o caminho mais curto até a meta.',
+      armadilha: 'Com custo FIXO a divisão não muda nada e a fila vira cópia de "pior acerto". Só faz sentido com o custo por lacuna.'
     },
     queda: {
       rot: '📉 Maior queda recente',
@@ -456,10 +455,13 @@ const PlanoEngine = {
       s._idx = this._indice(s, opts.apenasFolhas); return s;
     });
     const mHist = this._indice(scoped, opts.apenasFolhas);
-    // Baseline histórico coerente com a JANELA ADAPTATIVA: soma os índices POR RETRATO
-    // (mesma chave por nome), em vez de usar o agregado. Sem isto, quando o mesmo assunto
-    // muda de código entre importações, o agregado + detecção de folha captura uma amostra
-    // menor que a janela — e o delta ▲/▼ ficava espúrio (ex.: "+63pp" num assunto em queda).
+    /* Total histórico coerente com a JANELA ADAPTATIVA: soma os índices POR
+       RETRATO (mesma chave por nome), em vez de usar o agregado. Sem isto,
+       quando o mesmo assunto muda de código entre importações, o agregado mais
+       a detecção de folha captura uma amostra MENOR que a própria janela.
+       É daqui que saem o "de N no total" de cada item e a amplitude usada no
+       custo — o ▲▼ não usa mais este número: ele compara a janela com o
+       período anterior a ela (ver _taxaAdaptativa). */
     const mFull = {};
     for (const s of snapsDesc) { const idx = s._idx || {}; for (const k in idx) { const c = mFull[k] || { q: 0, ac: 0 }; c.q += idx[k].q; c.ac += idx[k].ac; mFull[k] = c; } }
     const _fullPct = (k, fb) => { const f = mFull[k]; return (f && f.q > 0) ? (f.ac / f.q * 100) : fb; };
@@ -665,6 +667,12 @@ const PlanoEngine = {
        mudava uma linha. Em vez de esconder isso, a tela passa a dizer quais
        ordens são gêmeas COM OS SEUS AJUSTES DE AGORA (muda o custo, muda o
        parentesco), o que também ensina o que cada uma realmente faz. */
+    /* Com três ou quatro assuntos, duas ordens coincidirem é ACASO, não
+       parentesco: qualquer critério empata numa lista curta. Avisar ali que as
+       ordens "são idênticas" ensinaria a coisa errada — a lista cresce e elas
+       se separam. O fato continua sendo calculado (é dele que o teste vive);
+       a tela só o exibe quando a lista é grande o bastante para significar
+       alguma coisa. */
     const assinatura = plano.map(x => x.nome).join('|');
     const equivalentes = Object.keys(ordem).filter(k => k !== opts.ordenar &&
       plano.slice().sort((a, b) => ordem[k](a, b) || (a.nome || '').localeCompare(b.nome || '', 'pt-BR'))
@@ -680,6 +688,7 @@ const PlanoEngine = {
       assuntos: usados.length, ignorados: brutos.length - usados.length,
       qTotal: usados.reduce((a, x) => a + x.qJanela, 0),
       idxMeta, qAteMeta: idxMeta >= 0 ? qAteMeta : null, caminho, equivalentes,
+      equivalentesConfiaveis: plano.length >= 5,
       custoModo: opts.custoModo, custoPiso: opts.custoPiso, custoPorPonto: opts.custoPorPonto,
       pesoBanca: opts.pesoBanca, minAmostra: opts.minAmostra, modo: this.modoAtivo(opts),
       ritmo, ritmoMedido: this.ritmoRecente(snapsDesc, 120),
@@ -694,7 +703,14 @@ const PlanoEngine = {
       melhorando, piorando, ordenar: opts.ordenar,
       temIncid, banca: opts.banca,
       comIncid: usados.filter(x => x.incid > 0).length,
+      /* `consolidados` continua sendo o TOTAL que sustentou a meta — é o que a
+         tela de Conquistas conta, e mudar a régua faria uma conquista já obtida
+         regredir. Para a tela, o que importa é a separação: sólido com medição
+         recente é uma coisa, sólido com dado de oito meses é outra, e o chip
+         verde não pode contar quem a lista mostra em laranja. */
       consolidados: usados.filter(x => x.taxa >= opts.metaDominio && x.seq >= opts.consolidarEm).length,
+      solidosAtuais: usados.filter(x => x.taxa >= opts.metaDominio && x.seq >= opts.consolidarEm && !x.vencido).length,
+      solidosVencidos: usados.filter(x => x.taxa >= opts.metaDominio && x.seq >= opts.consolidarEm && x.vencido).length,
       recentes: usados.filter(x => x.taxa >= opts.metaDominio && x.seq < opts.consolidarEm).length,
       vencidos: usados.filter(x => x.vencido).length,
       consolidarEm: opts.consolidarEm, validadeDias: opts.validadeDias,
@@ -1260,6 +1276,20 @@ const DesempenhoTecScreen = {
     if (lblPB) lblPB.textContent = p.pesoBanca === 0 ? '0 — banca ignorada' : String(p.pesoBanca);
     chk('plano-folhas', p.apenasFolhas); chk('plano-pequenas', p.incluirPequenas);
     set('plano-amostraalvo', p.amostraAlvo); set('plano-cadencia', p.cadenciaDias); set('plano-ordenar', p.ordenar);
+    /* Os rótulos das sete ordens existiam em TRÊS lugares: neste select, no
+       diálogo "Puxar do Plano" e no texto que explica a ordem escolhida. Três
+       cópias divergem — uma renomeada, as outras não. Agora o select nasce da
+       mesma tabela que explica os cenários, e cada opção carrega o "quando
+       usar" como dica. As opções do HTML continuam lá como base: se o JS não
+       rodar, o campo ainda funciona. */
+    const os_ = document.getElementById('plano-ordenar');
+    if (os_ && typeof PlanoEngine.ORDENS === 'object') {
+      os_.innerHTML = Object.keys(PlanoEngine.ORDENS).map(k => {
+        const o = PlanoEngine.ORDENS[k];
+        return `<option value="${k}" title="${escapeHtml(o.quando)}"${k === p.ordenar ? ' selected' : ''}>${escapeHtml(o.rot)}</option>`;
+      }).join('');
+      if (![...os_.options].some(o => o.value === p.ordenar)) os_.value = 'pior';
+    }
     set('plano-janelamax', p.janelaMax); set('plano-consolidar', p.consolidarEm); set('plano-validade', p.validadeDias);
     set('plano-critico', p.faixaCritico); set('plano-fragil', p.faixaFragil);
     set('plano-piso', p.pisoSerie); set('plano-sens', p.sensTendencia);
@@ -1375,6 +1405,8 @@ const DesempenhoTecScreen = {
     const digitado = Math.max(1, num('plano-ritmo', medido));
     opts.ritmoSemanal = (digitado === medido) ? null : digitado;
     PlanoEngine.salvarPrefs(opts);
+    // ajuste novo invalida o retrato em cache usado ao criar atividades
+    this._planoRefC = null;
     opts.ritmoSemanal = opts.ritmoSemanal || medido;
     const r = PlanoEngine.calcular(this.scopedSnapshot(), opts);
     // liga cada assunto à atividade extra já criada para ele (ciclo de acompanhamento)
@@ -1426,7 +1458,8 @@ const DesempenhoTecScreen = {
         </p>` : ''}
 
         <div class="pl-chips">
-          <span class="pl-chip res" style="border-color:var(--good);color:var(--good-text);" title="Sustentaram a meta em ${r.consolidarEm}+ importações seguidas">🟢 ${r.consolidados} sólidos</span>
+          <span class="pl-chip res" style="border-color:var(--good);color:var(--good-text);" title="Sustentaram a meta em ${r.consolidarEm}+ importações seguidas, com medição recente">🟢 ${r.solidosAtuais} sólidos</span>
+          ${r.solidosVencidos ? `<span class="pl-chip res" style="border-color:var(--warn);color:var(--warn-text);" title="Sustentaram a meta, mas a última medição tem mais de ${r.validadeDias} dias — remeça antes de riscar da lista">🟠 ${r.solidosVencidos} sólidos sem medição nova</span>` : ''}
           ${r.recentes ? `<span class="pl-chip res" style="border-color:var(--warn);color:var(--warn-text);" title="Cruzaram a meta há pouco — ainda não provaram que fixaram">🟡 ${r.recentes} recém-corrigidos</span>` : ''}
           ${(r.melhorando || r.piorando) ? `<span class="pl-chip res" style="border-color:var(--${r.melhorando >= r.piorando ? 'good' : 'bad'});color:var(--${r.melhorando >= r.piorando ? 'good' : 'bad'}-text);" title="Variação acima de ${r.sensTendencia}pp contra o histórico">📊 ${r.melhorando} melhorando · ${r.piorando} piorando</span>` : ''}
           ${r.vencidos ? `<span class="pl-chip res" style="border-color:var(--bad);color:var(--bad-text);" title="Sem medição nova há mais de ${r.validadeDias} dias">⏳ ${r.vencidos} com dado vencido</span>` : ''}
@@ -1673,7 +1706,7 @@ const DesempenhoTecScreen = {
        quando você escolhia "melhor retorno" — nos outros, você trocava de
        cenário, via a mesma lista e concluía que a tela estava quebrada. */
     const info = PlanoEngine.ORDENS[r.ordenar] || PlanoEngine.ORDENS.pior;
-    const gemeas = (r.equivalentes || []).map(k => (PlanoEngine.ORDENS[k] || {}).rot).filter(Boolean);
+    const gemeas = r.equivalentesConfiaveis ? (r.equivalentes || []).map(k => (PlanoEngine.ORDENS[k] || {}).rot).filter(Boolean) : [];
     const ordemNota = `
       <div class="pl-ordem">
         <p class="pl-ordem-tit">${info.rot} · ${r.itens.length} ${r.itens.length === 1 ? 'assunto' : 'assuntos'}</p>
@@ -1685,7 +1718,7 @@ const DesempenhoTecScreen = {
         ${(r.ordenar === 'banca' && r.temIncid)
           ? `<p class="pl-ordem-txt">${r.comIncid} dos ${r.itens.length} assuntos listados têm incidência ${r.banca === '__todas__' ? 'em alguma banca' : 'na banca ' + escapeHtml(r.banca)}; a banca pesa ${r.pesoBanca} nesta fila.</p>` : ''}
         ${gemeas.length
-          ? `<p class="pl-ordem-txt tone-warn"><b>Com os seus ajustes, esta ordem é idêntica a:</b> ${gemeas.map(escapeHtml).join(' · ')}. Trocar entre elas não muda uma linha — para separá-las, mude o custo ou a ponderação nos ajustes avançados.</p>` : ''}
+          ? `<p class="pl-ordem-txt tone-warn"><b>Com os seus dados e ajustes de agora, esta ordem está dando a mesma lista que:</b> ${gemeas.map(escapeHtml).join(' · ')}. Trocar entre elas não muda uma linha — para separá-las, mude o custo ou a ponderação nos ajustes avançados.</p>` : ''}
       </div>`;
 
     /* ── POR QUE O PRIMEIRO É O PRIMEIRO ─────────────────────────────────────
@@ -1708,7 +1741,11 @@ const DesempenhoTecScreen = {
        nem fraco: é um ponto cego, e some justamente da tela feita para não
        deixar nada se esconder. */
     let edital = '';
-    const lac = PlanoEngine.lacunasDoEdital(opts);
+    /* Só com a tela em "Todas": este bloco fala de AMPLITUDE — o que do seu
+       planejamento ficou fora de todas as contas. Filtrada numa disciplina, a
+       tela responde outra pergunta, e listar as lacunas das outras ali seria
+       resposta para pergunta que ninguém fez. */
+    const lac = (opts.disciplina === '__todas__') ? PlanoEngine.lacunasDoEdital(opts) : null;
     if (lac && (lac.sem.length || lac.pouca.length)) {
       const chip = (d, extra) => `<span class="pl-edital-chip">${escapeHtml(d.nome)}${extra}</span>`;
       edital = `

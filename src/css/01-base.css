@@ -3697,7 +3697,7 @@
   .tec-enxuto .pl-prosa,
   .tec-enxuto .pl-guia,
   .tec-enxuto .rfc-orderlabel,
-  .tec-enxuto #tec-panel-plano > .card > div > details.rfc-advanced,
+  .tec-enxuto #plano-lista > details.rfc-advanced,
   .tec-enxuto .pl-steps-wrap { display: none !important; }
 
   @media (max-width: 560px) {
