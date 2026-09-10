@@ -820,6 +820,46 @@ try {
     ? ok('baixar o perfil de outra conta e recusado pelo banco')
     : erro('o perfil de outra conta ficou acessivel: ' + vazamento);
 
+  // ── 11. TOKEN "EMITIDO NO FUTURO": a falha intermitente do portao ───────
+  /* O PostgREST compara o `iat` do token com o relogio DELE, e recusa um token
+     que diz ter nascido depois de agora. Entre o servidor que carimba o `iat` e
+     o no que valida ha uma deriva de um ou dois segundos — invisivel, menos no
+     instante em que o app usa um token recem emitido, que e exatamente o que o
+     portao de acesso faz. Era esse 401 que aparecia no lugar dos perfis.
+     A cura e ESPERAR, nao renovar: um token novo nasceria com `iat` ainda mais
+     adiante e seria recusado de novo. As duas metades sao verificadas aqui. */
+  const tokensAntes = api.estado.pedidos.filter((p) => /\/auth\/v1\/token/.test(p.caminho)).length;
+  let recusasRestantes = 2;                       // o app tem direito a 2 retentativas
+  const recusarPorRelogio = (req, url) => {
+    if (req.method !== 'GET' || !url.pathname.endsWith('/rest/v1/study_profiles')) return null;
+    return { status: 401, corpo: { code: 'PGRST301', message: 'JWT issued at future' } };
+  };
+  api.estado.falhaForcada = (req, url) =>
+    (recusasRestantes-- > 0 ? recusarPorRelogio(req, url) : null);
+  const tolerou = await pg.evaluate(async () => {
+    CloudStore.TOKEN_ESPERA_MS = 60;              // o teste nao espera 1,5 s de verdade
+    try { const l = await CloudStore.listProfiles(); return { ok: true, n: l.length }; }
+    catch (e) { return { ok: false, msg: e.message, code: e.code }; }
+  });
+  api.estado.falhaForcada = null;
+  tolerou.ok ? ok('token recusado por "issued at future": a lista de perfis se recupera sozinha')
+    : erro('o portao ainda quebra com token emitido no futuro: ' + JSON.stringify(tolerou));
+  const tokensDepois = api.estado.pedidos.filter((p) => /\/auth\/v1\/token/.test(p.caminho)).length;
+  tokensDepois === tokensAntes
+    ? ok('e a recuperacao ESPERA, sem renovar o token (renovar traria um `iat` ainda mais adiante)')
+    : erro(`a recuperacao renovou o token ${tokensDepois - tokensAntes}x — o token novo nasce com iat ainda mais no futuro`);
+
+  // Limitada de proposito: o que NAO passa nunca vira tela parada em silencio.
+  api.estado.falhaForcada = recusarPorRelogio;
+  const desistiu = await pg.evaluate(async () => {
+    try { await CloudStore.listProfiles(); return 'passou sem o servidor aceitar'; }
+    catch (e) { return (e && e.code) || 'erro sem codigo'; }
+  });
+  api.estado.falhaForcada = null;
+  desistiu === 'token-fora-de-hora'
+    ? ok('falha persistente ainda vira erro proprio, com codigo (a retentativa e limitada)')
+    : erro('a falha persistente nao virou erro proprio: ' + desistiu);
+
   erros.length === 0 ? ok('nenhuma excecao nao tratada em todo o percurso')
     : erro('excecoes durante o percurso da nuvem: ' + erros.slice(0, 3).join(' | '));
 
