@@ -954,6 +954,7 @@ const TecAjustes = {
     document.body.style.overflow = 'hidden';
     this.aplicarCondicionais();
     this.marcarPersonalizadas();
+    this.estabilizarAltura();
     /* O foco cai no chip da seção, não no ✕. Abrir um painel de ajustes com o
        anel de foco no botão de FECHAR é dizer, na primeira coisa que se vê,
        que a saída é o mais importante da tela. */
@@ -961,6 +962,46 @@ const TecAjustes = {
       const at = document.querySelector('#tec-cfg-nav button.is-active');
       if (at) { try { at.focus(); } catch (e) { _quiet(e, 'cfg-foco'); } }
     }, 80);
+  },
+  /* ── A FITA NÃO PODE FUGIR DO DEDO ───────────────────────────────────────
+     No celular a folha é ancorada embaixo: a base fica presa na borda da tela
+     e é o TOPO que se move quando o conteúdo muda de tamanho. Trocar de seção
+     mexia 219px no topo — e a fita de chips, que é justamente o que se está
+     tocando, subia ou descia junto. Você mira em "Régua" e o botão sai do
+     lugar entre o toque e o dedo chegar.
+
+     A altura passa a ser a da MAIOR seção da aba, não a da seção aberta. Assim
+     a caixa não muda de tamanho ao navegar: cabeçalho, fita e pé ficam
+     exatamente onde estavam, e o que varia é só o espaço vago abaixo do último
+     campo — que ninguém percebe, ao contrário de um painel que pula.
+
+     A medida é feita mostrando cada seção por vez e lendo a altura: cinco
+     leituras, tudo dentro do mesmo quadro, então nada pisca. Só a maior aba
+     (o Plano, com cinco seções) chega a cinco. */
+  estabilizarAltura() {
+    const body = document.getElementById('tec-cfg-body');
+    if (!body || !this.aba) return;
+    const secs = this._secoes(this.aba);
+    if (!secs.length) return;
+    const antes = secs.map(s => s.hidden);
+    body.style.minHeight = '';
+    let maior = 0;
+    for (let i = 0; i < secs.length; i++) {
+      secs.forEach((o, j) => { o.hidden = (j !== i); });
+      if (body.scrollHeight > maior) maior = body.scrollHeight;
+    }
+    secs.forEach((s, i) => { s.hidden = antes[i]; });
+    /* Teto: a caixa já é limitada por `max-height`; pedir mais que isso só
+       criaria rolagem sem tirar o pulo. */
+    /* Teto: a caixa já é limitada por `max-height`; pedir mais que isso só
+       criaria rolagem sem tirar o pulo.
+
+       A alternativa era prender o TOPO e deixar a base flutuar — a folha
+       descolava da borda de baixo e quem passava a pular era o "Concluir",
+       justo o botão que fica debaixo do polegar. Entre uma sobra de espaço
+       abaixo do último campo e um botão que se move, a sobra é de longe o
+       menor preço: é assim que toda folha de detente fixa se comporta. */
+    body.style.minHeight = Math.min(maior, Math.round(window.innerHeight * 0.92)) + 'px';
   },
   /* ── CAMPO QUE SÓ EXISTE QUANDO FAZ SENTIDO ──────────────────────────────
      Os três sub-campos de custo eram irmãos permanentes, rotulados "· se por
@@ -1006,6 +1047,8 @@ const TecAjustes = {
     if (!modal) return;
     modal.style.display = 'none';
     document.body.style.overflow = '';
+    const body = document.getElementById('tec-cfg-body');
+    if (body) body.style.minHeight = '';   // a próxima aba mede a sua própria altura
     this.aba = null;
     // devolve o foco para a porta por onde se entrou
     const btn = document.querySelector('.tec-cfg-open[data-cfg="' + (this._voltarPara || '') + '"]');
@@ -3724,10 +3767,20 @@ $id('tec-weak-disc').addEventListener('change', (e) => {
      ouvintes que APLICAM cada campo continuam onde sempre estiveram — este
      aqui só mantém a folha honesta sobre o que ela mesma mostra. */
   const body = document.getElementById('tec-cfg-body');
-  if (body) ['input', 'change'].forEach(ev => body.addEventListener(ev, () => {
-    try { TecAjustes.aplicarCondicionais(); TecAjustes.sincronizar(); }
-    catch (err) { _quiet(err, 'cfg-sync'); }
+  if (body) ['input', 'change'].forEach(ev => body.addEventListener(ev, (e) => {
+    try {
+      TecAjustes.aplicarCondicionais(); TecAjustes.sincronizar();
+      /* Só no `change`: um campo condicional que aparece ou some muda qual é a
+         maior seção. Remedir a cada tecla digitada num campo numérico seria
+         cinco leituras de layout por caractere, sem nada mudar de tamanho. */
+      if (e.type === 'change') TecAjustes.estabilizarAltura();
+    } catch (err) { _quiet(err, 'cfg-sync'); }
   }));
+  /* Girar o telefone muda o teto da caixa: a altura medida na vertical deixa a
+     folha alta demais na horizontal, com o pé fora da tela. */
+  window.addEventListener('resize', () => {
+    if (TecAjustes.aba) { try { TecAjustes.estabilizarAltura(); } catch (e) { _quiet(e, 'cfg-resize'); } }
+  });
   /* RESTAURAR PADRÕES vale para a aba aberta, e só para ela. Um botão que
      zerasse as três de uma vez seria uma armadilha: ninguém espera que mexer
      no Reforço apague a régua do Plano. */

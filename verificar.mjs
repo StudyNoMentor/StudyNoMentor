@@ -1618,6 +1618,42 @@ try {
   (rest.meta === rest.padrao && String(rest.reforcoIntacto) === '44')
     ? ok('restaurar padroes zera SO a aba aberta (meta volta a 85%, o Reforco fica)')
     : erro('restaurar padroes passou dos limites: ' + JSON.stringify(rest));
+  /* 9b) A FITA NAO PODE FUGIR DO DEDO. No celular a folha e ancorada embaixo:
+     a base fica presa na borda da tela e e o TOPO que se move quando o conteudo
+     muda de tamanho. Trocar de secao mexia 219px no topo, e a fita de chips —
+     que e justamente o que se esta tocando — subia junto: voce mira em "Regua"
+     e o botao sai do lugar entre o toque e o dedo chegar. */
+  for (const [larg, alt, rot] of [[390, 844, '390x844'], [360, 640, '360x640'], [1280, 900, 'desktop']]) {
+    await pag.setViewportSize({ width: larg, height: alt });
+    for (const aba of ['plano', 'reforco', 'analise']) {
+      await pag.evaluate((t) => { try { TecAjustes.fechar(); } catch (e) {} DesempenhoTecScreen.switchTecTab(t); }, aba);
+      await pag.waitForTimeout(220);
+      await pag.evaluate((t) => document.querySelector('.tec-cfg-open[data-cfg="' + t + '"]').click(), aba);
+      await pag.waitForTimeout(300);
+      const secs = await pag.evaluate(() => [...document.querySelectorAll('#tec-cfg-nav button')].map((b) => b.dataset.sec));
+      const medidas = [];
+      for (const sec of secs) {
+        await pag.evaluate((x) => TecAjustes.mostrar(x), sec);
+        await pag.waitForTimeout(130);
+        medidas.push(await pag.evaluate(() => {
+          const b = document.querySelector('.tec-cfg-box').getBoundingClientRect();
+          const n = document.querySelector('.tec-cfg-nav').getBoundingClientRect();
+          const f = document.querySelector('.tec-cfg-foot').getBoundingClientRect();
+          return { topo: Math.round(b.top), fita: Math.round(n.top), pe: Math.round(f.top) };
+        }));
+      }
+      await pag.evaluate(() => { try { TecAjustes.fechar(); } catch (e) {} });
+      const osc = (k) => Math.max(...medidas.map((m) => m[k])) - Math.min(...medidas.map((m) => m[k]));
+      const pior = Math.max(osc('topo'), osc('fita'), osc('pe'));
+      pior <= 1
+        ? ok(`${rot} · ${aba}: trocar entre ${secs.length} secao(oes) nao move a folha (topo/fita/pe parados)`)
+        : erro(`${rot} · ${aba}: a folha pula ao trocar de secao — topo ${osc('topo')}px, fita ${osc('fita')}px, pe ${osc('pe')}px`);
+    }
+  }
+  await pag.setViewportSize({ width: 390, height: 844 });
+  await pag.evaluate(() => { DesempenhoTecScreen.switchTecTab('plano'); });
+  await pag.waitForTimeout(250);
+
   /* 10) E nas OUTRAS DUAS ABAS o "Restaurar padroes" tem de mexer nos CAMPOS,
      nao so no armazenamento: o Reforco e a Analise leem os proprios campos a
      cada repintura, entao apagar a preferencia salva deixava a tela igualzinha
