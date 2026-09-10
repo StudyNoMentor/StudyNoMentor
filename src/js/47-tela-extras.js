@@ -36,6 +36,7 @@ const ExtrasScreen = {
     if (!this.selDay) this.selDay = hoje;
     const extras = DB.getExtras();
     this.renderAgenda(); // calendário + cabeçalho do dia + carga horária + filtros
+    this.renderEmCurso();  // tudo o que está aberto, em todas as disciplinas
     if (extras.length === 0) {
       list.innerHTML = `<div class="extras-empty"><div class="big">✅</div>Nenhuma atividade extra ainda.<br>Clique em <strong>＋ Nova atividade</strong> para começar, ou <strong>🔁 Gerenciar</strong> para criar recorrências.</div>`;
       this._syncManage();
@@ -60,13 +61,117 @@ const ExtrasScreen = {
     const aFazer = occ.filter(x => !DB.extraConcluidaEm(x, day));
     const feitas = occ.filter(x => DB.extraConcluidaEm(x, day));
     const grupos = [['A fazer', aFazer], ['Concluídas', feitas]];
+    /* Com quatro assuntos de três disciplinas no mesmo dia, a lista plana vira
+       uma pilha: você lê tudo para achar o que é de Administrativo. Agrupar por
+       disciplina só quando há MAIS DE UMA evita o outro extremo — um título de
+       grupo sobre uma linha só é ruído com cara de organização. */
+    const porDisc = (arr) => {
+      const discs = [...new Set(arr.map(x => x.disciplina || ''))];
+      if (discs.length < 2) return arr.map(x => this.cardHtml(x, day)).join('');
+      return discs.map(d => `<div class="extras-disc-title">${d ? escapeHtml(d) : 'Sem disciplina'}</div>` +
+        arr.filter(x => (x.disciplina || '') === d).map(x => this.cardHtml(x, day)).join('')).join('');
+    };
     list.innerHTML = grupos.map(([titulo, arr]) => {
       if (!arr.length) return '';
-      return `<div class="extras-group-title">${titulo} (${arr.length})</div>` +
-        arr.map(x => this.cardHtml(x, day)).join('');
+      return `<div class="extras-group-title">${titulo} (${arr.length})</div>` + porDisc(arr);
     }).join('');
     this.bind(list);
     this._syncManage();
+  },
+  /* ── REFORÇOS EM CURSO ────────────────────────────────────────────────────
+     Tudo o que está aberto, agrupado por disciplina, com o progresso que vem
+     dos retratos. É a resposta a "o que eu tenho em andamento?" — que a agenda
+     do dia não responde, porque ela só sabe de hoje.
+
+     O RITMO É DERIVADO, NÃO AGENDADO. A tentação era amarrar cada atividade a
+     um dia do calendário, e ela cria uma dor pior: dívida vencida. Você não
+     estudou terça, e terça fica lá, atrasada, cobrando manutenção — duas
+     semanas assim e o calendário vira uma lista de culpa. Aqui o ritmo é uma
+     divisão feita na hora: o que falta, dividido pelos dias até a próxima
+     importação. Ficou um dia sem estudar? O número de amanhã sobe sozinho.
+     Nada vence, nada acumula, nada precisa ser arrumado. */
+  renderEmCurso() {
+    const host = document.getElementById('extras-curso');
+    if (!host) return;
+    let itens = [];
+    try { itens = PlanoCiclo.emCurso(this._planoRefCard || (this._planoRefCard =
+      PlanoEngine.calcular(DesempenhoTecScreen.scopedSnapshot(), PlanoEngine.prefs()))); }
+    catch (e) { _quiet(e, 'curso'); }
+    if (!itens.length) { host.innerHTML = ''; return; }
+    const aberto = this._cursoAberto !== false;
+    const totalFalta = itens.reduce((a, v) => a + Math.max(0, v.alvo - v.feito), 0);
+    const totalAlvo = itens.reduce((a, v) => a + v.alvo, 0);
+    const feito = totalAlvo - totalFalta;
+    const discs = [...new Set(itens.map(v => v.origem.disciplina || 'Sem disciplina'))];
+    /* Dias até a próxima importação: é a cadência que VOCÊ definiu no Plano,
+       contada a partir do último retrato. É o horizonte real do ciclo — não
+       adianta espalhar um bloco por trinta dias se você reimporta em quinze. */
+    let dias = 0;
+    try {
+      const p = PlanoEngine.prefs();
+      const snaps = DB.getTecSnapshots();
+      const ult = snaps[snaps.length - 1];
+      const idade = ult ? PlanoEngine._diasDesde(ult.endDate || ult.date) : 0;
+      dias = Math.max(1, (p.cadenciaDias || 30) - idade);
+    } catch (e) { _quiet(e, 'curso-dias'); }
+    const porDia = Math.max(1, Math.ceil(totalFalta / dias));
+    const SELO = { funcionou: ['✅', 'tone-good', 'resolvido'], naoFuncionou: ['⚠️', 'tone-bad', 'volume não resolveu'],
+      subiu: ['📈', 'tone-good', 'subindo'], andamento: ['▶', 'incid', 'em andamento'], orfa: ['❓', '', 'sem correspondência no TEC'] };
+    const linha = (v) => {
+      const [ic, tom, rot] = SELO[v.estado] || SELO.andamento;
+      const falta = Math.max(0, v.alvo - v.feito);
+      const evo = (v.origem.taxaInicial != null && v.taxa != null)
+        ? `${v.origem.taxaInicial.toFixed(0)}% → <b class="tone-${v.delta != null && v.delta >= 0 ? 'good' : 'bad'}">${v.taxa.toFixed(0)}%</b>` : '';
+      return `<li data-id="${escapeHtml(v.extra.id)}">
+        <div class="pl-ciclo-top">
+          <span class="pl-ciclo-nome">${escapeHtml(v.origem.topico)}</span>
+          <span class="reforco-tag ${tom}">${ic} ${rot}</span>
+        </div>
+        <div class="pl-ciclo-barra"><i style="width:${v.pct}%"></i></div>
+        <div class="pl-ciclo-nums">
+          <span><b>${v.feito}</b>/${v.alvo} questões</span>
+          ${falta > 0 ? `<span>faltam <b>${falta}</b></span>` : '<span class="tone-good">alvo cumprido</span>'}
+          ${evo ? `<span>${evo}</span>` : ''}
+        </div>
+        <div class="exc-acoes">
+          <button type="button" class="pl-ciclo-acao" data-curso-dia="${escapeHtml(v.extra.id)}">Fazer hoje</button>
+          <button type="button" class="pl-ciclo-acao" data-curso-fim="${escapeHtml(v.extra.id)}">Concluir</button>
+          <button type="button" class="pl-ciclo-acao" data-curso-del="${escapeHtml(v.extra.id)}">Excluir</button>
+        </div>
+      </li>`;
+    };
+    host.innerHTML = `
+      <div class="card exc-card">
+        <button type="button" class="exc-head" id="exc-toggle" aria-expanded="${aberto}">
+          <span class="exc-tit">🏁 Reforços em curso</span>
+          <span class="exc-resumo">${itens.length} em ${discs.length} ${discs.length === 1 ? 'disciplina' : 'disciplinas'} ·
+            <b>${feito}</b>/${totalAlvo} questões${totalFalta > 0 ? ` · <b>~${porDia}/dia</b> até a próxima importação (${dias} ${dias === 1 ? 'dia' : 'dias'})` : ''}</span>
+          <span class="chev">${aberto ? '▴' : '▾'}</span>
+        </button>
+        ${aberto ? discs.map(d => `
+          <div class="exc-grupo">
+            <p class="exc-disc">${escapeHtml(d)}</p>
+            <ul class="pl-ciclo-lista">${itens.filter(v => (v.origem.disciplina || 'Sem disciplina') === d).map(linha).join('')}</ul>
+          </div>`).join('') : ''}
+      </div>`;
+    const tg = document.getElementById('exc-toggle');
+    if (tg) tg.addEventListener('click', () => { this._cursoAberto = !aberto; this.renderEmCurso(); });
+    /* "Fazer hoje" é o agendamento MANUAL que sobrou: a exceção para quem quer
+       fixar um assunto num dia, sem que isso vire regra para todos. */
+    host.querySelectorAll('[data-curso-dia]').forEach(b => b.addEventListener('click', () => {
+      DB.toggleExtraData(b.dataset.cursoDia, todayLocal());
+      this.selDay = todayLocal(); showToast('Marcada para hoje ✓'); this.render();
+    }));
+    host.querySelectorAll('[data-curso-fim]').forEach(b => b.addEventListener('click', () => {
+      DB.setConcluidaDia(b.dataset.cursoFim, todayLocal(), true);
+      showToast('Concluída ✓'); this.render();
+    }));
+    host.querySelectorAll('[data-curso-del]').forEach(b => b.addEventListener('click', async () => {
+      const e = DB.getExtras().find(x => x.id === b.dataset.cursoDel);
+      if (!e) return;
+      if (!await UI.confirm('Excluir "' + e.titulo + '"?', { title: 'Excluir atividade', okText: 'Excluir', danger: true })) return;
+      DB.deleteExtra(e.id); showToast('Atividade excluída'); this.render();
+    }));
   },
   // ── Ocorrências de um dia ──────────────────────────────────────────────
   // Recorrentes: aparecem no dia se ele foi gerado (datas) OU, sem datas geradas,

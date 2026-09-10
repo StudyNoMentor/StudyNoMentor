@@ -937,7 +937,8 @@ try {
      exatamente o que aconteceu com o dialogo "Puxar do Plano". */
   const ord = await pag.evaluate(() => {
     const sel = document.getElementById('plano-ordenar');
-    const chaves = Object.keys(PlanoEngine.ORDENS);
+    // as ordens que só existem pós-edital não entram no seletor no pré
+    const chaves = Object.keys(PlanoEngine.ORDENS).filter((k) => !PlanoEngine.ORDENS[k].soPos);
     return {
       opcoes: sel ? [...sel.options].map((o) => o.value) : [],
       semDica: sel ? [...sel.options].filter((o) => !o.title).length : -1,
@@ -1805,6 +1806,124 @@ try {
   await pag.evaluate(() => { PlanoEngine.salvarPrefs({ custoPorPonto: PlanoEngine.DEFAULTS.custoPorPonto }); DB._set(DB.KEYS.extras, []); });
   await pag.setViewportSize({ width: 1280, height: 900 });
 } catch (e) { erro('o ciclo do Plano falhou: ' + e.message); }
+
+/* ── 6.16) GESTÃO NUM LUGAR SÓ, E A RÉGUA QUE APROVA ───────────────────────
+   Duas dores diferentes, no navegador. A primeira: com vários assuntos abertos
+   em disciplinas diferentes, o unico lugar com o progresso de todos era o bloco
+   dentro da aba Plano — tela de decisao, e o lugar errado para perguntar "o que
+   eu tenho em andamento?". A segunda: o Plano mandava atacar a cratera de
+   dominio (4 questoes a 20%) em vez de onde os pontos estao. */
+console.log('\n6.16) a gestao na tela de Atividades e a regua de pontos');
+try {
+  await pag.setViewportSize({ width: 390, height: 844 });
+  const g = await pag.evaluate(() => {
+    const dia = (n) => { const d = new Date(todayLocal() + 'T00:00:00'); d.setDate(d.getDate() - n); return d.toISOString().slice(0, 10); };
+    const D = (n, q, ac) => ({ depth: 0, codigo: null, nome: n, disciplina: n, questoes: q, acertos: ac });
+    const L = (c, n, disc, q, ac) => ({ depth: 1, codigo: c, nome: n, disciplina: disc, questoes: q, acertos: ac });
+    const R = (id, i, f, rows) => ({ id, nome: id, date: f, startDate: i, endDate: f, rows });
+    const linhas = () => [D('Dir Adm', 200, 80), L('01', 'Licitacoes', 'Dir Adm', 100, 40), L('02', 'Atos', 'Dir Adm', 100, 40),
+      D('Portugues', 100, 45), L('01', 'Crase', 'Portugues', 100, 45)];
+    DB.saveIncidencia([]); DB._set(DB.KEYS.extras, []);
+    DB._set(DB.KEYS.tec, [R('g1', dia(60), dia(40), linhas()), R('g2', dia(30), dia(2), linhas())]);
+    PlanoEngine.salvarPrefs({ minAmostra: 1, limite: 20, ordenar: 'pior', metaDominio: 85, tetoDominio: 90, cadenciaDias: 30, disciplina: '__todas__' });
+    DesempenhoTecScreen._planoRefC = null; DesempenhoTecScreen._cicloSel = null;
+    switchScreen('desempenhotec'); DesempenhoTecScreen.render(); DesempenhoTecScreen.switchTecTab('plano');
+    [['Licitacoes', 'Dir Adm'], ['Atos', 'Dir Adm'], ['Crase', 'Portugues']]
+      .forEach(([t, d]) => DesempenhoTecScreen.criarExtraDoPlano(t, d, 120, 'reforco', true));
+    switchScreen('extras'); ExtrasScreen.render();
+    const painel = document.getElementById('extras-curso');
+    return {
+      existe: !!painel.querySelector('.exc-card'),
+      grupos: [...painel.querySelectorAll('.exc-disc')].map((e) => e.textContent),
+      itens: painel.querySelectorAll('.pl-ciclo-lista > li').length,
+      resumo: (painel.querySelector('.exc-resumo') || {}).textContent.replace(/\s+/g, ' '),
+      semDatas: !DB.getExtras().some((e) => (e.datas || []).length),
+      discsNoDia: document.querySelectorAll('#extras-list .extras-disc-title').length,
+      vaza: document.documentElement.scrollWidth - document.documentElement.clientWidth
+    };
+  });
+  (g.existe && g.itens === 3 && g.grupos.length === 2)
+    ? ok(`a tela de Atividades tem o painel dos ${g.itens} reforcos abertos, agrupados por disciplina (${g.grupos.join(', ')})`)
+    : erro('o painel de gestao nao apareceu: ' + JSON.stringify(g));
+  /* O RITMO É DERIVADO, NÃO AGENDADO. Amarrar cada atividade a um dia cria
+     divida vencida: voce nao estudou terca, e terca fica la, cobrando. */
+  (/\/dia até a próxima importação/.test(g.resumo) && g.semDatas)
+    ? ok('com ritmo por dia calculado na hora, e nenhuma atividade amarrada a uma data')
+    : erro('o ritmo derivado falhou: ' + JSON.stringify({ resumo: g.resumo, semDatas: g.semDatas }));
+  (g.discsNoDia >= 2 && g.vaza === 0)
+    ? ok('o dia tambem separa por disciplina, sem vazamento a 390px')
+    : erro(`agrupamento do dia: ${g.discsNoDia} titulo(s), vazamento ${g.vaza}px`);
+  /* SIMPLICIDADE VEM DE MOVER, NÃO DE SOMAR: o Plano abre mao do painel e
+     fica com a linha que leva ate a gestao. */
+  const mini = await pag.evaluate(() => {
+    switchScreen('desempenhotec'); DesempenhoTecScreen.switchTecTab('plano');
+    const d = document.querySelector('.pl-ciclo-mini');
+    return { existe: !!d, recolhido: d ? !d.open : null,
+      texto: d ? d.querySelector('summary').textContent.replace(/\s+/g, ' ') : '',
+      link: !!document.getElementById('plano-ir-extras'),
+      painelInteiro: document.querySelectorAll('#plano-lista .pl-ciclo:not(.pl-ciclo-mini):not(.pl-ciclo-hist):not(.pl-calib):not(.pl-pontos):not(.pl-tempo)').length };
+  });
+  (mini.existe && mini.recolhido && mini.link && mini.painelInteiro === 0)
+    ? ok('no Plano sobrou uma linha recolhida que leva para a gestao — nao um segundo painel')
+    : erro('o Plano nao encolheu: ' + JSON.stringify(mini));
+
+  // ── a regua de pontos ────────────────────────────────────────────────────
+  const pts = await pag.evaluate(() => {
+    const origSubs = DB.getActiveSubjects, origModo = window.planCycleMode, origCiclo = DB.getCurrentCycle;
+    try {
+      DB.getActiveSubjects = () => ([
+        { nome: 'Dir Adm', qtdQuestoes: 40, pontosPorQuestao: 1, peso: 1 },
+        { nome: 'Portugues', qtdQuestoes: 5, pontosPorQuestao: 1, peso: 1, minimoPct: 60 }]);
+      /* O quadro de tempo precisa dos DOIS lados: o peso (edital) e as horas
+         (ciclo). Aqui o ciclo poe 3h em Portugues (5 questoes na prova) e 1h em
+         Dir Adm (40 questoes) — o desalinhamento classico, de proposito. */
+      DB.getCurrentCycle = () => ({ subjects: [
+        { nome: 'Portugues', definidoMin: 180, fase: 'Novo', dificuldade: 2 },
+        { nome: 'Dir Adm', definidoMin: 60, fase: 'Novo', dificuldade: 3 }] });
+      window.planCycleMode = () => 'pos';
+      PlanoPontos.setCorte(30);
+      DesempenhoTecScreen._planoRefC = null;
+      DesempenhoTecScreen.renderPlano();
+      const t = document.getElementById('plano-lista').textContent.replace(/\s+/g, ' ');
+      const r = PlanoEngine.calcular(DesempenhoTecScreen.scopedSnapshot(),
+        Object.assign({}, PlanoEngine.prefs(), { ordenar: 'pontos' }));
+      const out = {
+        bloco: !!document.querySelector('.pl-pontos'),
+        composicao: !!document.querySelector('.pl-comp'),
+        temCorte: /corte que você informou/.test(t),
+        eliminatoria: /abaixo do mínimo/.test(t),
+        primeiroPorPontos: r.itens[0] ? r.itens[0].disciplina + '/' + r.itens[0].nome : null,
+        elim1: r.itens[0] ? !!r.itens[0].eliminatoria : null,
+        tempo: !!document.querySelector('.pl-tempo'),
+        desalinhadas: PlanoPontos.tempoPorMateria().desalinhadas,
+        // os DOIS lados do desalinhamento, nomeados: sem isso o teste passava
+        // com metade da regra desligada
+        vereditos: PlanoPontos.tempoPorMateria().linhas.map((l) => l.nome + ':' + l.veredito).sort(),
+        linhasTempo: document.querySelectorAll('.pl-tempo-tab tbody tr').length,
+        podre: /\bNaN\b|\bundefined\b|\bInfinity\b/.test(t)
+      };
+      PlanoPontos.setCorte('');
+      return out;
+    } finally { DB.getActiveSubjects = origSubs; window.planCycleMode = origModo; DB.getCurrentCycle = origCiclo; }
+  });
+  (pts.bloco && pts.composicao && pts.temCorte)
+    ? ok('a nota projetada aparece com o corte declarado como SEU e a composicao a vista')
+    : erro('o bloco de pontos nao saiu completo: ' + JSON.stringify(pts));
+  (pts.eliminatoria && pts.elim1 === true && /Portugues/.test(pts.primeiroPorPontos || ''))
+    ? ok(`materia abaixo do minimo eliminatorio vem antes de tudo (${pts.primeiroPorPontos})`)
+    : erro('a eliminatoria nao ganhou prioridade: ' + JSON.stringify(pts));
+  /* O QUADRO QUE RESPONDE "QUAIS MATERIAS EU PRIORIZO". 3h em Portugues, que
+     vale 5 das 45 questoes, contra 1h em Dir Adm, que vale 40: e o caso que
+     ninguem percebe sozinho, e que nenhuma tela mostrava. */
+  const temFalta = (pts.vereditos || []).some((v) => /:falta$/.test(v));
+  const temSobra = (pts.vereditos || []).some((v) => /:sobra(Fraco)?$/.test(v));
+  (pts.tempo && pts.linhasTempo === 2 && temFalta && temSobra && pts.desalinhadas === 2)
+    ? ok(`o quadro acusa os DOIS lados: falta tempo onde vale ponto e sobra onde nao vale (${pts.vereditos.join(' · ')})`)
+    : erro('o quadro de tempo por materia falhou: ' + JSON.stringify(pts));
+  !pts.podre ? ok('nenhum numero podre em nada disso') : erro('numero podre na tela de pontos');
+  await pag.evaluate(() => { DB._set(DB.KEYS.extras, []); });
+  await pag.setViewportSize({ width: 1280, height: 900 });
+} catch (e) { erro('a gestao/regua de pontos falhou: ' + e.message); }
 
 console.log('\n7) contraste WCAG AA (temas claro e escuro)');
 /* Transicoes e animacoes desligadas durante a medicao. Sem isto, medir logo

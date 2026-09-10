@@ -68,6 +68,21 @@ function planCycleMode() {
     </select>`;
   }
 
+  /* ── A DIFICULDADE DECLARADA CONTRA A MEDIDA ────────────────────────────
+     Este 1 a 5 distribui as suas horas da semana, e é um chute. O TEC sabe a
+     resposta: 48% de acerto é difícil, 85% não é. Mostramos a nota medida ao
+     lado da declarada — quem discorda continua discordando, mas de um número,
+     não do vazio. Sem amostra suficiente não aparece nada: um palpite do app
+     em cima de doze questões seria pior que o palpite da pessoa. */
+  function medidaHtml(nome, dif) {
+    if (!nome || typeof PlanoPontos === 'undefined') return '';
+    let m = null;
+    try { m = PlanoPontos.dificuldadeMedida(nome); } catch (e) { return ''; }
+    if (!m) return '';
+    if (m.nota === dif) return `<span class="cs-medida ok" title="Você acerta ${m.taxa.toFixed(0)}% nesta matéria, em ${m.q} questões do TEC">✓ bate com o TEC</span>`;
+    return `<button type="button" class="cs-medida" data-adotar="${m.nota}"
+      title="Pelo TEC você acerta ${m.taxa.toFixed(0)}% nesta matéria, em ${m.q} questões — isso equivale a ${m.nota}. Clique para adotar.">TEC diz ${m.nota} (${m.taxa.toFixed(0)}%)</button>`;
+  }
   function subjectRowTemplate(s) {
     const nome = s ? s.nome : '';
     const dif = s ? s.dificuldade : 3;
@@ -101,12 +116,23 @@ function planCycleMode() {
           <select class="cs-dif">
             ${[1,2,3,4,5].map(n => `<option value="${n}" ${n===dif?'selected':''}>${n}</option>`).join('')}
           </select>
+          ${medidaHtml(nome, dif)}
         </div>
         <div class="field">
           <label title="Extensão/volume de conteúdo">Extensão</label>
           <select class="cs-ext">
             ${[1,2,3,4,5].map(n => `<option value="${n}" ${n===ext?'selected':''}>${n}</option>`).join('')}
           </select>
+        </div>
+        <!-- O MÍNIMO NÃO É PESO, É RESTRIÇÃO. Muito edital exige nota mínima
+             por matéria: abaixo dela você é cortado, por melhor que seja o
+             total. Nenhuma otimização de pontos enxerga isso sozinha — por
+             isso o número mora aqui e o Plano põe a matéria na frente de tudo
+             quando ela está abaixo. Em branco = a prova não exige mínimo. -->
+        <div class="field">
+          <label title="Nota mínima exigida nesta matéria (%). Em branco se o edital não exige.">Mín. %</label>
+          <input type="number" inputmode="numeric" class="cs-min cs-num" min="0" max="100" step="1"
+            value="${s && s.minimoPct != null ? s.minimoPct : ''}" placeholder="—">
         </div>
         <button type="button" class="remove-btn" title="Remover" aria-label="Remover">×</button>
       </div>
@@ -148,7 +174,29 @@ function planCycleMode() {
   subjectsListEl.addEventListener('click', (e) => {
     if (e.target.classList.contains('remove-btn')) {
       e.target.closest('.cycle-subject-row').remove();
+      return;
     }
+    // adotar a dificuldade que o TEC mede, em vez do chute
+    const ad = e.target.closest('[data-adotar]');
+    if (ad) {
+      const row = ad.closest('.cycle-subject-row');
+      const sel = row && row.querySelector('.cs-dif');
+      if (sel) { sel.value = ad.dataset.adotar; sel.dispatchEvent(new Event('change', { bubbles: true })); }
+      ad.outerHTML = '<span class="cs-medida ok">✓ adotado do TEC</span>';
+      showToast('Dificuldade do TEC adotada ✓');
+    }
+  });
+  /* Trocar de matéria troca a medida: o "TEC diz 4" ao lado de um select que
+     agora aponta para outra matéria seria um número certo no lugar errado. */
+  subjectsListEl.addEventListener('change', (e) => {
+    if (!e.target.classList || !e.target.classList.contains('cs-name')) return;
+    const row = e.target.closest('.cycle-subject-row');
+    const campo = row && row.querySelector('.cs-dif') && row.querySelector('.cs-dif').parentElement;
+    if (!campo) return;
+    const velha = campo.querySelector('.cs-medida');
+    if (velha) velha.remove();
+    const dif = parseInt(row.querySelector('.cs-dif').value, 10);
+    campo.insertAdjacentHTML('beforeend', medidaHtml(e.target.value, dif));
   });
 
   function readSetupSubjects() {
@@ -163,6 +211,10 @@ function planCycleMode() {
         base.pontosPorQuestao = parseFloat(row.querySelector('.cs-pts').value) || 1;
         base.peso = parseFloat(row.querySelector('.cs-peso').value) || 1;
         base.extensao = parseInt(row.querySelector('.cs-ext').value, 10) || 1;
+        // vazio é uma resposta: "esta prova não exige mínimo aqui"
+        const mn = row.querySelector('.cs-min');
+        const mv = mn ? String(mn.value).trim() : '';
+        base.minimoPct = mv === '' ? null : Math.max(0, Math.min(100, parseFloat(mv) || 0));
         base.fase = 'Novo';
       } else {
         base.fase = row.querySelector('.cs-fase').value;
@@ -307,7 +359,10 @@ function planCycleMode() {
           qtdQuestoes: s.qtdQuestoes,
           pontosPorQuestao: s.pontosPorQuestao,
           peso: s.peso,
-          extensao: s.extensao
+          extensao: s.extensao,
+          // o mínimo eliminatório viaja junto: é dele que o Plano tira a
+          // restrição que vem antes de qualquer otimização de pontos
+          minimoPct: s.minimoPct
         });
       }
     });
@@ -437,7 +492,7 @@ function planCycleMode() {
       subjects: cycle.subjects.map(s => ({
         nome: s.nome, dificuldade: s.dificuldade, fase: s.fase,
         qtdQuestoes: s.qtdQuestoes, pontosPorQuestao: s.pontosPorQuestao, peso: s.peso, extensao: s.extensao,
-        definidoMin: s.definidoMin
+        minimoPct: s.minimoPct, definidoMin: s.definidoMin
       }))
     });
     showToast('Ciclo confirmado ✓');

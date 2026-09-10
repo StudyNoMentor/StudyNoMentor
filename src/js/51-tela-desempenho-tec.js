@@ -115,6 +115,13 @@ const PlanoEngine = {
      ressalva de rodapé: é a metade da informação que decide se aquela ordem
      serve para você hoje. */
   ORDENS: {
+    pontos: {
+      rot: '💰 Mais pontos na prova',
+      oque: 'Quanto cada assunto vale EM PONTOS do seu edital — questões da matéria × pontos por questão × peso × o quanto daquela matéria é este assunto — dividido pelo esforço. Matéria abaixo do mínimo eliminatório vem antes de tudo.',
+      quando: 'Pós-edital, sempre. É a única ordem que responde "isto me aprova?" em vez de "isto me deixa mais completo?".',
+      armadilha: 'Depende da composição que você digitou no editor de matérias. Número errado ali vira recomendação errada aqui — confira a tabela que a tela mostra ao lado da projeção.',
+      soPos: true
+    },
     pior: {
       rot: '🔴 Pior acerto primeiro',
       oque: 'Fila crua pela taxa de acerto: o assunto em que você mais erra vem primeiro.',
@@ -820,7 +827,14 @@ const PlanoEngine = {
       else x.status = { rot: '🟡 Recém-corrigido', tom: 'warn', seq: x.seq,
         acao: 'Passou da meta em ' + x.seq + ' de ' + alvoSeq + ' importações necessárias. Ainda não provou que fixou — mantenha um volume pequeno e constante até sustentar na próxima importação.' };
     });
+    /* ── A ORDEM QUE APROVA ───────────────────────────────────────────────
+       Só existe depois do edital, porque só aí existe prova com composição. E
+       ela é a ÚNICA em que o mínimo eliminatório entra: matéria abaixo do
+       mínimo não é prioridade alta, é restrição — some antes de qualquer
+       otimização de pontos, porque nenhum total te salva de ser cortado. */
+    const temPontos = (typeof PlanoPontos !== 'undefined') && PlanoPontos.anexarPontos({ itens: usados, pequenas: [] }, opts);
     const ordem = {
+      pontos: (a, b) => (b.eliminatoria ? 1 : 0) - (a.eliminatoria ? 1 : 0) || b.pontosPorQuestao - a.pontosPorQuestao,
       rendimento: (a, b) => b.rendimento - a.rendimento,
       pior: (a, b) => a.taxa - b.taxa,
       queda: (a, b) => (a.delta == null ? 0 : a.delta) - (b.delta == null ? 0 : b.delta),
@@ -897,6 +911,8 @@ const PlanoEngine = {
       comAlvo: usados.filter(x => x.atingiuAlvo).length,
       melhorando, piorando, ordenar: opts.ordenar,
       temIncid, banca: opts.banca,
+      temPontos, modoEdital: (typeof PlanoPontos !== 'undefined') ? PlanoPontos.modo() : 'pre',
+      projecao: (typeof PlanoPontos !== 'undefined') ? PlanoPontos.projecao(opts) : null,
       comIncid: usados.filter(x => x.incid > 0).length,
       /* `consolidados` continua sendo o TOTAL que sustentou a meta — é o que a
          tela de Conquistas conta, e mudar a régua faria uma conquista já obtida
@@ -931,6 +947,289 @@ const PlanoEngine = {
     };
   }
 };
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   A RÉGUA DE PONTOS — o que te aprova, e não o que você sabe
+   ───────────────────────────────────────────────────────────────────────────
+   O Plano otimizava DOMÍNIO: a média do quanto você sabe do que estuda. Isso
+   não é a mesma coisa que ponto na prova, e a diferença decide aprovação.
+
+     Um assunto de 4 questões a 20% é uma cratera de domínio e quase nada de
+     aprovação. Um de 40 questões a 70% é pouca lacuna de domínio e é onde os
+     pontos estão. O Plano mandava você no primeiro.
+
+   E a composição da prova JÁ ESTAVA NO APP: no editor de matérias do ciclo, no
+   modo pós-edital, você digita quantas questões cada matéria tem, quanto vale
+   cada uma e o peso. O Desempenho TEC nunca olhou para lá.
+
+   POR QUE ISSO SÓ VALE DEPOIS DO EDITAL
+
+   Sem edital não há composição, e a conta muda de natureza: você não está
+   maximizando pontos conhecidos, está encolhendo o pior caso. Qualquer matéria
+   pode virar a pesada, então 60% em tudo bate 90% em metade — que é
+   exatamente o que "todo assunto pesa igual" já faz. Pré-edital o Plano está
+   certo como está, e a régua NÃO troca: ele herda o modo do ciclo.
+
+   O QUE REPROVA GENTE, E QUE NENHUMA OTIMIZAÇÃO ENXERGA
+
+   Nota mínima por matéria. Uma matéria abaixo do mínimo elimina, e isso não é
+   uma questão de peso — é restrição. Um plano pode te levar ao melhor total
+   possível e você ser cortado numa matéria secundária. Por isso o mínimo vem
+   ANTES dos pontos na ordem de prioridade, sempre.
+   ═══════════════════════════════════════════════════════════════════════════ */
+const PlanoPontos = {
+  // pré ou pós-edital: o mesmo interruptor do ciclo, sem conceito novo
+  modo() {
+    try { return (typeof planCycleMode === 'function') ? planCycleMode() : 'pre'; }
+    catch (e) { _quiet(e, 'pontos-modo'); return 'pre'; }
+  },
+  /* A composição declarada por matéria. Devolve só quem tem questões: uma
+     matéria sem `qtdQuestoes` não entra na conta em vez de entrar valendo zero
+     e diluir o total — zero calado é pior que ausência declarada. */
+  composicao() {
+    let subs = [];
+    try { subs = DB.getActiveSubjects() || []; } catch (e) { _quiet(e, 'pontos-mat'); }
+    const out = [];
+    subs.forEach(s => {
+      const q = parseFloat(s.qtdQuestoes) || 0;
+      if (!(q > 0)) return;
+      const pts = parseFloat(s.pontosPorQuestao) || 1;
+      const peso = parseFloat(s.peso) || 1;
+      out.push({ nome: s.nome, q, pts, peso, valor: q * pts * peso,
+        minimo: (s.minimoPct != null && s.minimoPct !== '') ? Math.max(0, Math.min(100, parseFloat(s.minimoPct) || 0)) : null });
+    });
+    return out;
+  },
+  temComposicao() { return this.modo() === 'pos' && this.composicao().length > 0; },
+  /* NOTA PROJETADA: o que você faria se a prova fosse hoje, e o que faria se
+     fechasse o Plano. A taxa de cada matéria sai da MESMA janela adaptativa da
+     lista — não da média da vida inteira, que carrega o desempenho que a
+     janela já descartou. */
+  projecao(opts) {
+    const comp = this.composicao();
+    if (!comp.length) return null;
+    const p = Object.assign({}, PlanoEngine.prefs(), opts || {});
+    const teto = Math.max(50, Math.min(100, p.tetoDominio)) / 100;
+    const idx = PlanoEngine.totalHistorico(p);
+    const norm = (x) => ReforcoEngine.norm(x);
+    // taxa da matéria: soma as folhas dela no histórico (uma questão, uma vez)
+    const porMateria = {};
+    Object.keys(idx).forEach(k => {
+      const disc = k.split(ReforcoEngine.SEP)[0];
+      const c = porMateria[disc] || { q: 0, ac: 0 };
+      c.q += idx[k].q; c.ac += idx[k].ac; porMateria[disc] = c;
+    });
+    let valorTotal = 0, hoje = 0, potencial = 0, semDado = [];
+    const linhas = comp.map(m => {
+      const v = porMateria[norm(m.nome)];
+      const taxa = (v && v.q > 0) ? (v.ac / v.q * 100) : null;
+      valorTotal += m.valor;
+      if (taxa == null) { semDado.push(m.nome); return Object.assign({}, m, { taxa: null, medido: 0 }); }
+      hoje += m.valor * taxa / 100;
+      potencial += m.valor * Math.max(taxa / 100, teto);
+      return Object.assign({}, m, { taxa, medido: v.q,
+        abaixoDoMinimo: (m.minimo != null && taxa < m.minimo) });
+    });
+    const corte = this._corte();
+    return {
+      linhas, valorTotal,
+      hoje: valorTotal > 0 ? hoje : 0,
+      potencial: valorTotal > 0 ? potencial : 0,
+      pctHoje: valorTotal > 0 ? hoje / valorTotal * 100 : 0,
+      pctPotencial: valorTotal > 0 ? potencial / valorTotal * 100 : 0,
+      semDado, corte,
+      faltaCorte: corte != null ? Math.max(0, corte - hoje) : null,
+      passaHoje: corte != null ? hoje >= corte : null,
+      eliminatorias: linhas.filter(l => l.abaixoDoMinimo)
+    };
+  },
+  _corte() {
+    try {
+      const v = localStorage.getItem(DB._profilePrefix() + 'plano-corte');
+      const n = parseFloat(v);
+      return isNaN(n) ? null : n;
+    } catch (e) { _quiet(e, 'corte'); return null; }
+  },
+  setCorte(v) {
+    const n = parseFloat(v);
+    const k = DB._profilePrefix() + 'plano-corte';
+    if (isNaN(n) || n <= 0) DB.delRaw(k); else DB.setRaw(k, String(n));
+  },
+  /* ── ONDE O SEU TEMPO ESTÁ INDO ───────────────────────────────────────────
+     A armadilha clássica de quem estuda muito: a gente estuda o que gosta, e
+     gosta do que já sabe. O ciclo distribui as horas por um peso que VOCÊ
+     declara (dificuldade de 1 a 5, "Sólido" no olho) e ninguém nunca confronta
+     essa declaração com o que o TEC mede.
+
+     Este quadro põe as três coisas lado a lado, por matéria: quanto do seu
+     tempo ela leva, quanto ela vale na prova, e como você vai nela. É a
+     resposta objetiva para "quais matérias eu priorizo" — e o que ele denuncia
+     é o caso que ninguém percebe sozinho: 28% do tempo indo para 12% da prova.
+
+     O QUE ELE NÃO FAZ: decidir por você. Aceitar ir mal numa matéria que vale
+     cinco questões é estratégia legítima. O que não pode continuar é NÃO SABER
+     que a troca está sendo feita. */
+  tempoPorMateria(opts) {
+    const p = Object.assign({}, PlanoEngine.prefs(), opts || {});
+    const norm = (x) => ReforcoEngine.norm(x);
+    // 1) o planejado: minutos por matéria no ciclo ativo
+    const plan = {};
+    let planTotal = 0;
+    try {
+      const c = DB.getCurrentCycle();
+      (c && c.subjects || []).forEach(m => {
+        const min = parseFloat(m.definidoMin) || 0;
+        if (min > 0) { plan[norm(m.nome)] = { nome: m.nome, min, fase: m.fase, dificuldade: m.dificuldade }; planTotal += min; }
+      });
+    } catch (e) { _quiet(e, 'tempo-ciclo'); }
+    // 2) o cumprido: minutos registrados por matéria, na janela do Plano
+    const feito = {};
+    let feitoTotal = 0;
+    try {
+      const desde = (() => { const d = new Date(todayLocal() + 'T00:00:00'); d.setDate(d.getDate() - (p.janelaMax || 365)); return d.toISOString().slice(0, 10); })();
+      (DB.getEntries() || []).forEach(e => {
+        const dt = String(e.date || e.data || '').slice(0, 10);
+        if (dt && dt < desde) return;
+        const m = parseFloat(e.durationMin || e.minutes || e.minutos) || 0;
+        if (!(m > 0)) return;
+        const k = norm(e.subject || e.materia || '');
+        if (!k) return;
+        feito[k] = (feito[k] || 0) + m; feitoTotal += m;
+      });
+    } catch (e) { _quiet(e, 'tempo-feito'); }
+    // 3) o peso: composição do edital (pós) ou incidência das bancas (pré)
+    const comp = PlanoPontos.composicao();
+    const peso = {}; let pesoTotal = 0; let fontePeso = null;
+    if (comp.length) {
+      fontePeso = 'edital';
+      comp.forEach(m => { peso[norm(m.nome)] = m.valor; pesoTotal += m.valor; });
+    } else {
+      try {
+        const filtro = DesempenhoTecScreen.bancaFiltro();
+        const by = ReforcoEngine._incidByDisc(filtro);
+        Object.keys(by).forEach(d => {
+          const soma = by[d].reduce((a, r) => a + (r.incidencia || 0), 0);
+          if (soma > 0) { peso[norm(d)] = soma; pesoTotal += soma; fontePeso = 'incidencia'; }
+        });
+      } catch (e) { _quiet(e, 'tempo-peso'); }
+    }
+    // 4) o nível: sua taxa por matéria, do histórico do TEC
+    const idx = PlanoEngine.totalHistorico(p);
+    const nivel = {};
+    Object.keys(idx).forEach(k => {
+      const disc = k.split(ReforcoEngine.SEP)[0];
+      const c = nivel[disc] || { q: 0, ac: 0 };
+      c.q += idx[k].q; c.ac += idx[k].ac; nivel[disc] = c;
+    });
+    const chaves = [...new Set([].concat(Object.keys(plan), Object.keys(peso), Object.keys(nivel)))];
+    const linhas = chaves.map(k => {
+      const pl = plan[k];
+      const n = nivel[k];
+      const shareTempo = planTotal > 0 && pl ? pl.min / planTotal * 100 : null;
+      const sharePeso = pesoTotal > 0 && peso[k] != null ? peso[k] / pesoTotal * 100 : null;
+      const taxa = (n && n.q > 0) ? (n.ac / n.q * 100) : null;
+      /* O VEREDITO É UMA RAZÃO, NÃO UMA DIFERENÇA. Cinco pontos percentuais a
+         mais de tempo numa matéria que vale 40% é ruído; os mesmos cinco numa
+         que vale 3% é o dobro do que ela merece. A razão captura isso; a
+         subtração não. Só falamos quando há os dois lados. */
+      let veredito = null, razao = null;
+      if (shareTempo != null && sharePeso != null && sharePeso > 0) {
+        razao = shareTempo / sharePeso;
+        const forte = taxa != null && taxa >= p.metaDominio;
+        if (razao >= 1.6) veredito = forte ? 'sobra' : 'sobraFraco';
+        else if (razao <= 0.6) veredito = (taxa != null && taxa < p.metaDominio) ? 'falta' : 'faltaForte';
+        else veredito = 'equilibrada';
+      }
+      return {
+        chave: k, nome: (pl && pl.nome) || (n && n.nome) || k,
+        planMin: pl ? pl.min : null, feitoMin: feito[k] || 0,
+        shareTempo, sharePeso, taxa, medido: n ? n.q : 0,
+        razao, veredito, fase: pl ? pl.fase : null, dificuldade: pl ? pl.dificuldade : null,
+        cumprimento: (pl && pl.min > 0) ? (feito[k] || 0) / pl.min * 100 : null
+      };
+    }).filter(l => l.shareTempo != null || l.sharePeso != null);
+    linhas.sort((a, b) => (b.sharePeso == null ? -1 : b.sharePeso) - (a.sharePeso == null ? -1 : a.sharePeso));
+    /* Contam como desalinhamento os dois excessos e a falta. "Muito tempo numa
+       matéria leve onde você AINDA vai mal" (`sobraFraco`) é o pior dos três e
+       ficava de fora da contagem: é tempo caro comprando pouco ponto e nem
+       resolvendo a fraqueza. O que não conta é `faltaForte` — pouco tempo numa
+       matéria que você já domina é alocação certa, não desalinhamento. */
+    return { linhas, planTotal, feitoTotal, fontePeso,
+      desalinhadas: linhas.filter(l => l.veredito === 'sobra' || l.veredito === 'sobraFraco' || l.veredito === 'falta').length };
+  },
+  /* A DIFICULDADE DECLARADA VIRA MEDIDA. O ciclo pede um chute de 1 a 5 e
+     distribui as suas horas por ele. O TEC sabe a resposta: 48% de acerto é
+     difícil, 85% não é. Devolvemos a nota medida na mesma escala, para a tela
+     poder mostrar as duas lado a lado — quem discorda continua discordando,
+     mas de um número. */
+  dificuldadeMedida(nomeMateria, opts) {
+    const p = Object.assign({}, PlanoEngine.prefs(), opts || {});
+    const idx = PlanoEngine.totalHistorico(p);
+    const alvo = ReforcoEngine.norm(nomeMateria || '');
+    let q = 0, ac = 0;
+    Object.keys(idx).forEach(k => {
+      if (k.split(ReforcoEngine.SEP)[0] !== alvo) return;
+      q += idx[k].q; ac += idx[k].ac;
+    });
+    if (q < (p.minAmostra || 20)) return null;      // amostra curta não vira nota
+    const taxa = ac / q * 100;
+    // 5 = mais difícil. Faixas coladas nas do próprio Plano, para a escala não
+    // significar uma coisa aqui e outra na lista.
+    const nota = taxa < p.faixaCritico ? 5 : taxa < p.faixaFragil ? 4 : taxa < p.metaDominio ? 3 : taxa < 92 ? 2 : 1;
+    return { taxa, q, nota };
+  },
+  /* "SÓLIDO" CORTA O PESO DA MATÉRIA PARA 20% — é a decisão mais cara do
+     ciclo, e hoje é um clique sem prova. O Plano sabe quantos assuntos daquela
+     matéria sustentam a meta. */
+  solidezDe(nomeMateria, r) {
+    if (!r || r.erro) return null;
+    const alvo = ReforcoEngine.norm(nomeMateria || '');
+    const todos = [].concat(r.itens || [], r.pequenas || []).filter(x => ReforcoEngine.norm(x.disciplina || '') === alvo);
+    if (!todos.length) return null;
+    const naMeta = todos.filter(x => x.taxa >= r.meta).length;
+    return { total: todos.length, naMeta, abaixo: todos.length - naMeta };
+  },
+  /* QUANTO VALE, EM PONTOS, LEVAR UM ASSUNTO AO TETO. É a régua que substitui
+     o ganho em domínio depois do edital.
+
+       pontos = (questões da MATÉRIA na prova × pts × peso)
+              × (participação do ASSUNTO dentro da matéria)
+              × (teto − taxa do assunto)
+
+     A participação vem da incidência da banca quando ela existe; sem ela, do
+     seu próprio volume praticado — declarado na tela, porque é um proxy, não
+     uma medida. */
+  anexarPontos(r, opts) {
+    if (!r || !r.itens || !this.temComposicao()) return false;
+    const p = Object.assign({}, PlanoEngine.prefs(), opts || {});
+    const comp = this.composicao();
+    const porNome = {};
+    comp.forEach(m => { porNome[ReforcoEngine.norm(m.nome)] = m; });
+    const teto = Math.max(50, Math.min(100, p.tetoDominio)) / 100;
+    const todos = [].concat(r.itens, r.pequenas || []);
+    // participação de cada assunto dentro da sua matéria
+    const somaDisc = {};
+    todos.forEach(x => {
+      const k = ReforcoEngine.norm(x.disciplina || '');
+      const w = (x.incid > 0) ? x.incid : (x.qJanela || 0);
+      somaDisc[k] = (somaDisc[k] || 0) + w;
+    });
+    todos.forEach(x => {
+      const k = ReforcoEngine.norm(x.disciplina || '');
+      const m = porNome[k];
+      if (!m) { x.pontosGanho = 0; x.pontosMateria = null; return; }
+      const w = (x.incid > 0) ? x.incid : (x.qJanela || 0);
+      const parte = somaDisc[k] > 0 ? w / somaDisc[k] : 0;
+      x.pontosMateria = m.valor;
+      x.viaVolume = !(x.incid > 0);
+      x.pontosGanho = Math.max(0, m.valor * parte * Math.max(0, teto - x.taxa / 100));
+      x.pontosPorQuestao = x.custoQ > 0 ? x.pontosGanho / x.custoQ * 100 : 0;
+      x.eliminatoria = !!(m.minimo != null && x.taxa < m.minimo);
+    });
+    return true;
+  }
+};
+window.PlanoPontos = PlanoPontos;
 
 /* ═══════════════════════════════════════════════════════════════════════════
    O CICLO DE UMA ATIVIDADE DO PLANO — decidi · fiz · funcionou?
@@ -2077,11 +2376,20 @@ const DesempenhoTecScreen = {
        rodar, o campo ainda funciona. */
     const os_ = document.getElementById('plano-ordenar');
     if (os_ && typeof PlanoEngine.ORDENS === 'object') {
+      /* A ordem por PONTOS só existe com edital preenchido. Oferecê-la vazia
+         seria uma opção que não muda nada — e uma ordem que não ordena é a
+         forma mais rápida de a pessoa perder a confiança na tela. Com o edital
+         publicado e a composição em branco, ela aparece desabilitada dizendo o
+         que falta, em vez de sumir sem explicação. */
+      const podePontos = (typeof PlanoPontos !== 'undefined') && PlanoPontos.temComposicao();
+      const ehPos = (typeof PlanoPontos !== 'undefined') && PlanoPontos.modo() === 'pos';
       os_.innerHTML = Object.keys(PlanoEngine.ORDENS).map(k => {
         const o = PlanoEngine.ORDENS[k];
-        return `<option value="${k}" title="${escapeHtml(o.quando)}"${k === p.ordenar ? ' selected' : ''}>${escapeHtml(o.rot)}</option>`;
+        if (o.soPos && !ehPos) return '';
+        const off = o.soPos && !podePontos;
+        return `<option value="${k}" title="${escapeHtml(o.quando)}"${k === p.ordenar && !off ? ' selected' : ''}${off ? ' disabled' : ''}>${escapeHtml(o.rot)}${off ? ' (preencha a composição da prova)' : ''}</option>`;
       }).join('');
-      if (![...os_.options].some(o => o.value === p.ordenar)) os_.value = 'pior';
+      if (![...os_.options].some(o => o.value === p.ordenar && !o.disabled)) os_.value = 'pior';
     }
     set('plano-janelamax', p.janelaMax); set('plano-consolidar', p.consolidarEm); set('plano-validade', p.validadeDias);
     set('plano-critico', p.faixaCritico); set('plano-fragil', p.faixaFragil);
@@ -2657,12 +2965,25 @@ const DesempenhoTecScreen = {
       andamento: ['▶', 'incid', 'em andamento'],
       orfa: ['❓', '', 'sem correspondência no TEC']
     };
+    /* ── O PLANO NÃO GERENCIA, O PLANO DECIDE ──────────────────────────────
+       O bloco completo de atividades em curso morava aqui — e transformava a
+       tela de decisão em painel de gestão. Três lugares para a mesma coisa
+       (aqui, a agenda do dia e a lista de pendências) não é organização, é
+       dispersão: simplicidade vem de mover, não de somar. A gestão mudou para
+       a tela de Atividades, onde a execução já vive; aqui fica a linha que diz
+       que existe algo em curso e leva até lá.
+
+       O detalhe continua disponível para quem quiser: o bloco abre. Só não é
+       mais a primeira coisa que a tela de decisão mostra. */
+    const emAlerta = emCurso.filter(v => v.estado === 'naoFuncionou' || v.estado === 'orfa').length;
     const blocoCurso = !emCurso.length ? '' : `
-      <div class="pl-ciclo">
-        <div class="pl-hoje-top">
-          <strong>📌 Em curso</strong>
-          <span>${emCurso.length} ${emCurso.length === 1 ? 'atividade' : 'atividades'} · o progresso vem dos seus retratos</span>
-        </div>
+      <details class="pl-ciclo pl-ciclo-mini">
+        <summary>
+          <strong>📌 ${emCurso.length} ${emCurso.length === 1 ? 'reforço em curso' : 'reforços em curso'}</strong>
+          <span>${emCurso.reduce((a, v) => a + v.feito, 0)}/${emCurso.reduce((a, v) => a + v.alvo, 0)} questões · o progresso vem dos seus retratos${emAlerta ? ' · <b class="tone-bad">' + emAlerta + ' pedindo atenção</b>' : ''}</span>
+          <span class="chev">▾</span>
+        </summary>
+        <p class="pl-ciclo-obs">A gestão completa fica em <button type="button" class="pl-ciclo-acao" id="plano-ir-extras">✅ Atividades</button> — aqui é só a decisão.</p>
         <ul class="pl-ciclo-lista">
           ${emCurso.map(v => {
             const [ic, tom, rot] = SELO[v.estado] || SELO.andamento;
@@ -2690,7 +3011,7 @@ const DesempenhoTecScreen = {
             </li>`;
           }).join('')}
         </ul>
-      </div>`;
+      </details>`;
 
     const fechados = PlanoCiclo.fechados().slice(0, 12);
     const blocoFeito = !fechados.length ? '' : `
@@ -2715,6 +3036,89 @@ const DesempenhoTecScreen = {
 
     /* A CALIBRAGEM: o custo por ponto do Plano é um palpite de fábrica até o
        seu histórico responder a mesma pergunta. Aqui ele responde. */
+    /* ── A NOTA PROJETADA ─────────────────────────────────────────────────
+       Um número que "estudar" não dá: onde você está em relação a passar. Vem
+       com a composição à vista de propósito — a projeção é aritmética sobre o
+       que VOCÊ digitou, e erro de digitação tem de virar visível em vez de
+       virar recomendação errada. E o corte é declarado como estimativa sua,
+       não como fato: "faltam 12 pontos" sem dizer de onde veio o 72 é pior que
+       não ter número nenhum. */
+    const pj = r.projecao;
+    const nEliminatorias = pj ? pj.eliminatorias.length : 0;
+    const blocoPontos = (!pj || !r.temPontos) ? '' : `
+      <div class="pl-ciclo pl-pontos">
+        <div class="pl-hoje-top">
+          <strong>🎯 Se a prova fosse hoje</strong>
+          <span>pela composição que você declarou no editor de matérias</span>
+        </div>
+        <div class="pl-pontos-nums">
+          <div class="plm"><b class="tone-${pj.passaHoje === false ? 'bad' : 'good'}">${pj.hoje.toFixed(0)}</b><span>de ${pj.valorTotal.toFixed(0)} pontos hoje</span></div>
+          <div class="plm"><b class="tone-good">${pj.potencial.toFixed(0)}</b><span>fechando o Plano</span></div>
+          ${pj.corte != null ? `<div class="plm"><b>${pj.corte}</b><span>corte que você informou</span></div>` : ''}
+        </div>
+        ${pj.corte != null ? `<p class="pl-prosa">${pj.passaHoje
+          ? `Você já passaria, com <b>${(pj.hoje - pj.corte).toFixed(0)}</b> pontos de folga. Fechar o Plano leva a <b>${pj.potencial.toFixed(0)}</b>.`
+          : `Faltam <b>${pj.faltaCorte.toFixed(0)}</b> pontos para o corte. Fechando o Plano você chegaria a <b>${pj.potencial.toFixed(0)}</b>${pj.potencial >= pj.corte ? ' — passa.' : ' — ainda não basta: reveja o teto ou a composição.'}`}
+          <span class="pl-ciclo-obs">Corte estimado por você, do concurso anterior — não é um dado do app.</span></p>` : `
+          <p class="pl-prosa">Informe a nota de corte do concurso anterior para ver a distância.
+            <button type="button" class="pl-ciclo-acao" id="plano-def-corte">definir o corte</button></p>`}
+        ${nEliminatorias ? `<p class="pl-aviso" style="border-color:var(--bad);background:var(--bad-soft);color:var(--bad-text);">
+          🚨 <b>${nEliminatorias} ${nEliminatorias === 1 ? 'matéria abaixo do mínimo' : 'matérias abaixo do mínimo'} eliminatório:</b>
+          ${pj.eliminatorias.map(l => escapeHtml(l.nome) + ' (' + l.taxa.toFixed(0) + '% de ' + l.minimo + '% exigidos)').join(' · ')}.
+          Isso elimina independentemente do total — vem antes de qualquer otimização de pontos.</p>` : ''}
+        ${pj.semDado.length ? `<p class="pl-ciclo-obs">Sem medição no TEC: ${pj.semDado.map(escapeHtml).join(', ')} — ${pj.semDado.length === 1 ? 'esta matéria ficou' : 'estas matérias ficaram'} fora da projeção.</p>` : ''}
+        <details class="pl-comp">
+          <summary>a composição que estou usando <span class="chev">▾</span></summary>
+          <ul class="pl-comp-lista">
+            ${pj.linhas.map(l => `<li><span>${escapeHtml(l.nome)}</span><span>${l.q} questões × ${l.pts} pt${l.peso !== 1 ? ' × peso ' + l.peso : ''}</span><span>${l.taxa != null ? l.taxa.toFixed(0) + '%' : '—'}${l.minimo != null ? ' · mín. ' + l.minimo + '%' : ''}</span></li>`).join('')}
+          </ul>
+          <p class="pl-ciclo-obs">Editável em ⚙ Ciclo → matérias. Erro de digitação aqui vira recomendação errada.</p>
+        </details>
+      </div>`;
+    /* PRÉ-EDITAL a régua NÃO troca: sem composição você não maximiza pontos
+       conhecidos, encolhe o pior caso — e é isso que "todo assunto pesa igual"
+       faz. A tela diz qual régua está valendo, porque a decisão muda com ela. */
+    const blocoRegua = r.modoEdital === 'pos' && !r.temPontos ? `
+      <p class="pl-aviso" style="border-color:var(--warn);background:var(--warn-soft);color:var(--warn-text);">
+        📋 Edital publicado, mas a composição da prova está em branco. Preencha
+        <b>Qtd. Q.</b> e <b>Pts/Q</b> por matéria em ⚙ Ciclo e o Plano passa a contar
+        <b>pontos</b> em vez de domínio.</p>` : '';
+    /* ── O QUADRO QUE RESPONDE "QUAIS MATÉRIAS EU PRIORIZO" ───────────────── */
+    const tm = PlanoPontos.tempoPorMateria(opts);
+    const VER = {
+      sobra: ['⚠️', 'tone-warn', 'tempo sobrando onde você já vai bem'],
+      sobraFraco: ['🟠', 'tone-warn', 'muito tempo para o peso que ela tem'],
+      falta: ['🔴', 'tone-bad', 'falta tempo onde mais vale ponto'],
+      faltaForte: ['✅', 'tone-good', 'pouco tempo, mas você já domina'],
+      equilibrada: ['✅', 'tone-good', 'equilibrada']
+    };
+    const comVeredito = tm.linhas.filter(l => l.veredito);
+    const blocoTempo = (!comVeredito.length) ? '' : `
+      <details class="pl-ciclo pl-tempo"${tm.desalinhadas ? ' open' : ''}>
+        <summary>
+          <strong>⚖️ Onde o seu tempo está indo</strong>
+          <span>${tm.desalinhadas ? `<b class="tone-bad">${tm.desalinhadas} ${tm.desalinhadas === 1 ? 'matéria desalinhada' : 'matérias desalinhadas'}</b>` : 'tempo e peso alinhados'} · peso ${tm.fontePeso === 'edital' ? 'pelo edital que você declarou' : 'pela incidência das suas bancas'}</span>
+          <span class="chev">▾</span>
+        </summary>
+        <div class="pl-tempo-wrap">
+          <table class="pl-tempo-tab">
+            <thead><tr><th>matéria</th><th>seu tempo</th><th>peso</th><th>nível</th><th>veredito</th></tr></thead>
+            <tbody>
+              ${comVeredito.map(l => {
+                const [ic, tom, rot] = VER[l.veredito];
+                return `<tr>
+                  <td><b>${escapeHtml(l.nome)}</b>${l.cumprimento != null && l.cumprimento < 60 ? `<span class="pl-ciclo-obs">só ${l.cumprimento.toFixed(0)}% do planejado foi cumprido</span>` : ''}</td>
+                  <td>${l.shareTempo.toFixed(0)}%</td>
+                  <td>${l.sharePeso.toFixed(0)}%</td>
+                  <td class="tone-${l.taxa == null ? '' : l.taxa >= r.meta ? 'good' : l.taxa < r.faixaFragil ? 'bad' : 'warn'}">${l.taxa != null ? l.taxa.toFixed(0) + '%' : '—'}</td>
+                  <td><span class="reforco-tag ${tom}">${ic} ${rot}</span></td>
+                </tr>`;
+              }).join('')}
+            </tbody>
+          </table>
+        </div>
+        <p class="pl-ciclo-obs">O tempo vem do seu ciclo; o nível, do TEC. Aceitar ir mal numa matéria que vale pouco é decisão sua — o que este quadro impede é você fazer essa troca sem perceber.</p>
+      </details>`;
     const cal = PlanoCiclo.calibragem();
     const blocoCal = (cal && cal.pronta && cal.divergente) ? `
       <div class="pl-ciclo pl-calib">
@@ -2724,11 +3128,22 @@ const DesempenhoTecScreen = {
       </div>` : '';
 
     lista.innerHTML = (linhas
-      ? hoje + blocoCurso + blocoCal + grafico + blocoFeito + ordemNota + porQue + linhas
-      : blocoCurso + blocoCal + blocoFeito + `<p class="hint" style="padding:18px 0;">Nenhum assunto abaixo do máximo realista — você já domina tudo que pratica.</p>`) + pequenas + edital + comoLer;
+      ? blocoPontos + blocoRegua + hoje + blocoCurso + blocoTempo + blocoCal + grafico + blocoFeito + ordemNota + porQue + linhas
+      : blocoPontos + blocoRegua + blocoCurso + blocoTempo + blocoCal + blocoFeito + `<p class="hint" style="padding:18px 0;">Nenhum assunto abaixo do máximo realista — você já domina tudo que pratica.</p>`) + pequenas + edital + comoLer;
     lista.querySelectorAll('.plano-nova-extra').forEach(b => b.addEventListener('click', () => {
       this.criarExtraDoPlano(b.dataset.topico, b.dataset.disc, b.dataset.alvo, b.dataset.motivo);
     }));
+    const defCorte = document.getElementById('plano-def-corte');
+    if (defCorte) defCorte.addEventListener('click', async () => {
+      const r2 = await UI.prompt([{ key: 'corte', label: 'Nota de corte (em pontos)', type: 'number',
+        value: PlanoPontos._corte() || '', hint: 'Do concurso anterior, para a mesma vaga. É uma estimativa sua — a tela sempre dirá isso.' }],
+        { title: 'Nota de corte', okText: 'Salvar' });
+      if (!r2) return;
+      PlanoPontos.setCorte(r2.corte);
+      this.renderPlanoConteudo(); showToast('Corte registrado ✓');
+    });
+    const irExtras = document.getElementById('plano-ir-extras');
+    if (irExtras) irExtras.addEventListener('click', () => switchScreen('extras'));
     lista.querySelectorAll('[data-ciclo-excluir]').forEach(b => b.addEventListener('click', async () => {
       const e = DB.getExtras().find(x => x.id === b.dataset.cicloExcluir);
       if (!e) return;

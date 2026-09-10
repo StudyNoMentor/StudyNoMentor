@@ -1255,10 +1255,16 @@ const AutoTeste = {
       this._ok('Plano: com custo por lacuna, "retorno" tem fila própria',
         lac.equivalentes.indexOf('pior') < 0, lac.equivalentes);
       /* As duas ordens que davam sempre a mesma fila saíram do seletor. Se
-         alguém as trouxer de volta, este teste cai. */
-      this._ok('Plano: o seletor tem 5 ordens, sem gêmeas de fábrica',
-        Object.keys(P.ORDENS).length === 5 && !P.ORDENS.ganhoDominio && !P.ORDENS.volume,
-        Object.keys(P.ORDENS));
+         alguém as trouxer de volta, este teste cai.
+
+         "Mais pontos na prova" não conta aqui: ela só existe depois do edital,
+         porque só aí existe prova com composição. Uma ordem que não ordena
+         nada é a forma mais rápida de a pessoa perder a confiança na tela. */
+      const sempre = Object.keys(P.ORDENS).filter(k => !P.ORDENS[k].soPos);
+      this._ok('Plano: o seletor tem 5 ordens de sempre, sem gêmeas de fábrica',
+        sempre.length === 5 && !P.ORDENS.ganhoDominio && !P.ORDENS.volume, sempre);
+      this._ok('Plano: e uma sexta que só existe com edital publicado',
+        !!(P.ORDENS.pontos && P.ORDENS.pontos.soPos), Object.keys(P.ORDENS));
       this._ok('Plano: a meta padrão é 85%', P.DEFAULTS.metaDominio === 85, P.DEFAULTS.metaDominio);
       /* Uma preferência antiga (ou um dado vindo de fora) com uma ordem que não
          existe mais tem de cair onde a migração manda — nunca numa terceira
@@ -1720,6 +1726,111 @@ const AutoTeste = {
   },
 
 
+  /* ═══ A RÉGUA DE PONTOS E A PRIORIZAÇÃO POR MATÉRIA ════════════════════════
+     O Plano otimizava DOMÍNIO — a média do quanto você sabe do que estuda — e
+     isso não é a mesma coisa que ponto na prova. Um assunto de 4 questões a
+     20% é uma cratera de domínio e quase nada de aprovação; um de 40 questões
+     a 70% é onde os pontos estão. E a composição da prova já estava digitada
+     no editor de matérias do ciclo: o Desempenho TEC nunca olhou para lá. */
+  reguaDePontos() {
+    const P = PlanoEngine, PP = PlanoPontos;
+    const dia = (n) => { const d = new Date(todayLocal() + 'T00:00:00'); d.setDate(d.getDate() - n); return d.toISOString().slice(0, 10); };
+    const D = (n, q, ac) => ({ depth: 0, codigo: null, nome: n, disciplina: n, questoes: q, acertos: ac });
+    const L = (c, n, disc, q, ac) => ({ depth: 1, codigo: c, nome: n, disciplina: disc, questoes: q, acertos: ac });
+    const R = (id, i, f, rows) => ({ id, nome: id, date: f, startDate: i, endDate: f, rows });
+    /* Uma matéria PESADA onde vou mal e uma LEVE onde vou péssimo: é o caso em
+       que domínio e ponto discordam, e é o caso que decide aprovação. */
+    const linhas = () => [
+      D('Dir Adm', 200, 100), L('01', 'Licitacoes', 'Dir Adm', 100, 50), L('02', 'Atos', 'Dir Adm', 100, 50),
+      D('Arquivologia', 100, 20), L('01', 'Tabela', 'Arquivologia', 100, 20)];
+    const snaps = [R('a', dia(60), dia(40), linhas()), R('b', dia(30), dia(2), linhas())];
+    const origSnaps = DB.getTecSnapshots, origSubs = DB.getActiveSubjects, origModo = window.planCycleMode;
+    const chaveP = DB._profilePrefix() + P.KEY_PREF;
+    const antesP = localStorage.getItem(chaveP);
+    let mats = [];
+    try {
+      DB.getTecSnapshots = () => snaps;
+      DB.getActiveSubjects = () => mats;
+      DB.setRaw(chaveP, JSON.stringify({ minAmostra: 1, limite: 20, ordenar: 'pior', metaDominio: 85, tetoDominio: 90, migracao: 3 }));
+      mats = [{ nome: 'Dir Adm', qtdQuestoes: 40, pontosPorQuestao: 1, peso: 1 },
+              { nome: 'Arquivologia', qtdQuestoes: 5, pontosPorQuestao: 1, peso: 1 }];
+
+      // 1) SEM EDITAL A RÉGUA NÃO TROCA — pré-edital você encolhe o pior caso
+      window.planCycleMode = () => 'pre';
+      this._ok('Pontos: no pré-edital a régua de pontos não liga',
+        PP.modo() === 'pre' && PP.temComposicao() === false, PP.modo());
+      window.planCycleMode = () => 'pos';
+      this._ok('Pontos: com edital e composição declarada, ela liga', PP.temComposicao() === true);
+
+      // 2) A PROJEÇÃO É ARITMÉTICA SOBRE O QUE VOCÊ DIGITOU
+      const pj = PP.projecao();
+      this._ok('Pontos: o total da prova é a soma declarada (40 + 5)', pj && pj.valorTotal === 45, pj && pj.valorTotal);
+      this._ok('Pontos: a nota de hoje é 40×50% + 5×20% = 21', Math.abs(pj.hoje - 21) < 0.01, pj.hoje);
+      this._ok('Pontos: fechando o Plano seriam 45×90% = 40,5', Math.abs(pj.potencial - 40.5) < 0.01, pj.potencial);
+      this._ok('Pontos: matéria sem medição no TEC fica FORA da conta, declarada',
+        Array.isArray(pj.semDado), pj.semDado);
+
+      // 3) A ORDEM QUE APROVA discorda da que só olha o acerto
+      const rPior = P.calcular(snaps[1], Object.assign({}, P.prefs(), { ordenar: 'pior' }));
+      const rPts = P.calcular(snaps[1], Object.assign({}, P.prefs(), { ordenar: 'pontos' }));
+      this._ok('Pontos: por "pior acerto" vem o assunto de 5 questões na prova',
+        rPior.itens[0].nome === 'Tabela', rPior.itens[0].nome);
+      this._ok('Pontos: por "mais pontos" vem o de 40 questões — é a diferença que aprova',
+        rPts.itens[0].disciplina === 'Dir Adm', rPts.itens[0].disciplina + '/' + rPts.itens[0].nome);
+      this._ok('Pontos: e o ganho de cada item é medido em PONTOS da prova',
+        rPts.itens[0].pontosGanho > 0 && rPts.itens[0].pontosMateria === 40,
+        { ganho: rPts.itens[0].pontosGanho, materia: rPts.itens[0].pontosMateria });
+
+      /* 4) O MÍNIMO ELIMINATÓRIO É RESTRIÇÃO, NÃO PESO. Nenhum total te salva
+         de ser cortado numa matéria — por isso ela vem antes dos pontos. */
+      mats[1].minimoPct = 50;
+      const rElim = P.calcular(snaps[1], Object.assign({}, P.prefs(), { ordenar: 'pontos' }));
+      this._ok('Pontos: matéria abaixo do mínimo eliminatório passa na frente de tudo',
+        rElim.itens[0].nome === 'Tabela' && rElim.itens[0].eliminatoria === true, rElim.itens[0].nome);
+      const pj2 = PP.projecao();
+      this._ok('Pontos: e a projeção denuncia a eliminatória pelo nome',
+        pj2.eliminatorias.length === 1 && pj2.eliminatorias[0].nome === 'Arquivologia', pj2.eliminatorias);
+      mats[1].minimoPct = null;
+
+      // 5) O CORTE É ESTIMATIVA SUA, e some quando você apaga
+      const corteAntes = PP._corte();
+      PP.setCorte(30);
+      const pj3 = PP.projecao();
+      this._ok('Pontos: com corte 30 e nota 21, faltam 9',
+        pj3.corte === 30 && pj3.passaHoje === false && Math.abs(pj3.faltaCorte - 9) < 0.01, pj3.faltaCorte);
+      PP.setCorte(15);
+      this._ok('Pontos: com corte 15 você já passaria', PP.projecao().passaHoje === true);
+      PP.setCorte('');
+      this._ok('Pontos: apagar o corte devolve a tela ao estado sem corte', PP._corte() === null);
+      if (corteAntes != null) PP.setCorte(corteAntes);
+
+      /* 6) A DIFICULDADE DECLARADA CONTRA A MEDIDA. O 1 a 5 do ciclo distribui
+         as suas horas e é um chute; o TEC sabe a resposta. */
+      const m = PP.dificuldadeMedida('Arquivologia');
+      this._ok('Pontos: 20% de acerto vira dificuldade 5 (a mais alta)',
+        m && m.nota === 5 && Math.abs(m.taxa - 20) < 0.01, m);
+      const m2 = PP.dificuldadeMedida('Dir Adm');
+      this._ok('Pontos: 50% vira dificuldade 4', m2 && m2.nota === 4, m2);
+      DB.setRaw(chaveP, JSON.stringify({ minAmostra: 500, metaDominio: 85, tetoDominio: 90, migracao: 3 }));
+      this._ok('Pontos: sem amostra suficiente o app NÃO opina sobre a dificuldade',
+        PP.dificuldadeMedida('Dir Adm') === null);
+      DB.setRaw(chaveP, JSON.stringify({ minAmostra: 1, limite: 20, metaDominio: 85, tetoDominio: 90, migracao: 3 }));
+
+      /* 7) "SÓLIDO" CORTA O PESO DA MATÉRIA PARA 20% — a decisão mais cara do
+         ciclo, hoje um clique sem prova. */
+      const r7 = P.calcular(snaps[1], P.prefs());
+      const sol = PP.solidezDe('Arquivologia', r7);
+      this._ok('Pontos: a solidez declarada pode ser confrontada com o Plano',
+        sol && sol.total >= 1 && sol.abaixo >= 1, sol);
+      this._ok('Pontos: matéria que não existe no Plano não inventa solidez',
+        PP.solidezDe('Matéria Inexistente', r7) === null);
+    } finally {
+      DB.getTecSnapshots = origSnaps; DB.getActiveSubjects = origSubs; window.planCycleMode = origModo;
+      if (antesP == null) DB.delRaw(chaveP); else DB.setRaw(chaveP, antesP);
+    }
+  },
+
+
   /* ═══ A FOLHA DE AJUSTES ═══════════════════════════════════════════════════
      O Desempenho TEC abria em CONFIGURAÇÃO: 25 campos empilhados, 2.413px de
      formulário antes do primeiro número num celular de 390px. Os campos são os
@@ -2020,7 +2131,8 @@ const AutoTeste = {
      ['Motor do Reforço', 'reforcoMotor'],
      ['Incidência: gravação', 'incidenciaGravacao'],
      ['Folha de ajustes do TEC', 'ajustesTec'],
-     ['Ciclo do Plano', 'cicloDoPlano']].forEach(([nome, fn]) => {
+     ['Ciclo do Plano', 'cicloDoPlano'],
+     ['Régua de pontos', 'reguaDePontos']].forEach(([nome, fn]) => {
       try { this[fn](); }
       catch (e) { this._r.total++; this._r.falhou++; this._r.falhas.push({ nome: nome + ' — exceção', obtido: String(e && e.message || e) }); }
     });
