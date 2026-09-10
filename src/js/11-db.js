@@ -1215,14 +1215,31 @@ const DB = {
     this.saveIncidencia(list);
     return { total: rows.length, novas, repetidas };
   },
-  // Renomear uma banca: "FGV " e "FGV" viravam duas, e só existia excluir.
+  /* Renomear uma banca: "FGV " e "FGV" viravam duas, e só existia excluir.
+     Renomear para um nome que JÁ EXISTE é o caso mais comum (é justamente
+     assim que se conserta a digitação divergente) — e juntar os dois grupos
+     sem mais nada traria de volta a duplicação que a gravação passou a evitar.
+     Por isso o merge desempata pela mesma chave: sobra uma linha por
+     (disciplina + código/nome), com o valor do grupo que está chegando. */
   renameIncidenciaBanca(de, para) {
     const alvo = String(para || '').trim();
     if (!alvo) return 0;
     const list = this.getIncidencia();
     let n = 0;
-    list.forEach(r => { if (r.banca && r.banca.toLowerCase() === String(de).toLowerCase()) { r.banca = alvo; n++; } });
-    if (n) this.saveIncidencia(list);
+    list.forEach(r => { if (r.banca && r.banca.toLowerCase() === String(de).toLowerCase()) { r.banca = alvo; r._renomeada = true; n++; } });
+    if (!n) return 0;
+    const vistos = new Map();
+    const limpa = [];
+    list.forEach(r => {
+      if (!r.banca || r.banca.toLowerCase() !== alvo.toLowerCase()) { limpa.push(r); return; }
+      const k = this._chaveIncid(alvo, r);
+      const antes = vistos.get(k);
+      // a linha renomeada vence a homônima antiga; fora isso, a primeira fica
+      if (antes) { if (r._renomeada) Object.assign(antes, r, { id: antes.id }); return; }
+      vistos.set(k, r); limpa.push(r);
+    });
+    limpa.forEach(r => { delete r._renomeada; });
+    this.saveIncidencia(limpa);
     return n;
   },
   clearIncidenciaBanca(banca) { this.saveIncidencia(this.getIncidencia().filter(r => r.banca.toLowerCase() !== banca.toLowerCase())); },

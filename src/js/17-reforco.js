@@ -121,10 +121,38 @@ const ReforcoEngine = {
      específica primeiro e diz, no retorno, qual das duas respondeu. */
   SEP: '\u0001',
   chaveInc(disciplina, topico) { return this.norm(disciplina) + this.SEP + this.norm(topico); },
+  /* ── QUAIS BANCAS ─────────────────────────────────────────────────────────
+     Era "todas" ou UMA. Quem presta concurso para dois órgãos com bancas
+     diferentes — o caso comum de quem estuda a sério — só tinha as duas
+     extremidades: somar o histórico de bancas que não vai enfrentar, ou olhar
+     uma e ignorar a outra. O filtro agora aceita uma LISTA, e todo o resto do
+     motor passa por aqui: um lugar só decide o que é "a minha prova".
+
+     Formas aceitas: '__todas__' (ou vazio) · 'FGV' · ['FGV','Cebraspe'] */
+  filtroBanca(sel) {
+    if (sel == null || sel === '__todas__' || sel === '') return null;      // null = tudo entra
+    const lista = Array.isArray(sel) ? sel : [sel];
+    const set = new Set(lista.map(b => this.norm(b)).filter(Boolean));
+    if (!set.size || set.has(this.norm('__todas__'))) return null;
+    return set;
+  },
+  _daBanca(filtro, banca) { return !filtro || filtro.has(this.norm(banca)); },
+  // rótulo legível da seleção, para a tela nunca falar de "banca" no singular
+  // quando o número na frente soma três históricos diferentes
+  rotuloBancas(sel) {
+    const f = this.filtroBanca(sel);
+    if (!f) return 'todas as bancas';
+    const nomes = DB.getBancas().filter(b => f.has(this.norm(b)));
+    if (!nomes.length) return 'nenhuma banca';
+    if (nomes.length === 1) return nomes[0];
+    if (nomes.length === 2) return nomes[0] + ' e ' + nomes[1];
+    return nomes.slice(0, -1).join(', ') + ' e ' + nomes[nomes.length - 1];
+  },
   incidenceMap(banca) {
     const map = {};
+    const filtro = this.filtroBanca(banca);
     DB.getIncidencia().forEach(r => {
-      if (banca && banca !== '__todas__' && this.norm(r.banca) !== this.norm(banca)) return;
+      if (!this._daBanca(filtro, r.banca)) return;
       const kn = this.norm(r.topico);
       const kd = this.chaveInc(r.disciplina || '', r.topico);
       map[kn] = (map[kn] || 0) + (r.incidencia || 0);
@@ -141,7 +169,13 @@ const ReforcoEngine = {
     if (map[kn] != null) return { valor: map[kn], viaNome: true };
     return { valor: 0, viaNome: false, ausente: true };
   },
-  hasIncidencia() { return DB.getIncidencia().length > 0; },
+  // Com uma seleção, responde "há incidência NAS BANCAS QUE EU ESCOLHI?" — que é
+  // a pergunta que a tela precisa fazer antes de prometer prioridade por prova.
+  hasIncidencia(sel) {
+    const filtro = this.filtroBanca(sel);
+    if (!filtro) return DB.getIncidencia().length > 0;
+    return DB.getIncidencia().some(r => this._daBanca(filtro, r.banca));
+  },
   // O retrato TEC mais recente é considerado "nível atual" se for dos últimos 90 dias.
   currentSnapshot() {
     const snaps = DB.getTecSnapshots();
@@ -220,17 +254,32 @@ const ReforcoEngine = {
     return n ? Object.assign({ viaNome: true }, n) : null;
   },
   // Incidência agrupada por disciplina (uma banca), normalizando o campo de nome (topico)
+  /* ── UMA LINHA POR ASSUNTO, SOMANDO AS BANCAS ESCOLHIDAS ──────────────────
+     Cada banca traz o seu próprio índice, com a mesma taxonomia. Empilhar as
+     linhas cruas fazia o MESMO assunto virar várias unidades — uma por banca —
+     e o ranking mostrava "Princípios" três vezes, cada uma com a incidência de
+     um caderno diferente, como se fossem assuntos distintos. Com uma banca só
+     ninguém percebia; com "todas" (ou com duas escolhidas), o número que a
+     pessoa lê deixava de ser o total.
+
+     Aqui as bancas do filtro viram UMA linha por (disciplina + código, ou nome
+     quando não há código), com a incidência somada — que é o que "somar o
+     histórico das minhas bancas" sempre quis dizer. */
   _incidByDisc(banca) {
     const by = {};
+    const filtro = this.filtroBanca(banca);
+    const chaves = {};
     DB.getIncidencia().forEach(r => {
-      if (banca && banca !== '__todas__' && this.norm(r.banca) !== this.norm(banca)) return;
-      const row = {
-        codigo: (r.codigo == null || r.codigo === '') ? null : String(r.codigo),
-        nome: r.topico || r.nome || '',
-        disciplina: r.disciplina,
-        incidencia: (r.incidencia != null ? r.incidencia : 0)
-      };
-      (by[r.disciplina] = by[r.disciplina] || []).push(row);
+      if (!this._daBanca(filtro, r.banca)) return;
+      const disc = r.disciplina;
+      const codigo = (r.codigo == null || r.codigo === '') ? null : String(r.codigo);
+      const nome = r.topico || r.nome || '';
+      const k = disc + '|' + (codigo !== null ? '#' + codigo : this.norm(nome));
+      const mapa = (chaves[disc] = chaves[disc] || {});
+      if (mapa[k]) { mapa[k].incidencia += (r.incidencia != null ? r.incidencia : 0); return; }
+      const row = { codigo, nome, disciplina: disc, incidencia: (r.incidencia != null ? r.incidencia : 0) };
+      mapa[k] = row;
+      (by[disc] = by[disc] || []).push(row);
     });
     return by;
   },
@@ -256,8 +305,17 @@ const ReforcoEngine = {
      pertence a uma unidade só, sem somar pai e filho. */
   _unidadesDoDesempenho(snap, nivelAlvo) {
     const rows = (snap && snap.rows) || [];
-    const temFilho = (r) => rows.some(o => o !== r && o.disciplina === r.disciplina && o.codigo &&
-      r.codigo && String(o.codigo).indexOf(String(r.codigo) + '.') === 0);
+    /* A linha de DISCIPLINA não tem código — e a versão anterior desta função
+       exigia `r.codigo` para procurar filhos, então nenhuma disciplina tinha
+       filhos aos olhos dela. Resultado: a disciplina inteira E cada tópico dela
+       entravam como unidades separadas, contando as mesmas questões duas vezes
+       no ranking e nas fatias de esforço. Para a disciplina, "ter filho" é
+       existir qualquer linha mais funda na mesma matéria. */
+    const temFilho = (r) => rows.some(o => {
+      if (o === r || o.disciplina !== r.disciplina) return false;
+      if (r.depth === 0 || r.codigo == null || r.codigo === '') return (o.depth || 0) > 0;
+      return o.codigo && String(o.codigo).indexOf(String(r.codigo) + '.') === 0;
+    });
     const out = [];
     rows.forEach(r => {
       const d = (r.depth === 0) ? 0 : this._depth(r.codigo);
@@ -281,7 +339,7 @@ const ReforcoEngine = {
     const Qmin = opts.minQuestoes || 10;
     const Imin = opts.incidMin || 5;
     const limite = opts.limite || 12;
-    const banca = opts.banca || '__todas__';
+    const banca = (opts.banca == null || opts.banca === '') ? '__todas__' : opts.banca;
 
     const byDisc = this._incidByDisc(banca);
     const hasAnyIncid = Object.keys(byDisc).length > 0;
