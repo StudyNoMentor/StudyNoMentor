@@ -3627,6 +3627,88 @@
     .pl-hero-num { font-size: calc(34px * var(--fs-scale,1)); }
   }
 
+  /* ── MODO DE ATAQUE ───────────────────────────────────────────────────────
+     Chips, não uma lista suspensa: a escolha do modo é a primeira decisão da
+     tela e precisa estar visível junto com a que está valendo. Numa lista
+     suspensa, as outras quatro opções — e a existência delas — ficam
+     escondidas atrás de um toque. */
+  .pl-modos { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin: 4px 0 0; }
+  .pl-modos-rot { font-size: calc(9.5px * var(--fs-scale,1)); font-weight: 800; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-faint); margin-right: 2px; }
+  .pl-modo { display: flex; flex-direction: column; align-items: flex-start; gap: 1px; padding: 7px 12px; border-radius: 10px; border: 1.5px solid var(--border); background: var(--surface); color: var(--text-soft); font-family: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif; font-size: var(--fs-2xs); font-weight: 700; cursor: pointer; line-height: 1.2; text-align: left; }
+  .pl-modo small { font-size: calc(9px * var(--fs-scale,1)); font-weight: 600; color: var(--text-faint); }
+  .pl-modo:hover { border-color: var(--accent); color: var(--accent); }
+  .pl-modo.on { border-color: var(--accent); background: var(--accent-soft); color: var(--accent); }
+  .pl-modo.on small { color: var(--accent); }
+  /* Sem opacidade para apagar texto: o medidor de contraste da verificação lê a
+     cor declarada, não a composta, então texto apagado por opacity passa por
+     ele e reprova no olho de quem lê. O modo indisponível fica marcado pela
+     borda tracejada, que não mexe na legibilidade. */
+  .pl-modo.off { border-style: dashed; }
+  .pl-modo.estado { cursor: default; }
+  .pl-modo-nota { font-family: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif; font-size: var(--fs-2xs); line-height: 1.55; color: var(--text-soft); margin: 10px 0 0; padding: 10px 12px; border-left: 3px solid var(--accent); background: var(--surface-sunken); border-radius: 0 8px 8px 0; }
+  .pl-modo-nota span { color: var(--text-faint); }
+  .pl-modo-nota em { color: var(--bad-text); font-style: normal; font-weight: 700; }
+
+  /* ── BLOCO DA SEMANA ── o diagnóstico virando tarefa, no tamanho do ritmo real */
+  .pl-hoje { border: 2px solid var(--accent); border-radius: 14px; padding: 14px 16px; margin: 0 0 16px; background: var(--accent-soft); }
+  .pl-hoje-top { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
+  .pl-hoje-top strong { font-size: var(--fs-sm); color: var(--accent); }
+  .pl-hoje-top span { font-family: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif; font-size: var(--fs-3xs); color: var(--text-soft); }
+  .pl-hoje-lista { list-style: none; margin: 10px 0 12px; padding: 0; display: flex; flex-direction: column; gap: 6px; counter-reset: plh; }
+  .pl-hoje-lista li { display: flex; align-items: center; gap: 8px; background: var(--surface); border-radius: 8px; padding: 7px 10px; }
+  .pl-hoje-nome { flex: 1; font-size: var(--fs-xs); font-weight: 700; color: var(--text); min-width: 0; overflow-wrap: anywhere; }
+  .pl-hoje-num { font-family: 'Space Mono', ui-monospace, SFMono-Regular, Menlo, monospace; font-weight: 800; font-size: var(--fs-xs); font-variant-numeric: tabular-nums; }
+  .pl-hoje-num.tone-bad { color: var(--bad-text); } .pl-hoje-num.tone-warn { color: var(--warn-text); } .pl-hoje-num.tone-good { color: var(--good-text); }
+  .pl-hoje-q { font-family: 'Space Mono', ui-monospace, SFMono-Regular, Menlo, monospace; font-size: var(--fs-3xs); color: var(--text-faint); }
+  .pl-hoje .btn-primary { width: 100%; }
+
+  /* ── A ORDEM ESCOLHIDA, POR EXTENSO ── */
+  .pl-ordem { border: 1px solid var(--border); border-radius: 12px; padding: 12px 14px; margin: 0 0 12px; background: var(--surface-sunken); }
+  .pl-ordem-tit { font-size: var(--fs-sm); font-weight: 800; color: var(--text); margin: 0 0 6px; }
+  .pl-ordem-txt { font-family: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif; font-size: var(--fs-2xs); line-height: 1.55; color: var(--text-soft); margin: 4px 0 0; }
+  .pl-ordem-txt b { color: var(--text); }
+  .pl-ordem-txt.tone-warn { color: var(--warn-text); } .pl-ordem-txt.tone-warn b { color: var(--warn-text); }
+  .pl-ordem-txt.tone-bad { color: var(--bad-text); } .pl-ordem-txt.tone-bad b { color: var(--bad-text); }
+  .pl-porque { font-family: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif; font-size: var(--fs-xs); line-height: 1.55; color: var(--text-soft); margin: 0 0 12px; }
+  .pl-porque-item { font-family: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif; font-size: calc(10.5px * var(--fs-scale,1)); line-height: 1.5; color: var(--accent); font-weight: 700; margin: 4px 0 0; }
+  .pl-hero-alerta { color: var(--warn-text); font-weight: 700; }
+
+  /* ── O QUE O TEC NÃO MEDIU ── */
+  .pl-edital { margin-top: 22px; padding-top: 16px; border-top: 2px solid var(--border); }
+  .pl-edital-linha { font-family: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif; font-size: var(--fs-2xs); color: var(--text-soft); margin: 8px 0 0; display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+  .pl-edital-chip { font-size: var(--fs-3xs); font-weight: 700; padding: 3px 9px; border-radius: 20px; background: var(--warn-soft); color: var(--warn-text); border: 1px solid var(--warn); white-space: nowrap; }
+
+  /* ── GRUPOS DOS AJUSTES AVANÇADOS ──
+     Dezenove campos numa grade única não é configuração, é formulário. */
+  .pl-grupo { margin: 0 0 14px; }
+  .pl-grupo:last-of-type { margin-bottom: 0; }
+  .pl-grupo-tit { font-size: var(--fs-2xs); font-weight: 800; color: var(--text); margin: 0 0 6px; display: flex; align-items: center; gap: 6px; }
+  .pl-grupo-tit span { font-weight: 600; color: var(--text-faint); }
+
+  /* MODO ENXUTO — a classe existia e não estilizava nada: o botão "Modo enxuto"
+     do menu Exibição trocava um atributo e a tela ficava exatamente igual.
+     Agora ele faz o que promete: some com todo o texto de apoio (as explicações
+     do modo, do cenário, o "como ler", as prosas) e deixa números, barras e
+     listas. Avisos de erro e alertas NÃO somem — são resultado, não ajuda. */
+  .tec-enxuto .pl-modo-nota,
+  .tec-enxuto .pl-ordem-txt,
+  .tec-enxuto .pl-porque,
+  .tec-enxuto .pl-porque-item,
+  .tec-enxuto .pl-prosa,
+  .tec-enxuto .pl-guia,
+  .tec-enxuto .rfc-orderlabel,
+  .tec-enxuto #tec-panel-plano > .card > div > details.rfc-advanced,
+  .tec-enxuto .pl-steps-wrap { display: none !important; }
+
+  @media (max-width: 560px) {
+    /* os modos viram uma faixa que rola: cinco chips empilhados comiam a tela
+       inteira antes do primeiro número aparecer */
+    .pl-modos { flex-wrap: nowrap; overflow-x: auto; -webkit-overflow-scrolling: touch; scrollbar-width: none; padding-bottom: 2px; }
+    .pl-modos::-webkit-scrollbar { display: none; }
+    .pl-modos-rot { display: none; }
+    .pl-modo { flex: 0 0 auto; }
+  }
+
   .plano-acao { display: flex; flex-direction: column; align-items: flex-end; gap: 4px; white-space: nowrap; }
   .plano-ganho { font-family: 'Space Mono', ui-monospace, SFMono-Regular, Menlo, monospace; font-weight: 800; font-size: var(--fs-lg); }
   .plano-leva { font-size: var(--fs-3xs); color: var(--text-faint); }

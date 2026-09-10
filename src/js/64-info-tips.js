@@ -66,6 +66,21 @@
       h.appendChild(makeDot(el.innerHTML));
       el.style.display = 'none'; el.dataset.tipped = '1';
     });
+    /* 3) QUALQUER elemento com data-info ganha o "i" ao lado — é assim que um
+       campo de configuração passa a explicar o que faz.
+       Existia um caminho de ajuda para isto: o atributo `title`. No celular ele
+       NUNCA abre, e era onde moravam as explicações dos ajustes do Plano: a
+       tela pedia decisões sobre "amostra desejada" e "sensibilidade da
+       tendência" sem uma única frase visível dizendo o que aquilo faz.
+       O "i" é visível, tem alvo de toque próprio e o texto sai do title quando
+       o data-info vem vazio, sem precisar duplicar a redação. */
+    document.querySelectorAll('[data-info]').forEach(el => {
+      if (el.dataset.tipped) return;
+      const html = (el.getAttribute('data-info') || el.getAttribute('title') || '').trim();
+      if (!html) return;
+      el.appendChild(makeDot(html));
+      el.dataset.tipped = '1';
+    });
   }
   document.addEventListener('click', (e) => { if (!e.target.closest('.info-dot') && !e.target.closest('.info-pop')) hide(); });
   document.addEventListener('keydown', (e) => { if (e.key === 'Escape') hide(); });

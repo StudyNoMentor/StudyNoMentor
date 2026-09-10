@@ -1184,6 +1184,135 @@ const AutoTeste = {
     }
   },
 
+
+  /* ═══ PLANO DE PONTOS FRACOS ═══════════════════════════════════════════════
+     A tela que diz por onde atacar é a que mais decide o tempo de estudo de
+     quem usa o app — e era a única sem um teste sequer. Os casos abaixo são as
+     invariantes que, quando quebram, quebram em silêncio: a ordem parece
+     plausível, o número parece um número, e a pessoa estuda a coisa errada.
+
+     Os retratos são sintéticos e o DB fica emprestado só durante o teste. */
+  plano() {
+    const P = PlanoEngine;
+    const dia = (n) => { const d = new Date(todayLocal() + 'T00:00:00'); d.setDate(d.getDate() - n); return d.toISOString().slice(0, 10); };
+    const linha = (cod, nome, q, ac) => ({ depth: 1, codigo: cod, nome, disciplina: 'Direito', questoes: q, acertos: ac });
+    const retrato = (id, ini, fim, rows) => ({ id, nome: id, date: fim, startDate: ini, endDate: fim, rows });
+    const O = (extra) => Object.assign({}, P.DEFAULTS, extra || {});
+    const origSnaps = DB.getTecSnapshots, origInc = ReforcoEngine.hasIncidencia;
+    const comRetratos = (snaps, fn) => {
+      DB.getTecSnapshots = () => snaps;
+      ReforcoEngine.hasIncidencia = () => false;
+      try { return fn(); } finally { DB.getTecSnapshots = origSnaps; ReforcoEngine.hasIncidencia = origInc; }
+    };
+    /* A: 60% em 50 questões (era 40%) · B: 50% em 100 (era 48%) · C: 81,7% em 60,
+       sem período anterior. Volumes bem diferentes de propósito: é o que separa
+       as ordens umas das outras. */
+    const antigo = retrato('t1', dia(90), dia(80), [linha('01', 'A', 100, 40), linha('02', 'B', 500, 240), linha('03', 'C', 20, 15)]);
+    const novo = retrato('t2', dia(10), dia(3), [linha('01', 'A', 50, 30), linha('02', 'B', 100, 50), linha('03', 'C', 40, 34)]);
+    const base = [antigo, novo];
+
+    comRetratos(base, () => {
+      const r = P.calcular(novo, O({ ordenar: 'pior' }));
+      const por = {}; r.itens.forEach(x => { por[x.nome] = x; });
+
+      // 1) O CUSTO OLHA A LACUNA E O TAMANHO DO ASSUNTO
+      this._ok('Plano: custo cresce com a lacuna', por.B.custoQ > por.A.custoQ && por.A.custoQ > por.C.custoQ,
+        { A: por.A.custoQ, B: por.B.custoQ, C: por.C.custoQ });
+      this._ok('Plano: assunto mais amplo custa mais por ponto', por.B.amplitude > por.A.amplitude && por.A.amplitude > por.C.amplitude,
+        { A: por.A.amplitude, B: por.B.amplitude, C: por.C.amplitude });
+
+      /* 2) O ACUMULADO FECHA COM O TOPO DA TELA. Levar TODO assunto ao máximo
+         realista tem de dar exatamente o máximo realista — se não fecha, o
+         "+2,8pp → 71,4%" de cada item promete um número que não existe. */
+      const somaGanhos = r.itens.reduce((a, x) => a + x.ganhoPP, 0);
+      this._ok('Plano: domínio + ganhos = máximo realista (peso igual)',
+        Math.abs(r.dominioPct + somaGanhos - r.teto) < 0.01, r.dominioPct + somaGanhos);
+
+      // 3) ▲▼ COMPARA COM O PERÍODO ANTERIOR, NÃO COM O TODO QUE O CONTÉM
+      this._ok('Plano: delta usa o período anterior à janela', por.A.delta === 20, por.A.delta);
+      this._ok('Plano: sem período anterior, não inventa delta', por.C.delta === null && por.C.qAntes === 0,
+        { delta: por.C.delta, qAntes: por.C.qAntes });
+
+      /* 4) O CAMINHO MAIS CURTO É O MAIS CURTO. Aqui o guloso escolheria A+B
+         (320 questões) e existe B+C com 271 — é a diferença entre a resposta
+         óbvia e a certa. */
+      this._ok('Plano: caminho mínimo bate o guloso', r.caminho && r.caminho.q === 271 && r.caminho.n === 2,
+        r.caminho && { q: r.caminho.q, n: r.caminho.n });
+      this._ok('Plano: caminho mínimo não repete assunto',
+        r.caminho && new Set(r.caminho.itens.map(x => x.nome)).size === r.caminho.n, r.caminho && r.caminho.itens.map(x => x.nome));
+      this._ok('Plano: a ordem exibida custa mais que o caminho curto', r.qAteMeta === 320 && r.caminho.q < r.qAteMeta,
+        { ordem: r.qAteMeta, curto: r.caminho.q });
+
+      // 5) AS ORDENS GÊMEAS SÃO DETECTADAS — e deixam de ser gêmeas com o custo por lacuna
+      const fixo = P.calcular(novo, O({ ordenar: 'rendimento', custoModo: 'fixo' }));
+      this._ok('Plano: com custo fixo, "retorno" é gêmea de "pior acerto"',
+        fixo.equivalentes.indexOf('pior') >= 0 && fixo.equivalentes.indexOf('ganhoDominio') >= 0, fixo.equivalentes);
+      const lac = P.calcular(novo, O({ ordenar: 'rendimento' }));
+      this._ok('Plano: com custo por lacuna, "retorno" tem fila própria',
+        lac.equivalentes.indexOf('pior') < 0, lac.equivalentes);
+      this._ok('Plano: "ganho no domínio" é sempre gêmea de "pior acerto"',
+        P.calcular(novo, O({ ordenar: 'ganhoDominio' })).equivalentes.indexOf('pior') >= 0);
+
+      // 6) A MESMA INVARIANTE DO ITEM 2, NA PONDERAÇÃO POR VOLUME
+      const vol = P.calcular(novo, O({ ponderacao: 'volume' }));
+      const somaVol = vol.itens.reduce((a, x) => a + x.ganhoPP, 0);
+      this._ok('Plano: domínio + ganhos = máximo realista (peso por volume)',
+        Math.abs(vol.dominioPct + somaVol - vol.teto) < 0.01, vol.dominioPct + somaVol);
+    });
+
+    // 7) SEGUNDO PLANO NÃO DUPLICA O QUE JÁ ESTÁ NA LISTA
+    const comPequeno = [antigo, retrato('t2', dia(10), dia(3), novo.rows.concat([linha('04', 'D', 5, 2)]))];
+    comRetratos(comPequeno, () => {
+      const fora = P.calcular(comPequeno[1], O({ incluirPequenas: false }));
+      this._ok('Plano: assunto sem amostra vai para o segundo plano',
+        fora.pequenas.some(x => x.nome === 'D') && !fora.itens.some(x => x.nome === 'D'));
+      this._ok('Plano: a meta do segundo plano é entrar no cálculo',
+        (fora.pequenas.find(x => x.nome === 'D') || {}).faltaAmostra === 15,
+        (fora.pequenas.find(x => x.nome === 'D') || {}).faltaAmostra);
+      const dentro = P.calcular(comPequeno[1], O({ incluirPequenas: true }));
+      this._ok('Plano: incluindo amostras pequenas, nada aparece duas vezes',
+        dentro.itens.some(x => x.nome === 'D') && dentro.pequenas.length === 0,
+        { itens: dentro.itens.length, pequenas: dentro.pequenas.length });
+    });
+
+    /* 9) A MIGRAÇÃO CHEGA A QUEM JÁ USA O APP. A tela grava todos os ajustes a
+       cada repintura, então todo perfil existente tem o custo antigo salvo — e
+       valor salvo vence padrão. Sem migração, a correção não alcança ninguém. */
+    const chave = DB._profilePrefix() + P.KEY_PREF;
+    const antesPrefs = localStorage.getItem(chave);
+    try {
+      DB.setRaw(chave, JSON.stringify({ custoModo: 'fixo', metaDominio: 82 }));
+      const m = P.prefs();
+      this._ok('Plano: perfil antigo adota o custo por lacuna', m.custoModo === 'lacuna' && m.metaDominio === 82, m.custoModo);
+      DB.setRaw(chave, JSON.stringify({ custoModo: 'proporcional' }));
+      this._ok('Plano: quem escolheu proporcional mantém a escolha', P.prefs().custoModo === 'proporcional');
+      DB.setRaw(chave, JSON.stringify({ custoModo: 'fixo', migracao: 2 }));
+      this._ok('Plano: escolher fixo DEPOIS da migração é respeitado', P.prefs().custoModo === 'fixo');
+    } finally {
+      if (antesPrefs == null) DB.delRaw(chave); else DB.setRaw(chave, antesPrefs);
+    }
+
+    // 10) OS PRESETS SÃO CONJUNTOS COERENTES, E A TELA SABE QUAL ESTÁ EM VIGOR
+    Object.keys(P.MODOS).forEach(k => {
+      const p = Object.assign({}, P.DEFAULTS, P.MODOS[k].patch);
+      this._ok('Plano: modo "' + k + '" é reconhecido depois de aplicado', P.modoAtivo(p) === k, P.modoAtivo(p));
+    });
+    this._ok('Plano: mexer num campo desfaz o preset',
+      P.modoAtivo(Object.assign({}, P.DEFAULTS, P.MODOS.base.patch, { ordenar: 'queda', ponderacao: 'volume', limite: 7 })) === 'livre');
+
+    // 8) CONSOLIDADO COM DADO VELHO NÃO É CONSOLIDADO
+    const velhos = [
+      retrato('v1', dia(320), dia(300), [linha('01', 'E', 60, 51), linha('02', 'F', 60, 30)]),
+      retrato('v2', dia(220), dia(200), [linha('01', 'E', 60, 51), linha('02', 'F', 60, 30)])
+    ];
+    comRetratos(velhos, () => {
+      const r = P.calcular(velhos[1], O({}));
+      const e = r.itens.find(x => x.nome === 'E');
+      this._ok('Plano: sustentou a meta, mas sem medição nova, não vira 🟢',
+        e && e.vencido && /sem medição nova/.test(e.status.rot), e && e.status.rot);
+    });
+  },
+
   rodar(imprimir) {
     this._r = { total: 0, passou: 0, falhou: 0, falhas: [], ms: 0 };
     const t0 = Date.now();
@@ -1204,7 +1333,8 @@ const AutoTeste = {
      ['Ids de perfil válidos para a nuvem', 'idsDePerfilSaoValidos'],
      ['Esvaziar deixa rastro', 'esvaziarDeixaRastro'],
      ['Travas não ficam presas', 'travasNaoFicamPresas'],
-     ['O disco que recusa gravação', 'oDiscoQueRecusa']].forEach(([nome, fn]) => {
+     ['O disco que recusa gravação', 'oDiscoQueRecusa'],
+     ['Plano de pontos fracos', 'plano']].forEach(([nome, fn]) => {
       try { this[fn](); }
       catch (e) { this._r.total++; this._r.falhou++; this._r.falhas.push({ nome: nome + ' — exceção', obtido: String(e && e.message || e) }); }
     });
