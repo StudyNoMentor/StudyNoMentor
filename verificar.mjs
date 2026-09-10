@@ -1915,6 +1915,94 @@ try {
   /* O QUADRO QUE RESPONDE "QUAIS MATERIAS EU PRIORIZO". 3h em Portugues, que
      vale 5 das 45 questoes, contra 1h em Dir Adm, que vale 40: e o caso que
      ninguem percebe sozinho, e que nenhuma tela mostrava. */
+  /* ── DA MATÉRIA PARA O ASSUNTO, EM UM TOQUE ────────────────────────────
+     A tabela fala de MATÉRIAS e a lista abaixo fala de ASSUNTOS. Sem a ponte o
+     caminho era manual e de cinco passos: ler o veredito, abrir os ajustes,
+     achar o campo Disciplina, escolher, fechar a folha, rolar. E o botão só
+     pode existir onde ha acao a tomar — numa linha ✅ ele convidaria a fazer
+     exatamente o que a tela acabou de dizer para nao fazer. */
+  const atk = await pag.evaluate(() => {
+    const origSubs = DB.getActiveSubjects, origModo = window.planCycleMode, origCiclo = DB.getCurrentCycle;
+    try {
+      DB.getActiveSubjects = () => ([{ nome: 'Dir Adm', qtdQuestoes: 40, pontosPorQuestao: 1, peso: 1 },
+        { nome: 'Portugues', qtdQuestoes: 5, pontosPorQuestao: 1, peso: 1 }]);
+      DB.getCurrentCycle = () => ({ subjects: [{ nome: 'Portugues', definidoMin: 180 }, { nome: 'Dir Adm', definidoMin: 60 }] });
+      window.planCycleMode = () => 'pos';
+      PlanoEngine.salvarPrefs({ disciplina: '__todas__' });
+      DesempenhoTecScreen._planoRefC = null;
+      DesempenhoTecScreen.renderPlano();
+      const linhas = [...document.querySelectorAll('.pl-tempo-tab tbody tr')].map((tr) => ({
+        ver: tr.querySelector('.reforco-tag').textContent.trim(),
+        botao: !!tr.querySelector('[data-atacar]') }));
+      const b = document.querySelector('[data-atacar]');
+      const antes = document.querySelectorAll('#plano-lista .pl-item').length;
+      if (b) b.click();
+      const out = { linhas, alvo: b ? b.dataset.atacar : null, antes,
+        depois: document.querySelectorAll('#plano-lista .pl-item').length,
+        filtro: document.getElementById('plano-disc').value,
+        gravado: PlanoEngine.prefs().disciplina,
+        temBloco: !!document.querySelector('#plano-lista .pl-hoje') };
+      PlanoEngine.salvarPrefs({ disciplina: '__todas__' });
+      return out;
+    } finally { DB.getActiveSubjects = origSubs; window.planCycleMode = origModo; DB.getCurrentCycle = origCiclo; }
+  });
+  const pedemAcao = (atk.linhas || []).filter((l) => /falta|muito tempo/.test(l.ver));
+  const naoPedem = (atk.linhas || []).filter((l) => /equilibrada|já domina/.test(l.ver));
+  (pedemAcao.length >= 1 && pedemAcao.every((l) => l.botao) && naoPedem.every((l) => !l.botao))
+    ? ok(`o botao "atacar esta materia" so aparece nas ${pedemAcao.length} linha(s) que pedem acao`)
+    : erro('o botao apareceu no lugar errado: ' + JSON.stringify(atk.linhas));
+  (atk.filtro === atk.alvo && atk.gravado === atk.alvo && atk.depois > 0 && atk.depois < atk.antes && atk.temBloco)
+    ? ok(`clicar filtra a lista pela materia (${atk.antes} → ${atk.depois} assuntos) e mantem o bloco de criar atividades`)
+    : erro('o botao nao filtrou a lista: ' + JSON.stringify(atk));
+
+  /* ── O MESMO NOME ESCRITO DE DOIS JEITOS ───────────────────────────────
+     O ciclo voce digita ("Portugues"); a incidencia e o TEC vem da banca
+     ("Lingua Portuguesa"). O veredito so nasce quando as duas pontas existem,
+     entao um nome diferente nao deixava a linha errada: deixava a linha
+     INEXISTENTE — e o quadro seguia mostrando as materias leves como se
+     fossem a prova inteira. O usuario via 8 linhas somando 23% do peso e nao
+     tinha como saber que os outros 77% haviam sumido. */
+  const nomes = await pag.evaluate(() => {
+    const origIncid = ReforcoEngine._incidByDisc, origSubs = DB.getActiveSubjects,
+      origModo = window.planCycleMode, origCiclo = DB.getCurrentCycle;
+    try {
+      const I = (d, n) => ({ codigo: '01', nome: 'Geral', disciplina: d, incidencia: n });
+      ReforcoEngine._incidByDisc = () => ({ 'Lingua Portuguesa': [I('Lingua Portuguesa', 100)],
+        'Dir Adm': [I('Dir Adm', 100)], 'Direito Constitucional': [I('Direito Constitucional', 200)] });
+      DB.getActiveSubjects = () => [];
+      window.planCycleMode = () => 'pre';
+      DB.getCurrentCycle = () => ({ subjects: [{ nome: 'Portugues', definidoMin: 180 }, { nome: 'Dir Adm', definidoMin: 60 }] });
+      DesempenhoTecScreen._planoRefC = null;
+      DesempenhoTecScreen.renderPlano();
+      const tm = PlanoPontos.tempoPorMateria();
+      const casa = (a, b) => PlanoPontos._casarNomes(a.map((x) => ReforcoEngine.norm(x)), b.map((x) => ReforcoEngine.norm(x)));
+      return {
+        linhas: [...document.querySelectorAll('.pl-tempo-tab tbody tr')].map((tr) => tr.querySelector('td b').textContent),
+        cobTempo: tm.cobTempo, cobPeso: tm.cobPeso,
+        semTempo: tm.semTempo.map((l) => l.nome),
+        nota: (document.querySelector('.pl-tempo-fora') || {}).textContent || '',
+        // e o casamento nao pode virar palpite:
+        exato: casa(['Contabilidade Geral'], ['Contabilidade de Custos', 'Contabilidade Geral'])['contabilidade geral'],
+        naoCasaIrmas: casa(['Contabilidade Geral'], ['Contabilidade de Custos'])['contabilidade geral'],
+        naoCasaAmbiguo: casa(['Direito'], ['Direito Penal', 'Direito Civil'])['direito'],
+        casaGenero: casa(['Portugues'], ['Lingua Portuguesa'])['portugues']
+      };
+    } finally {
+      ReforcoEngine._incidByDisc = origIncid; DB.getActiveSubjects = origSubs;
+      window.planCycleMode = origModo; DB.getCurrentCycle = origCiclo;
+    }
+  });
+  (nomes.linhas.length === 2 && nomes.linhas.some((n) => /Portugues/.test(n)) && nomes.cobTempo > 99)
+    ? ok(`"Portugues" do ciclo casa com "Lingua Portuguesa" da banca — o quadro cobre ${nomes.cobTempo.toFixed(0)}% do tempo em vez de perder a materia`)
+    : erro('a conciliacao de nomes falhou: ' + JSON.stringify(nomes));
+  (nomes.semTempo.includes('Direito Constitucional') && /Direito Constitucional/.test(nomes.nota) && /% do peso/.test(nomes.nota))
+    ? ok('e o que sobrou de fora e dito em voz alta, com nome e peso, em vez de sumir calado')
+    : erro('a tela nao acusou a materia pesada fora do ciclo: ' + JSON.stringify({ semTempo: nomes.semTempo, nota: nomes.nota.slice(0, 160) }));
+  (nomes.exato === 'contabilidade geral' && nomes.naoCasaIrmas === undefined
+    && nomes.naoCasaAmbiguo === undefined && nomes.casaGenero === 'lingua portuguesa')
+    ? ok('o casamento e conservador: exato vence, irmas nao se fundem e ambiguidade nao vira palpite')
+    : erro('o casamento de nomes virou palpite: ' + JSON.stringify(nomes));
+
   const temFalta = (pts.vereditos || []).some((v) => /:falta$/.test(v));
   const temSobra = (pts.vereditos || []).some((v) => /:sobra(Fraco)?$/.test(v));
   (pts.tempo && pts.linhasTempo === 2 && temFalta && temSobra && pts.desalinhadas === 2)
