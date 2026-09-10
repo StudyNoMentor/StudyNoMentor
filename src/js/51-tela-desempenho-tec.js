@@ -894,6 +894,215 @@ const PlanoEngine = {
   }
 };
 
+/* ═══════════════════════════════════════════════════════════════════════════
+   AJUSTES DO DESEMPENHO TEC — a folha suspensa
+   ───────────────────────────────────────────────────────────────────────────
+   As três abas com configuração tinham a mesma doença: os campos ficavam
+   ABERTOS na tela, esperando um clique raro. No Plano eram sete visíveis mais
+   dezenove avançados — 2.413px de formulário antes do primeiro número num
+   celular de 390px, com rótulos espremidos em duas colunas e quatro grupos
+   caindo em cascata. A tela abria em configuração, não em resultado.
+
+   Agora cada aba mostra UMA linha: o que está valendo, escrito por extenso, e
+   um botão que abre esta folha. Dentro dela os mesmos campos, com os MESMOS
+   ids — nada foi duplicado nem reescrito, as telas seguem lendo `plano-meta`,
+   `reforco-minq`, `tec-weak-minq` de onde sempre leram.
+
+   O que a folha acrescenta, e que uma pilha de acordeões não dá:
+
+   · UMA SEÇÃO POR VEZ, escolhida numa fita de chips. Nada cascateia.
+   · O QUE ESTÁ VALENDO fica legível sem abrir nada, na própria tela.
+   · UM PONTO no chip da seção que você personalizou — dá para ver de relance
+     onde você saiu do padrão, em vez de conferir campo a campo.
+   · APLICA AO VIVO. Mexeu, a tela atrás já mudou; "Concluir" só fecha. Não há
+     estado provisório para perder, nem "salvar" que se pode esquecer.
+   ═══════════════════════════════════════════════════════════════════════════ */
+const TecAjustes = {
+  aba: null,
+  secao: null,
+  _secoes(aba) {
+    return [...document.querySelectorAll('#tec-cfg-body .tec-cfg-sec[data-tab="' + aba + '"]')];
+  },
+  TITULOS: {
+    plano: { t: '🏁 Ajustes do Plano', s: 'O que a fila otimiza e em que dado ela confia.' },
+    reforco: { t: '🎯 Ajustes do Reforço', s: 'Como a banca e o seu erro se cruzam para formar o ranking.' },
+    analise: { t: '📊 Ajustes da Análise', s: 'O corte que define a lista de pontos fracos.' }
+  },
+  /* Padrão de fábrica de cada seção: é com isto que o ponto no chip sabe se
+     você mexeu ali. Ler os defaults do motor (e não uma cópia) é o que impede
+     o ponto de mentir quando um padrão mudar. */
+  PADROES: {
+    plano: () => Object.assign({}, PlanoEngine.DEFAULTS),
+    reforco: () => ({ estrat: 50, gran: 50, minq: 10, limite: null, disc: '__todas__',
+      reforcoView: 'global', reforcoOrdenar: 'oportunidade' }),
+    analise: () => ({ weakOrdenar: 'taxa', weakDisc: '__todas__', weakLimiar: null, weakMinQ: 10, weakLeaves: true })
+  },
+  abrir(aba) {
+    const modal = document.getElementById('tec-cfg-modal');
+    if (!modal || !this.TITULOS[aba]) return;
+    this.aba = aba;
+    const secs = this._secoes(aba);
+    if (!secs.length) return;
+    document.getElementById('tec-cfg-title').textContent = this.TITULOS[aba].t;
+    document.getElementById('tec-cfg-sub').textContent = this.TITULOS[aba].s;
+    // a fita de seções nasce do próprio DOM: seção nova aparece sozinha aqui
+    const nav = document.getElementById('tec-cfg-nav');
+    nav.innerHTML = secs.map(sec => `<button type="button" role="tab" data-sec="${escapeHtml(sec.dataset.sec)}">` +
+      `<span aria-hidden="true">${escapeHtml(sec.dataset.ic || '')}</span>${escapeHtml(sec.dataset.rot || '')}</button>`).join('');
+    this.mostrar(secs[0].dataset.sec);
+    modal.style.display = 'flex';
+    document.body.style.overflow = 'hidden';
+    this.aplicarCondicionais();
+    this.marcarPersonalizadas();
+    /* O foco cai no chip da seção, não no ✕. Abrir um painel de ajustes com o
+       anel de foco no botão de FECHAR é dizer, na primeira coisa que se vê,
+       que a saída é o mais importante da tela. */
+    setTimeout(() => {
+      const at = document.querySelector('#tec-cfg-nav button.is-active');
+      if (at) { try { at.focus(); } catch (e) { _quiet(e, 'cfg-foco'); } }
+    }, 80);
+  },
+  /* ── CAMPO QUE SÓ EXISTE QUANDO FAZ SENTIDO ──────────────────────────────
+     Os três sub-campos de custo eram irmãos permanentes, rotulados "· se por
+     lacuna: piso", "· se fixo: questões" — dois deles sempre inertes, e o
+     rótulo pedindo desculpa por isso. Um campo que não vale para a sua
+     configuração não é informação, é ruído: agora ele simplesmente não está
+     lá, e o rótulo pode dizer o que o campo faz. O mesmo vale para o peso da
+     banca, que só age na ordem "fraqueza × incidência". */
+  /* ── RESTAURAR O PADRÃO DE FÁBRICA DOS CAMPOS ────────────────────────────
+     Apagar a preferência salva não basta em duas das três abas: o Reforço e a
+     Análise leem os valores DOS PRÓPRIOS CAMPOS a cada repintura, e
+     `applyReforcoPrefs` ignora nulo de propósito. Zerar só o armazenamento
+     deixava a tela exatamente como estava — um "Restaurar padrões" que não
+     restaurava nada.
+
+     O padrão de fábrica de um campo é o que o HTML declara nele
+     (`defaultValue`, `defaultChecked`, `option[selected]`). Devolver isso e
+     disparar `change` faz o caminho normal do app rodar: o mesmo ouvinte que
+     atende um clique do usuário grava e repinta. */
+  restaurarCampos(aba) {
+    const secs = this._secoes(aba);
+    secs.forEach(sec => sec.querySelectorAll('input, select').forEach(el => {
+      if (el.type === 'checkbox' || el.type === 'radio') el.checked = el.defaultChecked;
+      else if (el.tagName === 'SELECT') {
+        const padrao = [...el.options].find(o => o.defaultSelected);
+        if (padrao) el.value = padrao.value; else if (el.options.length) el.selectedIndex = 0;
+      } else if (el.defaultValue !== '') el.value = el.defaultValue;
+      el.dispatchEvent(new Event('input', { bubbles: true }));
+      el.dispatchEvent(new Event('change', { bubbles: true }));
+    }));
+  },
+  aplicarCondicionais() {
+    document.querySelectorAll('#tec-cfg-body [data-cfg-se]').forEach(el => {
+      const [id, valores] = String(el.dataset.cfgSe).split(':');
+      const fonte = document.getElementById(id);
+      if (!fonte) return;
+      const vale = valores.split('|').indexOf(String(fonte.value)) >= 0;
+      el.hidden = !vale;
+    });
+  },
+  fechar() {
+    const modal = document.getElementById('tec-cfg-modal');
+    if (!modal) return;
+    modal.style.display = 'none';
+    document.body.style.overflow = '';
+    this.aba = null;
+    // devolve o foco para a porta por onde se entrou
+    const btn = document.querySelector('.tec-cfg-open[data-cfg="' + (this._voltarPara || '') + '"]');
+    if (btn) { try { btn.focus(); } catch (e) { _quiet(e, 'cfg-foco'); } }
+  },
+  mostrar(sec) {
+    if (!this.aba) return;
+    this.secao = sec;
+    /* Esconde TODAS as seções, não só as da aba corrente: as três abas dividem
+       o mesmo corpo, e ocultar apenas as irmãs deixava a seção da aba anterior
+       aparecendo por baixo — a folha do Plano mostrando os campos do Reforço. */
+    document.querySelectorAll('#tec-cfg-body .tec-cfg-sec').forEach(el => {
+      el.hidden = !(el.dataset.tab === this.aba && el.dataset.sec === sec);
+    });
+    const nav = document.getElementById('tec-cfg-nav');
+    nav.querySelectorAll('button').forEach(b => {
+      const at = b.dataset.sec === sec;
+      b.classList.toggle('is-active', at);
+      b.setAttribute('aria-selected', at ? 'true' : 'false');
+    });
+    const body = document.getElementById('tec-cfg-body');
+    if (body) body.scrollTop = 0;
+    // com cinco seções a fita rola: o chip escolhido tem de aparecer inteiro
+    const at = nav.querySelector('button.is-active');
+    if (at) { try { at.scrollIntoView({ inline: 'center', block: 'nearest', behavior: 'smooth' }); } catch (e) { _quiet(e, 'cfg-fita'); } }
+  },
+  /* O ponto no chip: um campo daquela seção está fora do padrão de fábrica.
+     Comparar por STRING evita que 85 e "85" contem como diferença — que era
+     como um chip nasceria marcado sem ninguém ter tocado nele. */
+  marcarPersonalizadas() {
+    if (!this.aba) return;
+    let padrao = {};
+    try { padrao = this.PADROES[this.aba](); } catch (e) { _quiet(e, 'cfg-padrao'); }
+    const nav = document.getElementById('tec-cfg-nav');
+    if (!nav) return;
+    this._secoes(this.aba).forEach(sec => {
+      const fora = [...sec.querySelectorAll('[data-cfg-key]')].some(el => {
+        const k = el.dataset.cfgKey;
+        if (!(k in padrao) || padrao[k] == null) return false;
+        const atual = (el.type === 'checkbox') ? el.checked : el.value;
+        return String(atual) !== String(padrao[k]);
+      });
+      const b = nav.querySelector('button[data-sec="' + sec.dataset.sec + '"]');
+      if (!b) return;
+      const tem = !!b.querySelector('.dot');
+      if (fora && !tem) b.insertAdjacentHTML('beforeend', '<span class="dot" title="Você ajustou algo nesta seção"></span>');
+      else if (!fora && tem) b.querySelector('.dot').remove();
+    });
+  },
+  /* O RESUMO É O QUE PERMITE FECHAR A FOLHA. Esconder ajuste sem dizer qual
+     está valendo não é limpar a tela, é esconder informação — a linha abaixo
+     do título tem de responder "com que régua este número foi feito?" sem
+     abrir nada. */
+  /* Cada item vira uma etiqueta com RÓTULO e VALOR. Uma frase corrida de
+     quatro fragmentos cinzentos ("todas · pior acerto · meta 85% · até 30")
+     obriga a ler tudo para achar um; a etiqueta responde de relance qual é o
+     campo e o que ele está valendo. */
+  resumo(aba) {
+    const sel = (id) => { const e = document.getElementById(id); return (e && e.options && e.options[e.selectedIndex]) ? e.options[e.selectedIndex].text : ''; };
+    const val = (id) => { const e = document.getElementById(id); return e ? e.value : ''; };
+    const semEmoji = (t) => String(t || '').replace(/^[^\p{L}\d]+/u, '').split(' — ')[0].trim();
+    const disc = (id) => { const d = semEmoji(sel(id)); return (!d || /^todas/i.test(d)) ? 'todas' : d; };
+    const p = [];
+    if (aba === 'plano') {
+      if (val('plano-meta')) p.push(['meta', val('plano-meta') + '%']);
+      p.push(['ordem', semEmoji(sel('plano-ordenar'))]);
+      p.push(['disciplina', disc('plano-disc')]);
+      if (val('plano-limite')) p.push(['lista', 'até ' + val('plano-limite')]);
+    } else if (aba === 'reforco') {
+      let b = ''; try { b = ReforcoEngine.rotuloBancas(DesempenhoTecScreen.bancaFiltro()); } catch (e) { _quiet(e, 'cfg-bancas'); }
+      p.push([/todas/i.test(b) ? 'bancas' : (b.indexOf(' e ') > 0 ? 'bancas' : 'banca'), b.replace(/^todas as bancas$/, 'todas')]);
+      p.push(['ordem', semEmoji(sel('reforco-ordenar'))]);
+      p.push(['disciplina', disc('reforco-disc')]);
+      const g = val('reforco-gran');
+      p.push(['nível', g === '0' ? 'disciplina' : g === '100' ? 'tópico' : 'assunto']);
+    } else if (aba === 'analise') {
+      if (val('tec-weak-threshold')) p.push(['fraco abaixo de', val('tec-weak-threshold') + '%']);
+      p.push(['ordem', semEmoji(sel('tec-weak-ordenar'))]);
+      p.push(['disciplina', disc('tec-weak-disc')]);
+      if (val('tec-weak-minq')) p.push(['mín. questões', val('tec-weak-minq')]);
+    }
+    return p.filter(x => x[1]);
+  },
+  // chamado pelas telas a cada repintura: o resumo nunca pode ficar velho
+  sincronizar(aba) {
+    const alvos = aba ? [aba] : ['plano', 'reforco', 'analise'];
+    alvos.forEach(a => {
+      const el = document.getElementById(a + '-cfg-resumo');
+      if (!el) return;
+      el.innerHTML = this.resumo(a).map(([k, v]) =>
+        `<span class="tec-cfg-pill"><i>${escapeHtml(k)}</i>${escapeHtml(String(v))}</span>`).join('');
+    });
+    if (this.aba) this.marcarPersonalizadas();
+  }
+};
+window.TecAjustes = TecAjustes;
+
 const DesempenhoTecScreen = {
   currentSnapId: null,
   // ---- Escopo da análise: 'consolidado' (todos), 'select' (retratos marcados), 'range' (intervalo) ----
@@ -1509,6 +1718,7 @@ const DesempenhoTecScreen = {
     if (tab === 'incidencia') this.renderIncidencia();
     if (tab === 'reforco') this.renderReforco();
     if (tab === 'plano') this.renderPlano();
+    try { TecAjustes.sincronizar(); } catch (e) { _quiet(e, 'resumo-abas'); }
     this.applyCfgHidden();
   },
   // ---- Plano de pontos fracos ----
@@ -1737,9 +1947,8 @@ const DesempenhoTecScreen = {
     const proj = document.getElementById('plano-proj');
     const lista = document.getElementById('plano-lista');
     if (!proj || !lista) return;
-    // com os ajustes recolhidos, o cabecalho mostra o que esta valendo
-    try { if (window.PainelRecolhivel) PainelRecolhivel.sincronizar('plano-filtros'); }
-    catch (e) { _quiet(e, 'resumo-plano'); }
+    // com os ajustes na folha suspensa, a linha da porta diz o que esta valendo
+    try { TecAjustes.sincronizar('plano'); } catch (e) { _quiet(e, 'resumo-plano'); }
     const num = (id, d) => { const e = document.getElementById(id); const n = parseFloat(e && e.value); return isNaN(n) ? d : n; };
     const val = (id, d) => { const e = document.getElementById(id); return (e && e.value) || d; };
     const bool = (id) => { const e = document.getElementById(id); return !!(e && e.checked); };
@@ -3457,43 +3666,6 @@ $id('tec-weak-disc').addEventListener('change', (e) => {
     on(id, 'change', aplicar);
     on(id, 'input', aplicar);
   });
-  /* Ajustes do Plano recolhidos por padrao. O resumo traz os tres que mudam a
-     leitura da lista: a disciplina, a ordenacao e a meta de dominio. */
-  PainelRecolhivel.registrar({
-    id: 'plano-filtros',
-    corpo: 'plano-filtros-body',
-    botao: 'plano-filtros-collapse',
-    texto: 'plano-filtros-collapse-txt',
-    resumo: 'plano-filtros-resumo',
-    rotuloAberto: 'Ocultar ajustes',
-    rotuloFechado: 'Mostrar ajustes',
-    calcResumo() {
-      const sel = (id) => { const e = document.getElementById(id); return e && e.options && e.options[e.selectedIndex] ? e.options[e.selectedIndex].text : ''; };
-      const num = (id) => { const e = document.getElementById(id); return e && e.value ? e.value : ''; };
-      const disc = sel('plano-disc') || 'Todas';
-      // a ordenacao vem com emoji no rotulo; aqui so o texto interessa
-      const ord = (sel('plano-ordenar') || '').replace(/^[^\p{L}]+/u, '').split(' — ')[0];
-      const meta = num('plano-meta');
-      return [disc, ord, meta ? 'meta ' + meta + '%' : ''].filter(Boolean).join(' · ');
-    },
-  });
-
-  on('plano-reset', 'click', async () => {
-    if (!await UI.confirm('Voltar todos os ajustes do Plano aos valores padrão?', { title: 'Restaurar padrões' })) return;
-    DB.delRaw(DB._profilePrefix() + PlanoEngine.KEY_PREF);
-    PlanoEngine._c = null;
-    DT.renderPlano();
-    showToast('Ajustes restaurados ✓');
-  });
-  on('plano-adv-btn', 'click', () => {
-    const box = document.getElementById('plano-advanced');
-    const btn = document.getElementById('plano-adv-btn');
-    if (!box || !btn) return;
-    const aberto = !box.hasAttribute('hidden');
-    if (aberto) box.setAttribute('hidden', ''); else box.removeAttribute('hidden');
-    btn.setAttribute('aria-expanded', aberto ? 'false' : 'true');
-    const ch = btn.querySelector('.chev'); if (ch) ch.textContent = aberto ? '▸' : '▾';
-  });
   on('reforco-disc', 'change', (e) => { DT.savePrefs({ disc: e.target.value }); DT.renderReforcoList(); });
   on('reforco-minq', 'input', (e) => { DT.savePrefs({ minq: e.target.value }); DT.renderReforcoList(); });
   on('reforco-limite', 'input', (e) => { DT.savePrefs({ limite: e.target.value }); DT.renderReforcoList(); });
@@ -3524,13 +3696,65 @@ $id('tec-weak-disc').addEventListener('change', (e) => {
     if (side) side.style.display = (DT.reforcoView === 'disc') ? 'none' : '';
     DT.renderReforcoList();
   });
-  // painel de ajustes avançados (recolhível)
-  const advBtn = document.getElementById('reforco-adv-btn');
-  const advPanel = document.getElementById('reforco-advanced');
-  if (advBtn && advPanel) advBtn.addEventListener('click', () => {
-    const open = advPanel.hasAttribute('hidden');
-    if (open) advPanel.removeAttribute('hidden'); else advPanel.setAttribute('hidden', '');
-    advBtn.setAttribute('aria-expanded', open ? 'true' : 'false');
+})();
+
+/* ── A FOLHA DE AJUSTES: abrir, navegar, restaurar, fechar ─────────────────
+   Um só ouvinte para as três abas. O clique em qualquer `.tec-cfg-open` diz
+   qual aba abrir; o resto é sempre igual, e é por isso que a folha pode
+   receber uma quarta aba sem nenhuma linha nova aqui. */
+(function () {
+  const DT = DesempenhoTecScreen;
+  document.addEventListener('click', (e) => {
+    const abre = e.target.closest && e.target.closest('.tec-cfg-open');
+    if (abre) { TecAjustes._voltarPara = abre.dataset.cfg; TecAjustes.abrir(abre.dataset.cfg); return; }
+    const chip = e.target.closest && e.target.closest('#tec-cfg-nav button');
+    if (chip) { TecAjustes.mostrar(chip.dataset.sec); return; }
+  });
+  const fecha = () => TecAjustes.fechar();
+  const x = document.getElementById('tec-cfg-x'); if (x) x.addEventListener('click', fecha);
+  const ok = document.getElementById('tec-cfg-done'); if (ok) ok.addEventListener('click', fecha);
+  /* Esc fecha, como em todo diálogo do app. O fundo desfocado NÃO fecha: um
+     toque acidental fora da caixa apagaria o ajuste que estava sendo feito. */
+  document.addEventListener('keydown', (e) => {
+    if (e.key !== 'Escape') return;
+    const m = document.getElementById('tec-cfg-modal');
+    if (m && m.style.display === 'flex') { e.stopPropagation(); fecha(); }
+  });
+  /* Mexeu num campo da folha, o resumo e os pontinhos acompanham na hora. Os
+     ouvintes que APLICAM cada campo continuam onde sempre estiveram — este
+     aqui só mantém a folha honesta sobre o que ela mesma mostra. */
+  const body = document.getElementById('tec-cfg-body');
+  if (body) ['input', 'change'].forEach(ev => body.addEventListener(ev, () => {
+    try { TecAjustes.aplicarCondicionais(); TecAjustes.sincronizar(); }
+    catch (err) { _quiet(err, 'cfg-sync'); }
+  }));
+  /* RESTAURAR PADRÕES vale para a aba aberta, e só para ela. Um botão que
+     zerasse as três de uma vez seria uma armadilha: ninguém espera que mexer
+     no Reforço apague a régua do Plano. */
+  const reset = document.getElementById('tec-cfg-reset');
+  if (reset) reset.addEventListener('click', async () => {
+    const aba = TecAjustes.aba;
+    if (!aba) return;
+    const nome = { plano: 'do Plano', reforco: 'do Reforço', analise: 'da Análise' }[aba] || '';
+    if (!await UI.confirm('Voltar todos os ajustes ' + nome + ' aos valores padrão?', { title: 'Restaurar padrões' })) return;
+    if (aba === 'plano') {
+      DB.delRaw(DB._profilePrefix() + PlanoEngine.KEY_PREF);
+      PlanoEngine._c = null;
+      DT.renderPlano();
+    } else if (aba === 'reforco') {
+      DT.savePrefs({ estrat: null, gran: null, minq: null, limite: null, disc: null,
+        reforcoView: null, reforcoOrdenar: null });
+      TecAjustes.restaurarCampos('reforco');
+      DT.renderReforco();
+    } else {
+      DT.savePrefs({ weakOrdenar: null, weakDisc: null, weakLimiar: null, weakMinQ: null, weakLeaves: null });
+      TecAjustes.restaurarCampos('analise');
+      DT.render();
+    }
+    TecAjustes.aplicarCondicionais();
+    TecAjustes.sincronizar();
+    TecAjustes.marcarPersonalizadas();
+    showToast('Ajustes restaurados ✓');
   });
 })();
 window.addEventListener('screen:activated', (e) => {

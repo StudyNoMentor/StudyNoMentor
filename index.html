@@ -57,7 +57,7 @@
      novo, e o antigo é descartado sozinho na ativação) e o que permite ao app
      dizer qual versão está rodando. Em src/ fica "dev" de propósito: a versão
      é gerada na montagem, não editada à mão. -->
-<meta name="diario-versao" content="vfd2687836d">
+<meta name="diario-versao" content="v6901337123">
 <script>
 /* ── ARRANQUE: abre o IndexedDB AGORA, em paralelo com o parse do documento ──
    A fachada de armazenamento vive no fim do <body>, depois de ~1,7 MB de HTML.
@@ -7857,7 +7857,7 @@ window.__idbBoot = (function () {
               <div class="grade-gear-wrap">
                 <button class="btn-secondary grade-gear-btn" id="tec-gear-btn" type="button" title="Opções de exibição" aria-haspopup="true" aria-expanded="false">⚙ Exibição</button>
                 <div class="grade-gear-menu" id="tec-gear-menu" role="menu" aria-hidden="true">
-                  <button class="grade-gear-item" id="tec-toggle-cfg" type="button" role="menuitem" title="Mostrar/ocultar os filtros e configurações desta tela"><span class="gg-ic">🔧</span>Filtros e configurações</button>
+                  <button class="grade-gear-item" id="tec-toggle-cfg" type="button" role="menuitem" title="Mostrar/ocultar os filtros que ficam soltos nos cartões. Os ajustes de cada aba moram no botão ⚙ Ajustes e continuam sempre acessíveis."><span class="gg-ic">🔧</span>Filtros soltos nos cartões</button>
                   <button class="grade-gear-item" id="tec-enxuto-btn" type="button" role="menuitem" title="Esconde textos de ajuda e legendas — deixa só números, barras e listas"><span class="gg-ic">🔎</span>Modo enxuto</button>
                 </div>
               </div>
@@ -7920,27 +7920,9 @@ window.__idbBoot = (function () {
             <p class="sub">O retrato do que você já errou, sem cruzar com banca nem com esforço estimado. Para a fila de ataque com custo e meta, veja a aba 🏁 Plano; para cruzar com o que a banca cobra, a aba 🎯 Reforço.</p>
           </div>
         </div>
-        <div class="tec-cfg tec-filterbar" style="margin:12px 24px 8px; display:flex; gap:14px; align-items:flex-end; flex-wrap:wrap;">
-          <div class="field" style="margin-bottom:0; min-width:200px;">
-            <label for="tec-weak-ordenar" data-info="Duas perguntas diferentes. &quot;Pior taxa&quot; responde onde você erra mais por questão resolvida — bom para achar assunto mal aprendido. &quot;Mais erros&quot; responde onde você PERDE mais questões: um tópico grande a 60% costuma custar mais pontos que um pequeno a 20%. Antes só existia a primeira, e com ela um tópico de 3 questões subia acima de um de 300.">Ordenar por</label>
-            <select id="tec-weak-ordenar">
-              <option value="taxa">🔴 Pior taxa de acerto</option>
-              <option value="impacto">📉 Mais erros (impacto)</option>
-            </select>
-          </div>
-          <div class="field" style="margin-bottom:0; min-width:200px;">
-            <label for="tec-weak-disc" data-info="Todas: agrupa por disciplina, da mais fraca para a mais forte. Uma disciplina: lista plana só dela, para atacar uma matéria por vez.">Agrupar / filtrar por disciplina</label>
-            <select id="tec-weak-disc"></select>
-          </div>
-          <div class="field" style="margin-bottom:0;">
-            <label data-info="Abaixo disto um tópico é considerado ponto fraco. Nasce igual à meta de domínio do 🏁 Plano, para que as duas telas usem a mesma régua — mude aqui se quiser um corte diferente só nesta lista.">Aproveitamento abaixo de</label>
-            <div class="time-input"><input type="number" inputmode="numeric" id="tec-weak-threshold" min="1" max="100" value="80" style="width:70px; text-align:center;"><span>%</span></div>
-          </div>
-          <div class="field" style="margin-bottom:0;">
-            <label for="tec-weak-minq" data-info="Tópicos com menos questões que isto ficam fora da lista. Com 3 questões, a taxa de acerto pode variar dezenas de pontos: cada linha mostra a margem (±pp) para você ver isso. Baixar este número enche a lista de amostras curtas.">Mínimo de questões</label>
-            <input type="number" inputmode="numeric" id="tec-weak-minq" min="1" value="10" style="width:80px; text-align:center;">
-          </div>
-          <label class="co-check" style="margin-bottom:6px;" data-info="O TEC agrupa assunto dentro de assunto. Ligado, só o nível mais específico entra — sem isso o mesmo erro aparece contado no tópico-pai e no filho, como se fossem dois pontos fracos."><input type="checkbox" id="tec-weak-leaves" checked> Só tópicos específicos (folhas)</label>
+        <div class="tec-cfg-bar">
+          <button type="button" class="tec-cfg-open" data-cfg="analise" aria-haspopup="dialog"><span class="gg-ic">⚙</span>Ajustes</button>
+          <span class="tec-cfg-resumo" id="analise-cfg-resumo"></span>
         </div>
         <div style="padding: 6px 24px 24px;" id="tec-weak-list"></div>
       </div>
@@ -8026,62 +8008,12 @@ window.__idbBoot = (function () {
           <!-- 1) BANNER de projeção (destaque no topo) -->
           <div id="reforco-proj" class="rfc-section"></div>
 
-          <!-- 2) BARRA principal: banca + visão + ordenação (o essencial, sempre visível) -->
-          <div class="rfc-toolbar tec-cfg">
-            <div class="rfc-field">
-              <label data-info="Quais bancas contam no cruzamento. Marque quantas quiser: quem presta para dois órgãos com bancas diferentes soma só as duas, sem carregar o histórico de bancas que não vai enfrentar. Sem nenhuma marcada, o app soma todas as importadas — útil antes do edital. A escolha vale para o Reforço, o Plano e a aba Incidência ao mesmo tempo.">Bancas do meu concurso</label>
-              <div class="banca-pick" id="reforco-banca-pick"></div>
-            </div>
-            <div class="rfc-field">
-              <label for="reforco-disc" data-info="Filtra o ranking a uma disciplina. As disciplinas listadas vêm da INCIDÊNCIA importada, não do seu desempenho: matéria que você estuda e não está no índice da banca não aparece aqui.">Disciplina</label>
-              <select id="reforco-disc"><option value="__todas__">📚 Todas</option></select>
-            </div>
-            <div class="rfc-field">
-              <label data-info="Ranking: uma fila única com os melhores alvos de todas as disciplinas — bom para decidir o que fazer agora. Disciplinas: um acordeão por matéria, com os pontos cegos e o sobre-investimento de cada uma embutidos — bom para planejar a semana.">Visão</label>
-              <div class="scope-toggle" id="reforco-view-toggle">
-                <button type="button" data-view="global" class="active">🏆 Ranking</button>
-                <button type="button" data-view="disc">📚 Disciplinas</button>
-              </div>
-            </div>
-            <div class="rfc-field">
-              <label for="reforco-ordenar" data-info="Oportunidade combina os três fatores (erro × incidência × zona de virada) e é a ordem que responde &quot;onde ganho mais ponto por hora&quot;. Maior erro ignora a banca. Maior incidência ignora o seu nível — serve para ver o que a prova cobra, não o que você precisa.">Ordenar por</label>
-              <select id="reforco-ordenar">
-                <option value="oportunidade" selected title="Erro × incidência × zona de virada. Use quando quiser o melhor retorno por hora.">🎯 Oportunidade de pontos</option>
-                <option value="erro" title="Só o seu erro, ignorando a banca. Use para fechar buracos antes do edital.">🔴 Maior erro (mais fraco)</option>
-                <option value="incidencia" title="Só o peso na prova, ignorando o seu nível. Use para conhecer a banca, não para escolher o que estudar.">🏛️ Maior incidência</option>
-              </select>
-            </div>
-            <button type="button" class="rfc-adv-btn" id="reforco-adv-btn" aria-expanded="false">
-              <span class="chev">▸</span> Ajustes avançados
-            </button>
-          </div>
-
-          <!-- 3) AJUSTES AVANÇADOS (recolhível — tira a poluição da tela) -->
-          <div class="rfc-advanced" id="reforco-advanced" hidden>
-            <div class="rfc-adv-grid">
-              <div class="rfc-field wide">
-                <label for="reforco-estrat" data-info="Para que lado o desempate vai. À esquerda, o que você mais erra sobe, mesmo que caia pouco na prova. À direita, o que mais cai na prova sobe, mesmo que você já vá bem. No meio, os dois pesam parecido. Não muda os números da lista — muda a ordem.">Estratégia: <span id="reforco-estrat-label" class="lbl-accent">equilíbrio</span></label>
-                <input type="range" id="reforco-estrat" min="0" max="100" value="50" class="reforco-slider">
-                <div class="reforco-slider-legend"><span>Recuperar erros</span><span>Maximizar incidência</span></div>
-              </div>
-              <div class="rfc-field wide">
-                <label data-info="Em que altura da árvore o Reforço decide. Disciplina: uma linha por matéria — visão de alocação de tempo. Assunto: desce um nível quando há amostra suficiente naquele ramo (o equilíbrio). Tópico: o nível mais fino, útil só quando você já resolve muita questão em cada assunto. O controle era um cursor de 101 posições que, por dentro, só tinha estes três valores.">Granularidade</label>
-                <div class="scope-toggle" id="reforco-gran-toggle">
-                  <button type="button" data-gran="0">📚 Disciplina</button>
-                  <button type="button" data-gran="50" class="active">📂 Assunto</button>
-                  <button type="button" data-gran="100">📄 Tópico</button>
-                </div>
-                <input type="hidden" id="reforco-gran" value="50">
-              </div>
-              <div class="rfc-field">
-                <label for="reforco-minq" data-info="Abaixo disto a unidade não entra no ranking de erros: vira 🕳️ ponto cego (se a banca cobra) ou fica de fora. É o que separa &quot;vou mal aqui&quot; de &quot;quase não pratiquei aqui&quot; — duas situações com ações opostas.">Mín. de questões</label>
-                <input type="number" inputmode="numeric" id="reforco-minq" min="1" value="10">
-              </div>
-              <div class="rfc-field">
-                <label for="reforco-limite" data-info="Quantas linhas o ranking mostra. Nasce da carga horária do seu ciclo (~1 tópico a cada 3h semanais). Não altera nenhum cálculo — só o tamanho da lista.">Qtd. de tópicos</label>
-                <input type="number" inputmode="numeric" id="reforco-limite" min="1" value="12">
-              </div>
-            </div>
+          <!-- 2) O QUE ESTÁ VALENDO + a porta dos ajustes. Banca, disciplina,
+               visão e ordenação moravam abertos aqui; no celular eram quatro
+               campos empilhados antes do primeiro item do ranking. -->
+          <div class="tec-cfg-bar">
+            <button type="button" class="tec-cfg-open" data-cfg="reforco" aria-haspopup="dialog"><span class="gg-ic">⚙</span>Ajustes</button>
+            <span class="tec-cfg-resumo" id="reforco-cfg-resumo"></span>
           </div>
 
           <!-- 4) RÓTULO explícito da ordenação (didático) -->
@@ -8117,184 +8049,17 @@ window.__idbBoot = (function () {
               <h2>🏁 Plano de pontos fracos</h2>
               <p class="sub">Baseado só no seu desempenho no TEC. Mede o quanto você já domina do que estuda e mostra por onde atacar para fechar a lacuna resolvendo o menor número de questões.</p>
             </div>
-            <!-- Sete campos ficavam abertos aqui o tempo todo, mais dezesseis
-                 avançados logo abaixo — a tela abria em configuração, não em
-                 resultado. Agora tudo isso mora num painel recolhido, e o que
-                 está valendo aparece resumido ao lado do título. -->
-            <div class="painel-head-acoes" style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
-              <span class="painel-resumo" id="plano-filtros-resumo" hidden></span>
-              <button type="button" class="evo-collapse-btn" id="plano-filtros-collapse" aria-expanded="false" title="Mostrar ou ocultar os ajustes do plano">
-                <span id="plano-filtros-collapse-txt">Mostrar ajustes</span><span class="chev">&#9662;</span>
-              </button>
-            </div>
           </div>
           <div style="padding: 4px 28px 20px;">
-            <div id="plano-filtros-body" hidden>
-            <!-- Sem a classe `tec-cfg` de proposito: esta barra agora vive dentro
-                 de #plano-filtros-body, que ja a esconde e mostra. Com as duas
-                 coisas juntas, "Ocultar filtros" do menu Exibicao a deixava com
-                 display:none !important — e abrir "Mostrar ajustes" revelava um
-                 painel pela metade, só com os avançados. -->
-            <div class="rfc-toolbar" style="margin-bottom:4px;">
-              <div class="rfc-field wide">
-                <label for="plano-disc" data-info="Restringe TODA a tela a uma disciplina: o domínio do topo, a lista e a trajetória passam a falar só dela. Útil para atacar uma matéria por vez; deixe em Todas para comparar onde o seu tempo rende mais.">Disciplina</label>
-                <select id="plano-disc"><option value="__todas__">📚 Todas</option></select>
-              </div>
-              <div class="rfc-field">
-                <label for="plano-meta" data-info="A nota que você considera suficiente em cada assunto. É a linha tracejada da trajetória e o que define quem é 🟢 sólido. Subir a meta aumenta a lista de pendências; baixar declara vitória cedo. 75–85% cobre a maioria dos concursos.">Meta de domínio (%)</label>
-                <input type="number" inputmode="numeric" id="plano-meta" min="30" max="100" step="1">
-              </div>
-              <div class="rfc-field">
-                <label for="plano-amostraalvo" data-info="Para cada assunto o app parte da importação mais recente e só volta no tempo até juntar esta quantidade de questões. Quanto maior, mais confiável a taxa — e mais antigo o dado que ela usa. Quem resolve pouco por semana deve manter baixo, senão a taxa vira retrato do ano passado.">Amostra desejada por assunto</label>
-                <select id="plano-amostraalvo">
-                  <option value="30">30 questões (±18pp)</option>
-                  <option value="50">50 questões (±14pp)</option>
-                  <option value="100">100 questões (±10pp)</option>
-                  <option value="200">200 questões (±7pp)</option>
-                </select>
-              </div>
-              <div class="rfc-field">
-                <label for="plano-ritmo" data-info="Quantas questões você resolve por semana. Segue sozinho o que os seus retratos mostram; digite outro valor para simular um cenário (&quot;e se eu dobrasse o ritmo?&quot;). Só afeta a previsão em semanas — não muda nenhuma prioridade.">Ritmo (q/semana)</label>
-                <input type="number" inputmode="numeric" id="plano-ritmo" min="1" max="2000" step="1">
-              </div>
-              <div class="rfc-field wide">
-                <label for="plano-ordenar" data-info="A ORDEM DE ATAQUE: qual pergunta decide quem vem primeiro na lista. Não muda nenhum número — muda a fila. A explicação do cenário escolhido aparece logo abaixo, com o caso em que ele é a escolha certa e o caso em que é armadilha.">Ordem de ataque</label>
-                <select id="plano-ordenar">
-                  <option value="pior">🔴 Pior acerto primeiro</option>
-                  <option value="ganhoGeral">📊 Maior ganho no aproveitamento geral</option>
-                  <option value="banca">🎯 Fraqueza × incidência na banca</option>
-                  <option value="rendimento">⚡ Melhor retorno — ganho ÷ custo</option>
-                  <option value="queda">📉 Maior queda recente</option>
-                </select>
-              </div>
-              <div class="rfc-field" id="plano-banca-field" style="display:none;">
-                <label data-info="Quais bancas contam na ordem &quot;fraqueza × incidência&quot;. É a MESMA seleção do Reforço e da aba Incidência: marcar aqui vale para as três. Sem nenhuma marcada, o app soma o histórico de todas as bancas importadas.">Bancas do meu concurso</label>
-                <div class="banca-pick" id="plano-banca-pick"></div>
-              </div>
-              <div class="rfc-field wide" style="align-items:flex-start;">
-                <button type="button" class="rfc-adv-btn" id="plano-adv-btn" aria-expanded="false">
-                  <span class="chev">▸</span> Ajustes avançados
-                </button>
-              </div>
+            <!-- Sete campos abertos aqui o tempo todo, mais dezenove avançados
+                 logo abaixo: a tela abria em CONFIGURAÇÃO, não em resultado —
+                 2.413px de formulário antes do primeiro número, no celular.
+                 Agora esta linha é a porta: o que está valendo, escrito, e um
+                 botão que abre a folha de ajustes. -->
+            <div class="tec-cfg-bar">
+              <button type="button" class="tec-cfg-open" data-cfg="plano" aria-haspopup="dialog"><span class="gg-ic">⚙</span>Ajustes</button>
+              <span class="tec-cfg-resumo" id="plano-cfg-resumo"></span>
             </div>
-
-            <!-- AJUSTES AVANÇADOS — dezenove campos numa grade única não é uma
-                 configuração, é um formulário. Agora são quatro grupos, cada um
-                 com uma pergunta só, e cada campo com o seu "i". -->
-            <div class="rfc-advanced" id="plano-advanced" hidden>
-              <div class="pl-grupo">
-                <p class="pl-grupo-tit" data-info="Decide em quem o app CONFIA. Uma taxa de acerto tirada de poucas questões não é medição, é palpite: com 8 questões, 40% de acerto pode significar qualquer coisa entre 4% e 71%. Estes três campos separam medição de palpite.">1 · Rigor da amostra <span>— em quem confiar</span></p>
-                <div class="rfc-adv-grid">
-                  <div class="rfc-field">
-                    <label for="plano-minamostra" data-info="Porta de entrada do cálculo. Assunto com menos questões que isto sai da média de domínio e vai para o segundo plano, onde a ação é outra: resolver questões para descobrir onde você está. Três erros em seis questões não é fraqueza comprovada, é falta de dado.">Mínimo para entrar no cálculo</label>
-                    <input type="number" inputmode="numeric" id="plano-minamostra" min="0" max="500" step="1">
-                  </div>
-                  <div class="rfc-field">
-                    <label for="plano-piso" data-info="Diferente do campo ao lado: aqui é o mínimo dentro de UMA importação para ela valer como medição no gráfico de trajetória e na contagem de importações seguidas na meta. Um assunto com 2 questões num retrato não conta como &quot;mais uma vez na meta&quot;.">Mínimo por importação (trajetória)</label>
-                    <input type="number" inputmode="numeric" id="plano-piso" min="1" max="100" step="1">
-                  </div>
-                  <div class="rfc-field wide">
-                    <label class="rfc-check" data-info="Ligado, os assuntos de amostra pequena entram na média e na lista em vez de ficarem no segundo plano — e o segundo plano some, porque ninguém precisa ver o mesmo assunto duas vezes. Use no modo Diagnóstico, quando o objetivo é justamente medir; desligue depois, ou meia dúzia de questões passa a mover o seu domínio."><input type="checkbox" id="plano-pequenas"> Incluir assuntos com amostra pequena no cálculo</label>
-                    <label class="rfc-check" data-info="O TEC agrupa assunto dentro de assunto (1, 1.1, 1.1.1). Ligado, só o nível mais específico entra na conta — sem isso, o mesmo acerto é contado no filho e no pai, e um tópico grande aparece duas vezes na lista com números diferentes. Desligue apenas se você estuda por blocos grandes e prefere ver o pai."><input type="checkbox" id="plano-folhas"> Só assuntos específicos (ignorar tópicos-pai)</label>
-                  </div>
-                </div>
-              </div>
-
-              <div class="pl-grupo">
-                <p class="pl-grupo-tit" data-info="Decide até que ponto o passado ainda fala por você. Desempenho de um ano atrás num assunto que você revisou desde então não descreve mais o seu nível — mas jogar fora dado antigo demais deixa o app sem amostra nenhuma. Estes três campos equilibram isso.">2 · Frescor do dado <span>— até onde o passado vale</span></p>
-                <div class="rfc-adv-grid">
-                  <div class="rfc-field">
-                    <label for="plano-janelamax" data-info="Trava de segurança: mesmo faltando amostra, o app NUNCA usa dado mais antigo que isto. Acima desse prazo o desempenho já não representa você. Baixar demais faz muitos assuntos ficarem sem diagnóstico.">Não usar dado mais velho que (dias)</label>
-                    <input type="number" inputmode="numeric" id="plano-janelamax" min="30" max="1825" step="30">
-                  </div>
-                  <div class="rfc-field">
-                    <label for="plano-validade" data-info="Sem medição nova neste prazo, o assunto é marcado com ⏳ dado vencido — e um assunto que sustentava a meta passa a aparecer como 🟠 sólido sem medição nova, em vez de 🟢 resolvido.">Dado vence em (dias)</label>
-                    <input type="number" inputmode="numeric" id="plano-validade" min="30" max="720" step="15">
-                  </div>
-                  <div class="rfc-field">
-                    <label for="plano-cadencia" data-info="Com que frequência você pretende importar um retrato novo do TEC. Se o último ficar mais velho que isto, a tela avisa que a leitura está defasada. É um lembrete seu para você — não altera nenhum cálculo.">Frequência de importação (dias)</label>
-                    <input type="number" inputmode="numeric" id="plano-cadencia" min="7" max="365" step="1">
-                  </div>
-                </div>
-              </div>
-
-              <div class="pl-grupo">
-                <p class="pl-grupo-tit" data-info="Define o que conta como bom, o que conta como resolvido e o que conta como mudança. É aqui que a tela deixa de ser um relatório e vira um critério: sem uma régua, todo número é só um número.">3 · Régua de aprovação <span>— o que conta como pronto</span></p>
-                <div class="rfc-adv-grid">
-                  <div class="rfc-field">
-                    <label for="plano-teto" data-info="Ninguém acerta 100% nem no assunto que domina — questão mal formulada, pegadinha, cansaço. Este é o alvo realista por assunto e a base do cálculo de ganho: o ganho de um assunto é o quanto ele sobe SE chegar aqui. Teto alto infla o ganho de todo mundo.">Acerto máximo realista (%)</label>
-                    <input type="number" inputmode="numeric" id="plano-teto" min="50" max="100" step="1">
-                  </div>
-                  <div class="rfc-field">
-                    <label for="plano-critico" data-info="Abaixo disto o diagnóstico muda de natureza: você erra mais do que acerta, então o problema é de teoria e não de treino. Resolver mais questões nessa faixa costuma só repetir o erro.">Faixa crítica: abaixo de (%)</label>
-                    <input type="number" inputmode="numeric" id="plano-critico" min="0" max="100" step="5">
-                  </div>
-                  <div class="rfc-field">
-                    <label for="plano-fragil" data-info="Entre a faixa crítica e este valor: a base existe mas falha em pontos específicos. A orientação vira revisar só o que errou, alternando com blocos de questões.">Faixa frágil: abaixo de (%)</label>
-                    <input type="number" inputmode="numeric" id="plano-fragil" min="0" max="100" step="5">
-                  </div>
-                  <div class="rfc-field">
-                    <label for="plano-consolidar" data-info="Quantas importações SEGUIDAS na meta um assunto precisa sustentar para virar 🟢 sólido. Cruzar a meta uma vez pode ser sorte na amostra; sustentar duas vezes já é outra conversa. Baixar para 1 esvazia a lista rápido demais.">Importações p/ consolidar</label>
-                    <input type="number" inputmode="numeric" id="plano-consolidar" min="1" max="10" step="1">
-                  </div>
-                  <div class="rfc-field">
-                    <label for="plano-sens" data-info="Variação mínima, em pontos percentuais, para o app marcar ▲ melhorando ou ▼ piorando. Abaixo disso é ruído de amostra, não evolução. Com poucas questões por assunto, use um valor maior.">Sensibilidade da tendência (pp)</label>
-                    <input type="number" inputmode="numeric" id="plano-sens" min="1" max="30" step="1">
-                  </div>
-                </div>
-              </div>
-
-              <div class="pl-grupo">
-                <p class="pl-grupo-tit" data-info="Decide o que a fila otimiza. Peso responde &quot;todo assunto vale o mesmo?&quot;; custo responde &quot;quanto trabalho cada um dá?&quot;. São estes dois campos que fazem as ordens de ataque discordarem entre si — com custo fixo e peso igual, três delas dão exatamente a mesma lista.">4 · Esforço e prioridade <span>— o que a fila otimiza</span></p>
-                <div class="rfc-adv-grid">
-                  <div class="rfc-field wide">
-                    <label for="plano-ponderacao" data-info="Peso igual: um assunto de 4 questões conta tanto quanto um de 400 — nada se esconde atrás de pouco volume, e é a leitura certa antes do edital. Por volume: o que você mais pratica manda, o que maximiza o aproveitamento geral do topo desta tela.">Como pesar cada assunto</label>
-                    <select id="plano-ponderacao">
-                      <option value="igual">⚖️ Todo assunto pesa igual — nada se esconde atrás de pouco volume</option>
-                      <option value="volume">📊 Pelo volume de questões — maximiza o Aproveitamento geral desta tela</option>
-                      <option value="ambas">🔀 Mostrar as duas — decida item a item</option>
-                    </select>
-                  </div>
-                  <div class="rfc-field wide">
-                    <label for="plano-customodo" data-info="Por lacuna (padrão): custo = piso para remedir + tanto por ponto percentual até o máximo realista, ajustado pela amplitude do assunto (o quanto o banco já te serviu ali, comparado à sua mediana). É o único modo em que &quot;melhor retorno&quot; produz uma fila diferente de &quot;pior acerto&quot;. Fixo: o mesmo número para todos — vira cópia de &quot;pior acerto primeiro&quot;. Proporcional: fator × o que você já praticou.">Como estimar o custo de cada assunto</label>
-                    <select id="plano-customodo">
-                      <option value="lacuna">📐 Pela lacuna até o máximo realista (recomendado)</option>
-                      <option value="fixo">Número fixo de questões por assunto</option>
-                      <option value="proporcional">Proporcional ao que você já praticou</option>
-                    </select>
-                  </div>
-                  <div class="rfc-field">
-                    <label for="plano-custopiso" data-info="· modo por lacuna: quantas questões você precisa resolver, no mínimo, para o assunto ser REMEDIDO na próxima importação. É o custo de um assunto que já está no máximo realista.">· se por lacuna: piso</label>
-                    <input type="number" inputmode="numeric" id="plano-custopiso" min="10" max="500" step="5">
-                  </div>
-                  <div class="rfc-field">
-                    <label for="plano-custoponto" data-info="· modo por lacuna: quantas questões a mais por ponto percentual de lacuna. Com 2, fechar 30 pontos custa 60 questões além do piso — mais ou menos conforme o assunto seja mais amplo ou mais estreito que a sua média. Aumente se os seus assuntos são densos; diminua se você costuma virar a chave rápido.">· se por lacuna: q/ponto</label>
-                    <input type="number" inputmode="decimal" id="plano-custoponto" min="0" max="20" step="0.5">
-                  </div>
-                  <div class="rfc-field">
-                    <label for="plano-custofixo" data-info="· modo fixo: o mesmo número de questões para todo assunto, independente da distância até a meta.">· se fixo: questões</label>
-                    <input type="number" inputmode="numeric" id="plano-custofixo" min="10" max="1000" step="5">
-                  </div>
-                  <div class="rfc-field">
-                    <label for="plano-custofator" data-info="· modo proporcional: multiplica o que você já resolveu naquele assunto. 0,5 significa &quot;metade do que já fiz&quot;. Assume que assunto grande dá mais trabalho — o que nem sempre vale.">· se proporcional: fator</label>
-                    <input type="number" inputmode="decimal" id="plano-custofator" min="0.1" max="3" step="0.1">
-                  </div>
-                  <div class="rfc-field wide">
-                    <label for="plano-pesobanca" data-info="Só afeta a ordem 🎯 fraqueza × incidência. Em 0 a banca é ignorada e a ordem vira o melhor retorno puro. Quanto maior, mais o assunto que CAI MUITO na prova sobe, mesmo sem ser o seu pior acerto. Acima de 8 a incidência manda praticamente sozinha.">Quanto a banca pesa na prioridade: <span id="plano-pesobanca-label" class="lbl-accent">6</span></label>
-                    <input type="range" id="plano-pesobanca" min="0" max="12" step="1" class="reforco-slider">
-                    <div class="reforco-slider-legend"><span>só o seu erro</span><span>equilíbrio</span><span>só a incidência</span></div>
-                  </div>
-                  <div class="rfc-field">
-                    <label for="plano-limite" data-info="Quantos assuntos a lista mostra. Não altera nenhum cálculo — o domínio e o caminho mais curto usam todos. Listas longas viram paralisia: 10 a 30 é o que se ataca de verdade.">Mostrar até (assuntos)</label>
-                    <input type="number" inputmode="numeric" id="plano-limite" min="5" max="200" step="5">
-                  </div>
-                </div>
-              </div>
-              <div style="display:flex;justify-content:flex-end;margin-top:12px;">
-                <button type="button" class="btn-secondary" id="plano-reset">↺ Restaurar padrões</button>
-              </div>
-            </div>
-            </div><!-- /#plano-filtros-body -->
 
             <!-- MODO DE ATAQUE: fica FORA do painel recolhível de propósito. É a
                  primeira decisão da tela ("qual pergunta eu estou fazendo?"),
@@ -8323,6 +8088,261 @@ window.__idbBoot = (function () {
         <span style="flex:1"></span>
         <button type="button" class="btn-secondary" id="ui-modal-cancel">Cancelar</button>
         <button type="button" class="btn-primary" id="ui-modal-ok">Confirmar</button>
+      </div>
+    </div>
+  </div>
+  <!-- ══════════════ AJUSTES DO DESEMPENHO TEC (janela suspensa) ══════════════
+       Vinte e cinco campos abertos na tela faziam o Desempenho TEC ABRIR EM
+       CONFIGURAÇÃO: no celular eram 2.413px de formulário antes do primeiro
+       número. Ajuste é a exceção — o resultado é a rotina. Agora tudo mora
+       aqui, numa folha que sobe de baixo no celular e vira diálogo no
+       desktop, com os campos repartidos em seções de UMA pergunta cada: só
+       uma aparece por vez, e nenhuma cascateia.
+
+       Os campos são OS MESMOS de antes, com os mesmos ids — as telas
+       continuam lendo `plano-meta`, `reforco-minq`, `tec-weak-minq`. O que
+       mudou foi onde eles moram. -->
+  <div id="tec-cfg-modal" class="cards-modal tec-cfg-modal" style="display:none;" aria-labelledby="tec-cfg-title">
+    <div class="cards-modal-box tec-cfg-box">
+      <div class="cards-modal-head tec-cfg-head">
+        <div style="min-width:0;">
+          <h2 id="tec-cfg-title">Ajustes</h2>
+          <p class="sub" id="tec-cfg-sub"></p>
+        </div>
+        <button type="button" class="icon-btn" id="tec-cfg-x" aria-label="Fechar ajustes">✕</button>
+      </div>
+      <div class="tec-cfg-nav" id="tec-cfg-nav" role="tablist" aria-label="Seções dos ajustes"></div>
+      <div class="cards-modal-body tec-cfg-body" id="tec-cfg-body">
+        <div class="tec-cfg-sec" data-tab="plano" data-sec="essencial" data-ic="🎯" data-rot="Essencial" hidden>
+          <p class="tec-cfg-sec-sub">As cinco decisões que mudam a leitura da lista. Se você só for mexer em uma coisa, é aqui.</p>
+          <div class="tec-cfg-grid">
+            <div class="rfc-field wide">
+              <label for="plano-disc" data-info="Restringe TODA a tela a uma disciplina: o domínio do topo, a lista e a trajetória passam a falar só dela. Útil para atacar uma matéria por vez; deixe em Todas para comparar onde o seu tempo rende mais.">Disciplina</label>
+              <select id="plano-disc" data-cfg-key="disciplina"><option value="__todas__">📚 Todas</option></select>
+            </div>
+            <div class="rfc-field">
+              <label for="plano-meta" data-info="A nota que você considera suficiente em cada assunto. É a linha tracejada da trajetória e o que define quem é 🟢 sólido. Subir a meta aumenta a lista de pendências; baixar declara vitória cedo. 75–85% cobre a maioria dos concursos.">Meta de domínio (%)</label>
+              <input type="number" inputmode="numeric" id="plano-meta" data-cfg-key="metaDominio" min="30" max="100" step="1">
+            </div>
+            <div class="rfc-field">
+              <label for="plano-amostraalvo" data-info="Para cada assunto o app parte da importação mais recente e só volta no tempo até juntar esta quantidade de questões. Quanto maior, mais confiável a taxa — e mais antigo o dado que ela usa. Quem resolve pouco por semana deve manter baixo, senão a taxa vira retrato do ano passado.">Amostra desejada por assunto</label>
+              <select id="plano-amostraalvo" data-cfg-key="amostraAlvo">
+                <option value="30">30 questões (±18pp)</option>
+                <option value="50">50 questões (±14pp)</option>
+                <option value="100">100 questões (±10pp)</option>
+                <option value="200">200 questões (±7pp)</option>
+              </select>
+            </div>
+            <div class="rfc-field">
+              <label for="plano-ritmo" data-info="Quantas questões você resolve por semana. Segue sozinho o que os seus retratos mostram; digite outro valor para simular um cenário (&quot;e se eu dobrasse o ritmo?&quot;). Só afeta a previsão em semanas — não muda nenhuma prioridade.">Ritmo (q/semana)</label>
+              <input type="number" inputmode="numeric" id="plano-ritmo" data-cfg-key="ritmoSemanal" min="1" max="2000" step="1">
+            </div>
+            <div class="rfc-field wide">
+              <label for="plano-ordenar" data-info="A ORDEM DE ATAQUE: qual pergunta decide quem vem primeiro na lista. Não muda nenhum número — muda a fila. A explicação do cenário escolhido aparece logo abaixo, com o caso em que ele é a escolha certa e o caso em que é armadilha.">Ordem de ataque</label>
+              <select id="plano-ordenar" data-cfg-key="ordenar">
+                <option value="pior">🔴 Pior acerto primeiro</option>
+                <option value="ganhoGeral">📊 Maior ganho no aproveitamento geral</option>
+                <option value="banca">🎯 Fraqueza × incidência na banca</option>
+                <option value="rendimento">⚡ Melhor retorno — ganho ÷ custo</option>
+                <option value="queda">📉 Maior queda recente</option>
+              </select>
+            </div>
+            <div class="rfc-field" id="plano-banca-field" style="display:none;">
+              <label data-info="Quais bancas contam na ordem &quot;fraqueza × incidência&quot;. É a MESMA seleção do Reforço e da aba Incidência: marcar aqui vale para as três. Sem nenhuma marcada, o app soma o histórico de todas as bancas importadas.">Bancas do meu concurso</label>
+              <div class="banca-pick" id="plano-banca-pick"></div>
+            </div>
+          </div>
+        </div>
+        <div class="tec-cfg-sec" data-tab="plano" data-sec="amostra" data-ic="🔬" data-rot="Amostra" hidden>
+          <p class="tec-cfg-sec-sub">Em quem o app confia. Uma taxa tirada de poucas questões não é medição, é palpite: com 8 questões, 40% pode significar qualquer coisa entre 4% e 71%.</p>
+          <div class="tec-cfg-grid">
+            <div class="rfc-field">
+              <label for="plano-minamostra" data-info="Porta de entrada do cálculo. Assunto com menos questões que isto sai da média de domínio e vai para o segundo plano, onde a ação é outra: resolver questões para descobrir onde você está. Três erros em seis questões não é fraqueza comprovada, é falta de dado.">Mínimo para entrar no cálculo</label>
+              <input type="number" inputmode="numeric" id="plano-minamostra" data-cfg-key="minAmostra" min="0" max="500" step="1">
+            </div>
+            <div class="rfc-field">
+              <label for="plano-piso" data-info="Diferente do campo ao lado: aqui é o mínimo dentro de UMA importação para ela valer como medição no gráfico de trajetória e na contagem de importações seguidas na meta. Um assunto com 2 questões num retrato não conta como &quot;mais uma vez na meta&quot;.">Mínimo por importação (trajetória)</label>
+              <input type="number" inputmode="numeric" id="plano-piso" data-cfg-key="pisoSerie" min="1" max="100" step="1">
+            </div>
+            <div class="rfc-field wide">
+              <label class="rfc-check" data-info="Ligado, os assuntos de amostra pequena entram na média e na lista em vez de ficarem no segundo plano — e o segundo plano some, porque ninguém precisa ver o mesmo assunto duas vezes. Use no modo Diagnóstico, quando o objetivo é justamente medir; desligue depois, ou meia dúzia de questões passa a mover o seu domínio."><input type="checkbox" id="plano-pequenas" data-cfg-key="incluirPequenas"> Incluir assuntos com amostra pequena no cálculo</label>
+              <label class="rfc-check" data-info="O TEC agrupa assunto dentro de assunto (1, 1.1, 1.1.1). Ligado, só o nível mais específico entra na conta — sem isso, o mesmo acerto é contado no filho e no pai, e um tópico grande aparece duas vezes na lista com números diferentes. Desligue apenas se você estuda por blocos grandes e prefere ver o pai."><input type="checkbox" id="plano-folhas" data-cfg-key="apenasFolhas"> Só assuntos específicos (ignorar tópicos-pai)</label>
+            </div>
+          </div>
+        </div>
+        <div class="tec-cfg-sec" data-tab="plano" data-sec="frescor" data-ic="🗓️" data-rot="Frescor" hidden>
+          <p class="tec-cfg-sec-sub">Até onde o passado ainda fala por você. Dado de um ano atrás não descreve o seu nível — mas jogar fora dado antigo demais deixa o app sem amostra nenhuma.</p>
+          <div class="tec-cfg-grid">
+            <div class="rfc-field">
+              <label for="plano-janelamax" data-info="Trava de segurança: mesmo faltando amostra, o app NUNCA usa dado mais antigo que isto. Acima desse prazo o desempenho já não representa você. Baixar demais faz muitos assuntos ficarem sem diagnóstico.">Não usar dado mais velho que (dias)</label>
+              <input type="number" inputmode="numeric" id="plano-janelamax" data-cfg-key="janelaMax" min="30" max="1825" step="30">
+            </div>
+            <div class="rfc-field">
+              <label for="plano-validade" data-info="Sem medição nova neste prazo, o assunto é marcado com ⏳ dado vencido — e um assunto que sustentava a meta passa a aparecer como 🟠 sólido sem medição nova, em vez de 🟢 resolvido.">Dado vence em (dias)</label>
+              <input type="number" inputmode="numeric" id="plano-validade" data-cfg-key="validadeDias" min="30" max="720" step="15">
+            </div>
+            <div class="rfc-field">
+              <label for="plano-cadencia" data-info="Com que frequência você pretende importar um retrato novo do TEC. Se o último ficar mais velho que isto, a tela avisa que a leitura está defasada. É um lembrete seu para você — não altera nenhum cálculo.">Frequência de importação (dias)</label>
+              <input type="number" inputmode="numeric" id="plano-cadencia" data-cfg-key="cadenciaDias" min="7" max="365" step="1">
+            </div>
+          </div>
+        </div>
+        <div class="tec-cfg-sec" data-tab="plano" data-sec="regua" data-ic="📏" data-rot="Régua" hidden>
+          <p class="tec-cfg-sec-sub">O que conta como bom, o que conta como resolvido e o que conta como mudança. É aqui que a tela deixa de ser relatório e vira critério.</p>
+          <div class="tec-cfg-grid">
+            <div class="rfc-field">
+              <label for="plano-teto" data-info="Ninguém acerta 100% nem no assunto que domina — questão mal formulada, pegadinha, cansaço. Este é o alvo realista por assunto e a base do cálculo de ganho: o ganho de um assunto é o quanto ele sobe SE chegar aqui. Teto alto infla o ganho de todo mundo.">Acerto máximo realista (%)</label>
+              <input type="number" inputmode="numeric" id="plano-teto" data-cfg-key="tetoDominio" min="50" max="100" step="1">
+            </div>
+            <div class="rfc-field">
+              <label for="plano-critico" data-info="Abaixo disto o diagnóstico muda de natureza: você erra mais do que acerta, então o problema é de teoria e não de treino. Resolver mais questões nessa faixa costuma só repetir o erro.">Faixa crítica: abaixo de (%)</label>
+              <input type="number" inputmode="numeric" id="plano-critico" data-cfg-key="faixaCritico" min="0" max="100" step="5">
+            </div>
+            <div class="rfc-field">
+              <label for="plano-fragil" data-info="Entre a faixa crítica e este valor: a base existe mas falha em pontos específicos. A orientação vira revisar só o que errou, alternando com blocos de questões.">Faixa frágil: abaixo de (%)</label>
+              <input type="number" inputmode="numeric" id="plano-fragil" data-cfg-key="faixaFragil" min="0" max="100" step="5">
+            </div>
+            <div class="rfc-field">
+              <label for="plano-consolidar" data-info="Quantas importações SEGUIDAS na meta um assunto precisa sustentar para virar 🟢 sólido. Cruzar a meta uma vez pode ser sorte na amostra; sustentar duas vezes já é outra conversa. Baixar para 1 esvazia a lista rápido demais.">Importações p/ consolidar</label>
+              <input type="number" inputmode="numeric" id="plano-consolidar" data-cfg-key="consolidarEm" min="1" max="10" step="1">
+            </div>
+            <div class="rfc-field">
+              <label for="plano-sens" data-info="Variação mínima, em pontos percentuais, para o app marcar ▲ melhorando ou ▼ piorando. Abaixo disso é ruído de amostra, não evolução. Com poucas questões por assunto, use um valor maior.">Sensibilidade da tendência (pp)</label>
+              <input type="number" inputmode="numeric" id="plano-sens" data-cfg-key="sensTendencia" min="1" max="30" step="1">
+            </div>
+          </div>
+        </div>
+        <div class="tec-cfg-sec" data-tab="plano" data-sec="esforco" data-ic="⚡" data-rot="Esforço" hidden>
+          <p class="tec-cfg-sec-sub">O que a fila otimiza. Peso responde "todo assunto vale o mesmo?"; custo responde "quanto trabalho cada um dá?". São estes dois que fazem as ordens de ataque discordarem entre si.</p>
+          <div class="tec-cfg-grid">
+            <div class="rfc-field wide">
+              <label for="plano-ponderacao" data-info="Peso igual: um assunto de 4 questões conta tanto quanto um de 400 — nada se esconde atrás de pouco volume, e é a leitura certa antes do edital. Por volume: o que você mais pratica manda, o que maximiza o aproveitamento geral do topo desta tela.">Como pesar cada assunto</label>
+              <select id="plano-ponderacao" data-cfg-key="ponderacao">
+                <option value="igual">⚖️ Todo assunto pesa igual — nada se esconde atrás de pouco volume</option>
+                <option value="volume">📊 Pelo volume de questões — maximiza o Aproveitamento geral desta tela</option>
+                <option value="ambas">🔀 Mostrar as duas — decida item a item</option>
+              </select>
+            </div>
+            <div class="rfc-field wide">
+              <label for="plano-customodo" data-info="Por lacuna (padrão): custo = piso para remedir + tanto por ponto percentual até o máximo realista, ajustado pela amplitude do assunto (o quanto o banco já te serviu ali, comparado à sua mediana). É o único modo em que &quot;melhor retorno&quot; produz uma fila diferente de &quot;pior acerto&quot;. Fixo: o mesmo número para todos — vira cópia de &quot;pior acerto primeiro&quot;. Proporcional: fator × o que você já praticou.">Como estimar o custo de cada assunto</label>
+              <select id="plano-customodo" data-cfg-key="custoModo">
+                <option value="lacuna">📐 Pela lacuna até o máximo realista (recomendado)</option>
+                <option value="fixo">Número fixo de questões por assunto</option>
+                <option value="proporcional">Proporcional ao que você já praticou</option>
+              </select>
+            </div>
+            <div class="rfc-field" data-cfg-se="plano-customodo:lacuna">
+              <label for="plano-custopiso" data-info="Quantas questões você precisa resolver, no mínimo, para o assunto ser REMEDIDO na próxima importação. É o custo de um assunto que já está no máximo realista.">Piso: questões para remedir</label>
+              <input type="number" inputmode="numeric" id="plano-custopiso" data-cfg-key="custoPiso" min="10" max="500" step="5">
+            </div>
+            <div class="rfc-field" data-cfg-se="plano-customodo:lacuna">
+              <label for="plano-custoponto" data-info="Quantas questões a mais por ponto percentual de lacuna. Com 2, fechar 30 pontos custa 60 questões além do piso — mais ou menos conforme o assunto seja mais amplo ou mais estreito que a sua média. Aumente se os seus assuntos são densos; diminua se você costuma virar a chave rápido.">Questões por ponto de lacuna</label>
+              <input type="number" inputmode="decimal" id="plano-custoponto" data-cfg-key="custoPorPonto" min="0" max="20" step="0.5">
+            </div>
+            <div class="rfc-field" data-cfg-se="plano-customodo:fixo">
+              <label for="plano-custofixo" data-info="O mesmo número de questões para todo assunto, independente da distância até a meta.">Questões por assunto</label>
+              <input type="number" inputmode="numeric" id="plano-custofixo" data-cfg-key="custoFixo" min="10" max="1000" step="5">
+            </div>
+            <div class="rfc-field" data-cfg-se="plano-customodo:proporcional">
+              <label for="plano-custofator" data-info="Multiplica o que você já resolveu naquele assunto. 0,5 significa &quot;metade do que já fiz&quot;. Assume que assunto grande dá mais trabalho — o que nem sempre vale.">Fator sobre o que já pratiquei</label>
+              <input type="number" inputmode="decimal" id="plano-custofator" data-cfg-key="custoFator" min="0.1" max="3" step="0.1">
+            </div>
+            <div class="rfc-field wide" data-cfg-se="plano-ordenar:banca">
+              <label for="plano-pesobanca" data-info="Só afeta a ordem 🎯 fraqueza × incidência. Em 0 a banca é ignorada e a ordem vira o melhor retorno puro. Quanto maior, mais o assunto que CAI MUITO na prova sobe, mesmo sem ser o seu pior acerto. Acima de 8 a incidência manda praticamente sozinha.">Quanto a banca pesa na prioridade: <span id="plano-pesobanca-label" class="lbl-accent">6</span></label>
+              <input type="range" id="plano-pesobanca" data-cfg-key="pesoBanca" min="0" max="12" step="1" class="reforco-slider">
+              <div class="reforco-slider-legend"><span>só o seu erro</span><span>equilíbrio</span><span>só a incidência</span></div>
+            </div>
+            <div class="rfc-field">
+              <label for="plano-limite" data-info="Quantos assuntos a lista mostra. Não altera nenhum cálculo — o domínio e o caminho mais curto usam todos. Listas longas viram paralisia: 10 a 30 é o que se ataca de verdade.">Mostrar até (assuntos)</label>
+              <input type="number" inputmode="numeric" id="plano-limite" data-cfg-key="limite" min="5" max="200" step="5">
+            </div>
+          </div>
+        </div>
+        <div class="tec-cfg-sec" data-tab="reforco" data-sec="essencial" data-ic="🎯" data-rot="Essencial" hidden>
+          <p class="tec-cfg-sec-sub">Quais bancas contam, que recorte você quer ver e qual pergunta ordena a fila.</p>
+          <div class="tec-cfg-grid">
+            <div class="rfc-field">
+              <label data-info="Quais bancas contam no cruzamento. Marque quantas quiser: quem presta para dois órgãos com bancas diferentes soma só as duas, sem carregar o histórico de bancas que não vai enfrentar. Sem nenhuma marcada, o app soma todas as importadas — útil antes do edital. A escolha vale para o Reforço, o Plano e a aba Incidência ao mesmo tempo.">Bancas do meu concurso</label>
+              <div class="banca-pick" id="reforco-banca-pick"></div>
+            </div>
+            <div class="rfc-field">
+              <label for="reforco-disc" data-info="Filtra o ranking a uma disciplina. As disciplinas listadas vêm da INCIDÊNCIA importada, não do seu desempenho: matéria que você estuda e não está no índice da banca não aparece aqui.">Disciplina</label>
+              <select id="reforco-disc" data-cfg-key="disc"><option value="__todas__">📚 Todas</option></select>
+            </div>
+            <div class="rfc-field">
+              <label data-info="Ranking: uma fila única com os melhores alvos de todas as disciplinas — bom para decidir o que fazer agora. Disciplinas: um acordeão por matéria, com os pontos cegos e o sobre-investimento de cada uma embutidos — bom para planejar a semana.">Visão</label>
+              <div class="scope-toggle" id="reforco-view-toggle">
+                <button type="button" data-view="global" class="active">🏆 Ranking</button>
+                <button type="button" data-view="disc">📚 Disciplinas</button>
+              </div>
+            </div>
+            <div class="rfc-field">
+              <label for="reforco-ordenar" data-info="Oportunidade combina os três fatores (erro × incidência × zona de virada) e é a ordem que responde &quot;onde ganho mais ponto por hora&quot;. Maior erro ignora a banca. Maior incidência ignora o seu nível — serve para ver o que a prova cobra, não o que você precisa.">Ordenar por</label>
+              <select id="reforco-ordenar" data-cfg-key="reforcoOrdenar">
+                <option value="oportunidade" selected title="Erro × incidência × zona de virada. Use quando quiser o melhor retorno por hora.">🎯 Oportunidade de pontos</option>
+                <option value="erro" title="Só o seu erro, ignorando a banca. Use para fechar buracos antes do edital.">🔴 Maior erro (mais fraco)</option>
+                <option value="incidencia" title="Só o peso na prova, ignorando o seu nível. Use para conhecer a banca, não para escolher o que estudar.">🏛️ Maior incidência</option>
+              </select>
+            </div>
+          </div>
+        </div>
+        <div class="tec-cfg-sec" data-tab="reforco" data-sec="afinacao" data-ic="🎚️" data-rot="Afinação" hidden>
+          <p class="tec-cfg-sec-sub">Para que lado o desempate vai, em que altura da árvore o Reforço decide e qual o tamanho da lista.</p>
+          <div class="tec-cfg-grid">
+            <div class="rfc-field wide">
+              <label for="reforco-estrat" data-info="Para que lado o desempate vai. À esquerda, o que você mais erra sobe, mesmo que caia pouco na prova. À direita, o que mais cai na prova sobe, mesmo que você já vá bem. No meio, os dois pesam parecido. Não muda os números da lista — muda a ordem.">Estratégia: <span id="reforco-estrat-label" class="lbl-accent">equilíbrio</span></label>
+              <input type="range" id="reforco-estrat" data-cfg-key="estrat" min="0" max="100" value="50" class="reforco-slider">
+              <div class="reforco-slider-legend"><span>Recuperar erros</span><span>Maximizar incidência</span></div>
+            </div>
+            <div class="rfc-field wide">
+              <label data-info="Em que altura da árvore o Reforço decide. Disciplina: uma linha por matéria — visão de alocação de tempo. Assunto: desce um nível quando há amostra suficiente naquele ramo (o equilíbrio). Tópico: o nível mais fino, útil só quando você já resolve muita questão em cada assunto. O controle era um cursor de 101 posições que, por dentro, só tinha estes três valores.">Granularidade</label>
+              <div class="scope-toggle" id="reforco-gran-toggle">
+                <button type="button" data-gran="0">📚 Disciplina</button>
+                <button type="button" data-gran="50" class="active">📂 Assunto</button>
+                <button type="button" data-gran="100">📄 Tópico</button>
+              </div>
+              <input type="hidden" id="reforco-gran" data-cfg-key="gran" value="50">
+            </div>
+            <div class="rfc-field">
+              <label for="reforco-minq" data-info="Abaixo disto a unidade não entra no ranking de erros: vira 🕳️ ponto cego (se a banca cobra) ou fica de fora. É o que separa &quot;vou mal aqui&quot; de &quot;quase não pratiquei aqui&quot; — duas situações com ações opostas.">Mín. de questões</label>
+              <input type="number" inputmode="numeric" id="reforco-minq" data-cfg-key="minq" min="1" value="10">
+            </div>
+            <div class="rfc-field">
+              <label for="reforco-limite" data-info="Quantas linhas o ranking mostra. Nasce da carga horária do seu ciclo (~1 tópico a cada 3h semanais). Não altera nenhum cálculo — só o tamanho da lista.">Qtd. de tópicos</label>
+              <input type="number" inputmode="numeric" id="reforco-limite" data-cfg-key="limite" min="1" value="12">
+            </div>
+          </div>
+        </div>
+        <div class="tec-cfg-sec" data-tab="analise" data-sec="fracos" data-ic="🎯" data-rot="Pontos fracos" hidden>
+          <p class="tec-cfg-sec-sub">O corte que decide quem entra na lista de pontos fracos e como ela é ordenada.</p>
+          <div class="tec-cfg-grid">
+            <div class="field" style="margin-bottom:0; min-width:200px;">
+              <label for="tec-weak-ordenar" data-info="Duas perguntas diferentes. &quot;Pior taxa&quot; responde onde você erra mais por questão resolvida — bom para achar assunto mal aprendido. &quot;Mais erros&quot; responde onde você PERDE mais questões: um tópico grande a 60% costuma custar mais pontos que um pequeno a 20%. Antes só existia a primeira, e com ela um tópico de 3 questões subia acima de um de 300.">Ordenar por</label>
+              <select id="tec-weak-ordenar" data-cfg-key="weakOrdenar">
+                <option value="taxa">🔴 Pior taxa de acerto</option>
+                <option value="impacto">📉 Mais erros (impacto)</option>
+              </select>
+            </div>
+            <div class="field" style="margin-bottom:0; min-width:200px;">
+              <label for="tec-weak-disc" data-info="Todas: agrupa por disciplina, da mais fraca para a mais forte. Uma disciplina: lista plana só dela, para atacar uma matéria por vez.">Agrupar / filtrar por disciplina</label>
+              <select id="tec-weak-disc" data-cfg-key="weakDisc"></select>
+            </div>
+            <div class="field" style="margin-bottom:0;">
+              <label data-info="Abaixo disto um tópico é considerado ponto fraco. Nasce igual à meta de domínio do 🏁 Plano, para que as duas telas usem a mesma régua — mude aqui se quiser um corte diferente só nesta lista.">Aproveitamento abaixo de</label>
+              <div class="time-input"><input type="number" inputmode="numeric" id="tec-weak-threshold" data-cfg-key="weakLimiar" min="1" max="100" value="80" style="width:70px; text-align:center;"><span>%</span></div>
+            </div>
+            <div class="field" style="margin-bottom:0;">
+              <label for="tec-weak-minq" data-info="Tópicos com menos questões que isto ficam fora da lista. Com 3 questões, a taxa de acerto pode variar dezenas de pontos: cada linha mostra a margem (±pp) para você ver isso. Baixar este número enche a lista de amostras curtas.">Mínimo de questões</label>
+              <input type="number" inputmode="numeric" id="tec-weak-minq" data-cfg-key="weakMinQ" min="1" value="10" style="width:80px; text-align:center;">
+            </div>
+            <label class="co-check" style="margin-bottom:6px;" data-info="O TEC agrupa assunto dentro de assunto. Ligado, só o nível mais específico entra — sem isso o mesmo erro aparece contado no tópico-pai e no filho, como se fossem dois pontos fracos."><input type="checkbox" id="tec-weak-leaves" data-cfg-key="weakLeaves" checked> Só tópicos específicos (folhas)</label>
+          </div>
+        </div>
+      </div>
+      <div class="cards-modal-foot tec-cfg-foot">
+        <button type="button" class="btn-secondary tec-cfg-reset" id="tec-cfg-reset">↺ <span class="tec-cfg-reset-longo">Restaurar </span>padrões</button>
+        <span class="tec-cfg-foot-gap"></span>
+        <button type="button" class="btn-primary" id="tec-cfg-done">Concluir</button>
       </div>
     </div>
   </div>
@@ -9746,6 +9766,163 @@ window.__idbBoot = (function () {
   #screen-registrar .reg-modebar .ux-seg { flex: 1 1 auto; }
   #screen-registrar .reg-modebar .ux-seg button { flex: 1 1 0; justify-content: center; }
 }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   AJUSTES DO DESEMPENHO TEC — a folha que substituiu o formulário na tela
+   ───────────────────────────────────────────────────────────────────────────
+   Vinte e cinco campos abertos empilhavam 2.413px de configuração antes do
+   primeiro número, num celular de 390px. Três decisões de layout resolvem isso:
+
+   · UMA SEÇÃO POR VEZ. As seções são irmãs e só a ativa é exibida — o que
+     rolava em cascata agora cabe em uma tela. A navegação é uma fita de chips
+     que rola na horizontal, não uma pilha de acordeões.
+   · CABEÇA E PÉ FIXOS. O título diz onde você está e o pé mantém "Restaurar
+     padrões" e "Concluir" sempre alcançáveis com o polegar, sem rolar de volta.
+   · GRADE QUE NÃO ESPREME. Uma coluna abaixo de 560px; duas acima. O campo
+     `wide` ocupa a linha inteira nos dois casos.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* a porta: uma linha só, com o que está valendo escrito ao lado */
+.tec-cfg-bar {
+  display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+  margin: 12px 24px 8px;
+}
+#tec-panel-plano .tec-cfg-bar { margin: 10px 0 6px; }
+.tec-cfg-open {
+  display: inline-flex; align-items: center; gap: 7px;
+  background: var(--surface-sunken); border: 1.5px solid var(--border);
+  color: var(--text); border-radius: 10px; padding: 8px 14px;
+  font-size: var(--fs-xs); font-weight: 700; cursor: pointer;
+  transition: border-color .15s, color .15s, background .15s;
+  min-height: 38px; flex: 0 0 auto;
+}
+.tec-cfg-open:hover, .tec-cfg-open:focus-visible { border-color: var(--accent); }
+.tec-cfg-resumo {
+  display: flex; align-items: center; gap: 6px; flex-wrap: wrap;
+  min-width: 0; flex: 1 1 180px;
+}
+.tec-cfg-resumo:empty { display: none; }
+.tec-cfg-pill {
+  display: inline-flex; align-items: baseline; gap: 5px;
+  background: var(--surface-sunken); border: 1px solid var(--border);
+  border-radius: 999px; padding: 3px 11px;
+  font-size: var(--fs-2xs); font-weight: 700; color: var(--text);
+  max-width: 100%; min-width: 0;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.tec-cfg-pill i {
+  font-style: normal; font-weight: 600; color: var(--text-faint);
+  text-transform: uppercase; letter-spacing: .03em; font-size: var(--fs-3xs);
+}
+
+/* a folha */
+.tec-cfg-modal { z-index: 2000; }
+.tec-cfg-box { max-width: 720px; }
+.tec-cfg-head { padding-bottom: 10px; }
+.tec-cfg-head h2 { font-size: var(--fs-md); }
+.tec-cfg-head .sub { margin-top: 2px; }
+
+/* fita de seções: rola na horizontal em vez de quebrar em duas fileiras */
+.tec-cfg-nav {
+  display: flex; gap: 8px; padding: 10px 22px 12px;
+  border-bottom: 1px solid var(--border);
+  overflow-x: auto; scrollbar-width: thin;
+  -webkit-overflow-scrolling: touch;
+}
+.tec-cfg-nav::-webkit-scrollbar { height: 4px; }
+.tec-cfg-nav::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
+.tec-cfg-nav button {
+  flex: 0 0 auto; display: inline-flex; align-items: center; gap: 6px;
+  background: var(--surface-sunken); border: 1.5px solid var(--border);
+  color: var(--text-soft); border-radius: 999px; padding: 7px 14px;
+  font-size: var(--fs-2xs); font-weight: 700; cursor: pointer; white-space: nowrap;
+  min-height: 36px; transition: all .15s;
+}
+.tec-cfg-nav button:hover { border-color: var(--accent); color: var(--text); }
+/* `--on-accent` e não `#fff`: no tema escuro o acento é #7c74ff e o branco
+   dá 3,62:1 — abaixo do AA. O token já carrega a tinta que cada tema exige. */
+.tec-cfg-nav button.is-active {
+  background: var(--accent); border-color: var(--accent); color: var(--on-accent);
+}
+/* um ponto marca a seção que você mexeu — some ao restaurar os padrões */
+.tec-cfg-nav button .dot {
+  width: 6px; height: 6px; border-radius: 50%; background: var(--accent); flex: 0 0 auto;
+}
+.tec-cfg-nav button.is-active .dot { background: var(--on-accent); }
+
+.tec-cfg-body { padding: 16px 22px 20px; }
+.tec-cfg-sec[hidden] { display: none !important; }
+.tec-cfg-sec-sub {
+  margin: 0 0 14px; font-size: var(--fs-2xs); color: var(--text-faint);
+  line-height: 1.55; text-align: justify; text-wrap: pretty;
+}
+.tec-cfg-grid {
+  display: grid; grid-template-columns: 1fr; gap: 16px 18px; align-items: start;
+}
+@media (min-width: 560px) { .tec-cfg-grid { grid-template-columns: 1fr 1fr; } }
+.tec-cfg-grid > .rfc-field, .tec-cfg-grid > .field { min-width: 0; margin-bottom: 0; }
+.tec-cfg-grid > .rfc-field.wide,
+.tec-cfg-grid > .field.wide,
+.tec-cfg-grid > .co-check { grid-column: 1 / -1; }
+/* dentro da folha o campo ocupa a largura que tem — nada de 100px fixos */
+.tec-cfg-grid .rfc-field select,
+.tec-cfg-grid .rfc-field input[type="number"],
+.tec-cfg-grid .field select,
+.tec-cfg-grid .field input[type="number"] { width: 100%; text-align: left; }
+.tec-cfg-grid .time-input input[type="number"] { width: 100% !important; text-align: center; }
+.tec-cfg-grid .rfc-field > label,
+.tec-cfg-grid .field > label {
+  font-size: var(--fs-2xs); font-weight: 700; color: var(--text-faint);
+  text-transform: uppercase; letter-spacing: .03em; line-height: 1.35;
+  display: block; margin-bottom: 5px;
+}
+.tec-cfg-grid .rfc-field > label.rfc-check,
+.tec-cfg-grid .co-check {
+  text-transform: none; letter-spacing: 0; color: var(--text);
+  font-size: var(--fs-xs); display: flex; align-items: center; gap: 9px;
+}
+/* a caixa de marcar não pode virar um campo de largura total */
+.tec-cfg-grid input[type="checkbox"] { flex: 0 0 auto; width: 17px; height: 17px; margin: 0; }
+.tec-cfg-grid .rfc-field.wide > .rfc-check + .rfc-check { margin-top: 10px; }
+.tec-cfg-grid .scope-toggle { width: 100%; }
+.tec-cfg-grid .scope-toggle button { flex: 1 1 0; justify-content: center; }
+.tec-cfg-grid .reforco-slider { width: 100%; }
+.tec-cfg-grid .banca-pick { width: 100%; }
+
+.tec-cfg-foot { padding: 12px 22px; gap: 10px; }
+.tec-cfg-foot-gap { flex: 1 1 auto; }
+.tec-cfg-foot .btn-primary { min-width: 130px; }
+
+/* No celular a folha sobe de baixo e ocupa a altura útil: a fita de seções e o
+   pé ficam presos, e só o corpo rola. Sem isto, "Concluir" some no fim de uma
+   rolagem de formulário — que é exatamente o problema que a folha veio matar. */
+@media (max-width: 640px) {
+  .tec-cfg-box { max-height: 92vh; }
+  .tec-cfg-head { padding: 16px 18px 10px; }
+  .tec-cfg-nav { padding: 8px 18px 10px; }
+  .tec-cfg-body { padding: 14px 18px 18px; }
+  .tec-cfg-foot { padding: 10px 18px calc(10px + env(safe-area-inset-bottom, 0px)); }
+  .tec-cfg-foot .btn-secondary, .tec-cfg-foot .btn-primary { flex: 1 1 0; min-width: 0; }
+  .tec-cfg-foot-gap { display: none; }
+  .tec-cfg-bar { margin-left: 18px; margin-right: 18px; }
+  #tec-panel-plano .tec-cfg-bar { margin-left: 0; margin-right: 0; }
+}
+/* Botão e etiquetas na mesma linha só enquanto há linha: a 390px o botão come
+   metade da largura e as etiquetas caem uma por fileira, empilhando quatro.
+   Em coluna elas usam a largura inteira e cabem duas por fileira. */
+@media (max-width: 560px) {
+  .tec-cfg-bar { flex-direction: column; align-items: stretch; gap: 8px; }
+  .tec-cfg-open { align-self: flex-start; }
+  .tec-cfg-resumo { flex: 1 1 auto; width: 100%; }
+}
+/* a fita avisa que continua: sem a borda esmaecida, cinco seções em 390px
+   parecem três e ninguém rola o que não sabe que existe */
+.tec-cfg-nav {
+  -webkit-mask-image: linear-gradient(90deg, #000 calc(100% - 28px), transparent);
+  mask-image: linear-gradient(90deg, #000 calc(100% - 28px), transparent);
+}
+.tec-cfg-sec [data-cfg-se][hidden] { display: none !important; }
+@media (max-width: 400px) { .tec-cfg-reset-longo { display: none; } }
 
 </style>
 
@@ -26745,6 +26922,71 @@ const AutoTeste = {
   },
 
 
+  /* ═══ A FOLHA DE AJUSTES ═══════════════════════════════════════════════════
+     O Desempenho TEC abria em CONFIGURAÇÃO: 25 campos empilhados, 2.413px de
+     formulário antes do primeiro número num celular de 390px. Os campos são os
+     mesmos, com os mesmos ids — mudou onde moram. O que este grupo cobra é a
+     estrutura de que a folha depende: seção sem chip é campo que não aparece
+     em lugar nenhum, e campo sem `data-cfg-key` é um ponto de "você mexeu
+     aqui" que nunca acende. */
+  ajustesTec() {
+    const T = TecAjustes;
+    const secs = (aba) => [...document.querySelectorAll('#tec-cfg-body .tec-cfg-sec[data-tab="' + aba + '"]')];
+    const abas = ['plano', 'reforco', 'analise'];
+    abas.forEach(aba => {
+      const lista = secs(aba);
+      this._ok('Ajustes: a aba "' + aba + '" tem seção na folha', lista.length >= 1, lista.length);
+      this._ok('Ajustes: toda seção de "' + aba + '" tem rótulo e ícone para o chip',
+        lista.every(s => s.dataset.rot && s.dataset.ic), lista.map(s => s.dataset.sec));
+      this._ok('Ajustes: toda seção de "' + aba + '" tem campo dentro',
+        lista.every(s => s.querySelectorAll('input, select').length > 0), lista.map(s => s.dataset.sec));
+      this._ok('Ajustes: a aba "' + aba + '" tem a porta ⚙ na tela',
+        !!document.querySelector('.tec-cfg-open[data-cfg="' + aba + '"]'));
+      this._ok('Ajustes: e um lugar para as etiquetas do que está valendo',
+        !!document.getElementById(aba + '-cfg-resumo'));
+      this._ok('Ajustes: a aba "' + aba + '" tem título e subtítulo na folha',
+        !!(T.TITULOS[aba] && T.TITULOS[aba].t && T.TITULOS[aba].s), T.TITULOS[aba]);
+    });
+    /* Nenhum id pode existir duas vezes: a folha herdou os campos das telas, e
+       um id duplicado faria `getElementById` devolver o errado — a tela leria
+       um valor e o usuário estaria editando outro. */
+    const ids = [...document.querySelectorAll('#tec-cfg-body [id]')].map(e => e.id);
+    this._ok('Ajustes: nenhum id repetido dentro da folha', new Set(ids).size === ids.length, ids.length);
+    const fora = ids.filter(id => document.querySelectorAll('#' + CSS.escape(id)).length > 1);
+    this._ok('Ajustes: nenhum campo da folha tem sósia fora dela', fora.length === 0, fora.slice(0, 4));
+    /* O ponto de "você mexeu aqui" lê `data-cfg-key`. Campo sem a marca é
+       campo que a folha nunca vai apontar como personalizado. */
+    const semChave = [];
+    abas.forEach(aba => secs(aba).forEach(sec => sec.querySelectorAll('input, select').forEach(el => {
+      if (el.type === 'hidden' || el.type === 'checkbox' && !el.id) return;
+      if (!el.dataset.cfgKey && el.id) semChave.push(el.id);
+    })));
+    this._ok('Ajustes: todo campo declara a chave do seu padrão de fábrica',
+      semChave.length === 0, semChave.slice(0, 6));
+    // e as chaves do Plano têm de existir mesmo em PlanoEngine.DEFAULTS
+    const desconhecidas = secs('plano').flatMap(sec => [...sec.querySelectorAll('[data-cfg-key]')])
+      .map(el => el.dataset.cfgKey).filter(k => !(k in PlanoEngine.DEFAULTS));
+    this._ok('Ajustes: as chaves do Plano existem no motor', desconhecidas.length === 0, desconhecidas);
+    /* Campo condicional aponta para um campo REAL e para um valor que aquele
+       campo oferece — senão ele some para sempre, sem erro nenhum. */
+    const quebrados = [...document.querySelectorAll('#tec-cfg-body [data-cfg-se]')].filter(el => {
+      const [id, vals] = String(el.dataset.cfgSe).split(':');
+      const fonte = document.getElementById(id);
+      if (!fonte || !fonte.options) return true;
+      const oferece = [...fonte.options].map(o => o.value);
+      return !vals.split('|').every(v => oferece.indexOf(v) >= 0);
+    });
+    this._ok('Ajustes: todo campo condicional aponta para uma opção que existe',
+      quebrados.length === 0, quebrados.map(e => e.dataset.cfgSe));
+    // o resumo devolve pares [rótulo, valor] preenchidos, nunca "undefined"
+    abas.forEach(aba => {
+      const r = T.resumo(aba);
+      this._ok('Ajustes: o resumo de "' + aba + '" tem etiquetas completas',
+        Array.isArray(r) && r.length >= 2 && r.every(x => x[0] && x[1] && !/undefined|NaN/.test(String(x[1]))), r);
+    });
+  },
+
+
   /* ═══ MOTOR DO REFORÇO ═════════════════════════════════════════════════════
      A fronteira adaptativa decide o que a pessoa vai estudar, e as três coisas
      que ela pode errar erram calado: contar a mesma questão duas vezes, somar
@@ -26978,7 +27220,8 @@ const AutoTeste = {
      ['O disco que recusa gravação', 'oDiscoQueRecusa'],
      ['Plano de pontos fracos', 'plano'],
      ['Motor do Reforço', 'reforcoMotor'],
-     ['Incidência: gravação', 'incidenciaGravacao']].forEach(([nome, fn]) => {
+     ['Incidência: gravação', 'incidenciaGravacao'],
+     ['Folha de ajustes do TEC', 'ajustesTec']].forEach(([nome, fn]) => {
       try { this[fn](); }
       catch (e) { this._r.total++; this._r.falhou++; this._r.falhas.push({ nome: nome + ' — exceção', obtido: String(e && e.message || e) }); }
     });
@@ -30522,6 +30765,215 @@ const PlanoEngine = {
   }
 };
 
+/* ═══════════════════════════════════════════════════════════════════════════
+   AJUSTES DO DESEMPENHO TEC — a folha suspensa
+   ───────────────────────────────────────────────────────────────────────────
+   As três abas com configuração tinham a mesma doença: os campos ficavam
+   ABERTOS na tela, esperando um clique raro. No Plano eram sete visíveis mais
+   dezenove avançados — 2.413px de formulário antes do primeiro número num
+   celular de 390px, com rótulos espremidos em duas colunas e quatro grupos
+   caindo em cascata. A tela abria em configuração, não em resultado.
+
+   Agora cada aba mostra UMA linha: o que está valendo, escrito por extenso, e
+   um botão que abre esta folha. Dentro dela os mesmos campos, com os MESMOS
+   ids — nada foi duplicado nem reescrito, as telas seguem lendo `plano-meta`,
+   `reforco-minq`, `tec-weak-minq` de onde sempre leram.
+
+   O que a folha acrescenta, e que uma pilha de acordeões não dá:
+
+   · UMA SEÇÃO POR VEZ, escolhida numa fita de chips. Nada cascateia.
+   · O QUE ESTÁ VALENDO fica legível sem abrir nada, na própria tela.
+   · UM PONTO no chip da seção que você personalizou — dá para ver de relance
+     onde você saiu do padrão, em vez de conferir campo a campo.
+   · APLICA AO VIVO. Mexeu, a tela atrás já mudou; "Concluir" só fecha. Não há
+     estado provisório para perder, nem "salvar" que se pode esquecer.
+   ═══════════════════════════════════════════════════════════════════════════ */
+const TecAjustes = {
+  aba: null,
+  secao: null,
+  _secoes(aba) {
+    return [...document.querySelectorAll('#tec-cfg-body .tec-cfg-sec[data-tab="' + aba + '"]')];
+  },
+  TITULOS: {
+    plano: { t: '🏁 Ajustes do Plano', s: 'O que a fila otimiza e em que dado ela confia.' },
+    reforco: { t: '🎯 Ajustes do Reforço', s: 'Como a banca e o seu erro se cruzam para formar o ranking.' },
+    analise: { t: '📊 Ajustes da Análise', s: 'O corte que define a lista de pontos fracos.' }
+  },
+  /* Padrão de fábrica de cada seção: é com isto que o ponto no chip sabe se
+     você mexeu ali. Ler os defaults do motor (e não uma cópia) é o que impede
+     o ponto de mentir quando um padrão mudar. */
+  PADROES: {
+    plano: () => Object.assign({}, PlanoEngine.DEFAULTS),
+    reforco: () => ({ estrat: 50, gran: 50, minq: 10, limite: null, disc: '__todas__',
+      reforcoView: 'global', reforcoOrdenar: 'oportunidade' }),
+    analise: () => ({ weakOrdenar: 'taxa', weakDisc: '__todas__', weakLimiar: null, weakMinQ: 10, weakLeaves: true })
+  },
+  abrir(aba) {
+    const modal = document.getElementById('tec-cfg-modal');
+    if (!modal || !this.TITULOS[aba]) return;
+    this.aba = aba;
+    const secs = this._secoes(aba);
+    if (!secs.length) return;
+    document.getElementById('tec-cfg-title').textContent = this.TITULOS[aba].t;
+    document.getElementById('tec-cfg-sub').textContent = this.TITULOS[aba].s;
+    // a fita de seções nasce do próprio DOM: seção nova aparece sozinha aqui
+    const nav = document.getElementById('tec-cfg-nav');
+    nav.innerHTML = secs.map(sec => `<button type="button" role="tab" data-sec="${escapeHtml(sec.dataset.sec)}">` +
+      `<span aria-hidden="true">${escapeHtml(sec.dataset.ic || '')}</span>${escapeHtml(sec.dataset.rot || '')}</button>`).join('');
+    this.mostrar(secs[0].dataset.sec);
+    modal.style.display = 'flex';
+    document.body.style.overflow = 'hidden';
+    this.aplicarCondicionais();
+    this.marcarPersonalizadas();
+    /* O foco cai no chip da seção, não no ✕. Abrir um painel de ajustes com o
+       anel de foco no botão de FECHAR é dizer, na primeira coisa que se vê,
+       que a saída é o mais importante da tela. */
+    setTimeout(() => {
+      const at = document.querySelector('#tec-cfg-nav button.is-active');
+      if (at) { try { at.focus(); } catch (e) { _quiet(e, 'cfg-foco'); } }
+    }, 80);
+  },
+  /* ── CAMPO QUE SÓ EXISTE QUANDO FAZ SENTIDO ──────────────────────────────
+     Os três sub-campos de custo eram irmãos permanentes, rotulados "· se por
+     lacuna: piso", "· se fixo: questões" — dois deles sempre inertes, e o
+     rótulo pedindo desculpa por isso. Um campo que não vale para a sua
+     configuração não é informação, é ruído: agora ele simplesmente não está
+     lá, e o rótulo pode dizer o que o campo faz. O mesmo vale para o peso da
+     banca, que só age na ordem "fraqueza × incidência". */
+  /* ── RESTAURAR O PADRÃO DE FÁBRICA DOS CAMPOS ────────────────────────────
+     Apagar a preferência salva não basta em duas das três abas: o Reforço e a
+     Análise leem os valores DOS PRÓPRIOS CAMPOS a cada repintura, e
+     `applyReforcoPrefs` ignora nulo de propósito. Zerar só o armazenamento
+     deixava a tela exatamente como estava — um "Restaurar padrões" que não
+     restaurava nada.
+
+     O padrão de fábrica de um campo é o que o HTML declara nele
+     (`defaultValue`, `defaultChecked`, `option[selected]`). Devolver isso e
+     disparar `change` faz o caminho normal do app rodar: o mesmo ouvinte que
+     atende um clique do usuário grava e repinta. */
+  restaurarCampos(aba) {
+    const secs = this._secoes(aba);
+    secs.forEach(sec => sec.querySelectorAll('input, select').forEach(el => {
+      if (el.type === 'checkbox' || el.type === 'radio') el.checked = el.defaultChecked;
+      else if (el.tagName === 'SELECT') {
+        const padrao = [...el.options].find(o => o.defaultSelected);
+        if (padrao) el.value = padrao.value; else if (el.options.length) el.selectedIndex = 0;
+      } else if (el.defaultValue !== '') el.value = el.defaultValue;
+      el.dispatchEvent(new Event('input', { bubbles: true }));
+      el.dispatchEvent(new Event('change', { bubbles: true }));
+    }));
+  },
+  aplicarCondicionais() {
+    document.querySelectorAll('#tec-cfg-body [data-cfg-se]').forEach(el => {
+      const [id, valores] = String(el.dataset.cfgSe).split(':');
+      const fonte = document.getElementById(id);
+      if (!fonte) return;
+      const vale = valores.split('|').indexOf(String(fonte.value)) >= 0;
+      el.hidden = !vale;
+    });
+  },
+  fechar() {
+    const modal = document.getElementById('tec-cfg-modal');
+    if (!modal) return;
+    modal.style.display = 'none';
+    document.body.style.overflow = '';
+    this.aba = null;
+    // devolve o foco para a porta por onde se entrou
+    const btn = document.querySelector('.tec-cfg-open[data-cfg="' + (this._voltarPara || '') + '"]');
+    if (btn) { try { btn.focus(); } catch (e) { _quiet(e, 'cfg-foco'); } }
+  },
+  mostrar(sec) {
+    if (!this.aba) return;
+    this.secao = sec;
+    /* Esconde TODAS as seções, não só as da aba corrente: as três abas dividem
+       o mesmo corpo, e ocultar apenas as irmãs deixava a seção da aba anterior
+       aparecendo por baixo — a folha do Plano mostrando os campos do Reforço. */
+    document.querySelectorAll('#tec-cfg-body .tec-cfg-sec').forEach(el => {
+      el.hidden = !(el.dataset.tab === this.aba && el.dataset.sec === sec);
+    });
+    const nav = document.getElementById('tec-cfg-nav');
+    nav.querySelectorAll('button').forEach(b => {
+      const at = b.dataset.sec === sec;
+      b.classList.toggle('is-active', at);
+      b.setAttribute('aria-selected', at ? 'true' : 'false');
+    });
+    const body = document.getElementById('tec-cfg-body');
+    if (body) body.scrollTop = 0;
+    // com cinco seções a fita rola: o chip escolhido tem de aparecer inteiro
+    const at = nav.querySelector('button.is-active');
+    if (at) { try { at.scrollIntoView({ inline: 'center', block: 'nearest', behavior: 'smooth' }); } catch (e) { _quiet(e, 'cfg-fita'); } }
+  },
+  /* O ponto no chip: um campo daquela seção está fora do padrão de fábrica.
+     Comparar por STRING evita que 85 e "85" contem como diferença — que era
+     como um chip nasceria marcado sem ninguém ter tocado nele. */
+  marcarPersonalizadas() {
+    if (!this.aba) return;
+    let padrao = {};
+    try { padrao = this.PADROES[this.aba](); } catch (e) { _quiet(e, 'cfg-padrao'); }
+    const nav = document.getElementById('tec-cfg-nav');
+    if (!nav) return;
+    this._secoes(this.aba).forEach(sec => {
+      const fora = [...sec.querySelectorAll('[data-cfg-key]')].some(el => {
+        const k = el.dataset.cfgKey;
+        if (!(k in padrao) || padrao[k] == null) return false;
+        const atual = (el.type === 'checkbox') ? el.checked : el.value;
+        return String(atual) !== String(padrao[k]);
+      });
+      const b = nav.querySelector('button[data-sec="' + sec.dataset.sec + '"]');
+      if (!b) return;
+      const tem = !!b.querySelector('.dot');
+      if (fora && !tem) b.insertAdjacentHTML('beforeend', '<span class="dot" title="Você ajustou algo nesta seção"></span>');
+      else if (!fora && tem) b.querySelector('.dot').remove();
+    });
+  },
+  /* O RESUMO É O QUE PERMITE FECHAR A FOLHA. Esconder ajuste sem dizer qual
+     está valendo não é limpar a tela, é esconder informação — a linha abaixo
+     do título tem de responder "com que régua este número foi feito?" sem
+     abrir nada. */
+  /* Cada item vira uma etiqueta com RÓTULO e VALOR. Uma frase corrida de
+     quatro fragmentos cinzentos ("todas · pior acerto · meta 85% · até 30")
+     obriga a ler tudo para achar um; a etiqueta responde de relance qual é o
+     campo e o que ele está valendo. */
+  resumo(aba) {
+    const sel = (id) => { const e = document.getElementById(id); return (e && e.options && e.options[e.selectedIndex]) ? e.options[e.selectedIndex].text : ''; };
+    const val = (id) => { const e = document.getElementById(id); return e ? e.value : ''; };
+    const semEmoji = (t) => String(t || '').replace(/^[^\p{L}\d]+/u, '').split(' — ')[0].trim();
+    const disc = (id) => { const d = semEmoji(sel(id)); return (!d || /^todas/i.test(d)) ? 'todas' : d; };
+    const p = [];
+    if (aba === 'plano') {
+      if (val('plano-meta')) p.push(['meta', val('plano-meta') + '%']);
+      p.push(['ordem', semEmoji(sel('plano-ordenar'))]);
+      p.push(['disciplina', disc('plano-disc')]);
+      if (val('plano-limite')) p.push(['lista', 'até ' + val('plano-limite')]);
+    } else if (aba === 'reforco') {
+      let b = ''; try { b = ReforcoEngine.rotuloBancas(DesempenhoTecScreen.bancaFiltro()); } catch (e) { _quiet(e, 'cfg-bancas'); }
+      p.push([/todas/i.test(b) ? 'bancas' : (b.indexOf(' e ') > 0 ? 'bancas' : 'banca'), b.replace(/^todas as bancas$/, 'todas')]);
+      p.push(['ordem', semEmoji(sel('reforco-ordenar'))]);
+      p.push(['disciplina', disc('reforco-disc')]);
+      const g = val('reforco-gran');
+      p.push(['nível', g === '0' ? 'disciplina' : g === '100' ? 'tópico' : 'assunto']);
+    } else if (aba === 'analise') {
+      if (val('tec-weak-threshold')) p.push(['fraco abaixo de', val('tec-weak-threshold') + '%']);
+      p.push(['ordem', semEmoji(sel('tec-weak-ordenar'))]);
+      p.push(['disciplina', disc('tec-weak-disc')]);
+      if (val('tec-weak-minq')) p.push(['mín. questões', val('tec-weak-minq')]);
+    }
+    return p.filter(x => x[1]);
+  },
+  // chamado pelas telas a cada repintura: o resumo nunca pode ficar velho
+  sincronizar(aba) {
+    const alvos = aba ? [aba] : ['plano', 'reforco', 'analise'];
+    alvos.forEach(a => {
+      const el = document.getElementById(a + '-cfg-resumo');
+      if (!el) return;
+      el.innerHTML = this.resumo(a).map(([k, v]) =>
+        `<span class="tec-cfg-pill"><i>${escapeHtml(k)}</i>${escapeHtml(String(v))}</span>`).join('');
+    });
+    if (this.aba) this.marcarPersonalizadas();
+  }
+};
+window.TecAjustes = TecAjustes;
+
 const DesempenhoTecScreen = {
   currentSnapId: null,
   // ---- Escopo da análise: 'consolidado' (todos), 'select' (retratos marcados), 'range' (intervalo) ----
@@ -31137,6 +31589,7 @@ const DesempenhoTecScreen = {
     if (tab === 'incidencia') this.renderIncidencia();
     if (tab === 'reforco') this.renderReforco();
     if (tab === 'plano') this.renderPlano();
+    try { TecAjustes.sincronizar(); } catch (e) { _quiet(e, 'resumo-abas'); }
     this.applyCfgHidden();
   },
   // ---- Plano de pontos fracos ----
@@ -31365,9 +31818,8 @@ const DesempenhoTecScreen = {
     const proj = document.getElementById('plano-proj');
     const lista = document.getElementById('plano-lista');
     if (!proj || !lista) return;
-    // com os ajustes recolhidos, o cabecalho mostra o que esta valendo
-    try { if (window.PainelRecolhivel) PainelRecolhivel.sincronizar('plano-filtros'); }
-    catch (e) { _quiet(e, 'resumo-plano'); }
+    // com os ajustes na folha suspensa, a linha da porta diz o que esta valendo
+    try { TecAjustes.sincronizar('plano'); } catch (e) { _quiet(e, 'resumo-plano'); }
     const num = (id, d) => { const e = document.getElementById(id); const n = parseFloat(e && e.value); return isNaN(n) ? d : n; };
     const val = (id, d) => { const e = document.getElementById(id); return (e && e.value) || d; };
     const bool = (id) => { const e = document.getElementById(id); return !!(e && e.checked); };
@@ -33085,43 +33537,6 @@ $id('tec-weak-disc').addEventListener('change', (e) => {
     on(id, 'change', aplicar);
     on(id, 'input', aplicar);
   });
-  /* Ajustes do Plano recolhidos por padrao. O resumo traz os tres que mudam a
-     leitura da lista: a disciplina, a ordenacao e a meta de dominio. */
-  PainelRecolhivel.registrar({
-    id: 'plano-filtros',
-    corpo: 'plano-filtros-body',
-    botao: 'plano-filtros-collapse',
-    texto: 'plano-filtros-collapse-txt',
-    resumo: 'plano-filtros-resumo',
-    rotuloAberto: 'Ocultar ajustes',
-    rotuloFechado: 'Mostrar ajustes',
-    calcResumo() {
-      const sel = (id) => { const e = document.getElementById(id); return e && e.options && e.options[e.selectedIndex] ? e.options[e.selectedIndex].text : ''; };
-      const num = (id) => { const e = document.getElementById(id); return e && e.value ? e.value : ''; };
-      const disc = sel('plano-disc') || 'Todas';
-      // a ordenacao vem com emoji no rotulo; aqui so o texto interessa
-      const ord = (sel('plano-ordenar') || '').replace(/^[^\p{L}]+/u, '').split(' — ')[0];
-      const meta = num('plano-meta');
-      return [disc, ord, meta ? 'meta ' + meta + '%' : ''].filter(Boolean).join(' · ');
-    },
-  });
-
-  on('plano-reset', 'click', async () => {
-    if (!await UI.confirm('Voltar todos os ajustes do Plano aos valores padrão?', { title: 'Restaurar padrões' })) return;
-    DB.delRaw(DB._profilePrefix() + PlanoEngine.KEY_PREF);
-    PlanoEngine._c = null;
-    DT.renderPlano();
-    showToast('Ajustes restaurados ✓');
-  });
-  on('plano-adv-btn', 'click', () => {
-    const box = document.getElementById('plano-advanced');
-    const btn = document.getElementById('plano-adv-btn');
-    if (!box || !btn) return;
-    const aberto = !box.hasAttribute('hidden');
-    if (aberto) box.setAttribute('hidden', ''); else box.removeAttribute('hidden');
-    btn.setAttribute('aria-expanded', aberto ? 'false' : 'true');
-    const ch = btn.querySelector('.chev'); if (ch) ch.textContent = aberto ? '▸' : '▾';
-  });
   on('reforco-disc', 'change', (e) => { DT.savePrefs({ disc: e.target.value }); DT.renderReforcoList(); });
   on('reforco-minq', 'input', (e) => { DT.savePrefs({ minq: e.target.value }); DT.renderReforcoList(); });
   on('reforco-limite', 'input', (e) => { DT.savePrefs({ limite: e.target.value }); DT.renderReforcoList(); });
@@ -33152,13 +33567,65 @@ $id('tec-weak-disc').addEventListener('change', (e) => {
     if (side) side.style.display = (DT.reforcoView === 'disc') ? 'none' : '';
     DT.renderReforcoList();
   });
-  // painel de ajustes avançados (recolhível)
-  const advBtn = document.getElementById('reforco-adv-btn');
-  const advPanel = document.getElementById('reforco-advanced');
-  if (advBtn && advPanel) advBtn.addEventListener('click', () => {
-    const open = advPanel.hasAttribute('hidden');
-    if (open) advPanel.removeAttribute('hidden'); else advPanel.setAttribute('hidden', '');
-    advBtn.setAttribute('aria-expanded', open ? 'true' : 'false');
+})();
+
+/* ── A FOLHA DE AJUSTES: abrir, navegar, restaurar, fechar ─────────────────
+   Um só ouvinte para as três abas. O clique em qualquer `.tec-cfg-open` diz
+   qual aba abrir; o resto é sempre igual, e é por isso que a folha pode
+   receber uma quarta aba sem nenhuma linha nova aqui. */
+(function () {
+  const DT = DesempenhoTecScreen;
+  document.addEventListener('click', (e) => {
+    const abre = e.target.closest && e.target.closest('.tec-cfg-open');
+    if (abre) { TecAjustes._voltarPara = abre.dataset.cfg; TecAjustes.abrir(abre.dataset.cfg); return; }
+    const chip = e.target.closest && e.target.closest('#tec-cfg-nav button');
+    if (chip) { TecAjustes.mostrar(chip.dataset.sec); return; }
+  });
+  const fecha = () => TecAjustes.fechar();
+  const x = document.getElementById('tec-cfg-x'); if (x) x.addEventListener('click', fecha);
+  const ok = document.getElementById('tec-cfg-done'); if (ok) ok.addEventListener('click', fecha);
+  /* Esc fecha, como em todo diálogo do app. O fundo desfocado NÃO fecha: um
+     toque acidental fora da caixa apagaria o ajuste que estava sendo feito. */
+  document.addEventListener('keydown', (e) => {
+    if (e.key !== 'Escape') return;
+    const m = document.getElementById('tec-cfg-modal');
+    if (m && m.style.display === 'flex') { e.stopPropagation(); fecha(); }
+  });
+  /* Mexeu num campo da folha, o resumo e os pontinhos acompanham na hora. Os
+     ouvintes que APLICAM cada campo continuam onde sempre estiveram — este
+     aqui só mantém a folha honesta sobre o que ela mesma mostra. */
+  const body = document.getElementById('tec-cfg-body');
+  if (body) ['input', 'change'].forEach(ev => body.addEventListener(ev, () => {
+    try { TecAjustes.aplicarCondicionais(); TecAjustes.sincronizar(); }
+    catch (err) { _quiet(err, 'cfg-sync'); }
+  }));
+  /* RESTAURAR PADRÕES vale para a aba aberta, e só para ela. Um botão que
+     zerasse as três de uma vez seria uma armadilha: ninguém espera que mexer
+     no Reforço apague a régua do Plano. */
+  const reset = document.getElementById('tec-cfg-reset');
+  if (reset) reset.addEventListener('click', async () => {
+    const aba = TecAjustes.aba;
+    if (!aba) return;
+    const nome = { plano: 'do Plano', reforco: 'do Reforço', analise: 'da Análise' }[aba] || '';
+    if (!await UI.confirm('Voltar todos os ajustes ' + nome + ' aos valores padrão?', { title: 'Restaurar padrões' })) return;
+    if (aba === 'plano') {
+      DB.delRaw(DB._profilePrefix() + PlanoEngine.KEY_PREF);
+      PlanoEngine._c = null;
+      DT.renderPlano();
+    } else if (aba === 'reforco') {
+      DT.savePrefs({ estrat: null, gran: null, minq: null, limite: null, disc: null,
+        reforcoView: null, reforcoOrdenar: null });
+      TecAjustes.restaurarCampos('reforco');
+      DT.renderReforco();
+    } else {
+      DT.savePrefs({ weakOrdenar: null, weakDisc: null, weakLimiar: null, weakMinQ: null, weakLeaves: null });
+      TecAjustes.restaurarCampos('analise');
+      DT.render();
+    }
+    TecAjustes.aplicarCondicionais();
+    TecAjustes.sincronizar();
+    TecAjustes.marcarPersonalizadas();
+    showToast('Ajustes restaurados ✓');
   });
 })();
 window.addEventListener('screen:activated', (e) => {
