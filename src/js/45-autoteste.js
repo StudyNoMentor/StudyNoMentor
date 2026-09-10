@@ -1212,7 +1212,11 @@ const AutoTeste = {
     const base = [antigo, novo];
 
     comRetratos(base, () => {
-      const r = P.calcular(novo, O({ ordenar: 'pior' }));
+      /* meta explícita de 80% neste caso: é o valor em que o guloso e o mínimo
+          divergem (320 x 271 questões), que é o que este bloco prova. Com a meta
+          padrão de 85% os dois caminhos coincidem — e um teste que passa por
+          coincidência não prova nada. */
+      const r = P.calcular(novo, O({ ordenar: 'pior', metaDominio: 80 }));
       const por = {}; r.itens.forEach(x => { por[x.nome] = x; });
 
       // 1) O CUSTO OLHA A LACUNA E O TAMANHO DO ASSUNTO
@@ -1246,12 +1250,16 @@ const AutoTeste = {
       // 5) AS ORDENS GÊMEAS SÃO DETECTADAS — e deixam de ser gêmeas com o custo por lacuna
       const fixo = P.calcular(novo, O({ ordenar: 'rendimento', custoModo: 'fixo' }));
       this._ok('Plano: com custo fixo, "retorno" é gêmea de "pior acerto"',
-        fixo.equivalentes.indexOf('pior') >= 0 && fixo.equivalentes.indexOf('ganhoDominio') >= 0, fixo.equivalentes);
+        fixo.equivalentes.indexOf('pior') >= 0, fixo.equivalentes);
       const lac = P.calcular(novo, O({ ordenar: 'rendimento' }));
       this._ok('Plano: com custo por lacuna, "retorno" tem fila própria',
         lac.equivalentes.indexOf('pior') < 0, lac.equivalentes);
-      this._ok('Plano: "ganho no domínio" é sempre gêmea de "pior acerto"',
-        P.calcular(novo, O({ ordenar: 'ganhoDominio' })).equivalentes.indexOf('pior') >= 0);
+      /* As duas ordens que davam sempre a mesma fila saíram do seletor. Se
+         alguém as trouxer de volta, este teste cai. */
+      this._ok('Plano: o seletor tem 5 ordens, sem gêmeas de fábrica',
+        Object.keys(P.ORDENS).length === 5 && !P.ORDENS.ganhoDominio && !P.ORDENS.volume,
+        Object.keys(P.ORDENS));
+      this._ok('Plano: a meta padrão é 85%', P.DEFAULTS.metaDominio === 85, P.DEFAULTS.metaDominio);
 
       // 6) A MESMA INVARIANTE DO ITEM 2, NA PONDERAÇÃO POR VOLUME
       const vol = P.calcular(novo, O({ ponderacao: 'volume' }));
@@ -1294,11 +1302,39 @@ const AutoTeste = {
 
     // 10) OS PRESETS SÃO CONJUNTOS COERENTES, E A TELA SABE QUAL ESTÁ EM VIGOR
     Object.keys(P.MODOS).forEach(k => {
-      const p = Object.assign({}, P.DEFAULTS, P.MODOS[k].patch);
+      const p = Object.assign({}, P.DEFAULTS, P.modoPatch(k));
       this._ok('Plano: modo "' + k + '" é reconhecido depois de aplicado', P.modoAtivo(p) === k, P.modoAtivo(p));
+      this._ok('Plano: modo "' + k + '" nasce com a meta de 85%', P.modoPatch(k).metaDominio == null || P.modoPatch(k).metaDominio === 85, P.modoPatch(k).metaDominio);
     });
     this._ok('Plano: mexer num campo desfaz o preset',
-      P.modoAtivo(Object.assign({}, P.DEFAULTS, P.MODOS.base.patch, { ordenar: 'queda', ponderacao: 'volume', limite: 7 })) === 'livre');
+      P.modoAtivo(Object.assign({}, P.DEFAULTS, P.modoPatch('base'), { ordenar: 'queda', ponderacao: 'volume', limite: 7 })) === 'livre');
+
+    /* 11) MODO EDITADO É DO USUÁRIO — e volta ao padrão sozinho, sem levar os
+       outros junto. O ajuste mora no perfil: reimportar retrato não o toca. */
+    const chaveM = DB._profilePrefix() + P.KEY_PREF;
+    const antesM = localStorage.getItem(chaveM);
+    try {
+      DB.delRaw(chaveM);
+      P.salvarModo('curto', { metaDominio: 92, limite: 3 });
+      this._ok('Plano: modo editado guarda o valor do usuário',
+        P.modoPatch('curto').metaDominio === 92 && P.modoPatch('curto').limite === 3, P.modoPatch('curto'));
+      this._ok('Plano: editar um modo não mexe nos outros',
+        P.modoPatch('base').metaDominio === P.MODOS.base.patch.metaDominio && !P.modoEditado('base'));
+      this._ok('Plano: a tela sabe que o modo foi ajustado', P.modoEditado('curto') === true);
+      P.restaurarModo('curto');
+      this._ok('Plano: restaurar devolve o padrão de fábrica daquele modo',
+        !P.modoEditado('curto') && P.modoPatch('curto').metaDominio === P.MODOS.curto.patch.metaDominio,
+        P.modoPatch('curto'));
+      // migração das ordens que saíram
+      DB.setRaw(chaveM, JSON.stringify({ ordenar: 'volume', migracao: 2 }));
+      this._ok('Plano: ordem removida das preferências vira "pior acerto"', P.prefs().ordenar === 'pior', P.prefs().ordenar);
+      DB.setRaw(chaveM, JSON.stringify({ ordenar: 'queda', metaDominio: 80, migracao: 2 }));
+      this._ok('Plano: quem estava na meta antiga sobe para 85%', P.prefs().metaDominio === 85, P.prefs().metaDominio);
+      DB.setRaw(chaveM, JSON.stringify({ ordenar: 'queda', metaDominio: 70, migracao: 2 }));
+      this._ok('Plano: meta escolhida a dedo é respeitada', P.prefs().metaDominio === 70, P.prefs().metaDominio);
+    } finally {
+      if (antesM == null) DB.delRaw(chaveM); else DB.setRaw(chaveM, antesM);
+    }
 
     // 8) CONSOLIDADO COM DADO VELHO NÃO É CONSOLIDADO
     const velhos = [

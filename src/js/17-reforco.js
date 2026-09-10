@@ -108,15 +108,38 @@ const ReforcoEngine = {
     }
     return out;
   },
-  // Mapa normKey(topico) -> incidência total, para a banca escolhida ('__todas__' soma tudo)
+  /* ── MAPA DE INCIDÊNCIA ────────────────────────────────────────────────────
+     A chave era só o NOME do tópico. "Princípios" de Constitucional e
+     "Princípios" de Administrativo caíam no mesmo balde e somavam — o número
+     que sobe ao topo do Reforço e da ordem "fraqueza × incidência" do Plano
+     passava a descrever dois assuntos ao mesmo tempo, e nenhum deles.
+
+     Agora a chave principal é DISCIPLINA + TÓPICO. A chave só-por-nome continua
+     no mesmo mapa, de propósito: é a queda para quando as duas fontes chamam a
+     disciplina de coisas diferentes ("Português" x "Língua Portuguesa"), caso
+     em que casar por nome ainda é melhor que não casar. `incidenciaDe` tenta a
+     específica primeiro e diz, no retorno, qual das duas respondeu. */
+  SEP: '\u0001',
+  chaveInc(disciplina, topico) { return this.norm(disciplina) + this.SEP + this.norm(topico); },
   incidenceMap(banca) {
     const map = {};
     DB.getIncidencia().forEach(r => {
       if (banca && banca !== '__todas__' && this.norm(r.banca) !== this.norm(banca)) return;
-      const k = this.norm(r.topico);
-      map[k] = (map[k] || 0) + (r.incidencia || 0);
+      const kn = this.norm(r.topico);
+      const kd = this.chaveInc(r.disciplina || '', r.topico);
+      map[kn] = (map[kn] || 0) + (r.incidencia || 0);
+      map[kd] = (map[kd] || 0) + (r.incidencia || 0);
     });
     return map;
+  },
+  // Devolve { valor, viaNome } — viaNome=true significa que só o nome casou.
+  incidenciaDe(map, topico, disciplina) {
+    if (!map) return { valor: 0, viaNome: false };
+    const kd = this.chaveInc(disciplina || '', topico);
+    if (map[kd] != null) return { valor: map[kd], viaNome: false };
+    const kn = this.norm(topico);
+    if (map[kn] != null) return { valor: map[kn], viaNome: true };
+    return { valor: 0, viaNome: false, ausente: true };
   },
   hasIncidencia() { return DB.getIncidencia().length > 0; },
   // O retrato TEC mais recente é considerado "nível atual" se for dos últimos 90 dias.
@@ -132,65 +155,13 @@ const ReforcoEngine = {
     const d = (Date.now() - new Date(ref + 'T00:00:00').getTime()) / 86400000;
     return d <= (days || 90);
   },
-  // pesos estatísticos
-  confianca(questoes) { return questoes / (questoes + 8); }, // shrinkage: pouca amostra pesa menos
-  zonaVirada(pctAcerto) {
-    // ganho marginal maior na "zona de virada" (~55% de acerto); nunca zera de todo
-    const a = pctAcerto / 100;
-    const w = Math.exp(-Math.pow(a - 0.55, 2) / (2 * 0.22 * 0.22));
-    return 0.6 + 0.4 * w;
-  },
-  // Gera as sugestões de reforço, ranqueadas.
-  // opts: { banca, estrategia(0..1), minQuestoes, limite, apenasFolhas }
-  suggest(snap, opts) {
-    opts = opts || {};
-    if (!snap) return { fresh: false, items: [], semIncidencia: 0 };
-    const banca = opts.banca || '__todas__';
-    const s = (opts.estrategia != null) ? opts.estrategia : 0.5;
-    const minQ = opts.minQuestoes || 5;
-    const apenasFolhas = opts.apenasFolhas !== false;
-    const map = this.incidenceMap(banca);
-    const hasAnyIncid = Object.keys(map).length > 0;
-    const wE = 1.3 - 0.8 * s; // peso do erro
-    const wI = 0.5 + 0.8 * s; // peso da incidência
-
-    // tópicos-folha com volume mínimo
-    let rows = snap.rows.filter(r => r.depth > 0 && r.questoes >= minQ);
-    if (apenasFolhas) {
-      rows = rows.filter(r => {
-        if (!r.codigo) return true;
-        return !snap.rows.some(o => o !== r && o.disciplina === r.disciplina && o.codigo && o.codigo.startsWith(r.codigo + '.'));
-      });
-    }
-    let semIncidencia = 0;
-    const items = rows.map(r => {
-      const taxaErro = Math.max(0, 1 - (r.pctAcerto || 0) / 100);
-      const key = this.norm(r.nome);
-      const incidReal = map[key];
-      const temIncid = incidReal != null;
-      if (!temIncid) semIncidencia++;
-      // incidência efetiva p/ o score: real, ou baseline 1 quando não há dado do tópico
-      const incidEff = temIncid ? incidReal : 1;
-      const conf = this.confianca(r.questoes);
-      const zona = this.zonaVirada(r.pctAcerto || 0);
-      const score = Math.pow(incidEff, wI) * Math.pow(taxaErro + 0.001, wE) * conf * zona;
-      const pontosRecuperaveis = Math.round((temIncid ? incidReal : 0) * taxaErro * 10) / 10;
-      return {
-        codigo: r.codigo, nome: r.nome, disciplina: r.disciplina,
-        questoes: r.questoes, acertos: r.acertos, pctAcerto: r.pctAcerto,
-        erros: r.questoes - r.acertos, taxaErro: Math.round(taxaErro * 1000) / 10,
-        incidencia: temIncid ? incidReal : null, temIncid,
-        pontosRecuperaveis, score
-      };
-    }).filter(it => it.taxaErro > 0) // só faz sentido reforçar onde há erro
-      .sort((a, b) => b.score - a.score);
-    const limite = opts.limite || items.length;
-    return {
-      fresh: this.isFresh(snap, 90), snapDate: snap.endDate || snap.date,
-      hasAnyIncid, semIncidencia,
-      items: items.slice(0, limite), totalCandidatos: items.length
-    };
-  },
+  /* O modelo ANTIGO (`suggest`) morava aqui: um segundo score, com as suas
+     próprias constantes de confiança e zona de virada, que nenhuma tela chamava
+     desde que a fronteira adaptativa passou a ser o motor do Reforço. Duas
+     fórmulas para a mesma pergunta, uma delas nunca executada, é a forma mais
+     barata de alguém corrigir a que ninguém usa. Removido junto com
+     `confianca()` e `zonaVirada()`, que só existiam para servi-lo — a fronteira
+     usa `_smoothErr` e `_zona`. */
   // ============================================================================
   // REFORÇO POR FRONTEIRA ADAPTATIVA  (modelo validado com dados reais)
   // Cruza a INCIDÊNCIA da banca (árvore hierárquica: pai = soma dos filhos) com o
@@ -216,17 +187,37 @@ const ReforcoEngine = {
     return this.SINONIMOS[k] || k;
   },
   _depth(codigo) { return (codigo == null || codigo === '') ? 0 : String(codigo).split('.').length; },
-  // Índice do desempenho por nome canônico → { q, ac, err, pac }
+  /* Índice do desempenho em DOIS níveis: disciplina+nome (preciso) e só nome
+     (queda). O índice só por nome somava tópicos homônimos de disciplinas
+     diferentes — e, pior, fazia isso em silêncio, produzindo uma taxa de acerto
+     que não é de nenhum dos dois. A queda continua existindo porque as duas
+     fontes (seu desempenho e o índice da banca) nem sempre chamam a disciplina
+     do mesmo jeito; quando ela é usada, fica registrado. */
   _perfIndex(snap) {
-    const idx = {};
-    (snap && snap.rows || []).forEach(r => {
-      const k = this._canon(r.nome);
-      const cur = idx[k] || { q: 0, ac: 0 };
+    const porDisc = {}, porNome = {};
+    const soma = (alvo, k, r) => {
+      const cur = alvo[k] || { q: 0, ac: 0 };
       cur.q += (r.questoes || 0); cur.ac += (r.acertos || 0);
-      idx[k] = cur;
+      alvo[k] = cur;
+    };
+    (snap && snap.rows || []).forEach(r => {
+      const kn = this._canon(r.nome);
+      soma(porNome, kn, r);
+      soma(porDisc, this._canon(r.disciplina || '') + this.SEP + kn, r);
     });
-    Object.values(idx).forEach(v => { v.err = v.q > 0 ? (v.q - v.ac) / v.q : 0; v.pac = v.q > 0 ? v.ac / v.q : 0; });
-    return idx;
+    [porDisc, porNome].forEach(m => Object.values(m).forEach(v => {
+      v.err = v.q > 0 ? (v.q - v.ac) / v.q : 0; v.pac = v.q > 0 ? v.ac / v.q : 0;
+    }));
+    return { porDisc, porNome };
+  },
+  // Busca no índice: específica primeiro, nome depois. `viaNome` alimenta o
+  // diagnóstico de casamento que a tela mostra.
+  _perfGet(idx, nome, disciplina) {
+    if (!idx) return null;
+    const v = idx.porDisc[this._canon(disciplina || '') + this.SEP + this._canon(nome)];
+    if (v) return Object.assign({ viaNome: false }, v);
+    const n = idx.porNome[this._canon(nome)];
+    return n ? Object.assign({ viaNome: true }, n) : null;
   },
   // Incidência agrupada por disciplina (uma banca), normalizando o campo de nome (topico)
   _incidByDisc(banca) {
@@ -259,6 +250,27 @@ const ReforcoEngine = {
   },
   _smoothErr(q, err, mbar, ebar) { mbar = mbar || 8; ebar = (ebar != null ? ebar : 0.30); return (err * q + ebar * mbar) / (q + mbar); },
   _zona(pac) { const w = Math.exp(-Math.pow(pac - 0.55, 2) / (2 * 0.22 * 0.22)); return 0.6 + 0.4 * w; },
+  /* Unidades tiradas do próprio desempenho, respeitando a granularidade:
+     nível 0 = disciplinas, 1 = assuntos, 2-3 = tópicos. Uma linha entra quando
+     está no nível pedido OU quando é folha antes dele — assim cada questão
+     pertence a uma unidade só, sem somar pai e filho. */
+  _unidadesDoDesempenho(snap, nivelAlvo) {
+    const rows = (snap && snap.rows) || [];
+    const temFilho = (r) => rows.some(o => o !== r && o.disciplina === r.disciplina && o.codigo &&
+      r.codigo && String(o.codigo).indexOf(String(r.codigo) + '.') === 0);
+    const out = [];
+    rows.forEach(r => {
+      const d = (r.depth === 0) ? 0 : this._depth(r.codigo);
+      if (d > nivelAlvo) return;
+      if (d < nivelAlvo && temFilho(r)) return;        // há detalhe melhor abaixo
+      if ((r.questoes || 0) <= 0) return;
+      out.push({
+        disciplina: r.disciplina || r.nome, codigo: (r.depth === 0 ? null : r.codigo),
+        nome: r.nome, N: 0, _rows: [], semBanca: true
+      });
+    });
+    return out;
+  },
   /* suggestFrontier(snap, opts)
      opts: banca, estrategia(0..1), granularidade(0..1), minQuestoes, incidMin, limite */
   suggestFrontier(snap, opts) {
@@ -273,10 +285,12 @@ const ReforcoEngine = {
 
     const byDisc = this._incidByDisc(banca);
     const hasAnyIncid = Object.keys(byDisc).length > 0;
+    const CEIL = (opts.teto != null ? opts.teto : 0.90);   // acerto máximo realista (o mesmo do Plano)
     const perf = this._perfIndex(snap);
-    const qOf = (n) => { const v = perf[this._canon(n)]; return v ? v.q : 0; };
-    const errOf = (n) => { const v = perf[this._canon(n)]; return v ? v.err : null; };
-    const pacOf = (n) => { const v = perf[this._canon(n)]; return v ? v.pac : 0; };
+    const get = (n, d) => this._perfGet(perf, n, d);
+    const qOf = (n, d) => { const v = get(n, d); return v ? v.q : 0; };
+    const errOf = (n, d) => { const v = get(n, d); return v ? v.err : null; };
+    const pacOf = (n, d) => { const v = get(n, d); return v ? v.pac : 0; };
 
     // granularidade → profundidade máx. e "avidez" de descida
     //   g≈0  (Disciplina) → maxDepth 0  → nunca desce: unidades = disciplinas
@@ -288,6 +302,20 @@ const ReforcoEngine = {
 
     // ---- FRONTEIRA: partição limpa (cada folha pertence a UMA só unidade) ----
     const units = [];
+    /* ── SEM INCIDÊNCIA, A ABA NÃO MORRE ──────────────────────────────────────
+       As unidades saíam SÓ do índice da banca. Sem incidência cadastrada o
+       laço abaixo não rodava, a lista vinha vazia — e a tela dizia duas coisas
+       falsas ao mesmo tempo: que "o reforço prioriza só pelo seu erro" (não
+       priorizava nada) e que a saída era baixar o mínimo de questões ou mudar
+       a granularidade (nenhum dos dois resolveria nunca).
+
+       Agora, sem banca cadastrada, as unidades saem do SEU DESEMPENHO, no mesmo
+       nível de granularidade que o controle pede. A fila passa a ser ordenada
+       só pelo erro — que é exatamente o que a mensagem antiga prometia — e o
+       ganho é contado nas SUAS questões, não nas da prova. */
+    if (!hasAnyIncid) {
+      this._unidadesDoDesempenho(snap, maxDepth).forEach(u => units.push(u));
+    }
     Object.keys(byDisc).forEach(disc => {
       const rows = byDisc[disc];
       const discRow = rows.find(r => r.codigo == null) || { codigo: null, nome: disc, disciplina: disc, incidencia: rows.reduce((a, r) => a + (r.incidencia || 0), 0) };
@@ -295,7 +323,7 @@ const ReforcoEngine = {
         const code = (node.codigo == null || node.codigo === '') ? null : node.codigo;
         const dep = this._depth(code);
         const ch = this._children(rows, code);
-        const q = qOf(node.nome);
+        const q = qOf(node.nome, disc);
         const split = dep < maxDepth && ch.length && q >= splitQ && (node.incidencia || 0) >= splitN;
         if (split) ch.forEach(rec);
         else units.push({ disciplina: disc, codigo: code, nome: node.nome, N: (node.incidencia || 0), _rows: rows });
@@ -305,8 +333,11 @@ const ReforcoEngine = {
 
     // métricas por unidade
     units.forEach(u => {
-      u.q = qOf(u.nome); const e = errOf(u.nome);
-      u.err = e; u.pac = pacOf(u.nome);
+      u.q = qOf(u.nome, u.disciplina); const e = errOf(u.nome, u.disciplina);
+      u.err = e; u.pac = pacOf(u.nome, u.disciplina);
+      const casou = get(u.nome, u.disciplina);
+      u.viaNome = !!(casou && casou.viaNome);   // casou só pelo nome do tópico
+      u.semCasamento = !casou;                  // nome nenhum bateu: q=0 é falta de casamento, não de prática
       u.errS = this._smoothErr(u.q, e == null ? 0.30 : e);
     });
     const totalN = units.reduce((a, u) => a + u.N, 0) || 1;
@@ -318,20 +349,26 @@ const ReforcoEngine = {
     const score = (u) => Math.pow(Math.max(u.N, 0.001), wI) * Math.pow(u.errS + 0.001, wE) * this._zona(u.pac);
 
     // pontos recuperáveis (teto 90%) somando as folhas cobertas sob a unidade — sem dupla contagem
-    const CEIL = 0.90;
     const recuperaveis = (u) => {
       const leaves = this._leavesUnder(u._rows, u.codigo);
       let g2 = 0;
-      leaves.forEach(lf => { const p = pacOf(lf.nome); if (qOf(lf.nome) > 0) g2 += lf.incidencia * Math.max(0, CEIL - p); });
+      leaves.forEach(lf => { const p = pacOf(lf.nome, u.disciplina); if (qOf(lf.nome, u.disciplina) > 0) g2 += lf.incidencia * Math.max(0, CEIL - p); });
       // fallback: se a unidade é folha/sem filhos cobertos, usa a própria
       if (g2 === 0 && u.q > 0) g2 = u.N * Math.max(0, CEIL - u.pac);
+      /* Sem banca cadastrada não existe "ponto na prova" para recuperar — o que
+         existe são as SUAS questões. Medir na moeda que o dado permite é melhor
+         que exibir zero em toda a lista. */
+      if (!hasAnyIncid) g2 = u.q * Math.max(0, CEIL - u.pac);
       return g2;
     };
 
     // ---- 3 grupos ----
     const mainPool = units.filter(u => u.q >= Qmin && u.err != null && u.err > 0);
-    const blindPool = units.filter(u => u.q < Qmin && u.N >= Imin).sort((a, b) => b.N - a.N);
-    const overinvest = units.filter(u => u.q >= Qmin && u.shareEsforco > 2 * u.shareBanca + 0.005)
+    const blindPool = units.filter(u => !u.semCasamento && u.q < Qmin && u.N >= Imin).sort((a, b) => b.N - a.N);
+    /* Sobre-investimento compara o seu esforço com o peso na BANCA. Sem banca,
+       toda unidade praticada passaria no teste (peso zero do outro lado) e a
+       tela apontaria excesso em tudo. */
+    const overinvest = (!hasAnyIncid ? [] : units.filter(u => u.q >= Qmin && u.shareEsforco > 2 * u.shareBanca + 0.005))
       .sort((a, b) => (b.shareEsforco - b.shareBanca) - (a.shareEsforco - a.shareBanca));
 
     // "share" de erro e de incidência da unidade (para descobrir o FATOR DOMINANTE na ordem)
@@ -421,12 +458,28 @@ const ReforcoEngine = {
     // confiança da projeção: quanto da prova está coberto por amostra real
     const conf = cobertura >= 70 ? 'alta' : cobertura >= 45 ? 'media' : 'baixa';
 
+    /* ── DIAGNÓSTICO DE CASAMENTO ────────────────────────────────────────────
+       Uma unidade da banca com q=0 podia significar duas coisas OPOSTAS: você
+       não praticou, ou o nome não bateu entre as duas planilhas. A tela
+       mostrava as duas como "🕳️ ponto cego — você quase não praticou", e um
+       assunto com trezentas questões resolvidas aparecia como abandonado só
+       porque a banca o chama de outro jeito. Agora são grupos distintos, e o
+       casamento por nome (sem a disciplina) também é contado: ele é uma queda,
+       não um acerto. */
+    const semCasamento = units.filter(u => u.semCasamento && u.N >= Imin)
+      .sort((a, b) => b.N - a.N)
+      .map(u => ({ nome: u.nome, disciplina: u.disciplina, incidencia: u.N }));
+    const casadosPorNome = units.filter(u => u.viaNome && u.q > 0).length;
     return {
       fresh: this.isFresh(snap, 90), snapDate: snap.endDate || snap.date,
-      hasAnyIncid,
-      projAtual: Math.round(projAtual * 1000) / 10,
-      projPotencial: Math.round(projPotencial * 1000) / 10,
-      cobertura, confianca: conf,
+      hasAnyIncid, teto: Math.round(CEIL * 100),
+      // sem banca, o ganho é medido nas SUAS questões — a tela precisa saber disso
+      unidadeGanho: hasAnyIncid ? 'banca' : 'questoes',
+      semCasamento: semCasamento.slice(0, 10), totalSemCasamento: semCasamento.length,
+      casadosPorNome,
+      projAtual: hasAnyIncid ? Math.round(projAtual * 1000) / 10 : null,
+      projPotencial: hasAnyIncid ? Math.round(projPotencial * 1000) / 10 : null,
+      cobertura: hasAnyIncid ? cobertura : 0, confianca: conf,
       ordenarPor,
       items, porDisciplina,
       blindSpots: blindPool.slice(0, 8).map(u => ({ nome: u.nome, disciplina: u.disciplina, incidencia: u.N, questoes: u.q })),
