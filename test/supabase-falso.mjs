@@ -317,8 +317,15 @@ export function montarApiFalsa() {
 
     let r;
     try {
-      if (estado.falhaForcada && estado.falhaForcada(req, url)) {
-        r = erro(500, { code: 'XX000', message: 'falha forçada pelo teste' });
+      /* `falhaForcada` devolve `true` para a falha genérica (500) ou um objeto
+         `{ status, corpo }` para encenar uma resposta específica — é assim que
+         um teste reproduz o `JWT issued at future`, que não é erro de tabela
+         nem de rede, e sim o validador recusando um token bom cedo demais. */
+      const forcada = estado.falhaForcada && estado.falhaForcada(req, url);
+      if (forcada) {
+        r = (forcada && typeof forcada === 'object')
+          ? erro(forcada.status || 500, forcada.corpo || { code: 'XX000', message: 'falha forçada pelo teste' })
+          : erro(500, { code: 'XX000', message: 'falha forçada pelo teste' });
       } else {
         r = url.pathname.startsWith('/rest/v1/')
           ? rest(req.method, url, req.headers, corpo)

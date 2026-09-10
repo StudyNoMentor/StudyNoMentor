@@ -57,7 +57,7 @@
      novo, e o antigo é descartado sozinho na ativação) e o que permite ao app
      dizer qual versão está rodando. Em src/ fica "dev" de propósito: a versão
      é gerada na montagem, não editada à mão. -->
-<meta name="diario-versao" content="ve04249555b">
+<meta name="diario-versao" content="v02feb319c8">
 <script>
 /* ── ARRANQUE: abre o IndexedDB AGORA, em paralelo com o parse do documento ──
    A fachada de armazenamento vive no fim do <body>, depois de ~1,7 MB de HTML.
@@ -31386,6 +31386,17 @@ const ProfileUI = {
       if (token !== this._gridToken) return;
       this._showProfilePicker();
       if (grid.querySelector('.profile-card')) return; // mantém o que já está na tela
+      /* DERIVA DE RELÓGIO: o CloudStore já tentou de novo três vezes e ainda
+         não passou. Em vez de terminar num erro que a pessoa resolve
+         recarregando na mão, a tela espera e tenta sozinha — UMA vez, com
+         marca própria, porque um ciclo automático sem fim seria pior que o
+         erro. Se a segunda rodada também falhar, aí sim a mensagem final. */
+      if (err && err.code === 'token-fora-de-hora' && !this._tentouPeloRelogio) {
+        this._tentouPeloRelogio = true;
+        grid.innerHTML = '<p class="hint" style="text-align:center; padding:20px;">Ajustando a sessão com o servidor… tentando de novo em instantes.</p>';
+        setTimeout(() => { if (token === this._gridToken) this.loadCloudProfiles(); }, 5000);
+        return;
+      }
       grid.innerHTML = '<p class="hint" style="color:var(--bad); text-align:center; padding:20px;">Não foi possível carregar seus perfis: ' + escapeHtml(err.message || '') + '<br>Tente recarregar a página.</p>';
     }
   },
@@ -31922,6 +31933,81 @@ const CloudStore = {
     return Promise.race([p, new Promise((_, rej) => setTimeout(() => rej(new Error((label || 'A operação') + ' demorou demais. Verifique sua internet.')), ms))]);
   },
 
+  /* ── TOKEN FORA DE HORA: A FALHA QUE SÓ ACONTECE "ÀS VEZES" ───────────────
+     `JWT issued at future` é erro do PostgREST, não do app: ele compara o
+     claim `iat` do token com o relógio DELE e recusa um token que diz ter
+     nascido depois de agora. Quem carimba o `iat` é o servidor de
+     autenticação; quem valida é outro nó. Entre os dois há uma deriva de
+     um ou dois segundos — invisível o tempo todo, menos exatamente no
+     instante em que o app usa um token recém-emitido.
+
+     E é isso que o portão de acesso faz: pede a lista de perfis (e, com a
+     entrada direta ligada, o payload do perfil) no primeiro segundo depois
+     do login ou da renovação do token. Token velho nunca cai aqui; token
+     de dois segundos atrás, às vezes. A pessoa via o erro cru no lugar dos
+     perfis, recarregava, e funcionava — porque a janela já tinha passado.
+
+     A cura tem de distinguir DOIS casos que parecem o mesmo 401:
+
+       · emitido no futuro (`iat`/`nbf`): o token está certo, o relógio é que
+         ainda não chegou nele. Esperar resolve. Renovar seria PIOR — o token
+         novo nasce com `iat` ainda mais adiante e é recusado de novo pela
+         mesma deriva.
+       · expirado: aí o token é que não serve mais, e só renovar resolve.
+
+     Por isso não existe um "retry genérico" aqui: cada caso tem o seu
+     remédio, e trocá-los transforma uma espera de 1,5 s numa falha teimosa. */
+  TOKEN_RETENTATIVAS: 2,
+  TOKEN_ESPERA_MS: 1500,
+  _textoDoErro(err) {
+    if (!err) return '';
+    return [err.message, err.code, err.details, err.hint, err.error_description]
+      .filter(Boolean).join(' ').toLowerCase();
+  },
+  // Token que o servidor ainda não considera nascido (deriva de relógio).
+  _tokenNoFuturo(err) {
+    const t = this._textoDoErro(err);
+    return /issued at future|not yet valid|\bnbf\b|\biat\b/.test(t);
+  },
+  // Token que o servidor não aceita mais — renovar é o caminho.
+  _tokenVencido(err) {
+    const t = this._textoDoErro(err);
+    if (!/jwt|jws|token|pgrst301|pgrst302/.test(t)) return false;
+    return /expired|expirou|invalid|inválid|malformed|pgrst301|pgrst302/.test(t);
+  },
+  /* Executa `fn` tolerando os dois casos acima. Bounded de propósito: no
+     máximo duas retentativas (1,5 s e 3 s). Se depois disso ainda falhar, não
+     é deriva de relógio — é problema de verdade, e some-lo em silêncio seria
+     trocar um erro visível por uma tela parada. */
+  async _comTokenTolerante(fn, label) {
+    let ultimo = null, futuro = false;
+    for (let tentativa = 0; tentativa <= this.TOKEN_RETENTATIVAS; tentativa++) {
+      try { return await fn(); }
+      catch (err) {
+        ultimo = err;
+        futuro = this._tokenNoFuturo(err);
+        const vencido = !futuro && this._tokenVencido(err);
+        // não é problema de token, ou não há sessão para consertar: sobe como está
+        if ((!futuro && !vencido) || !this.isLoggedIn()) throw err;
+        if (tentativa === this.TOKEN_RETENTATIVAS) break;
+        console.warn('[CloudStore] ' + (label || 'operação') + ': token recusado (' +
+          (futuro ? 'emitido no futuro' : 'vencido') + ') — tentativa ' + (tentativa + 1) +
+          ' de ' + this.TOKEN_RETENTATIVAS + '. Detalhe: ' + ((err && err.message) || err));
+        // só o token VENCIDO se cura renovando; o do futuro se cura esperando
+        if (vencido && typeof this.ensureSession === 'function') {
+          try { await this.ensureSession(true); } catch (e) { _quiet(e, 'token-renovar'); }
+        }
+        await new Promise(r => setTimeout(r, this.TOKEN_ESPERA_MS * (tentativa + 1)));
+      }
+    }
+    const e = new Error(futuro
+      ? 'o relógio do servidor ainda não aceitou sua sessão. Aguarde alguns segundos e tente de novo.'
+      : 'sua sessão não foi aceita pelo servidor. Entre novamente com sua senha.');
+    e.code = futuro ? 'token-fora-de-hora' : 'token-recusado';
+    e.causa = ultimo;
+    throw e;
+  },
+
   /* ── APLICANDO DADO DA NUVEM ──────────────────────────────────────────────
      `_applying` existe para que escrever o que VEIO da nuvem não seja
      confundido com uma edição do usuário — sem ele, baixar dispararia um envio
@@ -31976,11 +32062,16 @@ const CloudStore = {
     if (error) throw error; return true;
   },
 
+  /* Primeira chamada de nuvem depois do login, e a que a pessoa vê falhar: é
+     dela que sai a lista do portão de acesso. Por isso vai embrulhada — aqui a
+     deriva de relógio custava a tela inteira de perfis. */
   async listProfiles() {
-    const { data, error } = await this._withTimeout(
-      this.client.from(this.TABLE).select('id,profile_name,avatar,color,rev,updated_at').order('updated_at', { ascending: true }),
-      15000, 'Carregar perfis');
-    if (error) throw error; return data || [];
+    return this._comTokenTolerante(async () => {
+      const { data, error } = await this._withTimeout(
+        this.client.from(this.TABLE).select('id,profile_name,avatar,color,rev,updated_at').order('updated_at', { ascending: true }),
+        15000, 'Carregar perfis');
+      if (error) throw error; return data || [];
+    }, 'Carregar perfis');
   },
   async createRow({ name, avatar, color, payload }) {
     const { data, error } = await this.client.from(this.TABLE)
@@ -31996,10 +32087,19 @@ const CloudStore = {
     if (error) throw error;
     if (data && data.length) ProfileManager.setRev(id, rev + 1);
   },
+  /* A SEGUNDA metade do mesmo caminho: com a entrada direta ligada, o portão
+     chama isto logo depois de listProfiles, ainda dentro da janela de deriva.
+     Proteger só a lista deixaria o erro migrar para a tela "Entrando…". */
   async fetchPayload(id) {
-    const { data, error } = await this._withTimeout(
-      this.client.from(this.TABLE).select('payload,rev').eq('id', id).maybeSingle(), 15000, 'Baixar o perfil');
-    if (error) throw error;
+    /* O `throw` do erro do PostgREST tem de ficar DENTRO do embrulho: o
+       supabase-js não lança, devolve `{ data, error }`. Uma retentativa
+       pendurada por fora nunca veria a falha e nunca dispararia. */
+    const data = await this._comTokenTolerante(async () => {
+      const r = await this._withTimeout(
+        this.client.from(this.TABLE).select('payload,rev').eq('id', id).maybeSingle(), 15000, 'Baixar o perfil');
+      if (r.error) throw r.error;
+      return r.data;
+    }, 'Baixar o perfil');
     /* Resposta DEFINITIVA (não é rede, não é timeout): esta conta não tem este
        perfil. Marcada com código próprio porque quem chama precisa distinguir
        "a nuvem não tem" de "não deu para perguntar" — no primeiro caso, um

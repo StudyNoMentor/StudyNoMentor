@@ -188,6 +188,17 @@ const ProfileUI = {
       if (token !== this._gridToken) return;
       this._showProfilePicker();
       if (grid.querySelector('.profile-card')) return; // mantém o que já está na tela
+      /* DERIVA DE RELÓGIO: o CloudStore já tentou de novo três vezes e ainda
+         não passou. Em vez de terminar num erro que a pessoa resolve
+         recarregando na mão, a tela espera e tenta sozinha — UMA vez, com
+         marca própria, porque um ciclo automático sem fim seria pior que o
+         erro. Se a segunda rodada também falhar, aí sim a mensagem final. */
+      if (err && err.code === 'token-fora-de-hora' && !this._tentouPeloRelogio) {
+        this._tentouPeloRelogio = true;
+        grid.innerHTML = '<p class="hint" style="text-align:center; padding:20px;">Ajustando a sessão com o servidor… tentando de novo em instantes.</p>';
+        setTimeout(() => { if (token === this._gridToken) this.loadCloudProfiles(); }, 5000);
+        return;
+      }
       grid.innerHTML = '<p class="hint" style="color:var(--bad); text-align:center; padding:20px;">Não foi possível carregar seus perfis: ' + escapeHtml(err.message || '') + '<br>Tente recarregar a página.</p>';
     }
   },
