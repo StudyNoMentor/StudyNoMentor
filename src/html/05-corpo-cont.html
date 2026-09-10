@@ -469,7 +469,7 @@
               <div class="grade-gear-wrap">
                 <button class="btn-secondary grade-gear-btn" id="tec-gear-btn" type="button" title="Opções de exibição" aria-haspopup="true" aria-expanded="false">⚙ Exibição</button>
                 <div class="grade-gear-menu" id="tec-gear-menu" role="menu" aria-hidden="true">
-                  <button class="grade-gear-item" id="tec-toggle-cfg" type="button" role="menuitem" title="Mostrar/ocultar os filtros e configurações desta tela"><span class="gg-ic">🔧</span>Filtros e configurações</button>
+                  <button class="grade-gear-item" id="tec-toggle-cfg" type="button" role="menuitem" title="Mostrar/ocultar os filtros que ficam soltos nos cartões. Os ajustes de cada aba moram no botão ⚙ Ajustes e continuam sempre acessíveis."><span class="gg-ic">🔧</span>Filtros soltos nos cartões</button>
                   <button class="grade-gear-item" id="tec-enxuto-btn" type="button" role="menuitem" title="Esconde textos de ajuda e legendas — deixa só números, barras e listas"><span class="gg-ic">🔎</span>Modo enxuto</button>
                 </div>
               </div>
@@ -532,27 +532,9 @@
             <p class="sub">O retrato do que você já errou, sem cruzar com banca nem com esforço estimado. Para a fila de ataque com custo e meta, veja a aba 🏁 Plano; para cruzar com o que a banca cobra, a aba 🎯 Reforço.</p>
           </div>
         </div>
-        <div class="tec-cfg tec-filterbar" style="margin:12px 24px 8px; display:flex; gap:14px; align-items:flex-end; flex-wrap:wrap;">
-          <div class="field" style="margin-bottom:0; min-width:200px;">
-            <label for="tec-weak-ordenar" data-info="Duas perguntas diferentes. &quot;Pior taxa&quot; responde onde você erra mais por questão resolvida — bom para achar assunto mal aprendido. &quot;Mais erros&quot; responde onde você PERDE mais questões: um tópico grande a 60% costuma custar mais pontos que um pequeno a 20%. Antes só existia a primeira, e com ela um tópico de 3 questões subia acima de um de 300.">Ordenar por</label>
-            <select id="tec-weak-ordenar">
-              <option value="taxa">🔴 Pior taxa de acerto</option>
-              <option value="impacto">📉 Mais erros (impacto)</option>
-            </select>
-          </div>
-          <div class="field" style="margin-bottom:0; min-width:200px;">
-            <label for="tec-weak-disc" data-info="Todas: agrupa por disciplina, da mais fraca para a mais forte. Uma disciplina: lista plana só dela, para atacar uma matéria por vez.">Agrupar / filtrar por disciplina</label>
-            <select id="tec-weak-disc"></select>
-          </div>
-          <div class="field" style="margin-bottom:0;">
-            <label data-info="Abaixo disto um tópico é considerado ponto fraco. Nasce igual à meta de domínio do 🏁 Plano, para que as duas telas usem a mesma régua — mude aqui se quiser um corte diferente só nesta lista.">Aproveitamento abaixo de</label>
-            <div class="time-input"><input type="number" inputmode="numeric" id="tec-weak-threshold" min="1" max="100" value="80" style="width:70px; text-align:center;"><span>%</span></div>
-          </div>
-          <div class="field" style="margin-bottom:0;">
-            <label for="tec-weak-minq" data-info="Tópicos com menos questões que isto ficam fora da lista. Com 3 questões, a taxa de acerto pode variar dezenas de pontos: cada linha mostra a margem (±pp) para você ver isso. Baixar este número enche a lista de amostras curtas.">Mínimo de questões</label>
-            <input type="number" inputmode="numeric" id="tec-weak-minq" min="1" value="10" style="width:80px; text-align:center;">
-          </div>
-          <label class="co-check" style="margin-bottom:6px;" data-info="O TEC agrupa assunto dentro de assunto. Ligado, só o nível mais específico entra — sem isso o mesmo erro aparece contado no tópico-pai e no filho, como se fossem dois pontos fracos."><input type="checkbox" id="tec-weak-leaves" checked> Só tópicos específicos (folhas)</label>
+        <div class="tec-cfg-bar">
+          <button type="button" class="tec-cfg-open" data-cfg="analise" aria-haspopup="dialog"><span class="gg-ic">⚙</span>Ajustes</button>
+          <span class="tec-cfg-resumo" id="analise-cfg-resumo"></span>
         </div>
         <div style="padding: 6px 24px 24px;" id="tec-weak-list"></div>
       </div>
@@ -638,62 +620,12 @@
           <!-- 1) BANNER de projeção (destaque no topo) -->
           <div id="reforco-proj" class="rfc-section"></div>
 
-          <!-- 2) BARRA principal: banca + visão + ordenação (o essencial, sempre visível) -->
-          <div class="rfc-toolbar tec-cfg">
-            <div class="rfc-field">
-              <label data-info="Quais bancas contam no cruzamento. Marque quantas quiser: quem presta para dois órgãos com bancas diferentes soma só as duas, sem carregar o histórico de bancas que não vai enfrentar. Sem nenhuma marcada, o app soma todas as importadas — útil antes do edital. A escolha vale para o Reforço, o Plano e a aba Incidência ao mesmo tempo.">Bancas do meu concurso</label>
-              <div class="banca-pick" id="reforco-banca-pick"></div>
-            </div>
-            <div class="rfc-field">
-              <label for="reforco-disc" data-info="Filtra o ranking a uma disciplina. As disciplinas listadas vêm da INCIDÊNCIA importada, não do seu desempenho: matéria que você estuda e não está no índice da banca não aparece aqui.">Disciplina</label>
-              <select id="reforco-disc"><option value="__todas__">📚 Todas</option></select>
-            </div>
-            <div class="rfc-field">
-              <label data-info="Ranking: uma fila única com os melhores alvos de todas as disciplinas — bom para decidir o que fazer agora. Disciplinas: um acordeão por matéria, com os pontos cegos e o sobre-investimento de cada uma embutidos — bom para planejar a semana.">Visão</label>
-              <div class="scope-toggle" id="reforco-view-toggle">
-                <button type="button" data-view="global" class="active">🏆 Ranking</button>
-                <button type="button" data-view="disc">📚 Disciplinas</button>
-              </div>
-            </div>
-            <div class="rfc-field">
-              <label for="reforco-ordenar" data-info="Oportunidade combina os três fatores (erro × incidência × zona de virada) e é a ordem que responde &quot;onde ganho mais ponto por hora&quot;. Maior erro ignora a banca. Maior incidência ignora o seu nível — serve para ver o que a prova cobra, não o que você precisa.">Ordenar por</label>
-              <select id="reforco-ordenar">
-                <option value="oportunidade" selected title="Erro × incidência × zona de virada. Use quando quiser o melhor retorno por hora.">🎯 Oportunidade de pontos</option>
-                <option value="erro" title="Só o seu erro, ignorando a banca. Use para fechar buracos antes do edital.">🔴 Maior erro (mais fraco)</option>
-                <option value="incidencia" title="Só o peso na prova, ignorando o seu nível. Use para conhecer a banca, não para escolher o que estudar.">🏛️ Maior incidência</option>
-              </select>
-            </div>
-            <button type="button" class="rfc-adv-btn" id="reforco-adv-btn" aria-expanded="false">
-              <span class="chev">▸</span> Ajustes avançados
-            </button>
-          </div>
-
-          <!-- 3) AJUSTES AVANÇADOS (recolhível — tira a poluição da tela) -->
-          <div class="rfc-advanced" id="reforco-advanced" hidden>
-            <div class="rfc-adv-grid">
-              <div class="rfc-field wide">
-                <label for="reforco-estrat" data-info="Para que lado o desempate vai. À esquerda, o que você mais erra sobe, mesmo que caia pouco na prova. À direita, o que mais cai na prova sobe, mesmo que você já vá bem. No meio, os dois pesam parecido. Não muda os números da lista — muda a ordem.">Estratégia: <span id="reforco-estrat-label" class="lbl-accent">equilíbrio</span></label>
-                <input type="range" id="reforco-estrat" min="0" max="100" value="50" class="reforco-slider">
-                <div class="reforco-slider-legend"><span>Recuperar erros</span><span>Maximizar incidência</span></div>
-              </div>
-              <div class="rfc-field wide">
-                <label data-info="Em que altura da árvore o Reforço decide. Disciplina: uma linha por matéria — visão de alocação de tempo. Assunto: desce um nível quando há amostra suficiente naquele ramo (o equilíbrio). Tópico: o nível mais fino, útil só quando você já resolve muita questão em cada assunto. O controle era um cursor de 101 posições que, por dentro, só tinha estes três valores.">Granularidade</label>
-                <div class="scope-toggle" id="reforco-gran-toggle">
-                  <button type="button" data-gran="0">📚 Disciplina</button>
-                  <button type="button" data-gran="50" class="active">📂 Assunto</button>
-                  <button type="button" data-gran="100">📄 Tópico</button>
-                </div>
-                <input type="hidden" id="reforco-gran" value="50">
-              </div>
-              <div class="rfc-field">
-                <label for="reforco-minq" data-info="Abaixo disto a unidade não entra no ranking de erros: vira 🕳️ ponto cego (se a banca cobra) ou fica de fora. É o que separa &quot;vou mal aqui&quot; de &quot;quase não pratiquei aqui&quot; — duas situações com ações opostas.">Mín. de questões</label>
-                <input type="number" inputmode="numeric" id="reforco-minq" min="1" value="10">
-              </div>
-              <div class="rfc-field">
-                <label for="reforco-limite" data-info="Quantas linhas o ranking mostra. Nasce da carga horária do seu ciclo (~1 tópico a cada 3h semanais). Não altera nenhum cálculo — só o tamanho da lista.">Qtd. de tópicos</label>
-                <input type="number" inputmode="numeric" id="reforco-limite" min="1" value="12">
-              </div>
-            </div>
+          <!-- 2) O QUE ESTÁ VALENDO + a porta dos ajustes. Banca, disciplina,
+               visão e ordenação moravam abertos aqui; no celular eram quatro
+               campos empilhados antes do primeiro item do ranking. -->
+          <div class="tec-cfg-bar">
+            <button type="button" class="tec-cfg-open" data-cfg="reforco" aria-haspopup="dialog"><span class="gg-ic">⚙</span>Ajustes</button>
+            <span class="tec-cfg-resumo" id="reforco-cfg-resumo"></span>
           </div>
 
           <!-- 4) RÓTULO explícito da ordenação (didático) -->
@@ -729,184 +661,17 @@
               <h2>🏁 Plano de pontos fracos</h2>
               <p class="sub">Baseado só no seu desempenho no TEC. Mede o quanto você já domina do que estuda e mostra por onde atacar para fechar a lacuna resolvendo o menor número de questões.</p>
             </div>
-            <!-- Sete campos ficavam abertos aqui o tempo todo, mais dezesseis
-                 avançados logo abaixo — a tela abria em configuração, não em
-                 resultado. Agora tudo isso mora num painel recolhido, e o que
-                 está valendo aparece resumido ao lado do título. -->
-            <div class="painel-head-acoes" style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
-              <span class="painel-resumo" id="plano-filtros-resumo" hidden></span>
-              <button type="button" class="evo-collapse-btn" id="plano-filtros-collapse" aria-expanded="false" title="Mostrar ou ocultar os ajustes do plano">
-                <span id="plano-filtros-collapse-txt">Mostrar ajustes</span><span class="chev">&#9662;</span>
-              </button>
-            </div>
           </div>
           <div style="padding: 4px 28px 20px;">
-            <div id="plano-filtros-body" hidden>
-            <!-- Sem a classe `tec-cfg` de proposito: esta barra agora vive dentro
-                 de #plano-filtros-body, que ja a esconde e mostra. Com as duas
-                 coisas juntas, "Ocultar filtros" do menu Exibicao a deixava com
-                 display:none !important — e abrir "Mostrar ajustes" revelava um
-                 painel pela metade, só com os avançados. -->
-            <div class="rfc-toolbar" style="margin-bottom:4px;">
-              <div class="rfc-field wide">
-                <label for="plano-disc" data-info="Restringe TODA a tela a uma disciplina: o domínio do topo, a lista e a trajetória passam a falar só dela. Útil para atacar uma matéria por vez; deixe em Todas para comparar onde o seu tempo rende mais.">Disciplina</label>
-                <select id="plano-disc"><option value="__todas__">📚 Todas</option></select>
-              </div>
-              <div class="rfc-field">
-                <label for="plano-meta" data-info="A nota que você considera suficiente em cada assunto. É a linha tracejada da trajetória e o que define quem é 🟢 sólido. Subir a meta aumenta a lista de pendências; baixar declara vitória cedo. 75–85% cobre a maioria dos concursos.">Meta de domínio (%)</label>
-                <input type="number" inputmode="numeric" id="plano-meta" min="30" max="100" step="1">
-              </div>
-              <div class="rfc-field">
-                <label for="plano-amostraalvo" data-info="Para cada assunto o app parte da importação mais recente e só volta no tempo até juntar esta quantidade de questões. Quanto maior, mais confiável a taxa — e mais antigo o dado que ela usa. Quem resolve pouco por semana deve manter baixo, senão a taxa vira retrato do ano passado.">Amostra desejada por assunto</label>
-                <select id="plano-amostraalvo">
-                  <option value="30">30 questões (±18pp)</option>
-                  <option value="50">50 questões (±14pp)</option>
-                  <option value="100">100 questões (±10pp)</option>
-                  <option value="200">200 questões (±7pp)</option>
-                </select>
-              </div>
-              <div class="rfc-field">
-                <label for="plano-ritmo" data-info="Quantas questões você resolve por semana. Segue sozinho o que os seus retratos mostram; digite outro valor para simular um cenário (&quot;e se eu dobrasse o ritmo?&quot;). Só afeta a previsão em semanas — não muda nenhuma prioridade.">Ritmo (q/semana)</label>
-                <input type="number" inputmode="numeric" id="plano-ritmo" min="1" max="2000" step="1">
-              </div>
-              <div class="rfc-field wide">
-                <label for="plano-ordenar" data-info="A ORDEM DE ATAQUE: qual pergunta decide quem vem primeiro na lista. Não muda nenhum número — muda a fila. A explicação do cenário escolhido aparece logo abaixo, com o caso em que ele é a escolha certa e o caso em que é armadilha.">Ordem de ataque</label>
-                <select id="plano-ordenar">
-                  <option value="pior">🔴 Pior acerto primeiro</option>
-                  <option value="ganhoGeral">📊 Maior ganho no aproveitamento geral</option>
-                  <option value="banca">🎯 Fraqueza × incidência na banca</option>
-                  <option value="rendimento">⚡ Melhor retorno — ganho ÷ custo</option>
-                  <option value="queda">📉 Maior queda recente</option>
-                </select>
-              </div>
-              <div class="rfc-field" id="plano-banca-field" style="display:none;">
-                <label data-info="Quais bancas contam na ordem &quot;fraqueza × incidência&quot;. É a MESMA seleção do Reforço e da aba Incidência: marcar aqui vale para as três. Sem nenhuma marcada, o app soma o histórico de todas as bancas importadas.">Bancas do meu concurso</label>
-                <div class="banca-pick" id="plano-banca-pick"></div>
-              </div>
-              <div class="rfc-field wide" style="align-items:flex-start;">
-                <button type="button" class="rfc-adv-btn" id="plano-adv-btn" aria-expanded="false">
-                  <span class="chev">▸</span> Ajustes avançados
-                </button>
-              </div>
+            <!-- Sete campos abertos aqui o tempo todo, mais dezenove avançados
+                 logo abaixo: a tela abria em CONFIGURAÇÃO, não em resultado —
+                 2.413px de formulário antes do primeiro número, no celular.
+                 Agora esta linha é a porta: o que está valendo, escrito, e um
+                 botão que abre a folha de ajustes. -->
+            <div class="tec-cfg-bar">
+              <button type="button" class="tec-cfg-open" data-cfg="plano" aria-haspopup="dialog"><span class="gg-ic">⚙</span>Ajustes</button>
+              <span class="tec-cfg-resumo" id="plano-cfg-resumo"></span>
             </div>
-
-            <!-- AJUSTES AVANÇADOS — dezenove campos numa grade única não é uma
-                 configuração, é um formulário. Agora são quatro grupos, cada um
-                 com uma pergunta só, e cada campo com o seu "i". -->
-            <div class="rfc-advanced" id="plano-advanced" hidden>
-              <div class="pl-grupo">
-                <p class="pl-grupo-tit" data-info="Decide em quem o app CONFIA. Uma taxa de acerto tirada de poucas questões não é medição, é palpite: com 8 questões, 40% de acerto pode significar qualquer coisa entre 4% e 71%. Estes três campos separam medição de palpite.">1 · Rigor da amostra <span>— em quem confiar</span></p>
-                <div class="rfc-adv-grid">
-                  <div class="rfc-field">
-                    <label for="plano-minamostra" data-info="Porta de entrada do cálculo. Assunto com menos questões que isto sai da média de domínio e vai para o segundo plano, onde a ação é outra: resolver questões para descobrir onde você está. Três erros em seis questões não é fraqueza comprovada, é falta de dado.">Mínimo para entrar no cálculo</label>
-                    <input type="number" inputmode="numeric" id="plano-minamostra" min="0" max="500" step="1">
-                  </div>
-                  <div class="rfc-field">
-                    <label for="plano-piso" data-info="Diferente do campo ao lado: aqui é o mínimo dentro de UMA importação para ela valer como medição no gráfico de trajetória e na contagem de importações seguidas na meta. Um assunto com 2 questões num retrato não conta como &quot;mais uma vez na meta&quot;.">Mínimo por importação (trajetória)</label>
-                    <input type="number" inputmode="numeric" id="plano-piso" min="1" max="100" step="1">
-                  </div>
-                  <div class="rfc-field wide">
-                    <label class="rfc-check" data-info="Ligado, os assuntos de amostra pequena entram na média e na lista em vez de ficarem no segundo plano — e o segundo plano some, porque ninguém precisa ver o mesmo assunto duas vezes. Use no modo Diagnóstico, quando o objetivo é justamente medir; desligue depois, ou meia dúzia de questões passa a mover o seu domínio."><input type="checkbox" id="plano-pequenas"> Incluir assuntos com amostra pequena no cálculo</label>
-                    <label class="rfc-check" data-info="O TEC agrupa assunto dentro de assunto (1, 1.1, 1.1.1). Ligado, só o nível mais específico entra na conta — sem isso, o mesmo acerto é contado no filho e no pai, e um tópico grande aparece duas vezes na lista com números diferentes. Desligue apenas se você estuda por blocos grandes e prefere ver o pai."><input type="checkbox" id="plano-folhas"> Só assuntos específicos (ignorar tópicos-pai)</label>
-                  </div>
-                </div>
-              </div>
-
-              <div class="pl-grupo">
-                <p class="pl-grupo-tit" data-info="Decide até que ponto o passado ainda fala por você. Desempenho de um ano atrás num assunto que você revisou desde então não descreve mais o seu nível — mas jogar fora dado antigo demais deixa o app sem amostra nenhuma. Estes três campos equilibram isso.">2 · Frescor do dado <span>— até onde o passado vale</span></p>
-                <div class="rfc-adv-grid">
-                  <div class="rfc-field">
-                    <label for="plano-janelamax" data-info="Trava de segurança: mesmo faltando amostra, o app NUNCA usa dado mais antigo que isto. Acima desse prazo o desempenho já não representa você. Baixar demais faz muitos assuntos ficarem sem diagnóstico.">Não usar dado mais velho que (dias)</label>
-                    <input type="number" inputmode="numeric" id="plano-janelamax" min="30" max="1825" step="30">
-                  </div>
-                  <div class="rfc-field">
-                    <label for="plano-validade" data-info="Sem medição nova neste prazo, o assunto é marcado com ⏳ dado vencido — e um assunto que sustentava a meta passa a aparecer como 🟠 sólido sem medição nova, em vez de 🟢 resolvido.">Dado vence em (dias)</label>
-                    <input type="number" inputmode="numeric" id="plano-validade" min="30" max="720" step="15">
-                  </div>
-                  <div class="rfc-field">
-                    <label for="plano-cadencia" data-info="Com que frequência você pretende importar um retrato novo do TEC. Se o último ficar mais velho que isto, a tela avisa que a leitura está defasada. É um lembrete seu para você — não altera nenhum cálculo.">Frequência de importação (dias)</label>
-                    <input type="number" inputmode="numeric" id="plano-cadencia" min="7" max="365" step="1">
-                  </div>
-                </div>
-              </div>
-
-              <div class="pl-grupo">
-                <p class="pl-grupo-tit" data-info="Define o que conta como bom, o que conta como resolvido e o que conta como mudança. É aqui que a tela deixa de ser um relatório e vira um critério: sem uma régua, todo número é só um número.">3 · Régua de aprovação <span>— o que conta como pronto</span></p>
-                <div class="rfc-adv-grid">
-                  <div class="rfc-field">
-                    <label for="plano-teto" data-info="Ninguém acerta 100% nem no assunto que domina — questão mal formulada, pegadinha, cansaço. Este é o alvo realista por assunto e a base do cálculo de ganho: o ganho de um assunto é o quanto ele sobe SE chegar aqui. Teto alto infla o ganho de todo mundo.">Acerto máximo realista (%)</label>
-                    <input type="number" inputmode="numeric" id="plano-teto" min="50" max="100" step="1">
-                  </div>
-                  <div class="rfc-field">
-                    <label for="plano-critico" data-info="Abaixo disto o diagnóstico muda de natureza: você erra mais do que acerta, então o problema é de teoria e não de treino. Resolver mais questões nessa faixa costuma só repetir o erro.">Faixa crítica: abaixo de (%)</label>
-                    <input type="number" inputmode="numeric" id="plano-critico" min="0" max="100" step="5">
-                  </div>
-                  <div class="rfc-field">
-                    <label for="plano-fragil" data-info="Entre a faixa crítica e este valor: a base existe mas falha em pontos específicos. A orientação vira revisar só o que errou, alternando com blocos de questões.">Faixa frágil: abaixo de (%)</label>
-                    <input type="number" inputmode="numeric" id="plano-fragil" min="0" max="100" step="5">
-                  </div>
-                  <div class="rfc-field">
-                    <label for="plano-consolidar" data-info="Quantas importações SEGUIDAS na meta um assunto precisa sustentar para virar 🟢 sólido. Cruzar a meta uma vez pode ser sorte na amostra; sustentar duas vezes já é outra conversa. Baixar para 1 esvazia a lista rápido demais.">Importações p/ consolidar</label>
-                    <input type="number" inputmode="numeric" id="plano-consolidar" min="1" max="10" step="1">
-                  </div>
-                  <div class="rfc-field">
-                    <label for="plano-sens" data-info="Variação mínima, em pontos percentuais, para o app marcar ▲ melhorando ou ▼ piorando. Abaixo disso é ruído de amostra, não evolução. Com poucas questões por assunto, use um valor maior.">Sensibilidade da tendência (pp)</label>
-                    <input type="number" inputmode="numeric" id="plano-sens" min="1" max="30" step="1">
-                  </div>
-                </div>
-              </div>
-
-              <div class="pl-grupo">
-                <p class="pl-grupo-tit" data-info="Decide o que a fila otimiza. Peso responde &quot;todo assunto vale o mesmo?&quot;; custo responde &quot;quanto trabalho cada um dá?&quot;. São estes dois campos que fazem as ordens de ataque discordarem entre si — com custo fixo e peso igual, três delas dão exatamente a mesma lista.">4 · Esforço e prioridade <span>— o que a fila otimiza</span></p>
-                <div class="rfc-adv-grid">
-                  <div class="rfc-field wide">
-                    <label for="plano-ponderacao" data-info="Peso igual: um assunto de 4 questões conta tanto quanto um de 400 — nada se esconde atrás de pouco volume, e é a leitura certa antes do edital. Por volume: o que você mais pratica manda, o que maximiza o aproveitamento geral do topo desta tela.">Como pesar cada assunto</label>
-                    <select id="plano-ponderacao">
-                      <option value="igual">⚖️ Todo assunto pesa igual — nada se esconde atrás de pouco volume</option>
-                      <option value="volume">📊 Pelo volume de questões — maximiza o Aproveitamento geral desta tela</option>
-                      <option value="ambas">🔀 Mostrar as duas — decida item a item</option>
-                    </select>
-                  </div>
-                  <div class="rfc-field wide">
-                    <label for="plano-customodo" data-info="Por lacuna (padrão): custo = piso para remedir + tanto por ponto percentual até o máximo realista, ajustado pela amplitude do assunto (o quanto o banco já te serviu ali, comparado à sua mediana). É o único modo em que &quot;melhor retorno&quot; produz uma fila diferente de &quot;pior acerto&quot;. Fixo: o mesmo número para todos — vira cópia de &quot;pior acerto primeiro&quot;. Proporcional: fator × o que você já praticou.">Como estimar o custo de cada assunto</label>
-                    <select id="plano-customodo">
-                      <option value="lacuna">📐 Pela lacuna até o máximo realista (recomendado)</option>
-                      <option value="fixo">Número fixo de questões por assunto</option>
-                      <option value="proporcional">Proporcional ao que você já praticou</option>
-                    </select>
-                  </div>
-                  <div class="rfc-field">
-                    <label for="plano-custopiso" data-info="· modo por lacuna: quantas questões você precisa resolver, no mínimo, para o assunto ser REMEDIDO na próxima importação. É o custo de um assunto que já está no máximo realista.">· se por lacuna: piso</label>
-                    <input type="number" inputmode="numeric" id="plano-custopiso" min="10" max="500" step="5">
-                  </div>
-                  <div class="rfc-field">
-                    <label for="plano-custoponto" data-info="· modo por lacuna: quantas questões a mais por ponto percentual de lacuna. Com 2, fechar 30 pontos custa 60 questões além do piso — mais ou menos conforme o assunto seja mais amplo ou mais estreito que a sua média. Aumente se os seus assuntos são densos; diminua se você costuma virar a chave rápido.">· se por lacuna: q/ponto</label>
-                    <input type="number" inputmode="decimal" id="plano-custoponto" min="0" max="20" step="0.5">
-                  </div>
-                  <div class="rfc-field">
-                    <label for="plano-custofixo" data-info="· modo fixo: o mesmo número de questões para todo assunto, independente da distância até a meta.">· se fixo: questões</label>
-                    <input type="number" inputmode="numeric" id="plano-custofixo" min="10" max="1000" step="5">
-                  </div>
-                  <div class="rfc-field">
-                    <label for="plano-custofator" data-info="· modo proporcional: multiplica o que você já resolveu naquele assunto. 0,5 significa &quot;metade do que já fiz&quot;. Assume que assunto grande dá mais trabalho — o que nem sempre vale.">· se proporcional: fator</label>
-                    <input type="number" inputmode="decimal" id="plano-custofator" min="0.1" max="3" step="0.1">
-                  </div>
-                  <div class="rfc-field wide">
-                    <label for="plano-pesobanca" data-info="Só afeta a ordem 🎯 fraqueza × incidência. Em 0 a banca é ignorada e a ordem vira o melhor retorno puro. Quanto maior, mais o assunto que CAI MUITO na prova sobe, mesmo sem ser o seu pior acerto. Acima de 8 a incidência manda praticamente sozinha.">Quanto a banca pesa na prioridade: <span id="plano-pesobanca-label" class="lbl-accent">6</span></label>
-                    <input type="range" id="plano-pesobanca" min="0" max="12" step="1" class="reforco-slider">
-                    <div class="reforco-slider-legend"><span>só o seu erro</span><span>equilíbrio</span><span>só a incidência</span></div>
-                  </div>
-                  <div class="rfc-field">
-                    <label for="plano-limite" data-info="Quantos assuntos a lista mostra. Não altera nenhum cálculo — o domínio e o caminho mais curto usam todos. Listas longas viram paralisia: 10 a 30 é o que se ataca de verdade.">Mostrar até (assuntos)</label>
-                    <input type="number" inputmode="numeric" id="plano-limite" min="5" max="200" step="5">
-                  </div>
-                </div>
-              </div>
-              <div style="display:flex;justify-content:flex-end;margin-top:12px;">
-                <button type="button" class="btn-secondary" id="plano-reset">↺ Restaurar padrões</button>
-              </div>
-            </div>
-            </div><!-- /#plano-filtros-body -->
 
             <!-- MODO DE ATAQUE: fica FORA do painel recolhível de propósito. É a
                  primeira decisão da tela ("qual pergunta eu estou fazendo?"),
@@ -935,6 +700,261 @@
         <span style="flex:1"></span>
         <button type="button" class="btn-secondary" id="ui-modal-cancel">Cancelar</button>
         <button type="button" class="btn-primary" id="ui-modal-ok">Confirmar</button>
+      </div>
+    </div>
+  </div>
+  <!-- ══════════════ AJUSTES DO DESEMPENHO TEC (janela suspensa) ══════════════
+       Vinte e cinco campos abertos na tela faziam o Desempenho TEC ABRIR EM
+       CONFIGURAÇÃO: no celular eram 2.413px de formulário antes do primeiro
+       número. Ajuste é a exceção — o resultado é a rotina. Agora tudo mora
+       aqui, numa folha que sobe de baixo no celular e vira diálogo no
+       desktop, com os campos repartidos em seções de UMA pergunta cada: só
+       uma aparece por vez, e nenhuma cascateia.
+
+       Os campos são OS MESMOS de antes, com os mesmos ids — as telas
+       continuam lendo `plano-meta`, `reforco-minq`, `tec-weak-minq`. O que
+       mudou foi onde eles moram. -->
+  <div id="tec-cfg-modal" class="cards-modal tec-cfg-modal" style="display:none;" aria-labelledby="tec-cfg-title">
+    <div class="cards-modal-box tec-cfg-box">
+      <div class="cards-modal-head tec-cfg-head">
+        <div style="min-width:0;">
+          <h2 id="tec-cfg-title">Ajustes</h2>
+          <p class="sub" id="tec-cfg-sub"></p>
+        </div>
+        <button type="button" class="icon-btn" id="tec-cfg-x" aria-label="Fechar ajustes">✕</button>
+      </div>
+      <div class="tec-cfg-nav" id="tec-cfg-nav" role="tablist" aria-label="Seções dos ajustes"></div>
+      <div class="cards-modal-body tec-cfg-body" id="tec-cfg-body">
+        <div class="tec-cfg-sec" data-tab="plano" data-sec="essencial" data-ic="🎯" data-rot="Essencial" hidden>
+          <p class="tec-cfg-sec-sub">As cinco decisões que mudam a leitura da lista. Se você só for mexer em uma coisa, é aqui.</p>
+          <div class="tec-cfg-grid">
+            <div class="rfc-field wide">
+              <label for="plano-disc" data-info="Restringe TODA a tela a uma disciplina: o domínio do topo, a lista e a trajetória passam a falar só dela. Útil para atacar uma matéria por vez; deixe em Todas para comparar onde o seu tempo rende mais.">Disciplina</label>
+              <select id="plano-disc" data-cfg-key="disciplina"><option value="__todas__">📚 Todas</option></select>
+            </div>
+            <div class="rfc-field">
+              <label for="plano-meta" data-info="A nota que você considera suficiente em cada assunto. É a linha tracejada da trajetória e o que define quem é 🟢 sólido. Subir a meta aumenta a lista de pendências; baixar declara vitória cedo. 75–85% cobre a maioria dos concursos.">Meta de domínio (%)</label>
+              <input type="number" inputmode="numeric" id="plano-meta" data-cfg-key="metaDominio" min="30" max="100" step="1">
+            </div>
+            <div class="rfc-field">
+              <label for="plano-amostraalvo" data-info="Para cada assunto o app parte da importação mais recente e só volta no tempo até juntar esta quantidade de questões. Quanto maior, mais confiável a taxa — e mais antigo o dado que ela usa. Quem resolve pouco por semana deve manter baixo, senão a taxa vira retrato do ano passado.">Amostra desejada por assunto</label>
+              <select id="plano-amostraalvo" data-cfg-key="amostraAlvo">
+                <option value="30">30 questões (±18pp)</option>
+                <option value="50">50 questões (±14pp)</option>
+                <option value="100">100 questões (±10pp)</option>
+                <option value="200">200 questões (±7pp)</option>
+              </select>
+            </div>
+            <div class="rfc-field">
+              <label for="plano-ritmo" data-info="Quantas questões você resolve por semana. Segue sozinho o que os seus retratos mostram; digite outro valor para simular um cenário (&quot;e se eu dobrasse o ritmo?&quot;). Só afeta a previsão em semanas — não muda nenhuma prioridade.">Ritmo (q/semana)</label>
+              <input type="number" inputmode="numeric" id="plano-ritmo" data-cfg-key="ritmoSemanal" min="1" max="2000" step="1">
+            </div>
+            <div class="rfc-field wide">
+              <label for="plano-ordenar" data-info="A ORDEM DE ATAQUE: qual pergunta decide quem vem primeiro na lista. Não muda nenhum número — muda a fila. A explicação do cenário escolhido aparece logo abaixo, com o caso em que ele é a escolha certa e o caso em que é armadilha.">Ordem de ataque</label>
+              <select id="plano-ordenar" data-cfg-key="ordenar">
+                <option value="pior">🔴 Pior acerto primeiro</option>
+                <option value="ganhoGeral">📊 Maior ganho no aproveitamento geral</option>
+                <option value="banca">🎯 Fraqueza × incidência na banca</option>
+                <option value="rendimento">⚡ Melhor retorno — ganho ÷ custo</option>
+                <option value="queda">📉 Maior queda recente</option>
+              </select>
+            </div>
+            <div class="rfc-field" id="plano-banca-field" style="display:none;">
+              <label data-info="Quais bancas contam na ordem &quot;fraqueza × incidência&quot;. É a MESMA seleção do Reforço e da aba Incidência: marcar aqui vale para as três. Sem nenhuma marcada, o app soma o histórico de todas as bancas importadas.">Bancas do meu concurso</label>
+              <div class="banca-pick" id="plano-banca-pick"></div>
+            </div>
+          </div>
+        </div>
+        <div class="tec-cfg-sec" data-tab="plano" data-sec="amostra" data-ic="🔬" data-rot="Amostra" hidden>
+          <p class="tec-cfg-sec-sub">Em quem o app confia. Uma taxa tirada de poucas questões não é medição, é palpite: com 8 questões, 40% pode significar qualquer coisa entre 4% e 71%.</p>
+          <div class="tec-cfg-grid">
+            <div class="rfc-field">
+              <label for="plano-minamostra" data-info="Porta de entrada do cálculo. Assunto com menos questões que isto sai da média de domínio e vai para o segundo plano, onde a ação é outra: resolver questões para descobrir onde você está. Três erros em seis questões não é fraqueza comprovada, é falta de dado.">Mínimo para entrar no cálculo</label>
+              <input type="number" inputmode="numeric" id="plano-minamostra" data-cfg-key="minAmostra" min="0" max="500" step="1">
+            </div>
+            <div class="rfc-field">
+              <label for="plano-piso" data-info="Diferente do campo ao lado: aqui é o mínimo dentro de UMA importação para ela valer como medição no gráfico de trajetória e na contagem de importações seguidas na meta. Um assunto com 2 questões num retrato não conta como &quot;mais uma vez na meta&quot;.">Mínimo por importação (trajetória)</label>
+              <input type="number" inputmode="numeric" id="plano-piso" data-cfg-key="pisoSerie" min="1" max="100" step="1">
+            </div>
+            <div class="rfc-field wide">
+              <label class="rfc-check" data-info="Ligado, os assuntos de amostra pequena entram na média e na lista em vez de ficarem no segundo plano — e o segundo plano some, porque ninguém precisa ver o mesmo assunto duas vezes. Use no modo Diagnóstico, quando o objetivo é justamente medir; desligue depois, ou meia dúzia de questões passa a mover o seu domínio."><input type="checkbox" id="plano-pequenas" data-cfg-key="incluirPequenas"> Incluir assuntos com amostra pequena no cálculo</label>
+              <label class="rfc-check" data-info="O TEC agrupa assunto dentro de assunto (1, 1.1, 1.1.1). Ligado, só o nível mais específico entra na conta — sem isso, o mesmo acerto é contado no filho e no pai, e um tópico grande aparece duas vezes na lista com números diferentes. Desligue apenas se você estuda por blocos grandes e prefere ver o pai."><input type="checkbox" id="plano-folhas" data-cfg-key="apenasFolhas"> Só assuntos específicos (ignorar tópicos-pai)</label>
+            </div>
+          </div>
+        </div>
+        <div class="tec-cfg-sec" data-tab="plano" data-sec="frescor" data-ic="🗓️" data-rot="Frescor" hidden>
+          <p class="tec-cfg-sec-sub">Até onde o passado ainda fala por você. Dado de um ano atrás não descreve o seu nível — mas jogar fora dado antigo demais deixa o app sem amostra nenhuma.</p>
+          <div class="tec-cfg-grid">
+            <div class="rfc-field">
+              <label for="plano-janelamax" data-info="Trava de segurança: mesmo faltando amostra, o app NUNCA usa dado mais antigo que isto. Acima desse prazo o desempenho já não representa você. Baixar demais faz muitos assuntos ficarem sem diagnóstico.">Não usar dado mais velho que (dias)</label>
+              <input type="number" inputmode="numeric" id="plano-janelamax" data-cfg-key="janelaMax" min="30" max="1825" step="30">
+            </div>
+            <div class="rfc-field">
+              <label for="plano-validade" data-info="Sem medição nova neste prazo, o assunto é marcado com ⏳ dado vencido — e um assunto que sustentava a meta passa a aparecer como 🟠 sólido sem medição nova, em vez de 🟢 resolvido.">Dado vence em (dias)</label>
+              <input type="number" inputmode="numeric" id="plano-validade" data-cfg-key="validadeDias" min="30" max="720" step="15">
+            </div>
+            <div class="rfc-field">
+              <label for="plano-cadencia" data-info="Com que frequência você pretende importar um retrato novo do TEC. Se o último ficar mais velho que isto, a tela avisa que a leitura está defasada. É um lembrete seu para você — não altera nenhum cálculo.">Frequência de importação (dias)</label>
+              <input type="number" inputmode="numeric" id="plano-cadencia" data-cfg-key="cadenciaDias" min="7" max="365" step="1">
+            </div>
+          </div>
+        </div>
+        <div class="tec-cfg-sec" data-tab="plano" data-sec="regua" data-ic="📏" data-rot="Régua" hidden>
+          <p class="tec-cfg-sec-sub">O que conta como bom, o que conta como resolvido e o que conta como mudança. É aqui que a tela deixa de ser relatório e vira critério.</p>
+          <div class="tec-cfg-grid">
+            <div class="rfc-field">
+              <label for="plano-teto" data-info="Ninguém acerta 100% nem no assunto que domina — questão mal formulada, pegadinha, cansaço. Este é o alvo realista por assunto e a base do cálculo de ganho: o ganho de um assunto é o quanto ele sobe SE chegar aqui. Teto alto infla o ganho de todo mundo.">Acerto máximo realista (%)</label>
+              <input type="number" inputmode="numeric" id="plano-teto" data-cfg-key="tetoDominio" min="50" max="100" step="1">
+            </div>
+            <div class="rfc-field">
+              <label for="plano-critico" data-info="Abaixo disto o diagnóstico muda de natureza: você erra mais do que acerta, então o problema é de teoria e não de treino. Resolver mais questões nessa faixa costuma só repetir o erro.">Faixa crítica: abaixo de (%)</label>
+              <input type="number" inputmode="numeric" id="plano-critico" data-cfg-key="faixaCritico" min="0" max="100" step="5">
+            </div>
+            <div class="rfc-field">
+              <label for="plano-fragil" data-info="Entre a faixa crítica e este valor: a base existe mas falha em pontos específicos. A orientação vira revisar só o que errou, alternando com blocos de questões.">Faixa frágil: abaixo de (%)</label>
+              <input type="number" inputmode="numeric" id="plano-fragil" data-cfg-key="faixaFragil" min="0" max="100" step="5">
+            </div>
+            <div class="rfc-field">
+              <label for="plano-consolidar" data-info="Quantas importações SEGUIDAS na meta um assunto precisa sustentar para virar 🟢 sólido. Cruzar a meta uma vez pode ser sorte na amostra; sustentar duas vezes já é outra conversa. Baixar para 1 esvazia a lista rápido demais.">Importações p/ consolidar</label>
+              <input type="number" inputmode="numeric" id="plano-consolidar" data-cfg-key="consolidarEm" min="1" max="10" step="1">
+            </div>
+            <div class="rfc-field">
+              <label for="plano-sens" data-info="Variação mínima, em pontos percentuais, para o app marcar ▲ melhorando ou ▼ piorando. Abaixo disso é ruído de amostra, não evolução. Com poucas questões por assunto, use um valor maior.">Sensibilidade da tendência (pp)</label>
+              <input type="number" inputmode="numeric" id="plano-sens" data-cfg-key="sensTendencia" min="1" max="30" step="1">
+            </div>
+          </div>
+        </div>
+        <div class="tec-cfg-sec" data-tab="plano" data-sec="esforco" data-ic="⚡" data-rot="Esforço" hidden>
+          <p class="tec-cfg-sec-sub">O que a fila otimiza. Peso responde "todo assunto vale o mesmo?"; custo responde "quanto trabalho cada um dá?". São estes dois que fazem as ordens de ataque discordarem entre si.</p>
+          <div class="tec-cfg-grid">
+            <div class="rfc-field wide">
+              <label for="plano-ponderacao" data-info="Peso igual: um assunto de 4 questões conta tanto quanto um de 400 — nada se esconde atrás de pouco volume, e é a leitura certa antes do edital. Por volume: o que você mais pratica manda, o que maximiza o aproveitamento geral do topo desta tela.">Como pesar cada assunto</label>
+              <select id="plano-ponderacao" data-cfg-key="ponderacao">
+                <option value="igual">⚖️ Todo assunto pesa igual — nada se esconde atrás de pouco volume</option>
+                <option value="volume">📊 Pelo volume de questões — maximiza o Aproveitamento geral desta tela</option>
+                <option value="ambas">🔀 Mostrar as duas — decida item a item</option>
+              </select>
+            </div>
+            <div class="rfc-field wide">
+              <label for="plano-customodo" data-info="Por lacuna (padrão): custo = piso para remedir + tanto por ponto percentual até o máximo realista, ajustado pela amplitude do assunto (o quanto o banco já te serviu ali, comparado à sua mediana). É o único modo em que &quot;melhor retorno&quot; produz uma fila diferente de &quot;pior acerto&quot;. Fixo: o mesmo número para todos — vira cópia de &quot;pior acerto primeiro&quot;. Proporcional: fator × o que você já praticou.">Como estimar o custo de cada assunto</label>
+              <select id="plano-customodo" data-cfg-key="custoModo">
+                <option value="lacuna">📐 Pela lacuna até o máximo realista (recomendado)</option>
+                <option value="fixo">Número fixo de questões por assunto</option>
+                <option value="proporcional">Proporcional ao que você já praticou</option>
+              </select>
+            </div>
+            <div class="rfc-field" data-cfg-se="plano-customodo:lacuna">
+              <label for="plano-custopiso" data-info="Quantas questões você precisa resolver, no mínimo, para o assunto ser REMEDIDO na próxima importação. É o custo de um assunto que já está no máximo realista.">Piso: questões para remedir</label>
+              <input type="number" inputmode="numeric" id="plano-custopiso" data-cfg-key="custoPiso" min="10" max="500" step="5">
+            </div>
+            <div class="rfc-field" data-cfg-se="plano-customodo:lacuna">
+              <label for="plano-custoponto" data-info="Quantas questões a mais por ponto percentual de lacuna. Com 2, fechar 30 pontos custa 60 questões além do piso — mais ou menos conforme o assunto seja mais amplo ou mais estreito que a sua média. Aumente se os seus assuntos são densos; diminua se você costuma virar a chave rápido.">Questões por ponto de lacuna</label>
+              <input type="number" inputmode="decimal" id="plano-custoponto" data-cfg-key="custoPorPonto" min="0" max="20" step="0.5">
+            </div>
+            <div class="rfc-field" data-cfg-se="plano-customodo:fixo">
+              <label for="plano-custofixo" data-info="O mesmo número de questões para todo assunto, independente da distância até a meta.">Questões por assunto</label>
+              <input type="number" inputmode="numeric" id="plano-custofixo" data-cfg-key="custoFixo" min="10" max="1000" step="5">
+            </div>
+            <div class="rfc-field" data-cfg-se="plano-customodo:proporcional">
+              <label for="plano-custofator" data-info="Multiplica o que você já resolveu naquele assunto. 0,5 significa &quot;metade do que já fiz&quot;. Assume que assunto grande dá mais trabalho — o que nem sempre vale.">Fator sobre o que já pratiquei</label>
+              <input type="number" inputmode="decimal" id="plano-custofator" data-cfg-key="custoFator" min="0.1" max="3" step="0.1">
+            </div>
+            <div class="rfc-field wide" data-cfg-se="plano-ordenar:banca">
+              <label for="plano-pesobanca" data-info="Só afeta a ordem 🎯 fraqueza × incidência. Em 0 a banca é ignorada e a ordem vira o melhor retorno puro. Quanto maior, mais o assunto que CAI MUITO na prova sobe, mesmo sem ser o seu pior acerto. Acima de 8 a incidência manda praticamente sozinha.">Quanto a banca pesa na prioridade: <span id="plano-pesobanca-label" class="lbl-accent">6</span></label>
+              <input type="range" id="plano-pesobanca" data-cfg-key="pesoBanca" min="0" max="12" step="1" class="reforco-slider">
+              <div class="reforco-slider-legend"><span>só o seu erro</span><span>equilíbrio</span><span>só a incidência</span></div>
+            </div>
+            <div class="rfc-field">
+              <label for="plano-limite" data-info="Quantos assuntos a lista mostra. Não altera nenhum cálculo — o domínio e o caminho mais curto usam todos. Listas longas viram paralisia: 10 a 30 é o que se ataca de verdade.">Mostrar até (assuntos)</label>
+              <input type="number" inputmode="numeric" id="plano-limite" data-cfg-key="limite" min="5" max="200" step="5">
+            </div>
+          </div>
+        </div>
+        <div class="tec-cfg-sec" data-tab="reforco" data-sec="essencial" data-ic="🎯" data-rot="Essencial" hidden>
+          <p class="tec-cfg-sec-sub">Quais bancas contam, que recorte você quer ver e qual pergunta ordena a fila.</p>
+          <div class="tec-cfg-grid">
+            <div class="rfc-field">
+              <label data-info="Quais bancas contam no cruzamento. Marque quantas quiser: quem presta para dois órgãos com bancas diferentes soma só as duas, sem carregar o histórico de bancas que não vai enfrentar. Sem nenhuma marcada, o app soma todas as importadas — útil antes do edital. A escolha vale para o Reforço, o Plano e a aba Incidência ao mesmo tempo.">Bancas do meu concurso</label>
+              <div class="banca-pick" id="reforco-banca-pick"></div>
+            </div>
+            <div class="rfc-field">
+              <label for="reforco-disc" data-info="Filtra o ranking a uma disciplina. As disciplinas listadas vêm da INCIDÊNCIA importada, não do seu desempenho: matéria que você estuda e não está no índice da banca não aparece aqui.">Disciplina</label>
+              <select id="reforco-disc" data-cfg-key="disc"><option value="__todas__">📚 Todas</option></select>
+            </div>
+            <div class="rfc-field">
+              <label data-info="Ranking: uma fila única com os melhores alvos de todas as disciplinas — bom para decidir o que fazer agora. Disciplinas: um acordeão por matéria, com os pontos cegos e o sobre-investimento de cada uma embutidos — bom para planejar a semana.">Visão</label>
+              <div class="scope-toggle" id="reforco-view-toggle">
+                <button type="button" data-view="global" class="active">🏆 Ranking</button>
+                <button type="button" data-view="disc">📚 Disciplinas</button>
+              </div>
+            </div>
+            <div class="rfc-field">
+              <label for="reforco-ordenar" data-info="Oportunidade combina os três fatores (erro × incidência × zona de virada) e é a ordem que responde &quot;onde ganho mais ponto por hora&quot;. Maior erro ignora a banca. Maior incidência ignora o seu nível — serve para ver o que a prova cobra, não o que você precisa.">Ordenar por</label>
+              <select id="reforco-ordenar" data-cfg-key="reforcoOrdenar">
+                <option value="oportunidade" selected title="Erro × incidência × zona de virada. Use quando quiser o melhor retorno por hora.">🎯 Oportunidade de pontos</option>
+                <option value="erro" title="Só o seu erro, ignorando a banca. Use para fechar buracos antes do edital.">🔴 Maior erro (mais fraco)</option>
+                <option value="incidencia" title="Só o peso na prova, ignorando o seu nível. Use para conhecer a banca, não para escolher o que estudar.">🏛️ Maior incidência</option>
+              </select>
+            </div>
+          </div>
+        </div>
+        <div class="tec-cfg-sec" data-tab="reforco" data-sec="afinacao" data-ic="🎚️" data-rot="Afinação" hidden>
+          <p class="tec-cfg-sec-sub">Para que lado o desempate vai, em que altura da árvore o Reforço decide e qual o tamanho da lista.</p>
+          <div class="tec-cfg-grid">
+            <div class="rfc-field wide">
+              <label for="reforco-estrat" data-info="Para que lado o desempate vai. À esquerda, o que você mais erra sobe, mesmo que caia pouco na prova. À direita, o que mais cai na prova sobe, mesmo que você já vá bem. No meio, os dois pesam parecido. Não muda os números da lista — muda a ordem.">Estratégia: <span id="reforco-estrat-label" class="lbl-accent">equilíbrio</span></label>
+              <input type="range" id="reforco-estrat" data-cfg-key="estrat" min="0" max="100" value="50" class="reforco-slider">
+              <div class="reforco-slider-legend"><span>Recuperar erros</span><span>Maximizar incidência</span></div>
+            </div>
+            <div class="rfc-field wide">
+              <label data-info="Em que altura da árvore o Reforço decide. Disciplina: uma linha por matéria — visão de alocação de tempo. Assunto: desce um nível quando há amostra suficiente naquele ramo (o equilíbrio). Tópico: o nível mais fino, útil só quando você já resolve muita questão em cada assunto. O controle era um cursor de 101 posições que, por dentro, só tinha estes três valores.">Granularidade</label>
+              <div class="scope-toggle" id="reforco-gran-toggle">
+                <button type="button" data-gran="0">📚 Disciplina</button>
+                <button type="button" data-gran="50" class="active">📂 Assunto</button>
+                <button type="button" data-gran="100">📄 Tópico</button>
+              </div>
+              <input type="hidden" id="reforco-gran" data-cfg-key="gran" value="50">
+            </div>
+            <div class="rfc-field">
+              <label for="reforco-minq" data-info="Abaixo disto a unidade não entra no ranking de erros: vira 🕳️ ponto cego (se a banca cobra) ou fica de fora. É o que separa &quot;vou mal aqui&quot; de &quot;quase não pratiquei aqui&quot; — duas situações com ações opostas.">Mín. de questões</label>
+              <input type="number" inputmode="numeric" id="reforco-minq" data-cfg-key="minq" min="1" value="10">
+            </div>
+            <div class="rfc-field">
+              <label for="reforco-limite" data-info="Quantas linhas o ranking mostra. Nasce da carga horária do seu ciclo (~1 tópico a cada 3h semanais). Não altera nenhum cálculo — só o tamanho da lista.">Qtd. de tópicos</label>
+              <input type="number" inputmode="numeric" id="reforco-limite" data-cfg-key="limite" min="1" value="12">
+            </div>
+          </div>
+        </div>
+        <div class="tec-cfg-sec" data-tab="analise" data-sec="fracos" data-ic="🎯" data-rot="Pontos fracos" hidden>
+          <p class="tec-cfg-sec-sub">O corte que decide quem entra na lista de pontos fracos e como ela é ordenada.</p>
+          <div class="tec-cfg-grid">
+            <div class="field" style="margin-bottom:0; min-width:200px;">
+              <label for="tec-weak-ordenar" data-info="Duas perguntas diferentes. &quot;Pior taxa&quot; responde onde você erra mais por questão resolvida — bom para achar assunto mal aprendido. &quot;Mais erros&quot; responde onde você PERDE mais questões: um tópico grande a 60% costuma custar mais pontos que um pequeno a 20%. Antes só existia a primeira, e com ela um tópico de 3 questões subia acima de um de 300.">Ordenar por</label>
+              <select id="tec-weak-ordenar" data-cfg-key="weakOrdenar">
+                <option value="taxa">🔴 Pior taxa de acerto</option>
+                <option value="impacto">📉 Mais erros (impacto)</option>
+              </select>
+            </div>
+            <div class="field" style="margin-bottom:0; min-width:200px;">
+              <label for="tec-weak-disc" data-info="Todas: agrupa por disciplina, da mais fraca para a mais forte. Uma disciplina: lista plana só dela, para atacar uma matéria por vez.">Agrupar / filtrar por disciplina</label>
+              <select id="tec-weak-disc" data-cfg-key="weakDisc"></select>
+            </div>
+            <div class="field" style="margin-bottom:0;">
+              <label data-info="Abaixo disto um tópico é considerado ponto fraco. Nasce igual à meta de domínio do 🏁 Plano, para que as duas telas usem a mesma régua — mude aqui se quiser um corte diferente só nesta lista.">Aproveitamento abaixo de</label>
+              <div class="time-input"><input type="number" inputmode="numeric" id="tec-weak-threshold" data-cfg-key="weakLimiar" min="1" max="100" value="80" style="width:70px; text-align:center;"><span>%</span></div>
+            </div>
+            <div class="field" style="margin-bottom:0;">
+              <label for="tec-weak-minq" data-info="Tópicos com menos questões que isto ficam fora da lista. Com 3 questões, a taxa de acerto pode variar dezenas de pontos: cada linha mostra a margem (±pp) para você ver isso. Baixar este número enche a lista de amostras curtas.">Mínimo de questões</label>
+              <input type="number" inputmode="numeric" id="tec-weak-minq" data-cfg-key="weakMinQ" min="1" value="10" style="width:80px; text-align:center;">
+            </div>
+            <label class="co-check" style="margin-bottom:6px;" data-info="O TEC agrupa assunto dentro de assunto. Ligado, só o nível mais específico entra — sem isso o mesmo erro aparece contado no tópico-pai e no filho, como se fossem dois pontos fracos."><input type="checkbox" id="tec-weak-leaves" data-cfg-key="weakLeaves" checked> Só tópicos específicos (folhas)</label>
+          </div>
+        </div>
+      </div>
+      <div class="cards-modal-foot tec-cfg-foot">
+        <button type="button" class="btn-secondary tec-cfg-reset" id="tec-cfg-reset">↺ <span class="tec-cfg-reset-longo">Restaurar </span>padrões</button>
+        <span class="tec-cfg-foot-gap"></span>
+        <button type="button" class="btn-primary" id="tec-cfg-done">Concluir</button>
       </div>
     </div>
   </div>

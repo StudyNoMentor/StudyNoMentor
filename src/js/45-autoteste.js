@@ -1541,6 +1541,71 @@ const AutoTeste = {
   },
 
 
+  /* ═══ A FOLHA DE AJUSTES ═══════════════════════════════════════════════════
+     O Desempenho TEC abria em CONFIGURAÇÃO: 25 campos empilhados, 2.413px de
+     formulário antes do primeiro número num celular de 390px. Os campos são os
+     mesmos, com os mesmos ids — mudou onde moram. O que este grupo cobra é a
+     estrutura de que a folha depende: seção sem chip é campo que não aparece
+     em lugar nenhum, e campo sem `data-cfg-key` é um ponto de "você mexeu
+     aqui" que nunca acende. */
+  ajustesTec() {
+    const T = TecAjustes;
+    const secs = (aba) => [...document.querySelectorAll('#tec-cfg-body .tec-cfg-sec[data-tab="' + aba + '"]')];
+    const abas = ['plano', 'reforco', 'analise'];
+    abas.forEach(aba => {
+      const lista = secs(aba);
+      this._ok('Ajustes: a aba "' + aba + '" tem seção na folha', lista.length >= 1, lista.length);
+      this._ok('Ajustes: toda seção de "' + aba + '" tem rótulo e ícone para o chip',
+        lista.every(s => s.dataset.rot && s.dataset.ic), lista.map(s => s.dataset.sec));
+      this._ok('Ajustes: toda seção de "' + aba + '" tem campo dentro',
+        lista.every(s => s.querySelectorAll('input, select').length > 0), lista.map(s => s.dataset.sec));
+      this._ok('Ajustes: a aba "' + aba + '" tem a porta ⚙ na tela',
+        !!document.querySelector('.tec-cfg-open[data-cfg="' + aba + '"]'));
+      this._ok('Ajustes: e um lugar para as etiquetas do que está valendo',
+        !!document.getElementById(aba + '-cfg-resumo'));
+      this._ok('Ajustes: a aba "' + aba + '" tem título e subtítulo na folha',
+        !!(T.TITULOS[aba] && T.TITULOS[aba].t && T.TITULOS[aba].s), T.TITULOS[aba]);
+    });
+    /* Nenhum id pode existir duas vezes: a folha herdou os campos das telas, e
+       um id duplicado faria `getElementById` devolver o errado — a tela leria
+       um valor e o usuário estaria editando outro. */
+    const ids = [...document.querySelectorAll('#tec-cfg-body [id]')].map(e => e.id);
+    this._ok('Ajustes: nenhum id repetido dentro da folha', new Set(ids).size === ids.length, ids.length);
+    const fora = ids.filter(id => document.querySelectorAll('#' + CSS.escape(id)).length > 1);
+    this._ok('Ajustes: nenhum campo da folha tem sósia fora dela', fora.length === 0, fora.slice(0, 4));
+    /* O ponto de "você mexeu aqui" lê `data-cfg-key`. Campo sem a marca é
+       campo que a folha nunca vai apontar como personalizado. */
+    const semChave = [];
+    abas.forEach(aba => secs(aba).forEach(sec => sec.querySelectorAll('input, select').forEach(el => {
+      if (el.type === 'hidden' || el.type === 'checkbox' && !el.id) return;
+      if (!el.dataset.cfgKey && el.id) semChave.push(el.id);
+    })));
+    this._ok('Ajustes: todo campo declara a chave do seu padrão de fábrica',
+      semChave.length === 0, semChave.slice(0, 6));
+    // e as chaves do Plano têm de existir mesmo em PlanoEngine.DEFAULTS
+    const desconhecidas = secs('plano').flatMap(sec => [...sec.querySelectorAll('[data-cfg-key]')])
+      .map(el => el.dataset.cfgKey).filter(k => !(k in PlanoEngine.DEFAULTS));
+    this._ok('Ajustes: as chaves do Plano existem no motor', desconhecidas.length === 0, desconhecidas);
+    /* Campo condicional aponta para um campo REAL e para um valor que aquele
+       campo oferece — senão ele some para sempre, sem erro nenhum. */
+    const quebrados = [...document.querySelectorAll('#tec-cfg-body [data-cfg-se]')].filter(el => {
+      const [id, vals] = String(el.dataset.cfgSe).split(':');
+      const fonte = document.getElementById(id);
+      if (!fonte || !fonte.options) return true;
+      const oferece = [...fonte.options].map(o => o.value);
+      return !vals.split('|').every(v => oferece.indexOf(v) >= 0);
+    });
+    this._ok('Ajustes: todo campo condicional aponta para uma opção que existe',
+      quebrados.length === 0, quebrados.map(e => e.dataset.cfgSe));
+    // o resumo devolve pares [rótulo, valor] preenchidos, nunca "undefined"
+    abas.forEach(aba => {
+      const r = T.resumo(aba);
+      this._ok('Ajustes: o resumo de "' + aba + '" tem etiquetas completas',
+        Array.isArray(r) && r.length >= 2 && r.every(x => x[0] && x[1] && !/undefined|NaN/.test(String(x[1]))), r);
+    });
+  },
+
+
   /* ═══ MOTOR DO REFORÇO ═════════════════════════════════════════════════════
      A fronteira adaptativa decide o que a pessoa vai estudar, e as três coisas
      que ela pode errar erram calado: contar a mesma questão duas vezes, somar
@@ -1774,7 +1839,8 @@ const AutoTeste = {
      ['O disco que recusa gravação', 'oDiscoQueRecusa'],
      ['Plano de pontos fracos', 'plano'],
      ['Motor do Reforço', 'reforcoMotor'],
-     ['Incidência: gravação', 'incidenciaGravacao']].forEach(([nome, fn]) => {
+     ['Incidência: gravação', 'incidenciaGravacao'],
+     ['Folha de ajustes do TEC', 'ajustesTec']].forEach(([nome, fn]) => {
       try { this[fn](); }
       catch (e) { this._r.total++; this._r.falhou++; this._r.falhas.push({ nome: nome + ' — exceção', obtido: String(e && e.message || e) }); }
     });

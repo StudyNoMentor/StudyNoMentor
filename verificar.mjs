@@ -260,7 +260,6 @@ try {
      de esconder ruído. */
   for (const [tela, corpo, botao, resumo] of [
     ['desempenhotec', 'tec-scope-body', 'tec-scope-collapse', 'tec-scope-resumo'],
-    ['desempenhotec', 'plano-filtros-body', 'plano-filtros-collapse', 'plano-filtros-resumo'],
   ]) {
     await pag.evaluate((t) => switchScreen(t), tela);
     await pag.waitForTimeout(250);
@@ -914,7 +913,11 @@ try {
       edital: !!q('.pl-edital'), segundo: /SEGUNDO PLANO/i.test(txt('#plano-lista')),
       itens: document.querySelectorAll('#plano-lista .pl-item').length,
       overflow: document.documentElement.scrollWidth - document.documentElement.clientWidth,
-      semDica: [...document.querySelectorAll('#tec-panel-plano .rfc-field > label')].filter((l) => !l.querySelector('.info-dot')).length
+      /* Os campos moram na folha de ajustes. Contar `#tec-panel-plano .rfc-field`
+         daria zero e o teste passaria sem olhar nada. */
+      semDica: [...document.querySelectorAll('#tec-cfg-body .tec-cfg-sec[data-tab="plano"] .rfc-field > label')]
+        .filter((l) => !l.querySelector('.info-dot')).length,
+      camposNaFolha: document.querySelectorAll('#tec-cfg-body .tec-cfg-sec[data-tab="plano"] .rfc-field').length
     };
   });
   est.modos >= 5 ? ok(`${est.modos} modos de ataque com explicacao propria`) : erro('os modos de ataque nao renderizaram: ' + est.modos);
@@ -926,8 +929,9 @@ try {
   est.overflow === 0 ? ok('nenhum vazamento horizontal a 360px') : erro(`o plano vaza ${est.overflow}px na horizontal a 360px`);
   /* Todo campo de ajuste tem de ter o seu "i". Um campo novo sem explicacao e
      exatamente como esta tela ficou confusa da primeira vez. */
-  est.semDica === 0 ? ok('todos os campos de ajuste do Plano tem dica explicativa')
-    : erro(`${est.semDica} campo(s) de ajuste do Plano sem o "i" de explicacao`);
+  (est.semDica === 0 && est.camposNaFolha >= 20)
+    ? ok(`todos os ${est.camposNaFolha} campos de ajuste do Plano tem dica explicativa`)
+    : erro(`${est.semDica} campo(s) sem o "i" (de ${est.camposNaFolha} encontrados — se veio zero, o seletor perdeu os campos)`);
   /* Os rotulos das ordens moram numa tabela so. Se o select voltar a ser uma
      copia estatica, ele diverge do texto que explica a ordem escolhida — foi
      exatamente o que aconteceu com o dialogo "Puxar do Plano". */
@@ -1086,11 +1090,17 @@ try {
 
   // ── "i" em todos os controles das tres abas ─────────────────────────────
   const dicas = await pag.evaluate(() => {
-    const alvos = ['#tec-panel-analise', '#tec-panel-incidencia', '#tec-panel-reforco'];
+    /* Inclui a FOLHA DE AJUSTES: e la que moram os campos das tres abas desde
+       que a tela deixou de abrir em formulario. Sem esses dois seletores o
+       teste conta zero campos e passa sem olhar nada. */
+    const alvos = ['#tec-panel-analise', '#tec-panel-incidencia', '#tec-panel-reforco',
+      '#tec-cfg-body .tec-cfg-sec[data-tab="analise"]', '#tec-cfg-body .tec-cfg-sec[data-tab="reforco"]'];
     let sem = [];
     alvos.forEach((a) => {
       document.querySelectorAll(a + ' .field > label, ' + a + ' .rfc-field > label').forEach((l) => {
-        if (!l.querySelector('.info-dot') && !l.closest('[hidden]')) sem.push(a + ' ' + (l.textContent || '').trim().slice(0, 24));
+        // dentro da folha a secao nasce `hidden`; o que importa e o campo ter o "i"
+        const dentroDaFolha = !!l.closest('#tec-cfg-body');
+        if (!l.querySelector('.info-dot') && (dentroDaFolha || !l.closest('[hidden]'))) sem.push(a + ' ' + (l.textContent || '').trim().slice(0, 24));
       });
     });
     return sem;
@@ -1454,6 +1464,188 @@ try {
     : erro('a taxa inicial veio do assunto errado: ' + JSON.stringify(ativ.taxas));
 } catch (e) { erro('o caso dos homonimos falhou: ' + e.message); }
 
+/* ── 6.14) A FOLHA DE AJUSTES ───────────────────────────────────────────────
+   Vinte e cinco campos abertos faziam o Desempenho TEC ABRIR EM CONFIGURACAO:
+   2.413px de formulario antes do primeiro numero, a 390px de largura. As
+   invariantes abaixo sao as que, quando quebram, devolvem exatamente isso —
+   ou, pior, escondem os ajustes sem deixar caminho ate eles. */
+console.log('\n6.14) os ajustes numa folha suspensa, nao empilhados na tela');
+try {
+  await pag.setViewportSize({ width: 390, height: 844 });
+  await pag.evaluate(() => { switchScreen('desempenhotec'); DesempenhoTecScreen.switchTecTab('plano'); });
+  await pag.waitForTimeout(400);
+  // 1) nenhuma aba abre com campo de ajuste solto na tela
+  const solto = await pag.evaluate(() => {
+    const out = {};
+    ['analise', 'reforco', 'plano'].forEach((t) => {
+      DesempenhoTecScreen.switchTecTab(t);
+      const p = document.getElementById('tec-panel-' + t);
+      out[t] = {
+        campos: p ? p.querySelectorAll('.rfc-field input, .rfc-field select, .tec-filterbar input, .tec-filterbar select').length : -1,
+        porta: !!(p && p.querySelector('.tec-cfg-open')),
+        etiquetas: p ? p.querySelectorAll('.tec-cfg-pill').length : 0,
+        alturaBarra: p && p.querySelector('.tec-cfg-bar') ? Math.round(p.querySelector('.tec-cfg-bar').getBoundingClientRect().height) : -1
+      };
+    });
+    DesempenhoTecScreen.switchTecTab('plano');
+    return out;
+  });
+  const tudoLimpo = ['analise', 'reforco', 'plano'].every((t) => solto[t].campos === 0 && solto[t].porta && solto[t].etiquetas >= 3);
+  tudoLimpo
+    ? ok(`as tres abas abrem em RESULTADO: 0 campos soltos, a porta ⚙ e ${['analise', 'reforco', 'plano'].map((t) => solto[t].etiquetas).join('/')} etiquetas do que esta valendo`)
+    : erro('ainda ha ajuste solto na tela: ' + JSON.stringify(solto));
+  const maisAlta = Math.max(...['analise', 'reforco', 'plano'].map((t) => solto[t].alturaBarra));
+  maisAlta > 0 && maisAlta < 170
+    ? ok(`a linha de ajustes ocupa no maximo ${maisAlta}px a 390px (eram 2.413px de formulario)`)
+    : erro(`a linha de ajustes voltou a crescer: ${maisAlta}px`);
+
+  /* 2) A PORTA NAO PODE SUMIR. "Ocultar filtros" escondia tudo que tivesse a
+     classe .tec-cfg — se a barra da folha voltar a te-la, o unico caminho ate
+     os ajustes desaparece do app e nao ha como reabri-lo. */
+  const some = await pag.evaluate(() => {
+    const antes = DesempenhoTecScreen._loadPrefs().hideCfg;
+    DesempenhoTecScreen.savePrefs({ hideCfg: true });
+    DesempenhoTecScreen.applyCfgHidden();
+    const vis = [...document.querySelectorAll('.tec-cfg-open')].filter((b) => b.getBoundingClientRect().height > 0).length;
+    DesempenhoTecScreen.savePrefs({ hideCfg: antes });
+    DesempenhoTecScreen.applyCfgHidden();
+    return vis;
+  });
+  some >= 1 ? ok('"Ocultar filtros" nao esconde a porta dos ajustes')
+    : erro('com os filtros ocultos nao sobra caminho nenhum ate os ajustes');
+
+  // 3) a folha abre com UMA secao e a fita troca de secao
+  const abre = await pag.evaluate(() => {
+    document.querySelector('.tec-cfg-open[data-cfg="plano"]').click();
+    const chips = [...document.querySelectorAll('#tec-cfg-nav button')].map((b) => b.dataset.sec);
+    const visiveis = () => [...document.querySelectorAll('#tec-cfg-body .tec-cfg-sec')].filter((s) => !s.hidden);
+    const inicio = visiveis().map((s) => s.dataset.tab + '/' + s.dataset.sec);
+    TecAjustes.mostrar('esforco');
+    const depois = visiveis().map((s) => s.dataset.tab + '/' + s.dataset.sec);
+    return { chips, inicio, depois };
+  });
+  (abre.chips.length === 5 && abre.inicio.length === 1 && abre.depois.length === 1 && abre.depois[0] === 'plano/esforco')
+    ? ok(`a folha do Plano tem ${abre.chips.length} secoes e mostra UMA por vez (${abre.inicio[0]} → ${abre.depois[0]})`)
+    : erro('a folha nao esta mostrando uma secao por vez: ' + JSON.stringify(abre));
+
+  /* 4) As tres abas dividem o mesmo corpo. Esconder so as secoes irmas deixava
+     a secao da aba anterior aparecendo por baixo — a folha do Plano exibindo
+     os campos do Reforco. */
+  const vaza = await pag.evaluate(() => {
+    TecAjustes.fechar();
+    DesempenhoTecScreen.switchTecTab('reforco');
+    document.querySelector('.tec-cfg-open[data-cfg="reforco"]').click();
+    return [...document.querySelectorAll('#tec-cfg-body .tec-cfg-sec')].filter((s) => !s.hidden)
+      .map((s) => s.dataset.tab + '/' + s.dataset.sec);
+  });
+  (vaza.length === 1 && vaza[0].indexOf('reforco/') === 0)
+    ? ok('trocar de aba nao deixa a secao da outra aparecendo por baixo')
+    : erro('secao de outra aba vazou na folha: ' + JSON.stringify(vaza));
+
+  /* 5) CAMPO QUE NAO VALE PARA A SUA CONFIGURACAO NAO E INFORMACAO, E RUIDO.
+     Os tres sub-campos de custo eram irmaos permanentes, dois deles sempre
+     inertes, com o rotulo pedindo desculpa ("· se fixo: questoes"). */
+  const cond = await pag.evaluate(() => {
+    TecAjustes.fechar();
+    DesempenhoTecScreen.switchTecTab('plano');
+    document.querySelector('.tec-cfg-open[data-cfg="plano"]').click();
+    TecAjustes.mostrar('esforco');
+    const vis = () => [...document.querySelectorAll('#tec-cfg-body [data-cfg-se]')].filter((e) => !e.hidden).map((e) => e.dataset.cfgSe);
+    const trocar = (id, v) => { const s = document.getElementById(id); s.value = v; s.dispatchEvent(new Event('change', { bubbles: true })); };
+    trocar('plano-customodo', 'lacuna'); const lacuna = vis();
+    trocar('plano-customodo', 'fixo'); const fixo = vis();
+    trocar('plano-customodo', 'proporcional'); const prop = vis();
+    trocar('plano-customodo', 'lacuna');
+    return { lacuna, fixo, prop };
+  });
+  (cond.lacuna.every((x) => /lacuna/.test(x)) && cond.fixo.length === 1 && /fixo/.test(cond.fixo[0])
+    && cond.prop.length === 1 && /proporcional/.test(cond.prop[0]))
+    ? ok('os sub-campos de custo so aparecem no modo a que pertencem')
+    : erro('campo condicional errado: ' + JSON.stringify(cond));
+
+  // 6) mexer num campo aplica NA HORA e atualiza a etiqueta do que esta valendo
+  const vivo = await pag.evaluate(() => {
+    TecAjustes.mostrar('essencial');
+    const el = document.getElementById('plano-meta');
+    el.value = '92'; el.dispatchEvent(new Event('input', { bubbles: true }));
+    el.dispatchEvent(new Event('change', { bubbles: true }));
+    const etiqueta = document.getElementById('plano-cfg-resumo').textContent;
+    const gravado = PlanoEngine.prefs().metaDominio;
+    const ponto = !!document.querySelector('#tec-cfg-nav button[data-sec="essencial"] .dot');
+    return { etiqueta, gravado, ponto };
+  });
+  (vivo.gravado === 92 && /92/.test(vivo.etiqueta))
+    ? ok('mexer num campo aplica na hora e a etiqueta acompanha (meta 92%)')
+    : erro('o ajuste nao foi aplicado ao vivo: ' + JSON.stringify(vivo));
+  vivo.ponto ? ok('e a secao ganha o ponto de "voce mexeu aqui"')
+    : erro('a secao personalizada nao ficou marcada');
+
+  // 7) o pe fica alcancavel: nada de rolar um formulario atras do "Concluir"
+  const pe = await pag.evaluate(() => {
+    const box = document.querySelector('.tec-cfg-box').getBoundingClientRect();
+    const foot = document.querySelector('.tec-cfg-foot').getBoundingClientRect();
+    const body = document.getElementById('tec-cfg-body');
+    return { dentro: Math.round(box.bottom - foot.bottom), altura: Math.round(box.height),
+      corpoIndependente: body.scrollHeight >= body.clientHeight,
+      vazaH: document.documentElement.scrollWidth - document.documentElement.clientWidth };
+  });
+  (pe.dentro >= 0 && pe.dentro <= 2 && pe.altura <= 844 * 0.93 && pe.vazaH === 0)
+    ? ok(`a folha cabe na tela (${pe.altura}px de 844) com o pe preso e sem vazamento horizontal`)
+    : erro('a folha nao esta contida: ' + JSON.stringify(pe));
+
+  // 8) Esc fecha e o foco volta para a porta por onde se entrou
+  const esc = await pag.evaluate(async () => {
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+    await new Promise((r) => setTimeout(r, 120));
+    return { fechada: document.getElementById('tec-cfg-modal').style.display === 'none',
+      foco: (document.activeElement || {}).className || '' };
+  });
+  esc.fechada ? ok('Esc fecha a folha') : erro('Esc nao fechou a folha');
+  /^tec-cfg-open/.test(esc.foco) ? ok('e o foco volta para o botao por onde se entrou')
+    : erro('o foco nao voltou para a porta: ' + esc.foco);
+
+  // 9) restaurar padroes vale para a aba aberta, e so para ela
+  const rest = await pag.evaluate(async () => {
+    DesempenhoTecScreen.savePrefs({ minq: 44 });
+    document.querySelector('.tec-cfg-open[data-cfg="plano"]').click();
+    document.getElementById('tec-cfg-reset').click();
+    await new Promise((r) => setTimeout(r, 120));
+    document.getElementById('ui-modal-ok').click();
+    await new Promise((r) => setTimeout(r, 250));
+    return { meta: PlanoEngine.prefs().metaDominio, padrao: PlanoEngine.DEFAULTS.metaDominio,
+      reforcoIntacto: DesempenhoTecScreen._loadPrefs().minq };
+  });
+  (rest.meta === rest.padrao && String(rest.reforcoIntacto) === '44')
+    ? ok('restaurar padroes zera SO a aba aberta (meta volta a 85%, o Reforco fica)')
+    : erro('restaurar padroes passou dos limites: ' + JSON.stringify(rest));
+  /* 10) E nas OUTRAS DUAS ABAS o "Restaurar padroes" tem de mexer nos CAMPOS,
+     nao so no armazenamento: o Reforco e a Analise leem os proprios campos a
+     cada repintura, entao apagar a preferencia salva deixava a tela igualzinha
+     — um botao que dizia restaurar e nao restaurava nada. */
+  const restRef = await pag.evaluate(async () => {
+    TecAjustes.fechar();
+    DesempenhoTecScreen.switchTecTab('reforco');
+    await new Promise((r) => setTimeout(r, 200));
+    const minq = document.getElementById('reforco-minq');
+    const ord = document.getElementById('reforco-ordenar');
+    minq.value = '77'; minq.dispatchEvent(new Event('input', { bubbles: true }));
+    ord.value = 'incidencia'; ord.dispatchEvent(new Event('change', { bubbles: true }));
+    const antes = { minq: minq.value, ord: ord.value };
+    document.querySelector('.tec-cfg-open[data-cfg="reforco"]').click();
+    document.getElementById('tec-cfg-reset').click();
+    await new Promise((r) => setTimeout(r, 120));
+    document.getElementById('ui-modal-ok').click();
+    await new Promise((r) => setTimeout(r, 300));
+    return { antes, depois: { minq: minq.value, ord: ord.value },
+      padrao: { minq: minq.defaultValue, ord: ([...ord.options].find((o) => o.defaultSelected) || {}).value } };
+  });
+  (restRef.antes.minq === '77' && restRef.depois.minq === restRef.padrao.minq && restRef.depois.ord === restRef.padrao.ord)
+    ? ok(`restaurar padroes devolve os CAMPOS do Reforco ao padrao (77 → ${restRef.depois.minq}, ${restRef.antes.ord} → ${restRef.depois.ord})`)
+    : erro('restaurar padroes do Reforco nao mexeu nos campos: ' + JSON.stringify(restRef));
+  await pag.evaluate(() => { try { TecAjustes.fechar(); } catch (e) {} DesempenhoTecScreen.savePrefs({ minq: null }); });
+  await pag.setViewportSize({ width: 1280, height: 900 });
+} catch (e) { erro('a folha de ajustes falhou: ' + e.message); }
+
 console.log('\n7) contraste WCAG AA (temas claro e escuro)');
 /* Transicoes e animacoes desligadas durante a medicao. Sem isto, medir logo
    apos uma troca de tela pega a cor INTERMEDIARIA de uma transicao (a aba ativa
@@ -1515,6 +1707,25 @@ try {
       await pag.evaluate((t) => { try { switchScreen('desempenhotec'); DesempenhoTecScreen.switchTecTab(t); } catch (e) {} }, aba);
       await pag.waitForTimeout(220);
       (await pag.evaluate(MEDIR)).forEach((x) => achados.add(x));
+      /* E a FOLHA DE AJUSTES, secao por secao. Ela nasce `display:none`, entao
+         o medidor pula tudo o que ha dentro dela: os 25 campos do Plano, os
+         chips da fita e o pe do dialogo sairiam da medicao inteiros — que e
+         exatamente como o numero dos passos do Plano ficou em 1,65:1 sem
+         ninguem ver, antes de as abas entrarem neste laco. */
+      const secs = await pag.evaluate((t) => {
+        try {
+          const b = document.querySelector('.tec-cfg-open[data-cfg="' + t + '"]');
+          if (!b) return [];
+          b.click();
+          return [...document.querySelectorAll('#tec-cfg-nav button')].map((x) => x.dataset.sec);
+        } catch (e) { return []; }
+      }, aba);
+      for (const sec of secs) {
+        await pag.evaluate((x) => { try { TecAjustes.mostrar(x); } catch (e) {} }, sec);
+        await pag.waitForTimeout(120);
+        (await pag.evaluate(MEDIR)).forEach((x) => achados.add(x));
+      }
+      if (secs.length) await pag.evaluate(() => { try { TecAjustes.fechar(); } catch (e) {} });
     }
     // o aviso flutuante so existe depois de disparado
     await pag.evaluate(() => { try { showToast('Verificacao de contraste'); } catch (e) {} });

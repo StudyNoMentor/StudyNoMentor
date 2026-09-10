@@ -1151,3 +1151,160 @@
   #screen-registrar .reg-modebar .ux-seg { flex: 1 1 auto; }
   #screen-registrar .reg-modebar .ux-seg button { flex: 1 1 0; justify-content: center; }
 }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   AJUSTES DO DESEMPENHO TEC — a folha que substituiu o formulário na tela
+   ───────────────────────────────────────────────────────────────────────────
+   Vinte e cinco campos abertos empilhavam 2.413px de configuração antes do
+   primeiro número, num celular de 390px. Três decisões de layout resolvem isso:
+
+   · UMA SEÇÃO POR VEZ. As seções são irmãs e só a ativa é exibida — o que
+     rolava em cascata agora cabe em uma tela. A navegação é uma fita de chips
+     que rola na horizontal, não uma pilha de acordeões.
+   · CABEÇA E PÉ FIXOS. O título diz onde você está e o pé mantém "Restaurar
+     padrões" e "Concluir" sempre alcançáveis com o polegar, sem rolar de volta.
+   · GRADE QUE NÃO ESPREME. Uma coluna abaixo de 560px; duas acima. O campo
+     `wide` ocupa a linha inteira nos dois casos.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* a porta: uma linha só, com o que está valendo escrito ao lado */
+.tec-cfg-bar {
+  display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+  margin: 12px 24px 8px;
+}
+#tec-panel-plano .tec-cfg-bar { margin: 10px 0 6px; }
+.tec-cfg-open {
+  display: inline-flex; align-items: center; gap: 7px;
+  background: var(--surface-sunken); border: 1.5px solid var(--border);
+  color: var(--text); border-radius: 10px; padding: 8px 14px;
+  font-size: var(--fs-xs); font-weight: 700; cursor: pointer;
+  transition: border-color .15s, color .15s, background .15s;
+  min-height: 38px; flex: 0 0 auto;
+}
+.tec-cfg-open:hover, .tec-cfg-open:focus-visible { border-color: var(--accent); }
+.tec-cfg-resumo {
+  display: flex; align-items: center; gap: 6px; flex-wrap: wrap;
+  min-width: 0; flex: 1 1 180px;
+}
+.tec-cfg-resumo:empty { display: none; }
+.tec-cfg-pill {
+  display: inline-flex; align-items: baseline; gap: 5px;
+  background: var(--surface-sunken); border: 1px solid var(--border);
+  border-radius: 999px; padding: 3px 11px;
+  font-size: var(--fs-2xs); font-weight: 700; color: var(--text);
+  max-width: 100%; min-width: 0;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.tec-cfg-pill i {
+  font-style: normal; font-weight: 600; color: var(--text-faint);
+  text-transform: uppercase; letter-spacing: .03em; font-size: var(--fs-3xs);
+}
+
+/* a folha */
+.tec-cfg-modal { z-index: 2000; }
+.tec-cfg-box { max-width: 720px; }
+.tec-cfg-head { padding-bottom: 10px; }
+.tec-cfg-head h2 { font-size: var(--fs-md); }
+.tec-cfg-head .sub { margin-top: 2px; }
+
+/* fita de seções: rola na horizontal em vez de quebrar em duas fileiras */
+.tec-cfg-nav {
+  display: flex; gap: 8px; padding: 10px 22px 12px;
+  border-bottom: 1px solid var(--border);
+  overflow-x: auto; scrollbar-width: thin;
+  -webkit-overflow-scrolling: touch;
+}
+.tec-cfg-nav::-webkit-scrollbar { height: 4px; }
+.tec-cfg-nav::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
+.tec-cfg-nav button {
+  flex: 0 0 auto; display: inline-flex; align-items: center; gap: 6px;
+  background: var(--surface-sunken); border: 1.5px solid var(--border);
+  color: var(--text-soft); border-radius: 999px; padding: 7px 14px;
+  font-size: var(--fs-2xs); font-weight: 700; cursor: pointer; white-space: nowrap;
+  min-height: 36px; transition: all .15s;
+}
+.tec-cfg-nav button:hover { border-color: var(--accent); color: var(--text); }
+/* `--on-accent` e não `#fff`: no tema escuro o acento é #7c74ff e o branco
+   dá 3,62:1 — abaixo do AA. O token já carrega a tinta que cada tema exige. */
+.tec-cfg-nav button.is-active {
+  background: var(--accent); border-color: var(--accent); color: var(--on-accent);
+}
+/* um ponto marca a seção que você mexeu — some ao restaurar os padrões */
+.tec-cfg-nav button .dot {
+  width: 6px; height: 6px; border-radius: 50%; background: var(--accent); flex: 0 0 auto;
+}
+.tec-cfg-nav button.is-active .dot { background: var(--on-accent); }
+
+.tec-cfg-body { padding: 16px 22px 20px; }
+.tec-cfg-sec[hidden] { display: none !important; }
+.tec-cfg-sec-sub {
+  margin: 0 0 14px; font-size: var(--fs-2xs); color: var(--text-faint);
+  line-height: 1.55; text-align: justify; text-wrap: pretty;
+}
+.tec-cfg-grid {
+  display: grid; grid-template-columns: 1fr; gap: 16px 18px; align-items: start;
+}
+@media (min-width: 560px) { .tec-cfg-grid { grid-template-columns: 1fr 1fr; } }
+.tec-cfg-grid > .rfc-field, .tec-cfg-grid > .field { min-width: 0; margin-bottom: 0; }
+.tec-cfg-grid > .rfc-field.wide,
+.tec-cfg-grid > .field.wide,
+.tec-cfg-grid > .co-check { grid-column: 1 / -1; }
+/* dentro da folha o campo ocupa a largura que tem — nada de 100px fixos */
+.tec-cfg-grid .rfc-field select,
+.tec-cfg-grid .rfc-field input[type="number"],
+.tec-cfg-grid .field select,
+.tec-cfg-grid .field input[type="number"] { width: 100%; text-align: left; }
+.tec-cfg-grid .time-input input[type="number"] { width: 100% !important; text-align: center; }
+.tec-cfg-grid .rfc-field > label,
+.tec-cfg-grid .field > label {
+  font-size: var(--fs-2xs); font-weight: 700; color: var(--text-faint);
+  text-transform: uppercase; letter-spacing: .03em; line-height: 1.35;
+  display: block; margin-bottom: 5px;
+}
+.tec-cfg-grid .rfc-field > label.rfc-check,
+.tec-cfg-grid .co-check {
+  text-transform: none; letter-spacing: 0; color: var(--text);
+  font-size: var(--fs-xs); display: flex; align-items: center; gap: 9px;
+}
+/* a caixa de marcar não pode virar um campo de largura total */
+.tec-cfg-grid input[type="checkbox"] { flex: 0 0 auto; width: 17px; height: 17px; margin: 0; }
+.tec-cfg-grid .rfc-field.wide > .rfc-check + .rfc-check { margin-top: 10px; }
+.tec-cfg-grid .scope-toggle { width: 100%; }
+.tec-cfg-grid .scope-toggle button { flex: 1 1 0; justify-content: center; }
+.tec-cfg-grid .reforco-slider { width: 100%; }
+.tec-cfg-grid .banca-pick { width: 100%; }
+
+.tec-cfg-foot { padding: 12px 22px; gap: 10px; }
+.tec-cfg-foot-gap { flex: 1 1 auto; }
+.tec-cfg-foot .btn-primary { min-width: 130px; }
+
+/* No celular a folha sobe de baixo e ocupa a altura útil: a fita de seções e o
+   pé ficam presos, e só o corpo rola. Sem isto, "Concluir" some no fim de uma
+   rolagem de formulário — que é exatamente o problema que a folha veio matar. */
+@media (max-width: 640px) {
+  .tec-cfg-box { max-height: 92vh; }
+  .tec-cfg-head { padding: 16px 18px 10px; }
+  .tec-cfg-nav { padding: 8px 18px 10px; }
+  .tec-cfg-body { padding: 14px 18px 18px; }
+  .tec-cfg-foot { padding: 10px 18px calc(10px + env(safe-area-inset-bottom, 0px)); }
+  .tec-cfg-foot .btn-secondary, .tec-cfg-foot .btn-primary { flex: 1 1 0; min-width: 0; }
+  .tec-cfg-foot-gap { display: none; }
+  .tec-cfg-bar { margin-left: 18px; margin-right: 18px; }
+  #tec-panel-plano .tec-cfg-bar { margin-left: 0; margin-right: 0; }
+}
+/* Botão e etiquetas na mesma linha só enquanto há linha: a 390px o botão come
+   metade da largura e as etiquetas caem uma por fileira, empilhando quatro.
+   Em coluna elas usam a largura inteira e cabem duas por fileira. */
+@media (max-width: 560px) {
+  .tec-cfg-bar { flex-direction: column; align-items: stretch; gap: 8px; }
+  .tec-cfg-open { align-self: flex-start; }
+  .tec-cfg-resumo { flex: 1 1 auto; width: 100%; }
+}
+/* a fita avisa que continua: sem a borda esmaecida, cinco seções em 390px
+   parecem três e ninguém rola o que não sabe que existe */
+.tec-cfg-nav {
+  -webkit-mask-image: linear-gradient(90deg, #000 calc(100% - 28px), transparent);
+  mask-image: linear-gradient(90deg, #000 calc(100% - 28px), transparent);
+}
+.tec-cfg-sec [data-cfg-se][hidden] { display: none !important; }
+@media (max-width: 400px) { .tec-cfg-reset-longo { display: none; } }
