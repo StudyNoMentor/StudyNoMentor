@@ -1824,6 +1824,25 @@ const AutoTeste = {
         sol && sol.total >= 1 && sol.abaixo >= 1, sol);
       this._ok('Pontos: matéria que não existe no Plano não inventa solidez',
         PP.solidezDe('Matéria Inexistente', r7) === null);
+
+      /* 8) O MESMO NOME ESCRITO DE DOIS JEITOS. O ciclo você digita
+         ("Português"); a banca manda "Língua Portuguesa". Como o veredito só
+         nasce com as duas pontas, o nome diferente não deixava a linha errada:
+         fazia a matéria mais pesada da prova SUMIR do quadro, calada. */
+      const N = (x) => ReforcoEngine.norm(x);
+      const casa = (a, b) => PP._casarNomes(a.map(N), b.map(N));
+      this._ok('Nomes: "Português" casa com "Língua Portuguesa"',
+        casa(['Português'], ['Língua Portuguesa', 'Informática'])['portugues'] === 'lingua portuguesa');
+      this._ok('Nomes: igualdade exata vence a semelhança',
+        casa(['Contabilidade Geral'], ['Contabilidade de Custos', 'Contabilidade Geral'])['contabilidade geral'] === 'contabilidade geral');
+      this._ok('Nomes: "Contabilidade Geral" NÃO vira "Contabilidade de Custos"',
+        casa(['Contabilidade Geral'], ['Contabilidade de Custos'])['contabilidade geral'] === undefined);
+      this._ok('Nomes: ambiguidade não vira palpite ("Direito" casaria com três)',
+        casa(['Direito'], ['Direito Penal', 'Direito Civil', 'Direito Tributário'])['direito'] === undefined);
+      this._ok('Nomes: com DOIS supersets possíveis também não casa',
+        casa(['Direito Penal'], ['Direito Processual Penal', 'Direito Penal Militar'])['direito penal'] === undefined);
+      this._ok('Nomes: subconjunto único casa (Ética → Ética no Serviço Público)',
+        casa(['Ética'], ['Etica no Servico Publico'])['etica'] === 'etica no servico publico');
     } finally {
       DB.getTecSnapshots = origSnaps; DB.getActiveSubjects = origSubs; window.planCycleMode = origModo;
       if (antesP == null) DB.delRaw(chaveP); else DB.setRaw(chaveP, antesP);

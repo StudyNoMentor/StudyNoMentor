@@ -1099,17 +1099,17 @@ const PlanoPontos = {
     } catch (e) { _quiet(e, 'tempo-feito'); }
     // 3) o peso: composição do edital (pós) ou incidência das bancas (pré)
     const comp = PlanoPontos.composicao();
-    const peso = {}; let pesoTotal = 0; let fontePeso = null;
+    const peso = {}; const pesoNome = {}; let pesoTotal = 0; let fontePeso = null;
     if (comp.length) {
       fontePeso = 'edital';
-      comp.forEach(m => { peso[norm(m.nome)] = m.valor; pesoTotal += m.valor; });
+      comp.forEach(m => { peso[norm(m.nome)] = m.valor; pesoNome[norm(m.nome)] = m.nome; pesoTotal += m.valor; });
     } else {
       try {
         const filtro = DesempenhoTecScreen.bancaFiltro();
         const by = ReforcoEngine._incidByDisc(filtro);
         Object.keys(by).forEach(d => {
           const soma = by[d].reduce((a, r) => a + (r.incidencia || 0), 0);
-          if (soma > 0) { peso[norm(d)] = soma; pesoTotal += soma; fontePeso = 'incidencia'; }
+          if (soma > 0) { peso[norm(d)] = soma; pesoNome[norm(d)] = d; pesoTotal += soma; fontePeso = 'incidencia'; }
         });
       } catch (e) { _quiet(e, 'tempo-peso'); }
     }
@@ -1120,6 +1120,29 @@ const PlanoPontos = {
       const disc = k.split(ReforcoEngine.SEP)[0];
       const c = nivel[disc] || { q: 0, ac: 0 };
       c.q += idx[k].q; c.ac += idx[k].ac; nivel[disc] = c;
+    });
+    /* 5) O MESMO NOME ESCRITO DE DOIS JEITOS FAZIA A MATÉRIA SUMIR DAS DUAS
+       PONTAS. O ciclo você digita ("Português"); a incidência e o TEC vêm da
+       banca ("Língua Portuguesa"). Como o veredito só nasce quando as duas
+       pontas existem, um nome diferente não deixava a linha errada — deixava a
+       linha INEXISTENTE, e o quadro seguia mostrando as matérias leves sem
+       dizer que a mais pesada da prova tinha ficado de fora. Casamos os nomes
+       antes de cruzar: primeiro o nível com o peso, depois o ciclo com os dois. */
+    const fundirNivel = this._casarNomes(Object.keys(nivel), Object.keys(peso));
+    Object.keys(fundirNivel).forEach(de => {
+      const para = fundirNivel[de];
+      if (de === para || !nivel[de]) return;
+      if (nivel[para]) { nivel[para].q += nivel[de].q; nivel[para].ac += nivel[de].ac; }
+      else { nivel[para] = nivel[de]; }
+      delete nivel[de];
+    });
+    const fundirPlan = this._casarNomes(Object.keys(plan), [].concat(Object.keys(peso), Object.keys(nivel)));
+    Object.keys(fundirPlan).forEach(de => {
+      const para = fundirPlan[de];
+      if (de === para || !plan[de]) return;
+      if (plan[para]) { plan[para].min += plan[de].min; }
+      else { plan[para] = plan[de]; }
+      delete plan[de];
     });
     const chaves = [...new Set([].concat(Object.keys(plan), Object.keys(peso), Object.keys(nivel)))];
     const linhas = chaves.map(k => {
@@ -1141,7 +1164,7 @@ const PlanoPontos = {
         else veredito = 'equilibrada';
       }
       return {
-        chave: k, nome: (pl && pl.nome) || (n && n.nome) || k,
+        chave: k, nome: (pl && pl.nome) || pesoNome[k] || (n && n.nome) || k,
         planMin: pl ? pl.min : null, feitoMin: feito[k] || 0,
         shareTempo, sharePeso, taxa, medido: n ? n.q : 0,
         razao, veredito, fase: pl ? pl.fase : null, dificuldade: pl ? pl.dificuldade : null,
@@ -1154,8 +1177,59 @@ const PlanoPontos = {
        ficava de fora da contagem: é tempo caro comprando pouco ponto e nem
        resolvendo a fraqueza. O que não conta é `faltaForte` — pouco tempo numa
        matéria que você já domina é alocação certa, não desalinhamento. */
+    /* O QUE O QUADRO NÃO ESTÁ CONTANDO, DITO EM VOZ ALTA. Uma matéria só ganha
+       veredito quando tem tempo E peso; calar as outras fazia o quadro parecer
+       completo quando cobria metade. Devolvemos a cobertura e as duas sobras,
+       para a tela poder acusar a falta em vez de fingir que não existe. */
+    const comVeredito = linhas.filter(l => l.veredito);
+    const ordDesc = (campo) => (a, b) => b[campo] - a[campo];
     return { linhas, planTotal, feitoTotal, fontePeso,
+      cobTempo: comVeredito.reduce((a, l) => a + (l.shareTempo || 0), 0),
+      cobPeso: comVeredito.reduce((a, l) => a + (l.sharePeso || 0), 0),
+      semPeso: linhas.filter(l => l.shareTempo != null && l.sharePeso == null).sort(ordDesc('shareTempo')),
+      semTempo: linhas.filter(l => l.sharePeso != null && l.shareTempo == null).sort(ordDesc('sharePeso')),
       desalinhadas: linhas.filter(l => l.veredito === 'sobra' || l.veredito === 'sobraFraco' || l.veredito === 'falta').length };
+  },
+  /* CASA "PORTUGUÊS" COM "LÍNGUA PORTUGUESA" SEM INVENTAR. Duas regras, as duas
+     conservadoras: igualdade exata vence sempre; na falta dela, os tokens
+     significativos de um nome precisam ser subconjunto dos do outro E o
+     candidato precisa ser ÚNICO. "Contabilidade Geral" nunca vira
+     "Contabilidade de Custos" — nenhum é subconjunto do outro. "Direito"
+     sozinho não casa com nada, porque casaria com quatro. Ambiguidade não vira
+     palpite: fica de fora, e o quadro denuncia a sobra em vez de escondê-la
+     dentro da linha errada. */
+  _casarNomes(chavesA, chavesB) {
+    const VAZIAS = ' de do da dos das e em no na nos nas para com a o as os ';
+    /* "Português" e "Língua Portuguesa" são a mesma matéria e não têm um token
+       igual: o gênero muda a palavra. Cortamos plural e desinência de gênero
+       (no máximo duas letras, e nunca abaixo de quatro caracteres, para "atos"
+       não virar "at" e casar com meio mundo). */
+    const raiz = (t) => {
+      let r = t;
+      for (let i = 0; i < 2; i++) {
+        if (r.length > 4 && /[aos]$/.test(r)) r = r.slice(0, -1); else break;
+      }
+      return r;
+    };
+    const toks = (k) => String(k).split(' ').filter(t => t && VAZIAS.indexOf(' ' + t + ' ') < 0).map(raiz);
+    const setB = Object.create(null);
+    chavesB.forEach(k => { setB[k] = toks(k); });
+    const nomesB = Object.keys(setB);
+    const out = Object.create(null);
+    chavesA.forEach(a => {
+      if (setB[a]) { out[a] = a; return; }                     // igualdade exata
+      const ta = toks(a);
+      if (!ta.length) return;
+      const cands = nomesB.filter(b => {
+        const tb = setB[b];
+        if (!tb.length) return false;
+        const curto = ta.length <= tb.length ? ta : tb;
+        const longo = ta.length <= tb.length ? tb : ta;
+        return curto.every(t => longo.indexOf(t) >= 0);
+      });
+      if (cands.length === 1) out[a] = cands[0];
+    });
+    return out;
   },
   /* A DIFICULDADE DECLARADA VIRA MEDIDA. O ciclo pede um chute de 1 a 5 e
      distribui as suas horas por ele. O TEC sabe a resposta: 48% de acerto é
@@ -3093,6 +3167,33 @@ const DesempenhoTecScreen = {
       equilibrada: ['✅', 'tone-good', 'equilibrada']
     };
     const comVeredito = tm.linhas.filter(l => l.veredito);
+    /* O nome da matéria no CICLO e o nome da disciplina no TEC podem divergir
+       em acento e caixa. O botão precisa do valor que o filtro entende, então
+       ele sai da própria lista do Plano — se a matéria não tem assunto nenhum
+       medido, não há para onde levar, e o botão não nasce. */
+    const discDoPlano = {};
+    [].concat(r.itens || [], r.pequenas || []).forEach(x => {
+      const k = ReforcoEngine.norm(x.disciplina || '');
+      if (k && !discDoPlano[k]) discDoPlano[k] = x.disciplina;
+    });
+    /* ── O QUE FICOU FORA DO CRUZAMENTO ────────────────────────────────────
+       Uma matéria sem peso registrado, ou sem tempo no ciclo, não tem veredito
+       possível — mas o silêncio dela era pior que a ausência: o quadro exibia
+       oito linhas leves como se fossem a prova inteira. Só falamos das que
+       PESAM (acima do limiar): não ter no ciclo uma disciplina que vale 1% da
+       banca é escolha, não esquecimento. */
+    const LIMIAR_FORA = 3;
+    const fora = (arr, campo, rot) => {
+      const rel = (arr || []).filter(l => (l[campo] || 0) >= LIMIAR_FORA);
+      if (!rel.length) return '';
+      return rot + ': ' + rel.slice(0, 3).map(l => `<b>${escapeHtml(l.nome)}</b> (${l[campo].toFixed(0)}%)`).join(', ')
+        + (rel.length > 3 ? ` e mais ${rel.length - 3}` : '');
+    };
+    const partesFora = [
+      fora(tm.semPeso, 'shareTempo', 'levam seu tempo mas não têm peso registrado'),
+      fora(tm.semTempo, 'sharePeso', 'valem ponto mas não têm tempo no ciclo')
+    ].filter(Boolean);
+    const blocoFora = !partesFora.length ? '' : `<p class="pl-ciclo-obs pl-tempo-fora">⚠️ Este quadro só cruza matérias que existem nos dois lados — hoje ${(tm.cobTempo || 0).toFixed(0)}% do seu tempo e ${(tm.cobPeso || 0).toFixed(0)}% do peso da prova. Ficaram de fora as que ${partesFora.join('; e as que ')}. Na maioria das vezes é o mesmo nome escrito de dois jeitos no ciclo e na banca — igualar o nome traz a matéria para cá.</p>`;
     const blocoTempo = (!comVeredito.length) ? '' : `
       <details class="pl-ciclo pl-tempo"${tm.desalinhadas ? ' open' : ''}>
         <summary>
@@ -3106,17 +3207,33 @@ const DesempenhoTecScreen = {
             <tbody>
               ${comVeredito.map(l => {
                 const [ic, tom, rot] = VER[l.veredito];
+                /* ── DA MATÉRIA PARA O ASSUNTO, EM UM TOQUE ────────────────
+                   A tabela fala de MATÉRIAS; a lista abaixo fala de ASSUNTOS,
+                   e é ela que vira atividade. Sem esta ponte o caminho era:
+                   ler o veredito, abrir os ajustes, achar o campo Disciplina,
+                   escolher a matéria, fechar a folha, rolar até o bloco. Cinco
+                   passos manuais para uma decisão que a própria tabela acabou
+                   de tomar.
+
+                   Só nas matérias que pedem ação: numa linha ✅ o botão seria
+                   um convite a fazer o que a tela acabou de dizer para não
+                   fazer. E só quando a matéria existe na lista do Plano — sem
+                   assunto medido, o filtro abriria numa tela vazia. */
+                const alvo = (l.veredito === 'falta' || l.veredito === 'sobraFraco') ? discDoPlano[l.chave] : null;
                 return `<tr>
                   <td><b>${escapeHtml(l.nome)}</b>${l.cumprimento != null && l.cumprimento < 60 ? `<span class="pl-ciclo-obs">só ${l.cumprimento.toFixed(0)}% do planejado foi cumprido</span>` : ''}</td>
                   <td>${l.shareTempo.toFixed(0)}%</td>
                   <td>${l.sharePeso.toFixed(0)}%</td>
                   <td class="tone-${l.taxa == null ? '' : l.taxa >= r.meta ? 'good' : l.taxa < r.faixaFragil ? 'bad' : 'warn'}">${l.taxa != null ? l.taxa.toFixed(0) + '%' : '—'}</td>
-                  <td><span class="reforco-tag ${tom}">${ic} ${rot}</span></td>
+                  <td><span class="reforco-tag ${tom}">${ic} ${rot}</span>${alvo
+                    ? `<button type="button" class="pl-ciclo-acao pl-atacar" data-atacar="${escapeHtml(alvo)}"
+                        title="Filtra a lista por ${escapeHtml(alvo)} e leva você ao bloco de criar atividades">→ atacar esta matéria</button>` : ''}</td>
                 </tr>`;
               }).join('')}
             </tbody>
           </table>
         </div>
+        ${blocoFora}
         <p class="pl-ciclo-obs">O tempo vem do seu ciclo; o nível, do TEC. Aceitar ir mal numa matéria que vale pouco é decisão sua — o que este quadro impede é você fazer essa troca sem perceber.</p>
       </details>`;
     const cal = PlanoCiclo.calibragem();
@@ -3142,6 +3259,23 @@ const DesempenhoTecScreen = {
       PlanoPontos.setCorte(r2.corte);
       this.renderPlanoConteudo(); showToast('Corte registrado ✓');
     });
+    lista.querySelectorAll('[data-atacar]').forEach(b => b.addEventListener('click', () => {
+      const sel = document.getElementById('plano-disc');
+      if (!sel) return;
+      const alvo = b.dataset.atacar;
+      const op = [...sel.options].find(o => ReforcoEngine.norm(o.value) === ReforcoEngine.norm(alvo));
+      if (!op) { showToast('Sem assuntos medidos em ' + alvo); return; }
+      sel.value = op.value;
+      PlanoEngine.salvarPrefs({ disciplina: op.value });
+      this.renderPlanoConteudo();
+      /* Rolar até o bloco de criar atividades é metade do favor: filtrar e
+         deixar a pessoa procurando onde a lista mudou não resolve nada. */
+      requestAnimationFrame(() => {
+        const bloco = document.querySelector('#plano-lista .pl-hoje');
+        if (bloco) { try { bloco.scrollIntoView({ block: 'start', behavior: 'smooth' }); } catch (e) { _quiet(e, 'atacar-scroll'); } }
+      });
+      showToast('Plano filtrado por ' + op.value + ' — marque o que atacar');
+    }));
     const irExtras = document.getElementById('plano-ir-extras');
     if (irExtras) irExtras.addEventListener('click', () => switchScreen('extras'));
     lista.querySelectorAll('[data-ciclo-excluir]').forEach(b => b.addEventListener('click', async () => {

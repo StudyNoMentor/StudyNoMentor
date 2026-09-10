@@ -1434,3 +1434,6 @@
   color: var(--accent); text-decoration: underline; text-align: left;
 }
 .cs-medida.ok { color: var(--good-text); text-decoration: none; cursor: default; }
+/* o botão que leva da matéria para os assuntos dela */
+.pl-atacar { display: block; margin-top: 6px; white-space: nowrap; }
+.pl-tempo-fora{border-left:3px solid var(--warn,#e8a33d);padding-left:8px;margin-top:10px}
