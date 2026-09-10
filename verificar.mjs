@@ -1382,6 +1382,78 @@ try {
     : erro('nao voltou para todas: ' + JSON.stringify(sel.voltou));
 } catch (e) { erro('o seletor de bancas falhou: ' + e.message); }
 
+/* ── 6.13) DOIS ASSUNTOS COM O MESMO NOME ──────────────────────────────────
+   "Principios" existe em Constitucional e em Administrativo, e nao e o mesmo
+   assunto. Enquanto o indice do Plano somava homonimos, a tela mostrava UMA
+   linha com uma taxa que nao era de nenhum dos dois, filtrar por disciplina
+   devolvia "sem retrato" com o retrato na mao, e a atividade criada para um
+   deles bloqueava a do outro. Este bloco percorre o caminho inteiro na tela:
+   as duas linhas, as duas atividades e o progresso de cada uma. */
+console.log('\n6.13) dois assuntos com o mesmo nome em disciplinas diferentes');
+try {
+  await pag.evaluate(() => {
+    const dia = (n) => { const d = new Date(todayLocal() + 'T00:00:00'); d.setDate(d.getDate() - n); return d.toISOString().slice(0, 10); };
+    const linhas = (a, b) => [
+      { depth: 0, codigo: null, nome: 'Direito Constitucional', disciplina: 'Direito Constitucional', questoes: 100, acertos: a },
+      { depth: 1, codigo: '01', nome: 'Principios', disciplina: 'Direito Constitucional', questoes: 100, acertos: a },
+      { depth: 0, codigo: null, nome: 'Direito Administrativo', disciplina: 'Direito Administrativo', questoes: 100, acertos: b },
+      { depth: 1, codigo: '01', nome: 'Principios', disciplina: 'Direito Administrativo', questoes: 100, acertos: b }];
+    DB.saveIncidencia([]);
+    DB._set(DB.KEYS.extras, []);
+    DB._set(DB.KEYS.tec, [
+      { id: 'g1', nome: 'g1', date: dia(40), startDate: dia(60), endDate: dia(40), rows: linhas(35, 15) },
+      { id: 'g2', nome: 'g2', date: dia(3), startDate: dia(30), endDate: dia(3), rows: linhas(30, 10) }]);
+    PlanoEngine.salvarPrefs({ minAmostra: 1, tetoDominio: 100, limite: 50, disciplina: '__todas__', ordenar: 'pior' });
+    DesempenhoTecScreen._planoRefC = null;
+    DesempenhoTecScreen.render();
+    DesempenhoTecScreen.switchTecTab('plano');
+  });
+  await pag.waitForTimeout(400);
+  const hom = await pag.evaluate(() => {
+    const texto = [...document.querySelectorAll('#plano-lista .pl-item')].map((e) => e.textContent.replace(/\s+/g, ' '));
+    const r = PlanoEngine.calcular(DesempenhoTecScreen.scopedSnapshot(), PlanoEngine.prefs());
+    const p = r.itens.filter((x) => /Princ[ií]pios/.test(x.nome));
+    return { comPrincipios: texto.filter((t) => /Princ[ií]pios/.test(t)).length,
+      // a taxa vem do motor: no texto da linha ha varios "%" e o primeiro nao e este
+      taxas: p.map((x) => Math.round(x.taxa)), discs: p.map((x) => x.disciplina) };
+  });
+  (hom.comPrincipios === 2 && hom.taxas.length === 2 && new Set(hom.taxas).size === 2 && new Set(hom.discs).size === 2)
+    ? ok(`os dois "Principios" viram duas linhas, com a taxa de cada um (${hom.taxas.join('% e ')}%)`)
+    : erro('os homonimos nao viraram duas linhas: ' + JSON.stringify(hom));
+  const filtro = await pag.evaluate(() => {
+    const r = PlanoEngine.calcular(DesempenhoTecScreen.scopedSnapshot(),
+      Object.assign({}, PlanoEngine.prefs(), { disciplina: 'Direito Administrativo' }));
+    return { erro: r.erro || null, assuntos: r.assuntos, dominio: r.dominioPct };
+  });
+  (!filtro.erro && filtro.assuntos === 1 && Math.round(filtro.dominio) === 10)
+    ? ok('filtrar por disciplina acha o homonimo daquela disciplina (10% de dominio)')
+    : erro('o filtro por disciplina perdeu o homonimo: ' + JSON.stringify(filtro));
+  const ativ = await pag.evaluate(() => {
+    const T = DesempenhoTecScreen;
+    const a = T.criarExtraDoPlano('Principios', 'Direito Constitucional', 30, 'reforco', true);
+    const b = T.criarExtraDoPlano('Principios', 'Direito Administrativo', 30, 'reforco', true);
+    const c = T.criarExtraDoPlano('Principios', 'Direito Administrativo', 30, 'reforco', true);
+    const extras = DB.getExtras();
+    const r = PlanoEngine.calcular(T.scopedSnapshot(), PlanoEngine.prefs());
+    const casados = r.itens.map((x) => {
+      const e = extras.find((e2) => T._casaTopico(e2.origemPlano, x.nome, x.disciplina));
+      return e ? e.origemPlano.disciplina : null;
+    });
+    return { criou: [a, b], recusouRepetida: c === false, total: extras.length,
+      taxas: extras.map((e) => e.origemPlano.disciplina + ':' + Math.round(e.origemPlano.taxaInicial)),
+      casados, distintos: new Set(casados).size };
+  });
+  (ativ.criou[0] && ativ.criou[1] && ativ.recusouRepetida && ativ.total === 2)
+    ? ok('da para criar uma atividade para cada homonimo, e repetir o mesmo continua sendo recusado')
+    : erro('a criacao de atividades confundiu os homonimos: ' + JSON.stringify(ativ));
+  (ativ.distintos === 2 && ativ.casados.every(Boolean))
+    ? ok('cada linha do Plano se liga a atividade da sua propria disciplina')
+    : erro('as linhas do Plano se ligaram a atividade errada: ' + JSON.stringify(ativ.casados));
+  (ativ.taxas.indexOf('Direito Constitucional:30') >= 0 && ativ.taxas.indexOf('Direito Administrativo:10') >= 0)
+    ? ok('e cada atividade guarda a taxa inicial do SEU assunto (30% e 10%)')
+    : erro('a taxa inicial veio do assunto errado: ' + JSON.stringify(ativ.taxas));
+} catch (e) { erro('o caso dos homonimos falhou: ' + e.message); }
+
 console.log('\n7) contraste WCAG AA (temas claro e escuro)');
 /* Transicoes e animacoes desligadas durante a medicao. Sem isto, medir logo
    apos uma troca de tela pega a cor INTERMEDIARIA de uma transicao (a aba ativa
