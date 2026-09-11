@@ -1861,7 +1861,7 @@ try {
     return { existe: !!d, recolhido: d ? !d.open : null,
       texto: d ? d.querySelector('summary').textContent.replace(/\s+/g, ' ') : '',
       link: !!document.getElementById('plano-ir-extras'),
-      painelInteiro: document.querySelectorAll('#plano-lista .pl-ciclo:not(.pl-ciclo-mini):not(.pl-ciclo-hist):not(.pl-calib):not(.pl-pontos):not(.pl-tempo)').length };
+      painelInteiro: document.querySelectorAll('#plano-lista .pl-ciclo:not(.pl-ciclo-mini):not(.pl-ciclo-hist):not(.pl-calib):not(.pl-pontos):not(.pl-tempo):not(.pl-auditoria)').length };
   });
   (mini.existe && mini.recolhido && mini.link && mini.painelInteiro === 0)
     ? ok('no Plano sobrou uma linha recolhida que leva para a gestao — nao um segundo painel')
@@ -2269,6 +2269,36 @@ try {
     && /<1% do seu esforço/.test(num.linhaFina) && !/[^\d<]0% do seu esforço/.test(num.linhaFina))
     ? ok(`materia com ${num.shareFina}% do esforco e nivel medido diz "<1%", nao "0%"`)
     : erro('a linha ainda se contradiz: ' + JSON.stringify({ share: num.shareFina, nivel: num.nivelFina, linha: num.linhaFina.slice(0, 120) }));
+  /* ── A PORTA DA AUDITORIA ─────────────────────────────────────────────
+     O arquivo existe para OUTRA pessoa julgar o modulo. Duas coisas o
+     inutilizam: faltar um bloco (um numero da tela que nao da para
+     reproduzir) e vazar identidade (ai ele deixa de poder ser enviado). */
+  const aud = await pag.evaluate(() => {
+    const det = document.querySelector('.pl-auditoria');
+    const a = PlanoAuditoria.gerar({ cadencia: 'semanal' });
+    const txt = JSON.stringify(a);
+    return {
+      porta: !!det, recolhida: det ? !det.open : null,
+      botoes: [...document.querySelectorAll('[data-aud]')].map((b) => b.dataset.aud),
+      anon: !!document.getElementById('plano-aud-anon'),
+      erro: a.erro || null,
+      blocos: a.erro ? [] : ['parametros', 'contexto', 'retrato', 'serie', 'materias',
+        'assuntos', 'atividades', 'qualidadeDoDado', 'invariantes', 'resumo'].filter((k) => a[k] === undefined),
+      invariantes: a.erro ? 0 : (a.invariantes || []).length,
+      invOk: a.erro ? null : (a.invariantes || []).every((i) => i.ok),
+      naoAplicaveis: a.erro ? 0 : (a.invariantes || []).filter((i) => i.aplicavel === false).length,
+      invFalhas: a.erro ? [] : (a.invariantes || []).filter((i) => !i.ok).map((i) => i.nome + ' :: ' + JSON.stringify(i.detalhe)),
+      vazou: txt.indexOf('pinHash') >= 0 || txt.indexOf('@') >= 0,
+      kb: Math.round(txt.length / 1024)
+    };
+  });
+  (aud.porta && aud.recolhida && aud.botoes.join(',') === 'semanal,mensal' && aud.anon)
+    ? ok('a porta da auditoria fica recolhida no fim do Plano, com exportacao semanal, mensal e modo anonimo')
+    : erro('a porta da auditoria nao saiu certa: ' + JSON.stringify(aud));
+  (!aud.erro && aud.blocos.length === 0 && aud.invariantes >= 3 && aud.invOk === true && !aud.vazou)
+    ? ok(`e o arquivo sai completo (${aud.kb} KB), com as ${aud.invariantes} invariantes conferidas na hora e sem credencial nem e-mail`)
+    : erro('o arquivo de auditoria saiu incompleto ou vazou dado: ' + JSON.stringify(aud));
+
   /* ── O NUMERO GRANDE PRECISA DIZER DE QUEM ELE E ──────────────────────
      Com o filtro numa disciplina, TUDO no cartao do topo passa a ser dela: o
      dominio, os "faltam X pontos", o caminho curto, as semanas. Medido no mesmo

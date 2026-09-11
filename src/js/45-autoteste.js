@@ -1766,6 +1766,79 @@ const AutoTeste = {
      20% é uma cratera de domínio e quase nada de aprovação; um de 40 questões
      a 70% é onde os pontos estão. E a composição da prova já estava digitada
      no editor de matérias do ciclo: o Desempenho TEC nunca olhou para lá. */
+  /* ── O ARQUIVO DE AUDITORIA ──────────────────────────────────────────────
+     Ele existe para outra pessoa julgar o módulo. Duas coisas o inutilizam:
+     faltar um bloco (um número da tela que não dá para reproduzir) e vazar
+     identidade (aí ele deixa de poder ser enviado). As duas ficam travadas
+     aqui. A terceira — o arquivo se auto-conferir — é o próprio bloco
+     `invariantes`, e o teste confere que ele REALMENTE roda, em vez de sair
+     vazio e parecer aprovado. */
+  auditoriaDoPlano() {
+    const A = window.PlanoAuditoria;
+    this._ok('Auditoria: o módulo existe', !!A);
+    if (!A) return;
+    /* O grupo monta o próprio retrato: sem isso ele roda num estado vazio,
+       sai por "sem-retrato" e as asserções que importam nunca acontecem —
+       um teste que não testa, com cara de teste que passou. */
+    this._ok('Auditoria: sem retrato nenhum, devolve erro declarado em vez de arquivo vazio',
+      (A.gerar({}) || {}).erro === 'sem-retrato');
+    const dia = (n) => { const d = new Date(todayLocal() + 'T00:00:00'); d.setDate(d.getDate() - n); return d.toISOString().slice(0, 10); };
+    const origSnaps = DB.getTecSnapshots, origInc = ReforcoEngine._incidByDisc,
+      origSubs = DB.getActiveSubjects, origModo = window.planCycleMode;
+    let a = null;
+    try {
+      const rs = [];
+      [['DirA', 6, 62], ['DirB', 5, 74]].forEach(([d, n, base]) => {
+        for (let t = 0; t < n; t++) rs.push({ depth: 1, codigo: String(t + 1), nome: d + ' ' + (t + 1),
+          disciplina: d, questoes: 40 + t * 4, acertos: Math.round((40 + t * 4) * (base - 6 + t * 3) / 100) });
+      });
+      DB.getTecSnapshots = () => ([
+        { id: 'au1', nome: 'au1', date: dia(60), startDate: dia(90), endDate: dia(60), rows: rs },
+        { id: 'au2', nome: 'au2', date: dia(5), startDate: dia(35), endDate: dia(5), rows: rs }]);
+      ReforcoEngine._incidByDisc = () => ({
+        DirA: [{ codigo: null, depth: 0, nome: 'DirA', disciplina: 'DirA', incidencia: 300 }],
+        DirB: [{ codigo: null, depth: 0, nome: 'DirB', disciplina: 'DirB', incidencia: 200 }] });
+      DB.getActiveSubjects = () => []; window.planCycleMode = () => 'pre';
+      a = A.gerar({ cadencia: 'semanal' });
+      this._ok('Auditoria: com retrato, o arquivo sai', !a.erro, a.erro);
+      if (a.erro) return;
+      this._rodarAuditoria(A, a);
+    } finally {
+      DB.getTecSnapshots = origSnaps; ReforcoEngine._incidByDisc = origInc;
+      DB.getActiveSubjects = origSubs; window.planCycleMode = origModo;
+    }
+  },
+  _rodarAuditoria(A, a) {
+    ['formato', 'versao', 'geradoEm', 'parametros', 'contexto', 'retrato', 'serie',
+     'materias', 'assuntos', 'atividades', 'qualidadeDoDado', 'invariantes',
+     'historicoDeAuditorias', 'resumo'].forEach(k => {
+      this._ok('Auditoria: o bloco "' + k + '" está no arquivo', a[k] !== undefined);
+    });
+    this._ok('Auditoria: os parâmetros vêm inteiros (sem eles nenhum número é reproduzível)',
+      a.parametros && a.parametros.metaDominio != null && a.parametros.tetoDominio != null
+      && a.parametros.minAmostra != null && a.parametros.amostraAlvo != null);
+    this._ok('Auditoria: as invariantes rodam de verdade, não saem vazias',
+      Array.isArray(a.invariantes) && a.invariantes.length >= 3
+      && a.invariantes.every(i => typeof i.ok === 'boolean'));
+    const txt = JSON.stringify(a);
+    this._ok('Auditoria: o arquivo não carrega credencial nem e-mail',
+      txt.indexOf('pinHash') < 0 && txt.indexOf('@') < 0 && txt.indexOf('password') < 0);
+    this._ok('Auditoria: o resumo em texto acompanha o arquivo',
+      typeof a.resumo === 'string' && a.resumo.length > 40);
+    const an = A.gerar({ anonimo: true });
+    this._ok('Auditoria: no modo anônimo os apelidos são estáveis entre exportações',
+      an.assuntos.length === a.assuntos.length
+      && (!an.assuntos.length || an.assuntos[0].nome === A.gerar({ anonimo: true }).assuntos[0].nome));
+    this._ok('Auditoria: o apelido não devolve o nome original',
+      !an.assuntos.length || an.assuntos[0].nome !== a.assuntos[0].nome);
+    /* Uma invariante sem pré-condição não é uma falha: sem incidência nem
+       edital não existe peso de prova, e reprovar aí ensinaria o auditor a
+       ignorar o bloco inteiro. O estado é três. */
+    this._ok('Auditoria: cada invariante declara se é aplicável',
+      a.invariantes.every(i => typeof i.aplicavel === 'boolean'));
+    this._ok('Auditoria: uma invariante inaplicável não conta como falha',
+      a.invariantes.filter(i => i.aplicavel === false).every(i => i.ok === true));
+  },
   reguaDePontos() {
     const P = PlanoEngine, PP = PlanoPontos;
     const dia = (n) => { const d = new Date(todayLocal() + 'T00:00:00'); d.setDate(d.getDate() - n); return d.toISOString().slice(0, 10); };
@@ -2391,7 +2464,8 @@ const AutoTeste = {
      ['Incidência: gravação', 'incidenciaGravacao'],
      ['Folha de ajustes do TEC', 'ajustesTec'],
      ['Ciclo do Plano', 'cicloDoPlano'],
-     ['Régua de pontos', 'reguaDePontos']].forEach(([nome, fn]) => {
+     ['Régua de pontos', 'reguaDePontos'],
+     ['Auditoria do Plano', 'auditoriaDoPlano']].forEach(([nome, fn]) => {
       try { this[fn](); }
       catch (e) { this._r.total++; this._r.falhou++; this._r.falhas.push({ nome: nome + ' — exceção', obtido: String(e && e.message || e) }); }
     });

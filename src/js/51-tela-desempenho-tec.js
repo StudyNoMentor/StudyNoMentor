@@ -3228,6 +3228,27 @@ const DesempenhoTecScreen = {
        texto de apoio no fim da tela é explicação que ninguém lê na hora da
        dúvida. Este bloco fica no RODAPÉ agora, como referência, e não como a
        primeira coisa entre você e a sua lista. */
+    /* ── A PORTA DA AUDITORIA ───────────────────────────────────────────────
+       Fica no fim do Plano, recolhida: quem usa o app todo dia não precisa
+       dela na frente, e quem vai auditar procura uma vez e acha. O arquivo sai
+       com tudo que torna cada número desta tela reproduzível por outra pessoa
+       — inclusive as invariantes conferidas NA HORA da exportação, para o
+       auditor saber se pode confiar no próprio arquivo antes de analisá-lo. */
+    const blocoAuditoria = `
+      <details class="pl-ciclo pl-auditoria">
+        <summary>
+          <strong>🧪 Auditoria do Plano</strong>
+          <span>exporte e mande para revisão — o arquivo carrega tudo que reproduz esta tela</span>
+          <span class="chev">▾</span>
+        </summary>
+        <p class="pl-prosa" style="margin:10px 0;">Gera um <b>.json</b> com os parâmetros em vigor, o retrato de hoje, a sua série por importação, o quadro de matérias, cada assunto com amostra e margem, os ciclos de atividade já julgados e um teste de coerência dos próprios números. Não leva nome de perfil, e-mail nem senha.</p>
+        <div class="pl-aud-bts">
+          <button type="button" class="btn-secondary" data-aud="semanal">↓ Exportar semanal</button>
+          <button type="button" class="btn-secondary" data-aud="mensal">↓ Exportar mensal</button>
+          <label class="rfc-check pl-aud-anon"><input type="checkbox" id="plano-aud-anon"> esconder os nomes das matérias</label>
+        </div>
+        <p class="pl-ciclo-obs" id="plano-aud-resumo"></p>
+      </details>`;
     const comoLer = `
       <details class="rfc-advanced" style="margin:18px 0 0;padding:12px 14px;">
         <summary style="cursor:pointer;font-weight:700;font-size: var(--fs-sm);">📖 Como ler esta tela</summary>
@@ -3628,7 +3649,7 @@ const DesempenhoTecScreen = {
          jogo e que quatro matérias concentram metade. O quadro de matérias
          escolhe ONDE; o bloco escolhe O QUÊ. Nessa ordem. */
       ? blocoPontos + blocoRegua + blocoTempo + hoje + blocoCurso + blocoCal + grafico + blocoFeito + ordemNota + porQue + linhas
-      : blocoPontos + blocoRegua + blocoCurso + blocoTempo + blocoCal + blocoFeito + `<p class="hint" style="padding:18px 0;">Nenhum assunto abaixo do máximo realista — você já domina tudo que pratica.</p>`) + pequenas + edital + comoLer;
+      : blocoPontos + blocoRegua + blocoCurso + blocoTempo + blocoCal + blocoFeito + `<p class="hint" style="padding:18px 0;">Nenhum assunto abaixo do máximo realista — você já domina tudo que pratica.</p>`) + pequenas + edital + blocoAuditoria + comoLer;
     lista.querySelectorAll('.plano-nova-extra').forEach(b => b.addEventListener('click', () => {
       this.criarExtraDoPlano(b.dataset.topico, b.dataset.disc, b.dataset.alvo, b.dataset.motivo);
     }));
@@ -3665,6 +3686,12 @@ const DesempenhoTecScreen = {
       if (!e) return;
       if (!await UI.confirm('Excluir "' + e.titulo + '"? O assunto não aparece mais nos seus retratos.', { title: 'Excluir atividade', okText: 'Excluir', danger: true })) return;
       DB.deleteExtra(e.id); showToast('Atividade excluída'); this.renderPlanoConteudo();
+    }));
+    lista.querySelectorAll('[data-aud]').forEach(b => b.addEventListener('click', () => {
+      const anon = !!(document.getElementById('plano-aud-anon') || {}).checked;
+      const a = PlanoAuditoria.exportar(b.dataset.aud, anon);
+      const el = document.getElementById('plano-aud-resumo');
+      if (el && a && !a.erro) el.textContent = a.resumo;
     }));
     const todasBtn = document.getElementById('plano-todas-disc');
     if (todasBtn) todasBtn.addEventListener('click', () => {
