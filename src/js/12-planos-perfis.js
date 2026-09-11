@@ -129,8 +129,50 @@ const ProfileManager = {
   DEFAULT_AVATARS: ['📘', '🎯', '⚖️', '📊', '🧠', '🚀', '🦉', '📚', '✏️', '🏆', '💡', '🔥'],
   DEFAULT_COLORS: ['#4f46e5', '#0f9d63', '#d97a12', '#e0393f', '#0a95a8', '#b3308a', '#5b6270', '#c9a20a'],
 
-  getProfiles() { return DB._get(DB.PROFILES_KEY, []); },
-  saveProfiles(list) { DB._set(DB.PROFILES_KEY, list); },
+  /* ── A LISTA DE PERFIS É UM ÍNDICE, E ÍNDICE NÃO TEM LINHA REPETIDA ──────
+     Ela crescia por seis caminhos (criar, importar, reanexar, espelhar da
+     nuvem, readotar órfão, migrar id antigo) e nenhum deles era o dono da
+     invariante: `saveProfiles` gravava o array como viesse. Bastava um deles
+     escapar — a nuvem devolvendo a MESMA linha duas vezes é o mais fácil, e
+     não depende de bug nenhum aqui — para a tela de acesso mostrar dois cards
+     idênticos, com o mesmo nome, o mesmo avatar e o mesmo id. Do lado de fora
+     parece que o app "criou um perfil do nada"; por dentro é a mesma pessoa
+     listada duas vezes, e clicar em qualquer um dos dois abre o mesmo diário.
+
+     Pior que confundir: quem vê um duplicado tende a apagar "o repetido" — e
+     `deleteProfile` filtra por id, então apaga os DOIS, levando junto o dado
+     que ele queria manter.
+
+     A regra passa a morar aqui, no único ponto de escrita, e também na
+     leitura — para uma lista já suja no aparelho aparecer limpa antes mesmo
+     da próxima gravação. Vence a PRIMEIRA ocorrência (em
+     `daNuvem.concat(sobreviventes)` a nuvem vem primeiro, e é ela quem manda),
+     completada pelos campos que só as seguintes tiverem. */
+  _sanearPerfis(list) {
+    const vistos = Object.create(null);
+    const out = [];
+    (Array.isArray(list) ? list : []).forEach(p => {
+      if (!p || typeof p !== 'object') return;
+      const id = p.id == null ? '' : String(p.id).trim();
+      if (!id) return;                                   // sem id não há perfil
+      const ja = vistos[id];
+      if (ja) {                                          // duplicado: completa o que falta
+        Object.keys(p).forEach(k => {
+          if (ja[k] == null || ja[k] === '') { if (p[k] != null && p[k] !== '') ja[k] = p[k]; }
+        });
+        return;
+      }
+      const copia = Object.assign({}, p, { id });
+      vistos[id] = copia; out.push(copia);
+    });
+    return out;
+  },
+  getProfiles() { return this._sanearPerfis(DB._get(DB.PROFILES_KEY, [])); },
+  saveProfiles(list) { DB._set(DB.PROFILES_KEY, this._sanearPerfis(list)); },
+  rotuloRecuperado(id) {
+    const s = String(id || '');
+    return 'Perfil recuperado ' + (s.length > 12 ? s.slice(0, 8) + '…' + s.slice(-4) : s);
+  },
   getActiveProfileId() { try { return localStorage.getItem(DB.ACTIVE_PROFILE_KEY); } catch (e) { return null; } },
   getActiveProfile() { return this.getProfiles().find(p => p.id === this.getActiveProfileId()) || null; },
   setActiveProfile(id) { localStorage.setItem(DB.ACTIVE_PROFILE_KEY, id); },
@@ -604,7 +646,10 @@ const ProfileManager = {
       const antigo = porId[d.id] || {};
       sobreviventes.push({
         id: d.id,
-        nome: antigo.nome || ('Perfil recuperado ' + String(d.id).slice(0, 8)),
+        // o rótulo leva o começo E o fim do id: dois perfis distintos nunca
+        // aparecem com a mesma legenda, que é o que torna um duplicado
+        // indistinguível de dois perfis de verdade
+        nome: antigo.nome || ProfileManager.rotuloRecuperado(d.id),
         avatar: antigo.avatar || '🛟',
         cor: antigo.cor || '#0a95a8',
         createdAt: antigo.createdAt || '',

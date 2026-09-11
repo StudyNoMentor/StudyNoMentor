@@ -57,7 +57,7 @@
      novo, e o antigo é descartado sozinho na ativação) e o que permite ao app
      dizer qual versão está rodando. Em src/ fica "dev" de propósito: a versão
      é gerada na montagem, não editada à mão. -->
-<meta name="diario-versao" content="v2c5ddae0c5">
+<meta name="diario-versao" content="v80127093da">
 <script>
 /* ── ARRANQUE: abre o IndexedDB AGORA, em paralelo com o parse do documento ──
    A fachada de armazenamento vive no fim do <body>, depois de ~1,7 MB de HTML.
@@ -10085,6 +10085,7 @@ window.__idbBoot = (function () {
   font: inherit; font-size: var(--fs-2xs); font-weight: 700;
   color: var(--text-soft); text-decoration: underline;
 }
+.profile-card-stats.so-local { color: var(--warn-text); font-weight: 700; }
 
 </style>
 
@@ -13575,8 +13576,50 @@ const ProfileManager = {
   DEFAULT_AVATARS: ['📘', '🎯', '⚖️', '📊', '🧠', '🚀', '🦉', '📚', '✏️', '🏆', '💡', '🔥'],
   DEFAULT_COLORS: ['#4f46e5', '#0f9d63', '#d97a12', '#e0393f', '#0a95a8', '#b3308a', '#5b6270', '#c9a20a'],
 
-  getProfiles() { return DB._get(DB.PROFILES_KEY, []); },
-  saveProfiles(list) { DB._set(DB.PROFILES_KEY, list); },
+  /* ── A LISTA DE PERFIS É UM ÍNDICE, E ÍNDICE NÃO TEM LINHA REPETIDA ──────
+     Ela crescia por seis caminhos (criar, importar, reanexar, espelhar da
+     nuvem, readotar órfão, migrar id antigo) e nenhum deles era o dono da
+     invariante: `saveProfiles` gravava o array como viesse. Bastava um deles
+     escapar — a nuvem devolvendo a MESMA linha duas vezes é o mais fácil, e
+     não depende de bug nenhum aqui — para a tela de acesso mostrar dois cards
+     idênticos, com o mesmo nome, o mesmo avatar e o mesmo id. Do lado de fora
+     parece que o app "criou um perfil do nada"; por dentro é a mesma pessoa
+     listada duas vezes, e clicar em qualquer um dos dois abre o mesmo diário.
+
+     Pior que confundir: quem vê um duplicado tende a apagar "o repetido" — e
+     `deleteProfile` filtra por id, então apaga os DOIS, levando junto o dado
+     que ele queria manter.
+
+     A regra passa a morar aqui, no único ponto de escrita, e também na
+     leitura — para uma lista já suja no aparelho aparecer limpa antes mesmo
+     da próxima gravação. Vence a PRIMEIRA ocorrência (em
+     `daNuvem.concat(sobreviventes)` a nuvem vem primeiro, e é ela quem manda),
+     completada pelos campos que só as seguintes tiverem. */
+  _sanearPerfis(list) {
+    const vistos = Object.create(null);
+    const out = [];
+    (Array.isArray(list) ? list : []).forEach(p => {
+      if (!p || typeof p !== 'object') return;
+      const id = p.id == null ? '' : String(p.id).trim();
+      if (!id) return;                                   // sem id não há perfil
+      const ja = vistos[id];
+      if (ja) {                                          // duplicado: completa o que falta
+        Object.keys(p).forEach(k => {
+          if (ja[k] == null || ja[k] === '') { if (p[k] != null && p[k] !== '') ja[k] = p[k]; }
+        });
+        return;
+      }
+      const copia = Object.assign({}, p, { id });
+      vistos[id] = copia; out.push(copia);
+    });
+    return out;
+  },
+  getProfiles() { return this._sanearPerfis(DB._get(DB.PROFILES_KEY, [])); },
+  saveProfiles(list) { DB._set(DB.PROFILES_KEY, this._sanearPerfis(list)); },
+  rotuloRecuperado(id) {
+    const s = String(id || '');
+    return 'Perfil recuperado ' + (s.length > 12 ? s.slice(0, 8) + '…' + s.slice(-4) : s);
+  },
   getActiveProfileId() { try { return localStorage.getItem(DB.ACTIVE_PROFILE_KEY); } catch (e) { return null; } },
   getActiveProfile() { return this.getProfiles().find(p => p.id === this.getActiveProfileId()) || null; },
   setActiveProfile(id) { localStorage.setItem(DB.ACTIVE_PROFILE_KEY, id); },
@@ -14050,7 +14093,10 @@ const ProfileManager = {
       const antigo = porId[d.id] || {};
       sobreviventes.push({
         id: d.id,
-        nome: antigo.nome || ('Perfil recuperado ' + String(d.id).slice(0, 8)),
+        // o rótulo leva o começo E o fim do id: dois perfis distintos nunca
+        // aparecem com a mesma legenda, que é o que torna um duplicado
+        // indistinguível de dois perfis de verdade
+        nome: antigo.nome || ProfileManager.rotuloRecuperado(d.id),
         avatar: antigo.avatar || '🛟',
         cor: antigo.cor || '#0a95a8',
         createdAt: antigo.createdAt || '',
@@ -26226,6 +26272,31 @@ const AutoTeste = {
           depois.some(p => p.id === PID), depois.map(p => p.id));
         this._ok('perfil readotado é marcado como só-local',
           (depois.find(p => p.id === PID) || {}).soLocal === true);
+
+        /* A LISTA DE PERFIS É UM ÍNDICE, E ÍNDICE NÃO TEM LINHA REPETIDA.
+           Ela crescia por seis caminhos e nenhum era dono da invariante: uma
+           linha repetida vinda da nuvem virava dois cards idênticos, e quem
+           apagasse "o repetido" perdia os dois (deleteProfile filtra por id). */
+        const uid = DB._uid();
+        const base = { id: uid, nome: 'Fulano', avatar: '🏆', cor: '#e33' };
+        ProfileManager.saveProfiles([base, JSON.parse(JSON.stringify(base))]);
+        this._ok('Perfis: o mesmo id gravado duas vezes vira UMA entrada',
+          ProfileManager.getProfiles().filter(p => p.id === uid).length === 1);
+        ProfileManager.syncMirrorFromCloud([
+          { id: uid, profile_name: 'Fulano', avatar: '🏆', color: '#e33' },
+          { id: uid, profile_name: 'Fulano', avatar: '🏆', color: '#e33' }]);
+        this._ok('Perfis: a nuvem devolvendo a mesma linha duas vezes tambem vira UMA',
+          ProfileManager.getProfiles().filter(p => p.id === uid).length === 1);
+        ProfileManager.saveProfiles([base, { nome: 'sem id' }, null, { id: '  ', nome: 'id vazio' }]);
+        this._ok('Perfis: entrada sem id, vazia ou nula não vira card',
+          ProfileManager.getProfiles().length === 1);
+        ProfileManager.saveProfiles([{ id: uid, nome: '' }, { id: uid, nome: 'Fulano', avatar: '🏆' }]);
+        const f = ProfileManager.getProfiles()[0];
+        this._ok('Perfis: ao fundir duplicados, o que a primeira não tem vem da segunda',
+          f.nome === 'Fulano' && f.avatar === '🏆', f);
+        this._ok('Perfis: o rótulo do recuperado distingue dois ids de mesmo prefixo',
+          ProfileManager.rotuloRecuperado('ad4cebdf-1111-4111-8111-111111111111')
+          !== ProfileManager.rotuloRecuperado('ad4cebdf-2222-4222-8222-222222222222'));
         this._ok('perfil que a nuvem traz continua na lista',
           depois.some(p => p.id === 'outro'), depois.map(p => p.id));
         const vazio = 'diario-estudos:u:__t_vazio__:__secrev';
@@ -36248,8 +36319,13 @@ const ProfileUI = {
   renderGrid(profiles) {
     const grid = document.getElementById('profile-gate-grid');
     if (!grid) return;
+    /* SANEIA NA PORTA DE DESENHO TAMBÉM. Um dos caminhos pinta direto das
+       linhas da nuvem, sem passar por `saveProfiles` — então a regra "um id,
+       um card" precisa valer aqui também, ou uma linha repetida no servidor
+       vira dois cards idênticos sem nunca tocar o armazenamento local. */
+    try { profiles = ProfileManager._sanearPerfis(profiles); } catch (e) { _quiet(e, 'gate-sanear'); }
     // Se a lista é exatamente a mesma que já está na tela, não repinta (evita o "flash").
-    const sig = JSON.stringify((profiles || []).map(p => [p.id, p.nome, p.avatar, p.cor]));
+    const sig = JSON.stringify((profiles || []).map(p => [p.id, p.nome, p.avatar, p.cor, !!p.soLocal]));
     if (sig === this._gridSig && grid.querySelector('.profile-card')) return;
     this._gridSig = sig;
     grid.innerHTML = (profiles || []).map(p => `
@@ -36257,7 +36333,16 @@ const ProfileUI = {
         <button type="button" class="profile-card-edit" data-edit="${p.id}" title="Editar" aria-label="Editar">✎</button>
         <div class="profile-card-avatar" style="background:${p.cor};">${p.avatar}</div>
         <div class="profile-card-name">${escapeHtml(p.nome)}</div>
-        <div class="profile-card-stats">&nbsp;</div>
+        ${/* ── POR QUE ESTE PERFIL ESTÁ AQUI ────────────────────────────────
+              `soLocal` já era gravado e nunca aparecia. Um card com bote
+              salva-vidas e um nome de oito caracteres hexadecimais lê-se como
+              "o app criou um perfil do nada" — quando é o contrário: o app
+              achou estudo SEU guardado neste aparelho que a nuvem não trouxe
+              (apagado noutro aparelho, criado antes do login, ou que nunca
+              chegou a sincronizar) e se recusou a deixá-lo inalcançável.
+              Dizer isso no card transforma um susto em uma decisão: abrir e
+              conferir, ou apagar. */''}
+        <div class="profile-card-stats${p.soLocal ? ' so-local' : ''}"${p.soLocal ? ' title="Há dados de estudo deste perfil guardados neste aparelho, mas a sua conta na nuvem não o trouxe. Pode ser um perfil apagado em outro aparelho, criado antes de você entrar na conta, ou que nunca chegou a sincronizar. Abra para conferir — e apague se não for seu."' : ''}>${p.soLocal ? '🛟 só neste aparelho' : '&nbsp;'}</div>
       </div>`).join('') + `
       <div class="profile-card add" id="profile-card-add">
         <div class="profile-card-avatar">＋</div>
@@ -39556,7 +39641,7 @@ const Recuperacao = {
   reanexarPerfil(pid, nome) {
     const list = ProfileManager.getProfiles();
     if (list.some(p => p.id === pid)) return false;
-    list.push({ id: pid, nome: nome || ('Perfil recuperado ' + String(pid).slice(0, 8)),
+    list.push({ id: pid, nome: nome || ProfileManager.rotuloRecuperado(pid),
       avatar: '🛟', cor: '#0a95a8', createdAt: new Date().toISOString(), soLocal: true });
     ProfileManager.saveProfiles(list);
     return true;

@@ -593,6 +593,31 @@ const AutoTeste = {
           depois.some(p => p.id === PID), depois.map(p => p.id));
         this._ok('perfil readotado é marcado como só-local',
           (depois.find(p => p.id === PID) || {}).soLocal === true);
+
+        /* A LISTA DE PERFIS É UM ÍNDICE, E ÍNDICE NÃO TEM LINHA REPETIDA.
+           Ela crescia por seis caminhos e nenhum era dono da invariante: uma
+           linha repetida vinda da nuvem virava dois cards idênticos, e quem
+           apagasse "o repetido" perdia os dois (deleteProfile filtra por id). */
+        const uid = DB._uid();
+        const base = { id: uid, nome: 'Fulano', avatar: '🏆', cor: '#e33' };
+        ProfileManager.saveProfiles([base, JSON.parse(JSON.stringify(base))]);
+        this._ok('Perfis: o mesmo id gravado duas vezes vira UMA entrada',
+          ProfileManager.getProfiles().filter(p => p.id === uid).length === 1);
+        ProfileManager.syncMirrorFromCloud([
+          { id: uid, profile_name: 'Fulano', avatar: '🏆', color: '#e33' },
+          { id: uid, profile_name: 'Fulano', avatar: '🏆', color: '#e33' }]);
+        this._ok('Perfis: a nuvem devolvendo a mesma linha duas vezes tambem vira UMA',
+          ProfileManager.getProfiles().filter(p => p.id === uid).length === 1);
+        ProfileManager.saveProfiles([base, { nome: 'sem id' }, null, { id: '  ', nome: 'id vazio' }]);
+        this._ok('Perfis: entrada sem id, vazia ou nula não vira card',
+          ProfileManager.getProfiles().length === 1);
+        ProfileManager.saveProfiles([{ id: uid, nome: '' }, { id: uid, nome: 'Fulano', avatar: '🏆' }]);
+        const f = ProfileManager.getProfiles()[0];
+        this._ok('Perfis: ao fundir duplicados, o que a primeira não tem vem da segunda',
+          f.nome === 'Fulano' && f.avatar === '🏆', f);
+        this._ok('Perfis: o rótulo do recuperado distingue dois ids de mesmo prefixo',
+          ProfileManager.rotuloRecuperado('ad4cebdf-1111-4111-8111-111111111111')
+          !== ProfileManager.rotuloRecuperado('ad4cebdf-2222-4222-8222-222222222222'));
         this._ok('perfil que a nuvem traz continua na lista',
           depois.some(p => p.id === 'outro'), depois.map(p => p.id));
         const vazio = 'diario-estudos:u:__t_vazio__:__secrev';

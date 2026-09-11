@@ -1462,3 +1462,4 @@
   font: inherit; font-size: var(--fs-2xs); font-weight: 700;
   color: var(--text-soft); text-decoration: underline;
 }
+.profile-card-stats.so-local { color: var(--warn-text); font-weight: 700; }

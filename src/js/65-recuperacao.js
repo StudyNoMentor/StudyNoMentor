@@ -186,7 +186,7 @@ const Recuperacao = {
   reanexarPerfil(pid, nome) {
     const list = ProfileManager.getProfiles();
     if (list.some(p => p.id === pid)) return false;
-    list.push({ id: pid, nome: nome || ('Perfil recuperado ' + String(pid).slice(0, 8)),
+    list.push({ id: pid, nome: nome || ProfileManager.rotuloRecuperado(pid),
       avatar: '🛟', cor: '#0a95a8', createdAt: new Date().toISOString(), soLocal: true });
     ProfileManager.saveProfiles(list);
     return true;

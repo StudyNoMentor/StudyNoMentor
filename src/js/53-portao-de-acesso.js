@@ -206,8 +206,13 @@ const ProfileUI = {
   renderGrid(profiles) {
     const grid = document.getElementById('profile-gate-grid');
     if (!grid) return;
+    /* SANEIA NA PORTA DE DESENHO TAMBÉM. Um dos caminhos pinta direto das
+       linhas da nuvem, sem passar por `saveProfiles` — então a regra "um id,
+       um card" precisa valer aqui também, ou uma linha repetida no servidor
+       vira dois cards idênticos sem nunca tocar o armazenamento local. */
+    try { profiles = ProfileManager._sanearPerfis(profiles); } catch (e) { _quiet(e, 'gate-sanear'); }
     // Se a lista é exatamente a mesma que já está na tela, não repinta (evita o "flash").
-    const sig = JSON.stringify((profiles || []).map(p => [p.id, p.nome, p.avatar, p.cor]));
+    const sig = JSON.stringify((profiles || []).map(p => [p.id, p.nome, p.avatar, p.cor, !!p.soLocal]));
     if (sig === this._gridSig && grid.querySelector('.profile-card')) return;
     this._gridSig = sig;
     grid.innerHTML = (profiles || []).map(p => `
@@ -215,7 +220,16 @@ const ProfileUI = {
         <button type="button" class="profile-card-edit" data-edit="${p.id}" title="Editar" aria-label="Editar">✎</button>
         <div class="profile-card-avatar" style="background:${p.cor};">${p.avatar}</div>
         <div class="profile-card-name">${escapeHtml(p.nome)}</div>
-        <div class="profile-card-stats">&nbsp;</div>
+        ${/* ── POR QUE ESTE PERFIL ESTÁ AQUI ────────────────────────────────
+              `soLocal` já era gravado e nunca aparecia. Um card com bote
+              salva-vidas e um nome de oito caracteres hexadecimais lê-se como
+              "o app criou um perfil do nada" — quando é o contrário: o app
+              achou estudo SEU guardado neste aparelho que a nuvem não trouxe
+              (apagado noutro aparelho, criado antes do login, ou que nunca
+              chegou a sincronizar) e se recusou a deixá-lo inalcançável.
+              Dizer isso no card transforma um susto em uma decisão: abrir e
+              conferir, ou apagar. */''}
+        <div class="profile-card-stats${p.soLocal ? ' so-local' : ''}"${p.soLocal ? ' title="Há dados de estudo deste perfil guardados neste aparelho, mas a sua conta na nuvem não o trouxe. Pode ser um perfil apagado em outro aparelho, criado antes de você entrar na conta, ou que nunca chegou a sincronizar. Abra para conferir — e apague se não for seu."' : ''}>${p.soLocal ? '🛟 só neste aparelho' : '&nbsp;'}</div>
       </div>`).join('') + `
       <div class="profile-card add" id="profile-card-add">
         <div class="profile-card-avatar">＋</div>
