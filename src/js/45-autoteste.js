@@ -1895,6 +1895,24 @@ const AutoTeste = {
           por['dir adm']);
         this._ok('Esforço: o corte de Pareto devolve poucas matérias, não uma lista inteira',
           tm.nCorte >= 1 && tm.nCorte < tm.linhas.length, tm.nCorte);
+
+        /* 11) O PESO DA BANCA VEM DA RAIZ, NÃO DA SOMA DAS LINHAS. A incidência
+           é uma árvore; somar pai com filho conta a mesma questão em cada
+           degrau. E o erro depende de quão FUNDO a tabela foi colada, não do
+           que a banca cobra: duas disciplinas de 200 questões viravam 55,6% e
+           44,4% da prova só por isso. */
+        const RE = ReforcoEngine;
+        this._ok('Incidência: a raiz é a linha de disciplina, não a soma dos níveis',
+          RE.raizIncid([{ codigo: null, depth: 0, incidencia: 200 }, { codigo: '01', depth: 1, incidencia: 100 },
+            { codigo: '01.01', depth: 2, incidencia: 60 }, { codigo: '01.02', depth: 2, incidencia: 40 },
+            { codigo: '02', depth: 1, incidencia: 100 }]) === 200);
+        this._ok('Incidência: sem linha de disciplina, vale o nível mais raso',
+          RE.raizIncid([{ codigo: '01', depth: 1, incidencia: 70 }, { codigo: '01.01', depth: 2, incidencia: 30 },
+            { codigo: '01.02', depth: 2, incidencia: 40 }, { codigo: '02', depth: 1, incidencia: 30 }]) === 100);
+        this._ok('Incidência: colagem plana, sem hierarquia nenhuma, soma tudo',
+          RE.raizIncid([{ codigo: null, depth: null, incidencia: 40 },
+            { codigo: null, depth: null, incidencia: 60 }]) === 100);
+        this._ok('Incidência: lista vazia não vira NaN', RE.raizIncid([]) === 0 && RE.raizIncid(null) === 0);
         /* O NÍVEL VEM DA JANELA ADAPTATIVA, NÃO DA MÉDIA DA VIDA. Quem
            consertou uma matéria há pouco continuaria aparecendo como fraco
            nela: a média da vida inteira mente sempre para o passado. */

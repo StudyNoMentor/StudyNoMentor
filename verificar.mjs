@@ -2147,6 +2147,53 @@ try {
   (esf.pesoResumido[0] >= 11)
     ? ok(`e o resumo mostra a SOMA (${esf.pesoResumido[0]}% da prova nunca comecada), em vez de somer com ela`)
     : erro('a soma do resumo saiu errada: ' + JSON.stringify(esf.pesoResumido));
+  /* ── DE ONDE VEM O PESO, E POR QUE ELE ESTAVA TORTO ────────────────────
+     Pela RAIZ de cada disciplina na incidencia, nao pela soma das linhas dela.
+     A incidencia e uma arvore ("Direito Civil 200" → "01 Parte Geral 100" →
+     "01.01 Principios 60"), e somar tudo conta a mesma questao em cada degrau.
+     O erro dependia de quao FUNDO cada tabela foi colada, nao do que a banca
+     cobra: duas disciplinas de 200 questoes viravam 55,6% e 44,4% da prova. */
+  const arv = await pag.evaluate(() => {
+    const origModo = window.planCycleMode, origSubs = DB.getActiveSubjects,
+      origSnaps = DB.getTecSnapshots, origInc = DB.getIncidencia();
+    try {
+      DB.saveIncidencia([]);
+      DB.addIncidenciaRows('FGV', [
+        { disciplina: 'Detalhada', topico: 'Detalhada', incidencia: 200, codigo: null, depth: 0 },
+        { disciplina: 'Detalhada', topico: 'Parte Geral', incidencia: 100, codigo: '01', depth: 1 },
+        { disciplina: 'Detalhada', topico: 'Principios', incidencia: 60, codigo: '01.01', depth: 2 },
+        { disciplina: 'Detalhada', topico: 'Fontes', incidencia: 40, codigo: '01.02', depth: 2 },
+        { disciplina: 'Detalhada', topico: 'Parte Especial', incidencia: 100, codigo: '02', depth: 1 },
+        { disciplina: 'Rasa', topico: 'Rasa', incidencia: 200, codigo: null, depth: 0 },
+        { disciplina: 'Rasa', topico: 'Tudo', incidencia: 200, codigo: '01', depth: 1 }], true);
+      const dia = (n) => { const d = new Date(todayLocal() + 'T00:00:00'); d.setDate(d.getDate() - n); return d.toISOString().slice(0, 10); };
+      const rows = [];
+      ['Detalhada', 'Rasa'].forEach((d) => {
+        rows.push({ depth: 0, codigo: null, nome: d, disciplina: d, questoes: 400, acertos: 240 });
+        rows.push({ depth: 1, codigo: '01', nome: 'Geral', disciplina: d, questoes: 400, acertos: 240 }); });
+      DB.getTecSnapshots = () => ([{ id: 'v1', nome: 'v1', date: dia(2), startDate: dia(30), endDate: dia(2), rows }]);
+      DB.getActiveSubjects = () => []; window.planCycleMode = () => 'pre';
+      const tm = PlanoPontos.esforcoPorMateria();
+      const por = {}; tm.linhas.forEach((l) => { por[l.nome] = l; });
+      const plana = ReforcoEngine._incidByDisc('__todas__');
+      return {
+        somaPlana: Object.keys(plana).map((d) => d + '=' + plana[d].reduce((a, r) => a + (r.incidencia || 0), 0)),
+        raiz: ReforcoEngine.incidPorDisciplina('__todas__'),
+        pesos: { det: +por['Detalhada'].sharePeso.toFixed(1), rasa: +por['Rasa'].sharePeso.toFixed(1) },
+        ganhos: { det: +por['Detalhada'].ganho.toFixed(2), rasa: +por['Rasa'].ganho.toFixed(2) }
+      };
+    } finally {
+      DB.saveIncidencia(origInc); DB.getTecSnapshots = origSnaps;
+      DB.getActiveSubjects = origSubs; window.planCycleMode = origModo;
+    }
+  });
+  (arv.raiz.Detalhada === 200 && arv.raiz.Rasa === 200 && arv.pesos.det === 50 && arv.pesos.rasa === 50)
+    ? ok(`o peso vem da RAIZ da arvore (${arv.somaPlana.join(', ')} somados virariam 55,6%/44,4%; a raiz da 50%/50%)`)
+    : erro('o peso ainda conta pai e filho: ' + JSON.stringify(arv));
+  (Math.abs(arv.ganhos.det - arv.ganhos.rasa) < 0.01)
+    ? ok(`e o premio deixa de depender de quao fundo a tabela foi colada (${arv.ganhos.det}pp nas duas)`)
+    : erro('o premio herdou a distorcao: ' + JSON.stringify(arv.ganhos));
+
   (esf.casaGenero === 'lingua portuguesa' && esf.naoCasaIrmas === undefined && esf.naoCasaAmbiguo === undefined)
     ? ok('e o casamento de nomes, onde ainda e preciso (edital digitado x banca), segue conservador')
     : erro('o casamento de nomes virou palpite: ' + JSON.stringify(esf));

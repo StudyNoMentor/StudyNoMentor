@@ -1128,9 +1128,13 @@ const PlanoPontos = {
       comp.forEach(m => { const k = norm(m.nome); peso[k] = (peso[k] || 0) + m.valor; pesoNome[k] = m.nome; pesoTotal += m.valor; });
     } else {
       try {
-        const by = ReforcoEngine._incidByDisc(DesempenhoTecScreen.bancaFiltro());
+        /* Pela RAIZ de cada disciplina, não pela soma das linhas: a incidência
+           é uma árvore e somar pai com filho conta a mesma questão duas vezes
+           — com o agravante de o erro depender de quão fundo cada tabela foi
+           colada, e não do que a banca cobra. */
+        const by = ReforcoEngine.incidPorDisciplina(DesempenhoTecScreen.bancaFiltro());
         Object.keys(by).forEach(d => {
-          const soma = by[d].reduce((a, r) => a + (r.incidencia || 0), 0);
+          const soma = by[d];
           if (soma > 0) { const k = norm(d); peso[k] = (peso[k] || 0) + soma; pesoNome[k] = d; pesoTotal += soma; fontePeso = 'incidencia'; }
         });
       } catch (e) { _quiet(e, 'esforco-peso'); }

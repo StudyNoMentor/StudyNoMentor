@@ -277,11 +277,44 @@ const ReforcoEngine = {
       const k = disc + '|' + (codigo !== null ? '#' + codigo : this.norm(nome));
       const mapa = (chaves[disc] = chaves[disc] || {});
       if (mapa[k]) { mapa[k].incidencia += (r.incidencia != null ? r.incidencia : 0); return; }
-      const row = { codigo, nome, disciplina: disc, incidencia: (r.incidencia != null ? r.incidencia : 0) };
+      const row = { codigo, nome, disciplina: disc, incidencia: (r.incidencia != null ? r.incidencia : 0),
+        depth: (r.depth != null ? r.depth : null) };
       mapa[k] = row;
       (by[disc] = by[disc] || []).push(row);
     });
     return by;
+  },
+  /* ── O TOTAL DE UMA DISCIPLINA NÃO É A SOMA DAS LINHAS DELA ──────────────
+     A incidência vem em ÁRVORE: "Direito Civil 200", e debaixo dela "01 Parte
+     Geral 100", e debaixo desta "01.01 Princípios 60" e "01.02 Fontes 40".
+     Somar tudo dá 500 onde a banca cobra 200, porque conta a mesma questão em
+     cada nível.
+
+     E o erro NÃO É UNIFORME, que é o que o torna perigoso: ele depende de quão
+     fundo a tabela foi colada, não do que a banca cobra. Duas disciplinas com
+     200 questões cada viravam 55,6% e 44,4% da prova só porque uma foi
+     importada com dois níveis e a outra com um. Como o peso é uma FATIA do
+     total, a distorção vira prioridade errada — a matéria mais DETALHADA
+     parece pesar mais.
+
+     A regra já existia solta na tela de incidência ("pai = soma dos filhos,
+     então o total é a soma das disciplinas"); aqui ela vira função, com o caso
+     do meio que faltava: sem linha de disciplina, vale o nível mais raso que
+     existir, e só quando não há hierarquia nenhuma é que somamos tudo. */
+  raizIncid(rows) {
+    rows = rows || [];
+    const raiz = rows.filter(r => r.depth === 0 || r.codigo == null || r.codigo === '');
+    if (raiz.length) return raiz.reduce((a, r) => a + (r.incidencia || 0), 0);
+    let raso = Infinity;
+    rows.forEach(r => { const n = this._depth(r.codigo); if (n > 0 && n < raso) raso = n; });
+    if (raso === Infinity) return rows.reduce((a, r) => a + (r.incidencia || 0), 0);  // colagem plana
+    return rows.reduce((a, r) => a + (this._depth(r.codigo) === raso ? (r.incidencia || 0) : 0), 0);
+  },
+  incidPorDisciplina(banca) {
+    const by = this._incidByDisc(banca);
+    const out = {};
+    Object.keys(by).forEach(d => { out[d] = this.raizIncid(by[d]); });
+    return out;
   },
   _children(rows, code) {
     if (code == null) return rows.filter(r => r.codigo && this._depth(r.codigo) === 1).sort((a, b) => a.codigo.localeCompare(b.codigo));
@@ -376,7 +409,9 @@ const ReforcoEngine = {
     }
     Object.keys(byDisc).forEach(disc => {
       const rows = byDisc[disc];
-      const discRow = rows.find(r => r.codigo == null) || { codigo: null, nome: disc, disciplina: disc, incidencia: rows.reduce((a, r) => a + (r.incidencia || 0), 0) };
+      // sem linha de disciplina, a raiz vale o nível mais raso — nunca a soma
+      // de todos os níveis, que conta a mesma questão uma vez por degrau
+      const discRow = rows.find(r => r.codigo == null) || { codigo: null, nome: disc, disciplina: disc, incidencia: this.raizIncid(rows) };
       const rec = (node) => {
         const code = (node.codigo == null || node.codigo === '') ? null : node.codigo;
         const dep = this._depth(code);
