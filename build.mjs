@@ -94,6 +94,7 @@ const PARTES = [
     'js/66-backup-nuvem.js',
     'js/67-atualizacao.js',
     'js/70-relatorio.js',
+    'js/71-auditoria-plano.js',
     'js/80-ajustes-finais.js',
   ].map((m, i, todos) => { const t = S(m); if (i < todos.length - 1) SEP('\n'); return t; }).join('\n'),
   SEP('\n'),

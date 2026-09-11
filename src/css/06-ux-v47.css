@@ -1462,3 +1462,7 @@
   font: inherit; font-size: var(--fs-2xs); font-weight: 700;
   color: var(--text-soft); text-decoration: underline;
 }
+.profile-card-stats.so-local { color: var(--warn-text); font-weight: 700; }
+.pl-aud-bts { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin: 6px 0 4px; }
+.pl-aud-anon { font-size: var(--fs-2xs); }
+#plano-aud-resumo:empty { display: none; }
