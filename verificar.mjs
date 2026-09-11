@@ -2269,6 +2269,57 @@ try {
     && /<1% do seu esforço/.test(num.linhaFina) && !/[^\d<]0% do seu esforço/.test(num.linhaFina))
     ? ok(`materia com ${num.shareFina}% do esforco e nivel medido diz "<1%", nao "0%"`)
     : erro('a linha ainda se contradiz: ' + JSON.stringify({ share: num.shareFina, nivel: num.nivelFina, linha: num.linhaFina.slice(0, 120) }));
+  /* ── UM RITMO MANUAL VELHO ESTRAGA TODA PREVISAO, E EM SILENCIO ───────
+     Visto numa auditoria real: ritmo digitado 30/sem contra 563/sem medidos
+     nos ultimos 120 dias, e o "caminho mais curto" anunciando 486 semanas
+     (nove anos) para um percurso que no ritmo de verdade leva 26. Um numero
+     assim desacredita a tela inteira, e o unico sinal era a AUSENCIA da
+     palavra "(medido)" ao lado do chip. Sinal por omissao nao e sinal. */
+  const rit = await pag.evaluate(() => {
+    const origSnaps = DB.getTecSnapshots, origSubs = DB.getActiveSubjects,
+      origModo = window.planCycleMode, origInc = ReforcoEngine._incidByDisc;
+    try {
+      const dia = (n) => { const d = new Date(todayLocal() + 'T00:00:00'); d.setDate(d.getDate() - n); return d.toISOString().slice(0, 10); };
+      const snaps = [];
+      for (let s = 0; s < 4; s++) {
+        const rows = [];
+        for (let t = 0; t < 20; t++) rows.push({ depth: 1, codigo: String(t + 1), nome: 'T' + t,
+          disciplina: 'D', questoes: 120, acertos: Math.round(120 * (55 + t + s) / 100) });
+        snaps.push({ id: 'rt' + s, nome: 'rt' + s, date: dia(90 - s * 28), startDate: dia(118 - s * 28), endDate: dia(90 - s * 28), rows });
+      }
+      DB.getTecSnapshots = () => snaps;
+      DB.getActiveSubjects = () => []; window.planCycleMode = () => 'pre';
+      ReforcoEngine._incidByDisc = () => ({});
+      PlanoEngine.salvarPrefs({ disciplina: '__todas__', minAmostra: 20, amostraAlvo: 50, ordenar: 'pior', limite: 30 });
+      const campo = document.getElementById('plano-ritmo');
+      if (campo) campo.value = 30;
+      PlanoEngine.salvarPrefs({ ritmoSemanal: 30 });
+      DesempenhoTecScreen._planoRefC = null;
+      DesempenhoTecScreen.renderPlanoConteudo();
+      const texto = () => (document.getElementById('plano-proj') || {}).textContent || '';
+      const antes = PlanoEngine.calcular(DesempenhoTecScreen.scopedSnapshot(), PlanoEngine.prefs());
+      const avisoAntes = /O ritmo está fixo em/.test(texto());
+      const bt = document.getElementById('plano-ritmo-medido');
+      if (bt) bt.click();
+      const depois = PlanoEngine.calcular(DesempenhoTecScreen.scopedSnapshot(), PlanoEngine.prefs());
+      return { travado: antes.ritmo, medido: antes.ritmoMedido, divAntes: antes.ritmoDivergente,
+        avisoAntes, temBotao: !!bt, ritmoDepois: depois.ritmo, divDepois: depois.ritmoDivergente,
+        avisoDepois: /O ritmo está fixo em/.test(texto()),
+        semanasAntes: antes.semanas != null ? Math.round(antes.semanas) : null,
+        semanasDepois: depois.semanas != null ? Math.round(depois.semanas) : null };
+    } finally {
+      DB.getTecSnapshots = origSnaps; DB.getActiveSubjects = origSubs;
+      window.planCycleMode = origModo; ReforcoEngine._incidByDisc = origInc;
+      PlanoEngine.salvarPrefs({ ritmoSemanal: null });
+    }
+  });
+  (rit.divAntes === true && rit.avisoAntes && rit.temBotao)
+    ? ok(`ritmo travado em ${rit.travado}/sem contra ${rit.medido}/sem medidos: a tela acusa e oferece o conserto (previsao ia em ${rit.semanasAntes} semanas)`)
+    : erro('a divergencia de ritmo passou calada: ' + JSON.stringify(rit));
+  (rit.divDepois === false && rit.ritmoDepois === rit.medido && !rit.avisoDepois)
+    ? ok(`e um toque devolve o ritmo a medicao (${rit.ritmoDepois}/sem, previsao em ${rit.semanasDepois} semanas) e o aviso some`)
+    : erro('o conserto do ritmo nao pegou: ' + JSON.stringify(rit));
+
   /* ── A PORTA DA AUDITORIA ─────────────────────────────────────────────
      O arquivo existe para OUTRA pessoa julgar o modulo. Duas coisas o
      inutilizam: faltar um bloco (um numero da tela que nao da para
