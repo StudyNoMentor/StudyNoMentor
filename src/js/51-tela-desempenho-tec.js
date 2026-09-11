@@ -1152,6 +1152,9 @@ const PlanoPontos = {
        você resolveu e o que a prova cobra. Nada é descartado por não ter par —
        "peso alto e zero questão" é justamente o alarme que interessa. */
     const chaves = [...new Set([].concat(Object.keys(seu), Object.keys(peso)))];
+    const tetoPct = Math.max(50, Math.min(100, p.tetoDominio));
+    const acTotal = Object.keys(seu).reduce((a, k) => a + seu[k].ac, 0);
+    const taxaGeral = seuTotal > 0 ? acTotal / seuTotal * 100 : null;
     const linhas = chaves.map(k => {
       const s = seu[k];
       const q = s ? s.q : 0;
@@ -1165,56 +1168,110 @@ const PlanoPontos = {
         const a = PlanoEngine._taxaAdaptativa(k, desc, p);
         if (a) { medido = a.q; if (a.q >= (p.minAmostra || 20)) taxa = a.pct; }
       }
-      /* O VEREDITO É UMA RAZÃO, NÃO UMA DIFERENÇA. Cinco pontos percentuais a
-         mais de esforço numa matéria que vale 40% é ruído; os mesmos cinco numa
-         que vale 3% é o dobro do que ela merece. A razão captura isso; a
-         subtração não. */
-      let veredito = null, razao = null;
-      const forte = taxa != null && taxa >= p.metaDominio;
-      if (sharePeso == null) {
-        veredito = null;                                  // sem peso declarado não há o que comparar
-      } else if (sharePeso <= 0) {
-        veredito = q > 0 ? 'foraDoPeso' : null;           // esforço numa matéria que a prova não cobra
-      } else if (q <= 0) {
-        veredito = 'intocada';                            // vale ponto e você nunca resolveu uma questão
-        razao = 0;
-      } else {
-        razao = shareEsforco / sharePeso;
-        if (razao >= 1.6) veredito = forte ? 'sobra' : 'sobraFraco';
-        else if (razao <= 0.6) veredito = forte ? 'faltaForte' : 'falta';
-        else veredito = 'equilibrada';
-      }
-      /* ── QUEM MERECE UMA LINHA SÓ SUA ──────────────────────────────────
-         Cobrir tudo é obrigação; virar parede não. Uma banca com trinta
-         disciplinas produzia vinte linhas de "0% · 0 questões" que empurravam
-         a decisão de verdade para fora da tela — e o quadro passa a mentir de
-         novo, agora por excesso.
+      /* ── PONTOS EM JOGO: O PRÊMIO, NA UNIDADE DA PROVA ──────────────────
+         O peso da matéria vezes a lacuna que falta até o máximo realista. É
+         quanto da prova você recupera levando ESTA matéria ao teto, e é a
+         única pergunta que a decisão "onde ponho a próxima hora" responde.
 
-         Dois resumos, cada um com um motivo diferente:
-         · MIÚDA (abaixo de 1% dos dois lados) é rodapé puro. Não conta na
-           manchete: uma disciplina que vale 0,4% da banca e que você nunca
-           tocou não é desalinhamento nenhum.
-         · NÃO TOCADA pequena (nunca resolvida, abaixo de 5% da prova) CONTA na
-           manchete e some da lista. Uma sozinha não decide nada; nove somando
-           18% da prova decidem — e é por isso que o resumo mostra a SOMA
-           delas, não só o número. */
-      const miuda = (sharePeso == null || sharePeso < this.MIUDA_PCT) && shareEsforco < this.MIUDA_PCT;
-      const resumo = miuda ? 'miuda'
-        : (veredito === 'intocada' && (sharePeso || 0) < this.INTOCADA_PCT) ? 'intocada' : null;
+         A razão esforço/peso, sozinha, respondia outra pergunta — "estou
+         distribuindo bem?" — e as duas divergem com frequência: uma matéria
+         que vale 12% da prova e onde você acerta 58% aparecia como
+         "equilibrada" (verde, nada a fazer) enquanto tinha 3,9pp em jogo, e
+         outra de 5% de peso a 84% de acerto aparecia como problema com 0,5pp
+         em jogo. Verde na segunda maior oportunidade da prova é pior que não
+         dizer nada.
+
+         Quem nunca resolveu uma questão da matéria não tem lacuna medida: o
+         prêmio é ESTIMADO pela sua média geral, e a linha diz isso. Estimar é
+         melhor que omitir — omitir mandaria a matéria mais pesada da prova
+         para o fim da fila só por falta de dado. */
+      /* Sem medição da matéria, o prêmio sai da sua média geral; sem retrato
+         nenhum ainda, de uma moeda ao alto (50%). O número é grosseiro nesse
+         caso, mas a ORDEM não é: com um prior constante o ranking vira o peso
+         puro, que é exatamente a prioridade certa para quem ainda não mediu
+         nada. Zerar o prêmio, que era a alternativa, mandava a matéria mais
+         pesada da prova para o fim da fila por falta de dado. */
+      const base = taxa != null ? taxa : (taxaGeral != null ? taxaGeral : 50);
+      const ganho = (sharePeso != null && sharePeso > 0)
+        ? sharePeso * Math.max(0, tetoPct - base) / 100 : 0;
       return { chave: k, nome: (s && s.nome) || pesoNome[k] || k,
-        q, shareEsforco, sharePeso, taxa, medido, razao, veredito, miuda, resumo };
+        q, shareEsforco, sharePeso, taxa, medido, ganho,
+        estimado: taxa == null && sharePeso > 0,
+        razao: (sharePeso > 0 && q > 0) ? shareEsforco / sharePeso : null };
     });
-    /* Ordem: o que pesa na prova primeiro; empatado, o que levou mais esforço.
-       Quem não tem peso nenhum vai para o fim — é rodapé, não manchete. */
-    linhas.sort((a, b) => (b.sharePeso || 0) - (a.sharePeso || 0) || b.shareEsforco - a.shareEsforco);
-    /* CONTAM COMO DESALINHAMENTO os dois excessos, a falta e a intocada. Não
-       conta `faltaForte` — pouco esforço numa matéria que você já domina é
-       alocação certa — nem `foraDoPeso`, que é aviso, não erro: pode ser
-       incidência não importada em vez de esforço jogado fora. */
-    const ALARME = { sobra: 1, sobraFraco: 1, falta: 1, intocada: 1 };
-    return { linhas, seuTotal, pesoTotal, fontePeso,
-      desalinhadas: linhas.filter(l => ALARME[l.veredito] && !l.miuda).length };
+    // A ORDEM É O PRÊMIO. Peso desempata; quem não tem peso vai para o fim.
+    linhas.sort((a, b) => b.ganho - a.ganho || (b.sharePeso || 0) - (a.sharePeso || 0) || b.shareEsforco - a.shareEsforco);
+    /* ── O CORTE DE PARETO ──────────────────────────────────────────────────
+       "Dezesseis matérias desalinhadas" não é um guia: é ruído com número. O
+       corte responde a pergunta certa — QUAIS matérias concentram METADE de
+       tudo que ainda dá para recuperar. Tipicamente três ou quatro, e é nelas
+       que a próxima hora rende mais. O corte é relativo ao próprio aluno, não
+       a um limiar fixo: quem já está perto do teto em tudo recebe uma lista
+       curta porque sobrou pouco, e não porque baixamos a régua. */
+    const emJogo = linhas.reduce((a, l) => a + l.ganho, 0);
+    let acum = 0, nCorte = 0;
+    linhas.forEach(l => {
+      const antes = acum;
+      acum += l.ganho;
+      l.noCorte = l.ganho > 0 && antes < emJogo * this.CORTE_PARETO;
+      /* A SEGUNDA BANDA EXISTE PARA NÃO MENTIR PARA BAIXO. Sem ela, a quarta
+         maior oportunidade da prova — ainda com quase 2pp em jogo — recebia
+         "mantenha: pouco a ganhar aqui", que é falso. Ela não é para atacar
+         agora, mas é a próxima da fila, e dizer isso é diferente de dizer que
+         não há nada ali. */
+      l.naFila = l.ganho > 0 && !l.noCorte && antes < emJogo * this.FILA_PARETO;
+      if (l.noCorte) nCorte++;
+    });
+    /* ── E SÓ AGORA A AÇÃO ──────────────────────────────────────────────────
+       Cada veredito é um verbo, não um diagnóstico: a tela existe para dizer o
+       que fazer amanhã de manhã. "Desalinhada" descrevia um estado e deixava a
+       tradução para o aluno — que foi exatamente onde ele se perdeu. */
+    linhas.forEach(l => {
+      if (l.sharePeso == null || l.sharePeso <= 0) { l.veredito = l.q > 0 ? 'foraDoPeso' : null; return; }
+      l.sobra = l.razao != null && l.razao >= this.SOBRA_RAZAO;
+      if (l.q <= 0) { l.veredito = 'comecar'; return; }
+      if (l.noCorte) { l.veredito = 'atacar'; return; }
+      /* Fora do corte, o esforço desproporcional vira a informação principal:
+         você gasta muito onde já não sobrou prêmio. É o único "pare" da tela. */
+      if (l.naFila) { l.veredito = 'fila'; return; }
+      /* O ESFORÇO DESPROPORCIONAL SÓ VIRA VERBO QUANDO NÃO HÁ MAIS PRÊMIO.
+         Quando ele competia com o prêmio, a segunda maior oportunidade da
+         prova — 3,9pp em jogo, acerto em 50% — recebia "reduza: sobrou pouco
+         a ganhar", que é o oposto da verdade. Fora das duas bandas, aí sim
+         gastar muito é o fato principal; dentro delas, a desproporção vira
+         ANOTAÇÃO na linha (`sobra`), que aparece junto de qualquer veredito e
+         diz outra coisa: o que você já faz aqui não está rendendo. */
+      if (l.razao != null && l.razao >= this.SOBRA_RAZAO) { l.veredito = 'reduzir'; return; }
+      /* "Vai mal" é abaixo da faixa frágil, não abaixo da meta. Com a meta em
+         85, quem acerta 84% ouvia "você vai mal" — e perdia a confiança na
+         tela inteira por causa de um ponto percentual. */
+      l.veredito = (l.taxa != null && l.taxa < p.faixaFragil) ? 'depois' : 'manter';
+    });
+    /* ── QUEM MERECE UMA LINHA SÓ SUA ──────────────────────────────────────
+       Cobrir tudo é obrigação; virar parede não. Uma banca com trinta
+       disciplinas produzia vinte linhas de "0% · 0 questões" que empurravam a
+       decisão de verdade para fora da tela.
+
+       Dois resumos, cada um com um motivo diferente:
+       · MIÚDA (abaixo de 1% dos dois lados) é rodapé puro.
+       · NÃO COMEÇADA pequena (nunca resolvida, abaixo de 5% da prova) some da
+         lista mas mostra a SOMA: uma sozinha não decide nada; nove somando
+         18% da prova decidem. */
+    linhas.forEach(l => {
+      const miuda = (l.sharePeso == null || l.sharePeso < this.MIUDA_PCT) && l.shareEsforco < this.MIUDA_PCT;
+      l.miuda = miuda;
+      l.resumo = miuda ? 'miuda'
+        : (l.veredito === 'comecar' && (l.sharePeso || 0) < this.INTOCADA_PCT) ? 'comecar' : null;
+    });
+    return { linhas, seuTotal, pesoTotal, fontePeso, teto: tetoPct, taxaGeral,
+      emJogo, nCorte,
+      // quantas linhas pedem ação e APARECEM: a manchete não pode mandar
+      // procurar uma linha que o resumo escondeu
+      acoes: linhas.filter(l => !l.resumo && (l.veredito === 'atacar' || l.veredito === 'comecar')).length };
   },
+  CORTE_PARETO: 0.5,
+  FILA_PARETO: 0.8,
+  SOBRA_RAZAO: 1.6,
   MIUDA_PCT: 1,
   INTOCADA_PCT: 5,
   /* CASA "PORTUGUÊS" COM "LÍNGUA PORTUGUESA" SEM INVENTAR. Duas regras, as duas
@@ -3212,86 +3269,103 @@ const DesempenhoTecScreen = {
     /* ── O QUADRO QUE RESPONDE "QUAIS MATÉRIAS EU PRIORIZO" ───────────────── */
     const tm = PlanoPontos.esforcoPorMateria(opts);
     const VER = {
-      sobra:      ['⚠️', 'tone-warn', 'esforço sobrando onde você já vai bem'],
-      sobraFraco: ['🟠', 'tone-warn', 'muito esforço para o peso que ela tem'],
-      falta:      ['🔴', 'tone-bad',  'pouco esforço onde mais vale ponto'],
-      intocada:   ['🔴', 'tone-bad',  'vale ponto e você nunca resolveu uma questão'],
-      faltaForte: ['✅', 'tone-good', 'pouco esforço, mas você já domina'],
-      equilibrada:['✅', 'tone-good', 'equilibrada'],
+      comecar:    ['🔴', 'tone-bad',  'comece: vale ponto e você não tem nenhuma questão'],
+      atacar:     ['🎯', 'tone-bad',  'ataque aqui: é onde mais ponto está em jogo'],
+      reduzir:    ['🟠', 'tone-warn', 'reduza: você gasta muito e sobrou pouco a ganhar'],
+      fila:       ['🟡', 'tone-warn', 'na fila: entra assim que as de cima saírem'],
+      depois:     ['🟡', 'tone-warn', 'fica para depois: você vai mal, mas pesa pouco'],
+      manter:     ['✅', 'tone-good', 'mantenha: pouco a ganhar aqui'],
       foraDoPeso: ['⚪', 'tone-soft', 'não aparece no peso da sua prova']
     };
     const comVeredito = tm.linhas.filter(l => l.veredito);
-    /* O nome da matéria no TEC e o valor que o filtro da lista entende são o
-       mesmo, mas o botão sai da própria lista do Plano: se a matéria não tem
-       assunto medido, não há para onde levar, e o botão não nasce. */
+    /* ── DE ONDE SAI O ALVO DO BOTÃO ───────────────────────────────────────
+       Das DISCIPLINAS DO RETRATO, não da lista já filtrada. Saía de `r.itens`,
+       que é o resultado do Plano com o filtro de disciplina aplicado — então,
+       assim que você filtrava por uma matéria, TODAS as outras perdiam o
+       botão, e sobrava exatamente uma linha com ele: a que já estava
+       filtrada. O botão de "vá para outra matéria" só funcionava para a
+       matéria em que você já estava. */
     const discDoPlano = {};
-    [].concat(r.itens || [], r.pequenas || []).forEach(x => {
-      const k = ReforcoEngine.norm(x.disciplina || '');
-      if (k && !discDoPlano[k]) discDoPlano[k] = x.disciplina;
-    });
-    /* ── UMA LINHA POR MATÉRIA, MAS NÃO UMA PAREDE DE LINHAS ───────────────
-       A cobertura agora é total: toda matéria com peso e toda matéria com
-       questão sua tem linha. Só que uma disciplina que vale 0,4% da banca e
-       que você nunca tocou não é decisão nenhuma — é rodapé. As miúdas dos
-       DOIS lados viram uma linha só, somada, para a soma continuar fechando
-       sem transformar o quadro numa lista telefônica. */
+    try {
+      PlanoEngine.disciplinas(this.scopedSnapshot()).forEach(d => {
+        const k = ReforcoEngine.norm(d || '');
+        if (k && !discDoPlano[k]) discDoPlano[k] = d;
+      });
+    } catch (e) { _quiet(e, 'atacar-discs'); }
     const grandes = comVeredito.filter(l => !l.resumo);
     const soma = (tipo) => {
       const arr = comVeredito.filter(l => l.resumo === tipo);
-      return arr.length ? arr.reduce((a, l) => ({ n: a.n + 1, peso: a.peso + (l.sharePeso || 0), esf: a.esf + l.shareEsforco }), { n: 0, peso: 0, esf: 0 }) : null;
+      return arr.length ? arr.reduce((a, l) => ({ n: a.n + 1, peso: a.peso + (l.sharePeso || 0), esf: a.esf + l.shareEsforco, ganho: a.ganho + l.ganho }), { n: 0, peso: 0, esf: 0, ganho: 0 }) : null;
     };
+    const rComecar = soma('comecar');
     const rMiudas = soma('miuda');
-    const rIntocadas = soma('intocada');
     const linhaResumo = (r, um, muitos, obs, tom) => !r ? '' : `<tr class="pl-tempo-miudas">
                   <td><b>+ ${r.n} ${r.n === 1 ? um : muitos}</b><span class="pl-ciclo-obs">${obs}</span></td>
                   <td>${r.esf.toFixed(0)}%</td>
                   <td>${r.peso.toFixed(0)}%</td>
-                  <td>—</td>
+                  <td class="pl-tempo-nivel">—</td>
+                  <td>${r.ganho >= 0.05 ? r.ganho.toFixed(1) + ' pp' : '—'}</td>
                   <td><span class="reforco-tag ${tom}">somadas, para o quadro não perder nada</span></td>
                 </tr>`;
+    const manchete = tm.emJogo < 0.1
+      ? 'nada relevante em jogo — você está no teto no que a prova cobra'
+      : `<b class="tone-bad">${tm.emJogo.toFixed(0)} pp da prova ainda em jogo</b> · ${tm.nCorte} ${tm.nCorte === 1 ? 'matéria concentra' : 'matérias concentram'} metade disso`;
     const blocoTempo = (!comVeredito.length) ? '' : `
-      <details class="pl-ciclo pl-tempo"${tm.desalinhadas ? ' open' : ''}>
+      <details class="pl-ciclo pl-tempo"${tm.acoes ? ' open' : ''}>
         <summary>
-          <strong>⚖️ Onde o seu esforço está indo</strong>
-          <span>${tm.desalinhadas ? `<b class="tone-bad">${tm.desalinhadas} ${tm.desalinhadas === 1 ? 'matéria desalinhada' : 'matérias desalinhadas'}</b>` : 'esforço e peso alinhados'} · peso ${tm.fontePeso === 'edital' ? 'pelo edital que você declarou' : 'pela incidência das suas bancas'}</span>
+          <strong>🎯 Onde atacar primeiro</strong>
+          <span>${manchete} · peso ${tm.fontePeso === 'edital' ? 'pelo edital que você declarou' : 'pela incidência das suas bancas'}</span>
           <span class="chev">▾</span>
         </summary>
         <div class="pl-tempo-wrap">
           <table class="pl-tempo-tab">
-            <thead><tr><th>matéria</th><th>suas questões</th><th>peso</th><th>nível</th><th>veredito</th></tr></thead>
+            <thead><tr><th>matéria</th><th>suas questões</th><th>peso</th><th>nível</th><th>em jogo</th><th>o que fazer</th></tr></thead>
             <tbody>
               ${grandes.map(l => {
                 const [ic, tom, rot] = VER[l.veredito];
                 /* ── DA MATÉRIA PARA O ASSUNTO, EM UM TOQUE ────────────────
                    A tabela fala de MATÉRIAS; a lista abaixo fala de ASSUNTOS,
-                   e é ela que vira atividade. Sem esta ponte o caminho era:
-                   ler o veredito, abrir os ajustes, achar o campo Disciplina,
-                   escolher a matéria, fechar a folha, rolar até o bloco. Cinco
-                   passos manuais para uma decisão que a própria tabela acabou
-                   de tomar.
+                   e é ela que vira atividade. Sem esta ponte o caminho era de
+                   cinco passos manuais para uma decisão que a própria tabela
+                   acabou de tomar.
 
-                   Só nas matérias que pedem ação: numa linha ✅ o botão seria
-                   um convite a fazer o que a tela acabou de dizer para não
-                   fazer. E só quando a matéria existe na lista do Plano — sem
-                   assunto medido, o filtro abriria numa tela vazia, e é
-                   exatamente o caso de "intocada". */
-                const alvo = (l.veredito === 'falta' || l.veredito === 'sobraFraco') ? discDoPlano[l.chave] : null;
+                   O botão vai onde a tabela mandou ATACAR — e só ali. Antes
+                   ele nascia em "muito esforço para o peso que ela tem", ou
+                   seja, convidava a investir mais exatamente na matéria que a
+                   linha acabava de acusar de consumir demais, e que era a de
+                   MENOR prêmio da tela. */
+                const alvo = (l.veredito === 'atacar' || l.veredito === 'comecar') ? discDoPlano[l.chave] : null;
+                /* A DESPROPORÇÃO ACOMPANHA QUALQUER VEREDITO. Numa linha de
+                   "ataque aqui" ela diz o que o verbo não diz: o problema não
+                   é falta de tempo, é o que você faz com ele. */
+                const obs = (l.sobra && l.veredito !== 'reduzir')
+                  ? `<span class="pl-ciclo-obs">já leva ${l.razao.toFixed(1)}× o peso dela do seu esforço</span>` : '';
+                /* ── NO CELULAR, AS TRÊS COLUNAS DO MEIO DESCEM ────────────
+                   Seis colunas não cabem em 390px, e as duas que a rolagem
+                   horizontal escondia eram justamente "em jogo" e "o que
+                   fazer" — a pergunta e a resposta. Quem lê no telefone via
+                   matéria, questões e peso, e tinha de arrastar para descobrir
+                   o que a tela queria dizer. Os números de apoio viram uma
+                   linha só debaixo do nome; as duas colunas que decidem ficam
+                   sempre visíveis. */
+                const mini = `<span class="pl-ciclo-obs pl-tempo-mini">${l.shareEsforco.toFixed(0)}% do seu esforço · ${l.sharePeso == null ? 'sem peso' : l.sharePeso.toFixed(0) + '% da prova'} · ${l.taxa != null ? 'nível ' + l.taxa.toFixed(0) + '%' : 'sem nível medido'}</span>`;
                 return `<tr>
-                  <td><b>${escapeHtml(l.nome)}</b></td>
+                  <td><b>${escapeHtml(l.nome)}</b>${obs}${mini}</td>
                   <td>${l.shareEsforco.toFixed(0)}%<span class="pl-ciclo-obs">${l.q.toLocaleString('pt-BR')} questões</span></td>
                   <td>${l.sharePeso == null ? '—' : l.sharePeso.toFixed(0) + '%'}</td>
                   <td class="tone-${l.taxa == null ? '' : l.taxa >= r.meta ? 'good' : l.taxa < r.faixaFragil ? 'bad' : 'warn'}">${l.taxa != null ? l.taxa.toFixed(0) + '%' : '—'}</td>
+                  <td><b>${l.ganho >= 0.05 ? l.ganho.toFixed(1) + ' pp' : '—'}</b>${l.estimado && l.ganho >= 0.05 ? `<span class="pl-ciclo-obs">estimado — sem medição sua aqui</span>` : ''}</td>
                   <td><span class="reforco-tag ${tom}">${ic} ${rot}</span>${alvo
                     ? `<button type="button" class="pl-ciclo-acao pl-atacar" data-atacar="${escapeHtml(alvo)}"
                         title="Filtra a lista por ${escapeHtml(alvo)} e leva você ao bloco de criar atividades">→ atacar esta matéria</button>` : ''}</td>
                 </tr>`;
               }).join('')}
-              ${linhaResumo(rIntocadas, 'matéria que você ainda não tocou', 'matérias que você ainda não tocou', 'nenhuma questão sua, cada uma abaixo de 5% da prova', 'tone-warn')}
+              ${linhaResumo(rComecar, 'matéria que você ainda não começou', 'matérias que você ainda não começou', 'nenhuma questão sua, cada uma abaixo de 5% da prova', 'tone-warn')}
               ${linhaResumo(rMiudas, 'matéria miúda', 'matérias miúdas', 'abaixo de 1% dos dois lados', 'tone-soft')}
             </tbody>
           </table>
         </div>
-        <p class="pl-ciclo-obs">A moeda aqui é a <b>questão</b>, não o minuto: é a única que os dois lados falam — o peso da banca é contado em questões e o seu esforço no TEC também. Por isso o quadro não depende do nome que você deu às matérias no ciclo, e nenhuma matéria fica de fora: as que a prova cobra e as que você resolveu estão todas aqui. Aceitar ir mal numa matéria que vale pouco é decisão sua — o que ele impede é você fazer essa troca sem perceber.</p>
+        <p class="pl-ciclo-obs"><b>Em jogo</b> é quanto da prova inteira você recupera levando aquela matéria ao seu máximo realista (${tm.teto}%): o peso dela vezes a lacuna que falta. É por ele que a tabela está ordenada, porque é a única conta que responde "onde ponho a próxima hora". A moeda das outras colunas é a <b>questão</b> — a única que os dois lados falam, o que faz o quadro não depender do nome que você deu às matérias no ciclo. Ir mal numa matéria que vale pouco pode ser decisão sua; o que a tela impede é você fazer essa troca sem perceber.</p>
       </details>`;
     const cal = PlanoCiclo.calibragem();
     const blocoCal = (cal && cal.pronta && cal.divergente) ? `
