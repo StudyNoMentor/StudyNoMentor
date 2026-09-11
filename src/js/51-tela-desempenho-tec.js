@@ -284,6 +284,47 @@ const PlanoEngine = {
     const p = Math.min(1, Math.max(0, pct / 100));
     return 1.96 * Math.sqrt(p * (1 - p) / n) * 100;
   },
+  /* ── QUANTAS QUESTÕES, E PARA QUÊ ────────────────────────────────────────
+     O conselho de cada assunto dizia "um bloco de ~B questões", com B saindo
+     de `custoQ / 4` — um quarto de um custo que já era estimativa. Número
+     redondo sem pergunta por trás: não dava para dizer o que B comprava.
+
+     Há DUAS perguntas diferentes, e cada uma tem fórmula fechada:
+
+     ① MEDIR — quantas questões para a próxima medição deste assunto ter
+       margem de no máximo E pontos, a 95%:  n = z²·p(1−p)/E²  (z = 1,96).
+       Com 50% de acerto e E = 10pp, são 97 questões. É o bloco que responde
+       "onde eu estou", e é o único número honesto para mandar depois da
+       teoria: sem ele, "voltar ao banco" é voltar ao escuro.
+
+     ② PROVAR — quantas questões para o app CRAVAR que você melhorou Δ pontos
+       contra a medição de hoje. São duas amostras independentes (a janela de
+       hoje e a próxima), α = 5% bilateral e poder de 80%, então z = 1,96 +
+       0,84 = 2,80:  Δ = z·√(p(1−p)/n₁ + p(1−p)/n₂).
+
+     A segunda esbarra num limite que a tela precisa dizer em voz alta: se a
+     medição de hoje saiu de poucas questões, NENHUM n₂ prova a melhora — o
+     que falta é base, não esforço. Nesse caso o app devolve null e a frase
+     muda de "resolva M" para "a comparação ainda não fecha". Prometer um
+     número impossível seria pior que não prometer nada. */
+  MARGEM_ALVO: 10,
+  qParaMedir(taxa, margemAlvo) {
+    const p = Math.min(0.95, Math.max(0.05, (taxa == null ? 50 : taxa) / 100));
+    const E = Math.max(2, margemAlvo || this.MARGEM_ALVO) / 100;
+    return Math.ceil(3.8416 * p * (1 - p) / (E * E));
+  },
+  deltaDetectavel(taxa, n1, n2) {
+    if (!(n1 > 0) || !(n2 > 0)) return null;
+    const p = Math.min(0.95, Math.max(0.05, (taxa == null ? 50 : taxa) / 100));
+    return 2.80 * Math.sqrt(p * (1 - p) / n1 + p * (1 - p) / n2) * 100;
+  },
+  qParaProvar(taxa, n1, delta) {
+    if (!(n1 > 0) || !(delta > 0)) return null;
+    const p = Math.min(0.95, Math.max(0.05, (taxa == null ? 50 : taxa) / 100));
+    const folga = Math.pow(delta / 100 / 2.80, 2) - p * (1 - p) / n1;
+    if (!(folga > 0)) return null;                 // nem com amostra infinita
+    return Math.ceil(p * (1 - p) / folga);
+  },
   /* ── DOIS ASSUNTOS QUE A AMOSTRA NÃO DISTINGUE ──────────────────────────
      Simulação com 40 assuntos, 400 rodadas e taxas verdadeiras conhecidas: no
      regime de amostra deste app (20 a 50 questões por assunto), a fila por
@@ -882,30 +923,50 @@ const PlanoEngine = {
          de ser lido. Cada faixa continua com o seu conselho, agora com os
          números daquele assunto e com a tendência, quando ela existe. */
       const queda = (x.delta != null) ? Math.abs(x.delta) : null;
-      const bloco = Math.min(30, Math.max(10, Math.round(x.custoQ / 4)));
+      /* ── O NÚMERO DE QUESTÕES DEIXA DE SER PALPITE ──────────────────────
+         Era `custoQ / 4`, um quarto de uma estimativa. `bloco` agora é a
+         amostra que faz a PRÓXIMA medição deste assunto valer: n =
+         z²·p(1−p)/E², com E = 10pp. E `provar` é a amostra que faz o app
+         CRAVAR a melhora até a meta, num teste de duas proporções com 80% de
+         poder. Quando `provar` volta null, a medição de hoje é curta demais
+         para sustentar a comparação — e a frase diz isso em vez de inventar
+         um número que não existe. */
+      const bloco = this.qParaMedir(t);
+      const lacunaMeta = Math.max(0, opts.metaDominio - t);
+      const provar = this.qParaProvar(t, x.qJanela, lacunaMeta);
+      x.qMedir = bloco; x.qProvar = provar;
+      x.deltaMin = this.deltaDetectavel(t, x.qJanela, bloco);
+      /* Uma frase só, e sempre com o número que falta: ou o bloco já prova a
+         melhora, ou o app diz quantas a mais, ou avisa que a base é curta. */
+      const prova = (provar == null)
+        ? ' As ' + x.qJanela + ' questões que mediram este assunto são poucas para comprovar a subida até a meta: a próxima medição entra como base nova.'
+        : (provar <= bloco)
+          ? ' Esse bloco já basta para o app cravar a subida até a meta.'
+          : ' Para o app CRAVAR a subida até a meta são ' + provar + ' questões — o bloco acima já mede onde você ficou.';
       if (t < opts.faixaCritico) x.status = { rot: '🔴 Crítico', tom: 'bad',
         acao: 'Você acerta ' + t.toFixed(0) + '%: erra mais do que acerta. ' +
           (caindo ? 'E caiu ' + queda + 'pp contra o período anterior. ' : '') +
-          'Resolver mais questões agora só repete o erro — retome a teoria deste assunto e volte ao banco depois.' };
+          'Resolver mais questões agora só repete o erro — retome a teoria deste assunto primeiro. ' +
+          'Depois volte com um bloco de ' + bloco + ' questões: é a amostra que mede o seu novo nível com ±' + this.MARGEM_ALVO + 'pp e mostra se a teoria pegou.' };
       else if (t < opts.faixaFragil) x.status = { rot: '🔴 Frágil', tom: 'bad',
         acao: 'A base existe (' + t.toFixed(0) + '%), mas falha em pontos específicos, e faltam ' + faltaMeta + ' até a meta. ' +
           (caindo ? 'A queda de ' + queda + 'pp sugere revisão atrasada. ' : '') +
-          'Vá pelo caminho do erro: um bloco de ~' + bloco + ' questões, anote o que errou e revise só esses pontos antes do bloco seguinte.' };
+          'Vá pelo caminho do erro: um bloco de ' + bloco + ' questões (o que dá ±' + this.MARGEM_ALVO + 'pp de margem), anote o que errou e revise só esses pontos antes do bloco seguinte.' + prova };
       else if (t < opts.metaDominio) x.status = { rot: '🟠 Em desenvolvimento', tom: 'warn',
         acao: caindo
-          ? 'Estava melhor antes e caiu. Antes de aumentar o volume, verifique se o assunto mudou de banca ou se você deixou de revisar — reforce a revisão.'
-          : 'Faltam ' + faltaMeta + ' pontos para a meta. Aqui volume resolve: bata questões e revise apenas o que errar, sem voltar à teoria inteira.' };
+          ? 'Estava melhor antes e caiu ' + queda + 'pp. Antes de aumentar o volume, verifique se o assunto mudou de banca ou se você deixou de revisar — reforce a revisão e remeça com ' + bloco + ' questões.'
+          : 'Faltam ' + faltaMeta + ' pontos para a meta. Aqui volume resolve: ' + bloco + ' questões e revise apenas o que errar, sem voltar à teoria inteira.' + prova };
       /* "Consolidado" e "dado vencido" apareciam juntos no mesmo assunto: a
          tela dizia "está resolvido" e "sem medição nova há 8 meses" lado a
          lado, e cabia à pessoa decidir em qual acreditar. Sustentar a meta em
          medições ANTIGAS não é sustentar a meta hoje — é uma terceira
          situação, com ação própria: remedir antes de confiar. */
       else if (x.seq >= alvoSeq && x.vencido) x.status = { rot: '🟠 Sólido, sem medição nova', tom: 'warn', seq: x.seq,
-        acao: 'Sustentou a meta em ' + x.seq + ' importações, mas a última tem ' + x.diasDesdeMedicao + ' dias. Antes de riscar da lista, resolva um bloco pequeno e reimporte: consolidado com dado velho é lembrança, não medição.' };
+        acao: 'Sustentou a meta em ' + x.seq + ' importações, mas a última tem ' + x.diasDesdeMedicao + ' dias. Antes de riscar da lista, resolva ' + bloco + ' questões e reimporte: é o bloco que devolve uma medição com ±' + this.MARGEM_ALVO + 'pp. Consolidado com dado velho é lembrança, não medição.' };
       else if (x.seq >= alvoSeq) x.status = { rot: '🟢 Consolidado', tom: 'good', seq: x.seq,
         acao: 'Sustenta a meta há ' + x.seq + ' importações seguidas. Está resolvido: só revisão espaçada. Tempo extra aqui rende menos que em qualquer assunto acima.' };
       else x.status = { rot: '🟡 Recém-corrigido', tom: 'warn', seq: x.seq,
-        acao: 'Passou da meta em ' + x.seq + ' de ' + alvoSeq + ' importações necessárias. Ainda não provou que fixou — mantenha um volume pequeno e constante até sustentar na próxima importação.' };
+        acao: 'Passou da meta em ' + x.seq + ' de ' + alvoSeq + ' importações necessárias. Ainda não provou que fixou — mantenha cerca de ' + bloco + ' questões por importação até sustentar, que é o mínimo para a medição seguinte ter ±' + this.MARGEM_ALVO + 'pp.' };
     });
     /* ── A ORDEM QUE APROVA ───────────────────────────────────────────────
        Só existe depois do edital, porque só aí existe prova com composição. E

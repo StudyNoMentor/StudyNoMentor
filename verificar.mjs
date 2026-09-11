@@ -2269,6 +2269,54 @@ try {
     && /<1% do seu esforço/.test(num.linhaFina) && !/[^\d<]0% do seu esforço/.test(num.linhaFina))
     ? ok(`materia com ${num.shareFina}% do esforco e nivel medido diz "<1%", nao "0%"`)
     : erro('a linha ainda se contradiz: ' + JSON.stringify({ share: num.shareFina, nivel: num.nivelFina, linha: num.linhaFina.slice(0, 120) }));
+  /* ── O CONSELHO DE CADA ASSUNTO DIZ QUANTAS QUESTOES, E PARA QUE ──────
+     Era "um bloco de ~B questoes" com B = custoQ/4: um quarto de uma
+     estimativa, sem pergunta por tras. Agora sao duas contas fechadas — a
+     amostra que MEDE (n = z²·p(1−p)/E², E = 10pp) e a que PROVA a subida ate
+     a meta (teste de duas proporcoes, 80% de poder). Quando a medicao de hoje
+     e curta demais para sustentar a comparacao, a tela diz isso em vez de
+     inventar um numero. */
+  const qtd = await pag.evaluate(() => {
+    const origSnaps = DB.getTecSnapshots, origSubs = DB.getActiveSubjects,
+      origModo = window.planCycleMode, origInc = ReforcoEngine._incidByDisc;
+    try {
+      const dia = (n) => { const d = new Date(todayLocal() + 'T00:00:00'); d.setDate(d.getDate() - n); return d.toISOString().slice(0, 10); };
+      const specs = [['Critico', 40, 33], ['Fragil', 40, 58], ['Desenv', 40, 75]];
+      const rs = specs.map(([n, q, tx]) => ({ depth: 1, codigo: n, nome: n, disciplina: 'D', questoes: q, acertos: Math.round(q * tx / 100) }));
+      DB.getTecSnapshots = () => ([{ id: 'q1', nome: 'q1', date: dia(5), startDate: dia(35), endDate: dia(5), rows: rs }]);
+      DB.getActiveSubjects = () => []; window.planCycleMode = () => 'pre';
+      ReforcoEngine._incidByDisc = () => ({});
+      PlanoEngine.salvarPrefs({ disciplina: '__todas__', minAmostra: 20, metaDominio: 85,
+        faixaCritico: 50, faixaFragil: 65, ordenar: 'pior', limite: 30, incluirPequenas: false });
+      DesempenhoTecScreen._planoRefC = null;
+      DesempenhoTecScreen.renderPlano();
+      const r = PlanoEngine.calcular(DesempenhoTecScreen.scopedSnapshot(), PlanoEngine.prefs());
+      const de = (n) => (r.itens || []).find((x) => x.nome === n) || {};
+      return {
+        critico: (de('Critico').status || {}).acao || '',
+        fragil: (de('Fragil').status || {}).acao || '',
+        desenv: (de('Desenv').status || {}).acao || '',
+        qMedirFragil: de('Fragil').qMedir, formula: PlanoEngine.qParaMedir(de('Fragil').taxa),
+        provarDesenv: PlanoEngine.qParaProvar(de('Desenv').taxa, de('Desenv').qJanela, 85 - de('Desenv').taxa),
+        txt: document.getElementById('plano-lista').textContent
+      };
+    } finally {
+      DB.getTecSnapshots = origSnaps; DB.getActiveSubjects = origSubs;
+      window.planCycleMode = origModo; ReforcoEngine._incidByDisc = origInc;
+    }
+  });
+  (/retome a teoria/.test(qtd.critico) && /bloco de \d+ questões/.test(qtd.critico))
+    ? ok('no critico a tela manda a TEORIA primeiro e so depois o bloco que remede o nivel')
+    : erro('o conselho do critico perdeu a teoria ou o numero: ' + qtd.critico.slice(0, 140));
+  (qtd.qMedirFragil === qtd.formula && /\d+ questões \(o que dá ±10pp de margem\)/.test(qtd.fragil) && !/~/.test(qtd.fragil))
+    ? ok(`no fragil o bloco e a amostra da formula (${qtd.qMedirFragil}q para ±10pp), nao mais um quarto do custo`)
+    : erro('o bloco do fragil nao saiu da formula: ' + JSON.stringify({ q: qtd.qMedirFragil, f: qtd.formula, t: qtd.fragil.slice(0, 140) }));
+  (qtd.provarDesenv === null && /são poucas para comprovar/.test(qtd.desenv))
+    ? ok('e quando a medicao de hoje e curta demais para provar a subida, a tela diz isso em vez de inventar um numero')
+    : erro('o limite da comprovacao nao foi declarado: ' + JSON.stringify({ p: qtd.provarDesenv, t: qtd.desenv.slice(0, 140) }));
+  !/\bNaN\b|\bundefined\b|\bInfinity\b/.test(qtd.txt)
+    ? ok('nenhum numero podre nos conselhos') : erro('numero podre no conselho dos assuntos');
+
   /* ── A FILA NAO PODE PROMETER O QUE A AMOSTRA NAO SUSTENTA ────────────
      Simulacao com 40 assuntos e taxas verdadeiras conhecidas: com 20 a 50
      questoes por assunto, a fila por "pior acerto" acerta 55% dos cinco piores

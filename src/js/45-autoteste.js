@@ -1967,6 +1967,23 @@ const AutoTeste = {
           P.empateTecnico(ft(33, 400), ft(50, 400)) === false);
         this._ok('Empate: 30% contra 80% nunca é empate',
           P.empateTecnico(ft(30, 200), ft(80, 200)) === false);
+        /* 14) QUANTAS QUESTÕES, E PARA QUÊ. O conselho dizia "um bloco de ~B
+           questões" com B = custoQ/4 — um quarto de uma estimativa. Agora são
+           duas contas fechadas: n = z²·p(1−p)/E² para MEDIR, e o teste de duas
+           proporções (z = 1,96 + 0,84) para PROVAR. */
+        this._ok('Amostra: medir 50% com ±10pp são 97 questões', P.qParaMedir(50) === 97);
+        this._ok('Amostra: taxa mais extrema exige menos (90% → 35q) e margem apertada exige mais (±5pp → 385q)',
+          P.qParaMedir(90) === 35 && P.qParaMedir(50, 5) === 385);
+        this._ok('Amostra: sem taxa medida assume o pior caso (50%)', P.qParaMedir(null) === 97);
+        this._ok('Amostra: base curta NÃO prova melhora grande — devolve null, não um número inventado',
+          P.qParaProvar(58, 25, 27) === null);
+        this._ok('Amostra: base longa devolve o n₂ exigido', P.qParaProvar(58, 200, 15) > 0);
+        this._ok('Amostra: as duas contas fecham entre si',
+          Math.abs(P.deltaDetectavel(70, 150, P.qParaProvar(70, 150, 20)) - 20) < 1.5);
+        this._ok('Amostra: entradas degeneradas devolvem null, não NaN',
+          P.qParaProvar(58, 0, 20) === null && P.qParaProvar(58, 100, 0) === null
+          && P.deltaDetectavel(58, 0, 10) === null);
+
         this._ok('Empate: sem amostra, ou taxa cravada em 100%, não há empate falso',
           P.empateTecnico(ft(50, 0), ft(50, 20)) === false &&
           P.empateTecnico(ft(100, 30), ft(100, 30)) === false &&
