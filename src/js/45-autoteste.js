@@ -1773,6 +1773,127 @@ const AutoTeste = {
      aqui. A terceira — o arquivo se auto-conferir — é o próprio bloco
      `invariantes`, e o teste confere que ele REALMENTE roda, em vez de sair
      vazio e parecer aprovado. */
+  /* ── MATÉRIAS FORA DO PLANO ───────────────────────────────────────────────
+     O risco desta funcionalidade não é ela não funcionar: é funcionar PELA
+     METADE. Uma matéria que some da lista e continua dentro do domínio, ou que
+     sai do domínio e permanece na trajetória, produz dois números do mesmo
+     perfil no mesmo dia — e nenhum jeito de saber qual está certo. Então o
+     grupo cobre TODAS as bocas de uma vez: domínio, lista, trajetória, quadro
+     de esforço, lacunas do edital e nota projetada. */
+  materiasForaDoPlano() {
+    const P = PlanoEngine, PP = PlanoPontos, T = DesempenhoTecScreen;
+    this._ok('Fora do Plano: o motor expõe a exclusão',
+      !!(P && P.excluidasSet && P.foraDoPlano && P.materiasExcluiveis));
+    if (!P || !PP || !T) return;
+    const dia = (n) => { const d = new Date(todayLocal() + 'T00:00:00'); d.setDate(d.getDate() - n); return d.toISOString().slice(0, 10); };
+    const linhas = (disc, n, pct) => {
+      const out = [];
+      for (let t = 0; t < n; t++) out.push({ depth: 1, codigo: String(t + 1), nome: disc + ' ' + (t + 1),
+        disciplina: disc, questoes: 60, acertos: Math.round(60 * pct / 100) });
+      return out;
+    };
+    /* "Legislacao RN" é o caso real: muitas questões resolvidas, acerto alto,
+       e nenhuma relevância para a prova de hoje. Ela PUXA O DOMÍNIO PARA CIMA
+       — se o teste a fizesse fraca, o domínio subiria ao excluí-la e um bug de
+       sinal passaria despercebido. */
+    const rows = [].concat(linhas('Dir Adm', 4, 55), linhas('Dir Const', 3, 62), linhas('Legislacao RN', 3, 94));
+    const snaps = [
+      { id: 'fx1', nome: 'fx1', date: dia(70), startDate: dia(100), endDate: dia(70), rows },
+      { id: 'fx2', nome: 'fx2', date: dia(6), startDate: dia(36), endDate: dia(6), rows }];
+    const origSnaps = DB.getTecSnapshots, origSubs = DB.getActiveSubjects,
+      origInc = ReforcoEngine._incidByDisc, origModo = window.planCycleMode, origEsc = T.scopedSnapshot;
+    const chaveP = DB._profilePrefix() + P.KEY_PREF;
+    const antesP = localStorage.getItem(chaveP);
+    try {
+      DB.getTecSnapshots = () => snaps;
+      T.scopedSnapshot = () => snaps[snaps.length - 1];
+      ReforcoEngine._incidByDisc = () => ({
+        'Dir Adm': [{ codigo: null, depth: 0, nome: 'Dir Adm', disciplina: 'Dir Adm', incidencia: 300 }],
+        'Dir Const': [{ codigo: null, depth: 0, nome: 'Dir Const', disciplina: 'Dir Const', incidencia: 200 }],
+        'Legislacao RN': [{ codigo: null, depth: 0, nome: 'Legislacao RN', disciplina: 'Legislacao RN', incidencia: 100 }] });
+      DB.getActiveSubjects = () => []; window.planCycleMode = () => 'pre';
+
+      const base = Object.assign({}, P.DEFAULTS, { minAmostra: 10, limite: 200, excluidas: [] });
+      const semExcluir = P.calcular(snaps[snaps.length - 1], base);
+      this._ok('Fora do Plano: sem exclusão, as três matérias entram',
+        !semExcluir.erro && semExcluir.assuntos === 10 &&
+        (semExcluir.excluidasAtivas || []).length === 0, semExcluir.assuntos);
+
+      const opts = Object.assign({}, base, { excluidas: ['Legislacao RN'] });
+      const r = P.calcular(snaps[snaps.length - 1], opts);
+      this._ok('Fora do Plano: a matéria excluída sai da contagem de assuntos',
+        r.assuntos === 7 && r.excluidasAssuntos === 3, { assuntos: r.assuntos, fora: r.excluidasAssuntos });
+      this._ok('Fora do Plano: nenhum assunto dela sobra na lista',
+        (r.itens || []).concat(r.pequenas || []).every(x => ReforcoEngine.norm(x.disciplina || '') !== 'legislacao rn'));
+      /* O DOMÍNIO TEM DE MUDAR, E PARA BAIXO. É esta a asserção que pega a
+         exclusão "de fachada": se ela só filtrasse a lista, o número do topo
+         ficaria idêntico ao de antes. */
+      this._ok('Fora do Plano: o domínio cai ao tirar a matéria em que você vai bem',
+        r.dominioPct < semExcluir.dominioPct - 1,
+        { antes: semExcluir.dominioPct, depois: r.dominioPct });
+      this._ok('Fora do Plano: a tela recebe o nome do que ficou de fora',
+        (r.excluidasAtivas || []).length === 1 &&
+        ReforcoEngine.norm(r.excluidasAtivas[0]) === 'legislacao rn', r.excluidasAtivas);
+      this._ok('Fora do Plano: e quantas questões saíram da conta', r.excluidasQ === 180, r.excluidasQ);
+      /* A TRAJETÓRIA TEM DE FALAR DO MESMO CONJUNTO QUE O NÚMERO GRANDE. Sem
+         isto o topo dizia um domínio e o último ponto do gráfico logo abaixo
+         dizia outro, com a matéria excluída dentro. */
+      const serie = P.serieHistorica(opts) || [];
+      const ultimo = serie[serie.length - 1];
+      this._ok('Fora do Plano: a trajetória exclui as mesmas matérias que o domínio',
+        ultimo && Math.abs(ultimo.dominio - r.dominioPct) < 0.6 && ultimo.assuntos === 7,
+        { serie: ultimo && ultimo.dominio, topo: r.dominioPct });
+
+      const tm = PP.esforcoPorMateria(opts);
+      this._ok('Fora do Plano: some também do quadro de esforço, nos dois lados',
+        tm.linhas.every(l => ReforcoEngine.norm(l.nome) !== 'legislacao rn') &&
+        Math.abs(tm.linhas.reduce((a, l) => a + (l.sharePeso || 0), 0) - 100) < 0.01 &&
+        Math.abs(tm.linhas.reduce((a, l) => a + l.shareEsforco, 0) - 100) < 0.01,
+        tm.linhas.map(l => l.nome));
+
+      /* O NOME DO EDITAL NÃO É O NOME DA BANCA. Excluir pela lista do TEC tem
+         de alcançar a matéria do edital também — senão ela sai do domínio e
+         fica inteira dentro da nota projetada, que é o número que mais decide. */
+      DB.getActiveSubjects = () => ([
+        { nome: 'Direito Administrativo', qtdQuestoes: 30, pontosPorQuestao: 1, peso: 1 },
+        { nome: 'Legislacao RN', qtdQuestoes: 10, pontosPorQuestao: 1, peso: 1 }]);
+      window.planCycleMode = () => 'pos';
+      P.salvarPrefs({ excluidas: ['Legislacao RN'] });
+      const comp = PP.composicao();
+      this._ok('Fora do Plano: a matéria excluída sai da composição da prova',
+        comp.length === 1 && ReforcoEngine.norm(comp[0].nome) === 'direito administrativo',
+        comp.map(c => c.nome));
+      const lac = P.lacunasDoEdital(P.prefs());
+      this._ok('Fora do Plano: e não volta como "lacuna do edital"',
+        lac && lac.total === 1 && [].concat(lac.sem, lac.pouca).every(x => ReforcoEngine.norm(x.nome) !== 'legislacao rn'),
+        lac);
+      /* O casamento conservador é o que liga "Dir Adm" (banca) a "Direito
+         Administrativo" (seu edital). Excluir por um lado precisa valer no
+         outro — a checagem é feita no conjunto, antes de qualquer conta. */
+      const fora = P.excluidasSet({ excluidas: ['Direito Administrativo'] });
+      this._ok('Fora do Plano: excluir pelo nome do edital alcança o nome da banca',
+        P.foraDoPlano('Dir Adm', fora) && P.foraDoPlano('Direito Administrativo', fora), Object.keys(fora));
+
+      /* Marcar tudo é um estado que acontece, e precisa de saída própria: cair
+         em "sem-retrato" mandaria importar um retrato que já existe. */
+      const tudo = P.calcular(snaps[snaps.length - 1],
+        Object.assign({}, base, { excluidas: ['Dir Adm', 'Dir Const', 'Legislacao RN'] }));
+      this._ok('Fora do Plano: excluir tudo dá erro próprio, não "sem-retrato"',
+        tudo.erro === 'tudo-excluido' && tudo.excluidasAssuntos === 10, tudo.erro);
+
+      // lista vazia não pode custar uma varredura de retratos a cada chamada
+      this._ok('Fora do Plano: sem nada marcado, o conjunto é vazio',
+        Object.keys(P.excluidasSet({ excluidas: [] })).length === 0 &&
+        Object.keys(P.excluidasSet({})).length === 0);
+      this._ok('Fora do Plano: nome só de espaço não vira exclusão',
+        Object.keys(P.excluidasSet({ excluidas: ['   ', null] })).length === 0);
+    } finally {
+      DB.getTecSnapshots = origSnaps; DB.getActiveSubjects = origSubs;
+      ReforcoEngine._incidByDisc = origInc; window.planCycleMode = origModo;
+      T.scopedSnapshot = origEsc;
+      if (antesP == null) localStorage.removeItem(chaveP); else DB.setRaw(chaveP, antesP);
+    }
+  },
   auditoriaDoPlano() {
     const A = window.PlanoAuditoria;
     this._ok('Auditoria: o módulo existe', !!A);
@@ -2478,7 +2599,8 @@ const AutoTeste = {
      ['Folha de ajustes do TEC', 'ajustesTec'],
      ['Ciclo do Plano', 'cicloDoPlano'],
      ['Régua de pontos', 'reguaDePontos'],
-     ['Auditoria do Plano', 'auditoriaDoPlano']].forEach(([nome, fn]) => {
+     ['Auditoria do Plano', 'auditoriaDoPlano'],
+     ['Matérias fora do Plano', 'materiasForaDoPlano']].forEach(([nome, fn]) => {
       try { this[fn](); }
       catch (e) { this._r.total++; this._r.falhou++; this._r.falhas.push({ nome: nome + ' — exceção', obtido: String(e && e.message || e) }); }
     });

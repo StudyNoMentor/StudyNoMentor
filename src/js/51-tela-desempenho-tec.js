@@ -34,6 +34,9 @@ const PlanoEngine = {
     custoModo: 'lacuna', custoFixo: 60, custoFator: 0.5,
     custoPiso: 50, custoPorPonto: 2,
     ritmoSemanal: null, apenasFolhas: true, disciplina: '__todas__',
+    /* Matérias que o Plano NÃO deve enxergar (ver `excluidasSet`). Lista de
+       nomes, nunca um apagamento: sai da conta e volta inteira ao desmarcar. */
+    excluidas: [],
     limite: 30, ordenar: 'pior',
     faixaCritico: 50,    // abaixo disso o problema é de teoria
     faixaFragil: 65,     // abaixo disso ainda precisa revisar teoria
@@ -273,6 +276,96 @@ const PlanoEngine = {
     DB.setRaw(DB._profilePrefix() + this.KEY_PREF, JSON.stringify(v));
     return v;
   },
+  /* ── MATÉRIAS FORA DO PLANO ───────────────────────────────────────────────
+     Um edital passa; o retrato do TEC não esquece. Quem prestou um concurso
+     estadual carrega "Legislação do RN" para sempre: ela continua puxando o
+     domínio para baixo, ocupando vaga na fila de ataque e inflando o "faltam X
+     pontos" de uma prova que não cobra uma linha dela. O filtro por disciplina
+     não resolve — aquilo recorta UMA matéria por vez, e aqui se quer o oposto:
+     todas MENOS algumas.
+
+     A exclusão vale para o motor inteiro, não só para a lista: domínio,
+     trajetória, quadro de esforço, lacunas do edital e nota projetada. Uma
+     matéria que sumisse só da lista deixaria o número do topo contando o que a
+     lista não mostra — o pior dos dois mundos.
+
+     Nada é apagado: é preferência do perfil, e a tela diz em voz alta quantas
+     matérias estão de fora, porque número que exclui em silêncio é número
+     errado. */
+  MAX_EXCLUIDAS: 200,
+  /* O conjunto guarda o nome que você clicou. Aplicá-lo cru deixaria metade do
+     trabalho feito: o nome que você digitou no edital e o nome que a banca usa
+     no TEC raramente coincidem, então excluir pela lista do TEC tiraria a
+     matéria do domínio e a deixaria inteira dentro da nota projetada. Antes de
+     usar, o conjunto é ESTENDIDO pelos pares que o casamento conservador de
+     nomes já sabe fazer — nos dois sentidos. */
+  excluidasSet(opts) {
+    const base = Object.create(null);
+    const lista = (opts && opts.excluidas) || [];
+    if (!Array.isArray(lista) || !lista.length) return base;
+    lista.slice(0, this.MAX_EXCLUIDAS).forEach(n => {
+      const k = ReforcoEngine.norm(String(n == null ? '' : n));
+      if (k) base[k] = true;
+    });
+    if (!Object.keys(base).length) return base;
+    try {
+      const tec = this.disciplinasConhecidas().map(d => ReforcoEngine.norm(d)).filter(Boolean);
+      const ed = [];
+      (DB.getActiveSubjects() || []).forEach(m => { const k = m && m.nome ? ReforcoEngine.norm(m.nome) : ''; if (k) ed.push(k); });
+      if (ed.length && tec.length) {
+        const par = PlanoPontos._casarNomes(ed, tec);
+        Object.keys(par).forEach(de => {
+          const para = par[de];
+          if (base[de]) base[para] = true;
+          if (base[para]) base[de] = true;
+        });
+      }
+    } catch (e) { _quiet(e, 'excluidas-nomes'); }
+    return base;
+  },
+  foraDoPlano(disciplina, fora) {
+    if (!fora) return false;
+    const k = ReforcoEngine.norm(String(disciplina == null ? '' : disciplina));
+    return !!(k && fora[k]);
+  },
+  /* Toda disciplina que já apareceu em ALGUM retrato — não só no recorte atual.
+     É de onde sai a lista do que se pode deixar de fora: uma matéria de um
+     concurso antigo pode não estar no retrato de hoje e ainda assim estar
+     pesando no histórico que o Plano soma. */
+  disciplinasConhecidas() {
+    const s = Object.create(null);
+    try {
+      (DB.getTecSnapshots() || []).forEach(sn => {
+        (sn.rows || []).forEach(r => { if (r.disciplina) s[r.disciplina] = true; });
+      });
+    } catch (e) { _quiet(e, 'discs-conhecidas'); }
+    return Object.keys(s).sort((a, b) => a.localeCompare(b, 'pt-BR'));
+  },
+  /* A lista da caixa de seleção: o que o TEC conhece MAIS o que você declarou
+     no edital, sem repetir a mesma matéria por causa da grafia. */
+  materiasExcluiveis() {
+    const vistos = Object.create(null); const out = [];
+    const add = (nome, fonte) => {
+      const k = ReforcoEngine.norm(String(nome == null ? '' : nome));
+      if (!k) return;
+      if (vistos[k]) { if (vistos[k].fontes.indexOf(fonte) < 0) vistos[k].fontes.push(fonte); return; }
+      const o = { nome: nome, chave: k, fontes: [fonte], q: 0, assuntos: 0 };
+      vistos[k] = o; out.push(o);
+    };
+    this.disciplinasConhecidas().forEach(d => add(d, 'tec'));
+    try { (DB.getActiveSubjects() || []).forEach(m => { if (m && m.nome) add(m.nome, 'edital'); }); } catch (e) { _quiet(e, 'excl-edital'); }
+    // volume histórico, para a caixa dizer o tamanho do que sai da conta
+    try {
+      const idx = this.totalHistorico({ apenasFolhas: true });
+      const SEP = ReforcoEngine.SEP;
+      Object.keys(idx).forEach(k => {
+        const o = vistos[ReforcoEngine.norm(k.split(SEP)[0])];
+        if (!o) return;
+        o.q += idx[k].q || 0; o.assuntos++;
+      });
+    } catch (e) { _quiet(e, 'excl-volume'); }
+    return out.sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR'));
+  },
   _diasDesde(iso) {
     if (!iso) return Infinity;
     return Math.floor((new Date(todayLocal() + 'T00:00:00') - new Date(iso + 'T00:00:00')) / 86400000);
@@ -501,10 +594,15 @@ const PlanoEngine = {
     opts = Object.assign({}, this.prefs(), opts || {});
     const snaps = DB.getTecSnapshots();
     const pontos = [];
+    /* A trajetória tem de excluir as MESMAS matérias que o domínio do topo.
+       Sem isto, o número grande dizia 80,3% e o último ponto do gráfico logo
+       abaixo dizia 74,9% — a mesma média, com e sem a matéria descartada. */
+    const fora = this.excluidasSet(opts);
     let ant = null, antPct = null;
     snaps.forEach(s => {
       const idx = this._indice(s, opts.apenasFolhas);
       const chaves = Object.keys(idx).filter(k => idx[k].q >= (opts.pisoSerie || this.PISO_SERIE) &&
+        !this.foraDoPlano(idx[k].disciplina || '', fora) &&
         (opts.disciplina === '__todas__' || ReforcoEngine.norm(idx[k].disciplina || '') === ReforcoEngine.norm(opts.disciplina)));
       if (!chaves.length) return;
       const peso = (k) => (opts.ponderacao === 'volume') ? idx[k].q : 1;
@@ -601,13 +699,18 @@ const PlanoEngine = {
     opts = Object.assign({}, this.prefs(), opts || {});
     let materias = [];
     try { materias = (DB.getActiveSubjects() || []).map(m => m.nome).filter(Boolean); } catch (_) { _quiet(_, 'edital-materias'); }
+    /* Matéria que você tirou do Plano não é buraco: cobrar prática de
+       "Legislação do RN" seria mandar estudar justamente o que foi declarado
+       irrelevante — e o aviso amarelo de "sem prática" nunca mais sairia. */
+    const fora = this.excluidasSet(opts);
+    materias = materias.filter(n => !this.foraDoPlano(n, fora));
     if (!materias.length) return null;
     const norm = (x) => DB._normSubj ? DB._normSubj(x) : String(x || '').toLowerCase().trim();
     const vol = {};
     (DB.getTecSnapshots() || []).forEach(s => {
       (s.rows || []).filter(r => r.depth > 0 && (r.questoes || 0) > 0).forEach(r => {
         const k = norm(r.disciplina || '');
-        if (!k) return;
+        if (!k || this.foraDoPlano(r.disciplina || '', fora)) return;
         const c = vol[k] || { q: 0, ac: 0, nome: r.disciplina };
         c.q += (r.questoes || 0); c.ac += (r.acertos || 0);
         vol[k] = c;
@@ -786,6 +889,27 @@ const PlanoEngine = {
     let chaves = Object.keys(mHist);
     if (opts.disciplina && opts.disciplina !== '__todas__') {
       chaves = chaves.filter(k => ReforcoEngine.norm(mHist[k].disciplina || '') === ReforcoEngine.norm(opts.disciplina));
+    }
+    /* As matérias que você tirou do Plano saem AQUI, antes de qualquer conta:
+       o domínio, a fila, o caminho mais curto e o "faltam X pontos" nascem já
+       sem elas. O que saiu é devolvido em `excluidasAtivas` para a tela poder
+       dizer, no topo, de quem o número NÃO está falando. */
+    const fora = this.excluidasSet(opts);
+    const excluidasAtivas = []; let excluidasQ = 0, excluidasAssuntos = 0;
+    if (Object.keys(fora).length) {
+      const vistas = Object.create(null);
+      chaves = chaves.filter(k => {
+        const d = mHist[k].disciplina || '';
+        if (!this.foraDoPlano(d, fora)) return true;
+        excluidasAssuntos++; excluidasQ += mHist[k].q || 0;
+        if (d && !vistas[d]) { vistas[d] = true; excluidasAtivas.push(d); }
+        return false;
+      });
+      excluidasAtivas.sort((a, b) => a.localeCompare(b, 'pt-BR'));
+      /* Excluir tudo é um estado legítimo (marcou demais), e precisa de um erro
+         PRÓPRIO: cair em "sem-retrato" mandaria importar um retrato que já
+         existe, e a saída — desmarcar — nem seria mencionada. */
+      if (!chaves.length) return { erro: 'tudo-excluido', excluidasAtivas, excluidasAssuntos, excluidasQ };
     }
     if (!chaves.length) return { erro: 'sem-retrato' };
 
@@ -1052,6 +1176,7 @@ const PlanoEngine = {
     return {
       dominioPct, meta, jaAtinge: dominioPct >= meta, falta: Math.max(0, meta - dominioPct),
       assuntos: usados.length, ignorados: brutos.length - usados.length,
+      excluidasAtivas, excluidasAssuntos, excluidasQ,
       qTotal: usados.reduce((a, x) => a + x.qJanela, 0),
       idxMeta, qAteMeta: idxMeta >= 0 ? qAteMeta : null, caminho, equivalentes,
       equivalentesConfiaveis: plano.length >= 5,
@@ -1169,10 +1294,15 @@ const PlanoPontos = {
   composicao() {
     let subs = [];
     try { subs = DB.getActiveSubjects() || []; } catch (e) { _quiet(e, 'pontos-mat'); }
+    /* Uma matéria fora do Plano sai TAMBÉM do denominador da prova. Deixá-la na
+       composição manteria o peso dela na nota projetada e no corte — o número
+       que mais decide — enquanto a lista e o domínio já a tinham descartado. */
+    const fora = PlanoEngine.excluidasSet(PlanoEngine.prefs());
     const out = [];
     subs.forEach(s => {
       const q = parseFloat(s.qtdQuestoes) || 0;
       if (!(q > 0)) return;
+      if (PlanoEngine.foraDoPlano(s.nome, fora)) return;
       const pts = parseFloat(s.pontosPorQuestao) || 1;
       const peso = parseFloat(s.peso) || 1;
       out.push({ nome: s.nome, q, pts, peso, valor: q * pts * peso,
@@ -1281,12 +1411,17 @@ const PlanoPontos = {
     const desc = [];
     const seu = Object.create(null);
     let seuTotal = 0;
+    /* O quadro de esforço responde "para onde vai o meu tempo, e a prova paga
+       por isso?". Uma matéria que a prova não cobra MAIS não pode aparecer nem
+       como esforço desperdiçado nem como peso: ela saiu da pergunta. */
+    const fora = PlanoEngine.excluidasSet(p);
     try {
       (DB.getTecSnapshots() || []).slice().reverse().forEach(s => {
         const idx = PlanoEngine._indice(s, p.apenasFolhas);
         const agg = Object.create(null);
         for (const k in idx) {
           const d = k.split(SEP)[0];
+          if (PlanoEngine.foraDoPlano(idx[k].disciplina || d, fora)) continue;
           const c = agg[d] || (agg[d] = { q: 0, ac: 0 });
           c.q += idx[k].q; c.ac += idx[k].ac;
           const t = seu[d] || (seu[d] = { q: 0, ac: 0, nome: idx[k].disciplina || d });
@@ -1315,6 +1450,7 @@ const PlanoPontos = {
         const by = ReforcoEngine.incidPorDisciplina(DesempenhoTecScreen.bancaFiltro());
         Object.keys(by).forEach(d => {
           const soma = by[d];
+          if (PlanoEngine.foraDoPlano(d, fora)) return;
           if (soma > 0) { const k = norm(d); peso[k] = (peso[k] || 0) + soma; pesoNome[k] = d; pesoTotal += soma; fontePeso = 'incidencia'; }
         });
       } catch (e) { _quiet(e, 'esforco-peso'); }
@@ -1996,6 +2132,13 @@ const TecAjustes = {
       if (val('plano-meta')) p.push(['meta', val('plano-meta') + '%']);
       p.push(['ordem', semEmoji(sel('plano-ordenar'))]);
       p.push(['disciplina', disc('plano-disc')]);
+      /* A exclusão muda TODO número do Plano e mora dentro de uma caixa
+         fechada. Sem ela na fita de resumo, o único lugar em que a porta dos
+         ajustes diria o que está valendo seria o que ela não diz. */
+      try {
+        const ex = PlanoEngine.prefs().excluidas;
+        if (Array.isArray(ex) && ex.length) p.push(['fora', ex.length === 1 ? ex[0] : ex.length + ' matérias']);
+      } catch (e) { _quiet(e, 'cfg-excluidas'); }
       if (val('plano-limite')) p.push(['lista', 'até ' + val('plano-limite')]);
     } else if (aba === 'reforco') {
       let b = ''; try { b = ReforcoEngine.rotuloBancas(DesempenhoTecScreen.bancaFiltro()); } catch (e) { _quiet(e, 'cfg-bancas'); }
@@ -2221,6 +2364,84 @@ const DesempenhoTecScreen = {
       this.setBancas([...painel.querySelectorAll('input:checked')].map(x => x.value));
     }));
     painel.querySelectorAll('[data-acao]').forEach(b => b.addEventListener('click', () => this.setBancas([])));
+  },
+  /* ── A CAIXA DO QUE FICA DE FORA ──────────────────────────────────────────
+     Mesma mecânica da caixa de bancas, e pelo mesmo motivo: a resposta certa é
+     MAIS DE UMA, e numa lista suspensa a segunda escolha desfaz a primeira.
+     Cada linha mostra o tamanho do que sai da conta (assuntos e questões do
+     histórico), porque "excluir Legislação do RN" tem consequências muito
+     diferentes se ela vale 40 questões ou 2.400. */
+  renderExcluidasPicker(hostId) {
+    const host = document.getElementById(hostId || 'plano-excluidas-pick');
+    if (!host) return;
+    /* Marcar uma matéria repinta a tela inteira — e fechar a caixa a cada
+       clique obrigaria a reabri-la para excluir a segunda. Quem chega aqui
+       quase nunca vem tirar uma só. */
+    const jaAberto = !!host.querySelector('.banca-pick-panel:not([hidden])');
+    const mats = PlanoEngine.materiasExcluiveis();
+    const p = PlanoEngine.prefs();
+    const fora = PlanoEngine.excluidasSet(p);
+    const marcada = (m) => PlanoEngine.foraDoPlano(m.nome, fora);
+    const n = mats.filter(marcada).length;
+    const rot = !mats.length ? 'Nenhuma matéria conhecida'
+      : n === 0 ? '✅ Todas as matérias no Plano'
+      : n === 1 ? '🚫 1 matéria fora'
+      : `🚫 ${n} matérias fora`;
+    const origem = (m) => m.fontes.indexOf('tec') < 0 ? 'só no seu edital'
+      : (m.assuntos ? `${m.assuntos} ${m.assuntos === 1 ? 'assunto' : 'assuntos'} · ${m.q.toLocaleString('pt-BR')} questões no histórico` : 'sem questões resolvidas');
+    host.innerHTML = `
+      <button type="button" class="banca-pick-btn" aria-expanded="false" ${mats.length ? '' : 'disabled'}>
+        <span>${escapeHtml(rot)}</span><span class="chev">▾</span>
+      </button>
+      <div class="banca-pick-panel" hidden>
+        <p class="banca-pick-topo">Marque o que o Plano deve <b>ignorar</b> — a legislação de um concurso que já passou, uma matéria que saiu do edital. Sai do domínio, da fila, da trajetória e da nota projetada. Nada é apagado: desmarque e ela volta inteira.</p>
+        ${mats.map(m => `<label class="banca-pick-item">
+          <input type="checkbox" value="${escapeHtml(m.nome)}" ${marcada(m) ? 'checked' : ''}>
+          <span><b>${escapeHtml(m.nome)}</b><small>${escapeHtml(origem(m))}</small></span>
+        </label>`).join('')}
+        <div class="banca-pick-acoes">
+          ${n ? '<button type="button" data-acao="nenhuma">↺ Trazer todas de volta</button>' : '<span class="banca-pick-nota">Nenhuma matéria excluída — o Plano está vendo tudo.</span>'}
+        </div>
+      </div>`;
+    const btn = host.querySelector('.banca-pick-btn');
+    const painel = host.querySelector('.banca-pick-panel');
+    if (!btn || !painel) return;
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const abrir = painel.hasAttribute('hidden');
+      document.querySelectorAll('.banca-pick-panel').forEach(p2 => p2.setAttribute('hidden', ''));
+      document.querySelectorAll('.banca-pick-btn').forEach(b2 => b2.setAttribute('aria-expanded', 'false'));
+      if (abrir) { painel.removeAttribute('hidden'); btn.setAttribute('aria-expanded', 'true'); }
+    });
+    painel.addEventListener('click', (e) => e.stopPropagation());
+    painel.querySelectorAll('input[type="checkbox"]').forEach(c => c.addEventListener('change', () => {
+      this.setExcluidas([...painel.querySelectorAll('input:checked')].map(x => x.value));
+    }));
+    painel.querySelectorAll('[data-acao]').forEach(b => b.addEventListener('click', () => this.setExcluidas([])));
+    if (jaAberto) { painel.removeAttribute('hidden'); btn.setAttribute('aria-expanded', 'true'); }
+  },
+  /* Gravar a exclusão muda o RECORTE, e o recorte pode ter acabado de tirar da
+     tela a disciplina que o filtro apontava. Devolver o filtro para "Todas"
+     aqui evita o estado sem saída: filtro numa matéria que o motor não vê
+     mais, e a tela dizendo "sem retrato" com o retrato na mão. */
+  setExcluidas(lista) {
+    const limpa = [];
+    const vistos = Object.create(null);
+    (Array.isArray(lista) ? lista : []).forEach(n => {
+      const nome = String(n == null ? '' : n).trim();
+      const k = ReforcoEngine.norm(nome);
+      if (!nome || !k || vistos[k]) return;
+      vistos[k] = true; limpa.push(nome);
+    });
+    const patch = { excluidas: limpa.slice(0, PlanoEngine.MAX_EXCLUIDAS) };
+    const fora = PlanoEngine.excluidasSet(patch);
+    const atual = PlanoEngine.prefs().disciplina;
+    if (atual && atual !== '__todas__' && PlanoEngine.foraDoPlano(atual, fora)) patch.disciplina = '__todas__';
+    PlanoEngine.salvarPrefs(patch);
+    this._planoRefC = null;
+    const sel = document.getElementById('plano-disc');
+    if (sel && patch.disciplina) sel.value = '__todas__';
+    this.renderPlano();
   },
   // normaliza texto p/ casar tópicos entre retratos (sem acento/caixa/espaços extras)
   _nk(s) { return String(s == null ? '' : s).normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/\s+/g, ' ').trim(); },
@@ -2771,11 +2992,16 @@ const DesempenhoTecScreen = {
     set('plano-ritmo', p.ritmoSemanal || PlanoEngine.ritmoRecente(desc, 120) || 25);
     const ds = document.getElementById('plano-disc');
     if (ds) {
-      const discs = PlanoEngine.disciplinas(this.scopedSnapshot());
+      /* Uma matéria fora do Plano não pode continuar na lista do filtro: o
+         motor já não a enxerga, e escolhê-la levaria a uma tela vazia sem
+         explicação. Ela volta à lista no instante em que você a desmarcar. */
+      const fora = PlanoEngine.excluidasSet(p);
+      const discs = PlanoEngine.disciplinas(this.scopedSnapshot()).filter(d => !PlanoEngine.foraDoPlano(d, fora));
       ds.innerHTML = `<option value="__todas__">📚 Todas</option>` +
         discs.map(d => `<option value="${escapeHtml(d)}" ${d === p.disciplina ? 'selected' : ''}>${escapeHtml(d)}</option>`).join('');
       if (![...ds.options].some(o => o.value === p.disciplina)) ds.value = '__todas__';
     }
+    this.renderExcluidasPicker('plano-excluidas-pick');
     // Seletor de banca: só aparece quando há dados de incidência importados.
     // Alimenta a ordenação "🎯 Prioridade na banca".
     const bf = document.getElementById('plano-banca-field');
@@ -2968,6 +3194,15 @@ const DesempenhoTecScreen = {
       proj.innerHTML = `<p class="hint" style="padding:18px 0;">Importe ao menos um retrato de desempenho em <strong>📊 Análise</strong>.</p>`;
       lista.innerHTML = ''; return;
     }
+    /* Excluir tudo tem saída óbvia — e ela precisa estar AQUI, não em algum
+       menu que o usuário teria de lembrar que abriu. */
+    if (r.erro === 'tudo-excluido') {
+      proj.innerHTML = `<p class="hint" style="padding:18px 0;">Todas as matérias com retrato estão marcadas como <strong>fora do Plano</strong>${r.excluidasAssuntos ? ` — ${r.excluidasAssuntos} ${r.excluidasAssuntos === 1 ? 'assunto' : 'assuntos'} e ${(r.excluidasQ || 0).toLocaleString('pt-BR')} questões de lado` : ''}. <button type="button" id="plano-excluidas-voltar" class="pl-hero-limpar">trazer todas de volta</button></p>`;
+      lista.innerHTML = '';
+      const bv = document.getElementById('plano-excluidas-voltar');
+      if (bv) bv.addEventListener('click', () => this.setExcluidas([]));
+      return;
+    }
     if (r.erro === 'amostra') {
       proj.innerHTML = `<p class="hint" style="padding:18px 0;">Nenhum assunto atingiu a amostra mínima de <strong>${opts.minAmostra}</strong> questões. Reduza esse valor nos ajustes avançados ou resolva mais questões.</p>`;
       lista.innerHTML = ''; return;
@@ -2991,6 +3226,14 @@ const DesempenhoTecScreen = {
               cima disso e se assusta (ou se tranquiliza) pelo motivo errado.
               O filtro vive numa folha suspensa, longe daqui; o rótulo não. */''}
         ${escopo ? `<p class="pl-hero-escopo">${escapeHtml(escopo)}<button type="button" id="plano-todas-disc" class="pl-hero-limpar">ver o geral</button></p>` : ''}
+        ${/* ── O QUE ESTE NÚMERO NÃO ESTÁ CONTANDO ────────────────────────────
+              Excluir uma matéria é decisão certa e silêncio é o risco: seis
+              meses depois ninguém lembra que marcou "Legislação do RN", e o
+              domínio de 80,3% passa a ser lido como se fosse do edital
+              inteiro. O topo diz quem ficou de fora e quanto pesava, com a
+              volta a um clique — o mesmo tratamento do filtro por
+              disciplina. */''}
+        ${(r.excluidasAtivas && r.excluidasAtivas.length) ? `<p class="pl-hero-escopo pl-hero-fora" data-tip="Estas matérias estão marcadas como fora do Plano nos ajustes. Elas não entram no domínio, na fila de ataque, na trajetória, no quadro de esforço nem na nota projetada.">🚫 sem ${r.excluidasAtivas.map(d => escapeHtml(d)).join(' · ')}<button type="button" id="plano-excluidas-voltar" class="pl-hero-limpar">trazer de volta</button><small>${r.excluidasAssuntos} ${r.excluidasAssuntos === 1 ? 'assunto' : 'assuntos'} · ${(r.excluidasQ || 0).toLocaleString('pt-BR')} questões fora da conta</small></p>` : ''}
         <p class="pl-hero-sub">
           Média de acerto nos <strong>${r.assuntos}</strong> ${r.assuntos === 1 ? 'assunto' : 'assuntos'}${escopo ? ' desta matéria' : ''} com amostra suficiente ·
           ${r.qTotal.toLocaleString('pt-BR')} questões · recorte médio de ${r.janelaMedia || '—'} dias
@@ -3739,6 +3982,11 @@ const DesempenhoTecScreen = {
       this._planoRefC = null;
       this.renderPlanoConteudo();
       showToast('Mostrando o número geral, de todas as matérias');
+    });
+    const voltaBtn = document.getElementById('plano-excluidas-voltar');
+    if (voltaBtn) voltaBtn.addEventListener('click', () => {
+      this.setExcluidas([]);
+      showToast('Todas as matérias voltaram para o Plano');
     });
     const calBtn = document.getElementById('plano-calibrar');
     if (calBtn) calBtn.addEventListener('click', async () => {

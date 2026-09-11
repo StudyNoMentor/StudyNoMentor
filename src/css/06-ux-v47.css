@@ -1466,3 +1466,15 @@
 .pl-aud-bts { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin: 6px 0 4px; }
 .pl-aud-anon { font-size: var(--fs-2xs); }
 #plano-aud-resumo:empty { display: none; }
+
+/* ── MATÉRIAS FORA DO PLANO ───────────────────────────────────────────────
+   O aviso do topo não é alarme: é a legenda do número grande, dizendo de quem
+   ele NÃO está falando. Discreto como o rótulo de disciplina logo acima, e do
+   mesmo tamanho — não pode competir com o domínio nem sumir atrás dele. */
+#tec-panel-plano .pl-hero-fora {
+  display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 8px;
+  color: var(--text-soft); font-weight: 600;
+}
+#tec-panel-plano .pl-hero-fora small {
+  font-size: var(--fs-3xs); font-weight: 500; opacity: .8; width: 100%;
+}

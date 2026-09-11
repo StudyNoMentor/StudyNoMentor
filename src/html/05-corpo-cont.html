@@ -732,6 +732,10 @@
               <label for="plano-disc" data-info="Restringe TODA a tela a uma disciplina: o domínio do topo, a lista e a trajetória passam a falar só dela. Útil para atacar uma matéria por vez; deixe em Todas para comparar onde o seu tempo rende mais.">Disciplina</label>
               <select id="plano-disc" data-cfg-key="disciplina"><option value="__todas__">📚 Todas</option></select>
             </div>
+            <div class="rfc-field wide">
+              <label data-info="Matérias que o Plano deve ignorar por completo — o caso típico é a legislação de um concurso estadual que você já prestou e não vai mais cobrar. Diferente do filtro acima: ali você olha UMA matéria por vez; aqui você tira algumas e continua vendo todo o resto. Sai do domínio, da fila de ataque, da trajetória, do quadro de esforço e da nota projetada. Nada é apagado: desmarque e a matéria volta inteira.">Matérias fora do Plano</label>
+              <div id="plano-excluidas-pick" class="banca-pick"></div>
+            </div>
             <div class="rfc-field">
               <label for="plano-meta" data-info="A nota que você considera suficiente em cada assunto. É a linha tracejada da trajetória e o que define quem é 🟢 sólido. Subir a meta aumenta a lista de pendências; baixar declara vitória cedo. 75–85% cobre a maioria dos concursos.">Meta de domínio (%)</label>
               <input type="number" inputmode="numeric" id="plano-meta" data-cfg-key="metaDominio" min="30" max="100" step="1">
