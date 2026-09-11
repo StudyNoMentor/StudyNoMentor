@@ -732,6 +732,10 @@
               <label for="plano-disc" data-info="Restringe TODA a tela a uma disciplina: o domínio do topo, a lista e a trajetória passam a falar só dela. Útil para atacar uma matéria por vez; deixe em Todas para comparar onde o seu tempo rende mais.">Disciplina</label>
               <select id="plano-disc" data-cfg-key="disciplina"><option value="__todas__">📚 Todas</option></select>
             </div>
+            <div class="rfc-field wide">
+              <label data-info="Matérias que o Plano deve ignorar por completo — o caso típico é a legislação de um concurso estadual que você já prestou e não vai mais cobrar. Diferente do filtro acima: ali você olha UMA matéria por vez; aqui você tira algumas e continua vendo todo o resto. Sai do domínio, da fila de ataque, da trajetória, do quadro de esforço e da nota projetada. Nada é apagado: desmarque e a matéria volta inteira.">Matérias fora do Plano</label>
+              <div id="plano-excluidas-pick" class="banca-pick"></div>
+            </div>
             <div class="rfc-field">
               <label for="plano-meta" data-info="A nota que você considera suficiente em cada assunto. É a linha tracejada da trajetória e o que define quem é 🟢 sólido. Subir a meta aumenta a lista de pendências; baixar declara vitória cedo. 75–85% cobre a maioria dos concursos.">Meta de domínio (%)</label>
               <input type="number" inputmode="numeric" id="plano-meta" data-cfg-key="metaDominio" min="30" max="100" step="1">
@@ -865,8 +869,8 @@
               <div class="reforco-slider-legend"><span>só o seu erro</span><span>equilíbrio</span><span>só a incidência</span></div>
             </div>
             <div class="rfc-field">
-              <label for="plano-limite" data-info="Quantos assuntos a lista mostra. Não altera nenhum cálculo — o domínio e o caminho mais curto usam todos. Listas longas viram paralisia: 10 a 30 é o que se ataca de verdade.">Mostrar até (assuntos)</label>
-              <input type="number" inputmode="numeric" id="plano-limite" data-cfg-key="limite" min="5" max="200" step="5">
+              <label for="plano-limite" data-info="Quantos assuntos a lista abre de início — e de quantos em quantos o botão &quot;mostrar mais&quot; avança no fim dela. Não altera nenhum cálculo: o domínio, o caminho mais curto e a fila usam todos os assuntos, sempre. Listas longas viram paralisia; 10 é o que se ataca de verdade numa semana.">Assuntos por vez</label>
+              <input type="number" inputmode="numeric" id="plano-limite" data-cfg-key="limite" min="3" max="200" step="1">
             </div>
           </div>
         </div>

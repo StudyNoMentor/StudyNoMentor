@@ -1466,3 +1466,12 @@
 .pl-aud-bts { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin: 6px 0 4px; }
 .pl-aud-anon { font-size: var(--fs-2xs); }
 #plano-aud-resumo:empty { display: none; }
+
+/* ── O FIM DA FILA ────────────────────────────────────────────────────────
+   Fecha a lista em vez de deixá-la escorrer: uma linha dizendo onde você está
+   no percurso e os botões que abrem o resto. Sem cartão nem borda pesada — é
+   rodapé de lista, não um bloco novo competindo com o conteúdo. */
+.pl-mais { margin: 10px 0 4px; padding: 12px 0 2px; border-top: 1px dashed var(--border); }
+.pl-mais-nota { margin: 0 0 8px; font-size: var(--fs-2xs); color: var(--text-soft); line-height: 1.5; }
+.pl-mais-bts { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 14px; }
+.pl-mais-bts .btn-secondary { padding: 8px 14px; font-size: var(--fs-xs); }

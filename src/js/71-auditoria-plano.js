@@ -88,6 +88,21 @@ const PlanoAuditoria = {
         push('e não conta o mesmo assunto duas vezes',
           new Set(r.caminho.itens.map(x => (x.disciplina || '') + '|' + x.nome)).size === r.caminho.n);
       }
+      /* A exclusão é a única preferência capaz de mudar todo número do Plano
+         sem deixar rastro nos números: um domínio de 80,3% e outro de 74,9%,
+         do mesmo perfil e do mesmo dia, são reconciliáveis só por aqui. A
+         invariante cobra COERÊNCIA — nenhum assunto de matéria excluída pode
+         ter sobrevivido na lista ou no segundo plano. */
+      if (r.excluidasAtivas && r.excluidasAtivas.length) {
+        const foraN = r.excluidasAtivas.map(d => ReforcoEngine.norm(d));
+        const vazou = (r.itens || []).concat(r.pequenas || [])
+          .filter(x => foraN.indexOf(ReforcoEngine.norm(x.disciplina || '')) >= 0);
+        push('nenhum assunto de matéria excluída aparece na lista', vazou.length === 0,
+          { fora: r.excluidasAtivas.length, vazaram: vazou.length });
+      } else {
+        naoSeAplica('nenhum assunto de matéria excluída aparece na lista',
+          'nenhuma matéria está marcada como fora do Plano neste recorte');
+      }
       if (tm && tm.linhas && tm.linhas.length) {
         const sp = tm.linhas.reduce((a, l) => a + (l.sharePeso || 0), 0);
         const se = tm.linhas.reduce((a, l) => a + (l.shareEsforco || 0), 0);
@@ -165,12 +180,24 @@ const PlanoAuditoria = {
       anonimo: anon,
       app: { versao: (window.APP_VERSION || null), build: (window.BUILD_ID || null) },
 
-      /* Sem os parâmetros, nenhum número deste arquivo é reproduzível. */
-      parametros: p,
+      /* Sem os parâmetros, nenhum número deste arquivo é reproduzível.
+         A lista de matérias excluídas é nome próprio: no modo anônimo vai o
+         apelido estável, como todo o resto — mas ela NÃO pode simplesmente
+         sumir, porque é ela que explica por que o domínio deste arquivo não
+         bate com o de outro gerado no mesmo dia. */
+      parametros: Object.assign({}, p, {
+        excluidas: (Array.isArray(p.excluidas) ? p.excluidas : []).map(nm)
+      }),
 
       contexto: {
         modo: (function () { try { return PlanoPontos.modo(); } catch (e) { return null; } })(),
         disciplinaFiltro: p.disciplina === '__todas__' ? null : nm(p.disciplina),
+        /* O que o motor DE FATO deixou de fora neste retrato — que pode ser
+           menos que a lista marcada (uma matéria excluída sem retrato nenhum
+           não tira nada da conta) e nunca mais. */
+        materiasForaDoPlano: (r.excluidasAtivas || []).map(nm),
+        assuntosForaDoPlano: r.excluidasAssuntos || 0,
+        questoesForaDoPlano: r.excluidasQ || 0,
         fontePeso: tm ? tm.fontePeso : null,
         bancas: (function () { try { return DesempenhoTecScreen.bancasSelecionadas() || []; } catch (e) { return []; } })().map(nm),
         temIncidencia: (function () { try { return !!(ReforcoEngine.hasIncidencia && ReforcoEngine.hasIncidencia()); } catch (e) { return null; } })(),

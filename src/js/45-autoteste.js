@@ -594,6 +594,38 @@ const AutoTeste = {
         this._ok('perfil readotado é marcado como só-local',
           (depois.find(p => p.id === PID) || {}).soLocal === true);
 
+        /* ── O PERFIL QUE RESSUSCITAVA SOZINHO ──────────────────────────────
+           Abrir um perfil UMA vez já grava ajuste (a tela do Plano salva
+           `plano-prefs` a cada repintura). Se ele for apagado noutro aparelho,
+           a nuvem para de trazê-lo — e este aparelho, vendo a preferência
+           órfã, concluía "tem dado aqui" e o devolvia à lista como "🛟 Perfil
+           recuperado", em TODA sincronização, para sempre. É exatamente o
+           perfil novo que aparecia do nada. */
+        const FANTASMA = 'ad4cebdf-9999-4999-8999-999999999999';
+        const ns = 'diario-estudos:u:' + FANTASMA + ':';
+        try {
+          localStorage.setItem(ns + 'plano-prefs', JSON.stringify({ metaDominio: 85 }));
+          localStorage.setItem(ns + 'fs-scale', '1.1');
+          localStorage.setItem(ns + 'recent-view', 'plano');
+          localStorage.setItem(ns + 'planejamentos', JSON.stringify([{ id: 'pl_inicial', nome: 'Meu plano' }]));
+          this._ok('Perfis: namespace só com ajustes NÃO conta como perfil com dados',
+            !ProfileManager.temDadosLocais(FANTASMA));
+          ProfileManager.syncMirrorFromCloud([{ id: 'outro', profile_name: 'Outro', rev: 1 }]);
+          this._ok('Perfis: e por isso não ressuscita na lista a cada sincronização',
+            !ProfileManager.getProfiles().some(p => p.id === FANTASMA),
+            ProfileManager.getProfiles().map(p => p.id));
+          /* O outro lado da régua, e o mais caro de errar: uma única seção de
+             ESTUDO no mesmo namespace tem de bastar para o perfil voltar. */
+          localStorage.setItem(ns + 'p:pl_inicial:entries', JSON.stringify([{ id: 'e1', minutos: 30 }]));
+          this._ok('Perfis: uma seção de estudo de verdade traz o perfil de volta',
+            ProfileManager.temDadosLocais(FANTASMA));
+          ProfileManager.syncMirrorFromCloud([{ id: 'outro', profile_name: 'Outro', rev: 1 }]);
+          this._ok('Perfis: e aí ele reaparece na lista, marcado só-local',
+            (ProfileManager.getProfiles().find(p => p.id === FANTASMA) || {}).soLocal === true);
+        } finally {
+          Object.keys(localStorage).filter(k => k.indexOf(ns) === 0).forEach(k => localStorage.removeItem(k));
+        }
+
         /* A LISTA DE PERFIS É UM ÍNDICE, E ÍNDICE NÃO TEM LINHA REPETIDA.
            Ela crescia por seis caminhos e nenhum era dono da invariante: uma
            linha repetida vinda da nuvem virava dois cards idênticos, e quem
@@ -1773,6 +1805,171 @@ const AutoTeste = {
      aqui. A terceira — o arquivo se auto-conferir — é o próprio bloco
      `invariantes`, e o teste confere que ele REALMENTE roda, em vez de sair
      vazio e parecer aprovado. */
+  /* ── MATÉRIAS FORA DO PLANO ───────────────────────────────────────────────
+     O risco desta funcionalidade não é ela não funcionar: é funcionar PELA
+     METADE. Uma matéria que some da lista e continua dentro do domínio, ou que
+     sai do domínio e permanece na trajetória, produz dois números do mesmo
+     perfil no mesmo dia — e nenhum jeito de saber qual está certo. Então o
+     grupo cobre TODAS as bocas de uma vez: domínio, lista, trajetória, quadro
+     de esforço, lacunas do edital e nota projetada. */
+  materiasForaDoPlano() {
+    const P = PlanoEngine, PP = PlanoPontos, T = DesempenhoTecScreen;
+    this._ok('Fora do Plano: o motor expõe a exclusão',
+      !!(P && P.excluidasSet && P.foraDoPlano && P.materiasExcluiveis));
+    if (!P || !PP || !T) return;
+    const dia = (n) => { const d = new Date(todayLocal() + 'T00:00:00'); d.setDate(d.getDate() - n); return d.toISOString().slice(0, 10); };
+    const linhas = (disc, n, pct) => {
+      const out = [];
+      for (let t = 0; t < n; t++) out.push({ depth: 1, codigo: String(t + 1), nome: disc + ' ' + (t + 1),
+        disciplina: disc, questoes: 60, acertos: Math.round(60 * pct / 100) });
+      return out;
+    };
+    /* "Legislacao RN" é o caso real: muitas questões resolvidas, acerto alto,
+       e nenhuma relevância para a prova de hoje. Ela PUXA O DOMÍNIO PARA CIMA
+       — se o teste a fizesse fraca, o domínio subiria ao excluí-la e um bug de
+       sinal passaria despercebido. */
+    const rows = [].concat(linhas('Dir Adm', 4, 55), linhas('Dir Const', 3, 62), linhas('Legislacao RN', 3, 94));
+    const snaps = [
+      { id: 'fx1', nome: 'fx1', date: dia(70), startDate: dia(100), endDate: dia(70), rows },
+      { id: 'fx2', nome: 'fx2', date: dia(6), startDate: dia(36), endDate: dia(6), rows }];
+    const origSnaps = DB.getTecSnapshots, origSubs = DB.getActiveSubjects,
+      origInc = ReforcoEngine._incidByDisc, origModo = window.planCycleMode, origEsc = T.scopedSnapshot;
+    const chaveP = DB._profilePrefix() + P.KEY_PREF;
+    const antesP = localStorage.getItem(chaveP);
+    try {
+      DB.getTecSnapshots = () => snaps;
+      T.scopedSnapshot = () => snaps[snaps.length - 1];
+      ReforcoEngine._incidByDisc = () => ({
+        'Dir Adm': [{ codigo: null, depth: 0, nome: 'Dir Adm', disciplina: 'Dir Adm', incidencia: 300 }],
+        'Dir Const': [{ codigo: null, depth: 0, nome: 'Dir Const', disciplina: 'Dir Const', incidencia: 200 }],
+        'Legislacao RN': [{ codigo: null, depth: 0, nome: 'Legislacao RN', disciplina: 'Legislacao RN', incidencia: 100 }] });
+      DB.getActiveSubjects = () => []; window.planCycleMode = () => 'pre';
+
+      const base = Object.assign({}, P.DEFAULTS, { minAmostra: 10, limite: 200, excluidas: [] });
+      const semExcluir = P.calcular(snaps[snaps.length - 1], base);
+      this._ok('Fora do Plano: sem exclusão, as três matérias entram',
+        !semExcluir.erro && semExcluir.assuntos === 10 &&
+        (semExcluir.excluidasAtivas || []).length === 0, semExcluir.assuntos);
+
+      const opts = Object.assign({}, base, { excluidas: ['Legislacao RN'] });
+      const r = P.calcular(snaps[snaps.length - 1], opts);
+      this._ok('Fora do Plano: a matéria excluída sai da contagem de assuntos',
+        r.assuntos === 7 && r.excluidasAssuntos === 3, { assuntos: r.assuntos, fora: r.excluidasAssuntos });
+      this._ok('Fora do Plano: nenhum assunto dela sobra na lista',
+        (r.itens || []).concat(r.pequenas || []).every(x => ReforcoEngine.norm(x.disciplina || '') !== 'legislacao rn'));
+      /* O DOMÍNIO TEM DE MUDAR, E PARA BAIXO. É esta a asserção que pega a
+         exclusão "de fachada": se ela só filtrasse a lista, o número do topo
+         ficaria idêntico ao de antes. */
+      this._ok('Fora do Plano: o domínio cai ao tirar a matéria em que você vai bem',
+        r.dominioPct < semExcluir.dominioPct - 1,
+        { antes: semExcluir.dominioPct, depois: r.dominioPct });
+      this._ok('Fora do Plano: a tela recebe o nome do que ficou de fora',
+        (r.excluidasAtivas || []).length === 1 &&
+        ReforcoEngine.norm(r.excluidasAtivas[0]) === 'legislacao rn', r.excluidasAtivas);
+      this._ok('Fora do Plano: e quantas questões saíram da conta', r.excluidasQ === 180, r.excluidasQ);
+      /* A TRAJETÓRIA TEM DE FALAR DO MESMO CONJUNTO QUE O NÚMERO GRANDE. Sem
+         isto o topo dizia um domínio e o último ponto do gráfico logo abaixo
+         dizia outro, com a matéria excluída dentro. */
+      const serie = P.serieHistorica(opts) || [];
+      const ultimo = serie[serie.length - 1];
+      this._ok('Fora do Plano: a trajetória exclui as mesmas matérias que o domínio',
+        ultimo && Math.abs(ultimo.dominio - r.dominioPct) < 0.6 && ultimo.assuntos === 7,
+        { serie: ultimo && ultimo.dominio, topo: r.dominioPct });
+
+      const tm = PP.esforcoPorMateria(opts);
+      this._ok('Fora do Plano: some também do quadro de esforço, nos dois lados',
+        tm.linhas.every(l => ReforcoEngine.norm(l.nome) !== 'legislacao rn') &&
+        Math.abs(tm.linhas.reduce((a, l) => a + (l.sharePeso || 0), 0) - 100) < 0.01 &&
+        Math.abs(tm.linhas.reduce((a, l) => a + l.shareEsforco, 0) - 100) < 0.01,
+        tm.linhas.map(l => l.nome));
+
+      /* O NOME DO EDITAL NÃO É O NOME DA BANCA. Excluir pela lista do TEC tem
+         de alcançar a matéria do edital também — senão ela sai do domínio e
+         fica inteira dentro da nota projetada, que é o número que mais decide. */
+      DB.getActiveSubjects = () => ([
+        { nome: 'Direito Administrativo', qtdQuestoes: 30, pontosPorQuestao: 1, peso: 1 },
+        { nome: 'Legislacao RN', qtdQuestoes: 10, pontosPorQuestao: 1, peso: 1 }]);
+      window.planCycleMode = () => 'pos';
+      P.salvarPrefs({ excluidas: ['Legislacao RN'] });
+      const comp = PP.composicao();
+      this._ok('Fora do Plano: a matéria excluída sai da composição da prova',
+        comp.length === 1 && ReforcoEngine.norm(comp[0].nome) === 'direito administrativo',
+        comp.map(c => c.nome));
+      const lac = P.lacunasDoEdital(P.prefs());
+      this._ok('Fora do Plano: e não volta como "lacuna do edital"',
+        lac && lac.total === 1 && [].concat(lac.sem, lac.pouca).every(x => ReforcoEngine.norm(x.nome) !== 'legislacao rn'),
+        lac);
+      /* O casamento conservador é o que liga "Dir Adm" (banca) a "Direito
+         Administrativo" (seu edital). Excluir por um lado precisa valer no
+         outro — a checagem é feita no conjunto, antes de qualquer conta. */
+      const fora = P.excluidasSet({ excluidas: ['Direito Administrativo'] });
+      this._ok('Fora do Plano: excluir pelo nome do edital alcança o nome da banca',
+        P.foraDoPlano('Dir Adm', fora) && P.foraDoPlano('Direito Administrativo', fora), Object.keys(fora));
+
+      /* ── AS ÚLTIMAS PORTAS ────────────────────────────────────────────────
+         Excluir tem de ser "como se nunca tivesse sido importado". Três lugares
+         ainda liam o retrato cru e, por isso, ainda contavam a matéria: o
+         RITMO (que divide toda previsão em semanas), o ÍNDICE HISTÓRICO (de
+         onde saem a nota por matéria do ciclo e o julgamento de uma atividade)
+         e a TAXA ATUAL de um assunto. */
+      window.planCycleMode = () => 'pre'; DB.getActiveSubjects = () => [];
+      const descSn = snaps.slice().reverse();
+      const rTodos = P.ritmoRecente(descSn, 400, P.excluidasSet({ excluidas: [] }));
+      const rSem = P.ritmoRecente(descSn, 400, P.excluidasSet({ excluidas: ['Legislacao RN'] }));
+      this._ok('Fora do Plano: o ritmo medido não conta as questões da matéria excluída',
+        rTodos > 0 && rSem > 0 && rSem < rTodos, { todos: rTodos, sem: rSem });
+      const hTodos = P.totalHistorico(Object.assign({}, base, { excluidas: [] }));
+      const hSem = P.totalHistorico(opts);
+      this._ok('Fora do Plano: o índice histórico não devolve os assuntos dela',
+        Object.keys(hTodos).length === 10 && Object.keys(hSem).length === 7 &&
+        Object.keys(hSem).every(k => ReforcoEngine.norm(k.split(ReforcoEngine.SEP)[0]) !== 'legislacao rn'),
+        { todos: Object.keys(hTodos).length, sem: Object.keys(hSem).length });
+      /* A caixa de seleção é o ÚNICO lugar que precisa do índice cru: ela
+         mostra o tamanho do que está fora justamente porque está fora. */
+      P.salvarPrefs({ excluidas: ['Legislacao RN'] });
+      const leg = P.materiasExcluiveis().find(m => m.chave === 'legislacao rn');
+      this._ok('Fora do Plano: mas a caixa de seleção continua sabendo o tamanho do que saiu',
+        leg && leg.assuntos === 3 && leg.q === 360, leg);
+      this._ok('Fora do Plano: a taxa atual de um assunto dela devolve null',
+        P.taxaAtualDe('Legislacao RN', 'Legislacao RN 1', P.prefs()) == null &&
+        P.taxaAtualDe('Dir Adm', 'Dir Adm 1', P.prefs()) != null);
+
+      /* ── A LISTA É UMA FATIA, E DIZ QUE É ─────────────────────────────────
+         O topo anunciava um caminho de 81 assuntos e a tela mostrava 30, sem
+         uma palavra sobre os 51 restantes. Agora o tamanho real do plano vem
+         junto da fatia, e é dele que sai o "mostrando N de M". */
+      const curto = P.calcular(snaps[snaps.length - 1], Object.assign({}, base, { limite: 3 }));
+      this._ok('Lista: a fatia respeita o passo e o total vem junto dela',
+        curto.itens.length === 3 && curto.totalItens > 3 && curto.limite === 3,
+        { fatia: curto.itens.length, total: curto.totalItens });
+      const inteiro = P.calcular(snaps[snaps.length - 1], Object.assign({}, base, { limite: 500 }));
+      this._ok('Lista: o total não depende do passo — só a fatia depende',
+        inteiro.totalItens === curto.totalItens && inteiro.itens.length === inteiro.totalItens,
+        { curto: curto.totalItens, inteiro: inteiro.totalItens });
+      this._ok('Lista: as questões dos assuntos ocultos são contadas à parte',
+        curto.qRestante > 0 && inteiro.qRestante === 0, { curto: curto.qRestante, inteiro: inteiro.qRestante });
+      this._ok('Lista: o padrão de fábrica abre em 10, não em 30', P.DEFAULTS.limite === 10);
+
+      /* Marcar tudo é um estado que acontece, e precisa de saída própria: cair
+         em "sem-retrato" mandaria importar um retrato que já existe. */
+      const tudo = P.calcular(snaps[snaps.length - 1],
+        Object.assign({}, base, { excluidas: ['Dir Adm', 'Dir Const', 'Legislacao RN'] }));
+      this._ok('Fora do Plano: excluir tudo dá erro próprio, não "sem-retrato"',
+        tudo.erro === 'tudo-excluido' && tudo.excluidasAssuntos === 10, tudo.erro);
+
+      // lista vazia não pode custar uma varredura de retratos a cada chamada
+      this._ok('Fora do Plano: sem nada marcado, o conjunto é vazio',
+        Object.keys(P.excluidasSet({ excluidas: [] })).length === 0 &&
+        Object.keys(P.excluidasSet({})).length === 0);
+      this._ok('Fora do Plano: nome só de espaço não vira exclusão',
+        Object.keys(P.excluidasSet({ excluidas: ['   ', null] })).length === 0);
+    } finally {
+      DB.getTecSnapshots = origSnaps; DB.getActiveSubjects = origSubs;
+      ReforcoEngine._incidByDisc = origInc; window.planCycleMode = origModo;
+      T.scopedSnapshot = origEsc;
+      if (antesP == null) localStorage.removeItem(chaveP); else DB.setRaw(chaveP, antesP);
+    }
+  },
   auditoriaDoPlano() {
     const A = window.PlanoAuditoria;
     this._ok('Auditoria: o módulo existe', !!A);
@@ -2478,7 +2675,8 @@ const AutoTeste = {
      ['Folha de ajustes do TEC', 'ajustesTec'],
      ['Ciclo do Plano', 'cicloDoPlano'],
      ['Régua de pontos', 'reguaDePontos'],
-     ['Auditoria do Plano', 'auditoriaDoPlano']].forEach(([nome, fn]) => {
+     ['Auditoria do Plano', 'auditoriaDoPlano'],
+     ['Matérias fora do Plano', 'materiasForaDoPlano']].forEach(([nome, fn]) => {
       try { this[fn](); }
       catch (e) { this._r.total++; this._r.falhou++; this._r.falhas.push({ nome: nome + ' — exceção', obtido: String(e && e.message || e) }); }
     });

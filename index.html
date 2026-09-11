@@ -57,7 +57,7 @@
      novo, e o antigo é descartado sozinho na ativação) e o que permite ao app
      dizer qual versão está rodando. Em src/ fica "dev" de propósito: a versão
      é gerada na montagem, não editada à mão. -->
-<meta name="diario-versao" content="v87ce0ac234">
+<meta name="diario-versao" content="v3aef000b17">
 <script>
 /* ── ARRANQUE: abre o IndexedDB AGORA, em paralelo com o parse do documento ──
    A fachada de armazenamento vive no fim do <body>, depois de ~1,7 MB de HTML.
@@ -8120,6 +8120,10 @@ window.__idbBoot = (function () {
               <label for="plano-disc" data-info="Restringe TODA a tela a uma disciplina: o domínio do topo, a lista e a trajetória passam a falar só dela. Útil para atacar uma matéria por vez; deixe em Todas para comparar onde o seu tempo rende mais.">Disciplina</label>
               <select id="plano-disc" data-cfg-key="disciplina"><option value="__todas__">📚 Todas</option></select>
             </div>
+            <div class="rfc-field wide">
+              <label data-info="Matérias que o Plano deve ignorar por completo — o caso típico é a legislação de um concurso estadual que você já prestou e não vai mais cobrar. Diferente do filtro acima: ali você olha UMA matéria por vez; aqui você tira algumas e continua vendo todo o resto. Sai do domínio, da fila de ataque, da trajetória, do quadro de esforço e da nota projetada. Nada é apagado: desmarque e a matéria volta inteira.">Matérias fora do Plano</label>
+              <div id="plano-excluidas-pick" class="banca-pick"></div>
+            </div>
             <div class="rfc-field">
               <label for="plano-meta" data-info="A nota que você considera suficiente em cada assunto. É a linha tracejada da trajetória e o que define quem é 🟢 sólido. Subir a meta aumenta a lista de pendências; baixar declara vitória cedo. 75–85% cobre a maioria dos concursos.">Meta de domínio (%)</label>
               <input type="number" inputmode="numeric" id="plano-meta" data-cfg-key="metaDominio" min="30" max="100" step="1">
@@ -8253,8 +8257,8 @@ window.__idbBoot = (function () {
               <div class="reforco-slider-legend"><span>só o seu erro</span><span>equilíbrio</span><span>só a incidência</span></div>
             </div>
             <div class="rfc-field">
-              <label for="plano-limite" data-info="Quantos assuntos a lista mostra. Não altera nenhum cálculo — o domínio e o caminho mais curto usam todos. Listas longas viram paralisia: 10 a 30 é o que se ataca de verdade.">Mostrar até (assuntos)</label>
-              <input type="number" inputmode="numeric" id="plano-limite" data-cfg-key="limite" min="5" max="200" step="5">
+              <label for="plano-limite" data-info="Quantos assuntos a lista abre de início — e de quantos em quantos o botão &quot;mostrar mais&quot; avança no fim dela. Não altera nenhum cálculo: o domínio, o caminho mais curto e a fila usam todos os assuntos, sempre. Listas longas viram paralisia; 10 é o que se ataca de verdade numa semana.">Assuntos por vez</label>
+              <input type="number" inputmode="numeric" id="plano-limite" data-cfg-key="limite" min="3" max="200" step="1">
             </div>
           </div>
         </div>
@@ -10089,6 +10093,15 @@ window.__idbBoot = (function () {
 .pl-aud-bts { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin: 6px 0 4px; }
 .pl-aud-anon { font-size: var(--fs-2xs); }
 #plano-aud-resumo:empty { display: none; }
+
+/* ── O FIM DA FILA ────────────────────────────────────────────────────────
+   Fecha a lista em vez de deixá-la escorrer: uma linha dizendo onde você está
+   no percurso e os botões que abrem o resto. Sem cartão nem borda pesada — é
+   rodapé de lista, não um bloco novo competindo com o conteúdo. */
+.pl-mais { margin: 10px 0 4px; padding: 12px 0 2px; border-top: 1px dashed var(--border); }
+.pl-mais-nota { margin: 0 0 8px; font-size: var(--fs-2xs); color: var(--text-soft); line-height: 1.5; }
+.pl-mais-bts { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 14px; }
+.pl-mais-bts .btn-secondary { padding: 8px 14px; font-size: var(--fs-xs); }
 
 </style>
 
@@ -13843,6 +13856,32 @@ const ProfileManager = {
      conteúdo de verdade (a contabilidade de sync, a lixeira e as fotos não
      contam — um perfil que só tem isso está vazio). É a fonte da verdade para
      a regra abaixo: quem tem dado aqui NUNCA some da lista. */
+  /* ── PREFERÊNCIA NÃO É ESTUDO ─────────────────────────────────────────────
+     QUALQUER chave do namespace contava como "este perfil tem dados aqui" — e
+     era daí que saíam os "🛟 Perfil recuperado" aparecendo sozinhos, sem que
+     ninguém tivesse feito nada.
+
+     Abrir um perfil UMA vez já grava ajuste: a tela do Plano salva
+     `plano-prefs` a cada repintura, o tamanho da fonte grava `fs-scale`, a
+     última aba grava `recent-view`. Se depois esse perfil for apagado noutro
+     aparelho, a nuvem para de trazê-lo, este aparelho encontra as preferências
+     órfãs, conclui "tem dado aqui" e o devolve à lista — em TODA sincronização,
+     para sempre. Um perfil sem uma única anotação ressuscitando por causa do
+     tamanho da fonte que ficou gravado.
+
+     A lista abaixo é de AJUSTES, e é uma NEGATIVA: o que não estiver nela
+     continua contando como estudo. Errar para o lado de manter é obrigatório —
+     esquecer aqui uma chave de conteúdo faria o índice esconder estudo de
+     verdade, que é exatamente o problema que esta varredura veio resolver.
+     Os ajustes seguem contados à parte (`ajustes`), para quem precise saber
+     que o namespace existe mesmo sem nada dentro. */
+  AJUSTES_SEM_ESTUDO: ['plano-prefs', 'tec-prefs', 'plano-auditoria-ledger', 'plano-corte',
+    'fs-scale', 'recent-view', 'active-plan', 'planejamentos', 'evo-scope-collapsed',
+    'grade-budget-open', 'extras-in-metrics', 'ferramentas', 'onboarded'],
+  _soAjuste(sub) {
+    if (this.AJUSTES_SEM_ESTUDO.indexOf(sub) >= 0) return true;
+    return sub.indexOf('pref-') === 0 || sub.indexOf('painel:') === 0;
+  },
   perfisComDadosLocais() {
     const achados = {};
     const RE = /^diario-estudos:u:([^:]+):(.+)$/;
@@ -13858,11 +13897,13 @@ const ProfileManager = {
         if (window.Lixeira && sub.indexOf(Lixeira.PREFIXO) === 0) continue;
         const v = localStorage.getItem(k) || '';
         if (v === '' || v === '[]' || v === '{}' || v === 'null') continue;
-        const a = achados[m[1]] || (achados[m[1]] = { id: m[1], bytes: 0, secoes: 0 });
+        const a = achados[m[1]] || (achados[m[1]] = { id: m[1], bytes: 0, secoes: 0, ajustes: 0, bytesAjuste: 0 });
+        if (this._soAjuste(sub)) { a.ajustes++; a.bytesAjuste += v.length; continue; }
         a.bytes += v.length; a.secoes++;
       }
     } catch (e) { _quiet(e, 'perfis-com-dados'); }
-    return Object.values(achados);
+    // só é "perfil com dados" quem tem ao menos uma seção de ESTUDO
+    return Object.values(achados).filter(a => a.secoes > 0);
   },
   temDadosLocais(id) { return this.perfisComDadosLocais().some(p => p.id === id); },
 
@@ -26276,6 +26317,38 @@ const AutoTeste = {
         this._ok('perfil readotado é marcado como só-local',
           (depois.find(p => p.id === PID) || {}).soLocal === true);
 
+        /* ── O PERFIL QUE RESSUSCITAVA SOZINHO ──────────────────────────────
+           Abrir um perfil UMA vez já grava ajuste (a tela do Plano salva
+           `plano-prefs` a cada repintura). Se ele for apagado noutro aparelho,
+           a nuvem para de trazê-lo — e este aparelho, vendo a preferência
+           órfã, concluía "tem dado aqui" e o devolvia à lista como "🛟 Perfil
+           recuperado", em TODA sincronização, para sempre. É exatamente o
+           perfil novo que aparecia do nada. */
+        const FANTASMA = 'ad4cebdf-9999-4999-8999-999999999999';
+        const ns = 'diario-estudos:u:' + FANTASMA + ':';
+        try {
+          localStorage.setItem(ns + 'plano-prefs', JSON.stringify({ metaDominio: 85 }));
+          localStorage.setItem(ns + 'fs-scale', '1.1');
+          localStorage.setItem(ns + 'recent-view', 'plano');
+          localStorage.setItem(ns + 'planejamentos', JSON.stringify([{ id: 'pl_inicial', nome: 'Meu plano' }]));
+          this._ok('Perfis: namespace só com ajustes NÃO conta como perfil com dados',
+            !ProfileManager.temDadosLocais(FANTASMA));
+          ProfileManager.syncMirrorFromCloud([{ id: 'outro', profile_name: 'Outro', rev: 1 }]);
+          this._ok('Perfis: e por isso não ressuscita na lista a cada sincronização',
+            !ProfileManager.getProfiles().some(p => p.id === FANTASMA),
+            ProfileManager.getProfiles().map(p => p.id));
+          /* O outro lado da régua, e o mais caro de errar: uma única seção de
+             ESTUDO no mesmo namespace tem de bastar para o perfil voltar. */
+          localStorage.setItem(ns + 'p:pl_inicial:entries', JSON.stringify([{ id: 'e1', minutos: 30 }]));
+          this._ok('Perfis: uma seção de estudo de verdade traz o perfil de volta',
+            ProfileManager.temDadosLocais(FANTASMA));
+          ProfileManager.syncMirrorFromCloud([{ id: 'outro', profile_name: 'Outro', rev: 1 }]);
+          this._ok('Perfis: e aí ele reaparece na lista, marcado só-local',
+            (ProfileManager.getProfiles().find(p => p.id === FANTASMA) || {}).soLocal === true);
+        } finally {
+          Object.keys(localStorage).filter(k => k.indexOf(ns) === 0).forEach(k => localStorage.removeItem(k));
+        }
+
         /* A LISTA DE PERFIS É UM ÍNDICE, E ÍNDICE NÃO TEM LINHA REPETIDA.
            Ela crescia por seis caminhos e nenhum era dono da invariante: uma
            linha repetida vinda da nuvem virava dois cards idênticos, e quem
@@ -27455,6 +27528,171 @@ const AutoTeste = {
      aqui. A terceira — o arquivo se auto-conferir — é o próprio bloco
      `invariantes`, e o teste confere que ele REALMENTE roda, em vez de sair
      vazio e parecer aprovado. */
+  /* ── MATÉRIAS FORA DO PLANO ───────────────────────────────────────────────
+     O risco desta funcionalidade não é ela não funcionar: é funcionar PELA
+     METADE. Uma matéria que some da lista e continua dentro do domínio, ou que
+     sai do domínio e permanece na trajetória, produz dois números do mesmo
+     perfil no mesmo dia — e nenhum jeito de saber qual está certo. Então o
+     grupo cobre TODAS as bocas de uma vez: domínio, lista, trajetória, quadro
+     de esforço, lacunas do edital e nota projetada. */
+  materiasForaDoPlano() {
+    const P = PlanoEngine, PP = PlanoPontos, T = DesempenhoTecScreen;
+    this._ok('Fora do Plano: o motor expõe a exclusão',
+      !!(P && P.excluidasSet && P.foraDoPlano && P.materiasExcluiveis));
+    if (!P || !PP || !T) return;
+    const dia = (n) => { const d = new Date(todayLocal() + 'T00:00:00'); d.setDate(d.getDate() - n); return d.toISOString().slice(0, 10); };
+    const linhas = (disc, n, pct) => {
+      const out = [];
+      for (let t = 0; t < n; t++) out.push({ depth: 1, codigo: String(t + 1), nome: disc + ' ' + (t + 1),
+        disciplina: disc, questoes: 60, acertos: Math.round(60 * pct / 100) });
+      return out;
+    };
+    /* "Legislacao RN" é o caso real: muitas questões resolvidas, acerto alto,
+       e nenhuma relevância para a prova de hoje. Ela PUXA O DOMÍNIO PARA CIMA
+       — se o teste a fizesse fraca, o domínio subiria ao excluí-la e um bug de
+       sinal passaria despercebido. */
+    const rows = [].concat(linhas('Dir Adm', 4, 55), linhas('Dir Const', 3, 62), linhas('Legislacao RN', 3, 94));
+    const snaps = [
+      { id: 'fx1', nome: 'fx1', date: dia(70), startDate: dia(100), endDate: dia(70), rows },
+      { id: 'fx2', nome: 'fx2', date: dia(6), startDate: dia(36), endDate: dia(6), rows }];
+    const origSnaps = DB.getTecSnapshots, origSubs = DB.getActiveSubjects,
+      origInc = ReforcoEngine._incidByDisc, origModo = window.planCycleMode, origEsc = T.scopedSnapshot;
+    const chaveP = DB._profilePrefix() + P.KEY_PREF;
+    const antesP = localStorage.getItem(chaveP);
+    try {
+      DB.getTecSnapshots = () => snaps;
+      T.scopedSnapshot = () => snaps[snaps.length - 1];
+      ReforcoEngine._incidByDisc = () => ({
+        'Dir Adm': [{ codigo: null, depth: 0, nome: 'Dir Adm', disciplina: 'Dir Adm', incidencia: 300 }],
+        'Dir Const': [{ codigo: null, depth: 0, nome: 'Dir Const', disciplina: 'Dir Const', incidencia: 200 }],
+        'Legislacao RN': [{ codigo: null, depth: 0, nome: 'Legislacao RN', disciplina: 'Legislacao RN', incidencia: 100 }] });
+      DB.getActiveSubjects = () => []; window.planCycleMode = () => 'pre';
+
+      const base = Object.assign({}, P.DEFAULTS, { minAmostra: 10, limite: 200, excluidas: [] });
+      const semExcluir = P.calcular(snaps[snaps.length - 1], base);
+      this._ok('Fora do Plano: sem exclusão, as três matérias entram',
+        !semExcluir.erro && semExcluir.assuntos === 10 &&
+        (semExcluir.excluidasAtivas || []).length === 0, semExcluir.assuntos);
+
+      const opts = Object.assign({}, base, { excluidas: ['Legislacao RN'] });
+      const r = P.calcular(snaps[snaps.length - 1], opts);
+      this._ok('Fora do Plano: a matéria excluída sai da contagem de assuntos',
+        r.assuntos === 7 && r.excluidasAssuntos === 3, { assuntos: r.assuntos, fora: r.excluidasAssuntos });
+      this._ok('Fora do Plano: nenhum assunto dela sobra na lista',
+        (r.itens || []).concat(r.pequenas || []).every(x => ReforcoEngine.norm(x.disciplina || '') !== 'legislacao rn'));
+      /* O DOMÍNIO TEM DE MUDAR, E PARA BAIXO. É esta a asserção que pega a
+         exclusão "de fachada": se ela só filtrasse a lista, o número do topo
+         ficaria idêntico ao de antes. */
+      this._ok('Fora do Plano: o domínio cai ao tirar a matéria em que você vai bem',
+        r.dominioPct < semExcluir.dominioPct - 1,
+        { antes: semExcluir.dominioPct, depois: r.dominioPct });
+      this._ok('Fora do Plano: a tela recebe o nome do que ficou de fora',
+        (r.excluidasAtivas || []).length === 1 &&
+        ReforcoEngine.norm(r.excluidasAtivas[0]) === 'legislacao rn', r.excluidasAtivas);
+      this._ok('Fora do Plano: e quantas questões saíram da conta', r.excluidasQ === 180, r.excluidasQ);
+      /* A TRAJETÓRIA TEM DE FALAR DO MESMO CONJUNTO QUE O NÚMERO GRANDE. Sem
+         isto o topo dizia um domínio e o último ponto do gráfico logo abaixo
+         dizia outro, com a matéria excluída dentro. */
+      const serie = P.serieHistorica(opts) || [];
+      const ultimo = serie[serie.length - 1];
+      this._ok('Fora do Plano: a trajetória exclui as mesmas matérias que o domínio',
+        ultimo && Math.abs(ultimo.dominio - r.dominioPct) < 0.6 && ultimo.assuntos === 7,
+        { serie: ultimo && ultimo.dominio, topo: r.dominioPct });
+
+      const tm = PP.esforcoPorMateria(opts);
+      this._ok('Fora do Plano: some também do quadro de esforço, nos dois lados',
+        tm.linhas.every(l => ReforcoEngine.norm(l.nome) !== 'legislacao rn') &&
+        Math.abs(tm.linhas.reduce((a, l) => a + (l.sharePeso || 0), 0) - 100) < 0.01 &&
+        Math.abs(tm.linhas.reduce((a, l) => a + l.shareEsforco, 0) - 100) < 0.01,
+        tm.linhas.map(l => l.nome));
+
+      /* O NOME DO EDITAL NÃO É O NOME DA BANCA. Excluir pela lista do TEC tem
+         de alcançar a matéria do edital também — senão ela sai do domínio e
+         fica inteira dentro da nota projetada, que é o número que mais decide. */
+      DB.getActiveSubjects = () => ([
+        { nome: 'Direito Administrativo', qtdQuestoes: 30, pontosPorQuestao: 1, peso: 1 },
+        { nome: 'Legislacao RN', qtdQuestoes: 10, pontosPorQuestao: 1, peso: 1 }]);
+      window.planCycleMode = () => 'pos';
+      P.salvarPrefs({ excluidas: ['Legislacao RN'] });
+      const comp = PP.composicao();
+      this._ok('Fora do Plano: a matéria excluída sai da composição da prova',
+        comp.length === 1 && ReforcoEngine.norm(comp[0].nome) === 'direito administrativo',
+        comp.map(c => c.nome));
+      const lac = P.lacunasDoEdital(P.prefs());
+      this._ok('Fora do Plano: e não volta como "lacuna do edital"',
+        lac && lac.total === 1 && [].concat(lac.sem, lac.pouca).every(x => ReforcoEngine.norm(x.nome) !== 'legislacao rn'),
+        lac);
+      /* O casamento conservador é o que liga "Dir Adm" (banca) a "Direito
+         Administrativo" (seu edital). Excluir por um lado precisa valer no
+         outro — a checagem é feita no conjunto, antes de qualquer conta. */
+      const fora = P.excluidasSet({ excluidas: ['Direito Administrativo'] });
+      this._ok('Fora do Plano: excluir pelo nome do edital alcança o nome da banca',
+        P.foraDoPlano('Dir Adm', fora) && P.foraDoPlano('Direito Administrativo', fora), Object.keys(fora));
+
+      /* ── AS ÚLTIMAS PORTAS ────────────────────────────────────────────────
+         Excluir tem de ser "como se nunca tivesse sido importado". Três lugares
+         ainda liam o retrato cru e, por isso, ainda contavam a matéria: o
+         RITMO (que divide toda previsão em semanas), o ÍNDICE HISTÓRICO (de
+         onde saem a nota por matéria do ciclo e o julgamento de uma atividade)
+         e a TAXA ATUAL de um assunto. */
+      window.planCycleMode = () => 'pre'; DB.getActiveSubjects = () => [];
+      const descSn = snaps.slice().reverse();
+      const rTodos = P.ritmoRecente(descSn, 400, P.excluidasSet({ excluidas: [] }));
+      const rSem = P.ritmoRecente(descSn, 400, P.excluidasSet({ excluidas: ['Legislacao RN'] }));
+      this._ok('Fora do Plano: o ritmo medido não conta as questões da matéria excluída',
+        rTodos > 0 && rSem > 0 && rSem < rTodos, { todos: rTodos, sem: rSem });
+      const hTodos = P.totalHistorico(Object.assign({}, base, { excluidas: [] }));
+      const hSem = P.totalHistorico(opts);
+      this._ok('Fora do Plano: o índice histórico não devolve os assuntos dela',
+        Object.keys(hTodos).length === 10 && Object.keys(hSem).length === 7 &&
+        Object.keys(hSem).every(k => ReforcoEngine.norm(k.split(ReforcoEngine.SEP)[0]) !== 'legislacao rn'),
+        { todos: Object.keys(hTodos).length, sem: Object.keys(hSem).length });
+      /* A caixa de seleção é o ÚNICO lugar que precisa do índice cru: ela
+         mostra o tamanho do que está fora justamente porque está fora. */
+      P.salvarPrefs({ excluidas: ['Legislacao RN'] });
+      const leg = P.materiasExcluiveis().find(m => m.chave === 'legislacao rn');
+      this._ok('Fora do Plano: mas a caixa de seleção continua sabendo o tamanho do que saiu',
+        leg && leg.assuntos === 3 && leg.q === 360, leg);
+      this._ok('Fora do Plano: a taxa atual de um assunto dela devolve null',
+        P.taxaAtualDe('Legislacao RN', 'Legislacao RN 1', P.prefs()) == null &&
+        P.taxaAtualDe('Dir Adm', 'Dir Adm 1', P.prefs()) != null);
+
+      /* ── A LISTA É UMA FATIA, E DIZ QUE É ─────────────────────────────────
+         O topo anunciava um caminho de 81 assuntos e a tela mostrava 30, sem
+         uma palavra sobre os 51 restantes. Agora o tamanho real do plano vem
+         junto da fatia, e é dele que sai o "mostrando N de M". */
+      const curto = P.calcular(snaps[snaps.length - 1], Object.assign({}, base, { limite: 3 }));
+      this._ok('Lista: a fatia respeita o passo e o total vem junto dela',
+        curto.itens.length === 3 && curto.totalItens > 3 && curto.limite === 3,
+        { fatia: curto.itens.length, total: curto.totalItens });
+      const inteiro = P.calcular(snaps[snaps.length - 1], Object.assign({}, base, { limite: 500 }));
+      this._ok('Lista: o total não depende do passo — só a fatia depende',
+        inteiro.totalItens === curto.totalItens && inteiro.itens.length === inteiro.totalItens,
+        { curto: curto.totalItens, inteiro: inteiro.totalItens });
+      this._ok('Lista: as questões dos assuntos ocultos são contadas à parte',
+        curto.qRestante > 0 && inteiro.qRestante === 0, { curto: curto.qRestante, inteiro: inteiro.qRestante });
+      this._ok('Lista: o padrão de fábrica abre em 10, não em 30', P.DEFAULTS.limite === 10);
+
+      /* Marcar tudo é um estado que acontece, e precisa de saída própria: cair
+         em "sem-retrato" mandaria importar um retrato que já existe. */
+      const tudo = P.calcular(snaps[snaps.length - 1],
+        Object.assign({}, base, { excluidas: ['Dir Adm', 'Dir Const', 'Legislacao RN'] }));
+      this._ok('Fora do Plano: excluir tudo dá erro próprio, não "sem-retrato"',
+        tudo.erro === 'tudo-excluido' && tudo.excluidasAssuntos === 10, tudo.erro);
+
+      // lista vazia não pode custar uma varredura de retratos a cada chamada
+      this._ok('Fora do Plano: sem nada marcado, o conjunto é vazio',
+        Object.keys(P.excluidasSet({ excluidas: [] })).length === 0 &&
+        Object.keys(P.excluidasSet({})).length === 0);
+      this._ok('Fora do Plano: nome só de espaço não vira exclusão',
+        Object.keys(P.excluidasSet({ excluidas: ['   ', null] })).length === 0);
+    } finally {
+      DB.getTecSnapshots = origSnaps; DB.getActiveSubjects = origSubs;
+      ReforcoEngine._incidByDisc = origInc; window.planCycleMode = origModo;
+      T.scopedSnapshot = origEsc;
+      if (antesP == null) localStorage.removeItem(chaveP); else DB.setRaw(chaveP, antesP);
+    }
+  },
   auditoriaDoPlano() {
     const A = window.PlanoAuditoria;
     this._ok('Auditoria: o módulo existe', !!A);
@@ -28160,7 +28398,8 @@ const AutoTeste = {
      ['Folha de ajustes do TEC', 'ajustesTec'],
      ['Ciclo do Plano', 'cicloDoPlano'],
      ['Régua de pontos', 'reguaDePontos'],
-     ['Auditoria do Plano', 'auditoriaDoPlano']].forEach(([nome, fn]) => {
+     ['Auditoria do Plano', 'auditoriaDoPlano'],
+     ['Matérias fora do Plano', 'materiasForaDoPlano']].forEach(([nome, fn]) => {
       try { this[fn](); }
       catch (e) { this._r.total++; this._r.falhou++; this._r.falhas.push({ nome: nome + ' — exceção', obtido: String(e && e.message || e) }); }
     });
@@ -30981,7 +31220,14 @@ const PlanoEngine = {
     custoModo: 'lacuna', custoFixo: 60, custoFator: 0.5,
     custoPiso: 50, custoPorPonto: 2,
     ritmoSemanal: null, apenasFolhas: true, disciplina: '__todas__',
-    limite: 30, ordenar: 'pior',
+    /* Matérias que o Plano NÃO deve enxergar (ver `excluidasSet`). Lista de
+       nomes, nunca um apagamento: sai da conta e volta inteira ao desmarcar. */
+    excluidas: [],
+    /* 10, não 30. Trinta linhas de assunto são ~2.000px de rolagem antes do
+       primeiro bloco de ação, e quem abre a tela não lê trinta — lê as
+       primeiras e desiste. O resto não some: abre com um toque, no passo que
+       você configurar aqui. */
+    limite: 10, ordenar: 'pior',
     faixaCritico: 50,    // abaixo disso o problema é de teoria
     faixaFragil: 65,     // abaixo disso ainda precisa revisar teoria
     pisoSerie: 5,        // amostra mínima por importação p/ série e consolidação
@@ -31212,6 +31458,13 @@ const PlanoEngine = {
         if (v && (v.metaDominio == null || Number(v.metaDominio) === 80)) p.metaDominio = this.DEFAULTS.metaDominio;
         p.migracao = 3;
       }
+      /* MIGRAÇÃO 4 — a lista passa a abrir em 10 com "mostrar mais". Só muda
+         para quem nunca mexeu no campo (tinha 30, que era o padrão antigo e
+         não uma decisão); quem escolheu o próprio número mantém. */
+      if (p.migracao < 4) {
+        if (v && (v.limite == null || Number(v.limite) === 30)) p.limite = this.DEFAULTS.limite;
+        p.migracao = 4;
+      }
       return p;
     } catch (_) { return Object.assign({}, this.DEFAULTS); }
   },
@@ -31219,6 +31472,96 @@ const PlanoEngine = {
     const v = Object.assign(this.prefs(), patch || {});
     DB.setRaw(DB._profilePrefix() + this.KEY_PREF, JSON.stringify(v));
     return v;
+  },
+  /* ── MATÉRIAS FORA DO PLANO ───────────────────────────────────────────────
+     Um edital passa; o retrato do TEC não esquece. Quem prestou um concurso
+     estadual carrega "Legislação do RN" para sempre: ela continua puxando o
+     domínio para baixo, ocupando vaga na fila de ataque e inflando o "faltam X
+     pontos" de uma prova que não cobra uma linha dela. O filtro por disciplina
+     não resolve — aquilo recorta UMA matéria por vez, e aqui se quer o oposto:
+     todas MENOS algumas.
+
+     A exclusão vale para o motor inteiro, não só para a lista: domínio,
+     trajetória, quadro de esforço, lacunas do edital e nota projetada. Uma
+     matéria que sumisse só da lista deixaria o número do topo contando o que a
+     lista não mostra — o pior dos dois mundos.
+
+     Nada é apagado: é preferência do perfil, e a tela diz em voz alta quantas
+     matérias estão de fora, porque número que exclui em silêncio é número
+     errado. */
+  MAX_EXCLUIDAS: 200,
+  /* O conjunto guarda o nome que você clicou. Aplicá-lo cru deixaria metade do
+     trabalho feito: o nome que você digitou no edital e o nome que a banca usa
+     no TEC raramente coincidem, então excluir pela lista do TEC tiraria a
+     matéria do domínio e a deixaria inteira dentro da nota projetada. Antes de
+     usar, o conjunto é ESTENDIDO pelos pares que o casamento conservador de
+     nomes já sabe fazer — nos dois sentidos. */
+  excluidasSet(opts) {
+    const base = Object.create(null);
+    const lista = (opts && opts.excluidas) || [];
+    if (!Array.isArray(lista) || !lista.length) return base;
+    lista.slice(0, this.MAX_EXCLUIDAS).forEach(n => {
+      const k = ReforcoEngine.norm(String(n == null ? '' : n));
+      if (k) base[k] = true;
+    });
+    if (!Object.keys(base).length) return base;
+    try {
+      const tec = this.disciplinasConhecidas().map(d => ReforcoEngine.norm(d)).filter(Boolean);
+      const ed = [];
+      (DB.getActiveSubjects() || []).forEach(m => { const k = m && m.nome ? ReforcoEngine.norm(m.nome) : ''; if (k) ed.push(k); });
+      if (ed.length && tec.length) {
+        const par = PlanoPontos._casarNomes(ed, tec);
+        Object.keys(par).forEach(de => {
+          const para = par[de];
+          if (base[de]) base[para] = true;
+          if (base[para]) base[de] = true;
+        });
+      }
+    } catch (e) { _quiet(e, 'excluidas-nomes'); }
+    return base;
+  },
+  foraDoPlano(disciplina, fora) {
+    if (!fora) return false;
+    const k = ReforcoEngine.norm(String(disciplina == null ? '' : disciplina));
+    return !!(k && fora[k]);
+  },
+  /* Toda disciplina que já apareceu em ALGUM retrato — não só no recorte atual.
+     É de onde sai a lista do que se pode deixar de fora: uma matéria de um
+     concurso antigo pode não estar no retrato de hoje e ainda assim estar
+     pesando no histórico que o Plano soma. */
+  disciplinasConhecidas() {
+    const s = Object.create(null);
+    try {
+      (DB.getTecSnapshots() || []).forEach(sn => {
+        (sn.rows || []).forEach(r => { if (r.disciplina) s[r.disciplina] = true; });
+      });
+    } catch (e) { _quiet(e, 'discs-conhecidas'); }
+    return Object.keys(s).sort((a, b) => a.localeCompare(b, 'pt-BR'));
+  },
+  /* A lista da caixa de seleção: o que o TEC conhece MAIS o que você declarou
+     no edital, sem repetir a mesma matéria por causa da grafia. */
+  materiasExcluiveis() {
+    const vistos = Object.create(null); const out = [];
+    const add = (nome, fonte) => {
+      const k = ReforcoEngine.norm(String(nome == null ? '' : nome));
+      if (!k) return;
+      if (vistos[k]) { if (vistos[k].fontes.indexOf(fonte) < 0) vistos[k].fontes.push(fonte); return; }
+      const o = { nome: nome, chave: k, fontes: [fonte], q: 0, assuntos: 0 };
+      vistos[k] = o; out.push(o);
+    };
+    this.disciplinasConhecidas().forEach(d => add(d, 'tec'));
+    try { (DB.getActiveSubjects() || []).forEach(m => { if (m && m.nome) add(m.nome, 'edital'); }); } catch (e) { _quiet(e, 'excl-edital'); }
+    // volume histórico, para a caixa dizer o tamanho do que sai da conta
+    try {
+      const idx = this.totalHistorico({ apenasFolhas: true, _semExclusao: true });
+      const SEP = ReforcoEngine.SEP;
+      Object.keys(idx).forEach(k => {
+        const o = vistos[ReforcoEngine.norm(k.split(SEP)[0])];
+        if (!o) return;
+        o.q += idx[k].q || 0; o.assuntos++;
+      });
+    } catch (e) { _quiet(e, 'excl-volume'); }
+    return out.sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR'));
   },
   _diasDesde(iso) {
     if (!iso) return Infinity;
@@ -31380,12 +31723,22 @@ const PlanoEngine = {
   /* Total histórico de questões por assunto, na MESMA chave que o resto do
      motor usa. É daqui que o ciclo de uma atividade tira o quanto você já
      resolveu — antes e depois de criá-la. */
+  /* O índice histórico é a última porta por onde uma matéria excluída entrava
+     no Plano: é dele que saem a nota por matéria do ciclo, o "de N no total"
+     de cada linha e o julgamento de uma atividade. `_semExclusao` existe para
+     UM chamador — a própria caixa de seleção, que precisa mostrar o tamanho do
+     que está fora justamente porque está fora. */
   totalHistorico(opts) {
     opts = Object.assign({}, this.prefs(), opts || {});
+    const fora = (opts && opts._semExclusao) ? null : this.excluidasSet(opts);
+    const temFora = !!(fora && Object.keys(fora).length);
     const m = {};
     (DB.getTecSnapshots() || []).forEach(s => {
       const idx = this._indice(s, opts.apenasFolhas);
-      for (const k in idx) { const c = m[k] || { q: 0, ac: 0 }; c.q += idx[k].q; c.ac += idx[k].ac; m[k] = c; }
+      for (const k in idx) {
+        if (temFora && this.foraDoPlano(idx[k].disciplina || k.split(ReforcoEngine.SEP)[0], fora)) continue;
+        const c = m[k] || { q: 0, ac: 0 }; c.q += idx[k].q; c.ac += idx[k].ac; m[k] = c;
+      }
     });
     return m;
   },
@@ -31396,6 +31749,9 @@ const PlanoEngine = {
      novas dá 62%, e 62% reprova um assunto que está resolvido. */
   taxaAtualDe(disciplina, nome, opts) {
     const o = Object.assign({}, this.prefs(), opts || {});
+    // matéria fora do Plano não tem taxa PARA O PLANO: nem null forçado, nem
+    // número velho de um concurso que passou julgando uma atividade de hoje
+    if (this.foraDoPlano(disciplina, this.excluidasSet(o))) return null;
     const todos = DB.getTecSnapshots();
     if (!todos.length) return null;
     const desc = todos.slice().reverse().map(s => { s._idx = this._indice(s, o.apenasFolhas); return s; });
@@ -31448,10 +31804,15 @@ const PlanoEngine = {
     opts = Object.assign({}, this.prefs(), opts || {});
     const snaps = DB.getTecSnapshots();
     const pontos = [];
+    /* A trajetória tem de excluir as MESMAS matérias que o domínio do topo.
+       Sem isto, o número grande dizia 80,3% e o último ponto do gráfico logo
+       abaixo dizia 74,9% — a mesma média, com e sem a matéria descartada. */
+    const fora = this.excluidasSet(opts);
     let ant = null, antPct = null;
     snaps.forEach(s => {
       const idx = this._indice(s, opts.apenasFolhas);
       const chaves = Object.keys(idx).filter(k => idx[k].q >= (opts.pisoSerie || this.PISO_SERIE) &&
+        !this.foraDoPlano(idx[k].disciplina || '', fora) &&
         (opts.disciplina === '__todas__' || ReforcoEngine.norm(idx[k].disciplina || '') === ReforcoEngine.norm(opts.disciplina)));
       if (!chaves.length) return;
       const peso = (k) => (opts.ponderacao === 'volume') ? idx[k].q : 1;
@@ -31514,11 +31875,18 @@ const PlanoEngine = {
     });
     return out;
   },
-  ritmoRecente(snapsDesc, dias) {
+  /* O ritmo é "quantas questões por semana ESTE Plano vê". Somar as questões
+     de uma matéria que o Plano não enxerga inflava o divisor de toda previsão:
+     quem resolvia 300/semana, das quais 120 de uma legislação já excluída,
+     recebia um "cerca de 9 semanas" calculado sobre um ritmo que ele não vai
+     aplicar a nada que está na fila. */
+  ritmoRecente(snapsDesc, dias, fora) {
+    const temFora = !!(fora && Object.keys(fora).length);
     let q = 0, ini = null, fim = null;
     for (const s of snapsDesc) {
       if (this._diasDesde(s.endDate || s.date) > dias) break;
-      q += (s.rows || []).filter(r => r.depth > 0).reduce((a, r) => a + (r.questoes || 0), 0);
+      q += (s.rows || []).filter(r => r.depth > 0 && !(temFora && this.foraDoPlano(r.disciplina || '', fora)))
+        .reduce((a, r) => a + (r.questoes || 0), 0);
       if (!ini || s.startDate < ini) ini = s.startDate;
       const f = s.endDate || s.date;
       if (!fim || f > fim) fim = f;
@@ -31548,13 +31916,18 @@ const PlanoEngine = {
     opts = Object.assign({}, this.prefs(), opts || {});
     let materias = [];
     try { materias = (DB.getActiveSubjects() || []).map(m => m.nome).filter(Boolean); } catch (_) { _quiet(_, 'edital-materias'); }
+    /* Matéria que você tirou do Plano não é buraco: cobrar prática de
+       "Legislação do RN" seria mandar estudar justamente o que foi declarado
+       irrelevante — e o aviso amarelo de "sem prática" nunca mais sairia. */
+    const fora = this.excluidasSet(opts);
+    materias = materias.filter(n => !this.foraDoPlano(n, fora));
     if (!materias.length) return null;
     const norm = (x) => DB._normSubj ? DB._normSubj(x) : String(x || '').toLowerCase().trim();
     const vol = {};
     (DB.getTecSnapshots() || []).forEach(s => {
       (s.rows || []).filter(r => r.depth > 0 && (r.questoes || 0) > 0).forEach(r => {
         const k = norm(r.disciplina || '');
-        if (!k) return;
+        if (!k || this.foraDoPlano(r.disciplina || '', fora)) return;
         const c = vol[k] || { q: 0, ac: 0, nome: r.disciplina };
         c.q += (r.questoes || 0); c.ac += (r.acertos || 0);
         vol[k] = c;
@@ -31733,6 +32106,27 @@ const PlanoEngine = {
     let chaves = Object.keys(mHist);
     if (opts.disciplina && opts.disciplina !== '__todas__') {
       chaves = chaves.filter(k => ReforcoEngine.norm(mHist[k].disciplina || '') === ReforcoEngine.norm(opts.disciplina));
+    }
+    /* As matérias que você tirou do Plano saem AQUI, antes de qualquer conta:
+       o domínio, a fila, o caminho mais curto e o "faltam X pontos" nascem já
+       sem elas. O que saiu é devolvido em `excluidasAtivas` para a tela poder
+       dizer, no topo, de quem o número NÃO está falando. */
+    const fora = this.excluidasSet(opts);
+    const excluidasAtivas = []; let excluidasQ = 0, excluidasAssuntos = 0;
+    if (Object.keys(fora).length) {
+      const vistas = Object.create(null);
+      chaves = chaves.filter(k => {
+        const d = mHist[k].disciplina || '';
+        if (!this.foraDoPlano(d, fora)) return true;
+        excluidasAssuntos++; excluidasQ += mHist[k].q || 0;
+        if (d && !vistas[d]) { vistas[d] = true; excluidasAtivas.push(d); }
+        return false;
+      });
+      excluidasAtivas.sort((a, b) => a.localeCompare(b, 'pt-BR'));
+      /* Excluir tudo é um estado legítimo (marcou demais), e precisa de um erro
+         PRÓPRIO: cair em "sem-retrato" mandaria importar um retrato que já
+         existe, e a saída — desmarcar — nem seria mencionada. */
+      if (!chaves.length) return { erro: 'tudo-excluido', excluidasAtivas, excluidasAssuntos, excluidasQ };
     }
     if (!chaves.length) return { erro: 'sem-retrato' };
 
@@ -31986,7 +32380,7 @@ const PlanoEngine = {
     const equivalentes = Object.keys(ordem).filter(k => k !== opts.ordenar &&
       plano.slice().sort((a, b) => ordem[k](a, b) || (a.nome || '').localeCompare(b.nome || '', 'pt-BR'))
         .map(x => x.nome).join('|') === assinatura);
-    const ritmo = opts.ritmoSemanal || this.ritmoRecente(snapsDesc, 120) || 0;
+    const ritmo = opts.ritmoSemanal || this.ritmoRecente(snapsDesc, 120, fora) || 0;
     const idadeUltimo = this._diasDesde(todos[todos.length - 1].endDate || todos[todos.length - 1].date);
     const sens = opts.sensTendencia;
     usados.forEach(x => {
@@ -31999,19 +32393,20 @@ const PlanoEngine = {
     return {
       dominioPct, meta, jaAtinge: dominioPct >= meta, falta: Math.max(0, meta - dominioPct),
       assuntos: usados.length, ignorados: brutos.length - usados.length,
+      excluidasAtivas, excluidasAssuntos, excluidasQ,
       qTotal: usados.reduce((a, x) => a + x.qJanela, 0),
       idxMeta, qAteMeta: idxMeta >= 0 ? qAteMeta : null, caminho, equivalentes,
       equivalentesConfiaveis: plano.length >= 5,
       custoModo: opts.custoModo, custoPiso: opts.custoPiso, custoPorPonto: opts.custoPorPonto,
       pesoBanca: opts.pesoBanca, minAmostra: opts.minAmostra, modo: this.modoAtivo(opts),
-      ritmo, ritmoMedido: this.ritmoRecente(snapsDesc, 120),
+      ritmo, ritmoMedido: this.ritmoRecente(snapsDesc, 120, fora),
       /* Divergente quando o número travado erra a medição por mais de 50% —
          abaixo disso a previsão ainda é da mesma ordem de grandeza e o aviso
          viraria ruído; acima, ela deixa de descrever qualquer coisa. */
       ritmoDivergente: (function (m, atual) {
         if (!(m > 0) || !(atual > 0) || m === atual) return false;
         return Math.abs(atual - m) / Math.max(m, atual) > 0.5;
-      })(this.ritmoRecente(snapsDesc, 120), ritmo),
+      })(this.ritmoRecente(snapsDesc, 120, fora), ritmo),
       // a previsão em semanas acompanha o caminho CURTO, não a ordem exibida
       semanas: (caminho && ritmo > 0) ? caminho.q / ritmo : null,
       amostraAlvo: opts.amostraAlvo, janelaMax: opts.janelaMax, janelaMedia,
@@ -32044,7 +32439,12 @@ const PlanoEngine = {
       defasado: idadeUltimo > opts.cadenciaDias,
       ponderacao: opts.ponderacao,
       disciplina: opts.disciplina,
+      /* A fatia é só o que a TELA mostra. O tamanho real do plano vai junto,
+         porque é dele que saem o "mostrando 10 de 81" e a conta de quantos
+         faltam até a bandeira da meta — números que a fatia não sabe dar. */
       itens: plano.slice(0, opts.limite),
+      totalItens: plano.length, limite: opts.limite,
+      qRestante: plano.slice(opts.limite).reduce((a, x) => a + (x.custoQ || 0), 0),
       medianaJanela: (() => {
         const qs = usados.map(x => x.qJanela || 0).filter(q => q > 0).sort((a, b) => a - b);
         return qs.length ? qs[Math.floor((qs.length - 1) / 2)] : 0;
@@ -32116,10 +32516,15 @@ const PlanoPontos = {
   composicao() {
     let subs = [];
     try { subs = DB.getActiveSubjects() || []; } catch (e) { _quiet(e, 'pontos-mat'); }
+    /* Uma matéria fora do Plano sai TAMBÉM do denominador da prova. Deixá-la na
+       composição manteria o peso dela na nota projetada e no corte — o número
+       que mais decide — enquanto a lista e o domínio já a tinham descartado. */
+    const fora = PlanoEngine.excluidasSet(PlanoEngine.prefs());
     const out = [];
     subs.forEach(s => {
       const q = parseFloat(s.qtdQuestoes) || 0;
       if (!(q > 0)) return;
+      if (PlanoEngine.foraDoPlano(s.nome, fora)) return;
       const pts = parseFloat(s.pontosPorQuestao) || 1;
       const peso = parseFloat(s.peso) || 1;
       out.push({ nome: s.nome, q, pts, peso, valor: q * pts * peso,
@@ -32228,12 +32633,17 @@ const PlanoPontos = {
     const desc = [];
     const seu = Object.create(null);
     let seuTotal = 0;
+    /* O quadro de esforço responde "para onde vai o meu tempo, e a prova paga
+       por isso?". Uma matéria que a prova não cobra MAIS não pode aparecer nem
+       como esforço desperdiçado nem como peso: ela saiu da pergunta. */
+    const fora = PlanoEngine.excluidasSet(p);
     try {
       (DB.getTecSnapshots() || []).slice().reverse().forEach(s => {
         const idx = PlanoEngine._indice(s, p.apenasFolhas);
         const agg = Object.create(null);
         for (const k in idx) {
           const d = k.split(SEP)[0];
+          if (PlanoEngine.foraDoPlano(idx[k].disciplina || d, fora)) continue;
           const c = agg[d] || (agg[d] = { q: 0, ac: 0 });
           c.q += idx[k].q; c.ac += idx[k].ac;
           const t = seu[d] || (seu[d] = { q: 0, ac: 0, nome: idx[k].disciplina || d });
@@ -32262,6 +32672,7 @@ const PlanoPontos = {
         const by = ReforcoEngine.incidPorDisciplina(DesempenhoTecScreen.bancaFiltro());
         Object.keys(by).forEach(d => {
           const soma = by[d];
+          if (PlanoEngine.foraDoPlano(d, fora)) return;
           if (soma > 0) { const k = norm(d); peso[k] = (peso[k] || 0) + soma; pesoNome[k] = d; pesoTotal += soma; fontePeso = 'incidencia'; }
         });
       } catch (e) { _quiet(e, 'esforco-peso'); }
@@ -32943,7 +33354,14 @@ const TecAjustes = {
       if (val('plano-meta')) p.push(['meta', val('plano-meta') + '%']);
       p.push(['ordem', semEmoji(sel('plano-ordenar'))]);
       p.push(['disciplina', disc('plano-disc')]);
-      if (val('plano-limite')) p.push(['lista', 'até ' + val('plano-limite')]);
+      /* A exclusão muda TODO número do Plano e mora dentro de uma caixa
+         fechada. Sem ela na fita de resumo, o único lugar em que a porta dos
+         ajustes diria o que está valendo seria o que ela não diz. */
+      try {
+        const ex = PlanoEngine.prefs().excluidas;
+        if (Array.isArray(ex) && ex.length) p.push(['fora', ex.length === 1 ? ex[0] : ex.length + ' matérias']);
+      } catch (e) { _quiet(e, 'cfg-excluidas'); }
+      if (val('plano-limite')) p.push(['lista', val('plano-limite') + ' por vez']);
     } else if (aba === 'reforco') {
       let b = ''; try { b = ReforcoEngine.rotuloBancas(DesempenhoTecScreen.bancaFiltro()); } catch (e) { _quiet(e, 'cfg-bancas'); }
       p.push([/todas/i.test(b) ? 'bancas' : (b.indexOf(' e ') > 0 ? 'bancas' : 'banca'), b.replace(/^todas as bancas$/, 'todas')]);
@@ -32975,6 +33393,10 @@ window.TecAjustes = TecAjustes;
 
 const DesempenhoTecScreen = {
   currentSnapId: null,
+  /* Quantos assuntos ABERTOS além do passo configurado. Estado de leitura da
+     sessão: qualquer mudança de ajuste o zera, porque a fila que você abriu
+     deixou de ser a mesma fila. */
+  _planoMais: 0,
   // ---- Escopo da análise: 'consolidado' (todos), 'select' (retratos marcados), 'range' (intervalo) ----
   scopeMode: 'consolidado',
   selectedSnapIds: null, // Set de ids marcados (modo 'select')
@@ -33168,6 +33590,84 @@ const DesempenhoTecScreen = {
       this.setBancas([...painel.querySelectorAll('input:checked')].map(x => x.value));
     }));
     painel.querySelectorAll('[data-acao]').forEach(b => b.addEventListener('click', () => this.setBancas([])));
+  },
+  /* ── A CAIXA DO QUE FICA DE FORA ──────────────────────────────────────────
+     Mesma mecânica da caixa de bancas, e pelo mesmo motivo: a resposta certa é
+     MAIS DE UMA, e numa lista suspensa a segunda escolha desfaz a primeira.
+     Cada linha mostra o tamanho do que sai da conta (assuntos e questões do
+     histórico), porque "excluir Legislação do RN" tem consequências muito
+     diferentes se ela vale 40 questões ou 2.400. */
+  renderExcluidasPicker(hostId) {
+    const host = document.getElementById(hostId || 'plano-excluidas-pick');
+    if (!host) return;
+    /* Marcar uma matéria repinta a tela inteira — e fechar a caixa a cada
+       clique obrigaria a reabri-la para excluir a segunda. Quem chega aqui
+       quase nunca vem tirar uma só. */
+    const jaAberto = !!host.querySelector('.banca-pick-panel:not([hidden])');
+    const mats = PlanoEngine.materiasExcluiveis();
+    const p = PlanoEngine.prefs();
+    const fora = PlanoEngine.excluidasSet(p);
+    const marcada = (m) => PlanoEngine.foraDoPlano(m.nome, fora);
+    const n = mats.filter(marcada).length;
+    const rot = !mats.length ? 'Nenhuma matéria conhecida'
+      : n === 0 ? '✅ Todas as matérias no Plano'
+      : n === 1 ? '🚫 1 matéria fora'
+      : `🚫 ${n} matérias fora`;
+    const origem = (m) => m.fontes.indexOf('tec') < 0 ? 'só no seu edital'
+      : (m.assuntos ? `${m.assuntos} ${m.assuntos === 1 ? 'assunto' : 'assuntos'} · ${m.q.toLocaleString('pt-BR')} questões no histórico` : 'sem questões resolvidas');
+    host.innerHTML = `
+      <button type="button" class="banca-pick-btn" aria-expanded="false" ${mats.length ? '' : 'disabled'}>
+        <span>${escapeHtml(rot)}</span><span class="chev">▾</span>
+      </button>
+      <div class="banca-pick-panel" hidden>
+        <p class="banca-pick-topo">Marque o que o Plano deve <b>ignorar</b> — a legislação de um concurso que já passou, uma matéria que saiu do edital. Sai do domínio, da fila, da trajetória e da nota projetada. Nada é apagado: desmarque e ela volta inteira.</p>
+        ${mats.map(m => `<label class="banca-pick-item">
+          <input type="checkbox" value="${escapeHtml(m.nome)}" ${marcada(m) ? 'checked' : ''}>
+          <span><b>${escapeHtml(m.nome)}</b><small>${escapeHtml(origem(m))}</small></span>
+        </label>`).join('')}
+        <div class="banca-pick-acoes">
+          ${n ? '<button type="button" data-acao="nenhuma">↺ Trazer todas de volta</button>' : '<span class="banca-pick-nota">Nenhuma matéria excluída — o Plano está vendo tudo.</span>'}
+        </div>
+      </div>`;
+    const btn = host.querySelector('.banca-pick-btn');
+    const painel = host.querySelector('.banca-pick-panel');
+    if (!btn || !painel) return;
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const abrir = painel.hasAttribute('hidden');
+      document.querySelectorAll('.banca-pick-panel').forEach(p2 => p2.setAttribute('hidden', ''));
+      document.querySelectorAll('.banca-pick-btn').forEach(b2 => b2.setAttribute('aria-expanded', 'false'));
+      if (abrir) { painel.removeAttribute('hidden'); btn.setAttribute('aria-expanded', 'true'); }
+    });
+    painel.addEventListener('click', (e) => e.stopPropagation());
+    painel.querySelectorAll('input[type="checkbox"]').forEach(c => c.addEventListener('change', () => {
+      this.setExcluidas([...painel.querySelectorAll('input:checked')].map(x => x.value));
+    }));
+    painel.querySelectorAll('[data-acao]').forEach(b => b.addEventListener('click', () => this.setExcluidas([])));
+    if (jaAberto) { painel.removeAttribute('hidden'); btn.setAttribute('aria-expanded', 'true'); }
+  },
+  /* Gravar a exclusão muda o RECORTE, e o recorte pode ter acabado de tirar da
+     tela a disciplina que o filtro apontava. Devolver o filtro para "Todas"
+     aqui evita o estado sem saída: filtro numa matéria que o motor não vê
+     mais, e a tela dizendo "sem retrato" com o retrato na mão. */
+  setExcluidas(lista) {
+    const limpa = [];
+    const vistos = Object.create(null);
+    (Array.isArray(lista) ? lista : []).forEach(n => {
+      const nome = String(n == null ? '' : n).trim();
+      const k = ReforcoEngine.norm(nome);
+      if (!nome || !k || vistos[k]) return;
+      vistos[k] = true; limpa.push(nome);
+    });
+    const patch = { excluidas: limpa.slice(0, PlanoEngine.MAX_EXCLUIDAS) };
+    const fora = PlanoEngine.excluidasSet(patch);
+    const atual = PlanoEngine.prefs().disciplina;
+    if (atual && atual !== '__todas__' && PlanoEngine.foraDoPlano(atual, fora)) patch.disciplina = '__todas__';
+    PlanoEngine.salvarPrefs(patch);
+    this._planoRefC = null; this._planoMais = 0;
+    const sel = document.getElementById('plano-disc');
+    if (sel && patch.disciplina) sel.value = '__todas__';
+    this.renderPlano();
   },
   // normaliza texto p/ casar tópicos entre retratos (sem acento/caixa/espaços extras)
   _nk(s) { return String(s == null ? '' : s).normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/\s+/g, ' ').trim(); },
@@ -33715,14 +34215,19 @@ const DesempenhoTecScreen = {
     set('plano-critico', p.faixaCritico); set('plano-fragil', p.faixaFragil);
     set('plano-piso', p.pisoSerie); set('plano-sens', p.sensTendencia);
     const desc = DB.getTecSnapshots().slice().reverse();
-    set('plano-ritmo', p.ritmoSemanal || PlanoEngine.ritmoRecente(desc, 120) || 25);
+    set('plano-ritmo', p.ritmoSemanal || PlanoEngine.ritmoRecente(desc, 120, PlanoEngine.excluidasSet(p)) || 25);
     const ds = document.getElementById('plano-disc');
     if (ds) {
-      const discs = PlanoEngine.disciplinas(this.scopedSnapshot());
+      /* Uma matéria fora do Plano não pode continuar na lista do filtro: o
+         motor já não a enxerga, e escolhê-la levaria a uma tela vazia sem
+         explicação. Ela volta à lista no instante em que você a desmarcar. */
+      const fora = PlanoEngine.excluidasSet(p);
+      const discs = PlanoEngine.disciplinas(this.scopedSnapshot()).filter(d => !PlanoEngine.foraDoPlano(d, fora));
       ds.innerHTML = `<option value="__todas__">📚 Todas</option>` +
         discs.map(d => `<option value="${escapeHtml(d)}" ${d === p.disciplina ? 'selected' : ''}>${escapeHtml(d)}</option>`).join('');
       if (![...ds.options].some(o => o.value === p.disciplina)) ds.value = '__todas__';
     }
+    this.renderExcluidasPicker('plano-excluidas-pick');
     // Seletor de banca: só aparece quando há dados de incidência importados.
     // Alimenta a ordenação "🎯 Prioridade na banca".
     const bf = document.getElementById('plano-banca-field');
@@ -33810,7 +34315,7 @@ const DesempenhoTecScreen = {
         { value: 'lacuna', label: '📐 Pela lacuna até o máximo realista' },
         { value: 'fixo', label: 'Número fixo de questões' },
         { value: 'proporcional', label: 'Proporcional ao praticado' }] },
-      { key: 'limite', label: 'Mostrar até (assuntos)', type: 'number', value: p.limite, min: 5, max: 200 },
+      { key: 'limite', label: 'Assuntos por vez', type: 'number', value: p.limite, min: 3, max: 200 },
       { key: 'incluirPequenas', label: 'Incluir amostra pequena', type: 'select', value: p.incluirPequenas ? '1' : '0', options: [
         { value: '0', label: 'Não — amostra curta vai para o segundo plano' },
         { value: '1', label: 'Sim — entra no cálculo (modo diagnóstico)' }] },
@@ -33833,7 +34338,7 @@ const DesempenhoTecScreen = {
         tetoDominio: Math.max(50, Math.min(100, num(r.tetoDominio, p.tetoDominio))),
         ponderacao: r.ponderacao,
         custoModo: r.custoModo,
-        limite: Math.max(5, Math.min(200, num(r.limite, p.limite))),
+        limite: Math.max(3, Math.min(200, num(r.limite, p.limite))),
         incluirPequenas: String(r.incluirPequenas) === '1'
       };
       const mudou = {};
@@ -33867,7 +34372,7 @@ const DesempenhoTecScreen = {
       custoPorPonto: Math.max(0, num('plano-custoponto', 2)),
       pesoBanca: Math.max(0, Math.min(12, num('plano-pesobanca', 6))),
       apenasFolhas: bool('plano-folhas'),
-      limite: Math.max(5, num('plano-limite', 30)),
+      limite: Math.max(3, num('plano-limite', 10)),
       amostraAlvo: Math.max(10, num('plano-amostraalvo', 50)),
       janelaMax: Math.max(30, num('plano-janelamax', 365)),
       cadenciaDias: Math.max(7, num('plano-cadencia', 30)),
@@ -33883,10 +34388,16 @@ const DesempenhoTecScreen = {
     // O ritmo SEGUE a medição automaticamente. Só vira manual se você digitar algo
     // diferente do medido — assim novos imports atualizam o número sozinhos.
     const descSnaps = DB.getTecSnapshots().slice().reverse();
-    const medido = PlanoEngine.ritmoRecente(descSnaps, 120) || 25;
+    const medido = PlanoEngine.ritmoRecente(descSnaps, 120, PlanoEngine.excluidasSet(PlanoEngine.prefs())) || 25;
     const digitado = Math.max(1, num('plano-ritmo', medido));
     opts.ritmoSemanal = (digitado === medido) ? null : digitado;
+    /* GRAVA O CONFIGURADO, DESENHA O ABERTO. O "mostrar mais" é estado de
+       leitura desta sessão, não uma preferência: se ele entrasse no que é
+       salvo, abrir a lista inteira uma vez deixaria a tela abrindo em 81
+       assuntos para sempre — exatamente a tela extensa que o passo de 10 veio
+       resolver. */
     PlanoEngine.salvarPrefs(opts);
+    opts.limite = opts.limite + (this._planoMais || 0);
     // ajuste novo invalida o retrato em cache usado ao criar atividades
     this._planoRefC = null;
     opts.ritmoSemanal = opts.ritmoSemanal || medido;
@@ -33915,6 +34426,15 @@ const DesempenhoTecScreen = {
       proj.innerHTML = `<p class="hint" style="padding:18px 0;">Importe ao menos um retrato de desempenho em <strong>📊 Análise</strong>.</p>`;
       lista.innerHTML = ''; return;
     }
+    /* Excluir tudo tem saída óbvia — e ela precisa estar AQUI, não em algum
+       menu que o usuário teria de lembrar que abriu. */
+    if (r.erro === 'tudo-excluido') {
+      proj.innerHTML = `<p class="hint" style="padding:18px 0;">Todas as matérias com retrato estão marcadas como <strong>fora do Plano</strong>${r.excluidasAssuntos ? ` — ${r.excluidasAssuntos} ${r.excluidasAssuntos === 1 ? 'assunto' : 'assuntos'} e ${(r.excluidasQ || 0).toLocaleString('pt-BR')} questões de lado` : ''}. <button type="button" id="plano-excluidas-voltar" class="pl-hero-limpar">trazer todas de volta</button></p>`;
+      lista.innerHTML = '';
+      const bv = document.getElementById('plano-excluidas-voltar');
+      if (bv) bv.addEventListener('click', () => this.setExcluidas([]));
+      return;
+    }
     if (r.erro === 'amostra') {
       proj.innerHTML = `<p class="hint" style="padding:18px 0;">Nenhum assunto atingiu a amostra mínima de <strong>${opts.minAmostra}</strong> questões. Reduza esse valor nos ajustes avançados ou resolva mais questões.</p>`;
       lista.innerHTML = ''; return;
@@ -33938,6 +34458,11 @@ const DesempenhoTecScreen = {
               cima disso e se assusta (ou se tranquiliza) pelo motivo errado.
               O filtro vive numa folha suspensa, longe daqui; o rótulo não. */''}
         ${escopo ? `<p class="pl-hero-escopo">${escapeHtml(escopo)}<button type="button" id="plano-todas-disc" class="pl-hero-limpar">ver o geral</button></p>` : ''}
+        ${/* A EXCLUSÃO NÃO SE ANUNCIA AQUI. Foi uma decisão sua, e repeti-la
+              no topo de toda repintura é ruído: quem excluiu sabe o que
+              excluiu, e a lista marcada está a um toque em Ajustes ▸
+              Essencial. O que o topo precisa garantir é o contrário — que
+              nenhum número dele tenha visto a matéria excluída. */''}
         <p class="pl-hero-sub">
           Média de acerto nos <strong>${r.assuntos}</strong> ${r.assuntos === 1 ? 'assunto' : 'assuntos'}${escopo ? ' desta matéria' : ''} com amostra suficiente ·
           ${r.qTotal.toLocaleString('pt-BR')} questões · recorte médio de ${r.janelaMedia || '—'} dias
@@ -34614,6 +35139,33 @@ const DesempenhoTecScreen = {
         <button type="button" class="btn-secondary" id="plano-calibrar">Calibrar com o meu histórico (${cal.qPorPonto} q/ponto)</button>
       </div>` : '';
 
+    /* ── O RESTO DA FILA NÃO PODE FICAR ATRÁS DE UM CAMPO NUMÉRICO ─────────
+       A lista terminava sem dizer que terminava. O topo anunciava um caminho
+       mais curto de 81 assuntos, a tela mostrava 30, e a única forma de ver o
+       resto era adivinhar que existia um campo "Mostrar até" dentro de uma
+       folha de ajustes. Dois números certos, lado a lado, mentindo juntos.
+
+       Agora o fim da lista diz onde você está (10 de 81), quanto falta e —
+       quando a bandeira da meta cai fora da fatia — em que posição ela está.
+       Abrir é um toque, no passo que você configurou; "ver todos" existe para
+       quem quer a fila inteira de uma vez. */
+    const faltam = Math.max(0, (r.totalItens || 0) - r.itens.length);
+    const passo = Math.max(3, num('plano-limite', 10));
+    const marcoFora = (r.idxMeta != null && r.idxMeta >= 0 && r.idxMeta >= r.itens.length);
+    const maisDaLista = (linhas && faltam > 0) ? `
+      <div class="pl-mais">
+        <p class="pl-mais-nota">Mostrando <b>${r.itens.length}</b> de <b>${r.totalItens}</b> assuntos${marcoFora ? ` · <b>a meta de ${r.meta}% fecha no ${r.idxMeta + 1}º</b> desta ordem` : ''}${r.qRestante ? ` · ${r.qRestante.toLocaleString('pt-BR')} questões nos que faltam` : ''}</p>
+        <div class="pl-mais-bts">
+          <button type="button" class="btn-secondary" id="plano-mais">▾ Mostrar mais ${Math.min(passo, faltam)}</button>
+          ${faltam > passo ? `<button type="button" class="pl-hero-limpar" id="plano-mais-tudo">ver os ${r.totalItens}</button>` : ''}
+          ${(r.itens.length > passo) ? `<button type="button" class="pl-hero-limpar" id="plano-mais-menos">voltar aos ${passo}</button>` : ''}
+        </div>
+      </div>` : (linhas && (this._planoMais || 0) > 0 ? `
+      <div class="pl-mais">
+        <p class="pl-mais-nota">Fim da fila — os <b>${r.totalItens}</b> assuntos estão à vista.</p>
+        <div class="pl-mais-bts"><button type="button" class="pl-hero-limpar" id="plano-mais-menos">voltar aos ${passo}</button></div>
+      </div>` : '');
+
     lista.innerHTML = (linhas
       /* ── A PERGUNTA VEM ANTES DA RESPOSTA ──────────────────────────────
          "O seu próximo bloco" já vinha com quatro assuntos marcados e um botão
@@ -34623,7 +35175,28 @@ const DesempenhoTecScreen = {
          jogo e que quatro matérias concentram metade. O quadro de matérias
          escolhe ONDE; o bloco escolhe O QUÊ. Nessa ordem. */
       ? blocoPontos + blocoRegua + blocoTempo + hoje + blocoCurso + blocoCal + grafico + blocoFeito + ordemNota + porQue + linhas
-      : blocoPontos + blocoRegua + blocoCurso + blocoTempo + blocoCal + blocoFeito + `<p class="hint" style="padding:18px 0;">Nenhum assunto abaixo do máximo realista — você já domina tudo que pratica.</p>`) + pequenas + edital + blocoAuditoria + comoLer;
+      : blocoPontos + blocoRegua + blocoCurso + blocoTempo + blocoCal + blocoFeito + `<p class="hint" style="padding:18px 0;">Nenhum assunto abaixo do máximo realista — você já domina tudo que pratica.</p>`) + maisDaLista + pequenas + edital + blocoAuditoria + comoLer;
+    /* Abrir mais NÃO recarrega a tela do topo: a pessoa está lendo o fim da
+       lista, e um scroll de volta ao domínio perde o lugar dela. */
+    const abrirMais = (quanto) => {
+      const ancora = document.getElementById('plano-mais');
+      const antes = ancora ? ancora.getBoundingClientRect().top : null;
+      this._planoMais = Math.max(0, quanto);
+      this.renderPlanoConteudo();
+      const depois = document.getElementById('plano-mais');
+      if (antes != null && depois) window.scrollBy(0, depois.getBoundingClientRect().top - antes);
+    };
+    const bMais = document.getElementById('plano-mais');
+    if (bMais) bMais.addEventListener('click', () => abrirMais((this._planoMais || 0) + passo));
+    const bTudo = document.getElementById('plano-mais-tudo');
+    if (bTudo) bTudo.addEventListener('click', () => abrirMais(Math.max(0, (r.totalItens || 0) - passo)));
+    const bMenos = document.getElementById('plano-mais-menos');
+    if (bMenos) bMenos.addEventListener('click', () => {
+      this._planoMais = 0;
+      this.renderPlanoConteudo();
+      const l = document.getElementById('plano-lista');
+      if (l) l.scrollIntoView({ block: 'start' });
+    });
     lista.querySelectorAll('.plano-nova-extra').forEach(b => b.addEventListener('click', () => {
       this.criarExtraDoPlano(b.dataset.topico, b.dataset.disc, b.dataset.alvo, b.dataset.motivo);
     }));
@@ -34669,7 +35242,7 @@ const DesempenhoTecScreen = {
     }));
     const ritmoBtn = document.getElementById('plano-ritmo-medido');
     if (ritmoBtn) ritmoBtn.addEventListener('click', () => {
-      const medido = PlanoEngine.ritmoRecente(DB.getTecSnapshots().slice().reverse(), 120);
+      const medido = PlanoEngine.ritmoRecente(DB.getTecSnapshots().slice().reverse(), 120, PlanoEngine.excluidasSet(PlanoEngine.prefs()));
       if (!medido) return;
       const campo = document.getElementById('plano-ritmo');
       if (campo) campo.value = medido;
@@ -35989,6 +36562,7 @@ $id('tec-weak-disc').addEventListener('change', (e) => {
         const l = document.getElementById('plano-pesobanca-label');
         if (v && l) l.textContent = (parseInt(v.value, 10) === 0) ? '0 — banca ignorada' : v.value;
       }
+      DT._planoMais = 0;   // outra configuração, outra fila: recomeça no passo
       DT.renderPlanoConteudo();
       DT.renderModosDeAtaque();
     };
@@ -41718,6 +42292,21 @@ const PlanoAuditoria = {
         push('e não conta o mesmo assunto duas vezes',
           new Set(r.caminho.itens.map(x => (x.disciplina || '') + '|' + x.nome)).size === r.caminho.n);
       }
+      /* A exclusão é a única preferência capaz de mudar todo número do Plano
+         sem deixar rastro nos números: um domínio de 80,3% e outro de 74,9%,
+         do mesmo perfil e do mesmo dia, são reconciliáveis só por aqui. A
+         invariante cobra COERÊNCIA — nenhum assunto de matéria excluída pode
+         ter sobrevivido na lista ou no segundo plano. */
+      if (r.excluidasAtivas && r.excluidasAtivas.length) {
+        const foraN = r.excluidasAtivas.map(d => ReforcoEngine.norm(d));
+        const vazou = (r.itens || []).concat(r.pequenas || [])
+          .filter(x => foraN.indexOf(ReforcoEngine.norm(x.disciplina || '')) >= 0);
+        push('nenhum assunto de matéria excluída aparece na lista', vazou.length === 0,
+          { fora: r.excluidasAtivas.length, vazaram: vazou.length });
+      } else {
+        naoSeAplica('nenhum assunto de matéria excluída aparece na lista',
+          'nenhuma matéria está marcada como fora do Plano neste recorte');
+      }
       if (tm && tm.linhas && tm.linhas.length) {
         const sp = tm.linhas.reduce((a, l) => a + (l.sharePeso || 0), 0);
         const se = tm.linhas.reduce((a, l) => a + (l.shareEsforco || 0), 0);
@@ -41795,12 +42384,24 @@ const PlanoAuditoria = {
       anonimo: anon,
       app: { versao: (window.APP_VERSION || null), build: (window.BUILD_ID || null) },
 
-      /* Sem os parâmetros, nenhum número deste arquivo é reproduzível. */
-      parametros: p,
+      /* Sem os parâmetros, nenhum número deste arquivo é reproduzível.
+         A lista de matérias excluídas é nome próprio: no modo anônimo vai o
+         apelido estável, como todo o resto — mas ela NÃO pode simplesmente
+         sumir, porque é ela que explica por que o domínio deste arquivo não
+         bate com o de outro gerado no mesmo dia. */
+      parametros: Object.assign({}, p, {
+        excluidas: (Array.isArray(p.excluidas) ? p.excluidas : []).map(nm)
+      }),
 
       contexto: {
         modo: (function () { try { return PlanoPontos.modo(); } catch (e) { return null; } })(),
         disciplinaFiltro: p.disciplina === '__todas__' ? null : nm(p.disciplina),
+        /* O que o motor DE FATO deixou de fora neste retrato — que pode ser
+           menos que a lista marcada (uma matéria excluída sem retrato nenhum
+           não tira nada da conta) e nunca mais. */
+        materiasForaDoPlano: (r.excluidasAtivas || []).map(nm),
+        assuntosForaDoPlano: r.excluidasAssuntos || 0,
+        questoesForaDoPlano: r.excluidasQ || 0,
         fontePeso: tm ? tm.fontePeso : null,
         bancas: (function () { try { return DesempenhoTecScreen.bancasSelecionadas() || []; } catch (e) { return []; } })().map(nm),
         temIncidencia: (function () { try { return !!(ReforcoEngine.hasIncidencia && ReforcoEngine.hasIncidencia()); } catch (e) { return null; } })(),
