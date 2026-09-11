@@ -1089,6 +1089,7 @@ const PlanoEngine = {
       idadeUltimo, cadenciaDias: opts.cadenciaDias,
       defasado: idadeUltimo > opts.cadenciaDias,
       ponderacao: opts.ponderacao,
+      disciplina: opts.disciplina,
       itens: plano.slice(0, opts.limite),
       medianaJanela: (() => {
         const qs = usados.map(x => x.qJanela || 0).filter(q => q > 0).sort((a, b) => a - b);
@@ -2967,14 +2968,24 @@ const DesempenhoTecScreen = {
     const tom = r.jaAtinge ? 'good' : (r.falta <= 8 ? 'warn' : 'bad');
     const pond = r.ponderacao === 'volume' ? 'peso pelo volume praticado' : 'todo assunto com o mesmo peso';
     const aviso = (txt, cor) => `<p class="pl-aviso" style="border-color:var(--${cor});background:var(--${cor}-soft);color:var(--${cor}-text);">${txt}</p>`;
+    const escopo = (r.disciplina && r.disciplina !== '__todas__') ? r.disciplina : '';
     proj.innerHTML = `
       <div class="pl-hero">
         <div class="pl-hero-top">
           <span class="pl-hero-num tone-${tom}">${r.dominioPct.toFixed(1)}%</span>
-          <span class="pl-hero-uni">de domínio</span>
+          <span class="pl-hero-uni">de domínio${escopo ? ' em' : ''}</span>
         </div>
+        ${/* ── O NÚMERO GRANDE PRECISA DIZER DE QUEM ELE É ────────────────────
+              Com o filtro numa disciplina, TUDO neste cartão passa a ser dela:
+              o domínio, os "faltam X pontos", o caminho mais curto, as
+              semanas. Medido no mesmo perfil, o número saltava de 79,0% em 27
+              assuntos para 65,5% em 6 sem nada na tela dizendo por quê — e o
+              aluno lê o número da matéria como se fosse o geral, planeja em
+              cima disso e se assusta (ou se tranquiliza) pelo motivo errado.
+              O filtro vive numa folha suspensa, longe daqui; o rótulo não. */''}
+        ${escopo ? `<p class="pl-hero-escopo">${escapeHtml(escopo)}<button type="button" id="plano-todas-disc" class="pl-hero-limpar">ver o geral</button></p>` : ''}
         <p class="pl-hero-sub">
-          Média de acerto nos <strong>${r.assuntos}</strong> ${r.assuntos === 1 ? 'assunto' : 'assuntos'} com amostra suficiente ·
+          Média de acerto nos <strong>${r.assuntos}</strong> ${r.assuntos === 1 ? 'assunto' : 'assuntos'}${escopo ? ' desta matéria' : ''} com amostra suficiente ·
           ${r.qTotal.toLocaleString('pt-BR')} questões · recorte médio de ${r.janelaMedia || '—'} dias
         </p>
         <div class="pl-medidor" style="height:12px;">
@@ -3655,6 +3666,15 @@ const DesempenhoTecScreen = {
       if (!await UI.confirm('Excluir "' + e.titulo + '"? O assunto não aparece mais nos seus retratos.', { title: 'Excluir atividade', okText: 'Excluir', danger: true })) return;
       DB.deleteExtra(e.id); showToast('Atividade excluída'); this.renderPlanoConteudo();
     }));
+    const todasBtn = document.getElementById('plano-todas-disc');
+    if (todasBtn) todasBtn.addEventListener('click', () => {
+      const sel = document.getElementById('plano-disc');
+      if (sel) sel.value = '__todas__';
+      PlanoEngine.salvarPrefs({ disciplina: '__todas__' });
+      this._planoRefC = null;
+      this.renderPlanoConteudo();
+      showToast('Mostrando o número geral, de todas as matérias');
+    });
     const calBtn = document.getElementById('plano-calibrar');
     if (calBtn) calBtn.addEventListener('click', async () => {
       const c = PlanoCiclo.calibragem();

@@ -2269,6 +2269,55 @@ try {
     && /<1% do seu esforço/.test(num.linhaFina) && !/[^\d<]0% do seu esforço/.test(num.linhaFina))
     ? ok(`materia com ${num.shareFina}% do esforco e nivel medido diz "<1%", nao "0%"`)
     : erro('a linha ainda se contradiz: ' + JSON.stringify({ share: num.shareFina, nivel: num.nivelFina, linha: num.linhaFina.slice(0, 120) }));
+  /* ── O NUMERO GRANDE PRECISA DIZER DE QUEM ELE E ──────────────────────
+     Com o filtro numa disciplina, TUDO no cartao do topo passa a ser dela: o
+     dominio, os "faltam X pontos", o caminho curto, as semanas. Medido no mesmo
+     perfil, o numero saltava de 79,0% em 27 assuntos para 65,5% em 6 sem nada
+     na tela dizendo por que — e o filtro vive numa folha suspensa, longe dali. */
+  const escopo = await pag.evaluate(() => {
+    const origSnaps = DB.getTecSnapshots, origSubs = DB.getActiveSubjects,
+      origModo = window.planCycleMode, origInc = ReforcoEngine._incidByDisc;
+    try {
+      const dia = (n) => { const d = new Date(todayLocal() + 'T00:00:00'); d.setDate(d.getDate() - n); return d.toISOString().slice(0, 10); };
+      const rs = [];
+      [['Tributario', 10, 84], ['Contabilidade', 8, 58]].forEach(([d, n, base]) => {
+        for (let t = 0; t < n; t++) rs.push({ depth: 1, codigo: String(t + 1), nome: d + ' ' + (t + 1),
+          disciplina: d, questoes: 40 + t * 3, acertos: Math.round((40 + t * 3) * (base - 8 + t * 3) / 100) });
+      });
+      DB.getTecSnapshots = () => ([{ id: 'E', nome: 'E', date: dia(5), startDate: dia(35), endDate: dia(5), rows: rs }]);
+      DB.getActiveSubjects = () => []; window.planCycleMode = () => 'pre';
+      ReforcoEngine._incidByDisc = () => ({});
+      const sel = document.getElementById('plano-disc');
+      if (sel) sel.value = '__todas__';
+      PlanoEngine.salvarPrefs({ disciplina: '__todas__', minAmostra: 20, metaDominio: 85, limite: 30 });
+      DesempenhoTecScreen._planoRefC = null;
+      DesempenhoTecScreen.renderPlano();
+      const geral = PlanoEngine.calcular(DesempenhoTecScreen.scopedSnapshot(), PlanoEngine.prefs());
+      const semRotulo = !document.querySelector('.pl-hero-escopo');
+      if (sel) sel.value = 'Tributario';
+      PlanoEngine.salvarPrefs({ disciplina: 'Tributario' });
+      DesempenhoTecScreen._planoRefC = null;
+      DesempenhoTecScreen.renderPlanoConteudo();
+      const filtrado = PlanoEngine.calcular(DesempenhoTecScreen.scopedSnapshot(), PlanoEngine.prefs());
+      const el = document.querySelector('.pl-hero-escopo');
+      const btn = document.getElementById('plano-todas-disc');
+      const rot = el ? el.textContent.replace(/\s+/g, ' ') : '';
+      if (btn) btn.click();
+      return { semRotulo, rot, temBotao: !!btn,
+        voltou: PlanoEngine.prefs().disciplina === '__todas__' && !document.querySelector('.pl-hero-escopo'),
+        domGeral: +geral.dominioPct.toFixed(1), nGeral: geral.assuntos,
+        domFiltro: +filtrado.dominioPct.toFixed(1), nFiltro: filtrado.assuntos };
+    } finally {
+      DB.getTecSnapshots = origSnaps; DB.getActiveSubjects = origSubs;
+      window.planCycleMode = origModo; ReforcoEngine._incidByDisc = origInc;
+      PlanoEngine.salvarPrefs({ disciplina: '__todas__' });
+    }
+  });
+  (escopo.semRotulo && /Tributario/.test(escopo.rot) && escopo.temBotao && escopo.voltou
+    && Math.abs(escopo.domGeral - escopo.domFiltro) > 5)
+    ? ok(`o dominio nomeia a materia quando filtrado (${escopo.domGeral}% em ${escopo.nGeral} assuntos → ${escopo.domFiltro}% em ${escopo.nFiltro}) e o botao "ver o geral" desfaz`)
+    : erro('o numero grande nao diz de quem e: ' + JSON.stringify(escopo));
+
   /* ── A TELA COMECA PELA PERGUNTA, NAO PELA RESPOSTA ───────────────────
      "O seu proximo bloco" vinha com quatro assuntos marcados e um botao grande
      ANTES de "Onde atacar primeiro" dizer qual materia importa: quem abre pela
