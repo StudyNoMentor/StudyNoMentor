@@ -1871,8 +1871,8 @@ const AutoTeste = {
         this._ok('Esforço: peso e esforço somam 100% — nenhuma matéria fica de fora',
           Math.abs(tm.linhas.reduce((a, l) => a + (l.sharePeso || 0), 0) - 100) < 0.01 &&
           Math.abs(tm.linhas.reduce((a, l) => a + l.shareEsforco, 0) - 100) < 0.01, tm.linhas.length);
-        this._ok('Esforço: matéria pesada com ZERO questão sua vira "intocada"',
-          por['direito previdenciario'] && por['direito previdenciario'].veredito === 'intocada',
+        this._ok('Esforço: matéria pesada com ZERO questão sua manda COMEÇAR',
+          por['direito previdenciario'] && por['direito previdenciario'].veredito === 'comecar',
           por['direito previdenciario']);
         this._ok('Esforço: matéria que você resolve e a prova não cobra vira "foraDoPeso"',
           por['arquivologia'] && por['arquivologia'].veredito === 'foraDoPeso', por['arquivologia']);
@@ -1880,9 +1880,39 @@ const AutoTeste = {
           por['dir adm'] && por['dir adm'].q === 400, por['dir adm']);
         this._ok('Esforço: a miúda (2 questões da banca, nenhuma sua) não entra na manchete',
           por['musicologia'] && por['musicologia'].miuda === true &&
-          tm.desalinhadas === tm.linhas.filter(l => !l.miuda &&
-            ['sobra', 'sobraFraco', 'falta', 'intocada'].indexOf(l.veredito) >= 0).length,
-          { miuda: por['musicologia'], desalinhadas: tm.desalinhadas });
+          tm.acoes === tm.linhas.filter(l => !l.resumo &&
+            ['atacar', 'comecar'].indexOf(l.veredito) >= 0).length,
+          { miuda: por['musicologia'], acoes: tm.acoes });
+
+        /* A ORDEM É O PRÊMIO, NÃO O PESO. Uma matéria que vale menos mas onde
+           a lacuna é maior rende mais na próxima hora — e era exatamente o
+           caso que o quadro pintava de verde. */
+        this._ok('Esforço: a tabela sai ordenada por pontos em jogo',
+          tm.linhas.filter(l => l.ganho > 0).every((l, i, a) => i === 0 || a[i - 1].ganho >= l.ganho),
+          tm.linhas.map(l => l.nome + '=' + l.ganho.toFixed(1)));
+        this._ok('Esforço: "em jogo" é peso × lacuna até o teto',
+          Math.abs(por['dir adm'].ganho - por['dir adm'].sharePeso * (90 - por['dir adm'].taxa) / 100) < 0.01,
+          por['dir adm']);
+        this._ok('Esforço: o corte de Pareto devolve poucas matérias, não uma lista inteira',
+          tm.nCorte >= 1 && tm.nCorte < tm.linhas.length, tm.nCorte);
+
+        /* 11) O PESO DA BANCA VEM DA RAIZ, NÃO DA SOMA DAS LINHAS. A incidência
+           é uma árvore; somar pai com filho conta a mesma questão em cada
+           degrau. E o erro depende de quão FUNDO a tabela foi colada, não do
+           que a banca cobra: duas disciplinas de 200 questões viravam 55,6% e
+           44,4% da prova só por isso. */
+        const RE = ReforcoEngine;
+        this._ok('Incidência: a raiz é a linha de disciplina, não a soma dos níveis',
+          RE.raizIncid([{ codigo: null, depth: 0, incidencia: 200 }, { codigo: '01', depth: 1, incidencia: 100 },
+            { codigo: '01.01', depth: 2, incidencia: 60 }, { codigo: '01.02', depth: 2, incidencia: 40 },
+            { codigo: '02', depth: 1, incidencia: 100 }]) === 200);
+        this._ok('Incidência: sem linha de disciplina, vale o nível mais raso',
+          RE.raizIncid([{ codigo: '01', depth: 1, incidencia: 70 }, { codigo: '01.01', depth: 2, incidencia: 30 },
+            { codigo: '01.02', depth: 2, incidencia: 40 }, { codigo: '02', depth: 1, incidencia: 30 }]) === 100);
+        this._ok('Incidência: colagem plana, sem hierarquia nenhuma, soma tudo',
+          RE.raizIncid([{ codigo: null, depth: null, incidencia: 40 },
+            { codigo: null, depth: null, incidencia: 60 }]) === 100);
+        this._ok('Incidência: lista vazia não vira NaN', RE.raizIncid([]) === 0 && RE.raizIncid(null) === 0);
         /* O NÍVEL VEM DA JANELA ADAPTATIVA, NÃO DA MÉDIA DA VIDA. Quem
            consertou uma matéria há pouco continuaria aparecendo como fraco
            nela: a média da vida inteira mente sempre para o passado. */

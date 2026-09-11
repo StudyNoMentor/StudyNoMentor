@@ -1439,3 +1439,16 @@
 .pl-tempo-fora{border-left:3px solid var(--warn,#e8a33d);padding-left:8px;margin-top:10px}
 .pl-tempo-miudas td { color: var(--text-soft); }
 .pl-tempo-tab .reforco-tag.tone-soft { color: var(--text-soft); background: var(--surface-sunken); }
+.pl-tempo-mini { display: none; }
+@media (max-width: 620px) {
+  .pl-tempo-tab th:nth-child(2), .pl-tempo-tab td:nth-child(2),
+  .pl-tempo-tab th:nth-child(3), .pl-tempo-tab td:nth-child(3),
+  .pl-tempo-tab th:nth-child(4), .pl-tempo-tab td:nth-child(4) { display: none; }
+  .pl-tempo-mini { display: block; }
+  .pl-tempo-tab td:first-child { min-width: 0; }
+  .pl-tempo-tab .reforco-tag { white-space: normal; }
+  /* o rotulo do botao era a maior palavra indivisivel da tabela e sozinho
+     empurrava 35px de rolagem horizontal em 390px */
+  .pl-tempo-tab .pl-atacar { white-space: normal; }
+  .pl-tempo-tab td, .pl-tempo-tab th { padding-right: 6px; }
+}

@@ -1933,19 +1933,33 @@ try {
         depois: document.querySelectorAll('#plano-lista .pl-item').length,
         filtro: document.getElementById('plano-disc').value,
         gravado: PlanoEngine.prefs().disciplina,
-        temBloco: !!document.querySelector('#plano-lista .pl-hoje') };
+        temBloco: !!document.querySelector('#plano-lista .pl-hoje'),
+        // com a lista JA FILTRADA, os botoes das OUTRAS materias tem de continuar la
+        botoesComFiltro: [...document.querySelectorAll('[data-atacar]')].map((x) => x.dataset.atacar) };
       PlanoEngine.salvarPrefs({ disciplina: '__todas__' });
+      DesempenhoTecScreen._planoRefC = null;
+      DesempenhoTecScreen.renderPlano();
+      out.botoesSemFiltro = [...document.querySelectorAll('[data-atacar]')].map((x) => x.dataset.atacar);
       return out;
     } finally { DB.getActiveSubjects = origSubs; window.planCycleMode = origModo; DB.getCurrentCycle = origCiclo; }
   });
-  const pedemAcao = (atk.linhas || []).filter((l) => /pouco esforço|muito esforço|nunca resolveu/.test(l.ver));
-  const naoPedem = (atk.linhas || []).filter((l) => /equilibrada|já domina/.test(l.ver));
+  const pedemAcao = (atk.linhas || []).filter((l) => /ataque aqui|comece:/.test(l.ver));
+  const naoPedem = (atk.linhas || []).filter((l) => /mantenha|reduza|na fila|fica para depois/.test(l.ver));
   (pedemAcao.length >= 1 && pedemAcao.every((l) => l.botao) && naoPedem.every((l) => !l.botao))
     ? ok(`o botao "atacar esta materia" so aparece nas ${pedemAcao.length} linha(s) que pedem acao`)
     : erro('o botao apareceu no lugar errado: ' + JSON.stringify(atk.linhas));
   (atk.filtro === atk.alvo && atk.gravado === atk.alvo && atk.depois > 0 && atk.depois < atk.antes && atk.temBloco)
     ? ok(`clicar filtra a lista pela materia (${atk.antes} → ${atk.depois} assuntos) e mantem o bloco de criar atividades`)
     : erro('o botao nao filtrou a lista: ' + JSON.stringify(atk));
+  /* O ALVO DO BOTAO SAI DAS DISCIPLINAS DO RETRATO, NAO DA LISTA FILTRADA.
+     Saindo de `r.itens` — o resultado do Plano COM o filtro aplicado — bastava
+     filtrar por uma materia para TODAS as outras perderem o botao, e sobrava
+     exatamente uma linha com ele: a que ja estava filtrada. O botao de "va
+     para outra materia" so funcionava para a materia em que voce ja estava. */
+  (atk.botoesComFiltro.length === atk.botoesSemFiltro.length && atk.botoesComFiltro.length >= 1
+    && atk.botoesComFiltro.every((d) => atk.botoesSemFiltro.indexOf(d) >= 0))
+    ? ok(`e filtrar a lista nao apaga os botoes das outras materias (${atk.botoesComFiltro.length} antes e depois)`)
+    : erro('o filtro comeu os botoes: ' + JSON.stringify({ com: atk.botoesComFiltro, sem: atk.botoesSemFiltro }));
 
   /* ── O QUADRO DE ESFORCO NAO DEPENDE DO NOME QUE VOCE DIGITOU ──────────
      A primeira versao comparava os MINUTOS do ciclo com o peso da banca, e as
@@ -1997,13 +2011,18 @@ try {
         nLinhas: tm.linhas.length,
         intocada: (por['direito constitucional'] || {}).veredito,
         sobra: (por['contabilidade geral'] || {}).veredito,
+        sobraAnotada: (por['contabilidade geral'] || {}).sobra,
         forte: (por['lingua portuguesa'] || {}).veredito,
         foraDoPeso: (por['musica'] || {}).veredito,
+        emJogo: tm.emJogo, nCorte: tm.nCorte, acoes: tm.acoes,
+        ordemPorPremio: tm.linhas.filter((l) => l.ganho > 0).every((l, i, a) => i === 0 || a[i - 1].ganho >= l.ganho),
+        alvosDoBotao: [...document.querySelectorAll('[data-atacar]')].map((b) => b.dataset.atacar),
+        premioDoBotao: [...document.querySelectorAll('[data-atacar]')].map((b) => {
+          const l = por[ReforcoEngine.norm(b.dataset.atacar)]; return l ? l.ganho : null; }),
         qPortugues: (por['lingua portuguesa'] || {}).q,
         linhasTela: document.querySelectorAll('.pl-tempo-tab tbody tr').length,
         resumos: [...document.querySelectorAll('.pl-tempo-miudas td:first-child')].map((td) => td.textContent.replace(/\s+/g, ' ')),
         pesoResumido: [...document.querySelectorAll('.pl-tempo-miudas')].map((tr) => parseFloat(tr.children[2].textContent) || 0),
-        desalinhadas: tm.desalinhadas,
         temMiudas: !!document.querySelector('.pl-tempo-miudas'),
         texto: tela ? tela.textContent.replace(/\s+/g, ' ') : '',
         // e o casamento de nomes segue conservador onde ainda e necessario
@@ -2019,9 +2038,99 @@ try {
   (Math.abs(esf.somaPeso - 100) < 0.01 && Math.abs(esf.somaEsforco - 100) < 0.01 && esf.nLinhas === 9)
     ? ok(`nada some: ${esf.nLinhas} materias, peso somando ${esf.somaPeso.toFixed(0)}% e esforco ${esf.somaEsforco.toFixed(0)}%`)
     : erro('a cobertura do quadro de esforco falhou: ' + JSON.stringify(esf));
-  (esf.intocada === 'intocada' && esf.sobra === 'sobraFraco' && esf.forte === 'faltaForte' && esf.foraDoPeso === 'foraDoPeso')
-    ? ok('e os quatro casos sao nomeados: intocada (pesa e voce nunca resolveu), sobraFraco, faltaForte e foraDoPeso')
-    : erro('os vereditos do quadro de esforco sairam errados: ' + JSON.stringify(esf));
+  /* CADA VEREDITO E UM VERBO, NAO UM DIAGNOSTICO. "Desalinhada" descrevia um
+     estado e deixava a traducao para o aluno — que foi onde ele se perdeu. */
+  (esf.intocada === 'comecar' && esf.forte === 'manter' && esf.foraDoPeso === 'foraDoPeso'
+    && /^(atacar|fila|reduzir)$/.test(esf.sobra) && esf.sobraAnotada === true)
+    ? ok(`cada linha diz um VERBO: comece / ${esf.sobra} / mantenha / fora do peso, e a desproporcao de esforco vira anotacao`)
+    : erro('os vereditos do quadro sairam errados: ' + JSON.stringify(esf));
+  /* A ORDEM E O PREMIO, E O BOTAO SEGUE A ORDEM. Antes o botao nascia em
+     "muito esforco para o peso que ela tem" — ou seja, convidava a investir
+     mais na materia que a linha acabava de acusar de consumir demais, e que
+     era a de MENOR premio da tela. */
+  (esf.ordemPorPremio && esf.emJogo > 0 && esf.nCorte >= 1)
+    ? ok(`a tabela e ordenada pelo premio: ${esf.emJogo.toFixed(0)}pp da prova em jogo, ${esf.nCorte} materia(s) concentram metade`)
+    : erro('a ordem por pontos em jogo falhou: ' + JSON.stringify({ ordem: esf.ordemPorPremio, emJogo: esf.emJogo, corte: esf.nCorte }));
+  /* ── O CASO EXATO DA TELA DO USUARIO ───────────────────────────────────
+     Dez materias, peso x nivel como ele viu. O quadro antigo punha o botao
+     "atacar esta materia" na linha de 5% de peso e 84% de acerto — 0,5pp em
+     jogo, o MENOR premio da tabela inteira — e nao punha botao nenhum nas de
+     13%/70% e 6%/58%, que valiam 4,5pp e 3,3pp. O veredito ali era
+     "equilibrada" (verde) porque a regra media ALOCACAO, e alocacao nao e a
+     pergunta que decide onde vai a proxima hora. */
+  const dez = await pag.evaluate(() => {
+    const origIncid = ReforcoEngine._incidByDisc, origSubs = DB.getActiveSubjects,
+      origModo = window.planCycleMode, origSnaps = DB.getTecSnapshots;
+    try {
+      const M = [['Dir Constitucional', 13, 70], ['Dir Tributario', 7, 58], ['Contabilidade', 6, 71],
+        ['Auditoria', 6, 58], ['Dir Administrativo', 5, 84], ['Portugues', 5, 81],
+        ['RLM', 5, 80], ['Economia', 5, 80], ['Dir Civil', 3, 75], ['Dir Penal', 3, 59]];
+      ReforcoEngine._incidByDisc = () => { const o = {};
+        M.forEach(([d, p]) => { o[d] = [{ codigo: '01', nome: 'Geral', disciplina: d, incidencia: p * 10 }]; }); return o; };
+      DB.getActiveSubjects = () => []; window.planCycleMode = () => 'pre';
+      const dia = (n) => { const d = new Date(todayLocal() + 'T00:00:00'); d.setDate(d.getDate() - n); return d.toISOString().slice(0, 10); };
+      const rows = [];
+      M.forEach(([d, , taxa]) => { const q = 400, ac = Math.round(q * taxa / 100);
+        rows.push({ depth: 0, codigo: null, nome: d, disciplina: d, questoes: q, acertos: ac });
+        ['A', 'B'].forEach((suf, i) => rows.push({ depth: 1, codigo: '0' + (i + 1), nome: 'Topico ' + suf,
+          disciplina: d, questoes: q / 2, acertos: Math.round(ac / 2) })); });
+      DB.getTecSnapshots = () => ([{ id: 'd1', nome: 'd1', date: dia(2), startDate: dia(30), endDate: dia(2), rows }]);
+      PlanoEngine.salvarPrefs({ disciplina: '__todas__' });
+      DesempenhoTecScreen._planoRefC = null;
+      DesempenhoTecScreen.renderPlano();
+      const tm = PlanoPontos.esforcoPorMateria();
+      const por = {}; tm.linhas.forEach((l) => { por[ReforcoEngine.norm(l.nome)] = l; });
+      const alvos = [...document.querySelectorAll('[data-atacar]')].map((b) => b.dataset.atacar);
+      // e agora com a lista JA FILTRADA por UMA das materias de ataque:
+      // as outras duas nao podem perder o botao
+      PlanoEngine.salvarPrefs({ disciplina: alvos[0] });
+      DesempenhoTecScreen._planoRefC = null;
+      DesempenhoTecScreen.renderPlano();
+      const alvosFiltrado = [...document.querySelectorAll('[data-atacar]')].map((b) => b.dataset.atacar);
+      PlanoEngine.salvarPrefs({ disciplina: '__todas__' });
+      DesempenhoTecScreen._planoRefC = null;
+      DesempenhoTecScreen.renderPlano();
+      return {
+        ordem: tm.linhas.slice(0, 4).map((l) => l.nome),
+        alvos, alvosFiltrado,
+        penal: por['dir penal'],
+        premios: alvos.map((a) => +por[ReforcoEngine.norm(a)].ganho.toFixed(2)),
+        piorPremio: +Math.min(...tm.linhas.filter((l) => l.ganho > 0).map((l) => l.ganho)).toFixed(2),
+        administrativo: por['dir administrativo'],
+        tributario: por['dir tributario'],
+        nCorte: tm.nCorte, emJogo: +tm.emJogo.toFixed(1)
+      };
+    } finally {
+      ReforcoEngine._incidByDisc = origIncid; DB.getActiveSubjects = origSubs;
+      window.planCycleMode = origModo; DB.getTecSnapshots = origSnaps;
+      PlanoEngine.salvarPrefs({ disciplina: '__todas__' });
+    }
+  });
+  (dez.ordem[0] === 'Dir Constitucional' && dez.ordem[1] === 'Dir Tributario' && dez.ordem[2] === 'Auditoria')
+    ? ok(`a fila vira o premio: ${dez.ordem.join(' > ')} (${dez.emJogo}pp em jogo, ${dez.nCorte} materias concentram metade)`)
+    : erro('a ordem das dez materias saiu errada: ' + JSON.stringify(dez.ordem));
+  (dez.alvos.length === dez.nCorte && dez.alvos.indexOf('Dir Administrativo') < 0
+    && Math.min(...dez.premios) > dez.piorPremio * 3)
+    ? ok(`e o botao vai para as ${dez.alvos.length} de maior premio (${dez.premios.join(', ')}pp), nunca para a de ${dez.piorPremio}pp`)
+    : erro('o botao nao seguiu o premio: ' + JSON.stringify({ alvos: dez.alvos, premios: dez.premios, pior: dez.piorPremio }));
+  (dez.administrativo.veredito === 'manter' && dez.tributario.veredito === 'atacar')
+    ? ok('a materia de 5%/84% deixou de pedir ataque e a de 7%/58% deixou de ser "equilibrada" verde')
+    : erro('os vereditos do caso real sairam errados: ' + JSON.stringify({ adm: dez.administrativo.veredito, trib: dez.tributario.veredito }));
+  /* FILTRAR A LISTA NAO PODE APAGAR OS BOTOES DAS OUTRAS MATERIAS. O alvo saia
+     de `r.itens`, o resultado do Plano COM o filtro aplicado: bastava filtrar
+     por uma materia para as demais perderem o botao, e sobrava exatamente uma
+     linha com ele — a que ja estava filtrada. */
+  (dez.alvosFiltrado.length === dez.alvos.length && dez.alvos.length >= 3
+    && dez.alvos.every((d) => dez.alvosFiltrado.indexOf(d) >= 0))
+    ? ok(`filtrar a lista por "${dez.alvos[0]}" mantem os ${dez.alvos.length} botoes de pe`)
+    : erro('o filtro comeu os botoes das outras materias: ' + JSON.stringify({ antes: dez.alvos, depois: dez.alvosFiltrado }));
+  /* O ESFORCO DESPROPORCIONAL E ANOTACAO, NAO VERBO — enquanto sobrar premio.
+     Competindo com o premio, ele mandava "reduza: sobrou pouco a ganhar" numa
+     materia que ainda tinha 1,6pp em jogo e acerto em 59%, que e o oposto da
+     verdade. Fora das duas bandas, ai sim gastar demais e o fato principal. */
+  (dez.penal.veredito === 'fila' && dez.penal.sobra === true && dez.penal.razao >= 1.6)
+    ? ok(`materia com ${dez.penal.ganho.toFixed(1)}pp em jogo e ${dez.penal.razao.toFixed(1)}x o peso em esforco fica "na fila" com a sobra anotada, nao "reduza"`)
+    : erro('a sobra voltou a competir com o premio: ' + JSON.stringify(dez.penal));
   (esf.qPortugues === 100 && !/seu tempo/i.test(esf.texto) && /questões|questão/.test(esf.texto))
     ? ok('o quadro sai igual com o ciclo escrito em outro idioma ("Port.", "Const") — a moeda e a questao')
     : erro('o quadro ainda depende do ciclo: ' + JSON.stringify({ q: esf.qPortugues, t: esf.texto.slice(0, 160) }));
@@ -2030,14 +2139,61 @@ try {
      decisao de verdade para fora da tela. Os dois resumos existem por motivos
      diferentes: a miuda e rodape e NAO conta na manchete; a nao-tocada pequena
      CONTA — uma sozinha nao decide nada, tres somando 17% da prova decidem. */
-  const rIntoc = esf.resumos.find((t) => /ainda não tocou/.test(t));
+  const rIntoc = esf.resumos.find((t) => /ainda não começou/.test(t));
   const rMiud = esf.resumos.find((t) => /miúda/.test(t));
   (esf.resumos.length === 2 && /3 matérias/.test(rIntoc || '') && /2 matérias/.test(rMiud || ''))
     ? ok(`as pequenas viram dois resumos, cada um com o seu motivo (${esf.resumos.map((t) => t.split('nenhuma')[0].split('abaixo')[0].trim()).join(' · ')})`)
     : erro('o agrupamento das pequenas falhou: ' + JSON.stringify(esf.resumos));
-  (esf.pesoResumido[0] >= 11 && esf.desalinhadas === 5)
-    ? ok(`e o resumo mostra a SOMA (${esf.pesoResumido[0]}% da prova nunca tocada) — a manchete conta as 3 resumidas, mas nao as 2 miudas`)
-    : erro('a soma ou a manchete sairam erradas: ' + JSON.stringify({ pesos: esf.pesoResumido, desalinhadas: esf.desalinhadas }));
+  (esf.pesoResumido[0] >= 11)
+    ? ok(`e o resumo mostra a SOMA (${esf.pesoResumido[0]}% da prova nunca comecada), em vez de somer com ela`)
+    : erro('a soma do resumo saiu errada: ' + JSON.stringify(esf.pesoResumido));
+  /* ── DE ONDE VEM O PESO, E POR QUE ELE ESTAVA TORTO ────────────────────
+     Pela RAIZ de cada disciplina na incidencia, nao pela soma das linhas dela.
+     A incidencia e uma arvore ("Direito Civil 200" → "01 Parte Geral 100" →
+     "01.01 Principios 60"), e somar tudo conta a mesma questao em cada degrau.
+     O erro dependia de quao FUNDO cada tabela foi colada, nao do que a banca
+     cobra: duas disciplinas de 200 questoes viravam 55,6% e 44,4% da prova. */
+  const arv = await pag.evaluate(() => {
+    const origModo = window.planCycleMode, origSubs = DB.getActiveSubjects,
+      origSnaps = DB.getTecSnapshots, origInc = DB.getIncidencia();
+    try {
+      DB.saveIncidencia([]);
+      DB.addIncidenciaRows('FGV', [
+        { disciplina: 'Detalhada', topico: 'Detalhada', incidencia: 200, codigo: null, depth: 0 },
+        { disciplina: 'Detalhada', topico: 'Parte Geral', incidencia: 100, codigo: '01', depth: 1 },
+        { disciplina: 'Detalhada', topico: 'Principios', incidencia: 60, codigo: '01.01', depth: 2 },
+        { disciplina: 'Detalhada', topico: 'Fontes', incidencia: 40, codigo: '01.02', depth: 2 },
+        { disciplina: 'Detalhada', topico: 'Parte Especial', incidencia: 100, codigo: '02', depth: 1 },
+        { disciplina: 'Rasa', topico: 'Rasa', incidencia: 200, codigo: null, depth: 0 },
+        { disciplina: 'Rasa', topico: 'Tudo', incidencia: 200, codigo: '01', depth: 1 }], true);
+      const dia = (n) => { const d = new Date(todayLocal() + 'T00:00:00'); d.setDate(d.getDate() - n); return d.toISOString().slice(0, 10); };
+      const rows = [];
+      ['Detalhada', 'Rasa'].forEach((d) => {
+        rows.push({ depth: 0, codigo: null, nome: d, disciplina: d, questoes: 400, acertos: 240 });
+        rows.push({ depth: 1, codigo: '01', nome: 'Geral', disciplina: d, questoes: 400, acertos: 240 }); });
+      DB.getTecSnapshots = () => ([{ id: 'v1', nome: 'v1', date: dia(2), startDate: dia(30), endDate: dia(2), rows }]);
+      DB.getActiveSubjects = () => []; window.planCycleMode = () => 'pre';
+      const tm = PlanoPontos.esforcoPorMateria();
+      const por = {}; tm.linhas.forEach((l) => { por[l.nome] = l; });
+      const plana = ReforcoEngine._incidByDisc('__todas__');
+      return {
+        somaPlana: Object.keys(plana).map((d) => d + '=' + plana[d].reduce((a, r) => a + (r.incidencia || 0), 0)),
+        raiz: ReforcoEngine.incidPorDisciplina('__todas__'),
+        pesos: { det: +por['Detalhada'].sharePeso.toFixed(1), rasa: +por['Rasa'].sharePeso.toFixed(1) },
+        ganhos: { det: +por['Detalhada'].ganho.toFixed(2), rasa: +por['Rasa'].ganho.toFixed(2) }
+      };
+    } finally {
+      DB.saveIncidencia(origInc); DB.getTecSnapshots = origSnaps;
+      DB.getActiveSubjects = origSubs; window.planCycleMode = origModo;
+    }
+  });
+  (arv.raiz.Detalhada === 200 && arv.raiz.Rasa === 200 && arv.pesos.det === 50 && arv.pesos.rasa === 50)
+    ? ok(`o peso vem da RAIZ da arvore (${arv.somaPlana.join(', ')} somados virariam 55,6%/44,4%; a raiz da 50%/50%)`)
+    : erro('o peso ainda conta pai e filho: ' + JSON.stringify(arv));
+  (Math.abs(arv.ganhos.det - arv.ganhos.rasa) < 0.01)
+    ? ok(`e o premio deixa de depender de quao fundo a tabela foi colada (${arv.ganhos.det}pp nas duas)`)
+    : erro('o premio herdou a distorcao: ' + JSON.stringify(arv.ganhos));
+
   (esf.casaGenero === 'lingua portuguesa' && esf.naoCasaIrmas === undefined && esf.naoCasaAmbiguo === undefined)
     ? ok('e o casamento de nomes, onde ainda e preciso (edital digitado x banca), segue conservador')
     : erro('o casamento de nomes virou palpite: ' + JSON.stringify(esf));
