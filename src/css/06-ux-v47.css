@@ -1467,14 +1467,11 @@
 .pl-aud-anon { font-size: var(--fs-2xs); }
 #plano-aud-resumo:empty { display: none; }
 
-/* ── MATÉRIAS FORA DO PLANO ───────────────────────────────────────────────
-   O aviso do topo não é alarme: é a legenda do número grande, dizendo de quem
-   ele NÃO está falando. Discreto como o rótulo de disciplina logo acima, e do
-   mesmo tamanho — não pode competir com o domínio nem sumir atrás dele. */
-#tec-panel-plano .pl-hero-fora {
-  display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 8px;
-  color: var(--text-soft); font-weight: 600;
-}
-#tec-panel-plano .pl-hero-fora small {
-  font-size: var(--fs-3xs); font-weight: 500; opacity: .8; width: 100%;
-}
+/* ── O FIM DA FILA ────────────────────────────────────────────────────────
+   Fecha a lista em vez de deixá-la escorrer: uma linha dizendo onde você está
+   no percurso e os botões que abrem o resto. Sem cartão nem borda pesada — é
+   rodapé de lista, não um bloco novo competindo com o conteúdo. */
+.pl-mais { margin: 10px 0 4px; padding: 12px 0 2px; border-top: 1px dashed var(--border); }
+.pl-mais-nota { margin: 0 0 8px; font-size: var(--fs-2xs); color: var(--text-soft); line-height: 1.5; }
+.pl-mais-bts { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 14px; }
+.pl-mais-bts .btn-secondary { padding: 8px 14px; font-size: var(--fs-xs); }

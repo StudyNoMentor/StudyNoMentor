@@ -594,6 +594,38 @@ const AutoTeste = {
         this._ok('perfil readotado é marcado como só-local',
           (depois.find(p => p.id === PID) || {}).soLocal === true);
 
+        /* ── O PERFIL QUE RESSUSCITAVA SOZINHO ──────────────────────────────
+           Abrir um perfil UMA vez já grava ajuste (a tela do Plano salva
+           `plano-prefs` a cada repintura). Se ele for apagado noutro aparelho,
+           a nuvem para de trazê-lo — e este aparelho, vendo a preferência
+           órfã, concluía "tem dado aqui" e o devolvia à lista como "🛟 Perfil
+           recuperado", em TODA sincronização, para sempre. É exatamente o
+           perfil novo que aparecia do nada. */
+        const FANTASMA = 'ad4cebdf-9999-4999-8999-999999999999';
+        const ns = 'diario-estudos:u:' + FANTASMA + ':';
+        try {
+          localStorage.setItem(ns + 'plano-prefs', JSON.stringify({ metaDominio: 85 }));
+          localStorage.setItem(ns + 'fs-scale', '1.1');
+          localStorage.setItem(ns + 'recent-view', 'plano');
+          localStorage.setItem(ns + 'planejamentos', JSON.stringify([{ id: 'pl_inicial', nome: 'Meu plano' }]));
+          this._ok('Perfis: namespace só com ajustes NÃO conta como perfil com dados',
+            !ProfileManager.temDadosLocais(FANTASMA));
+          ProfileManager.syncMirrorFromCloud([{ id: 'outro', profile_name: 'Outro', rev: 1 }]);
+          this._ok('Perfis: e por isso não ressuscita na lista a cada sincronização',
+            !ProfileManager.getProfiles().some(p => p.id === FANTASMA),
+            ProfileManager.getProfiles().map(p => p.id));
+          /* O outro lado da régua, e o mais caro de errar: uma única seção de
+             ESTUDO no mesmo namespace tem de bastar para o perfil voltar. */
+          localStorage.setItem(ns + 'p:pl_inicial:entries', JSON.stringify([{ id: 'e1', minutos: 30 }]));
+          this._ok('Perfis: uma seção de estudo de verdade traz o perfil de volta',
+            ProfileManager.temDadosLocais(FANTASMA));
+          ProfileManager.syncMirrorFromCloud([{ id: 'outro', profile_name: 'Outro', rev: 1 }]);
+          this._ok('Perfis: e aí ele reaparece na lista, marcado só-local',
+            (ProfileManager.getProfiles().find(p => p.id === FANTASMA) || {}).soLocal === true);
+        } finally {
+          Object.keys(localStorage).filter(k => k.indexOf(ns) === 0).forEach(k => localStorage.removeItem(k));
+        }
+
         /* A LISTA DE PERFIS É UM ÍNDICE, E ÍNDICE NÃO TEM LINHA REPETIDA.
            Ela crescia por seis caminhos e nenhum era dono da invariante: uma
            linha repetida vinda da nuvem virava dois cards idênticos, e quem
@@ -1873,6 +1905,50 @@ const AutoTeste = {
       const fora = P.excluidasSet({ excluidas: ['Direito Administrativo'] });
       this._ok('Fora do Plano: excluir pelo nome do edital alcança o nome da banca',
         P.foraDoPlano('Dir Adm', fora) && P.foraDoPlano('Direito Administrativo', fora), Object.keys(fora));
+
+      /* ── AS ÚLTIMAS PORTAS ────────────────────────────────────────────────
+         Excluir tem de ser "como se nunca tivesse sido importado". Três lugares
+         ainda liam o retrato cru e, por isso, ainda contavam a matéria: o
+         RITMO (que divide toda previsão em semanas), o ÍNDICE HISTÓRICO (de
+         onde saem a nota por matéria do ciclo e o julgamento de uma atividade)
+         e a TAXA ATUAL de um assunto. */
+      window.planCycleMode = () => 'pre'; DB.getActiveSubjects = () => [];
+      const descSn = snaps.slice().reverse();
+      const rTodos = P.ritmoRecente(descSn, 400, P.excluidasSet({ excluidas: [] }));
+      const rSem = P.ritmoRecente(descSn, 400, P.excluidasSet({ excluidas: ['Legislacao RN'] }));
+      this._ok('Fora do Plano: o ritmo medido não conta as questões da matéria excluída',
+        rTodos > 0 && rSem > 0 && rSem < rTodos, { todos: rTodos, sem: rSem });
+      const hTodos = P.totalHistorico(Object.assign({}, base, { excluidas: [] }));
+      const hSem = P.totalHistorico(opts);
+      this._ok('Fora do Plano: o índice histórico não devolve os assuntos dela',
+        Object.keys(hTodos).length === 10 && Object.keys(hSem).length === 7 &&
+        Object.keys(hSem).every(k => ReforcoEngine.norm(k.split(ReforcoEngine.SEP)[0]) !== 'legislacao rn'),
+        { todos: Object.keys(hTodos).length, sem: Object.keys(hSem).length });
+      /* A caixa de seleção é o ÚNICO lugar que precisa do índice cru: ela
+         mostra o tamanho do que está fora justamente porque está fora. */
+      P.salvarPrefs({ excluidas: ['Legislacao RN'] });
+      const leg = P.materiasExcluiveis().find(m => m.chave === 'legislacao rn');
+      this._ok('Fora do Plano: mas a caixa de seleção continua sabendo o tamanho do que saiu',
+        leg && leg.assuntos === 3 && leg.q === 360, leg);
+      this._ok('Fora do Plano: a taxa atual de um assunto dela devolve null',
+        P.taxaAtualDe('Legislacao RN', 'Legislacao RN 1', P.prefs()) == null &&
+        P.taxaAtualDe('Dir Adm', 'Dir Adm 1', P.prefs()) != null);
+
+      /* ── A LISTA É UMA FATIA, E DIZ QUE É ─────────────────────────────────
+         O topo anunciava um caminho de 81 assuntos e a tela mostrava 30, sem
+         uma palavra sobre os 51 restantes. Agora o tamanho real do plano vem
+         junto da fatia, e é dele que sai o "mostrando N de M". */
+      const curto = P.calcular(snaps[snaps.length - 1], Object.assign({}, base, { limite: 3 }));
+      this._ok('Lista: a fatia respeita o passo e o total vem junto dela',
+        curto.itens.length === 3 && curto.totalItens > 3 && curto.limite === 3,
+        { fatia: curto.itens.length, total: curto.totalItens });
+      const inteiro = P.calcular(snaps[snaps.length - 1], Object.assign({}, base, { limite: 500 }));
+      this._ok('Lista: o total não depende do passo — só a fatia depende',
+        inteiro.totalItens === curto.totalItens && inteiro.itens.length === inteiro.totalItens,
+        { curto: curto.totalItens, inteiro: inteiro.totalItens });
+      this._ok('Lista: as questões dos assuntos ocultos são contadas à parte',
+        curto.qRestante > 0 && inteiro.qRestante === 0, { curto: curto.qRestante, inteiro: inteiro.qRestante });
+      this._ok('Lista: o padrão de fábrica abre em 10, não em 30', P.DEFAULTS.limite === 10);
 
       /* Marcar tudo é um estado que acontece, e precisa de saída própria: cair
          em "sem-retrato" mandaria importar um retrato que já existe. */

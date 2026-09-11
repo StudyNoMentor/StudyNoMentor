@@ -393,6 +393,32 @@ const ProfileManager = {
      conteúdo de verdade (a contabilidade de sync, a lixeira e as fotos não
      contam — um perfil que só tem isso está vazio). É a fonte da verdade para
      a regra abaixo: quem tem dado aqui NUNCA some da lista. */
+  /* ── PREFERÊNCIA NÃO É ESTUDO ─────────────────────────────────────────────
+     QUALQUER chave do namespace contava como "este perfil tem dados aqui" — e
+     era daí que saíam os "🛟 Perfil recuperado" aparecendo sozinhos, sem que
+     ninguém tivesse feito nada.
+
+     Abrir um perfil UMA vez já grava ajuste: a tela do Plano salva
+     `plano-prefs` a cada repintura, o tamanho da fonte grava `fs-scale`, a
+     última aba grava `recent-view`. Se depois esse perfil for apagado noutro
+     aparelho, a nuvem para de trazê-lo, este aparelho encontra as preferências
+     órfãs, conclui "tem dado aqui" e o devolve à lista — em TODA sincronização,
+     para sempre. Um perfil sem uma única anotação ressuscitando por causa do
+     tamanho da fonte que ficou gravado.
+
+     A lista abaixo é de AJUSTES, e é uma NEGATIVA: o que não estiver nela
+     continua contando como estudo. Errar para o lado de manter é obrigatório —
+     esquecer aqui uma chave de conteúdo faria o índice esconder estudo de
+     verdade, que é exatamente o problema que esta varredura veio resolver.
+     Os ajustes seguem contados à parte (`ajustes`), para quem precise saber
+     que o namespace existe mesmo sem nada dentro. */
+  AJUSTES_SEM_ESTUDO: ['plano-prefs', 'tec-prefs', 'plano-auditoria-ledger', 'plano-corte',
+    'fs-scale', 'recent-view', 'active-plan', 'planejamentos', 'evo-scope-collapsed',
+    'grade-budget-open', 'extras-in-metrics', 'ferramentas', 'onboarded'],
+  _soAjuste(sub) {
+    if (this.AJUSTES_SEM_ESTUDO.indexOf(sub) >= 0) return true;
+    return sub.indexOf('pref-') === 0 || sub.indexOf('painel:') === 0;
+  },
   perfisComDadosLocais() {
     const achados = {};
     const RE = /^diario-estudos:u:([^:]+):(.+)$/;
@@ -408,11 +434,13 @@ const ProfileManager = {
         if (window.Lixeira && sub.indexOf(Lixeira.PREFIXO) === 0) continue;
         const v = localStorage.getItem(k) || '';
         if (v === '' || v === '[]' || v === '{}' || v === 'null') continue;
-        const a = achados[m[1]] || (achados[m[1]] = { id: m[1], bytes: 0, secoes: 0 });
+        const a = achados[m[1]] || (achados[m[1]] = { id: m[1], bytes: 0, secoes: 0, ajustes: 0, bytesAjuste: 0 });
+        if (this._soAjuste(sub)) { a.ajustes++; a.bytesAjuste += v.length; continue; }
         a.bytes += v.length; a.secoes++;
       }
     } catch (e) { _quiet(e, 'perfis-com-dados'); }
-    return Object.values(achados);
+    // só é "perfil com dados" quem tem ao menos uma seção de ESTUDO
+    return Object.values(achados).filter(a => a.secoes > 0);
   },
   temDadosLocais(id) { return this.perfisComDadosLocais().some(p => p.id === id); },
 
