@@ -603,6 +603,15 @@ const AutoTeste = {
         ProfileManager.saveProfiles([base, JSON.parse(JSON.stringify(base))]);
         this._ok('Perfis: o mesmo id gravado duas vezes vira UMA entrada',
           ProfileManager.getProfiles().filter(p => p.id === uid).length === 1);
+        // o ARMAZENAMENTO também fica limpo (backup, export e quem ler a chave
+        // direto não podem herdar a linha repetida)
+        this._ok('Perfis: o que fica GRAVADO na chave já sai sem duplicado',
+          JSON.parse(localStorage.getItem(DB.PROFILES_KEY) || '[]').length === 1,
+          localStorage.getItem(DB.PROFILES_KEY));
+        // e uma lista JÁ SUJA no aparelho aparece limpa antes da próxima gravação
+        localStorage.setItem(DB.PROFILES_KEY, JSON.stringify([base, base, { nome: 'sem id' }]));
+        this._ok('Perfis: lista já suja no armazenamento é lida limpa, sem depender de gravar',
+          ProfileManager.getProfiles().length === 1);
         ProfileManager.syncMirrorFromCloud([
           { id: uid, profile_name: 'Fulano', avatar: '🏆', color: '#e33' },
           { id: uid, profile_name: 'Fulano', avatar: '🏆', color: '#e33' }]);

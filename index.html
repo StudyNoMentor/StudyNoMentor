@@ -57,7 +57,7 @@
      novo, e o antigo é descartado sozinho na ativação) e o que permite ao app
      dizer qual versão está rodando. Em src/ fica "dev" de propósito: a versão
      é gerada na montagem, não editada à mão. -->
-<meta name="diario-versao" content="v80127093da">
+<meta name="diario-versao" content="vb5f905faa4">
 <script>
 /* ── ARRANQUE: abre o IndexedDB AGORA, em paralelo com o parse do documento ──
    A fachada de armazenamento vive no fim do <body>, depois de ~1,7 MB de HTML.
@@ -26282,6 +26282,15 @@ const AutoTeste = {
         ProfileManager.saveProfiles([base, JSON.parse(JSON.stringify(base))]);
         this._ok('Perfis: o mesmo id gravado duas vezes vira UMA entrada',
           ProfileManager.getProfiles().filter(p => p.id === uid).length === 1);
+        // o ARMAZENAMENTO também fica limpo (backup, export e quem ler a chave
+        // direto não podem herdar a linha repetida)
+        this._ok('Perfis: o que fica GRAVADO na chave já sai sem duplicado',
+          JSON.parse(localStorage.getItem(DB.PROFILES_KEY) || '[]').length === 1,
+          localStorage.getItem(DB.PROFILES_KEY));
+        // e uma lista JÁ SUJA no aparelho aparece limpa antes da próxima gravação
+        localStorage.setItem(DB.PROFILES_KEY, JSON.stringify([base, base, { nome: 'sem id' }]));
+        this._ok('Perfis: lista já suja no armazenamento é lida limpa, sem depender de gravar',
+          ProfileManager.getProfiles().length === 1);
         ProfileManager.syncMirrorFromCloud([
           { id: uid, profile_name: 'Fulano', avatar: '🏆', color: '#e33' },
           { id: uid, profile_name: 'Fulano', avatar: '🏆', color: '#e33' }]);
