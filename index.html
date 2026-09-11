@@ -57,7 +57,7 @@
      novo, e o antigo é descartado sozinho na ativação) e o que permite ao app
      dizer qual versão está rodando. Em src/ fica "dev" de propósito: a versão
      é gerada na montagem, não editada à mão. -->
-<meta name="diario-versao" content="v018fb31894">
+<meta name="diario-versao" content="v1969aadefc">
 <script>
 /* ── ARRANQUE: abre o IndexedDB AGORA, em paralelo com o parse do documento ──
    A fachada de armazenamento vive no fim do <body>, depois de ~1,7 MB de HTML.
@@ -10060,6 +10060,8 @@ window.__idbBoot = (function () {
 /* o botão que leva da matéria para os assuntos dela */
 .pl-atacar { display: block; margin-top: 6px; white-space: nowrap; }
 .pl-tempo-fora{border-left:3px solid var(--warn,#e8a33d);padding-left:8px;margin-top:10px}
+.pl-tempo-miudas td { color: var(--text-soft); }
+.pl-tempo-tab .reforco-tag.tone-soft { color: var(--text-soft); background: var(--surface-sunken); }
 
 </style>
 
@@ -27416,6 +27418,65 @@ const AutoTeste = {
         casa(['Direito Penal'], ['Direito Processual Penal', 'Direito Penal Militar'])['direito penal'] === undefined);
       this._ok('Nomes: subconjunto único casa (Ética → Ética no Serviço Público)',
         casa(['Ética'], ['Etica no Servico Publico'])['etica'] === 'etica no servico publico');
+
+      /* 9) ONDE O NOME DIFERENTE CUSTA MAIS CARO: a NOTA PROJETADA. Uma matéria
+         do edital que não acha o histórico dela cai em `semDado` e some da
+         conta — e some para MENOS, sem nenhum aviso de que faltou gente. */
+      mats = [{ nome: 'Direito Administrativo', qtdQuestoes: 40, pontosPorQuestao: 1, peso: 1 },
+              { nome: 'Arquivologia', qtdQuestoes: 5, pontosPorQuestao: 1, peso: 1 }];
+      const pjN = PP.projecao();
+      this._ok('Projeção: "Direito Administrativo" do edital acha "Dir Adm" do TEC',
+        pjN.semDado.length === 0 && Math.abs(pjN.hoje - 21) < 0.01, { semDado: pjN.semDado, hoje: pjN.hoje });
+      mats = [{ nome: 'Dir Adm', qtdQuestoes: 40, pontosPorQuestao: 1, peso: 1 },
+              { nome: 'Arquivologia', qtdQuestoes: 5, pontosPorQuestao: 1, peso: 1 }];
+
+      /* 10) O QUADRO DE ESFORÇO NÃO OLHA MAIS O RELÓGIO. A moeda é a questão,
+         a única que a banca e o TEC já falam — não há nome de ciclo para casar
+         nem minuto para estimar, e nenhuma matéria fica de fora. */
+      const origIncid = ReforcoEngine._incidByDisc, origCiclo = DB.getCurrentCycle;
+      try {
+        window.planCycleMode = () => 'pre';
+        DB.getCurrentCycle = () => ({ subjects: [{ nome: 'D.A.', definidoMin: 999 }] });
+        ReforcoEngine._incidByDisc = () => ({
+          'Dir Adm': [{ codigo: '01', nome: 'Geral', disciplina: 'Dir Adm', incidencia: 400 }],
+          'Direito Previdenciario': [{ codigo: '01', nome: 'Geral', disciplina: 'Direito Previdenciario', incidencia: 400 }],
+          'Musicologia': [{ codigo: '01', nome: 'Geral', disciplina: 'Musicologia', incidencia: 2 }] });
+        const tm = PP.esforcoPorMateria();
+        const por = {}; tm.linhas.forEach(l => { por[ReforcoEngine.norm(l.nome)] = l; });
+        this._ok('Esforço: peso e esforço somam 100% — nenhuma matéria fica de fora',
+          Math.abs(tm.linhas.reduce((a, l) => a + (l.sharePeso || 0), 0) - 100) < 0.01 &&
+          Math.abs(tm.linhas.reduce((a, l) => a + l.shareEsforco, 0) - 100) < 0.01, tm.linhas.length);
+        this._ok('Esforço: matéria pesada com ZERO questão sua vira "intocada"',
+          por['direito previdenciario'] && por['direito previdenciario'].veredito === 'intocada',
+          por['direito previdenciario']);
+        this._ok('Esforço: matéria que você resolve e a prova não cobra vira "foraDoPeso"',
+          por['arquivologia'] && por['arquivologia'].veredito === 'foraDoPeso', por['arquivologia']);
+        this._ok('Esforço: o ciclo escrito noutro idioma ("D.A.") não muda nada',
+          por['dir adm'] && por['dir adm'].q === 400, por['dir adm']);
+        this._ok('Esforço: a miúda (2 questões da banca, nenhuma sua) não entra na manchete',
+          por['musicologia'] && por['musicologia'].miuda === true &&
+          tm.desalinhadas === tm.linhas.filter(l => !l.miuda &&
+            ['sobra', 'sobraFraco', 'falta', 'intocada'].indexOf(l.veredito) >= 0).length,
+          { miuda: por['musicologia'], desalinhadas: tm.desalinhadas });
+        /* O NÍVEL VEM DA JANELA ADAPTATIVA, NÃO DA MÉDIA DA VIDA. Quem
+           consertou uma matéria há pouco continuaria aparecendo como fraco
+           nela: a média da vida inteira mente sempre para o passado. */
+        DB.getTecSnapshots = () => ([
+          R('v1', dia(120), dia(90), [D('Dir Adm', 100, 20), L('01', 'Geral', 'Dir Adm', 100, 20)]),
+          R('v2', dia(30), dia(2), [D('Dir Adm', 100, 90), L('01', 'Geral', 'Dir Adm', 100, 90)])]);
+        const jan = PP.esforcoPorMateria().linhas.find(l => ReforcoEngine.norm(l.nome) === 'dir adm');
+        this._ok('Esforço: o nível é 90% (janela recente), não 55% (média da vida)',
+          jan && Math.abs(jan.taxa - 90) < 0.01, jan && jan.taxa);
+        DB.getTecSnapshots = () => snaps;
+      } finally { ReforcoEngine._incidByDisc = origIncid; DB.getCurrentCycle = origCiclo; window.planCycleMode = () => 'pos'; }
+      this._ok('Nomes: a abreviatura casa ("Dir Adm" → "Direito Administrativo")',
+        casa(['Dir Adm'], ['Direito Administrativo', 'Arquivologia'])['dir adm'] === 'direito administrativo');
+      this._ok('Nomes: mas "Dir" sozinho não casa com nenhum dos quatro Direitos',
+        casa(['Dir'], ['Direito Penal', 'Direito Civil', 'Direito Administrativo'])['dir'] === undefined);
+      this._ok('Nomes: e a abreviatura não atravessa palavra ("Dir Pen" ≠ "Direito Previdenciário")',
+        casa(['Dir Pen'], ['Direito Previdenciario'])['dir pen'] === undefined);
+      this._ok('Nomes: uma palavra não vira abreviatura de duas ("Cont" ≠ "Contabilidade Geral")',
+        casa(['Cont'], ['Contabilidade Geral'])['cont'] === undefined);
     } finally {
       DB.getTecSnapshots = origSnaps; DB.getActiveSubjects = origSubs; window.planCycleMode = origModo;
       if (antesP == null) DB.delRaw(chaveP); else DB.setRaw(chaveP, antesP);
@@ -31530,9 +31591,15 @@ const PlanoPontos = {
       const c = porMateria[disc] || { q: 0, ac: 0 };
       c.q += idx[k].q; c.ac += idx[k].ac; porMateria[disc] = c;
     });
+    /* O EDITAL VOCÊ DIGITA; O HISTÓRICO VEM DA BANCA. Sem casar os dois, uma
+       matéria cujo nome não bate exatamente cai em `semDado` e some da conta —
+       e some para MENOS: a nota projetada fica menor do que a verdade, sem
+       nenhum aviso de que faltou gente. É o mesmo casamento conservador do
+       quadro de esforço, aplicado onde o erro custa mais caro. */
+    const casado = this._casarNomes(comp.map(m => norm(m.nome)), Object.keys(porMateria));
     let valorTotal = 0, hoje = 0, potencial = 0, semDado = [];
     const linhas = comp.map(m => {
-      const v = porMateria[norm(m.nome)];
+      const v = porMateria[casado[norm(m.nome)] || norm(m.nome)];
       const taxa = (v && v.q > 0) ? (v.ac / v.q * 100) : null;
       valorTotal += m.valor;
       if (taxa == null) { semDado.push(m.nome); return Object.assign({}, m, { taxa: null, medido: 0 }); }
@@ -31566,141 +31633,162 @@ const PlanoPontos = {
     const k = DB._profilePrefix() + 'plano-corte';
     if (isNaN(n) || n <= 0) DB.delRaw(k); else DB.setRaw(k, String(n));
   },
-  /* ── ONDE O SEU TEMPO ESTÁ INDO ───────────────────────────────────────────
+  /* ── ONDE O SEU ESFORÇO ESTÁ INDO ────────────────────────────────────────
      A armadilha clássica de quem estuda muito: a gente estuda o que gosta, e
-     gosta do que já sabe. O ciclo distribui as horas por um peso que VOCÊ
-     declara (dificuldade de 1 a 5, "Sólido" no olho) e ninguém nunca confronta
-     essa declaração com o que o TEC mede.
+     gosta do que já sabe. Ninguém nunca confronta essa escolha com o que a
+     prova cobra — e é uma troca que dá para fazer por dois anos sem perceber.
 
-     Este quadro põe as três coisas lado a lado, por matéria: quanto do seu
-     tempo ela leva, quanto ela vale na prova, e como você vai nela. É a
-     resposta objetiva para "quais matérias eu priorizo" — e o que ele denuncia
-     é o caso que ninguém percebe sozinho: 28% do tempo indo para 12% da prova.
+     ESTE QUADRO NÃO OLHA MAIS O RELÓGIO, E É DE PROPÓSITO. A primeira versão
+     comparava os MINUTOS do ciclo com o peso da banca, e as duas pontas
+     falavam línguas diferentes: o ciclo você digita ("Português"), a banca
+     manda "Língua Portuguesa". Casar nome digitado com nome de banca é
+     adivinhação, e adivinhação num quadro de decisão só tem dois desfechos —
+     número torto ou matéria sumida. Aconteceu o segundo: a matéria mais pesada
+     da prova desaparecia calada e sobravam oito linhas leves.
+
+     A moeda passou a ser a QUESTÃO, a única que os dois lados já falam: o peso
+     da banca é contado em questões e o seu esforço no TEC também. Não há nome
+     de ciclo para casar, não há minuto para estimar, e a cobertura é de 100%
+     dos dois lados por construção. Perde-se o minuto e ganha-se a verdade — e
+     o minuto era declarado, enquanto a questão é medida.
+
+     A QUESTÃO NÃO É UM SUBSTITUTO POBRE DO MINUTO. Uma hora de vídeo-aula não
+     move nada aqui, e é correto que não mova: o que a prova paga é questão
+     resolvida. Duas matérias podem custar minutos diferentes por questão, e
+     por isso a coluna se chama "suas questões", não "seu tempo" — o quadro
+     afirma só o que mediu.
 
      O QUE ELE NÃO FAZ: decidir por você. Aceitar ir mal numa matéria que vale
      cinco questões é estratégia legítima. O que não pode continuar é NÃO SABER
      que a troca está sendo feita. */
-  tempoPorMateria(opts) {
+  esforcoPorMateria(opts) {
     const p = Object.assign({}, PlanoEngine.prefs(), opts || {});
     const norm = (x) => ReforcoEngine.norm(x);
-    // 1) o planejado: minutos por matéria no ciclo ativo
-    const plan = {};
-    let planTotal = 0;
+    const SEP = ReforcoEngine.SEP;
+    /* 1) O SEU ESFORÇO, MEDIDO: questões resolvidas por matéria. Uma passada
+       só pelos retratos, montando de uma vez o índice por matéria de cada um —
+       é dele que saem o total (a alocação) e a taxa por janela adaptativa (o
+       nível). Indexar retrato por retrato dentro de um laço de matérias faria
+       o mesmo trabalho dezenas de vezes. */
+    const desc = [];
+    const seu = Object.create(null);
+    let seuTotal = 0;
     try {
-      const c = DB.getCurrentCycle();
-      (c && c.subjects || []).forEach(m => {
-        const min = parseFloat(m.definidoMin) || 0;
-        if (min > 0) { plan[norm(m.nome)] = { nome: m.nome, min, fase: m.fase, dificuldade: m.dificuldade }; planTotal += min; }
+      (DB.getTecSnapshots() || []).slice().reverse().forEach(s => {
+        const idx = PlanoEngine._indice(s, p.apenasFolhas);
+        const agg = Object.create(null);
+        for (const k in idx) {
+          const d = k.split(SEP)[0];
+          const c = agg[d] || (agg[d] = { q: 0, ac: 0 });
+          c.q += idx[k].q; c.ac += idx[k].ac;
+          const t = seu[d] || (seu[d] = { q: 0, ac: 0, nome: idx[k].disciplina || d });
+          t.q += idx[k].q; t.ac += idx[k].ac; seuTotal += idx[k].q;
+        }
+        desc.push({ startDate: s.startDate, _idx: agg });
       });
-    } catch (e) { _quiet(e, 'tempo-ciclo'); }
-    // 2) o cumprido: minutos registrados por matéria, na janela do Plano
-    const feito = {};
-    let feitoTotal = 0;
-    try {
-      const desde = (() => { const d = new Date(todayLocal() + 'T00:00:00'); d.setDate(d.getDate() - (p.janelaMax || 365)); return d.toISOString().slice(0, 10); })();
-      (DB.getEntries() || []).forEach(e => {
-        const dt = String(e.date || e.data || '').slice(0, 10);
-        if (dt && dt < desde) return;
-        const m = parseFloat(e.durationMin || e.minutes || e.minutos) || 0;
-        if (!(m > 0)) return;
-        const k = norm(e.subject || e.materia || '');
-        if (!k) return;
-        feito[k] = (feito[k] || 0) + m; feitoTotal += m;
-      });
-    } catch (e) { _quiet(e, 'tempo-feito'); }
-    // 3) o peso: composição do edital (pós) ou incidência das bancas (pré)
-    const comp = PlanoPontos.composicao();
-    const peso = {}; const pesoNome = {}; let pesoTotal = 0; let fontePeso = null;
+    } catch (e) { _quiet(e, 'esforco-tec'); }
+    // 2) o peso da prova: composição do edital (pós) ou incidência das bancas (pré)
+    const peso = Object.create(null); const pesoNome = Object.create(null);
+    let pesoTotal = 0; let fontePeso = null;
+    /* `composicao()` NÃO OLHA O MODO — quem olha é `temComposicao()`. Usar a
+       primeira aqui fazia um edital antigo, guardado de um concurso já
+       encerrado, virar o peso da prova de um usuário que voltou ao pré-edital:
+       a incidência da banca, que é o peso certo ali, nem era consultada. */
+    const comp = PlanoPontos.temComposicao() ? PlanoPontos.composicao() : [];
     if (comp.length) {
       fontePeso = 'edital';
-      comp.forEach(m => { peso[norm(m.nome)] = m.valor; pesoNome[norm(m.nome)] = m.nome; pesoTotal += m.valor; });
+      comp.forEach(m => { const k = norm(m.nome); peso[k] = (peso[k] || 0) + m.valor; pesoNome[k] = m.nome; pesoTotal += m.valor; });
     } else {
       try {
-        const filtro = DesempenhoTecScreen.bancaFiltro();
-        const by = ReforcoEngine._incidByDisc(filtro);
+        const by = ReforcoEngine._incidByDisc(DesempenhoTecScreen.bancaFiltro());
         Object.keys(by).forEach(d => {
           const soma = by[d].reduce((a, r) => a + (r.incidencia || 0), 0);
-          if (soma > 0) { peso[norm(d)] = soma; pesoNome[norm(d)] = d; pesoTotal += soma; fontePeso = 'incidencia'; }
+          if (soma > 0) { const k = norm(d); peso[k] = (peso[k] || 0) + soma; pesoNome[k] = d; pesoTotal += soma; fontePeso = 'incidencia'; }
         });
-      } catch (e) { _quiet(e, 'tempo-peso'); }
+      } catch (e) { _quiet(e, 'esforco-peso'); }
     }
-    // 4) o nível: sua taxa por matéria, do histórico do TEC
-    const idx = PlanoEngine.totalHistorico(p);
-    const nivel = {};
-    Object.keys(idx).forEach(k => {
-      const disc = k.split(ReforcoEngine.SEP)[0];
-      const c = nivel[disc] || { q: 0, ac: 0 };
-      c.q += idx[k].q; c.ac += idx[k].ac; nivel[disc] = c;
+    /* 3) SOBROU UM NOME PARA CASAR, E SÓ UM. A incidência e o TEC vêm da mesma
+       fonte, então já batem. O EDITAL, não: aquelas matérias você digitou na
+       tela do ciclo. Casamos o edital com o TEC — de forma conservadora, e sem
+       nunca inventar — porque aqui o erro custa caro: uma matéria do edital que
+       não acha o histórico dela some da nota projetada, não só deste quadro. */
+    const casado = this._casarNomes(Object.keys(peso), Object.keys(seu));
+    Object.keys(casado).forEach(de => {
+      const para = casado[de];
+      if (de === para || peso[de] == null) return;
+      peso[para] = (peso[para] || 0) + peso[de];
+      if (!pesoNome[para]) pesoNome[para] = pesoNome[de];
+      delete peso[de]; delete pesoNome[de];
     });
-    /* 5) O MESMO NOME ESCRITO DE DOIS JEITOS FAZIA A MATÉRIA SUMIR DAS DUAS
-       PONTAS. O ciclo você digita ("Português"); a incidência e o TEC vêm da
-       banca ("Língua Portuguesa"). Como o veredito só nasce quando as duas
-       pontas existem, um nome diferente não deixava a linha errada — deixava a
-       linha INEXISTENTE, e o quadro seguia mostrando as matérias leves sem
-       dizer que a mais pesada da prova tinha ficado de fora. Casamos os nomes
-       antes de cruzar: primeiro o nível com o peso, depois o ciclo com os dois. */
-    const fundirNivel = this._casarNomes(Object.keys(nivel), Object.keys(peso));
-    Object.keys(fundirNivel).forEach(de => {
-      const para = fundirNivel[de];
-      if (de === para || !nivel[de]) return;
-      if (nivel[para]) { nivel[para].q += nivel[de].q; nivel[para].ac += nivel[de].ac; }
-      else { nivel[para] = nivel[de]; }
-      delete nivel[de];
-    });
-    const fundirPlan = this._casarNomes(Object.keys(plan), [].concat(Object.keys(peso), Object.keys(nivel)));
-    Object.keys(fundirPlan).forEach(de => {
-      const para = fundirPlan[de];
-      if (de === para || !plan[de]) return;
-      if (plan[para]) { plan[para].min += plan[de].min; }
-      else { plan[para] = plan[de]; }
-      delete plan[de];
-    });
-    const chaves = [...new Set([].concat(Object.keys(plan), Object.keys(peso), Object.keys(nivel)))];
+    /* 4) UMA LINHA POR MATÉRIA, E TODAS ELAS. A união das duas pontas: o que
+       você resolveu e o que a prova cobra. Nada é descartado por não ter par —
+       "peso alto e zero questão" é justamente o alarme que interessa. */
+    const chaves = [...new Set([].concat(Object.keys(seu), Object.keys(peso)))];
     const linhas = chaves.map(k => {
-      const pl = plan[k];
-      const n = nivel[k];
-      const shareTempo = planTotal > 0 && pl ? pl.min / planTotal * 100 : null;
-      const sharePeso = pesoTotal > 0 && peso[k] != null ? peso[k] / pesoTotal * 100 : null;
-      const taxa = (n && n.q > 0) ? (n.ac / n.q * 100) : null;
+      const s = seu[k];
+      const q = s ? s.q : 0;
+      const shareEsforco = seuTotal > 0 ? q / seuTotal * 100 : (q > 0 ? 100 : 0);
+      const sharePeso = pesoTotal > 0 ? (peso[k] || 0) / pesoTotal * 100 : null;
+      /* O NÍVEL VEM DA JANELA ADAPTATIVA, NÃO DA MÉDIA DA VIDA. Quem consertou
+         Contabilidade há três meses continuaria aparecendo como fraco nela: a
+         média da vida inteira mente sempre na direção do passado. */
+      let taxa = null, medido = 0;
+      if (q > 0) {
+        const a = PlanoEngine._taxaAdaptativa(k, desc, p);
+        if (a) { medido = a.q; if (a.q >= (p.minAmostra || 20)) taxa = a.pct; }
+      }
       /* O VEREDITO É UMA RAZÃO, NÃO UMA DIFERENÇA. Cinco pontos percentuais a
-         mais de tempo numa matéria que vale 40% é ruído; os mesmos cinco numa
+         mais de esforço numa matéria que vale 40% é ruído; os mesmos cinco numa
          que vale 3% é o dobro do que ela merece. A razão captura isso; a
-         subtração não. Só falamos quando há os dois lados. */
+         subtração não. */
       let veredito = null, razao = null;
-      if (shareTempo != null && sharePeso != null && sharePeso > 0) {
-        razao = shareTempo / sharePeso;
-        const forte = taxa != null && taxa >= p.metaDominio;
+      const forte = taxa != null && taxa >= p.metaDominio;
+      if (sharePeso == null) {
+        veredito = null;                                  // sem peso declarado não há o que comparar
+      } else if (sharePeso <= 0) {
+        veredito = q > 0 ? 'foraDoPeso' : null;           // esforço numa matéria que a prova não cobra
+      } else if (q <= 0) {
+        veredito = 'intocada';                            // vale ponto e você nunca resolveu uma questão
+        razao = 0;
+      } else {
+        razao = shareEsforco / sharePeso;
         if (razao >= 1.6) veredito = forte ? 'sobra' : 'sobraFraco';
-        else if (razao <= 0.6) veredito = (taxa != null && taxa < p.metaDominio) ? 'falta' : 'faltaForte';
+        else if (razao <= 0.6) veredito = forte ? 'faltaForte' : 'falta';
         else veredito = 'equilibrada';
       }
-      return {
-        chave: k, nome: (pl && pl.nome) || pesoNome[k] || (n && n.nome) || k,
-        planMin: pl ? pl.min : null, feitoMin: feito[k] || 0,
-        shareTempo, sharePeso, taxa, medido: n ? n.q : 0,
-        razao, veredito, fase: pl ? pl.fase : null, dificuldade: pl ? pl.dificuldade : null,
-        cumprimento: (pl && pl.min > 0) ? (feito[k] || 0) / pl.min * 100 : null
-      };
-    }).filter(l => l.shareTempo != null || l.sharePeso != null);
-    linhas.sort((a, b) => (b.sharePeso == null ? -1 : b.sharePeso) - (a.sharePeso == null ? -1 : a.sharePeso));
-    /* Contam como desalinhamento os dois excessos e a falta. "Muito tempo numa
-       matéria leve onde você AINDA vai mal" (`sobraFraco`) é o pior dos três e
-       ficava de fora da contagem: é tempo caro comprando pouco ponto e nem
-       resolvendo a fraqueza. O que não conta é `faltaForte` — pouco tempo numa
-       matéria que você já domina é alocação certa, não desalinhamento. */
-    /* O QUE O QUADRO NÃO ESTÁ CONTANDO, DITO EM VOZ ALTA. Uma matéria só ganha
-       veredito quando tem tempo E peso; calar as outras fazia o quadro parecer
-       completo quando cobria metade. Devolvemos a cobertura e as duas sobras,
-       para a tela poder acusar a falta em vez de fingir que não existe. */
-    const comVeredito = linhas.filter(l => l.veredito);
-    const ordDesc = (campo) => (a, b) => b[campo] - a[campo];
-    return { linhas, planTotal, feitoTotal, fontePeso,
-      cobTempo: comVeredito.reduce((a, l) => a + (l.shareTempo || 0), 0),
-      cobPeso: comVeredito.reduce((a, l) => a + (l.sharePeso || 0), 0),
-      semPeso: linhas.filter(l => l.shareTempo != null && l.sharePeso == null).sort(ordDesc('shareTempo')),
-      semTempo: linhas.filter(l => l.sharePeso != null && l.shareTempo == null).sort(ordDesc('sharePeso')),
-      desalinhadas: linhas.filter(l => l.veredito === 'sobra' || l.veredito === 'sobraFraco' || l.veredito === 'falta').length };
+      /* ── QUEM MERECE UMA LINHA SÓ SUA ──────────────────────────────────
+         Cobrir tudo é obrigação; virar parede não. Uma banca com trinta
+         disciplinas produzia vinte linhas de "0% · 0 questões" que empurravam
+         a decisão de verdade para fora da tela — e o quadro passa a mentir de
+         novo, agora por excesso.
+
+         Dois resumos, cada um com um motivo diferente:
+         · MIÚDA (abaixo de 1% dos dois lados) é rodapé puro. Não conta na
+           manchete: uma disciplina que vale 0,4% da banca e que você nunca
+           tocou não é desalinhamento nenhum.
+         · NÃO TOCADA pequena (nunca resolvida, abaixo de 5% da prova) CONTA na
+           manchete e some da lista. Uma sozinha não decide nada; nove somando
+           18% da prova decidem — e é por isso que o resumo mostra a SOMA
+           delas, não só o número. */
+      const miuda = (sharePeso == null || sharePeso < this.MIUDA_PCT) && shareEsforco < this.MIUDA_PCT;
+      const resumo = miuda ? 'miuda'
+        : (veredito === 'intocada' && (sharePeso || 0) < this.INTOCADA_PCT) ? 'intocada' : null;
+      return { chave: k, nome: (s && s.nome) || pesoNome[k] || k,
+        q, shareEsforco, sharePeso, taxa, medido, razao, veredito, miuda, resumo };
+    });
+    /* Ordem: o que pesa na prova primeiro; empatado, o que levou mais esforço.
+       Quem não tem peso nenhum vai para o fim — é rodapé, não manchete. */
+    linhas.sort((a, b) => (b.sharePeso || 0) - (a.sharePeso || 0) || b.shareEsforco - a.shareEsforco);
+    /* CONTAM COMO DESALINHAMENTO os dois excessos, a falta e a intocada. Não
+       conta `faltaForte` — pouco esforço numa matéria que você já domina é
+       alocação certa — nem `foraDoPeso`, que é aviso, não erro: pode ser
+       incidência não importada em vez de esforço jogado fora. */
+    const ALARME = { sobra: 1, sobraFraco: 1, falta: 1, intocada: 1 };
+    return { linhas, seuTotal, pesoTotal, fontePeso,
+      desalinhadas: linhas.filter(l => ALARME[l.veredito] && !l.miuda).length };
   },
+  MIUDA_PCT: 1,
+  INTOCADA_PCT: 5,
   /* CASA "PORTUGUÊS" COM "LÍNGUA PORTUGUESA" SEM INVENTAR. Duas regras, as duas
      conservadoras: igualdade exata vence sempre; na falta dela, os tokens
      significativos de um nome precisam ser subconjunto dos do outro E o
@@ -31738,7 +31826,26 @@ const PlanoPontos = {
         const longo = ta.length <= tb.length ? tb : ta;
         return curto.every(t => longo.indexOf(t) >= 0);
       });
-      if (cands.length === 1) out[a] = cands[0];
+      if (cands.length === 1) { out[a] = cands[0]; return; }
+      if (cands.length) return;                                // ambíguo: não chuta
+      /* 3ª REGRA — A ABREVIATURA. "Dir Adm" e "Direito Administrativo" não têm
+         token em comum nem um é subconjunto do outro, e é como metade dos
+         editais é digitada. Casamos só quando a forma é inequívoca: MESMA
+         quantidade de palavras e cada palavra de um lado prefixo da palavra
+         correspondente do outro, na ordem, com pelo menos três letras. Assim
+         "Dir Adm"→"Direito Administrativo" passa e "Cont"→"Contabilidade
+         Geral" não (uma palavra contra duas), e a unicidade continua valendo:
+         "Dir" sozinho encontraria quatro e não casa com nenhuma. */
+      const abrev = nomesB.filter(b => {
+        const tb = setB[b];
+        if (tb.length !== ta.length) return false;
+        return ta.every((t, i) => {
+          const u = tb[i];
+          const [c, g] = t.length <= u.length ? [t, u] : [u, t];
+          return c.length >= 3 && g.indexOf(c) === 0;
+        });
+      });
+      if (abrev.length === 1) out[a] = abrev[0];
     });
     return out;
   },
@@ -31750,7 +31857,10 @@ const PlanoPontos = {
   dificuldadeMedida(nomeMateria, opts) {
     const p = Object.assign({}, PlanoEngine.prefs(), opts || {});
     const idx = PlanoEngine.totalHistorico(p);
-    const alvo = ReforcoEngine.norm(nomeMateria || '');
+    const discs = [...new Set(Object.keys(idx).map(k => k.split(ReforcoEngine.SEP)[0]))];
+    // o nome vem do ciclo, digitado; as disciplinas vêm da banca. Casa antes de somar.
+    const alvo = this._casarNomes([ReforcoEngine.norm(nomeMateria || '')], discs)[ReforcoEngine.norm(nomeMateria || '')]
+      || ReforcoEngine.norm(nomeMateria || '');
     let q = 0, ac = 0;
     Object.keys(idx).forEach(k => {
       if (k.split(ReforcoEngine.SEP)[0] !== alvo) return;
@@ -31768,8 +31878,11 @@ const PlanoPontos = {
      matéria sustentam a meta. */
   solidezDe(nomeMateria, r) {
     if (!r || r.erro) return null;
-    const alvo = ReforcoEngine.norm(nomeMateria || '');
-    const todos = [].concat(r.itens || [], r.pequenas || []).filter(x => ReforcoEngine.norm(x.disciplina || '') === alvo);
+    const base = [].concat(r.itens || [], r.pequenas || []);
+    const alvoBruto = ReforcoEngine.norm(nomeMateria || '');
+    const discs = [...new Set(base.map(x => ReforcoEngine.norm(x.disciplina || '')).filter(Boolean))];
+    const alvo = this._casarNomes([alvoBruto], discs)[alvoBruto] || alvoBruto;
+    const todos = base.filter(x => ReforcoEngine.norm(x.disciplina || '') === alvo);
     if (!todos.length) return null;
     const naMeta = todos.filter(x => x.taxa >= r.meta).length;
     return { total: todos.length, naMeta, abaixo: todos.length - naMeta };
@@ -33669,54 +33782,57 @@ const DesempenhoTecScreen = {
         <b>Qtd. Q.</b> e <b>Pts/Q</b> por matéria em ⚙ Ciclo e o Plano passa a contar
         <b>pontos</b> em vez de domínio.</p>` : '';
     /* ── O QUADRO QUE RESPONDE "QUAIS MATÉRIAS EU PRIORIZO" ───────────────── */
-    const tm = PlanoPontos.tempoPorMateria(opts);
+    const tm = PlanoPontos.esforcoPorMateria(opts);
     const VER = {
-      sobra: ['⚠️', 'tone-warn', 'tempo sobrando onde você já vai bem'],
-      sobraFraco: ['🟠', 'tone-warn', 'muito tempo para o peso que ela tem'],
-      falta: ['🔴', 'tone-bad', 'falta tempo onde mais vale ponto'],
-      faltaForte: ['✅', 'tone-good', 'pouco tempo, mas você já domina'],
-      equilibrada: ['✅', 'tone-good', 'equilibrada']
+      sobra:      ['⚠️', 'tone-warn', 'esforço sobrando onde você já vai bem'],
+      sobraFraco: ['🟠', 'tone-warn', 'muito esforço para o peso que ela tem'],
+      falta:      ['🔴', 'tone-bad',  'pouco esforço onde mais vale ponto'],
+      intocada:   ['🔴', 'tone-bad',  'vale ponto e você nunca resolveu uma questão'],
+      faltaForte: ['✅', 'tone-good', 'pouco esforço, mas você já domina'],
+      equilibrada:['✅', 'tone-good', 'equilibrada'],
+      foraDoPeso: ['⚪', 'tone-soft', 'não aparece no peso da sua prova']
     };
     const comVeredito = tm.linhas.filter(l => l.veredito);
-    /* O nome da matéria no CICLO e o nome da disciplina no TEC podem divergir
-       em acento e caixa. O botão precisa do valor que o filtro entende, então
-       ele sai da própria lista do Plano — se a matéria não tem assunto nenhum
-       medido, não há para onde levar, e o botão não nasce. */
+    /* O nome da matéria no TEC e o valor que o filtro da lista entende são o
+       mesmo, mas o botão sai da própria lista do Plano: se a matéria não tem
+       assunto medido, não há para onde levar, e o botão não nasce. */
     const discDoPlano = {};
     [].concat(r.itens || [], r.pequenas || []).forEach(x => {
       const k = ReforcoEngine.norm(x.disciplina || '');
       if (k && !discDoPlano[k]) discDoPlano[k] = x.disciplina;
     });
-    /* ── O QUE FICOU FORA DO CRUZAMENTO ────────────────────────────────────
-       Uma matéria sem peso registrado, ou sem tempo no ciclo, não tem veredito
-       possível — mas o silêncio dela era pior que a ausência: o quadro exibia
-       oito linhas leves como se fossem a prova inteira. Só falamos das que
-       PESAM (acima do limiar): não ter no ciclo uma disciplina que vale 1% da
-       banca é escolha, não esquecimento. */
-    const LIMIAR_FORA = 3;
-    const fora = (arr, campo, rot) => {
-      const rel = (arr || []).filter(l => (l[campo] || 0) >= LIMIAR_FORA);
-      if (!rel.length) return '';
-      return rot + ': ' + rel.slice(0, 3).map(l => `<b>${escapeHtml(l.nome)}</b> (${l[campo].toFixed(0)}%)`).join(', ')
-        + (rel.length > 3 ? ` e mais ${rel.length - 3}` : '');
+    /* ── UMA LINHA POR MATÉRIA, MAS NÃO UMA PAREDE DE LINHAS ───────────────
+       A cobertura agora é total: toda matéria com peso e toda matéria com
+       questão sua tem linha. Só que uma disciplina que vale 0,4% da banca e
+       que você nunca tocou não é decisão nenhuma — é rodapé. As miúdas dos
+       DOIS lados viram uma linha só, somada, para a soma continuar fechando
+       sem transformar o quadro numa lista telefônica. */
+    const grandes = comVeredito.filter(l => !l.resumo);
+    const soma = (tipo) => {
+      const arr = comVeredito.filter(l => l.resumo === tipo);
+      return arr.length ? arr.reduce((a, l) => ({ n: a.n + 1, peso: a.peso + (l.sharePeso || 0), esf: a.esf + l.shareEsforco }), { n: 0, peso: 0, esf: 0 }) : null;
     };
-    const partesFora = [
-      fora(tm.semPeso, 'shareTempo', 'levam seu tempo mas não têm peso registrado'),
-      fora(tm.semTempo, 'sharePeso', 'valem ponto mas não têm tempo no ciclo')
-    ].filter(Boolean);
-    const blocoFora = !partesFora.length ? '' : `<p class="pl-ciclo-obs pl-tempo-fora">⚠️ Este quadro só cruza matérias que existem nos dois lados — hoje ${(tm.cobTempo || 0).toFixed(0)}% do seu tempo e ${(tm.cobPeso || 0).toFixed(0)}% do peso da prova. Ficaram de fora as que ${partesFora.join('; e as que ')}. Na maioria das vezes é o mesmo nome escrito de dois jeitos no ciclo e na banca — igualar o nome traz a matéria para cá.</p>`;
+    const rMiudas = soma('miuda');
+    const rIntocadas = soma('intocada');
+    const linhaResumo = (r, um, muitos, obs, tom) => !r ? '' : `<tr class="pl-tempo-miudas">
+                  <td><b>+ ${r.n} ${r.n === 1 ? um : muitos}</b><span class="pl-ciclo-obs">${obs}</span></td>
+                  <td>${r.esf.toFixed(0)}%</td>
+                  <td>${r.peso.toFixed(0)}%</td>
+                  <td>—</td>
+                  <td><span class="reforco-tag ${tom}">somadas, para o quadro não perder nada</span></td>
+                </tr>`;
     const blocoTempo = (!comVeredito.length) ? '' : `
       <details class="pl-ciclo pl-tempo"${tm.desalinhadas ? ' open' : ''}>
         <summary>
-          <strong>⚖️ Onde o seu tempo está indo</strong>
-          <span>${tm.desalinhadas ? `<b class="tone-bad">${tm.desalinhadas} ${tm.desalinhadas === 1 ? 'matéria desalinhada' : 'matérias desalinhadas'}</b>` : 'tempo e peso alinhados'} · peso ${tm.fontePeso === 'edital' ? 'pelo edital que você declarou' : 'pela incidência das suas bancas'}</span>
+          <strong>⚖️ Onde o seu esforço está indo</strong>
+          <span>${tm.desalinhadas ? `<b class="tone-bad">${tm.desalinhadas} ${tm.desalinhadas === 1 ? 'matéria desalinhada' : 'matérias desalinhadas'}</b>` : 'esforço e peso alinhados'} · peso ${tm.fontePeso === 'edital' ? 'pelo edital que você declarou' : 'pela incidência das suas bancas'}</span>
           <span class="chev">▾</span>
         </summary>
         <div class="pl-tempo-wrap">
           <table class="pl-tempo-tab">
-            <thead><tr><th>matéria</th><th>seu tempo</th><th>peso</th><th>nível</th><th>veredito</th></tr></thead>
+            <thead><tr><th>matéria</th><th>suas questões</th><th>peso</th><th>nível</th><th>veredito</th></tr></thead>
             <tbody>
-              ${comVeredito.map(l => {
+              ${grandes.map(l => {
                 const [ic, tom, rot] = VER[l.veredito];
                 /* ── DA MATÉRIA PARA O ASSUNTO, EM UM TOQUE ────────────────
                    A tabela fala de MATÉRIAS; a lista abaixo fala de ASSUNTOS,
@@ -33729,23 +33845,25 @@ const DesempenhoTecScreen = {
                    Só nas matérias que pedem ação: numa linha ✅ o botão seria
                    um convite a fazer o que a tela acabou de dizer para não
                    fazer. E só quando a matéria existe na lista do Plano — sem
-                   assunto medido, o filtro abriria numa tela vazia. */
+                   assunto medido, o filtro abriria numa tela vazia, e é
+                   exatamente o caso de "intocada". */
                 const alvo = (l.veredito === 'falta' || l.veredito === 'sobraFraco') ? discDoPlano[l.chave] : null;
                 return `<tr>
-                  <td><b>${escapeHtml(l.nome)}</b>${l.cumprimento != null && l.cumprimento < 60 ? `<span class="pl-ciclo-obs">só ${l.cumprimento.toFixed(0)}% do planejado foi cumprido</span>` : ''}</td>
-                  <td>${l.shareTempo.toFixed(0)}%</td>
-                  <td>${l.sharePeso.toFixed(0)}%</td>
+                  <td><b>${escapeHtml(l.nome)}</b></td>
+                  <td>${l.shareEsforco.toFixed(0)}%<span class="pl-ciclo-obs">${l.q.toLocaleString('pt-BR')} questões</span></td>
+                  <td>${l.sharePeso == null ? '—' : l.sharePeso.toFixed(0) + '%'}</td>
                   <td class="tone-${l.taxa == null ? '' : l.taxa >= r.meta ? 'good' : l.taxa < r.faixaFragil ? 'bad' : 'warn'}">${l.taxa != null ? l.taxa.toFixed(0) + '%' : '—'}</td>
                   <td><span class="reforco-tag ${tom}">${ic} ${rot}</span>${alvo
                     ? `<button type="button" class="pl-ciclo-acao pl-atacar" data-atacar="${escapeHtml(alvo)}"
                         title="Filtra a lista por ${escapeHtml(alvo)} e leva você ao bloco de criar atividades">→ atacar esta matéria</button>` : ''}</td>
                 </tr>`;
               }).join('')}
+              ${linhaResumo(rIntocadas, 'matéria que você ainda não tocou', 'matérias que você ainda não tocou', 'nenhuma questão sua, cada uma abaixo de 5% da prova', 'tone-warn')}
+              ${linhaResumo(rMiudas, 'matéria miúda', 'matérias miúdas', 'abaixo de 1% dos dois lados', 'tone-soft')}
             </tbody>
           </table>
         </div>
-        ${blocoFora}
-        <p class="pl-ciclo-obs">O tempo vem do seu ciclo; o nível, do TEC. Aceitar ir mal numa matéria que vale pouco é decisão sua — o que este quadro impede é você fazer essa troca sem perceber.</p>
+        <p class="pl-ciclo-obs">A moeda aqui é a <b>questão</b>, não o minuto: é a única que os dois lados falam — o peso da banca é contado em questões e o seu esforço no TEC também. Por isso o quadro não depende do nome que você deu às matérias no ciclo, e nenhuma matéria fica de fora: as que a prova cobra e as que você resolveu estão todas aqui. Aceitar ir mal numa matéria que vale pouco é decisão sua — o que ele impede é você fazer essa troca sem perceber.</p>
       </details>`;
     const cal = PlanoCiclo.calibragem();
     const blocoCal = (cal && cal.pronta && cal.divergente) ? `

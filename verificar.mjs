@@ -1874,9 +1874,6 @@ try {
       DB.getActiveSubjects = () => ([
         { nome: 'Dir Adm', qtdQuestoes: 40, pontosPorQuestao: 1, peso: 1 },
         { nome: 'Portugues', qtdQuestoes: 5, pontosPorQuestao: 1, peso: 1, minimoPct: 60 }]);
-      /* O quadro de tempo precisa dos DOIS lados: o peso (edital) e as horas
-         (ciclo). Aqui o ciclo poe 3h em Portugues (5 questoes na prova) e 1h em
-         Dir Adm (40 questoes) — o desalinhamento classico, de proposito. */
       DB.getCurrentCycle = () => ({ subjects: [
         { nome: 'Portugues', definidoMin: 180, fase: 'Novo', dificuldade: 2 },
         { nome: 'Dir Adm', definidoMin: 60, fase: 'Novo', dificuldade: 3 }] });
@@ -1895,11 +1892,6 @@ try {
         primeiroPorPontos: r.itens[0] ? r.itens[0].disciplina + '/' + r.itens[0].nome : null,
         elim1: r.itens[0] ? !!r.itens[0].eliminatoria : null,
         tempo: !!document.querySelector('.pl-tempo'),
-        desalinhadas: PlanoPontos.tempoPorMateria().desalinhadas,
-        // os DOIS lados do desalinhamento, nomeados: sem isso o teste passava
-        // com metade da regra desligada
-        vereditos: PlanoPontos.tempoPorMateria().linhas.map((l) => l.nome + ':' + l.veredito).sort(),
-        linhasTempo: document.querySelectorAll('.pl-tempo-tab tbody tr').length,
         podre: /\bNaN\b|\bundefined\b|\bInfinity\b/.test(t)
       };
       PlanoPontos.setCorte('');
@@ -1946,7 +1938,7 @@ try {
       return out;
     } finally { DB.getActiveSubjects = origSubs; window.planCycleMode = origModo; DB.getCurrentCycle = origCiclo; }
   });
-  const pedemAcao = (atk.linhas || []).filter((l) => /falta|muito tempo/.test(l.ver));
+  const pedemAcao = (atk.linhas || []).filter((l) => /pouco esforço|muito esforço|nunca resolveu/.test(l.ver));
   const naoPedem = (atk.linhas || []).filter((l) => /equilibrada|já domina/.test(l.ver));
   (pedemAcao.length >= 1 && pedemAcao.every((l) => l.botao) && naoPedem.every((l) => !l.botao))
     ? ok(`o botao "atacar esta materia" so aparece nas ${pedemAcao.length} linha(s) que pedem acao`)
@@ -1955,59 +1947,102 @@ try {
     ? ok(`clicar filtra a lista pela materia (${atk.antes} → ${atk.depois} assuntos) e mantem o bloco de criar atividades`)
     : erro('o botao nao filtrou a lista: ' + JSON.stringify(atk));
 
-  /* ── O MESMO NOME ESCRITO DE DOIS JEITOS ───────────────────────────────
-     O ciclo voce digita ("Portugues"); a incidencia e o TEC vem da banca
-     ("Lingua Portuguesa"). O veredito so nasce quando as duas pontas existem,
-     entao um nome diferente nao deixava a linha errada: deixava a linha
-     INEXISTENTE — e o quadro seguia mostrando as materias leves como se
-     fossem a prova inteira. O usuario via 8 linhas somando 23% do peso e nao
-     tinha como saber que os outros 77% haviam sumido. */
-  const nomes = await pag.evaluate(() => {
+  /* ── O QUADRO DE ESFORCO NAO DEPENDE DO NOME QUE VOCE DIGITOU ──────────
+     A primeira versao comparava os MINUTOS do ciclo com o peso da banca, e as
+     duas pontas falavam linguas diferentes: o ciclo voce digita ("Portugues"),
+     a banca manda "Lingua Portuguesa". O veredito so nascia com as duas pontas,
+     entao um nome diferente nao deixava a linha errada — deixava a linha
+     INEXISTENTE. O usuario via oito materias leves somando 23% do peso sem ter
+     como saber que os outros 77% da prova haviam sumido calados.
+
+     A moeda passou a ser a QUESTAO, a unica que os dois lados ja falam. Aqui o
+     ciclo esta escrito de proposito num idioma que nao existe em lugar nenhum
+     ("Port.", "Const"): o quadro tem de sair igual. */
+  const esf = await pag.evaluate(() => {
     const origIncid = ReforcoEngine._incidByDisc, origSubs = DB.getActiveSubjects,
-      origModo = window.planCycleMode, origCiclo = DB.getCurrentCycle;
+      origModo = window.planCycleMode, origCiclo = DB.getCurrentCycle, origSnaps = DB.getTecSnapshots;
     try {
       const I = (d, n) => ({ codigo: '01', nome: 'Geral', disciplina: d, incidencia: n });
-      ReforcoEngine._incidByDisc = () => ({ 'Lingua Portuguesa': [I('Lingua Portuguesa', 100)],
-        'Dir Adm': [I('Dir Adm', 100)], 'Direito Constitucional': [I('Direito Constitucional', 200)] });
+      // a banca cobra Constitucional acima de tudo; Contabilidade quase nada
+      ReforcoEngine._incidByDisc = () => ({
+        'Direito Constitucional': [I('Direito Constitucional', 500)],
+        'Lingua Portuguesa': [I('Lingua Portuguesa', 300)],
+        'Contabilidade Geral': [I('Contabilidade Geral', 100)],
+        'Arquivologia': [I('Arquivologia', 6)], 'Ingles': [I('Ingles', 5)],
+        // tres materias pequenas e NUNCA tocadas: sozinhas nao decidem nada,
+        // somadas valem mais que a Contabilidade em que ele gasta 2/3 do esforco
+        'Direito Penal': [I('Direito Penal', 40)], 'Direito Civil': [I('Direito Civil', 40)],
+        'Estatistica': [I('Estatistica', 40)] });
       DB.getActiveSubjects = () => [];
       window.planCycleMode = () => 'pre';
-      DB.getCurrentCycle = () => ({ subjects: [{ nome: 'Portugues', definidoMin: 180 }, { nome: 'Dir Adm', definidoMin: 60 }] });
+      // o ciclo fala outro idioma — e agora e irrelevante
+      DB.getCurrentCycle = () => ({ subjects: [{ nome: 'Port.', definidoMin: 999 }, { nome: 'Const', definidoMin: 999 }] });
+      const dia = (n) => { const d = new Date(todayLocal() + 'T00:00:00'); d.setDate(d.getDate() - n); return d.toISOString().slice(0, 10); };
+      // o esforco: muito em Contabilidade (leve), nada em Constitucional (pesadissima)
+      const linhas = [];
+      [['Lingua Portuguesa', 100, 90], ['Contabilidade Geral', 600, 300], ['Musica', 100, 90]]
+        .forEach(([d, q, ac]) => {
+          linhas.push({ depth: 0, codigo: null, nome: d, disciplina: d, questoes: q, acertos: ac });
+          linhas.push({ depth: 1, codigo: '01', nome: 'Geral', disciplina: d, questoes: q, acertos: ac });
+        });
+      DB.getTecSnapshots = () => ([{ id: 'e1', nome: 'e1', date: dia(2), startDate: dia(30), endDate: dia(2), rows: linhas }]);
       DesempenhoTecScreen._planoRefC = null;
       DesempenhoTecScreen.renderPlano();
-      const tm = PlanoPontos.tempoPorMateria();
-      const casa = (a, b) => PlanoPontos._casarNomes(a.map((x) => ReforcoEngine.norm(x)), b.map((x) => ReforcoEngine.norm(x)));
+      const tm = PlanoPontos.esforcoPorMateria();
+      const por = {}; tm.linhas.forEach((l) => { por[ReforcoEngine.norm(l.nome)] = l; });
+      const tela = document.querySelector('.pl-tempo');
       return {
-        linhas: [...document.querySelectorAll('.pl-tempo-tab tbody tr')].map((tr) => tr.querySelector('td b').textContent),
-        cobTempo: tm.cobTempo, cobPeso: tm.cobPeso,
-        semTempo: tm.semTempo.map((l) => l.nome),
-        nota: (document.querySelector('.pl-tempo-fora') || {}).textContent || '',
-        // e o casamento nao pode virar palpite:
-        exato: casa(['Contabilidade Geral'], ['Contabilidade de Custos', 'Contabilidade Geral'])['contabilidade geral'],
-        naoCasaIrmas: casa(['Contabilidade Geral'], ['Contabilidade de Custos'])['contabilidade geral'],
-        naoCasaAmbiguo: casa(['Direito'], ['Direito Penal', 'Direito Civil'])['direito'],
-        casaGenero: casa(['Portugues'], ['Lingua Portuguesa'])['portugues']
+        somaPeso: tm.linhas.reduce((a, l) => a + (l.sharePeso || 0), 0),
+        somaEsforco: tm.linhas.reduce((a, l) => a + l.shareEsforco, 0),
+        nLinhas: tm.linhas.length,
+        intocada: (por['direito constitucional'] || {}).veredito,
+        sobra: (por['contabilidade geral'] || {}).veredito,
+        forte: (por['lingua portuguesa'] || {}).veredito,
+        foraDoPeso: (por['musica'] || {}).veredito,
+        qPortugues: (por['lingua portuguesa'] || {}).q,
+        linhasTela: document.querySelectorAll('.pl-tempo-tab tbody tr').length,
+        resumos: [...document.querySelectorAll('.pl-tempo-miudas td:first-child')].map((td) => td.textContent.replace(/\s+/g, ' ')),
+        pesoResumido: [...document.querySelectorAll('.pl-tempo-miudas')].map((tr) => parseFloat(tr.children[2].textContent) || 0),
+        desalinhadas: tm.desalinhadas,
+        temMiudas: !!document.querySelector('.pl-tempo-miudas'),
+        texto: tela ? tela.textContent.replace(/\s+/g, ' ') : '',
+        // e o casamento de nomes segue conservador onde ainda e necessario
+        casaGenero: PlanoPontos._casarNomes(['portugues'], ['lingua portuguesa'])['portugues'],
+        naoCasaIrmas: PlanoPontos._casarNomes(['contabilidade geral'], ['contabilidade de custos'])['contabilidade geral'],
+        naoCasaAmbiguo: PlanoPontos._casarNomes(['direito'], ['direito penal', 'direito civil'])['direito']
       };
     } finally {
       ReforcoEngine._incidByDisc = origIncid; DB.getActiveSubjects = origSubs;
-      window.planCycleMode = origModo; DB.getCurrentCycle = origCiclo;
+      window.planCycleMode = origModo; DB.getCurrentCycle = origCiclo; DB.getTecSnapshots = origSnaps;
     }
   });
-  (nomes.linhas.length === 2 && nomes.linhas.some((n) => /Portugues/.test(n)) && nomes.cobTempo > 99)
-    ? ok(`"Portugues" do ciclo casa com "Lingua Portuguesa" da banca — o quadro cobre ${nomes.cobTempo.toFixed(0)}% do tempo em vez de perder a materia`)
-    : erro('a conciliacao de nomes falhou: ' + JSON.stringify(nomes));
-  (nomes.semTempo.includes('Direito Constitucional') && /Direito Constitucional/.test(nomes.nota) && /% do peso/.test(nomes.nota))
-    ? ok('e o que sobrou de fora e dito em voz alta, com nome e peso, em vez de sumir calado')
-    : erro('a tela nao acusou a materia pesada fora do ciclo: ' + JSON.stringify({ semTempo: nomes.semTempo, nota: nomes.nota.slice(0, 160) }));
-  (nomes.exato === 'contabilidade geral' && nomes.naoCasaIrmas === undefined
-    && nomes.naoCasaAmbiguo === undefined && nomes.casaGenero === 'lingua portuguesa')
-    ? ok('o casamento e conservador: exato vence, irmas nao se fundem e ambiguidade nao vira palpite')
-    : erro('o casamento de nomes virou palpite: ' + JSON.stringify(nomes));
+  (Math.abs(esf.somaPeso - 100) < 0.01 && Math.abs(esf.somaEsforco - 100) < 0.01 && esf.nLinhas === 9)
+    ? ok(`nada some: ${esf.nLinhas} materias, peso somando ${esf.somaPeso.toFixed(0)}% e esforco ${esf.somaEsforco.toFixed(0)}%`)
+    : erro('a cobertura do quadro de esforco falhou: ' + JSON.stringify(esf));
+  (esf.intocada === 'intocada' && esf.sobra === 'sobraFraco' && esf.forte === 'faltaForte' && esf.foraDoPeso === 'foraDoPeso')
+    ? ok('e os quatro casos sao nomeados: intocada (pesa e voce nunca resolveu), sobraFraco, faltaForte e foraDoPeso')
+    : erro('os vereditos do quadro de esforco sairam errados: ' + JSON.stringify(esf));
+  (esf.qPortugues === 100 && !/seu tempo/i.test(esf.texto) && /questões|questão/.test(esf.texto))
+    ? ok('o quadro sai igual com o ciclo escrito em outro idioma ("Port.", "Const") — a moeda e a questao')
+    : erro('o quadro ainda depende do ciclo: ' + JSON.stringify({ q: esf.qPortugues, t: esf.texto.slice(0, 160) }));
+  /* COBRIR TUDO E OBRIGACAO; VIRAR PAREDE NAO. Uma banca com trinta
+     disciplinas produzia vinte linhas de "0% · 0 questoes" que empurravam a
+     decisao de verdade para fora da tela. Os dois resumos existem por motivos
+     diferentes: a miuda e rodape e NAO conta na manchete; a nao-tocada pequena
+     CONTA — uma sozinha nao decide nada, tres somando 17% da prova decidem. */
+  const rIntoc = esf.resumos.find((t) => /ainda não tocou/.test(t));
+  const rMiud = esf.resumos.find((t) => /miúda/.test(t));
+  (esf.resumos.length === 2 && /3 matérias/.test(rIntoc || '') && /2 matérias/.test(rMiud || ''))
+    ? ok(`as pequenas viram dois resumos, cada um com o seu motivo (${esf.resumos.map((t) => t.split('nenhuma')[0].split('abaixo')[0].trim()).join(' · ')})`)
+    : erro('o agrupamento das pequenas falhou: ' + JSON.stringify(esf.resumos));
+  (esf.pesoResumido[0] >= 11 && esf.desalinhadas === 5)
+    ? ok(`e o resumo mostra a SOMA (${esf.pesoResumido[0]}% da prova nunca tocada) — a manchete conta as 3 resumidas, mas nao as 2 miudas`)
+    : erro('a soma ou a manchete sairam erradas: ' + JSON.stringify({ pesos: esf.pesoResumido, desalinhadas: esf.desalinhadas }));
+  (esf.casaGenero === 'lingua portuguesa' && esf.naoCasaIrmas === undefined && esf.naoCasaAmbiguo === undefined)
+    ? ok('e o casamento de nomes, onde ainda e preciso (edital digitado x banca), segue conservador')
+    : erro('o casamento de nomes virou palpite: ' + JSON.stringify(esf));
 
-  const temFalta = (pts.vereditos || []).some((v) => /:falta$/.test(v));
-  const temSobra = (pts.vereditos || []).some((v) => /:sobra(Fraco)?$/.test(v));
-  (pts.tempo && pts.linhasTempo === 2 && temFalta && temSobra && pts.desalinhadas === 2)
-    ? ok(`o quadro acusa os DOIS lados: falta tempo onde vale ponto e sobra onde nao vale (${pts.vereditos.join(' · ')})`)
-    : erro('o quadro de tempo por materia falhou: ' + JSON.stringify(pts));
+  pts.tempo ? ok('e o quadro de esforco por materia esta na tela') : erro('o quadro de esforco sumiu');
   !pts.podre ? ok('nenhum numero podre em nada disso') : erro('numero podre na tela de pontos');
   await pag.evaluate(() => { DB._set(DB.KEYS.extras, []); });
   await pag.setViewportSize({ width: 1280, height: 900 });
