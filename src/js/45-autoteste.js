@@ -1950,6 +1950,24 @@ const AutoTeste = {
         curto.qRestante > 0 && inteiro.qRestante === 0, { curto: curto.qRestante, inteiro: inteiro.qRestante });
       this._ok('Lista: o padrão de fábrica abre em 10, não em 30', P.DEFAULTS.limite === 10);
 
+      /* ── A TABELA DE MATÉRIAS TAMBÉM É UMA FATIA ──────────────────────────
+         É ela que vem ANTES da lista de assuntos e é a primeira coisa que se
+         vê ao rolar — 21 linhas de três sublinhas num caso real. Paginar só a
+         lista de baixo deixava a tela exatamente tão longa quanto antes.
+         A conta que importa não é quantas linhas ficaram de fora: é quanto do
+         PRÊMIO ficou com elas. */
+      const tmm = PP.esforcoPorMateria(Object.assign({}, base, { excluidas: [] }));
+      const grandesTm = tmm.linhas.filter(l => !l.resumo);
+      this._ok('Matérias: a tabela tem mais linhas que a fatia, senão não há o que paginar',
+        grandesTm.length > 2, grandesTm.length);
+      const visivel = grandesTm.slice(0, 2);
+      const ocultoPP = grandesTm.slice(2).reduce((a, l) => a + (l.ganho || 0), 0);
+      this._ok('Matérias: a tabela vem ordenada por prêmio, então a fatia de cima é a de maior ganho',
+        grandesTm.every((l, i, arr) => i === 0 || (arr[i - 1].ganho || 0) >= (l.ganho || 0)));
+      this._ok('Matérias: o que fica oculto é mensurável em pontos, não só em linhas',
+        ocultoPP >= 0 && visivel.reduce((a, l) => a + (l.ganho || 0), 0) >= ocultoPP,
+        { visivel: visivel.length, ocultoPP });
+
       /* Marcar tudo é um estado que acontece, e precisa de saída própria: cair
          em "sem-retrato" mandaria importar um retrato que já existe. */
       const tudo = P.calcular(snaps[snaps.length - 1],
