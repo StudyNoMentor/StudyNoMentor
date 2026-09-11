@@ -1954,6 +1954,51 @@ const AutoTeste = {
         this._ok('Amostra: sem nada melhor a propor, não há sugestão (e o aviso some)',
           P._alvoSugerido(uso([4, 6, 8]), 10) === null);
         this._ok('Amostra: alvo já baixo não vira sugestão igual', P._alvoSugerido(uso([50, 60]), 10) === null);
+
+        /* 13) A FILA PROMETE MAIS PRECISÃO DO QUE A AMOSTRA TEM. Simulação com
+           40 assuntos e taxas verdadeiras conhecidas: com 20 a 50 questões por
+           assunto a fila acerta 55% dos cinco piores REAIS — e mesmo assim
+           captura 91% do ganho. A posição é quase sorteio; a escolha entre os
+           primeiros, quase ótima. Dizer o empate liberta a escolha. */
+        const ft = (taxa, q) => ({ taxa, qJanela: q });
+        this._ok('Empate: 33% em 20q e 50% em 22q a amostra não separa',
+          P.empateTecnico(ft(33, 20), ft(50, 22)) === true);
+        this._ok('Empate: as mesmas taxas em 400q viram diferença real',
+          P.empateTecnico(ft(33, 400), ft(50, 400)) === false);
+        this._ok('Empate: 30% contra 80% nunca é empate',
+          P.empateTecnico(ft(30, 200), ft(80, 200)) === false);
+        /* 14) QUANTAS QUESTÕES, E PARA QUÊ. O conselho dizia "um bloco de ~B
+           questões" com B = custoQ/4 — um quarto de uma estimativa. Agora são
+           duas contas fechadas: n = z²·p(1−p)/E² para MEDIR, e o teste de duas
+           proporções (z = 1,96 + 0,84) para PROVAR. */
+        this._ok('Amostra: medir 50% com ±10pp são 97 questões', P.qParaMedir(50) === 97);
+        this._ok('Amostra: taxa mais extrema exige menos (90% → 35q) e margem apertada exige mais (±5pp → 385q)',
+          P.qParaMedir(90) === 35 && P.qParaMedir(50, 5) === 385);
+        this._ok('Amostra: sem taxa medida assume o pior caso (50%)', P.qParaMedir(null) === 97);
+        this._ok('Amostra: base curta NÃO prova melhora grande — devolve null, não um número inventado',
+          P.qParaProvar(58, 25, 27) === null);
+        this._ok('Amostra: base longa devolve o n₂ exigido', P.qParaProvar(58, 200, 15) > 0);
+        this._ok('Amostra: as duas contas fecham entre si',
+          Math.abs(P.deltaDetectavel(70, 150, P.qParaProvar(70, 150, 20)) - 20) < 1.5);
+        this._ok('Amostra: entradas degeneradas devolvem null, não NaN',
+          P.qParaProvar(58, 0, 20) === null && P.qParaProvar(58, 100, 0) === null
+          && P.deltaDetectavel(58, 0, 10) === null);
+
+        /* 15) A SETA PRECISA PASSAR EM DOIS FILTROS. `sensTendencia` responde
+           "vale me avisar?"; faltava "dá para provar?". Com o piso de série em
+           5 questões, o app acendia ▲ para 3pp contra uma base onde só 83pp
+           seriam comprováveis. */
+        this._ok('Seta: 70q a 88% contra 10q a 65% sobe 18,6pp, mas só 30pp seriam comprováveis',
+          P.deltaDetectavel(88, 10, 70) > 23);
+        this._ok('Seta: com 200 de cada lado, 20pp passa do mínimo comprovável',
+          P.deltaDetectavel(80, 200, 200) < 20);
+        this._ok('Seta: quanto menor o volume por período, maior a variação exigida',
+          P.deltaDetectavel(67, 10, 10) > P.deltaDetectavel(67, 300, 300) * 4);
+
+        this._ok('Empate: sem amostra, ou taxa cravada em 100%, não há empate falso',
+          P.empateTecnico(ft(50, 0), ft(50, 20)) === false &&
+          P.empateTecnico(ft(100, 30), ft(100, 30)) === false &&
+          P.empateTecnico(null, ft(50, 20)) === false);
         /* O NÍVEL VEM DA JANELA ADAPTATIVA, NÃO DA MÉDIA DA VIDA. Quem
            consertou uma matéria há pouco continuaria aparecendo como fraco
            nela: a média da vida inteira mente sempre para o passado. */

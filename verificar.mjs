@@ -2269,6 +2269,141 @@ try {
     && /<1% do seu esforço/.test(num.linhaFina) && !/[^\d<]0% do seu esforço/.test(num.linhaFina))
     ? ok(`materia com ${num.shareFina}% do esforco e nivel medido diz "<1%", nao "0%"`)
     : erro('a linha ainda se contradiz: ' + JSON.stringify({ share: num.shareFina, nivel: num.nivelFina, linha: num.linhaFina.slice(0, 120) }));
+  /* ── A SETA SO ACENDE QUANDO A DIFERENCA SE SUSTENTA ──────────────────
+     `sensTendencia` responde "vale me avisar?" e e preferencia legitima.
+     Faltava a outra pergunta: "da para provar?". Medido no caso real: 70
+     questoes a 88% contra uma base de 10 a 65% acendia ▲ +18,6pp, quando a
+     menor subida comprovavel naquele par e 30pp. Anunciar melhora que nao se
+     sustenta e pior que nao anunciar: o aluno troca de estrategia por ruido. */
+  const setas = await pag.evaluate(() => {
+    const origSnaps = DB.getTecSnapshots, origSubs = DB.getActiveSubjects,
+      origModo = window.planCycleMode, origInc = ReforcoEngine._incidByDisc;
+    try {
+      const dia = (n) => { const d = new Date(todayLocal() + 'T00:00:00'); d.setDate(d.getDate() - n); return d.toISOString().slice(0, 10); };
+      const snap = (id, d, q, tx) => ({ id, nome: id, date: dia(d), startDate: dia(d + 7), endDate: dia(d),
+        rows: [{ depth: 1, codigo: 'T', nome: 'T', disciplina: 'D', questoes: q, acertos: Math.round(q * tx / 100) }] });
+      DB.getActiveSubjects = () => []; window.planCycleMode = () => 'pre';
+      ReforcoEngine._incidByDisc = () => ({});
+      const medir = (snaps, alvo) => {
+        DB.getTecSnapshots = () => snaps;
+        PlanoEngine.salvarPrefs({ disciplina: '__todas__', minAmostra: 20, amostraAlvo: alvo,
+          pisoSerie: 5, sensTendencia: 3, ordenar: 'pior', limite: 30 });
+        DesempenhoTecScreen._planoRefC = null;
+        DesempenhoTecScreen.renderPlano();
+        const r = PlanoEngine.calcular(DesempenhoTecScreen.scopedSnapshot(), PlanoEngine.prefs());
+        const x = (r.itens || [])[0] || {};
+        return { delta: x.delta, minimo: x.deltaMinimo, firme: x.deltaFirme, melhorando: r.melhorando,
+          margem: /dentro da margem/.test(document.getElementById('plano-lista').textContent) };
+      };
+      return {
+        fraca: medir([snap('b1', 21, 10, 65), snap('b2', 7, 70, 88)], 50),
+        forte: medir([snap('c1', 21, 200, 60), snap('c2', 7, 200, 80)], 200)
+      };
+    } finally {
+      DB.getTecSnapshots = origSnaps; DB.getActiveSubjects = origSubs;
+      window.planCycleMode = origModo; ReforcoEngine._incidByDisc = origInc;
+    }
+  });
+  (setas.fraca.firme === false && setas.fraca.melhorando === 0 && setas.fraca.margem
+    && setas.fraca.delta > 3 && setas.fraca.minimo > setas.fraca.delta)
+    ? ok(`base curta: sobe ${setas.fraca.delta}pp mas so ${setas.fraca.minimo.toFixed(0)}pp seriam comprovaveis — a tela marca "dentro da margem" e nao conta como melhorando`)
+    : erro('a seta acendeu sem sustentacao: ' + JSON.stringify(setas.fraca));
+  (setas.forte.firme === true && setas.forte.melhorando === 1 && !setas.forte.margem
+    && setas.forte.delta > setas.forte.minimo)
+    ? ok(`e com volume dos dois lados a seta fica CHEIA: ${setas.forte.delta}pp contra ${setas.forte.minimo.toFixed(0)}pp de minimo`)
+    : erro('a seta firme deixou de acender: ' + JSON.stringify(setas.forte));
+
+  /* ── O CONSELHO DE CADA ASSUNTO DIZ QUANTAS QUESTOES, E PARA QUE ──────
+     Era "um bloco de ~B questoes" com B = custoQ/4: um quarto de uma
+     estimativa, sem pergunta por tras. Agora sao duas contas fechadas — a
+     amostra que MEDE (n = z²·p(1−p)/E², E = 10pp) e a que PROVA a subida ate
+     a meta (teste de duas proporcoes, 80% de poder). Quando a medicao de hoje
+     e curta demais para sustentar a comparacao, a tela diz isso em vez de
+     inventar um numero. */
+  const qtd = await pag.evaluate(() => {
+    const origSnaps = DB.getTecSnapshots, origSubs = DB.getActiveSubjects,
+      origModo = window.planCycleMode, origInc = ReforcoEngine._incidByDisc;
+    try {
+      const dia = (n) => { const d = new Date(todayLocal() + 'T00:00:00'); d.setDate(d.getDate() - n); return d.toISOString().slice(0, 10); };
+      const specs = [['Critico', 40, 33], ['Fragil', 40, 58], ['Desenv', 40, 75]];
+      const rs = specs.map(([n, q, tx]) => ({ depth: 1, codigo: n, nome: n, disciplina: 'D', questoes: q, acertos: Math.round(q * tx / 100) }));
+      DB.getTecSnapshots = () => ([{ id: 'q1', nome: 'q1', date: dia(5), startDate: dia(35), endDate: dia(5), rows: rs }]);
+      DB.getActiveSubjects = () => []; window.planCycleMode = () => 'pre';
+      ReforcoEngine._incidByDisc = () => ({});
+      PlanoEngine.salvarPrefs({ disciplina: '__todas__', minAmostra: 20, metaDominio: 85,
+        faixaCritico: 50, faixaFragil: 65, ordenar: 'pior', limite: 30, incluirPequenas: false });
+      DesempenhoTecScreen._planoRefC = null;
+      DesempenhoTecScreen.renderPlano();
+      const r = PlanoEngine.calcular(DesempenhoTecScreen.scopedSnapshot(), PlanoEngine.prefs());
+      const de = (n) => (r.itens || []).find((x) => x.nome === n) || {};
+      return {
+        critico: (de('Critico').status || {}).acao || '',
+        fragil: (de('Fragil').status || {}).acao || '',
+        desenv: (de('Desenv').status || {}).acao || '',
+        qMedirFragil: de('Fragil').qMedir, formula: PlanoEngine.qParaMedir(de('Fragil').taxa),
+        provarDesenv: PlanoEngine.qParaProvar(de('Desenv').taxa, de('Desenv').qJanela, 85 - de('Desenv').taxa),
+        txt: document.getElementById('plano-lista').textContent
+      };
+    } finally {
+      DB.getTecSnapshots = origSnaps; DB.getActiveSubjects = origSubs;
+      window.planCycleMode = origModo; ReforcoEngine._incidByDisc = origInc;
+    }
+  });
+  (/retome a teoria/.test(qtd.critico) && /bloco de \d+ questões/.test(qtd.critico))
+    ? ok('no critico a tela manda a TEORIA primeiro e so depois o bloco que remede o nivel')
+    : erro('o conselho do critico perdeu a teoria ou o numero: ' + qtd.critico.slice(0, 140));
+  (qtd.qMedirFragil === qtd.formula && /\d+ questões \(o que dá ±10pp de margem\)/.test(qtd.fragil) && !/~/.test(qtd.fragil))
+    ? ok(`no fragil o bloco e a amostra da formula (${qtd.qMedirFragil}q para ±10pp), nao mais um quarto do custo`)
+    : erro('o bloco do fragil nao saiu da formula: ' + JSON.stringify({ q: qtd.qMedirFragil, f: qtd.formula, t: qtd.fragil.slice(0, 140) }));
+  (qtd.provarDesenv === null && /são poucas para comprovar/.test(qtd.desenv))
+    ? ok('e quando a medicao de hoje e curta demais para provar a subida, a tela diz isso em vez de inventar um numero')
+    : erro('o limite da comprovacao nao foi declarado: ' + JSON.stringify({ p: qtd.provarDesenv, t: qtd.desenv.slice(0, 140) }));
+  !/\bNaN\b|\bundefined\b|\bInfinity\b/.test(qtd.txt)
+    ? ok('nenhum numero podre nos conselhos') : erro('numero podre no conselho dos assuntos');
+
+  /* ── A FILA NAO PODE PROMETER O QUE A AMOSTRA NAO SUSTENTA ────────────
+     Simulacao com 40 assuntos e taxas verdadeiras conhecidas: com 20 a 50
+     questoes por assunto, a fila por "pior acerto" acerta 55% dos cinco piores
+     REAIS — e mesmo assim captura 91% do ganho disponivel. A posicao no topo e
+     quase sorteio; a escolha entre os primeiros e quase otima. Calar isso
+     empurra o aluno a refazer a fila atras de um 1o lugar que o dado nao
+     sustenta. (Encolhimento bayesiano foi medido nos quatro regimes e movia o
+     acerto em ±1pp: descartado.) */
+  const emp = await pag.evaluate(() => {
+    const origSnaps = DB.getTecSnapshots, origSubs = DB.getActiveSubjects,
+      origModo = window.planCycleMode, origInc = ReforcoEngine._incidByDisc;
+    try {
+      const dia = (n) => { const d = new Date(todayLocal() + 'T00:00:00'); d.setDate(d.getDate() - n); return d.toISOString().slice(0, 10); };
+      const montar = (specs) => {
+        const rs = specs.map(([n, q, tx]) => ({ depth: 1, codigo: n, nome: n, disciplina: 'D', questoes: q, acertos: Math.round(q * tx / 100) }));
+        DB.getTecSnapshots = () => ([{ id: 'emp', nome: 'emp', date: dia(5), startDate: dia(35), endDate: dia(5), rows: rs }]);
+        DesempenhoTecScreen._planoRefC = null;
+        DesempenhoTecScreen.renderPlano();
+        return { r: PlanoEngine.calcular(DesempenhoTecScreen.scopedSnapshot(), PlanoEngine.prefs()),
+          txt: document.getElementById('plano-lista').textContent.replace(/\s+/g, ' ') };
+      };
+      DB.getActiveSubjects = () => []; window.planCycleMode = () => 'pre';
+      ReforcoEngine._incidByDisc = () => ({});
+      const sel = document.getElementById('plano-ordenar');
+      if (sel) sel.value = 'pior';
+      PlanoEngine.salvarPrefs({ disciplina: '__todas__', minAmostra: 20, ordenar: 'pior',
+        limite: 30, amostraAlvo: 50, ritmoSemanal: 300, incluirPequenas: false });
+      const curta = montar([['T1', 22, 33], ['T2', 24, 42], ['T3', 21, 48], ['T4', 23, 52], ['T5', 200, 80]]);
+      const larga = montar([['T1', 400, 33], ['T2', 400, 42], ['T3', 400, 48], ['T4', 400, 52], ['T5', 400, 80]]);
+      return {
+        empCurta: curta.r.empatados, avisoCurta: /empatados dentro da margem de erro/.test(curta.txt),
+        empLarga: larga.r.empatados, avisoLarga: /empatados dentro da margem de erro/.test(larga.txt),
+        taxas: curta.r.itens.slice(0, 4).map((x) => x.taxa.toFixed(0) + '%±' + x.margem.toFixed(0))
+      };
+    } finally {
+      DB.getTecSnapshots = origSnaps; DB.getActiveSubjects = origSubs;
+      window.planCycleMode = origModo; ReforcoEngine._incidByDisc = origInc;
+    }
+  });
+  (emp.empCurta >= 3 && emp.avisoCurta && emp.empLarga === 1 && !emp.avisoLarga)
+    ? ok(`com amostra curta a tela declara os ${emp.empCurta} primeiros empatados (${emp.taxas.join(', ')}); com 400q cada, as mesmas taxas viram diferenca real e o aviso some`)
+    : erro('o empate tecnico falhou: ' + JSON.stringify(emp));
+
   /* O AVISO TEM DE MUDAR ALGUMA COISA. Ele derivava a sugestao do MAIOR
      assunto em faixas fixas: com o alvo em 50 e o maior em 72, sugeria 50. */
   (num.alvo.inviavel && num.alvo.sugerido != null && num.alvo.sugerido < num.alvo.atual)

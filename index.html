@@ -57,7 +57,7 @@
      novo, e o antigo é descartado sozinho na ativação) e o que permite ao app
      dizer qual versão está rodando. Em src/ fica "dev" de propósito: a versão
      é gerada na montagem, não editada à mão. -->
-<meta name="diario-versao" content="v83ed102dd7">
+<meta name="diario-versao" content="ve261b63265">
 <script>
 /* ── ARRANQUE: abre o IndexedDB AGORA, em paralelo com o parse do documento ──
    A fachada de armazenamento vive no fim do <body>, depois de ~1,7 MB de HTML.
@@ -10075,6 +10075,7 @@ window.__idbBoot = (function () {
   .pl-tempo-tab .pl-atacar { white-space: normal; }
   .pl-tempo-tab td, .pl-tempo-tab th { padding-right: 6px; }
 }
+.pl-empate { margin: 4px 0 10px; }
 
 </style>
 
@@ -27577,6 +27578,51 @@ const AutoTeste = {
         this._ok('Amostra: sem nada melhor a propor, não há sugestão (e o aviso some)',
           P._alvoSugerido(uso([4, 6, 8]), 10) === null);
         this._ok('Amostra: alvo já baixo não vira sugestão igual', P._alvoSugerido(uso([50, 60]), 10) === null);
+
+        /* 13) A FILA PROMETE MAIS PRECISÃO DO QUE A AMOSTRA TEM. Simulação com
+           40 assuntos e taxas verdadeiras conhecidas: com 20 a 50 questões por
+           assunto a fila acerta 55% dos cinco piores REAIS — e mesmo assim
+           captura 91% do ganho. A posição é quase sorteio; a escolha entre os
+           primeiros, quase ótima. Dizer o empate liberta a escolha. */
+        const ft = (taxa, q) => ({ taxa, qJanela: q });
+        this._ok('Empate: 33% em 20q e 50% em 22q a amostra não separa',
+          P.empateTecnico(ft(33, 20), ft(50, 22)) === true);
+        this._ok('Empate: as mesmas taxas em 400q viram diferença real',
+          P.empateTecnico(ft(33, 400), ft(50, 400)) === false);
+        this._ok('Empate: 30% contra 80% nunca é empate',
+          P.empateTecnico(ft(30, 200), ft(80, 200)) === false);
+        /* 14) QUANTAS QUESTÕES, E PARA QUÊ. O conselho dizia "um bloco de ~B
+           questões" com B = custoQ/4 — um quarto de uma estimativa. Agora são
+           duas contas fechadas: n = z²·p(1−p)/E² para MEDIR, e o teste de duas
+           proporções (z = 1,96 + 0,84) para PROVAR. */
+        this._ok('Amostra: medir 50% com ±10pp são 97 questões', P.qParaMedir(50) === 97);
+        this._ok('Amostra: taxa mais extrema exige menos (90% → 35q) e margem apertada exige mais (±5pp → 385q)',
+          P.qParaMedir(90) === 35 && P.qParaMedir(50, 5) === 385);
+        this._ok('Amostra: sem taxa medida assume o pior caso (50%)', P.qParaMedir(null) === 97);
+        this._ok('Amostra: base curta NÃO prova melhora grande — devolve null, não um número inventado',
+          P.qParaProvar(58, 25, 27) === null);
+        this._ok('Amostra: base longa devolve o n₂ exigido', P.qParaProvar(58, 200, 15) > 0);
+        this._ok('Amostra: as duas contas fecham entre si',
+          Math.abs(P.deltaDetectavel(70, 150, P.qParaProvar(70, 150, 20)) - 20) < 1.5);
+        this._ok('Amostra: entradas degeneradas devolvem null, não NaN',
+          P.qParaProvar(58, 0, 20) === null && P.qParaProvar(58, 100, 0) === null
+          && P.deltaDetectavel(58, 0, 10) === null);
+
+        /* 15) A SETA PRECISA PASSAR EM DOIS FILTROS. `sensTendencia` responde
+           "vale me avisar?"; faltava "dá para provar?". Com o piso de série em
+           5 questões, o app acendia ▲ para 3pp contra uma base onde só 83pp
+           seriam comprováveis. */
+        this._ok('Seta: 70q a 88% contra 10q a 65% sobe 18,6pp, mas só 30pp seriam comprováveis',
+          P.deltaDetectavel(88, 10, 70) > 23);
+        this._ok('Seta: com 200 de cada lado, 20pp passa do mínimo comprovável',
+          P.deltaDetectavel(80, 200, 200) < 20);
+        this._ok('Seta: quanto menor o volume por período, maior a variação exigida',
+          P.deltaDetectavel(67, 10, 10) > P.deltaDetectavel(67, 300, 300) * 4);
+
+        this._ok('Empate: sem amostra, ou taxa cravada em 100%, não há empate falso',
+          P.empateTecnico(ft(50, 0), ft(50, 20)) === false &&
+          P.empateTecnico(ft(100, 30), ft(100, 30)) === false &&
+          P.empateTecnico(null, ft(50, 20)) === false);
         /* O NÍVEL VEM DA JANELA ADAPTATIVA, NÃO DA MÉDIA DA VIDA. Quem
            consertou uma matéria há pouco continuaria aparecendo como fraco
            nela: a média da vida inteira mente sempre para o passado. */
@@ -30975,6 +31021,72 @@ const PlanoEngine = {
     const p = Math.min(1, Math.max(0, pct / 100));
     return 1.96 * Math.sqrt(p * (1 - p) / n) * 100;
   },
+  /* ── QUANTAS QUESTÕES, E PARA QUÊ ────────────────────────────────────────
+     O conselho de cada assunto dizia "um bloco de ~B questões", com B saindo
+     de `custoQ / 4` — um quarto de um custo que já era estimativa. Número
+     redondo sem pergunta por trás: não dava para dizer o que B comprava.
+
+     Há DUAS perguntas diferentes, e cada uma tem fórmula fechada:
+
+     ① MEDIR — quantas questões para a próxima medição deste assunto ter
+       margem de no máximo E pontos, a 95%:  n = z²·p(1−p)/E²  (z = 1,96).
+       Com 50% de acerto e E = 10pp, são 97 questões. É o bloco que responde
+       "onde eu estou", e é o único número honesto para mandar depois da
+       teoria: sem ele, "voltar ao banco" é voltar ao escuro.
+
+     ② PROVAR — quantas questões para o app CRAVAR que você melhorou Δ pontos
+       contra a medição de hoje. São duas amostras independentes (a janela de
+       hoje e a próxima), α = 5% bilateral e poder de 80%, então z = 1,96 +
+       0,84 = 2,80:  Δ = z·√(p(1−p)/n₁ + p(1−p)/n₂).
+
+     A segunda esbarra num limite que a tela precisa dizer em voz alta: se a
+     medição de hoje saiu de poucas questões, NENHUM n₂ prova a melhora — o
+     que falta é base, não esforço. Nesse caso o app devolve null e a frase
+     muda de "resolva M" para "a comparação ainda não fecha". Prometer um
+     número impossível seria pior que não prometer nada. */
+  MARGEM_ALVO: 10,
+  qParaMedir(taxa, margemAlvo) {
+    const p = Math.min(0.95, Math.max(0.05, (taxa == null ? 50 : taxa) / 100));
+    const E = Math.max(2, margemAlvo || this.MARGEM_ALVO) / 100;
+    return Math.ceil(3.8416 * p * (1 - p) / (E * E));
+  },
+  deltaDetectavel(taxa, n1, n2) {
+    if (!(n1 > 0) || !(n2 > 0)) return null;
+    const p = Math.min(0.95, Math.max(0.05, (taxa == null ? 50 : taxa) / 100));
+    return 2.80 * Math.sqrt(p * (1 - p) / n1 + p * (1 - p) / n2) * 100;
+  },
+  qParaProvar(taxa, n1, delta) {
+    if (!(n1 > 0) || !(delta > 0)) return null;
+    const p = Math.min(0.95, Math.max(0.05, (taxa == null ? 50 : taxa) / 100));
+    const folga = Math.pow(delta / 100 / 2.80, 2) - p * (1 - p) / n1;
+    if (!(folga > 0)) return null;                 // nem com amostra infinita
+    return Math.ceil(p * (1 - p) / folga);
+  },
+  /* ── DOIS ASSUNTOS QUE A AMOSTRA NÃO DISTINGUE ──────────────────────────
+     Simulação com 40 assuntos, 400 rodadas e taxas verdadeiras conhecidas: no
+     regime de amostra deste app (20 a 50 questões por assunto), a fila por
+     "pior acerto" acerta apenas 55% dos cinco piores VERDADEIROS — e mesmo
+     assim captura 91% do ganho disponível. Ou seja: a POSIÇÃO no topo é quase
+     sorteio, mas a ESCOLHA de qualquer um dos primeiros é quase ótima.
+
+     Calar isso faz a tela prometer uma precisão que a amostra não tem, e
+     empurra o aluno a refazer a fila atrás de um primeiro lugar que não
+     existe. O teste é o de diferença entre duas proporções: se ela não passa
+     de 1,96 erro-padrão, os dois estão empatados e a tela diz isso.
+
+     ENCOLHIMENTO BAYESIANO FOI MEDIDO E DESCARTADO. Nos quatro regimes
+     testados (piso atual, amostra curta, "incluir pequenas" e faixa estreita)
+     ele move o acerto em ±1pp e a captura de ganho em menos que isso. Não
+     paga a complexidade nem mexer num número que o aluno acompanha — o que
+     limita a fila é o TAMANHO da amostra, não o estimador. */
+  empateTecnico(a, b) {
+    const na = a && a.qJanela, nb = b && b.qJanela;
+    if (!na || !nb || a.taxa == null || b.taxa == null) return false;
+    const pa = a.taxa / 100, pb = b.taxa / 100;
+    const se = Math.sqrt(pa * (1 - pa) / na + pb * (1 - pb) / nb);
+    if (!(se > 0)) return false;
+    return Math.abs(pa - pb) <= 1.96 * se;
+  },
   confiabilidade(n) {
     if (n >= 100) return { nivel: 'alta', tom: 'good' };
     if (n >= 50) return { nivel: 'média', tom: 'good' };
@@ -31437,7 +31549,19 @@ const PlanoEngine = {
         // ▲▼ compara a janela com o que ficou ANTES dela — nunca com o todo que
         // a contém. Sem período anterior com amostra útil, não há comparação.
         delta: (a.pct != null && a.pctAntes != null && (a.qAntes || 0) >= (opts.pisoSerie || this.PISO_SERIE))
-          ? Math.round((a.pct - a.pctAntes) * 10) / 10 : null
+          ? Math.round((a.pct - a.pctAntes) * 10) / 10 : null,
+        /* ── A SETA PRECISA PASSAR EM DOIS FILTROS, NÃO UM ────────────────
+           `sensTendencia` responde "vale a pena me avisar?" — é preferência,
+           e é legítima. Faltava a outra pergunta: "dá para provar?". Com o
+           piso de série em 5 questões, o app acendia ▲ para uma diferença de
+           3pp contra uma base onde só 83pp seriam comprováveis. Medido no
+           caso real: 70 questões a 88% contra 10 questões a 65% acende ▲
+           +18,6pp, quando a menor subida comprovável naquele par é 31pp.
+
+           Anunciar melhora que não se sustenta é pior que não anunciar: o
+           aluno troca de estratégia por causa de ruído. A seta só fica firme
+           quando a diferença passa também do mínimo detectável do par. */
+        deltaMinimo: this.deltaDetectavel(a.pct, a.qAntes, a.q)
       };
     });
     /* ── CUSTO ────────────────────────────────────────────────────────────────
@@ -31548,30 +31672,50 @@ const PlanoEngine = {
          de ser lido. Cada faixa continua com o seu conselho, agora com os
          números daquele assunto e com a tendência, quando ela existe. */
       const queda = (x.delta != null) ? Math.abs(x.delta) : null;
-      const bloco = Math.min(30, Math.max(10, Math.round(x.custoQ / 4)));
+      /* ── O NÚMERO DE QUESTÕES DEIXA DE SER PALPITE ──────────────────────
+         Era `custoQ / 4`, um quarto de uma estimativa. `bloco` agora é a
+         amostra que faz a PRÓXIMA medição deste assunto valer: n =
+         z²·p(1−p)/E², com E = 10pp. E `provar` é a amostra que faz o app
+         CRAVAR a melhora até a meta, num teste de duas proporções com 80% de
+         poder. Quando `provar` volta null, a medição de hoje é curta demais
+         para sustentar a comparação — e a frase diz isso em vez de inventar
+         um número que não existe. */
+      const bloco = this.qParaMedir(t);
+      const lacunaMeta = Math.max(0, opts.metaDominio - t);
+      const provar = this.qParaProvar(t, x.qJanela, lacunaMeta);
+      x.qMedir = bloco; x.qProvar = provar;
+      x.deltaMin = this.deltaDetectavel(t, x.qJanela, bloco);
+      /* Uma frase só, e sempre com o número que falta: ou o bloco já prova a
+         melhora, ou o app diz quantas a mais, ou avisa que a base é curta. */
+      const prova = (provar == null)
+        ? ' As ' + x.qJanela + ' questões que mediram este assunto são poucas para comprovar a subida até a meta: a próxima medição entra como base nova.'
+        : (provar <= bloco)
+          ? ' Esse bloco já basta para o app cravar a subida até a meta.'
+          : ' Para o app CRAVAR a subida até a meta são ' + provar + ' questões — o bloco acima já mede onde você ficou.';
       if (t < opts.faixaCritico) x.status = { rot: '🔴 Crítico', tom: 'bad',
         acao: 'Você acerta ' + t.toFixed(0) + '%: erra mais do que acerta. ' +
           (caindo ? 'E caiu ' + queda + 'pp contra o período anterior. ' : '') +
-          'Resolver mais questões agora só repete o erro — retome a teoria deste assunto e volte ao banco depois.' };
+          'Resolver mais questões agora só repete o erro — retome a teoria deste assunto primeiro. ' +
+          'Depois volte com um bloco de ' + bloco + ' questões: é a amostra que mede o seu novo nível com ±' + this.MARGEM_ALVO + 'pp e mostra se a teoria pegou.' };
       else if (t < opts.faixaFragil) x.status = { rot: '🔴 Frágil', tom: 'bad',
         acao: 'A base existe (' + t.toFixed(0) + '%), mas falha em pontos específicos, e faltam ' + faltaMeta + ' até a meta. ' +
           (caindo ? 'A queda de ' + queda + 'pp sugere revisão atrasada. ' : '') +
-          'Vá pelo caminho do erro: um bloco de ~' + bloco + ' questões, anote o que errou e revise só esses pontos antes do bloco seguinte.' };
+          'Vá pelo caminho do erro: um bloco de ' + bloco + ' questões (o que dá ±' + this.MARGEM_ALVO + 'pp de margem), anote o que errou e revise só esses pontos antes do bloco seguinte.' + prova };
       else if (t < opts.metaDominio) x.status = { rot: '🟠 Em desenvolvimento', tom: 'warn',
         acao: caindo
-          ? 'Estava melhor antes e caiu. Antes de aumentar o volume, verifique se o assunto mudou de banca ou se você deixou de revisar — reforce a revisão.'
-          : 'Faltam ' + faltaMeta + ' pontos para a meta. Aqui volume resolve: bata questões e revise apenas o que errar, sem voltar à teoria inteira.' };
+          ? 'Estava melhor antes e caiu ' + queda + 'pp. Antes de aumentar o volume, verifique se o assunto mudou de banca ou se você deixou de revisar — reforce a revisão e remeça com ' + bloco + ' questões.'
+          : 'Faltam ' + faltaMeta + ' pontos para a meta. Aqui volume resolve: ' + bloco + ' questões e revise apenas o que errar, sem voltar à teoria inteira.' + prova };
       /* "Consolidado" e "dado vencido" apareciam juntos no mesmo assunto: a
          tela dizia "está resolvido" e "sem medição nova há 8 meses" lado a
          lado, e cabia à pessoa decidir em qual acreditar. Sustentar a meta em
          medições ANTIGAS não é sustentar a meta hoje — é uma terceira
          situação, com ação própria: remedir antes de confiar. */
       else if (x.seq >= alvoSeq && x.vencido) x.status = { rot: '🟠 Sólido, sem medição nova', tom: 'warn', seq: x.seq,
-        acao: 'Sustentou a meta em ' + x.seq + ' importações, mas a última tem ' + x.diasDesdeMedicao + ' dias. Antes de riscar da lista, resolva um bloco pequeno e reimporte: consolidado com dado velho é lembrança, não medição.' };
+        acao: 'Sustentou a meta em ' + x.seq + ' importações, mas a última tem ' + x.diasDesdeMedicao + ' dias. Antes de riscar da lista, resolva ' + bloco + ' questões e reimporte: é o bloco que devolve uma medição com ±' + this.MARGEM_ALVO + 'pp. Consolidado com dado velho é lembrança, não medição.' };
       else if (x.seq >= alvoSeq) x.status = { rot: '🟢 Consolidado', tom: 'good', seq: x.seq,
         acao: 'Sustenta a meta há ' + x.seq + ' importações seguidas. Está resolvido: só revisão espaçada. Tempo extra aqui rende menos que em qualquer assunto acima.' };
       else x.status = { rot: '🟡 Recém-corrigido', tom: 'warn', seq: x.seq,
-        acao: 'Passou da meta em ' + x.seq + ' de ' + alvoSeq + ' importações necessárias. Ainda não provou que fixou — mantenha um volume pequeno e constante até sustentar na próxima importação.' };
+        acao: 'Passou da meta em ' + x.seq + ' de ' + alvoSeq + ' importações necessárias. Ainda não provou que fixou — mantenha cerca de ' + bloco + ' questões por importação até sustentar, que é o mínimo para a medição seguinte ter ±' + this.MARGEM_ALVO + 'pp.' };
     });
     /* ── A ORDEM QUE APROVA ───────────────────────────────────────────────
        Só existe depois do edital, porque só aí existe prova com composição. E
@@ -31635,8 +31779,12 @@ const PlanoEngine = {
     const ritmo = opts.ritmoSemanal || this.ritmoRecente(snapsDesc, 120) || 0;
     const idadeUltimo = this._diasDesde(todos[todos.length - 1].endDate || todos[todos.length - 1].date);
     const sens = opts.sensTendencia;
-    const melhorando = usados.filter(x => x.delta != null && x.delta >= sens).length;
-    const piorando = usados.filter(x => x.delta != null && x.delta <= -sens).length;
+    usados.forEach(x => {
+      x.deltaFirme = x.delta != null && Math.abs(x.delta) >= sens
+        && x.deltaMinimo != null && Math.abs(x.delta) >= x.deltaMinimo;
+    });
+    const melhorando = usados.filter(x => x.deltaFirme && x.delta > 0).length;
+    const piorando = usados.filter(x => x.deltaFirme && x.delta < 0).length;
     const janelaMedia = Math.round(usados.filter(x => x.diasJanela).reduce((a, x) => a + x.diasJanela, 0) / Math.max(1, usados.filter(x => x.diasJanela).length));
     return {
       dominioPct, meta, jaAtinge: dominioPct >= meta, falta: Math.max(0, meta - dominioPct),
@@ -31679,6 +31827,15 @@ const PlanoEngine = {
       defasado: idadeUltimo > opts.cadenciaDias,
       ponderacao: opts.ponderacao,
       itens: plano.slice(0, opts.limite),
+      // quantos do TOPO a amostra não consegue separar do primeiro
+      empatados: (() => {
+        if (plano.length < 2) return 0;
+        let n = 1;
+        for (let i = 1; i < plano.length; i++) {
+          if (this.empateTecnico(plano[0], plano[i])) n++; else break;
+        }
+        return n;
+      })(),
       // SEGUNDO PLANO: assuntos sem amostra confiável. Ficam FORA da média (8 questões
       // a 38% podem significar de 4% a 71% — contaminaria o número), mas não somem.
       // Aqui a ação é outra: primeiro juntar dado, depois decidir se é fraqueza.
@@ -33663,8 +33820,10 @@ const DesempenhoTecScreen = {
          mostrava nada, e "sem seta" era lido como "estável". */
       const seta = x.delta == null
         ? (x.qAntes === 0 ? `<span class="reforco-tag" title="Não há período anterior a esta janela para comparar: é a primeira medição do assunto.">🆕 primeira medição</span>` : '')
-        : x.delta >= sens ? `<span class="reforco-tag tone-good" title="Acima do que você fazia no período anterior a esta janela">▲ ${x.delta}pp</span>` :
-          x.delta <= -sens ? `<span class="reforco-tag tone-bad" title="Abaixo do que você fazia no período anterior a esta janela">▼ ${x.delta}pp</span>` : '';
+        : (Math.abs(x.delta) >= sens && !x.deltaFirme)
+          ? `<span class="reforco-tag semincid" title="A diferença existe na medição, mas as amostras dos dois períodos são pequenas demais para descartar acaso: aqui só ${x.deltaMinimo != null ? x.deltaMinimo.toFixed(0) : '—'}pp seriam comprováveis (${x.qAntes}q antes, ${x.qJanela}q agora).">${x.delta > 0 ? '▲' : '▼'} ${x.delta}pp · dentro da margem</span>`
+        : x.delta >= sens ? `<span class="reforco-tag tone-good" title="Acima do que você fazia no período anterior a esta janela, e a diferença passa do mínimo comprovável (${x.deltaMinimo != null ? x.deltaMinimo.toFixed(0) : '—'}pp)">▲ ${x.delta}pp</span>` :
+          x.delta <= -sens ? `<span class="reforco-tag tone-bad" title="Abaixo do que você fazia no período anterior a esta janela, e a diferença passa do mínimo comprovável (${x.deltaMinimo != null ? x.deltaMinimo.toFixed(0) : '—'}pp)">▼ ${x.delta}pp</span>` : '';
       const desdeAtiv = (x.extra && x.extra.origemPlano && x.extra.origemPlano.taxaInicial != null && x.taxa != null)
         ? `<span class="reforco-tag ${x.taxa - x.extra.origemPlano.taxaInicial >= 0 ? 'tone-good' : 'tone-bad'}" title="Evolução desde que você criou a atividade em ${escapeHtml(formatDateShort(x.extra.origemPlano.criadoEm))}">desde a atividade ${x.extra.origemPlano.taxaInicial.toFixed(0)}→${x.taxa.toFixed(0)}%</span>` : '';
       const marca = (i === r.idxMeta) ? `<div class="pl-marco">🏁 <b>Nesta ordem</b>, daqui para cima já basta para chegar a ${r.meta}% de domínio${r.qAteMeta ? ` — ${r.qAteMeta.toLocaleString('pt-BR')} questões` : ''}${(r.caminho && r.qAteMeta && r.qAteMeta > r.caminho.q) ? `, contra ${r.caminho.q.toLocaleString('pt-BR')} pelo caminho mais curto` : ''}</div>` : '';
@@ -33822,6 +33981,13 @@ const DesempenhoTecScreen = {
             <strong>🎯 O seu próximo bloco</strong>
             <span>${bloco.length} ${bloco.length === 1 ? 'assunto' : 'assuntos'} · ${somaQ.toLocaleString('pt-BR')} questões · ≈${semanasBloco} ${semanasBloco === 1 ? 'semana' : 'semanas'} no seu ritmo de ${capacidade}/sem</span>
           </div>
+          ${/* A FILA PROMETE MAIS PRECISÃO DO QUE A AMOSTRA TEM. Com 20 a 50
+                questões por assunto, a diferença entre o 1º e o 4º costuma
+                caber dentro da margem de erro dos dois — e o aluno reordena a
+                vida atrás de um primeiro lugar que o dado não sustenta. Dizer
+                o empate não enfraquece a fila: liberta a escolha, porque
+                qualquer um dos empatados rende praticamente o mesmo. */''}
+          ${(r.ordenar === 'pior' && r.empatados >= 2) ? `<p class="pl-ciclo-obs pl-empate">⚖️ Os <b>${r.empatados} primeiros</b> da fila estão empatados dentro da margem de erro — com esta amostra o app não consegue dizer qual é o pior. Escolha por conveniência: qualquer um deles rende praticamente o mesmo.</p>` : ''}
           <ol class="pl-hoje-lista">
             ${bloco.map(x => linhaHoje(x, true)).join('')}
             ${proximos.length ? `<li class="pl-hoje-sep">depois destes, a fila segue com:</li>` + proximos.map(x => linhaHoje(x, false)).join('') : ''}
