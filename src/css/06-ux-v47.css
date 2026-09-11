@@ -1475,3 +1475,4 @@
 .pl-mais-nota { margin: 0 0 8px; font-size: var(--fs-2xs); color: var(--text-soft); line-height: 1.5; }
 .pl-mais-bts { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 14px; }
 .pl-mais-bts .btn-secondary { padding: 8px 14px; font-size: var(--fs-xs); }
+.pl-mais-nota.warn { color: var(--warn-text); }

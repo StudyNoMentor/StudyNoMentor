@@ -2211,6 +2211,8 @@ const DesempenhoTecScreen = {
      sessão: qualquer mudança de ajuste o zera, porque a fila que você abriu
      deixou de ser a mesma fila. */
   _planoMais: 0,
+  // o mesmo, para a tabela de matérias de "Onde atacar primeiro"
+  _matMais: 0,
   // ---- Escopo da análise: 'consolidado' (todos), 'select' (retratos marcados), 'range' (intervalo) ----
   scopeMode: 'consolidado',
   selectedSnapIds: null, // Set de ids marcados (modo 'select')
@@ -2478,7 +2480,7 @@ const DesempenhoTecScreen = {
     const atual = PlanoEngine.prefs().disciplina;
     if (atual && atual !== '__todas__' && PlanoEngine.foraDoPlano(atual, fora)) patch.disciplina = '__todas__';
     PlanoEngine.salvarPrefs(patch);
-    this._planoRefC = null; this._planoMais = 0;
+    this._planoRefC = null; this._planoMais = 0; this._matMais = 0;
     const sel = document.getElementById('plano-disc');
     if (sel && patch.disciplina) sel.value = '__todas__';
     this.renderPlano();
@@ -3871,6 +3873,41 @@ const DesempenhoTecScreen = {
     };
     const rComecar = soma('comecar');
     const rMiudas = soma('miuda');
+    /* ── A TABELA DE MATÉRIAS É A MAIS LONGA DA TELA, E ERA A SEM LIMITE ───
+       A lista de ASSUNTOS ganhou passo de 10; esta, que vem antes dela e é a
+       primeira coisa que se vê ao rolar, continuava despejando todas as
+       matérias de uma vez — 21 linhas num caso real, cada uma com três
+       sublinhas, antes de o aluno chegar ao bloco de ação. Quem reclamou de
+       "a tela fica muito extensa" estava olhando exatamente para cá.
+
+       Mesmo passo da lista (o campo "Assuntos por vez"), para não existirem
+       dois números de configuração dizendo a mesma coisa. O rodapé declara o
+       que ficou de fora em PONTOS EM JOGO, não em linhas: esconder 12
+       matérias que somam 0,4pp é economia de rolagem; esconder duas que somam
+       6pp seria esconder a decisão. */
+    const passoMat = Math.max(3, num('plano-limite', 10));
+    const matVis = grandes.slice(0, passoMat + (this._matMais || 0));
+    const matOcultas = grandes.slice(matVis.length);
+    const matFaltam = matOcultas.length;
+    const ganhoOculto = matOcultas.reduce((a, l) => a + (l.ganho || 0), 0);
+    const acoesOcultas = matOcultas.filter(l => l.veredito === 'atacar' || l.veredito === 'comecar').length;
+    const maisDasMaterias = !matFaltam ? ((this._matMais || 0) > 0 ? `
+      <div class="pl-mais">
+        <p class="pl-mais-nota">Todas as <b>${grandes.length}</b> matérias estão à vista.</p>
+        <div class="pl-mais-bts"><button type="button" class="pl-hero-limpar" id="plano-mat-menos">voltar às ${passoMat}</button></div>
+      </div>` : '') : `
+      <div class="pl-mais">
+        ${/* Esconder a cauda é economia de rolagem; esconder um terço do prêmio
+              é esconder a decisão. Quando a soma do que ficou de fora passa de
+              um terço do que está em jogo, a nota troca de tom e diz isso —
+              porque aí a tabela visível deixou de ser um resumo fiel. */''}
+        <p class="pl-mais-nota${(tm.emJogo > 0 && ganhoOculto >= tm.emJogo / 3) ? ' warn' : ''}">Mostrando <b>${matVis.length}</b> de <b>${grandes.length}</b> matérias · as outras somam <b>${ganhoOculto >= 0.05 ? ganhoOculto.toFixed(1) + ' pp' : 'menos de 0,1 pp'}</b> em jogo${(tm.emJogo > 0 && ganhoOculto >= tm.emJogo / 3) ? ` — <b>${Math.round(ganhoOculto / tm.emJogo * 100)}% do prêmio está aqui embaixo</b>` : ''}${acoesOcultas ? ` · <b>${acoesOcultas}</b> ${acoesOcultas === 1 ? 'pede ataque' : 'pedem ataque'}` : ''}</p>
+        <div class="pl-mais-bts">
+          <button type="button" class="btn-secondary" id="plano-mat-mais">▾ Mostrar mais ${Math.min(passoMat, matFaltam)}</button>
+          ${matFaltam > passoMat ? `<button type="button" class="pl-hero-limpar" id="plano-mat-tudo">ver as ${grandes.length}</button>` : ''}
+          ${matVis.length > passoMat ? `<button type="button" class="pl-hero-limpar" id="plano-mat-menos">voltar às ${passoMat}</button>` : ''}
+        </div>
+      </div>`;
     const linhaResumo = (r, um, muitos, obs, tom) => !r ? '' : `<tr class="pl-tempo-miudas">
                   <td><b>+ ${r.n} ${r.n === 1 ? um : muitos}</b><span class="pl-ciclo-obs">${obs}</span></td>
                   <td>${r.esf.toFixed(0)}%</td>
@@ -3893,7 +3930,7 @@ const DesempenhoTecScreen = {
           <table class="pl-tempo-tab">
             <thead><tr><th>matéria</th><th>suas questões</th><th>peso</th><th>nível</th><th>em jogo</th><th>o que fazer</th></tr></thead>
             <tbody>
-              ${grandes.map(l => {
+              ${matVis.map(l => {
                 const [ic, tom, rot] = VER[l.veredito];
                 /* ── DA MATÉRIA PARA O ASSUNTO, EM UM TOQUE ────────────────
                    A tabela fala de MATÉRIAS; a lista abaixo fala de ASSUNTOS,
@@ -3943,6 +3980,7 @@ const DesempenhoTecScreen = {
             </tbody>
           </table>
         </div>
+        ${maisDasMaterias}
         <p class="pl-ciclo-obs"><b>Em jogo</b> é quanto da prova inteira você recupera levando aquela matéria ao seu máximo realista (${tm.teto}%): o peso dela vezes a lacuna que falta. É por ele que a tabela está ordenada, porque é a única conta que responde "onde ponho a próxima hora". A moeda das outras colunas é a <b>questão</b> — a única que os dois lados falam, o que faz o quadro não depender do nome que você deu às matérias no ciclo. Ir mal numa matéria que vale pouco pode ser decisão sua; o que a tela impede é você fazer essa troca sem perceber.</p>
       </details>`;
     const cal = PlanoCiclo.calibragem();
@@ -4010,6 +4048,26 @@ const DesempenhoTecScreen = {
       this.renderPlanoConteudo();
       const l = document.getElementById('plano-lista');
       if (l) l.scrollIntoView({ block: 'start' });
+    });
+    // a tabela de matérias, mesma mecânica e mesma âncora de rolagem
+    const abrirMat = (quanto) => {
+      const ancora = document.querySelector('.pl-tempo .pl-mais');
+      const antes = ancora ? ancora.getBoundingClientRect().top : null;
+      this._matMais = Math.max(0, quanto);
+      this.renderPlanoConteudo();
+      const depois = document.querySelector('.pl-tempo .pl-mais');
+      if (antes != null && depois) window.scrollBy(0, depois.getBoundingClientRect().top - antes);
+    };
+    const mMais = document.getElementById('plano-mat-mais');
+    if (mMais) mMais.addEventListener('click', () => abrirMat((this._matMais || 0) + passo));
+    const mTudo = document.getElementById('plano-mat-tudo');
+    if (mTudo) mTudo.addEventListener('click', () => abrirMat(9999));
+    const mMenos = document.getElementById('plano-mat-menos');
+    if (mMenos) mMenos.addEventListener('click', () => {
+      this._matMais = 0;
+      this.renderPlanoConteudo();
+      const t = document.querySelector('.pl-tempo');
+      if (t) t.scrollIntoView({ block: 'start' });
     });
     lista.querySelectorAll('.plano-nova-extra').forEach(b => b.addEventListener('click', () => {
       this.criarExtraDoPlano(b.dataset.topico, b.dataset.disc, b.dataset.alvo, b.dataset.motivo);
@@ -5376,7 +5434,7 @@ $id('tec-weak-disc').addEventListener('change', (e) => {
         const l = document.getElementById('plano-pesobanca-label');
         if (v && l) l.textContent = (parseInt(v.value, 10) === 0) ? '0 — banca ignorada' : v.value;
       }
-      DT._planoMais = 0;   // outra configuração, outra fila: recomeça no passo
+      DT._planoMais = 0; DT._matMais = 0;   // outra configuração, outra fila: recomeça no passo
       DT.renderPlanoConteudo();
       DT.renderModosDeAtaque();
     };
