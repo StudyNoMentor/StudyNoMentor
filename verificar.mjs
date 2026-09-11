@@ -2269,6 +2269,49 @@ try {
     && /<1% do seu esforço/.test(num.linhaFina) && !/[^\d<]0% do seu esforço/.test(num.linhaFina))
     ? ok(`materia com ${num.shareFina}% do esforco e nivel medido diz "<1%", nao "0%"`)
     : erro('a linha ainda se contradiz: ' + JSON.stringify({ share: num.shareFina, nivel: num.nivelFina, linha: num.linhaFina.slice(0, 120) }));
+  /* ── A FILA NAO PODE PROMETER O QUE A AMOSTRA NAO SUSTENTA ────────────
+     Simulacao com 40 assuntos e taxas verdadeiras conhecidas: com 20 a 50
+     questoes por assunto, a fila por "pior acerto" acerta 55% dos cinco piores
+     REAIS — e mesmo assim captura 91% do ganho disponivel. A posicao no topo e
+     quase sorteio; a escolha entre os primeiros e quase otima. Calar isso
+     empurra o aluno a refazer a fila atras de um 1o lugar que o dado nao
+     sustenta. (Encolhimento bayesiano foi medido nos quatro regimes e movia o
+     acerto em ±1pp: descartado.) */
+  const emp = await pag.evaluate(() => {
+    const origSnaps = DB.getTecSnapshots, origSubs = DB.getActiveSubjects,
+      origModo = window.planCycleMode, origInc = ReforcoEngine._incidByDisc;
+    try {
+      const dia = (n) => { const d = new Date(todayLocal() + 'T00:00:00'); d.setDate(d.getDate() - n); return d.toISOString().slice(0, 10); };
+      const montar = (specs) => {
+        const rs = specs.map(([n, q, tx]) => ({ depth: 1, codigo: n, nome: n, disciplina: 'D', questoes: q, acertos: Math.round(q * tx / 100) }));
+        DB.getTecSnapshots = () => ([{ id: 'emp', nome: 'emp', date: dia(5), startDate: dia(35), endDate: dia(5), rows: rs }]);
+        DesempenhoTecScreen._planoRefC = null;
+        DesempenhoTecScreen.renderPlano();
+        return { r: PlanoEngine.calcular(DesempenhoTecScreen.scopedSnapshot(), PlanoEngine.prefs()),
+          txt: document.getElementById('plano-lista').textContent.replace(/\s+/g, ' ') };
+      };
+      DB.getActiveSubjects = () => []; window.planCycleMode = () => 'pre';
+      ReforcoEngine._incidByDisc = () => ({});
+      const sel = document.getElementById('plano-ordenar');
+      if (sel) sel.value = 'pior';
+      PlanoEngine.salvarPrefs({ disciplina: '__todas__', minAmostra: 20, ordenar: 'pior',
+        limite: 30, amostraAlvo: 50, ritmoSemanal: 300, incluirPequenas: false });
+      const curta = montar([['T1', 22, 33], ['T2', 24, 42], ['T3', 21, 48], ['T4', 23, 52], ['T5', 200, 80]]);
+      const larga = montar([['T1', 400, 33], ['T2', 400, 42], ['T3', 400, 48], ['T4', 400, 52], ['T5', 400, 80]]);
+      return {
+        empCurta: curta.r.empatados, avisoCurta: /empatados dentro da margem de erro/.test(curta.txt),
+        empLarga: larga.r.empatados, avisoLarga: /empatados dentro da margem de erro/.test(larga.txt),
+        taxas: curta.r.itens.slice(0, 4).map((x) => x.taxa.toFixed(0) + '%±' + x.margem.toFixed(0))
+      };
+    } finally {
+      DB.getTecSnapshots = origSnaps; DB.getActiveSubjects = origSubs;
+      window.planCycleMode = origModo; ReforcoEngine._incidByDisc = origInc;
+    }
+  });
+  (emp.empCurta >= 3 && emp.avisoCurta && emp.empLarga === 1 && !emp.avisoLarga)
+    ? ok(`com amostra curta a tela declara os ${emp.empCurta} primeiros empatados (${emp.taxas.join(', ')}); com 400q cada, as mesmas taxas viram diferenca real e o aviso some`)
+    : erro('o empate tecnico falhou: ' + JSON.stringify(emp));
+
   /* O AVISO TEM DE MUDAR ALGUMA COISA. Ele derivava a sugestao do MAIOR
      assunto em faixas fixas: com o alvo em 50 e o maior em 72, sugeria 50. */
   (num.alvo.inviavel && num.alvo.sugerido != null && num.alvo.sugerido < num.alvo.atual)

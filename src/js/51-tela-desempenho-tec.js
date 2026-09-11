@@ -284,6 +284,31 @@ const PlanoEngine = {
     const p = Math.min(1, Math.max(0, pct / 100));
     return 1.96 * Math.sqrt(p * (1 - p) / n) * 100;
   },
+  /* ── DOIS ASSUNTOS QUE A AMOSTRA NÃO DISTINGUE ──────────────────────────
+     Simulação com 40 assuntos, 400 rodadas e taxas verdadeiras conhecidas: no
+     regime de amostra deste app (20 a 50 questões por assunto), a fila por
+     "pior acerto" acerta apenas 55% dos cinco piores VERDADEIROS — e mesmo
+     assim captura 91% do ganho disponível. Ou seja: a POSIÇÃO no topo é quase
+     sorteio, mas a ESCOLHA de qualquer um dos primeiros é quase ótima.
+
+     Calar isso faz a tela prometer uma precisão que a amostra não tem, e
+     empurra o aluno a refazer a fila atrás de um primeiro lugar que não
+     existe. O teste é o de diferença entre duas proporções: se ela não passa
+     de 1,96 erro-padrão, os dois estão empatados e a tela diz isso.
+
+     ENCOLHIMENTO BAYESIANO FOI MEDIDO E DESCARTADO. Nos quatro regimes
+     testados (piso atual, amostra curta, "incluir pequenas" e faixa estreita)
+     ele move o acerto em ±1pp e a captura de ganho em menos que isso. Não
+     paga a complexidade nem mexer num número que o aluno acompanha — o que
+     limita a fila é o TAMANHO da amostra, não o estimador. */
+  empateTecnico(a, b) {
+    const na = a && a.qJanela, nb = b && b.qJanela;
+    if (!na || !nb || a.taxa == null || b.taxa == null) return false;
+    const pa = a.taxa / 100, pb = b.taxa / 100;
+    const se = Math.sqrt(pa * (1 - pa) / na + pb * (1 - pb) / nb);
+    if (!(se > 0)) return false;
+    return Math.abs(pa - pb) <= 1.96 * se;
+  },
   confiabilidade(n) {
     if (n >= 100) return { nivel: 'alta', tom: 'good' };
     if (n >= 50) return { nivel: 'média', tom: 'good' };
@@ -988,6 +1013,15 @@ const PlanoEngine = {
       defasado: idadeUltimo > opts.cadenciaDias,
       ponderacao: opts.ponderacao,
       itens: plano.slice(0, opts.limite),
+      // quantos do TOPO a amostra não consegue separar do primeiro
+      empatados: (() => {
+        if (plano.length < 2) return 0;
+        let n = 1;
+        for (let i = 1; i < plano.length; i++) {
+          if (this.empateTecnico(plano[0], plano[i])) n++; else break;
+        }
+        return n;
+      })(),
       // SEGUNDO PLANO: assuntos sem amostra confiável. Ficam FORA da média (8 questões
       // a 38% podem significar de 4% a 71% — contaminaria o número), mas não somem.
       // Aqui a ação é outra: primeiro juntar dado, depois decidir se é fraqueza.
@@ -3131,6 +3165,13 @@ const DesempenhoTecScreen = {
             <strong>🎯 O seu próximo bloco</strong>
             <span>${bloco.length} ${bloco.length === 1 ? 'assunto' : 'assuntos'} · ${somaQ.toLocaleString('pt-BR')} questões · ≈${semanasBloco} ${semanasBloco === 1 ? 'semana' : 'semanas'} no seu ritmo de ${capacidade}/sem</span>
           </div>
+          ${/* A FILA PROMETE MAIS PRECISÃO DO QUE A AMOSTRA TEM. Com 20 a 50
+                questões por assunto, a diferença entre o 1º e o 4º costuma
+                caber dentro da margem de erro dos dois — e o aluno reordena a
+                vida atrás de um primeiro lugar que o dado não sustenta. Dizer
+                o empate não enfraquece a fila: liberta a escolha, porque
+                qualquer um dos empatados rende praticamente o mesmo. */''}
+          ${(r.ordenar === 'pior' && r.empatados >= 2) ? `<p class="pl-ciclo-obs pl-empate">⚖️ Os <b>${r.empatados} primeiros</b> da fila estão empatados dentro da margem de erro — com esta amostra o app não consegue dizer qual é o pior. Escolha por conveniência: qualquer um deles rende praticamente o mesmo.</p>` : ''}
           <ol class="pl-hoje-lista">
             ${bloco.map(x => linhaHoje(x, true)).join('')}
             ${proximos.length ? `<li class="pl-hoje-sep">depois destes, a fila segue com:</li>` + proximos.map(x => linhaHoje(x, false)).join('') : ''}

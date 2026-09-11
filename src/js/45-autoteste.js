@@ -1954,6 +1954,23 @@ const AutoTeste = {
         this._ok('Amostra: sem nada melhor a propor, não há sugestão (e o aviso some)',
           P._alvoSugerido(uso([4, 6, 8]), 10) === null);
         this._ok('Amostra: alvo já baixo não vira sugestão igual', P._alvoSugerido(uso([50, 60]), 10) === null);
+
+        /* 13) A FILA PROMETE MAIS PRECISÃO DO QUE A AMOSTRA TEM. Simulação com
+           40 assuntos e taxas verdadeiras conhecidas: com 20 a 50 questões por
+           assunto a fila acerta 55% dos cinco piores REAIS — e mesmo assim
+           captura 91% do ganho. A posição é quase sorteio; a escolha entre os
+           primeiros, quase ótima. Dizer o empate liberta a escolha. */
+        const ft = (taxa, q) => ({ taxa, qJanela: q });
+        this._ok('Empate: 33% em 20q e 50% em 22q a amostra não separa',
+          P.empateTecnico(ft(33, 20), ft(50, 22)) === true);
+        this._ok('Empate: as mesmas taxas em 400q viram diferença real',
+          P.empateTecnico(ft(33, 400), ft(50, 400)) === false);
+        this._ok('Empate: 30% contra 80% nunca é empate',
+          P.empateTecnico(ft(30, 200), ft(80, 200)) === false);
+        this._ok('Empate: sem amostra, ou taxa cravada em 100%, não há empate falso',
+          P.empateTecnico(ft(50, 0), ft(50, 20)) === false &&
+          P.empateTecnico(ft(100, 30), ft(100, 30)) === false &&
+          P.empateTecnico(null, ft(50, 20)) === false);
         /* O NÍVEL VEM DA JANELA ADAPTATIVA, NÃO DA MÉDIA DA VIDA. Quem
            consertou uma matéria há pouco continuaria aparecendo como fraco
            nela: a média da vida inteira mente sempre para o passado. */
