@@ -2194,6 +2194,90 @@ try {
     ? ok(`e o premio deixa de depender de quao fundo a tabela foi colada (${arv.ganhos.det}pp nas duas)`)
     : erro('o premio herdou a distorcao: ' + JSON.stringify(arv.ganhos));
 
+  /* ── DOIS NUMEROS QUE A TELA DIZIA E QUE BRIGAVAM COM A REALIDADE ──────
+     1) "0% do seu esforço · nível 57%" e uma linha que se contradiz: se o
+        nivel foi medido, houve questao. O zero era arredondamento.
+     2) "-9,9pp em 8 importacoes" — a trajetoria compara a media sobre
+        conjuntos DIFERENTES de assuntos a cada retrato. Quem abre frente nova
+        entra com assunto fraco e a linha cai mesmo com TODO assunto subindo. */
+  const num = await pag.evaluate(() => {
+    const origSnaps = DB.getTecSnapshots, origIncid = ReforcoEngine._incidByDisc,
+      origSubs = DB.getActiveSubjects, origModo = window.planCycleMode;
+    try {
+      const dia = (n) => { const d = new Date(todayLocal() + 'T00:00:00'); d.setDate(d.getDate() - n); return d.toISOString().slice(0, 10); };
+      // (1) uma materia com peso relevante e esforco abaixo de 0,5%
+      ReforcoEngine._incidByDisc = () => ({
+        'Grande': [{ codigo: null, depth: 0, nome: 'Grande', disciplina: 'Grande', incidencia: 600 }],
+        'Fina': [{ codigo: null, depth: 0, nome: 'Fina', disciplina: 'Fina', incidencia: 400 }] });
+      DB.getActiveSubjects = () => []; window.planCycleMode = () => 'pre';
+      const rowsN = [
+        { depth: 0, codigo: null, nome: 'Grande', disciplina: 'Grande', questoes: 9000, acertos: 6300 },
+        { depth: 1, codigo: '01', nome: 'Geral', disciplina: 'Grande', questoes: 9000, acertos: 6300 },
+        { depth: 0, codigo: null, nome: 'Fina', disciplina: 'Fina', questoes: 25, acertos: 14 },
+        { depth: 1, codigo: '01', nome: 'Geral', disciplina: 'Fina', questoes: 25, acertos: 14 }];
+      DB.getTecSnapshots = () => ([{ id: 'n1', nome: 'n1', date: dia(2), startDate: dia(30), endDate: dia(2), rows: rowsN }]);
+      DesempenhoTecScreen._planoRefC = null;
+      DesempenhoTecScreen.renderPlano();
+      const linhaFina = [...document.querySelectorAll('.pl-tempo-tab tbody tr')]
+        .map((tr) => tr.textContent.replace(/\s+/g, ' ')).find((t) => /Fina/.test(t)) || '';
+      const share = PlanoPontos.esforcoPorMateria().linhas.find((l) => l.nome === 'Fina');
+
+      // (2) todo assunto sobe 5pp por retrato; so a COBERTURA cresce
+      const snapsT = [];
+      for (let i = 0; i < 4; i++) {
+        const rs = [];
+        const n = 3 + i * 6;
+        for (let t = 0; t < n; t++) {
+          const nasc = t < 3 ? 0 : Math.ceil((t - 2) / 6);
+          const tx = (nasc === 0 ? 80 : 35) + (i - nasc) * 5;
+          rs.push({ depth: 1, codigo: '0' + t, nome: 'T' + t, disciplina: 'D', questoes: 40, acertos: Math.round(40 * tx / 100) });
+        }
+        snapsT.push({ id: 't' + i, nome: 't' + i, date: dia(170 - i * 30), startDate: dia(200 - i * 30), endDate: dia(170 - i * 30), rows: rs });
+      }
+      DB.getTecSnapshots = () => snapsT;
+      DesempenhoTecScreen._planoRefC = null;
+      DesempenhoTecScreen.renderPlano();
+      const serie = PlanoEngine.serieHistorica(PlanoEngine.prefs());
+      const cracha = [...document.querySelectorAll('.reforco-tag')].map((e) => e.textContent.trim())
+        .find((t) => /importações/.test(t)) || '';
+      /* (3) o caso da tela: 52 assuntos, so 6 chegam ao alvo de 50, o maior
+         tem 72 — e o aviso mandava ligar 50, que ja estava ligado. */
+      const rsA = [];
+      for (let t = 0; t < 52; t++) rsA.push({ depth: 1, codigo: '0' + t, nome: 'A' + t, disciplina: 'D',
+        questoes: t < 6 ? 60 + t * 2 : 22 + (t % 7), acertos: Math.round((t < 6 ? 60 + t * 2 : 22 + (t % 7)) * 0.7) });
+      DB.getTecSnapshots = () => ([{ id: 'a1', nome: 'a1', date: dia(2), startDate: dia(30), endDate: dia(2), rows: rsA }]);
+      PlanoEngine.salvarPrefs({ amostraAlvo: 50, minAmostra: 20 });
+      DesempenhoTecScreen._planoRefC = null;
+      const rA = PlanoEngine.calcular(DesempenhoTecScreen.scopedSnapshot(),
+        Object.assign({}, PlanoEngine.prefs(), { amostraAlvo: 50, minAmostra: 20, disciplina: '__todas__' }));
+      return {
+        alvo: { inviavel: rA.alvoInviavel, atual: 50, sugerido: rA.alvoSugerido,
+          comAlvo: rA.comAlvo, assuntos: rA.assuntos, maior: rA.maiorAmostra },
+        linhaFina, shareFina: share ? +share.shareEsforco.toFixed(3) : null, nivelFina: share ? share.taxa : null,
+        bruto: +(serie[serie.length - 1].dominio - serie[0].dominio).toFixed(1),
+        comparavel: +serie.filter((x) => x.deltaComp != null).reduce((a, x) => a + x.deltaComp, 0).toFixed(1),
+        cracha,
+        nota: [...document.querySelectorAll('.pl-ciclo-obs')].map((e) => e.textContent.replace(/\s+/g, ' '))
+          .some((t) => /A linha é o seu nível/.test(t))
+      };
+    } finally {
+      DB.getTecSnapshots = origSnaps; ReforcoEngine._incidByDisc = origIncid;
+      DB.getActiveSubjects = origSubs; window.planCycleMode = origModo;
+    }
+  });
+  (num.shareFina > 0 && num.shareFina < 0.5 && num.nivelFina != null
+    && /<1% do seu esforço/.test(num.linhaFina) && !/[^\d<]0% do seu esforço/.test(num.linhaFina))
+    ? ok(`materia com ${num.shareFina}% do esforco e nivel medido diz "<1%", nao "0%"`)
+    : erro('a linha ainda se contradiz: ' + JSON.stringify({ share: num.shareFina, nivel: num.nivelFina, linha: num.linhaFina.slice(0, 120) }));
+  /* O AVISO TEM DE MUDAR ALGUMA COISA. Ele derivava a sugestao do MAIOR
+     assunto em faixas fixas: com o alvo em 50 e o maior em 72, sugeria 50. */
+  (num.alvo.inviavel && num.alvo.sugerido != null && num.alvo.sugerido < num.alvo.atual)
+    ? ok(`aviso de amostra: so ${num.alvo.comAlvo} de ${num.alvo.assuntos} chegam a ${num.alvo.atual} (maior ${num.alvo.maior}) e a sugestao e ${num.alvo.sugerido}, nao ${num.alvo.atual}`)
+    : erro('o aviso de amostra sugere o que ja esta ligado: ' + JSON.stringify(num.alvo));
+  (num.bruto < -10 && num.comparavel > 10 && /^\+/.test(num.cracha) && num.nota)
+    ? ok(`trajetoria: a diferenca crua dizia ${num.bruto}pp com todo assunto subindo; o cracha agora diz "${num.cracha}" e a tela explica a linha`)
+    : erro('a trajetoria ainda mente na direcao: ' + JSON.stringify(num));
+
   (esf.casaGenero === 'lingua portuguesa' && esf.naoCasaIrmas === undefined && esf.naoCasaAmbiguo === undefined)
     ? ok('e o casamento de nomes, onde ainda e preciso (edital digitado x banca), segue conservador')
     : erro('o casamento de nomes virou palpite: ' + JSON.stringify(esf));
