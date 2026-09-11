@@ -1806,6 +1806,33 @@ const AutoTeste = {
 
       /* 6) A DIFICULDADE DECLARADA CONTRA A MEDIDA. O 1 a 5 do ciclo distribui
          as suas horas e é um chute; o TEC sabe a resposta. */
+      /* A TRAJETÓRIA COMPARAVA CONJUNTOS DIFERENTES DE ASSUNTOS. Cada ponto é
+         a média dos assuntos medidos NAQUELE retrato, e o conjunto muda a cada
+         importação: quem abre frente nova entra com assunto fraco e a média
+         cai mesmo com TODO assunto melhorando. */
+      const snapsT = [];
+      for (let i = 0; i < 4; i++) {
+        const linhasT = [];
+        const n = 3 + i * 6;
+        for (let t = 0; t < n; t++) {
+          const nasc = t < 3 ? 0 : Math.ceil((t - 2) / 6);
+          const tx = (nasc === 0 ? 80 : 35) + (i - nasc) * 5;
+          linhasT.push(L('0' + t, 'T' + t, 'D', 40, Math.round(40 * tx / 100)));
+        }
+        snapsT.push(R('t' + i, dia(200 - i * 30), dia(170 - i * 30), linhasT));
+      }
+      DB.getTecSnapshots = () => snapsT;
+      const serie = P.serieHistorica(P.prefs());
+      const bruto = serie[serie.length - 1].dominio - serie[0].dominio;
+      const comp = serie.filter(x => x.deltaComp != null).reduce((a, x) => a + x.deltaComp, 0);
+      this._ok('Trajetória: a diferença crua acusa QUEDA mesmo com todo assunto subindo',
+        bruto < -10, bruto);
+      this._ok('Trajetória: o delta comparável (assunto a assunto) acusa a subida real',
+        comp > 10 && Math.abs(comp - 15) < 0.01, comp);
+      this._ok('Trajetória: e ele diz sobre quantos assuntos comparou',
+        serie.filter(x => x.deltaComp != null).every(x => x.comuns > 0), serie.map(x => x.comuns));
+      DB.getTecSnapshots = () => snaps;
+
       const m = PP.dificuldadeMedida('Arquivologia');
       this._ok('Pontos: 20% de acerto vira dificuldade 5 (a mais alta)',
         m && m.nota === 5 && Math.abs(m.taxa - 20) < 0.01, m);
@@ -1913,6 +1940,20 @@ const AutoTeste = {
           RE.raizIncid([{ codigo: null, depth: null, incidencia: 40 },
             { codigo: null, depth: null, incidencia: 60 }]) === 100);
         this._ok('Incidência: lista vazia não vira NaN', RE.raizIncid([]) === 0 && RE.raizIncid(null) === 0);
+
+        /* 12) A DICA DE AMOSTRA TEM DE MUDAR ALGUMA COISA. Ela derivava a
+           sugestão do MAIOR assunto em faixas fixas: com o alvo em 50 e o
+           maior em 72, sugeria 50 — o aviso acusava a configuração e mandava
+           ligar o que já estava ligado. */
+        const uso = (qs) => qs.map(q => ({ qJanela: q }));
+        this._ok('Amostra: a sugestão nunca é o valor que já está ligado',
+          P._alvoSugerido(uso([20, 25, 30, 40, 72]), 50) === 30,
+          P._alvoSugerido(uso([20, 25, 30, 40, 72]), 50));
+        this._ok('Amostra: com volume alto ela sobe junto',
+          P._alvoSugerido(uso([100, 120, 140, 300]), 200) === 100);
+        this._ok('Amostra: sem nada melhor a propor, não há sugestão (e o aviso some)',
+          P._alvoSugerido(uso([4, 6, 8]), 10) === null);
+        this._ok('Amostra: alvo já baixo não vira sugestão igual', P._alvoSugerido(uso([50, 60]), 10) === null);
         /* O NÍVEL VEM DA JANELA ADAPTATIVA, NÃO DA MÉDIA DA VIDA. Quem
            consertou uma matéria há pouco continuaria aparecendo como fraco
            nela: a média da vida inteira mente sempre para o passado. */

@@ -66,7 +66,14 @@ const PlanoEngine = {
     base: {
       rot: '🧱 Base ampla', fase: 'pré-edital',
       quando: 'Sem edital publicado, construindo repertório. A pergunta é "o que ainda não sei?".',
-      porque: 'Todo assunto pesa igual e o pior acerto vem primeiro: nada se esconde atrás de pouco volume, e nenhuma banca decide por você antes da hora.',
+      /* A FRASE ANTIGA BRIGAVA COM O QUADRO LOGO ABAIXO. Ela prometia que
+         "nenhuma banca decide por você antes da hora" enquanto "Onde atacar
+         primeiro" ordenava as matérias pela incidência das bancas, na mesma
+         tela. Não eram duas opiniões: são dois níveis. O preset governa a
+         ordem DENTRO da matéria — ali todo assunto pesa igual, para nada se
+         esconder atrás de pouco volume. Entre matérias, quem decide é o peso
+         da prova, porque é a única régua que existe antes do edital. */
+      porque: 'Dentro de cada matéria, todo assunto pesa igual e o pior acerto vem primeiro — nada se esconde atrás de pouco volume. Qual matéria atacar primeiro é o quadro "Onde atacar primeiro" que responde, pela incidência das bancas.',
       patch: { ponderacao: 'igual', ordenar: 'pior', metaDominio: 85, tetoDominio: 90, custoModo: 'lacuna', limite: 30, incluirPequenas: false }
     },
     edital: {
@@ -391,11 +398,44 @@ const PlanoEngine = {
   // Responde "está funcionando?" — a pergunta que nenhum número isolado responde.
   // Usa um piso baixo de amostra (a intenção é tendência, não precisão pontual).
   PISO_SERIE: 5,
+  /* ── A TRAJETÓRIA COMPARA COISAS DIFERENTES E CHAMA ISSO DE EVOLUÇÃO ──────
+     Cada ponto é a média dos assuntos MEDIDOS NAQUELE retrato — e o conjunto
+     muda a cada importação. Quem abre frente nova entra com assunto fraco, e a
+     média cai mesmo que TODO assunto tenha melhorado. Não é hipótese: com
+     quatro veteranos subindo 15pp e dez assuntos novos por retrato entrando a
+     35%, a manchete dizia "-32,7pp em 6 importações" com nenhum assunto tendo
+     piorado. O sinal inverte, e o número que o aluno mais olha passa a mentir
+     na direção que mais desanima.
+
+     A LINHA continua sendo o nível sobre tudo que você mediu — isso é honesto
+     e é o que ela promete. O que passa a ser calculado à parte é o DELTA
+     COMPARÁVEL: de um retrato para o seguinte, a média da variação só dos
+     assuntos presentes nos DOIS. Encadeado, ele atravessa toda a série sem
+     nunca comparar um assunto com a ausência de outro. */
+  /* ── A DICA TEM DE MUDAR ALGUMA COISA ────────────────────────────────────
+     O aviso "alvo de amostra alto para o seu volume" derivava a sugestão do
+     MAIOR assunto, em faixas fixas (≥100 → 100, ≥50 → 50, senão 30). Com o
+     alvo em 50 e o maior assunto em 72, ele sugeria... 50. O aviso aparecia,
+     acusava a configuração e mandava ligar exatamente o que já estava ligado.
+
+     A sugestão passa a sair da MEDIANA das amostras: o maior valor "redondo"
+     que pelo menos metade dos assuntos alcança. É auto-calibrado — quem tem
+     volume recebe 100, quem não tem recebe 10 — e, por construção, só é
+     oferecido quando fica ABAIXO do alvo atual. Sem valor melhor a propor, o
+     aviso não aparece: reclamar sem ter o que sugerir é ruído. */
+  _alvoSugerido(usados, alvoAtual) {
+    const qs = usados.map(x => x.qJanela || 0).sort((a, b) => a - b);
+    if (!qs.length) return null;
+    const mediana = qs[Math.floor((qs.length - 1) / 2)];
+    const passos = [100, 50, 30, 20, 10];
+    const cand = passos.find(v => v <= mediana && v < alvoAtual);
+    return cand != null ? cand : null;
+  },
   serieHistorica(opts) {
     opts = Object.assign({}, this.prefs(), opts || {});
     const snaps = DB.getTecSnapshots();
     const pontos = [];
-    let ant = null;
+    let ant = null, antPct = null;
     snaps.forEach(s => {
       const idx = this._indice(s, opts.apenasFolhas);
       const chaves = Object.keys(idx).filter(k => idx[k].q >= (opts.pisoSerie || this.PISO_SERIE) &&
@@ -405,14 +445,29 @@ const PlanoEngine = {
       const univ = chaves.reduce((a, k) => a + peso(k), 0);
       const dom = chaves.reduce((a, k) => a + peso(k) * idx[k].pct / 100, 0) / univ * 100;
       const qTotal = chaves.reduce((a, k) => a + idx[k].q, 0);
+      let deltaComp = null, comuns = 0, qComuns = 0;
+      if (antPct) {
+        let soma = 0;
+        chaves.forEach(k => {
+          if (antPct[k] == null) return;
+          soma += idx[k].pct - antPct[k]; comuns++; qComuns += idx[k].q;
+        });
+        if (comuns > 0) deltaComp = soma / comuns;
+      }
       const p = {
         data: s.endDate || s.date, nome: s.nome || '', dominio: dom,
         assuntos: chaves.length, questoes: qTotal,
         delta: ant ? dom - ant.dominio : null,
-        // retorno do esforço: pontos de domínio ganhos a cada 100 questões do período
-        rendimento: (ant && qTotal > 0) ? (dom - ant.dominio) / qTotal * 100 : null
+        deltaComp, comuns, qComuns,
+        /* O retorno do esforço sai do delta COMPARÁVEL (dividir a
+           variação-artefato pelo volume só espalha o artefato por questão) e
+           divide pelas questões DESSES MESMOS assuntos. Dividir o ganho medido
+           num conjunto pelo volume de outro, maior, fazia o "retorno" encolher
+           sozinho a cada frente nova aberta — punia justamente quem ampliou. */
+        rendimento: (deltaComp != null && qComuns > 0) ? deltaComp / qComuns * 100 : null
       };
       pontos.push(p); ant = p;
+      antPct = {}; chaves.forEach(k => { antPct[k] = idx[k].pct; });
     });
     return pontos;
   },
@@ -906,7 +961,9 @@ const PlanoEngine = {
       amostraAlvo: opts.amostraAlvo, janelaMax: opts.janelaMax, janelaMedia,
       // Se quase ninguém alcança o alvo, o problema é a CONFIGURAÇÃO, não o seu estudo.
       maiorAmostra: usados.reduce((m, x) => Math.max(m, x.qJanela), 0),
-      alvoInviavel: usados.length > 0 && (usados.filter(x => x.atingiuAlvo).length / usados.length) < 0.25,
+      alvoInviavel: usados.length > 0 && (usados.filter(x => x.atingiuAlvo).length / usados.length) < 0.25
+        && this._alvoSugerido(usados, opts.amostraAlvo) != null,
+      alvoSugerido: this._alvoSugerido(usados, opts.amostraAlvo),
       teto: Math.round(teto * 100),
       comAlvo: usados.filter(x => x.atingiuAlvo).length,
       melhorando, piorando, ordenar: opts.ordenar,
@@ -2831,7 +2888,7 @@ const DesempenhoTecScreen = {
         ${r.ignorados >= r.assuntos * 0.5 ? aviso(
           `📐 Este ${r.dominioPct.toFixed(0)}% descreve só os <strong>${r.assuntos}</strong> assuntos medidos. Outros <strong>${r.ignorados}</strong> ainda não têm dado — bater a meta aqui não é dominar a disciplina inteira.`, 'warn') : ''}
         ${r.alvoInviavel ? aviso(
-          `⚙ Alvo de amostra alto para o seu volume: só ${r.comAlvo} de ${r.assuntos} chegam a ${r.amostraAlvo} questões (o maior tem ${r.maiorAmostra}). Experimente <strong>${r.maiorAmostra >= 100 ? 100 : r.maiorAmostra >= 50 ? 50 : 30}</strong> em "Amostra confiável".`, 'warn') : ''}
+          `⚙ Alvo de amostra alto para o seu volume: só ${r.comAlvo} de ${r.assuntos} chegam a ${r.amostraAlvo} questões (o maior tem ${r.maiorAmostra}). Experimente <strong>${r.alvoSugerido}</strong> em "Amostra confiável" — metade dos seus assuntos já chega lá.`, 'warn') : ''}
         ${r.defasado ? aviso(
           `⏳ Última importação há <strong>${r.idadeUltimo} dias</strong> — você definiu ${r.cadenciaDias}. Importe um novo período para a leitura refletir seu nível de hoje.`, 'warn') : ''}
       </div>`;
@@ -2847,7 +2904,15 @@ const DesempenhoTecScreen = {
       const py = (v) => H - (v - lo) / Math.max(1, hi - lo) * H;
       const pts = S.map((p, i) => `${px(i).toFixed(1)},${py(p.dominio).toFixed(1)}`).join(' ');
       const yMeta = py(r.meta).toFixed(1);
-      const ganho = S[S.length - 1].dominio - S[0].dominio;
+      const ganhoBruto = S[S.length - 1].dominio - S[0].dominio;
+      /* O CRACHÁ COMPARA ASSUNTO COM ASSUNTO. Encadeando as variações de cada
+         par de retratos consecutivos sobre os assuntos que existem nos dois,
+         a soma atravessa a série inteira sem nunca creditar (ou debitar) ao
+         aluno o simples fato de ter aberto frente nova. */
+      const comp = S.filter(p => p.deltaComp != null);
+      const ganho = comp.length ? comp.reduce((a, p) => a + p.deltaComp, 0) : ganhoBruto;
+      const baseComp = comp.length ? Math.round(comp.reduce((a, p) => a + p.comuns, 0) / comp.length) : 0;
+      const divergem = comp.length > 0 && Math.abs(ganho - ganhoBruto) >= 2;
       const rend = S.filter(p => p.rendimento != null);
       const rendMedio = rend.length ? rend.reduce((a, p) => a + p.rendimento, 0) / rend.length : null;
       const ultimo = S[S.length - 1];
@@ -2856,7 +2921,7 @@ const DesempenhoTecScreen = {
           <div style="padding:14px 16px;">
             <div style="display:flex;align-items:baseline;justify-content:space-between;gap:10px;flex-wrap:wrap;">
               <strong style="font-size: var(--fs-sm);">📈 Sua trajetória</strong>
-              <span class="reforco-tag ${ganho >= 0 ? 'tone-good' : 'tone-bad'}">${ganho >= 0 ? '+' : ''}${ganho.toFixed(1)}pp em ${S.length} importações</span>
+              <span class="reforco-tag ${ganho >= 0 ? 'tone-good' : 'tone-bad'}" title="${comp.length ? 'Variação média assunto a assunto, só sobre os que existem em retratos consecutivos' : 'Diferença entre a primeira e a última medição'}">${ganho >= 0 ? '+' : ''}${ganho.toFixed(1)}pp em ${S.length} importações</span>
             </div>
             <div style="position:relative;height:74px;margin:10px 0 4px;">
               <svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" style="position:absolute;inset:0;width:100%;height:100%;overflow:visible;">
@@ -2874,6 +2939,7 @@ const DesempenhoTecScreen = {
               <span style="color:var(--text-soft);font-weight:700;">linha tracejada = meta ${r.meta}%</span>
               <span>${escapeHtml(formatDateShort(ultimo.data))} · ${ultimo.dominio.toFixed(0)}%</span>
             </div>
+            ${divergem ? `<p class="pl-ciclo-obs" style="margin:8px 0 0;">A <b>linha</b> é o seu nível sobre tudo que você já mediu a cada importação: abrir frente nova puxa a linha para baixo mesmo com todo assunto melhorando — ela saiu de ${S[0].dominio.toFixed(0)}% para ${ultimo.dominio.toFixed(0)}% enquanto os assuntos cresciam de ${S[0].assuntos} para ${ultimo.assuntos}. O <b>número ao lado</b> não cai nessa: ele compara assunto com assunto, ${baseComp} em média por período.</p>` : ''}
             ${rendMedio != null ? `<p class="pl-prosa" style="margin:10px 0 0;">
               <strong>Retorno do seu esforço:</strong> ${rendMedio.toFixed(1)}pp de domínio a cada 100 questões resolvidas.
               ${S[S.length - 1].rendimento != null ? 'No último período foram ' + S[S.length - 1].rendimento.toFixed(1) + 'pp por 100 questões' +
@@ -3352,11 +3418,17 @@ const DesempenhoTecScreen = {
                    o que a tela queria dizer. Os números de apoio viram uma
                    linha só debaixo do nome; as duas colunas que decidem ficam
                    sempre visíveis. */
-                const mini = `<span class="pl-ciclo-obs pl-tempo-mini">${l.shareEsforco.toFixed(0)}% do seu esforço · ${l.sharePeso == null ? 'sem peso' : l.sharePeso.toFixed(0) + '% da prova'} · ${l.taxa != null ? 'nível ' + l.taxa.toFixed(0) + '%' : 'sem nível medido'}</span>`;
+                /* "0% do seu esforço · nível 57%" é uma linha que se
+                   contradiz: se o nível foi medido, houve questão. O zero era
+                   arredondamento de uma fatia abaixo de 0,5%, e o leitor não
+                   tem como saber disso. Abaixo de meio ponto a tela diz
+                   "<1%", que é verdade e não briga com a coluna ao lado. */
+                const pctCurto = (v) => (v > 0 && v < 0.5) ? '<1%' : v.toFixed(0) + '%';
+                const mini = `<span class="pl-ciclo-obs pl-tempo-mini">${pctCurto(l.shareEsforco)} do seu esforço · ${l.sharePeso == null ? 'sem peso' : pctCurto(l.sharePeso) + ' da prova'} · ${l.taxa != null ? 'nível ' + l.taxa.toFixed(0) + '%' : 'sem nível medido'}</span>`;
                 return `<tr>
                   <td><b>${escapeHtml(l.nome)}</b>${obs}${mini}</td>
-                  <td>${l.shareEsforco.toFixed(0)}%<span class="pl-ciclo-obs">${l.q.toLocaleString('pt-BR')} questões</span></td>
-                  <td>${l.sharePeso == null ? '—' : l.sharePeso.toFixed(0) + '%'}</td>
+                  <td>${pctCurto(l.shareEsforco)}<span class="pl-ciclo-obs">${l.q.toLocaleString('pt-BR')} questões</span></td>
+                  <td>${l.sharePeso == null ? '—' : pctCurto(l.sharePeso)}</td>
                   <td class="tone-${l.taxa == null ? '' : l.taxa >= r.meta ? 'good' : l.taxa < r.faixaFragil ? 'bad' : 'warn'}">${l.taxa != null ? l.taxa.toFixed(0) + '%' : '—'}</td>
                   <td><b>${l.ganho >= 0.05 ? l.ganho.toFixed(1) + ' pp' : '—'}</b>${l.estimado && l.ganho >= 0.05 ? `<span class="pl-ciclo-obs">estimado — sem medição sua aqui</span>` : ''}</td>
                   <td><span class="reforco-tag ${tom}">${ic} ${rot}</span>${alvo

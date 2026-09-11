@@ -142,101 +142,101 @@
  {
   "arquivo": "js/45-autoteste.js",
   "de": 25624,
-  "ate": 28184
+  "ate": 28225
  },
  {
   "arquivo": "js/46-sanitizacao-e-editor.js",
-  "de": 28186,
-  "ate": 28649
+  "de": 28227,
+  "ate": 28690
  },
  {
   "arquivo": "js/47-tela-extras.js",
-  "de": 28651,
-  "ate": 29807
+  "de": 28692,
+  "ate": 29848
  },
  {
   "arquivo": "js/48-tela-links.js",
-  "de": 29809,
-  "ate": 30002
+  "de": 29850,
+  "ate": 30043
  },
  {
   "arquivo": "js/49-tela-config.js",
-  "de": 30004,
-  "ate": 30416
+  "de": 30045,
+  "ate": 30457
  },
  {
   "arquivo": "js/50-tela-ferramentas.js",
-  "de": 30418,
-  "ate": 30649
+  "de": 30459,
+  "ate": 30690
  },
  {
   "arquivo": "js/51-tela-desempenho-tec.js",
-  "de": 30651,
-  "ate": 35483
+  "de": 30692,
+  "ate": 35596
  },
  {
   "arquivo": "js/52-tela-planejamentos.js",
-  "de": 35485,
-  "ate": 35658
+  "de": 35598,
+  "ate": 35771
  },
  {
   "arquivo": "js/53-portao-de-acesso.js",
-  "de": 35660,
-  "ate": 36317
+  "de": 35773,
+  "ate": 36430
  },
  {
   "arquivo": "js/60-cloud-store.js",
-  "de": 36319,
-  "ate": 36976
+  "de": 36432,
+  "ate": 37089
  },
  {
   "arquivo": "js/61-session-guard.js",
-  "de": 36978,
-  "ate": 37171
+  "de": 37091,
+  "ate": 37284
  },
  {
   "arquivo": "js/62-section-sync.js",
-  "de": 37173,
-  "ate": 38004
+  "de": 37286,
+  "ate": 38117
  },
  {
   "arquivo": "js/63-cloud-ui.js",
-  "de": 38006,
-  "ate": 38589
+  "de": 38119,
+  "ate": 38702
  },
  {
   "arquivo": "js/64-info-tips.js",
-  "de": 38591,
-  "ate": 38986
+  "de": 38704,
+  "ate": 39099
  },
  {
   "arquivo": "js/65-recuperacao.js",
-  "de": 38988,
-  "ate": 39441
+  "de": 39101,
+  "ate": 39554
  },
  {
   "arquivo": "js/66-backup-nuvem.js",
-  "de": 39443,
-  "ate": 40237
+  "de": 39556,
+  "ate": 40350
  },
  {
   "arquivo": "js/67-atualizacao.js",
-  "de": 40239,
-  "ate": 40460
+  "de": 40352,
+  "ate": 40573
  },
  {
   "arquivo": "js/70-relatorio.js",
-  "de": 40462,
-  "ate": 40997
+  "de": 40575,
+  "ate": 41110
  },
  {
   "arquivo": "js/80-ajustes-finais.js",
-  "de": 40999,
-  "ate": 42336
+  "de": 41112,
+  "ate": 42449
  },
  {
   "arquivo": "html/90-rodape.html",
-  "de": 42338,
-  "ate": 42753
+  "de": 42451,
+  "ate": 42866
  }
 ]
