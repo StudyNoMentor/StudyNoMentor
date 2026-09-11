@@ -918,8 +918,14 @@ else CloudStore.init();
         { k: 'Flashcards', v: nCards, t: '' },
         { k: 'Conexão do navegador', v: navigator.onLine ? 'online' : 'offline', t: navigator.onLine ? 'ok' : 'bad' },
         { k: 'Servidor (Supabase)', v: CS ? ({ ready: 'conectado', pending: 'carregando…', missing: 'biblioteca não carregou', error: 'erro ao iniciar' }[CS.libStatus] || CS.libStatus) : '—', t: (CS && CS.libStatus === 'ready') ? 'ok' : 'warn' },
+        /* ── A VERSÃO NÃO PODE FICAR ATRÁS DE "DETALHES TÉCNICOS" ────────────
+           "Atualizei e não vejo a mudança" é a pergunta nº 1 depois de toda
+           publicação, e a única linha que a responde estava dobrada dentro de
+           um <details> fechado, ao lado de IndexedDB e revisão do perfil.
+           Quem precisa dela está justamente desconfiado de que a tela não é a
+           que ele acha — e não vai caçar. Sobe para as essenciais. */
         (() => { const l = window.Atualizacao ? Atualizacao.linhaDeVersao() : { v: '—', t: '' };
-                 return { k: 'Versão em execução', v: l.v, t: l.t }; })(),
+                 return { k: 'Versão em execução', v: l.v, t: l.t, ess: 1 }; })(),
         { k: 'Armazenamento', v: (window.indexedDB ? 'IndexedDB disponível' : 'só localStorage'), t: window.indexedDB ? 'ok' : 'warn' },
         { k: 'Revisão local do perfil', v: rev, t: '' },
         { k: 'Sessão única ao entrar', v: pget('single-session', '0') === '1' ? 'ligada' : 'desligada', t: '' },
