@@ -1992,6 +1992,9 @@ const AutoTeste = {
           P.deltaDetectavel(88, 10, 70) > 23);
         this._ok('Seta: com 200 de cada lado, 20pp passa do mínimo comprovável',
           P.deltaDetectavel(80, 200, 200) < 20);
+        /* 16) "REDUZA" SÓ ONDE HÁ O QUE REDUZIR, e a GUIA abre só no topo. */
+        this._ok('Sobra: o piso de esforço existe e é declarado', PP.SOBRA_MIN_ESFORCO === 3);
+
         this._ok('Seta: quanto menor o volume por período, maior a variação exigida',
           P.deltaDetectavel(67, 10, 10) > P.deltaDetectavel(67, 300, 300) * 4);
 

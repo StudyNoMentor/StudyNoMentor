@@ -57,7 +57,7 @@
      novo, e o antigo é descartado sozinho na ativação) e o que permite ao app
      dizer qual versão está rodando. Em src/ fica "dev" de propósito: a versão
      é gerada na montagem, não editada à mão. -->
-<meta name="diario-versao" content="ve261b63265">
+<meta name="diario-versao" content="vd53138233a">
 <script>
 /* ── ARRANQUE: abre o IndexedDB AGORA, em paralelo com o parse do documento ──
    A fachada de armazenamento vive no fim do <body>, depois de ~1,7 MB de HTML.
@@ -27616,6 +27616,9 @@ const AutoTeste = {
           P.deltaDetectavel(88, 10, 70) > 23);
         this._ok('Seta: com 200 de cada lado, 20pp passa do mínimo comprovável',
           P.deltaDetectavel(80, 200, 200) < 20);
+        /* 16) "REDUZA" SÓ ONDE HÁ O QUE REDUZIR, e a GUIA abre só no topo. */
+        this._ok('Sobra: o piso de esforço existe e é declarado', PP.SOBRA_MIN_ESFORCO === 3);
+
         this._ok('Seta: quanto menor o volume por período, maior a variação exigida',
           P.deltaDetectavel(67, 10, 10) > P.deltaDetectavel(67, 300, 300) * 4);
 
@@ -31827,6 +31830,10 @@ const PlanoEngine = {
       defasado: idadeUltimo > opts.cadenciaDias,
       ponderacao: opts.ponderacao,
       itens: plano.slice(0, opts.limite),
+      medianaJanela: (() => {
+        const qs = usados.map(x => x.qJanela || 0).filter(q => q > 0).sort((a, b) => a - b);
+        return qs.length ? qs[Math.floor((qs.length - 1) / 2)] : 0;
+      })(),
       // quantos do TOPO a amostra não consegue separar do primeiro
       empatados: (() => {
         if (plano.length < 2) return 0;
@@ -32150,7 +32157,12 @@ const PlanoPontos = {
          gastar muito é o fato principal; dentro delas, a desproporção vira
          ANOTAÇÃO na linha (`sobra`), que aparece junto de qualquer veredito e
          diz outra coisa: o que você já faz aqui não está rendendo. */
-      if (l.razao != null && l.razao >= this.SOBRA_RAZAO) { l.veredito = 'reduzir'; return; }
+      /* "REDUZA" SÓ ONDE HÁ O QUE REDUZIR. A razão sozinha mandava cortar uma
+         matéria que leva 1% do seu esforço para 0,6% da prova: proporcionalmente
+         é desperdício, na prática não libera nada e só gasta a atenção do
+         aluno num conselho que ele não tem como executar. Abaixo do piso de
+         esforço a linha volta a ser o que é — pouco prêmio, pouca urgência. */
+      if (l.razao != null && l.razao >= this.SOBRA_RAZAO && l.shareEsforco >= this.SOBRA_MIN_ESFORCO) { l.veredito = 'reduzir'; return; }
       /* "Vai mal" é abaixo da faixa frágil, não abaixo da meta. Com a meta em
          85, quem acerta 84% ouvia "você vai mal" — e perdia a confiança na
          tela inteira por causa de um ponto percentual. */
@@ -32181,6 +32193,7 @@ const PlanoPontos = {
   CORTE_PARETO: 0.5,
   FILA_PARETO: 0.8,
   SOBRA_RAZAO: 1.6,
+  SOBRA_MIN_ESFORCO: 3,
   MIUDA_PCT: 1,
   INTOCADA_PCT: 5,
   /* CASA "PORTUGUÊS" COM "LÍNGUA PORTUGUESA" SEM INVENTAR. Duas regras, as duas
@@ -33788,11 +33801,21 @@ const DesempenhoTecScreen = {
               <span>${escapeHtml(formatDateShort(ultimo.data))} · ${ultimo.dominio.toFixed(0)}%</span>
             </div>
             ${divergem ? `<p class="pl-ciclo-obs" style="margin:8px 0 0;">A <b>linha</b> é o seu nível sobre tudo que você já mediu a cada importação: abrir frente nova puxa a linha para baixo mesmo com todo assunto melhorando — ela saiu de ${S[0].dominio.toFixed(0)}% para ${ultimo.dominio.toFixed(0)}% enquanto os assuntos cresciam de ${S[0].assuntos} para ${ultimo.assuntos}. O <b>número ao lado</b> não cai nessa: ele compara assunto com assunto, ${baseComp} em média por período.</p>` : ''}
-            ${rendMedio != null ? `<p class="pl-prosa" style="margin:10px 0 0;">
-              <strong>Retorno do seu esforço:</strong> ${rendMedio.toFixed(1)}pp de domínio a cada 100 questões resolvidas.
-              ${S[S.length - 1].rendimento != null ? 'No último período foram ' + S[S.length - 1].rendimento.toFixed(1) + 'pp por 100 questões' +
-                (S[S.length - 1].rendimento < rendMedio * 0.5 ? ' — bem abaixo da sua média, sinal de que só aumentar o volume parou de funcionar neste momento.' : '.') : ''}
-            </p>` : ''}
+            ${/* A UNIDADE TEM DE CABER NO NÚMERO. Com dezenas de assuntos, mover
+                  a MÉDIA em 1pp exige mover um assunto em dezenas de pontos —
+                  então "por 100 questões" arredondava para 0,1pp e a frase
+                  repetia o mesmo 0,1 duas vezes, parecendo quebrada. Quando o
+                  retorno por cem não chega a meio ponto, a escala sobe para
+                  mil; a conta é a mesma, só o denominador muda. */''}
+            ${rendMedio != null ? (() => {
+              const mil = Math.abs(rendMedio) < 0.5;
+              const esc = mil ? 1000 : 100, rot = mil ? '1.000' : '100';
+              const ult = S[S.length - 1].rendimento;
+              return `<p class="pl-prosa" style="margin:10px 0 0;">
+              <strong>Retorno do seu esforço:</strong> ${(rendMedio * esc / 100).toFixed(1)}pp de domínio a cada ${rot} questões resolvidas.
+              ${ult != null ? 'No último período foram ' + (ult * esc / 100).toFixed(1) + 'pp' +
+                (ult < rendMedio * 0.5 ? ' — bem abaixo da sua média, sinal de que só aumentar o volume parou de funcionar neste momento.' : '.') : ''}
+            </p>`; })() : ''}
           </div>
         </div>`;
     }
@@ -33843,8 +33866,16 @@ const DesempenhoTecScreen = {
           <div class="plm"><b>${x.custoQ}</b><span>questões (custo)</span></div>
           <div class="plm"><b>${x.qJanela}</b><span>na amostra</span></div>
         </div>`;
-      // Guia expansível (orientação completa) — aberta só nos primeiros itens (prioridade).
-      const abreGuia = (r.idxMeta < 0 || i <= Math.max(r.idxMeta, 2));
+      /* ── A GUIA ABRE NOS PRIMEIROS, NÃO EM METADE DA LISTA ──────────────
+         A regra era `i <= max(idxMeta, 2)`, e `idxMeta` é onde o acumulado
+         cruza a meta — num plano de 17 assuntos ela abria 17 guias completas.
+         Pior: quando a meta era inalcançável (`idxMeta < 0`) ela abria TODAS.
+         Medido a 390px, os itens respondiam por 84% de uma página de 20.681px,
+         com cada cartão em 647px — quase uma tela de celular por assunto.
+
+         A guia continua a um toque em qualquer item; aberta, só nos três do
+         topo, que são os que a decisão de hoje usa. */
+      const abreGuia = i <= 2;
       const guia = `
         <details class="pl-guia" ${abreGuia ? 'open' : ''}>
           <summary>💡 Por que está aqui, e o que fazer <span class="chev">▾</span></summary>
@@ -33987,7 +34018,16 @@ const DesempenhoTecScreen = {
                 vida atrás de um primeiro lugar que o dado não sustenta. Dizer
                 o empate não enfraquece a fila: liberta a escolha, porque
                 qualquer um dos empatados rende praticamente o mesmo. */''}
-          ${(r.ordenar === 'pior' && r.empatados >= 2) ? `<p class="pl-ciclo-obs pl-empate">⚖️ Os <b>${r.empatados} primeiros</b> da fila estão empatados dentro da margem de erro — com esta amostra o app não consegue dizer qual é o pior. Escolha por conveniência: qualquer um deles rende praticamente o mesmo.</p>` : ''}
+          ${/* UM EMPATE CURTO ORIENTA; UM EMPATE LONGO DENUNCIA. Dizer "os 21
+                primeiros estão empatados" é verdade e é inútil: demole a lista
+                sem dizer o que fazer. Até o tamanho do bloco, o empate é uma
+                permissão ("troque à vontade"). Acima disso, o que o número
+                está contando é outra coisa — a amostra por assunto é curta
+                demais para ordenar — e a saída não é escolher melhor, é
+                concentrar volume. */''}
+          ${(r.ordenar === 'pior' && r.empatados >= 2) ? (r.empatados <= bloco.length + 2
+            ? `<p class="pl-ciclo-obs pl-empate">⚖️ Os <b>${r.empatados} primeiros</b> estão empatados dentro da margem de erro: marcamos os ${bloco.length} de cima, mas troque por qualquer um deles sem perda.</p>`
+            : `<p class="pl-ciclo-obs pl-empate">⚖️ <b>${r.empatados} assuntos</b> do topo estão empatados dentro da margem — a mediana de ${r.medianaJanela} questões por assunto não dá para ordenar tão fino. A fila serve para dizer <b>onde procurar</b>, não em que ordem exata — a escolha que de fato pesa está no quadro acima, entre matérias.</p>`) : ''}
           <ol class="pl-hoje-lista">
             ${bloco.map(x => linhaHoje(x, true)).join('')}
             ${proximos.length ? `<li class="pl-hoje-sep">depois destes, a fila segue com:</li>` + proximos.map(x => linhaHoje(x, false)).join('') : ''}
@@ -34309,7 +34349,14 @@ const DesempenhoTecScreen = {
       </div>` : '';
 
     lista.innerHTML = (linhas
-      ? blocoPontos + blocoRegua + hoje + blocoCurso + blocoTempo + blocoCal + grafico + blocoFeito + ordemNota + porQue + linhas
+      /* ── A PERGUNTA VEM ANTES DA RESPOSTA ──────────────────────────────
+         "O seu próximo bloco" já vinha com quatro assuntos marcados e um botão
+         grande, ANTES de "Onde atacar primeiro" dizer qual matéria importa.
+         Para quem abre a tela pela primeira vez isso é começar pelo fim: ele
+         cria quatro atividades sem nunca ter visto que 10pp da prova estão em
+         jogo e que quatro matérias concentram metade. O quadro de matérias
+         escolhe ONDE; o bloco escolhe O QUÊ. Nessa ordem. */
+      ? blocoPontos + blocoRegua + blocoTempo + hoje + blocoCurso + blocoCal + grafico + blocoFeito + ordemNota + porQue + linhas
       : blocoPontos + blocoRegua + blocoCurso + blocoTempo + blocoCal + blocoFeito + `<p class="hint" style="padding:18px 0;">Nenhum assunto abaixo do máximo realista — você já domina tudo que pratica.</p>`) + pequenas + edital + comoLer;
     lista.querySelectorAll('.plano-nova-extra').forEach(b => b.addEventListener('click', () => {
       this.criarExtraDoPlano(b.dataset.topico, b.dataset.disc, b.dataset.alvo, b.dataset.motivo);
