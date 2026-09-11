@@ -1843,6 +1843,65 @@ const AutoTeste = {
         casa(['Direito Penal'], ['Direito Processual Penal', 'Direito Penal Militar'])['direito penal'] === undefined);
       this._ok('Nomes: subconjunto único casa (Ética → Ética no Serviço Público)',
         casa(['Ética'], ['Etica no Servico Publico'])['etica'] === 'etica no servico publico');
+
+      /* 9) ONDE O NOME DIFERENTE CUSTA MAIS CARO: a NOTA PROJETADA. Uma matéria
+         do edital que não acha o histórico dela cai em `semDado` e some da
+         conta — e some para MENOS, sem nenhum aviso de que faltou gente. */
+      mats = [{ nome: 'Direito Administrativo', qtdQuestoes: 40, pontosPorQuestao: 1, peso: 1 },
+              { nome: 'Arquivologia', qtdQuestoes: 5, pontosPorQuestao: 1, peso: 1 }];
+      const pjN = PP.projecao();
+      this._ok('Projeção: "Direito Administrativo" do edital acha "Dir Adm" do TEC',
+        pjN.semDado.length === 0 && Math.abs(pjN.hoje - 21) < 0.01, { semDado: pjN.semDado, hoje: pjN.hoje });
+      mats = [{ nome: 'Dir Adm', qtdQuestoes: 40, pontosPorQuestao: 1, peso: 1 },
+              { nome: 'Arquivologia', qtdQuestoes: 5, pontosPorQuestao: 1, peso: 1 }];
+
+      /* 10) O QUADRO DE ESFORÇO NÃO OLHA MAIS O RELÓGIO. A moeda é a questão,
+         a única que a banca e o TEC já falam — não há nome de ciclo para casar
+         nem minuto para estimar, e nenhuma matéria fica de fora. */
+      const origIncid = ReforcoEngine._incidByDisc, origCiclo = DB.getCurrentCycle;
+      try {
+        window.planCycleMode = () => 'pre';
+        DB.getCurrentCycle = () => ({ subjects: [{ nome: 'D.A.', definidoMin: 999 }] });
+        ReforcoEngine._incidByDisc = () => ({
+          'Dir Adm': [{ codigo: '01', nome: 'Geral', disciplina: 'Dir Adm', incidencia: 400 }],
+          'Direito Previdenciario': [{ codigo: '01', nome: 'Geral', disciplina: 'Direito Previdenciario', incidencia: 400 }],
+          'Musicologia': [{ codigo: '01', nome: 'Geral', disciplina: 'Musicologia', incidencia: 2 }] });
+        const tm = PP.esforcoPorMateria();
+        const por = {}; tm.linhas.forEach(l => { por[ReforcoEngine.norm(l.nome)] = l; });
+        this._ok('Esforço: peso e esforço somam 100% — nenhuma matéria fica de fora',
+          Math.abs(tm.linhas.reduce((a, l) => a + (l.sharePeso || 0), 0) - 100) < 0.01 &&
+          Math.abs(tm.linhas.reduce((a, l) => a + l.shareEsforco, 0) - 100) < 0.01, tm.linhas.length);
+        this._ok('Esforço: matéria pesada com ZERO questão sua vira "intocada"',
+          por['direito previdenciario'] && por['direito previdenciario'].veredito === 'intocada',
+          por['direito previdenciario']);
+        this._ok('Esforço: matéria que você resolve e a prova não cobra vira "foraDoPeso"',
+          por['arquivologia'] && por['arquivologia'].veredito === 'foraDoPeso', por['arquivologia']);
+        this._ok('Esforço: o ciclo escrito noutro idioma ("D.A.") não muda nada',
+          por['dir adm'] && por['dir adm'].q === 400, por['dir adm']);
+        this._ok('Esforço: a miúda (2 questões da banca, nenhuma sua) não entra na manchete',
+          por['musicologia'] && por['musicologia'].miuda === true &&
+          tm.desalinhadas === tm.linhas.filter(l => !l.miuda &&
+            ['sobra', 'sobraFraco', 'falta', 'intocada'].indexOf(l.veredito) >= 0).length,
+          { miuda: por['musicologia'], desalinhadas: tm.desalinhadas });
+        /* O NÍVEL VEM DA JANELA ADAPTATIVA, NÃO DA MÉDIA DA VIDA. Quem
+           consertou uma matéria há pouco continuaria aparecendo como fraco
+           nela: a média da vida inteira mente sempre para o passado. */
+        DB.getTecSnapshots = () => ([
+          R('v1', dia(120), dia(90), [D('Dir Adm', 100, 20), L('01', 'Geral', 'Dir Adm', 100, 20)]),
+          R('v2', dia(30), dia(2), [D('Dir Adm', 100, 90), L('01', 'Geral', 'Dir Adm', 100, 90)])]);
+        const jan = PP.esforcoPorMateria().linhas.find(l => ReforcoEngine.norm(l.nome) === 'dir adm');
+        this._ok('Esforço: o nível é 90% (janela recente), não 55% (média da vida)',
+          jan && Math.abs(jan.taxa - 90) < 0.01, jan && jan.taxa);
+        DB.getTecSnapshots = () => snaps;
+      } finally { ReforcoEngine._incidByDisc = origIncid; DB.getCurrentCycle = origCiclo; window.planCycleMode = () => 'pos'; }
+      this._ok('Nomes: a abreviatura casa ("Dir Adm" → "Direito Administrativo")',
+        casa(['Dir Adm'], ['Direito Administrativo', 'Arquivologia'])['dir adm'] === 'direito administrativo');
+      this._ok('Nomes: mas "Dir" sozinho não casa com nenhum dos quatro Direitos',
+        casa(['Dir'], ['Direito Penal', 'Direito Civil', 'Direito Administrativo'])['dir'] === undefined);
+      this._ok('Nomes: e a abreviatura não atravessa palavra ("Dir Pen" ≠ "Direito Previdenciário")',
+        casa(['Dir Pen'], ['Direito Previdenciario'])['dir pen'] === undefined);
+      this._ok('Nomes: uma palavra não vira abreviatura de duas ("Cont" ≠ "Contabilidade Geral")',
+        casa(['Cont'], ['Contabilidade Geral'])['cont'] === undefined);
     } finally {
       DB.getTecSnapshots = origSnaps; DB.getActiveSubjects = origSubs; window.planCycleMode = origModo;
       if (antesP == null) DB.delRaw(chaveP); else DB.setRaw(chaveP, antesP);

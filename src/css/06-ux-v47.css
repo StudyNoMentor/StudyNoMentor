@@ -1437,3 +1437,5 @@
 /* o botão que leva da matéria para os assuntos dela */
 .pl-atacar { display: block; margin-top: 6px; white-space: nowrap; }
 .pl-tempo-fora{border-left:3px solid var(--warn,#e8a33d);padding-left:8px;margin-top:10px}
+.pl-tempo-miudas td { color: var(--text-soft); }
+.pl-tempo-tab .reforco-tag.tone-soft { color: var(--text-soft); background: var(--surface-sunken); }
