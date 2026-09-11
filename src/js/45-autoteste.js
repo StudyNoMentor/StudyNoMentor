@@ -2062,6 +2062,19 @@ const AutoTeste = {
           P._alvoSugerido(uso([4, 6, 8]), 10) === null);
         this._ok('Amostra: alvo já baixo não vira sugestão igual', P._alvoSugerido(uso([50, 60]), 10) === null);
 
+        /* UM RITMO MANUAL VELHO ESTRAGA TODA PREVISÃO, E EM SILÊNCIO. Visto
+           numa auditoria real: 30/sem travado contra 563/sem medidos, e o
+           caminho mais curto anunciando 486 semanas para um percurso de 26.
+           O único sinal era a AUSÊNCIA da palavra "(medido)" no chip. */
+        const div = (medido, atual) => {
+          if (!(medido > 0) || !(atual > 0) || medido === atual) return false;
+          return Math.abs(atual - medido) / Math.max(medido, atual) > 0.5;
+        };
+        this._ok('Ritmo: 30 travado contra 563 medidos é divergência', div(563, 30) === true);
+        this._ok('Ritmo: 20% de diferença não vira aviso', div(600, 480) === false);
+        this._ok('Ritmo: sem medição não há divergência a declarar',
+          div(0, 30) === false && div(563, 0) === false && div(300, 300) === false);
+
         /* 13) A FILA PROMETE MAIS PRECISÃO DO QUE A AMOSTRA TEM. Simulação com
            40 assuntos e taxas verdadeiras conhecidas: com 20 a 50 questões por
            assunto a fila acerta 55% dos cinco piores REAIS — e mesmo assim

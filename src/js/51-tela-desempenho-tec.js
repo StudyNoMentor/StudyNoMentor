@@ -1058,6 +1058,13 @@ const PlanoEngine = {
       custoModo: opts.custoModo, custoPiso: opts.custoPiso, custoPorPonto: opts.custoPorPonto,
       pesoBanca: opts.pesoBanca, minAmostra: opts.minAmostra, modo: this.modoAtivo(opts),
       ritmo, ritmoMedido: this.ritmoRecente(snapsDesc, 120),
+      /* Divergente quando o número travado erra a medição por mais de 50% —
+         abaixo disso a previsão ainda é da mesma ordem de grandeza e o aviso
+         viraria ruído; acima, ela deixa de descrever qualquer coisa. */
+      ritmoDivergente: (function (m, atual) {
+        if (!(m > 0) || !(atual > 0) || m === atual) return false;
+        return Math.abs(atual - m) / Math.max(m, atual) > 0.5;
+      })(this.ritmoRecente(snapsDesc, 120), ritmo),
       // a previsão em semanas acompanha o caminho CURTO, não a ordem exibida
       semanas: (caminho && ritmo > 0) ? caminho.q / ritmo : null,
       amostraAlvo: opts.amostraAlvo, janelaMax: opts.janelaMax, janelaMedia,
@@ -3021,6 +3028,18 @@ const DesempenhoTecScreen = {
           `📐 Este ${r.dominioPct.toFixed(0)}% descreve só os <strong>${r.assuntos}</strong> assuntos medidos. Outros <strong>${r.ignorados}</strong> ainda não têm dado — bater a meta aqui não é dominar a disciplina inteira.`, 'warn') : ''}
         ${r.alvoInviavel ? aviso(
           `⚙ Alvo de amostra alto para o seu volume: só ${r.comAlvo} de ${r.assuntos} chegam a ${r.amostraAlvo} questões (o maior tem ${r.maiorAmostra}). Experimente <strong>${r.alvoSugerido}</strong> em "Amostra confiável" — metade dos seus assuntos já chega lá.`, 'warn') : ''}
+        ${/* ── UM RITMO MANUAL VELHO ESTRAGA TODA PREVISÃO, E EM SILÊNCIO ───
+              O campo "ritmo" segue a medição sozinho — até alguém digitar um
+              número. A partir daí ele fica travado para sempre, e toda conta
+              de semanas passa a dividir por ele. Visto numa auditoria real:
+              ritmo digitado 30/sem contra 563/sem medidos nos últimos 120
+              dias, e o "caminho mais curto" anunciando 486 semanas (nove
+              anos) para um percurso que, no ritmo de verdade, leva 26.
+              Um número assim não desanima só a pessoa: desacredita a tela
+              inteira, e o único sinal que havia era a AUSÊNCIA da palavra
+              "(medido)" ao lado do chip. Sinal por omissão não é sinal. */''}
+        ${r.ritmoDivergente ? aviso(
+          `⏱️ O ritmo está fixo em <strong>${r.ritmo}/semana</strong>, mas os seus retratos dos últimos 120 dias medem <strong>${r.ritmoMedido}/semana</strong>. Toda previsão em semanas está dividindo pelo número travado — o caminho mais curto sai em ${r.semanas != null ? Math.round(r.semanas) : '—'} semanas em vez de ${r.caminho && r.ritmoMedido ? Math.round(r.caminho.q / r.ritmoMedido) : '—'}. <button type="button" class="pl-hero-limpar" id="plano-ritmo-medido">usar o medido</button>`, 'warn') : ''}
         ${r.defasado ? aviso(
           `⏳ Última importação há <strong>${r.idadeUltimo} dias</strong> — você definiu ${r.cadenciaDias}. Importe um novo período para a leitura refletir seu nível de hoje.`, 'warn') : ''}
       </div>`;
@@ -3045,6 +3064,13 @@ const DesempenhoTecScreen = {
       const ganho = comp.length ? comp.reduce((a, p) => a + p.deltaComp, 0) : ganhoBruto;
       const baseComp = comp.length ? Math.round(comp.reduce((a, p) => a + p.comuns, 0) / comp.length) : 0;
       const divergem = comp.length > 0 && Math.abs(ganho - ganhoBruto) >= 2;
+      /* A BASE DO CRACHÁ APARECE QUANDO É PEQUENA, não só quando os dois
+         números divergem. Numa auditoria real o crachá dizia "+3,9pp" apoiado
+         em 7 assuntos comuns por período — de 260 medidos — e a nota ficava
+         escondida porque o bruto calhava de estar a 1,6pp dali. Um número
+         construído sobre sete assuntos precisa dizer isso sempre; quando ele
+         também discorda do bruto, aí a nota explica as duas coisas. */
+      const baseFina = comp.length > 0 && baseComp < 10;
       const rend = S.filter(p => p.rendimento != null);
       const rendMedio = rend.length ? rend.reduce((a, p) => a + p.rendimento, 0) / rend.length : null;
       const ultimo = S[S.length - 1];
@@ -3071,7 +3097,8 @@ const DesempenhoTecScreen = {
               <span style="color:var(--text-soft);font-weight:700;">linha tracejada = meta ${r.meta}%</span>
               <span>${escapeHtml(formatDateShort(ultimo.data))} · ${ultimo.dominio.toFixed(0)}%</span>
             </div>
-            ${divergem ? `<p class="pl-ciclo-obs" style="margin:8px 0 0;">A <b>linha</b> é o seu nível sobre tudo que você já mediu a cada importação: abrir frente nova puxa a linha para baixo mesmo com todo assunto melhorando — ela saiu de ${S[0].dominio.toFixed(0)}% para ${ultimo.dominio.toFixed(0)}% enquanto os assuntos cresciam de ${S[0].assuntos} para ${ultimo.assuntos}. O <b>número ao lado</b> não cai nessa: ele compara assunto com assunto, ${baseComp} em média por período.</p>` : ''}
+            ${divergem ? `<p class="pl-ciclo-obs" style="margin:8px 0 0;">A <b>linha</b> é o seu nível sobre tudo que você já mediu a cada importação: abrir frente nova puxa a linha para baixo mesmo com todo assunto melhorando — ela saiu de ${S[0].dominio.toFixed(0)}% para ${ultimo.dominio.toFixed(0)}% enquanto os assuntos cresciam de ${S[0].assuntos} para ${ultimo.assuntos}. O <b>número ao lado</b> não cai nessa: ele compara assunto com assunto, ${baseComp} em média por período.</p>`
+              : baseFina ? `<p class="pl-ciclo-obs" style="margin:8px 0 0;">O número ao lado compara assunto com assunto — mas só <b>${baseComp}</b> em média por período aparecem em dois retratos seguidos. É pouca base: leia como direção, não como medida. Repetir os mesmos assuntos entre importações é o que aperta esse número.</p>` : ''}
             ${/* A UNIDADE TEM DE CABER NO NÚMERO. Com dezenas de assuntos, mover
                   a MÉDIA em 1pp exige mover um assunto em dezenas de pontos —
                   então "por 100 questões" arredondava para 0,1pp e a frase
@@ -3693,6 +3720,17 @@ const DesempenhoTecScreen = {
       const el = document.getElementById('plano-aud-resumo');
       if (el && a && !a.erro) el.textContent = a.resumo;
     }));
+    const ritmoBtn = document.getElementById('plano-ritmo-medido');
+    if (ritmoBtn) ritmoBtn.addEventListener('click', () => {
+      const medido = PlanoEngine.ritmoRecente(DB.getTecSnapshots().slice().reverse(), 120);
+      if (!medido) return;
+      const campo = document.getElementById('plano-ritmo');
+      if (campo) campo.value = medido;
+      PlanoEngine.salvarPrefs({ ritmoSemanal: null });
+      this._planoRefC = null;
+      this.renderPlanoConteudo();
+      showToast('Ritmo voltou a seguir a sua medição (' + medido + '/sem)');
+    });
     const todasBtn = document.getElementById('plano-todas-disc');
     if (todasBtn) todasBtn.addEventListener('click', () => {
       const sel = document.getElementById('plano-disc');
