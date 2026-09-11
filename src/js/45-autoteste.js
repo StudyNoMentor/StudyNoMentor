@@ -1992,6 +1992,37 @@ const AutoTeste = {
           P.deltaDetectavel(88, 10, 70) > 23);
         this._ok('Seta: com 200 de cada lado, 20pp passa do mínimo comprovável',
           P.deltaDetectavel(80, 200, 200) < 20);
+        /* 16) "REDUZA" SÓ ONDE HÁ O QUE REDUZIR, e a GUIA abre só no topo. */
+        this._ok('Sobra: o piso de esforço existe e é declarado', PP.SOBRA_MIN_ESFORCO === 3);
+
+        /* 17) AS CONTAS TÊM DE FECHAR ENTRE SI. Não basta cada número parecer
+           certo: o acumulado precisa ser exatamente domínio + ganhos, cada
+           degrau precisa ser o ganho daquele item, e o caminho curto precisa
+           cobrir a falta de verdade e não custar mais que a ordem exibida. */
+        const rInv = P.calcular(DB.getTecSnapshots()[snaps.length - 1], Object.assign({}, P.prefs(), { limite: 200 }));
+        if (rInv.itens && rInv.itens.length) {
+          const somaG = rInv.itens.reduce((a, x) => a + x.ganhoPP, 0);
+          const ultimo = rInv.itens[rInv.itens.length - 1];
+          this._ok('Contas: o acumulado do último item é domínio + todos os ganhos',
+            Math.abs(ultimo.acumulado - (rInv.dominioPct + somaG)) < 0.01,
+            { acum: ultimo.acumulado, esperado: rInv.dominioPct + somaG });
+          let degrau = true, ant = rInv.dominioPct;
+          rInv.itens.forEach(x => { if (Math.abs(x.acumulado - ant - x.ganhoPP) > 1e-6) degrau = false; ant = x.acumulado; });
+          this._ok('Contas: cada degrau do acumulado é exatamente o ganho daquele assunto', degrau);
+          const dupes = new Set(rInv.itens.concat(rInv.pequenas || []).map(x => x.disciplina + '|' + x.nome));
+          this._ok('Contas: nenhum assunto aparece na lista e no segundo plano ao mesmo tempo',
+            dupes.size === rInv.itens.length + (rInv.pequenas || []).length);
+          if (rInv.caminho) {
+            const gCam = (rInv.caminho.itens || []).reduce((a, x) => a + x.ganhoPP, 0);
+            this._ok('Contas: o caminho mais curto cobre a falta até a meta',
+              rInv.dominioPct + gCam >= rInv.meta - 1e-6, { chega: rInv.dominioPct + gCam, meta: rInv.meta });
+            this._ok('Contas: e não custa mais que a ordem exibida',
+              rInv.qAteMeta == null || rInv.caminho.q <= rInv.qAteMeta, { curto: rInv.caminho.q, exibida: rInv.qAteMeta });
+            this._ok('Contas: e não conta o mesmo assunto duas vezes',
+              new Set(rInv.caminho.itens.map(x => x.disciplina + '|' + x.nome)).size === rInv.caminho.n);
+          }
+        }
+
         this._ok('Seta: quanto menor o volume por período, maior a variação exigida',
           P.deltaDetectavel(67, 10, 10) > P.deltaDetectavel(67, 300, 300) * 4);
 

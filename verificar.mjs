@@ -2269,6 +2269,108 @@ try {
     && /<1% do seu esforço/.test(num.linhaFina) && !/[^\d<]0% do seu esforço/.test(num.linhaFina))
     ? ok(`materia com ${num.shareFina}% do esforco e nivel medido diz "<1%", nao "0%"`)
     : erro('a linha ainda se contradiz: ' + JSON.stringify({ share: num.shareFina, nivel: num.nivelFina, linha: num.linhaFina.slice(0, 120) }));
+  /* ── O NUMERO GRANDE PRECISA DIZER DE QUEM ELE E ──────────────────────
+     Com o filtro numa disciplina, TUDO no cartao do topo passa a ser dela: o
+     dominio, os "faltam X pontos", o caminho curto, as semanas. Medido no mesmo
+     perfil, o numero saltava de 79,0% em 27 assuntos para 65,5% em 6 sem nada
+     na tela dizendo por que — e o filtro vive numa folha suspensa, longe dali. */
+  const escopo = await pag.evaluate(() => {
+    const origSnaps = DB.getTecSnapshots, origSubs = DB.getActiveSubjects,
+      origModo = window.planCycleMode, origInc = ReforcoEngine._incidByDisc;
+    try {
+      const dia = (n) => { const d = new Date(todayLocal() + 'T00:00:00'); d.setDate(d.getDate() - n); return d.toISOString().slice(0, 10); };
+      const rs = [];
+      [['Tributario', 10, 84], ['Contabilidade', 8, 58]].forEach(([d, n, base]) => {
+        for (let t = 0; t < n; t++) rs.push({ depth: 1, codigo: String(t + 1), nome: d + ' ' + (t + 1),
+          disciplina: d, questoes: 40 + t * 3, acertos: Math.round((40 + t * 3) * (base - 8 + t * 3) / 100) });
+      });
+      DB.getTecSnapshots = () => ([{ id: 'E', nome: 'E', date: dia(5), startDate: dia(35), endDate: dia(5), rows: rs }]);
+      DB.getActiveSubjects = () => []; window.planCycleMode = () => 'pre';
+      ReforcoEngine._incidByDisc = () => ({});
+      const sel = document.getElementById('plano-disc');
+      if (sel) sel.value = '__todas__';
+      PlanoEngine.salvarPrefs({ disciplina: '__todas__', minAmostra: 20, metaDominio: 85, limite: 30 });
+      DesempenhoTecScreen._planoRefC = null;
+      DesempenhoTecScreen.renderPlano();
+      const geral = PlanoEngine.calcular(DesempenhoTecScreen.scopedSnapshot(), PlanoEngine.prefs());
+      const semRotulo = !document.querySelector('.pl-hero-escopo');
+      if (sel) sel.value = 'Tributario';
+      PlanoEngine.salvarPrefs({ disciplina: 'Tributario' });
+      DesempenhoTecScreen._planoRefC = null;
+      DesempenhoTecScreen.renderPlanoConteudo();
+      const filtrado = PlanoEngine.calcular(DesempenhoTecScreen.scopedSnapshot(), PlanoEngine.prefs());
+      const el = document.querySelector('.pl-hero-escopo');
+      const btn = document.getElementById('plano-todas-disc');
+      const rot = el ? el.textContent.replace(/\s+/g, ' ') : '';
+      if (btn) btn.click();
+      return { semRotulo, rot, temBotao: !!btn,
+        voltou: PlanoEngine.prefs().disciplina === '__todas__' && !document.querySelector('.pl-hero-escopo'),
+        domGeral: +geral.dominioPct.toFixed(1), nGeral: geral.assuntos,
+        domFiltro: +filtrado.dominioPct.toFixed(1), nFiltro: filtrado.assuntos };
+    } finally {
+      DB.getTecSnapshots = origSnaps; DB.getActiveSubjects = origSubs;
+      window.planCycleMode = origModo; ReforcoEngine._incidByDisc = origInc;
+      PlanoEngine.salvarPrefs({ disciplina: '__todas__' });
+    }
+  });
+  (escopo.semRotulo && /Tributario/.test(escopo.rot) && escopo.temBotao && escopo.voltou
+    && Math.abs(escopo.domGeral - escopo.domFiltro) > 5)
+    ? ok(`o dominio nomeia a materia quando filtrado (${escopo.domGeral}% em ${escopo.nGeral} assuntos → ${escopo.domFiltro}% em ${escopo.nFiltro}) e o botao "ver o geral" desfaz`)
+    : erro('o numero grande nao diz de quem e: ' + JSON.stringify(escopo));
+
+  /* ── A TELA COMECA PELA PERGUNTA, NAO PELA RESPOSTA ───────────────────
+     "O seu proximo bloco" vinha com quatro assuntos marcados e um botao grande
+     ANTES de "Onde atacar primeiro" dizer qual materia importa: quem abre pela
+     primeira vez criava quatro atividades sem ter visto que quatro materias
+     concentram metade do que esta em jogo. E a guia de cada item abria enquanto
+     `i <= idxMeta` — num plano de 17 assuntos, 17 guias completas abertas (e
+     TODAS quando a meta era inalcancavel), o que fazia os itens responderem por
+     84% de uma pagina de 20.681px a 390px. */
+  const layout = await pag.evaluate(() => {
+    const origSnaps = DB.getTecSnapshots, origSubs = DB.getActiveSubjects,
+      origModo = window.planCycleMode, origInc = ReforcoEngine._incidByDisc;
+    try {
+      const dia = (n) => { const d = new Date(todayLocal() + 'T00:00:00'); d.setDate(d.getDate() - n); return d.toISOString().slice(0, 10); };
+      ReforcoEngine._incidByDisc = () => ({
+        'Grande': [{ codigo: null, depth: 0, nome: 'Grande', disciplina: 'Grande', incidencia: 890 }],
+        'Cara': [{ codigo: null, depth: 0, nome: 'Cara', disciplina: 'Cara', incidencia: 100 }],
+        'Miuda': [{ codigo: null, depth: 0, nome: 'Miuda', disciplina: 'Miuda', incidencia: 8 }] });
+      DB.getActiveSubjects = () => []; window.planCycleMode = () => 'pre';
+      const rs = [];
+      [['Grande', 12, 58, 55], ['Cara', 8, 50, 80], ['Miuda', 1, 20, 88]].forEach(([d, n, q, tx]) => {
+        for (let t = 0; t < n; t++) rs.push({ depth: 1, codigo: String(t + 1), nome: d + ' ' + (t + 1),
+          disciplina: d, questoes: q, acertos: Math.round(q * (tx + t) / 100) });
+      });
+      DB.getTecSnapshots = () => ([{ id: 'L', nome: 'L', date: dia(5), startDate: dia(35), endDate: dia(5), rows: rs }]);
+      PlanoEngine.salvarPrefs({ disciplina: '__todas__', minAmostra: 20, metaDominio: 85, limite: 30, ordenar: 'pior' });
+      DesempenhoTecScreen._planoRefC = null;
+      DesempenhoTecScreen.renderPlano();
+      const blocos = [...document.querySelectorAll('#plano-lista > *')].map((e) => (e.className || '').split(' ')[0]);
+      const tm = PlanoPontos.esforcoPorMateria();
+      const por = {}; tm.linhas.forEach((l) => { por[l.nome] = l; });
+      const r = PlanoEngine.calcular(DesempenhoTecScreen.scopedSnapshot(), PlanoEngine.prefs());
+      return {
+        iTempo: blocos.indexOf('pl-ciclo'), iHoje: blocos.indexOf('pl-hoje'),
+        guiasAbertas: document.querySelectorAll('.pl-guia[open]').length,
+        nItens: document.querySelectorAll('.pl-item').length,
+        idxMeta: r.idxMeta,
+        cara: por.Cara, miuda: por.Miuda
+      };
+    } finally {
+      DB.getTecSnapshots = origSnaps; DB.getActiveSubjects = origSubs;
+      window.planCycleMode = origModo; ReforcoEngine._incidByDisc = origInc;
+    }
+  });
+  (layout.iTempo >= 0 && layout.iHoje >= 0 && layout.iTempo < layout.iHoje)
+    ? ok('a tela abre por "Onde atacar primeiro" (a materia) e so depois pelo bloco de assuntos')
+    : erro('a ordem dos blocos voltou a comecar pela resposta: ' + JSON.stringify(layout));
+  (layout.guiasAbertas <= 3 && layout.nItens > 10)
+    ? ok(`e a guia completa abre em ${layout.guiasAbertas} itens de ${layout.nItens}, nao em ${layout.idxMeta >= 0 ? layout.idxMeta + 1 : 'todos'}`)
+    : erro('a guia voltou a abrir em meia lista: ' + JSON.stringify({ abertas: layout.guiasAbertas, itens: layout.nItens }));
+  (layout.cara.veredito === 'reduzir' && layout.miuda.veredito !== 'reduzir' && layout.miuda.sobra === true)
+    ? ok(`"reduza" so onde ha o que reduzir: Cara com ${layout.cara.shareEsforco.toFixed(0)}% do esforco sim, Miuda com ${layout.miuda.shareEsforco.toFixed(1)}% nao (a sobra fica anotada)`)
+    : erro('o piso de esforco do "reduza" falhou: ' + JSON.stringify({ cara: layout.cara.veredito, miuda: layout.miuda.veredito }));
+
   /* ── A SETA SO ACENDE QUANDO A DIFERENCA SE SUSTENTA ──────────────────
      `sensTendencia` responde "vale me avisar?" e e preferencia legitima.
      Faltava a outra pergunta: "da para provar?". Medido no caso real: 70
