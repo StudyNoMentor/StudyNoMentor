@@ -1984,6 +1984,17 @@ const AutoTeste = {
           P.qParaProvar(58, 0, 20) === null && P.qParaProvar(58, 100, 0) === null
           && P.deltaDetectavel(58, 0, 10) === null);
 
+        /* 15) A SETA PRECISA PASSAR EM DOIS FILTROS. `sensTendencia` responde
+           "vale me avisar?"; faltava "dá para provar?". Com o piso de série em
+           5 questões, o app acendia ▲ para 3pp contra uma base onde só 83pp
+           seriam comprováveis. */
+        this._ok('Seta: 70q a 88% contra 10q a 65% sobe 18,6pp, mas só 30pp seriam comprováveis',
+          P.deltaDetectavel(88, 10, 70) > 23);
+        this._ok('Seta: com 200 de cada lado, 20pp passa do mínimo comprovável',
+          P.deltaDetectavel(80, 200, 200) < 20);
+        this._ok('Seta: quanto menor o volume por período, maior a variação exigida',
+          P.deltaDetectavel(67, 10, 10) > P.deltaDetectavel(67, 300, 300) * 4);
+
         this._ok('Empate: sem amostra, ou taxa cravada em 100%, não há empate falso',
           P.empateTecnico(ft(50, 0), ft(50, 20)) === false &&
           P.empateTecnico(ft(100, 30), ft(100, 30)) === false &&

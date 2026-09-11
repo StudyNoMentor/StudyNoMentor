@@ -812,7 +812,19 @@ const PlanoEngine = {
         // ▲▼ compara a janela com o que ficou ANTES dela — nunca com o todo que
         // a contém. Sem período anterior com amostra útil, não há comparação.
         delta: (a.pct != null && a.pctAntes != null && (a.qAntes || 0) >= (opts.pisoSerie || this.PISO_SERIE))
-          ? Math.round((a.pct - a.pctAntes) * 10) / 10 : null
+          ? Math.round((a.pct - a.pctAntes) * 10) / 10 : null,
+        /* ── A SETA PRECISA PASSAR EM DOIS FILTROS, NÃO UM ────────────────
+           `sensTendencia` responde "vale a pena me avisar?" — é preferência,
+           e é legítima. Faltava a outra pergunta: "dá para provar?". Com o
+           piso de série em 5 questões, o app acendia ▲ para uma diferença de
+           3pp contra uma base onde só 83pp seriam comprováveis. Medido no
+           caso real: 70 questões a 88% contra 10 questões a 65% acende ▲
+           +18,6pp, quando a menor subida comprovável naquele par é 31pp.
+
+           Anunciar melhora que não se sustenta é pior que não anunciar: o
+           aluno troca de estratégia por causa de ruído. A seta só fica firme
+           quando a diferença passa também do mínimo detectável do par. */
+        deltaMinimo: this.deltaDetectavel(a.pct, a.qAntes, a.q)
       };
     });
     /* ── CUSTO ────────────────────────────────────────────────────────────────
@@ -1030,8 +1042,12 @@ const PlanoEngine = {
     const ritmo = opts.ritmoSemanal || this.ritmoRecente(snapsDesc, 120) || 0;
     const idadeUltimo = this._diasDesde(todos[todos.length - 1].endDate || todos[todos.length - 1].date);
     const sens = opts.sensTendencia;
-    const melhorando = usados.filter(x => x.delta != null && x.delta >= sens).length;
-    const piorando = usados.filter(x => x.delta != null && x.delta <= -sens).length;
+    usados.forEach(x => {
+      x.deltaFirme = x.delta != null && Math.abs(x.delta) >= sens
+        && x.deltaMinimo != null && Math.abs(x.delta) >= x.deltaMinimo;
+    });
+    const melhorando = usados.filter(x => x.deltaFirme && x.delta > 0).length;
+    const piorando = usados.filter(x => x.deltaFirme && x.delta < 0).length;
     const janelaMedia = Math.round(usados.filter(x => x.diasJanela).reduce((a, x) => a + x.diasJanela, 0) / Math.max(1, usados.filter(x => x.diasJanela).length));
     return {
       dominioPct, meta, jaAtinge: dominioPct >= meta, falta: Math.max(0, meta - dominioPct),
@@ -3067,8 +3083,10 @@ const DesempenhoTecScreen = {
          mostrava nada, e "sem seta" era lido como "estável". */
       const seta = x.delta == null
         ? (x.qAntes === 0 ? `<span class="reforco-tag" title="Não há período anterior a esta janela para comparar: é a primeira medição do assunto.">🆕 primeira medição</span>` : '')
-        : x.delta >= sens ? `<span class="reforco-tag tone-good" title="Acima do que você fazia no período anterior a esta janela">▲ ${x.delta}pp</span>` :
-          x.delta <= -sens ? `<span class="reforco-tag tone-bad" title="Abaixo do que você fazia no período anterior a esta janela">▼ ${x.delta}pp</span>` : '';
+        : (Math.abs(x.delta) >= sens && !x.deltaFirme)
+          ? `<span class="reforco-tag semincid" title="A diferença existe na medição, mas as amostras dos dois períodos são pequenas demais para descartar acaso: aqui só ${x.deltaMinimo != null ? x.deltaMinimo.toFixed(0) : '—'}pp seriam comprováveis (${x.qAntes}q antes, ${x.qJanela}q agora).">${x.delta > 0 ? '▲' : '▼'} ${x.delta}pp · dentro da margem</span>`
+        : x.delta >= sens ? `<span class="reforco-tag tone-good" title="Acima do que você fazia no período anterior a esta janela, e a diferença passa do mínimo comprovável (${x.deltaMinimo != null ? x.deltaMinimo.toFixed(0) : '—'}pp)">▲ ${x.delta}pp</span>` :
+          x.delta <= -sens ? `<span class="reforco-tag tone-bad" title="Abaixo do que você fazia no período anterior a esta janela, e a diferença passa do mínimo comprovável (${x.deltaMinimo != null ? x.deltaMinimo.toFixed(0) : '—'}pp)">▼ ${x.delta}pp</span>` : '';
       const desdeAtiv = (x.extra && x.extra.origemPlano && x.extra.origemPlano.taxaInicial != null && x.taxa != null)
         ? `<span class="reforco-tag ${x.taxa - x.extra.origemPlano.taxaInicial >= 0 ? 'tone-good' : 'tone-bad'}" title="Evolução desde que você criou a atividade em ${escapeHtml(formatDateShort(x.extra.origemPlano.criadoEm))}">desde a atividade ${x.extra.origemPlano.taxaInicial.toFixed(0)}→${x.taxa.toFixed(0)}%</span>` : '';
       const marca = (i === r.idxMeta) ? `<div class="pl-marco">🏁 <b>Nesta ordem</b>, daqui para cima já basta para chegar a ${r.meta}% de domínio${r.qAteMeta ? ` — ${r.qAteMeta.toLocaleString('pt-BR')} questões` : ''}${(r.caminho && r.qAteMeta && r.qAteMeta > r.caminho.q) ? `, contra ${r.caminho.q.toLocaleString('pt-BR')} pelo caminho mais curto` : ''}</div>` : '';

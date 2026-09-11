@@ -2269,6 +2269,50 @@ try {
     && /<1% do seu esforço/.test(num.linhaFina) && !/[^\d<]0% do seu esforço/.test(num.linhaFina))
     ? ok(`materia com ${num.shareFina}% do esforco e nivel medido diz "<1%", nao "0%"`)
     : erro('a linha ainda se contradiz: ' + JSON.stringify({ share: num.shareFina, nivel: num.nivelFina, linha: num.linhaFina.slice(0, 120) }));
+  /* ── A SETA SO ACENDE QUANDO A DIFERENCA SE SUSTENTA ──────────────────
+     `sensTendencia` responde "vale me avisar?" e e preferencia legitima.
+     Faltava a outra pergunta: "da para provar?". Medido no caso real: 70
+     questoes a 88% contra uma base de 10 a 65% acendia ▲ +18,6pp, quando a
+     menor subida comprovavel naquele par e 30pp. Anunciar melhora que nao se
+     sustenta e pior que nao anunciar: o aluno troca de estrategia por ruido. */
+  const setas = await pag.evaluate(() => {
+    const origSnaps = DB.getTecSnapshots, origSubs = DB.getActiveSubjects,
+      origModo = window.planCycleMode, origInc = ReforcoEngine._incidByDisc;
+    try {
+      const dia = (n) => { const d = new Date(todayLocal() + 'T00:00:00'); d.setDate(d.getDate() - n); return d.toISOString().slice(0, 10); };
+      const snap = (id, d, q, tx) => ({ id, nome: id, date: dia(d), startDate: dia(d + 7), endDate: dia(d),
+        rows: [{ depth: 1, codigo: 'T', nome: 'T', disciplina: 'D', questoes: q, acertos: Math.round(q * tx / 100) }] });
+      DB.getActiveSubjects = () => []; window.planCycleMode = () => 'pre';
+      ReforcoEngine._incidByDisc = () => ({});
+      const medir = (snaps, alvo) => {
+        DB.getTecSnapshots = () => snaps;
+        PlanoEngine.salvarPrefs({ disciplina: '__todas__', minAmostra: 20, amostraAlvo: alvo,
+          pisoSerie: 5, sensTendencia: 3, ordenar: 'pior', limite: 30 });
+        DesempenhoTecScreen._planoRefC = null;
+        DesempenhoTecScreen.renderPlano();
+        const r = PlanoEngine.calcular(DesempenhoTecScreen.scopedSnapshot(), PlanoEngine.prefs());
+        const x = (r.itens || [])[0] || {};
+        return { delta: x.delta, minimo: x.deltaMinimo, firme: x.deltaFirme, melhorando: r.melhorando,
+          margem: /dentro da margem/.test(document.getElementById('plano-lista').textContent) };
+      };
+      return {
+        fraca: medir([snap('b1', 21, 10, 65), snap('b2', 7, 70, 88)], 50),
+        forte: medir([snap('c1', 21, 200, 60), snap('c2', 7, 200, 80)], 200)
+      };
+    } finally {
+      DB.getTecSnapshots = origSnaps; DB.getActiveSubjects = origSubs;
+      window.planCycleMode = origModo; ReforcoEngine._incidByDisc = origInc;
+    }
+  });
+  (setas.fraca.firme === false && setas.fraca.melhorando === 0 && setas.fraca.margem
+    && setas.fraca.delta > 3 && setas.fraca.minimo > setas.fraca.delta)
+    ? ok(`base curta: sobe ${setas.fraca.delta}pp mas so ${setas.fraca.minimo.toFixed(0)}pp seriam comprovaveis — a tela marca "dentro da margem" e nao conta como melhorando`)
+    : erro('a seta acendeu sem sustentacao: ' + JSON.stringify(setas.fraca));
+  (setas.forte.firme === true && setas.forte.melhorando === 1 && !setas.forte.margem
+    && setas.forte.delta > setas.forte.minimo)
+    ? ok(`e com volume dos dois lados a seta fica CHEIA: ${setas.forte.delta}pp contra ${setas.forte.minimo.toFixed(0)}pp de minimo`)
+    : erro('a seta firme deixou de acender: ' + JSON.stringify(setas.forte));
+
   /* ── O CONSELHO DE CADA ASSUNTO DIZ QUANTAS QUESTOES, E PARA QUE ──────
      Era "um bloco de ~B questoes" com B = custoQ/4: um quarto de uma
      estimativa, sem pergunta por tras. Agora sao duas contas fechadas — a
