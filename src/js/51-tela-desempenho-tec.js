@@ -81,34 +81,44 @@ const PlanoEngine = {
          esconder atrás de pouco volume. Entre matérias, quem decide é o peso
          da prova, porque é a única régua que existe antes do edital. */
       porque: 'Dentro de cada matéria, todo assunto pesa igual e o pior acerto vem primeiro — nada se esconde atrás de pouco volume. Qual matéria atacar primeiro é o quadro "Onde atacar primeiro" que responde, pela incidência das bancas.',
-      patch: { ponderacao: 'igual', ordenar: 'pior', metaDominio: 85, tetoDominio: 90, custoModo: 'lacuna', limite: 30, incluirPequenas: false }
+      patch: { ponderacao: 'igual', ordenar: 'pior', metaDominio: 85, tetoDominio: 90, custoModo: 'lacuna', incluirPequenas: false }
     },
     edital: {
       rot: '🎯 Edital publicado', fase: 'pós-edital',
       quando: 'Edital na mão, banca definida. A pergunta muda para "o que me dá ponto NESTA prova?".',
       porque: 'Ordena por fraqueza × incidência na banca e pesa por volume: assunto que cai muito e que você erra sobe ao topo, mesmo que não seja o seu pior acerto absoluto.',
-      patch: { ponderacao: 'volume', ordenar: 'banca', metaDominio: 85, tetoDominio: 90, custoModo: 'lacuna', limite: 20, incluirPequenas: false },
+      patch: { ponderacao: 'volume', ordenar: 'banca', metaDominio: 85, tetoDominio: 90, custoModo: 'lacuna', incluirPequenas: false },
       exige: 'incidencia'
     },
     curto: {
       rot: '⏱️ Tempo curto', fase: 'qualquer fase',
       quando: 'Poucas semanas até a prova e muito a fazer. A pergunta é "o que rende mais por questão resolvida?".',
       porque: 'Ordena por ganho ÷ custo com o custo medido pela lacuna: assunto muito distante da meta perde para outro que fecha rápido — em tempo curto, dois assuntos resolvidos valem mais que um começado.',
-      patch: { ponderacao: 'igual', ordenar: 'rendimento', custoModo: 'lacuna', limite: 10, incluirPequenas: false }
+      patch: { ponderacao: 'igual', ordenar: 'rendimento', custoModo: 'lacuna', incluirPequenas: false }
     },
     manutencao: {
       rot: '🛡️ Manutenção', fase: 'véspera / nível bom',
       quando: 'Você já está no nível e o risco agora é PERDER o que ganhou.',
       porque: 'Ordena pela maior queda recente e destaca o que está sem medição nova: aqui o inimigo é o esquecimento, não a ignorância.',
-      patch: { ponderacao: 'igual', ordenar: 'queda', custoModo: 'lacuna', limite: 15, incluirPequenas: false }
+      patch: { ponderacao: 'igual', ordenar: 'queda', custoModo: 'lacuna', incluirPequenas: false }
     },
     diagnostico: {
       rot: '🔍 Diagnóstico', fase: 'plano novo / poucos dados',
       quando: 'Poucas importações, muita coisa sem amostra. A pergunta é "onde eu estou, afinal?".',
       porque: 'Traz para o cálculo os assuntos de amostra pequena e ordena pelo pior acerto: aqui o objetivo não é atacar fraqueza, é produzir dado para saber qual fraqueza é real.',
-      patch: { ponderacao: 'igual', ordenar: 'pior', incluirPequenas: true, minAmostra: 5, limite: 40, custoModo: 'lacuna' }
+      patch: { ponderacao: 'igual', ordenar: 'pior', incluirPequenas: true, minAmostra: 5, custoModo: 'lacuna' }
     }
   },
+  /* ── O PRESET NÃO MEXE NO PASSO DE LEITURA ───────────────────────────────
+     Os cinco modos gravavam `limite` (30, 20, 10, 15 e 40). Fazia sentido
+     quando `limite` era "mostrar até N" — um recorte de estratégia. Deixou de
+     fazer no instante em que ele virou o PASSO com que sete listas abrem:
+     escolher "Diagnóstico" passaria a despejar 40 itens de cada lista de uma
+     vez, que é exatamente o que o passo de 10 veio resolver, e "Tempo curto"
+     encolheria a fila de todo mundo sem ter sido pedido.
+
+     Modo de ataque é sobre O QUE a fila otimiza. Quanto cabe na sua tela é
+     decisão de leitura, e é sua — não muda quando você troca de fase. */
   /* ── AS CINCO ORDENS QUE DECIDEM ALGO ────────────────────────────────────
      Eram sete. Duas foram embora porque não eram escolha nenhuma:
 
@@ -233,7 +243,7 @@ const PlanoEngine = {
     const partes = [rot, 'meta ' + patch.metaDominio + '%'];
     if (patch.tetoDominio != null) partes.push('teto ' + patch.tetoDominio + '%');
     partes.push(pond, custo);
-    if (patch.limite != null) partes.push(patch.limite + ' assuntos');
+    if (patch.limite != null) partes.push(patch.limite + ' por vez');
     if (patch.incluirPequenas) partes.push('inclui amostra pequena');
     return partes.join(' · ');
   },
@@ -1110,16 +1120,32 @@ const PlanoEngine = {
         : (provar <= bloco)
           ? ' Esse bloco já basta para o app cravar a subida até a meta.'
           : ' Para o app CRAVAR a subida até a meta são ' + provar + ' questões — o bloco acima já mede onde você ficou.';
+      /* ── A ORDEM E O PORQUÊ SÃO DUAS COISAS ────────────────────────────
+         `acao` é o conselho inteiro: diagnóstico, ordem e a estatística que a
+         sustenta. Ele está certo — e ocupava nove linhas de texto colorido em
+         CADA item da lista, com o mesmo miolo repetido dez vezes seguidas.
+         Medido a 390px, um único assunto passava de 490px de altura: mais que
+         uma tela de celular para uma linha de lista.
+
+         `ordem` é a MESMA decisão em uma frase imperativa. Ela fica visível;
+         o conselho inteiro passa a viver na guia "Por que está aqui", que já
+         existia e já é onde se vai quando a linha não basta. Nada some, nada
+         é reescrito: o que muda é o que compete pela primeira leitura. */
       if (t < opts.faixaCritico) x.status = { rot: '🔴 Crítico', tom: 'bad',
+        ordem: 'Teoria primeiro, depois um bloco de ' + bloco + ' questões.',
         acao: 'Você acerta ' + t.toFixed(0) + '%: erra mais do que acerta. ' +
           (caindo ? 'E caiu ' + queda + 'pp contra o período anterior. ' : '') +
           'Resolver mais questões agora só repete o erro — retome a teoria deste assunto primeiro. ' +
           'Depois volte com um bloco de ' + bloco + ' questões: é a amostra que mede o seu novo nível com ±' + this.MARGEM_ALVO + 'pp e mostra se a teoria pegou.' };
       else if (t < opts.faixaFragil) x.status = { rot: '🔴 Frágil', tom: 'bad',
+        ordem: 'Bloco de ' + bloco + ' questões pelo caminho do erro: anote e revise só o que errar.',
         acao: 'A base existe (' + t.toFixed(0) + '%), mas falha em pontos específicos, e faltam ' + faltaMeta + ' até a meta. ' +
           (caindo ? 'A queda de ' + queda + 'pp sugere revisão atrasada. ' : '') +
           'Vá pelo caminho do erro: um bloco de ' + bloco + ' questões (o que dá ±' + this.MARGEM_ALVO + 'pp de margem), anote o que errou e revise só esses pontos antes do bloco seguinte.' + prova };
       else if (t < opts.metaDominio) x.status = { rot: '🟠 Em desenvolvimento', tom: 'warn',
+        ordem: caindo
+          ? 'Reforce a revisão e remeça com ' + bloco + ' questões.'
+          : bloco + ' questões; revise apenas o que errar. Faltam ' + faltaMeta + ' pontos.',
         acao: caindo
           ? 'Estava melhor antes e caiu ' + queda + 'pp. Antes de aumentar o volume, verifique se o assunto mudou de banca ou se você deixou de revisar — reforce a revisão e remeça com ' + bloco + ' questões.'
           : 'Faltam ' + faltaMeta + ' pontos para a meta. Aqui volume resolve: ' + bloco + ' questões e revise apenas o que errar, sem voltar à teoria inteira.' + prova };
@@ -1129,10 +1155,13 @@ const PlanoEngine = {
          medições ANTIGAS não é sustentar a meta hoje — é uma terceira
          situação, com ação própria: remedir antes de confiar. */
       else if (x.seq >= alvoSeq && x.vencido) x.status = { rot: '🟠 Sólido, sem medição nova', tom: 'warn', seq: x.seq,
+        ordem: 'Remeça com ' + bloco + ' questões antes de riscar da lista — o dado tem ' + x.diasDesdeMedicao + ' dias.',
         acao: 'Sustentou a meta em ' + x.seq + ' importações, mas a última tem ' + x.diasDesdeMedicao + ' dias. Antes de riscar da lista, resolva ' + bloco + ' questões e reimporte: é o bloco que devolve uma medição com ±' + this.MARGEM_ALVO + 'pp. Consolidado com dado velho é lembrança, não medição.' };
       else if (x.seq >= alvoSeq) x.status = { rot: '🟢 Consolidado', tom: 'good', seq: x.seq,
+        ordem: 'Resolvido: só revisão espaçada. Tempo extra aqui rende menos.',
         acao: 'Sustenta a meta há ' + x.seq + ' importações seguidas. Está resolvido: só revisão espaçada. Tempo extra aqui rende menos que em qualquer assunto acima.' };
       else x.status = { rot: '🟡 Recém-corrigido', tom: 'warn', seq: x.seq,
+        ordem: 'Mantenha ~' + bloco + ' questões por importação até sustentar (' + x.seq + ' de ' + alvoSeq + ').',
         acao: 'Passou da meta em ' + x.seq + ' de ' + alvoSeq + ' importações necessárias. Ainda não provou que fixou — mantenha cerca de ' + bloco + ' questões por importação até sustentar, que é o mínimo para a medição seguinte ter ±' + this.MARGEM_ALVO + 'pp.' };
     });
     /* ── A ORDEM QUE APROVA ───────────────────────────────────────────────
@@ -3614,11 +3643,18 @@ const DesempenhoTecScreen = {
 
          A guia continua a um toque em qualquer item; aberta, só nos três do
          topo, que são os que a decisão de hoje usa. */
-      const abreGuia = i <= 2;
+      /* NENHUMA GUIA ABRE SOZINHA. Ela abria nos três primeiros porque a linha
+         não dizia o que fazer; agora diz. Três guias abertas somavam ~1.200px
+         antes do quarto item — e quem quer o detalhe continua a um toque. */
+      const abreGuia = false;
       const guia = `
         <details class="pl-guia" ${abreGuia ? 'open' : ''}>
           <summary>💡 Por que está aqui, e o que fazer <span class="chev">▾</span></summary>
           <div class="pl-guia-body">
+            ${/* O conselho INTEIRO vive aqui. Na linha fica só a ordem — o
+                 miolo dele é o mesmo em dez itens seguidos, e repeti-lo era o
+                 que fazia um assunto ocupar mais que uma tela de celular. */''}
+            <p class="pl-acao pl-guia-acao tone-${x.status.tom}">${escapeHtml(x.status.acao)}</p>
             <p class="pl-porque-item">${escapeHtml(motivoDaPosicao(x, i))}</p>
             <p class="pl-base">Máximo realista ${r.teto}% · faltam <b>${(r.teto - x.taxa).toFixed(0)} pts</b> até lá · medido em <b>${x.qJanela}</b> questões${x.diasJanela ? ' dos últimos <b>' + x.diasJanela + '</b> dias' : ''}${x.qHist > x.qJanela ? ' (de <b>' + x.qHist + '</b> no total)' : ''}${x.pctAntes != null ? ' · antes dessa janela você fazia <b>' + x.pctAntes.toFixed(0) + '%</b>' : ''}.</p>
             <p class="pl-base">Custo estimado de <b>${x.custoQ}</b> questões${r.custoModo === 'lacuna' ? ' = ' + r.custoPiso + ' para remedir + ' + Math.round(r.custoPorPonto * x.lacunaPP * x.amplitude) + ' pela lacuna de ' + x.lacunaPP.toFixed(0) + ' pontos' + (Math.abs(x.amplitude - 1) > 0.08 ? ' num assunto ' + (x.amplitude > 1 ? 'mais amplo' : 'mais estreito') + ' que a sua média (×' + x.amplitude.toFixed(1).replace('.', ',') + ')' : '') : ''}.</p>
@@ -3650,7 +3686,7 @@ const DesempenhoTecScreen = {
             <div class="pl-medidor" title="${x.taxa.toFixed(0)}% de acerto · marcador no máximo realista de ${r.teto}%">
               <i style="width:${Math.min(100, x.taxa)}%"></i><u style="left:${Math.min(100, r.teto)}%"></u>
             </div>
-            <p class="pl-direcao tone-${dirTom}"><span class="seta">➜</span><span>${escapeHtml(x.status.acao)}</span></p>
+            <p class="pl-direcao tone-${dirTom}"><span class="seta">➜</span><span>${escapeHtml(x.status.ordem || x.status.acao)}</span></p>
             ${metricas}
             ${guia}
             <div class="pl-rodape">

@@ -3602,8 +3602,22 @@
   .pl-direcao { font-family: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif; font-size: var(--fs-xs); font-weight: 700; line-height: 1.45; margin: 8px 0 0; display: flex; align-items: flex-start; gap: 6px; }
   .pl-direcao .seta { flex-shrink: 0; }
   .pl-direcao.tone-bad { color: var(--bad-text); } .pl-direcao.tone-warn { color: var(--warn-text); } .pl-direcao.tone-good { color: var(--good-text); }
-  .pl-metrics { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; margin: 10px 0 0; }
-  .pl-metrics .plm { background: var(--surface-sunken); border: 1px solid var(--border); border-radius: 10px; padding: 7px 4px; text-align: center; min-width: 0; }
+  /* ── QUATRO NÚMEROS, UMA FAIXA ────────────────────────────────────────────
+     Eram quatro cartões de 7px de respiro cada, que a 390px viravam uma grade
+     2×2 de ~200px por item — dez itens, dois mil pixels de moldura para
+     dezesseis caracteres de conteúdo. São quatro números curtos: cabem numa
+     faixa que enche a largura, sem caixa em volta de cada um. A separação
+     passa a ser um filete, que é o que a leitura precisa. */
+  .pl-metrics {
+    display: flex; flex-wrap: wrap; gap: 0; margin: 10px 0 0;
+    background: var(--surface-sunken); border: 1px solid var(--border); border-radius: 10px;
+    overflow: hidden;
+  }
+  .pl-metrics .plm {
+    flex: 1 1 0; min-width: 78px; padding: 6px 6px; text-align: center;
+    border-left: 1px solid var(--border);
+  }
+  .pl-metrics .plm:first-child { border-left: none; }
   .pl-metrics .plm b { display: block; font-family: 'Space Mono', ui-monospace, SFMono-Regular, Menlo, monospace; font-weight: 800; font-size: calc(15px * var(--fs-scale,1)); color: var(--text); font-variant-numeric: tabular-nums; line-height: 1.1; }
   .pl-metrics .plm b.tone-bad { color: var(--bad-text); } .pl-metrics .plm b.tone-warn { color: var(--warn-text); } .pl-metrics .plm b.tone-good { color: var(--good-text); }
   .pl-metrics .plm span { display: block; font-size: calc(9px * var(--fs-scale,1)); font-weight: 700; letter-spacing: 0.02em; text-transform: uppercase; color: var(--text-faint); margin-top: 3px; line-height: 1.2; }
@@ -3627,6 +3641,11 @@
     .pl-ganho b, .pl-ganho span { display: inline; }
     .pl-corpo { grid-column: 2; }
     .pl-hero-num { font-size: calc(34px * var(--fs-scale,1)); }
+    /* Numa coluna estreita a faixa quebra em duas, e o filete de cima some
+       para as duas metades não ficarem com borda dupla no meio. */
+    .pl-metrics .plm { flex-basis: 50%; min-width: 0; }
+    .pl-metrics .plm:nth-child(odd) { border-left: none; }
+    .pl-metrics .plm:nth-child(n+3) { border-top: 1px solid var(--border); }
   }
 
   /* ── LEGENDAS DA ABA ANÁLISE ───────────────────────────────────────────── */
@@ -3669,7 +3688,11 @@
      Só nos blocos de PROSA (parágrafos de duas linhas ou mais). A última linha
      fica à esquerda e a hifenização entra junto: justificar sem hífen, em
      coluna estreita de celular, abre buracos brancos no meio da frase. */
-  .pl-prosa, .pl-ordem-txt, .pl-modo-nota, .pl-porque, .pl-acao, .pl-direcao span:last-child,
+  /* `.pl-direcao` saiu daqui: ela é UMA ORDEM, não prosa. Justificada numa
+     coluna de ~230px, uma frase de sete palavras abria buracos brancos no meio
+     ("Você  acerta  37%:  erra  mais  do  que") — e o texto que mais precisa
+     ser lido de relance era o que parecia mais quebrado. */
+  .pl-prosa, .pl-ordem-txt, .pl-modo-nota, .pl-porque, .pl-acao,
   .weak-legenda, .tec-totais-legenda, .pl-guia-body .pl-base, .pl-hero-sub, .rfc-casamento,
   .pl-edital .pl-prosa, .pl-steps .d {
     text-align: justify; text-align-last: left; hyphens: auto; -webkit-hyphens: auto;

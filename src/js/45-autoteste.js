@@ -2141,6 +2141,17 @@ const AutoTeste = {
       this._ok('Lista: as questões dos assuntos ocultos são contadas à parte',
         curto.qRestante > 0 && inteiro.qRestante === 0, { curto: curto.qRestante, inteiro: inteiro.qRestante });
       this._ok('Lista: o padrão de fábrica abre em 10, não em 30', P.DEFAULTS.limite === 10);
+      /* ── MODO DE ATAQUE NÃO É DECISÃO DE LEITURA ─────────────────────────
+         Os cinco presets gravavam `limite` (30, 20, 10, 15 e 40). Fazia
+         sentido quando ele era "mostrar até N"; deixou de fazer quando virou o
+         PASSO com que sete listas abrem — escolher "Diagnóstico" passaria a
+         despejar 40 itens de cada lista, que é o oposto do que o passo veio
+         resolver, e "Tempo curto" encolheria a fila de todo mundo sem ter sido
+         pedido. Quanto cabe na sua tela não muda quando você troca de fase. */
+      const comLimite = Object.keys(P.MODOS).filter(k => P.MODOS[k].patch && P.MODOS[k].patch.limite != null);
+      this._ok('Modos: nenhum preset mexe no passo de leitura', comLimite.length === 0, comLimite);
+      this._ok('Modos: mas todos continuam decidindo o que a fila otimiza',
+        Object.keys(P.MODOS).every(k => P.MODOS[k].patch && P.MODOS[k].patch.ordenar));
 
       /* ── A TABELA DE MATÉRIAS TAMBÉM É UMA FATIA ──────────────────────────
          É ela que vem ANTES da lista de assuntos e é a primeira coisa que se

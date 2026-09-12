@@ -2434,6 +2434,11 @@ try {
         iTempo: blocos.indexOf('pl-ciclo'), iHoje: blocos.indexOf('pl-hoje'),
         guiasAbertas: document.querySelectorAll('.pl-guia[open]').length,
         nItens: document.querySelectorAll('.pl-item').length,
+        // a ordem curta e visivel de cada item, e o conselho inteiro dentro da guia
+        comOrdem: document.querySelectorAll('.pl-item .pl-direcao').length,
+        linhasOrdem: [...document.querySelectorAll('.pl-item .pl-direcao span:last-child')]
+          .map(e => (e.textContent || '').trim().length),
+        conselhoNaGuia: document.querySelectorAll('.pl-item .pl-guia-acao').length,
         idxMeta: r.idxMeta,
         cara: por.Cara, miuda: por.Miuda
       };
@@ -2445,8 +2450,22 @@ try {
   (layout.iTempo >= 0 && layout.iHoje >= 0 && layout.iTempo < layout.iHoje)
     ? ok('a tela abre por "Onde atacar primeiro" (a materia) e so depois pelo bloco de assuntos')
     : erro('a ordem dos blocos voltou a comecar pela resposta: ' + JSON.stringify(layout));
-  (layout.guiasAbertas <= 3 && layout.nItens > 10)
-    ? ok(`e a guia completa abre em ${layout.guiasAbertas} itens de ${layout.nItens}, nao em ${layout.idxMeta >= 0 ? layout.idxMeta + 1 : 'todos'}`)
+  {
+    /* CADA ITEM DIZ O QUE FAZER EM UMA LINHA, E NAO PERDE O PORQUE. O conselho
+       inteiro ocupava nove linhas coloridas em cada item, com o mesmo miolo
+       repetido dez vezes — 492px por assunto, mais que uma tela de celular.
+       Ele nao foi cortado: mudou de lugar, para a guia que ja existia. */
+    const maiorOrdem = Math.max(0, ...(layout.linhasOrdem || [0]));
+    (layout.comOrdem === layout.nItens && layout.conselhoNaGuia === layout.nItens && maiorOrdem <= 130)
+      ? ok(`cada um dos ${layout.nItens} itens traz a ordem em uma linha (maior: ${maiorOrdem} caracteres) e o conselho inteiro na guia`)
+      : erro('a ordem curta ou o conselho completo sumiu do item: ' + JSON.stringify({
+          itens: layout.nItens, comOrdem: layout.comOrdem, naGuia: layout.conselhoNaGuia, maiorOrdem }));
+  }
+  /* A guia nao abre sozinha em NENHUM item: ela abria nos tres primeiros
+     porque a linha nao dizia o que fazer. Agora a linha traz a ordem curta e o
+     conselho inteiro fica na guia — abrir tres seria voltar ao problema. */
+  (layout.guiasAbertas === 0 && layout.nItens > 10)
+    ? ok(`e nenhuma guia abre sozinha nos ${layout.nItens} itens (antes abria em ${layout.idxMeta >= 0 ? layout.idxMeta + 1 : 'todos'})`)
     : erro('a guia voltou a abrir em meia lista: ' + JSON.stringify({ abertas: layout.guiasAbertas, itens: layout.nItens }));
   (layout.cara.veredito === 'reduzir' && layout.miuda.veredito !== 'reduzir' && layout.miuda.sobra === true)
     ? ok(`"reduza" so onde ha o que reduzir: Cara com ${layout.cara.shareEsforco.toFixed(0)}% do esforco sim, Miuda com ${layout.miuda.shareEsforco.toFixed(1)}% nao (a sobra fica anotada)`)
