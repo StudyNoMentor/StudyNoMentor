@@ -115,28 +115,39 @@ revoke update on public.profile_backups from authenticated;
 grant  update (ancora) on public.profile_backups to authenticated;
 ```
 
-> **Confira que a foto continua imutável.** Depois de rodar o trecho acima,
-> esta tentativa tem de FALHAR com `permission denied for column "data"`:
+> **Confira que os dois comandos pegaram.** As consultas abaixo perguntam ao
+> CATÁLOGO do Postgres, e não ao comportamento — de propósito.
+>
+> O editor SQL do Supabase executa como `postgres`, e o `postgres` passa por
+> cima tanto das políticas de RLS quanto dos privilégios de coluna. Um
+> `update ... set data = 'x'` rodado ali **funciona mesmo com o `revoke`
+> aplicado**, e responde "Success. No rows returned" — que não é prova de nada,
+> nem a favor nem contra. Testar o comportamento exige encarnar o papel
+> (`set local role authenticated`) dentro de uma transação; perguntar ao
+> catálogo é mais curto e não deixa dúvida.
+>
+> **1. O app escreve UMA coluna, e só ela.** Tem de devolver exatamente uma
+> linha, `ancora`:
 >
 > ```sql
-> update public.profile_backups set data = 'x' where id = (
->   select id from public.profile_backups limit 1);
+> select column_name from information_schema.column_privileges
+> where table_schema = 'public' and table_name = 'profile_backups'
+>   and grantee = 'authenticated' and privilege_type = 'UPDATE';
 > ```
 >
-> Se ela passar, o `revoke` não foi aplicado — rode-o de novo antes de
-> continuar. O `grant` de coluna só restringe depois que o privilégio de
-> tabela sai do caminho.
+> Se vier `data`, `chars`, `sig` ou qualquer outra, o `revoke` não pegou e a
+> imutabilidade do CONTEÚDO deixou de ser garantida pelo banco. Se vier vazio,
+> faltou o `grant`.
 >
-> **E confira que o rótulo, esse, se move.** Esta tem de devolver UMA linha:
+> **2. A política de update existe.** Tem de aparecer `backups_ancora_propria`:
 >
 > ```sql
-> update public.profile_backups set ancora = ancora
-> where id = (select id from public.profile_backups where ancora limit 1)
-> returning id;
+> select polname from pg_policy
+> where polrelid = 'public.profile_backups'::regclass;
 > ```
 >
-> Zero linhas significa que a POLÍTICA não foi criada: o RLS está filtrando a
-> linha, sem erro nenhum. O app detecta isso (conta as linhas devolvidas, não
+> Sem ela o RLS filtra a linha em silêncio: o banco responde sem erro nenhum e
+> zero linhas afetadas. O app detecta isso (conta as linhas devolvidas, não
 > confia na ausência de erro) e registra o motivo no console.
 
 > **Se a criação do índice único acima falhar** com um erro citando linhas
