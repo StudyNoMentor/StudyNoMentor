@@ -82,6 +82,21 @@
 }
 
 /* ---------------------------------------------------------------------------
+   1a. A CONFIRMAÇÃO FICA ACIMA DE QUEM A PEDIU
+   --------------------------------------------------------------------------- */
+/* `#ui-modal` é o diálogo genérico de confirmar/perguntar, e quem o abre quase
+   sempre é OUTRO painel: o "↺ Restaurar padrões" da folha de ajustes do TEC, o
+   "definir o corte" do Plano, o excluir de um retrato. Ele nascia com
+   `z-index: 2000` cravado no atributo `style` — o MESMO valor da folha de
+   ajustes — e, empatado, quem pinta por cima é quem vem depois no documento: a
+   folha. O resultado era a pergunta aparecendo ATRÁS dela, com o "Confirmar"
+   inalcançável e a tela aparentemente travada.
+
+   A camada passa a ser declarada aqui, acima de qualquer painel do app e
+   abaixo só das dicas ("i", 4000) e do aviso de atualização (9500). */
+#ui-modal { z-index: 2600; }
+
+/* ---------------------------------------------------------------------------
    1b. A FOLHA DE AJUSTES SÓ ENCOLHE PELO CORPO
    --------------------------------------------------------------------------- */
 /* `estabilizarAltura` fixa um `min-height` no corpo para a folha não pular ao
@@ -248,3 +263,21 @@
   font-size: var(--fs-2xs); color: var(--text-soft);
 }
 .pl-guia-num b { color: var(--text); font-variant-numeric: tabular-nums; }
+
+/* ---------------------------------------------------------------------------
+   5. A AUDITORIA DENTRO DA FOLHA DE AJUSTES
+   --------------------------------------------------------------------------- */
+/* Os dois botões dividem a linha: dentro da folha eles competem com campos de
+   largura total, e um par de botões de tamanhos diferentes lê como erro. */
+#tec-cfg-body .pl-aud-bts { margin: 0; }
+#tec-cfg-body .pl-aud-bts .btn-secondary { flex: 1 1 0; justify-content: center; min-height: 40px; }
+/* O veredito das conferências: é a primeira coisa que um auditor lê, então tem
+   cor de veredito, não de nota de pé de página. */
+.pl-aud-inv { display: grid; gap: 4px; }
+.pl-aud-inv-top { margin: 0; font-size: var(--fs-2xs); font-weight: 800; }
+.pl-aud-inv-top.tone-good { color: var(--good-text); }
+.pl-aud-inv-top.tone-bad { color: var(--bad-text); }
+.pl-aud-inv .pl-ciclo-obs { margin: 0; overflow-wrap: anywhere; }
+@media (max-width: 560px) {
+  #tec-cfg-body .pl-aud-bts { flex-direction: column; }
+}

@@ -70,9 +70,11 @@ const ReforcoEngine = {
         incidencia: Math.max(0, incid),
         codigo: r.codigo || null,
         depth: r.depth,
-        // % do assunto na prova (col "Porcentagem"). Serve p/ reconstruir o total do
-        // caderno quando houver questões "sem classificação" fora do índice.
-        pct: (r.pctAcerto != null ? r.pctAcerto : null)
+        /* % do assunto na prova (col "Porcentagem"). Serve p/ reconstruir o total
+           do caderno quando houver questões "sem classificação" fora do índice.
+           Vem de `pctColuna` — o número CRU da coluna: `pctAcerto` é recalculado
+           como taxa de acerto (acertos ÷ questões), que aqui não existe. */
+        pct: (r.pctColuna != null ? r.pctColuna : (r.pctAcerto != null ? r.pctAcerto : null))
       });
     }
     return out;
@@ -346,7 +348,13 @@ const ReforcoEngine = {
        existir qualquer linha mais funda na mesma matéria. */
     const temFilho = (r) => rows.some(o => {
       if (o === r || o.disciplina !== r.disciplina) return false;
-      if (r.depth === 0 || r.codigo == null || r.codigo === '') return (o.depth || 0) > 0;
+      // disciplina: "ter filho" é existir qualquer linha mais funda na mesma matéria
+      if (r.depth === 0) return (o.depth || 0) > 0;
+      /* Linha SEM código e com profundidade > 0 é folha por definição — é o caso
+         do balde "Sem Classificação" de cada disciplina. Tratá-la como pai (a
+         regra anterior somava `r.codigo == null` ao caso da disciplina) fazia o
+         volume dela desaparecer das unidades do Reforço. */
+      if (r.codigo == null || r.codigo === '') return false;
       return o.codigo && String(o.codigo).indexOf(String(r.codigo) + '.') === 0;
     });
     const out = [];

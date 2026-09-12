@@ -672,7 +672,11 @@
   </section>
 
   <!-- ============ DIÁLOGO GENÉRICO (confirm/prompt bonito) ============ -->
-  <div id="ui-modal" class="cards-modal" style="display:none; z-index:2000;">
+  <!-- O z-index mora no CSS (ux-v49): este é o diálogo que abre DE DENTRO de
+       outros painéis (o "Restaurar padrões" da folha de ajustes, por exemplo),
+       então ele precisa ficar acima de todos eles — e um valor cravado aqui
+       vencia a folha de estilo e deixava a confirmação atrás da folha. -->
+  <div id="ui-modal" class="cards-modal" style="display:none;">
     <div class="cards-modal-box" id="ui-modal-box" style="max-width:460px;">
       <div class="cards-modal-head">
         <div><h2 id="ui-modal-title">Confirmar</h2><p class="sub" id="ui-modal-sub" style="display:none;"></p></div>
@@ -854,6 +858,33 @@
               <label for="plano-pesobanca" data-info="Só afeta a ordem 🎯 fraqueza × incidência. Em 0 a banca é ignorada e a ordem vira o melhor retorno puro. Quanto maior, mais o assunto que CAI MUITO na prova sobe, mesmo sem ser o seu pior acerto. Acima de 8 a incidência manda praticamente sozinha.">Quanto a banca pesa na prioridade: <span id="plano-pesobanca-label" class="lbl-accent">6</span></label>
               <input type="range" id="plano-pesobanca" data-cfg-key="pesoBanca" min="0" max="12" step="1" class="reforco-slider">
               <div class="reforco-slider-legend"><span>só o seu erro</span><span>equilíbrio</span><span>só a incidência</span></div>
+            </div>
+          </div>
+        </div>
+        <!-- ── A AUDITORIA MORA AQUI, JUNTO DOS PARÂMETROS QUE ELA EXPORTA ──
+             Ela vivia recolhida no FIM da lista do Plano, depois de trinta
+             assuntos, do segundo plano e das lacunas do edital: quem quisesse
+             auditar tinha de rolar a tela inteira para achar, e quem não
+             quisesse esbarrava nela toda vez. Ajuste é a exceção e o resultado
+             é a rotina — a folha de ajustes é exatamente o lugar da exceção,
+             e é onde moram os parâmetros que o arquivo carrega. -->
+        <div class="tec-cfg-sec" data-tab="plano" data-sec="auditoria" data-ic="🧪" data-rot="Auditoria" hidden>
+          <p class="tec-cfg-sec-sub">Um arquivo <b>.json</b> com tudo que torna cada número desta tela reproduzível por outra pessoa: os parâmetros em vigor, o retrato de hoje, a sua série por importação, o quadro de matérias, cada assunto com amostra e margem, os ciclos de atividade já julgados, a conferência da importação e um teste de coerência dos próprios números. Não leva nome de perfil, e-mail nem senha.</p>
+          <div class="tec-cfg-grid">
+            <div class="rfc-field wide">
+              <label data-info="A cadência entra no arquivo e no nome dele — é o que permite comparar duas exportações do mesmo ritmo em vez de misturar uma semanal com uma mensal. O conteúdo é o mesmo nos dois.">Exportar o retrato de auditoria</label>
+              <div class="pl-aud-bts">
+                <button type="button" class="btn-secondary" data-aud="semanal">↓ Exportar semanal</button>
+                <button type="button" class="btn-secondary" data-aud="mensal">↓ Exportar mensal</button>
+              </div>
+            </div>
+            <div class="rfc-field wide">
+              <label class="rfc-check" data-info="Troca cada nome de matéria e de assunto por um apelido estável — o mesmo assunto recebe o mesmo apelido em toda exportação, então ainda dá para comparar dois arquivos. Use para mandar o retrato a alguém sem revelar o que você estuda."><input type="checkbox" id="plano-aud-anon" data-cfg-livre> Esconder os nomes das matérias (modo anônimo)</label>
+              <p class="pl-ciclo-obs" id="plano-aud-resumo"></p>
+            </div>
+            <div class="rfc-field wide">
+              <label data-info="O arquivo se auto-confere: as invariantes rodam sobre os SEUS dados no instante da exportação (o acumulado fecha com o domínio mais os ganhos? o peso das matérias soma 100%? as folhas do retrato somam o mesmo que as disciplinas?). Se alguma reprovar, o resumo diz qual — e é por ela que a análise começa.">O que o arquivo conferiu na hora</label>
+              <div id="plano-aud-inv" class="pl-aud-inv"></div>
             </div>
           </div>
         </div>

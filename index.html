@@ -57,7 +57,7 @@
      novo, e o antigo é descartado sozinho na ativação) e o que permite ao app
      dizer qual versão está rodando. Em src/ fica "dev" de propósito: a versão
      é gerada na montagem, não editada à mão. -->
-<meta name="diario-versao" content="veec4f114b2">
+<meta name="diario-versao" content="v82dc5b12cd">
 <script>
 /* ── ARRANQUE: abre o IndexedDB AGORA, em paralelo com o parse do documento ──
    A fachada de armazenamento vive no fim do <body>, depois de ~1,7 MB de HTML.
@@ -8084,7 +8084,11 @@ window.__idbBoot = (function () {
   </section>
 
   <!-- ============ DIÁLOGO GENÉRICO (confirm/prompt bonito) ============ -->
-  <div id="ui-modal" class="cards-modal" style="display:none; z-index:2000;">
+  <!-- O z-index mora no CSS (ux-v49): este é o diálogo que abre DE DENTRO de
+       outros painéis (o "Restaurar padrões" da folha de ajustes, por exemplo),
+       então ele precisa ficar acima de todos eles — e um valor cravado aqui
+       vencia a folha de estilo e deixava a confirmação atrás da folha. -->
+  <div id="ui-modal" class="cards-modal" style="display:none;">
     <div class="cards-modal-box" id="ui-modal-box" style="max-width:460px;">
       <div class="cards-modal-head">
         <div><h2 id="ui-modal-title">Confirmar</h2><p class="sub" id="ui-modal-sub" style="display:none;"></p></div>
@@ -8266,6 +8270,33 @@ window.__idbBoot = (function () {
               <label for="plano-pesobanca" data-info="Só afeta a ordem 🎯 fraqueza × incidência. Em 0 a banca é ignorada e a ordem vira o melhor retorno puro. Quanto maior, mais o assunto que CAI MUITO na prova sobe, mesmo sem ser o seu pior acerto. Acima de 8 a incidência manda praticamente sozinha.">Quanto a banca pesa na prioridade: <span id="plano-pesobanca-label" class="lbl-accent">6</span></label>
               <input type="range" id="plano-pesobanca" data-cfg-key="pesoBanca" min="0" max="12" step="1" class="reforco-slider">
               <div class="reforco-slider-legend"><span>só o seu erro</span><span>equilíbrio</span><span>só a incidência</span></div>
+            </div>
+          </div>
+        </div>
+        <!-- ── A AUDITORIA MORA AQUI, JUNTO DOS PARÂMETROS QUE ELA EXPORTA ──
+             Ela vivia recolhida no FIM da lista do Plano, depois de trinta
+             assuntos, do segundo plano e das lacunas do edital: quem quisesse
+             auditar tinha de rolar a tela inteira para achar, e quem não
+             quisesse esbarrava nela toda vez. Ajuste é a exceção e o resultado
+             é a rotina — a folha de ajustes é exatamente o lugar da exceção,
+             e é onde moram os parâmetros que o arquivo carrega. -->
+        <div class="tec-cfg-sec" data-tab="plano" data-sec="auditoria" data-ic="🧪" data-rot="Auditoria" hidden>
+          <p class="tec-cfg-sec-sub">Um arquivo <b>.json</b> com tudo que torna cada número desta tela reproduzível por outra pessoa: os parâmetros em vigor, o retrato de hoje, a sua série por importação, o quadro de matérias, cada assunto com amostra e margem, os ciclos de atividade já julgados, a conferência da importação e um teste de coerência dos próprios números. Não leva nome de perfil, e-mail nem senha.</p>
+          <div class="tec-cfg-grid">
+            <div class="rfc-field wide">
+              <label data-info="A cadência entra no arquivo e no nome dele — é o que permite comparar duas exportações do mesmo ritmo em vez de misturar uma semanal com uma mensal. O conteúdo é o mesmo nos dois.">Exportar o retrato de auditoria</label>
+              <div class="pl-aud-bts">
+                <button type="button" class="btn-secondary" data-aud="semanal">↓ Exportar semanal</button>
+                <button type="button" class="btn-secondary" data-aud="mensal">↓ Exportar mensal</button>
+              </div>
+            </div>
+            <div class="rfc-field wide">
+              <label class="rfc-check" data-info="Troca cada nome de matéria e de assunto por um apelido estável — o mesmo assunto recebe o mesmo apelido em toda exportação, então ainda dá para comparar dois arquivos. Use para mandar o retrato a alguém sem revelar o que você estuda."><input type="checkbox" id="plano-aud-anon" data-cfg-livre> Esconder os nomes das matérias (modo anônimo)</label>
+              <p class="pl-ciclo-obs" id="plano-aud-resumo"></p>
+            </div>
+            <div class="rfc-field wide">
+              <label data-info="O arquivo se auto-confere: as invariantes rodam sobre os SEUS dados no instante da exportação (o acumulado fecha com o domínio mais os ganhos? o peso das matérias soma 100%? as folhas do retrato somam o mesmo que as disciplinas?). Se alguma reprovar, o resumo diz qual — e é por ela que a análise começa.">O que o arquivo conferiu na hora</label>
+              <div id="plano-aud-inv" class="pl-aud-inv"></div>
             </div>
           </div>
         </div>
@@ -11427,6 +11458,21 @@ body.leis-foco .leis-reader-card::before { display: none; }
 }
 
 /* ---------------------------------------------------------------------------
+   1a. A CONFIRMAÇÃO FICA ACIMA DE QUEM A PEDIU
+   --------------------------------------------------------------------------- */
+/* `#ui-modal` é o diálogo genérico de confirmar/perguntar, e quem o abre quase
+   sempre é OUTRO painel: o "↺ Restaurar padrões" da folha de ajustes do TEC, o
+   "definir o corte" do Plano, o excluir de um retrato. Ele nascia com
+   `z-index: 2000` cravado no atributo `style` — o MESMO valor da folha de
+   ajustes — e, empatado, quem pinta por cima é quem vem depois no documento: a
+   folha. O resultado era a pergunta aparecendo ATRÁS dela, com o "Confirmar"
+   inalcançável e a tela aparentemente travada.
+
+   A camada passa a ser declarada aqui, acima de qualquer painel do app e
+   abaixo só das dicas ("i", 4000) e do aviso de atualização (9500). */
+#ui-modal { z-index: 2600; }
+
+/* ---------------------------------------------------------------------------
    1b. A FOLHA DE AJUSTES SÓ ENCOLHE PELO CORPO
    --------------------------------------------------------------------------- */
 /* `estabilizarAltura` fixa um `min-height` no corpo para a folha não pular ao
@@ -11593,6 +11639,24 @@ body.leis-foco .leis-reader-card::before { display: none; }
   font-size: var(--fs-2xs); color: var(--text-soft);
 }
 .pl-guia-num b { color: var(--text); font-variant-numeric: tabular-nums; }
+
+/* ---------------------------------------------------------------------------
+   5. A AUDITORIA DENTRO DA FOLHA DE AJUSTES
+   --------------------------------------------------------------------------- */
+/* Os dois botões dividem a linha: dentro da folha eles competem com campos de
+   largura total, e um par de botões de tamanhos diferentes lê como erro. */
+#tec-cfg-body .pl-aud-bts { margin: 0; }
+#tec-cfg-body .pl-aud-bts .btn-secondary { flex: 1 1 0; justify-content: center; min-height: 40px; }
+/* O veredito das conferências: é a primeira coisa que um auditor lê, então tem
+   cor de veredito, não de nota de pé de página. */
+.pl-aud-inv { display: grid; gap: 4px; }
+.pl-aud-inv-top { margin: 0; font-size: var(--fs-2xs); font-weight: 800; }
+.pl-aud-inv-top.tone-good { color: var(--good-text); }
+.pl-aud-inv-top.tone-bad { color: var(--bad-text); }
+.pl-aud-inv .pl-ciclo-obs { margin: 0; overflow-wrap: anywhere; }
+@media (max-width: 560px) {
+  #tec-cfg-body .pl-aud-bts { flex-direction: column; }
+}
 
 </style>
 
@@ -15691,69 +15755,160 @@ const TecEngine = {
     return /^total\b/.test(k) || /^soma\b/.test(k) || /total\s+(geral|de\s+quest|assunto)/.test(k)
         || /^resumo\b/.test(k) || /^geral$/.test(k);
   },
+  /* ── A LINHA "SEM CLASSIFICAÇÃO" NÃO É UMA DISCIPLINA ────────────────────
+     No export do TecConcursos cada disciplina termina com uma linha
+     "Sem Classificação": as questões daquela disciplina que ainda não têm
+     assunto atribuído. Ela vem com a coluna Hierarquia VAZIA — exatamente como
+     a linha da própria disciplina — e por isso era lida como disciplina nova.
+
+     O preço foi medido em dois exports reais. A planilha de 434 linhas tem
+     20 disciplinas e 400 questões; o app registrava 28 disciplinas e 409
+     questões, porque as 9 questões sem classificação eram contadas DUAS vezes:
+     uma dentro do total da disciplina (que já as inclui) e outra como
+     disciplina própria. A outra planilha virava 134 questões no lugar de 133.
+     E havia um segundo erro no sentido contrário: o Plano só olha linhas de
+     profundidade > 0, então esse mesmo volume simplesmente não existia para
+     ele — a Análise dizia 409 e o Plano trabalhava com 391.
+
+     Agora ela entra como ASSUNTO da disciplina corrente, sem código (como toda
+     folha que não tem filhos): o total fecha, a contagem de disciplinas fica
+     certa e o Plano passa a ver um volume que é praticado e medido. */
+  _isSemClassificacao(nome) {
+    const k = String(nome == null ? '' : nome).normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/\s+/g, ' ').trim();
+    return /^(sem|nao) (classificac|assunto|topico|tema|definid)/.test(k);
+  },
+  /* ── AS COLUNAS SE LIGAM PELO CABEÇALHO, NÃO PELA POSIÇÃO ────────────────
+     Ler "questões" como "a primeira célula numérica depois do nome" funciona
+     até uma célula vir vazia: aí a linha inteira desliza uma casa e o app
+     registra o PERCENTUAL no lugar da QUANTIDADE, sem nenhum aviso — e um
+     retrato com números trocados não tem como ser percebido depois.
+
+     Quando o cabeçalho existe — e no arquivo exportado ele existe — cada campo
+     passa a ser lido pelo índice da coluna que o declara. O heurístico
+     posicional continua valendo para colagens parciais, que não têm cabeçalho.
+
+     Devolve null quando o cabeçalho não identifica ao menos NOME e QUESTÕES:
+     mapa incompleto seria pior que mapa nenhum. */
+  _mapaColunas(cells) {
+    const norm = (x) => String(x == null ? '' : x).normalize('NFD').replace(/[̀-ͯ]/g, '')
+      .toLowerCase().replace(/\s+/g, ' ').trim();
+    const m = { hier: null, nome: null, questoes: null, pct: null, acertos: null, peso: null };
+    cells.forEach((c, i) => {
+      const k = norm(c);
+      if (!k) return;
+      if (m.hier == null && /^hierarquia/.test(k)) m.hier = i;
+      else if (m.nome == null && /^(indice|assunto|topico|tema|materia|disciplina)/.test(k)) m.nome = i;
+      else if (m.acertos == null && /(quantidade|qtd|numero|total) de acertos/.test(k)) m.acertos = i;
+      else if (m.questoes == null && /quest/.test(k) && k.indexOf('%') < 0) m.questoes = i;
+      else if (m.pct == null && /^acertos? ?\(?%/.test(k)) m.pct = i;
+      else if (m.peso == null && /^peso/.test(k)) m.peso = i;
+    });
+    return (m.nome != null && m.questoes != null) ? m : null;
+  },
+  _isLinhaIndice(cells) {
+    if (!cells || cells.length < 3) return false;
+    const n = cells.map(c => this.parseNum(c));
+    if (n.some(v => v === null || !Number.isInteger(v))) return false;
+    if (n[0] !== 0 && n[0] !== 1) return false;
+    for (let i = 1; i < n.length; i++) if (n[i] !== n[i - 1] + 1) return false;
+    return true;
+  },
   // Núcleo compartilhado: recebe linhas já divididas em células (de texto colado OU de planilha xlsx/csv)
   parseCellRows(cellRows) {
     const rows = [];
     let currentDisc = null;
     let skippedHeader = false;
+    let mapa = null;
     for (let cells of cellRows) {
       cells = (cells || []).map(c => String(c === undefined || c === null ? '' : c).trim());
       // remove células vazias à direita
       while (cells.length && cells[cells.length - 1] === '') cells.pop();
       if (cells.length < 2) continue;
+      /* Linha de ÍNDICE DE COLUNA ("0 1 2 3"): alguns exports do TEC saem com os
+         números das colunas no lugar dos rótulos. Ela não é dado — e era lida
+         como um tópico de código "0" chamado "1", com incidência 2, que entrava
+         no mapa e no total do caderno. A assinatura é inconfundível: inteiros
+         consecutivos começando em 0 ou 1, em toda a linha. */
+      if (this._isLinhaIndice(cells)) continue;
       // pula cabeçalho (aparece uma vez, contém "Questões"/"Hierarquia"/"Acertos")
       const joined = cells.join(' ').toLowerCase();
       if (!skippedHeader && /(hierarquia|questões resolvidas|questoes resolvidas|acertos)/.test(joined) && !/^\d/.test(cells[0])) {
         skippedHeader = true;
+        mapa = this._mapaColunas(cells);
         continue;
       }
-      let codigo, nome, nums, depth;
-      if (this.isCodigo(cells[0])) {
+      let codigo = null, nome = '', depth = 0;
+      let qRaw = null, pctRaw = null, acRaw = null, pesoRaw = null;
+      if (mapa) {
+        const cel = (i) => (i == null || cells[i] == null) ? '' : String(cells[i]).trim();
+        const hier = cel(mapa.hier);
+        nome = cel(mapa.nome);
+        if (!nome) continue;                       // linha sem assunto não identifica nada
+        qRaw = cel(mapa.questoes); pctRaw = cel(mapa.pct);
+        acRaw = cel(mapa.acertos); pesoRaw = cel(mapa.peso);
+        if (this.isCodigo(hier)) { codigo = hier; depth = hier.split('.').length; }
+      } else if (this.isCodigo(cells[0])) {
         // linha de tópico: código na 1ª célula, nome na 2ª, números a partir da 3ª
         codigo = cells[0];
         nome = cells[1] || '';
-        nums = cells.slice(2);
         depth = codigo.split('.').length;
+        [qRaw, pctRaw, acRaw, pesoRaw] = this._numsPosicionais(cells.slice(2));
       } else if (cells[0] === '' && cells[1] !== '' && this.parseNum(cells[1]) === null) {
         // linha de disciplina no formato do arquivo .xlsx:
         // coluna do código (Hierarquia) vazia e o NOME na 2ª coluna → números a partir da 3ª
-        codigo = null;
         nome = cells[1];
-        nums = cells.slice(2);
-        depth = 0;
-        currentDisc = nome;
+        [qRaw, pctRaw, acRaw, pesoRaw] = this._numsPosicionais(cells.slice(2));
       } else {
         // linha de disciplina no formato colado: nome na 1ª célula, números a partir da 2ª
-        codigo = null;
         nome = cells[0];
-        nums = cells.slice(1);
-        depth = 0;
-        currentDisc = nome;
+        [qRaw, pctRaw, acRaw, pesoRaw] = this._numsPosicionais(cells.slice(1));
       }
-      // Descarta células VAZIAS antes do 1º número. Ao colar a tabela, a coluna
-      // "Índice" da disciplina vem vazia e deslocava todos os valores uma casa.
-      while (nums.length && String(nums[0]).trim() === '') nums.shift();
       // linhas de TOTAL/RESUMO não são disciplinas
       if (depth === 0 && this._isTotalRow(nome)) { currentDisc = null; continue; }
-      const questoes = this.parseNum(nums[0]);
-      const pctAcerto = this.parseNum(nums[1]);
-      let acertos = this.parseNum(nums[2]);
+      if (depth === 0 && currentDisc && this._isSemClassificacao(nome)) {
+        depth = 1; codigo = null;                  // assunto da disciplina corrente
+      } else if (depth === 0) {
+        currentDisc = nome;
+      }
+      const questoes = this.parseNum(qRaw);
+      const pctAcerto = this.parseNum(pctRaw);
+      let acertos = this.parseNum(acRaw);
       // se não veio Qtd acertos mas veio % e questões, calcula
       if (acertos === null && pctAcerto !== null && questoes !== null) {
         acertos = Math.round(questoes * pctAcerto / 100);
       }
-      const peso = this.parseNum(nums[5]);
       if (questoes === null && pctAcerto === null) continue; // linha sem dados úteis
       rows.push({
         codigo, nome, depth,
         disciplina: depth === 0 ? nome : currentDisc,
         questoes: questoes || 0,
         acertos: acertos || 0,
-        pctAcerto: pctAcerto !== null ? pctAcerto : (questoes ? Math.round((acertos / questoes) * 1000) / 10 : 0),
-        peso: peso
+        /* A coluna "Acertos (%)" do arquivo é ARREDONDADA para exibição (59
+           para 13 de 22, que são 59,09). As duas CONTAGENS são exatas, então a
+           taxa sai delas sempre que houver questão — o número do arquivo fica
+           só como reserva para a linha que não traz quantidade. Sem isto, o
+           corte dos pontos fracos e a ordenação da Análise comparavam limiares
+           contra um valor já arredondado. */
+        pctAcerto: (questoes > 0) ? Math.round((acertos || 0) / questoes * 1000) / 10
+          : (pctAcerto !== null ? pctAcerto : 0),
+        /* O MESMO parser serve à planilha de INCIDÊNCIA, onde a segunda coluna
+           numérica não é taxa de acerto: é a fatia daquele assunto no caderno
+           da banca. Recalcular ali seria apagar o dado, então o número cru da
+           coluna fica guardado à parte — é dele que sai o total do caderno. */
+        pctColuna: (pctAcerto !== null ? pctAcerto : null),
+        peso: this.parseNum(pesoRaw)
       });
     }
     return rows;
+  },
+  /* Leitura POSICIONAL (sem cabeçalho): questões, % de acerto, qtd de acertos e
+     peso, na ordem do relatório. Descarta as células vazias antes do primeiro
+     número — ao colar a tabela, a coluna "Índice" da disciplina vem vazia e
+     deslocava todos os valores uma casa. */
+  _numsPosicionais(nums) {
+    nums = (nums || []).slice();
+    while (nums.length && String(nums[0]).trim() === '') nums.shift();
+    return [nums[0], nums[1], nums[2], nums[5]];
   },
   // Resumo por disciplina (linhas depth 0) a partir de um snapshot
   disciplinas(snap) {
@@ -15951,9 +16106,11 @@ const ReforcoEngine = {
         incidencia: Math.max(0, incid),
         codigo: r.codigo || null,
         depth: r.depth,
-        // % do assunto na prova (col "Porcentagem"). Serve p/ reconstruir o total do
-        // caderno quando houver questões "sem classificação" fora do índice.
-        pct: (r.pctAcerto != null ? r.pctAcerto : null)
+        /* % do assunto na prova (col "Porcentagem"). Serve p/ reconstruir o total
+           do caderno quando houver questões "sem classificação" fora do índice.
+           Vem de `pctColuna` — o número CRU da coluna: `pctAcerto` é recalculado
+           como taxa de acerto (acertos ÷ questões), que aqui não existe. */
+        pct: (r.pctColuna != null ? r.pctColuna : (r.pctAcerto != null ? r.pctAcerto : null))
       });
     }
     return out;
@@ -16227,7 +16384,13 @@ const ReforcoEngine = {
        existir qualquer linha mais funda na mesma matéria. */
     const temFilho = (r) => rows.some(o => {
       if (o === r || o.disciplina !== r.disciplina) return false;
-      if (r.depth === 0 || r.codigo == null || r.codigo === '') return (o.depth || 0) > 0;
+      // disciplina: "ter filho" é existir qualquer linha mais funda na mesma matéria
+      if (r.depth === 0) return (o.depth || 0) > 0;
+      /* Linha SEM código e com profundidade > 0 é folha por definição — é o caso
+         do balde "Sem Classificação" de cada disciplina. Tratá-la como pai (a
+         regra anterior somava `r.codigo == null` ao caso da disciplina) fazia o
+         volume dela desaparecer das unidades do Reforço. */
+      if (r.codigo == null || r.codigo === '') return false;
       return o.codigo && String(o.codigo).indexOf(String(r.codigo) + '.') === 0;
     });
     const out = [];
@@ -27563,9 +27726,31 @@ const AutoTeste = {
     const antesM = localStorage.getItem(chaveM);
     try {
       DB.delRaw(chaveM);
-      P.salvarModo('curto', { metaDominio: 92, limite: 3 });
+      P.salvarModo('curto', { metaDominio: 92, custoPiso: 30 });
       this._ok('Plano: modo editado guarda o valor do usuário',
-        P.modoPatch('curto').metaDominio === 92 && P.modoPatch('curto').limite === 3, P.modoPatch('curto'));
+        P.modoPatch('curto').metaDominio === 92 && P.modoPatch('curto').custoPiso === 30, P.modoPatch('curto'));
+      /* ── O PASSO DE LEITURA NÃO É ESTRATÉGIA ──────────────────────────
+         `limite` é de quantos em quantos as sete listas do Plano abrem. Os
+         presets deixaram de mexer nele de propósito; o diálogo de editar um
+         modo, porém, continuava oferecendo o campo e gravando-o — aplicar
+         "Diagnóstico" voltava a despejar 40 itens de cada lista. Agora só os
+         campos declarados em MODO_CAMPOS entram, na escrita e na leitura. */
+      P.salvarModo('curto', { limite: 3 });
+      this._ok('Plano: um modo não carrega o passo de leitura (limite)',
+        P.modoPatch('curto').limite === undefined && !(P.prefs().modosCustom.curto || {}).limite,
+        P.prefs().modosCustom.curto);
+      this._ok('Plano: e um campo recusado não marca o modo como personalizado',
+        P.modoEditado('curto') === true && P.modoPatch('curto').metaDominio === 92, P.modoPatch('curto'));
+      /* Cada campo do diálogo TEM de ser um campo que o modo guarda: a lista
+         era escrita à mão em dois lugares e divergiu nos dois sentidos. */
+      this._ok('Plano: os campos do modo cobrem os parâmetros dos presets',
+        Object.keys(P.MODOS).every(mk => Object.keys(P.MODOS[mk].patch).every(c => P._chavesDeModo().indexOf(c) >= 0)),
+        P._chavesDeModo());
+      this._ok('Plano: e incluem a amostra mínima, o peso da banca e a régua de custo',
+        ['minAmostra', 'pesoBanca', 'custoPiso', 'custoPorPonto', 'amostraAlvo']
+          .every(c => P._chavesDeModo().indexOf(c) >= 0), P._chavesDeModo());
+      this._ok('Plano: e NÃO incluem o passo de leitura nem o escopo',
+        ['limite', 'disciplina', 'excluidas'].every(c => P._chavesDeModo().indexOf(c) < 0), P._chavesDeModo());
       this._ok('Plano: editar um modo não mexe nos outros',
         P.modoPatch('base').metaDominio === P.MODOS.base.patch.metaDominio && !P.modoEditado('base'));
       this._ok('Plano: a tela sabe que o modo foi ajustado', P.modoEditado('curto') === true);
@@ -27585,16 +27770,17 @@ const AutoTeste = {
          "salvar" sem alteração marcar o modo como personalizado, e enfiava
          nele campos que o modo nunca quis definir. */
       DB.delRaw(chaveM);
-      P.salvarModo('base', { metaDominio: P.MODOS.base.patch.metaDominio, limite: P.MODOS.base.patch.limite });
+      P.salvarModo('base', { metaDominio: P.MODOS.base.patch.metaDominio, ponderacao: P.MODOS.base.patch.ponderacao });
       this._ok('Plano: salvar sem mudar nada não personaliza o modo',
         !P.modoEditado('base') && !(P.prefs().modosCustom || {}).base, P.prefs().modosCustom);
       P.salvarModo('curto', { metaDominio: 92 });
-      P.salvarModo('curto', { limite: 4 });
+      P.salvarModo('curto', { pesoBanca: 4 });
       this._ok('Plano: ajustes sucessivos somam no mesmo modo',
-        P.modoPatch('curto').metaDominio === 92 && P.modoPatch('curto').limite === 4, P.modoPatch('curto'));
-      P.salvarModo('curto', { limite: P.MODOS.curto.patch.limite });
+        P.modoPatch('curto').metaDominio === 92 && P.modoPatch('curto').pesoBanca === 4, P.modoPatch('curto'));
+      P.salvarModo('curto', { ponderacao: P.MODOS.curto.patch.ponderacao });
       this._ok('Plano: campo que volta ao padrão sai do registro',
-        P.modoPatch('curto').limite === P.MODOS.curto.patch.limite && (P.prefs().modosCustom.curto.limite === undefined),
+        P.modoPatch('curto').ponderacao === P.MODOS.curto.patch.ponderacao
+        && (P.prefs().modosCustom.curto.ponderacao === undefined),
         P.prefs().modosCustom.curto);
       P.restaurarModo('curto');
       // o resumo é lido em voz alta na tela: nunca pode dizer "undefined"
@@ -28160,6 +28346,83 @@ const AutoTeste = {
       if (T._planoTimer) { clearTimeout(T._planoTimer); }
       T._planoTimer = origTimer || null;
     }
+  },
+  /* ═══ A CONTAGEM DO RETRATO FECHA COM A DO PLANO ═══════════════════════════
+     A classe de erro mais cara deste módulo não produz número torto: produz
+     número PLAUSÍVEL. Uma importação que conta a mesma questão duas vezes, ou
+     um consolidado que perde questões, devolve domínio, custo e fila
+     perfeitamente críveis — e nada na tela denuncia.
+
+     Os dois casos aconteceram de verdade, e os dois estão cobrados aqui:
+
+       1. o balde "Sem Classificação" (linha sem código, no fim de cada
+          disciplina do export) era lido como disciplina NOVA: 409 questões no
+          lugar de 400 num arquivo real, com as 9 do balde contadas duas vezes;
+       2. no escopo CONSOLIDADO, os códigos do TEC são posicionais — o "01.01"
+          de um mês é outro assunto no mês seguinte. Decidir quem é folha pelo
+          prefixo do código sobre as linhas já somadas misturava duas árvores e
+          DESCARTAVA volume: 533 questões no consolidado, 493 chegando ao
+          Plano.
+
+     A invariante é uma só, e vale nos dois casos: Σ(disciplinas) do retrato =
+     Σ(o que o Plano indexa). */
+  contagemFechaComOPlano() {
+    const T = DesempenhoTecScreen, P = PlanoEngine;
+    const origSnaps = DB.getTecSnapshots;
+    try {
+      // ── o export real, em miniatura: pai = soma dos filhos + balde sem código
+      const cab = ['Hierarquia', 'índice', 'Questões Resolvidas', 'Acertos (%)',
+        'Quantidade de acertos', 'Erros (%)', 'Quantidade de erros', 'Peso'];
+      const lin = (cod, nome, q, ac) => [cod || '', nome, String(q),
+        String(q ? Math.round(ac / q * 100) : 0), String(ac), '0', String(q - ac), '1'];
+      // retrato A: "01.01" é "Alfa"; 10 + 4 folhas + 3 do balde = 17
+      const A = TecEngine.parseCellRows([cab,
+        lin(null, 'Matéria X', 17, 9),
+        lin('01', 'Bloco', 14, 7), lin('01.01', 'Alfa', 10, 5), lin('01.02', 'Beta', 4, 2),
+        lin(null, 'Sem Classificação', 3, 2)]);
+      // retrato B: o MESMO código "01.01" é outro assunto, e é FOLHA aqui
+      const B = TecEngine.parseCellRows([cab,
+        lin(null, 'Matéria X', 12, 6),
+        lin('01', 'Bloco', 12, 6), lin('01.01', 'Gama', 12, 6)]);
+      this._ok('Contagem: o balde sem código entra como assunto, não como disciplina',
+        A.filter(r => r.depth === 0).length === 1 && A.filter(r => /sem classifica/i.test(r.nome) && r.depth === 1).length === 1,
+        A.map(r => r.depth + ':' + r.nome));
+      this._ok('Contagem: o total do retrato é a soma das disciplinas',
+        TecEngine.totais({ rows: A }).questoes === 17 && TecEngine.totais({ rows: A }).acertos === 9,
+        TecEngine.totais({ rows: A }));
+      const folhasA = P._folhas({ rows: A }, true);
+      this._ok('Contagem: as folhas de um retrato somam o total dele',
+        folhasA.reduce((a, r) => a + r.questoes, 0) === 17
+        && folhasA.reduce((a, r) => a + r.acertos, 0) === 9,
+        folhasA.map(r => r.nome + ':' + r.questoes));
+      // ── e agora o consolidado dos dois, com o código repetido significando
+      //    coisas diferentes: nada pode se perder
+      const sA = { id: 'a', startDate: '2026-01-01', endDate: '2026-01-31', date: '2026-01-01', rows: A };
+      const sB = { id: 'b', startDate: '2026-02-01', endDate: '2026-02-28', date: '2026-02-01', rows: B };
+      DB.getTecSnapshots = () => [sB, sA];
+      const ag = T.aggregate([sB, sA]);
+      const tot = TecEngine.totais({ rows: ag.rows });
+      this._ok('Contagem: o consolidado soma os dois retratos (29 questões)',
+        tot.questoes === 29 && tot.acertos === 15, tot);
+      const idx = P._indice(ag, true);
+      const qi = Object.keys(idx).reduce((a, k) => a + idx[k].q, 0);
+      const aci = Object.keys(idx).reduce((a, k) => a + idx[k].ac, 0);
+      this._ok('Contagem: o índice do Plano no consolidado fecha com o total',
+        qi === tot.questoes && aci === tot.acertos, { plano: qi + '/' + aci, retrato: tot.questoes + '/' + tot.acertos });
+      this._ok('Contagem: o agregado guarda as fontes (é o que permite resolver a árvore de cada retrato)',
+        !!(ag._fontes && ag._fontes.length === 2), ag._fontes && ag._fontes.length);
+      /* O RESÍDUO DO PAI: "Gama" é folha em B e o mesmo código "01.01" tem
+         filhos em A. A linha do pai somada carrega as duas coisas — e a parte
+         que só existe como folha tem de contar. */
+      const chaves = Object.keys(idx);
+      this._ok('Contagem: o assunto que é folha num retrato e pai no outro não desaparece',
+        chaves.some(k => /gama/i.test(k)) && chaves.some(k => /alfa/i.test(k)), chaves);
+      // ── a taxa vem das contagens, não da % arredondada do arquivo
+      const arred = TecEngine.parseCellRows([cab, lin(null, 'M', 22, 13)]);
+      this._ok('Contagem: a taxa de uma linha é acertos ÷ questões (não a % do arquivo)',
+        arred[0].pctAcerto === Math.round(13 / 22 * 1000) / 10 && arred[0].pctColuna === 59,
+        { taxa: arred[0].pctAcerto, coluna: arred[0].pctColuna });
+    } finally { DB.getTecSnapshots = origSnaps; }
   },
   materiasForaDoPlano() {
     const P = PlanoEngine, PP = PlanoPontos, T = DesempenhoTecScreen;
@@ -28788,6 +29051,11 @@ const AutoTeste = {
     const semChave = [];
     abas.forEach(aba => secs(aba).forEach(sec => sec.querySelectorAll('input, select').forEach(el => {
       if (el.type === 'hidden' || el.type === 'checkbox' && !el.id) return;
+      /* `data-cfg-livre`: controle que NÃO é preferência salva. A seção de
+         auditoria tem um: o "modo anônimo" vale para aquela exportação e não
+         existe em DEFAULTS — exigir uma chave de fábrica dele obrigaria a
+         inventar uma preferência que ninguém quer guardar. */
+      if (el.dataset.cfgLivre != null) return;
       if (!el.dataset.cfgKey && el.id) semChave.push(el.id);
     })));
     this._ok('Ajustes: todo campo declara a chave do seu padrão de fábrica',
@@ -29054,6 +29322,7 @@ const AutoTeste = {
      ['Ciclo do Plano', 'cicloDoPlano'],
      ['Régua de pontos', 'reguaDePontos'],
      ['Auditoria do Plano', 'auditoriaDoPlano'],
+     ['Contagem fecha com o Plano', 'contagemFechaComOPlano'],
      ['Matérias fora do Plano', 'materiasForaDoPlano'],
      ['O Plano não trava sob o dedo', 'planoNaoTrava'],
      ['Fatia das listas do Plano', 'fatiaDasListas']].forEach(([nome, fn]) => {
@@ -32034,6 +32303,61 @@ const PlanoEngine = {
       armadilha: 'Um assunto ótimo que caiu de 95% para 88% aparece acima de um crônico de 30% que nunca melhorou.'
     }
   },
+  /* ── O QUE UM MODO DE ATAQUE CONTROLA ─────────────────────────────────────
+     Esta lista é a ÚNICA fonte: o diálogo de editar um modo nasce dela, o
+     `modoPatch` só devolve campos dela e o resumo dos chips lê os mesmos
+     campos. O diálogo tinha uma lista escrita à mão, e ela já havia divergido
+     nos DOIS sentidos:
+
+       · oferecia "Assuntos por vez" (`limite`), que deixou de ser estratégia
+         no instante em que virou o PASSO com que sete listas abrem. Os presets
+         tinham sido limpos desse campo de propósito, e editar um modo o
+         reintroduzia pela porta de trás — escolher "Diagnóstico" voltava a
+         despejar 40 itens de cada lista de uma vez;
+       · e NÃO oferecia justamente os parâmetros que dão nome a três dos cinco
+         modos: `minAmostra` (o Diagnóstico existe para baixá-lo), `pesoBanca`
+         (o Edital publicado existe para ele — a própria explicação da ordem
+         manda ajustar "quanto a banca pesa") e a régua de custo
+         (`custoPiso`/`custoPorPonto`, sem a qual a divisão ganho ÷ custo do
+         Tempo curto não significa nada).
+
+     Regra para entrar aqui: o campo muda O QUE A FILA OTIMIZA ou EM QUEM ela
+     confia. Fica fora o que é preferência de leitura (quantos itens por vez),
+     de escopo (disciplina, matérias fora do Plano) ou régua de medição
+     partilhada pela tela inteira (validade, consolidação, sensibilidade,
+     janela, piso da série). */
+  MODO_CAMPOS: [
+    { key: 'ordenar', label: 'Ordem de ataque', tipo: 'ordens',
+      hint: 'A pergunta que a fila responde.' },
+    { key: 'ponderacao', label: 'Como pesar cada assunto', tipo: 'select', op: [
+      ['igual', '⚖️ Todo assunto pesa igual'], ['volume', '📊 Pelo volume de questões'], ['ambas', '🔀 Mostrar as duas'] ] },
+    { key: 'metaDominio', label: 'Meta de domínio (%)', tipo: 'num', min: 30, max: 100,
+      hint: 'A nota que você considera suficiente em cada assunto.' },
+    { key: 'tetoDominio', label: 'Acerto máximo realista (%)', tipo: 'num', min: 50, max: 100,
+      hint: 'Onde a lacuna de cada assunto termina — é ele que dimensiona o custo e o prêmio.' },
+    // `numerico` porque as opções são números escritos como texto: sem isso o
+    // modo guardaria a string "100" e a comparação com o valor em vigor (100)
+    // marcaria o modo como personalizado sem ninguém ter mexido nele.
+    { key: 'amostraAlvo', label: 'Amostra desejada por assunto', tipo: 'select', numerico: true, op: [
+      ['30', '30 questões (±18pp)'], ['50', '50 questões (±14pp)'], ['100', '100 questões (±10pp)'], ['200', '200 questões (±7pp)'] ] },
+    { key: 'minAmostra', label: 'Amostra mínima para entrar na conta', tipo: 'num', min: 1, max: 200,
+      hint: 'Abaixo disso o assunto vai para o segundo plano — é este número que o modo Diagnóstico baixa.' },
+    { key: 'incluirPequenas', label: 'Incluir amostra pequena no cálculo', tipo: 'bool', op: [
+      ['0', 'Não — vai para o segundo plano'], ['1', 'Sim — entra no cálculo (diagnóstico)'] ] },
+    { key: 'custoModo', label: 'Como estimar o custo', tipo: 'select', op: [
+      ['lacuna', '📐 Pela lacuna até o máximo realista'], ['fixo', 'Número fixo de questões'], ['proporcional', 'Proporcional ao praticado'] ] },
+    { key: 'custoPiso', label: 'Custo: piso para remedir (questões)', tipo: 'num', min: 0, max: 500,
+      hint: 'Só com custo por lacuna: o bloco que mede o assunto de novo.' },
+    { key: 'custoPorPonto', label: 'Custo: questões por ponto de lacuna', tipo: 'num', min: 0, max: 50,
+      hint: 'Só com custo por lacuna. É o que a calibragem pelo seu histórico ajusta.' },
+    { key: 'pesoBanca', label: 'Quanto a banca pesa na ordem', tipo: 'num', min: 0, max: 20,
+      hint: 'Só na ordem "fraqueza × incidência". 0 ignora a banca.' }
+  ],
+  MODO_CAMPO_CHAVES: null,   // preenchido na 1ª leitura (ver `_chavesDeModo`)
+  _chavesDeModo() {
+    if (!this.MODO_CAMPO_CHAVES) this.MODO_CAMPO_CHAVES = this.MODO_CAMPOS.map(c => c.key);
+    return this.MODO_CAMPO_CHAVES;
+  },
   /* ── MODOS EDITÁVEIS ──────────────────────────────────────────────────────
      Os cinco modos são um ponto de partida, não um dogma: a meta que serve para
      um concurso não serve para outro, e quem estuda é quem sabe. Cada modo pode
@@ -32046,7 +32370,14 @@ const PlanoEngine = {
   modoPatch(k) {
     const base = (this.MODOS[k] && this.MODOS[k].patch) || {};
     const custom = (this.prefs().modosCustom || {})[k] || {};
-    return Object.assign({}, base, custom);
+    const junto = Object.assign({}, base, custom);
+    /* Filtra pelos campos declarados: um perfil que já gravou `limite` dentro
+       de um modo (o diálogo antigo permitia) para de ter o passo de leitura
+       trocado ao aplicar o preset, sem precisar migrar dado nenhum. */
+    const ok = this._chavesDeModo();
+    const out = {};
+    Object.keys(junto).forEach(c => { if (ok.indexOf(c) >= 0) out[c] = junto[c]; });
+    return out;
   },
   modoEditado(k) {
     const custom = (this.prefs().modosCustom || {})[k];
@@ -32064,7 +32395,11 @@ const PlanoEngine = {
     const base = (this.MODOS[k] && this.MODOS[k].patch) || {};
     const m = Object.assign({}, this.prefs().modosCustom || {});
     const atual = Object.assign({}, m[k] || {}, patch || {});
+    const permitidos = this._chavesDeModo();
     Object.keys(atual).forEach(c => {
+      // campo que não é do modo (o passo de leitura, por exemplo) não entra:
+      // guardado, ele apareceria como "modo personalizado" sem efeito nenhum
+      if (permitidos.indexOf(c) < 0) { delete atual[c]; return; }
       if (base[c] !== undefined && String(atual[c]) === String(base[c])) delete atual[c];
       if (atual[c] === undefined || (typeof atual[c] === 'number' && isNaN(atual[c]))) delete atual[c];
     });
@@ -32100,8 +32435,18 @@ const PlanoEngine = {
     const partes = [rot, 'meta ' + patch.metaDominio + '%'];
     if (patch.tetoDominio != null) partes.push('teto ' + patch.tetoDominio + '%');
     partes.push(pond, custo);
-    if (patch.limite != null) partes.push(patch.limite + ' por vez');
     if (patch.incluirPequenas) partes.push('inclui amostra pequena');
+    /* Os campos que ESTE modo define por conta própria (o patch, não o que ele
+       herda): é o que distingue "Diagnóstico" de "Base ampla" quando os dois
+       ordenam pelo pior acerto. `limite` saiu — passo de leitura não é modo. */
+    const proprio = this.modoPatch(k);
+    if (proprio.minAmostra != null) partes.push('amostra mínima ' + proprio.minAmostra);
+    if (proprio.amostraAlvo != null) partes.push('alvo ' + proprio.amostraAlvo + 'q');
+    if (proprio.pesoBanca != null) partes.push('banca pesa ' + proprio.pesoBanca);
+    if (proprio.custoPiso != null || proprio.custoPorPonto != null) {
+      partes.push('custo ' + (proprio.custoPiso != null ? proprio.custoPiso : patch.custoPiso)
+        + '+' + (proprio.custoPorPonto != null ? proprio.custoPorPonto : patch.custoPorPonto) + '/pt');
+    }
     return partes.join(' · ');
   },
   prefs() {
@@ -32365,15 +32710,53 @@ const PlanoEngine = {
     return { q, ac, pct, diasJanela, retratos, margem: this.margemErro(pct, q), conf: this.confiabilidade(q),
       qAntes, pctAntes: qAntes > 0 ? (acAntes / qAntes * 100) : null };
   },
-  // Folhas do retrato: assuntos atômicos, sem somar pai e filho duas vezes
+  /* ── FOLHAS DO RETRATO: CADA QUESTÃO EM EXATAMENTE UMA UNIDADE ────────────
+     A regra antiga era "descarte todo tópico que tenha descendente". Num
+     retrato ÚNICO isso é exato: no export do TecConcursos o pai é, ao
+     centavo, a soma dos filhos (conferido em dois arquivos reais: 241
+     tópicos-pai, zero divergências).
+
+     No escopo CONSOLIDADO, não. Ali as linhas de vários retratos se somam, e a
+     árvore de um mês não é a do outro: um tópico que é FOLHA numa importação
+     (você resolveu questões nele sem detalhe de subtópico) pode ser PAI na
+     seguinte (o TEC passou a detalhar). Somadas, a linha do pai carrega as
+     duas coisas — e o descarte levava embora a parte que só existia como
+     folha. Medido com dois exports reais do mesmo usuário: 533 questões no
+     retrato consolidado, 493 chegando ao Plano. Quarenta questões
+     desapareciam em silêncio, e nenhum número da tela denunciava.
+
+     Agora o pai não é descartado: ele entra com o RESÍDUO — o que sobra dele
+     depois de tirar os filhos diretos. Resíduo zero (o caso de todo retrato
+     único) mantém exatamente o comportamento anterior; resíduo positivo é
+     volume real, praticado e medido, que passa a contar onde sempre deveria.
+     A linha fica marcada com `_residual` para a tela poder dizer que aquele
+     número é a parte não detalhada do tópico, e não o total dele. */
   _folhas(snap, apenasFolhas) {
     const rows = (snap && snap.rows || []).filter(r => r.depth > 0 && (r.questoes || 0) > 0);
     if (!apenasFolhas) return rows;
-    return rows.filter(r => {
-      if (!r.codigo) return true;
-      return !rows.some(o => o !== r && o.disciplina === r.disciplina && o.codigo &&
+    const prof = (c) => String(c).split('.').length;
+    const out = [];
+    rows.forEach(r => {
+      if (!r.codigo) { out.push(r); return; }
+      const desc = rows.filter(o => o !== r && o.disciplina === r.disciplina && o.codigo &&
         String(o.codigo).startsWith(String(r.codigo) + '.'));
+      if (!desc.length) { out.push(r); return; }
+      /* Só os filhos DIRETOS entram na subtração: cada um deles já traz o
+         próprio ramo. Quando o retrato não tem a linha intermediária (árvore
+         irregular), cai nos descendentes que existirem — o resíduo pode sair
+         menor, nunca maior, e a guarda de `> 0` fecha a conta. */
+      const diretos = desc.filter(o => prof(o.codigo) === prof(r.codigo) + 1);
+      const base = diretos.length ? diretos : desc;
+      const q = (r.questoes || 0) - base.reduce((a, o) => a + (o.questoes || 0), 0);
+      if (q <= 0) return;
+      const ac = Math.max(0, Math.min(q, (r.acertos || 0) - base.reduce((a, o) => a + (o.acertos || 0), 0)));
+      out.push(Object.assign({}, r, {
+        questoes: q, acertos: ac,
+        pctAcerto: Math.round(ac / q * 1000) / 10,
+        _residual: true, _totalDoTopico: r.questoes
+      }));
     });
+    return out;
   },
   /* ── A CHAVE DE UM ASSUNTO É DISCIPLINA + NOME ───────────────────────────
      Era só o NOME. "Princípios" de Constitucional e "Princípios" de
@@ -32391,6 +32774,22 @@ const PlanoEngine = {
      Plano. A chave é a MESMA do resto do motor (`chaveInc`), para que os dois
      lados casem sem tradução. */
   _indice(snap, apenasFolhas) {
+    /* Retrato AGREGADO não tem hierarquia própria (ver `_fontes` em
+       `aggregate`): o índice dele é a SOMA dos índices de cada retrato, cada um
+       resolvido com a própria árvore. É isto que faz o volume do Plano fechar
+       com o total da Análise no escopo consolidado. */
+    if (snap && snap._fontes && snap._fontes.length > 1) {
+      const m = {};
+      snap._fontes.forEach(s => {
+        const idx = this._indice(s, apenasFolhas);
+        for (const k in idx) {
+          const c = m[k] || { q: 0, ac: 0, nome: idx[k].nome, disciplina: idx[k].disciplina };
+          c.q += idx[k].q; c.ac += idx[k].ac; m[k] = c;
+        }
+      });
+      Object.keys(m).forEach(k => { const v = m[k]; v.pct = v.q > 0 ? v.ac / v.q * 100 : null; });
+      return m;
+    }
     const m = {};
     this._folhas(snap, apenasFolhas).forEach(r => {
       const k = ReforcoEngine.chaveInc(r.disciplina || '', r.nome);
@@ -32879,7 +33278,35 @@ const PlanoEngine = {
           : Math.max(10, Math.round(opts.custoPiso + opts.custoPorPonto * x.lacunaPP * x.amplitude));
     });
     const usados = opts.incluirPequenas ? brutos : brutos.filter(x => !x.amostraFraca);
-    if (!usados.length) return { erro: 'amostra' };
+    /* ── O BECO SEM SAÍDA DA AMOSTRA MÍNIMA ─────────────────────────────────
+       "Nenhum assunto atingiu a amostra mínima" era um fim de linha: a tela
+       zerava e mandava "reduza nos ajustes avançados ou resolva mais questões",
+       sem dizer para quanto reduzir nem que existe um modo feito exatamente
+       para isso.
+
+       E o caso é comum, não excepcional: o índice do TEC é muito fino. Num
+       export real de 400 questões havia 391 assuntos atômicos — cerca de UMA
+       questão por assunto. Nenhum deles chega a 20, e o Plano inteiro
+       desaparecia com o retrato na mão.
+
+       Agora o erro carrega o diagnóstico: quantos assuntos existem, qual a
+       maior amostra encontrada e qual valor de corte aproveitaria metade
+       deles — é o que a tela precisa para oferecer a saída em um toque. */
+    if (!usados.length) {
+      const amostras = brutos.map(x => x.qJanela || 0).filter(q => q > 0).sort((a, b) => b - a);
+      const maior = amostras.length ? amostras[0] : 0;
+      const mediana = amostras.length ? amostras[Math.floor((amostras.length - 1) / 2)] : 0;
+      /* A sugestão precisa VALER: propor 1 é matematicamente correto e
+         inútil. O corte vai onde um TERÇO dos assuntos qualifica — e a tela
+         diz quantos entram, porque baixar a régua compra cobertura pagando em
+         margem de erro, e isso é uma escolha, não um detalhe. */
+      const sug = Math.max(2, Math.min(opts.minAmostra - 1,
+        amostras.length ? amostras[Math.floor((amostras.length - 1) / 3)] : 2));
+      return { erro: 'amostra', assuntosNoRetrato: brutos.length, maiorAmostra: maior,
+        medianaAmostra: mediana, minAmostra: opts.minAmostra,
+        sugestaoMinAmostra: sug,
+        qualificamNaSugestao: amostras.filter(q => q >= sug).length };
+    }
     const universo = usados.reduce((a, x) => a + x.peso, 0);
     const dominioPct = usados.reduce((a, x) => a + x.peso * x.taxa / 100, 0) / universo * 100;
 
@@ -33901,6 +34328,28 @@ const TecAjustes = {
       if (at) { try { at.focus(); } catch (e) { _quiet(e, 'cfg-foco'); } }
     }, 80);
   },
+  /* ── O ARQUIVO SE AUTO-CONFERE, E A TELA MOSTRA O VEREDITO ───────────────
+     A exportação rodava as invariantes sobre os dados reais e escondia o
+     resultado dentro do .json: quem exportava não tinha como saber que o
+     próprio arquivo havia reprovado uma conferência. Agora o painel lista as
+     que falharam (e diz quantas passaram), porque é por elas que qualquer
+     análise séria começa. */
+  pintarInvariantes(a) {
+    const host = document.getElementById('plano-aud-inv');
+    if (!host) return;
+    const inv = (a && a.invariantes) || [];
+    if (!inv.length) { host.innerHTML = '<p class="pl-ciclo-obs">Exporte para ver a conferência.</p>'; return; }
+    const falhas = inv.filter(i => !i.ok);
+    const na = inv.filter(i => i.aplicavel === false);
+    const okN = inv.length - falhas.length - na.length;
+    host.innerHTML = `
+      <p class="pl-aud-inv-top ${falhas.length ? 'tone-bad' : 'tone-good'}">
+        ${falhas.length ? '⚠ ' + falhas.length + ' conferência(s) reprovada(s)' : '✓ as ' + okN + ' conferências aplicáveis passaram'}
+        ${na.length ? ' · ' + na.length + ' não se aplica(m) a este retrato' : ''}
+      </p>
+      ${falhas.map(i => `<p class="pl-ciclo-obs tone-bad">✗ ${escapeHtml(i.nome)}${i.detalhe ? ' — ' + escapeHtml(JSON.stringify(i.detalhe)) : ''}</p>`).join('')}
+      ${na.map(i => `<p class="pl-ciclo-obs">— ${escapeHtml(i.nome)}: ${escapeHtml((i.detalhe && i.detalhe.porque) || 'não se aplica')}</p>`).join('')}`;
+  },
   /* ── A FITA NÃO PODE FUGIR DO DEDO ───────────────────────────────────────
      No celular a folha é ancorada embaixo: a base fica presa na borda da tela
      e é o TOPO que se move quando o conteúdo muda de tamanho. Trocar de seção
@@ -34597,7 +35046,19 @@ const DesempenhoTecScreen = {
       aggregated: snaps.length > 1,
       count: snaps.length,
       startDate: starts[0], endDate: ends[ends.length - 1],
-      date: starts[0], rows: agrupadas
+      date: starts[0], rows: agrupadas,
+      /* ── DE ONDE O AGREGADO VEIO ─────────────────────────────────────────
+         Os códigos do TEC são POSICIONAIS, não identificadores: o "01.01" de
+         Contabilidade num mês é outro assunto no mês seguinte. Somar as linhas
+         e depois decidir quem é folha pelo prefixo do código mistura duas
+         árvores diferentes — e o efeito não é um número torto, é volume que
+         desaparece: um tópico que era folha num retrato e virou pai no outro
+         era descartado inteiro. Medido com dois exports reais do mesmo
+         usuário: 533 questões no consolidado, 493 chegando ao Plano.
+
+         Guardar as fontes deixa o índice de assuntos ser calculado retrato por
+         retrato — cada um com a árvore dele — e somado depois. Ver `_indice`. */
+      _fontes: snaps
     };
   },
   // Retrato efetivo usado por toda a análise (agrega o escopo atual)
@@ -35163,45 +35624,50 @@ const DesempenhoTecScreen = {
        modo que não fixa a meta herda a que está valendo — ler só o patch dele
        abria o diálogo com campos vazios, e salvar assim gravava NaN. */
     const p = Object.assign({}, PlanoEngine.prefs(), PlanoEngine.modoPatch(k));
-    const ordens = Object.keys(PlanoEngine.ORDENS).map(x => ({ value: x, label: PlanoEngine.ORDENS[x].rot }));
-    const r = await UI.prompt([
-      { key: 'ordenar', label: 'Ordem de ataque', type: 'select', value: p.ordenar, options: ordens },
-      { key: 'metaDominio', label: 'Meta de domínio (%)', type: 'number', value: p.metaDominio, min: 30, max: 100 },
-      { key: 'tetoDominio', label: 'Acerto máximo realista (%)', type: 'number', value: p.tetoDominio, min: 50, max: 100 },
-      { key: 'ponderacao', label: 'Como pesar cada assunto', type: 'select', value: p.ponderacao, options: [
-        { value: 'igual', label: '⚖️ Todo assunto pesa igual' },
-        { value: 'volume', label: '📊 Pelo volume de questões' },
-        { value: 'ambas', label: '🔀 Mostrar as duas' }] },
-      { key: 'custoModo', label: 'Como estimar o custo', type: 'select', value: p.custoModo, options: [
-        { value: 'lacuna', label: '📐 Pela lacuna até o máximo realista' },
-        { value: 'fixo', label: 'Número fixo de questões' },
-        { value: 'proporcional', label: 'Proporcional ao praticado' }] },
-      { key: 'limite', label: 'Assuntos por vez', type: 'number', value: p.limite, min: 3, max: 200 },
-      { key: 'incluirPequenas', label: 'Incluir amostra pequena', type: 'select', value: p.incluirPequenas ? '1' : '0', options: [
-        { value: '0', label: 'Não — amostra curta vai para o segundo plano' },
-        { value: '1', label: 'Sim — entra no cálculo (modo diagnóstico)' }] },
-      { key: 'restaurar', label: 'Restaurar o padrão deste modo', type: 'select', value: '0',
-        hint: 'Descarta os seus ajustes SÓ deste modo e volta ao padrão de fábrica.',
-        options: [{ value: '0', label: 'Não, salvar o que está acima' }, { value: '1', label: '↺ Sim, voltar ao padrão' }] }
-    ], { title: 'Ajustar ' + m.rot, sub: m.quando, okText: 'Salvar modo' });
+    /* ── O DIÁLOGO NASCE DA LISTA DE CAMPOS DO MODO ────────────────────────
+       Era uma lista escrita à mão aqui, e ela divergiu do que um modo controla:
+       oferecia o passo de leitura (que os presets tinham deixado de mexer de
+       propósito) e omitia a amostra mínima, o peso da banca e a régua de custo
+       — os três parâmetros que dão sentido a "Diagnóstico", "Edital publicado"
+       e "Tempo curto". Agora há UMA fonte (`PlanoEngine.MODO_CAMPOS`), e o que
+       o diálogo mostra é exatamente o que o modo é capaz de guardar. */
+    const ordens = Object.keys(PlanoEngine.ORDENS)
+      .filter(x => !PlanoEngine.ORDENS[x].soPos || (typeof PlanoPontos !== 'undefined' && PlanoPontos.modo() === 'pos'))
+      .map(x => ({ value: x, label: PlanoEngine.ORDENS[x].rot }));
+    const campos = PlanoEngine.MODO_CAMPOS.map(c => {
+      const valor = (c.tipo === 'bool') ? (p[c.key] ? '1' : '0') : p[c.key];
+      if (c.tipo === 'ordens') return { key: c.key, label: c.label, type: 'select', value: valor, options: ordens, hint: c.hint };
+      if (c.tipo === 'select' || c.tipo === 'bool') {
+        return { key: c.key, label: c.label, type: 'select', value: String(valor),
+          options: (c.op || []).map(([v, l]) => ({ value: v, label: l })), hint: c.hint };
+      }
+      return { key: c.key, label: c.label, type: 'number', value: valor, min: c.min, max: c.max, hint: c.hint };
+    });
+    campos.push({ key: 'restaurar', label: 'Restaurar o padrão deste modo', type: 'select', value: '0',
+      hint: 'Descarta os seus ajustes SÓ deste modo e volta ao padrão de fábrica.',
+      options: [{ value: '0', label: 'Não, salvar o que está acima' }, { value: '1', label: '↺ Sim, voltar ao padrão' }] });
+    const r = await UI.prompt(campos, { title: 'Ajustar ' + m.rot, sub: m.quando, okText: 'Salvar modo' });
     if (!r) return;
     if (String(r.restaurar) === '1') {
       PlanoEngine.restaurarModo(k);
       showToast(m.rot + ' voltou ao padrão ✓');
     } else {
-      const num = (v, d) => { const n = parseInt(v, 10); return isNaN(n) ? d : n; };
       /* Só os campos que a pessoa REALMENTE mexeu entram no modo. Gravar todos
          faria um modo herdar decisões que ele não quis tomar, e um "salvar"
          sem alteração nenhuma marcaria o modo como personalizado. */
-      const novo = {
-        ordenar: r.ordenar,
-        metaDominio: Math.max(30, Math.min(100, num(r.metaDominio, p.metaDominio))),
-        tetoDominio: Math.max(50, Math.min(100, num(r.tetoDominio, p.tetoDominio))),
-        ponderacao: r.ponderacao,
-        custoModo: r.custoModo,
-        limite: Math.max(3, Math.min(200, num(r.limite, p.limite))),
-        incluirPequenas: String(r.incluirPequenas) === '1'
-      };
+      const novo = {};
+      PlanoEngine.MODO_CAMPOS.forEach(c => {
+        const bruto = r[c.key];
+        if (bruto === undefined || bruto === null || bruto === '') return;
+        if (c.tipo === 'bool') { novo[c.key] = String(bruto) === '1'; return; }
+        if (c.tipo === 'num' || c.numerico) {
+          const n = parseInt(bruto, 10);
+          if (isNaN(n)) return;
+          novo[c.key] = Math.max(c.min != null ? c.min : 0, Math.min(c.max != null ? c.max : 100000, n));
+          return;
+        }
+        novo[c.key] = bruto;
+      });
       const mudou = {};
       Object.keys(novo).forEach(c => { if (String(novo[c]) !== String(p[c])) mudou[c] = novo[c]; });
       if (Object.keys(mudou).length) { PlanoEngine.salvarModo(k, mudou); showToast(m.rot + ' ajustado ✓'); }
@@ -35454,8 +35920,40 @@ const DesempenhoTecScreen = {
       return;
     }
     if (r.erro === 'amostra') {
-      proj.innerHTML = `<p class="hint" style="padding:18px 0;">Nenhum assunto atingiu a amostra mínima de <strong>${opts.minAmostra}</strong> questões. Reduza esse valor nos ajustes avançados ou resolva mais questões.</p>`;
-      lista.innerHTML = ''; return;
+      /* A saída em UM TOQUE, com os números do retrato na frase. O índice do
+         TEC é fino: é normal um retrato ter centenas de assuntos de uma ou
+         duas questões cada, e a resposta do app para isso tem nome — o modo
+         🔍 Diagnóstico, que traz a amostra pequena para o cálculo justamente
+         para produzir dado. Mandar "reduza nos ajustes avançados" sem dizer
+         para quanto era empurrar o problema de volta para quem não tem como
+         saber. */
+      const sug = r.sugestaoMinAmostra || 1;
+      proj.innerHTML = `
+        <p class="hint" style="padding:14px 0 6px;">
+          Nenhum dos <strong>${(r.assuntosNoRetrato || 0).toLocaleString('pt-BR')}</strong> assuntos deste retrato
+          atingiu a amostra mínima de <strong>${r.minAmostra}</strong> questões
+          — a maior amostra é de <strong>${r.maiorAmostra || 0}</strong> ${r.maiorAmostra === 1 ? 'questão' : 'questões'}
+          e a mediana é <strong>${r.medianaAmostra || 0}</strong>.
+          O índice do TecConcursos é fino: com muitos assuntos de uma ou duas questões, medir assunto por assunto
+          exige baixar a régua — e assumir que a taxa vai ser um indício, não uma medição.
+        </p>
+        <div class="pl-aud-bts" style="margin:8px 0 4px;">
+          <button type="button" class="btn-primary" id="plano-modo-diag">🔍 Usar o modo Diagnóstico</button>
+          <button type="button" class="btn-secondary" id="plano-baixar-min">Baixar a régua para ${sug} ${sug === 1 ? 'questão' : 'questões'}${r.qualificamNaSugestao ? ` (entram ${r.qualificamNaSugestao})` : ''}</button>
+        </div>
+        <p class="pl-ciclo-obs">O Diagnóstico inclui a amostra pequena no cálculo e baixa a régua de uma vez; o segundo botão só mexe na régua. Os dois ficam salvos e podem ser desfeitos em ⚙ Ajustes.</p>`;
+      lista.innerHTML = '';
+      const bd = document.getElementById('plano-modo-diag');
+      if (bd) bd.addEventListener('click', () => {
+        PlanoEngine.salvarPrefs(PlanoEngine.modoPatch('diagnostico'));
+        this.renderPlano(); showToast('🔍 Diagnóstico aplicado');
+      });
+      const bm = document.getElementById('plano-baixar-min');
+      if (bm) bm.addEventListener('click', () => {
+        PlanoEngine.salvarPrefs({ minAmostra: sug });
+        this.renderPlano(); showToast('Amostra mínima em ' + sug + ' questões');
+      });
+      return;
     }
     const tom = r.jaAtinge ? 'good' : (r.falta <= 8 ? 'warn' : 'bad');
     const pond = r.ponderacao === 'volume' ? 'peso pelo volume praticado' : 'todo assunto com o mesmo peso';
@@ -35824,27 +36322,13 @@ const DesempenhoTecScreen = {
        texto de apoio no fim da tela é explicação que ninguém lê na hora da
        dúvida. Este bloco fica no RODAPÉ agora, como referência, e não como a
        primeira coisa entre você e a sua lista. */
-    /* ── A PORTA DA AUDITORIA ───────────────────────────────────────────────
-       Fica no fim do Plano, recolhida: quem usa o app todo dia não precisa
-       dela na frente, e quem vai auditar procura uma vez e acha. O arquivo sai
-       com tudo que torna cada número desta tela reproduzível por outra pessoa
-       — inclusive as invariantes conferidas NA HORA da exportação, para o
-       auditor saber se pode confiar no próprio arquivo antes de analisá-lo. */
-    const blocoAuditoria = `
-      <details class="pl-ciclo pl-auditoria">
-        <summary>
-          <strong>🧪 Auditoria do Plano</strong>
-          <span>exporte e mande para revisão — o arquivo carrega tudo que reproduz esta tela</span>
-          <span class="chev">▾</span>
-        </summary>
-        <p class="pl-prosa" style="margin:10px 0;">Gera um <b>.json</b> com os parâmetros em vigor, o retrato de hoje, a sua série por importação, o quadro de matérias, cada assunto com amostra e margem, os ciclos de atividade já julgados e um teste de coerência dos próprios números. Não leva nome de perfil, e-mail nem senha.</p>
-        <div class="pl-aud-bts">
-          <button type="button" class="btn-secondary" data-aud="semanal">↓ Exportar semanal</button>
-          <button type="button" class="btn-secondary" data-aud="mensal">↓ Exportar mensal</button>
-          <label class="rfc-check pl-aud-anon"><input type="checkbox" id="plano-aud-anon"> esconder os nomes das matérias</label>
-        </div>
-        <p class="pl-ciclo-obs" id="plano-aud-resumo"></p>
-      </details>`;
+    /* ── A PORTA DA AUDITORIA MUDOU DE LUGAR ────────────────────────────────
+       Ela vivia aqui, recolhida no fim do Plano — depois de trinta assuntos, do
+       segundo plano e das lacunas do edital. Quem queria auditar rolava a tela
+       inteira para achar; quem não queria esbarrava nela toda vez. Agora é uma
+       seção da folha de ajustes (🧪 Auditoria), junto dos parâmetros que o
+       arquivo carrega, e os botões são marcação fixa: os ouvintes ficam
+       registrados uma vez só, fora da repintura. */
     const comoLer = `
       <details class="rfc-advanced" style="margin:18px 0 0;padding:12px 14px;">
         <summary style="cursor:pointer;font-weight:700;font-size: var(--fs-sm);">📖 Como ler esta tela</summary>
@@ -36343,7 +36827,7 @@ const DesempenhoTecScreen = {
          jogo e que quatro matérias concentram metade. O quadro de matérias
          escolhe ONDE; o bloco escolhe O QUÊ. Nessa ordem. */
       ? blocoPontos + blocoRegua + blocoTempo + hoje + blocoCurso + blocoCal + grafico + blocoFeito + ordemNota + porQue + linhas
-      : blocoPontos + blocoRegua + blocoCurso + blocoTempo + blocoCal + blocoFeito + `<p class="hint" style="padding:18px 0;">Nenhum assunto abaixo do máximo realista — você já domina tudo que pratica.</p>`) + maisDaLista + pequenas + edital + blocoAuditoria + comoLer;
+      : blocoPontos + blocoRegua + blocoCurso + blocoTempo + blocoCal + blocoFeito + `<p class="hint" style="padding:18px 0;">Nenhum assunto abaixo do máximo realista — você já domina tudo que pratica.</p>`) + maisDaLista + pequenas + edital + comoLer;
     /* As sete listas do Plano compartilham um ouvinte só. Antes eram duas
        implementações quase iguais (a de assuntos e a de matérias) e cinco
        listas sem nenhuma — o tipo de duplicação que diverge na primeira
@@ -36397,12 +36881,6 @@ const DesempenhoTecScreen = {
       if (!e) return;
       if (!await UI.confirm('Excluir "' + e.titulo + '"? O assunto não aparece mais nos seus retratos.', { title: 'Excluir atividade', okText: 'Excluir', danger: true })) return;
       DB.deleteExtra(e.id); showToast('Atividade excluída'); this.renderPlanoConteudo();
-    }));
-    lista.querySelectorAll('[data-aud]').forEach(b => b.addEventListener('click', () => {
-      const anon = !!(document.getElementById('plano-aud-anon') || {}).checked;
-      const a = PlanoAuditoria.exportar(b.dataset.aud, anon);
-      const el = document.getElementById('plano-aud-resumo');
-      if (el && a && !a.erro) el.textContent = a.resumo;
     }));
     const ritmoBtn = document.getElementById('plano-ritmo-medido');
     if (ritmoBtn) ritmoBtn.addEventListener('click', () => {
@@ -37842,6 +38320,20 @@ $id('tec-weak-disc').addEventListener('change', (e) => {
   /* RESTAURAR PADRÕES vale para a aba aberta, e só para ela. Um botão que
      zerasse as três de uma vez seria uma armadilha: ninguém espera que mexer
      no Reforço apague a régua do Plano. */
+  /* ── A AUDITORIA DENTRO DA FOLHA ────────────────────────────────────────
+     Marcação fixa, ouvinte registrado uma vez: enquanto o bloco vivia dentro da
+     lista repintada, cada repintura criava botões novos e precisava religá-los.
+     O painel também mostra, ali mesmo, o que as invariantes disseram na última
+     exportação — é a diferença entre "exportei" e "o arquivo está coerente". */
+  document.addEventListener('click', (e) => {
+    const b = e.target.closest && e.target.closest('#tec-cfg-body [data-aud]');
+    if (!b) return;
+    const anon = !!(document.getElementById('plano-aud-anon') || {}).checked;
+    const a = PlanoAuditoria.exportar(b.dataset.aud, anon);
+    const el = document.getElementById('plano-aud-resumo');
+    if (el) el.textContent = (a && a.erro) ? 'Não foi possível exportar: ' + a.erro : (a ? a.resumo : '');
+    TecAjustes.pintarInvariantes(a);
+  });
   const reset = document.getElementById('tec-cfg-reset');
   if (reset) reset.addEventListener('click', async () => {
     const aba = TecAjustes.aba;
@@ -43583,11 +44075,112 @@ const PlanoAuditoria = {
   },
   _ledger() { try { return DB._get(this.KEY_LEDGER, []) || []; } catch (e) { _quiet(e, 'aud-ledger'); return []; } },
 
+  /* ── A CONFERÊNCIA DA FONTE ───────────────────────────────────────────────
+     O arquivo dizia tudo sobre o que o Plano CALCULOU e nada sobre o que ele
+     RECEBEU. Era o ponto cego mais caro: uma importação que conta a mesma
+     questão duas vezes produz um domínio, um custo e uma fila inteiramente
+     plausíveis — e nenhum número do arquivo denunciaria isso.
+
+     Foi o que aconteceu de verdade. No export do TecConcursos cada disciplina
+     termina com uma linha "Sem Classificação" sem código, igual à linha da
+     própria disciplina: ela era lida como disciplina NOVA e as questões dela
+     entravam duas vezes no total (uma no total da disciplina, que já as inclui,
+     e outra como disciplina própria). Medido em dois arquivos reais: 409
+     questões no lugar de 400, e 28 disciplinas no lugar de 20. Ao mesmo tempo,
+     o Plano só olha linhas de profundidade > 0 e simplesmente não via esse
+     volume — a Análise dizia 409 e o Plano trabalhava com 391.
+
+     Daí estes três números por retrato: o total das DISCIPLINAS, o total das
+     FOLHAS e a soma CRUA de todas as linhas. Os dois primeiros têm de ser
+     iguais; o terceiro é a armadilha (nos arquivos reais ele dá 3,2× o total) e
+     vem escrito para que ninguém precise descobrir isso de novo. */
+  _conferirImportacao(snaps, nm) {
+    const N = (v) => this._num(v, 0);
+    return (snaps || []).map(s => {
+      const rows = (s && s.rows) || [];
+      const discs = rows.filter(r => (r.depth || 0) === 0);
+      let folhas = [];
+      try { folhas = PlanoEngine._folhas(s, true) || []; } catch (e) { _quiet(e, 'aud-folhas'); }
+      const somaQ = (arr) => arr.reduce((a, r) => a + (r.questoes || 0), 0);
+      const somaAc = (arr) => arr.reduce((a, r) => a + (r.acertos || 0), 0);
+      const qDisc = somaQ(discs), acDisc = somaAc(discs);
+      const qFolha = somaQ(folhas), acFolha = somaAc(folhas);
+      const chaves = discs.map(r => ReforcoEngine.norm(r.nome || ''));
+      /* A taxa de cada linha tem de ser reproduzível a partir das duas
+         contagens. A coluna "Acertos (%)" do arquivo é arredondada para
+         exibição; se ela vazar para o cálculo, o corte dos pontos fracos passa
+         a comparar limiares contra um número que não é o número. */
+      /* Só as linhas que DECLARAM uma taxa entram: ausência não é divergência.
+         Um retrato guardado por uma versão antiga (ou vindo do backup) pode não
+         ter o campo, e acusar isso como erro de dado ensinaria o auditor a
+         ignorar a invariante — que existe para pegar taxa ERRADA, não taxa
+         ausente. */
+      const naoReproduzivel = rows.filter(r => (r.questoes || 0) > 0 && typeof r.pctAcerto === 'number'
+        && Math.abs(r.pctAcerto - Math.round((r.acertos || 0) / r.questoes * 1000) / 10) > 0.051).length;
+      return {
+        rotulo: nm(s.label || '') || null,
+        de: s.startDate || null, ate: s.endDate || s.date || null,
+        importadoEm: s.importedAt || null,
+        linhas: rows.length,
+        disciplinas: discs.length,
+        disciplinasRepetidas: chaves.length - new Set(chaves).size,
+        questoesNasDisciplinas: N(qDisc), acertosNasDisciplinas: N(acDisc),
+        questoesNasFolhas: N(qFolha), acertosNasFolhas: N(acFolha),
+        fechaEntreDisciplinasEFolhas: (qDisc === qFolha && acDisc === acFolha),
+        somaCruaDeTodasAsLinhas: N(somaQ(rows)),
+        assuntosSemCodigo: rows.filter(r => (r.depth || 0) > 0 && !r.codigo).length,
+        profundidadeMaxima: rows.reduce((a, r) => Math.max(a, r.depth || 0), 0),
+        linhasComTaxaNaoReproduzivel: naoReproduzivel
+      };
+    });
+  },
+  /* ── O ÍNDICE DE INCIDÊNCIA, E O QUANTO ELE CASA ─────────────────────────
+     A ordem "fraqueza × incidência" e o peso de cada matéria no quadro "Onde
+     atacar primeiro" saem daqui. Duas coisas podem estar erradas sem aparecer
+     em número nenhum da tela: o total do caderno contado em dobro (a árvore
+     soma pai e filho) e o CASAMENTO — quantos assuntos do seu desempenho
+     acharam incidência, e quantos acharam só pela queda por nome solto, que é
+     o canal silencioso de erro (dois "Princípios" de matérias diferentes). */
+  _conferirIncidencia(itens, nm) {
+    let sel = '__todas__';
+    try { sel = DesempenhoTecScreen.bancaFiltro(); } catch (e) { _quiet(e, 'aud-banca'); }
+    const todas = (function () { try { return DB.getIncidencia() || []; } catch (e) { return []; } })();
+    if (!todas.length) return { temIndice: false };
+    let porDisc = {}, mapa = null;
+    try { porDisc = ReforcoEngine.incidPorDisciplina(sel) || {}; } catch (e) { _quiet(e, 'aud-inc-disc'); }
+    try { mapa = ReforcoEngine.incidenceMap(sel); } catch (e) { _quiet(e, 'aud-inc-mapa'); }
+    const bancas = [...new Set(todas.map(r => r.banca).filter(Boolean))];
+    let casados = 0, viaNome = 0, semIncid = 0;
+    (itens || []).forEach(x => {
+      if (!mapa) return;
+      let achado = null;
+      try { achado = ReforcoEngine.incidenciaDe(mapa, x.nome, x.disciplina); } catch (e) { _quiet(e, 'aud-inc-de'); }
+      if (!achado || !achado.valor) { semIncid++; return; }
+      casados++;
+      if (achado.viaNome) viaNome++;
+    });
+    return {
+      temIndice: true,
+      bancasImportadas: bancas.map(nm),
+      bancasNoFiltro: (sel === '__todas__') ? null : (Array.isArray(sel) ? sel.map(nm) : [nm(sel)]),
+      linhasNoIndice: todas.length,
+      disciplinasNoIndice: Object.keys(porDisc).length,
+      /* Soma das RAÍZES: é assim que o peso da prova é calculado. A soma crua
+         de todas as linhas vem ao lado porque é a conta errada mais provável —
+         nos índices reais ela dá mais de 3× o caderno. */
+      questoesNoCaderno: this._num(Object.values(porDisc).reduce((a, v) => a + (v || 0), 0), 0),
+      somaCruaDeTodasAsLinhas: this._num(todas.reduce((a, r) => a + (r.incidencia || 0), 0), 0),
+      assuntosDoPlanoComIncidencia: casados,
+      assuntosDoPlanoSemIncidencia: semIncid,
+      casadosApenasPeloNome: viaNome,
+      taxaDeCasamentoPct: (casados + semIncid) > 0 ? this._num(casados / (casados + semIncid) * 100, 1) : null
+    };
+  },
   /* As invariantes são as mesmas que a suíte roda no navegador de
      desenvolvimento — só que aqui elas rodam SOBRE OS DADOS REAIS de quem
      exportou. É a diferença entre "o código está certo" e "o seu arquivo está
      coerente". */
-  _invariantes(r, tm) {
+  _invariantes(r, tm, imp, inc, cons) {
     const inv = [];
     const push = (nome, ok, detalhe) => inv.push({ nome, ok: !!ok, aplicavel: true, detalhe: detalhe == null ? null : detalhe });
     /* UMA INVARIANTE SEM PRÉ-CONDIÇÃO NÃO É UMA FALHA. Sem incidência nem
@@ -43647,6 +44240,54 @@ const PlanoAuditoria = {
       } else {
         naoSeAplica('as contas do quadro de matérias', 'o quadro de matérias não produziu linhas neste retrato');
       }
+      /* ── AS INVARIANTES DA FONTE ────────────────────────────────────────
+         As anteriores conferem a CONTA; estas conferem o DADO que entrou nela.
+         Uma conta impecável sobre um total contado em dobro é o pior caso
+         possível: tudo parece certo. */
+      if (imp && imp.length) {
+        const naoFecham = imp.filter(i => !i.fechaEntreDisciplinasEFolhas);
+        push('em cada retrato, as folhas somam o mesmo que as disciplinas',
+          naoFecham.length === 0,
+          naoFecham.length ? naoFecham.map(i => ({ ate: i.ate, disciplinas: i.questoesNasDisciplinas, folhas: i.questoesNasFolhas })) : { retratos: imp.length });
+        const repetidas = imp.filter(i => i.disciplinasRepetidas > 0);
+        push('nenhum retrato tem disciplina repetida',
+          repetidas.length === 0,
+          repetidas.length ? repetidas.map(i => ({ ate: i.ate, repetidas: i.disciplinasRepetidas })) : null);
+        const naoRepro = imp.filter(i => i.linhasComTaxaNaoReproduzivel > 0);
+        push('a taxa de cada linha é reproduzível pelas contagens (acertos ÷ questões)',
+          naoRepro.length === 0,
+          naoRepro.length ? naoRepro.map(i => ({ ate: i.ate, linhas: i.linhasComTaxaNaoReproduzivel })) : null);
+      } else {
+        naoSeAplica('as conferências da importação', 'nenhum retrato importado neste perfil');
+      }
+      if (cons && PlanoEngine.prefs().apenasFolhas === false) {
+        /* Com "só assuntos específicos" DESLIGADO o pai e o filho entram os
+           dois, de propósito: o mesmo acerto é contado em cada nível. A
+           reconciliação deixa de fazer sentido — cobrá-la aqui transformaria
+           uma escolha do usuário em falha do arquivo. O que o auditor precisa
+           saber é que a escolha está ativa e o que ela custa. */
+        naoSeAplica('o Plano vê todas as questões que a Análise soma no escopo',
+          'a opção "só assuntos específicos" está desligada: tópicos-pai e filhos entram os dois, '
+          + 'então a soma do Plano (' + cons.questoesNoIndiceDoPlano + ') passa do total do escopo ('
+          + cons.questoes + ') de propósito');
+      } else if (cons) {
+        push('o Plano vê todas as questões que a Análise soma no escopo',
+          !!cons.fechaComOPlano,
+          { escopo: cons.questoes, plano: cons.questoesNoIndiceDoPlano,
+            retratos: cons.retratosNoEscopo, assuntos: cons.assuntosNoIndice });
+      } else {
+        naoSeAplica('a reconciliação do escopo', 'nenhum retrato no escopo atual');
+      }
+      if (inc && inc.temIndice) {
+        push('o total do caderno vem da raiz de cada disciplina, não da soma da árvore',
+          inc.somaCruaDeTodasAsLinhas >= inc.questoesNoCaderno,
+          { caderno: inc.questoesNoCaderno, somaCrua: inc.somaCruaDeTodasAsLinhas });
+        push('a ordem por banca tem casamento suficiente para significar algo',
+          r.ordenar !== 'banca' || (inc.taxaDeCasamentoPct != null && inc.taxaDeCasamentoPct >= 10),
+          { ordem: r.ordenar, casamentoPct: inc.taxaDeCasamentoPct, apenasPeloNome: inc.casadosApenasPeloNome });
+      } else {
+        naoSeAplica('as conferências do índice de incidência', 'nenhum índice de caderno importado');
+      }
     } catch (e) { push('a coleta das invariantes terminou', false, String(e && e.message || e)); }
     return inv;
   },
@@ -43685,8 +44326,25 @@ const PlanoAuditoria = {
       caiuNoConsolidado = true;
       try { snap = DesempenhoTecScreen.aggregate(snaps0); } catch (e) { _quiet(e, 'aud-agg'); }
     }
-    const r = PlanoEngine.calcular(snap, Object.assign({}, p, { limite: this.MAX_ASSUNTOS }));
-    if (!r || r.erro) return { erro: r ? r.erro : 'sem-retrato' };
+    const r0 = PlanoEngine.calcular(snap, Object.assign({}, p, { limite: this.MAX_ASSUNTOS }));
+    /* ── O ARQUIVO TEM DE EXISTIR JUSTAMENTE QUANDO A TELA NÃO CALCULA ───────
+       `calcular` recusa o retrato em três casos: sem retrato importado, todas
+       as matérias excluídas, ou nenhum assunto com amostra suficiente. A
+       exportação devolvia só o código do erro — e é o pior momento possível
+       para não haver arquivo: a tela está vazia e a pessoa quer exatamente
+       mandar o retrato para alguém entender por quê.
+
+       O caso não é raro. O índice do TecConcursos é fino: num export real de
+       400 questões havia 391 assuntos atômicos, cerca de UMA questão cada, e
+       nenhum chegava à amostra mínima de 20. O Plano inteiro desaparecia com o
+       retrato na mão — e a auditoria desaparecia com ele.
+
+       Sem retrato nenhum não há o que exportar. Nos outros dois casos o arquivo
+       sai com tudo que NÃO depende do cálculo (parâmetros, o que foi importado,
+       o índice de incidência, os modos) e com o erro declarado no topo. */
+    if (!r0 || r0.erro === 'sem-retrato') return { erro: (r0 && r0.erro) || 'sem-retrato' };
+    const semCalculo = !!r0.erro;
+    const r = r0;
     let tm = null;
     try { tm = PlanoPontos.esforcoPorMateria(p); } catch (e) { _quiet(e, 'aud-materias'); }
     let proj = null;
@@ -43694,7 +44352,7 @@ const PlanoAuditoria = {
     let cal = null, fechados = [], curso = [];
     try { cal = PlanoCiclo.calibragem(); } catch (e) { _quiet(e, 'aud-cal'); }
     try { fechados = PlanoCiclo.fechados() || []; } catch (e) { _quiet(e, 'aud-fech'); }
-    try { curso = PlanoCiclo.emCurso(r) || []; } catch (e) { _quiet(e, 'aud-curso'); }
+    if (!semCalculo) { try { curso = PlanoCiclo.emCurso(r) || []; } catch (e) { _quiet(e, 'aud-curso'); } }
     const snaps = snaps0;
 
     /* Qualidade do dado: metade dos "erros do Plano" que alguém reporta é
@@ -43704,13 +44362,55 @@ const PlanoAuditoria = {
     const mediana = qs.length ? qs[Math.floor((qs.length - 1) / 2)] : 0;
     const deltaMed = (r.itens || []).map(x => x.deltaMinimo).filter(v => v != null).sort((a, b) => a - b);
 
+    /* A fonte, conferida: o que cada retrato importado diz, e o quanto o índice
+       de incidência casa com ele. Ver `_conferirImportacao`. */
+    const importacao = this._conferirImportacao(snaps, nm);
+    /* O escopo consolidado é o PADRÃO da tela, e é onde a conta pode divergir
+       sem que nenhum retrato isolado esteja errado: os códigos do TEC são
+       posicionais, então a árvore de um mês não é a do outro. A reconciliação
+       do agregado é a que responde "o Plano está vendo todas as questões que a
+       Análise soma?" — a resposta era não, por 40 questões em 533. */
+    const consolidado = (function (self) {
+      try {
+        if (!snap) return null;
+        const t = TecEngine.totais({ rows: snap.rows || [] });
+        const folhas = PlanoEngine._folhas(snap, p.apenasFolhas) || [];
+        const qF = folhas.reduce((a, x) => a + (x.questoes || 0), 0);
+        const acF = folhas.reduce((a, x) => a + (x.acertos || 0), 0);
+        /* No agregado o índice é somado retrato por retrato (ver `_indice`), e
+           é ELE que o Plano usa — então é ele que tem de fechar. */
+        const idx = PlanoEngine._indice(snap, p.apenasFolhas) || {};
+        const qI = Object.keys(idx).reduce((a, k) => a + (idx[k].q || 0), 0);
+        const acI = Object.keys(idx).reduce((a, k) => a + (idx[k].ac || 0), 0);
+        return {
+          retratosNoEscopo: snap._fontes ? snap._fontes.length : 1,
+          questoes: t.questoes, acertos: t.acertos, disciplinas: t.disciplinas,
+          questoesNasFolhas: qF, acertosNasFolhas: acF,
+          assuntosNoIndice: Object.keys(idx).length,
+          questoesNoIndiceDoPlano: qI, acertosNoIndiceDoPlano: acI,
+          fechaComOPlano: (qI === t.questoes && acI === t.acertos)
+        };
+      } catch (e) { _quiet(e, 'aud-consol'); return null; }
+    })(this);
+    const incidencia = this._conferirIncidencia(r.itens || [], nm);
+
     const payload = {
       formato: 'studynomentor/plano-auditoria',
       versao: this.VERSAO,
       geradoEm: new Date().toISOString(),
       cadencia: opts.cadencia || 'avulsa',
       anonimo: anon,
-      app: { versao: (window.APP_VERSION || null), build: (window.BUILD_ID || null) },
+      /* A versão sai do carimbo que o montador grava no <meta>: `APP_VERSION`
+         nunca existiu no app, então este campo ia null em todo arquivo — e um
+         retrato de auditoria sem dizer qual build o produziu não permite
+         atribuir uma mudança de número a uma mudança de código. */
+      app: {
+        versao: (function () {
+          try { const m = document.querySelector('meta[name="diario-versao"]'); return (m && m.content) || null; }
+          catch (e) { return null; }
+        })(),
+        build: (window.BUILD_ID || null)
+      },
 
       /* Sem os parâmetros, nenhum número deste arquivo é reproduzível.
          A lista de matérias excluídas é nome próprio: no modo anônimo vai o
@@ -43741,7 +44441,21 @@ const PlanoAuditoria = {
         ultimoRetrato: snaps.length ? (snaps[snaps.length - 1].endDate || snaps[snaps.length - 1].date) : null
       },
 
-      retrato: {
+      /* O erro do cálculo é um CAMPO do arquivo, não a ausência dele. Quando
+         ele está preenchido, os blocos que dependem do cálculo vêm nulos e o
+         diagnóstico diz o que faltou. */
+      erroDoCalculo: semCalculo ? {
+        codigo: r.erro,
+        assuntosNoRetrato: r.assuntosNoRetrato != null ? r.assuntosNoRetrato : null,
+        maiorAmostra: r.maiorAmostra != null ? r.maiorAmostra : null,
+        medianaAmostra: r.medianaAmostra != null ? r.medianaAmostra : null,
+        amostraMinimaExigida: r.minAmostra != null ? r.minAmostra : p.minAmostra,
+        sugestaoDeAmostraMinima: r.sugestaoMinAmostra != null ? r.sugestaoMinAmostra : null,
+        assuntosQueQualificamNaSugestao: r.qualificamNaSugestao != null ? r.qualificamNaSugestao : null,
+        materiasForaDoPlano: (r.excluidasAtivas || []).map(nm)
+      } : null,
+
+      retrato: semCalculo ? null : {
         dominioPct: N(r.dominioPct), meta: r.meta, teto: r.teto,
         falta: N(r.falta), jaAtinge: r.jaAtinge,
         assuntosMedidos: r.assuntos, semDiagnostico: r.ignorados,
@@ -43761,7 +44475,7 @@ const PlanoAuditoria = {
       /* A série é a única coisa aqui que responde "está melhorando?". O
          `deltaComparavel` é o que vale: o bruto compara conjuntos diferentes
          de assuntos a cada importação. */
-      serie: (r.serie || []).map(x => ({
+      serie: (r.serie || (semCalculo ? PlanoEngine.serieHistorica(p) : []) || []).map(x => ({
         data: x.data, nome: anon ? null : x.nome,
         dominio: N(x.dominio), assuntos: x.assuntos, questoes: x.questoes,
         deltaBruto: N(x.delta), deltaComparavel: N(x.deltaComp),
@@ -43781,7 +44495,7 @@ const PlanoAuditoria = {
         }))
       } : null,
 
-      assuntos: (r.itens || []).map((x, i) => ({
+      assuntos: semCalculo ? null : (r.itens || []).map((x, i) => ({
         pos: i + 1, disciplina: nm(x.disciplina), nome: nm(x.nome),
         taxaPct: N(x.taxa), margemPP: N(x.margem), confiabilidade: x.conf ? x.conf.nivel : null,
         questoesNaJanela: x.qJanela, questoesNoTotal: x.qHist, diasDaJanela: x.diasJanela,
@@ -43798,7 +44512,7 @@ const PlanoAuditoria = {
         temAtividade: !!x.extra
       })),
 
-      segundoPlano: (r.pequenas || []).map(x => ({
+      segundoPlano: semCalculo ? null : (r.pequenas || []).map(x => ({
         disciplina: nm(x.disciplina), nome: nm(x.nome),
         taxaPct: N(x.taxa), questoesNaJanela: x.qJanela, questoesNoTotal: x.qHist
       })),
@@ -43845,7 +44559,28 @@ const PlanoAuditoria = {
         janelaMaxDias: p.janelaMax, minimoDeAmostra: p.minAmostra
       },
 
-      invariantes: this._invariantes(r, tm),
+      /* ── O QUE ENTROU, ANTES DO QUE SAIU ──────────────────────────────
+         Um retrato por importação, com a reconciliação entre o total das
+         disciplinas e o total das folhas. É o bloco que torna visível um erro
+         de importação — a classe de erro que produz números plausíveis. */
+      importacao: importacao,
+      importacaoNoEscopo: consolidado,
+      incidencia: incidencia,
+      /* Os cinco presets como estão AGORA (com os ajustes do usuário já
+         aplicados) e quais foram personalizados: sem isso, dois arquivos do
+         mesmo perfil com ordens diferentes não têm explicação. */
+      modosDeAtaque: (function () {
+        const out = {};
+        try {
+          Object.keys(PlanoEngine.MODOS).forEach(k => {
+            out[k] = { aplica: PlanoEngine.modoPatch(k), personalizado: PlanoEngine.modoEditado(k) };
+          });
+          out._emVigor = PlanoEngine.modoAtivo();
+        } catch (e) { _quiet(e, 'aud-modos'); }
+        return out;
+      })(),
+
+      invariantes: this._invariantes(r, tm, importacao, incidencia, consolidado),
       historicoDeAuditorias: this._ledger()
     };
     payload.resumo = this.resumo(payload);
@@ -43862,15 +44597,54 @@ const PlanoAuditoria = {
     const fech = (at && at.fechadas) || [];
     const bons = fech.filter(f => (f.ganhoPP || 0) > 0).length;
     const s = [];
-    s.push('Domínio ' + r.dominioPct + '% em ' + r.assuntosMedidos + ' assuntos (meta ' + r.meta + '%, faltam ' + r.falta + ').');
+    /* ── O RESUMO DO ARQUIVO SEM CÁLCULO ─────────────────────────────────────
+       Quando o Plano não conseguiu calcular, a primeira linha tem de dizer O
+       QUE FALTOU e com que números — é a informação que faz o arquivo valer a
+       pena mesmo sem domínio nenhum dentro. */
+    const e = a.erroDoCalculo;
+    if (e) {
+      const nomes = { amostra: 'nenhum assunto atingiu a amostra mínima',
+        'tudo-excluido': 'todas as matérias com retrato estão marcadas como fora do Plano' };
+      s.push('O Plano NÃO calculou: ' + (nomes[e.codigo] || e.codigo) + '.');
+      if (e.codigo === 'amostra') {
+        s.push('São ' + (e.assuntosNoRetrato || 0) + ' assuntos no retrato, maior amostra de '
+          + (e.maiorAmostra || 0) + ' questão(ões) e mediana de ' + (e.medianaAmostra || 0)
+          + ', contra a régua de ' + e.amostraMinimaExigida + '.'
+          + (e.sugestaoDeAmostraMinima ? ' Com a régua em ' + e.sugestaoDeAmostraMinima + ', entrariam '
+            + (e.assuntosQueQualificamNaSugestao || 0) + ' assuntos.' : ''));
+      }
+      if (e.codigo === 'tudo-excluido' && (e.materiasForaDoPlano || []).length) {
+        s.push((e.materiasForaDoPlano || []).length + ' matéria(s) fora do Plano.');
+      }
+      s.push('O que este arquivo ainda prova: o que foi importado, o índice de incidência, os parâmetros e os modos em vigor.');
+    }
+    if (r) s.push('Domínio ' + r.dominioPct + '% em ' + r.assuntosMedidos + ' assuntos (meta ' + r.meta + '%, faltam ' + r.falta + ').');
     if (a.contexto.disciplinaFiltro) s.push('ATENÇÃO: filtrado por "' + a.contexto.disciplinaFiltro + '" — estes números são só dessa matéria.');
     if (a.contexto.recorteDeRetratos && a.contexto.recorteDeRetratos.modo && a.contexto.recorteDeRetratos.modo !== 'consolidado') s.push('ATENÇÃO: recorte de retratos "' + a.contexto.recorteDeRetratos.modo + '" ativo.');
     if (a.contexto.caiuNoConsolidado) s.push('O recorte escolhido não cobria retrato nenhum: os números caíram no consolidado.');
-    if (r.caminhoMaisCurto) s.push('Caminho mais curto: ' + r.caminhoMaisCurto.assuntos + ' assuntos, ' + r.caminhoMaisCurto.questoes + ' questões, ~' + r.caminhoMaisCurto.semanas + ' semanas a ' + r.ritmoSemanal + '/sem.');
+    if (r && r.caminhoMaisCurto) s.push('Caminho mais curto: ' + r.caminhoMaisCurto.assuntos + ' assuntos, ' + r.caminhoMaisCurto.questoes + ' questões, ~' + r.caminhoMaisCurto.semanas + ' semanas a ' + r.ritmoSemanal + '/sem.');
     if (m) s.push(m.emJogoPP + 'pp da prova em jogo; ' + m.materiasNoCorte + ' matéria(s) concentram metade.');
-    s.push('Amostra: mediana de ' + a.qualidadeDoDado.medianaQuestoesPorAssunto + ' questões por assunto; ' + r.empatadosNoTopo + ' empatados no topo.');
+    if (r) s.push('Amostra: mediana de ' + a.qualidadeDoDado.medianaQuestoesPorAssunto + ' questões por assunto; ' + r.empatadosNoTopo + ' empatados no topo.');
     s.push('Ciclos fechados: ' + fech.length + (fech.length ? ' (' + bons + ' com ganho).' : '.'));
     s.push('Retratos: ' + a.contexto.retratos + (a.serie.length > 1 ? ', variação comparável acumulada de ' + this._num(a.serie.reduce((x, p) => x + (p.deltaComparavel || 0), 0), 1) + 'pp.' : '.'));
+    /* A FONTE ENTRA NO RESUMO. Um erro de importação produz números plausíveis:
+       se o total das disciplinas e o das folhas discordam, nada abaixo disso
+       merece leitura, e isso tem de estar na primeira linha que alguém lê. */
+    const imp = a.importacao || [];
+    const naoFecham = imp.filter(i => !i.fechaEntreDisciplinasEFolhas).length;
+    if (imp.length) {
+      const ult = imp[imp.length - 1];
+      s.push('Último retrato importado: ' + ult.linhas + ' linhas, ' + ult.disciplinas + ' disciplinas, '
+        + ult.questoesNasDisciplinas + ' questões (folhas: ' + ult.questoesNasFolhas + ').'
+        + (naoFecham ? ' ⚠️ ' + naoFecham + ' retrato(s) com disciplinas e folhas em desacordo.' : ''));
+    }
+    if (a.incidencia && a.incidencia.temIndice) {
+      s.push('Índice de incidência: ' + a.incidencia.questoesNoCaderno + ' questões no caderno, '
+        + a.incidencia.disciplinasNoIndice + ' disciplinas, casamento de '
+        + (a.incidencia.taxaDeCasamentoPct == null ? '—' : a.incidencia.taxaDeCasamentoPct + '%')
+        + ' com os assuntos do Plano'
+        + (a.incidencia.casadosApenasPeloNome ? ' (' + a.incidencia.casadosApenasPeloNome + ' só pelo nome)' : '') + '.');
+    }
     s.push(ok ? ('⚠️ ' + ok + ' invariante(s) FALHARAM — confira antes de confiar nos números.')
       : ('Invariantes: todas fecham' + (na ? ' (' + na + ' não se aplicam a este retrato).' : '.')));
     return s.join(' ');

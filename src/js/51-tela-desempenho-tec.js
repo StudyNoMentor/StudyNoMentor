@@ -177,6 +177,61 @@ const PlanoEngine = {
       armadilha: 'Um assunto ótimo que caiu de 95% para 88% aparece acima de um crônico de 30% que nunca melhorou.'
     }
   },
+  /* ── O QUE UM MODO DE ATAQUE CONTROLA ─────────────────────────────────────
+     Esta lista é a ÚNICA fonte: o diálogo de editar um modo nasce dela, o
+     `modoPatch` só devolve campos dela e o resumo dos chips lê os mesmos
+     campos. O diálogo tinha uma lista escrita à mão, e ela já havia divergido
+     nos DOIS sentidos:
+
+       · oferecia "Assuntos por vez" (`limite`), que deixou de ser estratégia
+         no instante em que virou o PASSO com que sete listas abrem. Os presets
+         tinham sido limpos desse campo de propósito, e editar um modo o
+         reintroduzia pela porta de trás — escolher "Diagnóstico" voltava a
+         despejar 40 itens de cada lista de uma vez;
+       · e NÃO oferecia justamente os parâmetros que dão nome a três dos cinco
+         modos: `minAmostra` (o Diagnóstico existe para baixá-lo), `pesoBanca`
+         (o Edital publicado existe para ele — a própria explicação da ordem
+         manda ajustar "quanto a banca pesa") e a régua de custo
+         (`custoPiso`/`custoPorPonto`, sem a qual a divisão ganho ÷ custo do
+         Tempo curto não significa nada).
+
+     Regra para entrar aqui: o campo muda O QUE A FILA OTIMIZA ou EM QUEM ela
+     confia. Fica fora o que é preferência de leitura (quantos itens por vez),
+     de escopo (disciplina, matérias fora do Plano) ou régua de medição
+     partilhada pela tela inteira (validade, consolidação, sensibilidade,
+     janela, piso da série). */
+  MODO_CAMPOS: [
+    { key: 'ordenar', label: 'Ordem de ataque', tipo: 'ordens',
+      hint: 'A pergunta que a fila responde.' },
+    { key: 'ponderacao', label: 'Como pesar cada assunto', tipo: 'select', op: [
+      ['igual', '⚖️ Todo assunto pesa igual'], ['volume', '📊 Pelo volume de questões'], ['ambas', '🔀 Mostrar as duas'] ] },
+    { key: 'metaDominio', label: 'Meta de domínio (%)', tipo: 'num', min: 30, max: 100,
+      hint: 'A nota que você considera suficiente em cada assunto.' },
+    { key: 'tetoDominio', label: 'Acerto máximo realista (%)', tipo: 'num', min: 50, max: 100,
+      hint: 'Onde a lacuna de cada assunto termina — é ele que dimensiona o custo e o prêmio.' },
+    // `numerico` porque as opções são números escritos como texto: sem isso o
+    // modo guardaria a string "100" e a comparação com o valor em vigor (100)
+    // marcaria o modo como personalizado sem ninguém ter mexido nele.
+    { key: 'amostraAlvo', label: 'Amostra desejada por assunto', tipo: 'select', numerico: true, op: [
+      ['30', '30 questões (±18pp)'], ['50', '50 questões (±14pp)'], ['100', '100 questões (±10pp)'], ['200', '200 questões (±7pp)'] ] },
+    { key: 'minAmostra', label: 'Amostra mínima para entrar na conta', tipo: 'num', min: 1, max: 200,
+      hint: 'Abaixo disso o assunto vai para o segundo plano — é este número que o modo Diagnóstico baixa.' },
+    { key: 'incluirPequenas', label: 'Incluir amostra pequena no cálculo', tipo: 'bool', op: [
+      ['0', 'Não — vai para o segundo plano'], ['1', 'Sim — entra no cálculo (diagnóstico)'] ] },
+    { key: 'custoModo', label: 'Como estimar o custo', tipo: 'select', op: [
+      ['lacuna', '📐 Pela lacuna até o máximo realista'], ['fixo', 'Número fixo de questões'], ['proporcional', 'Proporcional ao praticado'] ] },
+    { key: 'custoPiso', label: 'Custo: piso para remedir (questões)', tipo: 'num', min: 0, max: 500,
+      hint: 'Só com custo por lacuna: o bloco que mede o assunto de novo.' },
+    { key: 'custoPorPonto', label: 'Custo: questões por ponto de lacuna', tipo: 'num', min: 0, max: 50,
+      hint: 'Só com custo por lacuna. É o que a calibragem pelo seu histórico ajusta.' },
+    { key: 'pesoBanca', label: 'Quanto a banca pesa na ordem', tipo: 'num', min: 0, max: 20,
+      hint: 'Só na ordem "fraqueza × incidência". 0 ignora a banca.' }
+  ],
+  MODO_CAMPO_CHAVES: null,   // preenchido na 1ª leitura (ver `_chavesDeModo`)
+  _chavesDeModo() {
+    if (!this.MODO_CAMPO_CHAVES) this.MODO_CAMPO_CHAVES = this.MODO_CAMPOS.map(c => c.key);
+    return this.MODO_CAMPO_CHAVES;
+  },
   /* ── MODOS EDITÁVEIS ──────────────────────────────────────────────────────
      Os cinco modos são um ponto de partida, não um dogma: a meta que serve para
      um concurso não serve para outro, e quem estuda é quem sabe. Cada modo pode
@@ -189,7 +244,14 @@ const PlanoEngine = {
   modoPatch(k) {
     const base = (this.MODOS[k] && this.MODOS[k].patch) || {};
     const custom = (this.prefs().modosCustom || {})[k] || {};
-    return Object.assign({}, base, custom);
+    const junto = Object.assign({}, base, custom);
+    /* Filtra pelos campos declarados: um perfil que já gravou `limite` dentro
+       de um modo (o diálogo antigo permitia) para de ter o passo de leitura
+       trocado ao aplicar o preset, sem precisar migrar dado nenhum. */
+    const ok = this._chavesDeModo();
+    const out = {};
+    Object.keys(junto).forEach(c => { if (ok.indexOf(c) >= 0) out[c] = junto[c]; });
+    return out;
   },
   modoEditado(k) {
     const custom = (this.prefs().modosCustom || {})[k];
@@ -207,7 +269,11 @@ const PlanoEngine = {
     const base = (this.MODOS[k] && this.MODOS[k].patch) || {};
     const m = Object.assign({}, this.prefs().modosCustom || {});
     const atual = Object.assign({}, m[k] || {}, patch || {});
+    const permitidos = this._chavesDeModo();
     Object.keys(atual).forEach(c => {
+      // campo que não é do modo (o passo de leitura, por exemplo) não entra:
+      // guardado, ele apareceria como "modo personalizado" sem efeito nenhum
+      if (permitidos.indexOf(c) < 0) { delete atual[c]; return; }
       if (base[c] !== undefined && String(atual[c]) === String(base[c])) delete atual[c];
       if (atual[c] === undefined || (typeof atual[c] === 'number' && isNaN(atual[c]))) delete atual[c];
     });
@@ -243,8 +309,18 @@ const PlanoEngine = {
     const partes = [rot, 'meta ' + patch.metaDominio + '%'];
     if (patch.tetoDominio != null) partes.push('teto ' + patch.tetoDominio + '%');
     partes.push(pond, custo);
-    if (patch.limite != null) partes.push(patch.limite + ' por vez');
     if (patch.incluirPequenas) partes.push('inclui amostra pequena');
+    /* Os campos que ESTE modo define por conta própria (o patch, não o que ele
+       herda): é o que distingue "Diagnóstico" de "Base ampla" quando os dois
+       ordenam pelo pior acerto. `limite` saiu — passo de leitura não é modo. */
+    const proprio = this.modoPatch(k);
+    if (proprio.minAmostra != null) partes.push('amostra mínima ' + proprio.minAmostra);
+    if (proprio.amostraAlvo != null) partes.push('alvo ' + proprio.amostraAlvo + 'q');
+    if (proprio.pesoBanca != null) partes.push('banca pesa ' + proprio.pesoBanca);
+    if (proprio.custoPiso != null || proprio.custoPorPonto != null) {
+      partes.push('custo ' + (proprio.custoPiso != null ? proprio.custoPiso : patch.custoPiso)
+        + '+' + (proprio.custoPorPonto != null ? proprio.custoPorPonto : patch.custoPorPonto) + '/pt');
+    }
     return partes.join(' · ');
   },
   prefs() {
@@ -508,15 +584,53 @@ const PlanoEngine = {
     return { q, ac, pct, diasJanela, retratos, margem: this.margemErro(pct, q), conf: this.confiabilidade(q),
       qAntes, pctAntes: qAntes > 0 ? (acAntes / qAntes * 100) : null };
   },
-  // Folhas do retrato: assuntos atômicos, sem somar pai e filho duas vezes
+  /* ── FOLHAS DO RETRATO: CADA QUESTÃO EM EXATAMENTE UMA UNIDADE ────────────
+     A regra antiga era "descarte todo tópico que tenha descendente". Num
+     retrato ÚNICO isso é exato: no export do TecConcursos o pai é, ao
+     centavo, a soma dos filhos (conferido em dois arquivos reais: 241
+     tópicos-pai, zero divergências).
+
+     No escopo CONSOLIDADO, não. Ali as linhas de vários retratos se somam, e a
+     árvore de um mês não é a do outro: um tópico que é FOLHA numa importação
+     (você resolveu questões nele sem detalhe de subtópico) pode ser PAI na
+     seguinte (o TEC passou a detalhar). Somadas, a linha do pai carrega as
+     duas coisas — e o descarte levava embora a parte que só existia como
+     folha. Medido com dois exports reais do mesmo usuário: 533 questões no
+     retrato consolidado, 493 chegando ao Plano. Quarenta questões
+     desapareciam em silêncio, e nenhum número da tela denunciava.
+
+     Agora o pai não é descartado: ele entra com o RESÍDUO — o que sobra dele
+     depois de tirar os filhos diretos. Resíduo zero (o caso de todo retrato
+     único) mantém exatamente o comportamento anterior; resíduo positivo é
+     volume real, praticado e medido, que passa a contar onde sempre deveria.
+     A linha fica marcada com `_residual` para a tela poder dizer que aquele
+     número é a parte não detalhada do tópico, e não o total dele. */
   _folhas(snap, apenasFolhas) {
     const rows = (snap && snap.rows || []).filter(r => r.depth > 0 && (r.questoes || 0) > 0);
     if (!apenasFolhas) return rows;
-    return rows.filter(r => {
-      if (!r.codigo) return true;
-      return !rows.some(o => o !== r && o.disciplina === r.disciplina && o.codigo &&
+    const prof = (c) => String(c).split('.').length;
+    const out = [];
+    rows.forEach(r => {
+      if (!r.codigo) { out.push(r); return; }
+      const desc = rows.filter(o => o !== r && o.disciplina === r.disciplina && o.codigo &&
         String(o.codigo).startsWith(String(r.codigo) + '.'));
+      if (!desc.length) { out.push(r); return; }
+      /* Só os filhos DIRETOS entram na subtração: cada um deles já traz o
+         próprio ramo. Quando o retrato não tem a linha intermediária (árvore
+         irregular), cai nos descendentes que existirem — o resíduo pode sair
+         menor, nunca maior, e a guarda de `> 0` fecha a conta. */
+      const diretos = desc.filter(o => prof(o.codigo) === prof(r.codigo) + 1);
+      const base = diretos.length ? diretos : desc;
+      const q = (r.questoes || 0) - base.reduce((a, o) => a + (o.questoes || 0), 0);
+      if (q <= 0) return;
+      const ac = Math.max(0, Math.min(q, (r.acertos || 0) - base.reduce((a, o) => a + (o.acertos || 0), 0)));
+      out.push(Object.assign({}, r, {
+        questoes: q, acertos: ac,
+        pctAcerto: Math.round(ac / q * 1000) / 10,
+        _residual: true, _totalDoTopico: r.questoes
+      }));
     });
+    return out;
   },
   /* ── A CHAVE DE UM ASSUNTO É DISCIPLINA + NOME ───────────────────────────
      Era só o NOME. "Princípios" de Constitucional e "Princípios" de
@@ -534,6 +648,22 @@ const PlanoEngine = {
      Plano. A chave é a MESMA do resto do motor (`chaveInc`), para que os dois
      lados casem sem tradução. */
   _indice(snap, apenasFolhas) {
+    /* Retrato AGREGADO não tem hierarquia própria (ver `_fontes` em
+       `aggregate`): o índice dele é a SOMA dos índices de cada retrato, cada um
+       resolvido com a própria árvore. É isto que faz o volume do Plano fechar
+       com o total da Análise no escopo consolidado. */
+    if (snap && snap._fontes && snap._fontes.length > 1) {
+      const m = {};
+      snap._fontes.forEach(s => {
+        const idx = this._indice(s, apenasFolhas);
+        for (const k in idx) {
+          const c = m[k] || { q: 0, ac: 0, nome: idx[k].nome, disciplina: idx[k].disciplina };
+          c.q += idx[k].q; c.ac += idx[k].ac; m[k] = c;
+        }
+      });
+      Object.keys(m).forEach(k => { const v = m[k]; v.pct = v.q > 0 ? v.ac / v.q * 100 : null; });
+      return m;
+    }
     const m = {};
     this._folhas(snap, apenasFolhas).forEach(r => {
       const k = ReforcoEngine.chaveInc(r.disciplina || '', r.nome);
@@ -1022,7 +1152,35 @@ const PlanoEngine = {
           : Math.max(10, Math.round(opts.custoPiso + opts.custoPorPonto * x.lacunaPP * x.amplitude));
     });
     const usados = opts.incluirPequenas ? brutos : brutos.filter(x => !x.amostraFraca);
-    if (!usados.length) return { erro: 'amostra' };
+    /* ── O BECO SEM SAÍDA DA AMOSTRA MÍNIMA ─────────────────────────────────
+       "Nenhum assunto atingiu a amostra mínima" era um fim de linha: a tela
+       zerava e mandava "reduza nos ajustes avançados ou resolva mais questões",
+       sem dizer para quanto reduzir nem que existe um modo feito exatamente
+       para isso.
+
+       E o caso é comum, não excepcional: o índice do TEC é muito fino. Num
+       export real de 400 questões havia 391 assuntos atômicos — cerca de UMA
+       questão por assunto. Nenhum deles chega a 20, e o Plano inteiro
+       desaparecia com o retrato na mão.
+
+       Agora o erro carrega o diagnóstico: quantos assuntos existem, qual a
+       maior amostra encontrada e qual valor de corte aproveitaria metade
+       deles — é o que a tela precisa para oferecer a saída em um toque. */
+    if (!usados.length) {
+      const amostras = brutos.map(x => x.qJanela || 0).filter(q => q > 0).sort((a, b) => b - a);
+      const maior = amostras.length ? amostras[0] : 0;
+      const mediana = amostras.length ? amostras[Math.floor((amostras.length - 1) / 2)] : 0;
+      /* A sugestão precisa VALER: propor 1 é matematicamente correto e
+         inútil. O corte vai onde um TERÇO dos assuntos qualifica — e a tela
+         diz quantos entram, porque baixar a régua compra cobertura pagando em
+         margem de erro, e isso é uma escolha, não um detalhe. */
+      const sug = Math.max(2, Math.min(opts.minAmostra - 1,
+        amostras.length ? amostras[Math.floor((amostras.length - 1) / 3)] : 2));
+      return { erro: 'amostra', assuntosNoRetrato: brutos.length, maiorAmostra: maior,
+        medianaAmostra: mediana, minAmostra: opts.minAmostra,
+        sugestaoMinAmostra: sug,
+        qualificamNaSugestao: amostras.filter(q => q >= sug).length };
+    }
     const universo = usados.reduce((a, x) => a + x.peso, 0);
     const dominioPct = usados.reduce((a, x) => a + x.peso * x.taxa / 100, 0) / universo * 100;
 
@@ -2044,6 +2202,28 @@ const TecAjustes = {
       if (at) { try { at.focus(); } catch (e) { _quiet(e, 'cfg-foco'); } }
     }, 80);
   },
+  /* ── O ARQUIVO SE AUTO-CONFERE, E A TELA MOSTRA O VEREDITO ───────────────
+     A exportação rodava as invariantes sobre os dados reais e escondia o
+     resultado dentro do .json: quem exportava não tinha como saber que o
+     próprio arquivo havia reprovado uma conferência. Agora o painel lista as
+     que falharam (e diz quantas passaram), porque é por elas que qualquer
+     análise séria começa. */
+  pintarInvariantes(a) {
+    const host = document.getElementById('plano-aud-inv');
+    if (!host) return;
+    const inv = (a && a.invariantes) || [];
+    if (!inv.length) { host.innerHTML = '<p class="pl-ciclo-obs">Exporte para ver a conferência.</p>'; return; }
+    const falhas = inv.filter(i => !i.ok);
+    const na = inv.filter(i => i.aplicavel === false);
+    const okN = inv.length - falhas.length - na.length;
+    host.innerHTML = `
+      <p class="pl-aud-inv-top ${falhas.length ? 'tone-bad' : 'tone-good'}">
+        ${falhas.length ? '⚠ ' + falhas.length + ' conferência(s) reprovada(s)' : '✓ as ' + okN + ' conferências aplicáveis passaram'}
+        ${na.length ? ' · ' + na.length + ' não se aplica(m) a este retrato' : ''}
+      </p>
+      ${falhas.map(i => `<p class="pl-ciclo-obs tone-bad">✗ ${escapeHtml(i.nome)}${i.detalhe ? ' — ' + escapeHtml(JSON.stringify(i.detalhe)) : ''}</p>`).join('')}
+      ${na.map(i => `<p class="pl-ciclo-obs">— ${escapeHtml(i.nome)}: ${escapeHtml((i.detalhe && i.detalhe.porque) || 'não se aplica')}</p>`).join('')}`;
+  },
   /* ── A FITA NÃO PODE FUGIR DO DEDO ───────────────────────────────────────
      No celular a folha é ancorada embaixo: a base fica presa na borda da tela
      e é o TOPO que se move quando o conteúdo muda de tamanho. Trocar de seção
@@ -2740,7 +2920,19 @@ const DesempenhoTecScreen = {
       aggregated: snaps.length > 1,
       count: snaps.length,
       startDate: starts[0], endDate: ends[ends.length - 1],
-      date: starts[0], rows: agrupadas
+      date: starts[0], rows: agrupadas,
+      /* ── DE ONDE O AGREGADO VEIO ─────────────────────────────────────────
+         Os códigos do TEC são POSICIONAIS, não identificadores: o "01.01" de
+         Contabilidade num mês é outro assunto no mês seguinte. Somar as linhas
+         e depois decidir quem é folha pelo prefixo do código mistura duas
+         árvores diferentes — e o efeito não é um número torto, é volume que
+         desaparece: um tópico que era folha num retrato e virou pai no outro
+         era descartado inteiro. Medido com dois exports reais do mesmo
+         usuário: 533 questões no consolidado, 493 chegando ao Plano.
+
+         Guardar as fontes deixa o índice de assuntos ser calculado retrato por
+         retrato — cada um com a árvore dele — e somado depois. Ver `_indice`. */
+      _fontes: snaps
     };
   },
   // Retrato efetivo usado por toda a análise (agrega o escopo atual)
@@ -3306,45 +3498,50 @@ const DesempenhoTecScreen = {
        modo que não fixa a meta herda a que está valendo — ler só o patch dele
        abria o diálogo com campos vazios, e salvar assim gravava NaN. */
     const p = Object.assign({}, PlanoEngine.prefs(), PlanoEngine.modoPatch(k));
-    const ordens = Object.keys(PlanoEngine.ORDENS).map(x => ({ value: x, label: PlanoEngine.ORDENS[x].rot }));
-    const r = await UI.prompt([
-      { key: 'ordenar', label: 'Ordem de ataque', type: 'select', value: p.ordenar, options: ordens },
-      { key: 'metaDominio', label: 'Meta de domínio (%)', type: 'number', value: p.metaDominio, min: 30, max: 100 },
-      { key: 'tetoDominio', label: 'Acerto máximo realista (%)', type: 'number', value: p.tetoDominio, min: 50, max: 100 },
-      { key: 'ponderacao', label: 'Como pesar cada assunto', type: 'select', value: p.ponderacao, options: [
-        { value: 'igual', label: '⚖️ Todo assunto pesa igual' },
-        { value: 'volume', label: '📊 Pelo volume de questões' },
-        { value: 'ambas', label: '🔀 Mostrar as duas' }] },
-      { key: 'custoModo', label: 'Como estimar o custo', type: 'select', value: p.custoModo, options: [
-        { value: 'lacuna', label: '📐 Pela lacuna até o máximo realista' },
-        { value: 'fixo', label: 'Número fixo de questões' },
-        { value: 'proporcional', label: 'Proporcional ao praticado' }] },
-      { key: 'limite', label: 'Assuntos por vez', type: 'number', value: p.limite, min: 3, max: 200 },
-      { key: 'incluirPequenas', label: 'Incluir amostra pequena', type: 'select', value: p.incluirPequenas ? '1' : '0', options: [
-        { value: '0', label: 'Não — amostra curta vai para o segundo plano' },
-        { value: '1', label: 'Sim — entra no cálculo (modo diagnóstico)' }] },
-      { key: 'restaurar', label: 'Restaurar o padrão deste modo', type: 'select', value: '0',
-        hint: 'Descarta os seus ajustes SÓ deste modo e volta ao padrão de fábrica.',
-        options: [{ value: '0', label: 'Não, salvar o que está acima' }, { value: '1', label: '↺ Sim, voltar ao padrão' }] }
-    ], { title: 'Ajustar ' + m.rot, sub: m.quando, okText: 'Salvar modo' });
+    /* ── O DIÁLOGO NASCE DA LISTA DE CAMPOS DO MODO ────────────────────────
+       Era uma lista escrita à mão aqui, e ela divergiu do que um modo controla:
+       oferecia o passo de leitura (que os presets tinham deixado de mexer de
+       propósito) e omitia a amostra mínima, o peso da banca e a régua de custo
+       — os três parâmetros que dão sentido a "Diagnóstico", "Edital publicado"
+       e "Tempo curto". Agora há UMA fonte (`PlanoEngine.MODO_CAMPOS`), e o que
+       o diálogo mostra é exatamente o que o modo é capaz de guardar. */
+    const ordens = Object.keys(PlanoEngine.ORDENS)
+      .filter(x => !PlanoEngine.ORDENS[x].soPos || (typeof PlanoPontos !== 'undefined' && PlanoPontos.modo() === 'pos'))
+      .map(x => ({ value: x, label: PlanoEngine.ORDENS[x].rot }));
+    const campos = PlanoEngine.MODO_CAMPOS.map(c => {
+      const valor = (c.tipo === 'bool') ? (p[c.key] ? '1' : '0') : p[c.key];
+      if (c.tipo === 'ordens') return { key: c.key, label: c.label, type: 'select', value: valor, options: ordens, hint: c.hint };
+      if (c.tipo === 'select' || c.tipo === 'bool') {
+        return { key: c.key, label: c.label, type: 'select', value: String(valor),
+          options: (c.op || []).map(([v, l]) => ({ value: v, label: l })), hint: c.hint };
+      }
+      return { key: c.key, label: c.label, type: 'number', value: valor, min: c.min, max: c.max, hint: c.hint };
+    });
+    campos.push({ key: 'restaurar', label: 'Restaurar o padrão deste modo', type: 'select', value: '0',
+      hint: 'Descarta os seus ajustes SÓ deste modo e volta ao padrão de fábrica.',
+      options: [{ value: '0', label: 'Não, salvar o que está acima' }, { value: '1', label: '↺ Sim, voltar ao padrão' }] });
+    const r = await UI.prompt(campos, { title: 'Ajustar ' + m.rot, sub: m.quando, okText: 'Salvar modo' });
     if (!r) return;
     if (String(r.restaurar) === '1') {
       PlanoEngine.restaurarModo(k);
       showToast(m.rot + ' voltou ao padrão ✓');
     } else {
-      const num = (v, d) => { const n = parseInt(v, 10); return isNaN(n) ? d : n; };
       /* Só os campos que a pessoa REALMENTE mexeu entram no modo. Gravar todos
          faria um modo herdar decisões que ele não quis tomar, e um "salvar"
          sem alteração nenhuma marcaria o modo como personalizado. */
-      const novo = {
-        ordenar: r.ordenar,
-        metaDominio: Math.max(30, Math.min(100, num(r.metaDominio, p.metaDominio))),
-        tetoDominio: Math.max(50, Math.min(100, num(r.tetoDominio, p.tetoDominio))),
-        ponderacao: r.ponderacao,
-        custoModo: r.custoModo,
-        limite: Math.max(3, Math.min(200, num(r.limite, p.limite))),
-        incluirPequenas: String(r.incluirPequenas) === '1'
-      };
+      const novo = {};
+      PlanoEngine.MODO_CAMPOS.forEach(c => {
+        const bruto = r[c.key];
+        if (bruto === undefined || bruto === null || bruto === '') return;
+        if (c.tipo === 'bool') { novo[c.key] = String(bruto) === '1'; return; }
+        if (c.tipo === 'num' || c.numerico) {
+          const n = parseInt(bruto, 10);
+          if (isNaN(n)) return;
+          novo[c.key] = Math.max(c.min != null ? c.min : 0, Math.min(c.max != null ? c.max : 100000, n));
+          return;
+        }
+        novo[c.key] = bruto;
+      });
       const mudou = {};
       Object.keys(novo).forEach(c => { if (String(novo[c]) !== String(p[c])) mudou[c] = novo[c]; });
       if (Object.keys(mudou).length) { PlanoEngine.salvarModo(k, mudou); showToast(m.rot + ' ajustado ✓'); }
@@ -3597,8 +3794,40 @@ const DesempenhoTecScreen = {
       return;
     }
     if (r.erro === 'amostra') {
-      proj.innerHTML = `<p class="hint" style="padding:18px 0;">Nenhum assunto atingiu a amostra mínima de <strong>${opts.minAmostra}</strong> questões. Reduza esse valor nos ajustes avançados ou resolva mais questões.</p>`;
-      lista.innerHTML = ''; return;
+      /* A saída em UM TOQUE, com os números do retrato na frase. O índice do
+         TEC é fino: é normal um retrato ter centenas de assuntos de uma ou
+         duas questões cada, e a resposta do app para isso tem nome — o modo
+         🔍 Diagnóstico, que traz a amostra pequena para o cálculo justamente
+         para produzir dado. Mandar "reduza nos ajustes avançados" sem dizer
+         para quanto era empurrar o problema de volta para quem não tem como
+         saber. */
+      const sug = r.sugestaoMinAmostra || 1;
+      proj.innerHTML = `
+        <p class="hint" style="padding:14px 0 6px;">
+          Nenhum dos <strong>${(r.assuntosNoRetrato || 0).toLocaleString('pt-BR')}</strong> assuntos deste retrato
+          atingiu a amostra mínima de <strong>${r.minAmostra}</strong> questões
+          — a maior amostra é de <strong>${r.maiorAmostra || 0}</strong> ${r.maiorAmostra === 1 ? 'questão' : 'questões'}
+          e a mediana é <strong>${r.medianaAmostra || 0}</strong>.
+          O índice do TecConcursos é fino: com muitos assuntos de uma ou duas questões, medir assunto por assunto
+          exige baixar a régua — e assumir que a taxa vai ser um indício, não uma medição.
+        </p>
+        <div class="pl-aud-bts" style="margin:8px 0 4px;">
+          <button type="button" class="btn-primary" id="plano-modo-diag">🔍 Usar o modo Diagnóstico</button>
+          <button type="button" class="btn-secondary" id="plano-baixar-min">Baixar a régua para ${sug} ${sug === 1 ? 'questão' : 'questões'}${r.qualificamNaSugestao ? ` (entram ${r.qualificamNaSugestao})` : ''}</button>
+        </div>
+        <p class="pl-ciclo-obs">O Diagnóstico inclui a amostra pequena no cálculo e baixa a régua de uma vez; o segundo botão só mexe na régua. Os dois ficam salvos e podem ser desfeitos em ⚙ Ajustes.</p>`;
+      lista.innerHTML = '';
+      const bd = document.getElementById('plano-modo-diag');
+      if (bd) bd.addEventListener('click', () => {
+        PlanoEngine.salvarPrefs(PlanoEngine.modoPatch('diagnostico'));
+        this.renderPlano(); showToast('🔍 Diagnóstico aplicado');
+      });
+      const bm = document.getElementById('plano-baixar-min');
+      if (bm) bm.addEventListener('click', () => {
+        PlanoEngine.salvarPrefs({ minAmostra: sug });
+        this.renderPlano(); showToast('Amostra mínima em ' + sug + ' questões');
+      });
+      return;
     }
     const tom = r.jaAtinge ? 'good' : (r.falta <= 8 ? 'warn' : 'bad');
     const pond = r.ponderacao === 'volume' ? 'peso pelo volume praticado' : 'todo assunto com o mesmo peso';
@@ -3967,27 +4196,13 @@ const DesempenhoTecScreen = {
        texto de apoio no fim da tela é explicação que ninguém lê na hora da
        dúvida. Este bloco fica no RODAPÉ agora, como referência, e não como a
        primeira coisa entre você e a sua lista. */
-    /* ── A PORTA DA AUDITORIA ───────────────────────────────────────────────
-       Fica no fim do Plano, recolhida: quem usa o app todo dia não precisa
-       dela na frente, e quem vai auditar procura uma vez e acha. O arquivo sai
-       com tudo que torna cada número desta tela reproduzível por outra pessoa
-       — inclusive as invariantes conferidas NA HORA da exportação, para o
-       auditor saber se pode confiar no próprio arquivo antes de analisá-lo. */
-    const blocoAuditoria = `
-      <details class="pl-ciclo pl-auditoria">
-        <summary>
-          <strong>🧪 Auditoria do Plano</strong>
-          <span>exporte e mande para revisão — o arquivo carrega tudo que reproduz esta tela</span>
-          <span class="chev">▾</span>
-        </summary>
-        <p class="pl-prosa" style="margin:10px 0;">Gera um <b>.json</b> com os parâmetros em vigor, o retrato de hoje, a sua série por importação, o quadro de matérias, cada assunto com amostra e margem, os ciclos de atividade já julgados e um teste de coerência dos próprios números. Não leva nome de perfil, e-mail nem senha.</p>
-        <div class="pl-aud-bts">
-          <button type="button" class="btn-secondary" data-aud="semanal">↓ Exportar semanal</button>
-          <button type="button" class="btn-secondary" data-aud="mensal">↓ Exportar mensal</button>
-          <label class="rfc-check pl-aud-anon"><input type="checkbox" id="plano-aud-anon"> esconder os nomes das matérias</label>
-        </div>
-        <p class="pl-ciclo-obs" id="plano-aud-resumo"></p>
-      </details>`;
+    /* ── A PORTA DA AUDITORIA MUDOU DE LUGAR ────────────────────────────────
+       Ela vivia aqui, recolhida no fim do Plano — depois de trinta assuntos, do
+       segundo plano e das lacunas do edital. Quem queria auditar rolava a tela
+       inteira para achar; quem não queria esbarrava nela toda vez. Agora é uma
+       seção da folha de ajustes (🧪 Auditoria), junto dos parâmetros que o
+       arquivo carrega, e os botões são marcação fixa: os ouvintes ficam
+       registrados uma vez só, fora da repintura. */
     const comoLer = `
       <details class="rfc-advanced" style="margin:18px 0 0;padding:12px 14px;">
         <summary style="cursor:pointer;font-weight:700;font-size: var(--fs-sm);">📖 Como ler esta tela</summary>
@@ -4486,7 +4701,7 @@ const DesempenhoTecScreen = {
          jogo e que quatro matérias concentram metade. O quadro de matérias
          escolhe ONDE; o bloco escolhe O QUÊ. Nessa ordem. */
       ? blocoPontos + blocoRegua + blocoTempo + hoje + blocoCurso + blocoCal + grafico + blocoFeito + ordemNota + porQue + linhas
-      : blocoPontos + blocoRegua + blocoCurso + blocoTempo + blocoCal + blocoFeito + `<p class="hint" style="padding:18px 0;">Nenhum assunto abaixo do máximo realista — você já domina tudo que pratica.</p>`) + maisDaLista + pequenas + edital + blocoAuditoria + comoLer;
+      : blocoPontos + blocoRegua + blocoCurso + blocoTempo + blocoCal + blocoFeito + `<p class="hint" style="padding:18px 0;">Nenhum assunto abaixo do máximo realista — você já domina tudo que pratica.</p>`) + maisDaLista + pequenas + edital + comoLer;
     /* As sete listas do Plano compartilham um ouvinte só. Antes eram duas
        implementações quase iguais (a de assuntos e a de matérias) e cinco
        listas sem nenhuma — o tipo de duplicação que diverge na primeira
@@ -4540,12 +4755,6 @@ const DesempenhoTecScreen = {
       if (!e) return;
       if (!await UI.confirm('Excluir "' + e.titulo + '"? O assunto não aparece mais nos seus retratos.', { title: 'Excluir atividade', okText: 'Excluir', danger: true })) return;
       DB.deleteExtra(e.id); showToast('Atividade excluída'); this.renderPlanoConteudo();
-    }));
-    lista.querySelectorAll('[data-aud]').forEach(b => b.addEventListener('click', () => {
-      const anon = !!(document.getElementById('plano-aud-anon') || {}).checked;
-      const a = PlanoAuditoria.exportar(b.dataset.aud, anon);
-      const el = document.getElementById('plano-aud-resumo');
-      if (el && a && !a.erro) el.textContent = a.resumo;
     }));
     const ritmoBtn = document.getElementById('plano-ritmo-medido');
     if (ritmoBtn) ritmoBtn.addEventListener('click', () => {
@@ -5985,6 +6194,20 @@ $id('tec-weak-disc').addEventListener('change', (e) => {
   /* RESTAURAR PADRÕES vale para a aba aberta, e só para ela. Um botão que
      zerasse as três de uma vez seria uma armadilha: ninguém espera que mexer
      no Reforço apague a régua do Plano. */
+  /* ── A AUDITORIA DENTRO DA FOLHA ────────────────────────────────────────
+     Marcação fixa, ouvinte registrado uma vez: enquanto o bloco vivia dentro da
+     lista repintada, cada repintura criava botões novos e precisava religá-los.
+     O painel também mostra, ali mesmo, o que as invariantes disseram na última
+     exportação — é a diferença entre "exportei" e "o arquivo está coerente". */
+  document.addEventListener('click', (e) => {
+    const b = e.target.closest && e.target.closest('#tec-cfg-body [data-aud]');
+    if (!b) return;
+    const anon = !!(document.getElementById('plano-aud-anon') || {}).checked;
+    const a = PlanoAuditoria.exportar(b.dataset.aud, anon);
+    const el = document.getElementById('plano-aud-resumo');
+    if (el) el.textContent = (a && a.erro) ? 'Não foi possível exportar: ' + a.erro : (a ? a.resumo : '');
+    TecAjustes.pintarInvariantes(a);
+  });
   const reset = document.getElementById('tec-cfg-reset');
   if (reset) reset.addEventListener('click', async () => {
     const aba = TecAjustes.aba;

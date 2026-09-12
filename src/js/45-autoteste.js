@@ -1481,9 +1481,31 @@ const AutoTeste = {
     const antesM = localStorage.getItem(chaveM);
     try {
       DB.delRaw(chaveM);
-      P.salvarModo('curto', { metaDominio: 92, limite: 3 });
+      P.salvarModo('curto', { metaDominio: 92, custoPiso: 30 });
       this._ok('Plano: modo editado guarda o valor do usuário',
-        P.modoPatch('curto').metaDominio === 92 && P.modoPatch('curto').limite === 3, P.modoPatch('curto'));
+        P.modoPatch('curto').metaDominio === 92 && P.modoPatch('curto').custoPiso === 30, P.modoPatch('curto'));
+      /* ── O PASSO DE LEITURA NÃO É ESTRATÉGIA ──────────────────────────
+         `limite` é de quantos em quantos as sete listas do Plano abrem. Os
+         presets deixaram de mexer nele de propósito; o diálogo de editar um
+         modo, porém, continuava oferecendo o campo e gravando-o — aplicar
+         "Diagnóstico" voltava a despejar 40 itens de cada lista. Agora só os
+         campos declarados em MODO_CAMPOS entram, na escrita e na leitura. */
+      P.salvarModo('curto', { limite: 3 });
+      this._ok('Plano: um modo não carrega o passo de leitura (limite)',
+        P.modoPatch('curto').limite === undefined && !(P.prefs().modosCustom.curto || {}).limite,
+        P.prefs().modosCustom.curto);
+      this._ok('Plano: e um campo recusado não marca o modo como personalizado',
+        P.modoEditado('curto') === true && P.modoPatch('curto').metaDominio === 92, P.modoPatch('curto'));
+      /* Cada campo do diálogo TEM de ser um campo que o modo guarda: a lista
+         era escrita à mão em dois lugares e divergiu nos dois sentidos. */
+      this._ok('Plano: os campos do modo cobrem os parâmetros dos presets',
+        Object.keys(P.MODOS).every(mk => Object.keys(P.MODOS[mk].patch).every(c => P._chavesDeModo().indexOf(c) >= 0)),
+        P._chavesDeModo());
+      this._ok('Plano: e incluem a amostra mínima, o peso da banca e a régua de custo',
+        ['minAmostra', 'pesoBanca', 'custoPiso', 'custoPorPonto', 'amostraAlvo']
+          .every(c => P._chavesDeModo().indexOf(c) >= 0), P._chavesDeModo());
+      this._ok('Plano: e NÃO incluem o passo de leitura nem o escopo',
+        ['limite', 'disciplina', 'excluidas'].every(c => P._chavesDeModo().indexOf(c) < 0), P._chavesDeModo());
       this._ok('Plano: editar um modo não mexe nos outros',
         P.modoPatch('base').metaDominio === P.MODOS.base.patch.metaDominio && !P.modoEditado('base'));
       this._ok('Plano: a tela sabe que o modo foi ajustado', P.modoEditado('curto') === true);
@@ -1503,16 +1525,17 @@ const AutoTeste = {
          "salvar" sem alteração marcar o modo como personalizado, e enfiava
          nele campos que o modo nunca quis definir. */
       DB.delRaw(chaveM);
-      P.salvarModo('base', { metaDominio: P.MODOS.base.patch.metaDominio, limite: P.MODOS.base.patch.limite });
+      P.salvarModo('base', { metaDominio: P.MODOS.base.patch.metaDominio, ponderacao: P.MODOS.base.patch.ponderacao });
       this._ok('Plano: salvar sem mudar nada não personaliza o modo',
         !P.modoEditado('base') && !(P.prefs().modosCustom || {}).base, P.prefs().modosCustom);
       P.salvarModo('curto', { metaDominio: 92 });
-      P.salvarModo('curto', { limite: 4 });
+      P.salvarModo('curto', { pesoBanca: 4 });
       this._ok('Plano: ajustes sucessivos somam no mesmo modo',
-        P.modoPatch('curto').metaDominio === 92 && P.modoPatch('curto').limite === 4, P.modoPatch('curto'));
-      P.salvarModo('curto', { limite: P.MODOS.curto.patch.limite });
+        P.modoPatch('curto').metaDominio === 92 && P.modoPatch('curto').pesoBanca === 4, P.modoPatch('curto'));
+      P.salvarModo('curto', { ponderacao: P.MODOS.curto.patch.ponderacao });
       this._ok('Plano: campo que volta ao padrão sai do registro',
-        P.modoPatch('curto').limite === P.MODOS.curto.patch.limite && (P.prefs().modosCustom.curto.limite === undefined),
+        P.modoPatch('curto').ponderacao === P.MODOS.curto.patch.ponderacao
+        && (P.prefs().modosCustom.curto.ponderacao === undefined),
         P.prefs().modosCustom.curto);
       P.restaurarModo('curto');
       // o resumo é lido em voz alta na tela: nunca pode dizer "undefined"
@@ -2078,6 +2101,83 @@ const AutoTeste = {
       if (T._planoTimer) { clearTimeout(T._planoTimer); }
       T._planoTimer = origTimer || null;
     }
+  },
+  /* ═══ A CONTAGEM DO RETRATO FECHA COM A DO PLANO ═══════════════════════════
+     A classe de erro mais cara deste módulo não produz número torto: produz
+     número PLAUSÍVEL. Uma importação que conta a mesma questão duas vezes, ou
+     um consolidado que perde questões, devolve domínio, custo e fila
+     perfeitamente críveis — e nada na tela denuncia.
+
+     Os dois casos aconteceram de verdade, e os dois estão cobrados aqui:
+
+       1. o balde "Sem Classificação" (linha sem código, no fim de cada
+          disciplina do export) era lido como disciplina NOVA: 409 questões no
+          lugar de 400 num arquivo real, com as 9 do balde contadas duas vezes;
+       2. no escopo CONSOLIDADO, os códigos do TEC são posicionais — o "01.01"
+          de um mês é outro assunto no mês seguinte. Decidir quem é folha pelo
+          prefixo do código sobre as linhas já somadas misturava duas árvores e
+          DESCARTAVA volume: 533 questões no consolidado, 493 chegando ao
+          Plano.
+
+     A invariante é uma só, e vale nos dois casos: Σ(disciplinas) do retrato =
+     Σ(o que o Plano indexa). */
+  contagemFechaComOPlano() {
+    const T = DesempenhoTecScreen, P = PlanoEngine;
+    const origSnaps = DB.getTecSnapshots;
+    try {
+      // ── o export real, em miniatura: pai = soma dos filhos + balde sem código
+      const cab = ['Hierarquia', 'índice', 'Questões Resolvidas', 'Acertos (%)',
+        'Quantidade de acertos', 'Erros (%)', 'Quantidade de erros', 'Peso'];
+      const lin = (cod, nome, q, ac) => [cod || '', nome, String(q),
+        String(q ? Math.round(ac / q * 100) : 0), String(ac), '0', String(q - ac), '1'];
+      // retrato A: "01.01" é "Alfa"; 10 + 4 folhas + 3 do balde = 17
+      const A = TecEngine.parseCellRows([cab,
+        lin(null, 'Matéria X', 17, 9),
+        lin('01', 'Bloco', 14, 7), lin('01.01', 'Alfa', 10, 5), lin('01.02', 'Beta', 4, 2),
+        lin(null, 'Sem Classificação', 3, 2)]);
+      // retrato B: o MESMO código "01.01" é outro assunto, e é FOLHA aqui
+      const B = TecEngine.parseCellRows([cab,
+        lin(null, 'Matéria X', 12, 6),
+        lin('01', 'Bloco', 12, 6), lin('01.01', 'Gama', 12, 6)]);
+      this._ok('Contagem: o balde sem código entra como assunto, não como disciplina',
+        A.filter(r => r.depth === 0).length === 1 && A.filter(r => /sem classifica/i.test(r.nome) && r.depth === 1).length === 1,
+        A.map(r => r.depth + ':' + r.nome));
+      this._ok('Contagem: o total do retrato é a soma das disciplinas',
+        TecEngine.totais({ rows: A }).questoes === 17 && TecEngine.totais({ rows: A }).acertos === 9,
+        TecEngine.totais({ rows: A }));
+      const folhasA = P._folhas({ rows: A }, true);
+      this._ok('Contagem: as folhas de um retrato somam o total dele',
+        folhasA.reduce((a, r) => a + r.questoes, 0) === 17
+        && folhasA.reduce((a, r) => a + r.acertos, 0) === 9,
+        folhasA.map(r => r.nome + ':' + r.questoes));
+      // ── e agora o consolidado dos dois, com o código repetido significando
+      //    coisas diferentes: nada pode se perder
+      const sA = { id: 'a', startDate: '2026-01-01', endDate: '2026-01-31', date: '2026-01-01', rows: A };
+      const sB = { id: 'b', startDate: '2026-02-01', endDate: '2026-02-28', date: '2026-02-01', rows: B };
+      DB.getTecSnapshots = () => [sB, sA];
+      const ag = T.aggregate([sB, sA]);
+      const tot = TecEngine.totais({ rows: ag.rows });
+      this._ok('Contagem: o consolidado soma os dois retratos (29 questões)',
+        tot.questoes === 29 && tot.acertos === 15, tot);
+      const idx = P._indice(ag, true);
+      const qi = Object.keys(idx).reduce((a, k) => a + idx[k].q, 0);
+      const aci = Object.keys(idx).reduce((a, k) => a + idx[k].ac, 0);
+      this._ok('Contagem: o índice do Plano no consolidado fecha com o total',
+        qi === tot.questoes && aci === tot.acertos, { plano: qi + '/' + aci, retrato: tot.questoes + '/' + tot.acertos });
+      this._ok('Contagem: o agregado guarda as fontes (é o que permite resolver a árvore de cada retrato)',
+        !!(ag._fontes && ag._fontes.length === 2), ag._fontes && ag._fontes.length);
+      /* O RESÍDUO DO PAI: "Gama" é folha em B e o mesmo código "01.01" tem
+         filhos em A. A linha do pai somada carrega as duas coisas — e a parte
+         que só existe como folha tem de contar. */
+      const chaves = Object.keys(idx);
+      this._ok('Contagem: o assunto que é folha num retrato e pai no outro não desaparece',
+        chaves.some(k => /gama/i.test(k)) && chaves.some(k => /alfa/i.test(k)), chaves);
+      // ── a taxa vem das contagens, não da % arredondada do arquivo
+      const arred = TecEngine.parseCellRows([cab, lin(null, 'M', 22, 13)]);
+      this._ok('Contagem: a taxa de uma linha é acertos ÷ questões (não a % do arquivo)',
+        arred[0].pctAcerto === Math.round(13 / 22 * 1000) / 10 && arred[0].pctColuna === 59,
+        { taxa: arred[0].pctAcerto, coluna: arred[0].pctColuna });
+    } finally { DB.getTecSnapshots = origSnaps; }
   },
   materiasForaDoPlano() {
     const P = PlanoEngine, PP = PlanoPontos, T = DesempenhoTecScreen;
@@ -2706,6 +2806,11 @@ const AutoTeste = {
     const semChave = [];
     abas.forEach(aba => secs(aba).forEach(sec => sec.querySelectorAll('input, select').forEach(el => {
       if (el.type === 'hidden' || el.type === 'checkbox' && !el.id) return;
+      /* `data-cfg-livre`: controle que NÃO é preferência salva. A seção de
+         auditoria tem um: o "modo anônimo" vale para aquela exportação e não
+         existe em DEFAULTS — exigir uma chave de fábrica dele obrigaria a
+         inventar uma preferência que ninguém quer guardar. */
+      if (el.dataset.cfgLivre != null) return;
       if (!el.dataset.cfgKey && el.id) semChave.push(el.id);
     })));
     this._ok('Ajustes: todo campo declara a chave do seu padrão de fábrica',
@@ -2972,6 +3077,7 @@ const AutoTeste = {
      ['Ciclo do Plano', 'cicloDoPlano'],
      ['Régua de pontos', 'reguaDePontos'],
      ['Auditoria do Plano', 'auditoriaDoPlano'],
+     ['Contagem fecha com o Plano', 'contagemFechaComOPlano'],
      ['Matérias fora do Plano', 'materiasForaDoPlano'],
      ['O Plano não trava sob o dedo', 'planoNaoTrava'],
      ['Fatia das listas do Plano', 'fatiaDasListas']].forEach(([nome, fn]) => {
