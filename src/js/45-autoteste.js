@@ -1818,6 +1818,142 @@ const AutoTeste = {
      clique no cálculo inteiro; marcar uma matéria reescrevia a tela e a página
      encolhia debaixo do dedo. As asserções aqui travam o contrato das três
      defesas — o custo em milissegundos é medido fora, no navegador. */
+  /* ── A MESMA REGRA DE FATIA PARA AS SETE LISTAS ───────────────────────────
+     Cada lista do Plano tratava o próprio comprimento de um jeito: a de
+     assuntos ia até um campo, a de matérias não tinha limite, o segundo plano
+     cortava em 15 fixos e escondia os outros 161 sem dizer, os ciclos
+     fechados cortavam em 12. Quatro comportamentos para a mesma pergunta, e
+     três deles mentindo por omissão. */
+  fatiaDasListas() {
+    const T = DesempenhoTecScreen;
+    this._ok('Fatia: a tela tem uma regra só, compartilhada',
+      typeof T.fatiar === 'function' && typeof T.rodapeFatia === 'function' && typeof T._ligarFatias === 'function');
+    if (typeof T.fatiar !== 'function') return;
+    const orig = T._fatias;
+    try {
+      T._fatias = null;
+      const dez = []; for (let i = 0; i < 47; i++) dez.push({ i });
+      let f = T.fatiar('teste', dez, 10);
+      this._ok('Fatia: abre no passo e declara o total', f.vis.length === 10 && f.total === 47 && f.faltam === 37, f);
+      /* O ESTADO É POR LISTA. Abrir o segundo plano não pode abrir a fila de
+         assuntos junto — foi o motivo de o registro ser um mapa, e não um
+         número só. */
+      T._fatias['teste'] = 20;
+      this._ok('Fatia: abrir uma lista não abre as outras',
+        T.fatiar('teste', dez, 10).vis.length === 30 && T.fatiar('outra', dez, 10).vis.length === 10);
+      T._fatias['teste'] = 100000;
+      f = T.fatiar('teste', dez, 10);
+      this._ok('Fatia: "ver todos" não estoura o fim da lista', f.vis.length === 47 && f.faltam === 0);
+      this._ok('Fatia: lista vazia não vira rodapé fantasma',
+        T.rodapeFatia(T.fatiar('vazia', [], 10), 'x', 'y') === '');
+      T._fatias = null;
+      /* O RODAPÉ TEM DE DIZER OS DOIS NÚMEROS. Um "mostrar mais" que não diz
+         de quantos é o mesmo corte mudo de antes, com um botão em cima. */
+      const html = T.rodapeFatia(T.fatiar('teste', dez, 10), 'item', 'itens');
+      this._ok('Fatia: o rodapé diz quantos aparecem E quantos existem',
+        html.indexOf('>10<') >= 0 && html.indexOf('>47<') >= 0 && html.indexOf('data-fatia-op="mais"') >= 0, html.slice(0, 160));
+      this._ok('Fatia: e oferece "ver todos" quando falta mais que um passo',
+        html.indexOf('data-fatia-op="tudo"') >= 0);
+      const curta = T.rodapeFatia(T.fatiar('teste2', dez.slice(0, 14), 10), 'item', 'itens');
+      this._ok('Fatia: com menos de um passo faltando, "ver todos" seria ruído',
+        curta.indexOf('data-fatia-op="mais"') >= 0 && curta.indexOf('data-fatia-op="tudo"') < 0);
+      /* Quem tem moeda melhor que "linha" passa a sua: a tabela de matérias
+         conta em pontos em jogo, porque é isso que decide se o que ficou
+         escondido importava. */
+      const comResumo = T.rodapeFatia(T.fatiar('teste3', dez, 10), 'item', 'itens', { tom: 'warn', txt: '9,9 pp em jogo' });
+      this._ok('Fatia: o rodapé aceita a moeda da lista, e o tom de alerta',
+        comResumo.indexOf('9,9 pp em jogo') >= 0 && comResumo.indexOf('pl-mais-nota warn') >= 0);
+      T._fatias = null;
+      this._ligacaoDasFatias(T);
+    } finally { T._fatias = orig; }
+  },
+  /* ── O HELPER CERTO, LIGADO NO LUGAR ERRADO, NÃO VALE NADA ────────────────
+     As asserções acima provam a REGRA. Elas não provam que cada lista a usa —
+     e foi exatamente isso que uma reversão mostrou: devolvendo o segundo plano
+     ao velho `.slice(0, 15)` mudo, a suíte inteira continuou verde. Um corte
+     silencioso de 161 assuntos passando por baixo de dez testes de fatia.
+
+     Aqui a tela é PINTADA de verdade, com um retrato que enche todas as
+     listas, e o que se cobra é a marca de cada uma no HTML. */
+  _ligacaoDasFatias(T) {
+    const lista = document.getElementById('plano-lista');
+    if (!lista) { this._ok('Fatia: a tela do Plano existe para pintar', false); return; }
+    const dia = (n) => { const d = new Date(todayLocal() + 'T00:00:00'); d.setDate(d.getDate() - n); return d.toISOString().slice(0, 10); };
+    const origSnaps = DB.getTecSnapshots, origSubs = DB.getActiveSubjects,
+      origInc = ReforcoEngine._incidByDisc, origModo = window.planCycleMode, origEsc = T.scopedSnapshot;
+    const chaveP = DB._profilePrefix() + PlanoEngine.KEY_PREF;
+    const antesP = localStorage.getItem(chaveP), antesHtml = lista.innerHTML;
+    try {
+      const nomes = []; for (let i = 0; i < 16; i++) nomes.push('Mat ' + String(i + 1).padStart(2, '0'));
+      const rows = [], inc = {};
+      nomes.forEach((d, di) => {
+        let dq = 0, da = 0;
+        for (let t = 0; t < 14; t++) {
+          // 1 em cada 4 nasce com amostra curta: é o que alimenta o segundo plano
+          const q = (t % 4 === 0) ? 4 : 30 + t, pct = 40 + ((t * 7 + di * 5) % 45);
+          const ac = Math.round(q * pct / 100); dq += q; da += ac;
+          rows.push({ depth: 1, codigo: String(t + 1), nome: 'M' + di + 't' + t, disciplina: d, questoes: q, acertos: ac });
+        }
+        rows.unshift({ depth: 0, codigo: null, nome: d, disciplina: d, questoes: dq, acertos: da });
+        inc[d] = [{ codigo: null, depth: 0, nome: d, disciplina: d, incidencia: 40 - di }];
+      });
+      DB.getTecSnapshots = () => ([
+        { id: 'fa', nome: 'fa', date: dia(70), startDate: dia(100), endDate: dia(70), rows },
+        { id: 'fb', nome: 'fb', date: dia(6), startDate: dia(36), endDate: dia(6), rows }]);
+      T.scopedSnapshot = () => DB.getTecSnapshots()[1];
+      ReforcoEngine._incidByDisc = () => inc;
+      /* Disciplinas do edital que o TEC nunca viu: alimentam as lacunas. São
+         mais que um passo de propósito — o rodapé só existe quando há o que
+         esconder, então duas delas não provariam nada. */
+      const semPratica = [];
+      for (let i = 0; i < 14; i++) semPratica.push('Sem Pratica ' + String(i + 1).padStart(2, '0'));
+      DB.getActiveSubjects = () => nomes.concat(semPratica).map(n => ({ nome: n }));
+      window.planCycleMode = () => 'pre';
+      PlanoEngine.salvarPrefs({ excluidas: [], limite: 10, minAmostra: 20, disciplina: '__todas__' });
+      const campo = document.getElementById('plano-limite');
+      const antesCampo = campo ? campo.value : null;
+      if (campo) campo.value = '10';
+      try { T.renderPlanoConteudo(); } finally { if (campo && antesCampo != null) campo.value = antesCampo; }
+      const marcas = [...lista.querySelectorAll('[data-fatia]')].map(b => b.dataset.fatia);
+      const tem = (k) => marcas.indexOf(k) >= 0;
+      this._ok('Fatia: a lista de assuntos usa a regra', tem('assuntos'), marcas);
+      this._ok('Fatia: a tabela de matérias usa a regra', tem('materias'), marcas);
+      this._ok('Fatia: o segundo plano usa a regra (era um corte mudo em 15)', tem('pequenas'), marcas);
+      this._ok('Fatia: as lacunas do edital usam a regra', tem('edital-sem'), marcas);
+      /* ── O RODAPÉ NÃO PODE SER DECORATIVO ──────────────────────────────
+         Só cobrar a marca `data-fatia` deixava passar o pior caso: o rodapé
+         anunciando "Mostrando 10 de 176" com as 176 linhas desenhadas logo
+         acima. Duas reversões provaram isso — devolvendo o corte mudo de 15 ao
+         segundo plano e a tabela de matérias ao `grandes` inteiro, a suíte
+         seguiu verde. O que fecha a porta é comparar o número ANUNCIADO com as
+         linhas que existem de fato no DOM. */
+      const anunciado = (chave) => {
+        const b2 = lista.querySelector('[data-fatia="' + chave + '"]');
+        const cx = b2 && b2.closest('.pl-mais');
+        const nota2 = cx && cx.querySelector('.pl-mais-nota');
+        const m = nota2 && nota2.textContent.replace(/\s+/g, ' ').match(/Mostrando (\d+) de (\d+)/);
+        return m ? { n: parseInt(m[1], 10), total: parseInt(m[2], 10) } : null;
+      };
+      const aMat = anunciado('materias');
+      const linhasMat = [...lista.querySelectorAll('.pl-tempo tbody tr')].filter(tr => !tr.classList.contains('pl-tempo-miudas')).length;
+      this._ok('Fatia: a tabela de matérias desenha o que o rodapé anuncia',
+        !!aMat && aMat.n === linhasMat && aMat.total > aMat.n, { anunciado: aMat, desenhadas: linhasMat });
+      const aPeq = anunciado('pequenas');
+      const linhasPeq = lista.querySelectorAll('.pl-segundo .pl-item').length;
+      this._ok('Fatia: o segundo plano desenha o que o rodapé anuncia',
+        !!aPeq && aPeq.n === linhasPeq && aPeq.total > aPeq.n, { anunciado: aPeq, desenhadas: linhasPeq });
+      const aSem = anunciado('edital-sem');
+      const chips = lista.querySelectorAll('.pl-edital-linha .pl-edital-chip').length;
+      this._ok('Fatia: e as lacunas do edital também',
+        !!aSem && aSem.n <= chips && aSem.total > aSem.n, { anunciado: aSem, fichas: chips });
+    } finally {
+      DB.getTecSnapshots = origSnaps; DB.getActiveSubjects = origSubs;
+      ReforcoEngine._incidByDisc = origInc; window.planCycleMode = origModo;
+      T.scopedSnapshot = origEsc;
+      if (antesP == null) localStorage.removeItem(chaveP); else DB.setRaw(chaveP, antesP);
+      lista.innerHTML = antesHtml;
+    }
+  },
   planoNaoTrava() {
     const T = DesempenhoTecScreen;
     this._ok('Ritmo: a tela tem agendador de repintura', typeof T.agendarPlano === 'function'
@@ -2751,7 +2887,8 @@ const AutoTeste = {
      ['Régua de pontos', 'reguaDePontos'],
      ['Auditoria do Plano', 'auditoriaDoPlano'],
      ['Matérias fora do Plano', 'materiasForaDoPlano'],
-     ['O Plano não trava sob o dedo', 'planoNaoTrava']].forEach(([nome, fn]) => {
+     ['O Plano não trava sob o dedo', 'planoNaoTrava'],
+     ['Fatia das listas do Plano', 'fatiaDasListas']].forEach(([nome, fn]) => {
       try { this[fn](); }
       catch (e) { this._r.total++; this._r.falhou++; this._r.falhas.push({ nome: nome + ' — exceção', obtido: String(e && e.message || e) }); }
     });

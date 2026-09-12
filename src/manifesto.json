@@ -142,106 +142,106 @@
  {
   "arquivo": "js/45-autoteste.js",
   "de": 25778,
-  "ate": 28849
+  "ate": 28986
  },
  {
   "arquivo": "js/46-sanitizacao-e-editor.js",
-  "de": 28851,
-  "ate": 29328
+  "de": 28988,
+  "ate": 29465
  },
  {
   "arquivo": "js/47-tela-extras.js",
-  "de": 29330,
-  "ate": 30486
+  "de": 29467,
+  "ate": 30623
  },
  {
   "arquivo": "js/48-tela-links.js",
-  "de": 30488,
-  "ate": 30681
+  "de": 30625,
+  "ate": 30818
  },
  {
   "arquivo": "js/49-tela-config.js",
-  "de": 30683,
-  "ate": 31095
+  "de": 30820,
+  "ate": 31232
  },
  {
   "arquivo": "js/50-tela-ferramentas.js",
-  "de": 31097,
-  "ate": 31328
+  "de": 31234,
+  "ate": 31465
  },
  {
   "arquivo": "js/51-tela-desempenho-tec.js",
-  "de": 31330,
-  "ate": 36988
+  "de": 31467,
+  "ate": 37168
  },
  {
   "arquivo": "js/52-tela-planejamentos.js",
-  "de": 36990,
-  "ate": 37163
+  "de": 37170,
+  "ate": 37343
  },
  {
   "arquivo": "js/53-portao-de-acesso.js",
-  "de": 37165,
-  "ate": 37836
+  "de": 37345,
+  "ate": 38016
  },
  {
   "arquivo": "js/60-cloud-store.js",
-  "de": 37838,
-  "ate": 38495
+  "de": 38018,
+  "ate": 38675
  },
  {
   "arquivo": "js/61-session-guard.js",
-  "de": 38497,
-  "ate": 38690
+  "de": 38677,
+  "ate": 38870
  },
  {
   "arquivo": "js/62-section-sync.js",
-  "de": 38692,
-  "ate": 39523
+  "de": 38872,
+  "ate": 39703
  },
  {
   "arquivo": "js/63-cloud-ui.js",
-  "de": 39525,
-  "ate": 40108
+  "de": 39705,
+  "ate": 40288
  },
  {
   "arquivo": "js/64-info-tips.js",
-  "de": 40110,
-  "ate": 40505
+  "de": 40290,
+  "ate": 40685
  },
  {
   "arquivo": "js/65-recuperacao.js",
-  "de": 40507,
-  "ate": 40960
+  "de": 40687,
+  "ate": 41140
  },
  {
   "arquivo": "js/66-backup-nuvem.js",
-  "de": 40962,
-  "ate": 41756
+  "de": 41142,
+  "ate": 41936
  },
  {
   "arquivo": "js/67-atualizacao.js",
-  "de": 41758,
-  "ate": 41979
+  "de": 41938,
+  "ate": 42159
  },
  {
   "arquivo": "js/70-relatorio.js",
-  "de": 41981,
-  "ate": 42516
+  "de": 42161,
+  "ate": 42696
  },
  {
   "arquivo": "js/71-auditoria-plano.js",
-  "de": 42518,
-  "ate": 42898
+  "de": 42698,
+  "ate": 43078
  },
  {
   "arquivo": "js/80-ajustes-finais.js",
-  "de": 42900,
-  "ate": 44243
+  "de": 43080,
+  "ate": 44423
  },
  {
   "arquivo": "html/90-rodape.html",
-  "de": 44245,
-  "ate": 44660
+  "de": 44425,
+  "ate": 44840
  }
 ]
