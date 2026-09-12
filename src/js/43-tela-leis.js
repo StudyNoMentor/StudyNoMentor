@@ -669,12 +669,11 @@ const LeisScreen = {
     this.renderPrefs();
   },
   closePrefs() { const m = document.getElementById('lei-prefs-modal'); if (m) m.style.display = 'none'; },
-  /* Os controles existem em DOIS lugares: o ⚙️ Exibição da própria tela de
-     Leis e o cartão "Leis Secas — exibição" em Configurações. Os dois são
-     pintados aqui e gravam nas mesmas chaves — são uma janela para o mesmo
-     ajuste, não duas cópias que podem se desencontrar. Por isso a marcação usa
-     data-attributes (repetíveis) em vez de id (único), e o listener é um só,
-     delegado no documento. */
+  /* Os controles moram num painel só, aberto de DOIS botões da própria tela de
+     Leis: o ⚙️ Ajustes da lista e o ⚙️ Exibição do leitor. A marcação usa
+     data-attributes (repetíveis) em vez de id (único) e o listener é um só,
+     delegado no documento — foi o que permitiu tirar a cópia que vivia em
+     Configurações sem reescrever nada daqui. */
   renderPrefs() {
     const linha = (d) => `
       <label class="lei-pref-item">
@@ -876,10 +875,13 @@ window.LeisScreen = LeisScreen;
   on('lei-font-inc', 'click', () => LeisScreen.changeFont(1));
   on('lei-font-dec', 'click', () => LeisScreen.changeFont(-1));
   on('lei-prefs-btn', 'click', () => LeisScreen.openPrefs());
+  /* O mesmo painel abre da LISTA de leis, pelo "⚙️ Ajustes" ao lado de "＋ Nova
+     lei". Era o único ajuste do app que só existia em Configurações, a duas
+     telas de distância de onde ele se vê — e o pedido foi trazê-lo para cá. */
+  on('lei-ajustes-btn', 'click', () => LeisScreen.openPrefs());
   on('lei-prefs-close', 'click', () => LeisScreen.closePrefs());
   on('lei-prefs-done', 'click', () => LeisScreen.closePrefs());
   on('lei-prefs-reset', 'click', () => LeisScreen.resetPrefs());
-  on('cfg-leis-reset', 'click', () => LeisScreen.resetPrefs());
   // a dica do marca-texto se dispensa no próprio lugar, sem procurar ajuste
   on('lei-mark-hint-x', 'click', () => {
     LeisScreen.prefSetOn('p-dica', false);

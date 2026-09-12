@@ -390,26 +390,33 @@ try {
     LeisScreen.toggleLines();
     out.linhasUmEstadoSo = LeisScreen.prefOn('p-linhas') === LeisScreen.showLines;
     LeisScreen.toggleLines();
-    /* Os MESMOS controles existem em Configuracoes > Preferencias. Sao dois
-       lugares para um ajuste so: mexer num tem de valer na lei e aparecer no
-       outro — duas copias que se desencontram seriam pior que um lugar so. */
-    switchScreen('config');
-    const cartaoCfg = document.getElementById('cfg-leis-card');
-    out.cartaoNasPreferencias = !!(cartaoCfg && cartaoCfg.closest('.cfg-group')
-      && cartaoCfg.closest('.cfg-group').id === 'cfg-g-prefs');
+    /* O painel de exibicao pertence a tela de Leis, nao a Configuracoes: ele
+       abre do "⚙️ Ajustes" da LISTA (ao lado de "＋ Nova lei") e do "⚙️
+       Exibicao" do leitor. Duas portas, um painel — e nenhuma copia perdida em
+       Configuracoes, que era onde o ajuste ficava longe do que ele muda. */
+    LeisScreen.closePrefs();
+    LeisScreen.showList();                     // vai para a LISTA de leis
+    const btnAj = document.getElementById('lei-ajustes-btn');
+    out.ajustesNaLista = !!(btnAj && btnAj.offsetParent);
+    if (btnAj) btnAj.click();
+    const painel = document.getElementById('lei-prefs-modal');
+    out.ajustesAbrePainel = !!(painel && getComputedStyle(painel).display !== 'none');
     const cxDe = (raiz, k) => document.querySelector(raiz + ' input[data-pref="' + k + '"]');
-    const noCartao = cxDe('#cfg-leis-card', 'p-justificado');
-    const noModal = cxDe('#lei-prefs-modal', 'p-justificado');
-    if (!noCartao || !noModal) { out.cartaoEspelhaModal = false; }
+    const noPainel = cxDe('#lei-prefs-modal', 'p-justificado');
+    if (!noPainel) { out.painelGravaPreferencia = false; }
     else {
       const antes = LeisScreen.prefOn('p-justificado');
-      noCartao.checked = !antes; noCartao.dispatchEvent(new Event('change', { bubbles: true }));
-      out.cartaoEspelhaModal = LeisScreen.prefOn('p-justificado') === !antes
-        && cxDe('#lei-prefs-modal', 'p-justificado').checked === !antes
-        && corpo.classList.contains('sem-justificar') === antes;
-      const volta = cxDe('#cfg-leis-card', 'p-justificado');
+      noPainel.checked = !antes; noPainel.dispatchEvent(new Event('change', { bubbles: true }));
+      out.painelGravaPreferencia = LeisScreen.prefOn('p-justificado') === !antes;
+      const volta = cxDe('#lei-prefs-modal', 'p-justificado');
       volta.checked = antes; volta.dispatchEvent(new Event('change', { bubbles: true }));
+      out.painelGravaPreferencia = out.painelGravaPreferencia
+        && LeisScreen.prefOn('p-justificado') === antes;
     }
+    LeisScreen.closePrefs();
+    // e nao sobrou nenhuma copia orfa em Configuracoes
+    switchScreen('config');
+    out.semCopiaEmConfig = !document.getElementById('cfg-leis-card');
     switchScreen('leis');
     // trocar de aba nao pode deixar body.leis-foco no ar (app sem navegacao)
     switchScreen('ciclo');
@@ -422,7 +429,7 @@ try {
   const leisFalhas = Object.keys(leis).filter((k) => !leis[k] && k !== 'pinNoTexto');
   if (leis.pinNoTexto !== 1) leisFalhas.push('pinNoTexto=' + leis.pinNoTexto);
   leisFalhas.length ? erro('leitor de Leis Secas: ' + leisFalhas.join(', '))
-    : ok('Leis Secas: numeracao e "Onde parei" funcionais, modo foco completo, exibicao ajustavel na tela E em Configuracoes');
+    : ok('Leis Secas: numeracao e "Onde parei" funcionais, modo foco completo, exibicao ajustavel pelo ⚙️ Ajustes da propria tela');
 } catch (e) { erro('falha na navegacao: ' + e.message); }
 
 /* ── 7. contraste WCAG AA nos DOIS temas ───────────────────────────────────
@@ -1935,9 +1942,11 @@ try {
       PlanoEngine.salvarPrefs({ disciplina: '__todas__' });
       DesempenhoTecScreen._planoRefC = null;
       DesempenhoTecScreen.renderPlano();
-      const linhas = [...document.querySelectorAll('.pl-tempo-tab tbody tr')].map((tr) => ({
-        ver: tr.querySelector('.reforco-tag').textContent.trim(),
-        botao: !!tr.querySelector('[data-atacar]') }));
+      const linhas = [...document.querySelectorAll('.pl-mat-lista > .pl-mat')].map((li) => ({
+        ver: li.querySelector('.reforco-tag').textContent.trim(),
+        botao: !!li.querySelector('[data-atacar]'),
+        // cada linha carrega o "i" que abre a analise da materia
+        analise: !!li.querySelector('[data-mat-det]') }));
       const b = document.querySelector('[data-atacar]');
       const antes = document.querySelectorAll('#plano-lista .pl-item').length;
       if (b) b.click();
@@ -1955,7 +1964,7 @@ try {
       return out;
     } finally { DB.getActiveSubjects = origSubs; window.planCycleMode = origModo; DB.getCurrentCycle = origCiclo; }
   });
-  const pedemAcao = (atk.linhas || []).filter((l) => /ataque aqui|comece:/.test(l.ver));
+  const pedemAcao = (atk.linhas || []).filter((l) => /ataque aqui|comece/.test(l.ver));
   const naoPedem = (atk.linhas || []).filter((l) => /mantenha|reduza|na fila|fica para depois/.test(l.ver));
   (pedemAcao.length >= 1 && pedemAcao.every((l) => l.botao) && naoPedem.every((l) => !l.botao))
     ? ok(`o botao "atacar esta materia" so aparece nas ${pedemAcao.length} linha(s) que pedem acao`)
@@ -2032,10 +2041,15 @@ try {
         premioDoBotao: [...document.querySelectorAll('[data-atacar]')].map((b) => {
           const l = por[ReforcoEngine.norm(b.dataset.atacar)]; return l ? l.ganho : null; }),
         qPortugues: (por['lingua portuguesa'] || {}).q,
-        linhasTela: document.querySelectorAll('.pl-tempo-tab tbody tr').length,
-        resumos: [...document.querySelectorAll('.pl-tempo-miudas td:first-child')].map((td) => td.textContent.replace(/\s+/g, ' ')),
-        pesoResumido: [...document.querySelectorAll('.pl-tempo-miudas')].map((tr) => parseFloat(tr.children[2].textContent) || 0),
-        temMiudas: !!document.querySelector('.pl-tempo-miudas'),
+        linhasTela: document.querySelectorAll('.pl-mat-lista > .pl-mat').length,
+        resumos: [...document.querySelectorAll('.pl-mat.is-resumo .pl-mat-nome')].map((el) => el.textContent.replace(/\s+/g, ' ')
+          + ' ' + (el.closest('.pl-mat').querySelector('.pl-mat-sub') || { textContent: '' }).textContent.replace(/\s+/g, ' ')),
+        /* A soma do resumo vai no `data-peso` da linha: ler a posicao de uma
+           celula de tabela era um contrato fragil, e a tabela nem existe mais. */
+        pesoResumido: [...document.querySelectorAll('.pl-mat.is-resumo')].map((li) => parseFloat(li.dataset.peso) || 0),
+        temMiudas: !!document.querySelector('.pl-mat.is-resumo'),
+        // e cada linha de materia tem o "i" da analise detalhada
+        comAnalise: document.querySelectorAll('.pl-mat-lista > .pl-mat:not(.is-resumo) [data-mat-det]').length,
         texto: tela ? tela.textContent.replace(/\s+/g, ' ') : '',
         // e o casamento de nomes segue conservador onde ainda e necessario
         casaGenero: PlanoPontos._casarNomes(['portugues'], ['lingua portuguesa'])['portugues'],
@@ -2159,6 +2173,14 @@ try {
   (esf.pesoResumido[0] >= 11)
     ? ok(`e o resumo mostra a SOMA (${esf.pesoResumido[0]}% da prova nunca comecada), em vez de somer com ela`)
     : erro('a soma do resumo saiu errada: ' + JSON.stringify(esf.pesoResumido));
+  /* ── TODA LINHA EXPLICA A PROPRIA POSICAO ──────────────────────────────
+     A duvida que o quadro produzia era sempre a mesma: "tenho materia com
+     percentual menor que aparece muito depois — por que?". A resposta e peso x
+     lacuna, e ela nao cabia numa celula: cada linha tem o "i" que abre a conta
+     feita com os numeros dela, os vizinhos na fila e o contraexemplo. */
+  (esf.comAnalise === esf.linhasTela - esf.resumos.length && esf.comAnalise >= 1)
+    ? ok(`cada uma das ${esf.comAnalise} materias tem o "i" da analise detalhada`)
+    : erro('faltou o "i" de analise nas linhas: ' + JSON.stringify({ comAnalise: esf.comAnalise, linhas: esf.linhasTela, resumos: esf.resumos.length }));
   /* ── DE ONDE VEM O PESO, E POR QUE ELE ESTAVA TORTO ────────────────────
      Pela RAIZ de cada disciplina na incidencia, nao pela soma das linhas dela.
      A incidencia e uma arvore ("Direito Civil 200" → "01 Parte Geral 100" →
@@ -2230,8 +2252,8 @@ try {
       DB.getTecSnapshots = () => ([{ id: 'n1', nome: 'n1', date: dia(2), startDate: dia(30), endDate: dia(2), rows: rowsN }]);
       DesempenhoTecScreen._planoRefC = null;
       DesempenhoTecScreen.renderPlano();
-      const linhaFina = [...document.querySelectorAll('.pl-tempo-tab tbody tr')]
-        .map((tr) => tr.textContent.replace(/\s+/g, ' ')).find((t) => /Fina/.test(t)) || '';
+      const linhaFina = [...document.querySelectorAll('.pl-mat-lista > .pl-mat')]
+        .map((li) => li.textContent.replace(/\s+/g, ' ')).find((t) => /Fina/.test(t)) || '';
       const share = PlanoPontos.esforcoPorMateria().linhas.find((l) => l.nome === 'Fina');
 
       // (2) todo assunto sobe 5pp por retrato; so a COBERTURA cresce
@@ -2269,8 +2291,19 @@ try {
         bruto: +(serie[serie.length - 1].dominio - serie[0].dominio).toFixed(1),
         comparavel: +serie.filter((x) => x.deltaComp != null).reduce((a, x) => a + x.deltaComp, 0).toFixed(1),
         cracha,
+        /* A NOTA CURTA FICA NA TELA, A LONGA VAI PARA O "i". Os dois
+           paragrafos que explicavam a linha ocupavam mais altura que o proprio
+           grafico e falavam de numeros que a tela nao mostrava: agora a tela
+           diz a conclusao em uma linha e a analise traz a explicacao com a
+           serie inteira em numeros. */
         nota: [...document.querySelectorAll('.pl-ciclo-obs')].map((e) => e.textContent.replace(/\s+/g, ' '))
-          .some((t) => /A linha é o seu nível/.test(t))
+          .some((t) => /A linha inclui os assuntos novos/.test(t)),
+        botaoTraj: !!document.querySelector('[data-traj-det]'),
+        analiseTraj: (() => {
+          const d = DesempenhoTecScreen._trajAnalise;
+          return !!(d && /O seu nível médio sobre/.test(d.html)
+            && /importação por importação/.test(d.html) && /pl-det-tab/.test(d.html));
+        })()
       };
     } finally {
       DB.getTecSnapshots = origSnaps; ReforcoEngine._incidByDisc = origIncid;
@@ -2626,6 +2659,9 @@ try {
   (num.bruto < -10 && num.comparavel > 10 && /^\+/.test(num.cracha) && num.nota)
     ? ok(`trajetoria: a diferenca crua dizia ${num.bruto}pp com todo assunto subindo; o cracha agora diz "${num.cracha}" e a tela explica a linha`)
     : erro('a trajetoria ainda mente na direcao: ' + JSON.stringify(num));
+  (num.botaoTraj && num.analiseTraj)
+    ? ok('e os numeros por tras da trajetoria (serie importacao por importacao) abrem no "i", fora da tela')
+    : erro('a analise da trajetoria nao esta acessivel: ' + JSON.stringify({ botao: num.botaoTraj, analise: num.analiseTraj }));
 
   (esf.casaGenero === 'lingua portuguesa' && esf.naoCasaIrmas === undefined && esf.naoCasaAmbiguo === undefined)
     ? ok('e o casamento de nomes, onde ainda e preciso (edital digitado x banca), segue conservador')

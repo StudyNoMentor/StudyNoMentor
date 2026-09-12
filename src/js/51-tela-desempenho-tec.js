@@ -2066,23 +2066,38 @@ const TecAjustes = {
     if (!secs.length) return;
     const antes = secs.map(s => s.hidden);
     body.style.minHeight = '';
-    let maior = 0;
-    for (let i = 0; i < secs.length; i++) {
-      secs.forEach((o, j) => { o.hidden = (j !== i); });
-      if (body.scrollHeight > maior) maior = body.scrollHeight;
-    }
-    secs.forEach((s, i) => { s.hidden = antes[i]; });
-    /* Teto: a caixa já é limitada por `max-height`; pedir mais que isso só
-       criaria rolagem sem tirar o pulo. */
-    /* Teto: a caixa já é limitada por `max-height`; pedir mais que isso só
-       criaria rolagem sem tirar o pulo.
+    /* ── O TETO NÃO SE CALCULA: MEDE-SE ─────────────────────────────────────
+       A versão anterior estimava o teto do corpo como "92vh" — a altura da
+       CAIXA INTEIRA. Só que o corpo é uma das quatro faixas dela (cabeçalho,
+       fita de seções, corpo e pé): pedir 92vh só para o corpo pedia mais do que
+       a caixa tem, e um `min-height` não encolhe. O excedente saía dos vizinhos
+       — a fita perdia altura e o pé ia para fora do recorte. No celular era
+       exatamente isso que se via: os chips das seções cortados e o "Concluir"
+       fora da tela.
+
+       Descontar o cromo à mão também não serve: sobra a conta das bordas e do
+       arredondamento, e foi ela que deixou a folha pulando 2px. O que este laço
+       lê agora é a altura REAL que o corpo recebe com cada seção aberta — já
+       clampada pela própria caixa. A maior dessas alturas é, ao mesmo tempo, a
+       altura da maior seção (quando ela cabe) e o espaço disponível (quando não
+       cabe). É o número exato, sem nenhuma conta nossa para errar.
 
        A alternativa era prender o TOPO e deixar a base flutuar — a folha
        descolava da borda de baixo e quem passava a pular era o "Concluir",
        justo o botão que fica debaixo do polegar. Entre uma sobra de espaço
        abaixo do último campo e um botão que se move, a sobra é de longe o
        menor preço: é assim que toda folha de detente fixa se comporta. */
-    body.style.minHeight = Math.min(maior, Math.round(window.innerHeight * 0.92)) + 'px';
+    let alvo = 0;
+    for (let i = 0; i < secs.length; i++) {
+      secs.forEach((o, j) => { o.hidden = (j !== i); });
+      const h = body.getBoundingClientRect().height;
+      if (h > alvo) alvo = h;
+    }
+    secs.forEach((s, i) => { s.hidden = antes[i]; });
+    /* Duas casas decimais, não pixels inteiros: com a altura arredondada para
+       baixo, a seção que não cabe continuava 0,5px mais alta que as outras — e
+       "quase parado" ainda é um pulo para quem está com o dedo na fita. */
+    if (alvo > 0) body.style.minHeight = alvo.toFixed(2) + 'px';
   },
   /* ── CAMPO QUE SÓ EXISTE QUANDO FAZ SENTIDO ──────────────────────────────
      Os três sub-campos de custo eram irmãos permanentes, rotulados "· se por
@@ -2303,6 +2318,11 @@ const DesempenhoTecScreen = {
     }));
   },
   _passoFatia: 10,
+  /* Quantos assuntos o "próximo bloco" marca de uma vez. Ele é do tamanho do
+     seu ritmo, com este teto: cinco frentes abertas na mesma semana já é mais
+     do que alguém executa, e a fila logo abaixo continua disponível para
+     trocar qualquer um deles. */
+  PLANO_BLOCO_MAX: 5,
 
   /* ═══ O PLANO NÃO PODE REPINTAR A CADA TECLA ════════════════════════════
      Cada campo dos ajustes chamava `renderPlanoConteudo` direto, no evento
@@ -3333,6 +3353,140 @@ const DesempenhoTecScreen = {
     if (eraAtivo) PlanoEngine.salvarPrefs(PlanoEngine.modoPatch(k));
     this.renderPlano();
   },
+  /* Texto pronto para viver dentro de um atributo `data-info`: o que vem de
+     dado do usuário já passou por escapeHtml (que não deixa aspa crua), então
+     só sobra fechar as aspas duplas da nossa própria redação. */
+  _info(html) { return String(html == null ? '' : html).replace(/"/g, '&quot;'); },
+
+  /* ── POR QUE ESTA MATÉRIA ESTÁ NESTA POSIÇÃO ──────────────────────────────
+     A pergunta que o quadro "Onde atacar primeiro" nunca respondia — e a
+     dúvida exata de quem olha a tela: "tenho matérias com percentual menor
+     que aparecem muito depois; por quê?".
+
+     A resposta não cabe numa célula de tabela, e escrevê-la em cada linha era
+     o que transformava o quadro numa parede de texto. Ela vira uma análise
+     completa, atrás do "i" da linha: a conta do prêmio feita com os números
+     daquela matéria, quem está imediatamente acima e abaixo dela na fila, um
+     CONTRAEXEMPLO tirado da própria tela (uma matéria em que você acerta menos
+     e que mesmo assim aparece depois) e o que fazer a respeito.
+
+     Devolve { titulo, html } — o `html` é montado aqui, com todo dado do
+     usuário já escapado, e abre em `UI.detalhe` (ver o porquê lá). */
+  _analiseMateria(l, pos, tm, VER, grandes, alvo, r) {
+    const [ic, tom, rot, frase] = VER[l.veredito] || ['', '', '', ''];
+    const n = grandes.length;
+    const pp = (v) => (v == null ? '—' : v.toFixed(1).replace('.', ',') + ' pp');
+    const pc = (v) => (v == null ? '—' : ((v > 0 && v < 0.5) ? '<1%' : v.toFixed(0) + '%'));
+    const base = l.taxa != null ? l.taxa : (tm.taxaGeral != null ? tm.taxaGeral : 50);
+    const lacuna = Math.max(0, tm.teto - base);
+    const acima = grandes[pos - 2], abaixo = grandes[pos];
+    const b = [];
+    b.push(`<p class="pl-det-lead">Das <b>${n}</b> matérias do quadro, esta é a <b>${pos}ª</b>. A fila é ordenada por <b>pontos em jogo</b> — e aqui estão <b>${pp(l.ganho)}</b> da prova inteira.</p>`);
+
+    b.push('<p class="pl-det-rot">1 · De onde sai esse número</p>');
+    if (l.sharePeso != null && l.sharePeso > 0) {
+      b.push(`<p class="pl-det-conta"><b>${pc(l.sharePeso)}</b> <i>peso na prova</i> × <b>${lacuna.toFixed(0)} pontos</b> <i>de lacuna</i> = <b>${pp(l.ganho)}</b></p>`);
+      b.push(`<p>A lacuna é a distância entre ${l.taxa != null ? `o seu nível medido (<b>${l.taxa.toFixed(0)}%</b>)` : `o nível estimado (<b>${base.toFixed(0)}%</b>)`} e o máximo realista que você configurou (<b>${tm.teto}%</b>). Levar esta matéria até lá recupera ${pp(l.ganho)} da prova — não da matéria, da <b>prova toda</b>.</p>`);
+      if (l.estimado) {
+        b.push(`<p class="pl-det-alerta">Você ainda não tem questões medidas aqui: a lacuna usa a sua média geral (<b>${base.toFixed(0)}%</b>) como palpite. O número é grosseiro, mas a posição não é — sem medição, quem manda é o peso, e este é exatamente o peso que a sua prova dá a esta matéria.</p>`);
+      }
+    } else {
+      b.push(`<p>Esta matéria <b>não aparece no peso da sua prova</b> ${tm.fontePeso === 'edital' ? '(a composição que você declarou não a inclui)' : '(a incidência das suas bancas não a registra)'}. Sem peso não há prêmio a calcular: ela fica no fim da fila por definição, não por você ir bem nela.</p>`);
+    }
+
+    b.push('<p class="pl-det-rot">2 · Onde ela está na fila</p>');
+    const viz = [];
+    if (acima) viz.push(`<li>logo acima: <b>${escapeHtml(acima.nome)}</b> — ${pp(acima.ganho)}</li>`);
+    viz.push(`<li><b>${escapeHtml(l.nome)}</b> — ${pp(l.ganho)} <i>(esta)</i></li>`);
+    if (abaixo) viz.push(`<li>logo abaixo: <b>${escapeHtml(abaixo.nome)}</b> — ${pp(abaixo.ganho)}</li>`);
+    b.push(`<ul class="pl-det-lista">${viz.join('')}</ul>`);
+    b.push(`<p>No total há <b>${pp(tm.emJogo)}</b> em jogo, e as <b>${tm.nCorte}</b> primeiras concentram metade disso — é a faixa em que a próxima hora de estudo rende mais.${l.noCorte ? ' <b>Esta matéria está nessa faixa.</b>' : (l.naFila ? ' Esta está na faixa seguinte: entra assim que as de cima saírem.' : '')}</p>`);
+
+    /* O CONTRAEXEMPLO É TIRADO DA PRÓPRIA TELA. Dizer "não é o percentual que
+       ordena" em tese não convence ninguém; mostrar a matéria em que a pessoa
+       acerta MENOS e que ainda assim está mais abaixo, com a conta das duas,
+       responde a dúvida com o dado dela. */
+    const abaixoPior = grandes.slice(pos).filter(o => o.taxa != null && l.taxa != null && o.taxa < l.taxa - 1)
+      .sort((a, c) => a.taxa - c.taxa)[0];
+    if (abaixoPior) {
+      const pos2 = grandes.indexOf(abaixoPior) + 1;
+      b.push('<p class="pl-det-rot">3 · Por que não é o seu percentual que ordena</p>');
+      b.push(`<p>Em <b>${escapeHtml(abaixoPior.nome)}</b> você acerta <b>${abaixoPior.taxa.toFixed(0)}%</b> — menos que os <b>${l.taxa.toFixed(0)}%</b> daqui — e mesmo assim ela é a <b>${pos2}ª</b>. O motivo é o peso: ela vale <b>${pc(abaixoPior.sharePeso)}</b> da prova, então fechar a lacuna dela rende <b>${pp(abaixoPior.ganho)}</b>, contra os <b>${pp(l.ganho)}</b> desta.</p>`);
+      b.push(`<p>É a mesma aritmética da prova: <b>ir mal numa matéria leve custa poucos pontos; ir razoavelmente numa matéria pesada custa muitos.</b> Percentual baixo dói mais no orgulho; peso alto dói mais na nota.</p>`);
+    }
+
+    b.push(`<p class="pl-det-rot">${abaixoPior ? '4' : '3'} · O seu esforço aqui</p>`);
+    if (l.q > 0) {
+      b.push(`<p><b>${l.q.toLocaleString('pt-BR')}</b> questões resolvidas = <b>${pc(l.shareEsforco)}</b> de tudo que você já resolveu${l.sharePeso != null ? `, para <b>${pc(l.sharePeso)}</b> da prova` : ''}${l.razao != null ? ` (razão <b>${l.razao.toFixed(1)}×</b>)` : ''}.${l.medido ? ` O nível vem da janela adaptativa: <b>${l.medido.toLocaleString('pt-BR')}</b> questões, das importações mais recentes para trás — não da sua média histórica.` : ''}</p>`);
+      if (l.sobra) {
+        b.push(`<p class="pl-det-alerta">Você já dedica <b>${l.razao.toFixed(1)}×</b> o peso desta matéria: proporcionalmente, é onde o seu tempo mais entra. Quando isso aparece junto de um prêmio alto, o recado não é "estude mais", é <b>estude diferente</b> — o volume que já entra aqui não está virando acerto.</p>`);
+      }
+    } else {
+      b.push(`<p>Você <b>nunca resolveu uma questão</b> desta matéria nos retratos importados. Ela não aparece como fraca porque não aparece de jeito nenhum — e é por isso que o prêmio dela é estimado.</p>`);
+    }
+
+    b.push(`<p class="pl-det-rot">${abaixoPior ? '5' : '4'} · O que fazer</p>`);
+    b.push(`<p class="pl-det-verbo"><span class="reforco-tag ${tom}">${ic} ${rot}</span> ${escapeHtml(frase)}.</p>`);
+    if (l.taxa != null && r && l.taxa < r.faixaFragil) {
+      b.push(`<p>O nível aqui está abaixo da sua faixa frágil (<b>${r.faixaFragil}%</b>): o caminho curto é teoria antes de volume — resolver mais questões sobre um conteúdo que ainda não assentou mede o buraco em vez de fechá-lo.</p>`);
+    }
+    if (alvo) {
+      b.push(`<p>O botão <b>🎯 Atacar</b> desta linha filtra a lista de assuntos por <b>${escapeHtml(alvo)}</b> e leva você ao bloco de criar atividades — é o caminho da matéria para os assuntos dela.</p>`);
+    } else if (l.veredito === 'manter' || l.veredito === 'foraDoPeso') {
+      b.push(`<p>Não há botão de ataque nesta linha de propósito: ele convidaria a fazer exatamente o que o quadro acabou de dizer para não fazer agora.</p>`);
+    }
+    /* O título vai por `textContent` no diálogo: escapar aqui faria aparecer
+       "&amp;" na tela de quem tem "&" no nome da matéria. */
+    return { titulo: l.nome + ' — ' + pos + 'ª no prêmio', html: b.join('') };
+  },
+  /* ── OS NÚMEROS POR TRÁS DA TRAJETÓRIA ────────────────────────────────────
+     O gráfico mostra uma linha e um crachá; os dois só se entendem com os
+     volumes por trás — quantos assuntos entraram em cada importação, quantas
+     questões, e qual variação é comparável. Esses volumes nunca estiveram na
+     tela: o que estava eram dois parágrafos explicando números invisíveis.
+
+     Aqui eles aparecem: a explicação primeiro, a série inteira depois. */
+  _analiseTrajetoria(S, r, m) {
+    if (!S || S.length < 2) return null;
+    const pp = (v) => (v == null ? '—' : (v >= 0 ? '+' : '') + v.toFixed(1).replace('.', ',') + 'pp');
+    // pt-BR: a vírgula decimal vale também aqui dentro, senão "0.7pp a cada
+    // 1.000 questões" põe ponto nos dois papéis na mesma frase.
+    const pc1 = (v) => (v == null ? '—' : v.toFixed(1).replace('.', ',') + '%');
+    const p0 = S[0], pn = S[S.length - 1];
+    const b = [];
+    b.push(`<p class="pl-det-lead">São <b>${S.length}</b> importações, de <b>${escapeHtml(formatDateShort(p0.data))}</b> a <b>${escapeHtml(formatDateShort(pn.data))}</b>. Nesse intervalo o seu domínio saiu de <b>${pc1(p0.dominio)}</b> para <b>${pc1(pn.dominio)}</b>, com a cobertura indo de <b>${p0.assuntos}</b> para <b>${pn.assuntos}</b> assuntos medidos.</p>`);
+
+    b.push('<p class="pl-det-rot">1 · O que a LINHA é</p>');
+    b.push(`<p>O seu nível médio sobre <b>tudo</b> que você já tinha medido naquela data. Ela mistura duas coisas: o quanto você melhorou e o quanto você ampliou. Abrir frente nova entra na média com a taxa baixa de quem está começando — então a linha pode <b>cair</b> num período em que todo assunto individual subiu.${m.divergem ? ` Foi o que aconteceu aqui: a linha ${pn.dominio >= p0.dominio ? 'subiu só' : 'caiu'} de ${p0.dominio.toFixed(0)}% para ${pn.dominio.toFixed(0)}% enquanto a cobertura ia de ${p0.assuntos} para ${pn.assuntos} assuntos.` : ''}</p>`);
+
+    b.push('<p class="pl-det-rot">2 · O que o número ao lado é</p>');
+    if (m.comp && m.comp.length) {
+      b.push(`<p>Ele não cai nessa: soma a variação <b>assunto a assunto</b>, só sobre os que aparecem em <b>dois retratos seguidos</b> — em média <b>${m.baseComp}</b> assuntos por período. Encadeado por toda a série dá <b>${pp(m.ganho)}</b>, contra <b>${pp(m.ganhoBruto)}</b> da diferença bruta entre o primeiro e o último ponto.</p>`);
+      if (m.baseComp < 10) {
+        b.push(`<p class="pl-det-alerta">São só <b>${m.baseComp}</b> assuntos em comum por período: é pouca base. Leia o número como <b>direção</b>, não como medida. Repetir os mesmos assuntos entre importações é o que aperta essa conta.</p>`);
+      }
+    } else {
+      b.push(`<p>Sem assuntos repetidos entre retratos consecutivos, ele é apenas a diferença entre o primeiro e o último ponto da linha: <b>${pp(m.ganhoBruto)}</b>.</p>`);
+    }
+
+    b.push('<p class="pl-det-rot">3 · O retorno do seu esforço</p>');
+    if (m.rendMedio != null) {
+      const mil = Math.abs(m.rendMedio) < 0.5;
+      const esc = mil ? 1000 : 100, rot = mil ? '1.000' : '100';
+      const ult = pn.rendimento;
+      b.push(`<p><b>${(m.rendMedio * esc / 100).toFixed(1).replace('.', ',')}pp</b> de domínio a cada <b>${rot}</b> questões resolvidas, na média da série.${ult != null ? ` No último período foram <b>${(ult * esc / 100).toFixed(1).replace('.', ',')}pp</b>${ult < m.rendMedio * 0.5 ? ' — bem abaixo da sua média, sinal de que só aumentar o volume parou de funcionar neste momento.' : '.'}` : ''}</p>`);
+      b.push(`<p>A conta usa a variação comparável dividida pelas questões <b>desses mesmos assuntos</b>. Com dezenas de assuntos medidos, mover a MÉDIA em 1pp exige mover um assunto em dezenas de pontos — é por isso que a escala às vezes precisa ser por mil questões para o número não virar 0,1.</p>`);
+    } else {
+      b.push(`<p>Ainda não há dois retratos com assuntos em comum suficientes para medir o retorno por questão. Ele aparece assim que você reimportar mantendo parte dos mesmos assuntos.</p>`);
+    }
+
+    b.push('<p class="pl-det-rot">4 · A série, importação por importação</p>');
+    b.push(`<div class="pl-det-tab-wrap"><table class="pl-det-tab"><thead><tr><th>data</th><th>domínio</th><th>assuntos</th><th>questões</th><th>Δ comp.</th></tr></thead><tbody>${
+      S.slice().reverse().map(x => `<tr><td>${escapeHtml(formatDateShort(x.data))}</td><td><b>${pc1(x.dominio)}</b></td><td>${x.assuntos}</td><td>${(x.questoes || 0).toLocaleString('pt-BR')}</td><td>${x.deltaComp != null ? pp(x.deltaComp) + ' <i>(' + x.comuns + ')</i>' : '—'}</td></tr>`).join('')
+    }</tbody></table></div>`);
+    b.push(`<p class="pl-det-fim"><b>Δ comp.</b> é a variação daquele retrato contra o anterior, contada só sobre os assuntos presentes nos dois — o número entre parênteses é quantos são. A linha tracejada do gráfico é a sua meta de domínio (<b>${r.meta}%</b>). Só assuntos com pelo menos <b>${PlanoEngine.prefs().pisoSerie || PlanoEngine.PISO_SERIE}</b> questões no retrato entram nesta série — abaixo disso a taxa oscila demais para virar ponto de um gráfico.</p>`);
+    return { titulo: 'Sua trajetória — os números', html: b.join('') };
+  },
   renderPlanoConteudo() {
     /* O corpo real fica em `_pintarPlano`; esta camada só garante as duas
        coisas que TODA repintura precisa e nenhuma chamada deve ter de lembrar:
@@ -3394,8 +3548,17 @@ const DesempenhoTecScreen = {
     if (!this._fatias) this._fatias = Object.create(null);
     /* A lista de assuntos é a única fatiada pelo MOTOR — é de lá que saem
        `totalItens` e o custo do que ficou de fora. O quanto abrir, porém, vem
-       do mesmo registro das outras seis, para o botão ser o mesmo botão. */
-    opts.limite = Math.min(opts.limite + (this._fatias['assuntos'] || 0), 100000);
+       do mesmo registro das outras seis, para o botão ser o mesmo botão.
+
+       DUAS listas comem dessa mesma fila: a lista de assuntos e a fila do
+       "próximo bloco". Cada uma abre no seu próprio passo, então o motor tem
+       de calcular o suficiente para a MAIOR das duas — senão "mostrar mais 10"
+       na fila do bloco não teria de onde tirar item, e o botão abriria nada. O
+       bloco consome até `PLANO_BLOCO_MAX` itens antes de a fila começar, e é
+       por isso que ele entra na conta. */
+    const abreLista = this._fatias['assuntos'] || 0;
+    const abreFila = (this._fatias['proximos'] || 0) + this.PLANO_BLOCO_MAX;
+    opts.limite = Math.min(opts.limite + Math.max(abreLista, abreFila), 100000);
     // ajuste novo invalida o retrato em cache usado ao criar atividades
     this._planoRefC = null;
     opts.ritmoSemanal = opts.ritmoSemanal || medido;
@@ -3480,7 +3643,16 @@ const DesempenhoTecScreen = {
           ${(r.qAteMeta && r.qAteMeta > r.caminho.q * 1.15) ? `<br><span class="pl-hero-alerta" data-tip="O caminho curto é sempre o mesmo: os assuntos de melhor ganho ÷ custo. A ordem que você escolheu é uma forma de LER a lista, e chega lá por um percurso mais caro.">⚠ na ordem que você escolheu são ${r.qAteMeta.toLocaleString('pt-BR')} questões — ${Math.round((r.qAteMeta / r.caminho.q - 1) * 100)}% a mais</span>` : ''}
         </p>` : ''}
 
-        <div class="pl-chips">
+        ${/* No celular o `title` de uma ficha NUNCA abre: as explicações dos
+              seis contadores existiam só para quem usa mouse. Um "i" na faixa
+              explica todos de uma vez, com os números desta tela dentro. */''}
+        <div class="pl-chips" data-info="${this._info(
+          `<b>🟢 ${r.solidosAtuais} sólidos</b> — assuntos que ficaram na meta de ${r.meta}% em <b>${r.consolidarEm}</b> importações seguidas E têm medição recente. São os que você pode riscar da lista.`
+          + `<br><br><b>🟠 sólidos sem medição nova</b> — sustentaram a meta, mas a última medição passou de <b>${r.validadeDias}</b> dias. Antes de riscar, remeça: consolidado com dado velho é lembrança, não medição.`
+          + `<br><br><b>🟡 recém-corrigidos</b> — cruzaram a meta há pouco e ainda não provaram que fixaram. Contam como conquista, não como assunto resolvido.`
+          + `<br><br><b>📊 melhorando · piorando</b> — variação acima de <b>${r.sensTendencia}pp</b> contra o período anterior, já descontado o que a amostra não comprova.`
+          + `<br><br><b>⏳ com dado vencido</b> — sem medição nova há mais de <b>${r.validadeDias}</b> dias: a taxa pode não descrever você hoje.`
+          + `<br><br><b>🕳️ sem diagnóstico</b> — menos de <b>${r.minAmostra || PlanoEngine.prefs().minAmostra}</b> questões resolvidas. Ficam fora da média de propósito e esperam no <b>segundo plano</b>, no fim da tela: com amostra assim a taxa real pode variar dezenas de pontos.`)}">
           <span class="pl-chip res" style="border-color:var(--good);color:var(--good-text);" title="Sustentaram a meta em ${r.consolidarEm}+ importações seguidas, com medição recente">🟢 ${r.solidosAtuais} sólidos</span>
           ${r.solidosVencidos ? `<span class="pl-chip res" style="border-color:var(--warn);color:var(--warn-text);" title="Sustentaram a meta, mas a última medição tem mais de ${r.validadeDias} dias — remeça antes de riscar da lista">🟠 ${r.solidosVencidos} sólidos sem medição nova</span>` : ''}
           ${r.recentes ? `<span class="pl-chip res" style="border-color:var(--warn);color:var(--warn-text);" title="Cruzaram a meta há pouco — ainda não provaram que fixaram">🟡 ${r.recentes} recém-corrigidos</span>` : ''}
@@ -3488,7 +3660,11 @@ const DesempenhoTecScreen = {
           ${r.vencidos ? `<span class="pl-chip res" style="border-color:var(--bad);color:var(--bad-text);" title="Sem medição nova há mais de ${r.validadeDias} dias">⏳ ${r.vencidos} com dado vencido</span>` : ''}
           ${r.ignorados ? `<span class="pl-chip res" style="border-color:var(--warn);color:var(--warn-text);" title="Sem amostra suficiente — veja o segundo plano no fim">🕳️ ${r.ignorados} sem diagnóstico</span>` : ''}
         </div>
-        <div class="pl-chips" style="margin-top:6px;">
+        <div class="pl-chips" style="margin-top:6px;" data-info="${this._info(
+          `Os três ajustes que mais mudam o que você lê acima — todos em <b>⚙ Ajustes</b>.`
+          + `<br><br><b>amostra-alvo ${r.amostraAlvo}q</b> — para cada assunto o app parte da importação mais recente e volta no tempo só até juntar esta quantidade de questões. Maior = taxa mais confiável e dado mais antigo; menor = retrato de agora com margem maior.`
+          + `<br><br><b>ritmo ${r.ritmo}/sem</b> — quantas questões você resolve por semana. ${r.ritmoMedido === r.ritmo ? 'Este veio <b>medido</b> dos seus retratos.' : `Está <b>digitado</b> por você; os seus retratos medem <b>${r.ritmoMedido}/semana</b>.`} Só afeta as previsões em semanas, nunca a ordem da fila.`
+          + `<br><br><b>${pond}</b> — como cada assunto pesa na média: <em>todo assunto igual</em> impede que um tema de 400 questões esconda um de 20; <em>por volume</em> faz o que você mais pratica mandar no número.`)}">
           <span class="pl-chip cfg">amostra-alvo ${r.amostraAlvo}q</span>
           <span class="pl-chip cfg">ritmo ${r.ritmo}/sem${r.ritmoMedido === r.ritmo ? ' (medido)' : ''}</span>
           <span class="pl-chip cfg">${pond}</span>
@@ -3517,6 +3693,7 @@ const DesempenhoTecScreen = {
     // ── Trajetória do domínio a cada importação ──
     const S = r.serie || [];
     let grafico = '';
+    this._trajAnalise = null;   // sem série, não há análise a abrir
     if (S.length >= 2) {
       const W = 100, H = 34;
       const lo = Math.max(0, Math.min(...S.map(p => p.dominio), r.meta) - 6);
@@ -3548,7 +3725,7 @@ const DesempenhoTecScreen = {
         <div class="card" style="background:var(--surface-sunken);box-shadow:var(--shadow-sm);border:1.5px solid var(--border);margin:0 0 16px;">
           <div style="padding:14px 16px;">
             <div style="display:flex;align-items:baseline;justify-content:space-between;gap:10px;flex-wrap:wrap;">
-              <strong style="font-size: var(--fs-sm);">📈 Sua trajetória</strong>
+              <strong style="font-size: var(--fs-sm);">📈 Sua trajetória<button type="button" class="info-dot pl-mat-det" data-traj-det="1" aria-label="Os números por trás da trajetória" title="Os números por trás da trajetória">i</button></strong>
               <span class="reforco-tag ${ganho >= 0 ? 'tone-good' : 'tone-bad'}" title="${comp.length ? 'Variação média assunto a assunto, só sobre os que existem em retratos consecutivos' : 'Diferença entre a primeira e a última medição'}">${ganho >= 0 ? '+' : ''}${ganho.toFixed(1)}pp em ${S.length} importações</span>
             </div>
             <div style="position:relative;height:74px;margin:10px 0 4px;">
@@ -3567,25 +3744,26 @@ const DesempenhoTecScreen = {
               <span style="color:var(--text-soft);font-weight:700;">linha tracejada = meta ${r.meta}%</span>
               <span>${escapeHtml(formatDateShort(ultimo.data))} · ${ultimo.dominio.toFixed(0)}%</span>
             </div>
-            ${divergem ? `<p class="pl-ciclo-obs" style="margin:8px 0 0;">A <b>linha</b> é o seu nível sobre tudo que você já mediu a cada importação: abrir frente nova puxa a linha para baixo mesmo com todo assunto melhorando — ela saiu de ${S[0].dominio.toFixed(0)}% para ${ultimo.dominio.toFixed(0)}% enquanto os assuntos cresciam de ${S[0].assuntos} para ${ultimo.assuntos}. O <b>número ao lado</b> não cai nessa: ele compara assunto com assunto, ${baseComp} em média por período.</p>`
-              : baseFina ? `<p class="pl-ciclo-obs" style="margin:8px 0 0;">O número ao lado compara assunto com assunto — mas só <b>${baseComp}</b> em média por período aparecem em dois retratos seguidos. É pouca base: leia como direção, não como medida. Repetir os mesmos assuntos entre importações é o que aperta esse número.</p>` : ''}
-            ${/* A UNIDADE TEM DE CABER NO NÚMERO. Com dezenas de assuntos, mover
-                  a MÉDIA em 1pp exige mover um assunto em dezenas de pontos —
-                  então "por 100 questões" arredondava para 0,1pp e a frase
-                  repetia o mesmo 0,1 duas vezes, parecendo quebrada. Quando o
-                  retorno por cem não chega a meio ponto, a escala sobe para
-                  mil; a conta é a mesma, só o denominador muda. */''}
-            ${rendMedio != null ? (() => {
-              const mil = Math.abs(rendMedio) < 0.5;
-              const esc = mil ? 1000 : 100, rot = mil ? '1.000' : '100';
-              const ult = S[S.length - 1].rendimento;
-              return `<p class="pl-prosa" style="margin:10px 0 0;">
-              <strong>Retorno do seu esforço:</strong> ${(rendMedio * esc / 100).toFixed(1)}pp de domínio a cada ${rot} questões resolvidas.
-              ${ult != null ? 'No último período foram ' + (ult * esc / 100).toFixed(1) + 'pp' +
-                (ult < rendMedio * 0.5 ? ' — bem abaixo da sua média, sinal de que só aumentar o volume parou de funcionar neste momento.' : '.') : ''}
-            </p>`; })() : ''}
+            ${/* ── OS TEXTOS LONGOS SAÍRAM DA TELA ───────────────────────
+                  Aqui moravam dois parágrafos de explicação (o artefato da
+                  cobertura crescente e o retorno do esforço) que, juntos,
+                  ocupavam mais altura que o próprio gráfico — e falavam de
+                  números que a tela nem mostrava. Os dois viraram a ANÁLISE do
+                  "i" ao lado do título, agora acompanhados da série inteira em
+                  números: data, domínio, assuntos medidos, questões, variação
+                  comparável e retorno de cada importação. A tela fica com o
+                  desenho; quem quer os volumes por trás abre uma vez. */''}
+            ${(divergem || baseFina || rendMedio != null) ? `<p class="pl-ciclo-obs" style="margin:8px 0 0;">${
+              divergem ? 'A linha inclui os assuntos novos; o número ao lado compara assunto com assunto.'
+              : baseFina ? `O número ao lado se apoia em <b>${baseComp}</b> assuntos por período — leia como direção, não como medida.`
+              : `Retorno do seu esforço: <b>${(rendMedio * (Math.abs(rendMedio) < 0.5 ? 1000 : 100) / 100).toFixed(1)}pp</b> de domínio a cada ${Math.abs(rendMedio) < 0.5 ? '1.000' : '100'} questões.`
+            } <button type="button" class="pl-ciclo-acao" data-traj-det="1">ver os números</button></p>` : ''}
           </div>
         </div>`;
+      /* A análise fica guardada e abre no diálogo — a série inteira em números
+         não cabe num popover de 320px, e é justamente ela que responde "de onde
+         vêm esses valores". */
+      this._trajAnalise = this._analiseTrajetoria(S, r, { ganho, ganhoBruto, comp, baseComp, divergem, rendMedio });
     }
     /* Por que ESTE assunto está NESTA posição. A mesma pergunta que o item do
        topo responde, para qualquer linha da lista — é o que separa uma ordem
@@ -3604,7 +3782,10 @@ const DesempenhoTecScreen = {
        a lista). Duas cópias divergiam: a do bloco dizia "✓" para uma atividade
        encerrada com "não funcionou". */
     const SELO_ATIV = (x) => `<span class="reforco-tag ${x.extraVeredito === 'naoFuncionou' ? 'tone-bad' : x.extraConcluida ? 'tone-good' : 'incid'}" title="${x.extraVeredito === 'naoFuncionou' ? 'Você cumpriu as questões e a taxa não subiu — o buraco é de teoria, não de volume' : x.extraConcluida ? 'Encerrada: o retrato disse que o assunto foi resolvido' : 'Em aberto — o progresso vem dos seus retratos'}">${x.extraVeredito === 'naoFuncionou' ? '⚠️ não funcionou' : x.extraConcluida ? '✓ resolvido' : '▶ ' + x.extraFeito + '/' + x.extraAlvo}</span>`;
-    const linhas = r.itens.map((x, i) => {
+    /* O motor pode ter calculado mais do que a lista grande deve mostrar (ver
+       o cálculo do limite acima): ela continua exibindo a fatia DELA. */
+    const itensVis = r.itens.slice(0, this._passoFatia + abreLista);
+    const linhas = itensVis.map((x, i) => {
       const sens = r.sensTendencia || 3;
       /* O ▲▼ agora compara a janela com o período ANTERIOR a ela. Quando não
          existe período anterior, a tela diz isso — antes simplesmente não
@@ -3626,38 +3807,89 @@ const DesempenhoTecScreen = {
       const faltaMeta = Math.max(0, r.meta - x.taxa);
       const dirTom = x.taxa < r.faixaCritico ? 'bad' : x.taxa < r.faixaFragil ? 'bad'
         : x.taxa < r.meta ? 'warn' : (x.status.tom || 'good');
-      // Caixinhas numéricas (leitura rápida do status).
+      /* ── A CAIXA QUE FALTAVA: QUANTAS QUESTÕES PARA O NÚMERO SER FIEL ────
+         A tela pedia decisões a partir de uma taxa e mostrava a margem dela
+         (63% ±11), mas nunca dizia o que fazer com essa margem. E a resposta é
+         um número fechado: `n = z²·p(1−p)/E²`. Com a taxa deste assunto, esta
+         caixa diz quantas questões AINDA faltam para a próxima medição sair com
+         ±MARGEM_ALVO pontos — isto é, para a evolução medida ser evolução e não
+         oscilação de amostra curta. É o número que fideliza a estatística, e
+         era o único dos cinco que o aluno não tinha como calcular de cabeça. */
+      const qMedir = PlanoEngine.qParaMedir(x.taxa, PlanoEngine.MARGEM_ALVO);
+      const faltaMedir = Math.max(0, qMedir - x.qJanela);
+      /* Quantas questões a próxima medição precisa ter para o app CRAVAR uma
+         melhora do tamanho da sua sensibilidade — pode não existir resposta, e
+         nesse caso o que falta é base, não esforço. */
+      const qProvar = PlanoEngine.qParaProvar(x.taxa, x.qJanela, sens);
+      const faixaNome = x.taxa < r.faixaCritico ? 'crítica' : x.taxa < r.faixaFragil ? 'frágil'
+        : x.taxa < r.meta ? 'abaixo da meta' : x.taxa < r.teto ? 'na meta' : 'no teto';
+      // Caixinhas numéricas (leitura rápida do status) — e o "i" que explica
+      // cada uma DELAS, com os números deste assunto em vez de teoria.
+      const explicaCaixas = this._info(
+        `<b>${x.taxa.toFixed(0)}% acerto${x.margem != null ? ' ±' + x.margem.toFixed(0) : ''}</b> — a sua taxa aqui, medida em <b>${x.qJanela}</b> questões${x.diasJanela ? ' dos últimos <b>' + x.diasJanela + '</b> dias' : ''}.`
+        + (x.margem != null ? ` A margem diz que o valor real está entre <b>${Math.max(0, x.taxa - x.margem).toFixed(0)}%</b> e <b>${Math.min(100, x.taxa + x.margem).toFixed(0)}%</b> (95% de confiança). Confiabilidade da amostra: <b>${x.conf.nivel}</b>.` : '')
+        + `<br><br><b>${faltaMeta > 0 ? faltaMeta.toFixed(0) : '✓'} pts p/ meta</b> — quanto falta da sua taxa até a meta de <b>${r.meta}%</b>. Você está na faixa <b>${faixaNome}</b> (crítica abaixo de ${r.faixaCritico}%, frágil abaixo de ${r.faixaFragil}%, teto realista em ${r.teto}%).`
+        + `<br><br><b>${x.custoQ} questões (custo)</b> — a estimativa de quanto trabalho fecha essa lacuna${r.custoModo === 'lacuna' ? `: ${r.custoPiso} para remedir + ${Math.round(r.custoPorPonto * x.lacunaPP * x.amplitude)} pela lacuna de ${x.lacunaPP.toFixed(0)} pontos` : ''}. É o alvo que vai para a atividade quando você toca em <b>+ Atividade</b>.`
+        + `<br><br><b>${x.qJanela} na amostra</b> — as questões que sustentam a taxa acima.${x.qHist > x.qJanela ? ` Você resolveu <b>${x.qHist}</b> no total, mas a janela usa só as mais recentes: assunto já corrigido não pode ficar preso ao desempenho antigo.` : ''}`
+        + `<br><br><b>${faltaMedir ? '+' + faltaMedir : '✓'} q p/ medir ±${PlanoEngine.MARGEM_ALVO}</b> — ${faltaMedir
+            ? `faltam <b>${faltaMedir}</b> questões (de <b>${qMedir}</b> necessárias) para a próxima medição deste assunto sair com margem de ±${PlanoEngine.MARGEM_ALVO}pp. Abaixo disso a taxa balança mais que o seu progresso, e "subiu 4pp" pode ser só sorteio.`
+            : `a sua amostra já passa das <b>${qMedir}</b> questões que dão margem de ±${PlanoEngine.MARGEM_ALVO}pp: a taxa daqui é medição, não palpite.`}`
+        + (qProvar ? `<br><br>Para o app <b>cravar</b> uma melhora de ${sens}pp na próxima importação, esta janela precisaria de cerca de <b>${qProvar}</b> questões.` : ''));
       const metricas = `
         <div class="pl-metrics">
           <div class="plm"><b class="tone-${x.conf.tom}">${x.taxa.toFixed(0)}%</b><span>acerto${x.margem != null ? ' ±' + x.margem.toFixed(0) : ''}</span></div>
           <div class="plm"><b class="tone-${dirTom}">${faltaMeta > 0 ? faltaMeta.toFixed(0) : '✓'}</b><span>pts p/ meta</span></div>
           <div class="plm"><b>${x.custoQ}</b><span>questões (custo)</span></div>
           <div class="plm"><b>${x.qJanela}</b><span>na amostra</span></div>
+          <div class="plm plm-amostra"><b class="tone-${faltaMedir ? 'warn' : 'good'}">${faltaMedir ? '+' + faltaMedir : '✓'}</b><span>q p/ medir ±${PlanoEngine.MARGEM_ALVO}</span></div>
+          <div class="plm plm-info" data-info="${explicaCaixas}"></div>
         </div>`;
-      /* ── A GUIA ABRE NOS PRIMEIROS, NÃO EM METADE DA LISTA ──────────────
-         A regra era `i <= max(idxMeta, 2)`, e `idxMeta` é onde o acumulado
-         cruza a meta — num plano de 17 assuntos ela abria 17 guias completas.
-         Pior: quando a meta era inalcançável (`idxMeta < 0`) ela abria TODAS.
-         Medido a 390px, os itens respondiam por 84% de uma página de 20.681px,
-         com cada cartão em 647px — quase uma tela de celular por assunto.
+      /* ── A GUIA DEIXOU DE SER TRÊS PARÁGRAFOS SOLTOS ────────────────────
+         Ela respondia "por que está aqui" com uma frase de ordenação e dois
+         parágrafos de números corridos, sem separar a POSIÇÃO (por que este
+         assunto antes daquele), o DIAGNÓSTICO (o que os números dizem sobre
+         ele) e a AÇÃO (o que fazer amanhã de manhã). São três perguntas
+         diferentes, e é por isso que agora são três seções rotuladas, cada uma
+         com os dados que a sustentam — inclusive os que o aluno não tinha:
+         o intervalo real da taxa, o empate técnico com o primeiro da fila e o
+         bloco de questões que devolve uma medição confiável.
 
-         A guia continua a um toque em qualquer item; aberta, só nos três do
-         topo, que são os que a decisão de hoje usa. */
-      /* NENHUMA GUIA ABRE SOZINHA. Ela abria nos três primeiros porque a linha
-         não dizia o que fazer; agora diz. Três guias abertas somavam ~1.200px
-         antes do quarto item — e quem quer o detalhe continua a um toque. */
+         Ela continua RECOLHIDA por padrão, e nenhuma abre sozinha. Já foram
+         abertas nos três primeiros itens (e, quando a meta era inalcançável,
+         em TODOS): a 390px os itens respondiam por 84% de uma página de
+         20.681px, com cada cartão em 647px — quase uma tela de celular por
+         assunto. O detalhe continua a um toque em qualquer linha. */
       const abreGuia = false;
+      const empatouComPrimeiro = (i > 0 && r.ordenar === 'pior' && PlanoEngine.empateTecnico(itensVis[0], x));
       const guia = `
         <details class="pl-guia" ${abreGuia ? 'open' : ''}>
           <summary>💡 Por que está aqui, e o que fazer <span class="chev">▾</span></summary>
           <div class="pl-guia-body">
-            ${/* O conselho INTEIRO vive aqui. Na linha fica só a ordem — o
-                 miolo dele é o mesmo em dez itens seguidos, e repeti-lo era o
-                 que fazia um assunto ocupar mais que uma tela de celular. */''}
-            <p class="pl-acao pl-guia-acao tone-${x.status.tom}">${escapeHtml(x.status.acao)}</p>
+            <span class="pl-guia-rot">Por que nesta posição</span>
             <p class="pl-porque-item">${escapeHtml(motivoDaPosicao(x, i))}</p>
-            <p class="pl-base">Máximo realista ${r.teto}% · faltam <b>${(r.teto - x.taxa).toFixed(0)} pts</b> até lá · medido em <b>${x.qJanela}</b> questões${x.diasJanela ? ' dos últimos <b>' + x.diasJanela + '</b> dias' : ''}${x.qHist > x.qJanela ? ' (de <b>' + x.qHist + '</b> no total)' : ''}${x.pctAntes != null ? ' · antes dessa janela você fazia <b>' + x.pctAntes.toFixed(0) + '%</b>' : ''}.</p>
-            <p class="pl-base">Custo estimado de <b>${x.custoQ}</b> questões${r.custoModo === 'lacuna' ? ' = ' + r.custoPiso + ' para remedir + ' + Math.round(r.custoPorPonto * x.lacunaPP * x.amplitude) + ' pela lacuna de ' + x.lacunaPP.toFixed(0) + ' pontos' + (Math.abs(x.amplitude - 1) > 0.08 ? ' num assunto ' + (x.amplitude > 1 ? 'mais amplo' : 'mais estreito') + ' que a sua média (×' + x.amplitude.toFixed(1).replace('.', ',') + ')' : '') : ''}.</p>
+            ${empatouComPrimeiro ? `<p class="pl-base">Estatisticamente <b>empatado com o 1º</b> da fila: a diferença entre os dois cabe na margem de erro das duas amostras. Trocar um pelo outro não perde nada — a fila diz <b>onde procurar</b>, não em que ordem exata.</p>` : ''}
+            ${(x.incid > 0 && r.ordenar !== 'banca') ? `<p class="pl-base">A banca cobra este assunto <b>${x.incid}</b> ${x.incid === 1 ? 'vez' : 'vezes'} no índice importado — a ordem atual não usa isso; a ordem <b>🎯 Prioridade na banca</b> usa.</p>` : ''}
+
+            <span class="pl-guia-rot">O que os números dizem</span>
+            <p class="pl-guia-num">
+              <span>acerto <b>${x.taxa.toFixed(0)}%</b>${x.margem != null ? ` (real entre <b>${Math.max(0, x.taxa - x.margem).toFixed(0)}%</b> e <b>${Math.min(100, x.taxa + x.margem).toFixed(0)}%</b>)` : ''}</span>
+              <span>faixa <b>${faixaNome}</b></span>
+              <span>amostra <b>${x.qJanela}</b> q${x.diasJanela ? ` · <b>${x.diasJanela}</b> dias` : ''}${x.qHist > x.qJanela ? ` (de ${x.qHist} no total)` : ''}</span>
+              ${x.pctAntes != null ? `<span>antes da janela <b>${x.pctAntes.toFixed(0)}%</b>${x.delta != null ? ` (${x.delta >= 0 ? '+' : ''}${x.delta}pp)` : ''}</span>` : ''}
+              <span>teto realista <b>${r.teto}%</b> · faltam <b>${(r.teto - x.taxa).toFixed(0)} pts</b> até lá</span>
+              ${x.vencido ? `<span class="tone-bad">última medição há <b>${x.diasDesdeMedicao}</b> dias</span>` : ''}
+            </p>
+            ${x.delta != null && Math.abs(x.delta) >= sens && !x.deltaFirme
+              ? `<p class="pl-base">A variação de <b>${x.delta}pp</b> contra o período anterior <b>não é comprovável</b>: com ${x.qAntes}q antes e ${x.qJanela}q agora, só uma diferença de ${x.deltaMinimo != null ? x.deltaMinimo.toFixed(0) : '—'}pp escaparia do acaso. Trate como estável.</p>` : ''}
+            ${faltaMedir ? `<p class="pl-base">Para a <b>próxima</b> medição deste assunto valer como medição (±${PlanoEngine.MARGEM_ALVO}pp), a janela precisa de <b>${qMedir}</b> questões — você tem ${x.qJanela}, faltam <b>${faltaMedir}</b>. É esse bloco que transforma "achei que melhorei" em número.</p>`
+              : `<p class="pl-base">A amostra já passa das <b>${qMedir}</b> questões que dão ±${PlanoEngine.MARGEM_ALVO}pp de margem: o que esta linha diz sobre você é medição, não impressão.</p>`}
+
+            <span class="pl-guia-rot">O que fazer</span>
+            <p class="pl-acao pl-guia-acao tone-${x.status.tom}">${escapeHtml(x.status.acao)}</p>
+            <p class="pl-base">Custo estimado de <b>${x.custoQ}</b> questões${r.custoModo === 'lacuna' ? ' = ' + r.custoPiso + ' para remedir + ' + Math.round(r.custoPorPonto * x.lacunaPP * x.amplitude) + ' pela lacuna de ' + x.lacunaPP.toFixed(0) + ' pontos' + (Math.abs(x.amplitude - 1) > 0.08 ? ' num assunto ' + (x.amplitude > 1 ? 'mais amplo' : 'mais estreito') + ' que a sua média (×' + x.amplitude.toFixed(1).replace('.', ',') + ')' : '') : ''}${r.ritmo ? (x.custoQ < r.ritmo
+              ? ` — <b>menos de uma semana</b> no seu ritmo de ${r.ritmo}/semana`
+              : ` — cerca de <b>${(Math.round(x.custoQ / r.ritmo * 10) / 10).toFixed(1).replace('.', ',')}</b> semanas no seu ritmo de ${r.ritmo}/semana`) : ''}.</p>
+            <p class="pl-base">Fechar este assunto sozinho move o seu domínio em <b>+${x.ganhoPP.toFixed(1)}pp</b>${r.ponderacao === 'ambas' ? ` (e o aproveitamento geral em +${x.ganhoGeral.toFixed(2)}pp)` : ''} — e só o próximo retrato importado diz se funcionou: nenhuma outra coisa nesta tela diz.</p>
           </div>
         </details>`;
       return `
@@ -3788,12 +4020,29 @@ const DesempenhoTecScreen = {
       const bloco = [];
       let somaQ = 0;
       for (const x of r.itens) {
-        if (bloco.length >= 5 || somaQ >= capacidade) break;
+        if (bloco.length >= this.PLANO_BLOCO_MAX || somaQ >= capacidade) break;
         bloco.push(x); somaQ += x.custoQ;
       }
       const semanasBloco = Math.max(1, Math.round(somaQ / capacidade));
-      // os próximos da fila, para escolher ou apenas enxergar o que vem depois
-      const proximos = r.itens.slice(bloco.length, bloco.length + 8);
+      /* ── A FILA DEPOIS DO BLOCO ABRE COMO TODAS AS OUTRAS LISTAS ────────
+         Ela mostrava oito itens fixos e terminava sem dizer que terminava:
+         quem quisesse trocar o quinto por um assunto que estava em décimo
+         segundo lugar tinha de descer a lista inteira lá embaixo e criar a
+         atividade de lá. Agora ela segue a MESMA regra das outras sete listas
+         do Plano — abre no passo configurado (10 por padrão) e um toque abre
+         mais 10 — com o rodapé dizendo de quantos. */
+      /* O TOTAL da fila é o plano INTEIRO menos o bloco — não o que o motor
+         calculou. É a mesma honestidade da lista de assuntos: sem isso o
+         rodapé diria "fim da fila" com 209 assuntos esperando atrás do
+         limite, que é exatamente a mentira por omissão que o passo de 10 veio
+         desfazer. */
+      const fProx = {
+        chave: 'proximos', passo: this._passoFatia,
+        vis: r.itens.slice(bloco.length, bloco.length + this._passoFatia + (this._fatias['proximos'] || 0)),
+        total: Math.max(0, (r.totalItens || r.itens.length) - bloco.length)
+      };
+      fProx.faltam = Math.max(0, fProx.total - fProx.vis.length);
+      const proximos = fProx.vis;
       const linhaHoje = (x, dentro) => `
         <li class="${dentro ? '' : 'fora'}">
           <label class="pl-hoje-check">
@@ -3831,6 +4080,8 @@ const DesempenhoTecScreen = {
             ${bloco.map(x => linhaHoje(x, true)).join('')}
             ${proximos.length ? `<li class="pl-hoje-sep">depois destes, a fila segue com:</li>` + proximos.map(x => linhaHoje(x, false)).join('') : ''}
           </ol>
+          ${this.rodapeFatia(fProx, 'assunto na fila', 'assuntos na fila',
+            fProx.faltam ? { txt: 'marque qualquer um: a fila não obriga a ordem' } : null)}
           <button type="button" class="btn-primary" id="plano-lote">＋ Criar as atividades marcadas</button>
           <p class="pl-hoje-nota">A fila é recalculada a cada retrato importado — marcar aqui não a congela.</p>
         </div>`;
@@ -4053,14 +4304,18 @@ const DesempenhoTecScreen = {
         <b>pontos</b> em vez de domínio.</p>` : '';
     /* ── O QUADRO QUE RESPONDE "QUAIS MATÉRIAS EU PRIORIZO" ───────────────── */
     const tm = PlanoPontos.esforcoPorMateria(opts);
+    /* Cada veredito tem DUAS redações: o VERBO, que cabe na linha, e a frase
+       inteira, que explica o verbo e agora mora na análise do "i". Antes só
+       existia a frase — e ela era repetida em cada linha do quadro, o que
+       transformava seis matérias em seis parágrafos. */
     const VER = {
-      comecar:    ['🔴', 'tone-bad',  'comece: vale ponto e você não tem nenhuma questão'],
-      atacar:     ['🎯', 'tone-bad',  'ataque aqui: é onde mais ponto está em jogo'],
-      reduzir:    ['🟠', 'tone-warn', 'reduza: você gasta muito e sobrou pouco a ganhar'],
-      fila:       ['🟡', 'tone-warn', 'na fila: entra assim que as de cima saírem'],
-      depois:     ['🟡', 'tone-warn', 'fica para depois: você vai mal, mas pesa pouco'],
-      manter:     ['✅', 'tone-good', 'mantenha: pouco a ganhar aqui'],
-      foraDoPeso: ['⚪', 'tone-soft', 'não aparece no peso da sua prova']
+      comecar:    ['🔴', 'tone-bad',  'comece agora',     'vale ponto na sua prova e você não tem nenhuma questão resolvida aqui'],
+      atacar:     ['🎯', 'tone-bad',  'ataque aqui',      'é onde mais ponto da prova ainda está em jogo'],
+      reduzir:    ['🟠', 'tone-warn', 'reduza',           'você gasta muito tempo aqui e já sobrou pouco a ganhar'],
+      fila:       ['🟡', 'tone-warn', 'na fila',          'entra assim que as de cima saírem'],
+      depois:     ['🟡', 'tone-warn', 'fica para depois', 'você vai mal, mas esta matéria pesa pouco na sua prova'],
+      manter:     ['✅', 'tone-good', 'mantenha',         'pouco a ganhar aqui — você já está perto do seu máximo realista'],
+      foraDoPeso: ['⚪', 'tone-soft', 'fora do peso',     'não aparece no peso da sua prova: nem o edital que você declarou nem a incidência das suas bancas a registram']
     };
     const comVeredito = tm.linhas.filter(l => l.veredito);
     /* ── DE ONDE SAI O ALVO DO BOTÃO ───────────────────────────────────────
@@ -4111,17 +4366,35 @@ const DesempenhoTecScreen = {
         + (muitoOculto ? ` — <b>${Math.round(ganhoOculto / tm.emJogo * 100)}% do prêmio está aqui embaixo</b>` : '')
         + (acoesOcultas ? ` · <b>${acoesOcultas}</b> ${acoesOcultas === 1 ? 'pede ataque' : 'pedem ataque'}` : '')
     } : null);
-    const linhaResumo = (r, um, muitos, obs, tom) => !r ? '' : `<tr class="pl-tempo-miudas">
-                  <td><b>+ ${r.n} ${r.n === 1 ? um : muitos}</b><span class="pl-ciclo-obs">${obs}</span></td>
-                  <td>${r.esf.toFixed(0)}%</td>
-                  <td>${r.peso.toFixed(0)}%</td>
-                  <td class="pl-tempo-nivel">—</td>
-                  <td>${r.ganho >= 0.05 ? r.ganho.toFixed(1) + ' pp' : '—'}</td>
-                  <td><span class="reforco-tag ${tom}">somadas, para o quadro não perder nada</span></td>
-                </tr>`;
+    /* As linhas SOMADAS (miúdas, nunca começadas) não são ação: uma linha
+       discreta com o total, para o quadro não perder nada sem virar parede. */
+    const linhaResumo = (rs, um, muitos, obs, tom) => !rs ? '' : `
+      <li class="pl-mat is-resumo" data-peso="${rs.peso.toFixed(1)}">
+        <span class="pl-mat-pos">∑</span>
+        <span class="pl-mat-nome">+ ${rs.n} ${rs.n === 1 ? um : muitos}</span>
+        <span class="pl-mat-jogo ${rs.ganho >= 0.05 ? '' : 'fraco'}">${rs.ganho >= 0.05 ? rs.ganho.toFixed(1).replace('.', ',') : '—'}<small>pp em jogo</small></span>
+        <span class="pl-mat-acoes"></span>
+        <span class="pl-mat-sub">
+          <span class="reforco-tag ${tom}">somadas, para o quadro não perder nada</span>
+          <span><b>${rs.peso.toFixed(0)}%</b> da prova</span>
+          <span><b>${rs.esf.toFixed(0)}%</b> do seu esforço</span>
+          <span>${obs}</span>
+        </span>
+      </li>`;
     const manchete = tm.emJogo < 0.1
       ? 'nada relevante em jogo — você está no teto no que a prova cobra'
       : `<b class="tone-bad">${tm.emJogo.toFixed(0)} pp da prova ainda em jogo</b> · ${tm.nCorte} ${tm.nCorte === 1 ? 'matéria concentra' : 'matérias concentram'} metade disso`;
+    /* Abaixo de meio ponto a tela diz "<1%": "0% do seu esforço · nível 57%" é
+       uma linha que se contradiz (se o nível foi medido, houve questão), e o
+       zero era só arredondamento que o leitor não tinha como adivinhar. */
+    const pctCurto = (v) => (v == null) ? '—' : ((v > 0 && v < 0.5) ? '<1%' : v.toFixed(0) + '%');
+    /* A ANÁLISE DE CADA MATÉRIA fica guardada aqui e abre no "i" da linha. Ela
+       é o motivo desta reforma: a tabela antiga tentava explicar a posição
+       dentro da própria célula, e o resultado era uma parede de texto em que a
+       pergunta que importa — "por que ESTA antes daquela?" — continuava sem
+       resposta. Guardar o HTML num mapa (em vez de num atributo) mantém a
+       linha enxuta e não paga escape de HTML dentro de atributo. */
+    this._matAnalise = Object.create(null);
     const blocoTempo = (!comVeredito.length) ? '' : `
       <details class="pl-ciclo pl-tempo"${tm.acoes ? ' open' : ''}>
         <summary>
@@ -4129,62 +4402,47 @@ const DesempenhoTecScreen = {
           <span>${manchete} · peso ${tm.fontePeso === 'edital' ? 'pelo edital que você declarou' : 'pela incidência das suas bancas'}</span>
           <span class="chev">▾</span>
         </summary>
-        <div class="pl-tempo-wrap">
-          <table class="pl-tempo-tab">
-            <thead><tr><th>matéria</th><th>suas questões</th><th>peso</th><th>nível</th><th>em jogo</th><th>o que fazer</th></tr></thead>
-            <tbody>
-              ${matVis.map(l => {
-                const [ic, tom, rot] = VER[l.veredito];
-                /* ── DA MATÉRIA PARA O ASSUNTO, EM UM TOQUE ────────────────
-                   A tabela fala de MATÉRIAS; a lista abaixo fala de ASSUNTOS,
-                   e é ela que vira atividade. Sem esta ponte o caminho era de
-                   cinco passos manuais para uma decisão que a própria tabela
-                   acabou de tomar.
+        <ul class="pl-mat-lista">
+          ${matVis.map((l, i) => {
+            const [ic, tom, rot] = VER[l.veredito];
+            /* ── DA MATÉRIA PARA O ASSUNTO, EM UM TOQUE ────────────────────
+               O quadro fala de MATÉRIAS; a lista abaixo fala de ASSUNTOS, e é
+               ela que vira atividade. Sem esta ponte o caminho era de cinco
+               passos manuais para uma decisão que o próprio quadro acabou de
+               tomar.
 
-                   O botão vai onde a tabela mandou ATACAR — e só ali. Antes
-                   ele nascia em "muito esforço para o peso que ela tem", ou
-                   seja, convidava a investir mais exatamente na matéria que a
-                   linha acabava de acusar de consumir demais, e que era a de
-                   MENOR prêmio da tela. */
-                const alvo = (l.veredito === 'atacar' || l.veredito === 'comecar') ? discDoPlano[l.chave] : null;
-                /* A DESPROPORÇÃO ACOMPANHA QUALQUER VEREDITO. Numa linha de
-                   "ataque aqui" ela diz o que o verbo não diz: o problema não
-                   é falta de tempo, é o que você faz com ele. */
-                const obs = (l.sobra && l.veredito !== 'reduzir')
-                  ? `<span class="pl-ciclo-obs">já leva ${l.razao.toFixed(1)}× o peso dela do seu esforço</span>` : '';
-                /* ── NO CELULAR, AS TRÊS COLUNAS DO MEIO DESCEM ────────────
-                   Seis colunas não cabem em 390px, e as duas que a rolagem
-                   horizontal escondia eram justamente "em jogo" e "o que
-                   fazer" — a pergunta e a resposta. Quem lê no telefone via
-                   matéria, questões e peso, e tinha de arrastar para descobrir
-                   o que a tela queria dizer. Os números de apoio viram uma
-                   linha só debaixo do nome; as duas colunas que decidem ficam
-                   sempre visíveis. */
-                /* "0% do seu esforço · nível 57%" é uma linha que se
-                   contradiz: se o nível foi medido, houve questão. O zero era
-                   arredondamento de uma fatia abaixo de 0,5%, e o leitor não
-                   tem como saber disso. Abaixo de meio ponto a tela diz
-                   "<1%", que é verdade e não briga com a coluna ao lado. */
-                const pctCurto = (v) => (v > 0 && v < 0.5) ? '<1%' : v.toFixed(0) + '%';
-                const mini = `<span class="pl-ciclo-obs pl-tempo-mini">${pctCurto(l.shareEsforco)} do seu esforço · ${l.sharePeso == null ? 'sem peso' : pctCurto(l.sharePeso) + ' da prova'} · ${l.taxa != null ? 'nível ' + l.taxa.toFixed(0) + '%' : 'sem nível medido'}</span>`;
-                return `<tr>
-                  <td><b>${escapeHtml(l.nome)}</b>${obs}${mini}</td>
-                  <td>${pctCurto(l.shareEsforco)}<span class="pl-ciclo-obs">${l.q.toLocaleString('pt-BR')} questões</span></td>
-                  <td>${l.sharePeso == null ? '—' : pctCurto(l.sharePeso)}</td>
-                  <td class="tone-${l.taxa == null ? '' : l.taxa >= r.meta ? 'good' : l.taxa < r.faixaFragil ? 'bad' : 'warn'}">${l.taxa != null ? l.taxa.toFixed(0) + '%' : '—'}</td>
-                  <td><b>${l.ganho >= 0.05 ? l.ganho.toFixed(1) + ' pp' : '—'}</b>${l.estimado && l.ganho >= 0.05 ? `<span class="pl-ciclo-obs">estimado — sem medição sua aqui</span>` : ''}</td>
-                  <td><span class="reforco-tag ${tom}">${ic} ${rot}</span>${alvo
-                    ? `<button type="button" class="pl-ciclo-acao pl-atacar" data-atacar="${escapeHtml(alvo)}"
-                        title="Filtra a lista por ${escapeHtml(alvo)} e leva você ao bloco de criar atividades">→ atacar esta matéria</button>` : ''}</td>
-                </tr>`;
-              }).join('')}
-              ${linhaResumo(rComecar, 'matéria que você ainda não começou', 'matérias que você ainda não começou', 'nenhuma questão sua, cada uma abaixo de 5% da prova', 'tone-warn')}
-              ${linhaResumo(rMiudas, 'matéria miúda', 'matérias miúdas', 'abaixo de 1% dos dois lados', 'tone-soft')}
-            </tbody>
-          </table>
-        </div>
+               O botão vai onde o quadro mandou ATACAR — e só ali. Antes ele
+               nascia em "muito esforço para o peso que ela tem", ou seja,
+               convidava a investir mais exatamente na matéria que a linha
+               acabava de acusar de consumir demais, e que era a de MENOR
+               prêmio da tela. */
+            const alvo = (l.veredito === 'atacar' || l.veredito === 'comecar') ? discDoPlano[l.chave] : null;
+            this._matAnalise[l.chave] = this._analiseMateria(l, i + 1, tm, VER, grandes, alvo, r);
+            const classe = (l.veredito === 'atacar' || l.veredito === 'comecar') ? ' is-acao' : (l.veredito === 'fila' ? ' is-fila' : '');
+            return `
+          <li class="pl-mat${classe}">
+            <span class="pl-mat-pos">${i + 1}</span>
+            <span class="pl-mat-nome">${escapeHtml(l.nome)}<button type="button" class="info-dot pl-mat-det" data-mat-det="${escapeHtml(l.chave)}"
+                aria-label="Por que ${escapeHtml(l.nome)} está nesta posição" title="Por que está nesta posição">i</button></span>
+            <span class="pl-mat-jogo ${l.ganho >= 0.05 ? '' : 'fraco'}">${l.ganho >= 0.05 ? l.ganho.toFixed(1).replace('.', ',') : '—'}<small>pp em jogo</small></span>
+            ${/* sem botão a célula fica VAZIA de verdade (nem um espaço), para o
+                  `:empty` do CSS poder apagá-la em vez de abrir buraco */''}
+            <span class="pl-mat-acoes">${alvo ? `<button type="button" class="pl-atacar-bt" data-atacar="${escapeHtml(alvo)}"
+                title="Filtra a lista de assuntos por ${escapeHtml(alvo)} e leva você ao bloco de criar atividades">🎯 Atacar</button>` : ''}</span>
+            <span class="pl-mat-sub">
+              <span class="pl-mat-verbo"><span class="reforco-tag ${tom}">${ic} ${rot}</span></span>
+              <span><b>${pctCurto(l.sharePeso)}</b> da prova</span>
+              <span>nível <b class="${l.taxa == null ? '' : l.taxa >= r.meta ? 'tone-good' : l.taxa < r.faixaFragil ? 'tone-bad' : 'tone-warn'}">${l.taxa != null ? l.taxa.toFixed(0) + '%' : '—'}</b>${l.estimado ? ' (estimado)' : ''}</span>
+              <span><b>${pctCurto(l.shareEsforco)}</b> do seu esforço · ${l.q.toLocaleString('pt-BR')} q</span>
+              ${l.sobra ? `<span class="tone-warn">já leva ${l.razao.toFixed(1)}× o peso dela</span>` : ''}
+            </span>
+          </li>`;
+          }).join('')}
+          ${linhaResumo(rComecar, 'matéria que você ainda não começou', 'matérias que você ainda não começou', 'nenhuma questão sua, cada uma abaixo de 5% da prova', 'tone-warn')}
+          ${linhaResumo(rMiudas, 'matéria miúda', 'matérias miúdas', 'abaixo de 1% dos dois lados', 'tone-soft')}
+        </ul>
         ${maisDasMaterias}
-        <p class="pl-ciclo-obs"><b>Em jogo</b> é quanto da prova inteira você recupera levando aquela matéria ao seu máximo realista (${tm.teto}%): o peso dela vezes a lacuna que falta. É por ele que a tabela está ordenada, porque é a única conta que responde "onde ponho a próxima hora". A moeda das outras colunas é a <b>questão</b> — a única que os dois lados falam, o que faz o quadro não depender do nome que você deu às matérias no ciclo. Ir mal numa matéria que vale pouco pode ser decisão sua; o que a tela impede é você fazer essa troca sem perceber.</p>
+        <p class="pl-ciclo-obs pl-tempo-nota" data-info="${this._info(`<b>Pontos em jogo</b> = peso da matéria na sua prova × a lacuna que falta até o seu máximo realista (${tm.teto}%). É quanto da prova INTEIRA você recupera levando aquela matéria ao teto — e é a única conta que responde &quot;onde ponho a próxima hora&quot;.<br><br>Por isso a ordem não é a do seu percentual: ir mal numa matéria que vale 3% da prova rende menos que ir razoavelmente numa que vale 13%. Toque no <b>i</b> de cada linha para ver essa conta feita com os seus números.<br><br>A moeda das outras medidas é a <b>questão</b> — a única que os dois lados falam, o que faz o quadro não depender do nome que você deu às matérias no ciclo. Ir mal numa matéria que vale pouco pode ser decisão sua; o que a tela impede é você fazer essa troca sem perceber.`)}">Ordenado por <b>pontos em jogo</b> — não pelo seu percentual de acerto.</p>
       </details>`;
     const cal = PlanoCiclo.calibragem();
     const blocoCal = (cal && cal.pronta && cal.divergente) ? `
@@ -4205,14 +4463,14 @@ const DesempenhoTecScreen = {
        Abrir é um toque, no passo que você configurou; "ver todos" existe para
        quem quer a fila inteira de uma vez. */
     const fAss = {
-      chave: 'assuntos', passo: this._passoFatia, vis: r.itens,
-      total: r.totalItens || r.itens.length,
-      faltam: Math.max(0, (r.totalItens || 0) - r.itens.length)
+      chave: 'assuntos', passo: this._passoFatia, vis: itensVis,
+      total: r.totalItens || itensVis.length,
+      faltam: Math.max(0, (r.totalItens || 0) - itensVis.length)
     };
     /* A bandeira da meta cai fora da fatia com frequência: o caminho mais
        curto do topo pode ter 81 assuntos e a tela abrir com 10. Dizer em que
        posição ela está é o que impede os dois números de se contradizerem. */
-    const marcoFora = (r.idxMeta != null && r.idxMeta >= 0 && r.idxMeta >= r.itens.length);
+    const marcoFora = (r.idxMeta != null && r.idxMeta >= 0 && r.idxMeta >= itensVis.length);
     const maisDaLista = !linhas ? '' : this.rodapeFatia(fAss, 'assunto', 'assuntos', fAss.faltam ? {
       txt: (marcoFora ? `<b>a meta de ${r.meta}% fecha no ${r.idxMeta + 1}º</b> desta ordem` : '')
         + (marcoFora && r.qRestante ? ' · ' : '')
@@ -4236,6 +4494,18 @@ const DesempenhoTecScreen = {
     this._ligarFatias(lista);
     lista.querySelectorAll('.plano-nova-extra').forEach(b => b.addEventListener('click', () => {
       this.criarExtraDoPlano(b.dataset.topico, b.dataset.disc, b.dataset.alvo, b.dataset.motivo);
+    }));
+    /* O "i" de cada matéria: a análise inteira num diálogo, que é onde ela cabe
+       — 320px de popover não seguram cinco seções com contas. */
+    lista.querySelectorAll('[data-mat-det]').forEach(b => b.addEventListener('click', (e) => {
+      e.preventDefault(); e.stopPropagation();
+      const d = (this._matAnalise || {})[b.dataset.matDet];
+      if (d) UI.detalhe(d.html, { title: d.titulo });
+    }));
+    lista.querySelectorAll('[data-traj-det]').forEach(b => b.addEventListener('click', (e) => {
+      e.preventDefault(); e.stopPropagation();
+      const d = this._trajAnalise;
+      if (d) UI.detalhe(d.html, { title: d.titulo });
     }));
     const defCorte = document.getElementById('plano-def-corte');
     if (defCorte) defCorte.addEventListener('click', async () => {
@@ -4323,6 +4593,12 @@ const DesempenhoTecScreen = {
       showToast(n ? n + (n === 1 ? ' atividade criada ✓' : ' atividades criadas ✓') : 'Nenhuma atividade nova a criar');
       this.renderPlanoConteudo();
     });
+    /* Os "i" desta tela nascem de `data-info` e são montados pelo InfoTips —
+       que roda na ativação da tela, muito antes desta lista existir. Sem esta
+       chamada, toda explicação que a repintura acabou de criar (a régua do
+       quadro de matérias, as caixas de cada assunto, a trajetória) ficaria
+       escrita no atributo e invisível para quem lê no telefone. */
+    try { if (window.InfoTips) InfoTips.upgrade(); } catch (e) { _quiet(e, 'info-plano'); }
   },
   // ---- Incidência ----
   _incidParsed: null,
@@ -5583,7 +5859,9 @@ $id('tec-weak-disc').addEventListener('change', (e) => {
      síncrona; o toque troca a aba agora e calcula no quadro seguinte. */
   document.querySelectorAll('#tec-subtabs .tec-subtab').forEach(b => b.addEventListener('click', () => {
     const alvo = b.dataset.tectab;
-    if (alvo !== 'plano' || DT.tecTab === 'plano') { DT.switchTecTab(alvo); return; }
+    /* Reclicar o chip do Plano recalcula a tela inteira igual à primeira vez —
+       então ele também merece o esqueleto, e não a lista velha congelada. */
+    if (alvo !== 'plano') { DT.switchTecTab(alvo); return; }
     // pinta a troca de aba e o esqueleto agora; o motor roda no quadro seguinte
     DT.tecTab = alvo;
     document.querySelectorAll('#tec-subtabs .tec-subtab').forEach(x => x.classList.toggle('active', x.dataset.tectab === alvo));
@@ -5733,6 +6011,23 @@ $id('tec-weak-disc').addEventListener('change', (e) => {
     showToast('Ajustes restaurados ✓');
   });
 })();
+/* ── ENTRAR NA TELA COM O PLANO ABERTO TAMBÉM É TEMPO MUDO ─────────────────
+   O esqueleto existia só no CHIP da aba. Mas o Plano também é a aba ativa de
+   quem esteve nele e voltou pelo menu: aí a tela inteira era recalculada com o
+   dedo já fora da tela e sem um único sinal de que algo acontecia — a lista
+   antiga ficava plantada por algumas centenas de milissegundos e só então
+   piscava para a nova. O mesmo remédio das Conquistas, no mesmo formato: troca
+   agora, esqueleto no mesmo quadro, conta no quadro seguinte. */
 window.addEventListener('screen:activated', (e) => {
-  if (e.detail.screen === 'desempenhotec') DesempenhoTecScreen.render();
+  if (e.detail.screen !== 'desempenhotec') return;
+  const DT = DesempenhoTecScreen;
+  const temRetrato = (() => { try { return (DB.getTecSnapshots() || []).length > 0; } catch (_) { return false; } })();
+  const painel = document.getElementById('tec-panel-plano');
+  /* Só quando o painel do Plano JÁ está na tela: pintar um esqueleto dentro de
+     um `display:none` é adiar a conta sem mostrar nada em troca. */
+  if (DT.tecTab === 'plano' && temRetrato && painel && painel.style.display !== 'none') {
+    DT._depoisDePintar('plano-lista', () => DT.render());
+    return;
+  }
+  DT.render();
 });

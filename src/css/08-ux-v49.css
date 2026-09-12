@@ -1,0 +1,250 @@
+/* ═══════════════════════════════════════════════════════════════════════════
+   ACABAMENTO v49 — o Desempenho TEC no telefone, e o Plano que explica
+   ───────────────────────────────────────────────────────────────────────────
+   Camada de apresentação. Nenhuma regra de negócio muda aqui.
+
+   Três problemas, todos da mesma família — controles e quadros desenhados na
+   largura do desktop e só encolhidos depois:
+
+   1. O ESCOPO DA ANÁLISE (Consolidado / Selecionar retratos / Intervalo) era
+      uma fileira de pílulas, dois campos de data e quatro atalhos soltos num
+      `display:flex` em atributo `style`. A 390px cada peça quebrava por conta
+      própria, em alturas diferentes, e o resultado não tinha nem alinhamento
+      nem hierarquia.
+
+   2. "ONDE ATACAR PRIMEIRO" era uma tabela de seis colunas com o texto do
+      veredito, a observação da desproporção e uma minilinha de apoio dentro da
+      primeira célula. No telefone três colunas eram escondidas por CSS e o que
+      sobrava era parede de texto. Ela vira uma LISTA DE LINHAS: nome, prêmio,
+      verbo e duas ações — o "i" com a análise inteira e o botão de atacar.
+
+   3. A LISTA DE ASSUNTOS explicava cada cartão com prosa embaixo do número.
+      Agora cada caixa numérica carrega o próprio "i", e a prosa que sobrou é
+      a que muda a decisão.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* ---------------------------------------------------------------------------
+   1. ESCOPO DA ANÁLISE — três escolhas, dois campos, quatro atalhos
+   --------------------------------------------------------------------------- */
+
+/* Os três escopos dividem a linha em partes iguais, como na Evolução: com
+   `white-space: nowrap` (o padrão da pílula) "Selecionar retratos" exigia a
+   linha inteira e o trio quebrava em três alturas. */
+#tec-scope-toggle { display: flex; flex-wrap: nowrap; width: 100%; }
+#tec-scope-toggle button {
+  flex: 1 1 0; min-width: 0; justify-content: center; text-align: center;
+  white-space: normal; line-height: 1.25; padding: 7px 8px;
+}
+/* O resumo do escopo é uma frase, não um rabicho da fileira de botões. */
+#tec-snap-meta { display: block; margin-top: 10px; line-height: 1.5; }
+
+/* Intervalo de datas: os dois campos dividem uma linha e os quatro atalhos
+   formam uma grade — antes eram seis peças de larguras diferentes num flex-wrap,
+   e a última descia sozinha com metade da largura da tela. */
+.tec-range-grid {
+  display: grid; grid-template-columns: 1fr 1fr; gap: 10px 12px; align-items: end;
+}
+.tec-range-grid .field { margin-bottom: 0; min-width: 0; }
+.tec-range-grid .field > label { margin-bottom: 4px; }
+.tec-range-grid input[type="date"] { width: 100%; }
+.tec-range-quicks {
+  display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-top: 10px;
+}
+.tec-range-quicks .btn-secondary {
+  width: 100%; justify-content: center; text-align: center; white-space: nowrap;
+  padding: 8px 6px; font-size: var(--fs-2xs); min-height: 40px;
+}
+#tec-range-hint { margin-top: 10px; }
+
+@media (max-width: 560px) {
+  /* Quatro atalhos em 390px dariam 84px cada — largura em que até o rótulo
+     encurtado ("3 meses") encosta nas bordas. Em duas fileiras de dois cada um
+     tem folga, e o alvo de toque cresce junto. */
+  .tec-range-quicks { grid-template-columns: 1fr 1fr; }
+  #tec-scope-toggle button { font-size: clamp(10px, 2.9vw, 13px); }
+  /* Os retratos: o grid de quatro colunas (caixa, nome, números, excluir)
+     espremia o nome do período até sobrar "12/0…". Duas fileiras: a escolha em
+     cima, os números e a exclusão embaixo. */
+  .tec-snap-pick { grid-template-columns: 20px 1fr auto; row-gap: 4px; }
+  .tec-snap-pick .tsp-main { white-space: normal; }
+  .tec-snap-pick .tsp-stats { grid-column: 2; }
+  .tec-snap-pick .tsp-del { grid-row: 1; grid-column: 3; }
+  /* As ações da faixa de retratos: dois botões iguais e a contagem embaixo. */
+  .tec-scope-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  .tec-scope-actions .tec-tree-btn { width: 100%; justify-content: center; }
+  .tec-scope-actions .hint { grid-column: 1 / -1; margin: 0 !important; }
+  /* O cabeçalho do escopo: as três ações em coluna, cada uma com alvo de toque
+     inteiro, em vez de embrulhar em duas fileiras desiguais. */
+  .painel-head-acoes { display: grid; grid-template-columns: 1fr; gap: 8px; }
+  .painel-head-acoes > * { width: 100%; }
+  .painel-head-acoes .grade-gear-wrap > .grade-gear-btn,
+  .painel-head-acoes .evo-collapse-btn { width: 100%; justify-content: center; }
+}
+
+/* ---------------------------------------------------------------------------
+   1b. A FOLHA DE AJUSTES SÓ ENCOLHE PELO CORPO
+   --------------------------------------------------------------------------- */
+/* `estabilizarAltura` fixa um `min-height` no corpo para a folha não pular ao
+   trocar de seção. Mas num contêiner flex TODOS os filhos encolhem por padrão:
+   quando o conteúdo passava do teto da caixa, a diferença era paga pelo
+   cabeçalho, pela fita de seções e pelo pé — e era assim que os chips
+   ("Essencial", "Amostra", "Frescor"…) apareciam cortados e o "Concluir" saía
+   do recorte no celular. O corpo é o único elástico; o resto tem tamanho. */
+.tec-cfg-box > .tec-cfg-head,
+.tec-cfg-box > .tec-cfg-nav,
+.tec-cfg-box > .tec-cfg-foot { flex: 0 0 auto; }
+.tec-cfg-box > .tec-cfg-body { flex: 1 1 auto; min-height: 0; }
+
+/* ---------------------------------------------------------------------------
+   2. ONDE ATACAR PRIMEIRO — uma linha por matéria, o resto no "i"
+   --------------------------------------------------------------------------- */
+.pl-mat-lista { list-style: none; margin: 12px 0 4px; padding: 0; display: grid; gap: 8px; }
+.pl-mat {
+  display: grid; gap: 4px 12px; align-items: center;
+  grid-template-columns: auto 1fr auto auto;
+  background: var(--surface); border: 1.5px solid var(--border); border-radius: 12px;
+  padding: 10px 12px;
+}
+.pl-mat.is-acao { border-color: var(--bad); background: var(--bad-soft); }
+.pl-mat.is-fila { border-color: var(--warn); }
+/* a posição no prêmio: é ela que responde "por que esta antes daquela" */
+.pl-mat-pos {
+  grid-row: 1 / span 2; width: 26px; height: 26px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  background: var(--surface-sunken); border: 1.5px solid var(--border);
+  font-family: 'Space Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: var(--fs-3xs); font-weight: 800; color: var(--text-soft); flex: 0 0 auto;
+}
+.pl-mat.is-acao .pl-mat-pos { background: var(--bad); border-color: var(--bad); color: #fff; }
+/* O nome e o "i" numa linha de TEXTO, não num flex: em flex o "i" quebrava para
+   a fileira de baixo assim que o nome enchia a coluna, e sobrava um botão
+   solto embaixo do nome. Inline ele simplesmente segue a última palavra. */
+.pl-mat-nome {
+  min-width: 0; font-size: var(--fs-xs); font-weight: 800; color: var(--text);
+  overflow-wrap: anywhere; line-height: 1.35;
+}
+/* o prêmio é o número que ordena a lista: ele tem o tamanho de um número */
+.pl-mat-jogo {
+  font-family: 'Space Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: var(--fs-sm); font-weight: 800; color: var(--text); white-space: nowrap;
+  font-variant-numeric: tabular-nums; text-align: right;
+}
+.pl-mat-jogo small {
+  display: block; font-family: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  font-size: var(--fs-3xs); font-weight: 700; text-transform: uppercase;
+  letter-spacing: .04em; color: var(--text-faint); margin-top: 1px;
+}
+.pl-mat-jogo.fraco { color: var(--text-faint); }
+.pl-mat-acoes { display: flex; align-items: center; gap: 6px; flex: 0 0 auto; }
+/* A linha de apoio: as três medidas que sustentam o prêmio, na segunda fileira,
+   em vez de três colunas que o telefone escondia. */
+.pl-mat-sub {
+  grid-column: 2 / -1; display: flex; flex-wrap: wrap; gap: 2px 12px;
+  font-size: var(--fs-3xs); color: var(--text-faint); line-height: 1.45;
+}
+.pl-mat-sub b { color: var(--text-soft); font-variant-numeric: tabular-nums; }
+/* o nível é o único número da sublinha com semáforo: ele é um diagnóstico */
+.pl-mat-sub b.tone-good { color: var(--good-text); }
+.pl-mat-sub b.tone-warn { color: var(--warn-text); }
+.pl-mat-sub b.tone-bad { color: var(--bad-text); }
+.pl-mat-verbo { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+/* O botão de atacar era um link sublinhado no meio de uma célula de tabela.
+   Vira botão de verdade, com alvo de toque e a cor da ação que ele executa. */
+.pl-atacar-bt {
+  display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+  min-height: 36px; padding: 7px 13px; border-radius: 10px; cursor: pointer;
+  background: var(--accent); color: var(--on-accent); border: 1.5px solid var(--accent);
+  font-family: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  font-size: var(--fs-2xs); font-weight: 800; white-space: nowrap;
+  transition: filter .14s ease, transform .14s ease;
+}
+.pl-atacar-bt:hover { filter: brightness(1.06); }
+.pl-atacar-bt:active { transform: translateY(1px); }
+/* As linhas somadas (miúdas / não começadas) não são ação: ficam discretas. */
+.pl-mat.is-resumo { background: var(--surface-sunken); border-style: dashed; }
+.pl-mat.is-resumo .pl-mat-nome { font-weight: 700; color: var(--text-soft); }
+/* Sem botão de ataque a célula de ações não existe — e uma coluna vazia não
+   pode abrir buraco na linha. */
+.pl-mat-acoes:empty { display: none; }
+@media (max-width: 560px) {
+  .pl-mat { grid-template-columns: auto 1fr auto; }
+  /* O botão desce para a própria fileira, alinhado à direita e do tamanho do
+     que diz: esticado de ponta a ponta ele virava a coisa mais pesada da tela,
+     numa linha em que o número é que decide. */
+  .pl-mat-acoes { grid-column: 2 / -1; justify-content: flex-end; }
+  .pl-mat-sub { grid-column: 1 / -1; }
+}
+/* O quadro explicativo do prêmio deixa de ser um parágrafo permanente: ele é a
+   mesma explicação, agora atrás do "i" do título. */
+.pl-tempo-nota { margin: 10px 0 0; }
+
+/* ---------------------------------------------------------------------------
+   3. LISTA DE ASSUNTOS — cada número explica o que é
+   --------------------------------------------------------------------------- */
+/* A faixa numérica ganhou uma quinta caixa (as questões que faltam para a
+   medição ser confiável) e um "i" no fim. O "i" é uma célula estreita, do
+   tamanho do alvo de toque — dentro de uma caixa com número ele empurraria o
+   número para fora do centro. */
+.pl-metrics .plm.plm-info {
+  flex: 0 0 38px; min-width: 38px; display: flex; align-items: center; justify-content: center;
+}
+.pl-metrics .plm.plm-info .info-dot {
+  margin: 0; top: 0; width: 26px; height: 26px; font-size: var(--fs-2xs); cursor: pointer;
+}
+/* O "i" das matérias e da trajetória é BOTÃO de diálogo, não dica de passar o
+   mouse: precisa de alvo de toque de verdade. */
+.pl-mat-det { width: 30px; height: 30px; margin-left: 6px; top: 0; cursor: pointer; font-size: var(--fs-2xs); }
+.pl-mat-acoes .pl-mat-det { margin-left: 0; }
+/* Uma dica longa (as cinco caixas explicadas com os seus números) podia passar
+   da altura da tela: o popover é posicionado pela altura MEDIDA, então limitar
+   aqui também conserta a posição. */
+.info-pop { max-height: min(70vh, 520px); overflow-y: auto; overscroll-behavior: contain; }
+
+/* ---------------------------------------------------------------------------
+   4. AS ANÁLISES EM DIÁLOGO (matéria, trajetória)
+   --------------------------------------------------------------------------- */
+.pl-det-lead { margin: 0 0 4px; font-size: var(--fs-sm); line-height: 1.55; color: var(--text); }
+.pl-det-rot {
+  margin: 16px 0 4px; font-size: var(--fs-3xs); font-weight: 800; text-transform: uppercase;
+  letter-spacing: .06em; color: var(--text-faint);
+}
+.ui-detalhe .pl-det-lead + .pl-det-rot { margin-top: 14px; }
+.ui-detalhe p { margin: 0 0 8px; line-height: 1.6; color: var(--text-soft); font-size: var(--fs-xs); }
+.ui-detalhe .pl-det-lead b, .ui-detalhe p b { color: var(--text); }
+/* a conta do prêmio, escrita como conta */
+.pl-det-conta {
+  background: var(--surface-sunken); border: 1.5px solid var(--border); border-radius: 10px;
+  padding: 10px 12px; text-align: center; font-size: var(--fs-sm);
+}
+.pl-det-conta i { font-style: normal; font-size: var(--fs-3xs); color: var(--text-faint); font-weight: 700; }
+.pl-det-alerta {
+  border-left: 3px solid var(--warn); background: var(--warn-soft); color: var(--warn-text);
+  padding: 9px 12px; border-radius: 0 8px 8px 0; font-size: var(--fs-xs);
+}
+.pl-det-lista { margin: 4px 0 8px; padding-left: 18px; font-size: var(--fs-xs); line-height: 1.7; }
+.pl-det-lista i { font-style: normal; color: var(--text-faint); }
+.pl-det-verbo { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.pl-det-fim { font-size: var(--fs-2xs); color: var(--text-faint); }
+/* Cinco colunas não cabem em 320px de diálogo: a tabela rola dentro do próprio
+   quadro, em vez de empurrar a última coluna para fora da caixa. */
+.pl-det-tab-wrap { overflow-x: auto; margin: 4px 0 10px; }
+.pl-det-tab { width: 100%; min-width: 300px; border-collapse: collapse; font-size: var(--fs-2xs); }
+.pl-det-tab th {
+  text-align: left; font-size: var(--fs-3xs); text-transform: uppercase; letter-spacing: .04em;
+  color: var(--text-faint); font-weight: 700; padding: 0 8px 5px 0; white-space: nowrap;
+}
+.pl-det-tab td { padding: 6px 8px 6px 0; border-top: 1px solid var(--border); color: var(--text-soft); }
+.pl-det-tab td b { color: var(--text); font-variant-numeric: tabular-nums; }
+.pl-det-tab td i { font-style: normal; color: var(--text-faint); }
+/* A guia "por que está aqui" ganhou seções: um título curto por bloco, para a
+   leitura não ser um muro de parágrafos iguais. */
+.pl-guia-rot {
+  display: block; margin: 10px 0 3px; font-size: var(--fs-3xs); font-weight: 800;
+  text-transform: uppercase; letter-spacing: .05em; color: var(--text-faint);
+}
+.pl-guia-body > .pl-guia-rot:first-child { margin-top: 2px; }
+.pl-guia-num {
+  display: flex; flex-wrap: wrap; gap: 4px 14px; margin: 2px 0 0;
+  font-size: var(--fs-2xs); color: var(--text-soft);
+}
+.pl-guia-num b { color: var(--text); font-variant-numeric: tabular-nums; }

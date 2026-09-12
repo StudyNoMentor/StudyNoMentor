@@ -13,13 +13,13 @@ funciona igual — só sem offline.
 ## O que existe para quem MANTÉM o código
 
 `index.html` tem ~36.500 linhas. Editar isso direto é onde os erros nascem.
-Por isso o mesmo conteúdo vive também em `src/`, quebrado em 48 arquivos:
+Por isso o mesmo conteúdo vive também em `src/`, quebrado em 50 arquivos:
 
 ```
 src/
   html/   4 pedaços do documento (cabeçalho, corpo, rodapé)
-  css/    5 folhas de estilo
-  js/    39 módulos do aplicativo
+  css/    6 folhas de estilo
+  js/    40 módulos do aplicativo
 ```
 
 `build.mjs` junta `src/` de volta em `index.html`. A montagem é uma

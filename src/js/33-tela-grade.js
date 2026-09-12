@@ -576,7 +576,7 @@ function planCycleMode() {
   }
 
   let _cicloSubjFilter = null;   // nome da disciplina filtrada (null = todas)
-  let _cicloChipsAbertos = true; // bandeja de siglas expandida/recolhida (por sessao)
+  let _cicloChipsAbertos = false; // bandeja de siglas expandida/recolhida (por sessao) — nasce RECOLHIDA
   function renderSubjectsProgress(cycle) {
     const container = document.getElementById('ciclo-subjects-progress');
     // exibe em ordem alfabética (sem alterar a ordem salva do ciclo)
