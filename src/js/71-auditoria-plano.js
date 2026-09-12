@@ -156,7 +156,7 @@ const PlanoAuditoria = {
      desenvolvimento — só que aqui elas rodam SOBRE OS DADOS REAIS de quem
      exportou. É a diferença entre "o código está certo" e "o seu arquivo está
      coerente". */
-  _invariantes(r, tm, imp, inc, cons) {
+  _invariantes(r, tm, imp, inc, cons, gran) {
     const inv = [];
     const push = (nome, ok, detalhe) => inv.push({ nome, ok: !!ok, aplicavel: true, detalhe: detalhe == null ? null : detalhe });
     /* UMA INVARIANTE SEM PRÉ-CONDIÇÃO NÃO É UMA FALHA. Sem incidência nem
@@ -235,6 +235,23 @@ const PlanoAuditoria = {
           naoRepro.length ? naoRepro.map(i => ({ ate: i.ate, linhas: i.linhasComTaxaNaoReproduzivel })) : null);
       } else {
         naoSeAplica('as conferências da importação', 'nenhum retrato importado neste perfil');
+      }
+      /* A invariante mais importante do agrupamento: ele é um
+         REPARTICIONAMENTO. Toda questão continua em exatamente uma unidade —
+         nem some ao ser somada no bloco, nem é contada no átomo E no bloco. */
+      if (gran && gran.piso > 0) {
+        push('agrupar átomos finos não muda o volume, só o recorte',
+          gran.somaPreservada,
+          { questoes: gran.questoes, semAgrupar: gran.questoesSemAgrupar,
+            acertos: gran.acertos, semAgrupar_acertos: gran.acertosSemAgrupar });
+        push('o agrupamento só junta o que não media sozinho',
+          gran.medemSozinhas >= gran.medemSozinhasSemAgrupar,
+          { com: gran.medemSozinhas, sem: gran.medemSozinhasSemAgrupar, piso: gran.piso });
+      } else {
+        naoSeAplica('as conferências do agrupamento de átomos finos',
+          gran && gran.apenasFolhas === false
+            ? 'a opção "só assuntos específicos" está desligada, e o agrupamento não se aplica à lente aberta'
+            : 'o piso de granularidade está em zero: cada assunto do TEC é uma unidade, como sempre foi');
       }
       if (cons && PlanoEngine.prefs().apenasFolhas === false) {
         /* Com "só assuntos específicos" DESLIGADO o pai e o filho entram os
@@ -355,7 +372,7 @@ const PlanoAuditoria = {
         const acF = folhas.reduce((a, x) => a + (x.acertos || 0), 0);
         /* No agregado o índice é somado retrato por retrato (ver `_indice`), e
            é ELE que o Plano usa — então é ele que tem de fechar. */
-        const idx = PlanoEngine._indice(snap, p.apenasFolhas) || {};
+        const idx = PlanoEngine._indice(snap, p) || {};
         const qI = Object.keys(idx).reduce((a, k) => a + (idx[k].q || 0), 0);
         const acI = Object.keys(idx).reduce((a, k) => a + (idx[k].ac || 0), 0);
         return {
@@ -369,6 +386,42 @@ const PlanoAuditoria = {
       } catch (e) { _quiet(e, 'aud-consol'); return null; }
     })(this);
     const incidencia = this._conferirIncidencia(r.itens || [], nm);
+    /* ── A LENTE, DECLARADA ────────────────────────────────────────────────
+       O piso de granularidade muda os NOMES e a contagem de unidades do Plano
+       sem mudar uma questão do total. Dois arquivos do mesmo dia, do mesmo
+       perfil, com 317 unidades e com 33, são reconciliáveis só por aqui — e a
+       conferência que importa é a de que o volume é o MESMO nas duas lentes.
+       Ela roda com o dado real, no ato, e não com um exemplo. */
+    const granularidade = (function () {
+      try {
+        if (!snap) return null;
+        const soma = (idx) => Object.keys(idx || {}).reduce((a, k) => a + (idx[k].q || 0), 0);
+        const somaAc = (idx) => Object.keys(idx || {}).reduce((a, k) => a + (idx[k].ac || 0), 0);
+        const cru = PlanoEngine._indice(snap, Object.assign({}, p, { granPiso: 0 })) || {};
+        const comLente = PlanoEngine._indice(snap, p) || {};
+        const ag = PlanoEngine._agrupamento(p);
+        return {
+          piso: parseInt(p.granPiso || 0, 10) || 0,
+          apenasFolhas: p.apenasFolhas !== false,
+          unidadesSemAgrupar: Object.keys(cru).length,
+          unidadesComAgrupamento: Object.keys(comLente).length,
+          blocos: ag ? ag.nBlocos : 0,
+          atomosAgrupados: ag ? ag.atomos : 0,
+          medemSozinhas: Object.keys(comLente).filter(k => (comLente[k].q || 0) >= p.minAmostra).length,
+          medemSozinhasSemAgrupar: Object.keys(cru).filter(k => (cru[k].q || 0) >= p.minAmostra).length,
+          questoes: soma(comLente), questoesSemAgrupar: soma(cru),
+          acertos: somaAc(comLente), acertosSemAgrupar: somaAc(cru),
+          /* O que o agrupamento PROMETE: reparticionar, nunca criar nem
+             esconder. Se este campo vier false, todo número do Plano está
+             suspeito e o arquivo tem de dizer isso na cara. */
+          somaPreservada: soma(comLente) === soma(cru) && somaAc(comLente) === somaAc(cru),
+          exemplos: ag ? Object.keys(ag.blocos).slice(0, 8).map(k => ({
+            unidade: nm(ag.blocos[k].nome), disciplina: nm(ag.blocos[k].disciplina),
+            topicos: ag.blocos[k].membros.length, questoes: ag.blocos[k].qAcum
+          })) : []
+        };
+      } catch (e) { _quiet(e, 'aud-gran'); return null; }
+    })();
 
     const payload = {
       formato: 'studynomentor/plano-auditoria',
@@ -556,7 +609,8 @@ const PlanoAuditoria = {
         return out;
       })(),
 
-      invariantes: this._invariantes(r, tm, importacao, incidencia, consolidado),
+      granularidade,
+      invariantes: this._invariantes(r, tm, importacao, incidencia, consolidado, granularidade),
       historicoDeAuditorias: this._ledger()
     };
     payload.resumo = this.resumo(payload);

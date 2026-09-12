@@ -775,6 +775,15 @@
               <label class="rfc-check" data-info="Ligado, os assuntos de amostra pequena entram na média e na lista em vez de ficarem no segundo plano — e o segundo plano some, porque ninguém precisa ver o mesmo assunto duas vezes. Use no modo Diagnóstico, quando o objetivo é justamente medir; desligue depois, ou meia dúzia de questões passa a mover o seu domínio."><input type="checkbox" id="plano-pequenas" data-cfg-key="incluirPequenas"> Incluir assuntos com amostra pequena no cálculo</label>
               <label class="rfc-check" data-info="O TEC agrupa assunto dentro de assunto (1, 1.1, 1.1.1). Ligado, só o nível mais específico entra na conta — sem isso, o mesmo acerto é contado no filho e no pai, e um tópico grande aparece duas vezes na lista com números diferentes. Desligue apenas se você estuda por blocos grandes e prefere ver o pai."><input type="checkbox" id="plano-folhas" data-cfg-key="apenasFolhas"> Só assuntos específicos (ignorar tópicos-pai)</label>
             </div>
+            <div class="rfc-field wide">
+              <label for="plano-granpiso" data-info="A árvore do TEC é irregular: há matéria que termina no segundo nível e matéria que desce até o sexto. Com isso, muitos assuntos ficam com duas ou três questões — e duas questões não medem nada, só enchem a lista. Aqui você diz o mínimo de questões que um assunto precisa ter acumulado para valer como unidade sozinho. Quem não alcança é somado aos vizinhos do mesmo tópico-pai e medido junto, como um bloco. Nenhuma questão é escondida nem contada duas vezes: o volume total é o mesmo em qualquer piso — o que muda é o tamanho da unidade que você compara. O agrupamento é decidido pelo seu histórico inteiro, então ele não muda de retrato para retrato, e o progresso das atividades já criadas não se mexe.">Juntar assuntos com menos de (questões no histórico)</label>
+              <select id="plano-granpiso" data-cfg-key="granPiso">
+                <option value="0">não juntar — cada assunto do TEC é uma unidade</option>
+                <option value="10">10 questões</option>
+                <option value="20">20 questões</option>
+                <option value="30">30 questões</option>
+              </select>
+            </div>
           </div>
         </div>
         <div class="tec-cfg-sec" data-tab="plano" data-sec="frescor" data-ic="🗓️" data-rot="Frescor" hidden>

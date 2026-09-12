@@ -281,3 +281,17 @@
 @media (max-width: 560px) {
   #tec-cfg-body .pl-aud-bts { flex-direction: column; }
 }
+
+/* ---------------------------------------------------------------------------
+   6. A UNIDADE AGRUPADA SE ANUNCIA
+   ---------------------------------------------------------------------------
+   Um bloco carrega o nome de um tópico-pai com " · bloco" no fim, e isso não é
+   suficiente: quem compara a tela com o TecConcursos precisa distinguir, de
+   relance, o que é assunto de lá e o que é unidade montada aqui. O selo é
+   tracejado de propósito — a borda interrompida lê como "montado", e a cor
+   neutra não compete com os selos de faixa, que são diagnóstico. */
+.reforco-tag.pl-tag-bloco {
+  color: var(--text-soft);
+  background: var(--surface-sunken);
+  border: 1px dashed var(--border-strong);
+}

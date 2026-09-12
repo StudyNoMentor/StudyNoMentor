@@ -2492,6 +2492,126 @@ try {
     ? ok(`o dominio nomeia a materia quando filtrado (${escopo.domGeral}% em ${escopo.nGeral} assuntos → ${escopo.domFiltro}% em ${escopo.nFiltro}) e o botao "ver o geral" desfaz`)
     : erro('o numero grande nao diz de quem e: ' + JSON.stringify(escopo));
 
+  /* ── A GRANULARIDADE DA UNIDADE E UMA ESCOLHA, NAO UM DESTINO ─────────
+     A arvore do TecConcursos e irregular: materia que termina no segundo nivel
+     convive com materia que desce ao sexto. A lente de folha transforma isso em
+     centenas de unidades de duas ou tres questoes, e o Plano inteiro morria na
+     mensagem "nenhum assunto atingiu a amostra minima" — com o retrato na mao.
+
+     O piso junta o que nao mede sozinho ao topico-pai. O que este teste cobra e
+     que a escolha seja REVERSIVEL e HONESTA: mesmo volume em qualquer piso, o
+     bloco se anunciando na tela, e a saida do beco oferecida em um toque. */
+  const gran = await pag.evaluate(() => {
+    const origSnaps = DB.getTecSnapshots, origSubs = DB.getActiveSubjects,
+      origModo = window.planCycleMode, origInc = ReforcoEngine._incidByDisc;
+    const antes = PlanoEngine.prefs();
+    try {
+      const dia = (n) => { const d = new Date(todayLocal() + 'T00:00:00'); d.setDate(d.getDate() - n); return d.toISOString().slice(0, 10); };
+      DB.getActiveSubjects = () => []; window.planCycleMode = () => 'pre';
+      ReforcoEngine._incidByDisc = () => ({});
+      /* Um retrato realista: duas materias, cada uma com um topico-pai que se
+         desdobra em muitos filhos de 2 a 4 questoes — o caso em que a lente de
+         folha nao mede NADA e o app nao tinha saida boa a oferecer. */
+      const rs = [{ depth: 0, codigo: null, nome: 'Tributario', disciplina: 'Tributario', questoes: 0, acertos: 0 },
+        { depth: 1, codigo: '01', nome: 'Obrigacao', disciplina: 'Tributario', questoes: 0, acertos: 0 }];
+      let qT = 0, aT = 0;
+      for (let i = 1; i <= 12; i++) {
+        const q = 2 + (i % 3), ac = Math.round(q * 0.4);
+        rs.push({ depth: 2, codigo: '01.' + String(i).padStart(2, '0'), nome: 'Obrigacao ' + i,
+          disciplina: 'Tributario', questoes: q, acertos: ac });
+        qT += q; aT += ac;
+      }
+      rs[1].questoes = qT; rs[1].acertos = aT; rs[0].questoes = qT; rs[0].acertos = aT;
+      rs.push({ depth: 0, codigo: null, nome: 'Contabil', disciplina: 'Contabil', questoes: 0, acertos: 0 },
+        { depth: 1, codigo: '01', nome: 'Ativo', disciplina: 'Contabil', questoes: 0, acertos: 0 });
+      let qC = 0, aC = 0;
+      for (let i = 1; i <= 9; i++) {
+        const q = 3, ac = 2;
+        rs.push({ depth: 2, codigo: '01.' + String(i).padStart(2, '0'), nome: 'Ativo ' + i,
+          disciplina: 'Contabil', questoes: q, acertos: ac });
+        qC += q; aC += ac;
+      }
+      rs[rs.length - 10].questoes = qC; rs[rs.length - 10].acertos = aC;
+      rs[rs.length - 11].questoes = qC; rs[rs.length - 11].acertos = aC;
+      DB.getTecSnapshots = () => ([{ id: 'G', nome: 'G', date: dia(5), startDate: dia(35), endDate: dia(5), rows: rs }]);
+      const total = qT + qC, totalAc = aT + aC;
+      const pintar = (piso) => {
+        PlanoEngine.salvarPrefs({ disciplina: '__todas__', minAmostra: 20, metaDominio: 85,
+          limite: 30, ordenar: 'pior', apenasFolhas: true, granPiso: piso, incluirPequenas: false });
+        PlanoEngine._agrC = null;
+        DesempenhoTecScreen._planoRefC = null; DesempenhoTecScreen._fatias = null;
+        DesempenhoTecScreen.renderPlano();
+      };
+      // 1) o controle existe na folha, com os quatro estados
+      const sel = document.getElementById('plano-granpiso');
+      const opcoes = sel ? [...sel.options].map((o) => o.value).join(',') : '';
+      const naSecao = !!(sel && sel.closest('.tec-cfg-sec[data-tab="plano"][data-sec="amostra"]'));
+      // 2) sem piso, o Plano nao existe — e a tela oferece o agrupamento
+      pintar(0);
+      const semPiso = PlanoEngine.calcular(DesempenhoTecScreen.scopedSnapshot(), PlanoEngine.prefs());
+      const botao = document.getElementById('plano-juntar-finos');
+      const rotulo = botao ? botao.textContent.replace(/\s+/g, ' ').trim() : '';
+      const gSug = semPiso.granSugerida || null;
+      // 3) um toque, e o Plano volta
+      if (botao) botao.click();
+      const pisoAplicado = PlanoEngine.prefs().granPiso;
+      const comPiso = PlanoEngine.calcular(DesempenhoTecScreen.scopedSnapshot(), PlanoEngine.prefs());
+      const selos = [...document.querySelectorAll('#plano-lista .pl-tag-bloco')];
+      const comInfo = selos.filter((e) => (e.dataset.info || '').length > 80).length;
+      const somaIdx = (piso) => {
+        PlanoEngine._agrC = null;
+        const idx = PlanoEngine._indice(DesempenhoTecScreen.scopedSnapshot(),
+          Object.assign({}, PlanoEngine.prefs(), { granPiso: piso }));
+        PlanoEngine._agrC = null;
+        return { u: Object.keys(idx).length,
+          q: Object.keys(idx).reduce((a, k) => a + idx[k].q, 0),
+          ac: Object.keys(idx).reduce((a, k) => a + idx[k].ac, 0) };
+      };
+      const porPiso = [0, 10, 20, 30, 50].map(somaIdx);
+      // 4) e a auditoria declara a lente, com a soma conferida no ato
+      const a = PlanoAuditoria.gerar({ cadencia: 'avulsa' });
+      const invGran = (a.invariantes || []).filter((i) => /agrupar|agrupamento/.test(i.nome));
+      return {
+        opcoes, naSecao, temSelect: !!sel,
+        erroSemPiso: semPiso.erro || null, gSug, rotulo, pisoAplicado,
+        erroComPiso: comPiso.erro || null, assuntosComPiso: comPiso.assuntos || 0,
+        blocosNaTela: selos.length, comInfo, textoSelo: selos.length ? selos[0].textContent.trim() : '',
+        total, totalAc, porPiso,
+        somaSempreIgual: porPiso.every((x) => x.q === total && x.ac === totalAc),
+        unidadesCaem: porPiso[0].u > porPiso[1].u,
+        gran: a.granularidade ? { piso: a.granularidade.piso, ok: a.granularidade.somaPreservada,
+          blocos: a.granularidade.blocos, topicos: a.granularidade.atomosAgrupados,
+          medem: a.granularidade.medemSozinhas, medemSem: a.granularidade.medemSozinhasSemAgrupar } : null,
+        invGran: invGran.map((i) => i.nome + '=' + i.ok), invTodasOk: (a.invariantes || []).every((i) => i.ok)
+      };
+    } finally {
+      DB.getTecSnapshots = origSnaps; DB.getActiveSubjects = origSubs;
+      window.planCycleMode = origModo; ReforcoEngine._incidByDisc = origInc;
+      PlanoEngine._agrC = null;
+      PlanoEngine.salvarPrefs({ granPiso: antes.granPiso || 0, minAmostra: antes.minAmostra,
+        apenasFolhas: antes.apenasFolhas, disciplina: '__todas__' });
+    }
+  });
+  (gran.temSelect && gran.naSecao && gran.opcoes === '0,10,20,30')
+    ? ok('o piso de granularidade e um seletor de quatro estados, na secao Amostra dos ajustes')
+    : erro('o controle de granularidade nao saiu certo: ' + JSON.stringify(gran));
+  (gran.erroSemPiso === 'amostra' && gran.gSug && gran.gSug.piso === 10 && /Juntar os assuntos finos/.test(gran.rotulo))
+    ? ok(`com 21 topicos de 2 a 4 questoes o Plano morria na amostra minima; agora a tela oferece juntar (${gran.rotulo})`)
+    : erro('o beco da amostra nao oferece o agrupamento: ' + JSON.stringify({ erro: gran.erroSemPiso, g: gran.gSug, rot: gran.rotulo }));
+  (gran.pisoAplicado === 10 && !gran.erroComPiso && gran.assuntosComPiso === 2)
+    ? ok(`e um toque devolve o Plano: ${gran.assuntosComPiso} unidades medidas onde nenhuma media`)
+    : erro('o toque nao devolveu o Plano: ' + JSON.stringify(gran));
+  (gran.blocosNaTela === 2 && gran.comInfo === 2 && /bloco/.test(gran.textoSelo))
+    ? ok(`cada unidade agrupada se anuncia na tela ("${gran.textoSelo}") e explica no "i" o que cobre`)
+    : erro('o bloco nao se anuncia: ' + JSON.stringify(gran));
+  (gran.somaSempreIgual && gran.unidadesCaem)
+    ? ok(`e o volume e o MESMO em todo piso (${gran.total} questoes, ${gran.totalAc} acertos; unidades ${gran.porPiso.map((x) => x.u).join(' → ')})`)
+    : erro('o agrupamento mexeu no volume: ' + JSON.stringify({ total: gran.total, porPiso: gran.porPiso }));
+  (gran.gran && gran.gran.ok === true && gran.gran.piso === 10 && gran.gran.medem > gran.gran.medemSem
+    && gran.invGran.length === 2 && gran.invGran.every((x) => /=true$/.test(x)) && gran.invTodasOk)
+    ? ok(`a auditoria declara a lente (piso ${gran.gran.piso}, ${gran.gran.blocos} blocos, ${gran.gran.topicos} topicos, ${gran.gran.medemSem} → ${gran.gran.medem} medindo) e confere a soma no ato`)
+    : erro('a auditoria nao declara a granularidade: ' + JSON.stringify({ gran: gran.gran, inv: gran.invGran, todas: gran.invTodasOk }));
+
   /* ── A TELA COMECA PELA PERGUNTA, NAO PELA RESPOSTA ───────────────────
      "O seu proximo bloco" vinha com quatro assuntos marcados e um botao grande
      ANTES de "Onde atacar primeiro" dizer qual materia importa: quem abre pela

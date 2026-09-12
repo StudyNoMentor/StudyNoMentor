@@ -1879,6 +1879,108 @@ const AutoTeste = {
       this._ok('Ciclo: origem sem item não inventa taxa', C.origem('Y', 'Dir Adm', null, {}).taxaInicial === null);
       this._ok('Ciclo: atividade sem origem do Plano é ignorada pelo ciclo',
         C.avaliar({ id: 'x', alvo: 10 }, { itens: [], pequenas: [] }) === null);
+
+      /* ─── 8) A ATIVIDADE NÃO DEPENDE DA LENTE DO PLANO ────────────────────
+         O progresso e o veredito saíam do ÍNDICE, e o índice é um recorte:
+         muda com `apenasFolhas` e mudará com qualquer controle de
+         granularidade. Consequência medida abaixo: o tópico que era folha num
+         retrato e virou PAI no seguinte tem resíduo zero no índice — as 200
+         questões que você resolveu no detalhe dele viravam progresso zero e
+         taxa de 30% (a leitura velha, do retrato em que ele ainda era folha).
+         A atividade ficava aberta para sempre, acusando um desempenho que a
+         pessoa já tinha superado.
+
+         O escopo mede o nó pelas LINHAS CRUAS — a linha do pai é a soma exata
+         do ramo no export do TEC — e por isso dá o mesmo número com qualquer
+         lente. */
+      banco = [];
+      const F = (c, n, disc, q, ac) => ({ depth: 2, codigo: c, nome: n, disciplina: disc, questoes: q, acertos: ac });
+      const sA = R('la', dia(90), dia(60), [D('Dir Adm', 100, 30), L('02', 'Atos', 'Dir Adm', 100, 30)]);
+      const sB = R('lb', dia(50), dia(1), [D('Dir Adm', 200, 176), L('02', 'Atos', 'Dir Adm', 200, 176),
+        F('02.01', 'Atos vinculados', 'Dir Adm', 100, 88), F('02.02', 'Atos discricionarios', 'Dir Adm', 100, 88)]);
+      const lente = (v) => DB.setRaw(chaveP, JSON.stringify({ minAmostra: 1, limite: 20, ordenar: 'pior',
+        metaDominio: 85, tetoDominio: 90, apenasFolhas: v, migracao: 3 }));
+      lente(true);
+      comBanco([sA, sB], () => {
+        const vol = P.volumeDoNo('Dir Adm', 'Atos');
+        this._ok('Lente: o volume do nó é a linha dele em cada retrato (100 + 200), sem somar nem descontar filho',
+          vol.q === 300 && vol.ac === 206, { q: vol.q, ac: vol.ac });
+        lente(false);
+        const solto = P.volumeDoNo('Dir Adm', 'Atos');
+        lente(true);
+        this._ok('Lente: e ele dá o MESMO número com a lente aberta',
+          solto.q === vol.q && solto.ac === vol.ac, { folhas: vol.q, tudo: solto.q });
+        this._ok('Lente: o índice, sozinho, perde as 200 (resíduo do pai é zero)',
+          P.qHistDe('Dir Adm', 'Atos', { apenasFolhas: true }) === 100,
+          P.qHistDe('Dir Adm', 'Atos', { apenasFolhas: true }));
+      });
+      /* A atividade nasce quando só existe o primeiro retrato — ali o tópico
+         ainda é folha, e as duas réguas coincidem (é o que garante que nada do
+         que hoje mede mudou de número). */
+      let e8 = comBanco([sA], () => criar('Atos', 120, { taxa: 30, custoQ: 120 }));
+      this._ok('Lente: na criação as duas réguas coincidem (folha)',
+        e8.origemPlano.qBase === 100 && e8.origemPlano.qBaseNo === 100, e8.origemPlano);
+      this._ok('Lente: e a atividade guarda o que ela mede',
+        e8.origemPlano.escopo.tipo === 'no' && e8.origemPlano.escopo.membros.join() === 'Atos', e8.origemPlano.escopo);
+      const leia = () => comBanco([sA, sB], () => C.avaliar(DB.getExtras()[0], P.calcular(sB, P.prefs())));
+      const v8 = leia();
+      this._ok('Lente: as 200 do detalhe contam como progresso (eram 0)',
+        v8.medido === 200 && v8.feito === 200 && v8.cumpriu, { medido: v8.medido, feito: v8.feito });
+      this._ok('Lente: e a taxa é a do ramo, 88% — não os 30% do retrato em que era folha',
+        Math.round(v8.taxa) === 88 && v8.estado === 'funcionou', { taxa: v8.taxa, estado: v8.estado });
+      lente(false);
+      const v8b = leia();
+      lente(true);
+      this._ok('Lente: trocar a lente NÃO move o progresso de um trabalho já feito',
+        v8b.medido === v8.medido && v8b.qAgora === v8.qAgora, { antes: v8.medido, depois: v8b.medido });
+      this._ok('Lente: nem o veredito',
+        v8b.estado === v8.estado && Math.round(v8b.taxa) === Math.round(v8.taxa), { antes: v8.estado, depois: v8b.estado });
+
+      /* O caso que a lente transformava em morte: o tópico é PAI em todos os
+         retratos, o resíduo é zero, o índice não tem a chave — e `qAgora === 0`
+         declarava órfã uma atividade com 100 questões medidas. */
+      banco = [];
+      const sC = R('lc', dia(40), dia(2), [D('Dir Adm', 100, 80), L('02', 'Atos', 'Dir Adm', 100, 80),
+        F('02.01', 'Atos vinculados', 'Dir Adm', 60, 48), F('02.02', 'Atos discricionarios', 'Dir Adm', 40, 32)]);
+      comBanco([sC], () => {
+        const e = DB.addExtra({ titulo: 'Atos', tipo: 'questoes', alvo: 120, periodo: 'unica', contaMetricas: false });
+        DB.updateExtra(e.id, { origemPlano: Object.assign({}, C.origem('Atos', 'Dir Adm', { taxa: 30, custoQ: 120 }, {}), { qBase: 0, qBaseNo: 0 }) });
+        this._ok('Lente: assunto que só existe como pai não tem chave no índice',
+          P.qHistDe('Dir Adm', 'Atos', { apenasFolhas: true }) === 0);
+        const w = C.avaliar(DB.getExtras()[0], P.calcular(sC, P.prefs()));
+        this._ok('Lente: e a atividade dele continua VIVA, com as 100 medidas',
+          w.estado !== 'orfa' && w.medido === 100, { estado: w.estado, medido: w.medido });
+      });
+
+      /* ─── 9) A PROMOÇÃO DA ATIVIDADE ANTIGA NÃO MOVE O NÚMERO ─────────────
+         Atividade criada antes do escopo é medida na lente legada, pinada.
+         `migrarEscopos` a passa para a régua crua calibrando o `qBaseNo` pelo
+         progresso que a lente legada estava medindo — então o número na tela é
+         o mesmo no instante antes e no instante depois. É o que impede a
+         atualização de creditar (ou cobrar) trabalho retroativo. */
+      banco = [];
+      comBanco([sA, sB], () => {
+        const e = DB.addExtra({ titulo: 'Atos', tipo: 'questoes', alvo: 120, periodo: 'unica', contaMetricas: false });
+        DB.updateExtra(e.id, { origemPlano: { topico: 'Atos', disciplina: 'Dir Adm', motivo: 'reforco',
+          criadoEm: dia(70), taxaInicial: 30, qBase: 100, metaAlvo: 85, custoEstimado: 120, tetoAlvo: 90 } });
+        const antes = C.avaliar(DB.getExtras()[0], P.calcular(sB, P.prefs()));
+        this._ok('Legado: sem escopo, a atividade fica na régua em que nasceu (0 medido)',
+          antes.lenteCrua === false && antes.medido === 0, { crua: antes.lenteCrua, medido: antes.medido });
+        lente(false);
+        const solta = C.avaliar(DB.getExtras()[0], null);
+        lente(true);
+        this._ok('Legado: e a lente aberta não mexe nela — a régua legada é pinada',
+          solta.medido === antes.medido && solta.qAgora === antes.qAgora, { antes: antes.medido, depois: solta.medido });
+        const m = C.migrarEscopos();
+        this._ok('Legado: a promoção acontece uma vez', m.promovidas === 1 && C.migrarEscopos().promovidas === 0, m);
+        const dep = C.avaliar(DB.getExtras()[0], P.calcular(sB, P.prefs()));
+        this._ok('Legado: e o progresso é EXATAMENTE o mesmo depois dela',
+          dep.medido === antes.medido && dep.lenteCrua === true, { antes: antes.medido, depois: dep.medido });
+        this._ok('Legado: o qBaseNo calibrado é o volume cru menos o que já era medido',
+          DB.getExtras()[0].origemPlano.qBaseNo === 300, DB.getExtras()[0].origemPlano.qBaseNo);
+        this._ok('Legado: daí em diante ela também é imune à lente',
+          (() => { lente(false); const x = C.avaliar(DB.getExtras()[0], null); lente(true); return x.medido === dep.medido; })());
+      });
     } finally {
       DB.getTecSnapshots = origSnaps; DB.getExtras = origExtras; DB.saveExtras = origSave;
       T.scopedSnapshot = origEscopo;
@@ -2121,6 +2223,176 @@ const AutoTeste = {
 
      A invariante é uma só, e vale nos dois casos: Σ(disciplinas) do retrato =
      Σ(o que o Plano indexa). */
+  /* ═══ A GRANULARIDADE DAS UNIDADES ════════════════════════════════════════
+     A árvore do TecConcursos é irregular por natureza: matéria que termina no
+     segundo nível convive com matéria que desce ao sexto. A lente de folha
+     transforma isso em centenas de unidades de duas ou três questões — e duas
+     questões não medem nada. O piso de granularidade soma os átomos finos ao
+     tópico-pai deles e mede o bloco.
+
+     Isto é um RECORTE, não uma conta nova, e a diferença entre as duas coisas é
+     o que esta suíte cobra: mesmo volume, mesmos acertos, cada questão em
+     exatamente uma unidade, mapa estável entre retratos — e, acima de tudo,
+     nada do que já estava medido ou criado se movendo por causa da escolha. */
+  granularidadeDoPlano() {
+    const P = PlanoEngine, C = PlanoCiclo, T = DesempenhoTecScreen;
+    const origSnaps = DB.getTecSnapshots, origExtras = DB.getExtras, origSave = DB.saveExtras;
+    const origEscopo = T.scopedSnapshot;
+    const chaveP = DB._profilePrefix() + P.KEY_PREF;
+    const antesP = localStorage.getItem(chaveP);
+    const cab = ['Hierarquia', 'índice', 'Questões Resolvidas', 'Acertos (%)',
+      'Quantidade de acertos', 'Erros (%)', 'Quantidade de erros', 'Peso'];
+    const lin = (cod, nome, q, ac) => [cod || '', nome, String(q),
+      String(q ? Math.round(ac / q * 100) : 0), String(ac), '0', String(q - ac), '1'];
+    const soma = (idx, campo) => Object.keys(idx).reduce((a, k) => a + (idx[k][campo] || 0), 0);
+    try {
+      /* Retrato A e retrato B do MESMO usuário, com os códigos TROCADOS de
+         propósito: em A "Licitações" é 01 e "Atos" é 02; em B é o contrário.
+         Código do TEC é posicional, e é exatamente por isso que o agrupamento
+         resolve o tópico-pai pelo NOME. */
+      const A = TecEngine.parseCellRows([cab,
+        lin(null, 'Dir Adm', 125, 61),
+        lin('01', 'Licitacoes', 69, 34),
+        lin('01.01', 'Modalidades', 60, 30), lin('01.02', 'Dispensa', 3, 1),
+        lin('01.03', 'Inexigibilidade', 4, 2), lin('01.04', 'Sancoes', 2, 1),
+        lin('02', 'Atos', 11, 5), lin('02.01', 'Elementos', 5, 2), lin('02.02', 'Vinculado', 6, 3),
+        lin('03', 'Servidores', 40, 20),
+        lin(null, 'Dir Const', 5, 2),
+        lin('01', 'Direitos', 5, 2), lin('01.01', 'Nacionalidade', 2, 1), lin('01.02', 'Politicos', 3, 1)]);
+      const B = TecEngine.parseCellRows([cab,
+        lin(null, 'Dir Adm', 60, 30),
+        lin('01', 'Atos', 20, 10), lin('01.01', 'Elementos', 8, 4), lin('01.02', 'Vinculado', 12, 6),
+        lin('02', 'Licitacoes', 30, 15),
+        lin('02.01', 'Modalidades', 24, 12), lin('02.02', 'Dispensa', 2, 1), lin('02.03', 'Sancoes', 4, 2),
+        lin('03', 'Servidores', 10, 5),
+        lin(null, 'Dir Const', 4, 2),
+        lin('01', 'Direitos', 4, 2), lin('01.01', 'Nacionalidade', 1, 0), lin('01.02', 'Politicos', 3, 2)]);
+      const sA = { id: 'ga', startDate: '2026-01-01', endDate: '2026-01-31', date: '2026-01-01', rows: A };
+      const sB = { id: 'gb', startDate: '2026-02-01', endDate: '2026-02-28', date: '2026-02-01', rows: B };
+      let banco = [];
+      const comBanco = (fn) => {
+        DB.getTecSnapshots = () => [sA, sB];
+        DB.getExtras = () => banco;
+        DB.saveExtras = (l) => { banco = l; };
+        T.scopedSnapshot = () => T.aggregate([sA, sB]);
+        try { return fn(); } finally {
+          DB.getTecSnapshots = origSnaps; DB.getExtras = origExtras;
+          DB.saveExtras = origSave; T.scopedSnapshot = origEscopo;
+        }
+      };
+      const lente = (piso) => { P._agrC = null; DB.setRaw(chaveP, JSON.stringify({ minAmostra: 10, limite: 20,
+        ordenar: 'pior', metaDominio: 85, tetoDominio: 90, apenasFolhas: true, granPiso: piso, migracao: 3 })); };
+
+      lente(0);
+      comBanco(() => {
+        const cruA = P._indice(sA, P.prefs()), cruB = P._indice(sB, P.prefs());
+        this._ok('Granularidade: sem piso, cada assunto do TEC é uma unidade (9 nomes)',
+          Object.keys(cruA).length === 9, Object.keys(cruA).length);
+        this._ok('Granularidade: e o índice de cada retrato fecha com o total dele',
+          soma(cruA, 'q') === 125 && soma(cruA, 'ac') === 61 && soma(cruB, 'q') === 64 && soma(cruB, 'ac') === 32,
+          { A: soma(cruA, 'q'), B: soma(cruB, 'q') });
+        lente(10);
+        const agA = P._indice(sA, P.prefs()), agB = P._indice(sB, P.prefs());
+        /* A INVARIANTE CENTRAL. Agrupar é reparticionar: se a soma mudar, ou o
+           app escondeu questão (átomo somado e ignorado) ou contou em dobro
+           (átomo dentro do bloco E fora dele). Não há terceira explicação. */
+        this._ok('Granularidade: agrupar não muda o volume — nem em A nem em B',
+          soma(agA, 'q') === 125 && soma(agA, 'ac') === 61 && soma(agB, 'q') === 64 && soma(agB, 'ac') === 32,
+          { A: [soma(agA, 'q'), soma(agA, 'ac')], B: [soma(agB, 'q'), soma(agB, 'ac')] });
+        this._ok('Granularidade: e o número de unidades cai de 9 para 6',
+          Object.keys(agA).length === 6, Object.keys(agA).length);
+        const ag = P._agrupamento(P.prefs());
+        this._ok('Granularidade: 2 blocos cobrindo 5 tópicos finos',
+          ag.nBlocos === 2 && ag.atomos === 5, { blocos: ag.nBlocos, atomos: ag.atomos });
+        const nomes = Object.keys(ag.blocos).map(k => ag.blocos[k].nome).sort();
+        this._ok('Granularidade: o bloco leva o nome do tópico-pai, resolvido pelo NOME e não pelo código trocado',
+          nomes.join(' | ') === 'Direitos · bloco | Licitacoes · bloco', nomes);
+        const licit = Object.keys(ag.blocos).map(k => ag.blocos[k]).find(b => b.base === 'Licitacoes');
+        this._ok('Granularidade: e junta só os finos do mesmo pai (Dispensa, Inexigibilidade, Sanções)',
+          licit.membros.slice().sort().join(',') === 'Dispensa,Inexigibilidade,Sancoes', licit.membros);
+        this._ok('Granularidade: nenhum bloco atravessa matéria',
+          Object.keys(ag.blocos).every(k => {
+            const b = ag.blocos[k];
+            return b.membros.every(n => {
+              const donos = [sA, sB].map(sn => (sn.rows || []).filter(r => r.nome === n).map(r => r.disciplina));
+              return donos.every(l => l.every(d => d === b.disciplina));
+            });
+          }));
+        this._ok('Granularidade: o átomo que já media sozinho continua com o nome dele',
+          !!agA[ReforcoEngine.chaveInc('Dir Adm', 'Modalidades')] && !ag.mapa[ReforcoEngine.chaveInc('Dir Adm', 'Modalidades')]);
+        this._ok('Granularidade: e o volume dele não é tocado (60 em A, 84 no histórico)',
+          agA[ReforcoEngine.chaveInc('Dir Adm', 'Modalidades')].q === 60
+          && P.volumeDoNo('Dir Adm', 'Modalidades').q === 84, P.volumeDoNo('Dir Adm', 'Modalidades').q);
+        /* O bloco tem de ser o MESMO objeto nos dois retratos, senão a janela
+           adaptativa e a série passariam a comparar unidades diferentes com o
+           mesmo nome — o pior tipo de erro, porque parece funcionar. */
+        const bk = ReforcoEngine.chaveInc('Dir Adm', 'Licitacoes · bloco');
+        this._ok('Granularidade: o mesmo bloco existe nos dois retratos, com a soma dos membros',
+          agA[bk] && agB[bk] && agA[bk].q === 9 && agB[bk].q === 6, { A: agA[bk] && agA[bk].q, B: agB[bk] && agB[bk].q });
+        this._ok('Granularidade: bloco de UM membro não existe — Servidores fica sozinho, com o nome dele',
+          (() => { lente(50); P._agrC = null; const a50 = P._agrupamento(P.prefs());
+            const so = Object.keys(a50.blocos).map(k => a50.blocos[k]).find(b => b.membros.indexOf('Servidores') >= 0);
+            const i50 = P._indice(sA, P.prefs());
+            lente(10); return !so && !!i50[ReforcoEngine.chaveInc('Dir Adm', 'Servidores')]; })());
+        [0, 10, 20, 30, 50, 100].forEach(piso => {
+          lente(piso);
+          const iA = P._indice(sA, P.prefs()), iB = P._indice(sB, P.prefs());
+          const agg = P._indice(T.aggregate([sA, sB]), P.prefs());
+          this._ok('Granularidade: piso ' + piso + ' preserva volume e acertos (A, B e consolidado)',
+            soma(iA, 'q') === 125 && soma(iA, 'ac') === 61 && soma(iB, 'q') === 64 && soma(iB, 'ac') === 32
+            && soma(agg, 'q') === 189 && soma(agg, 'ac') === 93,
+            { A: soma(iA, 'q'), B: soma(iB, 'q'), consolidado: soma(agg, 'q') });
+        });
+        lente(10);
+      });
+
+      /* ── O QUE A ESCOLHA NÃO PODE MOVER ───────────────────────────────────
+         Uma atividade criada sobre um tópico fino é a prova do desacoplamento:
+         com o piso ligado, a CHAVE dele não existe mais no índice. Medida pelo
+         índice, ela seria declarada órfã — atividade viva, encerrada por causa
+         de um ajuste de exibição. Medida pelo escopo, ela nem sente. */
+      banco = [];
+      lente(0);
+      let e9 = comBanco(() => {
+        const e = DB.addExtra({ titulo: 'Inexigibilidade', tipo: 'questoes', alvo: 40, periodo: 'unica', contaMetricas: false });
+        DB.updateExtra(e.id, { origemPlano: C.origem('Inexigibilidade', 'Dir Adm', { taxa: 50, custoQ: 40 }, { motivo: 'reforco' }) });
+        return DB.getExtras().find(x => x.id === e.id);
+      });
+      this._ok('Granularidade: a atividade do tópico fino nasce com escopo próprio',
+        e9.origemPlano.escopo.membros.join() === 'Inexigibilidade' && e9.origemPlano.qBaseNo === 4, e9.origemPlano);
+      const ler = () => comBanco(() => C.avaliar(DB.getExtras()[0], P.calcular(T.aggregate([sA, sB]), P.prefs())));
+      const semPiso = ler();
+      lente(10);
+      const comPiso = ler();
+      this._ok('Granularidade: com o piso ligado a chave do tópico sai do índice',
+        comBanco(() => P.qHistDe('Dir Adm', 'Inexigibilidade', P.prefs())) === 0);
+      this._ok('Granularidade: e mesmo assim a atividade não vira órfã',
+        comPiso.estado !== 'orfa' && comPiso.qAgora === 4, { estado: comPiso.estado, q: comPiso.qAgora });
+      this._ok('Granularidade: progresso, taxa e veredito idênticos com e sem piso',
+        comPiso.medido === semPiso.medido && comPiso.estado === semPiso.estado
+        && String(comPiso.taxa) === String(semPiso.taxa),
+        { sem: [semPiso.medido, semPiso.estado, semPiso.taxa], com: [comPiso.medido, comPiso.estado, comPiso.taxa] });
+
+      /* A série é a tela em que a pessoa compara o hoje com o passado. O piso
+         muda a CONTAGEM de assuntos por ponto (é o que ele promete) e faz mais
+         volume passar do piso por importação — nunca ao contrário. */
+      comBanco(() => {
+        lente(0);
+        const s0 = P.serieHistorica(P.prefs());
+        lente(10);
+        const s1 = P.serieHistorica(P.prefs());
+        const vol = (S) => S.reduce((a, x) => a + (x.questoes || 0), 0);
+        this._ok('Granularidade: a série continua com os dois pontos',
+          s0.length === 2 && s1.length === 2, { sem: s0.length, com: s1.length });
+        this._ok('Granularidade: e agrupar só faz mais volume entrar na série, nunca menos',
+          vol(s1) >= vol(s0), { sem: vol(s0), com: vol(s1) });
+      });
+    } finally {
+      DB.getTecSnapshots = origSnaps; DB.getExtras = origExtras; DB.saveExtras = origSave;
+      T.scopedSnapshot = origEscopo; P._agrC = null;
+      if (antesP == null) DB.delRaw(chaveP); else DB.setRaw(chaveP, antesP);
+    }
+  },
   contagemFechaComOPlano() {
     const T = DesempenhoTecScreen, P = PlanoEngine;
     const origSnaps = DB.getTecSnapshots;
@@ -3078,6 +3350,7 @@ const AutoTeste = {
      ['Régua de pontos', 'reguaDePontos'],
      ['Auditoria do Plano', 'auditoriaDoPlano'],
      ['Contagem fecha com o Plano', 'contagemFechaComOPlano'],
+     ['Granularidade das unidades', 'granularidadeDoPlano'],
      ['Matérias fora do Plano', 'materiasForaDoPlano'],
      ['O Plano não trava sob o dedo', 'planoNaoTrava'],
      ['Fatia das listas do Plano', 'fatiaDasListas']].forEach(([nome, fn]) => {
