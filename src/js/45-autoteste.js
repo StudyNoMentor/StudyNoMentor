@@ -1917,7 +1917,8 @@ const AutoTeste = {
       const marcas = [...lista.querySelectorAll('[data-fatia]')].map(b => b.dataset.fatia);
       const tem = (k) => marcas.indexOf(k) >= 0;
       this._ok('Fatia: a lista de assuntos usa a regra', tem('assuntos'), marcas);
-      this._ok('Fatia: a tabela de matérias usa a regra', tem('materias'), marcas);
+      this._ok('Fatia: a fila do próximo bloco usa a regra (eram 8 fixos)', tem('proximos'), marcas);
+      this._ok('Fatia: o quadro de matérias usa a regra', tem('materias'), marcas);
       this._ok('Fatia: o segundo plano usa a regra (era um corte mudo em 15)', tem('pequenas'), marcas);
       this._ok('Fatia: as lacunas do edital usam a regra', tem('edital-sem'), marcas);
       /* ── O RODAPÉ NÃO PODE SER DECORATIVO ──────────────────────────────
@@ -1935,8 +1936,10 @@ const AutoTeste = {
         return m ? { n: parseInt(m[1], 10), total: parseInt(m[2], 10) } : null;
       };
       const aMat = anunciado('materias');
-      const linhasMat = [...lista.querySelectorAll('.pl-tempo tbody tr')].filter(tr => !tr.classList.contains('pl-tempo-miudas')).length;
-      this._ok('Fatia: a tabela de matérias desenha o que o rodapé anuncia',
+      // o quadro de matérias virou LISTA de linhas (antes era tabela): as
+      // somadas ("+ 3 matérias miúdas") não contam como linha de matéria.
+      const linhasMat = lista.querySelectorAll('.pl-tempo .pl-mat:not(.is-resumo)').length;
+      this._ok('Fatia: o quadro de matérias desenha o que o rodapé anuncia',
         !!aMat && aMat.n === linhasMat && aMat.total > aMat.n, { anunciado: aMat, desenhadas: linhasMat });
       const aPeq = anunciado('pequenas');
       const linhasPeq = lista.querySelectorAll('.pl-segundo .pl-item').length;

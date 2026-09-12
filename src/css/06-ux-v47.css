@@ -1285,6 +1285,16 @@
   .tec-cfg-box { max-height: 92vh; }
   .tec-cfg-head { padding: 16px 18px 10px; }
   .tec-cfg-nav { padding: 8px 18px 10px; }
+  /* A fita rolante era a única forma de ver as cinco seções do Plano no
+     celular — e ninguém rola uma fita que parece terminar. Em 390px cabiam
+     três chips; "Régua" e "Esforço" existiam atrás da borda esmaecida. Aqui
+     ela QUEBRA em fileiras: duas linhas de chips, as cinco seções à vista,
+     nada escondido atrás de um gesto que não se adivinha. */
+  .tec-cfg-nav {
+    flex-wrap: wrap; overflow-x: visible;
+    -webkit-mask-image: none; mask-image: none;
+  }
+  .tec-cfg-nav button { flex: 0 1 auto; }
   .tec-cfg-body { padding: 14px 18px 18px; }
   .tec-cfg-foot { padding: 10px 18px calc(10px + env(safe-area-inset-bottom, 0px)); }
   .tec-cfg-foot .btn-secondary, .tec-cfg-foot .btn-primary { flex: 1 1 0; min-width: 0; }

@@ -560,12 +560,38 @@ else CloudStore.init();
       return ok.length ? ok : TEC_TABS.map(t => t.id);
     },
     init() {
-      // engrenagem "Exibição" no topo do TEC (agrupa Filtros + Modo enxuto)
+      /* Engrenagem "Exibição" no topo do TEC (agrupa Filtros + Modo enxuto).
+         Ela mora DENTRO de um `.card`, e todo `.card` do app tem
+         `overflow: hidden` para que o conteúdo respeite o canto arredondado. Um
+         menu `position: absolute` ali é recortado pela borda do cartão: era
+         isso que se via — a lista aparecia atrás dos cartões de baixo, sem
+         como ler nem clicar nos itens. Na Grade o mesmo menu funciona porque
+         lá o botão fica no cabeçalho da tela, fora de qualquer cartão.
+
+         A correção é ancorar o menu em coordenadas de TELA (`position: fixed`,
+         medidas a partir do botão): fora do fluxo do cartão, nada o recorta.
+         O reposicionamento acompanha rolagem e giro do aparelho enquanto ele
+         está aberto, senão o menu ficaria plantado onde o botão estava. */
       (function () {
         const gbtn = $('#tec-gear-btn'), gmenu = $('#tec-gear-menu');
         if (!gbtn || !gmenu || gbtn._ux) return;
         gbtn._ux = true;
-        const close = () => { gmenu.classList.remove('open'); gbtn.classList.remove('open'); gbtn.setAttribute('aria-expanded', 'false'); gmenu.setAttribute('aria-hidden', 'true'); document.removeEventListener('click', onDoc, true); };
+        const posicionar = () => {
+          const r = gbtn.getBoundingClientRect();
+          const w = gmenu.offsetWidth, h = gmenu.offsetHeight;
+          let left = Math.min(r.right - w, window.innerWidth - w - 10);
+          gmenu.style.left = Math.max(10, left) + 'px';
+          let top = r.bottom + 8;
+          if (top + h > window.innerHeight - 10) top = Math.max(10, r.top - h - 8);
+          gmenu.style.top = top + 'px';
+        };
+        const close = () => {
+          gmenu.classList.remove('open'); gbtn.classList.remove('open');
+          gbtn.setAttribute('aria-expanded', 'false'); gmenu.setAttribute('aria-hidden', 'true');
+          document.removeEventListener('click', onDoc, true);
+          window.removeEventListener('scroll', posicionar, true);
+          window.removeEventListener('resize', posicionar);
+        };
         const onDoc = (e) => { if (!gmenu.contains(e.target) && e.target !== gbtn && !gbtn.contains(e.target)) close(); };
         gbtn.addEventListener('click', (e) => {
           e.stopPropagation();
@@ -573,8 +599,19 @@ else CloudStore.init();
           gbtn.classList.toggle('open', open);
           gbtn.setAttribute('aria-expanded', open ? 'true' : 'false');
           gmenu.setAttribute('aria-hidden', open ? 'false' : 'true');
-          if (open) setTimeout(() => document.addEventListener('click', onDoc, true), 0);
-          else document.removeEventListener('click', onDoc, true);
+          if (open) {
+            posicionar();
+            window.addEventListener('scroll', posicionar, true);
+            window.addEventListener('resize', posicionar);
+            setTimeout(() => document.addEventListener('click', onDoc, true), 0);
+          } else {
+            document.removeEventListener('click', onDoc, true);
+            window.removeEventListener('scroll', posicionar, true);
+            window.removeEventListener('resize', posicionar);
+          }
+        });
+        document.addEventListener('keydown', (e) => {
+          if (e.key === 'Escape' && gmenu.classList.contains('open')) close();
         });
         gmenu.querySelectorAll('.grade-gear-item').forEach(it => it.addEventListener('click', () => setTimeout(close, 0)));
       })();
@@ -735,10 +772,6 @@ else CloudStore.init();
       to('#cfg-rec-body', 'dados');       // resgate, quando algo já deu errado
       to('#cfg-storage-body', 'dados');   // medidor de espaço
       this.buildPrefs();
-      // O cartão de exibição das Leis é marcação fixa (os mesmos controles do
-      // ⚙️ Exibição da tela de Leis) e entra depois dos cartões montados aqui,
-      // para não passar à frente do tema e do tamanho de fonte.
-      to('#cfg-leis-card', 'prefs');
       this.buildDiag();
       this.show(pget('cfg-group', 'estudo'));
       window.addEventListener('screen:activated', (e) => {

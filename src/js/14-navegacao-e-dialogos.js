@@ -347,6 +347,23 @@ const UI = {
       this._open(opts.title || 'Aviso', opts.sub || '', body, { okText: opts.okText || 'OK', hideCancel: true });
     });
   },
+  /* ── DIÁLOGO DE ANÁLISE ───────────────────────────────────────────────────
+     Igual ao `alert`, com uma diferença que importa: o HTML aqui é NOSSO —
+     montado pela própria tela, com todo dado do usuário já escapado — e por
+     isso entra sem passar pelo saneador de cards. O saneador apaga `class` de
+     propósito (um baralho importado não pode vestir as classes do app e mexer
+     no layout da tela), e sem as classes uma análise com seções, conta em
+     destaque e tabela de série vira uma fileira de parágrafos iguais.
+
+     Nunca passe conteúdo importado por aqui: para isso existe o `alert`. */
+  detalhe(html, opts = {}) {
+    return new Promise((resolve) => {
+      this._resolve = resolve; this._mode = 'confirm';
+      this._open(opts.title || 'Detalhes', opts.sub || '',
+        `<div class="ui-detalhe">${html == null ? '' : html}</div>`,
+        { okText: opts.okText || 'Entendi', hideCancel: true });
+    });
+  },
   prompt(fields, opts = {}) {
     return new Promise((resolve) => {
       this._resolve = resolve; this._mode = 'prompt'; this._fields = fields;

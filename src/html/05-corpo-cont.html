@@ -128,31 +128,10 @@
     </section>
 
     <!-- ────────── Sincronização na nuvem (Supabase) ────────── -->
-    <!-- Os mesmos controles do ⚙️ Exibição da tela de Leis. São pintados pelo
-         MESMO código (LeisScreen.renderPrefs) e escrevem nas MESMAS chaves: os
-         dois lugares são uma janela para o mesmo ajuste, não duas cópias que
-         podem se desencontrar. -->
-    <section class="card" id="cfg-leis-card">
-      <div class="card-header">
-        <div>
-          <h2>§ Leis Secas — exibição</h2>
-          <p class="sub">O que aparece na tela de leitura das leis — os mesmos controles do botão <strong>⚙️ Exibição</strong> lá dentro. Desligue o que você não usa: vale para todas as leis do perfil e acompanha o perfil na nuvem.</p>
-        </div>
-      </div>
-      <div style="padding: 16px 28px 24px;">
-        <p class="section-label" style="margin:0 0 8px;">Leitura</p>
-        <div class="lei-prefs-grupo" data-lei-prefs="leitura"></div>
-        <p class="section-label" style="margin:18px 0 8px;">Conforto do texto</p>
-        <div class="ux-seg lei-prefs-seg" data-lei-conforto role="group" aria-label="Espaçamento do texto">
-          <button type="button" data-conforto="compacto">Compacto</button>
-          <button type="button" data-conforto="normal">Normal</button>
-          <button type="button" data-conforto="amplo">Amplo</button>
-        </div>
-        <p class="section-label" style="margin:18px 0 8px;">O que aparece na tela</p>
-        <div class="lei-prefs-grupo" data-lei-prefs="partes"></div>
-        <button type="button" class="btn-secondary" id="cfg-leis-reset" style="margin-top:16px;">↺ Restaurar padrão</button>
-      </div>
-    </section>
+    <!-- A exibição das Leis Secas NÃO mora mais aqui: ela agora é o botão
+         "⚙️ Ajustes" da própria tela de Leis, ao lado de "＋ Nova lei". Um
+         ajuste que só se vê numa tela pertence àquela tela — procurá-lo a duas
+         telas de distância era o custo de tê-lo duplicado em Configurações. -->
 
     <section class="card">
       <div class="card-header">
@@ -489,24 +468,28 @@
           <!-- Painel: seleção de retratos específicos (aparece no modo "Selecionar") -->
           <div id="tec-scope-select" style="display:none; margin-top:12px;"></div>
           <!-- Painel: intervalo de datas (aparece no modo "Intervalo") -->
+          <!-- As seis peças do intervalo moravam num flex com `style` embutido:
+               cada uma quebrava por conta própria no celular, em alturas
+               diferentes. Agora são duas estruturas declaradas em CSS — os dois
+               campos dividem uma linha, os quatro atalhos formam grade. -->
           <div id="tec-scope-range" style="display:none; margin-top:12px;">
-            <div style="display:flex; gap:12px; align-items:flex-end; flex-wrap:wrap;">
-              <div class="field" style="margin-bottom:0;">
-                <label for="tec-range-start" style="margin-bottom:4px;">De</label>
+            <div class="tec-range-grid">
+              <div class="field">
+                <label for="tec-range-start">De</label>
                 <input type="date" id="tec-range-start">
               </div>
-              <div class="field" style="margin-bottom:0;">
-                <label for="tec-range-end" style="margin-bottom:4px;">Até</label>
+              <div class="field">
+                <label for="tec-range-end">Até</label>
                 <input type="date" id="tec-range-end">
               </div>
-              <div style="display:flex; gap:8px; flex-wrap:wrap; padding-bottom:2px;">
-                <button type="button" class="btn-secondary tec-range-quick" data-range="3">Últimos 3 meses</button>
-                <button type="button" class="btn-secondary tec-range-quick" data-range="6">6 meses</button>
-                <button type="button" class="btn-secondary tec-range-quick" data-range="12">1 ano</button>
-                <button type="button" class="btn-secondary tec-range-quick" data-range="all">Tudo</button>
-              </div>
             </div>
-            <p class="hint" id="tec-range-hint" style="margin-top:8px;">Inclui todo retrato cujo período se sobrepõe ao intervalo escolhido.</p>
+            <div class="tec-range-quicks">
+              <button type="button" class="btn-secondary tec-range-quick" data-range="3">3 meses</button>
+              <button type="button" class="btn-secondary tec-range-quick" data-range="6">6 meses</button>
+              <button type="button" class="btn-secondary tec-range-quick" data-range="12">1 ano</button>
+              <button type="button" class="btn-secondary tec-range-quick" data-range="all">Tudo</button>
+            </div>
+            <p class="hint" id="tec-range-hint">Inclui todo retrato cujo período se sobrepõe ao intervalo escolhido.</p>
           </div>
           </div><!-- /#tec-scope-body -->
         </div>

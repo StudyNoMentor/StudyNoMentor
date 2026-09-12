@@ -53,6 +53,7 @@ const PARTES = [
   SEP('\n  </style>\n'),         S('html/05-corpo-cont.html'),
   SEP('\n<style id="ux-v47">\n'), S('css/06-ux-v47.css'),
   SEP('\n</style>\n\n<style id="ux-v48">\n'), S('css/07-ux-v48.css'),
+  SEP('\n</style>\n\n<style id="ux-v49">\n'), S('css/08-ux-v49.css'),
   SEP('\n</style>\n\n<script id="app-code" type="application/x-diario-inert">\n'),
   // ── código do app: um único escopo global, na ordem de dependência ──
   [

@@ -381,6 +381,12 @@ button.is-saving {
   border-radius: 9px; border: 1.5px solid var(--border); background: var(--surface);
 }
 .grade-gear-menu { min-width: 252px; }   /* folga para o seletor caber em uma linha */
+/* O menu do TEC é ancorado em coordenadas de TELA pelo JS (ver TecUX.init): o
+   botão vive dentro de um `.card`, que recorta tudo por `overflow: hidden`. Daí
+   `fixed` e um z-index de painel flutuante — o `absolute`/`z-index: 40` do
+   irmão da Grade era justamente o que fazia a lista aparecer atrás dos cartões
+   de baixo, sem como ler nem clicar. */
+#tec-gear-menu { position: fixed; right: auto; z-index: 1500; }
 
 /* A bandeja perdeu a barra de ações: os chips ocupam a faixa inteira */
 .grade-tray-bar .grade-chip-tray { width: 100%; }
@@ -1072,7 +1078,16 @@ body.leis-foco .lei-sel-fab { --lei-fab-lift: 8px; }
   flex: 0 0 auto; width: 30px; height: 30px; border: none; border-radius: 8px; cursor: pointer;
   background: var(--surface-sunken); color: var(--text-soft); font-size: var(--fs-xs);
 }
-.leis-nova { flex: 0 0 auto; min-height: 44px; margin-left: auto; }  /* fica à direita mesmo sem a busca */
+/* Os dois botões andam juntos no fim da faixa: o "auto" mora no primeiro deles
+   (⚙️ Ajustes) para que a dupla fique à direita mesmo sem a busca. */
+.leis-ajustes { flex: 0 0 auto; min-height: 44px; margin-left: auto; }
+.leis-nova { flex: 0 0 auto; min-height: 44px; }
+@media (max-width: 560px) {
+  /* No celular a busca ocupa a primeira linha e os dois botões dividem a
+     segunda em partes iguais — nenhum deles fica com meia palavra quebrada. */
+  .leis-busca { flex: 1 1 100%; }
+  .leis-ajustes, .leis-nova { flex: 1 1 0; margin-left: 0; }
+}
 .leis-list-contagem {
   margin: 0 0 10px; font-size: var(--fs-2xs); color: var(--text-faint); font-weight: 600;
   text-transform: uppercase; letter-spacing: .05em;
