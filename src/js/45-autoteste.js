@@ -767,8 +767,80 @@ const AutoTeste = {
     const comAncora = porDia(365);
     comAncora[comAncora.length - 1].ancora = true;
     const semAncora = CB.selecionarParaFaxina(comAncora, agora);
-    this._ok('a âncora permanente nunca é apagada',
+    this._ok('a âncora nunca é apagada',
       !semAncora.some(r => r.ancora), semAncora.filter(r => r.ancora).length);
+
+    /* ── A ÂNCORA É MÓVEL ──────────────────────────────────────────────────
+       Ela era a PRIMEIRA foto do perfil — por definição, a mais vazia que já
+       existiu. Como chão permanente isso envelhece mal: depois de três anos, o
+       único ponto de retorno garantido devolvia um app quase em branco.
+
+       A regra nova separa dois trabalhos que estavam sobrepostos: dentro de 12
+       meses quem protege são as faixas; depois disso a faxina apagaria tudo, e
+       é só aí que a âncora importa. Ela passa a ser a foto MAIS COMPLETA entre
+       as que já saíram desse horizonte. */
+    const foto = (dias, chars, ancora) => ({
+      id: 'f' + dias, ancora: !!ancora, chars,
+      created_at: new Date(agora - dias * DIA).toISOString()
+    });
+    this._ok('Âncora: sem fotos, não há âncora a escolher', CB.ancoraIdeal([], agora) == null);
+    /* NO PRIMEIRO ANO NADA MUDA. Nenhuma foto além do horizonte significa que a
+       âncora continua sendo a primeira — o comportamento de sempre. */
+    const novinhas = [foto(300, 100, true), foto(200, 900), foto(10, 5000)];
+    this._ok('Âncora: dentro de 12 meses ela não se move, por mais que o perfil cresça',
+      CB.ancoraIdeal(novinhas, agora).id === 'f300', CB.ancoraIdeal(novinhas, agora));
+    /* PASSADO O HORIZONTE, ELA ANDA PARA A MAIS CHEIA. É o caso do usuário:
+       a foto de três anos atrás tem 400 caracteres, a de dois anos tem 90 mil. */
+    const antigas = [foto(1100, 400, true), foto(700, 90000), foto(500, 60000), foto(5, 120000)];
+    const escolhida = CB.ancoraIdeal(antigas, agora);
+    this._ok('Âncora: passado o horizonte, vai para a mais completa entre as velhas',
+      escolhida.id === 'f700', escolhida);
+    /* E NUNCA PARA UMA FOTO RECENTE, por maior que ela seja: dentro do
+       horizonte as faixas já protegem, e ancorar ali deixaria o passado
+       distante sem chão nenhum. */
+    this._ok('Âncora: nunca vai para uma foto que as faixas ainda protegem',
+      escolhida.id !== 'f5', escolhida.id);
+    /* SÓ TROCA COM GANHO REAL. Mexer no chão para pôr uma foto do mesmo
+       tamanho é mexer na única coisa que promete não se mexer. */
+    const semGanho = [foto(1100, 90000, true), foto(700, 90000), foto(600, 50000)];
+    this._ok('Âncora: sem ganho de conteúdo, o chão fica onde está',
+      CB.ancoraIdeal(semGanho, agora).id === 'f1100', CB.ancoraIdeal(semGanho, agora));
+    const menor = [foto(1100, 90000, true), foto(700, 10)];
+    this._ok('Âncora: e nunca troca por uma foto MENOR que a atual',
+      CB.ancoraIdeal(menor, agora).id === 'f1100', CB.ancoraIdeal(menor, agora));
+    /* ── A TRAVA QUE OS TESTES ACIMA NÃO EXERCITAVAM ─────────────────────
+       Uma reversão mostrou que remover a trava de "só troca com ganho real"
+       não derrubava nenhum teste: quando a âncora é a foto mais antiga (o que
+       a própria regra garante), o critério de tamanho já devolve ela mesma, e
+       a trava nunca é consultada. Ela vale para um estado que a regra não
+       produz sozinha, mas que dado legado ou uma edição manual no banco podem
+       ter: a âncora DENTRO do horizonte, com fotos mais velhas e menores
+       atrás dela. Sem a trava, o chão seria rebaixado de 90 mil caracteres
+       para 500. */
+    const legado = [foto(1100, 500), foto(900, 300), foto(100, 90000, true)];
+    this._ok('Âncora: não rebaixa o chão quando a âncora herdada é a maior',
+      CB.ancoraIdeal(legado, agora).id === 'f100', CB.ancoraIdeal(legado, agora));
+    // Empate de tamanho decide pela mais antiga, que cobre o período mais longo.
+    const empate = [foto(1100, 500, true), foto(900, 9000), foto(800, 9000)];
+    this._ok('Âncora: empate de tamanho fica com a que cobre mais tempo',
+      CB.ancoraIdeal(empate, agora).id === 'f900', CB.ancoraIdeal(empate, agora));
+    // Perfil sem âncora nenhuma (dado anterior à regra) ganha uma.
+    this._ok('Âncora: perfil sem âncora nenhuma recebe uma',
+      CB.ancoraIdeal([foto(1100, 400), foto(700, 9000)], agora).id === 'f700');
+    this._ok('Âncora: e sem nada além do horizonte, ela cai na mais antiga',
+      CB.ancoraIdeal([foto(100, 400), foto(50, 9000)], agora).id === 'f100');
+    // `chars` ausente ou podre não pode virar NaN e derrubar a escolha.
+    const podre = [{ id: 'p1', ancora: true, created_at: new Date(agora - 1100 * DIA).toISOString() },
+                   { id: 'p2', chars: 'x', created_at: new Date(agora - 900 * DIA).toISOString() },
+                   { id: 'p3', chars: 700, created_at: new Date(agora - 800 * DIA).toISOString() }];
+    this._ok('Âncora: tamanho ausente ou ilegível conta como zero, não como NaN',
+      CB.ancoraIdeal(podre, agora).id === 'p3', CB.ancoraIdeal(podre, agora));
+    /* E A ESCOLHIDA CONTINUA PROTEGIDA DA FAXINA — a regra nova só vale se a
+       faxina respeitar o rótulo no lugar NOVO. */
+    const moveu = antigas.map(r => Object.assign({}, r, { ancora: r.id === escolhida.id }));
+    const cortadasMov = CB.selecionarParaFaxina(moveu.concat(porDia(30)), agora);
+    this._ok('Âncora: a faxina respeita a âncora no lugar novo',
+      !cortadasMov.some(r => r.id === escolhida.id), cortadasMov.map(r => r.id).slice(0, 6));
 
     // Nada recém-criado sai, mesmo em rajada (muitas fotos no mesmo dia).
     const rajada = Array.from({ length: 40 }, (_, i) => ({

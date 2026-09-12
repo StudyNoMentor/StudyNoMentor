@@ -22,10 +22,12 @@ nada. Nenhum comando aqui remove tabela, coluna ou linha.
 As duas primeiras são o **presente**. A terceira é o **passado** — é ela que
 responde "e se eu perder tudo?". A quarta não guarda dado de estudo nenhum.
 
-> **`profile_backups` é a única tabela sem política de UPDATE.** Isso não é
-> esquecimento: é o que torna a imutabilidade uma regra do banco, e não uma
-> promessa do código. Nem o app, nem um bug dele, nem um cliente adulterado
-> conseguem reescrever uma foto já gravada.
+> **Em `profile_backups`, o CONTEÚDO de uma foto é imutável — e quem garante
+> isso é o banco, não o código.** O app recebe permissão de escrita em uma
+> única coluna, `ancora`, que é um rótulo e não conteúdo. `data`, `chars`,
+> `sig` e `created_at` não podem ser reescritos nem pelo app, nem por um bug
+> dele, nem por um cliente adulterado: a tentativa esbarra numa falta de
+> privilégio de coluna, antes de qualquer política.
 
 ---
 
@@ -82,8 +84,71 @@ drop policy if exists "backups_delete_proprios" on public.profile_backups;
 create policy "backups_delete_proprios" on public.profile_backups
   for delete using (auth.uid() = user_id);
 
--- NENHUMA política de UPDATE, de propósito: uma foto gravada é imutável.
+/* ── O RÓTULO DE ÂNCORA SE MOVE; A FOTO, NÃO ───────────────────────────────
+   A âncora era a PRIMEIRA foto do perfil — e a primeira foto é, por definição,
+   a mais vazia que já existiu. Como chão permanente isso envelhece mal: depois
+   de três anos, o único ponto de retorno garantido devolvia um app quase em
+   branco. Ela passa a caminhar para a foto mais completa entre as que já
+   saíram do horizonte de 12 meses das faixas de retenção (ver `ancoraIdeal`
+   em src/js/66-backup-nuvem.js).
+
+   Mover o rótulo exige UPDATE, e UPDATE numa tabela que promete imutabilidade
+   pede cuidado. A promessa é mantida pelo GRANT, que é mais forte que a
+   política: `authenticated` perde o UPDATE da TABELA e recebe de volta apenas
+   a COLUNA `ancora`. Um cliente adulterado que tente reescrever `data` leva
+   "permission denied for column", sem sequer chegar à política de RLS.
+
+   Se você não rodar este trecho, o app continua funcionando exatamente como
+   antes: a troca falha, a âncora antiga segue protegida, e o console registra
+   o motivo uma vez. Nada é apagado. */
+/* SÃO DOIS COMANDOS E OS DOIS SÃO NECESSÁRIOS, por motivos diferentes:
+   · sem a POLÍTICA, o RLS não recusa o update — ele FILTRA a linha. O banco
+     responde sem erro nenhum e zero linhas afetadas, e a âncora fica onde
+     estava em silêncio;
+   · sem o GRANT, a tentativa para em "permission denied for column".
+   Rodar só um dos dois deixa a âncora parada. */
+drop policy if exists "backups_ancora_propria" on public.profile_backups;
+create policy "backups_ancora_propria" on public.profile_backups
+  for update using (auth.uid() = user_id) with check (auth.uid() = user_id);
+
+revoke update on public.profile_backups from authenticated;
+grant  update (ancora) on public.profile_backups to authenticated;
 ```
+
+> **Confira que os dois comandos pegaram.** As consultas abaixo perguntam ao
+> CATÁLOGO do Postgres, e não ao comportamento — de propósito.
+>
+> O editor SQL do Supabase executa como `postgres`, e o `postgres` passa por
+> cima tanto das políticas de RLS quanto dos privilégios de coluna. Um
+> `update ... set data = 'x'` rodado ali **funciona mesmo com o `revoke`
+> aplicado**, e responde "Success. No rows returned" — que não é prova de nada,
+> nem a favor nem contra. Testar o comportamento exige encarnar o papel
+> (`set local role authenticated`) dentro de uma transação; perguntar ao
+> catálogo é mais curto e não deixa dúvida.
+>
+> **1. O app escreve UMA coluna, e só ela.** Tem de devolver exatamente uma
+> linha, `ancora`:
+>
+> ```sql
+> select column_name from information_schema.column_privileges
+> where table_schema = 'public' and table_name = 'profile_backups'
+>   and grantee = 'authenticated' and privilege_type = 'UPDATE';
+> ```
+>
+> Se vier `data`, `chars`, `sig` ou qualquer outra, o `revoke` não pegou e a
+> imutabilidade do CONTEÚDO deixou de ser garantida pelo banco. Se vier vazio,
+> faltou o `grant`.
+>
+> **2. A política de update existe.** Tem de aparecer `backups_ancora_propria`:
+>
+> ```sql
+> select polname from pg_policy
+> where polrelid = 'public.profile_backups'::regclass;
+> ```
+>
+> Sem ela o RLS filtra a linha em silêncio: o banco responde sem erro nenhum e
+> zero linhas afetadas. O app detecta isso (conta as linhas devolvidas, não
+> confia na ausência de erro) e registra o motivo no console.
 
 > **Se a criação do índice único acima falhar** com um erro citando linhas
 > duplicadas, é porque já existem duas (ou mais) fotos marcadas `ancora=true`

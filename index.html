@@ -57,7 +57,7 @@
      novo, e o antigo é descartado sozinho na ativação) e o que permite ao app
      dizer qual versão está rodando. Em src/ fica "dev" de propósito: a versão
      é gerada na montagem, não editada à mão. -->
-<meta name="diario-versao" content="vee605a2d34">
+<meta name="diario-versao" content="veec4f114b2">
 <script>
 /* ── ARRANQUE: abre o IndexedDB AGORA, em paralelo com o parse do documento ──
    A fachada de armazenamento vive no fim do <body>, depois de ~1,7 MB de HTML.
@@ -7453,7 +7453,7 @@ window.__idbBoot = (function () {
       <div class="card-header">
         <div>
           <h2>☁️ Backup no banco de dados</h2>
-          <p class="sub">A proteção mais forte, e a única que <strong>não depende deste aparelho</strong>: cópias comprimidas e <strong>imutáveis</strong> guardadas no servidor, resgatáveis de qualquer lugar só com a sua conta. Uma por dia, sozinha — e mais uma sempre que seus dados encolhem muito de uma vez. O histórico é mantido <strong>em faixas</strong>: todos os dias das últimas 2 semanas, uma por semana nos últimos 2 meses e uma por mês no último ano — então um erro percebido semanas depois ainda tem para onde voltar. A primeira cópia de todas é uma <strong>âncora permanente</strong>, que a limpeza nunca apaga.</p>
+          <p class="sub">A proteção mais forte, e a única que <strong>não depende deste aparelho</strong>: cópias comprimidas e <strong>imutáveis</strong> guardadas no servidor, resgatáveis de qualquer lugar só com a sua conta. Uma por dia, sozinha — e mais uma sempre que seus dados encolhem muito de uma vez. O histórico é mantido <strong>em faixas</strong>: todos os dias das últimas 2 semanas, uma por semana nos últimos 2 meses e uma por mês no último ano — então um erro percebido semanas depois ainda tem para onde voltar. Passado esse ano, a limpeza apagaria tudo — e é aí que entra a <strong>âncora</strong>: a cópia mais completa entre as que já saíram do horizonte fica marcada e nunca é removida. Ela era a primeira cópia de todas, que é justamente a mais vazia que já existiu; agora caminha sozinha para um retrato mais cheio conforme você estuda, e só troca quando há ganho real de conteúdo.</p>
         </div>
         <button type="button" class="btn-secondary" id="cfg-cloudbk-save">＋ Guardar cópia no banco</button>
       </div>
@@ -26849,8 +26849,80 @@ const AutoTeste = {
     const comAncora = porDia(365);
     comAncora[comAncora.length - 1].ancora = true;
     const semAncora = CB.selecionarParaFaxina(comAncora, agora);
-    this._ok('a âncora permanente nunca é apagada',
+    this._ok('a âncora nunca é apagada',
       !semAncora.some(r => r.ancora), semAncora.filter(r => r.ancora).length);
+
+    /* ── A ÂNCORA É MÓVEL ──────────────────────────────────────────────────
+       Ela era a PRIMEIRA foto do perfil — por definição, a mais vazia que já
+       existiu. Como chão permanente isso envelhece mal: depois de três anos, o
+       único ponto de retorno garantido devolvia um app quase em branco.
+
+       A regra nova separa dois trabalhos que estavam sobrepostos: dentro de 12
+       meses quem protege são as faixas; depois disso a faxina apagaria tudo, e
+       é só aí que a âncora importa. Ela passa a ser a foto MAIS COMPLETA entre
+       as que já saíram desse horizonte. */
+    const foto = (dias, chars, ancora) => ({
+      id: 'f' + dias, ancora: !!ancora, chars,
+      created_at: new Date(agora - dias * DIA).toISOString()
+    });
+    this._ok('Âncora: sem fotos, não há âncora a escolher', CB.ancoraIdeal([], agora) == null);
+    /* NO PRIMEIRO ANO NADA MUDA. Nenhuma foto além do horizonte significa que a
+       âncora continua sendo a primeira — o comportamento de sempre. */
+    const novinhas = [foto(300, 100, true), foto(200, 900), foto(10, 5000)];
+    this._ok('Âncora: dentro de 12 meses ela não se move, por mais que o perfil cresça',
+      CB.ancoraIdeal(novinhas, agora).id === 'f300', CB.ancoraIdeal(novinhas, agora));
+    /* PASSADO O HORIZONTE, ELA ANDA PARA A MAIS CHEIA. É o caso do usuário:
+       a foto de três anos atrás tem 400 caracteres, a de dois anos tem 90 mil. */
+    const antigas = [foto(1100, 400, true), foto(700, 90000), foto(500, 60000), foto(5, 120000)];
+    const escolhida = CB.ancoraIdeal(antigas, agora);
+    this._ok('Âncora: passado o horizonte, vai para a mais completa entre as velhas',
+      escolhida.id === 'f700', escolhida);
+    /* E NUNCA PARA UMA FOTO RECENTE, por maior que ela seja: dentro do
+       horizonte as faixas já protegem, e ancorar ali deixaria o passado
+       distante sem chão nenhum. */
+    this._ok('Âncora: nunca vai para uma foto que as faixas ainda protegem',
+      escolhida.id !== 'f5', escolhida.id);
+    /* SÓ TROCA COM GANHO REAL. Mexer no chão para pôr uma foto do mesmo
+       tamanho é mexer na única coisa que promete não se mexer. */
+    const semGanho = [foto(1100, 90000, true), foto(700, 90000), foto(600, 50000)];
+    this._ok('Âncora: sem ganho de conteúdo, o chão fica onde está',
+      CB.ancoraIdeal(semGanho, agora).id === 'f1100', CB.ancoraIdeal(semGanho, agora));
+    const menor = [foto(1100, 90000, true), foto(700, 10)];
+    this._ok('Âncora: e nunca troca por uma foto MENOR que a atual',
+      CB.ancoraIdeal(menor, agora).id === 'f1100', CB.ancoraIdeal(menor, agora));
+    /* ── A TRAVA QUE OS TESTES ACIMA NÃO EXERCITAVAM ─────────────────────
+       Uma reversão mostrou que remover a trava de "só troca com ganho real"
+       não derrubava nenhum teste: quando a âncora é a foto mais antiga (o que
+       a própria regra garante), o critério de tamanho já devolve ela mesma, e
+       a trava nunca é consultada. Ela vale para um estado que a regra não
+       produz sozinha, mas que dado legado ou uma edição manual no banco podem
+       ter: a âncora DENTRO do horizonte, com fotos mais velhas e menores
+       atrás dela. Sem a trava, o chão seria rebaixado de 90 mil caracteres
+       para 500. */
+    const legado = [foto(1100, 500), foto(900, 300), foto(100, 90000, true)];
+    this._ok('Âncora: não rebaixa o chão quando a âncora herdada é a maior',
+      CB.ancoraIdeal(legado, agora).id === 'f100', CB.ancoraIdeal(legado, agora));
+    // Empate de tamanho decide pela mais antiga, que cobre o período mais longo.
+    const empate = [foto(1100, 500, true), foto(900, 9000), foto(800, 9000)];
+    this._ok('Âncora: empate de tamanho fica com a que cobre mais tempo',
+      CB.ancoraIdeal(empate, agora).id === 'f900', CB.ancoraIdeal(empate, agora));
+    // Perfil sem âncora nenhuma (dado anterior à regra) ganha uma.
+    this._ok('Âncora: perfil sem âncora nenhuma recebe uma',
+      CB.ancoraIdeal([foto(1100, 400), foto(700, 9000)], agora).id === 'f700');
+    this._ok('Âncora: e sem nada além do horizonte, ela cai na mais antiga',
+      CB.ancoraIdeal([foto(100, 400), foto(50, 9000)], agora).id === 'f100');
+    // `chars` ausente ou podre não pode virar NaN e derrubar a escolha.
+    const podre = [{ id: 'p1', ancora: true, created_at: new Date(agora - 1100 * DIA).toISOString() },
+                   { id: 'p2', chars: 'x', created_at: new Date(agora - 900 * DIA).toISOString() },
+                   { id: 'p3', chars: 700, created_at: new Date(agora - 800 * DIA).toISOString() }];
+    this._ok('Âncora: tamanho ausente ou ilegível conta como zero, não como NaN',
+      CB.ancoraIdeal(podre, agora).id === 'p3', CB.ancoraIdeal(podre, agora));
+    /* E A ESCOLHIDA CONTINUA PROTEGIDA DA FAXINA — a regra nova só vale se a
+       faxina respeitar o rótulo no lugar NOVO. */
+    const moveu = antigas.map(r => Object.assign({}, r, { ancora: r.id === escolhida.id }));
+    const cortadasMov = CB.selecionarParaFaxina(moveu.concat(porDia(30)), agora);
+    this._ok('Âncora: a faxina respeita a âncora no lugar novo',
+      !cortadasMov.some(r => r.id === escolhida.id), cortadasMov.map(r => r.id).slice(0, 6));
 
     // Nada recém-criado sai, mesmo em rajada (muitas fotos no mesmo dia).
     const rajada = Array.from({ length: 40 }, (_, i) => ({
@@ -41990,7 +42062,7 @@ const CloudBackup = {
       this._gravarUltimoSig(id, sig);
       this._marcarEnvio(id);
       this._ultimoErro = null;
-      console.info('[CloudBackup] foto gravada no banco' + (r.ancora ? ' (ÂNCORA permanente)' : '') + ': ' + nota);
+      console.info('[CloudBackup] foto gravada no banco' + (r.ancora ? ' (ÂNCORA)' : '') + ': ' + nota);
       this.faxina(id);   // best-effort, não bloqueia
       return { ok: true, ancora: r.ancora, chars: json.length };
     } catch (err) {
@@ -42149,6 +42221,110 @@ const CloudBackup = {
     return t.getUTCFullYear() + '-S' + (1 + Math.round((t - q1) / 604800000));
   },
 
+  /* ── A ÂNCORA É MÓVEL ─────────────────────────────────────────────────────
+     Ela era a PRIMEIRA foto do perfil — e a primeira foto é, por definição, a
+     mais vazia que já existiu. Como chão permanente isso envelhece mal: depois
+     de três anos de estudo, o único ponto de retorno garantido devolvia um app
+     quase em branco. "Permanente" não é o mesmo que "útil".
+
+     A regra nova separa os dois trabalhos que estavam sobrepostos:
+
+       · DENTRO de 12 meses, quem protege são as FAIXAS (uma foto por dia nas
+         últimas 2 semanas, uma por semana nos últimos 2 meses, uma por mês no
+         último ano). Ali a âncora não acrescenta nada.
+       · DEPOIS de 12 meses, a faxina apagaria tudo — e é só aí que a âncora
+         importa. Então ela passa a ser a foto MAIS COMPLETA entre as que já
+         saíram do horizonte das faixas.
+
+     No primeiro ano nada muda: sem nenhuma foto além do horizonte, a âncora
+     continua sendo a primeira. Depois, ela caminha sozinha para o retrato mais
+     cheio que a faxina levaria embora.
+
+     A troca só acontece com GANHO REAL de conteúdo. Trocar o chão por uma foto
+     do mesmo tamanho é mexer na única coisa que promete não se mexer.
+
+     E o conteúdo continua imutável: o que muda de linha é o RÓTULO. O banco
+     concede UPDATE só na coluna `ancora` (ver BANCO-DE-DADOS.md) — nem o app
+     nem um cliente adulterado conseguem reescrever uma foto gravada. */
+  ANCORA_IDADE_MIN_DIAS: 365,   // onde as faixas acabam (MANTER_MESES meses)
+  ancoraIdeal(linhas, agora) {
+    const lista = (linhas || []).filter(r => r && r.created_at && !isNaN(new Date(r.created_at).getTime()));
+    if (!lista.length) return null;
+    const ms = (r) => new Date(r.created_at).getTime();
+    const tam = (r) => { const n = parseInt(r.chars, 10); return isNaN(n) ? 0 : n; };
+    const atual = lista.filter(r => r.ancora).sort((a, b) => ms(a) - ms(b))[0] || null;
+    const maisAntiga = lista.slice().sort((a, b) => ms(a) - ms(b))[0];
+    const corte = agora - this.ANCORA_IDADE_MIN_DIAS * 86400000;
+    const velhas = lista.filter(r => ms(r) <= corte);
+    // Nada saiu do horizonte ainda: a âncora é a primeira foto, como sempre foi.
+    if (!velhas.length) return atual || maisAntiga;
+    /* A mais completa entre as velhas; empate de tamanho decide pela mais
+       ANTIGA, que é a que cobre o período mais longo. */
+    const melhor = velhas.reduce((m, r) => {
+      if (!m) return r;
+      if (tam(r) !== tam(m)) return tam(r) > tam(m) ? r : m;
+      return ms(r) < ms(m) ? r : m;
+    }, null);
+    // Sem ganho de conteúdo, o chão fica onde está.
+    if (atual && tam(atual) >= tam(melhor)) return atual;
+    return melhor || atual || maisAntiga;
+  },
+  /* Move o rótulo, em duas escritas, e NUNCA deixa o perfil sem âncora: se a
+     segunda falhar, a primeira é desfeita; se nem isso der, quem chamou aborta
+     a faxina desta rodada em vez de apagar fotos com o chão solto. */
+  async moverAncora(id) {
+    if (!this._pronto()) return { mudou: false };
+    const alvo = id || ProfileManager.getActiveProfileId();
+    if (!alvo) return { mudou: false };
+    let linhas;
+    try { linhas = await this.listar(alvo); } catch (e) { _quiet(e, 'cbk-ancora-lista'); return { mudou: false }; }
+    const atual = (linhas || []).filter(r => r.ancora)[0] || null;
+    const ideal = this.ancoraIdeal(linhas, Date.now());
+    if (!ideal || (atual && ideal.id === atual.id)) return { mudou: false };
+    /* ── "SEM ERRO" NÃO É O MESMO QUE "ESCREVEU" ─────────────────────────
+       O RLS não recusa um UPDATE: ele FILTRA as linhas. Sem a política de
+       update, o banco responde 204 sem erro nenhum e zero linhas afetadas — e
+       a primeira versão disto anunciava "âncora movida" no console com o
+       rótulo exatamente onde estava. Um sucesso falso é pior que uma falha:
+       a falha manda alguém ler o documento do banco.
+
+       Só a linha que VOLTA prova a escrita, e por isso o `.select('id')`. Os
+       dois lados são necessários: o GRANT de coluna sem a política dá este
+       silêncio; a política sem o GRANT dá "permission denied for column". */
+    const marcar = async (linhaId, valor) => {
+      const { data, error } = await CloudStore.client.from(this.TABLE)
+        .update({ ancora: valor }).eq('id', linhaId).select('id');
+      if (error) throw error;
+      if (!data || !data.length) {
+        const e = new Error('o banco não aplicou a mudança (0 linhas) — falta a política de update de `ancora`');
+        e.semPolitica = true;
+        throw e;
+      }
+    };
+    try {
+      // limpa ANTES de marcar: o índice único do banco recusa duas âncoras
+      if (atual) await marcar(atual.id, false);
+      try { await marcar(ideal.id, true); }
+      catch (e2) {
+        if (atual) { try { await marcar(atual.id, true); } catch (e3) { _quiet(e3, 'cbk-ancora-volta'); throw e2; } }
+        throw e2;
+      }
+      console.info('[CloudBackup] âncora movida para a foto mais completa além do horizonte (' + (ideal.chars || 0) + ' caracteres).');
+      return { mudou: true, de: atual ? atual.id : null, para: ideal.id };
+    } catch (err) {
+      /* Sem a política de UPDATE do documento do banco, isto falha — e falhar
+         aqui é inofensivo: a âncora antiga continua de pé e o app segue igual.
+         Avisa uma vez por sessão para não virar ruído no console. */
+      if (!this._avisouAncora) {
+        this._avisouAncora = true;
+        console.info('[CloudBackup] a âncora não pôde ser movida — ' + (err && err.semPolitica
+          ? 'falta a POLÍTICA de update (o `grant` de coluna sozinho não basta: o RLS filtra a linha e o banco responde sem erro)'
+          : 'falta o GRANT na coluna `ancora`')
+          + '. Ver BANCO-DE-DADOS.md. A âncora atual continua protegida e nada foi apagado.');
+      }
+      return { mudou: false, erro: err && (err.message || String(err)) };
+    }
+  },
   /* A ESCOLHA é pura e testável; só o DELETE é que fala com o banco. Quem
      apaga dado tem de poder ser interrogado por um teste. */
   selecionarParaFaxina(linhas, agora) {
@@ -42186,7 +42362,16 @@ const CloudBackup = {
     const alvo = id || ProfileManager.getActiveProfileId();
     if (!alvo) return 0;
     try {
+      /* A âncora anda ANTES da faxina, e a lista é relida depois: assim quem
+         decide o que apagar já enxerga o chão no lugar novo. Se a troca falhar
+         pela metade (o perfil ficaria sem âncora), ela mesma desfaz; se nem
+         isso der certo, não se apaga nada nesta rodada. */
+      try { await this.moverAncora(alvo); } catch (e) { _quiet(e, 'cbk-ancora-mover'); }
       const linhas = await this.listar(alvo);
+      if (!(linhas || []).some(r => r.ancora)) {
+        console.warn('[CloudBackup] faxina adiada: o perfil ficou sem âncora — nada foi apagado.');
+        return 0;
+      }
       const apagar = this.selecionarParaFaxina(linhas, Date.now());
       if (!apagar.length) return 0;
       const restariam = linhas.length - apagar.length;
@@ -42475,7 +42660,7 @@ const CloudBackupUI = {
       ? `<p class="hint" style="color:var(--warn-text);background:var(--warn-soft);border-radius:10px;padding:8px 12px;margin:0 0 10px;">⚠️ O último envio ao banco não deu certo: ${escapeHtml(CloudBackup._ultimoErro)}. As fotos abaixo continuam válidas; o histórico local (acima) e o backup em .json seguem funcionando normalmente enquanto isso não for resolvido.</p>`
       : '';
     if (!linhas.length) {
-      host.innerHTML = aviso + '<p class="hint">Nenhuma cópia no banco ainda. A primeira é criada sozinha na próxima abertura do dia — ou agora, no botão acima. A primeira de todas vira uma <strong>âncora permanente</strong>, que a limpeza automática nunca remove.</p>';
+      host.innerHTML = aviso + '<p class="hint">Nenhuma cópia no banco ainda. A primeira é criada sozinha na próxima abertura do dia — ou agora, no botão acima. A mais completa entre as antigas fica marcada como <strong>âncora</strong>, e a limpeza automática nunca a remove.</p>';
       return;
     }
     /* ── A LISTA, SEM A PAREDE ─────────────────────────────────────────────
@@ -42494,7 +42679,7 @@ const CloudBackupUI = {
     try { meuAparelho = SessionGuard.deviceLabel(); } catch (e) { _quiet(e, 'cbk-aparelho'); }
     const linhaHtml = (r) => {
       const tag = r.ancora
-        ? '<span class="inactive-tag" style="color:var(--good-text);background:var(--good-soft);border-color:transparent;">âncora permanente</span>' : '';
+        ? '<span class="inactive-tag" style="color:var(--good-text);background:var(--good-soft);border-color:transparent;" title="O chão do seu histórico: a foto mais completa entre as que já passaram de 12 meses. A limpeza automática nunca a remove, e ela caminha sozinha para um retrato mais cheio conforme você estuda.">âncora</span>' : '';
       const outro = (r.device && r.device !== meuAparelho) ? ' · de ' + escapeHtml(r.device) : '';
       return `<div class="cloud-slot-row" data-bk="${escapeHtml(String(r.id))}">
         <div class="cloud-slot-info">
@@ -42528,7 +42713,7 @@ const CloudBackupUI = {
     });
     host.innerHTML = aviso +
       '<p class="hint" style="margin:0 0 4px;">' + linhas.length + ' cópia(s) no banco' +
-      (ancoras ? ', incluindo a <strong>âncora permanente</strong>' : '') +
+      (ancoras ? ', incluindo a <strong>âncora</strong>' : '') +
       '. Não dependem deste navegador — em outro aparelho, basta entrar na conta.</p>' +
       abertos.join('') +
       (fechados.length
