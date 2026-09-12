@@ -447,12 +447,23 @@ const PlanoAuditoria = {
          sumir, porque é ela que explica por que o domínio deste arquivo não
          bate com o de outro gerado no mesmo dia. */
       parametros: Object.assign({}, p, {
-        excluidas: (Array.isArray(p.excluidas) ? p.excluidas : []).map(nm)
+        excluidas: (Array.isArray(p.excluidas) ? p.excluidas : []).map(nm),
+        /* O FOCO É NOME PRÓPRIO, como a exclusão — e como ela, não pode
+           simplesmente sumir no modo anônimo: é ele que explica por que o
+           domínio deste arquivo não bate com o de outro do mesmo dia. Vai pelo
+           apelido estável, igual ao resto. */
+        foco: (Array.isArray(p.foco) ? p.foco : []).map(nm)
       }),
 
       contexto: {
         modo: (function () { try { return PlanoPontos.modo(); } catch (e) { return null; } })(),
         disciplinaFiltro: p.disciplina === '__todas__' ? null : nm(p.disciplina),
+        /* O recorte REALMENTE aplicado, como o motor o resolveu — `disciplina`
+           acima é a vista do select e pode ser `__todas__` com três matérias em
+           foco. Sem este campo, dois arquivos do mesmo dia com domínios
+           diferentes ficariam irreconciliáveis. */
+        materiasEmFoco: (r.foco || []).map(nm),
+        materiasEmFocoN: (r.foco || []).length,
         /* O que o motor DE FATO deixou de fora neste retrato — que pode ser
            menos que a lista marcada (uma matéria excluída sem retrato nenhum
            não tira nada da conta) e nunca mais. */

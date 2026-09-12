@@ -150,7 +150,7 @@
   letter-spacing: .04em; color: var(--text-faint); margin-top: 1px;
 }
 .pl-mat-jogo.fraco { color: var(--text-faint); }
-.pl-mat-acoes { display: flex; align-items: center; gap: 6px; flex: 0 0 auto; }
+.pl-mat-acoes { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; flex: 0 0 auto; }
 /* A linha de apoio: as três medidas que sustentam o prêmio, na segunda fileira,
    em vez de três colunas que o telefone escondia. */
 .pl-mat-sub {
@@ -294,4 +294,25 @@
   color: var(--text-soft);
   background: var(--surface-sunken);
   border: 1px dashed var(--border-strong);
+}
+
+/* ---------------------------------------------------------------------------
+   7. O FOCO DE VÁRIAS MATÉRIAS
+   ---------------------------------------------------------------------------
+   O chip divide a célula com o "🎯 Atacar" e precisa caber ao lado dele em
+   390px — daí o texto curto e o `flex-wrap`, que foi acrescentado à regra da
+   célula que já existe (seção 2): duas regras com o mesmo seletor divergem na
+   primeira manutenção. Marcado, o chip é sólido: o estado tem de ser legível de
+   relance numa lista de vinte matérias, e uma borda fina não é. */
+.pl-foco-bt {
+  font: inherit; font-size: var(--fs-3xs); font-weight: 800; line-height: 1;
+  padding: 7px 10px; border-radius: 999px; cursor: pointer; white-space: nowrap;
+  color: var(--text-soft); background: var(--surface-sunken);
+  border: 1px dashed var(--border-strong);
+  min-height: 32px;
+}
+.pl-foco-bt:hover { color: var(--text); border-color: var(--accent); }
+.pl-foco-bt.is-on {
+  color: var(--on-accent); background: var(--accent);
+  border-style: solid; border-color: var(--accent);
 }

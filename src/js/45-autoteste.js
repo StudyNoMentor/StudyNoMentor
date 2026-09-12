@@ -2373,6 +2373,83 @@ const AutoTeste = {
         && String(comPiso.taxa) === String(semPiso.taxa),
         { sem: [semPiso.medido, semPiso.estado, semPiso.taxa], com: [comPiso.medido, comPiso.estado, comPiso.taxa] });
 
+      /* ── O BLOCO TAMBÉM CAI NA PROVA ──────────────────────────────────────
+         `incidenciaDe` casa por NOME, e "Licitacoes · bloco" não existe no
+         índice da banca: o bloco vinha com incidência ZERO e ia para o fim da
+         fila em "fraqueza × incidência". A lente que existe para dar amostra ao
+         assunto fino tirava dele o peso de prova.
+
+         A incidência do bloco é a soma dos MEMBROS — folhas irmãs, disjuntas.
+         Usar a do PAI (26 aqui) contaria também Modalidades, que é gorda e
+         ficou fora do bloco: 26 contra os 9 que são de fato do bloco. */
+      const origIncid = DB.getIncidencia;
+      try {
+        DB.getIncidencia = () => ([
+          { banca: 'CESPE', disciplina: 'Dir Adm', topico: 'Licitacoes', incidencia: 26, codigo: '01', depth: 1 },
+          { banca: 'CESPE', disciplina: 'Dir Adm', topico: 'Modalidades', incidencia: 17, codigo: '01.01', depth: 2 },
+          { banca: 'CESPE', disciplina: 'Dir Adm', topico: 'Dispensa', incidencia: 4, codigo: '01.02', depth: 2 },
+          { banca: 'CESPE', disciplina: 'Dir Adm', topico: 'Inexigibilidade', incidencia: 3, codigo: '01.03', depth: 2 },
+          { banca: 'CESPE', disciplina: 'Dir Adm', topico: 'Sancoes', incidencia: 2, codigo: '01.04', depth: 2 }
+        ]);
+        const mapa = ReforcoEngine.incidenceMap('__todas__') || {};
+        const bloco = { nome: 'Licitacoes · bloco', disciplina: 'Dir Adm',
+          membros: ['Dispensa', 'Inexigibilidade', 'Sancoes'] };
+        this._ok('Incidência: o bloco soma a incidência dos membros (4+3+2), não zero',
+          P._incidDaUnidade(mapa, bloco) === 9, P._incidDaUnidade(mapa, bloco));
+        this._ok('Incidência: e não herda a do pai, que carrega o irmão gordo (26)',
+          P._incidDaUnidade(mapa, bloco) !== 26);
+        this._ok('Incidência: assunto comum continua casando pelo nome dele',
+          P._incidDaUnidade(mapa, { nome: 'Modalidades', disciplina: 'Dir Adm', membros: null }) === 17);
+        this._ok('Incidência: bloco de um membro não soma nada de estranho',
+          P._incidDaUnidade(mapa, { nome: 'Dispensa', disciplina: 'Dir Adm', membros: ['Dispensa'] }) === 4);
+      } finally {
+        DB.getIncidencia = origIncid;
+      }
+
+      /* ── O FOCO: UMA VERDADE, N MATÉRIAS ─────────────────────────────────
+         O recorte era de UMA disciplina, e o quadro "Onde atacar primeiro" diz
+         que três ou quatro concentram metade do que está em jogo. O que o teste
+         crava é que o foco de N é EXATAMENTE a união dos N recortes de um — nem
+         assunto a mais, nem a menos — e que `disciplina` (a vista do select) e
+         `foco` (o estado) nunca discordam. */
+      lente(0);
+      comBanco(() => {
+        const scoped = T.aggregate([sA, sB]);
+        const nomes = (rr) => [].concat(rr.itens || [], rr.pequenas || [])
+          .map(x => x.disciplina + '|' + x.nome).sort().join(' , ');
+        const p0 = Object.assign({}, P.prefs(), { minAmostra: 1, limite: 99 });
+        const todas = P.calcular(scoped, p0);
+        const so1 = P.calcular(scoped, Object.assign({}, p0, { foco: ['Dir Adm'] }));
+        const so2 = P.calcular(scoped, Object.assign({}, p0, { foco: ['Dir Const'] }));
+        const dois = P.calcular(scoped, Object.assign({}, p0, { foco: ['Dir Adm', 'Dir Const'] }));
+        this._ok('Foco: uma matéria recorta a lista (e não é a lista inteira)',
+          so1.assuntos > 0 && so1.assuntos < todas.assuntos, { uma: so1.assuntos, todas: todas.assuntos });
+        this._ok('Foco: duas matérias = a UNIÃO exata dos dois recortes de uma',
+          nomes(dois) === [].concat(nomes(so1).split(' , '), nomes(so2).split(' , ')).sort().join(' , ')
+          && dois.assuntos === so1.assuntos + so2.assuntos,
+          { duas: dois.assuntos, soma: so1.assuntos + so2.assuntos });
+        this._ok('Foco: com todas as matérias no foco o resultado é o geral',
+          dois.assuntos === todas.assuntos && Math.abs(dois.dominioPct - todas.dominioPct) < 1e-9,
+          { foco: dois.dominioPct, geral: todas.dominioPct });
+        this._ok('Foco: o legado (`disciplina`) continua valendo quando não há foco',
+          P.calcular(scoped, Object.assign({}, p0, { disciplina: 'Dir Adm' })).assuntos === so1.assuntos);
+        this._ok('Foco: e `foco` manda sobre `disciplina` — dois estados não coexistem',
+          P.calcular(scoped, Object.assign({}, p0, { disciplina: 'Dir Const', foco: ['Dir Adm'] })).assuntos === so1.assuntos);
+        this._ok('Foco: nome repetido ou vazio não duplica nem quebra o recorte',
+          P.focoSet({ foco: ['Dir Adm', 'dir adm', '', null] }).n === 1);
+        this._ok('Foco: o resultado carrega o recorte para o topo nomear',
+          dois.foco.length === 2 && /Dir Adm/.test(dois.focoRotulo) && /Dir Const/.test(dois.focoRotulo), dois.focoRotulo);
+        this._ok('Foco: com três ou mais, o rótulo não vira parágrafo',
+          P.focoRotulo(P.focoSet({ foco: ['A', 'B', 'C', 'D'] })) === 'A, B e mais 2',
+          P.focoRotulo(P.focoSet({ foco: ['A', 'B', 'C', 'D'] })));
+        this._ok('Foco: a trajetória segue o MESMO recorte do número grande',
+          (() => {
+            const s1 = P.serieHistorica(Object.assign({}, p0, { foco: ['Dir Const'], pisoSerie: 1 }));
+            const st = P.serieHistorica(Object.assign({}, p0, { pisoSerie: 1 }));
+            return s1.length > 0 && s1[s1.length - 1].assuntos < st[st.length - 1].assuntos;
+          })());
+      });
+
       /* A série é a tela em que a pessoa compara o hoje com o passado. O piso
          muda a CONTAGEM de assuntos por ponto (é o que ele promete) e faz mais
          volume passar do piso por importação — nunca ao contrário. */

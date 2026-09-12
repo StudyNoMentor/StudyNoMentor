@@ -2492,6 +2492,103 @@ try {
     ? ok(`o dominio nomeia a materia quando filtrado (${escopo.domGeral}% em ${escopo.nGeral} assuntos → ${escopo.domFiltro}% em ${escopo.nFiltro}) e o botao "ver o geral" desfaz`)
     : erro('o numero grande nao diz de quem e: ' + JSON.stringify(escopo));
 
+  /* ── ESCOLHER A SEMANA, E NAO UMA MATERIA POR VEZ ─────────────────────
+     O quadro "Onde atacar primeiro" existe para dizer que tres ou quatro
+     materias concentram metade do que esta em jogo — e o unico caminho para a
+     lista de assuntos era um filtro de UMA disciplina. Montar a semana que o
+     proprio quadro propoe exigia desfazer e refazer o filtro materia por
+     materia.
+
+     O foco acumula, e o que este teste cobra e que ele seja UM estado: o
+     select, o rotulo do numero grande, a lista de baixo e o arquivo de
+     auditoria tem de contar a mesma historia. */
+  const foco = await pag.evaluate(() => {
+    const origSnaps = DB.getTecSnapshots, origSubs = DB.getActiveSubjects,
+      origModo = window.planCycleMode, origInc = ReforcoEngine._incidByDisc;
+    const antes = PlanoEngine.prefs();
+    try {
+      const dia = (n) => { const d = new Date(todayLocal() + 'T00:00:00'); d.setDate(d.getDate() - n); return d.toISOString().slice(0, 10); };
+      DB.getActiveSubjects = () => []; window.planCycleMode = () => 'pre';
+      ReforcoEngine._incidByDisc = () => ({
+        'Tributario': [{ codigo: null, depth: 0, nome: 'Tributario', disciplina: 'Tributario', incidencia: 300 }],
+        'Contabil': [{ codigo: null, depth: 0, nome: 'Contabil', disciplina: 'Contabil', incidencia: 200 }],
+        'Portugues': [{ codigo: null, depth: 0, nome: 'Portugues', disciplina: 'Portugues', incidencia: 100 }] });
+      const rs = [];
+      [['Tributario', 5, 62], ['Contabil', 4, 55], ['Portugues', 3, 78]].forEach(([d, n, base]) => {
+        for (let t = 0; t < n; t++) rs.push({ depth: 1, codigo: String(t + 1), nome: d + ' ' + (t + 1),
+          disciplina: d, questoes: 40 + t * 5, acertos: Math.round((40 + t * 5) * (base + t * 2) / 100) });
+      });
+      DB.getTecSnapshots = () => ([{ id: 'F', nome: 'F', date: dia(5), startDate: dia(35), endDate: dia(5), rows: rs }]);
+      const pintar = () => { DesempenhoTecScreen._planoRefC = null; DesempenhoTecScreen._fatias = null;
+        DesempenhoTecScreen.renderPlano(); };
+      PlanoEngine.salvarPrefs({ foco: [], disciplina: '__todas__', minAmostra: 20, metaDominio: 85,
+        limite: 50, ordenar: 'pior', granPiso: 0, apenasFolhas: true });
+      pintar();
+      const assuntos = () => [...document.querySelectorAll('#plano-lista .pl-item .pl-disc')].map((e) => e.textContent.trim());
+      const chips = () => [...document.querySelectorAll('#plano-lista [data-foco]')];
+      const geral = { n: assuntos().length, discs: [...new Set(assuntos())].sort().join(',') };
+      const nChips = chips().length;
+      // toda linha do quadro que tem assunto medido oferece o chip
+      const clicar = (nome) => {
+        const b = chips().find((e) => e.dataset.foco === nome);
+        if (b) b.click();
+        return !!b;
+      };
+      const ok1 = clicar('Tributario');
+      const ok2 = clicar('Contabil');
+      const dois = { n: assuntos().length, discs: [...new Set(assuntos())].sort().join(',') };
+      /* Lido AGORA, com as duas em foco: `sel.value` e DOM vivo, e o final
+         deste teste desfaz o foco de proposito. */
+      const sel = document.getElementById('plano-disc');
+      const selValor = sel ? sel.value : '';
+      const selTexto = (sel && sel.options[sel.selectedIndex]) ? sel.options[sel.selectedIndex].text : '';
+      const rotulo = ((document.querySelector('.pl-hero-escopo') || { textContent: '' }).textContent || '')
+        .replace(/ver o geral\s*$/, '').replace(/\s+/g, ' ').trim();
+      const marcados = chips().filter((e) => e.classList.contains('is-on')).map((e) => e.dataset.foco).sort().join(',');
+      const aria = chips().filter((e) => e.getAttribute('aria-pressed') === 'true').length;
+      const salvo = (PlanoEngine.prefs().foco || []).slice().sort().join(',');
+      const derivada = PlanoEngine.prefs().disciplina;
+      const a = PlanoAuditoria.gerar({ cadencia: 'avulsa' });
+      const noArquivo = ((a.contexto && a.contexto.materiasEmFoco) || []).slice().sort().join(',');
+      const fita = (() => { try { return TecAjustes.resumo('plano'); } catch (e) { return ''; } })();
+      // desmarcar uma volta a uma so
+      clicar('Contabil');
+      const umaSo = { n: assuntos().length, sel: document.getElementById('plano-disc').value,
+        disc: PlanoEngine.prefs().disciplina };
+      // e "ver o geral" limpa tudo
+      const limpar = document.getElementById('plano-todas-disc');
+      if (limpar) limpar.click();
+      const voltou = { n: assuntos().length, foco: (PlanoEngine.prefs().foco || []).length,
+        sel: document.getElementById('plano-disc').value, rot: !document.querySelector('.pl-hero-escopo') };
+      return { geral, nChips, ok1, ok2, dois, selValor, selTexto,
+        rotulo, marcados, aria, salvo, derivada, noArquivo,
+        fita: String(fita || '').replace(/\s+/g, ' '), umaSo, voltou };
+    } finally {
+      DB.getTecSnapshots = origSnaps; DB.getActiveSubjects = origSubs;
+      window.planCycleMode = origModo; ReforcoEngine._incidByDisc = origInc;
+      PlanoEngine.salvarPrefs({ foco: [], disciplina: '__todas__', minAmostra: antes.minAmostra,
+        limite: antes.limite, ordenar: antes.ordenar, granPiso: antes.granPiso || 0 });
+    }
+  });
+  (foco.nChips === 3 && foco.ok1 && foco.ok2 && foco.geral.n === 12 && foco.dois.n === 9
+    && foco.dois.discs === 'Contabil,Tributario')
+    ? ok(`o foco acumula: 3 materias oferecem chip, duas marcadas recortam a lista de ${foco.geral.n} para ${foco.dois.n} assuntos (${foco.dois.discs})`)
+    : erro('o foco de varias materias nao recortou a lista: ' + JSON.stringify(foco));
+  (foco.marcados === 'Contabil,Tributario' && foco.aria === 2 && foco.salvo === 'Contabil,Tributario')
+    ? ok('e as duas linhas do quadro ficam marcadas, com o estado exposto para leitor de tela')
+    : erro('o estado do chip nao acompanha o foco: ' + JSON.stringify(foco));
+  (foco.selValor === '__varias__' && /2 mat/.test(foco.selTexto) && foco.derivada === '__todas__'
+    && /Tributario/.test(foco.rotulo) && /Contabil/.test(foco.rotulo))
+    ? ok(`o numero grande nomeia as duas ("${foco.rotulo}") e o select mostra o mesmo estado ("${foco.selTexto}")`)
+    : erro('o select e o rotulo divergem do foco: ' + JSON.stringify(foco));
+  (foco.noArquivo === 'Contabil,Tributario' && /2 mat/.test(foco.fita))
+    ? ok('a auditoria grava o recorte aplicado e a fita dos ajustes o repete')
+    : erro('o recorte nao chegou ao arquivo nem a fita: ' + JSON.stringify({ arq: foco.noArquivo, fita: foco.fita }));
+  (foco.umaSo.n === 5 && foco.umaSo.sel === 'Tributario' && foco.umaSo.disc === 'Tributario'
+    && foco.voltou.n === 12 && foco.voltou.foco === 0 && foco.voltou.sel === '__todas__' && foco.voltou.rot)
+    ? ok('desmarcar volta ao filtro de uma (e o select acompanha); "ver o geral" limpa o foco inteiro')
+    : erro('o foco nao desfaz corretamente: ' + JSON.stringify(foco));
+
   /* ── A GRANULARIDADE DA UNIDADE E UMA ESCOLHA, NAO UM DESTINO ─────────
      A arvore do TecConcursos e irregular: materia que termina no segundo nivel
      convive com materia que desce ao sexto. A lente de folha transforma isso em

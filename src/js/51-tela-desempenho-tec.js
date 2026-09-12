@@ -34,6 +34,18 @@ const PlanoEngine = {
     custoModo: 'lacuna', custoFixo: 60, custoFator: 0.5,
     custoPiso: 50, custoPorPonto: 2,
     ritmoSemanal: null, apenasFolhas: true, disciplina: '__todas__',
+    /* ── O FOCO: UMA OU VÁRIAS MATÉRIAS, UM ESTADO SÓ ──────────────────────
+       O filtro era de UMA disciplina, e o quadro "Onde atacar primeiro" existe
+       justamente para dizer que TRÊS ou QUATRO matérias concentram metade do
+       que está em jogo. Escolher uma por vez obriga a pessoa a desfazer e
+       refazer o filtro para montar a semana que o próprio quadro acabou de
+       propor.
+
+       `foco` é lista, e é a ÚNICA verdade: `disciplina` continua existindo
+       porque o select e o "restaurar padrões" falam por ela, mas ela passa a
+       ser DERIVADA (o foco de uma, ou `__todas__`). Dois estados para a mesma
+       pergunta é o erro que este arquivo já pagou caro — aqui não se repete. */
+    foco: [],
     /* ── GRANULARIDADE: O PISO DE VOLUME DE UMA UNIDADE ────────────────────
        A árvore do TecConcursos é irregular de propósito: há matéria que termina
        no segundo nível e matéria que desce até o sexto. Medido no histórico
@@ -436,6 +448,38 @@ const PlanoEngine = {
     } catch (e) { _quiet(e, 'excluidas-nomes'); }
     return base;
   },
+  /* ── QUEM ESTÁ NO RECORTE ─────────────────────────────────────────────────
+     Um lugar só responde "esta matéria entra?", e todo consumidor passa por
+     aqui: a lista, o domínio, a trajetória, o segundo plano e a auditoria.
+     Aceita o estado novo (`foco`) e o antigo (`disciplina`) porque perfil salvo
+     e chamada de teste vêm das duas formas — mas nunca deixa os dois valerem ao
+     mesmo tempo: `foco` manda, e `disciplina` só é lida quando ele está vazio. */
+  MAX_FOCO: 12,
+  focoSet(opts) {
+    const lista = (opts && Array.isArray(opts.foco) && opts.foco.length)
+      ? opts.foco
+      : ((opts && opts.disciplina && opts.disciplina !== '__todas__') ? [opts.disciplina] : []);
+    const nomes = [], set = Object.create(null);
+    lista.slice(0, this.MAX_FOCO).forEach(n => {
+      const k = ReforcoEngine.norm(String(n == null ? '' : n));
+      if (!k || set[k]) return;
+      set[k] = true; nomes.push(String(n));
+    });
+    return nomes.length ? { nomes, set, n: nomes.length } : null;
+  },
+  noFoco(disciplina, foco) {
+    if (!foco) return true;
+    return !!foco.set[ReforcoEngine.norm(String(disciplina == null ? '' : disciplina))];
+  },
+  /* O rótulo que o número grande usa para dizer de quem ele é. Com muitas
+     matérias, nomear todas viraria um parágrafo no lugar de um rótulo — então
+     duas e a contagem do resto, que é o que se lê de relance. */
+  focoRotulo(foco) {
+    if (!foco) return '';
+    if (foco.n === 1) return foco.nomes[0];
+    if (foco.n === 2) return foco.nomes[0] + ' e ' + foco.nomes[1];
+    return foco.nomes[0] + ', ' + foco.nomes[1] + ' e mais ' + (foco.n - 2);
+  },
   foraDoPlano(disciplina, fora) {
     if (!fora) return false;
     const k = ReforcoEngine.norm(String(disciplina == null ? '' : disciplina));
@@ -469,7 +513,11 @@ const PlanoEngine = {
     try { (DB.getActiveSubjects() || []).forEach(m => { if (m && m.nome) add(m.nome, 'edital'); }); } catch (e) { _quiet(e, 'excl-edital'); }
     // volume histórico, para a caixa dizer o tamanho do que sai da conta
     try {
-      const idx = this.totalHistorico({ apenasFolhas: true, _semExclusao: true });
+      /* A MESMA LENTE DO PLANO. Pinar `apenasFolhas: true` aqui fazia a caixa
+         contar 137 "assuntos" enquanto o Plano mostrava 33 unidades — as
+         questões batiam, a contagem não, e é assim que o usuário deixa de
+         confiar nos dois números. A caixa fala da lente ativa. */
+      const idx = this.totalHistorico(Object.assign({}, this.prefs(), { _semExclusao: true }));
       const SEP = ReforcoEngine.SEP;
       Object.keys(idx).forEach(k => {
         const o = vistos[ReforcoEngine.norm(k.split(SEP)[0])];
@@ -935,6 +983,8 @@ const PlanoEngine = {
     opts = Object.assign({}, this.prefs(), opts || {});
     const snaps = DB.getTecSnapshots();
     const pontos = [];
+    // a trajetória segue o MESMO recorte do número grande (ver `focoSet`)
+    const foco = this.focoSet(opts);
     /* A trajetória tem de excluir as MESMAS matérias que o domínio do topo.
        Sem isto, o número grande dizia 80,3% e o último ponto do gráfico logo
        abaixo dizia 74,9% — a mesma média, com e sem a matéria descartada. */
@@ -944,7 +994,7 @@ const PlanoEngine = {
       const idx = this._indice(s, opts);
       const chaves = Object.keys(idx).filter(k => idx[k].q >= (opts.pisoSerie || this.PISO_SERIE) &&
         !this.foraDoPlano(idx[k].disciplina || '', fora) &&
-        (opts.disciplina === '__todas__' || ReforcoEngine.norm(idx[k].disciplina || '') === ReforcoEngine.norm(opts.disciplina)));
+        this.noFoco(idx[k].disciplina || '', foco));
       if (!chaves.length) return;
       const peso = (k) => (opts.ponderacao === 'volume') ? idx[k].q : 1;
       const univ = chaves.reduce((a, k) => a + peso(k), 0);
@@ -1238,6 +1288,26 @@ const PlanoEngine = {
       return null;
     } catch (e) { _quiet(e, 'plano-melhor-piso'); return null; }
   },
+  /* ── A UNIDADE AGRUPADA TAMBÉM CAI NA PROVA ───────────────────────────────
+     `incidenciaDe` casa por NOME, e "Licitações · bloco" não existe no índice
+     da banca: todo bloco vinha com incidência ZERO. O efeito era o pior
+     possível — a lente que existe para dar amostra ao assunto fino tirava dele
+     o peso de prova, e na ordem "fraqueza × incidência" o bloco ia para o fim
+     da fila sem que nada na tela explicasse. A auditoria via (a taxa de
+     casamento caía), a tela não.
+
+     A incidência do bloco é a SOMA dos membros. Eles são folhas irmãs do mesmo
+     tópico-pai, então são disjuntas e somar não conta questão duas vezes —
+     diferente de usar a incidência do PAI, que carregaria também os irmãos
+     gordos que ficaram fora do bloco. */
+  _incidDaUnidade(incMap, x) {
+    if (!incMap) return 0;
+    if (x && x.membros && x.membros.length > 1) {
+      return x.membros.reduce((a, n) =>
+        a + (ReforcoEngine.incidenciaDe(incMap, n, x.disciplina).valor || 0), 0);
+    }
+    return ReforcoEngine.incidenciaDe(incMap, x.nome, x.disciplina).valor || 0;
+  },
   calcular(scoped, opts) {
     opts = Object.assign({}, this.prefs(), opts || {});
     if (!scoped) return { erro: 'sem-retrato' };
@@ -1259,9 +1329,8 @@ const PlanoEngine = {
     for (const s of snapsDesc) { const idx = s._idx || {}; for (const k in idx) { const c = mFull[k] || { q: 0, ac: 0 }; c.q += idx[k].q; c.ac += idx[k].ac; mFull[k] = c; } }
     const _fullPct = (k, fb) => { const f = mFull[k]; return (f && f.q > 0) ? (f.ac / f.q * 100) : fb; };
     let chaves = Object.keys(mHist);
-    if (opts.disciplina && opts.disciplina !== '__todas__') {
-      chaves = chaves.filter(k => ReforcoEngine.norm(mHist[k].disciplina || '') === ReforcoEngine.norm(opts.disciplina));
-    }
+    const foco = this.focoSet(opts);
+    if (foco) chaves = chaves.filter(k => this.noFoco(mHist[k].disciplina || '', foco));
     /* As matérias que você tirou do Plano saem AQUI, antes de qualquer conta:
        o domínio, a fila, o caminho mais curto e o "faltam X pontos" nascem já
        sem elas. O que saiu é devolvido em `excluidasAtivas` para a tela poder
@@ -1443,7 +1512,7 @@ const PlanoEngine = {
       x.rendimento = x.ganhoPP / x.custoQ * 100;
       // por DISCIPLINA + tópico (com queda para só o nome): dois "Princípios" de
       // disciplinas diferentes deixam de somar no mesmo número
-      x.incid = temIncid ? (ReforcoEngine.incidenciaDe(incMap, x.nome, x.disciplina).valor || 0) : null;
+      x.incid = temIncid ? this._incidDaUnidade(incMap, x) : null;
     });
     // Normaliza pela MAIOR incidência ENTRE OS ASSUNTOS DO PLANO (folhas), não pelo mapa
     // global — senão agregados de disciplina (ex.: 434) achatam todos os assuntos-folha.
@@ -1652,6 +1721,8 @@ const PlanoEngine = {
       defasado: idadeUltimo > opts.cadenciaDias,
       ponderacao: opts.ponderacao,
       disciplina: opts.disciplina,
+      // o recorte, como o topo da tela precisa dizê-lo
+      foco: foco ? foco.nomes.slice() : [], focoRotulo: this.focoRotulo(foco),
       /* A fatia é só o que a TELA mostra. O tamanho real do plano vai junto,
          porque é dele que saem o "mostrando 10 de 81" e a conta de quantos
          faltam até a bandeira da meta — números que a fatia não sabe dar. */
@@ -3117,12 +3188,16 @@ const DesempenhoTecScreen = {
     });
     const patch = { excluidas: limpa.slice(0, PlanoEngine.MAX_EXCLUIDAS) };
     const fora = PlanoEngine.excluidasSet(patch);
-    const atual = PlanoEngine.prefs().disciplina;
-    if (atual && atual !== '__todas__' && PlanoEngine.foraDoPlano(atual, fora)) patch.disciplina = '__todas__';
+    /* Uma matéria que acabou de sair do Plano não pode continuar no recorte:
+       o Plano ficaria filtrado por algo que ele não enxerga mais, e a lista
+       viria vazia sem dizer por quê. Vale para o foco inteiro, não só para o
+       filtro de uma. */
+    const pAtual = PlanoEngine.prefs();
+    const focoLimpo = (Array.isArray(pAtual.foco) ? pAtual.foco : []).filter(n => !PlanoEngine.foraDoPlano(n, fora));
+    patch.foco = focoLimpo;
+    patch.disciplina = (focoLimpo.length === 1) ? focoLimpo[0] : '__todas__';
     PlanoEngine.salvarPrefs(patch);
     this._planoRefC = null; this._fatias = null;
-    const sel = document.getElementById('plano-disc');
-    if (sel && patch.disciplina) sel.value = '__todas__';
     /* `renderPlano()` reconstrói TODOS os campos da folha, inclusive o select
        de disciplina e a própria caixa que você acabou de tocar — e era isso
        que fazia a caixa fechar e a página saltar a cada matéria marcada. Aqui
@@ -3135,15 +3210,23 @@ const DesempenhoTecScreen = {
   /* A lista do filtro de disciplina depende do que está excluído — é o único
      campo da folha que a exclusão precisa mexer. Extraído de `renderPlano`
      para que marcar uma matéria não obrigue a reconstruir os outros vinte. */
+  /* O select é a VISTA do foco, não um segundo estado: Todas, uma matéria, ou
+     "N em foco" quando o quadro carregou várias. Escolher `__varias__` de novo é
+     um no-op de propósito — ela existe para MOSTRAR, não para significar algo
+     que nenhuma outra opção já diga. */
   _sincronizarFiltroDisc() {
     const ds = document.getElementById('plano-disc');
     if (!ds) return;
     const p = PlanoEngine.prefs();
     const fora = PlanoEngine.excluidasSet(p);
     const discs = PlanoEngine.disciplinas(this.scopedSnapshot()).filter(d => !PlanoEngine.foraDoPlano(d, fora));
-    ds.innerHTML = `<option value="__todas__">📚 Todas</option>` +
-      discs.map(d => `<option value="${escapeHtml(d)}" ${d === p.disciplina ? 'selected' : ''}>${escapeHtml(d)}</option>`).join('');
-    if (![...ds.options].some(o => o.value === p.disciplina)) ds.value = '__todas__';
+    const foco = PlanoEngine.focoSet(p);
+    const uma = (foco && foco.n === 1) ? foco.nomes[0] : null;
+    ds.innerHTML = `<option value="__todas__">📚 Todas</option>`
+      + ((foco && foco.n > 1) ? `<option value="__varias__">🎯 ${foco.n} matérias em foco</option>` : '')
+      + discs.map(d => `<option value="${escapeHtml(d)}"${uma && ReforcoEngine.norm(d) === ReforcoEngine.norm(uma) ? ' selected' : ''}>${escapeHtml(d)}</option>`).join('');
+    if (foco && foco.n > 1) ds.value = '__varias__';
+    else if (!uma || ![...ds.options].some(o => ReforcoEngine.norm(o.value) === ReforcoEngine.norm(uma))) ds.value = '__todas__';
   },
   // normaliza texto p/ casar tópicos entre retratos (sem acento/caixa/espaços extras)
   _nk(s) { return String(s == null ? '' : s).normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/\s+/g, ' ').trim(); },
@@ -4043,8 +4126,17 @@ const DesempenhoTecScreen = {
     const num = (id, d) => { const e = document.getElementById(id); const n = parseFloat(e && e.value); return isNaN(n) ? d : n; };
     const val = (id, d) => { const e = document.getElementById(id); return (e && e.value) || d; };
     const bool = (id) => { const e = document.getElementById(id); return !!(e && e.checked); };
+    const salvas = PlanoEngine.prefs();
+    /* UMA VERDADE, DERIVADA NUM LUGAR SÓ. O select carrega uma matéria (ou
+       Todas); o quadro de matérias carrega N e deixa o select em `__varias__`.
+       Ler o select aqui e derivar `disciplina` do foco — e não o contrário — é o
+       que impede os dois de discordarem depois de qualquer repintura. */
+    const dsel = val('plano-disc', '__todas__');
+    const focoAtual = Array.isArray(salvas.foco) ? salvas.foco : [];
+    const foco = (dsel === '__varias__') ? focoAtual : (dsel === '__todas__' ? [] : [dsel]);
     const opts = {
-      disciplina: val('plano-disc', '__todas__'),
+      foco,
+      disciplina: (foco.length === 1) ? foco[0] : '__todas__',
       metaDominio: Math.max(30, Math.min(100, num('plano-meta', 80))),
       tetoDominio: Math.max(50, Math.min(100, num('plano-teto', 90))),
       ponderacao: val('plano-ponderacao', 'igual'),
@@ -4082,6 +4174,22 @@ const DesempenhoTecScreen = {
        salvo, abrir a lista inteira uma vez deixaria a tela abrindo em 81
        assuntos para sempre — exatamente a tela extensa que o passo de 10 veio
        resolver. */
+    /* ── TROCAR A LENTE MUDA O NÚMERO GRANDE, E A TELA TEM DE DIZER ─────────
+       O volume é o mesmo em qualquer piso (invariante da auditoria), mas o
+       domínio é média POR UNIDADE: juntar átomos muda numerador e denominador.
+       Recalcular a série inteira com a lente nova mantém a TENDÊNCIA honesta —
+       o que faltava era avisar quem decorou o número de ontem. Calcular o
+       antigo custa um `calcular` extra, e só no instante em que a pessoa mexe
+       na lente: uma ação explícita e rara. */
+    const pisoAntes = parseInt(salvas.granPiso || 0, 10) || 0;
+    const trocouLente = pisoAntes !== (opts.granPiso || 0);
+    let antes = null;
+    if (trocouLente) {
+      try {
+        const rAntes = PlanoEngine.calcular(this.scopedSnapshot(), Object.assign({}, opts, { granPiso: pisoAntes }));
+        antes = rAntes && !rAntes.erro ? { dom: rAntes.dominioPct, n: rAntes.assuntos } : { dom: null, n: null };
+      } catch (e) { _quiet(e, 'lente-antes'); }
+    }
     PlanoEngine.salvarPrefs(opts);
     // o passo que TODAS as listas do Plano usam, vindo do campo único
     this._passoFatia = opts.limite;
@@ -4103,6 +4211,17 @@ const DesempenhoTecScreen = {
     this._planoRefC = null;
     opts.ritmoSemanal = opts.ritmoSemanal || medido;
     const r = PlanoEngine.calcular(this.scopedSnapshot(), opts);
+    /* O aviso sai UMA vez, com os dois números lado a lado: o que a pessoa
+       tinha na cabeça e o que ela tem agora, mais a garantia do que NÃO mudou.
+       Sem o "volume intacto" o aviso assustaria em vez de informar. */
+    if (trocouLente && antes) {
+      const fmt = (v) => (v == null ? '—' : v.toFixed(1).replace('.', ',') + '%');
+      const uni = (r && !r.erro) ? r.assuntos : null;
+      showToast('Lente ' + (opts.granPiso > 0 ? 'em ' + opts.granPiso + ' questões' : 'desligada')
+        + ' · domínio ' + fmt(antes.dom) + ' → ' + fmt((r && !r.erro) ? r.dominioPct : null)
+        + (antes.n != null && uni != null ? ' · ' + antes.n + ' → ' + uni + ' unidades' : '')
+        + ' · volume intacto');
+    }
     // liga cada assunto à atividade extra já criada para ele (ciclo de acompanhamento)
     if (r && r.itens) {
       const extras = DB.getExtras().filter(e => e.origemPlano && e.origemPlano.topico);
@@ -4186,7 +4305,7 @@ const DesempenhoTecScreen = {
     const tom = r.jaAtinge ? 'good' : (r.falta <= 8 ? 'warn' : 'bad');
     const pond = r.ponderacao === 'volume' ? 'peso pelo volume praticado' : 'todo assunto com o mesmo peso';
     const aviso = (txt, cor) => `<p class="pl-aviso" style="border-color:var(--${cor});background:var(--${cor}-soft);color:var(--${cor}-text);">${txt}</p>`;
-    const escopo = (r.disciplina && r.disciplina !== '__todas__') ? r.disciplina : '';
+    const escopo = r.focoRotulo || ((r.disciplina && r.disciplina !== '__todas__') ? r.disciplina : '');
     proj.innerHTML = `
       <div class="pl-hero">
         <div class="pl-hero-top">
@@ -4207,8 +4326,10 @@ const DesempenhoTecScreen = {
               excluiu, e a lista marcada está a um toque em Ajustes ▸
               Essencial. O que o topo precisa garantir é o contrário — que
               nenhum número dele tenha visto a matéria excluída. */''}
-        <p class="pl-hero-sub">
-          Média de acerto nos <strong>${r.assuntos}</strong> ${r.assuntos === 1 ? 'assunto' : 'assuntos'}${escopo ? ' desta matéria' : ''} com amostra suficiente ·
+        <p class="pl-hero-sub"${(opts.granPiso > 0) ? ` data-info="${this._info(`<b>Este número é uma média por UNIDADE</b>, e a unidade é escolha sua.<br><br>Com o piso em <b>${opts.granPiso}</b> questões, os assuntos que não medem sozinhos entram somados ao tópico-pai deles. Isso muda a <b>contagem</b> de unidades e, com ela, a média — juntar dois assuntos de 30% e 50% num bloco não dá 40% se eles tiverem volumes diferentes.<br><br>O que NÃO muda em nenhum piso: o total de questões e de acertos (a auditoria confere isso no ato, em toda exportação), o quadro "Onde atacar primeiro" (ele soma por matéria) e o progresso das atividades já criadas (elas medem pelas linhas cruas).<br><br>A trajetória é recalculada inteira na mesma lente, então a TENDÊNCIA continua comparável — o que não se compara é este número com uma anotação feita em outra lente. Para voltar, ponha <b>não juntar</b> em ⚙ Ajustes ▸ 🔬 Amostra.`)}"` : ''}>
+          Média de acerto ${(opts.granPiso > 0)
+            ? `nas <strong>${r.assuntos}</strong> ${r.assuntos === 1 ? 'unidade' : 'unidades'}`
+            : `nos <strong>${r.assuntos}</strong> ${r.assuntos === 1 ? 'assunto' : 'assuntos'}`}${escopo ? ((r.foco && r.foco.length > 1) ? ' destas matérias' : ' desta matéria') : ''} com amostra suficiente ·
           ${r.qTotal.toLocaleString('pt-BR')} questões · recorte médio de ${r.janelaMedia || '—'} dias
         </p>
         <div class="pl-medidor" style="height:12px;">
@@ -4704,7 +4825,7 @@ const DesempenhoTecScreen = {
        planejamento ficou fora de todas as contas. Filtrada numa disciplina, a
        tela responde outra pergunta, e listar as lacunas das outras ali seria
        resposta para pergunta que ninguém fez. */
-    const lac = (opts.disciplina === '__todas__') ? PlanoEngine.lacunasDoEdital(opts) : null;
+    const lac = PlanoEngine.focoSet(opts) ? null : PlanoEngine.lacunasDoEdital(opts);
     if (lac && (lac.sem.length || lac.pouca.length)) {
       const chip = (d, extra) => `<span class="pl-edital-chip">${escapeHtml(d.nome)}${extra}</span>`;
       /* Fichas ocupam pouco cada uma e muito no conjunto: com um edital
@@ -4897,6 +5018,7 @@ const DesempenhoTecScreen = {
        botão, e sobrava exatamente uma linha com ele: a que já estava
        filtrada. O botão de "vá para outra matéria" só funcionava para a
        matéria em que você já estava. */
+    const focoAtivo = PlanoEngine.focoSet(PlanoEngine.prefs());
     const discDoPlano = {};
     try {
       PlanoEngine.disciplinas(this.scopedSnapshot()).forEach(d => {
@@ -4989,6 +5111,15 @@ const DesempenhoTecScreen = {
                acabava de acusar de consumir demais, e que era a de MENOR
                prêmio da tela. */
             const alvo = (l.veredito === 'atacar' || l.veredito === 'comecar') ? discDoPlano[l.chave] : null;
+            /* ── ESCOLHER A SEMANA, NÃO UMA MATÉRIA POR VEZ ─────────────────
+               Este quadro existe para dizer que três ou quatro matérias
+               concentram metade do que está em jogo — e o único caminho para a
+               lista de baixo era "uma matéria por vez". O chip acumula: marque
+               as que vão entrar na semana e a lista abaixo passa a ser só
+               delas. Só aparece onde existe assunto medido: prometer foco numa
+               matéria sem retrato seria abrir uma lista vazia. */
+            const focavel = discDoPlano[l.chave] || null;
+            const emFoco = !!(focavel && focoAtivo && PlanoEngine.noFoco(focavel, focoAtivo));
             this._matAnalise[l.chave] = this._analiseMateria(l, i + 1, tm, VER, grandes, alvo, r);
             const classe = (l.veredito === 'atacar' || l.veredito === 'comecar') ? ' is-acao' : (l.veredito === 'fila' ? ' is-fila' : '');
             return `
@@ -5000,7 +5131,11 @@ const DesempenhoTecScreen = {
             ${/* sem botão a célula fica VAZIA de verdade (nem um espaço), para o
                   `:empty` do CSS poder apagá-la em vez de abrir buraco */''}
             <span class="pl-mat-acoes">${alvo ? `<button type="button" class="pl-atacar-bt" data-atacar="${escapeHtml(alvo)}"
-                title="Filtra a lista de assuntos por ${escapeHtml(alvo)} e leva você ao bloco de criar atividades">🎯 Atacar</button>` : ''}</span>
+                title="Filtra a lista de assuntos por ${escapeHtml(alvo)} e leva você ao bloco de criar atividades">🎯 Atacar</button>` : ''}${focavel
+                ? `<button type="button" class="pl-foco-bt${emFoco ? ' is-on' : ''}" data-foco="${escapeHtml(focavel)}"
+                aria-pressed="${emFoco ? 'true' : 'false'}"
+                title="${emFoco ? 'Tirar ' + escapeHtml(focavel) + ' do foco' : 'Somar ' + escapeHtml(focavel) + ' ao foco — a lista de assuntos abaixo passa a ser só das matérias em foco'}">${emFoco ? '✓ em foco' : '+ focar'}</button>`
+                : ''}</span>
             <span class="pl-mat-sub">
               <span class="pl-mat-verbo"><span class="reforco-tag ${tom}">${ic} ${rot}</span></span>
               <span><b>${pctCurto(l.sharePeso)}</b> da prova</span>
@@ -5094,8 +5229,10 @@ const DesempenhoTecScreen = {
       const alvo = b.dataset.atacar;
       const op = [...sel.options].find(o => ReforcoEngine.norm(o.value) === ReforcoEngine.norm(alvo));
       if (!op) { showToast('Sem assuntos medidos em ' + alvo); return; }
-      sel.value = op.value;
-      PlanoEngine.salvarPrefs({ disciplina: op.value });
+      // "Atacar" é decisão de uma matéria só: substitui o foco, não soma a ele
+      PlanoEngine.salvarPrefs({ foco: [op.value], disciplina: op.value });
+      this._sincronizarFiltroDisc();
+      this._planoRefC = null;
       this.renderPlanoConteudo();
       /* Rolar até o bloco de criar atividades é metade do favor: filtrar e
          deixar a pessoa procurando onde a lista mudou não resolve nada. */
@@ -5104,6 +5241,31 @@ const DesempenhoTecScreen = {
         if (bloco) { try { bloco.scrollIntoView({ block: 'start', behavior: 'smooth' }); } catch (e) { _quiet(e, 'atacar-scroll'); } }
       });
       showToast('Plano filtrado por ' + op.value + ' — marque o que atacar');
+    }));
+    /* ── O FOCO ACUMULA ───────────────────────────────────────────────────
+       Marcar não é filtrar por uma: é montar o recorte da semana. A rolagem
+       até a lista acontece só quando o foco SAI do zero — repetir o salto a
+       cada matéria marcada brigaria com quem ainda está escolhendo. */
+    lista.querySelectorAll('[data-foco]').forEach(b => b.addEventListener('click', () => {
+      const nome = b.dataset.foco;
+      const p = PlanoEngine.prefs();
+      const atual = Array.isArray(p.foco) ? p.foco.slice() : [];
+      const k = ReforcoEngine.norm(nome);
+      const i = atual.findIndex(n => ReforcoEngine.norm(n) === k);
+      const primeira = atual.length === 0;
+      if (i >= 0) atual.splice(i, 1);
+      else if (atual.length >= PlanoEngine.MAX_FOCO) { showToast('O foco cabe ' + PlanoEngine.MAX_FOCO + ' matérias'); return; }
+      else atual.push(nome);
+      PlanoEngine.salvarPrefs({ foco: atual, disciplina: atual.length === 1 ? atual[0] : '__todas__' });
+      this._sincronizarFiltroDisc();
+      this._planoRefC = null; this._fatias = null;
+      this.renderPlanoConteudo();
+      if (!atual.length) { showToast('Foco limpo — o Plano voltou a falar de todas as matérias'); return; }
+      showToast(atual.length === 1 ? 'Foco em ' + atual[0] : atual.length + ' matérias em foco — a lista abaixo é só delas');
+      if (primeira) requestAnimationFrame(() => {
+        const bloco = document.querySelector('#plano-lista .pl-hoje');
+        if (bloco) { try { bloco.scrollIntoView({ block: 'start', behavior: 'smooth' }); } catch (e) { _quiet(e, 'foco-scroll'); } }
+      });
     }));
     const irExtras = document.getElementById('plano-ir-extras');
     if (irExtras) irExtras.addEventListener('click', () => switchScreen('extras'));
@@ -5126,10 +5288,9 @@ const DesempenhoTecScreen = {
     });
     const todasBtn = document.getElementById('plano-todas-disc');
     if (todasBtn) todasBtn.addEventListener('click', () => {
-      const sel = document.getElementById('plano-disc');
-      if (sel) sel.value = '__todas__';
-      PlanoEngine.salvarPrefs({ disciplina: '__todas__' });
-      this._planoRefC = null;
+      PlanoEngine.salvarPrefs({ foco: [], disciplina: '__todas__' });
+      this._sincronizarFiltroDisc();
+      this._planoRefC = null; this._fatias = null;
       this.renderPlanoConteudo();
       showToast('Mostrando o número geral, de todas as matérias');
     });
