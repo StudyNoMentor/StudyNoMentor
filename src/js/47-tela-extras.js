@@ -276,7 +276,7 @@ const ExtrasScreen = {
          bloqueia: o assunto pode ter voltado a cair, e atacá-lo de novo é o
          uso normal do app, não uma duplicata. */
       const abertas = DB.getExtras().filter(e => e.origemPlano && e.status !== 'concluida');
-      const jaTem = (x) => abertas.some(e => DesempenhoTecScreen._casaTopico(e.origemPlano, x.nome, x.disciplina));
+      const jaTem = (x) => abertas.some(e => DesempenhoTecScreen._casaUnidade(e.origemPlano, x));
       this._planoCand = []
         .concat((r.itens || []).map(x => ({ ...x, motivo: 'reforco', alvo: x.custoQ })))
         .concat((r.pequenas || []).map(x => ({ ...x, motivo: 'diagnostico', alvo: x.faltaAmostra })))

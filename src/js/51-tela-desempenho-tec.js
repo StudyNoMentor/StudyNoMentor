@@ -34,6 +34,22 @@ const PlanoEngine = {
     custoModo: 'lacuna', custoFixo: 60, custoFator: 0.5,
     custoPiso: 50, custoPorPonto: 2,
     ritmoSemanal: null, apenasFolhas: true, disciplina: '__todas__',
+    /* ── GRANULARIDADE: O PISO DE VOLUME DE UMA UNIDADE ────────────────────
+       A árvore do TecConcursos é irregular de propósito: há matéria que termina
+       no segundo nível e matéria que desce até o sexto. Medido no histórico
+       real deste app: a lente de folha dá 317 unidades com MEDIANA DE 1
+       QUESTÃO — zero medível contra o piso de amostra de 20. Fixar um nível não
+       resolve (o nível 1 deixa 57% do volume sem medição em algumas matérias e
+       esmaga outras num único número); o que resolve é um PISO: átomo que não
+       junta volume suficiente para ser medido sozinho é somado ao vizinho mais
+       próximo — o ancestral comum — e o bloco é medido como uma unidade.
+
+       Zero = desligado, e é o padrão: a lente existente continua sendo a de
+       quem não pediu nada. Com piso 10, o mesmo histórico dá 33 unidades com
+       93% do volume medível. Nada é escondido nem duplicado em nenhum valor —
+       a soma do índice é a mesma com qualquer piso (invariante `granularidade`
+       da auditoria). */
+    granPiso: 0,
     /* Matérias que o Plano NÃO deve enxergar (ver `excluidasSet`). Lista de
        nomes, nunca um apagamento: sai da conta e volta inteira ao desmarcar. */
     excluidas: [],
@@ -647,7 +663,101 @@ const PlanoEngine = {
      caro, porque é dele que saem a taxa, o ganho e o custo de cada linha do
      Plano. A chave é a MESMA do resto do motor (`chaveInc`), para que os dois
      lados casem sem tradução. */
-  _indice(snap, apenasFolhas) {
+  /* ── O AGRUPAMENTO É DECIDIDO NO HISTÓRICO INTEIRO, UMA VEZ ───────────────
+     Duas escolhas aqui não são estéticas, são a diferença entre um recorte e
+     uma bagunça:
+
+     · O ancestral é resolvido pelo NOME, nunca pelo código. Código do TEC é
+       POSICIONAL — `01.01` é um assunto num export e outro no seguinte. Agrupar
+       por código faria o mesmo átomo cair em blocos diferentes a cada
+       importação, e a comparação entre retratos morreria em silêncio.
+     · O volume que decide "é fino?" é o ACUMULADO de todos os retratos, não o
+       do retrato da vez. Assim o mapa de blocos é o MESMO para todos os
+       retratos do histórico — é isso que deixa a janela adaptativa, a série e o
+       progresso de uma atividade continuarem falando do mesmo objeto.
+
+     Duas travas: bloco de UM membro não existe (renomear um assunto que já
+     mede sozinho seria mudar a chave de algo que funciona), e átomo que já
+     alcança o piso nunca é agrupado. */
+  _agrupamento(opts) {
+    const piso = Math.max(0, parseInt((opts && opts.granPiso) || 0, 10) || 0);
+    if (!piso || !opts || opts.apenasFolhas === false) return null;
+    const snaps = DB.getTecSnapshots() || [];
+    if (!snaps.length) return null;
+    const sel = snaps.length + ':' + ((snaps[snaps.length - 1] || {}).id || '') + ':' + piso;
+    if (this._agrC && this._agrC.sel === sel) return this._agrC.v;
+    const acum = Object.create(null), pai = Object.create(null);
+    snaps.forEach(s => {
+      const porCod = Object.create(null);
+      (s.rows || []).forEach(r => {
+        if (r.codigo) porCod[ReforcoEngine.norm(r.disciplina || '') + '|' + r.codigo] = r;
+      });
+      this._folhas(s, true).forEach(r => {
+        const k = ReforcoEngine.chaveInc(r.disciplina || '', r.nome);
+        const c = acum[k] || { q: 0, nome: r.nome, disciplina: r.disciplina || '' };
+        c.q += (r.questoes || 0); acum[k] = c;
+        let cod = r.codigo ? String(r.codigo) : '', anc = null;
+        while (cod.indexOf('.') > 0) {
+          cod = cod.slice(0, cod.lastIndexOf('.'));
+          const up = porCod[ReforcoEngine.norm(r.disciplina || '') + '|' + cod];
+          if (up && up.nome) { anc = up.nome; break; }
+        }
+        /* Um ancestral REAL vence a ausência dele, e entre dois reais vence o
+           do retrato mais novo (o laço é cronológico). A ordem importa: o mesmo
+           nome pode aparecer com código num retrato e no balde "Sem
+           Classificação" no seguinte — deixar o balde apagar o tópico-pai
+           conhecido jogaria o átomo no bloco genérico sem motivo. */
+        if (anc) pai[k] = anc;
+      });
+    });
+    const grupos = Object.create(null);
+    Object.keys(acum).forEach(k => {
+      if (acum[k].q >= piso) return;   // mede sozinho: não se toca
+      const d = acum[k].disciplina, base = pai[k] || null;
+      const gk = ReforcoEngine.norm(d) + '\u0002' + ReforcoEngine.norm(base || '');
+      const g = grupos[gk] || (grupos[gk] = { disciplina: d, base, membros: [], q: 0 });
+      g.membros.push(acum[k].nome); g.q += acum[k].q;
+    });
+    const mapa = Object.create(null), blocos = Object.create(null);
+    let atomos = 0;
+    Object.keys(grupos).forEach(gk => {
+      const g = grupos[gk];
+      if (g.membros.length < 2) return;
+      const nome = (g.base || 'Assuntos esparsos') + ' · bloco';
+      const bk = ReforcoEngine.chaveInc(g.disciplina, nome);
+      if (acum[bk]) return;   // o nome já é de um assunto real: não se sobrepõe
+      blocos[bk] = { nome, disciplina: g.disciplina, base: g.base, membros: g.membros.slice(), qAcum: g.q };
+      g.membros.forEach(n => { mapa[ReforcoEngine.chaveInc(g.disciplina, n)] = bk; });
+      atomos += g.membros.length;
+    });
+    const v = Object.keys(blocos).length ? { mapa, blocos, piso, atomos, nBlocos: Object.keys(blocos).length } : null;
+    this._agrC = { sel, v };
+    return v;
+  },
+  /* Reagrupa um índice já montado. Puro: entra índice por assunto, sai índice
+     por unidade — com a soma de `q` e de `ac` intacta, sempre. */
+  _agrupar(m, lente) {
+    const ag = this._agrupamento(lente);
+    if (!ag) return m;
+    const out = Object.create(null);
+    Object.keys(m).forEach(k => {
+      const bk = ag.mapa[k];
+      if (!bk) { out[k] = m[k]; return; }
+      const b = ag.blocos[bk];
+      const c = out[bk] || { q: 0, ac: 0, nome: b.nome, disciplina: b.disciplina,
+        _bloco: b.membros.length, _membros: b.membros, _base: b.base };
+      c.q += (m[k].q || 0); c.ac += (m[k].ac || 0); out[bk] = c;
+    });
+    Object.keys(out).forEach(k => { out[k].pct = out[k].q > 0 ? out[k].ac / out[k].q * 100 : null; });
+    return out;
+  },
+  /* `lente` aceita o objeto de preferências (o caminho normal, que carrega o
+     piso de granularidade) ou o booleano antigo de `apenasFolhas` — os testes e
+     a auditoria chamam das duas formas, e a leitura crua não pode depender de
+     qual. */
+  _indice(snap, lente) {
+    const L = (lente && typeof lente === 'object') ? lente : { apenasFolhas: lente !== false, granPiso: 0 };
+    const apenasFolhas = L.apenasFolhas !== false;
     /* Retrato AGREGADO não tem hierarquia própria (ver `_fontes` em
        `aggregate`): o índice dele é a SOMA dos índices de cada retrato, cada um
        resolvido com a própria árvore. É isto que faz o volume do Plano fechar
@@ -662,7 +772,7 @@ const PlanoEngine = {
         }
       });
       Object.keys(m).forEach(k => { const v = m[k]; v.pct = v.q > 0 ? v.ac / v.q * 100 : null; });
-      return m;
+      return this._agrupar(m, L);
     }
     const m = {};
     this._folhas(snap, apenasFolhas).forEach(r => {
@@ -672,7 +782,7 @@ const PlanoEngine = {
       m[k] = c;
     });
     Object.values(m).forEach(v => { v.pct = v.q > 0 ? v.ac / v.q * 100 : null; });
-    return m;
+    return this._agrupar(m, L);
   },
   /* Total histórico de questões por assunto, na MESMA chave que o resto do
      motor usa. É daqui que o ciclo de uma atividade tira o quanto você já
@@ -688,7 +798,7 @@ const PlanoEngine = {
     const temFora = !!(fora && Object.keys(fora).length);
     const m = {};
     (DB.getTecSnapshots() || []).forEach(s => {
-      const idx = this._indice(s, opts.apenasFolhas);
+      const idx = this._indice(s, opts);
       for (const k in idx) {
         if (temFora && this.foraDoPlano(idx[k].disciplina || k.split(ReforcoEngine.SEP)[0], fora)) continue;
         const c = m[k] || { q: 0, ac: 0 }; c.q += idx[k].q; c.ac += idx[k].ac; m[k] = c;
@@ -708,7 +818,7 @@ const PlanoEngine = {
     if (this.foraDoPlano(disciplina, this.excluidasSet(o))) return null;
     const todos = DB.getTecSnapshots();
     if (!todos.length) return null;
-    const desc = todos.slice().reverse().map(s => { s._idx = this._indice(s, o.apenasFolhas); return s; });
+    const desc = todos.slice().reverse().map(s => { s._idx = this._indice(s, o); return s; });
     const a = this._taxaAdaptativa(ReforcoEngine.chaveInc(disciplina || '', nome), desc, o);
     return a ? a.pct : null;
   },
@@ -716,6 +826,73 @@ const PlanoEngine = {
     const m = (opts && opts._mapa) || this.totalHistorico(opts);
     const v = m[ReforcoEngine.chaveInc(disciplina || '', nome)];
     return v ? v.q : 0;
+  },
+  /* ── O VOLUME DE UM NÓ NÃO PODE DEPENDER DA LENTE ─────────────────────────
+     `qHistDe` e `taxaAtualDe` leem o ÍNDICE do Plano — e o índice é uma LENTE:
+     muda com `apenasFolhas` e passará a mudar com qualquer controle de
+     granularidade. Medir uma atividade por ali significa que mexer na lente
+     reescreve o progresso de um trabalho JÁ FEITO: a barra anda para trás, o
+     veredito vira, e um assunto que só existe como átomo fino pode sair do
+     índice e ser declarado "órfão" — atividade viva, encerrada por mudança de
+     configuração. Nenhuma dessas três coisas é aceitável.
+
+     O nó tem volume PRÓPRIO, e ele não depende de lente nenhuma: no export do
+     TecConcursos a linha do pai é, ao centavo, a soma dos filhos (conferido em
+     dois arquivos reais: 241 tópicos-pai, zero divergências). Então o volume de
+     um nó é a PRÓPRIA LINHA dele em cada retrato — nada de somar filhos
+     (dobraria), nada de descontar resíduo (esconderia o que foi praticado no
+     detalhe). Uma leitura, exata, imune a qualquer recorte que o Plano venha a
+     oferecer depois.
+
+     A exclusão continua valendo: matéria fora do Plano não tem volume PARA O
+     PLANO — a mesma regra de `totalHistorico` e de `taxaAtualDe`. */
+  volumeDoNo(disciplina, nome, opts) {
+    return this.volumeDoEscopo({ tipo: 'no', membros: [nome] }, disciplina, opts);
+  },
+  /* O ESCOPO de uma atividade: um nó (um nome) ou um bloco (vários nomes
+     irmãos medidos juntos). Dois membros em que um é ancestral do outro contam
+     UMA vez — o ancestral já carrega o descendente, e somar os dois seria a
+     contagem dobrada que o resto do motor passou a última revisão eliminando. */
+  volumeDoEscopo(escopo, disciplina, opts) {
+    const o = Object.assign({}, this.prefs(), opts || {});
+    const vazio = { q: 0, ac: 0, pct: null, porRetrato: [], fora: false, retratos: 0 };
+    const membros = ((escopo && escopo.membros) || []).map(n => ReforcoEngine.norm(n)).filter(Boolean);
+    if (!membros.length) return vazio;
+    if (this.foraDoPlano(disciplina, this.excluidasSet(o))) return Object.assign({}, vazio, { fora: true });
+    const dk = ReforcoEngine.norm(disciplina || '');
+    const alvo = Object.create(null);
+    membros.forEach(k => { alvo[k] = true; });
+    let q = 0, ac = 0;
+    const porRetrato = [];
+    (DB.getTecSnapshots() || []).forEach(s => {
+      const linhas = (s.rows || []).filter(r => (r.depth || 0) > 0 &&
+        ReforcoEngine.norm(r.disciplina || '') === dk && alvo[ReforcoEngine.norm(r.nome || '')]);
+      if (!linhas.length) return;
+      const cods = linhas.map(r => (r.codigo ? String(r.codigo) : null));
+      let sq = 0, sac = 0;
+      linhas.forEach((r, i) => {
+        const c = cods[i];
+        if (c && cods.some((outro, j) => j !== i && outro && c.indexOf(outro + '.') === 0)) return;
+        sq += (r.questoes || 0); sac += (r.acertos || 0);
+      });
+      if (sq <= 0) return;
+      q += sq; ac += sac;
+      porRetrato.push({ startDate: s.startDate, endDate: s.endDate || s.date, q: sq, ac: sac });
+    });
+    return { q, ac, pct: q > 0 ? ac / q * 100 : null, porRetrato, fora: false, retratos: porRetrato.length };
+  },
+  /* A taxa do nó pela MESMA janela adaptativa que a lista usa — só que
+     alimentada pelas linhas cruas em vez do índice. Monta um histórico
+     sintético de uma chave só e reusa o cálculo original: uma régua, dois
+     caminhos até ela. Duplicar a lógica aqui seria criar a segunda régua que a
+     revisão anterior acabou de eliminar. */
+  taxaDoNo(escopo, disciplina, opts) {
+    const o = Object.assign({}, this.prefs(), opts || {});
+    const v = (opts && opts._volume) || this.volumeDoEscopo(escopo, disciplina, o);
+    if (!v || !v.q) return null;
+    const desc = v.porRetrato.slice().reverse()
+      .map(x => ({ startDate: x.startDate, _idx: { __no__: { q: x.q, ac: x.ac } } }));
+    return this._taxaAdaptativa('__no__', desc, o) || null;
   },
   // ── SÉRIE HISTÓRICA: domínio em cada importação ─────────────────────────
   // Responde "está funcionando?" — a pergunta que nenhum número isolado responde.
@@ -764,7 +941,7 @@ const PlanoEngine = {
     const fora = this.excluidasSet(opts);
     let ant = null, antPct = null;
     snaps.forEach(s => {
-      const idx = this._indice(s, opts.apenasFolhas);
+      const idx = this._indice(s, opts);
       const chaves = Object.keys(idx).filter(k => idx[k].q >= (opts.pisoSerie || this.PISO_SERIE) &&
         !this.foraDoPlano(idx[k].disciplina || '', fora) &&
         (opts.disciplina === '__todas__' || ReforcoEngine.norm(idx[k].disciplina || '') === ReforcoEngine.norm(opts.disciplina)));
@@ -806,7 +983,7 @@ const PlanoEngine = {
     const snaps = DB.getTecSnapshots();
     const porTopico = {};
     snaps.forEach(s => {
-      const idx = this._indice(s, opts.apenasFolhas);
+      const idx = this._indice(s, opts);
       const dataFim = s.endDate || s.date;
       Object.keys(idx).forEach(k => {
         if (idx[k].q < (opts.pisoSerie || this.PISO_SERIE)) return;
@@ -1037,6 +1214,30 @@ const PlanoEngine = {
     if (perto && candidatos.length === antes) propor(mochila((v) => Math.floor(v * grade + 1e-9)));
     return fechar();
   },
+  /* O menor piso de agrupamento que faz o Plano voltar a existir — e o que ele
+     custa em número de unidades. Roda sobre o dado real, não sobre faixas
+     inventadas: sem um piso que sirva, devolve null e a tela não promete nada. */
+  _melhorPiso(scoped, opts) {
+    try {
+      if (opts.apenasFolhas === false) return null;
+      const alvo = Math.max(1, opts.minAmostra);
+      for (const piso of [10, 20, 30, 50]) {
+        if (piso <= (parseInt(opts.granPiso || 0, 10) || 0)) continue;
+        const L = Object.assign({}, opts, { granPiso: piso });
+        this._agrC = null;
+        const idx = this._indice(scoped, L);
+        const ag = this._agrupamento(L);
+        this._agrC = null;
+        if (!ag) continue;
+        const qualificam = Object.keys(idx).filter(k => (idx[k].q || 0) >= alvo).length;
+        if (qualificam > 0) {
+          return { piso, unidades: Object.keys(idx).length, qualificam,
+            blocos: ag.nBlocos, topicos: ag.atomos };
+        }
+      }
+      return null;
+    } catch (e) { _quiet(e, 'plano-melhor-piso'); return null; }
+  },
   calcular(scoped, opts) {
     opts = Object.assign({}, this.prefs(), opts || {});
     if (!scoped) return { erro: 'sem-retrato' };
@@ -1044,9 +1245,9 @@ const PlanoEngine = {
     if (!todos.length) return { erro: 'sem-retrato' };
     // do mais novo para o mais antigo, cada um com seu índice de assuntos
     const snapsDesc = todos.slice().reverse().map(s => {
-      s._idx = this._indice(s, opts.apenasFolhas); return s;
+      s._idx = this._indice(s, opts); return s;
     });
-    const mHist = this._indice(scoped, opts.apenasFolhas);
+    const mHist = this._indice(scoped, opts);
     /* Total histórico coerente com a JANELA ADAPTATIVA: soma os índices POR
        RETRATO (mesma chave por nome), em vez de usar o agregado. Sem isto,
        quando o mesmo assunto muda de código entre importações, o agregado mais
@@ -1096,6 +1297,10 @@ const PlanoEngine = {
       const sq = seqs[k] || { seq: 0, medicoes: 0, diasDesde: null, serie: [] };
       return {
         nome: h.nome, disciplina: h.disciplina || '',
+        /* Uma unidade agrupada carrega os tópicos que ela cobre — é o que a
+           tela mostra no "i" e o que a atividade grava como escopo. Assunto
+           comum vem com `membros` nulo e segue idêntico ao que sempre foi. */
+        membros: h._membros || null, nAtomos: h._bloco || 0, baseBloco: h._base || null,
         seq: sq.seq, medicoes: sq.medicoes, serie: sq.serie,
         diasDesdeMedicao: sq.diasDesde,
         vencido: sq.diasDesde != null && sq.diasDesde > opts.validadeDias,
@@ -1179,7 +1384,14 @@ const PlanoEngine = {
       return { erro: 'amostra', assuntosNoRetrato: brutos.length, maiorAmostra: maior,
         medianaAmostra: mediana, minAmostra: opts.minAmostra,
         sugestaoMinAmostra: sug,
-        qualificamNaSugestao: amostras.filter(q => q >= sug).length };
+        qualificamNaSugestao: amostras.filter(q => q >= sug).length,
+        /* Baixar a régua compra cobertura pagando em margem de erro — é a
+           saída, não a boa saída. Juntar os átomos finos compra a MESMA
+           cobertura pagando em granularidade, e margem de erro é o que
+           invalida um diagnóstico; granularidade só o deixa mais grosso.
+           Então a tela precisa saber se existe um piso que resolve, e com
+           quantas unidades — senão continua oferecendo só a régua. */
+        granSugerida: this._melhorPiso(scoped, opts) };
     }
     const universo = usados.reduce((a, x) => a + x.peso, 0);
     const dominioPct = usados.reduce((a, x) => a + x.peso * x.taxa / 100, 0) / universo * 100;
@@ -1640,7 +1852,7 @@ const PlanoPontos = {
     const fora = PlanoEngine.excluidasSet(p);
     try {
       (DB.getTecSnapshots() || []).slice().reverse().forEach(s => {
-        const idx = PlanoEngine._indice(s, p.apenasFolhas);
+        const idx = PlanoEngine._indice(s, p);
         const agg = Object.create(null);
         for (const k in idx) {
           const d = k.split(SEP)[0];
@@ -2004,6 +2216,18 @@ const PlanoCiclo = {
      gravava `taxaInicial` e o outro não, e metade das atividades nascia cega. */
   origem(topico, disciplina, item, opts) {
     const p = Object.assign({}, PlanoEngine.prefs(), opts || {});
+    /* O ESCOPO é o que a atividade mede, dito em nomes de nó — não em chaves de
+       índice. É ele que torna o progresso independente da lente do Plano: um
+       item que hoje é um assunto e amanhã vira parte de um bloco continua sendo
+       o mesmo trabalho, medido pelo mesmo lugar. Bloco vindo do Plano traz os
+       membros; nó comum é ele mesmo. */
+    /* Os dois portões (a lista do Plano e o "Puxar do Plano" da tela de
+       Atividades) passam o ITEM do Plano — então ler os membros dele aqui é o
+       que impede os dois de divergirem outra vez. */
+    const mb = (opts && opts.escopo) || (item && item.membros ? { tipo: 'bloco', membros: item.membros } : null);
+    const escopo = (mb && mb.membros && mb.membros.length)
+      ? { tipo: mb.tipo || 'bloco', membros: mb.membros.slice() }
+      : { tipo: 'no', membros: [topico] };
     return {
       topico, disciplina: disciplina || '',
       motivo: (opts && opts.motivo) || 'reforco',
@@ -2011,10 +2235,28 @@ const PlanoCiclo = {
       taxaInicial: (item && item.taxa != null) ? item.taxa : null,
       // o contador do assunto no instante zero: é a régua do progresso
       qBase: PlanoEngine.qHistDe(disciplina, topico, p),
+      escopo,
+      // a MESMA régua, lida nas linhas cruas — a que o progresso usa de fato
+      qBaseNo: PlanoEngine.volumeDoEscopo(escopo, disciplina, p).q,
       metaAlvo: p.metaDominio,
       custoEstimado: (item && item.custoQ) || null,
       tetoAlvo: p.tetoDominio
     };
+  },
+  /* ── A LENTE LEGADA, PINADA ───────────────────────────────────────────────
+     Atividade criada antes do escopo não tem `qBaseNo`, e o `qBase` dela foi
+     escrito pelo índice com `apenasFolhas: true` — o padrão de fábrica.
+     Medi-la com a lente de HOJE seria trocar a régua no meio do trabalho;
+     medi-la pelas linhas cruas inflaria o progresso do nó que virou pai depois
+     da criação (o `qBase` dele é resíduo, o volume cru é o ramo inteiro).
+     Então ela continua exatamente na régua em que nasceu — e pinada, não
+     herdada das preferências: qualquer controle de granularidade que entre
+     depois tem de deixar esta leitura parada. `migrarEscopos` promove a
+     atividade para a régua nova sem mover o número. */
+  LENTE_LEGADA: { apenasFolhas: true, granPiso: 0 },
+  _pLegada(p) { return Object.assign({}, p || PlanoEngine.prefs(), this.LENTE_LEGADA); },
+  _escopoDe(o) {
+    return (o && o.escopo && o.escopo.membros && o.escopo.membros.length) ? o.escopo : null;
   },
   /* O retrato de uma atividade AGORA. Não grava nada: quem decide escrever é
      `conciliar`. Separar as duas coisas é o que deixa a tela desenhar o estado
@@ -2024,13 +2266,20 @@ const PlanoCiclo = {
     if (!o || !o.topico) return null;
     const p = PlanoEngine.prefs();
     const alvo = Math.max(1, extra.alvo || o.custoEstimado || 1);
-    const qAgora = PlanoEngine.qHistDe(o.disciplina, o.topico, Object.assign({}, p, { _mapa: mapa }));
-    const medido = (o.qBase != null) ? Math.max(0, qAgora - o.qBase) : 0;
+    /* Com escopo, a medição vem das linhas cruas (`volumeDoEscopo`) e não muda
+       se a lente do Plano mudar. Sem escopo, a atividade fica na lente legada
+       pinada — `mapa` chega pinado pelos chamadores por isso. */
+    const esc = this._escopoDe(o);
+    const vol = esc ? PlanoEngine.volumeDoEscopo(esc, o.disciplina, p) : null;
+    const qAgora = vol ? vol.q
+      : PlanoEngine.qHistDe(o.disciplina, o.topico, Object.assign({}, this._pLegada(p), { _mapa: mapa }));
+    const qBase = (vol && o.qBaseNo != null) ? o.qBaseNo : o.qBase;
+    const medido = (qBase != null) ? Math.max(0, qAgora - qBase) : 0;
     const manual = DB.extraProgressoPeriodo ? DB.extraProgressoPeriodo(extra) : (extra.progresso || 0);
     const feito = Math.max(manual, medido);
     // o assunto, como o Plano o vê hoje
     const linhas = [].concat((r && r.itens) || [], (r && r.pequenas) || []);
-    const at = linhas.find(x => DesempenhoTecScreen._casaTopico({ topico: x.nome, disciplina: x.disciplina }, o.topico, o.disciplina));
+    const at = linhas.find(x => DesempenhoTecScreen._casaUnidade(o, x));
     /* Sumiu da lista do Plano por dois motivos OPOSTOS: ou passou do teto (foi
        resolvido) ou o assunto sumiu do TEC. `qAgora` desempata: sem questão
        nenhuma no histórico, não é vitória — é um assunto que não existe mais. */
@@ -2039,7 +2288,9 @@ const PlanoCiclo = {
        não. Ler `at.taxa` quando ele está e a média histórica quando não está
        eram duas réguas para a mesma pergunta — e a segunda reprovava assunto
        resolvido, porque carrega o desempenho velho que a janela já descartou. */
-    const taxa = orfa ? null : PlanoEngine.taxaAtualDe(o.disciplina, o.topico, p);
+    const aNo = (orfa || !vol) ? null : PlanoEngine.taxaDoNo(esc, o.disciplina, Object.assign({}, p, { _volume: vol }));
+    const taxa = orfa ? null
+      : (vol ? (aNo ? aNo.pct : null) : PlanoEngine.taxaAtualDe(o.disciplina, o.topico, this._pLegada(p)));
     const meta = (o.metaAlvo != null) ? o.metaAlvo : p.metaDominio;
     const delta = (taxa != null && o.taxaInicial != null) ? Math.round((taxa - o.taxaInicial) * 10) / 10 : null;
     const cumpriu = feito >= alvo;
@@ -2049,7 +2300,8 @@ const PlanoCiclo = {
     else if (bateu) estado = 'funcionou';
     else if (cumpriu) estado = (delta != null && delta >= (p.sensTendencia || 3)) ? 'subiu' : 'naoFuncionou';
     return {
-      extra, origem: o, alvo, feito, medido, manual, qAgora,
+      extra, origem: o, alvo, feito, medido, manual, qAgora, qBase,
+      escopo: esc, lenteCrua: !!vol, retratosMedidos: vol ? vol.retratos : null,
       pct: Math.min(100, Math.round(feito / alvo * 100)),
       taxa, meta, delta, cumpriu, bateu, estado,
       // o custo que o Plano estimaria HOJE — sem alarde, só o número ao lado
@@ -2065,10 +2317,14 @@ const PlanoCiclo = {
      nada duas vezes nem reescreve um veredito. */
   conciliar() {
     const snaps = DB.getTecSnapshots();
-    if (!snaps.length) return { fechadas: [], vereditos: [] };
+    if (!snaps.length) return { fechadas: [], vereditos: [], promovidas: 0 };
+    /* A promoção vem ANTES e não depende do cálculo do Plano: ele pode falhar
+       por amostra insuficiente, e uma atividade não pode ficar presa à lente
+       antiga porque o ranking não fechou. */
+    const promovidas = this.migrarEscopos().promovidas;
     const r = PlanoEngine.calcular(DesempenhoTecScreen.scopedSnapshot(), PlanoEngine.prefs());
-    if (!r || r.erro) return { fechadas: [], vereditos: [] };
-    const mapa = PlanoEngine.totalHistorico();
+    if (!r || r.erro) return { fechadas: [], vereditos: [], promovidas };
+    const mapa = PlanoEngine.totalHistorico(this.LENTE_LEGADA);
     const ultimo = snaps[snaps.length - 1];
     const fechadas = [], vereditos = [];
     DB.getExtras().forEach(e => {
@@ -2084,11 +2340,40 @@ const PlanoCiclo = {
       DB.updateExtra(e.id, { status: 'concluida', origemPlano: Object.assign({}, e.origemPlano, { veredito }) });
       fechadas.push(e.id); vereditos.push(veredito);
     });
-    return { fechadas, vereditos };
+    return { fechadas, vereditos, promovidas };
+  },
+  /* ── PROMOÇÃO DA RÉGUA, SEM MOVER O NÚMERO ────────────────────────────────
+     A atividade antiga é medida pela lente legada e, por isso, voltaria a ficar
+     exposta a qualquer mexida no índice. A promoção resolve de uma vez: grava o
+     escopo e um `qBaseNo` CALIBRADO — o volume cru de hoje MENOS o progresso
+     que a lente legada está medindo agora. O resultado é aritmético e não
+     opinativo: no instante da promoção o progresso é o mesmo número que já
+     estava na tela, e daí em diante ele é imune à lente.
+
+     Idempotente de propósito: só toca em quem ainda não tem escopo, e nunca em
+     ciclo já julgado — veredito é história, não se recalcula. */
+  migrarEscopos() {
+    const snaps = DB.getTecSnapshots();
+    if (!snaps.length) return { promovidas: 0 };
+    const p = PlanoEngine.prefs();
+    const pLeg = this._pLegada(p);
+    const mapa = PlanoEngine.totalHistorico(pLeg);
+    let n = 0;
+    DB.getExtras().forEach(e => {
+      const o = e.origemPlano;
+      if (!o || !o.topico || o.veredito || this._escopoDe(o)) return;
+      const escopo = { tipo: 'no', membros: [o.topico] };
+      const vol = PlanoEngine.volumeDoEscopo(escopo, o.disciplina, p);
+      const qLeg = PlanoEngine.qHistDe(o.disciplina, o.topico, Object.assign({}, pLeg, { _mapa: mapa }));
+      const medido = (o.qBase != null) ? Math.max(0, qLeg - o.qBase) : 0;
+      DB.updateExtra(e.id, { origemPlano: Object.assign({}, o, { escopo, qBaseNo: Math.max(0, vol.q - medido) }) });
+      n++;
+    });
+    return { promovidas: n };
   },
   // as atividades do Plano ainda abertas, já avaliadas
   emCurso(r) {
-    const mapa = PlanoEngine.totalHistorico();
+    const mapa = PlanoEngine.totalHistorico(this.LENTE_LEGADA);
     return DB.getExtras()
       .filter(e => e.origemPlano && e.origemPlano.topico && e.status !== 'concluida')
       .map(e => this.avaliar(e, r, mapa))
@@ -3341,6 +3626,25 @@ const DesempenhoTecScreen = {
     const a = ReforcoEngine.norm(origem.disciplina || ''), b = ReforcoEngine.norm(disciplina || '');
     return (!a || !b) ? true : a === b;
   },
+  /* ── A ATIVIDADE E A UNIDADE PODEM TER TAMANHOS DIFERENTES ────────────────
+     Casar por nome exato basta enquanto unidade e assunto são a mesma coisa.
+     Com o agrupamento ligado deixam de ser: a atividade nasceu em "Dispensa" e
+     a linha da tela agora se chama "Licitações · bloco". Sem este casamento a
+     tela mostraria "+ Atividade" numa unidade que JÁ tem atividade aberta, e a
+     segunda nasceria duplicando o trabalho da primeira — o mesmo assunto
+     contado duas vezes na sua semana. Vale nos dois sentidos, porque a lente
+     pode ter mudado depois da criação. */
+  _casaUnidade(origem, item) {
+    if (!origem || !item) return false;
+    if (this._casaTopico(origem, item.nome, item.disciplina)) return true;
+    const a = ReforcoEngine.norm(origem.disciplina || ''), b = ReforcoEngine.norm(item.disciplina || '');
+    if (a && b && a !== b) return false;
+    const kt = ReforcoEngine.norm(origem.topico || '');
+    if (item.membros && item.membros.length > 1 && item.membros.some(n => ReforcoEngine.norm(n) === kt)) return true;
+    const mb = (origem.escopo && origem.escopo.membros) || null;
+    const kn = ReforcoEngine.norm(item.nome || '');
+    return !!(mb && mb.length > 1 && mb.some(n => ReforcoEngine.norm(n) === kn));
+  },
   // `lote` = criação em série: sem aviso por item e sem repintar a cada um.
   // Devolve true quando a atividade nasceu, para o chamador contar.
   criarExtraDoPlano(topico, disciplina, alvo, motivo, lote) {
@@ -3348,7 +3652,14 @@ const DesempenhoTecScreen = {
        pode ter voltado a cair — e no caso do veredito "não funcionou" ele
        PRECISA de um ataque novo, de outro tipo. Recusar por causa dela
        trancava justamente o assunto que mais pede uma segunda tentativa. */
-    const jaTem = DB.getExtras().find(e => e.status !== 'concluida' && this._casaTopico(e.origemPlano, topico, disciplina));
+    /* A unidade do Plano vem ANTES da trava: é dela que sai a lista de tópicos
+       que um bloco cobre, e sem ela a trava não veria a atividade aberta em um
+       membro. Ela também é o item que a origem lê para gravar o escopo. */
+    const r0 = this._planoRef();
+    const alvoTop = [].concat((r0 && r0.itens) || [], (r0 && r0.pequenas) || [])
+      .find(t => this._casaTopico({ topico: t.nome, disciplina: t.disciplina }, topico, disciplina));
+    const unidade = alvoTop || { nome: topico, disciplina: disciplina || '' };
+    const jaTem = DB.getExtras().find(e => e.status !== 'concluida' && this._casaUnidade(e.origemPlano, unidade));
     if (jaTem) { if (!lote) showToast('Já existe uma atividade em aberto para "' + topico + '"'); return false; }
     const diag = motivo === 'diagnostico';
     const e = DB.addExtra({
@@ -3364,9 +3675,6 @@ const DesempenhoTecScreen = {
         : 'Gerado pelo Plano de pontos fracos. Ao importar o próximo retrato do TEC, a métrica dirá se o assunto saiu da lista.'
     });
     if (e) {
-      const r0 = this._planoRef();
-      const alvoTop = [].concat((r0 && r0.itens) || [], (r0 && r0.pequenas) || [])
-        .find(t => this._casaTopico({ topico: t.nome, disciplina: t.disciplina }, topico, disciplina));
       // um só lugar monta a origem: os dois portões gravam exatamente o mesmo
       DB.updateExtra(e.id, { origemPlano: PlanoCiclo.origem(topico, disciplina, alvoTop, { motivo: motivo || 'reforco' }) });
       if (!lote) {
@@ -3390,6 +3698,7 @@ const DesempenhoTecScreen = {
     const lblPB = document.getElementById('plano-pesobanca-label');
     if (lblPB) lblPB.textContent = p.pesoBanca === 0 ? '0 — banca ignorada' : String(p.pesoBanca);
     chk('plano-folhas', p.apenasFolhas); chk('plano-pequenas', p.incluirPequenas);
+    set('plano-granpiso', String(parseInt(p.granPiso || 0, 10) || 0));
     set('plano-amostraalvo', p.amostraAlvo); set('plano-cadencia', p.cadenciaDias); set('plano-ordenar', p.ordenar);
     /* Os rótulos das sete ordens existiam em TRÊS lugares: neste select, no
        diálogo "Puxar do Plano" e no texto que explica a ordem escolhida. Três
@@ -3554,6 +3863,29 @@ const DesempenhoTecScreen = {
      dado do usuário já passou por escapeHtml (que não deixa aspa crua), então
      só sobra fechar as aspas duplas da nossa própria redação. */
   _info(html) { return String(html == null ? '' : html).replace(/"/g, '&quot;'); },
+  /* ── O BLOCO TEM DE SE ANUNCIAR ───────────────────────────────────────────
+     Uma unidade que soma cinco tópicos e se chama "Atos administrativos ·
+     bloco" não pode parecer um assunto do TEC: quem compara a tela com o site
+     precisa saber na hora por que aquele nome não existe lá, o que ele cobre e
+     por que a taxa dele é média de coisas diferentes. O selo diz que é bloco e
+     quantos tópicos entraram; o "i" lista os tópicos e a regra. */
+  _seloBloco(x, piso) {
+    if (!x || !(x.nAtomos > 1) || !x.membros) return '';
+    const lista = x.membros.slice(0, 14).map(n => '· ' + escapeHtml(n)).join('<br>');
+    const resto = x.membros.length > 14 ? '<br>· … e mais ' + (x.membros.length - 14) : '';
+    const info = '<b>Esta unidade é um bloco de ' + x.nAtomos + ' tópicos do TEC</b>, medidos juntos.'
+      + '<br><br>Cada um deles, sozinho, tem menos de ' + piso + ' questões no seu histórico — '
+      + 'volume assim não mede nada: a margem de erro engole qualquer conclusão. '
+      + 'Somados, eles viram uma unidade com amostra suficiente para você comparar e acompanhar.'
+      + (x.baseBloco ? '<br><br>Todos pertencem ao mesmo tópico-pai: <b>' + escapeHtml(x.baseBloco) + '</b>. '
+        + 'O agrupamento nunca atravessa matéria nem tópico-pai.' : '')
+      + '<br><br><b>Tópicos neste bloco</b><br>' + lista + resto
+      + '<br><br>O total de questões é o mesmo com ou sem agrupamento — nada é escondido nem contado duas vezes. '
+      + 'Para ver tópico por tópico outra vez, ponha <b>&quot;Juntar assuntos com menos de&quot;</b> em '
+      + '<b>não juntar</b>, nos ajustes ▸ Amostra.';
+    return '<span class="reforco-tag pl-tag-bloco" data-info="' + this._info(info) + '">🧩 bloco · '
+      + x.nAtomos + ' tópicos</span>';
+  },
 
   /* ── POR QUE ESTA MATÉRIA ESTÁ NESTA POSIÇÃO ──────────────────────────────
      A pergunta que o quadro "Onde atacar primeiro" nunca respondia — e a
@@ -3682,6 +4014,16 @@ const DesempenhoTecScreen = {
       S.slice().reverse().map(x => `<tr><td>${escapeHtml(formatDateShort(x.data))}</td><td><b>${pc1(x.dominio)}</b></td><td>${x.assuntos}</td><td>${(x.questoes || 0).toLocaleString('pt-BR')}</td><td>${x.deltaComp != null ? pp(x.deltaComp) + ' <i>(' + x.comuns + ')</i>' : '—'}</td></tr>`).join('')
     }</tbody></table></div>`);
     b.push(`<p class="pl-det-fim"><b>Δ comp.</b> é a variação daquele retrato contra o anterior, contada só sobre os assuntos presentes nos dois — o número entre parênteses é quantos são. A linha tracejada do gráfico é a sua meta de domínio (<b>${r.meta}%</b>). Só assuntos com pelo menos <b>${PlanoEngine.prefs().pisoSerie || PlanoEngine.PISO_SERIE}</b> questões no retrato entram nesta série — abaixo disso a taxa oscila demais para virar ponto de um gráfico.</p>`);
+    /* ── A LENTE TEM DE ESTAR ESCRITA AQUI ───────────────────────────────────
+       Esta é a tela em que a pessoa compara o hoje com o passado — e a unidade
+       de comparação é escolha dela. Um gráfico que diz "37 assuntos medidos"
+       sem dizer que 5 deles são blocos de 4 tópicos convida à conclusão errada
+       ("cobri menos matéria"). Então a lente vem por escrito, com o número que
+       ela muda e o que ela NÃO muda. */
+    const ag = PlanoEngine._agrupamento(PlanoEngine.prefs());
+    if (ag) {
+      b.push(`<p class="pl-det-fim">A série é contada na lente que você escolheu: assuntos com menos de <b>${ag.piso}</b> questões no histórico entram somados ao tópico-pai. São <b>${ag.nBlocos}</b> ${ag.nBlocos === 1 ? 'bloco' : 'blocos'} cobrindo <b>${ag.atomos}</b> tópicos do TEC. Isso muda a <b>contagem de assuntos</b> desta tabela — não o volume de questões, que é o mesmo em qualquer lente.</p>`);
+    }
     return { titulo: 'Sua trajetória — os números', html: b.join('') };
   },
   renderPlanoConteudo() {
@@ -3715,6 +4057,7 @@ const DesempenhoTecScreen = {
       custoPorPonto: Math.max(0, num('plano-custoponto', 2)),
       pesoBanca: Math.max(0, Math.min(12, num('plano-pesobanca', 6))),
       apenasFolhas: bool('plano-folhas'),
+      granPiso: Math.max(0, Math.min(100, parseInt(val('plano-granpiso', '0'), 10) || 0)),
       limite: Math.max(3, num('plano-limite', 10)),
       amostraAlvo: Math.max(10, num('plano-amostraalvo', 50)),
       janelaMax: Math.max(30, num('plano-janelamax', 365)),
@@ -3763,8 +4106,10 @@ const DesempenhoTecScreen = {
     // liga cada assunto à atividade extra já criada para ele (ciclo de acompanhamento)
     if (r && r.itens) {
       const extras = DB.getExtras().filter(e => e.origemPlano && e.origemPlano.topico);
-      const doTopico = (x) => extras.filter(e => this._casaTopico(e.origemPlano, x.nome, x.disciplina));
-      const mapaQ = PlanoEngine.totalHistorico(opts);
+      const doTopico = (x) => extras.filter(e => this._casaUnidade(e.origemPlano, x));
+      // pinado: este mapa só serve de atalho para `avaliar`, que mede atividade
+      // antiga na lente legada — passar `opts` aqui era vazar a lente de volta
+      const mapaQ = PlanoEngine.totalHistorico(PlanoCiclo.LENTE_LEGADA);
       [].concat(r.itens, r.pequenas || []).forEach(x => {
         const meus = doTopico(x);
         if (!meus.length) return;
@@ -3802,6 +4147,7 @@ const DesempenhoTecScreen = {
          para quanto era empurrar o problema de volta para quem não tem como
          saber. */
       const sug = r.sugestaoMinAmostra || 1;
+      const g = r.granSugerida || null;
       proj.innerHTML = `
         <p class="hint" style="padding:14px 0 6px;">
           Nenhum dos <strong>${(r.assuntosNoRetrato || 0).toLocaleString('pt-BR')}</strong> assuntos deste retrato
@@ -3812,11 +4158,19 @@ const DesempenhoTecScreen = {
           exige baixar a régua — e assumir que a taxa vai ser um indício, não uma medição.
         </p>
         <div class="pl-aud-bts" style="margin:8px 0 4px;">
-          <button type="button" class="btn-primary" id="plano-modo-diag">🔍 Usar o modo Diagnóstico</button>
+          ${g ? `<button type="button" class="btn-primary" id="plano-juntar-finos">🧩 Juntar os assuntos finos (${g.qualificam} ${g.qualificam === 1 ? 'unidade medível' : 'unidades medíveis'})</button>` : ''}
+          <button type="button" class="btn-${g ? 'secondary' : 'primary'}" id="plano-modo-diag">🔍 Usar o modo Diagnóstico</button>
           <button type="button" class="btn-secondary" id="plano-baixar-min">Baixar a régua para ${sug} ${sug === 1 ? 'questão' : 'questões'}${r.qualificamNaSugestao ? ` (entram ${r.qualificamNaSugestao})` : ''}</button>
         </div>
-        <p class="pl-ciclo-obs">O Diagnóstico inclui a amostra pequena no cálculo e baixa a régua de uma vez; o segundo botão só mexe na régua. Os dois ficam salvos e podem ser desfeitos em ⚙ Ajustes.</p>`;
+        ${g ? `<p class="pl-ciclo-obs"><strong>O primeiro botão é o único que não enfraquece a medição.</strong> Ele soma os assuntos com menos de ${g.piso} questões ao tópico-pai deles — ${g.topicos} tópicos viram ${g.blocos} ${g.blocos === 1 ? 'bloco' : 'blocos'}, e a tela passa a ter ${g.unidades} unidades, ${g.qualificam} ${g.qualificam === 1 ? 'delas com' : 'delas com'} amostra suficiente. Nenhuma questão é escondida nem contada duas vezes: o volume total não muda, só o tamanho da unidade que você compara.</p>` : ''}
+        <p class="pl-ciclo-obs">O Diagnóstico inclui a amostra pequena no cálculo e baixa a régua de uma vez; o terceiro botão só mexe na régua — os dois compram cobertura pagando em margem de erro. Todos ficam salvos e podem ser desfeitos em ⚙ Ajustes.</p>`;
       lista.innerHTML = '';
+      const bj = document.getElementById('plano-juntar-finos');
+      if (bj && g) bj.addEventListener('click', () => {
+        PlanoEngine.salvarPrefs({ granPiso: g.piso });
+        PlanoEngine._agrC = null;
+        this.renderPlano(); showToast('🧩 Assuntos com menos de ' + g.piso + ' questões agrupados');
+      });
       const bd = document.getElementById('plano-modo-diag');
       if (bd) bd.addEventListener('click', () => {
         PlanoEngine.salvarPrefs(PlanoEngine.modoPatch('diagnostico'));
@@ -4140,6 +4494,7 @@ const DesempenhoTecScreen = {
             ${x.disciplina ? `<div class="pl-disc">${escapeHtml(x.disciplina)}</div>` : ''}
             <div class="pl-tags">
               <span class="reforco-tag tone-${x.status.tom}" title="${x.status.seq != null ? x.status.seq + ' importação(ões) seguidas na meta' : 'Faixa de acerto'}">${x.status.rot}${x.status.seq ? ' ' + x.status.seq + '×' : ''}</span>
+              ${this._seloBloco(x, opts.granPiso)}
               ${(x.incid > 0) ? `<span class="reforco-tag incid" title="Quantas vezes este assunto já caiu em ${escapeHtml(ReforcoEngine.rotuloBancas(r.banca))}">🎯 incidência ${x.incid}</span>` : ''}
               ${seta}${desdeAtiv}
               ${x.vencido ? `<span class="reforco-tag tone-bad" title="Sem medição nova — a taxa pode não refletir você hoje">⏳ ${x.diasDesdeMedicao}d</span>` : ''}
@@ -4167,6 +4522,7 @@ const DesempenhoTecScreen = {
           Menos de ${opts.minAmostra} questões resolvidas: ainda não dá para afirmar que é fraqueza.
           Ficam fora da média de domínio de propósito — com amostra assim pequena a taxa real pode variar dezenas de pontos.
           <strong>Aqui a ação é outra:</strong> resolver questões para descobrir onde você está.
+          ${opts.granPiso > 0 ? `Com o agrupamento ligado, o que sobra aqui é o que <strong>não mede nem somado ao vizinho</strong> — ou porque é o único tópico fino daquele tópico-pai, ou porque o bloco inteiro ainda não alcançou as ${opts.minAmostra}.` : ''}
         </p>
         ${fPeq.vis.map((x, i) => `
           <div class="pl-item">
@@ -4176,6 +4532,7 @@ const DesempenhoTecScreen = {
             <div class="pl-corpo">
               ${x.disciplina ? `<div class="pl-disc">${escapeHtml(x.disciplina)}</div>` : ''}
               <div class="pl-tags">
+                ${this._seloBloco(x, opts.granPiso)}
                 <span class="reforco-tag tone-warn" title="Margem de erro grande demais para servir de diagnóstico">
                   ${x.taxa != null ? x.taxa.toFixed(0) + '%' : '—'}${x.margem != null ? ' ±' + x.margem.toFixed(0) + 'pp' : ''} em ${x.qJanela} ${x.qJanela === 1 ? 'questão' : 'questões'}
                 </span>
@@ -6097,7 +6454,7 @@ $id('tec-weak-disc').addEventListener('change', (e) => {
   // Plano de pontos fracos
   ['plano-disc','plano-meta','plano-ritmo','plano-teto','plano-ponderacao','plano-minamostra',
    'plano-customodo','plano-custofixo','plano-custofator','plano-custopiso','plano-custoponto',
-   'plano-pesobanca','plano-limite','plano-folhas','plano-pequenas',
+   'plano-pesobanca','plano-limite','plano-folhas','plano-pequenas','plano-granpiso',
    'plano-amostraalvo','plano-cadencia','plano-janelamax','plano-ordenar','plano-consolidar','plano-validade','plano-critico','plano-fragil','plano-piso','plano-sens'].forEach(id => {
     /* Mexer num campo pode DESFAZER um preset — e o chip aceso tem de deixar de
        estar aceso na mesma hora, senão a tela afirma um modo que não vale mais. */
