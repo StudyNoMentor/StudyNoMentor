@@ -81,34 +81,44 @@ const PlanoEngine = {
          esconder atrás de pouco volume. Entre matérias, quem decide é o peso
          da prova, porque é a única régua que existe antes do edital. */
       porque: 'Dentro de cada matéria, todo assunto pesa igual e o pior acerto vem primeiro — nada se esconde atrás de pouco volume. Qual matéria atacar primeiro é o quadro "Onde atacar primeiro" que responde, pela incidência das bancas.',
-      patch: { ponderacao: 'igual', ordenar: 'pior', metaDominio: 85, tetoDominio: 90, custoModo: 'lacuna', limite: 30, incluirPequenas: false }
+      patch: { ponderacao: 'igual', ordenar: 'pior', metaDominio: 85, tetoDominio: 90, custoModo: 'lacuna', incluirPequenas: false }
     },
     edital: {
       rot: '🎯 Edital publicado', fase: 'pós-edital',
       quando: 'Edital na mão, banca definida. A pergunta muda para "o que me dá ponto NESTA prova?".',
       porque: 'Ordena por fraqueza × incidência na banca e pesa por volume: assunto que cai muito e que você erra sobe ao topo, mesmo que não seja o seu pior acerto absoluto.',
-      patch: { ponderacao: 'volume', ordenar: 'banca', metaDominio: 85, tetoDominio: 90, custoModo: 'lacuna', limite: 20, incluirPequenas: false },
+      patch: { ponderacao: 'volume', ordenar: 'banca', metaDominio: 85, tetoDominio: 90, custoModo: 'lacuna', incluirPequenas: false },
       exige: 'incidencia'
     },
     curto: {
       rot: '⏱️ Tempo curto', fase: 'qualquer fase',
       quando: 'Poucas semanas até a prova e muito a fazer. A pergunta é "o que rende mais por questão resolvida?".',
       porque: 'Ordena por ganho ÷ custo com o custo medido pela lacuna: assunto muito distante da meta perde para outro que fecha rápido — em tempo curto, dois assuntos resolvidos valem mais que um começado.',
-      patch: { ponderacao: 'igual', ordenar: 'rendimento', custoModo: 'lacuna', limite: 10, incluirPequenas: false }
+      patch: { ponderacao: 'igual', ordenar: 'rendimento', custoModo: 'lacuna', incluirPequenas: false }
     },
     manutencao: {
       rot: '🛡️ Manutenção', fase: 'véspera / nível bom',
       quando: 'Você já está no nível e o risco agora é PERDER o que ganhou.',
       porque: 'Ordena pela maior queda recente e destaca o que está sem medição nova: aqui o inimigo é o esquecimento, não a ignorância.',
-      patch: { ponderacao: 'igual', ordenar: 'queda', custoModo: 'lacuna', limite: 15, incluirPequenas: false }
+      patch: { ponderacao: 'igual', ordenar: 'queda', custoModo: 'lacuna', incluirPequenas: false }
     },
     diagnostico: {
       rot: '🔍 Diagnóstico', fase: 'plano novo / poucos dados',
       quando: 'Poucas importações, muita coisa sem amostra. A pergunta é "onde eu estou, afinal?".',
       porque: 'Traz para o cálculo os assuntos de amostra pequena e ordena pelo pior acerto: aqui o objetivo não é atacar fraqueza, é produzir dado para saber qual fraqueza é real.',
-      patch: { ponderacao: 'igual', ordenar: 'pior', incluirPequenas: true, minAmostra: 5, limite: 40, custoModo: 'lacuna' }
+      patch: { ponderacao: 'igual', ordenar: 'pior', incluirPequenas: true, minAmostra: 5, custoModo: 'lacuna' }
     }
   },
+  /* ── O PRESET NÃO MEXE NO PASSO DE LEITURA ───────────────────────────────
+     Os cinco modos gravavam `limite` (30, 20, 10, 15 e 40). Fazia sentido
+     quando `limite` era "mostrar até N" — um recorte de estratégia. Deixou de
+     fazer no instante em que ele virou o PASSO com que sete listas abrem:
+     escolher "Diagnóstico" passaria a despejar 40 itens de cada lista de uma
+     vez, que é exatamente o que o passo de 10 veio resolver, e "Tempo curto"
+     encolheria a fila de todo mundo sem ter sido pedido.
+
+     Modo de ataque é sobre O QUE a fila otimiza. Quanto cabe na sua tela é
+     decisão de leitura, e é sua — não muda quando você troca de fase. */
   /* ── AS CINCO ORDENS QUE DECIDEM ALGO ────────────────────────────────────
      Eram sete. Duas foram embora porque não eram escolha nenhuma:
 
@@ -233,7 +243,7 @@ const PlanoEngine = {
     const partes = [rot, 'meta ' + patch.metaDominio + '%'];
     if (patch.tetoDominio != null) partes.push('teto ' + patch.tetoDominio + '%');
     partes.push(pond, custo);
-    if (patch.limite != null) partes.push(patch.limite + ' assuntos');
+    if (patch.limite != null) partes.push(patch.limite + ' por vez');
     if (patch.incluirPequenas) partes.push('inclui amostra pequena');
     return partes.join(' · ');
   },
@@ -1110,16 +1120,32 @@ const PlanoEngine = {
         : (provar <= bloco)
           ? ' Esse bloco já basta para o app cravar a subida até a meta.'
           : ' Para o app CRAVAR a subida até a meta são ' + provar + ' questões — o bloco acima já mede onde você ficou.';
+      /* ── A ORDEM E O PORQUÊ SÃO DUAS COISAS ────────────────────────────
+         `acao` é o conselho inteiro: diagnóstico, ordem e a estatística que a
+         sustenta. Ele está certo — e ocupava nove linhas de texto colorido em
+         CADA item da lista, com o mesmo miolo repetido dez vezes seguidas.
+         Medido a 390px, um único assunto passava de 490px de altura: mais que
+         uma tela de celular para uma linha de lista.
+
+         `ordem` é a MESMA decisão em uma frase imperativa. Ela fica visível;
+         o conselho inteiro passa a viver na guia "Por que está aqui", que já
+         existia e já é onde se vai quando a linha não basta. Nada some, nada
+         é reescrito: o que muda é o que compete pela primeira leitura. */
       if (t < opts.faixaCritico) x.status = { rot: '🔴 Crítico', tom: 'bad',
+        ordem: 'Teoria primeiro, depois um bloco de ' + bloco + ' questões.',
         acao: 'Você acerta ' + t.toFixed(0) + '%: erra mais do que acerta. ' +
           (caindo ? 'E caiu ' + queda + 'pp contra o período anterior. ' : '') +
           'Resolver mais questões agora só repete o erro — retome a teoria deste assunto primeiro. ' +
           'Depois volte com um bloco de ' + bloco + ' questões: é a amostra que mede o seu novo nível com ±' + this.MARGEM_ALVO + 'pp e mostra se a teoria pegou.' };
       else if (t < opts.faixaFragil) x.status = { rot: '🔴 Frágil', tom: 'bad',
+        ordem: 'Bloco de ' + bloco + ' questões pelo caminho do erro: anote e revise só o que errar.',
         acao: 'A base existe (' + t.toFixed(0) + '%), mas falha em pontos específicos, e faltam ' + faltaMeta + ' até a meta. ' +
           (caindo ? 'A queda de ' + queda + 'pp sugere revisão atrasada. ' : '') +
           'Vá pelo caminho do erro: um bloco de ' + bloco + ' questões (o que dá ±' + this.MARGEM_ALVO + 'pp de margem), anote o que errou e revise só esses pontos antes do bloco seguinte.' + prova };
       else if (t < opts.metaDominio) x.status = { rot: '🟠 Em desenvolvimento', tom: 'warn',
+        ordem: caindo
+          ? 'Reforce a revisão e remeça com ' + bloco + ' questões.'
+          : bloco + ' questões; revise apenas o que errar. Faltam ' + faltaMeta + ' pontos.',
         acao: caindo
           ? 'Estava melhor antes e caiu ' + queda + 'pp. Antes de aumentar o volume, verifique se o assunto mudou de banca ou se você deixou de revisar — reforce a revisão e remeça com ' + bloco + ' questões.'
           : 'Faltam ' + faltaMeta + ' pontos para a meta. Aqui volume resolve: ' + bloco + ' questões e revise apenas o que errar, sem voltar à teoria inteira.' + prova };
@@ -1129,10 +1155,13 @@ const PlanoEngine = {
          medições ANTIGAS não é sustentar a meta hoje — é uma terceira
          situação, com ação própria: remedir antes de confiar. */
       else if (x.seq >= alvoSeq && x.vencido) x.status = { rot: '🟠 Sólido, sem medição nova', tom: 'warn', seq: x.seq,
+        ordem: 'Remeça com ' + bloco + ' questões antes de riscar da lista — o dado tem ' + x.diasDesdeMedicao + ' dias.',
         acao: 'Sustentou a meta em ' + x.seq + ' importações, mas a última tem ' + x.diasDesdeMedicao + ' dias. Antes de riscar da lista, resolva ' + bloco + ' questões e reimporte: é o bloco que devolve uma medição com ±' + this.MARGEM_ALVO + 'pp. Consolidado com dado velho é lembrança, não medição.' };
       else if (x.seq >= alvoSeq) x.status = { rot: '🟢 Consolidado', tom: 'good', seq: x.seq,
+        ordem: 'Resolvido: só revisão espaçada. Tempo extra aqui rende menos.',
         acao: 'Sustenta a meta há ' + x.seq + ' importações seguidas. Está resolvido: só revisão espaçada. Tempo extra aqui rende menos que em qualquer assunto acima.' };
       else x.status = { rot: '🟡 Recém-corrigido', tom: 'warn', seq: x.seq,
+        ordem: 'Mantenha ~' + bloco + ' questões por importação até sustentar (' + x.seq + ' de ' + alvoSeq + ').',
         acao: 'Passou da meta em ' + x.seq + ' de ' + alvoSeq + ' importações necessárias. Ainda não provou que fixou — mantenha cerca de ' + bloco + ' questões por importação até sustentar, que é o mínimo para a medição seguinte ter ±' + this.MARGEM_ALVO + 'pp.' };
     });
     /* ── A ORDEM QUE APROVA ───────────────────────────────────────────────
@@ -2207,12 +2236,138 @@ window.TecAjustes = TecAjustes;
 
 const DesempenhoTecScreen = {
   currentSnapId: null,
-  /* Quantos assuntos ABERTOS além do passo configurado. Estado de leitura da
-     sessão: qualquer mudança de ajuste o zera, porque a fila que você abriu
-     deixou de ser a mesma fila. */
-  _planoMais: 0,
-  // o mesmo, para a tabela de matérias de "Onde atacar primeiro"
-  _matMais: 0,
+  /* Quanto cada lista do Plano tem ABERTO além do passo configurado (ver
+     `fatiar`). Estado de leitura da sessão: qualquer mudança de ajuste zera
+     tudo, porque outra configuração é outra fila. */
+  _fatias: null,
+  /* ── UMA REGRA DE FATIA PARA TODAS AS LISTAS DO PLANO ───────────────────
+     O Plano tem sete listas, e cada uma tratava o próprio comprimento de um
+     jeito: a de assuntos ia até um campo de ajuste, a de matérias não tinha
+     limite, o segundo plano cortava em 15 fixos e escondia os outros 716 sem
+     dizer, os ciclos fechados cortavam em 12, e as lacunas do edital
+     despejavam tudo. Quatro comportamentos diferentes para a mesma pergunta —
+     "cabe na tela?" — e três deles mentindo por omissão.
+
+     Uma regra só, no passo que você configurar: abre em N, o rodapé diz de
+     quantos, e um toque abre mais N. O estado de abertura é por lista e vive
+     na sessão, nunca nas preferências: abrir a fila inteira uma vez não pode
+     deixar a tela abrindo em 991 itens para sempre. */
+  fatiar(chave, itens, passo) {
+    const arr = Array.isArray(itens) ? itens : [];
+    if (!this._fatias) this._fatias = Object.create(null);
+    const p = Math.max(1, passo || 10);
+    const vis = arr.slice(0, p + (this._fatias[chave] || 0));
+    return { chave, passo: p, vis, total: arr.length, faltam: arr.length - vis.length };
+  },
+  /* O rodapé conta em ITENS por padrão, mas quem tem uma moeda melhor passa
+     `resumo` — a tabela de matérias conta em pontos em jogo, porque é isso que
+     decide se o que ficou escondido importava. */
+  rodapeFatia(f, um, muitos, resumo) {
+    if (!f.total) return '';
+    const abertos = (this._fatias && this._fatias[f.chave]) || 0;
+    const menos = `<button type="button" class="pl-hero-limpar" data-fatia="${f.chave}" data-fatia-op="menos">voltar a ${f.passo}</button>`;
+    if (!f.faltam) {
+      return abertos ? `<div class="pl-mais"><p class="pl-mais-nota">Fim da lista — ${f.total === 1 ? 'o único item está' : 'os <b>' + f.total + '</b> ' + muitos + ' estão'} à vista.</p><div class="pl-mais-bts">${menos}</div></div>` : '';
+    }
+    return `<div class="pl-mais">
+        <p class="pl-mais-nota${(resumo && resumo.tom) ? ' ' + resumo.tom : ''}">Mostrando <b>${f.vis.length}</b> de <b>${f.total}</b> ${f.total === 1 ? um : muitos}${(resumo && resumo.txt) ? ' · ' + resumo.txt : ''}</p>
+        <div class="pl-mais-bts">
+          <button type="button" class="btn-secondary" data-fatia="${f.chave}" data-fatia-op="mais">▾ Mostrar mais ${Math.min(f.passo, f.faltam)}</button>
+          ${f.faltam > f.passo ? `<button type="button" class="pl-hero-limpar" data-fatia="${f.chave}" data-fatia-op="tudo">ver ${f.total === 1 ? 'o item' : 'os ' + f.total}</button>` : ''}
+          ${f.vis.length > f.passo ? menos : ''}
+        </div>
+      </div>`;
+  },
+  /* Um ouvinte para as sete listas. Abrir mais NÃO rola a tela de volta ao
+     topo: a pessoa está lendo o fim de uma lista, e perder o lugar dela é o
+     tipo de detalhe que faz um app parecer desleixado. */
+  _ligarFatias(host) {
+    if (!host) return;
+    host.querySelectorAll('[data-fatia]').forEach(b => b.addEventListener('click', () => {
+      const chave = b.dataset.fatia, op = b.dataset.fatiaOp;
+      if (!this._fatias) this._fatias = Object.create(null);
+      const marca = b.closest('.pl-mais');
+      const antes = marca ? marca.getBoundingClientRect().top : null;
+      if (op === 'menos') this._fatias[chave] = 0;
+      else if (op === 'tudo') this._fatias[chave] = 100000;
+      else this._fatias[chave] = (this._fatias[chave] || 0) + (this._passoFatia || 10);
+      this.renderPlanoConteudo();
+      if (op === 'menos') {
+        const alvo = document.querySelector('[data-fatia="' + chave + '"]');
+        if (alvo && alvo.closest('.pl-mais')) alvo.closest('.pl-mais').scrollIntoView({ block: 'center' });
+        return;
+      }
+      const depois = document.querySelector('[data-fatia="' + chave + '"][data-fatia-op="mais"]');
+      const caixa = depois && depois.closest('.pl-mais');
+      if (antes != null && caixa) window.scrollBy(0, caixa.getBoundingClientRect().top - antes);
+    }));
+  },
+  _passoFatia: 10,
+
+  /* ═══ O PLANO NÃO PODE REPINTAR A CADA TECLA ════════════════════════════
+     Cada campo dos ajustes chamava `renderPlanoConteudo` direto, no evento
+     `input`. Digitar "120" num campo numérico disparava TRÊS repinturas — e
+     uma repintura do Plano é o motor inteiro rodando sobre todos os retratos
+     (índice por assunto, janela adaptativa, sequências, série histórica,
+     quadro de matérias) mais alguns milhares de nós de HTML. Num perfil real,
+     com 991 assuntos e 10 retratos, isso trava a digitação: a tecla seguinte
+     espera o cálculo da anterior terminar.
+
+     O pedido passa a ser AGENDADO. Teclas em rajada colapsam em uma repintura
+     só — a última é a que vale, que é justamente o que a pessoa quis dizer.
+     Um clique (caixa de seleção, botão, troca de aba) pede `imediato`, porque
+     ali não existe rajada e qualquer espera é lentidão percebida.
+
+     260ms é a janela: abaixo disso um digitador médio ainda dispara no meio da
+     palavra; acima, o resultado parece ter esquecido o comando. */
+  PLANO_ESPERA: 260,
+  _planoTimer: null,
+  agendarPlano(imediato) {
+    if (this._planoTimer) { clearTimeout(this._planoTimer); this._planoTimer = null; }
+    if (imediato) { this.renderPlanoConteudo(); return; }
+    /* O sinal de "estou processando" tem de aparecer ANTES da espera, não
+       depois: é durante a espera que a tela parece travada. */
+    this._marcarPlanoOcupado(true);
+    this._planoTimer = setTimeout(() => {
+      this._planoTimer = null;
+      this.renderPlanoConteudo();
+    }, this.PLANO_ESPERA);
+  },
+  _marcarPlanoOcupado(on) {
+    const l = document.getElementById('plano-lista');
+    const p = document.getElementById('plano-proj');
+    [l, p].forEach(e => { if (e) e.classList.toggle('pl-ocupado', !!on); });
+  },
+
+  /* ── REPINTAR NÃO PODE MOVER A PÁGINA DEBAIXO DO DEDO ────────────────────
+     Marcar uma matéria na caixa de exclusão reescrevia `#plano-lista` inteiro.
+     A lista encurta (menos assuntos), a página encurta com ela, e o navegador
+     "sobe" a rolagem sozinho — com a folha de ajustes aberta na frente, o
+     efeito é a barra pulando a cada clique, como se o app estivesse
+     instável.
+
+     Guardar e devolver a posição resolve os dois casos de uma vez: a folha
+     aberta (onde a página atrás nem está sendo lida) e a leitura direta da
+     lista (onde a âncora é o ponto em que o dedo estava). */
+  _comRolagemPreservada(fn) {
+    const y = window.scrollY || document.documentElement.scrollTop || 0;
+    try { fn(); } finally {
+      const agora = window.scrollY || document.documentElement.scrollTop || 0;
+      if (Math.abs(agora - y) > 1) { try { window.scrollTo(0, y); } catch (e) { _quiet(e, 'plano-rolagem'); } }
+    }
+  },
+
+  /* ── A ABA PESADA ABRE ANTES DE TERMINAR DE PENSAR ───────────────────────
+     Abrir o Plano (e as Conquistas) dava uma travada e um atraso: o clique
+     disparava todo o cálculo ANTES de o navegador ter pintado a troca de aba,
+     então a interface ficava congelada no estado antigo sem nenhum sinal de
+     que algo estava acontecendo.
+
+     Agora a aba troca, um esqueleto aparece no mesmo quadro, e o cálculo
+     acontece no quadro seguinte. O tempo total é o mesmo; o que muda é que
+     ele deixa de ser tempo MUDO. Dois `requestAnimationFrame` porque um só
+     ainda pode rodar antes da pintura. */
+  _depoisDePintar(alvoId, fn) { pintarDepois(alvoId, 'Calculando o seu plano…', fn); },
   // ---- Escopo da análise: 'consolidado' (todos), 'select' (retratos marcados), 'range' (intervalo) ----
   scopeMode: 'consolidado',
   selectedSnapIds: null, // Set de ids marcados (modo 'select')
@@ -2480,10 +2635,30 @@ const DesempenhoTecScreen = {
     const atual = PlanoEngine.prefs().disciplina;
     if (atual && atual !== '__todas__' && PlanoEngine.foraDoPlano(atual, fora)) patch.disciplina = '__todas__';
     PlanoEngine.salvarPrefs(patch);
-    this._planoRefC = null; this._planoMais = 0; this._matMais = 0;
+    this._planoRefC = null; this._fatias = null;
     const sel = document.getElementById('plano-disc');
     if (sel && patch.disciplina) sel.value = '__todas__';
-    this.renderPlano();
+    /* `renderPlano()` reconstrói TODOS os campos da folha, inclusive o select
+       de disciplina e a própria caixa que você acabou de tocar — e era isso
+       que fazia a caixa fechar e a página saltar a cada matéria marcada. Aqui
+       só duas coisas mudaram de verdade: a lista de disciplinas oferecidas no
+       filtro e o conteúdo do Plano. */
+    this._sincronizarFiltroDisc();
+    this.renderExcluidasPicker('plano-excluidas-pick');
+    this.agendarPlano(true);
+  },
+  /* A lista do filtro de disciplina depende do que está excluído — é o único
+     campo da folha que a exclusão precisa mexer. Extraído de `renderPlano`
+     para que marcar uma matéria não obrigue a reconstruir os outros vinte. */
+  _sincronizarFiltroDisc() {
+    const ds = document.getElementById('plano-disc');
+    if (!ds) return;
+    const p = PlanoEngine.prefs();
+    const fora = PlanoEngine.excluidasSet(p);
+    const discs = PlanoEngine.disciplinas(this.scopedSnapshot()).filter(d => !PlanoEngine.foraDoPlano(d, fora));
+    ds.innerHTML = `<option value="__todas__">📚 Todas</option>` +
+      discs.map(d => `<option value="${escapeHtml(d)}" ${d === p.disciplina ? 'selected' : ''}>${escapeHtml(d)}</option>`).join('');
+    if (![...ds.options].some(o => o.value === p.disciplina)) ds.value = '__todas__';
   },
   // normaliza texto p/ casar tópicos entre retratos (sem acento/caixa/espaços extras)
   _nk(s) { return String(s == null ? '' : s).normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/\s+/g, ' ').trim(); },
@@ -3032,17 +3207,10 @@ const DesempenhoTecScreen = {
     set('plano-piso', p.pisoSerie); set('plano-sens', p.sensTendencia);
     const desc = DB.getTecSnapshots().slice().reverse();
     set('plano-ritmo', p.ritmoSemanal || PlanoEngine.ritmoRecente(desc, 120, PlanoEngine.excluidasSet(p)) || 25);
-    const ds = document.getElementById('plano-disc');
-    if (ds) {
-      /* Uma matéria fora do Plano não pode continuar na lista do filtro: o
-         motor já não a enxerga, e escolhê-la levaria a uma tela vazia sem
-         explicação. Ela volta à lista no instante em que você a desmarcar. */
-      const fora = PlanoEngine.excluidasSet(p);
-      const discs = PlanoEngine.disciplinas(this.scopedSnapshot()).filter(d => !PlanoEngine.foraDoPlano(d, fora));
-      ds.innerHTML = `<option value="__todas__">📚 Todas</option>` +
-        discs.map(d => `<option value="${escapeHtml(d)}" ${d === p.disciplina ? 'selected' : ''}>${escapeHtml(d)}</option>`).join('');
-      if (![...ds.options].some(o => o.value === p.disciplina)) ds.value = '__todas__';
-    }
+    /* Uma matéria fora do Plano não pode continuar na lista do filtro: o motor
+       já não a enxerga, e escolhê-la levaria a uma tela vazia sem explicação.
+       Ela volta à lista no instante em que você a desmarcar. */
+    this._sincronizarFiltroDisc();
     this.renderExcluidasPicker('plano-excluidas-pick');
     // Seletor de banca: só aparece quando há dados de incidência importados.
     // Alimenta a ordenação "🎯 Prioridade na banca".
@@ -3166,6 +3334,14 @@ const DesempenhoTecScreen = {
     this.renderPlano();
   },
   renderPlanoConteudo() {
+    /* O corpo real fica em `_pintarPlano`; esta camada só garante as duas
+       coisas que TODA repintura precisa e nenhuma chamada deve ter de lembrar:
+       a rolagem não se mexe, e o sinal de "processando" sempre sai. */
+    if (this._planoTimer) { clearTimeout(this._planoTimer); this._planoTimer = null; }
+    this._comRolagemPreservada(() => this._pintarPlano());
+    this._marcarPlanoOcupado(false);
+  },
+  _pintarPlano() {
     const proj = document.getElementById('plano-proj');
     const lista = document.getElementById('plano-lista');
     if (!proj || !lista) return;
@@ -3213,7 +3389,13 @@ const DesempenhoTecScreen = {
        assuntos para sempre — exatamente a tela extensa que o passo de 10 veio
        resolver. */
     PlanoEngine.salvarPrefs(opts);
-    opts.limite = opts.limite + (this._planoMais || 0);
+    // o passo que TODAS as listas do Plano usam, vindo do campo único
+    this._passoFatia = opts.limite;
+    if (!this._fatias) this._fatias = Object.create(null);
+    /* A lista de assuntos é a única fatiada pelo MOTOR — é de lá que saem
+       `totalItens` e o custo do que ficou de fora. O quanto abrir, porém, vem
+       do mesmo registro das outras seis, para o botão ser o mesmo botão. */
+    opts.limite = Math.min(opts.limite + (this._fatias['assuntos'] || 0), 100000);
     // ajuste novo invalida o retrato em cache usado ao criar atividades
     this._planoRefC = null;
     opts.ritmoSemanal = opts.ritmoSemanal || medido;
@@ -3461,11 +3643,18 @@ const DesempenhoTecScreen = {
 
          A guia continua a um toque em qualquer item; aberta, só nos três do
          topo, que são os que a decisão de hoje usa. */
-      const abreGuia = i <= 2;
+      /* NENHUMA GUIA ABRE SOZINHA. Ela abria nos três primeiros porque a linha
+         não dizia o que fazer; agora diz. Três guias abertas somavam ~1.200px
+         antes do quarto item — e quem quer o detalhe continua a um toque. */
+      const abreGuia = false;
       const guia = `
         <details class="pl-guia" ${abreGuia ? 'open' : ''}>
           <summary>💡 Por que está aqui, e o que fazer <span class="chev">▾</span></summary>
           <div class="pl-guia-body">
+            ${/* O conselho INTEIRO vive aqui. Na linha fica só a ordem — o
+                 miolo dele é o mesmo em dez itens seguidos, e repeti-lo era o
+                 que fazia um assunto ocupar mais que uma tela de celular. */''}
+            <p class="pl-acao pl-guia-acao tone-${x.status.tom}">${escapeHtml(x.status.acao)}</p>
             <p class="pl-porque-item">${escapeHtml(motivoDaPosicao(x, i))}</p>
             <p class="pl-base">Máximo realista ${r.teto}% · faltam <b>${(r.teto - x.taxa).toFixed(0)} pts</b> até lá · medido em <b>${x.qJanela}</b> questões${x.diasJanela ? ' dos últimos <b>' + x.diasJanela + '</b> dias' : ''}${x.qHist > x.qJanela ? ' (de <b>' + x.qHist + '</b> no total)' : ''}${x.pctAntes != null ? ' · antes dessa janela você fazia <b>' + x.pctAntes.toFixed(0) + '%</b>' : ''}.</p>
             <p class="pl-base">Custo estimado de <b>${x.custoQ}</b> questões${r.custoModo === 'lacuna' ? ' = ' + r.custoPiso + ' para remedir + ' + Math.round(r.custoPorPonto * x.lacunaPP * x.amplitude) + ' pela lacuna de ' + x.lacunaPP.toFixed(0) + ' pontos' + (Math.abs(x.amplitude - 1) > 0.08 ? ' num assunto ' + (x.amplitude > 1 ? 'mais amplo' : 'mais estreito') + ' que a sua média (×' + x.amplitude.toFixed(1).replace('.', ',') + ')' : '') : ''}.</p>
@@ -3497,7 +3686,7 @@ const DesempenhoTecScreen = {
             <div class="pl-medidor" title="${x.taxa.toFixed(0)}% de acerto · marcador no máximo realista de ${r.teto}%">
               <i style="width:${Math.min(100, x.taxa)}%"></i><u style="left:${Math.min(100, r.teto)}%"></u>
             </div>
-            <p class="pl-direcao tone-${dirTom}"><span class="seta">➜</span><span>${escapeHtml(x.status.acao)}</span></p>
+            <p class="pl-direcao tone-${dirTom}"><span class="seta">➜</span><span>${escapeHtml(x.status.ordem || x.status.acao)}</span></p>
             ${metricas}
             ${guia}
             <div class="pl-rodape">
@@ -3509,15 +3698,16 @@ const DesempenhoTecScreen = {
           </div>
         </div>${marca}`;
     }).join('');
+    const fPeq = this.fatiar('pequenas', r.pequenas, this._passoFatia);
     const pequenas = r.pequenas.length ? `
-      <div style="margin-top:22px;padding-top:16px;border-top:2px solid var(--border);">
+      <div class="pl-segundo" style="margin-top:22px;padding-top:16px;border-top:2px solid var(--border);">
         <p class="section-label" style="margin:0 0 4px;">🕳️ Segundo plano — assuntos sem diagnóstico</p>
         <p class="pl-prosa" style="margin:0 0 12px;">
           Menos de ${opts.minAmostra} questões resolvidas: ainda não dá para afirmar que é fraqueza.
           Ficam fora da média de domínio de propósito — com amostra assim pequena a taxa real pode variar dezenas de pontos.
           <strong>Aqui a ação é outra:</strong> resolver questões para descobrir onde você está.
         </p>
-        ${r.pequenas.slice(0, 15).map((x, i) => `
+        ${fPeq.vis.map((x, i) => `
           <div class="pl-item">
             <div class="pl-rank" style="background:var(--surface-sunken);color:var(--text-faint)">${i + 1}</div>
             <div class="pl-nome">${escapeHtml(x.nome)}</div>
@@ -3537,6 +3727,8 @@ const DesempenhoTecScreen = {
               </div>
             </div>
           </div>`).join('')}
+        ${this.rodapeFatia(fPeq, 'assunto sem diagnóstico', 'assuntos sem diagnóstico',
+          fPeq.faltam ? { txt: 'todos esperam questões para entrar na conta' } : null)}
       </div>` : '';
     /* COMO LER — enxugado de oito parágrafos para três. Os outros cinco viraram
        "i" no lugar exato onde o termo aparece: explicação que só existe num
@@ -3692,6 +3884,11 @@ const DesempenhoTecScreen = {
     const lac = (opts.disciplina === '__todas__') ? PlanoEngine.lacunasDoEdital(opts) : null;
     if (lac && (lac.sem.length || lac.pouca.length)) {
       const chip = (d, extra) => `<span class="pl-edital-chip">${escapeHtml(d.nome)}${extra}</span>`;
+      /* Fichas ocupam pouco cada uma e muito no conjunto: com um edital
+         grande, "nunca praticadas" virava um parágrafo de trinta linhas antes
+         do próximo bloco. Mesmo passo das outras listas. */
+      const fSem = this.fatiar('edital-sem', lac.sem, this._passoFatia);
+      const fPouca = this.fatiar('edital-pouca', lac.pouca, this._passoFatia);
       edital = `
         <div class="pl-edital">
           <p class="section-label" style="margin:0 0 4px;">🚧 Do seu planejamento, sem medição no TEC</p>
@@ -3701,8 +3898,10 @@ const DesempenhoTecScreen = {
             não aparecem como fracas porque não aparecem de jeito nenhum.
             ${lac.medidas} de ${lac.total} disciplinas do plano estão medidas.
           </p>
-          ${lac.sem.length ? `<p class="pl-edital-linha"><b>Nunca praticadas:</b> ${lac.sem.map(d => chip(d, '')).join('')}</p>` : ''}
-          ${lac.pouca.length ? `<p class="pl-edital-linha"><b>Quase sem dado:</b> ${lac.pouca.map(d => chip(d, ' · ' + d.q + 'q')).join('')}</p>` : ''}
+          ${lac.sem.length ? `<p class="pl-edital-linha"><b>Nunca praticadas:</b> ${fSem.vis.map(d => chip(d, '')).join('')}</p>
+            ${this.rodapeFatia(fSem, 'disciplina nunca praticada', 'disciplinas nunca praticadas')}` : ''}
+          ${lac.pouca.length ? `<p class="pl-edital-linha"><b>Quase sem dado:</b> ${fPouca.vis.map(d => chip(d, ' · ' + d.q + 'q')).join('')}</p>
+            ${this.rodapeFatia(fPouca, 'disciplina quase sem dado', 'disciplinas quase sem dado')}` : ''}
           ${lac.naoCasaram.length ? `<p class="pl-prosa" style="margin:10px 0 0;color:var(--text-faint);">
             O cruzamento é pelo NOME da disciplina. Estas existem no TEC e não em nenhuma disciplina do seu planejamento —
             se alguma for a mesma coisa com outro nome, renomeie para o app parar de contá-la à parte:
@@ -3733,6 +3932,13 @@ const DesempenhoTecScreen = {
        O detalhe continua disponível para quem quiser: o bloco abre. Só não é
        mais a primeira coisa que a tela de decisão mostra. */
     const emAlerta = emCurso.filter(v => v.estado === 'naoFuncionou' || v.estado === 'orfa').length;
+    /* Ordena o que PEDE ATENÇÃO para o topo antes de fatiar: cortar uma lista
+       na ordem de criação esconderia justamente o reforço que não funcionou. */
+    const cursoOrd = emCurso.slice().sort((a, b) => {
+      const peso = (v) => (v.estado === 'naoFuncionou' ? 0 : v.estado === 'orfa' ? 1 : 2);
+      return peso(a) - peso(b) || (b.pct || 0) - (a.pct || 0);
+    });
+    const fCurso = this.fatiar('curso', cursoOrd, this._passoFatia);
     const blocoCurso = !emCurso.length ? '' : `
       <details class="pl-ciclo pl-ciclo-mini">
         <summary>
@@ -3742,7 +3948,7 @@ const DesempenhoTecScreen = {
         </summary>
         <p class="pl-ciclo-obs">A gestão completa fica em <button type="button" class="pl-ciclo-acao" id="plano-ir-extras">✅ Atividades</button> — aqui é só a decisão.</p>
         <ul class="pl-ciclo-lista">
-          ${emCurso.map(v => {
+          ${fCurso.vis.map(v => {
             const [ic, tom, rot] = SELO[v.estado] || SELO.andamento;
             const evo = (v.origem.taxaInicial != null && v.taxa != null)
               ? `${v.origem.taxaInicial.toFixed(0)}% → <b class="tone-${v.delta != null && v.delta >= 0 ? 'good' : 'bad'}">${v.taxa.toFixed(0)}%</b>`
@@ -3768,9 +3974,13 @@ const DesempenhoTecScreen = {
             </li>`;
           }).join('')}
         </ul>
+        ${this.rodapeFatia(fCurso, 'reforço em curso', 'reforços em curso',
+          fCurso.faltam ? { txt: 'os que pedem atenção vêm primeiro' } : null)}
       </details>`;
 
-    const fechados = PlanoCiclo.fechados().slice(0, 12);
+    const fTodosFech = PlanoCiclo.fechados();
+    const fFech = this.fatiar('fechados', fTodosFech, this._passoFatia);
+    const fechados = fFech.vis;
     const blocoFeito = !fechados.length ? '' : `
       <details class="pl-ciclo pl-ciclo-hist">
         <summary><strong>🏅 O que os retratos já julgaram</strong> <span>${fechados.length} ciclo(s) fechado(s)</span> <span class="chev">▾</span></summary>
@@ -3789,6 +3999,7 @@ const DesempenhoTecScreen = {
             </li>`;
           }).join('')}
         </ul>
+        ${this.rodapeFatia(fFech, 'ciclo julgado', 'ciclos julgados')}
       </details>`;
 
     /* A CALIBRAGEM: o custo por ponto do Plano é um palpite de fábrica até o
@@ -3827,7 +4038,7 @@ const DesempenhoTecScreen = {
         <details class="pl-comp">
           <summary>a composição que estou usando <span class="chev">▾</span></summary>
           <ul class="pl-comp-lista">
-            ${pj.linhas.map(l => `<li><span>${escapeHtml(l.nome)}</span><span>${l.q} questões × ${l.pts} pt${l.peso !== 1 ? ' × peso ' + l.peso : ''}</span><span>${l.taxa != null ? l.taxa.toFixed(0) + '%' : '—'}${l.minimo != null ? ' · mín. ' + l.minimo + '%' : ''}</span></li>`).join('')}
+            ${this.fatiar('composicao', pj.linhas, this._passoFatia).vis.map(l => `<li><span>${escapeHtml(l.nome)}</span><span>${l.q} questões × ${l.pts} pt${l.peso !== 1 ? ' × peso ' + l.peso : ''}</span><span>${l.taxa != null ? l.taxa.toFixed(0) + '%' : '—'}${l.minimo != null ? ' · mín. ' + l.minimo + '%' : ''}</span></li>`).join('')}
           </ul>
           <p class="pl-ciclo-obs">Editável em ⚙ Ciclo → matérias. Erro de digitação aqui vira recomendação errada.</p>
         </details>
@@ -3885,29 +4096,21 @@ const DesempenhoTecScreen = {
        que ficou de fora em PONTOS EM JOGO, não em linhas: esconder 12
        matérias que somam 0,4pp é economia de rolagem; esconder duas que somam
        6pp seria esconder a decisão. */
-    const passoMat = Math.max(3, num('plano-limite', 10));
-    const matVis = grandes.slice(0, passoMat + (this._matMais || 0));
+    const fMat = this.fatiar('materias', grandes, this._passoFatia);
+    const matVis = fMat.vis;
     const matOcultas = grandes.slice(matVis.length);
-    const matFaltam = matOcultas.length;
     const ganhoOculto = matOcultas.reduce((a, l) => a + (l.ganho || 0), 0);
     const acoesOcultas = matOcultas.filter(l => l.veredito === 'atacar' || l.veredito === 'comecar').length;
-    const maisDasMaterias = !matFaltam ? ((this._matMais || 0) > 0 ? `
-      <div class="pl-mais">
-        <p class="pl-mais-nota">Todas as <b>${grandes.length}</b> matérias estão à vista.</p>
-        <div class="pl-mais-bts"><button type="button" class="pl-hero-limpar" id="plano-mat-menos">voltar às ${passoMat}</button></div>
-      </div>` : '') : `
-      <div class="pl-mais">
-        ${/* Esconder a cauda é economia de rolagem; esconder um terço do prêmio
-              é esconder a decisão. Quando a soma do que ficou de fora passa de
-              um terço do que está em jogo, a nota troca de tom e diz isso —
-              porque aí a tabela visível deixou de ser um resumo fiel. */''}
-        <p class="pl-mais-nota${(tm.emJogo > 0 && ganhoOculto >= tm.emJogo / 3) ? ' warn' : ''}">Mostrando <b>${matVis.length}</b> de <b>${grandes.length}</b> matérias · as outras somam <b>${ganhoOculto >= 0.05 ? ganhoOculto.toFixed(1) + ' pp' : 'menos de 0,1 pp'}</b> em jogo${(tm.emJogo > 0 && ganhoOculto >= tm.emJogo / 3) ? ` — <b>${Math.round(ganhoOculto / tm.emJogo * 100)}% do prêmio está aqui embaixo</b>` : ''}${acoesOcultas ? ` · <b>${acoesOcultas}</b> ${acoesOcultas === 1 ? 'pede ataque' : 'pedem ataque'}` : ''}</p>
-        <div class="pl-mais-bts">
-          <button type="button" class="btn-secondary" id="plano-mat-mais">▾ Mostrar mais ${Math.min(passoMat, matFaltam)}</button>
-          ${matFaltam > passoMat ? `<button type="button" class="pl-hero-limpar" id="plano-mat-tudo">ver as ${grandes.length}</button>` : ''}
-          ${matVis.length > passoMat ? `<button type="button" class="pl-hero-limpar" id="plano-mat-menos">voltar às ${passoMat}</button>` : ''}
-        </div>
-      </div>`;
+    const muitoOculto = tm.emJogo > 0 && ganhoOculto >= tm.emJogo / 3;
+    /* Esconder a cauda é economia de rolagem; esconder um terço do prêmio é
+       esconder a decisão. A moeda deste rodapé é o PONTO EM JOGO, não a
+       linha — e quando o oculto passa de um terço, a nota troca de tom. */
+    const maisDasMaterias = this.rodapeFatia(fMat, 'matéria', 'matérias', fMat.faltam ? {
+      tom: muitoOculto ? 'warn' : '',
+      txt: `as outras somam <b>${ganhoOculto >= 0.05 ? ganhoOculto.toFixed(1) + ' pp' : 'menos de 0,1 pp'}</b> em jogo`
+        + (muitoOculto ? ` — <b>${Math.round(ganhoOculto / tm.emJogo * 100)}% do prêmio está aqui embaixo</b>` : '')
+        + (acoesOcultas ? ` · <b>${acoesOcultas}</b> ${acoesOcultas === 1 ? 'pede ataque' : 'pedem ataque'}` : '')
+    } : null);
     const linhaResumo = (r, um, muitos, obs, tom) => !r ? '' : `<tr class="pl-tempo-miudas">
                   <td><b>+ ${r.n} ${r.n === 1 ? um : muitos}</b><span class="pl-ciclo-obs">${obs}</span></td>
                   <td>${r.esf.toFixed(0)}%</td>
@@ -4001,22 +4204,20 @@ const DesempenhoTecScreen = {
        quando a bandeira da meta cai fora da fatia — em que posição ela está.
        Abrir é um toque, no passo que você configurou; "ver todos" existe para
        quem quer a fila inteira de uma vez. */
-    const faltam = Math.max(0, (r.totalItens || 0) - r.itens.length);
-    const passo = Math.max(3, num('plano-limite', 10));
+    const fAss = {
+      chave: 'assuntos', passo: this._passoFatia, vis: r.itens,
+      total: r.totalItens || r.itens.length,
+      faltam: Math.max(0, (r.totalItens || 0) - r.itens.length)
+    };
+    /* A bandeira da meta cai fora da fatia com frequência: o caminho mais
+       curto do topo pode ter 81 assuntos e a tela abrir com 10. Dizer em que
+       posição ela está é o que impede os dois números de se contradizerem. */
     const marcoFora = (r.idxMeta != null && r.idxMeta >= 0 && r.idxMeta >= r.itens.length);
-    const maisDaLista = (linhas && faltam > 0) ? `
-      <div class="pl-mais">
-        <p class="pl-mais-nota">Mostrando <b>${r.itens.length}</b> de <b>${r.totalItens}</b> assuntos${marcoFora ? ` · <b>a meta de ${r.meta}% fecha no ${r.idxMeta + 1}º</b> desta ordem` : ''}${r.qRestante ? ` · ${r.qRestante.toLocaleString('pt-BR')} questões nos que faltam` : ''}</p>
-        <div class="pl-mais-bts">
-          <button type="button" class="btn-secondary" id="plano-mais">▾ Mostrar mais ${Math.min(passo, faltam)}</button>
-          ${faltam > passo ? `<button type="button" class="pl-hero-limpar" id="plano-mais-tudo">ver os ${r.totalItens}</button>` : ''}
-          ${(r.itens.length > passo) ? `<button type="button" class="pl-hero-limpar" id="plano-mais-menos">voltar aos ${passo}</button>` : ''}
-        </div>
-      </div>` : (linhas && (this._planoMais || 0) > 0 ? `
-      <div class="pl-mais">
-        <p class="pl-mais-nota">Fim da fila — os <b>${r.totalItens}</b> assuntos estão à vista.</p>
-        <div class="pl-mais-bts"><button type="button" class="pl-hero-limpar" id="plano-mais-menos">voltar aos ${passo}</button></div>
-      </div>` : '');
+    const maisDaLista = !linhas ? '' : this.rodapeFatia(fAss, 'assunto', 'assuntos', fAss.faltam ? {
+      txt: (marcoFora ? `<b>a meta de ${r.meta}% fecha no ${r.idxMeta + 1}º</b> desta ordem` : '')
+        + (marcoFora && r.qRestante ? ' · ' : '')
+        + (r.qRestante ? `${r.qRestante.toLocaleString('pt-BR')} questões nos que faltam` : '')
+    } : null);
 
     lista.innerHTML = (linhas
       /* ── A PERGUNTA VEM ANTES DA RESPOSTA ──────────────────────────────
@@ -4028,47 +4229,11 @@ const DesempenhoTecScreen = {
          escolhe ONDE; o bloco escolhe O QUÊ. Nessa ordem. */
       ? blocoPontos + blocoRegua + blocoTempo + hoje + blocoCurso + blocoCal + grafico + blocoFeito + ordemNota + porQue + linhas
       : blocoPontos + blocoRegua + blocoCurso + blocoTempo + blocoCal + blocoFeito + `<p class="hint" style="padding:18px 0;">Nenhum assunto abaixo do máximo realista — você já domina tudo que pratica.</p>`) + maisDaLista + pequenas + edital + blocoAuditoria + comoLer;
-    /* Abrir mais NÃO recarrega a tela do topo: a pessoa está lendo o fim da
-       lista, e um scroll de volta ao domínio perde o lugar dela. */
-    const abrirMais = (quanto) => {
-      const ancora = document.getElementById('plano-mais');
-      const antes = ancora ? ancora.getBoundingClientRect().top : null;
-      this._planoMais = Math.max(0, quanto);
-      this.renderPlanoConteudo();
-      const depois = document.getElementById('plano-mais');
-      if (antes != null && depois) window.scrollBy(0, depois.getBoundingClientRect().top - antes);
-    };
-    const bMais = document.getElementById('plano-mais');
-    if (bMais) bMais.addEventListener('click', () => abrirMais((this._planoMais || 0) + passo));
-    const bTudo = document.getElementById('plano-mais-tudo');
-    if (bTudo) bTudo.addEventListener('click', () => abrirMais(Math.max(0, (r.totalItens || 0) - passo)));
-    const bMenos = document.getElementById('plano-mais-menos');
-    if (bMenos) bMenos.addEventListener('click', () => {
-      this._planoMais = 0;
-      this.renderPlanoConteudo();
-      const l = document.getElementById('plano-lista');
-      if (l) l.scrollIntoView({ block: 'start' });
-    });
-    // a tabela de matérias, mesma mecânica e mesma âncora de rolagem
-    const abrirMat = (quanto) => {
-      const ancora = document.querySelector('.pl-tempo .pl-mais');
-      const antes = ancora ? ancora.getBoundingClientRect().top : null;
-      this._matMais = Math.max(0, quanto);
-      this.renderPlanoConteudo();
-      const depois = document.querySelector('.pl-tempo .pl-mais');
-      if (antes != null && depois) window.scrollBy(0, depois.getBoundingClientRect().top - antes);
-    };
-    const mMais = document.getElementById('plano-mat-mais');
-    if (mMais) mMais.addEventListener('click', () => abrirMat((this._matMais || 0) + passo));
-    const mTudo = document.getElementById('plano-mat-tudo');
-    if (mTudo) mTudo.addEventListener('click', () => abrirMat(9999));
-    const mMenos = document.getElementById('plano-mat-menos');
-    if (mMenos) mMenos.addEventListener('click', () => {
-      this._matMais = 0;
-      this.renderPlanoConteudo();
-      const t = document.querySelector('.pl-tempo');
-      if (t) t.scrollIntoView({ block: 'start' });
-    });
+    /* As sete listas do Plano compartilham um ouvinte só. Antes eram duas
+       implementações quase iguais (a de assuntos e a de matérias) e cinco
+       listas sem nenhuma — o tipo de duplicação que diverge na primeira
+       correção que alguém faz só de um lado. */
+    this._ligarFatias(lista);
     lista.querySelectorAll('.plano-nova-extra').forEach(b => b.addEventListener('click', () => {
       this.criarExtraDoPlano(b.dataset.topico, b.dataset.disc, b.dataset.alvo, b.dataset.motivo);
     }));
@@ -5406,7 +5571,28 @@ $id('tec-weak-disc').addEventListener('change', (e) => {
 (function () {
   const on = (id, ev, fn) => { const el = document.getElementById(id); if (el) el.addEventListener(ev, fn); };
   const DT = DesempenhoTecScreen;
-  document.querySelectorAll('#tec-subtabs .tec-subtab').forEach(b => b.addEventListener('click', () => DT.switchTecTab(b.dataset.tectab)));
+  /* ── O ADIAMENTO PERTENCE AO CLIQUE, NÃO À API ──────────────────────────
+     Adiar dentro de `switchTecTab` deixava a função mentindo: quem a chama
+     espera que, ao voltar, a tela esteja pintada — e todo o resto do app e da
+     suíte de verificação faz exatamente isso. Sete verificações caíram de uma
+     vez, não porque o adiamento estivesse errado, mas porque estava no lugar
+     errado.
+
+     O travamento que a pessoa sente é o do DEDO no chip: é ali que o quadro
+     tem de ser liberado antes do cálculo. Chamada por código continua
+     síncrona; o toque troca a aba agora e calcula no quadro seguinte. */
+  document.querySelectorAll('#tec-subtabs .tec-subtab').forEach(b => b.addEventListener('click', () => {
+    const alvo = b.dataset.tectab;
+    if (alvo !== 'plano' || DT.tecTab === 'plano') { DT.switchTecTab(alvo); return; }
+    // pinta a troca de aba e o esqueleto agora; o motor roda no quadro seguinte
+    DT.tecTab = alvo;
+    document.querySelectorAll('#tec-subtabs .tec-subtab').forEach(x => x.classList.toggle('active', x.dataset.tectab === alvo));
+    ['analise', 'incidencia', 'reforco', 'plano'].forEach(t => {
+      const el = document.getElementById('tec-panel-' + t);
+      if (el) el.style.display = (t === alvo) ? 'block' : 'none';
+    });
+    DT._depoisDePintar('plano-lista', () => DT.switchTecTab(alvo));
+  }));
   // Incidência
   on('incid-text', 'input', () => DT.updateIncidPreview());
   on('incid-banca', 'input', () => DT.updateIncidPreview());
@@ -5428,18 +5614,23 @@ $id('tec-weak-disc').addEventListener('change', (e) => {
    'plano-amostraalvo','plano-cadencia','plano-janelamax','plano-ordenar','plano-consolidar','plano-validade','plano-critico','plano-fragil','plano-piso','plano-sens'].forEach(id => {
     /* Mexer num campo pode DESFAZER um preset — e o chip aceso tem de deixar de
        estar aceso na mesma hora, senão a tela afirma um modo que não vale mais. */
-    const aplicar = () => {
+    /* O RÓTULO RESPONDE NA HORA; O MOTOR ESPERA A RAJADA ACABAR. Quem arrasta
+       o peso da banca precisa ver o número mudar sob o dedo — isso é barato.
+       Recalcular o Plano a cada parada do arraste é que travava a tela. */
+    const eco = () => {
       if (id === 'plano-pesobanca') {
         const v = document.getElementById('plano-pesobanca');
         const l = document.getElementById('plano-pesobanca-label');
         if (v && l) l.textContent = (parseInt(v.value, 10) === 0) ? '0 — banca ignorada' : v.value;
       }
-      DT._planoMais = 0; DT._matMais = 0;   // outra configuração, outra fila: recomeça no passo
-      DT.renderPlanoConteudo();
+      DT._fatias = null;   // outra configuração, outra fila: toda lista volta ao passo
       DT.renderModosDeAtaque();
     };
-    on(id, 'change', aplicar);
-    on(id, 'input', aplicar);
+    /* `change` é o fim do gesto (soltou o select, saiu do campo): ali não há
+       rajada nenhuma e esperar seria só lentidão. `input` é o meio da
+       digitação, e é ele que precisa da janela. */
+    on(id, 'change', () => { eco(); DT.agendarPlano(true); });
+    on(id, 'input', () => { eco(); DT.agendarPlano(false); });
   });
   on('reforco-disc', 'change', (e) => { DT.savePrefs({ disc: e.target.value }); DT.renderReforcoList(); });
   on('reforco-minq', 'input', (e) => { DT.savePrefs({ minq: e.target.value }); DT.renderReforcoList(); });

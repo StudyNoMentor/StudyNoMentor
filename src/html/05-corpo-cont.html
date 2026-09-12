@@ -737,6 +737,10 @@
               <div id="plano-excluidas-pick" class="banca-pick"></div>
             </div>
             <div class="rfc-field">
+              <label for="plano-limite" data-info="De quantos em quantos TODAS as listas desta tela abrem: assuntos, matérias, segundo plano, reforços, ciclos julgados e lacunas do edital. No fim de cada uma, um toque abre mais essa quantidade. Não altera nenhum cálculo — o domínio, o caminho mais curto e a fila usam todos os itens, sempre. Listas longas viram paralisia; 10 é o que se ataca de verdade numa semana.">Itens por vez nas listas</label>
+              <input type="number" inputmode="numeric" id="plano-limite" data-cfg-key="limite" min="3" max="200" step="1">
+            </div>
+            <div class="rfc-field">
               <label for="plano-meta" data-info="A nota que você considera suficiente em cada assunto. É a linha tracejada da trajetória e o que define quem é 🟢 sólido. Subir a meta aumenta a lista de pendências; baixar declara vitória cedo. 75–85% cobre a maioria dos concursos.">Meta de domínio (%)</label>
               <input type="number" inputmode="numeric" id="plano-meta" data-cfg-key="metaDominio" min="30" max="100" step="1">
             </div>
@@ -867,10 +871,6 @@
               <label for="plano-pesobanca" data-info="Só afeta a ordem 🎯 fraqueza × incidência. Em 0 a banca é ignorada e a ordem vira o melhor retorno puro. Quanto maior, mais o assunto que CAI MUITO na prova sobe, mesmo sem ser o seu pior acerto. Acima de 8 a incidência manda praticamente sozinha.">Quanto a banca pesa na prioridade: <span id="plano-pesobanca-label" class="lbl-accent">6</span></label>
               <input type="range" id="plano-pesobanca" data-cfg-key="pesoBanca" min="0" max="12" step="1" class="reforco-slider">
               <div class="reforco-slider-legend"><span>só o seu erro</span><span>equilíbrio</span><span>só a incidência</span></div>
-            </div>
-            <div class="rfc-field">
-              <label for="plano-limite" data-info="Quantos assuntos a lista abre de início — e de quantos em quantos o botão &quot;mostrar mais&quot; avança no fim dela. Não altera nenhum cálculo: o domínio, o caminho mais curto e a fila usam todos os assuntos, sempre. Listas longas viram paralisia; 10 é o que se ataca de verdade numa semana.">Assuntos por vez</label>
-              <input type="number" inputmode="numeric" id="plano-limite" data-cfg-key="limite" min="3" max="200" step="1">
             </div>
           </div>
         </div>

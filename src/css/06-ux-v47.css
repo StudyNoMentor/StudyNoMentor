@@ -1476,3 +1476,29 @@
 .pl-mais-bts { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 14px; }
 .pl-mais-bts .btn-secondary { padding: 8px 14px; font-size: var(--fs-xs); }
 .pl-mais-nota.warn { color: var(--warn-text); }
+
+/* ── SINAL DE PROCESSANDO, E O ESQUELETO DA ABERTURA ──────────────────────
+   Duas formas do mesmo problema: tempo mudo. Enquanto o Plano recalcula, o
+   conteúdo antigo esmaece e para de aceitar toque — continua legível (não
+   pisca, não some), mas deixa de parecer o resultado do que você acabou de
+   digitar. Na abertura da aba, onde não há conteúdo antigo, entra o
+   esqueleto. */
+#tec-panel-plano .pl-ocupado {
+  opacity: .45; pointer-events: none;
+  transition: opacity .12s linear;
+}
+.pl-skel {
+  display: flex; align-items: center; justify-content: center; gap: 12px;
+  min-height: 220px; padding: 32px 16px;
+  color: var(--text-soft); font-size: var(--fs-sm); font-weight: 600;
+}
+.pl-skel-giro {
+  width: 22px; height: 22px; flex: none; border-radius: 50%;
+  border: 2.5px solid var(--border); border-top-color: var(--accent);
+  animation: pl-gira .7s linear infinite;
+}
+@keyframes pl-gira { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) {
+  .pl-skel-giro { animation-duration: 2.4s; }
+  #tec-panel-plano .pl-ocupado { transition: none; }
+}
