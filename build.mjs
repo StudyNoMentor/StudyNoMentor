@@ -84,6 +84,7 @@ const PARTES = [
     'js/49-tela-config.js',
     'js/50-tela-ferramentas.js',
     'js/51-tela-desempenho-tec.js',
+    'js/51a-tec-scope-consistency.js',
     'js/52-tela-planejamentos.js',
     'js/53-portao-de-acesso.js',
     'js/60-cloud-store.js',
