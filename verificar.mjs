@@ -88,6 +88,15 @@ try {
   erro('a importacao do TEC nao registra o que o arquivo diz:\n' + String(e.stdout || '') + String(e.stderr || ''));
 }
 
+// ── 3c. ESCOPO DO PLANO TEC ───────────────────────────────────────────────
+console.log('\n3c) escopo selecionado do TEC governa o Plano');
+try {
+  const saida = execFileSync(process.execPath, [join(RAIZ, 'testes', 'escopo-plano-tec.mjs')], { stdio: 'pipe' });
+  ok(String(saida).trim());
+} catch (e) {
+  erro('o Plano voltou a enxergar retratos fora do escopo:\n' + String(e.stdout || '') + String(e.stderr || ''));
+}
+
 // ── 4. integridade estática do HTML ────────────────────────────────────────
 console.log('\n4) integridade do index.html');
 const html = readFileSync(join(RAIZ, 'index.html'), 'utf8');
