@@ -217,31 +217,31 @@
  {
   "arquivo": "js/66-backup-nuvem.js",
   "de": 41284,
-  "ate": 42172
+  "ate": 42191
  },
  {
   "arquivo": "js/67-atualizacao.js",
-  "de": 42174,
-  "ate": 42395
+  "de": 42193,
+  "ate": 42414
  },
  {
   "arquivo": "js/70-relatorio.js",
-  "de": 42397,
-  "ate": 42932
+  "de": 42416,
+  "ate": 42951
  },
  {
   "arquivo": "js/71-auditoria-plano.js",
-  "de": 42934,
-  "ate": 43314
+  "de": 42953,
+  "ate": 43333
  },
  {
   "arquivo": "js/80-ajustes-finais.js",
-  "de": 43316,
-  "ate": 44659
+  "de": 43335,
+  "ate": 44678
  },
  {
   "arquivo": "html/90-rodape.html",
-  "de": 44661,
-  "ate": 45076
+  "de": 44680,
+  "ate": 45095
  }
 ]

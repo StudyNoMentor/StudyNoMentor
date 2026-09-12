@@ -57,7 +57,7 @@
      novo, e o antigo é descartado sozinho na ativação) e o que permite ao app
      dizer qual versão está rodando. Em src/ fica "dev" de propósito: a versão
      é gerada na montagem, não editada à mão. -->
-<meta name="diario-versao" content="v31ec6d4d42">
+<meta name="diario-versao" content="vbcd097509f">
 <script>
 /* ── ARRANQUE: abre o IndexedDB AGORA, em paralelo com o parse do documento ──
    A fachada de armazenamento vive no fim do <body>, depois de ~1,7 MB de HTML.
@@ -41701,9 +41701,25 @@ const CloudBackup = {
     const atual = (linhas || []).filter(r => r.ancora)[0] || null;
     const ideal = this.ancoraIdeal(linhas, Date.now());
     if (!ideal || (atual && ideal.id === atual.id)) return { mudou: false };
+    /* ── "SEM ERRO" NÃO É O MESMO QUE "ESCREVEU" ─────────────────────────
+       O RLS não recusa um UPDATE: ele FILTRA as linhas. Sem a política de
+       update, o banco responde 204 sem erro nenhum e zero linhas afetadas — e
+       a primeira versão disto anunciava "âncora movida" no console com o
+       rótulo exatamente onde estava. Um sucesso falso é pior que uma falha:
+       a falha manda alguém ler o documento do banco.
+
+       Só a linha que VOLTA prova a escrita, e por isso o `.select('id')`. Os
+       dois lados são necessários: o GRANT de coluna sem a política dá este
+       silêncio; a política sem o GRANT dá "permission denied for column". */
     const marcar = async (linhaId, valor) => {
-      const { error } = await CloudStore.client.from(this.TABLE).update({ ancora: valor }).eq('id', linhaId);
+      const { data, error } = await CloudStore.client.from(this.TABLE)
+        .update({ ancora: valor }).eq('id', linhaId).select('id');
       if (error) throw error;
+      if (!data || !data.length) {
+        const e = new Error('o banco não aplicou a mudança (0 linhas) — falta a política de update de `ancora`');
+        e.semPolitica = true;
+        throw e;
+      }
     };
     try {
       // limpa ANTES de marcar: o índice único do banco recusa duas âncoras
@@ -41721,7 +41737,10 @@ const CloudBackup = {
          Avisa uma vez por sessão para não virar ruído no console. */
       if (!this._avisouAncora) {
         this._avisouAncora = true;
-        console.info('[CloudBackup] a âncora não pôde ser movida (falta a permissão de UPDATE na coluna `ancora` — ver BANCO-DE-DADOS.md). A âncora atual continua protegida.');
+        console.info('[CloudBackup] a âncora não pôde ser movida — ' + (err && err.semPolitica
+          ? 'falta a POLÍTICA de update (o `grant` de coluna sozinho não basta: o RLS filtra a linha e o banco responde sem erro)'
+          : 'falta o GRANT na coluna `ancora`')
+          + '. Ver BANCO-DE-DADOS.md. A âncora atual continua protegida e nada foi apagado.');
       }
       return { mudou: false, erro: err && (err.message || String(err)) };
     }

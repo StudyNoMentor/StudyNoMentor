@@ -101,6 +101,12 @@ create policy "backups_delete_proprios" on public.profile_backups
    Se você não rodar este trecho, o app continua funcionando exatamente como
    antes: a troca falha, a âncora antiga segue protegida, e o console registra
    o motivo uma vez. Nada é apagado. */
+/* SÃO DOIS COMANDOS E OS DOIS SÃO NECESSÁRIOS, por motivos diferentes:
+   · sem a POLÍTICA, o RLS não recusa o update — ele FILTRA a linha. O banco
+     responde sem erro nenhum e zero linhas afetadas, e a âncora fica onde
+     estava em silêncio;
+   · sem o GRANT, a tentativa para em "permission denied for column".
+   Rodar só um dos dois deixa a âncora parada. */
 drop policy if exists "backups_ancora_propria" on public.profile_backups;
 create policy "backups_ancora_propria" on public.profile_backups
   for update using (auth.uid() = user_id) with check (auth.uid() = user_id);
@@ -120,6 +126,18 @@ grant  update (ancora) on public.profile_backups to authenticated;
 > Se ela passar, o `revoke` não foi aplicado — rode-o de novo antes de
 > continuar. O `grant` de coluna só restringe depois que o privilégio de
 > tabela sai do caminho.
+>
+> **E confira que o rótulo, esse, se move.** Esta tem de devolver UMA linha:
+>
+> ```sql
+> update public.profile_backups set ancora = ancora
+> where id = (select id from public.profile_backups where ancora limit 1)
+> returning id;
+> ```
+>
+> Zero linhas significa que a POLÍTICA não foi criada: o RLS está filtrando a
+> linha, sem erro nenhum. O app detecta isso (conta as linhas devolvidas, não
+> confia na ausência de erro) e registra o motivo no console.
 
 > **Se a criação do índice único acima falhar** com um erro citando linhas
 > duplicadas, é porque já existem duas (ou mais) fotos marcadas `ancora=true`
