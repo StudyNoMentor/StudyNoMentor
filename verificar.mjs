@@ -1590,8 +1590,20 @@ try {
       corpoIndependente: body.scrollHeight >= body.clientHeight,
       vazaH: document.documentElement.scrollWidth - document.documentElement.clientWidth };
   });
-  (pe.dentro >= 0 && pe.dentro <= 2 && pe.altura <= 844 * 0.93 && pe.vazaH === 0)
-    ? ok(`a folha cabe na tela (${pe.altura}px de 844) com o pe preso e sem vazamento horizontal`)
+  /* `dentro` e a distancia entre a base da caixa e a base do rodape: por
+     construcao ela vale ZERO — o rodape e o ultimo filho e fica rente. O que
+     se mede, entao, e so o arredondamento sub-pixel de duas posicoes
+     fracionarias, e ele oscila com a metrica da fonte: a mesma caixa de 776px
+     dava +1 aqui e -1 no runner do CI, onde as fontes instaladas sao outras.
+     Exigir `>= 0` era exigir que a sorte do arredondamento caisse sempre para
+     o mesmo lado.
+
+     A falha que esta verificacao existe para pegar e o formulario rolando
+     ATRAS do "Concluir" — ali o rodape cai dezenas de pixels abaixo da caixa,
+     nao um. A tolerancia passa a ser simetrica, e continua apertada o
+     suficiente para isso. */
+  (Math.abs(pe.dentro) <= 2 && pe.altura <= 844 * 0.93 && pe.vazaH === 0)
+    ? ok(`a folha cabe na tela (${pe.altura}px de 844) com o pe preso (${pe.dentro >= 0 ? '+' : ''}${pe.dentro}px) e sem vazamento horizontal`)
     : erro('a folha nao esta contida: ' + JSON.stringify(pe));
 
   // 8) Esc fecha e o foco volta para a porta por onde se entrou
