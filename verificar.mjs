@@ -15,7 +15,10 @@
      4. o index.html publicado não tem id duplicado nem referência quebrada
      5. o app carrega no Chromium sem um único erro de console
      6. as 14 telas navegam e a suíte interna AutoTeste passa 100%
-     7. nenhum texto abaixo do contraste WCAG AA — nos temas claro E escuro
+     7. um ANO de uso simulado: 8 importacoes sobre uma arvore irregular, com
+        atividades, progresso na mao, retrato apagado, lente e foco trocados —
+        e as invariantes cobradas depois de cada passo
+     8. nenhum texto abaixo do contraste WCAG AA — nos temas claro E escuro
 
    As checagens 5 a 7 precisam do Chromium (Playwright). Se ele não estiver
    instalado, elas são PULADAS com aviso — as quatro primeiras sempre rodam.
@@ -3007,7 +3010,45 @@ try {
   await pag.setViewportSize({ width: 1280, height: 900 });
 } catch (e) { erro('a gestao/regua de pontos falhou: ' + e.message); }
 
-console.log('\n7) contraste WCAG AA (temas claro e escuro)');
+/* ═══ 7) UM ANO DE USO, SIMULADO ════════════════════════════════════════════
+   As etapas acima conferem partes. Esta confere a EXPERIÊNCIA: uma jornada de
+   oito importações mensais sobre uma árvore irregular de até cinco níveis (685
+   folhas possíveis, ~1.000 linhas de incidência), com atividades criadas pelos
+   dois portões, progresso lançado na mão, atividade encerrada pelo botão,
+   retrato apagado, lente trocada, foco de três matérias e as seis ordens.
+
+   Depois de CADA passo, um conjunto de invariantes é cobrado sobre o dado real
+   daquele instante: o índice fecha com o retrato em qualquer piso, o
+   consolidado soma os retratos, nenhum número podre em taxa/margem/custo,
+   nenhuma margem zero com amostra finita, nenhum assunto em dois lugares,
+   nenhuma atividade viva declarada órfã, nenhuma encerrada sem veredito, e
+   TODAS as invariantes da própria auditoria.
+
+   Foi esta etapa que encontrou o colapso da margem de erro (1.167 linhas com
+   ±0pp), o progresso zerado ao apagar retrato, o ciclo que escapava sem
+   veredito e a saturação do piso de granularidade. */
+console.log('\n7) um ano de uso, simulado (jornada + invariantes)');
+try {
+  await pag.addScriptTag({ content: readFileSync(join(RAIZ, 'test/jornada-dados.js'), 'utf8') });
+  await pag.addScriptTag({ content: readFileSync(join(RAIZ, 'test/jornada-invariantes.js'), 'utf8') });
+  const j = await pag.evaluate(() => window.RODAR_JORNADA());
+  const s = j.resumo || {};
+  (j.totalFalhas === 0)
+    ? ok(`8 importacoes, ${s.extras} atividades, ${s.ciclos} ciclos julgados (${Object.keys(s.porTipo || {}).map((k) => k + ':' + s.porTipo[k]).join(' ')}) — nenhuma invariante violada em 25 pontos de conferencia`)
+    : erro(`a jornada violou ${j.totalFalhas} invariante(s):\n    `
+      + [...new Set(j.falhas.map((f) => f.passo + ' :: ' + f.o))].slice(0, 10).join('\n    ')
+      + '\n    exemplo: ' + JSON.stringify(j.falhas[0]));
+  (s.pisoOferecido && s.assuntos1 > 0)
+    ? ok(`no 1o retrato de uma arvore funda a tela oferece a lente (piso ${s.pisoOferecido}) e o Plano passa a existir (${s.assuntos1} unidades onde havia zero)`)
+    : erro('a lente nao salvou o primeiro retrato: ' + JSON.stringify(s));
+  (s.progressoPreservado > 0 && s.repinadas > 0)
+    ? ok(`e apagar um retrato preservou o progresso medido de ${s.progressoPreservado} atividade(s) (${s.repinadas} re-pinadas), em vez de zerar`)
+    : erro('o progresso nao foi preservado ao apagar retrato: ' + JSON.stringify(s));
+} catch (e) {
+  erro('a jornada simulada nao rodou: ' + e.message);
+}
+
+console.log('\n8) contraste WCAG AA (temas claro e escuro)');
 /* Transicoes e animacoes desligadas durante a medicao. Sem isto, medir logo
    apos uma troca de tela pega a cor INTERMEDIARIA de uma transicao (a aba ativa
    a meio caminho entre --text-soft e --accent, por exemplo) e reprova um par de

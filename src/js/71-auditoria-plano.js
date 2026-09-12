@@ -244,9 +244,10 @@ const PlanoAuditoria = {
           gran.somaPreservada,
           { questoes: gran.questoes, semAgrupar: gran.questoesSemAgrupar,
             acertos: gran.acertos, semAgrupar_acertos: gran.acertosSemAgrupar });
-        push('o agrupamento só junta o que não media sozinho',
-          gran.medemSozinhas >= gran.medemSozinhasSemAgrupar,
-          { com: gran.medemSozinhas, sem: gran.medemSozinhasSemAgrupar, piso: gran.piso });
+        push('o agrupamento nunca reduz o volume que se pode medir',
+          gran.volMedivel >= gran.volMedivelSemAgrupar,
+          { com: gran.volMedivel, sem: gran.volMedivelSemAgrupar, piso: gran.piso,
+            unidades: gran.medemSozinhas, unidadesSemAgrupar: gran.medemSozinhasSemAgrupar });
       } else {
         naoSeAplica('as conferências do agrupamento de átomos finos',
           gran && gran.apenasFolhas === false
@@ -409,6 +410,16 @@ const PlanoAuditoria = {
           atomosAgrupados: ag ? ag.atomos : 0,
           medemSozinhas: Object.keys(comLente).filter(k => (comLente[k].q || 0) >= p.minAmostra).length,
           medemSozinhasSemAgrupar: Object.keys(cru).filter(k => (cru[k].q || 0) >= p.minAmostra).length,
+          /* O QUE O AGRUPAMENTO PROMETE É VOLUME MEDÍVEL, NÃO CONTAGEM DE
+             UNIDADES. Com o piso acima da amostra mínima, duas unidades de 25
+             questões (que já mediam) viram uma de 50: a contagem cai de dois
+             para um e nada foi perdido — foi exatamente o que se pediu. O que
+             não pode acontecer é volume medível DIMINUIR, porque aí a lente
+             estaria escondendo diagnóstico em vez de viabilizá-lo. */
+          volMedivel: Object.keys(comLente).filter(k => (comLente[k].q || 0) >= p.minAmostra)
+            .reduce((a, k) => a + (comLente[k].q || 0), 0),
+          volMedivelSemAgrupar: Object.keys(cru).filter(k => (cru[k].q || 0) >= p.minAmostra)
+            .reduce((a, k) => a + (cru[k].q || 0), 0),
           questoes: soma(comLente), questoesSemAgrupar: soma(cru),
           acertos: somaAc(comLente), acertosSemAgrupar: somaAc(cru),
           /* O que o agrupamento PROMETE: reparticionar, nunca criar nem

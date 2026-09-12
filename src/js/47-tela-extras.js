@@ -115,8 +115,12 @@ const ExtrasScreen = {
       dias = Math.max(1, (p.cadenciaDias || 30) - idade);
     } catch (e) { _quiet(e, 'curso-dias'); }
     const porDia = Math.max(1, Math.ceil(totalFalta / dias));
+    /* `mediu` é o desfecho do DIAGNÓSTICO: ele foi buscar amostra, não acerto.
+       Chamá-lo de "volume não resolveu" era julgar pela régua do reforço uma
+       atividade que cumpriu exatamente o que prometeu. */
     const SELO = { funcionou: ['✅', 'tone-good', 'resolvido'], naoFuncionou: ['⚠️', 'tone-bad', 'volume não resolveu'],
-      subiu: ['📈', 'tone-good', 'subindo'], andamento: ['▶', 'incid', 'em andamento'], orfa: ['❓', '', 'sem correspondência no TEC'] };
+      subiu: ['📈', 'tone-good', 'subindo'], mediu: ['🔬', 'incid', 'já dá para medir'],
+      andamento: ['▶', 'incid', 'em andamento'], orfa: ['❓', '', 'sem correspondência no TEC'] };
     const linha = (v) => {
       const [ic, tom, rot] = SELO[v.estado] || SELO.andamento;
       const falta = Math.max(0, v.alvo - v.feito);

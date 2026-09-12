@@ -2432,6 +2432,55 @@ const AutoTeste = {
         && String(comPiso.taxa) === String(semPiso.taxa),
         { sem: [semPiso.medido, semPiso.estado, semPiso.taxa], com: [comPiso.medido, comPiso.estado, comPiso.taxa] });
 
+      /* ── UM NÍVEL NÃO BASTA: A ESCALADA ───────────────────────────────────
+         O corte de UM nível só junta irmãos — e num ramo raso isso não alcança
+         a amostra mínima. Medido numa jornada de oito importações sobre uma
+         árvore de até cinco níveis: o corte de um nível deixava 0% do volume
+         medível no primeiro retrato e 17% no segundo, ou seja, a lente não fazia
+         nada justamente quando mais precisava. A escalada sobe um degrau por
+         volta até a unidade alcançar o piso, e dá 87% já no primeiro retrato,
+         refinando-se sozinha conforme o volume chega (451 unidades de 1,6 tópico
+         no oitavo mês, contra 8 de 45 se ela pulasse direto para a disciplina).
+
+         O caso abaixo é conferível à mão: A+B somam 5 e C+D somam 7. Nenhum dos
+         dois ramos alcança 20 agrupando um nível, então a escalada sobe o
+         segundo e junta os quatro. "Gorda", que já alcança, não é tocada. */
+      const LL = (c, n, q, ac) => ({ depth: String(c).split('.').length, codigo: c, nome: n,
+        disciplina: 'Dir Adm', questoes: q, acertos: ac });
+      const rasa = { id: 'esc', nome: 'esc', date: '2026-03-01', startDate: '2026-02-01', endDate: '2026-03-01', rows: [
+        { depth: 0, codigo: null, nome: 'Dir Adm', disciplina: 'Dir Adm', questoes: 72, acertos: 36 },
+        LL('01', 'Obrigacao', 5, 2), LL('01.01', 'A', 3, 1), LL('01.02', 'B', 2, 1),
+        LL('02', 'Credito', 7, 4), LL('02.01', 'C', 4, 2), LL('02.02', 'D', 3, 2),
+        LL('03', 'Gorda', 60, 30)] };
+      banco = [];
+      DB.getTecSnapshots = () => [rasa];
+      try {
+        const nomes = (piso) => {
+          P._agrC = null;
+          const idx = P._indice(rasa, { apenasFolhas: true, granPiso: piso, minAmostra: 20 });
+          P._agrC = null;
+          return { lista: Object.keys(idx).map(k => idx[k].nome + '=' + idx[k].q).sort().join(' '),
+            q: soma(idx, 'q'), ac: soma(idx, 'ac'),
+            medivel: Object.keys(idx).filter(k => idx[k].q >= 20).reduce((a, k) => a + idx[k].q, 0) };
+        };
+        const sem = nomes(0), com = nomes(20), tudo = nomes(100);
+        this._ok('Escalada: sem piso, cinco átomos e só um mede',
+          sem.lista === 'A=3 B=2 C=4 D=3 Gorda=60', sem.lista);
+        this._ok('Escalada: um nível não alcançaria 20 (5 e 7) — ela sobe o segundo e junta os quatro',
+          com.lista === 'Dir Adm · bloco=12 Gorda=60', com.lista);
+        this._ok('Escalada: e o volume não se move em nenhum piso (72 questões, 36 acertos)',
+          sem.q === 72 && com.q === 72 && tudo.q === 72 && sem.ac === 36 && com.ac === 36 && tudo.ac === 36,
+          { sem: sem.q, com: com.q, tudo: tudo.q });
+        this._ok('Escalada: quem já alcança o piso conserva o nome (Gorda segue Gorda)',
+          /Gorda=60/.test(com.lista));
+        /* Piso ACIMA da amostra mínima é escolha de quem quer unidades maiores:
+           ali até o que já media é absorvido, a contagem cai — e o volume que se
+           pode medir SOBE, que é a única coisa que a lente não pode piorar. */
+        this._ok('Escalada: piso acima da amostra junta até o que media, e o volume medível sobe',
+          tudo.lista === 'Dir Adm · bloco=72' && tudo.medivel === 72 && sem.medivel === 60,
+          { tudo: tudo.lista, medivel: tudo.medivel, semAgrupar: sem.medivel });
+      } finally { DB.getTecSnapshots = origSnaps; P._agrC = null; }
+
       /* ── O BLOCO TAMBÉM CAI NA PROVA ──────────────────────────────────────
          `incidenciaDe` casa por NOME, e "Licitacoes · bloco" não existe no
          índice da banca: o bloco vinha com incidência ZERO e ia para o fim da
@@ -3147,10 +3196,49 @@ const AutoTeste = {
         this._ok('Seta: quanto menor o volume por período, maior a variação exigida',
           P.deltaDetectavel(67, 10, 10) > P.deltaDetectavel(67, 300, 300) * 4);
 
-        this._ok('Empate: sem amostra, ou taxa cravada em 100%, não há empate falso',
+        /* ── A MARGEM ERA CONFERIDA COMO PRESENÇA, NUNCA COMO VALOR ──────────
+           A tela tinha asserção para "aparece um ±Npp"; nenhuma para QUE número
+           é esse. Foi por isso que a margem zero atravessou 740 verificações: em
+           0% e 100% a fórmula de Wald devolve exatamente zero, e "±0pp" passa em
+           qualquer teste que só procure o formato.
+
+           Wilson não degenera. Os valores abaixo são conferíveis à mão: para
+           0/20 o intervalo é [0%, 16,1%], meia-largura 8,1pp. */
+        const mg = (pct, n) => Math.round(P.margemErro(pct, n) * 10) / 10;
+        this._ok('Margem: 0% em 20 questões NÃO é certeza — ±8,1pp, faixa de 0% a 16%',
+          mg(0, 20) === 8.1 && Math.round(P.intervalo(0, 20)[1] * 10) / 10 === 16.1,
+          { margem: mg(0, 20), faixa: P.intervalo(0, 20) });
+        this._ok('Margem: 100% em 20 questões tampouco — ±8,1pp, faixa de 84% a 100%',
+          mg(100, 20) === 8.1 && Math.round(P.intervalo(100, 20)[0] * 10) / 10 === 83.9,
+          { margem: mg(100, 20), faixa: P.intervalo(100, 20) });
+        this._ok('Margem: nenhuma taxa com amostra finita tem margem zero',
+          [0, 1, 5, 50, 95, 99, 100].every(t => [2, 5, 20, 50, 200].every(n => P.margemErro(t, n) > 0)));
+        this._ok('Margem: no miolo ela segue próxima de Wald (35% em 20q ≈ ±19pp)',
+          mg(35, 20) > 18 && mg(35, 20) < 21, mg(35, 20));
+        this._ok('Margem: e encolhe com a raiz da amostra (50% em 20q x 200q)',
+          mg(50, 20) > 2.5 * mg(50, 200) * 0.8 && mg(50, 200) < mg(50, 20), { n20: mg(50, 20), n200: mg(50, 200) });
+        this._ok('Margem: amostra de menos de 2 não produz número nenhum',
+          P.margemErro(50, 1) === null && P.margemErro(50, 0) === null);
+
+        /* ── ESTA ASSERÇÃO ESTAVA ERRADA, E ERA ELA QUE SEGURAVA O DEFEITO ───
+           A versão antiga exigia `empateTecnico(100% em 30q, 100% em 30q) ===
+           false` e chamava isso de "empate falso". É o contrário: dois assuntos
+           com a MESMA taxa e a MESMA amostra são indistinguíveis por definição —
+           nenhum teste no mundo os separa. O que produzia o `false` era o
+           colapso do erro-padrão de Wald em p = 0 e p = 1, e o teste
+           cristalizava o bug como se fosse a regra.
+
+           Sem amostra continua não sendo empate: ali não há comparação nenhuma
+           para fazer, e isso é diferente de não haver diferença. */
+        this._ok('Empate: sem amostra não há comparação (e isso não é empate)',
           P.empateTecnico(ft(50, 0), ft(50, 20)) === false &&
-          P.empateTecnico(ft(100, 30), ft(100, 30)) === false &&
           P.empateTecnico(null, ft(50, 20)) === false);
+        this._ok('Empate: taxas cravadas iguais SÃO indistinguíveis (0% vs 0%, 100% vs 100%)',
+          P.empateTecnico(ft(100, 30), ft(100, 30)) === true &&
+          P.empateTecnico(ft(0, 20), ft(0, 20)) === true,
+          { cem: P.empateTecnico(ft(100, 30), ft(100, 30)), zero: P.empateTecnico(ft(0, 20), ft(0, 20)) });
+        this._ok('Empate: e o ajuste não tornou o teste permissivo (0% x 30% em 200q separa)',
+          P.empateTecnico(ft(0, 200), ft(30, 200)) === false);
         /* O NÍVEL VEM DA JANELA ADAPTATIVA, NÃO DA MÉDIA DA VIDA. Quem
            consertou uma matéria há pouco continuaria aparecendo como fraco
            nela: a média da vida inteira mente sempre para o passado. */
