@@ -533,10 +533,35 @@ const PlanoEngine = {
   },
   // Margem de erro da proporção a 95% de confiança (em pontos percentuais).
   // É isto que transforma "confiável" de opinião em número.
+  /* ── A MARGEM NÃO PODE SER ZERO ───────────────────────────────────────────
+     A fórmula de Wald — 1,96·√(p(1−p)/n) — COLAPSA nos extremos: com p = 0 ou
+     p = 1 ela devolve exatamente zero, e a tela passava a afirmar certeza
+     absoluta a partir de vinte questões. "0% ±0pp" em 0/20, quando a verdade é
+     de 0% a 16%. E não é caso raro: numa jornada simulada de oito importações
+     sobre um índice fino, 1.167 linhas exibiram margem zero — porque assunto de
+     duas ou três questões acerta todas ou erra todas, e aí p é 0 ou 1.
+
+     Pior: é a PRIMEIRA linha que o aluno lê, porque "pior acerto primeiro"
+     ordena 0% no topo. O app promete transformar "confiável" de opinião em
+     número e entregava o oposto exatamente ali.
+
+     Wilson resolve: o intervalo nunca degenera, é assimétrico perto das bordas
+     (que é a verdade — de 0% só se pode subir) e converge para Wald quando a
+     amostra cresce. `margemErro` devolve a meia-largura, para não mexer em
+     nenhum chamador; `intervalo` existe para quem puder mostrar a faixa. */
+  Z95: 1.96,
+  intervalo(pct, n) {
+    if (!n || n < 1) return null;
+    const z = this.Z95, p = Math.min(1, Math.max(0, pct / 100));
+    const d = 1 + z * z / n;
+    const c = (p + z * z / (2 * n)) / d;
+    const h = (z / d) * Math.sqrt(p * (1 - p) / n + z * z / (4 * n * n));
+    return [Math.max(0, (c - h) * 100), Math.min(100, (c + h) * 100)];
+  },
   margemErro(pct, n) {
     if (!n || n < 2) return null;
-    const p = Math.min(1, Math.max(0, pct / 100));
-    return 1.96 * Math.sqrt(p * (1 - p) / n) * 100;
+    const iv = this.intervalo(pct, n);
+    return iv ? (iv[1] - iv[0]) / 2 : null;
   },
   /* ── QUANTAS QUESTÕES, E PARA QUÊ ────────────────────────────────────────
      O conselho de cada assunto dizia "um bloco de ~B questões", com B saindo
@@ -596,13 +621,19 @@ const PlanoEngine = {
      ele move o acerto em ±1pp e a captura de ganho em menos que isso. Não
      paga a complexidade nem mexer num número que o aluno acompanha — o que
      limita a fila é o TAMANHO da amostra, não o estimador. */
+  /* Mesmo colapso, mesma consequência: dois assuntos a 0% davam erro-padrão
+     zero, o guarda `se > 0` devolvia false e a tela afirmava que a amostra os
+     SEPARA — justamente no regime de amostra curta onde o empate é a verdade.
+     Agresti-Coull (somar dois acertos e dois erros de cada lado) nunca degenera
+     e é o ajuste padrão para o teste de duas proporções com amostra pequena. */
   empateTecnico(a, b) {
     const na = a && a.qJanela, nb = b && b.qJanela;
     if (!na || !nb || a.taxa == null || b.taxa == null) return false;
-    const pa = a.taxa / 100, pb = b.taxa / 100;
-    const se = Math.sqrt(pa * (1 - pa) / na + pb * (1 - pb) / nb);
+    const aj = (taxa, n) => { const nn = n + 4; return { p: (taxa / 100 * n + 2) / nn, n: nn }; };
+    const A = aj(a.taxa, na), B = aj(b.taxa, nb);
+    const se = Math.sqrt(A.p * (1 - A.p) / A.n + B.p * (1 - B.p) / B.n);
     if (!(se > 0)) return false;
-    return Math.abs(pa - pb) <= 1.96 * se;
+    return Math.abs(A.p - B.p) <= this.Z95 * se;
   },
   confiabilidade(n) {
     if (n >= 100) return { nivel: 'alta', tom: 'good' };
@@ -734,51 +765,112 @@ const PlanoEngine = {
     if (!snaps.length) return null;
     const sel = snaps.length + ':' + ((snaps[snaps.length - 1] || {}).id || '') + ':' + piso;
     if (this._agrC && this._agrC.sel === sel) return this._agrC.v;
+    /* 1. VOLUME ACUMULADO POR ÁTOMO E O ANCESTRAL DE CADA UM, pelo NOME. */
     const acum = Object.create(null), pai = Object.create(null);
     snaps.forEach(s => {
       const porCod = Object.create(null);
       (s.rows || []).forEach(r => {
         if (r.codigo) porCod[ReforcoEngine.norm(r.disciplina || '') + '|' + r.codigo] = r;
       });
+      const dk = (r) => ReforcoEngine.norm(r.disciplina || '');
+      /* O ANCESTRAL DE TODO NÓ, não só das folhas. A escalada sobe consultando o
+         pai do nível em que a unidade está — e se só as folhas tivessem pai, a
+         segunda volta não acharia nada e a unidade pularia direto para a
+         disciplina, grossa demais sem precisar. Com a cadeia inteira mapeada ela
+         sobe um degrau de verdade por volta. */
+      (s.rows || []).forEach(r => {
+        if (!r.codigo || !((r.depth || 0) > 0)) return;
+        let cod = String(r.codigo), anc = null;
+        while (cod.indexOf('.') > 0) {
+          cod = cod.slice(0, cod.lastIndexOf('.'));
+          const up = porCod[dk(r) + '|' + cod];
+          if (up && up.nome) { anc = up.nome; break; }
+        }
+        /* Um ancestral REAL vence a ausência dele, e entre dois reais vence o do
+           retrato mais novo (o laço é cronológico). O mesmo nome pode aparecer
+           com código num retrato e no balde "Sem Classificação" no seguinte —
+           deixar o balde apagar o tópico-pai conhecido jogaria a unidade no
+           bloco genérico sem motivo. */
+        if (anc) pai[ReforcoEngine.chaveInc(r.disciplina || '', r.nome)] = anc;
+      });
       this._folhas(s, true).forEach(r => {
         const k = ReforcoEngine.chaveInc(r.disciplina || '', r.nome);
         const c = acum[k] || { q: 0, nome: r.nome, disciplina: r.disciplina || '' };
         c.q += (r.questoes || 0); acum[k] = c;
-        let cod = r.codigo ? String(r.codigo) : '', anc = null;
-        while (cod.indexOf('.') > 0) {
-          cod = cod.slice(0, cod.lastIndexOf('.'));
-          const up = porCod[ReforcoEngine.norm(r.disciplina || '') + '|' + cod];
-          if (up && up.nome) { anc = up.nome; break; }
-        }
-        /* Um ancestral REAL vence a ausência dele, e entre dois reais vence o
-           do retrato mais novo (o laço é cronológico). A ordem importa: o mesmo
-           nome pode aparecer com código num retrato e no balde "Sem
-           Classificação" no seguinte — deixar o balde apagar o tópico-pai
-           conhecido jogaria o átomo no bloco genérico sem motivo. */
-        if (anc) pai[k] = anc;
       });
     });
-    const grupos = Object.create(null);
-    Object.keys(acum).forEach(k => {
-      if (acum[k].q >= piso) return;   // mede sozinho: não se toca
-      const d = acum[k].disciplina, base = pai[k] || null;
-      const gk = ReforcoEngine.norm(d) + '\u0002' + ReforcoEngine.norm(base || '');
-      const g = grupos[gk] || (grupos[gk] = { disciplina: d, base, membros: [], q: 0 });
-      g.membros.push(acum[k].nome); g.q += acum[k].q;
-    });
+    /* 2. A ESCALADA. Cada unidade começa como um átomo. A cada volta, as que
+       não alcançam o piso sobem um nível e se juntam às vizinhas sob o mesmo
+       ancestral. Quem já alcança O PISO nunca é tocado — e como o piso que a
+       tela recomenda é a própria amostra mínima, na trilha padrão nada do que
+       já mede muda de nome. Piso ACIMA da amostra mínima é escolha explícita de
+       quem quer unidades maiores e mais confiáveis: ali duas unidades de 25 que
+       já mediam viram uma de 50, e é isso que foi pedido. O que a auditoria
+       cobra em toda exportação não é a contagem de unidades, é que o VOLUME
+       medível nunca diminua. Unidade de um membro só também
+       conserva o nome dela: o que avança é o nível de agrupamento, para que ela
+       possa encontrar companhia mais acima em vez de ficar órfã para sempre.
+
+       Por que subir, e não parar num nível: medido numa jornada simulada de oito
+       importações sobre uma árvore de até cinco níveis, o corte de um nível só
+       deixava 0% do volume medível no primeiro retrato e 17% no segundo — a
+       lente não fazia nada justamente quando mais precisava. A escalada dá 96% e
+       100%, e se REFINA sozinha conforme o volume chega: 8 unidades grossas no
+       primeiro mês, 387 de 1,8 tópico no oitavo. É a mesma ideia da janela
+       adaptativa, aplicada ao eixo do assunto em vez do tempo. */
+    const unid = Object.keys(acum).map(k => ({
+      membros: [k], q: acum[k].q, base: acum[k].nome, disc: acum[k].disciplina
+    }));
+    let atual = unid;
+    for (let volta = 0; volta < 10; volta++) {
+      const finas = atual.filter(u => u.q < piso);
+      if (!finas.length) break;
+      const grupos = Object.create(null);
+      finas.forEach(u => {
+        const acima = pai[ReforcoEngine.chaveInc(u.disc, u.base)] || null;
+        const gk = ReforcoEngine.norm(u.disc) + '\u0002' + ReforcoEngine.norm(acima || '\u0003raiz');
+        const g = grupos[gk] || (grupos[gk] = { disc: u.disc, base: acima, unidades: [] });
+        g.unidades.push(u);
+      });
+      const proximas = atual.filter(u => u.q >= piso);
+      let juntou = false;
+      Object.keys(grupos).forEach(gk => {
+        const g = grupos[gk];
+        if (g.unidades.length > 1) {
+          juntou = true;
+          proximas.push({
+            membros: g.unidades.reduce((a, u) => a.concat(u.membros), []),
+            q: g.unidades.reduce((a, u) => a + u.q, 0),
+            base: g.base || g.disc, disc: g.disc
+          });
+        } else {
+          /* Sozinha neste nível: sobe o nível de agrupamento sem virar bloco nem
+             mudar de nome, para procurar companhia na volta seguinte. Sem
+             ancestral acima, ela é o que é — e fica. */
+          const u = g.unidades[0];
+          if (g.base) { juntou = true; proximas.push(Object.assign({}, u, { base: g.base })); }
+          else proximas.push(u);
+        }
+      });
+      atual = proximas;
+      if (!juntou) break;
+    }
+    /* 3. SÓ AS UNIDADES DE VÁRIOS MEMBROS VIRAM BLOCO. Renomear uma unidade de
+       um membro seria trocar a chave de algo que já funciona. */
     const mapa = Object.create(null), blocos = Object.create(null);
     let atomos = 0;
-    Object.keys(grupos).forEach(gk => {
-      const g = grupos[gk];
-      if (g.membros.length < 2) return;
-      const nome = (g.base || 'Assuntos esparsos') + ' · bloco';
-      const bk = ReforcoEngine.chaveInc(g.disciplina, nome);
-      if (acum[bk]) return;   // o nome já é de um assunto real: não se sobrepõe
-      blocos[bk] = { nome, disciplina: g.disciplina, base: g.base, membros: g.membros.slice(), qAcum: g.q };
-      g.membros.forEach(n => { mapa[ReforcoEngine.chaveInc(g.disciplina, n)] = bk; });
-      atomos += g.membros.length;
+    atual.forEach(u => {
+      if (u.membros.length < 2) return;
+      const nome = u.base + ' · bloco';
+      const bk = ReforcoEngine.chaveInc(u.disc, nome);
+      if (acum[bk] || blocos[bk]) return;   // o nome já é de um assunto real
+      blocos[bk] = { nome, disciplina: u.disc, base: u.base, qAcum: u.q,
+        membros: u.membros.map(k => acum[k].nome) };
+      u.membros.forEach(k => { mapa[k] = bk; });
+      atomos += u.membros.length;
     });
-    const v = Object.keys(blocos).length ? { mapa, blocos, piso, atomos, nBlocos: Object.keys(blocos).length } : null;
+    const v = Object.keys(blocos).length
+      ? { mapa, blocos, piso, atomos, nBlocos: Object.keys(blocos).length } : null;
     this._agrC = { sel, v };
     return v;
   },
@@ -2437,12 +2529,25 @@ const PlanoCiclo = {
     const delta = (taxa != null && o.taxaInicial != null) ? Math.round((taxa - o.taxaInicial) * 10) / 10 : null;
     const cumpriu = feito >= alvo;
     const bateu = (taxa != null) && (taxa >= meta);
+    /* ── UM DIAGNÓSTICO NÃO PROMETE ACERTO, PROMETE AMOSTRA ─────────────────
+       `avaliar` nunca lia `motivo`, e julgava pela régua do reforço tudo que
+       fosse atividade do Plano. Consequência: o diagnóstico criado justamente
+       para descobrir se um assunto de 6 questões é fraqueza real — e que
+       cumpria o alvo e revelava 40% — era encerrado como "⚠️ volume não
+       resolveu" e entrava no histórico como fracasso. Ele fez exatamente o que
+       foi pedido: produziu medição.
+
+       O desfecho de um diagnóstico é o assunto passar a MEDIR (alcançar a
+       amostra mínima). O que a medição revelou é a informação, não a nota. */
+    const diag = o.motivo === 'diagnostico';
+    const mediu = diag && qAgora >= Math.max(1, p.minAmostra || 20);
     let estado = 'andamento';
     if (orfa) estado = 'orfa';
+    else if (diag) estado = mediu ? 'mediu' : 'andamento';
     else if (bateu) estado = 'funcionou';
     else if (cumpriu) estado = (delta != null && delta >= (p.sensTendencia || 3)) ? 'subiu' : 'naoFuncionou';
     return {
-      extra, origem: o, alvo, feito, medido, manual, qAgora, qBase,
+      extra, origem: o, alvo, feito, medido, manual, qAgora, qBase, diag, mediu,
       escopo: esc, lenteCrua: !!vol, retratosMedidos: vol ? vol.retratos : null,
       pct: Math.min(100, Math.round(feito / alvo * 100)),
       taxa, meta, delta, cumpriu, bateu, estado,
@@ -2473,11 +2578,15 @@ const PlanoCiclo = {
       if (!e.origemPlano || !e.origemPlano.topico) return;
       if (e.status === 'concluida' || e.origemPlano.veredito) return;
       const v = this.avaliar(e, r, mapa);
-      if (!v || (v.estado !== 'funcionou' && v.estado !== 'naoFuncionou')) return;
+      if (!v || (v.estado !== 'funcionou' && v.estado !== 'naoFuncionou' && v.estado !== 'mediu')) return;
       const veredito = {
         tipo: v.estado, em: todayLocal(), retrato: ultimo.id,
         taxaInicial: v.origem.taxaInicial, taxaFinal: v.taxa,
-        ganhoPP: v.delta, questoes: v.feito, alvo: v.alvo
+        /* Diagnóstico não tem ganho a reivindicar: ele foi medir, não melhorar.
+           `ganhoPP: null` mantém a calibragem limpa — ela só aprende com ciclo
+           que prometeu subir a taxa (ver `calibragem`). */
+        ganhoPP: (v.estado === 'mediu') ? null : v.delta,
+        questoes: v.feito, alvo: v.alvo
       };
       DB.updateExtra(e.id, { status: 'concluida', origemPlano: Object.assign({}, e.origemPlano, { veredito }) });
       fechadas.push(e.id); vereditos.push(veredito);
@@ -2512,6 +2621,82 @@ const PlanoCiclo = {
       n++;
     });
     return { promovidas: n };
+  },
+  /* ── ENCERRAR NA MÃO NÃO PODE SAIR DO CICLO EM SILÊNCIO ───────────────────
+     Duas portas concluem uma atividade sem passar por `conciliar`: o botão
+     "Concluir" do painel de reforços e o lançamento manual que alcança o alvo
+     (`DB.addExtraProgress` marca `concluida` sozinho quando `periodo` é única).
+     Nas duas, `conciliar` passava a ignorá-la para sempre — `status` já era
+     concluída — e o ciclo terminava sem veredito: fora do histórico, invisível
+     para a calibragem. O app deixava de aprender exatamente com quem usou o
+     botão que ele mesmo oferece.
+
+     A trava que importa: `ganhoPP` só existe quando houve medição NOVA depois da
+     criação. Sem ela, encerrar na mão gravaria "0pp por N questões" e faria a
+     calibragem concluir que volume não rende nada — envenenar o aprendizado é
+     pior que perder o registro. Sem medição nova, o veredito é `encerradaPorVoce`
+     com `ganhoPP: null`, e `calibragem` o descarta sozinha. */
+  vereditoManual(extra) {
+    const o = extra && extra.origemPlano;
+    if (!o || !o.topico || o.veredito) return null;
+    let v = null;
+    try { v = this.avaliar(extra, { itens: [], pequenas: [] }, null); } catch (e) { _quiet(e, 'veredito-manual'); }
+    if (!v) return null;
+    const snaps = DB.getTecSnapshots() || [];
+    const sens = PlanoEngine.prefs().sensTendencia || 3;
+    const comMedicao = v.medido > 0 && v.taxa != null && o.taxaInicial != null;
+    const tipo = v.diag ? (v.mediu ? 'mediu' : 'encerradaPorVoce')
+      : (v.bateu ? 'funcionou'
+        : (comMedicao ? (v.delta != null && v.delta >= sens ? 'subiu' : 'naoFuncionou') : 'encerradaPorVoce'));
+    const veredito = {
+      tipo, em: todayLocal(), retrato: snaps.length ? snaps[snaps.length - 1].id : null,
+      taxaInicial: o.taxaInicial, taxaFinal: v.taxa,
+      ganhoPP: (comMedicao && tipo !== 'mediu') ? v.delta : null,
+      questoes: v.feito, alvo: v.alvo, porMao: true, semMedicaoNova: !comMedicao
+    };
+    DB.updateExtra(extra.id, { origemPlano: Object.assign({}, o, { veredito }) });
+    return veredito;
+  },
+  /* ── APAGAR UM RETRATO NÃO PODE APAGAR O SEU TRABALHO ─────────────────────
+     `qBaseNo` é gravado uma vez, na criação. Apagar um retrato derruba o volume
+     de hoje abaixo dessa linha de base, e `medido = max(0, qAgora − qBaseNo)`
+     vira ZERO: reproduzido em harness, uma atividade com 120 questões medidas
+     caía para 0 ao apagar um retrato ANTIGO, que não era nem o que continha o
+     progresso. O número na barra some sem nada na tela explicar.
+
+     A dupla abaixo re-pina a linha de base preservando o progresso medido — a
+     mesma aritmética de `migrarEscopos`. Apagar um retrato é higiene de dado,
+     não uma declaração de que o estudo não aconteceu; e o app já decidiu, no
+     `max(digitado, medido)`, que importar só empurra a barra para cima. */
+  fotoDoProgresso() {
+    const foto = Object.create(null);
+    try {
+      (DB.getExtras() || []).forEach(e => {
+        if (!e.origemPlano || !e.origemPlano.topico || e.status === 'concluida') return;
+        if (!this._escopoDe(e.origemPlano)) return;      // legado: não tem o que re-pinar
+        const v = this.avaliar(e, { itens: [], pequenas: [] }, null);
+        if (v) foto[e.id] = v.medido;
+      });
+    } catch (e) { _quiet(e, 'foto-progresso'); }
+    return foto;
+  },
+  repinarProgresso(foto) {
+    if (!foto) return 0;
+    let n = 0;
+    try {
+      const p = PlanoEngine.prefs();
+      (DB.getExtras() || []).forEach(e => {
+        if (foto[e.id] == null) return;
+        const o = e.origemPlano, esc = this._escopoDe(o);
+        if (!o || !esc) return;
+        const vol = PlanoEngine.volumeDoEscopo(esc, o.disciplina, p);
+        const novo = Math.max(0, vol.q - foto[e.id]);
+        if (novo === o.qBaseNo) return;
+        DB.updateExtra(e.id, { origemPlano: Object.assign({}, o, { qBaseNo: novo }) });
+        n++;
+      });
+    } catch (e) { _quiet(e, 'repinar-progresso'); }
+    return n;
   },
   // as atividades do Plano ainda abertas, já avaliadas
   emCurso(r) {
@@ -3649,9 +3834,14 @@ const DesempenhoTecScreen = {
       if (!s) return;
       UI.confirm(`Excluir o retrato do período ${this.rangeLabel(s)}${s.label ? ' (' + s.label + ')' : ''}? Essa ação não pode ser desfeita.`, { title: 'Excluir retrato', okText: 'Excluir', danger: true }).then(ok => {
         if (!ok) return;
+        /* A FOTO VEM ANTES DO APAGAR. Sem ela, o progresso medido de toda
+           atividade viva cairia para zero (ver `repinarProgresso`). */
+        const foto = PlanoCiclo.fotoDoProgresso();
         DB.deleteTecSnapshot(id);
         this.selectedSnapIds.delete(id);
-        showToast('Retrato excluído');
+        PlanoEngine._agrC = null;
+        const repin = PlanoCiclo.repinarProgresso(foto);
+        showToast('Retrato excluído' + (repin ? ' · progresso de ' + repin + ' atividade(s) preservado' : ''));
         this.render();
       });
     }));
@@ -4061,11 +4251,12 @@ const DesempenhoTecScreen = {
     const lista = x.membros.slice(0, 14).map(n => '· ' + escapeHtml(n)).join('<br>');
     const resto = x.membros.length > 14 ? '<br>· … e mais ' + (x.membros.length - 14) : '';
     const info = '<b>Esta unidade é um bloco de ' + x.nAtomos + ' tópicos do TEC</b>, medidos juntos.'
-      + '<br><br>Cada um deles, sozinho, tem menos de ' + piso + ' questões no seu histórico — '
+      + '<br><br>Nenhum deles alcança, sozinho, as ' + piso + ' questões que você pediu por unidade — '
       + 'volume assim não mede nada: a margem de erro engole qualquer conclusão. '
       + 'Somados, eles viram uma unidade com amostra suficiente para você comparar e acompanhar.'
-      + (x.baseBloco ? '<br><br>Todos pertencem ao mesmo tópico-pai: <b>' + escapeHtml(x.baseBloco) + '</b>. '
-        + 'O agrupamento nunca atravessa matéria nem tópico-pai.' : '')
+      + (x.baseBloco ? '<br><br>O bloco foi montado subindo a árvore até <b>' + escapeHtml(x.baseBloco) + '</b> — '
+        + 'o app sobe um nível por vez e para no primeiro que alcança o piso. '
+        + 'Ele nunca atravessa matéria: no limite, um bloco é uma matéria inteira, nunca duas.' : '')
       + '<br><br><b>Tópicos neste bloco</b><br>' + lista + resto
       + '<br><br>O total de questões é o mesmo com ou sem agrupamento — nada é escondido nem contado duas vezes. '
       + 'Para ver tópico por tópico outra vez, ponha <b>&quot;Juntar assuntos com menos de&quot;</b> em '
@@ -4209,7 +4400,7 @@ const DesempenhoTecScreen = {
        ela muda e o que ela NÃO muda. */
     const ag = PlanoEngine._agrupamento(PlanoEngine.prefs());
     if (ag) {
-      b.push(`<p class="pl-det-fim">A série é contada na lente que você escolheu: assuntos com menos de <b>${ag.piso}</b> questões no histórico entram somados ao tópico-pai. São <b>${ag.nBlocos}</b> ${ag.nBlocos === 1 ? 'bloco' : 'blocos'} cobrindo <b>${ag.atomos}</b> tópicos do TEC. Isso muda a <b>contagem de assuntos</b> desta tabela — não o volume de questões, que é o mesmo em qualquer lente.</p>`);
+      b.push(`<p class="pl-det-fim">A série é contada na lente que você escolheu: os assuntos são somados subindo pelo tópico-pai até cada unidade ter <b>${ag.piso}</b> questões no histórico. São <b>${ag.nBlocos}</b> ${ag.nBlocos === 1 ? 'bloco' : 'blocos'} cobrindo <b>${ag.atomos}</b> tópicos do TEC. Isso muda a <b>contagem de assuntos</b> desta tabela — não o volume de questões, que é o mesmo em qualquer lente.</p>`);
     }
     return { titulo: 'Sua trajetória — os números', html: b.join('') };
   },
@@ -4385,7 +4576,7 @@ const DesempenhoTecScreen = {
           <button type="button" class="btn-${g ? 'secondary' : 'primary'}" id="plano-modo-diag">🔍 Usar o modo Diagnóstico</button>
           <button type="button" class="btn-secondary" id="plano-baixar-min">Baixar a régua para ${sug} ${sug === 1 ? 'questão' : 'questões'}${r.qualificamNaSugestao ? ` (entram ${r.qualificamNaSugestao})` : ''}</button>
         </div>
-        ${g ? `<p class="pl-ciclo-obs"><strong>O primeiro botão é o único que não enfraquece a medição.</strong> Ele soma os assuntos com menos de ${g.piso} questões ao tópico-pai deles — ${g.topicos} tópicos viram ${g.blocos} ${g.blocos === 1 ? 'bloco' : 'blocos'}, e a tela passa a ter ${g.unidades} unidades, ${g.qualificam} ${g.qualificam === 1 ? 'delas com' : 'delas com'} amostra suficiente. Nenhuma questão é escondida nem contada duas vezes: o volume total não muda, só o tamanho da unidade que você compara.</p>` : ''}
+        ${g ? `<p class="pl-ciclo-obs"><strong>O primeiro botão é o único que não enfraquece a medição.</strong> Ele junta os assuntos subindo pelo tópico-pai até cada unidade ter ${g.piso} questões — ${g.topicos} tópicos viram ${g.blocos} ${g.blocos === 1 ? 'bloco' : 'blocos'}, e a tela passa a ter ${g.unidades} unidades, ${g.qualificam} com amostra suficiente. Nenhuma questão é escondida nem contada duas vezes: o volume total não muda, só o tamanho da unidade que você compara.</p>` : ''}
         <p class="pl-ciclo-obs">O Diagnóstico inclui a amostra pequena no cálculo e baixa a régua de uma vez; o terceiro botão só mexe na régua — os dois compram cobertura pagando em margem de erro. Todos ficam salvos e podem ser desfeitos em ⚙ Ajustes.</p>`;
       lista.innerHTML = '';
       const bj = document.getElementById('plano-juntar-finos');
@@ -4430,7 +4621,7 @@ const DesempenhoTecScreen = {
               excluiu, e a lista marcada está a um toque em Ajustes ▸
               Essencial. O que o topo precisa garantir é o contrário — que
               nenhum número dele tenha visto a matéria excluída. */''}
-        <p class="pl-hero-sub"${(opts.granPiso > 0) ? ` data-info="${this._info(`<b>Este número é uma média por UNIDADE</b>, e a unidade é escolha sua.<br><br>Com o piso em <b>${opts.granPiso}</b> questões, os assuntos que não medem sozinhos entram somados ao tópico-pai deles. Isso muda a <b>contagem</b> de unidades e, com ela, a média — juntar dois assuntos de 30% e 50% num bloco não dá 40% se eles tiverem volumes diferentes.<br><br>O que NÃO muda em nenhum piso: o total de questões e de acertos (a auditoria confere isso no ato, em toda exportação), o quadro "Onde atacar primeiro" (ele soma por matéria) e o progresso das atividades já criadas (elas medem pelas linhas cruas).<br><br>A trajetória é recalculada inteira na mesma lente, então a TENDÊNCIA continua comparável — o que não se compara é este número com uma anotação feita em outra lente. Para voltar, ponha <b>não juntar</b> em ⚙ Ajustes ▸ 🔬 Amostra.`)}"` : ''}>
+        <p class="pl-hero-sub"${(opts.granPiso > 0) ? ` data-info="${this._info(`<b>Este número é uma média por UNIDADE</b>, e a unidade é escolha sua.<br><br>Com o piso em <b>${opts.granPiso}</b> questões, os assuntos que não medem sozinhos são somados subindo pelo tópico-pai até a unidade alcançar esse volume. Isso muda a <b>contagem</b> de unidades e, com ela, a média — juntar dois assuntos de 30% e 50% num bloco não dá 40% se eles tiverem volumes diferentes.<br><br>O que NÃO muda em nenhum piso: o total de questões e de acertos (a auditoria confere isso no ato, em toda exportação), o quadro "Onde atacar primeiro" (ele soma por matéria) e o progresso das atividades já criadas (elas medem pelas linhas cruas).<br><br>A trajetória é recalculada inteira na mesma lente, então a TENDÊNCIA continua comparável — o que não se compara é este número com uma anotação feita em outra lente. Para voltar, ponha <b>não juntar</b> em ⚙ Ajustes ▸ 🔬 Amostra.`)}"` : ''}>
           Média de acerto ${(opts.granPiso > 0)
             ? `nas <strong>${r.assuntos}</strong> ${r.assuntos === 1 ? 'unidade' : 'unidades'}`
             : `nos <strong>${r.assuntos}</strong> ${r.assuntos === 1 ? 'assunto' : 'assuntos'}`}${escopo ? ((r.foco && r.foco.length > 1) ? ' destas matérias' : ' desta matéria') : ''} com amostra suficiente ·
@@ -4747,7 +4938,7 @@ const DesempenhoTecScreen = {
           Menos de ${opts.minAmostra} questões resolvidas: ainda não dá para afirmar que é fraqueza.
           Ficam fora da média de domínio de propósito — com amostra assim pequena a taxa real pode variar dezenas de pontos.
           <strong>Aqui a ação é outra:</strong> resolver questões para descobrir onde você está.
-          ${opts.granPiso > 0 ? `Com o agrupamento ligado, o que sobra aqui é o que <strong>não mede nem somado ao vizinho</strong> — ou porque é o único tópico fino daquele tópico-pai, ou porque o bloco inteiro ainda não alcançou as ${opts.minAmostra}.` : ''}
+          ${opts.granPiso > 0 ? `Com o agrupamento ligado, o que sobra aqui é o que <strong>não mede nem subindo a árvore inteira</strong> — a matéria toda daquele assunto ainda não alcançou as ${opts.minAmostra} questões.` : ''}
         </p>
         ${fPeq.vis.map((x, i) => `
           <div class="pl-item">
@@ -5034,11 +5225,22 @@ const DesempenhoTecScreen = {
         <summary><strong>🏅 O que os retratos já julgaram</strong> <span>${fechados.length} ciclo(s) fechado(s)</span> <span class="chev">▾</span></summary>
         <ul class="pl-ciclo-lista">
           ${fechados.map(v => {
-            const bom = v.tipo === 'funcionou';
+            /* Cinco desfechos, e cada um diz uma coisa diferente. Antes eram
+               dois, e tudo que não fosse "funcionou" virava "não funcionou" —
+               inclusive o diagnóstico que mediu e a atividade que VOCÊ encerrou,
+               nenhum dos dois um fracasso. */
+            const SEL = {
+              funcionou: ['tone-good', '✅ funcionou'],
+              subiu: ['tone-good', '📈 subiu, sem bater a meta'],
+              naoFuncionou: ['tone-bad', '⚠️ não funcionou'],
+              mediu: ['incid', '🔬 mediu'],
+              encerradaPorVoce: ['nivel', '🏁 encerrada por você']
+            };
+            const [tom, rot] = SEL[v.tipo] || SEL.naoFuncionou;
             return `<li>
               <div class="pl-ciclo-top">
                 <span class="pl-ciclo-nome">${escapeHtml(v.topico)}</span>
-                <span class="reforco-tag ${bom ? 'tone-good' : 'tone-bad'}">${bom ? '✅ funcionou' : '⚠️ não funcionou'}</span>
+                <span class="reforco-tag ${tom}"${v.semMedicaoNova ? ' title="Encerrada sem retrato novo medindo o assunto — por isso não conta para a calibragem"' : ''}>${rot}</span>
               </div>
               <div class="pl-ciclo-nums">
                 <span>${v.taxaInicial != null ? v.taxaInicial.toFixed(0) + '%' : '?'} → <b>${v.taxaFinal != null ? v.taxaFinal.toFixed(0) + '%' : '?'}</b>${v.ganhoPP != null ? ` (${v.ganhoPP >= 0 ? '+' : ''}${v.ganhoPP}pp)` : ''}</span>
