@@ -1,0 +1,260 @@
+
+1) src/ monta o index.html publicado
+  ✓ index.html e src/ estao em sincronia (byte a byte)
+
+2) sintaxe de cada modulo de src/js
+  ✓ 41 modulos analisam isoladamente
+
+3) agendador: paridade com o Anki + robustez da configuracao
+  ✓ PARIDADE ANKI: 21080/21080 comparacoes contra fsrs-rs + rslib, 0 divergencias.
+  ✓ ROBUSTEZ: 12 configuracoes invalidas x 4 fases x 4 notas — nenhum card fica inagendavel.
+
+3b) fidelidade da importacao do TEC (desempenho + incidencia)
+  ✓ OK: 52 checagens de fidelidade da importação.
+
+3c) escopo selecionado do TEC governa o Plano
+  ✓ OK: Plano TEC usa o mesmo escopo em motor, ranking de matérias, renderização, ritmo e atalhos.
+
+4) integridade do index.html
+  ✓ 692 ids, nenhum duplicado
+  ✓ bloco app-code integro (2119383 bytes)
+  ✓ <style> pareado
+  ✓ <script> pareado
+  ✓ CSP do <meta> integra e sem diretivas ignoradas
+  ✓ nenhum catch vazio no codigo do app
+  ✓ trava anti-moldura presente no <head>
+
+4.5) invariantes do service worker
+  ✓ sw.js analisa
+  ✓ a versao e um carimbo de conteudo (nao um nome fixo)
+  ✓ o balde de CDN nao e versionado (nao se perde a cada publicacao)
+  ✓ o pre-carregamento usa cache: 'reload' (nao guarda a casca velha)
+  ✓ o pre-carregamento de navegacao esta ligado
+  ✓ trafego do Supabase passa direto, sem cache
+  ✓ apenas GET pode ser cacheado
+  ✓ a instalacao nao assume por baixo da pagina (sem skipWaiting automatico)
+  ✓ index.html e sw.js na mesma versao (vbf8f33327f)
+
+5) o app carrega sem erro de console
+  ✓ carregou limpo
+
+6) telas + suite interna
+  ✓ 14 telas navegadas sem erro
+  ✓ AutoTeste 753/753
+  ✓ botao "Opcoes" da Grade contido no cabecalho
+  ✓ menu "Opcoes" aberto sem nada por cima
+  ✓ seletor Semanal/Meta diaria em uma linha (35px)
+  ✓ painel #tec-scope-body nasce recolhido e alterna
+  ✓ periodo do grafico de tempo e lista suspensa, com intervalo recolhido
+  ✓ caixa de acertos sem setinha e com 3 digitos a 360px (46px, 40 >= 30)
+  ✓ Leis Secas: numeracao e "Onde parei" funcionais, modo foco completo, exibicao ajustavel pelo ⚙️ Ajustes da propria tela
+
+6.5) dados do armazenamento antigo nao ficam invisiveis
+  ✓ armazenamento antigo adotado mesmo com o IndexedDB povoado
+
+6.6) o service worker instala, guarda a casca e abre offline
+  ✓ instalou e ativou
+  ✓ um unico balde de versao (vbf8f33327f-app)
+  ✓ a casca do app esta guardada na chave canonica
+  ✓ o worker responde a propria versao (vbf8f33327f)
+  ✓ offline abriu a casca certa (vbf8f33327f)
+  ✓ offline com query string tambem abre (chave canonica funciona)
+  ✓ a versao nova instala e ESPERA (nao assume sozinha)
+  ✓ quem serve a pagina continua sendo a versao antiga
+  ✓ a troca descarta o balde da versao anterior
+  ✓ o balde imutavel de CDN sobrevive a publicacao
+
+6.7) o caminho da nuvem, de ponta a ponta, contra um banco com as regras de verdade
+  ✓ o supabase-js instalado e o MESMO build que a pagina fixa por integridade
+  ✓ a biblioteca real do Supabase carregou e o cliente subiu
+  ✓ entrou na conta e criou o perfil (dd25316b…)
+  ✓ a linha do perfil existe no banco, com o dono certo
+  ✓ o registro saiu da fila sem erro
+  ✓ o registro esta no banco, na secao "p:pl_inicial:entries"
+  ✓ o manifesto de secoes foi publicado
+  ✓ o blob de seguranca subiu (rev 2)
+  ✓ a trava otimista detecta o envio de outro aparelho (conflito)
+  ✓ a retentativa resolveu e o dado local prevaleceu (rev 100)
+  ✓ depois do ciclo de sincronizacao, secoes e blob contam a mesma historia
+  ✓ a primeira foto foi gravada no banco e virou ancora
+  ✓ a disputa pela ancora e resolvida pelo banco: 2 fotos, exatamente 1 ancora
+  ✓ restaurar trouxe os registros de volta (2)
+  ✓ a faxina de retencao nunca escolhe a ancora
+  ✓ a leitura por secao reconstruiu o perfil do zero (2 registros)
+  ✓ a outra conta nao enxerga o perfil alheio (isolamento por dono)
+  ✓ baixar o perfil de outra conta e recusado pelo banco
+  ✓ token recusado por "issued at future": a lista de perfis se recupera sozinha
+  ✓ e a recuperacao ESPERA, sem renovar o token (renovar traria um `iat` ainda mais adiante)
+  ✓ falha persistente ainda vira erro proprio, com codigo (a retentativa e limitada)
+  ✓ nenhuma excecao nao tratada em todo o percurso
+
+6.8) o Plano de pontos fracos renderiza com dado real
+  ✓ 5 modos de ataque com explicacao propria
+  ✓ bloco da semana, explicacao da ordem e "por que o 1o" presentes
+  ✓ 5 assuntos listados
+  ✓ segundo plano (sem diagnostico) presente
+  ✓ lacunas do planejamento sem medicao no TEC presentes
+  ✓ nenhum vazamento horizontal a 360px
+  ✓ todos os 30 campos de ajuste do Plano tem dica explicativa
+  ✓ as 5 ordens de ataque saem da mesma tabela, cada uma com "quando usar"
+  ✓ criar em lote gerou 1 atividade(s) ligada(s) ao Plano
+  ✓ trocar de modo de ataque reconfigura o plano (⏱️ Tempo curto)
+
+6.9) Analise, Incidencia e Reforco com dado real
+  ✓ pontos fracos trazem a legenda do criterio
+  ✓ cada ponto fraco mostra a margem de erro (±pp)
+  ✓ a evolucao aparece no escopo consolidado, dizendo o que compara
+  ✓ o limiar de ponto fraco nasce da meta do Plano (85%)
+  ✓ o modo "mais erros" produz uma fila diferente de "pior taxa"
+  ✓ reimportar a mesma incidencia atualiza em vez de dobrar (3 linhas, 95 questoes)
+  ✓ renomear uma banca preserva o que ja foi importado
+  ✓ sem incidencia o Reforco ordena pelo seu erro (4 assuntos)
+  ✓ e o status explica que a fila esta cega para a prova
+  ✓ com incidencia o ranking cruza banca e erro (2 unidades)
+  ✓ assunto da banca sem correspondencia vira aviso de casamento, nao ponto cego
+  ✓ granularidade e um seletor de tres estados, nao um cursor de 101
+  ✓ todos os controles das tres abas tem dica explicativa
+
+6.10) dialogos e escolhas do Plano, no navegador
+  ✓ ajustar um modo pelo ✎ guarda o valor (meta 85% → 92%) e marca o chip
+  ✓ aplicar o modo ajustado leva o ajuste para o plano inteiro
+  ✓ restaurar um modo devolve so ele ao padrao, sem tocar nos outros
+  ✓ o dialogo do modo mostra TODOS os parametros que o modo guarda — e so eles
+  ✓ sem nada marcado, o botao se desabilita e pede a escolha
+  ✓ marcar um assunto da fila seguinte cria exatamente aquele
+  ✓ o limiar herda a meta do Plano ate voce escolher o seu (77% → 60%)
+
+6.11) importar um retrato novo por cima de tudo
+  ✓ o retrato novo entrou no escopo (2 → 3)
+  ✓ a taxa do assunto atacado subiu com o dado novo (50% → 80%)
+  ✓ o modo ajustado e o limiar escolhido sobrevivem a importacao
+  ✓ a atividade continua ligada ao assunto, com a taxa inicial preservada
+  ✓ o ▲▼ passa a comparar o retrato novo com o anterior (07/09 → 10/09)
+
+6.12) selecao de bancas (uma, varias, todas)
+  ✓ todas as bancas somam num assunto so (40+26+100 = 166)
+  ✓ marcar uma banca restringe a conta e a lista de bancas (FGV, 40)
+  ✓ duas bancas somam so as duas (40+26 = 66) e o resumo nomeia as duas
+  ✓ a mesma selecao vale no Plano, sem precisar escolher de novo
+  ✓ voltar a todas as bancas devolve a soma completa
+
+6.13) dois assuntos com o mesmo nome em disciplinas diferentes
+  ✓ os dois "Principios" viram duas linhas, com a taxa de cada um (10% e 30%)
+  ✓ filtrar por disciplina acha o homonimo daquela disciplina (10% de dominio)
+  ✓ da para criar uma atividade para cada homonimo, e repetir o mesmo continua sendo recusado
+  ✓ cada linha do Plano se liga a atividade da sua propria disciplina
+  ✓ e cada atividade guarda a taxa inicial do SEU assunto (30% e 10%)
+
+6.14) os ajustes numa folha suspensa, nao empilhados na tela
+  ✓ as tres abas abrem em RESULTADO: 0 campos soltos, a porta ⚙ e 4/4/4 etiquetas do que esta valendo
+  ✓ a linha de ajustes ocupa no maximo 96px a 390px (eram 2.413px de formulario)
+  ✓ "Ocultar filtros" nao esconde a porta dos ajustes
+  ✓ a folha do Plano tem 6 secoes e mostra UMA por vez (plano/essencial → plano/esforco)
+  ✓ trocar de aba nao deixa a secao da outra aparecendo por baixo
+  ✓ os sub-campos de custo so aparecem no modo a que pertencem
+  ✓ mexer num campo aplica na hora e a etiqueta acompanha (meta 92%)
+  ✓ e a secao ganha o ponto de "voce mexeu aqui"
+  ✓ a folha cabe na tela (776px de 844) com o pe preso (+1px) e sem vazamento horizontal
+  ✓ Esc fecha a folha
+  ✓ e o foco volta para o botao por onde se entrou
+  ✓ restaurar padroes zera SO a aba aberta (meta volta a 85%, o Reforco fica)
+  ✓ 390x844 · plano: trocar entre 6 secao(oes) nao move a folha (topo/fita/pe parados)
+  ✓ 390x844 · reforco: trocar entre 2 secao(oes) nao move a folha (topo/fita/pe parados)
+  ✓ 390x844 · analise: trocar entre 1 secao(oes) nao move a folha (topo/fita/pe parados)
+  ✓ 360x640 · plano: trocar entre 6 secao(oes) nao move a folha (topo/fita/pe parados)
+  ✓ 360x640 · reforco: trocar entre 2 secao(oes) nao move a folha (topo/fita/pe parados)
+  ✓ 360x640 · analise: trocar entre 1 secao(oes) nao move a folha (topo/fita/pe parados)
+  ✓ desktop · plano: trocar entre 6 secao(oes) nao move a folha (topo/fita/pe parados)
+  ✓ desktop · reforco: trocar entre 2 secao(oes) nao move a folha (topo/fita/pe parados)
+  ✓ desktop · analise: trocar entre 1 secao(oes) nao move a folha (topo/fita/pe parados)
+  ✓ restaurar padroes devolve os CAMPOS do Reforco ao padrao (77 → 10, incidencia → oportunidade)
+
+6.15) o ciclo de uma atividade do Plano, ponta a ponta
+  ✓ criar pelo Plano grava o contador do assunto, a taxa inicial e a meta do dia
+  ✓ o assunto que atingiu a meta encerra sozinho, com o ganho registrado (+52pp)
+  ✓ cumpriu as questoes e a taxa caiu → veredito "nao funcionou" (-12pp), que e o diagnostico
+  ✓ e o que ainda esta a meio caminho continua aberto
+  ✓ o bloco "Em curso" conta as questoes a partir do retrato, sem lancamento manual (50/120)
+  ✓ e os dois ciclos fechados entram no historico "o que os retratos ja julgaram"
+  ✓ o assunto que nao funcionou aparece como tal, e volta a ser atacavel
+  ✓ e o que tem atividade ABERTA continua travado, para nao duplicar
+  ✓ nenhum numero podre e nenhum vazamento a 390px
+  ✓ o cartao da atividade diz que veio do Plano, mostra 45% → 30% e a barra em 50/120
+  ✓ a calibragem so liga com historico: 4 ciclos → 6.4 questoes por ponto (o padrao era 2)
+  ✓ calibrar leva o numero para os ajustes do Plano (custo por ponto = 6.4)
+
+6.16) a gestao na tela de Atividades e a regua de pontos
+  ✓ a tela de Atividades tem o painel dos 3 reforcos abertos, agrupados por disciplina (Dir Adm, Portugues)
+  ✓ com ritmo por dia calculado na hora, e nenhuma atividade amarrada a uma data
+  ✓ o dia tambem separa por disciplina, sem vazamento a 390px
+  ✓ no Plano sobrou uma linha recolhida que leva para a gestao — nao um segundo painel
+  ✓ a nota projetada aparece com o corte declarado como SEU e a composicao a vista
+  ✓ materia abaixo do minimo eliminatorio vem antes de tudo (Portugues/Crase)
+  ✓ o botao "atacar esta materia" so aparece nas 1 linha(s) que pedem acao
+  ✓ clicar filtra a lista pela materia (3 → 2 assuntos) e mantem o bloco de criar atividades
+  ✓ e filtrar a lista nao apaga os botoes das outras materias (1 antes e depois)
+  ✓ nada some: 9 materias, peso somando 100% e esforco 100%
+  ✓ cada linha diz um VERBO: comece / fila / mantenha / fora do peso, e a desproporcao de esforco vira anotacao
+  ✓ a tabela e ordenada pelo premio: 22pp da prova em jogo, 1 materia(s) concentram metade
+  ✓ a fila vira o premio: Dir Constitucional > Dir Tributario > Auditoria > Contabilidade (19pp em jogo, 3 materias concentram metade)
+  ✓ e o botao vai para as 3 de maior premio (4.48, 3.86, 3.31pp), nunca para a de 0.52pp
+  ✓ a materia de 5%/84% deixou de pedir ataque e a de 7%/58% deixou de ser "equilibrada" verde
+  ✓ filtrar a lista por "Dir Constitucional" mantem os 3 botoes de pe
+  ✓ materia com 1.6pp em jogo e 1.9x o peso em esforco fica "na fila" com a sobra anotada, nao "reduza"
+  ✓ o quadro sai igual com o ciclo escrito em outro idioma ("Port.", "Const") — a moeda e a questao
+  ✓ as pequenas viram dois resumos, cada um com o seu motivo (+ 3 matérias que você ainda não começou  somadas, para o quadro não perder nada 12% da prova 0% do seu esforço · + 2 matérias miúdas  somadas, para o quadro não perder nada 1% da prova 0% do seu esforço)
+  ✓ e o resumo mostra a SOMA (11.6% da prova nunca comecada), em vez de somer com ela
+  ✓ cada uma das 4 materias tem o "i" da analise detalhada
+  ✓ o peso vem da RAIZ da arvore (Detalhada=500, Rasa=400 somados virariam 55,6%/44,4%; a raiz da 50%/50%)
+  ✓ e o premio deixa de depender de quao fundo a tabela foi colada (15pp nas duas)
+  ✓ materia com 0.277% do esforco e nivel medido diz "<1%", nao "0%"
+  ✓ ritmo travado em 30/sem contra 600/sem medidos: a tela acusa e oferece o conserto (previsao ia em 47 semanas)
+  ✓ e um toque devolve o ritmo a medicao (600/sem, previsao em 2 semanas) e o aviso some
+  ✓ a auditoria e uma secao da folha de ajustes (🧪), com exportacao semanal, mensal e modo anonimo — e saiu da lista
+  ✗ a conferencia da importacao no arquivo falhou: [{"linhas":20,"disc":0,"q":0,"folhas":2400,"fecha":false,"crua":2400,"repetidas":0,"naoRepro":0},{"linhas":20,"disc":0,"q":0,"folhas":2400,"fecha":false,"crua":2400,"repetidas":0,"naoRepro":0},{"linhas":20,"disc":0,"q":0,"folhas":2400,"fecha":false,"crua":2400,"repetidas":0,"naoRepro":0},{"linhas":20,"disc":0,"q":0,"folhas":2400,"fecha":false,"crua":2400,"repetidas":0,"naoRepro":0}]
+  ✓ o arquivo diz qual build o produziu (vbf8f33327f)
+  ✗ o arquivo de auditoria saiu incompleto ou vazou dado: {"porta":true,"naFolha":true,"chip":false,"foraDaLista":true,"botoes":["semanal","mensal"],"anon":true,"erro":null,"blocos":[],"versaoDoApp":"vbf8f33327f","importacao":[{"linhas":20,"disc":0,"q":0,"folhas":2400,"fecha":false,"crua":2400,"repetidas":0,"naoRepro":0},{"linhas":20,"disc":0,"q":0,"folhas":2400,"fecha":false,"crua":2400,"repetidas":0,"naoRepro":0},{"linhas":20,"disc":0,"q":0,"folhas":2400,"fecha":false,"crua":2400,"repetidas":0,"naoRepro":0},{"linhas":20,"disc":0,"q":0,"folhas":2400,"fecha":false,"crua":2400,"repetidas":0,"naoRepro":0}],"invariantes":16,"invOk":false,"naoAplicaveis":4,"invFalhas":["em cada retrato, as folhas somam o mesmo que as disciplinas :: [{\"ate\":\"2026-06-14\",\"disciplinas\":0,\"folhas\":2400},{\"ate\":\"2026-07-12\",\"disciplinas\":0,\"folhas\":2400},{\"ate\":\"2026-08-09\",\"disciplinas\":0,\"folhas\":2400},{\"ate\":\"2026-09-06\",\"disciplinas\":0,\"folhas\":2400}]"],"vazou":false,"kb":26}
+  ✓ o dominio nomeia a materia quando filtrado (76.7% em 18 assuntos → 89.6% em 10) e o botao "ver o geral" desfaz
+  ✓ o aviso de dobra so aparece quando ha dobra: assunto livre e irmao passam sem dialogo
+  ✓ com a frente ampla aberta, criar o subtopico pergunta antes — nomeia as duas, diz o custo na calibragem e a saida — e o "nao" nao cria nada
+  ✓ e a atividade de um bloco se apresenta em portugues ("Reforçar: Licitacoes (bloco de 3 tópicos)")
+  ✓ o foco acumula: 3 materias oferecem chip, duas marcadas recortam a lista de 12 para 9 assuntos (Contabil,Tributario)
+  ✓ e as duas linhas do quadro ficam marcadas, com o estado exposto para leitor de tela
+  ✓ o numero grande nomeia as duas ("Tributario e Contabil") e o select mostra o mesmo estado ("🎯 2 matérias em foco")
+  ✓ a auditoria grava o recorte aplicado e a fita dos ajustes o repete
+  ✓ desmarcar volta ao filtro de uma (e o select acompanha); "ver o geral" limpa o foco inteiro
+  ✓ o piso de granularidade e um seletor de quatro estados, na secao Amostra dos ajustes
+  ✓ com 21 topicos de 2 a 4 questoes o Plano morria na amostra minima; agora a tela oferece juntar (🧩 Juntar os assuntos finos (2 unidades medíveis))
+  ✓ e um toque devolve o Plano: 2 unidades medidas onde nenhuma media
+  ✓ cada unidade agrupada se anuncia na tela ("🧩 bloco · 12 tópicosi") e explica no "i" o que cobre
+  ✓ e o volume e o MESMO em todo piso (63 questoes, 34 acertos; unidades 21 → 2 → 2 → 2 → 2)
+  ✓ a auditoria declara a lente (piso 10, 2 blocos, 21 topicos, 0 → 2 medindo) e confere a soma no ato
+  ✓ a tela abre por "Onde atacar primeiro" (a materia) e so depois pelo bloco de assuntos
+  ✓ cada um dos 20 itens traz a ordem em uma linha (maior: 73 caracteres) e o conselho inteiro na guia
+  ✓ e nenhuma guia abre sozinha nos 20 itens (antes abria em 10)
+  ✓ "reduza" so onde ha o que reduzir: Cara com 36% do esforco sim, Miuda com 1.8% nao (a sobra fica anotada)
+  ✓ base curta: sobe 18.6pp mas so 30pp seriam comprovaveis — a tela marca "dentro da margem" e nao conta como melhorando
+  ✓ e com volume dos dois lados a seta fica CHEIA: 20pp contra 11pp de minimo
+  ✓ no critico a tela manda a TEORIA primeiro e so depois o bloco que remede o nivel
+  ✓ no fragil o bloco e a amostra da formula (94q para ±10pp), nao mais um quarto do custo
+  ✓ e quando a medicao de hoje e curta demais para provar a subida, a tela diz isso em vez de inventar um numero
+  ✓ nenhum numero podre nos conselhos
+  ✓ com amostra curta a tela declara os 4 primeiros empatados (32%±18, 42%±18, 48%±20, 52%±19); com 400q cada, as mesmas taxas viram diferenca real e o aviso some
+  ✓ aviso de amostra: so 6 de 52 chegam a 50 (maior 70) e a sugestao e 20, nao 50
+  ✓ trajetoria: a diferenca crua dizia -32.1pp com todo assunto subindo; o cracha agora diz "+15.0pp em 4 importações" e a tela explica a linha
+  ✓ e os numeros por tras da trajetoria (serie importacao por importacao) abrem no "i", fora da tela
+  ✓ e o casamento de nomes, onde ainda e preciso (edital digitado x banca), segue conservador
+  ✓ e o quadro de esforco por materia esta na tela
+  ✓ nenhum numero podre em nada disso
+
+7) um ano de uso, simulado (jornada + invariantes)
+  ✓ 8 importacoes, 13 atividades, 4 ciclos julgados (subiu:2 naoFuncionou:1 mediu:1) — nenhuma invariante violada em 25 pontos de conferencia
+  ✓ no 1o retrato de uma arvore funda a tela oferece a lente (piso 10) e o Plano passa a existir (3 unidades onde havia zero)
+  ✓ e apagar um retrato preservou o progresso medido de 5 atividade(s) (9 re-pinadas), em vez de zerar
+
+8) contraste WCAG AA (temas claro e escuro)
+  ✓ tema light: nenhum texto abaixo do WCAG AA
+  ✓ tema dark: nenhum texto abaixo do WCAG AA
+
+FALHOU: 2 problema(s).
+EXIT_STATUS=1
