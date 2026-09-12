@@ -1812,6 +1812,62 @@ const AutoTeste = {
      perfil no mesmo dia — e nenhum jeito de saber qual está certo. Então o
      grupo cobre TODAS as bocas de uma vez: domínio, lista, trajetória, quadro
      de esforço, lacunas do edital e nota projetada. */
+  /* ── A TELA NÃO PODE TRAVAR SOB O DEDO ────────────────────────────────────
+     Três queixas com a mesma raiz: o Plano repintava de forma síncrona a cada
+     evento. Digitar disparava uma repintura por tecla; abrir a aba prendia o
+     clique no cálculo inteiro; marcar uma matéria reescrevia a tela e a página
+     encolhia debaixo do dedo. As asserções aqui travam o contrato das três
+     defesas — o custo em milissegundos é medido fora, no navegador. */
+  planoNaoTrava() {
+    const T = DesempenhoTecScreen;
+    this._ok('Ritmo: a tela tem agendador de repintura', typeof T.agendarPlano === 'function'
+      && typeof T._pintarPlano === 'function' && typeof T._comRolagemPreservada === 'function');
+    if (typeof T.agendarPlano !== 'function') return;
+    this._ok('Ritmo: a janela de espera é humana (entre 120ms e 600ms)',
+      T.PLANO_ESPERA >= 120 && T.PLANO_ESPERA <= 600, T.PLANO_ESPERA);
+    const orig = T._pintarPlano, origTimer = T._planoTimer;
+    let n = 0;
+    try {
+      T._planoTimer = null;
+      T._pintarPlano = function () { n++; };
+      /* RAJADA COLAPSA EM UMA SÓ. Quatro teclas seguidas não podem virar
+         quatro passadas do motor sobre todos os retratos. */
+      T.agendarPlano(false); T.agendarPlano(false); T.agendarPlano(false);
+      this._ok('Ritmo: teclas em rajada não repintam de imediato', n === 0, n);
+      this._ok('Ritmo: e deixam um pedido agendado no lugar', T._planoTimer != null);
+      /* O CLIQUE NÃO ESPERA. Um `change` (soltou o select, saiu do campo) não
+         tem rajada nenhuma, e esperar ali seria só lentidão. */
+      T.agendarPlano(true);
+      this._ok('Ritmo: o pedido imediato repinta na hora', n === 1, n);
+      this._ok('Ritmo: e cancela o agendado, em vez de repintar duas vezes', T._planoTimer == null);
+      /* A ROLAGEM É DEVOLVIDA. Sem isto a página "sobe" a cada matéria
+         marcada, porque a lista encurta e o navegador reajusta sozinho. */
+      let rodou = false;
+      T._comRolagemPreservada(() => { rodou = true; });
+      this._ok('Ritmo: a repintura acontece dentro da guarda de rolagem', rodou);
+      /* A GUARDA NÃO PODE ENGOLIR ERRO. Se a pintura falhar, a exceção sobe —
+         senão uma tela quebrada vira uma tela silenciosamente vazia. */
+      let subiu = false;
+      try { T._comRolagemPreservada(() => { throw new Error('x'); }); }
+      catch (e) { subiu = true; }
+      this._ok('Ritmo: e uma falha na pintura não fica presa dentro da guarda', subiu);
+      /* O esqueleto é um só, compartilhado — o Plano e as Conquistas sofriam
+         do mesmo mal. Alcançá-lo por `window.X` não funcionava: as telas são
+         `const` de módulo e nunca chegam ao window; o esqueleto simplesmente
+         não aparecia, e o adiamento virava custo sem benefício. */
+      this._ok('Ritmo: o esqueleto é global, anunciado a leitor de tela, e o Plano usa ele',
+        typeof esqueletoCarregando === 'function' && typeof pintarDepois === 'function'
+        && esqueletoCarregando('x').indexOf('aria-live') >= 0
+        && esqueletoCarregando('x').indexOf('pl-skel-giro') >= 0
+        && typeof T._depoisDePintar === 'function');
+      this._ok('Ritmo: e o texto do esqueleto é escapado, não concatenado cru',
+        esqueletoCarregando('<b>&"').indexOf('<b>') < 0);
+    } finally {
+      T._pintarPlano = orig;
+      if (T._planoTimer) { clearTimeout(T._planoTimer); }
+      T._planoTimer = origTimer || null;
+    }
+  },
   materiasForaDoPlano() {
     const P = PlanoEngine, PP = PlanoPontos, T = DesempenhoTecScreen;
     this._ok('Fora do Plano: o motor expõe a exclusão',
@@ -2694,7 +2750,8 @@ const AutoTeste = {
      ['Ciclo do Plano', 'cicloDoPlano'],
      ['Régua de pontos', 'reguaDePontos'],
      ['Auditoria do Plano', 'auditoriaDoPlano'],
-     ['Matérias fora do Plano', 'materiasForaDoPlano']].forEach(([nome, fn]) => {
+     ['Matérias fora do Plano', 'materiasForaDoPlano'],
+     ['O Plano não trava sob o dedo', 'planoNaoTrava']].forEach(([nome, fn]) => {
       try { this[fn](); }
       catch (e) { this._r.total++; this._r.falhou++; this._r.falhas.push({ nome: nome + ' — exceção', obtido: String(e && e.message || e) }); }
     });

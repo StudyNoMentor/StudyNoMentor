@@ -329,3 +329,30 @@ function valorVazio(txt) {
   return s === '' || s === '[]' || s === '{}' || s === 'null' || s === '""';
 }
 window.valorVazio = valorVazio;
+
+/* ── TEMPO MUDO É O QUE PARECE TRAVAMENTO ──────────────────────────────────
+   Duas telas do app fazem trabalho pesado antes da primeira pintura: o Plano
+   varre todos os retratos por assunto, as Conquistas varrem todos os
+   registros quatro vezes. Sem sinal, o toque no menu simplesmente não
+   responde por um tempo visível e o app parece ter engasgado.
+
+   O remédio é sempre o mesmo e por isso mora aqui, uma vez só: troque a tela
+   AGORA, pinte o esqueleto no mesmo quadro, e faça a conta no quadro
+   seguinte. Dois `requestAnimationFrame` porque um só ainda pode rodar antes
+   de o navegador pintar — com um, o esqueleto nunca chega à tela e o
+   adiamento vira custo sem benefício. */
+function esqueletoCarregando(texto) {
+  return '<div class="pl-skel" role="status" aria-live="polite">'
+    + '<span class="pl-skel-giro" aria-hidden="true"></span>'
+    + '<span class="pl-skel-txt">' + escapeHtml(texto || 'Carregando…') + '</span></div>';
+}
+function pintarDepois(el, texto, fn) {
+  const alvo = (typeof el === 'string') ? document.getElementById(el) : el;
+  if (!alvo) { fn(); return; }
+  alvo.innerHTML = esqueletoCarregando(texto);
+  requestAnimationFrame(() => requestAnimationFrame(() => {
+    try { fn(); } catch (e) { _quiet(e, 'pintar-depois'); }
+  }));
+}
+window.esqueletoCarregando = esqueletoCarregando;
+window.pintarDepois = pintarDepois;

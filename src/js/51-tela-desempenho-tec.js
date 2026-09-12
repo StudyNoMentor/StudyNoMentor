@@ -2213,6 +2213,71 @@ const DesempenhoTecScreen = {
   _planoMais: 0,
   // o mesmo, para a tabela de matérias de "Onde atacar primeiro"
   _matMais: 0,
+
+  /* ═══ O PLANO NÃO PODE REPINTAR A CADA TECLA ════════════════════════════
+     Cada campo dos ajustes chamava `renderPlanoConteudo` direto, no evento
+     `input`. Digitar "120" num campo numérico disparava TRÊS repinturas — e
+     uma repintura do Plano é o motor inteiro rodando sobre todos os retratos
+     (índice por assunto, janela adaptativa, sequências, série histórica,
+     quadro de matérias) mais alguns milhares de nós de HTML. Num perfil real,
+     com 991 assuntos e 10 retratos, isso trava a digitação: a tecla seguinte
+     espera o cálculo da anterior terminar.
+
+     O pedido passa a ser AGENDADO. Teclas em rajada colapsam em uma repintura
+     só — a última é a que vale, que é justamente o que a pessoa quis dizer.
+     Um clique (caixa de seleção, botão, troca de aba) pede `imediato`, porque
+     ali não existe rajada e qualquer espera é lentidão percebida.
+
+     260ms é a janela: abaixo disso um digitador médio ainda dispara no meio da
+     palavra; acima, o resultado parece ter esquecido o comando. */
+  PLANO_ESPERA: 260,
+  _planoTimer: null,
+  agendarPlano(imediato) {
+    if (this._planoTimer) { clearTimeout(this._planoTimer); this._planoTimer = null; }
+    if (imediato) { this.renderPlanoConteudo(); return; }
+    /* O sinal de "estou processando" tem de aparecer ANTES da espera, não
+       depois: é durante a espera que a tela parece travada. */
+    this._marcarPlanoOcupado(true);
+    this._planoTimer = setTimeout(() => {
+      this._planoTimer = null;
+      this.renderPlanoConteudo();
+    }, this.PLANO_ESPERA);
+  },
+  _marcarPlanoOcupado(on) {
+    const l = document.getElementById('plano-lista');
+    const p = document.getElementById('plano-proj');
+    [l, p].forEach(e => { if (e) e.classList.toggle('pl-ocupado', !!on); });
+  },
+
+  /* ── REPINTAR NÃO PODE MOVER A PÁGINA DEBAIXO DO DEDO ────────────────────
+     Marcar uma matéria na caixa de exclusão reescrevia `#plano-lista` inteiro.
+     A lista encurta (menos assuntos), a página encurta com ela, e o navegador
+     "sobe" a rolagem sozinho — com a folha de ajustes aberta na frente, o
+     efeito é a barra pulando a cada clique, como se o app estivesse
+     instável.
+
+     Guardar e devolver a posição resolve os dois casos de uma vez: a folha
+     aberta (onde a página atrás nem está sendo lida) e a leitura direta da
+     lista (onde a âncora é o ponto em que o dedo estava). */
+  _comRolagemPreservada(fn) {
+    const y = window.scrollY || document.documentElement.scrollTop || 0;
+    try { fn(); } finally {
+      const agora = window.scrollY || document.documentElement.scrollTop || 0;
+      if (Math.abs(agora - y) > 1) { try { window.scrollTo(0, y); } catch (e) { _quiet(e, 'plano-rolagem'); } }
+    }
+  },
+
+  /* ── A ABA PESADA ABRE ANTES DE TERMINAR DE PENSAR ───────────────────────
+     Abrir o Plano (e as Conquistas) dava uma travada e um atraso: o clique
+     disparava todo o cálculo ANTES de o navegador ter pintado a troca de aba,
+     então a interface ficava congelada no estado antigo sem nenhum sinal de
+     que algo estava acontecendo.
+
+     Agora a aba troca, um esqueleto aparece no mesmo quadro, e o cálculo
+     acontece no quadro seguinte. O tempo total é o mesmo; o que muda é que
+     ele deixa de ser tempo MUDO. Dois `requestAnimationFrame` porque um só
+     ainda pode rodar antes da pintura. */
+  _depoisDePintar(alvoId, fn) { pintarDepois(alvoId, 'Calculando o seu plano…', fn); },
   // ---- Escopo da análise: 'consolidado' (todos), 'select' (retratos marcados), 'range' (intervalo) ----
   scopeMode: 'consolidado',
   selectedSnapIds: null, // Set de ids marcados (modo 'select')
@@ -2483,7 +2548,27 @@ const DesempenhoTecScreen = {
     this._planoRefC = null; this._planoMais = 0; this._matMais = 0;
     const sel = document.getElementById('plano-disc');
     if (sel && patch.disciplina) sel.value = '__todas__';
-    this.renderPlano();
+    /* `renderPlano()` reconstrói TODOS os campos da folha, inclusive o select
+       de disciplina e a própria caixa que você acabou de tocar — e era isso
+       que fazia a caixa fechar e a página saltar a cada matéria marcada. Aqui
+       só duas coisas mudaram de verdade: a lista de disciplinas oferecidas no
+       filtro e o conteúdo do Plano. */
+    this._sincronizarFiltroDisc();
+    this.renderExcluidasPicker('plano-excluidas-pick');
+    this.agendarPlano(true);
+  },
+  /* A lista do filtro de disciplina depende do que está excluído — é o único
+     campo da folha que a exclusão precisa mexer. Extraído de `renderPlano`
+     para que marcar uma matéria não obrigue a reconstruir os outros vinte. */
+  _sincronizarFiltroDisc() {
+    const ds = document.getElementById('plano-disc');
+    if (!ds) return;
+    const p = PlanoEngine.prefs();
+    const fora = PlanoEngine.excluidasSet(p);
+    const discs = PlanoEngine.disciplinas(this.scopedSnapshot()).filter(d => !PlanoEngine.foraDoPlano(d, fora));
+    ds.innerHTML = `<option value="__todas__">📚 Todas</option>` +
+      discs.map(d => `<option value="${escapeHtml(d)}" ${d === p.disciplina ? 'selected' : ''}>${escapeHtml(d)}</option>`).join('');
+    if (![...ds.options].some(o => o.value === p.disciplina)) ds.value = '__todas__';
   },
   // normaliza texto p/ casar tópicos entre retratos (sem acento/caixa/espaços extras)
   _nk(s) { return String(s == null ? '' : s).normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/\s+/g, ' ').trim(); },
@@ -3032,17 +3117,10 @@ const DesempenhoTecScreen = {
     set('plano-piso', p.pisoSerie); set('plano-sens', p.sensTendencia);
     const desc = DB.getTecSnapshots().slice().reverse();
     set('plano-ritmo', p.ritmoSemanal || PlanoEngine.ritmoRecente(desc, 120, PlanoEngine.excluidasSet(p)) || 25);
-    const ds = document.getElementById('plano-disc');
-    if (ds) {
-      /* Uma matéria fora do Plano não pode continuar na lista do filtro: o
-         motor já não a enxerga, e escolhê-la levaria a uma tela vazia sem
-         explicação. Ela volta à lista no instante em que você a desmarcar. */
-      const fora = PlanoEngine.excluidasSet(p);
-      const discs = PlanoEngine.disciplinas(this.scopedSnapshot()).filter(d => !PlanoEngine.foraDoPlano(d, fora));
-      ds.innerHTML = `<option value="__todas__">📚 Todas</option>` +
-        discs.map(d => `<option value="${escapeHtml(d)}" ${d === p.disciplina ? 'selected' : ''}>${escapeHtml(d)}</option>`).join('');
-      if (![...ds.options].some(o => o.value === p.disciplina)) ds.value = '__todas__';
-    }
+    /* Uma matéria fora do Plano não pode continuar na lista do filtro: o motor
+       já não a enxerga, e escolhê-la levaria a uma tela vazia sem explicação.
+       Ela volta à lista no instante em que você a desmarcar. */
+    this._sincronizarFiltroDisc();
     this.renderExcluidasPicker('plano-excluidas-pick');
     // Seletor de banca: só aparece quando há dados de incidência importados.
     // Alimenta a ordenação "🎯 Prioridade na banca".
@@ -3166,6 +3244,14 @@ const DesempenhoTecScreen = {
     this.renderPlano();
   },
   renderPlanoConteudo() {
+    /* O corpo real fica em `_pintarPlano`; esta camada só garante as duas
+       coisas que TODA repintura precisa e nenhuma chamada deve ter de lembrar:
+       a rolagem não se mexe, e o sinal de "processando" sempre sai. */
+    if (this._planoTimer) { clearTimeout(this._planoTimer); this._planoTimer = null; }
+    this._comRolagemPreservada(() => this._pintarPlano());
+    this._marcarPlanoOcupado(false);
+  },
+  _pintarPlano() {
     const proj = document.getElementById('plano-proj');
     const lista = document.getElementById('plano-lista');
     if (!proj || !lista) return;
@@ -5406,7 +5492,28 @@ $id('tec-weak-disc').addEventListener('change', (e) => {
 (function () {
   const on = (id, ev, fn) => { const el = document.getElementById(id); if (el) el.addEventListener(ev, fn); };
   const DT = DesempenhoTecScreen;
-  document.querySelectorAll('#tec-subtabs .tec-subtab').forEach(b => b.addEventListener('click', () => DT.switchTecTab(b.dataset.tectab)));
+  /* ── O ADIAMENTO PERTENCE AO CLIQUE, NÃO À API ──────────────────────────
+     Adiar dentro de `switchTecTab` deixava a função mentindo: quem a chama
+     espera que, ao voltar, a tela esteja pintada — e todo o resto do app e da
+     suíte de verificação faz exatamente isso. Sete verificações caíram de uma
+     vez, não porque o adiamento estivesse errado, mas porque estava no lugar
+     errado.
+
+     O travamento que a pessoa sente é o do DEDO no chip: é ali que o quadro
+     tem de ser liberado antes do cálculo. Chamada por código continua
+     síncrona; o toque troca a aba agora e calcula no quadro seguinte. */
+  document.querySelectorAll('#tec-subtabs .tec-subtab').forEach(b => b.addEventListener('click', () => {
+    const alvo = b.dataset.tectab;
+    if (alvo !== 'plano' || DT.tecTab === 'plano') { DT.switchTecTab(alvo); return; }
+    // pinta a troca de aba e o esqueleto agora; o motor roda no quadro seguinte
+    DT.tecTab = alvo;
+    document.querySelectorAll('#tec-subtabs .tec-subtab').forEach(x => x.classList.toggle('active', x.dataset.tectab === alvo));
+    ['analise', 'incidencia', 'reforco', 'plano'].forEach(t => {
+      const el = document.getElementById('tec-panel-' + t);
+      if (el) el.style.display = (t === alvo) ? 'block' : 'none';
+    });
+    DT._depoisDePintar('plano-lista', () => DT.switchTecTab(alvo));
+  }));
   // Incidência
   on('incid-text', 'input', () => DT.updateIncidPreview());
   on('incid-banca', 'input', () => DT.updateIncidPreview());
@@ -5428,18 +5535,23 @@ $id('tec-weak-disc').addEventListener('change', (e) => {
    'plano-amostraalvo','plano-cadencia','plano-janelamax','plano-ordenar','plano-consolidar','plano-validade','plano-critico','plano-fragil','plano-piso','plano-sens'].forEach(id => {
     /* Mexer num campo pode DESFAZER um preset — e o chip aceso tem de deixar de
        estar aceso na mesma hora, senão a tela afirma um modo que não vale mais. */
-    const aplicar = () => {
+    /* O RÓTULO RESPONDE NA HORA; O MOTOR ESPERA A RAJADA ACABAR. Quem arrasta
+       o peso da banca precisa ver o número mudar sob o dedo — isso é barato.
+       Recalcular o Plano a cada parada do arraste é que travava a tela. */
+    const eco = () => {
       if (id === 'plano-pesobanca') {
         const v = document.getElementById('plano-pesobanca');
         const l = document.getElementById('plano-pesobanca-label');
         if (v && l) l.textContent = (parseInt(v.value, 10) === 0) ? '0 — banca ignorada' : v.value;
       }
       DT._planoMais = 0; DT._matMais = 0;   // outra configuração, outra fila: recomeça no passo
-      DT.renderPlanoConteudo();
       DT.renderModosDeAtaque();
     };
-    on(id, 'change', aplicar);
-    on(id, 'input', aplicar);
+    /* `change` é o fim do gesto (soltou o select, saiu do campo): ali não há
+       rajada nenhuma e esperar seria só lentidão. `input` é o meio da
+       digitação, e é ele que precisa da janela. */
+    on(id, 'change', () => { eco(); DT.agendarPlano(true); });
+    on(id, 'input', () => { eco(); DT.agendarPlano(false); });
   });
   on('reforco-disc', 'change', (e) => { DT.savePrefs({ disc: e.target.value }); DT.renderReforcoList(); });
   on('reforco-minq', 'input', (e) => { DT.savePrefs({ minq: e.target.value }); DT.renderReforcoList(); });

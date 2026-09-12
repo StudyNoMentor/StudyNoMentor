@@ -460,5 +460,19 @@ document.querySelectorAll('.rte').forEach(buildRteToolbar);
 })();
 window.addEventListener('screen:activated', (e) => {
   if (e.detail.screen === 'cards') CardsScreen.render();
-  if (e.detail.screen === 'conquistas') EvolucaoScreen.renderConquistas();
+  /* ── CONQUISTAS ABRE ANTES DE TERMINAR DE CONTAR ────────────────────────
+     A tela varre TODOS os registros de estudo quatro vezes (calendário,
+     marcos, recordes, medalhas com níveis) antes de pintar um pixel. Com
+     alguns anos de diário isso prende o toque no menu por um tempo visível, e
+     o app parece ter engasgado — o mesmo sintoma da aba do Plano, pela mesma
+     causa: trabalho síncrono antes da primeira pintura.
+
+     A troca de tela acontece agora; a contagem, no quadro seguinte, com um
+     sinal de que ela está acontecendo. O tempo total não muda — deixa de ser
+     tempo mudo. Dois `requestAnimationFrame` porque um só ainda pode rodar
+     antes de o navegador pintar. */
+  if (e.detail.screen === 'conquistas') {
+    pintarDepois('conquistas-body', 'Reunindo as suas conquistas…',
+      () => EvolucaoScreen.renderConquistas());
+  }
 });
