@@ -10,6 +10,8 @@
      2. cada módulo JS de src/ tem sintaxe válida isoladamente
      3. o agendador bate com o Anki e sobrevive a configuracao corrompida
         (testes/paridade-anki.mjs · testes/robustez-config.mjs)
+    3b. a importacao do TEC registra exatamente o que o arquivo diz, do byte
+        ao total — desempenho e incidencia (testes/fidelidade-tec.mjs)
      4. o index.html publicado não tem id duplicado nem referência quebrada
      5. o app carrega no Chromium sem um único erro de console
      6. as 14 telas navegam e a suíte interna AutoTeste passa 100%
@@ -66,6 +68,21 @@ try {
   ok(String(saida).trim());
 } catch (e) {
   erro('configuracao invalida ainda torna cards inagendaveis:\n' + String(e.stdout || '') + String(e.stderr || ''));
+}
+
+/* ── 3b. FIDELIDADE DA IMPORTACAO DO TEC ───────────────────────────────────
+   A importacao e a fonte de todo numero do Desempenho TEC e do Plano: um erro
+   de contagem ali erra o dominio, a fila de ataque, o custo e a nota projetada
+   — e em silencio, porque depois nao ha com o que comparar. O teste parte dos
+   BYTES de um .xlsx gerado com a estrutura do export real (pai = soma dos
+   filhos, disciplina sem codigo, balde "Sem Classificacao", % arredondada) e
+   cobra as invariantes de contagem, incluindo o indice de incidencia. */
+console.log('\n3b) fidelidade da importacao do TEC (desempenho + incidencia)');
+try {
+  const saida = execFileSync(process.execPath, [join(RAIZ, 'testes', 'fidelidade-tec.mjs')], { stdio: 'pipe' });
+  ok(String(saida).trim().split('\n').pop());
+} catch (e) {
+  erro('a importacao do TEC nao registra o que o arquivo diz:\n' + String(e.stdout || '') + String(e.stderr || ''));
 }
 
 // ── 4. integridade estática do HTML ────────────────────────────────────────
@@ -1164,7 +1181,7 @@ try {
   // ── ↺ RESTAURAR SO AQUELE MODO ──────────────────────────────────────────
   const rest = await pag.evaluate(async () => {
     const esperar = (ms) => new Promise((r) => setTimeout(r, ms));
-    PlanoEngine.salvarModo('base', { limite: 7 });          // outro modo tambem ajustado
+    PlanoEngine.salvarModo('base', { custoPiso: 77 });      // outro modo tambem ajustado
     DesempenhoTecScreen.renderPlano();
     await esperar(150);
     document.querySelector('#plano-modos .pl-modo-edit[data-editar="curto"]').click();
@@ -1175,11 +1192,18 @@ try {
     document.getElementById('ui-modal-ok').click();
     await esperar(350);
     return { curto: PlanoEngine.modoEditado('curto'), base: PlanoEngine.modoEditado('base'),
-      limiteBase: PlanoEngine.modoPatch('base').limite };
+      pisoBase: PlanoEngine.modoPatch('base').custoPiso,
+      /* O dialogo nasce de PlanoEngine.MODO_CAMPOS: cada campo declarado tem de
+         ter virado um campo na tela, e o passo de leitura NAO pode estar la. */
+      camposNoDialogo: PlanoEngine.MODO_CAMPOS.filter((c) => !document.getElementById('uip_' + c.key)).map((c) => c.key),
+      temLimite: !!document.getElementById('uip_limite') };
   });
-  (!rest.faltando && rest.curto === false && rest.base === true && rest.limiteBase === 7)
+  (!rest.faltando && rest.curto === false && rest.base === true && rest.pisoBase === 77)
     ? ok('restaurar um modo devolve so ele ao padrao, sem tocar nos outros')
     : erro('o restaurar por modo nao funcionou: ' + JSON.stringify(rest));
+  (rest.camposNoDialogo && rest.camposNoDialogo.length === 0 && rest.temLimite === false)
+    ? ok('o dialogo do modo mostra TODOS os parametros que o modo guarda — e so eles')
+    : erro('os campos do modo divergem do que ele guarda: ' + JSON.stringify(rest));
   await pag.evaluate(() => { PlanoEngine.restaurarModo('base'); PlanoEngine.salvarPrefs(PlanoEngine.modoPatch('base')); DesempenhoTecScreen.renderPlano(); });
   await pag.waitForTimeout(300);
 
@@ -1532,7 +1556,7 @@ try {
     const depois = visiveis().map((s) => s.dataset.tab + '/' + s.dataset.sec);
     return { chips, inicio, depois };
   });
-  (abre.chips.length === 5 && abre.inicio.length === 1 && abre.depois.length === 1 && abre.depois[0] === 'plano/esforco')
+  (abre.chips.length === 6 && abre.inicio.length === 1 && abre.depois.length === 1 && abre.depois[0] === 'plano/esforco')
     ? ok(`a folha do Plano tem ${abre.chips.length} secoes e mostra UMA por vez (${abre.inicio[0]} → ${abre.depois[0]})`)
     : erro('a folha nao esta mostrando uma secao por vez: ' + JSON.stringify(abre));
 
@@ -2370,16 +2394,29 @@ try {
      inutilizam: faltar um bloco (um numero da tela que nao da para
      reproduzir) e vazar identidade (ai ele deixa de poder ser enviado). */
   const aud = await pag.evaluate(() => {
-    const det = document.querySelector('.pl-auditoria');
+    /* A porta mudou de lugar: era um <details> recolhido no FIM da lista do
+       Plano (depois de trinta assuntos, do segundo plano e das lacunas do
+       edital) e virou uma SECAO da folha de ajustes, junto dos parametros que o
+       arquivo carrega. */
+    const sec = document.querySelector('#tec-cfg-body .tec-cfg-sec[data-tab="plano"][data-sec="auditoria"]');
+    const chip = [...document.querySelectorAll('#tec-cfg-nav button')].some((b) => b.dataset.sec === 'auditoria');
     const a = PlanoAuditoria.gerar({ cadencia: 'semanal' });
     const txt = JSON.stringify(a);
     return {
-      porta: !!det, recolhida: det ? !det.open : null,
-      botoes: [...document.querySelectorAll('[data-aud]')].map((b) => b.dataset.aud),
+      porta: !!sec, naFolha: !!sec && !!sec.closest('#tec-cfg-body'), chip,
+      foraDaLista: !document.querySelector('#plano-lista [data-aud]'),
+      botoes: [...document.querySelectorAll('#tec-cfg-body [data-aud]')].map((b) => b.dataset.aud),
       anon: !!document.getElementById('plano-aud-anon'),
       erro: a.erro || null,
       blocos: a.erro ? [] : ['parametros', 'contexto', 'retrato', 'serie', 'materias',
-        'assuntos', 'atividades', 'qualidadeDoDado', 'invariantes', 'resumo'].filter((k) => a[k] === undefined),
+        'assuntos', 'atividades', 'qualidadeDoDado', 'invariantes', 'resumo',
+        'importacao', 'incidencia', 'modosDeAtaque'].filter((k) => a[k] === undefined),
+      versaoDoApp: a.erro ? null : (a.app && a.app.versao),
+      importacao: a.erro ? null : (a.importacao || []).map((i) => ({
+        linhas: i.linhas, disc: i.disciplinas, q: i.questoesNasDisciplinas,
+        folhas: i.questoesNasFolhas, fecha: i.fechaEntreDisciplinasEFolhas,
+        crua: i.somaCruaDeTodasAsLinhas, repetidas: i.disciplinasRepetidas,
+        naoRepro: i.linhasComTaxaNaoReproduzivel })),
       invariantes: a.erro ? 0 : (a.invariantes || []).length,
       invOk: a.erro ? null : (a.invariantes || []).every((i) => i.ok),
       naoAplicaveis: a.erro ? 0 : (a.invariantes || []).filter((i) => i.aplicavel === false).length,
@@ -2388,9 +2425,20 @@ try {
       kb: Math.round(txt.length / 1024)
     };
   });
-  (aud.porta && aud.recolhida && aud.botoes.join(',') === 'semanal,mensal' && aud.anon)
-    ? ok('a porta da auditoria fica recolhida no fim do Plano, com exportacao semanal, mensal e modo anonimo')
+  // o chip da fita e conferido no teste da folha (secao 9 acima), com ela aberta
+  (aud.porta && aud.naFolha && aud.foraDaLista && aud.botoes.join(',') === 'semanal,mensal' && aud.anon)
+    ? ok('a auditoria e uma secao da folha de ajustes (🧪), com exportacao semanal, mensal e modo anonimo — e saiu da lista')
     : erro('a porta da auditoria nao saiu certa: ' + JSON.stringify(aud));
+  /* O ARQUIVO TEM DE CONFERIR A FONTE. Uma importacao que conta a mesma questao
+     duas vezes produz dominio, custo e fila plausiveis: sem a reconciliacao
+     entre o total das disciplinas e o das folhas, nada no arquivo denuncia. */
+  const im = (aud.importacao || [])[0];
+  (im && im.fecha === true && im.q === im.folhas && im.repetidas === 0 && im.naoRepro === 0 && im.crua >= im.q)
+    ? ok(`o arquivo reconcilia a importacao: ${im.disc} disciplinas, ${im.q} questoes, folhas fechando (soma crua seria ${im.crua})`)
+    : erro('a conferencia da importacao no arquivo falhou: ' + JSON.stringify(aud.importacao));
+  (aud.versaoDoApp && /^v[0-9a-f]+$/.test(aud.versaoDoApp))
+    ? ok(`o arquivo diz qual build o produziu (${aud.versaoDoApp})`)
+    : erro('o arquivo nao carimba a versao do app: ' + JSON.stringify(aud.versaoDoApp));
   (!aud.erro && aud.blocos.length === 0 && aud.invariantes >= 3 && aud.invOk === true && !aud.vazou)
     ? ok(`e o arquivo sai completo (${aud.kb} KB), com as ${aud.invariantes} invariantes conferidas na hora e sem credencial nem e-mail`)
     : erro('o arquivo de auditoria saiu incompleto ou vazou dado: ' + JSON.stringify(aud));

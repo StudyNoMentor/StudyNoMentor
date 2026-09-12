@@ -242,69 +242,160 @@ const TecEngine = {
     return /^total\b/.test(k) || /^soma\b/.test(k) || /total\s+(geral|de\s+quest|assunto)/.test(k)
         || /^resumo\b/.test(k) || /^geral$/.test(k);
   },
+  /* ── A LINHA "SEM CLASSIFICAÇÃO" NÃO É UMA DISCIPLINA ────────────────────
+     No export do TecConcursos cada disciplina termina com uma linha
+     "Sem Classificação": as questões daquela disciplina que ainda não têm
+     assunto atribuído. Ela vem com a coluna Hierarquia VAZIA — exatamente como
+     a linha da própria disciplina — e por isso era lida como disciplina nova.
+
+     O preço foi medido em dois exports reais. A planilha de 434 linhas tem
+     20 disciplinas e 400 questões; o app registrava 28 disciplinas e 409
+     questões, porque as 9 questões sem classificação eram contadas DUAS vezes:
+     uma dentro do total da disciplina (que já as inclui) e outra como
+     disciplina própria. A outra planilha virava 134 questões no lugar de 133.
+     E havia um segundo erro no sentido contrário: o Plano só olha linhas de
+     profundidade > 0, então esse mesmo volume simplesmente não existia para
+     ele — a Análise dizia 409 e o Plano trabalhava com 391.
+
+     Agora ela entra como ASSUNTO da disciplina corrente, sem código (como toda
+     folha que não tem filhos): o total fecha, a contagem de disciplinas fica
+     certa e o Plano passa a ver um volume que é praticado e medido. */
+  _isSemClassificacao(nome) {
+    const k = String(nome == null ? '' : nome).normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/\s+/g, ' ').trim();
+    return /^(sem|nao) (classificac|assunto|topico|tema|definid)/.test(k);
+  },
+  /* ── AS COLUNAS SE LIGAM PELO CABEÇALHO, NÃO PELA POSIÇÃO ────────────────
+     Ler "questões" como "a primeira célula numérica depois do nome" funciona
+     até uma célula vir vazia: aí a linha inteira desliza uma casa e o app
+     registra o PERCENTUAL no lugar da QUANTIDADE, sem nenhum aviso — e um
+     retrato com números trocados não tem como ser percebido depois.
+
+     Quando o cabeçalho existe — e no arquivo exportado ele existe — cada campo
+     passa a ser lido pelo índice da coluna que o declara. O heurístico
+     posicional continua valendo para colagens parciais, que não têm cabeçalho.
+
+     Devolve null quando o cabeçalho não identifica ao menos NOME e QUESTÕES:
+     mapa incompleto seria pior que mapa nenhum. */
+  _mapaColunas(cells) {
+    const norm = (x) => String(x == null ? '' : x).normalize('NFD').replace(/[̀-ͯ]/g, '')
+      .toLowerCase().replace(/\s+/g, ' ').trim();
+    const m = { hier: null, nome: null, questoes: null, pct: null, acertos: null, peso: null };
+    cells.forEach((c, i) => {
+      const k = norm(c);
+      if (!k) return;
+      if (m.hier == null && /^hierarquia/.test(k)) m.hier = i;
+      else if (m.nome == null && /^(indice|assunto|topico|tema|materia|disciplina)/.test(k)) m.nome = i;
+      else if (m.acertos == null && /(quantidade|qtd|numero|total) de acertos/.test(k)) m.acertos = i;
+      else if (m.questoes == null && /quest/.test(k) && k.indexOf('%') < 0) m.questoes = i;
+      else if (m.pct == null && /^acertos? ?\(?%/.test(k)) m.pct = i;
+      else if (m.peso == null && /^peso/.test(k)) m.peso = i;
+    });
+    return (m.nome != null && m.questoes != null) ? m : null;
+  },
+  _isLinhaIndice(cells) {
+    if (!cells || cells.length < 3) return false;
+    const n = cells.map(c => this.parseNum(c));
+    if (n.some(v => v === null || !Number.isInteger(v))) return false;
+    if (n[0] !== 0 && n[0] !== 1) return false;
+    for (let i = 1; i < n.length; i++) if (n[i] !== n[i - 1] + 1) return false;
+    return true;
+  },
   // Núcleo compartilhado: recebe linhas já divididas em células (de texto colado OU de planilha xlsx/csv)
   parseCellRows(cellRows) {
     const rows = [];
     let currentDisc = null;
     let skippedHeader = false;
+    let mapa = null;
     for (let cells of cellRows) {
       cells = (cells || []).map(c => String(c === undefined || c === null ? '' : c).trim());
       // remove células vazias à direita
       while (cells.length && cells[cells.length - 1] === '') cells.pop();
       if (cells.length < 2) continue;
+      /* Linha de ÍNDICE DE COLUNA ("0 1 2 3"): alguns exports do TEC saem com os
+         números das colunas no lugar dos rótulos. Ela não é dado — e era lida
+         como um tópico de código "0" chamado "1", com incidência 2, que entrava
+         no mapa e no total do caderno. A assinatura é inconfundível: inteiros
+         consecutivos começando em 0 ou 1, em toda a linha. */
+      if (this._isLinhaIndice(cells)) continue;
       // pula cabeçalho (aparece uma vez, contém "Questões"/"Hierarquia"/"Acertos")
       const joined = cells.join(' ').toLowerCase();
       if (!skippedHeader && /(hierarquia|questões resolvidas|questoes resolvidas|acertos)/.test(joined) && !/^\d/.test(cells[0])) {
         skippedHeader = true;
+        mapa = this._mapaColunas(cells);
         continue;
       }
-      let codigo, nome, nums, depth;
-      if (this.isCodigo(cells[0])) {
+      let codigo = null, nome = '', depth = 0;
+      let qRaw = null, pctRaw = null, acRaw = null, pesoRaw = null;
+      if (mapa) {
+        const cel = (i) => (i == null || cells[i] == null) ? '' : String(cells[i]).trim();
+        const hier = cel(mapa.hier);
+        nome = cel(mapa.nome);
+        if (!nome) continue;                       // linha sem assunto não identifica nada
+        qRaw = cel(mapa.questoes); pctRaw = cel(mapa.pct);
+        acRaw = cel(mapa.acertos); pesoRaw = cel(mapa.peso);
+        if (this.isCodigo(hier)) { codigo = hier; depth = hier.split('.').length; }
+      } else if (this.isCodigo(cells[0])) {
         // linha de tópico: código na 1ª célula, nome na 2ª, números a partir da 3ª
         codigo = cells[0];
         nome = cells[1] || '';
-        nums = cells.slice(2);
         depth = codigo.split('.').length;
+        [qRaw, pctRaw, acRaw, pesoRaw] = this._numsPosicionais(cells.slice(2));
       } else if (cells[0] === '' && cells[1] !== '' && this.parseNum(cells[1]) === null) {
         // linha de disciplina no formato do arquivo .xlsx:
         // coluna do código (Hierarquia) vazia e o NOME na 2ª coluna → números a partir da 3ª
-        codigo = null;
         nome = cells[1];
-        nums = cells.slice(2);
-        depth = 0;
-        currentDisc = nome;
+        [qRaw, pctRaw, acRaw, pesoRaw] = this._numsPosicionais(cells.slice(2));
       } else {
         // linha de disciplina no formato colado: nome na 1ª célula, números a partir da 2ª
-        codigo = null;
         nome = cells[0];
-        nums = cells.slice(1);
-        depth = 0;
-        currentDisc = nome;
+        [qRaw, pctRaw, acRaw, pesoRaw] = this._numsPosicionais(cells.slice(1));
       }
-      // Descarta células VAZIAS antes do 1º número. Ao colar a tabela, a coluna
-      // "Índice" da disciplina vem vazia e deslocava todos os valores uma casa.
-      while (nums.length && String(nums[0]).trim() === '') nums.shift();
       // linhas de TOTAL/RESUMO não são disciplinas
       if (depth === 0 && this._isTotalRow(nome)) { currentDisc = null; continue; }
-      const questoes = this.parseNum(nums[0]);
-      const pctAcerto = this.parseNum(nums[1]);
-      let acertos = this.parseNum(nums[2]);
+      if (depth === 0 && currentDisc && this._isSemClassificacao(nome)) {
+        depth = 1; codigo = null;                  // assunto da disciplina corrente
+      } else if (depth === 0) {
+        currentDisc = nome;
+      }
+      const questoes = this.parseNum(qRaw);
+      const pctAcerto = this.parseNum(pctRaw);
+      let acertos = this.parseNum(acRaw);
       // se não veio Qtd acertos mas veio % e questões, calcula
       if (acertos === null && pctAcerto !== null && questoes !== null) {
         acertos = Math.round(questoes * pctAcerto / 100);
       }
-      const peso = this.parseNum(nums[5]);
       if (questoes === null && pctAcerto === null) continue; // linha sem dados úteis
       rows.push({
         codigo, nome, depth,
         disciplina: depth === 0 ? nome : currentDisc,
         questoes: questoes || 0,
         acertos: acertos || 0,
-        pctAcerto: pctAcerto !== null ? pctAcerto : (questoes ? Math.round((acertos / questoes) * 1000) / 10 : 0),
-        peso: peso
+        /* A coluna "Acertos (%)" do arquivo é ARREDONDADA para exibição (59
+           para 13 de 22, que são 59,09). As duas CONTAGENS são exatas, então a
+           taxa sai delas sempre que houver questão — o número do arquivo fica
+           só como reserva para a linha que não traz quantidade. Sem isto, o
+           corte dos pontos fracos e a ordenação da Análise comparavam limiares
+           contra um valor já arredondado. */
+        pctAcerto: (questoes > 0) ? Math.round((acertos || 0) / questoes * 1000) / 10
+          : (pctAcerto !== null ? pctAcerto : 0),
+        /* O MESMO parser serve à planilha de INCIDÊNCIA, onde a segunda coluna
+           numérica não é taxa de acerto: é a fatia daquele assunto no caderno
+           da banca. Recalcular ali seria apagar o dado, então o número cru da
+           coluna fica guardado à parte — é dele que sai o total do caderno. */
+        pctColuna: (pctAcerto !== null ? pctAcerto : null),
+        peso: this.parseNum(pesoRaw)
       });
     }
     return rows;
+  },
+  /* Leitura POSICIONAL (sem cabeçalho): questões, % de acerto, qtd de acertos e
+     peso, na ordem do relatório. Descarta as células vazias antes do primeiro
+     número — ao colar a tabela, a coluna "Índice" da disciplina vem vazia e
+     deslocava todos os valores uma casa. */
+  _numsPosicionais(nums) {
+    nums = (nums || []).slice();
+    while (nums.length && String(nums[0]).trim() === '') nums.shift();
+    return [nums[0], nums[1], nums[2], nums[5]];
   },
   // Resumo por disciplina (linhas depth 0) a partir de um snapshot
   disciplinas(snap) {
