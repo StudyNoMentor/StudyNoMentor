@@ -276,7 +276,14 @@ const ExtrasScreen = {
          bloqueia: o assunto pode ter voltado a cair, e atacá-lo de novo é o
          uso normal do app, não uma duplicata. */
       const abertas = DB.getExtras().filter(e => e.origemPlano && e.status !== 'concluida');
-      const jaTem = (x) => abertas.some(e => DesempenhoTecScreen._casaUnidade(e.origemPlano, x));
+      /* Além da mesma unidade, o candidato sai da lista quando já está DENTRO
+         (ou CONTÉM) o escopo de uma atividade aberta: desde que a atividade
+         mede o nó pelas linhas cruas, as duas contariam as mesmas questões, e o
+         volume dobrado rebaixa a calibragem. Aqui não há como perguntar item por
+         item — a lista é um lote — então o candidato simplesmente não é
+         oferecido. Quem quiser afunilar encerra a frente mais ampla primeiro. */
+      const jaTem = (x) => abertas.some(e => DesempenhoTecScreen._casaUnidade(e.origemPlano, x))
+        || !!PlanoEngine.atividadeSobreposta(x.nome, x.disciplina, x.membros);
       this._planoCand = []
         .concat((r.itens || []).map(x => ({ ...x, motivo: 'reforco', alvo: x.custoQ })))
         .concat((r.pequenas || []).map(x => ({ ...x, motivo: 'diagnostico', alvo: x.faltaAmostra })))
@@ -335,7 +342,8 @@ const ExtrasScreen = {
       (this._planoCand || []).forEach((x, i) => {
         if (!this._planoSel || !this._planoSel.has(i)) return;
         const e = DB.addExtra({
-          titulo: (x.motivo === 'diagnostico' ? 'Diagnosticar: ' : 'Reforçar: ') + x.nome,
+          // o mesmo título dos dois portões (ver `PlanoCiclo.titulo`)
+          titulo: PlanoCiclo.titulo(x.nome, x.motivo, x.membros),
           tipo: 'questoes', disciplina: x.disciplina || '', unidade: 'questoes',
           alvo: Math.max(1, x.alvo), periodo: 'unica', contaMetricas: false,
           obs: 'Gerado pelo Plano de pontos fracos.'

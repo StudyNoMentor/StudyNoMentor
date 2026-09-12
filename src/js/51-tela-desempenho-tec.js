@@ -1300,6 +1300,65 @@ const PlanoEngine = {
      tópico-pai, então são disjuntas e somar não conta questão duas vezes —
      diferente de usar a incidência do PAI, que carregaria também os irmãos
      gordos que ficaram fora do bloco. */
+  /* ── DUAS ATIVIDADES MEDINDO AS MESMAS QUESTÕES ───────────────────────────
+     Desde que a atividade passou a medir o nó pelas LINHAS CRUAS (é o que a
+     torna imune à lente), uma atividade em "Atos" conta tudo que você resolve
+     nos subtópicos dele — inclusive o que uma segunda atividade, em "Atos ▸
+     Elementos", também está contando. Antes isso não acontecia: uma media só o
+     resíduo do pai, a outra só a folha.
+
+     Nas barras de progresso a dobra é defensável — cada atividade mede o escopo
+     que ela declarou. Na CALIBRAGEM não é: o mesmo volume entra duas vezes no
+     total e o "questões por ponto" sai subestimado, o que rebaixa o custo de
+     todo assunto do Plano. Então a criação avisa.
+
+     O parentesco é resolvido pelo CÓDIGO DENTRO DE UM MESMO RETRATO — é ali que
+     o código do TEC é válido, porque entre retratos ele é posicional. Basta um
+     retrato afirmar a relação para o volume se sobrepor de fato. */
+  atividadeSobreposta(topico, disciplina, membros) {
+    try {
+      const dk = ReforcoEngine.norm(disciplina || '');
+      const alvos = ((membros && membros.length) ? membros : [topico])
+        .map(n => ReforcoEngine.norm(n)).filter(Boolean);
+      if (!alvos.length) return null;
+      const abertas = (DB.getExtras() || []).filter(e =>
+        e.origemPlano && e.origemPlano.topico && e.status !== 'concluida');
+      if (!abertas.length) return null;
+      /* Um passo só pelos retratos, montando nome → códigos POR retrato. Sem
+         isto a conferência varria as linhas uma vez por par de nomes, e o
+         "criar em série" faria isso dezenas de vezes num clique. */
+      const porRetrato = (DB.getTecSnapshots() || []).map(sn => {
+        const m = Object.create(null);
+        (sn.rows || []).forEach(r => {
+          if (!((r.depth || 0) > 0) || !r.codigo) return;
+          if (dk && ReforcoEngine.norm(r.disciplina || '') !== dk) return;
+          const k = ReforcoEngine.norm(r.nome || '');
+          (m[k] = m[k] || []).push(String(r.codigo));
+        });
+        return m;
+      });
+      const contem = (pai, filho) => porRetrato.some(m => {
+        const a = m[pai], b = m[filho];
+        return !!(a && b && a.some(x => b.some(y => y.indexOf(x + '.') === 0)));
+      });
+      for (let i = 0; i < abertas.length; i++) {
+        const o = abertas[i].origemPlano;
+        const od = ReforcoEngine.norm(o.disciplina || '');
+        if (dk && od && od !== dk) continue;
+        const seus = (o.escopo && o.escopo.membros && o.escopo.membros.length)
+          ? o.escopo.membros : [o.topico];
+        for (let j = 0; j < seus.length; j++) {
+          const m = ReforcoEngine.norm(seus[j]);
+          if (!m) continue;
+          for (let k = 0; k < alvos.length; k++) {
+            if (contem(m, alvos[k])) return { extra: abertas[i], noDela: seus[j], relacao: 'cobre' };
+            if (contem(alvos[k], m)) return { extra: abertas[i], noDela: seus[j], relacao: 'dentro' };
+          }
+        }
+      }
+      return null;
+    } catch (e) { _quiet(e, 'sobreposicao'); return null; }
+  },
   _incidDaUnidade(incMap, x) {
     if (!incMap) return 0;
     if (x && x.membros && x.membros.length > 1) {
@@ -2325,6 +2384,18 @@ const PlanoCiclo = {
      depois tem de deixar esta leitura parada. `migrarEscopos` promove a
      atividade para a régua nova sem mover o número. */
   LENTE_LEGADA: { apenasFolhas: true, granPiso: 0 },
+  /* ── O TÍTULO QUE A PESSOA LÊ ─────────────────────────────────────────────
+     A unidade agrupada se chama "Licitações · bloco" — nome de máquina, bom
+     para casar chaves e ruim na lista de atividades da semana. O título diz o
+     que é em português; `origemPlano.topico` continua sendo o nome da unidade,
+     porque é ele que o resto do motor casa. Os dois portões de criação chamam
+     daqui: eram duas cópias desta linha, já com o risco de divergirem. */
+  titulo(nome, motivo, membros) {
+    const base = (membros && membros.length > 1)
+      ? String(nome).replace(/\s*·\s*bloco\s*$/i, '') + ' (bloco de ' + membros.length + ' tópicos)'
+      : String(nome);
+    return (motivo === 'diagnostico' ? 'Diagnosticar: ' : 'Reforçar: ') + base;
+  },
   _pLegada(p) { return Object.assign({}, p || PlanoEngine.prefs(), this.LENTE_LEGADA); },
   _escopoDe(o) {
     return (o && o.escopo && o.escopo.membros && o.escopo.membros.length) ? o.escopo : null;
@@ -3728,6 +3799,36 @@ const DesempenhoTecScreen = {
     const kn = ReforcoEngine.norm(item.nome || '');
     return !!(mb && mb.length > 1 && mb.some(n => ReforcoEngine.norm(n) === kn));
   },
+  /* A unidade do Plano correspondente a um nome — é dela que saem os membros de
+     um bloco e o custo estimado. Um lugar só: a busca estava escrita duas vezes
+     dentro da mesma função, e agora serve também o portão de confirmação. */
+  _unidadeDoPlano(topico, disciplina) {
+    const r0 = this._planoRef();
+    return [].concat((r0 && r0.itens) || [], (r0 && r0.pequenas) || [])
+      .find(t => this._casaTopico({ topico: t.nome, disciplina: t.disciplina }, topico, disciplina)) || null;
+  },
+  /* ── O PORTÃO DA SOBREPOSIÇÃO ─────────────────────────────────────────────
+     Bloquear seria errado: atacar um subtópico específico dentro de uma frente
+     já aberta é estudo normal. Criar em silêncio também: a dobra de volume
+     rebaixa a calibragem e, com ela, o custo de TODO assunto do Plano. Então a
+     tela pergunta, dizendo qual atividade cobre qual e o que a dobra custa. */
+  async _confirmarSobreposicao(topico, disciplina) {
+    const u = this._unidadeDoPlano(topico, disciplina);
+    const so = PlanoEngine.atividadeSobreposta(topico, disciplina, u && u.membros);
+    if (!so) return true;
+    const dela = so.extra.titulo || so.noDela;
+    const frase = (so.relacao === 'cobre')
+      ? `A atividade aberta <b>${escapeHtml(dela)}</b> mede <b>${escapeHtml(so.noDela)}</b>, que <b>contém</b> "${escapeHtml(topico)}".`
+      : `A atividade aberta <b>${escapeHtml(dela)}</b> mede <b>${escapeHtml(so.noDela)}</b>, que está <b>dentro</b> de "${escapeHtml(topico)}".`;
+    return !!(await UI.confirm(
+      frase + ' As questões que você resolver vão contar nas <b>duas</b>.<br><br>'
+      + 'Nas barras de progresso isso é justo — cada uma mede o escopo que declarou. '
+      + 'Na <b>calibragem</b> não: o mesmo volume entra duas vezes no total, e o '
+      + '"questões por ponto" que o Plano aprende com você sai <b>subestimado</b>, '
+      + 'rebaixando o custo estimado de todo assunto.<br><br>'
+      + 'Se a ideia é mesmo afunilar, considere encerrar a atividade mais ampla primeiro.',
+      { title: 'Duas atividades, as mesmas questões', okText: 'Criar assim mesmo', html: true }));
+  },
   // `lote` = criação em série: sem aviso por item e sem repintar a cada um.
   // Devolve true quando a atividade nasceu, para o chamador contar.
   criarExtraDoPlano(topico, disciplina, alvo, motivo, lote) {
@@ -3738,15 +3839,18 @@ const DesempenhoTecScreen = {
     /* A unidade do Plano vem ANTES da trava: é dela que sai a lista de tópicos
        que um bloco cobre, e sem ela a trava não veria a atividade aberta em um
        membro. Ela também é o item que a origem lê para gravar o escopo. */
-    const r0 = this._planoRef();
-    const alvoTop = [].concat((r0 && r0.itens) || [], (r0 && r0.pequenas) || [])
-      .find(t => this._casaTopico({ topico: t.nome, disciplina: t.disciplina }, topico, disciplina));
+    const alvoTop = this._unidadeDoPlano(topico, disciplina);
     const unidade = alvoTop || { nome: topico, disciplina: disciplina || '' };
     const jaTem = DB.getExtras().find(e => e.status !== 'concluida' && this._casaUnidade(e.origemPlano, unidade));
     if (jaTem) { if (!lote) showToast('Já existe uma atividade em aberto para "' + topico + '"'); return false; }
+    /* SOBREPOSIÇÃO DE ESCOPO. Em série a regra é a da duplicata: não cria e o
+       chamador conta. No clique, quem decide é a pessoa — e ela decide ANTES,
+       no portão de confirmação (`_confirmarSobreposicao`), porque aqui não há
+       como esperar por um diálogo sem tornar toda a criação assíncrona. */
+    if (lote && PlanoEngine.atividadeSobreposta(topico, disciplina, unidade.membros)) return false;
     const diag = motivo === 'diagnostico';
     const e = DB.addExtra({
-      titulo: (diag ? 'Diagnosticar: ' : 'Reforçar: ') + topico,
+      titulo: PlanoCiclo.titulo(topico, motivo, unidade.membros),
       tipo: 'questoes',
       disciplina: disciplina || '',
       unidade: 'questoes',
@@ -5200,7 +5304,9 @@ const DesempenhoTecScreen = {
        correção que alguém faz só de um lado. */
     this._ligarFatias(lista);
     lista.querySelectorAll('.plano-nova-extra').forEach(b => b.addEventListener('click', () => {
-      this.criarExtraDoPlano(b.dataset.topico, b.dataset.disc, b.dataset.alvo, b.dataset.motivo);
+      this._confirmarSobreposicao(b.dataset.topico, b.dataset.disc).then(ok => {
+        if (ok) this.criarExtraDoPlano(b.dataset.topico, b.dataset.disc, b.dataset.alvo, b.dataset.motivo);
+      });
     }));
     /* O "i" de cada matéria: a análise inteira num diálogo, que é onde ela cabe
        — 320px de popover não seguram cinco seções com contas. */
@@ -5313,11 +5419,16 @@ const DesempenhoTecScreen = {
     lista.querySelectorAll('.pl-hoje-sel').forEach(c => c.addEventListener('change', sincLote));
     sincLote();
     if (lote) lote.addEventListener('click', () => {
-      let n = 0;
+      let n = 0, sobre = 0;
       lista.querySelectorAll('.pl-hoje-sel:checked:not(:disabled)').forEach(c => {
+        const u = this._unidadeDoPlano(c.dataset.topico, c.dataset.disc);
+        if (PlanoEngine.atividadeSobreposta(c.dataset.topico, c.dataset.disc, u && u.membros)) { sobre++; return; }
         if (this.criarExtraDoPlano(c.dataset.topico, c.dataset.disc, c.dataset.alvo, 'reforco', true)) n++;
       });
-      showToast(n ? n + (n === 1 ? ' atividade criada ✓' : ' atividades criadas ✓') : 'Nenhuma atividade nova a criar');
+      /* Em série não há como perguntar por item — então o que foi pulado é
+         DITO. Pular em silêncio deixaria a pessoa achando que marcou errado. */
+      showToast((n ? n + (n === 1 ? ' atividade criada ✓' : ' atividades criadas ✓') : 'Nenhuma atividade nova a criar')
+        + (sobre ? ' · ' + sobre + (sobre === 1 ? ' pulado: já dentro de uma atividade aberta' : ' pulados: já dentro de atividades abertas') : ''));
       this.renderPlanoConteudo();
     });
     /* Os "i" desta tela nascem de `data-info` e são montados pelo InfoTips —
