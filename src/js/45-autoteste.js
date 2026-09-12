@@ -1981,6 +1981,65 @@ const AutoTeste = {
         this._ok('Legado: daí em diante ela também é imune à lente',
           (() => { lente(false); const x = C.avaliar(DB.getExtras()[0], null); lente(true); return x.medido === dep.medido; })());
       });
+
+      /* ─── 10) DUAS ATIVIDADES NÃO PODEM MEDIR AS MESMAS QUESTÕES EM SILÊNCIO
+         Medir o nó pelas linhas cruas é o que torna a atividade imune à lente —
+         e é também o que faz uma atividade em "Atos" contar o que uma segunda,
+         em "Atos vinculados", também conta. Nas barras a dobra é defensável;
+         na calibragem o mesmo volume entra duas vezes e o "questões por ponto"
+         sai subestimado, rebaixando o custo de TODO assunto do Plano.
+
+         Em sB "Atos" é pai de "Atos vinculados" e "Atos discricionarios" — é o
+         retrato que afirma o parentesco, e basta um. */
+      banco = [];
+      const abre = (topico, escopo) => {
+        const e = DB.addExtra({ titulo: 'Reforçar: ' + topico, tipo: 'questoes', alvo: 50, periodo: 'unica', contaMetricas: false });
+        DB.updateExtra(e.id, { origemPlano: Object.assign({}, C.origem(topico, 'Dir Adm', null, {}),
+          escopo ? { escopo: { tipo: 'bloco', membros: escopo } } : {}) });
+        return DB.getExtras().find(x => x.id === e.id);
+      };
+      comBanco([sA, sB], () => {
+        this._ok('Sobreposição: sem atividade aberta, nada a avisar',
+          P.atividadeSobreposta('Atos vinculados', 'Dir Adm', null) === null);
+        abre('Atos');
+        const so = P.atividadeSobreposta('Atos vinculados', 'Dir Adm', null);
+        this._ok('Sobreposição: a atividade no PAI cobre o filho que você quer criar',
+          so && so.relacao === 'cobre' && so.noDela === 'Atos', so);
+        this._ok('Sobreposição: e o irmão do filho não é avisado (não se sobrepõem)',
+          P.atividadeSobreposta('Servidores', 'Dir Adm', null) === null);
+        this._ok('Sobreposição: matéria diferente nunca se sobrepõe',
+          P.atividadeSobreposta('Atos vinculados', 'Dir Const', null) === null);
+        this._ok('Sobreposição: o mesmo nome não conta como sobreposição (a trava de duplicata já pega)',
+          P.atividadeSobreposta('Atos', 'Dir Adm', null) === null);
+        // encerrar a mais ampla é a saída que a tela sugere — e ela funciona
+        DB.updateExtra(DB.getExtras()[0].id, { status: 'concluida' });
+        this._ok('Sobreposição: atividade encerrada não bloqueia mais nada',
+          P.atividadeSobreposta('Atos vinculados', 'Dir Adm', null) === null);
+      });
+      banco = [];
+      comBanco([sA, sB], () => {
+        abre('Atos vinculados');
+        const so = P.atividadeSobreposta('Atos', 'Dir Adm', null);
+        this._ok('Sobreposição: vale nos dois sentidos — o novo escopo CONTÉM o da atividade aberta',
+          so && so.relacao === 'dentro' && so.noDela === 'Atos vinculados', so);
+      });
+      banco = [];
+      comBanco([sA, sB], () => {
+        abre('Atos · bloco', ['Atos vinculados', 'Atos discricionarios']);
+        this._ok('Sobreposição: o escopo de um BLOCO também é conferido membro por membro',
+          (P.atividadeSobreposta('Atos', 'Dir Adm', null) || {}).relacao === 'dentro');
+        this._ok('Sobreposição: e um assunto fora do bloco segue livre',
+          P.atividadeSobreposta('Licitacoes', 'Dir Adm', null) === null);
+      });
+
+      /* O TÍTULO QUE A PESSOA LÊ. "Licitações · bloco" é nome de máquina: bom
+         para casar chaves, ruim na lista de atividades da semana. */
+      this._ok('Título: o bloco se apresenta em português na lista de atividades',
+        C.titulo('Licitacoes · bloco', 'reforco', ['a', 'b', 'c']) === 'Reforçar: Licitacoes (bloco de 3 tópicos)',
+        C.titulo('Licitacoes · bloco', 'reforco', ['a', 'b', 'c']));
+      this._ok('Título: assunto comum continua com o nome dele, e o motivo escolhe o verbo',
+        C.titulo('Atos', 'diagnostico', null) === 'Diagnosticar: Atos'
+        && C.titulo('Atos', 'reforco', ['Atos']) === 'Reforçar: Atos');
     } finally {
       DB.getTecSnapshots = origSnaps; DB.getExtras = origExtras; DB.saveExtras = origSave;
       T.scopedSnapshot = origEscopo;

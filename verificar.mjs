@@ -2492,6 +2492,75 @@ try {
     ? ok(`o dominio nomeia a materia quando filtrado (${escopo.domGeral}% em ${escopo.nGeral} assuntos → ${escopo.domFiltro}% em ${escopo.nFiltro}) e o botao "ver o geral" desfaz`)
     : erro('o numero grande nao diz de quem e: ' + JSON.stringify(escopo));
 
+  /* ── DUAS ATIVIDADES, AS MESMAS QUESTOES ──────────────────────────────
+     Medir o no pelas linhas cruas e o que torna a atividade imune a lente — e e
+     tambem o que faz uma atividade em "Atos" contar o que uma segunda, em "Atos
+     vinculados", tambem conta. Nas barras a dobra e defensavel; na calibragem o
+     mesmo volume entra duas vezes e o "questoes por ponto" sai subestimado,
+     rebaixando o custo de TODO assunto do Plano.
+
+     Bloquear seria errado (afunilar dentro de uma frente aberta e estudo
+     normal). Criar em silencio tambem. Entao a tela PERGUNTA — e o que este
+     teste cobra e que a pergunta chegue com os dois nomes e que o "nao" nao
+     crie nada. */
+  const dobra = await pag.evaluate(async () => {
+    const origSnaps = DB.getTecSnapshots, origConf = UI.confirm, origExtras = DB.getExtras,
+      origSave = DB.saveExtras, origEscopo = DesempenhoTecScreen.scopedSnapshot;
+    let banco = [];
+    try {
+      const dia = (n) => { const d = new Date(todayLocal() + 'T00:00:00'); d.setDate(d.getDate() - n); return d.toISOString().slice(0, 10); };
+      const rows = [
+        { depth: 0, codigo: null, nome: 'Dir Adm', disciplina: 'Dir Adm', questoes: 300, acertos: 150 },
+        { depth: 1, codigo: '01', nome: 'Atos', disciplina: 'Dir Adm', questoes: 200, acertos: 100 },
+        { depth: 2, codigo: '01.01', nome: 'Atos vinculados', disciplina: 'Dir Adm', questoes: 120, acertos: 60 },
+        { depth: 2, codigo: '01.02', nome: 'Atos discricionarios', disciplina: 'Dir Adm', questoes: 80, acertos: 40 },
+        { depth: 1, codigo: '02', nome: 'Licitacoes', disciplina: 'Dir Adm', questoes: 100, acertos: 50 }];
+      const snap = { id: 'D', nome: 'D', date: dia(5), startDate: dia(35), endDate: dia(5), rows };
+      DB.getTecSnapshots = () => ([snap]);
+      DB.getExtras = () => banco;
+      DB.saveExtras = (l) => { banco = l; };
+      DesempenhoTecScreen.scopedSnapshot = () => snap;
+      DesempenhoTecScreen._planoRefC = null;
+      let visto = null, vezes = 0;
+      UI.confirm = (msg) => { visto = String(msg); vezes++; return Promise.resolve(false); };
+      // sem atividade aberta, o portao nem abre dialogo
+      const livre = await DesempenhoTecScreen._confirmarSobreposicao('Atos vinculados', 'Dir Adm');
+      const semDialogo = vezes === 0;
+      // abre a frente ampla (o PAI) e tenta o filho
+      const e = DB.addExtra({ titulo: 'Reforçar: Atos', tipo: 'questoes', alvo: 50, periodo: 'unica', contaMetricas: false });
+      DB.updateExtra(e.id, { origemPlano: PlanoCiclo.origem('Atos', 'Dir Adm', null, {}) });
+      const antesN = DB.getExtras().length;
+      const recusado = await DesempenhoTecScreen._confirmarSobreposicao('Atos vinculados', 'Dir Adm');
+      const depoisN = DB.getExtras().length;
+      // e o irmao, que nao se sobrepoe, passa direto
+      const vezesAntes = vezes;
+      const irmao = await DesempenhoTecScreen._confirmarSobreposicao('Licitacoes', 'Dir Adm');
+      return {
+        livre, semDialogo, recusado, perguntou: vezes === vezesAntes,
+        naoCriou: antesN === depoisN, irmao, vezes,
+        citaAmbos: !!(visto && /Atos/.test(visto) && /Atos vinculados/.test(visto)),
+        citaCalibragem: !!(visto && /calibragem/i.test(visto)),
+        // a saida que a tela sugere tem de estar escrita nela
+        citaSaida: !!(visto && /encerrar/i.test(visto)),
+        titBloco: PlanoCiclo.titulo('Licitacoes · bloco', 'reforco', ['a', 'b', 'c']),
+        titComum: PlanoCiclo.titulo('Atos', 'diagnostico', null)
+      };
+    } finally {
+      DB.getTecSnapshots = origSnaps; UI.confirm = origConf; DB.getExtras = origExtras;
+      DB.saveExtras = origSave; DesempenhoTecScreen.scopedSnapshot = origEscopo;
+      DesempenhoTecScreen._planoRefC = null;
+    }
+  });
+  (dobra.livre === true && dobra.semDialogo && dobra.irmao === true && dobra.vezes === 1)
+    ? ok('o aviso de dobra so aparece quando ha dobra: assunto livre e irmao passam sem dialogo')
+    : erro('o portao da sobreposicao abriu onde nao devia: ' + JSON.stringify(dobra));
+  (dobra.recusado === false && dobra.naoCriou && dobra.citaAmbos && dobra.citaCalibragem && dobra.citaSaida)
+    ? ok('com a frente ampla aberta, criar o subtopico pergunta antes — nomeia as duas, diz o custo na calibragem e a saida — e o "nao" nao cria nada')
+    : erro('o aviso de dobra nao chegou completo: ' + JSON.stringify(dobra));
+  (dobra.titBloco === 'Reforçar: Licitacoes (bloco de 3 tópicos)' && dobra.titComum === 'Diagnosticar: Atos')
+    ? ok(`e a atividade de um bloco se apresenta em portugues ("${dobra.titBloco}")`)
+    : erro('o titulo da atividade de bloco saiu errado: ' + JSON.stringify(dobra));
+
   /* ── ESCOLHER A SEMANA, E NAO UMA MATERIA POR VEZ ─────────────────────
      O quadro "Onde atacar primeiro" existe para dizer que tres ou quatro
      materias concentram metade do que esta em jogo — e o unico caminho para a
