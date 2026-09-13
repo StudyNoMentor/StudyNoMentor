@@ -59,4 +59,12 @@ if "for (let i = 0; !primeiro || i <= horizonte; i++)" not in s:
 if "replanejar(hoje(), { preservarHoje: true });" not in s:
     raise SystemExit('patch de preservação do rodízio de hoje não aplicado')
 p.write_text(s,encoding='utf-8')
-print('Patch da auditoria + correções de agenda aplicado.')
+
+# 4) Encadeia a matriz extrema adicional no mesmo passo de Chromium.
+p=Path('testes/stress-jornada-massiva.mjs')
+s=p.read_text(encoding='utf-8')
+hook="await import('./stress-matriz-extrema.mjs');"
+if hook not in s:
+    s=s.rstrip()+"\n\n"+hook+"\n"
+p.write_text(s,encoding='utf-8')
+print('Patch da auditoria + correções de agenda + matriz extrema aplicado.')
