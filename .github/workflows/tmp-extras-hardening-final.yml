@@ -1,0 +1,43 @@
+name: Validar hardening final de Extras
+on:
+  push:
+    branches: [fix/extras-layout-hardening-final]
+permissions:
+  contents: write
+jobs:
+  validar:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with: { fetch-depth: 0 }
+      - uses: actions/setup-node@v4
+        with: { node-version: '22' }
+      - name: Sintaxe e build
+        run: |
+          node --check src/js/59-extras-stability.js
+          node build.mjs
+          node build.mjs --check
+      - name: Instalar dependencias
+        run: npm ci
+      - name: Simular prescricao adaptativa
+        run: node testes/reforco-adaptativo-massivo.mjs
+      - name: Validar estabilidade estrutural
+        run: node testes/extras-estabilidade.mjs
+      - name: Instalar Chromium
+        run: |
+          npm install --no-save playwright@1.56.1
+          npx playwright install --with-deps chromium
+      - name: Auditar Extras desktop e mobile
+        run: node testes/extras-estabilidade-browser.mjs
+      - name: Suite canonica completa
+        run: node verificar.mjs
+      - name: Persistir build aprovado
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add index.html src/manifesto.json sw.js
+          git diff --cached --quiet && exit 0
+          git commit -m 'build: atualiza artefatos do hardening de Extras'
+          git push origin HEAD:fix/extras-layout-hardening-final
