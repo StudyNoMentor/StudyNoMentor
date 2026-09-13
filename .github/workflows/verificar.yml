@@ -8,6 +8,7 @@
 #   · o app quebrar no carregamento ou alguma das 14 telas lancar erro;
 #   · a suite AutoTeste (FSRS, fuzz, agendador, parser TEC...) regredir;
 #   · o reforco adaptativo produzir dose ou parada estatisticamente invalida;
+#   · os modais de Extras se sobreporem, vazarem do viewport ou quebrarem no mobile;
 #   · o botao "Opcoes" da Grade voltar a vazar do cabecalho.
 name: Verificacao
 
@@ -56,12 +57,18 @@ jobs:
       - name: Simular prescricao adaptativa
         run: node testes/reforco-adaptativo-massivo.mjs
 
-      # Playwright so e usado pelas checagens 4 e 5 (app real no Chromium).
+      # Playwright so e usado pelas checagens no navegador real.
       # A versao e fixada aqui porque o navegador baixado tem de casar com ela.
       - name: Instalar Chromium
         run: |
           npm install --no-save playwright@1.56.1
           npx playwright install --with-deps chromium
+
+      # Abre a Central de Extras, percorre suas secoes e exercita modal sobre
+      # modal (incluindo Prescricao Adaptativa) em desktop e celular. Mede
+      # viewport/overflow, pilha, inert, ESC, foco e restauracao do scroll.
+      - name: Auditar modais de Extras
+        run: node testes/extras-ui-hardening.mjs
 
       - name: Verificar
         run: node verificar.mjs
