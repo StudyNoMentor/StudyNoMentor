@@ -42,6 +42,7 @@ const PlanoCiclo = {
     const feito = Math.max(0, Number(e.progresso) || 0);
     return {
       extra: e, origem: e.origemPlano, alvo, feito, manual: feito, medido: 0,
+      taxa: e.taxaAtual ?? e.origemPlano?.taxaInicial ?? 999,
       pct: Math.min(100, Math.round(feito / alvo * 100)),
       bateu: false, mediu: false, cumpriu: feito >= alvo, estado: feito >= alvo ? 'naoFuncionou' : 'andamento'
     };
@@ -79,12 +80,16 @@ function extra(id, disciplina, alvo, taxa = 40) {
 }
 
 DB._data = [
-  extra('A1', 'A', 100, 20),
+  extra('A1', 'A', 100, 30),
   extra('B1', 'B', 61, 35),
   extra('C1', 'C', 47, 40),
   extra('D1', 'D', 35, 45),
-  extra('A2', 'A', 33, 25)
+  extra('A2', 'A', 33, 20)
 ];
+// A1 nasceu menos crítico que A2, mas HOJE é mais crítico. O rodízio deve usar
+// a leitura atual quando ela existir, não congelar a prioridade da criação.
+DB.getExtra('A1').taxaAtual = 10;
+DB.getExtra('A2').taxaAtual = 15;
 
 // 1) Planejamento: no máximo três frentes e nunca duas da mesma disciplina no dia.
 F.sincronizar();
@@ -135,6 +140,7 @@ assert.equal(Object.keys(a.reforcoFila.alvosPorDia).filter(d => d > HOJE).length
 // 5) Migração: fechamento manual antigo, parcial e comprovadamente incompleto é recuperado.
 const legado = extra('LEG', 'E', 50, 20);
 legado.progresso = 10;
+legado.historico = [{ data: HOJE, quantidade: 10 }];
 legado.status = 'concluida';
 legado.origemPlano.veredito = { tipo: 'encerradaPorVoce', em: HOJE, porMao: true, questoes: 10, alvo: 50 };
 DB._data.push(legado);
@@ -146,4 +152,15 @@ assert.ok(legado.concluidasEm.includes(HOJE), 'a parcela antiga permanece regist
 assert.equal(Object.entries(legado.reforcoFila.alvosPorDia).filter(([d]) => d > HOJE).reduce((s, [, q]) => s + q, 0), 40,
   'saldo do parcial legado deve voltar integralmente à fila');
 
-console.log('OK: fila diária do reforço preserva ciclo, rodízio e saldo.');
+// 6) Segurança da migração: um ciclo antigo encerrado manualmente não é reaberto.
+const antigo = extra('OLD', 'F', 50, 18);
+antigo.progresso = 10;
+antigo.historico = [{ data: '2026-09-12', quantidade: 10 }];
+antigo.status = 'concluida';
+antigo.origemPlano.veredito = { tipo: 'encerradaPorVoce', em: '2026-09-12', porMao: true, questoes: 10, alvo: 50 };
+DB._data.push(antigo);
+F._assinaturaAnterior = '';
+F.sincronizar();
+assert.equal(antigo.status, 'concluida', 'migração não pode ressuscitar encerramentos históricos deliberados');
+
+console.log('OK: fila diária do reforço preserva ciclo, rodízio, criticidade e saldo.');

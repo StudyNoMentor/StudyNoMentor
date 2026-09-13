@@ -15,8 +15,8 @@
      · disciplinas diferentes no mesmo dia;
      · um assunto por disciplina/dia;
      · prioriza quem está há mais tempo sem entrar no rodízio e, no empate, a
-       menor taxa inicial (assunto mais crítico);
-     · blocos balanceados com teto de 30 questões: 100 -> 25/25/25/25,
+       menor taxa atual (assunto mais crítico);
+     · blocos balanceados com teto de 25 questões: 100 -> 25/25/25/25,
        61 -> 21/20/20, 47 -> 24/23. Não cria uma esteira artificial de 7/8;
      · se a parcela do dia for concluída parcialmente, o saldo NÃO some: volta
        automaticamente para a fila a partir do dia seguinte;
@@ -25,7 +25,7 @@
 const ReforcoFila = {
   VERSAO: 1,
   MAX_TAREFAS_DIA: 3,
-  BLOCO_MAX: 30,
+  BLOCO_MAX: 25,
   _rodando: false,
   _agendado: false,
   _forcarGlobal: false,
@@ -112,11 +112,14 @@ const ReforcoFila = {
   _recuperarParcialFechado(e, ref) {
     if (!this.ePlano(e) || e.status !== 'concluida' || !e.origemPlano || !e.origemPlano.veredito) return false;
     const ver = e.origemPlano.veredito;
-    if (!ver.porMao) return false;
+    const dia = ver.em || '';
+    const teveParcialNoDia = (e.historico || []).some(h => h.data === dia && (parseFloat(h.quantidade) || 0) > 0);
+    // Só corrige automaticamente o padrão inequívoco do bug atual. Fechamentos
+    // históricos ou vereditos com medição/calibração permanecem intocados.
+    if (!ver.porMao || ver.tipo !== 'encerradaPorVoce' || dia !== todayLocal() || !teveParcialNoDia) return false;
     let v = null;
     try { v = this.avaliarGlobal(e, ref); } catch (_) { _quiet(_); }
     if (!v || !(v.feito < v.alvo) || v.bateu || v.mediu) return false;
-    const dia = ver.em || todayLocal();
     const origem = Object.assign({}, e.origemPlano);
     delete origem.veredito;
     e.origemPlano = origem;
@@ -206,7 +209,9 @@ const ReforcoFila = {
         restante = Math.max(0, Math.ceil(restante));
         if (restante > 0) tarefas.push({
           e, m, restante, disc,
-          taxa: (e.origemPlano && e.origemPlano.taxaInicial != null) ? e.origemPlano.taxaInicial : 999,
+          taxa: (s.avaliacao && isFinite(parseFloat(s.avaliacao.taxa)))
+            ? parseFloat(s.avaliacao.taxa)
+            : ((e.origemPlano && e.origemPlano.taxaInicial != null) ? e.origemPlano.taxaInicial : 999),
           ultimo: this._ultimoDia(e, hoje),
           jaHoje: qHoje != null
         });
