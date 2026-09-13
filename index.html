@@ -57,7 +57,7 @@
      novo, e o antigo é descartado sozinho na ativação) e o que permite ao app
      dizer qual versão está rodando. Em src/ fica "dev" de propósito: a versão
      é gerada na montagem, não editada à mão. -->
-<meta name="diario-versao" content="vbf8f33327f">
+<meta name="diario-versao" content="ve79d33c86c">
 <script>
 /* ── ARRANQUE: abre o IndexedDB AGORA, em paralelo com o parse do documento ──
    A fachada de armazenamento vive no fim do <body>, depois de ~1,7 MB de HTML.
@@ -39787,16 +39787,16 @@ window.addEventListener('screen:activated', (e) => {
 /* ============================================================
    DESEMPENHO TEC — consistência do escopo no Plano
    ============================================================
-   O agregado da aba Análise já respeita activeSnapshots(), mas o Plano tem
-   consumidores que leem DB.getTecSnapshots() fora de PlanoEngine.calcular()
-   (quadro de matérias, ritmo, trajetória e outros auxiliares de renderização).
-   Se só o motor central for protegido, um retrato desmarcado ainda consegue
-   alterar partes visíveis — inclusive a ordem de "Onde atacar primeiro".
+   A aba Análise já trabalha com activeSnapshots(), mas alguns cálculos do Plano
+   vivem fora de PlanoEngine.calcular(): o quadro "Onde atacar primeiro" e o
+   ritmo medido são os principais. Escopar DB.getTecSnapshots() durante a tela
+   inteira seria amplo demais — auditoria e progresso das atividades precisam
+   continuar enxergando o histórico integral.
 
-   A regra desta camada é mais forte: enquanto QUALQUER renderização do Plano
-   roda, DB.getTecSnapshots() representa exatamente o escopo ativo. O cálculo
-   central continua protegido isoladamente para chamadas fora da tela. Tudo é
-   síncrono, reentrante e restaurado com try/finally.
+   Portanto esta camada protege SOMENTE as fronteiras analíticas do Plano:
+   cálculo central, ranking de matérias e ritmo exibido. O restante do app segue
+   usando o histórico global. Toda substituição é síncrona, reentrante e sempre
+   restaurada com try/finally.
    ============================================================ */
 (function instalarConsistenciaEscopoPlanoTec() {
   if (typeof PlanoEngine === 'undefined' || typeof DesempenhoTecScreen === 'undefined' || typeof DB === 'undefined') return;
@@ -39832,9 +39832,6 @@ window.addEventListener('screen:activated', (e) => {
     return sig;
   }
 
-  /* Reentrante: se renderPlano() chama renderPlanoConteudo(), o getter anterior
-     já é o getter escopado. O finally de cada nível devolve exatamente o que
-     encontrou, sem vazar estado para Análise, Reforço ou ciclo de atividades. */
   function comSnapshots(snaps, fn) {
     const anterior = DB.getTecSnapshots;
     DB.getTecSnapshots = () => snaps;
@@ -39848,9 +39845,8 @@ window.addEventListener('screen:activated', (e) => {
     return comSnapshots(fontes, fn);
   }
 
-  /* Chamadas diretas ao motor também obedecem ao agregado explícito. Isso é
-     necessário para _planoRef(), conciliação da tela e testes que usam o motor
-     sem passar pela renderização completa. */
+  /* O motor central continua protegido por scoped._fontes. Assim série,
+     consolidação, agrupamento e janela adaptativa veem exatamente o recorte. */
   const calcularOriginal = PE.calcular;
   PE.calcular = function calcularComEscopo(scoped, opts) {
     const fontes = scoped && Array.isArray(scoped._fontes)
@@ -39860,15 +39856,32 @@ window.addEventListener('screen:activated', (e) => {
     return comSnapshots(fontes, () => calcularOriginal.call(this, scoped, opts));
   };
 
-  /* Defesa em profundidade para o quadro que efetivamente ordena as matérias.
-     Ele vive fora de PlanoEngine.calcular(); foi exatamente o vazamento que o
-     PR anterior não cobriu. Mesmo se chamado isoladamente, enxerga só o escopo. */
+  /* "Onde atacar primeiro" é calculado fora de PlanoEngine.calcular(). Esta é
+     a fuga que fazia um retrato desmarcado continuar mudando q, shareEsforco,
+     nível e posição das disciplinas. A proteção fica só em torno dessa conta. */
   if (typeof PlanoPontos !== 'undefined' && PlanoPontos && typeof PlanoPontos.esforcoPorMateria === 'function') {
     const esforcoOriginal = PlanoPontos.esforcoPorMateria;
     PlanoPontos.esforcoPorMateria = function esforcoPorMateriaComEscopo() {
       const args = arguments;
       return comEscopoAtivo(() => esforcoOriginal.apply(this, args));
     };
+  }
+
+  /* O Plano calcula o ritmo em três caminhos (abertura, repintura e botão
+     "ritmo medido"), todos passando por PlanoEngine.ritmoRecente(). Em vez de
+     trocar o DB inteiro durante a tela, trocamos somente a FONTE desse cálculo.
+     Auditoria, ciclos e progresso continuam vendo todos os retratos. */
+  function comRitmoEscopado(fn) {
+    if (typeof PE.ritmoRecente !== 'function') return fn();
+    const anterior = PE.ritmoRecente;
+    const fontes = snapshotsAtivos().slice().reverse();
+    const temporario = function ritmoRecenteDoEscopo(_snaps) {
+      const resto = Array.prototype.slice.call(arguments, 1);
+      return anterior.apply(this, [fontes].concat(resto));
+    };
+    PE.ritmoRecente = temporario;
+    try { return fn(); }
+    finally { if (PE.ritmoRecente === temporario) PE.ritmoRecente = anterior; }
   }
 
   /* Restaura a seleção antes do render original inicializar "todos marcados".
@@ -39937,44 +39950,44 @@ window.addEventListener('screen:activated', (e) => {
     chip.textContent = resumoEscopo();
   }
 
-  /* A fronteira correta é a TELA INTEIRA do Plano, não apenas calcular().
-     renderPlano cobre a inicialização dos controles (inclusive ritmo medido);
-     renderPlanoConteudo cobre cada repintura, ranking de matérias, trajetória,
-     projeções e qualquer helper chamado por _pintarPlano(). */
+  /* A abertura e cada repintura recebem apenas a fonte de RITMO escopada.
+     Nenhum getter global do DB é trocado aqui; isso preserva deliberadamente
+     auditoria e medição das atividades sobre o histórico integral. */
   if (typeof DT.renderPlano === 'function') {
     const renderPlanoOriginal = DT.renderPlano;
-    DT.renderPlano = function renderPlanoComEscopo() {
+    DT.renderPlano = function renderPlanoComRitmoDoEscopo() {
       const args = arguments;
-      return comEscopoAtivo(() => renderPlanoOriginal.apply(this, args));
+      return comRitmoEscopado(() => renderPlanoOriginal.apply(this, args));
     };
   }
 
   const renderPlanoConteudoOriginal = DT.renderPlanoConteudo;
   DT.renderPlanoConteudo = function renderPlanoConteudoComEscopo() {
     const args = arguments;
-    const r = comEscopoAtivo(() => renderPlanoConteudoOriginal.apply(this, args));
+    const r = comRitmoEscopado(() => renderPlanoConteudoOriginal.apply(this, args));
     try { desenharProvaEscopo(); } catch (e) { if (typeof _quiet === 'function') _quiet(e, 'tec-scope-proof'); }
     return r;
   };
 
-  /* Um único handler do Plano calcula o ritmo ANTES de chamar qualquer método
-     embrulhado: o botão "ritmo medido". No capture do clique mantemos o getter
-     escopado até o fim do despacho síncrono do evento e restauramos no próximo
-     microtask. Assim o listener original também recebe apenas os retratos ativos. */
+  /* O listener original do botão roda na fase bubble. No capture, substituímos
+     somente ritmoRecente até o fim do despacho síncrono e restauramos no
+     microtask seguinte. O DB permanece global durante todo o clique. */
   function escoparCliqueDeRitmo(e) {
     const t = e && e.target && e.target.closest ? e.target.closest('#plano-ritmo-medido') : null;
-    if (!t) return;
-    const fontes = snapshotsAtivos();
-    prepararEscopo(fontes);
-    const anterior = DB.getTecSnapshots;
-    DB.getTecSnapshots = () => fontes;
-    queueMicrotask(() => { if (DB.getTecSnapshots !== anterior) DB.getTecSnapshots = anterior; });
+    if (!t || typeof PE.ritmoRecente !== 'function') return;
+    const anterior = PE.ritmoRecente;
+    const fontes = snapshotsAtivos().slice().reverse();
+    const temporario = function ritmoDoClique(_snaps) {
+      const resto = Array.prototype.slice.call(arguments, 1);
+      return anterior.apply(this, [fontes].concat(resto));
+    };
+    PE.ritmoRecente = temporario;
+    queueMicrotask(() => { if (PE.ritmoRecente === temporario) PE.ritmoRecente = anterior; });
   }
 
   /* Os listeners originais continuam responsáveis por atualizar Análise/Reforço.
      Aqui persistimos o recorte, limpamos caches e, quando a aba visível é Plano,
-     recalculamos. queueMicrotask roda depois do listener original que alterou o
-     estado. Inclui também os atalhos de intervalo, ausentes no PR anterior. */
+     recalculamos. Inclui também os atalhos rápidos de intervalo. */
   if (typeof document !== 'undefined' && document && document.addEventListener) {
     document.addEventListener('click', escoparCliqueDeRitmo, true);
 
