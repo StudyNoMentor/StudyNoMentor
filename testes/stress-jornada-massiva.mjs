@@ -439,3 +439,5 @@ try {
   try { if(browser) await browser.close(); } catch {}
   await new Promise(r=>servidor.close(r));
 }
+
+await import('./stress-matriz-extrema.mjs');
