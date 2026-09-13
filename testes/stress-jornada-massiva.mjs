@@ -272,6 +272,12 @@ try {
       const s2=e2.origemPlano&&e2.origemPlano.agendaAuto&&e2.origemPlano.agendaAuto.sessoes&&e2.origemPlano.agendaAuto.sessoes[hoje];
       A(!!s1 && !!s2, 'fechar uma sessão removeu as outras frentes do rodízio de hoje', {e1:!!s1,e2:!!s2});
     }
+    e1=DB.getExtra(onda1[1]); e2=DB.getExtra(onda1[2]);
+    if (e1 && e2) {
+      const s1=e1.origemPlano&&e1.origemPlano.agendaAuto&&e1.origemPlano.agendaAuto.sessoes&&e1.origemPlano.agendaAuto.sessoes[hoje];
+      const s2=e2.origemPlano&&e2.origemPlano.agendaAuto&&e2.origemPlano.agendaAuto.sessoes&&e2.origemPlano.agendaAuto.sessoes[hoje];
+      A(!!s1 && !!s2, 'fechar uma sessão removeu as outras frentes do rodízio de hoje', {e1:!!s1,e2:!!s2});
+    }
     if (e1) {
       const s=e1.origemPlano.agendaAuto.sessoes[hoje];
       if (s) DB.addExtraProgress(e1.id,s.alvo,25,{data:hoje,acertos:Math.max(0,s.alvo-3)});
