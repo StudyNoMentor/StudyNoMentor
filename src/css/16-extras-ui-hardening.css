@@ -1,0 +1,56 @@
+/* ============================================================
+   EXTRAS — hardening de modais, empilhamento e responsividade
+   ============================================================ */
+:root{
+  --z-extras-modal:calc(var(--z-modal,1500) + 20);
+  --z-extras-nested:calc(var(--z-modal,1500) + 40);
+}
+body.extras-modal-open{overflow:hidden!important;overscroll-behavior:none}
+.xsc-overlay,.rg-overlay,.ra-overlay{box-sizing:border-box;overscroll-behavior:contain;isolation:isolate;padding:max(12px,env(safe-area-inset-top)) max(12px,env(safe-area-inset-right)) max(12px,env(safe-area-inset-bottom)) max(12px,env(safe-area-inset-left))}
+/* Fallback mesmo se o gerenciador JS não carregar. O JS reordena dinamicamente. */
+.xsc-overlay,.rg-overlay{z-index:var(--z-extras-modal)!important}
+.ra-overlay{z-index:var(--z-extras-nested)!important}
+.extras-layer-background{pointer-events:none!important}
+.extras-layer-background>.xsc-modal,.extras-layer-background>.rg-modal,.extras-layer-background>.ra-modal{transform:scale(.994);filter:saturate(.92);transition:transform .14s ease,filter .14s ease}
+.extras-layer-top{pointer-events:auto!important}
+
+.xsc-modal,.rg-modal,.ra-modal{min-width:0;max-width:calc(100vw - 24px);max-height:calc(100dvh - 24px);box-sizing:border-box}
+.xsc-head,.rg-head,.ra-head,.xsc-nav,.rg-foot,.ra-foot{flex:0 0 auto}
+.xsc-body,.rg-policy-grid,.rg-hbody,.ra-body{min-height:0;overscroll-behavior:contain;-webkit-overflow-scrolling:touch;scrollbar-gutter:stable}
+.xsc-section,.xsc-section-head,.xsc-callout>div,.xsc-summary-card>div,.rg-picker,.rg-rules,.rg-hcard,.ra-body section,.ra-dose-cols>div{min-width:0}
+.xsc-form-grid>*,.xsc-overview-grid>*,.xsc-explain>*,.xsc-manual-grid>*,.rg-fields>*,.rg-policy-grid>*,.rg-hstats>*,.ra-grid>*,.ra-dose-cols>*,.ra-weights>*{min-width:0}
+.xsc-modal :is(h3,h4,p,span,small,label),.rg-modal :is(h3,h4,p,span,small,label),.ra-modal :is(h3,h4,p,span,small,label){overflow-wrap:break-word}
+.xsc-modal :is(input,select,textarea),.rg-modal :is(input,select,textarea),.ra-modal :is(input,select,textarea){min-width:0;max-width:100%;box-sizing:border-box}
+.xsc-modal :is(.btn-primary,.btn-secondary),.rg-modal :is(.btn-primary,.btn-secondary),.ra-modal :is(.btn-primary,.btn-secondary){white-space:normal;text-align:center;justify-content:center;line-height:1.25}
+.xsc-callout.ra-central-card{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center}
+.ra-central-card>div{min-width:0}
+.ra-central-card span{display:block;overflow-wrap:break-word}
+
+/* Ações permanecem visíveis enquanto só o conteúdo central rola. */
+.rg-foot,.ra-foot{position:relative;z-index:2;background:var(--surface)}
+.xsc-head,.rg-head,.ra-head{position:relative;z-index:2;background:var(--surface)}
+
+@media(max-width:760px){
+  .xsc-callout.ra-central-card{grid-template-columns:1fr}
+  .xsc-callout.ra-central-card>button{width:100%}
+  .xsc-modal,.rg-modal,.ra-modal{max-width:calc(100vw - 16px);max-height:calc(100dvh - 16px)}
+  .rg-policy-grid{grid-template-columns:1fr}
+  .rg-picker{border-right:0;border-bottom:1px solid var(--border)}
+}
+@media(max-width:560px){
+  .xsc-overlay,.rg-overlay,.ra-overlay{padding:0;place-items:stretch}
+  .xsc-modal,.rg-modal,.ra-modal{width:100vw!important;max-width:100vw!important;height:100dvh!important;max-height:100dvh!important;border-radius:0!important;border-left:0;border-right:0;display:flex;flex-direction:column}
+  .xsc-nav{flex:0 0 auto}
+  .xsc-body,.rg-policy-grid,.rg-hbody,.ra-body{flex:1 1 auto;min-height:0;overflow:auto}
+  .xsc-head,.rg-head,.ra-head{padding-top:max(16px,env(safe-area-inset-top))}
+  .rg-foot,.ra-foot{padding-bottom:max(12px,env(safe-area-inset-bottom))}
+  .xsc-body{padding-bottom:max(22px,env(safe-area-inset-bottom))}
+  .xsc-kpis,.rg-hstats{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .xsc-foot-actions,.rg-foot{gap:8px}
+  .rg-foot>*{flex:1 1 140px}
+}
+@media(max-width:380px){
+  .xsc-kpis,.rg-hstats{grid-template-columns:1fr}
+  .xsc-head,.rg-head,.ra-head{gap:10px}
+  .xsc-head h3,.rg-head h3,.ra-head h3{font-size:18px}
+}
