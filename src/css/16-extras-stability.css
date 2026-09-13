@@ -1,18 +1,30 @@
 /* Extras — estabilidade de layout, modais e mobile */
-.xsc-overlay,.rg-overlay,.ra-overlay{box-sizing:border-box;overflow:hidden;overscroll-behavior:contain;isolation:isolate}
-.xsc-overlay{z-index:100200}.rg-overlay{z-index:100300}.ra-overlay{z-index:100400}
+:root{
+  /* Extras pertence à faixa de diálogos do design system. Toast e bloqueios
+     globais precisam continuar acima, inclusive após centenas de aberturas. */
+  --z-extras-modal:calc(var(--z-modal,1500) + 20);
+  --z-extras-nested:calc(var(--z-modal,1500) + 40);
+}
+.xsc-overlay,.rg-overlay,.ra-overlay{box-sizing:border-box;overflow:hidden;overscroll-behavior:contain;isolation:isolate;padding:max(12px,env(safe-area-inset-top)) max(12px,env(safe-area-inset-right)) max(12px,env(safe-area-inset-bottom)) max(12px,env(safe-area-inset-left))}
+/* Fallback antes do gerenciador JS ordenar a pilha. Todos permanecem abaixo de
+   --z-toast e --z-bloqueio, ao contrário dos valores arbitrários de seis dígitos. */
+.xsc-overlay,.rg-overlay{z-index:var(--z-extras-modal)!important}.ra-overlay{z-index:var(--z-extras-nested)!important}
 .xsc-overlay *, .rg-overlay *, .ra-overlay *{box-sizing:border-box;min-width:0}
 .xsc-modal,.rg-modal,.ra-modal{width:min(1040px,calc(100vw - 24px));max-width:calc(100vw - 24px);max-height:calc(100dvh - 24px);min-height:0;overflow:hidden}
 .ra-modal{width:min(920px,calc(100vw - 24px))}.rg-history{width:min(1160px,calc(100vw - 24px))}
-.xsc-body,.ra-body,.rg-policy-grid,.rg-hbody{min-height:0;overscroll-behavior:contain;scrollbar-gutter:stable}
+.xsc-body,.ra-body,.rg-policy-grid,.rg-hbody{min-height:0;overscroll-behavior:contain;scrollbar-gutter:stable;-webkit-overflow-scrolling:touch}
 .xsc-head,.ra-head,.rg-head{flex:0 0 auto}.ra-tabs,.xsc-nav,.rg-hnav{flex:0 0 auto}
-.ra-foot,.rg-foot{flex:0 0 auto}.ra-foot button,.rg-foot button,.xsc-foot-actions button{max-width:100%}
-.ra-grid label,.ra-dose-cols label,.ra-weights label,.xsc-field,.rg-pick{overflow-wrap:anywhere}
-.ra-grid input,.ra-grid select,.ra-dose-cols input,.ra-weights input,.xsc-field input,.xsc-field select,.rg-fields input,.rg-fields select{font-size:16px}
+.ra-foot,.rg-foot{flex:0 0 auto}.ra-foot button,.rg-foot button,.xsc-foot-actions button{max-width:100%;white-space:normal;text-align:center;justify-content:center;line-height:1.25}
+.xsc-section,.xsc-section-head,.xsc-callout>div,.xsc-summary-card>div,.rg-picker,.rg-rules,.rg-hcard,.ra-body section,.ra-dose-cols>div{min-width:0}
+.xsc-form-grid>*,.xsc-overview-grid>*,.xsc-explain>*,.xsc-manual-grid>*,.rg-fields>*,.rg-policy-grid>*,.rg-hstats>*,.ra-grid>*,.ra-dose-cols>*,.ra-weights>*{min-width:0}
+.xsc-modal :is(h3,h4,p,span,small,label),.rg-modal :is(h3,h4,p,span,small,label),.ra-modal :is(h3,h4,p,span,small,label){overflow-wrap:break-word}
+.ra-grid input,.ra-grid select,.ra-dose-cols input,.ra-weights input,.xsc-field input,.xsc-field select,.rg-fields input,.rg-fields select{font-size:16px;min-width:0;max-width:100%}
 .extras-overlay-background{pointer-events:none!important;filter:saturate(.85)}
 html.extras-modal-open,html.extras-modal-open body{overflow:hidden!important;overscroll-behavior:none}
-.ra-central-card{align-items:flex-start}.ra-central-card>div{flex:1}.ra-central-card>button{flex:0 0 auto}
+.ra-central-card{align-items:flex-start}.ra-central-card>div{flex:1;min-width:0}.ra-central-card>button{flex:0 0 auto}
 .ra-help,.ra-i,.xsc-info{touch-action:manipulation}
+.xsc-head,.ra-head,.rg-head,.ra-foot,.rg-foot{position:relative;z-index:2;background:var(--surface)}
+
 @media(max-width:760px){
   .xsc-overlay,.rg-overlay,.ra-overlay{padding:0;place-items:end center}
   .xsc-modal,.rg-modal,.ra-modal,.rg-history{width:100%;max-width:100%;height:min(100dvh,100%);max-height:100dvh;border-radius:20px 20px 0 0;border-bottom:0}
@@ -26,6 +38,12 @@ html.extras-modal-open,html.extras-modal-open body{overflow:hidden!important;ove
 @media(max-width:560px){
   .xsc-modal,.rg-modal,.ra-modal,.rg-history{border-radius:0;height:100dvh;max-height:100dvh}
   .xsc-nav,.ra-tabs{scroll-snap-type:x proximity}.xsc-nav button,.ra-tabs button{scroll-snap-align:start}
+  .xsc-body,.ra-body,.rg-hbody,.rg-policy-grid{flex:1 1 auto;min-height:0;overflow:auto}
   .ra-foot{display:grid;grid-template-columns:1fr 1fr}.ra-foot .ra-spacer{display:none}.ra-foot [data-reset]{grid-column:1/-1;order:3}.ra-foot [data-cancel],.ra-foot [data-save]{width:100%}
   .rg-foot{display:grid;grid-template-columns:1fr 1fr}.rg-foot button{width:100%}
+  .xsc-kpis,.rg-hstats{grid-template-columns:repeat(2,minmax(0,1fr))}
+}
+@media(max-width:380px){
+  .xsc-kpis,.rg-hstats{grid-template-columns:1fr}
+  .xsc-head h3,.rg-head h3,.ra-head h3{font-size:18px}
 }
