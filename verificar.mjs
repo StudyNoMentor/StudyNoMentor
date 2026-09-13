@@ -1907,11 +1907,12 @@ try {
   (g.existe && g.itens === 3 && g.grupos.length === 2)
     ? ok(`a tela de Atividades tem o painel dos ${g.itens} reforcos abertos, agrupados por disciplina (${g.grupos.join(', ')})`)
     : erro('o painel de gestao nao apareceu: ' + JSON.stringify(g));
-  /* O RITMO É DERIVADO, NÃO AGENDADO. Amarrar cada atividade a um dia cria
-     divida vencida: voce nao estudou terca, e terca fica la, cobrando. */
-  (/\/dia até a próxima importação/.test(g.resumo) && g.semDatas)
-    ? ok('com ritmo por dia calculado na hora, e nenhuma atividade amarrada a uma data')
-    : erro('o ritmo derivado falhou: ' + JSON.stringify({ resumo: g.resumo, semDatas: g.semDatas }));
+  /* O reforço agora tem duas escalas deliberadamente distintas: a parcela
+     executável do dia e a meta acumulada do ciclo. A agenda automática precisa
+     existir, mas o painel não pode misturá-la com a antiga projeção derivada. */
+  (/Missão diária/.test(g.resumo) && /Missão geral/.test(g.resumo) && !g.semDatas && !/\/dia até a próxima importação/.test(g.resumo))
+    ? ok('o painel separa Missão diária e Missão geral, com agenda automática explícita')
+    : erro('o contrato diário/geral falhou: ' + JSON.stringify({ resumo: g.resumo, semDatas: g.semDatas }));
   (g.discsNoDia >= 2 && g.vaza === 0)
     ? ok('o dia tambem separa por disciplina, sem vazamento a 390px')
     : erro(`agrupamento do dia: ${g.discsNoDia} titulo(s), vazamento ${g.vaza}px`);
