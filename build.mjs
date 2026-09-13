@@ -55,6 +55,7 @@ const PARTES = [
   SEP('\n</style>\n\n<style id="ux-v48">\n'), S('css/07-ux-v48.css'),
   SEP('\n</style>\n\n<style id="ux-v49">\n'), S('css/08-ux-v49.css'),
   SEP('\n</style>\n\n<style id="extras-v51">\n'), S('css/09-extras-v51.css'),
+  SEP('\n</style>\n\n<style id="lei-rodizio-v1">\n'), S('css/10-lei-rodizio.css'),
   SEP('\n</style>\n\n<script id="app-code" type="application/x-diario-inert">\n'),
   // ── código do app: um único escopo global, na ordem de dependência ──
   [
@@ -89,6 +90,7 @@ const PARTES = [
     'js/53-portao-de-acesso.js',
     'js/54-reforco-fila.js',
     'js/55-extras-ui-moderna.js',
+    'js/56-leis-rodizio.js',
     'js/60-cloud-store.js',
     'js/61-session-guard.js',
     'js/62-section-sync.js',
@@ -133,7 +135,7 @@ function carimbarServiceWorker() {
   let sw;
   try { sw = readFileSync(swPath, 'utf8'); } catch { return null; }
   const novo = sw.replace(/^const VERSAO = '[^']*';$/m, `const VERSAO = '${VERSAO}';`);
-  if (novo === sw) return sw;      // já estava igual
+  if (novo === sw) return sw;
   writeFileSync(swPath, novo, 'utf8');
   return novo;
 }
@@ -146,8 +148,6 @@ function montarManifesto() {
   let nl = 0;
   for (const seg of SEGMENTOS) {
     const linhas = seg.texto.split('\n').length;
-    // um arquivo que termina em quebra de linha não "ocupa" a linha vazia
-    // seguinte: ela já pertence ao que vem depois dele.
     const ate = nl + linhas - (seg.texto.endsWith('\n') ? 1 : 0);
     if (seg.arquivo) out.push({ arquivo: seg.arquivo, de: nl + 1, ate });
     nl += linhas - 1;
@@ -157,8 +157,6 @@ function montarManifesto() {
 
 if (process.argv.includes('--check')) {
   const atual = readFileSync(destino, 'utf8');
-  // o sw.js publicado tem de carregar a MESMA versão do index.html publicado —
-  // um carimbo defasado ali significa cache com nome errado
   const swAtual = readFileSync(join(RAIZ, 'sw.js'), 'utf8');
   const swVersao = (swAtual.match(/^const VERSAO = '([^']*)';$/m) || [])[1];
   if (swVersao !== VERSAO) {
@@ -170,7 +168,6 @@ if (process.argv.includes('--check')) {
     console.log(`OK: src/ monta exatamente o index.html atual (${montado.length} bytes, ${VERSAO}).`);
     process.exit(0);
   }
-  // Diagnóstico útil: aponta a PRIMEIRA linha divergente, não só "difere".
   const a = atual.split('\n'), b = montado.split('\n');
   let i = 0;
   while (i < a.length && i < b.length && a[i] === b[i]) i++;
