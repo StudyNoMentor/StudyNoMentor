@@ -60,7 +60,25 @@ if "replanejar(hoje(), { preservarHoje: true });" not in s:
     raise SystemExit('patch de preservação do rodízio de hoje não aplicado')
 p.write_text(s,encoding='utf-8')
 
-# 4) Encadeia a matriz extrema adicional no mesmo passo de Chromium.
+# 4) Corrige e endurece a matriz extrema antes de executá-la. A massa é
+# determinística e as evidências ficam dentro do diretório que a workflow publica.
+p=Path('testes/stress-matriz-extrema.mjs')
+s=p.read_text(encoding='utf-8')
+s=s.replace("const ART = join(RAIZ, 'artifacts', 'stress-matriz-extrema');",
+            "const ART = join(RAIZ, 'artifacts', 'stress-jornada', 'extrema');")
+s=s.replace("const snaps=SIM.retratos(48).map((s,i)=>{",
+            "const baseSnaps=SIM.retratos(48);\n      const snaps=baseSnaps.map((s,i)=>{")
+s=s.replace("z.startDate=snaps?.[i-1]?.startDate||z.startDate;",
+            "z.startDate=baseSnaps[i-1].startDate;")
+s=s.replace("artifacts/stress-matriz-extrema/carga-desktop.png",
+            "artifacts/stress-jornada/extrema/carga-desktop.png")
+s=s.replace("artifacts/stress-matriz-extrema/carga-mobile-390.png",
+            "artifacts/stress-jornada/extrema/carga-mobile-390.png")
+if "const baseSnaps=SIM.retratos(48);" not in s:
+    raise SystemExit('patch da massa de snapshots não aplicado')
+p.write_text(s,encoding='utf-8')
+
+# 5) Encadeia a matriz extrema adicional no mesmo passo de Chromium.
 p=Path('testes/stress-jornada-massiva.mjs')
 s=p.read_text(encoding='utf-8')
 hook="await import('./stress-matriz-extrema.mjs');"
