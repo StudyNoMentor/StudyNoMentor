@@ -6,7 +6,7 @@ on:
       - '.github/workflows/tmp-stress-jornada.yml'
       - 'stress-run.trigger'
 permissions:
-  contents: read
+  contents: write
 jobs:
   stress:
     runs-on: ubuntu-latest
@@ -18,6 +18,8 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
+      - name: Aplicar patch iterativo
+        run: python3 scripts/tmp-stress-patch.py
       - name: Instalar dependencias
         run: npm ci
       - name: Instalar Chromium
@@ -32,3 +34,13 @@ jobs:
           path: artifacts/stress-jornada/
           if-no-files-found: warn
           retention-days: 7
+      - name: Persistir correcoes quando tudo passar
+        if: success()
+        run: |
+          git config user.name 'StudyNoMentor'
+          git config user.email 'jairo258@hotmail.com'
+          git add testes/stress-jornada-massiva.mjs src/js/51b-reforco-agenda-auto.js index.html src/manifesto.json sw.js build.mjs 2>/dev/null || true
+          if ! git diff --cached --quiet; then
+            git commit -m 'Valida jornada massiva em navegador real'
+            git push origin HEAD:test/stress-jornada-massiva
+          fi
