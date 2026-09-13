@@ -8,6 +8,7 @@ function uma(label, antigo, novo) {
   const n = s.split(antigo).length - 1;
   if (n !== 1) throw new Error(`${label}: esperava 1 ocorrência, achei ${n}`);
   s = s.replace(antigo, novo);
+  console.log(`${label}: ok`);
 }
 function todas(label, antigo, novo, minimo = 1) {
   const n = s.split(antigo).length - 1;
@@ -85,11 +86,18 @@ uma('marcar/limpar retratos', `    if (allBtn) allBtn.addEventListener('click', 
     if (noneBtn) noneBtn.addEventListener('click', () => { this.selectedSnapIds.clear(); this.renderScopeControls(DB.getTecSnapshots()); this.renderAnalysis(); });`, `    if (allBtn) allBtn.addEventListener('click', () => { snaps.forEach(s => this.selectedSnapIds.add(s.id)); this.aplicarMudancaEscopo(); });
     if (noneBtn) noneBtn.addEventListener('click', () => { this.selectedSnapIds.clear(); this.aplicarMudancaEscopo(); });`);
 
-/* Toggle de modo, edição manual do intervalo e atalhos rápidos tinham cópias
-   ligeiramente diferentes da mesma rotina. Todos agora convergem no contrato. */
-todas('handlers globais de escopo', `  DesempenhoTecScreen.renderScopeControls(DB.getTecSnapshots());
+uma('toggle de tipo de escopo', `  DesempenhoTecScreen.renderScopeControls(DB.getTecSnapshots());
   DesempenhoTecScreen.renderAnalysis();
-  if (DesempenhoTecScreen.tecTab === 'reforco') DesempenhoTecScreen.renderReforco();`, `  DesempenhoTecScreen.aplicarMudancaEscopo();`, 3);
+  // reaplica a aba ativa (reforço também depende do escopo)
+  if (DesempenhoTecScreen.tecTab === 'reforco') DesempenhoTecScreen.renderReforco();`, `  DesempenhoTecScreen.aplicarMudancaEscopo();`);
+
+/* Manual e atalhos rápidos compartilham exatamente o mesmo rodapé. */
+todas('intervalo manual/atalhos', `    DesempenhoTecScreen.renderScopeControls(DB.getTecSnapshots());
+    DesempenhoTecScreen.renderAnalysis();
+    if (DesempenhoTecScreen.tecTab === 'reforco') DesempenhoTecScreen.renderReforco();`, `    DesempenhoTecScreen.aplicarMudancaEscopo();`, 1);
+todas('atalho fora do bloco manual', `  DesempenhoTecScreen.renderScopeControls(DB.getTecSnapshots());
+  DesempenhoTecScreen.renderAnalysis();
+  if (DesempenhoTecScreen.tecTab === 'reforco') DesempenhoTecScreen.renderReforco();`, `  DesempenhoTecScreen.aplicarMudancaEscopo();`, 1);
 
 /* Reforço nunca pode ressuscitar o snapshot global se o usuário escolheu um
    período sem dados ou limpou a seleção. */
