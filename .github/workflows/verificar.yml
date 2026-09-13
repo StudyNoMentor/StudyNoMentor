@@ -7,6 +7,7 @@
 #   · id duplicado ou tag estrutural desbalanceada no HTML publicado;
 #   · o app quebrar no carregamento ou alguma das 14 telas lancar erro;
 #   · a suite AutoTeste (FSRS, fuzz, agendador, parser TEC...) regredir;
+#   · o reforco adaptativo produzir dose ou parada estatisticamente invalida;
 #   · o botao "Opcoes" da Grade voltar a vazar do cabecalho.
 name: Verificacao
 
@@ -47,6 +48,13 @@ jobs:
       # e o job segue verde.
       - name: Instalar dependencias de teste
         run: npm ci
+
+      # Barreira estatistica do motor de dose adaptativa. O teste inclui casos
+      # dirigidos, 20 mil prescricoes aleatorias e 8 mil cenarios Monte Carlo.
+      # O recurso nasce opt-in: a simulacao o ativa explicitamente para testar
+      # o motor sem alterar o contrato classico das atividades existentes.
+      - name: Simular prescricao adaptativa
+        run: node testes/reforco-adaptativo-massivo.mjs
 
       # Playwright so e usado pelas checagens 4 e 5 (app real no Chromium).
       # A versao e fixada aqui porque o navegador baixado tem de casar com ela.
