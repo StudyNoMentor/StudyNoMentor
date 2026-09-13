@@ -221,9 +221,21 @@
       });
     },
 
+    cardsPorDisciplina(arr, screen) {
+      if (!arr.length) return '';
+      const discs = [...new Set(arr.map(e => e.x.disciplina || ''))];
+      if (discs.length < 2) return arr.map(e => screen.cardHtml(e.x, e.day)).join('');
+      return discs.map(d => {
+        const nome = d ? escapeHtml(d) : 'Sem disciplina';
+        const cards = arr.filter(e => (e.x.disciplina || '') === d)
+          .map(e => screen.cardHtml(e.x, e.day)).join('');
+        return `<div class="extras-disc-title exm-disc-title">${nome}</div>${cards}`;
+      }).join('');
+    },
+
     secao(k, titulo, ico, arr, screen) {
       if (!arr.length) return '';
-      const cards = arr.map(e => screen.cardHtml(e.x, e.day)).join('');
+      const cards = this.cardsPorDisciplina(arr, screen);
       if (k === 'concluidas' && this.view !== 'concluidas') {
         return `<details class="exm-section exm-section-${k}">
           <summary><span class="exm-section-title">${ico} ${titulo}</span><span class="exm-section-count">${arr.length}</span><span class="chev">⌄</span></summary>
