@@ -5,102 +5,8 @@ import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 
 const raiz = dirname(dirname(fileURLToPath(import.meta.url)));
-const codigo = readFileSync(join(raiz, 'src/js/51a-tec-scope-consistency.js'), 'utf8');
-
-const todos = [
-  { id: 1, startDate: '2026-07-01', endDate: '2026-07-31', materias: { A: 10, B: 20 } },
-  { id: 2, startDate: '2026-08-01', endDate: '2026-08-31', materias: { A: 900, B: 1 } },
-  { id: 3, startDate: '2026-09-01', endDate: '2026-09-07', materias: { A: 10, B: 30 } }
-];
-let getterAtual = () => todos;
-let ultimoSalvo = null;
-let renderPlano = 0;
-const listeners = { clickCapture: [], click: [], change: [] };
-
-const document = {
-  addEventListener(tipo, fn, captura) {
-    if (tipo === 'click' && captura) listeners.clickCapture.push(fn);
-    else if (listeners[tipo]) listeners[tipo].push(fn);
-  },
-  getElementById() { return null; },
-  createElement() { return {}; }
-};
-
-const DB = {
-  getTecSnapshots: () => getterAtual(),
-  setRaw: () => {},
-  _profilePrefix: () => 't:'
-};
-
-const PlanoPontos = {
-  esforcoPorMateria() {
-    const visto = DB.getTecSnapshots();
-    const soma = { A: 0, B: 0 };
-    visto.forEach(s => Object.entries(s.materias || {}).forEach(([k, q]) => { soma[k] = (soma[k] || 0) + q; }));
-    const total = Object.values(soma).reduce((a, b) => a + b, 0);
-    const linhas = Object.entries(soma).map(([nome, q]) => ({ nome, q, shareEsforco: total ? q / total * 100 : 0 }))
-      .sort((a, b) => b.q - a.q);
-    return { idsVistos: visto.map(s => s.id), linhas, seuTotal: total };
-  }
-};
-
-const PlanoEngine = {
-  _agrC: { antiga: true },
-  calcular(scoped) {
-    return {
-      idsVistos: DB.getTecSnapshots().map(s => s.id),
-      fontes: scoped && scoped._fontes ? scoped._fontes.map(s => s.id) : []
-    };
-  },
-  ritmoRecente(snaps) {
-    return (snaps || []).map(s => s.id);
-  }
-};
-
-const DesempenhoTecScreen = {
-  scopeMode: 'select',
-  selectedSnapIds: new Set([1, 3]),
-  rangeStart: null,
-  rangeEnd: null,
-  tecTab: 'plano',
-  _prefs: { selectedSnapIds: [2] },
-  _loadPrefs() { return this._prefs; },
-  savePrefs(p) { ultimoSalvo = p; this._prefs = Object.assign({}, this._prefs, p); },
-  activeSnapshots() {
-    const snaps = DB.getTecSnapshots();
-    if (this.scopeMode === 'select') return snaps.filter(s => this.selectedSnapIds.has(s.id));
-    if (this.scopeMode === 'range') return snaps.filter(s => s.startDate <= this.rangeEnd && s.endDate >= this.rangeStart);
-    return snaps;
-  },
-  render() { return this.selectedSnapIds ? [...this.selectedSnapIds] : null; },
-  renderPlano() {
-    renderPlano++;
-    return {
-      historicoOperacional: DB.getTecSnapshots().map(s => s.id),
-      ritmo: PlanoEngine.ritmoRecente(DB.getTecSnapshots().slice().reverse()),
-      quadro: PlanoPontos.esforcoPorMateria()
-    };
-  },
-  renderPlanoConteudo() {
-    renderPlano++;
-    return {
-      historicoOperacional: DB.getTecSnapshots().map(s => s.id),
-      calculo: PlanoEngine.calcular({ _fontes: this.activeSnapshots() }, {}),
-      quadro: PlanoPontos.esforcoPorMateria(),
-      ritmo: PlanoEngine.ritmoRecente(DB.getTecSnapshots().slice().reverse())
-    };
-  },
-  _planoRefC: { r: 1 },
-  _fatias: { x: 1 }
-};
-
-const contexto = vm.createContext({
-  DB, PlanoEngine, PlanoPontos, DesempenhoTecScreen, document,
-  console,
-  queueMicrotask,
-  _quiet() {}
-});
-vm.runInContext(codigo, contexto, { filename: '51a-tec-scope-consistency.js' });
+const core = readFileSync(join(raiz, 'src/js/51-tela-desempenho-tec.js'), 'utf8');
+const camada = readFileSync(join(raiz, 'src/js/51a-tec-scope-consistency.js'), 'utf8');
 
 function assert(cond, msg) {
   if (!cond) {
@@ -110,82 +16,158 @@ function assert(cond, msg) {
 }
 const ids = (x) => JSON.stringify(x);
 
-/* 1) O agregado explícito manda no motor. */
-const r1 = PlanoEngine.calcular({ _fontes: [todos[0], todos[2]] }, {});
-assert(ids(r1.idsVistos) === ids([1, 3]), 'PlanoEngine ainda enxergou retrato fora do scoped._fontes');
-assert(DB.getTecSnapshots().length === 3, 'getter global não foi restaurado após calcular()');
+/* ── 1. Contrato estrutural no código real ─────────────────────────────── */
+assert(core.includes('aplicarMudancaEscopo()'), 'a tela não possui uma operação única de mudança de escopo');
+assert((core.match(/\.aplicarMudancaEscopo\(\);/g) || []).length >= 5,
+  'nem todos os controles de período/seleção convergem para aplicarMudancaEscopo()');
+assert(!core.includes('if (this.selectedSnapIds.size === 0) snaps.forEach'),
+  'seleção vazia ainda é convertida silenciosamente em todos os retratos');
+assert(!core.includes('this.scopedSnapshot() || ReforcoEngine.currentSnapshot()'),
+  'Reforço ainda cai para o retrato global quando o escopo fica vazio');
+assert(!camada.includes("#tec-scope-select input[data-snap]"),
+  'camada de consistência voltou a duplicar listeners de escopo da tela');
+assert(!camada.includes(".tec-range-quick"),
+  'camada de consistência voltou a interceptar atalhos de período');
 
-/* 2) Troca de escopo invalida caches. */
-PlanoEngine._agrC = { antiga: true };
-PlanoEngine.calcular({ _fontes: [todos[1]] }, {});
-assert(PlanoEngine._agrC === null, 'cache _agrC não foi invalidado ao trocar escopo');
+/* Defaults: mantemos os valores bons e testamos as relações fundamentais. */
+for (const trecho of ['metaDominio: 85', 'tetoDominio: 90', 'minAmostra: 20', 'amostraAlvo: 50', 'validadeDias: 120']) {
+  assert(core.includes(trecho), 'default esperado desapareceu: ' + trecho);
+}
+assert(core.includes("estrat: 50") && core.includes("gran: 50") && core.includes("minq: 10"),
+  'defaults neutros do Reforço foram alterados sem contrato explícito');
 
-/* 3) Fallback usa activeSnapshots(). */
+/* ── 2. Dados sintéticos que denunciam vazamento de escopo ─────────────── */
+const todos = [
+  { id: 1, startDate: '2026-07-01', endDate: '2026-07-31', materias: { A: 10, B: 20 }, q: 30, ac: 18 },
+  { id: 2, startDate: '2026-08-01', endDate: '2026-08-31', materias: { A: 900, B: 1 }, q: 901, ac: 400 },
+  { id: 3, startDate: '2026-09-01', endDate: '2026-09-07', materias: { A: 10, B: 30 }, q: 40, ac: 34 }
+];
+const DB = {
+  getTecSnapshots: () => todos,
+  setRaw() {},
+  _profilePrefix: () => 't:'
+};
+
+const elementos = new Map();
+const listeners = { clickCapture: [] };
+const document = {
+  addEventListener(tipo, fn, captura) { if (tipo === 'click' && captura) listeners.clickCapture.push(fn); },
+  getElementById(id) { return elementos.get(id) || null; },
+  createElement() { return { style: {}, appendChild() {}, textContent: '', className: '', id: '' }; }
+};
+
+const PlanoPontos = {
+  esforcoPorMateria() {
+    const visto = DB.getTecSnapshots();
+    const soma = { A: 0, B: 0 };
+    visto.forEach(s => Object.entries(s.materias || {}).forEach(([k, q]) => { soma[k] = (soma[k] || 0) + q; }));
+    const total = Object.values(soma).reduce((a, b) => a + b, 0);
+    const linhas = Object.entries(soma)
+      .map(([nome, q]) => ({ nome, q, shareEsforco: total ? q / total * 100 : 0 }))
+      .sort((a, b) => b.q - a.q);
+    return { idsVistos: visto.map(s => s.id), linhas, seuTotal: total };
+  }
+};
+
+const PlanoEngine = {
+  DEFAULTS: { metaDominio: 85, tetoDominio: 90, faixaCritico: 50, faixaFragil: 65, minAmostra: 20, amostraAlvo: 50, pisoSerie: 5, consolidarEm: 2, validadeDias: 120, janelaMax: 365, cadenciaDias: 30, sensTendencia: 3, custoPiso: 50, custoPorPonto: 2, limite: 10, ritmoSemanal: null },
+  _agrC: { antiga: true },
+  _prefs: {},
+  prefs() { return Object.assign({}, this.DEFAULTS, this._prefs); },
+  salvarPrefs(p) { this._prefs = Object.assign({}, this._prefs, p || {}); return this.prefs(); },
+  calcular(scoped) {
+    return { idsVistos: DB.getTecSnapshots().map(s => s.id), fontes: scoped?._fontes?.map(s => s.id) || [] };
+  },
+  ritmoRecente(snaps) { return (snaps || []).map(s => s.id); }
+};
+
+const DesempenhoTecScreen = {
+  scopeMode: 'select', selectedSnapIds: new Set([1, 3]), rangeStart: null, rangeEnd: null,
+  tecTab: 'plano', _planoRefC: {}, _fatias: {},
+  activeSnapshots() {
+    const snaps = DB.getTecSnapshots();
+    if (this.scopeMode === 'select') return snaps.filter(s => this.selectedSnapIds.has(s.id));
+    if (this.scopeMode === 'range') return snaps.filter(s => s.startDate <= this.rangeEnd && s.endDate >= this.rangeStart);
+    return snaps;
+  },
+  scopedSnapshot() {
+    const a = this.activeSnapshots();
+    return a.length ? { _fontes: a, q: a.reduce((s, x) => s + x.q, 0), ac: a.reduce((s, x) => s + x.ac, 0) } : null;
+  },
+  renderPlano() {
+    return { historico: DB.getTecSnapshots().map(s => s.id), ritmo: PlanoEngine.ritmoRecente(DB.getTecSnapshots().slice().reverse()), quadro: PlanoPontos.esforcoPorMateria() };
+  },
+  renderPlanoConteudo() { return this.renderPlano(); },
+  renderIncidencia() { return 'incidencia'; }
+};
+
+const contexto = vm.createContext({ DB, PlanoEngine, PlanoPontos, DesempenhoTecScreen, document, console, queueMicrotask, _quiet() {} });
+vm.runInContext(camada, contexto, { filename: '51a-tec-scope-consistency.js' });
+
+/* ── 3. Plano: motor, ranking e ritmo no mesmo recorte ────────────────── */
+let calc = PlanoEngine.calcular(DesempenhoTecScreen.scopedSnapshot(), {});
+assert(ids(calc.idsVistos) === ids([1, 3]), 'motor do Plano viu retrato desmarcado');
+let quadro = PlanoPontos.esforcoPorMateria();
+assert(ids(quadro.idsVistos) === ids([1, 3]), 'ranking de matérias viu retrato desmarcado');
+assert(quadro.linhas[0].nome === 'B' && quadro.linhas[0].q === 50,
+  'ranking não mudou para o resultado correto do escopo [1,3]');
+assert(Math.abs(quadro.linhas.find(x => x.nome === 'B').shareEsforco - 50 / 70 * 100) < 0.001,
+  'shareEsforco não foi recalculado dentro do período');
+const tela = DesempenhoTecScreen.renderPlano();
+assert(ids(tela.historico) === ids([1, 2, 3]), 'Plano mascarou o histórico operacional integral');
+assert(ids(tela.ritmo) === ids([3, 1]), 'ritmo do Plano ignorou o período');
+assert(DB.getTecSnapshots().length === 3, 'getter global vazou após renderização do Plano');
+
+/* ── 4. Determinismo A → B → A: trocar e voltar ao escopo deve voltar aos mesmos números. */
+const assinaturaPlano = () => {
+  const q = PlanoPontos.esforcoPorMateria();
+  const c = PlanoEngine.calcular(DesempenhoTecScreen.scopedSnapshot(), {});
+  return JSON.stringify({ ids: c.idsVistos, topo: q.linhas[0]?.nome || null, total: q.seuTotal });
+};
+const a1 = assinaturaPlano();
 DesempenhoTecScreen.selectedSnapIds = new Set([2]);
-const r2 = PlanoEngine.calcular({}, {});
-assert(ids(r2.idsVistos) === ids([2]), 'fallback do motor não respeitou activeSnapshots()');
-
-/* 4) Regressão do bug real: o quadro de matérias fica fora de calcular().
-      Com todos os retratos A vence; no escopo [1,3], B deve assumir o topo. */
+const b = assinaturaPlano();
 DesempenhoTecScreen.selectedSnapIds = new Set([1, 3]);
-const quadroDireto = PlanoPontos.esforcoPorMateria();
-assert(ids(quadroDireto.idsVistos) === ids([1, 3]), 'esforcoPorMateria viu retrato desmarcado');
-assert(quadroDireto.linhas[0].nome === 'B' && quadroDireto.linhas[0].q === 50, 'ranking de matérias ainda incorpora retrato fora do escopo');
-assert(Math.abs(quadroDireto.linhas.find(x => x.nome === 'B').shareEsforco - (50 / 70 * 100)) < 0.001, 'shareEsforco não foi recalculado só no escopo');
-assert(DB.getTecSnapshots().length === 3, 'ranking de matérias vazou o getter escopado');
+const a2 = assinaturaPlano();
+assert(a1 !== b, 'trocar os retratos não alterou o resultado analítico do Plano');
+assert(a1 === a2, 'voltar ao escopo original não restaurou exatamente o resultado original');
 
-/* 5) A tela preserva duas fronteiras distintas:
-      - motor, ranking e ritmo = escopo ativo;
-      - histórico operacional/auditoria = todos os retratos. */
-const tela = DesempenhoTecScreen.renderPlanoConteudo();
-assert(ids(tela.historicoOperacional) === ids([1, 2, 3]), 'renderPlanoConteudo escopou indevidamente o histórico operacional');
-assert(ids(tela.calculo.idsVistos) === ids([1, 3]), 'cálculo interno perdeu o escopo da análise');
-assert(tela.quadro.linhas[0].nome === 'B', 'quadro Onde atacar primeiro divergiu do escopo');
-assert(ids(tela.ritmo) === ids([3, 1]), 'ritmo automático ainda considerou retrato desmarcado');
-assert(DB.getTecSnapshots().length === 3, 'getter global não foi restaurado após renderPlanoConteudo');
-
-const telaInicial = DesempenhoTecScreen.renderPlano();
-assert(ids(telaInicial.historicoOperacional) === ids([1, 2, 3]), 'renderPlano escopou indevidamente o histórico operacional');
-assert(telaInicial.quadro.linhas[0].nome === 'B', 'renderPlano inicial montou ranking com histórico global');
-assert(ids(telaInicial.ritmo) === ids([3, 1]), 'renderPlano inicial calculou ritmo com histórico global');
-assert(DB.getTecSnapshots().length === 3, 'getter global não foi restaurado após renderPlano');
-
-/* 6) Seleção persistida volta antes do render. */
-DesempenhoTecScreen.selectedSnapIds = null;
-DesempenhoTecScreen._prefs = { selectedSnapIds: [2], rangeStart: '2026-08-01', rangeEnd: '2026-08-31' };
-const vistosNoRender = DesempenhoTecScreen.render();
-assert(ids(vistosNoRender) === ids([2]), 'selectedSnapIds não foi restaurado antes do render');
-assert(DesempenhoTecScreen.rangeStart === '2026-08-01' && DesempenhoTecScreen.rangeEnd === '2026-08-31', 'intervalo persistido não foi restaurado');
-
-/* 7) O clique de "ritmo medido" escopa só ritmoRecente; o DB continua global. */
-DesempenhoTecScreen.scopeMode = 'select';
-DesempenhoTecScreen.selectedSnapIds = new Set([1, 3]);
-const ritmoBtn = {
-  id: 'plano-ritmo-medido',
-  closest(sel) { return sel === '#plano-ritmo-medido' ? this : null; },
-  matches() { return false; }
-};
-listeners.clickCapture.forEach(fn => fn({ target: ritmoBtn }));
-assert(ids(DB.getTecSnapshots().map(s => s.id)) === ids([1, 2, 3]), 'clique de ritmo alterou indevidamente o getter global');
-const ritmoClique = PlanoEngine.ritmoRecente(DB.getTecSnapshots().slice().reverse());
-assert(ids(ritmoClique) === ids([3, 1]), 'clique de ritmo medido ainda usa retrato desmarcado');
-await Promise.resolve();
-const ritmoDepois = PlanoEngine.ritmoRecente(DB.getTecSnapshots().slice().reverse());
-assert(ids(ritmoDepois) === ids([3, 2, 1]), 'ritmoRecente não foi restaurado após o clique');
-
-/* 8) Atalhos de intervalo também persistem/invalida/recalculam o Plano. */
+/* ── 5. Intervalo usa sobreposição de períodos, igual ao produto real. */
 DesempenhoTecScreen.scopeMode = 'range';
-DesempenhoTecScreen.rangeStart = '2026-09-01';
-DesempenhoTecScreen.rangeEnd = '2026-09-07';
-const antesRender = renderPlano;
-const quick = {
-  id: '',
-  closest() { return this; },
-  matches(sel) { return sel === '.tec-range-quick'; }
-};
-listeners.click.forEach(fn => fn({ target: quick }));
-await Promise.resolve();
-assert(ultimoSalvo && ultimoSalvo.rangeStart === '2026-09-01' && ultimoSalvo.rangeEnd === '2026-09-07', 'atalho de intervalo não persistiu o novo recorte');
-assert(renderPlano > antesRender, 'atalho de intervalo não recalculou o Plano visível');
+DesempenhoTecScreen.rangeStart = '2026-08-15';
+DesempenhoTecScreen.rangeEnd = '2026-09-03';
+assert(ids(DesempenhoTecScreen.activeSnapshots().map(s => s.id)) === ids([2, 3]),
+  'intervalo não aplica corretamente a regra de sobreposição');
+calc = PlanoEngine.calcular(DesempenhoTecScreen.scopedSnapshot(), {});
+assert(ids(calc.idsVistos) === ids([2, 3]), 'Plano divergiu do activeSnapshots no modo intervalo');
 
-console.log('OK: Plano TEC escopa motor, ranking e ritmo sem contaminar auditoria/atividades.');
+/* ── 6. Escopo vazio é vazio: nunca pode ressuscitar o retrato global. */
+DesempenhoTecScreen.scopeMode = 'select';
+DesempenhoTecScreen.selectedSnapIds = new Set();
+assert(DesempenhoTecScreen.scopedSnapshot() === null, 'escopo vazio produziu snapshot sintético');
+calc = PlanoEngine.calcular(null, {});
+assert(ids(calc.idsVistos) === ids([]), 'Plano caiu para histórico global com escopo vazio');
+quadro = PlanoPontos.esforcoPorMateria();
+assert(quadro.seuTotal === 0, 'ranking caiu para histórico global com escopo vazio');
+assert(DB.getTecSnapshots().length === 3, 'escopo vazio contaminou o getter global');
+
+/* ── 7. Invariantes dos ajustes: customização inválida é tornada coerente. */
+const n = PlanoEngine._normalizarParametrosTec({
+  metaDominio: 90, tetoDominio: 70, faixaCritico: 80, faixaFragil: 40,
+  minAmostra: 50, amostraAlvo: 10, validadeDias: 0, janelaMax: -5,
+  consolidarEm: 0, limite: 0, custoPiso: -1, custoPorPonto: -2
+});
+assert(n.tetoDominio >= n.metaDominio, 'teto ficou abaixo da meta');
+assert(n.faixaCritico <= n.faixaFragil && n.faixaFragil <= n.metaDominio,
+  'faixas crítico/frágil/meta ficaram contraditórias');
+assert(n.amostraAlvo >= n.minAmostra, 'amostra-alvo ficou abaixo da amostra mínima');
+assert(n.validadeDias >= 1 && n.janelaMax >= 1 && n.consolidarEm >= 1 && n.limite >= 1,
+  'parâmetros positivos aceitaram zero/negativo');
+assert(n.custoPiso >= 0 && n.custoPorPonto >= 0, 'custos aceitaram valores negativos');
+
+PlanoEngine.salvarPrefs({ metaDominio: 92, tetoDominio: 70, minAmostra: 60, amostraAlvo: 10 });
+const salvos = PlanoEngine.prefs();
+assert(salvos.tetoDominio === 92 && salvos.amostraAlvo === 60,
+  'salvarPrefs não preservou os invariantes depois de customização');
+
+console.log('OK: contrato TEC consistente — Análise/Plano/Reforço usam o período, Incidência é externa, escopo vazio não vaza e ajustes permanecem coerentes.');
