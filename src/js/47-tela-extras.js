@@ -16,17 +16,16 @@ const ExtrasScreen = {
   _showFilters: undefined,
   _fStart: null, _fEnd: null,
   _addMoreFor: null,   // "id@dia" cujo card está com o input de "registrar mais" aberto
+  PAGE_SIZE: 100,
   _CHECK: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>',
   render() {
     // o retrato do Plano custa caro: um por repintura, não um por cartão
     this._planoRefCard = null;
+    const extras = DB.getExtras();
+    DB._extrasReadSnapshot = extras;
     // toggle global
     const gt = document.getElementById('extras-global-toggle');
-    if (gt) {
-      const on = DB.extrasCountGlobal();
-      gt.classList.toggle('on', on);
-      gt.setAttribute('aria-checked', on ? 'true' : 'false');
-    }
+    if (gt) gt.classList.toggle('on', DB.extrasCountGlobal());
     const summary = document.getElementById('extras-summary');
     if (summary) { summary.innerHTML = ''; summary.style.display = 'none'; }  // topo agora vive na agenda
     const list = document.getElementById('extras-list');
@@ -35,20 +34,23 @@ const ExtrasScreen = {
     // do calendário ficavam presos no contexto anterior. Reseta para hoje quando o
     // contexto muda, para nunca exibir a data de outro planejamento.
     let ctx = 'p'; try { ctx = DB._profilePrefix() + '|' + DB._activePlanId(); } catch (_) { _quiet(_); }
-    if (this._ctxKey !== ctx) { this._ctxKey = ctx; this.selDay = hoje; this._calStart = this._addDays(hoje, -3); this._addMoreFor = null; }
+    if (this._ctxKey !== ctx) {
+      this._ctxKey = ctx; this.selDay = hoje; this._calStart = this._addDays(hoje, -3); this._addMoreFor = null;
+      this._dayPageKey = null; this._dayLimit = this.PAGE_SIZE; this._cursoLimit = this.PAGE_SIZE;
+    }
     // se a data selecionada ficou no futuro por navegação, ainda é válida; só garante um valor
     if (!this.selDay) this.selDay = hoje;
-    const extras = DB.getExtras();
     this.renderAgenda(); // calendário + cabeçalho do dia + carga horária + filtros
     this.renderEmCurso();  // tudo o que está aberto, em todas as disciplinas
     if (extras.length === 0) {
       list.innerHTML = `<div class="extras-empty"><div class="big">✅</div>Nenhuma atividade extra ainda.<br>Clique em <strong>＋ Nova atividade</strong> para começar, ou <strong>🔁 Gerenciar</strong> para criar recorrências.</div>`;
       this._syncManage();
+      DB._extrasReadSnapshot = null;
       return;
     }
     const day = this.selDay;
-    const occ = this.occurrencesForDay(day);
-    if (occ.length === 0) {
+    const todasOcc = this.occurrencesForDay(day);
+    if (todasOcc.length === 0) {
       const ehHoje = day === hoje;
       const futuro = day > hoje;
       const dica = futuro
@@ -60,8 +62,12 @@ const ExtrasScreen = {
       const bh = document.getElementById('ex-empty-hoje');
       if (bh) bh.addEventListener('click', () => { this.selDay = hoje; this._calStart = this._addDays(hoje, -3); this.render(); });
       this._syncManage();
+      DB._extrasReadSnapshot = null;
       return;
     }
+    const pageKey = ctx + '|' + day;
+    if (this._dayPageKey !== pageKey) { this._dayPageKey = pageKey; this._dayLimit = this.PAGE_SIZE; }
+    const occ = todasOcc.slice(0, this._dayLimit || this.PAGE_SIZE);
     const aFazer = occ.filter(x => !DB.extraConcluidaEm(x, day));
     const feitas = occ.filter(x => DB.extraConcluidaEm(x, day));
     const grupos = [['A fazer', aFazer], ['Concluídas', feitas]];
@@ -78,9 +84,13 @@ const ExtrasScreen = {
     list.innerHTML = grupos.map(([titulo, arr]) => {
       if (!arr.length) return '';
       return `<div class="extras-group-title">${titulo} (${arr.length})</div>` + porDisc(arr);
-    }).join('');
+    }).join('') + (occ.length < todasOcc.length
+      ? `<div class="hint" style="padding:16px 0;text-align:center;"><button type="button" class="btn-secondary" id="extras-load-more">Mostrar mais ${Math.min(this.PAGE_SIZE, todasOcc.length - occ.length)} · ${occ.length} de ${todasOcc.length}</button></div>` : '');
     this.bind(list);
+    const mais = document.getElementById('extras-load-more');
+    if (mais) mais.addEventListener('click', () => { this._dayLimit = (this._dayLimit || this.PAGE_SIZE) + this.PAGE_SIZE; this.render(); });
     this._syncManage();
+    DB._extrasReadSnapshot = null;
   },
   /* ── REFORÇOS EM CURSO ────────────────────────────────────────────────────
      Tudo o que está aberto, agrupado por disciplina, com o progresso que vem
@@ -94,78 +104,99 @@ const ExtrasScreen = {
      divisão feita na hora: o que falta, dividido pelos dias até a próxima
      importação. Ficou um dia sem estudar? O número de amanhã sobe sozinho.
      Nada vence, nada acumula, nada precisa ser arrumado. */
-  /* ── REFERÊNCIA OPERACIONAL DO PLANO ───────────────────────────────────────
-     Decidir o que atacar respeita o filtro do Desempenho TEC; medir uma atividade
-     já criada usa o histórico integral. Trocar o período da Análise não pode
-     reescrever o andamento de um reforço em curso. */
-  _planoRefOperacional() {
-    if (this._planoRefCard) return this._planoRefCard;
-    try {
-      const snaps = DB.getTecSnapshots() || [];
-      const agregado = snaps.length && DesempenhoTecScreen && typeof DesempenhoTecScreen.aggregate === 'function'
-        ? DesempenhoTecScreen.aggregate(snaps) : null;
-      this._planoRefCard = PlanoEngine.calcular(agregado, PlanoEngine.prefs());
-    } catch (e) { _quiet(e, 'extras-plano-operacional'); this._planoRefCard = { erro: 'sem-retrato' }; }
-    return this._planoRefCard;
-  },
-  /* Ao visitar uma semana/mês antigo, a barra precisa medir AQUELE período, não
-     o período de hoje. */
-  _progressoNoPeriodo(x, day) {
-    const hist = (x && x.historico) || [];
-    if (!x || !DB.extraRecorrente(x)) return Math.max(0, Number(x && x.progresso) || 0);
-    day = day || todayLocal();
-    const base = new Date(day + 'T00:00:00');
-    let ini = day, fim = day;
-    if (x.periodo === 'semanal') {
-      ini = this._addDays(day, -((base.getDay() + 6) % 7)); fim = this._addDays(ini, 6);
-    } else if (x.periodo === 'quinzenal') ini = this._addDays(day, -13);
-    else if (x.periodo === 'mensal') {
-      ini = DB._isoDia(new Date(base.getFullYear(), base.getMonth(), 1));
-      fim = DB._isoDia(new Date(base.getFullYear(), base.getMonth() + 1, 0));
-    }
-    return hist.filter(h => h.data >= ini && h.data <= fim).reduce((n,h)=>n+(Number(h.quantidade)||0),0);
-  },
   renderEmCurso() {
     const host = document.getElementById('extras-curso');
     if (!host) return;
+    const extrasPlano = DB.getExtras().filter(e => e.origemPlano && e.origemPlano.topico && e.status !== 'concluida');
+    if (!extrasPlano.length) { host.innerHTML = ''; return; }
     let itens = [];
-    try { itens = PlanoCiclo.emCurso(this._planoRefOperacional()); } catch (e) { _quiet(e, 'curso'); }
+    try { itens = PlanoCiclo.emCurso(this._planoRefCard || (this._planoRefCard =
+      PlanoEngine.calcular(DesempenhoTecScreen.scopedSnapshot(), PlanoEngine.prefs()))); }
+    catch (e) { _quiet(e, 'curso'); }
     if (!itens.length) { host.innerHTML = ''; return; }
     const aberto = this._cursoAberto !== false;
-    const totalFalta = itens.reduce((a,v)=>a+Math.max(0,v.alvo-v.feito),0);
-    const totalAlvo = itens.reduce((a,v)=>a+v.alvo,0), feito = totalAlvo-totalFalta;
-    const discs = [...new Set(itens.map(v=>v.origem.disciplina || 'Sem disciplina'))];
-    let dias=0;
+    const totalFalta = itens.reduce((a, v) => a + Math.max(0, v.alvo - v.feito), 0);
+    const totalAlvo = itens.reduce((a, v) => a + v.alvo, 0);
+    const feito = totalAlvo - totalFalta;
+    const discsTotal = [...new Set(itens.map(v => v.origem.disciplina || 'Sem disciplina'))];
+    const visiveis = itens.slice(0, this._cursoLimit || this.PAGE_SIZE);
+    const discs = [...new Set(visiveis.map(v => v.origem.disciplina || 'Sem disciplina'))];
+    /* Dias até a próxima importação: é a cadência que VOCÊ definiu no Plano,
+       contada a partir do último retrato. É o horizonte real do ciclo — não
+       adianta espalhar um bloco por trinta dias se você reimporta em quinze. */
+    let dias = 0;
     try {
-      const p=PlanoEngine.prefs(), snaps=DB.getTecSnapshots(), ult=snaps[snaps.length-1];
-      const idade=ult ? PlanoEngine._diasDesde(ult.endDate || ult.date) : 0;
-      dias=Math.max(1,(p.cadenciaDias||30)-idade);
-    } catch(e){ _quiet(e,'curso-dias'); }
-    const porDia=totalFalta>0 ? Math.max(1,Math.ceil(totalFalta/dias)) : 0;
-    const SELO={funcionou:['✓','tone-good','Meta atingida'],naoFuncionou:['!','tone-bad','Reavaliar'],subiu:['↗','tone-good','Evoluindo'],mediu:['◉','incid','Medido'],andamento:['•','incid','Em curso'],orfa:['?','','Sem vínculo TEC']};
-    const linha=(v)=>{
-      const [ic,tom,rot]=SELO[v.estado]||SELO.andamento, falta=Math.max(0,v.alvo-v.feito);
-      const evo=(v.origem.taxaInicial!=null && v.taxa!=null)
-        ? `<span title="Aproveitamento inicial → atual"><b>${v.origem.taxaInicial.toFixed(0)}%</b> → <b class="tone-${v.delta!=null && v.delta>=0?'good':'bad'}">${v.taxa.toFixed(0)}%</b></span>` : '';
-      return `<li class="exc-item" data-id="${escapeHtml(v.extra.id)}">
-        <div class="exc-item-head"><span class="exc-item-name">${escapeHtml(v.origem.topico)}</span><span class="exc-status ${tom}"><i>${ic}</i>${rot}</span></div>
-        <div class="exc-progress"><div class="exc-bar"><i style="width:${v.pct}%"></i></div><span>${v.pct}%</span></div>
-        <div class="exc-item-foot"><div class="exc-meta"><span><b>${v.feito}</b> / ${v.alvo} questões</span>${falta>0?`<span><b>${falta}</b> restantes</span>`:'<span class="tone-good"><b>meta cumprida</b></span>'}${evo}</div>
-          <div class="exc-actions"><button type="button" class="exc-btn exc-btn-primary" data-curso-dia="${escapeHtml(v.extra.id)}">Ver hoje</button><button type="button" class="exc-btn" data-curso-fim="${escapeHtml(v.extra.id)}">Concluir</button><button type="button" class="exc-btn exc-btn-danger" data-curso-del="${escapeHtml(v.extra.id)}" title="Excluir atividade" aria-label="Excluir atividade">Excluir</button></div></div>
+      const p = PlanoEngine.prefs();
+      const snaps = DB.getTecSnapshots();
+      const ult = snaps[snaps.length - 1];
+      const idade = ult ? PlanoEngine._diasDesde(ult.endDate || ult.date) : 0;
+      dias = Math.max(1, (p.cadenciaDias || 30) - idade);
+    } catch (e) { _quiet(e, 'curso-dias'); }
+    const porDia = Math.max(1, Math.ceil(totalFalta / dias));
+    /* `mediu` é o desfecho do DIAGNÓSTICO: ele foi buscar amostra, não acerto.
+       Chamá-lo de "volume não resolveu" era julgar pela régua do reforço uma
+       atividade que cumpriu exatamente o que prometeu. */
+    const SELO = { funcionou: ['✅', 'tone-good', 'resolvido'], naoFuncionou: ['⚠️', 'tone-bad', 'volume não resolveu'],
+      subiu: ['📈', 'tone-good', 'subindo'], mediu: ['🔬', 'incid', 'já dá para medir'],
+      andamento: ['▶', 'incid', 'em andamento'], orfa: ['❓', '', 'sem correspondência no TEC'] };
+    const linha = (v) => {
+      const [ic, tom, rot] = SELO[v.estado] || SELO.andamento;
+      const falta = Math.max(0, v.alvo - v.feito);
+      const evo = (v.origem.taxaInicial != null && v.taxa != null)
+        ? `${v.origem.taxaInicial.toFixed(0)}% → <b class="tone-${v.delta != null && v.delta >= 0 ? 'good' : 'bad'}">${v.taxa.toFixed(0)}%</b>` : '';
+      return `<li data-id="${escapeHtml(v.extra.id)}">
+        <div class="pl-ciclo-top">
+          <span class="pl-ciclo-nome">${escapeHtml(v.origem.topico)}</span>
+          <span class="reforco-tag ${tom}">${ic} ${rot}</span>
+        </div>
+        <div class="pl-ciclo-barra"><i style="width:${v.pct}%"></i></div>
+        <div class="pl-ciclo-nums">
+          <span><b>${v.feito}</b>/${v.alvo} questões</span>
+          ${falta > 0 ? `<span>faltam <b>${falta}</b></span>` : '<span class="tone-good">alvo cumprido</span>'}
+          ${evo ? `<span>${evo}</span>` : ''}
+        </div>
+        <div class="exc-acoes">
+          <button type="button" class="pl-ciclo-acao" data-curso-dia="${escapeHtml(v.extra.id)}">Fazer hoje</button>
+          <button type="button" class="pl-ciclo-acao" data-curso-fim="${escapeHtml(v.extra.id)}">Concluir</button>
+          <button type="button" class="pl-ciclo-acao" data-curso-del="${escapeHtml(v.extra.id)}">Excluir</button>
+        </div>
       </li>`;
     };
-    host.innerHTML=`<div class="card exc-card"><button type="button" class="exc-head" id="exc-toggle" aria-expanded="${aberto}"><span class="exc-brand"><span class="exc-brand-ico">🏁</span><span>Reforços em curso</span></span><span class="exc-kpis" aria-label="Resumo dos reforços em curso"><span class="exc-kpi"><b>${itens.length}</b> ativos</span><span class="exc-kpi"><b>${feito}</b> / ${totalAlvo} questões</span>${totalFalta>0?`<span class="exc-kpi exc-kpi-ritmo"><b>${porDia}/dia</b><span> · ${dias}d</span></span>`:'<span class="exc-kpi tone-good"><b>metas cumpridas</b></span>'}</span><span class="chev" aria-hidden="true">${aberto?'▴':'▾'}</span></button>${aberto?discs.map(d=>{const g=itens.filter(v=>(v.origem.disciplina||'Sem disciplina')===d);return `<div class="exc-grupo"><div class="exc-disc-row"><p class="exc-disc">${escapeHtml(d)}</p><span class="exc-disc-count">${g.length}</span></div><ul class="exc-lista">${g.map(linha).join('')}</ul></div>`;}).join(''):''}</div>`;
-    const tg=document.getElementById('exc-toggle'); if(tg) tg.addEventListener('click',()=>{this._cursoAberto=!aberto;this.renderEmCurso();});
-    host.querySelectorAll('[data-curso-dia]').forEach(b=>b.addEventListener('click',()=>{
-      const id=b.dataset.cursoDia, hoje=todayLocal(); this.selDay=hoje; this._calStart=this._addDays(hoje,-3); this.render();
-      setTimeout(()=>{const alvo=[...document.querySelectorAll('#extras-list .exd')].find(el=>el.dataset.id===id);if(alvo)try{alvo.scrollIntoView({behavior:'smooth',block:'center'});}catch(e){_quiet(e,'curso-scroll');}},0);
+    host.innerHTML = `
+      <div class="card exc-card">
+        <button type="button" class="exc-head" id="exc-toggle" aria-expanded="${aberto}">
+          <span class="exc-tit">🏁 Reforços em curso</span>
+          <span class="exc-resumo">${itens.length} em ${discsTotal.length} ${discsTotal.length === 1 ? 'disciplina' : 'disciplinas'} ·
+            <b>${feito}</b>/${totalAlvo} questões${totalFalta > 0 ? ` · <b>~${porDia}/dia</b> até a próxima importação (${dias} ${dias === 1 ? 'dia' : 'dias'})` : ''}</span>
+          <span class="chev">${aberto ? '▴' : '▾'}</span>
+        </button>
+        ${aberto ? discs.map(d => `
+          <div class="exc-grupo">
+            <p class="exc-disc">${escapeHtml(d)}</p>
+            <ul class="pl-ciclo-lista">${visiveis.filter(v => (v.origem.disciplina || 'Sem disciplina') === d).map(linha).join('')}</ul>
+          </div>`).join('') : ''}
+        ${aberto && visiveis.length < itens.length ? `<div class="hint" style="padding:12px 16px;text-align:center;"><button type="button" class="btn-secondary" id="exc-load-more">Mostrar mais ${Math.min(this.PAGE_SIZE, itens.length - visiveis.length)} · ${visiveis.length} de ${itens.length}</button></div>` : ''}
+      </div>`;
+    const tg = document.getElementById('exc-toggle');
+    if (tg) tg.addEventListener('click', () => { this._cursoAberto = !aberto; this.renderEmCurso(); });
+    const maisCurso = document.getElementById('exc-load-more');
+    if (maisCurso) maisCurso.addEventListener('click', () => { this._cursoLimit = (this._cursoLimit || this.PAGE_SIZE) + this.PAGE_SIZE; this.renderEmCurso(); });
+    /* "Fazer hoje" é o agendamento MANUAL que sobrou: a exceção para quem quer
+       fixar um assunto num dia, sem que isso vire regra para todos. */
+    host.querySelectorAll('[data-curso-dia]').forEach(b => b.addEventListener('click', () => {
+      DB.toggleExtraData(b.dataset.cursoDia, todayLocal());
+      this.selDay = todayLocal(); showToast('Marcada para hoje ✓'); this.render();
     }));
-    host.querySelectorAll('[data-curso-fim]').forEach(b=>b.addEventListener('click',async()=>{
-      const id=b.dataset.cursoFim, v=itens.find(x=>String(x.extra.id)===String(id));
-      if(v && v.feito<v.alvo){const falta=Math.max(0,v.alvo-v.feito);const ok=await UI.confirm(`Ainda faltam ${falta} questões para a meta deste reforço. Concluir agora encerra o ciclo mesmo assim.`,{title:'Concluir antes da meta?',okText:'Concluir mesmo assim'});if(!ok)return;}
-      DB.setConcluidaDia(id,todayLocal(),true); showToast('Reforço concluído ✓'); this.render();
+    host.querySelectorAll('[data-curso-fim]').forEach(b => b.addEventListener('click', () => {
+      DB.setConcluidaDia(b.dataset.cursoFim, todayLocal(), true);
+      showToast('Concluída ✓'); this.render();
     }));
-    host.querySelectorAll('[data-curso-del]').forEach(b=>b.addEventListener('click',async()=>{const e=DB.getExtras().find(x=>x.id===b.dataset.cursoDel);if(!e)return;if(!await UI.confirm('Excluir "'+e.titulo+'"? O histórico desta atividade também será removido.',{title:'Excluir atividade',okText:'Excluir',danger:true}))return;DB.deleteExtra(e.id);showToast('Atividade excluída');this.render();}));
+    host.querySelectorAll('[data-curso-del]').forEach(b => b.addEventListener('click', async () => {
+      const e = DB.getExtras().find(x => x.id === b.dataset.cursoDel);
+      if (!e) return;
+      if (!await UI.confirm('Excluir "' + e.titulo + '"?', { title: 'Excluir atividade', okText: 'Excluir', danger: true })) return;
+      DB.deleteExtra(e.id); showToast('Atividade excluída'); this.render();
+    }));
   },
   // ── Ocorrências de um dia ──────────────────────────────────────────────
   // Recorrentes: aparecem no dia se ele foi gerado (datas) OU, sem datas geradas,
@@ -176,12 +207,6 @@ const ExtrasScreen = {
     return DB.getExtras().filter(x => {
       const datas = x.datas || [];
       if (DB.extraRecorrente(x)) {
-        /* Histórico é fato consumado. Editar a janela da recorrência ou excluir
-           uma ocorrência futura não pode esconder um lançamento/conclusão que
-           já aconteceu naquele dia. */
-        const temHistoricoNoDia = (x.historico || []).some(h => h.data === day);
-        const foiConcluidaNoDia = (x.concluidasEm || []).includes(day);
-        if (temHistoricoNoDia || foiConcluidaNoDia) return true;
         if ((x.excluidasEm || []).includes(day)) return false;
         if (datas.length) return datas.includes(day);
         return this._recurOnDay(x, day);
@@ -447,11 +472,10 @@ const ExtrasScreen = {
     if (ord) ord.addEventListener('change', () => {
       this._planoOrd = ord.value;
       this._planoRecalc();
-      // disciplina + nome: homônimos de matérias diferentes são unidades distintas
-      const chave = (x) => x ? ReforcoEngine.norm(x.disciplina || '') + ReforcoEngine.SEP + ReforcoEngine.norm(x.nome || '') : '';
-      const marcados = new Set([...this._planoSel].map(i => chave(cand[i])).filter(Boolean));
+      // mantém as marcações por NOME do assunto ao reordenar
+      const marcadosNomes = new Set([...this._planoSel].map(i => (cand[i] || {}).nome).filter(Boolean));
       this._planoSel = new Set();
-      (this._planoCand || []).forEach((x, i) => { if (marcados.has(chave(x))) this._planoSel.add(i); });
+      (this._planoCand || []).forEach((x, i) => { if (marcadosNomes.has(x.nome)) this._planoSel.add(i); });
       // atualiza o dropdown de disciplinas (a contagem pode mudar) e a lista
       this._planoBind();
       this._planoRenderLista();
@@ -485,7 +509,7 @@ const ExtrasScreen = {
        criterio ja usado para decidir se a meta foi batida. */
     const feitoDia = (x.historico || []).filter(h => h.data === day).reduce((a, h) => a + (h.quantidade || 0), 0);
     const diaria = x.periodo === 'diaria';
-    let feito = !rec ? (x.progresso || 0) : (diaria ? feitoDia : this._progressoNoPeriodo(x, day));
+    let feito = !rec ? (x.progresso || 0) : (diaria ? feitoDia : DB.extraProgressoPeriodo(x));
     /* ── ATIVIDADE DO PLANO: O RETRATO CONTA POR VOCÊ ────────────────────────
        Resolver 150 questões no TEC e importar o retrato deixava esta barra em
        0/120: a mesma pessoa lançando o mesmo fato duas vezes, e esquecendo a
@@ -495,7 +519,8 @@ const ExtrasScreen = {
     let ciclo = null;
     if (x.origemPlano && x.origemPlano.topico && typeof PlanoCiclo !== 'undefined') {
       try {
-        ciclo = PlanoCiclo.avaliar(x, this._planoRefOperacional());
+        ciclo = PlanoCiclo.avaliar(x, this._planoRefCard || (this._planoRefCard =
+          PlanoEngine.calcular(DesempenhoTecScreen.scopedSnapshot(), PlanoEngine.prefs())));
         if (ciclo && ciclo.feito > feito) feito = ciclo.feito;
       } catch (e) { _quiet(e, 'card-ciclo'); }
     }
@@ -534,7 +559,6 @@ const ExtrasScreen = {
     const nReg = regsDia.length;
     const ultimoReg = nReg ? regsDia[nReg - 1] : null;
     const totalDia = regsDia.reduce((a, h) => a + (h.quantidade || 0), 0);
-    const totalMin = regsDia.reduce((a, h) => a + (parseFloat(h.minutos) || 0), 0);
     const acertosDia = regsDia.reduce((a, h) => a + (h.acertos != null ? (parseFloat(h.acertos) || 0) : 0), 0);
     const temAcertos = x.tipo === 'questoes' && regsDia.some(h => h.acertos != null);
     const futuro = day > todayLocal();
@@ -545,7 +569,7 @@ const ExtrasScreen = {
     if (done) {
       regRow = totalDia > 0
         ? `<div class="exd-reg exd-reg-donerow">
-             <span class="exd-doneinfo">✓ <b>${totalDia.toLocaleString('pt-BR')}</b> ${escapeHtml(unidLabel)} registrado(s) neste dia${temAcertos ? ` · <b>${acertosDia.toLocaleString('pt-BR')}</b> acerto(s)` : ''}${totalMin > 0 && !emMin ? ` · <b>${totalMin.toLocaleString('pt-BR')}</b> min` : ''}</span>
+             <span class="exd-doneinfo">✓ <b>${totalDia.toLocaleString('pt-BR')}</b> ${escapeHtml(unidLabel)} registrado(s) neste dia${temAcertos ? ` · <b>${acertosDia.toLocaleString('pt-BR')}</b> acerto(s)` : ''}</span>
            </div>`
         : '';
     } else if (futuro) {
@@ -558,7 +582,6 @@ const ExtrasScreen = {
               <input type="number" inputmode="decimal" class="exd-num exd-qtd" min="0"
                      placeholder="${placeholder}" title="Informe o valor a registrar" aria-label="Informe o valor a registrar">
               ${x.tipo === 'questoes' ? `<input type="number" inputmode="numeric" class="exd-num exd-ac" min="0" placeholder="acertos" title="Acertos (opcional)" aria-label="Acertos (opcional)">` : ''}
-              ${!emMin ? `<input type="number" inputmode="numeric" class="exd-num exd-min" min="0" placeholder="min" title="Tempo gasto em minutos (opcional)" aria-label="Tempo gasto em minutos (opcional)">` : ''}
               <button type="button" class="btn-primary exd-reg-btn">Registrar</button>
               ${ultimoReg ? `<button type="button" class="btn-secondary exd-reg-cancel">Cancelar</button>` : ''}
             </div>`;
@@ -566,7 +589,7 @@ const ExtrasScreen = {
         <div class="exd-reg">
           ${(ultimoReg && !forceInput) ? `
             <div class="exd-reg-saved">
-              <span class="exd-reg-value">✓ ${totalDia.toLocaleString('pt-BR')} ${escapeHtml(unidLabel)} no dia${temAcertos ? ` · ${acertosDia.toLocaleString('pt-BR')} acerto(s)` : ''}${totalMin > 0 && !emMin ? ` · ${totalMin.toLocaleString('pt-BR')} min` : ''}</span>
+              <span class="exd-reg-value">✓ ${totalDia.toLocaleString('pt-BR')} ${escapeHtml(unidLabel)} no dia${temAcertos ? ` · ${acertosDia.toLocaleString('pt-BR')} acerto(s)` : ''}</span>
               <button type="button" class="btn-secondary exd-reg-more">＋ Registrar mais</button>
               <button type="button" class="btn-secondary exd-reg-edit">Editar último</button>
             </div>` : inputGroup}
@@ -622,13 +645,11 @@ const ExtrasScreen = {
       if (regBtn) regBtn.addEventListener('click', () => {
         const qEl = card.querySelector('.exd-qtd');
         const acEl = card.querySelector('.exd-ac');
-        const minEl = card.querySelector('.exd-min');
         const q = qEl ? qEl.value : '';
         if (!q || parseFloat(q) <= 0) { showToast('Informe um valor válido'); return; }
         if (acEl && acEl.value !== '' && parseFloat(acEl.value) > parseFloat(q)) { showToast('Acertos não podem passar do total'); return; }
         if (day > todayLocal()) { showToast('Não dá para registrar em data futura'); return; }
-        const min = minEl && minEl.value !== '' ? minEl.value : 0;
-        DB.addExtraProgress(id, q, min, { data: day, acertos: acEl ? acEl.value : null });
+        DB.addExtraProgress(id, q, 0, { data: day, acertos: acEl ? acEl.value : null });
         this._addMoreFor = null;
         this.render();
         showToast(day === todayLocal() ? 'Registrado ✓' : 'Registrado em ' + formatDateShort(day) + ' ✓');
@@ -645,16 +666,14 @@ const ExtrasScreen = {
         const atual = regs.length ? regs[regs.length - 1] : null;
         if (!atual) { this.render(); return; }
         const campos = [{ key: 'quantidade', label: 'Novo valor', type: 'number', value: String(atual.quantidade || ''), min: 0 }];
-        const atualEmMin = xAtual.tipo === 'video' || xAtual.unidade === 'min';
         if (xAtual.tipo === 'questoes') campos.push({ key: 'acertos', label: 'Acertos', type: 'number', value: atual.acertos == null ? '' : String(atual.acertos), min: 0 });
-        if (!atualEmMin) campos.push({ key: 'minutos', label: 'Minutos (opcional)', type: 'number', value: atual.minutos ? String(atual.minutos) : '', min: 0 });
         UI.prompt(campos, { title: 'Editar registro', okText: 'Salvar' }).then(v => {
           if (!v) return;
           const novo = parseFloat(v.quantidade);
           if (!novo || novo <= 0) { showToast('Informe um valor válido'); return; }
           if (v.acertos !== undefined && v.acertos !== '' && parseFloat(v.acertos) > novo) { showToast('Acertos não podem passar do total'); return; }
           DB.undoExtraProgressDay(id, day);
-          DB.addExtraProgress(id, novo, v.minutos == null || v.minutos === '' ? 0 : v.minutos, { data: day, acertos: v.acertos == null ? null : v.acertos });
+          DB.addExtraProgress(id, novo, 0, { data: day, acertos: v.acertos == null ? null : v.acertos });
           this._addMoreFor = null;
           this.render();
           showToast('Registro atualizado ✓');
@@ -671,13 +690,15 @@ const ExtrasScreen = {
     });
   },
   // ── Gerenciador de atividades (recorrentes + avulsas), separado do dia ──
-  manageOpen() { this.renderManageList(); const m = document.getElementById('extras-manage-modal'); if (m) m.style.display = 'flex'; },
+  manageOpen() { this._manageLimit = 200; this.renderManageList(); const m = document.getElementById('extras-manage-modal'); if (m) m.style.display = 'flex'; },
   manageClose() { const m = document.getElementById('extras-manage-modal'); if (m) m.style.display = 'none'; },
   renderManageList() {
     const box = document.getElementById('extras-manage-list');
     if (!box) return;
     const extras = DB.getExtras();
     if (!extras.length) { box.innerHTML = `<p class="hint" style="padding:12px 2px;">Nenhuma atividade ainda. Use <strong>＋ Nova atividade</strong> para criar a primeira.</p>`; return; }
+    const limite = this._manageLimit || 200;
+    const visiveis = extras.slice(0, limite);
     const REC_NOME = { diaria: 'diária', semanal: 'semanal', quinzenal: 'quinzenal', mensal: 'mensal' };
     const rowHtml = (x) => {
       const t = this.TIPOS[x.tipo] || this.TIPOS.livre;
@@ -698,22 +719,28 @@ const ExtrasScreen = {
         </div>
       </div>`;
     };
-    const rec = extras.filter(x => DB.extraRecorrente(x));
-    const uni = extras.filter(x => !DB.extraRecorrente(x));
+    const rec = visiveis.filter(x => DB.extraRecorrente(x));
+    const uni = visiveis.filter(x => !DB.extraRecorrente(x));
+    const recTotal = extras.filter(x => DB.extraRecorrente(x)).length;
+    const uniTotal = extras.length - recTotal;
     box.innerHTML =
-      (rec.length ? `<div class="exm-group-title">🔁 Recorrentes (${rec.length})</div>` + rec.map(rowHtml).join('') : '') +
-      (uni.length ? `<div class="exm-group-title">⭐ Avulsas / únicas (${uni.length})</div>` + uni.map(rowHtml).join('') : '');
+      (rec.length ? `<div class="exm-group-title">🔁 Recorrentes (${recTotal})</div>` + rec.map(rowHtml).join('') : '') +
+      (uni.length ? `<div class="exm-group-title">⭐ Avulsas / únicas (${uniTotal})</div>` + uni.map(rowHtml).join('') : '') +
+      (visiveis.length < extras.length
+        ? `<div class="hint" style="padding:16px 0;text-align:center;"><button type="button" class="btn-secondary" id="exm-load-more">Mostrar mais ${Math.min(200, extras.length - visiveis.length)} · ${visiveis.length} de ${extras.length}</button></div>` : '');
     box.querySelectorAll('.exm-row').forEach(row => {
       const id = row.dataset.id;
       row.querySelector('.exm-edit').addEventListener('click', () => this.openModal(id));
       row.querySelector('.exm-del').addEventListener('click', () => this.excluir(id));
     });
+    const mais = document.getElementById('exm-load-more');
+    if (mais) mais.addEventListener('click', () => { this._manageLimit = (this._manageLimit || 200) + 200; this.renderManageList(); });
   },
   // Exclusão consciente da recorrência: se a atividade é recorrente e tem ocorrências
   // FUTURAS vinculadas, pergunta se apaga tudo ou só as ocorrências futuras (mantendo
   // a atividade e o histórico já registrado).
   _openOccurrencePicker(x, dia) {
-    const dates = [...new Set([dia, ...(x.datas || []), ...(x.concluidasEm || []), ...(x.historico || []).map(h => h.data)].filter(Boolean))].sort();
+    const dates = [...new Set([...(x.datas || []), ...(x.concluidasEm || []), ...(x.historico || []).map(h => h.data)])].sort();
     return new Promise(resolve => {
       const ov = document.createElement('div'); ov.className = 'occ-del-overlay';
       const minDia = d => (x.historico || []).filter(h => h.data === d).reduce((n,h) => n + (parseFloat(h.minutos) || ((x.unidade === 'min' || x.tipo === 'video') ? (parseFloat(h.quantidade)||0) : 0)), 0);
@@ -832,36 +859,27 @@ const ExtrasScreen = {
   save() {
     const titulo = $id('extra-titulo').value.trim();
     if (!titulo) { showToast('Dê um título à atividade'); return; }
-    const anterior = this._editingId ? DB.getExtra(this._editingId) : null;
-    const periodo = $id('extra-periodo').value;
-    const dataInicio = document.getElementById('extra-datainicio') ? $id('extra-datainicio').value : '';
-    const dataFim = document.getElementById('extra-datafim') ? $id('extra-datafim').value : '';
-    const recorrente = ['diaria','semanal','quinzenal','mensal'].includes(periodo);
-    if (recorrente && dataInicio && dataFim && dataInicio > dataFim) { showToast('O início da recorrência não pode ser depois do fim'); return; }
     const data = {
       titulo,
       tipo: $id('extra-tipo').value,
       disciplina: $id('extra-disciplina').value,
       alvo: $id('extra-alvo').value,
       unidade: $id('extra-unidade').value,
-      periodo,
-      dataInicio,
-      dataFim,
+      periodo: $id('extra-periodo').value,
+      dataInicio: document.getElementById('extra-datainicio') ? $id('extra-datainicio').value : '',
+      dataFim: document.getElementById('extra-datafim') ? $id('extra-datafim').value : '',
       marcador: $id('extra-marcador').value,
       contaMetricas: $id('extra-conta').checked
     };
     let savedId;
     if (this._editingId) { DB.updateExtra(this._editingId, data); savedId = this._editingId; showToast('Atividade atualizada ✓'); }
     else { const ne = DB.addExtra(data); savedId = ne && ne.id; showToast('Atividade criada ✓'); }
-    // Mudança de modelo não pode carregar datas geradas pela recorrência antiga.
+    // recorrência com data-fim: recalcula e vincula as ocorrências ao calendário
     if (savedId) {
-      const eraRecorrente = !!(anterior && DB.extraRecorrente(anterior));
-      if (!recorrente && eraRecorrente) DB.updateExtra(savedId, { datas: [], concluidasEm: [], excluidasEm: [], dataInicio: null, dataFim: null });
-      else if (recorrente && data.dataFim) {
-        DB.sincronizarDatasRecorrencia(savedId);
-        const nova = (DB.getExtra(savedId) || {}).datas || [];
-        if (nova.length) showToast(`📅 ${nova.length} data(s) vinculadas ao calendário ✓`);
-      } else if (recorrente && anterior && (!DB.extraRecorrente(anterior) || anterior.dataFim)) DB.updateExtra(savedId, { datas: [] });
+      const nDatas = (DB.getExtra(savedId) || {}).datas || [];
+      DB.sincronizarDatasRecorrencia(savedId);
+      const nova = (DB.getExtra(savedId) || {}).datas || [];
+      if (data.periodo !== 'unica' && data.dataFim && nova.length) showToast(`📅 ${nova.length} data(s) vinculadas ao calendário ✓`);
     }
     $id('extra-modal').style.display = 'none';
     const okBtn = document.getElementById('extra-save'); if (okBtn) okBtn.textContent = 'Salvar';
@@ -1169,9 +1187,8 @@ window.ExtrasScreen = ExtrasScreen;
   on('extra-datainicio', 'change', () => ExtrasScreen.updateRecPreview());
   on('extras-global-toggle', 'click', () => {
     DB.setExtrasCountGlobal(!DB.extrasCountGlobal());
-    const on = DB.extrasCountGlobal(), bt = $id('extras-global-toggle');
-    bt.classList.toggle('on', on); bt.setAttribute('aria-checked', on ? 'true' : 'false');
-    showToast(on ? 'Atividades marcadas entram nas métricas' : 'Atividades fora das métricas');
+    $id('extras-global-toggle').classList.toggle('on', DB.extrasCountGlobal());
+    showToast(DB.extrasCountGlobal() ? 'Atividades marcadas entram nas métricas' : 'Atividades fora das métricas');
   });
   const m = document.getElementById('extra-modal');
   /* fundo desfocado nao fecha o modal: so o X / Cancelar / Esc fecham */

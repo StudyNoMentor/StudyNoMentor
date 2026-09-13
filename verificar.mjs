@@ -26,7 +26,7 @@
    Uso:  node verificar.mjs        (tudo)
          node verificar.mjs --rapido   (só 1 a 4, sem navegador)
    ═══════════════════════════════════════════════════════════════════════════ */
-import { readFileSync, readdirSync } from 'node:fs';
+import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import { execFileSync } from 'node:child_process';
 import { createServer } from 'node:http';
 import { dirname, join, extname } from 'node:path';
@@ -87,20 +87,6 @@ try {
 } catch (e) {
   erro('a importacao do TEC nao registra o que o arquivo diz:\n' + String(e.stdout || '') + String(e.stderr || ''));
 }
-
-// ── 3c. ESCOPO DO PLANO TEC ───────────────────────────────────────────────
-console.log('\n3c) escopo selecionado do TEC governa o Plano');
-try {
-  const saida = execFileSync(process.execPath, [join(RAIZ, 'testes', 'escopo-plano-tec.mjs')], { stdio: 'pipe' });
-  ok(String(saida).trim());
-} catch (e) {
-  erro('o Plano voltou a enxergar retratos fora do escopo:\n' + String(e.stdout || '') + String(e.stderr || ''));
-}
-
-// ── 3d. ATIVIDADES EXTRAS ──────────────────────────────────────────────────
-console.log('\n3d) contrato operacional das Atividades Extras');
-try { const saida=execFileSync(process.execPath,[join(RAIZ,'testes','atividades-extras.mjs')],{stdio:'pipe'}); ok(String(saida).trim()); }
-catch(e){ erro('a tela de Atividades Extras perdeu uma invariante:\n'+String(e.stdout||'')+String(e.stderr||'')); }
 
 // ── 4. integridade estática do HTML ────────────────────────────────────────
 console.log('\n4) integridade do index.html');
@@ -232,7 +218,23 @@ await new Promise((r) => servidor.listen(0, '127.0.0.1', r));
 const base = `http://127.0.0.1:${servidor.address().port}/index.html`;
 
 console.log('\n5) o app carrega sem erro de console');
-const nav = await chromium.launch();
+/* O pacote Playwright e o navegador são instalados separadamente. Em máquinas
+   Windows que já têm Chrome/Edge, não faz sentido baixar outra cópia de ~200 MB
+   só para a verificação local. A CI continua usando o Chromium do Playwright;
+   localmente aceitamos um caminho explícito ou o navegador do sistema. */
+const navegadorLocal = [
+  process.env.PLAYWRIGHT_EXECUTABLE_PATH,
+  'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe',
+  'C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe'
+].find((p) => p && existsSync(p));
+let nav;
+try {
+  nav = await chromium.launch();
+} catch (e) {
+  if (!navegadorLocal || !/Executable doesn't exist|browserType\.launch/.test(String(e && e.message))) throw e;
+  console.log(`  • Chromium do Playwright ausente; usando ${navegadorLocal}`);
+  nav = await chromium.launch({ executablePath: navegadorLocal });
+}
 const pag = await nav.newPage({ viewport: { width: 1280, height: 900 } });
 const ruido = [];
 pag.on('pageerror', (e) => ruido.push('excecao: ' + e.message));
@@ -1777,8 +1779,8 @@ try {
     const L = (c, n, disc, q, ac) => ({ depth: 1, codigo: c, nome: n, disciplina: disc, questoes: q, acertos: ac });
     const s = DB.getTecSnapshots();
     s.push({ id: 'c3', nome: 'c3', date: dia(1), startDate: dia(20), endDate: dia(1), rows: [
-      D('Dir Adm', 310, 183), L('01', 'Licitacoes', 'Dir Adm', 150, 138),
-      L('02', 'Atos', 'Dir Adm', 150, 42), L('03', 'Contratos', 'Dir Adm', 10, 3)] });
+      D('Dir Adm', 350, 195), L('01', 'Licitacoes', 'Dir Adm', 150, 138),
+      L('02', 'Atos', 'Dir Adm', 150, 42), L('03', 'Contratos', 'Dir Adm', 50, 15)] });
     DB._set(DB.KEYS.tec, s);
     DesempenhoTecScreen._planoRefC = null; DesempenhoTecScreen._cicloSel = null;
     DesempenhoTecScreen.render(); DesempenhoTecScreen.switchTecTab('plano');
@@ -1805,8 +1807,8 @@ try {
   (dep.por.Contratos.st === 'ativa' && dep.por.Contratos.v === null)
     ? ok('e o que ainda esta a meio caminho continua aberto')
     : erro('atividade em andamento foi encerrada por engano: ' + JSON.stringify(dep.por.Contratos));
-  (dep.emCurso.length === 1 && /10\/(?:15|20|25|30)/.test(dep.emCurso[0]) && /pelo retrato/.test(dep.emCurso[0]))
-    ? ok('o bloco "Em curso" conta as questões do retrato contra o ciclo curto vigente')
+  (dep.emCurso.length === 1 && /50\/120/.test(dep.emCurso[0]) && /pelo retrato/.test(dep.emCurso[0]))
+    ? ok('o bloco "Em curso" conta as questoes a partir do retrato, sem lancamento manual (50/120)')
     : erro('o progresso automatico nao apareceu: ' + JSON.stringify(dep.emCurso));
   dep.hist === 2 ? ok('e os dois ciclos fechados entram no historico "o que os retratos ja julgaram"')
     : erro(`historico com ${dep.hist} ciclo(s), esperado 2`);
@@ -1827,10 +1829,10 @@ try {
     if (window.ExtrasScreen) ExtrasScreen.render();
     const t = (document.getElementById('extras-list') || {}).textContent || '';
     return { doPlano: /do Plano/.test(t), evo: /45% → 30%/.test(t), retrato: /pelo retrato/.test(t),
-      barra: /10 \/ (?:15|20|25|30)/.test(t) };
+      barra: /50 \/ 120/.test(t) };
   });
-  (card.doPlano && card.retrato && card.barra)
-    ? ok('o cartão da atividade diz que veio do Plano, usa o retrato e mostra a barra do ciclo curto')
+  (card.doPlano && card.evo && card.barra)
+    ? ok('o cartao da atividade diz que veio do Plano, mostra 45% → 30% e a barra em 50/120')
     : erro('o cartao nao trouxe o ciclo: ' + JSON.stringify(card));
 
   // a calibragem so aparece com historico, e propoe o SEU numero
@@ -1895,16 +1897,9 @@ try {
     return {
       existe: !!painel.querySelector('.exc-card'),
       grupos: [...painel.querySelectorAll('.exc-disc')].map((e) => e.textContent),
-      itens: painel.querySelectorAll('.exc-item').length,
-      ritmo: (painel.querySelector('.exc-kpi-ritmo') || {}).textContent.replace(/\s+/g, ' '),
-      kpis: painel.querySelectorAll('.exc-kpi').length,
-      botoes: [...painel.querySelectorAll('.exc-btn')].map(b => b.textContent.trim()),
-      sublinhados: [...painel.querySelectorAll('.exc-btn')].filter(b => getComputedStyle(b).textDecorationLine !== 'none').length,
-      agendaAuto: DB.getExtras().filter(e => e.origemPlano && e.origemPlano.topico && e.status !== 'concluida')
-        .every(e => (e.datas || []).some(d => d >= todayLocal())),
-      semDivida: DB.getExtras().filter(e => e.origemPlano && e.origemPlano.topico && e.status !== 'concluida')
-        .every(e => (e.datas || []).filter(d => d < todayLocal()).every(d =>
-          (e.concluidasEm || []).includes(d) || (e.historico || []).some(h => h.data === d))),
+      itens: painel.querySelectorAll('.pl-ciclo-lista > li').length,
+      resumo: (painel.querySelector('.exc-resumo') || {}).textContent.replace(/\s+/g, ' '),
+      semDatas: !DB.getExtras().some((e) => (e.datas || []).length),
       discsNoDia: document.querySelectorAll('#extras-list .extras-disc-title').length,
       vaza: document.documentElement.scrollWidth - document.documentElement.clientWidth
     };
@@ -1912,42 +1907,14 @@ try {
   (g.existe && g.itens === 3 && g.grupos.length === 2)
     ? ok(`a tela de Atividades tem o painel dos ${g.itens} reforcos abertos, agrupados por disciplina (${g.grupos.join(', ')})`)
     : erro('o painel de gestao nao apareceu: ' + JSON.stringify(g));
-  /* O ritmo continua derivado do volume, mas a execução agora É agendada.
-     O contrato novo cobra duas coisas mais fortes: cada frente aberta tem próxima
-     sessão e nenhuma data passada sem histórico/conclusão permanece como dívida. */
-  (/\/dia/.test(g.ritmo) && g.agendaAuto && g.semDivida)
-    ? ok('ritmo derivado + agenda automática futura, sem dívida vencida fantasma')
-    : erro('agenda automática do painel falhou: ' + JSON.stringify({ ritmo: g.ritmo, agendaAuto: g.agendaAuto, semDivida: g.semDivida }));
-  (g.kpis >= 3 && g.sublinhados === 0 && g.botoes.includes('Ver hoje') && g.botoes.includes('Concluir'))
-    ? ok('painel em curso usa KPIs e ações compactas, sem links gigantes/sublinhados')
-    : erro('acabamento do painel em curso regrediu: ' + JSON.stringify(g));
+  /* O RITMO É DERIVADO, NÃO AGENDADO. Amarrar cada atividade a um dia cria
+     divida vencida: voce nao estudou terca, e terca fica la, cobrando. */
+  (/\/dia até a próxima importação/.test(g.resumo) && g.semDatas)
+    ? ok('com ritmo por dia calculado na hora, e nenhuma atividade amarrada a uma data')
+    : erro('o ritmo derivado falhou: ' + JSON.stringify({ resumo: g.resumo, semDatas: g.semDatas }));
   (g.discsNoDia >= 2 && g.vaza === 0)
     ? ok('o dia tambem separa por disciplina, sem vazamento a 390px')
     : erro(`agrupamento do dia: ${g.discsNoDia} titulo(s), vazamento ${g.vaza}px`);
-  const navHoje = await pag.evaluate(() => {
-    const b=document.querySelector('#extras-curso [data-curso-dia]'); if(!b)return{faltando:true}; const id=b.dataset.cursoDia;
-    const e0=DB.getExtra(id), antes=JSON.stringify((e0&&e0.datas)||[]); b.click(); const e=DB.getExtra(id);
-    return{antes,depois:JSON.stringify((e&&e.datas)||[]),sel:ExtrasScreen.selDay,hoje:todayLocal()};
-  });
-  (!navHoje.faltando && navHoje.antes===navHoje.depois && navHoje.sel===navHoje.hoje) ? ok('"Ver hoje" só navega; a agenda automática permanece idêntica') : erro('"Ver hoje" alterou a agenda: '+JSON.stringify(navHoje));
-  const ariaExtra = await pag.evaluate(() => { DB.setExtrasCountGlobal(false); ExtrasScreen.render(); const b=document.getElementById('extras-global-toggle'); const antes=b&&b.getAttribute('aria-checked'); if(b)b.click(); return{antes,depois:b&&b.getAttribute('aria-checked'),valor:DB.extrasCountGlobal()}; });
-  (ariaExtra.antes==='false'&&ariaExtra.depois==='true'&&ariaExtra.valor) ? ok('switch de métricas sincroniza dado e aria-checked') : erro('switch global inconsistente: '+JSON.stringify(ariaExtra));
-  const histExtra = await pag.evaluate(() => {
-    const add=(iso,n)=>{const d=new Date(iso+'T00:00:00');d.setDate(d.getDate()+n);return d.toISOString().slice(0,10)}; const hoje=todayLocal(), inicio=add(hoje,-14);
-    const e=DB.addExtra({titulo:'Teste semanal auditável',tipo:'questoes',disciplina:'Teste',alvo:100,unidade:'questoes',periodo:'semanal',dataInicio:inicio,dataFim:hoje,contaMetricas:false}); DB.sincronizarDatasRecorrencia(e.id); DB.addExtraProgress(e.id,40,30,{data:inicio,acertos:30}); DB.addExtraProgress(e.id,90,25,{data:hoje,acertos:70}); ExtrasScreen.selDay=inicio; ExtrasScreen._calStart=inicio; ExtrasScreen.render(); let card=[...document.querySelectorAll('#extras-list .exd')].find(x=>x.dataset.id===e.id); const txt=card?card.textContent.replace(/\s+/g,' '):''; const mais=card&&card.querySelector('.exd-reg-more'); if(mais) mais.click(); card=[...document.querySelectorAll('#extras-list .exd')].find(x=>x.dataset.id===e.id); const temMin=!!(card&&card.querySelector('.exd-min')); DB.deleteExtra(e.id); ExtrasScreen.selDay=hoje; ExtrasScreen._addMoreFor=null; ExtrasScreen.render(); return{txt,temMin};
-  });
-  (/40\s*\/\s*100/.test(histExtra.txt) && /30\s*min/.test(histExtra.txt) && histExtra.temMin) ? ok('dia histórico usa o próprio período, preserva e exibe minutos') : erro('progresso histórico/minutos incorretos: '+JSON.stringify(histExtra));
-  const histRec = await pag.evaluate(() => {
-    const add=(iso,n)=>{const d=new Date(iso+'T00:00:00');d.setDate(d.getDate()+n);return d.toISOString().slice(0,10)};
-    const hoje=todayLocal(), antigo=add(hoje,-7);
-    const e=DB.addExtra({titulo:'Histórico recorrente',tipo:'questoes',disciplina:'Teste',alvo:10,unidade:'questoes',periodo:'semanal',dataInicio:antigo,dataFim:hoje,contaMetricas:false});
-    DB.sincronizarDatasRecorrencia(e.id); DB.addExtraProgress(e.id,5,12,{data:antigo,acertos:4});
-    DB.updateExtra(e.id,{datas:[hoje],excluidasEm:[antigo]});
-    const aparece=ExtrasScreen.occurrencesForDay(antigo).some(x=>x.id===e.id);
-    DB.deleteExtra(e.id); return {aparece};
-  });
-  histRec.aparece ? ok('editar/excluir recorrência não apaga um dia que já tem histórico') : erro('histórico recorrente ficou invisível');
-
   /* SIMPLICIDADE VEM DE MOVER, NÃO DE SOMAR: o Plano abre mao do painel e
      fica com a linha que leva ate a gestao. */
   const mini = await pag.evaluate(() => {

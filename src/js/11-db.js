@@ -1263,6 +1263,11 @@ const DB = {
   // Cada extra: { id, titulo, tipo, disciplina, unidade, alvo, periodo, progresso, contaMetricas,
   //               status, historico:[{data, quantidade, minutos}], createdAt, updatedAt }
   getExtras() {
+    /* Uma pintura da tela consulta a mesma coleção em calendário, resumo,
+       reforços e cartões. Em carga massiva, reler e desserializar o mesmo JSON
+       dezenas de vezes dominava o tempo. ExtrasScreen mantém este retrato só
+       durante a chamada síncrona de render; gravações sempre o invalidam. */
+    if (Array.isArray(this._extrasReadSnapshot)) return this._extrasReadSnapshot;
     const list = this._get(this.KEYS.extras, []);
     let mig = false;
     list.forEach(e => {
@@ -1274,7 +1279,7 @@ const DB = {
     if (mig) { try { this._set(this.KEYS.extras, list); } catch (_) { _quiet(_); } }
     return list;
   },
-  saveExtras(list) { this._set(this.KEYS.extras, list); },
+  saveExtras(list) { this._extrasReadSnapshot = null; this._set(this.KEYS.extras, list); },
   getExtra(id) { return this.getExtras().find(x => x.id === id) || null; },
   addExtra(data) {
     const list = this.getExtras();
