@@ -4075,7 +4075,7 @@ const DesempenhoTecScreen = {
       tipo: 'questoes',
       disciplina: disciplina || '',
       unidade: 'questoes',
-      alvo: Math.max(1, parseInt(alvo, 10) || 30),
+      alvo: (alvoTop && alvoTop.metaCicloQ) ? Math.max(1, parseInt(alvoTop.metaCicloQ, 10)) : Math.max(1, parseInt(alvo, 10) || 30),
       periodo: 'unica',
       contaMetricas: false,
       obs: diag

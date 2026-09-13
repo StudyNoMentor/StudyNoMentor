@@ -317,51 +317,6 @@
     };
   }
 
-  /* Os dois portões criam a atividade e, logo depois, gravam origemPlano. É o
-     ponto comum e seguro para trocar o antigo alvo gigantesco pelo ciclo curto. */
-  if (PC && typeof DB.updateExtra === 'function') {
-    const updateAnterior = DB.updateExtra.bind(DB);
-    DB.updateExtra = function updateExtraComMetaOperacional(id, patch) {
-      const r = updateAnterior(id, patch);
-      try {
-        const o = patch && patch.origemPlano;
-        if (o && o.modeloExecucao >= 2 && o.metaCicloQ > 0) {
-          const atual = DB.getExtra ? DB.getExtra(id) : null;
-          if (atual && Number(atual.alvo) !== Number(o.metaCicloQ)) updateAnterior(id, { alvo: o.metaCicloQ });
-        }
-      } catch (e) { if (typeof _quiet === 'function') _quiet(e, 'plano-meta-operacional'); }
-      return r;
-    };
-
-    /* Migração conservadora: só encurta atividade legada ainda zerada. Se já há
-       trabalho registrado/medido, preservamos o combinado antigo para nunca
-       reescrever um ciclo em andamento por baixo do usuário. */
-    if (typeof PC.avaliar === 'function') {
-      const avaliarAnterior = PC.avaliar;
-      PC.avaliar = function avaliarComMigracaoSegura(extra, ref) {
-        let v = avaliarAnterior.apply(this, arguments);
-        try {
-          const o = extra && extra.origemPlano;
-          if (v && extra && extra.status !== 'concluida' && o && !o.modeloExecucao && (v.feito || 0) === 0 && Number(extra.alvo) > MAX_CICLO * 4) {
-            const e = execucao({ taxa: v.taxa != null ? v.taxa : o.taxaInicial, qJanela: 0, custoQ: Number(extra.alvo) || 0 }, o.motivo || 'reforco');
-            const novoO = Object.assign({}, o, {
-              modeloExecucao: 2,
-              custoEstimadoQ: Number(extra.alvo) || null,
-              metaCicloQ: e.ciclo,
-              metaSessaoQ: e.sessao,
-              qMedirAlvo: e.qMedirAlvo,
-              migradoDeAlvo: Number(extra.alvo) || null
-            });
-            updateAnterior(extra.id, { alvo: e.ciclo, origemPlano: novoO });
-            const novo = DB.getExtra ? DB.getExtra(extra.id) : extra;
-            v = avaliarAnterior.call(this, novo, ref);
-          }
-        } catch (e) { if (typeof _quiet === 'function') _quiet(e, 'plano-migrar-meta-legada'); }
-        return v;
-      };
-    }
-  }
-
   if (EX) {
     const normalizarCand = (ctx) => {
       (ctx._planoCand || []).forEach(x => {
@@ -436,6 +391,22 @@
 
     const depoisDeRender = () => {
       try {
+        /* Migração de legado fica na superfície operacional, não no banco global.
+           Só reduz alvos antigos >120 que ainda não começaram. */
+        if (typeof DB.getExtras === 'function' && typeof DB.updateExtra === 'function') {
+          (DB.getExtras() || []).forEach(e => {
+            const o = e && e.origemPlano;
+            if (!o || o.modeloExecucao || e.status === 'concluida' || Number(e.alvo) <= MAX_CICLO * 4) return;
+            let feito = Number(e.progresso) || 0;
+            try { if (typeof DB.extraProgressoPeriodo === 'function') feito = Math.max(feito, Number(DB.extraProgressoPeriodo(e)) || 0); } catch (_) {}
+            if (feito > 0) return;
+            const ex = execucao({ taxa: o.taxaInicial, qJanela: 0, custoQ: Number(e.alvo) || 0 }, o.motivo || 'reforco');
+            DB.updateExtra(e.id, { alvo: ex.ciclo, origemPlano: Object.assign({}, o, {
+              modeloExecucao: 2, custoEstimadoQ: Number(e.alvo) || null, metaCicloQ: ex.ciclo,
+              metaSessaoQ: ex.sessao, qMedirAlvo: ex.qMedirAlvo, migradoDeAlvo: Number(e.alvo) || null
+            }) });
+          });
+        }
         const brand = document.querySelector('#extras-curso .exc-brand span:last-child');
         if (brand) brand.textContent = 'Ciclos de reforço';
         const head = document.querySelector('#extras-curso .exc-head');
