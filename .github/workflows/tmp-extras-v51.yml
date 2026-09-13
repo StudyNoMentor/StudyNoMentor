@@ -1,0 +1,77 @@
+name: Materializar Atividades Extras v51
+
+on:
+  push:
+    branches: [feat/atividades-extras-ui-moderna]
+
+permissions:
+  contents: write
+
+jobs:
+  validar:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Integrar módulos novos ao montador
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          p = Path('build.mjs')
+          s = p.read_text()
+          old_css = "  SEP('\\n</style>\\n\\n<style id=\"ux-v49\">\\n'), S('css/08-ux-v49.css'),\n  SEP('\\n</style>\\n\\n<script id=\"app-code\" type=\"application/x-diario-inert\">\\n'),"
+          new_css = "  SEP('\\n</style>\\n\\n<style id=\"ux-v49\">\\n'), S('css/08-ux-v49.css'),\n  SEP('\\n</style>\\n\\n<style id=\"extras-v51\">\\n'), S('css/09-extras-v51.css'),\n  SEP('\\n</style>\\n\\n<script id=\"app-code\" type=\"application/x-diario-inert\">\\n'),"
+          if "S('css/09-extras-v51.css')" not in s:
+              if old_css not in s:
+                  raise SystemExit('âncora CSS não encontrada no build.mjs')
+              s = s.replace(old_css, new_css, 1)
+          old_js = "    'js/54-reforco-fila.js',\n    'js/60-cloud-store.js',"
+          new_js = "    'js/54-reforco-fila.js',\n    'js/55-extras-ui-moderna.js',\n    'js/60-cloud-store.js',"
+          if "'js/55-extras-ui-moderna.js'" not in s:
+              if old_js not in s:
+                  raise SystemExit('âncora JS não encontrada no build.mjs')
+              s = s.replace(old_js, new_js, 1)
+          p.write_text(s)
+          PY
+
+      - name: Validar sintaxe da camada nova
+        run: node --check src/js/55-extras-ui-moderna.js
+
+      - name: Reconstruir artefatos publicados
+        run: node build.mjs
+
+      - name: Sanidade estrutural do redesign
+        run: |
+          grep -q "extras-v51" index.html
+          grep -q "ATIVIDADES EXTRAS — PAINEL OPERACIONAL v51" index.html
+          grep -q "exm-dashboard" index.html
+          grep -q "Concluídas recentemente" index.html
+
+      - name: Instalar dependências de teste
+        run: npm ci
+
+      - name: Instalar Chromium
+        run: |
+          npm install --no-save playwright@1.56.1
+          npx playwright install --with-deps chromium
+
+      - name: Suíte canônica completa
+        run: node verificar.mjs
+
+      - name: Persistir somente após suíte verde
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git rm .github/workflows/tmp-extras-v51.yml
+          git add build.mjs index.html src/manifesto.json sw.js src/css/09-extras-v51.css src/js/55-extras-ui-moderna.js
+          if ! git diff --cached --quiet; then
+            git commit -m "feat: moderniza atividades extras com painel operacional"
+            git push
+          fi
