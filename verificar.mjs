@@ -1929,7 +1929,17 @@ try {
     const add=(iso,n)=>{const d=new Date(iso+'T00:00:00');d.setDate(d.getDate()+n);return d.toISOString().slice(0,10)}; const hoje=todayLocal(), inicio=add(hoje,-14);
     const e=DB.addExtra({titulo:'Teste semanal auditável',tipo:'questoes',disciplina:'Teste',alvo:100,unidade:'questoes',periodo:'semanal',dataInicio:inicio,dataFim:hoje,contaMetricas:false}); DB.sincronizarDatasRecorrencia(e.id); DB.addExtraProgress(e.id,40,30,{data:inicio,acertos:30}); DB.addExtraProgress(e.id,90,25,{data:hoje,acertos:70}); ExtrasScreen.selDay=inicio; ExtrasScreen._calStart=inicio; ExtrasScreen.render(); const card=[...document.querySelectorAll('#extras-list .exd')].find(x=>x.dataset.id===e.id); const txt=card?card.textContent.replace(/\s+/g,' '):''; const temMin=!!(card&&card.querySelector('.exd-min')); DB.deleteExtra(e.id); ExtrasScreen.selDay=hoje; ExtrasScreen.render(); return{txt,temMin};
   });
-  (/40\s*\/\s*100/.test(histExtra.txt)&&histExtra.temMin) ? ok('dia histórico usa o próprio período e aceita minutos') : erro('progresso histórico/minutos incorretos: '+JSON.stringify(histExtra));
+  (/40\s*\/\s*100/.test(histExtra.txt) && /30\s*min/.test(histExtra.txt) && histExtra.temMin) ? ok('dia histórico usa o próprio período, preserva e exibe minutos') : erro('progresso histórico/minutos incorretos: '+JSON.stringify(histExtra));
+  const histRec = await pag.evaluate(() => {
+    const add=(iso,n)=>{const d=new Date(iso+'T00:00:00');d.setDate(d.getDate()+n);return d.toISOString().slice(0,10)};
+    const hoje=todayLocal(), antigo=add(hoje,-7);
+    const e=DB.addExtra({titulo:'Histórico recorrente',tipo:'questoes',disciplina:'Teste',alvo:10,unidade:'questoes',periodo:'semanal',dataInicio:antigo,dataFim:hoje,contaMetricas:false});
+    DB.sincronizarDatasRecorrencia(e.id); DB.addExtraProgress(e.id,5,12,{data:antigo,acertos:4});
+    DB.updateExtra(e.id,{datas:[hoje],excluidasEm:[antigo]});
+    const aparece=ExtrasScreen.occurrencesForDay(antigo).some(x=>x.id===e.id);
+    DB.deleteExtra(e.id); return {aparece};
+  });
+  histRec.aparece ? ok('editar/excluir recorrência não apaga um dia que já tem histórico') : erro('histórico recorrente ficou invisível');
 
   /* SIMPLICIDADE VEM DE MOVER, NÃO DE SOMAR: o Plano abre mao do painel e
      fica com a linha que leva ate a gestao. */

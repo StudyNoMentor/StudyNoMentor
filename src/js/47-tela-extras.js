@@ -176,6 +176,12 @@ const ExtrasScreen = {
     return DB.getExtras().filter(x => {
       const datas = x.datas || [];
       if (DB.extraRecorrente(x)) {
+        /* Histórico é fato consumado. Editar a janela da recorrência ou excluir
+           uma ocorrência futura não pode esconder um lançamento/conclusão que
+           já aconteceu naquele dia. */
+        const temHistoricoNoDia = (x.historico || []).some(h => h.data === day);
+        const foiConcluidaNoDia = (x.concluidasEm || []).includes(day);
+        if (temHistoricoNoDia || foiConcluidaNoDia) return true;
         if ((x.excluidasEm || []).includes(day)) return false;
         if (datas.length) return datas.includes(day);
         return this._recurOnDay(x, day);
@@ -539,7 +545,7 @@ const ExtrasScreen = {
     if (done) {
       regRow = totalDia > 0
         ? `<div class="exd-reg exd-reg-donerow">
-             <span class="exd-doneinfo">✓ <b>${totalDia.toLocaleString('pt-BR')}</b> ${escapeHtml(unidLabel)} registrado(s) neste dia${temAcertos ? ` · <b>${acertosDia.toLocaleString('pt-BR')}</b> acerto(s)` : ''}</span>
+             <span class="exd-doneinfo">✓ <b>${totalDia.toLocaleString('pt-BR')}</b> ${escapeHtml(unidLabel)} registrado(s) neste dia${temAcertos ? ` · <b>${acertosDia.toLocaleString('pt-BR')}</b> acerto(s)` : ''}${totalMin > 0 && !emMin ? ` · <b>${totalMin.toLocaleString('pt-BR')}</b> min` : ''}</span>
            </div>`
         : '';
     } else if (futuro) {
@@ -560,7 +566,7 @@ const ExtrasScreen = {
         <div class="exd-reg">
           ${(ultimoReg && !forceInput) ? `
             <div class="exd-reg-saved">
-              <span class="exd-reg-value">✓ ${totalDia.toLocaleString('pt-BR')} ${escapeHtml(unidLabel)} no dia${temAcertos ? ` · ${acertosDia.toLocaleString('pt-BR')} acerto(s)` : ''}</span>
+              <span class="exd-reg-value">✓ ${totalDia.toLocaleString('pt-BR')} ${escapeHtml(unidLabel)} no dia${temAcertos ? ` · ${acertosDia.toLocaleString('pt-BR')} acerto(s)` : ''}${totalMin > 0 && !emMin ? ` · ${totalMin.toLocaleString('pt-BR')} min` : ''}</span>
               <button type="button" class="btn-secondary exd-reg-more">＋ Registrar mais</button>
               <button type="button" class="btn-secondary exd-reg-edit">Editar último</button>
             </div>` : inputGroup}
