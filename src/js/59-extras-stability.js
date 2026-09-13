@@ -88,9 +88,9 @@
         const opener=anterior&&this.openers.get(anterior);
         requestAnimationFrame(()=>{
           if(this.top){
-            if(opener&&opener.isConnected&&this.top.contains(opener)){try{opener.focus({preventScroll:true});}catch(_){}}
+            if(opener&&opener.isConnected&&this.top.contains(opener)){try{opener.focus({preventScroll:true});}catch(e){if(typeof _quiet==='function')_quiet(e,'extras-overlay-focus');}}
             else if(!document.activeElement||!this.top.contains(document.activeElement))this._focusFirst(this.top);
-          }else if(opener&&opener.isConnected){try{opener.focus({preventScroll:true});}catch(_){}}
+          }else if(opener&&opener.isConnected){try{opener.focus({preventScroll:true});}catch(e){if(typeof _quiet==='function')_quiet(e,'extras-overlay-focus');}}
         });
       }
     },

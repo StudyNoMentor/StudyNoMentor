@@ -32,7 +32,7 @@ async function esperarPlano(){
 
 try {
   await page.goto(url,{waitUntil:'domcontentloaded'});
-  await page.waitForFunction(()=>window.switchScreen&&window.DesempenhoTecScreen&&window.PlanoEngine&&window.ReforcoAdaptativo,{timeout:30000});
+  await page.waitForFunction(()=>typeof switchScreen==='function'&&typeof DesempenhoTecScreen==='object'&&typeof PlanoEngine==='object'&&typeof ReforcoAdaptativo==='object',{timeout:30000});
 
   const volume=await page.evaluate(()=>{
     try{ProfileUI.hideGate();}catch(e){if(typeof _quiet==='function')_quiet(e,'teste-plano-hide-gate');}

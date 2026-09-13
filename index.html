@@ -57,7 +57,7 @@
      novo, e o antigo é descartado sozinho na ativação) e o que permite ao app
      dizer qual versão está rodando. Em src/ fica "dev" de propósito: a versão
      é gerada na montagem, não editada à mão. -->
-<meta name="diario-versao" content="vc5370c661b">
+<meta name="diario-versao" content="v94dab46e7c">
 <script>
 /* ── ARRANQUE: abre o IndexedDB AGORA, em paralelo com o parse do documento ──
    A fachada de armazenamento vive no fim do <body>, depois de ~1,7 MB de HTML.
@@ -12717,20 +12717,32 @@ body.leis-foco .leis-reader-card::before { display: none; }
 
 <style id="extras-stability-v1">
 /* Extras — estabilidade de layout, modais e mobile */
-.xsc-overlay,.rg-overlay,.ra-overlay{box-sizing:border-box;overflow:hidden;overscroll-behavior:contain;isolation:isolate}
-.xsc-overlay{z-index:100200}.rg-overlay{z-index:100300}.ra-overlay{z-index:100400}
+:root{
+  /* Extras pertence à faixa de diálogos do design system. Toast e bloqueios
+     globais precisam continuar acima, inclusive após centenas de aberturas. */
+  --z-extras-modal:calc(var(--z-modal,1500) + 20);
+  --z-extras-nested:calc(var(--z-modal,1500) + 40);
+}
+.xsc-overlay,.rg-overlay,.ra-overlay{box-sizing:border-box;overflow:hidden;overscroll-behavior:contain;isolation:isolate;padding:max(12px,env(safe-area-inset-top)) max(12px,env(safe-area-inset-right)) max(12px,env(safe-area-inset-bottom)) max(12px,env(safe-area-inset-left))}
+/* Fallback antes do gerenciador JS ordenar a pilha. Todos permanecem abaixo de
+   --z-toast e --z-bloqueio, ao contrário dos valores arbitrários de seis dígitos. */
+.xsc-overlay,.rg-overlay{z-index:var(--z-extras-modal)!important}.ra-overlay{z-index:var(--z-extras-nested)!important}
 .xsc-overlay *, .rg-overlay *, .ra-overlay *{box-sizing:border-box;min-width:0}
 .xsc-modal,.rg-modal,.ra-modal{width:min(1040px,calc(100vw - 24px));max-width:calc(100vw - 24px);max-height:calc(100dvh - 24px);min-height:0;overflow:hidden}
 .ra-modal{width:min(920px,calc(100vw - 24px))}.rg-history{width:min(1160px,calc(100vw - 24px))}
-.xsc-body,.ra-body,.rg-policy-grid,.rg-hbody{min-height:0;overscroll-behavior:contain;scrollbar-gutter:stable}
+.xsc-body,.ra-body,.rg-policy-grid,.rg-hbody{min-height:0;overscroll-behavior:contain;scrollbar-gutter:stable;-webkit-overflow-scrolling:touch}
 .xsc-head,.ra-head,.rg-head{flex:0 0 auto}.ra-tabs,.xsc-nav,.rg-hnav{flex:0 0 auto}
-.ra-foot,.rg-foot{flex:0 0 auto}.ra-foot button,.rg-foot button,.xsc-foot-actions button{max-width:100%}
-.ra-grid label,.ra-dose-cols label,.ra-weights label,.xsc-field,.rg-pick{overflow-wrap:anywhere}
-.ra-grid input,.ra-grid select,.ra-dose-cols input,.ra-weights input,.xsc-field input,.xsc-field select,.rg-fields input,.rg-fields select{font-size:16px}
+.ra-foot,.rg-foot{flex:0 0 auto}.ra-foot button,.rg-foot button,.xsc-foot-actions button{max-width:100%;white-space:normal;text-align:center;justify-content:center;line-height:1.25}
+.xsc-section,.xsc-section-head,.xsc-callout>div,.xsc-summary-card>div,.rg-picker,.rg-rules,.rg-hcard,.ra-body section,.ra-dose-cols>div{min-width:0}
+.xsc-form-grid>*,.xsc-overview-grid>*,.xsc-explain>*,.xsc-manual-grid>*,.rg-fields>*,.rg-policy-grid>*,.rg-hstats>*,.ra-grid>*,.ra-dose-cols>*,.ra-weights>*{min-width:0}
+.xsc-modal :is(h3,h4,p,span,small,label),.rg-modal :is(h3,h4,p,span,small,label),.ra-modal :is(h3,h4,p,span,small,label){overflow-wrap:break-word}
+.ra-grid input,.ra-grid select,.ra-dose-cols input,.ra-weights input,.xsc-field input,.xsc-field select,.rg-fields input,.rg-fields select{font-size:16px;min-width:0;max-width:100%}
 .extras-overlay-background{pointer-events:none!important;filter:saturate(.85)}
 html.extras-modal-open,html.extras-modal-open body{overflow:hidden!important;overscroll-behavior:none}
-.ra-central-card{align-items:flex-start}.ra-central-card>div{flex:1}.ra-central-card>button{flex:0 0 auto}
+.ra-central-card{align-items:flex-start}.ra-central-card>div{flex:1;min-width:0}.ra-central-card>button{flex:0 0 auto}
 .ra-help,.ra-i,.xsc-info{touch-action:manipulation}
+.xsc-head,.ra-head,.rg-head,.ra-foot,.rg-foot{position:relative;z-index:2;background:var(--surface)}
+
 @media(max-width:760px){
   .xsc-overlay,.rg-overlay,.ra-overlay{padding:0;place-items:end center}
   .xsc-modal,.rg-modal,.ra-modal,.rg-history{width:100%;max-width:100%;height:min(100dvh,100%);max-height:100dvh;border-radius:20px 20px 0 0;border-bottom:0}
@@ -12744,8 +12756,14 @@ html.extras-modal-open,html.extras-modal-open body{overflow:hidden!important;ove
 @media(max-width:560px){
   .xsc-modal,.rg-modal,.ra-modal,.rg-history{border-radius:0;height:100dvh;max-height:100dvh}
   .xsc-nav,.ra-tabs{scroll-snap-type:x proximity}.xsc-nav button,.ra-tabs button{scroll-snap-align:start}
+  .xsc-body,.ra-body,.rg-hbody,.rg-policy-grid{flex:1 1 auto;min-height:0;overflow:auto}
   .ra-foot{display:grid;grid-template-columns:1fr 1fr}.ra-foot .ra-spacer{display:none}.ra-foot [data-reset]{grid-column:1/-1;order:3}.ra-foot [data-cancel],.ra-foot [data-save]{width:100%}
   .rg-foot{display:grid;grid-template-columns:1fr 1fr}.rg-foot button{width:100%}
+  .xsc-kpis,.rg-hstats{grid-template-columns:repeat(2,minmax(0,1fr))}
+}
+@media(max-width:380px){
+  .xsc-kpis,.rg-hstats{grid-template-columns:1fr}
+  .xsc-head h3,.rg-head h3,.ra-head h3{font-size:18px}
 }
 
 </style>
@@ -44561,6 +44579,8 @@ window.ReforcoFila = ReforcoFila;
   if (typeof window !== 'undefined') window.__extrasStabilityV1 = true;
 
   const OVERLAY_SELECTOR = '.xsc-overlay,.rg-overlay,.ra-overlay';
+  const FOCUSABLE = 'a[href],button:not([disabled]),input:not([disabled]):not([type="hidden"]),select:not([disabled]),textarea:not([disabled]),[tabindex]:not([tabindex="-1"])';
+  const CLOSE_SELECTOR = '.ra-x,.rg-x,.xsc-close,[data-cancel],[data-rg-cancel]';
   const now = () => (typeof performance !== 'undefined' && performance.now ? performance.now() : Date.now());
   const num = (v, d = 0) => Number.isFinite(Number(v)) ? Number(v) : d;
   const clamp = (v, a, b) => Math.max(a, Math.min(b, Number(v)));
@@ -44575,59 +44595,109 @@ window.ReforcoFila = ReforcoFila;
     catch (_) { return String(s || '').toLowerCase().trim(); }
   };
 
-  /* Uma única pilha para qualquer modal de Extras. O mais novo sempre fica acima
-     e os anteriores ficam inertes, evitando foco/clique "atrás" da janela ativa. */
+  /* Pilha única de modais de Extras. A posição é recalculada a partir dos
+     overlays PRESENTES, em vez de crescer a cada abertura: mesmo após milhares
+     de usos ela permanece na faixa de modal e nunca ultrapassa toast/bloqueio. */
   const OverlayStack = {
-    base: 200000,
-    seq: 0,
+    base: 1520,
     observer: null,
+    top: null,
+    openers: new WeakMap(),
+    bodyState: null,
+    _visible(el) {
+      if (!el || el.isConnected === false) return false;
+      const cs = typeof getComputedStyle === 'function' ? getComputedStyle(el) : null;
+      if (cs && (cs.display === 'none' || cs.visibility === 'hidden' || cs.opacity === '0')) return false;
+      return true;
+    },
+    _focusables(el) {
+      if (!el || !el.querySelectorAll) return [];
+      return [...el.querySelectorAll(FOCUSABLE)].filter(x => {
+        if (x.closest && x.closest('[inert]')) return false;
+        if (typeof getComputedStyle !== 'function') return true;
+        const cs=getComputedStyle(x),r=x.getBoundingClientRect();
+        return cs.display!=='none'&&cs.visibility!=='hidden'&&r.width>0&&r.height>0;
+      });
+    },
+    _focusFirst(el) {
+      const f=this._focusables(el), alvo=f[0] || el?.querySelector?.('[role="dialog"]') || el;
+      if (alvo && alvo.focus) { try { alvo.focus({preventScroll:true}); } catch (_) { /* melhoria progressiva */ } }
+    },
+    _lock(on) {
+      if (typeof document === 'undefined') return;
+      const html=document.documentElement, body=document.body;
+      if (on && !this.bodyState) {
+        const state={overflow:body.style.overflow,paddingRight:body.style.paddingRight};
+        const gap=Math.max(0,(typeof innerWidth==='number'?innerWidth:html.clientWidth)-html.clientWidth);
+        if(gap>0){const atual=parseFloat(getComputedStyle(body).paddingRight)||0;body.style.paddingRight=`${atual+gap}px`;}
+        body.style.overflow='hidden'; this.bodyState=state; html.classList.add('extras-modal-open');
+      } else if (!on && this.bodyState) {
+        body.style.overflow=this.bodyState.overflow; body.style.paddingRight=this.bodyState.paddingRight;
+        this.bodyState=null; html.classList.remove('extras-modal-open');
+      }
+    },
     register(el) {
       if (!el || el.nodeType !== 1 || !el.matches || !el.matches(OVERLAY_SELECTOR)) return;
-      if (!el.dataset.extrasLayer) el.dataset.extrasLayer = String(++this.seq);
-      el.style.zIndex = String(this.base + Number(el.dataset.extrasLayer) * 20);
+      if (!this.openers.has(el)) this.openers.set(el, document.activeElement);
       this.sync();
     },
     list() {
       if (typeof document === 'undefined') return [];
-      return [...document.querySelectorAll(OVERLAY_SELECTOR)]
-        .filter(x => x.isConnected !== false)
-        .sort((a,b) => Number(a.dataset.extrasLayer || 0) - Number(b.dataset.extrasLayer || 0));
+      return [...document.querySelectorAll(OVERLAY_SELECTOR)].filter(x => this._visible(x));
     },
     sync() {
       if (typeof document === 'undefined') return;
-      const list = this.list(), top = list[list.length - 1] || null;
-      list.forEach(el => {
-        const active = el === top;
-        el.classList.toggle('extras-overlay-background', !active);
-        try { el.inert = !active; } catch (_) { /* navegador antigo */ }
-        if (active) el.removeAttribute('aria-hidden'); else el.setAttribute('aria-hidden','true');
+      const list=this.list(), novo=list[list.length-1]||null, anterior=this.top;
+      list.forEach((el,i)=>{
+        const active=el===novo;
+        el.style.zIndex=String(this.base+i*20);
+        el.classList.toggle('extras-overlay-background',!active);
+        try{el.inert=!active;}catch(_){/* navegador antigo */}
+        if(active)el.removeAttribute('aria-hidden');else el.setAttribute('aria-hidden','true');
       });
-      document.documentElement.classList.toggle('extras-modal-open', !!list.length);
+      this._lock(!!list.length); this.top=novo;
+      if(novo!==anterior){
+        const opener=anterior&&this.openers.get(anterior);
+        requestAnimationFrame(()=>{
+          if(this.top){
+            if(opener&&opener.isConnected&&this.top.contains(opener)){try{opener.focus({preventScroll:true});}catch(e){if(typeof _quiet==='function')_quiet(e,'extras-overlay-focus');}}
+            else if(!document.activeElement||!this.top.contains(document.activeElement))this._focusFirst(this.top);
+          }else if(opener&&opener.isConnected){try{opener.focus({preventScroll:true});}catch(e){if(typeof _quiet==='function')_quiet(e,'extras-overlay-focus');}}
+        });
+      }
     },
     install() {
       if (typeof document === 'undefined') return;
-      document.querySelectorAll(OVERLAY_SELECTOR).forEach(x => this.register(x));
-      if (typeof MutationObserver === 'undefined' || this.observer) return;
-      this.observer = new MutationObserver((records) => {
-        let changed = false;
-        records.forEach(r => {
-          [...(r.addedNodes || [])].forEach(n => {
-            if (!n || n.nodeType !== 1) return;
-            if (n.matches && n.matches(OVERLAY_SELECTOR)) { this.register(n); changed = true; }
-            if (n.querySelectorAll) n.querySelectorAll(OVERLAY_SELECTOR).forEach(x => { this.register(x); changed = true; });
-          });
-          if ((r.removedNodes || []).length) changed = true;
+      document.querySelectorAll(OVERLAY_SELECTOR).forEach(x=>this.register(x));
+      if (typeof MutationObserver !== 'undefined' && !this.observer) {
+        this.observer=new MutationObserver(records=>{
+          records.forEach(r=>[...(r.addedNodes||[])].forEach(n=>{
+            if(!n||n.nodeType!==1)return;
+            if(n.matches&&n.matches(OVERLAY_SELECTOR))this.register(n);
+            if(n.querySelectorAll)n.querySelectorAll(OVERLAY_SELECTOR).forEach(x=>this.register(x));
+          }));
+          /* síncrono na microtask: o modal-pai nunca fica inert por um frame
+             depois que o filho é removido. */
+          this.sync();
         });
-        if (changed) this.sync();
-      });
-      this.observer.observe(document.body || document.documentElement, { childList:true, subtree:true });
-      document.addEventListener('keydown', (e) => {
-        if (e.key !== 'Escape') return;
-        const top = this.list().pop();
-        if (!top) return;
-        const btn = top.querySelector('.ra-x,.rg-x,.xsc-close,[data-cancel],[data-rg-cancel]');
-        if (btn) { e.preventDefault(); btn.click(); }
-      });
+        this.observer.observe(document.body||document.documentElement,{childList:true,subtree:true});
+      }
+      document.addEventListener('keydown',e=>{
+        const top=this.list().pop(); if(!top)return;
+        if(e.key==='Escape'){
+          const btn=top.querySelector(CLOSE_SELECTOR);if(btn){e.preventDefault();e.stopPropagation();btn.click();}
+          return;
+        }
+        if(e.key!=='Tab')return;
+        const f=this._focusables(top);if(!f.length){e.preventDefault();return;}
+        const first=f[0],last=f[f.length-1],act=document.activeElement;
+        if(e.shiftKey&&(act===first||!top.contains(act))){e.preventDefault();last.focus();}
+        else if(!e.shiftKey&&(act===last||!top.contains(act))){e.preventDefault();first.focus();}
+      },true);
+      document.addEventListener('focusin',e=>{
+        const top=this.list().pop();
+        if(top&&!top.contains(e.target))this._focusFirst(top);
+      },true);
     }
   };
   OverlayStack.install();
