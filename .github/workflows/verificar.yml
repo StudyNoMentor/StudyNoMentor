@@ -11,10 +11,22 @@
 name: Verificacao
 
 on:
+  # Branches de feature sao verificadas pelo evento pull_request. Rodar tambem
+  # no push dessas mesmas branches duplicava jobs, consumo e notificacoes.
   push:
-    branches: ['**']
+    branches: [main]
   pull_request:
+    branches: [main]
   workflow_dispatch:
+
+# Um novo commit no mesmo PR torna a execucao anterior obsoleta. Cancela-la
+# reduz ruido de CI sem enfraquecer a barreira de qualidade do SHA mais recente.
+concurrency:
+  group: verificacao-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
 
 jobs:
   verificar:
