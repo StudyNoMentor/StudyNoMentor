@@ -39,9 +39,9 @@ jobs:
         run: |
           git config user.name 'StudyNoMentor'
           git config user.email 'jairo258@hotmail.com'
-          git add src/js/51a-tec-scope-consistency.js verificar.mjs index.html src/manifesto.json sw.js
+          git add src/js/51a-tec-scope-consistency.js verificar.mjs test/jornada-invariantes.js index.html src/manifesto.json sw.js
           if ! git diff --cached --quiet; then
-            git commit -m 'Alinha integração ao ciclo curto validado'
+            git commit -m 'Valida ciclos curtos na integração e jornada anual'
             git push origin HEAD:fix/plano-ciclos-rotacao-real
           fi
       - name: Registrar resultado sem mutar a branch
