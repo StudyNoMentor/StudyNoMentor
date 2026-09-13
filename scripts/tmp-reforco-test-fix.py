@@ -37,6 +37,10 @@ trocar('testes/reforco-cenarios.mjs',
   assert.deepEqual(Array.from(p.candidatos.slice(0, 3), x => x.nome).sort(), ['A1', 'B1', 'D1']);""")
 
 trocar('testes/reforco-cenarios.mjs',
+"""  assert.deepEqual(p.candidatos.slice(0, 4).map(x => x.disciplina), ['B', 'B', 'D', 'D']);""",
+"""  assert.deepEqual(Array.from(p.candidatos.slice(0, 4), x => x.disciplina), ['B', 'B', 'D', 'D']);""")
+
+trocar('testes/reforco-cenarios.mjs',
 """  const p = F.prepararSugestoesPlano(candidatos()); assert.equal(p.candidatos[0].disciplina, 'B');""",
 """  const p = F.prepararSugestoesPlano(candidatos());
   assert.ok(Array.from(p.candidatos.slice(0, p.info.vagasSugeridas), x => x.disciplina).includes('B'));""")
