@@ -108,7 +108,10 @@
       let minimo = t.minDia;
       if (anterior[t.id] && addDias(anterior[t.id], 1) > minimo) minimo = addDias(anterior[t.id], 1);
       let primeiro = null, agrupado = null;
-      for (let i = 0; i <= horizonte; i++) {
+      /* O horizonte limita a procura normal, não a integridade. Se todos os
+         dias da janela estiverem ocupados, continua avançando até achar um dia
+         realmente válido — nunca cai de volta em `minimo` sobrepondo frentes. */
+      for (let i = 0; !primeiro || i <= horizonte; i++) {
         const dia = addDias(minimo, i);
         if (!diaValido(ocupacao, dia, t, maxPorDia)) continue;
         if (!primeiro) primeiro = dia;
@@ -275,7 +278,10 @@
     e.origemPlano = Object.assign({}, o, { agendaAuto: ag });
     e.updatedAt = new Date().toISOString();
     DB.saveExtras(list);
-    replanejar(on ? addDias(dia, 1) : dia, { preservarHoje: !on });
+    /* Fechar uma das frentes de hoje não remove as outras duas da missão.
+       O fato recém-fechado é preservado por `concluidasEm`; as demais sessões
+       de hoje permanecem estáveis e só o saldo desta frente vai adiante. */
+    replanejar(hoje(), { preservarHoje: true });
     return DB.getExtra ? DB.getExtra(id) : e;
   }
 

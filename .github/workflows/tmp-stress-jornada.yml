@@ -1,0 +1,48 @@
+name: Auditoria massiva temporaria
+on:
+  push:
+    branches: [test/stress-jornada-massiva]
+    paths:
+      - '.github/workflows/tmp-stress-jornada.yml'
+      - 'stress-run.trigger'
+permissions:
+  contents: write
+jobs:
+  stress:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: test/stress-jornada-massiva
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Aplicar patch iterativo
+        run: python3 scripts/tmp-stress-patch.py
+      - name: Reconstruir app
+        run: node build.mjs
+      - name: Instalar dependencias
+        run: npm ci
+      - name: Instalar Chromium
+        run: npx playwright install --with-deps chromium
+      - name: Auditoria massiva em Chromium
+        run: node testes/stress-jornada-massiva.mjs
+      - name: Publicar evidencias visuais
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: stress-jornada-evidencias
+          path: artifacts/stress-jornada/
+          if-no-files-found: warn
+          retention-days: 7
+      - name: Persistir correcoes quando tudo passar
+        if: success()
+        run: |
+          git config user.name 'StudyNoMentor'
+          git config user.email 'jairo258@hotmail.com'
+          git add testes/stress-jornada-massiva.mjs src/js/51b-reforco-agenda-auto.js index.html src/manifesto.json sw.js build.mjs 2>/dev/null || true
+          if ! git diff --cached --quiet; then
+            git commit -m 'Valida jornada massiva em navegador real'
+            git push origin HEAD:test/stress-jornada-massiva
+          fi
