@@ -22,6 +22,12 @@ assert.deepEqual(ExtrasScreen._planoCand.slice(0, 3).map(x => x.nome), ['B crít
 assert.deepEqual(Array.from(ExtrasScreen._planoCand.slice(0, 3), x => x.nome).sort(), ['A crítico', 'B crítico', 'D crítico'],
   'cada matéria prioritária deve levar seu pior tópico');""")
 
+trocar('testes/reforco-fila.mjs',
+"""assert.deepEqual(ExtrasScreen._planoCand.slice(0, 2).map(x => x.disciplina), ['B', 'C'],
+  'com retrato novo, B e C podem ser reavaliadas e voltar se ainda estiverem na fila de fraquezas');""",
+"""assert.deepEqual(Array.from(ExtrasScreen._planoCand.slice(0, 2), x => x.disciplina).sort(), ['B', 'C'],
+  'com retrato novo, B e C podem ser reavaliadas e voltar se ainda estiverem na fila de fraquezas');""")
+
 trocar('testes/reforco-cenarios.mjs',
 """  assert.deepEqual(p.candidatos.slice(0, 3).map(x => x.disciplina), ['B', 'D', 'A']);
   assert.deepEqual(Array.from(p.indices), [0, 1, 2]);
@@ -29,5 +35,10 @@ trocar('testes/reforco-cenarios.mjs',
 """  assert.deepEqual(Array.from(p.candidatos.slice(0, 3), x => x.disciplina).sort(), ['A', 'B', 'D']);
   assert.deepEqual(Array.from(p.indices), [0, 1, 2]);
   assert.deepEqual(Array.from(p.candidatos.slice(0, 3), x => x.nome).sort(), ['A1', 'B1', 'D1']);""")
+
+trocar('testes/reforco-cenarios.mjs',
+"""  const p = F.prepararSugestoesPlano(candidatos()); assert.equal(p.candidatos[0].disciplina, 'B');""",
+"""  const p = F.prepararSugestoesPlano(candidatos());
+  assert.ok(Array.from(p.candidatos.slice(0, p.info.vagasSugeridas), x => x.disciplina).includes('B'));""")
 
 print('asserções de ordem normalizadas')
