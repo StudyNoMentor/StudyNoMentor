@@ -257,8 +257,8 @@ console.log('\n5) as colunas se ligam pelo CABEÇALHO (e não pela posição)');
   // célula vazia no meio não desloca mais a linha inteira
   const comBuraco = TecEngine.parseCellRows(await lerCelulas([CAB_DES,
     ['', 'Matéria', '', '59', '13', '41', '9', '1']]));
-  ck('questões ausentes não puxam a % para o lugar delas', comBuraco[0].acertos, 13);
-  ck('e a linha não vira "59 questões"', comBuraco[0].questoes, 0);
+  ck('questões ausentes não puxam a % para o lugar delas', comBuraco.length, 0);
+  ck('a linha impossível é marcada para bloquear a importação', TecEngine.validarDesempenho(comBuraco).ok, false);
 }
 
 console.log('\n6) linhas que não são dados: total, resumo e índice de coluna');

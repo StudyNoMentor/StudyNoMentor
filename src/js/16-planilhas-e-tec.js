@@ -229,10 +229,61 @@ const TecEngine = {
     partes.push((buf + line.slice(last)).trim());
     return partes.filter((c, i, arr) => !(c === '' && i === arr.length - 1));
   },
+  /* CSV de verdade permite delimitador dentro de aspas, aspas escapadas e até
+     quebra de linha dentro da célula. `String.split(',')` corrompia justamente
+     nomes comuns como "Direito, Processo Civil" e deslocava todas as contagens.
+     Este leitor pequeno cobre o formato RFC 4180 sem depender de biblioteca ou
+     internet. */
+  _csvRows(text, delim) {
+    const rows = [], row = [];
+    let cell = '', quoted = false;
+    const src = String(text || '').replace(/^\uFEFF/, '');
+    for (let i = 0; i < src.length; i++) {
+      const ch = src[i];
+      if (quoted) {
+        if (ch === '"' && src[i + 1] === '"') { cell += '"'; i++; }
+        else if (ch === '"') quoted = false;
+        else cell += ch;
+        continue;
+      }
+      if (ch === '"' && cell === '') { quoted = true; continue; }
+      if (ch === delim) { row.push(cell.trim()); cell = ''; continue; }
+      if (ch === '\n' || ch === '\r') {
+        if (ch === '\r' && src[i + 1] === '\n') i++;
+        row.push(cell.trim()); cell = '';
+        if (row.some(c => c !== '')) rows.push(row.splice(0)); else row.length = 0;
+        continue;
+      }
+      cell += ch;
+    }
+    row.push(cell.trim());
+    if (row.some(c => c !== '')) rows.push(row);
+    return rows;
+  },
+  _delimitadorCsv(text) {
+    const primeira = String(text || '').split(/\r?\n/, 1)[0] || '';
+    const cab = primeira.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+    if (!/(hierarquia|quest|acertos?|indice|disciplina)/.test(cab)) return null;
+    const conta = (d) => {
+      let n = 0, aspas = false;
+      for (let i = 0; i < primeira.length; i++) {
+        if (primeira[i] === '"') {
+          if (aspas && primeira[i + 1] === '"') i++; else aspas = !aspas;
+        } else if (!aspas && primeira[i] === d) n++;
+      }
+      return n;
+    };
+    const virgulas = conta(','), pontosVirgula = conta(';');
+    if (Math.max(virgulas, pontosVirgula) < 2) return null;
+    return pontosVirgula > virgulas ? ';' : ',';
+  },
   // Parseia o texto colado (TSV) do TecConcursos numa lista hierárquica de linhas.
   // Colunas esperadas (após nome): Questões Resolvidas, Acertos %, Qtd Acertos, Erros %, Qtd Erros, Peso
   parse(text) {
-    const rawLines = String(text || '').split(/\r?\n/).map(l => l.replace(/\u00a0/g, ' ')).filter(l => l.trim() !== '');
+    const src = String(text || '').replace(/\u00a0/g, ' ');
+    const delim = src.includes('\t') ? null : this._delimitadorCsv(src);
+    if (delim) return this.parseCellRows(this._csvRows(src, delim));
+    const rawLines = src.split(/\r?\n/).filter(l => l.trim() !== '');
     return this.parseCellRows(rawLines.map(l => this.splitLine(l)));
   },
   // Linhas de TOTAL/RESUMO do relatório do TEC. Se entrassem, virariam uma "disciplina"
@@ -303,6 +354,7 @@ const TecEngine = {
   // Núcleo compartilhado: recebe linhas já divididas em células (de texto colado OU de planilha xlsx/csv)
   parseCellRows(cellRows) {
     const rows = [];
+    const erros = [];
     let currentDisc = null;
     let skippedHeader = false;
     let mapa = null;
@@ -365,18 +417,31 @@ const TecEngine = {
         acertos = Math.round(questoes * pctAcerto / 100);
       }
       if (questoes === null && pctAcerto === null) continue; // linha sem dados úteis
+      /* Contagens são fatos discretos. Valor negativo, fracionário, infinito ou
+         mais acertos que questões não pode entrar num retrato parcialmente
+         válido: além da taxa impossível, ele contamina totais, projeção e
+         atividades criadas pelo Plano. Guardamos o motivo na própria lista para
+         o importador bloquear o arquivo inteiro e explicar o erro. */
+      const q = questoes === null ? 0 : questoes;
+      const ac = acertos === null ? 0 : acertos;
+      if (!Number.isFinite(q) || !Number.isInteger(q) || q < 0 ||
+          !Number.isFinite(ac) || !Number.isInteger(ac) || ac < 0 || ac > q) {
+        erros.push(`"${nome || 'linha sem nome'}": questões e acertos devem ser inteiros, não negativos, e acertos não podem superar questões`);
+        if (depth === 0) currentDisc = null;
+        continue;
+      }
       rows.push({
         codigo, nome, depth,
         disciplina: depth === 0 ? nome : currentDisc,
-        questoes: questoes || 0,
-        acertos: acertos || 0,
+        questoes: q,
+        acertos: ac,
         /* A coluna "Acertos (%)" do arquivo é ARREDONDADA para exibição (59
            para 13 de 22, que são 59,09). As duas CONTAGENS são exatas, então a
            taxa sai delas sempre que houver questão — o número do arquivo fica
            só como reserva para a linha que não traz quantidade. Sem isto, o
            corte dos pontos fracos e a ordenação da Análise comparavam limiares
            contra um valor já arredondado. */
-        pctAcerto: (questoes > 0) ? Math.round((acertos || 0) / questoes * 1000) / 10
+        pctAcerto: (q > 0) ? Math.round(ac / q * 1000) / 10
           : (pctAcerto !== null ? pctAcerto : 0),
         /* O MESMO parser serve à planilha de INCIDÊNCIA, onde a segunda coluna
            numérica não é taxa de acerto: é a fatia daquele assunto no caderno
@@ -386,7 +451,21 @@ const TecEngine = {
         peso: this.parseNum(pesoRaw)
       });
     }
+    Object.defineProperty(rows, '_errosImportacao', { value: erros, enumerable: false, configurable: true });
     return rows;
+  },
+  validarDesempenho(rows) {
+    const erros = (rows && rows._errosImportacao) ? rows._errosImportacao.slice() : [];
+    (rows || []).forEach(r => {
+      const q = r && r.questoes, ac = r && r.acertos;
+      if (!Number.isFinite(q) || !Number.isInteger(q) || q < 0 ||
+          !Number.isFinite(ac) || !Number.isInteger(ac) || ac < 0 || ac > q) {
+        erros.push(`"${(r && r.nome) || 'linha sem nome'}": contagens inválidas`);
+      }
+    });
+    const total = (rows || []).reduce((n, r) => n + (Number.isFinite(r.questoes) ? r.questoes : 0), 0);
+    if (!erros.length && total <= 0) erros.push('o retrato não contém nenhuma questão resolvida');
+    return { ok: erros.length === 0, erros, total };
   },
   /* Leitura POSICIONAL (sem cabeçalho): questões, % de acerto, qtd de acertos e
      peso, na ordem do relatório. Descarta as células vazias antes do primeiro

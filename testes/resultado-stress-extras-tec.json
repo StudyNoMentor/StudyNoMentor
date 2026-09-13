@@ -1,0 +1,618 @@
+{
+  "executadoEm": "2026-09-13T12:14:14.861Z",
+  "modo": "Chrome real, perfil efêmero, DOM completo",
+  "checagens": [
+    {
+      "grupo": "importacao",
+      "nome": "TSV preserva linhas e totais",
+      "passou": true,
+      "detalhe": {
+        "linhas": 5,
+        "totais": {
+          "questoes": 300,
+          "acertos": 180,
+          "pct": 60,
+          "disciplinas": 2
+        }
+      }
+    },
+    {
+      "grupo": "importacao",
+      "nome": "CSV citado preserva vírgulas entre aspas",
+      "passou": true,
+      "detalhe": {
+        "linhas": 2
+      }
+    },
+    {
+      "grupo": "importacao",
+      "nome": "Parser rejeita contagens impossíveis",
+      "passou": true,
+      "detalhe": []
+    },
+    {
+      "grupo": "importacao",
+      "nome": "Salvar bloqueia acertos maiores que total",
+      "passou": true,
+      "detalhe": {
+        "antes": 4,
+        "depois": 4
+      }
+    },
+    {
+      "grupo": "importacao",
+      "nome": "Salvar bloqueia retrato sem questões",
+      "passou": true,
+      "detalhe": {
+        "antes": 4,
+        "depois": 4
+      }
+    },
+    {
+      "grupo": "importacao",
+      "nome": "Importação válida é persistida pela tela",
+      "passou": true,
+      "detalhe": {
+        "depois": 5
+      }
+    },
+    {
+      "grupo": "extras-plano",
+      "nome": "Plano cria atividade vinculada",
+      "passou": true,
+      "detalhe": {
+        "topico": "Tema 1",
+        "disciplina": "Disciplina 1",
+        "motivo": "reforco",
+        "criadoEm": "2026-09-13",
+        "taxaInicial": 33.33333333333333,
+        "qBase": 180,
+        "escopo": {
+          "tipo": "no",
+          "membros": [
+            "Tema 1"
+          ]
+        },
+        "qBaseNo": 180,
+        "metaAlvo": 85,
+        "custoEstimado": 163,
+        "tetoAlvo": 90
+      }
+    },
+    {
+      "grupo": "extras-plano",
+      "nome": "Plano bloqueia duplicata aberta",
+      "passou": true,
+      "detalhe": {
+        "retorno": false,
+        "total": 1
+      }
+    },
+    {
+      "grupo": "extras-plano",
+      "nome": "Anki e questões externas coexistem com o reforço do Plano",
+      "passou": true,
+      "detalhe": [
+        {
+          "titulo": "Reforçar: Tema 1",
+          "origemPlano": true
+        },
+        {
+          "titulo": "Anki — Tema 1",
+          "origemPlano": false
+        },
+        {
+          "titulo": "Questões externas — Tema 1",
+          "origemPlano": false
+        }
+      ]
+    },
+    {
+      "grupo": "extras-parcial",
+      "nome": "Registro parcial pela UI preserva total e acertos",
+      "passou": true,
+      "detalhe": {
+        "id": "fe6cb42e-b593-41e4-a3c4-4dc26c671acf",
+        "titulo": "Questões externas — Tema 1",
+        "tipo": "questoes",
+        "disciplina": "Disciplina 1",
+        "unidade": "questoes",
+        "alvo": 60,
+        "periodo": "unica",
+        "dataInicio": null,
+        "dataFim": null,
+        "progresso": 25,
+        "datas": [],
+        "marcador": "",
+        "contaMetricas": true,
+        "status": "ativa",
+        "concluidasEm": [],
+        "historico": [
+          {
+            "data": "2026-09-13",
+            "quantidade": 25,
+            "minutos": 0,
+            "acertos": 18
+          }
+        ],
+        "createdAt": "2026-09-13T12:14:14.934Z",
+        "updatedAt": "2026-09-13T12:14:15.073Z"
+      }
+    },
+    {
+      "grupo": "extras-parcial",
+      "nome": "Acertos são limitados ao total do lançamento",
+      "passou": true,
+      "detalhe": {
+        "data": "2026-09-13",
+        "quantidade": 20,
+        "minutos": 0,
+        "acertos": 20
+      }
+    },
+    {
+      "grupo": "extras-parcial",
+      "nome": "Parciais somadas concluem exatamente no alvo",
+      "passou": true,
+      "detalhe": {
+        "progresso": 60,
+        "status": "concluida"
+      }
+    },
+    {
+      "grupo": "extras-parcial",
+      "nome": "Desfazer último parcial reabre atividade",
+      "passou": true,
+      "detalhe": {
+        "progresso": 45,
+        "status": "ativa"
+      }
+    },
+    {
+      "grupo": "extras-recorrencia",
+      "nome": "Ocorrência futura não pode ser concluída",
+      "passou": true,
+      "detalhe": null
+    },
+    {
+      "grupo": "extras-recorrencia",
+      "nome": "Concluir Anki hoje não conclui amanhã",
+      "passou": true,
+      "detalhe": null
+    },
+    {
+      "grupo": "extras-plano",
+      "nome": "Novo retrato alimenta progresso automático só do reforço vinculado",
+      "passou": true,
+      "detalhe": {
+        "antes": 0,
+        "depois": 210,
+        "externo": 45
+      }
+    },
+    {
+      "grupo": "matriz-extras",
+      "nome": "360 combinações renderizam cartão finito",
+      "passou": true,
+      "detalhe": {
+        "esperadas": 360,
+        "validas": 360
+      }
+    },
+    {
+      "grupo": "matriz-extras",
+      "nome": "Tela monta atividades do Plano e externas juntas",
+      "passou": true,
+      "detalhe": {
+        "cartoesNoDia": 100,
+        "tagsPlano": 50
+      }
+    },
+    {
+      "grupo": "matriz-extras",
+      "nome": "Gerenciador pagina as 360 atividades sem perder linhas",
+      "passou": true,
+      "detalhe": {
+        "primeiraPagina": 200,
+        "aposMostrarMais": 360
+      }
+    },
+    {
+      "grupo": "extras-recorrencia",
+      "nome": "mensal 31/jan em ano comum",
+      "passou": true,
+      "detalhe": {
+        "esperado": 3,
+        "obtido": 3,
+        "datas": [
+          "2025-01-31",
+          "2025-02-28",
+          "2025-03-31"
+        ]
+      }
+    },
+    {
+      "grupo": "extras-recorrencia",
+      "nome": "mensal 31/jan em ano bissexto",
+      "passou": true,
+      "detalhe": {
+        "esperado": 3,
+        "obtido": 3,
+        "datas": [
+          "2024-01-31",
+          "2024-02-29",
+          "2024-03-31"
+        ]
+      }
+    },
+    {
+      "grupo": "extras-recorrencia",
+      "nome": "diária em 31 dias",
+      "passou": true,
+      "detalhe": {
+        "esperado": 31,
+        "obtido": 31,
+        "datas": [
+          "2026-01-01",
+          "2026-01-02",
+          "2026-01-03",
+          "2026-01-04",
+          "2026-01-05",
+          "2026-01-06",
+          "2026-01-07",
+          "2026-01-08",
+          "2026-01-09",
+          "2026-01-10",
+          "2026-01-11",
+          "2026-01-12",
+          "2026-01-13",
+          "2026-01-14",
+          "2026-01-15",
+          "2026-01-16",
+          "2026-01-17",
+          "2026-01-18",
+          "2026-01-19",
+          "2026-01-20",
+          "2026-01-21",
+          "2026-01-22",
+          "2026-01-23",
+          "2026-01-24",
+          "2026-01-25",
+          "2026-01-26",
+          "2026-01-27",
+          "2026-01-28",
+          "2026-01-29",
+          "2026-01-30",
+          "2026-01-31"
+        ]
+      }
+    },
+    {
+      "grupo": "extras-recorrencia",
+      "nome": "semanal em 29 dias",
+      "passou": true,
+      "detalhe": {
+        "esperado": 5,
+        "obtido": 5,
+        "datas": [
+          "2026-01-01",
+          "2026-01-08",
+          "2026-01-15",
+          "2026-01-22",
+          "2026-01-29"
+        ]
+      }
+    },
+    {
+      "grupo": "extras-recorrencia",
+      "nome": "quinzenal em 29 dias",
+      "passou": true,
+      "detalhe": {
+        "esperado": 3,
+        "obtido": 3,
+        "datas": [
+          "2026-01-01",
+          "2026-01-15",
+          "2026-01-29"
+        ]
+      }
+    },
+    {
+      "grupo": "tec-massivo",
+      "nome": "Plano massivo mantém números finitos",
+      "passou": true,
+      "detalhe": {
+        "dominio": 60.99545808348365,
+        "itens": 200
+      }
+    },
+    {
+      "grupo": "tec-massivo",
+      "nome": "Reforço massivo retorna itens sem duplicar unidade",
+      "passou": true,
+      "detalhe": {
+        "itens": 200,
+        "unidades": 3000
+      }
+    },
+    {
+      "grupo": "tec-massivo",
+      "nome": "Aba analise renderiza sem NaN",
+      "passou": true,
+      "detalhe": {
+        "caracteres": 345867,
+        "elementos": 22527
+      }
+    },
+    {
+      "grupo": "tec-massivo",
+      "nome": "Aba incidencia renderiza sem NaN",
+      "passou": true,
+      "detalhe": {
+        "caracteres": 5726,
+        "elementos": 246
+      }
+    },
+    {
+      "grupo": "tec-massivo",
+      "nome": "Aba reforco renderiza sem NaN",
+      "passou": true,
+      "detalhe": {
+        "caracteres": 3217,
+        "elementos": 131
+      }
+    },
+    {
+      "grupo": "tec-massivo",
+      "nome": "Aba plano renderiza sem NaN",
+      "passou": true,
+      "detalhe": {
+        "caracteres": 161946,
+        "elementos": 5546
+      }
+    },
+    {
+      "grupo": "extras-massivo",
+      "nome": "Tela diária pagina e expande o subconjunto navegável",
+      "passou": true,
+      "detalhe": {
+        "primeiraPagina": 100,
+        "segundaPagina": 182,
+        "total": 2000
+      }
+    },
+    {
+      "grupo": "extras-massivo",
+      "nome": "Gerenciador pagina e alcança as 2.000 atividades",
+      "passou": false,
+      "detalhe": {
+        "primeiraPagina": 400,
+        "segundaPagina": 600,
+        "todas": 2000
+      }
+    },
+    {
+      "grupo": "extras-massivo",
+      "nome": "Tela massiva não exibe NaN",
+      "passou": true,
+      "detalhe": {
+        "caracteres": 104781
+      }
+    },
+    {
+      "grupo": "extras-massivo",
+      "nome": "Plano e Anki/externas permanecem distinguíveis",
+      "passou": true,
+      "detalhe": {
+        "plano": 20,
+        "ankiExterno": 327
+      }
+    }
+  ],
+  "desempenho": [
+    {
+      "nome": "TEC: parse TSV válido (5 linhas)",
+      "ms": 3.3
+    },
+    {
+      "nome": "Extras: render + layout da matriz de 360 combinações",
+      "ms": 281.6
+    },
+    {
+      "nome": "Extras: gerenciador com 360 combinações",
+      "ms": 148.5
+    },
+    {
+      "nome": "TEC: persistir 12 retratos / 35.160 linhas",
+      "ms": 25.8
+    },
+    {
+      "nome": "TEC: agregar 12 retratos e evolução parcial",
+      "ms": 206.6
+    },
+    {
+      "nome": "TEC: calcular Plano com 3.000 tópicos",
+      "ms": 406.6
+    },
+    {
+      "nome": "TEC: persistir 9.090 linhas de incidência / 3 bancas",
+      "ms": 3.7
+    },
+    {
+      "nome": "TEC: calcular Reforço com incidência massiva",
+      "ms": 124.8
+    },
+    {
+      "nome": "TEC: render + layout da aba analise (carga massiva)",
+      "ms": 162.8
+    },
+    {
+      "nome": "TEC: render + layout da aba incidencia (carga massiva)",
+      "ms": 165.2
+    },
+    {
+      "nome": "TEC: render + layout da aba reforco (carga massiva)",
+      "ms": 279.5
+    },
+    {
+      "nome": "TEC: render + layout da aba plano (carga massiva)",
+      "ms": 3826.6
+    },
+    {
+      "nome": "Extras: persistir 2.000 atividades / 8.000 lançamentos",
+      "ms": 10.6
+    },
+    {
+      "nome": "Extras: render + layout com 2.000 atividades e TEC massivo",
+      "ms": 2935.9
+    },
+    {
+      "nome": "Extras: gerenciador DOM com 2.000 atividades",
+      "ms": 39.5
+    },
+    {
+      "nome": "Extras: varrer ocorrências de 31 dias",
+      "ms": 142.6
+    },
+    {
+      "nome": "Extras: somar carga horária anual",
+      "ms": 6.5
+    },
+    {
+      "nome": "Extras: registrar parcial com 2.000 itens persistidos",
+      "ms": 10.3
+    },
+    {
+      "nome": "Extras: desfazer parcial com 2.000 itens persistidos",
+      "ms": 7
+    }
+  ],
+  "volumes": {
+    "matrizExtras": 360,
+    "tec": {
+      "retratos": 12,
+      "topicosCatalogo": 3000,
+      "linhas": 35160,
+      "incidencia": 9090,
+      "questoesAgregadas": 3828010
+    },
+    "extras": {
+      "atividades": 2000,
+      "historicos": 8000,
+      "origensPlano": 20,
+      "cartoesHoje": 100,
+      "linhasGerenciador": 400
+    }
+  },
+  "longTasks": [
+    {
+      "inicio": 1934,
+      "ms": 575
+    },
+    {
+      "inicio": 2509,
+      "ms": 126
+    },
+    {
+      "inicio": 2836,
+      "ms": 7808
+    },
+    {
+      "inicio": 10740,
+      "ms": 157
+    },
+    {
+      "inicio": 10917,
+      "ms": 248
+    },
+    {
+      "inicio": 11197,
+      "ms": 3804
+    },
+    {
+      "inicio": 15024,
+      "ms": 5535
+    },
+    {
+      "inicio": 20626,
+      "ms": 2904
+    },
+    {
+      "inicio": 23705,
+      "ms": 65
+    },
+    {
+      "inicio": 23785,
+      "ms": 172
+    }
+  ],
+  "perfilPlano": {
+    "PlanoEngine._folhas": {
+      "chamadas": 48,
+      "ms": 57.4
+    },
+    "PlanoEngine._agrupamento": {
+      "chamadas": 49,
+      "ms": 0.4
+    },
+    "PlanoEngine._indice": {
+      "chamadas": 97,
+      "ms": 353.9
+    },
+    "PlanoEngine.totalHistorico": {
+      "chamadas": 3,
+      "ms": 338.7
+    },
+    "PlanoPontos.anexarPontos": {
+      "chamadas": 1,
+      "ms": 0
+    },
+    "PlanoPontos.projecao": {
+      "chamadas": 1,
+      "ms": 49.4
+    },
+    "PlanoEngine.serieHistorica": {
+      "chamadas": 1,
+      "ms": 47.5
+    },
+    "PlanoEngine.calcular": {
+      "chamadas": 1,
+      "ms": 219.2
+    },
+    "PlanoCiclo.avaliar": {
+      "chamadas": 168,
+      "ms": 2571.7
+    },
+    "PlanoCiclo.emCurso": {
+      "chamadas": 1,
+      "ms": 2681.1
+    },
+    "PlanoPontos.esforcoPorMateria": {
+      "chamadas": 1,
+      "ms": 168.4
+    }
+  },
+  "memoria": {
+    "usadoMB": 210,
+    "totalMB": 263.3,
+    "limiteMB": 4096
+  },
+  "resumo": {
+    "total": 34,
+    "passou": 33,
+    "falhou": 1,
+    "maiorTempoMs": 3826.6,
+    "longTasks": 10
+  },
+  "browser": {
+    "versao": "148.0.7778.167",
+    "consoleErrors": []
+  },
+  "evidencias": [
+    "stress-extras-desktop.png",
+    "stress-extras-celular.png",
+    "stress-tec-plano-desktop.png",
+    "stress-tec-plano-celular.png"
+  ],
+  "errosDeCaptura": []
+}

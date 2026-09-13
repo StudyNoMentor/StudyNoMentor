@@ -1,0 +1,1312 @@
+{
+  "mode": "browser-real-dom-local-fixtures",
+  "errors": [],
+  "ui": [
+    {
+      "name": "Render aba analise",
+      "pass": true,
+      "detail": {
+        "length": 4176
+      }
+    },
+    {
+      "name": "Render aba incidencia",
+      "pass": true,
+      "detail": {
+        "length": 1469
+      }
+    },
+    {
+      "name": "Render aba reforco",
+      "pass": true,
+      "detail": {
+        "length": 3081
+      }
+    },
+    {
+      "name": "Render aba plano",
+      "pass": true,
+      "detail": {
+        "length": 30231
+      }
+    },
+    {
+      "name": "Sem incidência não afirma estar no teto da prova",
+      "pass": false,
+      "detail": {
+        "incidencias": 0
+      }
+    },
+    {
+      "name": "Persistência dos 3 retratos pelo DB real",
+      "pass": true,
+      "detail": null
+    },
+    {
+      "name": "Consolidado de 4.836 questões",
+      "pass": true,
+      "detail": null
+    },
+    {
+      "name": "Nome HTML escapado não cria imagem",
+      "pass": true,
+      "detail": null
+    },
+    {
+      "name": "Abrir ajustes analise",
+      "pass": true,
+      "detail": null
+    },
+    {
+      "name": "Abrir ajustes reforco",
+      "pass": true,
+      "detail": null
+    },
+    {
+      "name": "Abrir ajustes plano",
+      "pass": true,
+      "detail": null
+    },
+    {
+      "name": "Importação: data vazia bloqueada",
+      "pass": true,
+      "detail": null
+    },
+    {
+      "name": "Importação: início após fim bloqueado",
+      "pass": true,
+      "detail": null
+    },
+    {
+      "name": "Importação: sobreposição bloqueada",
+      "pass": true,
+      "detail": null
+    },
+    {
+      "name": "Importação: período adjacente aceito",
+      "pass": true,
+      "detail": null
+    },
+    {
+      "name": "Salvar bloqueia acertos maiores que total",
+      "pass": false,
+      "detail": {
+        "antes": 3,
+        "depois": 4
+      }
+    },
+    {
+      "name": "Salvar bloqueia retrato sem questões",
+      "pass": false,
+      "detail": {
+        "depois": 4
+      }
+    },
+    {
+      "name": "Arquivo em leitura impede salvar conteúdo anterior",
+      "pass": false,
+      "detail": {
+        "retratos": 4,
+        "ultimo": "Direito Constitucional"
+      }
+    },
+    {
+      "name": "Incidência: 12 linhas gravadas",
+      "pass": true,
+      "detail": null
+    },
+    {
+      "name": "Incidência: reimportar não duplica",
+      "pass": true,
+      "detail": null
+    },
+    {
+      "name": "Incidência: bancas separadas",
+      "pass": true,
+      "detail": null
+    },
+    {
+      "name": "Incidência: renomear preserva 24 linhas",
+      "pass": true,
+      "detail": null
+    },
+    {
+      "name": "Incidência: fusão elimina duplicatas",
+      "pass": true,
+      "detail": null
+    },
+    {
+      "name": "Incidência: substituir uma banca preserva outra",
+      "pass": true,
+      "detail": null
+    },
+    {
+      "name": "Incidência: árvore com dados renderiza",
+      "pass": true,
+      "detail": null
+    },
+    {
+      "name": "Reforço com incidência produz conteúdo",
+      "pass": true,
+      "detail": null
+    },
+    {
+      "name": "Reforço → Estudo Novo cria aula",
+      "pass": true,
+      "detail": {
+        "track": [
+          {
+            "id": "037df18b-06d5-4ed9-a306-ee9f5e7f54fb",
+            "type": "aula",
+            "text": "⚠ Reforço: Organização",
+            "status": "7e3e2fb7-1a21-4763-8bf3-5070c3cdb30b",
+            "r1": {
+              "acertos": null,
+              "total": null
+            },
+            "rCheck": {
+              "acertos": null,
+              "total": null
+            },
+            "rRev": {
+              "acertos": null,
+              "total": null
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "Plano cria atividade vinculada",
+      "pass": true,
+      "detail": null
+    },
+    {
+      "name": "Atividade duplicada em aberto é bloqueada",
+      "pass": true,
+      "detail": null
+    },
+    {
+      "name": "Homônimo de outra matéria pode criar atividade",
+      "pass": true,
+      "detail": null
+    },
+    {
+      "name": "Atividade nova não herda volume antigo como progresso",
+      "pass": true,
+      "detail": {
+        "medido": 0,
+        "estado": "andamento"
+      }
+    },
+    {
+      "name": "Novo retrato a 95% muda veredito para funcionou",
+      "pass": true,
+      "detail": {
+        "estado": "funcionou",
+        "taxa": 95,
+        "medido": 100
+      }
+    },
+    {
+      "name": "Plano cenário zero renderiza sem NaN",
+      "pass": true,
+      "detail": null
+    },
+    {
+      "name": "Plano cenário dominado renderiza sem NaN",
+      "pass": true,
+      "detail": null
+    }
+  ],
+  "auto": {
+    "total": 753,
+    "passed": 753,
+    "failed": 0,
+    "failures": []
+  },
+  "engine": {
+    "date": "2026-09-13",
+    "tests": [
+      {
+        "name": "Sem dados: erro explícito sem-retrato",
+        "pass": true,
+        "detail": "ok"
+      },
+      {
+        "name": "Amostra 1, acertos 0: domínio finito e exato",
+        "pass": true,
+        "detail": "ok"
+      },
+      {
+        "name": "Wilson n=1 p=0: limites contêm estimativa e não degeneram",
+        "pass": true,
+        "detail": "ok"
+      },
+      {
+        "name": "Amostra 1, acertos 1: domínio finito e exato",
+        "pass": true,
+        "detail": "ok"
+      },
+      {
+        "name": "Wilson n=1 p=50: limites contêm estimativa e não degeneram",
+        "pass": true,
+        "detail": "ok"
+      },
+      {
+        "name": "Amostra 1, acertos 1: domínio finito e exato",
+        "pass": true,
+        "detail": "ok"
+      },
+      {
+        "name": "Wilson n=1 p=100: limites contêm estimativa e não degeneram",
+        "pass": true,
+        "detail": "ok"
+      },
+      {
+        "name": "Amostra 2, acertos 0: domínio finito e exato",
+        "pass": true,
+        "detail": "ok"
+      },
+      {
+        "name": "Wilson n=2 p=0: limites contêm estimativa e não degeneram",
+        "pass": true,
+        "detail": "ok"
+      },
+      {
+        "name": "Amostra 2, acertos 1: domínio finito e exato",
+        "pass": true,
+        "detail": "ok"
+      },
+      {
+        "name": "Wilson n=2 p=50: limites contêm estimativa e não degeneram",
+        "pass": true,
+        "detail": "ok"
+      },
+      {
+        "name": "Amostra 2, acertos 2: domínio finito e exato",
+        "pass": true,
+        "detail": "ok"
+      },
+      {
+        "name": "Wilson n=2 p=100: limites contêm estimativa e não degeneram",
+        "pass": true,
+        "detail": "ok"
+      },
+      {
+        "name": "Amostra 5, acertos 0: domínio finito e exato",
+        "pass": true,
+        "detail": "ok"
+      },
+      {
+        "name": "Wilson n=5 p=0: limites contêm estimativa e não degeneram",
+        "pass": true,
+        "detail": "ok"
+      },
+      {
+        "name": "Amostra 5, acertos 3: domínio finito e exato",
+        "pass": true,
+        "detail": "ok"
+      },
+      {
+        "name": "Wilson n=5 p=50: limites contêm estimativa e não degeneram",
+        "pass": true,
+        "detail": "ok"
+      },
+      {
+        "name": "Amostra 5, acertos 5: domínio finito e exato",
+        "pass": true,
+        "detail": "ok"
+      },
+      {
+        "name": "Wilson n=5 p=100: limites contêm estimativa e não degeneram",
+        "pass": true,
+        "detail": "ok"
+      },
+      {
+        "name": "Amostra 19, acertos 0: domínio finito e exato",
+        "pass": true,
+        "detail": "ok"
+      },
+      {
+        "name": "Wilson n=19 p=0: limites contêm estimativa e não degeneram",
+        "pass": true,
+        "detail": "ok"
+      },
+      {
+        "name": "Amostra 19, acertos 10: domínio finito e exato",
+        "pass": true,
+        "detail": "ok"
+      },
+      {
+        "name": "Wilson n=19 p=50: limites contêm estimativa e não degeneram",
+        "pass": true,
+        "detail": "ok"
+      },
+      {
+        "name": "Amostra 19, acertos 19: domínio finito e exato",
+        "pass": true,
+        "detail": "ok"
+      },
+      {
+        "name": "Wilson n=19 p=100: limites contêm estimativa e não degeneram",
+        "pass": true,
+        "detail": "ok"
+      },
+      {
+        "name": "Amostra 20, acertos 0: domínio finito e exato",
+        "pass": true,
+        "detail": "ok"
+      },
+      {
+        "name": "Wilson n=20 p=0: limites contêm estimativa e não degeneram",
+        "pass": true,
+        "detail": "ok"
+      },
+      {
+        "name": "Amostra 20, acertos 10: domínio finito e exato",
+        "pass": true,
+        "detail": "ok"
+      },
+      {
+        "name": "Wilson n=20 p=50: limites contêm estimativa e não degeneram",
+        "pass": true,
+        "detail": "ok"
+      },
+      {
+        "name": "Amostra 20, acertos 20: domínio finito e exato",
+        "pass": true,
+        "detail": "ok"
+      },
+      {
+        "name": "Wilson n=20 p=100: limites contêm estimativa e não degeneram",
+        "pass": true,
+        "detail": "ok"
+      },
+      {
+        "name": "Amostra 49, acertos 0: domínio finito e exato",
+        "pass": true,
+        "detail": "ok"
+      },
+      {
+        "name": "Wilson n=49 p=0: limites contêm estimativa e não degeneram",
+        "pass": true,
+        "detail": "ok"
+      },
+      {
+        "name": "Amostra 49, acertos 25: domínio finito e exato",
+        "pass": true,
+        "detail": "ok"
+      },
+      {
+        "name": "Wilson n=49 p=50: limites contêm estimativa e não degeneram",
+        "pass": true,
+        "detail": "ok"
+      },
+      {
+        "name": "Amostra 49, acertos 49: domínio finito e exato",
+        "pass": true,
+        "detail": "ok"
+      },
+      {
+        "name": "Wilson n=49 p=100: limites contêm estimativa e não degeneram",
+        "pass": true,
+        "detail": "ok"
+      },
+      {
+        "name": "Amostra 50, acertos 0: domínio finito e exato",
+        "pass": true,
+        "detail": "ok"
+      },
+      {
+        "name": "Wilson n=50 p=0: limites contêm estimativa e não degeneram",
+        "pass": true,
+        "detail": "ok"
+      },
+      {
+        "name": "Amostra 50, acertos 25: domínio finito e exato",
+        "pass": true,
+        "detail": "ok"
+      },
+      {
+        "name": "Wilson n=50 p=50: limites contêm estimativa e não degeneram",
+        "pass": true,
+        "detail": "ok"
+      },
+      {
+        "name": "Amostra 50, acertos 50: domínio finito e exato",
+        "pass": true,
+        "detail": "ok"
+      },
+      {
+        "name": "Wilson n=50 p=100: limites contêm estimativa e não degeneram",
+        "pass": true,
+        "detail": "ok"
+      },
+      {
+        "name": "Amostra 100, acertos 0: domínio finito e exato",
+        "pass": true,
+        "detail": "ok"
+      },
+      {
+        "name": "Wilson n=100 p=0: limites contêm estimativa e não degeneram",
+        "pass": true,
+        "detail": "ok"
+      },
+      {
+        "name": "Amostra 100, acertos 50: domínio finito e exato",
+        "pass": true,
+        "detail": "ok"
+      },
+      {
+        "name": "Wilson n=100 p=50: limites contêm estimativa e não degeneram",
+        "pass": true,
+        "detail": "ok"
+      },
+      {
+        "name": "Amostra 100, acertos 100: domínio finito e exato",
+        "pass": true,
+        "detail": "ok"
+      },
+      {
+        "name": "Wilson n=100 p=100: limites contêm estimativa e não degeneram",
+        "pass": true,
+        "detail": "ok"
+      },
+      {
+        "name": "Amostra 1000, acertos 0: domínio finito e exato",
+        "pass": true,
+        "detail": "ok"
+      },
+      {
+        "name": "Wilson n=1000 p=0: limites contêm estimativa e não degeneram",
+        "pass": true,
+        "detail": "ok"
+      },
+      {
+        "name": "Amostra 1000, acertos 500: domínio finito e exato",
+        "pass": true,
+        "detail": "ok"
+      },
+      {
+        "name": "Wilson n=1000 p=50: limites contêm estimativa e não degeneram",
+        "pass": true,
+        "detail": "ok"
+      },
+      {
+        "name": "Amostra 1000, acertos 1000: domínio finito e exato",
+        "pass": true,
+        "detail": "ok"
+      },
+      {
+        "name": "Wilson n=1000 p=100: limites contêm estimativa e não degeneram",
+        "pass": true,
+        "detail": "ok"
+      },
+      {
+        "name": "Pouca amostra não rotulada como diagnóstico firme",
+        "pass": true,
+        "detail": "ok"
+      },
+      {
+        "name": "Taxa ponderada por contagens, não média de percentuais",
+        "pass": true,
+        "detail": "ok"
+      },
+      {
+        "name": "Taxa recente substitui desempenho antigo quando alcança amostra",
+        "pass": true,
+        "detail": "ok"
+      },
+      {
+        "name": "Regressão de 90% para 20% gera queda firme",
+        "pass": true,
+        "detail": "ok"
+      },
+      {
+        "name": "Melhora de 20% para 80% gera melhora firme",
+        "pass": true,
+        "detail": "ok"
+      },
+      {
+        "name": "Diferença de uma resposta em amostra pequena não gera tendência firme",
+        "pass": true,
+        "detail": "ok"
+      },
+      {
+        "name": "Primeira medição não inventa tendência",
+        "pass": true,
+        "detail": "ok"
+      },
+      {
+        "name": "Duas medições na meta consolidam sem perder rastreio",
+        "pass": true,
+        "detail": "ok"
+      },
+      {
+        "name": "Medição antiga sinaliza vencimento",
+        "pass": true,
+        "detail": "ok"
+      },
+      {
+        "name": "Janela máxima não reutiliza observação inteiramente fora dela",
+        "pass": false,
+        "detail": {
+          "qTotal": 100,
+          "dominio": 80,
+          "janela": 365
+        }
+      },
+      {
+        "name": "Filtro de período não incorpora medição futura ao recorte",
+        "pass": false,
+        "detail": {
+          "esperado": 20,
+          "obtido": 80
+        }
+      },
+      {
+        "name": "Seleção vazia não quebra",
+        "pass": true,
+        "detail": "ok"
+      },
+      {
+        "name": "Datas de filtro incluem retrato que cruza o intervalo",
+        "pass": true,
+        "detail": "ok"
+      },
+      {
+        "name": "Excluir todas as matérias retorna tudo-excluido",
+        "pass": true,
+        "detail": "ok"
+      },
+      {
+        "name": "Foco em uma matéria remove a outra do domínio",
+        "pass": true,
+        "detail": "ok"
+      },
+      {
+        "name": "Exclusão preserva volume dos dados originais",
+        "pass": true,
+        "detail": "ok"
+      },
+      {
+        "name": "Granularidade 0: conserva volume em árvore irregular",
+        "pass": true,
+        "detail": "ok"
+      },
+      {
+        "name": "Granularidade 5: conserva volume em árvore irregular",
+        "pass": true,
+        "detail": "ok"
+      },
+      {
+        "name": "Granularidade 10: conserva volume em árvore irregular",
+        "pass": true,
+        "detail": "ok"
+      },
+      {
+        "name": "Granularidade 20: conserva volume em árvore irregular",
+        "pass": true,
+        "detail": "ok"
+      },
+      {
+        "name": "Granularidade 50: conserva volume em árvore irregular",
+        "pass": true,
+        "detail": "ok"
+      },
+      {
+        "name": "Granularidade 100: conserva volume em árvore irregular",
+        "pass": true,
+        "detail": "ok"
+      },
+      {
+        "name": "Mudança de código entre retratos preserva volume no Plano",
+        "pass": true,
+        "detail": "ok"
+      },
+      {
+        "name": "Nota projetada acompanha taxa adaptativa usada pelo Plano",
+        "pass": false,
+        "detail": {
+          "notaProjetada": 50,
+          "dominioAtual": 80
+        }
+      },
+      {
+        "name": "Margem apresentada como ± cobre o intervalo de Wilson em 0/20",
+        "pass": false,
+        "detail": {
+          "texto": "\n      <div class=\"weak-row\">\n        <div class=\"weak-info\">\n          <div class=\"wname\">Tema</div>\n          \n          <div class=\"wmeta\">20 erros · ±8pp</div>\n        </div>\n        <div class=\"weak-track\"><div class=\"weak-fill tone-bad\" style=\"width:0%;\"></div></div>\n        <div class=\"weak-pct tone-bad\">0%<span class=\"q\">0/20</span></div>\n      </div>",
+          "intervalo": [
+            0,
+            16.113012549493323
+          ]
+        }
+      },
+      {
+        "name": "Importação rejeita acertos maiores que total",
+        "pass": false,
+        "detail": [
+          {
+            "codigo": null,
+            "nome": "Direito",
+            "depth": 0,
+            "disciplina": "Direito",
+            "questoes": 10,
+            "acertos": 15,
+            "pctAcerto": 150,
+            "pctColuna": 150,
+            "peso": null
+          }
+        ]
+      },
+      {
+        "name": "Importação rejeita total negativo",
+        "pass": false,
+        "detail": [
+          {
+            "codigo": null,
+            "nome": "Direito",
+            "depth": 0,
+            "disciplina": "Direito",
+            "questoes": -10,
+            "acertos": 0,
+            "pctAcerto": 0,
+            "pctColuna": 0,
+            "peso": null
+          }
+        ]
+      },
+      {
+        "name": "Importação rejeita acertos negativos",
+        "pass": false,
+        "detail": [
+          {
+            "codigo": null,
+            "nome": "Direito",
+            "depth": 0,
+            "disciplina": "Direito",
+            "questoes": 10,
+            "acertos": -2,
+            "pctAcerto": -20,
+            "pctColuna": -20,
+            "peso": null
+          }
+        ]
+      },
+      {
+        "name": "Importação rejeita quantidades fracionárias",
+        "pass": false,
+        "detail": [
+          {
+            "codigo": null,
+            "nome": "Direito",
+            "depth": 0,
+            "disciplina": "Direito",
+            "questoes": 10.5,
+            "acertos": 5.5,
+            "pctAcerto": 52.4,
+            "pctColuna": 52.4,
+            "peso": null
+          }
+        ]
+      },
+      {
+        "name": "Importação rejeita quantidade enorme",
+        "pass": false,
+        "detail": [
+          {
+            "codigo": null,
+            "nome": "Direito",
+            "depth": 0,
+            "disciplina": "Direito",
+            "questoes": null,
+            "acertos": 1,
+            "pctAcerto": 0,
+            "pctColuna": 0,
+            "peso": null
+          }
+        ]
+      },
+      {
+        "name": "CSV com nome entre aspas e vírgula preserva tópico e números",
+        "pass": false,
+        "detail": []
+      },
+      {
+        "name": "Cabeçalho repetido no meio do arquivo não cria dados",
+        "pass": true,
+        "detail": "ok"
+      },
+      {
+        "name": "Acentos e caixa não duplicam assunto entre retratos",
+        "pass": true,
+        "detail": "ok"
+      },
+      {
+        "name": "Mesmo nome em matérias distintas não mistura taxa",
+        "pass": true,
+        "detail": "ok"
+      },
+      {
+        "name": "Nome especial __proto__ não quebra importação e indexação",
+        "pass": true,
+        "detail": "ok"
+      },
+      {
+        "name": "Caminho mínimo já na meta não recomenda esforço adicional obrigatório",
+        "pass": true,
+        "detail": "ok"
+      },
+      {
+        "name": "Meta inalcançável pelo teto não promete caminho",
+        "pass": true,
+        "detail": "ok"
+      },
+      {
+        "name": "Ordem pior: domínio invariável e taxas válidas",
+        "pass": true,
+        "detail": "ok"
+      },
+      {
+        "name": "Ordem queda: domínio invariável e taxas válidas",
+        "pass": true,
+        "detail": "ok"
+      },
+      {
+        "name": "Ordem rendimento: domínio invariável e taxas válidas",
+        "pass": true,
+        "detail": "ok"
+      },
+      {
+        "name": "Ordem banca: domínio invariável e taxas válidas",
+        "pass": true,
+        "detail": "ok"
+      },
+      {
+        "name": "Ordem ganhoGeral: domínio invariável e taxas válidas",
+        "pass": true,
+        "detail": "ok"
+      },
+      {
+        "name": "Ordem pontos: domínio invariável e taxas válidas",
+        "pass": true,
+        "detail": "ok"
+      },
+      {
+        "name": "Custo fixo: positivo e finito",
+        "pass": true,
+        "detail": "ok"
+      },
+      {
+        "name": "Custo lacuna: positivo e finito",
+        "pass": true,
+        "detail": "ok"
+      },
+      {
+        "name": "Custo proporcional: positivo e finito",
+        "pass": true,
+        "detail": "ok"
+      },
+      {
+        "name": "Preferência inválida metaDominio=abc: saneamento",
+        "pass": false,
+        "detail": {
+          "meta": "abc",
+          "dominio": 50,
+          "itens": 1,
+          "custo": 130
+        }
+      },
+      {
+        "name": "Preferência inválida amostraAlvo=abc: saneamento",
+        "pass": true,
+        "detail": "ok"
+      },
+      {
+        "name": "Preferência inválida limite=-1: saneamento",
+        "pass": false,
+        "detail": {
+          "meta": 85,
+          "dominio": 50,
+          "itens": 0
+        }
+      },
+      {
+        "name": "Preferência inválida custoFator=abc: saneamento",
+        "pass": false,
+        "detail": {
+          "meta": 85,
+          "dominio": 50,
+          "itens": 1,
+          "custo": null
+        }
+      },
+      {
+        "name": "Preferência inválida custoPiso=abc: saneamento",
+        "pass": false,
+        "detail": {
+          "meta": 85,
+          "dominio": 50,
+          "itens": 1,
+          "custo": null
+        }
+      },
+      {
+        "name": "Preferência inválida janelaMax=-1: saneamento",
+        "pass": true,
+        "detail": "ok"
+      },
+      {
+        "name": "Cenário gerado 1: contagem, domínio, ganho e limite",
+        "pass": true,
+        "detail": "ok"
+      },
+      {
+        "name": "Cenário gerado 2: contagem, domínio, ganho e limite",
+        "pass": true,
+        "detail": "ok"
+      },
+      {
+        "name": "Cenário gerado 3: contagem, domínio, ganho e limite",
+        "pass": true,
+        "detail": "ok"
+      },
+      {
+        "name": "Cenário gerado 4: contagem, domínio, ganho e limite",
+        "pass": true,
+        "detail": "ok"
+      },
+      {
+        "name": "Cenário gerado 5: contagem, domínio, ganho e limite",
+        "pass": true,
+        "detail": "ok"
+      },
+      {
+        "name": "Cenário gerado 6: contagem, domínio, ganho e limite",
+        "pass": true,
+        "detail": "ok"
+      },
+      {
+        "name": "Cenário gerado 7: contagem, domínio, ganho e limite",
+        "pass": true,
+        "detail": "ok"
+      },
+      {
+        "name": "Cenário gerado 8: contagem, domínio, ganho e limite",
+        "pass": true,
+        "detail": "ok"
+      },
+      {
+        "name": "Cenário gerado 9: contagem, domínio, ganho e limite",
+        "pass": true,
+        "detail": "ok"
+      },
+      {
+        "name": "Cenário gerado 10: contagem, domínio, ganho e limite",
+        "pass": true,
+        "detail": "ok"
+      },
+      {
+        "name": "Cenário gerado 11: contagem, domínio, ganho e limite",
+        "pass": true,
+        "detail": "ok"
+      },
+      {
+        "name": "Cenário gerado 12: contagem, domínio, ganho e limite",
+        "pass": true,
+        "detail": "ok"
+      },
+      {
+        "name": "Cenário gerado 13: contagem, domínio, ganho e limite",
+        "pass": true,
+        "detail": "ok"
+      },
+      {
+        "name": "Cenário gerado 14: contagem, domínio, ganho e limite",
+        "pass": true,
+        "detail": "ok"
+      },
+      {
+        "name": "Cenário gerado 15: contagem, domínio, ganho e limite",
+        "pass": true,
+        "detail": "ok"
+      },
+      {
+        "name": "Cenário gerado 16: contagem, domínio, ganho e limite",
+        "pass": true,
+        "detail": "ok"
+      },
+      {
+        "name": "Cenário gerado 17: contagem, domínio, ganho e limite",
+        "pass": true,
+        "detail": "ok"
+      },
+      {
+        "name": "Cenário gerado 18: contagem, domínio, ganho e limite",
+        "pass": true,
+        "detail": "ok"
+      },
+      {
+        "name": "Cenário gerado 19: contagem, domínio, ganho e limite",
+        "pass": true,
+        "detail": "ok"
+      },
+      {
+        "name": "Cenário gerado 20: contagem, domínio, ganho e limite",
+        "pass": true,
+        "detail": "ok"
+      },
+      {
+        "name": "Cenário gerado 21: contagem, domínio, ganho e limite",
+        "pass": true,
+        "detail": "ok"
+      },
+      {
+        "name": "Cenário gerado 22: contagem, domínio, ganho e limite",
+        "pass": true,
+        "detail": "ok"
+      },
+      {
+        "name": "Cenário gerado 23: contagem, domínio, ganho e limite",
+        "pass": true,
+        "detail": "ok"
+      },
+      {
+        "name": "Cenário gerado 24: contagem, domínio, ganho e limite",
+        "pass": true,
+        "detail": "ok"
+      },
+      {
+        "name": "Cenário gerado 25: contagem, domínio, ganho e limite",
+        "pass": true,
+        "detail": "ok"
+      },
+      {
+        "name": "Cenário gerado 26: contagem, domínio, ganho e limite",
+        "pass": true,
+        "detail": "ok"
+      },
+      {
+        "name": "Cenário gerado 27: contagem, domínio, ganho e limite",
+        "pass": true,
+        "detail": "ok"
+      },
+      {
+        "name": "Cenário gerado 28: contagem, domínio, ganho e limite",
+        "pass": true,
+        "detail": "ok"
+      },
+      {
+        "name": "Cenário gerado 29: contagem, domínio, ganho e limite",
+        "pass": true,
+        "detail": "ok"
+      },
+      {
+        "name": "Cenário gerado 30: contagem, domínio, ganho e limite",
+        "pass": true,
+        "detail": "ok"
+      },
+      {
+        "name": "Cenário gerado 31: contagem, domínio, ganho e limite",
+        "pass": true,
+        "detail": "ok"
+      },
+      {
+        "name": "Cenário gerado 32: contagem, domínio, ganho e limite",
+        "pass": true,
+        "detail": "ok"
+      },
+      {
+        "name": "Cenário gerado 33: contagem, domínio, ganho e limite",
+        "pass": true,
+        "detail": "ok"
+      },
+      {
+        "name": "Cenário gerado 34: contagem, domínio, ganho e limite",
+        "pass": true,
+        "detail": "ok"
+      },
+      {
+        "name": "Cenário gerado 35: contagem, domínio, ganho e limite",
+        "pass": true,
+        "detail": "ok"
+      },
+      {
+        "name": "Cenário gerado 36: contagem, domínio, ganho e limite",
+        "pass": true,
+        "detail": "ok"
+      },
+      {
+        "name": "Cenário gerado 37: contagem, domínio, ganho e limite",
+        "pass": true,
+        "detail": "ok"
+      },
+      {
+        "name": "Cenário gerado 38: contagem, domínio, ganho e limite",
+        "pass": true,
+        "detail": "ok"
+      },
+      {
+        "name": "Cenário gerado 39: contagem, domínio, ganho e limite",
+        "pass": true,
+        "detail": "ok"
+      },
+      {
+        "name": "Cenário gerado 40: contagem, domínio, ganho e limite",
+        "pass": true,
+        "detail": "ok"
+      },
+      {
+        "name": "Cenário gerado 41: contagem, domínio, ganho e limite",
+        "pass": true,
+        "detail": "ok"
+      },
+      {
+        "name": "Cenário gerado 42: contagem, domínio, ganho e limite",
+        "pass": true,
+        "detail": "ok"
+      },
+      {
+        "name": "Cenário gerado 43: contagem, domínio, ganho e limite",
+        "pass": true,
+        "detail": "ok"
+      },
+      {
+        "name": "Cenário gerado 44: contagem, domínio, ganho e limite",
+        "pass": true,
+        "detail": "ok"
+      },
+      {
+        "name": "Cenário gerado 45: contagem, domínio, ganho e limite",
+        "pass": true,
+        "detail": "ok"
+      },
+      {
+        "name": "Cenário gerado 46: contagem, domínio, ganho e limite",
+        "pass": true,
+        "detail": "ok"
+      },
+      {
+        "name": "Cenário gerado 47: contagem, domínio, ganho e limite",
+        "pass": true,
+        "detail": "ok"
+      },
+      {
+        "name": "Cenário gerado 48: contagem, domínio, ganho e limite",
+        "pass": true,
+        "detail": "ok"
+      },
+      {
+        "name": "Cenário gerado 49: contagem, domínio, ganho e limite",
+        "pass": true,
+        "detail": "ok"
+      },
+      {
+        "name": "Cenário gerado 50: contagem, domínio, ganho e limite",
+        "pass": true,
+        "detail": "ok"
+      },
+      {
+        "name": "Cenário gerado 51: contagem, domínio, ganho e limite",
+        "pass": true,
+        "detail": "ok"
+      },
+      {
+        "name": "Cenário gerado 52: contagem, domínio, ganho e limite",
+        "pass": true,
+        "detail": "ok"
+      },
+      {
+        "name": "Cenário gerado 53: contagem, domínio, ganho e limite",
+        "pass": true,
+        "detail": "ok"
+      },
+      {
+        "name": "Cenário gerado 54: contagem, domínio, ganho e limite",
+        "pass": true,
+        "detail": "ok"
+      },
+      {
+        "name": "Cenário gerado 55: contagem, domínio, ganho e limite",
+        "pass": true,
+        "detail": "ok"
+      },
+      {
+        "name": "Cenário gerado 56: contagem, domínio, ganho e limite",
+        "pass": true,
+        "detail": "ok"
+      },
+      {
+        "name": "Cenário gerado 57: contagem, domínio, ganho e limite",
+        "pass": true,
+        "detail": "ok"
+      },
+      {
+        "name": "Cenário gerado 58: contagem, domínio, ganho e limite",
+        "pass": true,
+        "detail": "ok"
+      },
+      {
+        "name": "Cenário gerado 59: contagem, domínio, ganho e limite",
+        "pass": true,
+        "detail": "ok"
+      },
+      {
+        "name": "Cenário gerado 60: contagem, domínio, ganho e limite",
+        "pass": true,
+        "detail": "ok"
+      },
+      {
+        "name": "Cenário gerado 61: contagem, domínio, ganho e limite",
+        "pass": true,
+        "detail": "ok"
+      },
+      {
+        "name": "Cenário gerado 62: contagem, domínio, ganho e limite",
+        "pass": true,
+        "detail": "ok"
+      },
+      {
+        "name": "Cenário gerado 63: contagem, domínio, ganho e limite",
+        "pass": true,
+        "detail": "ok"
+      },
+      {
+        "name": "Cenário gerado 64: contagem, domínio, ganho e limite",
+        "pass": true,
+        "detail": "ok"
+      },
+      {
+        "name": "Cenário gerado 65: contagem, domínio, ganho e limite",
+        "pass": true,
+        "detail": "ok"
+      },
+      {
+        "name": "Cenário gerado 66: contagem, domínio, ganho e limite",
+        "pass": true,
+        "detail": "ok"
+      },
+      {
+        "name": "Cenário gerado 67: contagem, domínio, ganho e limite",
+        "pass": true,
+        "detail": "ok"
+      },
+      {
+        "name": "Cenário gerado 68: contagem, domínio, ganho e limite",
+        "pass": true,
+        "detail": "ok"
+      },
+      {
+        "name": "Cenário gerado 69: contagem, domínio, ganho e limite",
+        "pass": true,
+        "detail": "ok"
+      },
+      {
+        "name": "Cenário gerado 70: contagem, domínio, ganho e limite",
+        "pass": true,
+        "detail": "ok"
+      },
+      {
+        "name": "Cenário gerado 71: contagem, domínio, ganho e limite",
+        "pass": true,
+        "detail": "ok"
+      },
+      {
+        "name": "Cenário gerado 72: contagem, domínio, ganho e limite",
+        "pass": true,
+        "detail": "ok"
+      },
+      {
+        "name": "Cenário gerado 73: contagem, domínio, ganho e limite",
+        "pass": true,
+        "detail": "ok"
+      },
+      {
+        "name": "Cenário gerado 74: contagem, domínio, ganho e limite",
+        "pass": true,
+        "detail": "ok"
+      },
+      {
+        "name": "Cenário gerado 75: contagem, domínio, ganho e limite",
+        "pass": true,
+        "detail": "ok"
+      },
+      {
+        "name": "Cenário gerado 76: contagem, domínio, ganho e limite",
+        "pass": true,
+        "detail": "ok"
+      },
+      {
+        "name": "Cenário gerado 77: contagem, domínio, ganho e limite",
+        "pass": true,
+        "detail": "ok"
+      },
+      {
+        "name": "Cenário gerado 78: contagem, domínio, ganho e limite",
+        "pass": true,
+        "detail": "ok"
+      },
+      {
+        "name": "Cenário gerado 79: contagem, domínio, ganho e limite",
+        "pass": true,
+        "detail": "ok"
+      },
+      {
+        "name": "Cenário gerado 80: contagem, domínio, ganho e limite",
+        "pass": true,
+        "detail": "ok"
+      }
+    ],
+    "benchmarks": [
+      {
+        "assuntos": 100,
+        "ms": 9,
+        "returned": 10,
+        "total": 100
+      },
+      {
+        "assuntos": 500,
+        "ms": 56,
+        "returned": 10,
+        "total": 500
+      },
+      {
+        "assuntos": 1000,
+        "ms": 141,
+        "returned": 10,
+        "total": 1000
+      },
+      {
+        "assuntos": 3000,
+        "ms": 986,
+        "returned": 10,
+        "total": 3000
+      }
+    ]
+  },
+  "fixture": {
+    "students": 1,
+    "snapshots": 3,
+    "disciplines": 4,
+    "topicsPerDiscipline": 5,
+    "questions": 4836
+  },
+  "browser": {
+    "engine": "Chrome",
+    "version": "148.0.7778.167",
+    "consoleErrors": [
+      "console: [armazenamento] o navegador recusou 3 gravação(ões) no disco",
+      "console: [armazenamento] o navegador recusou 3 gravação(ões) no disco",
+      "console: [armazenamento] o navegador recusou 3 gravação(ões) no disco",
+      "console: [armazenamento] o navegador recusou 1 gravação(ões) no disco"
+    ]
+  },
+  "evidencias": [
+    "testes/evidencias/extras-desktop.png",
+    "testes/evidencias/extras-celular.png",
+    "testes/evidencias/desempenho-plano-desktop.png",
+    "testes/evidencias/desempenho-plano-celular.png"
+  ]
+}

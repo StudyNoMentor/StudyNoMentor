@@ -57,7 +57,7 @@
      novo, e o antigo é descartado sozinho na ativação) e o que permite ao app
      dizer qual versão está rodando. Em src/ fica "dev" de propósito: a versão
      é gerada na montagem, não editada à mão. -->
-<meta name="diario-versao" content="v546cdde364">
+<meta name="diario-versao" content="vefaa5ce13d">
 <script>
 /* ── ARRANQUE: abre o IndexedDB AGORA, em paralelo com o parse do documento ──
    A fachada de armazenamento vive no fim do <body>, depois de ~1,7 MB de HTML.
@@ -13329,11 +13329,6 @@ const DB = {
   // Cada extra: { id, titulo, tipo, disciplina, unidade, alvo, periodo, progresso, contaMetricas,
   //               status, historico:[{data, quantidade, minutos}], createdAt, updatedAt }
   getExtras() {
-    /* Uma pintura da tela consulta a mesma coleção em calendário, resumo,
-       reforços e cartões. Em carga massiva, reler e desserializar o mesmo JSON
-       dezenas de vezes dominava o tempo. ExtrasScreen mantém este retrato só
-       durante a chamada síncrona de render; gravações sempre o invalidam. */
-    if (Array.isArray(this._extrasReadSnapshot)) return this._extrasReadSnapshot;
     const list = this._get(this.KEYS.extras, []);
     let mig = false;
     list.forEach(e => {
@@ -13345,7 +13340,7 @@ const DB = {
     if (mig) { try { this._set(this.KEYS.extras, list); } catch (_) { _quiet(_); } }
     return list;
   },
-  saveExtras(list) { this._extrasReadSnapshot = null; this._set(this.KEYS.extras, list); },
+  saveExtras(list) { this._set(this.KEYS.extras, list); },
   getExtra(id) { return this.getExtras().find(x => x.id === id) || null; },
   addExtra(data) {
     const list = this.getExtras();
@@ -15810,61 +15805,10 @@ const TecEngine = {
     partes.push((buf + line.slice(last)).trim());
     return partes.filter((c, i, arr) => !(c === '' && i === arr.length - 1));
   },
-  /* CSV de verdade permite delimitador dentro de aspas, aspas escapadas e até
-     quebra de linha dentro da célula. `String.split(',')` corrompia justamente
-     nomes comuns como "Direito, Processo Civil" e deslocava todas as contagens.
-     Este leitor pequeno cobre o formato RFC 4180 sem depender de biblioteca ou
-     internet. */
-  _csvRows(text, delim) {
-    const rows = [], row = [];
-    let cell = '', quoted = false;
-    const src = String(text || '').replace(/^\uFEFF/, '');
-    for (let i = 0; i < src.length; i++) {
-      const ch = src[i];
-      if (quoted) {
-        if (ch === '"' && src[i + 1] === '"') { cell += '"'; i++; }
-        else if (ch === '"') quoted = false;
-        else cell += ch;
-        continue;
-      }
-      if (ch === '"' && cell === '') { quoted = true; continue; }
-      if (ch === delim) { row.push(cell.trim()); cell = ''; continue; }
-      if (ch === '\n' || ch === '\r') {
-        if (ch === '\r' && src[i + 1] === '\n') i++;
-        row.push(cell.trim()); cell = '';
-        if (row.some(c => c !== '')) rows.push(row.splice(0)); else row.length = 0;
-        continue;
-      }
-      cell += ch;
-    }
-    row.push(cell.trim());
-    if (row.some(c => c !== '')) rows.push(row);
-    return rows;
-  },
-  _delimitadorCsv(text) {
-    const primeira = String(text || '').split(/\r?\n/, 1)[0] || '';
-    const cab = primeira.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
-    if (!/(hierarquia|quest|acertos?|indice|disciplina)/.test(cab)) return null;
-    const conta = (d) => {
-      let n = 0, aspas = false;
-      for (let i = 0; i < primeira.length; i++) {
-        if (primeira[i] === '"') {
-          if (aspas && primeira[i + 1] === '"') i++; else aspas = !aspas;
-        } else if (!aspas && primeira[i] === d) n++;
-      }
-      return n;
-    };
-    const virgulas = conta(','), pontosVirgula = conta(';');
-    if (Math.max(virgulas, pontosVirgula) < 2) return null;
-    return pontosVirgula > virgulas ? ';' : ',';
-  },
   // Parseia o texto colado (TSV) do TecConcursos numa lista hierárquica de linhas.
   // Colunas esperadas (após nome): Questões Resolvidas, Acertos %, Qtd Acertos, Erros %, Qtd Erros, Peso
   parse(text) {
-    const src = String(text || '').replace(/\u00a0/g, ' ');
-    const delim = src.includes('\t') ? null : this._delimitadorCsv(src);
-    if (delim) return this.parseCellRows(this._csvRows(src, delim));
-    const rawLines = src.split(/\r?\n/).filter(l => l.trim() !== '');
+    const rawLines = String(text || '').split(/\r?\n/).map(l => l.replace(/\u00a0/g, ' ')).filter(l => l.trim() !== '');
     return this.parseCellRows(rawLines.map(l => this.splitLine(l)));
   },
   // Linhas de TOTAL/RESUMO do relatório do TEC. Se entrassem, virariam uma "disciplina"
@@ -15935,7 +15879,6 @@ const TecEngine = {
   // Núcleo compartilhado: recebe linhas já divididas em células (de texto colado OU de planilha xlsx/csv)
   parseCellRows(cellRows) {
     const rows = [];
-    const erros = [];
     let currentDisc = null;
     let skippedHeader = false;
     let mapa = null;
@@ -15998,31 +15941,18 @@ const TecEngine = {
         acertos = Math.round(questoes * pctAcerto / 100);
       }
       if (questoes === null && pctAcerto === null) continue; // linha sem dados úteis
-      /* Contagens são fatos discretos. Valor negativo, fracionário, infinito ou
-         mais acertos que questões não pode entrar num retrato parcialmente
-         válido: além da taxa impossível, ele contamina totais, projeção e
-         atividades criadas pelo Plano. Guardamos o motivo na própria lista para
-         o importador bloquear o arquivo inteiro e explicar o erro. */
-      const q = questoes === null ? 0 : questoes;
-      const ac = acertos === null ? 0 : acertos;
-      if (!Number.isFinite(q) || !Number.isInteger(q) || q < 0 ||
-          !Number.isFinite(ac) || !Number.isInteger(ac) || ac < 0 || ac > q) {
-        erros.push(`"${nome || 'linha sem nome'}": questões e acertos devem ser inteiros, não negativos, e acertos não podem superar questões`);
-        if (depth === 0) currentDisc = null;
-        continue;
-      }
       rows.push({
         codigo, nome, depth,
         disciplina: depth === 0 ? nome : currentDisc,
-        questoes: q,
-        acertos: ac,
+        questoes: questoes || 0,
+        acertos: acertos || 0,
         /* A coluna "Acertos (%)" do arquivo é ARREDONDADA para exibição (59
            para 13 de 22, que são 59,09). As duas CONTAGENS são exatas, então a
            taxa sai delas sempre que houver questão — o número do arquivo fica
            só como reserva para a linha que não traz quantidade. Sem isto, o
            corte dos pontos fracos e a ordenação da Análise comparavam limiares
            contra um valor já arredondado. */
-        pctAcerto: (q > 0) ? Math.round(ac / q * 1000) / 10
+        pctAcerto: (questoes > 0) ? Math.round((acertos || 0) / questoes * 1000) / 10
           : (pctAcerto !== null ? pctAcerto : 0),
         /* O MESMO parser serve à planilha de INCIDÊNCIA, onde a segunda coluna
            numérica não é taxa de acerto: é a fatia daquele assunto no caderno
@@ -16032,21 +15962,7 @@ const TecEngine = {
         peso: this.parseNum(pesoRaw)
       });
     }
-    Object.defineProperty(rows, '_errosImportacao', { value: erros, enumerable: false, configurable: true });
     return rows;
-  },
-  validarDesempenho(rows) {
-    const erros = (rows && rows._errosImportacao) ? rows._errosImportacao.slice() : [];
-    (rows || []).forEach(r => {
-      const q = r && r.questoes, ac = r && r.acertos;
-      if (!Number.isFinite(q) || !Number.isInteger(q) || q < 0 ||
-          !Number.isFinite(ac) || !Number.isInteger(ac) || ac < 0 || ac > q) {
-        erros.push(`"${(r && r.nome) || 'linha sem nome'}": contagens inválidas`);
-      }
-    });
-    const total = (rows || []).reduce((n, r) => n + (Number.isFinite(r.questoes) ? r.questoes : 0), 0);
-    if (!erros.length && total <= 0) erros.push('o retrato não contém nenhuma questão resolvida');
-    return { ok: erros.length === 0, erros, total };
   },
   /* Leitura POSICIONAL (sem cabeçalho): questões, % de acerto, qtd de acertos e
      peso, na ordem do relatório. Descarta as células vazias antes do primeiro
@@ -30786,13 +30702,10 @@ const ExtrasScreen = {
   _showFilters: undefined,
   _fStart: null, _fEnd: null,
   _addMoreFor: null,   // "id@dia" cujo card está com o input de "registrar mais" aberto
-  PAGE_SIZE: 100,
   _CHECK: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>',
   render() {
     // o retrato do Plano custa caro: um por repintura, não um por cartão
     this._planoRefCard = null;
-    const extras = DB.getExtras();
-    DB._extrasReadSnapshot = extras;
     // toggle global
     const gt = document.getElementById('extras-global-toggle');
     if (gt) gt.classList.toggle('on', DB.extrasCountGlobal());
@@ -30804,23 +30717,20 @@ const ExtrasScreen = {
     // do calendário ficavam presos no contexto anterior. Reseta para hoje quando o
     // contexto muda, para nunca exibir a data de outro planejamento.
     let ctx = 'p'; try { ctx = DB._profilePrefix() + '|' + DB._activePlanId(); } catch (_) { _quiet(_); }
-    if (this._ctxKey !== ctx) {
-      this._ctxKey = ctx; this.selDay = hoje; this._calStart = this._addDays(hoje, -3); this._addMoreFor = null;
-      this._dayPageKey = null; this._dayLimit = this.PAGE_SIZE; this._cursoLimit = this.PAGE_SIZE;
-    }
+    if (this._ctxKey !== ctx) { this._ctxKey = ctx; this.selDay = hoje; this._calStart = this._addDays(hoje, -3); this._addMoreFor = null; }
     // se a data selecionada ficou no futuro por navegação, ainda é válida; só garante um valor
     if (!this.selDay) this.selDay = hoje;
+    const extras = DB.getExtras();
     this.renderAgenda(); // calendário + cabeçalho do dia + carga horária + filtros
     this.renderEmCurso();  // tudo o que está aberto, em todas as disciplinas
     if (extras.length === 0) {
       list.innerHTML = `<div class="extras-empty"><div class="big">✅</div>Nenhuma atividade extra ainda.<br>Clique em <strong>＋ Nova atividade</strong> para começar, ou <strong>🔁 Gerenciar</strong> para criar recorrências.</div>`;
       this._syncManage();
-      DB._extrasReadSnapshot = null;
       return;
     }
     const day = this.selDay;
-    const todasOcc = this.occurrencesForDay(day);
-    if (todasOcc.length === 0) {
+    const occ = this.occurrencesForDay(day);
+    if (occ.length === 0) {
       const ehHoje = day === hoje;
       const futuro = day > hoje;
       const dica = futuro
@@ -30832,12 +30742,8 @@ const ExtrasScreen = {
       const bh = document.getElementById('ex-empty-hoje');
       if (bh) bh.addEventListener('click', () => { this.selDay = hoje; this._calStart = this._addDays(hoje, -3); this.render(); });
       this._syncManage();
-      DB._extrasReadSnapshot = null;
       return;
     }
-    const pageKey = ctx + '|' + day;
-    if (this._dayPageKey !== pageKey) { this._dayPageKey = pageKey; this._dayLimit = this.PAGE_SIZE; }
-    const occ = todasOcc.slice(0, this._dayLimit || this.PAGE_SIZE);
     const aFazer = occ.filter(x => !DB.extraConcluidaEm(x, day));
     const feitas = occ.filter(x => DB.extraConcluidaEm(x, day));
     const grupos = [['A fazer', aFazer], ['Concluídas', feitas]];
@@ -30854,13 +30760,9 @@ const ExtrasScreen = {
     list.innerHTML = grupos.map(([titulo, arr]) => {
       if (!arr.length) return '';
       return `<div class="extras-group-title">${titulo} (${arr.length})</div>` + porDisc(arr);
-    }).join('') + (occ.length < todasOcc.length
-      ? `<div class="hint" style="padding:16px 0;text-align:center;"><button type="button" class="btn-secondary" id="extras-load-more">Mostrar mais ${Math.min(this.PAGE_SIZE, todasOcc.length - occ.length)} · ${occ.length} de ${todasOcc.length}</button></div>` : '');
+    }).join('');
     this.bind(list);
-    const mais = document.getElementById('extras-load-more');
-    if (mais) mais.addEventListener('click', () => { this._dayLimit = (this._dayLimit || this.PAGE_SIZE) + this.PAGE_SIZE; this.render(); });
     this._syncManage();
-    DB._extrasReadSnapshot = null;
   },
   /* ── REFORÇOS EM CURSO ────────────────────────────────────────────────────
      Tudo o que está aberto, agrupado por disciplina, com o progresso que vem
@@ -30877,8 +30779,6 @@ const ExtrasScreen = {
   renderEmCurso() {
     const host = document.getElementById('extras-curso');
     if (!host) return;
-    const extrasPlano = DB.getExtras().filter(e => e.origemPlano && e.origemPlano.topico && e.status !== 'concluida');
-    if (!extrasPlano.length) { host.innerHTML = ''; return; }
     let itens = [];
     try { itens = PlanoCiclo.emCurso(this._planoRefCard || (this._planoRefCard =
       PlanoEngine.calcular(DesempenhoTecScreen.scopedSnapshot(), PlanoEngine.prefs()))); }
@@ -30888,9 +30788,7 @@ const ExtrasScreen = {
     const totalFalta = itens.reduce((a, v) => a + Math.max(0, v.alvo - v.feito), 0);
     const totalAlvo = itens.reduce((a, v) => a + v.alvo, 0);
     const feito = totalAlvo - totalFalta;
-    const discsTotal = [...new Set(itens.map(v => v.origem.disciplina || 'Sem disciplina'))];
-    const visiveis = itens.slice(0, this._cursoLimit || this.PAGE_SIZE);
-    const discs = [...new Set(visiveis.map(v => v.origem.disciplina || 'Sem disciplina'))];
+    const discs = [...new Set(itens.map(v => v.origem.disciplina || 'Sem disciplina'))];
     /* Dias até a próxima importação: é a cadência que VOCÊ definiu no Plano,
        contada a partir do último retrato. É o horizonte real do ciclo — não
        adianta espalhar um bloco por trinta dias se você reimporta em quinze. */
@@ -30936,21 +30834,18 @@ const ExtrasScreen = {
       <div class="card exc-card">
         <button type="button" class="exc-head" id="exc-toggle" aria-expanded="${aberto}">
           <span class="exc-tit">🏁 Reforços em curso</span>
-          <span class="exc-resumo">${itens.length} em ${discsTotal.length} ${discsTotal.length === 1 ? 'disciplina' : 'disciplinas'} ·
+          <span class="exc-resumo">${itens.length} em ${discs.length} ${discs.length === 1 ? 'disciplina' : 'disciplinas'} ·
             <b>${feito}</b>/${totalAlvo} questões${totalFalta > 0 ? ` · <b>~${porDia}/dia</b> até a próxima importação (${dias} ${dias === 1 ? 'dia' : 'dias'})` : ''}</span>
           <span class="chev">${aberto ? '▴' : '▾'}</span>
         </button>
         ${aberto ? discs.map(d => `
           <div class="exc-grupo">
             <p class="exc-disc">${escapeHtml(d)}</p>
-            <ul class="pl-ciclo-lista">${visiveis.filter(v => (v.origem.disciplina || 'Sem disciplina') === d).map(linha).join('')}</ul>
+            <ul class="pl-ciclo-lista">${itens.filter(v => (v.origem.disciplina || 'Sem disciplina') === d).map(linha).join('')}</ul>
           </div>`).join('') : ''}
-        ${aberto && visiveis.length < itens.length ? `<div class="hint" style="padding:12px 16px;text-align:center;"><button type="button" class="btn-secondary" id="exc-load-more">Mostrar mais ${Math.min(this.PAGE_SIZE, itens.length - visiveis.length)} · ${visiveis.length} de ${itens.length}</button></div>` : ''}
       </div>`;
     const tg = document.getElementById('exc-toggle');
     if (tg) tg.addEventListener('click', () => { this._cursoAberto = !aberto; this.renderEmCurso(); });
-    const maisCurso = document.getElementById('exc-load-more');
-    if (maisCurso) maisCurso.addEventListener('click', () => { this._cursoLimit = (this._cursoLimit || this.PAGE_SIZE) + this.PAGE_SIZE; this.renderEmCurso(); });
     /* "Fazer hoje" é o agendamento MANUAL que sobrou: a exceção para quem quer
        fixar um assunto num dia, sem que isso vire regra para todos. */
     host.querySelectorAll('[data-curso-dia]').forEach(b => b.addEventListener('click', () => {
@@ -31460,15 +31355,13 @@ const ExtrasScreen = {
     });
   },
   // ── Gerenciador de atividades (recorrentes + avulsas), separado do dia ──
-  manageOpen() { this._manageLimit = 200; this.renderManageList(); const m = document.getElementById('extras-manage-modal'); if (m) m.style.display = 'flex'; },
+  manageOpen() { this.renderManageList(); const m = document.getElementById('extras-manage-modal'); if (m) m.style.display = 'flex'; },
   manageClose() { const m = document.getElementById('extras-manage-modal'); if (m) m.style.display = 'none'; },
   renderManageList() {
     const box = document.getElementById('extras-manage-list');
     if (!box) return;
     const extras = DB.getExtras();
     if (!extras.length) { box.innerHTML = `<p class="hint" style="padding:12px 2px;">Nenhuma atividade ainda. Use <strong>＋ Nova atividade</strong> para criar a primeira.</p>`; return; }
-    const limite = this._manageLimit || 200;
-    const visiveis = extras.slice(0, limite);
     const REC_NOME = { diaria: 'diária', semanal: 'semanal', quinzenal: 'quinzenal', mensal: 'mensal' };
     const rowHtml = (x) => {
       const t = this.TIPOS[x.tipo] || this.TIPOS.livre;
@@ -31489,22 +31382,16 @@ const ExtrasScreen = {
         </div>
       </div>`;
     };
-    const rec = visiveis.filter(x => DB.extraRecorrente(x));
-    const uni = visiveis.filter(x => !DB.extraRecorrente(x));
-    const recTotal = extras.filter(x => DB.extraRecorrente(x)).length;
-    const uniTotal = extras.length - recTotal;
+    const rec = extras.filter(x => DB.extraRecorrente(x));
+    const uni = extras.filter(x => !DB.extraRecorrente(x));
     box.innerHTML =
-      (rec.length ? `<div class="exm-group-title">🔁 Recorrentes (${recTotal})</div>` + rec.map(rowHtml).join('') : '') +
-      (uni.length ? `<div class="exm-group-title">⭐ Avulsas / únicas (${uniTotal})</div>` + uni.map(rowHtml).join('') : '') +
-      (visiveis.length < extras.length
-        ? `<div class="hint" style="padding:16px 0;text-align:center;"><button type="button" class="btn-secondary" id="exm-load-more">Mostrar mais ${Math.min(200, extras.length - visiveis.length)} · ${visiveis.length} de ${extras.length}</button></div>` : '');
+      (rec.length ? `<div class="exm-group-title">🔁 Recorrentes (${rec.length})</div>` + rec.map(rowHtml).join('') : '') +
+      (uni.length ? `<div class="exm-group-title">⭐ Avulsas / únicas (${uni.length})</div>` + uni.map(rowHtml).join('') : '');
     box.querySelectorAll('.exm-row').forEach(row => {
       const id = row.dataset.id;
       row.querySelector('.exm-edit').addEventListener('click', () => this.openModal(id));
       row.querySelector('.exm-del').addEventListener('click', () => this.excluir(id));
     });
-    const mais = document.getElementById('exm-load-more');
-    if (mais) mais.addEventListener('click', () => { this._manageLimit = (this._manageLimit || 200) + 200; this.renderManageList(); });
   },
   // Exclusão consciente da recorrência: se a atividade é recorrente e tem ocorrências
   // FUTURAS vinculadas, pergunta se apaga tudo ou só as ocorrências futuras (mantendo
@@ -33162,77 +33049,10 @@ const PlanoEngine = {
     }
     return partes.join(' · ');
   },
-  /* Preferências podem chegar do localStorage, de backup ou da nuvem. A tela
-     limita os campos, mas esses caminhos não passam pelos inputs HTML. Um único
-     "abc", infinito ou número negativo propagava NaN pelo domínio e pelo custo.
-     A fronteira de leitura agora aceita somente chaves conhecidas e aplica os
-     mesmos limites visíveis na interface. */
-  sanearPrefs(raw) {
-    const src = raw && typeof raw === 'object' ? raw : {};
-    const out = Object.assign({}, this.DEFAULTS);
-    const specs = {
-      metaDominio: [30, 100], tetoDominio: [50, 100], minAmostra: [0, 500, true],
-      custoFixo: [10, 1000], custoFator: [0.1, 100], custoPiso: [10, 500],
-      custoPorPonto: [0, 20], granPiso: [0, 100, true], limite: [3, 200, true],
-      faixaCritico: [0, 100], faixaFragil: [0, 100], pisoSerie: [1, 100, true],
-      sensTendencia: [1, 30], consolidarEm: [1, 10, true], validadeDias: [30, 720, true],
-      amostraAlvo: [10, 2000, true], janelaMax: [30, 1825, true], cadenciaDias: [7, 365, true],
-      pesoBanca: [0, 12], migracao: [1, 4, true]
-    };
-    const limpaNum = (k, v, fallback) => {
-      const s = specs[k], n = Number(v);
-      if (!s || !Number.isFinite(n)) return fallback;
-      const limitado = Math.max(s[0], Math.min(s[1], n));
-      return s[2] ? Math.round(limitado) : limitado;
-    };
-    Object.keys(specs).forEach(k => { out[k] = limpaNum(k, src[k], out[k]); });
-    const enums = {
-      ponderacao: ['igual', 'volume', 'ambas'],
-      custoModo: ['lacuna', 'fixo', 'proporcional'],
-      ordenar: ['pontos', 'pior', 'ganhoGeral', 'banca', 'rendimento', 'queda']
-    };
-    Object.keys(enums).forEach(k => { if (enums[k].includes(src[k])) out[k] = src[k]; });
-    ['incluirPequenas', 'apenasFolhas'].forEach(k => {
-      if (typeof src[k] === 'boolean') out[k] = src[k];
-    });
-    ['disciplina', 'banca'].forEach(k => {
-      if (typeof src[k] === 'string' && src[k].length <= 300) out[k] = src[k];
-    });
-    ['foco', 'excluidas'].forEach(k => {
-      if (Array.isArray(src[k])) out[k] = [...new Set(src[k].filter(v => typeof v === 'string' && v.trim()).map(v => v.trim().slice(0, 300)))];
-    });
-    if (src.ritmoSemanal == null || src.ritmoSemanal === '') out.ritmoSemanal = null;
-    else {
-      const ritmo = Number(src.ritmoSemanal);
-      out.ritmoSemanal = Number.isFinite(ritmo) ? Math.max(1, Math.min(2000, ritmo)) : null;
-    }
-    const permitidosModo = this._chavesDeModo ? this._chavesDeModo() : [];
-    out.modosCustom = {};
-    if (src.modosCustom && typeof src.modosCustom === 'object' && !Array.isArray(src.modosCustom)) {
-      Object.keys(this.MODOS).forEach(modo => {
-        const recebido = src.modosCustom[modo];
-        if (!recebido || typeof recebido !== 'object' || Array.isArray(recebido)) return;
-        const limpo = {};
-        permitidosModo.forEach(k => {
-          if (!Object.prototype.hasOwnProperty.call(recebido, k)) return;
-          if (specs[k]) limpo[k] = limpaNum(k, recebido[k], out[k]);
-          else if (enums[k] && enums[k].includes(recebido[k])) limpo[k] = recebido[k];
-          else if (k === 'incluirPequenas' && typeof recebido[k] === 'boolean') limpo[k] = recebido[k];
-        });
-        if (Object.keys(limpo).length) out.modosCustom[modo] = limpo;
-      });
-    }
-    // Opções internas não são persistidas, mas precisam atravessar chamadas do motor.
-    if (Array.isArray(src._snapshots)) out._snapshots = src._snapshots;
-    if (src._mapa && typeof src._mapa === 'object') out._mapa = src._mapa;
-    if (src._volume && typeof src._volume === 'object') out._volume = src._volume;
-    if (src._semExclusao === true) out._semExclusao = true;
-    return out;
-  },
   prefs() {
     try {
       const v = JSON.parse(localStorage.getItem(DB._profilePrefix() + this.KEY_PREF));
-      const p = this.sanearPrefs(v);
+      const p = Object.assign({}, this.DEFAULTS, v || {});
       /* MIGRAÇÃO — um padrão novo não chega a quem já usa o app. A tela GRAVA
          todos os ajustes a cada repintura, então todo perfil existente tem
          `custoModo: 'fixo'` salvo, e um valor salvo sempre vence o padrão. Sem
@@ -33271,12 +33091,11 @@ const PlanoEngine = {
         if (v && (v.limite == null || Number(v.limite) === 30)) p.limite = this.DEFAULTS.limite;
         p.migracao = 4;
       }
-      return this.sanearPrefs(p);
-    } catch (_) { return this.sanearPrefs(null); }
+      return p;
+    } catch (_) { return Object.assign({}, this.DEFAULTS); }
   },
   salvarPrefs(patch) {
-    const v = this.sanearPrefs(Object.assign({}, this.prefs(), patch || {}));
-    delete v._snapshots; delete v._mapa; delete v._volume; delete v._semExclusao;
+    const v = Object.assign(this.prefs(), patch || {});
     DB.setRaw(DB._profilePrefix() + this.KEY_PREF, JSON.stringify(v));
     return v;
   },
@@ -33426,9 +33245,8 @@ const PlanoEngine = {
 
      Wilson resolve: o intervalo nunca degenera, é assimétrico perto das bordas
      (que é a verdade — de 0% só se pode subir) e converge para Wald quando a
-     amostra cresce. Como a interface escreve um único valor com “±”, a margem
-     precisa cobrir o lado mais distante do intervalo assimétrico; meia-largura
-     subestimava 0/20 como ±8pp quando o limite superior é 16pp. */
+     amostra cresce. `margemErro` devolve a meia-largura, para não mexer em
+     nenhum chamador; `intervalo` existe para quem puder mostrar a faixa. */
   Z95: 1.96,
   intervalo(pct, n) {
     if (!n || n < 1) return null;
@@ -33441,7 +33259,7 @@ const PlanoEngine = {
   margemErro(pct, n) {
     if (!n || n < 2) return null;
     const iv = this.intervalo(pct, n);
-    return iv ? Math.max(Math.max(0, pct - iv[0]), Math.max(0, iv[1] - pct)) : null;
+    return iv ? (iv[1] - iv[0]) / 2 : null;
   },
   /* ── QUANTAS QUESTÕES, E PARA QUÊ ────────────────────────────────────────
      O conselho de cada assunto dizia "um bloco de ~B questões", com B saindo
@@ -33583,37 +33401,19 @@ const PlanoEngine = {
   _folhas(snap, apenasFolhas) {
     const rows = (snap && snap.rows || []).filter(r => r.depth > 0 && (r.questoes || 0) > 0);
     if (!apenasFolhas) return rows;
-    /* Índice pai→filhos em uma passada. A versão anterior procurava todos os
-       descendentes em `rows` para cada linha (O(n²)); com milhares de tópicos e
-       doze retratos, só esta etapa fazia dezenas de milhões de comparações. */
-    const porDisc = new Map(), filhos = new Map();
-    rows.forEach(r => {
-      if (!r.codigo) return;
-      const d = String(r.disciplina || '');
-      if (!porDisc.has(d)) porDisc.set(d, new Map());
-      const cod = String(r.codigo);
-      if (!porDisc.get(d).has(cod)) porDisc.get(d).set(cod, r);
-    });
-    rows.forEach(r => {
-      if (!r.codigo) return;
-      const d = String(r.disciplina || ''), mapa = porDisc.get(d);
-      let pai = String(r.codigo);
-      while (pai.includes('.')) {
-        pai = pai.slice(0, pai.lastIndexOf('.'));
-        if (!mapa.has(pai)) continue;
-        const chave = d + '\u0000' + pai;
-        if (!filhos.has(chave)) filhos.set(chave, []);
-        filhos.get(chave).push(r);
-        break;
-      }
-    });
+    const prof = (c) => String(c).split('.').length;
     const out = [];
     rows.forEach(r => {
       if (!r.codigo) { out.push(r); return; }
-      /* Cada nó foi ligado ao ancestral existente mais próximo. Isso preserva
-         árvores irregulares sem subtrair neto e pai ao mesmo tempo. */
-      const base = filhos.get(String(r.disciplina || '') + '\u0000' + String(r.codigo)) || [];
-      if (!base.length) { out.push(r); return; }
+      const desc = rows.filter(o => o !== r && o.disciplina === r.disciplina && o.codigo &&
+        String(o.codigo).startsWith(String(r.codigo) + '.'));
+      if (!desc.length) { out.push(r); return; }
+      /* Só os filhos DIRETOS entram na subtração: cada um deles já traz o
+         próprio ramo. Quando o retrato não tem a linha intermediária (árvore
+         irregular), cai nos descendentes que existirem — o resíduo pode sair
+         menor, nunca maior, e a guarda de `> 0` fecha a conta. */
+      const diretos = desc.filter(o => prof(o.codigo) === prof(r.codigo) + 1);
+      const base = diretos.length ? diretos : desc;
       const q = (r.questoes || 0) - base.reduce((a, o) => a + (o.questoes || 0), 0);
       if (q <= 0) return;
       const ac = Math.max(0, Math.min(q, (r.acertos || 0) - base.reduce((a, o) => a + (o.acertos || 0), 0)));
@@ -33659,9 +33459,9 @@ const PlanoEngine = {
   _agrupamento(opts) {
     const piso = Math.max(0, parseInt((opts && opts.granPiso) || 0, 10) || 0);
     if (!piso || !opts || opts.apenasFolhas === false) return null;
-    const snaps = (Array.isArray(opts._snapshots) ? opts._snapshots : DB.getTecSnapshots()) || [];
+    const snaps = DB.getTecSnapshots() || [];
     if (!snaps.length) return null;
-    const sel = snaps.map(s => [s.id, s.startDate, s.endDate, (s.rows || []).length].join(':')).join('|') + ':' + piso;
+    const sel = snaps.length + ':' + ((snaps[snaps.length - 1] || {}).id || '') + ':' + piso;
     if (this._agrC && this._agrC.sel === sel) return this._agrC.v;
     /* 1. VOLUME ACUMULADO POR ÁTOMO E O ANCESTRAL DE CADA UM, pelo NOME. */
     const acum = Object.create(null), pai = Object.create(null);
@@ -33796,21 +33596,6 @@ const PlanoEngine = {
   _indice(snap, lente) {
     const L = (lente && typeof lente === 'object') ? lente : { apenasFolhas: lente !== false, granPiso: 0 };
     const apenasFolhas = L.apenasFolhas !== false;
-    const fontesChave = Array.isArray(L._snapshots)
-      ? L._snapshots.map(s => [s.id, (s.rows || []).length].join(':')).join(',') : '';
-    const cacheKey = (apenasFolhas ? '1' : '0') + '|' + (parseInt(L.granPiso || 0, 10) || 0) + '|' + fontesChave;
-    if (snap && typeof snap === 'object') {
-      this._indiceC = this._indiceC || new WeakMap();
-      const ja = this._indiceC.get(snap);
-      if (ja && ja.has(cacheKey)) return ja.get(cacheKey);
-    }
-    const guardar = (v) => {
-      if (!snap || typeof snap !== 'object') return v;
-      let mapa = this._indiceC.get(snap);
-      if (!mapa) { mapa = new Map(); this._indiceC.set(snap, mapa); }
-      mapa.set(cacheKey, v);
-      return v;
-    };
     /* Retrato AGREGADO não tem hierarquia própria (ver `_fontes` em
        `aggregate`): o índice dele é a SOMA dos índices de cada retrato, cada um
        resolvido com a própria árvore. É isto que faz o volume do Plano fechar
@@ -33825,7 +33610,7 @@ const PlanoEngine = {
         }
       });
       Object.keys(m).forEach(k => { const v = m[k]; v.pct = v.q > 0 ? v.ac / v.q * 100 : null; });
-      return guardar(this._agrupar(m, L));
+      return this._agrupar(m, L);
     }
     const m = {};
     this._folhas(snap, apenasFolhas).forEach(r => {
@@ -33835,7 +33620,7 @@ const PlanoEngine = {
       m[k] = c;
     });
     Object.values(m).forEach(v => { v.pct = v.q > 0 ? v.ac / v.q * 100 : null; });
-    return guardar(this._agrupar(m, L));
+    return this._agrupar(m, L);
   },
   /* Total histórico de questões por assunto, na MESMA chave que o resto do
      motor usa. É daqui que o ciclo de uma atividade tira o quanto você já
@@ -33846,12 +33631,11 @@ const PlanoEngine = {
      UM chamador — a própria caixa de seleção, que precisa mostrar o tamanho do
      que está fora justamente porque está fora. */
   totalHistorico(opts) {
-    opts = this.sanearPrefs(Object.assign({}, this.prefs(), opts || {}));
+    opts = Object.assign({}, this.prefs(), opts || {});
     const fora = (opts && opts._semExclusao) ? null : this.excluidasSet(opts);
     const temFora = !!(fora && Object.keys(fora).length);
     const m = {};
-    const snaps = Array.isArray(opts._snapshots) ? opts._snapshots : (DB.getTecSnapshots() || []);
-    snaps.forEach(s => {
+    (DB.getTecSnapshots() || []).forEach(s => {
       const idx = this._indice(s, opts);
       for (const k in idx) {
         if (temFora && this.foraDoPlano(idx[k].disciplina || k.split(ReforcoEngine.SEP)[0], fora)) continue;
@@ -33866,11 +33650,11 @@ const PlanoEngine = {
      vida inteira: 40% em duzentas questões velhas mais 92% em cento e cinquenta
      novas dá 62%, e 62% reprova um assunto que está resolvido. */
   taxaAtualDe(disciplina, nome, opts) {
-    const o = this.sanearPrefs(Object.assign({}, this.prefs(), opts || {}));
+    const o = Object.assign({}, this.prefs(), opts || {});
     // matéria fora do Plano não tem taxa PARA O PLANO: nem null forçado, nem
     // número velho de um concurso que passou julgando uma atividade de hoje
     if (this.foraDoPlano(disciplina, this.excluidasSet(o))) return null;
-    const todos = Array.isArray(o._snapshots) ? o._snapshots : DB.getTecSnapshots();
+    const todos = DB.getTecSnapshots();
     if (!todos.length) return null;
     const desc = todos.slice().reverse().map(s => { s._idx = this._indice(s, o); return s; });
     const a = this._taxaAdaptativa(ReforcoEngine.chaveInc(disciplina || '', nome), desc, o);
@@ -33908,7 +33692,7 @@ const PlanoEngine = {
      UMA vez — o ancestral já carrega o descendente, e somar os dois seria a
      contagem dobrada que o resto do motor passou a última revisão eliminando. */
   volumeDoEscopo(escopo, disciplina, opts) {
-    const o = this.sanearPrefs(Object.assign({}, this.prefs(), opts || {}));
+    const o = Object.assign({}, this.prefs(), opts || {});
     const vazio = { q: 0, ac: 0, pct: null, porRetrato: [], fora: false, retratos: 0 };
     const membros = ((escopo && escopo.membros) || []).map(n => ReforcoEngine.norm(n)).filter(Boolean);
     if (!membros.length) return vazio;
@@ -33918,31 +33702,9 @@ const PlanoEngine = {
     membros.forEach(k => { alvo[k] = true; });
     let q = 0, ac = 0;
     const porRetrato = [];
-    const snaps = Array.isArray(o._snapshots) ? o._snapshots : (DB.getTecSnapshots() || []);
-    /* O índice cru é compartilhado por todas as atividades do Plano. Sem ele,
-       2.000 reforços varriam todas as linhas de todos os retratos 2.000 vezes. */
-    const assinatura = snaps.map(s => [s.id, s.startDate, s.endDate, (s.rows || []).length].join(':')).join('|');
-    if (!this._volumeIdxC || this._volumeIdxC.assinatura !== assinatura) {
-      this._volumeIdxC = {
-        assinatura,
-        retratos: snaps.map(s => {
-          const porNome = new Map();
-          (s.rows || []).forEach(r => {
-            if (!((r.depth || 0) > 0)) return;
-            const k = ReforcoEngine.norm(r.disciplina || '') + ReforcoEngine.SEP + ReforcoEngine.norm(r.nome || '');
-            if (!porNome.has(k)) porNome.set(k, []);
-            porNome.get(k).push(r);
-          });
-          return { snap: s, porNome };
-        })
-      };
-    }
-    this._volumeIdxC.retratos.forEach(reg => {
-      const s = reg.snap, linhas = [];
-      membros.forEach(nome => {
-        const achadas = reg.porNome.get(dk + ReforcoEngine.SEP + nome);
-        if (achadas) linhas.push(...achadas);
-      });
+    (DB.getTecSnapshots() || []).forEach(s => {
+      const linhas = (s.rows || []).filter(r => (r.depth || 0) > 0 &&
+        ReforcoEngine.norm(r.disciplina || '') === dk && alvo[ReforcoEngine.norm(r.nome || '')]);
       if (!linhas.length) return;
       const cods = linhas.map(r => (r.codigo ? String(r.codigo) : null));
       let sq = 0, sac = 0;
@@ -33963,7 +33725,7 @@ const PlanoEngine = {
      caminhos até ela. Duplicar a lógica aqui seria criar a segunda régua que a
      revisão anterior acabou de eliminar. */
   taxaDoNo(escopo, disciplina, opts) {
-    const o = this.sanearPrefs(Object.assign({}, this.prefs(), opts || {}));
+    const o = Object.assign({}, this.prefs(), opts || {});
     const v = (opts && opts._volume) || this.volumeDoEscopo(escopo, disciplina, o);
     if (!v || !v.q) return null;
     const desc = v.porRetrato.slice().reverse()
@@ -34008,8 +33770,8 @@ const PlanoEngine = {
     return cand != null ? cand : null;
   },
   serieHistorica(opts) {
-    opts = this.sanearPrefs(Object.assign({}, this.prefs(), opts || {}));
-    const snaps = Array.isArray(opts._snapshots) ? opts._snapshots : DB.getTecSnapshots();
+    opts = Object.assign({}, this.prefs(), opts || {});
+    const snaps = DB.getTecSnapshots();
     const pontos = [];
     // a trajetória segue o MESMO recorte do número grande (ver `focoSet`)
     const foco = this.focoSet(opts);
@@ -34058,7 +33820,7 @@ const PlanoEngine = {
   // "Cruzou a meta" e "está sólido" são coisas diferentes. Um assunto que acabou
   // de cruzar ainda não provou que fica — tirá-lo da lista agora é abandoná-lo cedo.
   _sequencias(opts) {
-    const snaps = Array.isArray(opts._snapshots) ? opts._snapshots : DB.getTecSnapshots();
+    const snaps = DB.getTecSnapshots();
     const porTopico = {};
     snaps.forEach(s => {
       const idx = this._indice(s, opts);
@@ -34396,17 +34158,13 @@ const PlanoEngine = {
     return ReforcoEngine.incidenciaDe(incMap, x.nome, x.disciplina).valor || 0;
   },
   calcular(scoped, opts) {
-    opts = this.sanearPrefs(Object.assign({}, this.prefs(), opts || {}));
+    opts = Object.assign({}, this.prefs(), opts || {});
     if (!scoped) return { erro: 'sem-retrato' };
-    /* Toda conta temporal acompanha o escopo que produziu o retrato virtual.
-       Antes, a lista recebia o recorte selecionado, mas taxa, sequência e nota
-       projetada voltavam a consultar todos os retratos do perfil. */
-    const todos = (scoped._fontes && scoped._fontes.length ? scoped._fontes : [scoped]).slice();
+    const todos = DB.getTecSnapshots();
     if (!todos.length) return { erro: 'sem-retrato' };
-    opts._snapshots = todos;
     // do mais novo para o mais antigo, cada um com seu índice de assuntos
     const snapsDesc = todos.slice().reverse().map(s => {
-      return Object.assign({}, s, { _idx: this._indice(s, opts) });
+      s._idx = this._indice(s, opts); return s;
     });
     const mHist = this._indice(scoped, opts);
     /* Total histórico coerente com a JANELA ADAPTATIVA: soma os índices POR
@@ -34449,8 +34207,7 @@ const PlanoEngine = {
     const seqs = this._sequencias(opts);
     const brutos = chaves.map(k => {
       const h = mHist[k];
-      const a = this._taxaAdaptativa(k, snapsDesc, opts);
-      if (!a) return null;
+      const a = this._taxaAdaptativa(k, snapsDesc, opts) || { q: h.q, ac: h.ac, pct: h.pct, diasJanela: null, retratos: 0, margem: this.margemErro(h.pct, h.q), conf: this.confiabilidade(h.q), qAntes: 0, pctAntes: null };
       const taxa = a.pct;
       const amostraFraca = a.q < opts.minAmostra;
       const peso = (opts.ponderacao === 'volume') ? a.q : 1;
@@ -34487,8 +34244,7 @@ const PlanoEngine = {
            quando a diferença passa também do mínimo detectável do par. */
         deltaMinimo: this.deltaDetectavel(a.pct, a.qAntes, a.q)
       };
-    }).filter(Boolean);
-    if (!brutos.length) return { erro: 'janela', janelaMax: opts.janelaMax };
+    });
     /* ── CUSTO ────────────────────────────────────────────────────────────────
        Três modos, e o padrão é o único que olha a distância a vencer:
          lacuna       piso para remedir + tanto por ponto de lacuna × amplitude
@@ -34766,7 +34522,6 @@ const PlanoEngine = {
     const piorando = usados.filter(x => x.deltaFirme && x.delta < 0).length;
     const janelaMedia = Math.round(usados.filter(x => x.diasJanela).reduce((a, x) => a + x.diasJanela, 0) / Math.max(1, usados.filter(x => x.diasJanela).length));
     return {
-      _snapshots: todos,
       dominioPct, meta, jaAtinge: dominioPct >= meta, falta: Math.max(0, meta - dominioPct),
       assuntos: usados.length, ignorados: brutos.length - usados.length,
       excluidasAtivas, excluidasAssuntos, excluidasQ,
@@ -34918,36 +34673,27 @@ const PlanoPontos = {
   projecao(opts) {
     const comp = this.composicao();
     if (!comp.length) return null;
-    const p = PlanoEngine.sanearPrefs(Object.assign({}, PlanoEngine.prefs(), opts || {}));
+    const p = Object.assign({}, PlanoEngine.prefs(), opts || {});
     const teto = Math.max(50, Math.min(100, p.tetoDominio)) / 100;
+    const idx = PlanoEngine.totalHistorico(p);
     const norm = (x) => ReforcoEngine.norm(x);
-    const fontes = Array.isArray(p._snapshots) ? p._snapshots : (DB.getTecSnapshots() || []);
-    /* A taxa da matéria é montada retrato por retrato e passa pela mesma janela
-       adaptativa do ranking. Somar a vida inteira aqui fazia a nota dizer 50%
-       enquanto o assunto exibido pelo Plano já estava em 80%. */
-    const nomesMateria = new Set();
-    const desc = fontes.slice().reverse().map(s => {
-      const idx = PlanoEngine._indice(s, p), por = Object.create(null);
-      Object.keys(idx).forEach(k => {
-        const disc = norm(idx[k].disciplina || k.split(ReforcoEngine.SEP)[0]);
-        if (!disc) return;
-        nomesMateria.add(disc);
-        const c = por[disc] || { q: 0, ac: 0 };
-        c.q += idx[k].q || 0; c.ac += idx[k].ac || 0; por[disc] = c;
-      });
-      return { startDate: s.startDate, endDate: s.endDate || s.date, _idx: por };
+    // taxa da matéria: soma as folhas dela no histórico (uma questão, uma vez)
+    const porMateria = {};
+    Object.keys(idx).forEach(k => {
+      const disc = k.split(ReforcoEngine.SEP)[0];
+      const c = porMateria[disc] || { q: 0, ac: 0 };
+      c.q += idx[k].q; c.ac += idx[k].ac; porMateria[disc] = c;
     });
     /* O EDITAL VOCÊ DIGITA; O HISTÓRICO VEM DA BANCA. Sem casar os dois, uma
        matéria cujo nome não bate exatamente cai em `semDado` e some da conta —
        e some para MENOS: a nota projetada fica menor do que a verdade, sem
        nenhum aviso de que faltou gente. É o mesmo casamento conservador do
        quadro de esforço, aplicado onde o erro custa mais caro. */
-    const casado = this._casarNomes(comp.map(m => norm(m.nome)), [...nomesMateria]);
+    const casado = this._casarNomes(comp.map(m => norm(m.nome)), Object.keys(porMateria));
     let valorTotal = 0, hoje = 0, potencial = 0, semDado = [];
     const linhas = comp.map(m => {
-      const chave = casado[norm(m.nome)] || norm(m.nome);
-      const v = PlanoEngine._taxaAdaptativa(chave, desc, p);
-      const taxa = v ? v.pct : null;
+      const v = porMateria[casado[norm(m.nome)] || norm(m.nome)];
+      const taxa = (v && v.q > 0) ? (v.ac / v.q * 100) : null;
       valorTotal += m.valor;
       if (taxa == null) { semDado.push(m.nome); return Object.assign({}, m, { taxa: null, medido: 0 }); }
       hoje += m.valor * taxa / 100;
@@ -35451,7 +35197,6 @@ const PlanoCiclo = {
     const o = extra && extra.origemPlano;
     if (!o || !o.topico) return null;
     const p = PlanoEngine.prefs();
-    if (r && Array.isArray(r._snapshots)) p._snapshots = r._snapshots;
     const alvo = Math.max(1, extra.alvo || o.custoEstimado || 1);
     /* Com escopo, a medição vem das linhas cruas (`volumeDoEscopo`) e não muda
        se a lente do Plano mudar. Sem escopo, a atividade fica na lente legada
@@ -35653,9 +35398,7 @@ const PlanoCiclo = {
   },
   // as atividades do Plano ainda abertas, já avaliadas
   emCurso(r) {
-    const lente = Object.assign({}, this.LENTE_LEGADA,
-      r && Array.isArray(r._snapshots) ? { _snapshots: r._snapshots } : {});
-    const mapa = PlanoEngine.totalHistorico(lente);
+    const mapa = PlanoEngine.totalHistorico(this.LENTE_LEGADA);
     return DB.getExtras()
       .filter(e => e.origemPlano && e.origemPlano.topico && e.status !== 'concluida')
       .map(e => this.avaliar(e, r, mapa))
@@ -36518,14 +36261,7 @@ const DesempenhoTecScreen = {
   scopedSnapshot() {
     const snaps = this.activeSnapshots();
     if (snaps.length === 0) return null;
-    let perfil = '';
-    try { perfil = DB._profilePrefix(); } catch (_) { _quiet(_); }
-    const chave = perfil + '|' + this.scopeMode + '|' + snaps.map(s =>
-      [s.id, s.startDate, s.endDate, (s.rows || []).length, s.importedAt || ''].join(':')).join('|');
-    if (this._scopedC && this._scopedC.chave === chave) return this._scopedC.valor;
-    const valor = this.aggregate(snaps);
-    this._scopedC = { chave, valor };
-    return valor;
+    return this.aggregate(snaps);
   },
   openImport() {
     $id('tec-empty').style.display = 'none';
@@ -36545,9 +36281,6 @@ const DesempenhoTecScreen = {
     fn.style.display = 'none'; fn.textContent = '';
     $id('tec-file-input').value = '';
     this._parsedRows = null;
-    this._importDataValid = false;
-    this._importReadToken = (this._importReadToken || 0) + 1;
-    this._fileReading = false;
     this.validateRange();
   },
   addDays(iso, delta) {
@@ -36564,11 +36297,7 @@ const DesempenhoTecScreen = {
     const saveBtn = document.getElementById('tec-import-save');
     const setWarn = (msg) => {
       if (msg) { warn.textContent = msg; warn.style.display = 'block'; saveBtn.disabled = true; saveBtn.style.opacity = '0.5'; }
-      else {
-        warn.style.display = 'none';
-        saveBtn.disabled = !!this._fileReading || this._importDataValid === false;
-        saveBtn.style.opacity = saveBtn.disabled ? '0.5' : '';
-      }
+      else { warn.style.display = 'none'; saveBtn.disabled = false; saveBtn.style.opacity = ''; }
     };
     if (!start || !end) { setWarn('Informe o início e o fim do período.'); return false; }
     if (start > end) { setWarn('O início do período não pode ser depois do fim.'); return false; }
@@ -36583,47 +36312,17 @@ const DesempenhoTecScreen = {
   // Lê o arquivo enviado. .xlsx/.xls/.csv via SheetJS; texto puro como fallback.
   handleFile(file) {
     if (!file) return;
-    const token = (this._importReadToken || 0) + 1;
-    this._importReadToken = token;
-    this._fileReading = true;
-    this._parsedRows = null;
-    this._importDataValid = false;
-    this.validateRange();
     const fnEl = document.getElementById('tec-file-name');
     const prev = document.getElementById('tec-import-preview');
     fnEl.style.display = 'inline-flex';
     fnEl.textContent = '📎 ' + file.name;
     const ext = (file.name.split('.').pop() || '').toLowerCase();
-    const ativa = () => this._importReadToken === token;
-    const encerraLeitura = () => {
-      if (!ativa()) return false;
-      this._fileReading = false;
-      this.validateRange();
-      return true;
-    };
-    const falhar = (msg, erro) => {
-      if (!encerraLeitura()) return;
-      this._parsedRows = null;
-      this._importDataValid = false;
-      this.validateRange();
-      if (erro) console.error(erro);
-      prev.textContent = msg;
-      prev.style.color = 'var(--bad)';
-    };
     const finish = (rows) => {
-      if (!encerraLeitura()) return;
       this._parsedRows = rows;
       const discs = TecEngine.disciplinas({ rows });
-      const val = TecEngine.validarDesempenho(rows);
-      this._importDataValid = val.ok && discs.length > 0;
-      this.validateRange();
-      if (!val.ok) {
-        prev.textContent = '⚠ Importação bloqueada: ' + val.erros[0]
-          + (val.erros.length > 1 ? ` · mais ${val.erros.length - 1} erro(s)` : '') + '.';
-        prev.style.color = 'var(--bad)';
-      } else if (discs.length === 0) {
-        prev.textContent = '⚠ As linhas foram lidas, mas nenhuma disciplina foi reconhecida. Confira a coluna Hierarquia.';
-        prev.style.color = 'var(--bad)';
+      if (rows.length === 0) {
+        prev.textContent = '⚠ Não reconheci dados de desempenho neste arquivo. Confira se é a tabela de desempenho por assunto.';
+        prev.style.color = 'var(--warn)';
       } else {
         const tot = TecEngine.totais({ rows });
         prev.textContent = `✓ ${discs.length} disciplina(s), ${rows.length} linha(s) · ${tot.questoes} questões · ${tot.pct}% de acerto geral`;
@@ -36634,26 +36333,23 @@ const DesempenhoTecScreen = {
     if (ext === 'csv') {
       const reader = new FileReader();
       reader.onload = (e) => finish(TecEngine.parse(e.target.result));
-      reader.onerror = () => falhar('⚠ Não consegui ler o arquivo CSV. Tente exportá-lo novamente.');
       reader.readAsText(file);
       return;
     }
     // Fallback via SheetJS (usado só se o leitor embutido falhar OU para .xls antigo).
     // Carrega a biblioteca SOB DEMANDA (não vem no caminho crítico da abertura).
     const trySheetJS = async () => {
-      if (!ativa()) return;
       prev.textContent = 'Carregando leitor de planilha…'; prev.style.color = 'var(--text-faint)';
       const ok = await ensureSheetJS();
-      if (!ativa()) return;
       if (!ok || typeof XLSX === 'undefined') {
-        falhar((ext === 'xls')
+        prev.textContent = (ext === 'xls')
           ? '⚠ Formato .xls antigo requer internet. No Excel/Calc, salve como .xlsx e reenvie.'
-          : '⚠ Não consegui ler a planilha. Exporte como .csv ou cole os dados manualmente.');
+          : '⚠ Não consegui ler a planilha. Exporte como .csv ou cole os dados manualmente.';
+        prev.style.color = 'var(--warn)';
         return;
       }
       const reader = new FileReader();
       reader.onload = (e) => {
-        if (!ativa()) return;
         try {
           // IMPORTANTE: SheetJS type:'array' espera Uint8Array (não ArrayBuffer cru).
           const data = new Uint8Array(e.target.result);
@@ -36673,10 +36369,11 @@ const DesempenhoTecScreen = {
           }
           finish(rows);
         } catch (err) {
-          falhar('⚠ Erro ao ler o arquivo. Tente exportar como .csv ou cole os dados manualmente.', err);
+          console.error(err);
+          prev.textContent = '⚠ Erro ao ler o arquivo. Tente exportar como .csv ou cole os dados manualmente.';
+          prev.style.color = 'var(--bad)';
         }
       };
-      reader.onerror = () => falhar('⚠ Não consegui acessar o conteúdo da planilha.');
       reader.readAsArrayBuffer(file);
     };
     if (ext === 'xls') { trySheetJS(); return; } // .xls binário antigo: só via SheetJS
@@ -36686,26 +36383,21 @@ const DesempenhoTecScreen = {
       prev.textContent = 'Lendo planilha…'; prev.style.color = 'var(--text-faint)';
       MiniXLSX.readFirstSheet(file)
         .then((res) => {
-          if (!ativa()) return;
           const rows = TecEngine.parseCellRows(res.rows);
           if (rows.length === 0) { trySheetJS(); return; }  // embutido não achou linhas → tenta SheetJS sob demanda
           finish(rows);
         })
-        .catch((err) => { if (!ativa()) return; console.error(err); trySheetJS(); });
+        .catch((err) => { console.error(err); trySheetJS(); });
       return;
     }
     // txt/tsv: lê como texto e usa o parser de colagem
     const reader = new FileReader();
     reader.onload = (e) => finish(TecEngine.parse(e.target.result));
-    reader.onerror = () => falhar('⚠ Não consegui ler o arquivo de texto.');
     reader.readAsText(file);
   },
   updateImportPreview() {
     // digitar no textarea descarta o arquivo carregado (a colagem passa a valer)
-    this._importReadToken = (this._importReadToken || 0) + 1;
-    this._fileReading = false;
     this._parsedRows = null;
-    this._importDataValid = false;
     const fn = document.getElementById('tec-file-name');
     fn.style.display = 'none'; fn.textContent = '';
     $id('tec-file-input').value = '';
@@ -36713,14 +36405,6 @@ const DesempenhoTecScreen = {
     const rows = TecEngine.parse(text);
     const discs = TecEngine.disciplinas({ rows });
     const prev = document.getElementById('tec-import-preview');
-    const val = TecEngine.validarDesempenho(rows);
-    if (text.trim() && !val.ok && val.erros.length) {
-      prev.textContent = '⚠ Importação bloqueada: ' + val.erros[0]
-        + (val.erros.length > 1 ? ` · mais ${val.erros.length - 1} erro(s)` : '') + '.';
-      prev.style.color = 'var(--bad)';
-      this.validateRange();
-      return;
-    }
     /* BUG CORRIGIDO — o preview declarava sucesso em dado inutilizavel.
        Se nenhuma DISCIPLINA e reconhecida (acontece quando a coluna Hierarquia
        vem preenchida tambem nas disciplinas, ou quando faltam colunas), o app
@@ -36732,7 +36416,6 @@ const DesempenhoTecScreen = {
         ? '⚠ Nenhuma linha reconhecida. Confira se copiou a tabela inteira, com as colunas de questões e % de acertos.'
         : 'Aguardando dados...';
       prev.style.color = text.trim() ? 'var(--warn-text, var(--warn))' : 'var(--text-faint)';
-      this.validateRange();
       return;
     }
     const tot = TecEngine.totais({ rows });
@@ -36741,35 +36424,24 @@ const DesempenhoTecScreen = {
         + 'No export do TecConcursos a linha da disciplina vem com a coluna "Hierarquia" VAZIA — só os tópicos têm código (01, 01.01). '
         + 'Verifique se essa coluna foi copiada junto.';
       prev.style.color = 'var(--bad)';
-      this.validateRange();
       return;
     }
     if (tot.questoes === 0) {
       prev.textContent = '⚠ ' + discs.length + ' disciplina(s) reconhecida(s), mas nenhuma questão. '
         + 'Confira se as colunas de "Questões Resolvidas" e "% de acertos" vieram no que foi colado.';
       prev.style.color = 'var(--bad)';
-      this.validateRange();
       return;
     }
-    this._importDataValid = true;
-    this.validateRange();
     prev.textContent = `✓ ${discs.length} disciplina(s), ${rows.length} linha(s) · ${tot.questoes.toLocaleString('pt-BR')} questões · ${tot.pct}% de acerto geral`;
     prev.style.color = 'var(--good)';
   },
   saveImport() {
-    if (this._fileReading) { showToast('Aguarde o término da leitura do arquivo'); return; }
     if (!this.validateRange()) { showToast('Ajuste o intervalo de datas antes de salvar'); return; }
     // usa os dados do arquivo, se houver; senão o texto colado
-    const rows = Array.isArray(this._parsedRows)
+    const rows = (this._parsedRows && this._parsedRows.length)
       ? this._parsedRows
       : TecEngine.parse($id('tec-import-text').value);
     if (!rows || rows.length === 0) { showToast('Envie um arquivo válido ou cole os dados'); return; }
-    const val = TecEngine.validarDesempenho(rows);
-    const discs = TecEngine.disciplinas({ rows });
-    if (!val.ok || !discs.length) {
-      showToast('Importação bloqueada: ' + (val.erros[0] || 'nenhuma disciplina reconhecida'));
-      return;
-    }
     const start = $id('tec-import-start').value;
     const end = $id('tec-import-end').value;
     const snap = {
@@ -36790,7 +36462,6 @@ const DesempenhoTecScreen = {
     if (!this.rangeEnd || snap.endDate > this.rangeEnd) this.rangeEnd = snap.endDate;
     if (!this.rangeStart || snap.startDate < this.rangeStart) this.rangeStart = snap.startDate;
     this._parsedRows = null;
-    this._importDataValid = false;
     showToast('Importação salva ✓');
     this.render();
   },
@@ -37577,11 +37248,6 @@ const DesempenhoTecScreen = {
       lista.innerHTML = '';
       const bv = document.getElementById('plano-excluidas-voltar');
       if (bv) bv.addEventListener('click', () => this.setExcluidas([]));
-      return;
-    }
-    if (r.erro === 'janela') {
-      proj.innerHTML = `<p class="hint" style="padding:18px 0;">Os retratos deste escopo estão inteiramente fora da janela de <strong>${r.janelaMax} dias</strong>. Amplie a janela nos ajustes avançados ou selecione um retrato mais recente.</p>`;
-      lista.innerHTML = '';
       return;
     }
     if (r.erro === 'amostra') {
@@ -38413,12 +38079,8 @@ const DesempenhoTecScreen = {
           <span>${obs}</span>
         </span>
       </li>`;
-    let temPesoDeProva = tm.fontePeso === 'edital';
-    try { temPesoDeProva = temPesoDeProva || !!(ReforcoEngine.hasIncidencia && ReforcoEngine.hasIncidencia()); } catch (e) { _quiet(e, 'peso-prova'); }
     const manchete = tm.emJogo < 0.1
-      ? (temPesoDeProva
-        ? 'nada relevante em jogo — você está no teto no que a prova cobra'
-        : 'sem peso de prova cadastrado — importe incidência ou preencha o edital para medir pontos em jogo')
+      ? 'nada relevante em jogo — você está no teto no que a prova cobra'
       : `<b class="tone-bad">${tm.emJogo.toFixed(0)} pp da prova ainda em jogo</b> · ${tm.nCorte} ${tm.nCorte === 1 ? 'matéria concentra' : 'matérias concentram'} metade disso`;
     /* Abaixo de meio ponto a tela diz "<1%": "0% do seu esforço · nível 57%" é
        uma linha que se contradiz (se o nível foi medido, houve questão), e o
@@ -38435,7 +38097,7 @@ const DesempenhoTecScreen = {
       <details class="pl-ciclo pl-tempo"${tm.acoes ? ' open' : ''}>
         <summary>
           <strong>🎯 Onde atacar primeiro</strong>
-          <span>${manchete}${temPesoDeProva ? ` · peso ${tm.fontePeso === 'edital' ? 'pelo edital que você declarou' : 'pela incidência das suas bancas'}` : ''}</span>
+          <span>${manchete} · peso ${tm.fontePeso === 'edital' ? 'pelo edital que você declarou' : 'pela incidência das suas bancas'}</span>
           <span class="chev">▾</span>
         </summary>
         <ul class="pl-mat-lista">
@@ -47880,6 +47542,158 @@ else CloudStore.init();
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', () => setTimeout(boot, 0));
   else setTimeout(boot, 0);
 })();
+
+function runTecAudit(){
+ const tests=[],benchmarks=[];
+ const test=(name,fn)=>{try{const r=fn();tests.push({name,pass:r===true,detail:r===true?'ok':r});}catch(e){tests.push({name,pass:false,detail:e.message});}};
+ const eq=(a,b)=>Math.abs(a-b)<1e-7;
+ const header=['Hierarquia','Índice','Questões Resolvidas','Acertos (%)','Quantidade de acertos'];
+ const T=TecEngine,P=PlanoEngine,D=DesempenhoTecScreen,R=ReforcoEngine;
+ const day=offset=>{const d=new Date(todayLocal()+'T12:00:00');d.setDate(d.getDate()+offset);return d.toISOString().slice(0,10);};
+ const row=(nome,q,ac,disc='Direito',codigo='01',depth=1)=>({nome,questoes:q,acertos:ac,disciplina:disc,codigo,depth,pctAcerto:q?ac/q*100:0});
+ const snap=(id,offset,items)=>({id,startDate:day(offset),endDate:day(offset),date:day(offset),label:'FICTÍCIO '+id,rows:items});
+ const simple=(id,offset,q,ac,nome='Tema A',disc='Direito')=>snap(id,offset,[row(disc,q,ac,disc,null,0),row(nome,q,ac,disc)]);
+ const original={},methods=['getTecSnapshots','getIncidencia','getActiveSubjects','getSubjects','getEntries','getExtras','getTrack'];
+ methods.forEach(k=>original[k]=DB[k]);const oldPrefs=P.prefs;
+ let snapshots=[],incidence=[],subjects=[],prefs={...P.DEFAULTS,migracao:4},extras=[];
+ DB.getTecSnapshots=()=>snapshots;DB.getIncidencia=()=>incidence;DB.getActiveSubjects=()=>subjects;DB.getSubjects=()=>subjects;DB.getEntries=()=>[];DB.getExtras=()=>extras;DB.getTrack=()=>[];
+ P.prefs=()=>({...prefs});
+ function reset(ss=[],patch={}){snapshots=ss;incidence=[];subjects=[];extras=[];prefs={...P.DEFAULTS,migracao:4,...patch};D.scopeMode='all';D.selectedSnapIds=new Set(ss.map(s=>s.id));}
+ function calc(patch={}){return P.calcular(D.aggregate(snapshots),patch);}
+ try{
+ test('Sem dados: erro explícito sem-retrato',()=>{reset();return calc().erro==='sem-retrato';});
+ for(const q of [1,2,5,19,20,49,50,100,1000])for(const pct of [0,50,100]){
+  test(`Amostra ${q}, acertos ${Math.round(q*pct/100)}: domínio finito e exato`,()=>{const ac=Math.round(q*pct/100);reset([simple(1,-1,q,ac)],{incluirPequenas:true});const r=calc();return eq(r.dominioPct,ac/q*100)||r;});
+  test(`Wilson n=${q} p=${pct}: limites contêm estimativa e não degeneram`,()=>{const iv=P.intervalo(pct,q);return iv[0]<=pct+1e-8&&iv[1]>=pct-1e-8&&iv[1]>iv[0];});
+ }
+ test('Pouca amostra não rotulada como diagnóstico firme',()=>{reset([simple(1,-1,5,0)]);return calc().erro==='amostra';});
+ test('Taxa ponderada por contagens, não média de percentuais',()=>{reset([simple(1,-10,10,10),simple(2,-1,90,0)]);return eq(T.totais(D.aggregate(snapshots)).pct,10);});
+ test('Taxa recente substitui desempenho antigo quando alcança amostra',()=>{reset([simple(1,-60,100,0),simple(2,-1,100,80)]);const r=calc();return eq(r.dominioPct,80);});
+ test('Regressão de 90% para 20% gera queda firme',()=>{reset([simple(1,-60,100,90),simple(2,-1,100,20)]);return calc().piorando===1;});
+ test('Melhora de 20% para 80% gera melhora firme',()=>{reset([simple(1,-60,100,20),simple(2,-1,100,80)]);return calc().melhorando===1;});
+ test('Diferença de uma resposta em amostra pequena não gera tendência firme',()=>{reset([simple(1,-60,20,10),simple(2,-1,20,11)],{amostraAlvo:20});const r=calc();return r.melhorando===0&&r.piorando===0;});
+ test('Primeira medição não inventa tendência',()=>{reset([simple(1,-1,100,50)]);return calc().itens[0].delta===null;});
+ test('Duas medições na meta consolidam sem perder rastreio',()=>{reset([simple(1,-10,100,90),simple(2,-1,100,90)]);return calc().solidosAtuais===1;});
+ test('Medição antiga sinaliza vencimento',()=>{reset([simple(1,-200,100,50)]);return calc().vencidos===1;});
+ test('Janela máxima não reutiliza observação inteiramente fora dela',()=>{reset([simple(1,-500,100,80)]);const r=calc();return r.erro||r.qTotal===0?true:{qTotal:r.qTotal,dominio:r.dominioPct,janela:r.janelaMax};});
+ test('Filtro de período não incorpora medição futura ao recorte',()=>{reset([simple(1,-60,100,20),simple(2,-1,100,80)]);D.scopeMode='select';D.selectedSnapIds=new Set([1]);const r=P.calcular(D.scopedSnapshot());return eq(r.dominioPct,20)||{esperado:20,obtido:r.dominioPct};});
+ test('Seleção vazia não quebra',()=>{reset([simple(1,-1,100,50)]);D.scopeMode='select';D.selectedSnapIds=new Set();return D.scopedSnapshot()===null;});
+ test('Datas de filtro incluem retrato que cruza o intervalo',()=>{reset([{...simple(1,-1,100,50),startDate:day(-30),endDate:day(-1)}]);D.scopeMode='range';D.rangeStart=day(-20);D.rangeEnd=day(-10);return D.activeSnapshots().length===1;});
+ test('Excluir todas as matérias retorna tudo-excluido',()=>{reset([simple(1,-1,100,50)],{excluidas:['Direito']});return calc().erro==='tudo-excluido';});
+ test('Foco em uma matéria remove a outra do domínio',()=>{reset([snap(1,-1,[...simple(1,-1,100,0,'Tema A','Direito').rows,...simple(1,-1,100,100,'Tema B','Português').rows])],{foco:['Direito']});return eq(calc().dominioPct,0);});
+ test('Exclusão preserva volume dos dados originais',()=>{reset([simple(1,-1,100,50)],{excluidas:['Direito']});calc();return snapshots[0].rows[0].questoes===100;});
+ for(const gran of [0,5,10,20,50,100])test(`Granularidade ${gran}: conserva volume em árvore irregular`,()=>{
+  const rr=[row('Direito',32,19,'Direito',null,0),row('Pai',22,13,'Direito','01'),row('Filho A',12,8,'Direito','01.01',2),row('Neto',7,5,'Direito','01.01.01',3),row('Filho B',10,5,'Direito','01.02',2),row('Outro',10,6,'Direito','02')];
+  reset([snap(1,-1,rr)],{granPiso:gran,incluirPequenas:true});const idx=P._indice(D.aggregate(snapshots),prefs);const vals=Object.values(idx);return eq(vals.reduce((a,x)=>a+x.q,0),32)&&eq(vals.reduce((a,x)=>a+x.ac,0),19);});
+ test('Mudança de código entre retratos preserva volume no Plano',()=>{reset([simple(1,-30,100,50),snap(2,-1,[row('Direito',100,80,'Direito',null,0),row('Tema A',100,80,'Direito','02')])]);return eq(Object.values(P.totalHistorico(prefs)).reduce((n,x)=>n+x.q,0),200);});
+ test('Nota projetada acompanha taxa adaptativa usada pelo Plano',()=>{reset([simple(1,-60,100,20),simple(2,-1,100,80)]);subjects=[{nome:'Direito',qtdQuestoes:100,pontosPorQuestao:1,peso:1}];const p=PlanoPontos.projecao(prefs),r=calc();return eq(p.pctHoje,r.dominioPct)||{notaProjetada:p.pctHoje,dominioAtual:r.dominioPct};});
+ test('Margem apresentada como ± cobre o intervalo de Wilson em 0/20',()=>{const iv=P.intervalo(0,20),m=P.margemErro(0,20);return m>=iv[1]||{texto:D.weakRowHtml(row('Tema',20,0),false),intervalo:iv};});
+ const validCounts=rows=>rows.every(r=>Number.isInteger(r.questoes)&&Number.isInteger(r.acertos)&&r.questoes>=0&&r.acertos>=0&&r.acertos<=r.questoes);
+ for(const [label,q,ac,pct] of [['acertos maiores que total',10,15,150],['total negativo',-10,0,0],['acertos negativos',10,-2,-20],['quantidades fracionárias',10.5,5.5,52.4],['quantidade enorme',1e309,1,0]])test('Importação rejeita '+label,()=>{const rr=T.parseCellRows([header,['','Direito',q,pct,ac]]);return validCounts(rr)||rr;});
+ test('CSV com nome entre aspas e vírgula preserva tópico e números',()=>{const rr=T.parse('Hierarquia,Índice,Questões Resolvidas,Acertos (%),Quantidade de acertos\n,"Direito, Processo",10,50,5\n01,"Atos, Fatos",10,50,5');return rr.length===2&&rr[1].nome==='Atos, Fatos'&&rr[1].questoes===10||rr;});
+ test('Cabeçalho repetido no meio do arquivo não cria dados',()=>{const rr=T.parseCellRows([header,['','Direito',10,50,5],['01','Tema A',10,50,5],header,['','Português',10,50,5],['01','Tema B',10,50,5]]);return rr.length===4||rr;});
+ test('Acentos e caixa não duplicam assunto entre retratos',()=>{reset([simple(1,-30,50,25,'Atos Jurídicos'),simple(2,-1,50,25,'ATOS JURIDICOS')]);return P.calcular(D.aggregate(snapshots)).assuntos===1;});
+ test('Mesmo nome em matérias distintas não mistura taxa',()=>{reset([snap(1,-1,[...simple(1,-1,100,10,'Teoria','Direito').rows,...simple(1,-1,100,80,'Teoria','Português').rows])]);return calc().assuntos===2;});
+ test('Nome especial __proto__ não quebra importação e indexação',()=>{reset([simple(1,-1,100,50,'__proto__','constructor')]);const r=calc();return r.assuntos===1||r;});
+ test('Caminho mínimo já na meta não recomenda esforço adicional obrigatório',()=>{reset([simple(1,-1,100,89)]);const r=calc();return r.jaAtinge===true&&(!r.caminho||r.caminho.q===0)||{jaAtinge:r.jaAtinge,caminho:r.caminho};});
+ test('Meta inalcançável pelo teto não promete caminho',()=>{reset([simple(1,-1,100,50)],{metaDominio:95,tetoDominio:90});return calc().caminho===null;});
+ for(const ordenar of ['pior','queda','rendimento','banca','ganhoGeral','pontos'])test(`Ordem ${ordenar}: domínio invariável e taxas válidas`,()=>{reset([snap(1,-1,Array.from({length:12},(_,i)=>row('Tema '+i,100,10+i*6,'Direito',String(i+1))))]);const r=calc({ordenar});return eq(r.dominioPct,43)&&r.itens.every(x=>x.taxa>=0&&x.taxa<=100);});
+ for(const tipo of ['fixo','lacuna','proporcional'])test(`Custo ${tipo}: positivo e finito`,()=>{reset([simple(1,-1,100,50)]);return calc({custoModo:tipo}).itens.every(x=>Number.isFinite(x.custoQ)&&x.custoQ>0);});
+ for(const [key,val] of [['metaDominio','abc'],['amostraAlvo','abc'],['limite',-1],['custoFator','abc'],['custoPiso','abc'],['janelaMax',-1]])test(`Preferência inválida ${key}=${val}: saneamento`,()=>{reset([simple(1,-1,100,50)],{[key]:val,...(key==='custoFator'?{custoModo:'proporcional'}:{})});const r=calc();return Number.isFinite(r.meta)&&Number.isFinite(r.dominioPct)&&r.itens.length>0&&r.itens.every(x=>Number.isFinite(x.custoQ))||{meta:r.meta,dominio:r.dominioPct,itens:r.itens?.length,custo:r.itens?.[0]?.custoQ};});
+ // Oráculo independente para soma/ponderação em cenários determinísticos.
+ let seed=123456789;const rand=()=>{seed=(1664525*seed+1013904223)>>>0;return seed/4294967296;};
+ for(let c=0;c<80;c++)test(`Cenário gerado ${c+1}: contagem, domínio, ganho e limite`,()=>{
+  const n=3+Math.floor(rand()*17),rr=[];let sumq=0,sumac=0,sumrate=0;
+  for(let i=0;i<n;i++){const q=50+Math.floor(rand()*400),ac=Math.floor(rand()*(q+1));rr.push(row('Tópico '+i,q,ac,'Direito',String(i+1)));sumq+=q;sumac+=ac;sumrate+=ac/q*100;}
+  reset([snap(1,-1,[row('Direito',sumq,sumac,'Direito',null,0),...rr])]);const r=calc(),v=calc({ponderacao:'volume'});const total=T.totais(D.aggregate(snapshots));
+  return eq(total.questoes,sumq)&&eq(total.acertos,sumac)&&eq(r.dominioPct,sumrate/n)&&eq(v.dominioPct,sumac/sumq*100)&&r.itens.length<=10&&r.itens.every(x=>Number.isFinite(x.ganhoPP)&&x.ganhoPP>=0&&x.acumulado<=100.0001);
+ });
+ for(const n of [100,500,1000,3000]){
+  const rr=Array.from({length:n},(_,i)=>row('Assunto '+i,100,20+i%65,'Matéria '+Math.floor(i/100),String(i%100+1)));
+  reset([snap(1,-1,rr)]);const a=performance.now();const r=calc();benchmarks.push({assuntos:n,ms:Math.round(performance.now()-a),returned:r.itens?.length,total:r.totalItens});
+ }
+ }finally{methods.forEach(k=>DB[k]=original[k]);P.prefs=oldPrefs;}
+ return {date:todayLocal(),tests,benchmarks};
+}
+
+setTimeout(async function(){
+ const report={mode:'browser-real-dom-local-fixtures',errors:[],ui:[]};
+ const ck=(name,value,detail)=>report.ui.push({name,pass:!!value,detail:detail??null});
+ const pause=ms=>new Promise(r=>setTimeout(r,ms));
+ try{
+  const auto=AutoTeste.rodar(false);report.auto={total:auto.total,passed:auto.passou,failed:auto.falhou,failures:auto.falhas};
+  report.engine=runTecAudit();
+  const day=n=>{const d=new Date(todayLocal()+'T12:00:00');d.setDate(d.getDate()+n);return d.toISOString().slice(0,10);};
+  const disciplines=['Direito Constitucional','Português','Raciocínio Lógico','Auditoria'];
+  const subjects=disciplines.map((nome,i)=>({nome,cor:['#456789','#674589','#896745','#987654'][i],peso:i+1,qtdQuestoes:20,pontosPorQuestao:1,minimoPct:50}));
+  DB.saveSubjects(subjects);DB.saveIncidencia([]);
+  const snapshots=[-80,-40,-1].map((d,s)=>{const rows=[];disciplines.forEach((disc,i)=>{
+   const kids=Array.from({length:5},(_,j)=>{const q=j===4?3:100;const rate=[0,.25,.55,.85,1][j];const ac=Math.round(q*Math.max(0,Math.min(1,rate+(i===0?s*.05:0))));return {codigo:String(j+1).padStart(2,'0'),nome:['Direitos Fundamentais','Organização','Controle','Processo','Sem Classificação'][j],depth:1,disciplina:disc,questoes:q,acertos:ac,pctAcerto:ac/q*100};});
+   const q=kids.reduce((n,x)=>n+x.questoes,0),ac=kids.reduce((n,x)=>n+x.acertos,0);rows.push({codigo:null,nome:disc,depth:0,disciplina:disc,questoes:q,acertos:ac,pctAcerto:ac/q*100},...kids);
+  });return {id:90001+s,startDate:day(d),endDate:day(d),date:day(d),label:'ALUNO FICTÍCIO — rodada '+(s+1),rows};});
+  DB._set(DB.KEYS.tec,snapshots);
+  PlanoEngine.salvarPrefs({...PlanoEngine.DEFAULTS,migracao:4});
+  DesempenhoTecScreen.scopeMode='all';DesempenhoTecScreen.selectedSnapIds=new Set(snapshots.map(s=>s.id));
+  DesempenhoTecScreen.savePrefs({scopeMode:'all',tecTab:'analise'});
+  ProfileUI.hideGate();
+  switchScreen('desempenhotec');
+  for(const tabName of ['analise','incidencia','reforco','plano']){
+   try{DesempenhoTecScreen.switchTecTab(tabName);await pause(250);const host=document.getElementById('tec-panel-'+tabName);ck('Render aba '+tabName,host&&host.textContent.trim().length>30,{length:host?.textContent.length});}catch(e){ck('Render aba '+tabName,false,e.message);}
+  }
+  ck('Sem incidência não afirma estar no teto da prova',!document.getElementById('tec-panel-plano').textContent.includes('você está no teto no que a prova cobra'),{incidencias:DB.getIncidencia().length});
+  ck('Persistência dos 3 retratos pelo DB real',DB.getTecSnapshots().length===3);
+  ck('Consolidado de 4.836 questões',TecEngine.totais(DesempenhoTecScreen.scopedSnapshot()).questoes===4836);
+  const rich={...snapshots[0].rows[1],nome:'<img src=x onerror=alert(1)> " fictício'};
+  const testBox=document.createElement('div');testBox.innerHTML=DesempenhoTecScreen.weakRowHtml(rich,false);ck('Nome HTML escapado não cria imagem',testBox.querySelectorAll('img').length===0);
+  for(const aba of ['analise','reforco','plano']){try{TecAjustes.abrir(aba);ck('Abrir ajustes '+aba,document.getElementById('tec-cfg-body')?.textContent.trim().length>0);TecAjustes.fechar();}catch(e){ck('Abrir ajustes '+aba,false,e.message);}}
+  const DT=DesempenhoTecScreen;
+  DT.openImport();
+  const start=document.getElementById('tec-import-start'),end=document.getElementById('tec-import-end');
+  start.value='';end.value=day(0);ck('Importação: data vazia bloqueada',DT.validateRange()===false);
+  start.value=day(0);end.value=day(-1);ck('Importação: início após fim bloqueado',DT.validateRange()===false);
+  start.value=day(-80);end.value=day(-80);ck('Importação: sobreposição bloqueada',DT.validateRange()===false);
+  start.value=day(0);end.value=day(0);ck('Importação: período adjacente aceito',DT.validateRange()===true);
+  const invalid=[{codigo:null,nome:'Inválido',depth:0,disciplina:'Inválido',questoes:10,acertos:15,pctAcerto:150}];
+  DT._parsedRows=invalid;const countBefore=DB.getTecSnapshots().length;DT.saveImport();
+  ck('Salvar bloqueia acertos maiores que total',DB.getTecSnapshots().length===countBefore,{antes:countBefore,depois:DB.getTecSnapshots().length});
+  DB._set(DB.KEYS.tec,snapshots);
+  DT.openImport();start.value=day(0);end.value=day(0);DT._parsedRows=[{...invalid[0],questoes:0,acertos:0,pctAcerto:0}];DT.saveImport();
+  ck('Salvar bloqueia retrato sem questões',DB.getTecSnapshots().length===3,{depois:DB.getTecSnapshots().length});DB._set(DB.KEYS.tec,snapshots);
+  DT.openImport();start.value=day(0);end.value=day(0);DT._parsedRows=snapshots[0].rows;
+  const oldReader=MiniXLSX.readFirstSheet;MiniXLSX.readFirstSheet=()=>new Promise(()=>{});
+  try{DT.handleFile(new File(['fake'],'novo.xlsx'));DT.saveImport();const ss=DB.getTecSnapshots();ck('Arquivo em leitura impede salvar conteúdo anterior',ss.length===3,{retratos:ss.length,ultimo: ss.at(-1)?.rows[0]?.nome});}finally{MiniXLSX.readFirstSheet=oldReader;DB._set(DB.KEYS.tec,snapshots);DT._parsedRows=null;}
+  DT.render();
+  DB.saveIncidencia([]);const incRows=disciplines.flatMap((disc,i)=>[
+   {disciplina:disc,topico:disc,codigo:null,depth:0,incidencia:100*(i+1)},
+   {disciplina:disc,topico:'Direitos Fundamentais',codigo:'01',depth:1,incidencia:60*(i+1)},
+   {disciplina:disc,topico:'Organização',codigo:'02',depth:1,incidencia:40*(i+1)}]);
+  DB.addIncidenciaRows('BANCA FICTÍCIA A',incRows,false);ck('Incidência: 12 linhas gravadas',DB.getIncidencia().length===12);
+  DB.addIncidenciaRows('BANCA FICTÍCIA A',incRows,false);ck('Incidência: reimportar não duplica',DB.getIncidencia().length===12);
+  DB.addIncidenciaRows('BANCA FICTÍCIA B',incRows,false);ck('Incidência: bancas separadas',DB.getBancas().length===2);
+  DB.renameIncidenciaBanca('BANCA FICTÍCIA B','BANCA FICTÍCIA C');ck('Incidência: renomear preserva 24 linhas',DB.getIncidencia().length===24&&DB.getBancas().includes('BANCA FICTÍCIA C'));
+  DB.renameIncidenciaBanca('BANCA FICTÍCIA C','BANCA FICTÍCIA A');ck('Incidência: fusão elimina duplicatas',DB.getIncidencia().length===12&&DB.getBancas().length===1);
+  DB.addIncidenciaRows('BANCA FICTÍCIA B',incRows,false);DB.addIncidenciaRows('BANCA FICTÍCIA A',incRows.slice(0,3),true);ck('Incidência: substituir uma banca preserva outra',DB.getIncidencia().filter(x=>x.banca==='BANCA FICTÍCIA B').length===12&&DB.getIncidencia().length===15);
+  DT.switchTecTab('incidencia');ck('Incidência: árvore com dados renderiza',document.getElementById('tec-panel-incidencia').textContent.includes('BANCA FICTÍCIA B'));
+  DT.switchTecTab('reforco');ck('Reforço com incidência produz conteúdo',document.getElementById('reforco-list').textContent.length>100);
+  DT.reforcoToCiclo('Organização','Português');ck('Reforço → Estudo Novo cria aula',DB.getTrack('Português').some(x=>(x.text||'').includes('Organização')),{track:DB.getTrack('Português')});
+  DB.saveExtras([]);DT._planoRefC=null;
+  ck('Plano cria atividade vinculada',DT.criarExtraDoPlano('Direitos Fundamentais','Português',20,'reforco',true)===true);
+  ck('Atividade duplicada em aberto é bloqueada',DT.criarExtraDoPlano('Direitos Fundamentais','Português',20,'reforco',true)===false&&DB.getExtras().length===1);
+  ck('Homônimo de outra matéria pode criar atividade',DT.criarExtraDoPlano('Direitos Fundamentais','Auditoria',20,'reforco',true)===true&&DB.getExtras().length===2);
+  const first=DB.getExtras()[0],r=PlanoEngine.calcular(DT.scopedSnapshot());const status=PlanoCiclo.avaliar(first,r);
+  ck('Atividade nova não herda volume antigo como progresso',status.medido===0&&status.estado==='andamento',{medido:status.medido,estado:status.estado});
+  const fresh=JSON.parse(JSON.stringify(snapshots.at(-1)));fresh.id=99999;fresh.startDate=fresh.endDate=fresh.date=day(0);fresh.rows=fresh.rows.filter(x=>x.disciplina==='Português');fresh.rows.forEach(x=>{x.questoes=100;x.acertos=95;x.pctAcerto=95;});
+  DB.saveTecSnapshot(fresh);const after=PlanoCiclo.avaliar(first,PlanoEngine.calcular(DT.scopedSnapshot()));ck('Novo retrato a 95% muda veredito para funcionou',after.estado==='funcionou',{estado:after.estado,taxa:after.taxa,medido:after.medido});
+  DB._set(DB.KEYS.tec,snapshots);DB.saveExtras([]);DT._planoRefC=null;
+  for(const [name,taxa] of [['zero',0],['dominado',100]]){const ss=JSON.parse(JSON.stringify(snapshots));ss.forEach(s=>s.rows.forEach(x=>{x.acertos=x.questoes*taxa/100;x.pctAcerto=taxa;}));DB._set(DB.KEYS.tec,ss);DT.switchTecTab('plano');await pause(200);ck('Plano cenário '+name+' renderiza sem NaN',!document.getElementById('tec-panel-plano').textContent.includes('NaN'));}
+  DB._set(DB.KEYS.tec,snapshots);DT._planoRefC=null;
+  DT.switchTecTab('analise');
+  report.fixture={students:1,snapshots:3,disciplines:4,topicsPerDiscipline:5,questions:4836};
+ }catch(e){report.errors.push(e.stack||e.message);}
+ const badge=document.createElement('div');badge.id='audit-result';badge.style.cssText='position:fixed;bottom:0;left:0;right:0;z-index:999999;background:#12263a;color:white;padding:6px;font:12px sans-serif';badge.textContent='AUDITORIA LOCAL — DADOS FICTÍCIOS — '+(report.engine?report.engine.tests.filter(x=>x.pass).length+'/'+report.engine.tests.length:'erro')+' testes; AutoTeste '+(report.auto?.passed??'?')+'/'+(report.auto?.total??'?');document.body.appendChild(badge);
+ const evidence=document.createElement('details');evidence.id='audit-evidence';const summary=document.createElement('summary');summary.textContent='Resultados da auditoria local';evidence.appendChild(summary);const pre=document.createElement('pre');pre.textContent=JSON.stringify(report,null,2);evidence.appendChild(pre);document.body.appendChild(evidence);
+ fetch('/audit-report',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(report)}).catch(()=>{});
+},1500);
 
 </script>
 
