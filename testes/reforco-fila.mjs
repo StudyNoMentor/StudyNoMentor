@@ -79,7 +79,7 @@ function extra(id, disciplina, alvo, taxa = 40) {
 }
 
 DB._data = [
-  extra('A1', 'A', 100, 30),
+  extra('A1', 'A', 100, 20),
   extra('B1', 'B', 61, 35),
   extra('C1', 'C', 47, 40),
   extra('D1', 'D', 35, 45),
@@ -101,7 +101,10 @@ for (const [dia, itens] of agenda) {
   const disciplinas = itens.map(x => x.e.disciplina);
   assert.equal(new Set(disciplinas).size, disciplinas.length, `${dia}: disciplinas devem ser diferentes`);
 }
-assert.ok((agenda.get(HOJE) || []).length === 3, 'com pelo menos 3 disciplinas, hoje deve ser preenchido com 3 frentes');
+const hojeItens = agenda.get(HOJE) || [];
+assert.equal(hojeItens.length, 3, 'com pelo menos 3 disciplinas, hoje deve ser preenchido com 3 frentes');
+assert.equal(hojeItens.find(x => x.e.disciplina === 'A')?.e.id, 'A1',
+  'havendo dois assuntos da mesma disciplina, o mais crítico deve entrar primeiro');
 
 // 2) Tamanho de bloco: balanceia em blocos úteis, sem fabricar dias de 7/8 questões.
 let r = 100, blocos = [];
