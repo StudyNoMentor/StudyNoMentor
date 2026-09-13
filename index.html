@@ -57,7 +57,7 @@
      novo, e o antigo é descartado sozinho na ativação) e o que permite ao app
      dizer qual versão está rodando. Em src/ fica "dev" de propósito: a versão
      é gerada na montagem, não editada à mão. -->
-<meta name="diario-versao" content="v39c47a6ca3">
+<meta name="diario-versao" content="ve3aa1e7b87">
 <script>
 /* ── ARRANQUE: abre o IndexedDB AGORA, em paralelo com o parse do documento ──
    A fachada de armazenamento vive no fim do <body>, depois de ~1,7 MB de HTML.
@@ -12712,6 +12712,66 @@ body.leis-foco .leis-reader-card::before { display: none; }
 .ra-tabs{display:flex;gap:6px;padding:10px 18px;border-bottom:1px solid var(--border);overflow-x:auto;scrollbar-width:none}.ra-tabs::-webkit-scrollbar{display:none}.ra-tabs button{border:1px solid var(--border);background:var(--surface);color:var(--text-muted);border-radius:999px;padding:8px 12px;white-space:nowrap;font-weight:750;font-size:10px;cursor:pointer}.ra-tabs button.on{border-color:var(--accent);background:var(--accent-soft);color:var(--accent)}.ra-body{padding:18px 20px 22px;overflow:auto}.ra-body section{display:grid;gap:14px}.ra-switch{display:flex;align-items:flex-start;gap:10px;padding:12px 13px;border:1px solid color-mix(in srgb,var(--accent) 25%,var(--border));border-radius:14px;background:color-mix(in srgb,var(--accent) 4%,var(--surface))}.ra-switch input{margin-top:2px}.ra-switch span{display:grid;gap:2px}.ra-switch small,.ra-grid label>small{color:var(--text-faint);font-size:9px;line-height:1.35}.ra-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}.ra-grid label,.ra-dose-cols label,.ra-weights label{display:grid;gap:5px;padding:11px 12px;border:1px solid var(--border);border-radius:12px;background:var(--surface)}.ra-grid label>span,.ra-dose-cols label>span,.ra-weights label>span{display:flex;align-items:center;gap:6px;font-size:10px;font-weight:800}.ra-grid input,.ra-grid select,.ra-dose-cols input,.ra-weights input{width:100%;min-height:40px;border:1px solid var(--border);border-radius:10px;background:var(--surface);color:var(--text);padding:8px 10px;font:inherit}.ra-grid label:not(.help-open)>small{display:block}.ra-help{width:19px;height:19px;min-width:19px;font-size:9px}.ra-grid label.help-open,.ra-dose-cols label.help-open,.ra-weights label.help-open{border-color:color-mix(in srgb,var(--accent) 45%,var(--border));background:color-mix(in srgb,var(--accent) 3%,var(--surface))}.ra-presets{display:flex;align-items:center;gap:7px;flex-wrap:wrap}.ra-presets button{border:1px solid var(--border);border-radius:999px;padding:7px 10px;background:var(--surface);color:var(--text);font-weight:700;font-size:9px;cursor:pointer}.ra-presets button:hover{border-color:var(--accent);color:var(--accent)}.ra-dose-cols{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}.ra-dose-cols>div{display:grid;gap:8px;padding:12px;border:1px solid var(--border);border-radius:14px;background:var(--surface-sunken)}.ra-dose-cols h4{margin:0;font-size:12px}.ra-weights{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:9px}.ra-callout{display:flex;gap:9px;align-items:flex-start;padding:11px 12px;border-radius:12px;background:var(--surface-sunken);border:1px solid var(--border);font-size:9px;line-height:1.45}.ra-callout b{white-space:nowrap;color:var(--accent)}.ra-intro{margin:0;color:var(--text-muted);font-size:10px;line-height:1.45}.ra-foot{display:flex;align-items:center;gap:8px;padding:12px 18px;border-top:1px solid var(--border);background:var(--surface);position:sticky;bottom:0}.ra-spacer{flex:1}.ra-info-body{padding:20px 22px;overflow:auto;font-size:11px;line-height:1.65;color:var(--text-muted)}.ra-info-body b{color:var(--text)}.ra-central-card{margin-top:12px}.ra-central-card>div{min-width:0}.ra-central-card span{line-height:1.4}
 @media(max-width:700px){.ra-overlay{padding:0;place-items:end center}.ra-modal{width:100%;max-height:94vh;border-radius:22px 22px 0 0;border-bottom:0}.ra-head{padding:16px 16px 12px}.ra-head h3{font-size:18px}.ra-body{padding:14px 14px 18px}.ra-grid,.ra-dose-cols,.ra-weights{grid-template-columns:1fr}.ra-foot{padding:10px 12px}.ra-foot .btn-primary,.ra-foot .btn-secondary{min-height:42px}.ra-mini{width:100%;order:-1}.ra-tabs{padding:9px 12px}}
 @media(max-width:430px){.ra-head p{display:none}.ra-tabs button{padding:7px 10px}.ra-foot{flex-wrap:wrap}.ra-foot [data-ra-reset]{order:3;width:100%}.ra-spacer{display:none}.ra-foot [data-ra-cancel],.ra-foot [data-ra-save]{flex:1}.ra-info-body{padding:16px}.ra-callout{display:grid}}
+
+</style>
+
+<style id="extras-ui-hardening-v1">
+/* ============================================================
+   EXTRAS — hardening de modais, empilhamento e responsividade
+   ============================================================ */
+:root{
+  --z-extras-modal:calc(var(--z-modal,1500) + 20);
+  --z-extras-nested:calc(var(--z-modal,1500) + 40);
+}
+body.extras-modal-open{overflow:hidden!important;overscroll-behavior:none}
+.xsc-overlay,.rg-overlay,.ra-overlay{box-sizing:border-box;overscroll-behavior:contain;isolation:isolate;padding:max(12px,env(safe-area-inset-top)) max(12px,env(safe-area-inset-right)) max(12px,env(safe-area-inset-bottom)) max(12px,env(safe-area-inset-left))}
+/* Fallback mesmo se o gerenciador JS não carregar. O JS reordena dinamicamente. */
+.xsc-overlay,.rg-overlay{z-index:var(--z-extras-modal)!important}
+.ra-overlay{z-index:var(--z-extras-nested)!important}
+.extras-layer-background{pointer-events:none!important}
+.extras-layer-background>.xsc-modal,.extras-layer-background>.rg-modal,.extras-layer-background>.ra-modal{transform:scale(.994);filter:saturate(.92);transition:transform .14s ease,filter .14s ease}
+.extras-layer-top{pointer-events:auto!important}
+
+.xsc-modal,.rg-modal,.ra-modal{min-width:0;max-width:calc(100vw - 24px);max-height:calc(100dvh - 24px);box-sizing:border-box}
+.xsc-head,.rg-head,.ra-head,.xsc-nav,.rg-foot,.ra-foot{flex:0 0 auto}
+.xsc-body,.rg-policy-grid,.rg-hbody,.ra-body{min-height:0;overscroll-behavior:contain;-webkit-overflow-scrolling:touch;scrollbar-gutter:stable}
+.xsc-section,.xsc-section-head,.xsc-callout>div,.xsc-summary-card>div,.rg-picker,.rg-rules,.rg-hcard,.ra-body section,.ra-dose-cols>div{min-width:0}
+.xsc-form-grid>*,.xsc-overview-grid>*,.xsc-explain>*,.xsc-manual-grid>*,.rg-fields>*,.rg-policy-grid>*,.rg-hstats>*,.ra-grid>*,.ra-dose-cols>*,.ra-weights>*{min-width:0}
+.xsc-modal :is(h3,h4,p,span,small,label),.rg-modal :is(h3,h4,p,span,small,label),.ra-modal :is(h3,h4,p,span,small,label){overflow-wrap:break-word}
+.xsc-modal :is(input,select,textarea),.rg-modal :is(input,select,textarea),.ra-modal :is(input,select,textarea){min-width:0;max-width:100%;box-sizing:border-box}
+.xsc-modal :is(.btn-primary,.btn-secondary),.rg-modal :is(.btn-primary,.btn-secondary),.ra-modal :is(.btn-primary,.btn-secondary){white-space:normal;text-align:center;justify-content:center;line-height:1.25}
+.xsc-callout.ra-central-card{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center}
+.ra-central-card>div{min-width:0}
+.ra-central-card span{display:block;overflow-wrap:break-word}
+
+/* Ações permanecem visíveis enquanto só o conteúdo central rola. */
+.rg-foot,.ra-foot{position:relative;z-index:2;background:var(--surface)}
+.xsc-head,.rg-head,.ra-head{position:relative;z-index:2;background:var(--surface)}
+
+@media(max-width:760px){
+  .xsc-callout.ra-central-card{grid-template-columns:1fr}
+  .xsc-callout.ra-central-card>button{width:100%}
+  .xsc-modal,.rg-modal,.ra-modal{max-width:calc(100vw - 16px);max-height:calc(100dvh - 16px)}
+  .rg-policy-grid{grid-template-columns:1fr}
+  .rg-picker{border-right:0;border-bottom:1px solid var(--border)}
+}
+@media(max-width:560px){
+  .xsc-overlay,.rg-overlay,.ra-overlay{padding:0;place-items:stretch}
+  .xsc-modal,.rg-modal,.ra-modal{width:100vw!important;max-width:100vw!important;height:100dvh!important;max-height:100dvh!important;border-radius:0!important;border-left:0;border-right:0;display:flex;flex-direction:column}
+  .xsc-nav{flex:0 0 auto}
+  .xsc-body,.rg-policy-grid,.rg-hbody,.ra-body{flex:1 1 auto;min-height:0;overflow:auto}
+  .xsc-head,.rg-head,.ra-head{padding-top:max(16px,env(safe-area-inset-top))}
+  .rg-foot,.ra-foot{padding-bottom:max(12px,env(safe-area-inset-bottom))}
+  .xsc-body{padding-bottom:max(22px,env(safe-area-inset-bottom))}
+  .xsc-kpis,.rg-hstats{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .xsc-foot-actions,.rg-foot{gap:8px}
+  .rg-foot>*{flex:1 1 140px}
+}
+@media(max-width:380px){
+  .xsc-kpis,.rg-hstats{grid-template-columns:1fr}
+  .xsc-head,.rg-head,.ra-head{gap:10px}
+  .xsc-head h3,.rg-head h3,.ra-head h3{font-size:18px}
+}
 
 </style>
 
@@ -44515,6 +44575,124 @@ window.ReforcoFila = ReforcoFila;
   };
   TecLayoutV2.instalar();
   if(typeof window!=='undefined')window.TecLayoutV2=TecLayoutV2;
+})();
+
+/* ============================================================
+   EXTRAS — pilha única de modais, foco e bloqueio de scroll
+   ============================================================ */
+(() => {
+  if (window.__extrasUiHardeningV1) return;
+  window.__extrasUiHardeningV1 = true;
+
+  const SEL = '.xsc-overlay,.rg-overlay,.ra-overlay';
+  const CLOSE = '.xsc-close,.rg-x,.ra-x,[data-rg-cancel],[data-cancel]';
+  const FOCUS = 'a[href],button:not([disabled]),input:not([disabled]):not([type="hidden"]),select:not([disabled]),textarea:not([disabled]),[tabindex]:not([tabindex="-1"])';
+  const openers = new WeakMap();
+  let top = null, bodyOverflow = '', bodyPadding = '', locked = false;
+
+  const visible = el => {
+    if (!el || !el.isConnected) return false;
+    const cs = getComputedStyle(el);
+    if (cs.display === 'none' || cs.visibility === 'hidden' || cs.opacity === '0') return false;
+    const r = el.getBoundingClientRect();
+    return r.width > 0 && r.height > 0;
+  };
+  const focusables = el => [...el.querySelectorAll(FOCUS)].filter(x => {
+    if (x.closest('[inert]')) return false;
+    const cs = getComputedStyle(x), r = x.getBoundingClientRect();
+    return cs.display !== 'none' && cs.visibility !== 'hidden' && r.width > 0 && r.height > 0;
+  });
+  const firstFocus = el => focusables(el)[0] || el.querySelector('[role="dialog"]') || el;
+
+  function lockBody(on) {
+    if (on && !locked) {
+      locked = true;
+      bodyOverflow = document.body.style.overflow;
+      bodyPadding = document.body.style.paddingRight;
+      const gap = Math.max(0, window.innerWidth - document.documentElement.clientWidth);
+      if (gap > 0) {
+        const atual = parseFloat(getComputedStyle(document.body).paddingRight) || 0;
+        document.body.style.paddingRight = `${atual + gap}px`;
+      }
+      document.body.style.overflow = 'hidden';
+      document.body.classList.add('extras-modal-open');
+    } else if (!on && locked) {
+      locked = false;
+      document.body.style.overflow = bodyOverflow;
+      document.body.style.paddingRight = bodyPadding;
+      document.body.classList.remove('extras-modal-open');
+    }
+  }
+
+  function sync() {
+    const stack = [...document.querySelectorAll(SEL)].filter(visible);
+    lockBody(stack.length > 0);
+    stack.forEach((ov, i) => {
+      const isTop = i === stack.length - 1;
+      ov.style.zIndex = String(1520 + i * 20); // abaixo de --z-toast (3000)
+      ov.classList.toggle('extras-layer-top', isTop);
+      ov.classList.toggle('extras-layer-background', !isTop);
+      if ('inert' in ov) ov.inert = !isTop;
+      if (isTop) ov.removeAttribute('aria-hidden'); else ov.setAttribute('aria-hidden', 'true');
+    });
+    const novo = stack[stack.length - 1] || null;
+    if (novo !== top) {
+      const anterior = top, openerAnterior = anterior && openers.get(anterior);
+      top = novo;
+      requestAnimationFrame(() => {
+        if (top) {
+          const alvo = openerAnterior && openerAnterior.isConnected && top.contains(openerAnterior)
+            ? openerAnterior : firstFocus(top);
+          if (!document.activeElement || !top.contains(document.activeElement) || alvo === openerAnterior) {
+            try { alvo.focus({ preventScroll: true }); } catch (_) { /* melhoria progressiva */ }
+          }
+        } else if (openerAnterior && openerAnterior.isConnected) {
+          try { openerAnterior.focus({ preventScroll: true }); } catch (_) { /* melhoria progressiva */ }
+        }
+      });
+    }
+  }
+  function markAdded(n) {
+    if (!n || n.nodeType !== 1) return;
+    const now = document.activeElement;
+    if (n.matches?.(SEL)) openers.set(n, now);
+    n.querySelectorAll?.(SEL).forEach(x => openers.set(x, now));
+  }
+
+  const mo = new MutationObserver(muts => {
+    muts.forEach(m => m.addedNodes?.forEach(markAdded));
+    // Inserção/remoção de overlay é rara; sincronizar já na microtask evita um
+    // frame em que o modal-pai continue inert após o filho fechar.
+    sync();
+  });
+  mo.observe(document.body, { childList: true, subtree: true });
+
+  document.addEventListener('keydown', e => {
+    const stack = [...document.querySelectorAll(SEL)].filter(visible);
+    const cur = stack[stack.length - 1];
+    if (!cur) return;
+    if (e.key === 'Escape') {
+      const b = cur.querySelector(CLOSE);
+      if (b) { e.preventDefault(); e.stopPropagation(); b.click(); }
+      return;
+    }
+    if (e.key !== 'Tab') return;
+    const f = focusables(cur);
+    if (!f.length) { e.preventDefault(); return; }
+    const first = f[0], last = f[f.length - 1], act = document.activeElement;
+    if (e.shiftKey && (act === first || !cur.contains(act))) { e.preventDefault(); last.focus(); }
+    else if (!e.shiftKey && (act === last || !cur.contains(act))) { e.preventDefault(); first.focus(); }
+  }, true);
+
+  document.addEventListener('focusin', e => {
+    if (top && visible(top) && !top.contains(e.target)) {
+      try { firstFocus(top).focus({ preventScroll: true }); } catch (_) { /* sem efeito funcional */ }
+    }
+  }, true);
+
+  document.querySelectorAll(SEL).forEach(markAdded);
+  sync();
+  window.ExtrasUiHardening = { sync, selector: SEL };
 })();
 
 /* ============================================================
