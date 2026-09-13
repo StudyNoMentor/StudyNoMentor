@@ -13,7 +13,7 @@ jobs:
         with: { fetch-depth: 0 }
       - uses: actions/setup-node@v4
         with: { node-version: '22' }
-      - name: Ajustar contrato e integrar ao montador
+      - name: Ajustar opt-in e integrar ao montador
         run: |
           python3 - <<'PY'
           from pathlib import Path
@@ -22,8 +22,17 @@ jobs:
           end=t.find("    },\n    casa(o,x)", start)
           if start >= 0 and end > start:
               t=t[:start]+t[end:]
+          t=t.replace("ativo:true,fase:'auto'", "ativo:false,fase:'auto'", 1)
           t=t.replace("catch(_){}", "catch(_){if(typeof _quiet==='function')_quiet(_,'reforco-adaptativo');}")
           js.write_text(t)
+
+          tf=Path('testes/reforco-adaptativo-massivo.mjs'); u=tf.read_text()
+          anchor="const rPre={meta:85,modoEdital:'pre',itens:[]},rPos={meta:85,modoEdital:'pos',itens:[]};"
+          if "opt-in deve nascer desligado" not in u:
+              repl="assert.equal(RA.prefs().ativo,false,'opt-in deve nascer desligado');\nmem.set('t:reforco-adaptativo-prefs',JSON.stringify({ativo:true}));\n"+anchor
+              if anchor not in u: raise SystemExit('ancora teste opt-in nao encontrada')
+              u=u.replace(anchor,repl,1)
+          tf.write_text(u)
 
           p=Path('build.mjs'); s=p.read_text()
           if 'reforco-adaptativo-v1' not in s:
@@ -37,6 +46,7 @@ jobs:
             if old not in s: raise SystemExit('ancora JS nao encontrada')
             s=s.replace(old,new,1)
           p.write_text(s)
+
           q=Path('.github/workflows/verificar.yml'); v=q.read_text()
           if 'Simular prescricao adaptativa' not in v:
             marker="      - name: Instalar Chromium\n"
