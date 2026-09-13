@@ -30,7 +30,7 @@ jobs:
           t=Path('testes/tec-plano-performance-browser.mjs')
           q=t.read_text()
           oldq="window.switchScreen&&window.DesempenhoTecScreen&&window.PlanoEngine&&window.ReforcoAdaptativo"
-          newq="window.switchScreen&&window.DesempenhoTecScreen&&typeof PlanoEngine==='object'&&window.ReforcoAdaptativo"
+          newq="typeof switchScreen==='function'&&typeof DesempenhoTecScreen==='object'&&typeof PlanoEngine==='object'&&typeof ReforcoAdaptativo==='object'"
           if oldq not in q:
               raise SystemExit('pre-condicao antiga da sonda do Plano nao encontrada')
           t.write_text(q.replace(oldq,newq,1))
