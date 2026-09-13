@@ -431,8 +431,11 @@ ExtrasScreen.cardHtml = function (x, day) {
     _reforcoFilaAlvo: q
   });
   let html = ReforcoFila._orig.cardHtml.call(this, clone, day);
-  const s = ReforcoFila.saldo(x, this._planoRefCard).restante;
-  const selo = `<span class="extra-tag rec" title="Parcela diária gerenciada automaticamente. A meta global do reforço não fecha até o saldo real chegar a zero.">🔄 ${q} q no rodízio · saldo ${s}</span>`;
+  const geral = ReforcoFila.avaliarGlobal(x, this._planoRefCard);
+  const saldo = Math.max(0, Math.ceil((geral.alvo || 0) - (geral.feito || 0)));
+  const feitoDia = ReforcoFila.feitoNoDia(x, day);
+  const selo = `<span class="extra-tag rec" title="Meta executável desta data.">Missão diária · <b>${Math.min(q, feitoDia)}</b>/${q} q</span>` +
+    `<span class="extra-tag" title="Progresso acumulado do ciclo de reforço.">Missão geral · <b>${geral.feito || 0}</b>/${geral.alvo || 0} q · saldo ${saldo}</span>`;
   if (html.includes('🏁 do Plano</span>')) html = html.replace('🏁 do Plano</span>', '🏁 do Plano</span>' + selo);
   return html;
 };
@@ -508,7 +511,12 @@ ExtrasScreen.renderEmCurso = function () {
   const resumo = host.querySelector('.exc-resumo');
   if (resumo) {
     const c = ReforcoFila.cargaDoDia(todayLocal());
-    if (c.itens.length) resumo.insertAdjacentHTML('beforeend', ` · <b>fila hoje: ${c.total} q</b> em ${c.disciplinas} disciplina(s)`);
+    const ativos = DB.getExtras().filter(e => ReforcoFila.eGerenciado(e) && e.status !== 'concluida');
+    const globais = ativos.map(e => ReforcoFila.avaliarGlobal(e));
+    const feitoGeral = globais.reduce((a, v) => a + Math.max(0, Number(v.feito) || 0), 0);
+    const alvoGeral = globais.reduce((a, v) => a + Math.max(0, Number(v.alvo) || 0), 0);
+    resumo.innerHTML = `<span><b>Missão diária</b> · ${c.total} questões em ${c.disciplinas} ${c.disciplinas === 1 ? 'disciplina' : 'disciplinas'}</span>` +
+      ` · <span><b>Missão geral</b> · <b>${feitoGeral}</b>/${alvoGeral} questões</span>`;
   }
   return ret;
 };
@@ -522,15 +530,22 @@ ExtrasScreen.puxarDoPlano = function () {
 ReforcoFila._orig.planoBind = ExtrasScreen._planoBind;
 ExtrasScreen._planoBind = function () {
   if (this._reforcoFilaEscolhaPendente && Array.isArray(this._planoCand)) {
-    const vistas = new Set();
-    const sel = new Set();
-    this._planoCand.forEach((x, i) => {
-      if (sel.size >= 3) return;
-      const d = ReforcoFila._norm(x.disciplina || 'sem disciplina');
-      if (vistas.has(d)) return;
-      vistas.add(d); sel.add(i);
+    const crit = (c) => {
+      const taxa = Number(c.x.taxa);
+      return Number.isFinite(taxa) ? taxa : 101;
+    };
+    const cmpCrit = (a, b) => crit(a) - crit(b)
+      || (Number(b.x.incid) || 0) - (Number(a.x.incid) || 0)
+      || (Number(b.x.qJanela) || 0) - (Number(a.x.qJanela) || 0)
+      || String(a.x.nome || '').localeCompare(String(b.x.nome || ''), 'pt-BR');
+    const ordenados = this._planoCand.map((x, i) => ({ x, i })).sort(cmpCrit);
+    const melhorPorDisc = new Map();
+    ordenados.forEach(c => {
+      const d = ReforcoFila._norm(c.x.disciplina || 'sem disciplina');
+      if (!melhorPorDisc.has(d)) melhorPorDisc.set(d, c);
     });
-    this._planoSel = sel;
+    const escolhidos = [...melhorPorDisc.values()].sort(cmpCrit).slice(0, 3);
+    this._planoSel = new Set(escolhidos.map(c => c.i));
     this._reforcoFilaEscolhaPendente = false;
   }
   return ReforcoFila._orig.planoBind.apply(this, arguments);

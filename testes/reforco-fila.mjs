@@ -164,3 +164,19 @@ F.sincronizar();
 assert.equal(antigo.status, 'concluida', 'migração não pode ressuscitar encerramentos históricos deliberados');
 
 console.log('OK: fila diária do reforço preserva ciclo, rodízio, criticidade e saldo.');
+
+
+// 7) Seleção inicial do Plano: 3 disciplinas distintas, sempre com o tópico
+// mais crítico de cada disciplina; não depende da ordem incidental da lista.
+ExtrasScreen._planoCand = [
+  { nome: 'A mediano', disciplina: 'A', taxa: 50, incid: 8, qJanela: 30 },
+  { nome: 'A crítico', disciplina: 'A', taxa: 20, incid: 3, qJanela: 20 },
+  { nome: 'B mediano', disciplina: 'B', taxa: 40, incid: 5, qJanela: 40 },
+  { nome: 'B crítico', disciplina: 'B', taxa: 10, incid: 2, qJanela: 15 },
+  { nome: 'C crítico', disciplina: 'C', taxa: 30, incid: 9, qJanela: 50 },
+  { nome: 'D menos crítico', disciplina: 'D', taxa: 60, incid: 10, qJanela: 80 }
+];
+ExtrasScreen._reforcoFilaEscolhaPendente = true;
+ExtrasScreen._planoBind();
+assert.deepEqual(Array.from(ExtrasScreen._planoSel).sort((a, b) => a - b), [1, 3, 4],
+  'seleção automática deve pegar A crítico, B crítico e C crítico');
