@@ -57,7 +57,7 @@
      novo, e o antigo é descartado sozinho na ativação) e o que permite ao app
      dizer qual versão está rodando. Em src/ fica "dev" de propósito: a versão
      é gerada na montagem, não editada à mão. -->
-<meta name="diario-versao" content="v39c47a6ca3">
+<meta name="diario-versao" content="vc5370c661b">
 <script>
 /* ── ARRANQUE: abre o IndexedDB AGORA, em paralelo com o parse do documento ──
    A fachada de armazenamento vive no fim do <body>, depois de ~1,7 MB de HTML.
@@ -12712,6 +12712,41 @@ body.leis-foco .leis-reader-card::before { display: none; }
 .ra-tabs{display:flex;gap:6px;padding:10px 18px;border-bottom:1px solid var(--border);overflow-x:auto;scrollbar-width:none}.ra-tabs::-webkit-scrollbar{display:none}.ra-tabs button{border:1px solid var(--border);background:var(--surface);color:var(--text-muted);border-radius:999px;padding:8px 12px;white-space:nowrap;font-weight:750;font-size:10px;cursor:pointer}.ra-tabs button.on{border-color:var(--accent);background:var(--accent-soft);color:var(--accent)}.ra-body{padding:18px 20px 22px;overflow:auto}.ra-body section{display:grid;gap:14px}.ra-switch{display:flex;align-items:flex-start;gap:10px;padding:12px 13px;border:1px solid color-mix(in srgb,var(--accent) 25%,var(--border));border-radius:14px;background:color-mix(in srgb,var(--accent) 4%,var(--surface))}.ra-switch input{margin-top:2px}.ra-switch span{display:grid;gap:2px}.ra-switch small,.ra-grid label>small{color:var(--text-faint);font-size:9px;line-height:1.35}.ra-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}.ra-grid label,.ra-dose-cols label,.ra-weights label{display:grid;gap:5px;padding:11px 12px;border:1px solid var(--border);border-radius:12px;background:var(--surface)}.ra-grid label>span,.ra-dose-cols label>span,.ra-weights label>span{display:flex;align-items:center;gap:6px;font-size:10px;font-weight:800}.ra-grid input,.ra-grid select,.ra-dose-cols input,.ra-weights input{width:100%;min-height:40px;border:1px solid var(--border);border-radius:10px;background:var(--surface);color:var(--text);padding:8px 10px;font:inherit}.ra-grid label:not(.help-open)>small{display:block}.ra-help{width:19px;height:19px;min-width:19px;font-size:9px}.ra-grid label.help-open,.ra-dose-cols label.help-open,.ra-weights label.help-open{border-color:color-mix(in srgb,var(--accent) 45%,var(--border));background:color-mix(in srgb,var(--accent) 3%,var(--surface))}.ra-presets{display:flex;align-items:center;gap:7px;flex-wrap:wrap}.ra-presets button{border:1px solid var(--border);border-radius:999px;padding:7px 10px;background:var(--surface);color:var(--text);font-weight:700;font-size:9px;cursor:pointer}.ra-presets button:hover{border-color:var(--accent);color:var(--accent)}.ra-dose-cols{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}.ra-dose-cols>div{display:grid;gap:8px;padding:12px;border:1px solid var(--border);border-radius:14px;background:var(--surface-sunken)}.ra-dose-cols h4{margin:0;font-size:12px}.ra-weights{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:9px}.ra-callout{display:flex;gap:9px;align-items:flex-start;padding:11px 12px;border-radius:12px;background:var(--surface-sunken);border:1px solid var(--border);font-size:9px;line-height:1.45}.ra-callout b{white-space:nowrap;color:var(--accent)}.ra-intro{margin:0;color:var(--text-muted);font-size:10px;line-height:1.45}.ra-foot{display:flex;align-items:center;gap:8px;padding:12px 18px;border-top:1px solid var(--border);background:var(--surface);position:sticky;bottom:0}.ra-spacer{flex:1}.ra-info-body{padding:20px 22px;overflow:auto;font-size:11px;line-height:1.65;color:var(--text-muted)}.ra-info-body b{color:var(--text)}.ra-central-card{margin-top:12px}.ra-central-card>div{min-width:0}.ra-central-card span{line-height:1.4}
 @media(max-width:700px){.ra-overlay{padding:0;place-items:end center}.ra-modal{width:100%;max-height:94vh;border-radius:22px 22px 0 0;border-bottom:0}.ra-head{padding:16px 16px 12px}.ra-head h3{font-size:18px}.ra-body{padding:14px 14px 18px}.ra-grid,.ra-dose-cols,.ra-weights{grid-template-columns:1fr}.ra-foot{padding:10px 12px}.ra-foot .btn-primary,.ra-foot .btn-secondary{min-height:42px}.ra-mini{width:100%;order:-1}.ra-tabs{padding:9px 12px}}
 @media(max-width:430px){.ra-head p{display:none}.ra-tabs button{padding:7px 10px}.ra-foot{flex-wrap:wrap}.ra-foot [data-ra-reset]{order:3;width:100%}.ra-spacer{display:none}.ra-foot [data-ra-cancel],.ra-foot [data-ra-save]{flex:1}.ra-info-body{padding:16px}.ra-callout{display:grid}}
+
+</style>
+
+<style id="extras-stability-v1">
+/* Extras — estabilidade de layout, modais e mobile */
+.xsc-overlay,.rg-overlay,.ra-overlay{box-sizing:border-box;overflow:hidden;overscroll-behavior:contain;isolation:isolate}
+.xsc-overlay{z-index:100200}.rg-overlay{z-index:100300}.ra-overlay{z-index:100400}
+.xsc-overlay *, .rg-overlay *, .ra-overlay *{box-sizing:border-box;min-width:0}
+.xsc-modal,.rg-modal,.ra-modal{width:min(1040px,calc(100vw - 24px));max-width:calc(100vw - 24px);max-height:calc(100dvh - 24px);min-height:0;overflow:hidden}
+.ra-modal{width:min(920px,calc(100vw - 24px))}.rg-history{width:min(1160px,calc(100vw - 24px))}
+.xsc-body,.ra-body,.rg-policy-grid,.rg-hbody{min-height:0;overscroll-behavior:contain;scrollbar-gutter:stable}
+.xsc-head,.ra-head,.rg-head{flex:0 0 auto}.ra-tabs,.xsc-nav,.rg-hnav{flex:0 0 auto}
+.ra-foot,.rg-foot{flex:0 0 auto}.ra-foot button,.rg-foot button,.xsc-foot-actions button{max-width:100%}
+.ra-grid label,.ra-dose-cols label,.ra-weights label,.xsc-field,.rg-pick{overflow-wrap:anywhere}
+.ra-grid input,.ra-grid select,.ra-dose-cols input,.ra-weights input,.xsc-field input,.xsc-field select,.rg-fields input,.rg-fields select{font-size:16px}
+.extras-overlay-background{pointer-events:none!important;filter:saturate(.85)}
+html.extras-modal-open,html.extras-modal-open body{overflow:hidden!important;overscroll-behavior:none}
+.ra-central-card{align-items:flex-start}.ra-central-card>div{flex:1}.ra-central-card>button{flex:0 0 auto}
+.ra-help,.ra-i,.xsc-info{touch-action:manipulation}
+@media(max-width:760px){
+  .xsc-overlay,.rg-overlay,.ra-overlay{padding:0;place-items:end center}
+  .xsc-modal,.rg-modal,.ra-modal,.rg-history{width:100%;max-width:100%;height:min(100dvh,100%);max-height:100dvh;border-radius:20px 20px 0 0;border-bottom:0}
+  .xsc-head,.rg-head,.ra-head{padding-top:max(16px,env(safe-area-inset-top))}
+  .xsc-body,.rg-hbody,.ra-body{padding-bottom:max(18px,env(safe-area-inset-bottom))}
+  .ra-foot,.rg-foot{padding-bottom:max(10px,env(safe-area-inset-bottom));background:var(--surface)}
+  .ra-grid,.ra-dose-cols,.ra-weights,.xsc-form-grid,.xsc-explain,.xsc-overview-grid,.xsc-manual-grid{grid-template-columns:1fr}
+  .ra-central-card{flex-direction:column}.ra-central-card>button{width:100%}
+  .rg-policy-grid{grid-template-columns:1fr}.rg-picker{border-right:0;border-bottom:1px solid var(--border)}
+}
+@media(max-width:560px){
+  .xsc-modal,.rg-modal,.ra-modal,.rg-history{border-radius:0;height:100dvh;max-height:100dvh}
+  .xsc-nav,.ra-tabs{scroll-snap-type:x proximity}.xsc-nav button,.ra-tabs button{scroll-snap-align:start}
+  .ra-foot{display:grid;grid-template-columns:1fr 1fr}.ra-foot .ra-spacer{display:none}.ra-foot [data-reset]{grid-column:1/-1;order:3}.ra-foot [data-cancel],.ra-foot [data-save]{width:100%}
+  .rg-foot{display:grid;grid-template-columns:1fr 1fr}.rg-foot button{width:100%}
+}
 
 </style>
 
@@ -44515,6 +44550,243 @@ window.ReforcoFila = ReforcoFila;
   };
   TecLayoutV2.instalar();
   if(typeof window!=='undefined')window.TecLayoutV2=TecLayoutV2;
+})();
+
+/* ============================================================
+   EXTRAS — estabilidade de modais + performance do reforço adaptativo
+   Corrige sobreposições e elimina recomputações quadráticas no Plano.
+   ============================================================ */
+(() => {
+  if (typeof window !== 'undefined' && window.__extrasStabilityV1) return;
+  if (typeof window !== 'undefined') window.__extrasStabilityV1 = true;
+
+  const OVERLAY_SELECTOR = '.xsc-overlay,.rg-overlay,.ra-overlay';
+  const now = () => (typeof performance !== 'undefined' && performance.now ? performance.now() : Date.now());
+  const num = (v, d = 0) => Number.isFinite(Number(v)) ? Number(v) : d;
+  const clamp = (v, a, b) => Math.max(a, Math.min(b, Number(v)));
+  const median = (a) => {
+    const x = (a || []).filter(Number.isFinite).slice().sort((m,n)=>m-n);
+    if (!x.length) return null;
+    const i = x.length >> 1;
+    return x.length % 2 ? x[i] : (x[i-1] + x[i]) / 2;
+  };
+  const norm = (s) => {
+    try { return typeof ReforcoEngine !== 'undefined' && ReforcoEngine.norm ? ReforcoEngine.norm(s || '') : String(s || '').toLowerCase().trim(); }
+    catch (_) { return String(s || '').toLowerCase().trim(); }
+  };
+
+  /* Uma única pilha para qualquer modal de Extras. O mais novo sempre fica acima
+     e os anteriores ficam inertes, evitando foco/clique "atrás" da janela ativa. */
+  const OverlayStack = {
+    base: 200000,
+    seq: 0,
+    observer: null,
+    register(el) {
+      if (!el || el.nodeType !== 1 || !el.matches || !el.matches(OVERLAY_SELECTOR)) return;
+      if (!el.dataset.extrasLayer) el.dataset.extrasLayer = String(++this.seq);
+      el.style.zIndex = String(this.base + Number(el.dataset.extrasLayer) * 20);
+      this.sync();
+    },
+    list() {
+      if (typeof document === 'undefined') return [];
+      return [...document.querySelectorAll(OVERLAY_SELECTOR)]
+        .filter(x => x.isConnected !== false)
+        .sort((a,b) => Number(a.dataset.extrasLayer || 0) - Number(b.dataset.extrasLayer || 0));
+    },
+    sync() {
+      if (typeof document === 'undefined') return;
+      const list = this.list(), top = list[list.length - 1] || null;
+      list.forEach(el => {
+        const active = el === top;
+        el.classList.toggle('extras-overlay-background', !active);
+        try { el.inert = !active; } catch (_) { /* navegador antigo */ }
+        if (active) el.removeAttribute('aria-hidden'); else el.setAttribute('aria-hidden','true');
+      });
+      document.documentElement.classList.toggle('extras-modal-open', !!list.length);
+    },
+    install() {
+      if (typeof document === 'undefined') return;
+      document.querySelectorAll(OVERLAY_SELECTOR).forEach(x => this.register(x));
+      if (typeof MutationObserver === 'undefined' || this.observer) return;
+      this.observer = new MutationObserver((records) => {
+        let changed = false;
+        records.forEach(r => {
+          [...(r.addedNodes || [])].forEach(n => {
+            if (!n || n.nodeType !== 1) return;
+            if (n.matches && n.matches(OVERLAY_SELECTOR)) { this.register(n); changed = true; }
+            if (n.querySelectorAll) n.querySelectorAll(OVERLAY_SELECTOR).forEach(x => { this.register(x); changed = true; });
+          });
+          if ((r.removedNodes || []).length) changed = true;
+        });
+        if (changed) this.sync();
+      });
+      this.observer.observe(document.body || document.documentElement, { childList:true, subtree:true });
+      document.addEventListener('keydown', (e) => {
+        if (e.key !== 'Escape') return;
+        const top = this.list().pop();
+        if (!top) return;
+        const btn = top.querySelector('.ra-x,.rg-x,.xsc-close,[data-cancel],[data-rg-cancel]');
+        if (btn) { e.preventDefault(); btn.click(); }
+      });
+    }
+  };
+  OverlayStack.install();
+  if (typeof window !== 'undefined') window.ExtrasOverlayStack = OverlayStack;
+
+  if (typeof ReforcoAdaptativo === 'undefined') return;
+  const RA = ReforcoAdaptativo;
+
+  /* Índice de histórico construído UMA vez por cálculo do Plano. */
+  RA._historyIndex = function() {
+    let closed = [];
+    try { closed = typeof PlanoCiclo !== 'undefined' && PlanoCiclo.fechados ? PlanoCiclo.fechados() : []; }
+    catch (e) { if (typeof _quiet === 'function') _quiet(e, 'reforco-adaptativo-history-index'); }
+    const valid = (closed || []).filter(x => x && num(x.questoes) > 0 && x.ganhoPP != null);
+    const byDisc = new Map(), byExact = new Map();
+    valid.forEach(x => {
+      const d = norm(x.disciplina), t = norm(x.topico), ek = d + '\u0000' + t;
+      if (!byDisc.has(d)) byDisc.set(d, []);
+      if (!byExact.has(ek)) byExact.set(ek, []);
+      byDisc.get(d).push(x); byExact.get(ek).push(x);
+    });
+    return { valid, byDisc, byExact };
+  };
+  RA._historicoIndexado = function(item, p, idx) {
+    const d = norm(item && item.disciplina), t = norm(item && item.nome), key = d + '\u0000' + t;
+    const exact = (idx.byExact.get(key) || []), disc = (idx.byDisc.get(d) || []);
+    const pool = exact.length >= p.ciclosAprender ? exact : (disc.length >= Math.max(3,p.ciclosAprender) ? disc : idx.valid);
+    const g = median(pool.map(x => num(x.ganhoPP)));
+    const g100 = median(pool.map(x => num(x.ganhoPP) / Math.max(1,num(x.questoes,1)) * 100));
+    const learn = pool.length ? clamp((num(g100)+2)/12,0,1.5) : .7;
+    return { n:pool.length, exatos:exact.length, ganhoMedianoPP:g, ganho100:g100, learn, baixaResposta:pool.length>=p.ciclosAprender && num(g)<p.ganhoMinimoPP };
+  };
+
+  /* Mesma matemática da prescrição original, mas reaproveitando prefs, contexto
+     do Plano e índice histórico em vez de reler tudo para cada tópico. */
+  RA.prescrever = function(item, r, ctx) {
+    const p = ctx && ctx._prefs ? ctx._prefs : this.prefs();
+    if (!p.ativo || !item) return null;
+    const pp = ctx && ctx._planoPrefs ? ctx._planoPrefs : PlanoEngine.prefs();
+    const fase = this.fase(p,r), meta = num(r&&r.meta,num(pp.metaDominio,85));
+    const n = Math.max(0,Math.round(num(item.qJanela,num(item.qHist)))), taxa = clamp(num(item.taxa,50),0,100);
+    const post = this.posterior(taxa,n,meta,p.deltaLacuna);
+    const idx = ctx && ctx._histIndex ? ctx._histIndex : this._historyIndex();
+    const hist = this._historicoIndexado(item,p,idx), minA = num(pp.minAmostra,20);
+    ctx = ctx || this.contexto(r||{itens:[item]});
+    const qMed = PlanoEngine.qParaMedir ? PlanoEngine.qParaMedir(taxa,p.margemMedicao) : 97;
+    const faltaMed = Math.max(0,qMed-n), gap = clamp((meta-post.media)/Math.max(1,meta),0,1), coverage = 1-clamp(n/Math.max(1,minA*2),0,1);
+    const inc=num(item.incid), den=inc+p.shrinkIncidencia || 1;
+    const incSmooth=ctx.incMax?clamp((inc/den)*(inc/(ctx.incMax||1))+(p.shrinkIncidencia/den)*(ctx.incMedia/(ctx.incMax||1)),0,1):0;
+    const pts=ctx.ptsMax?clamp(num(item.pontosGanho)/ctx.ptsMax,0,1):0;
+    const rawEff=num(item.pontosPorQuestao)>0?num(item.pontosPorQuestao):1/Math.max(1,num(item.custoQ,1));
+    const eff=ctx.effMax?clamp(rawEff/ctx.effMax,0,1):.5, ev=clamp(post.pLacuna,0,1), learn=clamp(hist.learn/1.2,0,1);
+    const urg=fase==='pos'?clamp(1-p.diasAteProva/180,0,1):0;
+    const w=fase==='pre'?{gap:p.preLacuna,evid:p.preEvidencia,cov:p.preCobertura,banca:p.preBanca,eff:p.preEficiencia,learn:p.preAprend}:{pts:p.posPontos+5*urg,banca:p.posBanca,gap:Math.max(0,p.posLacuna-5*urg),evid:p.posEvidencia,eff:p.posEficiencia+10*urg,learn:p.posAprend};
+    const comp=fase==='pre'?{gap,evid:ev,cov:coverage,banca:incSmooth,eff,learn}:{pts,banca:incSmooth,gap,evid:ev,eff,learn};
+    const sum=Object.values(w).reduce((s,x)=>s+x,0)||1;
+    const score=100*Object.keys(w).reduce((s,k)=>s+num(w[k])*num(comp[k]),0)/sum;
+    const confMeta=post.pMeta*100>=p.confiancaMeta&&n>=minA, confirmed=post.pLacuna*100>=p.confiancaLacuna;
+    const sk=fase==='pre'?'Pre':'Pos', mi=p['dose'+sk+'Min'], ba=p['dose'+sk+'Base'], ma=p['dose'+sk+'Max'];
+    let objetivo=n<minA?'diagnosticar':'intervir', dose;
+    if(confMeta){objetivo='encerrar';dose=0;}
+    else if(objetivo==='diagnosticar') dose=clamp(Math.max(mi,Math.min(ma,minA-n||mi)),mi,ma);
+    else { let mult=.72+.42*gap+.22*(score/100)+.12*incSmooth; if(post.media>=meta-7)mult*=.78; if(hist.baixaResposta)mult*=.75; dose=clamp(Math.round(ba*mult),mi,ma); }
+    const teoria=taxa<num(pp.faixaCritico,50)&&n>=minA||hist.baixaResposta;
+    return {versao:1,fase,score:clamp(score,0,100),dose:Math.round(dose),objetivo,teoriaPrimeiro:teoria,confiouMeta:confMeta,lacunaConfirmada:confirmed,estatistica:{...post,qMedir:qMed,faltaMedir:faltaMed},historico:hist,componentes:comp,custoEstrategico:Math.round(num(item.custoQ)),snapshotId:(()=>{try{const a=DB.getTecSnapshots()||[];return a.length?a[a.length-1].id:null;}catch(_){return null;}})(),meta};
+  };
+  RA.enriquecer = function(r) {
+    if(!r) return r;
+    const items=[...(r.itens||[]),...(r.pequenas||[])], p=this.prefs();
+    if(!p.ativo){ items.forEach(x=>{x.prescricaoAdaptativa=null;}); this._lastResult=r; this._lastResultAt=now(); return r; }
+    const ctx=this.contexto(r); ctx._prefs=p; ctx._planoPrefs=PlanoEngine.prefs(); ctx._histIndex=this._historyIndex();
+    items.forEach(x=>{x.prescricaoAdaptativa=this.prescrever(x,r,ctx);});
+    this._lastResult=r; this._lastResultAt=now();
+    return r;
+  };
+
+  RA._resultadoRecente = function() {
+    if(this._lastResult && now()-num(this._lastResultAt)>-1 && now()-num(this._lastResultAt)<1500) return this._lastResult;
+    try { return PlanoEngine.calcular(DesempenhoTecScreen.scopedSnapshot(),PlanoEngine.prefs()); }
+    catch(e){ if(typeof _quiet==='function')_quiet(e,'reforco-adaptativo-result-cache'); return null; }
+  };
+
+  /* Antes era um PlanoEngine.calcular() POR BOTÃO. Agora é um resultado único
+     por render e lookup O(1) por disciplina+tópico. */
+  RA.decorarPlano = function() {
+    const host=document.getElementById('tec-panel-plano'); if(!host) return;
+    const r=this._resultadoRecente(); if(!r) return;
+    const map=new Map(); [...(r.itens||[]),...(r.pequenas||[])].forEach(x=>map.set(norm(x.disciplina)+'\u0000'+norm(x.nome),x));
+    for(const b of host.querySelectorAll('.plano-nova-extra')){
+      const top=b.dataset.topico,disc=b.dataset.disc,x=map.get(norm(disc)+'\u0000'+norm(top)),rx=x&&x.prescricaoAdaptativa;
+      const card=b.closest('.pl-item'); if(!rx||card?.querySelector('.ra-mini'))continue;
+      b.dataset.alvo=rx.dose||b.dataset.alvo; if(rx.dose>0)b.textContent=`+ Reforço · ${rx.dose}q`;
+      const box=document.createElement('div');box.className='ra-mini';box.innerHTML=`<span><b>${rx.dose?rx.dose+'q agora':'encerrar'}</b> · ${rx.fase==='pos'?'pós':'pré'} · prioridade ${rx.score.toFixed(0)}/100${rx.teoriaPrimeiro?' · teoria → questões':''}</span><button class="ra-i" type="button">i</button>`;
+      const info=box.querySelector('button');if(info)info.onclick=e=>{e.preventDefault();e.stopPropagation();this.info(rx,top);};b.parentElement?.prepend(box);
+    }
+  };
+
+  /* Criação individual reaproveita o mesmo retrato recém-calculado. */
+  if(typeof DesempenhoTecScreen!=='undefined' && RA._criar){
+    DesempenhoTecScreen.criarExtraDoPlano=function(top,disc,alvo,motivo,lote){
+      if(motivo==='reforco'){
+        try{const r=RA._resultadoRecente(),x=r&&[...(r.itens||[]),...(r.pequenas||[])].find(z=>norm(z.nome)===norm(top)&&norm(z.disciplina)===norm(disc)),rx=x&&x.prescricaoAdaptativa;if(rx&&rx.dose>0)alvo=rx.dose;}
+        catch(e){if(typeof _quiet==='function')_quiet(e,'reforco-adaptativo-criar-cache');}
+      }
+      return RA._criar.call(this,top,disc,alvo,motivo,lote);
+    };
+  }
+
+  /* Salvar em Extras não precisa redesenhar o TEC escondido. O cálculo pesado
+     só roda se a tela TEC estiver realmente visível; sempre em um frame seguinte. */
+  RA.rerender = function() {
+    this._lastResult=null; this._lastResultAt=0;
+    if(this._rerenderQueued) return;
+    this._rerenderQueued=true;
+    const run=()=>{
+      this._rerenderQueued=false;
+      try{ if(typeof ExtrasCentral!=='undefined'&&ExtrasCentral.modal) ExtrasCentral._render(); }
+      catch(e){if(typeof _quiet==='function')_quiet(e,'reforco-adaptativo-rerender-extras');}
+      try{
+        const screen=document.getElementById('screen-desempenhotec');
+        const visible=!!(screen && !screen.hidden && (typeof getComputedStyle!=='function' || getComputedStyle(screen).display!=='none'));
+        if(visible && typeof DesempenhoTecScreen!=='undefined' && DesempenhoTecScreen.renderPlanoConteudo) DesempenhoTecScreen.renderPlanoConteudo();
+      }catch(e){if(typeof _quiet==='function')_quiet(e,'reforco-adaptativo-rerender-tec');}
+    };
+    if(typeof requestAnimationFrame==='function') requestAnimationFrame(()=>setTimeout(run,0)); else setTimeout(run,0);
+  };
+
+  /* Evita modal dentro de modal na Central de Extras: fecha a central, abre o
+     editor adaptativo e volta à aba Reforços quando ele termina. */
+  if(!RA._stableConfigBase && RA.config){
+    RA._stableConfigBase=RA.config;
+    RA.config=function(opts){
+      opts=opts||{}; const voltar=!!opts.fromCentral;
+      if(voltar && typeof ExtrasCentral!=='undefined' && ExtrasCentral.modal) ExtrasCentral.fechar();
+      const antes=new Set(document.querySelectorAll('.ra-overlay'));
+      const ret=this._stableConfigBase.call(this);
+      const ov=[...document.querySelectorAll('.ra-overlay')].find(x=>!antes.has(x)) || [...document.querySelectorAll('.ra-overlay')].pop();
+      if(ov) OverlayStack.register(ov);
+      if(voltar && ov){
+        let agendado=false;
+        const reopen=()=>{if(agendado)return;agendado=true;setTimeout(()=>{if(typeof ExtrasCentral!=='undefined'&&!ExtrasCentral.modal)ExtrasCentral.abrir(opts.returnTab||'reforcos');},0);};
+        ov.querySelectorAll('.ra-x,[data-cancel],[data-save],[data-reset]').forEach(b=>b.addEventListener('click',reopen,{once:true}));
+        ov.addEventListener('click',e=>{if(e.target===ov)reopen();});
+      }
+      return ret;
+    };
+  }
+
+  /* O wrapper antigo da Central configura onclick sem fechar a janela pai.
+     Este último bind substitui apenas essa ação e mantém os demais handlers. */
+  if(typeof ExtrasCentral!=='undefined' && !ExtrasCentral._stabilityBind){
+    const baseBind=ExtrasCentral._bindBody;
+    ExtrasCentral._bindBody=function(){
+      baseBind.call(this);
+      const b=this.modal?.querySelector('[data-ra-open]');
+      if(b)b.onclick=()=>RA.config({fromCentral:true,returnTab:'reforcos'});
+    };
+    ExtrasCentral._stabilityBind=true;
+  }
 })();
 
 /* ============================================================
