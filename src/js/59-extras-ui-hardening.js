@@ -9,7 +9,7 @@
   const CLOSE = '.xsc-close,.rg-x,.ra-x,[data-rg-cancel],[data-cancel]';
   const FOCUS = 'a[href],button:not([disabled]),input:not([disabled]):not([type="hidden"]),select:not([disabled]),textarea:not([disabled]),[tabindex]:not([tabindex="-1"])';
   const openers = new WeakMap();
-  let top = null, raf = 0, bodyOverflow = '', bodyPadding = '', locked = false;
+  let top = null, bodyOverflow = '', bodyPadding = '', locked = false;
 
   const visible = el => {
     if (!el || !el.isConnected) return false;
@@ -46,7 +46,6 @@
   }
 
   function sync() {
-    raf = 0;
     const stack = [...document.querySelectorAll(SEL)].filter(visible);
     lockBody(stack.length > 0);
     stack.forEach((ov, i) => {
@@ -59,20 +58,21 @@
     });
     const novo = stack[stack.length - 1] || null;
     if (novo !== top) {
-      const anterior = top;
+      const anterior = top, openerAnterior = anterior && openers.get(anterior);
       top = novo;
       requestAnimationFrame(() => {
-        if (top && (!document.activeElement || !top.contains(document.activeElement))) {
-          try { firstFocus(top).focus({ preventScroll: true }); } catch (_) { /* foco é melhoria progressiva */ }
-        } else if (!top && anterior) {
-          const op = openers.get(anterior);
-          if (op && op.isConnected) { try { op.focus({ preventScroll: true }); } catch (_) {}
+        if (top) {
+          const alvo = openerAnterior && openerAnterior.isConnected && top.contains(openerAnterior)
+            ? openerAnterior : firstFocus(top);
+          if (!document.activeElement || !top.contains(document.activeElement) || alvo === openerAnterior) {
+            try { alvo.focus({ preventScroll: true }); } catch (_) { /* melhoria progressiva */ }
           }
+        } else if (openerAnterior && openerAnterior.isConnected) {
+          try { openerAnterior.focus({ preventScroll: true }); } catch (_) { /* melhoria progressiva */ }
         }
       });
     }
   }
-  function schedule() { if (!raf) raf = requestAnimationFrame(sync); }
   function markAdded(n) {
     if (!n || n.nodeType !== 1) return;
     const now = document.activeElement;
@@ -82,10 +82,10 @@
 
   const mo = new MutationObserver(muts => {
     muts.forEach(m => m.addedNodes?.forEach(markAdded));
-    schedule();
+    // Inserção/remoção de overlay é rara; sincronizar já na microtask evita um
+    // frame em que o modal-pai continue inert após o filho fechar.
+    sync();
   });
-  // Os modais de Extras são criados/removidos do DOM. Observar apenas childList
-  // evita reagendar layout a cada class/style alterada pelo restante do app.
   mo.observe(document.body, { childList: true, subtree: true });
 
   document.addEventListener('keydown', e => {
