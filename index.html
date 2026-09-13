@@ -57,7 +57,7 @@
      novo, e o antigo é descartado sozinho na ativação) e o que permite ao app
      dizer qual versão está rodando. Em src/ fica "dev" de propósito: a versão
      é gerada na montagem, não editada à mão. -->
-<meta name="diario-versao" content="vb8dd81bcc5">
+<meta name="diario-versao" content="vf47478fb0a">
 <script>
 /* ── ARRANQUE: abre o IndexedDB AGORA, em paralelo com o parse do documento ──
    A fachada de armazenamento vive no fim do <body>, depois de ~1,7 MB de HTML.
@@ -8401,12 +8401,12 @@ window.__idbBoot = (function () {
   <section role="region" tabindex="-1" class="screen" id="screen-extras">
     <div class="page-header">
       <h2 class="page-title">✅ Atividades Extras</h2>
-      <p class="page-subtitle">Metas paralelas ao seu planejamento obrigatório: baralhos de Anki, leitura de lei seca, questões de um assunto, revisão de pontos fracos, vídeos e revisões de véspera. Você decide, por atividade, se ela entra ou não nas métricas de Evolução.</p>
+      <p class="page-subtitle">Execute e acompanhe metas complementares ao ciclo: reforços do Plano, questões, Anki, lei seca e revisões. A agenda organiza o dia; o painel acompanha o que continua em aberto.</p>
     </div>
     <div class="extras-toolbar">
       <div class="extras-global">
         <button type="button" class="toggle-switch" id="extras-global-toggle" role="switch" aria-checked="false" aria-label="Incluir atividades extras nas métricas de Evolução" title="Somar as atividades marcadas às métricas de Evolução"></button>
-        <span>Incluir Atividades Extras (marcadas) nas métricas de Evolução</span>
+        <span>Incluir atividades marcadas nas métricas de Evolução</span>
       </div>
       <div style="display:flex; gap:8px; flex-wrap:wrap;">
         <button type="button" class="btn-secondary" id="extras-manage-btn" title="Gerenciar todas as atividades recorrentes e avulsas num só lugar">🔁 Gerenciar</button>
@@ -11701,6 +11701,22 @@ body.leis-foco .leis-reader-card::before { display: none; }
   color: var(--on-accent); background: var(--accent);
   border-style: solid; border-color: var(--accent);
 }
+
+
+/* ---------------------------------------------------------------------------
+   8. ATIVIDADES EXTRAS — FILA OPERACIONAL PROFISSIONAL
+   --------------------------------------------------------------------------- */
+#screen-extras #extras-curso{margin:14px 0 16px}#screen-extras .exc-card{padding:0;overflow:hidden;border-color:var(--border)}
+#screen-extras .exc-head{width:100%;display:grid;grid-template-columns:auto minmax(0,1fr) auto;align-items:center;gap:10px 14px;padding:11px 16px;background:var(--surface);border:0;color:var(--text);text-align:left;cursor:pointer}
+#screen-extras .exc-head:hover{background:var(--surface-sunken)}#screen-extras .exc-brand{display:inline-flex;align-items:center;gap:7px;font-size:var(--fs-xs);font-weight:800;white-space:nowrap}#screen-extras .exc-brand-ico{font-size:var(--fs-sm);line-height:1}
+#screen-extras .exc-kpis{display:flex;align-items:center;gap:6px;flex-wrap:wrap;min-width:0}#screen-extras .exc-kpi{display:inline-flex;align-items:baseline;gap:3px;padding:3px 8px;border-radius:var(--r-pill);background:var(--surface-sunken);border:1px solid var(--border);color:var(--text-soft);font-size:var(--fs-3xs);line-height:1.25;white-space:nowrap}#screen-extras .exc-kpi b{color:var(--text);font-weight:800;font-variant-numeric:tabular-nums}#screen-extras .exc-kpi-ritmo{background:var(--accent-soft);border-color:var(--accent)}#screen-extras .exc-kpi-ritmo b{color:var(--accent-text)}#screen-extras .exc-head .chev{color:var(--text-faint);font-size:var(--fs-2xs);justify-self:end}
+#screen-extras .exc-grupo{padding:0 16px 4px;border-top:1px solid var(--border)}#screen-extras .exc-disc-row{display:flex;align-items:center;gap:7px;padding:10px 0 4px}#screen-extras .exc-disc{margin:0;min-width:0;font-size:var(--fs-3xs);font-weight:800;text-transform:uppercase;letter-spacing:.045em;color:var(--text-faint)}#screen-extras .exc-disc-count{display:inline-flex;min-width:18px;height:18px;align-items:center;justify-content:center;border-radius:var(--r-pill);background:var(--surface-sunken);color:var(--text-faint);font-size:calc(9px * var(--fs-scale,1));font-weight:800;border:1px solid var(--border)}
+#screen-extras .exc-lista{list-style:none;margin:0;padding:0}#screen-extras .exc-item{padding:10px 0 11px;border-top:1px solid var(--border)}#screen-extras .exc-item:first-child{border-top:0}#screen-extras .exc-item-head{display:flex;align-items:center;gap:8px;min-width:0}#screen-extras .exc-item-name{flex:1 1 auto;min-width:0;font-size:var(--fs-xs);font-weight:750;line-height:1.3;color:var(--text)}
+#screen-extras .exc-status{flex:0 0 auto;display:inline-flex;align-items:center;gap:4px;border-radius:var(--r-pill);padding:2px 7px;background:var(--surface-sunken);border:1px solid var(--border);color:var(--text-soft);font-size:calc(9px * var(--fs-scale,1));font-weight:800;line-height:1.2;white-space:nowrap}#screen-extras .exc-status i{font-style:normal;font-size:var(--fs-3xs)}#screen-extras .exc-status.tone-good{color:var(--good-text);background:var(--good-soft)}#screen-extras .exc-status.tone-bad{color:var(--bad-text);background:var(--bad-soft)}#screen-extras .exc-status.incid{color:var(--accent-text);background:var(--accent-soft)}
+#screen-extras .exc-progress{display:grid;grid-template-columns:minmax(0,1fr) 28px;align-items:center;gap:8px;margin-top:6px}#screen-extras .exc-bar{height:4px;border-radius:var(--r-pill);background:var(--border);overflow:hidden}#screen-extras .exc-bar>i{display:block;height:100%;border-radius:inherit;background:var(--accent)}#screen-extras .exc-progress>span{text-align:right;color:var(--text-faint);font-size:calc(9px * var(--fs-scale,1));font-weight:700;font-variant-numeric:tabular-nums}
+#screen-extras .exc-item-foot{display:flex;align-items:center;justify-content:space-between;gap:8px 14px;margin-top:6px}#screen-extras .exc-meta{display:flex;align-items:center;gap:4px 12px;flex-wrap:wrap;min-width:0;color:var(--text-soft);font-size:var(--fs-3xs)}#screen-extras .exc-meta b{color:var(--text);font-weight:800;font-variant-numeric:tabular-nums}#screen-extras .exc-actions{display:inline-flex;align-items:center;gap:5px;flex:0 0 auto}
+#screen-extras .exc-btn{min-height:28px;padding:4px 9px;border:1px solid var(--border);border-radius:var(--r-sm);background:var(--surface);color:var(--text-soft);font:inherit;font-size:var(--fs-3xs);font-weight:750;line-height:1.2;cursor:pointer;text-decoration:none;white-space:nowrap}#screen-extras .exc-btn:hover,#screen-extras .exc-btn:focus-visible{border-color:var(--accent);color:var(--accent-text);background:var(--accent-soft)}#screen-extras .exc-btn-primary{color:var(--accent-text);background:var(--accent-soft);border-color:var(--accent)}#screen-extras .exc-btn-danger{color:var(--bad-text)}#screen-extras .exc-btn-danger:hover,#screen-extras .exc-btn-danger:focus-visible{border-color:var(--bad-text);color:var(--bad-text);background:var(--bad-soft)}#screen-extras .exd-reg-group .exd-min{max-width:76px}
+@media(max-width:620px){#screen-extras .exc-head{grid-template-columns:minmax(0,1fr) auto;gap:8px;padding:10px 12px}#screen-extras .exc-kpis{grid-column:1/-1;order:3}#screen-extras .exc-grupo{padding-left:12px;padding-right:12px}#screen-extras .exc-item-head{align-items:flex-start}#screen-extras .exc-item-foot{align-items:flex-start;flex-direction:column}#screen-extras .exc-actions{width:100%}#screen-extras .exc-btn{flex:1 1 auto;text-align:center}}
 
 </style>
 
@@ -30708,7 +30724,11 @@ const ExtrasScreen = {
     this._planoRefCard = null;
     // toggle global
     const gt = document.getElementById('extras-global-toggle');
-    if (gt) gt.classList.toggle('on', DB.extrasCountGlobal());
+    if (gt) {
+      const on = DB.extrasCountGlobal();
+      gt.classList.toggle('on', on);
+      gt.setAttribute('aria-checked', on ? 'true' : 'false');
+    }
     const summary = document.getElementById('extras-summary');
     if (summary) { summary.innerHTML = ''; summary.style.display = 'none'; }  // topo agora vive na agenda
     const list = document.getElementById('extras-list');
@@ -30776,92 +30796,78 @@ const ExtrasScreen = {
      divisão feita na hora: o que falta, dividido pelos dias até a próxima
      importação. Ficou um dia sem estudar? O número de amanhã sobe sozinho.
      Nada vence, nada acumula, nada precisa ser arrumado. */
+  /* ── REFERÊNCIA OPERACIONAL DO PLANO ───────────────────────────────────────
+     Decidir o que atacar respeita o filtro do Desempenho TEC; medir uma atividade
+     já criada usa o histórico integral. Trocar o período da Análise não pode
+     reescrever o andamento de um reforço em curso. */
+  _planoRefOperacional() {
+    if (this._planoRefCard) return this._planoRefCard;
+    try {
+      const snaps = DB.getTecSnapshots() || [];
+      const agregado = snaps.length && DesempenhoTecScreen && typeof DesempenhoTecScreen.aggregate === 'function'
+        ? DesempenhoTecScreen.aggregate(snaps) : null;
+      this._planoRefCard = PlanoEngine.calcular(agregado, PlanoEngine.prefs());
+    } catch (e) { _quiet(e, 'extras-plano-operacional'); this._planoRefCard = { erro: 'sem-retrato' }; }
+    return this._planoRefCard;
+  },
+  /* Ao visitar uma semana/mês antigo, a barra precisa medir AQUELE período, não
+     o período de hoje. */
+  _progressoNoPeriodo(x, day) {
+    const hist = (x && x.historico) || [];
+    if (!x || !DB.extraRecorrente(x)) return Math.max(0, Number(x && x.progresso) || 0);
+    day = day || todayLocal();
+    const base = new Date(day + 'T00:00:00');
+    let ini = day, fim = day;
+    if (x.periodo === 'semanal') {
+      ini = this._addDays(day, -((base.getDay() + 6) % 7)); fim = this._addDays(ini, 6);
+    } else if (x.periodo === 'quinzenal') ini = this._addDays(day, -13);
+    else if (x.periodo === 'mensal') {
+      ini = DB._isoDia(new Date(base.getFullYear(), base.getMonth(), 1));
+      fim = DB._isoDia(new Date(base.getFullYear(), base.getMonth() + 1, 0));
+    }
+    return hist.filter(h => h.data >= ini && h.data <= fim).reduce((n,h)=>n+(Number(h.quantidade)||0),0);
+  },
   renderEmCurso() {
     const host = document.getElementById('extras-curso');
     if (!host) return;
     let itens = [];
-    try { itens = PlanoCiclo.emCurso(this._planoRefCard || (this._planoRefCard =
-      PlanoEngine.calcular(DesempenhoTecScreen.scopedSnapshot(), PlanoEngine.prefs()))); }
-    catch (e) { _quiet(e, 'curso'); }
+    try { itens = PlanoCiclo.emCurso(this._planoRefOperacional()); } catch (e) { _quiet(e, 'curso'); }
     if (!itens.length) { host.innerHTML = ''; return; }
     const aberto = this._cursoAberto !== false;
-    const totalFalta = itens.reduce((a, v) => a + Math.max(0, v.alvo - v.feito), 0);
-    const totalAlvo = itens.reduce((a, v) => a + v.alvo, 0);
-    const feito = totalAlvo - totalFalta;
-    const discs = [...new Set(itens.map(v => v.origem.disciplina || 'Sem disciplina'))];
-    /* Dias até a próxima importação: é a cadência que VOCÊ definiu no Plano,
-       contada a partir do último retrato. É o horizonte real do ciclo — não
-       adianta espalhar um bloco por trinta dias se você reimporta em quinze. */
-    let dias = 0;
+    const totalFalta = itens.reduce((a,v)=>a+Math.max(0,v.alvo-v.feito),0);
+    const totalAlvo = itens.reduce((a,v)=>a+v.alvo,0), feito = totalAlvo-totalFalta;
+    const discs = [...new Set(itens.map(v=>v.origem.disciplina || 'Sem disciplina'))];
+    let dias=0;
     try {
-      const p = PlanoEngine.prefs();
-      const snaps = DB.getTecSnapshots();
-      const ult = snaps[snaps.length - 1];
-      const idade = ult ? PlanoEngine._diasDesde(ult.endDate || ult.date) : 0;
-      dias = Math.max(1, (p.cadenciaDias || 30) - idade);
-    } catch (e) { _quiet(e, 'curso-dias'); }
-    const porDia = Math.max(1, Math.ceil(totalFalta / dias));
-    /* `mediu` é o desfecho do DIAGNÓSTICO: ele foi buscar amostra, não acerto.
-       Chamá-lo de "volume não resolveu" era julgar pela régua do reforço uma
-       atividade que cumpriu exatamente o que prometeu. */
-    const SELO = { funcionou: ['✅', 'tone-good', 'resolvido'], naoFuncionou: ['⚠️', 'tone-bad', 'volume não resolveu'],
-      subiu: ['📈', 'tone-good', 'subindo'], mediu: ['🔬', 'incid', 'já dá para medir'],
-      andamento: ['▶', 'incid', 'em andamento'], orfa: ['❓', '', 'sem correspondência no TEC'] };
-    const linha = (v) => {
-      const [ic, tom, rot] = SELO[v.estado] || SELO.andamento;
-      const falta = Math.max(0, v.alvo - v.feito);
-      const evo = (v.origem.taxaInicial != null && v.taxa != null)
-        ? `${v.origem.taxaInicial.toFixed(0)}% → <b class="tone-${v.delta != null && v.delta >= 0 ? 'good' : 'bad'}">${v.taxa.toFixed(0)}%</b>` : '';
-      return `<li data-id="${escapeHtml(v.extra.id)}">
-        <div class="pl-ciclo-top">
-          <span class="pl-ciclo-nome">${escapeHtml(v.origem.topico)}</span>
-          <span class="reforco-tag ${tom}">${ic} ${rot}</span>
-        </div>
-        <div class="pl-ciclo-barra"><i style="width:${v.pct}%"></i></div>
-        <div class="pl-ciclo-nums">
-          <span><b>${v.feito}</b>/${v.alvo} questões</span>
-          ${falta > 0 ? `<span>faltam <b>${falta}</b></span>` : '<span class="tone-good">alvo cumprido</span>'}
-          ${evo ? `<span>${evo}</span>` : ''}
-        </div>
-        <div class="exc-acoes">
-          <button type="button" class="pl-ciclo-acao" data-curso-dia="${escapeHtml(v.extra.id)}">Fazer hoje</button>
-          <button type="button" class="pl-ciclo-acao" data-curso-fim="${escapeHtml(v.extra.id)}">Concluir</button>
-          <button type="button" class="pl-ciclo-acao" data-curso-del="${escapeHtml(v.extra.id)}">Excluir</button>
-        </div>
+      const p=PlanoEngine.prefs(), snaps=DB.getTecSnapshots(), ult=snaps[snaps.length-1];
+      const idade=ult ? PlanoEngine._diasDesde(ult.endDate || ult.date) : 0;
+      dias=Math.max(1,(p.cadenciaDias||30)-idade);
+    } catch(e){ _quiet(e,'curso-dias'); }
+    const porDia=totalFalta>0 ? Math.max(1,Math.ceil(totalFalta/dias)) : 0;
+    const SELO={funcionou:['✓','tone-good','Meta atingida'],naoFuncionou:['!','tone-bad','Reavaliar'],subiu:['↗','tone-good','Evoluindo'],mediu:['◉','incid','Medido'],andamento:['•','incid','Em curso'],orfa:['?','','Sem vínculo TEC']};
+    const linha=(v)=>{
+      const [ic,tom,rot]=SELO[v.estado]||SELO.andamento, falta=Math.max(0,v.alvo-v.feito);
+      const evo=(v.origem.taxaInicial!=null && v.taxa!=null)
+        ? `<span title="Aproveitamento inicial → atual"><b>${v.origem.taxaInicial.toFixed(0)}%</b> → <b class="tone-${v.delta!=null && v.delta>=0?'good':'bad'}">${v.taxa.toFixed(0)}%</b></span>` : '';
+      return `<li class="exc-item" data-id="${escapeHtml(v.extra.id)}">
+        <div class="exc-item-head"><span class="exc-item-name">${escapeHtml(v.origem.topico)}</span><span class="exc-status ${tom}"><i>${ic}</i>${rot}</span></div>
+        <div class="exc-progress"><div class="exc-bar"><i style="width:${v.pct}%"></i></div><span>${v.pct}%</span></div>
+        <div class="exc-item-foot"><div class="exc-meta"><span><b>${v.feito}</b> / ${v.alvo} questões</span>${falta>0?`<span><b>${falta}</b> restantes</span>`:'<span class="tone-good"><b>meta cumprida</b></span>'}${evo}</div>
+          <div class="exc-actions"><button type="button" class="exc-btn exc-btn-primary" data-curso-dia="${escapeHtml(v.extra.id)}">Ver hoje</button><button type="button" class="exc-btn" data-curso-fim="${escapeHtml(v.extra.id)}">Concluir</button><button type="button" class="exc-btn exc-btn-danger" data-curso-del="${escapeHtml(v.extra.id)}" title="Excluir atividade" aria-label="Excluir atividade">Excluir</button></div></div>
       </li>`;
     };
-    host.innerHTML = `
-      <div class="card exc-card">
-        <button type="button" class="exc-head" id="exc-toggle" aria-expanded="${aberto}">
-          <span class="exc-tit">🏁 Reforços em curso</span>
-          <span class="exc-resumo">${itens.length} em ${discs.length} ${discs.length === 1 ? 'disciplina' : 'disciplinas'} ·
-            <b>${feito}</b>/${totalAlvo} questões${totalFalta > 0 ? ` · <b>~${porDia}/dia</b> até a próxima importação (${dias} ${dias === 1 ? 'dia' : 'dias'})` : ''}</span>
-          <span class="chev">${aberto ? '▴' : '▾'}</span>
-        </button>
-        ${aberto ? discs.map(d => `
-          <div class="exc-grupo">
-            <p class="exc-disc">${escapeHtml(d)}</p>
-            <ul class="pl-ciclo-lista">${itens.filter(v => (v.origem.disciplina || 'Sem disciplina') === d).map(linha).join('')}</ul>
-          </div>`).join('') : ''}
-      </div>`;
-    const tg = document.getElementById('exc-toggle');
-    if (tg) tg.addEventListener('click', () => { this._cursoAberto = !aberto; this.renderEmCurso(); });
-    /* "Fazer hoje" é o agendamento MANUAL que sobrou: a exceção para quem quer
-       fixar um assunto num dia, sem que isso vire regra para todos. */
-    host.querySelectorAll('[data-curso-dia]').forEach(b => b.addEventListener('click', () => {
-      DB.toggleExtraData(b.dataset.cursoDia, todayLocal());
-      this.selDay = todayLocal(); showToast('Marcada para hoje ✓'); this.render();
+    host.innerHTML=`<div class="card exc-card"><button type="button" class="exc-head" id="exc-toggle" aria-expanded="${aberto}"><span class="exc-brand"><span class="exc-brand-ico">🏁</span><span>Reforços em curso</span></span><span class="exc-kpis" aria-label="Resumo dos reforços em curso"><span class="exc-kpi"><b>${itens.length}</b> ativos</span><span class="exc-kpi"><b>${feito}</b> / ${totalAlvo} questões</span>${totalFalta>0?`<span class="exc-kpi exc-kpi-ritmo"><b>${porDia}/dia</b><span> · ${dias}d</span></span>`:'<span class="exc-kpi tone-good"><b>metas cumpridas</b></span>'}</span><span class="chev" aria-hidden="true">${aberto?'▴':'▾'}</span></button>${aberto?discs.map(d=>{const g=itens.filter(v=>(v.origem.disciplina||'Sem disciplina')===d);return `<div class="exc-grupo"><div class="exc-disc-row"><p class="exc-disc">${escapeHtml(d)}</p><span class="exc-disc-count">${g.length}</span></div><ul class="exc-lista">${g.map(linha).join('')}</ul></div>`;}).join(''):''}</div>`;
+    const tg=document.getElementById('exc-toggle'); if(tg) tg.addEventListener('click',()=>{this._cursoAberto=!aberto;this.renderEmCurso();});
+    host.querySelectorAll('[data-curso-dia]').forEach(b=>b.addEventListener('click',()=>{
+      const id=b.dataset.cursoDia, hoje=todayLocal(); this.selDay=hoje; this._calStart=this._addDays(hoje,-3); this.render();
+      setTimeout(()=>{const alvo=[...document.querySelectorAll('#extras-list .exd')].find(el=>el.dataset.id===id);if(alvo)try{alvo.scrollIntoView({behavior:'smooth',block:'center'});}catch(e){_quiet(e,'curso-scroll');}},0);
     }));
-    host.querySelectorAll('[data-curso-fim]').forEach(b => b.addEventListener('click', () => {
-      DB.setConcluidaDia(b.dataset.cursoFim, todayLocal(), true);
-      showToast('Concluída ✓'); this.render();
+    host.querySelectorAll('[data-curso-fim]').forEach(b=>b.addEventListener('click',async()=>{
+      const id=b.dataset.cursoFim, v=itens.find(x=>String(x.extra.id)===String(id));
+      if(v && v.feito<v.alvo){const falta=Math.max(0,v.alvo-v.feito);const ok=await UI.confirm(`Ainda faltam ${falta} questões para a meta deste reforço. Concluir agora encerra o ciclo mesmo assim.`,{title:'Concluir antes da meta?',okText:'Concluir mesmo assim'});if(!ok)return;}
+      DB.setConcluidaDia(id,todayLocal(),true); showToast('Reforço concluído ✓'); this.render();
     }));
-    host.querySelectorAll('[data-curso-del]').forEach(b => b.addEventListener('click', async () => {
-      const e = DB.getExtras().find(x => x.id === b.dataset.cursoDel);
-      if (!e) return;
-      if (!await UI.confirm('Excluir "' + e.titulo + '"?', { title: 'Excluir atividade', okText: 'Excluir', danger: true })) return;
-      DB.deleteExtra(e.id); showToast('Atividade excluída'); this.render();
-    }));
+    host.querySelectorAll('[data-curso-del]').forEach(b=>b.addEventListener('click',async()=>{const e=DB.getExtras().find(x=>x.id===b.dataset.cursoDel);if(!e)return;if(!await UI.confirm('Excluir "'+e.titulo+'"? O histórico desta atividade também será removido.',{title:'Excluir atividade',okText:'Excluir',danger:true}))return;DB.deleteExtra(e.id);showToast('Atividade excluída');this.render();}));
   },
   // ── Ocorrências de um dia ──────────────────────────────────────────────
   // Recorrentes: aparecem no dia se ele foi gerado (datas) OU, sem datas geradas,
@@ -30872,6 +30878,12 @@ const ExtrasScreen = {
     return DB.getExtras().filter(x => {
       const datas = x.datas || [];
       if (DB.extraRecorrente(x)) {
+        /* Histórico é fato consumado. Editar a janela da recorrência ou excluir
+           uma ocorrência futura não pode esconder um lançamento/conclusão que
+           já aconteceu naquele dia. */
+        const temHistoricoNoDia = (x.historico || []).some(h => h.data === day);
+        const foiConcluidaNoDia = (x.concluidasEm || []).includes(day);
+        if (temHistoricoNoDia || foiConcluidaNoDia) return true;
         if ((x.excluidasEm || []).includes(day)) return false;
         if (datas.length) return datas.includes(day);
         return this._recurOnDay(x, day);
@@ -31137,10 +31149,11 @@ const ExtrasScreen = {
     if (ord) ord.addEventListener('change', () => {
       this._planoOrd = ord.value;
       this._planoRecalc();
-      // mantém as marcações por NOME do assunto ao reordenar
-      const marcadosNomes = new Set([...this._planoSel].map(i => (cand[i] || {}).nome).filter(Boolean));
+      // disciplina + nome: homônimos de matérias diferentes são unidades distintas
+      const chave = (x) => x ? ReforcoEngine.norm(x.disciplina || '') + ReforcoEngine.SEP + ReforcoEngine.norm(x.nome || '') : '';
+      const marcados = new Set([...this._planoSel].map(i => chave(cand[i])).filter(Boolean));
       this._planoSel = new Set();
-      (this._planoCand || []).forEach((x, i) => { if (marcadosNomes.has(x.nome)) this._planoSel.add(i); });
+      (this._planoCand || []).forEach((x, i) => { if (marcados.has(chave(x))) this._planoSel.add(i); });
       // atualiza o dropdown de disciplinas (a contagem pode mudar) e a lista
       this._planoBind();
       this._planoRenderLista();
@@ -31174,7 +31187,7 @@ const ExtrasScreen = {
        criterio ja usado para decidir se a meta foi batida. */
     const feitoDia = (x.historico || []).filter(h => h.data === day).reduce((a, h) => a + (h.quantidade || 0), 0);
     const diaria = x.periodo === 'diaria';
-    let feito = !rec ? (x.progresso || 0) : (diaria ? feitoDia : DB.extraProgressoPeriodo(x));
+    let feito = !rec ? (x.progresso || 0) : (diaria ? feitoDia : this._progressoNoPeriodo(x, day));
     /* ── ATIVIDADE DO PLANO: O RETRATO CONTA POR VOCÊ ────────────────────────
        Resolver 150 questões no TEC e importar o retrato deixava esta barra em
        0/120: a mesma pessoa lançando o mesmo fato duas vezes, e esquecendo a
@@ -31184,8 +31197,7 @@ const ExtrasScreen = {
     let ciclo = null;
     if (x.origemPlano && x.origemPlano.topico && typeof PlanoCiclo !== 'undefined') {
       try {
-        ciclo = PlanoCiclo.avaliar(x, this._planoRefCard || (this._planoRefCard =
-          PlanoEngine.calcular(DesempenhoTecScreen.scopedSnapshot(), PlanoEngine.prefs())));
+        ciclo = PlanoCiclo.avaliar(x, this._planoRefOperacional());
         if (ciclo && ciclo.feito > feito) feito = ciclo.feito;
       } catch (e) { _quiet(e, 'card-ciclo'); }
     }
@@ -31224,6 +31236,7 @@ const ExtrasScreen = {
     const nReg = regsDia.length;
     const ultimoReg = nReg ? regsDia[nReg - 1] : null;
     const totalDia = regsDia.reduce((a, h) => a + (h.quantidade || 0), 0);
+    const totalMin = regsDia.reduce((a, h) => a + (parseFloat(h.minutos) || 0), 0);
     const acertosDia = regsDia.reduce((a, h) => a + (h.acertos != null ? (parseFloat(h.acertos) || 0) : 0), 0);
     const temAcertos = x.tipo === 'questoes' && regsDia.some(h => h.acertos != null);
     const futuro = day > todayLocal();
@@ -31234,7 +31247,7 @@ const ExtrasScreen = {
     if (done) {
       regRow = totalDia > 0
         ? `<div class="exd-reg exd-reg-donerow">
-             <span class="exd-doneinfo">✓ <b>${totalDia.toLocaleString('pt-BR')}</b> ${escapeHtml(unidLabel)} registrado(s) neste dia${temAcertos ? ` · <b>${acertosDia.toLocaleString('pt-BR')}</b> acerto(s)` : ''}</span>
+             <span class="exd-doneinfo">✓ <b>${totalDia.toLocaleString('pt-BR')}</b> ${escapeHtml(unidLabel)} registrado(s) neste dia${temAcertos ? ` · <b>${acertosDia.toLocaleString('pt-BR')}</b> acerto(s)` : ''}${totalMin > 0 && !emMin ? ` · <b>${totalMin.toLocaleString('pt-BR')}</b> min` : ''}</span>
            </div>`
         : '';
     } else if (futuro) {
@@ -31247,6 +31260,7 @@ const ExtrasScreen = {
               <input type="number" inputmode="decimal" class="exd-num exd-qtd" min="0"
                      placeholder="${placeholder}" title="Informe o valor a registrar" aria-label="Informe o valor a registrar">
               ${x.tipo === 'questoes' ? `<input type="number" inputmode="numeric" class="exd-num exd-ac" min="0" placeholder="acertos" title="Acertos (opcional)" aria-label="Acertos (opcional)">` : ''}
+              ${!emMin ? `<input type="number" inputmode="numeric" class="exd-num exd-min" min="0" placeholder="min" title="Tempo gasto em minutos (opcional)" aria-label="Tempo gasto em minutos (opcional)">` : ''}
               <button type="button" class="btn-primary exd-reg-btn">Registrar</button>
               ${ultimoReg ? `<button type="button" class="btn-secondary exd-reg-cancel">Cancelar</button>` : ''}
             </div>`;
@@ -31254,7 +31268,7 @@ const ExtrasScreen = {
         <div class="exd-reg">
           ${(ultimoReg && !forceInput) ? `
             <div class="exd-reg-saved">
-              <span class="exd-reg-value">✓ ${totalDia.toLocaleString('pt-BR')} ${escapeHtml(unidLabel)} no dia${temAcertos ? ` · ${acertosDia.toLocaleString('pt-BR')} acerto(s)` : ''}</span>
+              <span class="exd-reg-value">✓ ${totalDia.toLocaleString('pt-BR')} ${escapeHtml(unidLabel)} no dia${temAcertos ? ` · ${acertosDia.toLocaleString('pt-BR')} acerto(s)` : ''}${totalMin > 0 && !emMin ? ` · ${totalMin.toLocaleString('pt-BR')} min` : ''}</span>
               <button type="button" class="btn-secondary exd-reg-more">＋ Registrar mais</button>
               <button type="button" class="btn-secondary exd-reg-edit">Editar último</button>
             </div>` : inputGroup}
@@ -31310,11 +31324,13 @@ const ExtrasScreen = {
       if (regBtn) regBtn.addEventListener('click', () => {
         const qEl = card.querySelector('.exd-qtd');
         const acEl = card.querySelector('.exd-ac');
+        const minEl = card.querySelector('.exd-min');
         const q = qEl ? qEl.value : '';
         if (!q || parseFloat(q) <= 0) { showToast('Informe um valor válido'); return; }
         if (acEl && acEl.value !== '' && parseFloat(acEl.value) > parseFloat(q)) { showToast('Acertos não podem passar do total'); return; }
         if (day > todayLocal()) { showToast('Não dá para registrar em data futura'); return; }
-        DB.addExtraProgress(id, q, 0, { data: day, acertos: acEl ? acEl.value : null });
+        const min = minEl && minEl.value !== '' ? minEl.value : 0;
+        DB.addExtraProgress(id, q, min, { data: day, acertos: acEl ? acEl.value : null });
         this._addMoreFor = null;
         this.render();
         showToast(day === todayLocal() ? 'Registrado ✓' : 'Registrado em ' + formatDateShort(day) + ' ✓');
@@ -31331,14 +31347,16 @@ const ExtrasScreen = {
         const atual = regs.length ? regs[regs.length - 1] : null;
         if (!atual) { this.render(); return; }
         const campos = [{ key: 'quantidade', label: 'Novo valor', type: 'number', value: String(atual.quantidade || ''), min: 0 }];
+        const atualEmMin = xAtual.tipo === 'video' || xAtual.unidade === 'min';
         if (xAtual.tipo === 'questoes') campos.push({ key: 'acertos', label: 'Acertos', type: 'number', value: atual.acertos == null ? '' : String(atual.acertos), min: 0 });
+        if (!atualEmMin) campos.push({ key: 'minutos', label: 'Minutos (opcional)', type: 'number', value: atual.minutos ? String(atual.minutos) : '', min: 0 });
         UI.prompt(campos, { title: 'Editar registro', okText: 'Salvar' }).then(v => {
           if (!v) return;
           const novo = parseFloat(v.quantidade);
           if (!novo || novo <= 0) { showToast('Informe um valor válido'); return; }
           if (v.acertos !== undefined && v.acertos !== '' && parseFloat(v.acertos) > novo) { showToast('Acertos não podem passar do total'); return; }
           DB.undoExtraProgressDay(id, day);
-          DB.addExtraProgress(id, novo, 0, { data: day, acertos: v.acertos == null ? null : v.acertos });
+          DB.addExtraProgress(id, novo, v.minutos == null || v.minutos === '' ? 0 : v.minutos, { data: day, acertos: v.acertos == null ? null : v.acertos });
           this._addMoreFor = null;
           this.render();
           showToast('Registro atualizado ✓');
@@ -31397,7 +31415,7 @@ const ExtrasScreen = {
   // FUTURAS vinculadas, pergunta se apaga tudo ou só as ocorrências futuras (mantendo
   // a atividade e o histórico já registrado).
   _openOccurrencePicker(x, dia) {
-    const dates = [...new Set([...(x.datas || []), ...(x.concluidasEm || []), ...(x.historico || []).map(h => h.data)])].sort();
+    const dates = [...new Set([dia, ...(x.datas || []), ...(x.concluidasEm || []), ...(x.historico || []).map(h => h.data)].filter(Boolean))].sort();
     return new Promise(resolve => {
       const ov = document.createElement('div'); ov.className = 'occ-del-overlay';
       const minDia = d => (x.historico || []).filter(h => h.data === d).reduce((n,h) => n + (parseFloat(h.minutos) || ((x.unidade === 'min' || x.tipo === 'video') ? (parseFloat(h.quantidade)||0) : 0)), 0);
@@ -31516,27 +31534,36 @@ const ExtrasScreen = {
   save() {
     const titulo = $id('extra-titulo').value.trim();
     if (!titulo) { showToast('Dê um título à atividade'); return; }
+    const anterior = this._editingId ? DB.getExtra(this._editingId) : null;
+    const periodo = $id('extra-periodo').value;
+    const dataInicio = document.getElementById('extra-datainicio') ? $id('extra-datainicio').value : '';
+    const dataFim = document.getElementById('extra-datafim') ? $id('extra-datafim').value : '';
+    const recorrente = ['diaria','semanal','quinzenal','mensal'].includes(periodo);
+    if (recorrente && dataInicio && dataFim && dataInicio > dataFim) { showToast('O início da recorrência não pode ser depois do fim'); return; }
     const data = {
       titulo,
       tipo: $id('extra-tipo').value,
       disciplina: $id('extra-disciplina').value,
       alvo: $id('extra-alvo').value,
       unidade: $id('extra-unidade').value,
-      periodo: $id('extra-periodo').value,
-      dataInicio: document.getElementById('extra-datainicio') ? $id('extra-datainicio').value : '',
-      dataFim: document.getElementById('extra-datafim') ? $id('extra-datafim').value : '',
+      periodo,
+      dataInicio,
+      dataFim,
       marcador: $id('extra-marcador').value,
       contaMetricas: $id('extra-conta').checked
     };
     let savedId;
     if (this._editingId) { DB.updateExtra(this._editingId, data); savedId = this._editingId; showToast('Atividade atualizada ✓'); }
     else { const ne = DB.addExtra(data); savedId = ne && ne.id; showToast('Atividade criada ✓'); }
-    // recorrência com data-fim: recalcula e vincula as ocorrências ao calendário
+    // Mudança de modelo não pode carregar datas geradas pela recorrência antiga.
     if (savedId) {
-      const nDatas = (DB.getExtra(savedId) || {}).datas || [];
-      DB.sincronizarDatasRecorrencia(savedId);
-      const nova = (DB.getExtra(savedId) || {}).datas || [];
-      if (data.periodo !== 'unica' && data.dataFim && nova.length) showToast(`📅 ${nova.length} data(s) vinculadas ao calendário ✓`);
+      const eraRecorrente = !!(anterior && DB.extraRecorrente(anterior));
+      if (!recorrente && eraRecorrente) DB.updateExtra(savedId, { datas: [], concluidasEm: [], excluidasEm: [], dataInicio: null, dataFim: null });
+      else if (recorrente && data.dataFim) {
+        DB.sincronizarDatasRecorrencia(savedId);
+        const nova = (DB.getExtra(savedId) || {}).datas || [];
+        if (nova.length) showToast(`📅 ${nova.length} data(s) vinculadas ao calendário ✓`);
+      } else if (recorrente && anterior && (!DB.extraRecorrente(anterior) || anterior.dataFim)) DB.updateExtra(savedId, { datas: [] });
     }
     $id('extra-modal').style.display = 'none';
     const okBtn = document.getElementById('extra-save'); if (okBtn) okBtn.textContent = 'Salvar';
@@ -31844,8 +31871,9 @@ window.ExtrasScreen = ExtrasScreen;
   on('extra-datainicio', 'change', () => ExtrasScreen.updateRecPreview());
   on('extras-global-toggle', 'click', () => {
     DB.setExtrasCountGlobal(!DB.extrasCountGlobal());
-    $id('extras-global-toggle').classList.toggle('on', DB.extrasCountGlobal());
-    showToast(DB.extrasCountGlobal() ? 'Atividades marcadas entram nas métricas' : 'Atividades fora das métricas');
+    const on = DB.extrasCountGlobal(), bt = $id('extras-global-toggle');
+    bt.classList.toggle('on', on); bt.setAttribute('aria-checked', on ? 'true' : 'false');
+    showToast(on ? 'Atividades marcadas entram nas métricas' : 'Atividades fora das métricas');
   });
   const m = document.getElementById('extra-modal');
   /* fundo desfocado nao fecha o modal: so o X / Cancelar / Esc fecham */

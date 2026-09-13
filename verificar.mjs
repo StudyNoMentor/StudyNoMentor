@@ -97,6 +97,11 @@ try {
   erro('o Plano voltou a enxergar retratos fora do escopo:\n' + String(e.stdout || '') + String(e.stderr || ''));
 }
 
+// ── 3d. ATIVIDADES EXTRAS ──────────────────────────────────────────────────
+console.log('\n3d) contrato operacional das Atividades Extras');
+try { const saida=execFileSync(process.execPath,[join(RAIZ,'testes','atividades-extras.mjs')],{stdio:'pipe'}); ok(String(saida).trim()); }
+catch(e){ erro('a tela de Atividades Extras perdeu uma invariante:\n'+String(e.stdout||'')+String(e.stderr||'')); }
+
 // ── 4. integridade estática do HTML ────────────────────────────────────────
 console.log('\n4) integridade do index.html');
 const html = readFileSync(join(RAIZ, 'index.html'), 'utf8');
@@ -1890,8 +1895,11 @@ try {
     return {
       existe: !!painel.querySelector('.exc-card'),
       grupos: [...painel.querySelectorAll('.exc-disc')].map((e) => e.textContent),
-      itens: painel.querySelectorAll('.pl-ciclo-lista > li').length,
-      resumo: (painel.querySelector('.exc-resumo') || {}).textContent.replace(/\s+/g, ' '),
+      itens: painel.querySelectorAll('.exc-item').length,
+      ritmo: (painel.querySelector('.exc-kpi-ritmo') || {}).textContent.replace(/\s+/g, ' '),
+      kpis: painel.querySelectorAll('.exc-kpi').length,
+      botoes: [...painel.querySelectorAll('.exc-btn')].map(b => b.textContent.trim()),
+      sublinhados: [...painel.querySelectorAll('.exc-btn')].filter(b => getComputedStyle(b).textDecorationLine !== 'none').length,
       semDatas: !DB.getExtras().some((e) => (e.datas || []).length),
       discsNoDia: document.querySelectorAll('#extras-list .extras-disc-title').length,
       vaza: document.documentElement.scrollWidth - document.documentElement.clientWidth
@@ -1902,12 +1910,37 @@ try {
     : erro('o painel de gestao nao apareceu: ' + JSON.stringify(g));
   /* O RITMO É DERIVADO, NÃO AGENDADO. Amarrar cada atividade a um dia cria
      divida vencida: voce nao estudou terca, e terca fica la, cobrando. */
-  (/\/dia até a próxima importação/.test(g.resumo) && g.semDatas)
+  (/\/dia/.test(g.ritmo) && g.semDatas)
     ? ok('com ritmo por dia calculado na hora, e nenhuma atividade amarrada a uma data')
-    : erro('o ritmo derivado falhou: ' + JSON.stringify({ resumo: g.resumo, semDatas: g.semDatas }));
+    : erro('o ritmo derivado falhou: ' + JSON.stringify({ ritmo: g.ritmo, semDatas: g.semDatas }));
+  (g.kpis >= 3 && g.sublinhados === 0 && g.botoes.includes('Ver hoje') && g.botoes.includes('Concluir'))
+    ? ok('painel em curso usa KPIs e ações compactas, sem links gigantes/sublinhados')
+    : erro('acabamento do painel em curso regrediu: ' + JSON.stringify(g));
   (g.discsNoDia >= 2 && g.vaza === 0)
     ? ok('o dia tambem separa por disciplina, sem vazamento a 390px')
     : erro(`agrupamento do dia: ${g.discsNoDia} titulo(s), vazamento ${g.vaza}px`);
+  const navHoje = await pag.evaluate(() => {
+    const b=document.querySelector('#extras-curso [data-curso-dia]'); if(!b)return{faltando:true}; const id=b.dataset.cursoDia; b.click(); const e=DB.getExtra(id); return{datas:(e&&e.datas)||[],sel:ExtrasScreen.selDay,hoje:todayLocal()};
+  });
+  (!navHoje.faltando && navHoje.datas.length===0 && navHoje.sel===navHoje.hoje) ? ok('"Ver hoje" navega sem fixar uma data') : erro('"Ver hoje" alterou dados: '+JSON.stringify(navHoje));
+  const ariaExtra = await pag.evaluate(() => { DB.setExtrasCountGlobal(false); ExtrasScreen.render(); const b=document.getElementById('extras-global-toggle'); const antes=b&&b.getAttribute('aria-checked'); if(b)b.click(); return{antes,depois:b&&b.getAttribute('aria-checked'),valor:DB.extrasCountGlobal()}; });
+  (ariaExtra.antes==='false'&&ariaExtra.depois==='true'&&ariaExtra.valor) ? ok('switch de métricas sincroniza dado e aria-checked') : erro('switch global inconsistente: '+JSON.stringify(ariaExtra));
+  const histExtra = await pag.evaluate(() => {
+    const add=(iso,n)=>{const d=new Date(iso+'T00:00:00');d.setDate(d.getDate()+n);return d.toISOString().slice(0,10)}; const hoje=todayLocal(), inicio=add(hoje,-14);
+    const e=DB.addExtra({titulo:'Teste semanal auditável',tipo:'questoes',disciplina:'Teste',alvo:100,unidade:'questoes',periodo:'semanal',dataInicio:inicio,dataFim:hoje,contaMetricas:false}); DB.sincronizarDatasRecorrencia(e.id); DB.addExtraProgress(e.id,40,30,{data:inicio,acertos:30}); DB.addExtraProgress(e.id,90,25,{data:hoje,acertos:70}); ExtrasScreen.selDay=inicio; ExtrasScreen._calStart=inicio; ExtrasScreen.render(); let card=[...document.querySelectorAll('#extras-list .exd')].find(x=>x.dataset.id===e.id); const txt=card?card.textContent.replace(/\s+/g,' '):''; const mais=card&&card.querySelector('.exd-reg-more'); if(mais) mais.click(); card=[...document.querySelectorAll('#extras-list .exd')].find(x=>x.dataset.id===e.id); const temMin=!!(card&&card.querySelector('.exd-min')); DB.deleteExtra(e.id); ExtrasScreen.selDay=hoje; ExtrasScreen._addMoreFor=null; ExtrasScreen.render(); return{txt,temMin};
+  });
+  (/40\s*\/\s*100/.test(histExtra.txt) && /30\s*min/.test(histExtra.txt) && histExtra.temMin) ? ok('dia histórico usa o próprio período, preserva e exibe minutos') : erro('progresso histórico/minutos incorretos: '+JSON.stringify(histExtra));
+  const histRec = await pag.evaluate(() => {
+    const add=(iso,n)=>{const d=new Date(iso+'T00:00:00');d.setDate(d.getDate()+n);return d.toISOString().slice(0,10)};
+    const hoje=todayLocal(), antigo=add(hoje,-7);
+    const e=DB.addExtra({titulo:'Histórico recorrente',tipo:'questoes',disciplina:'Teste',alvo:10,unidade:'questoes',periodo:'semanal',dataInicio:antigo,dataFim:hoje,contaMetricas:false});
+    DB.sincronizarDatasRecorrencia(e.id); DB.addExtraProgress(e.id,5,12,{data:antigo,acertos:4});
+    DB.updateExtra(e.id,{datas:[hoje],excluidasEm:[antigo]});
+    const aparece=ExtrasScreen.occurrencesForDay(antigo).some(x=>x.id===e.id);
+    DB.deleteExtra(e.id); return {aparece};
+  });
+  histRec.aparece ? ok('editar/excluir recorrência não apaga um dia que já tem histórico') : erro('histórico recorrente ficou invisível');
+
   /* SIMPLICIDADE VEM DE MOVER, NÃO DE SOMAR: o Plano abre mao do painel e
      fica com a linha que leva ate a gestao. */
   const mini = await pag.evaluate(() => {
