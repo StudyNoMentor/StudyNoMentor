@@ -7,7 +7,9 @@
 #   · id duplicado ou tag estrutural desbalanceada no HTML publicado;
 #   · o app quebrar no carregamento ou alguma das 14 telas lancar erro;
 #   · a suite AutoTeste (FSRS, fuzz, agendador, parser TEC...) regredir;
-#   · o botao "Opcoes" da Grade voltar a vazar do cabecalho.
+#   · o botao "Opcoes" da Grade voltar a vazar do cabecalho;
+#   · Atividades Extras / reforcos perderem saldo, quebrarem o rodizio ou
+#     divergirem entre desktop e celular sob carga massiva.
 name: Verificacao
 
 # Uma branch de PR nao precisa rodar a mesma suite duas vezes. Antes, TODO push
@@ -34,7 +36,7 @@ concurrency:
 jobs:
   verificar:
     runs-on: ubuntu-latest
-    timeout-minutes: 12
+    timeout-minutes: 18
     steps:
       - uses: actions/checkout@v4
 
@@ -51,8 +53,8 @@ jobs:
       - name: Instalar dependencias de teste
         run: npm ci
 
-      # Playwright so e usado pelas checagens 4 e 5 (app real no Chromium).
-      # A versao e fixada aqui porque o navegador baixado tem de casar com ela.
+      # Playwright e usado pelo verificar.mjs e pelo stress de Extras. A versao
+      # e fixada aqui porque o navegador baixado tem de casar com ela.
       - name: Instalar Chromium
         run: |
           npm install --no-save playwright@1.56.1
@@ -60,3 +62,20 @@ jobs:
 
       - name: Verificar
         run: node verificar.mjs
+
+      # Mesma aplicacao publicada, aberta em Chromium. Alem de milhares de
+      # combinacoes do planejador, cria massa real de TEC/Extras, executa
+      # parciais, replaneja, mistura Anki e captura desktop/mobile.
+      - name: Stress real de Atividades Extras
+        run: node testes/stress-extras-browser.mjs
+
+      # Evidencia visual e relatorio numerico do que foi realmente renderizado.
+      # Continua no MESMO job: nao cria uma segunda fonte de e-mails/ruido.
+      - name: Guardar evidencias visuais do stress
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: stress-extras-${{ github.run_id }}
+          path: test-artifacts/stress-extras/
+          if-no-files-found: warn
+          retention-days: 7
