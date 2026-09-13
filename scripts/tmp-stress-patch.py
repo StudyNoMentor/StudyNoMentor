@@ -74,8 +74,37 @@ s=s.replace("artifacts/stress-matriz-extrema/carga-desktop.png",
             "artifacts/stress-jornada/extrema/carga-desktop.png")
 s=s.replace("artifacts/stress-matriz-extrema/carga-mobile-390.png",
             "artifacts/stress-jornada/extrema/carga-mobile-390.png")
+
+# DB.addExtra deliberadamente normaliza o contrato público e não persiste campos
+# internos desconhecidos como origemPlano. Para a massa sintética de 180 ciclos,
+# carimbamos esse metadado interno em lote antes de chamar o replanejador.
+needle="""      const manuais=[];
+"""
+repl="""      {
+        const lote=DB.getExtras();
+        lote.forEach(e=>{
+          const ix=planos.indexOf(e.id);
+          if(ix<0) return;
+          e.origemPlano={topico:'Topico '+ix,disciplina:e.disciplina,metaCicloQ:Number(e.alvo)||1,metaSessaoQ:15};
+        });
+        DB.saveExtras(lote);
+      }
+      const manuais=[];
+"""
+if needle in s:
+    s=s.replace(needle,repl,1)
+
+# O harness deve registrar ausência de agenda como falha de cenário, nunca cair
+# com TypeError antes de produzir diagnóstico completo.
+s=s.replace("Object.entries(e.origemPlano.agendaAuto.sessoes||{})",
+            "Object.entries((e.origemPlano&&e.origemPlano.agendaAuto&&e.origemPlano.agendaAuto.sessoes)||{})")
+s=s.replace("Object.values(e.origemPlano.agendaAuto.sessoes||{})",
+            "Object.values((e.origemPlano&&e.origemPlano.agendaAuto&&e.origemPlano.agendaAuto.sessoes)||{})")
+
 if "const baseSnaps=SIM.retratos(48);" not in s:
     raise SystemExit('patch da massa de snapshots não aplicado')
+if "DB.saveExtras(lote);" not in s:
+    raise SystemExit('patch da origem interna dos ciclos não aplicado')
 p.write_text(s,encoding='utf-8')
 
 # 5) Encadeia a matriz extrema adicional no mesmo passo de Chromium.
