@@ -1,28 +1,21 @@
 /* ============================================================
-   DESEMPENHO TEC — consistência do escopo no Plano
+   DESEMPENHO TEC — contrato de escopo e invariantes do Plano
    ============================================================
-   A aba Análise já trabalha com activeSnapshots(), mas alguns cálculos do Plano
-   vivem fora de PlanoEngine.calcular(): o quadro "Onde atacar primeiro" e o
-   ritmo medido são os principais. Escopar DB.getTecSnapshots() durante a tela
-   inteira seria amplo demais — auditoria e progresso das atividades precisam
-   continuar enxergando o histórico integral.
+   O estado do período/seleção pertence à tela principal (51). Esta camada não
+   duplica listeners de escopo: ela só garante que consumidores analíticos que
+   historicamente leem DB.getTecSnapshots() recebam as fontes ativas.
 
-   Portanto esta camada protege SOMENTE as fronteiras analíticas do Plano:
-   cálculo central, ranking de matérias e ritmo exibido. O restante do app segue
-   usando o histórico global. Toda substituição é síncrona, reentrante e sempre
-   restaurada com try/finally.
+   CONTRATO:
+   - Análise, Plano e Reforço: desempenho do aluno = escopo ativo;
+   - Incidência: base externa da banca = independente do período do aluno;
+   - Auditoria/ciclo/progresso: histórico integral, nunca mascarado pelo escopo.
    ============================================================ */
-(function instalarConsistenciaEscopoPlanoTec() {
+(function instalarContratoEscopoTec() {
   if (typeof PlanoEngine === 'undefined' || typeof DesempenhoTecScreen === 'undefined' || typeof DB === 'undefined') return;
 
   const PE = PlanoEngine;
   const DT = DesempenhoTecScreen;
   const getterBase = DB.getTecSnapshots.bind(DB);
-
-  const normalizarId = (v) => {
-    const n = Number(v);
-    return Number.isFinite(n) && String(v).trim() !== '' ? n : v;
-  };
 
   function snapshotsAtivos() {
     try {
@@ -59,8 +52,9 @@
     return comSnapshots(fontes, fn);
   }
 
-  /* O motor central continua protegido por scoped._fontes. Assim série,
-     consolidação, agrupamento e janela adaptativa veem exatamente o recorte. */
+  /* O motor central ainda possui helpers legados que consultam o DB. O agregado
+     explícito manda; sem agregado, vale activeSnapshots(). O override é local e
+     sempre restaurado, inclusive em exceção. */
   const calcularOriginal = PE.calcular;
   PE.calcular = function calcularComEscopo(scoped, opts) {
     const fontes = scoped && Array.isArray(scoped._fontes)
@@ -70,9 +64,8 @@
     return comSnapshots(fontes, () => calcularOriginal.call(this, scoped, opts));
   };
 
-  /* "Onde atacar primeiro" é calculado fora de PlanoEngine.calcular(). Esta é
-     a fuga que fazia um retrato desmarcado continuar mudando q, shareEsforco,
-     nível e posição das disciplinas. A proteção fica só em torno dessa conta. */
+  /* “Onde atacar primeiro” vive fora de calcular(). Esta proteção impede que um
+     retrato fora do período altere q, shareEsforco, nível ou ordem das matérias. */
   if (typeof PlanoPontos !== 'undefined' && PlanoPontos && typeof PlanoPontos.esforcoPorMateria === 'function') {
     const esforcoOriginal = PlanoPontos.esforcoPorMateria;
     PlanoPontos.esforcoPorMateria = function esforcoPorMateriaComEscopo() {
@@ -81,15 +74,13 @@
     };
   }
 
-  /* O Plano calcula o ritmo em três caminhos (abertura, repintura e botão
-     "ritmo medido"), todos passando por PlanoEngine.ritmoRecente(). Em vez de
-     trocar o DB inteiro durante a tela, trocamos somente a FONTE desse cálculo.
-     Auditoria, ciclos e progresso continuam vendo todos os retratos. */
+  /* O ritmo do Plano deve usar o mesmo período, mas auditoria e atividades não.
+     Por isso escopamos apenas a função de ritmo durante as pinturas do Plano. */
   function comRitmoEscopado(fn) {
     if (typeof PE.ritmoRecente !== 'function') return fn();
     const anterior = PE.ritmoRecente;
     const fontes = snapshotsAtivos().slice().reverse();
-    const temporario = function ritmoRecenteDoEscopo(_snaps) {
+    const temporario = function ritmoDoEscopo(_snaps) {
       const resto = Array.prototype.slice.call(arguments, 1);
       return anterior.apply(this, [fontes].concat(resto));
     };
@@ -98,52 +89,85 @@
     finally { if (PE.ritmoRecente === temporario) PE.ritmoRecente = anterior; }
   }
 
-  /* Restaura a seleção antes do render original inicializar "todos marcados".
-     IDs inexistentes continuam sendo podados pela implementação original. */
-  const renderOriginal = DT.render;
-  DT.render = function renderComEscopoPersistido() {
-    if (this.selectedSnapIds === null) {
-      try {
-        const p = this._loadPrefs();
-        if (p && Array.isArray(p.selectedSnapIds) && p.selectedSnapIds.length) {
-          this.selectedSnapIds = new Set(p.selectedSnapIds.map(normalizarId));
-        }
-        if (p && p.rangeStart) this.rangeStart = p.rangeStart;
-        if (p && p.rangeEnd) this.rangeEnd = p.rangeEnd;
-      } catch (e) { if (typeof _quiet === 'function') _quiet(e, 'tec-scope-restore'); }
-    }
-    return renderOriginal.apply(this, arguments);
-  };
+  if (typeof DT.renderPlano === 'function') {
+    const original = DT.renderPlano;
+    DT.renderPlano = function renderPlanoComRitmoDoEscopo() {
+      const args = arguments;
+      return comRitmoEscopado(() => original.apply(this, args));
+    };
+  }
 
-  function persistirEscopo() {
-    try {
-      const patch = {
-        selectedSnapIds: DT.selectedSnapIds ? [...DT.selectedSnapIds] : [],
-        rangeStart: DT.rangeStart || null,
-        rangeEnd: DT.rangeEnd || null
+  if (typeof DT.renderPlanoConteudo === 'function') {
+    const original = DT.renderPlanoConteudo;
+    DT.renderPlanoConteudo = function renderPlanoConteudoComRitmoDoEscopo() {
+      const args = arguments;
+      const r = comRitmoEscopado(() => original.apply(this, args));
+      try { desenharProvaEscopo(); } catch (e) { if (typeof _quiet === 'function') _quiet(e, 'tec-scope-proof'); }
+      return r;
+    };
+  }
+
+  /* O botão “usar ritmo medido” calcula antes de uma nova pintura. Capturamos
+     somente essa chamada e restauramos a função no microtask seguinte. */
+  if (typeof document !== 'undefined' && document && document.addEventListener) {
+    document.addEventListener('click', (e) => {
+      const t = e && e.target && e.target.closest ? e.target.closest('#plano-ritmo-medido') : null;
+      if (!t || typeof PE.ritmoRecente !== 'function') return;
+      const anterior = PE.ritmoRecente;
+      const fontes = snapshotsAtivos().slice().reverse();
+      const temporario = function ritmoDoClique(_snaps) {
+        const resto = Array.prototype.slice.call(arguments, 1);
+        return anterior.apply(this, [fontes].concat(resto));
       };
-      DT.savePrefs(patch);
-    } catch (e) { if (typeof _quiet === 'function') _quiet(e, 'tec-scope-save'); }
+      PE.ritmoRecente = temporario;
+      queueMicrotask(() => { if (PE.ritmoRecente === temporario) PE.ritmoRecente = anterior; });
+    }, true);
   }
 
-  function invalidarPlano() {
-    PE._agrC = null;
-    PE._tecScopeSignature = null;
-    DT._planoRefC = null;
-    DT._fatias = null;
+  /* Invariantes de negócio. Defaults já são bons; isto só impede combinações
+     customizadas contraditórias. Não escolhemos estratégia pelo usuário. */
+  const numero = (v, fallback) => Number.isFinite(Number(v)) ? Number(v) : fallback;
+  const clamp = (v, a, b) => Math.min(b, Math.max(a, v));
+  function normalizarParametrosPlano(orig) {
+    const p = Object.assign({}, orig || {});
+    p.metaDominio = clamp(numero(p.metaDominio, 85), 1, 100);
+    p.tetoDominio = clamp(numero(p.tetoDominio, 90), p.metaDominio, 100);
+    p.faixaCritico = clamp(numero(p.faixaCritico, 50), 0, p.metaDominio);
+    p.faixaFragil = clamp(numero(p.faixaFragil, 65), p.faixaCritico, p.metaDominio);
+    p.minAmostra = Math.max(1, Math.round(numero(p.minAmostra, 20)));
+    p.amostraAlvo = Math.max(p.minAmostra, Math.round(numero(p.amostraAlvo, 50)));
+    p.pisoSerie = Math.max(1, Math.round(numero(p.pisoSerie, 5)));
+    p.consolidarEm = Math.max(1, Math.round(numero(p.consolidarEm, 2)));
+    p.validadeDias = Math.max(1, Math.round(numero(p.validadeDias, 120)));
+    p.janelaMax = Math.max(1, Math.round(numero(p.janelaMax, 365)));
+    p.cadenciaDias = Math.max(1, Math.round(numero(p.cadenciaDias, 30)));
+    p.sensTendencia = Math.max(0, numero(p.sensTendencia, 3));
+    p.custoPiso = Math.max(0, numero(p.custoPiso, 50));
+    p.custoPorPonto = Math.max(0, numero(p.custoPorPonto, 2));
+    p.limite = Math.max(1, Math.round(numero(p.limite, 10)));
+    if (p.ritmoSemanal != null && p.ritmoSemanal !== '') p.ritmoSemanal = Math.max(1, numero(p.ritmoSemanal, 25));
+    return p;
   }
+  PE._normalizarParametrosTec = normalizarParametrosPlano;
 
-  function atualizarPlanoSeVisivel() {
-    invalidarPlano();
-    if (DT.tecTab === 'plano' && typeof DT.renderPlanoConteudo === 'function') {
-      DT.renderPlanoConteudo();
-    }
+  if (typeof PE.prefs === 'function') {
+    const prefsOriginal = PE.prefs;
+    PE.prefs = function prefsCoerentes() {
+      return normalizarParametrosPlano(prefsOriginal.apply(this, arguments));
+    };
+  }
+  if (typeof PE.salvarPrefs === 'function') {
+    const salvarOriginal = PE.salvarPrefs;
+    PE.salvarPrefs = function salvarPrefsCoerentes(patch) {
+      const base = Object.assign({}, this.prefs(), patch || {});
+      return salvarOriginal.call(this, normalizarParametrosPlano(base));
+    };
   }
 
   function resumoEscopo() {
     const todos = getterBase() || [];
     const ativos = snapshotsAtivos();
-    if (!ativos.length) return 'Escopo: nenhum retrato';
+    if (!ativos.length) return `Escopo do Plano: 0 de ${todos.length} retrato(s) · nenhum dado no período`;
     const ini = ativos.reduce((m, s) => !m || (s.startDate && s.startDate < m) ? s.startDate : m, null);
     const fim = ativos.reduce((m, s) => !m || ((s.endDate || s.date) && (s.endDate || s.date) > m) ? (s.endDate || s.date) : m, null);
     const br = (d) => d && /^\d{4}-\d{2}-\d{2}$/.test(d) ? d.slice(8, 10) + '/' + d.slice(5, 7) + '/' + d.slice(0, 4) : (d || '—');
@@ -164,64 +188,24 @@
     chip.textContent = resumoEscopo();
   }
 
-  /* A abertura e cada repintura recebem apenas a fonte de RITMO escopada.
-     Nenhum getter global do DB é trocado aqui; isso preserva deliberadamente
-     auditoria e medição das atividades sobre o histórico integral. */
-  if (typeof DT.renderPlano === 'function') {
-    const renderPlanoOriginal = DT.renderPlano;
-    DT.renderPlano = function renderPlanoComRitmoDoEscopo() {
-      const args = arguments;
-      return comRitmoEscopado(() => renderPlanoOriginal.apply(this, args));
+  /* Incidência é uma dimensão externa (o que a banca cobra), não uma série de
+     desempenho do aluno. A tela explica o contrato para não parecer defeito. */
+  if (typeof DT.renderIncidencia === 'function') {
+    const incidenciaOriginal = DT.renderIncidencia;
+    DT.renderIncidencia = function renderIncidenciaComContrato() {
+      const r = incidenciaOriginal.apply(this, arguments);
+      try {
+        const host = document.getElementById('incid-selecao-resumo');
+        if (host && !document.getElementById('incid-escopo-nota')) {
+          const nota = document.createElement('p');
+          nota.id = 'incid-escopo-nota';
+          nota.className = 'incid-selecao';
+          nota.style.opacity = '.78';
+          nota.textContent = 'Período do Desempenho TEC: recorta seu desempenho em Análise, Plano e Reforço. O índice de Incidência é externo e continua sendo filtrado pelas bancas selecionadas.';
+          host.appendChild(nota);
+        }
+      } catch (e) { if (typeof _quiet === 'function') _quiet(e, 'tec-incid-scope-note'); }
+      return r;
     };
-  }
-
-  const renderPlanoConteudoOriginal = DT.renderPlanoConteudo;
-  DT.renderPlanoConteudo = function renderPlanoConteudoComEscopo() {
-    const args = arguments;
-    const r = comRitmoEscopado(() => renderPlanoConteudoOriginal.apply(this, args));
-    try { desenharProvaEscopo(); } catch (e) { if (typeof _quiet === 'function') _quiet(e, 'tec-scope-proof'); }
-    return r;
-  };
-
-  /* O listener original do botão roda na fase bubble. No capture, substituímos
-     somente ritmoRecente até o fim do despacho síncrono e restauramos no
-     microtask seguinte. O DB permanece global durante todo o clique. */
-  function escoparCliqueDeRitmo(e) {
-    const t = e && e.target && e.target.closest ? e.target.closest('#plano-ritmo-medido') : null;
-    if (!t || typeof PE.ritmoRecente !== 'function') return;
-    const anterior = PE.ritmoRecente;
-    const fontes = snapshotsAtivos().slice().reverse();
-    const temporario = function ritmoDoClique(_snaps) {
-      const resto = Array.prototype.slice.call(arguments, 1);
-      return anterior.apply(this, [fontes].concat(resto));
-    };
-    PE.ritmoRecente = temporario;
-    queueMicrotask(() => { if (PE.ritmoRecente === temporario) PE.ritmoRecente = anterior; });
-  }
-
-  /* Os listeners originais continuam responsáveis por atualizar Análise/Reforço.
-     Aqui persistimos o recorte, limpamos caches e, quando a aba visível é Plano,
-     recalculamos. Inclui também os atalhos rápidos de intervalo. */
-  if (typeof document !== 'undefined' && document && document.addEventListener) {
-    document.addEventListener('click', escoparCliqueDeRitmo, true);
-
-    const depois = () => queueMicrotask(() => {
-      persistirEscopo();
-      atualizarPlanoSeVisivel();
-    });
-
-    document.addEventListener('change', (e) => {
-      const t = e.target;
-      if (!t) return;
-      if ((t.matches && t.matches('#tec-scope-select input[data-snap]')) ||
-          t.id === 'tec-range-start' || t.id === 'tec-range-end') depois();
-    });
-
-    document.addEventListener('click', (e) => {
-      const t = e.target && e.target.closest ? e.target.closest('button, #tec-scope-all, #tec-scope-none') : null;
-      if (!t) return;
-      if (t.id === 'tec-scope-all' || t.id === 'tec-scope-none' ||
-          (t.matches && (t.matches('#tec-scope-toggle button[data-scope]') || t.matches('.tec-range-quick')))) depois();
-    });
   }
 })();
