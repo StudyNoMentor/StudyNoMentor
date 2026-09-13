@@ -16,8 +16,8 @@
      · um assunto por disciplina/dia;
      · prioriza quem está há mais tempo sem entrar no rodízio e, no empate, a
        menor taxa atual (assunto mais crítico);
-     · blocos balanceados com teto de 25 questões: 100 -> 25/25/25/25,
-       61 -> 21/20/20, 47 -> 24/23. Não cria uma esteira artificial de 7/8;
+     · blocos balanceados com faixa configurável (padrão 10–25 questões):
+       100 -> 25/25/25/25, 61 -> 21/20/20, 47 -> 24/23. Não cria uma esteira artificial de 7/8;
      · se a parcela do dia for concluída parcialmente, o saldo NÃO some: volta
        automaticamente para a fila a partir do dia seguinte;
      · histórico já executado nunca é reescrito nem deslocado.
@@ -27,7 +27,6 @@ const ReforcoFila = {
   MAX_TAREFAS_DIA: 2,
   KEY_PREF: 'reforco-fila-prefs',
   DEFAULT_PREFS: { disciplinasDia: 1, blocoMin: 10, blocoMax: 25 },
-  BLOCO_MAX: 25,
   _rodando: false,
   _agendado: false,
   _forcarGlobal: false,
@@ -254,7 +253,8 @@ const ReforcoFila = {
           const feitoHoje = this.feitoNoDia(e, hoje);
           if (feitoHoje > 0) {
             const s = this.saldo(e, ref).restante;
-            m.alvosPorDia[hoje] = Math.max(feitoHoje, Math.min(this.BLOCO_MAX, feitoHoje + s));
+            const limiteHoje = this.limitesBloco(e).max;
+            m.alvosPorDia[hoje] = Math.max(feitoHoje, Math.min(limiteHoje, feitoHoje + s));
             if (!e.datas.includes(hoje)) e.datas.push(hoje);
             mudou = true;
           }
@@ -758,6 +758,9 @@ ReforcoFila.prepararSugestoesPlano = function (cand) {
 };
 ReforcoFila.decorarSugestoesPlano = function (screen) {
   const host = document.getElementById('pl-lista'); if (!host) return;
+  // `_planoBind` também chama `_planoRenderLista`; a decoração precisa ser
+  // idempotente para nunca acumular cabeçalhos/separadores na mesma lista.
+  host.querySelectorAll('.pl-auto-head,.pl-auto-rest').forEach(x => x.remove());
   const n = Math.max(0, Number(screen._reforcoFilaSugCount) || 0);
   const linhas = [...host.querySelectorAll('.pl-linha')];
   let primeiraSug = null, primeiraOutra = null;
@@ -768,7 +771,10 @@ ReforcoFila.decorarSugestoesPlano = function (screen) {
       const box = l.querySelector('div');
       if (box && !box.querySelector('.pl-auto-badge')) box.insertAdjacentHTML('afterbegin', '<span class="pl-auto-badge">Sugestão automática</span>');
     } else if (!primeiraOutra) primeiraOutra = l;
-    if (cb) cb.addEventListener('change', () => { screen._reforcoFilaAutoMode = false; });
+    if (cb && !cb.dataset.reforcoAutoBound) {
+      cb.dataset.reforcoAutoBound = '1';
+      cb.addEventListener('change', () => { screen._reforcoFilaAutoMode = false; });
+    }
   });
   if (primeiraSug) { const h = document.createElement('div'); h.className = 'pl-auto-head'; h.innerHTML = '<strong>Sugestões para completar o ciclo</strong><small>Compatíveis com as vagas livres e já pré-selecionadas.</small>'; host.insertBefore(h, primeiraSug); }
   if (primeiraOutra && primeiraSug) { const h = document.createElement('div'); h.className = 'pl-auto-rest'; h.textContent = 'Outros assuntos disponíveis'; host.insertBefore(h, primeiraOutra); }
