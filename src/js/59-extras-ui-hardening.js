@@ -66,7 +66,8 @@
           try { firstFocus(top).focus({ preventScroll: true }); } catch (_) { /* foco é melhoria progressiva */ }
         } else if (!top && anterior) {
           const op = openers.get(anterior);
-          if (op && op.isConnected) { try { op.focus({ preventScroll: true }); } catch (_) {} }
+          if (op && op.isConnected) { try { op.focus({ preventScroll: true }); } catch (_) {}
+          }
         }
       });
     }
@@ -83,7 +84,9 @@
     muts.forEach(m => m.addedNodes?.forEach(markAdded));
     schedule();
   });
-  mo.observe(document.body, { childList: true, subtree: true, attributes: true, attributeFilter: ['style', 'class', 'hidden'] });
+  // Os modais de Extras são criados/removidos do DOM. Observar apenas childList
+  // evita reagendar layout a cada class/style alterada pelo restante do app.
+  mo.observe(document.body, { childList: true, subtree: true });
 
   document.addEventListener('keydown', e => {
     const stack = [...document.querySelectorAll(SEL)].filter(visible);
