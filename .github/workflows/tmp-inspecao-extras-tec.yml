@@ -1,0 +1,18 @@
+name: Inspecao Extras e Plano
+on:
+  push:
+    branches: [fix/extras-tec-latencia-reabertura]
+jobs:
+  inspecionar:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Mapear pontos quentes
+        run: |
+          echo '=== EXTRAS ==='
+          grep -nE "puxarDoPlano|_planoRecalc|_planoBind|Criar atividades|setConcluidaDia|Reabrir|status === 'concluida'|addExtra\(" src/js/47-tela-extras.js src/js/55-extras-ui-moderna.js src/js/56-leis-rodizio.js src/js/58-extras-governanca.js src/js/59-extras-central-ui.js src/js/59-extras-stability.js || true
+          echo '=== PLANO ==='
+          grep -nEi "Base ampla|pl-modo|modoPatch|salvarPrefs|foco|focar|atacar|criar.*atividade|atividade.*marcada|marcad[oa]" src/js/51-tela-desempenho-tec.js src/js/59-tec-layout-v2.js src/js/59-tec-premium.js src/js/80-ajustes-finais.js || true
+          echo '=== CALCULOS / RENDERS ==='
+          grep -nE "PlanoEngine\.calcular|renderPlanoConteudo|renderPlano\(|render\(\)|scopedSnapshot\(\)" src/js/47-tela-extras.js src/js/51-tela-desempenho-tec.js src/js/56-leis-rodizio.js src/js/59-extras-stability.js | head -n 250 || true
