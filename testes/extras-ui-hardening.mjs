@@ -8,6 +8,7 @@ import { chromium } from 'playwright';
 
 const ROOT=dirname(dirname(fileURLToPath(import.meta.url)));
 const html=readFileSync(join(ROOT,'index.html'),'utf8');
+const supabase=readFileSync(join(ROOT,'node_modules','@supabase','supabase-js','dist','umd','supabase.js'),'utf8');
 const tipos={'.html':'text/html; charset=utf-8','.js':'text/javascript; charset=utf-8','.json':'application/json; charset=utf-8','.css':'text/css; charset=utf-8'};
 const server=createServer((req,res)=>{
   const u=(req.url||'/').split('?')[0];
@@ -22,6 +23,9 @@ const page=await ctx.newPage();
 const errors=[];
 page.on('pageerror',e=>errors.push(e.message));
 page.on('console',m=>{if(m.type()==='error'&&!/favicon|ERR_/.test(m.text()))errors.push(m.text());});
+await page.route('https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js',r=>r.fulfill({status:200,contentType:'text/javascript; charset=utf-8',body:supabase}));
+await page.route('https://fonts.googleapis.com/**',r=>r.fulfill({status:200,contentType:'text/css; charset=utf-8',body:''}));
+await page.route('https://fonts.gstatic.com/**',r=>r.abort());
 await page.route('https://**/*',r=>r.abort());
 
 const layout=async(sel,label)=>{
