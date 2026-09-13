@@ -1900,7 +1900,11 @@ try {
       kpis: painel.querySelectorAll('.exc-kpi').length,
       botoes: [...painel.querySelectorAll('.exc-btn')].map(b => b.textContent.trim()),
       sublinhados: [...painel.querySelectorAll('.exc-btn')].filter(b => getComputedStyle(b).textDecorationLine !== 'none').length,
-      semDatas: !DB.getExtras().some((e) => (e.datas || []).length),
+      agendaAuto: DB.getExtras().filter(e => e.origemPlano && e.origemPlano.topico && e.status !== 'concluida')
+        .every(e => (e.datas || []).some(d => d >= todayLocal())),
+      semDivida: DB.getExtras().filter(e => e.origemPlano && e.origemPlano.topico && e.status !== 'concluida')
+        .every(e => (e.datas || []).filter(d => d < todayLocal()).every(d =>
+          (e.concluidasEm || []).includes(d) || (e.historico || []).some(h => h.data === d))),
       discsNoDia: document.querySelectorAll('#extras-list .extras-disc-title').length,
       vaza: document.documentElement.scrollWidth - document.documentElement.clientWidth
     };
@@ -1908,11 +1912,12 @@ try {
   (g.existe && g.itens === 3 && g.grupos.length === 2)
     ? ok(`a tela de Atividades tem o painel dos ${g.itens} reforcos abertos, agrupados por disciplina (${g.grupos.join(', ')})`)
     : erro('o painel de gestao nao apareceu: ' + JSON.stringify(g));
-  /* O RITMO É DERIVADO, NÃO AGENDADO. Amarrar cada atividade a um dia cria
-     divida vencida: voce nao estudou terca, e terca fica la, cobrando. */
-  (/\/dia/.test(g.ritmo) && g.semDatas)
-    ? ok('com ritmo por dia calculado na hora, e nenhuma atividade amarrada a uma data')
-    : erro('o ritmo derivado falhou: ' + JSON.stringify({ ritmo: g.ritmo, semDatas: g.semDatas }));
+  /* O ritmo continua derivado do volume, mas a execução agora É agendada.
+     O contrato novo cobra duas coisas mais fortes: cada frente aberta tem próxima
+     sessão e nenhuma data passada sem histórico/conclusão permanece como dívida. */
+  (/\/dia/.test(g.ritmo) && g.agendaAuto && g.semDivida)
+    ? ok('ritmo derivado + agenda automática futura, sem dívida vencida fantasma')
+    : erro('agenda automática do painel falhou: ' + JSON.stringify({ ritmo: g.ritmo, agendaAuto: g.agendaAuto, semDivida: g.semDivida }));
   (g.kpis >= 3 && g.sublinhados === 0 && g.botoes.includes('Ver hoje') && g.botoes.includes('Concluir'))
     ? ok('painel em curso usa KPIs e ações compactas, sem links gigantes/sublinhados')
     : erro('acabamento do painel em curso regrediu: ' + JSON.stringify(g));
@@ -1920,9 +1925,11 @@ try {
     ? ok('o dia tambem separa por disciplina, sem vazamento a 390px')
     : erro(`agrupamento do dia: ${g.discsNoDia} titulo(s), vazamento ${g.vaza}px`);
   const navHoje = await pag.evaluate(() => {
-    const b=document.querySelector('#extras-curso [data-curso-dia]'); if(!b)return{faltando:true}; const id=b.dataset.cursoDia; b.click(); const e=DB.getExtra(id); return{datas:(e&&e.datas)||[],sel:ExtrasScreen.selDay,hoje:todayLocal()};
+    const b=document.querySelector('#extras-curso [data-curso-dia]'); if(!b)return{faltando:true}; const id=b.dataset.cursoDia;
+    const e0=DB.getExtra(id), antes=JSON.stringify((e0&&e0.datas)||[]); b.click(); const e=DB.getExtra(id);
+    return{antes,depois:JSON.stringify((e&&e.datas)||[]),sel:ExtrasScreen.selDay,hoje:todayLocal()};
   });
-  (!navHoje.faltando && navHoje.datas.length===0 && navHoje.sel===navHoje.hoje) ? ok('"Ver hoje" navega sem fixar uma data') : erro('"Ver hoje" alterou dados: '+JSON.stringify(navHoje));
+  (!navHoje.faltando && navHoje.antes===navHoje.depois && navHoje.sel===navHoje.hoje) ? ok('"Ver hoje" só navega; a agenda automática permanece idêntica') : erro('"Ver hoje" alterou a agenda: '+JSON.stringify(navHoje));
   const ariaExtra = await pag.evaluate(() => { DB.setExtrasCountGlobal(false); ExtrasScreen.render(); const b=document.getElementById('extras-global-toggle'); const antes=b&&b.getAttribute('aria-checked'); if(b)b.click(); return{antes,depois:b&&b.getAttribute('aria-checked'),valor:DB.extrasCountGlobal()}; });
   (ariaExtra.antes==='false'&&ariaExtra.depois==='true'&&ariaExtra.valor) ? ok('switch de métricas sincroniza dado e aria-checked') : erro('switch global inconsistente: '+JSON.stringify(ariaExtra));
   const histExtra = await pag.evaluate(() => {

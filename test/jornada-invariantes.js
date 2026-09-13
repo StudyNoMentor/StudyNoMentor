@@ -154,7 +154,10 @@ window.RODAR_JORNADA = function () {
         viva = banco.find(e => e.origemPlano && e.status !== 'concluida' && e.origemPlano.motivo !== 'diagnostico');
       }
     }
-    if (viva) DB.setConcluidaDia(viva.id, todayLocal(), true);
+    if (viva) {
+      if (globalThis.ReforcoAgendaAuto && typeof ReforcoAgendaAuto.finalizarCiclo === 'function') ReforcoAgendaAuto.finalizarCiclo(viva.id, todayLocal());
+      else DB.setConcluidaDia(viva.id, todayLocal(), true);
+    }
     conferir('5-concluida-na-mao');
     const vd = viva ? (banco.find(e => e.id === viva.id) || {}).origemPlano : null;
     notas.push({ passo: 5, encerrada: viva ? viva.titulo : null,
