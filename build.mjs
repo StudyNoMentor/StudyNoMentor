@@ -54,6 +54,7 @@ const PARTES = [
   SEP('\n<style id="ux-v47">\n'), S('css/06-ux-v47.css'),
   SEP('\n</style>\n\n<style id="ux-v48">\n'), S('css/07-ux-v48.css'),
   SEP('\n</style>\n\n<style id="ux-v49">\n'), S('css/08-ux-v49.css'),
+  SEP('\n</style>\n\n<style id="extras-v51">\n'), S('css/09-extras-v51.css'),
   SEP('\n</style>\n\n<script id="app-code" type="application/x-diario-inert">\n'),
   // ── código do app: um único escopo global, na ordem de dependência ──
   [
@@ -87,6 +88,7 @@ const PARTES = [
     'js/52-tela-planejamentos.js',
     'js/53-portao-de-acesso.js',
     'js/54-reforco-fila.js',
+    'js/55-extras-ui-moderna.js',
     'js/60-cloud-store.js',
     'js/61-session-guard.js',
     'js/62-section-sync.js',
