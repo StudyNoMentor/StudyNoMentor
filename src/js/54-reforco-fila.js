@@ -481,6 +481,20 @@ ExtrasScreen.renderEmCurso = function () {
     });
   });
 
+  // O painel em curso mostra também a PARCELA EXECUTÁVEL DE HOJE por assunto.
+  // Isso é somente leitura: não cria agenda, não muda saldo e não conclui nada.
+  host.querySelectorAll('.pl-ciclo-lista > li[data-id]').forEach(li => {
+    const e = DB.getExtra(li.dataset.id);
+    if (!e) return;
+    const q = ReforcoFila.alvoNoDia(e, todayLocal());
+    if (q == null) return;
+    const feitoHoje = ReforcoFila.feitoNoDia(e, todayLocal());
+    const nums = li.querySelector('.pl-ciclo-nums');
+    if (nums && !nums.querySelector('.exc-hoje')) {
+      nums.insertAdjacentHTML('afterbegin', `<span class="exc-hoje" title="Parcela executável desta data."><small>Hoje</small><b>${Math.min(q, feitoHoje)}</b>/${q} q</span>`);
+    }
+  });
+
   const resumo = host.querySelector('.exc-resumo');
   if (resumo) {
     const c = ReforcoFila.cargaDoDia(todayLocal());
@@ -488,8 +502,10 @@ ExtrasScreen.renderEmCurso = function () {
     const globais = ativos.map(e => ReforcoFila.avaliarGlobal(e));
     const feitoGeral = globais.reduce((a, v) => a + Math.max(0, Number(v.feito) || 0), 0);
     const alvoGeral = globais.reduce((a, v) => a + Math.max(0, Number(v.alvo) || 0), 0);
-    resumo.innerHTML = `<span><b>Missão diária</b> · ${c.total} questões em ${c.disciplinas} ${c.disciplinas === 1 ? 'disciplina' : 'disciplinas'}</span>` +
-      ` · <span><b>Missão geral</b> · <b>${feitoGeral}</b>/${alvoGeral} questões</span>`;
+    const pctGeral = alvoGeral > 0 ? Math.min(100, Math.round(feitoGeral / alvoGeral * 100)) : 0;
+    resumo.innerHTML =
+      `<span class="exc-metric exc-metric-day"><small>Missão diária</small><strong>${c.total} questões</strong><em>${c.disciplinas} ${c.disciplinas === 1 ? 'disciplina' : 'disciplinas'}</em></span>` +
+      `<span class="exc-metric exc-metric-all"><small>Missão geral</small><strong>${feitoGeral}/${alvoGeral} questões</strong><em>${pctGeral}% concluído</em></span>`;
   }
   return ret;
 };
