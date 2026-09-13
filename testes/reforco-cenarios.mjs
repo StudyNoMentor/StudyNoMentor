@@ -2,6 +2,8 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import vm from 'node:vm';
 
+// Matriz de regressão do contrato Plano → sugestões → Extras → fila diária.
+// Os cenários abaixo exercitam slots, exclusões, parcial/global e carga por bloco.
 const HOJE = '2026-09-13';
 const prefMem = new Map();
 let tecSnaps = [{ id: 'snap-1' }];
