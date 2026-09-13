@@ -1,0 +1,57 @@
+name: Validar loop de sugestões espaçadas
+
+on:
+  push:
+    branches: [feat/plano-loop-sugestoes-espacadas]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: loop-sugestoes-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  validar:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Aplicar implementação
+        run: |
+          python scripts/tmp-loop-sugestoes.py
+          python scripts/tmp-loop-frescor.py
+      - name: Validar sintaxe
+        run: |
+          node --check src/js/51-tela-desempenho-tec.js
+          node --check src/js/54-reforco-fila.js
+          node --check src/js/55-extras-ui-moderna.js
+      - name: Reconstruir artefatos
+        run: node build.mjs
+      - name: Teste focal do rodízio
+        run: node testes/reforco-fila.mjs
+      - name: Instalar dependências
+        run: npm ci
+      - name: Instalar Chromium
+        run: |
+          npm install --no-save playwright@1.56.1
+          npx playwright install --with-deps chromium
+      - name: Suíte canônica completa
+        run: node verificar.mjs
+      - name: Persistir somente após tudo verde
+        run: |
+          rm -f .github/workflows/tmp-loop-sugestoes.yml scripts/tmp-loop-sugestoes.py scripts/tmp-loop-frescor.py
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/js/51-tela-desempenho-tec.js src/js/54-reforco-fila.js src/js/55-extras-ui-moderna.js src/css/09-extras-v51.css src/html/05-corpo-cont.html testes/reforco-fila.mjs index.html src/manifesto.json sw.js .github/workflows/tmp-loop-sugestoes.yml scripts/tmp-loop-sugestoes.py scripts/tmp-loop-frescor.py
+          if git diff --cached --quiet; then
+            echo "Nada a persistir"
+          else
+            git commit -m "feat: cria ciclo contínuo e espaçado de pontos fracos"
+            git push origin HEAD:feat/plano-loop-sugestoes-espacadas
+          fi
