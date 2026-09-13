@@ -44,6 +44,19 @@ const PlanoPontos = {
   }
 };
 
+const PlanoEngine = {
+  _agrC: { antiga: true },
+  calcular(scoped) {
+    return {
+      idsVistos: DB.getTecSnapshots().map(s => s.id),
+      fontes: scoped && scoped._fontes ? scoped._fontes.map(s => s.id) : []
+    };
+  },
+  ritmoRecente(snaps) {
+    return (snaps || []).map(s => s.id);
+  }
+};
+
 const DesempenhoTecScreen = {
   scopeMode: 'select',
   selectedSnapIds: new Set([1, 3]),
@@ -62,28 +75,23 @@ const DesempenhoTecScreen = {
   render() { return this.selectedSnapIds ? [...this.selectedSnapIds] : null; },
   renderPlano() {
     renderPlano++;
-    return { idsVistos: DB.getTecSnapshots().map(s => s.id), quadro: PlanoPontos.esforcoPorMateria() };
+    return {
+      historicoOperacional: DB.getTecSnapshots().map(s => s.id),
+      ritmo: PlanoEngine.ritmoRecente(DB.getTecSnapshots().slice().reverse()),
+      quadro: PlanoPontos.esforcoPorMateria()
+    };
   },
   renderPlanoConteudo() {
     renderPlano++;
     return {
-      idsVistos: DB.getTecSnapshots().map(s => s.id),
+      historicoOperacional: DB.getTecSnapshots().map(s => s.id),
       calculo: PlanoEngine.calcular({ _fontes: this.activeSnapshots() }, {}),
-      quadro: PlanoPontos.esforcoPorMateria()
+      quadro: PlanoPontos.esforcoPorMateria(),
+      ritmo: PlanoEngine.ritmoRecente(DB.getTecSnapshots().slice().reverse())
     };
   },
   _planoRefC: { r: 1 },
   _fatias: { x: 1 }
-};
-
-const PlanoEngine = {
-  _agrC: { antiga: true },
-  calcular(scoped) {
-    return {
-      idsVistos: DB.getTecSnapshots().map(s => s.id),
-      fontes: scoped && scoped._fontes ? scoped._fontes.map(s => s.id) : []
-    };
-  }
 };
 
 const contexto = vm.createContext({
@@ -118,23 +126,28 @@ const r2 = PlanoEngine.calcular({}, {});
 assert(ids(r2.idsVistos) === ids([2]), 'fallback do motor não respeitou activeSnapshots()');
 
 /* 4) Regressão do bug real: o quadro de matérias fica fora de calcular().
-      Com todos os retratos A vence por 920×51; no escopo [1,3], B vence 50×20. */
+      Com todos os retratos A vence; no escopo [1,3], B deve assumir o topo. */
 DesempenhoTecScreen.selectedSnapIds = new Set([1, 3]);
 const quadroDireto = PlanoPontos.esforcoPorMateria();
 assert(ids(quadroDireto.idsVistos) === ids([1, 3]), 'esforcoPorMateria viu retrato desmarcado');
 assert(quadroDireto.linhas[0].nome === 'B' && quadroDireto.linhas[0].q === 50, 'ranking de matérias ainda incorpora retrato fora do escopo');
 assert(Math.abs(quadroDireto.linhas.find(x => x.nome === 'B').shareEsforco - (50 / 70 * 100)) < 0.001, 'shareEsforco não foi recalculado só no escopo');
+assert(DB.getTecSnapshots().length === 3, 'ranking de matérias vazou o getter escopado');
 
-/* 5) A renderização INTEIRA herda o escopo, não só o motor central. */
+/* 5) A tela preserva duas fronteiras distintas:
+      - motor, ranking e ritmo = escopo ativo;
+      - histórico operacional/auditoria = todos os retratos. */
 const tela = DesempenhoTecScreen.renderPlanoConteudo();
-assert(ids(tela.idsVistos) === ids([1, 3]), 'renderPlanoConteudo começou com histórico global');
-assert(ids(tela.calculo.idsVistos) === ids([1, 3]), 'cálculo interno perdeu o escopo da renderização');
-assert(tela.quadro.linhas[0].nome === 'B', 'quadro Onde atacar primeiro divergiu do escopo na tela');
+assert(ids(tela.historicoOperacional) === ids([1, 2, 3]), 'renderPlanoConteudo escopou indevidamente o histórico operacional');
+assert(ids(tela.calculo.idsVistos) === ids([1, 3]), 'cálculo interno perdeu o escopo da análise');
+assert(tela.quadro.linhas[0].nome === 'B', 'quadro Onde atacar primeiro divergiu do escopo');
+assert(ids(tela.ritmo) === ids([3, 1]), 'ritmo automático ainda considerou retrato desmarcado');
 assert(DB.getTecSnapshots().length === 3, 'getter global não foi restaurado após renderPlanoConteudo');
 
 const telaInicial = DesempenhoTecScreen.renderPlano();
-assert(ids(telaInicial.idsVistos) === ids([1, 3]), 'renderPlano inicial leu histórico global');
+assert(ids(telaInicial.historicoOperacional) === ids([1, 2, 3]), 'renderPlano escopou indevidamente o histórico operacional');
 assert(telaInicial.quadro.linhas[0].nome === 'B', 'renderPlano inicial montou ranking com histórico global');
+assert(ids(telaInicial.ritmo) === ids([3, 1]), 'renderPlano inicial calculou ritmo com histórico global');
 assert(DB.getTecSnapshots().length === 3, 'getter global não foi restaurado após renderPlano');
 
 /* 6) Seleção persistida volta antes do render. */
@@ -144,19 +157,21 @@ const vistosNoRender = DesempenhoTecScreen.render();
 assert(ids(vistosNoRender) === ids([2]), 'selectedSnapIds não foi restaurado antes do render');
 assert(DesempenhoTecScreen.rangeStart === '2026-08-01' && DesempenhoTecScreen.rangeEnd === '2026-08-31', 'intervalo persistido não foi restaurado');
 
-/* 7) O clique de ritmo medido recebe o getter escopado durante o listener
-      original e o getter é devolvido no microtask seguinte. */
+/* 7) O clique de "ritmo medido" escopa só ritmoRecente; o DB continua global. */
 DesempenhoTecScreen.scopeMode = 'select';
 DesempenhoTecScreen.selectedSnapIds = new Set([1, 3]);
 const ritmoBtn = {
   id: 'plano-ritmo-medido',
-  closest(sel) { return sel === '#plano-ritmo-medido' ? this : this; },
+  closest(sel) { return sel === '#plano-ritmo-medido' ? this : null; },
   matches() { return false; }
 };
 listeners.clickCapture.forEach(fn => fn({ target: ritmoBtn }));
-assert(ids(DB.getTecSnapshots().map(s => s.id)) === ids([1, 3]), 'clique de ritmo medido ainda vê histórico global');
+assert(ids(DB.getTecSnapshots().map(s => s.id)) === ids([1, 2, 3]), 'clique de ritmo alterou indevidamente o getter global');
+const ritmoClique = PlanoEngine.ritmoRecente(DB.getTecSnapshots().slice().reverse());
+assert(ids(ritmoClique) === ids([3, 1]), 'clique de ritmo medido ainda usa retrato desmarcado');
 await Promise.resolve();
-assert(DB.getTecSnapshots().length === 3, 'getter global não foi restaurado após clique de ritmo');
+const ritmoDepois = PlanoEngine.ritmoRecente(DB.getTecSnapshots().slice().reverse());
+assert(ids(ritmoDepois) === ids([3, 2, 1]), 'ritmoRecente não foi restaurado após o clique');
 
 /* 8) Atalhos de intervalo também persistem/invalida/recalculam o Plano. */
 DesempenhoTecScreen.scopeMode = 'range';
@@ -173,4 +188,4 @@ await Promise.resolve();
 assert(ultimoSalvo && ultimoSalvo.rangeStart === '2026-09-01' && ultimoSalvo.rangeEnd === '2026-09-07', 'atalho de intervalo não persistiu o novo recorte');
 assert(renderPlano > antesRender, 'atalho de intervalo não recalculou o Plano visível');
 
-console.log('OK: Plano TEC usa o mesmo escopo em motor, ranking de matérias, renderização, ritmo e atalhos.');
+console.log('OK: Plano TEC escopa motor, ranking e ritmo sem contaminar auditoria/atividades.');
