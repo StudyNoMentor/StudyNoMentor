@@ -1,0 +1,48 @@
+name: Validacao temporaria Plano pos-hardening
+
+on:
+  push:
+    branches: [fix/plano-regressoes-pos-hardening]
+    paths:
+      - 'scripts/tmp-fix-plano-regressoes.py'
+      - '.github/workflows/tmp-fix-plano-regressoes.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: tmp-plano-regressoes-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  aplicar-validar:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: fix/plano-regressoes-pos-hardening
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Aplicar correcoes
+        run: python3 scripts/tmp-fix-plano-regressoes.py
+      - name: Reconstruir artefatos
+        run: node build.mjs
+      - name: Instalar dependencias e Chromium
+        run: |
+          npm ci
+          npm install --no-save playwright@1.56.1
+          npx playwright install --with-deps chromium
+      - name: Rodar suite canonica completa
+        run: node verificar.mjs
+      - name: Persistir somente se tudo passar
+        run: |
+          git config user.name 'StudyNoMentor'
+          git config user.email 'jairo258@hotmail.com'
+          git add src/js/51-tela-desempenho-tec.js index.html src/manifesto.json sw.js
+          if ! git diff --cached --quiet; then
+            git commit -m 'fix: restaura escopo e invariantes estatisticas do plano'
+            git push origin HEAD:fix/plano-regressoes-pos-hardening
+          fi
