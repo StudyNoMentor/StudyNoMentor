@@ -44,8 +44,9 @@ vm.createContext(contexto);
 vm.runInContext(agenda,contexto,{filename:'51b-reforco-agenda-auto.js'});
 const A=contexto.ReforcoAgendaAuto;
 a(A&&A.maxPorDia===3&&A.maxSessao===15,'API da agenda automática não subiu');
-a(JSON.stringify([...A.dividir(17)])===JSON.stringify([9,8]),'17q não foi balanceado em 9+8');
-a(JSON.stringify([...A.dividir(25)])===JSON.stringify([13,12]),'25q não foi balanceado em 13+12');
+a(JSON.stringify([...A.dividir(17)])===JSON.stringify([15,2]),'17q foi pulverizado em vez de 15+2');
+a(JSON.stringify([...A.dividir(25)])===JSON.stringify([15,10]),'25q foi pulverizado em vez de 15+10');
+a(JSON.stringify([...A.dividir(44)])===JSON.stringify([15,15,14]),'44q não consumiu blocos cheios em sequência');
 a(A.dividir(31).every(n=>n<=15),'sessão passou de 15q');
 
 const mod=A.planejarModelo([
@@ -68,14 +69,14 @@ Object.entries(mod.ocupacao).forEach(([dia,itens])=>{
 a((mod.porDia[HOJE]||[]).length===3,'primeiro dia não recebeu o rodízio de 3 disciplinas');
 
 // Caso relatado pelo usuário: 8/25 feitos, fecha a sessão parcial de 13.
-// O pai DEVE ficar ativo e as 17 restantes devem virar 9+8 nos dias seguintes.
+// O pai DEVE ficar ativo e as 17 restantes devem virar 15+2 nos dias seguintes.
 contexto.DB.setConcluidaDia('p1',HOJE,true);
 const p=banco[0];
 a(p.status==='ativa','fechar sessão parcial encerrou o ciclo-pai');
 a(chamadasGlobais===0,'sessão parcial caiu no encerramento global legado');
 a((p.concluidasEm||[]).includes(HOJE),'sessão concluída não ficou registrada no dia');
 const futuras=Object.entries(p.origemPlano.agendaAuto.sessoes).filter(([d,s])=>d>HOJE&&s.estado==='planejada').map(([,s])=>s.alvo);
-a(JSON.stringify(futuras)===JSON.stringify([9,8]),'restante 17q não foi redistribuído em 9+8');
+a(JSON.stringify(futuras)===JSON.stringify([15,2]),'restante 17q não foi empurrado em bloco cheio 15+2');
 a(futuras.reduce((x,y)=>x+y,0)===17,'replanejamento não preservou exatamente o restante do ciclo');
 
 // Três frentes da MESMA disciplina precisam se espalhar, não furar a diversidade.
@@ -86,4 +87,4 @@ const mesma=A.planejarModelo([
 ],HOJE);
 a(Object.values(mesma.ocupacao).every(v=>v.length<=1),'mesma disciplina foi empilhada no mesmo dia');
 
-console.log('OK: Atividades Extras — sessão parcial preserva o ciclo, redistribui o restante e mantém rodízio de até 3 disciplinas.');
+console.log('OK: Atividades Extras — 3 focos em rodízio, bloco cheio, saldo no próximo dia e ciclo preservado.');

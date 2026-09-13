@@ -57,7 +57,7 @@
      novo, e o antigo é descartado sozinho na ativação) e o que permite ao app
      dizer qual versão está rodando. Em src/ fica "dev" de propósito: a versão
      é gerada na montagem, não editada à mão. -->
-<meta name="diario-versao" content="vfda24cfa9a">
+<meta name="diario-versao" content="v57cc458495">
 <script>
 /* ── ARRANQUE: abre o IndexedDB AGORA, em paralelo com o parse do documento ──
    A fachada de armazenamento vive no fim do <body>, depois de ~1,7 MB de HTML.
@@ -40349,8 +40349,8 @@ window.addEventListener('screen:activated', (e) => {
    - no máximo 3 reforços do Plano por dia;
    - sempre que possível, 3 disciplinas diferentes;
    - uma mesma frente nunca aparece duas vezes no mesmo dia;
-   - sessão de até 15 questões, dividida de forma equilibrada (17 => 9+8,
-     não 15+2; 25 => 13+12);
+   - sessão de até 15 questões em BLOCO CHEIO: 17 => 15+2 e 25 => 15+10;
+     não pulveriza a força-tarefa em vários dias de 7 ou 8 questões;
    - uma continuação tenta compartilhar o próximo dia com outro reforço, sem
      atrasar mais de 2 dias só para agrupar;
    - sessão parcial fechada vira fato histórico e o RESTANTE é redistribuído;
@@ -40388,17 +40388,19 @@ window.addEventListener('screen:activated', (e) => {
   const historicoDia = (e, dia) => (e && e.historico || []).filter(h => h.data === dia)
     .reduce((a, h) => a + (Number(h.quantidade) || 0), 0);
 
-  /* Divide SEM criar rabicho inútil. O objetivo é produzir blocos comparáveis,
-     bons para alternância e para leitura do resultado do ciclo. */
+  /* Força-tarefa: usa a capacidade diária antes de abrir outro dia.
+     O saldo — mesmo pequeno — fica para a próxima passagem do rodízio. Isso
+     evita transformar 25q em 13+12 ou 17q em 9+8 só para "embelezar" a agenda. */
   function dividir(restante, teto) {
     restante = inteiro(restante, 0);
     teto = Math.max(1, inteiro(teto, MAX_SESSAO));
-    if (!restante) return [];
-    const n = Math.max(1, Math.ceil(restante / teto));
-    const base = Math.floor(restante / n), sobra = restante % n;
     const out = [];
-    for (let i = 0; i < n; i++) out.push(base + (i < sobra ? 1 : 0));
-    return out.filter(Boolean);
+    while (restante > 0) {
+      const bloco = Math.min(teto, restante);
+      out.push(bloco);
+      restante -= bloco;
+    }
+    return out;
   }
 
   function diaValido(ocupacao, dia, tarefa, maxPorDia) {
