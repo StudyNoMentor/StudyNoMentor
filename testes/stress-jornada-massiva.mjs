@@ -68,7 +68,7 @@ try {
   });
 
   await page.goto(base, { waitUntil: 'domcontentloaded', timeout: 30000 });
-  await page.waitForFunction(() => window.DB && window.ExtrasScreen && window.PlanoEngine && window.PlanoCiclo && window.ReforcoAgendaAuto, null, { timeout: 30000 });
+  await page.waitForFunction(() => typeof DB !== 'undefined' && typeof ExtrasScreen !== 'undefined' && typeof PlanoEngine !== 'undefined' && typeof PlanoCiclo !== 'undefined' && !!window.ReforcoAgendaAuto, null, { timeout: 30000 });
   await page.addScriptTag({ path: join(RAIZ, 'test', 'jornada-dados.js') });
   await page.evaluate(() => { try { ProfileUI.hideGate(); } catch (_) {} });
 
@@ -266,11 +266,17 @@ try {
       A(futuro.reduce((n,q)=>n+q,0) === Math.max(0,e0.alvo-e0.progresso), 'saldo da sessão parcial não foi conservado', { futuro, progresso:e0.progresso, alvo:e0.alvo });
       A(eq(futuro, ReforcoAgendaAuto.dividir(Math.max(0,e0.alvo-e0.progresso),15)), 'saldo parcial foi pulverizado em vez de blocos cheios', { futuro });
     }
+    e1=DB.getExtra(onda1[1]); e2=DB.getExtra(onda1[2]);
+    if (e1 && e2) {
+      const s1=e1.origemPlano&&e1.origemPlano.agendaAuto&&e1.origemPlano.agendaAuto.sessoes&&e1.origemPlano.agendaAuto.sessoes[hoje];
+      const s2=e2.origemPlano&&e2.origemPlano.agendaAuto&&e2.origemPlano.agendaAuto.sessoes&&e2.origemPlano.agendaAuto.sessoes[hoje];
+      A(!!s1 && !!s2, 'fechar uma sessão removeu as outras frentes do rodízio de hoje', {e1:!!s1,e2:!!s2});
+    }
     if (e1) {
       const s=e1.origemPlano.agendaAuto.sessoes[hoje];
       if (s) DB.addExtraProgress(e1.id,s.alvo,25,{data:hoje,acertos:Math.max(0,s.alvo-3)});
       e1=DB.getExtra(e1.id);
-      A(DB.extraConcluidaEm(e1,hoje), 'sessão que atingiu o bloco não foi fechada automaticamente', { alvo:s&&s.alvo, hist:histDia(e1,hoje) });
+      A(DB.extraConcluidaEm(e1,hoje), 'sessão que atingiu o bloco não foi fechada automaticamente', { alvo:s&&s.alvo, hist:histDia(e1,hoje), status:e1.status, concluidasEm:e1.concluidasEm, sessao:e1.origemPlano&&e1.origemPlano.agendaAuto&&e1.origemPlano.agendaAuto.sessoes&&e1.origemPlano.agendaAuto.sessoes[hoje] });
     }
     if (e2) {
       // Encena uma sessão de ontem sem qualquer registro: deve sumir como dívida.
@@ -388,7 +394,7 @@ try {
   /* ── 9. RELOAD REAL: o estado tem de voltar idêntico ─────────────────── */
   await page.setViewportSize({ width: 1280, height: 900 });
   await page.reload({ waitUntil:'domcontentloaded', timeout:30000 });
-  await page.waitForFunction(() => window.DB && window.ExtrasScreen && window.ReforcoAgendaAuto, null, { timeout:30000 });
+  await page.waitForFunction(() => typeof DB !== 'undefined' && typeof ExtrasScreen !== 'undefined' && !!window.ReforcoAgendaAuto, null, { timeout:30000 });
   await page.evaluate(()=>{try{ProfileUI.hideGate();}catch(_){}});
   await page.waitForTimeout(700); // dá tempo à fachada IndexedDB para hidratar
   const apos=await page.evaluate(()=>{
