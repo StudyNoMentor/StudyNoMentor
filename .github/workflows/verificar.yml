@@ -9,6 +9,7 @@
 #   · a suite AutoTeste (FSRS, fuzz, agendador, parser TEC...) regredir;
 #   · o reforco adaptativo produzir dose ou parada estatisticamente invalida;
 #   · modais de Extras voltarem a se sobrepor ou a ativacao adaptativa travar;
+#   · Desempenho TEC -> Plano voltar a congelar em perfis grandes;
 #   · o botao "Opcoes" da Grade voltar a vazar do cabecalho.
 name: Verificacao
 
@@ -74,6 +75,12 @@ jobs:
       # TEC escondido. Se voltar a travar ou abrir atras, o PR falha aqui.
       - name: Validar modais e ativacao adaptativa no navegador
         run: node testes/extras-estabilidade-browser.mjs
+
+      # Perfil sintetico propositalmente grande: 10 materias, 1.000 topicos e
+      # 8 retratos. Cobra resposta imediata do clique, primeira abertura e
+      # reabertura do Plano para impedir a volta de congelamentos de varios segundos.
+      - name: Validar fluidez do Plano TEC
+        run: node testes/tec-plano-performance-browser.mjs
 
       - name: Verificar
         run: node verificar.mjs

@@ -15,9 +15,19 @@ assert.ok(deco, 'decorarPlano otimizado deve existir');
 assert.equal((deco[1].match(/PlanoEngine\.calcular/g)||[]).length, 0, 'decorarPlano não pode recalcular o Plano por card');
 assert.match(deco[1], /new Map\(\)/, 'lookup dos tópicos deve ser indexado');
 
-const z = [...css.matchAll(/\.(xsc|rg|ra)-overlay\{z-index:(\d+)\}/g)].map(m=>[m[1],Number(m[2])]);
-assert.deepEqual(z, [['xsc',100200],['rg',100300],['ra',100400]], 'fallback de camadas deve ser crescente');
+/* Contrato novo: Extras ocupa somente a faixa de modal do design system. O
+   z-index é derivado da pilha PRESENTE, não de um contador que cresce a cada
+   abertura, portanto nunca ultrapassa toast ou bloqueio global por deriva. */
+assert.match(css, /--z-extras-modal:calc\(var\(--z-modal,1500\) \+ 20\)/, 'fallback deve derivar do token global de modal');
+assert.doesNotMatch(css, /z-index:100\d{3,}/, 'Extras não pode usar camada arbitrária acima de bloqueios globais');
+assert.match(js, /base:\s*1520/, 'pilha dinâmica deve iniciar dentro da faixa de modal');
+assert.match(js, /this\.base\+i\*20/, 'z-index deve depender apenas da posição atual na pilha');
+assert.doesNotMatch(js, /base:\s*200000/, 'pilha não pode ficar acima de toast/sessão');
+assert.match(js, /e\.key!==['"]Tab['"]/, 'Tab deve ser aprisionado no modal superior');
+assert.match(js, /focusin/, 'foco externo deve voltar ao modal superior');
+assert.match(js, /paddingRight/, 'bloqueio de scroll deve compensar a barra para não deslocar layout');
 assert.match(css, /100dvh/, 'modais mobile devem usar viewport dinâmica');
 assert.match(css, /extras-modal-open/, 'scroll do fundo deve ser bloqueado com modal aberto');
+assert.match(css, /safe-area-inset/, 'modais devem respeitar safe areas do dispositivo');
 
-console.log('OK: estabilidade de Extras — pilha de modais, layout e performance adaptativa protegidos.');
+console.log('OK: estabilidade de Extras — pilha de modais, foco, layout e performance adaptativa protegidos.');
