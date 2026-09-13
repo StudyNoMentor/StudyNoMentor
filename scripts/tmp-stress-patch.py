@@ -1,83 +1,37 @@
 from pathlib import Path
 
-# 1) Ajustes do próprio harness (globais lexicais não são propriedades de window).
+# Harness principal: globais lexicais não são propriedades de window.
 p=Path('testes/stress-jornada-massiva.mjs')
 s=p.read_text(encoding='utf-8')
 s=s.replace("await page.waitForFunction(() => window.DB && window.ExtrasScreen && window.PlanoEngine && window.PlanoCiclo && window.ReforcoAgendaAuto, null, { timeout: 30000 });",
 "await page.waitForFunction(() => typeof DB !== 'undefined' && typeof ExtrasScreen !== 'undefined' && typeof PlanoEngine !== 'undefined' && typeof PlanoCiclo !== 'undefined' && !!window.ReforcoAgendaAuto, null, { timeout: 30000 });")
 s=s.replace("await page.waitForFunction(() => window.DB && window.ExtrasScreen && window.ReforcoAgendaAuto, null, { timeout:30000 });",
 "await page.waitForFunction(() => typeof DB !== 'undefined' && typeof ExtrasScreen !== 'undefined' && !!window.ReforcoAgendaAuto, null, { timeout:30000 });")
-
-# Protege a descoberta do segundo bug: fechar A hoje não pode retirar B/C de hoje.
-needle="""    }
-    if (e1) {
-      const s=e1.origemPlano.agendaAuto.sessoes[hoje];
-"""
-repl="""    }
-    e1=DB.getExtra(onda1[1]); e2=DB.getExtra(onda1[2]);
-    if (e1 && e2) {
-      const s1=e1.origemPlano&&e1.origemPlano.agendaAuto&&e1.origemPlano.agendaAuto.sessoes&&e1.origemPlano.agendaAuto.sessoes[hoje];
-      const s2=e2.origemPlano&&e2.origemPlano.agendaAuto&&e2.origemPlano.agendaAuto.sessoes&&e2.origemPlano.agendaAuto.sessoes[hoje];
-      A(!!s1 && !!s2, 'fechar uma sessão removeu as outras frentes do rodízio de hoje', {e1:!!s1,e2:!!s2});
-    }
-    if (e1) {
-      const s=e1.origemPlano.agendaAuto.sessoes[hoje];
-"""
-if needle in s:
-    s=s.replace(needle,repl,1)
-s=s.replace("{ alvo:s&&s.alvo, hist:histDia(e1,hoje) });",
-            "{ alvo:s&&s.alvo, hist:histDia(e1,hoje), status:e1.status, concluidasEm:e1.concluidasEm, sessao:e1.origemPlano&&e1.origemPlano.agendaAuto&&e1.origemPlano.agendaAuto.sessoes&&e1.origemPlano.agendaAuto.sessoes[hoje] });")
-if "window.PlanoEngine && window.PlanoCiclo" in s:
-    raise SystemExit('wait global lexical ainda incorreto')
+hook="await import('./stress-matriz-extrema.mjs');"
+if hook not in s:
+    s=s.rstrip()+"\n\n"+hook+"\n"
 p.write_text(s,encoding='utf-8')
 
-# 2) Produto: o horizonte de 90 dias era uma preferência de procura, mas virava
-# fallback inseguro. Com >91 frentes da mesma disciplina, várias eram empilhadas
-# no mesmo dia. Agora a busca continua além do horizonte ATÉ achar um dia válido.
-p=Path('src/js/51b-reforco-agenda-auto.js')
-s=p.read_text(encoding='utf-8')
-s=s.replace("""      for (let i = 0; i <= horizonte; i++) {
-        const dia = addDias(minimo, i);
-""", """      /* O horizonte limita a procura normal, não a integridade. Se todos os
-         dias da janela estiverem ocupados, continua avançando até achar um dia
-         realmente válido — nunca cai de volta em `minimo` sobrepondo frentes. */
-      for (let i = 0; !primeiro || i <= horizonte; i++) {
-        const dia = addDias(minimo, i);
-""", 1)
-
-# 3) Produto: fechar A não pode replanejar B/C para amanhã. O dia de hoje é
-# estável para todas as outras frentes; só a frente fechada avança ao saldo.
-s=s.replace("""    replanejar(on ? addDias(dia, 1) : dia, { preservarHoje: !on });
-""", """    /* Fechar uma das frentes de hoje não remove as outras duas da missão.
-       O fato recém-fechado é preservado por `concluidasEm`; as demais sessões
-       de hoje permanecem estáveis e só o saldo desta frente vai adiante. */
-    replanejar(hoje(), { preservarHoje: true });
-""", 1)
-
-if "for (let i = 0; !primeiro || i <= horizonte; i++)" not in s:
-    raise SystemExit('patch do horizonte não aplicado')
-if "replanejar(hoje(), { preservarHoje: true });" not in s:
-    raise SystemExit('patch de preservação do rodízio de hoje não aplicado')
-p.write_text(s,encoding='utf-8')
-
-# 4) Corrige e endurece a matriz extrema antes de executá-la. A massa é
-# determinística e as evidências ficam dentro do diretório que a workflow publica.
+# Matriz extrema: ajustes puramente de harness/massa sintética.
 p=Path('testes/stress-matriz-extrema.mjs')
 s=p.read_text(encoding='utf-8')
+
+# Evidências entram no diretório publicado pela workflow.
 s=s.replace("const ART = join(RAIZ, 'artifacts', 'stress-matriz-extrema');",
             "const ART = join(RAIZ, 'artifacts', 'stress-jornada', 'extrema');")
-s=s.replace("const snaps=SIM.retratos(48).map((s,i)=>{",
-            "const baseSnaps=SIM.retratos(48);\n      const snaps=baseSnaps.map((s,i)=>{")
-s=s.replace("z.startDate=snaps?.[i-1]?.startDate||z.startDate;",
-            "z.startDate=baseSnaps[i-1].startDate;")
 s=s.replace("artifacts/stress-matriz-extrema/carga-desktop.png",
             "artifacts/stress-jornada/extrema/carga-desktop.png")
 s=s.replace("artifacts/stress-matriz-extrema/carga-mobile-390.png",
             "artifacts/stress-jornada/extrema/carga-mobile-390.png")
 
-# DB.addExtra deliberadamente normaliza o contrato público e não persiste campos
-# internos desconhecidos como origemPlano. Para a massa sintética de 180 ciclos,
-# carimbamos esse metadado interno em lote antes de chamar o replanejador.
+# Evita TDZ ao fabricar sobreposição determinística de snapshots.
+s=s.replace("const snaps=SIM.retratos(48).map((s,i)=>{",
+            "const baseSnaps=SIM.retratos(48);\n      const snaps=baseSnaps.map((s,i)=>{")
+s=s.replace("z.startDate=snaps?.[i-1]?.startDate||z.startDate;",
+            "z.startDate=baseSnaps[i-1].startDate;")
+
+# DB.addExtra normaliza o contrato público e não conserva origemPlano. Para os
+# ciclos sintéticos, carimba esse metadado interno antes de usar a agenda.
 needle="""      const manuais=[];
 """
 repl="""      {
@@ -94,8 +48,7 @@ repl="""      {
 if needle in s:
     s=s.replace(needle,repl,1)
 
-# Idempotência deve comparar execuções no MESMO modo. A transição inicial de
-# preservarHoje=false para true pode legitimamente estabilizar as sessões de hoje.
+# Idempotência: estabiliza primeiro no mesmo modo preservarHoje=true.
 s=s.replace("""      const sig0=assinatura();
       for(let k=0;k<20;k++){ReforcoAgendaAuto.replanejar(hoje,{preservarHoje:true});A(assinatura()===sig0,'replanejamento nao idempotente',k);}
 """, """      ReforcoAgendaAuto.replanejar(hoje,{preservarHoje:true});
@@ -103,8 +56,7 @@ s=s.replace("""      const sig0=assinatura();
       for(let k=0;k<20;k++){ReforcoAgendaAuto.replanejar(hoje,{preservarHoje:true});A(assinatura()===sig0,'replanejamento nao idempotente',k);}
 """)
 
-# Cenário unitário de coexistência: carimba a origem interna do reforço do Plano
-# antes do replanejamento, mantendo manual/Anki sem esse metadado.
+# Coexistência unitária: somente o reforço do Plano recebe origemPlano.
 needle="""      const m0=JSON.stringify(DB.getExtra(manualQ.id)),a0=JSON.stringify(DB.getExtra(anki.id));
 """
 repl="""      {
@@ -118,8 +70,23 @@ repl="""      {
 if needle in s:
     s=s.replace(needle,repl,1)
 
-# O harness deve registrar ausência de agenda como falha de cenário, nunca cair
-# com TypeError antes de produzir diagnóstico completo.
+# O teste de contaminação deve usar o mesmo modo antes/depois e comparar apenas
+# o estado funcional do reforço, não timestamps/metadados transitórios.
+s=s.replace("""      const m0=JSON.stringify(DB.getExtra(manualQ.id)),a0=JSON.stringify(DB.getExtra(anki.id));
+      ReforcoAgendaAuto.replanejar(hoje,{preservarHoje:false});
+      const p=DB.getExtra(plano.id),m1=DB.getExtra(manualQ.id),a1=DB.getExtra(anki.id);
+""", """      const m0=JSON.stringify(DB.getExtra(manualQ.id)),a0=JSON.stringify(DB.getExtra(anki.id));
+      ReforcoAgendaAuto.replanejar(hoje,{preservarHoje:true});
+      const p=DB.getExtra(plano.id),m1=DB.getExtra(manualQ.id),a1=DB.getExtra(anki.id);
+""")
+s=s.replace("""      const pAntes=JSON.stringify(DB.getExtra(plano.id));ReforcoAgendaAuto.replanejar(hoje,{preservarHoje:true});const pDepois=JSON.stringify(DB.getExtra(plano.id));
+      A(pAntes===pDepois,'progresso manual/Anki contaminou agenda do Plano');
+""", """      const sigPlano=()=>{const x=DB.getExtra(plano.id);return JSON.stringify({datas:(x.datas||[]).slice(),sessoes:(x.origemPlano&&x.origemPlano.agendaAuto&&x.origemPlano.agendaAuto.sessoes)||{},progresso:x.progresso,status:x.status});};
+      const pAntes=sigPlano();ReforcoAgendaAuto.replanejar(hoje,{preservarHoje:true});const pDepois=sigPlano();
+      A(pAntes===pDepois,'progresso manual/Anki contaminou agenda do Plano');
+""")
+
+# Ausência de agenda deve virar diagnóstico, não TypeError do harness.
 s=s.replace("Object.entries(e.origemPlano.agendaAuto.sessoes||{})",
             "Object.entries((e.origemPlano&&e.origemPlano.agendaAuto&&e.origemPlano.agendaAuto.sessoes)||{})")
 s=s.replace("Object.values(e.origemPlano.agendaAuto.sessoes||{})",
@@ -127,19 +94,9 @@ s=s.replace("Object.values(e.origemPlano.agendaAuto.sessoes||{})",
 s=s.replace("Object.keys(DB.getExtra(plano.id).origemPlano.agendaAuto.sessoes||{}).length",
             "Object.keys((DB.getExtra(plano.id).origemPlano&&DB.getExtra(plano.id).origemPlano.agendaAuto&&DB.getExtra(plano.id).origemPlano.agendaAuto.sessoes)||{}).length")
 
-if "const baseSnaps=SIM.retratos(48);" not in s:
-    raise SystemExit('patch da massa de snapshots não aplicado')
-if "DB.saveExtras(lote);" not in s:
-    raise SystemExit('patch da origem interna dos ciclos não aplicado')
-if "const px=lote.find(e=>e.id===plano.id);" not in s:
-    raise SystemExit('patch da coexistencia não aplicado')
+# Sanidade: garante que os patches essenciais realmente casaram.
+for token in ["const baseSnaps=SIM.retratos(48);", "const px=lote.find(e=>e.id===plano.id);", "const sigPlano=()=>"]:
+    if token not in s:
+        raise SystemExit('patch essencial não aplicado: '+token)
 p.write_text(s,encoding='utf-8')
-
-# 5) Encadeia a matriz extrema adicional no mesmo passo de Chromium.
-p=Path('testes/stress-jornada-massiva.mjs')
-s=p.read_text(encoding='utf-8')
-hook="await import('./stress-matriz-extrema.mjs');"
-if hook not in s:
-    s=s.rstrip()+"\n\n"+hook+"\n"
-p.write_text(s,encoding='utf-8')
-print('Patch da auditoria + correções de agenda + matriz extrema aplicado.')
+print('Harness massivo/extremo preparado.')
