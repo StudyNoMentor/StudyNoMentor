@@ -57,7 +57,7 @@
      novo, e o antigo é descartado sozinho na ativação) e o que permite ao app
      dizer qual versão está rodando. Em src/ fica "dev" de propósito: a versão
      é gerada na montagem, não editada à mão. -->
-<meta name="diario-versao" content="ve7f7a61306">
+<meta name="diario-versao" content="v4150c3e980">
 <script>
 /* ── ARRANQUE: abre o IndexedDB AGORA, em paralelo com o parse do documento ──
    A fachada de armazenamento vive no fim do <body>, depois de ~1,7 MB de HTML.
@@ -40109,7 +40109,7 @@ window.addEventListener('screen:activated', (e) => {
     };
   }
 
-  window.PlanoExecucaoReal = {
+  globalThis.PlanoExecucaoReal = {
     versao: 2,
     maxCiclo: MAX_CICLO,
     maxSessao: MAX_SESSAO,
@@ -40131,16 +40131,6 @@ window.addEventListener('screen:activated', (e) => {
       x.custoEstimadoQ = e.custoEstimadoQ;
       x.qMedirAlvo = e.qMedirAlvo;
       x.faltaMedir = e.faltaMedir;
-      if (motivo !== 'diagnostico' && x.status && x.taxa != null && x.taxa < n(p.metaDominio, 85)) {
-        const critico = x.taxa < n(p.faixaCritico, 50);
-        const fragil = !critico && x.taxa < n(p.faixaFragil, 65);
-        x.status.ordem = critico
-          ? `Teoria primeiro; depois uma sessão de até ${e.sessao} questões. Ciclo: ${e.ciclo} questões.`
-          : `Faça até ${e.sessao} questões nesta sessão. Ciclo: ${e.ciclo} questões, alternando as matérias.`;
-        x.status.acao = critico
-          ? `Retome a teoria deste assunto antes de insistir em volume. Depois faça blocos de até ${e.sessao} questões, revise os erros e alterne para outra disciplina. O ciclo fecha com ${e.ciclo} novas questões e então você reavalia; não precisa perseguir de uma vez nem a amostra estatística${e.qMedirAlvo ? ` de ${e.qMedirAlvo}` : ''} nem o custo estimado${e.custoEstimadoQ ? ` de ${e.custoEstimadoQ}` : ''}.`
-          : `${fragil ? 'Vá pelo caminho do erro: faça o bloco, revise só o que errou e siga para outra disciplina.' : 'Use o bloco para confirmar os pontos frágeis e revise apenas os erros.'} Sessões de até ${e.sessao} questões; ciclo curto de ${e.ciclo}. ${e.qMedirAlvo ? `A amostra de ${e.qMedirAlvo} questões é uma referência estatística TOTAL, construída ao longo de vários ciclos — não uma tarefa para hoje.` : ''}`;
-      }
       return x;
     };
     (r.itens || []).forEach(x => decorar(x, 'reforco'));
@@ -40190,7 +40180,7 @@ window.addEventListener('screen:activated', (e) => {
         let v = avaliarAnterior.apply(this, arguments);
         try {
           const o = extra && extra.origemPlano;
-          if (v && extra && extra.status !== 'concluida' && o && !o.modeloExecucao && (v.feito || 0) === 0) {
+          if (v && extra && extra.status !== 'concluida' && o && !o.modeloExecucao && (v.feito || 0) === 0 && Number(extra.alvo) > MAX_CICLO * 4) {
             const e = execucao({ taxa: v.taxa != null ? v.taxa : o.taxaInicial, qJanela: 0, custoQ: Number(extra.alvo) || 0 }, o.motivo || 'reforco');
             const novoO = Object.assign({}, o, {
               modeloExecucao: 2,
@@ -40295,12 +40285,6 @@ window.addEventListener('screen:activated', (e) => {
           p.textContent = 'Este é o acompanhamento acumulado. A atividade que aparece abaixo na Missão do dia é a mesma: o que você registra hoje soma neste ciclo.';
           head.insertAdjacentElement('afterend', p);
         }
-        const ritmo = document.querySelector('#extras-curso .exc-kpi-ritmo');
-        const itens = PC && typeof PC.emCurso === 'function' && EX._planoRefOperacional ? PC.emCurso(EX._planoRefOperacional()) : [];
-        if (ritmo && itens && itens.length) {
-          const ds = new Set(itens.map(v => String((v.origem && v.origem.disciplina) || 'Sem disciplina'))).size;
-          ritmo.innerHTML = `<b>rodízio ${ds} mat.</b><span> · ≤${MAX_SESSAO}q/sessão</span>`;
-        }
         const sub = document.querySelector('#extras-agenda .cal-card .card-header .sub');
         if (sub) sub.textContent = 'Aqui você registra a sessão do dia. Nas atividades do Plano, este registro alimenta o mesmo ciclo mostrado em “Ciclos de reforço” — não é uma segunda tarefa.';
         document.querySelectorAll('#extras-list .exd[data-id]').forEach(card => {
@@ -40344,6 +40328,25 @@ window.addEventListener('screen:activated', (e) => {
     });
     document.querySelectorAll('.plm-amostra span').forEach(s => {
       if (s.textContent.indexOf('q p/ medir') >= 0) s.textContent = s.textContent.replace('q p/ medir', 'faltam p/ amostra');
+    });
+    /* O motor mantém a formula estatística intacta. Só a APRESENTAÇÃO deixa de
+       transformar uma amostra grande em ordem para uma única sessão. */
+    document.querySelectorAll('.pl-direcao span:last-child, .pl-guia-acao').forEach(el => {
+      el.textContent = String(el.textContent || '').replace(/\b(\d+)\s+questões\b/g, (m, q) =>
+        Number(q) > MAX_CICLO ? `uma amostra de ${q} questões acumuladas em vários ciclos` : m);
+    });
+    document.querySelectorAll('.pl-base').forEach(el => {
+      const txt = String(el.textContent || '');
+      if (txt.indexOf('Para a próxima medição') >= 0 && !el.querySelector('.pl-exec-nota')) {
+        const nota = document.createElement('span'); nota.className = 'pl-exec-nota';
+        nota.textContent = ` Não faça essa amostra de uma vez: acumule-a em ciclos de até ${MAX_CICLO} questões, alternando matérias.`;
+        el.appendChild(nota);
+      }
+      if (txt.indexOf('Custo estimado de') === 0 && !el.querySelector('.pl-exec-nota')) {
+        const nota = document.createElement('span'); nota.className = 'pl-exec-nota';
+        nota.textContent = ` Este número serve para comparar esforço; a atividade prática usa ciclo de até ${MAX_CICLO} questões.`;
+        el.appendChild(nota);
+      }
     });
     document.querySelectorAll('[data-info]').forEach(el => {
       const txt = el.getAttribute('data-info') || '';
