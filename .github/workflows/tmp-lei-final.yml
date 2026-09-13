@@ -1,0 +1,47 @@
+name: Validar lei seca final
+on:
+  push:
+    branches:
+      - feat/lei-seca-rodizio-perf-extras
+permissions:
+  contents: write
+jobs:
+  validar:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - name: Incluir camada no montador
+        run: |
+          grep -q "js/57-extras-lei-fonte.js" build.mjs || sed -i "/'js\/56-leis-rodizio.js',/a\\    'js/57-extras-lei-fonte.js'," build.mjs
+      - name: Validar sintaxe e cenarios focais
+        run: |
+          node --check src/js/56-leis-rodizio.js
+          node --check src/js/57-extras-lei-fonte.js
+          node testes/lei-rodizio-perf.mjs
+          node testes/reforco-fila.mjs
+          node testes/reforco-cenarios.mjs
+      - name: Reconstruir artefatos
+        run: |
+          node build.mjs
+          node build.mjs --check
+      - name: Instalar dependencias
+        run: npm ci --ignore-scripts
+      - name: Instalar Chromium
+        run: npx playwright install --with-deps chromium
+      - name: Suite canonica completa
+        run: node verificar.mjs
+      - name: Persistir se tudo verde
+        run: |
+          rm -f .github/workflows/tmp-lei-final.yml
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "build: publica integracao final da lei seca"
+          git push
