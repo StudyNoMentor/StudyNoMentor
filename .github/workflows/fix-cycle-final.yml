@@ -15,8 +15,6 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-      - name: Aplicar correção estreita idempotente
-        run: python3 scripts/fix-cycle-final.py
       - name: Instalar dependências
         run: |
           npm ci
@@ -34,14 +32,16 @@ jobs:
           cat /tmp/verificar.log
           echo "code=$code" >> "$GITHUB_OUTPUT"
           exit 0
-      - name: Commitar somente se tudo passou
+      - name: Commitar bundle somente se tudo passou
         if: steps.verify.outputs.code == '0'
         run: |
           git config user.name 'StudyNoMentor'
           git config user.email 'jairo258@hotmail.com'
-          git add src/js/51a-tec-scope-consistency.js src/js/51-tela-desempenho-tec.js testes/atividades-extras.mjs index.html src/manifesto.json sw.js
-          git commit -m 'Separa sessão, ciclo e custo sem reescrever ciclos existentes'
-          git push origin HEAD:fix/plano-ciclos-rotacao-real
+          git add index.html src/manifesto.json sw.js
+          if ! git diff --cached --quiet; then
+            git commit -m 'Regenera bundle do ciclo realista validado'
+            git push origin HEAD:fix/plano-ciclos-rotacao-real
+          fi
       - name: Registrar resultado sem mutar a branch
         if: steps.verify.outputs.code != '0'
-        run: echo 'A validação encontrou regressões; nenhum arquivo de produto foi commitado.'
+        run: echo 'A validação encontrou regressões; nenhum arquivo gerado foi commitado.'
