@@ -3248,11 +3248,18 @@ const DesempenhoTecScreen = {
     const _p = this._loadPrefs();
     if (_p.scopeMode && ['consolidado', 'select', 'range'].includes(_p.scopeMode)) this.scopeMode = _p.scopeMode;
     if (_p.reforcoView) this.reforcoView = _p.reforcoView;
-    // inicializa a seleção (todos marcados) e o intervalo (cobre tudo) na 1ª vez
-    if (this.selectedSnapIds === null) this.selectedSnapIds = new Set(snaps.map(s => s.id));
-    // remove ids que não existem mais
+    // Na primeira abertura, restaura inclusive []: "Limpar" é um estado válido,
+    // não um pedido disfarçado para voltar a selecionar tudo.
+    if (this.selectedSnapIds === null) {
+      const salvos = Array.isArray(_p.selectedSnapIds) ? _p.selectedSnapIds : null;
+      this.selectedSnapIds = salvos
+        ? new Set(salvos.map(id => Number.isFinite(Number(id)) ? Number(id) : id))
+        : new Set(snaps.map(s => s.id));
+    }
+    // remove apenas ids que realmente deixaram de existir
     [...this.selectedSnapIds].forEach(id => { if (!snaps.find(s => s.id === id)) this.selectedSnapIds.delete(id); });
-    if (this.selectedSnapIds.size === 0) snaps.forEach(s => this.selectedSnapIds.add(s.id));
+    if (!this.rangeStart && _p.rangeStart) this.rangeStart = _p.rangeStart;
+    if (!this.rangeEnd && _p.rangeEnd) this.rangeEnd = _p.rangeEnd;
     if (!this.rangeStart || !this.rangeEnd) {
       this.rangeStart = snaps[0].startDate;
       this.rangeEnd = snaps[snaps.length - 1].endDate;
@@ -3565,6 +3572,31 @@ const DesempenhoTecScreen = {
     if (snaps.length === 0) return null;
     return this.aggregate(snaps);
   },
+  /* UMA ÚNICA OPERAÇÃO PARA MUDAR O ESCOPO. Antes, cada controle decidia por
+     conta própria quais abas repintar: Análise atualizava, Plano nem sempre,
+     Reforço dependia do caminho do clique. Esta função é o contrato da tela. */
+  _scopePrefsPatch() {
+    return {
+      scopeMode: this.scopeMode,
+      selectedSnapIds: this.selectedSnapIds ? [...this.selectedSnapIds] : [],
+      rangeStart: this.rangeStart || null,
+      rangeEnd: this.rangeEnd || null
+    };
+  },
+  aplicarMudancaEscopo() {
+    this.savePrefs(this._scopePrefsPatch());
+    if (typeof PlanoEngine !== 'undefined') {
+      PlanoEngine._agrC = null;
+      PlanoEngine._tecScopeSignature = null;
+    }
+    this._planoRefC = null;
+    this._fatias = null;
+    this.renderScopeControls(DB.getTecSnapshots());
+    this.renderAnalysis();
+    if (this.tecTab === 'plano') this.renderPlano();
+    else if (this.tecTab === 'reforco') this.renderReforco();
+    else if (this.tecTab === 'incidencia') this.renderIncidencia();
+  },
   openImport() {
     $id('tec-empty').style.display = 'none';
     $id('tec-analysis').style.display = 'none';
@@ -3824,8 +3856,7 @@ const DesempenhoTecScreen = {
     box.querySelectorAll('input[data-snap]').forEach(cb => cb.addEventListener('change', () => {
       const id = parseInt(cb.dataset.snap, 10);
       if (cb.checked) this.selectedSnapIds.add(id); else this.selectedSnapIds.delete(id);
-      this.renderScopeControls(DB.getTecSnapshots());
-      this.renderAnalysis();
+      this.aplicarMudancaEscopo();
     }));
     box.querySelectorAll('.tsp-del').forEach(btn => btn.addEventListener('click', (e) => {
       e.preventDefault(); e.stopPropagation();
@@ -3847,8 +3878,8 @@ const DesempenhoTecScreen = {
     }));
     const allBtn = box.querySelector('#tec-scope-all');
     const noneBtn = box.querySelector('#tec-scope-none');
-    if (allBtn) allBtn.addEventListener('click', () => { snaps.forEach(s => this.selectedSnapIds.add(s.id)); this.renderScopeControls(DB.getTecSnapshots()); this.renderAnalysis(); });
-    if (noneBtn) noneBtn.addEventListener('click', () => { this.selectedSnapIds.clear(); this.renderScopeControls(DB.getTecSnapshots()); this.renderAnalysis(); });
+    if (allBtn) allBtn.addEventListener('click', () => { snaps.forEach(s => this.selectedSnapIds.add(s.id)); this.aplicarMudancaEscopo(); });
+    if (noneBtn) noneBtn.addEventListener('click', () => { this.selectedSnapIds.clear(); this.aplicarMudancaEscopo(); });
   },
   syncRangeInputs(snaps) {
     const startEl = document.getElementById('tec-range-start');
@@ -6100,7 +6131,7 @@ const DesempenhoTecScreen = {
   },
   // ---- Reforço ----
   renderReforco() {
-    const snap = this.scopedSnapshot() || ReforcoEngine.currentSnapshot();
+    const snap = this.scopedSnapshot();
     this.renderBancaPicker('reforco-banca-pick');
     // popula o filtro de DISCIPLINA a partir da incidência das bancas escolhidas
     const discSel = document.getElementById('reforco-disc');
@@ -6150,7 +6181,7 @@ const DesempenhoTecScreen = {
     const list = document.getElementById('reforco-list');
     const status = document.getElementById('reforco-status');
     const projEl = document.getElementById('reforco-proj');
-    const snap = this.scopedSnapshot() || ReforcoEngine.currentSnapshot();
+    const snap = this.scopedSnapshot();
     if (!snap) {
       list.innerHTML = `<div class="evo-empty-mini">Importe seu desempenho do TEC (aba Importar) para gerar o reforço.</div>`;
       status.textContent = ''; if (projEl) projEl.innerHTML = '';
@@ -6817,10 +6848,7 @@ $id('tec-scope-toggle').addEventListener('click', (e) => {
   if (!btn) return;
   DesempenhoTecScreen.scopeMode = btn.dataset.scope;
   DesempenhoTecScreen.savePrefs({ scopeMode: btn.dataset.scope });
-  DesempenhoTecScreen.renderScopeControls(DB.getTecSnapshots());
-  DesempenhoTecScreen.renderAnalysis();
-  // reaplica a aba ativa (reforço também depende do escopo)
-  if (DesempenhoTecScreen.tecTab === 'reforco') DesempenhoTecScreen.renderReforco();
+  DesempenhoTecScreen.aplicarMudancaEscopo();
 });
 // intervalo de datas: inputs manuais
 ['tec-range-start', 'tec-range-end'].forEach(id => {
@@ -6832,9 +6860,7 @@ $id('tec-scope-toggle').addEventListener('click', (e) => {
       // corrige intervalo invertido
       const t = DesempenhoTecScreen.rangeStart; DesempenhoTecScreen.rangeStart = DesempenhoTecScreen.rangeEnd; DesempenhoTecScreen.rangeEnd = t;
     }
-    DesempenhoTecScreen.renderScopeControls(DB.getTecSnapshots());
-    DesempenhoTecScreen.renderAnalysis();
-    if (DesempenhoTecScreen.tecTab === 'reforco') DesempenhoTecScreen.renderReforco();
+    DesempenhoTecScreen.aplicarMudancaEscopo();
   });
 });
 // atalhos de intervalo (últimos N meses / tudo)
@@ -6853,9 +6879,7 @@ document.querySelectorAll('.tec-range-quick').forEach(btn => btn.addEventListene
     DesempenhoTecScreen.rangeStart = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
     DesempenhoTecScreen.rangeEnd = end;
   }
-  DesempenhoTecScreen.renderScopeControls(DB.getTecSnapshots());
-  DesempenhoTecScreen.renderAnalysis();
-  if (DesempenhoTecScreen.tecTab === 'reforco') DesempenhoTecScreen.renderReforco();
+  DesempenhoTecScreen.aplicarMudancaEscopo();
 }));
 /* `input` cobre número e caixa de seleção; `change` é o que um <select>
    dispara. Sem os dois, o seletor de ordem nasceria decorativo. */
