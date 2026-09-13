@@ -8,12 +8,25 @@ jobs:
   validar:
     if: github.actor != 'github-actions[bot]'
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 18
     steps:
       - uses: actions/checkout@v4
         with: { fetch-depth: 0 }
       - uses: actions/setup-node@v4
         with: { node-version: '22' }
+      - name: Corrigir handlers silenciosos de foco
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path('src/js/59-extras-stability.js')
+          s=p.read_text()
+          old='catch(_){}'
+          n=s.count(old)
+          if n != 2:
+              raise SystemExit(f'esperava 2 catch vazios de foco, encontrei {n}')
+          s=s.replace(old,"catch(e){if(typeof _quiet==='function')_quiet(e,'extras-overlay-focus');}")
+          p.write_text(s)
+          PY
       - name: Sintaxe e build
         run: |
           node --check src/js/59-extras-stability.js
@@ -31,13 +44,15 @@ jobs:
           npx playwright install --with-deps chromium
       - name: Auditar Extras desktop e mobile
         run: node testes/extras-estabilidade-browser.mjs
+      - name: Auditar fluidez Desempenho TEC para Plano
+        run: node testes/tec-plano-performance-browser.mjs
       - name: Suite canonica completa
         run: node verificar.mjs
-      - name: Persistir build aprovado
+      - name: Persistir produto aprovado
         run: |
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add index.html src/manifesto.json sw.js
+          git add src/js/59-extras-stability.js index.html src/manifesto.json sw.js
           git diff --cached --quiet && exit 0
-          git commit -m 'build: atualiza artefatos do hardening de Extras'
+          git commit -m 'build: aprova hardening de Extras e fluidez do Plano'
           git push origin HEAD:fix/extras-layout-hardening-final
