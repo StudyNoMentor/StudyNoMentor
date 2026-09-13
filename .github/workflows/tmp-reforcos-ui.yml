@@ -1,0 +1,45 @@
+name: Validar redesign dos reforços
+
+on:
+  push:
+    branches: [feat/reforcos-ui-moderna]
+
+permissions:
+  contents: write
+
+jobs:
+  validar:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Aplicar redesign
+        run: python scripts/tmp-reforcos-ui.py
+
+      - name: Reconstruir artefatos publicados
+        run: node build.mjs
+
+      - name: Instalar dependências
+        run: npm ci
+
+      - name: Instalar Chromium
+        run: |
+          npm install --no-save playwright@1.56.1
+          npx playwright install --with-deps chromium
+
+      - name: Suíte canônica completa
+        run: node verificar.mjs
+
+      - name: Persistir somente após suíte verde
+        run: |
+          rm -f scripts/tmp-reforcos-ui.py .github/workflows/tmp-reforcos-ui.yml
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/css/08-ux-v49.css src/js/54-reforco-fila.js index.html src/manifesto.json sw.js scripts/tmp-reforcos-ui.py .github/workflows/tmp-reforcos-ui.yml
+          git commit -m "feat: moderniza painel de reforços em curso"
+          git push
