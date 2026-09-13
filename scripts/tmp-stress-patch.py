@@ -70,21 +70,43 @@ repl="""      {
 if needle in s:
     s=s.replace(needle,repl,1)
 
-# O teste de contaminação deve usar o mesmo modo antes/depois e comparar apenas
-# o estado funcional do reforço, não timestamps/metadados transitórios.
+# Mantém o Extra manual de questões explicitamente FORA das métricas. Depois
+# criamos um segundo Extra de questões marcado nas métricas para testar os dois
+# contratos separadamente, além do Anki.
+s=s.replace("const manualQ=DB.addExtra({titulo:'Topico X',tipo:'questoes',disciplina:'Tributario',unidade:'questoes',alvo:40,periodo:'unica',datas:[hoje],contaMetricas:true});",
+            "const manualQ=DB.addExtra({titulo:'Topico X',tipo:'questoes',disciplina:'Tributario',unidade:'questoes',alvo:40,periodo:'unica',datas:[hoje],contaMetricas:false});")
+
+# Usa o mesmo modo antes/depois e estabiliza uma segunda vez: a primeira
+# preservação renumera legitimamente `rodada` das continuações (15+10 passa de
+# rodada 1 para rodada 0 no saldo futuro), sem mudar data/alvo. O teste de
+# contaminação deve começar só depois dessa canonicalização.
 s=s.replace("""      const m0=JSON.stringify(DB.getExtra(manualQ.id)),a0=JSON.stringify(DB.getExtra(anki.id));
       ReforcoAgendaAuto.replanejar(hoje,{preservarHoje:false});
       const p=DB.getExtra(plano.id),m1=DB.getExtra(manualQ.id),a1=DB.getExtra(anki.id);
 """, """      const m0=JSON.stringify(DB.getExtra(manualQ.id)),a0=JSON.stringify(DB.getExtra(anki.id));
       ReforcoAgendaAuto.replanejar(hoje,{preservarHoje:true});
+      ReforcoAgendaAuto.replanejar(hoje,{preservarHoje:true});
       const p=DB.getExtra(plano.id),m1=DB.getExtra(manualQ.id),a1=DB.getExtra(anki.id);
 """)
-s=s.replace("""      const pAntes=JSON.stringify(DB.getExtra(plano.id));ReforcoAgendaAuto.replanejar(hoje,{preservarHoje:true});const pDepois=JSON.stringify(DB.getExtra(plano.id));
+
+old="""      DB.addExtraProgress(manualQ.id,20,25,{data:hoje,acertos:15});DB.addExtraProgress(anki.id,50,30,{data:hoje});
+      const pAntes=JSON.stringify(DB.getExtra(plano.id));ReforcoAgendaAuto.replanejar(hoje,{preservarHoje:true});const pDepois=JSON.stringify(DB.getExtra(plano.id));
       A(pAntes===pDepois,'progresso manual/Anki contaminou agenda do Plano');
-""", """      const sigPlano=()=>{const x=DB.getExtra(plano.id);return JSON.stringify({datas:(x.datas||[]).slice(),sessoes:(x.origemPlano&&x.origemPlano.agendaAuto&&x.origemPlano.agendaAuto.sessoes)||{},progresso:x.progresso,status:x.status});};
-      const pAntes=sigPlano();ReforcoAgendaAuto.replanejar(hoje,{preservarHoje:true});const pDepois=sigPlano();
-      A(pAntes===pDepois,'progresso manual/Anki contaminou agenda do Plano');
-""")
+      return {falhas,metricas:{manual:DB.getExtra(manualQ.id).progresso,anki:DB.getExtra(anki.id).progresso,planoSessoes:Object.keys(DB.getExtra(plano.id).origemPlano.agendaAuto.sessoes||{}).length}};
+"""
+new="""      const sigPlano=()=>{const x=DB.getExtra(plano.id), ss=(x.origemPlano&&x.origemPlano.agendaAuto&&x.origemPlano.agendaAuto.sessoes)||{};const slim={};Object.keys(ss).sort().forEach(d=>{slim[d]={alvo:ss[d].alvo,estado:ss[d].estado};});return JSON.stringify({datas:(x.datas||[]).slice().sort(),sessoes:slim,progresso:x.progresso,status:x.status});};
+      const p0=sigPlano();
+      DB.addExtraProgress(anki.id,50,30,{data:hoje});ReforcoAgendaAuto.replanejar(hoje,{preservarHoje:true});const pAnki=sigPlano();
+      A(p0===pAnki,'Anki fora do Plano alterou o reforço do Plano',{antes:JSON.parse(p0),depois:JSON.parse(pAnki)});
+      DB.addExtraProgress(manualQ.id,20,25,{data:hoje,acertos:15});ReforcoAgendaAuto.replanejar(hoje,{preservarHoje:true});const pManualFora=sigPlano();
+      A(pAnki===pManualFora,'questões manuais fora das métricas alteraram o reforço do Plano',{antes:JSON.parse(pAnki),depois:JSON.parse(pManualFora)});
+      const manualMetric=DB.addExtra({titulo:'Topico X',tipo:'questoes',disciplina:'Tributario',unidade:'questoes',alvo:40,periodo:'unica',datas:[hoje],contaMetricas:true});
+      DB.addExtraProgress(manualMetric.id,20,25,{data:hoje,acertos:15});ReforcoAgendaAuto.replanejar(hoje,{preservarHoje:true});const pManualMetric=sigPlano();
+      A(pManualFora===pManualMetric,'questões manuais marcadas nas métricas alteraram o reforço do Plano',{antes:JSON.parse(pManualFora),depois:JSON.parse(pManualMetric)});
+      return {falhas,metricas:{manualFora:DB.getExtra(manualQ.id).progresso,manualMetricas:DB.getExtra(manualMetric.id).progresso,anki:DB.getExtra(anki.id).progresso,planoSessoes:Object.keys((DB.getExtra(plano.id).origemPlano&&DB.getExtra(plano.id).origemPlano.agendaAuto&&DB.getExtra(plano.id).origemPlano.agendaAuto.sessoes)||{}).length}};
+"""
+if old in s:
+    s=s.replace(old,new,1)
 
 # Ausência de agenda deve virar diagnóstico, não TypeError do harness.
 s=s.replace("Object.entries(e.origemPlano.agendaAuto.sessoes||{})",
@@ -95,7 +117,7 @@ s=s.replace("Object.keys(DB.getExtra(plano.id).origemPlano.agendaAuto.sessoes||{
             "Object.keys((DB.getExtra(plano.id).origemPlano&&DB.getExtra(plano.id).origemPlano.agendaAuto&&DB.getExtra(plano.id).origemPlano.agendaAuto.sessoes)||{}).length")
 
 # Sanidade: garante que os patches essenciais realmente casaram.
-for token in ["const baseSnaps=SIM.retratos(48);", "const px=lote.find(e=>e.id===plano.id);", "const sigPlano=()=>"]:
+for token in ["const baseSnaps=SIM.retratos(48);", "const px=lote.find(e=>e.id===plano.id);", "const pManualMetric=sigPlano();", "contaMetricas:false"]:
     if token not in s:
         raise SystemExit('patch essencial não aplicado: '+token)
 p.write_text(s,encoding='utf-8')
