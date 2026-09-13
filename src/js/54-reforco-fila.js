@@ -11,7 +11,7 @@
    usa `reforcoFila.alvosPorDia` + `concluidasEm` apenas para a execução diária.
 
    Regras do rodízio:
-     · até 3 tarefas de reforço por dia;
+     · 1 ou 2 disciplinas por dia, configurável em Atividades Extras;
      · disciplinas diferentes no mesmo dia;
      · um assunto por disciplina/dia;
      · prioriza quem está há mais tempo sem entrar no rodízio e, no empate, a
@@ -24,12 +24,37 @@
    ============================================================ */
 const ReforcoFila = {
   VERSAO: 1,
-  MAX_TAREFAS_DIA: 3,
+  MAX_TAREFAS_DIA: 2,
+  KEY_PREF: 'reforco-fila-prefs',
+  DEFAULT_PREFS: { disciplinasDia: 1 },
   BLOCO_MAX: 25,
   _rodando: false,
   _agendado: false,
   _forcarGlobal: false,
   _orig: {},
+
+  prefs() {
+    let raw = null;
+    try { raw = JSON.parse(localStorage.getItem(DB._profilePrefix() + this.KEY_PREF) || '{}'); }
+    catch (_) { _quiet(_); raw = {}; }
+    const n = Number(raw && raw.disciplinasDia);
+    return { disciplinasDia: n === 2 ? 2 : this.DEFAULT_PREFS.disciplinasDia };
+  },
+  salvarPrefs(patch) {
+    const p = Object.assign({}, this.prefs(), patch || {});
+    p.disciplinasDia = Number(p.disciplinasDia) === 2 ? 2 : 1;
+    const key = DB._profilePrefix() + this.KEY_PREF;
+    try {
+      if (typeof DB.setRaw === 'function') DB.setRaw(key, JSON.stringify(p));
+      else localStorage.setItem(key, JSON.stringify(p));
+    } catch (e) { _quiet(e, 'fila-prefs'); }
+    this._assinaturaAnterior = '';
+    this.sincronizar();
+    return p;
+  },
+  limiteDisciplinasDia() {
+    return Math.max(1, Math.min(this.MAX_TAREFAS_DIA, Number(this.prefs().disciplinasDia) || 1));
+  },
 
   _norm(s) {
     try {
@@ -217,18 +242,28 @@ const ReforcoFila = {
         });
       });
 
-      const cmp = (a, b) => String(a.ultimo || '').localeCompare(String(b.ultimo || ''))
+      // O rodízio é por DISCIPLINA, não só por tarefa. Se A1 entrou hoje, A2
+      // não fura a fila amanhã enquanto B e C ainda aguardam: isso preserva o
+      // espaçamento mesmo quando o Plano permite mais de um tópico por matéria.
+      const ultimoPorDisc = new Map();
+      tarefas.forEach(t => {
+        const u = t.ultimo || '';
+        const at = ultimoPorDisc.get(t.disc) || '';
+        if (!at || u > at) ultimoPorDisc.set(t.disc, u);
+      });
+      const cmp = (a, b) => String(ultimoPorDisc.get(a.disc) || '').localeCompare(String(ultimoPorDisc.get(b.disc) || ''))
+        || String(a.ultimo || '').localeCompare(String(b.ultimo || ''))
         || a.taxa - b.taxa
         || String(a.e.titulo || '').localeCompare(String(b.e.titulo || ''), 'pt-BR');
 
-      // Cada passagem abre o dia mais cedo possível e preenche até três
-      // disciplinas diferentes. O saldo de uma disciplina que não coube espera
-      // o próximo dia em vez de virar uma microtarefa no mesmo dia.
+      // Cada passagem abre o dia mais cedo possível e preenche só a densidade
+      // escolhida (1 ou 2 disciplinas). O saldo que não coube espera o próximo
+      // dia em vez de virar microtarefa ou concentrar três matérias de uma vez.
       let dia = hoje;
       let guarda = 0;
       while (tarefas.some(t => t.restante > 0) && guarda++ < 1460) {
         const usadas = (dia === hoje) ? new Set(ocupadasHoje) : new Set();
-        let slots = this.MAX_TAREFAS_DIA - (dia === hoje ? nHoje : 0);
+        let slots = this.limiteDisciplinasDia() - (dia === hoje ? nHoje : 0);
         if (slots < 0) slots = 0;
         const cand = tarefas.filter(t => t.restante > 0 && !(dia === hoje && t.jaHoje)).sort(cmp);
         let incluidas = 0;
@@ -241,6 +276,7 @@ const ReforcoFila = {
           if (!t.e.datas.includes(dia)) t.e.datas.push(dia);
           t.restante -= q;
           t.ultimo = dia;
+          ultimoPorDisc.set(t.disc, dia);
           t.jaHoje = t.jaHoje || dia === hoje;
           usadas.add(t.disc);
           slots--; incluidas++; mudou = true;
@@ -298,7 +334,7 @@ const ReforcoFila = {
     if (this.alvoNoDia(e, hoje)) return { ok: true, ja: true };
     const outras = list.filter(x => x.id !== id && this.eGerenciado(x) && this.alvoNoDia(x, hoje));
     const disc = this._norm(e.disciplina || (e.origemPlano && e.origemPlano.disciplina) || 'sem disciplina');
-    if (outras.length >= this.MAX_TAREFAS_DIA || outras.some(x => this._norm(x.disciplina || (x.origemPlano && x.origemPlano.disciplina) || 'sem disciplina') === disc)) {
+    if (outras.length >= this.limiteDisciplinasDia() || outras.some(x => this._norm(x.disciplina || (x.origemPlano && x.origemPlano.disciplina) || 'sem disciplina') === disc)) {
       return { ok: false, motivo: 'lotado' };
     }
     const s = this.saldo(e).restante;
@@ -471,7 +507,7 @@ ExtrasScreen.renderEmCurso = function () {
       const r = ReforcoFila.forcarHoje(b.dataset.cursoDia);
       if (!r.ok) {
         showToast(r.motivo === 'lotado'
-          ? 'Hoje já tem 3 frentes do reforço (ou esta disciplina já está no rodízio)'
+          ? `Hoje já atingiu ${ReforcoFila.limiteDisciplinasDia()} disciplina(s) do reforço (ou esta matéria já está no rodízio)`
           : 'Este reforço não tem saldo para hoje');
         return;
       }
@@ -510,34 +546,153 @@ ExtrasScreen.renderEmCurso = function () {
   return ret;
 };
 
-/* ── PUXAR DO PLANO: padrão = 3 disciplinas diferentes ────────────────── */
+/* ── PUXAR DO PLANO: ciclo de slots, matéria primeiro, tópico depois ───── */
+ReforcoFila._critSug = function (c) {
+  const taxa = Number(c && c.x && c.x.taxa);
+  return Number.isFinite(taxa) ? taxa : 101;
+};
+ReforcoFila._cmpSug = function (a, b) {
+  return this._critSug(a) - this._critSug(b)
+    || (Number(b.x.incid) || 0) - (Number(a.x.incid) || 0)
+    || (Number(b.x.qJanela) || 0) - (Number(a.x.qJanela) || 0)
+    || String(a.x.nome || '').localeCompare(String(b.x.nome || ''), 'pt-BR');
+};
+ReforcoFila.configSugestoesPlano = function () {
+  let p = {};
+  try { p = PlanoEngine.prefs() || {}; } catch (e) { _quiet(e, 'fila-sug-prefs'); }
+  return {
+    disciplinas: Math.max(1, Math.min(12, Math.round(Number(p.sugestoesDisciplinas) || 3))),
+    topicos: Math.max(1, Math.min(5, Math.round(Number(p.sugestoesTopicosDisc) || 1)))
+  };
+};
+ReforcoFila._rankDisciplinasPlano = function (cand) {
+  const porDisc = new Map();
+  (cand || []).forEach((x, i) => {
+    const k = this._norm(x.disciplina || 'sem disciplina');
+    if (!porDisc.has(k)) porDisc.set(k, { k, nome: x.disciplina || 'Sem disciplina', itens: [] });
+    porDisc.get(k).itens.push({ x, i });
+  });
+  porDisc.forEach(g => g.itens.sort((a, b) => this._cmpSug(a, b)));
+
+  const ordem = [], vistos = new Set();
+  try {
+    if (typeof PlanoPontos !== 'undefined' && PlanoPontos.esforcoPorMateria) {
+      const tm = PlanoPontos.esforcoPorMateria(PlanoEngine.prefs());
+      (tm && tm.linhas || []).forEach(l => {
+        const k = this._norm(l.nome || '');
+        if (porDisc.has(k) && !vistos.has(k)) { vistos.add(k); ordem.push(k); }
+      });
+    }
+  } catch (e) { _quiet(e, 'fila-rank-disciplinas'); }
+
+  // Se o quadro de matérias não conseguir casar um nome, a queda é explícita:
+  // usa o pior tópico disponível daquela disciplina, sem perder candidato.
+  [...porDisc.values()]
+    .filter(g => !vistos.has(g.k))
+    .sort((a, b) => this._cmpSug(a.itens[0], b.itens[0]))
+    .forEach(g => { vistos.add(g.k); ordem.push(g.k); });
+  return { ordem, porDisc };
+};
+ReforcoFila.selecionarSugestoesPlano = function (cand) {
+  cand = Array.isArray(cand) ? cand : [];
+  const cfg = this.configSugestoesPlano();
+  const extras = DB.getExtras();
+  const abertas = extras.filter(e => this.ePlano(e) && e.status !== 'concluida');
+  const abertasPorDisc = new Map();
+  abertas.forEach(e => {
+    const k = this._norm(e.disciplina || (e.origemPlano && e.origemPlano.disciplina) || 'sem disciplina');
+    abertasPorDisc.set(k, (abertasPorDisc.get(k) || 0) + 1);
+  });
+
+  /* FRESCOR DO LOOP — terminar uma frente não prova que ela continua sendo a
+     pior. Enquanto não entrar um retrato TEC NOVO, reabrir a mesma disciplina
+     faria o ciclo ficar preso no dado antigo. O veredito já grava o id do
+     retrato que julgou a atividade; usamos esse id como barreira natural. */
+  let ultimoRetrato = null;
+  try {
+    const snaps = (typeof DB.getTecSnapshots === 'function') ? (DB.getTecSnapshots() || []) : [];
+    ultimoRetrato = snaps.length ? snaps[snaps.length - 1].id : null;
+  } catch (e) { _quiet(e, 'fila-sug-frescor'); }
+  const topicosEmCooldown = new Set(), disciplinasEmCooldown = new Set();
+  if (ultimoRetrato != null) extras.forEach(e => {
+    if (!this.ePlano(e) || e.status !== 'concluida') return;
+    const o = e.origemPlano || {}, v = o.veredito || {};
+    if (v.retrato !== ultimoRetrato) return;
+    const d = this._norm(e.disciplina || o.disciplina || 'sem disciplina');
+    const t = this._norm(o.topico || '');
+    disciplinasEmCooldown.add(d);
+    if (t) topicosEmCooldown.add(d + '|' + t);
+  });
+  // Se ainda há outra frente aberta da matéria, ela continua no ciclo e pode
+  // preencher seus tópicos configurados; só o tópico já julgado fica vetado.
+  abertasPorDisc.forEach((_n, d) => disciplinasEmCooldown.delete(d));
+
+  const { ordem, porDisc } = this._rankDisciplinasPlano(cand);
+  const ativas = [...abertasPorDisc.keys()];
+  // Perfil antigo pode já ter mais matérias abertas do que a nova configuração.
+  // Nesse caso não criamos MAIS trabalho: esperamos o ciclo convergir sozinho.
+  if (ativas.length > cfg.disciplinas) {
+    return { indices: [], cfg, abertasTotal: abertas.length, disciplinasAtivas: ativas.length, excesso: true };
+  }
+
+  const alvoDiscs = ativas.slice();
+  ordem.forEach(k => {
+    if (alvoDiscs.length >= cfg.disciplinas) return;
+    if (disciplinasEmCooldown.has(k)) return;
+    if (!alvoDiscs.includes(k)) alvoDiscs.push(k);
+  });
+
+  const indices = [];
+  alvoDiscs.forEach(k => {
+    let vagas = Math.max(0, cfg.topicos - (abertasPorDisc.get(k) || 0));
+    if (!vagas) return;
+    const grupo = porDisc.get(k);
+    if (!grupo) return;
+    for (const c of grupo.itens) {
+      if (vagas <= 0) break;
+      const tk = k + '|' + this._norm(c.x.nome || '');
+      if (topicosEmCooldown.has(tk)) continue;
+      indices.push(c.i); vagas--;
+    }
+  });
+  return {
+    indices, cfg, abertasTotal: abertas.length, disciplinasAtivas: ativas.length,
+    alvoDisciplinas: alvoDiscs.length, vagasSugeridas: indices.length,
+    disciplinasEmCooldown: disciplinasEmCooldown.size, excesso: false
+  };
+};
+
 ReforcoFila._orig.puxarDoPlano = ExtrasScreen.puxarDoPlano;
 ExtrasScreen.puxarDoPlano = function () {
   this._reforcoFilaEscolhaPendente = true;
+  this._reforcoFilaInfo = null;
   return ReforcoFila._orig.puxarDoPlano.apply(this, arguments);
 };
 ReforcoFila._orig.planoBind = ExtrasScreen._planoBind;
 ExtrasScreen._planoBind = function () {
   if (this._reforcoFilaEscolhaPendente && Array.isArray(this._planoCand)) {
-    const crit = (c) => {
-      const taxa = Number(c.x.taxa);
-      return Number.isFinite(taxa) ? taxa : 101;
-    };
-    const cmpCrit = (a, b) => crit(a) - crit(b)
-      || (Number(b.x.incid) || 0) - (Number(a.x.incid) || 0)
-      || (Number(b.x.qJanela) || 0) - (Number(a.x.qJanela) || 0)
-      || String(a.x.nome || '').localeCompare(String(b.x.nome || ''), 'pt-BR');
-    const ordenados = this._planoCand.map((x, i) => ({ x, i })).sort(cmpCrit);
-    const melhorPorDisc = new Map();
-    ordenados.forEach(c => {
-      const d = ReforcoFila._norm(c.x.disciplina || 'sem disciplina');
-      if (!melhorPorDisc.has(d)) melhorPorDisc.set(d, c);
-    });
-    const escolhidos = [...melhorPorDisc.values()].sort(cmpCrit).slice(0, 3);
-    this._planoSel = new Set(escolhidos.map(c => c.i));
+    const s = ReforcoFila.selecionarSugestoesPlano(this._planoCand);
+    this._planoSel = new Set(s.indices);
+    this._reforcoFilaInfo = s;
     this._reforcoFilaEscolhaPendente = false;
   }
-  return ReforcoFila._orig.planoBind.apply(this, arguments);
+  const ret = ReforcoFila._orig.planoBind.apply(this, arguments);
+  const info = this._reforcoFilaInfo;
+  const lista = document.getElementById('pl-lista');
+  if (info && lista) {
+    let n = document.getElementById('pl-fila-info');
+    if (!n) {
+      n = document.createElement('p'); n.id = 'pl-fila-info'; n.className = 'hint';
+      n.style.margin = '0 0 10px';
+      lista.insertAdjacentElement('beforebegin', n);
+    }
+    if (info.excesso) {
+      n.innerHTML = `Ciclo configurado em <strong>${info.cfg.disciplinas} disciplina(s) × ${info.cfg.topicos} tópico(s)</strong>. Há ${info.disciplinasAtivas} disciplinas abertas de um ciclo anterior; nenhuma nova frente foi marcada até o rodízio voltar ao limite.`;
+    } else {
+      n.innerHTML = `Ciclo automático: <strong>${info.cfg.disciplinas} disciplina(s) × ${info.cfg.topicos} tópico(s)</strong> · ${info.abertasTotal} atividade(s) já ocupam vagas · <strong>${info.vagasSugeridas} nova(s)</strong> pré-selecionada(s) para completar o ciclo${info.disciplinasEmCooldown ? ` · ${info.disciplinasEmCooldown} aguardando novo retrato TEC` : ''}.`;
+    }
+  }
+  return ret;
 };
 
 window.ReforcoFila = ReforcoFila;

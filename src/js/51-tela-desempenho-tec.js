@@ -70,6 +70,9 @@ const PlanoEngine = {
        primeiras e desiste. O resto não some: abre com um toque, no passo que
        você configurar aqui. */
     limite: 10, ordenar: 'pior',
+    // Ciclo contínuo de sugestões: quantas matérias ficam em ataque simultâneo
+    // e quantos tópicos de cada uma podem ocupar o ciclo.
+    sugestoesDisciplinas: 3, sugestoesTopicosDisc: 1,
     faixaCritico: 50,    // abaixo disso o problema é de teoria
     faixaFragil: 65,     // abaixo disso ainda precisa revisar teoria
     pisoSerie: 5,        // amostra mínima por importação p/ série e consolidação
@@ -366,7 +369,8 @@ const PlanoEngine = {
       faixaCritico: [0, 100], faixaFragil: [0, 100], pisoSerie: [1, 100, true],
       sensTendencia: [1, 30], consolidarEm: [1, 10, true], validadeDias: [30, 720, true],
       amostraAlvo: [10, 2000, true], janelaMax: [30, 1825, true], cadenciaDias: [7, 365, true],
-      pesoBanca: [0, 12], migracao: [1, 4, true]
+      pesoBanca: [0, 12], sugestoesDisciplinas: [1, 12, true], sugestoesTopicosDisc: [1, 5, true],
+      migracao: [1, 4, true]
     };
     const limpaNum = (k, v, fallback) => {
       const s = specs[k], n = Number(v);
@@ -4352,6 +4356,7 @@ const DesempenhoTecScreen = {
     chk('plano-folhas', p.apenasFolhas); chk('plano-pequenas', p.incluirPequenas);
     set('plano-granpiso', String(parseInt(p.granPiso || 0, 10) || 0));
     set('plano-amostraalvo', p.amostraAlvo); set('plano-cadencia', p.cadenciaDias); set('plano-ordenar', p.ordenar);
+    set('plano-sug-disciplinas', p.sugestoesDisciplinas); set('plano-sug-topicos', p.sugestoesTopicosDisc);
     /* Os rótulos das sete ordens existiam em TRÊS lugares: neste select, no
        diálogo "Puxar do Plano" e no texto que explica a ordem escolhida. Três
        cópias divergem — uma renomeada, as outras não. Agora o select nasce da
@@ -4721,6 +4726,8 @@ const DesempenhoTecScreen = {
       apenasFolhas: bool('plano-folhas'),
       granPiso: Math.max(0, Math.min(100, parseInt(val('plano-granpiso', '0'), 10) || 0)),
       limite: Math.max(3, num('plano-limite', 10)),
+      sugestoesDisciplinas: Math.max(1, Math.min(12, num('plano-sug-disciplinas', 3))),
+      sugestoesTopicosDisc: Math.max(1, Math.min(5, num('plano-sug-topicos', 1))),
       amostraAlvo: Math.max(10, num('plano-amostraalvo', 50)),
       janelaMax: Math.max(30, num('plano-janelamax', 365)),
       cadenciaDias: Math.max(7, num('plano-cadencia', 30)),
