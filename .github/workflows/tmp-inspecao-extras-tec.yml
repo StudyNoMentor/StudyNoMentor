@@ -1,18 +1,357 @@
-name: Inspecao Extras e Plano
+name: Validar fluidez Extras e Plano
 on:
   push:
     branches: [fix/extras-tec-latencia-reabertura]
+permissions:
+  contents: write
 jobs:
-  inspecionar:
+  validar:
     if: github.actor != 'github-actions[bot]'
     runs-on: ubuntu-latest
+    timeout-minutes: 18
     steps:
       - uses: actions/checkout@v4
-      - name: Mapear pontos quentes
+        with: { fetch-depth: 0 }
+      - uses: actions/setup-node@v4
+        with: { node-version: '22' }
+      - name: Aplicar hardening de interação
         run: |
-          echo '=== EXTRAS ==='
-          grep -nE "puxarDoPlano|_planoRecalc|_planoBind|Criar atividades|setConcluidaDia|Reabrir|status === 'concluida'|addExtra\(" src/js/47-tela-extras.js src/js/55-extras-ui-moderna.js src/js/56-leis-rodizio.js src/js/58-extras-governanca.js src/js/59-extras-central-ui.js src/js/59-extras-stability.js || true
-          echo '=== PLANO ==='
-          grep -nEi "Base ampla|pl-modo|modoPatch|salvarPrefs|foco|focar|atacar|criar.*atividade|atividade.*marcada|marcad[oa]" src/js/51-tela-desempenho-tec.js src/js/59-tec-layout-v2.js src/js/59-tec-premium.js src/js/80-ajustes-finais.js || true
-          echo '=== CALCULOS / RENDERS ==='
-          grep -nE "PlanoEngine\.calcular|renderPlanoConteudo|renderPlano\(|render\(\)|scopedSnapshot\(\)" src/js/47-tela-extras.js src/js/51-tela-desempenho-tec.js src/js/56-leis-rodizio.js src/js/59-extras-stability.js | head -n 250 || true
+          python3 - <<'PY'
+          from pathlib import Path
+
+          def once(s, old, new, nome):
+              n=s.count(old)
+              if n != 1:
+                  raise SystemExit(f'{nome}: esperava 1 ocorrência, achei {n}')
+              return s.replace(old,new,1)
+
+          # build: monta o novo CSS/JS no artefato publicado.
+          p=Path('build.mjs'); s=p.read_text()
+          s=once(s,
+            "  SEP('\\n</style>\\n\\n<style id=\"extras-stability-v1\">\\n'), S('css/16-extras-stability.css'),\n  SEP('\\n</style>\\n\\n<script id=\"app-code\" type=\"application/x-diario-inert\">\\n'),",
+            "  SEP('\\n</style>\\n\\n<style id=\"extras-stability-v1\">\\n'), S('css/16-extras-stability.css'),\n  SEP('\\n</style>\\n\\n<style id=\"interaction-feedback-v1\">\\n'), S('css/17-interaction-feedback.css'),\n  SEP('\\n</style>\\n\\n<script id=\"app-code\" type=\"application/x-diario-inert\">\\n'),",
+            'build css')
+          s=once(s,
+            "    'js/59-extras-stability.js',\n    'js/60-cloud-store.js',",
+            "    'js/59-extras-stability.js',\n    'js/59-interaction-feedback.js',\n    'js/60-cloud-store.js',",
+            'build js')
+          p.write_text(s)
+
+          # Extras: o clique pinta feedback antes de entrar no cálculo.
+          p=Path('src/js/47-tela-extras.js'); s=p.read_text()
+          s=once(s,
+            "  on('extras-plano-btn', 'click', () => ExtrasScreen.puxarDoPlano());",
+            "  on('extras-plano-btn', 'click', (ev) => {\n    const run = window.WorkFeedback && WorkFeedback.run;\n    if (run) WorkFeedback.run(ev.currentTarget, 'Analisando Plano…', () => ExtrasScreen.puxarDoPlano(), { overlay: true, region: '#screen-extras', context: 'extras-puxar-plano' });\n    else ExtrasScreen.puxarDoPlano();\n  });",
+            'extras botão plano')
+          s=once(s,
+            "    if (ord) ord.addEventListener('change', () => {\n      this._planoOrd = ord.value;\n      this._planoRecalc();\n      // mantém as marcações por NOME do assunto ao reordenar\n      const marcadosNomes = new Set([...this._planoSel].map(i => (cand[i] || {}).nome).filter(Boolean));\n      this._planoSel = new Set();\n      (this._planoCand || []).forEach((x, i) => { if (marcadosNomes.has(x.nome)) this._planoSel.add(i); });\n      // atualiza o dropdown de disciplinas (a contagem pode mudar) e a lista\n      this._planoBind();\n      this._planoRenderLista();\n    });",
+            "    if (ord) ord.addEventListener('change', () => {\n      const executar = () => {\n        this._planoOrd = ord.value;\n        this._planoRecalc();\n        // mantém as marcações por NOME do assunto ao reordenar\n        const marcadosNomes = new Set([...this._planoSel].map(i => (cand[i] || {}).nome).filter(Boolean));\n        this._planoSel = new Set();\n        (this._planoCand || []).forEach((x, i) => { if (marcadosNomes.has(x.nome)) this._planoSel.add(i); });\n        // atualiza o dropdown de disciplinas (a contagem pode mudar) e a lista\n        this._planoBind();\n        this._planoRenderLista();\n      };\n      if (window.WorkFeedback) WorkFeedback.run(null, 'Reordenando sugestões…', executar, { overlay: true, region: '#ui-modal', context: 'extras-plano-ordem' });\n      else executar();\n    });",
+            'extras ordem plano')
+          old="""    }).then((ok) => {
+      if (!ok) return;
+      let n = 0;
+      (this._planoCand || []).forEach((x, i) => {
+        if (!this._planoSel || !this._planoSel.has(i)) return;
+        const e = DB.addExtra({
+          // o mesmo título dos dois portões (ver `PlanoCiclo.titulo`)
+          titulo: PlanoCiclo.titulo(x.nome, x.motivo, x.membros),
+          tipo: 'questoes', disciplina: x.disciplina || '', unidade: 'questoes',
+          alvo: Math.max(1, x.alvo), periodo: 'unica', contaMetricas: false,
+          obs: 'Gerado pelo Plano de pontos fracos.'
+        });
+        // mesma origem do outro portão: sem isto a atividade nascia sem
+        // `taxaInicial` nem `qBase`, e o ciclo dela nunca teria veredito
+        if (e) { DB.updateExtra(e.id, { origemPlano: PlanoCiclo.origem(x.nome, x.disciplina, x, { motivo: x.motivo }) }); n++; }
+      });
+      this.render();
+      showToast(n ? n + ' atividade(s) criada(s) ✓' : 'Nenhuma selecionada');
+    });"""
+          new="""    }).then((ok) => {
+      if (!ok) return;
+      const criar = () => {
+        let n = 0;
+        (this._planoCand || []).forEach((x, i) => {
+          if (!this._planoSel || !this._planoSel.has(i)) return;
+          const e = DB.addExtra({
+            // o mesmo título dos dois portões (ver `PlanoCiclo.titulo`)
+            titulo: PlanoCiclo.titulo(x.nome, x.motivo, x.membros),
+            tipo: 'questoes', disciplina: x.disciplina || '', unidade: 'questoes',
+            alvo: Math.max(1, x.alvo), periodo: 'unica', contaMetricas: false,
+            obs: 'Gerado pelo Plano de pontos fracos.'
+          });
+          // mesma origem do outro portão: sem isto a atividade nascia sem
+          // `taxaInicial` nem `qBase`, e o ciclo dela nunca teria veredito
+          if (e) { DB.updateExtra(e.id, { origemPlano: PlanoCiclo.origem(x.nome, x.disciplina, x, { motivo: x.motivo }) }); n++; }
+        });
+        this.render();
+        showToast(n ? n + ' atividade(s) criada(s) ✓' : 'Nenhuma selecionada');
+        return n;
+      };
+      if (window.WorkFeedback) return WorkFeedback.run(null, 'Criando atividades…', criar, { overlay: true, region: '#screen-extras', context: 'extras-plano-criar' });
+      return criar();
+    });"""
+          s=once(s,old,new,'extras criação plano')
+          old="""      if (check) check.addEventListener('click', () => {
+        // Bug corrigido (B): concluir só faz sentido até hoje — dia futuro é planejamento.
+        if (day > todayLocal()) { showToast('Este dia ainda não chegou — conclua a partir da data de hoje'); return; }
+        const x = DB.getExtra(id);
+        const jaFeita = DB.extraConcluidaEm(x, day);
+        DB.setConcluidaDia(id, day, !jaFeita);
+        this.render();
+        if (!jaFeita) showToast(DB.extraRecorrente(x) ? 'Concluída neste dia 🎉' : 'Atividade concluída 🎉');
+      });"""
+          new="""      if (check) check.addEventListener('click', () => {
+        // Bug corrigido (B): concluir só faz sentido até hoje — dia futuro é planejamento.
+        if (day > todayLocal()) { showToast('Este dia ainda não chegou — conclua a partir da data de hoje'); return; }
+        const executar = () => {
+          const x = DB.getExtra(id);
+          const jaFeita = DB.extraConcluidaEm(x, day);
+          DB.setConcluidaDia(id, day, !jaFeita);
+          this.render();
+          showToast(jaFeita ? 'Atividade reaberta ↩' : (DB.extraRecorrente(x) ? 'Concluída neste dia 🎉' : 'Atividade concluída 🎉'));
+        };
+        if (window.WorkFeedback) WorkFeedback.run(check, 'Processando…', executar, { region: '#extras-list', context: 'extras-conclusao' });
+        else executar();
+      });"""
+          s=once(s,old,new,'extras concluir/reabrir')
+          s=once(s,
+            "  on('extras-suggest-btn', 'click', () => { ExtrasScreen._sugAdded = new Set(); ExtrasScreen.openSuggest(); });",
+            "  on('extras-suggest-btn', 'click', (ev) => { ExtrasScreen._sugAdded = new Set(); if (window.WorkFeedback) WorkFeedback.run(ev.currentTarget, 'Analisando…', () => ExtrasScreen.openSuggest(), { overlay: true, region: '#screen-extras', context: 'extras-sugestoes' }); else ExtrasScreen.openSuggest(); });",
+            'extras sugestões abrir')
+          s=once(s,
+            "  on('extra-suggest-add', 'click', () => ExtrasScreen.addSuggested());",
+            "  on('extra-suggest-add', 'click', (ev) => { if (window.WorkFeedback) WorkFeedback.run(ev.currentTarget, 'Criando…', () => ExtrasScreen.addSuggested(), { overlay: true, region: '#extra-suggest-modal', context: 'extras-sugestoes-criar' }); else ExtrasScreen.addSuggested(); });",
+            'extras sugestões criar')
+          p.write_text(s)
+
+          # Plano: uma função única para pintar o feedback antes de qualquer repintura cara.
+          p=Path('src/js/51-tela-desempenho-tec.js'); s=p.read_text()
+          s=once(s,
+            "  _marcarPlanoOcupado(on) {\n    const l = document.getElementById('plano-lista');\n    const p = document.getElementById('plano-proj');\n    [l, p].forEach(e => { if (e) e.classList.toggle('pl-ocupado', !!on); });\n  },",
+            "  _marcarPlanoOcupado(on) {\n    const l = document.getElementById('plano-lista');\n    const p = document.getElementById('plano-proj');\n    [l, p].forEach(e => { if (e) { e.classList.toggle('pl-ocupado', !!on); if (on) e.setAttribute('aria-busy', 'true'); else e.removeAttribute('aria-busy'); } });\n  },\n  _trabalharPlano(alvo, rotulo, fn, overlay) {\n    if (window.WorkFeedback) return WorkFeedback.run(alvo, rotulo || 'Processando…', fn, { overlay: !!overlay, region: '#tec-panel-plano', context: 'plano-interacao' });\n    return fn();\n  },",
+            'helper plano')
+          old="""    box.querySelectorAll('.pl-modo').forEach(b => b.addEventListener('click', () => {
+      const k = b.dataset.modo;
+      if (k === 'livre') return;
+      if (!PlanoEngine.MODOS[k]) return;
+      PlanoEngine.salvarPrefs(PlanoEngine.modoPatch(k));
+      this.renderPlano();
+      showToast(PlanoEngine.MODOS[k].rot + ' aplicado');
+    }));"""
+          new="""    box.querySelectorAll('.pl-modo').forEach(b => b.addEventListener('click', () => {
+      const k = b.dataset.modo;
+      if (k === 'livre') return;
+      if (!PlanoEngine.MODOS[k]) return;
+      this._trabalharPlano(b, 'Aplicando modo…', () => {
+        PlanoEngine.salvarPrefs(PlanoEngine.modoPatch(k));
+        this.renderPlano();
+        showToast(PlanoEngine.MODOS[k].rot + ' aplicado');
+      });
+    }));"""
+          s=once(s,old,new,'modo plano')
+          # três atalhos de recuperação quando a amostra está curta.
+          s=once(s,
+            "      if (bj && g) bj.addEventListener('click', () => {\n        PlanoEngine.salvarPrefs({ granPiso: g.piso });\n        PlanoEngine._agrC = null;\n        this.renderPlano(); showToast('🧩 Assuntos com menos de ' + g.piso + ' questões agrupados');\n      });",
+            "      if (bj && g) bj.addEventListener('click', () => this._trabalharPlano(bj, 'Agrupando…', () => {\n        PlanoEngine.salvarPrefs({ granPiso: g.piso });\n        PlanoEngine._agrC = null;\n        this.renderPlano(); showToast('🧩 Assuntos com menos de ' + g.piso + ' questões agrupados');\n      }));",
+            'atalho agrupar')
+          s=once(s,
+            "      if (bd) bd.addEventListener('click', () => {\n        PlanoEngine.salvarPrefs(PlanoEngine.modoPatch('diagnostico'));\n        this.renderPlano(); showToast('🔍 Diagnóstico aplicado');\n      });",
+            "      if (bd) bd.addEventListener('click', () => this._trabalharPlano(bd, 'Aplicando…', () => {\n        PlanoEngine.salvarPrefs(PlanoEngine.modoPatch('diagnostico'));\n        this.renderPlano(); showToast('🔍 Diagnóstico aplicado');\n      }));",
+            'atalho diagnostico')
+          s=once(s,
+            "      if (bm) bm.addEventListener('click', () => {\n        PlanoEngine.salvarPrefs({ minAmostra: sug });\n        this.renderPlano(); showToast('Amostra mínima em ' + sug + ' questões');\n      });",
+            "      if (bm) bm.addEventListener('click', () => this._trabalharPlano(bm, 'Recalculando…', () => {\n        PlanoEngine.salvarPrefs({ minAmostra: sug });\n        this.renderPlano(); showToast('Amostra mínima em ' + sug + ' questões');\n      }));",
+            'atalho amostra')
+          old="""    lista.querySelectorAll('[data-atacar]').forEach(b => b.addEventListener('click', () => {
+      const sel = document.getElementById('plano-disc');
+      if (!sel) return;
+      const alvo = b.dataset.atacar;
+      const op = [...sel.options].find(o => ReforcoEngine.norm(o.value) === ReforcoEngine.norm(alvo));
+      if (!op) { showToast('Sem assuntos medidos em ' + alvo); return; }
+      // "Atacar" é decisão de uma matéria só: substitui o foco, não soma a ele
+      PlanoEngine.salvarPrefs({ foco: [op.value], disciplina: op.value });
+      this._sincronizarFiltroDisc();
+      this._planoRefC = null;
+      this.renderPlanoConteudo();
+      /* Rolar até o bloco de criar atividades é metade do favor: filtrar e
+         deixar a pessoa procurando onde a lista mudou não resolve nada. */
+      requestAnimationFrame(() => {
+        const bloco = document.querySelector('#plano-lista .pl-hoje');
+        if (bloco) { try { bloco.scrollIntoView({ block: 'start', behavior: 'smooth' }); } catch (e) { _quiet(e, 'atacar-scroll'); } }
+      });
+      showToast('Plano filtrado por ' + op.value + ' — marque o que atacar');
+    }));"""
+          new="""    lista.querySelectorAll('[data-atacar]').forEach(b => b.addEventListener('click', () => {
+      const sel = document.getElementById('plano-disc');
+      if (!sel) return;
+      const alvo = b.dataset.atacar;
+      const op = [...sel.options].find(o => ReforcoEngine.norm(o.value) === ReforcoEngine.norm(alvo));
+      if (!op) { showToast('Sem assuntos medidos em ' + alvo); return; }
+      this._trabalharPlano(b, 'Filtrando…', () => {
+        // "Atacar" é decisão de uma matéria só: substitui o foco, não soma a ele
+        PlanoEngine.salvarPrefs({ foco: [op.value], disciplina: op.value });
+        this._sincronizarFiltroDisc();
+        this._planoRefC = null;
+        this.renderPlanoConteudo();
+        if (window.garantirRotulosFocoPlano) garantirRotulosFocoPlano();
+        /* Rolar até o bloco de criar atividades é metade do favor: filtrar e
+           deixar a pessoa procurando onde a lista mudou não resolve nada. */
+        requestAnimationFrame(() => {
+          const bloco = document.querySelector('#plano-lista .pl-hoje');
+          if (bloco) { try { bloco.scrollIntoView({ block: 'start', behavior: 'smooth' }); } catch (e) { _quiet(e, 'atacar-scroll'); } }
+        });
+        showToast('Plano filtrado por ' + op.value + ' — marque o que atacar');
+      });
+    }));"""
+          s=once(s,old,new,'atacar')
+          old="""    lista.querySelectorAll('[data-foco]').forEach(b => b.addEventListener('click', () => {
+      const nome = b.dataset.foco;
+      const p = PlanoEngine.prefs();
+      const atual = Array.isArray(p.foco) ? p.foco.slice() : [];
+      const k = ReforcoEngine.norm(nome);
+      const i = atual.findIndex(n => ReforcoEngine.norm(n) === k);
+      const primeira = atual.length === 0;
+      if (i >= 0) atual.splice(i, 1);
+      else if (atual.length >= PlanoEngine.MAX_FOCO) { showToast('O foco cabe ' + PlanoEngine.MAX_FOCO + ' matérias'); return; }
+      else atual.push(nome);
+      PlanoEngine.salvarPrefs({ foco: atual, disciplina: atual.length === 1 ? atual[0] : '__todas__' });
+      this._sincronizarFiltroDisc();
+      this._planoRefC = null; this._fatias = null;
+      this.renderPlanoConteudo();
+      if (!atual.length) { showToast('Foco limpo — o Plano voltou a falar de todas as matérias'); return; }
+      showToast(atual.length === 1 ? 'Foco em ' + atual[0] : atual.length + ' matérias em foco — a lista abaixo é só delas');
+      if (primeira) requestAnimationFrame(() => {
+        const bloco = document.querySelector('#plano-lista .pl-hoje');
+        if (bloco) { try { bloco.scrollIntoView({ block: 'start', behavior: 'smooth' }); } catch (e) { _quiet(e, 'foco-scroll'); } }
+      });
+    }));"""
+          new="""    lista.querySelectorAll('[data-foco]').forEach(b => b.addEventListener('click', () => {
+      const nome = b.dataset.foco;
+      const p = PlanoEngine.prefs();
+      const atual = Array.isArray(p.foco) ? p.foco.slice() : [];
+      const k = ReforcoEngine.norm(nome);
+      const i = atual.findIndex(n => ReforcoEngine.norm(n) === k);
+      const primeira = atual.length === 0;
+      if (i >= 0) atual.splice(i, 1);
+      else if (atual.length >= PlanoEngine.MAX_FOCO) { showToast('O foco cabe ' + PlanoEngine.MAX_FOCO + ' matérias'); return; }
+      else atual.push(nome);
+      this._trabalharPlano(b, 'Atualizando foco…', () => {
+        PlanoEngine.salvarPrefs({ foco: atual, disciplina: atual.length === 1 ? atual[0] : '__todas__' });
+        this._sincronizarFiltroDisc();
+        this._planoRefC = null; this._fatias = null;
+        this.renderPlanoConteudo();
+        if (window.garantirRotulosFocoPlano) garantirRotulosFocoPlano();
+        if (!atual.length) { showToast('Foco limpo — o Plano voltou a falar de todas as matérias'); return; }
+        showToast(atual.length === 1 ? 'Foco em ' + atual[0] : atual.length + ' matérias em foco — a lista abaixo é só delas');
+        if (primeira) requestAnimationFrame(() => {
+          const bloco = document.querySelector('#plano-lista .pl-hoje');
+          if (bloco) { try { bloco.scrollIntoView({ block: 'start', behavior: 'smooth' }); } catch (e) { _quiet(e, 'foco-scroll'); } }
+        });
+      });
+    }));"""
+          s=once(s,old,new,'foco')
+          # Ações menores que também repintam o Plano inteiro.
+          s=once(s,
+            "      PlanoPontos.setCorte(r2.corte);\n      this.renderPlanoConteudo(); showToast('Corte registrado ✓');",
+            "      this._trabalharPlano(defCorte, 'Atualizando…', () => { PlanoPontos.setCorte(r2.corte); this.renderPlanoConteudo(); showToast('Corte registrado ✓'); });",
+            'corte')
+          s=once(s,
+            "      DB.deleteExtra(e.id); showToast('Atividade excluída'); this.renderPlanoConteudo();",
+            "      this._trabalharPlano(b, 'Excluindo…', () => { DB.deleteExtra(e.id); showToast('Atividade excluída'); this.renderPlanoConteudo(); });",
+            'excluir ciclo')
+          old="""      PlanoEngine.salvarPrefs({ ritmoSemanal: null });
+      this._planoRefC = null;
+      this.renderPlanoConteudo();
+      showToast('Ritmo voltou a seguir a sua medição (' + medido + '/sem)');"""
+          new="""      this._trabalharPlano(ritmoBtn, 'Recalculando…', () => {
+        PlanoEngine.salvarPrefs({ ritmoSemanal: null });
+        this._planoRefC = null;
+        this.renderPlanoConteudo();
+        showToast('Ritmo voltou a seguir a sua medição (' + medido + '/sem)');
+      });"""
+          s=once(s,old,new,'ritmo')
+          old="""      PlanoEngine.salvarPrefs({ foco: [], disciplina: '__todas__' });
+      this._sincronizarFiltroDisc();
+      this._planoRefC = null; this._fatias = null;
+      this.renderPlanoConteudo();
+      showToast('Mostrando o número geral, de todas as matérias');"""
+          new="""      this._trabalharPlano(todasBtn, 'Abrindo geral…', () => {
+        PlanoEngine.salvarPrefs({ foco: [], disciplina: '__todas__' });
+        this._sincronizarFiltroDisc();
+        this._planoRefC = null; this._fatias = null;
+        this.renderPlanoConteudo();
+        showToast('Mostrando o número geral, de todas as matérias');
+      });"""
+          s=once(s,old,new,'todas disciplinas')
+          s=once(s,
+            "      PlanoEngine.salvarPrefs({ custoPorPonto: c.qPorPonto });\n      this.renderPlano(); showToast('Custo calibrado com o seu histórico ✓');",
+            "      this._trabalharPlano(calBtn, 'Calibrando…', () => { PlanoEngine.salvarPrefs({ custoPorPonto: c.qPorPonto }); this.renderPlano(); showToast('Custo calibrado com o seu histórico ✓'); });",
+            'calibragem')
+          old="""    if (lote) lote.addEventListener('click', () => {
+      let n = 0, sobre = 0;
+      lista.querySelectorAll('.pl-hoje-sel:checked:not(:disabled)').forEach(c => {
+        const u = this._unidadeDoPlano(c.dataset.topico, c.dataset.disc);
+        if (PlanoEngine.atividadeSobreposta(c.dataset.topico, c.dataset.disc, u && u.membros)) { sobre++; return; }
+        if (this.criarExtraDoPlano(c.dataset.topico, c.dataset.disc, c.dataset.alvo, 'reforco', true)) n++;
+      });
+      /* Em série não há como perguntar por item — então o que foi pulado é
+         DITO. Pular em silêncio deixaria a pessoa achando que marcou errado. */
+      showToast((n ? n + (n === 1 ? ' atividade criada ✓' : ' atividades criadas ✓') : 'Nenhuma atividade nova a criar')
+        + (sobre ? ' · ' + sobre + (sobre === 1 ? ' pulado: já dentro de uma atividade aberta' : ' pulados: já dentro de atividades abertas') : ''));
+      this.renderPlanoConteudo();
+    });"""
+          new="""    if (lote) lote.addEventListener('click', () => {
+      this._trabalharPlano(lote, 'Criando atividades…', () => {
+        let n = 0, sobre = 0;
+        lista.querySelectorAll('.pl-hoje-sel:checked:not(:disabled)').forEach(c => {
+          const u = this._unidadeDoPlano(c.dataset.topico, c.dataset.disc);
+          if (PlanoEngine.atividadeSobreposta(c.dataset.topico, c.dataset.disc, u && u.membros)) { sobre++; return; }
+          if (this.criarExtraDoPlano(c.dataset.topico, c.dataset.disc, c.dataset.alvo, 'reforco', true)) n++;
+        });
+        /* Em série não há como perguntar por item — então o que foi pulado é
+           DITO. Pular em silêncio deixaria a pessoa achando que marcou errado. */
+        showToast((n ? n + (n === 1 ? ' atividade criada ✓' : ' atividades criadas ✓') : 'Nenhuma atividade nova a criar')
+          + (sobre ? ' · ' + sobre + (sobre === 1 ? ' pulado: já dentro de uma atividade aberta' : ' pulados: já dentro de atividades abertas') : ''));
+        this.renderPlanoConteudo();
+      }, true);
+    });"""
+          s=once(s,old,new,'lote plano')
+          p.write_text(s)
+          PY
+
+      - name: Sintaxe e build
+        run: |
+          node --check src/js/47-tela-extras.js
+          node --check src/js/51-tela-desempenho-tec.js
+          node --check src/js/59-interaction-feedback.js
+          node --check testes/extras-tec-interacoes-browser.mjs
+          node build.mjs
+          node build.mjs --check
+      - name: Dependencias
+        run: npm ci
+      - name: Regressões rápidas
+        run: |
+          node testes/extras-estabilidade.mjs
+          node testes/lei-rodizio-perf.mjs
+          node testes/reforco-fila.mjs
+          node testes/reforco-cenarios.mjs
+      - name: Instalar Chromium
+        run: |
+          npm install --no-save playwright@1.56.1
+          npx playwright install --with-deps chromium
+      - name: Validar interação real
+        run: |
+          node testes/extras-tec-interacoes-browser.mjs
+          node testes/tec-plano-performance-browser.mjs
+          node testes/extras-estabilidade-browser.mjs
+      - name: Suite canônica
+        run: node verificar.mjs
+      - name: Persistir produto aprovado
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          rm -f .github/workflows/tmp-inspecao-extras-tec.yml
+          git add build.mjs src/js/47-tela-extras.js src/js/51-tela-desempenho-tec.js src/js/59-interaction-feedback.js src/css/17-interaction-feedback.css testes/extras-tec-interacoes-browser.mjs index.html src/manifesto.json sw.js .github/workflows/tmp-inspecao-extras-tec.yml
+          git diff --cached --quiet && exit 0
+          git commit -m 'fix: melhora fluidez e reabertura em Extras e Plano'
+          git push origin HEAD:fix/extras-tec-latencia-reabertura
