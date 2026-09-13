@@ -1,0 +1,56 @@
+name: Validar hardening visual de Extras
+on:
+  push:
+    branches: [fix/extras-modal-layout-hardening]
+permissions:
+  contents: write
+jobs:
+  validar:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with: { fetch-depth: 0 }
+      - uses: actions/setup-node@v4
+        with: { node-version: '22' }
+      - name: Integrar hardening ao montador
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path('build.mjs'); s=p.read_text()
+          old='''  SEP('\\n</style>\\n\\n<style id="reforco-adaptativo-v1">\\n'), S('css/15-reforco-adaptativo.css'),\n  SEP('\\n</style>\\n\\n<script id="app-code" type="application/x-diario-inert">\\n'),'''
+          new='''  SEP('\\n</style>\\n\\n<style id="reforco-adaptativo-v1">\\n'), S('css/15-reforco-adaptativo.css'),\n  SEP('\\n</style>\\n\\n<style id="extras-ui-hardening-v1">\\n'), S('css/16-extras-ui-hardening.css'),\n  SEP('\\n</style>\\n\\n<script id="app-code" type="application/x-diario-inert">\\n'),'''
+          if 'extras-ui-hardening-v1' not in s:
+              if old not in s: raise SystemExit('âncora CSS não encontrada')
+              s=s.replace(old,new,1)
+          oldjs="""    'js/59-reforco-adaptativo.js',\n    'js/59-tec-layout-v2.js',\n    'js/60-cloud-store.js',"""
+          newjs="""    'js/59-reforco-adaptativo.js',\n    'js/59-tec-layout-v2.js',\n    'js/59-extras-ui-hardening.js',\n    'js/60-cloud-store.js',"""
+          if "'js/59-extras-ui-hardening.js'" not in s:
+              if oldjs not in s: raise SystemExit('âncora JS não encontrada')
+              s=s.replace(oldjs,newjs,1)
+          p.write_text(s)
+          PY
+      - name: Sintaxe e build
+        run: |
+          node --check src/js/59-extras-ui-hardening.js
+          node build.mjs
+          node build.mjs --check
+      - name: Instalar dependências
+        run: npm ci
+      - name: Instalar Chromium
+        run: |
+          npm install --no-save playwright@1.56.1
+          npx playwright install --with-deps chromium
+      - name: Testar modais de Extras em desktop e mobile
+        run: node testes/extras-ui-hardening.mjs
+      - name: Suíte canônica completa
+        run: node verificar.mjs
+      - name: Persistir produto aprovado
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add build.mjs index.html src/manifesto.json sw.js
+          git diff --cached --quiet && exit 0
+          git commit -m 'build: integra hardening visual de Extras'
+          git push origin HEAD:fix/extras-modal-layout-hardening
