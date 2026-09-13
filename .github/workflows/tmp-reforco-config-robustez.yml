@@ -1,0 +1,56 @@
+name: Validar robustez do reforço configurável
+
+on:
+  push:
+    branches: [feat/reforco-config-robustez]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: reforco-config-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  validar:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Aplicar implementação
+        run: python scripts/tmp-reforco-config.py
+      - name: Validar sintaxe
+        run: |
+          node --check src/js/54-reforco-fila.js
+          node --check src/js/55-extras-ui-moderna.js
+      - name: Reconstruir artefatos
+        run: node build.mjs
+      - name: Testes focais
+        run: |
+          node testes/reforco-fila.mjs
+          node testes/reforco-cenarios.mjs
+      - name: Instalar dependências
+        run: npm ci
+      - name: Instalar Chromium
+        run: |
+          npm install --no-save playwright@1.56.1
+          npx playwright install --with-deps chromium
+      - name: Suíte canônica completa
+        run: node verificar.mjs
+      - name: Persistir somente após tudo verde
+        run: |
+          rm -f .github/workflows/tmp-reforco-config-robustez.yml scripts/tmp-reforco-config.py
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/js/54-reforco-fila.js src/js/55-extras-ui-moderna.js src/css/09-extras-v51.css testes/reforco-fila.mjs testes/reforco-cenarios.mjs index.html src/manifesto.json sw.js .github/workflows/tmp-reforco-config-robustez.yml scripts/tmp-reforco-config.py
+          if git diff --cached --quiet; then
+            echo "Nada a persistir"
+          else
+            git commit -m "feat: robustece sugestões e carga configurável do reforço"
+            git push origin HEAD:feat/reforco-config-robustez
+          fi
