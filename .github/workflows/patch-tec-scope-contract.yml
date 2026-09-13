@@ -1,0 +1,36 @@
+name: Patch TEC scope contract
+
+on:
+  push:
+    branches: [fix/tec-scope-contract-audit]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: fix/tec-scope-contract-audit
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Aplicar patch determinístico
+        run: node scripts/patch-tec-scope-contract.mjs
+      - name: Validar contrato isolado
+        run: node testes/escopo-plano-tec.mjs
+      - name: Regenerar bundle
+        run: node build.mjs
+      - name: Commitar fonte e artefatos
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/js/51-tela-desempenho-tec.js index.html src/manifesto.json sw.js
+          git commit -m "Corrige contrato nativo de escopo do Desempenho TEC [skip ci]" || exit 0
+          git push origin HEAD:fix/tec-scope-contract-audit
