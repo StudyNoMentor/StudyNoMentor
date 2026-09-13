@@ -6,6 +6,8 @@ const src=fs.readFileSync(new URL('../src/js/59-reforco-adaptativo.js',import.me
 const mem=new Map();let fechados=[];
 const ctx={console,setTimeout,clearTimeout,localStorage:{getItem:k=>mem.has(k)?mem.get(k):null,setItem:(k,v)=>mem.set(k,String(v))},DB:{_profilePrefix:()=> 't:',setRaw:(k,v)=>mem.set(k,String(v)),getTecSnapshots:()=>[{id:'s1'}],getExtras:()=>[],saveExtras:()=>{},_selarCicloDoPlano(){},addExtraProgress(){}},PlanoEngine:{prefs:()=>({metaDominio:85,minAmostra:20,faixaCritico:50,sensTendencia:3}),qParaMedir:(taxa,margem=10)=>{const p=Math.min(.95,Math.max(.05,(taxa??50)/100)),e=Math.max(2,margem)/100;return Math.ceil(3.8416*p*(1-p)/(e*e));},calcular:()=>({erro:'sem-retrato'})},PlanoCiclo:{fechados:()=>fechados,origem:()=>({}),avaliar:()=>null,conciliar:()=>({})},ReforcoEngine:{norm:s=>String(s??'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().trim()},window:{},_quiet:()=>{}};
 vm.createContext(ctx);vm.runInContext(src,ctx,{filename:'59-reforco-adaptativo.js'});const RA=ctx.window.ReforcoAdaptativo;assert(RA,'motor não exportado');
+assert.equal(RA.prefs().ativo,false,'opt-in deve nascer desligado');
+mem.set('t:reforco-adaptativo-prefs',JSON.stringify({ativo:true}));
 const rPre={meta:85,modoEdital:'pre',itens:[]},rPos={meta:85,modoEdital:'pos',itens:[]};
 const item=(o={})=>Object.assign({nome:'Tópico',disciplina:'Disciplina',taxa:60,qJanela:80,qHist:80,incid:20,custoQ:60,pontosGanho:1,pontosPorQuestao:1},o);
 
