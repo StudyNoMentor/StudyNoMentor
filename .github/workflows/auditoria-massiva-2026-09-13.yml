@@ -1,0 +1,61 @@
+name: Auditoria massiva 2026-09-13
+
+on:
+  push:
+    branches:
+      - test/auditoria-massiva-2026-09-13
+  workflow_dispatch:
+
+concurrency:
+  group: auditoria-massiva-2026-09-13-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  auditoria:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Instalar dependencias
+        run: npm ci
+
+      - name: Instalar Chromium
+        run: npx playwright install --with-deps chromium
+
+      - name: Reconstruir app
+        run: node build.mjs
+
+      - name: Barreira geral
+        run: node verificar.mjs
+
+      - name: Extras e agenda
+        run: node testes/atividades-extras.mjs
+
+      - name: Escopo Plano TEC
+        run: node testes/escopo-plano-tec.mjs
+
+      - name: Fidelidade TEC
+        run: node testes/fidelidade-tec.mjs
+
+      - name: Paridade Anki
+        run: node testes/paridade-anki.mjs
+
+      - name: Robustez de configuracao
+        run: node testes/robustez-config.mjs
+
+      - name: Stress de jornada em Chromium real
+        run: node testes/stress-jornada-massiva.mjs
+
+      - name: Publicar evidencias
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: auditoria-massiva-evidencias
+          path: artifacts/
+          if-no-files-found: warn
+          retention-days: 14
