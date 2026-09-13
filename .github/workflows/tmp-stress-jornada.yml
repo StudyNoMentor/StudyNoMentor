@@ -20,6 +20,8 @@ jobs:
           node-version: '22'
       - name: Aplicar patch iterativo
         run: python3 scripts/tmp-stress-patch.py
+      - name: Reconstruir app
+        run: node build.mjs
       - name: Instalar dependencias
         run: npm ci
       - name: Instalar Chromium
