@@ -94,17 +94,45 @@ repl="""      {
 if needle in s:
     s=s.replace(needle,repl,1)
 
+# Idempotência deve comparar execuções no MESMO modo. A transição inicial de
+# preservarHoje=false para true pode legitimamente estabilizar as sessões de hoje.
+s=s.replace("""      const sig0=assinatura();
+      for(let k=0;k<20;k++){ReforcoAgendaAuto.replanejar(hoje,{preservarHoje:true});A(assinatura()===sig0,'replanejamento nao idempotente',k);}
+""", """      ReforcoAgendaAuto.replanejar(hoje,{preservarHoje:true});
+      const sig0=assinatura();
+      for(let k=0;k<20;k++){ReforcoAgendaAuto.replanejar(hoje,{preservarHoje:true});A(assinatura()===sig0,'replanejamento nao idempotente',k);}
+""")
+
+# Cenário unitário de coexistência: carimba a origem interna do reforço do Plano
+# antes do replanejamento, mantendo manual/Anki sem esse metadado.
+needle="""      const m0=JSON.stringify(DB.getExtra(manualQ.id)),a0=JSON.stringify(DB.getExtra(anki.id));
+"""
+repl="""      {
+        const lote=DB.getExtras();
+        const px=lote.find(e=>e.id===plano.id);
+        if(px) px.origemPlano={topico:'Topico X',disciplina:'Tributario',metaCicloQ:25,metaSessaoQ:15};
+        DB.saveExtras(lote);
+      }
+      const m0=JSON.stringify(DB.getExtra(manualQ.id)),a0=JSON.stringify(DB.getExtra(anki.id));
+"""
+if needle in s:
+    s=s.replace(needle,repl,1)
+
 # O harness deve registrar ausência de agenda como falha de cenário, nunca cair
 # com TypeError antes de produzir diagnóstico completo.
 s=s.replace("Object.entries(e.origemPlano.agendaAuto.sessoes||{})",
             "Object.entries((e.origemPlano&&e.origemPlano.agendaAuto&&e.origemPlano.agendaAuto.sessoes)||{})")
 s=s.replace("Object.values(e.origemPlano.agendaAuto.sessoes||{})",
             "Object.values((e.origemPlano&&e.origemPlano.agendaAuto&&e.origemPlano.agendaAuto.sessoes)||{})")
+s=s.replace("Object.keys(DB.getExtra(plano.id).origemPlano.agendaAuto.sessoes||{}).length",
+            "Object.keys((DB.getExtra(plano.id).origemPlano&&DB.getExtra(plano.id).origemPlano.agendaAuto&&DB.getExtra(plano.id).origemPlano.agendaAuto.sessoes)||{}).length")
 
 if "const baseSnaps=SIM.retratos(48);" not in s:
     raise SystemExit('patch da massa de snapshots não aplicado')
 if "DB.saveExtras(lote);" not in s:
     raise SystemExit('patch da origem interna dos ciclos não aplicado')
+if "const px=lote.find(e=>e.id===plano.id);" not in s:
+    raise SystemExit('patch da coexistencia não aplicado')
 p.write_text(s,encoding='utf-8')
 
 # 5) Encadeia a matriz extrema adicional no mesmo passo de Chromium.
