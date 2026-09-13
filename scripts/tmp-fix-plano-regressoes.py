@@ -59,6 +59,31 @@ one(
     }''',
 'persistencia do escopo')
 
+one(
+'''    const chave = perfil + '|' + this.scopeMode + '|' + snaps.map(s =>
+      [s.id, s.startDate, s.endDate, (s.rows || []).length, s.importedAt || ''].join(':')).join('|');''',
+'''    /* O cache precisa representar CONTEÚDO, não só envelope. Reimportar/corrigir
+       um retrato pode preservar id, datas e quantidade de linhas enquanto muda
+       acertos/questões (ou a árvore). Sem esta assinatura, Análise/Plano podem
+       reutilizar silenciosamente o agregado anterior. FNV-1a é barato, estável
+       e percorre exatamente os campos que alteram a consolidação. */
+    const assinar = (snap) => {
+      let h = 2166136261 >>> 0;
+      const mix = (v) => {
+        const t = String(v == null ? '' : v);
+        for (let i = 0; i < t.length; i++) h = Math.imul(h ^ t.charCodeAt(i), 16777619) >>> 0;
+        h = Math.imul(h ^ 31, 16777619) >>> 0;
+      };
+      mix(snap.id); mix(snap.startDate); mix(snap.endDate); mix(snap.importedAt || '');
+      (snap.rows || []).forEach(r => {
+        mix(r.codigo); mix(r.nome); mix(r.disciplina); mix(r.depth);
+        mix(r.questoes); mix(r.acertos);
+      });
+      return h.toString(36);
+    };
+    const chave = perfil + '|' + this.scopeMode + '|' + snaps.map(s => assinar(s)).join('|');''',
+'assinatura de conteudo do escopo')
+
 needle = '''    this._scopedC = { chave, valor };
     return valor;
   },
@@ -139,4 +164,4 @@ one(
 'atalhos de intervalo')
 
 p.write_text(s, encoding='utf-8')
-print('Plano: escopo, fontes temporais e margem estatistica corrigidos')
+print('Plano: escopo, fontes temporais, cache de conteudo e margem estatistica corrigidos')
