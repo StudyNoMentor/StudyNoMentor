@@ -16,7 +16,7 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
-      - name: Inserir modulo no montador
+      - name: Preparar montador e harness
         run: |
           python3 - <<'PY'
           from pathlib import Path
@@ -28,6 +28,11 @@ jobs:
               if old not in s: raise SystemExit('ancora 51a nao encontrada')
               s=s.replace(old,new,1)
               p.write_text(s,encoding='utf-8')
+          t=Path('testes/atividades-extras.mjs')
+          q=t.read_text(encoding='utf-8')
+          q=q.replace(',Intl,globalThis:null};', ',Intl};')
+          q=q.replace('\ncontexto.globalThis=contexto;', '')
+          t.write_text(q,encoding='utf-8')
           PY
       - name: Instalar dependencias
         run: |
@@ -51,7 +56,7 @@ jobs:
         run: |
           git config user.name 'StudyNoMentor'
           git config user.email 'jairo258@hotmail.com'
-          git add build.mjs index.html src/manifesto.json sw.js
+          git add build.mjs testes/atividades-extras.mjs index.html src/manifesto.json sw.js
           if ! git diff --cached --quiet; then
             git commit -m 'Integra agenda automatica ao bundle validado'
             git push origin HEAD:fix/reforco-agenda-auto
