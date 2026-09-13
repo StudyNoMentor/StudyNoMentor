@@ -87,7 +87,9 @@ try {
   const firstWall=Date.now()-tFirst;
   const first=await page.evaluate(()=>({calls:__planoPerf.calls,durations:__planoPerf.durations.slice(),longTasks:__planoPerf.longTasks.slice()}));
   assert.ok(first.calls<=2,`abrir Plano executou ${first.calls} cálculos completos`);
-  assert.ok(Math.max(0,...first.durations)<5000,`um cálculo do Plano bloqueou ${Math.max(...first.durations).toFixed(0)}ms`);
+  assert.ok(firstWall<2500,`primeira abertura do Plano levou ${firstWall}ms no perfil de estresse`);
+  assert.ok(Math.max(0,...first.durations)<2500,`um cálculo do Plano bloqueou ${Math.max(...first.durations).toFixed(0)}ms`);
+  assert.ok(Math.max(0,...first.longTasks)<2000,`primeira abertura gerou long task de ${Math.max(...first.longTasks).toFixed(0)}ms`);
 
   await page.evaluate(()=>{DesempenhoTecScreen.switchTecTab('analise');__planoPerf.calls=0;__planoPerf.durations=[];__planoPerf.longTasks=[];});
   await page.waitForTimeout(80);
@@ -98,7 +100,8 @@ try {
   const repeat=await page.evaluate(()=>({calls:__planoPerf.calls,durations:__planoPerf.durations.slice(),longTasks:__planoPerf.longTasks.slice()}));
   assert.ok(repeatClick<250,`segundo clique no Plano bloqueou ${repeatClick.toFixed(0)}ms antes de devolver o controle`);
   assert.ok(repeat.calls<=2,`reabrir Plano executou ${repeat.calls} cálculos completos`);
-  assert.ok(repeatWall<6000,`reabrir Plano levou ${repeatWall}ms no perfil de estresse`);
+  assert.ok(repeatWall<1500,`reabrir Plano levou ${repeatWall}ms no perfil de estresse`);
+  assert.ok(Math.max(0,...repeat.longTasks)<1200,`reabrir Plano gerou long task de ${Math.max(...repeat.longTasks).toFixed(0)}ms`);
 
   const adapt=await page.evaluate(()=>{
     const r=PlanoEngine.calcular(DesempenhoTecScreen.scopedSnapshot(),PlanoEngine.prefs());
