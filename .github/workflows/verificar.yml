@@ -10,11 +10,26 @@
 #   · o botao "Opcoes" da Grade voltar a vazar do cabecalho.
 name: Verificacao
 
+# Uma branch de PR nao precisa rodar a mesma suite duas vezes. Antes, TODO push
+# em qualquer branch disparava esta verificacao e o evento pull_request disparava
+# outra copia do mesmo commit. Alem do custo, cada commit intermediario gerava
+# dois jobs e dois caminhos de notificacao. A branch agora e validada pelo PR;
+# depois do merge, o main roda uma ultima vez como garantia de publicacao.
 on:
   push:
-    branches: ['**']
+    branches:
+      - main
   pull_request:
+    branches:
+      - main
   workflow_dispatch:
+
+# Se um novo commit chega ao mesmo PR enquanto a verificacao anterior ainda roda,
+# a anterior ficou obsoleta. Cancela-la reduz ruido e garante que a unica CI que
+# importa e a do SHA mais novo.
+concurrency:
+  group: verificar-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
 
 jobs:
   verificar:
