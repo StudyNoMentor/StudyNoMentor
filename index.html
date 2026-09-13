@@ -57,7 +57,7 @@
      novo, e o antigo é descartado sozinho na ativação) e o que permite ao app
      dizer qual versão está rodando. Em src/ fica "dev" de propósito: a versão
      é gerada na montagem, não editada à mão. -->
-<meta name="diario-versao" content="va9c19e4aef">
+<meta name="diario-versao" content="v08a7ef5b4f">
 <script>
 /* ── ARRANQUE: abre o IndexedDB AGORA, em paralelo com o parse do documento ──
    A fachada de armazenamento vive no fim do <body>, depois de ~1,7 MB de HTML.
@@ -33441,7 +33441,11 @@ const PlanoEngine = {
   margemErro(pct, n) {
     if (!n || n < 2) return null;
     const iv = this.intervalo(pct, n);
-    return iv ? Math.max(Math.max(0, pct - iv[0]), Math.max(0, iv[1] - pct)) : null;
+    // A API histórica desta função é uma margem simétrica (±pp). O intervalo
+    // Wilson completo continua disponível em `intervalo`; aqui devolvemos sua
+    // meia-largura para que empate técnico e demais consumidores comparem a
+    // mesma grandeza nos dois lados.
+    return iv ? (iv[1] - iv[0]) / 2 : null;
   },
   /* ── QUANTAS QUESTÕES, E PARA QUÊ ────────────────────────────────────────
      O conselho de cada assunto dizia "um bloco de ~B questões", com B saindo
@@ -34401,7 +34405,12 @@ const PlanoEngine = {
     /* Toda conta temporal acompanha o escopo que produziu o retrato virtual.
        Antes, a lista recebia o recorte selecionado, mas taxa, sequência e nota
        projetada voltavam a consultar todos os retratos do perfil. */
-    const todos = (scoped._fontes && scoped._fontes.length ? scoped._fontes : [scoped]).slice();
+    const fontesEscopo = (scoped._fontes && scoped._fontes.length) ? scoped._fontes : null;
+    const historico = fontesEscopo || (DB.getTecSnapshots() || []);
+    // Agregados reais carregam `_fontes` e ficam rigorosamente presos ao escopo.
+    // Snapshots unitários/sintéticos não carregam essa propriedade; nesses casos
+    // o histórico do DB é necessário para delta, sequência e consolidação.
+    const todos = (historico.length ? historico : [scoped]).slice();
     if (!todos.length) return { erro: 'sem-retrato' };
     opts._snapshots = todos;
     // do mais novo para o mais antigo, cada um com seu índice de assuntos
@@ -36203,11 +36212,17 @@ const DesempenhoTecScreen = {
     const _p = this._loadPrefs();
     if (_p.scopeMode && ['consolidado', 'select', 'range'].includes(_p.scopeMode)) this.scopeMode = _p.scopeMode;
     if (_p.reforcoView) this.reforcoView = _p.reforcoView;
-    // inicializa a seleção (todos marcados) e o intervalo (cobre tudo) na 1ª vez
-    if (this.selectedSnapIds === null) this.selectedSnapIds = new Set(snaps.map(s => s.id));
-    // remove ids que não existem mais
+    // Na primeira abertura, restaura inclusive []: "Limpar" é um estado válido.
+    if (this.selectedSnapIds === null) {
+      const salvos = Array.isArray(_p.selectedSnapIds) ? _p.selectedSnapIds : null;
+      this.selectedSnapIds = salvos
+        ? new Set(salvos.map(id => Number.isFinite(Number(id)) ? Number(id) : id))
+        : new Set(snaps.map(s => s.id));
+    }
+    // remove apenas ids que realmente deixaram de existir; seleção vazia permanece vazia
     [...this.selectedSnapIds].forEach(id => { if (!snaps.find(s => s.id === id)) this.selectedSnapIds.delete(id); });
-    if (this.selectedSnapIds.size === 0) snaps.forEach(s => this.selectedSnapIds.add(s.id));
+    if (!this.rangeStart && _p.rangeStart) this.rangeStart = _p.rangeStart;
+    if (!this.rangeEnd && _p.rangeEnd) this.rangeEnd = _p.rangeEnd;
     if (!this.rangeStart || !this.rangeEnd) {
       this.rangeStart = snaps[0].startDate;
       this.rangeEnd = snaps[snaps.length - 1].endDate;
@@ -36520,12 +36535,57 @@ const DesempenhoTecScreen = {
     if (snaps.length === 0) return null;
     let perfil = '';
     try { perfil = DB._profilePrefix(); } catch (_) { _quiet(_); }
-    const chave = perfil + '|' + this.scopeMode + '|' + snaps.map(s =>
-      [s.id, s.startDate, s.endDate, (s.rows || []).length, s.importedAt || ''].join(':')).join('|');
+    /* O cache precisa representar CONTEÚDO, não só envelope. Reimportar/corrigir
+       um retrato pode preservar id, datas e quantidade de linhas enquanto muda
+       acertos/questões (ou a árvore). Sem esta assinatura, Análise/Plano podem
+       reutilizar silenciosamente o agregado anterior. FNV-1a é barato, estável
+       e percorre exatamente os campos que alteram a consolidação. */
+    const assinar = (snap) => {
+      let h = 2166136261 >>> 0;
+      const mix = (v) => {
+        const t = String(v == null ? '' : v);
+        for (let i = 0; i < t.length; i++) h = Math.imul(h ^ t.charCodeAt(i), 16777619) >>> 0;
+        h = Math.imul(h ^ 31, 16777619) >>> 0;
+      };
+      mix(snap.id); mix(snap.startDate); mix(snap.endDate); mix(snap.importedAt || '');
+      (snap.rows || []).forEach(r => {
+        mix(r.codigo); mix(r.nome); mix(r.disciplina); mix(r.depth);
+        mix(r.questoes); mix(r.acertos);
+      });
+      return h.toString(36);
+    };
+    const chave = perfil + '|' + this.scopeMode + '|' + snaps.map(s => assinar(s)).join('|');
     if (this._scopedC && this._scopedC.chave === chave) return this._scopedC.valor;
     const valor = this.aggregate(snaps);
     this._scopedC = { chave, valor };
     return valor;
+  },
+  _scopePrefsPatch() {
+    return {
+      scopeMode: this.scopeMode,
+      selectedSnapIds: this.selectedSnapIds ? [...this.selectedSnapIds] : [],
+      rangeStart: this.rangeStart || null,
+      rangeEnd: this.rangeEnd || null
+    };
+  },
+  /* Contrato único de mudança de escopo: invalida caches e repinta o mesmo
+     recorte em Análise, Plano e Reforço. Evita a antiga divergência em que o
+     checkbox mudava a Análise enquanto o Plano permanecia com o retrato anterior. */
+  aplicarMudancaEscopo() {
+    this.savePrefs(this._scopePrefsPatch());
+    this._scopedC = null;
+    this._planoRefC = null;
+    this._fatias = null;
+    if (typeof PlanoEngine !== 'undefined') {
+      PlanoEngine._agrC = null;
+      PlanoEngine._tecScopeSignature = null;
+      PlanoEngine._indiceC = new WeakMap();
+    }
+    this.renderScopeControls(DB.getTecSnapshots());
+    this.renderAnalysis();
+    if (this.tecTab === 'plano') this.renderPlano();
+    else if (this.tecTab === 'reforco') this.renderReforco();
+    else if (this.tecTab === 'incidencia') this.renderIncidencia();
   },
   openImport() {
     $id('tec-empty').style.display = 'none';
@@ -36851,8 +36911,7 @@ const DesempenhoTecScreen = {
     box.querySelectorAll('input[data-snap]').forEach(cb => cb.addEventListener('change', () => {
       const id = parseInt(cb.dataset.snap, 10);
       if (cb.checked) this.selectedSnapIds.add(id); else this.selectedSnapIds.delete(id);
-      this.renderScopeControls(DB.getTecSnapshots());
-      this.renderAnalysis();
+      this.aplicarMudancaEscopo();
     }));
     box.querySelectorAll('.tsp-del').forEach(btn => btn.addEventListener('click', (e) => {
       e.preventDefault(); e.stopPropagation();
@@ -36874,8 +36933,8 @@ const DesempenhoTecScreen = {
     }));
     const allBtn = box.querySelector('#tec-scope-all');
     const noneBtn = box.querySelector('#tec-scope-none');
-    if (allBtn) allBtn.addEventListener('click', () => { snaps.forEach(s => this.selectedSnapIds.add(s.id)); this.renderScopeControls(DB.getTecSnapshots()); this.renderAnalysis(); });
-    if (noneBtn) noneBtn.addEventListener('click', () => { this.selectedSnapIds.clear(); this.renderScopeControls(DB.getTecSnapshots()); this.renderAnalysis(); });
+    if (allBtn) allBtn.addEventListener('click', () => { snaps.forEach(s => this.selectedSnapIds.add(s.id)); this.aplicarMudancaEscopo(); });
+    if (noneBtn) noneBtn.addEventListener('click', () => { this.selectedSnapIds.clear(); this.aplicarMudancaEscopo(); });
   },
   syncRangeInputs(snaps) {
     const startEl = document.getElementById('tec-range-start');
@@ -39852,11 +39911,7 @@ $id('tec-scope-toggle').addEventListener('click', (e) => {
   const btn = e.target.closest('button[data-scope]');
   if (!btn) return;
   DesempenhoTecScreen.scopeMode = btn.dataset.scope;
-  DesempenhoTecScreen.savePrefs({ scopeMode: btn.dataset.scope });
-  DesempenhoTecScreen.renderScopeControls(DB.getTecSnapshots());
-  DesempenhoTecScreen.renderAnalysis();
-  // reaplica a aba ativa (reforço também depende do escopo)
-  if (DesempenhoTecScreen.tecTab === 'reforco') DesempenhoTecScreen.renderReforco();
+  DesempenhoTecScreen.aplicarMudancaEscopo();
 });
 // intervalo de datas: inputs manuais
 ['tec-range-start', 'tec-range-end'].forEach(id => {
@@ -39868,9 +39923,7 @@ $id('tec-scope-toggle').addEventListener('click', (e) => {
       // corrige intervalo invertido
       const t = DesempenhoTecScreen.rangeStart; DesempenhoTecScreen.rangeStart = DesempenhoTecScreen.rangeEnd; DesempenhoTecScreen.rangeEnd = t;
     }
-    DesempenhoTecScreen.renderScopeControls(DB.getTecSnapshots());
-    DesempenhoTecScreen.renderAnalysis();
-    if (DesempenhoTecScreen.tecTab === 'reforco') DesempenhoTecScreen.renderReforco();
+    DesempenhoTecScreen.aplicarMudancaEscopo();
   });
 });
 // atalhos de intervalo (últimos N meses / tudo)
@@ -39889,9 +39942,7 @@ document.querySelectorAll('.tec-range-quick').forEach(btn => btn.addEventListene
     DesempenhoTecScreen.rangeStart = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
     DesempenhoTecScreen.rangeEnd = end;
   }
-  DesempenhoTecScreen.renderScopeControls(DB.getTecSnapshots());
-  DesempenhoTecScreen.renderAnalysis();
-  if (DesempenhoTecScreen.tecTab === 'reforco') DesempenhoTecScreen.renderReforco();
+  DesempenhoTecScreen.aplicarMudancaEscopo();
 }));
 /* `input` cobre número e caixa de seleção; `change` é o que um <select>
    dispara. Sem os dois, o seletor de ordem nasceria decorativo. */
