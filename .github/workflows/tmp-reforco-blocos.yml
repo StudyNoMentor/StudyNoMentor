@@ -1,0 +1,50 @@
+name: Validacao temporaria reforco blocos cheios
+on:
+  push:
+    branches: [fix/reforco-agenda-auto]
+    paths: ['.github/workflows/tmp-reforco-blocos.yml']
+permissions:
+  contents: write
+jobs:
+  validar:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: fix/reforco-agenda-auto
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Aplicar blocos cheios
+        run: python3 scripts/tmp-reforco-blocos-cheios.py
+      - name: Instalar dependencias
+        run: |
+          npm ci
+          npm install --no-save playwright@1.56.1
+          npx playwright install --with-deps chromium
+      - name: Gerar bundle
+        run: node build.mjs
+      - name: Verificar tudo
+        id: verify
+        shell: bash
+        run: |
+          set +e
+          node verificar.mjs > /tmp/verificar.log 2>&1
+          code=$?
+          cat /tmp/verificar.log
+          echo "code=$code" >> "$GITHUB_OUTPUT"
+          exit 0
+      - name: Commitar produto se tudo passou
+        if: steps.verify.outputs.code == '0'
+        run: |
+          git config user.name 'StudyNoMentor'
+          git config user.email 'jairo258@hotmail.com'
+          git add src/js/51b-reforco-agenda-auto.js testes/atividades-extras.mjs index.html src/manifesto.json sw.js
+          if ! git diff --cached --quiet; then
+            git commit -m 'Prioriza blocos cheios no rodizio de reforco'
+            git push origin HEAD:fix/reforco-agenda-auto
+          fi
+      - name: Falhar se a verificacao falhou
+        if: steps.verify.outputs.code != '0'
+        run: exit 1
