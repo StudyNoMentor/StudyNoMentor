@@ -13,10 +13,18 @@ jobs:
         with: { fetch-depth: 0 }
       - uses: actions/setup-node@v4
         with: { node-version: '22' }
-      - name: Integrar ao montador e gate permanente
+      - name: Ajustar contrato e integrar ao montador
         run: |
           python3 - <<'PY'
           from pathlib import Path
+          js=Path('src/js/59-reforco-adaptativo.js'); t=js.read_text()
+          start=t.find("      if(typeof PlanoCiclo.avaliar==='function'")
+          end=t.find("    },\n    casa(o,x)", start)
+          if start >= 0 and end > start:
+              t=t[:start]+t[end:]
+          t=t.replace("catch(_){}", "catch(_){if(typeof _quiet==='function')_quiet(_,'reforco-adaptativo');}")
+          js.write_text(t)
+
           p=Path('build.mjs'); s=p.read_text()
           if 'reforco-adaptativo-v1' not in s:
             old="""  SEP('\\n</style>\\n\\n<style id=\"tec-layout-v2\">\\n'), S('css/14-tec-layout-v2.css'),\n  SEP('\\n</style>\\n\\n<script id=\"app-code\" type=\"application/x-diario-inert\">\\n'),"""
