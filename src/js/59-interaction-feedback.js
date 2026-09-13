@@ -13,8 +13,35 @@
 
   const WorkFeedback = {
     _busy: new WeakSet(),
+    forceDeferred: false,
+    _interacaoReal(opts) {
+      if (opts && opts.defer === false) return false;
+      if (this.forceDeferred || (opts && opts.defer === true)) return true;
+      try {
+        /* O app historicamente expõe ações DOM síncronas e a suíte interna usa
+           `element.click()` para exercitá-las. Não quebramos esse contrato em
+           automações: adiamos somente quando há ativação REAL do usuário. Um
+           clique/toque genuíno ativa userActivation antes do handler; um
+           `.click()` programático não. Em navegadores sem essa API preferimos
+           o feedback visual, pois não há sinal confiável para distinguir. */
+        return !(navigator && navigator.userActivation) || !!navigator.userActivation.isActive;
+      } catch (_) { return true; }
+    },
+    _falha(e, opts) {
+      if (typeof _quiet === 'function') _quiet(e, (opts && opts.context) || 'work-feedback');
+      if ((!opts || opts.errorToast !== false) && typeof showToast === 'function') showToast((opts && opts.errorText) || 'Não foi possível concluir a ação');
+      return null;
+    },
     run(alvo, rotulo, fn, opts) {
       opts = opts || {};
+
+      /* Chamadas programáticas continuam estritamente síncronas. Além de manter
+         compatibilidade, isto evita spinner fantasma em rotinas internas que
+         não representam uma espera percebida por uma pessoa. */
+      if (!this._interacaoReal(opts)) {
+        try { return fn(); } catch (e) { return this._falha(e, opts); }
+      }
+
       const el = resolver(alvo);
       const regiao = resolver(opts.region);
       if (el && this._busy.has(el)) return Promise.resolve(null);
@@ -66,11 +93,8 @@
       return new Promise(resolve => {
         proximoFrame(async () => {
           try { resolve(await fn()); }
-          catch (e) {
-            if (typeof _quiet === 'function') _quiet(e, opts.context || 'work-feedback');
-            if (opts.errorToast !== false && typeof showToast === 'function') showToast(opts.errorText || 'Não foi possível concluir a ação');
-            resolve(null);
-          } finally { limpar(); }
+          catch (e) { resolve(this._falha(e, opts)); }
+          finally { limpar(); }
         });
       });
     }
