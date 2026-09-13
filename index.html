@@ -57,7 +57,7 @@
      novo, e o antigo é descartado sozinho na ativação) e o que permite ao app
      dizer qual versão está rodando. Em src/ fica "dev" de propósito: a versão
      é gerada na montagem, não editada à mão. -->
-<meta name="diario-versao" content="v26fd8dc61f">
+<meta name="diario-versao" content="v5710c8620b">
 <script>
 /* ── ARRANQUE: abre o IndexedDB AGORA, em paralelo com o parse do documento ──
    A fachada de armazenamento vive no fim do <body>, depois de ~1,7 MB de HTML.
@@ -12632,6 +12632,46 @@ body.leis-foco .leis-reader-card::before { display: none; }
 .pl-auto-head{display:flex;flex-direction:column;gap:2px;padding:10px 12px;margin:0 0 6px;border-radius:10px;background:color-mix(in srgb,var(--accent,#2563eb) 10%,transparent);border:1px solid color-mix(in srgb,var(--accent,#2563eb) 28%,transparent)}.pl-auto-head small{opacity:.72}.pl-auto-sug{border-color:color-mix(in srgb,var(--accent,#2563eb) 42%,var(--border,#d1d5db))!important;background:color-mix(in srgb,var(--accent,#2563eb) 5%,transparent)}.pl-auto-badge{display:inline-flex;font-size:10px;font-weight:800;letter-spacing:.02em;text-transform:uppercase;padding:2px 6px;border-radius:999px;margin-bottom:4px;background:color-mix(in srgb,var(--accent,#2563eb) 13%,transparent);color:var(--accent,#2563eb)}.pl-auto-rest{font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.04em;opacity:.58;margin:12px 2px 6px}
 @media(max-width:640px){.exm-load{align-items:stretch}.exm-load label{flex:1}.exm-load input{width:100%}.exc-carga-editor{align-items:stretch}.exc-carga-editor label{flex:1}.exc-carga-editor input{width:100%}.exc-carga-actions{width:100%}.exc-carga-actions button{flex:1 1 130px}}
 
+
+</style>
+
+<style id="lei-rodizio-v1">
+/* ═══════════════════════════════════════════════════════════════════════════
+   RODÍZIO DE LEI SECA — integração com Extras e Vade Mecum
+   ═══════════════════════════════════════════════════════════════════════════ */
+.lr-panel{margin:14px 0 0;padding:16px;border:1px solid var(--border);border-radius:16px;background:linear-gradient(135deg,color-mix(in srgb,var(--accent) 5%,var(--surface)),var(--surface));display:grid;gap:14px}
+.lr-panel-head,.lr-panel-foot,.lr-law-tools,.lr-law-editor-actions{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.lr-panel-head{justify-content:space-between}.lr-panel-head>div{display:grid;gap:3px}.lr-panel-head strong{font-size:14px}.lr-panel-head small{color:var(--text-faint);line-height:1.4}
+.lr-grid{display:grid;grid-template-columns:repeat(4,minmax(130px,1fr));gap:10px}.lr-grid label,.lr-law-editor label{display:grid;gap:5px;font-size:11px;font-weight:700;color:var(--text-muted)}
+.lr-grid input,.lr-grid select,.lr-law-editor input,.lr-law-editor select{width:100%;min-height:38px;border:1px solid var(--border);border-radius:10px;background:var(--surface);color:var(--text);padding:7px 9px;font:inherit}
+.lr-days{display:flex;align-items:center;gap:6px;flex-wrap:wrap}.lr-days label{position:relative}.lr-days input{position:absolute;opacity:0;pointer-events:none}.lr-days span{display:grid;place-items:center;width:32px;height:32px;border:1px solid var(--border);border-radius:9px;background:var(--surface);font-size:11px;font-weight:800;cursor:pointer}.lr-days input:checked+span{border-color:var(--accent);background:color-mix(in srgb,var(--accent) 12%,var(--surface));color:var(--accent)}
+.lr-panel-foot{font-size:11px;color:var(--text-faint)}.lr-panel-foot>span{margin-left:auto}.lr-inline{display:flex!important;align-items:center!important;gap:6px!important;color:var(--text-muted)!important}.lr-inline input{width:auto!important;min-height:0!important}
+.lr-switch{display:inline-flex!important;align-items:center!important;gap:7px!important;font-size:11px!important;font-weight:750!important;color:var(--text-muted)!important;cursor:pointer}.lr-switch input{accent-color:var(--accent)}
+.lr-extra-card{border-color:color-mix(in srgb,#0f9d63 28%,var(--border))!important}.lr-route{margin:0 14px 10px;padding:11px 12px;border:1px solid color-mix(in srgb,#0f9d63 24%,var(--border));border-radius:12px;background:color-mix(in srgb,#0f9d63 6%,var(--surface));display:flex;align-items:center;gap:12px}.lr-route-main{display:grid;gap:2px;min-width:0;flex:1}.lr-route-main small{font-size:10px;text-transform:uppercase;letter-spacing:.06em;color:#0a6b44;font-weight:850}.lr-route-main strong{font-size:14px}.lr-route-main span{font-size:11px;color:var(--text-faint);white-space:normal}.lr-tag{background:color-mix(in srgb,#0f9d63 10%,var(--surface));color:#0a6b44;border-color:color-mix(in srgb,#0f9d63 18%,var(--border))}.exm-source.lei{background:color-mix(in srgb,#0f9d63 10%,var(--surface));color:#0a6b44;border-color:color-mix(in srgb,#0f9d63 20%,var(--border))}
+.lr-law-wrap{border:1px solid var(--border);border-radius:16px;overflow:hidden;background:var(--surface);margin-bottom:10px}.lr-law-wrap>.lei-card{border:0!important;border-radius:0!important;margin:0!important;width:100%}.lr-law-tools{padding:10px 14px;border-top:1px solid var(--border);background:color-mix(in srgb,var(--accent) 2.5%,var(--surface))}.lr-law-next{font-size:11px;color:var(--text-faint);margin-right:auto}.lr-law-editor{padding:12px 14px;border-top:1px dashed var(--border);display:grid;grid-template-columns:repeat(3,minmax(120px,1fr));gap:10px;background:var(--surface-2,var(--surface))}.lr-law-editor-actions{grid-column:1/-1;justify-content:flex-end}
+@media(max-width:850px){.lr-grid{grid-template-columns:repeat(2,minmax(120px,1fr))}.lr-panel-foot>span{margin-left:0;width:100%}.lr-law-editor{grid-template-columns:1fr 1fr}.lr-law-editor label:last-of-type{grid-column:1/-1}}
+@media(max-width:560px){.lr-panel{padding:13px}.lr-grid{grid-template-columns:1fr}.lr-route{align-items:flex-start;flex-direction:column}.lr-route .btn-secondary{width:100%}.lr-law-tools{align-items:flex-start}.lr-law-next{width:100%;order:3}.lr-law-editor{grid-template-columns:1fr}.lr-law-editor label:last-of-type{grid-column:auto}.lr-law-editor-actions{grid-column:auto;justify-content:stretch}.lr-law-editor-actions button{flex:1}}
+
+</style>
+
+<style id="extras-governanca-v1">
+/* Governança premium de Extras — reforços, histórico e lei seca */
+.rg-console{margin:12px 24px 14px;padding:16px 18px;border:1px solid var(--border);border-radius:16px;background:linear-gradient(135deg,color-mix(in srgb,var(--accent) 7%,var(--surface)),var(--surface));display:flex;align-items:center;gap:18px;justify-content:space-between}.rg-console-copy{display:grid;gap:3px;min-width:0}.rg-console-copy>small{font-size:10px;font-weight:850;letter-spacing:.09em;color:var(--accent)}.rg-console-copy>strong{font-size:16px}.rg-console-copy>span{font-size:12px;color:var(--text-faint);line-height:1.4}.rg-console-actions{display:flex;gap:8px;flex-wrap:wrap;flex-shrink:0}.rg-console-actions button b{font-size:10px;margin-left:4px;padding:1px 5px;border-radius:999px;background:color-mix(in srgb,currentColor 10%,transparent)}
+.rg-overlay{position:fixed;inset:0;z-index:100000;background:rgba(11,18,32,.48);backdrop-filter:blur(5px);display:grid;place-items:center;padding:18px}.rg-modal{width:min(1040px,100%);max-height:min(90vh,900px);overflow:hidden;background:var(--surface);border:1px solid var(--border);border-radius:22px;box-shadow:0 28px 80px rgba(0,0,0,.28);display:flex;flex-direction:column}.rg-head{display:flex;gap:18px;align-items:flex-start;padding:20px 22px 16px;border-bottom:1px solid var(--border)}.rg-head>div{min-width:0;flex:1}.rg-head small{font-size:10px;font-weight:850;letter-spacing:.09em;color:var(--accent)}.rg-head h3{margin:2px 0 4px;font-size:21px}.rg-head p{margin:0;font-size:12px;line-height:1.45;color:var(--text-faint)}.rg-x{border:0;background:transparent;color:var(--text-muted);font-size:28px;line-height:1;cursor:pointer;padding:2px 7px}.rg-policy-grid{display:grid;grid-template-columns:minmax(330px,.95fr) minmax(340px,1.05fr);min-height:0;overflow:auto}.rg-picker,.rg-rules{padding:18px 20px}.rg-picker{border-right:1px solid var(--border)}.rg-picker-head{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:10px}.rg-picker-head span{display:flex;gap:6px}.rg-picker-head button{border:0;background:transparent;color:var(--accent);font-weight:700;font-size:11px;cursor:pointer}.rg-picks{display:grid;gap:8px}.rg-pick{display:grid;grid-template-columns:auto 1fr;gap:10px;padding:10px 11px;border:1px solid var(--border);border-radius:12px;cursor:pointer;background:var(--surface)}.rg-pick:has(input:checked){border-color:color-mix(in srgb,var(--accent) 55%,var(--border));background:color-mix(in srgb,var(--accent) 6%,var(--surface))}.rg-pick input{margin-top:4px;accent-color:var(--accent)}.rg-pick>span{display:grid;gap:2px;min-width:0}.rg-pick b{font-size:10px;text-transform:uppercase;color:var(--text-faint);letter-spacing:.04em}.rg-pick strong{font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.rg-pick small{font-size:11px;color:var(--text-faint)}.rg-rules{display:grid;align-content:start;gap:14px}.rg-fields{display:grid;grid-template-columns:1.2fr 1fr 1fr;gap:10px}.rg-fields label{display:grid;gap:5px;font-size:11px;font-weight:750;color:var(--text-muted)}.rg-fields input,.rg-fields select{width:100%;min-height:38px;border:1px solid var(--border);border-radius:10px;background:var(--surface);color:var(--text);padding:7px 9px}.rg-scope{border:1px solid var(--border);border-radius:12px;padding:10px 12px;display:grid;gap:8px}.rg-scope legend{font-size:11px;font-weight:800;padding:0 5px}.rg-scope label,.rg-check{font-size:12px;display:flex;align-items:flex-start;gap:8px;line-height:1.4}.rg-scope input,.rg-check input{margin-top:2px;accent-color:var(--accent)}.rg-check{padding:10px 12px;border:1px dashed var(--border);border-radius:12px}.rg-check small{display:block;color:var(--text-faint)}.rg-impact{padding:12px 13px;border-radius:12px;background:color-mix(in srgb,var(--accent) 6%,var(--surface));border:1px solid color-mix(in srgb,var(--accent) 18%,var(--border));font-size:12px;line-height:1.45;color:var(--text-muted)}.rg-foot{padding:14px 20px;border-top:1px solid var(--border);display:flex;justify-content:flex-end;gap:8px}.rg-manage-history{display:flex;align-items:center;justify-content:space-between;gap:14px;padding:13px 14px;margin:0 0 12px;border:1px solid color-mix(in srgb,var(--accent) 20%,var(--border));border-radius:12px;background:color-mix(in srgb,var(--accent) 5%,var(--surface))}.rg-manage-history>div{display:grid;gap:2px}.rg-manage-history b{font-size:12px}.rg-manage-history span{font-size:11px;color:var(--text-faint)}
+.rg-history{width:min(1160px,100%)}.rg-hnav{padding:12px 20px;border-bottom:1px solid var(--border);display:flex;gap:8px;align-items:center}.rg-hnav button{border:1px solid var(--border);background:var(--surface);color:var(--text-muted);border-radius:999px;padding:7px 12px;font-weight:750;cursor:pointer}.rg-hnav button.active{background:color-mix(in srgb,var(--accent) 12%,var(--surface));border-color:var(--accent);color:var(--accent)}.rg-hnav input{margin-left:auto;min-width:260px;border:1px solid var(--border);background:var(--surface);color:var(--text);border-radius:10px;padding:8px 10px}.rg-hbody{padding:16px 20px 24px;overflow:auto;display:grid;gap:12px}.rg-hcard{border:1px solid var(--border);border-radius:16px;background:var(--surface);padding:15px 16px;display:grid;gap:11px}.rg-hcard-head{display:flex;gap:12px;align-items:flex-start}.rg-hcard-head>div{min-width:0;flex:1}.rg-hcard-head small{font-size:10px;text-transform:uppercase;letter-spacing:.05em;color:var(--text-faint)}.rg-hcard-head h4{margin:2px 0 0;font-size:15px}.rg-badge{font-size:10px;font-weight:850;border-radius:999px;padding:4px 8px;background:var(--good-soft,#e8f7ef);color:var(--good-text,#0a6b44)}.rg-badge.law{background:color-mix(in srgb,#0f9d63 12%,var(--surface));color:#0a6b44}.rg-hstats{display:grid;grid-template-columns:repeat(4,minmax(100px,1fr));gap:8px}.rg-hstats span{padding:9px 10px;border-radius:11px;background:var(--surface-2,var(--bg));display:grid;gap:1px}.rg-hstats b{font-size:14px}.rg-hstats small{font-size:10px;color:var(--text-faint)}.rg-hmeta{margin:0;font-size:11px;color:var(--text-faint)}.rg-hcard details{border-top:1px solid var(--border);padding-top:9px}.rg-hcard summary{cursor:pointer;font-size:11px;font-weight:800;color:var(--text-muted)}.rg-daytable,.rg-configlog{display:grid;gap:6px;margin-top:8px}.rg-daytable>div,.rg-configlog>div{display:grid;grid-template-columns:110px 1fr auto;gap:10px;align-items:center;padding:7px 8px;border-radius:9px;background:var(--surface-2,var(--bg));font-size:11px}.rg-daytable em{font-style:normal;color:var(--text-faint)}.rg-configlog>div{grid-template-columns:155px 1fr}.rg-hcard pre{max-height:330px;overflow:auto;white-space:pre-wrap;word-break:break-word;background:var(--surface-2,var(--bg));padding:10px;border-radius:10px;font-size:10px}.rg-empty{padding:32px;text-align:center;color:var(--text-faint)}
+.lrp-note{width:100%;margin:4px 0 0!important}.lr-route [data-lrp-reg]{margin-left:auto;white-space:nowrap}.lr-panel .lr-grid{grid-template-columns:repeat(3,minmax(130px,1fr))}
+@media(max-width:850px){.rg-console{margin-left:14px;margin-right:14px;align-items:flex-start;flex-direction:column}.rg-console-actions{width:100%}.rg-console-actions button{flex:1}.rg-policy-grid{grid-template-columns:1fr}.rg-picker{border-right:0;border-bottom:1px solid var(--border)}.rg-fields{grid-template-columns:1fr 1fr}.rg-hstats{grid-template-columns:1fr 1fr}.lr-panel .lr-grid{grid-template-columns:1fr 1fr}}
+@media(max-width:560px){.rg-overlay{padding:0}.rg-modal{max-height:100vh;height:100vh;border-radius:0}.rg-head{padding:16px}.rg-policy-grid{display:block}.rg-picker,.rg-rules{padding:14px}.rg-fields{grid-template-columns:1fr}.rg-foot{padding:12px}.rg-hnav{padding:10px 12px;flex-wrap:wrap}.rg-hnav input{margin-left:0;min-width:0;width:100%}.rg-hbody{padding:12px}.rg-hstats{grid-template-columns:1fr 1fr}.rg-daytable>div{grid-template-columns:1fr}.rg-configlog>div{grid-template-columns:1fr}.rg-manage-history{align-items:flex-start;flex-direction:column}.rg-manage-history button{width:100%}.lr-route [data-lrp-reg]{margin-left:0;width:100%}.lr-panel .lr-grid{grid-template-columns:1fr}}
+
+</style>
+
+<style id="tec-premium-v1">
+/* Desempenho TEC — camada visual premium */
+.tp-command{margin:0 0 18px;padding:18px 20px;border:1px solid var(--border);border-radius:18px;background:linear-gradient(135deg,color-mix(in srgb,var(--accent) 8%,var(--surface)),var(--surface));display:grid;grid-template-columns:minmax(0,1.15fr) minmax(360px,.85fr);grid-template-areas:"main metrics" "main actions";gap:12px 20px;box-shadow:0 10px 30px rgba(12,25,45,.05)}.tp-main{grid-area:main;display:grid;align-content:center;gap:4px}.tp-eyebrow{font-size:10px;font-weight:900;letter-spacing:.11em;color:var(--accent)}.tp-title{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap}.tp-title strong{font-size:22px}.tp-title span{font-size:11px;font-weight:750;color:var(--text-faint);padding:3px 8px;border-radius:999px;border:1px solid var(--border);background:var(--surface)}.tp-main p{margin:3px 0 0;max-width:680px;font-size:12px;line-height:1.5;color:var(--text-faint)}.tp-metrics{grid-area:metrics;display:grid;grid-template-columns:repeat(4,minmax(80px,1fr));gap:8px}.tp-metrics>span{padding:9px 10px;border-radius:12px;background:var(--surface);border:1px solid var(--border);display:grid;gap:1px}.tp-metrics b{font-size:14px;white-space:nowrap}.tp-metrics small{font-size:9px;line-height:1.25;color:var(--text-faint)}.tp-metrics .ok{border-color:color-mix(in srgb,var(--good) 30%,var(--border))}.tp-metrics .ok b{color:var(--good-text,var(--good))}.tp-metrics .warn{border-color:color-mix(in srgb,var(--warn) 35%,var(--border))}.tp-actions{grid-area:actions;display:flex;align-items:center;justify-content:flex-end;gap:8px}.tp-ms{font-size:10px;color:var(--text-faint);padding:4px 7px;border-radius:999px;background:var(--surface-2,var(--bg))}
+#screen-desempenhotec .tec-tab-panel>.card,#screen-desempenhotec #tec-panel-plano>.card,#screen-desempenhotec #tec-panel-reforco>.card{border-radius:18px;overflow:hidden}#screen-desempenhotec .tec-cfg-bar{background:color-mix(in srgb,var(--accent) 2.5%,var(--surface));border-top:1px solid var(--border)}#screen-desempenhotec .tec-cfg-open{border-radius:999px}#screen-desempenhotec .pl-hero,#screen-desempenhotec .reforco-summary{border-radius:16px}
+.tp-overlay{position:fixed;inset:0;z-index:100001;background:rgba(11,18,32,.48);backdrop-filter:blur(5px);display:grid;place-items:center;padding:18px}.tp-modal{width:min(900px,100%);max-height:88vh;overflow:auto;background:var(--surface);border:1px solid var(--border);border-radius:22px;box-shadow:0 28px 80px rgba(0,0,0,.28)}.tp-modal-head{display:flex;align-items:flex-start;gap:16px;padding:19px 21px 14px;border-bottom:1px solid var(--border)}.tp-modal-head>div{flex:1}.tp-modal-head small{font-size:10px;font-weight:900;letter-spacing:.08em;color:var(--accent)}.tp-modal-head h3{margin:3px 0 0;font-size:20px}.tp-modal-head button{border:0;background:transparent;color:var(--text-muted);font-size:28px;cursor:pointer}.tp-audit-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;padding:16px 20px}.tp-audit-grid article{padding:12px;border:1px solid var(--border);border-radius:13px;background:var(--surface-2,var(--bg));display:grid;gap:3px}.tp-audit-grid b{font-size:16px}.tp-audit-grid span{font-size:11px;font-weight:800}.tp-audit-grid small{font-size:10px;line-height:1.35;color:var(--text-faint)}.tp-audit-body{padding:0 20px 22px}.tp-audit-body h4{margin:0 0 8px}.tp-audit-body>div{display:grid;grid-template-columns:120px 1fr auto;gap:10px;padding:8px 0;border-bottom:1px solid var(--border);font-size:11px}.tp-audit-body em{font-style:normal;color:var(--text-faint)}.tp-audit-body p{font-size:11px;line-height:1.45;color:var(--text-faint)}
+@media(max-width:900px){.tp-command{grid-template-columns:1fr;grid-template-areas:"main" "metrics" "actions"}.tp-actions{justify-content:flex-start}.tp-audit-grid{grid-template-columns:1fr 1fr}}
+@media(max-width:560px){.tp-command{padding:14px}.tp-metrics{grid-template-columns:1fr 1fr}.tp-actions{align-items:stretch;flex-direction:column}.tp-actions button{width:100%}.tp-overlay{padding:0}.tp-modal{height:100vh;max-height:100vh;border-radius:0}.tp-audit-grid{grid-template-columns:1fr 1fr;padding:12px}.tp-audit-body{padding:0 12px 18px}.tp-audit-body>div{grid-template-columns:1fr;gap:3px}}
 
 </style>
 
@@ -43139,6 +43179,886 @@ window.ReforcoFila = ReforcoFila;
   };
 
   window.ExtrasModern = ExtrasModern;
+})();
+
+/* ============================================================
+   EXTRAS — cache rápido do Plano + rodízio inteligente de lei seca
+   ============================================================ */
+(() => {
+  if (typeof window !== 'undefined' && window.__leiRodizioExtrasV1) return;
+  if (typeof window !== 'undefined') window.__leiRodizioExtrasV1 = true;
+
+  /* ── CACHE DO PLANO NO CAMINHO QUENTE DE EXTRAS ──────────────────────────
+     A conclusão de uma Extra muda slots/progresso, mas NÃO muda o retrato TEC.
+     Antes cada conclusão + render + "Puxar do Plano" recalculava a mesma árvore
+     inteira várias vezes. O cache é por OBJETO do scopedSnapshot (que já possui
+     assinatura de conteúdo) + preferências efetivas. Alterou retrato/escopo ou
+     preferência? A chave muda naturalmente. */
+  const PlanFastCache = {
+    _origCalc: (typeof PlanoEngine !== 'undefined' && PlanoEngine.calcular) ? PlanoEngine.calcular : null,
+    _porSnapshot: new WeakMap(),
+    _hits: 0,
+    _misses: 0,
+    _depth: 0,
+    _restaurarCalc: null,
+
+    _stable(v, vistos) {
+      if (v == null || typeof v !== 'object') return JSON.stringify(v);
+      vistos = vistos || new WeakSet();
+      if (vistos.has(v)) return '"[circular]"';
+      vistos.add(v);
+      if (Array.isArray(v)) return '[' + v.map(x => this._stable(x, vistos)).join(',') + ']';
+      return '{' + Object.keys(v).sort().map(k => JSON.stringify(k) + ':' + this._stable(v[k], vistos)).join(',') + '}';
+    },
+    _contexto() {
+      try { return DB._profilePrefix() + '|' + DB._activePlanId(); }
+      catch (_) { return 'default'; }
+    },
+    calcular(snap, prefs) {
+      if (!this._origCalc || !snap || (typeof snap !== 'object' && typeof snap !== 'function')) {
+        return this._origCalc ? this._origCalc.call(PlanoEngine, snap, prefs) : null;
+      }
+      let mapa = this._porSnapshot.get(snap);
+      if (!mapa) { mapa = new Map(); this._porSnapshot.set(snap, mapa); }
+      const key = this._contexto() + '|' + this._stable(prefs || {});
+      if (mapa.has(key)) { this._hits++; return mapa.get(key); }
+      const r = this._origCalc.call(PlanoEngine, snap, prefs);
+      this._misses++;
+      if (mapa.size >= 16) mapa.delete(mapa.keys().next().value);
+      mapa.set(key, r);
+      return r;
+    },
+    atual(patch) {
+      if (typeof DesempenhoTecScreen === 'undefined' || typeof PlanoEngine === 'undefined') return null;
+      const snap = DesempenhoTecScreen.scopedSnapshot && DesempenhoTecScreen.scopedSnapshot();
+      if (!snap) return null;
+      const prefs = Object.assign({}, PlanoEngine.prefs ? PlanoEngine.prefs() : {}, patch || {});
+      return this.calcular(snap, prefs);
+    },
+    withCache(fn) {
+      if (!this._origCalc || typeof PlanoEngine === 'undefined') return fn();
+      if (this._depth++ === 0) {
+        this._restaurarCalc = PlanoEngine.calcular;
+        PlanoEngine.calcular = (snap, prefs) => this.calcular(snap, prefs);
+      }
+      try { return fn(); }
+      finally {
+        if (--this._depth === 0) {
+          PlanoEngine.calcular = this._restaurarCalc || this._origCalc;
+          this._restaurarCalc = null;
+        }
+      }
+    },
+    invalidate() { this._porSnapshot = new WeakMap(); },
+    stats() { return { hits: this._hits, misses: this._misses }; }
+  };
+  if (typeof window !== 'undefined') window.PlanFastCache = PlanFastCache;
+
+  const invalidarApos = (obj, nome) => {
+    if (!obj || typeof obj[nome] !== 'function' || obj[nome]._planFastWrapped) return;
+    const original = obj[nome];
+    const wrapped = function () {
+      const r = original.apply(this, arguments);
+      PlanFastCache.invalidate();
+      return r;
+    };
+    wrapped._planFastWrapped = true;
+    obj[nome] = wrapped;
+  };
+  if (typeof DB !== 'undefined') {
+    ['saveIncidencia', 'saveTecSnapshots'].forEach(n => invalidarApos(DB, n));
+  }
+  if (typeof PlanoEngine !== 'undefined') invalidarApos(PlanoEngine, 'salvarPrefs');
+
+  if (typeof ReforcoFila !== 'undefined') {
+    ReforcoFila._planoRef = function () {
+      try { return PlanFastCache.atual(); }
+      catch (e) { _quiet(e, 'fila-plano-ref-fast'); return null; }
+    };
+
+    /* O resultado de PlanoEngine.calcular já chega ORDENADO conforme o modo que
+       o usuário escolheu. Usar PlanoPontos.esforcoPorMateria outra vez aqui
+       recompunha todo o quadro de matérias apenas para ordenar as mesmas
+       sugestões. Preservar a primeira ocorrência de cada disciplina espelha o
+       Plano e elimina essa segunda travessia pesada. */
+    ReforcoFila._rankDisciplinasPlano = function (cand) {
+      const porDisc = new Map();
+      const ordem = [];
+      (cand || []).forEach((x, i) => {
+        const k = this._norm(x.disciplina || 'sem disciplina');
+        if (!porDisc.has(k)) {
+          porDisc.set(k, { k, nome: x.disciplina || 'Sem disciplina', itens: [] });
+          ordem.push(k);
+        }
+        porDisc.get(k).itens.push({ x, i });
+      });
+      porDisc.forEach(g => g.itens.sort((a, b) => this._cmpSug(a, b)));
+      return { ordem, porDisc };
+    };
+  }
+
+  const LeiRodizio = {
+    KEY_PREF: 'lei-rodizio-prefs-v1',
+    DEFAULTS: {
+      ativo: true,
+      porDia: 1,
+      linhasSessao: 30,
+      alternarMaterias: true,
+      ordem: 'circular',
+      dias: [0, 1, 2, 3, 4, 5, 6],
+      aoFinal: 'pausar'
+    },
+
+    _prefKey() {
+      try { return DB._profilePrefix() + this.KEY_PREF; }
+      catch (_) { return 'diario-estudos:' + this.KEY_PREF; }
+    },
+    prefs() {
+      let raw = {};
+      try { raw = JSON.parse(localStorage.getItem(this._prefKey()) || '{}') || {}; }
+      catch (_) { raw = {}; }
+      const dias = Array.isArray(raw.dias) ? [...new Set(raw.dias.map(Number).filter(n => n >= 0 && n <= 6))] : this.DEFAULTS.dias.slice();
+      return {
+        ativo: raw.ativo !== false,
+        porDia: Math.max(1, Math.min(5, Math.round(Number(raw.porDia) || this.DEFAULTS.porDia))),
+        linhasSessao: Math.max(5, Math.min(300, Math.round(Number(raw.linhasSessao) || this.DEFAULTS.linhasSessao))),
+        alternarMaterias: raw.alternarMaterias !== false,
+        ordem: raw.ordem === 'prioridade' ? 'prioridade' : 'circular',
+        dias: dias.length ? dias.sort((a, b) => a - b) : this.DEFAULTS.dias.slice(),
+        aoFinal: raw.aoFinal === 'reiniciar' ? 'reiniciar' : 'pausar'
+      };
+    },
+    salvarPrefs(patch) {
+      const p = Object.assign({}, this.prefs(), patch || {});
+      const saneado = Object.assign({}, this.DEFAULTS, p, {
+        porDia: Math.max(1, Math.min(5, Math.round(Number(p.porDia) || 1))),
+        linhasSessao: Math.max(5, Math.min(300, Math.round(Number(p.linhasSessao) || 30))),
+        ordem: p.ordem === 'prioridade' ? 'prioridade' : 'circular',
+        aoFinal: p.aoFinal === 'reiniciar' ? 'reiniciar' : 'pausar',
+        dias: Array.isArray(p.dias) && p.dias.length ? [...new Set(p.dias.map(Number).filter(n => n >= 0 && n <= 6))].sort((a, b) => a - b) : this.DEFAULTS.dias.slice()
+      });
+      try {
+        if (typeof DB.setRaw === 'function') DB.setRaw(this._prefKey(), JSON.stringify(saneado));
+        else localStorage.setItem(this._prefKey(), JSON.stringify(saneado));
+      } catch (e) { _quiet(e, 'lei-rodizio-prefs'); }
+      this.sincronizarHoje();
+      return saneado;
+    },
+    cfgLei(lei) {
+      const r = (lei && lei.rodizio) || {};
+      const ls = Number(r.linhasSessao);
+      return {
+        apta: !!r.apta,
+        prioridade: Math.max(1, Math.min(5, Math.round(Number(r.prioridade) || 3))),
+        linhasSessao: Number.isFinite(ls) && ls > 0 ? Math.max(5, Math.min(300, Math.round(ls))) : null,
+        aoFinal: ['padrao', 'pausar', 'reiniciar'].includes(r.aoFinal) ? r.aoFinal : 'padrao',
+        ultimaConclusao: r.ultimaConclusao || '',
+        ultimaGeracao: r.ultimaGeracao || '',
+        ultimaPulada: r.ultimaPulada || '',
+        sessoes: Math.max(0, Number(r.sessoes) || 0),
+        linhasLidas: Math.max(0, Number(r.linhasLidas) || 0)
+      };
+    },
+    salvarCfgLei(id, patch) {
+      const lei = DB.getLei(id);
+      if (!lei) return null;
+      const atual = this.cfgLei(lei);
+      const prox = Object.assign({}, atual, patch || {});
+      if (patch && Object.prototype.hasOwnProperty.call(patch, 'linhasSessao')) {
+        const n = Number(patch.linhasSessao);
+        prox.linhasSessao = Number.isFinite(n) && n > 0 ? Math.max(5, Math.min(300, Math.round(n))) : null;
+      }
+      prox.prioridade = Math.max(1, Math.min(5, Math.round(Number(prox.prioridade) || 3)));
+      prox.aoFinal = ['padrao', 'pausar', 'reiniciar'].includes(prox.aoFinal) ? prox.aoFinal : 'padrao';
+      DB.updateLei(id, { rodizio: prox });
+      this.sincronizarHoje();
+      return prox;
+    },
+    eExtra(e) { return !!(e && e.origemLei && e.origemLei.rodizio && e.origemLei.leiId); },
+    _diaPermitido(dia, p) {
+      const d = new Date(String(dia) + 'T00:00:00');
+      return (p.dias || []).includes(d.getDay());
+    },
+    _linhas(lei) {
+      try { return LawEngine.lines(lei && lei.texto || ''); }
+      catch (_) { return String(lei && lei.texto || '').split(/\r?\n/).filter(x => x.trim()); }
+    },
+    _bookmark(lei) {
+      let n = null;
+      try { n = LawEngine.resolveBookmark(lei); } catch (_) { n = lei && lei.bookmark; }
+      n = Math.round(Number(n) || 0);
+      const total = this._linhas(lei).length;
+      return Math.max(1, Math.min(Math.max(1, total), n > 0 ? n : 1));
+    },
+    _anchor(lei, linha) {
+      const linhas = this._linhas(lei);
+      return (linhas[Math.max(0, linha - 1)] || '').trim().slice(0, 40) || null;
+    },
+    _setBookmark(lei, linha, rodizioPatch) {
+      if (!lei) return null;
+      const linhas = this._linhas(lei), total = linhas.length;
+      const n = total ? Math.max(1, Math.min(total, Math.round(Number(linha) || 1))) : null;
+      const rodizio = Object.assign({}, this.cfgLei(lei), rodizioPatch || {});
+      DB.updateLei(lei.id, { bookmark: n, bookmarkTxt: n ? this._anchor(lei, n) : null, rodizio });
+      return n;
+    },
+    _linhasSessao(lei, p) { return this.cfgLei(lei).linhasSessao || p.linhasSessao; },
+    _fimModo(lei, p) {
+      const m = this.cfgLei(lei).aoFinal;
+      return m === 'padrao' ? p.aoFinal : m;
+    },
+    _ordenaLeis(a, b, p) {
+      const ca = this.cfgLei(a), cb = this.cfgLei(b);
+      if (p.ordem === 'prioridade') {
+        return cb.prioridade - ca.prioridade
+          || String(ca.ultimaConclusao || ca.ultimaGeracao || '').localeCompare(String(cb.ultimaConclusao || cb.ultimaGeracao || ''))
+          || String(a.titulo || '').localeCompare(String(b.titulo || ''), 'pt-BR');
+      }
+      return String(ca.ultimaConclusao || ca.ultimaGeracao || '').localeCompare(String(cb.ultimaConclusao || cb.ultimaGeracao || ''))
+        || cb.prioridade - ca.prioridade
+        || String(a.titulo || '').localeCompare(String(b.titulo || ''), 'pt-BR');
+    },
+    _selecionar(leis, n, p, materiasUsadas) {
+      const ordenadas = leis.slice().sort((a, b) => this._ordenaLeis(a, b, p));
+      if (!p.alternarMaterias) return ordenadas.slice(0, n);
+      const out = [], usadas = new Set(materiasUsadas || []);
+      for (const lei of ordenadas) {
+        if (out.length >= n) break;
+        const m = String(lei.materia || '').trim().toLowerCase() || '—';
+        if (usadas.has(m)) continue;
+        out.push(lei); usadas.add(m);
+      }
+      if (out.length < n) {
+        for (const lei of ordenadas) {
+          if (out.length >= n) break;
+          if (!out.includes(lei)) out.push(lei);
+        }
+      }
+      return out;
+    },
+    _criarMissao(lei, hoje, p) {
+      const linhas = this._linhas(lei), total = linhas.length;
+      if (!total) return null;
+      const de = this._bookmark(lei);
+      const carga = this._linhasSessao(lei, p);
+      const ate = Math.min(total, de + carga - 1);
+      const e = DB.addExtra({
+        titulo: 'Lei seca · ' + (lei.titulo || 'Leitura'),
+        tipo: 'leitura', disciplina: lei.materia || '', unidade: 'linhas',
+        alvo: Math.max(1, ate - de + 1), periodo: 'unica', datas: [hoje],
+        marcador: 'linhas ' + de + '–' + ate, contaMetricas: false,
+        obs: 'Gerado pelo rodízio inteligente de lei seca.'
+      });
+      if (!e) return null;
+      DB.updateExtra(e.id, {
+        origemLei: {
+          rodizio: true, leiId: lei.id, deLinha: de, ateLinha: ate, totalLinhas: total,
+          geradoEmDia: hoje, agendadoPara: hoje, carga, versao: 1
+        }
+      });
+      const cfg = this.cfgLei(lei);
+      DB.updateLei(lei.id, { rodizio: Object.assign({}, cfg, { ultimaGeracao: hoje, ultimaPulada: '' }) });
+      return DB.getExtra(e.id) || e;
+    },
+    sincronizarHoje() {
+      if (typeof DB === 'undefined' || typeof LawEngine === 'undefined') return { mudou: false, criadas: 0 };
+      const p = this.prefs(), hoje = todayLocal();
+      if (!p.ativo || !this._diaPermitido(hoje, p)) return { mudou: false, criadas: 0 };
+      let extras = DB.getExtras();
+      const leis = DB.getLeis();
+      const porId = new Map(leis.map(l => [l.id, l]));
+      let mudou = false;
+
+      extras.forEach(e => {
+        if (!this.eExtra(e) || e.status === 'concluida') return;
+        const lei = porId.get(e.origemLei.leiId);
+        if (!lei || !this.cfgLei(lei).apta) return;
+        const ag = e.origemLei.agendadoPara || (e.datas || [])[0] || '';
+        if (ag && ag < hoje && !(e.datas || []).includes(hoje)) {
+          e.datas = [hoje];
+          e.origemLei = Object.assign({}, e.origemLei, { agendadoPara: hoje, carregadaDe: ag });
+          e.updatedAt = new Date().toISOString();
+          mudou = true;
+        }
+      });
+      if (mudou) { DB.saveExtras(extras); extras = DB.getExtras(); }
+
+      const hojeGeradas = extras.filter(e => this.eExtra(e) && (
+        (e.origemLei && e.origemLei.agendadoPara === hoje) || (e.datas || []).includes(hoje)
+      ));
+      const vagas = Math.max(0, p.porDia - hojeGeradas.length);
+      if (!vagas) return { mudou, criadas: 0, hoje: hojeGeradas.length };
+
+      const abertasPorLei = new Set(extras.filter(e => this.eExtra(e) && e.status !== 'concluida').map(e => e.origemLei.leiId));
+      const elegiveis = leis.filter(lei => {
+        const c = this.cfgLei(lei);
+        return c.apta && c.ultimaPulada !== hoje && !abertasPorLei.has(lei.id) && this._linhas(lei).length > 0;
+      });
+      const materiasHoje = hojeGeradas.map(e => {
+        const lei = porId.get(e.origemLei.leiId);
+        return String(lei && lei.materia || '').trim().toLowerCase() || '—';
+      });
+      const escolhidas = this._selecionar(elegiveis, vagas, p, materiasHoje);
+      let criadas = 0;
+      escolhidas.forEach(lei => { if (this._criarMissao(lei, hoje, p)) criadas++; });
+      return { mudou: mudou || criadas > 0, criadas, hoje: hojeGeradas.length + criadas };
+    },
+    _progressoExtra(e) {
+      if (!e || !this.eExtra(e)) return 0;
+      return Math.max(0, Math.min(Number(e.alvo) || 0, Number(e.progresso) || 0));
+    },
+    avancarParcial(e) {
+      if (!this.eExtra(e) || e.status === 'concluida') return;
+      const lei = DB.getLei(e.origemLei.leiId); if (!lei) return;
+      const lidas = Math.floor(this._progressoExtra(e)); if (lidas <= 0) return;
+      const prox = Math.min(e.origemLei.totalLinhas || this._linhas(lei).length, e.origemLei.deLinha + lidas);
+      const atual = this._bookmark(lei);
+      if (prox > atual) this._setBookmark(lei, prox, {});
+    },
+    finalizarExtra(e, dia) {
+      if (!this.eExtra(e) || !e.origemLei || e.origemLei.finalizadaEm) return e;
+      const lei = DB.getLei(e.origemLei.leiId); if (!lei) return e;
+      const p = this.prefs(), o = e.origemLei, cfg = this.cfgLei(lei);
+      const atual = this._bookmark(lei);
+      const total = Math.max(1, Number(o.totalLinhas) || this._linhas(lei).length || 1);
+      const depoisNatural = Math.min(total, (Number(o.ateLinha) || atual) + 1);
+      const chegouFim = Number(o.ateLinha) >= total;
+      const modoFim = this._fimModo(lei, p);
+      const antes = { bookmark: lei.bookmark == null ? null : lei.bookmark, bookmarkTxt: lei.bookmarkTxt || null, rodizio: Object.assign({}, lei.rodizio || {}) };
+      let depois = Math.max(atual, depoisNatural);
+      const novoCfg = Object.assign({}, cfg, {
+        ultimaConclusao: dia || todayLocal(),
+        sessoes: cfg.sessoes + 1,
+        linhasLidas: cfg.linhasLidas + Math.max(1, (Number(o.ateLinha) || 0) - (Number(o.deLinha) || 1) + 1)
+      });
+      if (chegouFim && modoFim === 'reiniciar') depois = 1;
+      if (chegouFim && modoFim === 'pausar') novoCfg.apta = false;
+      this._setBookmark(lei, depois, novoCfg);
+      const origemLei = Object.assign({}, o, {
+        finalizadaEm: new Date().toISOString(), concluidaEmDia: dia || todayLocal(),
+        bookmarkDepois: depois, chegouFim, antesConclusao: antes
+      });
+      DB.updateExtra(e.id, { origemLei, marcador: chegouFim ? 'fim da lei' : 'próxima linha ' + depois });
+      return DB.getExtra(e.id) || e;
+    },
+    reabrirExtra(e) {
+      if (!this.eExtra(e) || !e.origemLei || !e.origemLei.finalizadaEm) return e;
+      const o = e.origemLei, lei = DB.getLei(o.leiId), antes = o.antesConclusao;
+      if (lei && antes) {
+        const atual = this._bookmark(lei);
+        const patch = { rodizio: Object.assign({}, antes.rodizio || {}) };
+        if (Number(atual) === Number(o.bookmarkDepois)) {
+          patch.bookmark = antes.bookmark;
+          patch.bookmarkTxt = antes.bookmarkTxt;
+        }
+        DB.updateLei(lei.id, patch);
+      }
+      const origemLei = Object.assign({}, o);
+      ['finalizadaEm', 'concluidaEmDia', 'bookmarkDepois', 'chegouFim', 'antesConclusao'].forEach(k => delete origemLei[k]);
+      DB.updateExtra(e.id, { origemLei, marcador: 'linhas ' + o.deLinha + '–' + o.ateLinha });
+      return DB.getExtra(e.id) || e;
+    },
+    pularExtra(e) {
+      if (!this.eExtra(e)) return;
+      const lei = DB.getLei(e.origemLei.leiId); if (!lei) return;
+      const cfg = this.cfgLei(lei);
+      DB.updateLei(lei.id, { rodizio: Object.assign({}, cfg, { ultimaPulada: todayLocal(), ultimaGeracao: todayLocal() }) });
+    },
+    statusHoje() {
+      const hoje = todayLocal(), p = this.prefs();
+      const leis = DB.getLeis();
+      const aptas = leis.filter(l => this.cfgLei(l).apta).length;
+      const missoes = DB.getExtras().filter(e => this.eExtra(e) && ((e.origemLei && e.origemLei.agendadoPara === hoje) || (e.datas || []).includes(hoje))).length;
+      return { aptas, missoes, permitido: this._diaPermitido(hoje, p), prefs: p };
+    },
+    abrirLei(leiId, linha) {
+      const abrir = () => {
+        if (typeof LeisScreen === 'undefined') return;
+        LeisScreen.openReader(leiId);
+        setTimeout(() => {
+          const body = document.getElementById('lei-reader-body');
+          const alvo = body && body.querySelector('.law-block[data-line="' + Number(linha) + '"]');
+          if (alvo && alvo.scrollIntoView) alvo.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }, 50);
+      };
+      try {
+        if (typeof switchScreen === 'function') switchScreen('leis');
+        setTimeout(abrir, 30);
+      } catch (_) { abrir(); }
+    },
+
+    decorarExtras() {
+      const agenda = document.querySelector('#extras-agenda .exm-dashboard') || document.querySelector('#extras-agenda .cal-card');
+      if (agenda && !agenda.querySelector('.lr-panel')) {
+        const s = this.statusHoje(), p = s.prefs;
+        const box = document.createElement('div');
+        box.className = 'lr-panel';
+        box.innerHTML = `
+          <div class="lr-panel-head">
+            <div><strong>📚 Rodízio de lei seca</strong><small>Gera a leitura do dia a partir das leis aptas e retoma do marcador real.</small></div>
+            <label class="lr-switch"><input type="checkbox" data-lr-ativo ${p.ativo ? 'checked' : ''}><span>Ativo</span></label>
+          </div>
+          <div class="lr-grid">
+            <label>Leis por dia<select data-lr-pordia>${[1,2,3,4,5].map(n => `<option value="${n}" ${p.porDia === n ? 'selected' : ''}>${n}</option>`).join('')}</select></label>
+            <label>Linhas por sessão<input type="number" min="5" max="300" data-lr-linhas value="${p.linhasSessao}"></label>
+            <label>Ordem<select data-lr-ordem><option value="circular" ${p.ordem === 'circular' ? 'selected' : ''}>Circular · há mais tempo sem ler</option><option value="prioridade" ${p.ordem === 'prioridade' ? 'selected' : ''}>Prioridade configurada</option></select></label>
+            <label>Ao terminar<select data-lr-fim><option value="pausar" ${p.aoFinal === 'pausar' ? 'selected' : ''}>Pausar a lei</option><option value="reiniciar" ${p.aoFinal === 'reiniciar' ? 'selected' : ''}>Reiniciar do início</option></select></label>
+          </div>
+          <div class="lr-days">${['D','S','T','Q','Q','S','S'].map((r,i) => `<label title="Dia ${i}"><input type="checkbox" data-lr-dia value="${i}" ${p.dias.includes(i) ? 'checked' : ''}><span>${r}</span></label>`).join('')}</div>
+          <div class="lr-panel-foot">
+            <label class="lr-inline"><input type="checkbox" data-lr-alternar ${p.alternarMaterias ? 'checked' : ''}> Alternar matérias quando possível</label>
+            <span>${s.aptas} lei(s) apta(s) · ${s.missoes} missão(ões) hoje${s.permitido ? '' : ' · hoje está fora da rotina'}</span>
+            <button type="button" class="btn-secondary" data-lr-gerenciar>Gerenciar leis</button>
+            <button type="button" class="btn-primary" data-lr-salvar>Salvar rotina</button>
+          </div>`;
+        agenda.appendChild(box);
+        box.querySelector('[data-lr-salvar]').addEventListener('click', () => {
+          const dias = [...box.querySelectorAll('[data-lr-dia]:checked')].map(x => Number(x.value));
+          this.salvarPrefs({
+            ativo: box.querySelector('[data-lr-ativo]').checked,
+            porDia: Number(box.querySelector('[data-lr-pordia]').value),
+            linhasSessao: Number(box.querySelector('[data-lr-linhas]').value),
+            ordem: box.querySelector('[data-lr-ordem]').value,
+            aoFinal: box.querySelector('[data-lr-fim]').value,
+            alternarMaterias: box.querySelector('[data-lr-alternar]').checked,
+            dias
+          });
+          showToast('Rotina de lei seca atualizada ✓');
+          ExtrasScreen.render();
+        });
+        box.querySelector('[data-lr-gerenciar]').addEventListener('click', () => {
+          if (typeof switchScreen === 'function') switchScreen('leis');
+        });
+      }
+
+      document.querySelectorAll('#extras-list .exd').forEach(card => {
+        const e = DB.getExtra(card.dataset.id);
+        if (!this.eExtra(e)) return;
+        card.classList.add('lr-extra-card');
+        const o = e.origemLei, lei = DB.getLei(o.leiId);
+        const manual = card.querySelector('.extra-marcador'); if (manual) manual.remove();
+        const tags = card.querySelector('.exd-tags');
+        if (tags && !tags.querySelector('.lr-tag')) tags.insertAdjacentHTML('beforeend', '<span class="extra-tag lr-tag">🔁 rodízio lei seca</span>');
+        if (!card.querySelector('.lr-route')) {
+          const feito = Math.floor(this._progressoExtra(e));
+          const total = Math.max(1, Number(e.alvo) || 1);
+          const prox = Math.min(Number(o.ateLinha) || o.deLinha, Number(o.deLinha) + feito);
+          const route = document.createElement('div'); route.className = 'lr-route';
+          route.innerHTML = `<div class="lr-route-main"><small>Leitura de hoje</small><strong>Linhas ${o.deLinha}–${o.ateLinha}</strong><span>${feito ? feito + '/' + total + ' linhas registradas · ' : ''}${e.status === 'concluida' ? 'sessão concluída' : 'próxima linha ' + prox}${lei && lei.referencia ? ' · ' + escapeHtml(lei.referencia) : ''}</span></div><button type="button" class="btn-secondary" data-lr-open>📖 Abrir lei</button>`;
+          const top = card.querySelector('.exd-top'); if (top) top.insertAdjacentElement('afterend', route); else card.prepend(route);
+          route.querySelector('[data-lr-open]').addEventListener('click', () => this.abrirLei(o.leiId, o.deLinha));
+        }
+      });
+    },
+
+    decorarLeis() {
+      const wrap = document.getElementById('leis-cards'); if (!wrap) return;
+      wrap.querySelectorAll('.lei-card').forEach(card => {
+        if (card.closest('.lr-law-wrap')) return;
+        const lei = DB.getLei(card.dataset.id); if (!lei) return;
+        const cfg = this.cfgLei(lei), p = this.prefs(), linha = this._bookmark(lei);
+        const holder = document.createElement('div'); holder.className = 'lr-law-wrap';
+        card.parentNode.insertBefore(holder, card); holder.appendChild(card);
+        const tools = document.createElement('div'); tools.className = 'lr-law-tools';
+        tools.innerHTML = `<label class="lr-switch"><input type="checkbox" data-lr-law-on ${cfg.apta ? 'checked' : ''}><span>${cfg.apta ? 'Apta para rodízio' : 'Fora do rodízio'}</span></label><span class="lr-law-next">📌 começa na linha ${linha} · ${cfg.linhasSessao || p.linhasSessao} linhas/sessão</span><button type="button" class="btn-secondary" data-lr-law-cfg>⚙ Ajustar</button>`;
+        holder.appendChild(tools);
+        const on = tools.querySelector('[data-lr-law-on]');
+        on.addEventListener('change', () => {
+          this.salvarCfgLei(lei.id, { apta: on.checked, ultimaPulada: '' });
+          showToast(on.checked ? 'Lei incluída no rodízio ✓' : 'Lei pausada no rodízio');
+          if (typeof LeisScreen !== 'undefined') LeisScreen.renderCards();
+        });
+        tools.querySelector('[data-lr-law-cfg]').addEventListener('click', () => {
+          let ed = holder.querySelector('.lr-law-editor');
+          if (ed) { ed.remove(); return; }
+          const atual = this.cfgLei(DB.getLei(lei.id));
+          ed = document.createElement('div'); ed.className = 'lr-law-editor';
+          ed.innerHTML = `<label>Linhas por sessão<input type="number" min="5" max="300" data-lr-leilinhas value="${atual.linhasSessao || ''}" placeholder="Padrão: ${p.linhasSessao}"></label><label>Prioridade<select data-lr-prio>${[1,2,3,4,5].map(n => `<option value="${n}" ${atual.prioridade === n ? 'selected' : ''}>${n}${n===1?' · baixa':n===3?' · normal':n===5?' · máxima':''}</option>`).join('')}</select></label><label>Ao terminar<select data-lr-leifim><option value="padrao" ${atual.aoFinal === 'padrao' ? 'selected' : ''}>Usar padrão global</option><option value="pausar" ${atual.aoFinal === 'pausar' ? 'selected' : ''}>Pausar esta lei</option><option value="reiniciar" ${atual.aoFinal === 'reiniciar' ? 'selected' : ''}>Reiniciar esta lei</option></select></label><div class="lr-law-editor-actions"><button type="button" class="btn-secondary" data-lr-reset-line>↺ Recomeçar na linha 1</button><button type="button" class="btn-primary" data-lr-law-save>Salvar</button></div>`;
+          holder.appendChild(ed);
+          ed.querySelector('[data-lr-law-save]').addEventListener('click', () => {
+            const raw = ed.querySelector('[data-lr-leilinhas]').value;
+            this.salvarCfgLei(lei.id, { linhasSessao: raw === '' ? null : Number(raw), prioridade: Number(ed.querySelector('[data-lr-prio]').value), aoFinal: ed.querySelector('[data-lr-leifim]').value });
+            showToast('Parâmetros desta lei atualizados ✓'); LeisScreen.renderCards();
+          });
+          ed.querySelector('[data-lr-reset-line]').addEventListener('click', () => {
+            const l = DB.getLei(lei.id); if (!l) return;
+            this._setBookmark(l, 1, {}); showToast('Leitura reiniciada na linha 1'); LeisScreen.renderCards();
+          });
+        });
+      });
+    }
+  };
+  if (typeof window !== 'undefined') window.LeiRodizio = LeiRodizio;
+
+  if (typeof DB !== 'undefined') {
+    const addProgressAnterior = DB.addExtraProgress;
+    DB.addExtraProgress = function () {
+      const id = arguments[0];
+      const r = addProgressAnterior.apply(this, arguments);
+      const e = this.getExtra(id);
+      if (LeiRodizio.eExtra(e)) {
+        if (e.status === 'concluida') LeiRodizio.finalizarExtra(e, (arguments[3] && arguments[3].data) || todayLocal());
+        else LeiRodizio.avancarParcial(e);
+      }
+      return this.getExtra(id) || r;
+    };
+
+    const concluirAnterior = DB.setConcluidaDia;
+    DB.setConcluidaDia = function (id, dia, on) {
+      const antes = this.getExtra(id), ehLei = LeiRodizio.eExtra(antes);
+      const r = concluirAnterior.call(this, id, dia, on);
+      const e = this.getExtra(id);
+      if (ehLei && e) {
+        if (on) LeiRodizio.finalizarExtra(e, dia || todayLocal());
+        else LeiRodizio.reabrirExtra(e);
+      }
+      return this.getExtra(id) || r;
+    };
+
+    if (typeof DB.deleteExtra === 'function') {
+      const delAnterior = DB.deleteExtra;
+      DB.deleteExtra = function (id) {
+        const e = this.getExtra(id);
+        if (LeiRodizio.eExtra(e) && e.status !== 'concluida') LeiRodizio.pularExtra(e);
+        return delAnterior.call(this, id);
+      };
+    }
+  }
+
+  if (typeof ExtrasScreen !== 'undefined') {
+    const puxarAnterior = ExtrasScreen.puxarDoPlano;
+    ExtrasScreen.puxarDoPlano = function () {
+      const r = PlanFastCache.withCache(() => puxarAnterior.apply(this, arguments));
+      const recalc = this._planoRecalc;
+      if (typeof recalc === 'function' && !recalc._planFastWrapped) {
+        const self = this;
+        const fast = function () { return PlanFastCache.withCache(() => recalc.call(self)); };
+        fast._planFastWrapped = true;
+        this._planoRecalc = fast;
+      }
+      return r;
+    };
+
+    const renderAnterior = ExtrasScreen.render;
+    ExtrasScreen.render = function () {
+      try { LeiRodizio.sincronizarHoje(); } catch (e) { _quiet(e, 'lei-rodizio-sync'); }
+      const r = PlanFastCache.withCache(() => renderAnterior.apply(this, arguments));
+      try { LeiRodizio.decorarExtras(); } catch (e) { _quiet(e, 'lei-rodizio-ui'); }
+      return r;
+    };
+  }
+
+  if (typeof LeisScreen !== 'undefined' && typeof LeisScreen.renderCards === 'function') {
+    const cardsAnterior = LeisScreen.renderCards;
+    LeisScreen.renderCards = function () {
+      const r = cardsAnterior.apply(this, arguments);
+      try { LeiRodizio.decorarLeis(); } catch (e) { _quiet(e, 'lei-rodizio-leis-ui'); }
+      return r;
+    };
+  }
+})();
+
+/* ============================================================
+   EXTRAS MODERNOS — fonte própria para o rodízio de lei seca
+   ============================================================ */
+(() => {
+  const EM = (typeof window !== 'undefined') ? window.ExtrasModern : null;
+  if (!EM || typeof LeiRodizio === 'undefined' || EM._leiFonteV1) return;
+  EM._leiFonteV1 = true;
+
+  const fonteAnterior = EM.fonte;
+  EM.fonte = function (x) {
+    if (LeiRodizio.eExtra(x)) return 'lei';
+    return fonteAnterior.call(this, x);
+  };
+
+  const filtroAnterior = EM.filtroFonte;
+  EM.filtroFonte = function (entry) {
+    if (this.view === 'lei') return this.fonte(entry.x) === 'lei';
+    return filtroAnterior.call(this, entry);
+  };
+
+  const gruposAnterior = EM.grupos;
+  EM.grupos = function (c) {
+    if (this.view !== 'lei') return gruposAnterior.call(this, c);
+    const anterior = this.view;
+    this.view = 'all';
+    let grupos;
+    try { grupos = gruposAnterior.call(this, c); }
+    finally { this.view = anterior; }
+    return grupos.map(([k, titulo, ico, arr]) => [
+      k, titulo, ico, arr.filter(e => this.fonte(e.x) === 'lei')
+    ]);
+  };
+
+  const coletarAnterior = EM.coletar;
+  EM.coletar = function (screen) {
+    const c = coletarAnterior.call(this, screen);
+    c.fontes = c.fontes || {};
+    c.fontes.lei = DB.getExtras().filter(x =>
+      x && x.status !== 'concluida' && LeiRodizio.eExtra(x)
+    ).length;
+    return c;
+  };
+
+  const agendaAnterior = EM.decorarAgenda;
+  EM.decorarAgenda = function (screen, c) {
+    const r = agendaAnterior.call(this, screen, c);
+    const host = document.querySelector('#extras-agenda .exm-filters');
+    if (host && !host.querySelector('[data-exm-view="lei"]')) {
+      const tmp = document.createElement('div');
+      tmp.innerHTML = this.chip('lei', 'Lei seca', (c.fontes && c.fontes.lei) || 0);
+      const b = tmp.firstElementChild;
+      if (b) {
+        host.appendChild(b);
+        b.addEventListener('click', () => {
+          this.view = 'lei';
+          screen.selDay = todayLocal();
+          screen.render();
+        });
+      }
+    }
+    return r;
+  };
+
+  const cardsAnterior = EM.decorarCards;
+  EM.decorarCards = function (list, entries) {
+    const r = cardsAnterior.call(this, list, entries);
+    list.querySelectorAll('.exd').forEach(card => {
+      const e = DB.getExtra(card.dataset.id);
+      if (!LeiRodizio.eExtra(e)) return;
+      const tag = card.querySelector('.exm-source');
+      if (!tag) return;
+      tag.textContent = 'Lei seca';
+      tag.classList.remove('manual', 'plano', 'reforco');
+      tag.classList.add('lei');
+    });
+    return r;
+  };
+})();
+
+/* ============================================================
+   EXTRAS — governança premium de reforços + lei seca por tempo
+   ============================================================ */
+(() => {
+  if (typeof window !== 'undefined' && window.__extrasGovernancaV1) return;
+  if (typeof window !== 'undefined') window.__extrasGovernancaV1 = true;
+  if (typeof DB === 'undefined' || typeof ExtrasScreen === 'undefined') return;
+
+  const isoAdd = (iso, n) => {
+    const d = new Date(String(iso) + 'T00:00:00'); d.setDate(d.getDate() + n);
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  };
+  const esc = (v) => typeof escapeHtml === 'function' ? escapeHtml(String(v == null ? '' : v)) : String(v == null ? '' : v)
+    .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  const fmtData = (d) => { try { return typeof formatDateShort === 'function' ? formatDateShort(d) : d; } catch (_) { return d; } };
+  const nnum = (v, d) => { const n = Number(v); return Number.isFinite(n) ? n : d; };
+
+  const ReforcoGovernanca = {
+    VERSAO: 1,
+    _syncBase: null,
+    _sincronizando: false,
+    _nextReflow: null,
+    _modal: null,
+    _histTab: 'reforco',
+
+    eReforco(e) {
+      return !!(e && e.origemPlano && e.origemPlano.topico && typeof ReforcoFila !== 'undefined' && ReforcoFila.ePlano && ReforcoFila.ePlano(e));
+    },
+    eAtivo(e) { return this.eReforco(e) && e.status !== 'concluida' && (!e.reforcoFila || e.reforcoFila.auto !== false); },
+    eFechado(e) { return !!(e && e.origemPlano && e.origemPlano.topico && (e.status === 'concluida' || e.origemPlano.veredito)); },
+    meta(e) { return typeof ReforcoFila === 'undefined' ? null : ReforcoFila._meta(e); },
+    densidade(e) {
+      const d = Number(e && e.reforcoFila && e.reforcoFila.disciplinasDia);
+      if (d === 1 || d === 2) return d;
+      return typeof ReforcoFila !== 'undefined' && ReforcoFila.limiteDisciplinasDia ? ReforcoFila.limiteDisciplinasDia() : 1;
+    },
+    faixa(e) {
+      return typeof ReforcoFila !== 'undefined' && ReforcoFila.limitesBloco ? ReforcoFila.limitesBloco(e) : { min: 10, max: 25, personalizado: false };
+    },
+    politica(e) { const f=this.faixa(e); return { disciplinasDia:this.densidade(e), blocoMin:f.min, blocoMax:f.max }; },
+    _log(e, antes, depois, origem, escopo) {
+      const m=this.meta(e); if(!m || JSON.stringify(antes)===JSON.stringify(depois)) return;
+      if(!Array.isArray(m.configHistorico)) m.configHistorico=[];
+      m.configHistorico.push({ em:new Date().toISOString(), origem:origem||'usuario', escopo:escopo||'futuro', antes, depois });
+      if(m.configHistorico.length>60) m.configHistorico.splice(0,m.configHistorico.length-60);
+    },
+    _disc(e) { try { return ReforcoFila._norm(e.disciplina || (e.origemPlano&&e.origemPlano.disciplina) || 'sem disciplina'); } catch(_) { return String(e&&e.disciplina||'').toLowerCase(); } },
+    _podeCompartilhar(ocupantes,t) {
+      if(!t || (ocupantes||[]).some(o=>o.disc===t.disc)) return false;
+      const todos=(ocupantes||[]).concat([t]);
+      if(todos.length>2) return false;
+      return todos.length<=1 || todos.every(o=>this.densidade(o.e)>=2);
+    },
+    _cmp(a,b) { return String(a.ultimo||'').localeCompare(String(b.ultimo||'')) || nnum(a.taxa,999)-nnum(b.taxa,999) || String(a.e&&a.e.titulo||'').localeCompare(String(b.e&&b.e.titulo||''),'pt-BR'); },
+
+    reflow(opts) {
+      if(typeof ReforcoFila==='undefined') return {mudou:false};
+      opts=opts||{}; const hoje=todayLocal(); let list=DB.getExtras(); const ativos=list.filter(e=>this.eAtivo(e));
+      if(!ativos.length) return {mudou:false};
+      const preservarHoje=new Set(opts.preservarHoje||[]), ref=ReforcoFila._planoRef?ReforcoFila._planoRef():null;
+      const antes=JSON.stringify(ativos.map(e=>[e.id,e.datas||[],(e.reforcoFila&&e.reforcoFila.alvosPorDia)||{}]));
+      ativos.forEach(e=>{
+        const m=this.meta(e); if(!m) return;
+        Object.keys(m.alvosPorDia||{}).forEach(d=>{ if(d>hoje || (opts.incluirHoje&&d===hoje&&!preservarHoje.has(e.id))) delete m.alvosPorDia[d]; });
+        e.datas=(e.datas||[]).filter(d=>d<hoje || (d===hoje&&(!opts.incluirHoje||preservarHoje.has(e.id))));
+      });
+      const hojeOcupantes=[];
+      ativos.forEach(e=>{ if(ReforcoFila.alvoNoDia(e,hoje)!=null) hojeOcupantes.push({e,disc:this._disc(e),fixo:true}); });
+      const tarefas=[];
+      ativos.forEach(e=>{
+        const m=this.meta(e), s=ReforcoFila.saldo(e,ref); let restante=Math.max(0,Math.ceil(s.restante||0));
+        const qHoje=ReforcoFila.alvoNoDia(e,hoje);
+        if(qHoje!=null){ const feito=ReforcoFila.feitoNoDia(e,hoje), concluida=(e.concluidasEm||[]).includes(hoje); if(!concluida) restante-=Math.min(restante,Math.max(0,qHoje-feito)); }
+        restante=Math.max(0,Math.ceil(restante)); if(!restante) return;
+        const av=s.avaliacao||{};
+        tarefas.push({e,m,restante,disc:this._disc(e),taxa:Number.isFinite(Number(av.taxa))?Number(av.taxa):nnum(e.origemPlano&&e.origemPlano.taxaInicial,999),ultimo:ReforcoFila._ultimoDia?ReforcoFila._ultimoDia(e,hoje):''});
+      });
+      let dia=opts.incluirHoje?hoje:isoAdd(hoje,1), guarda=0;
+      while(tarefas.some(t=>t.restante>0)&&guarda++<1460){
+        const ocup=dia===hoje?hojeOcupantes.slice():[];
+        const cand=tarefas.filter(t=>t.restante>0&&!(dia===hoje&&ocup.some(o=>o.e.id===t.e.id))).sort((a,b)=>this._cmp(a,b));
+        for(const t of cand){
+          if(!this._podeCompartilhar(ocup,t)) continue;
+          const q=ReforcoFila.tamanhoBloco(t.restante,t.e); if(!q) continue;
+          t.m.alvosPorDia[dia]=q; if(!(t.e.datas||[]).includes(dia)) t.e.datas.push(dia); t.restante-=q; t.ultimo=dia; ocup.push(t);
+          if(ocup.length>=2 || (ocup.length===1&&this.densidade(ocup[0].e)===1)) break;
+        }
+        dia=isoAdd(dia,1);
+      }
+      ativos.forEach(e=>{e.datas=[...new Set(e.datas||[])].sort();});
+      const depois=JSON.stringify(ativos.map(e=>[e.id,e.datas||[],(e.reforcoFila&&e.reforcoFila.alvosPorDia)||{}]));
+      if(antes!==depois){DB.saveExtras(list);return{mudou:true};} return{mudou:false};
+    },
+
+    aplicarPolitica(ids,cfg) {
+      if(typeof ReforcoFila==='undefined') return{alteradas:0};
+      cfg=cfg||{}; const sel=new Set(ids||[]), hoje=todayLocal(), pAntes=ReforcoFila.prefs(), d=Number(cfg.disciplinasDia)===2?2:1, lim=ReforcoFila._sanearLimites(cfg.blocoMin,cfg.blocoMax);
+      let list=DB.getExtras(); const ativos=list.filter(e=>this.eAtivo(e)), preserve=new Set();
+      ativos.forEach(e=>{const q=ReforcoFila.alvoNoDia(e,hoje),feito=ReforcoFila.feitoNoDia(e,hoje), escolhida=sel.has(e.id), recalc=cfg.escopo==='hoje-futuro'&&escolhida&&q!=null&&feito<=0&&!(e.concluidasEm||[]).includes(hoje);if(q!=null&&!recalc)preserve.add(e.id);});
+      if(cfg.salvarPadrao) ativos.forEach(e=>{if(sel.has(e.id))return;const m=this.meta(e);if(m.disciplinasDia==null)m.disciplinasDia=pAntes.disciplinasDia;if(!Number.isFinite(Number(m.blocoMin)))m.blocoMin=pAntes.blocoMin;if(!Number.isFinite(Number(m.blocoMax)))m.blocoMax=pAntes.blocoMax;});
+      let alteradas=0, congeladasHoje=0;
+      ativos.forEach(e=>{if(!sel.has(e.id))return;const antes=this.politica(e),m=this.meta(e);m.disciplinasDia=d;m.blocoMin=lim.min;m.blocoMax=lim.max;m.politicaAtualizadaEm=new Date().toISOString();const depois=this.politica(e);this._log(e,antes,depois,'painel-seletivo',cfg.escopo==='hoje-futuro'?'hoje-nao-iniciado+futuro':'futuro');if(ReforcoFila.feitoNoDia(e,hoje)>0&&ReforcoFila.alvoNoDia(e,hoje)!=null)congeladasHoje++;alteradas++;});
+      DB.saveExtras(list); this._nextReflow={incluirHoje:cfg.escopo==='hoje-futuro',preservarHoje:[...preserve]};
+      if(cfg.salvarPadrao)ReforcoFila.salvarPrefs({disciplinasDia:d,blocoMin:lim.min,blocoMax:lim.max});else ReforcoFila.sincronizar();
+      return{alteradas,congeladasHoje,min:lim.min,max:lim.max,disciplinasDia:d};
+    },
+
+    instalarScheduler() {
+      if(typeof ReforcoFila==='undefined'||this._syncBase)return;this._syncBase=ReforcoFila.sincronizar;const self=this;
+      ReforcoFila.sincronizar=function(){if(self._sincronizando)return self._syncBase.apply(this,arguments);self._sincronizando=true;try{const base=self._syncBase.apply(this,arguments)||{},op=self._nextReflow||{incluirHoje:false,preservarHoje:[]};self._nextReflow=null;const extra=self.reflow(op);return Object.assign({},base,{mudou:!!(base.mudou||extra.mudou)});}finally{self._sincronizando=false;}};
+    },
+    ativos(){return DB.getExtras().filter(e=>this.eAtivo(e));},
+    fechados(){return DB.getExtras().filter(e=>this.eFechado(e)).sort((a,b)=>String((b.origemPlano.veredito||{}).em||b.updatedAt||'').localeCompare(String((a.origemPlano.veredito||{}).em||a.updatedAt||'')));},
+
+    abrirPolitica() {
+      const ativos=this.ativos();if(!ativos.length){showToast('Não há reforços ativos para configurar');return;}const p=ReforcoFila.prefs(),ov=document.createElement('div');ov.className='rg-overlay';
+      ov.innerHTML=`<div class="rg-modal rg-policy" role="dialog" aria-modal="true"><div class="rg-head"><div><small>Governança do rodízio</small><h3>Configurar reforços</h3><p>Escolha exatamente quais frentes receberão a nova regra. O que já começou hoje fica protegido.</p></div><button type="button" class="rg-x">×</button></div><div class="rg-policy-grid"><section class="rg-picker"><div class="rg-picker-head"><strong>1 · Reforços afetados</strong><span><button type="button" data-rg-all>Todos</button><button type="button" data-rg-none>Nenhum</button></span></div><div class="rg-picks">${ativos.map(e=>{const pol=this.politica(e),q=ReforcoFila.alvoNoDia(e,todayLocal()),feito=ReforcoFila.feitoNoDia(e,todayLocal());return`<label class="rg-pick"><input type="checkbox" data-rg-id value="${esc(e.id)}"><span><b>${esc(e.origemPlano.disciplina||e.disciplina||'Sem disciplina')}</b><strong>${esc(e.origemPlano.topico||e.titulo)}</strong><small>${pol.disciplinasDia}/dia · ${pol.blocoMin}–${pol.blocoMax} q${q!=null?` · hoje ${feito}/${q}`:''}</small></span></label>`;}).join('')}</div></section><section class="rg-rules"><strong>2 · Nova regra</strong><div class="rg-fields"><label>Disciplinas por dia<select data-rg-dens><option value="1" ${p.disciplinasDia===1?'selected':''}>1 · uma frente por dia</option><option value="2" ${p.disciplinasDia===2?'selected':''}>2 · duas frentes compatíveis</option></select></label><label>Mínimo de questões<input data-rg-min type="number" min="1" max="100" value="${p.blocoMin}"></label><label>Máximo de questões<input data-rg-max type="number" min="1" max="100" value="${p.blocoMax}"></label></div><fieldset class="rg-scope"><legend>Quando aplicar</legend><label><input type="radio" name="rg-scope" value="futuro" checked> Somente próximas missões</label><label><input type="radio" name="rg-scope" value="hoje-futuro"> Reorganizar também as missões de hoje que ainda não começaram</label></fieldset><label class="rg-check"><input type="checkbox" data-rg-default> Usar também como padrão para novos reforços <small>Os reforços ativos não selecionados ficam congelados na política que já usam.</small></label><div class="rg-impact" data-rg-impact></div></section></div><div class="rg-foot"><button type="button" class="btn-secondary" data-rg-cancel>Cancelar</button><button type="button" class="btn-primary" data-rg-apply disabled>Aplicar aos selecionados</button></div></div>`;
+      document.body.appendChild(ov);this._modal=ov;const close=()=>{ov.remove();if(this._modal===ov)this._modal=null;};ov.querySelector('.rg-x').onclick=close;ov.querySelector('[data-rg-cancel]').onclick=close;const boxes=()=>[...ov.querySelectorAll('[data-rg-id]')];
+      const impact=()=>{const ids=boxes().filter(x=>x.checked).map(x=>x.value),scope=(ov.querySelector('input[name="rg-scope"]:checked')||{}).value;let ini=0,rec=0;ids.forEach(id=>{const e=DB.getExtra(id);if(!e)return;const q=ReforcoFila.alvoNoDia(e,todayLocal()),f=ReforcoFila.feitoNoDia(e,todayLocal());if(q!=null&&f>0)ini++;else if(q!=null&&scope==='hoje-futuro')rec++;});ov.querySelector('[data-rg-impact]').innerHTML=ids.length?`<b>${ids.length} reforço(s) selecionado(s).</b> ${rec?rec+' missão(ões) de hoje ainda não iniciada(s) podem mudar. ':''}${ini?ini+' iniciada(s) hoje ficam congelada(s). ':''}O futuro é reordenado sem apagar histórico.`:'Selecione ao menos um reforço.';ov.querySelector('[data-rg-apply]').disabled=!ids.length;};
+      boxes().forEach(x=>x.onchange=impact);ov.querySelectorAll('input[name="rg-scope"]').forEach(x=>x.onchange=impact);ov.querySelector('[data-rg-all]').onclick=()=>{boxes().forEach(x=>x.checked=true);impact();};ov.querySelector('[data-rg-none]').onclick=()=>{boxes().forEach(x=>x.checked=false);impact();};
+      ov.querySelector('[data-rg-apply]').onclick=async()=>{const ids=boxes().filter(x=>x.checked).map(x=>x.value);if(!ids.length)return;const cfg={disciplinasDia:Number(ov.querySelector('[data-rg-dens]').value),blocoMin:Number(ov.querySelector('[data-rg-min]').value),blocoMax:Number(ov.querySelector('[data-rg-max]').value),escopo:(ov.querySelector('input[name="rg-scope"]:checked')||{}).value||'futuro',salvarPadrao:ov.querySelector('[data-rg-default]').checked};if(!await UI.confirm(`Aplicar esta política a ${ids.length} reforço(s)?\n\n${cfg.disciplinasDia} disciplina(s)/dia · ${cfg.blocoMin}–${cfg.blocoMax} questões.`,{title:'Confirmar reorganização',okText:'Aplicar'}))return;const r=this.aplicarPolitica(ids,cfg);close();ExtrasScreen.render();showToast(`Política aplicada a ${r.alteradas} reforço(s) ✓${r.congeladasHoje?' · '+r.congeladasHoje+' missão(ões) iniciada(s) preservada(s)':''}`);};impact();
+    },
+
+    _diasReforco(e){const m=(e.reforcoFila&&e.reforcoFila.alvosPorDia)||{},hist=e.historico||[],con=e.concluidasEm||[],dias=[...new Set(Object.keys(m).concat(hist.map(h=>h.data).filter(Boolean),con))].sort();return dias.map(d=>{const regs=hist.filter(h=>h.data===d),feito=regs.reduce((s,h)=>s+(Number(h.quantidade)||0),0),ac=regs.reduce((s,h)=>s+(Number(h.acertos)||0),0),mins=regs.reduce((s,h)=>s+(Number(h.minutos)||0),0);return{d,alvo:Number(m[d])||0,feito,ac,mins,concluida:con.includes(d)};});},
+    _histReforcoCard(e){const o=e.origemPlano||{},v=o.veredito||{},pol=this.politica(e),dias=this._diasReforco(e),histSum=(e.historico||[]).reduce((s,h)=>s+(Number(h.quantidade)||0),0),alvo=Number(e.alvo)||0;return`<article class="rg-hcard"><div class="rg-hcard-head"><div><small>${esc(o.disciplina||e.disciplina||'Sem disciplina')}</small><h4>${esc(o.topico||e.titulo)}</h4></div><span class="rg-badge done">Concluído</span></div><div class="rg-hstats"><span><b>${histSum}</b><small>questões registradas</small></span><span><b>${alvo||'—'}</b><small>meta original</small></span><span><b>${o.taxaInicial!=null?Number(o.taxaInicial).toFixed(0)+'%':'—'}</b><small>taxa inicial</small></span><span><b>${v.taxaFinal!=null?Number(v.taxaFinal).toFixed(0)+'%':v.taxa!=null?Number(v.taxa).toFixed(0)+'%':'—'}</b><small>taxa final</small></span></div><p class="rg-hmeta">Criado ${e.createdAt?new Date(e.createdAt).toLocaleString('pt-BR'):'—'} · encerrado ${v.em?fmtData(v.em):e.updatedAt?new Date(e.updatedAt).toLocaleString('pt-BR'):'—'} · política final ${pol.disciplinasDia}/dia, ${pol.blocoMin}–${pol.blocoMax} q</p><details><summary>Execução dia a dia (${dias.length})</summary><div class="rg-daytable">${dias.length?dias.map(x=>`<div><b>${esc(fmtData(x.d))}</b><span>meta ${x.alvo||'—'} · feito ${x.feito}${x.ac?' · '+x.ac+' acertos':''}${x.mins?' · '+x.mins+' min':''}</span><em>${x.concluida?'✓ concluída':'registro'}</em></div>`).join(''):'<p>Sem lançamentos diários armazenados.</p>'}</div></details>${e.reforcoFila&&Array.isArray(e.reforcoFila.configHistorico)&&e.reforcoFila.configHistorico.length?`<details><summary>Alterações de configuração (${e.reforcoFila.configHistorico.length})</summary><div class="rg-configlog">${e.reforcoFila.configHistorico.slice().reverse().map(c=>`<div><b>${new Date(c.em).toLocaleString('pt-BR')}</b><span>${esc(c.escopo||'')} · ${esc(JSON.stringify(c.antes))} → ${esc(JSON.stringify(c.depois))}</span></div>`).join('')}</div></details>`:''}<details><summary>Dados de auditoria completos</summary><pre>${esc(JSON.stringify(e,null,2))}</pre></details></article>`;},
+    _histLeiCard(e){const o=e.origemLei||{},lei=typeof LeiRodizio!=='undefined'&&o.leiId?DB.getLei(o.leiId):null,regs=e.historico||[],q=regs.reduce((s,h)=>s+(Number(h.quantidade)||0),0),mins=regs.reduce((s,h)=>s+(Number(h.minutos)||0),0);return`<article class="rg-hcard"><div class="rg-hcard-head"><div><small>${esc((lei&&lei.materia)||e.disciplina||'Lei seca')}</small><h4>${esc((lei&&lei.titulo)||e.titulo)}</h4></div><span class="rg-badge law">Lei seca</span></div><div class="rg-hstats"><span><b>${o.deLinha||'—'}–${o.ateLinha||'—'}</b><small>faixa lida</small></span><span><b>${q||0}</b><small>linhas registradas</small></span><span><b>${mins||0}</b><small>minutos</small></span><span><b>${mins>0?(q/mins).toFixed(2):'—'}</b><small>linhas/min</small></span></div><p class="rg-hmeta">${o.concluidaEmDia?'Concluída '+esc(fmtData(o.concluidaEmDia)):e.status}${o.bookmarkDepois?' · retomada na linha '+o.bookmarkDepois:''}</p><details><summary>Registros (${regs.length})</summary><div class="rg-daytable">${regs.map(h=>`<div><b>${esc(fmtData(h.data))}</b><span>${Number(h.quantidade)||0} linhas${Number(h.minutos)?' · '+Number(h.minutos)+' min':''}</span><em>${h.ts?new Date(h.ts).toLocaleTimeString('pt-BR'):''}</em></div>`).join('')}</div></details><details><summary>Dados de auditoria completos</summary><pre>${esc(JSON.stringify(e,null,2))}</pre></details></article>`;},
+    abrirHistorico(tab){this._histTab=tab||'reforco';const ov=document.createElement('div');ov.className='rg-overlay';ov.innerHTML=`<div class="rg-modal rg-history" role="dialog" aria-modal="true"><div class="rg-head"><div><small>Arquivo operacional</small><h3>Histórico gerenciado</h3><p>O que saiu da operação diária continua íntegro e auditável aqui.</p></div><button class="rg-x" type="button">×</button></div><div class="rg-hnav"><button data-rg-htab="reforco">Reforços</button><button data-rg-htab="lei">Lei seca</button><input type="search" data-rg-search placeholder="Buscar matéria, tópico ou lei…"></div><div class="rg-hbody" data-rg-hbody></div></div>`;document.body.appendChild(ov);ov.querySelector('.rg-x').onclick=()=>ov.remove();const render=()=>{const q=(ov.querySelector('[data-rg-search]').value||'').toLowerCase(),body=ov.querySelector('[data-rg-hbody]');ov.querySelectorAll('[data-rg-htab]').forEach(b=>b.classList.toggle('active',b.dataset.rgHtab===this._histTab));let arr=[];if(this._histTab==='reforco')arr=this.fechados().filter(e=>!q||JSON.stringify([e.titulo,e.disciplina,e.origemPlano]).toLowerCase().includes(q));else arr=DB.getExtras().filter(e=>typeof LeiRodizio!=='undefined'&&LeiRodizio.eExtra(e)&&e.status==='concluida').sort((a,b)=>String(b.updatedAt||'').localeCompare(String(a.updatedAt||''))).filter(e=>!q||JSON.stringify([e.titulo,e.disciplina,e.origemLei]).toLowerCase().includes(q));body.innerHTML=arr.length?arr.slice(0,250).map(e=>this._histTab==='reforco'?this._histReforcoCard(e):this._histLeiCard(e)).join(''):'<div class="rg-empty">Nenhum registro encontrado.</div>';};ov.querySelectorAll('[data-rg-htab]').forEach(b=>b.onclick=()=>{this._histTab=b.dataset.rgHtab;render();});ov.querySelector('[data-rg-search]').oninput=render;render();},
+
+    decorarPainel(){const card=document.querySelector('#extras-agenda .exm-agenda-card');if(!card)return;card.querySelectorAll('.exm-rotation,.exm-load').forEach(x=>x.remove());if(card.querySelector('.rg-console'))return;const ativos=this.ativos(),fechados=this.fechados(),p=typeof ReforcoFila!=='undefined'?ReforcoFila.prefs():{disciplinasDia:1,blocoMin:10,blocoMax:25},box=document.createElement('section');box.className='rg-console';box.innerHTML=`<div class="rg-console-copy"><small>RODÍZIO DE QUESTÕES</small><strong>Reforços sob controle</strong><span>${ativos.length} ativo(s) · padrão ${p.disciplinasDia}/dia · ${p.blocoMin}–${p.blocoMax} questões. Regras específicas podem variar por reforço.</span></div><div class="rg-console-actions"><button type="button" class="btn-primary" data-rg-policy>⚙ Configurar reforços</button><button type="button" class="btn-secondary" data-rg-history>◷ Histórico <b>${fechados.length}</b></button></div>`;const filters=card.querySelector('.exm-filters');if(filters)filters.insertAdjacentElement('afterend',box);else card.appendChild(box);box.querySelector('[data-rg-policy]').onclick=()=>this.abrirPolitica();box.querySelector('[data-rg-history]').onclick=()=>this.abrirHistorico('reforco');},
+    instalarUI(){if(typeof ExtrasModern!=='undefined'&&ExtrasModern.decorarAgenda&&!ExtrasModern._rgDecorado){ExtrasModern._rgDecorado=true;const anterior=ExtrasModern.decorarAgenda,self=this;ExtrasModern.decorarAgenda=function(screen,c){const r=anterior.call(this,screen,c);try{self.decorarPainel();}catch(e){_quiet(e,'rg-painel');}return r;};}const original=ExtrasScreen.renderManageList;if(original&&!ExtrasScreen._rgManage){ExtrasScreen._rgManage=true;const self=this;ExtrasScreen.renderManageList=function(){const get=DB.getExtras;DB.getExtras=function(){return get.call(DB).filter(e=>!self.eFechado(e));};let r;try{r=original.apply(this,arguments);}finally{DB.getExtras=get;}const box=document.getElementById('extras-manage-list');if(box&&!box.querySelector('.rg-manage-history')){const n=self.fechados().length,h=document.createElement('div');h.className='rg-manage-history';h.innerHTML=`<div><b>Reforços concluídos não ficam nesta lista.</b><span>O histórico completo foi separado para manter o gerenciador operacional limpo.</span></div><button type="button" class="btn-secondary">◷ Abrir histórico (${n})</button>`;box.prepend(h);h.querySelector('button').onclick=()=>self.abrirHistorico('reforco');}return r;};}}
+  };
+
+  const LeiPremium={
+    _prefsBase:null,_cfgBase:null,_linhasBase:null,_criarBase:null,_decorarBase:null,
+    ritmoMedido(leiId){if(typeof LeiRodizio==='undefined')return null;const regs=[];DB.getExtras().forEach(e=>{if(!LeiRodizio.eExtra(e)||!e.origemLei||e.origemLei.leiId!==leiId)return;(e.historico||[]).forEach(h=>{const q=Number(h.quantidade)||0,m=Number(h.minutos)||0;if(q>0&&m>0)regs.push({q,m,ts:h.ts||''});});});regs.sort((a,b)=>String(b.ts).localeCompare(String(a.ts)));const am=regs.slice(0,30),q=am.reduce((s,x)=>s+x.q,0),m=am.reduce((s,x)=>s+x.m,0);return m>=5&&q>0?q/m:null;},
+    instalarModelo(){if(typeof LeiRodizio==='undefined'||this._prefsBase)return;this._prefsBase=LeiRodizio.prefs;this._cfgBase=LeiRodizio.cfgLei;this._linhasBase=LeiRodizio._linhasSessao;this._criarBase=LeiRodizio._criarMissao;const self=this;LeiRodizio.prefs=function(){const b=self._prefsBase.call(this);let raw={};try{raw=JSON.parse(localStorage.getItem(this._prefKey())||'{}')||{};}catch(_){raw={};}return Object.assign({},b,{modoCarga:raw.modoCarga==='tempo'?'tempo':'linhas',minutosSessao:Math.max(5,Math.min(180,Math.round(Number(raw.minutosSessao)||20))),linhasPorMinuto:Math.max(.1,Math.min(20,Number(raw.linhasPorMinuto)||1.5))});};LeiRodizio.cfgLei=function(lei){const b=self._cfgBase.call(this,lei),r=(lei&&lei.rodizio)||{};return Object.assign({},b,{modoCarga:['padrao','linhas','tempo'].includes(r.modoCarga)?r.modoCarga:'padrao',minutosSessao:Number.isFinite(Number(r.minutosSessao))&&Number(r.minutosSessao)>0?Math.max(5,Math.min(180,Math.round(Number(r.minutosSessao)))):null,linhasPorMinuto:Number.isFinite(Number(r.linhasPorMinuto))&&Number(r.linhasPorMinuto)>0?Math.max(.1,Math.min(20,Number(r.linhasPorMinuto))):null});};LeiRodizio._cargaEfetiva=function(lei,p){p=p||this.prefs();const c=this.cfgLei(lei),modo=c.modoCarga==='padrao'?p.modoCarga:c.modoCarga,med=self.ritmoMedido(lei.id),ritmo=c.linhasPorMinuto||med||p.linhasPorMinuto,minutos=c.minutosSessao||p.minutosSessao;return{modo,minutos,ritmo,ritmoMedido:!!(!c.linhasPorMinuto&&med),linhas:modo==='tempo'?Math.max(5,Math.min(300,Math.round(minutos*ritmo))):(c.linhasSessao||p.linhasSessao)};};LeiRodizio._linhasSessao=function(lei,p){return this._cargaEfetiva(lei,p).linhas;};LeiRodizio._criarMissao=function(lei,hoje,p){const c=this._cargaEfetiva(lei,p),e=self._criarBase.call(this,lei,hoje,p);if(e){const atual=DB.getExtra(e.id),o=Object.assign({},atual.origemLei||{},{modoCarga:c.modo,minutosAlvo:c.modo==='tempo'?c.minutos:null,ritmoUsado:c.ritmo,ritmoMedido:c.ritmoMedido});DB.updateExtra(e.id,{origemLei:o});return DB.getExtra(e.id)||e;}return e;};},
+    proximoDiaPermitido(de,p){let d=de;for(let i=0;i<14;i++){d=isoAdd(d,1);if((p.dias||[]).includes(new Date(d+'T00:00:00').getDay()))return d;}return isoAdd(de,1);},
+    rebalancearHoje(){if(typeof LeiRodizio==='undefined')return;const p=LeiRodizio.prefs(),hoje=todayLocal();let list=DB.getExtras();const hojeM=list.filter(e=>LeiRodizio.eExtra(e)&&e.status!=='concluida'&&((e.origemLei&&e.origemLei.agendadoPara===hoje)||(e.datas||[]).includes(hoje)));hojeM.sort((a,b)=>{const fa=LeiRodizio._progressoExtra(a)>0?0:1,fb=LeiRodizio._progressoExtra(b)>0?0:1;return fa-fb||String(a.createdAt||'').localeCompare(String(b.createdAt||''));});let usados=0,mudou=false;for(const e of hojeM){const iniciado=LeiRodizio._progressoExtra(e)>0;if(iniciado){usados++;continue;}if(usados<p.porDia){usados++;const lei=DB.getLei(e.origemLei.leiId);if(lei){const carga=LeiRodizio._cargaEfetiva(lei,p),de=LeiRodizio._bookmark(lei),total=LeiRodizio._linhas(lei).length,ate=Math.min(total,de+carga.linhas-1);e.alvo=Math.max(1,ate-de+1);e.marcador='linhas '+de+'–'+ate;e.origemLei=Object.assign({},e.origemLei,{deLinha:de,ateLinha:ate,totalLinhas:total,modoCarga:carga.modo,minutosAlvo:carga.modo==='tempo'?carga.minutos:null,ritmoUsado:carga.ritmo,ritmoMedido:carga.ritmoMedido});mudou=true;}continue;}const prox=this.proximoDiaPermitido(hoje,p);e.datas=[prox];e.origemLei=Object.assign({},e.origemLei,{agendadoPara:prox,adiadaPorLimite:hoje});mudou=true;}if(mudou)DB.saveExtras(list);LeiRodizio.sincronizarHoje();},
+    upgradePainel(){if(typeof LeiRodizio==='undefined')return;const panel=document.querySelector('#extras-agenda .lr-panel');if(!panel||panel.dataset.premium==='1')return;panel.dataset.premium='1';const p=LeiRodizio.prefs(),grid=panel.querySelector('.lr-grid');if(grid)grid.insertAdjacentHTML('beforeend',`<label>Meta da sessão<select data-lrp-modo><option value="linhas" ${p.modoCarga==='linhas'?'selected':''}>Por linhas</option><option value="tempo" ${p.modoCarga==='tempo'?'selected':''}>Por tempo</option></select></label><label>Minutos por sessão<input type="number" min="5" max="180" data-lrp-min value="${p.minutosSessao}"></label><label>Ritmo fallback<input type="number" min="0.1" max="20" step="0.1" data-lrp-ritmo value="${p.linhasPorMinuto}"></label>`);const save=panel.querySelector('[data-lr-salvar]');if(save){const novo=save.cloneNode(true);save.replaceWith(novo);novo.addEventListener('click',()=>{const dias=[...panel.querySelectorAll('[data-lr-dia]:checked')].map(x=>Number(x.value));LeiRodizio.salvarPrefs({ativo:panel.querySelector('[data-lr-ativo]').checked,porDia:Number(panel.querySelector('[data-lr-pordia]').value),linhasSessao:Number(panel.querySelector('[data-lr-linhas]').value),ordem:panel.querySelector('[data-lr-ordem]').value,aoFinal:panel.querySelector('[data-lr-fim]').value,alternarMaterias:panel.querySelector('[data-lr-alternar]').checked,dias,modoCarga:panel.querySelector('[data-lrp-modo]').value,minutosSessao:Number(panel.querySelector('[data-lrp-min]').value),linhasPorMinuto:Number(panel.querySelector('[data-lrp-ritmo]').value)});this.rebalancearHoje();ExtrasScreen.render();showToast('Rodízio de lei seca atualizado ✓');});}const foot=panel.querySelector('.lr-panel-foot');if(foot&&!foot.querySelector('.lrp-note'))foot.insertAdjacentHTML('beforeend','<span class="lrp-note">No modo tempo, o site converte minutos em uma faixa exata de linhas. Registros com minutos alimentam o ritmo real de cada lei.</span>');},
+    upgradeCards(){if(typeof LeiRodizio==='undefined')return;document.querySelectorAll('#extras-list .exd').forEach(card=>{const e=DB.getExtra(card.dataset.id);if(!LeiRodizio.eExtra(e))return;const reg=card.querySelector('.exd-reg');if(reg)reg.style.display='none';const route=card.querySelector('.lr-route');if(!route||route.querySelector('[data-lrp-reg]'))return;const o=e.origemLei||{},lei=DB.getLei(o.leiId),c=lei?LeiRodizio._cargaEfetiva(lei,LeiRodizio.prefs()):null;if(c&&c.modo==='tempo'){const main=route.querySelector('.lr-route-main span');if(main)main.insertAdjacentHTML('beforeend',` · alvo ≈ ${c.minutos} min${c.ritmoMedido?' · ritmo aprendido':''}`);}if(e.status!=='concluida'){const b=document.createElement('button');b.type='button';b.className='btn-primary';b.dataset.lrpReg='';b.textContent='＋ Registrar leitura';route.appendChild(b);b.addEventListener('click',async()=>{const atual=DB.getExtra(e.id),feito=LeiRodizio._progressoExtra(atual),rest=Math.max(1,(Number(atual.alvo)||1)-feito),pref=lei?LeiRodizio._cargaEfetiva(lei,LeiRodizio.prefs()):{minutos:20},v=await UI.prompt([{key:'linhas',label:'Linhas lidas agora',type:'number',value:String(rest),min:1},{key:'minutos',label:'Minutos gastos',type:'number',value:String(pref.minutos||''),min:0}],{title:'Registrar leitura da lei seca',okText:'Registrar'});if(!v)return;const q=Number(v.linhas),m=Number(v.minutos)||0;if(!(q>0)){showToast('Informe quantas linhas foram lidas');return;}DB.addExtraProgress(atual.id,q,m,{data:card.dataset.day||todayLocal()});ExtrasScreen.render();showToast('Leitura registrada ✓');});}});},
+    instalarUI(){if(typeof LeiRodizio==='undefined')return;const base=LeiRodizio.decorarExtras;if(base&&!this._decorarBase){this._decorarBase=base;const self=this;LeiRodizio.decorarExtras=function(){const r=base.apply(this,arguments);try{self.upgradePainel();self.upgradeCards();}catch(e){_quiet(e,'lei-premium-ui');}return r;};}document.addEventListener('click',ev=>{const b=ev.target.closest&&ev.target.closest('[data-lr-law-cfg]');if(!b)return;setTimeout(()=>{const holder=b.closest('.lr-law-wrap'),ed=holder&&holder.querySelector('.lr-law-editor'),card=holder&&holder.querySelector('.lei-card[data-id]');if(!ed||!card||ed.dataset.premium==='1')return;ed.dataset.premium='1';const lei=DB.getLei(card.dataset.id);if(!lei)return;const c=LeiRodizio.cfgLei(lei),p=LeiRodizio.prefs();ed.insertAdjacentHTML('afterbegin',`<label>Modo da carga<select data-lrp-lei-modo><option value="padrao" ${c.modoCarga==='padrao'?'selected':''}>Padrão global</option><option value="linhas" ${c.modoCarga==='linhas'?'selected':''}>Linhas</option><option value="tempo" ${c.modoCarga==='tempo'?'selected':''}>Tempo</option></select></label><label>Minutos por sessão<input type="number" min="5" max="180" data-lrp-lei-min value="${c.minutosSessao||''}" placeholder="Padrão: ${p.minutosSessao}"></label><label>Linhas/minuto<input type="number" min="0.1" max="20" step="0.1" data-lrp-lei-ritmo value="${c.linhasPorMinuto||''}" placeholder="Auto / ${p.linhasPorMinuto}"></label>`);const save=ed.querySelector('[data-lr-law-save]');if(save)save.addEventListener('click',()=>{const rawMin=ed.querySelector('[data-lrp-lei-min]').value,rawR=ed.querySelector('[data-lrp-lei-ritmo]').value;setTimeout(()=>{LeiRodizio.salvarCfgLei(lei.id,{modoCarga:ed.querySelector('[data-lrp-lei-modo]').value,minutosSessao:rawMin===''?null:Number(rawMin),linhasPorMinuto:rawR===''?null:Number(rawR)});this.rebalancearHoje();},0);});},0);});}
+  };
+
+  ReforcoGovernanca.instalarScheduler();
+  ReforcoGovernanca.instalarUI();
+  LeiPremium.instalarModelo();
+  LeiPremium.instalarUI();
+  if(typeof window!=='undefined'){window.ReforcoGovernanca=ReforcoGovernanca;window.LeiRodizioPremium=LeiPremium;}
+})();
+
+/* ============================================================
+   DESEMPENHO TEC — performance, auditoria de parâmetros e UX premium
+   ============================================================ */
+(() => {
+  if (typeof window !== 'undefined' && window.__tecPremiumV1) return;
+  if (typeof window !== 'undefined') window.__tecPremiumV1 = true;
+  if (typeof DesempenhoTecScreen === 'undefined') return;
+  const DT = DesempenhoTecScreen;
+
+  const TecPremium = {
+    tempos: {},
+    PARAM_PLANO: {
+      metaDominio:'plano-meta', tetoDominio:'plano-teto', ponderacao:'plano-ponderacao', minAmostra:'plano-minamostra', incluirPequenas:'plano-pequenas',
+      custoModo:'plano-customodo', custoFixo:'plano-custofixo', custoFator:'plano-custofator', custoPiso:'plano-custopiso', custoPorPonto:'plano-custoponto',
+      ritmoSemanal:'plano-ritmo', apenasFolhas:'plano-folhas', granPiso:'plano-granpiso', limite:'plano-limite', ordenar:'plano-ordenar',
+      sugestoesDisciplinas:'plano-sug-disciplinas', sugestoesTopicosDisc:'plano-sug-topicos', faixaCritico:'plano-critico', faixaFragil:'plano-fragil',
+      pisoSerie:'plano-piso', sensTendencia:'plano-sens', consolidarEm:'plano-consolidar', validadeDias:'plano-validade', amostraAlvo:'plano-amostraalvo',
+      janelaMax:'plano-janelamax', cadenciaDias:'plano-cadencia', pesoBanca:'plano-pesobanca'
+    },
+    DERIVADOS: ['disciplina','foco','excluidas','banca','migracao'],
+    medir(nome, fn) {
+      const ini=(typeof performance!=='undefined'&&performance.now)?performance.now():Date.now();
+      try{return fn();}finally{const fim=(typeof performance!=='undefined'&&performance.now)?performance.now():Date.now();this.tempos[nome]=Math.round((fim-ini)*10)/10;this.atualizarComando();}
+    },
+    auditoriaParametros() {
+      const defaults=(typeof PlanoEngine!=='undefined'&&PlanoEngine.DEFAULTS)||{}, faltantes=[];
+      Object.keys(defaults).forEach(k=>{if(this.DERIVADOS.includes(k))return;const id=this.PARAM_PLANO[k];if(!id||!document.getElementById(id))faltantes.push(k);});
+      const tabs={plano:[],reforco:[],analise:[]};
+      document.querySelectorAll('#tec-cfg-body [data-tab] [data-cfg-key]').forEach(el=>{const sec=el.closest('[data-tab]');if(sec&&tabs[sec.dataset.tab])tabs[sec.dataset.tab].push(el.dataset.cfgKey);});
+      const duplicadas={};Object.keys(tabs).forEach(t=>{const s=new Set();duplicadas[t]=tabs[t].filter(k=>{if(s.has(k))return true;s.add(k);return false;});});
+      return{faltantes,tabs,duplicadas,ok:faltantes.length===0&&Object.values(duplicadas).every(a=>a.length===0)};
+    },
+    escopoResumo() {
+      let snaps=[];try{snaps=DT.activeSnapshots?DT.activeSnapshots():DB.getTecSnapshots();}catch(_){snaps=[];}
+      let all=[];try{all=DB.getTecSnapshots();}catch(_){all=[];}
+      const ultimo=snaps.length?snaps[snaps.length-1]:null, modo=DT.scopeMode==='all'?'Todos os retratos':DT.scopeMode==='range'?'Intervalo':'Retratos selecionados';
+      return{ativos:snaps.length,total:all.length,modo,ultimo:ultimo&&(ultimo.endDate||ultimo.date||ultimo.startDate)||null};
+    },
+    tabNome(tab){return({analise:'Análise',plano:'Plano',reforco:'Reforço',incidencia:'Incidência',importar:'Importar'})[tab]||tab||'Análise';},
+    garantirComando() {
+      const screen=document.getElementById('screen-desempenhotec');if(!screen)return null;let box=screen.querySelector('.tp-command');if(box)return box;
+      box=document.createElement('section');box.className='tp-command';const head=screen.querySelector('.page-header');if(head)head.insertAdjacentElement('afterend',box);else screen.prepend(box);return box;
+    },
+    atualizarComando() {
+      const box=this.garantirComando();if(!box)return;const s=this.escopoResumo(),tab=DT.tecTab||'analise',aud=this.auditoriaParametros(),ms=this.tempos[tab]??this.tempos[tab==='plano'?'plano':'analise'];
+      const dataUlt=s.ultimo&&/^\d{4}-\d{2}-\d{2}/.test(String(s.ultimo))?String(s.ultimo).slice(0,10).split('-').reverse().join('/'):(s.ultimo||'—');
+      box.innerHTML=`<div class="tp-main"><div class="tp-eyebrow">CENTRAL DE DESEMPENHO</div><div class="tp-title"><strong>${this.tabNome(tab)}</strong><span>${s.modo}</span></div><p>Leitura do TEC, decisões do Plano e reforço usando o mesmo escopo. Ajustes ficam concentrados por aba e cálculos pesados só rodam quando a informação necessária mudou.</p></div><div class="tp-metrics"><span><b>${s.ativos}</b><small>retrato${s.ativos===1?'':'s'} no escopo</small></span><span><b>${s.total}</b><small>retrato${s.total===1?'':'s'} salvo${s.total===1?'':'s'}</small></span><span><b>${dataUlt}</b><small>última medição</small></span><span class="${aud.ok?'ok':'warn'}"><b>${aud.ok?'✓':'!'}</b><small>${aud.ok?'parâmetros auditados':aud.faltantes.length+' parâmetro(s) sem controle'}</small></span></div><div class="tp-actions"><button type="button" class="btn-primary" data-tp-settings>⚙ Ajustes de ${this.tabNome(tab)}</button><button type="button" class="btn-secondary" data-tp-audit>◎ Diagnóstico</button>${ms!=null?`<span class="tp-ms" title="Tempo da última renderização medida desta área">${ms} ms</span>`:''}</div>`;
+      box.querySelector('[data-tp-settings]').onclick=()=>{if(typeof TecAjustes!=='undefined'&&['analise','plano','reforco'].includes(tab))TecAjustes.abrir(tab);else{const b=document.querySelector(`.tec-cfg-open[data-cfg="${tab}"]`);if(b)b.click();else showToast('Esta aba não possui ajustes específicos');}};
+      box.querySelector('[data-tp-audit]').onclick=()=>this.abrirDiagnostico();
+    },
+    abrirDiagnostico() {
+      const a=this.auditoriaParametros(),s=this.escopoResumo(),ov=document.createElement('div');ov.className='tp-overlay';
+      ov.innerHTML=`<div class="tp-modal"><div class="tp-modal-head"><div><small>DIAGNÓSTICO DO DESEMPENHO TEC</small><h3>Integridade, parâmetros e desempenho</h3></div><button type="button" aria-label="Fechar">×</button></div><div class="tp-audit-grid"><article><b>${a.ok?'✓ Completo':'⚠ Revisar'}</b><span>Parâmetros do Plano</span><small>${a.faltantes.length?`Sem controle: ${a.faltantes.join(', ')}`:'Todos os parâmetros operacionais possuem controle ou rota deliberadamente derivada.'}</small></article><article><b>${s.ativos}/${s.total}</b><span>Escopo efetivo</span><small>${s.modo}. É este mesmo recorte que alimenta Análise, Plano e Reforço.</small></article><article><b>${this.tempos.plano!=null?this.tempos.plano+' ms':'—'}</b><span>Último Plano</span><small>Tempo observado nesta sessão. O cálculo é memoizado por retrato, escopo e preferências.</small></article><article><b>${this.tempos.analise!=null?this.tempos.analise+' ms':'—'}</b><span>Última Análise</span><small>A Análise oculta não é mais calculada só para depois ser descartada.</small></article></div><div class="tp-audit-body"><h4>Cobertura dos ajustes</h4>${['plano','reforco','analise'].map(t=>`<div><strong>${this.tabNome(t)}</strong><span>${a.tabs[t].length} controle(s) configurável(is)</span><em>${a.duplicadas[t].length?'chaves duplicadas: '+a.duplicadas[t].join(', '):'sem chaves duplicadas'}</em></div>`).join('')}<p>Parâmetros derivados do Plano (<code>${this.DERIVADOS.join(', ')}</code>) são administrados por foco, exclusões, banca ou migração e não devem ganhar um segundo campo concorrente.</p></div></div>`;
+      document.body.appendChild(ov);ov.querySelector('.tp-modal-head button').onclick=()=>ov.remove();
+    },
+    instalarSugestoes() {
+      ['plano-sug-disciplinas','plano-sug-topicos'].forEach(id=>{const el=document.getElementById(id);if(!el||el.dataset.tpBound==='1')return;el.dataset.tpBound='1';const eco=()=>{try{if(typeof TecAjustes!=='undefined'){TecAjustes.sincronizar();TecAjustes.marcarPersonalizadas();}}catch(e){_quiet(e,'tp-sug-sync');}};el.addEventListener('input',()=>{eco();DT.agendarPlano(false);});el.addEventListener('change',()=>{eco();DT.agendarPlano(true);});});
+    },
+    instalarPerformance() {
+      if(DT._tpPerfInstalled)return;DT._tpPerfInstalled=true;const self=this;
+      const originalAnalysis=DT.renderAnalysis;DT.renderAnalysis=function(){this._tpAnalysisDirty=false;return self.medir('analise',()=>originalAnalysis.apply(this,arguments));};
+      const originalPlan=DT.renderPlanoConteudo;DT.renderPlanoConteudo=function(){const args=arguments,run=()=>originalPlan.apply(this,args);return self.medir('plano',()=>typeof PlanFastCache!=='undefined'?PlanFastCache.withCache(run):run());};
+      const originalReforco=DT.renderReforco;DT.renderReforco=function(){return self.medir('reforco',()=>originalReforco.apply(this,arguments));};
+      const originalInc=DT.renderIncidencia;DT.renderIncidencia=function(){return self.medir('incidencia',()=>originalInc.apply(this,arguments));};
+      const originalRender=DT.render;DT.render=function(){const tab=this.tecTab||'analise';if(tab==='analise')return originalRender.apply(this,arguments);const ra=this.renderAnalysis;this.renderAnalysis=()=>{this._tpAnalysisDirty=true;};try{return originalRender.apply(this,arguments);}finally{this.renderAnalysis=ra;self.atualizarComando();}};
+      const originalSwitch=DT.switchTecTab;DT.switchTecTab=function(tab){const r=originalSwitch.apply(this,arguments);if(tab==='analise'&&this._tpAnalysisDirty){this._tpAnalysisDirty=false;this.renderAnalysis();}self.atualizarComando();return r;};
+      if(typeof DT.aplicarMudancaEscopo==='function'){const base=DT.aplicarMudancaEscopo;DT.aplicarMudancaEscopo=function(){this._tpAnalysisDirty=true;return base.apply(this,arguments);};}
+    },
+    instalar(){this.instalarPerformance();this.instalarSugestoes();this.atualizarComando();}
+  };
+  TecPremium.instalar();
+  if(typeof window!=='undefined')window.TecPremium=TecPremium;
 })();
 
 /* ============================================================
