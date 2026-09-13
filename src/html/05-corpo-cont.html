@@ -728,6 +728,14 @@
               <input type="number" inputmode="numeric" id="plano-limite" data-cfg-key="limite" min="3" max="200" step="1">
             </div>
             <div class="rfc-field">
+              <label for="plano-sug-disciplinas" data-info="Tamanho do ciclo automático de pontos fracos. O app mantém até esta quantidade de disciplinas simultaneamente em ataque. Quando uma frente do Plano termina, a vaga fica disponível e o próximo Puxar do Plano já pré-seleciona a próxima matéria prioritária ainda livre.">Disciplinas no ciclo de sugestões</label>
+              <input type="number" inputmode="numeric" id="plano-sug-disciplinas" data-cfg-key="sugestoesDisciplinas" min="1" max="12" step="1">
+            </div>
+            <div class="rfc-field">
+              <label for="plano-sug-topicos" data-info="Quantos assuntos de CADA disciplina podem ficar simultaneamente em reforço. Com 1, o ciclo abre uma frente por matéria; com 2, só abre o segundo tópico depois de respeitar a prioridade e os slots já ocupados.">Tópicos por disciplina no ciclo</label>
+              <input type="number" inputmode="numeric" id="plano-sug-topicos" data-cfg-key="sugestoesTopicosDisc" min="1" max="5" step="1">
+            </div>
+            <div class="rfc-field">
               <label for="plano-meta" data-info="A nota que você considera suficiente em cada assunto. É a linha tracejada da trajetória e o que define quem é 🟢 sólido. Subir a meta aumenta a lista de pendências; baixar declara vitória cedo. 75–85% cobre a maioria dos concursos.">Meta de domínio (%)</label>
               <input type="number" inputmode="numeric" id="plano-meta" data-cfg-key="metaDominio" min="30" max="100" step="1">
             </div>

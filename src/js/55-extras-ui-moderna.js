@@ -137,6 +137,7 @@
       if (h2) h2.textContent = 'Atividades extras';
       if (sub) sub.textContent = 'Organize o que complementa seu plano sem misturar execução diária, pendências reais e próximos passos.';
 
+      const densidade = (typeof ReforcoFila !== 'undefined' && ReforcoFila.limiteDisciplinasDia) ? ReforcoFila.limiteDisciplinasDia() : 1;
       const old = card.querySelector('.exm-dashboard');
       if (old) old.remove();
       const dash = document.createElement('div');
@@ -157,6 +158,18 @@
           ${this.chip('reforco', 'Reforço', c.fontes.reforco)}
           ${this.chip('manual', 'Manuais', c.fontes.manual)}
           ${this.chip('plano', 'Plano', c.fontes.plano)}
+        </div>
+        <div class="exm-rotation">
+          <div class="exm-rotation-copy">
+            <strong>Cadência do reforço</strong>
+            <small>Espalha as matérias para favorecer alternância e revisão. O dia de hoje não é reescrito; a mudança reorganiza só o futuro.</small>
+          </div>
+          <label for="exm-ref-disciplinas-dia">Disciplinas por dia
+            <select id="exm-ref-disciplinas-dia">
+              <option value="1" ${densidade === 1 ? 'selected' : ''}>1 · mais espaçado</option>
+              <option value="2" ${densidade === 2 ? 'selected' : ''}>2 · mais intenso</option>
+            </select>
+          </label>
         </div>`;
       const head = card.querySelector('.card-header');
       if (head) head.insertAdjacentElement('afterend', dash);
@@ -166,6 +179,13 @@
         screen.selDay = todayLocal();
         screen.render();
       }));
+      const cad = dash.querySelector('#exm-ref-disciplinas-dia');
+      if (cad && typeof ReforcoFila !== 'undefined' && ReforcoFila.salvarPrefs) cad.addEventListener('change', () => {
+        ReforcoFila.salvarPrefs({ disciplinasDia: Number(cad.value) === 2 ? 2 : 1 });
+        screen.selDay = todayLocal();
+        screen.render();
+        showToast(`Rodízio ajustado para ${cad.value} disciplina(s) por dia ✓`);
+      });
 
       const carga = card.querySelector('#ex-filters-btn');
       if (carga) carga.textContent = '⏱️ Filtros e carga';

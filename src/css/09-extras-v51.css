@@ -559,3 +559,34 @@
     flex: 1 1 140px;
   }
 }
+
+
+/* Cadência do reforço: decisão pequena, visível na própria tela de execução. */
+.exm-rotation {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-top: 12px;
+  padding: 12px 14px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--surface-2) 72%, transparent);
+}
+.exm-rotation-copy { min-width: 0; display: grid; gap: 2px; }
+.exm-rotation-copy strong { font-size: var(--fs-sm); color: var(--text); }
+.exm-rotation-copy small { color: var(--text-faint); line-height: 1.4; }
+.exm-rotation label {
+  flex: 0 0 auto;
+  display: grid;
+  gap: 5px;
+  font-size: var(--fs-xs);
+  font-weight: 700;
+  color: var(--text-soft);
+}
+.exm-rotation select { min-width: 170px; }
+@media (max-width: 620px) {
+  .exm-rotation { align-items: stretch; flex-direction: column; gap: 10px; }
+  .exm-rotation label { width: 100%; }
+  .exm-rotation select { width: 100%; min-width: 0; }
+}

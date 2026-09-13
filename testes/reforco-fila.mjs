@@ -4,9 +4,15 @@ import vm from 'node:vm';
 
 const HOJE = '2026-09-13';
 const data = [];
+const prefMem = new Map();
+let tecSnaps = [{ id: 'snap-1' }];
+const localStorage = { getItem(k) { return prefMem.has(k) ? prefMem.get(k) : null; }, setItem(k, v) { prefMem.set(k, String(v)); } };
 const DB = {
   _data: data,
+  _profilePrefix() { return 'p:'; },
+  setRaw(k, v) { localStorage.setItem(k, v); },
   getExtras() { return this._data; },
+  getTecSnapshots() { return tecSnaps; },
   saveExtras(list) { this._data = list; },
   getExtra(id) { return this._data.find(x => x.id === id) || null; },
   extraRecorrente() { return false; },
@@ -49,9 +55,14 @@ const PlanoCiclo = {
   }
 };
 
+let planPrefs = { sugestoesDisciplinas: 3, sugestoesTopicosDisc: 1 };
+const PlanoPontos = {
+  linhas: ['A', 'B', 'C', 'D'],
+  esforcoPorMateria() { return { linhas: this.linhas.map(nome => ({ nome })) }; }
+};
 const ctx = {
-  window: {}, DB, ExtrasScreen, PlanoCiclo,
-  PlanoEngine: { calcular() { return null; }, prefs() { return {}; } },
+  window: {}, DB, ExtrasScreen, PlanoCiclo, PlanoPontos, localStorage,
+  PlanoEngine: { calcular() { return null; }, prefs() { return planPrefs; } },
   DesempenhoTecScreen: { scopedSnapshot() { return null; } },
   ReforcoEngine: { norm(s) { return String(s || '').toLowerCase().trim(); } },
   todayLocal() { return HOJE; },
@@ -91,7 +102,7 @@ DB._data = [
 DB.getExtra('A1').taxaAtual = 10;
 DB.getExtra('A2').taxaAtual = 15;
 
-// 1) Planejamento: no máximo três frentes e nunca duas da mesma disciplina no dia.
+// 1) Planejamento: padrão = UMA disciplina por dia e rodízio por matéria.
 F.sincronizar();
 const agenda = new Map();
 for (const e of DB._data) {
@@ -102,14 +113,31 @@ for (const e of DB._data) {
   }
 }
 for (const [dia, itens] of agenda) {
-  assert.ok(itens.length <= 3, `${dia}: fila não pode passar de 3 tarefas`);
-  const disciplinas = itens.map(x => x.e.disciplina);
-  assert.equal(new Set(disciplinas).size, disciplinas.length, `${dia}: disciplinas devem ser diferentes`);
+  assert.ok(itens.length <= 1, `${dia}: padrão deve espaçar uma disciplina por dia`);
 }
-const hojeItens = agenda.get(HOJE) || [];
-assert.equal(hojeItens.length, 3, 'com pelo menos 3 disciplinas, hoje deve ser preenchido com 3 frentes');
-assert.equal(hojeItens.find(x => x.e.disciplina === 'A')?.e.id, 'A1',
-  'havendo dois assuntos da mesma disciplina, o mais crítico deve entrar primeiro');
+const diasOrdenados = [...agenda.keys()].sort();
+assert.equal((agenda.get(HOJE) || []).length, 1, 'hoje deve começar com uma única frente no padrão espaçado');
+assert.equal((agenda.get(HOJE) || [])[0]?.e.id, 'A1', 'o assunto mais crítico disponível abre o rodízio');
+const primeirasDiscs = diasOrdenados.slice(0, 4).map(d => (agenda.get(d) || [])[0]?.e.disciplina);
+assert.deepEqual(primeirasDiscs.slice(0, 4), ['A', 'B', 'C', 'D'],
+  'um segundo tópico de A não pode furar B/C/D: o espaçamento é por disciplina');
+
+// 1b) Configuração mais intensa: dois assuntos por dia, ainda sem repetir matéria.
+F.salvarPrefs({ disciplinasDia: 2 });
+const agenda2 = new Map();
+for (const e of DB._data) {
+  for (const [dia, q] of Object.entries(e.reforcoFila.alvosPorDia)) {
+    if (!agenda2.has(dia)) agenda2.set(dia, []);
+    agenda2.get(dia).push({ e, q });
+  }
+}
+for (const [dia, itens] of agenda2) {
+  assert.ok(itens.length <= 2, `${dia}: configuração não pode passar de 2 disciplinas`);
+  assert.equal(new Set(itens.map(x => x.e.disciplina)).size, itens.length, `${dia}: não pode repetir disciplina no mesmo dia`);
+}
+assert.ok([...agenda2.entries()].some(([d, itens]) => d > HOJE && itens.length === 2),
+  'com saldo suficiente, algum dia futuro deve usar as duas vagas configuradas');
+F.salvarPrefs({ disciplinasDia: 1 });
 
 // 2) Tamanho de bloco: balanceia em blocos úteis, sem fabricar dias de 7/8 questões.
 let r = 100, blocos = [];
@@ -166,17 +194,60 @@ assert.equal(antigo.status, 'concluida', 'migração não pode ressuscitar encer
 console.log('OK: fila diária do reforço preserva ciclo, rodízio, criticidade e saldo.');
 
 
-// 7) Seleção inicial do Plano: 3 disciplinas distintas, sempre com o tópico
-// mais crítico de cada disciplina; não depende da ordem incidental da lista.
+// 7) Seleção do Plano: primeiro ranqueia DISCIPLINAS pelo próprio Plano;
+// depois pega o pior tópico disponível dentro de cada uma.
+DB._data = [];
+planPrefs = { sugestoesDisciplinas: 3, sugestoesTopicosDisc: 1 };
+PlanoPontos.linhas = ['B', 'D', 'A', 'C'];
 ExtrasScreen._planoCand = [
   { nome: 'A mediano', disciplina: 'A', taxa: 50, incid: 8, qJanela: 30 },
   { nome: 'A crítico', disciplina: 'A', taxa: 20, incid: 3, qJanela: 20 },
   { nome: 'B mediano', disciplina: 'B', taxa: 40, incid: 5, qJanela: 40 },
   { nome: 'B crítico', disciplina: 'B', taxa: 10, incid: 2, qJanela: 15 },
-  { nome: 'C crítico', disciplina: 'C', taxa: 30, incid: 9, qJanela: 50 },
-  { nome: 'D menos crítico', disciplina: 'D', taxa: 60, incid: 10, qJanela: 80 }
+  { nome: 'C crítico', disciplina: 'C', taxa: 5, incid: 9, qJanela: 50 },
+  { nome: 'D crítico', disciplina: 'D', taxa: 60, incid: 10, qJanela: 80 }
 ];
 ExtrasScreen._reforcoFilaEscolhaPendente = true;
 ExtrasScreen._planoBind();
-assert.deepEqual(Array.from(ExtrasScreen._planoSel).sort((a, b) => a - b), [1, 3, 4],
-  'seleção automática deve pegar A crítico, B crítico e C crítico');
+assert.deepEqual(Array.from(ExtrasScreen._planoSel).sort((a, b) => a - b), [1, 3, 5],
+  'as três matérias prioritárias B/D/A devem vencer C, e cada uma leva seu pior tópico');
+
+// 8) Slots contínuos: atividades abertas ocupam vagas. Quando uma termina,
+// a próxima MATÉRIA entra; a recém-concluída aguarda um retrato TEC novo.
+const abertaA = extra('aberta-A', 'A', 40, 20);
+const abertaB = extra('aberta-B', 'B', 40, 10);
+DB._data = [abertaA, abertaB];
+PlanoPontos.linhas = ['A', 'B', 'C', 'D'];
+ExtrasScreen._reforcoFilaEscolhaPendente = true;
+ExtrasScreen._planoBind();
+assert.deepEqual(Array.from(ExtrasScreen._planoSel), [4],
+  'com A e B ocupando duas das três vagas, C deve preencher a vaga restante');
+
+// Simula que a sugestão C foi aceita antes de B terminar.
+const abertaC = extra('aberta-C', 'C', 40, 5);
+DB._data.push(abertaC);
+abertaB.status = 'concluida';
+abertaB.origemPlano.veredito = { tipo: 'funcionou', retrato: 'snap-1', em: HOJE };
+ExtrasScreen._reforcoFilaEscolhaPendente = true;
+ExtrasScreen._planoBind();
+assert.deepEqual(Array.from(ExtrasScreen._planoSel), [5],
+  'B recém-concluída não pode se reciclar com o mesmo retrato: a vaga passa para D');
+
+// Chegou informação nova e B continua fraca: agora ela pode voltar legitimamente.
+tecSnaps = [{ id: 'snap-1' }, { id: 'snap-2' }];
+abertaC.status = 'concluida';
+abertaC.origemPlano.veredito = { tipo: 'funcionou', retrato: 'snap-1', em: HOJE };
+ExtrasScreen._reforcoFilaEscolhaPendente = true;
+ExtrasScreen._planoBind();
+assert.deepEqual(Array.from(ExtrasScreen._planoSel).sort((a, b) => a - b), [3, 4],
+  'com retrato novo, B e C podem ser reavaliadas e voltar se ainda estiverem na fila de fraquezas');
+
+// 9) A configuração do Plano também controla quantos tópicos cabem por matéria.
+DB._data = [];
+planPrefs = { sugestoesDisciplinas: 2, sugestoesTopicosDisc: 2 };
+PlanoPontos.linhas = ['B', 'A', 'C', 'D'];
+const sel22 = F.selecionarSugestoesPlano(ExtrasScreen._planoCand);
+assert.deepEqual(Array.from(sel22.indices).sort((a, b) => a - b), [0, 1, 2, 3],
+  '2 disciplinas × 2 tópicos deve preencher B e A com dois tópicos cada, sem puxar C/D');
+
+console.log('OK: fila diária, espaçamento e ciclo contínuo de sugestões do Plano preservados.');
