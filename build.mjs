@@ -91,6 +91,7 @@ const PARTES = [
     'js/54-reforco-fila.js',
     'js/55-extras-ui-moderna.js',
     'js/56-leis-rodizio.js',
+    'js/57-extras-lei-fonte.js',
     'js/60-cloud-store.js',
     'js/61-session-guard.js',
     'js/62-section-sync.js',

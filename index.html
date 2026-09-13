@@ -57,7 +57,7 @@
      novo, e o antigo é descartado sozinho na ativação) e o que permite ao app
      dizer qual versão está rodando. Em src/ fica "dev" de propósito: a versão
      é gerada na montagem, não editada à mão. -->
-<meta name="diario-versao" content="v9f3fa743bc">
+<meta name="diario-versao" content="vc8d31cc54f">
 <script>
 /* ── ARRANQUE: abre o IndexedDB AGORA, em paralelo com o parse do documento ──
    A fachada de armazenamento vive no fim do <body>, depois de ~1,7 MB de HTML.
@@ -12647,7 +12647,7 @@ body.leis-foco .leis-reader-card::before { display: none; }
 .lr-days{display:flex;align-items:center;gap:6px;flex-wrap:wrap}.lr-days label{position:relative}.lr-days input{position:absolute;opacity:0;pointer-events:none}.lr-days span{display:grid;place-items:center;width:32px;height:32px;border:1px solid var(--border);border-radius:9px;background:var(--surface);font-size:11px;font-weight:800;cursor:pointer}.lr-days input:checked+span{border-color:var(--accent);background:color-mix(in srgb,var(--accent) 12%,var(--surface));color:var(--accent)}
 .lr-panel-foot{font-size:11px;color:var(--text-faint)}.lr-panel-foot>span{margin-left:auto}.lr-inline{display:flex!important;align-items:center!important;gap:6px!important;color:var(--text-muted)!important}.lr-inline input{width:auto!important;min-height:0!important}
 .lr-switch{display:inline-flex!important;align-items:center!important;gap:7px!important;font-size:11px!important;font-weight:750!important;color:var(--text-muted)!important;cursor:pointer}.lr-switch input{accent-color:var(--accent)}
-.lr-extra-card{border-color:color-mix(in srgb,#0f9d63 28%,var(--border))!important}.lr-route{margin:0 14px 10px;padding:11px 12px;border:1px solid color-mix(in srgb,#0f9d63 24%,var(--border));border-radius:12px;background:color-mix(in srgb,#0f9d63 6%,var(--surface));display:flex;align-items:center;gap:12px}.lr-route-main{display:grid;gap:2px;min-width:0;flex:1}.lr-route-main small{font-size:10px;text-transform:uppercase;letter-spacing:.06em;color:#0a6b44;font-weight:850}.lr-route-main strong{font-size:14px}.lr-route-main span{font-size:11px;color:var(--text-faint);white-space:normal}.lr-tag{background:color-mix(in srgb,#0f9d63 10%,var(--surface));color:#0a6b44;border-color:color-mix(in srgb,#0f9d63 18%,var(--border))}
+.lr-extra-card{border-color:color-mix(in srgb,#0f9d63 28%,var(--border))!important}.lr-route{margin:0 14px 10px;padding:11px 12px;border:1px solid color-mix(in srgb,#0f9d63 24%,var(--border));border-radius:12px;background:color-mix(in srgb,#0f9d63 6%,var(--surface));display:flex;align-items:center;gap:12px}.lr-route-main{display:grid;gap:2px;min-width:0;flex:1}.lr-route-main small{font-size:10px;text-transform:uppercase;letter-spacing:.06em;color:#0a6b44;font-weight:850}.lr-route-main strong{font-size:14px}.lr-route-main span{font-size:11px;color:var(--text-faint);white-space:normal}.lr-tag{background:color-mix(in srgb,#0f9d63 10%,var(--surface));color:#0a6b44;border-color:color-mix(in srgb,#0f9d63 18%,var(--border))}.exm-source.lei{background:color-mix(in srgb,#0f9d63 10%,var(--surface));color:#0a6b44;border-color:color-mix(in srgb,#0f9d63 20%,var(--border))}
 .lr-law-wrap{border:1px solid var(--border);border-radius:16px;overflow:hidden;background:var(--surface);margin-bottom:10px}.lr-law-wrap>.lei-card{border:0!important;border-radius:0!important;margin:0!important;width:100%}.lr-law-tools{padding:10px 14px;border-top:1px solid var(--border);background:color-mix(in srgb,var(--accent) 2.5%,var(--surface))}.lr-law-next{font-size:11px;color:var(--text-faint);margin-right:auto}.lr-law-editor{padding:12px 14px;border-top:1px dashed var(--border);display:grid;grid-template-columns:repeat(3,minmax(120px,1fr));gap:10px;background:var(--surface-2,var(--surface))}.lr-law-editor-actions{grid-column:1/-1;justify-content:flex-end}
 @media(max-width:850px){.lr-grid{grid-template-columns:repeat(2,minmax(120px,1fr))}.lr-panel-foot>span{margin-left:0;width:100%}.lr-law-editor{grid-template-columns:1fr 1fr}.lr-law-editor label:last-of-type{grid-column:1/-1}}
 @media(max-width:560px){.lr-panel{padding:13px}.lr-grid{grid-template-columns:1fr}.lr-route{align-items:flex-start;flex-direction:column}.lr-route .btn-secondary{width:100%}.lr-law-tools{align-items:flex-start}.lr-law-next{width:100%;order:3}.lr-law-editor{grid-template-columns:1fr}.lr-law-editor label:last-of-type{grid-column:auto}.lr-law-editor-actions{grid-column:auto;justify-content:stretch}.lr-law-editor-actions button{flex:1}}
@@ -43735,6 +43735,85 @@ window.ReforcoFila = ReforcoFila;
       return r;
     };
   }
+})();
+
+/* ============================================================
+   EXTRAS MODERNOS — fonte própria para o rodízio de lei seca
+   ============================================================ */
+(() => {
+  const EM = (typeof window !== 'undefined') ? window.ExtrasModern : null;
+  if (!EM || typeof LeiRodizio === 'undefined' || EM._leiFonteV1) return;
+  EM._leiFonteV1 = true;
+
+  const fonteAnterior = EM.fonte;
+  EM.fonte = function (x) {
+    if (LeiRodizio.eExtra(x)) return 'lei';
+    return fonteAnterior.call(this, x);
+  };
+
+  const filtroAnterior = EM.filtroFonte;
+  EM.filtroFonte = function (entry) {
+    if (this.view === 'lei') return this.fonte(entry.x) === 'lei';
+    return filtroAnterior.call(this, entry);
+  };
+
+  const gruposAnterior = EM.grupos;
+  EM.grupos = function (c) {
+    if (this.view !== 'lei') return gruposAnterior.call(this, c);
+    const anterior = this.view;
+    this.view = 'all';
+    let grupos;
+    try { grupos = gruposAnterior.call(this, c); }
+    finally { this.view = anterior; }
+    return grupos.map(([k, titulo, ico, arr]) => [
+      k, titulo, ico, arr.filter(e => this.fonte(e.x) === 'lei')
+    ]);
+  };
+
+  const coletarAnterior = EM.coletar;
+  EM.coletar = function (screen) {
+    const c = coletarAnterior.call(this, screen);
+    c.fontes = c.fontes || {};
+    c.fontes.lei = DB.getExtras().filter(x =>
+      x && x.status !== 'concluida' && LeiRodizio.eExtra(x)
+    ).length;
+    return c;
+  };
+
+  const agendaAnterior = EM.decorarAgenda;
+  EM.decorarAgenda = function (screen, c) {
+    const r = agendaAnterior.call(this, screen, c);
+    const host = document.querySelector('#extras-agenda .exm-filters');
+    if (host && !host.querySelector('[data-exm-view="lei"]')) {
+      const tmp = document.createElement('div');
+      tmp.innerHTML = this.chip('lei', 'Lei seca', (c.fontes && c.fontes.lei) || 0);
+      const b = tmp.firstElementChild;
+      if (b) {
+        host.appendChild(b);
+        b.addEventListener('click', () => {
+          this.view = 'lei';
+          screen.selDay = todayLocal();
+          screen.render();
+        });
+      }
+    }
+    return r;
+  };
+
+  const cardsAnterior = EM.decorarCards;
+  EM.decorarCards = function (list, entries) {
+    const r = cardsAnterior.call(this, list, entries);
+    list.querySelectorAll('.exd').forEach(card => {
+      const e = DB.getExtra(card.dataset.id);
+      if (!LeiRodizio.eExtra(e)) return;
+      const tag = card.querySelector('.exm-source');
+      if (!tag) return;
+      tag.textContent = 'Lei seca';
+      tag.classList.remove('manual', 'plano', 'reforco');
+      tag.classList.add('lei');
+    });
+    return r;
+  };
 })();
 
 /* ============================================================
