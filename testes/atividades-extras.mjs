@@ -39,8 +39,7 @@ const DBfake={
   undoExtraProgressDay:()=>null,
   undoExtraProgress:()=>null
 };
-const contexto={DB:DBfake,ExtrasScreen:{_planoRefCard:null},todayLocal:()=>HOJE,console,Date,Intl,globalThis:null};
-contexto.globalThis=contexto;
+const contexto={DB:DBfake,ExtrasScreen:{_planoRefCard:null},todayLocal:()=>HOJE,console,Date,Intl};
 vm.createContext(contexto);
 vm.runInContext(agenda,contexto,{filename:'51b-reforco-agenda-auto.js'});
 const A=contexto.ReforcoAgendaAuto;
