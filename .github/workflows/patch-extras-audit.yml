@@ -1,0 +1,38 @@
+name: Patch Extras audit
+
+on:
+  push:
+    branches: [audit/atividades-extras-profissional]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: audit/atividades-extras-profissional
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Aplicar auditoria determinística
+        run: node scripts/patch-extras-audit.mjs
+      - name: Validar regressão específica
+        run: node testes/atividades-extras.mjs
+      - name: Regenerar bundle
+        run: node build.mjs
+      - name: Verificação rápida
+        run: node verificar.mjs --rapido
+      - name: Commitar fonte e artefatos
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/js/47-tela-extras.js src/css/08-ux-v49.css src/html/05-corpo-cont.html testes/atividades-extras.mjs verificar.mjs index.html src/manifesto.json sw.js
+          git commit -m "Audita Atividades Extras e profissionaliza reforços em curso [skip ci]"
+          git push origin HEAD:audit/atividades-extras-profissional
