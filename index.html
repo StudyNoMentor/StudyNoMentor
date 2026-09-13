@@ -57,7 +57,7 @@
      novo, e o antigo é descartado sozinho na ativação) e o que permite ao app
      dizer qual versão está rodando. Em src/ fica "dev" de propósito: a versão
      é gerada na montagem, não editada à mão. -->
-<meta name="diario-versao" content="veb565e1566">
+<meta name="diario-versao" content="v112897ffac">
 <script>
 /* ── ARRANQUE: abre o IndexedDB AGORA, em paralelo com o parse do documento ──
    A fachada de armazenamento vive no fim do <body>, depois de ~1,7 MB de HTML.
@@ -40236,7 +40236,8 @@ window.addEventListener('screen:activated', (e) => {
             const o = e && e.origemPlano;
             if (!o || o.modeloExecucao || e.status === 'concluida' || Number(e.alvo) <= MAX_CICLO * 4) return;
             let feito = Number(e.progresso) || 0;
-            try { if (typeof DB.extraProgressoPeriodo === 'function') feito = Math.max(feito, Number(DB.extraProgressoPeriodo(e)) || 0); } catch (_) {}
+            try { if (typeof DB.extraProgressoPeriodo === 'function') feito = Math.max(feito, Number(DB.extraProgressoPeriodo(e)) || 0); }
+            catch (err) { if (typeof _quiet === 'function') _quiet(err, 'plano-migracao-progresso'); }
             if (feito > 0) return;
             const ex = execucao({ taxa: o.taxaInicial, qJanela: 0, custoQ: Number(e.alvo) || 0 }, o.motivo || 'reforco');
             DB.updateExtra(e.id, { alvo: ex.ciclo, origemPlano: Object.assign({}, o, {

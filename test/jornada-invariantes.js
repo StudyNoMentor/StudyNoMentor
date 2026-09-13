@@ -143,7 +143,17 @@ window.RODAR_JORNADA = function () {
     }
 
     // ── PASSO 5: encerrar uma na mão — o caminho do usuário ─────────────
-    const viva = banco.find(e => e.origemPlano && e.status !== 'concluida' && e.origemPlano.motivo !== 'diagnostico');
+    let viva = banco.find(e => e.origemPlano && e.status !== 'concluida' && e.origemPlano.motivo !== 'diagnostico');
+    if (!viva) {
+      const rr5 = P.calcular(T.scopedSnapshot(), P.prefs());
+      const abertos = new Set(banco.filter(e => e.origemPlano && e.status !== 'concluida')
+        .map(e => e.origemPlano.disciplina + '|' + e.origemPlano.topico));
+      const x5 = rr5 && !rr5.erro ? (rr5.itens || []).find(x => !abertos.has(x.disciplina + '|' + x.nome)) : null;
+      if (x5) {
+        T.criarExtraDoPlano(x5.nome, x5.disciplina, x5.custoQ || 30, 'reforco', true);
+        viva = banco.find(e => e.origemPlano && e.status !== 'concluida' && e.origemPlano.motivo !== 'diagnostico');
+      }
+    }
     if (viva) DB.setConcluidaDia(viva.id, todayLocal(), true);
     conferir('5-concluida-na-mao');
     const vd = viva ? (banco.find(e => e.id === viva.id) || {}).origemPlano : null;

@@ -1777,8 +1777,8 @@ try {
     const L = (c, n, disc, q, ac) => ({ depth: 1, codigo: c, nome: n, disciplina: disc, questoes: q, acertos: ac });
     const s = DB.getTecSnapshots();
     s.push({ id: 'c3', nome: 'c3', date: dia(1), startDate: dia(20), endDate: dia(1), rows: [
-      D('Dir Adm', 350, 195), L('01', 'Licitacoes', 'Dir Adm', 150, 138),
-      L('02', 'Atos', 'Dir Adm', 150, 42), L('03', 'Contratos', 'Dir Adm', 50, 15)] });
+      D('Dir Adm', 310, 183), L('01', 'Licitacoes', 'Dir Adm', 150, 138),
+      L('02', 'Atos', 'Dir Adm', 150, 42), L('03', 'Contratos', 'Dir Adm', 10, 3)] });
     DB._set(DB.KEYS.tec, s);
     DesempenhoTecScreen._planoRefC = null; DesempenhoTecScreen._cicloSel = null;
     DesempenhoTecScreen.render(); DesempenhoTecScreen.switchTecTab('plano');
@@ -1805,8 +1805,8 @@ try {
   (dep.por.Contratos.st === 'ativa' && dep.por.Contratos.v === null)
     ? ok('e o que ainda esta a meio caminho continua aberto')
     : erro('atividade em andamento foi encerrada por engano: ' + JSON.stringify(dep.por.Contratos));
-  (dep.emCurso.length === 1 && /50\/120/.test(dep.emCurso[0]) && /pelo retrato/.test(dep.emCurso[0]))
-    ? ok('o bloco "Em curso" conta as questoes a partir do retrato, sem lancamento manual (50/120)')
+  (dep.emCurso.length === 1 && /10\/(?:15|20|25|30)/.test(dep.emCurso[0]) && /pelo retrato/.test(dep.emCurso[0]))
+    ? ok('o bloco "Em curso" conta as questões do retrato contra o ciclo curto vigente')
     : erro('o progresso automatico nao apareceu: ' + JSON.stringify(dep.emCurso));
   dep.hist === 2 ? ok('e os dois ciclos fechados entram no historico "o que os retratos ja julgaram"')
     : erro(`historico com ${dep.hist} ciclo(s), esperado 2`);
@@ -1827,10 +1827,10 @@ try {
     if (window.ExtrasScreen) ExtrasScreen.render();
     const t = (document.getElementById('extras-list') || {}).textContent || '';
     return { doPlano: /do Plano/.test(t), evo: /45% → 30%/.test(t), retrato: /pelo retrato/.test(t),
-      barra: /50 \/ 120/.test(t) };
+      barra: /10 \/ (?:15|20|25|30)/.test(t) };
   });
-  (card.doPlano && card.evo && card.barra)
-    ? ok('o cartao da atividade diz que veio do Plano, mostra 45% → 30% e a barra em 50/120')
+  (card.doPlano && card.retrato && card.barra)
+    ? ok('o cartão da atividade diz que veio do Plano, usa o retrato e mostra a barra do ciclo curto')
     : erro('o cartao nao trouxe o ciclo: ' + JSON.stringify(card));
 
   // a calibragem so aparece com historico, e propoe o SEU numero

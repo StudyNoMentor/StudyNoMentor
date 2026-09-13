@@ -398,7 +398,8 @@
             const o = e && e.origemPlano;
             if (!o || o.modeloExecucao || e.status === 'concluida' || Number(e.alvo) <= MAX_CICLO * 4) return;
             let feito = Number(e.progresso) || 0;
-            try { if (typeof DB.extraProgressoPeriodo === 'function') feito = Math.max(feito, Number(DB.extraProgressoPeriodo(e)) || 0); } catch (_) {}
+            try { if (typeof DB.extraProgressoPeriodo === 'function') feito = Math.max(feito, Number(DB.extraProgressoPeriodo(e)) || 0); }
+            catch (err) { if (typeof _quiet === 'function') _quiet(err, 'plano-migracao-progresso'); }
             if (feito > 0) return;
             const ex = execucao({ taxa: o.taxaInicial, qJanela: 0, custoQ: Number(e.alvo) || 0 }, o.motivo || 'reforco');
             DB.updateExtra(e.id, { alvo: ex.ciclo, origemPlano: Object.assign({}, o, {
