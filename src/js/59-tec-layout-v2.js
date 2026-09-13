@@ -26,9 +26,12 @@
             <button type="button" data-tl2-step="prioridade"><b>2</b><span><strong>Prioridades</strong><small>Escolha a matéria que mais pesa agora.</small></span></button>
             <button type="button" data-tl2-step="acao"><b>3</b><span><strong>Ação</strong><small>Execute o bloco sugerido ou ajuste a fila.</small></span></button>
           </div>`;
-        const cfg = panel.querySelector('.tec-cfg-bar');
-        const alvo = cfg ? cfg.nextElementSibling : panel.firstElementChild;
-        if (alvo) panel.insertBefore(guide, alvo); else panel.prepend(guide);
+        /* A âncora precisa ser filha DIRETA do painel. A barra de ajustes pode
+           morar dentro de um card; usar o sibling dela em panel.insertBefore()
+           gerava NotFoundError em alguns estados de renderização. */
+        const alvo = [...panel.children].find(el =>
+          !el.classList.contains('tl2-guide') && !el.classList.contains('tl2-summary-strip'));
+        if (alvo) panel.insertBefore(guide, alvo); else panel.appendChild(guide);
       }
       guide.querySelectorAll('[data-tl2-step]').forEach(b => b.onclick = () => {
         const key = b.dataset.tl2Step;
