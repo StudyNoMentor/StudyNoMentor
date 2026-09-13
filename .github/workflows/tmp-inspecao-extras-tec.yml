@@ -18,9 +18,12 @@ jobs:
         with:
           node-version: '22'
       - name: Aplicar hardening de interação
-        run: python3 .github/patch-fluidez.py
+        run: |
+          python3 .github/patch-fluidez.py
+          python3 .github/patch-selo-plano.py
       - name: Sintaxe e build
         run: |
+          node --check src/js/11-db.js
           node --check src/js/47-tela-extras.js
           node --check src/js/51-tela-desempenho-tec.js
           node --check src/js/59-interaction-feedback.js
@@ -50,8 +53,8 @@ jobs:
         run: |
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          rm -f .github/workflows/tmp-inspecao-extras-tec.yml .github/patch-fluidez.py
-          git add build.mjs src/js/47-tela-extras.js src/js/51-tela-desempenho-tec.js src/js/59-interaction-feedback.js src/css/17-interaction-feedback.css testes/extras-tec-interacoes-browser.mjs index.html src/manifesto.json sw.js .github/workflows/tmp-inspecao-extras-tec.yml .github/patch-fluidez.py
+          rm -f .github/workflows/tmp-inspecao-extras-tec.yml .github/patch-fluidez.py .github/patch-selo-plano.py
+          git add build.mjs src/js/11-db.js src/js/47-tela-extras.js src/js/51-tela-desempenho-tec.js src/js/59-interaction-feedback.js src/css/17-interaction-feedback.css testes/extras-tec-interacoes-browser.mjs index.html src/manifesto.json sw.js .github/workflows/tmp-inspecao-extras-tec.yml .github/patch-fluidez.py .github/patch-selo-plano.py
           git diff --cached --quiet && exit 0
           git commit -m 'fix: melhora fluidez e reabertura em Extras e Plano'
           git push origin HEAD:fix/extras-tec-latencia-reabertura
