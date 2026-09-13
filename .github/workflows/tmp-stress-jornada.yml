@@ -1,0 +1,34 @@
+name: Auditoria massiva temporaria
+on:
+  push:
+    branches: [test/stress-jornada-massiva]
+    paths:
+      - '.github/workflows/tmp-stress-jornada.yml'
+      - 'stress-run.trigger'
+permissions:
+  contents: read
+jobs:
+  stress:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: test/stress-jornada-massiva
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Instalar dependencias
+        run: npm ci
+      - name: Instalar Chromium
+        run: npx playwright install --with-deps chromium
+      - name: Auditoria massiva em Chromium
+        run: node testes/stress-jornada-massiva.mjs
+      - name: Publicar evidencias visuais
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: stress-jornada-evidencias
+          path: artifacts/stress-jornada/
+          if-no-files-found: warn
+          retention-days: 7
