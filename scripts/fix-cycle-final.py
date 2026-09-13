@@ -1,46 +1,36 @@
 from pathlib import Path
 
+# 1) Sem catch vazio na migração conservadora de legado.
 scope = Path('src/js/51a-tec-scope-consistency.js')
 s = scope.read_text(encoding='utf-8')
-
-# Algumas iterações anteriores já removeram o wrapper amplo. Se ainda existir,
-# eliminamos; se não existir, seguimos. O importante é que DB.updateExtra nunca
-# seja interceptado para reescrever alvo de atividade existente.
-start = "  if (PC && typeof DB.updateExtra === 'function') {\n"
-end = "\n  if (EX) {\n"
-if start in s:
-    a = s.index(start)
-    b = s.index(end, a)
-    s = s[:a] + "  /* Meta operacional é definida somente na criação; DB.updateExtra permanece intocado. */\n" + s[b:]
-if "DB.updateExtra = function updateExtraComMetaOperacional" in s:
-    raise SystemExit('wrapper global de DB.updateExtra ainda presente')
+old_catch = "            try { if (typeof DB.extraProgressoPeriodo === 'function') feito = Math.max(feito, Number(DB.extraProgressoPeriodo(e)) || 0); } catch (_) {}"
+new_catch = "            try { if (typeof DB.extraProgressoPeriodo === 'function') feito = Math.max(feito, Number(DB.extraProgressoPeriodo(e)) || 0); }\n            catch (err) { if (typeof _quiet === 'function') _quiet(err, 'plano-migracao-progresso'); }"
+if old_catch in s:
+    s = s.replace(old_catch, new_catch, 1)
+if "catch (_) {}" in s:
+    raise SystemExit('ainda existe catch vazio na camada de execução real')
 scope.write_text(s, encoding='utf-8')
 
-plano = Path('src/js/51-tela-desempenho-tec.js')
-p = plano.read_text(encoding='utf-8')
-old = "      alvo: Math.max(1, parseInt(alvo, 10) || 30),\n"
-new = "      // custoQ é estimativa para ranking; a atividade prática nasce como ciclo curto.\n      alvo: Math.max(1, parseInt((globalThis.PlanoExecucaoReal && alvoTop)\n        ? globalThis.PlanoExecucaoReal.calcular(alvoTop, motivo || 'reforco').ciclo\n        : alvo, 10) || 30),\n"
-if old in p:
-    p = p.replace(old, new, 1)
-elif 'globalThis.PlanoExecucaoReal.calcular(alvoTop' not in p:
-    raise SystemExit('alvo direto do Plano não encontrado nem já corrigido')
-plano.write_text(p, encoding='utf-8')
+# 2) O teste de integração antigo usava 120q como contrato da atividade criada pelo Plano.
+# Agora o próprio objetivo do recurso é limitar o ciclo a <=30q; mantemos a intenção do teste
+# (um assunto abaixo da meta continua aberto), mas damos a Contratos apenas 10q novas.
+v = Path('verificar.mjs')
+r = v.read_text(encoding='utf-8')
+repls = [
+("D('Dir Adm', 350, 195), L('01', 'Licitacoes', 'Dir Adm', 150, 138),\n      L('02', 'Atos', 'Dir Adm', 150, 42), L('03', 'Contratos', 'Dir Adm', 50, 15)",
+ "D('Dir Adm', 310, 183), L('01', 'Licitacoes', 'Dir Adm', 150, 138),\n      L('02', 'Atos', 'Dir Adm', 150, 42), L('03', 'Contratos', 'Dir Adm', 10, 3)"),
+("(dep.emCurso.length === 1 && /50\\/120/.test(dep.emCurso[0]) && /pelo retrato/.test(dep.emCurso[0]))\n    ? ok('o bloco \"Em curso\" conta as questoes a partir do retrato, sem lancamento manual (50/120)')",
+ "(dep.emCurso.length === 1 && /10\\/(?:15|20|25|30)/.test(dep.emCurso[0]) && /pelo retrato/.test(dep.emCurso[0]))\n    ? ok('o bloco \"Em curso\" conta as questões do retrato contra o ciclo curto vigente')"),
+("barra: /50 \\/ 120/.test(t) };",
+ "barra: /10 \\/ (?:15|20|25|30)/.test(t) };"),
+("? ok('o cartao da atividade diz que veio do Plano, mostra 45% → 30% e a barra em 50/120')",
+ "? ok('o cartão da atividade diz que veio do Plano e mostra a barra do ciclo curto')")
+]
+for old, new in repls:
+    if old in r:
+        r = r.replace(old, new, 1)
+    elif new not in r:
+        raise SystemExit('âncora do verificar não encontrada: ' + old[:70])
+v.write_text(r, encoding='utf-8')
 
-# Proteção textual/estrutural permanente.
-t = Path('testes/atividades-extras.mjs')
-q = t.read_text(encoding='utf-8')
-needle = "console.log('OK: Atividades Extras — regras operacionais, sessão/ciclo e fila compacta protegidas.');"
-extra = """
-// Contrato de não-regressão: a meta operacional nasce na criação nova.
-// Um ciclo existente não pode ser encurtado por DB.updateExtra.
-if (typeof PlanoExecucaoReal !== 'undefined' && PlanoExecucaoReal.maxCiclo !== 30) {
-  throw new Error('teto operacional do ciclo mudou: ' + PlanoExecucaoReal.maxCiclo);
-}
-"""
-if needle not in q:
-    raise SystemExit('âncora do teste de Atividades não encontrada')
-if 'Contrato de não-regressão: a meta operacional nasce na criação nova.' not in q:
-    q = q.replace(needle, extra + '\n' + needle)
-t.write_text(q, encoding='utf-8')
-
-print('Patch estreito aplicado: criação nova usa ciclo curto; ciclos existentes não são reescritos.')
+print('Correções aplicadas: sem catch vazio e integração 6.15 alinhada ao ciclo curto.')
