@@ -16,8 +16,8 @@
      · um assunto por disciplina/dia;
      · prioriza quem está há mais tempo sem entrar no rodízio e, no empate, a
        menor taxa atual (assunto mais crítico);
-     · blocos balanceados com teto de 25 questões: 100 -> 25/25/25/25,
-       61 -> 21/20/20, 47 -> 24/23. Não cria uma esteira artificial de 7/8;
+     · blocos balanceados com faixa configurável (padrão 10–25 questões):
+       100 -> 25/25/25/25, 61 -> 21/20/20, 47 -> 24/23. Não cria uma esteira artificial de 7/8;
      · se a parcela do dia for concluída parcialmente, o saldo NÃO some: volta
        automaticamente para a fila a partir do dia seguinte;
      · histórico já executado nunca é reescrito nem deslocado.
@@ -26,23 +26,31 @@ const ReforcoFila = {
   VERSAO: 1,
   MAX_TAREFAS_DIA: 2,
   KEY_PREF: 'reforco-fila-prefs',
-  DEFAULT_PREFS: { disciplinasDia: 1 },
-  BLOCO_MAX: 25,
+  DEFAULT_PREFS: { disciplinasDia: 1, blocoMin: 10, blocoMax: 25 },
   _rodando: false,
   _agendado: false,
   _forcarGlobal: false,
   _orig: {},
 
+  _sanearLimites(min, max) {
+    let mi = Math.max(1, Math.min(100, Math.round(Number(min) || this.DEFAULT_PREFS.blocoMin)));
+    let ma = Math.max(1, Math.min(100, Math.round(Number(max) || this.DEFAULT_PREFS.blocoMax)));
+    if (mi > ma) mi = ma;
+    return { min: mi, max: ma };
+  },
   prefs() {
     let raw = null;
     try { raw = JSON.parse(localStorage.getItem(DB._profilePrefix() + this.KEY_PREF) || '{}'); }
     catch (_) { _quiet(_); raw = {}; }
     const n = Number(raw && raw.disciplinasDia);
-    return { disciplinasDia: n === 2 ? 2 : this.DEFAULT_PREFS.disciplinasDia };
+    const lim = this._sanearLimites(raw && raw.blocoMin, raw && raw.blocoMax);
+    return { disciplinasDia: n === 2 ? 2 : this.DEFAULT_PREFS.disciplinasDia, blocoMin: lim.min, blocoMax: lim.max };
   },
   salvarPrefs(patch) {
     const p = Object.assign({}, this.prefs(), patch || {});
     p.disciplinasDia = Number(p.disciplinasDia) === 2 ? 2 : 1;
+    const lim = this._sanearLimites(p.blocoMin, p.blocoMax);
+    p.blocoMin = lim.min; p.blocoMax = lim.max;
     const key = DB._profilePrefix() + this.KEY_PREF;
     try {
       if (typeof DB.setRaw === 'function') DB.setRaw(key, JSON.stringify(p));
@@ -54,6 +62,43 @@ const ReforcoFila = {
   },
   limiteDisciplinasDia() {
     return Math.max(1, Math.min(this.MAX_TAREFAS_DIA, Number(this.prefs().disciplinasDia) || 1));
+  },
+  limitesBloco(e) {
+    const p = this.prefs();
+    const m = e && e.reforcoFila;
+    const personalizado = !!(m && Number.isFinite(Number(m.blocoMin)) && Number.isFinite(Number(m.blocoMax)));
+    const lim = personalizado ? this._sanearLimites(m.blocoMin, m.blocoMax) : this._sanearLimites(p.blocoMin, p.blocoMax);
+    return { min: lim.min, max: lim.max, personalizado };
+  },
+  salvarCargaExtra(id, min, max) {
+    const list = DB.getExtras();
+    const e = list.find(x => x.id === id);
+    if (!this.eGerenciado(e)) return null;
+    const lim = this._sanearLimites(min, max);
+    const m = this._meta(e); m.blocoMin = lim.min; m.blocoMax = lim.max; m.cargaAtualizadaEm = new Date().toISOString();
+    e.updatedAt = new Date().toISOString();
+    DB.saveExtras(list); this._assinaturaAnterior = ''; this.sincronizar();
+    return this.limitesBloco(e);
+  },
+  usarCargaPadrao(id) {
+    const list = DB.getExtras();
+    const e = list.find(x => x.id === id);
+    if (!this.eGerenciado(e)) return null;
+    const m = this._meta(e); delete m.blocoMin; delete m.blocoMax; m.cargaAtualizadaEm = new Date().toISOString();
+    e.updatedAt = new Date().toISOString();
+    DB.saveExtras(list); this._assinaturaAnterior = ''; this.sincronizar();
+    return this.limitesBloco(e);
+  },
+  aplicarCargaTodos(min, max) {
+    const lim = this._sanearLimites(min, max);
+    const list = DB.getExtras();
+    list.forEach(e => {
+      if (!this.eGerenciado(e) || e.status === 'concluida') return;
+      const m = this._meta(e); delete m.blocoMin; delete m.blocoMax; m.cargaAtualizadaEm = new Date().toISOString();
+      e.updatedAt = new Date().toISOString();
+    });
+    DB.saveExtras(list);
+    return this.salvarPrefs({ blocoMin: lim.min, blocoMax: lim.max });
   },
 
   _norm(s) {
@@ -94,12 +139,14 @@ const ReforcoFila = {
     return (e && e.historico || []).filter(h => h.data === dia)
       .reduce((a, h) => a + (parseFloat(h.quantidade) || 0), 0);
   },
-  tamanhoBloco(restante) {
+  tamanhoBloco(restante, e) {
     const r = Math.max(0, Math.ceil(parseFloat(restante) || 0));
     if (!r) return 0;
-    if (r <= this.BLOCO_MAX) return r;
-    const n = Math.max(2, Math.ceil(r / this.BLOCO_MAX));
-    return Math.max(1, Math.ceil(r / n));
+    const lim = this.limitesBloco(e);
+    if (r <= lim.max) return r;
+    let n = Math.max(2, Math.ceil(r / lim.max));
+    while (n > 1 && Math.floor(r / n) < lim.min && Math.ceil(r / (n - 1)) <= lim.max) n--;
+    return Math.max(1, Math.min(lim.max, Math.ceil(r / n)));
   },
   _ultimoDia(e, ate) {
     const m = e.reforcoFila && e.reforcoFila.alvosPorDia || {};
@@ -206,7 +253,8 @@ const ReforcoFila = {
           const feitoHoje = this.feitoNoDia(e, hoje);
           if (feitoHoje > 0) {
             const s = this.saldo(e, ref).restante;
-            m.alvosPorDia[hoje] = Math.max(feitoHoje, Math.min(this.BLOCO_MAX, feitoHoje + s));
+            const limiteHoje = this.limitesBloco(e).max;
+            m.alvosPorDia[hoje] = Math.max(feitoHoje, Math.min(limiteHoje, feitoHoje + s));
             if (!e.datas.includes(hoje)) e.datas.push(hoje);
             mudou = true;
           }
@@ -270,7 +318,7 @@ const ReforcoFila = {
         for (const t of cand) {
           if (slots <= 0) break;
           if (usadas.has(t.disc)) continue;
-          const q = this.tamanhoBloco(t.restante);
+          const q = this.tamanhoBloco(t.restante, t.e);
           if (!q) continue;
           t.m.alvosPorDia[dia] = q;
           if (!t.e.datas.includes(dia)) t.e.datas.push(dia);
@@ -340,7 +388,7 @@ const ReforcoFila = {
     const s = this.saldo(e).restante;
     if (!s) return { ok: false, motivo: 'sem-saldo' };
     const m = this._meta(e);
-    m.alvosPorDia[hoje] = this.tamanhoBloco(s);
+    m.alvosPorDia[hoje] = this.tamanhoBloco(s, e);
     if (!e.datas.includes(hoje)) e.datas.push(hoje);
     DB.saveExtras(list);
     this._assinaturaAnterior = '';
@@ -529,7 +577,31 @@ ExtrasScreen.renderEmCurso = function () {
     if (nums && !nums.querySelector('.exc-hoje')) {
       nums.insertAdjacentHTML('afterbegin', `<span class="exc-hoje" title="Parcela executável desta data."><small>Hoje</small><b>${Math.min(q, feitoHoje)}</b>/${q} q</span>`);
     }
+    const lim = ReforcoFila.limitesBloco(e);
+    if (nums && !nums.querySelector('.exc-carga')) {
+      nums.insertAdjacentHTML('beforeend', `<span class="exc-carga" title="Faixa usada para recalcular as próximas parcelas. O dia atual fica congelado."><small>Carga</small><b>${lim.min}–${lim.max}</b> q${lim.personalizado ? ' · específica' : ' · padrão'}</span>`);
+    }
+    const acoes = li.querySelector('.exc-acoes');
+    if (acoes && !acoes.querySelector('[data-curso-carga]')) {
+      acoes.insertAdjacentHTML('beforeend', `<button type="button" class="pl-ciclo-acao" data-curso-carga="${escapeHtml(e.id)}">Ajustar carga</button>`);
+    }
   });
+
+  host.querySelectorAll('[data-curso-carga]').forEach(b => b.addEventListener('click', () => {
+    const li = b.closest('li[data-id]'); const e = DB.getExtra(b.dataset.cursoCarga); if (!li || !e) return;
+    const aberto = li.querySelector('.exc-carga-editor'); if (aberto) { aberto.remove(); return; }
+    const lim = ReforcoFila.limitesBloco(e);
+    const ed = document.createElement('div'); ed.className = 'exc-carga-editor';
+    ed.innerHTML = `<div><strong>Carga das próximas parcelas</strong><small>Hoje não muda. O futuro deste ciclo é recalculado.</small></div>
+      <label>Mínimo <input type="number" min="1" max="100" value="${lim.min}" data-carga-min></label>
+      <label>Máximo <input type="number" min="1" max="100" value="${lim.max}" data-carga-max></label>
+      <div class="exc-carga-actions"><button type="button" class="btn-secondary" data-carga-este>Só este reforço</button><button type="button" class="btn-secondary" data-carga-todos>Aplicar a todos</button><button type="button" class="btn-secondary" data-carga-padrao>Usar padrão</button></div>`;
+    li.appendChild(ed);
+    const vals = () => [Number(ed.querySelector('[data-carga-min]').value), Number(ed.querySelector('[data-carga-max]').value)];
+    ed.querySelector('[data-carga-este]').addEventListener('click', () => { const [mi, ma] = vals(); ReforcoFila.salvarCargaExtra(e.id, mi, ma); showToast('Carga específica atualizada ✓'); ExtrasScreen.render(); });
+    ed.querySelector('[data-carga-todos]').addEventListener('click', () => { const [mi, ma] = vals(); ReforcoFila.aplicarCargaTodos(mi, ma); showToast('Carga aplicada a todos os reforços ativos ✓'); ExtrasScreen.render(); });
+    ed.querySelector('[data-carga-padrao]').addEventListener('click', () => { ReforcoFila.usarCargaPadrao(e.id); showToast('Este reforço voltou a usar o padrão ✓'); ExtrasScreen.render(); });
+  }));
 
   const resumo = host.querySelector('.exc-resumo');
   if (resumo) {
@@ -662,18 +734,85 @@ ReforcoFila.selecionarSugestoesPlano = function (cand) {
   };
 };
 
+ReforcoFila.filtrarCandidatosPlano = function (cand) {
+  cand = Array.isArray(cand) ? cand : [];
+  let p = {}, fora = null;
+  try { p = PlanoEngine.prefs() || {}; fora = PlanoEngine.excluidasSet ? PlanoEngine.excluidasSet(p) : null; } catch (e) { _quiet(e, 'fila-excluidas'); }
+  const fallback = new Set((p.excluidas || []).map(x => this._norm(x)));
+  return cand.filter(x => {
+    try { if (fora && PlanoEngine.foraDoPlano && PlanoEngine.foraDoPlano(x.disciplina || '', fora)) return false; } catch (e) { _quiet(e); }
+    return !fallback.has(this._norm(x.disciplina || ''));
+  });
+};
+ReforcoFila.prepararSugestoesPlano = function (cand) {
+  const original = Array.isArray(cand) ? cand : [];
+  const filtrados = this.filtrarCandidatosPlano(original);
+  const s = this.selecionarSugestoesPlano(filtrados);
+  const sel = new Set(s.indices || []);
+  const sugeridos = [], demais = [];
+  filtrados.forEach((x, i) => (sel.has(i) ? sugeridos : demais).push(x));
+  const candidatos = sugeridos.concat(demais);
+  const indices = new Set(sugeridos.map((_x, i) => i));
+  const info = Object.assign({}, s, { vagasSugeridas: sugeridos.length, excluidasOcultas: Math.max(0, original.length - filtrados.length) });
+  return { candidatos, indices, info };
+};
+ReforcoFila.decorarSugestoesPlano = function (screen) {
+  const host = document.getElementById('pl-lista'); if (!host) return;
+  // `_planoBind` também chama `_planoRenderLista`; a decoração precisa ser
+  // idempotente para nunca acumular cabeçalhos/separadores na mesma lista.
+  host.querySelectorAll('.pl-auto-head,.pl-auto-rest').forEach(x => x.remove());
+  const n = Math.max(0, Number(screen._reforcoFilaSugCount) || 0);
+  const linhas = [...host.querySelectorAll('.pl-linha')];
+  let primeiraSug = null, primeiraOutra = null;
+  linhas.forEach(l => {
+    const cb = l.querySelector('.pl-pick'); const i = cb ? Number(cb.dataset.i) : -1;
+    if (i >= 0 && i < n) {
+      l.classList.add('pl-auto-sug'); primeiraSug ||= l;
+      const box = l.querySelector('div');
+      if (box && !box.querySelector('.pl-auto-badge')) box.insertAdjacentHTML('afterbegin', '<span class="pl-auto-badge">Sugestão automática</span>');
+    } else if (!primeiraOutra) primeiraOutra = l;
+    if (cb && !cb.dataset.reforcoAutoBound) {
+      cb.dataset.reforcoAutoBound = '1';
+      cb.addEventListener('change', () => { screen._reforcoFilaAutoMode = false; });
+    }
+  });
+  if (primeiraSug) { const h = document.createElement('div'); h.className = 'pl-auto-head'; h.innerHTML = '<strong>Sugestões para completar o ciclo</strong><small>Compatíveis com as vagas livres e já pré-selecionadas.</small>'; host.insertBefore(h, primeiraSug); }
+  if (primeiraOutra && primeiraSug) { const h = document.createElement('div'); h.className = 'pl-auto-rest'; h.textContent = 'Outros assuntos disponíveis'; host.insertBefore(h, primeiraOutra); }
+};
+
 ReforcoFila._orig.puxarDoPlano = ExtrasScreen.puxarDoPlano;
 ExtrasScreen.puxarDoPlano = function () {
   this._reforcoFilaEscolhaPendente = true;
+  this._reforcoFilaAutoMode = true;
   this._reforcoFilaInfo = null;
+  this._reforcoFilaSugCount = 0;
   return ReforcoFila._orig.puxarDoPlano.apply(this, arguments);
 };
+if (typeof ExtrasScreen._planoRenderLista === 'function') {
+  ReforcoFila._orig.planoRenderLista = ExtrasScreen._planoRenderLista;
+  ExtrasScreen._planoRenderLista = function () {
+    const ret = ReforcoFila._orig.planoRenderLista.apply(this, arguments);
+    ReforcoFila.decorarSugestoesPlano(this);
+    return ret;
+  };
+}
 ReforcoFila._orig.planoBind = ExtrasScreen._planoBind;
 ExtrasScreen._planoBind = function () {
-  if (this._reforcoFilaEscolhaPendente && Array.isArray(this._planoCand)) {
-    const s = ReforcoFila.selecionarSugestoesPlano(this._planoCand);
-    this._planoSel = new Set(s.indices);
-    this._reforcoFilaInfo = s;
+  if (this._reforcoFilaEscolhaPendente) this._reforcoFilaAutoMode = true;
+  if (Array.isArray(this._planoCand)) {
+    if (this._reforcoFilaAutoMode !== false) {
+      const prep = ReforcoFila.prepararSugestoesPlano(this._planoCand);
+      this._planoCand = prep.candidatos;
+      this._planoSel = prep.indices;
+      this._reforcoFilaInfo = prep.info;
+      this._reforcoFilaSugCount = prep.info.vagasSugeridas || 0;
+    } else {
+      this._planoCand = ReforcoFila.filtrarCandidatosPlano(this._planoCand);
+    }
+    if (this._planoDiscSel && this._planoDiscSel.size) {
+      const disp = new Set(this._planoCand.map(x => x.disciplina || ''));
+      [...this._planoDiscSel].forEach(d => { if (!disp.has(d)) this._planoDiscSel.delete(d); });
+    }
     this._reforcoFilaEscolhaPendente = false;
   }
   const ret = ReforcoFila._orig.planoBind.apply(this, arguments);
@@ -681,16 +820,16 @@ ExtrasScreen._planoBind = function () {
   const lista = document.getElementById('pl-lista');
   if (info && lista) {
     let n = document.getElementById('pl-fila-info');
-    if (!n) {
-      n = document.createElement('p'); n.id = 'pl-fila-info'; n.className = 'hint';
-      n.style.margin = '0 0 10px';
-      lista.insertAdjacentElement('beforebegin', n);
-    }
+    if (!n) { n = document.createElement('p'); n.id = 'pl-fila-info'; n.className = 'hint'; n.style.margin = '0 0 10px'; lista.insertAdjacentElement('beforebegin', n); }
     if (info.excesso) {
       n.innerHTML = `Ciclo configurado em <strong>${info.cfg.disciplinas} disciplina(s) × ${info.cfg.topicos} tópico(s)</strong>. Há ${info.disciplinasAtivas} disciplinas abertas de um ciclo anterior; nenhuma nova frente foi marcada até o rodízio voltar ao limite.`;
     } else {
-      n.innerHTML = `Ciclo automático: <strong>${info.cfg.disciplinas} disciplina(s) × ${info.cfg.topicos} tópico(s)</strong> · ${info.abertasTotal} atividade(s) já ocupam vagas · <strong>${info.vagasSugeridas} nova(s)</strong> pré-selecionada(s) para completar o ciclo${info.disciplinasEmCooldown ? ` · ${info.disciplinasEmCooldown} aguardando novo retrato TEC` : ''}.`;
+      n.innerHTML = `Ciclo automático: <strong>${info.cfg.disciplinas} disciplina(s) × ${info.cfg.topicos} tópico(s)</strong> · ${info.abertasTotal} atividade(s) já ocupam vagas · <strong>${info.vagasSugeridas} nova(s)</strong> pré-selecionada(s) para completar o ciclo${info.excluidasOcultas ? ` · ${info.excluidasOcultas} item(ns) de matérias excluídas ocultado(s)` : ''}${info.disciplinasEmCooldown ? ` · ${info.disciplinasEmCooldown} aguardando novo retrato TEC` : ''}.`;
     }
+    ReforcoFila.decorarSugestoesPlano(this);
+    const marcar = document.getElementById('pl-marcar'), limpar = document.getElementById('pl-limpar');
+    if (marcar) marcar.addEventListener('click', () => { this._reforcoFilaAutoMode = false; });
+    if (limpar) limpar.addEventListener('click', () => { this._reforcoFilaAutoMode = false; });
   }
   return ret;
 };
