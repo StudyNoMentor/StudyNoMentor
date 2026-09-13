@@ -22,7 +22,7 @@ jobs:
         with:
           node-version: '22'
       - name: Aplicar auditoria determinística
-        run: node scripts/patch-extras-audit.mjs
+        run: python3 scripts/patch-extras-audit.py
       - name: Validar regressão específica
         run: node testes/atividades-extras.mjs
       - name: Regenerar bundle
