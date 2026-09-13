@@ -14,7 +14,7 @@ tem(gov, 'm.disciplinasDia=d', 'densidade deve ser gravada por reforço');
 tem(gov, 'm.blocoMin=lim.min', 'faixa mínima deve ser gravada por reforço');
 tem(gov, 'm.blocoMax=lim.max', 'faixa máxima deve ser gravada por reforço');
 tem(gov, "cfg.escopo==='hoje-futuro'", 'deve existir escopo hoje + futuro');
-tem(gov, 'feito>0', 'missão iniciada precisa ser detectada');
+tem(gov, 'ReforcoFila.feitoNoDia(e,hoje)>0', 'missão iniciada precisa ser detectada pelo progresso real do dia');
 tem(gov, 'preserve.add(e.id)', 'missão iniciada/fora do escopo precisa ser preservada');
 tem(gov, 'todos.every(o=>this.densidade(o.e)>=2)', 'duas frentes só podem coexistir quando ambas aceitam 2/dia');
 tem(gov, 'if(m.disciplinasDia==null)m.disciplinasDia=pAntes.disciplinasDia', 'troca de padrão deve congelar reforços não selecionados');
