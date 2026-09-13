@@ -14,7 +14,7 @@ jobs:
         with: { fetch-depth: 0 }
       - uses: actions/setup-node@v4
         with: { node-version: '22' }
-      - name: Corrigir handlers silenciosos de foco
+      - name: Corrigir handlers e sonda de performance
         run: |
           python3 - <<'PY'
           from pathlib import Path
@@ -26,10 +26,19 @@ jobs:
               raise SystemExit(f'esperava 2 catch vazios de foco, encontrei {n}')
           s=s.replace(old,"catch(e){if(typeof _quiet==='function')_quiet(e,'extras-overlay-focus');}")
           p.write_text(s)
+
+          t=Path('testes/tec-plano-performance-browser.mjs')
+          q=t.read_text()
+          oldq="window.switchScreen&&window.DesempenhoTecScreen&&window.PlanoEngine&&window.ReforcoAdaptativo"
+          newq="window.switchScreen&&window.DesempenhoTecScreen&&typeof PlanoEngine==='object'&&window.ReforcoAdaptativo"
+          if oldq not in q:
+              raise SystemExit('pre-condicao antiga da sonda do Plano nao encontrada')
+          t.write_text(q.replace(oldq,newq,1))
           PY
       - name: Sintaxe e build
         run: |
           node --check src/js/59-extras-stability.js
+          node --check testes/tec-plano-performance-browser.mjs
           node build.mjs
           node build.mjs --check
       - name: Instalar dependencias
@@ -52,7 +61,7 @@ jobs:
         run: |
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add src/js/59-extras-stability.js index.html src/manifesto.json sw.js
+          git add src/js/59-extras-stability.js testes/tec-plano-performance-browser.mjs index.html src/manifesto.json sw.js
           git diff --cached --quiet && exit 0
           git commit -m 'build: aprova hardening de Extras e fluidez do Plano'
           git push origin HEAD:fix/extras-layout-hardening-final
