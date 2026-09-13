@@ -138,6 +138,7 @@
       if (sub) sub.textContent = 'Organize o que complementa seu plano sem misturar execução diária, pendências reais e próximos passos.';
 
       const densidade = (typeof ReforcoFila !== 'undefined' && ReforcoFila.limiteDisciplinasDia) ? ReforcoFila.limiteDisciplinasDia() : 1;
+      const cargaPadrao = (typeof ReforcoFila !== 'undefined' && ReforcoFila.prefs) ? ReforcoFila.prefs() : { blocoMin: 10, blocoMax: 25 };
       const old = card.querySelector('.exm-dashboard');
       if (old) old.remove();
       const dash = document.createElement('div');
@@ -170,6 +171,13 @@
               <option value="2" ${densidade === 2 ? 'selected' : ''}>2 · mais intenso</option>
             </select>
           </label>
+        </div>
+        <div class="exm-load">
+          <div class="exm-rotation-copy"><strong>Faixa de questões por reforço</strong><small>Controla as próximas parcelas diárias. O mínimo é preferencial quando o saldo permite; o máximo é respeitado. O dia atual não é reescrito.</small></div>
+          <label>Mínimo <input id="exm-ref-min" type="number" min="1" max="100" value="${cargaPadrao.blocoMin}"></label>
+          <label>Máximo <input id="exm-ref-max" type="number" min="1" max="100" value="${cargaPadrao.blocoMax}"></label>
+          <button type="button" class="btn-secondary" id="exm-ref-salvar">Salvar padrão</button>
+          <button type="button" class="btn-secondary" id="exm-ref-aplicar-todos">Aplicar a todos</button>
         </div>`;
       const head = card.querySelector('.card-header');
       if (head) head.insertAdjacentElement('afterend', dash);
@@ -185,6 +193,18 @@
         screen.selDay = todayLocal();
         screen.render();
         showToast(`Rodízio ajustado para ${cad.value} disciplina(s) por dia ✓`);
+      });
+      const minEl = dash.querySelector('#exm-ref-min'), maxEl = dash.querySelector('#exm-ref-max');
+      const valoresCarga = () => [Number(minEl && minEl.value), Number(maxEl && maxEl.value)];
+      const salvarCarga = dash.querySelector('#exm-ref-salvar');
+      if (salvarCarga && typeof ReforcoFila !== 'undefined') salvarCarga.addEventListener('click', () => {
+        const [mi, ma] = valoresCarga(); ReforcoFila.salvarPrefs({ blocoMin: mi, blocoMax: ma });
+        showToast('Padrão de carga atualizado ✓'); screen.render();
+      });
+      const aplicarTodos = dash.querySelector('#exm-ref-aplicar-todos');
+      if (aplicarTodos && typeof ReforcoFila !== 'undefined') aplicarTodos.addEventListener('click', () => {
+        const [mi, ma] = valoresCarga(); ReforcoFila.aplicarCargaTodos(mi, ma);
+        showToast('Faixa aplicada a todos os reforços ativos ✓'); screen.render();
       });
 
       const carga = card.querySelector('#ex-filters-btn');

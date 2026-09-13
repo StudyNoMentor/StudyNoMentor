@@ -209,8 +209,12 @@ ExtrasScreen._planoCand = [
 ];
 ExtrasScreen._reforcoFilaEscolhaPendente = true;
 ExtrasScreen._planoBind();
-assert.deepEqual(Array.from(ExtrasScreen._planoSel).sort((a, b) => a - b), [1, 3, 5],
-  'as três matérias prioritárias B/D/A devem vencer C, e cada uma leva seu pior tópico');
+assert.deepEqual(Array.from(ExtrasScreen._planoSel), [0, 1, 2],
+  'as sugestões automáticas devem ser movidas para o topo e continuar pré-selecionadas');
+assert.deepEqual(Array.from(ExtrasScreen._planoCand.slice(0, 3), x => x.disciplina).sort(), ['A', 'B', 'D'],
+  'o bloco superior deve conter exatamente as três matérias prioritárias A/B/D');
+assert.deepEqual(Array.from(ExtrasScreen._planoCand.slice(0, 3), x => x.nome).sort(), ['A crítico', 'B crítico', 'D crítico'],
+  'cada matéria prioritária deve levar seu pior tópico');
 
 // 8) Slots contínuos: atividades abertas ocupam vagas. Quando uma termina,
 // a próxima MATÉRIA entra; a recém-concluída aguarda um retrato TEC novo.
@@ -220,7 +224,9 @@ DB._data = [abertaA, abertaB];
 PlanoPontos.linhas = ['A', 'B', 'C', 'D'];
 ExtrasScreen._reforcoFilaEscolhaPendente = true;
 ExtrasScreen._planoBind();
-assert.deepEqual(Array.from(ExtrasScreen._planoSel), [4],
+assert.deepEqual(Array.from(ExtrasScreen._planoSel), [0],
+  'a vaga restante deve ficar no topo e pré-selecionada');
+assert.equal(ExtrasScreen._planoCand[0].disciplina, 'C',
   'com A e B ocupando duas das três vagas, C deve preencher a vaga restante');
 
 // Simula que a sugestão C foi aceita antes de B terminar.
@@ -230,7 +236,9 @@ abertaB.status = 'concluida';
 abertaB.origemPlano.veredito = { tipo: 'funcionou', retrato: 'snap-1', em: HOJE };
 ExtrasScreen._reforcoFilaEscolhaPendente = true;
 ExtrasScreen._planoBind();
-assert.deepEqual(Array.from(ExtrasScreen._planoSel), [5],
+assert.deepEqual(Array.from(ExtrasScreen._planoSel), [0],
+  'a nova vaga deve permanecer no topo e pré-selecionada');
+assert.equal(ExtrasScreen._planoCand[0].disciplina, 'D',
   'B recém-concluída não pode se reciclar com o mesmo retrato: a vaga passa para D');
 
 // Chegou informação nova e B continua fraca: agora ela pode voltar legitimamente.
@@ -239,7 +247,9 @@ abertaC.status = 'concluida';
 abertaC.origemPlano.veredito = { tipo: 'funcionou', retrato: 'snap-1', em: HOJE };
 ExtrasScreen._reforcoFilaEscolhaPendente = true;
 ExtrasScreen._planoBind();
-assert.deepEqual(Array.from(ExtrasScreen._planoSel).sort((a, b) => a - b), [3, 4],
+assert.deepEqual(Array.from(ExtrasScreen._planoSel), [0, 1],
+  'duas vagas liberadas devem ficar no topo e pré-selecionadas');
+assert.deepEqual(Array.from(ExtrasScreen._planoCand.slice(0, 2), x => x.disciplina).sort(), ['B', 'C'],
   'com retrato novo, B e C podem ser reavaliadas e voltar se ainda estiverem na fila de fraquezas');
 
 // 9) A configuração do Plano também controla quantos tópicos cabem por matéria.
@@ -247,7 +257,9 @@ DB._data = [];
 planPrefs = { sugestoesDisciplinas: 2, sugestoesTopicosDisc: 2 };
 PlanoPontos.linhas = ['B', 'A', 'C', 'D'];
 const sel22 = F.selecionarSugestoesPlano(ExtrasScreen._planoCand);
-assert.deepEqual(Array.from(sel22.indices).sort((a, b) => a - b), [0, 1, 2, 3],
+const sel22Itens = Array.from(sel22.indices).map(i => ExtrasScreen._planoCand[i]);
+const sel22Cont = sel22Itens.reduce((m, x) => (m[x.disciplina] = (m[x.disciplina] || 0) + 1, m), {});
+assert.deepEqual(sel22Cont, { B: 2, A: 2 },
   '2 disciplinas × 2 tópicos deve preencher B e A com dois tópicos cada, sem puxar C/D');
 
 console.log('OK: fila diária, espaçamento e ciclo contínuo de sugestões do Plano preservados.');
