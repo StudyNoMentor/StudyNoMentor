@@ -23,7 +23,9 @@ jobs:
 
       # Patch idempotente: permite inspecionar o resultado real antes de persistir.
       - name: Aplicar patch estrutural idempotente
-        run: python .github/patch-tec-ux100-v2.py
+        run: |
+          python .github/patch-tec-ux100-v2.py
+          python .github/patch-debug-canon.py
 
       - name: Montar produto publicado
         run: |
