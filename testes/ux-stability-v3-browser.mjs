@@ -28,7 +28,7 @@ try{
   ok(spin.will.includes('transform'),'spinner deve usar compositor');
 
   /* Ícones i: tanto os antigos quanto os da Central precisam abrir explicação. */
-  await page.evaluate(()=>{const b=document.createElement('button');b.id='uxv3-info-test';b.className='xsc-info';b.title='Explicação completa do parâmetro';b.textContent='i';document.body.appendChild(b);});
+  await page.evaluate(()=>{const b=document.createElement('button');b.type='button';b.id='uxv3-info-test';b.className='xsc-info';b.title='Explicação completa do parâmetro';b.textContent='i';Object.assign(b.style,{position:'fixed',top:'12px',left:'12px',zIndex:'2147483647',width:'36px',height:'36px'});document.body.appendChild(b);});
   await page.locator('#uxv3-info-test').click();
   await page.locator('.uxv3-info-pop.open').waitFor({state:'visible'});
   eq((await page.locator('.uxv3-info-pop').innerText()).trim(),'Explicação completa do parâmetro','ícone i deve explicar o parâmetro');
