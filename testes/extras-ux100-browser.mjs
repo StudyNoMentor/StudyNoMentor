@@ -36,6 +36,8 @@ async function mainAudit(width,height){
   await closeAdaptive();await closeCentral();
   await page.evaluate(()=>{switchScreen('extras');ExtrasScreen.selDay=todayLocal();ExtrasScreen.render();});
   await page.waitForTimeout(80);
+  await page.waitForFunction(()=>[...document.querySelectorAll('#extras-list .exd')].some(c=>{const e=DB.getExtra(c.dataset.id);return !!(e&&e.origemLei&&e.origemLei.rodizio);}),null,{timeout:3000});
+  await page.evaluate(()=>{try{LeiRodizio.decorarExtras();}catch(_){}try{ExtrasUx100.compactarCards();}catch(_){}});
   const order=await page.evaluate(()=>{const s=document.getElementById('screen-extras'),ch=[...s.children];return{toolbar:ch.indexOf(s.querySelector('.extras-toolbar')),curso:ch.indexOf(document.getElementById('extras-curso')),agenda:ch.indexOf(document.getElementById('extras-agenda')),lista:ch.indexOf(document.getElementById('extras-list'))};});
   ok(order.toolbar>=0&&order.curso>=0&&order.agenda>=0&&order.lista>=0,`ordem: blocos devem existir ${JSON.stringify(order)}`);
   ok(order.toolbar<order.curso,`Configurações deve vir antes de Reforços ${JSON.stringify(order)}`);
@@ -55,6 +57,19 @@ async function mainAudit(width,height){
   if(visual.task)ok(visual.task>=1,`Card precisa de limite visível (${visual.task})`);else ok(true,'sem card neste quadro');
   eq(visual.rot,0,'controles de automação duplicados não devem ficar na agenda');
   ok(visual.title.startsWith('Extras de hoje'),'agenda deve comunicar execução diária');
+  const law=await page.evaluate(()=>{
+    const card=document.querySelector('#extras-list .lr-extra-card');
+    if(!card)return{exists:false};
+    const route=card.querySelector('.lr-route'),actions=card.querySelector('.exd-actions');
+    const probe=document.createElement('i');probe.style.cssText='position:fixed;left:-9999px;background:var(--surface)';document.body.appendChild(probe);
+    const surface=getComputedStyle(probe).backgroundColor;probe.remove();
+    const rr=route?.getBoundingClientRect(),ar=actions?.getBoundingClientRect();
+    return{exists:true,bg:getComputedStyle(card).backgroundColor,surface,concluded:card.classList.contains('is-concluidas'),gap:rr&&ar?rr.top-ar.bottom:999};
+  });
+  ok(law.exists,'Lei seca precisa estar presente no cenário de auditoria');
+  ok(!law.concluded,'Lei seca de hoje aberta não pode usar estado visual de concluída');
+  eq(law.bg,law.surface,'Lei seca aberta deve manter fundo neutro do surface');
+  ok(law.gap>=6,`ações da Lei seca precisam ficar separadas do bloco de leitura (${law.gap.toFixed(1)}px)`);
   if(width<=430){
     const actions=await page.evaluate(()=>[...document.querySelectorAll('#extras-list .exd-actions')].map(a=>{const r=a.getBoundingClientRect(),card=a.closest('.exd')?.getBoundingClientRect();return{left:r.left,right:r.right,top:r.top,bottom:r.bottom,cl:card?.left,cr:card?.right};}));
     actions.forEach((r,i)=>ok(r.left>=r.cl-1&&r.right<=r.cr+1,`ações ${i} não podem escapar do card`));
@@ -138,7 +153,8 @@ try{
     DB.saveExtras([]);
     const hoje=todayLocal();
     DB.addExtra({titulo:'Diagnosticar: Economia Brasileira na Década de 1990',tipo:'questoes',disciplina:'Economia e Finanças Públicas',unidade:'questoes',alvo:18,periodo:'unica',datas:[hoje],origemPlano:{topico:'Economia Brasileira na Década de 1990',disciplina:'Economia e Finanças Públicas',criadoEm:new Date().toISOString()}});
-    DB.addExtra({titulo:'Lei seca · CTN - Constituição',tipo:'leitura',disciplina:'',unidade:'linhas',alvo:30,periodo:'unica',datas:[hoje],origemLei:{rodizio:true,leiId:'ux100-lei',deLinha:1,ateLinha:30}});
+    const leiExtra=DB.addExtra({titulo:'Lei seca · CTN - Constituição',tipo:'leitura',disciplina:'',unidade:'linhas',alvo:30,periodo:'unica',datas:[hoje]});
+    DB.updateExtra(leiExtra.id,{origemLei:{rodizio:true,leiId:'ux100-lei',deLinha:1,ateLinha:30}});
     switchScreen('extras');ExtrasScreen.selDay=hoje;ExtrasScreen.render();
   });
   await page.waitForTimeout(150);

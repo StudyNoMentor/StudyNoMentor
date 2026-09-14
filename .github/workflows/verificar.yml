@@ -46,6 +46,20 @@ jobs:
         with:
           node-version: '22'
 
+      # Falhas triviais devem morrer em segundos, antes de npm ci, Chromium e
+      # Monte Carlo. Isso reduz tentativas caras e deixa o CI mais previsivel.
+      - name: Preflight rapido
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --check build.mjs
+          node --check verificar.mjs
+          for f in src/js/*.js testes/*.mjs; do
+            node --check "$f"
+          done
+          node build.mjs
+          git diff --exit-code -- index.html sw.js src/manifesto.json
+
       # As dependencias de teste do repositorio. Sem este passo, node_modules
       # so tem o Playwright instalado abaixo — e a checagem 6.7 (o caminho da
       # nuvem inteiro contra um PostgREST de mentira, incluindo o token
