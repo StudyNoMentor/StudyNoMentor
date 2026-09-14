@@ -24,7 +24,7 @@ async function overflow(sel){return page.locator(sel).evaluate(el=>Math.max(0,el
 
 try{
   await page.goto(url,{waitUntil:'domcontentloaded'});
-  await page.waitForFunction(()=>typeof switchScreen==='function'&&typeof PlanoMotoresGovernancaV5==='object'&&typeof PlanoSugestoesV2==='object'&&typeof ExtrasScreen==='object'&&typeof DesempenhoTecScreen==='object',{timeout:30000});
+  await page.waitForFunction(()=>typeof switchScreen==='function'&&typeof PlanoMotoresGovernancaV5==='object'&&typeof PlanoMotoresCentralTecV1==='object'&&typeof PlanoSugestoesV2==='object'&&typeof ExtrasScreen==='object'&&typeof DesempenhoTecScreen==='object',{timeout:30000});
   await page.evaluate(()=>{
     try{ProfileUI.hideGate();}catch(e){if(typeof _quiet==='function')_quiet(e,'gov-test-gate');}
     const hoje=new Date(),dia=off=>{const d=new Date(hoje);d.setDate(d.getDate()+off);return d.toISOString().slice(0,10);};
@@ -38,21 +38,22 @@ try{
     PlanoMotoresGovernancaV5.restaurar();PlanoSugestoesV2.salvar({modo:'robusto',fase:'pre',meta:90,minAmostra:20,alvoQuestoes:30});
   });
 
-  // 1) Ambos ativos: Configuração global + novo desenho de decisão.
+  // 1) Ambos ativos: governança global + decisão limpa em Extras.
   await config();
   assert.equal(await page.locator('[data-pmg-toggle]').count(),2,'Configurações deve expor exatamente os dois motores');
   assert.equal(await page.locator('[data-pmg-toggle="simplificado"]').isChecked(),true);
   assert.equal(await page.locator('[data-pmg-toggle="robusto"]').isChecked(),true);
-  assert.match(await page.locator('.pmg-status').textContent(),/2 motores ativos|Comparar disponível/i);
+  assert.match(await page.locator('.pmg-status').textContent(),/2 motores ativos|Comparar fica disponível/i);
   assert.ok((await overflow('#cfg-plano-motores-card'))<=4,'card de governança não pode vazar horizontalmente');
   await abrir();
   assert.equal(await page.locator('.ps-engine-card').count(),2,'ambos ativos devem mostrar duas escolhas principais');
   assert.equal(await page.locator('.ps-compare-launch').count(),1,'Comparar deve aparecer separado das duas escolhas principais');
   assert.match(await page.locator('.ps-engine-chooser').textContent(),/Como quer escolher estas 3 frentes/i);
+  assert.equal(await page.locator('#ui-modal-body [data-ps-meta],[data-rv4-toggle],[data-rv4-field]').count(),0,'Extras deve estar livre de parâmetros dos motores');
   assert.ok((await overflow('#ui-modal-body'))<=4,'seletor dual não pode ter overflow');
   await fechar();
 
-  // 2) Apenas Robusto: Simplificado e Comparar somem; abre direto no Robusto.
+  // 2) Apenas Robusto: Simplificado e Comparar somem; abre direto no Robusto sem painel de configuração.
   await config();
   await page.locator('[data-pmg-toggle="simplificado"]').uncheck();
   await page.waitForFunction(()=>window.PlanoMotoresGovernancaV5?.estado().simplificado===false);
@@ -63,24 +64,23 @@ try{
   assert.equal(await page.locator('.ps-engine-chooser').count(),0,'com um único motor não deve haver etapa de escolha');
   assert.match(await page.locator('.ps-single-engine').textContent(),/Robusto/i);
   assert.equal(await page.locator('[data-ps-modo]').count(),0,'Simplificado/Comparar não podem continuar escondidos no DOM do modal');
-  assert.equal(await page.locator('[data-rv4-toggle]').count(),1,'configurações robustas continuam disponíveis');
-  assert.equal(await page.locator('[data-ps-meta]').count(),0,'controles simplificados devem sumir');
+  assert.equal(await page.locator('[data-rv4-toggle],[data-rv4-field]').count(),0,'configurações robustas devem existir somente no Desempenho TEC');
   await fechar();
 
-  // 3) Apenas Simplificado: aba Plano/Robusto some do TEC e modal abre direto.
+  // 3) Apenas Simplificado: aba Plano/Robusto some do TEC e modal abre direto sem parâmetros.
   await config();
   await page.locator('[data-pmg-toggle="simplificado"]').check();
   await page.locator('[data-pmg-toggle="robusto"]').uncheck();
   await page.waitForFunction(()=>{const e=PlanoMotoresGovernancaV5.estado();return e.simplificado&&!e.robusto;});
-  await page.evaluate(()=>{switchScreen('desempenhotec');DesempenhoTecScreen.render();PlanoMotoresGovernancaV5.syncVisibility();});
+  await page.evaluate(()=>{switchScreen('desempenhotec');DesempenhoTecScreen.render();PlanoMotoresGovernancaV5.syncVisibility();PlanoMotoresCentralTecV1.ensureUi();});
   assert.equal(await page.locator('.tec-subtab[data-tectab="plano"]').isVisible(),false,'Plano Robusto deve desaparecer do Desempenho TEC');
+  assert.equal(await page.locator('.tec-subtab[data-tectab="motores"]').isVisible(),true,'central deve continuar disponível para o Simplificado');
   await extras();
   assert.equal(await page.locator('#extras-plano-btn').isVisible(),true,'Puxar continua disponível com Simplificado ativo');
   await abrir();
   assert.equal(await page.locator('.ps-engine-chooser').count(),0);
   assert.match(await page.locator('.ps-single-engine').textContent(),/Simplificado/i);
-  assert.equal(await page.locator('[data-rv4-toggle]').count(),0,'controles Robustos não podem aparecer');
-  assert.equal(await page.locator('[data-ps-meta]').count(),1,'controles do Simplificado devem permanecer');
+  assert.equal(await page.locator('[data-rv4-toggle],[data-ps-meta],[data-ps-alvo]').count(),0,'Extras não pode configurar nenhum motor');
   await fechar();
 
   // 4) Ambos desligados: nenhuma entrada, nenhum cálculo oculto e histórico não é limpo.
@@ -91,27 +91,29 @@ try{
   assert.match(await page.locator('.pmg-status').textContent(),/Nenhum motor ativo|Puxar do Plano ficará oculto/i);
   await extras();
   assert.equal(await page.locator('#extras-plano-btn').isVisible(),false,'Puxar deve desaparecer de Extras sem motores ativos');
-  await page.evaluate(()=>{switchScreen('desempenhotec');PlanoMotoresGovernancaV5.syncVisibility();});
+  await page.evaluate(()=>{switchScreen('desempenhotec');PlanoMotoresGovernancaV5.syncVisibility();PlanoMotoresCentralTecV1.ensureUi();});
   assert.equal(await page.locator('.tec-subtab[data-tectab="plano"]').isVisible(),false);
+  assert.equal(await page.locator('.tec-subtab[data-tectab="motores"]').isVisible(),false,'central deve sumir sem motores habilitados');
   const off=await page.evaluate(()=>PlanoSugestoesV2.calcular({modo:'robusto'}));
   assert.equal(off.erro,'motores-desabilitados','nem chamada programática deve executar um motor desligado');
   assert.equal(await page.evaluate(()=>DB.getExtras().length),extrasAntes,'desabilitar motores não pode apagar atividades existentes');
 
-  // 5) Restaurar traz tudo de volta e uma preferência inválida nunca fica órfã.
+  // 5) Restaurar traz tudo de volta e preferência válida continua íntegra.
   await config();await page.locator('[data-pmg-reset]').click();
   await page.waitForFunction(()=>{const e=PlanoMotoresGovernancaV5.estado();return e.simplificado&&e.robusto;});
   await page.evaluate(()=>PlanoSugestoesV2.salvar({modo:'comparar'}));
   assert.equal(await page.evaluate(()=>PlanoSugestoesV2.prefs().modo),'comparar');
   await extras();assert.equal(await page.locator('#extras-plano-btn').isVisible(),true);
-  await page.evaluate(()=>{switchScreen('desempenhotec');PlanoMotoresGovernancaV5.syncVisibility();});
+  await page.evaluate(()=>{switchScreen('desempenhotec');PlanoMotoresGovernancaV5.syncVisibility();PlanoMotoresCentralTecV1.ensureUi();});
   assert.equal(await page.locator('.tec-subtab[data-tectab="plano"]').isVisible(),true);
+  assert.equal(await page.locator('.tec-subtab[data-tectab="motores"]').isVisible(),true);
 
   await page.setViewportSize({width:360,height:640});
   await config();assert.ok((await overflow('#cfg-plano-motores-card'))<=4,'governança deve caber em 360px');
   await abrir();assert.ok((await overflow('#ui-modal-body'))<=4,'Puxar dual deve caber em 360px');await fechar();
 
   assert.deepEqual(errors,[],`erros no navegador: ${errors.join(' | ')}`);
-  console.log('OK: governança V5 no navegador — 4 combinações, visibilidade global, fallback e layout dual responsivo.');
+  console.log('OK: governança global + central de configuração no Desempenho TEC, com Extras sem parâmetros.');
 } finally {
   await browser.close();
   await new Promise(r=>server.close(r));
