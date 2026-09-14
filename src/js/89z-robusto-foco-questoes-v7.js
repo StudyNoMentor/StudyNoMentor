@@ -14,10 +14,10 @@
   window.__robustoFocoQuestoesV7 = true;
 
   const n = (v, d = 0) => Number.isFinite(Number(v)) ? Number(v) : d;
-  const clamp = (v, a, b) => Math.max(a, Math.min(b, n(v, a)));
-
+  C.REVISAO_AUDITORIA = 7;
   RO.VERSAO = 7;
   RO.REVISAO_AUDITORIA = 7;
+
   RO.decidir = function(c, cfg) {
     if (!c) return null;
     cfg = cfg || {};
@@ -109,6 +109,9 @@
     h = h.replace(/Manual do Módulo Robusto V5/g, 'Manual do Módulo Robusto V7');
     h = h.replace('O roteador escolhe a intervenção pedagógica.', 'A camada operacional define a dose de questões aprofundadas e estima o tempo quando há histórico confiável.');
     h = h.replace('decidir onde investir tempo e como intervir', 'decidir onde investir tempo, qual assunto atacar e qual dose de questões aprofundadas executar');
+    h = h.replace(/<tr><td><b>Roteador pedagógico<\/b>[\s\S]*?<\/tr>/, '');
+    h = h.replace(/<h2>Roteador pedagógico<\/h2>[\s\S]*?<\/table>/, '');
+    h = h.replace('</div><h2>Fluxo principal</h2>', '</div><div class="box"><b>Modus operandi fixo:</b> toda recomendação operacional é um bloco de questões aprofundadas. Comentários, resumo teórico e criação de cards pertencem à execução do aluno e não são escolhidos pelo motor.</div><h2>Fluxo principal</h2>');
     return h;
   };
 
