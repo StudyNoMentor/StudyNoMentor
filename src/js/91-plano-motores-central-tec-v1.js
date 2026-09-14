@@ -13,6 +13,7 @@
     VERSAO:1,
     _origCab:C._cabecalho?.bind(C),
     _origSwitch:DT.switchTecTab?.bind(DT),
+    _origRender:DT.render?.bind(DT),
 
     _semConfiguracaoDoModal(html){
       if(typeof document==='undefined'||!document.createElement)return String(html||'').replace(/<div class="ps-settings"[\s\S]*?<div class="ps-rule">/,'<div class="ps-rule">').replace(/<div class="rv4-wrap"[\s\S]*?<div class="ps-rule">/,'<div class="ps-rule">');
@@ -93,7 +94,12 @@
       };
     },
 
-    init(){this.instalarModal();this.instalarTabs();this.ensureUi();window.addEventListener('plano:motores-change',()=>{this.ensureUi();this.renderPanel();});}
+    instalarRenderHook(){
+      if(this._renderInstalled||!this._origRender)return;this._renderInstalled=true;const self=this;
+      DT.render=function(){const r=self._origRender();self.ensureUi();return r;};
+    },
+
+    init(){this.instalarModal();this.instalarTabs();this.instalarRenderHook();this.ensureUi();window.addEventListener('plano:motores-change',()=>{this.ensureUi();this.renderPanel();});}
   };
   window.PlanoMotoresCentralTecV1=M;
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>M.init(),{once:true});else M.init();
