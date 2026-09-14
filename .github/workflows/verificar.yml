@@ -38,7 +38,53 @@ permissions:
   contents: read
 
 jobs:
+  # index.html, sw.js e manifesto sao ARTEFATOS derivados de src/. Antes, toda
+  # edicao pequena em src/ gerava um job vermelho apenas porque quem alterou o
+  # codigo ainda nao tinha rodado build.mjs. Em PRs do proprio repositorio,
+  # esta etapa barata e deterministica corrige isso antes de gastar Chromium,
+  # Monte Carlo e a suite longa. O commit novo dispara uma nova Verificacao;
+  # esta execucao fica sem a suite pesada e a proxima valida o SHA ja limpo.
+  sincronizar-gerados:
+    if: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    permissions:
+      contents: write
+    outputs:
+      alterou: ${{ steps.sync.outputs.alterou }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.ref }}
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Sincronizar build derivado
+        id: sync
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --check build.mjs
+          for f in src/js/*.js testes/*.mjs; do node --check "$f"; done
+          node build.mjs
+          if git diff --quiet -- index.html sw.js src/manifesto.json; then
+            echo 'alterou=false' >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          git config user.name 'StudyNoMentor CI'
+          git config user.email 'actions@users.noreply.github.com'
+          git add index.html sw.js src/manifesto.json
+          git commit -m 'build: sincroniza artefatos gerados'
+          git push origin HEAD:${{ github.event.pull_request.head.ref }}
+          echo 'alterou=true' >> "$GITHUB_OUTPUT"
+
   verificar:
+    needs: [sincronizar-gerados]
+    # push/main e workflow_dispatch nao executam o sincronizador. Em PR, a
+    # suite so comeca quando o sincronizador confirmou que nada precisou mudar.
+    if: ${{ always() && (needs.sincronizar-gerados.result == 'skipped' || (needs.sincronizar-gerados.result == 'success' && needs.sincronizar-gerados.outputs.alterou != 'true')) }}
     runs-on: ubuntu-latest
     timeout-minutes: 12
     steps:
