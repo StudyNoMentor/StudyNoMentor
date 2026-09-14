@@ -8,7 +8,7 @@
   window.__uxStabilityV3 = true;
   if (typeof document === 'undefined') return;
 
-  const later = (fn) => requestAnimationFrame(() => requestAnimationFrame(() => { try { fn(); } catch (e) { try { _quiet(e, 'ux-v3'); } catch (_) {} } }));
+  const later = (fn) => requestAnimationFrame(() => requestAnimationFrame(() => { try { fn(); } catch (e) { if (typeof _quiet === 'function') _quiet(e, 'ux-v3'); } }));
 
   const UXV3 = {
     _infoPop: null,
@@ -195,7 +195,7 @@
           const body = document.getElementById('tec-scope-body'), btn = document.getElementById('tec-scope-collapse');
           if (body) body.hidden = true; if (btn) btn.setAttribute('aria-expanded', 'false');
         }
-      } catch (e) { try { _quiet(e, 'tec-scope-v3'); } catch (_) {} }
+      } catch (e) { if (typeof _quiet === 'function') _quiet(e, 'tec-scope-v3'); }
     },
     decorateTec() {
       const screen = document.getElementById('screen-desempenhotec'); if (!screen) return;
@@ -224,7 +224,7 @@
              de estudo com formulário de senha. */
           if (Date.now() - this._cloudUserAt > 1500) {
             const scrim = document.querySelector('.cloud-scrim');
-            if (scrim) setTimeout(() => { try { scrim.click(); } catch (_) {} }, 0);
+            if (scrim) setTimeout(() => { try { scrim.click(); } catch (e) { if (typeof _quiet === 'function') _quiet(e, 'cloud-menu-v3'); } }, 0);
           }
         }
       });
