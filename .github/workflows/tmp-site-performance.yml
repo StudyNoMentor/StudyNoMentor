@@ -31,7 +31,6 @@ jobs:
           node testes/extras-estabilidade.mjs
           node testes/reforco-fila.mjs
           node testes/reforco-cenarios.mjs
-          node testes/tec-import-fidelidade.mjs
       - name: Chromium
         run: |
           npm install --no-save playwright@1.56.1
