@@ -3,8 +3,8 @@
    ----------------------------------------------------------------------------
    Mantém a V5 intacta por compatibilidade e publica uma política V6 para o
    motor Robusto. Um tópico só ganha calibragem própria com >=5 ciclos úteis;
-   antes disso recua para disciplina (>=5) ou global. A ausência de resposta só
-   muda a intervenção quando esse limiar mínimo de evidência foi atingido.
+   antes disso recua para disciplina (>=5) ou global. O nível global pode servir
+   como prior de resposta, mas nunca autoriza sozinho uma troca de intervenção.
    ============================================================================ */
 (() => {
   if (typeof window === 'undefined' || window.Mentor90V6 || !window.Mentor90V5) return;
@@ -39,6 +39,7 @@
         z.baixaResposta = false;
         z.confianca = Math.min(num(z.confianca), .49);
       }
+      z.evidenciaIntervencao = nt >= this.MIN_CICLOS_PERSONALIZAR || nd >= this.MIN_CICLOS_PERSONALIZAR;
       z.limiarCiclos = this.MIN_CICLOS_PERSONALIZAR;
       return z;
     }
@@ -50,11 +51,12 @@
     const n = pool.length, k = 5, med = median(pool), base = Number.isFinite(Number(c.globalMed)) ? Number(c.globalMed) : 2.5;
     const ganho100 = med == null ? base : (n * med + k * base) / (n + k);
     const qPorPonto = ganho100 > .1 ? clamp(100 / ganho100, .5, 20) : 20;
+    const evidenciaIntervencao = nivel !== 'global' && n >= this.MIN_CICLOS_PERSONALIZAR;
     return {
       nivel, n, nTopico: top.length, nDisciplina: disc.length, nGlobal: global.length,
       ganho100: Math.round(ganho100 * 10) / 10, qPorPonto: Math.round(qPorPonto * 10) / 10,
-      confianca: clamp(n / (n + k), 0, 1),
-      baixaResposta: n >= this.MIN_CICLOS_PERSONALIZAR && ganho100 < 3,
+      confianca: clamp(n / (n + k), 0, 1), evidenciaIntervencao,
+      baixaResposta: evidenciaIntervencao && ganho100 < 3,
       limiarCiclos: this.MIN_CICLOS_PERSONALIZAR
     };
   };
