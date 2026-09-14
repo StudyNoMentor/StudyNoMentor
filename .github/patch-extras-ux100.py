@@ -49,4 +49,12 @@ replace_once(
     "      - name: Validar modais e ativacao adaptativa no navegador\n        run: node testes/extras-estabilidade-browser.mjs\n\n      # Auditoria de UX do modulo inteiro: hierarquia Configuracoes -> Reforcos\n      # -> Hoje, quatro abas da Central, presets de Lei Seca/Adaptativo, bordas,\n      # overflow e responsividade em cinco larguras. Executa 100+ invariantes.\n      - name: Auditar UX completa de Extras\n        run: node testes/extras-ux100-browser.mjs\n\n      # Perfil sintetico propositalmente grande:"
 )
 
+# O título da agenda contém um pequeno botão informativo dentro do h2; o texto
+# acessível pode terminar em "i". A asserção deve validar o rótulo, não o ícone.
+replace_once(
+    'testes/extras-ux100-browser.mjs',
+    "  eq(visual.title,'Extras de hoje','agenda deve comunicar execução diária');",
+    "  ok(visual.title.startsWith('Extras de hoje'),'agenda deve comunicar execução diária');"
+)
+
 print('Patch UX100 aplicado/ja presente.')
