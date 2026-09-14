@@ -1,0 +1,39 @@
+name: TMP V3 Core
+on:
+  push:
+    branches: [feat/extras-leis-tec-startup-auditoria-v3]
+permissions:
+  contents: write
+jobs:
+  core:
+    if: ${{ !contains(github.event.head_commit.message, '[skip ci]') }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Aplicar e validar patch
+        run: |
+          set -euo pipefail
+          python .github/patch-v3-core.py
+          node --check src/js/53-portao-de-acesso.js
+          node --check src/js/80-ajustes-finais.js
+          node --check src/js/81-ux-stability-v3.js
+          node --check testes/ux-stability-v3-browser.mjs
+          node build.mjs
+          git diff --check
+          node build.mjs --check
+      - name: Persistir fontes e artefatos
+        run: |
+          set -euo pipefail
+          git config user.name 'StudyNoMentor CI'
+          git config user.email 'actions@users.noreply.github.com'
+          git add src/html/90-rodape.html src/js/53-portao-de-acesso.js src/js/80-ajustes-finais.js src/css/20-ux-stability-v3.css index.html sw.js src/manifesto.json
+          if git diff --cached --quiet; then
+            echo 'Nenhuma alteração pendente.'
+            exit 0
+          fi
+          git commit -m 'perf: estabiliza startup e sessao v3 [skip ci]'
+          git push
