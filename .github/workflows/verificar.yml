@@ -9,6 +9,7 @@
 #   · a suite AutoTeste (FSRS, fuzz, agendador, parser TEC...) regredir;
 #   · o reforco adaptativo produzir dose ou parada estatisticamente invalida;
 #   · modais de Extras voltarem a se sobrepor ou a ativacao adaptativa travar;
+#   · hierarquia, presets, bordas e responsividade do menu Extras regredirem;
 #   · Desempenho TEC -> Plano voltar a congelar em perfis grandes;
 #   · interacoes de Extras/Plano deixarem rotulos transitórios presos nos botoes;
 #   · algum menu voltar a bloquear a interface em perfis grandes ou CPU movel;
@@ -83,6 +84,12 @@ jobs:
       # TEC escondido. Se voltar a travar ou abrir atras, o PR falha aqui.
       - name: Validar modais e ativacao adaptativa no navegador
         run: node testes/extras-estabilidade-browser.mjs
+
+      # Auditoria de UX do modulo inteiro: hierarquia Configuracoes -> Reforcos
+      # -> Hoje, quatro abas da Central, presets de Lei Seca/Adaptativo, bordas,
+      # overflow e responsividade em cinco larguras. Executa 100+ invariantes.
+      - name: Auditar UX completa de Extras
+        run: node testes/extras-ux100-browser.mjs
 
       # Perfil sintetico propositalmente grande: 10 materias, 1.000 topicos e
       # 8 retratos. Cobra resposta imediata do clique, primeira abertura e
