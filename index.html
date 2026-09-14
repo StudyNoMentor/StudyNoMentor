@@ -57,7 +57,7 @@
      novo, e o antigo é descartado sozinho na ativação) e o que permite ao app
      dizer qual versão está rodando. Em src/ fica "dev" de propósito: a versão
      é gerada na montagem, não editada à mão. -->
-<meta name="diario-versao" content="vdd91af4308">
+<meta name="diario-versao" content="v16513d680f">
 <script>
 /* ── ARRANQUE: abre o IndexedDB AGORA, em paralelo com o parse do documento ──
    A fachada de armazenamento vive no fim do <body>, depois de ~1,7 MB de HTML.
@@ -55124,12 +55124,14 @@ else CloudStore.init();
 })();
 
 /* ============================================================================
-   MOTOR SIMPLIFICADO V2 — independente do PlanoEngine/Mentor90
-   Pré: TEC × meta × amostra mínima.
-   Pós: TEC × meta × incidência da banca × valor da matéria no planejamento.
+   MOTOR SIMPLIFICADO — revisão estatística V3
+   Pré: TEC escopado × meta × amostra mínima, sem sobrepor níveis da árvore.
+   Pós: TEC × incidência hierárquica limpa da banca × valor da matéria.
+   Independente de PlanoEngine, Mentor90 e do motor Robusto.
    ============================================================================ */
 (() => {
-  if (typeof window === 'undefined' || window.__planoSugSimplificadoV2) return;
+  if (typeof window === 'undefined' || window.__planoSugSimplificadoV3) return;
+  window.__planoSugSimplificadoV3 = true;
   window.__planoSugSimplificadoV2 = true;
   const I = window.PlanoSugestoesInfraV2;
   if (!I || typeof DB === 'undefined') return;
@@ -55141,10 +55143,20 @@ else CloudStore.init();
     OWN_PREF_KEYS.forEach(k => { if (Object.prototype.hasOwnProperty.call(src, k)) out[k] = src[k]; });
     return out;
   };
+  const codeDepth = (codigo) => {
+    const s = String(codigo == null ? '' : codigo).trim();
+    if (!s) return 0;
+    return Math.max(0, s.split('.').filter(Boolean).length - 1);
+  };
+  const isDesc = (pai, filho) => {
+    const a = String(pai == null ? '' : pai).trim(), b = String(filho == null ? '' : filho).trim();
+    return !!(a && b && a !== b && b.startsWith(a + '.'));
+  };
 
   const S = {
-    VERSAO: 2,
-    MOTOR: 'simplificado-v2',
+    VERSAO: 3,
+    REVISAO_AUDITORIA: 3,
+    MOTOR: 'simplificado-v2', // identificador preservado para compatibilidade histórica
     KEY: 'plano-simplificado-v2',
     DEFAULTS: Object.freeze({ fase:'auto', meta:90, minAmostra:20, banca:'__todas__', alvoQuestoes:30 }),
     PREF_KEYS: OWN_PREF_KEYS,
@@ -55152,10 +55164,7 @@ else CloudStore.init();
     prefs() {
       let raw = {};
       try { raw = JSON.parse(localStorage.getItem(DB._profilePrefix() + this.KEY) || '{}') || {}; }
-      catch (e) { if (typeof _quiet === 'function') _quiet(e, 'plano-simple-v2-prefs'); }
-      // Fronteira de estado: preferências externas (ex.: `modo` do controller)
-      // nunca entram no estado do Simplificado, nem mesmo se uma versão antiga
-      // as tiver gravado por engano.
+      catch (e) { if (typeof _quiet === 'function') _quiet(e, 'plano-simple-v3-prefs'); }
       const p = Object.assign({}, this.DEFAULTS, ownPrefs(raw));
       if (!['auto','pre','pos'].includes(p.fase)) p.fase = 'auto';
       p.meta = clamp(p.meta, 50, 100);
@@ -55165,8 +55174,6 @@ else CloudStore.init();
       return p;
     },
     salvar(patch) {
-      // Aceita apenas o contrato público deste motor. Isso impede que o
-      // orquestrador ou outro módulo contamine seu estado com campos próprios.
       const p = Object.assign({}, this.prefs(), ownPrefs(patch));
       if (!['auto','pre','pos'].includes(p.fase)) p.fase = 'auto';
       p.meta = clamp(p.meta, 50, 100);
@@ -55177,8 +55184,15 @@ else CloudStore.init();
       try {
         const k = DB._profilePrefix() + this.KEY;
         if (DB.setRaw) DB.setRaw(k, JSON.stringify(persistido)); else localStorage.setItem(k, JSON.stringify(persistido));
-      } catch (e) { if (typeof _quiet === 'function') _quiet(e, 'plano-simple-v2-save'); }
+      } catch (e) { if (typeof _quiet === 'function') _quiet(e, 'plano-simple-v3-save'); }
       return Object.assign({}, persistido);
+    },
+    restaurar() {
+      try {
+        const k = DB._profilePrefix() + this.KEY;
+        if (DB.delRaw) DB.delRaw(k); else localStorage.removeItem(k);
+      } catch (e) { if (typeof _quiet === 'function') _quiet(e, 'plano-simple-v3-reset'); }
+      return this.prefs();
     },
     fase(p) { return p.fase === 'pre' || p.fase === 'pos' ? p.fase : I.fasePlano(); },
     banca(p) {
@@ -55204,15 +55218,19 @@ else CloudStore.init();
       return out;
     },
     _topicos(snapshot, p) {
-      const bloqueadas = I.disciplinasBloqueadas(), vistos = new Set(), out = [];
+      const bloqueadas = I.disciplinasBloqueadas(), vistos = new Set();
+      const elegiveis = [];
       for (const r of I.linhasTec(snapshot)) {
         const disciplina = String(r.disciplina || '').trim(), nome = String(r.nome || '').trim();
         const d = norm(disciplina), k = d + '\u0001' + norm(nome), q = I.q(r), taxa = I.taxa(r);
         if (!d || vistos.has(k) || bloqueadas.has(d) || !(q >= p.minAmostra) || taxa == null || taxa >= p.meta) continue;
         vistos.add(k);
-        out.push({ item:r, disciplina, nome, taxa, qJanela:q, lacunaPP:Math.max(0,p.meta-taxa) });
+        elegiveis.push({ item:r, disciplina, nome, taxa, qJanela:q, lacunaPP:Math.max(0,p.meta-taxa), codigo:String(r.codigo || ''), depth:num(r.depth,codeDepth(r.codigo)) });
       }
-      return out;
+      // Fronteira não sobreposta: se um descendente elegível já mede o ramo,
+      // o pai cumulativo não disputa junto. Isso remove a vantagem artificial
+      // de árvores profundas sem recorrer ao motor Robusto.
+      return elegiveis.filter((x, i) => !elegiveis.some((y, j) => i !== j && norm(y.disciplina) === norm(x.disciplina) && isDesc(x.codigo, y.codigo)));
     },
     _mapaPlanejamento(disciplinas) {
       const out = new Map(), nomes = disciplinas.slice();
@@ -55229,6 +55247,16 @@ else CloudStore.init();
       }
       return out;
     },
+    _raizIncidencia(lista) {
+      lista = (lista || []).filter(Boolean);
+      let raso = Infinity;
+      for (const r of lista) {
+        const dep = codeDepth(r.codigo);
+        if (dep > 0 && dep < raso) raso = dep;
+      }
+      if (raso === Infinity) return lista.reduce((s,r)=>s+Math.max(0,num(r.valor)),0);
+      return lista.reduce((s,r)=>s+(codeDepth(r.codigo)===raso?Math.max(0,num(r.valor)):0),0);
+    },
     _mapaIncidencia(banca, disciplinas) {
       const rows = I.incidencia().filter(r => norm(r && r.banca) === norm(banca));
       const porDisc = new Map(), total = new Map(), nomes = disciplinas.slice();
@@ -55237,10 +55265,10 @@ else CloudStore.init();
         if (!cas) continue;
         const d = norm(cas.nome), v = Math.max(0, num(r.incidencia));
         if (!porDisc.has(d)) porDisc.set(d, []);
-        porDisc.get(d).push({ topico:r.topico || '', valor:v, confianca:cas.confianca });
-        total.set(d, (total.get(d) || 0) + v);
+        porDisc.get(d).push({ topico:r.topico || '', valor:v, confianca:cas.confianca, codigo:r.codigo || null, depth:r.depth });
       }
-      return { rows, porDisc, total };
+      for (const [d, lista] of porDisc) total.set(d, this._raizIncidencia(lista));
+      return { rows, porDisc, total, hierarquiaLimpa:true };
     },
     _incidenciaDo(topico, disciplina, mapa) {
       const d = norm(disciplina), lista = mapa.porDisc.get(d) || [];
@@ -55270,7 +55298,7 @@ else CloudStore.init();
           meta:p.meta, minAmostra:p.minAmostra, banca:null,
           motivo:`Lacuna de ${x.lacunaPP.toFixed(1)} pp para a meta de ${p.meta}%`,
           componentes:{ lacunaPP:x.lacunaPP, amostra:x.qJanela, taxa:x.taxa },
-          auditoria:{ formula:'lacunaPP', fonte:'TEC escopado direto' }
+          auditoria:{ formula:'lacunaPP', fonte:'TEC escopado direto', particao:'fronteira hierárquica não sobreposta' }
         }));
       } else {
         if (!banca || banca === '__todas__') return { erro:'pos-sem-banca', modo:'simplificado', fase, itens:[], arquitetura:this.arquitetura() };
@@ -55280,13 +55308,13 @@ else CloudStore.init();
         pool.forEach(x => {
           const d=norm(x.disciplina), pm=plano.get(d), inc=this._incidenciaDo(x.nome,x.disciplina,incid), denom=incid.total.get(d)||0;
           if (!pm || !(pm.valor>0) || !(inc.valor>0) || !(denom>0)) return;
-          const share=inc.valor/denom, conf=Math.min(pm.confianca,inc.confianca), valor=pm.valor*share*x.lacunaPP/100*conf;
+          const share=clamp(inc.valor/denom,0,1), conf=Math.min(pm.confianca,inc.confianca), valor=pm.valor*share*x.lacunaPP/100*conf;
           if (!(valor>0)) return;
           cands.push({
             ...x, modo:'simplificado', fase, scoreBruto:valor, alvo:p.alvoQuestoes, doseDiaria:null, meta:p.meta, minAmostra:p.minAmostra, banca,
             motivo:`${x.lacunaPP.toFixed(1)} pp de lacuna × ${(share*100).toFixed(1)}% da incidência em ${banca} × ${pm.valor.toFixed(1)} ponto(s) do planejamento`,
             componentes:{ lacunaPP:x.lacunaPP, amostra:x.qJanela, taxa:x.taxa, incidenciaDiscPct:share*100, pesoMateria:pm.valor, confiancaCruzamento:conf, valorPontos:valor },
-            auditoria:{ formula:'pesoMateria × shareIncidencia × lacuna × confiança', viaIncidencia:inc.via, fonte:'TEC + incidência + matérias, sem PlanoEngine' }
+            auditoria:{ formula:'pesoMateria × shareIncidencia × lacuna × confiança', viaIncidencia:inc.via, incidenciaDenominador:'raiz hierárquica sem dupla contagem', fonte:'TEC + incidência + matérias, sem motor Robusto' }
           });
         });
         if (!cands.length) return { erro:'pos-sem-cruzamento', modo:'simplificado', fase, itens:[], arquitetura:this.arquitetura() };
@@ -55294,11 +55322,12 @@ else CloudStore.init();
       this._normalizar(cands);
       return {
         modo:'simplificado', fase, banca:fase==='pos'?banca:null, itens:this._top3(cands), todos:cands, arquitetura:this.arquitetura(),
-        explicacao:fase==='pre' ? 'TEC direto × meta × amostra mínima' : 'TEC direto × incidência da banca × planejamento; sem usar o motor Robusto.'
+        explicacao:fase==='pre' ? 'TEC direto × meta × amostra mínima em partição hierárquica não sobreposta.' : 'TEC direto × incidência hierárquica limpa da banca × planejamento; sem usar o motor Robusto.'
       };
     },
-    arquitetura() { return { motor:this.MOTOR, independente:true, usaPlanoEngine:false, usaMentor90:false, deps:this.deps.slice(), prefs:this.PREF_KEYS.slice() }; }
+    arquitetura() { return { motor:this.MOTOR, revisao:this.REVISAO_AUDITORIA, independente:true, usaPlanoEngine:false, usaMentor90:false, deps:this.deps.slice(), prefs:this.PREF_KEYS.slice(), particaoHierarquica:'nao-sobreposta' }; }
   };
+  window.PlanoSugestoesSimplificadoV3 = S;
   window.PlanoSugestoesSimplificadoV2 = S;
 })();
 
@@ -55441,57 +55470,136 @@ else CloudStore.init();
   window.PlanoRobustoConfigV5=C;window.PlanoRobustoConfigV4=C;
 })();
 /* ============================================================================
-   ROBUSTO V5 — roteador pedagógico parametrizado
-   Decide COMO atacar. Não ranqueia disciplinas e nunca lê o Simplificado.
+   ROBUSTO — CONFIG/ROTEADOR V6
+   - reset realmente volta aos defaults atuais (não ressuscita storage V4);
+   - rótulos de confiança heurística deixam de fingir probabilidade calibrada;
+   - manutenção respeita a validade própria do domínio;
+   - limiar efetivo de ciclos explicita a interação com a confiança da calibração;
+   - baixa resposta tem uma única régua soberana no roteador.
    ============================================================================ */
 (() => {
-  if (typeof window === 'undefined' || window.__planoRobustoRouterV5) return;
-  window.__planoRobustoRouterV5 = true; window.__planoRobustoRouterV4 = true;
+  if (typeof window === 'undefined' || window.__planoRobustoRouterV6) return;
+  window.__planoRobustoRouterV6 = true;
+  window.__planoRobustoRouterV5 = true;
+  window.__planoRobustoRouterV4 = true;
   const n=(v,d=0)=>Number.isFinite(Number(v))?Number(v):d;
   const norm=s=>String(s||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase();
   const quedaDe=x=>{for(const k of ['quedaPP','queda','deltaTaxa','tendenciaPP']){const v=Number(x&&x.item&&x.item[k]);if(Number.isFinite(v))return k==='deltaTaxa'||k==='tendenciaPP'?-v:v;}return 0;};
+
+  /* Config V6 por composição: preserva contrato/storage V5, mas corrige reset e
+     semântica de interface. O motor carregado depois deste arquivo captura C6. */
+  const C5=window.PlanoRobustoConfigV5||window.PlanoRobustoConfigV4;
+  if(C5&&!window.PlanoRobustoConfigV6){
+    const C6=Object.create(C5);
+    C6.REVISAO_AUDITORIA=6;
+    C6.restaurarTudo=function(m){
+      m=m||this.detectarModo();
+      try{
+        const ks=[this.chave(m),this.legacyChave?this.legacyChave(m):null].filter(Boolean);
+        ks.forEach(k=>{if(DB.delRaw)DB.delRaw(k);else localStorage.removeItem(k);});
+      }catch(e){if(typeof _quiet==='function')_quiet(e,'robusto-v6-reset');}
+      return this.prefs(m);
+    };
+    const rotulos=(html)=>String(html||'')
+      .replace(/ROBUSTO V5/g,'ROBUSTO V6')
+      .replace(/Confiança da rota manutenção/g,'Força heurística · manutenção')
+      .replace(/Confiança da rota Lei Seca/g,'Força heurística · Lei Seca')
+      .replace(/Confiança da rota teoria/g,'Força heurística · teoria')
+      .replace(/Confiança da rota flashcards/g,'Força heurística · flashcards')
+      .replace(/Confiança de questões com evidência/g,'Força heurística · questões com evidência')
+      .replace(/Confiança de questões sem evidência/g,'Força heurística · questões sem evidência')
+      .replace(/Ciclos mínimos p\/ intervenção/g,'Ciclos mínimos p/ intervenção (piso)');
+    const oldHtml=C5.html,oldManual=C5.manualHtml;
+    if(typeof oldHtml==='function')C6.html=function(m){return rotulos(oldHtml.call(this,m));};
+    if(typeof oldManual==='function')C6.manualHtml=function(m){return rotulos(oldManual.call(this,m));};
+    window.PlanoRobustoConfigV6=C6;
+    window.PlanoRobustoConfigV5=C6;
+  }
+
   const R={
-    VERSAO:5,
+    VERSAO:6,
+    REVISAO_AUDITORIA:6,
     _legal(disc,r){try{return new RegExp(String(r.padroesNormativos||''),'i').test(norm(disc));}catch(_){return false;}},
     _tempoQuestoes(c,q,cfg){const t=c&&c.mentor&&c.mentor.tempo,rec=cfg.recursos||{},op=cfg.otimizador||{};if(rec.tempoPessoalAtivo&&t&&t.confiavel&&n(t.segundosPorQuestao)>0)return{minutos:q*n(t.segundosPorQuestao)/60,fonte:'tempo-pessoal',confiavel:true};if(rec.fallbackTempoAtivo)return{minutos:q*n(op.fallbackSegQuestao,120)/60,fonte:'fallback-configurado',confiavel:false};return{minutos:null,fonte:'indisponivel',confiavel:false};},
+    _ciclosEfetivos(cfg){
+      const r=cfg.roteador||{},c=cfg.calibracao||{},p=Math.max(0,Math.min(.999,n(r.confiancaMin,.55))),k=Math.max(1,n(c.shrinkK,5));
+      const porConfianca=p<=0?0:Math.ceil(p*k/Math.max(.001,1-p));
+      return Math.max(3,Math.round(n(r.minCiclosIntervencao,5)),porConfianca);
+    },
     decidir(c,cfg){
-      if(!c)return null;const r=cfg.roteador||{},rec=cfg.recursos||{},q=n(c.qJanela),taxa=n(c.taxa),dom=c.mentor&&c.mentor.dominio,cal=c.mentor&&c.mentor.calibracao||{},aud=c.auditoria||{},bloco=Math.max(5,Math.round(n(r.questoesBloco,15))),tq=this._tempoQuestoes(c,bloco,cfg),disc=c.disciplina||'',legal=this._legal(disc,r),stale=!!(c.item&&c.item.vencido),queda=quedaDe(c),quedaMin=Math.max(.1,n(r.quedaIntervencaoPP,3)),ciclos=Math.max(n(cal.nTopico),n(cal.nDisciplina),n(cal.n)),confCal=Number.isFinite(Number(cal.confianca))?n(cal.confianca):1,evid=!!aud.intervencaoConfiavel&&ciclos>=Math.max(3,n(r.minCiclosIntervencao,5))&&confCal>=n(r.confiancaMin,.55),baixa=evid&&(cal.baixaResposta===true||n(cal.ganho100,99)<=n(r.ganhoBaixaResposta,2.5));
-      const mk=(tipo,rotulo,passos,motivo,minFixos,tempoQ,confianca)=>{const temQ=!!(tempoQ&&tempoQ.minutos!=null&&Number.isFinite(Number(tempoQ.minutos))),qMin=temQ?n(tempoQ.minutos):null,total=qMin==null?(n(minFixos)>0?n(minFixos):null):n(minFixos)+qMin;return{tipo,rotulo,passos,motivo,minutosEstimados:total==null?null:Math.max(1,Math.round(total)),minutosFixos:Math.max(0,Math.round(n(minFixos))),minutosQuestoes:qMin==null?null:Math.max(1,Math.round(qMin)),tempoFonte:qMin==null?'indisponivel':tempoQ.fonte,tempoConfiavel:!!(temQ&&tempoQ.confiavel),confianca:Math.max(0,Math.min(1,n(confianca,.5))),evidencia:{ciclos,confiancaCalibracao:confCal,confiavel:evid,baixaResposta:baixa,legal,stale,quedaPP:queda}};};
-      if(!rec.roteadorAtivo)return c.intervencaoLegada||c.intervencao||mk('legado','Intervenção-base',[],'Roteador V5 desligado; preservada a política-base.',0,tq,.5);
+      if(!c)return null;
+      const r=cfg.roteador||{},rec=cfg.recursos||{},q=n(c.qJanela),taxa=n(c.taxa),dom=c.mentor&&c.mentor.dominio,cal=c.mentor&&c.mentor.calibracao||{},aud=c.auditoria||{},bloco=Math.max(5,Math.round(n(r.questoesBloco,15))),tq=this._tempoQuestoes(c,bloco,cfg),disc=c.disciplina||'',legal=this._legal(disc,r),stale=!!((dom&&dom.vencido)||(c.item&&c.item.vencido)),queda=quedaDe(c),quedaMin=Math.max(.1,n(r.quedaIntervencaoPP,3)),ciclos=Math.max(n(cal.nTopico),n(cal.nDisciplina),n(cal.n)),confCal=Number.isFinite(Number(cal.confianca))?n(cal.confianca):0,minEfetivo=this._ciclosEfetivos(cfg),confMin=n(r.confiancaMin,.55),evid=!!aud.intervencaoConfiavel&&ciclos>=minEfetivo&&confCal>=confMin,baixa=evid&&n(cal.ganho100,99)<=n(r.ganhoBaixaResposta,2.5);
+      const mk=(tipo,rotulo,passos,motivo,minFixos,tempoQ,forca)=>{const temQ=!!(tempoQ&&tempoQ.minutos!=null&&Number.isFinite(Number(tempoQ.minutos))),qMin=temQ?n(tempoQ.minutos):null,total=qMin==null?(n(minFixos)>0?n(minFixos):null):n(minFixos)+qMin,fh=Math.max(0,Math.min(1,n(forca,.5)));return{tipo,rotulo,passos,motivo,minutosEstimados:total==null?null:Math.max(1,Math.round(total)),minutosFixos:Math.max(0,Math.round(n(minFixos))),minutosQuestoes:qMin==null?null:Math.max(1,Math.round(qMin)),tempoFonte:qMin==null?'indisponivel':tempoQ.fonte,tempoConfiavel:!!(temQ&&tempoQ.confiavel),forcaHeuristica:fh,confianca:fh,evidencia:{ciclos,ciclosMinConfigurados:Math.max(3,Math.round(n(r.minCiclosIntervencao,5))),ciclosMinEfetivos:minEfetivo,confiancaCalibracao:confCal,confiancaMin:confMin,confiavel:evid,baixaResposta:baixa,legal,stale,quedaPP:queda}};};
+      if(!rec.roteadorAtivo)return c.intervencaoLegada||c.intervencao||mk('legado','Intervenção-base',[],'Roteador V6 desligado; preservada a política-base.',0,tq,.5);
       if(q<Math.max(1,n(c.minAmostra,20))&&r.permitirDiagnostico!==false){const faltam=Math.max(5,Math.round(n(c.minAmostra,20)-q)),td=this._tempoQuestoes(c,faltam,cfg);return mk('diagnostico','Diagnóstico por questões',[{tipo:'questoes',quantidade:faltam}],`Amostra ${q}/${Math.round(n(c.minAmostra,20))}: primeiro produzir evidência confiável.`,0,td,.9);}
-      if(dom&&(dom.nivel==='elite'||dom.nivel==='competitivo')&&(stale||queda>quedaMin)&&r.permitirManutencao!==false){const qq=Math.max(5,Math.round(n(r.manutencaoQuestoes,10))),td=this._tempoQuestoes(c,qq,cfg);if(r.permitirFlashcards&&queda>quedaMin)return mk('flashcards_questoes','Flashcards → manutenção por questões',[{tipo:'anki',minutos:n(r.flashcardsMin,15)},{tipo:'questoes',quantidade:qq}],`Domínio alto com sinal de queda (${queda.toFixed(1)} pp): recuperar antes de ampliar volume.`,n(r.flashcardsMin,15),td,n(r.confiancaManutencao,.8));return mk('manutencao','Manutenção por questões',[{tipo:'questoes',quantidade:qq}],`Domínio alto, mas ${stale?'medição vencida':'há sinal de queda'}; objetivo é retenção.`,0,td,n(r.confiancaManutencao,.8));}
+      if(dom&&['elite','competitivo','manutencao'].includes(dom.nivel)&&(stale||queda>quedaMin)&&r.permitirManutencao!==false){const qq=Math.max(5,Math.round(n(r.manutencaoQuestoes,10))),td=this._tempoQuestoes(c,qq,cfg);if(r.permitirFlashcards&&queda>quedaMin)return mk('flashcards_questoes','Flashcards → manutenção por questões',[{tipo:'anki',minutos:n(r.flashcardsMin,15)},{tipo:'questoes',quantidade:qq}],`Domínio alto com sinal de queda (${queda.toFixed(1)} pp): recuperar antes de ampliar volume.`,n(r.flashcardsMin,15),td,n(r.confiancaManutencao,.8));return mk('manutencao','Manutenção por questões',[{tipo:'questoes',quantidade:qq}],`Domínio alto, mas ${stale?'a medição venceu na validade efetiva do Robusto':'há sinal de queda'}; objetivo é retenção.`,0,td,n(r.confiancaManutencao,.8));}
       const limiarLei=Math.max(0,n(r.taxaTeoria,60)-Math.max(0,n(r.limiarLeiOffset,10)));
-      if(baixa&&legal&&taxa>=limiarLei&&r.permitirLeiSeca)return mk('lei_seca_questoes','Lei seca → questões',[{tipo:'leitura',minutos:n(r.leiSecaMin,20)},{tipo:'questoes',quantidade:bloco}],`Matéria normativa com baixa resposta ao volume; reforçar a fonte legal antes da nova medição.`,n(r.leiSecaMin,20),tq,Math.max(n(r.confiancaMin,.55),n(r.confiancaLei,.68)));
-      if(baixa&&taxa<n(r.taxaTeoria,60)&&r.permitirTeoria)return mk('teoria_questoes','Teoria focal → questões',[{tipo:'teoria',minutos:n(r.teoriaMin,30)},{tipo:'questoes',quantidade:bloco}],`Resposta histórica baixa e taxa ${taxa.toFixed(0)}%: mais volume isolado tende a ter retorno marginal menor.`,n(r.teoriaMin,30),tq,Math.max(n(r.confiancaMin,.55),n(r.confiancaTeoria,.70)));
-      if(baixa&&legal&&r.permitirLeiSeca)return mk('lei_seca_questoes','Lei seca → questões',[{tipo:'leitura',minutos:n(r.leiSecaMin,20)},{tipo:'questoes',quantidade:bloco}],`Matéria normativa com baixa resposta ao volume; reforçar a fonte legal antes da nova medição.`,n(r.leiSecaMin,20),tq,Math.max(n(r.confiancaMin,.55),n(r.confiancaLei,.68)));
+      if(baixa&&legal&&taxa>=limiarLei&&r.permitirLeiSeca)return mk('lei_seca_questoes','Lei seca → questões',[{tipo:'leitura',minutos:n(r.leiSecaMin,20)},{tipo:'questoes',quantidade:bloco}],`Matéria normativa com baixa resposta ao volume; reforçar a fonte legal antes da nova medição.`,n(r.leiSecaMin,20),tq,Math.max(confMin,n(r.confiancaLei,.68)));
+      if(baixa&&taxa<n(r.taxaTeoria,60)&&r.permitirTeoria)return mk('teoria_questoes','Teoria focal → questões',[{tipo:'teoria',minutos:n(r.teoriaMin,30)},{tipo:'questoes',quantidade:bloco}],`Resposta histórica baixa e taxa ${taxa.toFixed(0)}%: mais volume isolado tende a ter retorno marginal menor.`,n(r.teoriaMin,30),tq,Math.max(confMin,n(r.confiancaTeoria,.70)));
+      if(baixa&&legal&&r.permitirLeiSeca)return mk('lei_seca_questoes','Lei seca → questões',[{tipo:'leitura',minutos:n(r.leiSecaMin,20)},{tipo:'questoes',quantidade:bloco}],`Matéria normativa com baixa resposta ao volume; reforçar a fonte legal antes da nova medição.`,n(r.leiSecaMin,20),tq,Math.max(confMin,n(r.confiancaLei,.68)));
       if(evid&&queda>quedaMin&&r.permitirFlashcards)return mk('flashcards_questoes','Flashcards → questões',[{tipo:'anki',minutos:n(r.flashcardsMin,15)},{tipo:'questoes',quantidade:bloco}],`Queda recente sugere recuperação ativa antes do novo bloco de questões.`,n(r.flashcardsMin,15),tq,n(r.confiancaFlashcards,.65));
       if(evid&&taxa<n(r.taxaTeoria,60)&&r.permitirRevisao!==false)return mk('revisao_questoes','Revisão dirigida → questões',[{tipo:'revisao',minutos:n(r.revisaoMin,20)},{tipo:'questoes',quantidade:bloco}],`Taxa ${taxa.toFixed(0)}% abaixo do limiar pedagógico, com histórico suficiente para personalizar.`,n(r.revisaoMin,20),tq,n(r.confiancaQuestoesComEvidencia,.62));
       return mk('questoes_dirigidas','Questões dirigidas',[{tipo:'questoes',quantidade:bloco}],`Não há evidência suficiente de que trocar o método supere um novo bloco de questões.`,0,tq,evid?n(r.confiancaQuestoesComEvidencia,.62):n(r.confiancaQuestoesSemEvidencia,.50));
     }
   };
-  window.PlanoRobustoRouterV5=R;window.PlanoRobustoRouterV4=R;
+  window.PlanoRobustoRouterV6=R;
+  window.PlanoRobustoRouterV5=R;
+  window.PlanoRobustoRouterV4=R;
 })();
+
 /* ============================================================================
-   ROBUSTO V5 — otimizador global parametrizado
-   Seleciona até 3 disciplinas em conjunto. Nunca altera o alvo global.
+   ROBUSTO — OTIMIZADOR GLOBAL V6
+   O score estratégico do motor é a única função de valor. O otimizador apenas
+   aplica restrições operacionais (tempo, diversidade e dose), sem criar um
+   segundo cérebro com pesos concorrentes.
    ============================================================================ */
 (() => {
-  if (typeof window === 'undefined' || window.__planoRobustoOptimizerV5) return;
-  window.__planoRobustoOptimizerV5 = true; window.__planoRobustoOptimizerV4 = true;
+  if (typeof window === 'undefined' || window.__planoRobustoOptimizerV6) return;
+  window.__planoRobustoOptimizerV6 = true;
+  window.__planoRobustoOptimizerV5 = true;
+  window.__planoRobustoOptimizerV4 = true;
   const n=(v,d=0)=>Number.isFinite(Number(v))?Number(v):d;
   const norm=s=>String(s||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().trim();
-  const WK=['pesoPontos','pesoPPM','pesoLacuna','pesoIncidencia','pesoRecencia','pesoResposta','pesoEvidencia','pesoEficiencia'];
   const O={
-    VERSAO:5,
-    _pesos(w){const sum=WK.reduce((s,k)=>s+Math.max(0,n(w&&w[k])),0)||1;return Object.fromEntries(WK.map(k=>[k,Math.max(0,n(w&&w[k]))/sum]));},
-    _u(c,w){const p=this._pesos(w),x=c.componentes||{};return n(p.pesoPontos)*n(x.pontos)+n(p.pesoPPM)*n(x.ppm)+n(p.pesoLacuna)*n(x.lacuna)+n(p.pesoIncidencia)*n(x.incidencia)+n(p.pesoRecencia)*n(x.recencia)+n(p.pesoResposta)*n(x.resposta)+n(p.pesoEvidencia)*n(x.evidencia)+n(p.pesoEficiencia)*n(x.eficiencia)+(c.item&&c.item.eliminatoria?n(w.bonusEliminatoria):0);},
-    _tempoInfo(c,cfg){const w=cfg.otimizador||{},rec=cfg.recursos||{},iv=c.intervencaoV5||c.intervencaoV4||c.intervencao,t=c.mentor&&c.mentor.tempo,floor=Math.max(1,n(w.minFrenteMin,10));if(iv&&n(iv.minutosEstimados)>0&&(iv.tempoConfiavel||iv.tempoFonte==='fallback-configurado'))return{minutos:n(iv.minutosEstimados),fonte:iv.tempoFonte||'intervencao',confiavel:!!iv.tempoConfiavel};if(rec.tempoPessoalAtivo&&t&&t.confiavel&&n(t.segundosPorQuestao)>0){const q=Math.max(1,n(c.doseDiaria,12));return{minutos:Math.max(floor,q*n(t.segundosPorQuestao)/60+n(iv&&iv.minutosFixos)),fonte:'tempo-pessoal',confiavel:true};}if(rec.fallbackTempoAtivo){const q=Math.max(1,n(c.doseDiaria,12));return{minutos:Math.max(floor,q*n(w.fallbackSegQuestao,120)/60+n(iv&&iv.minutosFixos)),fonte:'fallback-configurado',confiavel:false};}return{minutos:Math.max(floor,floor+n(iv&&iv.minutosFixos)),fonte:'piso-configurado',confiavel:false};},
-    _candidatos(todos,cfg){const w=cfg.otimizador||{},lim=Math.max(6,Math.round(n(w.maxCandidatos,24)));return(todos||[]).map(c=>{const util=this._u(c,w),ti=this._tempoInfo(c,cfg),ef=util/Math.max(1,ti.minutos);return{c,util,mins:ti.minutos,tempoFonte:ti.fonte,tempoConfiavel:ti.confiavel,ef};}).sort((a,b)=>b.ef-a.ef||b.util-a.util).slice(0,lim);},
+    VERSAO:6,
+    _u(c){return Math.max(0,Math.min(1,n(c&&c.score)/100));},
+    _tempoInfo(c,cfg){
+      const w=cfg.otimizador||{},rec=cfg.recursos||{},iv=c.intervencaoV5||c.intervencaoV4||c.intervencao,t=c.mentor&&c.mentor.tempo,floor=Math.max(1,n(w.minFrenteMin,10)),budget=Math.max(1,n(w.orcamentoMin,90)),cap=Math.max(floor,budget*n(w.maxFrentePct,45)/100);
+      let bruto,fonte='piso-configurado',confiavel=false;
+      if(iv&&n(iv.minutosEstimados)>0&&(iv.tempoConfiavel||iv.tempoFonte==='fallback-configurado')){bruto=n(iv.minutosEstimados);fonte=iv.tempoFonte||'intervencao';confiavel=!!iv.tempoConfiavel;}
+      else if(rec.tempoPessoalAtivo&&t&&t.confiavel&&n(t.segundosPorQuestao)>0){const q=Math.max(1,n(c.doseDiaria,12));bruto=Math.max(floor,q*n(t.segundosPorQuestao)/60+n(iv&&iv.minutosFixos));fonte='tempo-pessoal';confiavel=true;}
+      else if(rec.fallbackTempoAtivo){const q=Math.max(1,n(c.doseDiaria,12));bruto=Math.max(floor,q*n(w.fallbackSegQuestao,120)/60+n(iv&&iv.minutosFixos));fonte='fallback-configurado';}
+      else bruto=Math.max(floor,floor+n(iv&&iv.minutosFixos));
+      const planejado=Math.max(floor,Math.min(cap,bruto));
+      return{minutosBrutos:bruto,minutos:planejado,cap,fonte,confiavel};
+    },
+    _enriquecer(todos,cfg){return(todos||[]).map(c=>{const util=this._u(c),ti=this._tempoInfo(c,cfg),ef=util/Math.max(1,ti.minutos);return{c,util,mins:ti.minutos,minsBrutos:ti.minutosBrutos,cap:ti.cap,tempoFonte:ti.fonte,tempoConfiavel:ti.confiavel,ef};}).sort((a,b)=>b.ef-a.ef||b.util-a.util);},
+    _candidatos(todos,cfg){
+      const w=cfg.otimizador||{},lim=Math.max(6,Math.round(n(w.maxCandidatos,24))),all=this._enriquecer(todos,cfg),best=new Map();
+      for(const z of all){const d=norm(z.c.disciplina);if(d&&!best.has(d))best.set(d,z);}
+      const reservas=[...best.values()].sort((a,b)=>b.ef-a.ef||b.util-a.util).slice(0,Math.min(3,best.size,lim));
+      const out=[],seen=new Set();
+      for(const z of reservas){out.push(z);seen.add(z);}
+      for(const z of all){if(out.length>=lim)break;if(seen.has(z))continue;out.push(z);seen.add(z);}
+      return out;
+    },
     _combos(arr,k=3,lim=6000){const out=[],LIM=Math.max(100,Math.round(n(lim,6000)));const rec=(ini,sel,discs)=>{if(out.length>=LIM)return;if(sel.length===k){out.push(sel.slice());return;}for(let i=ini;i<arr.length&&out.length<LIM;i++){const d=norm(arr[i].c.disciplina);if(!d||discs.has(d))continue;const nd=new Set(discs);nd.add(d);sel.push(arr[i]);rec(i+1,sel,nd);sel.pop();}};rec(0,[],new Set());return out;},
-    selecionar(todos,cfg){const rec=cfg.recursos||{},w=cfg.otimizador||{};if(!rec.otimizadorAtivo)return{itens:(todos||[]).slice().sort((a,b)=>n(b.score)-n(a.score)).filter((x,i,a)=>a.findIndex(y=>norm(y.disciplina)===norm(x.disciplina))===i).slice(0,3),meta:{ativo:false,motivo:'desligado',restricoes:['3 disciplinas distintas','alvo global imutável']}};const arr=this._candidatos(todos,cfg),discN=new Set(arr.map(x=>norm(x.c.disciplina)).filter(Boolean)).size,k=Math.min(3,discN);if(!k)return{itens:[],meta:{ativo:true,motivo:'sem-candidatos'}};const combos=this._combos(arr,k,w.maxCombinacoes);let best=null;for(const combo of combos){const tempo=combo.reduce((s,x)=>s+x.mins,0),util=combo.reduce((s,x)=>s+x.util,0),ex=Math.max(0,tempo-n(w.orcamentoMin,90))/Math.max(1,n(w.orcamentoMin,90)),obj=util-n(w.penalidadeExcesso,1.5)*ex+(combo.length===3?n(w.bonusDiversidade,.04)*combo.length:0);if(!best||obj>best.obj)best={combo,tempo,util,obj,ex};}if(!best){const itens=arr.slice(0,k).map(x=>x.c);return{itens,meta:{ativo:true,motivo:'fallback-guloso'}};}const budget=n(w.orcamentoMin,90),cap=budget*n(w.maxFrentePct,45)/100,itens=best.combo.map(z=>{const c=Object.assign({},z.c),vel=c.mentor&&c.mentor.tempo,aloc=Math.max(n(w.minFrenteMin,10),Math.min(cap,z.mins));let dose=c.doseDiaria;if(rec.tempoPessoalAtivo&&vel&&vel.confiavel&&n(vel.segundosPorQuestao)>0)dose=Math.max(1,Math.min(n(c.alvo,999),Math.floor(aloc*60/n(vel.segundosPorQuestao))));else if(rec.fallbackTempoAtivo)dose=Math.max(1,Math.min(n(c.alvo,999),Math.floor(aloc*60/n(w.fallbackSegQuestao,120))));c.doseDiaria=dose||c.doseDiaria;c.otimizacaoV5={utilidade:Math.round(z.util*10000)/10000,eficienciaMinuto:Math.round(z.ef*10000)/10000,minutosPlanejados:Math.round(z.mins),minutosAlocados:Math.round(aloc),tempoFonte:z.tempoFonte,tempoConfiavel:z.tempoConfiavel,orcamentoMin:budget};c.otimizacaoV4=c.otimizacaoV5;return c;});return{itens,meta:{ativo:true,orcamentoMin:budget,tempoPlanejadoMin:Math.round(best.tempo),objetivo:Math.round(best.obj*10000)/10000,utilidade:Math.round(best.util*10000)/10000,excessoPct:Math.round(best.ex*1000)/10,combinacoesAvaliadas:combos.length,candidatosConsiderados:arr.length,pesosEfetivos:this._pesos(w),restricoes:['até 3 disciplinas distintas','1 tópico por disciplina','alvo global imutável','dose diária limitada pelo orçamento','sem inventar ritmo quando fallback está desligado']}};}
+    selecionar(todos,cfg){
+      const rec=cfg.recursos||{},w=cfg.otimizador||{};
+      if(!rec.otimizadorAtivo)return{itens:(todos||[]).slice().sort((a,b)=>n(b.score)-n(a.score)).filter((x,i,a)=>a.findIndex(y=>norm(y.disciplina)===norm(x.disciplina))===i).slice(0,3),meta:{ativo:false,motivo:'desligado',valorCanonico:'score estratégico',restricoes:['3 disciplinas distintas','alvo global imutável']}};
+      const arr=this._candidatos(todos,cfg),discN=new Set(arr.map(x=>norm(x.c.disciplina)).filter(Boolean)).size,k=Math.min(3,discN);if(!k)return{itens:[],meta:{ativo:true,motivo:'sem-candidatos'}};
+      const combos=this._combos(arr,k,w.maxCombinacoes),budget=Math.max(1,n(w.orcamentoMin,90));let best=null;
+      for(const combo of combos){const tempo=combo.reduce((s,x)=>s+x.mins,0),util=combo.reduce((s,x)=>s+x.util,0),ex=Math.max(0,tempo-budget)/budget,obj=util-n(w.penalidadeExcesso,1.5)*ex+(combo.length===3?n(w.bonusDiversidade,.04)*combo.length:0);if(!best||obj>best.obj)best={combo,tempo,util,obj,ex};}
+      if(!best){const itens=arr.slice(0,k).map(x=>x.c);return{itens,meta:{ativo:true,motivo:'fallback-guloso',valorCanonico:'score estratégico'}};}
+      const itens=best.combo.map(z=>{const c=Object.assign({},z.c),vel=c.mentor&&c.mentor.tempo,aloc=z.mins;let dose=Math.max(1,n(c.doseDiaria,1));if(rec.tempoPessoalAtivo&&vel&&vel.confiavel&&n(vel.segundosPorQuestao)>0)dose=Math.max(1,Math.min(dose,n(c.alvo,999),Math.floor(aloc*60/n(vel.segundosPorQuestao))));else if(rec.fallbackTempoAtivo)dose=Math.max(1,Math.min(dose,n(c.alvo,999),Math.floor(aloc*60/n(w.fallbackSegQuestao,120))));c.doseDiaria=dose;c.otimizacaoV5={versao:6,utilidade:Math.round(z.util*10000)/10000,eficienciaMinuto:Math.round(z.ef*10000)/10000,minutosEstimadosBrutos:Math.round(z.minsBrutos),minutosPlanejados:Math.round(z.mins),minutosAlocados:Math.round(aloc),capFrenteMin:Math.round(z.cap),tempoFonte:z.tempoFonte,tempoConfiavel:z.tempoConfiavel,orcamentoMin:budget,valorCanonico:'score estratégico'};c.otimizacaoV4=c.otimizacaoV5;return c;});
+      return{itens,meta:{ativo:true,versao:6,orcamentoMin:budget,tempoPlanejadoMin:Math.round(best.tempo),objetivo:Math.round(best.obj*10000)/10000,utilidade:Math.round(best.util*10000)/10000,excessoPct:Math.round(best.ex*1000)/10,combinacoesAvaliadas:combos.length,candidatosConsiderados:arr.length,valorCanonico:'score estratégico após aprendizado/redutores',pesosEfetivos:null,pesosLegadosIgnorados:true,restricoes:['até 3 disciplinas distintas','1 tópico por disciplina','alvo global imutável','score estratégico é a única função de valor','tempo do objetivo = tempo que pode ser alocado','3 disciplinas preservadas antes do corte de candidatos','dose diária não aumenta acima da prescrição-base','sem inventar ritmo quando fallback está desligado']}};
+    }
   };
-  window.PlanoRobustoOptimizerV5=O;window.PlanoRobustoOptimizerV4=O;
+  window.PlanoRobustoOptimizerV6=O;
+  window.PlanoRobustoOptimizerV5=O;
+  window.PlanoRobustoOptimizerV4=O;
 })();
+
 /* ============================================================================
    MOTOR ROBUSTO V5 — política avançada totalmente parametrizada
    ----------------------------------------------------------------------------
@@ -55534,26 +55642,82 @@ else CloudStore.init();
   window.PlanoSugestoesRobustoV5=R;window.PlanoSugestoesRobustoV4=R;
 })();
 /* ============================================================================
-   PUXAR DO PLANO V3 — orquestrador/UI estritamente neutro
+   ROBUSTO V6 — correções estatísticas pós-auditoria
    ----------------------------------------------------------------------------
-   O controller conhece os DOIS motores apenas para chamá-los. Seu estado contém
-   SOMENTE `modo`. Não persiste, lê, traduz nem repassa parâmetros de um motor ao
-   outro. Comparar consome as saídas públicas e usa posição + consenso.
+   Complementa o V5 sem acoplá-lo ao Simplificado:
+   • `forcaPrior` é agora força real de um prior Beta neutro, não delta de lacuna;
+   • posterior é único e coerente para as diferentes metas;
+   • aprendizado separa fase/perfil e usa tempo quando houver amostra confiável;
+   • validação em 3 janelas cronológicas e shrink aplicado uma única vez;
+   • mantém `MOTOR=robusto-v5` apenas como identificador histórico compatível.
    ============================================================================ */
 (() => {
-  if (typeof window === 'undefined' || window.__planoSugControllerV3) return;
-  window.__planoSugControllerV3 = true; window.__planoSugControllerV2 = true;
-  const I=window.PlanoSugestoesInfraV2,S=window.PlanoSugestoesSimplificadoV2,R=window.PlanoSugestoesRobustoV5||window.PlanoSugestoesRobustoV4||window.PlanoSugestoesRobustoV2;
+  if (typeof window === 'undefined' || window.__planoSugRobustoV6) return;
+  const B=window.PlanoSugestoesRobustoV5||window.PlanoSugestoesRobustoV4;
+  const C=window.PlanoRobustoConfigV6||window.PlanoRobustoConfigV5||window.PlanoRobustoConfigV4;
+  if(!B||!C)return;
+  window.__planoSugRobustoV6=true;
+  const n=(v,d=0)=>Number.isFinite(Number(v))?Number(v):d;
+  const clamp=(v,a,b)=>Math.max(a,Math.min(b,n(v,a)));
+  const clone=x=>{try{return JSON.parse(JSON.stringify(x));}catch(_){return x;}};
+  function logGamma(z){const p=[676.5203681218851,-1259.1392167224028,771.32342877765313,-176.61502916214059,12.507343278686905,-.13857109526572012,9.984369578019571e-6,1.5056327351493116e-7];if(z<.5)return Math.log(Math.PI)-Math.log(Math.sin(Math.PI*z))-logGamma(1-z);z-=1;let x=.9999999999998099;for(let i=0;i<p.length;i++)x+=p[i]/(z+i+1);const t=z+p.length-.5;return .5*Math.log(2*Math.PI)+(z+.5)*Math.log(t)-t+Math.log(x);}
+  function betacf(a,b,x){const M=150,e=3e-10,f=1e-300;let q=a+b,ap=a+1,am=a-1,c=1,d=1-q*x/ap;if(Math.abs(d)<f)d=f;d=1/d;let h=d;for(let m=1;m<=M;m++){const m2=2*m;let aa=m*(b-m)*x/((am+m2)*(a+m2));d=1+aa*d;if(Math.abs(d)<f)d=f;c=1+aa/c;if(Math.abs(c)<f)c=f;d=1/d;h*=d*c;aa=-(a+m)*(q+m)*x/((a+m2)*(ap+m2));d=1+aa*d;if(Math.abs(d)<f)d=f;c=1+aa/c;if(Math.abs(c)<f)c=f;d=1/d;const z=d*c;h*=z;if(Math.abs(z-1)<e)break;}return h;}
+  function betaI(x,a,b){x=clamp(x,0,1);if(x===0||x===1)return x;const bt=Math.exp(logGamma(a+b)-logGamma(a)-logGamma(b)+a*Math.log(x)+b*Math.log(1-x));return x<(a+1)/(a+b+2)?bt*betacf(a,b,x)/a:1-bt*betacf(b,a,1-x)/b;}
+  function qbeta(p,a,b){let l=0,h=1;for(let i=0;i<42;i++){const m=(l+h)/2;if(betaI(m,a,b)<p)l=m;else h=m;}return(l+h)/2;}
+  const R=Object.create(B);
+  R.VERSAO=6;
+  R.REVISAO_AUDITORIA=6;
+  R.MOTOR=B.MOTOR||'robusto-v5';
+  R._posterior=function(taxa,q,meta,cfg){
+    const d=cfg&&cfg.dominio||{},forca=Math.max(.1,n(d.forcaPrior,3)),qq=Math.max(0,n(q)),t=clamp(taxa,0,100),ac=qq*t/100,a=forca/2+ac,b=forca/2+Math.max(0,qq-ac),media=a/(a+b)*100,alvo=clamp(meta/100,.001,.999),delta=Math.max(0,n(d.margemLacunaPP,5)),corte=clamp((meta-delta)/100,.001,.999);
+    return{a,b,n:qq,ac,media,pMeta:1-betaI(alvo,a,b),pLacuna:betaI(corte,a,b),lo:qbeta(.025,a,b)*100,hi:qbeta(.975,a,b)*100,forcaPrior:forca,centroPrior:50,deltaLacunaPP:delta};
+  };
+  R._minutosHistorico=function(e){let m=0;try{for(const h of(e&&Array.isArray(e.historico)?e.historico:[]))m+=Math.max(0,n(h&&h.minutos));}catch(_){m=0;}return m;};
+  R._aprender=function(fase,cfg,base){
+    const a=cfg.aprendizado||{},perfil=C.detectarModo?C.detectarModo():'base',min=Math.max(12,Math.round(n(a.minCiclos,12)));let hist=[];
+    try{hist=(DB.getExtras?DB.getExtras():[]).filter(e=>{const s=e&&e.origemPlano&&e.origemPlano.sugestao,v=e&&e.origemPlano&&e.origemPlano.veredito,m=s&&s.motor,pf=s&&(s.configRobusto&&s.configRobusto.modo||s.perfilAtaque);return /^robusto-v/.test(String(m||''))&&v&&Number.isFinite(Number(v.ganhoPP))&&n(v.questoes)>0&&(!s.fase||s.fase===fase)&&(!pf||pf===perfil);});}catch(_){hist=[];}
+    const stamp=e=>{const s=e&&e.origemPlano&&e.origemPlano.sugestao||{},v=e&&e.origemPlano&&e.origemPlano.veredito||{};return String(s.criadoEm||v.data||e.updatedAt||e.createdAt||'');};
+    hist=hist.map((e,i)=>({e,i,t:stamp(e),minutos:this._minutosHistorico(e)})).sort((x,y)=>x.t===y.t?x.i-y.i:String(x.t).localeCompare(String(y.t)));
+    const comTempo=hist.filter(x=>x.minutos>0),usarTempo=comTempo.length>=min,pool=usarTempo?comTempo:hist,nn=pool.length;
+    if(nn<min)return{pesos:clone(base),n:nn,nElegiveis:hist.length,aprendida:false,shrink:0,validacao:'amostra-insuficiente',fase,perfil,outcome:usarTempo?'ganho-pp-hora':'ganho-pp-100q'};
+    const outcome=usarTempo?'ganho-pp-hora':'ganho-pp-100q',ys=pool.map(x=>{const v=x.e.origemPlano.veredito;return usarTempo?n(v.ganhoPP)/Math.max(1,x.minutos)*60:n(v.ganhoPP)/Math.max(1,n(v.questoes))*100;}),c1=Math.floor(nn/3),c2=Math.floor(nn*2/3),faixas=[[0,c1],[c1,c2],[c2,nn]],pesos={},sinais={};
+    for(const k of Object.keys(base)){
+      const xs=pool.map(x=>n(x.e.origemPlano.sugestao.componentes&&x.e.origemPlano.sugestao.componentes[k])),cs=faixas.map(([i,j])=>this._pearson(xs.slice(i,j),ys.slice(i,j))),sg=cs.map(Math.sign),estavel=cs.every(v=>Math.abs(v)>=n(a.corrMin,.10))&&sg.every(v=>v!==0&&v===sg[0]),corr=estavel?cs.reduce((s,v)=>s+v,0)/cs.length:0,mult=1+clamp(corr,-n(a.corrCap,.5),n(a.corrCap,.5))*n(a.amplitude,.25);pesos[k]=Math.max(0,n(base[k])*mult);sinais[k]={janelas:cs.map(v=>Math.round(v*1000)/1000),estavel};
+    }
+    const soma=Object.values(pesos).reduce((s,v)=>s+v,0)||1;Object.keys(pesos).forEach(k=>pesos[k]/=soma);const shrink=Math.min(n(a.shrinkMax,.45),nn/(nn+Math.max(1,n(a.shrinkDenom,40))));
+    return{pesos,n:nn,nElegiveis:hist.length,aprendida:true,shrink,validacao:'tres-janelas-cronologicas',sinais,fase,perfil,outcome};
+  };
+  R._pesosEfetivos=function(base,learn,cfg){
+    if(!cfg.recursos.aprendizadoPesosAtivo||!learn.aprendida)return{pesos:clone(base),alpha:0,aplicado:false};
+    const alpha=Math.min(n(cfg.aprendizado.alphaMax,.35),Math.max(0,n(learn.shrink))),out={};Object.keys(base).forEach(k=>out[k]=n(base[k])*(1-alpha)+n(learn.pesos[k])*alpha);const soma=Object.values(out).reduce((s,v)=>s+v,0)||1;Object.keys(out).forEach(k=>out[k]/=soma);return{pesos:out,alpha,aplicado:true,regularizacao:'unica-mistura-final'};
+  };
+  R.arquitetura=function(){const z=Object.assign({},B.arquitetura?B.arquitetura.call(this):{});return Object.assign(z,{revisaoAuditoria:6,posterior:'Beta neutro com força configurável',aprendizado:'fase + perfil + 3 janelas cronológicas',otimizador:'score estratégico canônico'});};
+  R.calcular=function(){
+    const out=B.calcular.call(this);if(!out||out.erro)return out;out.revisaoAuditoria=6;out.motor=this.MOTOR;out.explicacao=String(out.explicacao||'').replace(/Robusto V5/g,'Robusto V6');
+    const all=[...(out.todos||[]),...(out.itens||[])],seen=new Set();for(const c of all){if(!c||seen.has(c))continue;seen.add(c);c.auditoria=Object.assign({},c.auditoria||{},{robustoV6:true,revisaoAuditoria:6,posteriorPriorReal:true,aprendizadoSegregado:true,scoreCanonicoNoOtimizador:true});if(c.configRobusto)c.configRobusto=Object.assign({},c.configRobusto,{revisaoAuditoria:6});}
+    if(out.configRobusto)out.configRobusto=Object.assign({},out.configRobusto,{revisaoAuditoria:6});return out;
+  };
+  window.PlanoSugestoesRobustoV6=R;
+  window.PlanoSugestoesRobustoV5=R;
+})();
+
+/* ============================================================================
+   PUXAR DO PLANO V4 — orquestrador/UI estritamente neutro
+   ============================================================================ */
+(() => {
+  if (typeof window === 'undefined' || window.__planoSugControllerV4) return;
+  window.__planoSugControllerV4 = true; window.__planoSugControllerV3 = true; window.__planoSugControllerV2 = true;
+  const I=window.PlanoSugestoesInfraV2,S=window.PlanoSugestoesSimplificadoV3||window.PlanoSugestoesSimplificadoV2,R=window.PlanoSugestoesRobustoV6||window.PlanoSugestoesRobustoV5||window.PlanoSugestoesRobustoV4||window.PlanoSugestoesRobustoV2;
   if(!I||!S||!R||typeof ExtrasScreen==='undefined'||typeof PlanoCiclo==='undefined'||typeof DB==='undefined')return;
   const {num,norm,esc}=I;
   const C={
-    VERSAO:3,KEY:'plano-sug-ui-v3',LEGACY_KEY:'plano-sug-ui-v2',DEFAULTS:Object.freeze({modo:'robusto'}),_legacyPuxar:null,
-    prefs(){let modo=this.DEFAULTS.modo;try{let z=JSON.parse(localStorage.getItem(DB._profilePrefix()+this.KEY)||'null');if(!z)z=JSON.parse(localStorage.getItem(DB._profilePrefix()+this.LEGACY_KEY)||'{}');if(z&&['simplificado','robusto','comparar'].includes(z.modo))modo=z.modo;}catch(e){if(typeof _quiet==='function')_quiet(e,'plano-controller-v3-prefs');}return{modo};},
-    salvar(patch){patch=patch||{};let modo=this.prefs().modo;if(['simplificado','robusto','comparar'].includes(patch.modo))modo=patch.modo;try{const k=DB._profilePrefix()+this.KEY,v=JSON.stringify({modo});if(DB.setRaw)DB.setRaw(k,v);else localStorage.setItem(k,v);}catch(e){if(typeof _quiet==='function')_quiet(e,'plano-controller-v3-save');}return{modo};},
+    VERSAO:4,KEY:'plano-sug-ui-v3',LEGACY_KEY:'plano-sug-ui-v2',DEFAULTS:Object.freeze({modo:'robusto'}),_legacyPuxar:null,
+    prefs(){let modo=this.DEFAULTS.modo;try{let z=JSON.parse(localStorage.getItem(DB._profilePrefix()+this.KEY)||'null');if(!z)z=JSON.parse(localStorage.getItem(DB._profilePrefix()+this.LEGACY_KEY)||'{}');if(z&&['simplificado','robusto','comparar'].includes(z.modo))modo=z.modo;}catch(e){if(typeof _quiet==='function')_quiet(e,'plano-controller-v4-prefs');}return{modo};},
+    salvar(patch){patch=patch||{};let modo=this.prefs().modo;if(['simplificado','robusto','comparar'].includes(patch.modo))modo=patch.modo;try{const k=DB._profilePrefix()+this.KEY,v=JSON.stringify({modo});if(DB.setRaw)DB.setRaw(k,v);else localStorage.setItem(k,v);}catch(e){if(typeof _quiet==='function')_quiet(e,'plano-controller-v4-save');}return{modo};},
     simplificado(){return S.calcular(S.prefs());},
     robusto(){return R.calcular();},
     comparar(){
-      let s,r;try{s=this.simplificado();}catch(e){s={erro:'falha-simplificado',modo:'simplificado',itens:[]};if(typeof _quiet==='function')_quiet(e,'plano-controller-v3-simple');}try{r=this.robusto();}catch(e){r={erro:'falha-robusto',modo:'robusto',itens:[]};if(typeof _quiet==='function')_quiet(e,'plano-controller-v3-robusto');}
+      let s,r;try{s=this.simplificado();}catch(e){s={erro:'falha-simplificado',modo:'simplificado',itens:[]};if(typeof _quiet==='function')_quiet(e,'plano-controller-v4-simple');}try{r=this.robusto();}catch(e){r={erro:'falha-robusto',modo:'robusto',itens:[]};if(typeof _quiet==='function')_quiet(e,'plano-controller-v4-robusto');}
       if(s.erro&&r.erro)return{erro:'ambos-indisponiveis',modo:'comparar',itens:[],simples:s,robusto:r};
       const rankMap=res=>{const m=new Map();(res.itens||[]).forEach((x,i)=>m.set(norm(x.disciplina),{c:x,rank:i+1}));return m;},a=rankMap(s),b=rankMap(r),ch=[...new Set([...a.keys(),...b.keys()])];
       const linhas=ch.map(k=>{const sa=a.get(k),rb=b.get(k),cons=!!(sa&&rb&&norm(sa.c.nome)===norm(rb.c.nome)),pontos=(sa?4-sa.rank:0)+(rb?4-rb.rank:0)+(cons?10:0);return{disciplina:(sa&&sa.c.disciplina)||(rb&&rb.c.disciplina),simplificado:sa&&sa.c||null,robusto:rb&&rb.c||null,rankSimplificado:sa&&sa.rank||null,rankRobusto:rb&&rb.rank||null,consenso:cons,pontosComparacao:pontos,escolha:cons?'consenso':(rb?'robusto':'simplificado')};}).sort((x,y)=>y.pontosComparacao-x.pontosComparacao).slice(0,3);
@@ -55561,19 +55725,20 @@ else CloudStore.init();
     },
     calcular(p){const modo=(p&&p.modo)||this.prefs().modo;return modo==='simplificado'?this.simplificado():modo==='comparar'?this.comparar():this.robusto();},
     _erroTexto(e){return({'sem-retrato':'Importe um retrato do TEC antes de gerar sugestões.','sem-lacunas':'Nenhum assunto medido está abaixo da meta desejada.','pos-sem-planejamento':'O Simplificado Pós precisa do planejamento da prova com quantidade/pontos/peso por matéria.','pos-sem-banca':'Escolha uma banca específica em Desempenho TEC › Motores para o Simplificado Pós.','pos-sem-cruzamento':'Não houve cruzamento confiável entre TEC, incidência da banca e planejamento.','sem-candidatos':'Não há candidatos elegíveis sem sobrepor reforços já abertos.','ambos-indisponiveis':'Nenhum dos dois motores conseguiu formar sugestões neste escopo.','falha-simplificado':'O Simplificado não conseguiu calcular este escopo.','falha-robusto':'O Robusto não conseguiu calcular este escopo.'})[e]||'Não foi possível formar sugestões com o escopo atual.';},
-    _cabecalho(p,res){const modo=(p&&p.modo)||this.prefs().modo,info=modo==='simplificado'?'<b>Simplificado:</b> TEC direto, regras transparentes e parâmetros próprios.':modo==='robusto'?'<b>Robusto:</b> Plano + política avançada V5, parâmetros próprios e decisão estratégica.':'<b>Comparar:</b> executa as duas APIs independentes e confronta apenas posição/consenso.';return`<div class="ps-config-location"><span>⚙</span><div><b>Configuração centralizada</b><small>Todos os parâmetros dos motores ficam em Desempenho TEC › Motores. Extras apenas escolhe e executa.</small></div></div><div class="ps-rule">${info} <span>${esc((res&&res.explicacao)||'')}</span></div><div class="ps-rule"><b>Contrato operacional:</b> até 3 disciplinas distintas · 1 tópico por disciplina · uma única fila em Extras.</div>`;},
-    _card(c,i,checked=true){const iv=c.intervencaoV5||c.intervencaoV4||c.intervencao,ot=c.otimizacaoV5||c.otimizacaoV4;return`<label class="ps-card"><input type="checkbox" class="ps-pick" data-i="${i}" ${checked?'checked':''}><div class="ps-card-body"><div class="ps-card-top"><span class="ps-disc">${esc(c.disciplina)}</span><span class="ps-score">${Math.round(num(c.score))}/100</span></div><strong>${esc(c.nome)}</strong><p>${esc(c.motivo)}</p><div class="ps-metrics"><span>${num(c.taxa,c.item&&c.item.taxa).toFixed(0)}% atual</span><span>${Math.round(num(c.qJanela,c.item&&c.item.qJanela))}q amostra</span><span>${c.alvo}q alvo global</span>${c.doseDiaria?`<span>~${c.doseDiaria}q/dia</span>`:''}${ot?`<span>~${Math.round(num(ot.minutosAlocados))} min alocados</span>`:''}</div>${iv&&c.modo==='robusto'?`<small class="rv4-interv"><span class="rv4-badge">🧭 ${esc(iv.rotulo||iv.tipo)}</span> ${esc(iv.motivo||'')}</small>`:''}${c.modo==='robusto'&&c.politica&&c.politica.aprendida?`<small class="ps-learn">Política calibrada com ${c.politica.n} ciclos</small>`:''}</div></label>`;},
+    _cabecalho(p,res){const modo=(p&&p.modo)||this.prefs().modo,info=modo==='simplificado'?'<b>Simplificado:</b> TEC direto, regras transparentes, partição hierárquica limpa e parâmetros próprios.':modo==='robusto'?'<b>Robusto:</b> Plano + política avançada V6, parâmetros próprios e decisão estratégica.':'<b>Comparar:</b> executa as duas APIs independentes e confronta apenas posição/consenso.';return`<div class="ps-config-location"><span>⚙</span><div><b>Configuração centralizada</b><small>Todos os parâmetros dos motores ficam em Desempenho TEC › Motores. Extras apenas escolhe e executa.</small></div></div><div class="ps-rule">${info} <span>${esc((res&&res.explicacao)||'')}</span></div><div class="ps-rule"><b>Contrato operacional:</b> até 3 disciplinas distintas · 1 tópico por disciplina · uma única fila em Extras.</div>`;},
+    _card(c,i,checked=true){const iv=c.intervencaoV5||c.intervencaoV4||c.intervencao,ot=c.otimizacaoV5||c.otimizacaoV4;return`<label class="ps-card"><input type="checkbox" class="ps-pick" data-i="${i}" ${checked?'checked':''}><div class="ps-card-body"><div class="ps-card-top"><span class="ps-disc">${esc(c.disciplina)}</span><span class="ps-score">${Math.round(num(c.score))}/100</span></div><strong>${esc(c.nome)}</strong><p>${esc(c.motivo)}</p><div class="ps-metrics"><span>${num(c.taxa,c.item&&c.item.taxa).toFixed(0)}% atual</span><span>${Math.round(num(c.qJanela,c.item&&c.item.qJanela))}q amostra</span><span>${c.alvo}q alvo global</span>${c.doseDiaria?`<span>~${c.doseDiaria}q/dia</span>`:''}${ot?`<span>~${Math.round(num(ot.minutosAlocados))} min alocados</span>`:''}</div>${iv&&c.modo==='robusto'?`<small class="rv4-interv"><span class="rv4-badge">🧭 ${esc(iv.rotulo||iv.tipo)}</span> ${esc(iv.motivo||'')}</small>`:''}${c.modo==='robusto'&&c.politica&&c.politica.aprendida?`<small class="ps-learn">Política calibrada com ${c.politica.n} ciclos · ${esc(c.politica.outcome||'retorno validado')}</small>`:''}</div></label>`;},
     _compareRow(x,i){const card=(c,k)=>c?`<label class="ps-compare-option ${x.consenso?'is-consensus':''}"><input type="radio" name="ps-choice-${i}" value="${k}" ${(x.escolha===k||(x.escolha==='consenso'&&k==='robusto'))?'checked':''}><div><span>${k==='simplificado'?'Simplificado':'Robusto'}${k==='simplificado'&&x.rankSimplificado?' · #'+x.rankSimplificado:k==='robusto'&&x.rankRobusto?' · #'+x.rankRobusto:''}</span><b>${esc(c.nome)}</b><small>${esc(c.motivo)}</small>${k==='robusto'&&c.intervencao?`<small>🧭 ${esc(c.intervencao.rotulo||c.intervencao.tipo)}</small>`:''}</div></label>`:'';return`<section class="ps-compare-row" data-row="${i}"><header><b>${esc(x.disciplina)}</b>${x.consenso?'<span class="ps-consensus">✓ Consenso</span>':'<span>Escolha a leitura</span>'}</header><div class="ps-compare-grid">${card(x.simplificado,'simplificado')}${card(x.robusto,'robusto')}</div></section>`;},
     _renderLista(screen,p,res){const host=document.getElementById('pl-lista'),conta=document.getElementById('pl-conta');if(!host)return;if(res.erro){host.innerHTML=`<div class="ps-empty"><b>Sem sugestões</b><span>${esc(this._erroTexto(res.erro))}</span></div>`;if(conta)conta.textContent='';return;}if(p.modo==='comparar'){host.innerHTML=(res.itens||[]).map((x,i)=>this._compareRow(x,i)).join('')||'<div class="ps-empty">Nenhuma disciplina elegível.</div>';if(conta)conta.innerHTML=`<strong>${res.itens.length}</strong> disciplina(s) para comparar`;host.querySelectorAll('input[type=radio]').forEach(el=>el.addEventListener('change',()=>{const i=Number(el.name.replace('ps-choice-',''));if(res.itens[i])res.itens[i].escolha=el.value;}));}else{screen._planoSel=new Set((res.itens||[]).map((_,i)=>i));host.innerHTML=(res.itens||[]).map((c,i)=>this._card(c,i,true)).join('')||'<div class="ps-empty">Nenhuma sugestão elegível.</div>';if(conta)conta.innerHTML=`<strong>${res.itens.length}</strong> disciplina(s) · 1 tópico por disciplina`;host.querySelectorAll('.ps-pick').forEach(cb=>cb.addEventListener('change',()=>{const i=Number(cb.dataset.i);if(cb.checked)screen._planoSel.add(i);else screen._planoSel.delete(i);}));}},
     _renderModal(screen,p,res){const body=document.getElementById('ui-modal-body');if(!body)return;body.innerHTML=`${this._cabecalho(p,res)}<div class="ps-list-head"><span id="pl-conta"></span><small>Disciplinas com reforço do Plano aberto já foram removidas.</small></div><div id="pl-lista" class="ps-list"></div>`;this._renderLista(screen,p,res);body.querySelectorAll('[data-ps-modo]').forEach(b=>b.addEventListener('click',()=>{p=this.salvar({modo:b.dataset.psModo});this._recalcularModal(screen,p);}));},
-    _recalcularModal(screen,p){const host=document.getElementById('pl-lista');if(host)host.innerHTML='<div class="ps-loading">Recalculando sugestões…</div>';setTimeout(()=>{try{const res=this.calcular(p);screen._psResultado=res;this._renderModal(screen,p,res);}catch(e){if(typeof _quiet==='function')_quiet(e,'plano-controller-v3-recalc');}},0);},
+    _recalcularModal(screen,p){const host=document.getElementById('pl-lista');if(host)host.innerHTML='<div class="ps-loading">Recalculando sugestões…</div>';setTimeout(()=>{try{const res=this.calcular(p);screen._psResultado=res;this._renderModal(screen,p,res);}catch(e){if(typeof _quiet==='function')_quiet(e,'plano-controller-v4-recalc');}},0);},
     _escolhidos(screen,p,res){if(!res||res.erro)return[];if(p.modo==='comparar')return(res.itens||[]).map(x=>x.consenso?(x.robusto||x.simplificado):(x.escolha==='simplificado'?x.simplificado:x.robusto)).filter(Boolean);return(res.itens||[]).filter((_,i)=>!screen._planoSel||screen._planoSel.has(i));},
-    criar(screen,p,res){const itens=this._escolhidos(screen,p,res);let total=0;itens.forEach(c=>{if(!c||!c.item)return;const x=c.item,iv=c.intervencaoV5||c.intervencaoV4||c.intervencao,passos=iv&&iv.passos&&iv.passos.length?' Sequência: '+iv.passos.map(s=>s.tipo+(s.quantidade?' '+s.quantidade+'q':s.minutos?' '+s.minutos+'min':'')).join(' → ')+'.':'';const e=DB.addExtra({titulo:PlanoCiclo.titulo(c.nome,'reforco',x.membros),tipo:'questoes',disciplina:c.disciplina||'',unidade:'questoes',alvo:Math.max(1,c.alvo),periodo:'unica',contaMetricas:false,obs:`Gerado pelo Plano · ${c.modo==='robusto'?'Robusto':'Simplificado'} ${c.fase==='pos'?'Pós':'Pré'}.${iv&&iv.rotulo?' Intervenção: '+iv.rotulo+'.':''}${passos}`});if(!e)return;const origem=PlanoCiclo.origem(c.nome,c.disciplina,Object.assign({},x,{custoQ:c.alvo,taxa:c.taxa??x.taxa}),{motivo:'reforco'});origem.sugestao={versao:this.VERSAO,motor:c.modo==='robusto'?R.MOTOR:S.MOTOR,modoInterface:p.modo,fase:c.fase,meta:c.meta,minAmostra:c.minAmostra,banca:c.banca||null,score:Math.round(num(c.score)*10)/10,alvoGlobal:Math.max(1,c.alvo),doseDiaria:c.doseDiaria||null,componentes:c.componentes||{},politica:c.politica||null,configPlano:c.configPlano||null,configRobusto:c.configRobusto||null,intervencao:iv||null,otimizacaoV5:c.otimizacaoV5||c.otimizacaoV4||null,auditoria:c.auditoria||null,arquitetura:c.modo==='robusto'?R.arquitetura():S.arquitetura(),criadoEm:typeof todayLocal==='function'?todayLocal():new Date().toISOString().slice(0,10)};DB.updateExtra(e.id,{origemPlano:origem});total++;});screen.render();if(typeof showToast==='function')showToast(total?`${total} reforço(s) criado(s) · ${p.modo==='comparar'?'comparação concluída':p.modo}`:'Nenhuma sugestão selecionada');return total;},
-    abrir(screen){const p=this.prefs();let res;try{res=this.calcular(p);}catch(e){if(typeof _quiet==='function')_quiet(e,'plano-controller-v3-open');if(this._legacyPuxar)return this._legacyPuxar.call(screen);return;}screen._psResultado=res;screen._planoSel=new Set((res.itens||[]).map((_,i)=>i));new Promise(resolve=>{UI._resolve=resolve;UI._mode='confirm';UI._open('🏁 Puxar do Plano','Motores independentes, uma única fila de execução','<div id="ps-root"></div>',{okText:'Criar atividades'});}).then(ok=>{if(!ok)return;const atual=this.prefs();return this.criar(screen,atual,screen._psResultado);});setTimeout(()=>{try{this._renderModal(screen,p,res);}catch(e){if(typeof _quiet==='function')_quiet(e,'plano-controller-v3-render');}},0);},
-    instalar(){if(ExtrasScreen._planoSugestoesV3)return;ExtrasScreen._planoSugestoesV3=true;this._legacyPuxar=ExtrasScreen.puxarDoPlano;const self=this;ExtrasScreen.puxarDoPlano=function(){return self.abrir(this);};}
+    criar(screen,p,res){const itens=this._escolhidos(screen,p,res);let total=0;itens.forEach(c=>{if(!c||!c.item)return;const x=c.item,iv=c.intervencaoV5||c.intervencaoV4||c.intervencao,passos=iv&&iv.passos&&iv.passos.length?' Sequência: '+iv.passos.map(s=>s.tipo+(s.quantidade?' '+s.quantidade+'q':s.minutos?' '+s.minutos+'min':'')).join(' → ')+'.':'';const e=DB.addExtra({titulo:PlanoCiclo.titulo(c.nome,'reforco',x.membros),tipo:'questoes',disciplina:c.disciplina||'',unidade:'questoes',alvo:Math.max(1,c.alvo),periodo:'unica',contaMetricas:false,obs:`Gerado pelo Plano · ${c.modo==='robusto'?'Robusto':'Simplificado'} ${c.fase==='pos'?'Pós':'Pré'}.${iv&&iv.rotulo?' Intervenção: '+iv.rotulo+'.':''}${passos}`});if(!e)return;const origem=PlanoCiclo.origem(c.nome,c.disciplina,Object.assign({},x,{custoQ:c.alvo,taxa:c.taxa??x.taxa}),{motivo:'reforco'});origem.sugestao={versao:this.VERSAO,motor:c.modo==='robusto'?R.MOTOR:S.MOTOR,revisaoAuditoria:c.modo==='robusto'?6:S.REVISAO_AUDITORIA||3,modoInterface:p.modo,fase:c.fase,meta:c.meta,minAmostra:c.minAmostra,banca:c.banca||null,score:Math.round(num(c.score)*10)/10,alvoGlobal:Math.max(1,c.alvo),doseDiaria:c.doseDiaria||null,componentes:c.componentes||{},politica:c.politica||null,configPlano:c.configPlano||null,configRobusto:c.configRobusto||null,intervencao:iv||null,otimizacaoV5:c.otimizacaoV5||c.otimizacaoV4||null,auditoria:c.auditoria||null,arquitetura:c.modo==='robusto'?R.arquitetura():S.arquitetura(),criadoEm:typeof todayLocal==='function'?todayLocal():new Date().toISOString().slice(0,10)};DB.updateExtra(e.id,{origemPlano:origem});total++;});screen.render();if(typeof showToast==='function')showToast(total?`${total} reforço(s) criado(s) · ${p.modo==='comparar'?'comparação concluída':p.modo}`:'Nenhuma sugestão selecionada');return total;},
+    abrir(screen){const p=this.prefs();let res;try{res=this.calcular(p);}catch(e){if(typeof _quiet==='function')_quiet(e,'plano-controller-v4-open');if(this._legacyPuxar)return this._legacyPuxar.call(screen);return;}screen._psResultado=res;screen._planoSel=new Set((res.itens||[]).map((_,i)=>i));new Promise(resolve=>{UI._resolve=resolve;UI._mode='confirm';UI._open('🏁 Puxar do Plano','Motores independentes, uma única fila de execução','<div id="ps-root"></div>',{okText:'Criar atividades'});}).then(ok=>{if(!ok)return;const atual=this.prefs();return this.criar(screen,atual,screen._psResultado);});setTimeout(()=>{try{this._renderModal(screen,p,res);}catch(e){if(typeof _quiet==='function')_quiet(e,'plano-controller-v4-render');}},0);},
+    instalar(){if(ExtrasScreen._planoSugestoesV4)return;ExtrasScreen._planoSugestoesV4=true;this._legacyPuxar=ExtrasScreen.puxarDoPlano;const self=this;ExtrasScreen.puxarDoPlano=function(){return self.abrir(this);};}
   };
-  C.instalar();window.PlanoSugestoesV3=C;window.PlanoSugestoesV2=C;window.PlanoSugestoesV1=C;
+  C.instalar();window.PlanoSugestoesV4=C;window.PlanoSugestoesV3=C;window.PlanoSugestoesV2=C;window.PlanoSugestoesV1=C;
 })();
+
 /* ============================================================================
    GOVERNANÇA DOS MOTORES DO PLANO V5
    Uma única verdade decide se Simplificado/Robusto podem ser usados ou exibidos.
@@ -55806,44 +55971,25 @@ else CloudStore.init();
 })();
 
 /* ============================================================================
-   CENTRAL DE CONFIGURAÇÃO DOS MOTORES — DESEMPENHO TEC V2
+   CENTRAL DE CONFIGURAÇÃO DOS MOTORES — DESEMPENHO TEC V3
    Extras escolhe/executa; Desempenho TEC configura. Uma única fonte de verdade.
    ============================================================================ */
 (() => {
-  if (typeof window === 'undefined' || window.__planoMotoresCentralTecV2) return;
-  window.__planoMotoresCentralTecV2 = true; window.__planoMotoresCentralTecV1 = true;
-  const G=window.PlanoMotoresGovernancaV5,C=window.PlanoSugestoesV3||window.PlanoSugestoesV2,S=window.PlanoSugestoesSimplificadoV2,R=window.PlanoSugestoesRobustoV5||window.PlanoSugestoesRobustoV4||window.PlanoSugestoesRobustoV2,I=window.PlanoSugestoesInfraV2;
+  if (typeof window === 'undefined' || window.__planoMotoresCentralTecV3) return;
+  window.__planoMotoresCentralTecV3 = true; window.__planoMotoresCentralTecV2 = true; window.__planoMotoresCentralTecV1 = true;
+  const G=window.PlanoMotoresGovernancaV5,C=window.PlanoSugestoesV4||window.PlanoSugestoesV3||window.PlanoSugestoesV2,S=window.PlanoSugestoesSimplificadoV3||window.PlanoSugestoesSimplificadoV2,R=window.PlanoSugestoesRobustoV6||window.PlanoSugestoesRobustoV5||window.PlanoSugestoesRobustoV4||window.PlanoSugestoesRobustoV2,I=window.PlanoSugestoesInfraV2;
   const DT=(typeof DesempenhoTecScreen!=='undefined'&&DesempenhoTecScreen)||window.DesempenhoTecScreen;
   if(!G||!C||!S||!R||!I||!DT)return;
   const esc=I.esc||((s)=>String(s??''));
   const M={
-    VERSAO:2,_origSwitch:DT.switchTecTab?.bind(DT),_origRender:DT.render?.bind(DT),_tabObserver:null,
+    VERSAO:3,_origSwitch:DT.switchTecTab?.bind(DT),_origRender:DT.render?.bind(DT),_tabObserver:null,
     _bancas(atual){const bs=I.bancas?I.bancas():[];return `<option value="__todas__" ${atual==='__todas__'?'selected':''}>Selecionar automaticamente</option>`+bs.map(b=>`<option value="${esc(b)}" ${b===atual?'selected':''}>${esc(b)}</option>`).join('');},
-    _simpleHtml(){const p=S.prefs(),fase=S.fase?S.fase(p):(p.fase||'auto');return `<section class="pmc-engine-card" data-pmc-engine="simplificado"><header><div class="pmc-engine-id"><span>⚡</span><div><small>MOTOR ATIVO</small><h3>Simplificado</h3><p>Leitura direta do TEC, poucos parâmetros e fórmula transparente. Não usa PlanoEngine, Mentor90 nem estado do Robusto.</p></div></div><span class="pmc-pill">Direto</span></header><div class="pmc-simple-grid"><label><span>Fase</span><select data-pmc-simple="fase"><option value="auto" ${p.fase==='auto'?'selected':''}>Automática</option><option value="pre" ${p.fase==='pre'?'selected':''}>Pré-edital</option><option value="pos" ${p.fase==='pos'?'selected':''}>Pós-edital</option></select><small>Pré usa TEC direto; Pós cruza incidência e planejamento.</small></label><label><span>Meta desejada</span><div class="pmc-suffix"><input data-pmc-simple="meta" type="number" min="50" max="100" value="${p.meta}"><em>%</em></div><small>Assuntos abaixo da régua entram na disputa.</small></label><label><span>Amostra mínima</span><input data-pmc-simple="minAmostra" type="number" min="1" max="500" value="${p.minAmostra}"><small>Piso para uma taxa ser considerada.</small></label><label><span>Questões por frente</span><input data-pmc-simple="alvoQuestoes" type="number" min="5" max="200" value="${p.alvoQuestoes}"><small>Alvo operacional das atividades Simplificadas.</small></label><label class="${fase==='pos'?'':'pmc-hidden'}"><span>Banca</span><select data-pmc-simple="banca">${this._bancas(p.banca)}</select><small>Incidência usada no cruzamento Pós-edital.</small></label></div><footer><span>Storage exclusivo: ${esc(S.KEY||'plano-simplificado-v2')}</span><b>O Robusto não lê estes valores.</b></footer></section>`;},
-    _robustHtml(){const cfg=R.config?R.config():null,rot=cfg?.resumo?.rotulo||'Estratégia atual';return `<section class="pmc-engine-card pmc-robusto" data-pmc-engine="robusto"><header><div class="pmc-engine-id"><span>🧠</span><div><small>MOTOR ATIVO</small><h3>Robusto</h3><p>Política estratégica V5: domínio probabilístico, calibração, incidência, tempo, roteador, aprendizado e otimização.</p></div></div><span class="pmc-pill">${esc(rot)}</span></header><div class="pmc-robust-summary"><b>Painel especialista</b><span>Edite a estratégia ativa ou qualquer um dos cinco perfis. Cada parâmetro possui padrão e restauração própria.</span></div><div data-pmc-robusto-host>${R.painelConfigHtml?R.painelConfigHtml():''}</div></section>`;},
+    _simpleHtml(){const p=S.prefs(),fase=S.fase?S.fase(p):(p.fase||'auto');return `<section class="pmc-engine-card" data-pmc-engine="simplificado"><header><div class="pmc-engine-id"><span>⚡</span><div><small>MOTOR ATIVO</small><h3>Simplificado</h3><p>Leitura direta do TEC, poucos parâmetros e fórmula transparente. Usa partição hierárquica não sobreposta e não lê PlanoEngine, Mentor90 nem estado do Robusto.</p></div></div><span class="pmc-pill">Direto</span></header><div class="pmc-simple-grid"><label><span>Fase</span><select data-pmc-simple="fase"><option value="auto" ${p.fase==='auto'?'selected':''}>Automática</option><option value="pre" ${p.fase==='pre'?'selected':''}>Pré-edital</option><option value="pos" ${p.fase==='pos'?'selected':''}>Pós-edital</option></select><small>Pré usa TEC direto; Pós cruza incidência hierárquica limpa e planejamento.</small></label><label><span>Meta desejada</span><div class="pmc-suffix"><input data-pmc-simple="meta" type="number" min="50" max="100" value="${p.meta}"><em>%</em></div><small>Assuntos abaixo da régua entram na disputa.</small></label><label><span>Amostra mínima</span><input data-pmc-simple="minAmostra" type="number" min="1" max="500" value="${p.minAmostra}"><small>Piso operacional para entrar na fila; não significa alta precisão estatística.</small></label><label><span>Questões por frente</span><input data-pmc-simple="alvoQuestoes" type="number" min="5" max="200" value="${p.alvoQuestoes}"><small>Alvo operacional das atividades Simplificadas.</small></label><label class="${fase==='pos'?'':'pmc-hidden'}"><span>Banca</span><select data-pmc-simple="banca">${this._bancas(p.banca)}</select><small>Incidência usada no cruzamento Pós-edital.</small></label></div><footer><span>Storage exclusivo: ${esc(S.KEY||'plano-simplificado-v2')}</span><b>O Robusto não lê estes valores.</b><button type="button" data-pmc-simple-reset>↺ Restaurar padrões</button></footer></section>`;},
+    _robustHtml(){const cfg=R.config?R.config():null,rot=cfg?.resumo?.rotulo||'Estratégia atual';return `<section class="pmc-engine-card pmc-robusto" data-pmc-engine="robusto"><header><div class="pmc-engine-id"><span>🧠</span><div><small>MOTOR ATIVO</small><h3>Robusto</h3><p>Política estratégica V6: domínio probabilístico com prior real, calibração, incidência, tempo, roteador, aprendizado segregado e otimização pelo score canônico.</p></div></div><span class="pmc-pill">${esc(rot)}</span></header><div class="pmc-robust-summary"><b>Painel especialista</b><span>Edite a estratégia ativa ou qualquer um dos cinco perfis. Cada parâmetro possui padrão e restauração própria.</span></div><div data-pmc-robusto-host>${R.painelConfigHtml?R.painelConfigHtml():''}</div></section>`;},
     _panelHtml(){const e=G.estado(),ativos=Number(e.simplificado)+Number(e.robusto);return `<div class="pmc-shell"><section class="pmc-intro"><div><small>CENTRAL DOS MODELOS</small><h2>Gestão única dos motores de decisão</h2><p>Configuração mora aqui. Extras apenas escolhe a estratégia, revisa a recomendação e executa. Simplificado e Robusto mantêm storage, fórmulas, aprendizado e falhas independentes.</p></div><div class="pmc-state"><b>${ativos}</b><span>${ativos===1?'motor ativo':'motores ativos'}</span></div></section>${e.simplificado?this._simpleHtml():''}${e.robusto?this._robustHtml():''}${ativos===0?'<div class="pmc-empty"><b>Nenhum motor habilitado</b><span>Ative Simplificado ou Robusto em Configurações para liberar esta central.</span></div>':''}</div>`;},
-    _bindPanel(){const panel=document.getElementById('tec-panel-motores');if(!panel)return;panel.querySelectorAll('[data-pmc-simple]').forEach(el=>el.addEventListener('change',()=>{const k=el.dataset.pmcSimple,v=el.type==='number'?Number(el.value):el.value;S.salvar({[k]:v});if(k==='fase')this.renderPanel();else if(typeof showToast==='function')showToast('Ajuste do Simplificado salvo ✓');}));const host=panel.querySelector('[data-pmc-robusto-host]');if(host&&R.bindConfig)R.bindConfig(host,()=>{if(typeof showToast==='function')showToast('Ajuste do Robusto salvo ✓');this.renderPanel();});},
-    _aplicarVisibilidadeTab(btn,visivel){
-      if(!btn)return;
-      if(visivel){
-        if(btn.classList.contains('ux-off'))btn.classList.remove('ux-off');
-        if(btn.hidden)btn.hidden=false;
-        if(btn.style.display)btn.style.removeProperty('display');
-        if(btn.getAttribute('aria-hidden')!=='false')btn.setAttribute('aria-hidden','false');
-      }else{
-        if(!btn.hidden)btn.hidden=true;
-        if(btn.style.display!=='none')btn.style.display='none';
-        if(btn.getAttribute('aria-hidden')!=='true')btn.setAttribute('aria-hidden','true');
-      }
-    },
-    _protegerTab(btn){
-      if(!btn)return;
-      const corrigir=()=>{const e=G.estado(),algum=e.simplificado||e.robusto;if(algum)this._aplicarVisibilidadeTab(btn,true);};
-      corrigir();
-      if(this._tabObserver)this._tabObserver.disconnect();
-      this._tabObserver=new MutationObserver(()=>corrigir());
-      this._tabObserver.observe(btn,{attributes:true,attributeFilter:['class','hidden','style','aria-hidden']});
-    },
+    _bindPanel(){const panel=document.getElementById('tec-panel-motores');if(!panel)return;panel.querySelectorAll('[data-pmc-simple]').forEach(el=>el.addEventListener('change',()=>{const k=el.dataset.pmcSimple,v=el.type==='number'?Number(el.value):el.value;S.salvar({[k]:v});if(k==='fase')this.renderPanel();else if(typeof showToast==='function')showToast('Ajuste do Simplificado salvo ✓');}));const reset=panel.querySelector('[data-pmc-simple-reset]');if(reset)reset.addEventListener('click',()=>{if(S.restaurar)S.restaurar();if(typeof showToast==='function')showToast('Simplificado restaurado aos padrões ✓');this.renderPanel();});const host=panel.querySelector('[data-pmc-robusto-host]');if(host&&R.bindConfig)R.bindConfig(host,()=>{if(typeof showToast==='function')showToast('Ajuste do Robusto salvo ✓');this.renderPanel();});},
+    _aplicarVisibilidadeTab(btn,visivel){if(!btn)return;if(visivel){if(btn.classList.contains('ux-off'))btn.classList.remove('ux-off');if(btn.hidden)btn.hidden=false;if(btn.style.display)btn.style.removeProperty('display');if(btn.getAttribute('aria-hidden')!=='false')btn.setAttribute('aria-hidden','false');}else{if(!btn.hidden)btn.hidden=true;if(btn.style.display!=='none')btn.style.display='none';if(btn.getAttribute('aria-hidden')!=='true')btn.setAttribute('aria-hidden','true');}},
+    _protegerTab(btn){if(!btn)return;const corrigir=()=>{const e=G.estado(),algum=e.simplificado||e.robusto;if(algum)this._aplicarVisibilidadeTab(btn,true);};corrigir();if(this._tabObserver)this._tabObserver.disconnect();this._tabObserver=new MutationObserver(()=>corrigir());this._tabObserver.observe(btn,{attributes:true,attributeFilter:['class','hidden','style','aria-hidden']});},
     ensureUi(){if(typeof document==='undefined')return;const tabs=document.getElementById('tec-subtabs');if(!tabs)return;let btn=tabs.querySelector('.tec-subtab[data-tectab="motores"]');if(!btn){btn=document.createElement('button');btn.type='button';btn.className='tec-subtab pmc-tab';btn.dataset.tectab='motores';btn.textContent='⚙ Motores';tabs.appendChild(btn);btn.addEventListener('click',()=>DT.switchTecTab('motores'));}let panel=document.getElementById('tec-panel-motores');if(!panel){panel=document.createElement('div');panel.id='tec-panel-motores';panel.style.display='none';const first=document.getElementById('tec-panel-analise');if(first?.parentNode)first.parentNode.insertBefore(panel,first);else tabs.insertAdjacentElement('afterend',panel);}this._protegerTab(btn);this.syncVisibility();this.renderPanel();},
     renderPanel(){if(typeof document==='undefined')return;const panel=document.getElementById('tec-panel-motores');if(!panel)return;panel.innerHTML=this._panelHtml();this._bindPanel();},
     syncVisibility(){if(typeof document==='undefined')return;const e=G.estado(),algum=e.simplificado||e.robusto,btn=document.querySelector('.tec-subtab[data-tectab="motores"]'),panel=document.getElementById('tec-panel-motores');this._aplicarVisibilidadeTab(btn,algum);if(!algum&&DT.tecTab==='motores'){if(this._origSwitch)this._origSwitch('analise');else DT.tecTab='analise';}if(panel&&!algum&&panel.style.display!=='none')panel.style.display='none';},
@@ -55851,9 +55997,10 @@ else CloudStore.init();
     instalarRenderHook(){if(this._renderInstalled||!this._origRender)return;this._renderInstalled=true;const self=this;DT.render=function(){const r=self._origRender();self.ensureUi();self.syncVisibility();return r;};},
     init(){this.instalarTabs();this.instalarRenderHook();this.ensureUi();window.addEventListener('plano:motores-change',()=>{this.ensureUi();this.renderPanel();});}
   };
-  window.PlanoMotoresCentralTecV2=M;window.PlanoMotoresCentralTecV1=M;
+  window.PlanoMotoresCentralTecV3=M;window.PlanoMotoresCentralTecV2=M;window.PlanoMotoresCentralTecV1=M;
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>M.init(),{once:true});else M.init();
 })();
+
 </script>
 
 <!-- ============================================================

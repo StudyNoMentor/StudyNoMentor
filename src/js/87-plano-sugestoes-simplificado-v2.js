@@ -1,10 +1,12 @@
 /* ============================================================================
-   MOTOR SIMPLIFICADO V2 — independente do PlanoEngine/Mentor90
-   Pré: TEC × meta × amostra mínima.
-   Pós: TEC × meta × incidência da banca × valor da matéria no planejamento.
+   MOTOR SIMPLIFICADO — revisão estatística V3
+   Pré: TEC escopado × meta × amostra mínima, sem sobrepor níveis da árvore.
+   Pós: TEC × incidência hierárquica limpa da banca × valor da matéria.
+   Independente de PlanoEngine, Mentor90 e do motor Robusto.
    ============================================================================ */
 (() => {
-  if (typeof window === 'undefined' || window.__planoSugSimplificadoV2) return;
+  if (typeof window === 'undefined' || window.__planoSugSimplificadoV3) return;
+  window.__planoSugSimplificadoV3 = true;
   window.__planoSugSimplificadoV2 = true;
   const I = window.PlanoSugestoesInfraV2;
   if (!I || typeof DB === 'undefined') return;
@@ -16,10 +18,20 @@
     OWN_PREF_KEYS.forEach(k => { if (Object.prototype.hasOwnProperty.call(src, k)) out[k] = src[k]; });
     return out;
   };
+  const codeDepth = (codigo) => {
+    const s = String(codigo == null ? '' : codigo).trim();
+    if (!s) return 0;
+    return Math.max(0, s.split('.').filter(Boolean).length - 1);
+  };
+  const isDesc = (pai, filho) => {
+    const a = String(pai == null ? '' : pai).trim(), b = String(filho == null ? '' : filho).trim();
+    return !!(a && b && a !== b && b.startsWith(a + '.'));
+  };
 
   const S = {
-    VERSAO: 2,
-    MOTOR: 'simplificado-v2',
+    VERSAO: 3,
+    REVISAO_AUDITORIA: 3,
+    MOTOR: 'simplificado-v2', // identificador preservado para compatibilidade histórica
     KEY: 'plano-simplificado-v2',
     DEFAULTS: Object.freeze({ fase:'auto', meta:90, minAmostra:20, banca:'__todas__', alvoQuestoes:30 }),
     PREF_KEYS: OWN_PREF_KEYS,
@@ -27,10 +39,7 @@
     prefs() {
       let raw = {};
       try { raw = JSON.parse(localStorage.getItem(DB._profilePrefix() + this.KEY) || '{}') || {}; }
-      catch (e) { if (typeof _quiet === 'function') _quiet(e, 'plano-simple-v2-prefs'); }
-      // Fronteira de estado: preferências externas (ex.: `modo` do controller)
-      // nunca entram no estado do Simplificado, nem mesmo se uma versão antiga
-      // as tiver gravado por engano.
+      catch (e) { if (typeof _quiet === 'function') _quiet(e, 'plano-simple-v3-prefs'); }
       const p = Object.assign({}, this.DEFAULTS, ownPrefs(raw));
       if (!['auto','pre','pos'].includes(p.fase)) p.fase = 'auto';
       p.meta = clamp(p.meta, 50, 100);
@@ -40,8 +49,6 @@
       return p;
     },
     salvar(patch) {
-      // Aceita apenas o contrato público deste motor. Isso impede que o
-      // orquestrador ou outro módulo contamine seu estado com campos próprios.
       const p = Object.assign({}, this.prefs(), ownPrefs(patch));
       if (!['auto','pre','pos'].includes(p.fase)) p.fase = 'auto';
       p.meta = clamp(p.meta, 50, 100);
@@ -52,8 +59,15 @@
       try {
         const k = DB._profilePrefix() + this.KEY;
         if (DB.setRaw) DB.setRaw(k, JSON.stringify(persistido)); else localStorage.setItem(k, JSON.stringify(persistido));
-      } catch (e) { if (typeof _quiet === 'function') _quiet(e, 'plano-simple-v2-save'); }
+      } catch (e) { if (typeof _quiet === 'function') _quiet(e, 'plano-simple-v3-save'); }
       return Object.assign({}, persistido);
+    },
+    restaurar() {
+      try {
+        const k = DB._profilePrefix() + this.KEY;
+        if (DB.delRaw) DB.delRaw(k); else localStorage.removeItem(k);
+      } catch (e) { if (typeof _quiet === 'function') _quiet(e, 'plano-simple-v3-reset'); }
+      return this.prefs();
     },
     fase(p) { return p.fase === 'pre' || p.fase === 'pos' ? p.fase : I.fasePlano(); },
     banca(p) {
@@ -79,15 +93,19 @@
       return out;
     },
     _topicos(snapshot, p) {
-      const bloqueadas = I.disciplinasBloqueadas(), vistos = new Set(), out = [];
+      const bloqueadas = I.disciplinasBloqueadas(), vistos = new Set();
+      const elegiveis = [];
       for (const r of I.linhasTec(snapshot)) {
         const disciplina = String(r.disciplina || '').trim(), nome = String(r.nome || '').trim();
         const d = norm(disciplina), k = d + '\u0001' + norm(nome), q = I.q(r), taxa = I.taxa(r);
         if (!d || vistos.has(k) || bloqueadas.has(d) || !(q >= p.minAmostra) || taxa == null || taxa >= p.meta) continue;
         vistos.add(k);
-        out.push({ item:r, disciplina, nome, taxa, qJanela:q, lacunaPP:Math.max(0,p.meta-taxa) });
+        elegiveis.push({ item:r, disciplina, nome, taxa, qJanela:q, lacunaPP:Math.max(0,p.meta-taxa), codigo:String(r.codigo || ''), depth:num(r.depth,codeDepth(r.codigo)) });
       }
-      return out;
+      // Fronteira não sobreposta: se um descendente elegível já mede o ramo,
+      // o pai cumulativo não disputa junto. Isso remove a vantagem artificial
+      // de árvores profundas sem recorrer ao motor Robusto.
+      return elegiveis.filter((x, i) => !elegiveis.some((y, j) => i !== j && norm(y.disciplina) === norm(x.disciplina) && isDesc(x.codigo, y.codigo)));
     },
     _mapaPlanejamento(disciplinas) {
       const out = new Map(), nomes = disciplinas.slice();
@@ -104,6 +122,16 @@
       }
       return out;
     },
+    _raizIncidencia(lista) {
+      lista = (lista || []).filter(Boolean);
+      let raso = Infinity;
+      for (const r of lista) {
+        const dep = codeDepth(r.codigo);
+        if (dep > 0 && dep < raso) raso = dep;
+      }
+      if (raso === Infinity) return lista.reduce((s,r)=>s+Math.max(0,num(r.valor)),0);
+      return lista.reduce((s,r)=>s+(codeDepth(r.codigo)===raso?Math.max(0,num(r.valor)):0),0);
+    },
     _mapaIncidencia(banca, disciplinas) {
       const rows = I.incidencia().filter(r => norm(r && r.banca) === norm(banca));
       const porDisc = new Map(), total = new Map(), nomes = disciplinas.slice();
@@ -112,10 +140,10 @@
         if (!cas) continue;
         const d = norm(cas.nome), v = Math.max(0, num(r.incidencia));
         if (!porDisc.has(d)) porDisc.set(d, []);
-        porDisc.get(d).push({ topico:r.topico || '', valor:v, confianca:cas.confianca });
-        total.set(d, (total.get(d) || 0) + v);
+        porDisc.get(d).push({ topico:r.topico || '', valor:v, confianca:cas.confianca, codigo:r.codigo || null, depth:r.depth });
       }
-      return { rows, porDisc, total };
+      for (const [d, lista] of porDisc) total.set(d, this._raizIncidencia(lista));
+      return { rows, porDisc, total, hierarquiaLimpa:true };
     },
     _incidenciaDo(topico, disciplina, mapa) {
       const d = norm(disciplina), lista = mapa.porDisc.get(d) || [];
@@ -145,7 +173,7 @@
           meta:p.meta, minAmostra:p.minAmostra, banca:null,
           motivo:`Lacuna de ${x.lacunaPP.toFixed(1)} pp para a meta de ${p.meta}%`,
           componentes:{ lacunaPP:x.lacunaPP, amostra:x.qJanela, taxa:x.taxa },
-          auditoria:{ formula:'lacunaPP', fonte:'TEC escopado direto' }
+          auditoria:{ formula:'lacunaPP', fonte:'TEC escopado direto', particao:'fronteira hierárquica não sobreposta' }
         }));
       } else {
         if (!banca || banca === '__todas__') return { erro:'pos-sem-banca', modo:'simplificado', fase, itens:[], arquitetura:this.arquitetura() };
@@ -155,13 +183,13 @@
         pool.forEach(x => {
           const d=norm(x.disciplina), pm=plano.get(d), inc=this._incidenciaDo(x.nome,x.disciplina,incid), denom=incid.total.get(d)||0;
           if (!pm || !(pm.valor>0) || !(inc.valor>0) || !(denom>0)) return;
-          const share=inc.valor/denom, conf=Math.min(pm.confianca,inc.confianca), valor=pm.valor*share*x.lacunaPP/100*conf;
+          const share=clamp(inc.valor/denom,0,1), conf=Math.min(pm.confianca,inc.confianca), valor=pm.valor*share*x.lacunaPP/100*conf;
           if (!(valor>0)) return;
           cands.push({
             ...x, modo:'simplificado', fase, scoreBruto:valor, alvo:p.alvoQuestoes, doseDiaria:null, meta:p.meta, minAmostra:p.minAmostra, banca,
             motivo:`${x.lacunaPP.toFixed(1)} pp de lacuna × ${(share*100).toFixed(1)}% da incidência em ${banca} × ${pm.valor.toFixed(1)} ponto(s) do planejamento`,
             componentes:{ lacunaPP:x.lacunaPP, amostra:x.qJanela, taxa:x.taxa, incidenciaDiscPct:share*100, pesoMateria:pm.valor, confiancaCruzamento:conf, valorPontos:valor },
-            auditoria:{ formula:'pesoMateria × shareIncidencia × lacuna × confiança', viaIncidencia:inc.via, fonte:'TEC + incidência + matérias, sem PlanoEngine' }
+            auditoria:{ formula:'pesoMateria × shareIncidencia × lacuna × confiança', viaIncidencia:inc.via, incidenciaDenominador:'raiz hierárquica sem dupla contagem', fonte:'TEC + incidência + matérias, sem motor Robusto' }
           });
         });
         if (!cands.length) return { erro:'pos-sem-cruzamento', modo:'simplificado', fase, itens:[], arquitetura:this.arquitetura() };
@@ -169,10 +197,11 @@
       this._normalizar(cands);
       return {
         modo:'simplificado', fase, banca:fase==='pos'?banca:null, itens:this._top3(cands), todos:cands, arquitetura:this.arquitetura(),
-        explicacao:fase==='pre' ? 'TEC direto × meta × amostra mínima' : 'TEC direto × incidência da banca × planejamento; sem usar o motor Robusto.'
+        explicacao:fase==='pre' ? 'TEC direto × meta × amostra mínima em partição hierárquica não sobreposta.' : 'TEC direto × incidência hierárquica limpa da banca × planejamento; sem usar o motor Robusto.'
       };
     },
-    arquitetura() { return { motor:this.MOTOR, independente:true, usaPlanoEngine:false, usaMentor90:false, deps:this.deps.slice(), prefs:this.PREF_KEYS.slice() }; }
+    arquitetura() { return { motor:this.MOTOR, revisao:this.REVISAO_AUDITORIA, independente:true, usaPlanoEngine:false, usaMentor90:false, deps:this.deps.slice(), prefs:this.PREF_KEYS.slice(), particaoHierarquica:'nao-sobreposta' }; }
   };
+  window.PlanoSugestoesSimplificadoV3 = S;
   window.PlanoSugestoesSimplificadoV2 = S;
 })();
