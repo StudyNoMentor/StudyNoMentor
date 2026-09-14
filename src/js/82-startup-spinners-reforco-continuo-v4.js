@@ -15,9 +15,9 @@
   if (typeof window === 'undefined' || window.__startupSpinnerReforcoV4) return;
   window.__startupSpinnerReforcoV4 = true;
 
-  const quiet = (e, tag) => { try { if (typeof _quiet === 'function') _quiet(e, tag || 'ux-v4'); } catch (_) {} };
+  const quiet = (e, tag) => { try { if (typeof _quiet === 'function') _quiet(e, tag || 'ux-v4'); } catch (ignored) { void ignored; } };
   const norm = (s) => {
-    try { if (window.ReforcoEngine && ReforcoEngine.norm) return ReforcoEngine.norm(s || ''); } catch (_) {}
+    try { if (window.ReforcoEngine && ReforcoEngine.norm) return ReforcoEngine.norm(s || ''); } catch (e) { quiet(e, 'ux-v4-norm'); }
     return String(s || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/\s+/g, ' ').trim();
   };
   const today = () => { try { return todayLocal(); } catch (_) { return new Date().toISOString().slice(0, 10); } };
@@ -39,7 +39,7 @@
     last() {
       try { return JSON.parse(sessionStorage.getItem(this.KEY) || '[]'); } catch (_) { return this.marks.slice(); }
     },
-    table() { try { console.table(this.last()); } catch (_) {} return this.last(); }
+    table() { try { console.table(this.last()); } catch (e) { quiet(e, 'startup-trace-table'); } return this.last(); }
   };
   window.StartupTraceV4 = StartupTraceV4;
   StartupTraceV4.mark('camada-v4-pronta');
@@ -281,7 +281,7 @@
     RA._contKey = (disc, top) => norm(disc) + '\u0001' + norm(top);
     RA._contStats = function (snapshotId) {
       const out = new Map();
-      if (!snapshotId || !window.DB || typeof DB.getExtras !== 'function') return out;
+      if (!snapshotId || typeof DB === 'undefined' || typeof DB.getExtras !== 'function') return out;
       let extras = []; try { extras = DB.getExtras() || []; } catch (e) { quiet(e, 'cont-extras'); }
       for (const e of extras) {
         const o = e && e.origemPlano, rx = o && o.prescricaoAdaptativa;
