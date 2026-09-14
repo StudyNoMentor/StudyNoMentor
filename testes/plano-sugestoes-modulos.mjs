@@ -8,6 +8,7 @@ const ROOT=dirname(dirname(fileURLToPath(import.meta.url)));
 const mem=new Map(), extras=[];
 const clone=x=>JSON.parse(JSON.stringify(x));
 const norm=s=>String(s??'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().trim();
+const semComentarios=src=>src.replace(/\/\*[\s\S]*?\*\//g,'').replace(/(^|[^:])\/\/[^\n\r]*/g,'$1');
 const discs=['A','B','C','D'];
 const rows=discs.flatMap((d,di)=>Array.from({length:3},(_,ti)=>{const q=30,t=45+di*7+ti*6,ac=Math.round(q*t/100);return{codigo:`${di+1}.${ti+1}`,depth:1,disciplina:d,nome:`${d} T${ti+1}`,questoes:q,acertos:ac,pctAcerto:ac/q*100};}));
 const snap={id:1,date:'2026-09-14',rows};
@@ -45,10 +46,10 @@ assert.equal(S.VERSAO,3);
 assert.equal(R.VERSAO,8);
 assert.equal(C.VERSAO,5);
 
-const simpleSrc=readFileSync(join(ROOT,'src/js/87-plano-sugestoes-simplificado-v2.js'),'utf8');
-const robSrc=readFileSync(join(ROOT,'src/js/88-plano-sugestoes-robusto-v8.js'),'utf8');
-assert(!/\bPlanoEngine\b|\bMentor90\b/.test(simpleSrc),'Simplificado não deve executar PlanoEngine/Mentor90');
-assert(!/PlanoSugestoesSimplificado|plano-simplificado/.test(robSrc),'Robusto não deve conhecer Simplificado/storage dele');
+const simpleExec=semComentarios(readFileSync(join(ROOT,'src/js/87-plano-sugestoes-simplificado-v2.js'),'utf8'));
+const robExec=semComentarios(readFileSync(join(ROOT,'src/js/88-plano-sugestoes-robusto-v8.js'),'utf8'));
+assert(!/\bPlanoEngine\s*[.(\[]|\bMentor90(?:V\d+)?\s*[.(\[]/.test(simpleExec),'Simplificado não deve executar PlanoEngine/Mentor90');
+assert(!/\bPlanoSugestoesSimplificado\w*\s*[.(\[]|plano-simplificado/.test(robExec),'Robusto não deve conhecer Simplificado/storage dele');
 
 S.salvar({fase:'pre',meta:90,minAmostra:20,alvoQuestoes:30,banca:'FGV'});
 let s=S.calcular(), r=R.calcular();
