@@ -467,21 +467,21 @@
  {
   "arquivo": "js/89a-plano-robusto-audit-log-v1.js",
   "de": 55743,
-  "ate": 56049
+  "ate": 56058
  },
  {
   "arquivo": "js/90-plano-motores-governanca-v5.js",
-  "de": 56051,
-  "ate": 56280
+  "de": 56060,
+  "ate": 56289
  },
  {
   "arquivo": "js/91-plano-motores-central-tec-v1.js",
-  "de": 56282,
-  "ate": 56312
+  "de": 56291,
+  "ate": 56321
  },
  {
   "arquivo": "html/90-rodape.html",
-  "de": 56314,
-  "ate": 56759
+  "de": 56323,
+  "ate": 56768
  }
 ]
