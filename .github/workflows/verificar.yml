@@ -9,6 +9,7 @@
 #   · a suite AutoTeste (FSRS, fuzz, agendador, parser TEC...) regredir;
 #   · o reforco adaptativo produzir dose ou parada estatisticamente invalida;
 #   · os motores Simplificado/Robusto/Comparar quebrarem o contrato 3 disciplinas × 1 topico;
+#   · a governanca global deixar motor desligado reaparecer ou executar por preferencia antiga;
 #   · o Robusto V4 misturar alvo global/dose, inventar tempo ou quebrar os defaults por ataque;
 #   · Puxar do Plano duplicar execucao ao comparar motores ou misturar dose diaria com alvo global;
 #   · modais de Extras voltarem a se sobrepor ou a ativacao adaptativa travar;
@@ -113,6 +114,9 @@ jobs:
       - name: Validar roteador, otimizador e defaults do Robusto
         run: node testes/plano-robusto-v4.mjs
 
+      - name: Validar governanca global dos motores do Plano
+        run: node testes/plano-motores-governanca-v5.mjs
+
       - name: Validar estabilidade estrutural de Extras
         run: node testes/extras-estabilidade.mjs
 
@@ -123,6 +127,9 @@ jobs:
 
       - name: Validar Puxar do Plano multimotor
         run: node testes/plano-sugestoes-modulos-browser.mjs
+
+      - name: Validar governanca dos motores no navegador
+        run: node testes/plano-motores-governanca-v5-browser.mjs
 
       - name: Auditar startup, loaders e continuidade adaptativa
         run: node testes/startup-reforco-v4-browser.mjs
