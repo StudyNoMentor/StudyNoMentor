@@ -437,26 +437,26 @@
  {
   "arquivo": "js/88b-plano-robusto-router-v4.js",
   "de": 55355,
-  "ate": 55391
+  "ate": 55384
  },
  {
   "arquivo": "js/88c-plano-robusto-optimizer-v4.js",
-  "de": 55392,
-  "ate": 55412
+  "de": 55385,
+  "ate": 55405
  },
  {
   "arquivo": "js/88d-plano-sugestoes-robusto-v4.js",
-  "de": 55413,
-  "ate": 55463
+  "de": 55406,
+  "ate": 55456
  },
  {
   "arquivo": "js/89-plano-sugestoes-controller-v2.js",
-  "de": 55464,
-  "ate": 55557
+  "de": 55457,
+  "ate": 55550
  },
  {
   "arquivo": "html/90-rodape.html",
-  "de": 55558,
-  "ate": 56003
+  "de": 55551,
+  "ate": 55996
  }
 ]
