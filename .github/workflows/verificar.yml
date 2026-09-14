@@ -11,6 +11,7 @@
 #   · modais de Extras voltarem a se sobrepor ou a ativacao adaptativa travar;
 #   · Desempenho TEC -> Plano voltar a congelar em perfis grandes;
 #   · interacoes de Extras/Plano deixarem rotulos transitórios presos nos botoes;
+#   · algum menu voltar a bloquear a interface em perfis grandes ou CPU movel;
 #   · o botao "Opcoes" da Grade voltar a vazar do cabecalho.
 name: Verificacao
 
@@ -70,6 +71,12 @@ jobs:
         run: |
           npm install --no-save playwright@1.56.1
           npx playwright install --with-deps chromium
+
+      # Varredura transversal: navega pelas 14 telas com um perfil sintetico
+      # grande, mede bloqueio síncrono/long tasks e repete as telas pesadas com
+      # CPU 4x mais lenta. Protege tanto carregamento inicial quanto menus.
+      - name: Auditar performance do site inteiro
+        run: node testes/site-performance-browser.mjs
 
       # Reproduz o bug que motivou a correcao: Central -> Reforcos -> Adaptativo,
       # ativa e salva em viewport mobile, cobrando camada, tempo e zero render do
