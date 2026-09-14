@@ -9,18 +9,29 @@
   const I = window.PlanoSugestoesInfraV2;
   if (!I || typeof DB === 'undefined') return;
   const { num, clamp, norm } = I;
+  const OWN_PREF_KEYS = Object.freeze(['fase','meta','minAmostra','banca','alvoQuestoes']);
+  const ownPrefs = (src) => {
+    const out = {};
+    src = src && typeof src === 'object' ? src : {};
+    OWN_PREF_KEYS.forEach(k => { if (Object.prototype.hasOwnProperty.call(src, k)) out[k] = src[k]; });
+    return out;
+  };
 
   const S = {
     VERSAO: 2,
     MOTOR: 'simplificado-v2',
     KEY: 'plano-simplificado-v2',
     DEFAULTS: Object.freeze({ fase:'auto', meta:90, minAmostra:20, banca:'__todas__', alvoQuestoes:30 }),
+    PREF_KEYS: OWN_PREF_KEYS,
     deps: Object.freeze(['TEC-escopado','incidencia-bruta','planejamento-materias']),
     prefs() {
       let raw = {};
       try { raw = JSON.parse(localStorage.getItem(DB._profilePrefix() + this.KEY) || '{}') || {}; }
       catch (e) { if (typeof _quiet === 'function') _quiet(e, 'plano-simple-v2-prefs'); }
-      const p = Object.assign({}, this.DEFAULTS, raw);
+      // Fronteira de estado: preferências externas (ex.: `modo` do controller)
+      // nunca entram no estado do Simplificado, nem mesmo se uma versão antiga
+      // as tiver gravado por engano.
+      const p = Object.assign({}, this.DEFAULTS, ownPrefs(raw));
       if (!['auto','pre','pos'].includes(p.fase)) p.fase = 'auto';
       p.meta = clamp(p.meta, 50, 100);
       p.minAmostra = Math.round(clamp(p.minAmostra, 1, 500));
@@ -29,17 +40,20 @@
       return p;
     },
     salvar(patch) {
-      const p = Object.assign({}, this.prefs(), patch || {});
+      // Aceita apenas o contrato público deste motor. Isso impede que o
+      // orquestrador ou outro módulo contamine seu estado com campos próprios.
+      const p = Object.assign({}, this.prefs(), ownPrefs(patch));
       if (!['auto','pre','pos'].includes(p.fase)) p.fase = 'auto';
       p.meta = clamp(p.meta, 50, 100);
       p.minAmostra = Math.round(clamp(p.minAmostra, 1, 500));
       p.alvoQuestoes = Math.round(clamp(p.alvoQuestoes, 5, 200));
       p.banca = typeof p.banca === 'string' && p.banca ? p.banca : '__todas__';
+      const persistido = ownPrefs(p);
       try {
         const k = DB._profilePrefix() + this.KEY;
-        if (DB.setRaw) DB.setRaw(k, JSON.stringify(p)); else localStorage.setItem(k, JSON.stringify(p));
+        if (DB.setRaw) DB.setRaw(k, JSON.stringify(persistido)); else localStorage.setItem(k, JSON.stringify(persistido));
       } catch (e) { if (typeof _quiet === 'function') _quiet(e, 'plano-simple-v2-save'); }
-      return p;
+      return Object.assign({}, persistido);
     },
     fase(p) { return p.fase === 'pre' || p.fase === 'pos' ? p.fase : I.fasePlano(); },
     banca(p) {
@@ -118,7 +132,7 @@
       return cands;
     },
     calcular(opcoes) {
-      const p = Object.assign({}, this.prefs(), opcoes || {});
+      const p = Object.assign({}, this.prefs(), ownPrefs(opcoes));
       p.meta = clamp(p.meta,50,100); p.minAmostra=Math.round(clamp(p.minAmostra,1,500)); p.alvoQuestoes=Math.round(clamp(p.alvoQuestoes,5,200));
       const fase = this.fase(p), banca = this.banca(p), snapshot = I.snapshot();
       if (!snapshot) return { erro:'sem-retrato', modo:'simplificado', fase, itens:[] };
@@ -158,7 +172,7 @@
         explicacao:fase==='pre' ? 'TEC direto × meta × amostra mínima' : 'TEC direto × incidência da banca × planejamento; sem usar o motor Robusto.'
       };
     },
-    arquitetura() { return { motor:this.MOTOR, independente:true, usaPlanoEngine:false, usaMentor90:false, deps:this.deps.slice() }; }
+    arquitetura() { return { motor:this.MOTOR, independente:true, usaPlanoEngine:false, usaMentor90:false, deps:this.deps.slice(), prefs:this.PREF_KEYS.slice() }; }
   };
   window.PlanoSugestoesSimplificadoV2 = S;
 })();
