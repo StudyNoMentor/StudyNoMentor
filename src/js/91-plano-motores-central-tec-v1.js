@@ -20,7 +20,7 @@
       t.content.querySelectorAll('.ps-settings,.rv4-wrap').forEach(n=>n.remove());
       const note=document.createElement('div');note.className='ps-config-location';note.innerHTML='<span>⚙</span><div><b>Ajustes centralizados</b><small>Parâmetros dos motores ficam em Desempenho TEC › Motores. Aqui você apenas escolhe a estratégia e as frentes.</small></div>';
       const chooser=t.content.querySelector('.ps-engine-chooser,.ps-single-engine');
-      if(chooser)chooser.insertAdjacentElement('afterend',note);else t.content.prepend(note);
+      if(chooser)chooser.after(note);else t.content.prepend(note);
       return t.innerHTML;
     },
 
