@@ -38,4 +38,12 @@ replace_once(
     "    'js/59-extras-ux100.js',\n    'js/59-tec-auditoria-v2.js',\n    'js/60-cloud-store.js',"
 )
 
+# Diagnóstico temporário da primeira barreira: se a composição falhar, o log
+# mostra imediatamente se a perda aconteceu no motor, na seleção ou no DOM.
+replace_once(
+    'testes/tec-ux100-browser.mjs',
+    "  const bloco=await page.evaluate(()=>{const cs=[...document.querySelectorAll('#plano-lista .pl-hoje-sel:checked:not(:disabled)')];return{n:cs.length,discs:[...new Set(cs.map(c=>c.dataset.disc))],txt:document.querySelector('.tec-v2-diversidade')?.textContent||''};});\n  eq(bloco.n,3,'3 disciplinas × 1 tópico deve gerar bloco inicial de 3 assuntos');",
+    "  const bloco=await page.evaluate(()=>{const cs=[...document.querySelectorAll('#plano-lista .pl-hoje-sel:checked:not(:disabled)')];return{n:cs.length,discs:[...new Set(cs.map(c=>c.dataset.disc))],txt:document.querySelector('.tec-v2-diversidade')?.textContent||''};});\n  const diagBloco=await page.evaluate(()=>({prefs:PlanoEngine.prefs(),last:(TecAuditoriaV2._lastPlanResult?.itens||[]).slice(0,80).map(x=>({d:x.disciplina,n:x.nome,q:x.custoQ,open:!!x.extraAberta})),dom:[...document.querySelectorAll('#plano-lista .pl-hoje-sel')].map(x=>({d:x.dataset.disc,n:x.dataset.topico,on:x.checked,off:x.disabled}))}));\n  console.log('DIAG_BLOCO',JSON.stringify(diagBloco));\n  await snap('00-diag-plano-multifoco.png');\n  eq(bloco.n,3,'3 disciplinas × 1 tópico deve gerar bloco inicial de 3 assuntos');"
+)
+
 print('Patch TEC UX100 v2 aplicado/ja presente.')
