@@ -57,7 +57,7 @@
      novo, e o antigo é descartado sozinho na ativação) e o que permite ao app
      dizer qual versão está rodando. Em src/ fica "dev" de propósito: a versão
      é gerada na montagem, não editada à mão. -->
-<meta name="diario-versao" content="v2a6cce67d5">
+<meta name="diario-versao" content="v16060dc5d5">
 <script>
 /* ── ARRANQUE: abre o IndexedDB AGORA, em paralelo com o parse do documento ──
    A fachada de armazenamento vive no fim do <body>, depois de ~1,7 MB de HTML.
@@ -12904,21 +12904,21 @@ html.extras-modal-open,html.extras-modal-open body{overflow:hidden!important;ove
 #extras-list .extra-tag{border:1px solid color-mix(in srgb,currentColor 16%,transparent)}
 
 /* ── 5. Lei seca: bloco de rota deixa de virar um cartão dentro do cartão ── */
-#extras-list .lr-extra-card.ux100-law-task{
+#extras-list .lr-extra-card{
   background:var(--surface)!important;
 }
-#extras-list .lr-extra-card.ux100-law-task:not(.is-concluidas){
+#extras-list .lr-extra-card:not(.is-concluidas){
   border-color:color-mix(in srgb,var(--text-faint) 30%,var(--border))!important;
 }
-#extras-list .lr-extra-card.ux100-law-task:not(.is-concluidas)::before{
+#extras-list .lr-extra-card:not(.is-concluidas)::before{
   background:var(--accent)!important;
   opacity:.72;
 }
-#extras-list .lr-extra-card.ux100-law-task.is-concluidas{
+#extras-list .lr-extra-card.is-concluidas{
   border-color:color-mix(in srgb,var(--good) 44%,var(--border))!important;
   background:color-mix(in srgb,var(--good-soft) 26%,var(--surface))!important;
 }
-#extras-list .ux100-law-task .lr-route{
+#extras-list .lr-extra-card .lr-route{
   display:grid;
   grid-template-columns:minmax(0,1fr) auto;
   align-items:center;
@@ -12929,11 +12929,11 @@ html.extras-modal-open,html.extras-modal-open body{overflow:hidden!important;ove
   border-radius:11px;
   background:color-mix(in srgb,var(--accent) 2.5%,var(--surface));
 }
-#extras-list .ux100-law-task .lr-route-main{gap:1px}
-#extras-list .ux100-law-task .lr-route-main small{font-size:9px;color:var(--text-muted)}
-#extras-list .ux100-law-task .lr-route-main strong{font-size:12px;line-height:1.2}
-#extras-list .ux100-law-task .lr-route-main span{font-size:9px;line-height:1.3}
-#extras-list .ux100-law-task .lr-route .btn-secondary{min-height:36px;padding:6px 10px;white-space:nowrap;border-color:color-mix(in srgb,var(--accent) 18%,var(--border))}
+#extras-list .lr-extra-card .lr-route-main{gap:1px}
+#extras-list .lr-extra-card .lr-route-main small{font-size:9px;color:var(--text-muted)}
+#extras-list .lr-extra-card .lr-route-main strong{font-size:12px;line-height:1.2}
+#extras-list .lr-extra-card .lr-route-main span{font-size:9px;line-height:1.3}
+#extras-list .lr-extra-card .lr-route .btn-secondary{min-height:36px;padding:6px 10px;white-space:nowrap;border-color:color-mix(in srgb,var(--accent) 18%,var(--border))}
 
 /* ── 6. Central de Extras: cartões e limites mais visíveis ───────────────── */
 .xsc-modal{border:1.5px solid color-mix(in srgb,var(--text-faint) 28%,var(--border))}
@@ -13055,9 +13055,9 @@ html.extras-modal-open,html.extras-modal-open body{overflow:hidden!important;ove
   #extras-list .exd-actions{gap:5px;padding-left:0}
   #extras-list .exd-actions .reg-act-btn{width:36px;height:36px;min-width:36px;min-height:36px}
   #extras-list .exd-prog,#extras-list .extra-marcador,#extras-list .exd-reg{margin-left:71px}
-  #extras-list .ux100-law-task .lr-route{margin-left:71px;grid-template-columns:minmax(0,1fr) auto;padding:8px}
-  #extras-list .ux100-law-task .lr-route-main span{display:none}
-  #extras-list .ux100-law-task .lr-route .btn-secondary{min-width:92px;padding:6px 8px;font-size:10px}
+  #extras-list .lr-extra-card .lr-route{margin-left:71px;grid-template-columns:minmax(0,1fr) auto;padding:8px}
+  #extras-list .lr-extra-card .lr-route-main span{display:none}
+  #extras-list .lr-extra-card .lr-route .btn-secondary{min-width:92px;padding:6px 8px;font-size:10px}
 
   .xsc-body{padding:12px 10px 18px!important}
   .xsc-section{gap:11px}
@@ -13084,7 +13084,7 @@ html.extras-modal-open,html.extras-modal-open body{overflow:hidden!important;ove
   #extras-list .exd-top{grid-template-columns:25px 36px minmax(0,1fr)}
   #extras-list .exd-actions{grid-column:2/4;justify-self:end;margin-top:2px}
   #extras-list .exd-prog,#extras-list .extra-marcador,#extras-list .exd-reg{margin-left:0}
-  #extras-list .ux100-law-task .lr-route{margin-left:0}
+  #extras-list .lr-extra-card .lr-route{margin-left:0}
   .xsc-compact-grid{grid-template-columns:1fr 1fr!important;gap:6px}
   .xsc-field-wide{grid-column:1/-1}
   .ra-ux100 .ra-metric-grid{grid-template-columns:1fr 1fr;gap:6px}
@@ -13095,18 +13095,18 @@ html.extras-modal-open,html.extras-modal-open body{overflow:hidden!important;ove
 
 /* Lei seca aberta: ações pertencem ao cabeçalho e nunca encostam no bloco de leitura. */
 @media(max-width:390px){
-  #extras-list .ux100-law-task .exd-top{
+  #extras-list .lr-extra-card .exd-top{
     grid-template-columns:25px 36px minmax(0,1fr) auto;
     align-items:start;
   }
-  #extras-list .ux100-law-task .exd-actions{
+  #extras-list .lr-extra-card .exd-actions{
     grid-column:4;
     grid-row:1;
     align-self:start;
     justify-self:end;
     margin:0 0 8px;
   }
-  #extras-list .ux100-law-task .lr-route{margin:12px 0 7px}
+  #extras-list .lr-extra-card .lr-route{margin:12px 0 7px}
 }
 
 </style>

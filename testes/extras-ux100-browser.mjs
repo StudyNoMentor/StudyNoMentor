@@ -36,6 +36,8 @@ async function mainAudit(width,height){
   await closeAdaptive();await closeCentral();
   await page.evaluate(()=>{switchScreen('extras');ExtrasScreen.selDay=todayLocal();ExtrasScreen.render();});
   await page.waitForTimeout(80);
+  await page.waitForFunction(()=>[...document.querySelectorAll('#extras-list .exd')].some(c=>{const e=DB.getExtra(c.dataset.id);return !!(e&&e.origemLei&&e.origemLei.rodizio);}),null,{timeout:3000});
+  await page.evaluate(()=>{try{LeiRodizio.decorarExtras();}catch(_){}try{ExtrasUx100.compactarCards();}catch(_){}});
   const order=await page.evaluate(()=>{const s=document.getElementById('screen-extras'),ch=[...s.children];return{toolbar:ch.indexOf(s.querySelector('.extras-toolbar')),curso:ch.indexOf(document.getElementById('extras-curso')),agenda:ch.indexOf(document.getElementById('extras-agenda')),lista:ch.indexOf(document.getElementById('extras-list'))};});
   ok(order.toolbar>=0&&order.curso>=0&&order.agenda>=0&&order.lista>=0,`ordem: blocos devem existir ${JSON.stringify(order)}`);
   ok(order.toolbar<order.curso,`Configurações deve vir antes de Reforços ${JSON.stringify(order)}`);
@@ -56,7 +58,7 @@ async function mainAudit(width,height){
   eq(visual.rot,0,'controles de automação duplicados não devem ficar na agenda');
   ok(visual.title.startsWith('Extras de hoje'),'agenda deve comunicar execução diária');
   const law=await page.evaluate(()=>{
-    const card=document.querySelector('#extras-list .ux100-law-task');
+    const card=document.querySelector('#extras-list .lr-extra-card');
     if(!card)return{exists:false};
     const route=card.querySelector('.lr-route'),actions=card.querySelector('.exd-actions');
     const probe=document.createElement('i');probe.style.cssText='position:fixed;left:-9999px;background:var(--surface)';document.body.appendChild(probe);
@@ -151,7 +153,8 @@ try{
     DB.saveExtras([]);
     const hoje=todayLocal();
     DB.addExtra({titulo:'Diagnosticar: Economia Brasileira na Década de 1990',tipo:'questoes',disciplina:'Economia e Finanças Públicas',unidade:'questoes',alvo:18,periodo:'unica',datas:[hoje],origemPlano:{topico:'Economia Brasileira na Década de 1990',disciplina:'Economia e Finanças Públicas',criadoEm:new Date().toISOString()}});
-    DB.addExtra({titulo:'Lei seca · CTN - Constituição',tipo:'leitura',disciplina:'',unidade:'linhas',alvo:30,periodo:'unica',datas:[hoje],origemLei:{rodizio:true,leiId:'ux100-lei',deLinha:1,ateLinha:30}});
+    const leiExtra=DB.addExtra({titulo:'Lei seca · CTN - Constituição',tipo:'leitura',disciplina:'',unidade:'linhas',alvo:30,periodo:'unica',datas:[hoje]});
+    DB.updateExtra(leiExtra.id,{origemLei:{rodizio:true,leiId:'ux100-lei',deLinha:1,ateLinha:30}});
     switchScreen('extras');ExtrasScreen.selDay=hoje;ExtrasScreen.render();
   });
   await page.waitForTimeout(150);
