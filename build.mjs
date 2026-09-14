@@ -65,6 +65,7 @@ const PARTES = [
   SEP('\n</style>\n\n<style id="interaction-feedback-v1">\n'), S('css/17-interaction-feedback.css'),
   SEP('\n</style>\n\n<style id="extras-ux100-v1">\n'), S('css/18-extras-ux100.css'),
   SEP('\n</style>\n\n<style id="tec-auditoria-v2">\n'), S('css/19-tec-auditoria-v2.css'),
+  SEP('\n</style>\n\n<style id="ux-stability-v3">\n'), S('css/20-ux-stability-v3.css'),
   SEP('\n</style>\n\n<script id="app-code" type="application/x-diario-inert">\n'),
   // ── código do app: um único escopo global, na ordem de dependência ──
   [
@@ -121,6 +122,7 @@ const PARTES = [
     'js/70-relatorio.js',
     'js/71-auditoria-plano.js',
     'js/80-ajustes-finais.js',
+    'js/81-ux-stability-v3.js',
   ].map((m, i, todos) => { const t = S(m); if (i < todos.length - 1) SEP('\n'); return t; }).join('\n'),
   SEP('\n'),
   S('html/90-rodape.html'),
