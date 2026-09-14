@@ -13,6 +13,8 @@
 #   · escopo, rodizio multidisciplinar, reabertura e responsividade do Desempenho TEC regredirem;
 #   · Desempenho TEC -> Plano voltar a congelar em perfis grandes;
 #   · interacoes de Extras/Plano deixarem rotulos transitórios presos nos botoes;
+#   · Lei Seca voltar a ter estado de rodizio ambiguo, chips repetidos ou proximas abertas por padrao;
+#   · spinners, popovers de ajuda e a abertura silenciosa da nuvem regredirem;
 #   · algum menu voltar a bloquear a interface em perfis grandes ou CPU movel;
 #   · o botao "Opcoes" da Grade voltar a vazar do cabecalho.
 name: Verificacao
@@ -36,11 +38,61 @@ permissions:
   contents: read
 
 jobs:
+  # index.html, sw.js e manifesto sao ARTEFATOS derivados de src/. Antes, toda
+  # edicao pequena em src/ gerava um job vermelho apenas porque quem alterou o
+  # codigo ainda nao tinha rodado build.mjs. Em PRs do proprio repositorio,
+  # esta etapa barata e deterministica corrige isso antes de gastar Chromium,
+  # Monte Carlo e a suite longa. Se precisar sincronizar, ela grava os gerados
+  # na propria branch; o job seguinte faz checkout do HEAD atualizado e valida
+  # tudo no MESMO workflow, sem depender de um segundo disparo do GitHub Actions.
+  sincronizar-gerados:
+    if: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    permissions:
+      contents: write
+    outputs:
+      alterou: ${{ steps.sync.outputs.alterou }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.ref }}
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Sincronizar build derivado
+        id: sync
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --check build.mjs
+          for f in src/js/*.js testes/*.mjs; do node --check "$f"; done
+          node build.mjs
+          if git diff --quiet -- index.html sw.js src/manifesto.json; then
+            echo 'alterou=false' >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          git config user.name 'StudyNoMentor CI'
+          git config user.email 'actions@users.noreply.github.com'
+          git add index.html sw.js src/manifesto.json
+          git commit -m 'build: sincroniza artefatos gerados'
+          git push origin HEAD:${{ github.event.pull_request.head.ref }}
+          echo 'alterou=true' >> "$GITHUB_OUTPUT"
+
   verificar:
+    needs: [sincronizar-gerados]
+    # No push/main o sincronizador e pulado. No PR ele precisa apenas terminar
+    # com sucesso; o checkout abaixo busca o HEAD mais recente da branch, inclusive
+    # quando o job anterior acabou de criar o commit dos artefatos gerados.
+    if: ${{ always() && (needs.sincronizar-gerados.result == 'skipped' || needs.sincronizar-gerados.result == 'success') }}
     runs-on: ubuntu-latest
     timeout-minutes: 12
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.ref || github.ref }}
 
       - uses: actions/setup-node@v4
         with:
@@ -124,6 +176,12 @@ jobs:
       # preso, botão sem nome acessível, overflow e regressões de feedback visual.
       - name: Auditar interacoes de Extras e Plano TEC
         run: node testes/extras-tec-interacoes-browser.mjs
+
+      # Auditoria focada da rodada v3: semântica do rodízio de leis, barra de
+      # Extras compacta, Próximas recolhida, chips deduplicados, colapso de
+      # Reforços sem recalcular, popovers i, TEC recolhido e nuvem não intrusiva.
+      - name: Auditar estabilidade visual v3
+        run: node testes/ux-stability-v3-browser.mjs
 
       - name: Verificar
         run: node verificar.mjs

@@ -119,6 +119,30 @@ const ProfileUI = {
       const willAutoEnter = logged && this.autoEnterOn() && !this._autoEnterTried && !this._offline;
       if (loginEl) loginEl.style.display = 'none';
       if (willAutoEnter) {
+        /* FAST PATH OFFLINE-FIRST: se o alvo desta conta já é exatamente o
+           perfil ativo e os dados dele estão neste aparelho, não há motivo para
+           deixar a pessoa olhando "Carregando seu perfil" enquanto uma consulta
+           de rede confirma algo que já podemos mostrar com segurança. A nuvem é
+           conferida logo depois, em segundo plano; novidade real continua usando
+           o fluxo normal de pull protegido. */
+        let localAlvo = this.getDefaultProfile() || this.getLastProfile();
+        const ativoLocal = ProfileManager.getActiveProfileId();
+        const uidAtual = this._uid();
+        const podeAbrirLocal = localAlvo && localAlvo === ativoLocal && this._hasLocalData(localAlvo) &&
+          (!ProfileManager._podeVerLocal || ProfileManager._podeVerLocal(localAlvo, uidAtual));
+        if (podeAbrirLocal) {
+          this._autoEnterTried = true;
+          this._entering = false;
+          try { sessionStorage.setItem(this.SESSION_KEY, localAlvo); } catch (e) { _quiet(e); }
+          this.setLastProfile(localAlvo);
+          if (enteringEl) enteringEl.style.display = 'none';
+          if (profilesEl) profilesEl.style.display = 'none';
+          this.hideGate();
+          this.renderChip();
+          try { DB.checarEspaco(); } catch (_) { _quiet(_); }
+          setTimeout(() => { try { if (window.CloudStore) CloudStore.syncOnFocus(); } catch (_) { _quiet(_); } }, 120);
+          return;
+        }
         this._stage = 'entering';
         if (enteringEl) enteringEl.style.display = 'block';
         if (profilesEl) profilesEl.style.display = 'none';
