@@ -63,6 +63,18 @@ assert(!/PlanoSugestoesSimplificadoV2|plano-simplificado-v2/.test(robustSrc),'Ro
 assert(/PlanoSugestoesSimplificadoV2/.test(controllerSrc)&&/PlanoSugestoesRobustoV2/.test(controllerSrc),'somente o orquestrador deve conhecer os dois motores');
 assert(!/scoreBruto|politicaAprendida|lacunaPP|pontosGanho/.test(infraSrc),'infraestrutura neutra não pode carregar fórmula de prioridade');
 
+// Persistência é parte da independência: campos do controller nunca entram no Simplificado.
+C.salvar({modo:'robusto',fase:'pre',meta:90,minAmostra:20,banca:'FGV',alvoQuestoes:30,campoEstranho:'nao-persistir'});
+assert.equal(Object.hasOwn(S.prefs(),'modo'),false,'Simplificado não pode herdar o modo do controller');
+assert.equal(Object.hasOwn(S.prefs(),'campoEstranho'),false,'Simplificado deve rejeitar preferências fora do próprio contrato');
+const rawSimple=JSON.parse(mem.get('p:'+S.KEY));
+assert.deepEqual(Object.keys(rawSimple).sort(),['alvoQuestoes','banca','fase','meta','minAmostra'].sort(),'storage Simplificado deve conter apenas campos próprios');
+const troca=C.salvar({modo:'simplificado'});
+assert.equal(troca.modo,'simplificado','troca Robusto → Simplificado não pode ser sobrescrita por estado do motor');
+assert.equal(C.prefs().modo,'simplificado','modo da UI deve persistir apenas no controller');
+assert.deepEqual(Object.keys(JSON.parse(mem.get('p:'+C.KEY))),['modo'],'controller deve persistir somente o modo da UI');
+C.salvar({modo:'robusto'});
+
 const sp={...S.prefs(),fase:'pre',meta:90,minAmostra:20,alvoQuestoes:30,banca:'FGV'};
 const pre=S.calcular(sp);
 assert.equal(pre.erro,undefined);assert.equal(pre.itens.length,3);assert.equal(new Set(pre.itens.map(x=>x.disciplina)).size,3);
@@ -123,4 +135,4 @@ assert.equal(novo.origemPlano.sugestao.motor,'robusto-v3');assert.equal(novo.ori
 assert.equal(novo.origemPlano.sugestao.meta,85);
 assert((S.calcular({...S.prefs(),fase:'pre'}).itens||[]).every(x=>x.disciplina!==escolhido.disciplina));
 
-console.log('OK: motores V2 independentes — dados, estado, fórmulas, aprendizado e falhas isolados; Comparar só orquestra saídas públicas.');
+console.log('OK: motores V2 independentes — dados, estado, fórmulas, aprendizado, persistência e falhas isolados; Comparar só orquestra saídas públicas.');
