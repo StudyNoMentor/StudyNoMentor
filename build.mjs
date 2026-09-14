@@ -1,27 +1,6 @@
 #!/usr/bin/env node
 /* ═══════════════════════════════════════════════════════════════════════════
    MONTADOR — src/  ->  index.html
-   ───────────────────────────────────────────────────────────────────────────
-   O que é publicado continua sendo UM arquivo: index.html, sem build step para
-   quem só quer usar o app. Este montador existe para quem vai MANTER o código.
-
-   Regra que torna isto seguro: a montagem é uma CONCATENAÇÃO LITERAL. Nada é
-   minificado, transpilado, reordenado ou reescrito. O index.html gerado é
-   BYTE A BYTE igual ao que já estava no repositório — `node build.mjs --check`
-   prova isso e falha se alguém quebrar a equivalência.
-
-   Uso:
-     node build.mjs            monta src/ -> index.html
-     node build.mjs --check    monta em memória e compara com o index.html atual
-                               (não escreve nada; sai com código 1 se divergir)
-
-   Por que NÃO viramos módulos ES de verdade (<script type="module" src=...>):
-     1) o app tem de abrir por file:// — módulos ES são bloqueados por CORS aí;
-     2) seriam ~45 requisições em vez de 1, e o app é offline-first;
-     3) a CSP teria de afrouxar;
-     4) o escopo global compartilhado é premissa do código atual — converter
-        para import/export seria uma reescrita, não uma reorganização.
-   A separação em src/ dá a manutenção sem pagar nenhum desses preços.
    ═══════════════════════════════════════════════════════════════════════════ */
 import { readFileSync, writeFileSync } from 'node:fs';
 import { createHash } from 'node:crypto';
@@ -30,20 +9,10 @@ import { fileURLToPath } from 'node:url';
 
 const RAIZ = dirname(fileURLToPath(import.meta.url));
 const ler = (p) => readFileSync(join(RAIZ, 'src', p), 'utf8');
-
-/* A montagem também produz o MAPA (src/manifesto.json): qual faixa de linhas do
-   index.html veio de qual arquivo. Ele existe para quem precisa ir de uma linha
-   do arquivo publicado até a fonte dela — e um mapa desatualizado é pior que
-   nenhum, porque manda a pessoa para o lugar errado. Por isso ele é gerado
-   AQUI, junto com o index.html, em vez de mantido à mão. */
 const SEGMENTOS = [];
 const S = (p) => { const t = ler(p); SEGMENTOS.push({ arquivo: p, texto: t }); return t; };
 const SEP = (t) => { SEGMENTOS.push({ texto: t }); return t; };
 
-/* A ordem abaixo é a ordem FÍSICA no index.html. Os separadores estruturais
-   (as próprias tags <style>/<script> que embrulham os blocos) moram aqui, e não
-   nos módulos, para que cada arquivo de src/ seja CSS ou JS puro — editável com
-   realce de sintaxe e verificável com `node --check`. */
 const PARTES = [
   S('html/00-cabecalho.html'),
   SEP('\n<style>\n'),            S('css/01-base.css'),
@@ -68,13 +37,13 @@ const PARTES = [
   SEP('\n</style>\n\n<style id="ux-stability-v3">\n'), S('css/20-ux-stability-v3.css'),
   SEP('\n</style>\n\n<style id="startup-spinners-reforco-v4">\n'), S('css/21-startup-spinners-reforco-v4.css'),
   SEP('\n</style>\n\n<style id="plano-sugestoes-v1">\n'), S('css/22-plano-sugestoes-v1.css'),
-  SEP('\n</style>\n\n<style id="robusto-config-v4">\n'), S('css/23-robusto-config-v4.css'),
-  SEP('\n</style>\n\n<style id="plano-motores-governanca-v5">\n'), S('css/24-plano-motores-governanca-v5.css'),
-  SEP('\n</style>\n\n<style id="plano-motores-central-tec-v1">\n'), S('css/25-plano-motores-central-tec-v1.css'),
-  SEP('\n</style>\n\n<style id="tec-plano-fonte-motor-v1">\n'), S('css/26-tec-plano-fonte-motor-v1.css'),
+  SEP('\n</style>\n\n<style id="robusto-v8">\n'), S('css/23-robusto-v8.css'),
+  SEP('\n</style>\n\n<style id="plano-motores-governanca-v6">\n'), S('css/24-plano-motores-governanca-v5.css'),
+  SEP('\n</style>\n\n<style id="plano-motores-central-tec-v5">\n'), S('css/25-plano-motores-central-tec-v1.css'),
+  SEP('\n</style>\n\n<style id="tec-plano-fonte-motor-v2">\n'), S('css/26-tec-plano-fonte-motor-v1.css'),
   SEP('\n</style>\n\n<script id="app-code" type="application/x-diario-inert">\n'),
   [
-    'js/10-infra.js','js/11-db.js','js/12-planos-perfis.js','js/13-historico-versoes.js','js/14-navegacao-e-dialogos.js','js/15-saveguard.js','js/16-planilhas-e-tec.js','js/17-reforco.js','js/20-tela-registrar.js','js/21-tela-ciclo.js','js/22-leis-engine.js','js/30-fsrs.js','js/31-cards-config.js','js/32-card-engine.js','js/33-tela-grade.js','js/40-tela-historico.js','js/41-tela-evolucao.js','js/42-tela-estudo-novo.js','js/43-tela-leis.js','js/44-tela-cards.js','js/45-autoteste.js','js/46-sanitizacao-e-editor.js','js/47-tela-extras.js','js/48-tela-links.js','js/49-tela-config.js','js/50-tela-ferramentas.js','js/51-tela-desempenho-tec.js','js/52-tela-planejamentos.js','js/53-portao-de-acesso.js','js/54-reforco-fila.js','js/55-extras-ui-moderna.js','js/56-leis-rodizio.js','js/57-extras-lei-fonte.js','js/58-extras-governanca.js','js/59-tec-premium.js','js/59-extras-central-ui.js','js/59-reforco-adaptativo.js','js/59-tec-layout-v2.js','js/59-extras-stability.js','js/59-interaction-feedback.js','js/59-extras-ux100.js','js/59-tec-auditoria-v2.js','js/60-cloud-store.js','js/61-session-guard.js','js/62-section-sync.js','js/63-cloud-ui.js','js/64-info-tips.js','js/65-recuperacao.js','js/66-backup-nuvem.js','js/67-atualizacao.js','js/70-relatorio.js','js/71-auditoria-plano.js','js/80-ajustes-finais.js','js/81-ux-stability-v3.js','js/82-startup-spinners-reforco-continuo-v4.js','js/83-extras-plano-continuity-v4.js','js/84-reforco-continuity-core-v4.js','js/85-mentor90-performance-bridge-v5.js','js/85-mentor90-policy-v6.js','js/86-plano-sugestoes-infra-v2.js','js/87-plano-sugestoes-simplificado-v2.js','js/88-plano-sugestoes-robusto-v2.js','js/88a-plano-robusto-config-v4.js','js/88b-plano-robusto-router-v4.js','js/88c-plano-robusto-optimizer-v4.js','js/88d-plano-sugestoes-robusto-v4.js','js/89-plano-sugestoes-controller-v2.js','js/89a-plano-robusto-audit-log-v1.js','js/89z-robusto-foco-questoes-v7.js','js/90-plano-motores-governanca-v5.js','js/91-plano-motores-central-tec-v1.js','js/92-tec-plano-fonte-motor-v1.js'
+    'js/10-infra.js','js/11-db.js','js/12-planos-perfis.js','js/13-historico-versoes.js','js/14-navegacao-e-dialogos.js','js/15-saveguard.js','js/16-planilhas-e-tec.js','js/17-reforco.js','js/20-tela-registrar.js','js/21-tela-ciclo.js','js/22-leis-engine.js','js/30-fsrs.js','js/31-cards-config.js','js/32-card-engine.js','js/33-tela-grade.js','js/40-tela-historico.js','js/41-tela-evolucao.js','js/42-tela-estudo-novo.js','js/43-tela-leis.js','js/44-tela-cards.js','js/45-autoteste.js','js/46-sanitizacao-e-editor.js','js/47-tela-extras.js','js/48-tela-links.js','js/49-tela-config.js','js/50-tela-ferramentas.js','js/51-tela-desempenho-tec.js','js/52-tela-planejamentos.js','js/53-portao-de-acesso.js','js/54-reforco-fila.js','js/55-extras-ui-moderna.js','js/56-leis-rodizio.js','js/57-extras-lei-fonte.js','js/58-extras-governanca.js','js/59-tec-premium.js','js/59-extras-central-ui.js','js/59-reforco-adaptativo.js','js/59-tec-layout-v2.js','js/59-extras-stability.js','js/59-interaction-feedback.js','js/59-extras-ux100.js','js/59-tec-auditoria-v2.js','js/60-cloud-store.js','js/61-session-guard.js','js/62-section-sync.js','js/63-cloud-ui.js','js/64-info-tips.js','js/65-recuperacao.js','js/66-backup-nuvem.js','js/67-atualizacao.js','js/70-relatorio.js','js/71-auditoria-plano.js','js/80-ajustes-finais.js','js/81-ux-stability-v3.js','js/82-startup-spinners-reforco-continuo-v4.js','js/83-extras-plano-continuity-v4.js','js/84-reforco-continuity-core-v4.js','js/84b-reforco-tec-extras-v8.js','js/86-plano-sugestoes-infra-v2.js','js/87-plano-sugestoes-simplificado-v2.js','js/88-plano-sugestoes-robusto-v8.js','js/89-plano-sugestoes-controller.js','js/89a-plano-robusto-audit-log-v2.js','js/90-plano-motores-governanca-v5.js','js/91-plano-motores-central-tec-v1.js','js/92-tec-plano-fonte-motor-v1.js'
   ].map((m, i, todos) => { const t = S(m); if (i < todos.length - 1) SEP('\n'); return t; }).join('\n'),
   SEP('\n'),
   S('html/90-rodape.html'),
