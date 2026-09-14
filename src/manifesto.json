@@ -447,36 +447,36 @@
  {
   "arquivo": "js/88b-plano-robusto-router-v4.js",
   "de": 55437,
-  "ate": 55466
+  "ate": 55467
  },
  {
   "arquivo": "js/88c-plano-robusto-optimizer-v4.js",
-  "de": 55467,
-  "ate": 55487
+  "de": 55468,
+  "ate": 55488
  },
  {
   "arquivo": "js/88d-plano-sugestoes-robusto-v4.js",
-  "de": 55488,
-  "ate": 55538
+  "de": 55489,
+  "ate": 55539
  },
  {
   "arquivo": "js/89-plano-sugestoes-controller-v2.js",
-  "de": 55539,
-  "ate": 55632
+  "de": 55540,
+  "ate": 55633
  },
  {
   "arquivo": "js/90-plano-motores-governanca-v5.js",
-  "de": 55633,
-  "ate": 55862
+  "de": 55634,
+  "ate": 55863
  },
  {
   "arquivo": "js/91-plano-motores-central-tec-v1.js",
-  "de": 55864,
-  "ate": 55970
+  "de": 55865,
+  "ate": 55971
  },
  {
   "arquivo": "html/90-rodape.html",
-  "de": 55972,
-  "ate": 56417
+  "de": 55973,
+  "ate": 56418
  }
 ]
