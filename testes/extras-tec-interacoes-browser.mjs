@@ -25,6 +25,7 @@ async function esperarLivre(){await page.waitForFunction(()=>!document.querySele
 try{
   await page.goto(url,{waitUntil:'domcontentloaded'});
   await page.waitForFunction(()=>typeof switchScreen==='function'&&typeof DesempenhoTecScreen==='object'&&typeof PlanoEngine==='object'&&typeof ExtrasScreen==='object'&&typeof WorkFeedback==='object',{timeout:30000});
+  await page.evaluate(()=>{ WorkFeedback.forceDeferred=true; });
 
   const volume=await page.evaluate(()=>{
     try{ProfileUI.hideGate();}catch(e){if(typeof _quiet==='function')_quiet(e,'teste-fluidez-hide-gate');}
@@ -91,8 +92,16 @@ try{
   assert.ok(depois>antes,'criação em lote deve gerar pelo menos uma Extra');
 
   // Concluir e reabrir: reabre status E ciclo/veredito do Plano.
-  const fechado=await page.evaluate(()=>{const e=DB.getExtras().find(x=>x.origemPlano&&x.origemPlano.topico);if(!e)return null;DB.setConcluidaDia(e.id,todayLocal(),true);const f=DB.getExtra(e.id);return{id:e.id,status:f.status,veredito:!!f.origemPlano?.veredito};});
-  assert.ok(fechado&&fechado.status==='concluida'&&fechado.veredito,'conclusão de Extra do Plano deve selar o ciclo antes de testar a reabertura');
+  const fechado=await page.evaluate(()=>{
+    const e=DB.getExtras().find(x=>x.origemPlano&&x.origemPlano.topico);if(!e)return null;
+    // O checkbox do card é conclusão da MISSÃO DIÁRIA para reforços gerenciados.
+    // Para testar uma conclusão global acidental usamos a mesma porta do botão
+    // “Encerrar ciclo”, que sela o veredito e pode depois ser desfeita.
+    ReforcoFila.encerrarCiclo(e.id);
+    const f=DB.getExtra(e.id);
+    return{id:e.id,status:f.status,veredito:!!f.origemPlano?.veredito,feito:f.progresso||0,alvo:f.alvo};
+  });
+  assert.ok(fechado&&fechado.status==='concluida'&&fechado.veredito,`encerramento global da Extra do Plano deve selar o ciclo antes de testar a reabertura: ${JSON.stringify(fechado)}`);
   await page.evaluate(id=>{switchScreen('extras');ExtrasScreen.selDay=todayLocal();ExtrasScreen.render();const b=document.querySelector(`.exd[data-id="${id}"] .exd-check`);if(!b)throw new Error('card concluído não encontrado para reabrir');b.click();},fechado.id);
   await esperarLivre();
   const reaberto=await page.evaluate(id=>{const e=DB.getExtra(id);return{status:e.status,veredito:!!e.origemPlano?.veredito,auditoria:!!e.origemPlano?.ultimoVereditoReaberto};},fechado.id);

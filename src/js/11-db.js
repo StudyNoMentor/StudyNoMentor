@@ -1439,7 +1439,7 @@ const DB = {
     try {
       const e = (this.getExtras() || []).find(x => x.id === id);
       if (!e || !e.origemPlano || !e.origemPlano.topico || e.origemPlano.veredito) return;
-      if (window.PlanoCiclo && typeof PlanoCiclo.vereditoManual === 'function') PlanoCiclo.vereditoManual(e);
+      if (typeof PlanoCiclo !== 'undefined' && PlanoCiclo && typeof PlanoCiclo.vereditoManual === 'function') PlanoCiclo.vereditoManual(e);
     } catch (err) { /* o ciclo é melhoria, nunca um bloqueio para gravar */ }
   },
   // Remove o ÚLTIMO lançamento (desfaz erro de digitação, que antes ficava permanente)
