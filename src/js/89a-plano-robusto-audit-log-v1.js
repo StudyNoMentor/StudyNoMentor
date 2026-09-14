@@ -35,7 +35,8 @@
     return (h>>>0).toString(36);
   };
   const uid = prefix => {
-    try { if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') return `${prefix}-${crypto.randomUUID()}`; } catch (_) {}
+    try { if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') return `${prefix}-${crypto.randomUUID()}`; }
+    catch (e) { if(typeof _quiet==='function')_quiet(e,'robusto-audit-uuid'); }
     return `${prefix}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2,10)}`;
   };
   const numericMap = o => {
@@ -116,12 +117,12 @@
           out.retratosSelecionados=D.selectedSnapIds&&typeof D.selectedSnapIds.size==='number'?D.selectedSnapIds.size:null;
           out.dataInicio=D.rangeStart||null; out.dataFim=D.rangeEnd||null;
         }
-      } catch (_) {}
+      } catch (e) { if(typeof _quiet==='function')_quiet(e,'robusto-audit-scope-tec'); }
       try {
         const snaps=DB.getTecSnapshots?DB.getTecSnapshots():[],u=snaps[snaps.length-1];
         out.retratosDisponiveis=snaps.length;
         out.ultimoRetrato=u?{id:u.id??null,data:u.endDate||u.date||u.startDate||null}:null;
-      } catch (_) {}
+      } catch (e) { if(typeof _quiet==='function')_quiet(e,'robusto-audit-scope-snapshots'); }
       return out;
     },
     _intervencao(c){
@@ -210,7 +211,8 @@
     },
     reconciliar(){
       const z=this._load(); let alterou=false,extras=[];
-      try { extras=DB.getExtras?DB.getExtras():[]; } catch (_) { extras=[]; }
+      try { extras=DB.getExtras?DB.getExtras():[]; }
+      catch (e) { if(typeof _quiet==='function')_quiet(e,'robusto-audit-reconciliar-extras'); extras=[]; }
       for(const e of extras){
         const s=e&&e.origemPlano&&e.origemPlano.sugestao||{};
         if(!/^robusto-v/.test(String(s.motor||'')))continue;
@@ -292,13 +294,20 @@
       if(typeof C.criar==='function'){
         this._origCriar=C.criar; const self=this;
         C.criar=function(){
-          let antes=new Set();try{antes=new Set((DB.getExtras?DB.getExtras():[]).map(e=>String(e.id)));}catch(_){}
+          let antes=new Set();
+          try{antes=new Set((DB.getExtras?DB.getExtras():[]).map(e=>String(e.id)));}
+          catch(e){if(typeof _quiet==='function')_quiet(e,'robusto-audit-criar-antes');}
           const ret=self._origCriar.apply(this,arguments);
           try{const novos=(DB.getExtras?DB.getExtras():[]).filter(e=>!antes.has(String(e.id)));novos.forEach(e=>self.registrarCriacao(e));self.reconciliar();}catch(e){if(typeof _quiet==='function')_quiet(e,'robusto-audit-criacao');}
           return ret;
         };
       }
-      try{window.addEventListener('beforeunload',()=>{try{this.reconciliar();}catch(_){}});}catch(_){}
+      try{
+        window.addEventListener('beforeunload',()=>{
+          try{this.reconciliar();}
+          catch(e){if(typeof _quiet==='function')_quiet(e,'robusto-audit-beforeunload-reconcile');}
+        });
+      }catch(e){if(typeof _quiet==='function')_quiet(e,'robusto-audit-beforeunload-bind');}
     }
   };
 
