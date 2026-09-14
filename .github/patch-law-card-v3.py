@@ -29,6 +29,12 @@ if old not in t:
     raise SystemExit('ponto de sincronizacao do mainAudit nao encontrado')
 t = t.replace(old,new,1)
 t = t.replace("document.querySelector('#extras-list .ux100-law-task')", "document.querySelector('#extras-list .lr-extra-card')")
+
+fixture_old = """    DB.addExtra({titulo:'Lei seca · CTN - Constituição',tipo:'leitura',disciplina:'',unidade:'linhas',alvo:30,periodo:'unica',datas:[hoje],origemLei:{rodizio:true,leiId:'ux100-lei',deLinha:1,ateLinha:30}});\n"""
+fixture_new = """    const leiExtra=DB.addExtra({titulo:'Lei seca · CTN - Constituição',tipo:'leitura',disciplina:'',unidade:'linhas',alvo:30,periodo:'unica',datas:[hoje]});\n    DB.updateExtra(leiExtra.id,{origemLei:{rodizio:true,leiId:'ux100-lei',deLinha:1,ateLinha:30}});\n"""
+if fixture_old not in t:
+    raise SystemExit('fixture antiga de Lei Seca nao encontrada')
+t = t.replace(fixture_old,fixture_new,1)
 test.write_text(t, encoding='utf-8')
 
-print('Patch v3 aplicado: seletores robustos e fixture sincronizada com os decoradores reais.')
+print('Patch v3 aplicado: seletores robustos e fixture persistindo origemLei pelo caminho real do produto.')
