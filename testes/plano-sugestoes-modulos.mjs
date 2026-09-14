@@ -33,9 +33,14 @@ const ctx={
 };
 ctx.window=Object.assign(ctx.window,ctx);
 vm.createContext(ctx);
-for(const f of ['src/js/84b-reforco-tec-extras-v8.js','src/js/87-plano-sugestoes-simplificado-v2.js','src/js/88-plano-sugestoes-robusto-v8.js','src/js/89-plano-sugestoes-controller.js']){
-  vm.runInContext(readFileSync(join(ROOT,f),'utf8'),ctx,{filename:f});
-}
+const load=f=>vm.runInContext(readFileSync(join(ROOT,f),'utf8'),ctx,{filename:f});
+load('src/js/84b-reforco-tec-extras-v8.js');
+// No navegador clássico, propriedades de window também resolvem como identificadores globais.
+// O vm do Node usa um objeto window separado, então reproduzimos explicitamente esse contrato.
+ctx.ReforcoTecExtrasV8=ctx.window.ReforcoTecExtrasV8;
+load('src/js/87-plano-sugestoes-simplificado-v2.js');
+load('src/js/88-plano-sugestoes-robusto-v8.js');
+load('src/js/89-plano-sugestoes-controller.js');
 
 const W=ctx.window;
 const S=W.PlanoSugestoesSimplificadoV3||W.PlanoSugestoesSimplificadoV2;
