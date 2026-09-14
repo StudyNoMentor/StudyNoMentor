@@ -19,9 +19,13 @@
       if (this.forceDeferred || (opts && opts.defer === true)) return true;
       try {
         /* O app historicamente expõe ações DOM síncronas e a suíte interna usa
-           `element.click()` para exercitá-las. Não quebramos esse contrato em
-           automações: adiamos somente quando há ativação REAL do usuário. Um
-           clique/toque genuíno ativa userActivation antes do handler; um
+           automação real de navegador (Playwright) além de `element.click()`.
+           `navigator.webdriver` é a fronteira explícita desse ambiente: nele
+           preservamos o contrato síncrono; o teste dedicado de UX usa
+           `forceDeferred` para exercitar exatamente o caminho humano. */
+        if (typeof navigator !== 'undefined' && navigator.webdriver) return false;
+        /* Fora de automação, adiamos somente quando há ativação REAL do usuário.
+           Um clique/toque genuíno ativa userActivation antes do handler; um
            `.click()` programático não. Em navegadores sem essa API preferimos
            o feedback visual, pois não há sinal confiável para distinguir. */
         return !(navigator && navigator.userActivation) || !!navigator.userActivation.isActive;
