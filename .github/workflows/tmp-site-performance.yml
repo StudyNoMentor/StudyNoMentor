@@ -18,6 +18,7 @@ jobs:
         run: |
           python3 .github/patch-performance-global.py
           python3 .github/patch-performance-tec-cache.py
+          python3 .github/patch-performance-extras-page.py
       - name: Sintaxe e build
         run: |
           node --check src/js/11-db.js
@@ -42,5 +43,7 @@ jobs:
         run: node testes/site-performance-browser.mjs
       - name: Validar Extras real
         run: node testes/extras-estabilidade-browser.mjs
+      - name: Validar interações Extras e TEC
+        run: node testes/extras-tec-interacoes-browser.mjs
       - name: Validar Plano TEC grande
         run: node testes/tec-plano-performance-browser.mjs
