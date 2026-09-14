@@ -1,0 +1,124 @@
+/* ============================================================================
+   STARTUP + LOADERS + REFORÇO CONTÍNUO V4
+   Garante feedback de carregamento consistente e sem spinner "congelado".
+   ============================================================================ */
+
+@keyframes uxv4-spin {
+  from { transform: translateZ(0) rotate(0deg); }
+  to   { transform: translateZ(0) rotate(360deg); }
+}
+@keyframes uxv4-pulse {
+  0%,100% { opacity:.5; }
+  50% { opacity:1; }
+}
+
+/* O seletor explícito cobre os loaders conhecidos; .uxv4-spinner é aplicado
+   também aos loaders que surgem dinamicamente depois da primeira pintura. */
+.uxv4-spinner,
+.app-loading-spin,
+.gate-spinner,
+.loading-spinner,
+.tec-loading-spinner,
+.conq-spinner,
+.screen-loading-spinner,
+.csb-spin {
+  animation: uxv4-spin .78s linear infinite !important;
+  transform-origin: 50% 50% !important;
+  will-change: transform !important;
+  backface-visibility: hidden;
+}
+
+/* Mensagem operacional sob loaders que antes exibiam só um círculo. */
+.uxv4-loader-copy {
+  display:block;
+  margin-top:9px;
+  max-width:420px;
+  text-align:center;
+  color:var(--text-soft);
+  font-size:12px;
+  line-height:1.45;
+  font-weight:650;
+}
+.uxv4-loader-copy[data-slow="1"] { color:var(--warn-text); }
+.uxv4-loader-copy small {
+  display:block;
+  margin-top:3px;
+  color:var(--text-faint);
+  font-size:10px;
+  font-weight:550;
+}
+
+/* Gate pós-login: texto muda por etapa e evita a sensação de tela morta. */
+#gate-entering .gate-entering-box { min-height:180px; }
+#gate-entering .gate-entering-text { min-height:22px; }
+#gate-entering .gate-entering-sub {
+  max-width:360px;
+  min-height:20px;
+  line-height:1.45;
+}
+#gate-entering[data-local-first="1"] .gate-spinner {
+  border-color:color-mix(in srgb,var(--good) 24%,transparent);
+  border-top-color:var(--good);
+}
+
+/* O overlay inicial não deve parecer travado em aparelho lento. */
+#app-loading .uxv4-loader-copy { margin-top:-4px; }
+
+/* Indicador discreto de reconciliação em segundo plano. */
+.uxv4-sync-note {
+  position:fixed;
+  right:14px;
+  bottom:calc(14px + env(safe-area-inset-bottom));
+  z-index:var(--z-toast,3000);
+  display:flex;
+  align-items:center;
+  gap:8px;
+  max-width:min(360px,calc(100vw - 28px));
+  padding:8px 11px;
+  border:1px solid var(--border);
+  border-radius:999px;
+  background:color-mix(in srgb,var(--surface) 94%,transparent);
+  box-shadow:var(--shadow-md);
+  color:var(--text-soft);
+  font-size:11px;
+  line-height:1.25;
+  pointer-events:none;
+  opacity:.96;
+}
+.uxv4-sync-note .uxv4-mini-spin {
+  width:14px;height:14px;border-radius:50%;flex:0 0 14px;
+  border:2px solid color-mix(in srgb,var(--accent) 22%,transparent);
+  border-top-color:var(--accent);
+  animation:uxv4-spin .78s linear infinite;
+}
+
+/* Selo de continuidade adaptativa, usado apenas quando ainda não existe novo
+   retrato do TEC. Não parece "nova medição": a linguagem é de continuidade. */
+.ra-continuity-note {
+  margin-top:10px;
+  padding:10px 12px;
+  border:1px solid color-mix(in srgb,var(--accent) 22%,var(--border));
+  border-radius:11px;
+  background:var(--surface-sunken);
+  color:var(--text-soft);
+  font-size:11px;
+  line-height:1.45;
+}
+.ra-continuity-note b { color:var(--text); }
+.ra-continuity-note .tone-warn { color:var(--warn-text); }
+.ra-continuity-note .tone-good { color:var(--good-text); }
+
+@media (prefers-reduced-motion: reduce) {
+  .uxv4-spinner,
+  .app-loading-spin,
+  .gate-spinner,
+  .loading-spinner,
+  .tec-loading-spinner,
+  .conq-spinner,
+  .screen-loading-spinner,
+  .csb-spin,
+  .uxv4-sync-note .uxv4-mini-spin {
+    animation:uxv4-pulse 1.15s ease-in-out infinite !important;
+    transform:none !important;
+  }
+}

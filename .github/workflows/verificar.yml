@@ -15,6 +15,8 @@
 #   · interacoes de Extras/Plano deixarem rotulos transitórios presos nos botoes;
 #   · Lei Seca voltar a ter estado de rodizio ambiguo, chips repetidos ou proximas abertas por padrao;
 #   · spinners, popovers de ajuda e a abertura silenciosa da nuvem regredirem;
+#   · startup local-first voltar a bloquear na nuvem quando ja existe copia local segura;
+#   · reforco adaptativo repetir a mesma dose cegamente entre duas importacoes do TEC;
 #   · algum menu voltar a bloquear a interface em perfis grandes ou CPU movel;
 #   · o botao "Opcoes" da Grade voltar a vazar do cabecalho.
 name: Verificacao
@@ -139,6 +141,13 @@ jobs:
         run: |
           npm install --no-save playwright@1.56.1
           npx playwright install --with-deps chromium
+
+      # Barreira específica da rodada v4. Cobra três contratos que não podem
+      # depender só de inspeção visual: login local-first sem espera de rede,
+      # spinner dinâmico sempre animado/com mensagem e continuidade da dose
+      # adaptativa entre retratos semanais sem fingir uma nova medição.
+      - name: Auditar startup, loaders e continuidade adaptativa
+        run: node testes/startup-reforco-v4-browser.mjs
 
       # Varredura transversal: navega pelas 14 telas com um perfil sintetico
       # grande, mede bloqueio síncrono/long tasks e repete as telas pesadas com
