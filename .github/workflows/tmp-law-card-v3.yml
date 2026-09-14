@@ -1,3 +1,4 @@
+# Validação focada após corrigir a fixture para usar DB.updateExtra, como o produto.
 name: TMP Law Card V3
 
 on:
