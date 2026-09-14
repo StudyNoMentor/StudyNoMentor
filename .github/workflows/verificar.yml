@@ -9,6 +9,7 @@
 #   · a suite AutoTeste (FSRS, fuzz, agendador, parser TEC...) regredir;
 #   · o reforco adaptativo produzir dose ou parada estatisticamente invalida;
 #   · os motores Simplificado/Robusto/Comparar quebrarem o contrato 3 disciplinas × 1 topico;
+#   · o Robusto V4 misturar alvo global/dose, inventar tempo ou quebrar os defaults por ataque;
 #   · Puxar do Plano duplicar execucao ao comparar motores ou misturar dose diaria com alvo global;
 #   · modais de Extras voltarem a se sobrepor ou a ativacao adaptativa travar;
 #   · hierarquia, presets, bordas e responsividade do menu Extras regredirem;
@@ -24,16 +25,12 @@
 name: Verificacao
 
 on:
-  # Branches de feature sao verificadas pelo evento pull_request. Rodar tambem
-  # no push dessas mesmas branches duplicava jobs, consumo e notificacoes.
   push:
     branches: [main]
   pull_request:
     branches: [main]
   workflow_dispatch:
 
-# Um novo commit no mesmo PR torna a execucao anterior obsoleta. Cancela-la
-# reduz ruido de CI sem enfraquecer a barreira de qualidade do SHA mais recente.
 concurrency:
   group: verificacao-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
@@ -42,13 +39,6 @@ permissions:
   contents: read
 
 jobs:
-  # index.html, sw.js e manifesto sao ARTEFATOS derivados de src/. Antes, toda
-  # edicao pequena em src/ gerava um job vermelho apenas porque quem alterou o
-  # codigo ainda nao tinha rodado build.mjs. Em PRs do proprio repositorio,
-  # esta etapa barata e deterministica corrige isso antes de gastar Chromium,
-  # Monte Carlo e a suite longa. Se precisar sincronizar, ela grava os gerados
-  # na propria branch; o job seguinte faz checkout do HEAD atualizado e valida
-  # tudo no MESMO workflow, sem depender de um segundo disparo do GitHub Actions.
   sincronizar-gerados:
     if: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository }}
     runs-on: ubuntu-latest
@@ -87,9 +77,6 @@ jobs:
 
   verificar:
     needs: [sincronizar-gerados]
-    # No push/main o sincronizador e pulado. No PR ele precisa apenas terminar
-    # com sucesso; o checkout abaixo busca o HEAD mais recente da branch, inclusive
-    # quando o job anterior acabou de criar o commit dos artefatos gerados.
     if: ${{ always() && (needs.sincronizar-gerados.result == 'skipped' || needs.sincronizar-gerados.result == 'success') }}
     runs-on: ubuntu-latest
     timeout-minutes: 12
@@ -102,8 +89,6 @@ jobs:
         with:
           node-version: '22'
 
-      # Falhas triviais devem morrer em segundos, antes de npm ci, Chromium e
-      # Monte Carlo. Isso reduz tentativas caras e deixa o CI mais previsivel.
       - name: Preflight rapido
         shell: bash
         run: |
@@ -116,92 +101,50 @@ jobs:
           node build.mjs
           git diff --exit-code -- index.html sw.js src/manifesto.json
 
-      # As dependencias de teste do repositorio. Sem este passo, node_modules
-      # so tem o Playwright instalado abaixo — e a checagem 6.7 (o caminho da
-      # nuvem inteiro contra um PostgREST de mentira, incluindo o token
-      # recusado por deriva de relogio) era PULADA em toda execucao da CI por
-      # falta do supabase-js, sem que ninguem percebesse: ela imprime "PULADA"
-      # e o job segue verde.
       - name: Instalar dependencias de teste
         run: npm ci
 
-      # Barreira estatistica do motor de dose adaptativa. O teste inclui casos
-      # dirigidos, 20 mil prescricoes aleatorias e 8 mil cenarios Monte Carlo.
-      # O recurso nasce opt-in: a simulacao o ativa explicitamente para testar
-      # o motor sem alterar o contrato classico das atividades existentes.
       - name: Simular prescricao adaptativa
         run: node testes/reforco-adaptativo-massivo.mjs
 
-      # Regra de negocio dos tres modos do Puxar do Plano. O teste e barato e
-      # cobra matematica, diversidade 3x1, aprendizado conservador e separacao
-      # entre dose diaria e alvo global antes de abrir navegador.
       - name: Validar motores de sugestao do Plano
         run: node testes/plano-sugestoes-modulos.mjs
 
-      # Regressao barata e estrutural: impede O(n²) no decorador do Plano,
-      # garante pilha de overlays e protege o viewport mobile antes do navegador.
+      - name: Validar roteador, otimizador e defaults do Robusto
+        run: node testes/plano-robusto-v4.mjs
+
       - name: Validar estabilidade estrutural de Extras
         run: node testes/extras-estabilidade.mjs
 
-      # Playwright so e usado pelas checagens com app real no Chromium.
-      # A versao e fixada aqui porque o navegador baixado tem de casar com ela.
       - name: Instalar Chromium
         run: |
           npm install --no-save playwright@1.56.1
           npx playwright install --with-deps chromium
 
-      # Fluxo real do novo Puxar do Plano: troca entre os tres motores, garante
-      # 3 disciplinas distintas, compara sem duplicar e cria uma unica fila.
       - name: Validar Puxar do Plano multimotor
         run: node testes/plano-sugestoes-modulos-browser.mjs
 
-      # Barreira específica da rodada v4. Cobra três contratos que não podem
-      # depender só de inspeção visual: login local-first sem espera de rede,
-      # spinner dinâmico sempre animado/com mensagem e continuidade da dose
-      # adaptativa entre retratos semanais sem fingir uma nova medição.
       - name: Auditar startup, loaders e continuidade adaptativa
         run: node testes/startup-reforco-v4-browser.mjs
 
-      # Varredura transversal: navega pelas 14 telas com um perfil sintetico
-      # grande, mede bloqueio síncrono/long tasks e repete as telas pesadas com
-      # CPU 4x mais lenta. Protege tanto carregamento inicial quanto menus.
       - name: Auditar performance do site inteiro
         run: node testes/site-performance-browser.mjs
 
-      # Reproduz o bug que motivou a correcao: Central -> Reforcos -> Adaptativo,
-      # ativa e salva em viewport mobile, cobrando camada, tempo e zero render do
-      # TEC escondido. Se voltar a travar ou abrir atras, o PR falha aqui.
       - name: Validar modais e ativacao adaptativa no navegador
         run: node testes/extras-estabilidade-browser.mjs
 
-      # Auditoria de UX do modulo inteiro: hierarquia Configuracoes -> Reforcos
-      # -> Hoje, quatro abas da Central, presets de Lei Seca/Adaptativo, bordas,
-      # overflow e responsividade em cinco larguras. Executa 100+ invariantes.
       - name: Auditar UX completa de Extras
         run: node testes/extras-ux100-browser.mjs
 
-      # Barreira transversal do Desempenho TEC: escopo equivalente nao recalcula,
-      # mudancas rapidas sao coalescidas, o bloco roda por materias distintas,
-      # Plano e Extras preservam o mesmo ciclo, atividades encerradas continuam
-      # reabriveis e a geometria permanece integra de 360px a desktop.
       - name: Auditar governanca do Desempenho TEC
         run: node testes/tec-ux100-browser.mjs
 
-      # Perfil sintetico propositalmente grande: 10 materias, 1.000 topicos e
-      # 8 retratos. Cobra resposta imediata do clique, primeira abertura e
-      # reabertura do Plano para impedir a volta de congelamentos de varios segundos.
       - name: Validar fluidez do Plano TEC
         run: node testes/tec-plano-performance-browser.mjs
 
-      # Varre os controles interativos reais de Extras e Plano em desktop/mobile,
-      # inclusive o ciclo Concluir -> Reabrir, impedindo rótulo de processamento
-      # preso, botão sem nome acessível, overflow e regressões de feedback visual.
       - name: Auditar interacoes de Extras e Plano TEC
         run: node testes/extras-tec-interacoes-browser.mjs
 
-      # Auditoria focada da rodada v3: semântica do rodízio de leis, barra de
-      # Extras compacta, Próximas recolhida, chips deduplicados, colapso de
-      # Reforços sem recalcular, popovers i, TEC recolhido e nuvem não intrusiva.
       - name: Auditar estabilidade visual v3
         run: node testes/ux-stability-v3-browser.mjs
 
