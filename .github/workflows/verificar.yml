@@ -13,6 +13,8 @@
 #   · escopo, rodizio multidisciplinar, reabertura e responsividade do Desempenho TEC regredirem;
 #   · Desempenho TEC -> Plano voltar a congelar em perfis grandes;
 #   · interacoes de Extras/Plano deixarem rotulos transitórios presos nos botoes;
+#   · Lei Seca voltar a ter estado de rodizio ambiguo, chips repetidos ou proximas abertas por padrao;
+#   · spinners, popovers de ajuda e a abertura silenciosa da nuvem regredirem;
 #   · algum menu voltar a bloquear a interface em perfis grandes ou CPU movel;
 #   · o botao "Opcoes" da Grade voltar a vazar do cabecalho.
 name: Verificacao
@@ -124,6 +126,12 @@ jobs:
       # preso, botão sem nome acessível, overflow e regressões de feedback visual.
       - name: Auditar interacoes de Extras e Plano TEC
         run: node testes/extras-tec-interacoes-browser.mjs
+
+      # Auditoria focada da rodada v3: semântica do rodízio de leis, barra de
+      # Extras compacta, Próximas recolhida, chips deduplicados, colapso de
+      # Reforços sem recalcular, popovers i, TEC recolhido e nuvem não intrusiva.
+      - name: Auditar estabilidade visual v3
+        run: node testes/ux-stability-v3-browser.mjs
 
       - name: Verificar
         run: node verificar.mjs
