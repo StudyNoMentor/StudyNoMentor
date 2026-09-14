@@ -457,26 +457,26 @@
  {
   "arquivo": "js/88d-plano-sugestoes-robusto-v4.js",
   "de": 55489,
-  "ate": 55539
+  "ate": 55529
  },
  {
   "arquivo": "js/89-plano-sugestoes-controller-v2.js",
-  "de": 55540,
-  "ate": 55633
+  "de": 55530,
+  "ate": 55623
  },
  {
   "arquivo": "js/90-plano-motores-governanca-v5.js",
-  "de": 55634,
-  "ate": 55863
+  "de": 55624,
+  "ate": 55853
  },
  {
   "arquivo": "js/91-plano-motores-central-tec-v1.js",
-  "de": 55865,
-  "ate": 55971
+  "de": 55855,
+  "ate": 55961
  },
  {
   "arquivo": "html/90-rodape.html",
-  "de": 55973,
-  "ate": 56418
+  "de": 55963,
+  "ate": 56408
  }
 ]
