@@ -1,0 +1,36 @@
+name: TMP V3 Build
+on:
+  push:
+    branches: [feat/extras-leis-tec-startup-auditoria-v3]
+permissions:
+  contents: write
+jobs:
+  build:
+    if: ${{ !contains(github.event.head_commit.message, '[skip ci]') }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Preflight e montagem
+        run: |
+          set -euo pipefail
+          node --check src/js/81-ux-stability-v3.js
+          node --check testes/ux-stability-v3-browser.mjs
+          node --check build.mjs
+          node build.mjs
+          git diff --check
+      - name: Persistir somente artefatos gerados
+        run: |
+          set -euo pipefail
+          if git diff --quiet -- index.html sw.js src/manifesto.json; then
+            echo 'Build ja sincronizado.'
+            exit 0
+          fi
+          git config user.name 'StudyNoMentor CI'
+          git config user.email 'actions@users.noreply.github.com'
+          git add index.html sw.js src/manifesto.json
+          git commit -m 'build: sincroniza artefatos v3 [skip ci]'
+          git push
