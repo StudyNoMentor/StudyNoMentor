@@ -55,6 +55,10 @@ body:has(#tec-cfg-body) #tec-cfg-body{scrollbar-gutter:stable}
 #extras-list .exd.is-proximas.done .exd-check{border-color:color-mix(in srgb,var(--good) 45%,var(--border))}
 
 @media(max-width:760px){
+  /* Área de toque mínima transversal. Alguns chips/ícones herdavam 20–24 px
+     da camada antiga e ficavam difíceis de tocar em 360 px. Mantemos a
+     densidade visual, mas o alvo interativo nunca cai abaixo de 32×32. */
+  #screen-desempenhotec.tec-audit-v2 button{min-width:32px!important;min-height:32px!important}
   #screen-desempenhotec.tec-audit-v2 .tp-command{padding:13px!important;margin-bottom:10px}
   #screen-desempenhotec.tec-audit-v2 .tp-main p{line-height:1.38}
   #screen-desempenhotec.tec-audit-v2 #tec-scope-toggle{display:grid!important;grid-template-columns:1fr 1fr 1fr!important;overflow:visible!important}
