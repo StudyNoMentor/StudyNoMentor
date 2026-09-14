@@ -482,21 +482,21 @@
  {
   "arquivo": "js/90-plano-motores-governanca-v5.js",
   "de": 56201,
-  "ate": 56430
+  "ate": 56230
  },
  {
   "arquivo": "js/91-plano-motores-central-tec-v1.js",
-  "de": 56432,
-  "ate": 56462
+  "de": 56232,
+  "ate": 56263
  },
  {
   "arquivo": "js/92-tec-plano-fonte-motor-v1.js",
-  "de": 56464,
-  "ate": 56701
+  "de": 56265,
+  "ate": 56502
  },
  {
   "arquivo": "html/90-rodape.html",
-  "de": 56703,
-  "ate": 57148
+  "de": 56504,
+  "ate": 56949
  }
 ]
