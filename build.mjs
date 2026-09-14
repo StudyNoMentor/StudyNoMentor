@@ -1,6 +1,27 @@
 #!/usr/bin/env node
 /* ═══════════════════════════════════════════════════════════════════════════
    MONTADOR — src/  ->  index.html
+   ───────────────────────────────────────────────────────────────────────────
+   O que é publicado continua sendo UM arquivo: index.html, sem build step para
+   quem só quer usar o app. Este montador existe para quem vai MANTER o código.
+
+   Regra que torna isto seguro: a montagem é uma CONCATENAÇÃO LITERAL. Nada é
+   minificado, transpilado, reordenado ou reescrito. O index.html gerado é
+   BYTE A BYTE igual ao que já estava no repositório — `node build.mjs --check`
+   prova isso e falha se alguém quebrar a equivalência.
+
+   Uso:
+     node build.mjs            monta src/ -> index.html
+     node build.mjs --check    monta em memória e compara com o index.html atual
+                               (não escreve nada; sai com código 1 se divergir)
+
+   Por que NÃO viramos módulos ES de verdade (<script type="module" src=...>):
+     1) o app tem de abrir por file:// — módulos ES são bloqueados por CORS aí;
+     2) seriam ~45 requisições em vez de 1, e o app é offline-first;
+     3) a CSP teria de afrouxar;
+     4) o escopo global compartilhado é premissa do código atual — converter
+        para import/export seria uma reescrita, não uma reorganização.
+   A separação em src/ dá a manutenção sem pagar nenhum desses preços.
    ═══════════════════════════════════════════════════════════════════════════ */
 import { readFileSync, writeFileSync } from 'node:fs';
 import { createHash } from 'node:crypto';
@@ -9,10 +30,20 @@ import { fileURLToPath } from 'node:url';
 
 const RAIZ = dirname(fileURLToPath(import.meta.url));
 const ler = (p) => readFileSync(join(RAIZ, 'src', p), 'utf8');
+
+/* A montagem também produz o MAPA (src/manifesto.json): qual faixa de linhas do
+   index.html veio de qual arquivo. Ele existe para quem precisa ir de uma linha
+   do arquivo publicado até a fonte dela — e um mapa desatualizado é pior que
+   nenhum, porque manda a pessoa para o lugar errado. Por isso ele é gerado
+   AQUI, junto com o index.html, em vez de mantido à mão. */
 const SEGMENTOS = [];
 const S = (p) => { const t = ler(p); SEGMENTOS.push({ arquivo: p, texto: t }); return t; };
 const SEP = (t) => { SEGMENTOS.push({ texto: t }); return t; };
 
+/* A ordem abaixo é a ordem FÍSICA no index.html. Os separadores estruturais
+   (as próprias tags <style>/<script> que embrulham os blocos) moram aqui, e não
+   nos módulos, para que cada arquivo de src/ seja CSS ou JS puro — editável com
+   realce de sintaxe e verificável com `node --check`. */
 const PARTES = [
   S('html/00-cabecalho.html'),
   SEP('\n<style>\n'),            S('css/01-base.css'),
