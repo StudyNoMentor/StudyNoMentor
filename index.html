@@ -57,7 +57,7 @@
      novo, e o antigo é descartado sozinho na ativação) e o que permite ao app
      dizer qual versão está rodando. Em src/ fica "dev" de propósito: a versão
      é gerada na montagem, não editada à mão. -->
-<meta name="diario-versao" content="vee11492195">
+<meta name="diario-versao" content="v0c7f73acce">
 <script>
 /* ── ARRANQUE: abre o IndexedDB AGORA, em paralelo com o parse do documento ──
    A fachada de armazenamento vive no fim do <body>, depois de ~1,7 MB de HTML.
@@ -12771,6 +12771,17 @@ html.extras-modal-open,html.extras-modal-open body{overflow:hidden!important;ove
 <style id="interaction-feedback-v1">
 /* Feedback imediato para ações que disparam cálculo/render pesado. */
 .ui-working{position:relative!important;cursor:wait!important;opacity:.82!important;pointer-events:none!important}.ui-working::before{content:"";display:inline-block;width:13px;height:13px;min-width:13px;margin-right:7px;border:2px solid currentColor;border-right-color:transparent;border-radius:50%;vertical-align:-2px;animation:ui-work-spin .7s linear infinite}.ui-work-region{cursor:wait}.ui-work-region>*{transition:opacity .12s ease}.ui-work-region>.pl-item,.ui-work-region>.pl-hoje,.ui-work-region>.pl-tempo,.ui-work-region>.pl-hero,.ui-work-region>.pl-ciclo{opacity:.64}.ui-work-hud{position:fixed;z-index:2450;left:50%;top:max(18px,env(safe-area-inset-top));transform:translateX(-50%);display:flex;align-items:center;gap:9px;max-width:min(92vw,420px);padding:10px 14px;border:1px solid color-mix(in srgb,var(--accent) 28%,var(--border));border-radius:999px;background:color-mix(in srgb,var(--surface) 94%,transparent);color:var(--text);box-shadow:0 10px 34px rgba(15,23,42,.16);font-size:12px;font-weight:750;letter-spacing:.01em;backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);pointer-events:none}.ui-work-hud i{display:block;width:15px;height:15px;min-width:15px;border:2px solid var(--accent);border-right-color:transparent;border-radius:50%;animation:ui-work-spin .7s linear infinite}.exm-reopen{color:var(--accent)!important}.pl-foco-bt{color:var(--text)!important;opacity:1!important;white-space:nowrap}.pl-foco-bt.is-on{color:var(--accent)!important}.pl-ocupado{cursor:wait}.pl-ocupado::after{content:"Processando…";display:inline-flex;align-items:center;margin:8px 0;padding:5px 9px;border-radius:999px;background:var(--surface-sunken);color:var(--text-faint);font-size:10px;font-weight:700}@keyframes ui-work-spin{to{transform:rotate(360deg)}}@media(prefers-reduced-motion:reduce){.ui-working::before,.ui-work-hud i{animation-duration:1.6s}}@media(max-width:520px){.ui-work-hud{top:max(10px,env(safe-area-inset-top));font-size:11px;padding:9px 12px}.pl-foco-bt{min-width:66px}}
+
+
+/* Auditoria de interação: feedback sem mutar rótulos e sem salto de layout. */
+#screen-extras button:not(:disabled),#screen-desempenhotec button:not(:disabled){-webkit-tap-highlight-color:transparent}
+#screen-extras button:not(:disabled):active,#screen-desempenhotec button:not(:disabled):active{opacity:.78}
+#screen-extras button:focus-visible,#screen-desempenhotec button:focus-visible{outline:2px solid color-mix(in srgb,var(--accent) 72%,white);outline-offset:2px}
+.exd-check.ui-working{min-width:0;overflow:hidden}
+.exd-check.ui-working::before{position:absolute;left:50%;top:50%;width:15px;height:15px;min-width:15px;margin:0;transform:translate(-50%,-50%);z-index:2;animation:ui-work-spin-center .7s linear infinite}
+.exd-check.ui-working>svg,.exd-check.ui-working>.exd-check-lbl{opacity:.18}
+@keyframes ui-work-spin-center{to{transform:translate(-50%,-50%) rotate(360deg)}}
+@media(prefers-reduced-motion:reduce){.exd-check.ui-working::before{animation-duration:1.6s}}
 
 </style>
 
@@ -31950,8 +31961,16 @@ const ExtrasScreen = {
     const extrasPlano = DB.getExtras().filter(e => e.origemPlano && e.origemPlano.topico && e.status !== 'concluida');
     if (!extrasPlano.length) { host.innerHTML = ''; return; }
     let itens = [];
-    try { itens = PlanoCiclo.emCurso(this._planoRefCard || (this._planoRefCard =
-      PlanoEngine.calcular(DesempenhoTecScreen.scopedSnapshot(), PlanoEngine.prefs()))); }
+    try {
+      /* Repinturas encadeadas (registrar → concluir → reabrir) não precisam
+         recalcular a mesma fotografia do TEC a cada clique. O cache curto do
+         próprio Desempenho TEC já é a régua usada pela criação em lote e é
+         invalidado quando o escopo muda. */
+      const refPlano = (typeof DesempenhoTecScreen !== 'undefined' && typeof DesempenhoTecScreen._planoRef === 'function')
+        ? DesempenhoTecScreen._planoRef()
+        : PlanoEngine.calcular(DesempenhoTecScreen.scopedSnapshot(), PlanoEngine.prefs());
+      itens = PlanoCiclo.emCurso(this._planoRefCard || (this._planoRefCard = refPlano));
+    }
     catch (e) { _quiet(e, 'curso'); }
     if (!itens.length) { host.innerHTML = ''; return; }
     const aberto = this._cursoAberto !== false;
@@ -32024,18 +32043,28 @@ const ExtrasScreen = {
     /* "Fazer hoje" é o agendamento MANUAL que sobrou: a exceção para quem quer
        fixar um assunto num dia, sem que isso vire regra para todos. */
     host.querySelectorAll('[data-curso-dia]').forEach(b => b.addEventListener('click', () => {
-      DB.toggleExtraData(b.dataset.cursoDia, todayLocal());
-      this.selDay = todayLocal(); showToast('Marcada para hoje ✓'); this.render();
+      const executar = () => {
+        DB.toggleExtraData(b.dataset.cursoDia, todayLocal());
+        this.selDay = todayLocal(); showToast('Marcada para hoje ✓'); this.render();
+      };
+      if (window.WorkFeedback) WorkFeedback.run(b, 'Organizando…', executar, { region: '#extras-curso', context: 'extras-curso-hoje' });
+      else executar();
     }));
     host.querySelectorAll('[data-curso-fim]').forEach(b => b.addEventListener('click', () => {
-      DB.setConcluidaDia(b.dataset.cursoFim, todayLocal(), true);
-      showToast('Concluída ✓'); this.render();
+      const executar = () => {
+        DB.setConcluidaDia(b.dataset.cursoFim, todayLocal(), true);
+        showToast('Concluída ✓'); this.render();
+      };
+      if (window.WorkFeedback) WorkFeedback.run(b, 'Concluindo…', executar, { region: '#extras-curso', context: 'extras-curso-concluir' });
+      else executar();
     }));
     host.querySelectorAll('[data-curso-del]').forEach(b => b.addEventListener('click', async () => {
       const e = DB.getExtras().find(x => x.id === b.dataset.cursoDel);
       if (!e) return;
       if (!await UI.confirm('Excluir "' + e.titulo + '"?', { title: 'Excluir atividade', okText: 'Excluir', danger: true })) return;
-      DB.deleteExtra(e.id); showToast('Atividade excluída'); this.render();
+      const executar = () => { DB.deleteExtra(e.id); showToast('Atividade excluída'); this.render(); };
+      if (window.WorkFeedback) WorkFeedback.run(b, 'Excluindo…', executar, { region: '#extras-curso', context: 'extras-curso-excluir' });
+      else executar();
     }));
   },
   // ── Ocorrências de um dia ──────────────────────────────────────────────
@@ -32502,10 +32531,14 @@ const ExtrasScreen = {
         if (!q || parseFloat(q) <= 0) { showToast('Informe um valor válido'); return; }
         if (acEl && acEl.value !== '' && parseFloat(acEl.value) > parseFloat(q)) { showToast('Acertos não podem passar do total'); return; }
         if (day > todayLocal()) { showToast('Não dá para registrar em data futura'); return; }
-        DB.addExtraProgress(id, q, 0, { data: day, acertos: acEl ? acEl.value : null });
-        this._addMoreFor = null;
-        this.render();
-        showToast(day === todayLocal() ? 'Registrado ✓' : 'Registrado em ' + formatDateShort(day) + ' ✓');
+        const executar = () => {
+          DB.addExtraProgress(id, q, 0, { data: day, acertos: acEl ? acEl.value : null });
+          this._addMoreFor = null;
+          this.render();
+          showToast(day === todayLocal() ? 'Registrado ✓' : 'Registrado em ' + formatDateShort(day) + ' ✓');
+        };
+        if (window.WorkFeedback) WorkFeedback.run(regBtn, 'Registrando…', executar, { region: '#extras-list', context: 'extras-registro' });
+        else executar();
       });
       // "Registrar mais": revela o campo de entrada mesmo já havendo um registro no dia
       const moreBtn = card.querySelector('.exd-reg-more');
@@ -39701,7 +39734,9 @@ const DesempenhoTecScreen = {
     this._ligarFatias(lista);
     lista.querySelectorAll('.plano-nova-extra').forEach(b => b.addEventListener('click', () => {
       this._confirmarSobreposicao(b.dataset.topico, b.dataset.disc).then(ok => {
-        if (ok) this.criarExtraDoPlano(b.dataset.topico, b.dataset.disc, b.dataset.alvo, b.dataset.motivo);
+        if (!ok) return;
+        this._trabalharPlano(b, 'Criando atividade…', () =>
+          this.criarExtraDoPlano(b.dataset.topico, b.dataset.disc, b.dataset.alvo, b.dataset.motivo));
       });
     }));
     /* O "i" de cada matéria: a análise inteira num diálogo, que é onde ela cabe
@@ -39773,7 +39808,10 @@ const DesempenhoTecScreen = {
       });
     }));
     const irExtras = document.getElementById('plano-ir-extras');
-    if (irExtras) irExtras.addEventListener('click', () => switchScreen('extras'));
+    if (irExtras) irExtras.addEventListener('click', () => {
+      if (window.WorkFeedback) WorkFeedback.run(irExtras, 'Abrindo atividades…', () => switchScreen('extras'), { overlay: true, region: '#tec-panel-plano', context: 'plano-ir-extras' });
+      else switchScreen('extras');
+    });
     lista.querySelectorAll('[data-ciclo-excluir]').forEach(b => b.addEventListener('click', async () => {
       const e = DB.getExtras().find(x => x.id === b.dataset.cicloExcluir);
       if (!e) return;
@@ -44947,15 +44985,20 @@ window.ReforcoFila = ReforcoFila;
       if (el) this._busy.add(el);
 
       const estado = el ? {
-        html: el.innerHTML,
         disabled: !!el.disabled,
-        ariaBusy: el.getAttribute('aria-busy')
+        ariaBusy: el.getAttribute('aria-busy'),
+        workLabel: el.getAttribute('data-work-label')
       } : null;
       if (el) {
         el.classList.add('ui-working');
         el.setAttribute('aria-busy', 'true');
         el.disabled = true;
-        if (rotulo && /^(BUTTON|A)$/.test(el.tagName)) el.textContent = rotulo;
+        /* O rótulo REAL do controle nunca é substituído. O spinner vem da
+           classe `.ui-working`; `data-work-label` serve apenas como metadado de
+           diagnóstico/acessibilidade e não entra no conteúdo do botão. Assim um
+           render no meio da operação não pode cristalizar “Processando…” dentro
+           de um botão novo. */
+        if (rotulo) el.setAttribute('data-work-label', rotulo);
       }
       if (regiao) {
         regiao.classList.add('ui-work-region');
@@ -44979,7 +45022,7 @@ window.ReforcoFila = ReforcoFila;
             el.classList.remove('ui-working');
             if (estado.ariaBusy == null) el.removeAttribute('aria-busy'); else el.setAttribute('aria-busy', estado.ariaBusy);
             el.disabled = estado.disabled;
-            if (estado.html != null && /^(BUTTON|A)$/.test(el.tagName)) el.innerHTML = estado.html;
+            if (estado.workLabel == null) el.removeAttribute('data-work-label'); else el.setAttribute('data-work-label', estado.workLabel);
           }
         }
         if (regiao && regiao.isConnected) {

@@ -21,6 +21,23 @@ async function esperarPlano(){
   await page.evaluate(()=>new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(r))));
 }
 async function esperarLivre(){await page.waitForFunction(()=>!document.querySelector('.ui-work-hud,.ui-working'),null,{timeout:10000});}
+async function auditarControles(root,label){
+  const r=await page.evaluate(sel=>{
+    const host=document.querySelector(sel);if(!host)return{ausente:true,vazios:[],stale:[],overflow:0};
+    const vis=e=>{const cs=getComputedStyle(e),b=e.getBoundingClientRect();return cs.display!=='none'&&cs.visibility!=='hidden'&&b.width>0&&b.height>0};
+    const botoes=[...host.querySelectorAll('button,[role="button"]')].filter(vis);
+    return{
+      ausente:false,
+      vazios:botoes.filter(b=>!String(b.textContent||'').trim()&&!b.getAttribute('aria-label')&&!b.getAttribute('title')).map(b=>b.id||b.className||b.outerHTML.slice(0,80)),
+      stale:botoes.filter(b=>!b.classList.contains('ui-working')&&/^(processando|carregando|filtrando|recalculando|criando|concluindo|registrando|abrindo)/i.test(String(b.textContent||'').trim())).map(b=>(b.textContent||'').trim()),
+      overflow:Math.max(0,host.scrollWidth-host.clientWidth)
+    };
+  },root);
+  assert.equal(r.ausente,false,`${label}: raiz ausente`);
+  assert.deepEqual(r.vazios,[],`${label}: botão visível sem nome acessível`);
+  assert.deepEqual(r.stale,[],`${label}: rótulo transitório ficou preso`);
+  assert.ok(r.overflow<=4,`${label}: overflow horizontal ${r.overflow}px`);
+}
 
 try{
   await page.goto(url,{waitUntil:'domcontentloaded'});
@@ -45,6 +62,32 @@ try{
     DT.scopeMode='consolidado';DT.selectedSnapIds=new Set(snaps.map(s=>s.id));DT.rangeStart=null;DT.rangeEnd=null;DT._scopedC=null;DT._planoRefC=null;DT._fatias=null;PE._agrC=null;PE._tecScopeSignature=null;PE._indiceC=new WeakMap();
     return{snapshots:snaps.length,disciplinas:disciplinas.length,topicos:1000,linhas:snaps.reduce((s,x)=>s+x.rows.length,0)};
   });
+
+  // Regressão do bug relatado: concluir/reabrir não pode trocar o nome do
+  // botão por “Processando…” nem deixar estado transitório preso no card novo.
+  await page.evaluate(()=>{switchScreen('extras');ExtrasScreen.selDay=todayLocal();ExtrasScreen.render();});
+  const rotulo=await page.evaluate(()=>{
+    const e=DB.addExtra({titulo:'Extra de rótulo estável',tipo:'livre',alvo:1,periodo:'unica'});
+    ExtrasScreen.render();
+    const b=document.querySelector(`.exd[data-id="${e.id}"] .exd-check`),t=performance.now();
+    const antes=(b.textContent||'').trim();b.click();
+    return{id:e.id,antes,imediato:(b.textContent||'').trim(),sync:performance.now()-t,busy:b.classList.contains('ui-working')};
+  });
+  assert.equal(rotulo.antes,'Concluir','atividade nova deve começar em Concluir');
+  assert.equal(rotulo.imediato,'Concluir','feedback não pode substituir o rótulo por Processando');
+  assert.ok(rotulo.sync<100,`concluir bloqueou o clique por ${rotulo.sync.toFixed(0)}ms`);
+  assert.equal(rotulo.busy,true,'concluir deve sinalizar processamento sem reescrever o rótulo');
+  await esperarLivre();
+  const aposConcluir=await page.evaluate(id=>{const b=document.querySelector(`.exd[data-id="${id}"] .exd-check`);return{txt:(b?.textContent||'').trim(),busy:!!b?.classList.contains('ui-working'),status:DB.getExtra(id)?.status};},rotulo.id);
+  assert.equal(aposConcluir.txt,'Reabrir','card concluído deve terminar com rótulo Reabrir');
+  assert.equal(aposConcluir.busy,false,'card novo não pode herdar estado busy');
+  assert.equal(aposConcluir.status,'concluida');
+  const reabrirRotulo=await page.evaluate(id=>{const b=document.querySelector(`.exd[data-id="${id}"] .exd-check`),t=performance.now();const antes=(b.textContent||'').trim();b.click();return{antes,imediato:(b.textContent||'').trim(),sync:performance.now()-t};},rotulo.id);
+  assert.equal(reabrirRotulo.antes,'Reabrir');
+  assert.equal(reabrirRotulo.imediato,'Reabrir','reabrir também preserva o rótulo durante o spinner');
+  await esperarLivre();
+  assert.equal(await page.evaluate(id=>(document.querySelector(`.exd[data-id="${id}"] .exd-check`)?.textContent||'').trim(),rotulo.id),'Concluir');
+  await auditarControles('#screen-extras','Extras desktop');
 
   // Extras → Puxar do Plano: feedback precisa pintar ANTES do cálculo.
   await page.evaluate(()=>{switchScreen('extras');ExtrasScreen.selDay=todayLocal();ExtrasScreen.render();});
@@ -116,6 +159,15 @@ try{
   await esperarLivre();
   assert.equal(await page.evaluate(id=>DB.getExtra(id)?.status,manual),'ativa','Gerenciador deve reabrir a Extra concluída');
 
+  await page.evaluate(()=>{switchScreen('desempenhotec');DesempenhoTecScreen.switchTecTab('plano');});
+  await esperarPlano();
+  await auditarControles('#tec-panel-plano','Plano TEC desktop');
+  await page.setViewportSize({width:390,height:844});
+  await page.evaluate(()=>{switchScreen('extras');ExtrasScreen.selDay=todayLocal();ExtrasScreen.render();});
+  await auditarControles('#screen-extras','Extras mobile');
+  await page.evaluate(()=>{switchScreen('desempenhotec');DesempenhoTecScreen.switchTecTab('plano');});
+  await esperarPlano();
+  await auditarControles('#tec-panel-plano','Plano TEC mobile');
   assert.deepEqual(errors,[],'fluxos de Extras/Plano não devem gerar erro de página ou console');
   console.log(`OK_FLUIDEZ volume=${JSON.stringify(volume)} modalPlano=${modalWall}ms extras=${antes}->${depois} focos=${focos.length}`);
 }finally{

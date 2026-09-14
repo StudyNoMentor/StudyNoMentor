@@ -5804,7 +5804,9 @@ const DesempenhoTecScreen = {
     this._ligarFatias(lista);
     lista.querySelectorAll('.plano-nova-extra').forEach(b => b.addEventListener('click', () => {
       this._confirmarSobreposicao(b.dataset.topico, b.dataset.disc).then(ok => {
-        if (ok) this.criarExtraDoPlano(b.dataset.topico, b.dataset.disc, b.dataset.alvo, b.dataset.motivo);
+        if (!ok) return;
+        this._trabalharPlano(b, 'Criando atividade…', () =>
+          this.criarExtraDoPlano(b.dataset.topico, b.dataset.disc, b.dataset.alvo, b.dataset.motivo));
       });
     }));
     /* O "i" de cada matéria: a análise inteira num diálogo, que é onde ela cabe
@@ -5876,7 +5878,10 @@ const DesempenhoTecScreen = {
       });
     }));
     const irExtras = document.getElementById('plano-ir-extras');
-    if (irExtras) irExtras.addEventListener('click', () => switchScreen('extras'));
+    if (irExtras) irExtras.addEventListener('click', () => {
+      if (window.WorkFeedback) WorkFeedback.run(irExtras, 'Abrindo atividades…', () => switchScreen('extras'), { overlay: true, region: '#tec-panel-plano', context: 'plano-ir-extras' });
+      else switchScreen('extras');
+    });
     lista.querySelectorAll('[data-ciclo-excluir]').forEach(b => b.addEventListener('click', async () => {
       const e = DB.getExtras().find(x => x.id === b.dataset.cicloExcluir);
       if (!e) return;
