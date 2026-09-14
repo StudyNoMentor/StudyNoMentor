@@ -1,6 +1,7 @@
 /* Desempenho TEC — auditoria visual e responsiva v2 */
 #screen-desempenhotec.tec-audit-v2{--tec-v2-border:color-mix(in srgb,var(--text) 14%,var(--border));--tec-v2-soft:color-mix(in srgb,var(--accent) 4%,var(--surface))}
 #screen-desempenhotec.tec-audit-v2 .card,#screen-desempenhotec.tec-audit-v2 .tp-command,#screen-desempenhotec.tec-audit-v2 .tl2-guide,#screen-desempenhotec.tec-audit-v2 .pl-hero,#screen-desempenhotec.tec-audit-v2 .pl-tempo,#screen-desempenhotec.tec-audit-v2 .pl-hoje,#screen-desempenhotec.tec-audit-v2 .pl-item{border-color:var(--tec-v2-border)!important}
+#screen-desempenhotec.tec-audit-v2 button{min-width:28px!important;min-height:28px!important}
 #screen-desempenhotec.tec-audit-v2 .tp-command{margin-bottom:14px;box-shadow:0 8px 24px rgba(12,25,45,.045)}
 #screen-desempenhotec.tec-audit-v2 .tec-v2-scope-status{margin:-4px 0 12px;padding:9px 12px;border:1px solid color-mix(in srgb,var(--accent) 28%,var(--border));border-radius:11px;background:var(--accent-soft);font-size:11px;font-weight:750;color:var(--accent);animation:tec-v2-pulse 1.15s ease-in-out infinite alternate}
 @keyframes tec-v2-pulse{from{opacity:.74}to{opacity:1}}
