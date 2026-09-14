@@ -74,8 +74,12 @@
   if (typeof RA.config === 'function' && !RA._uxv4ConfigCopy) {
     RA._uxv4ConfigCopy = true;
     const cfg = RA.config.bind(RA);
-    RA.config = function () {
-      const out = cfg();
+    RA.config = function (...args) {
+      /* O wrapper de estabilidade usa `fromCentral`/`returnTab` para fechar a
+         Central antes do editor e reabri-la na mesma aba ao sair. A versão
+         anterior descartava esses argumentos ao chamar `cfg()`, deixando dois
+         overlays vivos ao mesmo tempo. Preserve integralmente o contrato. */
+      const out = cfg(...args);
       setTimeout(() => {
         try {
           const calls = [...document.querySelectorAll('.ra-overlay .ra-callout')];
