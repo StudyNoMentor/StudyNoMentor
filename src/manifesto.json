@@ -405,18 +405,33 @@
   "ate": 54951
  },
  {
-  "arquivo": "js/86-plano-sugestoes-v1.js",
+  "arquivo": "js/85-mentor90-policy-v6.js",
   "de": 54953,
-  "ate": 55379
+  "ate": 55014
  },
  {
-  "arquivo": "js/87-plano-sugestoes-governanca-v1.js",
-  "de": 55381,
-  "ate": 55552
+  "arquivo": "js/86-plano-sugestoes-infra-v2.js",
+  "de": 55016,
+  "ate": 55091
+ },
+ {
+  "arquivo": "js/87-plano-sugestoes-simplificado-v2.js",
+  "de": 55093,
+  "ate": 55256
+ },
+ {
+  "arquivo": "js/88-plano-sugestoes-robusto-v2.js",
+  "de": 55258,
+  "ate": 55384
+ },
+ {
+  "arquivo": "js/89-plano-sugestoes-controller-v2.js",
+  "de": 55386,
+  "ate": 55475
  },
  {
   "arquivo": "html/90-rodape.html",
-  "de": 55554,
-  "ate": 55999
+  "de": 55477,
+  "ate": 55922
  }
 ]
