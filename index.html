@@ -57,7 +57,7 @@
      novo, e o antigo é descartado sozinho na ativação) e o que permite ao app
      dizer qual versão está rodando. Em src/ fica "dev" de propósito: a versão
      é gerada na montagem, não editada à mão. -->
-<meta name="diario-versao" content="vef9a912d0f">
+<meta name="diario-versao" content="v2a6cce67d5">
 <script>
 /* ── ARRANQUE: abre o IndexedDB AGORA, em paralelo com o parse do documento ──
    A fachada de armazenamento vive no fim do <body>, depois de ~1,7 MB de HTML.
@@ -12905,24 +12905,35 @@ html.extras-modal-open,html.extras-modal-open body{overflow:hidden!important;ove
 
 /* ── 5. Lei seca: bloco de rota deixa de virar um cartão dentro do cartão ── */
 #extras-list .lr-extra-card.ux100-law-task{
-  border-color:color-mix(in srgb,#0f9d63 40%,var(--border))!important;
+  background:var(--surface)!important;
+}
+#extras-list .lr-extra-card.ux100-law-task:not(.is-concluidas){
+  border-color:color-mix(in srgb,var(--text-faint) 30%,var(--border))!important;
+}
+#extras-list .lr-extra-card.ux100-law-task:not(.is-concluidas)::before{
+  background:var(--accent)!important;
+  opacity:.72;
+}
+#extras-list .lr-extra-card.ux100-law-task.is-concluidas{
+  border-color:color-mix(in srgb,var(--good) 44%,var(--border))!important;
+  background:color-mix(in srgb,var(--good-soft) 26%,var(--surface))!important;
 }
 #extras-list .ux100-law-task .lr-route{
   display:grid;
   grid-template-columns:minmax(0,1fr) auto;
   align-items:center;
   gap:10px;
-  margin:9px 0 7px 78px;
+  margin:12px 0 7px 78px;
   padding:9px 10px;
-  border:1.25px solid color-mix(in srgb,#0f9d63 34%,var(--border));
+  border:1.25px solid color-mix(in srgb,var(--text-faint) 26%,var(--border));
   border-radius:11px;
-  background:color-mix(in srgb,#0f9d63 6%,var(--surface));
+  background:color-mix(in srgb,var(--accent) 2.5%,var(--surface));
 }
 #extras-list .ux100-law-task .lr-route-main{gap:1px}
-#extras-list .ux100-law-task .lr-route-main small{font-size:9px}
+#extras-list .ux100-law-task .lr-route-main small{font-size:9px;color:var(--text-muted)}
 #extras-list .ux100-law-task .lr-route-main strong{font-size:12px;line-height:1.2}
 #extras-list .ux100-law-task .lr-route-main span{font-size:9px;line-height:1.3}
-#extras-list .ux100-law-task .lr-route .btn-secondary{min-height:36px;padding:6px 10px;white-space:nowrap;border-color:color-mix(in srgb,#0f9d63 28%,var(--border))}
+#extras-list .ux100-law-task .lr-route .btn-secondary{min-height:36px;padding:6px 10px;white-space:nowrap;border-color:color-mix(in srgb,var(--accent) 18%,var(--border))}
 
 /* ── 6. Central de Extras: cartões e limites mais visíveis ───────────────── */
 .xsc-modal{border:1.5px solid color-mix(in srgb,var(--text-faint) 28%,var(--border))}
@@ -13079,6 +13090,23 @@ html.extras-modal-open,html.extras-modal-open body{overflow:hidden!important;ove
   .ra-ux100 .ra-metric-grid{grid-template-columns:1fr 1fr;gap:6px}
   .ra-ux100 .ra-strategies{gap:6px}
   .ra-ux100 .ra-dose-cols,.ra-ux100 .ra-weights{grid-template-columns:1fr 1fr;gap:6px}
+}
+
+
+/* Lei seca aberta: ações pertencem ao cabeçalho e nunca encostam no bloco de leitura. */
+@media(max-width:390px){
+  #extras-list .ux100-law-task .exd-top{
+    grid-template-columns:25px 36px minmax(0,1fr) auto;
+    align-items:start;
+  }
+  #extras-list .ux100-law-task .exd-actions{
+    grid-column:4;
+    grid-row:1;
+    align-self:start;
+    justify-self:end;
+    margin:0 0 8px;
+  }
+  #extras-list .ux100-law-task .lr-route{margin:12px 0 7px}
 }
 
 </style>

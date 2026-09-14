@@ -55,6 +55,19 @@ async function mainAudit(width,height){
   if(visual.task)ok(visual.task>=1,`Card precisa de limite visível (${visual.task})`);else ok(true,'sem card neste quadro');
   eq(visual.rot,0,'controles de automação duplicados não devem ficar na agenda');
   ok(visual.title.startsWith('Extras de hoje'),'agenda deve comunicar execução diária');
+  const law=await page.evaluate(()=>{
+    const card=document.querySelector('#extras-list .ux100-law-task');
+    if(!card)return{exists:false};
+    const route=card.querySelector('.lr-route'),actions=card.querySelector('.exd-actions');
+    const probe=document.createElement('i');probe.style.cssText='position:fixed;left:-9999px;background:var(--surface)';document.body.appendChild(probe);
+    const surface=getComputedStyle(probe).backgroundColor;probe.remove();
+    const rr=route?.getBoundingClientRect(),ar=actions?.getBoundingClientRect();
+    return{exists:true,bg:getComputedStyle(card).backgroundColor,surface,concluded:card.classList.contains('is-concluidas'),gap:rr&&ar?rr.top-ar.bottom:999};
+  });
+  ok(law.exists,'Lei seca precisa estar presente no cenário de auditoria');
+  ok(!law.concluded,'Lei seca de hoje aberta não pode usar estado visual de concluída');
+  eq(law.bg,law.surface,'Lei seca aberta deve manter fundo neutro do surface');
+  ok(law.gap>=6,`ações da Lei seca precisam ficar separadas do bloco de leitura (${law.gap.toFixed(1)}px)`);
   if(width<=430){
     const actions=await page.evaluate(()=>[...document.querySelectorAll('#extras-list .exd-actions')].map(a=>{const r=a.getBoundingClientRect(),card=a.closest('.exd')?.getBoundingClientRect();return{left:r.left,right:r.right,top:r.top,bottom:r.bottom,cl:card?.left,cr:card?.right};}));
     actions.forEach((r,i)=>ok(r.left>=r.cl-1&&r.right<=r.cr+1,`ações ${i} não podem escapar do card`));
