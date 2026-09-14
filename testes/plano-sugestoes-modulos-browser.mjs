@@ -19,10 +19,10 @@ page.on('console',m=>{if(m.type()==='error'&&!/net::|ERR_|favicon/.test(m.text()
 async function abrir(){
   await page.evaluate(()=>{switchScreen('extras');ExtrasScreen.selDay=todayLocal();ExtrasScreen.render();});
   await page.locator('#extras-plano-btn').click();
-  await page.waitForFunction(()=>document.getElementById('ui-modal')?.style.display==='flex'&&!!document.querySelector('.ps-mode-grid'),null,{timeout:8000});
+  await page.waitForFunction(()=>document.getElementById('ui-modal')?.style.display==='flex'&&!!document.querySelector('.ps-engine-chooser,.ps-single-engine'),null,{timeout:8000});
 }
 async function esperarModo(modo){
-  await page.waitForFunction(m=>document.querySelector(`.ps-mode[data-ps-modo="${m}"]`)?.classList.contains('active'),modo,{timeout:5000});
+  await page.waitForFunction(m=>document.querySelector(`[data-ps-modo="${m}"]`)?.classList.contains('active'),modo,{timeout:5000});
   await page.waitForTimeout(120);
 }
 async function snapshotLista(){
@@ -49,10 +49,13 @@ try{
     DB._set(DB.KEYS.tec,snaps);DB.saveExtras([]);
     PlanoEngine.salvarPrefs({...PlanoEngine.DEFAULTS,migracao:4,limite:200,minAmostra:20,incluirPequenas:false,granPiso:0,foco:[],disciplina:'__todas__',sugestoesDisciplinas:3,sugestoesTopicosDisc:1});
     PlanoSugestoesV2.salvar({modo:'robusto',fase:'pre',meta:90,minAmostra:20,banca:'__todas__'});
+    if(window.PlanoMotoresGovernancaV5)PlanoMotoresGovernancaV5.restaurar();
     DesempenhoTecScreen.scopeMode='consolidado';DesempenhoTecScreen.selectedSnapIds=new Set(snaps.map(s=>s.id));DesempenhoTecScreen.rangeStart=null;DesempenhoTecScreen.rangeEnd=null;DesempenhoTecScreen._scopedC=null;DesempenhoTecScreen._planoRefC=null;PlanoEngine._agrC=null;PlanoEngine._tecScopeSignature=null;PlanoEngine._indiceC=new WeakMap();
   });
 
   await abrir();
+  assert.equal(await page.locator('.ps-engine-card').count(),2,'com os dois motores ativos deve haver dois cartões principais');
+  assert.equal(await page.locator('.ps-compare-launch').count(),1,'Comparar deve ser uma ação secundária própria');
   let snap=await snapshotLista();
   assert.equal(snap.cards.length,3,'Robusto deve abrir com exatamente 3 sugestões');
   assert.equal(new Set(snap.cards.map(x=>x.disc)).size,3,'Robusto deve usar 3 disciplinas distintas');
@@ -79,7 +82,7 @@ try{
   assert.match(await page.locator('[data-rv4-panel]').textContent(),/Base ampla|padrões recomendados/i);
   snap=await snapshotLista();assert.ok(snap.overflow<=4,`painel robusto não pode criar overflow horizontal (${snap.overflow}px)`);
 
-  await page.locator('.ps-mode[data-ps-modo="simplificado"]').click();await esperarModo('simplificado');
+  await page.locator('[data-ps-modo="simplificado"]').click();await esperarModo('simplificado');
   snap=await snapshotLista();
   assert.equal(snap.cards.length,3,'Simplificado deve manter a estrutura 3×1');
   assert.equal(new Set(snap.cards.map(x=>x.disc)).size,3,'Simplificado deve usar 3 disciplinas distintas');
@@ -89,7 +92,7 @@ try{
   const rule=await page.locator('.ps-rule').textContent();
   assert.match(rule,/3 disciplinas distintas/i,'a regra 3×1 deve estar explícita no modal');
 
-  await page.locator('.ps-mode[data-ps-modo="comparar"]').click();await esperarModo('comparar');
+  await page.locator('[data-ps-modo="comparar"]').click();await esperarModo('comparar');
   snap=await snapshotLista();
   assert.equal(snap.compare.length,3,'Comparar deve mostrar no máximo uma linha por cada uma das 3 disciplinas');
   assert.equal(new Set(snap.compare.map(x=>x.disc)).size,3,'Comparar não pode repetir disciplina');
@@ -117,7 +120,7 @@ try{
   await page.locator('#ui-modal-cancel').click();
 
   assert.deepEqual(errors,[],`erros no navegador: ${errors.join(' | ')}`);
-  console.log('OK: Puxar do Plano V4 — painel Robusto, resets, motores independentes, Comparar e execução única 3×1.');
+  console.log('OK: Puxar do Plano V5 — seletor redesenhado, painel Robusto, motores independentes, Comparar e execução única 3×1.');
 } finally {
   await browser.close();
   await new Promise(r=>server.close(r));
