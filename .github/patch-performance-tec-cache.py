@@ -53,4 +53,5 @@ new = """    const assinar = (snap) => {
 if old not in s: raise SystemExit('assinatura TEC nao encontrada')
 s = s.replace(old, new, 1)
 p.write_text(s)
+# Alteração semântica acima; esta linha apenas garante nova execução da barreira após atualizar o workflow.
 print('PATCH_TEC_SIG_OK')
