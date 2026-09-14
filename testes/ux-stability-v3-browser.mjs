@@ -71,7 +71,8 @@ try{
   /* Lista de Leis: nomenclatura deixa explícito o efeito sobre Extras. */
   const lawStatus=await page.evaluate(()=>{
     const oldGet=DB.getLei,oldCfg=LeiRodizio.cfgLei,oldPrefs=LeiRodizio.prefs,oldBm=LeiRodizio._bookmark;
-    const host=document.createElement('div');host.id='uxv3-law-host';host.innerHTML='<div class="lr-law-wrap"><article class="lei-card" data-id="lei-teste"></article><div class="lr-law-tools"><label class="lr-switch"><input type="checkbox" data-lr-law-on checked><span>Apta para rodízio</span></label><span class="lr-law-next">antigo</span><button data-lr-law-cfg>Ajustar</button></div></div>';document.body.appendChild(host);
+    const host=document.createElement('div');host.id='uxv3-law-host';host.innerHTML='<div class="lr-law-wrap"><article class="lei-card" data-id="lei-teste"></article><div class="lr-law-tools"><label class="lr-switch"><input type="checkbox" data-lr-law-on checked><span>Apta para rodízio</span></label><span class="lr-law-next">antigo</span><button data-lr-law-cfg>Ajustar</button></div></div>';
+    const lawsRoot=document.getElementById('screen-leis'); if(!lawsRoot) throw new Error('screen-leis ausente'); lawsRoot.appendChild(host);
     DB.getLei=()=>({id:'lei-teste'});LeiRodizio.cfgLei=()=>({apta:true,linhasSessao:30});LeiRodizio.prefs=()=>({linhasSessao:30});LeiRodizio._bookmark=()=>31;
     UXV3.decorateLawList();const h=host.querySelector('.lr-law-wrap'),out={in:h.textContent.includes('Incluída nos Extras automáticos'),next:h.textContent.includes('Linha 31'),sub:h.textContent.includes('Pode gerar a leitura do dia')};
     DB.getLei=oldGet;LeiRodizio.cfgLei=oldCfg;LeiRodizio.prefs=oldPrefs;LeiRodizio._bookmark=oldBm;host.remove();return out;
