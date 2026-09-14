@@ -20,9 +20,19 @@ const errors=[];
 page.on('pageerror',e=>errors.push(e.message));
 page.on('console',m=>{ if(m.type()==='error'&&!/net::|ERR_|favicon/.test(m.text())) errors.push(m.text()); });
 
+const instalarLongTasks = async (nome='__globalPerf') => page.evaluate((n)=>{
+  window[n]={longTasks:[]};
+  if(typeof PerformanceObserver!=='undefined'&&PerformanceObserver.supportedEntryTypes?.includes('longtask')){
+    const po=new PerformanceObserver(l=>l.getEntries().forEach(e=>window[n].longTasks.push({name:e.name,duration:e.duration,start:e.startTime})));
+    po.observe({entryTypes:['longtask']});
+  }
+},nome);
+
 try {
+  const startupIni=Date.now();
   await page.goto(url,{waitUntil:'domcontentloaded'});
   await page.waitForFunction(()=>typeof switchScreen==='function'&&typeof DB==='object',{timeout:30000});
+  const startupNormalMs=Date.now()-startupIni;
   const volume=await page.evaluate(()=>{
     try{ProfileUI.hideGate();}catch{}
     const hoje=new Date();
@@ -46,13 +56,9 @@ try {
     DB._set(DB.KEYS.leis,Array.from({length:120},(_,i)=>({id:`lei-${i}`,titulo:`Lei ${i+1}`,nome:`Lei ${i+1}`,texto:'Art. 1º Texto de teste. '.repeat(20),updatedAt:instante(i*1000)})));
     DB._set(DB.KEYS.entries,Array.from({length:2400},(_,i)=>({id:`ent-${i}`,date:dia(-(i%240)),data:dia(-(i%240)),subject:disciplinas[i%disciplinas.length],disciplina:disciplinas[i%disciplinas.length],minutes:30+(i%90),minutos:30+(i%90),durationMin:30+(i%90),questions:20+(i%40),questoes:20+(i%40),total:20+(i%40),correct:10+(i%20),acertos:10+(i%20),method:'Questões',metodo:'Questões'})));
     try{ DesempenhoTecScreen.scopeMode='consolidado'; DesempenhoTecScreen.selectedSnapIds=new Set(snaps.map(s=>s.id)); DesempenhoTecScreen._scopedC=null; DesempenhoTecScreen._planoRefC=null; }catch{}
-    window.__globalPerf={longTasks:[]};
-    if(typeof PerformanceObserver!=='undefined'&&PerformanceObserver.supportedEntryTypes?.includes('longtask')){
-      const po=new PerformanceObserver(l=>l.getEntries().forEach(e=>window.__globalPerf.longTasks.push({name:e.name,duration:e.duration,start:e.startTime})));
-      po.observe({entryTypes:['longtask']});window.__globalPerfObserver=po;
-    }
     return {snapshots:snaps.length,disciplinas:disciplinas.length,topicos:disciplinas.length*80,linhas:snaps.reduce((s,x)=>s+x.rows.length,0),entries:2400,extras:180,links:250,leis:120};
   });
+  await instalarLongTasks();
 
   const telas=await page.evaluate(()=>[...new Set([...document.querySelectorAll('[data-screen]')].map(b=>b.dataset.screen).filter(Boolean))]);
   const resultados=[];
@@ -68,11 +74,39 @@ try {
     resultados.push({tela,syncMs:+sync.toFixed(1),settleMs:wall,maxLongMs:+maxLong.toFixed(1),longTasks:info.longTasks.length,texto:info.text,active:info.active});
   }
   resultados.sort((a,b)=>Math.max(b.syncMs,b.maxLongMs)-Math.max(a.syncMs,a.maxLongMs));
+  console.log('PERF_SITE_STARTUP normalMs='+startupNormalMs);
   console.log('PERF_SITE volume='+JSON.stringify(volume));
   console.log('PERF_SITE_RANKING '+JSON.stringify(resultados));
+
+  // Segunda passagem conservadora: CPU 4x mais lenta, aproximadamente o cenário
+  // em que um atraso de 250ms no desktop vira travamento percebido no celular.
+  const cdp=await page.context().newCDPSession(page);
+  await cdp.send('Emulation.setCPUThrottlingRate',{rate:4});
+  const slowIni=Date.now();
+  await page.reload({waitUntil:'domcontentloaded'});
+  await page.waitForFunction(()=>typeof switchScreen==='function'&&typeof DB==='object',{timeout:30000});
+  const startupSlowMs=Date.now()-slowIni;
+  await page.evaluate(()=>{ try{ProfileUI.hideGate();}catch{} });
+  await instalarLongTasks('__slowPerf');
+  const pesadas=['extras','desempenhotec','evolucao','conquistas','leis'];
+  const slow=[];
+  for(const tela of pesadas){
+    await page.evaluate(()=>{ __slowPerf.longTasks=[]; try{ if(typeof DesempenhoTecScreen!=='undefined'){DesempenhoTecScreen._scopedC=null;DesempenhoTecScreen._planoRefC=null;} if(typeof PlanoEngine!=='undefined') PlanoEngine._agrC=null; }catch{} });
+    const sync=await page.evaluate((t)=>{const ini=performance.now();switchScreen(t);return performance.now()-ini;},tela);
+    await page.evaluate(()=>new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(r))));
+    await page.waitForTimeout(180);
+    const info=await page.evaluate((t)=>({active:document.getElementById('screen-'+t)?.classList.contains('active')||false,longTasks:__slowPerf.longTasks.slice()}),tela);
+    slow.push({tela,syncMs:+sync.toFixed(1),maxLongMs:+Math.max(0,...info.longTasks.map(x=>x.duration)).toFixed(1),longTasks:info.longTasks.length,active:info.active});
+  }
+  await cdp.send('Emulation.setCPUThrottlingRate',{rate:1});
+  console.log('PERF_SITE_SLOW4X startupMs='+startupSlowMs+' ranking='+JSON.stringify(slow));
+
   assert.ok(resultados.every(x=>x.active),'todas as telas devem ativar corretamente');
   assert.ok(resultados.every(x=>x.syncMs<1000),'nenhuma troca de tela pode bloquear >1s antes de devolver o controle: '+JSON.stringify(resultados.filter(x=>x.syncMs>=1000)));
   assert.ok(resultados.every(x=>x.maxLongMs<1500),'nenhuma tela pode gerar long task >1,5s: '+JSON.stringify(resultados.filter(x=>x.maxLongMs>=1500)));
+  assert.ok(startupSlowMs<6000,'startup com CPU 4x não pode ultrapassar 6s: '+startupSlowMs+'ms');
+  assert.ok(slow.every(x=>x.active),'telas pesadas devem ativar sob CPU 4x');
+  assert.ok(slow.every(x=>x.syncMs<2200),'nenhuma tela pesada pode bloquear >2,2s sob CPU 4x: '+JSON.stringify(slow.filter(x=>x.syncMs>=2200)));
   assert.deepEqual(errors,[],'não deve haver erro de página/console durante a varredura global');
 } finally {
   await browser.close();
