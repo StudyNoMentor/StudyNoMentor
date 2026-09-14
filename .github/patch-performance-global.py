@@ -79,13 +79,11 @@ new_occ = """  occurrencesForDay(day) {
 trocar('src/js/47-tela-extras.js', old_occ, new_occ)
 
 # Minutagem usa a mesma fotografia já lida para a pintura atual.
-for antigo, novo in [
-    ("return DB.getExtras().reduce((s, x) => {", "return (DB._extrasReadSnapshot || DB.getExtras()).reduce((s, x) => {")
-]:
-    # há três funções consecutivas com o mesmo começo
-    p=Path('src/js/47-tela-extras.js'); s=p.read_text(); count=s.count(antigo)
-    if count < 3: raise SystemExit(f'esperava >=3 minutagens, achei {count}')
-    p.write_text(s.replace(antigo, novo, 3))
+antigo = "return DB.getExtras().reduce((s, x) => {"
+novo = "return (DB._extrasReadSnapshot || DB.getExtras()).reduce((s, x) => {"
+p = Path('src/js/47-tela-extras.js'); s = p.read_text(); count = s.count(antigo)
+if count < 3: raise SystemExit(f'esperava >=3 minutagens, achei {count}')
+p.write_text(s.replace(antigo, novo, 3))
 
 # A camada moderna compartilha a fotografia e não relê cada card pelo id.
 trocar('src/js/55-extras-ui-moderna.js',
@@ -118,5 +116,53 @@ new_wrap = """  const renderOriginal = ExtrasScreen.render;
     return ret;
   };"""
 trocar('src/js/55-extras-ui-moderna.js', old_wrap, new_wrap)
+
+# TEC: durante uma única pintura, todos os blocos usam exatamente o mesmo
+# conjunto já desserializado e ordenado. É um snapshot efêmero, não cache global:
+# a próxima pintura começa limpando-o, então sync/importação nunca fica presa a
+# dados antigos.
+trocar('src/js/11-db.js',
+"  getTecSnapshots() {\n    const list = this._get(this.KEYS.tec, []);",
+"  getTecSnapshots() {\n    if (Array.isArray(this._tecReadSnapshot)) return this._tecReadSnapshot;\n    const list = this._get(this.KEYS.tec, []);")
+
+old_render = """  render() {
+    const snaps = DB.getTecSnapshots();
+    const emptyEl = document.getElementById('tec-empty');
+    const importEl = document.getElementById('tec-import');
+    const analysisEl = document.getElementById('tec-analysis');
+    importEl.style.display = 'none';
+    if (snaps.length === 0) {
+      emptyEl.style.display = 'block';
+      analysisEl.style.display = 'none';
+      return;
+    }"""
+new_render = """  render() {
+    // Uma abertura do TEC consulta os mesmos retratos em escopo, análise, série,
+    // árvore e Plano. Desserializar 8× milhares de linhas a cada chamada era
+    // trabalho repetido. A fotografia dura somente este render.
+    DB._tecReadSnapshot = null;
+    const snaps = DB.getTecSnapshots();
+    DB._tecReadSnapshot = snaps;
+    const emptyEl = document.getElementById('tec-empty');
+    const importEl = document.getElementById('tec-import');
+    const analysisEl = document.getElementById('tec-analysis');
+    importEl.style.display = 'none';
+    if (snaps.length === 0) {
+      emptyEl.style.display = 'block';
+      analysisEl.style.display = 'none';
+      DB._tecReadSnapshot = null;
+      return;
+    }"""
+trocar('src/js/51-tela-desempenho-tec.js', old_render, new_render)
+
+# Não renderizar Análise escondida quando a pessoa voltou para Plano/Reforço/
+# Incidência. A aba ativa passa a ser a única que paga seu motor naquele retorno.
+trocar('src/js/51-tela-desempenho-tec.js',
+"    this.renderScopeControls(snaps);\n    this.renderAnalysis();\n    this.switchTecTab(this.tecTab || 'analise'); // reaplica a aba ativa\n    this.applyCfgHidden();\n    this.applyEnxuto();\n  },",
+"    this.renderScopeControls(snaps);\n    this.switchTecTab(this.tecTab || 'analise'); // reaplica e renderiza só a aba ativa\n    this.applyCfgHidden();\n    this.applyEnxuto();\n    DB._tecReadSnapshot = null;\n  },")
+
+trocar('src/js/51-tela-desempenho-tec.js',
+"    if (tab === 'incidencia') this.renderIncidencia();\n    if (tab === 'reforco') this.renderReforco();\n    if (tab === 'plano') this.renderPlano();",
+"    if (tab === 'analise') this.renderAnalysis();\n    if (tab === 'incidencia') this.renderIncidencia();\n    if (tab === 'reforco') this.renderReforco();\n    if (tab === 'plano') this.renderPlano();")
 
 print('PATCH_PERF_OK')
