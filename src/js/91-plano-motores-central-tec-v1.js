@@ -5,7 +5,7 @@
 (() => {
   if (typeof window === 'undefined' || window.__planoMotoresCentralTecV1) return;
   const G=window.PlanoMotoresGovernancaV5,C=window.PlanoSugestoesV2,S=window.PlanoSugestoesSimplificadoV2,R=window.PlanoSugestoesRobustoV4||window.PlanoSugestoesRobustoV2,I=window.PlanoSugestoesInfraV2;
-  const DT=typeof DesempenhoTecScreen!=='undefined'?DesempenhoTecScreen:window.DesempenhoTecScreen;
+  const DT=(typeof DesempenhoTecScreen!=='undefined'&&DesempenhoTecScreen)||window.DesempenhoTecScreen;
   if(!G||!C||!S||!R||!I||!DT)return;
   window.__planoMotoresCentralTecV1=true;
   const esc=I.esc||((s)=>String(s??''));
@@ -78,7 +78,7 @@
 
     syncVisibility(){
       if(typeof document==='undefined')return;const e=G.estado(),algum=e.simplificado||e.robusto,btn=document.querySelector('.tec-subtab[data-tectab="motores"]'),panel=document.getElementById('tec-panel-motores');
-      if(btn){btn.hidden=!algum;btn.setAttribute('aria-hidden',algum?'false':'true');}
+      if(btn){btn.hidden=!algum;btn.style.display=algum?'':'none';btn.setAttribute('aria-hidden',algum?'false':'true');}
       if(!algum&&DT.tecTab==='motores'){if(this._origSwitch)this._origSwitch('analise');else DT.tecTab='analise';}
       if(panel&&!algum)panel.style.display='none';
     },
@@ -91,13 +91,13 @@
           this.tecTab='motores';document.querySelectorAll('#tec-subtabs .tec-subtab').forEach(b=>b.classList.toggle('active',b.dataset.tectab==='motores'));
           document.querySelectorAll('[id^="tec-panel-"]').forEach(el=>{el.style.display=el.id==='tec-panel-motores'?'block':'none';});self.renderPanel();return;
         }
-        const out=self._origSwitch(tab);const p=document.getElementById('tec-panel-motores');if(p)p.style.display='none';return out;
+        const out=self._origSwitch(tab);const p=document.getElementById('tec-panel-motores');if(p)p.style.display='none';self.syncVisibility();return out;
       };
     },
 
     instalarRenderHook(){
       if(this._renderInstalled||!this._origRender)return;this._renderInstalled=true;const self=this;
-      DT.render=function(){const r=self._origRender();self.ensureUi();return r;};
+      DT.render=function(){const r=self._origRender();self.ensureUi();self.syncVisibility();return r;};
     },
 
     init(){this.instalarModal();this.instalarTabs();this.instalarRenderHook();this.ensureUi();window.addEventListener('plano:motores-change',()=>{this.ensureUi();this.renderPanel();});}
