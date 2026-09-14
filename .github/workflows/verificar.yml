@@ -9,10 +9,12 @@
 #   · a suite AutoTeste (FSRS, fuzz, agendador, parser TEC...) regredir;
 #   · o reforco adaptativo produzir dose ou parada estatisticamente invalida;
 #   · os motores Simplificado/Robusto/Comparar quebrarem o contrato 3 disciplinas × 1 topico;
+#   · o Robusto voltar a inferir metodo pedagogico em vez de focar alvo, dose e tempo;
+#   · o Plano TEC misturar a recomendacao legada com a fonte Simplificado/Robusto escolhida;
 #   · o log do Robusto perder decisoes, desfechos, isolamento local ou privacidade do JSON;
 #   · a governanca global deixar motor desligado reaparecer ou executar por preferencia antiga;
 #   · configuracoes de Simplificado/Robusto vazarem de Desempenho TEC para Extras;
-#   · o Robusto V5 misturar alvo global/dose, inventar tempo ou quebrar os defaults por ataque;
+#   · o Robusto misturar alvo global/dose, inventar tempo ou quebrar os defaults por ataque;
 #   · Puxar do Plano duplicar execucao ao comparar motores ou misturar dose diaria com alvo global;
 #   · modais de Extras voltarem a se sobrepor ou a ativacao adaptativa travar;
 #   · hierarquia, presets, bordas e responsividade do menu Extras regredirem;
@@ -116,6 +118,9 @@ jobs:
       - name: Validar roteador, otimizador e defaults do Robusto
         run: node testes/plano-robusto-v4.mjs
 
+      - name: Validar foco do Robusto V7 em questoes aprofundadas
+        run: node testes/plano-robusto-foco-questoes-v7.mjs
+
       - name: Validar log auditavel do Robusto
         run: node testes/plano-robusto-audit-log.mjs
 
@@ -138,6 +143,9 @@ jobs:
 
       - name: Validar central dos motores no Desempenho TEC
         run: timeout 90s node testes/plano-motores-central-tec-browser.mjs
+
+      - name: Validar fonte das sugestoes no Plano TEC
+        run: timeout 90s node testes/tec-plano-fonte-motor-browser.mjs
 
       - name: Auditar startup, loaders e continuidade adaptativa
         run: node testes/startup-reforco-v4-browser.mjs
