@@ -57,7 +57,7 @@
      novo, e o antigo é descartado sozinho na ativação) e o que permite ao app
      dizer qual versão está rodando. Em src/ fica "dev" de propósito: a versão
      é gerada na montagem, não editada à mão. -->
-<meta name="diario-versao" content="vebe5357272">
+<meta name="diario-versao" content="v321c2a1c8d">
 <script>
 /* ── ARRANQUE: abre o IndexedDB AGORA, em paralelo com o parse do documento ──
    A fachada de armazenamento vive no fim do <body>, depois de ~1,7 MB de HTML.
@@ -55806,7 +55806,8 @@ else CloudStore.init();
    ============================================================================ */
 (() => {
   if (typeof window === 'undefined' || window.__planoMotoresCentralTecV1) return;
-  const G=window.PlanoMotoresGovernancaV5,C=window.PlanoSugestoesV2,S=window.PlanoSugestoesSimplificadoV2,R=window.PlanoSugestoesRobustoV4||window.PlanoSugestoesRobustoV2,I=window.PlanoSugestoesInfraV2,DT=window.DesempenhoTecScreen;
+  const G=window.PlanoMotoresGovernancaV5,C=window.PlanoSugestoesV2,S=window.PlanoSugestoesSimplificadoV2,R=window.PlanoSugestoesRobustoV4||window.PlanoSugestoesRobustoV2,I=window.PlanoSugestoesInfraV2;
+  const DT=typeof DesempenhoTecScreen!=='undefined'?DesempenhoTecScreen:window.DesempenhoTecScreen;
   if(!G||!C||!S||!R||!I||!DT)return;
   window.__planoMotoresCentralTecV1=true;
   const esc=I.esc||((s)=>String(s??''));
