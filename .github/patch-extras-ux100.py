@@ -57,4 +57,13 @@ replace_once(
     "  ok(visual.title.startsWith('Extras de hoje'),'agenda deve comunicar execução diária');"
 )
 
+# O editor adaptativo, por contrato, reabre a Central na aba Reforços ao fechar.
+# Ao repetir a auditoria em outro viewport, reutiliza a Central que já voltou em
+# vez de tentar clicar no botão que ficou atrás do overlay.
+replace_once(
+    'testes/extras-ux100-browser.mjs',
+    "  await page.evaluate(()=>{switchScreen('extras');ExtrasScreen.render();});\n  await page.locator('#extras-settings-btn').click();\n  await page.locator('[data-xsc-tab=\"reforcos\"]').click();\n  await page.locator('[data-ra-open]').waitFor({state:'visible'});",
+    "  await page.evaluate(()=>{switchScreen('extras');ExtrasScreen.render();});\n  await page.waitForTimeout(70);\n  if(!(await page.locator('.xsc-overlay').count())) await page.locator('#extras-settings-btn').click();\n  await page.locator('.xsc-overlay').waitFor({state:'visible'});\n  await page.locator('[data-xsc-tab=\"reforcos\"]').click();\n  await page.locator('[data-ra-open]').waitFor({state:'visible'});"
+)
+
 print('Patch UX100 aplicado/ja presente.')
