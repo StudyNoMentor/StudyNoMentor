@@ -57,7 +57,7 @@
      novo, e o antigo é descartado sozinho na ativação) e o que permite ao app
      dizer qual versão está rodando. Em src/ fica "dev" de propósito: a versão
      é gerada na montagem, não editada à mão. -->
-<meta name="diario-versao" content="vde8c2f04c1">
+<meta name="diario-versao" content="vd32a50d8be">
 <script>
 /* ── ARRANQUE: abre o IndexedDB AGORA, em paralelo com o parse do documento ──
    A fachada de armazenamento vive no fim do <body>, depois de ~1,7 MB de HTML.
@@ -13548,6 +13548,50 @@ body:has(#tec-cfg-body) #tec-cfg-body{scrollbar-gutter:stable}
 /* A aba Motores é governada pela disponibilidade dos motores, não pela antiga preferência genérica de abas. */.tec-subtab[data-tectab="motores"][aria-hidden="false"].ux-off{display:block!important}
 @media(max-width:720px){.pmc-intro{padding:16px;flex-direction:column}.pmc-state{grid-auto-flow:column;justify-items:start;align-items:center;gap:8px;min-width:0}.pmc-state span{margin:0}.pmc-engine-card>header{padding:15px 16px}.pmc-simple-grid{grid-template-columns:1fr;padding:15px 16px}.pmc-pill{max-width:150px}.pmc-engine-card>footer{padding:10px 16px;flex-direction:column;gap:3px}[data-pmc-robusto-host]{padding:14px 16px 18px}.pmc-robust-summary{margin:14px 16px 0}.pmc-audit-card{margin:0 16px 16px}.pmc-audit-stats{grid-template-columns:repeat(2,minmax(0,1fr))}.pmc-audit-actions{flex-direction:column}.pmc-audit-actions button{width:100%}}
 @media(max-width:420px){.pmc-engine-card>header{flex-direction:column}.pmc-pill{max-width:100%}.pmc-engine-id>span{font-size:24px}.pmc-intro h2{font-size:16px}.pmc-audit-card>header{flex-direction:column}.pmc-audit-local{align-self:flex-start}}
+
+</style>
+
+<style id="tec-plano-fonte-motor-v1">
+/* Desempenho TEC — fonte explícita das sugestões */
+.tpm-selector,.tpm-output{border:1px solid var(--border);background:var(--surface);border-radius:14px;box-shadow:var(--shadow-sm)}
+.tpm-selector{padding:14px 16px;margin:0 0 14px}
+.tpm-selector>header,.tpm-output>header{display:flex;align-items:flex-start;justify-content:space-between;gap:14px;flex-wrap:wrap}
+.tpm-selector>header small,.tpm-output>header small{display:block;font-size:var(--fs-3xs);font-weight:800;letter-spacing:.08em;color:var(--text-faint)}
+.tpm-selector>header strong,.tpm-output>header strong{display:block;font-size:var(--fs-md);margin-top:2px}
+.tpm-selector>header>span,.tpm-output>header>span{font-size:var(--fs-2xs);color:var(--text-soft)}
+.tpm-selector>p{margin:10px 0 0;font-size:var(--fs-2xs);line-height:1.55;color:var(--text-soft)}
+.tpm-source-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin-top:12px}
+.tpm-source-grid button{appearance:none;border:1.5px solid var(--border);background:var(--surface-sunken);color:var(--text);border-radius:12px;padding:11px 12px;display:grid;grid-template-columns:auto minmax(0,1fr) auto;align-items:center;gap:10px;text-align:left;cursor:pointer;min-width:0}
+.tpm-source-grid button.active{border-color:var(--accent);box-shadow:0 0 0 2px color-mix(in srgb,var(--accent) 16%,transparent)}
+.tpm-source-grid button>span{font-size:22px}.tpm-source-grid button b{display:block}.tpm-source-grid button small{display:block;color:var(--text-soft);font-size:var(--fs-3xs);line-height:1.35;margin-top:2px}.tpm-source-grid button i{font-style:normal;font-size:var(--fs-3xs);font-weight:800;color:var(--accent)}
+.tpm-output{padding:15px 16px;margin:0 0 16px}
+.tpm-output>header p{margin:5px 0 0;max-width:850px;color:var(--text-soft);font-size:var(--fs-2xs);line-height:1.5}
+.tpm-method{margin:12px 0;padding:10px 12px;border-radius:10px;background:var(--surface-sunken);font-size:var(--fs-2xs);line-height:1.55;color:var(--text-soft)}
+.tpm-recs{display:grid;gap:10px;margin-top:12px}
+.tpm-rec{display:grid;grid-template-columns:34px minmax(0,1fr);gap:10px;border:1px solid var(--border);border-radius:12px;padding:11px;background:var(--surface-sunken)}
+.tpm-rank{width:30px;height:30px;border-radius:9px;display:grid;place-items:center;font-weight:900;background:var(--surface);border:1px solid var(--border)}
+.tpm-main{min-width:0}.tpm-head{display:flex;justify-content:space-between;align-items:flex-start;gap:10px;flex-wrap:wrap}.tpm-head small{display:block;color:var(--text-faint);font-size:var(--fs-3xs);font-weight:800}.tpm-head b{display:block;margin-top:1px;font-size:var(--fs-sm)}
+.tpm-score{font-size:var(--fs-3xs);font-weight:800;color:var(--text-soft);white-space:nowrap}
+.tpm-metrics{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:7px;margin-top:9px}.tpm-metrics>span{border:1px solid var(--border);background:var(--surface);border-radius:9px;padding:7px 8px;min-width:0}.tpm-metrics b{display:block;font-size:var(--fs-sm);overflow-wrap:anywhere}.tpm-metrics small{display:block;margin-top:2px;color:var(--text-faint);font-size:var(--fs-3xs);line-height:1.3}.tpm-dose{border-color:color-mix(in srgb,var(--accent) 35%,var(--border))!important}
+.tpm-context,.tpm-target{margin:8px 0 0;font-size:var(--fs-2xs);line-height:1.5;color:var(--text-soft)}
+.tpm-output>footer{display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap;margin-top:11px;padding-top:10px;border-top:1px solid var(--border);font-size:var(--fs-3xs);color:var(--text-faint)}
+.tpm-empty{padding:14px 0 2px;color:var(--text-soft);font-size:var(--fs-sm)}
+/* Com fonte explícita, a terceira lógica legada deixa de disputar a decisão. */
+#plano-lista.tpm-engine-active>.pl-ciclo.pl-tempo,
+#plano-lista.tpm-engine-active>.pl-hoje,
+#plano-lista.tpm-engine-active>.pl-ciclo.pl-calib,
+#plano-lista.tpm-engine-active>.pl-ordem,
+#plano-lista.tpm-engine-active>.pl-porque,
+#plano-lista.tpm-engine-active>.pl-item,
+#plano-lista.tpm-engine-active>.pl-marco,
+#plano-lista.tpm-engine-active>.pl-segundo,
+#plano-lista.tpm-engine-active>.pl-mais{display:none!important}
+#plano-proj .tpm-legacy-decision{display:none!important}
+/* V7 não tenta escolher método pedagógico; esses knobs ficam fora da UI. */
+[data-rv5-row="recursos.roteadorAtivo"],[data-rv5-group="roteador"]{display:none!important}
+.rv7-method-note{margin:10px 0 14px;padding:10px 12px;border:1px solid var(--border);border-radius:10px;background:var(--surface-sunken);color:var(--text-soft);font-size:var(--fs-2xs);line-height:1.55}
+@media(max-width:720px){.tpm-source-grid{grid-template-columns:1fr}.tpm-metrics{grid-template-columns:repeat(2,minmax(0,1fr))}.tpm-output,.tpm-selector{padding:12px}.tpm-rec{grid-template-columns:30px minmax(0,1fr);padding:9px}.tpm-output>header>span{width:100%}}
+@media(max-width:390px){.tpm-metrics{grid-template-columns:1fr 1fr}.tpm-source-grid button{grid-template-columns:auto minmax(0,1fr)}.tpm-source-grid button i{grid-column:2}.tpm-head{display:block}.tpm-score{display:block;margin-top:4px}.tpm-rec{gap:7px}}
 
 </style>
 
@@ -56058,6 +56102,127 @@ else CloudStore.init();
 })();
 
 /* ============================================================================
+   ROBUSTO V7 — FOCO OPERACIONAL EM QUESTOES APROFUNDADAS
+   ----------------------------------------------------------------------------
+   O motor decide ONDE atacar, QUANTO atacar e, quando ha amostra de tempo,
+   QUANTO TEMPO o bloco tende a consumir. O metodo de estudo dentro de cada
+   questao pertence ao aluno (comentarios, resumo e cards) e nao e inferido.
+   ============================================================================ */
+(() => {
+  if (typeof window === 'undefined' || window.__robustoFocoQuestoesV7) return;
+  const R = window.PlanoSugestoesRobustoV6 || window.PlanoSugestoesRobustoV5 || window.PlanoSugestoesRobustoV4;
+  const RO = window.PlanoRobustoRouterV6 || window.PlanoRobustoRouterV5 || window.PlanoRobustoRouterV4;
+  const C = window.PlanoRobustoConfigV6 || window.PlanoRobustoConfigV5 || window.PlanoRobustoConfigV4;
+  if (!R || !RO || !C) return;
+  window.__robustoFocoQuestoesV7 = true;
+
+  const n = (v, d = 0) => Number.isFinite(Number(v)) ? Number(v) : d;
+  C.REVISAO_AUDITORIA = 7;
+  RO.VERSAO = 7;
+  RO.REVISAO_AUDITORIA = 7;
+
+  RO.decidir = function(c, cfg) {
+    if (!c) return null;
+    cfg = cfg || {};
+    const r = cfg.roteador || {}, dom = c.mentor && c.mentor.dominio || {}, cal = c.mentor && c.mentor.calibracao || {};
+    const qAtual = Math.max(0, Math.round(n(c.qJanela)));
+    const minAmostra = Math.max(1, Math.round(n(c.minAmostra, 20)));
+    const alvo = Math.max(1, Math.round(n(c.alvo, 20)));
+    const dose = Math.max(1, Math.round(n(c.doseDiaria, r.questoesBloco || 12)));
+    const queda = (() => {
+      for (const k of ['quedaPP', 'queda', 'deltaTaxa', 'tendenciaPP']) {
+        const v = Number(c.item && c.item[k]);
+        if (Number.isFinite(v)) return (k === 'deltaTaxa' || k === 'tendenciaPP') ? -v : v;
+      }
+      return 0;
+    })();
+    const vencido = !!(dom.vencido || (c.item && c.item.vencido));
+    const dominioAlto = ['elite', 'competitivo', 'manutencao', 'operacional'].includes(dom.nivel);
+
+    let qq = Math.min(alvo, dose);
+    let motivo = 'Bloco calculado pela prioridade do Robusto e limitado pela dose operacional.';
+    let contexto = 'correcao';
+
+    if (qAtual < minAmostra) {
+      qq = Math.min(alvo, Math.max(5, minAmostra - qAtual));
+      motivo = `Amostra ${qAtual}/${minAmostra}: produzir evidencia antes de aumentar a prescricao.`;
+      contexto = 'medicao';
+    } else if (dominioAlto && (vencido || queda > Math.max(.1, n(r.quedaIntervencaoPP, 3)))) {
+      qq = Math.min(alvo, Math.max(5, Math.round(n(r.manutencaoQuestoes, dose))));
+      motivo = vencido
+        ? 'Dominio alto com medicao vencida: bloco curto para revalidar a fraqueza antes de ampliar volume.'
+        : `Dominio alto com queda recente de ${queda.toFixed(1)} pp: bloco curto de revalidacao.`;
+      contexto = 'revalidacao';
+    }
+
+    const tq = typeof this._tempoQuestoes === 'function' ? this._tempoQuestoes(c, qq, cfg) : { minutos: null, fonte: 'indisponivel', confiavel: false };
+    const minutos = tq && Number.isFinite(Number(tq.minutos)) ? Math.max(1, Math.round(Number(tq.minutos))) : null;
+    return {
+      tipo: 'questoes_aprofundadas',
+      rotulo: 'Questoes aprofundadas',
+      passos: [{ tipo: 'questoes', quantidade: qq }],
+      quantidadeQuestoes: qq,
+      contexto,
+      motivo,
+      minutosEstimados: minutos,
+      minutosFixos: 0,
+      minutosQuestoes: minutos,
+      tempoFonte: minutos == null ? 'indisponivel' : (tq.fonte || 'tempo-pessoal'),
+      tempoConfiavel: !!(minutos != null && tq && tq.confiavel),
+      forcaHeuristica: null,
+      confianca: null,
+      evidencia: {
+        qAtual,
+        minAmostra,
+        dominio: dom.nivel || null,
+        vencido,
+        quedaPP: queda,
+        calibracaoNivel: cal.nivel || null,
+        metodologiaFixa: true
+      }
+    };
+  };
+
+  R.VERSAO = 7;
+  R.REVISAO_AUDITORIA = 7;
+  const oldArq = typeof R.arquitetura === 'function' ? R.arquitetura.bind(R) : null;
+  R.arquitetura = function() {
+    const z = oldArq ? oldArq() : {};
+    return Object.assign({}, z, {
+      revisaoAuditoria: 7,
+      modusOperandi: 'questoes-aprofundadas',
+      decide: ['disciplina', 'topico', 'quantidadeQuestoes', 'tempoQuandoConfiavel'],
+      naoDecide: ['teoria', 'lei-seca', 'anki', 'resumo', 'metodo-de-estudo']
+    });
+  };
+
+  const oldHtml = typeof C.html === 'function' ? C.html.bind(C) : null;
+  if (oldHtml) C.html = function(m) {
+    let h = oldHtml(m);
+    h = h.replace('ROBUSTO V5 · POLÍTICA COMPLETA', 'ROBUSTO V7 · PRIORIDADE, DOSE E TEMPO');
+    h = h.replace('Central avançada de parâmetros', 'Central do Robusto');
+    h = h.replace(/(<p class="rv5-note">[\s\S]*?<\/p>)/,
+      '$1<p class="rv7-method-note"><b>Modo operacional:</b> o Robusto recomenda somente <b>questões aprofundadas</b>. Ele escolhe disciplina, assunto, quantidade e estima tempo quando há histórico confiável. Resumo, comentários e criação de cards fazem parte do seu modo de resolução e não são inferidos pelo algoritmo.</p>');
+    return h;
+  };
+
+  const oldManual = typeof C.manualHtml === 'function' ? C.manualHtml.bind(C) : null;
+  if (oldManual) C.manualHtml = function(m) {
+    let h = oldManual(m);
+    h = h.replace(/Manual do Módulo Robusto V5/g, 'Manual do Módulo Robusto V7');
+    h = h.replace('O roteador escolhe a intervenção pedagógica.', 'A camada operacional define a dose de questões aprofundadas e estima o tempo quando há histórico confiável.');
+    h = h.replace('decidir onde investir tempo e como intervir', 'decidir onde investir tempo, qual assunto atacar e qual dose de questões aprofundadas executar');
+    h = h.replace(/<tr><td><b>Roteador pedagógico<\/b>[\s\S]*?<\/tr>/, '');
+    h = h.replace(/<h2>Roteador pedagógico<\/h2>[\s\S]*?<\/table>/, '');
+    h = h.replace('</div><h2>Fluxo principal</h2>', '</div><div class="box"><b>Modus operandi fixo:</b> toda recomendação operacional é um bloco de questões aprofundadas. Comentários, resumo teórico e criação de cards pertencem à execução do aluno e não são escolhidos pelo motor.</div><h2>Fluxo principal</h2>');
+    return h;
+  };
+
+  window.PlanoSugestoesRobustoV7 = R;
+  window.PlanoRobustoRouterV7 = RO;
+})();
+
+/* ============================================================================
    GOVERNANÇA DOS MOTORES DO PLANO V5
    Uma única verdade decide se Simplificado/Robusto podem ser usados ou exibidos.
    Não altera fórmulas dos motores e não toca em atividades históricas.
@@ -56318,6 +56483,245 @@ else CloudStore.init();
   };
   window.PlanoMotoresCentralTecV4=M;window.PlanoMotoresCentralTecV3=M;window.PlanoMotoresCentralTecV2=M;window.PlanoMotoresCentralTecV1=M;
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>M.init(),{once:true});else M.init();
+})();
+
+/* ============================================================================
+   DESEMPENHO TEC — FONTE EXPLICITA DAS SUGESTOES V1
+   ----------------------------------------------------------------------------
+   As metricas observadas do Plano continuam descritivas. A camada de DECISAO
+   passa a vir exclusivamente do motor escolhido: Simplificado OU Robusto.
+   Nenhum score e misturado e a antiga recomendacao do PlanoEngine fica oculta.
+   ============================================================================ */
+(() => {
+  if (typeof window === 'undefined' || window.__tecPlanoFonteMotorV1) return;
+  const D = (typeof DesempenhoTecScreen !== 'undefined' && DesempenhoTecScreen) || window.DesempenhoTecScreen;
+  const C = window.PlanoSugestoesV4 || window.PlanoSugestoesV3 || window.PlanoSugestoesV2;
+  const G = window.PlanoMotoresGovernancaV5;
+  const I = window.PlanoSugestoesInfraV2;
+  const Central = window.PlanoMotoresCentralTecV4 || window.PlanoMotoresCentralTecV3 || window.PlanoMotoresCentralTecV2;
+  if (!D || !C || !G || !I || typeof DB === 'undefined') return;
+  window.__tecPlanoFonteMotorV1 = true;
+
+  const esc = I.esc || (x => String(x == null ? '' : x));
+  const n = (v, d = 0) => Number.isFinite(Number(v)) ? Number(v) : d;
+  const fmt = (v, d = 0) => Number.isFinite(Number(v)) ? Number(v).toFixed(d).replace('.', ',') : '—';
+  const norm = I.norm || (s => String(s || '').toLowerCase().trim());
+
+  const M = {
+    VERSAO: 1,
+    KEY: 'tec-plano-fonte-motor-v1',
+    DEFAULT: 'robusto',
+    _origPaint: null,
+    _origGovSync: null,
+    _origGovConfig: null,
+    _rendering: false,
+
+    _key() { return DB._profilePrefix() + this.KEY; },
+    _estado() { return G.estado ? G.estado() : { simplificado:true, robusto:true }; },
+    _resolver(preferido) {
+      const e = this._estado();
+      if (preferido === 'robusto' && e.robusto) return 'robusto';
+      if (preferido === 'simplificado' && e.simplificado) return 'simplificado';
+      if (e.robusto) return 'robusto';
+      if (e.simplificado) return 'simplificado';
+      return null;
+    },
+    fonte() {
+      let k = this.DEFAULT;
+      try { const z = JSON.parse(localStorage.getItem(this._key()) || 'null'); if (z && ['simplificado','robusto'].includes(z.fonte)) k = z.fonte; }
+      catch (e) { if (typeof _quiet === 'function') _quiet(e, 'tec-plano-fonte-read'); }
+      return this._resolver(k);
+    },
+    salvar(fonte) {
+      const k = this._resolver(fonte);
+      if (!k) return null;
+      try {
+        const raw = JSON.stringify({ fonte:k });
+        if (DB.setRaw) DB.setRaw(this._key(), raw); else localStorage.setItem(this._key(), raw);
+      } catch (e) { if (typeof _quiet === 'function') _quiet(e, 'tec-plano-fonte-save'); }
+      return k;
+    },
+    calcular(fonte) {
+      const k = this._resolver(fonte || this.fonte());
+      if (!k) return { erro:'motores-desabilitados', modo:null, itens:[] };
+      try {
+        if (k === 'simplificado') return C.simplificado ? C.simplificado() : C.calcular({ modo:'simplificado' });
+        return C.robusto ? C.robusto() : C.calcular({ modo:'robusto' });
+      } catch (e) {
+        if (typeof _quiet === 'function') _quiet(e, 'tec-plano-fonte-calcular');
+        return { erro:'falha-' + k, modo:k, itens:[] };
+      }
+    },
+    _criterio(fonte, r) {
+      if (fonte === 'simplificado') {
+        if (r && r.fase === 'pos') return 'Pós-edital: lacuna × incidência hierárquica limpa da banca × valor da matéria no planejamento. Uma frente por disciplina.';
+        return 'Pré-edital: lacuna para a meta, com amostra mínima e fronteira hierárquica sem sobrepor pai e filho. Uma frente por disciplina.';
+      }
+      if (r && r.fase === 'pos') return 'Pós-edital: score estratégico com pontos recuperáveis, retorno por tempo, lacuna, incidência, recência e resposta histórica; o otimizador escolhe até 3 disciplinas.';
+      return 'Pré-edital: score estratégico de lacuna, evidência, incidência, recência, resposta histórica e eficiência; o otimizador escolhe até 3 disciplinas.';
+    },
+    _erroTexto(r, fonte) {
+      const e = r && r.erro;
+      const mapa = {
+        'sem-retrato':'Importe um retrato TEC neste escopo antes de calcular.',
+        'sem-lacunas':'Nenhum assunto elegível está abaixo da régua deste motor.',
+        'sem-candidatos':'Não há frente elegível sem sobrepor atividades já abertas.',
+        'pos-sem-banca':'O Simplificado Pós precisa de uma banca específica.',
+        'pos-sem-planejamento':'O Simplificado Pós precisa da composição da prova no planejamento.',
+        'pos-sem-cruzamento':'Não houve cruzamento confiável entre TEC, incidência e planejamento.',
+        'sem-plano':'O Robusto não conseguiu formar o universo estratégico neste escopo.',
+        'motor-desabilitado':'Este motor está desabilitado nas Configurações.',
+        'motores-desabilitados':'Ative ao menos um motor nas Configurações.'
+      };
+      return mapa[e] || `O ${fonte === 'robusto' ? 'Robusto' : 'Simplificado'} não conseguiu formar recomendações neste escopo.`;
+    },
+    _quantidade(c, fonte) {
+      if (!c) return null;
+      if (fonte === 'simplificado') return Math.max(1, Math.round(n(c.alvo, 0))) || null;
+      const iv = c.intervencaoV5 || c.intervencaoV4 || c.intervencao || {};
+      if (n(iv.quantidadeQuestoes) > 0) return Math.round(n(iv.quantidadeQuestoes));
+      const passo = Array.isArray(iv.passos) ? iv.passos.find(x => x && x.tipo === 'questoes' && n(x.quantidade) > 0) : null;
+      if (passo) return Math.round(n(passo.quantidade));
+      if (n(c.doseDiaria) > 0) return Math.round(n(c.doseDiaria));
+      return Math.max(1, Math.round(n(c.alvo, 0))) || null;
+    },
+    _tempo(c, fonte, q) {
+      if (fonte === 'simplificado') return { texto:'Tempo não modelado pelo Simplificado', detalhe:'Esse motor decide pela regra direta e não empresta o relógio do Robusto.' };
+      const iv = c && (c.intervencaoV5 || c.intervencaoV4 || c.intervencao) || {};
+      const t = c && c.mentor && c.mentor.tempo || {};
+      const mins = Number.isFinite(Number(iv.minutosEstimados)) ? Math.round(Number(iv.minutosEstimados))
+        : (c && c.otimizacaoV5 && Number.isFinite(Number(c.otimizacaoV5.minutosAlocados)) ? Math.round(Number(c.otimizacaoV5.minutosAlocados)) : null);
+      const spq = t.confiavel && n(t.segundosPorQuestao) > 0 ? n(t.segundosPorQuestao) : null;
+      if (mins != null && spq != null) return { texto:`≈ ${mins} min`, detalhe:`${fmt(spq/60,1)} min/questão · ritmo ${t.escopo === 'disciplina' ? 'desta disciplina' : 'global'} · ${q || '—'} questões aprofundadas` };
+      if (mins != null) return { texto:`≈ ${mins} min`, detalhe:`estimativa operacional · ${q || '—'} questões aprofundadas` };
+      if (spq != null && q) return { texto:`≈ ${Math.max(1,Math.round(q*spq/60))} min`, detalhe:`${fmt(spq/60,1)} min/questão · ritmo ${t.escopo === 'disciplina' ? 'desta disciplina' : 'global'}` };
+      return { texto:'Tempo ainda sem amostra confiável', detalhe:'O Robusto não inventa velocidade quando o histórico de tempo é insuficiente.' };
+    },
+    _card(c, i, fonte) {
+      const q = this._quantidade(c, fonte), tempo = this._tempo(c, fonte, q), taxa = Number.isFinite(Number(c.taxa)) ? `${fmt(c.taxa,0)}%` : '—';
+      const amostra = Math.max(0, Math.round(n(c.qJanela)));
+      const score = Number.isFinite(Number(c.score)) ? Math.round(Number(c.score)) : null;
+      const alvo = Math.max(0, Math.round(n(c.alvo)));
+      const dom = c.mentor && c.mentor.dominio;
+      const contexto = fonte === 'robusto' && dom && dom.rotulo ? dom.rotulo : (fonte === 'simplificado' ? 'Regra direta' : 'Prioridade estratégica');
+      return `<article class="tpm-rec" data-tpm-rec data-disciplina="${esc(c.disciplina||'')}">
+        <div class="tpm-rank">${i+1}</div>
+        <div class="tpm-main">
+          <div class="tpm-head"><div><small>${esc(c.disciplina||'Disciplina')}</small><b>${esc(c.nome||'Assunto')}</b></div><span class="tpm-score">${score == null ? '' : 'prioridade ' + score + '/100'}</span></div>
+          <div class="tpm-metrics">
+            <span><b>${taxa}</b><small>acerto</small></span>
+            <span><b>${amostra || '—'}</b><small>questões na amostra</small></span>
+            <span class="tpm-dose"><b>${q || '—'}</b><small>questões aprofundadas</small></span>
+            <span><b>${esc(tempo.texto)}</b><small>${esc(tempo.detalhe)}</small></span>
+          </div>
+          <p class="tpm-context"><b>${esc(contexto)}</b> · ${esc(c.motivo || '')}</p>
+          ${fonte === 'robusto' && alvo > 0 && q && alvo !== q ? `<p class="tpm-target">Bloco de agora: <b>${q}q</b> · alvo global estimado do assunto: <b>${alvo}q</b>. A dose não substitui o alvo.</p>` : ''}
+        </div>
+      </article>`;
+    },
+    _selectorHtml(fonte) {
+      const e = this._estado(), ambos = e.simplificado && e.robusto;
+      const bt = (k, ico, nome, desc) => `<button type="button" data-tpm-source="${k}" class="${fonte===k?'active':''}" aria-pressed="${fonte===k?'true':'false'}"><span>${ico}</span><div><b>${nome}</b><small>${desc}</small></div><i>${fonte===k?'em uso':''}</i></button>`;
+      return `<section class="tpm-selector" data-tpm-selector>
+        <header><div><small>FONTE DAS SUGESTÕES</small><strong>Qual modelo deve decidir onde atacar?</strong></div>${ambos?'<span>Trocar recalcula a decisão inteira.</span>':'<span>Um único motor está habilitado.</span>'}</header>
+        <div class="tpm-source-grid">
+          ${e.simplificado ? bt('simplificado','⚡','Simplificado','Regra direta, transparente e sem modelo de tempo.') : ''}
+          ${e.robusto ? bt('robusto','🧠','Robusto','Prioridade estratégica, dose e tempo pessoal quando confiável.') : ''}
+        </div>
+        <p><b>Os números observados abaixo não mudam de motor:</b> taxa, domínio, trajetória e cobertura continuam descrevendo o seu TEC. O que muda é a camada de decisão — disciplinas, assuntos, quantidade e, no Robusto, tempo.</p>
+      </section>`;
+    },
+    _outputHtml(fonte, r) {
+      const nome = fonte === 'robusto' ? 'Robusto' : 'Simplificado', ico = fonte === 'robusto' ? '🧠' : '⚡';
+      if (!r || r.erro) return `<section class="tpm-output" data-tpm-output data-tpm-model="${fonte}"><header><div><small>${ico} ${nome.toUpperCase()}</small><strong>Recomendação deste modelo</strong></div></header><div class="tpm-empty">${esc(this._erroTexto(r, fonte))}</div></section>`;
+      const itens = (r.itens || []).slice();
+      if (fonte === 'robusto') itens.sort((a,b)=>n(b.score)-n(a.score));
+      return `<section class="tpm-output" data-tpm-output data-tpm-model="${fonte}">
+        <header><div><small>${ico} ${nome.toUpperCase()} · ${r.fase === 'pos' ? 'PÓS-EDITAL' : 'PRÉ-EDITAL'}</small><strong>Onde atacar agora</strong><p>${esc(this._criterio(fonte,r))}</p></div><span>${itens.length} ${itens.length===1?'frente':'frentes'}</span></header>
+        ${fonte === 'robusto' ? '<div class="tpm-method"><b>Seu método fica fixo:</b> cada dose abaixo significa resolução aprofundada de questões; leitura de comentários/resumo e criação de cards fazem parte da sua execução, não da decisão do algoritmo.</div>' : ''}
+        <div class="tpm-recs">${itens.map((c,i)=>this._card(c,i,fonte)).join('')}</div>
+        <footer><b>Execução continua em Atividades → Puxar do Plano.</b><span>Scores pertencem ao próprio modelo e não devem ser comparados entre Simplificado e Robusto.</span></footer>
+      </section>`;
+    },
+    render() {
+      if (this._rendering || typeof document === 'undefined') return;
+      const proj = document.getElementById('plano-proj'), lista = document.getElementById('plano-lista');
+      if (!proj || !lista) return;
+      const fonte = this.fonte();
+      if (!fonte) { lista.classList.remove('tpm-engine-active'); proj.querySelector('[data-tpm-selector]')?.remove(); lista.querySelector('[data-tpm-output]')?.remove(); return; }
+      this._rendering = true;
+      try {
+        this.salvar(fonte);
+        proj.querySelector('[data-tpm-selector]')?.remove();
+        const s = document.createElement('div'); s.innerHTML = this._selectorHtml(fonte); const sel = s.firstElementChild; if (sel) proj.prepend(sel);
+        lista.querySelector('[data-tpm-output]')?.remove();
+        const r = this.calcular(fonte);
+        const box = document.createElement('div'); box.innerHTML = this._outputHtml(fonte, r); const out = box.firstElementChild; if (out) lista.prepend(out);
+        lista.classList.add('tpm-engine-active');
+        proj.querySelectorAll('.pl-hero-sub').forEach(p=>{if(/^\s*Caminho mais curto:/i.test(p.textContent||''))p.classList.add('tpm-legacy-decision');});
+        proj.querySelectorAll('[data-tpm-source]').forEach(b=>b.addEventListener('click',()=>{
+          const k = this.salvar(b.dataset.tpmSource); if (!k || k === fonte) return;
+          if (typeof showToast === 'function') showToast((k==='robusto'?'Robusto':'Simplificado') + ' recalculando as sugestões…');
+          this.render();
+        }));
+      } finally { this._rendering = false; }
+    },
+    _patchGovernanca() {
+      if (this._origGovSync || !G.syncVisibility) return;
+      const self = this;
+      this._origGovSync = G.syncVisibility.bind(G);
+      G.syncVisibility = function() {
+        const estavaPlano = D.tecTab === 'plano';
+        const r = self._origGovSync();
+        const e = self._estado(), algum = e.simplificado || e.robusto;
+        const tab = document.querySelector('.tec-subtab[data-tectab="plano"]'), panel = document.getElementById('tec-panel-plano');
+        if (tab) { tab.hidden = !algum; tab.setAttribute('aria-hidden', algum?'false':'true'); if (algum) { tab.classList.remove('ux-off'); tab.style.removeProperty('display'); } else tab.style.display='none'; }
+        if (panel && algum) panel.style.removeProperty('display');
+        const atual = self.fonte(); if (atual) self.salvar(atual);
+        if (algum && estavaPlano && D.tecTab !== 'plano' && typeof D.switchTecTab === 'function') D.switchTecTab('plano');
+        return r;
+      };
+      if (G.renderConfig) {
+        this._origGovConfig = G.renderConfig.bind(G);
+        G.renderConfig = function() {
+          const r = self._origGovConfig();
+          const rob = document.querySelector('[data-pmg-engine="robusto"] .pmg-engine-copy');
+          if (rob) { const ps=rob.querySelectorAll('p,small'); if(ps[0])ps[0].textContent='Prioriza onde atacar, qual assunto escolher, a dose de questões e o tempo quando houver histórico confiável.'; if(ps[1])ps[1].textContent='Sem sugerir método de estudo: seu modus operandi permanece resolução aprofundada de questões.'; }
+          return r;
+        };
+      }
+    },
+    _patchCentral() {
+      if (!Central || Central.__tpmV1) return;
+      Central.__tpmV1 = true;
+      const old = Central._robustHtml && Central._robustHtml.bind(Central);
+      if (old) Central._robustHtml = function() {
+        return old().replace('Política estratégica V6: domínio probabilístico com prior real, calibração, incidência, tempo, roteador, aprendizado segregado e otimização pelo score canônico.', 'Política estratégica V7: escolhe disciplina, assunto, dose de questões e tempo quando houver amostra confiável. O método de estudo permanece fixo com o aluno.')
+          .replace('Painel especialista', 'Prioridade, dose e tempo');
+      };
+    },
+    init() {
+      if (!this._origPaint && D._pintarPlano) {
+        const orig = D._pintarPlano;
+        this._origPaint = orig;
+        const self = this;
+        D._pintarPlano = function() { const r = orig.apply(this, arguments); self.render(); return r; };
+      }
+      this._patchGovernanca();
+      this._patchCentral();
+      try { G.syncVisibility(); } catch (e) { if (typeof _quiet === 'function') _quiet(e, 'tec-plano-fonte-gov-init'); }
+      window.addEventListener('plano:motores-change', () => {
+        const f = this.fonte(); if (f) this.salvar(f);
+        try { G.syncVisibility(); } catch (e) { if (typeof _quiet === 'function') _quiet(e, 'tec-plano-fonte-gov-change'); }
+        if (D.tecTab === 'plano') D.renderPlanoConteudo();
+      });
+      if (D.tecTab === 'plano') this.render();
+    }
+  };
+
+  window.TecPlanoFonteMotorV1 = M;
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', () => M.init(), { once:true });
+  else M.init();
 })();
 
 </script>
