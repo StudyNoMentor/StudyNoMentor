@@ -57,7 +57,7 @@
      novo, e o antigo é descartado sozinho na ativação) e o que permite ao app
      dizer qual versão está rodando. Em src/ fica "dev" de propósito: a versão
      é gerada na montagem, não editada à mão. -->
-<meta name="diario-versao" content="vadbe6c7722">
+<meta name="diario-versao" content="v7839e30c10">
 <script>
 /* ── ARRANQUE: abre o IndexedDB AGORA, em paralelo com o parse do documento ──
    A fachada de armazenamento vive no fim do <body>, depois de ~1,7 MB de HTML.
@@ -13521,6 +13521,17 @@ body:has(#tec-cfg-body) #tec-cfg-body{scrollbar-gutter:stable}
 
 <style id="robusto-config-v4">
 .rv4-toggle{display:inline-flex;align-items:center;gap:7px;margin-top:8px;padding:8px 11px;border:1px solid var(--border,#d7dce5);border-radius:10px;background:var(--surface,#fff);font:inherit;font-weight:700;cursor:pointer}.rv4-toggle[aria-expanded="true"]{background:var(--surface-soft,#f5f7fb)}.rv4-wrap{margin:10px 0 4px}.rv4-panel{display:grid;gap:12px;border:1px solid var(--border,#d7dce5);border-radius:14px;padding:12px;background:var(--surface-soft,#f8f9fc)}.rv4-panel-head,.rv4-section>header{display:flex;align-items:center;justify-content:space-between;gap:12px}.rv4-panel-head>div{display:grid;gap:2px}.rv4-panel-head span,.rv4-note,.rv4-row small{font-size:12px;line-height:1.35;color:var(--muted,#667085)}.rv4-panel-head button,.rv4-section>header button,.rv4-reset-one{border:1px solid var(--border,#d7dce5);background:var(--surface,#fff);border-radius:8px;padding:6px 8px;cursor:pointer}.rv4-section{display:grid;gap:8px;border-top:1px solid var(--border,#d7dce5);padding-top:10px}.rv4-row{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:12px;align-items:center;padding:7px 0;border-bottom:1px dashed color-mix(in srgb,var(--border,#d7dce5) 70%,transparent)}.rv4-row>div:first-child{display:grid;gap:2px}.rv4-control{display:flex;align-items:center;gap:6px}.rv4-control input[type="number"]{width:88px;min-height:34px;padding:5px 7px;border:1px solid var(--border,#d7dce5);border-radius:8px;background:var(--surface,#fff);color:inherit}.rv4-switch{position:relative;width:42px;height:24px;display:inline-block}.rv4-switch input{position:absolute;inset:0;width:100%;height:100%;margin:0;opacity:0;z-index:2;cursor:pointer}.rv4-switch span{position:absolute;inset:0;z-index:1;border-radius:999px;background:#c9ced8;cursor:pointer;transition:.18s}.rv4-switch span:after{content:"";position:absolute;width:18px;height:18px;left:3px;top:3px;border-radius:50%;background:#fff;box-shadow:0 1px 3px #0003;transition:.18s}.rv4-switch input:focus-visible+span{outline:2px solid #2f6fed;outline-offset:2px}.rv4-switch input:checked+span{background:#2f6fed}.rv4-switch input:checked+span:after{transform:translateX(18px)}.rv4-badge{display:inline-flex;align-items:center;gap:5px;padding:3px 7px;border-radius:999px;background:var(--surface-soft,#f3f5f8);font-size:11px;font-weight:700}.rv4-interv{display:block;margin-top:6px;font-size:12px;color:var(--muted,#667085)}@media(max-width:600px){.rv4-panel-head,.rv4-section>header{align-items:flex-start;flex-direction:column}.rv4-row{grid-template-columns:1fr}.rv4-control{justify-content:flex-end}.rv4-control input[type="number"]{width:110px}.rv4-panel{padding:10px}}
+</style>
+
+<style id="plano-motores-governanca-v5">
+/* GOVERNANÇA DOS MOTORES DO PLANO V5 */
+.pmg-card .pmg-head{align-items:flex-start}.pmg-body{padding:0 28px 24px}.pmg-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}.pmg-engine{display:flex;align-items:center;justify-content:space-between;gap:16px;padding:16px;border:1px solid var(--border);border-radius:14px;background:var(--surface);transition:border-color .18s,background .18s,opacity .18s}.pmg-engine.is-on{border-color:color-mix(in srgb,var(--accent) 45%,var(--border));background:color-mix(in srgb,var(--accent) 4%,var(--surface))}.pmg-engine.is-off{opacity:.72}.pmg-engine-copy{min-width:0;display:grid;gap:5px}.pmg-engine-title{display:flex;gap:8px;align-items:center;flex-wrap:wrap}.pmg-engine-title b{font-size:14px;color:var(--text)}.pmg-engine-title span{font-size:9px;font-weight:800;text-transform:uppercase;letter-spacing:.04em;padding:3px 7px;border:1px solid var(--border);border-radius:999px;color:var(--text-soft);background:var(--surface-soft,rgba(127,127,127,.06))}.pmg-engine p{margin:0;font-size:12px;line-height:1.4;color:var(--text)}.pmg-engine small{font-size:10px;line-height:1.45;color:var(--text-soft)}.pmg-switch{position:relative;display:block;flex:0 0 46px;width:46px;height:26px}.pmg-switch input{position:absolute;inset:0;width:100%;height:100%;margin:0;opacity:0;z-index:2;cursor:pointer}.pmg-switch span{position:absolute;inset:0;border-radius:999px;background:color-mix(in srgb,var(--text-soft) 30%,var(--surface));transition:.18s;box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--text) 10%,transparent)}.pmg-switch span:after{content:"";position:absolute;width:20px;height:20px;left:3px;top:3px;border-radius:50%;background:var(--surface,#fff);box-shadow:0 1px 4px #0003;transition:.18s}.pmg-switch input:checked+span{background:var(--accent)}.pmg-switch input:checked+span:after{transform:translateX(20px)}.pmg-switch input:focus-visible+span{outline:3px solid color-mix(in srgb,var(--accent) 35%,transparent);outline-offset:3px}.pmg-status{margin-top:12px;padding:10px 12px;border-radius:10px;font-size:11px;line-height:1.45;color:var(--text-soft);background:var(--surface-soft,rgba(127,127,127,.05));border:1px solid var(--border)}.pmg-status b{color:var(--text)}.pmg-status.is-warning{border-color:color-mix(in srgb,var(--bad,#dc2626) 35%,var(--border));background:color-mix(in srgb,var(--bad,#dc2626) 5%,var(--surface));color:var(--text)}
+
+.ps-engine-chooser{display:grid;gap:10px;margin:0 0 12px;padding:12px;border:1px solid var(--border);border-radius:15px;background:var(--surface-soft,rgba(127,127,127,.035))}.ps-engine-chooser>header{display:flex;justify-content:space-between;align-items:flex-end;gap:16px;padding:1px 2px 3px}.ps-engine-chooser>header>div{display:grid;gap:2px}.ps-engine-chooser>header small{font-size:9px;font-weight:800;letter-spacing:.08em;color:var(--text-soft)}.ps-engine-chooser>header b{font-size:13px;color:var(--text)}.ps-engine-chooser>header>span{font-size:10px;color:var(--text-soft);text-align:right}.ps-engine-primary{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:9px}.ps-engine-card{position:relative;display:grid;grid-template-columns:auto minmax(0,1fr);gap:10px;align-items:center;min-height:82px;padding:12px;border:1px solid var(--border);border-radius:12px;background:var(--surface);color:var(--text);text-align:left;cursor:pointer;transition:border-color .18s,background .18s,transform .18s}.ps-engine-card:hover{border-color:color-mix(in srgb,var(--accent) 55%,var(--border));transform:translateY(-1px)}.ps-engine-card.active{border-color:var(--accent);background:color-mix(in srgb,var(--accent) 7%,var(--surface));box-shadow:0 0 0 1px color-mix(in srgb,var(--accent) 30%,transparent)}.ps-engine-card:focus-visible,.ps-compare-launch:focus-visible{outline:3px solid color-mix(in srgb,var(--accent) 30%,transparent);outline-offset:2px}.ps-engine-check{position:absolute;right:9px;top:8px;display:none;width:18px;height:18px;border-radius:50%;align-items:center;justify-content:center;background:var(--accent);color:#fff;font-size:10px;font-weight:900}.ps-engine-card.active .ps-engine-check{display:flex}.ps-engine-ico{font-size:25px;line-height:1}.ps-engine-copy{display:grid;gap:4px;min-width:0;padding-right:18px}.ps-engine-name{display:flex;align-items:center;gap:7px;flex-wrap:wrap}.ps-engine-name b{font-size:13px}.ps-engine-name em{font-style:normal;font-size:8px;font-weight:800;text-transform:uppercase;letter-spacing:.05em;padding:3px 6px;border-radius:999px;border:1px solid var(--border);color:var(--text-soft)}.ps-engine-copy small{font-size:10px;line-height:1.4;color:var(--text-soft)}.ps-compare-launch{display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:10px;align-items:center;width:100%;padding:10px 12px;border:1px dashed var(--border);border-radius:11px;background:var(--surface);color:var(--text);text-align:left;cursor:pointer}.ps-compare-launch>span{font-size:18px}.ps-compare-launch>div{display:grid;gap:2px}.ps-compare-launch b{font-size:11px}.ps-compare-launch small{font-size:9px;line-height:1.35;color:var(--text-soft)}.ps-compare-launch em{font-style:normal;font-size:9px;font-weight:800;color:var(--accent);white-space:nowrap}.ps-compare-launch.active{border-style:solid;border-color:var(--accent);background:color-mix(in srgb,var(--accent) 6%,var(--surface));box-shadow:0 0 0 1px color-mix(in srgb,var(--accent) 24%,transparent)}.ps-single-engine{display:flex;align-items:center;gap:10px;padding:10px 12px;margin-bottom:11px;border:1px solid color-mix(in srgb,var(--accent) 35%,var(--border));border-radius:12px;background:color-mix(in srgb,var(--accent) 5%,var(--surface))}.ps-single-ico{font-size:23px}.ps-single-engine>div{display:grid;grid-template-columns:auto 1fr;gap:1px 8px;align-items:baseline;min-width:0}.ps-single-engine small{grid-column:1/-1;font-size:8px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:var(--text-soft)}.ps-single-engine b{font-size:12px;color:var(--text)}.ps-single-engine span:not(.ps-single-ico){font-size:10px;color:var(--text-soft);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+
+@media(max-width:720px){.pmg-grid{grid-template-columns:1fr}.pmg-body{padding:0 18px 20px}.pmg-head{gap:10px}.ps-engine-chooser>header{align-items:flex-start;flex-direction:column;gap:3px}.ps-engine-chooser>header>span{text-align:left}.ps-engine-primary{grid-template-columns:1fr}.ps-engine-card{min-height:70px}.ps-compare-launch{grid-template-columns:auto minmax(0,1fr)}.ps-compare-launch>em{grid-column:2}.ps-single-engine>div{grid-template-columns:1fr}.ps-single-engine span:not(.ps-single-ico){white-space:normal}}
+@media(max-width:420px){.pmg-body{padding:0 14px 18px}.pmg-engine{padding:13px;gap:10px}.ps-engine-chooser{padding:9px}.ps-engine-card{padding:10px}.ps-engine-ico{font-size:22px}}
+
 </style>
 
 <script id="app-code" type="application/x-diario-inert">
@@ -55548,6 +55559,237 @@ else CloudStore.init();
   };
   C.instalar();window.PlanoSugestoesV2=C;window.PlanoSugestoesV1=C;
 })();
+/* ============================================================================
+   GOVERNANÇA DOS MOTORES DO PLANO V5
+   Uma única verdade decide se Simplificado/Robusto podem ser usados ou exibidos.
+   Não altera fórmulas dos motores e não toca em atividades históricas.
+   ============================================================================ */
+(() => {
+  if (typeof window === 'undefined' || window.__planoMotoresGovernancaV5) return;
+  const C = window.PlanoSugestoesV2;
+  if (!C || typeof DB === 'undefined') return;
+  window.__planoMotoresGovernancaV5 = true;
+
+  const G = {
+    VERSAO: 5,
+    KEY: 'plano-motores-governanca-v5',
+    DEFAULTS: Object.freeze({ simplificado: true, robusto: true }),
+    _orig: {},
+
+    _key() { return DB._profilePrefix() + this.KEY; },
+    estado() {
+      let z = {};
+      try { z = JSON.parse(localStorage.getItem(this._key()) || '{}') || {}; }
+      catch (e) { if (typeof _quiet === 'function') _quiet(e, 'plano-motores-v5-read'); }
+      return {
+        simplificado: typeof z.simplificado === 'boolean' ? z.simplificado : true,
+        robusto: typeof z.robusto === 'boolean' ? z.robusto : true
+      };
+    },
+    salvar(patch) {
+      const atual = this.estado(), p = patch || {}, prox = {
+        simplificado: typeof p.simplificado === 'boolean' ? p.simplificado : atual.simplificado,
+        robusto: typeof p.robusto === 'boolean' ? p.robusto : atual.robusto
+      };
+      try {
+        const raw = JSON.stringify(prox);
+        if (DB.setRaw) DB.setRaw(this._key(), raw); else localStorage.setItem(this._key(), raw);
+      } catch (e) { if (typeof _quiet === 'function') _quiet(e, 'plano-motores-v5-save'); }
+      try { window.dispatchEvent(new CustomEvent('plano:motores-change', { detail: prox })); }
+      catch (e) { if (typeof _quiet === 'function') _quiet(e, 'plano-motores-v5-event'); }
+      this.syncVisibility();
+      this.renderConfig();
+      return prox;
+    },
+    restaurar() { return this.salvar({ simplificado: true, robusto: true }); },
+    ativos() {
+      const e = this.estado(), out = [];
+      if (e.simplificado) out.push('simplificado');
+      if (e.robusto) out.push('robusto');
+      if (e.simplificado && e.robusto) out.push('comparar');
+      return out;
+    },
+    resolverModo(preferido) {
+      const e = this.estado();
+      if (preferido === 'comparar' && e.simplificado && e.robusto) return 'comparar';
+      if (preferido === 'simplificado' && e.simplificado) return 'simplificado';
+      if (preferido === 'robusto' && e.robusto) return 'robusto';
+      if (e.robusto) return 'robusto';
+      if (e.simplificado) return 'simplificado';
+      return null;
+    },
+    pode(modo) {
+      const e = this.estado();
+      if (modo === 'simplificado') return e.simplificado;
+      if (modo === 'robusto') return e.robusto;
+      if (modo === 'comparar') return e.simplificado && e.robusto;
+      return false;
+    },
+    _erro(modo) { return { erro: modo ? 'motor-desabilitado' : 'motores-desabilitados', modo: modo || null, itens: [] }; },
+
+    syncVisibility() {
+      if (typeof document === 'undefined') return;
+      const e = this.estado(), algum = e.simplificado || e.robusto;
+      const puxar = new Set([
+        document.getElementById('extras-plano-btn'),
+        ...document.querySelectorAll('[data-puxar-plano],[data-plano-sugestoes],.btn-puxar-plano')
+      ]);
+      puxar.forEach(el => { if (el) { el.hidden = !algum; el.setAttribute('aria-hidden', algum ? 'false' : 'true'); } });
+
+      const tabPlano = document.querySelector('.tec-subtab[data-tectab="plano"]');
+      const painelPlano = document.getElementById('tec-panel-plano');
+      if (tabPlano) {
+        tabPlano.hidden = !e.robusto;
+        tabPlano.setAttribute('aria-hidden', e.robusto ? 'false' : 'true');
+        if (!e.robusto && tabPlano.classList.contains('active')) {
+          const analise = document.querySelector('.tec-subtab[data-tectab="analise"]');
+          if (analise && typeof analise.click === 'function') analise.click();
+        }
+      }
+      if (painelPlano && !e.robusto) painelPlano.style.display = 'none';
+    },
+
+    _switchCard(key, titulo, badge, desc, detalhes, ligado) {
+      return `<article class="pmg-engine ${ligado ? 'is-on' : 'is-off'}" data-pmg-engine="${key}">
+        <div class="pmg-engine-copy">
+          <div class="pmg-engine-title"><b>${titulo}</b><span>${badge}</span></div>
+          <p>${desc}</p><small>${detalhes}</small>
+        </div>
+        <label class="pmg-switch" title="${ligado ? 'Desabilitar' : 'Habilitar'} ${titulo}">
+          <input type="checkbox" data-pmg-toggle="${key}" ${ligado ? 'checked' : ''} aria-label="${ligado ? 'Desabilitar' : 'Habilitar'} ${titulo}">
+          <span aria-hidden="true"></span>
+        </label>
+      </article>`;
+    },
+    renderConfig() {
+      if (typeof document === 'undefined') return;
+      let card = document.getElementById('cfg-plano-motores-card');
+      const anchor = document.getElementById('config-subjects-list')?.closest('.card');
+      if (!anchor) return;
+      if (!card) {
+        card = document.createElement('section');
+        card.className = 'card pmg-card'; card.id = 'cfg-plano-motores-card';
+        anchor.parentNode.insertBefore(card, anchor);
+      }
+      const e = this.estado(), n = Number(e.simplificado) + Number(e.robusto);
+      const status = n === 2
+        ? '<b>2 motores ativos</b> · o modo Comparar fica disponível no Puxar do Plano.'
+        : n === 1
+          ? `<b>1 motor ativo</b> · o Puxar do Plano abrirá direto no ${e.robusto ? 'Robusto' : 'Simplificado'}, sem etapa de escolha.`
+          : '<b>Nenhum motor ativo</b> · Puxar do Plano ficará oculto. Reforços e histórico já criados continuam preservados.';
+      card.innerHTML = `<div class="card-header pmg-head"><div><h2>🏁 Motores do Plano</h2><p class="sub">Controle quais estratégias de recomendação existem no app. Desligar um motor remove suas entradas do Desempenho TEC e do Puxar do Plano, sem apagar histórico.</p></div><button type="button" class="btn-secondary" data-pmg-reset>↺ Restaurar padrão</button></div>
+        <div class="pmg-body">
+          <div class="pmg-grid">
+            ${this._switchCard('simplificado','⚡ Simplificado','Direto','Prioriza lacunas de forma transparente e auditável.','Pré: seu TEC × meta × amostra. Pós: cruza banca e planejamento.',e.simplificado)}
+            ${this._switchCard('robusto','🧠 Robusto','Estratégico','Usa o Plano atual e o Mentor 90+ para decisões de maior profundidade.','Evolução, tempo, incidência, risco, roteador pedagógico e otimização.',e.robusto)}
+          </div>
+          <div class="pmg-status ${n === 0 ? 'is-warning' : ''}">${status}</div>
+        </div>`;
+      card.querySelectorAll('[data-pmg-toggle]').forEach(inp => inp.addEventListener('change', () => {
+        const k = inp.dataset.pmgToggle, patch = {}; patch[k] = !!inp.checked; const prox = this.salvar(patch);
+        if (typeof showToast === 'function') showToast(`${k === 'robusto' ? 'Robusto' : 'Simplificado'} ${prox[k] ? 'habilitado' : 'desabilitado'}`);
+      }));
+      card.querySelector('[data-pmg-reset]')?.addEventListener('click', () => {
+        this.restaurar(); if (typeof showToast === 'function') showToast('Motores do Plano restaurados ✓');
+      });
+    },
+
+    _selectorHtml(modo) {
+      const e = this.estado();
+      if (!(e.simplificado && e.robusto)) {
+        const k = e.robusto ? 'robusto' : 'simplificado';
+        if (!k || (!e.robusto && !e.simplificado)) return '';
+        return `<div class="ps-single-engine"><span class="ps-single-ico">${k === 'robusto' ? '🧠' : '⚡'}</span><div><small>Motor ativo</small><b>${k === 'robusto' ? 'Robusto' : 'Simplificado'}</b><span>${k === 'robusto' ? 'Estratégia avançada com Plano + Mentor 90+' : 'Leitura direta do seu histórico TEC'}</span></div></div>`;
+      }
+      const card = (k, ico, nome, tag, desc) => `<button type="button" class="ps-engine-card ${modo === k ? 'active' : ''}" data-ps-modo="${k}" aria-pressed="${modo === k ? 'true' : 'false'}"><span class="ps-engine-check">✓</span><span class="ps-engine-ico">${ico}</span><span class="ps-engine-copy"><span class="ps-engine-name"><b>${nome}</b><em>${tag}</em></span><small>${desc}</small></span></button>`;
+      return `<section class="ps-engine-chooser" aria-label="Como decidir as frentes"><header><div><small>ESTRATÉGIA DE DECISÃO</small><b>Como quer escolher estas 3 frentes?</b></div><span>Você pode trocar antes de criar.</span></header><div class="ps-engine-primary">${card('simplificado','⚡','Simplificado','Direto','Seu histórico TEC com regras transparentes e poucos parâmetros.')}${card('robusto','🧠','Robusto','Estratégico','Plano + Mentor 90+, evolução, tempo e retorno esperado.')}</div><button type="button" class="ps-compare-launch ${modo === 'comparar' ? 'active' : ''}" data-ps-modo="comparar" aria-pressed="${modo === 'comparar' ? 'true' : 'false'}"><span>🔀</span><div><b>Comparar os dois</b><small>Lado a lado, mantendo uma única escolha por disciplina.</small></div><em>${modo === 'comparar' ? 'Selecionado' : 'Abrir comparação'}</em></button></section>`;
+    },
+
+    instalarController() {
+      if (this._controllerInstalled) return; this._controllerInstalled = true;
+      ['prefs','salvar','simplificado','robusto','comparar','calcular','criar','_cabecalho','abrir'].forEach(k => { this._orig[k] = C[k]?.bind(C); });
+      const self = this;
+
+      C.prefs = function() {
+        const p = self._orig.prefs ? self._orig.prefs() : {};
+        const modo = self.resolverModo(p && p.modo);
+        return Object.assign({}, p, { modo });
+      };
+      C.salvar = function(patch) {
+        const x = Object.assign({}, patch || {});
+        if ('modo' in x) x.modo = self.resolverModo(x.modo);
+        const out = self._orig.salvar ? self._orig.salvar(x) : x;
+        return Object.assign({}, out, { modo: self.resolverModo(out && out.modo) });
+      };
+      C.simplificado = function(p) { return self.pode('simplificado') ? self._orig.simplificado(p) : self._erro('simplificado'); };
+      C.robusto = function() { return self.pode('robusto') ? self._orig.robusto() : self._erro('robusto'); };
+      C.comparar = function(p) { return self.pode('comparar') ? self._orig.comparar(p) : self._erro('comparar'); };
+      C.calcular = function(p) {
+        const base = Object.assign({}, p || C.prefs()), modo = self.resolverModo(base.modo);
+        if (!modo) return self._erro(null);
+        base.modo = modo;
+        if (modo === 'simplificado') return C.simplificado(base);
+        if (modo === 'comparar') return C.comparar(base);
+        return C.robusto();
+      };
+      const erroOrig = C._erroTexto?.bind(C);
+      C._erroTexto = function(e) {
+        if (e === 'motor-desabilitado') return 'Este motor está desabilitado nas Configurações.';
+        if (e === 'motores-desabilitados') return 'Ative Simplificado ou Robusto em Configurações para usar o Puxar do Plano.';
+        return erroOrig ? erroOrig(e) : 'Não foi possível formar sugestões.';
+      };
+      C._cabecalho = function(p, res) {
+        p = Object.assign({}, p || C.prefs(), { modo: self.resolverModo(p && p.modo) });
+        if (!p.modo) return '<div class="ps-empty"><b>Motores desabilitados</b><span>Ative Simplificado ou Robusto em Configurações.</span></div>';
+        const html = self._orig._cabecalho ? self._orig._cabecalho(p, res) : '';
+        const semSelector = html.replace(/<div class="ps-mode-grid"[\s\S]*?<\/div>(?=<div class="ps-settings"|<div class="ps-rule"|<div class="rv4-wrap")/, '');
+        return self._selectorHtml(p.modo) + semSelector;
+      };
+      C.criar = function(screen, p, res) {
+        const modo = self.resolverModo(p && p.modo);
+        if (!modo) { if (typeof showToast === 'function') showToast('Ative um motor do Plano em Configurações.'); return 0; }
+        const seguro = Object.assign({}, p || {}, { modo });
+        if (!self.pode(modo)) return 0;
+        return self._orig.criar(screen, seguro, res);
+      };
+      C.abrir = function(screen) {
+        const p = C.prefs();
+        if (!p.modo) { if (typeof showToast === 'function') showToast('Ative Simplificado ou Robusto em Configurações.'); return; }
+        let res;
+        try { res = C.calcular(p); }
+        catch (e) { if (typeof _quiet === 'function') _quiet(e, 'plano-motores-v5-open'); return; }
+        screen._psResultado = res; screen._planoSel = new Set((res.itens || []).map((_,i) => i)); screen._rv4Open = false;
+        const ambos = self.pode('comparar'), rot = p.modo === 'comparar' ? 'Comparar motores' : (p.modo === 'robusto' ? 'Robusto' : 'Simplificado');
+        const sub = ambos ? 'Escolha a estratégia e confirme apenas as 3 frentes que irão para Extras.' : `${rot} é o único motor ativo; as 3 frentes seguem direto para a fila de Extras.`;
+        new Promise(resolve => { UI._resolve = resolve; UI._mode = 'confirm'; UI._open('🏁 Puxar do Plano', sub, '<div id="ps-root"></div>', { okText:'Criar atividades' }); })
+          .then(ok => { if (!ok) return; const atual = C.prefs(); return C.criar(screen, atual, screen._psResultado); });
+        setTimeout(() => { try { C._renderModal(screen, p, res); } catch (e) { if (typeof _quiet === 'function') _quiet(e, 'plano-motores-v5-render'); } }, 0);
+      };
+    },
+
+    instalarHooks() {
+      if (this._hooksInstalled) return; this._hooksInstalled = true;
+      const self = this;
+      if (typeof ConfigScreen !== 'undefined' && ConfigScreen.render) {
+        const f = ConfigScreen.render.bind(ConfigScreen); ConfigScreen.render = function(){ const r=f(); self.renderConfig(); self.syncVisibility(); return r; };
+      }
+      if (typeof ExtrasScreen !== 'undefined' && ExtrasScreen.render) {
+        const f = ExtrasScreen.render.bind(ExtrasScreen); ExtrasScreen.render = function(){ const r=f(); self.syncVisibility(); return r; };
+      }
+      if (typeof DesempenhoTecScreen !== 'undefined' && DesempenhoTecScreen.render) {
+        const f = DesempenhoTecScreen.render.bind(DesempenhoTecScreen); DesempenhoTecScreen.render = function(){ const r=f(); self.syncVisibility(); return r; };
+      }
+      window.addEventListener('plano:motores-change', () => self.syncVisibility());
+      if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', () => { self.renderConfig(); self.syncVisibility(); }, { once:true });
+      else { self.renderConfig(); self.syncVisibility(); }
+    },
+    instalar() { this.instalarController(); this.instalarHooks(); }
+  };
+
+  G.instalar();
+  window.PlanoMotoresGovernancaV5 = G;
+})();
+
 </script>
 
 <!-- ============================================================
