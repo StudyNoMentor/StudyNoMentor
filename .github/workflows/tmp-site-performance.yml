@@ -4,13 +4,16 @@ on:
     branches:
       - perf/auditoria-site-inteiro
 permissions:
-  contents: read
+  contents: write
 jobs:
   auditar:
+    if: github.actor != 'github-actions[bot]'
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 18
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
@@ -47,3 +50,13 @@ jobs:
         run: node testes/extras-tec-interacoes-browser.mjs
       - name: Validar Plano TEC grande
         run: node testes/tec-plano-performance-browser.mjs
+      - name: Suíte canônica completa
+        run: node verificar.mjs
+      - name: Persistir produto aprovado
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add index.html src/manifesto.json sw.js src/css/09-extras-v51.css src/js/11-db.js src/js/47-tela-extras.js src/js/51-tela-desempenho-tec.js src/js/55-extras-ui-moderna.js testes/site-performance-browser.mjs
+          git diff --cached --quiet && exit 0
+          git commit -m 'perf: reduz latência de Extras e Desempenho TEC'
+          git push origin HEAD:perf/auditoria-site-inteiro
