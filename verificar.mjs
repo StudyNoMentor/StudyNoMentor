@@ -1229,8 +1229,30 @@ try {
   // ── ESCOLHER O QUE VIRA ATIVIDADE ───────────────────────────────────────
   const escolha = await pag.evaluate(async () => {
     const esperar = (ms) => new Promise((r) => setTimeout(r, ms));
-    const caixas = [...document.querySelectorAll('.pl-hoje-sel:not(:disabled)')];
-    if (caixas.length < 2) return { poucas: caixas.length };
+    let caixas = [...document.querySelectorAll('.pl-hoje-sel:not(:disabled)')];
+    /* O bloco multidisciplinar pode legitimamente abrir uma frente de CADA
+       disciplina elegível de uma vez. Neste fixture curto isso consome os três
+       assuntos medidos e não sobra checkbox livre para testar a troca manual.
+       A checagem da UI não deve depender desse saldo acidental: abrimos
+       temporariamente a régua de amostra para os dois assuntos curtos que já
+       existem no retrato, exercemos o listener e devolvemos a preferência ao
+       valor que o usuário tinha. O teste continua cobrando a interação real,
+       só deixa de pressupor que o algoritmo automático escolheu menos frentes. */
+    let minAmostraAntes = null;
+    if (caixas.length < 2) {
+      minAmostraAntes = PlanoEngine.prefs().minAmostra;
+      PlanoEngine.salvarPrefs({ minAmostra: 5 });
+      DesempenhoTecScreen.renderPlano();
+      await esperar(220);
+      caixas = [...document.querySelectorAll('.pl-hoje-sel:not(:disabled)')];
+    }
+    if (caixas.length < 2) {
+      if (minAmostraAntes != null) {
+        PlanoEngine.salvarPrefs({ minAmostra: minAmostraAntes });
+        DesempenhoTecScreen.renderPlano();
+      }
+      return { poucas: caixas.length };
+    }
     const btn = document.getElementById('plano-lote');
     // desmarca tudo: o botao tem de se desabilitar e dizer o que falta
     caixas.forEach((c) => { if (c.checked) { c.checked = false; c.dispatchEvent(new Event('change', { bubbles: true })); } });
@@ -1246,7 +1268,14 @@ try {
     btn.click();
     await esperar(400);
     const criadas = DB.getExtras().slice(antes);
-    return { vazio, um, nome, n: criadas.length, casou: criadas.some((e) => e.origemPlano && e.origemPlano.topico === nome) };
+    const resultado = { vazio, um, nome, n: criadas.length,
+      casou: criadas.some((e) => e.origemPlano && e.origemPlano.topico === nome) };
+    if (minAmostraAntes != null) {
+      PlanoEngine.salvarPrefs({ minAmostra: minAmostraAntes });
+      DesempenhoTecScreen.renderPlano();
+      await esperar(160);
+    }
+    return resultado;
   });
   (escolha.vazio && escolha.vazio.off && /Marque ao menos/.test(escolha.vazio.txt))
     ? ok('sem nada marcado, o botao se desabilita e pede a escolha')

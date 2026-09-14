@@ -46,6 +46,9 @@ try{
   await esperarPlano();
 
   const bloco=await page.evaluate(()=>{const cs=[...document.querySelectorAll('#plano-lista .pl-hoje-sel:checked:not(:disabled)')];return{n:cs.length,discs:[...new Set(cs.map(c=>c.dataset.disc))],txt:document.querySelector('.tec-v2-diversidade')?.textContent||''};});
+  const diagBloco=await page.evaluate(()=>({prefs:PlanoEngine.prefs(),last:(TecAuditoriaV2._lastPlanResult?.itens||[]).slice(0,80).map(x=>({d:x.disciplina,n:x.nome,q:x.custoQ,open:!!x.extraAberta})),pool:(TecAuditoriaV2._poolC?.itens||[]).slice(0,240).map(x=>({d:x.disciplina,n:x.nome,q:x.custoQ,open:!!x.extraAberta})),dom:[...document.querySelectorAll('#plano-lista .pl-hoje-sel')].map(x=>({d:x.dataset.disc,n:x.dataset.topico,on:x.checked,off:x.disabled}))}));
+  console.log('DIAG_BLOCO',JSON.stringify(diagBloco));
+  await snap('00-diag-plano-multifoco.png');
   eq(bloco.n,3,'3 disciplinas × 1 tópico deve gerar bloco inicial de 3 assuntos');
   eq(bloco.discs.length,3,'o próximo bloco deve distribuir uma prioridade por disciplina');
   ok(/Rodízio ativo/i.test(bloco.txt),'o bloco deve explicar a regra de diversidade');
@@ -87,7 +90,7 @@ try{
   await page.keyboard.press('Escape');await page.waitForTimeout(80);
 
   // Regressão: ocorrência FUTURA já concluída continua visível e pode ser reaberta.
-  const fut=await page.evaluate(()=>{const d=new Date();d.setDate(d.getDate()+2);const day=d.toISOString().slice(0,10);const e=DB.addExtra({titulo:'Extra futuro reabrível',tipo:'questoes',alvo:18,unidade:'questoes',periodo:'unica',datas:[day]});DB.setConcluidaDia(e.id,day,true);switchScreen('extras');ExtrasScreen.selDay=todayLocal();ExtrasScreen.render();return{id:e.id,day};});
+  const fut=await page.evaluate(()=>{const d=new Date();d.setDate(d.getDate()+2);const day=d.toISOString().slice(0,10);const e=DB.addExtra({titulo:'Extra futuro reabrível',tipo:'questoes',alvo:18,unidade:'questoes',periodo:'unica',datas:[day]});const all=DB.getExtras();const legacy=all.find(x=>x.id===e.id);legacy.status='concluida';DB.saveExtras(all);switchScreen('extras');ExtrasScreen.selDay=todayLocal();ExtrasScreen.render();return{id:e.id,day};});
   await page.waitForTimeout(180);
   const futureCard=page.locator(`.exd[data-id="${fut.id}"][data-day="${fut.day}"]`);
   ok(await futureCard.count()===1,'Extra futuro concluído não pode desaparecer da visão Próximas');

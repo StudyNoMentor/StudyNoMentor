@@ -21,6 +21,7 @@
     _scopeRaf: null,
     _renderedScopeKey: null,
     _lastPlanResult: null,
+    _poolC: null,
     _observer: null,
     _scopeDelay: 90,
 
@@ -47,6 +48,7 @@
       PE._agrC = null;
       PE._tecScopeSignature = null;
       PE._indiceC = new WeakMap();
+      this._poolC = null;
     },
 
     busy(on, txt) {
@@ -121,6 +123,38 @@
           });
         }, self._scopeDelay);
       };
+      if (!DT._tecV2RenderKeyInstalled) {
+        DT._tecV2RenderKeyInstalled = true;
+        const baseRender = DT.render;
+        DT.render = function() {
+          const out = baseRender.apply(this, arguments);
+          requestAnimationFrame(() => { self._renderedScopeKey = self.scopeKey(); });
+          return out;
+        };
+      }
+    },
+
+    poolAmplo(cfg) {
+      const p0 = Object.assign({}, PE.prefs ? PE.prefs() : {}, cfg || {});
+      const opts = Object.assign({}, p0, { foco: [], disciplina: '__todas__', limite: Math.max(240, Number(p0.limite) || 0) });
+      const key = this.scopeKey() + '|' + JSON.stringify(opts);
+      const agora = Date.now();
+      if (this._poolC && this._poolC.key === key && agora - this._poolC.t < 4000) return this._poolC.itens;
+      let r = null;
+      try { r = PE.calcular(DT.scopedSnapshot(), opts); } catch (_) { return []; }
+      if (!r || r.erro) return [];
+      const vistos = new Set(), itens = [];
+      const add = (x, pequena) => {
+        if (!x || !x.nome) return;
+        const k = norm(x.disciplina) + '|' + norm(x.nome);
+        if (vistos.has(k)) return;
+        vistos.add(k);
+        itens.push(pequena ? Object.assign({}, x, { custoQ: Number(x.custoQ) || Number(x.faltaAmostra) || 1, _diagnostico: true }) : x);
+      };
+      (r.itens || []).forEach(x => add(x, false));
+      (r.pequenas || []).forEach(x => add(x, true));
+      this._poolC = { key, t: agora, itens };
+      return itens;
     },
 
     selecionarDiverso(itens, cfg) {
@@ -183,9 +217,17 @@
       if (!lista) return;
       const prefs = PE.prefs();
       const foco = Array.isArray(prefs.foco) ? prefs.foco.filter(Boolean) : [];
-      const fonte = (r && Array.isArray(r.itens) && r.itens.length)
-        ? r.itens
+      let fonte = (r && Array.isArray(r.itens) && r.itens.length)
+        ? r.itens.slice()
         : [...lista.querySelectorAll('.pl-hoje-sel')].map(c => ({ nome:c.dataset.topico, disciplina:c.dataset.disc, custoQ:Number(c.dataset.alvo)||1, extraAberta:c.disabled }));
+      const focoSet = new Set(foco.map(norm));
+      const alvoDisc = Math.min(focoSet.size || Math.max(1, Number(prefs.sugestoesDisciplinas)||3), Math.max(1, Number(prefs.sugestoesDisciplinas)||3));
+      const presentes = new Set(fonte.filter(x => !x.extraAberta && (!focoSet.size || focoSet.has(norm(x.disciplina)))).map(x => norm(x.disciplina))).size;
+      if (alvoDisc > 1 && presentes < alvoDisc) {
+        const amplo = this.poolAmplo(prefs);
+        const vistos = new Set(fonte.map(x => this._chaveItem(x)));
+        amplo.forEach(x => { const k=this._chaveItem(x); if (!vistos.has(k)) { vistos.add(k); fonte.push(x); } });
+      }
       const escolhidos = this.selecionarDiverso(fonte, prefs);
       if (!escolhidos.length) return;
       const want = new Map(escolhidos.map(x => [this._chaveItem(x), x]));
@@ -221,7 +263,7 @@
       let divisor = lista.querySelector('.pl-hoje-sep');
       if (!divisor) {
         divisor = document.createElement('li'); divisor.className='pl-hoje-sep'; divisor.textContent='depois destes, a fila segue com:';
-        selecionados.length ? selecionados[selectedos.length - 1]?.insertAdjacentElement('afterend', divisor) : lista.prepend(divisor);
+        selecionados.length ? selecionados[selecionados.length - 1]?.insertAdjacentElement('afterend', divisor) : lista.prepend(divisor);
       }
       // Garante que o separador fique imediatamente depois do bloco.
       if (selecionados.length) selecionados[selecionados.length - 1].insertAdjacentElement('afterend', divisor);
@@ -282,9 +324,27 @@
       const atual = [...sel].sort((a,b)=>a-b);
       const defaultInicial = atual.length <= 3 && atual.every((v,i)=>v===i);
       if (!defaultInicial) { host.dataset.tecV2Diversified='1'; return; }
-      const escolhidos = this.selecionarDiverso(cand, PE.prefs());
+      const prefs = PE.prefs();
+      let fonte = cand.slice();
+      const foco = Array.isArray(prefs.foco) ? prefs.foco.filter(Boolean) : [];
+      if (foco.length > 1) {
+        const vistos = new Set(fonte.map(x => this._chaveItem(x)));
+        this.poolAmplo(prefs).forEach(x => {
+          const k=this._chaveItem(x);
+          if (!vistos.has(k) && !x.extraAberta) {
+            vistos.add(k);
+            fonte.push(Object.assign({}, x, { motivo:x._diagnostico?'diagnostico':'reforco', alvo:Number(x.custoQ)||Number(x.faltaAmostra)||1 }));
+          }
+        });
+      }
+      const escolhidos = this.selecionarDiverso(fonte, prefs);
       if (!escolhidos.length) return;
       const keys = new Set(escolhidos.map(x => this._chaveItem(x)));
+      escolhidos.forEach(x => {
+        const k=this._chaveItem(x);
+        if (!cand.some(y => this._chaveItem(y)===k)) cand.push(x);
+      });
+      ExtrasScreen._planoCand = cand;
       ExtrasScreen._planoSel = new Set();
       cand.forEach((x,i)=>{ if(keys.has(this._chaveItem(x))) ExtrasScreen._planoSel.add(i); });
       host.dataset.tecV2Diversified='1';
@@ -302,6 +362,17 @@
     },
 
     instalarReaberturaFutura() {
+      if (typeof DB !== 'undefined' && typeof DB.extraConcluidaEm === 'function' && !DB.extraConcluidaEm._tecV2GlobalClose) {
+        const baseConcluida = DB.extraConcluidaEm;
+        const concluidaComFechamento = function(e, dia) {
+          if (baseConcluida.call(this, e, dia)) return true;
+          if (!e || e.status !== 'concluida' || !e.origemPlano || !e.origemPlano.veredito) return false;
+          const ref = String(e.origemPlano.veredito.em || e.updatedAt || '').slice(0, 10);
+          return !!ref && ref === String(dia || todayLocal()).slice(0, 10);
+        };
+        concluidaComFechamento._tecV2GlobalClose = true;
+        DB.extraConcluidaEm = concluidaComFechamento;
+      }
       if (typeof ExtrasModern === 'undefined' || typeof ExtrasScreen === 'undefined') return;
       if (!ExtrasModern._tecV2CollectBase) {
         ExtrasModern._tecV2CollectBase = ExtrasModern.coletar;
@@ -318,6 +389,20 @@
               }
             });
           }
+          const concluidas = Array.isArray(c.concluidas) ? c.concluidas : (c.concluidas = []);
+          const concluidasIds = new Set(concluidas.map(e=>e.x&&e.x.id).filter(Boolean));
+          const inicio = this.addDays(hoje, -(Math.max(1, Number(this.janelaConcluidas)||7) - 1));
+          const extras = DB._extrasReadSnapshot || DB.getExtras();
+          extras.forEach(x=>{
+            if (!x || x.status !== 'concluida' || !x.origemPlano || !x.origemPlano.topico || !x.origemPlano.veredito || concluidasIds.has(x.id)) return;
+            let day = String(x.origemPlano.veredito.em || x.updatedAt || hoje).slice(0,10);
+            if (!/^\d{4}-\d{2}-\d{2}$/.test(day)) day = hoje;
+            if (day > hoje) day = hoje;
+            if (day < inicio) return;
+            concluidas.push({x,day,bucket:'concluidas',globalDone:true});
+            concluidasIds.add(x.id);
+            c.concluidas7d = (Number(c.concluidas7d)||0) + 1;
+          });
           return c;
         };
       }
