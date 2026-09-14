@@ -10,6 +10,7 @@
 #   · o reforco adaptativo produzir dose ou parada estatisticamente invalida;
 #   · modais de Extras voltarem a se sobrepor ou a ativacao adaptativa travar;
 #   · hierarquia, presets, bordas e responsividade do menu Extras regredirem;
+#   · escopo, rodizio multidisciplinar, reabertura e responsividade do Desempenho TEC regredirem;
 #   · Desempenho TEC -> Plano voltar a congelar em perfis grandes;
 #   · interacoes de Extras/Plano deixarem rotulos transitórios presos nos botoes;
 #   · algum menu voltar a bloquear a interface em perfis grandes ou CPU movel;
@@ -90,6 +91,13 @@ jobs:
       # overflow e responsividade em cinco larguras. Executa 100+ invariantes.
       - name: Auditar UX completa de Extras
         run: node testes/extras-ux100-browser.mjs
+
+      # Barreira transversal do Desempenho TEC: escopo equivalente nao recalcula,
+      # mudancas rapidas sao coalescidas, o bloco roda por materias distintas,
+      # Plano e Extras preservam o mesmo ciclo, atividades encerradas continuam
+      # reabriveis e a geometria permanece integra de 360px a desktop.
+      - name: Auditar governanca do Desempenho TEC
+        run: node testes/tec-ux100-browser.mjs
 
       # Perfil sintetico propositalmente grande: 10 materias, 1.000 topicos e
       # 8 retratos. Cobra resposta imediata do clique, primeira abertura e
