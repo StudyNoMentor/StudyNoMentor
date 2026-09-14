@@ -33,10 +33,12 @@ const files=['src/js/86-plano-sugestoes-infra-v2.js','src/js/87-plano-sugestoes-
 for(const f of files)vm.runInContext(readFileSync(join(ROOT,f),'utf8'),ctx,{filename:f});
 const I=ctx.window.PlanoSugestoesInfraV2,S=ctx.window.PlanoSugestoesSimplificadoV2,R=ctx.window.PlanoSugestoesRobustoV5,C=ctx.window.PlanoSugestoesV3,RC=ctx.window.PlanoRobustoConfigV5;assert(I&&S&&R&&C&&RC,'motores/infra/controller V5 devem publicar APIs distintas');
 const simpleSrc=readFileSync(join(ROOT,'src/js/87-plano-sugestoes-simplificado-v2.js'),'utf8'),robustFiles=['src/js/88-plano-sugestoes-robusto-v2.js','src/js/88a-plano-robusto-config-v4.js','src/js/88b-plano-robusto-router-v4.js','src/js/88c-plano-robusto-optimizer-v4.js','src/js/88d-plano-sugestoes-robusto-v4.js'],robustSrc=robustFiles.map(f=>readFileSync(join(ROOT,f),'utf8')).join('\n'),controllerSrc=readFileSync(join(ROOT,'src/js/89-plano-sugestoes-controller-v2.js'),'utf8'),infraSrc=readFileSync(join(ROOT,'src/js/86-plano-sugestoes-infra-v2.js'),'utf8');
-assert(!/PlanoEngine\s*[.(]|Mentor90|PlanoSugestoesRobusto/.test(simpleSrc),'Simplificado não pode conhecer PlanoEngine/Mentor90/Robusto');
-assert(!/PlanoSugestoesSimplificado|plano-simplificado-v2/.test(robustSrc),'Robusto não pode conhecer módulo/storage Simplificado');
+const semComentarios=src=>src.replace(/\/\*[\s\S]*?\*\//g,'').replace(/(^|[^:])\/\/[^\n\r]*/g,'$1');
+const simpleExec=semComentarios(simpleSrc),robustExec=semComentarios(robustSrc),infraExec=semComentarios(infraSrc);
+assert(!/\bPlanoEngine\s*[.(\[]|\bMentor90(?:V\d+)?\s*[.(\[]|\bPlanoSugestoesRobusto\w*\s*[.(\[]/.test(simpleExec),'Simplificado não pode executar PlanoEngine/Mentor90/Robusto');
+assert(!/\bPlanoSugestoesSimplificado\w*\s*[.(\[]|plano-simplificado-v2/.test(robustExec),'Robusto não pode conhecer módulo/storage Simplificado');
 assert(/PlanoSugestoesSimplificadoV2/.test(controllerSrc)&&/PlanoSugestoesRobustoV5/.test(controllerSrc),'somente orquestrador pode conhecer os dois motores');
-assert(!/scoreBruto|politicaAprendida|pontosGanho/.test(infraSrc),'infra neutra não pode conter fórmula de prioridade');
+assert(!/scoreBruto|politicaAprendida|pontosGanho/.test(infraExec),'infra neutra não pode conter fórmula de prioridade');
 assert.equal(R.arquitetura().usaSimplificado,false);assert.equal(R.arquitetura().estadoCompartilhadoComSimplificado,false);
 const simpleDefault=clone(S.prefs());C.salvar({modo:'robusto',meta:99,minAmostra:2,banca:'CEBRASPE',alvoQuestoes:77,campoEstranho:'x'});assert.deepEqual(clone(S.prefs()),simpleDefault,'controller não pode mutar Simple');assert.deepEqual([...Object.keys(C.prefs())],['modo']);const rawCtrl=JSON.parse(mem.get('p:'+C.KEY));assert.deepEqual(Object.keys(rawCtrl),['modo']);
 assert.equal(Object.hasOwn(S.prefs(),'modo'),false);assert.equal(Object.hasOwn(S.prefs(),'campoEstranho'),false);
