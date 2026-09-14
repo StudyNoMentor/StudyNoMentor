@@ -66,4 +66,14 @@ replace_once(
     "  const bloco=await page.evaluate(()=>{const cs=[...document.querySelectorAll('#plano-lista .pl-hoje-sel:checked:not(:disabled)')];return{n:cs.length,discs:[...new Set(cs.map(c=>c.dataset.disc))],txt:document.querySelector('.tec-v2-diversidade')?.textContent||''};});\n  const diagBloco=await page.evaluate(()=>({prefs:PlanoEngine.prefs(),last:(TecAuditoriaV2._lastPlanResult?.itens||[]).slice(0,80).map(x=>({d:x.disciplina,n:x.nome,q:x.custoQ,open:!!x.extraAberta})),pool:(TecAuditoriaV2._poolC?.itens||[]).slice(0,240).map(x=>({d:x.disciplina,n:x.nome,q:x.custoQ,open:!!x.extraAberta})),dom:[...document.querySelectorAll('#plano-lista .pl-hoje-sel')].map(x=>({d:x.dataset.disc,n:x.dataset.topico,on:x.checked,off:x.disabled}))}));\n  console.log('DIAG_BLOCO',JSON.stringify(diagBloco));\n  await snap('00-diag-plano-multifoco.png');\n  eq(bloco.n,3,'3 disciplinas × 1 tópico deve gerar bloco inicial de 3 assuntos');"
 )
 
+# O banco proíbe corretamente CRIAR uma conclusão futura. A regressão que o
+# usuário reportou é um estado já concluído vindo de versão/sincronização antiga:
+# ele precisa continuar visível e poder ser reaberto. Simulamos esse estado
+# legado diretamente, sem enfraquecer a guarda de integridade do banco.
+replace_once(
+    'testes/tec-ux100-browser.mjs',
+    "const e=DB.addExtra({titulo:'Extra futuro reabrível',tipo:'questoes',alvo:18,unidade:'questoes',periodo:'unica',datas:[day]});DB.setConcluidaDia(e.id,day,true);switchScreen('extras');",
+    "const e=DB.addExtra({titulo:'Extra futuro reabrível',tipo:'questoes',alvo:18,unidade:'questoes',periodo:'unica',datas:[day]});const all=DB.getExtras();const legacy=all.find(x=>x.id===e.id);legacy.status='concluida';DB.saveExtras(all);switchScreen('extras');"
+)
+
 print('Patch TEC UX100 v2 aplicado/ja presente.')
