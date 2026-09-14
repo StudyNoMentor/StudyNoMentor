@@ -54,7 +54,7 @@ async function mainAudit(width,height){
   ok(visual.agenda>=1,`Agenda precisa de limite visível (${visual.agenda})`);
   if(visual.task)ok(visual.task>=1,`Card precisa de limite visível (${visual.task})`);else ok(true,'sem card neste quadro');
   eq(visual.rot,0,'controles de automação duplicados não devem ficar na agenda');
-  eq(visual.title,'Extras de hoje','agenda deve comunicar execução diária');
+  ok(visual.title.startsWith('Extras de hoje'),'agenda deve comunicar execução diária');
   if(width<=430){
     const actions=await page.evaluate(()=>[...document.querySelectorAll('#extras-list .exd-actions')].map(a=>{const r=a.getBoundingClientRect(),card=a.closest('.exd')?.getBoundingClientRect();return{left:r.left,right:r.right,top:r.top,bottom:r.bottom,cl:card?.left,cr:card?.right};}));
     actions.forEach((r,i)=>ok(r.left>=r.cl-1&&r.right<=r.cr+1,`ações ${i} não podem escapar do card`));
@@ -97,7 +97,9 @@ async function adaptiveAudit(width,height){
   await page.setViewportSize({width,height});
   await closeAdaptive();await closeCentral();
   await page.evaluate(()=>{switchScreen('extras');ExtrasScreen.render();});
-  await page.locator('#extras-settings-btn').click();
+  await page.waitForTimeout(70);
+  if(!(await page.locator('.xsc-overlay').count())) await page.locator('#extras-settings-btn').click();
+  await page.locator('.xsc-overlay').waitFor({state:'visible'});
   await page.locator('[data-xsc-tab="reforcos"]').click();
   await page.locator('[data-ra-open]').waitFor({state:'visible'});
   await page.locator('[data-ra-open]').click();

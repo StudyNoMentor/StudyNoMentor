@@ -162,7 +162,7 @@
 .ra-ux100 .ra-body{padding:14px 16px 18px}
 .ra-ux100 .ra-body section{gap:11px}
 .ra-switch-hero{display:grid;grid-template-columns:minmax(0,1fr) auto auto;align-items:center;padding:13px 14px;border-width:1.5px}
-.ra-switch-hero>input{position:absolute;opacity:0;pointer-events:none}
+.ra-switch-hero>input{position:absolute;right:14px;top:50%;transform:translateY(-50%);width:44px;height:28px;margin:0;opacity:.001;pointer-events:auto;z-index:3;cursor:pointer}
 .ra-switch-copy{display:grid;gap:2px}.ra-switch-copy b{font-size:13px}.ra-switch-copy small{font-size:10px!important;line-height:1.35}
 .ra-toggle-ui{width:44px;height:24px;border-radius:999px;background:var(--surface-sunken);border:1px solid color-mix(in srgb,var(--text-faint) 35%,var(--border));position:relative;transition:.16s}
 .ra-toggle-ui:after{content:'';position:absolute;width:18px;height:18px;left:2px;top:2px;border-radius:50%;background:var(--text-faint);transition:.16s}
