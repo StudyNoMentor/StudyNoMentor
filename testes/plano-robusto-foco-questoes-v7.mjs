@@ -13,7 +13,7 @@ assert(R&&E&&C,'V7 deve publicar roteador e motor');assert.equal(R.VERSAO,7);ass
 const cfg=C.prefs('base');
 const mk=(o={})=>({disciplina:'Direito Tributário',nome:'Responsabilidade',taxa:52,qJanela:80,minAmostra:20,alvo:60,doseDiaria:15,item:{},mentor:{dominio:{nivel:'em_aquisicao',vencido:false},calibracao:{nivel:'disciplina'},tempo:{confiavel:true,segundosPorQuestao:120,escopo:'disciplina'}},...o});
 for(const c of [mk(),mk({taxa:35}),mk({disciplina:'Direito Constitucional'}),mk({mentor:{dominio:{nivel:'competitivo',vencido:false},calibracao:{},tempo:{confiavel:true,segundosPorQuestao:120,escopo:'disciplina'}},item:{deltaTaxa:-8}})]){
-  const iv=R.decidir(c,cfg);assert.equal(iv.tipo,'questoes_aprofundadas');assert.deepEqual(iv.passos.map(x=>x.tipo),['questoes']);assert(!/teoria|lei|anki|flashcard|resumo/i.test(iv.rotulo));assert(iv.quantidadeQuestoes>=1&&iv.quantidadeQuestoes<=c.alvo);
+  const iv=R.decidir(c,cfg);assert.equal(iv.tipo,'questoes_aprofundadas');assert.equal(Array.from(iv.passos,x=>x.tipo).join(','),'questoes','V7 deve produzir somente passo de questões');assert(!/teoria|lei|anki|flashcard|resumo/i.test(iv.rotulo));assert(iv.quantidadeQuestoes>=1&&iv.quantidadeQuestoes<=c.alvo);
 }
 let iv=R.decidir(mk(),cfg);assert.equal(iv.quantidadeQuestoes,15);assert.equal(iv.minutosEstimados,30,'15 questões a 120 s/q devem estimar 30 min');assert.equal(iv.tempoFonte,'tempo-pessoal');assert.equal(iv.tempoConfiavel,true);
 iv=R.decidir(mk({qJanela:5,doseDiaria:15}),cfg);assert.equal(iv.contexto,'medicao');assert.equal(iv.quantidadeQuestoes,15,'5/20 deve pedir 15 questões para completar a amostra');
