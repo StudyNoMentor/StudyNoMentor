@@ -57,3 +57,52 @@ const ps=RA.prefs();assert(ps.dosePreMin<=ps.dosePreBase&&ps.dosePreBase<=ps.dos
 console.log(`OK: ${N.toLocaleString('pt-BR')} prescrições aleatórias + ${2*M} cenários Monte Carlo.`);
 console.log(`Encerramentos coerentes: ${stops}; falsos encerramentos graves: ${falseStops}.`);
 console.log(`Monte Carlo: falso stop ${(100*lowStop/M).toFixed(2)}% · reconhecimento de domínio ${(100*hiStop/M).toFixed(1)}%.`);
+
+/* ── MENTOR 90+ V5: contrato de negócio canônico ────────────────────────── */
+const srcV5=fs.readFileSync(new URL('../src/js/84-reforco-continuity-core-v4.js',import.meta.url),'utf8');
+vm.runInContext(srcV5,ctx,{filename:'84-reforco-continuity-core-v4.js'});
+const M90=ctx.window.Mentor90V5;assert(M90,'Mentor90 V5 não exportado');
+assert.equal(RA.prefs().ativo,true,'V5 deve nascer canônica para perfis sem opt-out explícito');
+
+let d90=M90.dominio(item({taxa:55,qJanela:6}),{meta:85,minAmostra:20,validadeDias:120});
+assert.equal(d90.nivel,'nao_medido','amostra curta deve pedir diagnóstico, não rotular fraqueza');
+d90=M90.dominio(item({taxa:96,qJanela:500,medicoes:3,diasDesdeMedicao:10}),{meta:85,minAmostra:20,validadeDias:120});
+assert.equal(d90.nivel,'elite','90%+ com confiança, repetição e recência deve consolidar domínio');
+
+const incidTeste=[
+  {banca:'FGV',disciplina:'Disciplina',nome:'Tópico',incidencia:100},
+  {banca:'FGV',disciplina:'Disciplina',nome:'Outro',incidencia:900},
+  {banca:'CEBRASPE',disciplina:'Disciplina',nome:'Tópico',incidencia:20},
+  {banca:'CEBRASPE',disciplina:'Disciplina',nome:'Outro',incidencia:80}
+];
+ctx.DB.getIncidencia=()=>incidTeste;
+ctx.ReforcoEngine.incidenceMap=b=>({b});
+ctx.ReforcoEngine.incidenciaDe=(m,n,d)=>({valor:incidTeste.filter(x=>x.banca===m.b&&x.disciplina===d&&x.nome===n).reduce((s,x)=>s+x.incidencia,0),viaNome:false});
+ctx.ReforcoEngine.incidPorDisciplina=b=>({Disciplina:incidTeste.filter(x=>x.banca===b).reduce((s,x)=>s+x.incidencia,0)});
+const inorm=M90.incidenciaNormalizada(item(),{banca:['FGV','CEBRASPE']});
+assert(Math.abs(inorm.pct-15)<1e-9,'multi-banca deve normalizar 10% e 20% para média 15%, não somar bases brutas');
+assert.equal(inorm.confianca,.95,'casamento disciplina+tópico deve manter alta confiança');
+
+ctx.DB.getExtras=()=>[{disciplina:'Disciplina',historico:[{quantidade:30,minutos:90},{quantidade:30,minutos:90}]}];
+const vel=M90.velocidade('Disciplina');assert(vel.confiavel);assert.equal(Math.round(vel.segundosPorQuestao),180,'tempo real deve virar custo por questão');
+ctx.DB.getExtras=()=>[];
+
+fechados=[
+  {disciplina:'Disciplina',topico:'Tópico',questoes:20,ganhoPP:1,tipo:'subiu'},
+  {disciplina:'Disciplina',topico:'Tópico',questoes:20,ganhoPP:1,tipo:'subiu'},
+  {disciplina:'Disciplina',topico:'Tópico',questoes:20,ganhoPP:1,tipo:'subiu'},
+  {disciplina:'Disciplina',topico:'Outro A',questoes:20,ganhoPP:1,tipo:'subiu'},
+  {disciplina:'Disciplina',topico:'Outro B',questoes:20,ganhoPP:1,tipo:'subiu'},
+  {disciplina:'Disciplina',topico:'Outro C',questoes:20,ganhoPP:1,tipo:'subiu'}
+];
+const cal90=M90.calibracaoHierarquica(item());assert.equal(cal90.nivel,'topico');assert(cal90.confianca>0,'calibração deve fazer shrinkage, não confiar cegamente em poucos ciclos');
+
+const bloquear=item({taxa:86,qJanela:200,qHist:200,medicoes:1,diasDesdeMedicao:10});
+bloquear.prescricaoAdaptativa={dose:0,fase:'pre',score:65,objetivo:'encerrar',confiouMeta:true,continuidade:{estado:'aguardar-medicao'},estatistica:{pLacuna:.1}};
+const rr={meta:85,minAmostra:20,validadeDias:120,modoEdital:'pre',banca:['FGV'],itens:[bloquear],pequenas:[]};
+M90.enriquecerResultado(rr);assert.equal(bloquear.prescricaoAdaptativa.dose,0,'régua 90+ nunca pode furar cooldown ou exigência de nova medição');
+assert.equal(bloquear.prescricaoAdaptativa.motorCanonico,'mentor90-v5');
+assert(bloquear.prescricaoAdaptativa.intervencao,'toda decisão canônica deve carregar uma intervenção explícita');
+
+fechados=[];
+console.log('OK: Mentor90 V5 — domínio 90+, incidência normalizada, tempo, shrinkage e cooldown.');
