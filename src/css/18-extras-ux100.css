@@ -1,0 +1,276 @@
+/* ═══════════════════════════════════════════════════════════════════════════
+   EXTRAS — AUDITORIA UX 100 CAMADAS
+   Última camada visual: hierarquia Configurações -> Reforços -> Hoje,
+   bordas legíveis, cartões compactos e editores mobile sem cascata excessiva.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* ── 1. Configurações passam a ser o primeiro bloco operacional ─────────── */
+#screen-extras .extras-toolbar.ux100-config-card{
+  display:grid!important;
+  grid-template-columns:minmax(0,1fr) auto;
+  align-items:center;
+  gap:12px 16px;
+  margin:12px 0 16px;
+  padding:15px 16px;
+  border:1.5px solid color-mix(in srgb,var(--accent) 34%,var(--border));
+  border-radius:18px;
+  background:linear-gradient(135deg,color-mix(in srgb,var(--accent) 7%,var(--surface)),var(--surface) 58%);
+  box-shadow:0 8px 24px color-mix(in srgb,var(--text) 7%,transparent);
+}
+#screen-extras .ux100-config-head{
+  grid-column:1/-1;
+  display:grid;
+  grid-template-columns:42px minmax(0,1fr) auto;
+  align-items:center;
+  gap:11px;
+  padding-bottom:11px;
+  border-bottom:1px solid color-mix(in srgb,var(--accent) 20%,var(--border));
+}
+#screen-extras .ux100-config-icon{
+  width:42px;height:42px;display:grid;place-items:center;
+  border:1px solid color-mix(in srgb,var(--accent) 25%,var(--border));
+  border-radius:12px;background:var(--accent-soft);color:var(--accent);font-size:20px;
+}
+#screen-extras .ux100-config-copy{min-width:0;display:grid;gap:2px}
+#screen-extras .ux100-config-copy small{font-size:9px;font-weight:900;letter-spacing:.1em;color:var(--accent)}
+#screen-extras .ux100-config-copy strong{font-size:16px;line-height:1.18;color:var(--text)}
+#screen-extras .ux100-config-copy span{font-size:11px;line-height:1.4;color:var(--text-faint)}
+#screen-extras .ux100-config-kpis{display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end}
+#screen-extras .ux100-config-kpis span{padding:5px 8px;border:1px solid color-mix(in srgb,var(--accent) 18%,var(--border));border-radius:999px;background:var(--surface);color:var(--text-muted);font-size:9px;font-weight:750;white-space:nowrap}
+#screen-extras .extras-toolbar.ux100-config-card .extras-global{min-width:0;margin:0;align-self:center}
+#screen-extras .extras-toolbar.ux100-config-card .extras-global>span{font-size:10px;line-height:1.35}
+#screen-extras .extras-toolbar.ux100-config-card>div:last-child{justify-content:flex-end}
+#screen-extras #extras-settings-btn{border-color:color-mix(in srgb,var(--accent) 40%,var(--border));color:var(--accent);background:var(--surface);font-weight:850}
+
+/* ── 2. Reforços em curso ganham fronteira própria e leitura de médio prazo ─ */
+#extras-curso>.card,#extras-curso .exc-card{
+  border:1.5px solid color-mix(in srgb,var(--accent) 24%,var(--border));
+  border-radius:18px;
+  box-shadow:0 7px 22px color-mix(in srgb,var(--text) 6%,transparent);
+}
+#extras-curso>.card>.card-header,#extras-curso .exc-card>.card-header{
+  border-bottom:1px solid color-mix(in srgb,var(--accent) 16%,var(--border));
+}
+
+/* ── 3. A agenda volta a ser execução do dia, não painel de configuração ─── */
+#extras-agenda .exm-agenda-card.ux100-day-card{
+  border:1.5px solid color-mix(in srgb,var(--good) 20%,var(--border));
+  box-shadow:0 8px 24px color-mix(in srgb,var(--text) 6%,transparent);
+}
+#extras-agenda .ux100-day-card>.card-header{padding-bottom:10px}
+#extras-agenda .ux100-day-card .exm-dashboard{padding-bottom:10px}
+#extras-agenda .ux100-day-card .exm-rotation,
+#extras-agenda .ux100-day-card .exm-load{display:none!important}
+#extras-agenda .ux100-day-card .exm-stat{border-width:1.25px}
+#extras-agenda .ux100-day-card .cal-strip{border-top-color:color-mix(in srgb,var(--border) 94%,transparent)}
+
+/* ── 4. Separadores e cartões de atividade mais nítidos ──────────────────── */
+#extras-list .exm-section{
+  border:1.5px solid color-mix(in srgb,var(--text-faint) 26%,var(--border));
+  box-shadow:0 5px 18px color-mix(in srgb,var(--text) 5%,transparent);
+}
+#extras-list .exm-section-head,#extras-list .exm-section>summary{
+  border-bottom:1px solid color-mix(in srgb,var(--text-faint) 24%,var(--border));
+}
+#extras-list .exd.exm-task.ux100-task{
+  padding:12px 13px;
+  border:1.5px solid color-mix(in srgb,var(--text-faint) 28%,var(--border));
+  border-radius:14px;
+  box-shadow:0 2px 8px color-mix(in srgb,var(--text) 3.5%,transparent);
+}
+#extras-list .exd.exm-task.ux100-task:hover{
+  border-color:color-mix(in srgb,var(--accent) 52%,var(--border));
+  box-shadow:0 7px 20px color-mix(in srgb,var(--text) 7%,transparent);
+}
+#extras-list .exd-actions{display:flex;align-items:center;justify-content:flex-end;gap:7px;align-self:start;padding-left:3px;position:relative;z-index:2}
+#extras-list .exd-actions .reg-act-btn{
+  width:38px;height:38px;min-width:38px;min-height:38px;padding:0;
+  border:1.25px solid color-mix(in srgb,var(--text-faint) 34%,var(--border));
+  border-radius:10px;background:var(--surface);box-shadow:0 2px 7px color-mix(in srgb,var(--text) 5%,transparent);
+}
+#extras-list .exd-actions .reg-act-btn:hover{border-color:var(--accent);background:var(--accent-soft);color:var(--accent)}
+#extras-list .exd-actions .reg-act-btn.danger:hover{border-color:var(--bad);background:var(--bad-soft);color:var(--bad)}
+#extras-list .exd-prog,#extras-list .extra-marcador,#extras-list .exd-reg{margin-top:7px}
+#extras-list .exd-reg{border-top-color:color-mix(in srgb,var(--text-faint) 30%,var(--border))}
+
+/* Badges repetidos não devem competir com o título. */
+#extras-list .lr-tag{display:none!important}
+#extras-list .extra-tag{border:1px solid color-mix(in srgb,currentColor 16%,transparent)}
+
+/* ── 5. Lei seca: bloco de rota deixa de virar um cartão dentro do cartão ── */
+#extras-list .lr-extra-card.ux100-law-task{
+  border-color:color-mix(in srgb,#0f9d63 40%,var(--border))!important;
+}
+#extras-list .ux100-law-task .lr-route{
+  display:grid;
+  grid-template-columns:minmax(0,1fr) auto;
+  align-items:center;
+  gap:10px;
+  margin:9px 0 7px 78px;
+  padding:9px 10px;
+  border:1.25px solid color-mix(in srgb,#0f9d63 34%,var(--border));
+  border-radius:11px;
+  background:color-mix(in srgb,#0f9d63 6%,var(--surface));
+}
+#extras-list .ux100-law-task .lr-route-main{gap:1px}
+#extras-list .ux100-law-task .lr-route-main small{font-size:9px}
+#extras-list .ux100-law-task .lr-route-main strong{font-size:12px;line-height:1.2}
+#extras-list .ux100-law-task .lr-route-main span{font-size:9px;line-height:1.3}
+#extras-list .ux100-law-task .lr-route .btn-secondary{min-height:36px;padding:6px 10px;white-space:nowrap;border-color:color-mix(in srgb,#0f9d63 28%,var(--border))}
+
+/* ── 6. Central de Extras: cartões e limites mais visíveis ───────────────── */
+.xsc-modal{border:1.5px solid color-mix(in srgb,var(--text-faint) 28%,var(--border))}
+.xsc-nav{border-bottom-color:color-mix(in srgb,var(--text-faint) 24%,var(--border))}
+.xsc-summary-card,.xsc-field,.xsc-days-wrap,.xsc-manual-grid article,.xsc-kpis span{
+  border-width:1.25px;
+  border-color:color-mix(in srgb,var(--text-faint) 30%,var(--border));
+}
+.xsc-summary-card{box-shadow:0 3px 10px color-mix(in srgb,var(--text) 3%,transparent)}
+.xsc-summary-card:focus-within,.xsc-field:focus-within,.xsc-days-wrap:focus-within{border-color:color-mix(in srgb,var(--accent) 58%,var(--border));box-shadow:0 0 0 3px color-mix(in srgb,var(--accent) 8%,transparent)}
+.xsc-field input,.xsc-field select{border-color:color-mix(in srgb,var(--text-faint) 34%,var(--border));background:color-mix(in srgb,var(--surface) 98%,var(--surface-sunken))}
+
+/* ── 7. Lei seca agrupada: três blocos claros no lugar de sete cards ─────── */
+.xsc-law-compact{gap:12px}
+.xsc-law-hero{
+  display:grid;grid-template-columns:46px minmax(0,1fr) auto;gap:12px;align-items:center;
+  padding:14px;border:1.5px solid color-mix(in srgb,#0f9d63 34%,var(--border));border-radius:16px;
+  background:linear-gradient(135deg,color-mix(in srgb,#0f9d63 7%,var(--surface)),var(--surface));
+}
+.xsc-law-hero-icon{width:46px;height:46px;display:grid;place-items:center;border-radius:13px;background:color-mix(in srgb,#0f9d63 12%,var(--surface));font-size:22px}
+.xsc-law-hero-copy{min-width:0}.xsc-law-hero-copy>small{font-size:9px;font-weight:900;letter-spacing:.1em;color:#0a7a4e}.xsc-law-hero-copy h4{margin:2px 0;font-size:18px}.xsc-law-hero-copy p{margin:0;color:var(--text-faint);font-size:10px;line-height:1.4}
+.xsc-master-card{padding:8px 10px;border:1px solid color-mix(in srgb,#0f9d63 26%,var(--border));border-radius:12px;background:var(--surface)}
+.xsc-master-card>span{display:grid;gap:1px}.xsc-master-card b{font-size:11px}.xsc-master-card small{font-size:9px;color:var(--text-faint);font-weight:500}
+.xsc-presets-card{padding:10px 12px;border:1.25px solid color-mix(in srgb,var(--text-faint) 25%,var(--border));border-radius:14px;background:var(--surface)}
+.xsc-presets-card>div{display:grid;gap:1px;margin-right:auto}.xsc-presets-card>div b{font-size:11px}.xsc-presets-card>div small{font-size:9px;color:var(--text-faint)}
+.xsc-presets button.active,.xsc-presets button[aria-pressed="true"]{border-color:var(--accent);background:var(--accent-soft);color:var(--accent);box-shadow:0 0 0 2px color-mix(in srgb,var(--accent) 8%,transparent)}
+.xsc-preset-feedback{width:100%;font-size:9px;color:var(--accent);font-weight:700}
+.xsc-setting-group{display:grid;gap:9px;padding:12px;border:1.5px solid color-mix(in srgb,var(--text-faint) 30%,var(--border));border-radius:16px;background:var(--surface);box-shadow:0 3px 12px color-mix(in srgb,var(--text) 3%,transparent)}
+.xsc-setting-group>header{display:flex;align-items:center;gap:9px;padding-bottom:8px;border-bottom:1px solid color-mix(in srgb,var(--text-faint) 22%,var(--border))}
+.xsc-setting-group>header>div{display:grid;gap:1px}.xsc-setting-group>header b{font-size:12px}.xsc-setting-group>header small{font-size:9px;color:var(--text-faint)}
+.xsc-group-icon{width:32px;height:32px;display:grid;place-items:center;border-radius:9px;background:var(--accent-soft);color:var(--accent);font-weight:900}
+.xsc-compact-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+.xsc-compact-grid .xsc-field{padding:9px 10px;gap:5px}.xsc-compact-grid .xsc-field-wide{grid-column:1/-1}
+.xsc-compact-grid .xsc-field.is-secondary-mode{opacity:.6;background:var(--surface-sunken)}
+.xsc-days-group{grid-template-columns:minmax(0,1.35fr) minmax(220px,.65fr)}
+.xsc-days-group>header{grid-column:1/-1}.xsc-days-group .xsc-days-wrap,.xsc-days-group .xsc-check{margin:0}
+.xsc-days-group .xsc-check{align-items:center;border-style:solid;border-color:color-mix(in srgb,var(--text-faint) 28%,var(--border))}
+.xsc-law-footer{position:sticky;bottom:-1px;z-index:2;display:flex;align-items:center;justify-content:space-between;gap:10px;padding:10px 0 0;background:linear-gradient(to bottom,transparent,var(--surface) 22%)}
+.xsc-law-footer .xsc-foot-actions{margin-left:auto}
+
+/* ── 8. Editor do Reforço Adaptativo: estratégia de verdade ──────────────── */
+.ra-modal.ra-ux100{width:min(900px,100%);border:1.5px solid color-mix(in srgb,var(--accent) 26%,var(--border))}
+.ra-ux100 .ra-body{padding:14px 16px 18px}
+.ra-ux100 .ra-body section{gap:11px}
+.ra-switch-hero{display:grid;grid-template-columns:minmax(0,1fr) auto auto;align-items:center;padding:13px 14px;border-width:1.5px}
+.ra-switch-hero>input{position:absolute;right:14px;top:50%;transform:translateY(-50%);width:44px;height:28px;margin:0;opacity:.001;pointer-events:auto;z-index:3;cursor:pointer}
+.ra-switch-copy{display:grid;gap:2px}.ra-switch-copy b{font-size:13px}.ra-switch-copy small{font-size:10px!important;line-height:1.35}
+.ra-toggle-ui{width:44px;height:24px;border-radius:999px;background:var(--surface-sunken);border:1px solid color-mix(in srgb,var(--text-faint) 35%,var(--border));position:relative;transition:.16s}
+.ra-toggle-ui:after{content:'';position:absolute;width:18px;height:18px;left:2px;top:2px;border-radius:50%;background:var(--text-faint);transition:.16s}
+.ra-switch-hero input:checked+.ra-toggle-ui{background:var(--accent);border-color:var(--accent)}
+.ra-switch-hero input:checked+.ra-toggle-ui:after{transform:translateX(20px);background:var(--on-accent)}
+.ra-block-head{display:grid;gap:2px}.ra-block-head>b{font-size:12px}.ra-block-head>small{font-size:9px;color:var(--text-faint);line-height:1.35}
+.ra-strategy-block{display:grid;gap:8px;padding:12px;border:1.5px solid color-mix(in srgb,var(--text-faint) 30%,var(--border));border-radius:15px;background:var(--surface)}
+.ra-strategies{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
+.ra-strategy{min-height:62px;padding:9px 10px;border:1.25px solid color-mix(in srgb,var(--text-faint) 32%,var(--border));border-radius:12px;background:var(--surface);color:var(--text);display:grid;gap:2px;align-content:center;text-align:center;cursor:pointer;transition:.14s}
+.ra-strategy b{font-size:11px}.ra-strategy span{font-size:9px;color:var(--text-faint);line-height:1.25}
+.ra-strategy:hover,.ra-strategy.active,.ra-strategy[aria-pressed="true"]{border-color:var(--accent);background:var(--accent-soft);color:var(--accent);box-shadow:0 0 0 2px color-mix(in srgb,var(--accent) 7%,transparent)}
+.ra-strategy.active span,.ra-strategy[aria-pressed="true"] span{color:color-mix(in srgb,var(--accent) 72%,var(--text))}
+.ra-preset-status{min-height:14px;margin:0;font-size:9px;color:var(--accent);font-weight:750}
+.ra-phase{display:grid;grid-template-columns:minmax(0,1fr) minmax(210px,.7fr);gap:10px;align-items:center;padding:11px 12px;border:1.25px solid color-mix(in srgb,var(--text-faint) 30%,var(--border));border-radius:13px;background:var(--surface)}
+.ra-phase>span{display:grid;gap:1px}.ra-phase b{font-size:11px}.ra-phase small{font-size:9px;color:var(--text-faint)}.ra-phase select{min-height:40px;border:1px solid color-mix(in srgb,var(--text-faint) 34%,var(--border));border-radius:10px;background:var(--surface);color:var(--text);padding:7px 9px}
+.ra-metric-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+.ra-metric{display:grid;gap:5px;padding:10px 11px;border:1.25px solid color-mix(in srgb,var(--text-faint) 30%,var(--border));border-radius:12px;background:var(--surface)}
+.ra-metric>span{display:flex;align-items:center;gap:6px;font-size:10px;font-weight:800}
+.ra-number input,.ra-metric input{width:100%;min-height:40px;border:1px solid color-mix(in srgb,var(--text-faint) 34%,var(--border));border-radius:9px;background:var(--surface);color:var(--text);padding:7px 9px;font:inherit}
+.ra-advanced{border:1px dashed color-mix(in srgb,var(--text-faint) 28%,var(--border));border-radius:12px;padding:9px 10px}.ra-advanced summary{cursor:pointer;font-size:10px;font-weight:800;color:var(--text-muted)}.ra-advanced[open] summary{margin-bottom:8px}
+.ra-ux100 .ra-grid label,.ra-ux100 .ra-dose-cols label,.ra-ux100 .ra-weights label{border-width:1.25px;border-color:color-mix(in srgb,var(--text-faint) 30%,var(--border));padding:9px 10px}
+.ra-ux100 .ra-dose-cols>div{border-width:1.25px;border-color:color-mix(in srgb,var(--text-faint) 30%,var(--border));padding:10px}
+.ra-ux100 .ra-presets button.active{border-color:var(--accent);background:var(--accent-soft);color:var(--accent)}
+.ra-ux100 .ra-foot{gap:8px}.ra-ux100 .ra-foot [data-save]{min-width:190px}
+
+/* ── 9. Mobile: compactar sem sacrificar alvos de toque ──────────────────── */
+@media(max-width:760px){
+  #screen-extras .extras-toolbar.ux100-config-card{grid-template-columns:1fr;padding:13px}
+  #screen-extras .ux100-config-head{grid-template-columns:38px minmax(0,1fr)}
+  #screen-extras .ux100-config-icon{width:38px;height:38px}
+  #screen-extras .ux100-config-kpis{grid-column:1/-1;justify-content:flex-start;padding-left:49px}
+  #screen-extras .extras-toolbar.ux100-config-card>div:last-child{display:grid!important;grid-template-columns:repeat(2,minmax(0,1fr));width:100%;gap:7px!important}
+  #screen-extras .extras-toolbar.ux100-config-card>div:last-child>button{width:100%;min-width:0;min-height:40px;padding:7px 8px;font-size:10px}
+  #screen-extras #extras-settings-btn{grid-column:1/-1}
+  #screen-extras .extras-toolbar.ux100-config-card .extras-global{padding:7px 0;border-bottom:1px solid color-mix(in srgb,var(--text-faint) 20%,var(--border))}
+
+  #extras-agenda .exm-stats{grid-template-columns:1fr 1fr}
+  #extras-agenda .exm-filters{flex-wrap:nowrap;overflow-x:auto;padding-bottom:3px;scrollbar-width:none}
+  #extras-agenda .exm-filters::-webkit-scrollbar{display:none}
+  #extras-agenda .exm-chip{flex:0 0 auto}
+
+  .xsc-law-hero{grid-template-columns:42px minmax(0,1fr)}
+  .xsc-law-hero-icon{width:42px;height:42px}
+  .xsc-master-card{grid-column:1/-1;justify-content:flex-start}
+  .xsc-presets-card>div{width:100%}
+  .xsc-compact-grid{grid-template-columns:repeat(2,minmax(0,1fr))!important}
+  .xsc-days-group{grid-template-columns:1fr}
+  .xsc-days-group>header{grid-column:auto}
+  .xsc-law-footer{align-items:stretch;flex-direction:column}
+  .xsc-law-footer .xsc-foot-actions{width:100%;margin-left:0;display:grid;grid-template-columns:1fr 1fr}
+  .xsc-law-footer .xsc-foot-actions button{width:100%;min-height:42px}
+
+  .ra-modal.ra-ux100{max-height:96vh;border-radius:20px 20px 0 0}
+  .ra-ux100 .ra-body{padding:12px}
+  .ra-ux100 .ra-head{padding-bottom:11px}
+  .ra-ux100 .ra-strategies{grid-template-columns:repeat(3,minmax(0,1fr))}
+  .ra-ux100 .ra-phase{grid-template-columns:1fr;gap:7px}
+  .ra-ux100 .ra-metric-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .ra-ux100 .ra-dose-cols,.ra-ux100 .ra-weights{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .ra-ux100 .ra-foot{display:grid;grid-template-columns:1fr 1fr;padding:9px 10px}
+  .ra-ux100 .ra-foot .ra-spacer{display:none}
+  .ra-ux100 .ra-foot [data-save]{grid-column:1/-1;grid-row:1;min-width:0;min-height:44px}
+  .ra-ux100 .ra-foot [data-cancel],.ra-ux100 .ra-foot [data-reset]{grid-row:2;min-height:40px}
+}
+
+@media(max-width:560px){
+  #screen-extras .page-header{margin-bottom:8px}
+  #screen-extras .page-subtitle{font-size:11px;line-height:1.4}
+  #screen-extras .ux100-config-copy span{font-size:10px}
+  #extras-list .exd.exm-task.ux100-task{padding:10px}
+  #extras-list .exd-top{grid-template-columns:26px 38px minmax(0,1fr) auto;gap:7px}
+  #extras-list .exd-ico{width:38px;height:38px}
+  #extras-list .exd-actions{gap:5px;padding-left:0}
+  #extras-list .exd-actions .reg-act-btn{width:36px;height:36px;min-width:36px;min-height:36px}
+  #extras-list .exd-prog,#extras-list .extra-marcador,#extras-list .exd-reg{margin-left:71px}
+  #extras-list .ux100-law-task .lr-route{margin-left:71px;grid-template-columns:minmax(0,1fr) auto;padding:8px}
+  #extras-list .ux100-law-task .lr-route-main span{display:none}
+  #extras-list .ux100-law-task .lr-route .btn-secondary{min-width:92px;padding:6px 8px;font-size:10px}
+
+  .xsc-body{padding:12px 10px 18px!important}
+  .xsc-section{gap:11px}
+  .xsc-setting-group{padding:10px;gap:8px}
+  .xsc-compact-grid .xsc-field{padding:8px}
+  .xsc-compact-grid .xsc-label b{font-size:10px}
+  .xsc-field input,.xsc-field select{min-height:38px;padding:7px 8px;font-size:12px}
+  .xsc-days{gap:5px}.xsc-days span{width:31px;height:31px}
+
+  .ra-ux100 .ra-head p{display:block;font-size:9px}
+  .ra-ux100 .ra-tabs{padding:8px 9px;gap:5px}
+  .ra-ux100 .ra-tabs button{min-height:36px;padding:6px 9px}
+  .ra-ux100 .ra-strategy{min-height:58px;padding:7px 6px}
+  .ra-ux100 .ra-strategy b{font-size:10px}.ra-ux100 .ra-strategy span{font-size:8px}
+  .ra-ux100 .ra-metric{padding:8px}
+  .ra-ux100 .ra-metric>span{font-size:9px}
+  .ra-ux100 .ra-dose-cols,.ra-ux100 .ra-weights{gap:7px}
+  .ra-ux100 .ra-dose-cols>div{padding:8px}
+  .ra-ux100 .ra-grid label,.ra-ux100 .ra-dose-cols label,.ra-ux100 .ra-weights label{padding:8px}
+}
+
+@media(max-width:390px){
+  #screen-extras .ux100-config-kpis{padding-left:0}
+  #extras-list .exd-top{grid-template-columns:25px 36px minmax(0,1fr)}
+  #extras-list .exd-actions{grid-column:2/4;justify-self:end;margin-top:2px}
+  #extras-list .exd-prog,#extras-list .extra-marcador,#extras-list .exd-reg{margin-left:0}
+  #extras-list .ux100-law-task .lr-route{margin-left:0}
+  .xsc-compact-grid{grid-template-columns:1fr 1fr!important;gap:6px}
+  .xsc-field-wide{grid-column:1/-1}
+  .ra-ux100 .ra-metric-grid{grid-template-columns:1fr 1fr;gap:6px}
+  .ra-ux100 .ra-strategies{gap:6px}
+  .ra-ux100 .ra-dose-cols,.ra-ux100 .ra-weights{grid-template-columns:1fr 1fr;gap:6px}
+}

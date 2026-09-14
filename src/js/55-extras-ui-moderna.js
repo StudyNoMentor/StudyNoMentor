@@ -343,11 +343,16 @@
 
     reorganizar() {
       const screen = document.getElementById('screen-extras');
+      if (!screen) return;
+      const header = screen.querySelector('.page-header');
+      const toolbar = screen.querySelector('.extras-toolbar');
       const curso = document.getElementById('extras-curso');
-      const toolbar = screen && screen.querySelector('.extras-toolbar');
-      if (screen && curso && toolbar && curso.nextElementSibling !== toolbar) {
-        screen.insertBefore(curso, toolbar);
-      }
+      const agenda = document.getElementById('extras-agenda');
+      const list = document.getElementById('extras-list');
+      if (header && toolbar && header.nextElementSibling !== toolbar) header.insertAdjacentElement('afterend', toolbar);
+      if (toolbar && curso && toolbar.nextElementSibling !== curso) toolbar.insertAdjacentElement('afterend', curso);
+      if (curso && agenda && curso.nextElementSibling !== agenda) curso.insertAdjacentElement('afterend', agenda);
+      if (agenda && list && agenda.nextElementSibling !== list) agenda.insertAdjacentElement('afterend', list);
       if (toolbar) toolbar.classList.add('exm-toolbar');
     },
 
