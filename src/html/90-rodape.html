@@ -57,6 +57,7 @@
       };
       req.onsuccess = function () { resolve(req.result); };
       req.onerror = function () { reject(req.error); };
+      req.onblocked = function () { reject(new Error('IndexedDB bloqueado por outra aba')); };
     });
   }
 
@@ -201,18 +202,47 @@
     }
   }
 
+  function hydrateCursor(resolve) {
+    var tx, store, req;
+    try { tx = db.transaction(IDB_STORE, 'readonly'); store = tx.objectStore(IDB_STORE); req = store.openCursor(); }
+    catch (e) { resolve(); return; }
+    req.onsuccess = function () {
+      var cur = req.result;
+      if (cur) { cache.set(String(cur.key), String(cur.value)); cur.continue(); }
+      else { invalidateKeys(); resolve(); }
+    };
+    req.onerror = function () { resolve(); };
+  }
   function hydrate() {
     return new Promise(function (resolve) {
       if (!db) { resolve(); return; }
-      var tx, store, req;
-      try { tx = db.transaction(IDB_STORE, 'readonly'); store = tx.objectStore(IDB_STORE); req = store.openCursor(); }
-      catch (e) { resolve(); return; }
-      req.onsuccess = function () {
-        var cur = req.result;
-        if (cur) { cache.set(String(cur.key), String(cur.value)); cur.continue(); }
-        else { invalidateKeys(); resolve(); }
+      var tx, store, rk, rv, keys = null, vals = null, settled = false;
+      try {
+        tx = db.transaction(IDB_STORE, 'readonly');
+        store = tx.objectStore(IDB_STORE);
+        if (typeof store.getAll !== 'function' || typeof store.getAllKeys !== 'function') {
+          hydrateCursor(resolve); return;
+        }
+        rk = store.getAllKeys();
+        rv = store.getAll();
+      } catch (e) { hydrateCursor(resolve); return; }
+      var fallback = function () {
+        if (settled) return;
+        settled = true;
+        hydrateCursor(resolve);
       };
-      req.onerror = function () { resolve(); };
+      var finish = function () {
+        if (settled || keys === null || vals === null) return;
+        settled = true;
+        var n = Math.min(keys.length, vals.length);
+        for (var i = 0; i < n; i++) cache.set(String(keys[i]), String(vals[i]));
+        invalidateKeys();
+        resolve();
+      };
+      rk.onsuccess = function () { keys = rk.result || []; finish(); };
+      rv.onsuccess = function () { vals = rv.result || []; finish(); };
+      rk.onerror = fallback;
+      rv.onerror = fallback;
     });
   }
 

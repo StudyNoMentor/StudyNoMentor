@@ -57,7 +57,7 @@
      novo, e o antigo é descartado sozinho na ativação) e o que permite ao app
      dizer qual versão está rodando. Em src/ fica "dev" de propósito: a versão
      é gerada na montagem, não editada à mão. -->
-<meta name="diario-versao" content="v5ada57aab6">
+<meta name="diario-versao" content="v5cdc8b662f">
 <script>
 /* ── ARRANQUE: abre o IndexedDB AGORA, em paralelo com o parse do documento ──
    A fachada de armazenamento vive no fim do <body>, depois de ~1,7 MB de HTML.
@@ -13373,6 +13373,12 @@ body:has(#tec-cfg-body) #tec-cfg-body{scrollbar-gutter:stable}
   #screen-leis .lr-law-tools [data-lr-law-cfg]{grid-column:auto;grid-row:auto;width:100%}
   #screen-desempenhotec .tp-command.uxv3-tec-command{padding:13px 12px!important}
   #screen-desempenhotec .uxv3-tec-command .tp-title strong{font-size:19px!important}
+}
+
+/* Spinners tardios (criados depois da ativação da tela) também animam. */
+#screen-conquistas [class*="spinner"],#screen-conquistas [class*="loading-spin"],
+#screen-desempenhotec [class*="spinner"],#screen-desempenhotec [class*="loading-spin"]{
+  animation:uxv3-spin .78s linear infinite!important;will-change:transform;transform:translateZ(0);
 }
 
 </style>
@@ -42222,6 +42228,30 @@ const ProfileUI = {
       const willAutoEnter = logged && this.autoEnterOn() && !this._autoEnterTried && !this._offline;
       if (loginEl) loginEl.style.display = 'none';
       if (willAutoEnter) {
+        /* FAST PATH OFFLINE-FIRST: se o alvo desta conta já é exatamente o
+           perfil ativo e os dados dele estão neste aparelho, não há motivo para
+           deixar a pessoa olhando "Carregando seu perfil" enquanto uma consulta
+           de rede confirma algo que já podemos mostrar com segurança. A nuvem é
+           conferida logo depois, em segundo plano; novidade real continua usando
+           o fluxo normal de pull protegido. */
+        let localAlvo = this.getDefaultProfile() || this.getLastProfile();
+        const ativoLocal = ProfileManager.getActiveProfileId();
+        const uidAtual = this._uid();
+        const podeAbrirLocal = localAlvo && localAlvo === ativoLocal && this._hasLocalData(localAlvo) &&
+          (!ProfileManager._podeVerLocal || ProfileManager._podeVerLocal(localAlvo, uidAtual));
+        if (podeAbrirLocal) {
+          this._autoEnterTried = true;
+          this._entering = false;
+          try { sessionStorage.setItem(this.SESSION_KEY, localAlvo); } catch (e) { _quiet(e); }
+          this.setLastProfile(localAlvo);
+          if (enteringEl) enteringEl.style.display = 'none';
+          if (profilesEl) profilesEl.style.display = 'none';
+          this.hideGate();
+          this.renderChip();
+          try { DB.checarEspaco(); } catch (_) { _quiet(_); }
+          setTimeout(() => { try { if (window.CloudStore) CloudStore.syncOnFocus(); } catch (_) { _quiet(_); } }, 120);
+          return;
+        }
         this._stage = 'entering';
         if (enteringEl) enteringEl.style.display = 'block';
         if (profilesEl) profilesEl.style.display = 'none';
@@ -53160,8 +53190,10 @@ else CloudStore.init();
         if (loud) toast('Sessão reconectada ✓');
       } else {
         this.setBtn('error', 'Sessão expirada');
-        if (loud) toast('Não deu para renovar a sessão. Entre com sua senha no menu ☁.');
-        this.openMenu($('#cloud-sync-btn'), true);
+        if (loud) {
+          toast('Não deu para renovar a sessão. Entre com sua senha no menu ☁.');
+          this.openMenu($('#cloud-sync-btn'), true);
+        }
       }
       this.refreshBadge();
       return ok;
@@ -53780,6 +53812,7 @@ else CloudStore.init();
       };
       req.onsuccess = function () { resolve(req.result); };
       req.onerror = function () { reject(req.error); };
+      req.onblocked = function () { reject(new Error('IndexedDB bloqueado por outra aba')); };
     });
   }
 
@@ -53924,18 +53957,47 @@ else CloudStore.init();
     }
   }
 
+  function hydrateCursor(resolve) {
+    var tx, store, req;
+    try { tx = db.transaction(IDB_STORE, 'readonly'); store = tx.objectStore(IDB_STORE); req = store.openCursor(); }
+    catch (e) { resolve(); return; }
+    req.onsuccess = function () {
+      var cur = req.result;
+      if (cur) { cache.set(String(cur.key), String(cur.value)); cur.continue(); }
+      else { invalidateKeys(); resolve(); }
+    };
+    req.onerror = function () { resolve(); };
+  }
   function hydrate() {
     return new Promise(function (resolve) {
       if (!db) { resolve(); return; }
-      var tx, store, req;
-      try { tx = db.transaction(IDB_STORE, 'readonly'); store = tx.objectStore(IDB_STORE); req = store.openCursor(); }
-      catch (e) { resolve(); return; }
-      req.onsuccess = function () {
-        var cur = req.result;
-        if (cur) { cache.set(String(cur.key), String(cur.value)); cur.continue(); }
-        else { invalidateKeys(); resolve(); }
+      var tx, store, rk, rv, keys = null, vals = null, settled = false;
+      try {
+        tx = db.transaction(IDB_STORE, 'readonly');
+        store = tx.objectStore(IDB_STORE);
+        if (typeof store.getAll !== 'function' || typeof store.getAllKeys !== 'function') {
+          hydrateCursor(resolve); return;
+        }
+        rk = store.getAllKeys();
+        rv = store.getAll();
+      } catch (e) { hydrateCursor(resolve); return; }
+      var fallback = function () {
+        if (settled) return;
+        settled = true;
+        hydrateCursor(resolve);
       };
-      req.onerror = function () { resolve(); };
+      var finish = function () {
+        if (settled || keys === null || vals === null) return;
+        settled = true;
+        var n = Math.min(keys.length, vals.length);
+        for (var i = 0; i < n; i++) cache.set(String(keys[i]), String(vals[i]));
+        invalidateKeys();
+        resolve();
+      };
+      rk.onsuccess = function () { keys = rk.result || []; finish(); };
+      rv.onsuccess = function () { vals = rv.result || []; finish(); };
+      rk.onerror = fallback;
+      rv.onerror = fallback;
     });
   }
 

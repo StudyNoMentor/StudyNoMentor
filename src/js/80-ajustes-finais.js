@@ -1088,8 +1088,10 @@ else CloudStore.init();
         if (loud) toast('Sessão reconectada ✓');
       } else {
         this.setBtn('error', 'Sessão expirada');
-        if (loud) toast('Não deu para renovar a sessão. Entre com sua senha no menu ☁.');
-        this.openMenu($('#cloud-sync-btn'), true);
+        if (loud) {
+          toast('Não deu para renovar a sessão. Entre com sua senha no menu ☁.');
+          this.openMenu($('#cloud-sync-btn'), true);
+        }
       }
       this.refreshBadge();
       return ok;

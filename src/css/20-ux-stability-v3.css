@@ -171,3 +171,9 @@
   #screen-desempenhotec .tp-command.uxv3-tec-command{padding:13px 12px!important}
   #screen-desempenhotec .uxv3-tec-command .tp-title strong{font-size:19px!important}
 }
+
+/* Spinners tardios (criados depois da ativação da tela) também animam. */
+#screen-conquistas [class*="spinner"],#screen-conquistas [class*="loading-spin"],
+#screen-desempenhotec [class*="spinner"],#screen-desempenhotec [class*="loading-spin"]{
+  animation:uxv3-spin .78s linear infinite!important;will-change:transform;transform:translateZ(0);
+}
