@@ -392,11 +392,16 @@
  {
   "arquivo": "js/84-reforco-continuity-core-v4.js",
   "de": 54410,
-  "ate": 54504
+  "ate": 54942
+ },
+ {
+  "arquivo": "js/85-mentor90-performance-bridge-v5.js",
+  "de": 54944,
+  "ate": 55141
  },
  {
   "arquivo": "html/90-rodape.html",
-  "de": 54506,
-  "ate": 54951
+  "de": 55143,
+  "ate": 55588
  }
 ]
