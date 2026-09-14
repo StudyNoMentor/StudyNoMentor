@@ -15,7 +15,7 @@ A auditoria acompanha somente dados pertinentes ao V8:
 - desfecho posteriormente observado no TEC, quando disponível;
 - peso manual da disciplina TEC no Pós-edital.
 
-O arquivo não registra roteador pedagógico, intervenção, otimizador legado, Mentor90, nomes/pesos do ciclo regular nem tempo do estudo regular.
+O arquivo não registra método subjetivo de estudo, nomes/pesos do ciclo regular nem tempo do estudo regular.
 
 ## TEC não é um experimento causal
 
