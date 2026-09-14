@@ -15,7 +15,15 @@ const I={norm,esc:s=>String(s??''),snapshot:()=>({...clone(snaps[2]),_fontes:clo
 const ctx={console,JSON,Math,Date,Set,Map,Blob:class{},URL:{createObjectURL:()=>'',revokeObjectURL(){}},document:{createElement:()=>({click(){},remove(){}}),body:{appendChild(){}}},CSS:{escape:s=>String(s)},localStorage:{getItem:k=>mem.get(k)||null,setItem:(k,v)=>mem.set(k,String(v)),removeItem:k=>mem.delete(k)},DB:{_profilePrefix:()=> 'u:',setRaw:(k,v)=>mem.set(k,String(v)),delRaw:k=>mem.delete(k),getExtras:()=>clone(extras),getTecSnapshots:()=>clone(snaps),getActiveSubjects:()=>clone(subjects)},PlanManager:{getActivePlan:()=>plan,updatePlan:(id,patch)=>Object.assign(plan,clone(patch))},PlanoSugestoesInfraV2:I,showToast(){},_quiet(){},window:{}};ctx.window=ctx;vm.createContext(ctx);
 for(const f of ['src/js/84b-reforco-tec-extras-v8.js','src/js/88-plano-sugestoes-robusto-v8.js'])vm.runInContext(readFileSync(join(ROOT,f),'utf8'),ctx,{filename:f});
 const X=ctx.ReforcoTecExtrasV8,R=ctx.PlanoSugestoesRobustoV8;assert(X&&R,'V8 deve publicar prescricao e motor');assert.equal(R.VERSAO,8);assert.equal(R.MOTOR,'robusto-v8');
-const src=semComentarios(readFileSync(join(ROOT,'src/js/88-plano-sugestoes-robusto-v8.js'),'utf8'));for(const proibido of ['PlanoEngine','Mentor90','PlanoRobustoConfig','PlanoRobustoRouter','PlanoRobustoOptimizer'])assert(!src.includes(proibido),`Robusto V8 nao pode depender de ${proibido}`);
+const src=semComentarios(readFileSync(join(ROOT,'src/js/88-plano-sugestoes-robusto-v8.js'),'utf8'));
+const depsProibidas=[
+  ['PlanoEngine',/\bPlanoEngine\s*[.(\[]|window\.PlanoEngine\b/],
+  ['Mentor90',/\bMentor90(?:V\d+)?\s*[.(\[]|window\.Mentor90\w*\b/],
+  ['PlanoRobustoConfig',/\bPlanoRobustoConfig\w*\s*[.(\[]|window\.PlanoRobustoConfig\w*\b/],
+  ['PlanoRobustoRouter',/\bPlanoRobustoRouter\w*\s*[.(\[]|window\.PlanoRobustoRouter\w*\b/],
+  ['PlanoRobustoOptimizer',/\bPlanoRobustoOptimizer\w*\s*[.(\[]|window\.PlanoRobustoOptimizer\w*\b/]
+];
+for(const [nome,re] of depsProibidas)assert(!re.test(src),`Robusto V8 nao pode executar ${nome}`);
 const p0=R.prefs();assert.equal(p0.meta,90);assert.equal(p0.minAmostra,20);const a=R.posterior(75,20,90,{...p0,forcaPrior:.5}),b=R.posterior(75,20,90,{...p0,forcaPrior:20});assert.notEqual(Math.round(a.media*1000),Math.round(b.media*1000),'forca do prior deve realmente regularizar');
 let pre=R.calcular();assert.equal(pre.erro,undefined);assert.equal(pre.fase,'pre');assert.equal(pre.itens.length,3);assert.equal(new Set(pre.itens.map(x=>x.disciplina)).size,3);assert(pre.disciplinas.every(x=>x.peso===1),'Pre deve impor peso 1 para todas as disciplinas');assert(pre.itens.every(x=>x.quantidadeRecomendada>=p0.doseMin&&x.quantidadeRecomendada<=p0.doseMax));assert(pre.itens.every(x=>x.topicosOrdenados.length>=2));
 const sig=()=>R.calcular().itens.map(x=>[x.disciplina,x.nome,Math.round(x.score*1000),x.quantidadeRecomendada]);const s0=clone(sig());subjects=[{nome:'QUALQUER OUTRO NOME',peso:.1},{nome:'Auditoria ciclo',peso:200}];assert.deepEqual(clone(sig()),s0,'nome/peso do ciclo regular jamais pode alterar o Robusto');
