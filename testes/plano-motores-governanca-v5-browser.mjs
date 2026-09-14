@@ -49,7 +49,7 @@ try{
   assert.equal(await page.locator('.ps-engine-card').count(),2,'ambos ativos devem mostrar duas escolhas principais');
   assert.equal(await page.locator('.ps-compare-launch').count(),1,'Comparar deve aparecer separado das duas escolhas principais');
   assert.match(await page.locator('.ps-engine-chooser').textContent(),/Como quer escolher estas 3 frentes/i);
-  assert.equal(await page.locator('#ui-modal-body [data-ps-meta],[data-rv4-toggle],[data-rv4-field]').count(),0,'Extras deve estar livre de parâmetros dos motores');
+  assert.equal(await page.locator('#ui-modal-body [data-ps-meta],#ui-modal-body [data-rv4-toggle],#ui-modal-body [data-rv4-field]').count(),0,'Extras deve estar livre de parâmetros dos motores');
   assert.ok((await overflow('#ui-modal-body'))<=4,'seletor dual não pode ter overflow');
   await fechar();
 
@@ -64,7 +64,7 @@ try{
   assert.equal(await page.locator('.ps-engine-chooser').count(),0,'com um único motor não deve haver etapa de escolha');
   assert.match(await page.locator('.ps-single-engine').textContent(),/Robusto/i);
   assert.equal(await page.locator('[data-ps-modo]').count(),0,'Simplificado/Comparar não podem continuar escondidos no DOM do modal');
-  assert.equal(await page.locator('[data-rv4-toggle],[data-rv4-field]').count(),0,'configurações robustas devem existir somente no Desempenho TEC');
+  assert.equal(await page.locator('#ui-modal-body [data-rv4-toggle],#ui-modal-body [data-rv4-field]').count(),0,'configurações robustas devem existir somente no Desempenho TEC');
   await fechar();
 
   // 3) Apenas Simplificado: aba Plano/Robusto some do TEC e modal abre direto sem parâmetros.
@@ -80,7 +80,7 @@ try{
   await abrir();
   assert.equal(await page.locator('.ps-engine-chooser').count(),0);
   assert.match(await page.locator('.ps-single-engine').textContent(),/Simplificado/i);
-  assert.equal(await page.locator('[data-rv4-toggle],[data-ps-meta],[data-ps-alvo]').count(),0,'Extras não pode configurar nenhum motor');
+  assert.equal(await page.locator('#ui-modal-body [data-rv4-toggle],#ui-modal-body [data-ps-meta],#ui-modal-body [data-ps-alvo]').count(),0,'Extras não pode configurar nenhum motor');
   await fechar();
 
   // 4) Ambos desligados: nenhuma entrada, nenhum cálculo oculto e histórico não é limpo.
