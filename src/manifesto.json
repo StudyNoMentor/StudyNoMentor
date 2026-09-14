@@ -417,21 +417,21 @@
  {
   "arquivo": "js/87-plano-sugestoes-simplificado-v2.js",
   "de": 55095,
-  "ate": 55258
+  "ate": 55272
  },
  {
   "arquivo": "js/88-plano-sugestoes-robusto-v2.js",
-  "de": 55260,
-  "ate": 55314
+  "de": 55274,
+  "ate": 55328
  },
  {
   "arquivo": "js/89-plano-sugestoes-controller-v2.js",
-  "de": 55316,
-  "ate": 55405
+  "de": 55330,
+  "ate": 55419
  },
  {
   "arquivo": "html/90-rodape.html",
-  "de": 55407,
-  "ate": 55852
+  "de": 55421,
+  "ate": 55866
  }
 ]
