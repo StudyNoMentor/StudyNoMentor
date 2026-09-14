@@ -37,6 +37,14 @@ replace_once(
     '/* A camada operacional final usa: Configurações -> Reforços em curso -> Extras de hoje. */'
 )
 
+# O switch mantém o input real sobre o trilho visual: melhora teclado, automação
+# e evita que o texto do label intercepte o toque no controle.
+replace_once(
+    'src/css/18-extras-ux100.css',
+    '.ra-switch-hero>input{position:absolute;opacity:0;pointer-events:none}',
+    '.ra-switch-hero>input{position:absolute;right:14px;top:50%;transform:translateY(-50%);width:44px;height:28px;margin:0;opacity:.001;pointer-events:auto;z-index:3;cursor:pointer}'
+)
+
 # A auditoria passa a ser uma barreira permanente do PR/main.
 replace_once(
     '.github/workflows/verificar.yml',
