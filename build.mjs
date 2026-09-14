@@ -68,137 +68,47 @@ const PARTES = [
   SEP('\n</style>\n\n<style id="ux-stability-v3">\n'), S('css/20-ux-stability-v3.css'),
   SEP('\n</style>\n\n<style id="startup-spinners-reforco-v4">\n'), S('css/21-startup-spinners-reforco-v4.css'),
   SEP('\n</style>\n\n<script id="app-code" type="application/x-diario-inert">\n'),
-  // ── código do app: um único escopo global, na ordem de dependência ──
   [
-    'js/10-infra.js',
-    'js/11-db.js',
-    'js/12-planos-perfis.js',
-    'js/13-historico-versoes.js',
-    'js/14-navegacao-e-dialogos.js',
-    'js/15-saveguard.js',
-    'js/16-planilhas-e-tec.js',
-    'js/17-reforco.js',
-    'js/20-tela-registrar.js',
-    'js/21-tela-ciclo.js',
-    'js/22-leis-engine.js',
-    'js/30-fsrs.js',
-    'js/31-cards-config.js',
-    'js/32-card-engine.js',
-    'js/33-tela-grade.js',
-    'js/40-tela-historico.js',
-    'js/41-tela-evolucao.js',
-    'js/42-tela-estudo-novo.js',
-    'js/43-tela-leis.js',
-    'js/44-tela-cards.js',
-    'js/45-autoteste.js',
-    'js/46-sanitizacao-e-editor.js',
-    'js/47-tela-extras.js',
-    'js/48-tela-links.js',
-    'js/49-tela-config.js',
-    'js/50-tela-ferramentas.js',
-    'js/51-tela-desempenho-tec.js',
-    'js/52-tela-planejamentos.js',
-    'js/53-portao-de-acesso.js',
-    'js/54-reforco-fila.js',
-    'js/55-extras-ui-moderna.js',
-    'js/56-leis-rodizio.js',
-    'js/57-extras-lei-fonte.js',
-    'js/58-extras-governanca.js',
-    'js/59-tec-premium.js',
-    'js/59-extras-central-ui.js',
-    'js/59-reforco-adaptativo.js',
-    'js/59-tec-layout-v2.js',
-    'js/59-extras-stability.js',
-    'js/59-interaction-feedback.js',
-    'js/59-extras-ux100.js',
-    'js/59-tec-auditoria-v2.js',
-    'js/60-cloud-store.js',
-    'js/61-session-guard.js',
-    'js/62-section-sync.js',
-    'js/63-cloud-ui.js',
-    'js/64-info-tips.js',
-    'js/65-recuperacao.js',
-    'js/66-backup-nuvem.js',
-    'js/67-atualizacao.js',
-    'js/70-relatorio.js',
-    'js/71-auditoria-plano.js',
-    'js/80-ajustes-finais.js',
-    'js/81-ux-stability-v3.js',
-    'js/82-startup-spinners-reforco-continuo-v4.js',
-    'js/83-extras-plano-continuity-v4.js',
+    'js/10-infra.js','js/11-db.js','js/12-planos-perfis.js','js/13-historico-versoes.js','js/14-navegacao-e-dialogos.js','js/15-saveguard.js','js/16-planilhas-e-tec.js','js/17-reforco.js','js/20-tela-registrar.js','js/21-tela-ciclo.js','js/22-leis-engine.js','js/30-fsrs.js','js/31-cards-config.js','js/32-card-engine.js','js/33-tela-grade.js','js/40-tela-historico.js','js/41-tela-evolucao.js','js/42-tela-estudo-novo.js','js/43-tela-leis.js','js/44-tela-cards.js','js/45-autoteste.js','js/46-sanitizacao-e-editor.js','js/47-tela-extras.js','js/48-tela-links.js','js/49-tela-config.js','js/50-tela-ferramentas.js','js/51-tela-desempenho-tec.js','js/52-tela-planejamentos.js','js/53-portao-de-acesso.js','js/54-reforco-fila.js','js/55-extras-ui-moderna.js','js/56-leis-rodizio.js','js/57-extras-lei-fonte.js','js/58-extras-governanca.js','js/59-tec-premium.js','js/59-extras-central-ui.js','js/59-reforco-adaptativo.js','js/59-tec-layout-v2.js','js/59-extras-stability.js','js/59-interaction-feedback.js','js/59-extras-ux100.js','js/59-tec-auditoria-v2.js','js/60-cloud-store.js','js/61-session-guard.js','js/62-section-sync.js','js/63-cloud-ui.js','js/64-info-tips.js','js/65-recuperacao.js','js/66-backup-nuvem.js','js/67-atualizacao.js','js/70-relatorio.js','js/71-auditoria-plano.js','js/80-ajustes-finais.js','js/81-ux-stability-v3.js','js/82-startup-spinners-reforco-continuo-v4.js','js/83-extras-plano-continuity-v4.js','js/84-reforco-continuity-core-v4.js'
   ].map((m, i, todos) => { const t = S(m); if (i < todos.length - 1) SEP('\n'); return t; }).join('\n'),
   SEP('\n'),
   S('html/90-rodape.html'),
 ];
 
-/* ── CARIMBO DE VERSÃO ─────────────────────────────────────────────────────
-   O nome do cache do service worker era fixo ("diario-v2") e nunca mudava
-   entre publicações. O efeito prático: a limpeza de caches antigos, que roda na
-   ativação e apaga tudo que não começa com a versão atual, NUNCA tinha o que
-   apagar — o cache velho continuava com o mesmo nome do novo. Era daí que vinha
-   "atualizei e o app ficou estranho": ativos de duas versões convivendo no mesmo
-   balde, e código novo esbarrando em resto de código velho.
-
-   A versão passa a ser um resumo do conteúdo de src/. Ela muda sozinha a cada
-   alteração real, dá um nome NOVO ao cache (o antigo é descartado na ativação,
-   sem ninguém precisar pedir) e aparece no diagnóstico, para que "qual versão
-   está rodando aqui?" tenha resposta.
-
-   O resumo é calculado sobre a MONTAGEM SEM O CARIMBO — assim ele não depende
-   de si mesmo, e `--check` reproduz o mesmo byte a byte. */
 const semCarimbo = PARTES.join('');
 const VERSAO = 'v' + createHash('sha256').update(semCarimbo).digest('hex').slice(0, 10);
-const montado = semCarimbo.replace('<meta name="diario-versao" content="dev">',
-                                   `<meta name="diario-versao" content="${VERSAO}">`);
+const montado = semCarimbo.replace('<meta name="diario-versao" content="dev">', `<meta name="diario-versao" content="${VERSAO}">`);
 const destino = join(RAIZ, 'index.html');
 
-/* O sw.js não é montado a partir de src/ (ele é servido como arquivo próprio),
-   então o carimbo é gravado nele por substituição de linha. */
 function carimbarServiceWorker() {
   const swPath = join(RAIZ, 'sw.js');
   let sw;
   try { sw = readFileSync(swPath, 'utf8'); } catch { return null; }
   const novo = sw.replace(/^const VERSAO = '[^']*';$/m, `const VERSAO = '${VERSAO}';`);
-  if (novo === sw) return sw;      // já estava igual
+  if (novo === sw) return sw;
   writeFileSync(swPath, novo, 'utf8');
   return novo;
 }
-
-/* Faixas de linha: "de" é a primeira linha que o arquivo ocupa no index.html e
-   "ate" a última. A contagem acompanha as quebras de linha acumuladas, então os
-   separadores estruturais entram na conta sem virar entradas do mapa. */
 function montarManifesto() {
-  const out = [];
-  let nl = 0;
+  const out = []; let nl = 0;
   for (const seg of SEGMENTOS) {
     const linhas = seg.texto.split('\n').length;
-    // um arquivo que termina em quebra de linha não "ocupa" a linha vazia
-    // seguinte: ela já pertence ao que vem depois dele.
     const ate = nl + linhas - (seg.texto.endsWith('\n') ? 1 : 0);
     if (seg.arquivo) out.push({ arquivo: seg.arquivo, de: nl + 1, ate });
     nl += linhas - 1;
   }
   return JSON.stringify(out, null, 1) + '\n';
 }
-
 if (process.argv.includes('--check')) {
   const atual = readFileSync(destino, 'utf8');
-  // o sw.js publicado tem de carregar a MESMA versão do index.html publicado —
-  // um carimbo defasado ali significa cache com nome errado
   const swAtual = readFileSync(join(RAIZ, 'sw.js'), 'utf8');
   const swVersao = (swAtual.match(/^const VERSAO = '([^']*)';$/m) || [])[1];
   if (swVersao !== VERSAO) {
     console.error(`DIVERGENCIA: sw.js carimbado como "${swVersao}", src/ monta "${VERSAO}".`);
-    console.error('Rode `node build.mjs` para recarimbar.');
-    process.exit(1);
+    console.error('Rode `node build.mjs` para recarimbar.'); process.exit(1);
   }
-  if (atual === montado) {
-    console.log(`OK: src/ monta exatamente o index.html atual (${montado.length} bytes, ${VERSAO}).`);
-    process.exit(0);
-  }
-  // Diagnóstico útil: aponta a PRIMEIRA linha divergente, não só "difere".
-  const a = atual.split('\n'), b = montado.split('\n');
-  let i = 0;
+  if (atual === montado) { console.log(`OK: src/ monta exatamente o index.html atual (${montado.length} bytes, ${VERSAO}).`); process.exit(0); }
+  const a = atual.split('\n'), b = montado.split('\n'); let i = 0;
   while (i < a.length && i < b.length && a[i] === b[i]) i++;
   console.error('DIVERGENCIA entre src/ e index.html.');
   console.error(`  primeira linha diferente: ${i + 1}`);
@@ -209,7 +119,6 @@ if (process.argv.includes('--check')) {
   console.error('Se foi feita em src/, rode `node build.mjs` para regravar o index.html.');
   process.exit(1);
 }
-
 writeFileSync(destino, montado, 'utf8');
 writeFileSync(join(RAIZ, 'src', 'manifesto.json'), montarManifesto(), 'utf8');
 carimbarServiceWorker();
