@@ -1,0 +1,49 @@
+/* ============================================================================
+   CENTRAL DE CONFIGURAÇÃO DOS MOTORES — DESEMPENHO TEC V2
+   Extras escolhe/executa; Desempenho TEC configura. Uma única fonte de verdade.
+   ============================================================================ */
+(() => {
+  if (typeof window === 'undefined' || window.__planoMotoresCentralTecV2) return;
+  window.__planoMotoresCentralTecV2 = true; window.__planoMotoresCentralTecV1 = true;
+  const G=window.PlanoMotoresGovernancaV5,C=window.PlanoSugestoesV3||window.PlanoSugestoesV2,S=window.PlanoSugestoesSimplificadoV2,R=window.PlanoSugestoesRobustoV5||window.PlanoSugestoesRobustoV4||window.PlanoSugestoesRobustoV2,I=window.PlanoSugestoesInfraV2;
+  const DT=(typeof DesempenhoTecScreen!=='undefined'&&DesempenhoTecScreen)||window.DesempenhoTecScreen;
+  if(!G||!C||!S||!R||!I||!DT)return;
+  const esc=I.esc||((s)=>String(s??''));
+  const M={
+    VERSAO:2,_origSwitch:DT.switchTecTab?.bind(DT),_origRender:DT.render?.bind(DT),_tabObserver:null,
+    _bancas(atual){const bs=I.bancas?I.bancas():[];return `<option value="__todas__" ${atual==='__todas__'?'selected':''}>Selecionar automaticamente</option>`+bs.map(b=>`<option value="${esc(b)}" ${b===atual?'selected':''}>${esc(b)}</option>`).join('');},
+    _simpleHtml(){const p=S.prefs(),fase=S.fase?S.fase(p):(p.fase||'auto');return `<section class="pmc-engine-card" data-pmc-engine="simplificado"><header><div class="pmc-engine-id"><span>⚡</span><div><small>MOTOR ATIVO</small><h3>Simplificado</h3><p>Leitura direta do TEC, poucos parâmetros e fórmula transparente. Não usa PlanoEngine, Mentor90 nem estado do Robusto.</p></div></div><span class="pmc-pill">Direto</span></header><div class="pmc-simple-grid"><label><span>Fase</span><select data-pmc-simple="fase"><option value="auto" ${p.fase==='auto'?'selected':''}>Automática</option><option value="pre" ${p.fase==='pre'?'selected':''}>Pré-edital</option><option value="pos" ${p.fase==='pos'?'selected':''}>Pós-edital</option></select><small>Pré usa TEC direto; Pós cruza incidência e planejamento.</small></label><label><span>Meta desejada</span><div class="pmc-suffix"><input data-pmc-simple="meta" type="number" min="50" max="100" value="${p.meta}"><em>%</em></div><small>Assuntos abaixo da régua entram na disputa.</small></label><label><span>Amostra mínima</span><input data-pmc-simple="minAmostra" type="number" min="1" max="500" value="${p.minAmostra}"><small>Piso para uma taxa ser considerada.</small></label><label><span>Questões por frente</span><input data-pmc-simple="alvoQuestoes" type="number" min="5" max="200" value="${p.alvoQuestoes}"><small>Alvo operacional das atividades Simplificadas.</small></label><label class="${fase==='pos'?'':'pmc-hidden'}"><span>Banca</span><select data-pmc-simple="banca">${this._bancas(p.banca)}</select><small>Incidência usada no cruzamento Pós-edital.</small></label></div><footer><span>Storage exclusivo: ${esc(S.KEY||'plano-simplificado-v2')}</span><b>O Robusto não lê estes valores.</b></footer></section>`;},
+    _robustHtml(){const cfg=R.config?R.config():null,rot=cfg?.resumo?.rotulo||'Estratégia atual';return `<section class="pmc-engine-card pmc-robusto" data-pmc-engine="robusto"><header><div class="pmc-engine-id"><span>🧠</span><div><small>MOTOR ATIVO</small><h3>Robusto</h3><p>Política estratégica V5: domínio probabilístico, calibração, incidência, tempo, roteador, aprendizado e otimização.</p></div></div><span class="pmc-pill">${esc(rot)}</span></header><div class="pmc-robust-summary"><b>Painel especialista</b><span>Edite a estratégia ativa ou qualquer um dos cinco perfis. Cada parâmetro possui padrão e restauração própria.</span></div><div data-pmc-robusto-host>${R.painelConfigHtml?R.painelConfigHtml():''}</div></section>`;},
+    _panelHtml(){const e=G.estado(),ativos=Number(e.simplificado)+Number(e.robusto);return `<div class="pmc-shell"><section class="pmc-intro"><div><small>CENTRAL DOS MODELOS</small><h2>Gestão única dos motores de decisão</h2><p>Configuração mora aqui. Extras apenas escolhe a estratégia, revisa a recomendação e executa. Simplificado e Robusto mantêm storage, fórmulas, aprendizado e falhas independentes.</p></div><div class="pmc-state"><b>${ativos}</b><span>${ativos===1?'motor ativo':'motores ativos'}</span></div></section>${e.simplificado?this._simpleHtml():''}${e.robusto?this._robustHtml():''}${ativos===0?'<div class="pmc-empty"><b>Nenhum motor habilitado</b><span>Ative Simplificado ou Robusto em Configurações para liberar esta central.</span></div>':''}</div>`;},
+    _bindPanel(){const panel=document.getElementById('tec-panel-motores');if(!panel)return;panel.querySelectorAll('[data-pmc-simple]').forEach(el=>el.addEventListener('change',()=>{const k=el.dataset.pmcSimple,v=el.type==='number'?Number(el.value):el.value;S.salvar({[k]:v});if(k==='fase')this.renderPanel();else if(typeof showToast==='function')showToast('Ajuste do Simplificado salvo ✓');}));const host=panel.querySelector('[data-pmc-robusto-host]');if(host&&R.bindConfig)R.bindConfig(host,()=>{if(typeof showToast==='function')showToast('Ajuste do Robusto salvo ✓');this.renderPanel();});},
+    _aplicarVisibilidadeTab(btn,visivel){
+      if(!btn)return;
+      if(visivel){
+        if(btn.classList.contains('ux-off'))btn.classList.remove('ux-off');
+        if(btn.hidden)btn.hidden=false;
+        if(btn.style.display)btn.style.removeProperty('display');
+        if(btn.getAttribute('aria-hidden')!=='false')btn.setAttribute('aria-hidden','false');
+      }else{
+        if(!btn.hidden)btn.hidden=true;
+        if(btn.style.display!=='none')btn.style.display='none';
+        if(btn.getAttribute('aria-hidden')!=='true')btn.setAttribute('aria-hidden','true');
+      }
+    },
+    _protegerTab(btn){
+      if(!btn)return;
+      const corrigir=()=>{const e=G.estado(),algum=e.simplificado||e.robusto;if(algum)this._aplicarVisibilidadeTab(btn,true);};
+      corrigir();
+      if(this._tabObserver)this._tabObserver.disconnect();
+      this._tabObserver=new MutationObserver(()=>corrigir());
+      this._tabObserver.observe(btn,{attributes:true,attributeFilter:['class','hidden','style','aria-hidden']});
+    },
+    ensureUi(){if(typeof document==='undefined')return;const tabs=document.getElementById('tec-subtabs');if(!tabs)return;let btn=tabs.querySelector('.tec-subtab[data-tectab="motores"]');if(!btn){btn=document.createElement('button');btn.type='button';btn.className='tec-subtab pmc-tab';btn.dataset.tectab='motores';btn.textContent='⚙ Motores';tabs.appendChild(btn);btn.addEventListener('click',()=>DT.switchTecTab('motores'));}let panel=document.getElementById('tec-panel-motores');if(!panel){panel=document.createElement('div');panel.id='tec-panel-motores';panel.style.display='none';const first=document.getElementById('tec-panel-analise');if(first?.parentNode)first.parentNode.insertBefore(panel,first);else tabs.insertAdjacentElement('afterend',panel);}this._protegerTab(btn);this.syncVisibility();this.renderPanel();},
+    renderPanel(){if(typeof document==='undefined')return;const panel=document.getElementById('tec-panel-motores');if(!panel)return;panel.innerHTML=this._panelHtml();this._bindPanel();},
+    syncVisibility(){if(typeof document==='undefined')return;const e=G.estado(),algum=e.simplificado||e.robusto,btn=document.querySelector('.tec-subtab[data-tectab="motores"]'),panel=document.getElementById('tec-panel-motores');this._aplicarVisibilidadeTab(btn,algum);if(!algum&&DT.tecTab==='motores'){if(this._origSwitch)this._origSwitch('analise');else DT.tecTab='analise';}if(panel&&!algum&&panel.style.display!=='none')panel.style.display='none';},
+    instalarTabs(){if(this._tabsInstalled)return;this._tabsInstalled=true;const self=this;if(this._origSwitch)DT.switchTecTab=function(tab){if(tab==='motores'){self.ensureUi();const e=G.estado();if(!e.simplificado&&!e.robusto)return self._origSwitch('analise');this.tecTab='motores';document.querySelectorAll('#tec-subtabs .tec-subtab').forEach(b=>b.classList.toggle('active',b.dataset.tectab==='motores'));document.querySelectorAll('[id^="tec-panel-"]').forEach(el=>{const alvo=el.id==='tec-panel-motores'?'block':'none';if(el.style.display!==alvo)el.style.display=alvo;});self.renderPanel();self.syncVisibility();return;}const out=self._origSwitch(tab);const p=document.getElementById('tec-panel-motores');if(p&&p.style.display!=='none')p.style.display='none';self.syncVisibility();return out;};},
+    instalarRenderHook(){if(this._renderInstalled||!this._origRender)return;this._renderInstalled=true;const self=this;DT.render=function(){const r=self._origRender();self.ensureUi();self.syncVisibility();return r;};},
+    init(){this.instalarTabs();this.instalarRenderHook();this.ensureUi();window.addEventListener('plano:motores-change',()=>{this.ensureUi();this.renderPanel();});}
+  };
+  window.PlanoMotoresCentralTecV2=M;window.PlanoMotoresCentralTecV1=M;
+  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>M.init(),{once:true});else M.init();
+})();
