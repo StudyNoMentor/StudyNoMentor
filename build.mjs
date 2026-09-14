@@ -125,6 +125,7 @@ const PARTES = [
     'js/80-ajustes-finais.js',
     'js/81-ux-stability-v3.js',
     'js/82-startup-spinners-reforco-continuo-v4.js',
+    'js/83-extras-plano-continuity-v4.js',
   ].map((m, i, todos) => { const t = S(m); if (i < todos.length - 1) SEP('\n'); return t; }).join('\n'),
   SEP('\n'),
   S('html/90-rodape.html'),
