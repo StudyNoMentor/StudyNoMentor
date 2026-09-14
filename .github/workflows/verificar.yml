@@ -11,7 +11,7 @@
 #   · os motores Simplificado/Robusto/Comparar quebrarem o contrato 3 disciplinas × 1 topico;
 #   · a governanca global deixar motor desligado reaparecer ou executar por preferencia antiga;
 #   · configuracoes de Simplificado/Robusto vazarem de Desempenho TEC para Extras;
-#   · o Robusto V4 misturar alvo global/dose, inventar tempo ou quebrar os defaults por ataque;
+#   · o Robusto V5 misturar alvo global/dose, inventar tempo ou quebrar os defaults por ataque;
 #   · Puxar do Plano duplicar execucao ao comparar motores ou misturar dose diaria com alvo global;
 #   · modais de Extras voltarem a se sobrepor ou a ativacao adaptativa travar;
 #   · hierarquia, presets, bordas e responsividade do menu Extras regredirem;
@@ -127,13 +127,13 @@ jobs:
           npx playwright install --with-deps chromium
 
       - name: Validar Puxar do Plano multimotor
-        run: node testes/plano-sugestoes-modulos-browser.mjs
+        run: timeout 90s node testes/plano-sugestoes-modulos-browser.mjs
 
       - name: Validar governanca dos motores no navegador
-        run: node testes/plano-motores-governanca-v5-browser.mjs
+        run: timeout 90s node testes/plano-motores-governanca-v5-browser.mjs
 
       - name: Validar central dos motores no Desempenho TEC
-        run: node testes/plano-motores-central-tec-browser.mjs
+        run: timeout 90s node testes/plano-motores-central-tec-browser.mjs
 
       - name: Auditar startup, loaders e continuidade adaptativa
         run: node testes/startup-reforco-v4-browser.mjs
