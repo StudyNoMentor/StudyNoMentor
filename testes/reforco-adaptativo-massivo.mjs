@@ -4,7 +4,7 @@ import assert from 'node:assert/strict';
 
 const src=fs.readFileSync(new URL('../src/js/59-reforco-adaptativo.js',import.meta.url),'utf8');
 const mem=new Map();let fechados=[];
-const ctx={console,setTimeout,clearTimeout,localStorage:{getItem:k=>mem.has(k)?mem.get(k):null,setItem:(k,v)=>mem.set(k,String(v))},DB:{_profilePrefix:()=> 't:',setRaw:(k,v)=>mem.set(k,String(v)),getTecSnapshots:()=>[{id:'s1'}],getExtras:()=>[],saveExtras:()=>{},_selarCicloDoPlano(){},addExtraProgress(){}},PlanoEngine:{prefs:()=>({metaDominio:85,minAmostra:20,faixaCritico:50,sensTendencia:3}),qParaMedir:(taxa,margem=10)=>{const p=Math.min(.95,Math.max(.05,(taxa??50)/100)),e=Math.max(2,margem)/100;return Math.ceil(3.8416*p*(1-p)/(e*e));},calcular:()=>({erro:'sem-retrato'})},PlanoCiclo:{fechados:()=>fechados,origem:()=>({}),avaliar:()=>null,conciliar:()=>({})},ReforcoEngine:{norm:s=>String(s??'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().trim()},window:{},_quiet:()=>{}};
+const ctx={console,setTimeout,clearTimeout,localStorage:{getItem:k=>mem.has(k)?mem.get(k):null,setItem:(k,v)=>mem.set(k,String(v))},DB:{_profilePrefix:()=> 't:',setRaw:(k,v)=>mem.set(k,String(v)),getTecSnapshots:()=>[{id:'s1'}],getExtras:()=>[],saveExtras:()=>{},_selarCicloDoPlano(){},addExtraProgress(){}},PlanoEngine:{prefs:()=>({metaDominio:85,minAmostra:20,faixaCritico:50,sensTendencia:3,validadeDias:120}),qParaMedir:(taxa,margem=10)=>{const p=Math.min(.95,Math.max(.05,(taxa??50)/100)),e=Math.max(2,margem)/100;return Math.ceil(3.8416*p*(1-p)/(e*e));},calcular:()=>({erro:'sem-retrato'})},PlanoCiclo:{fechados:()=>fechados,origem:()=>({}),avaliar:()=>null,conciliar:()=>({})},ReforcoEngine:{norm:s=>String(s??'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().trim()},window:{},_quiet:()=>{}};
 vm.createContext(ctx);vm.runInContext(src,ctx,{filename:'59-reforco-adaptativo.js'});const RA=ctx.window.ReforcoAdaptativo;assert(RA,'motor não exportado');
 assert.equal(RA.prefs().ativo,false,'opt-in deve nascer desligado');
 mem.set('t:reforco-adaptativo-prefs',JSON.stringify({ativo:true}));
@@ -58,11 +58,14 @@ console.log(`OK: ${N.toLocaleString('pt-BR')} prescrições aleatórias + ${2*M}
 console.log(`Encerramentos coerentes: ${stops}; falsos encerramentos graves: ${falseStops}.`);
 console.log(`Monte Carlo: falso stop ${(100*lowStop/M).toFixed(2)}% · reconhecimento de domínio ${(100*hiStop/M).toFixed(1)}%.`);
 
-/* ── MENTOR 90+ V5: contrato de negócio canônico ────────────────────────── */
-const srcV5=fs.readFileSync(new URL('../src/js/84-reforco-continuity-core-v4.js',import.meta.url),'utf8');
-vm.runInContext(srcV5,ctx,{filename:'84-reforco-continuity-core-v4.js'});
+/* ── MENTOR 90+ V5: contrato de negócio em sombra segura ───────────────── */
+const srcV4=fs.readFileSync(new URL('../src/js/84-reforco-continuity-core-v4.js',import.meta.url),'utf8');
+vm.runInContext(srcV4,ctx,{filename:'84-reforco-continuity-core-v4.js'});
+const srcV5=fs.readFileSync(new URL('../src/js/85-mentor90-performance-bridge-v5.js',import.meta.url),'utf8');
+vm.runInContext(srcV5,ctx,{filename:'85-mentor90-performance-bridge-v5.js'});
 const M90=ctx.window.Mentor90V5;assert(M90,'Mentor90 V5 não exportado');
-assert.equal(RA.prefs().ativo,true,'V5 deve nascer canônica para perfis sem opt-out explícito');
+assert.equal(RA.prefs().ativo,false,'V5 deve respeitar o opt-in legado e nascer em modo sombra');
+assert.equal(M90.modo(),'sombra');
 
 let d90=M90.dominio(item({taxa:55,qJanela:6}),{meta:85,minAmostra:20,validadeDias:120});
 assert.equal(d90.nivel,'nao_medido','amostra curta deve pedir diagnóstico, não rotular fraqueza');
@@ -84,8 +87,9 @@ assert(Math.abs(inorm.pct-15)<1e-9,'multi-banca deve normalizar 10% e 20% para m
 assert.equal(inorm.confianca,.95,'casamento disciplina+tópico deve manter alta confiança');
 
 ctx.DB.getExtras=()=>[{disciplina:'Disciplina',historico:[{quantidade:30,minutos:90},{quantidade:30,minutos:90}]}];
+M90.invalidarCaches();
 const vel=M90.velocidade('Disciplina');assert(vel.confiavel);assert.equal(Math.round(vel.segundosPorQuestao),180,'tempo real deve virar custo por questão');
-ctx.DB.getExtras=()=>[];
+ctx.DB.getExtras=()=>[];M90.invalidarCaches();
 
 fechados=[
   {disciplina:'Disciplina',topico:'Tópico',questoes:20,ganhoPP:1,tipo:'subiu'},
@@ -95,14 +99,26 @@ fechados=[
   {disciplina:'Disciplina',topico:'Outro B',questoes:20,ganhoPP:1,tipo:'subiu'},
   {disciplina:'Disciplina',topico:'Outro C',questoes:20,ganhoPP:1,tipo:'subiu'}
 ];
+M90.invalidarCaches();
 const cal90=M90.calibracaoHierarquica(item());assert.equal(cal90.nivel,'topico');assert(cal90.confianca>0,'calibração deve fazer shrinkage, não confiar cegamente em poucos ciclos');
 
-const bloquear=item({taxa:86,qJanela:200,qHist:200,medicoes:1,diasDesdeMedicao:10});
-bloquear.prescricaoAdaptativa={dose:0,fase:'pre',score:65,objetivo:'encerrar',confiouMeta:true,continuidade:{estado:'aguardar-medicao'},estatistica:{pLacuna:.1}};
-const rr={meta:85,minAmostra:20,validadeDias:120,modoEdital:'pre',banca:['FGV'],itens:[bloquear],pequenas:[]};
-M90.enriquecerResultado(rr);assert.equal(bloquear.prescricaoAdaptativa.dose,0,'régua 90+ nunca pode furar cooldown ou exigência de nova medição');
-assert.equal(bloquear.prescricaoAdaptativa.motorCanonico,'mentor90-v5');
-assert(bloquear.prescricaoAdaptativa.intervencao,'toda decisão canônica deve carregar uma intervenção explícita');
+const sombra=item({taxa:86,qJanela:200,qHist:200,medicoes:1,diasDesdeMedicao:10});
+sombra.prescricaoAdaptativa={dose:0,fase:'pre',score:65,objetivo:'encerrar',confiouMeta:true,continuidade:{estado:'aguardar-medicao'},estatistica:{pLacuna:.1}};
+const rr={meta:85,minAmostra:20,validadeDias:120,modoEdital:'pre',banca:['FGV'],itens:[sombra],pequenas:[]};
+M90.enriquecerResultado(rr);
+assert.equal(sombra.prescricaoAdaptativa.dose,0,'modo sombra nunca pode furar cooldown nem alterar dose legado');
+assert.equal(sombra.mentor90.motorCanonico,'mentor90-v5');
+assert.equal(sombra.mentor90.modo,'sombra');
+assert(sombra.mentor90.intervencao,'toda decisão sombra deve carregar intervenção explícita');
+
+// Executor opt-in: dose do dia é separada do alvo/dose global do ciclo.
+mem.set('t:reforco-adaptativo-prefs',JSON.stringify({ativo:true}));
+const exec=item({taxa:60,qJanela:100,qHist:100});
+exec.prescricaoAdaptativa={dose:18,fase:'pre',score:70,objetivo:'intervir',confiouMeta:false,estatistica:{pLacuna:.9}};
+M90.enriquecerResultado({meta:85,minAmostra:20,modoEdital:'pre',itens:[exec],pequenas:[]});
+assert.equal(M90.modo(),'executor');
+assert.equal(exec.prescricaoAdaptativa.dose,18,'Mentor90 não pode substituir a dose/alvo global legado pelo bloco diário');
+assert(Number.isFinite(exec.prescricaoAdaptativa.doseMentor90)&&exec.prescricaoAdaptativa.doseMentor90>0,'executor deve calcular dose diária separada');
 
 fechados=[];
-console.log('OK: Mentor90 V5 — domínio 90+, incidência normalizada, tempo, shrinkage e cooldown.');
+console.log('OK: Mentor90 V5 — sombra segura, domínio 90+, incidência normalizada, tempo, shrinkage e separação dose diária/alvo global.');
