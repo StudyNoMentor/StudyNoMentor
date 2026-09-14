@@ -34,7 +34,7 @@ on:
   workflow_dispatch:
 
 concurrency:
-  group: verificacao-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  group: verificacao-v2-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
 permissions:
