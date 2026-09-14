@@ -18,17 +18,20 @@ jobs:
         run: python3 .github/patch-performance-global.py
       - name: Sintaxe e build
         run: |
+          node --check src/js/11-db.js
           node --check src/js/47-tela-extras.js
+          node --check src/js/51-tela-desempenho-tec.js
           node --check src/js/55-extras-ui-moderna.js
           node build.mjs
           node build.mjs --check
       - name: Dependencias
         run: npm ci
-      - name: Regressão estrutural de Extras
+      - name: Regressão estrutural
         run: |
           node testes/extras-estabilidade.mjs
           node testes/reforco-fila.mjs
           node testes/reforco-cenarios.mjs
+          node testes/tec-import-fidelidade.mjs
       - name: Chromium
         run: |
           npm install --no-save playwright@1.56.1
@@ -37,3 +40,5 @@ jobs:
         run: node testes/site-performance-browser.mjs
       - name: Validar Extras real
         run: node testes/extras-estabilidade-browser.mjs
+      - name: Validar Plano TEC grande
+        run: node testes/tec-plano-performance-browser.mjs
