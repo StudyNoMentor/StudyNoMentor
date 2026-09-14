@@ -127,6 +127,8 @@ Nome padrão:
 studynomentor-robusto-auditoria-AAAA-MM-DD.json
 ```
 
+Para calibração, o momento mais informativo para exportar é **depois de importar um novo retrato TEC que já tenha reavaliado atividades do Robusto executadas anteriormente**. O arquivo também pode ser exportado a qualquer momento para auditoria de decisões ainda em curso.
+
 ## Como interpretar
 
 Os dados são **observacionais**. Um tópico pode ter melhorado por fatores externos ao Robusto: estudo fora da plataforma, diferença de dificuldade entre retratos, mudança de banca, descanso, qualidade das questões ou regressão à média.
