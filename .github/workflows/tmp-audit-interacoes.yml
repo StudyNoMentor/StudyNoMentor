@@ -45,13 +45,11 @@ jobs:
           node testes/extras-estabilidade-browser.mjs
       - name: Suite canonica
         run: node verificar.mjs
-      - name: Persistir produto aprovado
+      - name: Persistir somente o produto aprovado
         run: |
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          rm -f .github/workflows/tmp-audit-interacoes.yml .github/patch-interacoes-audit.py
-          git add build.mjs index.html src/manifesto.json sw.js src/css/17-interaction-feedback.css src/js/47-tela-extras.js src/js/51-tela-desempenho-tec.js src/js/59-interaction-feedback.js testes/extras-tec-interacoes-browser.mjs .github/workflows/verificar.yml .github/workflows/tmp-audit-interacoes.yml .github/patch-interacoes-audit.py
+          git add build.mjs index.html src/manifesto.json sw.js src/css/17-interaction-feedback.css src/js/47-tela-extras.js src/js/51-tela-desempenho-tec.js src/js/59-interaction-feedback.js testes/extras-tec-interacoes-browser.mjs
           git diff --cached --quiet && exit 0
           git commit -m 'fix: estabiliza interacoes de Extras e Desempenho TEC'
           git push origin HEAD:fix/extras-tec-interactions-audit
-# push adicional para ativar o workflow depois da criação inicial
