@@ -1,0 +1,81 @@
+name: TMP TEC UX100 V2
+
+on:
+  push:
+    branches: [feat/tec-auditoria-100-camadas-v2]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  validar:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Aplicar patch estrutural idempotente
+        run: python .github/patch-tec-ux100-v2.py
+
+      - name: Montar produto publicado
+        run: |
+          node --check src/js/59-tec-auditoria-v2.js
+          node build.mjs
+          node build.mjs --check
+
+      - name: Instalar dependencias
+        run: npm ci
+
+      - name: Instalar Chromium
+        run: |
+          npm install --no-save playwright@1.56.1
+          npx playwright install --with-deps chromium
+
+      - name: Auditar 100+ invariantes TEC e gerar imagens
+        env:
+          TEC_UX_SHOTS: '1'
+        run: node testes/tec-ux100-browser.mjs
+
+      - name: Validar performance do Plano
+        run: node testes/tec-plano-performance-browser.mjs
+
+      - name: Validar integração Extras e Plano TEC
+        run: node testes/extras-tec-interacoes-browser.mjs
+
+      - name: Validar UX completa de Extras
+        run: node testes/extras-ux100-browser.mjs
+
+      - name: Auditar performance global
+        run: node testes/site-performance-browser.mjs
+
+      - name: Rodar suíte canônica completa
+        run: node verificar.mjs
+
+      - name: Publicar capturas da auditoria
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: tec-ux100-v2-screenshots-${{ github.run_id }}
+          path: .artifacts/tec-ux100
+          if-no-files-found: ignore
+          retention-days: 14
+
+      - name: Persistir produto validado na branch
+        if: success()
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add build.mjs src/js/59-tec-auditoria-v2.js src/css/19-tec-auditoria-v2.css testes/tec-ux100-browser.mjs index.html src/manifesto.json sw.js
+          if git diff --cached --quiet; then
+            echo 'Nenhuma alteração gerada para persistir.'
+          else
+            git commit -m 'feat: consolida auditoria e governança do Desempenho TEC'
+            git push origin HEAD:feat/tec-auditoria-100-camadas-v2
+          fi
