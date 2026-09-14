@@ -42,8 +42,9 @@ jobs:
   # edicao pequena em src/ gerava um job vermelho apenas porque quem alterou o
   # codigo ainda nao tinha rodado build.mjs. Em PRs do proprio repositorio,
   # esta etapa barata e deterministica corrige isso antes de gastar Chromium,
-  # Monte Carlo e a suite longa. O commit novo dispara uma nova Verificacao;
-  # esta execucao fica sem a suite pesada e a proxima valida o SHA ja limpo.
+  # Monte Carlo e a suite longa. Se precisar sincronizar, ela grava os gerados
+  # na propria branch; o job seguinte faz checkout do HEAD atualizado e valida
+  # tudo no MESMO workflow, sem depender de um segundo disparo do GitHub Actions.
   sincronizar-gerados:
     if: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository }}
     runs-on: ubuntu-latest
@@ -82,13 +83,16 @@ jobs:
 
   verificar:
     needs: [sincronizar-gerados]
-    # push/main e workflow_dispatch nao executam o sincronizador. Em PR, a
-    # suite so comeca quando o sincronizador confirmou que nada precisou mudar.
-    if: ${{ always() && (needs.sincronizar-gerados.result == 'skipped' || (needs.sincronizar-gerados.result == 'success' && needs.sincronizar-gerados.outputs.alterou != 'true')) }}
+    # No push/main o sincronizador e pulado. No PR ele precisa apenas terminar
+    # com sucesso; o checkout abaixo busca o HEAD mais recente da branch, inclusive
+    # quando o job anterior acabou de criar o commit dos artefatos gerados.
+    if: ${{ always() && (needs.sincronizar-gerados.result == 'skipped' || needs.sincronizar-gerados.result == 'success') }}
     runs-on: ubuntu-latest
     timeout-minutes: 12
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.ref || github.ref }}
 
       - uses: actions/setup-node@v4
         with:
