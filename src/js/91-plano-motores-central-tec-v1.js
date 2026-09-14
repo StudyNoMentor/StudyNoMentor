@@ -4,7 +4,8 @@
    ============================================================================ */
 (() => {
   if (typeof window === 'undefined' || window.__planoMotoresCentralTecV1) return;
-  const G=window.PlanoMotoresGovernancaV5,C=window.PlanoSugestoesV2,S=window.PlanoSugestoesSimplificadoV2,R=window.PlanoSugestoesRobustoV4||window.PlanoSugestoesRobustoV2,I=window.PlanoSugestoesInfraV2,DT=window.DesempenhoTecScreen;
+  const G=window.PlanoMotoresGovernancaV5,C=window.PlanoSugestoesV2,S=window.PlanoSugestoesSimplificadoV2,R=window.PlanoSugestoesRobustoV4||window.PlanoSugestoesRobustoV2,I=window.PlanoSugestoesInfraV2;
+  const DT=typeof DesempenhoTecScreen!=='undefined'?DesempenhoTecScreen:window.DesempenhoTecScreen;
   if(!G||!C||!S||!R||!I||!DT)return;
   window.__planoMotoresCentralTecV1=true;
   const esc=I.esc||((s)=>String(s??''));
