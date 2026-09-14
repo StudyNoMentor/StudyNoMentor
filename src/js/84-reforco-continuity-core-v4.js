@@ -11,7 +11,46 @@
   window.__raContinuityCoreV4 = true;
   const RA = window.ReforcoAdaptativo;
   if (typeof RA.prescrever !== 'function' || typeof RA.contexto !== 'function' ||
-      typeof RA._contStats !== 'function' || typeof RA._aplicarContinuidade !== 'function') return;
+      typeof RA._aplicarContinuidade !== 'function') return;
+
+  /* DB é um global léxico do app. Ele não precisa (nem deve) existir como
+     `window.DB`. A primeira versão da ponte checava `window.DB` e, em builds em
+     que esse alias não existe, concluía que não havia histórico: a dose voltava
+     cheia mesmo depois de o tópico ter sido concluído. O contador abaixo usa o
+     contrato real do app (`typeof DB`) e é a única fonte de estatísticas da
+     continuidade. */
+  RA._contStats = function (snapshotId) {
+    const out = new Map();
+    if (!snapshotId || typeof DB === 'undefined' || typeof DB.getExtras !== 'function') return out;
+    let extras = [];
+    try { extras = DB.getExtras() || []; }
+    catch (e) { if (typeof _quiet === 'function') _quiet(e, 'ra-cont-stats-v4'); }
+    for (const e of extras) {
+      const o = e && e.origemPlano;
+      const rx = o && o.prescricaoAdaptativa;
+      if (!o || !rx || rx.snapshotId !== snapshotId) continue;
+      const k = this._contKey(o.disciplina || e.disciplina, o.topico || e.titulo);
+      let st = out.get(k);
+      if (!st) {
+        st = { executado: 0, ciclos: 0, abertos: 0, ultimoDia: '', extras: 0 };
+        out.set(k, st);
+      }
+      const hist = Array.isArray(e.historico) ? e.historico : [];
+      const porHist = hist.reduce((s, h) => s + Math.max(0, Number(h && h.quantidade) || 0), 0);
+      const feito = Math.max(porHist, Math.max(0, Number(e.progresso) || 0));
+      const alvo = Math.max(0, Number(e.alvo) || Number(rx.dose) || 0);
+      st.executado += alvo > 0 ? Math.min(feito, alvo) : feito;
+      const fechou = e.status === 'concluida' || (alvo > 0 && feito >= alvo);
+      if (fechou) st.ciclos++; else st.abertos++;
+      st.extras++;
+      const dias = hist.map(h => h && h.data).filter(Boolean);
+      if (o.veredito && o.veredito.em) dias.push(String(o.veredito.em).slice(0, 10));
+      if (e.updatedAt) dias.push(String(e.updatedAt).slice(0, 10));
+      dias.sort();
+      if (dias.length && dias[dias.length - 1] > st.ultimoDia) st.ultimoDia = dias[dias.length - 1];
+    }
+    return out;
+  };
 
   RA.enriquecer = function (r) {
     if (!r) return r;
