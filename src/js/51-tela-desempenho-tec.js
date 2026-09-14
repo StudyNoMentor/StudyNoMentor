@@ -3305,7 +3305,11 @@ const DesempenhoTecScreen = {
   _marcarPlanoOcupado(on) {
     const l = document.getElementById('plano-lista');
     const p = document.getElementById('plano-proj');
-    [l, p].forEach(e => { if (e) e.classList.toggle('pl-ocupado', !!on); });
+    [l, p].forEach(e => { if (e) { e.classList.toggle('pl-ocupado', !!on); if (on) e.setAttribute('aria-busy', 'true'); else e.removeAttribute('aria-busy'); } });
+  },
+  _trabalharPlano(alvo, rotulo, fn, overlay) {
+    if (window.WorkFeedback) return WorkFeedback.run(alvo, rotulo || 'Processando…', fn, { overlay: !!overlay, region: '#tec-panel-plano', context: 'plano-interacao' });
+    return fn();
   },
 
   /* ── REPINTAR NÃO PODE MOVER A PÁGINA DEBAIXO DO DEDO ────────────────────
@@ -4442,9 +4446,11 @@ const DesempenhoTecScreen = {
       const k = b.dataset.modo;
       if (k === 'livre') return;
       if (!PlanoEngine.MODOS[k]) return;
-      PlanoEngine.salvarPrefs(PlanoEngine.modoPatch(k));
-      this.renderPlano();
-      showToast(PlanoEngine.MODOS[k].rot + ' aplicado');
+      this._trabalharPlano(b, 'Aplicando modo…', () => {
+        PlanoEngine.salvarPrefs(PlanoEngine.modoPatch(k));
+        this.renderPlano();
+        showToast(PlanoEngine.MODOS[k].rot + ' aplicado');
+      });
     }));
     box.querySelectorAll('.pl-modo-edit').forEach(b => b.addEventListener('click', (e) => {
       e.stopPropagation();
@@ -4867,21 +4873,21 @@ const DesempenhoTecScreen = {
         <p class="pl-ciclo-obs">O Diagnóstico inclui a amostra pequena no cálculo e baixa a régua de uma vez; o terceiro botão só mexe na régua — os dois compram cobertura pagando em margem de erro. Todos ficam salvos e podem ser desfeitos em ⚙ Ajustes.</p>`;
       lista.innerHTML = '';
       const bj = document.getElementById('plano-juntar-finos');
-      if (bj && g) bj.addEventListener('click', () => {
+      if (bj && g) bj.addEventListener('click', () => this._trabalharPlano(bj, 'Agrupando…', () => {
         PlanoEngine.salvarPrefs({ granPiso: g.piso });
         PlanoEngine._agrC = null;
         this.renderPlano(); showToast('🧩 Assuntos com menos de ' + g.piso + ' questões agrupados');
-      });
+      }));
       const bd = document.getElementById('plano-modo-diag');
-      if (bd) bd.addEventListener('click', () => {
+      if (bd) bd.addEventListener('click', () => this._trabalharPlano(bd, 'Aplicando…', () => {
         PlanoEngine.salvarPrefs(PlanoEngine.modoPatch('diagnostico'));
         this.renderPlano(); showToast('🔍 Diagnóstico aplicado');
-      });
+      }));
       const bm = document.getElementById('plano-baixar-min');
-      if (bm) bm.addEventListener('click', () => {
+      if (bm) bm.addEventListener('click', () => this._trabalharPlano(bm, 'Recalculando…', () => {
         PlanoEngine.salvarPrefs({ minAmostra: sug });
         this.renderPlano(); showToast('Amostra mínima em ' + sug + ' questões');
-      });
+      }));
       return;
     }
     const tom = r.jaAtinge ? 'good' : (r.falta <= 8 ? 'warn' : 'bad');
@@ -5819,8 +5825,7 @@ const DesempenhoTecScreen = {
         value: PlanoPontos._corte() || '', hint: 'Do concurso anterior, para a mesma vaga. É uma estimativa sua — a tela sempre dirá isso.' }],
         { title: 'Nota de corte', okText: 'Salvar' });
       if (!r2) return;
-      PlanoPontos.setCorte(r2.corte);
-      this.renderPlanoConteudo(); showToast('Corte registrado ✓');
+      this._trabalharPlano(defCorte, 'Atualizando…', () => { PlanoPontos.setCorte(r2.corte); this.renderPlanoConteudo(); showToast('Corte registrado ✓'); });
     });
     lista.querySelectorAll('[data-atacar]').forEach(b => b.addEventListener('click', () => {
       const sel = document.getElementById('plano-disc');
@@ -5828,18 +5833,19 @@ const DesempenhoTecScreen = {
       const alvo = b.dataset.atacar;
       const op = [...sel.options].find(o => ReforcoEngine.norm(o.value) === ReforcoEngine.norm(alvo));
       if (!op) { showToast('Sem assuntos medidos em ' + alvo); return; }
-      // "Atacar" é decisão de uma matéria só: substitui o foco, não soma a ele
-      PlanoEngine.salvarPrefs({ foco: [op.value], disciplina: op.value });
-      this._sincronizarFiltroDisc();
-      this._planoRefC = null;
-      this.renderPlanoConteudo();
-      /* Rolar até o bloco de criar atividades é metade do favor: filtrar e
-         deixar a pessoa procurando onde a lista mudou não resolve nada. */
-      requestAnimationFrame(() => {
-        const bloco = document.querySelector('#plano-lista .pl-hoje');
-        if (bloco) { try { bloco.scrollIntoView({ block: 'start', behavior: 'smooth' }); } catch (e) { _quiet(e, 'atacar-scroll'); } }
+      this._trabalharPlano(b, 'Filtrando…', () => {
+        // "Atacar" é decisão de uma matéria só: substitui o foco, não soma a ele
+        PlanoEngine.salvarPrefs({ foco: [op.value], disciplina: op.value });
+        this._sincronizarFiltroDisc();
+        this._planoRefC = null;
+        this.renderPlanoConteudo();
+        if (window.garantirRotulosFocoPlano) garantirRotulosFocoPlano();
+        requestAnimationFrame(() => {
+          const bloco = document.querySelector('#plano-lista .pl-hoje');
+          if (bloco) { try { bloco.scrollIntoView({ block: 'start', behavior: 'smooth' }); } catch (e) { _quiet(e, 'atacar-scroll'); } }
+        });
+        showToast('Plano filtrado por ' + op.value + ' — marque o que atacar');
       });
-      showToast('Plano filtrado por ' + op.value + ' — marque o que atacar');
     }));
     /* ── O FOCO ACUMULA ───────────────────────────────────────────────────
        Marcar não é filtrar por uma: é montar o recorte da semana. A rolagem
@@ -5855,15 +5861,18 @@ const DesempenhoTecScreen = {
       if (i >= 0) atual.splice(i, 1);
       else if (atual.length >= PlanoEngine.MAX_FOCO) { showToast('O foco cabe ' + PlanoEngine.MAX_FOCO + ' matérias'); return; }
       else atual.push(nome);
-      PlanoEngine.salvarPrefs({ foco: atual, disciplina: atual.length === 1 ? atual[0] : '__todas__' });
-      this._sincronizarFiltroDisc();
-      this._planoRefC = null; this._fatias = null;
-      this.renderPlanoConteudo();
-      if (!atual.length) { showToast('Foco limpo — o Plano voltou a falar de todas as matérias'); return; }
-      showToast(atual.length === 1 ? 'Foco em ' + atual[0] : atual.length + ' matérias em foco — a lista abaixo é só delas');
-      if (primeira) requestAnimationFrame(() => {
-        const bloco = document.querySelector('#plano-lista .pl-hoje');
-        if (bloco) { try { bloco.scrollIntoView({ block: 'start', behavior: 'smooth' }); } catch (e) { _quiet(e, 'foco-scroll'); } }
+      this._trabalharPlano(b, 'Atualizando foco…', () => {
+        PlanoEngine.salvarPrefs({ foco: atual, disciplina: atual.length === 1 ? atual[0] : '__todas__' });
+        this._sincronizarFiltroDisc();
+        this._planoRefC = null; this._fatias = null;
+        this.renderPlanoConteudo();
+        if (window.garantirRotulosFocoPlano) garantirRotulosFocoPlano();
+        if (!atual.length) { showToast('Foco limpo — o Plano voltou a falar de todas as matérias'); return; }
+        showToast(atual.length === 1 ? 'Foco em ' + atual[0] : atual.length + ' matérias em foco — a lista abaixo é só delas');
+        if (primeira) requestAnimationFrame(() => {
+          const bloco = document.querySelector('#plano-lista .pl-hoje');
+          if (bloco) { try { bloco.scrollIntoView({ block: 'start', behavior: 'smooth' }); } catch (e) { _quiet(e, 'foco-scroll'); } }
+        });
       });
     }));
     const irExtras = document.getElementById('plano-ir-extras');
@@ -5872,7 +5881,7 @@ const DesempenhoTecScreen = {
       const e = DB.getExtras().find(x => x.id === b.dataset.cicloExcluir);
       if (!e) return;
       if (!await UI.confirm('Excluir "' + e.titulo + '"? O assunto não aparece mais nos seus retratos.', { title: 'Excluir atividade', okText: 'Excluir', danger: true })) return;
-      DB.deleteExtra(e.id); showToast('Atividade excluída'); this.renderPlanoConteudo();
+      this._trabalharPlano(b, 'Excluindo…', () => { DB.deleteExtra(e.id); showToast('Atividade excluída'); this.renderPlanoConteudo(); });
     }));
     const ritmoBtn = document.getElementById('plano-ritmo-medido');
     if (ritmoBtn) ritmoBtn.addEventListener('click', () => {
@@ -5880,26 +5889,29 @@ const DesempenhoTecScreen = {
       if (!medido) return;
       const campo = document.getElementById('plano-ritmo');
       if (campo) campo.value = medido;
-      PlanoEngine.salvarPrefs({ ritmoSemanal: null });
-      this._planoRefC = null;
-      this.renderPlanoConteudo();
-      showToast('Ritmo voltou a seguir a sua medição (' + medido + '/sem)');
+      this._trabalharPlano(ritmoBtn, 'Recalculando…', () => {
+        PlanoEngine.salvarPrefs({ ritmoSemanal: null });
+        this._planoRefC = null;
+        this.renderPlanoConteudo();
+        showToast('Ritmo voltou a seguir a sua medição (' + medido + '/sem)');
+      });
     });
     const todasBtn = document.getElementById('plano-todas-disc');
     if (todasBtn) todasBtn.addEventListener('click', () => {
-      PlanoEngine.salvarPrefs({ foco: [], disciplina: '__todas__' });
-      this._sincronizarFiltroDisc();
-      this._planoRefC = null; this._fatias = null;
-      this.renderPlanoConteudo();
-      showToast('Mostrando o número geral, de todas as matérias');
+      this._trabalharPlano(todasBtn, 'Abrindo geral…', () => {
+        PlanoEngine.salvarPrefs({ foco: [], disciplina: '__todas__' });
+        this._sincronizarFiltroDisc();
+        this._planoRefC = null; this._fatias = null;
+        this.renderPlanoConteudo();
+        showToast('Mostrando o número geral, de todas as matérias');
+      });
     });
     const calBtn = document.getElementById('plano-calibrar');
     if (calBtn) calBtn.addEventListener('click', async () => {
       const c = PlanoCiclo.calibragem();
       if (!c || !c.pronta) return;
       if (!await UI.confirm('Passar o custo por ponto de ' + c.atual + ' para ' + c.qPorPonto + ' questões, com base nos seus ' + c.n + ' ciclos fechados?\n\nIsso muda o custo estimado de cada assunto — e, com ele, o caminho mais curto e a ordem "melhor retorno".', { title: 'Calibrar com o meu histórico', okText: 'Calibrar' })) return;
-      PlanoEngine.salvarPrefs({ custoPorPonto: c.qPorPonto });
-      this.renderPlano(); showToast('Custo calibrado com o seu histórico ✓');
+      this._trabalharPlano(calBtn, 'Calibrando…', () => { PlanoEngine.salvarPrefs({ custoPorPonto: c.qPorPonto }); this.renderPlano(); showToast('Custo calibrado com o seu histórico ✓'); });
     });
     const lote = document.getElementById('plano-lote');
     const sincLote = () => {
@@ -5912,17 +5924,17 @@ const DesempenhoTecScreen = {
     lista.querySelectorAll('.pl-hoje-sel').forEach(c => c.addEventListener('change', sincLote));
     sincLote();
     if (lote) lote.addEventListener('click', () => {
-      let n = 0, sobre = 0;
-      lista.querySelectorAll('.pl-hoje-sel:checked:not(:disabled)').forEach(c => {
-        const u = this._unidadeDoPlano(c.dataset.topico, c.dataset.disc);
-        if (PlanoEngine.atividadeSobreposta(c.dataset.topico, c.dataset.disc, u && u.membros)) { sobre++; return; }
-        if (this.criarExtraDoPlano(c.dataset.topico, c.dataset.disc, c.dataset.alvo, 'reforco', true)) n++;
-      });
-      /* Em série não há como perguntar por item — então o que foi pulado é
-         DITO. Pular em silêncio deixaria a pessoa achando que marcou errado. */
-      showToast((n ? n + (n === 1 ? ' atividade criada ✓' : ' atividades criadas ✓') : 'Nenhuma atividade nova a criar')
-        + (sobre ? ' · ' + sobre + (sobre === 1 ? ' pulado: já dentro de uma atividade aberta' : ' pulados: já dentro de atividades abertas') : ''));
-      this.renderPlanoConteudo();
+      this._trabalharPlano(lote, 'Criando atividades…', () => {
+        let n = 0, sobre = 0;
+        lista.querySelectorAll('.pl-hoje-sel:checked:not(:disabled)').forEach(c => {
+          const u = this._unidadeDoPlano(c.dataset.topico, c.dataset.disc);
+          if (PlanoEngine.atividadeSobreposta(c.dataset.topico, c.dataset.disc, u && u.membros)) { sobre++; return; }
+          if (this.criarExtraDoPlano(c.dataset.topico, c.dataset.disc, c.dataset.alvo, 'reforco', true)) n++;
+        });
+        showToast((n ? n + (n === 1 ? ' atividade criada ✓' : ' atividades criadas ✓') : 'Nenhuma atividade nova a criar')
+          + (sobre ? ' · ' + sobre + (sobre === 1 ? ' pulado: já dentro de uma atividade aberta' : ' pulados: já dentro de atividades abertas') : ''));
+        this.renderPlanoConteudo();
+      }, true);
     });
     /* Os "i" desta tela nascem de `data-info` e são montados pelo InfoTips —
        que roda na ativação da tela, muito antes desta lista existir. Sem esta

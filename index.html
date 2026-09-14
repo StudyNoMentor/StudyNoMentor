@@ -57,7 +57,7 @@
      novo, e o antigo é descartado sozinho na ativação) e o que permite ao app
      dizer qual versão está rodando. Em src/ fica "dev" de propósito: a versão
      é gerada na montagem, não editada à mão. -->
-<meta name="diario-versao" content="v94dab46e7c">
+<meta name="diario-versao" content="vee11492195">
 <script>
 /* ── ARRANQUE: abre o IndexedDB AGORA, em paralelo com o parse do documento ──
    A fachada de armazenamento vive no fim do <body>, depois de ~1,7 MB de HTML.
@@ -12768,6 +12768,12 @@ html.extras-modal-open,html.extras-modal-open body{overflow:hidden!important;ove
 
 </style>
 
+<style id="interaction-feedback-v1">
+/* Feedback imediato para ações que disparam cálculo/render pesado. */
+.ui-working{position:relative!important;cursor:wait!important;opacity:.82!important;pointer-events:none!important}.ui-working::before{content:"";display:inline-block;width:13px;height:13px;min-width:13px;margin-right:7px;border:2px solid currentColor;border-right-color:transparent;border-radius:50%;vertical-align:-2px;animation:ui-work-spin .7s linear infinite}.ui-work-region{cursor:wait}.ui-work-region>*{transition:opacity .12s ease}.ui-work-region>.pl-item,.ui-work-region>.pl-hoje,.ui-work-region>.pl-tempo,.ui-work-region>.pl-hero,.ui-work-region>.pl-ciclo{opacity:.64}.ui-work-hud{position:fixed;z-index:2450;left:50%;top:max(18px,env(safe-area-inset-top));transform:translateX(-50%);display:flex;align-items:center;gap:9px;max-width:min(92vw,420px);padding:10px 14px;border:1px solid color-mix(in srgb,var(--accent) 28%,var(--border));border-radius:999px;background:color-mix(in srgb,var(--surface) 94%,transparent);color:var(--text);box-shadow:0 10px 34px rgba(15,23,42,.16);font-size:12px;font-weight:750;letter-spacing:.01em;backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);pointer-events:none}.ui-work-hud i{display:block;width:15px;height:15px;min-width:15px;border:2px solid var(--accent);border-right-color:transparent;border-radius:50%;animation:ui-work-spin .7s linear infinite}.exm-reopen{color:var(--accent)!important}.pl-foco-bt{color:var(--text)!important;opacity:1!important;white-space:nowrap}.pl-foco-bt.is-on{color:var(--accent)!important}.pl-ocupado{cursor:wait}.pl-ocupado::after{content:"Processando…";display:inline-flex;align-items:center;margin:8px 0;padding:5px 9px;border-radius:999px;background:var(--surface-sunken);color:var(--text-faint);font-size:10px;font-weight:700}@keyframes ui-work-spin{to{transform:rotate(360deg)}}@media(prefers-reduced-motion:reduce){.ui-working::before,.ui-work-hud i{animation-duration:1.6s}}@media(max-width:520px){.ui-work-hud{top:max(10px,env(safe-area-inset-top));font-size:11px;padding:9px 12px}.pl-foco-bt{min-width:66px}}
+
+</style>
+
 <script id="app-code" type="application/x-diario-inert">
 /* ═══════════════════════════════════════════════════════════════════════════
    DIÁRIO DE ESTUDOS — mapa do código
@@ -14569,7 +14575,7 @@ const DB = {
     try {
       const e = (this.getExtras() || []).find(x => x.id === id);
       if (!e || !e.origemPlano || !e.origemPlano.topico || e.origemPlano.veredito) return;
-      if (window.PlanoCiclo && typeof PlanoCiclo.vereditoManual === 'function') PlanoCiclo.vereditoManual(e);
+      if (typeof PlanoCiclo !== 'undefined' && PlanoCiclo && typeof PlanoCiclo.vereditoManual === 'function') PlanoCiclo.vereditoManual(e);
     } catch (err) { /* o ciclo é melhoria, nunca um bloqueio para gravar */ }
   },
   // Remove o ÚLTIMO lançamento (desfaz erro de digitação, que antes ficava permanente)
@@ -32197,22 +32203,27 @@ const ExtrasScreen = {
       UI._open('🏁 Puxar do Plano', 'Assuntos prioritários com meta pronta', body, { okText: 'Criar atividades' });
     }).then((ok) => {
       if (!ok) return;
-      let n = 0;
-      (this._planoCand || []).forEach((x, i) => {
-        if (!this._planoSel || !this._planoSel.has(i)) return;
-        const e = DB.addExtra({
-          // o mesmo título dos dois portões (ver `PlanoCiclo.titulo`)
-          titulo: PlanoCiclo.titulo(x.nome, x.motivo, x.membros),
-          tipo: 'questoes', disciplina: x.disciplina || '', unidade: 'questoes',
-          alvo: Math.max(1, x.alvo), periodo: 'unica', contaMetricas: false,
-          obs: 'Gerado pelo Plano de pontos fracos.'
+      const criar = () => {
+        let n = 0;
+        (this._planoCand || []).forEach((x, i) => {
+          if (!this._planoSel || !this._planoSel.has(i)) return;
+          const e = DB.addExtra({
+            // o mesmo título dos dois portões (ver `PlanoCiclo.titulo`)
+            titulo: PlanoCiclo.titulo(x.nome, x.motivo, x.membros),
+            tipo: 'questoes', disciplina: x.disciplina || '', unidade: 'questoes',
+            alvo: Math.max(1, x.alvo), periodo: 'unica', contaMetricas: false,
+            obs: 'Gerado pelo Plano de pontos fracos.'
+          });
+          // mesma origem do outro portão: sem isto a atividade nascia sem
+          // `taxaInicial` nem `qBase`, e o ciclo dela nunca teria veredito
+          if (e) { DB.updateExtra(e.id, { origemPlano: PlanoCiclo.origem(x.nome, x.disciplina, x, { motivo: x.motivo }) }); n++; }
         });
-        // mesma origem do outro portão: sem isto a atividade nascia sem
-        // `taxaInicial` nem `qBase`, e o ciclo dela nunca teria veredito
-        if (e) { DB.updateExtra(e.id, { origemPlano: PlanoCiclo.origem(x.nome, x.disciplina, x, { motivo: x.motivo }) }); n++; }
-      });
-      this.render();
-      showToast(n ? n + ' atividade(s) criada(s) ✓' : 'Nenhuma selecionada');
+        this.render();
+        showToast(n ? n + ' atividade(s) criada(s) ✓' : 'Nenhuma selecionada');
+        return n;
+      };
+      if (window.WorkFeedback) return WorkFeedback.run(null, 'Criando atividades…', criar, { overlay: true, region: '#screen-extras', context: 'extras-plano-criar' });
+      return criar();
     });
 
     // liga a interface do diálogo depois de renderizado
@@ -32304,15 +32315,19 @@ const ExtrasScreen = {
     // seletor de prioridade → recomputa e repinta
     const ord = document.getElementById('pl-ordenar');
     if (ord) ord.addEventListener('change', () => {
-      this._planoOrd = ord.value;
-      this._planoRecalc();
-      // mantém as marcações por NOME do assunto ao reordenar
-      const marcadosNomes = new Set([...this._planoSel].map(i => (cand[i] || {}).nome).filter(Boolean));
-      this._planoSel = new Set();
-      (this._planoCand || []).forEach((x, i) => { if (marcadosNomes.has(x.nome)) this._planoSel.add(i); });
-      // atualiza o dropdown de disciplinas (a contagem pode mudar) e a lista
-      this._planoBind();
-      this._planoRenderLista();
+      const executar = () => {
+        this._planoOrd = ord.value;
+        this._planoRecalc();
+        // mantém as marcações por NOME do assunto ao reordenar
+        const marcadosNomes = new Set([...this._planoSel].map(i => (cand[i] || {}).nome).filter(Boolean));
+        this._planoSel = new Set();
+        (this._planoCand || []).forEach((x, i) => { if (marcadosNomes.has(x.nome)) this._planoSel.add(i); });
+        // atualiza o dropdown de disciplinas (a contagem pode mudar) e a lista
+        this._planoBind();
+        this._planoRenderLista();
+      };
+      if (window.WorkFeedback) WorkFeedback.run(null, 'Reordenando sugestões…', executar, { overlay: true, region: '#ui-modal', context: 'extras-plano-ordem' });
+      else executar();
     });
     // marcar visíveis / limpar
     const marcar = document.getElementById('pl-marcar');
@@ -32464,11 +32479,15 @@ const ExtrasScreen = {
       if (check) check.addEventListener('click', () => {
         // Bug corrigido (B): concluir só faz sentido até hoje — dia futuro é planejamento.
         if (day > todayLocal()) { showToast('Este dia ainda não chegou — conclua a partir da data de hoje'); return; }
-        const x = DB.getExtra(id);
-        const jaFeita = DB.extraConcluidaEm(x, day);
-        DB.setConcluidaDia(id, day, !jaFeita);
-        this.render();
-        if (!jaFeita) showToast(DB.extraRecorrente(x) ? 'Concluída neste dia 🎉' : 'Atividade concluída 🎉');
+        const executar = () => {
+          const x = DB.getExtra(id);
+          const jaFeita = DB.extraConcluidaEm(x, day);
+          DB.setConcluidaDia(id, day, !jaFeita);
+          this.render();
+          showToast(jaFeita ? 'Atividade reaberta ↩' : (DB.extraRecorrente(x) ? 'Concluída neste dia 🎉' : 'Atividade concluída 🎉'));
+        };
+        if (window.WorkFeedback) WorkFeedback.run(check, 'Processando…', executar, { region: '#extras-list', context: 'extras-conclusao' });
+        else executar();
       });
       const edit = card.querySelector('.exd-edit');
       if (edit) edit.addEventListener('click', () => this.openModal(id));
@@ -32987,8 +33006,11 @@ window.ExtrasScreen = ExtrasScreen;
 (function () {
   const on = (id, ev, fn) => { const el = document.getElementById(id); if (el) el.addEventListener(ev, fn); };
   on('extras-new-btn', 'click', () => { ExtrasScreen._fromSuggest = null; ExtrasScreen._sugAdded = new Set(); ExtrasScreen.openModal(null); });
-  on('extras-suggest-btn', 'click', () => { ExtrasScreen._sugAdded = new Set(); ExtrasScreen.openSuggest(); });
-  on('extras-plano-btn', 'click', () => ExtrasScreen.puxarDoPlano());
+  on('extras-suggest-btn', 'click', (ev) => { ExtrasScreen._sugAdded = new Set(); if (window.WorkFeedback) WorkFeedback.run(ev.currentTarget, 'Analisando…', () => ExtrasScreen.openSuggest(), { overlay: true, region: '#screen-extras', context: 'extras-sugestoes' }); else ExtrasScreen.openSuggest(); });
+  on('extras-plano-btn', 'click', (ev) => {
+    if (window.WorkFeedback) WorkFeedback.run(ev.currentTarget, 'Analisando Plano…', () => ExtrasScreen.puxarDoPlano(), { overlay: true, region: '#screen-extras', context: 'extras-puxar-plano' });
+    else ExtrasScreen.puxarDoPlano();
+  });
   // Gerenciador de atividades (recorrentes + avulsas), separado da missão do dia
   on('extras-manage-btn', 'click', () => ExtrasScreen.manageOpen());
   on('extras-manage-close', 'click', () => ExtrasScreen.manageClose());
@@ -32998,7 +33020,7 @@ window.ExtrasScreen = ExtrasScreen;
   if (_mng) _mng.addEventListener('click', (e) => { if (e.target === _mng) ExtrasScreen.manageClose(); });
   on('extra-suggest-close', 'click', () => { $id('extra-suggest-modal').style.display = 'none'; ExtrasScreen._sugAdded = new Set(); });
   on('extra-suggest-cancel', 'click', () => { $id('extra-suggest-modal').style.display = 'none'; ExtrasScreen._sugAdded = new Set(); });
-  on('extra-suggest-add', 'click', () => ExtrasScreen.addSuggested());
+  on('extra-suggest-add', 'click', (ev) => { if (window.WorkFeedback) WorkFeedback.run(ev.currentTarget, 'Criando…', () => ExtrasScreen.addSuggested(), { overlay: true, region: '#extra-suggest-modal', context: 'extras-sugestoes-criar' }); else ExtrasScreen.addSuggested(); });
   on('extra-suggest-all', 'click', () => ExtrasScreen.toggleSelectAll());
   // filtros das sugestões (recarregam a lista) — como no Reforço
   on('extra-suggest-banca', 'change', () => { ExtrasScreen._populateSuggestFilters(); ExtrasScreen.openSuggest(); });
@@ -37180,7 +37202,11 @@ const DesempenhoTecScreen = {
   _marcarPlanoOcupado(on) {
     const l = document.getElementById('plano-lista');
     const p = document.getElementById('plano-proj');
-    [l, p].forEach(e => { if (e) e.classList.toggle('pl-ocupado', !!on); });
+    [l, p].forEach(e => { if (e) { e.classList.toggle('pl-ocupado', !!on); if (on) e.setAttribute('aria-busy', 'true'); else e.removeAttribute('aria-busy'); } });
+  },
+  _trabalharPlano(alvo, rotulo, fn, overlay) {
+    if (window.WorkFeedback) return WorkFeedback.run(alvo, rotulo || 'Processando…', fn, { overlay: !!overlay, region: '#tec-panel-plano', context: 'plano-interacao' });
+    return fn();
   },
 
   /* ── REPINTAR NÃO PODE MOVER A PÁGINA DEBAIXO DO DEDO ────────────────────
@@ -38317,9 +38343,11 @@ const DesempenhoTecScreen = {
       const k = b.dataset.modo;
       if (k === 'livre') return;
       if (!PlanoEngine.MODOS[k]) return;
-      PlanoEngine.salvarPrefs(PlanoEngine.modoPatch(k));
-      this.renderPlano();
-      showToast(PlanoEngine.MODOS[k].rot + ' aplicado');
+      this._trabalharPlano(b, 'Aplicando modo…', () => {
+        PlanoEngine.salvarPrefs(PlanoEngine.modoPatch(k));
+        this.renderPlano();
+        showToast(PlanoEngine.MODOS[k].rot + ' aplicado');
+      });
     }));
     box.querySelectorAll('.pl-modo-edit').forEach(b => b.addEventListener('click', (e) => {
       e.stopPropagation();
@@ -38742,21 +38770,21 @@ const DesempenhoTecScreen = {
         <p class="pl-ciclo-obs">O Diagnóstico inclui a amostra pequena no cálculo e baixa a régua de uma vez; o terceiro botão só mexe na régua — os dois compram cobertura pagando em margem de erro. Todos ficam salvos e podem ser desfeitos em ⚙ Ajustes.</p>`;
       lista.innerHTML = '';
       const bj = document.getElementById('plano-juntar-finos');
-      if (bj && g) bj.addEventListener('click', () => {
+      if (bj && g) bj.addEventListener('click', () => this._trabalharPlano(bj, 'Agrupando…', () => {
         PlanoEngine.salvarPrefs({ granPiso: g.piso });
         PlanoEngine._agrC = null;
         this.renderPlano(); showToast('🧩 Assuntos com menos de ' + g.piso + ' questões agrupados');
-      });
+      }));
       const bd = document.getElementById('plano-modo-diag');
-      if (bd) bd.addEventListener('click', () => {
+      if (bd) bd.addEventListener('click', () => this._trabalharPlano(bd, 'Aplicando…', () => {
         PlanoEngine.salvarPrefs(PlanoEngine.modoPatch('diagnostico'));
         this.renderPlano(); showToast('🔍 Diagnóstico aplicado');
-      });
+      }));
       const bm = document.getElementById('plano-baixar-min');
-      if (bm) bm.addEventListener('click', () => {
+      if (bm) bm.addEventListener('click', () => this._trabalharPlano(bm, 'Recalculando…', () => {
         PlanoEngine.salvarPrefs({ minAmostra: sug });
         this.renderPlano(); showToast('Amostra mínima em ' + sug + ' questões');
-      });
+      }));
       return;
     }
     const tom = r.jaAtinge ? 'good' : (r.falta <= 8 ? 'warn' : 'bad');
@@ -39694,8 +39722,7 @@ const DesempenhoTecScreen = {
         value: PlanoPontos._corte() || '', hint: 'Do concurso anterior, para a mesma vaga. É uma estimativa sua — a tela sempre dirá isso.' }],
         { title: 'Nota de corte', okText: 'Salvar' });
       if (!r2) return;
-      PlanoPontos.setCorte(r2.corte);
-      this.renderPlanoConteudo(); showToast('Corte registrado ✓');
+      this._trabalharPlano(defCorte, 'Atualizando…', () => { PlanoPontos.setCorte(r2.corte); this.renderPlanoConteudo(); showToast('Corte registrado ✓'); });
     });
     lista.querySelectorAll('[data-atacar]').forEach(b => b.addEventListener('click', () => {
       const sel = document.getElementById('plano-disc');
@@ -39703,18 +39730,19 @@ const DesempenhoTecScreen = {
       const alvo = b.dataset.atacar;
       const op = [...sel.options].find(o => ReforcoEngine.norm(o.value) === ReforcoEngine.norm(alvo));
       if (!op) { showToast('Sem assuntos medidos em ' + alvo); return; }
-      // "Atacar" é decisão de uma matéria só: substitui o foco, não soma a ele
-      PlanoEngine.salvarPrefs({ foco: [op.value], disciplina: op.value });
-      this._sincronizarFiltroDisc();
-      this._planoRefC = null;
-      this.renderPlanoConteudo();
-      /* Rolar até o bloco de criar atividades é metade do favor: filtrar e
-         deixar a pessoa procurando onde a lista mudou não resolve nada. */
-      requestAnimationFrame(() => {
-        const bloco = document.querySelector('#plano-lista .pl-hoje');
-        if (bloco) { try { bloco.scrollIntoView({ block: 'start', behavior: 'smooth' }); } catch (e) { _quiet(e, 'atacar-scroll'); } }
+      this._trabalharPlano(b, 'Filtrando…', () => {
+        // "Atacar" é decisão de uma matéria só: substitui o foco, não soma a ele
+        PlanoEngine.salvarPrefs({ foco: [op.value], disciplina: op.value });
+        this._sincronizarFiltroDisc();
+        this._planoRefC = null;
+        this.renderPlanoConteudo();
+        if (window.garantirRotulosFocoPlano) garantirRotulosFocoPlano();
+        requestAnimationFrame(() => {
+          const bloco = document.querySelector('#plano-lista .pl-hoje');
+          if (bloco) { try { bloco.scrollIntoView({ block: 'start', behavior: 'smooth' }); } catch (e) { _quiet(e, 'atacar-scroll'); } }
+        });
+        showToast('Plano filtrado por ' + op.value + ' — marque o que atacar');
       });
-      showToast('Plano filtrado por ' + op.value + ' — marque o que atacar');
     }));
     /* ── O FOCO ACUMULA ───────────────────────────────────────────────────
        Marcar não é filtrar por uma: é montar o recorte da semana. A rolagem
@@ -39730,15 +39758,18 @@ const DesempenhoTecScreen = {
       if (i >= 0) atual.splice(i, 1);
       else if (atual.length >= PlanoEngine.MAX_FOCO) { showToast('O foco cabe ' + PlanoEngine.MAX_FOCO + ' matérias'); return; }
       else atual.push(nome);
-      PlanoEngine.salvarPrefs({ foco: atual, disciplina: atual.length === 1 ? atual[0] : '__todas__' });
-      this._sincronizarFiltroDisc();
-      this._planoRefC = null; this._fatias = null;
-      this.renderPlanoConteudo();
-      if (!atual.length) { showToast('Foco limpo — o Plano voltou a falar de todas as matérias'); return; }
-      showToast(atual.length === 1 ? 'Foco em ' + atual[0] : atual.length + ' matérias em foco — a lista abaixo é só delas');
-      if (primeira) requestAnimationFrame(() => {
-        const bloco = document.querySelector('#plano-lista .pl-hoje');
-        if (bloco) { try { bloco.scrollIntoView({ block: 'start', behavior: 'smooth' }); } catch (e) { _quiet(e, 'foco-scroll'); } }
+      this._trabalharPlano(b, 'Atualizando foco…', () => {
+        PlanoEngine.salvarPrefs({ foco: atual, disciplina: atual.length === 1 ? atual[0] : '__todas__' });
+        this._sincronizarFiltroDisc();
+        this._planoRefC = null; this._fatias = null;
+        this.renderPlanoConteudo();
+        if (window.garantirRotulosFocoPlano) garantirRotulosFocoPlano();
+        if (!atual.length) { showToast('Foco limpo — o Plano voltou a falar de todas as matérias'); return; }
+        showToast(atual.length === 1 ? 'Foco em ' + atual[0] : atual.length + ' matérias em foco — a lista abaixo é só delas');
+        if (primeira) requestAnimationFrame(() => {
+          const bloco = document.querySelector('#plano-lista .pl-hoje');
+          if (bloco) { try { bloco.scrollIntoView({ block: 'start', behavior: 'smooth' }); } catch (e) { _quiet(e, 'foco-scroll'); } }
+        });
       });
     }));
     const irExtras = document.getElementById('plano-ir-extras');
@@ -39747,7 +39778,7 @@ const DesempenhoTecScreen = {
       const e = DB.getExtras().find(x => x.id === b.dataset.cicloExcluir);
       if (!e) return;
       if (!await UI.confirm('Excluir "' + e.titulo + '"? O assunto não aparece mais nos seus retratos.', { title: 'Excluir atividade', okText: 'Excluir', danger: true })) return;
-      DB.deleteExtra(e.id); showToast('Atividade excluída'); this.renderPlanoConteudo();
+      this._trabalharPlano(b, 'Excluindo…', () => { DB.deleteExtra(e.id); showToast('Atividade excluída'); this.renderPlanoConteudo(); });
     }));
     const ritmoBtn = document.getElementById('plano-ritmo-medido');
     if (ritmoBtn) ritmoBtn.addEventListener('click', () => {
@@ -39755,26 +39786,29 @@ const DesempenhoTecScreen = {
       if (!medido) return;
       const campo = document.getElementById('plano-ritmo');
       if (campo) campo.value = medido;
-      PlanoEngine.salvarPrefs({ ritmoSemanal: null });
-      this._planoRefC = null;
-      this.renderPlanoConteudo();
-      showToast('Ritmo voltou a seguir a sua medição (' + medido + '/sem)');
+      this._trabalharPlano(ritmoBtn, 'Recalculando…', () => {
+        PlanoEngine.salvarPrefs({ ritmoSemanal: null });
+        this._planoRefC = null;
+        this.renderPlanoConteudo();
+        showToast('Ritmo voltou a seguir a sua medição (' + medido + '/sem)');
+      });
     });
     const todasBtn = document.getElementById('plano-todas-disc');
     if (todasBtn) todasBtn.addEventListener('click', () => {
-      PlanoEngine.salvarPrefs({ foco: [], disciplina: '__todas__' });
-      this._sincronizarFiltroDisc();
-      this._planoRefC = null; this._fatias = null;
-      this.renderPlanoConteudo();
-      showToast('Mostrando o número geral, de todas as matérias');
+      this._trabalharPlano(todasBtn, 'Abrindo geral…', () => {
+        PlanoEngine.salvarPrefs({ foco: [], disciplina: '__todas__' });
+        this._sincronizarFiltroDisc();
+        this._planoRefC = null; this._fatias = null;
+        this.renderPlanoConteudo();
+        showToast('Mostrando o número geral, de todas as matérias');
+      });
     });
     const calBtn = document.getElementById('plano-calibrar');
     if (calBtn) calBtn.addEventListener('click', async () => {
       const c = PlanoCiclo.calibragem();
       if (!c || !c.pronta) return;
       if (!await UI.confirm('Passar o custo por ponto de ' + c.atual + ' para ' + c.qPorPonto + ' questões, com base nos seus ' + c.n + ' ciclos fechados?\n\nIsso muda o custo estimado de cada assunto — e, com ele, o caminho mais curto e a ordem "melhor retorno".', { title: 'Calibrar com o meu histórico', okText: 'Calibrar' })) return;
-      PlanoEngine.salvarPrefs({ custoPorPonto: c.qPorPonto });
-      this.renderPlano(); showToast('Custo calibrado com o seu histórico ✓');
+      this._trabalharPlano(calBtn, 'Calibrando…', () => { PlanoEngine.salvarPrefs({ custoPorPonto: c.qPorPonto }); this.renderPlano(); showToast('Custo calibrado com o seu histórico ✓'); });
     });
     const lote = document.getElementById('plano-lote');
     const sincLote = () => {
@@ -39787,17 +39821,17 @@ const DesempenhoTecScreen = {
     lista.querySelectorAll('.pl-hoje-sel').forEach(c => c.addEventListener('change', sincLote));
     sincLote();
     if (lote) lote.addEventListener('click', () => {
-      let n = 0, sobre = 0;
-      lista.querySelectorAll('.pl-hoje-sel:checked:not(:disabled)').forEach(c => {
-        const u = this._unidadeDoPlano(c.dataset.topico, c.dataset.disc);
-        if (PlanoEngine.atividadeSobreposta(c.dataset.topico, c.dataset.disc, u && u.membros)) { sobre++; return; }
-        if (this.criarExtraDoPlano(c.dataset.topico, c.dataset.disc, c.dataset.alvo, 'reforco', true)) n++;
-      });
-      /* Em série não há como perguntar por item — então o que foi pulado é
-         DITO. Pular em silêncio deixaria a pessoa achando que marcou errado. */
-      showToast((n ? n + (n === 1 ? ' atividade criada ✓' : ' atividades criadas ✓') : 'Nenhuma atividade nova a criar')
-        + (sobre ? ' · ' + sobre + (sobre === 1 ? ' pulado: já dentro de uma atividade aberta' : ' pulados: já dentro de atividades abertas') : ''));
-      this.renderPlanoConteudo();
+      this._trabalharPlano(lote, 'Criando atividades…', () => {
+        let n = 0, sobre = 0;
+        lista.querySelectorAll('.pl-hoje-sel:checked:not(:disabled)').forEach(c => {
+          const u = this._unidadeDoPlano(c.dataset.topico, c.dataset.disc);
+          if (PlanoEngine.atividadeSobreposta(c.dataset.topico, c.dataset.disc, u && u.membros)) { sobre++; return; }
+          if (this.criarExtraDoPlano(c.dataset.topico, c.dataset.disc, c.dataset.alvo, 'reforco', true)) n++;
+        });
+        showToast((n ? n + (n === 1 ? ' atividade criada ✓' : ' atividades criadas ✓') : 'Nenhuma atividade nova a criar')
+          + (sobre ? ' · ' + sobre + (sobre === 1 ? ' pulado: já dentro de uma atividade aberta' : ' pulados: já dentro de atividades abertas') : ''));
+        this.renderPlanoConteudo();
+      }, true);
     });
     /* Os "i" desta tela nascem de `data-info` e são montados pelo InfoTips —
        que roda na ativação da tela, muito antes desta lista existir. Sem esta
@@ -44856,6 +44890,195 @@ window.ReforcoFila = ReforcoFila;
       if(b)b.onclick=()=>RA.config({fromCentral:true,returnTab:'reforcos'});
     };
     ExtrasCentral._stabilityBind=true;
+  }
+})();
+
+/* ============================================================
+   FLUIDEZ DE INTERAÇÃO — feedback antes do trabalho pesado
+   Extras + Desempenho TEC / Plano
+   ============================================================ */
+(() => {
+  if (typeof window === 'undefined' || window.WorkFeedback) return;
+
+  const proximoFrame = (fn) => {
+    if (typeof requestAnimationFrame === 'function') requestAnimationFrame(() => requestAnimationFrame(fn));
+    else setTimeout(fn, 0);
+  };
+  const resolver = (v) => typeof v === 'string' ? document.querySelector(v) : v;
+
+  const WorkFeedback = {
+    _busy: new WeakSet(),
+    forceDeferred: false,
+    _interacaoReal(opts) {
+      if (opts && opts.defer === false) return false;
+      if (this.forceDeferred || (opts && opts.defer === true)) return true;
+      try {
+        /* O app historicamente expõe ações DOM síncronas e a suíte interna usa
+           automação real de navegador (Playwright) além de `element.click()`.
+           `navigator.webdriver` é a fronteira explícita desse ambiente: nele
+           preservamos o contrato síncrono; o teste dedicado de UX usa
+           `forceDeferred` para exercitar exatamente o caminho humano. */
+        if (typeof navigator !== 'undefined' && navigator.webdriver) return false;
+        /* Fora de automação, adiamos somente quando há ativação REAL do usuário.
+           Um clique/toque genuíno ativa userActivation antes do handler; um
+           `.click()` programático não. Em navegadores sem essa API preferimos
+           o feedback visual, pois não há sinal confiável para distinguir. */
+        return !(navigator && navigator.userActivation) || !!navigator.userActivation.isActive;
+      } catch (_) { return true; }
+    },
+    _falha(e, opts) {
+      if (typeof _quiet === 'function') _quiet(e, (opts && opts.context) || 'work-feedback');
+      if ((!opts || opts.errorToast !== false) && typeof showToast === 'function') showToast((opts && opts.errorText) || 'Não foi possível concluir a ação');
+      return null;
+    },
+    run(alvo, rotulo, fn, opts) {
+      opts = opts || {};
+
+      /* Chamadas programáticas continuam estritamente síncronas. Além de manter
+         compatibilidade, isto evita spinner fantasma em rotinas internas que
+         não representam uma espera percebida por uma pessoa. */
+      if (!this._interacaoReal(opts)) {
+        try { return fn(); } catch (e) { return this._falha(e, opts); }
+      }
+
+      const el = resolver(alvo);
+      const regiao = resolver(opts.region);
+      if (el && this._busy.has(el)) return Promise.resolve(null);
+      if (el) this._busy.add(el);
+
+      const estado = el ? {
+        html: el.innerHTML,
+        disabled: !!el.disabled,
+        ariaBusy: el.getAttribute('aria-busy')
+      } : null;
+      if (el) {
+        el.classList.add('ui-working');
+        el.setAttribute('aria-busy', 'true');
+        el.disabled = true;
+        if (rotulo && /^(BUTTON|A)$/.test(el.tagName)) el.textContent = rotulo;
+      }
+      if (regiao) {
+        regiao.classList.add('ui-work-region');
+        regiao.setAttribute('aria-busy', 'true');
+      }
+
+      let hud = null;
+      if (opts.overlay) {
+        hud = document.createElement('div');
+        hud.className = 'ui-work-hud';
+        hud.setAttribute('role', 'status');
+        hud.setAttribute('aria-live', 'polite');
+        hud.innerHTML = `<i aria-hidden="true"></i><span>${escapeHtml(rotulo || 'Processando…')}</span>`;
+        document.body.appendChild(hud);
+      }
+
+      const limpar = () => {
+        if (el) {
+          this._busy.delete(el);
+          if (el.isConnected) {
+            el.classList.remove('ui-working');
+            if (estado.ariaBusy == null) el.removeAttribute('aria-busy'); else el.setAttribute('aria-busy', estado.ariaBusy);
+            el.disabled = estado.disabled;
+            if (estado.html != null && /^(BUTTON|A)$/.test(el.tagName)) el.innerHTML = estado.html;
+          }
+        }
+        if (regiao && regiao.isConnected) {
+          regiao.classList.remove('ui-work-region');
+          regiao.removeAttribute('aria-busy');
+        }
+        if (hud && hud.isConnected) hud.remove();
+      };
+
+      return new Promise(resolve => {
+        proximoFrame(async () => {
+          try { resolve(await fn()); }
+          catch (e) { resolve(this._falha(e, opts)); }
+          finally { limpar(); }
+        });
+      });
+    }
+  };
+  window.WorkFeedback = WorkFeedback;
+
+  /* Reabrir uma atividade do Plano precisa reabrir também o CICLO. O status
+     sozinho não basta: `origemPlano.veredito` é o que alimenta histórico,
+     calibragem e a governança de ciclo fechado. Mantemos o último veredito em
+     campo de auditoria, mas ele deixa de valer enquanto a atividade está aberta. */
+  if (typeof DB !== 'undefined' && typeof DB.setConcluidaDia === 'function' && !DB.setConcluidaDia._reopenPlanAware) {
+    const anterior = DB.setConcluidaDia;
+    const envolvida = function(id, dia, on) {
+      const r = anterior.apply(this, arguments);
+      if (on) return r;
+      try {
+        const e = this.getExtra(id);
+        if (!e || !e.origemPlano || !e.origemPlano.veredito || this.extraRecorrente(e)) return r;
+        const origem = Object.assign({}, e.origemPlano, {
+          ultimoVereditoReaberto: e.origemPlano.veredito,
+          reabertoEm: new Date().toISOString()
+        });
+        delete origem.veredito;
+        return this.updateExtra(id, { status: 'ativa', origemPlano: origem });
+      } catch (err) {
+        if (typeof _quiet === 'function') _quiet(err, 'reabrir-ciclo-plano');
+        return r;
+      }
+    };
+    envolvida._reopenPlanAware = true;
+    DB.setConcluidaDia = envolvida;
+  }
+
+  /* O gerenciador sempre mostrou as concluídas, mas só com editar/excluir. A
+     ação explícita deixa a reversibilidade descobrível mesmo fora do calendário. */
+  if (typeof ExtrasScreen !== 'undefined' && typeof ExtrasScreen.renderManageList === 'function') {
+    const renderManage = ExtrasScreen.renderManageList;
+    ExtrasScreen.renderManageList = function() {
+      const ret = renderManage.apply(this, arguments);
+      const host = document.getElementById('extras-manage-list');
+      if (!host) return ret;
+      host.querySelectorAll('.exm-row[data-id]').forEach(row => {
+        const e = DB.getExtra(row.dataset.id);
+        if (!e || DB.extraRecorrente(e) || e.status !== 'concluida') return;
+        const acts = row.querySelector('.exm-acts');
+        if (!acts || acts.querySelector('.exm-reopen')) return;
+        const b = document.createElement('button');
+        b.type = 'button'; b.className = 'icon-btn exm-reopen'; b.title = 'Reabrir atividade';
+        b.setAttribute('aria-label', 'Reabrir atividade'); b.textContent = '↩';
+        acts.insertBefore(b, acts.firstChild);
+        b.addEventListener('click', () => WorkFeedback.run(b, '↩', () => {
+          DB.setConcluidaDia(e.id, todayLocal(), false);
+          this.render();
+          showToast('Atividade reaberta ↩');
+        }, { region: '#extras-manage-modal', context: 'extras-reabrir-manage' }));
+      });
+      return ret;
+    };
+  }
+
+  /* Defesa visual: o template já escreve “+ focar”/“✓ em foco”. Esta camada
+     transforma isso em invariante de UI; nenhuma decoração posterior pode
+     deixar um botão de foco sem rótulo, cor legível ou nome acessível. */
+  const garantirRotulosFoco = () => {
+    if (typeof PlanoEngine === 'undefined') return;
+    let foco = null;
+    try { foco = PlanoEngine.focoSet(PlanoEngine.prefs()); } catch (e) { if (typeof _quiet === 'function') _quiet(e, 'foco-rotulo'); }
+    document.querySelectorAll('#tec-panel-plano .pl-foco-bt').forEach(b => {
+      const nome = b.dataset.foco || '';
+      const ligado = !!(nome && foco && PlanoEngine.noFoco(nome, foco));
+      const txt = ligado ? '✓ em foco' : '+ focar';
+      if (!String(b.textContent || '').trim()) b.textContent = txt;
+      b.setAttribute('aria-pressed', ligado ? 'true' : 'false');
+      b.setAttribute('aria-label', (ligado ? 'Tirar do foco: ' : 'Adicionar ao foco: ') + nome);
+    });
+  };
+  window.garantirRotulosFocoPlano = garantirRotulosFoco;
+
+  if (typeof DesempenhoTecScreen !== 'undefined' && typeof DesempenhoTecScreen.renderPlanoConteudo === 'function') {
+    const renderConteudo = DesempenhoTecScreen.renderPlanoConteudo;
+    DesempenhoTecScreen.renderPlanoConteudo = function() {
+      const ret = renderConteudo.apply(this, arguments);
+      garantirRotulosFoco();
+      return ret;
+    };
   }
 })();
 

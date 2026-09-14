@@ -363,22 +363,27 @@ const ExtrasScreen = {
       UI._open('🏁 Puxar do Plano', 'Assuntos prioritários com meta pronta', body, { okText: 'Criar atividades' });
     }).then((ok) => {
       if (!ok) return;
-      let n = 0;
-      (this._planoCand || []).forEach((x, i) => {
-        if (!this._planoSel || !this._planoSel.has(i)) return;
-        const e = DB.addExtra({
-          // o mesmo título dos dois portões (ver `PlanoCiclo.titulo`)
-          titulo: PlanoCiclo.titulo(x.nome, x.motivo, x.membros),
-          tipo: 'questoes', disciplina: x.disciplina || '', unidade: 'questoes',
-          alvo: Math.max(1, x.alvo), periodo: 'unica', contaMetricas: false,
-          obs: 'Gerado pelo Plano de pontos fracos.'
+      const criar = () => {
+        let n = 0;
+        (this._planoCand || []).forEach((x, i) => {
+          if (!this._planoSel || !this._planoSel.has(i)) return;
+          const e = DB.addExtra({
+            // o mesmo título dos dois portões (ver `PlanoCiclo.titulo`)
+            titulo: PlanoCiclo.titulo(x.nome, x.motivo, x.membros),
+            tipo: 'questoes', disciplina: x.disciplina || '', unidade: 'questoes',
+            alvo: Math.max(1, x.alvo), periodo: 'unica', contaMetricas: false,
+            obs: 'Gerado pelo Plano de pontos fracos.'
+          });
+          // mesma origem do outro portão: sem isto a atividade nascia sem
+          // `taxaInicial` nem `qBase`, e o ciclo dela nunca teria veredito
+          if (e) { DB.updateExtra(e.id, { origemPlano: PlanoCiclo.origem(x.nome, x.disciplina, x, { motivo: x.motivo }) }); n++; }
         });
-        // mesma origem do outro portão: sem isto a atividade nascia sem
-        // `taxaInicial` nem `qBase`, e o ciclo dela nunca teria veredito
-        if (e) { DB.updateExtra(e.id, { origemPlano: PlanoCiclo.origem(x.nome, x.disciplina, x, { motivo: x.motivo }) }); n++; }
-      });
-      this.render();
-      showToast(n ? n + ' atividade(s) criada(s) ✓' : 'Nenhuma selecionada');
+        this.render();
+        showToast(n ? n + ' atividade(s) criada(s) ✓' : 'Nenhuma selecionada');
+        return n;
+      };
+      if (window.WorkFeedback) return WorkFeedback.run(null, 'Criando atividades…', criar, { overlay: true, region: '#screen-extras', context: 'extras-plano-criar' });
+      return criar();
     });
 
     // liga a interface do diálogo depois de renderizado
@@ -470,15 +475,19 @@ const ExtrasScreen = {
     // seletor de prioridade → recomputa e repinta
     const ord = document.getElementById('pl-ordenar');
     if (ord) ord.addEventListener('change', () => {
-      this._planoOrd = ord.value;
-      this._planoRecalc();
-      // mantém as marcações por NOME do assunto ao reordenar
-      const marcadosNomes = new Set([...this._planoSel].map(i => (cand[i] || {}).nome).filter(Boolean));
-      this._planoSel = new Set();
-      (this._planoCand || []).forEach((x, i) => { if (marcadosNomes.has(x.nome)) this._planoSel.add(i); });
-      // atualiza o dropdown de disciplinas (a contagem pode mudar) e a lista
-      this._planoBind();
-      this._planoRenderLista();
+      const executar = () => {
+        this._planoOrd = ord.value;
+        this._planoRecalc();
+        // mantém as marcações por NOME do assunto ao reordenar
+        const marcadosNomes = new Set([...this._planoSel].map(i => (cand[i] || {}).nome).filter(Boolean));
+        this._planoSel = new Set();
+        (this._planoCand || []).forEach((x, i) => { if (marcadosNomes.has(x.nome)) this._planoSel.add(i); });
+        // atualiza o dropdown de disciplinas (a contagem pode mudar) e a lista
+        this._planoBind();
+        this._planoRenderLista();
+      };
+      if (window.WorkFeedback) WorkFeedback.run(null, 'Reordenando sugestões…', executar, { overlay: true, region: '#ui-modal', context: 'extras-plano-ordem' });
+      else executar();
     });
     // marcar visíveis / limpar
     const marcar = document.getElementById('pl-marcar');
@@ -630,11 +639,15 @@ const ExtrasScreen = {
       if (check) check.addEventListener('click', () => {
         // Bug corrigido (B): concluir só faz sentido até hoje — dia futuro é planejamento.
         if (day > todayLocal()) { showToast('Este dia ainda não chegou — conclua a partir da data de hoje'); return; }
-        const x = DB.getExtra(id);
-        const jaFeita = DB.extraConcluidaEm(x, day);
-        DB.setConcluidaDia(id, day, !jaFeita);
-        this.render();
-        if (!jaFeita) showToast(DB.extraRecorrente(x) ? 'Concluída neste dia 🎉' : 'Atividade concluída 🎉');
+        const executar = () => {
+          const x = DB.getExtra(id);
+          const jaFeita = DB.extraConcluidaEm(x, day);
+          DB.setConcluidaDia(id, day, !jaFeita);
+          this.render();
+          showToast(jaFeita ? 'Atividade reaberta ↩' : (DB.extraRecorrente(x) ? 'Concluída neste dia 🎉' : 'Atividade concluída 🎉'));
+        };
+        if (window.WorkFeedback) WorkFeedback.run(check, 'Processando…', executar, { region: '#extras-list', context: 'extras-conclusao' });
+        else executar();
       });
       const edit = card.querySelector('.exd-edit');
       if (edit) edit.addEventListener('click', () => this.openModal(id));
@@ -1153,8 +1166,11 @@ window.ExtrasScreen = ExtrasScreen;
 (function () {
   const on = (id, ev, fn) => { const el = document.getElementById(id); if (el) el.addEventListener(ev, fn); };
   on('extras-new-btn', 'click', () => { ExtrasScreen._fromSuggest = null; ExtrasScreen._sugAdded = new Set(); ExtrasScreen.openModal(null); });
-  on('extras-suggest-btn', 'click', () => { ExtrasScreen._sugAdded = new Set(); ExtrasScreen.openSuggest(); });
-  on('extras-plano-btn', 'click', () => ExtrasScreen.puxarDoPlano());
+  on('extras-suggest-btn', 'click', (ev) => { ExtrasScreen._sugAdded = new Set(); if (window.WorkFeedback) WorkFeedback.run(ev.currentTarget, 'Analisando…', () => ExtrasScreen.openSuggest(), { overlay: true, region: '#screen-extras', context: 'extras-sugestoes' }); else ExtrasScreen.openSuggest(); });
+  on('extras-plano-btn', 'click', (ev) => {
+    if (window.WorkFeedback) WorkFeedback.run(ev.currentTarget, 'Analisando Plano…', () => ExtrasScreen.puxarDoPlano(), { overlay: true, region: '#screen-extras', context: 'extras-puxar-plano' });
+    else ExtrasScreen.puxarDoPlano();
+  });
   // Gerenciador de atividades (recorrentes + avulsas), separado da missão do dia
   on('extras-manage-btn', 'click', () => ExtrasScreen.manageOpen());
   on('extras-manage-close', 'click', () => ExtrasScreen.manageClose());
@@ -1164,7 +1180,7 @@ window.ExtrasScreen = ExtrasScreen;
   if (_mng) _mng.addEventListener('click', (e) => { if (e.target === _mng) ExtrasScreen.manageClose(); });
   on('extra-suggest-close', 'click', () => { $id('extra-suggest-modal').style.display = 'none'; ExtrasScreen._sugAdded = new Set(); });
   on('extra-suggest-cancel', 'click', () => { $id('extra-suggest-modal').style.display = 'none'; ExtrasScreen._sugAdded = new Set(); });
-  on('extra-suggest-add', 'click', () => ExtrasScreen.addSuggested());
+  on('extra-suggest-add', 'click', (ev) => { if (window.WorkFeedback) WorkFeedback.run(ev.currentTarget, 'Criando…', () => ExtrasScreen.addSuggested(), { overlay: true, region: '#extra-suggest-modal', context: 'extras-sugestoes-criar' }); else ExtrasScreen.addSuggested(); });
   on('extra-suggest-all', 'click', () => ExtrasScreen.toggleSelectAll());
   // filtros das sugestões (recarregam a lista) — como no Reforço
   on('extra-suggest-banca', 'change', () => { ExtrasScreen._populateSuggestFilters(); ExtrasScreen.openSuggest(); });
