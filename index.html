@@ -57,7 +57,7 @@
      novo, e o antigo é descartado sozinho na ativação) e o que permite ao app
      dizer qual versão está rodando. Em src/ fica "dev" de propósito: a versão
      é gerada na montagem, não editada à mão. -->
-<meta name="diario-versao" content="v25314f3b98">
+<meta name="diario-versao" content="vebe5357272">
 <script>
 /* ── ARRANQUE: abre o IndexedDB AGORA, em paralelo com o parse do documento ──
    A fachada de armazenamento vive no fim do <body>, depois de ~1,7 MB de HTML.
@@ -55815,6 +55815,7 @@ else CloudStore.init();
     VERSAO:1,
     _origCab:C._cabecalho?.bind(C),
     _origSwitch:DT.switchTecTab?.bind(DT),
+    _origRender:DT.render?.bind(DT),
 
     _semConfiguracaoDoModal(html){
       if(typeof document==='undefined'||!document.createElement)return String(html||'').replace(/<div class="ps-settings"[\s\S]*?<div class="ps-rule">/,'<div class="ps-rule">').replace(/<div class="rv4-wrap"[\s\S]*?<div class="ps-rule">/,'<div class="ps-rule">');
@@ -55895,7 +55896,12 @@ else CloudStore.init();
       };
     },
 
-    init(){this.instalarModal();this.instalarTabs();this.ensureUi();window.addEventListener('plano:motores-change',()=>{this.ensureUi();this.renderPanel();});}
+    instalarRenderHook(){
+      if(this._renderInstalled||!this._origRender)return;this._renderInstalled=true;const self=this;
+      DT.render=function(){const r=self._origRender();self.ensureUi();return r;};
+    },
+
+    init(){this.instalarModal();this.instalarTabs();this.instalarRenderHook();this.ensureUi();window.addEventListener('plano:motores-change',()=>{this.ensureUi();this.renderPanel();});}
   };
   window.PlanoMotoresCentralTecV1=M;
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>M.init(),{once:true});else M.init();
