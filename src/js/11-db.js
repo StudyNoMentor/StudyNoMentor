@@ -1823,6 +1823,7 @@ const DB = {
   // Cada snapshot: { id, startDate, endDate, label, rows:[...], importedAt }
   // (retratos antigos tinham só `date` — migrados para startDate=endDate=date)
   getTecSnapshots() {
+    if (Array.isArray(this._tecReadSnapshot)) return this._tecReadSnapshot;
     const list = this._get(this.KEYS.tec, []);
     let migrated = false;
     list.forEach(s => {

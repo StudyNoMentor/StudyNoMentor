@@ -17,6 +17,21 @@
     view: 'all',
     janelaProximas: 7,
     janelaConcluidas: 7,
+    passoMais: 50,
+    _limites: Object.create(null),
+
+    limiteBase(k) {
+      // No overview não há razão para montar centenas de cards fora do viewport.
+      // Concluídas já nasce recolhida, então começa ainda mais enxuta. Ao filtrar
+      // uma seção diretamente, mostramos uma janela maior de uma vez.
+      if (this.view === k) return 80;
+      return k === 'concluidas' ? 15 : 50;
+    },
+
+    fatiar(k, arr) {
+      const limite = this._limites[k] || this.limiteBase(k);
+      return { itens: arr.slice(0, limite), faltam: Math.max(0, arr.length - limite), limite };
+    },
 
     addDays(iso, n) {
       const d = new Date(iso + 'T00:00:00');
@@ -34,7 +49,7 @@
 
     coletar(screen) {
       const hoje = todayLocal();
-      const extras = DB.getExtras();
+      const extras = DB._extrasReadSnapshot || DB.getExtras();
       const pendHoje = screen.occurrencesForDay(hoje)
         .filter(x => !DB.extraConcluidaEm(x, hoje))
         .map(x => ({ x, day: hoje, bucket: 'hoje' }));
@@ -184,6 +199,7 @@
 
       dash.querySelectorAll('[data-exm-view]').forEach(b => b.addEventListener('click', () => {
         this.view = b.dataset.exmView || 'all';
+        this._limites = Object.create(null);
         screen.selDay = todayLocal();
         screen.render();
       }));
@@ -224,7 +240,7 @@
       list.querySelectorAll('.exd').forEach(card => {
         const key = `${card.dataset.id}@${card.dataset.day}`;
         const entry = byKey.get(key);
-        const x = DB.getExtra(card.dataset.id);
+        const x = entry && entry.x;
         if (!entry || !x) return;
 
         const fonte = this.fonte(x);
@@ -275,16 +291,21 @@
 
     secao(k, titulo, ico, arr, screen) {
       if (!arr.length) return '';
-      const cards = this.cardsPorDisciplina(arr, screen);
+      const fatia = this.fatiar(k, arr);
+      const cards = this.cardsPorDisciplina(fatia.itens, screen);
+      const mais = fatia.faltam ? `<div class="exm-more-row">
+        <span>Mostrando ${fatia.itens.length} de ${arr.length}</span>
+        <button type="button" class="btn-secondary" data-exm-more="${k}">Mostrar mais ${Math.min(this.passoMais, fatia.faltam)}</button>
+      </div>` : '';
       if (k === 'concluidas' && this.view !== 'concluidas') {
         return `<details class="exm-section exm-section-${k}">
           <summary><span class="exm-section-title">${ico} ${titulo}</span><span class="exm-section-count">${arr.length}</span><span class="chev">⌄</span></summary>
-          <div class="exm-section-body">${cards}</div>
+          <div class="exm-section-body">${cards}${mais}</div>
         </details>`;
       }
       return `<section class="exm-section exm-section-${k}">
         <div class="exm-section-head"><span class="exm-section-title">${ico} ${titulo}</span><span class="exm-section-count">${arr.length}</span></div>
-        <div class="exm-section-body">${cards}</div>
+        <div class="exm-section-body">${cards}${mais}</div>
       </section>`;
     },
 
@@ -301,6 +322,13 @@
       list.innerHTML = grupos.map(([k, t, i, arr]) => this.secao(k, t, i, arr, screen)).join('');
       screen.bind(list);
       this.decorarCards(list, entries);
+      list.querySelectorAll('[data-exm-more]').forEach(btn => btn.addEventListener('click', () => {
+        const k = btn.dataset.exmMore;
+        const atual = this._limites[k] || this.limiteBase(k);
+        this._limites[k] = atual + this.passoMais;
+        // Não recalcula calendário/Plano/agenda: só expande a fatia já coletada.
+        this.renderOverview(screen, c);
+      }));
     },
 
     decorarDiaSelecionado(screen) {
@@ -334,8 +362,18 @@
 
   const renderOriginal = ExtrasScreen.render;
   ExtrasScreen.render = function () {
-    const ret = renderOriginal.apply(this, arguments);
+    // Uma única fotografia alimenta a tela-base E a apresentação moderna. A tela
+    // moderna substitui o overview de hoje, portanto sinalizamos à base para não
+    // construir a mesma árvore de cards duas vezes.
+    const snapshot = DB.getExtras();
+    DB._extrasReadSnapshot = snapshot;
+    this._modernOverviewPass = (this.selDay || todayLocal()) === todayLocal();
+    let ret;
+    try { ret = renderOriginal.apply(this, arguments); }
+    finally { this._modernOverviewPass = false; }
+    DB._extrasReadSnapshot = snapshot;
     try { ExtrasModern.aplicar(this); } catch (e) { _quiet(e, 'extras-modern'); }
+    finally { DB._extrasReadSnapshot = null; }
     return ret;
   };
 
