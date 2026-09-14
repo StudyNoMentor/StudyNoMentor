@@ -31,11 +31,11 @@ const ctx={
   },
   PlanoEngine:{
     prefs:()=>({metaDominio:85,tetoDominio:90,minAmostra:20,banca:'FGV',validadeDias:120}),
-    calcular:()=>({meta:90,validadeDias:120,itens:clone(baseItems),pequenas:[]}),
+    calcular:()=>({meta:85,validadeDias:120,itens:clone(baseItems),pequenas:[]}),
     atividadeSobreposta:()=>false
   },
   DesempenhoTecScreen:{scopedSnapshot:()=>({id:1}),bancaFiltro:()=> 'FGV',_casaUnidade:()=>false},
-  PlanoPontos:{temComposicao:()=>true,anexarPontos:()=>true},
+  PlanoPontos:{temComposicao:()=>true,modo:()=> 'pos',composicao:()=>[],anexarPontos:()=>true,_casarNomes:()=>({})},
   PlanoCiclo:{
     titulo:(n)=>'Reforçar: '+n,
     origem:(n,d,item)=>({topico:n,disciplina:d,taxaInicial:item.taxa,qBase:0,qBaseNo:0,metaAlvo:90,custoEstimado:item.custoQ,escopo:{tipo:'no',membros:[n]}})
@@ -43,15 +43,17 @@ const ctx={
   ExtrasScreen:{puxarDoPlano(){return 'legacy';},render(){ctx.__renders=(ctx.__renders||0)+1;}},
   Mentor90V5:{
     dominio:x=>({nivel:x.taxa>=93?'elite':'em_aquisicao',rotulo:x.taxa>=93?'90%+ consolidado':'Em aquisição',pCompetitiva:Math.max(0,Math.min(1,(x.taxa-50)/50)),vencido:!!x.vencido}),
-    calibracaoHierarquica:x=>({ganho100:x.disciplina==='C'?1:5,n:6,confianca:.55}),
+    calibracaoHierarquica:x=>({ganho100:x.disciplina==='C'?1:5,n:6,confianca:.55,baixaResposta:false}),
     incidenciaNormalizada:x=>({pct:x.incid/10,confianca:.95,bancas:1}),
-    velocidade:()=>({confiavel:true,segundosPorQuestao:120,escopo:'global'})
+    velocidade:()=>({confiavel:true,segundosPorQuestao:120,escopo:'global'}),
+    intervencao:(item,rx,dom,cal,dose)=>({tipo:'questoes_dirigidas',rotulo:'Questões dirigidas',passos:[{tipo:'questoes',quantidade:dose}],motivo:'Teste',exigeNovaMedicao:true})
   },
   UI:{_open(){},_resolve:null,_mode:null}
 };
 ctx.window=ctx;
 vm.createContext(ctx);
 vm.runInContext(readFileSync(join(ROOT,'src/js/86-plano-sugestoes-v1.js'),'utf8'),ctx,{filename:'86-plano-sugestoes-v1.js'});
+vm.runInContext(readFileSync(join(ROOT,'src/js/87-plano-sugestoes-governanca-v1.js'),'utf8'),ctx,{filename:'87-plano-sugestoes-governanca-v1.js'});
 const E=ctx.PlanoSugestoesV1;
 assert(E,'motor dual não exportado');
 
@@ -69,10 +71,13 @@ assert.equal(pos.erro,undefined);assert.equal(pos.itens.length,3);assert.equal(n
 assert(pos.itens.every(x=>x.componentes.pesoMateria>0&&x.componentes.incidenciaDiscPct>0),'pós deve cruzar peso do edital e incidência da banca');
 assert.equal(pos.itens.find(x=>x.disciplina==='A').nome,'A segunda','pós pode preferir tópico mais incidente mesmo com lacuna menor');
 
-const rob=E.robusto({...def,modo:'robusto',fase:'pos',meta:90,minAmostra:20,banca:'FGV'});
+const rob=E.robusto({...def,modo:'robusto',fase:'pos',meta:99,minAmostra:2,banca:'FGV'});
 assert.equal(rob.erro,undefined);assert.equal(rob.itens.length,3);assert.equal(new Set(rob.itens.map(x=>x.disciplina)).size,3);
+assert.equal(rob.configPlano.metaOperacional,85,'Robusto deve herdar meta operacional do Plano, não o campo do Simplificado');
+assert.equal(rob.configPlano.minAmostra,20,'Robusto deve herdar amostra mínima do Plano');
 assert(rob.itens.every(x=>x.alvo>=x.doseDiaria),'dose diária deve ser separada do alvo global');
 assert(rob.itens.every(x=>x.componentes&&Object.keys(x.componentes).length>=5),'robusto deve registrar componentes auditáveis');
+assert(rob.itens.every(x=>x.intervencao&&x.intervencao.tipo),'Robusto deve carregar intervenção Mentor 90+ explícita');
 
 const comp=E.comparar({...def,modo:'comparar',fase:'pos',meta:90,minAmostra:20,banca:'FGV'});
 assert.equal(comp.itens.length,3);assert.equal(new Set(comp.itens.map(x=>x.disciplina)).size,3);
@@ -84,7 +89,7 @@ const pol=E.politicaAprendida('pos');
 assert.equal(pol.aprendida,true);assert.equal(pol.n,12);assert(Math.abs(Object.values(pol.pesos).reduce((a,b)=>a+b,0)-1)<1e-9);
 assert(Object.values(pol.pesos).every(v=>v>0&&v<.6),'regularização não pode produzir peso extremo');
 
-// Criação mantém alvo global e apenas registra a dose diária como metadado.
+// Criação mantém alvo global, guarda intervenção e trava a disciplina enquanto a frente estiver aberta.
 const escolhido=rob.itens[0];
 const antes=extras.length;
 const n=E.criar(ctx.ExtrasScreen,{...def,modo:'robusto',fase:'pos'}, {modo:'robusto',itens:[escolhido]});
@@ -92,5 +97,9 @@ assert.equal(n,1);const novo=extras.at(-1);assert.equal(extras.length,antes+1);
 assert.equal(novo.alvo,escolhido.alvo,'alvo da atividade deve ser global');
 assert.equal(novo.origemPlano.sugestao.doseDiaria,escolhido.doseDiaria,'dose diária deve ficar separada e auditável');
 assert.equal(novo.origemPlano.sugestao.motor,'robusto-v2');
+assert.equal(novo.origemPlano.sugestao.meta,85,'origem deve registrar a configuração efetiva do Robusto');
+assert.equal(novo.origemPlano.sugestao.intervencao.tipo,'questoes_dirigidas','intervenção recomendada deve seguir auditável na atividade');
+const depois=E.simplificado({...def,modo:'simplificado',fase:'pre',meta:90,minAmostra:20});
+assert((depois.itens||[]).every(x=>x.disciplina!==escolhido.disciplina),'disciplina com reforço aberto não pode entrar na rodada seguinte');
 
-console.log('OK: Plano dual — Simplificado Pré/Pós, Robusto, Comparar, 3 disciplinas × 1 tópico e aprendizado conservador.');
+console.log('OK: Plano dual — Simplificado Pré/Pós, Robusto, Comparar, 3 disciplinas × 1 tópico, governança e aprendizado conservador.');
