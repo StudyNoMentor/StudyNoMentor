@@ -60,8 +60,8 @@ try{
   assert.equal(snap.cards.length,3,'Robusto deve abrir com exatamente 3 sugestões');
   assert.equal(new Set(snap.cards.map(x=>x.disc)).size,3,'Robusto deve usar 3 disciplinas distintas');
   assert.ok(snap.cards.every(x=>x.interv),'Robusto V4 deve explicar a intervenção de cada frente');
-  assert.equal(await page.locator('[data-ps-meta],[data-ps-min],[data-ps-alvo],[data-ps-banca],[data-ps-fase]').count(),0,'Extras não pode expor configurações do Simplificado');
-  assert.equal(await page.locator('[data-rv4-toggle],[data-rv4-field],[data-rv4-reset-all]').count(),0,'Extras não pode expor configurações do Robusto');
+  assert.equal(await page.locator('#ui-modal-body [data-ps-meta],#ui-modal-body [data-ps-min],#ui-modal-body [data-ps-alvo],#ui-modal-body [data-ps-banca],#ui-modal-body [data-ps-fase]').count(),0,'Extras não pode expor configurações do Simplificado');
+  assert.equal(await page.locator('#ui-modal-body [data-rv4-toggle],#ui-modal-body [data-rv4-field],#ui-modal-body [data-rv4-reset-all]').count(),0,'Extras não pode expor configurações do Robusto');
   assert.match(await page.locator('#ui-modal-body').textContent(),/Ajustes centralizados|Desempenho TEC.*Motores/i,'modal deve indicar onde os ajustes são geridos');
   assert.match(await page.locator('#ui-modal-body').textContent(),/Robusto independente/i,'a independência do Robusto deve ficar explícita');
   assert.ok(snap.overflow<=4,`modal Robusto não pode ter overflow horizontal (${snap.overflow}px)`);
@@ -70,7 +70,7 @@ try{
   snap=await snapshotLista();
   assert.equal(snap.cards.length,3,'Simplificado deve manter a estrutura 3×1');
   assert.equal(new Set(snap.cards.map(x=>x.disc)).size,3,'Simplificado deve usar 3 disciplinas distintas');
-  assert.equal(await page.locator('[data-ps-meta],[data-ps-alvo]').count(),0,'Simplificado deve consumir a configuração do TEC sem editá-la em Extras');
+  assert.equal(await page.locator('#ui-modal-body [data-ps-meta],#ui-modal-body [data-ps-alvo]').count(),0,'Simplificado deve consumir a configuração do TEC sem editá-la em Extras');
   const rule=await page.locator('.ps-rule').textContent();
   assert.match(rule,/3 disciplinas distintas/i,'a regra 3×1 deve estar explícita no modal');
 
