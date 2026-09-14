@@ -477,26 +477,26 @@
  {
   "arquivo": "js/89z-robusto-foco-questoes-v7.js",
   "de": 56104,
-  "ate": 56223
+  "ate": 56199
  },
  {
   "arquivo": "js/90-plano-motores-governanca-v5.js",
-  "de": 56225,
-  "ate": 56454
+  "de": 56201,
+  "ate": 56430
  },
  {
   "arquivo": "js/91-plano-motores-central-tec-v1.js",
-  "de": 56456,
-  "ate": 56486
+  "de": 56432,
+  "ate": 56462
  },
  {
   "arquivo": "js/92-tec-plano-fonte-motor-v1.js",
-  "de": 56488,
-  "ate": 56725
+  "de": 56464,
+  "ate": 56701
  },
  {
   "arquivo": "html/90-rodape.html",
-  "de": 56727,
-  "ate": 57172
+  "de": 56703,
+  "ate": 57148
  }
 ]
