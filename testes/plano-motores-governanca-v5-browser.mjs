@@ -74,7 +74,13 @@ try{
   await page.waitForFunction(()=>{const e=PlanoMotoresGovernancaV5.estado();return e.simplificado&&!e.robusto;});
   await page.evaluate(()=>{switchScreen('desempenhotec');DesempenhoTecScreen.render();PlanoMotoresGovernancaV5.syncVisibility();PlanoMotoresCentralTecV1.ensureUi();});
   assert.equal(await page.locator('.tec-subtab[data-tectab="plano"]').isVisible(),false,'Plano Robusto deve desaparecer do Desempenho TEC');
-  assert.equal(await page.locator('.tec-subtab[data-tectab="motores"]').isVisible(),true,'central deve continuar disponível para o Simplificado');
+  const diag=await page.evaluate(()=>{
+    const b=document.querySelector('.tec-subtab[data-tectab="motores"]'),tabs=document.getElementById('tec-subtabs'),screen=document.getElementById('screen-desempenhotec');
+    const pick=el=>el?{tag:el.tagName,hidden:el.hidden,aria:el.getAttribute('aria-hidden'),cls:el.className,style:el.getAttribute('style'),display:getComputedStyle(el).display,visibility:getComputedStyle(el).visibility,opacity:getComputedStyle(el).opacity,rect:(()=>{const r=el.getBoundingClientRect();return{x:r.x,y:r.y,w:r.width,h:r.height};})()}:null;
+    return{estado:PlanoMotoresGovernancaV5.estado(),tecTab:DesempenhoTecScreen.tecTab,btn:pick(b),tabs:pick(tabs),screen:pick(screen),all:[...document.querySelectorAll('.tec-subtab')].map(x=>({tab:x.dataset.tectab,hidden:x.hidden,display:getComputedStyle(x).display,rect:x.getBoundingClientRect().toJSON?.()||{w:x.getBoundingClientRect().width,h:x.getBoundingClientRect().height}}))};
+  });
+  console.log('DIAG_MOTORES_SIMPLIFICADO',JSON.stringify(diag));
+  assert.equal(await page.locator('.tec-subtab[data-tectab="motores"]').isVisible(),true,`central deve continuar disponível para o Simplificado :: ${JSON.stringify(diag)}`);
   await extras();
   assert.equal(await page.locator('#extras-plano-btn').isVisible(),true,'Puxar continua disponível com Simplificado ativo');
   await abrir();
