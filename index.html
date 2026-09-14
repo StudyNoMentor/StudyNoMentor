@@ -57,7 +57,7 @@
      novo, e o antigo é descartado sozinho na ativação) e o que permite ao app
      dizer qual versão está rodando. Em src/ fica "dev" de propósito: a versão
      é gerada na montagem, não editada à mão. -->
-<meta name="diario-versao" content="vd1d74056ac">
+<meta name="diario-versao" content="v9958db19f2">
 <script>
 /* ── ARRANQUE: abre o IndexedDB AGORA, em paralelo com o parse do documento ──
    A fachada de armazenamento vive no fim do <body>, depois de ~1,7 MB de HTML.
@@ -13508,6 +13508,14 @@ body:has(#tec-cfg-body) #tec-cfg-body{scrollbar-gutter:stable}
     transform:none !important;
   }
 }
+
+</style>
+
+<style id="plano-sugestoes-v1">
+/* PLANO → EXTRAS — motores de sugestão V2 */
+.ps-mode-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin-bottom:12px}.ps-mode{border:1px solid var(--border);background:var(--surface);border-radius:12px;padding:10px 12px;text-align:left;display:flex;flex-direction:column;gap:3px;min-height:72px}.ps-mode b{font-size:13px;color:var(--text)}.ps-mode small{font-size:11px;line-height:1.35;color:var(--text-soft)}.ps-mode.active{border-color:var(--accent);box-shadow:0 0 0 1px color-mix(in srgb,var(--accent) 45%,transparent);background:color-mix(in srgb,var(--accent) 7%,var(--surface))}.ps-settings{display:grid;grid-template-columns:repeat(auto-fit,minmax(125px,1fr));gap:8px;padding:10px;border:1px solid var(--border);border-radius:12px;background:var(--surface-soft,rgba(127,127,127,.04));margin-bottom:10px}.ps-settings label{display:flex;flex-direction:column;gap:5px;min-width:0}.ps-settings label>span{font-size:11px;font-weight:700;color:var(--text-soft)}.ps-settings input,.ps-settings select{width:100%;min-height:36px;border:1px solid var(--border);border-radius:9px;background:var(--surface);color:var(--text);padding:6px 8px}.ps-input-suffix{position:relative}.ps-input-suffix em{position:absolute;right:9px;top:50%;transform:translateY(-50%);font-style:normal;font-size:12px;color:var(--text-soft)}.ps-input-suffix input{padding-right:28px}.ps-hidden{display:none!important}.ps-rule{font-size:11px;line-height:1.45;color:var(--text-soft);padding:8px 10px;border-left:3px solid var(--accent);background:color-mix(in srgb,var(--accent) 5%,transparent);border-radius:0 9px 9px 0;margin-bottom:10px}.ps-rule b{color:var(--text)}.ps-list-head{display:flex;justify-content:space-between;gap:12px;align-items:center;margin:8px 0}.ps-list-head span{font-size:12px;color:var(--text)}.ps-list-head small{font-size:10px;color:var(--text-soft)}.ps-list{display:grid;gap:8px;max-height:42vh;overflow:auto;padding-right:2px}.ps-card{display:grid;grid-template-columns:auto 1fr;gap:10px;align-items:flex-start;padding:11px;border:1px solid var(--border);border-radius:12px;background:var(--surface);cursor:pointer}.ps-card:hover{border-color:color-mix(in srgb,var(--accent) 55%,var(--border))}.ps-card>input{margin-top:4px}.ps-card-body{min-width:0}.ps-card-top{display:flex;justify-content:space-between;gap:8px;align-items:center;margin-bottom:4px}.ps-disc{font-size:10px;font-weight:800;letter-spacing:.03em;text-transform:uppercase;color:var(--text-soft)}.ps-score{font-size:10px;font-weight:800;color:var(--accent);border:1px solid color-mix(in srgb,var(--accent) 35%,var(--border));border-radius:999px;padding:2px 6px}.ps-card strong{display:block;font-size:13px;color:var(--text);line-height:1.35}.ps-card p{margin:4px 0 7px;font-size:11px;line-height:1.4;color:var(--text-soft)}.ps-metrics{display:flex;gap:5px;flex-wrap:wrap}.ps-metrics span,.ps-learn{font-size:10px;border-radius:999px;padding:3px 6px;background:color-mix(in srgb,var(--text) 5%,transparent);color:var(--text-soft)}.ps-learn{display:inline-flex;margin-top:6px;background:color-mix(in srgb,var(--accent) 8%,transparent);color:var(--text)}.ps-compare-row{border:1px solid var(--border);border-radius:12px;padding:10px;background:var(--surface)}.ps-compare-row>header{display:flex;justify-content:space-between;gap:8px;align-items:center;margin-bottom:8px}.ps-compare-row>header b{font-size:12px;color:var(--text)}.ps-compare-row>header span{font-size:10px;color:var(--text-soft)}.ps-consensus{color:var(--success,#15803d)!important;font-weight:800}.ps-compare-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}.ps-compare-option{display:grid;grid-template-columns:auto 1fr;gap:8px;padding:9px;border:1px solid var(--border);border-radius:10px;cursor:pointer}.ps-compare-option:has(input:checked){border-color:var(--accent);background:color-mix(in srgb,var(--accent) 6%,var(--surface))}.ps-compare-option.is-consensus{box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--success,#15803d) 25%,transparent)}.ps-compare-option input{margin-top:3px}.ps-compare-option div{min-width:0;display:flex;flex-direction:column;gap:3px}.ps-compare-option span{font-size:9px;font-weight:800;text-transform:uppercase;color:var(--text-soft)}.ps-compare-option b{font-size:12px;color:var(--text)}.ps-compare-option small{font-size:10px;line-height:1.35;color:var(--text-soft)}.ps-empty,.ps-loading{padding:22px;border:1px dashed var(--border);border-radius:12px;text-align:center;color:var(--text-soft);display:flex;flex-direction:column;gap:5px}.ps-empty b{color:var(--text)}
+@media(max-width:720px){.ps-mode-grid{grid-template-columns:1fr}.ps-mode{min-height:0}.ps-settings{grid-template-columns:repeat(2,minmax(0,1fr))}.ps-compare-grid{grid-template-columns:1fr}.ps-list{max-height:45vh}.ps-list-head{align-items:flex-start;flex-direction:column;gap:3px}}
+@media(max-width:420px){.ps-settings{grid-template-columns:1fr}.ps-card{padding:9px}.ps-rule{font-size:10px}}
 
 </style>
 
@@ -54940,6 +54948,474 @@ else CloudStore.init();
 
   window.Mentor90V5 = M90;
   M90.instalar();
+})();
+
+/* ============================================================================
+   MENTOR 90+ V6 — endurecimento estatístico da calibragem
+   ----------------------------------------------------------------------------
+   Mantém a V5 intacta por compatibilidade e publica uma política V6 para o
+   motor Robusto. Um tópico só ganha calibragem própria com >=5 ciclos úteis;
+   antes disso recua para disciplina (>=5) ou global. O nível global pode servir
+   como prior de resposta, mas nunca autoriza sozinho uma troca de intervenção.
+   ============================================================================ */
+(() => {
+  if (typeof window === 'undefined' || window.Mentor90V6 || !window.Mentor90V5) return;
+  const B = window.Mentor90V5;
+  const num = (v, d = 0) => Number.isFinite(Number(v)) ? Number(v) : d;
+  const clamp = (v, a, b) => Math.max(a, Math.min(b, num(v, a)));
+  const median = (arr) => {
+    const a = (arr || []).map(Number).filter(Number.isFinite).sort((x, y) => x - y);
+    if (!a.length) return null;
+    const m = Math.floor(a.length / 2);
+    return a.length % 2 ? a[m] : (a[m - 1] + a[m]) / 2;
+  };
+  const norm = (s) => {
+    try { if (typeof ReforcoEngine !== 'undefined' && ReforcoEngine.norm) return ReforcoEngine.norm(s || ''); }
+    catch (e) { if (typeof _quiet === 'function') _quiet(e, 'mentor90-v6-norm'); }
+    return String(s || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/\s+/g, ' ').trim();
+  };
+
+  const V6 = Object.create(B);
+  V6.VERSAO = 6;
+  V6.MIN_CICLOS_PERSONALIZAR = Math.max(5, num(B.MIN_CICLOS_PERSONALIZAR, 5));
+  V6.calibracaoHierarquica = function (item) {
+    let anterior = null;
+    try { anterior = B.calibracaoHierarquica.call(B, item); }
+    catch (e) { if (typeof _quiet === 'function') _quiet(e, 'mentor90-v6-base-cal'); }
+    const c = B._calCache;
+    if (!c || !c.porTop || !c.porDisc || !Array.isArray(c.global)) {
+      const z = Object.assign({}, anterior || {});
+      const nt = Math.max(0, num(z.nTopico)), nd = Math.max(0, num(z.nDisciplina));
+      if (nt < this.MIN_CICLOS_PERSONALIZAR) {
+        z.nivel = nd >= this.MIN_CICLOS_PERSONALIZAR ? 'disciplina' : 'global';
+        z.baixaResposta = false;
+        z.confianca = Math.min(num(z.confianca), .49);
+      }
+      z.evidenciaIntervencao = nt >= this.MIN_CICLOS_PERSONALIZAR || nd >= this.MIN_CICLOS_PERSONALIZAR;
+      z.limiarCiclos = this.MIN_CICLOS_PERSONALIZAR;
+      return z;
+    }
+    const d = norm(item && item.disciplina), t = norm(item && item.nome);
+    const top = c.porTop.get(d + '\u0001' + t) || [], disc = c.porDisc.get(d) || [], global = c.global || [];
+    let nivel = 'global', pool = global;
+    if (top.length >= this.MIN_CICLOS_PERSONALIZAR) { nivel = 'topico'; pool = top; }
+    else if (disc.length >= this.MIN_CICLOS_PERSONALIZAR) { nivel = 'disciplina'; pool = disc; }
+    const n = pool.length, k = 5, med = median(pool), base = Number.isFinite(Number(c.globalMed)) ? Number(c.globalMed) : 2.5;
+    const ganho100 = med == null ? base : (n * med + k * base) / (n + k);
+    const qPorPonto = ganho100 > .1 ? clamp(100 / ganho100, .5, 20) : 20;
+    const evidenciaIntervencao = nivel !== 'global' && n >= this.MIN_CICLOS_PERSONALIZAR;
+    return {
+      nivel, n, nTopico: top.length, nDisciplina: disc.length, nGlobal: global.length,
+      ganho100: Math.round(ganho100 * 10) / 10, qPorPonto: Math.round(qPorPonto * 10) / 10,
+      confianca: clamp(n / (n + k), 0, 1), evidenciaIntervencao,
+      baixaResposta: evidenciaIntervencao && ganho100 < 3,
+      limiarCiclos: this.MIN_CICLOS_PERSONALIZAR
+    };
+  };
+  window.Mentor90V6 = V6;
+})();
+
+/* ============================================================================
+   PLANO → EXTRAS — infraestrutura neutra dos motores V2
+   ----------------------------------------------------------------------------
+   Este arquivo NÃO decide prioridade. Ele apenas entrega dados e invariantes
+   estruturais comuns. Simplificado e Robusto são módulos separados e nunca
+   chamam funções privadas um do outro.
+   ============================================================================ */
+(() => {
+  if (typeof window === 'undefined' || window.__planoSugInfraV2) return;
+  window.__planoSugInfraV2 = true;
+  if (typeof DB === 'undefined' || typeof DesempenhoTecScreen === 'undefined') return;
+
+  const num = (v, d = 0) => Number.isFinite(Number(v)) ? Number(v) : d;
+  const clamp = (v, a, b) => Math.max(a, Math.min(b, num(v, a)));
+  const norm = (s) => {
+    try { if (typeof ReforcoEngine !== 'undefined' && ReforcoEngine.norm) return ReforcoEngine.norm(s || ''); }
+    catch (e) { if (typeof _quiet === 'function') _quiet(e, 'plano-sug-v2-norm'); }
+    return String(s == null ? '' : s).normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/\s+/g, ' ').trim();
+  };
+  const esc = (v) => typeof escapeHtml === 'function'
+    ? escapeHtml(String(v == null ? '' : v))
+    : String(v == null ? '' : v).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+
+  const I = {
+    VERSAO: 2,
+    num, clamp, norm, esc,
+    snapshot() {
+      try { return DesempenhoTecScreen.scopedSnapshot ? DesempenhoTecScreen.scopedSnapshot() : null; }
+      catch (e) { if (typeof _quiet === 'function') _quiet(e, 'plano-sug-v2-snapshot'); return null; }
+    },
+    linhasTec(snapshot) {
+      const rows = snapshot && Array.isArray(snapshot.rows) ? snapshot.rows : [];
+      return rows.filter(r => {
+        if (!r || !r.nome || !r.disciplina) return false;
+        if (num(r.depth, 0) > 0) return true;
+        const cod = String(r.codigo || '');
+        return cod.includes('.') && norm(r.nome) !== norm(r.disciplina);
+      });
+    },
+    q(row) { return Math.max(0, num(row && (row.questoes ?? row.q ?? row.total))); },
+    ac(row) { return Math.max(0, num(row && (row.acertos ?? row.ac))); },
+    taxa(row) {
+      const q = this.q(row), pc = Number(row && (row.pctAcerto ?? row.taxa));
+      if (Number.isFinite(pc)) return clamp(pc, 0, 100);
+      return q > 0 ? clamp(this.ac(row) / q * 100, 0, 100) : null;
+    },
+    abertasPlano() {
+      try { return (DB.getExtras ? DB.getExtras() : []).filter(e => e && e.origemPlano && e.status !== 'concluida'); }
+      catch (e) { if (typeof _quiet === 'function') _quiet(e, 'plano-sug-v2-abertas'); return []; }
+    },
+    disciplinasBloqueadas() {
+      return new Set(this.abertasPlano().map(e => norm((e.origemPlano && e.origemPlano.disciplina) || e.disciplina)).filter(Boolean));
+    },
+    bancas() {
+      try { return DB.getBancas ? DB.getBancas() : []; }
+      catch (e) { if (typeof _quiet === 'function') _quiet(e, 'plano-sug-v2-bancas'); return []; }
+    },
+    incidencia() {
+      try { return DB.getIncidencia ? DB.getIncidencia() : []; }
+      catch (e) { if (typeof _quiet === 'function') _quiet(e, 'plano-sug-v2-incidencia'); return []; }
+    },
+    materias() {
+      try { return DB.getActiveSubjects ? DB.getActiveSubjects() : (DB.getSubjects ? DB.getSubjects().filter(x => x.ativo !== false) : []); }
+      catch (e) { if (typeof _quiet === 'function') _quiet(e, 'plano-sug-v2-materias'); return []; }
+    },
+    fasePlano() {
+      try { if (typeof PlanoPontos !== 'undefined' && PlanoPontos.modo) return PlanoPontos.modo() === 'pos' ? 'pos' : 'pre'; }
+      catch (e) { if (typeof _quiet === 'function') _quiet(e, 'plano-sug-v2-fase'); }
+      try { if (typeof planCycleMode === 'function') return planCycleMode() === 'pos' ? 'pos' : 'pre'; }
+      catch (e) { if (typeof _quiet === 'function') _quiet(e, 'plano-sug-v2-fase-cycle'); }
+      return 'pre';
+    }
+  };
+
+  window.PlanoSugestoesInfraV2 = Object.freeze(I);
+})();
+
+/* ============================================================================
+   MOTOR SIMPLIFICADO V2 — independente do PlanoEngine/Mentor90
+   Pré: TEC × meta × amostra mínima.
+   Pós: TEC × meta × incidência da banca × valor da matéria no planejamento.
+   ============================================================================ */
+(() => {
+  if (typeof window === 'undefined' || window.__planoSugSimplificadoV2) return;
+  window.__planoSugSimplificadoV2 = true;
+  const I = window.PlanoSugestoesInfraV2;
+  if (!I || typeof DB === 'undefined') return;
+  const { num, clamp, norm } = I;
+  const OWN_PREF_KEYS = Object.freeze(['fase','meta','minAmostra','banca','alvoQuestoes']);
+  const ownPrefs = (src) => {
+    const out = {};
+    src = src && typeof src === 'object' ? src : {};
+    OWN_PREF_KEYS.forEach(k => { if (Object.prototype.hasOwnProperty.call(src, k)) out[k] = src[k]; });
+    return out;
+  };
+
+  const S = {
+    VERSAO: 2,
+    MOTOR: 'simplificado-v2',
+    KEY: 'plano-simplificado-v2',
+    DEFAULTS: Object.freeze({ fase:'auto', meta:90, minAmostra:20, banca:'__todas__', alvoQuestoes:30 }),
+    PREF_KEYS: OWN_PREF_KEYS,
+    deps: Object.freeze(['TEC-escopado','incidencia-bruta','planejamento-materias']),
+    prefs() {
+      let raw = {};
+      try { raw = JSON.parse(localStorage.getItem(DB._profilePrefix() + this.KEY) || '{}') || {}; }
+      catch (e) { if (typeof _quiet === 'function') _quiet(e, 'plano-simple-v2-prefs'); }
+      // Fronteira de estado: preferências externas (ex.: `modo` do controller)
+      // nunca entram no estado do Simplificado, nem mesmo se uma versão antiga
+      // as tiver gravado por engano.
+      const p = Object.assign({}, this.DEFAULTS, ownPrefs(raw));
+      if (!['auto','pre','pos'].includes(p.fase)) p.fase = 'auto';
+      p.meta = clamp(p.meta, 50, 100);
+      p.minAmostra = Math.round(clamp(p.minAmostra, 1, 500));
+      p.alvoQuestoes = Math.round(clamp(p.alvoQuestoes, 5, 200));
+      p.banca = typeof p.banca === 'string' && p.banca ? p.banca : '__todas__';
+      return p;
+    },
+    salvar(patch) {
+      // Aceita apenas o contrato público deste motor. Isso impede que o
+      // orquestrador ou outro módulo contamine seu estado com campos próprios.
+      const p = Object.assign({}, this.prefs(), ownPrefs(patch));
+      if (!['auto','pre','pos'].includes(p.fase)) p.fase = 'auto';
+      p.meta = clamp(p.meta, 50, 100);
+      p.minAmostra = Math.round(clamp(p.minAmostra, 1, 500));
+      p.alvoQuestoes = Math.round(clamp(p.alvoQuestoes, 5, 200));
+      p.banca = typeof p.banca === 'string' && p.banca ? p.banca : '__todas__';
+      const persistido = ownPrefs(p);
+      try {
+        const k = DB._profilePrefix() + this.KEY;
+        if (DB.setRaw) DB.setRaw(k, JSON.stringify(persistido)); else localStorage.setItem(k, JSON.stringify(persistido));
+      } catch (e) { if (typeof _quiet === 'function') _quiet(e, 'plano-simple-v2-save'); }
+      return Object.assign({}, persistido);
+    },
+    fase(p) { return p.fase === 'pre' || p.fase === 'pos' ? p.fase : I.fasePlano(); },
+    banca(p) {
+      if (p.banca && p.banca !== '__todas__') return p.banca;
+      const bs = I.bancas();
+      return bs.length === 1 ? bs[0] : '__todas__';
+    },
+    _casar(nome, candidatos) {
+      const raiz = (t) => { let r = t; for (let i = 0; i < 2; i++) { if (r.length > 4 && /[aos]$/.test(r)) r = r.slice(0, -1); else break; } return r; };
+      const vazias = new Set(['de','do','da','dos','das','e','em','no','na','nos','nas','para','com','a','o','as','os']);
+      const toks = (x) => norm(x).split(' ').filter(t => t && !vazias.has(t)).map(raiz);
+      const alvo = norm(nome), lista = (candidatos || []).filter(Boolean);
+      const ex = lista.filter(x => norm(x) === alvo); if (ex.length === 1) return { nome:ex[0], confianca:1, via:'exato' };
+      const ta = toks(nome); if (!ta.length) return null;
+      const sub = lista.filter(x => { const tb=toks(x); if(!tb.length)return false; const curto=ta.length<=tb.length?ta:tb,longo=ta.length<=tb.length?tb:ta; return curto.every(t=>longo.includes(t)); });
+      if (sub.length === 1) return { nome:sub[0], confianca:.8, via:'tokens' }; if (sub.length > 1) return null;
+      const abr = lista.filter(x => { const tb=toks(x); if(tb.length!==ta.length)return false; return ta.every((t,i)=>{const u=tb[i],c=t.length<=u.length?t:u,g=t.length<=u.length?u:t;return c.length>=3&&g.startsWith(c);}); });
+      return abr.length === 1 ? { nome:abr[0], confianca:.72, via:'abreviacao' } : null;
+    },
+    _top3(cands) {
+      const usados = new Set(), out = [];
+      cands.slice().sort((a,b)=>num(b.score)-num(a.score)||num(a.taxa,999)-num(b.taxa,999)).forEach(c=>{const d=norm(c.disciplina);if(!d||usados.has(d)||out.length>=3)return;usados.add(d);out.push(c);});
+      return out;
+    },
+    _topicos(snapshot, p) {
+      const bloqueadas = I.disciplinasBloqueadas(), vistos = new Set(), out = [];
+      for (const r of I.linhasTec(snapshot)) {
+        const disciplina = String(r.disciplina || '').trim(), nome = String(r.nome || '').trim();
+        const d = norm(disciplina), k = d + '\u0001' + norm(nome), q = I.q(r), taxa = I.taxa(r);
+        if (!d || vistos.has(k) || bloqueadas.has(d) || !(q >= p.minAmostra) || taxa == null || taxa >= p.meta) continue;
+        vistos.add(k);
+        out.push({ item:r, disciplina, nome, taxa, qJanela:q, lacunaPP:Math.max(0,p.meta-taxa) });
+      }
+      return out;
+    },
+    _mapaPlanejamento(disciplinas) {
+      const out = new Map(), nomes = disciplinas.slice();
+      for (const m of I.materias()) {
+        const q = Math.max(0, num(m && m.qtdQuestoes)), pts = Math.max(0, num(m && m.pontosPorQuestao, 1)), peso = Math.max(0, num(m && m.peso, 1));
+        if (!(q > 0)) continue;
+        const cas = this._casar(m.nome, nomes);
+        if (!cas) continue;
+        const k = norm(cas.nome), atual = out.get(k) || { valor:0, confianca:1, origem:[] };
+        atual.valor += q * pts * peso;
+        atual.confianca = Math.min(atual.confianca, cas.confianca);
+        atual.origem.push(m.nome);
+        out.set(k, atual);
+      }
+      return out;
+    },
+    _mapaIncidencia(banca, disciplinas) {
+      const rows = I.incidencia().filter(r => norm(r && r.banca) === norm(banca));
+      const porDisc = new Map(), total = new Map(), nomes = disciplinas.slice();
+      for (const r of rows) {
+        const cas = this._casar(r.disciplina || '', nomes);
+        if (!cas) continue;
+        const d = norm(cas.nome), v = Math.max(0, num(r.incidencia));
+        if (!porDisc.has(d)) porDisc.set(d, []);
+        porDisc.get(d).push({ topico:r.topico || '', valor:v, confianca:cas.confianca });
+        total.set(d, (total.get(d) || 0) + v);
+      }
+      return { rows, porDisc, total };
+    },
+    _incidenciaDo(topico, disciplina, mapa) {
+      const d = norm(disciplina), lista = mapa.porDisc.get(d) || [];
+      const ex = lista.filter(x => norm(x.topico) === norm(topico));
+      if (ex.length) return { valor:ex.reduce((s,x)=>s+x.valor,0), confianca:Math.min(...ex.map(x=>x.confianca), .95), via:'disciplina-topico' };
+      const glob = mapa.rows.filter(x => norm(x.topico) === norm(topico));
+      const grupos = new Set(glob.map(x => norm(x.disciplina)).filter(Boolean));
+      if (glob.length && grupos.size === 1) return { valor:glob.reduce((s,x)=>s+Math.max(0,num(x.incidencia)),0), confianca:.55, via:'nome-unico' };
+      return { valor:0, confianca:0, via:'ausente' };
+    },
+    _normalizar(cands) {
+      const mx = Math.max(0, ...cands.map(x => Math.max(0, num(x.scoreBruto))));
+      cands.forEach(x => { x.score = mx > 0 ? clamp(x.scoreBruto / mx * 100, 0, 100) : 0; });
+      return cands;
+    },
+    calcular(opcoes) {
+      const p = Object.assign({}, this.prefs(), ownPrefs(opcoes));
+      p.meta = clamp(p.meta,50,100); p.minAmostra=Math.round(clamp(p.minAmostra,1,500)); p.alvoQuestoes=Math.round(clamp(p.alvoQuestoes,5,200));
+      const fase = this.fase(p), banca = this.banca(p), snapshot = I.snapshot();
+      if (!snapshot) return { erro:'sem-retrato', modo:'simplificado', fase, itens:[] };
+      const pool = this._topicos(snapshot,p);
+      if (!pool.length) return { erro:'sem-lacunas', modo:'simplificado', fase, itens:[], arquitetura:this.arquitetura() };
+      const cands = [];
+      if (fase === 'pre') {
+        pool.forEach(x => cands.push({
+          ...x, modo:'simplificado', fase, scoreBruto:x.lacunaPP, alvo:p.alvoQuestoes, doseDiaria:null,
+          meta:p.meta, minAmostra:p.minAmostra, banca:null,
+          motivo:`Lacuna de ${x.lacunaPP.toFixed(1)} pp para a meta de ${p.meta}%`,
+          componentes:{ lacunaPP:x.lacunaPP, amostra:x.qJanela, taxa:x.taxa },
+          auditoria:{ formula:'lacunaPP', fonte:'TEC escopado direto' }
+        }));
+      } else {
+        if (!banca || banca === '__todas__') return { erro:'pos-sem-banca', modo:'simplificado', fase, itens:[], arquitetura:this.arquitetura() };
+        const disciplinas = [...new Set(pool.map(x=>x.disciplina))], plano = this._mapaPlanejamento(disciplinas);
+        if (!plano.size) return { erro:'pos-sem-planejamento', modo:'simplificado', fase, itens:[], arquitetura:this.arquitetura() };
+        const incid = this._mapaIncidencia(banca, disciplinas);
+        pool.forEach(x => {
+          const d=norm(x.disciplina), pm=plano.get(d), inc=this._incidenciaDo(x.nome,x.disciplina,incid), denom=incid.total.get(d)||0;
+          if (!pm || !(pm.valor>0) || !(inc.valor>0) || !(denom>0)) return;
+          const share=inc.valor/denom, conf=Math.min(pm.confianca,inc.confianca), valor=pm.valor*share*x.lacunaPP/100*conf;
+          if (!(valor>0)) return;
+          cands.push({
+            ...x, modo:'simplificado', fase, scoreBruto:valor, alvo:p.alvoQuestoes, doseDiaria:null, meta:p.meta, minAmostra:p.minAmostra, banca,
+            motivo:`${x.lacunaPP.toFixed(1)} pp de lacuna × ${(share*100).toFixed(1)}% da incidência em ${banca} × ${pm.valor.toFixed(1)} ponto(s) do planejamento`,
+            componentes:{ lacunaPP:x.lacunaPP, amostra:x.qJanela, taxa:x.taxa, incidenciaDiscPct:share*100, pesoMateria:pm.valor, confiancaCruzamento:conf, valorPontos:valor },
+            auditoria:{ formula:'pesoMateria × shareIncidencia × lacuna × confiança', viaIncidencia:inc.via, fonte:'TEC + incidência + matérias, sem PlanoEngine' }
+          });
+        });
+        if (!cands.length) return { erro:'pos-sem-cruzamento', modo:'simplificado', fase, itens:[], arquitetura:this.arquitetura() };
+      }
+      this._normalizar(cands);
+      return {
+        modo:'simplificado', fase, banca:fase==='pos'?banca:null, itens:this._top3(cands), todos:cands, arquitetura:this.arquitetura(),
+        explicacao:fase==='pre' ? 'TEC direto × meta × amostra mínima' : 'TEC direto × incidência da banca × planejamento; sem usar o motor Robusto.'
+      };
+    },
+    arquitetura() { return { motor:this.MOTOR, independente:true, usaPlanoEngine:false, usaMentor90:false, deps:this.deps.slice(), prefs:this.PREF_KEYS.slice() }; }
+  };
+  window.PlanoSugestoesSimplificadoV2 = S;
+})();
+
+/* ============================================================================
+   MOTOR ROBUSTO V2 — PlanoEngine + Mentor 90+, independente do Simplificado
+   ============================================================================ */
+(() => {
+  if (typeof window === 'undefined' || window.__planoSugRobustoV2) return;
+  window.__planoSugRobustoV2 = true;
+  const I = window.PlanoSugestoesInfraV2, M90 = window.Mentor90V6 || window.Mentor90V5;
+  if (!I || typeof PlanoEngine === 'undefined') return;
+  const {num,clamp,norm}=I;
+
+  const R={
+    VERSAO:2,MOTOR:'robusto-v3',deps:Object.freeze(['PlanoEngine','Mentor90V6','PlanoPontos','historico-extras']),
+    _casar(nome,candidatos){const raiz=t=>{let r=t;for(let i=0;i<2;i++){if(r.length>4&&/[aos]$/.test(r))r=r.slice(0,-1);else break;}return r;},vazias=new Set(['de','do','da','dos','das','e','em','no','na','nos','nas','para','com','a','o','as','os']),toks=x=>norm(x).split(' ').filter(t=>t&&!vazias.has(t)).map(raiz),alvo=norm(nome),lista=(candidatos||[]).filter(Boolean),ex=lista.filter(x=>norm(x)===alvo);if(ex.length===1)return{nome:ex[0],confianca:1,via:'exato'};const ta=toks(nome);if(!ta.length)return null;const sub=lista.filter(x=>{const tb=toks(x);if(!tb.length)return false;const c=ta.length<=tb.length?ta:tb,g=ta.length<=tb.length?tb:ta;return c.every(t=>g.includes(t));});if(sub.length===1)return{nome:sub[0],confianca:.8,via:'tokens'};if(sub.length>1)return null;const abr=lista.filter(x=>{const tb=toks(x);if(tb.length!==ta.length)return false;return ta.every((t,i)=>{const u=tb[i],c=t.length<=u.length?t:u,g=t.length<=u.length?u:t;return c.length>=3&&g.startsWith(c);});});return abr.length===1?{nome:abr[0],confianca:.72,via:'abreviacao'}:null;},
+    _top3(cands){const usados=new Set(),out=[];cands.slice().sort((a,b)=>num(b.score)-num(a.score)||num(a.taxa,999)-num(b.taxa,999)).forEach(c=>{const d=norm(c.disciplina);if(!d||usados.has(d)||out.length>=3)return;usados.add(d);out.push(c);});return out;},
+    _pearson(xs,ys){const n=Math.min(xs.length,ys.length);if(n<4)return 0;const mx=xs.reduce((s,v)=>s+v,0)/n,my=ys.reduce((s,v)=>s+v,0)/n;let a=0,b=0,c=0;for(let i=0;i<n;i++){const dx=xs[i]-mx,dy=ys[i]-my;a+=dx*dy;b+=dx*dx;c+=dy*dy;}return b>0&&c>0?clamp(a/Math.sqrt(b*c),-1,1):0;},
+    politicaAprendida(fase){
+      const base=fase==='pos'?{pontos:.34,ppm:.24,lacuna:.14,incidencia:.10,recencia:.10,resposta:.08}:{lacuna:.34,evidencia:.22,incidencia:.12,recencia:.12,resposta:.12,eficiencia:.08};
+      let hist=[];try{hist=(DB.getExtras?DB.getExtras():[]).filter(e=>{const s=e&&e.origemPlano&&e.origemPlano.sugestao,m=s&&s.motor;return (m==='robusto-v2'||m==='robusto-v3')&&e.origemPlano.veredito&&Number.isFinite(Number(e.origemPlano.veredito.ganhoPP))&&num(e.origemPlano.veredito.questoes)>0;});}catch(e){if(typeof _quiet==='function')_quiet(e,'plano-robusto-v2-learning');}
+      const n=hist.length;if(n<12)return{pesos:base,n,aprendida:false,shrink:0,validacao:'amostra-insuficiente'};
+      const ys=hist.map(e=>num(e.origemPlano.veredito.ganhoPP)/Math.max(1,num(e.origemPlano.veredito.questoes))*100),meio=Math.floor(n/2),shrink=Math.min(.45,n/(n+40)),pesos={},sinais={};
+      Object.keys(base).forEach(k=>{const xs=hist.map(e=>num(e.origemPlano.sugestao.componentes&&e.origemPlano.sugestao.componentes[k])),c1=this._pearson(xs.slice(0,meio),ys.slice(0,meio)),c2=this._pearson(xs.slice(meio),ys.slice(meio)),estavel=Math.sign(c1)===Math.sign(c2)&&Math.min(Math.abs(c1),Math.abs(c2))>=.10,corr=estavel?(c1+c2)/2:0,mult=1+clamp(corr,-.5,.5)*.25*shrink;pesos[k]=base[k]*mult;sinais[k]={c1:Math.round(c1*1000)/1000,c2:Math.round(c2*1000)/1000,estavel};});
+      const soma=Object.values(pesos).reduce((s,v)=>s+v,0)||1;Object.keys(pesos).forEach(k=>pesos[k]/=soma);return{pesos,n,aprendida:true,shrink,validacao:'duas-metades-sinal-estavel',sinais};
+    },
+    _completarPontos(r,opts){
+      if(!r||r.erro||typeof PlanoPontos==='undefined'||!PlanoPontos.temComposicao||!PlanoPontos.temComposicao())return;
+      try{
+        const itens=[...(r.itens||[]),...(r.pequenas||[])],comp=PlanoPontos.composicao?PlanoPontos.composicao():[];if(!itens.length||!comp.length)return;
+        const discTec=[...new Set(itens.map(x=>norm(x.disciplina)).filter(Boolean))],peso=new Map();
+        comp.forEach(m=>{const cas=this._casar(m.nome,discTec);if(!cas)return;const k=norm(cas.nome);peso.set(k,(peso.get(k)||0)+Math.max(0,num(m.valor)));});
+        const denInc=new Map(),denQ=new Map();itens.forEach(x=>{const d=norm(x.disciplina);denInc.set(d,(denInc.get(d)||0)+Math.max(0,num(x.incid)));denQ.set(d,(denQ.get(d)||0)+Math.max(0,num(x.qHist,x.qJanela)));});
+        const teto=Math.max(50,Math.min(100,num(opts.tetoDominio,90)));
+        itens.forEach(x=>{const d=norm(x.disciplina),pm=Math.max(0,num(x.pontosMateria,peso.get(d)||0));if(!(pm>0))return;if(!(num(x.pontosMateria)>0))x.pontosMateria=pm;if(!(num(x.pontosGanho)>0)){const inc=Math.max(0,num(x.incid)),q=Math.max(0,num(x.qHist,x.qJanela)),share=(denInc.get(d)||0)>0?inc/denInc.get(d):(denQ.get(d)||0)>0?q/denQ.get(d):0,ganho=pm*share*Math.max(0,teto-num(x.taxa,teto))/100;x.pontosGanho=ganho;x.pontosPorQuestao=ganho/Math.max(1,num(x.custoQ,1));}});
+      }catch(e){if(typeof _quiet==='function')_quiet(e,'plano-robusto-v2-pontos');}
+    },
+    _pool(r,p){
+      const bloqueadas=I.disciplinasBloqueadas(),vistos=new Set(),out=[];
+      for(const x of [...(r.itens||[]),...(r.pequenas||[])]){const d=norm(x&&x.disciplina),k=d+'\u0001'+norm(x&&x.nome);if(!x||!x.nome||!d||bloqueadas.has(d)||vistos.has(k)||num(x.qJanela)<Math.max(1,num(p.minAmostra,20)))continue;let sobre=false;try{sobre=!!(PlanoEngine.atividadeSobreposta&&PlanoEngine.atividadeSobreposta(x.nome,x.disciplina,x.membros));}catch(e){if(typeof _quiet==='function')_quiet(e,'plano-robusto-v2-sobreposicao');}if(sobre)continue;vistos.add(k);out.push(x);}return out;
+    },
+    calcular(){
+      let p={};try{p=PlanoEngine.prefs?PlanoEngine.prefs():{};}catch(e){if(typeof _quiet==='function')_quiet(e,'plano-robusto-v2-prefs');}
+      const fase=I.fasePlano(),banca=p.banca&&p.banca!=='__todas__'?p.banca:'__todas__',snapshot=I.snapshot();if(!snapshot)return{erro:'sem-retrato',modo:'robusto',fase,itens:[],arquitetura:this.arquitetura()};
+      const opts=Object.assign({},p,{disciplina:'__todas__',limite:200,ordenar:fase==='pos'?'pontos':'rendimento'});let r;
+      try{r=PlanoEngine.calcular(snapshot,opts);}catch(e){if(typeof _quiet==='function')_quiet(e,'plano-robusto-v2-calcular');return{erro:'sem-plano',modo:'robusto',fase,itens:[],arquitetura:this.arquitetura()};}
+      if(!r||r.erro)return{erro:(r&&r.erro)||'sem-plano',modo:'robusto',fase,itens:[],arquitetura:this.arquitetura()};
+      if(typeof PlanoPontos!=='undefined'&&PlanoPontos.anexarPontos){try{PlanoPontos.anexarPontos(r,opts);}catch(e){if(typeof _quiet==='function')_quiet(e,'plano-robusto-v2-anexar');}}
+      this._completarPontos(r,opts);const pool=this._pool(r,p);if(!pool.length)return{erro:'sem-candidatos',modo:'robusto',fase,itens:[],r,arquitetura:this.arquitetura()};
+      const raw=pool.map(x=>{const dom=M90&&M90.dominio?M90.dominio(x,Object.assign({},r,{meta:p.metaDominio})):null,cal0=M90&&M90.calibracaoHierarquica?M90.calibracaoHierarquica(x):null,cal=cal0?Object.assign({},cal0):null,inc=M90&&M90.incidenciaNormalizada?M90.incidenciaNormalizada(x,Object.assign({},r,{banca})):null,vel=M90&&M90.velocidade?M90.velocidade(x.disciplina):{confiavel:false};const limiar=Math.max(5,num(M90&&M90.MIN_CICLOS_PERSONALIZAR,5)),calN=cal?Math.max(num(cal.nTopico),num(cal.nDisciplina),num(cal.n)):0,calRespostaConfiavel=calN>=limiar,calIntervencaoConfiavel=!!(cal&&(cal.evidenciaIntervencao===true||Math.max(num(cal.nTopico),num(cal.nDisciplina))>=limiar));if(cal&&!calIntervencaoConfiavel)cal.baixaResposta=false;const gap90=clamp((90-num(x.taxa,90))/90,0,1),evidencia=dom?clamp(1-num(dom.pCompetitiva),0,1):clamp((num(p.metaDominio,85)-num(x.taxa,num(p.metaDominio,85)))/Math.max(1,num(p.metaDominio,85)),0,1),incid=inc&&inc.pct!=null?Math.max(0,num(inc.pct)*num(inc.confianca,1)):Math.max(0,num(x.incid)),recencia=x.vencido?1:clamp(num(x.diasDesdeMedicao)/Math.max(1,num(r.validadeDias,p.validadeDias||120)),0,1),resposta=cal&&calRespostaConfiavel?clamp((num(cal.ganho100,2.5)+2)/12,0,1):.5,alvo=Math.max(1,Math.round(num(x.custoQ,20))),minutos=vel&&vel.confiavel?alvo*num(vel.segundosPorQuestao)/60:null,pontos=Math.max(0,num(x.pontosGanho)),ppm=minutos&&minutos>0?pontos/minutos:0,eficiencia=minutos&&minutos>0?gap90/minutos:1/Math.max(1,alvo);return{x,dom,cal,calRespostaConfiavel,calIntervencaoConfiavel,inc,vel,gap90,evidencia,incid,recencia,resposta,alvo,minutos,pontos,ppm,eficiencia};});
+      const mx=k=>Math.max(0,...raw.map(z=>Math.max(0,num(z[k])))),maxInc=mx('incid'),maxPts=mx('pontos'),maxPpm=mx('ppm'),maxEff=mx('eficiencia'),pol=this.politicaAprendida(fase),cands=[];
+      raw.forEach(z=>{const comp=fase==='pos'?{pontos:maxPts?z.pontos/maxPts:0,ppm:maxPpm?z.ppm/maxPpm:0,lacuna:z.gap90,incidencia:maxInc?z.incid/maxInc:0,recencia:z.recencia,resposta:z.resposta}:{lacuna:z.gap90,evidencia:z.evidencia,incidencia:maxInc?z.incid/maxInc:0,recencia:z.recencia,resposta:z.resposta,eficiencia:maxEff?z.eficiencia/maxEff:0};let score=Object.keys(pol.pesos).reduce((s,k)=>s+num(pol.pesos[k])*num(comp[k]),0)*100;if(z.x.eliminatoria)score=Math.max(score,97);if(z.dom&&z.dom.nivel==='elite'&&!z.dom.vencido)score*=.2;else if(z.dom&&z.dom.nivel==='competitivo'&&!z.dom.vencido)score*=.45;let dose=null;if(M90&&M90.doseDiaria){try{dose=M90.doseDiaria(z.x,z.x.prescricaoAdaptativa,z.vel,z.dom||{nivel:'em_aquisicao'});}catch(e){if(typeof _quiet==='function')_quiet(e,'plano-robusto-v2-dose');}}if(!(dose>0)&&z.vel&&z.vel.confiavel)dose=Math.max(5,Math.min(z.alvo,Math.floor((num(M90&&M90.MINUTOS_BLOCO,30)*60)/num(z.vel.segundosPorQuestao,120))));let interv=null;if(M90&&M90.intervencao&&z.dom&&z.cal){try{interv=M90.intervencao(z.x,z.x.prescricaoAdaptativa,z.dom,z.cal,Math.max(0,Math.round(num(dose,Math.min(z.alvo,12)))));}catch(e){if(typeof _quiet==='function')_quiet(e,'plano-robusto-v2-intervencao');}}cands.push({item:z.x,disciplina:z.x.disciplina,nome:z.x.nome,taxa:num(z.x.taxa),qJanela:num(z.x.qJanela),modo:'robusto',fase,scoreBruto:score,score:clamp(score,0,100),alvo:z.alvo,doseDiaria:dose||null,meta:num(p.metaDominio,85),minAmostra:num(p.minAmostra,20),banca:fase==='pos'?banca:null,motivo:fase==='pos'?`${z.pontos.toFixed(2)} ponto(s) recuperáveis${z.minutos?` · ~${Math.max(1,Math.round(z.minutos))} min para o alvo global`:''}${z.x.eliminatoria?' · risco eliminatório':''}`:`${(z.gap90*100).toFixed(0)}% de lacuna competitiva · evidência ${(z.evidencia*100).toFixed(0)}%${z.dom?` · ${z.dom.rotulo}`:''}`,componentes:comp,mentor:{dominio:z.dom,calibracao:z.cal,incidencia:z.inc,tempo:z.vel},intervencao:interv,politica:{n:pol.n,aprendida:pol.aprendida,shrink:pol.shrink,validacao:pol.validacao,sinais:pol.sinais||null},configPlano:{metaOperacional:num(p.metaDominio,85),metaCompetitiva:90,minAmostra:num(p.minAmostra,20),banca,fase},auditoria:{formula:fase==='pos'?'pontos+ppm+lacuna+incidencia+recencia+resposta':'lacuna+evidencia+incidencia+recencia+resposta+eficiencia',fonte:'PlanoEngine + Mentor90',calibracaoConfiavel:z.calRespostaConfiavel,intervencaoConfiavel:z.calIntervencaoConfiavel,limiarCiclos:Math.max(5,num(M90&&M90.MIN_CICLOS_PERSONALIZAR,5))}});});
+      return{modo:'robusto',fase,banca:fase==='pos'?banca:null,itens:this._top3(cands),todos:cands,r,politica:pol,configPlano:{metaOperacional:num(p.metaDominio,85),metaCompetitiva:90,minAmostra:num(p.minAmostra,20),banca,fase},arquitetura:this.arquitetura(),explicacao:'Plano atual + Mentor 90+ + custo temporal + resposta histórica. Não consome parâmetros nem score do Simplificado.'};
+    },
+    arquitetura(){return{motor:this.MOTOR,independente:true,usaSimplificado:false,deps:this.deps.slice()};}
+  };
+  window.PlanoSugestoesRobustoV2=R;
+})();
+
+/* ============================================================================
+   PUXAR DO PLANO V2 — orquestrador/UI neutro
+   O Comparar consome apenas as APIs públicas dos dois motores e nunca recalcula
+   nem mistura suas fórmulas. A escolha das 3 disciplinas usa ranking/consenso.
+   ============================================================================ */
+(() => {
+  if (typeof window === 'undefined' || window.__planoSugControllerV2) return;
+  window.__planoSugControllerV2 = true;
+  const I=window.PlanoSugestoesInfraV2,S=window.PlanoSugestoesSimplificadoV2,R=window.PlanoSugestoesRobustoV2;
+  if(!I||!S||!R||typeof ExtrasScreen==='undefined'||typeof PlanoCiclo==='undefined'||typeof DB==='undefined')return;
+  const {num,norm,esc}=I;
+  const C={
+    VERSAO:2,KEY:'plano-sug-ui-v2',DEFAULTS:Object.freeze({modo:'robusto'}),_legacyPuxar:null,
+    prefs(){let modo='robusto';try{const z=JSON.parse(localStorage.getItem(DB._profilePrefix()+this.KEY)||'{}')||{};if(['simplificado','robusto','comparar'].includes(z.modo))modo=z.modo;}catch(e){if(typeof _quiet==='function')_quiet(e,'plano-controller-v2-prefs');}return Object.assign({modo},S.prefs());},
+    salvar(patch){patch=patch||{};if(Object.keys(patch).some(k=>['fase','meta','minAmostra','banca','alvoQuestoes'].includes(k)))S.salvar(patch);let modo=this.prefs().modo;if(['simplificado','robusto','comparar'].includes(patch.modo))modo=patch.modo;try{const k=DB._profilePrefix()+this.KEY,v=JSON.stringify({modo});if(DB.setRaw)DB.setRaw(k,v);else localStorage.setItem(k,v);}catch(e){if(typeof _quiet==='function')_quiet(e,'plano-controller-v2-save');}return Object.assign({modo},S.prefs());},
+    simplificado(p){return S.calcular(p||S.prefs());},
+    robusto(){return R.calcular();},
+    comparar(p){
+      const s=S.calcular(p||S.prefs()),r=R.calcular();
+      if(s.erro&&r.erro)return{erro:'ambos-indisponiveis',modo:'comparar',itens:[],simples:s,robusto:r};
+      const rankMap=(res)=>{const m=new Map();(res.itens||[]).forEach((x,i)=>m.set(norm(x.disciplina),{c:x,rank:i+1}));return m;};
+      const a=rankMap(s),b=rankMap(r),ch=[...new Set([...a.keys(),...b.keys()])];
+      const linhas=ch.map(k=>{
+        const sa=a.get(k),rb=b.get(k),cons=!!(sa&&rb&&norm(sa.c.nome)===norm(rb.c.nome));
+        const pontos=(sa?4-sa.rank:0)+(rb?4-rb.rank:0)+(cons?10:0);
+        return{disciplina:(sa&&sa.c.disciplina)||(rb&&rb.c.disciplina),simplificado:sa&&sa.c||null,robusto:rb&&rb.c||null,rankSimplificado:sa&&sa.rank||null,rankRobusto:rb&&rb.rank||null,consenso:cons,pontosComparacao:pontos,escolha:cons?'consenso':(rb?'robusto':'simplificado')};
+      }).sort((x,y)=>y.pontosComparacao-x.pontosComparacao).slice(0,3);
+      return{modo:'comparar',fase:{simplificado:s.fase,robusto:r.fase},itens:linhas,simples:s,robusto:r,explicacao:'Comparação por posição em cada ranking + bônus de consenso; scores dos motores não são somados nem tratados como mesma escala.'};
+    },
+    calcular(p){p=p||this.prefs();return p.modo==='simplificado'?this.simplificado(p):p.modo==='comparar'?this.comparar(p):this.robusto();},
+    _erroTexto(e){return({'sem-retrato':'Importe um retrato do TEC antes de gerar sugestões.','sem-lacunas':'Nenhum assunto medido está abaixo da meta desejada.','pos-sem-planejamento':'O Simplificado Pós precisa do planejamento da prova com quantidade/pontos/peso por matéria.','pos-sem-banca':'Escolha uma banca específica para o Simplificado Pós.','pos-sem-cruzamento':'Não houve cruzamento confiável entre TEC, incidência da banca e planejamento.','sem-candidatos':'Não há candidatos elegíveis sem sobrepor reforços já abertos.','ambos-indisponiveis':'Nenhum dos dois motores conseguiu formar sugestões neste escopo.'})[e]||'Não foi possível formar sugestões com o escopo atual.';},
+    _bancasOptions(atual){return `<option value="__todas__" ${atual==='__todas__'?'selected':''}>Selecionar automaticamente</option>`+I.bancas().map(b=>`<option value="${esc(b)}" ${b===atual?'selected':''}>${esc(b)}</option>`).join('');},
+    _cabecalho(p,res){
+      const sp=S.prefs(),fase=S.fase(sp),rp=res&&res.robusto&&res.robusto.configPlano?res.robusto.configPlano:(res&&res.configPlano)||null, simpleControls=p.modo!=='robusto';
+      const resumoRob=rp?`<div class="ps-rule"><b>Robusto independente:</b> Plano atual · meta operacional ${Math.round(num(rp.metaOperacional,85))}% · régua competitiva 90%+ · amostra ${Math.round(num(rp.minAmostra,20))}. Não usa os controles do Simplificado.</div>`:`<div class="ps-rule"><b>Robusto independente:</b> usa exclusivamente PlanoEngine + Mentor 90+ e seus próprios históricos.</div>`;
+      return `<div class="ps-mode-grid" role="group" aria-label="Modo das sugestões">${[['simplificado','Simplificado','TEC direto; não usa PlanoEngine/Mentor90'],['robusto','Robusto','Plano atual + Mentor 90+ + tempo + evolução'],['comparar','Comparar','Duas saídas independentes lado a lado']].map(([k,t,s])=>`<button type="button" class="ps-mode ${p.modo===k?'active':''}" data-ps-modo="${k}"><b>${t}</b><small>${s}</small></button>`).join('')}</div>${simpleControls?`<div class="ps-settings"><label><span>Fase simplificada</span><select data-ps-fase><option value="auto" ${sp.fase==='auto'?'selected':''}>Automática</option><option value="pre" ${sp.fase==='pre'?'selected':''}>Pré-edital</option><option value="pos" ${sp.fase==='pos'?'selected':''}>Pós-edital</option></select></label><label><span>Meta desejada</span><div class="ps-input-suffix"><input data-ps-meta type="number" min="50" max="100" value="${sp.meta}"><em>%</em></div></label><label><span>Amostra mínima</span><input data-ps-min type="number" min="1" max="500" value="${sp.minAmostra}"></label><label><span>Questões por frente</span><input data-ps-alvo type="number" min="5" max="200" value="${sp.alvoQuestoes}"></label><label class="${fase==='pos'?'':'ps-hidden'}"><span>Banca</span><select data-ps-banca>${this._bancasOptions(sp.banca)}</select></label></div>`:''}${p.modo!=='simplificado'?resumoRob:''}<div class="ps-rule"><b>Contrato:</b> até 3 disciplinas distintas · 1 tópico por disciplina · uma única fila em Extras. <span>${esc((res&&res.explicacao)||'')}</span></div>`;
+    },
+    _card(c,i,checked=true){return `<label class="ps-card"><input type="checkbox" class="ps-pick" data-i="${i}" ${checked?'checked':''}><div class="ps-card-body"><div class="ps-card-top"><span class="ps-disc">${esc(c.disciplina)}</span><span class="ps-score">${Math.round(num(c.score))}/100</span></div><strong>${esc(c.nome)}</strong><p>${esc(c.motivo)}</p><div class="ps-metrics"><span>${num(c.taxa,c.item&&c.item.taxa).toFixed(0)}% atual</span><span>${Math.round(num(c.qJanela,c.item&&c.item.qJanela))}q amostra</span><span>${c.alvo}q alvo global</span>${c.doseDiaria?`<span>~${c.doseDiaria}q/dia</span>`:''}</div>${c.modo==='robusto'&&c.politica&&c.politica.aprendida?`<small class="ps-learn">Pesos regularizados com ${c.politica.n} ciclos</small>`:''}</div></label>`;},
+    _compareRow(x,i){const card=(c,k)=>c?`<label class="ps-compare-option ${x.consenso?'is-consensus':''}"><input type="radio" name="ps-choice-${i}" value="${k}" ${(x.escolha===k||(x.escolha==='consenso'&&k==='robusto'))?'checked':''}><div><span>${k==='simplificado'?'Simplificado':'Robusto'}${k==='simplificado'&&x.rankSimplificado?' · #'+x.rankSimplificado:k==='robusto'&&x.rankRobusto?' · #'+x.rankRobusto:''}</span><b>${esc(c.nome)}</b><small>${esc(c.motivo)}</small></div></label>`:'';return `<section class="ps-compare-row" data-row="${i}"><header><b>${esc(x.disciplina)}</b>${x.consenso?'<span class="ps-consensus">✓ Consenso</span>':'<span>Escolha a leitura</span>'}</header><div class="ps-compare-grid">${card(x.simplificado,'simplificado')}${card(x.robusto,'robusto')}</div></section>`;},
+    _renderLista(screen,p,res){
+      const host=document.getElementById('pl-lista'),conta=document.getElementById('pl-conta');if(!host)return;
+      if(res.erro){host.innerHTML=`<div class="ps-empty"><b>Sem sugestões</b><span>${esc(this._erroTexto(res.erro))}</span></div>`;if(conta)conta.textContent='';return;}
+      if(p.modo==='comparar'){
+        host.innerHTML=(res.itens||[]).map((x,i)=>this._compareRow(x,i)).join('')||'<div class="ps-empty">Nenhuma disciplina elegível.</div>';
+        if(conta)conta.innerHTML=`<strong>${res.itens.length}</strong> disciplina(s) para comparar`;
+        host.querySelectorAll('input[type=radio]').forEach(el=>el.addEventListener('change',()=>{const i=Number(el.name.replace('ps-choice-',''));if(res.itens[i])res.itens[i].escolha=el.value;}));
+      } else {
+        screen._planoSel=new Set((res.itens||[]).map((_,i)=>i));
+        host.innerHTML=(res.itens||[]).map((c,i)=>this._card(c,i,true)).join('')||'<div class="ps-empty">Nenhuma sugestão elegível.</div>';
+        if(conta)conta.innerHTML=`<strong>${res.itens.length}</strong> disciplina(s) · 1 tópico por disciplina`;
+        host.querySelectorAll('.ps-pick').forEach(cb=>cb.addEventListener('change',()=>{const i=Number(cb.dataset.i);if(cb.checked)screen._planoSel.add(i);else screen._planoSel.delete(i);}));
+      }
+    },
+    _renderModal(screen,p,res){
+      const body=document.getElementById('ui-modal-body');if(!body)return;
+      body.innerHTML=`${this._cabecalho(p,res)}<div class="ps-list-head"><span id="pl-conta"></span><small>Disciplinas com reforço do Plano aberto já foram removidas.</small></div><div id="pl-lista" class="ps-list"></div>`;
+      this._renderLista(screen,p,res);
+      body.querySelectorAll('[data-ps-modo]').forEach(b=>b.addEventListener('click',()=>{p=this.salvar({modo:b.dataset.psModo});this._recalcularModal(screen,p);}));
+      const bind=(q,ev,fn)=>{const el=body.querySelector(q);if(el)el.addEventListener(ev,fn);};
+      bind('[data-ps-fase]','change',e=>{p=this.salvar({fase:e.target.value});this._recalcularModal(screen,p);});
+      bind('[data-ps-meta]','change',e=>{p=this.salvar({meta:Number(e.target.value)});this._recalcularModal(screen,p);});
+      bind('[data-ps-min]','change',e=>{p=this.salvar({minAmostra:Number(e.target.value)});this._recalcularModal(screen,p);});
+      bind('[data-ps-alvo]','change',e=>{p=this.salvar({alvoQuestoes:Number(e.target.value)});this._recalcularModal(screen,p);});
+      bind('[data-ps-banca]','change',e=>{p=this.salvar({banca:e.target.value});this._recalcularModal(screen,p);});
+    },
+    _recalcularModal(screen,p){const host=document.getElementById('pl-lista');if(host)host.innerHTML='<div class="ps-loading">Recalculando sugestões…</div>';setTimeout(()=>{try{const res=this.calcular(p);screen._psResultado=res;this._renderModal(screen,p,res);}catch(e){if(typeof _quiet==='function')_quiet(e,'plano-controller-v2-recalc');}},0);},
+    _escolhidos(screen,p,res){if(!res||res.erro)return[];if(p.modo==='comparar')return(res.itens||[]).map(x=>x.consenso?(x.robusto||x.simplificado):(x.escolha==='simplificado'?x.simplificado:x.robusto)).filter(Boolean);return(res.itens||[]).filter((_,i)=>!screen._planoSel||screen._planoSel.has(i));},
+    criar(screen,p,res){
+      const itens=this._escolhidos(screen,p,res);let n=0;
+      itens.forEach(c=>{
+        if(!c||!c.item)return;const x=c.item;
+        const e=DB.addExtra({titulo:PlanoCiclo.titulo(c.nome,'reforco',x.membros),tipo:'questoes',disciplina:c.disciplina||'',unidade:'questoes',alvo:Math.max(1,c.alvo),periodo:'unica',contaMetricas:false,obs:`Gerado pelo Plano · ${c.modo==='robusto'?'Robusto':'Simplificado'} ${c.fase==='pos'?'Pós':'Pré'}.${c.intervencao&&c.intervencao.rotulo?' Intervenção: '+c.intervencao.rotulo+'.':''}`});
+        if(!e)return;
+        const origem=PlanoCiclo.origem(c.nome,c.disciplina,Object.assign({},x,{custoQ:c.alvo,taxa:c.taxa??x.taxa}),{motivo:'reforco'});
+        origem.sugestao={versao:this.VERSAO,motor:c.modo==='robusto'?R.MOTOR:S.MOTOR,modoInterface:p.modo,fase:c.fase,meta:c.meta,minAmostra:c.minAmostra,banca:c.banca||null,score:Math.round(num(c.score)*10)/10,alvoGlobal:Math.max(1,c.alvo),doseDiaria:c.doseDiaria||null,componentes:c.componentes||{},politica:c.politica||null,configPlano:c.configPlano||null,intervencao:c.intervencao||null,auditoria:c.auditoria||null,arquitetura:c.modo==='robusto'?R.arquitetura():S.arquitetura(),criadoEm:typeof todayLocal==='function'?todayLocal():new Date().toISOString().slice(0,10)};
+        DB.updateExtra(e.id,{origemPlano:origem});n++;
+      });
+      screen.render();if(typeof showToast==='function')showToast(n?`${n} reforço(s) criado(s) · ${p.modo==='comparar'?'comparação concluída':p.modo}`:'Nenhuma sugestão selecionada');return n;
+    },
+    abrir(screen){
+      const p=this.prefs();let res;
+      try{res=this.calcular(p);}catch(e){if(typeof _quiet==='function')_quiet(e,'plano-controller-v2-open');if(this._legacyPuxar)return this._legacyPuxar.call(screen);return;}
+      screen._psResultado=res;screen._planoSel=new Set((res.itens||[]).map((_,i)=>i));
+      new Promise(resolve=>{UI._resolve=resolve;UI._mode='confirm';UI._open('🏁 Puxar do Plano','Dois motores independentes, uma única fila de execução','<div id="ps-root"></div>',{okText:'Criar atividades'});}).then(ok=>{if(!ok)return;const atual=this.prefs();return this.criar(screen,atual,screen._psResultado);});
+      setTimeout(()=>{try{this._renderModal(screen,p,res);}catch(e){if(typeof _quiet==='function')_quiet(e,'plano-controller-v2-render');}},0);
+    },
+    instalar(){if(ExtrasScreen._planoSugestoesV2)return;ExtrasScreen._planoSugestoesV2=true;this._legacyPuxar=ExtrasScreen.puxarDoPlano;const self=this;ExtrasScreen.puxarDoPlano=function(){return self.abrir(this);};}
+  };
+  C.instalar();window.PlanoSugestoesV2=C;window.PlanoSugestoesV1=C;
 })();
 
 </script>

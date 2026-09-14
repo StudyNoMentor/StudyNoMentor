@@ -8,6 +8,8 @@
 #   · o app quebrar no carregamento ou alguma das 14 telas lancar erro;
 #   · a suite AutoTeste (FSRS, fuzz, agendador, parser TEC...) regredir;
 #   · o reforco adaptativo produzir dose ou parada estatisticamente invalida;
+#   · os motores Simplificado/Robusto/Comparar quebrarem o contrato 3 disciplinas × 1 topico;
+#   · Puxar do Plano duplicar execucao ao comparar motores ou misturar dose diaria com alvo global;
 #   · modais de Extras voltarem a se sobrepor ou a ativacao adaptativa travar;
 #   · hierarquia, presets, bordas e responsividade do menu Extras regredirem;
 #   · escopo, rodizio multidisciplinar, reabertura e responsividade do Desempenho TEC regredirem;
@@ -130,6 +132,12 @@ jobs:
       - name: Simular prescricao adaptativa
         run: node testes/reforco-adaptativo-massivo.mjs
 
+      # Regra de negocio dos tres modos do Puxar do Plano. O teste e barato e
+      # cobra matematica, diversidade 3x1, aprendizado conservador e separacao
+      # entre dose diaria e alvo global antes de abrir navegador.
+      - name: Validar motores de sugestao do Plano
+        run: node testes/plano-sugestoes-modulos.mjs
+
       # Regressao barata e estrutural: impede O(n²) no decorador do Plano,
       # garante pilha de overlays e protege o viewport mobile antes do navegador.
       - name: Validar estabilidade estrutural de Extras
@@ -141,6 +149,11 @@ jobs:
         run: |
           npm install --no-save playwright@1.56.1
           npx playwright install --with-deps chromium
+
+      # Fluxo real do novo Puxar do Plano: troca entre os tres motores, garante
+      # 3 disciplinas distintas, compara sem duplicar e cria uma unica fila.
+      - name: Validar Puxar do Plano multimotor
+        run: node testes/plano-sugestoes-modulos-browser.mjs
 
       # Barreira específica da rodada v4. Cobra três contratos que não podem
       # depender só de inspeção visual: login local-first sem espera de rede,
