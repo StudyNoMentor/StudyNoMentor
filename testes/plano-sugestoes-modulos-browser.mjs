@@ -35,7 +35,7 @@ async function snapshotLista(){
 
 try{
   await page.goto(url,{waitUntil:'domcontentloaded'});
-  await page.waitForFunction(()=>typeof switchScreen==='function'&&typeof PlanoSugestoesV2==='object'&&typeof PlanoSugestoesSimplificadoV2==='object'&&typeof PlanoSugestoesRobustoV4==='object'&&typeof PlanoRobustoConfigV4==='object'&&typeof PlanoEngine==='object'&&typeof ExtrasScreen==='object',{timeout:30000});
+  await page.waitForFunction(()=>typeof switchScreen==='function'&&typeof PlanoSugestoesV2==='object'&&typeof PlanoSugestoesSimplificadoV2==='object'&&typeof PlanoSugestoesRobustoV4==='object'&&typeof PlanoRobustoConfigV4==='object'&&typeof PlanoEngine==='object'&&typeof ExtrasScreen==='object'&&typeof PlanoMotoresCentralTecV1==='object',{timeout:30000});
   await page.evaluate(()=>{
     try{ProfileUI.hideGate();}catch(e){if(typeof _quiet==='function')_quiet(e,'dual-test-gate');}
     const hoje=new Date(),dia=off=>{const d=new Date(hoje);d.setDate(d.getDate()+off);return d.toISOString().slice(0,10);};
@@ -60,35 +60,17 @@ try{
   assert.equal(snap.cards.length,3,'Robusto deve abrir com exatamente 3 sugestões');
   assert.equal(new Set(snap.cards.map(x=>x.disc)).size,3,'Robusto deve usar 3 disciplinas distintas');
   assert.ok(snap.cards.every(x=>x.interv),'Robusto V4 deve explicar a intervenção de cada frente');
-  assert.equal(await page.locator('[data-ps-meta]').count(),0,'Robusto não pode expor/consumir os controles do Simplificado');
-  assert.equal(await page.locator('[data-rv4-toggle]').count(),1,'Robusto deve oferecer painel avançado próprio');
+  assert.equal(await page.locator('[data-ps-meta],[data-ps-min],[data-ps-alvo],[data-ps-banca],[data-ps-fase]').count(),0,'Extras não pode expor configurações do Simplificado');
+  assert.equal(await page.locator('[data-rv4-toggle],[data-rv4-field],[data-rv4-reset-all]').count(),0,'Extras não pode expor configurações do Robusto');
+  assert.match(await page.locator('#ui-modal-body').textContent(),/Ajustes centralizados|Desempenho TEC.*Motores/i,'modal deve indicar onde os ajustes são geridos');
   assert.match(await page.locator('#ui-modal-body').textContent(),/Robusto independente/i,'a independência do Robusto deve ficar explícita');
   assert.ok(snap.overflow<=4,`modal Robusto não pode ter overflow horizontal (${snap.overflow}px)`);
-
-  await page.locator('[data-rv4-toggle]').click();
-  await page.waitForFunction(()=>document.querySelector('[data-rv4-host]')&&!document.querySelector('[data-rv4-host]').hidden);
-  assert.ok(await page.locator('[data-rv4-field]').count()>20,'painel robusto deve expor recursos e parâmetros avançados');
-  assert.ok(await page.locator('[data-rv4-reset]').count()>15,'cada parâmetro deve ter restauração individual');
-  assert.equal(await page.locator('[data-rv4-reset-group]').count(),3,'cada grupo deve ter restaurar padrões');
-  assert.equal(await page.locator('[data-rv4-reset-all]').count(),1,'modo deve ter restauração integral');
-  const opt=page.locator('[data-rv4-field="recursos.otimizadorAtivo"]');
-  assert.equal(await opt.isChecked(),true,'otimizador deve vir ligado no padrão Base ampla');
-  await opt.uncheck();
-  await page.waitForFunction(()=>/otimizador off/i.test(document.querySelector('#ui-modal-body')?.textContent||''));
-  snap=await snapshotLista();assert.equal(snap.cards.length,3,'desligar otimizador deve recuar sem quebrar 3×1');
-  await page.locator('[data-rv4-reset-all]').click();
-  await page.waitForFunction(()=>document.querySelector('[data-rv4-field="recursos.otimizadorAtivo"]')?.checked===true);
-  assert.equal(await page.locator('[data-rv4-field="recursos.otimizadorAtivo"]').isChecked(),true,'restaurar modo deve devolver default recomendado');
-  assert.match(await page.locator('[data-rv4-panel]').textContent(),/Base ampla|padrões recomendados/i);
-  snap=await snapshotLista();assert.ok(snap.overflow<=4,`painel robusto não pode criar overflow horizontal (${snap.overflow}px)`);
 
   await page.locator('[data-ps-modo="simplificado"]').click();await esperarModo('simplificado');
   snap=await snapshotLista();
   assert.equal(snap.cards.length,3,'Simplificado deve manter a estrutura 3×1');
   assert.equal(new Set(snap.cards.map(x=>x.disc)).size,3,'Simplificado deve usar 3 disciplinas distintas');
-  assert.equal(await page.locator('[data-ps-meta]').count(),1,'Simplificado deve ter configuração própria de meta');
-  assert.equal(await page.locator('[data-ps-alvo]').count(),1,'Simplificado deve ter alvo próprio de questões');
-  assert.equal(await page.locator('[data-rv4-toggle]').count(),0,'painel Robusto não pode contaminar o Simplificado');
+  assert.equal(await page.locator('[data-ps-meta],[data-ps-alvo]').count(),0,'Simplificado deve consumir a configuração do TEC sem editá-la em Extras');
   const rule=await page.locator('.ps-rule').textContent();
   assert.match(rule,/3 disciplinas distintas/i,'a regra 3×1 deve estar explícita no modal');
 
@@ -98,7 +80,6 @@ try{
   assert.equal(new Set(snap.compare.map(x=>x.disc)).size,3,'Comparar não pode repetir disciplina');
   assert.ok(snap.compare.every(x=>x.ops>=1&&x.ops<=2),'cada disciplina deve mostrar uma ou duas decisões, nunca duplicar execução');
   assert.ok(snap.compare.some(x=>x.ranks.length),'Comparar deve expor posição de ranking, não misturar scores heterogêneos');
-  assert.match(await page.locator('#ui-modal-body').textContent(),/Duas saídas independentes|Não usa os controles do Simplificado/i);
   assert.ok(snap.overflow<=4,`modal Comparar não pode ter overflow horizontal (${snap.overflow}px)`);
 
   const antes=await page.evaluate(()=>DB.getExtras().length);
@@ -120,7 +101,7 @@ try{
   await page.locator('#ui-modal-cancel').click();
 
   assert.deepEqual(errors,[],`erros no navegador: ${errors.join(' | ')}`);
-  console.log('OK: Puxar do Plano V5 — seletor redesenhado, painel Robusto, motores independentes, Comparar e execução única 3×1.');
+  console.log('OK: Puxar do Plano — decisão multimotor em Extras sem parâmetros editáveis; configuração central no TEC.');
 } finally {
   await browser.close();
   await new Promise(r=>server.close(r));
