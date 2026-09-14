@@ -410,8 +410,13 @@
   "ate": 55379
  },
  {
-  "arquivo": "html/90-rodape.html",
+  "arquivo": "js/87-plano-sugestoes-governanca-v1.js",
   "de": 55381,
-  "ate": 55826
+  "ate": 55552
+ },
+ {
+  "arquivo": "html/90-rodape.html",
+  "de": 55554,
+  "ate": 55999
  }
 ]
