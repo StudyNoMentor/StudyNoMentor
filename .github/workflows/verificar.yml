@@ -9,6 +9,7 @@
 #   · a suite AutoTeste (FSRS, fuzz, agendador, parser TEC...) regredir;
 #   · o reforco adaptativo produzir dose ou parada estatisticamente invalida;
 #   · os motores Simplificado/Robusto/Comparar quebrarem o contrato 3 disciplinas × 1 topico;
+#   · o log do Robusto perder decisoes, desfechos, isolamento local ou privacidade do JSON;
 #   · a governanca global deixar motor desligado reaparecer ou executar por preferencia antiga;
 #   · configuracoes de Simplificado/Robusto vazarem de Desempenho TEC para Extras;
 #   · o Robusto V5 misturar alvo global/dose, inventar tempo ou quebrar os defaults por ataque;
@@ -114,6 +115,9 @@ jobs:
 
       - name: Validar roteador, otimizador e defaults do Robusto
         run: node testes/plano-robusto-v4.mjs
+
+      - name: Validar log auditavel do Robusto
+        run: node testes/plano-robusto-audit-log.mjs
 
       - name: Validar governanca global dos motores do Plano
         run: node testes/plano-motores-governanca-v5.mjs
