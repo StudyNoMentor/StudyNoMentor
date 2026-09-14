@@ -17,10 +17,12 @@ const ExtrasScreen = {
   _fStart: null, _fEnd: null,
   _addMoreFor: null,   // "id@dia" cujo card está com o input de "registrar mais" aberto
   PAGE_SIZE: 100,
+  _occCache: new Map(),
   _CHECK: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>',
   render() {
-    // o retrato do Plano custa caro: um por repintura, não um por cartão
+    // caches estritamente de uma pintura: nenhuma informação atravessa um render.
     this._planoRefCard = null;
+    this._occCache = new Map();
     const extras = DB.getExtras();
     DB._extrasReadSnapshot = extras;
     // toggle global
@@ -46,6 +48,13 @@ const ExtrasScreen = {
       list.innerHTML = `<div class="extras-empty"><div class="big">✅</div>Nenhuma atividade extra ainda.<br>Clique em <strong>＋ Nova atividade</strong> para começar, ou <strong>🔁 Gerenciar</strong> para criar recorrências.</div>`;
       this._syncManage();
       DB._extrasReadSnapshot = null;
+      return;
+    }
+    // A camada moderna substitui o overview de hoje. Evita pintar 100+ cards
+    // aqui e repintá-los de novo logo depois; agenda e reforços já estão prontos.
+    if (this._modernOverviewPass && this.selDay === hoje) {
+      list.innerHTML = '';
+      this._syncManage();
       return;
     }
     const day = this.selDay;
@@ -221,8 +230,10 @@ const ExtrasScreen = {
   // se bate a cadência dentro da janela. Avulsas: aparecem nos dias vinculados;
   // se não têm nenhum dia vinculado, aparecem HOJE como pendência até concluir.
   occurrencesForDay(day) {
+    if (this._occCache && this._occCache.has(day)) return this._occCache.get(day);
     const hoje = todayLocal();
-    return DB.getExtras().filter(x => {
+    const extras = DB._extrasReadSnapshot || DB.getExtras();
+    const occ = extras.filter(x => {
       const datas = x.datas || [];
       if (DB.extraRecorrente(x)) {
         if ((x.excluidasEm || []).includes(day)) return false;
@@ -230,25 +241,14 @@ const ExtrasScreen = {
         return this._recurOnDay(x, day);
       }
       if (datas.length) return datas.includes(day);
-      /* BUG CORRIGIDO (A): a atividade AVULSA sumia da tela assim que era concluida
-         (o filtro descartava status === 'concluida'). Sem ela na lista nao havia
-         como editar, consultar o que foi feito, nem reabrir se voce marcou por
-         engano — restava recriar do zero.
-         Agora ela FICA, marcada como concluida, com o botao virando "Reabrir".
-
-         BUG CORRIGIDO (A2 — preservacao de data): a avulsa aparecia SOMENTE hoje.
-         Se voce registrasse progresso num dia passado, ao voltar aquele dia a
-         atividade nao aparecia e o registro "sumia" da visao (parecia perda de
-         dado). Agora ela tambem aparece em QUALQUER dia onde houve registro,
-         preservando o historico exatamente no dia correto. */
       const temHistoricoNoDia = (x.historico || []).some(h => h.data === day);
       if (temHistoricoNoDia) return true;
-      // pendencia: enquanto nao concluida, fica visivel no dia de hoje
       if (day === hoje && x.status !== 'concluida') return true;
-      // concluida (sem data propria): permanece acessivel no dia de hoje
       if (day === hoje) return true;
       return false;
     });
+    if (this._occCache) this._occCache.set(day, occ);
+    return occ;
   },
   _recurOnDay(x, day) {
     const inicio = (x.dataInicio && String(x.dataInicio).trim())
@@ -270,21 +270,21 @@ const ExtrasScreen = {
   },
   // ── Carga horária (minutos) ────────────────────────────────────────────
   _minInDay(day) {
-    return DB.getExtras().reduce((s, x) => {
+    return (DB._extrasReadSnapshot || DB.getExtras()).reduce((s, x) => {
       const emMin = (x.unidade === 'min' || x.tipo === 'video');
       return s + (x.historico || []).filter(h => h.data === day)
         .reduce((a, h) => a + (h.minutos || (emMin ? (h.quantidade || 0) : 0)), 0);
     }, 0);
   },
   _minInRange(a, b) {
-    return DB.getExtras().reduce((s, x) => {
+    return (DB._extrasReadSnapshot || DB.getExtras()).reduce((s, x) => {
       const emMin = (x.unidade === 'min' || x.tipo === 'video');
       return s + (x.historico || []).filter(h => h.data >= a && h.data <= b)
         .reduce((acc, h) => acc + (h.minutos || (emMin ? (h.quantidade || 0) : 0)), 0);
     }, 0);
   },
   _minTotal() {
-    return DB.getExtras().reduce((s, x) => {
+    return (DB._extrasReadSnapshot || DB.getExtras()).reduce((s, x) => {
       const emMin = (x.unidade === 'min' || x.tipo === 'video');
       return s + (x.historico || []).reduce((a, h) => a + (h.minutos || (emMin ? (h.quantidade || 0) : 0)), 0);
     }, 0);

@@ -3375,7 +3375,13 @@ const DesempenhoTecScreen = {
     if (p.disc) { const el = document.getElementById('reforco-disc'); if (el && [...el.options].some(o => o.value === p.disc)) el.value = p.disc; }
   },
   render() {
+    // Uma abertura do TEC consulta os mesmos retratos em escopo, análise, série,
+    // árvore e Plano. Desserializar 8× milhares de linhas a cada chamada era
+    // trabalho repetido. A fotografia dura somente este render.
+    DB._tecReadSnapshot = null;
+    this._scopeSigC = new WeakMap();
     const snaps = DB.getTecSnapshots();
+    DB._tecReadSnapshot = snaps;
     const emptyEl = document.getElementById('tec-empty');
     const importEl = document.getElementById('tec-import');
     const analysisEl = document.getElementById('tec-analysis');
@@ -3383,6 +3389,7 @@ const DesempenhoTecScreen = {
     if (snaps.length === 0) {
       emptyEl.style.display = 'block';
       analysisEl.style.display = 'none';
+      DB._tecReadSnapshot = null;
       return;
     }
     emptyEl.style.display = 'none';
@@ -3425,10 +3432,10 @@ const DesempenhoTecScreen = {
       this.rangeEnd = snaps[snaps.length - 1].endDate;
     }
     this.renderScopeControls(snaps);
-    this.renderAnalysis();
-    this.switchTecTab(this.tecTab || 'analise'); // reaplica a aba ativa
+    this.switchTecTab(this.tecTab || 'analise'); // reaplica e renderiza só a aba ativa
     this.applyCfgHidden();
     this.applyEnxuto();
+    DB._tecReadSnapshot = null;
   },
   // Mostra/oculta todos os filtros e configurações da tela (classe .tec-cfg),
   // deixando só os resultados. Estado salvo por perfil.
@@ -3738,6 +3745,13 @@ const DesempenhoTecScreen = {
        reutilizar silenciosamente o agregado anterior. FNV-1a é barato, estável
        e percorre exatamente os campos que alteram a consolidação. */
     const assinar = (snap) => {
+      // scopedSnapshot pode ser consultado por totais, evolução, filtros e Plano
+      // na mesma pintura. O objeto do retrato é imutável durante esse render;
+      // portanto sua assinatura também é. Evita percorrer milhares de linhas
+      // várias vezes só para confirmar a mesma chave de cache.
+      if (!this._scopeSigC) this._scopeSigC = new WeakMap();
+      const memo = this._scopeSigC.get(snap);
+      if (memo) return memo;
       let h = 2166136261 >>> 0;
       const mix = (v) => {
         const t = String(v == null ? '' : v);
@@ -3749,7 +3763,9 @@ const DesempenhoTecScreen = {
         mix(r.codigo); mix(r.nome); mix(r.disciplina); mix(r.depth);
         mix(r.questoes); mix(r.acertos);
       });
-      return h.toString(36);
+      const sig = h.toString(36);
+      this._scopeSigC.set(snap, sig);
+      return sig;
     };
     const chave = perfil + '|' + this.scopeMode + '|' + snaps.map(s => assinar(s)).join('|');
     if (this._scopedC && this._scopedC.chave === chave) return this._scopedC.valor;
@@ -4218,6 +4234,7 @@ const DesempenhoTecScreen = {
       const el = document.getElementById('tec-panel-' + t);
       if (el) el.style.display = (t === tab) ? 'block' : 'none';
     });
+    if (tab === 'analise') this.renderAnalysis();
     if (tab === 'incidencia') this.renderIncidencia();
     if (tab === 'reforco') this.renderReforco();
     if (tab === 'plano') this.renderPlano();

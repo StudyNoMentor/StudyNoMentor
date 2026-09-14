@@ -57,7 +57,7 @@
      novo, e o antigo é descartado sozinho na ativação) e o que permite ao app
      dizer qual versão está rodando. Em src/ fica "dev" de propósito: a versão
      é gerada na montagem, não editada à mão. -->
-<meta name="diario-versao" content="v0c7f73acce">
+<meta name="diario-versao" content="v5f77f4a17a">
 <script>
 /* ── ARRANQUE: abre o IndexedDB AGORA, em paralelo com o parse do documento ──
    A fachada de armazenamento vive no fim do <body>, depois de ~1,7 MB de HTML.
@@ -12289,6 +12289,24 @@ body.leis-foco .leis-reader-card::before { display: none; }
   margin-left: auto;
   color: var(--text-faint);
 }
+#extras-list .exm-more-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 10px 14px 14px;
+  border-top: 1px solid color-mix(in srgb, var(--border) 72%, transparent);
+  color: var(--text-faint);
+  font-size: var(--fs-3xs);
+}
+#extras-list .exm-more-row .btn-secondary {
+  min-height: 34px;
+  white-space: nowrap;
+}
+@media (max-width: 520px) {
+  #extras-list .exm-more-row { align-items: stretch; flex-direction: column; }
+  #extras-list .exm-more-row .btn-secondary { width: 100%; }
+}
 #extras-list .exm-section-atrasadas {
   border-color: color-mix(in srgb, var(--bad) 22%, var(--border));
 }
@@ -14970,6 +14988,7 @@ const DB = {
   // Cada snapshot: { id, startDate, endDate, label, rows:[...], importedAt }
   // (retratos antigos tinham só `date` — migrados para startDate=endDate=date)
   getTecSnapshots() {
+    if (Array.isArray(this._tecReadSnapshot)) return this._tecReadSnapshot;
     const list = this._get(this.KEYS.tec, []);
     let migrated = false;
     list.forEach(s => {
@@ -31868,10 +31887,12 @@ const ExtrasScreen = {
   _fStart: null, _fEnd: null,
   _addMoreFor: null,   // "id@dia" cujo card está com o input de "registrar mais" aberto
   PAGE_SIZE: 100,
+  _occCache: new Map(),
   _CHECK: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>',
   render() {
-    // o retrato do Plano custa caro: um por repintura, não um por cartão
+    // caches estritamente de uma pintura: nenhuma informação atravessa um render.
     this._planoRefCard = null;
+    this._occCache = new Map();
     const extras = DB.getExtras();
     DB._extrasReadSnapshot = extras;
     // toggle global
@@ -31897,6 +31918,13 @@ const ExtrasScreen = {
       list.innerHTML = `<div class="extras-empty"><div class="big">✅</div>Nenhuma atividade extra ainda.<br>Clique em <strong>＋ Nova atividade</strong> para começar, ou <strong>🔁 Gerenciar</strong> para criar recorrências.</div>`;
       this._syncManage();
       DB._extrasReadSnapshot = null;
+      return;
+    }
+    // A camada moderna substitui o overview de hoje. Evita pintar 100+ cards
+    // aqui e repintá-los de novo logo depois; agenda e reforços já estão prontos.
+    if (this._modernOverviewPass && this.selDay === hoje) {
+      list.innerHTML = '';
+      this._syncManage();
       return;
     }
     const day = this.selDay;
@@ -32072,8 +32100,10 @@ const ExtrasScreen = {
   // se bate a cadência dentro da janela. Avulsas: aparecem nos dias vinculados;
   // se não têm nenhum dia vinculado, aparecem HOJE como pendência até concluir.
   occurrencesForDay(day) {
+    if (this._occCache && this._occCache.has(day)) return this._occCache.get(day);
     const hoje = todayLocal();
-    return DB.getExtras().filter(x => {
+    const extras = DB._extrasReadSnapshot || DB.getExtras();
+    const occ = extras.filter(x => {
       const datas = x.datas || [];
       if (DB.extraRecorrente(x)) {
         if ((x.excluidasEm || []).includes(day)) return false;
@@ -32081,25 +32111,14 @@ const ExtrasScreen = {
         return this._recurOnDay(x, day);
       }
       if (datas.length) return datas.includes(day);
-      /* BUG CORRIGIDO (A): a atividade AVULSA sumia da tela assim que era concluida
-         (o filtro descartava status === 'concluida'). Sem ela na lista nao havia
-         como editar, consultar o que foi feito, nem reabrir se voce marcou por
-         engano — restava recriar do zero.
-         Agora ela FICA, marcada como concluida, com o botao virando "Reabrir".
-
-         BUG CORRIGIDO (A2 — preservacao de data): a avulsa aparecia SOMENTE hoje.
-         Se voce registrasse progresso num dia passado, ao voltar aquele dia a
-         atividade nao aparecia e o registro "sumia" da visao (parecia perda de
-         dado). Agora ela tambem aparece em QUALQUER dia onde houve registro,
-         preservando o historico exatamente no dia correto. */
       const temHistoricoNoDia = (x.historico || []).some(h => h.data === day);
       if (temHistoricoNoDia) return true;
-      // pendencia: enquanto nao concluida, fica visivel no dia de hoje
       if (day === hoje && x.status !== 'concluida') return true;
-      // concluida (sem data propria): permanece acessivel no dia de hoje
       if (day === hoje) return true;
       return false;
     });
+    if (this._occCache) this._occCache.set(day, occ);
+    return occ;
   },
   _recurOnDay(x, day) {
     const inicio = (x.dataInicio && String(x.dataInicio).trim())
@@ -32121,21 +32140,21 @@ const ExtrasScreen = {
   },
   // ── Carga horária (minutos) ────────────────────────────────────────────
   _minInDay(day) {
-    return DB.getExtras().reduce((s, x) => {
+    return (DB._extrasReadSnapshot || DB.getExtras()).reduce((s, x) => {
       const emMin = (x.unidade === 'min' || x.tipo === 'video');
       return s + (x.historico || []).filter(h => h.data === day)
         .reduce((a, h) => a + (h.minutos || (emMin ? (h.quantidade || 0) : 0)), 0);
     }, 0);
   },
   _minInRange(a, b) {
-    return DB.getExtras().reduce((s, x) => {
+    return (DB._extrasReadSnapshot || DB.getExtras()).reduce((s, x) => {
       const emMin = (x.unidade === 'min' || x.tipo === 'video');
       return s + (x.historico || []).filter(h => h.data >= a && h.data <= b)
         .reduce((acc, h) => acc + (h.minutos || (emMin ? (h.quantidade || 0) : 0)), 0);
     }, 0);
   },
   _minTotal() {
-    return DB.getExtras().reduce((s, x) => {
+    return (DB._extrasReadSnapshot || DB.getExtras()).reduce((s, x) => {
       const emMin = (x.unidade === 'min' || x.tipo === 'video');
       return s + (x.historico || []).reduce((a, h) => a + (h.minutos || (emMin ? (h.quantidade || 0) : 0)), 0);
     }, 0);
@@ -37305,7 +37324,13 @@ const DesempenhoTecScreen = {
     if (p.disc) { const el = document.getElementById('reforco-disc'); if (el && [...el.options].some(o => o.value === p.disc)) el.value = p.disc; }
   },
   render() {
+    // Uma abertura do TEC consulta os mesmos retratos em escopo, análise, série,
+    // árvore e Plano. Desserializar 8× milhares de linhas a cada chamada era
+    // trabalho repetido. A fotografia dura somente este render.
+    DB._tecReadSnapshot = null;
+    this._scopeSigC = new WeakMap();
     const snaps = DB.getTecSnapshots();
+    DB._tecReadSnapshot = snaps;
     const emptyEl = document.getElementById('tec-empty');
     const importEl = document.getElementById('tec-import');
     const analysisEl = document.getElementById('tec-analysis');
@@ -37313,6 +37338,7 @@ const DesempenhoTecScreen = {
     if (snaps.length === 0) {
       emptyEl.style.display = 'block';
       analysisEl.style.display = 'none';
+      DB._tecReadSnapshot = null;
       return;
     }
     emptyEl.style.display = 'none';
@@ -37355,10 +37381,10 @@ const DesempenhoTecScreen = {
       this.rangeEnd = snaps[snaps.length - 1].endDate;
     }
     this.renderScopeControls(snaps);
-    this.renderAnalysis();
-    this.switchTecTab(this.tecTab || 'analise'); // reaplica a aba ativa
+    this.switchTecTab(this.tecTab || 'analise'); // reaplica e renderiza só a aba ativa
     this.applyCfgHidden();
     this.applyEnxuto();
+    DB._tecReadSnapshot = null;
   },
   // Mostra/oculta todos os filtros e configurações da tela (classe .tec-cfg),
   // deixando só os resultados. Estado salvo por perfil.
@@ -37668,6 +37694,13 @@ const DesempenhoTecScreen = {
        reutilizar silenciosamente o agregado anterior. FNV-1a é barato, estável
        e percorre exatamente os campos que alteram a consolidação. */
     const assinar = (snap) => {
+      // scopedSnapshot pode ser consultado por totais, evolução, filtros e Plano
+      // na mesma pintura. O objeto do retrato é imutável durante esse render;
+      // portanto sua assinatura também é. Evita percorrer milhares de linhas
+      // várias vezes só para confirmar a mesma chave de cache.
+      if (!this._scopeSigC) this._scopeSigC = new WeakMap();
+      const memo = this._scopeSigC.get(snap);
+      if (memo) return memo;
       let h = 2166136261 >>> 0;
       const mix = (v) => {
         const t = String(v == null ? '' : v);
@@ -37679,7 +37712,9 @@ const DesempenhoTecScreen = {
         mix(r.codigo); mix(r.nome); mix(r.disciplina); mix(r.depth);
         mix(r.questoes); mix(r.acertos);
       });
-      return h.toString(36);
+      const sig = h.toString(36);
+      this._scopeSigC.set(snap, sig);
+      return sig;
     };
     const chave = perfil + '|' + this.scopeMode + '|' + snaps.map(s => assinar(s)).join('|');
     if (this._scopedC && this._scopedC.chave === chave) return this._scopedC.valor;
@@ -38148,6 +38183,7 @@ const DesempenhoTecScreen = {
       const el = document.getElementById('tec-panel-' + t);
       if (el) el.style.display = (t === tab) ? 'block' : 'none';
     });
+    if (tab === 'analise') this.renderAnalysis();
     if (tab === 'incidencia') this.renderIncidencia();
     if (tab === 'reforco') this.renderReforco();
     if (tab === 'plano') this.renderPlano();
@@ -43021,6 +43057,21 @@ window.ReforcoFila = ReforcoFila;
     view: 'all',
     janelaProximas: 7,
     janelaConcluidas: 7,
+    passoMais: 50,
+    _limites: Object.create(null),
+
+    limiteBase(k) {
+      // No overview não há razão para montar centenas de cards fora do viewport.
+      // Concluídas já nasce recolhida, então começa ainda mais enxuta. Ao filtrar
+      // uma seção diretamente, mostramos uma janela maior de uma vez.
+      if (this.view === k) return 80;
+      return k === 'concluidas' ? 15 : 50;
+    },
+
+    fatiar(k, arr) {
+      const limite = this._limites[k] || this.limiteBase(k);
+      return { itens: arr.slice(0, limite), faltam: Math.max(0, arr.length - limite), limite };
+    },
 
     addDays(iso, n) {
       const d = new Date(iso + 'T00:00:00');
@@ -43038,7 +43089,7 @@ window.ReforcoFila = ReforcoFila;
 
     coletar(screen) {
       const hoje = todayLocal();
-      const extras = DB.getExtras();
+      const extras = DB._extrasReadSnapshot || DB.getExtras();
       const pendHoje = screen.occurrencesForDay(hoje)
         .filter(x => !DB.extraConcluidaEm(x, hoje))
         .map(x => ({ x, day: hoje, bucket: 'hoje' }));
@@ -43188,6 +43239,7 @@ window.ReforcoFila = ReforcoFila;
 
       dash.querySelectorAll('[data-exm-view]').forEach(b => b.addEventListener('click', () => {
         this.view = b.dataset.exmView || 'all';
+        this._limites = Object.create(null);
         screen.selDay = todayLocal();
         screen.render();
       }));
@@ -43228,7 +43280,7 @@ window.ReforcoFila = ReforcoFila;
       list.querySelectorAll('.exd').forEach(card => {
         const key = `${card.dataset.id}@${card.dataset.day}`;
         const entry = byKey.get(key);
-        const x = DB.getExtra(card.dataset.id);
+        const x = entry && entry.x;
         if (!entry || !x) return;
 
         const fonte = this.fonte(x);
@@ -43279,16 +43331,21 @@ window.ReforcoFila = ReforcoFila;
 
     secao(k, titulo, ico, arr, screen) {
       if (!arr.length) return '';
-      const cards = this.cardsPorDisciplina(arr, screen);
+      const fatia = this.fatiar(k, arr);
+      const cards = this.cardsPorDisciplina(fatia.itens, screen);
+      const mais = fatia.faltam ? `<div class="exm-more-row">
+        <span>Mostrando ${fatia.itens.length} de ${arr.length}</span>
+        <button type="button" class="btn-secondary" data-exm-more="${k}">Mostrar mais ${Math.min(this.passoMais, fatia.faltam)}</button>
+      </div>` : '';
       if (k === 'concluidas' && this.view !== 'concluidas') {
         return `<details class="exm-section exm-section-${k}">
           <summary><span class="exm-section-title">${ico} ${titulo}</span><span class="exm-section-count">${arr.length}</span><span class="chev">⌄</span></summary>
-          <div class="exm-section-body">${cards}</div>
+          <div class="exm-section-body">${cards}${mais}</div>
         </details>`;
       }
       return `<section class="exm-section exm-section-${k}">
         <div class="exm-section-head"><span class="exm-section-title">${ico} ${titulo}</span><span class="exm-section-count">${arr.length}</span></div>
-        <div class="exm-section-body">${cards}</div>
+        <div class="exm-section-body">${cards}${mais}</div>
       </section>`;
     },
 
@@ -43305,6 +43362,13 @@ window.ReforcoFila = ReforcoFila;
       list.innerHTML = grupos.map(([k, t, i, arr]) => this.secao(k, t, i, arr, screen)).join('');
       screen.bind(list);
       this.decorarCards(list, entries);
+      list.querySelectorAll('[data-exm-more]').forEach(btn => btn.addEventListener('click', () => {
+        const k = btn.dataset.exmMore;
+        const atual = this._limites[k] || this.limiteBase(k);
+        this._limites[k] = atual + this.passoMais;
+        // Não recalcula calendário/Plano/agenda: só expande a fatia já coletada.
+        this.renderOverview(screen, c);
+      }));
     },
 
     decorarDiaSelecionado(screen) {
@@ -43338,8 +43402,18 @@ window.ReforcoFila = ReforcoFila;
 
   const renderOriginal = ExtrasScreen.render;
   ExtrasScreen.render = function () {
-    const ret = renderOriginal.apply(this, arguments);
+    // Uma única fotografia alimenta a tela-base E a apresentação moderna. A tela
+    // moderna substitui o overview de hoje, portanto sinalizamos à base para não
+    // construir a mesma árvore de cards duas vezes.
+    const snapshot = DB.getExtras();
+    DB._extrasReadSnapshot = snapshot;
+    this._modernOverviewPass = (this.selDay || todayLocal()) === todayLocal();
+    let ret;
+    try { ret = renderOriginal.apply(this, arguments); }
+    finally { this._modernOverviewPass = false; }
+    DB._extrasReadSnapshot = snapshot;
     try { ExtrasModern.aplicar(this); } catch (e) { _quiet(e, 'extras-modern'); }
+    finally { DB._extrasReadSnapshot = null; }
     return ret;
   };
 
