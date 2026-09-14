@@ -110,8 +110,16 @@ const ExtrasScreen = {
     const extrasPlano = DB.getExtras().filter(e => e.origemPlano && e.origemPlano.topico && e.status !== 'concluida');
     if (!extrasPlano.length) { host.innerHTML = ''; return; }
     let itens = [];
-    try { itens = PlanoCiclo.emCurso(this._planoRefCard || (this._planoRefCard =
-      PlanoEngine.calcular(DesempenhoTecScreen.scopedSnapshot(), PlanoEngine.prefs()))); }
+    try {
+      /* Repinturas encadeadas (registrar → concluir → reabrir) não precisam
+         recalcular a mesma fotografia do TEC a cada clique. O cache curto do
+         próprio Desempenho TEC já é a régua usada pela criação em lote e é
+         invalidado quando o escopo muda. */
+      const refPlano = (typeof DesempenhoTecScreen !== 'undefined' && typeof DesempenhoTecScreen._planoRef === 'function')
+        ? DesempenhoTecScreen._planoRef()
+        : PlanoEngine.calcular(DesempenhoTecScreen.scopedSnapshot(), PlanoEngine.prefs());
+      itens = PlanoCiclo.emCurso(this._planoRefCard || (this._planoRefCard = refPlano));
+    }
     catch (e) { _quiet(e, 'curso'); }
     if (!itens.length) { host.innerHTML = ''; return; }
     const aberto = this._cursoAberto !== false;
@@ -184,18 +192,28 @@ const ExtrasScreen = {
     /* "Fazer hoje" é o agendamento MANUAL que sobrou: a exceção para quem quer
        fixar um assunto num dia, sem que isso vire regra para todos. */
     host.querySelectorAll('[data-curso-dia]').forEach(b => b.addEventListener('click', () => {
-      DB.toggleExtraData(b.dataset.cursoDia, todayLocal());
-      this.selDay = todayLocal(); showToast('Marcada para hoje ✓'); this.render();
+      const executar = () => {
+        DB.toggleExtraData(b.dataset.cursoDia, todayLocal());
+        this.selDay = todayLocal(); showToast('Marcada para hoje ✓'); this.render();
+      };
+      if (window.WorkFeedback) WorkFeedback.run(b, 'Organizando…', executar, { region: '#extras-curso', context: 'extras-curso-hoje' });
+      else executar();
     }));
     host.querySelectorAll('[data-curso-fim]').forEach(b => b.addEventListener('click', () => {
-      DB.setConcluidaDia(b.dataset.cursoFim, todayLocal(), true);
-      showToast('Concluída ✓'); this.render();
+      const executar = () => {
+        DB.setConcluidaDia(b.dataset.cursoFim, todayLocal(), true);
+        showToast('Concluída ✓'); this.render();
+      };
+      if (window.WorkFeedback) WorkFeedback.run(b, 'Concluindo…', executar, { region: '#extras-curso', context: 'extras-curso-concluir' });
+      else executar();
     }));
     host.querySelectorAll('[data-curso-del]').forEach(b => b.addEventListener('click', async () => {
       const e = DB.getExtras().find(x => x.id === b.dataset.cursoDel);
       if (!e) return;
       if (!await UI.confirm('Excluir "' + e.titulo + '"?', { title: 'Excluir atividade', okText: 'Excluir', danger: true })) return;
-      DB.deleteExtra(e.id); showToast('Atividade excluída'); this.render();
+      const executar = () => { DB.deleteExtra(e.id); showToast('Atividade excluída'); this.render(); };
+      if (window.WorkFeedback) WorkFeedback.run(b, 'Excluindo…', executar, { region: '#extras-curso', context: 'extras-curso-excluir' });
+      else executar();
     }));
   },
   // ── Ocorrências de um dia ──────────────────────────────────────────────
@@ -662,10 +680,14 @@ const ExtrasScreen = {
         if (!q || parseFloat(q) <= 0) { showToast('Informe um valor válido'); return; }
         if (acEl && acEl.value !== '' && parseFloat(acEl.value) > parseFloat(q)) { showToast('Acertos não podem passar do total'); return; }
         if (day > todayLocal()) { showToast('Não dá para registrar em data futura'); return; }
-        DB.addExtraProgress(id, q, 0, { data: day, acertos: acEl ? acEl.value : null });
-        this._addMoreFor = null;
-        this.render();
-        showToast(day === todayLocal() ? 'Registrado ✓' : 'Registrado em ' + formatDateShort(day) + ' ✓');
+        const executar = () => {
+          DB.addExtraProgress(id, q, 0, { data: day, acertos: acEl ? acEl.value : null });
+          this._addMoreFor = null;
+          this.render();
+          showToast(day === todayLocal() ? 'Registrado ✓' : 'Registrado em ' + formatDateShort(day) + ' ✓');
+        };
+        if (window.WorkFeedback) WorkFeedback.run(regBtn, 'Registrando…', executar, { region: '#extras-list', context: 'extras-registro' });
+        else executar();
       });
       // "Registrar mais": revela o campo de entrada mesmo já havendo um registro no dia
       const moreBtn = card.querySelector('.exd-reg-more');

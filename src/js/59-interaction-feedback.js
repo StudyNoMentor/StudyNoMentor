@@ -52,15 +52,20 @@
       if (el) this._busy.add(el);
 
       const estado = el ? {
-        html: el.innerHTML,
         disabled: !!el.disabled,
-        ariaBusy: el.getAttribute('aria-busy')
+        ariaBusy: el.getAttribute('aria-busy'),
+        workLabel: el.getAttribute('data-work-label')
       } : null;
       if (el) {
         el.classList.add('ui-working');
         el.setAttribute('aria-busy', 'true');
         el.disabled = true;
-        if (rotulo && /^(BUTTON|A)$/.test(el.tagName)) el.textContent = rotulo;
+        /* O rótulo REAL do controle nunca é substituído. O spinner vem da
+           classe `.ui-working`; `data-work-label` serve apenas como metadado de
+           diagnóstico/acessibilidade e não entra no conteúdo do botão. Assim um
+           render no meio da operação não pode cristalizar “Processando…” dentro
+           de um botão novo. */
+        if (rotulo) el.setAttribute('data-work-label', rotulo);
       }
       if (regiao) {
         regiao.classList.add('ui-work-region');
@@ -84,7 +89,7 @@
             el.classList.remove('ui-working');
             if (estado.ariaBusy == null) el.removeAttribute('aria-busy'); else el.setAttribute('aria-busy', estado.ariaBusy);
             el.disabled = estado.disabled;
-            if (estado.html != null && /^(BUTTON|A)$/.test(el.tagName)) el.innerHTML = estado.html;
+            if (estado.workLabel == null) el.removeAttribute('data-work-label'); else el.setAttribute('data-work-label', estado.workLabel);
           }
         }
         if (regiao && regiao.isConnected) {

@@ -10,6 +10,7 @@
 #   · o reforco adaptativo produzir dose ou parada estatisticamente invalida;
 #   · modais de Extras voltarem a se sobrepor ou a ativacao adaptativa travar;
 #   · Desempenho TEC -> Plano voltar a congelar em perfis grandes;
+#   · interacoes de Extras/Plano deixarem rotulos transitórios presos nos botoes;
 #   · o botao "Opcoes" da Grade voltar a vazar do cabecalho.
 name: Verificacao
 
@@ -81,6 +82,12 @@ jobs:
       # reabertura do Plano para impedir a volta de congelamentos de varios segundos.
       - name: Validar fluidez do Plano TEC
         run: node testes/tec-plano-performance-browser.mjs
+
+      # Varre os controles interativos reais de Extras e Plano em desktop/mobile,
+      # inclusive o ciclo Concluir -> Reabrir, impedindo rótulo de processamento
+      # preso, botão sem nome acessível, overflow e regressões de feedback visual.
+      - name: Auditar interacoes de Extras e Plano TEC
+        run: node testes/extras-tec-interacoes-browser.mjs
 
       - name: Verificar
         run: node verificar.mjs
