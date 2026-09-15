@@ -8,7 +8,7 @@ const page = read('companion/src/tec-page.js');
 const checks = [
   ['Companion preserva versão instalada 1.0.4 no hotfix', manifest.version === '1.0.4'],
   ['TEC continua em todos os frames', (manifest.content_scripts || []).filter(x => (x.matches || []).some(m => /tecconcursos/.test(m))).every(x => x.all_frames === true)],
-  ['gatilho aceita controles além do texto Resolver', tec.includes('function interactionControl') && tec.includes('armPending') && tec.includes("armPending(resolver?'resolver':'interaction'"))],
+  ['gatilho aceita controles além do texto Resolver', tec.includes('function interactionControl') && tec.includes('armPending') && tec.includes("armPending(resolver?'resolver':'interaction'")],
   ['mudança e submit também armam captura', tec.includes("addEventListener('change'") && tec.includes("addEventListener('submit'"))],
   ['resultado continua sendo condição para emissão', tec.includes('if (result(null)) return false') && tec.includes("markCapture(accepted?'queued':'staged'"))],
   ['rótulos alternativos são reconhecidos', tec.includes('Enviar\\s+resposta') && tec.includes('Corrigir') && tec.includes('Finalizar')],
