@@ -13,6 +13,7 @@ assert.deepEqual([...new Set(duplicados)],[],'build.mjs não pode carregar a mes
 
 const fontesAbs=walk(join(ROOT,'src')).filter(f=>/\.(?:js|css|html)$/.test(f));
 const fontes=fontesAbs.map(f=>relative(join(ROOT,'src'),f).replaceAll('\\','/')).sort();
+for(const f of fontes) assert.equal(/-v\d+\.(?:js|css)$/i.test(f),false,`fonte atual não deve carregar sufixo de versão: ${f}`);
 const noBuild=[...new Set(declarados)].sort();
 assert.deepEqual(noBuild,fontes,'todo JS/CSS/HTML de src deve participar exatamente do build publicado');
 
@@ -26,8 +27,8 @@ assert.equal(existsSync(join(ROOT,'testes','evidencias')),false,'evidências ger
 
 const semComentarios=src=>src.replace(/\/\*[\s\S]*?\*\//g,'').replace(/(^|[^:])\/\/[^\n\r]*/g,'$1');
 const aliasesObsoletos=[
-  'PlanoSugestoesSimplificadoV2','PlanoSugestoesV2','PlanoSugestoesV3','PlanoSugestoesV4',
-  'PlanoMotoresGovernancaV5','PlanoMotoresCentralTecV2','PlanoMotoresCentralTecV3','PlanoMotoresCentralTecV4','TecPlanoFonteMotorV1'
+  'PlanoSugestoesSimplificado','PlanoSugestoes','PlanoSugestoes','PlanoSugestoes',
+  'PlanoMotoresGovernanca','PlanoMotoresCentralTec','PlanoMotoresCentralTec','PlanoMotoresCentralTec','TecPlanoFonteMotor'
 ];
 const fontesJs=fontesAbs.filter(f=>f.endsWith('.js'));
 for(const f of fontesJs){
@@ -57,3 +58,6 @@ const orfaos=mjsTopo.filter(n=>!cobertura.includes(`testes/${n}`));
 assert.deepEqual(orfaos,[],`testes .mjs sem execução automática: ${orfaos.join(', ')}`);
 
 console.log(`OK: higiene do repositório — ${fontes.length} fontes publicadas, nenhuma órfã/duplicada, ${mjsTopo.length} testes executáveis cobertos e nenhum artefato/alias obsoleto conhecido.`);
+
+const APIsVersionadas=/\b(?:ReforcoTecExtras|PlanoSugestoes(?:Infra|Simplificado|Robusto)?|PlanoRobustoAuditLog|PlanoMotoresGovernanca|PlanoMotoresCentralTec|TecPlanoFonteMotor)V\d+\b/;
+for(const f of fontesAbs.filter(x=>x.endsWith('.js'))){const c=semComentarios(readFileSync(f,'utf8'));assert.equal(APIsVersionadas.test(c),false,`API canônica não deve expor nome versionado: ${relative(ROOT,f)}`);}

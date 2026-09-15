@@ -1,6 +1,6 @@
-# Robusto V8 — auditoria humana local
+# Robusto — auditoria humana local
 
-O Robusto V8 mantém um **flight recorder local** para permitir calibração posterior com uso humano real sem transformar observações em causalidade.
+O Robusto mantém um **flight recorder local** para permitir calibração posterior com uso humano real sem transformar observações em causalidade.
 
 ## Fontes registradas
 

@@ -19,7 +19,7 @@ const ctx={
   DB:{_profilePrefix:()=> 'p:',setRaw:(k,v)=>mem.set(k,String(v))},
   _quiet(){},showToast(){},
   UI:{_open(){},_resolve:null,_mode:null},
-  PlanoSugestoesV5:{
+  PlanoSugestoes:{
     KEY:'plano-sug-ui-v5',
     prefs(){return{modo:uiMode,fase:'pre',meta:90,minAmostra:20,banca:'__todas__',alvoQuestoes:30};},
     salvar(p){if(['simplificado','robusto','comparar'].includes(p?.modo))uiMode=p.modo;return this.prefs();},
@@ -37,9 +37,9 @@ const ctx={
 };
 ctx.window=Object.assign(ctx.window,ctx);
 vm.createContext(ctx);
-const src=readFileSync(join(ROOT,'src/js/90-plano-motores-governanca-v5.js'),'utf8');
+const src=readFileSync(join(ROOT,'src/js/90-plano-motores-governanca.js'),'utf8');
 vm.runInContext(src,ctx,{filename:'90-plano-motores-governanca-v5.js'});
-const G=ctx.window.PlanoMotoresGovernancaV6,C=ctx.window.PlanoSugestoesV5;
+const G=ctx.window.PlanoMotoresGovernanca,C=ctx.window.PlanoSugestoes;
 assert(G&&C,'governança V6 deve instalar sobre o controller atual');
 
 assert.deepEqual({...G.estado()},{simplificado:true,robusto:true},'compatibilidade: os dois motores devem nascer ativos');

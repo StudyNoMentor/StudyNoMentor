@@ -7,8 +7,8 @@
    seja aplicado uma única vez por cálculo do Plano.
    ============================================================================ */
 (() => {
-  if (typeof window === 'undefined' || !window.ReforcoAdaptativo || window.__raContinuityCoreV4) return;
-  window.__raContinuityCoreV4 = true;
+  if (typeof window === 'undefined' || !window.ReforcoAdaptativo || window.__raContinuityCore) return;
+  window.__raContinuityCore = true;
   const RA = window.ReforcoAdaptativo;
   if (typeof RA.prescrever !== 'function' || typeof RA.contexto !== 'function' ||
       typeof RA._aplicarContinuidade !== 'function') return;

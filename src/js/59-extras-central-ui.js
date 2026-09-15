@@ -3,8 +3,8 @@
    Camada de UX: não altera motores de Reforço/Lei Seca.
    ============================================================ */
 (() => {
-  if (typeof window !== 'undefined' && window.__extrasCentralUiV1) return;
-  if (typeof window !== 'undefined') window.__extrasCentralUiV1 = true;
+  if (typeof window !== 'undefined' && window.__extrasCentralUi) return;
+  if (typeof window !== 'undefined') window.__extrasCentralUi = true;
   if (typeof ExtrasScreen === 'undefined') return;
 
   const esc = (v) => typeof escapeHtml === 'function'

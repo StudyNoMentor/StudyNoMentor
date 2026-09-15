@@ -5,9 +5,9 @@
    Independente de PlanoEngine, Mentor90 e do motor Robusto.
    ============================================================================ */
 (() => {
-  if (typeof window === 'undefined' || window.__planoSugSimplificadoV3) return;
-  window.__planoSugSimplificadoV3 = true;
-  const I = window.PlanoSugestoesInfraV2;
+  if (typeof window === 'undefined' || window.__planoSugSimplificado) return;
+  window.__planoSugSimplificado = true;
+  const I = window.PlanoSugestoesInfra;
   if (!I || typeof DB === 'undefined') return;
   const { num, clamp, norm } = I;
   const OWN_PREF_KEYS = Object.freeze(['fase','meta','minAmostra','banca','alvoQuestoes']);
@@ -198,5 +198,5 @@
     },
     arquitetura() { return { motor:this.MOTOR, revisao:this.REVISAO_AUDITORIA, independente:true, usaPlanoEngine:false, usaMentor90:false, deps:this.deps.slice(), prefs:this.PREF_KEYS.slice(), particaoHierarquica:'nao-sobreposta' }; }
   };
-  window.PlanoSugestoesSimplificadoV3 = S;
+  window.PlanoSugestoesSimplificado = S;
 })();

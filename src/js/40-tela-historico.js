@@ -368,7 +368,7 @@ const HistoricoScreen = {
         const w = DB.getCycleHistory().find(x => x.id === id);
         if (!await UI.confirm(`Excluir a semana de ${formatDateShort(w.startDate)} a ${formatDateShort(w.endDate)} do histórico?\n\nEssa ação não pode ser desfeita.`,
           { title: '🗑️ Excluir semana', okText: 'Excluir', danger: true })) return;
-        try { if (window.VersionHistory) await VersionHistory.antesDe('excluir uma semana do histórico'); } catch (_) { _quiet(_); }
+        try { if (window.BackupHistory) await BackupHistory.antesDe('excluir uma semana do histórico'); } catch (_) { _quiet(_); }
         DB.deleteCycleHistoryEntry(id);
         showToast('Semana removida do histórico');
         this.render();

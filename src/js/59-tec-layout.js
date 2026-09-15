@@ -3,12 +3,12 @@
    Camada exclusivamente de apresentação: não altera cálculos nem filas.
    ============================================================ */
 (() => {
-  if (typeof window !== 'undefined' && window.__tecLayoutV2) return;
-  if (typeof window !== 'undefined') window.__tecLayoutV2 = true;
+  if (typeof window !== 'undefined' && window.__tecLayout) return;
+  if (typeof window !== 'undefined') window.__tecLayout = true;
   if (typeof DesempenhoTecScreen === 'undefined') return;
 
   const DT = DesempenhoTecScreen;
-  const TecLayoutV2 = {
+  const TecLayout = {
     _find(panel, sels) {
       for (const s of sels) { const el = panel.querySelector(s); if (el) return el; }
       return null;
@@ -86,6 +86,6 @@
       this.decorarGeral();
     }
   };
-  TecLayoutV2.instalar();
-  if(typeof window!=='undefined')window.TecLayoutV2=TecLayoutV2;
+  TecLayout.instalar();
+  if(typeof window!=='undefined')window.TecLayout=TecLayout;
 })();

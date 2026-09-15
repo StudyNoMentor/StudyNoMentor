@@ -26,7 +26,7 @@ const ctx={
   localStorage:{getItem:k=>mem.get(k)||null,setItem:(k,v)=>mem.set(k,String(v)),removeItem:k=>mem.delete(k)},
   DB:{_profilePrefix:()=> 'p:',setRaw:(k,v)=>mem.set(k,String(v)),delRaw:k=>mem.delete(k),getExtras:()=>extras,getTecSnapshots:()=>[clone(snap)],getIncidencia:()=>clone(inc),getBancas:()=>['FGV'],getActiveSubjects:()=>[],addExtra:data=>{const e={id:'e'+(extras.length+1),status:'ativa',historico:[],...clone(data)};extras.push(e);return e;},updateExtra:(id,p)=>Object.assign(extras.find(x=>x.id===id),clone(p))},
   PlanManager:{getActivePlan:()=>plan,updatePlan:(id,p)=>Object.assign(plan,clone(p))},
-  PlanoSugestoesInfraV2:I,
+  PlanoSugestoesInfra:I,
   PlanoCiclo:{titulo:n=>'Reforçar: '+n,origem:(nome,disc,item)=>({topico:nome,disciplina:disc,taxaInicial:item.taxa})},
   ExtrasScreen:{puxarDoPlano(){return'legacy';},render(){}},UI:{_open(){},_resolve:null,_mode:null},
   escapeHtml:s=>String(s),showToast(){},_quiet(){},window:{addEventListener(){},dispatchEvent(){}}
@@ -34,25 +34,25 @@ const ctx={
 ctx.window=Object.assign(ctx.window,ctx);
 vm.createContext(ctx);
 const load=f=>vm.runInContext(readFileSync(join(ROOT,f),'utf8'),ctx,{filename:f});
-load('src/js/84b-reforco-tec-extras-v8.js');
+load('src/js/84b-reforco-tec-extras.js');
 // No navegador clássico, propriedades de window também resolvem como identificadores globais.
 // O vm do Node usa um objeto window separado, então reproduzimos explicitamente esse contrato.
-ctx.ReforcoTecExtrasV8=ctx.window.ReforcoTecExtrasV8;
-load('src/js/87-plano-sugestoes-simplificado-v2.js');
-load('src/js/88-plano-sugestoes-robusto-v8.js');
+ctx.ReforcoTecExtras=ctx.window.ReforcoTecExtras;
+load('src/js/87-plano-sugestoes-simplificado.js');
+load('src/js/88-plano-sugestoes-robusto.js');
 load('src/js/89-plano-sugestoes-controller.js');
 
 const W=ctx.window;
-const S=W.PlanoSugestoesSimplificadoV3||W.PlanoSugestoesSimplificadoV2;
-const R=W.PlanoSugestoesRobustoV8;
-const C=W.PlanoSugestoesV5;
+const S=W.PlanoSugestoesSimplificado||W.PlanoSugestoesSimplificado;
+const R=W.PlanoSugestoesRobusto;
+const C=W.PlanoSugestoes;
 assert(S&&R&&C,'motores e controller devem publicar APIs no window');
 assert.equal(S.VERSAO,3);
 assert.equal(R.VERSAO,8);
 assert.equal(C.VERSAO,5);
 
-const simpleExec=semComentarios(readFileSync(join(ROOT,'src/js/87-plano-sugestoes-simplificado-v2.js'),'utf8'));
-const robExec=semComentarios(readFileSync(join(ROOT,'src/js/88-plano-sugestoes-robusto-v8.js'),'utf8'));
+const simpleExec=semComentarios(readFileSync(join(ROOT,'src/js/87-plano-sugestoes-simplificado.js'),'utf8'));
+const robExec=semComentarios(readFileSync(join(ROOT,'src/js/88-plano-sugestoes-robusto.js'),'utf8'));
 assert(!/\bPlanoEngine\s*[.(\[]|\bMentor90(?:V\d+)?\s*[.(\[]/.test(simpleExec),'Simplificado não deve executar PlanoEngine/Mentor90');
 assert(!/\bPlanoSugestoesSimplificado\w*\s*[.(\[]|plano-simplificado/.test(robExec),'Robusto não deve conhecer Simplificado/storage dele');
 
@@ -93,4 +93,4 @@ C.salvar({modo:'robusto',meta:99,campoEstranho:'x'});
 const rawCtrl=JSON.parse(mem.get('p:'+C.KEY));
 assert.deepEqual(Object.keys(rawCtrl),['modo'],'controller persiste apenas modo');
 
-console.log('OK: Simplificado V3 e Robusto V8 independentes; controller V5 usa apenas posição/consenso e três disciplinas.');
+console.log('OK: Simplificado e Robusto independentes; controller V5 usa apenas posição/consenso e três disciplinas.');

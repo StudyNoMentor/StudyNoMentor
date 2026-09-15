@@ -3,8 +3,8 @@
    Corrige sobreposições e elimina recomputações quadráticas no Plano.
    ============================================================ */
 (() => {
-  if (typeof window !== 'undefined' && window.__extrasStabilityV1) return;
-  if (typeof window !== 'undefined') window.__extrasStabilityV1 = true;
+  if (typeof window !== 'undefined' && window.__extrasStability) return;
+  if (typeof window !== 'undefined') window.__extrasStability = true;
 
   const OVERLAY_SELECTOR = '.xsc-overlay,.rg-overlay,.ra-overlay';
   const FOCUSABLE = 'a[href],button:not([disabled]),input:not([disabled]):not([type="hidden"]),select:not([disabled]),textarea:not([disabled]),[tabindex]:not([tabindex="-1"])';

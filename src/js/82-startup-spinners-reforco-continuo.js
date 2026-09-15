@@ -12,8 +12,8 @@
    martelar o mesmo assunto no mesmo dia.
    ============================================================================ */
 (() => {
-  if (typeof window === 'undefined' || window.__startupSpinnerReforcoV4) return;
-  window.__startupSpinnerReforcoV4 = true;
+  if (typeof window === 'undefined' || window.__startupSpinnerReforco) return;
+  window.__startupSpinnerReforco = true;
 
   const quiet = (e, tag) => { try { if (typeof _quiet === 'function') _quiet(e, tag || 'ux-v4'); } catch (ignored) { void ignored; } };
   const norm = (s) => {
@@ -25,7 +25,7 @@
   /* ── TELEMETRIA LOCAL DE STARTUP ──────────────────────────────────────────
      Não envia nada para fora. Serve para diagnosticar exatamente onde um login
      ficou lento: autenticação, abertura local ou reconciliação remota. */
-  const StartupTraceV4 = {
+  const StartupTrace = {
     KEY: 'diario-estudos:startup-v4:last',
     startedAt: performance && performance.now ? performance.now() : Date.now(),
     marks: [],
@@ -41,11 +41,11 @@
     },
     table() { try { console.table(this.last()); } catch (e) { quiet(e, 'startup-trace-table'); } return this.last(); }
   };
-  window.StartupTraceV4 = StartupTraceV4;
-  StartupTraceV4.mark('camada-v4-pronta');
+  window.StartupTrace = StartupTrace;
+  StartupTrace.mark('camada-v4-pronta');
 
   /* ── LOADERS / SPINNERS ────────────────────────────────────────────────── */
-  const LoaderUXV4 = {
+  const LoaderUX = {
     _seen: new WeakMap(),
     _observer: null,
     _timer: null,
@@ -128,8 +128,8 @@
       if (!this._timer) this._timer = setInterval(() => this.watchdog(), 1000);
     }
   };
-  window.LoaderUXV4 = LoaderUXV4;
-  LoaderUXV4.init();
+  window.LoaderUX = LoaderUX;
+  LoaderUX.init();
 
   function gateMessage(main, sub, localFirst) {
     try {
@@ -156,7 +156,7 @@
   async function reconcileProfile(id) {
     if (!id || !window.CloudStore || !CloudStore.isReady || !CloudStore.isReady() || !CloudStore.isLoggedIn || !CloudStore.isLoggedIn()) return false;
     if (window.ProfileManager && ProfileManager.getActiveProfileId && ProfileManager.getActiveProfileId() !== id) return false;
-    StartupTraceV4.mark('reconciliacao-inicio');
+    StartupTrace.mark('reconciliacao-inicio');
     syncNote('Conferindo novidades da nuvem em segundo plano…');
     try {
       // Primeiro entrega o que este aparelho ainda não enviou. Só depois pergunta
@@ -176,12 +176,12 @@
         else if (CloudStore.pullActiveAndReload) await CloudStore.pullActiveAndReload();
       } else {
         try { if (window.SectionSync) SectionSync.kick(); } catch (e) { quiet(e, 'reconcile-kick'); }
-        StartupTraceV4.mark('reconciliacao-sem-novidade');
+        StartupTrace.mark('reconciliacao-sem-novidade');
       }
       return true;
     } catch (e) {
       quiet(e, 'reconciliacao-v4');
-      StartupTraceV4.mark('reconciliacao-adiada', { erro: String(e && e.message || e || '') });
+      StartupTrace.mark('reconciliacao-adiada', { erro: String(e && e.message || e || '') });
       return false;
     } finally {
       setTimeout(() => syncNote(''), 650);
@@ -198,7 +198,7 @@
         return;
       }
       if (tent < 30) setTimeout(run, 250);
-      else StartupTraceV4.mark('reconciliacao-sem-sessao');
+      else StartupTrace.mark('reconciliacao-sem-sessao');
     };
     setTimeout(run, 80);
   }
@@ -220,7 +220,7 @@
       // local impede abrir dado de outra conta.
       if (logged && has && can) {
         const ativoAntes = ProfileManager.getActiveProfileId();
-        StartupTraceV4.mark('perfil-local-encontrado', { mesmoPerfil: ativoAntes === id });
+        StartupTrace.mark('perfil-local-encontrado', { mesmoPerfil: ativoAntes === id });
         this._autoEnterTried = true; this._entering = true;
         gateMessage('Abrindo seus estudos deste aparelho…', 'Você já pode entrar; a nuvem será conferida em segundo plano.', true);
         try { ProfileManager.setActiveProfile(id); if (ProfileManager._setOwner && uid) ProfileManager._setOwner(id, uid); } catch (e) { quiet(e, 'local-first-active'); }
@@ -232,21 +232,21 @@
           this._entering = false;
           try { this.hideGate(); this.renderChip(); } catch (e) { quiet(e, 'local-first-hide'); }
           try { DB.checarEspaco(); } catch (e) { quiet(e, 'local-first-space'); }
-          StartupTraceV4.mark('perfil-local-visivel');
+          StartupTrace.mark('perfil-local-visivel');
           scheduleReconcile(id);
           return true;
         }
 
         // Outro perfil local: troca o namespace e recarrega IMEDIATAMENTE a partir
         // do armazenamento local. Não espera hydrate/fetchPayload antes do reload.
-        StartupTraceV4.mark('troca-perfil-local-reload');
+        StartupTrace.mark('troca-perfil-local-reload');
         if (typeof recarregarApp === 'function') recarregarApp('troca local-first de perfil', { imediato: true });
         else location.reload();
         return true;
       }
 
       gateMessage('Baixando seu perfil…', 'Este aparelho ainda precisa receber os dados necessários antes de abrir.', false);
-      StartupTraceV4.mark('perfil-remoto-necessario');
+      StartupTrace.mark('perfil-remoto-necessario');
       return original(id);
     };
 
@@ -446,5 +446,5 @@
   installAdaptiveContinuity();
 
   // Exposto para auditoria automatizada e diagnóstico no console.
-  window.UXV4 = { StartupTraceV4, LoaderUXV4, reconcileProfile, installLocalFirst, installAdaptiveContinuity };
+  window.UX = { StartupTrace, LoaderUX, reconcileProfile, installLocalFirst, installAdaptiveContinuity };
 })();

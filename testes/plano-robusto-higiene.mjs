@@ -32,6 +32,6 @@ for(const f of files){
   if(/\brobusto-v5\b/.test(txt))erros.push(`${rel}: id robusto-v5`);
 }
 assert.deepEqual(erros,[],`residuos executaveis/visuais do Robusto antigo:\n${erros.join('\n')}`);
-const build=readFileSync(join(ROOT,'build.mjs'),'utf8');for(const ativo of ['84b-reforco-tec-extras-v8.js','88-plano-sugestoes-robusto-v8.js','89-plano-sugestoes-controller.js','89a-plano-robusto-audit-log-v2.js'])assert(build.includes(ativo),`build precisa carregar ${ativo}`);
+const build=readFileSync(join(ROOT,'build.mjs'),'utf8');for(const ativo of ['84b-reforco-tec-extras-v8.js','88-plano-sugestoes-plano-robusto.js','89-plano-sugestoes-controller.js','89a-plano-robusto-audit-log-v2.js'])assert(build.includes(ativo),`build precisa carregar ${ativo}`);
 for(const antigo of ['88-plano-sugestoes-robusto-v2.js','88a-plano-robusto-config-v4.js','88b-plano-robusto-router-v4.js','88c-plano-robusto-optimizer-v4.js','88d-plano-sugestoes-robusto-v4.js','85-mentor90-performance-bridge-v5.js','85-mentor90-policy-v6.js'])assert(!build.includes(antigo),`build nao pode carregar ${antigo}`);
-console.log(`OK: limpeza Robusto V8 — ${files.length} arquivos de produto/docs auditados; sem módulos, referências executáveis ou seletores visuais legados.`);
+console.log(`OK: limpeza Robusto — ${files.length} arquivos de produto/docs auditados; sem módulos, referências executáveis ou seletores visuais legados.`);

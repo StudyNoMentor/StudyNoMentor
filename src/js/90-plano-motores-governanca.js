@@ -3,10 +3,10 @@
    Disponibilidade global de Simplificado/Robusto sem tocar em suas formulas.
    ============================================================================ */
 (() => {
-  if(typeof window==='undefined'||window.__planoMotoresGovernancaV6)return;
-  const C=window.PlanoSugestoesV5;
+  if(typeof window==='undefined'||window.__planoMotoresGovernanca)return;
+  const C=window.PlanoSugestoes;
   if(!C||typeof DB==='undefined')return;
-  window.__planoMotoresGovernancaV6=true;
+  window.__planoMotoresGovernanca=true;
 
   const G={
     VERSAO:6,KEY:'plano-motores-governanca-v5',DEFAULTS:Object.freeze({simplificado:true,robusto:true}),_orig:{},
@@ -25,6 +25,6 @@
     instalarController(){if(this._controllerInstalled)return;this._controllerInstalled=true;['prefs','salvar','simplificado','robusto','comparar','calcular','criar','_cabecalho','abrir'].forEach(k=>{this._orig[k]=C[k]?.bind(C);});const self=this;C.prefs=function(){const p=self._orig.prefs?self._orig.prefs():{},modo=self.resolverModo(p&&p.modo);return{modo};};C.salvar=function(patch){const x={...(patch||{})};if('modo'in x)x.modo=self.resolverModo(x.modo);const out=self._orig.salvar?self._orig.salvar(x):x;return{modo:self.resolverModo(out&&out.modo)};};C.simplificado=function(){return self.pode('simplificado')?self._orig.simplificado():self._erro('simplificado');};C.robusto=function(){return self.pode('robusto')?self._orig.robusto():self._erro('robusto');};C.comparar=function(){return self.pode('comparar')?self._orig.comparar():self._erro('comparar');};C.calcular=function(p){const base={...(p||C.prefs())},modo=self.resolverModo(base.modo);if(!modo)return self._erro(null);base.modo=modo;if(modo==='simplificado')return C.simplificado();if(modo==='comparar')return C.comparar();return C.robusto();};const err=C._erroTexto?.bind(C);C._erroTexto=function(e){if(e==='motor-desabilitado')return'Este motor está desabilitado nas Configurações.';if(e==='motores-desabilitados')return'Ative Simplificado ou Robusto em Configurações.';return err?err(e):'Não foi possível formar sugestões.';};C._cabecalho=function(p,res){p={...(p||C.prefs()),modo:self.resolverModo(p&&p.modo)};if(!p.modo)return'<div class="ps-empty"><b>Motores desabilitados</b><span>Ative Simplificado ou Robusto em Configurações.</span></div>';return self._selectorHtml(p.modo)+(self._orig._cabecalho?self._orig._cabecalho(p,res):'');};C.criar=function(screen,p,res){const modo=self.resolverModo(p&&p.modo);if(!modo||!self.pode(modo))return 0;return self._orig.criar(screen,{...(p||{}),modo},res);};C.abrir=function(screen){const p=C.prefs();if(!p.modo){if(typeof showToast==='function')showToast('Ative um motor em Configurações.');return;}return self._orig.abrir(screen);};},
     init(){this.instalarController();this.syncVisibility();this.renderConfig();try{window.addEventListener('screen:change',()=>{this.syncVisibility();if(typeof ConfigScreen!=='undefined'&&document.getElementById('screen-config')?.classList.contains('active'))this.renderConfig();});}catch(e){if(typeof _quiet==='function')_quiet(e,'plano-motores-v6-init');}}
   };
-  window.PlanoMotoresGovernancaV6=G;
+  window.PlanoMotoresGovernanca=G;
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>G.init(),{once:true});else G.init();
 })();

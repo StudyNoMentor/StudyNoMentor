@@ -89,10 +89,10 @@ const Recuperacao = {
     return Object.values(perfis).sort((a, b) => b.bytes - a.bytes);
   },
   /* As fotos NÃO moram no namespace do perfil — a chave é
-     'diario-estudos:vhist:<id>'. Ler pela API do próprio VersionHistory evita
+     'diario-estudos:vhist:<id>'. Ler pela API do próprio BackupHistory evita
      que este módulo se desatualize se aquele formato mudar. */
   _fotosDe(pid) {
-    try { return VersionHistory._list(pid) || []; } catch (e) { _quiet(e, 'rec-lista-fotos'); return []; }
+    try { return BackupHistory._list(pid) || []; } catch (e) { _quiet(e, 'rec-lista-fotos'); return []; }
   },
   _contarFotos(pid) { return this._fotosDe(pid).length; },
   /* Planejamentos que TÊM dados mas não estão na lista — a causa mais comum de
@@ -211,7 +211,7 @@ const Recuperacao = {
     const lista = this._fotosDe(alvo);
     for (const rec of lista) {
       let data = null;
-      try { const json = await VersionHistory._gunzip(rec); data = json ? JSON.parse(json) : null; } catch (e) { _quiet(e, 'rec-abrir-foto'); }
+      try { const json = await BackupHistory._gunzip(rec); data = json ? JSON.parse(json) : null; } catch (e) { _quiet(e, 'rec-abrir-foto'); }
       if (!data) continue;
       const secoes = Object.keys(data).filter(s => s !== '__secrev' && s !== '__secpend' && s.indexOf('vhist') !== 0);
       out.push({ ts: rec.ts, nota: rec.note || '', secoes, total: secoes.length,
@@ -227,9 +227,9 @@ const Recuperacao = {
     const rec = this._fotosDe(alvo).find(r => r.ts === ts);
     if (!rec) return { ok: false, motivo: 'foto não encontrada' };
     let data = null;
-    try { const json = await VersionHistory._gunzip(rec); data = json ? JSON.parse(json) : null; } catch (e) { _quiet(e, 'rec-abrir-foto2'); }
+    try { const json = await BackupHistory._gunzip(rec); data = json ? JSON.parse(json) : null; } catch (e) { _quiet(e, 'rec-abrir-foto2'); }
     if (!data) return { ok: false, motivo: 'foto ilegível' };
-    try { await VersionHistory.snapshot('antes de recuperar seções faltantes'); } catch (e) { _quiet(e, 'rec-snap'); }
+    try { await BackupHistory.snapshot('antes de recuperar seções faltantes'); } catch (e) { _quiet(e, 'rec-snap'); }
     const prefix = 'diario-estudos:u:' + alvo + ':';
     const trazidas = [];
     Object.keys(data).forEach(sub => {
