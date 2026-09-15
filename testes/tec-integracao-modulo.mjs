@@ -6,6 +6,7 @@ const body = read('src/html/05-corpo-cont.html');
 const build = read('build.mjs');
 const js = read('src/js/94-tec-integracao.js');
 const realtime = read('src/js/95-tec-companion.js');
+const diagnostics = read('src/js/96-tec-capture-diagnostics.js');
 const head = read('src/html/00-cabecalho.html');
 const edge = read('supabase/functions/tec-ai/index.ts');
 const manifest = JSON.parse(read('companion/manifest.json'));
@@ -23,6 +24,8 @@ const checks = [
   ['métricas isoladas', ['questions','errors','books','pending'].every(x => body.includes(`id="tec-connect-${x}"`))],
   ['módulo integração incluído', build.includes("'js/94-tec-integracao.js'")],
   ['módulo realtime incluído depois da integração', build.indexOf("'js/95-tec-companion.js'") > build.indexOf("'js/94-tec-integracao.js'")],
+  ['diagnóstico incluído depois do realtime', build.indexOf("'js/96-tec-capture-diagnostics.js'") > build.indexOf("'js/95-tec-companion.js'")],
+  ['diagnóstico mostra etapas reais da captura', diagnostics.includes('question_id_not_detected') && diagnostics.includes('result_not_detected') && diagnostics.includes("status === 'queued'") && diagnostics.includes('mainWorldContext')],
   ['estilo incluído no build', build.includes("S('css/28-tec-integracao.css')")],
   ['ativação sob demanda', js.includes("screen === 'integracaotec'")],
   ['estado por perfil', js.includes('DB._profilePrefix()') && realtime.includes('DB._profilePrefix()')],
