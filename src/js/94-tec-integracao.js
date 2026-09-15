@@ -175,7 +175,7 @@ QUESTÃO:
     const frame = document.getElementById('tec-workspace-frame'), placeholder = document.getElementById('tec-workspace-placeholder');
     if (!frame) return;
     frame.hidden = false; if (placeholder) placeholder.hidden = true; if (!frame.src) frame.src = this.TEC_HOME;
-    try { sessionStorage.setItem('snm:tec-workspace-open', '1'); } catch (_) {}
+    try { sessionStorage.setItem('snm:tec-workspace-open', '1'); } catch (e) { if (typeof _quiet === 'function') _quiet(e, 'tec-workspace-session-save'); }
     document.getElementById('screen-integracaotec')?.classList.add('tec-workspace-open');
     const msg = document.getElementById('tec-connect-message');
     if (msg) msg.textContent = 'Companion ativo: resolva normalmente no TEC. As respostas são capturadas e confirmadas pela fila durável.';
@@ -335,7 +335,10 @@ QUESTÃO:
       } else await this.callAI(section, question);
       this.render(); if (typeof showToast === 'function') showToast('🤖 Análise pronta');
     } catch (e) { if (typeof showToast === 'function') showToast('⚠️ ' + e.message); }
-    finally { if (button) { button.disabled = false; button.textContent = old; } }
+    finally {
+      if (button) { button.disabled = false; if (isProfessor) button.textContent = old; }
+      if (!isProfessor) this.renderAnalysis(this.state());
+    }
   },
 
   ensurePromptModal() {
@@ -405,7 +408,8 @@ QUESTÃO:
       this._experienceBound=true;
       document.addEventListener('keydown',e=>{ if (e.key==='Escape' && root.classList.contains('tec-focus-mode')) this.toggleFocus(false); });
     }
-    try { if (sessionStorage.getItem('snm:tec-workspace-open')==='1') this.openEmbedded(); } catch (_) {}
+    try { if (sessionStorage.getItem('snm:tec-workspace-open')==='1') this.openEmbedded(); }
+    catch (e) { if (typeof _quiet === 'function') _quiet(e, 'tec-workspace-session-read'); }
   },
 
   render() {
