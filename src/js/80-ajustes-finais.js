@@ -1182,7 +1182,7 @@ else CloudStore.init();
         { word: 'LIMPAR', title: '🧹 Tem certeza?', okText: 'Apagar e rebaixar' });
       if (!ok2) return;
       try {
-        if (window.VersionHistory) await VersionHistory.snapshot('antes de limpar dados locais');
+        if (window.BackupHistory) await BackupHistory.snapshot('antes de limpar dados locais');
         /* Esta é a única ação do app que apaga dados de propósito. A foto local
            acima some junto se o navegador for limpo depois; a do banco, não. */
         if (window.CloudBackup) await CloudBackup.protegerAgora('antes de limpar os dados locais');

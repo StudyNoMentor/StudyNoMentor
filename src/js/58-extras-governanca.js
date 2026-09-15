@@ -2,8 +2,8 @@
    EXTRAS — governança premium de reforços + lei seca por tempo
    ============================================================ */
 (() => {
-  if (typeof window !== 'undefined' && window.__extrasGovernancaV1) return;
-  if (typeof window !== 'undefined') window.__extrasGovernancaV1 = true;
+  if (typeof window !== 'undefined' && window.__extrasGovernanca) return;
+  if (typeof window !== 'undefined') window.__extrasGovernanca = true;
   if (typeof DB === 'undefined' || typeof ExtrasScreen === 'undefined') return;
 
   const isoAdd = (iso, n) => {

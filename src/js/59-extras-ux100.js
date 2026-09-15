@@ -3,8 +3,8 @@
    Hierarquia, densidade e interações sem alterar os motores.
    ============================================================ */
 (() => {
-  if (typeof window !== 'undefined' && window.__extrasUx100V1) return;
-  if (typeof window !== 'undefined') window.__extrasUx100V1 = true;
+  if (typeof window !== 'undefined' && window.__extrasUx100) return;
+  if (typeof window !== 'undefined') window.__extrasUx100 = true;
   if (typeof document === 'undefined') return;
 
   const esc = (v) => typeof escapeHtml === 'function'

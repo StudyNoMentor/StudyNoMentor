@@ -23,7 +23,7 @@ async function snap(nome){if(process.env.TEC_UX_SHOTS!=='1')return;const dir=joi
 
 try{
   await page.goto(url,{waitUntil:'domcontentloaded'});
-  await page.waitForFunction(()=>typeof switchScreen==='function'&&typeof DesempenhoTecScreen==='object'&&typeof PlanoEngine==='object'&&typeof TecAuditoriaV2==='object'&&typeof ExtrasScreen==='object',{timeout:30000});
+  await page.waitForFunction(()=>typeof switchScreen==='function'&&typeof DesempenhoTecScreen==='object'&&typeof PlanoEngine==='object'&&typeof TecAuditoria==='object'&&typeof ExtrasScreen==='object',{timeout:30000});
 
   const setup=await page.evaluate(()=>{
     try{ProfileUI.hideGate();}catch(_){}
@@ -40,13 +40,13 @@ try{
     DesempenhoTecScreen.scopeMode='consolidado';DesempenhoTecScreen.selectedSnapIds=new Set(snaps.map(s=>s.id));DesempenhoTecScreen.rangeStart=snaps[0].startDate;DesempenhoTecScreen.rangeEnd=snaps.at(-1).endDate;
     DesempenhoTecScreen._scopedC=null;DesempenhoTecScreen._planoRefC=null;DesempenhoTecScreen._fatias=null;PlanoEngine._agrC=null;PlanoEngine._tecScopeSignature=null;PlanoEngine._indiceC=new WeakMap();
     switchScreen('desempenhotec');DesempenhoTecScreen.tecTab='plano';DesempenhoTecScreen.render();DesempenhoTecScreen.switchTecTab('plano');
-    TecAuditoriaV2._renderedScopeKey=TecAuditoriaV2.scopeKey();
+    TecAuditoria._renderedScopeKey=TecAuditoria.scopeKey();
     return{snaps:snaps.length,discs};
   });
   await esperarPlano();
 
   const bloco=await page.evaluate(()=>{const cs=[...document.querySelectorAll('#plano-lista .pl-hoje-sel:checked:not(:disabled)')];return{n:cs.length,discs:[...new Set(cs.map(c=>c.dataset.disc))],txt:document.querySelector('.tec-v2-diversidade')?.textContent||''};});
-  const diagBloco=await page.evaluate(()=>({prefs:PlanoEngine.prefs(),last:(TecAuditoriaV2._lastPlanResult?.itens||[]).slice(0,80).map(x=>({d:x.disciplina,n:x.nome,q:x.custoQ,open:!!x.extraAberta})),pool:(TecAuditoriaV2._poolC?.itens||[]).slice(0,240).map(x=>({d:x.disciplina,n:x.nome,q:x.custoQ,open:!!x.extraAberta})),dom:[...document.querySelectorAll('#plano-lista .pl-hoje-sel')].map(x=>({d:x.dataset.disc,n:x.dataset.topico,on:x.checked,off:x.disabled}))}));
+  const diagBloco=await page.evaluate(()=>({prefs:PlanoEngine.prefs(),last:(TecAuditoria._lastPlanResult?.itens||[]).slice(0,80).map(x=>({d:x.disciplina,n:x.nome,q:x.custoQ,open:!!x.extraAberta})),pool:(TecAuditoria._poolC?.itens||[]).slice(0,240).map(x=>({d:x.disciplina,n:x.nome,q:x.custoQ,open:!!x.extraAberta})),dom:[...document.querySelectorAll('#plano-lista .pl-hoje-sel')].map(x=>({d:x.dataset.disc,n:x.dataset.topico,on:x.checked,off:x.disabled}))}));
   console.log('DIAG_BLOCO',JSON.stringify(diagBloco));
   await snap('00-diag-plano-multifoco.png');
   eq(bloco.n,3,'3 disciplinas × 1 tópico deve gerar bloco inicial de 3 assuntos');

@@ -6,8 +6,8 @@
    chamam funções privadas um do outro.
    ============================================================================ */
 (() => {
-  if (typeof window === 'undefined' || window.__planoSugInfraV2) return;
-  window.__planoSugInfraV2 = true;
+  if (typeof window === 'undefined' || window.__planoSugInfra) return;
+  window.__planoSugInfra = true;
   if (typeof DB === 'undefined' || typeof DesempenhoTecScreen === 'undefined') return;
 
   const num = (v, d = 0) => Number.isFinite(Number(v)) ? Number(v) : d;
@@ -72,5 +72,5 @@
     }
   };
 
-  window.PlanoSugestoesInfraV2 = Object.freeze(I);
+  window.PlanoSugestoesInfra = Object.freeze(I);
 })();

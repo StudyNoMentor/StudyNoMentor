@@ -2,8 +2,8 @@
    DESEMPENHO TEC — performance, auditoria de parâmetros e UX premium
    ============================================================ */
 (() => {
-  if (typeof window !== 'undefined' && window.__tecPremiumV1) return;
-  if (typeof window !== 'undefined') window.__tecPremiumV1 = true;
+  if (typeof window !== 'undefined' && window.__tecPremium) return;
+  if (typeof window !== 'undefined') window.__tecPremium = true;
   if (typeof DesempenhoTecScreen === 'undefined') return;
   const DT = DesempenhoTecScreen;
 

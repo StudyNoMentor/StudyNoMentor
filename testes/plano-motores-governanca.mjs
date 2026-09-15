@@ -19,8 +19,8 @@ const ctx={
   DB:{_profilePrefix:()=> 'p:',setRaw:(k,v)=>mem.set(k,String(v))},
   _quiet(){},showToast(){},
   UI:{_open(){},_resolve:null,_mode:null},
-  PlanoSugestoesV2:{
-    KEY:'plano-sug-ui-v2',
+  PlanoSugestoes:{
+    KEY:'plano-sug-ui-v5',
     prefs(){return{modo:uiMode,fase:'pre',meta:90,minAmostra:20,banca:'__todas__',alvoQuestoes:30};},
     salvar(p){if(['simplificado','robusto','comparar'].includes(p?.modo))uiMode=p.modo;return this.prefs();},
     simplificado(){calls.simple++;return{modo:'simplificado',itens:[{disciplina:'A'}]};},
@@ -37,10 +37,10 @@ const ctx={
 };
 ctx.window=Object.assign(ctx.window,ctx);
 vm.createContext(ctx);
-const src=readFileSync(join(ROOT,'src/js/90-plano-motores-governanca-v5.js'),'utf8');
-vm.runInContext(src,ctx,{filename:'90-plano-motores-governanca-v5.js'});
-const G=ctx.window.PlanoMotoresGovernancaV5,C=ctx.window.PlanoSugestoesV2;
-assert(G&&C,'governança V5 deve instalar sobre o controller');
+const src=readFileSync(join(ROOT,'src/js/90-plano-motores-governanca.js'),'utf8');
+vm.runInContext(src,ctx,{filename:'90-plano-motores-governanca.js'});
+const G=ctx.window.PlanoMotoresGovernanca,C=ctx.window.PlanoSugestoes;
+assert(G&&C,'governança deve instalar sobre o controller atual');
 
 assert.deepEqual({...G.estado()},{simplificado:true,robusto:true},'compatibilidade: os dois motores devem nascer ativos');
 assert.deepEqual([...G.ativos()],['simplificado','robusto','comparar']);
@@ -85,4 +85,4 @@ assert.equal(G.resolverModo('comparar'),'comparar');
 assert(!/saveExtras|removeExtra|deleteExtra|updateExtra/.test(src),'governança não pode apagar ou reescrever atividades históricas');
 assert(/tec-subtab\[data-tectab="plano"\]/.test(src)&&/extras-plano-btn/.test(src),'visibilidade deve cobrir Plano TEC e Puxar em Extras');
 assert(/ConfigScreen/.test(src)&&/cfg-plano-motores-card/.test(src),'configuração global deve ser exposta na tela Configurações');
-console.log('OK: governança V5 — defaults, persistência, fallback, bloqueio de execução e preservação histórica validados.');
+console.log('OK: governança — defaults, persistência, fallback, bloqueio de execução e preservação histórica validados.');

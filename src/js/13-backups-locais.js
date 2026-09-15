@@ -23,7 +23,7 @@
        gzip). Estourou, as mais antigas saem primeiro.
    O resultado e uma protecao continua que nao cresce sem limite.
    ═══════════════════════════════════════════════════════════════════════════ */
-const VersionHistory = {
+const BackupHistory = {
   MAX: 24,                       // teto de fotos guardadas
   MIN_KEEP: 3,                   // nunca limpa abaixo disto, custe o que custar
   MAX_AGE_MS: 7 * 24 * 3600 * 1000,   // janela de 7 dias
@@ -169,4 +169,4 @@ const VersionHistory = {
     return true;
   }
 };
-window.VersionHistory = VersionHistory;
+window.BackupHistory = BackupHistory;

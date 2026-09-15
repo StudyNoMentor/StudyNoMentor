@@ -71,5 +71,5 @@
     return r;
   };
 
-  window.ExtrasPlanoContinuityV4 = { aplicar };
+  window.ExtrasPlanoContinuity = { aplicar };
 })();

@@ -3,8 +3,8 @@
    Escopo fluido, diversidade do próximo bloco e coerência Plano ↔ Extras.
    ============================================================ */
 (() => {
-  if (typeof window !== 'undefined' && window.__tecAuditoriaV2) return;
-  if (typeof window !== 'undefined') window.__tecAuditoriaV2 = true;
+  if (typeof window !== 'undefined' && window.__tecAuditoria) return;
+  if (typeof window !== 'undefined') window.__tecAuditoria = true;
   if (typeof DesempenhoTecScreen === 'undefined' || typeof PlanoEngine === 'undefined') return;
 
   const DT = DesempenhoTecScreen;
@@ -16,7 +16,7 @@
     catch (_) { return String(v || '').trim().toLowerCase(); }
   };
 
-  const TecAuditoriaV2 = {
+  const TecAuditoria = {
     _scopeTimer: null,
     _scopeRaf: null,
     _renderedScopeKey: null,
@@ -433,9 +433,9 @@
     }
   };
 
-  TecAuditoriaV2.instalar();
+  TecAuditoria.instalar();
   if (typeof window !== 'undefined') {
-    window.TecAuditoriaV2 = TecAuditoriaV2;
-    window.TecPlanDiversity = { selecionar: (itens,cfg) => TecAuditoriaV2.selecionarDiverso(itens,cfg) };
+    window.TecAuditoria = TecAuditoria;
+    window.TecPlanDiversity = { selecionar: (itens,cfg) => TecAuditoria.selecionarDiverso(itens,cfg) };
   }
 })();

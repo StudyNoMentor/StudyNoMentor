@@ -12,8 +12,8 @@
    influencia na calibracao futura da dose.
    ============================================================================ */
 (() => {
-  if (typeof window === 'undefined' || window.__reforcoTecExtrasV8) return;
-  window.__reforcoTecExtrasV8 = true;
+  if (typeof window === 'undefined' || window.__reforcoTecExtras) return;
+  window.__reforcoTecExtras = true;
 
   const N=(v,d=0)=>Number.isFinite(Number(v))?Number(v):d;
   const C=(v,a,b)=>Math.max(a,Math.min(b,N(v,a)));
@@ -87,5 +87,5 @@
     }
   };
 
-  window.ReforcoTecExtrasV8=X;
+  window.ReforcoTecExtras=X;
 })();

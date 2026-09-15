@@ -2,8 +2,8 @@
    REFORÇO ADAPTATIVO — dose estatística + retorno marginal
    ============================================================ */
 (() => {
-  if (window.__reforcoAdaptativoV1) return;
-  window.__reforcoAdaptativoV1 = true;
+  if (window.__reforcoAdaptativo) return;
+  window.__reforcoAdaptativo = true;
   if (typeof DB === 'undefined' || typeof PlanoEngine === 'undefined' || typeof PlanoCiclo === 'undefined') return;
 
   const C=(v,a,b)=>Math.max(a,Math.min(b,Number(v)));

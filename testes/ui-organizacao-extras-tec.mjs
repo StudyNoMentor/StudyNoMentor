@@ -2,9 +2,9 @@ import fs from 'node:fs';
 import assert from 'node:assert/strict';
 
 const extras = fs.readFileSync('src/js/59-extras-central-ui.js','utf8');
-const tec = fs.readFileSync('src/js/59-tec-layout-v2.js','utf8');
+const tec = fs.readFileSync('src/js/59-tec-layout.js','utf8');
 const cssExtras = fs.readFileSync('src/css/13-extras-central.css','utf8');
-const cssTec = fs.readFileSync('src/css/14-tec-layout-v2.css','utf8');
+const cssTec = fs.readFileSync('src/css/14-tec-layout.css','utf8');
 const build = fs.readFileSync('build.mjs','utf8');
 
 assert.match(extras,/extras-settings-btn/,'deve criar botão central de configurações');
@@ -26,8 +26,8 @@ assert.match(cssTec,/\.pl-mat\.is-acao/,'cards de matéria devem receber hierarq
 assert.match(cssTec,/@media\(max-width:760px\)/,'layout deve tratar mobile explicitamente');
 
 assert.match(build,/css\/13-extras-central\.css/,'build deve incluir CSS da central');
-assert.match(build,/css\/14-tec-layout-v2\.css/,'build deve incluir CSS do TEC v2');
+assert.match(build,/css\/14-tec-layout\.css/,'build deve incluir CSS do TEC v2');
 assert.match(build,/js\/59-extras-central-ui\.js/,'build deve incluir JS da central');
-assert.match(build,/js\/59-tec-layout-v2\.js/,'build deve incluir JS do TEC v2');
+assert.match(build,/js\/59-tec-layout\.js/,'build deve incluir JS do TEC v2');
 
 console.log('OK: organização de Extras e apresentação TEC v2 cobertas.');

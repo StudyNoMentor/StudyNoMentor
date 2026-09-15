@@ -182,10 +182,10 @@ const CloudBackup = {
       return { ok: false, motivo: 'perfil-vazio' };
     }
     const json = JSON.stringify(dataObj);
-    const sig = VersionHistory._fnv(json);
+    const sig = BackupHistory._fnv(json);
     if (!opts.forcar && this._lerUltimoSig(id) === sig) return { ok: true, repetido: true };
     try {
-      const packed = await VersionHistory._gzip(json);
+      const packed = await BackupHistory._gzip(json);
       if (String(packed.data).length > this.LIMITE_CHARS) {
         /* Falha que ANTES era muda: nunca marcada em `_ultimoErro`, então o
            diagnóstico e a tela continuavam dizendo "ativo" enquanto o backup
@@ -263,7 +263,7 @@ const CloudBackup = {
         30000, 'Baixar o backup');
       if (error) throw error;
       if (!data) return null;
-      const json = await VersionHistory._gunzip({ enc: data.enc, data: data.data });
+      const json = await BackupHistory._gunzip({ enc: data.enc, data: data.data });
       if (json == null) return null;
       let mapa; try { mapa = JSON.parse(json); } catch (_) { return null; }
       return { data: mapa, note: data.note, created_at: data.created_at, chars: data.chars };
@@ -294,7 +294,7 @@ const CloudBackup = {
     if (!id) return { ok: false, motivo: 'sem-perfil' };
     const foto = await this.abrir(rowId);
     if (!foto || !foto.data) return { ok: false, motivo: 'foto-ilegível' };
-    try { await VersionHistory.snapshot('antes de restaurar um backup da nuvem'); } catch (e) { _quiet(e, 'cbk-vh'); }
+    try { await BackupHistory.snapshot('antes de restaurar um backup da nuvem'); } catch (e) { _quiet(e, 'cbk-vh'); }
     try { await this.criar('antes de restaurar um backup da nuvem', { forcar: true }); } catch (e) { _quiet(e, 'cbk-pre'); }
     try {
       CloudStore._applying = true;
@@ -705,9 +705,9 @@ const GuardaNuvem = {
       if (util(d)) return d;
     } catch (e) { _quiet(e, 'guarda-remoto'); }
     try {
-      const fotos = VersionHistory._list(id) || [];
+      const fotos = BackupHistory._list(id) || [];
       for (let i = fotos.length - 1; i >= 0; i--) {
-        const json = await VersionHistory._gunzip(fotos[i]);
+        const json = await BackupHistory._gunzip(fotos[i]);
         if (!json) continue;
         let d = null; try { d = JSON.parse(json); } catch (e) { _quiet(e, 'guarda-foto'); continue; }
         if (util(d)) return d;

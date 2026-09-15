@@ -7,7 +7,7 @@
      $id / _quiet / __diag ....... robustez: nada derruba o app por id ausente
      DB .......................... camada de dados (chave-valor, por perfil)
      PlanManager / ProfileManager  planejamentos e multi-usuário no dispositivo
-     VersionHistory .............. 8 versões + backup diário
+     BackupHistory .............. 8 versões + backup diário
      UI .......................... diálogos (substituem confirm/prompt nativos)
 
    MOTORES (puros — não tocam o DOM, portáveis)

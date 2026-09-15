@@ -30,7 +30,7 @@ const eq=(a,b,m)=>{checks++;assert.equal(a,b,m)};
 
 try {
   await page.goto(url,{waitUntil:'domcontentloaded'});
-  await page.waitForFunction(()=>window.UXV4&&window.LoaderUXV4&&window.ReforcoAdaptativo&&window.ProfileUI,{timeout:30000});
+  await page.waitForFunction(()=>window.UX&&window.LoaderUX&&window.ReforcoAdaptativo&&window.ProfileUI,{timeout:30000});
   await page.evaluate(()=>{ try{ProfileUI.hideGate();}catch(_){} });
 
   /* 1. Qualquer spinner criado depois do boot recebe animação real + mensagem. */
@@ -38,7 +38,7 @@ try {
     const host=document.createElement('section');host.id='screen-conquistas-uxv4';host.className='screen active';
     const box=document.createElement('div');box.className='loading-shell';box.setAttribute('role','status');
     const spin=document.createElement('div');spin.className='qualquer-spinner';box.appendChild(spin);host.appendChild(box);document.body.appendChild(host);
-    LoaderUXV4.decorate(host);await new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(r)));
+    LoaderUX.decorate(host);await new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(r)));
     const cs=getComputedStyle(spin),copy=box.querySelector('.uxv4-loader-copy');
     const out={ux:spin.classList.contains('uxv4-spinner'),name:cs.animationName,duration:cs.animationDuration,copy:copy&&copy.innerText,live:box.getAttribute('aria-live')};
     host.remove();return out;
@@ -50,7 +50,7 @@ try {
 
   const known=await page.evaluate(()=>{
     const classes=['app-loading-spin','gate-spinner','loading-spinner','tec-loading-spinner','conq-spinner','screen-loading-spinner','csb-spin'];
-    return classes.map(c=>{const e=document.createElement('div');e.className=c;document.body.appendChild(e);LoaderUXV4.decorateSpinner(e);const cs=getComputedStyle(e);const r={c,name:cs.animationName,dur:cs.animationDuration};e.remove();return r;});
+    return classes.map(c=>{const e=document.createElement('div');e.className=c;document.body.appendChild(e);LoaderUX.decorateSpinner(e);const cs=getComputedStyle(e);const r={c,name:cs.animationName,dur:cs.animationDuration};e.remove();return r;});
   });
   known.forEach(x=>ok(x.name!=='none'&&x.dur!=='0s',`${x.c} deve manter animação`));
 
@@ -75,7 +75,7 @@ try {
     DB.checarEspaco=()=>{};SectionSync.pendingQuick=()=>0;SectionSync.hasRemoteUpdates=async()=>{remoteCalls++;return false;};SectionSync.kick=()=>{};CloudStore.flushPending=async()=>{};
     const t0=performance.now();await ProfileUI.enterProfile(id);const elapsed=performance.now()-t0;
     await new Promise(r=>setTimeout(r,380));
-    const trace=StartupTraceV4.last();
+    const trace=StartupTrace.last();
     CloudStore.isLoggedIn=keep.logged;CloudStore.isReady=keep.ready;CloudStore.session=keep.session;
     ProfileManager.getActiveProfileId=keep.active;ProfileManager.setActiveProfile=keep.setActive;ProfileManager._podeVerLocal=keep.owner;ProfileManager._setOwner=keep.setOwner;
     ProfileUI._hasLocalData=keep.has;ProfileUI.setLastProfile=keep.last;ProfileUI.renderChip=keep.render;ProfileUI.hideGate=oldHide;

@@ -179,7 +179,7 @@ const CloudStore = {
     // proativamente — sem depender de uma edição. Pequeno atraso para o perfil ativar.
     try { if (window.SectionSync) setTimeout(() => SectionSync.kick(), 1500); } catch (_) { _quiet(_); }
     // faxina do historico de versoes (janela de 7 dias) logo na abertura
-    try { if (window.VersionHistory) setTimeout(() => VersionHistory.limpar(), 2500); } catch (_) { _quiet(_); }
+    try { if (window.BackupHistory) setTimeout(() => BackupHistory.limpar(), 2500); } catch (_) { _quiet(_); }
     /* Promove perfis com id antigo (não-UUID) assim que há conta — antes
        disso, TODA operação de nuvem para esses perfis falhava (na maioria das
        vezes em silêncio): nada sincronizava, nada tinha backup no banco, e o
@@ -336,7 +336,7 @@ const CloudStore = {
     }
     if (!this.isReady() || !this.isLoggedIn()) return;
     try { if (!sessionStorage.getItem('diario-estudos:entered')) return; } catch (e) { _quiet(e); }
-    try { if (window.VersionHistory) VersionHistory.maybeDailySnapshot(); } catch (e) { _quiet(e); } // 1 backup/dia
+    try { if (window.BackupHistory) BackupHistory.maybeDailySnapshot(); } catch (e) { _quiet(e); } // 1 backup/dia
     this._pending = true;
     this._dirtyAt = Date.now();          // desde quando há algo não sincronizado
     if (window.CloudUI) CloudUI.refreshSyncBtn();
@@ -574,7 +574,7 @@ const CloudStore = {
       // REDE DE SEGURANÇA: antes de sobrescrever o estado local com o da nuvem,
       // guarda uma versão do que está aqui — assim, se outro aparelho tiver
       // enviado algo indesejado, você consegue restaurar em Configurações.
-      try { if (window.VersionHistory) await VersionHistory.snapshot('antes de baixar da nuvem'); } catch (e) { _quiet(e); }
+      try { if (window.BackupHistory) await BackupHistory.snapshot('antes de baixar da nuvem'); } catch (e) { _quiet(e); }
       this._applying = true;
       const mudou = ProfileManager.restorePayloadInto(id, (res.payload && res.payload.data) || {}, preservar);
       ProfileManager.setRev(id, res.rev);

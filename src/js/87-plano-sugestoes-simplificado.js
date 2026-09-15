@@ -1,14 +1,13 @@
 /* ============================================================================
-   MOTOR SIMPLIFICADO — revisão estatística V3
+   MOTOR SIMPLIFICADO — revisão estatística
    Pré: TEC escopado × meta × amostra mínima, sem sobrepor níveis da árvore.
    Pós: TEC × incidência hierárquica limpa da banca × valor da matéria.
    Independente de PlanoEngine, Mentor90 e do motor Robusto.
    ============================================================================ */
 (() => {
-  if (typeof window === 'undefined' || window.__planoSugSimplificadoV3) return;
-  window.__planoSugSimplificadoV3 = true;
-  window.__planoSugSimplificadoV2 = true;
-  const I = window.PlanoSugestoesInfraV2;
+  if (typeof window === 'undefined' || window.__planoSugSimplificado) return;
+  window.__planoSugSimplificado = true;
+  const I = window.PlanoSugestoesInfra;
   if (!I || typeof DB === 'undefined') return;
   const { num, clamp, norm } = I;
   const OWN_PREF_KEYS = Object.freeze(['fase','meta','minAmostra','banca','alvoQuestoes']);
@@ -29,9 +28,8 @@
   };
 
   const S = {
-    VERSAO: 3,
-    REVISAO_AUDITORIA: 3,
-    MOTOR: 'simplificado-v2', // identificador preservado para compatibilidade histórica
+    REVISAO_REGISTRO: 3,
+    MOTOR: 'simplificado-v2', // identificador histórico persistido; não renomear sem migração
     KEY: 'plano-simplificado-v2',
     DEFAULTS: Object.freeze({ fase:'auto', meta:90, minAmostra:20, banca:'__todas__', alvoQuestoes:30 }),
     PREF_KEYS: OWN_PREF_KEYS,
@@ -39,7 +37,7 @@
     prefs() {
       let raw = {};
       try { raw = JSON.parse(localStorage.getItem(DB._profilePrefix() + this.KEY) || '{}') || {}; }
-      catch (e) { if (typeof _quiet === 'function') _quiet(e, 'plano-simple-v3-prefs'); }
+      catch (e) { if (typeof _quiet === 'function') _quiet(e, 'plano-simple-prefs'); }
       const p = Object.assign({}, this.DEFAULTS, ownPrefs(raw));
       if (!['auto','pre','pos'].includes(p.fase)) p.fase = 'auto';
       p.meta = clamp(p.meta, 50, 100);
@@ -59,14 +57,14 @@
       try {
         const k = DB._profilePrefix() + this.KEY;
         if (DB.setRaw) DB.setRaw(k, JSON.stringify(persistido)); else localStorage.setItem(k, JSON.stringify(persistido));
-      } catch (e) { if (typeof _quiet === 'function') _quiet(e, 'plano-simple-v3-save'); }
+      } catch (e) { if (typeof _quiet === 'function') _quiet(e, 'plano-simple-save'); }
       return Object.assign({}, persistido);
     },
     restaurar() {
       try {
         const k = DB._profilePrefix() + this.KEY;
         if (DB.delRaw) DB.delRaw(k); else localStorage.removeItem(k);
-      } catch (e) { if (typeof _quiet === 'function') _quiet(e, 'plano-simple-v3-reset'); }
+      } catch (e) { if (typeof _quiet === 'function') _quiet(e, 'plano-simple-reset'); }
       return this.prefs();
     },
     fase(p) { return p.fase === 'pre' || p.fase === 'pos' ? p.fase : I.fasePlano(); },
@@ -102,9 +100,6 @@
         vistos.add(k);
         elegiveis.push({ item:r, disciplina, nome, taxa, qJanela:q, lacunaPP:Math.max(0,p.meta-taxa), codigo:String(r.codigo || ''), depth:num(r.depth,codeDepth(r.codigo)) });
       }
-      // Fronteira não sobreposta: se um descendente elegível já mede o ramo,
-      // o pai cumulativo não disputa junto. Isso remove a vantagem artificial
-      // de árvores profundas sem recorrer ao motor Robusto.
       return elegiveis.filter((x, i) => !elegiveis.some((y, j) => i !== j && norm(y.disciplina) === norm(x.disciplina) && isDesc(x.codigo, y.codigo)));
     },
     _mapaPlanejamento(disciplinas) {
@@ -200,8 +195,7 @@
         explicacao:fase==='pre' ? 'TEC direto × meta × amostra mínima em partição hierárquica não sobreposta.' : 'TEC direto × incidência hierárquica limpa da banca × planejamento; sem usar o motor Robusto.'
       };
     },
-    arquitetura() { return { motor:this.MOTOR, revisao:this.REVISAO_AUDITORIA, independente:true, usaPlanoEngine:false, usaMentor90:false, deps:this.deps.slice(), prefs:this.PREF_KEYS.slice(), particaoHierarquica:'nao-sobreposta' }; }
+    arquitetura() { return { motor:this.MOTOR, revisao:this.REVISAO_REGISTRO, independente:true, usaPlanoEngine:false, usaMentor90:false, deps:this.deps.slice(), prefs:this.PREF_KEYS.slice(), particaoHierarquica:'nao-sobreposta' }; }
   };
-  window.PlanoSugestoesSimplificadoV3 = S;
-  window.PlanoSugestoesSimplificadoV2 = S;
+  window.PlanoSugestoesSimplificado = S;
 })();

@@ -247,7 +247,7 @@ window.StorageMeter = StorageMeter;
 })();
 
 /* ---- UI do Histórico de versões (Configurações) ---- */
-const VersionHistoryUI = {
+const BackupHistoryUI = {
   _quando(ts) {
     const d = new Date(ts), agora = Date.now();
     const min = Math.round((agora - ts) / 60000);
@@ -261,7 +261,7 @@ const VersionHistoryUI = {
     const host = document.getElementById('cfg-vhist-body');
     if (!host) return;
     const id = ProfileManager.getActiveProfileId();
-    const arr = id ? VersionHistory._list(id).slice().reverse() : [];
+    const arr = id ? BackupHistory._list(id).slice().reverse() : [];
     if (!arr.length) {
       host.innerHTML = '<p class="hint">Ainda não há versões guardadas. O app cria uma automaticamente na primeira alteração de cada dia e sempre antes de baixar da nuvem. Você também pode salvar uma agora, com o botão acima.</p>';
       return;
@@ -280,11 +280,11 @@ const VersionHistoryUI = {
           <button type="button" class="btn-primary vh-restore" title="Restaurar esta versão sobre o perfil atual">↺ Restaurar</button>
         </div>
       </div>`;
-    }).join('') + '<p class="hint" style="margin-top:10px;">Guardamos até ' + VersionHistory.MAX + ' versões dos últimos 7 dias (uma cópia automática a cada 20 min de uso e sempre antes de uma limpeza). As mais antigas saem sozinhas, então o histórico nunca ocupa espaço demais. Restaurar cria antes uma cópia do estado atual, então a ação é reversível.</p>';
+    }).join('') + '<p class="hint" style="margin-top:10px;">Guardamos até ' + BackupHistory.MAX + ' versões dos últimos 7 dias (uma cópia automática a cada 20 min de uso e sempre antes de uma limpeza). As mais antigas saem sozinhas, então o histórico nunca ocupa espaço demais. Restaurar cria antes uma cópia do estado atual, então a ação é reversível.</p>';
     host.querySelectorAll('.cloud-slot-row').forEach(row => {
       const ts = parseInt(row.dataset.ts, 10);
       row.querySelector('.vh-download').addEventListener('click', async () => {
-        const backup = await VersionHistory.buildBackup(id, ts);
+        const backup = await BackupHistory.buildBackup(id, ts);
         if (!backup) { showToast('Não foi possível ler esta versão'); return; }
         const meta = ProfileManager.getProfiles().find(p => p.id === id) || {};
         const nome = 'versao-' + (meta.nome || 'perfil').toLowerCase().replace(/[^a-z0-9]+/g, '-') + '-' + new Date(ts).toISOString().slice(0, 10) + '.json';
@@ -297,7 +297,7 @@ const VersionHistoryUI = {
         showToast('Restaurando…');
         // rede de segurança no banco antes de sobrescrever o estado atual
         try { if (window.CloudBackup) await CloudBackup.protegerAgora('antes de restaurar uma versão local'); } catch (e) { _quiet(e, 'vh-cbk'); }
-        const done = await VersionHistory.restore(id, ts);
+        const done = await BackupHistory.restore(id, ts);
         if (!done) { showToast('Não foi possível restaurar esta versão'); return; }
         try { await CloudStore.flushPending(); } catch (_) { _quiet(_); }
         setTimeout(() => recarregarApp('versão restaurada', { imediato: true }), 600);
@@ -305,15 +305,15 @@ const VersionHistoryUI = {
     });
   }
 };
-window.VersionHistoryUI = VersionHistoryUI;
+window.BackupHistoryUI = BackupHistoryUI;
 (function () {
   const b = document.getElementById('cfg-vhist-save');
   if (b) b.addEventListener('click', async () => {
-    const ok = await VersionHistory.snapshot('salvo manualmente');
+    const ok = await BackupHistory.snapshot('salvo manualmente');
     showToast(ok ? 'Versão salva ✓' : 'Nada mudou desde a última versão');
-    VersionHistoryUI.render();
+    BackupHistoryUI.render();
   });
-  window.addEventListener('screen:activated', (e) => { if (e.detail && e.detail.screen === 'config') VersionHistoryUI.render(); });
+  window.addEventListener('screen:activated', (e) => { if (e.detail && e.detail.screen === 'config') BackupHistoryUI.render(); });
 })();
 
 

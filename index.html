@@ -57,7 +57,7 @@
      novo, e o antigo é descartado sozinho na ativação) e o que permite ao app
      dizer qual versão está rodando. Em src/ fica "dev" de propósito: a versão
      é gerada na montagem, não editada à mão. -->
-<meta name="diario-versao" content="veae6952193">
+<meta name="diario-versao" content="vc0a76cbab0">
 <script>
 /* ── ARRANQUE: abre o IndexedDB AGORA, em paralelo com o parse do documento ──
    A fachada de armazenamento vive no fim do <body>, depois de ~1,7 MB de HTML.
@@ -8084,7 +8084,7 @@ window.__idbBoot = (function () {
   </section>
 
   <!-- ============ DIÁLOGO GENÉRICO (confirm/prompt bonito) ============ -->
-  <!-- O z-index mora no CSS (ux-v49): este é o diálogo que abre DE DENTRO de
+  <!-- O z-index mora no CSS (ux-components): este é o diálogo que abre DE DENTRO de
        outros painéis (o "Restaurar padrões" da folha de ajustes, por exemplo),
        então ele precisa ficar acima de todos eles — e um valor cravado aqui
        vencia a folha de estilo e deixava a confirmação atrás da folha. -->
@@ -8679,7 +8679,7 @@ window.__idbBoot = (function () {
   </div>
 </div>
 
-<style id="ux-v47">
+<style id="ux-base">
 /* ═══════════════════════════════════════════════════════════════════════════
    EVOLUÇÃO v47 — Registrar · Grade · Estudo Novo · Histórico · Evolução ·
                   Desempenho TEC · Configurações · Conta e nuvem
@@ -10197,7 +10197,7 @@ window.__idbBoot = (function () {
 
 </style>
 
-<style id="ux-v48">
+<style id="ux-layout">
 /* ═══════════════════════════════════════════════════════════════════════════
    ACABAMENTO v48 — alinhamento, molduras e densidade
    Camada de apresentação. Nenhuma regra de negócio muda aqui.
@@ -11390,7 +11390,7 @@ body.leis-foco .leis-reader-card::before { display: none; }
 
 </style>
 
-<style id="ux-v49">
+<style id="ux-components">
 /* ═══════════════════════════════════════════════════════════════════════════
    ACABAMENTO v49 — o Desempenho TEC no telefone, e o Plano que explica
    ───────────────────────────────────────────────────────────────────────────
@@ -12030,7 +12030,7 @@ body.leis-foco .leis-reader-card::before { display: none; }
 
 </style>
 
-<style id="extras-v51">
+<style id="extras">
 /* ═══════════════════════════════════════════════════════════════════════════
    ATIVIDADES EXTRAS — REDESIGN OPERACIONAL v51
    Mantém os componentes e tokens do app, mas reorganiza densidade, hierarquia
@@ -12653,7 +12653,7 @@ body.leis-foco .leis-reader-card::before { display: none; }
 
 </style>
 
-<style id="lei-rodizio-v1">
+<style id="lei-rodizio">
 /* ═══════════════════════════════════════════════════════════════════════════
    RODÍZIO DE LEI SECA — integração com Extras e Vade Mecum
    ═══════════════════════════════════════════════════════════════════════════ */
@@ -12672,7 +12672,7 @@ body.leis-foco .leis-reader-card::before { display: none; }
 
 </style>
 
-<style id="extras-governanca-v1">
+<style id="extras-governanca">
 /* Governança premium de Extras — reforços, histórico e lei seca */
 .rg-console{margin:12px 24px 14px;padding:16px 18px;border:1px solid var(--border);border-radius:16px;background:linear-gradient(135deg,color-mix(in srgb,var(--accent) 7%,var(--surface)),var(--surface));display:flex;align-items:center;gap:18px;justify-content:space-between}.rg-console-copy{display:grid;gap:3px;min-width:0}.rg-console-copy>small{font-size:10px;font-weight:850;letter-spacing:.09em;color:var(--accent)}.rg-console-copy>strong{font-size:16px}.rg-console-copy>span{font-size:12px;color:var(--text-faint);line-height:1.4}.rg-console-actions{display:flex;gap:8px;flex-wrap:wrap;flex-shrink:0}.rg-console-actions button b{font-size:10px;margin-left:4px;padding:1px 5px;border-radius:999px;background:color-mix(in srgb,currentColor 10%,transparent)}
 .rg-overlay{position:fixed;inset:0;z-index:100000;background:rgba(11,18,32,.48);backdrop-filter:blur(5px);display:grid;place-items:center;padding:18px}.rg-modal{width:min(1040px,100%);max-height:min(90vh,900px);overflow:hidden;background:var(--surface);border:1px solid var(--border);border-radius:22px;box-shadow:0 28px 80px rgba(0,0,0,.28);display:flex;flex-direction:column}.rg-head{display:flex;gap:18px;align-items:flex-start;padding:20px 22px 16px;border-bottom:1px solid var(--border)}.rg-head>div{min-width:0;flex:1}.rg-head small{font-size:10px;font-weight:850;letter-spacing:.09em;color:var(--accent)}.rg-head h3{margin:2px 0 4px;font-size:21px}.rg-head p{margin:0;font-size:12px;line-height:1.45;color:var(--text-faint)}.rg-x{border:0;background:transparent;color:var(--text-muted);font-size:28px;line-height:1;cursor:pointer;padding:2px 7px}.rg-policy-grid{display:grid;grid-template-columns:minmax(330px,.95fr) minmax(340px,1.05fr);min-height:0;overflow:auto}.rg-picker,.rg-rules{padding:18px 20px}.rg-picker{border-right:1px solid var(--border)}.rg-picker-head{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:10px}.rg-picker-head span{display:flex;gap:6px}.rg-picker-head button{border:0;background:transparent;color:var(--accent);font-weight:700;font-size:11px;cursor:pointer}.rg-picks{display:grid;gap:8px}.rg-pick{display:grid;grid-template-columns:auto 1fr;gap:10px;padding:10px 11px;border:1px solid var(--border);border-radius:12px;cursor:pointer;background:var(--surface)}.rg-pick:has(input:checked){border-color:color-mix(in srgb,var(--accent) 55%,var(--border));background:color-mix(in srgb,var(--accent) 6%,var(--surface))}.rg-pick input{margin-top:4px;accent-color:var(--accent)}.rg-pick>span{display:grid;gap:2px;min-width:0}.rg-pick b{font-size:10px;text-transform:uppercase;color:var(--text-faint);letter-spacing:.04em}.rg-pick strong{font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.rg-pick small{font-size:11px;color:var(--text-faint)}.rg-rules{display:grid;align-content:start;gap:14px}.rg-fields{display:grid;grid-template-columns:1.2fr 1fr 1fr;gap:10px}.rg-fields label{display:grid;gap:5px;font-size:11px;font-weight:750;color:var(--text-muted)}.rg-fields input,.rg-fields select{width:100%;min-height:38px;border:1px solid var(--border);border-radius:10px;background:var(--surface);color:var(--text);padding:7px 9px}.rg-scope{border:1px solid var(--border);border-radius:12px;padding:10px 12px;display:grid;gap:8px}.rg-scope legend{font-size:11px;font-weight:800;padding:0 5px}.rg-scope label,.rg-check{font-size:12px;display:flex;align-items:flex-start;gap:8px;line-height:1.4}.rg-scope input,.rg-check input{margin-top:2px;accent-color:var(--accent)}.rg-check{padding:10px 12px;border:1px dashed var(--border);border-radius:12px}.rg-check small{display:block;color:var(--text-faint)}.rg-impact{padding:12px 13px;border-radius:12px;background:color-mix(in srgb,var(--accent) 6%,var(--surface));border:1px solid color-mix(in srgb,var(--accent) 18%,var(--border));font-size:12px;line-height:1.45;color:var(--text-muted)}.rg-foot{padding:14px 20px;border-top:1px solid var(--border);display:flex;justify-content:flex-end;gap:8px}.rg-manage-history{display:flex;align-items:center;justify-content:space-between;gap:14px;padding:13px 14px;margin:0 0 12px;border:1px solid color-mix(in srgb,var(--accent) 20%,var(--border));border-radius:12px;background:color-mix(in srgb,var(--accent) 5%,var(--surface))}.rg-manage-history>div{display:grid;gap:2px}.rg-manage-history b{font-size:12px}.rg-manage-history span{font-size:11px;color:var(--text-faint)}
@@ -12683,7 +12683,7 @@ body.leis-foco .leis-reader-card::before { display: none; }
 
 </style>
 
-<style id="tec-premium-v1">
+<style id="tec-premium">
 /* Desempenho TEC — camada visual premium */
 .tp-command{margin:0 0 18px;padding:18px 20px;border:1px solid var(--border);border-radius:18px;background:linear-gradient(135deg,color-mix(in srgb,var(--accent) 8%,var(--surface)),var(--surface));display:grid;grid-template-columns:minmax(0,1.15fr) minmax(360px,.85fr);grid-template-areas:"main metrics" "main actions";gap:12px 20px;box-shadow:0 10px 30px rgba(12,25,45,.05)}.tp-main{grid-area:main;display:grid;align-content:center;gap:4px}.tp-eyebrow{font-size:10px;font-weight:900;letter-spacing:.11em;color:var(--accent)}.tp-title{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap}.tp-title strong{font-size:22px}.tp-title span{font-size:11px;font-weight:750;color:var(--text-faint);padding:3px 8px;border-radius:999px;border:1px solid var(--border);background:var(--surface)}.tp-main p{margin:3px 0 0;max-width:680px;font-size:12px;line-height:1.5;color:var(--text-faint)}.tp-metrics{grid-area:metrics;display:grid;grid-template-columns:repeat(4,minmax(80px,1fr));gap:8px}.tp-metrics>span{padding:9px 10px;border-radius:12px;background:var(--surface);border:1px solid var(--border);display:grid;gap:1px}.tp-metrics b{font-size:14px;white-space:nowrap}.tp-metrics small{font-size:9px;line-height:1.25;color:var(--text-faint)}.tp-metrics .ok{border-color:color-mix(in srgb,var(--good) 30%,var(--border))}.tp-metrics .ok b{color:var(--good-text,var(--good))}.tp-metrics .warn{border-color:color-mix(in srgb,var(--warn) 35%,var(--border))}.tp-actions{grid-area:actions;display:flex;align-items:center;justify-content:flex-end;gap:8px}.tp-ms{font-size:10px;color:var(--text-faint);padding:4px 7px;border-radius:999px;background:var(--surface-2,var(--bg))}
 #screen-desempenhotec .tec-tab-panel>.card,#screen-desempenhotec #tec-panel-plano>.card,#screen-desempenhotec #tec-panel-reforco>.card{border-radius:18px;overflow:hidden}#screen-desempenhotec .tec-cfg-bar{background:color-mix(in srgb,var(--accent) 2.5%,var(--surface));border-top:1px solid var(--border)}#screen-desempenhotec .tec-cfg-open{border-radius:999px}#screen-desempenhotec .pl-hero,#screen-desempenhotec .reforco-summary{border-radius:16px}
@@ -12693,7 +12693,7 @@ body.leis-foco .leis-reader-card::before { display: none; }
 
 </style>
 
-<style id="extras-central-v1">
+<style id="extras-central">
 /* Central de configurações de Extras — execução na frente, ajustes atrás */
 #extras-settings-btn{display:inline-flex;align-items:center;gap:6px}
 .xsc-overlay{position:fixed;inset:0;z-index:100100;background:rgba(11,18,32,.52);backdrop-filter:blur(6px);display:grid;place-items:center;padding:18px}.xsc-modal{width:min(1040px,100%);max-height:min(92vh,920px);overflow:hidden;background:var(--surface);border:1px solid var(--border);border-radius:24px;box-shadow:0 30px 90px rgba(0,0,0,.30);display:grid;grid-template-rows:auto auto minmax(0,1fr)}.xsc-head{padding:20px 22px 16px;border-bottom:1px solid var(--border);display:flex;gap:18px;align-items:flex-start}.xsc-head>div{flex:1;min-width:0}.xsc-head small,.xsc-section-head small{font-size:10px;font-weight:900;letter-spacing:.11em;color:var(--accent)}.xsc-head h3{margin:2px 0 4px;font-size:22px}.xsc-head p,.xsc-section-head p{margin:0;color:var(--text-faint);font-size:12px;line-height:1.48}.xsc-close{border:0;background:transparent;color:var(--text-muted);font-size:30px;line-height:1;cursor:pointer;padding:2px 7px}.xsc-nav{display:flex;gap:6px;padding:10px 16px;border-bottom:1px solid var(--border);background:color-mix(in srgb,var(--surface-sunken) 55%,var(--surface));overflow:auto}.xsc-nav button{border:1px solid transparent;background:transparent;color:var(--text-muted);border-radius:999px;padding:8px 13px;font-weight:800;font-size:12px;cursor:pointer;white-space:nowrap}.xsc-nav button.active{border-color:color-mix(in srgb,var(--accent) 40%,var(--border));background:var(--surface);color:var(--accent);box-shadow:0 3px 12px rgba(0,0,0,.05)}.xsc-body{overflow:auto;padding:18px 20px 24px}.xsc-section{display:grid;gap:16px}.xsc-section-head{display:flex;gap:16px;align-items:flex-start;justify-content:space-between}.xsc-section-head h4{margin:2px 0 4px;font-size:19px}.xsc-overview-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}.xsc-summary-card{border:1px solid var(--border);border-radius:16px;padding:14px;display:grid;grid-template-columns:auto 1fr auto;gap:11px;align-items:center;background:var(--surface);min-width:0}.xsc-summary-icon{width:38px;height:38px;border-radius:12px;display:grid;place-items:center;background:color-mix(in srgb,var(--accent) 8%,var(--surface));font-size:18px}.xsc-summary-card>div:nth-child(2){display:grid;gap:2px;min-width:0}.xsc-summary-card strong{font-size:13px}.xsc-summary-card span{font-size:12px;color:var(--text-muted)}.xsc-summary-card small{font-size:10px;color:var(--text-faint);line-height:1.35}.xsc-scenarios{border:1px dashed color-mix(in srgb,var(--accent) 25%,var(--border));background:color-mix(in srgb,var(--accent) 4%,var(--surface));border-radius:15px;padding:13px 14px;display:grid;gap:8px}.xsc-scenarios>strong{font-size:12px}.xsc-scenarios>div{display:grid;grid-template-columns:130px 1fr;gap:10px;font-size:11px;line-height:1.4}.xsc-scenarios span{color:var(--text-faint)}.xsc-kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}.xsc-kpis span{padding:12px;border:1px solid var(--border);border-radius:13px;background:var(--surface-sunken);display:grid;gap:2px}.xsc-kpis b{font-size:15px}.xsc-kpis small{font-size:10px;color:var(--text-faint)}.xsc-explain{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}.xsc-field{border:1px solid var(--border);border-radius:13px;padding:11px 12px;background:var(--surface);display:grid;gap:7px;min-width:0}.xsc-label{display:flex;align-items:center;gap:6px;font-size:11px;color:var(--text-muted)}.xsc-label b{color:var(--text);font-size:11px}.xsc-info{width:19px;height:19px;border-radius:999px;border:1px solid var(--border);background:var(--surface-sunken);color:var(--text-faint);font-size:10px;font-weight:900;display:inline-grid;place-items:center;cursor:pointer;flex:0 0 auto;padding:0}.xsc-info:hover{border-color:var(--accent);color:var(--accent)}.xsc-help{display:none;font-size:10px;line-height:1.45;color:var(--text-faint)}.xsc-field.help-open .xsc-help,.xsc-days-wrap.help-open .xsc-help{display:block}.xsc-callout{display:flex;align-items:center;justify-content:space-between;gap:14px;padding:14px 15px;border:1px solid color-mix(in srgb,var(--accent) 22%,var(--border));border-radius:15px;background:color-mix(in srgb,var(--accent) 5%,var(--surface))}.xsc-callout>div{display:grid;gap:2px}.xsc-callout b{font-size:12px}.xsc-callout span{font-size:11px;color:var(--text-faint)}.xsc-wide{width:100%}.xsc-master{display:flex;align-items:center;gap:8px;font-size:12px;font-weight:800}.xsc-master input,.xsc-check input{accent-color:var(--accent)}.xsc-presets{display:flex;align-items:center;gap:7px;flex-wrap:wrap}.xsc-presets>span{font-size:11px;color:var(--text-faint);font-weight:700}.xsc-presets button{border:1px solid var(--border);background:var(--surface);color:var(--text-muted);border-radius:999px;padding:6px 10px;font-size:11px;font-weight:750;cursor:pointer}.xsc-presets button:hover{border-color:var(--accent);color:var(--accent);background:var(--accent-soft)}.xsc-form-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}.xsc-field input,.xsc-field select{width:100%;min-height:40px;border:1px solid var(--border);border-radius:10px;background:var(--surface);color:var(--text);padding:8px 10px}.xsc-days-wrap{border:1px solid var(--border);border-radius:13px;padding:11px 12px;display:grid;gap:9px}.xsc-days{display:flex;gap:6px;flex-wrap:wrap}.xsc-days label{cursor:pointer}.xsc-days input{position:absolute;opacity:0;pointer-events:none}.xsc-days span{width:34px;height:34px;border:1px solid var(--border);border-radius:10px;display:grid;place-items:center;font-size:11px;font-weight:800;color:var(--text-faint);background:var(--surface)}.xsc-days input:checked+span{border-color:var(--accent);background:color-mix(in srgb,var(--accent) 9%,var(--surface));color:var(--accent)}.xsc-check{display:flex;gap:9px;align-items:flex-start;padding:11px 12px;border:1px dashed var(--border);border-radius:13px}.xsc-check>span{display:grid;gap:2px}.xsc-check b{font-size:11px}.xsc-check small{font-size:10px;color:var(--text-faint);line-height:1.4}.xsc-law-status{display:flex;gap:8px;flex-wrap:wrap}.xsc-law-status span{border-radius:999px;padding:6px 9px;background:var(--surface-sunken);border:1px solid var(--border);font-size:10px;color:var(--text-faint)}.xsc-law-status b{color:var(--text)}.xsc-foot-actions{display:flex;justify-content:flex-end;gap:8px}.xsc-manual-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}.xsc-manual-grid article{padding:14px;border:1px solid var(--border);border-radius:15px;display:grid;gap:6px;background:var(--surface)}.xsc-manual-grid b{font-size:13px}.xsc-manual-grid span{font-size:11px;color:var(--text-muted)}.xsc-manual-grid small{font-size:10px;line-height:1.45;color:var(--text-faint)}.xsc-manual-grid button{margin-top:4px}
@@ -12704,7 +12704,7 @@ body.leis-foco .leis-reader-card::before { display: none; }
 
 </style>
 
-<style id="tec-layout-v2">
+<style id="tec-layout">
 /* Desempenho TEC — leitura guiada e mobile mais legível */
 #screen-desempenhotec.tl2-screen{--tl2-radius:18px;--tl2-gap:12px}.tl2-guide{margin:0 0 12px;padding:14px 15px;border:1px solid color-mix(in srgb,var(--accent) 20%,var(--border));border-radius:16px;background:linear-gradient(135deg,color-mix(in srgb,var(--accent) 5%,var(--surface)),var(--surface));display:grid;grid-template-columns:minmax(180px,.7fr) minmax(0,1.3fr);gap:14px;align-items:center}.tl2-guide-copy{display:grid;gap:2px}.tl2-guide-copy small{font-size:9px;font-weight:900;letter-spacing:.1em;color:var(--accent)}.tl2-guide-copy strong{font-size:15px}.tl2-guide-copy span{font-size:10px;line-height:1.35;color:var(--text-faint)}.tl2-steps{display:grid;grid-template-columns:repeat(3,1fr);gap:7px}.tl2-steps button{border:1px solid var(--border);border-radius:12px;background:var(--surface);color:var(--text);display:grid;grid-template-columns:26px 1fr;gap:8px;align-items:center;text-align:left;padding:8px 9px;cursor:pointer}.tl2-steps button:hover{border-color:var(--accent);background:var(--accent-soft)}.tl2-steps button>b{width:26px;height:26px;border-radius:9px;display:grid;place-items:center;background:color-mix(in srgb,var(--accent) 10%,var(--surface));color:var(--text);font-size:11px}.tl2-steps button span{display:grid;gap:1px;min-width:0}.tl2-steps button strong{font-size:11px}.tl2-steps button small{font-size:9px;color:var(--text-faint);line-height:1.25}.tl2-summary-strip{margin:0 0 14px;display:grid;grid-template-columns:repeat(4,1fr);gap:7px}.tl2-summary-strip>span{padding:8px 10px;border-radius:11px;background:var(--surface);border:1px solid var(--border);display:grid;gap:1px}.tl2-summary-strip b{font-size:12px}.tl2-summary-strip small{font-size:9px;color:var(--text-faint)}
 /* Mantém a lógica visual, mas reduz o peso dos blocos de ação. */
@@ -12722,7 +12722,7 @@ body.leis-foco .leis-reader-card::before { display: none; }
 
 </style>
 
-<style id="reforco-adaptativo-v1">
+<style id="reforco-adaptativo">
 /* Reforço adaptativo — prescrição estatística, sem competir com a execução */
 .ra-mini{display:flex;align-items:center;gap:7px;flex-wrap:wrap;margin-right:auto;padding:6px 8px;border:1px solid color-mix(in srgb,var(--accent) 20%,var(--border));border-radius:10px;background:color-mix(in srgb,var(--accent) 4%,var(--surface));font-size:9px;color:var(--text-muted)}.ra-mini b{color:var(--text);font-size:10px}.ra-i,.ra-help{width:22px;height:22px;min-width:22px;border-radius:50%;border:1px solid var(--border);background:var(--surface);color:var(--accent);font:800 11px/1 inherit;display:inline-grid;place-items:center;cursor:pointer}.ra-i:hover,.ra-help:hover{border-color:var(--accent);background:var(--accent-soft)}
 .ra-pull{display:flex;gap:6px;align-items:center;margin-top:5px;font-size:9px;color:var(--text-faint)}.ra-pull b{color:var(--accent)}
@@ -12733,7 +12733,7 @@ body.leis-foco .leis-reader-card::before { display: none; }
 
 </style>
 
-<style id="extras-stability-v1">
+<style id="extras-stability">
 /* Extras — estabilidade de layout, modais e mobile */
 :root{
   /* Extras pertence à faixa de diálogos do design system. Toast e bloqueios
@@ -12786,7 +12786,7 @@ html.extras-modal-open,html.extras-modal-open body{overflow:hidden!important;ove
 
 </style>
 
-<style id="interaction-feedback-v1">
+<style id="interaction-feedback">
 /* Feedback imediato para ações que disparam cálculo/render pesado. */
 .ui-working{position:relative!important;cursor:wait!important;opacity:.82!important;pointer-events:none!important}.ui-working::before{content:"";display:inline-block;width:13px;height:13px;min-width:13px;margin-right:7px;border:2px solid currentColor;border-right-color:transparent;border-radius:50%;vertical-align:-2px;animation:ui-work-spin .7s linear infinite}.ui-work-region{cursor:wait}.ui-work-region>*{transition:opacity .12s ease}.ui-work-region>.pl-item,.ui-work-region>.pl-hoje,.ui-work-region>.pl-tempo,.ui-work-region>.pl-hero,.ui-work-region>.pl-ciclo{opacity:.64}.ui-work-hud{position:fixed;z-index:2450;left:50%;top:max(18px,env(safe-area-inset-top));transform:translateX(-50%);display:flex;align-items:center;gap:9px;max-width:min(92vw,420px);padding:10px 14px;border:1px solid color-mix(in srgb,var(--accent) 28%,var(--border));border-radius:999px;background:color-mix(in srgb,var(--surface) 94%,transparent);color:var(--text);box-shadow:0 10px 34px rgba(15,23,42,.16);font-size:12px;font-weight:750;letter-spacing:.01em;backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);pointer-events:none}.ui-work-hud i{display:block;width:15px;height:15px;min-width:15px;border:2px solid var(--accent);border-right-color:transparent;border-radius:50%;animation:ui-work-spin .7s linear infinite}.exm-reopen{color:var(--accent)!important}.pl-foco-bt{color:var(--text)!important;opacity:1!important;white-space:nowrap}.pl-foco-bt.is-on{color:var(--accent)!important}.pl-ocupado{cursor:wait}.pl-ocupado::after{content:"Processando…";display:inline-flex;align-items:center;margin:8px 0;padding:5px 9px;border-radius:999px;background:var(--surface-sunken);color:var(--text-faint);font-size:10px;font-weight:700}@keyframes ui-work-spin{to{transform:rotate(360deg)}}@media(prefers-reduced-motion:reduce){.ui-working::before,.ui-work-hud i{animation-duration:1.6s}}@media(max-width:520px){.ui-work-hud{top:max(10px,env(safe-area-inset-top));font-size:11px;padding:9px 12px}.pl-foco-bt{min-width:66px}}
 
@@ -12803,7 +12803,7 @@ html.extras-modal-open,html.extras-modal-open body{overflow:hidden!important;ove
 
 </style>
 
-<style id="extras-ux100-v1">
+<style id="extras-ux100">
 /* ═══════════════════════════════════════════════════════════════════════════
    EXTRAS — AUDITORIA UX 100 CAMADAS
    Última camada visual: hierarquia Configurações -> Reforços -> Hoje,
@@ -13111,7 +13111,7 @@ html.extras-modal-open,html.extras-modal-open body{overflow:hidden!important;ove
 
 </style>
 
-<style id="tec-auditoria-v2">
+<style id="tec-auditoria">
 /* Desempenho TEC — auditoria visual e responsiva v2 */
 #screen-desempenhotec.tec-audit-v2{--tec-v2-border:color-mix(in srgb,var(--text) 14%,var(--border));--tec-v2-soft:color-mix(in srgb,var(--accent) 4%,var(--surface))}
 #screen-desempenhotec.tec-audit-v2 .card,#screen-desempenhotec.tec-audit-v2 .tp-command,#screen-desempenhotec.tec-audit-v2 .tl2-guide,#screen-desempenhotec.tec-audit-v2 .pl-hero,#screen-desempenhotec.tec-audit-v2 .pl-tempo,#screen-desempenhotec.tec-audit-v2 .pl-hoje,#screen-desempenhotec.tec-audit-v2 .pl-item{border-color:var(--tec-v2-border)!important}
@@ -13200,7 +13200,7 @@ body:has(#tec-cfg-body) #tec-cfg-body{scrollbar-gutter:stable}
 
 </style>
 
-<style id="ux-stability-v3">
+<style id="ux-stability">
 /* ============================================================================
    UX STABILITY V3 — Extras, Leis Secas, Desempenho TEC e estados de carregamento
    ============================================================================ */
@@ -13383,7 +13383,7 @@ body:has(#tec-cfg-body) #tec-cfg-body{scrollbar-gutter:stable}
 
 </style>
 
-<style id="startup-spinners-reforco-v4">
+<style id="startup-spinners-reforco">
 /* ============================================================================
    STARTUP + LOADERS + REFORÇO CONTÍNUO V4
    Garante feedback de carregamento consistente e sem spinner "congelado".
@@ -13511,7 +13511,7 @@ body:has(#tec-cfg-body) #tec-cfg-body{scrollbar-gutter:stable}
 
 </style>
 
-<style id="plano-sugestoes-v1">
+<style id="plano-sugestoes">
 /* PLANO → EXTRAS — motores de sugestão V2 */
 .ps-mode-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin-bottom:12px}.ps-mode{border:1px solid var(--border);background:var(--surface);border-radius:12px;padding:10px 12px;text-align:left;display:flex;flex-direction:column;gap:3px;min-height:72px}.ps-mode b{font-size:13px;color:var(--text)}.ps-mode small{font-size:11px;line-height:1.35;color:var(--text-soft)}.ps-mode.active{border-color:var(--accent);box-shadow:0 0 0 1px color-mix(in srgb,var(--accent) 45%,transparent);background:color-mix(in srgb,var(--accent) 7%,var(--surface))}.ps-settings{display:grid;grid-template-columns:repeat(auto-fit,minmax(125px,1fr));gap:8px;padding:10px;border:1px solid var(--border);border-radius:12px;background:var(--surface-soft,rgba(127,127,127,.04));margin-bottom:10px}.ps-settings label{display:flex;flex-direction:column;gap:5px;min-width:0}.ps-settings label>span{font-size:11px;font-weight:700;color:var(--text-soft)}.ps-settings input,.ps-settings select{width:100%;min-height:36px;border:1px solid var(--border);border-radius:9px;background:var(--surface);color:var(--text);padding:6px 8px}.ps-input-suffix{position:relative}.ps-input-suffix em{position:absolute;right:9px;top:50%;transform:translateY(-50%);font-style:normal;font-size:12px;color:var(--text-soft)}.ps-input-suffix input{padding-right:28px}.ps-hidden{display:none!important}.ps-rule{font-size:11px;line-height:1.45;color:var(--text-soft);padding:8px 10px;border-left:3px solid var(--accent);background:color-mix(in srgb,var(--accent) 5%,transparent);border-radius:0 9px 9px 0;margin-bottom:10px}.ps-rule b{color:var(--text)}.ps-list-head{display:flex;justify-content:space-between;gap:12px;align-items:center;margin:8px 0}.ps-list-head span{font-size:12px;color:var(--text)}.ps-list-head small{font-size:10px;color:var(--text-soft)}.ps-list{display:grid;gap:8px;max-height:42vh;overflow:auto;padding-right:2px}.ps-card{display:grid;grid-template-columns:auto 1fr;gap:10px;align-items:flex-start;padding:11px;border:1px solid var(--border);border-radius:12px;background:var(--surface);cursor:pointer}.ps-card:hover{border-color:color-mix(in srgb,var(--accent) 55%,var(--border))}.ps-card>input{margin-top:4px}.ps-card-body{min-width:0}.ps-card-top{display:flex;justify-content:space-between;gap:8px;align-items:center;margin-bottom:4px}.ps-disc{font-size:10px;font-weight:800;letter-spacing:.03em;text-transform:uppercase;color:var(--text-soft)}.ps-score{font-size:10px;font-weight:800;color:var(--accent);border:1px solid color-mix(in srgb,var(--accent) 35%,var(--border));border-radius:999px;padding:2px 6px}.ps-card strong{display:block;font-size:13px;color:var(--text);line-height:1.35}.ps-card p{margin:4px 0 7px;font-size:11px;line-height:1.4;color:var(--text-soft)}.ps-metrics{display:flex;gap:5px;flex-wrap:wrap}.ps-metrics span,.ps-learn{font-size:10px;border-radius:999px;padding:3px 6px;background:color-mix(in srgb,var(--text) 5%,transparent);color:var(--text-soft)}.ps-learn{display:inline-flex;margin-top:6px;background:color-mix(in srgb,var(--accent) 8%,transparent);color:var(--text)}.ps-compare-row{border:1px solid var(--border);border-radius:12px;padding:10px;background:var(--surface)}.ps-compare-row>header{display:flex;justify-content:space-between;gap:8px;align-items:center;margin-bottom:8px}.ps-compare-row>header b{font-size:12px;color:var(--text)}.ps-compare-row>header span{font-size:10px;color:var(--text-soft)}.ps-consensus{color:var(--success,#15803d)!important;font-weight:800}.ps-compare-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}.ps-compare-option{display:grid;grid-template-columns:auto 1fr;gap:8px;padding:9px;border:1px solid var(--border);border-radius:10px;cursor:pointer}.ps-compare-option:has(input:checked){border-color:var(--accent);background:color-mix(in srgb,var(--accent) 6%,var(--surface))}.ps-compare-option.is-consensus{box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--success,#15803d) 25%,transparent)}.ps-compare-option input{margin-top:3px}.ps-compare-option div{min-width:0;display:flex;flex-direction:column;gap:3px}.ps-compare-option span{font-size:9px;font-weight:800;text-transform:uppercase;color:var(--text-soft)}.ps-compare-option b{font-size:12px;color:var(--text)}.ps-compare-option small{font-size:10px;line-height:1.35;color:var(--text-soft)}.ps-empty,.ps-loading{padding:22px;border:1px dashed var(--border);border-radius:12px;text-align:center;color:var(--text-soft);display:flex;flex-direction:column;gap:5px}.ps-empty b{color:var(--text)}
 @media(max-width:720px){.ps-mode-grid{grid-template-columns:1fr}.ps-mode{min-height:0}.ps-settings{grid-template-columns:repeat(2,minmax(0,1fr))}.ps-compare-grid{grid-template-columns:1fr}.ps-list{max-height:45vh}.ps-list-head{align-items:flex-start;flex-direction:column;gap:3px}}
@@ -13519,7 +13519,7 @@ body:has(#tec-cfg-body) #tec-cfg-body{scrollbar-gutter:stable}
 
 </style>
 
-<style id="robusto-v8">
+<style id="plano-robusto">
 /* ROBUSTO V8 — configuracao enxuta TEC + Extras */
 .rv8-panel{display:grid;gap:14px;min-width:0}.rv8-method-note{display:grid;gap:4px;padding:12px 14px;border:1px solid color-mix(in srgb,var(--accent) 28%,var(--border));border-radius:12px;background:color-mix(in srgb,var(--accent) 4%,var(--surface));font-size:10px;line-height:1.5;color:var(--text-soft)}.rv8-method-note b{color:var(--text);font-size:11px}.rv8-pre-note{display:grid;gap:4px;margin:0 20px 18px;padding:12px 14px;border:1px solid color-mix(in srgb,var(--good) 28%,var(--border));border-radius:12px;background:color-mix(in srgb,var(--good) 4%,var(--surface));font-size:10px;line-height:1.45}.rv8-pre-note span{color:var(--text-soft)}
 .rv8-post{display:grid;gap:12px;margin:0 20px 18px;padding:14px;border:1px solid var(--border);border-radius:13px;background:var(--surface-sunken)}.rv8-post>header>div{display:grid;gap:3px}.rv8-post>header b{font-size:11px}.rv8-post>header small{font-size:9px;line-height:1.4;color:var(--text-soft)}.rv8-post-list{display:grid;gap:7px}.rv8-post-row{display:grid;grid-template-columns:auto minmax(0,1fr) 92px auto;align-items:center;gap:9px;padding:9px 10px;border:1px solid var(--border);border-radius:10px;background:var(--surface)}.rv8-post-row>span{font-size:10px;font-weight:750;min-width:0;overflow-wrap:anywhere}.rv8-post-row input[type="checkbox"]{width:18px;height:18px}.rv8-post-row input[type="number"]{width:92px;min-height:34px}.rv8-post-row small{font-size:8px;color:var(--text-soft)}.rv8-post>.btn-primary{justify-self:end;min-height:36px}.rv8-footer{display:flex!important;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap}.rv8-footer button{min-height:32px;padding:6px 9px;border:1px solid var(--border);border-radius:8px;background:var(--surface);color:var(--text);font:inherit;font-size:9px;font-weight:800;cursor:pointer}
@@ -13529,7 +13529,7 @@ body:has(#tec-cfg-body) #tec-cfg-body{scrollbar-gutter:stable}
 
 </style>
 
-<style id="plano-motores-governanca-v6">
+<style id="plano-motores-governanca">
 /* GOVERNANÇA DOS MOTORES DO PLANO V5 */
 .pmg-card .pmg-head{align-items:flex-start}.pmg-body{padding:0 28px 24px}.pmg-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}.pmg-engine{display:flex;align-items:center;justify-content:space-between;gap:16px;padding:16px;border:1px solid var(--border);border-radius:14px;background:var(--surface);transition:border-color .18s,background .18s,opacity .18s}.pmg-engine.is-on{border-color:color-mix(in srgb,var(--accent) 45%,var(--border));background:color-mix(in srgb,var(--accent) 4%,var(--surface))}.pmg-engine.is-off{opacity:.72}.pmg-engine-copy{min-width:0;display:grid;gap:5px}.pmg-engine-title{display:flex;gap:8px;align-items:center;flex-wrap:wrap}.pmg-engine-title b{font-size:14px;color:var(--text)}.pmg-engine-title span{font-size:9px;font-weight:800;text-transform:uppercase;letter-spacing:.04em;padding:3px 7px;border:1px solid var(--border);border-radius:999px;color:var(--text-soft);background:var(--surface-soft,rgba(127,127,127,.06))}.pmg-engine p{margin:0;font-size:12px;line-height:1.4;color:var(--text)}.pmg-engine small{font-size:10px;line-height:1.45;color:var(--text-soft)}.pmg-switch{position:relative;display:block;flex:0 0 46px;width:46px;height:26px}.pmg-switch input{position:absolute;inset:0;width:100%;height:100%;margin:0;opacity:0;z-index:2;cursor:pointer}.pmg-switch span{position:absolute;inset:0;border-radius:999px;background:color-mix(in srgb,var(--text-soft) 30%,var(--surface));transition:.18s;box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--text) 10%,transparent)}.pmg-switch span:after{content:"";position:absolute;width:20px;height:20px;left:3px;top:3px;border-radius:50%;background:var(--surface,#fff);box-shadow:0 1px 4px #0003;transition:.18s}.pmg-switch input:checked+span{background:var(--accent)}.pmg-switch input:checked+span:after{transform:translateX(20px)}.pmg-switch input:focus-visible+span{outline:3px solid color-mix(in srgb,var(--accent) 35%,transparent);outline-offset:3px}.pmg-status{margin-top:12px;padding:10px 12px;border-radius:10px;font-size:11px;line-height:1.45;color:var(--text-soft);background:var(--surface-soft,rgba(127,127,127,.05));border:1px solid var(--border)}.pmg-status b{color:var(--text)}.pmg-status.is-warning{border-color:color-mix(in srgb,var(--bad,#dc2626) 35%,var(--border));background:color-mix(in srgb,var(--bad,#dc2626) 5%,var(--surface));color:var(--text)}
 
@@ -13540,7 +13540,7 @@ body:has(#tec-cfg-body) #tec-cfg-body{scrollbar-gutter:stable}
 
 </style>
 
-<style id="plano-motores-central-tec-v5">
+<style id="plano-motores-central-tec">
 /* CENTRAL DOS MOTORES — DESEMPENHO TEC V2 */
 .ps-config-location{display:flex;align-items:flex-start;gap:9px;margin:0 0 11px;padding:9px 11px;border:1px solid color-mix(in srgb,var(--accent) 28%,var(--border));border-radius:10px;background:color-mix(in srgb,var(--accent) 4%,var(--surface));color:var(--text)}.ps-config-location>span{font-size:16px;line-height:1}.ps-config-location>div{display:grid;gap:1px}.ps-config-location b{font-size:10px}.ps-config-location small{font-size:9px;line-height:1.35;color:var(--text-soft)}
 #tec-panel-motores{margin-top:14px}.pmc-shell{display:grid;gap:14px}.pmc-intro{display:flex;align-items:flex-start;justify-content:space-between;gap:18px;padding:20px 22px;border:1px solid var(--border);border-radius:16px;background:linear-gradient(135deg,color-mix(in srgb,var(--accent) 7%,var(--surface)),var(--surface))}.pmc-intro>div:first-child{display:grid;gap:5px;max-width:760px}.pmc-intro small{font-size:9px;font-weight:900;letter-spacing:.1em;color:var(--text-soft)}.pmc-intro h2{margin:0;font-size:18px;line-height:1.25}.pmc-intro p{margin:0;font-size:11px;line-height:1.55;color:var(--text-soft)}.pmc-state{display:grid;justify-items:center;align-content:center;min-width:74px;padding:9px 12px;border:1px solid color-mix(in srgb,var(--accent) 32%,var(--border));border-radius:12px;background:var(--surface)}.pmc-state b{font-size:24px;line-height:1;color:var(--accent)}.pmc-state span{margin-top:4px;font-size:8px;font-weight:800;text-transform:uppercase;letter-spacing:.06em;color:var(--text-soft);text-align:center}
@@ -13551,7 +13551,7 @@ body:has(#tec-cfg-body) #tec-cfg-body{scrollbar-gutter:stable}
 @media(max-width:420px){.pmc-engine-card>header{flex-direction:column}.pmc-pill{max-width:100%}.pmc-engine-id>span{font-size:24px}.pmc-intro h2{font-size:16px}.pmc-audit-card>header{flex-direction:column}.pmc-audit-local{align-self:flex-start}}
 </style>
 
-<style id="tec-plano-fonte-motor-v2">
+<style id="tec-plano-fonte-motor">
 /* Desempenho TEC — fonte explícita das sugestões V2 */
 .tpm-entry-selector,.tpm-selector,.tpm-output{border:1px solid var(--border);background:var(--surface);border-radius:14px;box-shadow:var(--shadow-sm)}
 .tpm-entry-selector{display:grid;grid-template-columns:minmax(220px,.9fr) minmax(320px,1.4fr);gap:14px;align-items:center;padding:13px 15px;margin:10px 0 12px;background:linear-gradient(135deg,color-mix(in srgb,var(--accent) 5%,var(--surface)),var(--surface))}.tpm-entry-selector>div:first-child{display:grid;gap:2px}.tpm-entry-selector small,.tpm-selector>header small,.tpm-output>header small{display:block;font-size:var(--fs-3xs);font-weight:900;letter-spacing:.08em;color:var(--text-faint)}.tpm-entry-selector strong{font-size:var(--fs-sm)}.tpm-entry-selector p{margin:2px 0 0;font-size:var(--fs-3xs);line-height:1.4;color:var(--text-soft)}
@@ -13576,7 +13576,7 @@ body:has(#tec-cfg-body) #tec-cfg-body{scrollbar-gutter:stable}
      $id / _quiet / __diag ....... robustez: nada derruba o app por id ausente
      DB .......................... camada de dados (chave-valor, por perfil)
      PlanManager / ProfileManager  planejamentos e multi-usuário no dispositivo
-     VersionHistory .............. 8 versões + backup diário
+     BackupHistory .............. 8 versões + backup diário
      UI .......................... diálogos (substituem confirm/prompt nativos)
 
    MOTORES (puros — não tocam o DOM, portáveis)
@@ -16583,7 +16583,7 @@ window.ProfileManager = ProfileManager;
        gzip). Estourou, as mais antigas saem primeiro.
    O resultado e uma protecao continua que nao cresce sem limite.
    ═══════════════════════════════════════════════════════════════════════════ */
-const VersionHistory = {
+const BackupHistory = {
   MAX: 24,                       // teto de fotos guardadas
   MIN_KEEP: 3,                   // nunca limpa abaixo disto, custe o que custar
   MAX_AGE_MS: 7 * 24 * 3600 * 1000,   // janela de 7 dias
@@ -16729,7 +16729,7 @@ const VersionHistory = {
     return true;
   }
 };
-window.VersionHistory = VersionHistory;
+window.BackupHistory = BackupHistory;
 
 /* ============================================================
    NAVEGAÇÃO ENTRE TELAS
@@ -22546,7 +22546,7 @@ function planCycleMode() {
     if (n === 0) { showToast('Nenhuma célula marcada como concluída'); return; }
     if (!await UI.confirm(`Desmarcar as ${n} célula(s) concluída(s)?\n\nAs matérias e durações da grade são mantidas.`,
       { title: '↺ Desmarcar concluídos', okText: 'Desmarcar' })) return;
-    try { if (window.VersionHistory) await VersionHistory.antesDe('desmarcar a grade'); } catch (_) { _quiet(_); }
+    try { if (window.BackupHistory) await BackupHistory.antesDe('desmarcar a grade'); } catch (_) { _quiet(_); }
     const t = gradeGet();
     DIAS_SEMANA.forEach(d => {
       if (!Array.isArray(t.grade[d])) return;
@@ -22567,7 +22567,7 @@ function planCycleMode() {
     if (!await UI.confirmTyped(`Limpar toda a grade?\n\nAs ${ocupadas} matéria(s) alocadas serão removidas das células. As siglas cadastradas são mantidas.`,
       { word: 'LIMPAR', title: '🗑️ Limpar grade inteira', okText: 'Limpar grade' })) return;
     // foto de seguranca ANTES de esvaziar: e exatamente este o caso de "limpei sem querer"
-    try { if (window.VersionHistory) await VersionHistory.antesDe('limpar a grade'); } catch (_) { _quiet(_); }
+    try { if (window.BackupHistory) await BackupHistory.antesDe('limpar a grade'); } catch (_) { _quiet(_); }
     const n = sessionCount(t);
     DIAS_SEMANA.forEach(d => { t.grade[d] = Array.from({ length: n }, () => ''); });
     gradeSave(t);
@@ -22714,7 +22714,7 @@ function planCycleMode() {
     if (!cycle) return;
     if (!await UI.confirm('Ela será salva no histórico permanentemente e uma nova semana começará zerada.\n\nOs registros de estudo não são apagados — continuam contando em Evolução e Conquistas.',
       { title: '✓ Fechar semana', sub: 'Encerrar o ciclo atual e arquivá-lo', okText: 'Fechar semana' })) return;
-    try { if (window.VersionHistory) await VersionHistory.antesDe('fechar a semana'); } catch (_) { _quiet(_); }
+    try { if (window.BackupHistory) await BackupHistory.antesDe('fechar a semana'); } catch (_) { _quiet(_); }
 
     // a semana no histórico usa exatamente o intervalo definido no ciclo (início → término)
     const realEndDate = cycle.endDate || CycleEngine.weekEndDate(cycle.startDate);
@@ -23144,7 +23144,7 @@ const HistoricoScreen = {
         const w = DB.getCycleHistory().find(x => x.id === id);
         if (!await UI.confirm(`Excluir a semana de ${formatDateShort(w.startDate)} a ${formatDateShort(w.endDate)} do histórico?\n\nEssa ação não pode ser desfeita.`,
           { title: '🗑️ Excluir semana', okText: 'Excluir', danger: true })) return;
-        try { if (window.VersionHistory) await VersionHistory.antesDe('excluir uma semana do histórico'); } catch (_) { _quiet(_); }
+        try { if (window.BackupHistory) await BackupHistory.antesDe('excluir uma semana do histórico'); } catch (_) { _quiet(_); }
         DB.deleteCycleHistoryEntry(id);
         showToast('Semana removida do histórico');
         this.render();
@@ -42232,7 +42232,7 @@ const PlanUI = {
         const entries = DB.getEntriesForPlan(id).length;
         if (!await UI.confirmTyped(`Excluir o planejamento "${p.nome}"?\n\nTodos os seus dados (${entries} registro(s), matérias, ciclos, histórico e trilhas) serão apagados permanentemente.`,
           { word: 'EXCLUIR', title: '🗑️ Excluir planejamento', okText: 'Excluir definitivamente' })) return;
-        try { if (window.VersionHistory) await VersionHistory.antesDe('excluir um planejamento'); } catch (_) { _quiet(_); }
+        try { if (window.BackupHistory) await BackupHistory.antesDe('excluir um planejamento'); } catch (_) { _quiet(_); }
         const wasActive = PlanManager.getActivePlanId() === id;
         PlanManager.deletePlan(id);
         if (wasActive) { CloudStore.saveThenReload(); return; }
@@ -43607,222 +43607,7 @@ ExtrasScreen.renderEmCurso = function () {
   return ret;
 };
 
-/* ── PUXAR DO PLANO: ciclo de slots, matéria primeiro, tópico depois ───── */
-ReforcoFila._critSug = function (c) {
-  const taxa = Number(c && c.x && c.x.taxa);
-  return Number.isFinite(taxa) ? taxa : 101;
-};
-ReforcoFila._cmpSug = function (a, b) {
-  return this._critSug(a) - this._critSug(b)
-    || (Number(b.x.incid) || 0) - (Number(a.x.incid) || 0)
-    || (Number(b.x.qJanela) || 0) - (Number(a.x.qJanela) || 0)
-    || String(a.x.nome || '').localeCompare(String(b.x.nome || ''), 'pt-BR');
-};
-ReforcoFila.configSugestoesPlano = function () {
-  let p = {};
-  try { p = PlanoEngine.prefs() || {}; } catch (e) { _quiet(e, 'fila-sug-prefs'); }
-  return {
-    disciplinas: Math.max(1, Math.min(12, Math.round(Number(p.sugestoesDisciplinas) || 3))),
-    topicos: Math.max(1, Math.min(5, Math.round(Number(p.sugestoesTopicosDisc) || 1)))
-  };
-};
-ReforcoFila._rankDisciplinasPlano = function (cand) {
-  const porDisc = new Map();
-  (cand || []).forEach((x, i) => {
-    const k = this._norm(x.disciplina || 'sem disciplina');
-    if (!porDisc.has(k)) porDisc.set(k, { k, nome: x.disciplina || 'Sem disciplina', itens: [] });
-    porDisc.get(k).itens.push({ x, i });
-  });
-  porDisc.forEach(g => g.itens.sort((a, b) => this._cmpSug(a, b)));
-
-  const ordem = [], vistos = new Set();
-  try {
-    if (typeof PlanoPontos !== 'undefined' && PlanoPontos.esforcoPorMateria) {
-      const tm = PlanoPontos.esforcoPorMateria(PlanoEngine.prefs());
-      (tm && tm.linhas || []).forEach(l => {
-        const k = this._norm(l.nome || '');
-        if (porDisc.has(k) && !vistos.has(k)) { vistos.add(k); ordem.push(k); }
-      });
-    }
-  } catch (e) { _quiet(e, 'fila-rank-disciplinas'); }
-
-  // Se o quadro de matérias não conseguir casar um nome, a queda é explícita:
-  // usa o pior tópico disponível daquela disciplina, sem perder candidato.
-  [...porDisc.values()]
-    .filter(g => !vistos.has(g.k))
-    .sort((a, b) => this._cmpSug(a.itens[0], b.itens[0]))
-    .forEach(g => { vistos.add(g.k); ordem.push(g.k); });
-  return { ordem, porDisc };
-};
-ReforcoFila.selecionarSugestoesPlano = function (cand) {
-  cand = Array.isArray(cand) ? cand : [];
-  const cfg = this.configSugestoesPlano();
-  const extras = DB.getExtras();
-  const abertas = extras.filter(e => this.ePlano(e) && e.status !== 'concluida');
-  const abertasPorDisc = new Map();
-  abertas.forEach(e => {
-    const k = this._norm(e.disciplina || (e.origemPlano && e.origemPlano.disciplina) || 'sem disciplina');
-    abertasPorDisc.set(k, (abertasPorDisc.get(k) || 0) + 1);
-  });
-
-  /* FRESCOR DO LOOP — terminar uma frente não prova que ela continua sendo a
-     pior. Enquanto não entrar um retrato TEC NOVO, reabrir a mesma disciplina
-     faria o ciclo ficar preso no dado antigo. O veredito já grava o id do
-     retrato que julgou a atividade; usamos esse id como barreira natural. */
-  let ultimoRetrato = null;
-  try {
-    const snaps = (typeof DB.getTecSnapshots === 'function') ? (DB.getTecSnapshots() || []) : [];
-    ultimoRetrato = snaps.length ? snaps[snaps.length - 1].id : null;
-  } catch (e) { _quiet(e, 'fila-sug-frescor'); }
-  const topicosEmCooldown = new Set(), disciplinasEmCooldown = new Set();
-  if (ultimoRetrato != null) extras.forEach(e => {
-    if (!this.ePlano(e) || e.status !== 'concluida') return;
-    const o = e.origemPlano || {}, v = o.veredito || {};
-    if (v.retrato !== ultimoRetrato) return;
-    const d = this._norm(e.disciplina || o.disciplina || 'sem disciplina');
-    const t = this._norm(o.topico || '');
-    disciplinasEmCooldown.add(d);
-    if (t) topicosEmCooldown.add(d + '|' + t);
-  });
-  // Se ainda há outra frente aberta da matéria, ela continua no ciclo e pode
-  // preencher seus tópicos configurados; só o tópico já julgado fica vetado.
-  abertasPorDisc.forEach((_n, d) => disciplinasEmCooldown.delete(d));
-
-  const { ordem, porDisc } = this._rankDisciplinasPlano(cand);
-  const ativas = [...abertasPorDisc.keys()];
-  // Perfil antigo pode já ter mais matérias abertas do que a nova configuração.
-  // Nesse caso não criamos MAIS trabalho: esperamos o ciclo convergir sozinho.
-  if (ativas.length > cfg.disciplinas) {
-    return { indices: [], cfg, abertasTotal: abertas.length, disciplinasAtivas: ativas.length, excesso: true };
-  }
-
-  const alvoDiscs = ativas.slice();
-  ordem.forEach(k => {
-    if (alvoDiscs.length >= cfg.disciplinas) return;
-    if (disciplinasEmCooldown.has(k)) return;
-    if (!alvoDiscs.includes(k)) alvoDiscs.push(k);
-  });
-
-  const indices = [];
-  alvoDiscs.forEach(k => {
-    let vagas = Math.max(0, cfg.topicos - (abertasPorDisc.get(k) || 0));
-    if (!vagas) return;
-    const grupo = porDisc.get(k);
-    if (!grupo) return;
-    for (const c of grupo.itens) {
-      if (vagas <= 0) break;
-      const tk = k + '|' + this._norm(c.x.nome || '');
-      if (topicosEmCooldown.has(tk)) continue;
-      indices.push(c.i); vagas--;
-    }
-  });
-  return {
-    indices, cfg, abertasTotal: abertas.length, disciplinasAtivas: ativas.length,
-    alvoDisciplinas: alvoDiscs.length, vagasSugeridas: indices.length,
-    disciplinasEmCooldown: disciplinasEmCooldown.size, excesso: false
-  };
-};
-
-ReforcoFila.filtrarCandidatosPlano = function (cand) {
-  cand = Array.isArray(cand) ? cand : [];
-  let p = {}, fora = null;
-  try { p = PlanoEngine.prefs() || {}; fora = PlanoEngine.excluidasSet ? PlanoEngine.excluidasSet(p) : null; } catch (e) { _quiet(e, 'fila-excluidas'); }
-  const fallback = new Set((p.excluidas || []).map(x => this._norm(x)));
-  return cand.filter(x => {
-    try { if (fora && PlanoEngine.foraDoPlano && PlanoEngine.foraDoPlano(x.disciplina || '', fora)) return false; } catch (e) { _quiet(e); }
-    return !fallback.has(this._norm(x.disciplina || ''));
-  });
-};
-ReforcoFila.prepararSugestoesPlano = function (cand) {
-  const original = Array.isArray(cand) ? cand : [];
-  const filtrados = this.filtrarCandidatosPlano(original);
-  const s = this.selecionarSugestoesPlano(filtrados);
-  const sel = new Set(s.indices || []);
-  const sugeridos = [], demais = [];
-  filtrados.forEach((x, i) => (sel.has(i) ? sugeridos : demais).push(x));
-  const candidatos = sugeridos.concat(demais);
-  const indices = new Set(sugeridos.map((_x, i) => i));
-  const info = Object.assign({}, s, { vagasSugeridas: sugeridos.length, excluidasOcultas: Math.max(0, original.length - filtrados.length) });
-  return { candidatos, indices, info };
-};
-ReforcoFila.decorarSugestoesPlano = function (screen) {
-  const host = document.getElementById('pl-lista'); if (!host) return;
-  // `_planoBind` também chama `_planoRenderLista`; a decoração precisa ser
-  // idempotente para nunca acumular cabeçalhos/separadores na mesma lista.
-  host.querySelectorAll('.pl-auto-head,.pl-auto-rest').forEach(x => x.remove());
-  const n = Math.max(0, Number(screen._reforcoFilaSugCount) || 0);
-  const linhas = [...host.querySelectorAll('.pl-linha')];
-  let primeiraSug = null, primeiraOutra = null;
-  linhas.forEach(l => {
-    const cb = l.querySelector('.pl-pick'); const i = cb ? Number(cb.dataset.i) : -1;
-    if (i >= 0 && i < n) {
-      l.classList.add('pl-auto-sug'); primeiraSug ||= l;
-      const box = l.querySelector('div');
-      if (box && !box.querySelector('.pl-auto-badge')) box.insertAdjacentHTML('afterbegin', '<span class="pl-auto-badge">Sugestão automática</span>');
-    } else if (!primeiraOutra) primeiraOutra = l;
-    if (cb && !cb.dataset.reforcoAutoBound) {
-      cb.dataset.reforcoAutoBound = '1';
-      cb.addEventListener('change', () => { screen._reforcoFilaAutoMode = false; });
-    }
-  });
-  if (primeiraSug) { const h = document.createElement('div'); h.className = 'pl-auto-head'; h.innerHTML = '<strong>Sugestões para completar o ciclo</strong><small>Compatíveis com as vagas livres e já pré-selecionadas.</small>'; host.insertBefore(h, primeiraSug); }
-  if (primeiraOutra && primeiraSug) { const h = document.createElement('div'); h.className = 'pl-auto-rest'; h.textContent = 'Outros assuntos disponíveis'; host.insertBefore(h, primeiraOutra); }
-};
-
-ReforcoFila._orig.puxarDoPlano = ExtrasScreen.puxarDoPlano;
-ExtrasScreen.puxarDoPlano = function () {
-  this._reforcoFilaEscolhaPendente = true;
-  this._reforcoFilaAutoMode = true;
-  this._reforcoFilaInfo = null;
-  this._reforcoFilaSugCount = 0;
-  return ReforcoFila._orig.puxarDoPlano.apply(this, arguments);
-};
-if (typeof ExtrasScreen._planoRenderLista === 'function') {
-  ReforcoFila._orig.planoRenderLista = ExtrasScreen._planoRenderLista;
-  ExtrasScreen._planoRenderLista = function () {
-    const ret = ReforcoFila._orig.planoRenderLista.apply(this, arguments);
-    ReforcoFila.decorarSugestoesPlano(this);
-    return ret;
-  };
-}
-ReforcoFila._orig.planoBind = ExtrasScreen._planoBind;
-ExtrasScreen._planoBind = function () {
-  if (this._reforcoFilaEscolhaPendente) this._reforcoFilaAutoMode = true;
-  if (Array.isArray(this._planoCand)) {
-    if (this._reforcoFilaAutoMode !== false) {
-      const prep = ReforcoFila.prepararSugestoesPlano(this._planoCand);
-      this._planoCand = prep.candidatos;
-      this._planoSel = prep.indices;
-      this._reforcoFilaInfo = prep.info;
-      this._reforcoFilaSugCount = prep.info.vagasSugeridas || 0;
-    } else {
-      this._planoCand = ReforcoFila.filtrarCandidatosPlano(this._planoCand);
-    }
-    if (this._planoDiscSel && this._planoDiscSel.size) {
-      const disp = new Set(this._planoCand.map(x => x.disciplina || ''));
-      [...this._planoDiscSel].forEach(d => { if (!disp.has(d)) this._planoDiscSel.delete(d); });
-    }
-    this._reforcoFilaEscolhaPendente = false;
-  }
-  const ret = ReforcoFila._orig.planoBind.apply(this, arguments);
-  const info = this._reforcoFilaInfo;
-  const lista = document.getElementById('pl-lista');
-  if (info && lista) {
-    let n = document.getElementById('pl-fila-info');
-    if (!n) { n = document.createElement('p'); n.id = 'pl-fila-info'; n.className = 'hint'; n.style.margin = '0 0 10px'; lista.insertAdjacentElement('beforebegin', n); }
-    if (info.excesso) {
-      n.innerHTML = `Ciclo configurado em <strong>${info.cfg.disciplinas} disciplina(s) × ${info.cfg.topicos} tópico(s)</strong>. Há ${info.disciplinasAtivas} disciplinas abertas de um ciclo anterior; nenhuma nova frente foi marcada até o rodízio voltar ao limite.`;
-    } else {
-      n.innerHTML = `Ciclo automático: <strong>${info.cfg.disciplinas} disciplina(s) × ${info.cfg.topicos} tópico(s)</strong> · ${info.abertasTotal} atividade(s) já ocupam vagas · <strong>${info.vagasSugeridas} nova(s)</strong> pré-selecionada(s) para completar o ciclo${info.excluidasOcultas ? ` · ${info.excluidasOcultas} item(ns) de matérias excluídas ocultado(s)` : ''}${info.disciplinasEmCooldown ? ` · ${info.disciplinasEmCooldown} aguardando novo retrato TEC` : ''}.`;
-    }
-    ReforcoFila.decorarSugestoesPlano(this);
-    const marcar = document.getElementById('pl-marcar'), limpar = document.getElementById('pl-limpar');
-    if (marcar) marcar.addEventListener('click', () => { this._reforcoFilaAutoMode = false; });
-    if (limpar) limpar.addEventListener('click', () => { this._reforcoFilaAutoMode = false; });
-  }
-  return ret;
-};
-
+/* A fila diaria nao decide sugestoes; apenas agenda e executa reforcos. */
 window.ReforcoFila = ReforcoFila;
 
 /* ═══════════════════════════════════════════════════════════════════════════
@@ -44216,8 +44001,8 @@ window.ReforcoFila = ReforcoFila;
    EXTRAS — cache rápido do Plano + rodízio inteligente de lei seca
    ============================================================ */
 (() => {
-  if (typeof window !== 'undefined' && window.__leiRodizioExtrasV1) return;
-  if (typeof window !== 'undefined') window.__leiRodizioExtrasV1 = true;
+  if (typeof window !== 'undefined' && window.__leiRodizioExtras) return;
+  if (typeof window !== 'undefined') window.__leiRodizioExtras = true;
 
   /* ── CACHE DO PLANO NO CAMINHO QUENTE DE EXTRAS ──────────────────────────
      A conclusão de uma Extra muda slots/progresso, mas NÃO muda o retrato TEC.
@@ -44305,26 +44090,6 @@ window.ReforcoFila = ReforcoFila;
     ReforcoFila._planoRef = function () {
       try { return PlanFastCache.atual(); }
       catch (e) { _quiet(e, 'fila-plano-ref-fast'); return null; }
-    };
-
-    /* O resultado de PlanoEngine.calcular já chega ORDENADO conforme o modo que
-       o usuário escolheu. Usar PlanoPontos.esforcoPorMateria outra vez aqui
-       recompunha todo o quadro de matérias apenas para ordenar as mesmas
-       sugestões. Preservar a primeira ocorrência de cada disciplina espelha o
-       Plano e elimina essa segunda travessia pesada. */
-    ReforcoFila._rankDisciplinasPlano = function (cand) {
-      const porDisc = new Map();
-      const ordem = [];
-      (cand || []).forEach((x, i) => {
-        const k = this._norm(x.disciplina || 'sem disciplina');
-        if (!porDisc.has(k)) {
-          porDisc.set(k, { k, nome: x.disciplina || 'Sem disciplina', itens: [] });
-          ordem.push(k);
-        }
-        porDisc.get(k).itens.push({ x, i });
-      });
-      porDisc.forEach(g => g.itens.sort((a, b) => this._cmpSug(a, b)));
-      return { ordem, porDisc };
     };
   }
 
@@ -44872,8 +44637,8 @@ window.ReforcoFila = ReforcoFila;
    EXTRAS — governança premium de reforços + lei seca por tempo
    ============================================================ */
 (() => {
-  if (typeof window !== 'undefined' && window.__extrasGovernancaV1) return;
-  if (typeof window !== 'undefined') window.__extrasGovernancaV1 = true;
+  if (typeof window !== 'undefined' && window.__extrasGovernanca) return;
+  if (typeof window !== 'undefined') window.__extrasGovernanca = true;
   if (typeof DB === 'undefined' || typeof ExtrasScreen === 'undefined') return;
 
   const isoAdd = (iso, n) => {
@@ -45022,8 +44787,8 @@ window.ReforcoFila = ReforcoFila;
    DESEMPENHO TEC — performance, auditoria de parâmetros e UX premium
    ============================================================ */
 (() => {
-  if (typeof window !== 'undefined' && window.__tecPremiumV1) return;
-  if (typeof window !== 'undefined') window.__tecPremiumV1 = true;
+  if (typeof window !== 'undefined' && window.__tecPremium) return;
+  if (typeof window !== 'undefined') window.__tecPremium = true;
   if (typeof DesempenhoTecScreen === 'undefined') return;
   const DT = DesempenhoTecScreen;
 
@@ -45097,8 +44862,8 @@ window.ReforcoFila = ReforcoFila;
    Camada de UX: não altera motores de Reforço/Lei Seca.
    ============================================================ */
 (() => {
-  if (typeof window !== 'undefined' && window.__extrasCentralUiV1) return;
-  if (typeof window !== 'undefined') window.__extrasCentralUiV1 = true;
+  if (typeof window !== 'undefined' && window.__extrasCentralUi) return;
+  if (typeof window !== 'undefined') window.__extrasCentralUi = true;
   if (typeof ExtrasScreen === 'undefined') return;
 
   const esc = (v) => typeof escapeHtml === 'function'
@@ -45359,8 +45124,8 @@ window.ReforcoFila = ReforcoFila;
    REFORÇO ADAPTATIVO — dose estatística + retorno marginal
    ============================================================ */
 (() => {
-  if (window.__reforcoAdaptativoV1) return;
-  window.__reforcoAdaptativoV1 = true;
+  if (window.__reforcoAdaptativo) return;
+  window.__reforcoAdaptativo = true;
   if (typeof DB === 'undefined' || typeof PlanoEngine === 'undefined' || typeof PlanoCiclo === 'undefined') return;
 
   const C=(v,a,b)=>Math.max(a,Math.min(b,Number(v)));
@@ -45421,12 +45186,12 @@ window.ReforcoFila = ReforcoFila;
    Camada exclusivamente de apresentação: não altera cálculos nem filas.
    ============================================================ */
 (() => {
-  if (typeof window !== 'undefined' && window.__tecLayoutV2) return;
-  if (typeof window !== 'undefined') window.__tecLayoutV2 = true;
+  if (typeof window !== 'undefined' && window.__tecLayout) return;
+  if (typeof window !== 'undefined') window.__tecLayout = true;
   if (typeof DesempenhoTecScreen === 'undefined') return;
 
   const DT = DesempenhoTecScreen;
-  const TecLayoutV2 = {
+  const TecLayout = {
     _find(panel, sels) {
       for (const s of sels) { const el = panel.querySelector(s); if (el) return el; }
       return null;
@@ -45504,8 +45269,8 @@ window.ReforcoFila = ReforcoFila;
       this.decorarGeral();
     }
   };
-  TecLayoutV2.instalar();
-  if(typeof window!=='undefined')window.TecLayoutV2=TecLayoutV2;
+  TecLayout.instalar();
+  if(typeof window!=='undefined')window.TecLayout=TecLayout;
 })();
 
 /* ============================================================
@@ -45513,8 +45278,8 @@ window.ReforcoFila = ReforcoFila;
    Corrige sobreposições e elimina recomputações quadráticas no Plano.
    ============================================================ */
 (() => {
-  if (typeof window !== 'undefined' && window.__extrasStabilityV1) return;
-  if (typeof window !== 'undefined') window.__extrasStabilityV1 = true;
+  if (typeof window !== 'undefined' && window.__extrasStability) return;
+  if (typeof window !== 'undefined') window.__extrasStability = true;
 
   const OVERLAY_SELECTOR = '.xsc-overlay,.rg-overlay,.ra-overlay';
   const FOCUSABLE = 'a[href],button:not([disabled]),input:not([disabled]):not([type="hidden"]),select:not([disabled]),textarea:not([disabled]),[tabindex]:not([tabindex="-1"])';
@@ -45996,8 +45761,8 @@ window.ReforcoFila = ReforcoFila;
    Hierarquia, densidade e interações sem alterar os motores.
    ============================================================ */
 (() => {
-  if (typeof window !== 'undefined' && window.__extrasUx100V1) return;
-  if (typeof window !== 'undefined') window.__extrasUx100V1 = true;
+  if (typeof window !== 'undefined' && window.__extrasUx100) return;
+  if (typeof window !== 'undefined') window.__extrasUx100 = true;
   if (typeof document === 'undefined') return;
 
   const esc = (v) => typeof escapeHtml === 'function'
@@ -46313,8 +46078,8 @@ window.ReforcoFila = ReforcoFila;
    Escopo fluido, diversidade do próximo bloco e coerência Plano ↔ Extras.
    ============================================================ */
 (() => {
-  if (typeof window !== 'undefined' && window.__tecAuditoriaV2) return;
-  if (typeof window !== 'undefined') window.__tecAuditoriaV2 = true;
+  if (typeof window !== 'undefined' && window.__tecAuditoria) return;
+  if (typeof window !== 'undefined') window.__tecAuditoria = true;
   if (typeof DesempenhoTecScreen === 'undefined' || typeof PlanoEngine === 'undefined') return;
 
   const DT = DesempenhoTecScreen;
@@ -46326,7 +46091,7 @@ window.ReforcoFila = ReforcoFila;
     catch (_) { return String(v || '').trim().toLowerCase(); }
   };
 
-  const TecAuditoriaV2 = {
+  const TecAuditoria = {
     _scopeTimer: null,
     _scopeRaf: null,
     _renderedScopeKey: null,
@@ -46743,10 +46508,10 @@ window.ReforcoFila = ReforcoFila;
     }
   };
 
-  TecAuditoriaV2.instalar();
+  TecAuditoria.instalar();
   if (typeof window !== 'undefined') {
-    window.TecAuditoriaV2 = TecAuditoriaV2;
-    window.TecPlanDiversity = { selecionar: (itens,cfg) => TecAuditoriaV2.selecionarDiverso(itens,cfg) };
+    window.TecAuditoria = TecAuditoria;
+    window.TecPlanDiversity = { selecionar: (itens,cfg) => TecAuditoria.selecionarDiverso(itens,cfg) };
   }
 })();
 
@@ -46931,7 +46696,7 @@ const CloudStore = {
     // proativamente — sem depender de uma edição. Pequeno atraso para o perfil ativar.
     try { if (window.SectionSync) setTimeout(() => SectionSync.kick(), 1500); } catch (_) { _quiet(_); }
     // faxina do historico de versoes (janela de 7 dias) logo na abertura
-    try { if (window.VersionHistory) setTimeout(() => VersionHistory.limpar(), 2500); } catch (_) { _quiet(_); }
+    try { if (window.BackupHistory) setTimeout(() => BackupHistory.limpar(), 2500); } catch (_) { _quiet(_); }
     /* Promove perfis com id antigo (não-UUID) assim que há conta — antes
        disso, TODA operação de nuvem para esses perfis falhava (na maioria das
        vezes em silêncio): nada sincronizava, nada tinha backup no banco, e o
@@ -47088,7 +46853,7 @@ const CloudStore = {
     }
     if (!this.isReady() || !this.isLoggedIn()) return;
     try { if (!sessionStorage.getItem('diario-estudos:entered')) return; } catch (e) { _quiet(e); }
-    try { if (window.VersionHistory) VersionHistory.maybeDailySnapshot(); } catch (e) { _quiet(e); } // 1 backup/dia
+    try { if (window.BackupHistory) BackupHistory.maybeDailySnapshot(); } catch (e) { _quiet(e); } // 1 backup/dia
     this._pending = true;
     this._dirtyAt = Date.now();          // desde quando há algo não sincronizado
     if (window.CloudUI) CloudUI.refreshSyncBtn();
@@ -47326,7 +47091,7 @@ const CloudStore = {
       // REDE DE SEGURANÇA: antes de sobrescrever o estado local com o da nuvem,
       // guarda uma versão do que está aqui — assim, se outro aparelho tiver
       // enviado algo indesejado, você consegue restaurar em Configurações.
-      try { if (window.VersionHistory) await VersionHistory.snapshot('antes de baixar da nuvem'); } catch (e) { _quiet(e); }
+      try { if (window.BackupHistory) await BackupHistory.snapshot('antes de baixar da nuvem'); } catch (e) { _quiet(e); }
       this._applying = true;
       const mudou = ProfileManager.restorePayloadInto(id, (res.payload && res.payload.data) || {}, preservar);
       ProfileManager.setRev(id, res.rev);
@@ -48199,7 +47964,7 @@ const SectionSync = {
       const prep = this._prepare(rows);
       if (!prep.ok) { res.motivo = prep.motivo; return this._saveLast(res); }
       // Rede de segurança antes de sobrescrever o estado local.
-      try { if (window.VersionHistory && ProfileManager.getActiveProfileId() === id) await VersionHistory.snapshot('antes de baixar por seção'); } catch (_) { _quiet(_); }
+      try { if (window.BackupHistory && ProfileManager.getActiveProfileId() === id) await BackupHistory.snapshot('antes de baixar por seção'); } catch (_) { _quiet(_); }
       res.mudou = this._applyMap(id, prep.map, prep.revs, preservar, prep.manifestoRev);
       res.ok = true; res.seções = Object.keys(prep.map).length;
       if (preservar.length) res.preservadas = preservar;   // ficaram com o valor local, ainda na fila
@@ -49271,7 +49036,7 @@ window.StorageMeter = StorageMeter;
 })();
 
 /* ---- UI do Histórico de versões (Configurações) ---- */
-const VersionHistoryUI = {
+const BackupHistoryUI = {
   _quando(ts) {
     const d = new Date(ts), agora = Date.now();
     const min = Math.round((agora - ts) / 60000);
@@ -49285,7 +49050,7 @@ const VersionHistoryUI = {
     const host = document.getElementById('cfg-vhist-body');
     if (!host) return;
     const id = ProfileManager.getActiveProfileId();
-    const arr = id ? VersionHistory._list(id).slice().reverse() : [];
+    const arr = id ? BackupHistory._list(id).slice().reverse() : [];
     if (!arr.length) {
       host.innerHTML = '<p class="hint">Ainda não há versões guardadas. O app cria uma automaticamente na primeira alteração de cada dia e sempre antes de baixar da nuvem. Você também pode salvar uma agora, com o botão acima.</p>';
       return;
@@ -49304,11 +49069,11 @@ const VersionHistoryUI = {
           <button type="button" class="btn-primary vh-restore" title="Restaurar esta versão sobre o perfil atual">↺ Restaurar</button>
         </div>
       </div>`;
-    }).join('') + '<p class="hint" style="margin-top:10px;">Guardamos até ' + VersionHistory.MAX + ' versões dos últimos 7 dias (uma cópia automática a cada 20 min de uso e sempre antes de uma limpeza). As mais antigas saem sozinhas, então o histórico nunca ocupa espaço demais. Restaurar cria antes uma cópia do estado atual, então a ação é reversível.</p>';
+    }).join('') + '<p class="hint" style="margin-top:10px;">Guardamos até ' + BackupHistory.MAX + ' versões dos últimos 7 dias (uma cópia automática a cada 20 min de uso e sempre antes de uma limpeza). As mais antigas saem sozinhas, então o histórico nunca ocupa espaço demais. Restaurar cria antes uma cópia do estado atual, então a ação é reversível.</p>';
     host.querySelectorAll('.cloud-slot-row').forEach(row => {
       const ts = parseInt(row.dataset.ts, 10);
       row.querySelector('.vh-download').addEventListener('click', async () => {
-        const backup = await VersionHistory.buildBackup(id, ts);
+        const backup = await BackupHistory.buildBackup(id, ts);
         if (!backup) { showToast('Não foi possível ler esta versão'); return; }
         const meta = ProfileManager.getProfiles().find(p => p.id === id) || {};
         const nome = 'versao-' + (meta.nome || 'perfil').toLowerCase().replace(/[^a-z0-9]+/g, '-') + '-' + new Date(ts).toISOString().slice(0, 10) + '.json';
@@ -49321,7 +49086,7 @@ const VersionHistoryUI = {
         showToast('Restaurando…');
         // rede de segurança no banco antes de sobrescrever o estado atual
         try { if (window.CloudBackup) await CloudBackup.protegerAgora('antes de restaurar uma versão local'); } catch (e) { _quiet(e, 'vh-cbk'); }
-        const done = await VersionHistory.restore(id, ts);
+        const done = await BackupHistory.restore(id, ts);
         if (!done) { showToast('Não foi possível restaurar esta versão'); return; }
         try { await CloudStore.flushPending(); } catch (_) { _quiet(_); }
         setTimeout(() => recarregarApp('versão restaurada', { imediato: true }), 600);
@@ -49329,15 +49094,15 @@ const VersionHistoryUI = {
     });
   }
 };
-window.VersionHistoryUI = VersionHistoryUI;
+window.BackupHistoryUI = BackupHistoryUI;
 (function () {
   const b = document.getElementById('cfg-vhist-save');
   if (b) b.addEventListener('click', async () => {
-    const ok = await VersionHistory.snapshot('salvo manualmente');
+    const ok = await BackupHistory.snapshot('salvo manualmente');
     showToast(ok ? 'Versão salva ✓' : 'Nada mudou desde a última versão');
-    VersionHistoryUI.render();
+    BackupHistoryUI.render();
   });
-  window.addEventListener('screen:activated', (e) => { if (e.detail && e.detail.screen === 'config') VersionHistoryUI.render(); });
+  window.addEventListener('screen:activated', (e) => { if (e.detail && e.detail.screen === 'config') BackupHistoryUI.render(); });
 })();
 
 
@@ -49510,10 +49275,10 @@ const Recuperacao = {
     return Object.values(perfis).sort((a, b) => b.bytes - a.bytes);
   },
   /* As fotos NÃO moram no namespace do perfil — a chave é
-     'diario-estudos:vhist:<id>'. Ler pela API do próprio VersionHistory evita
+     'diario-estudos:vhist:<id>'. Ler pela API do próprio BackupHistory evita
      que este módulo se desatualize se aquele formato mudar. */
   _fotosDe(pid) {
-    try { return VersionHistory._list(pid) || []; } catch (e) { _quiet(e, 'rec-lista-fotos'); return []; }
+    try { return BackupHistory._list(pid) || []; } catch (e) { _quiet(e, 'rec-lista-fotos'); return []; }
   },
   _contarFotos(pid) { return this._fotosDe(pid).length; },
   /* Planejamentos que TÊM dados mas não estão na lista — a causa mais comum de
@@ -49632,7 +49397,7 @@ const Recuperacao = {
     const lista = this._fotosDe(alvo);
     for (const rec of lista) {
       let data = null;
-      try { const json = await VersionHistory._gunzip(rec); data = json ? JSON.parse(json) : null; } catch (e) { _quiet(e, 'rec-abrir-foto'); }
+      try { const json = await BackupHistory._gunzip(rec); data = json ? JSON.parse(json) : null; } catch (e) { _quiet(e, 'rec-abrir-foto'); }
       if (!data) continue;
       const secoes = Object.keys(data).filter(s => s !== '__secrev' && s !== '__secpend' && s.indexOf('vhist') !== 0);
       out.push({ ts: rec.ts, nota: rec.note || '', secoes, total: secoes.length,
@@ -49648,9 +49413,9 @@ const Recuperacao = {
     const rec = this._fotosDe(alvo).find(r => r.ts === ts);
     if (!rec) return { ok: false, motivo: 'foto não encontrada' };
     let data = null;
-    try { const json = await VersionHistory._gunzip(rec); data = json ? JSON.parse(json) : null; } catch (e) { _quiet(e, 'rec-abrir-foto2'); }
+    try { const json = await BackupHistory._gunzip(rec); data = json ? JSON.parse(json) : null; } catch (e) { _quiet(e, 'rec-abrir-foto2'); }
     if (!data) return { ok: false, motivo: 'foto ilegível' };
-    try { await VersionHistory.snapshot('antes de recuperar seções faltantes'); } catch (e) { _quiet(e, 'rec-snap'); }
+    try { await BackupHistory.snapshot('antes de recuperar seções faltantes'); } catch (e) { _quiet(e, 'rec-snap'); }
     const prefix = 'diario-estudos:u:' + alvo + ':';
     const trazidas = [];
     Object.keys(data).forEach(sub => {
@@ -50058,10 +49823,10 @@ const CloudBackup = {
       return { ok: false, motivo: 'perfil-vazio' };
     }
     const json = JSON.stringify(dataObj);
-    const sig = VersionHistory._fnv(json);
+    const sig = BackupHistory._fnv(json);
     if (!opts.forcar && this._lerUltimoSig(id) === sig) return { ok: true, repetido: true };
     try {
-      const packed = await VersionHistory._gzip(json);
+      const packed = await BackupHistory._gzip(json);
       if (String(packed.data).length > this.LIMITE_CHARS) {
         /* Falha que ANTES era muda: nunca marcada em `_ultimoErro`, então o
            diagnóstico e a tela continuavam dizendo "ativo" enquanto o backup
@@ -50139,7 +49904,7 @@ const CloudBackup = {
         30000, 'Baixar o backup');
       if (error) throw error;
       if (!data) return null;
-      const json = await VersionHistory._gunzip({ enc: data.enc, data: data.data });
+      const json = await BackupHistory._gunzip({ enc: data.enc, data: data.data });
       if (json == null) return null;
       let mapa; try { mapa = JSON.parse(json); } catch (_) { return null; }
       return { data: mapa, note: data.note, created_at: data.created_at, chars: data.chars };
@@ -50170,7 +49935,7 @@ const CloudBackup = {
     if (!id) return { ok: false, motivo: 'sem-perfil' };
     const foto = await this.abrir(rowId);
     if (!foto || !foto.data) return { ok: false, motivo: 'foto-ilegível' };
-    try { await VersionHistory.snapshot('antes de restaurar um backup da nuvem'); } catch (e) { _quiet(e, 'cbk-vh'); }
+    try { await BackupHistory.snapshot('antes de restaurar um backup da nuvem'); } catch (e) { _quiet(e, 'cbk-vh'); }
     try { await this.criar('antes de restaurar um backup da nuvem', { forcar: true }); } catch (e) { _quiet(e, 'cbk-pre'); }
     try {
       CloudStore._applying = true;
@@ -50581,9 +50346,9 @@ const GuardaNuvem = {
       if (util(d)) return d;
     } catch (e) { _quiet(e, 'guarda-remoto'); }
     try {
-      const fotos = VersionHistory._list(id) || [];
+      const fotos = BackupHistory._list(id) || [];
       for (let i = fotos.length - 1; i >= 0; i--) {
-        const json = await VersionHistory._gunzip(fotos[i]);
+        const json = await BackupHistory._gunzip(fotos[i]);
         if (!json) continue;
         let d = null; try { d = JSON.parse(json); } catch (e) { _quiet(e, 'guarda-foto'); continue; }
         if (util(d)) return d;
@@ -53467,7 +53232,7 @@ else CloudStore.init();
         { word: 'LIMPAR', title: '🧹 Tem certeza?', okText: 'Apagar e rebaixar' });
       if (!ok2) return;
       try {
-        if (window.VersionHistory) await VersionHistory.snapshot('antes de limpar dados locais');
+        if (window.BackupHistory) await BackupHistory.snapshot('antes de limpar dados locais');
         /* Esta é a única ação do app que apaga dados de propósito. A foto local
            acima some junto se o navegador for limpo depois; a do banco, não. */
         if (window.CloudBackup) await CloudBackup.protegerAgora('antes de limpar os dados locais');
@@ -53669,13 +53434,13 @@ else CloudStore.init();
    motores de negócio. Tudo aqui é uma camada tardia e reversível de apresentação.
    ============================================================================ */
 (() => {
-  if (typeof window === 'undefined' || window.__uxStabilityV3) return;
-  window.__uxStabilityV3 = true;
+  if (typeof window === 'undefined' || window.__uxStability) return;
+  window.__uxStability = true;
   if (typeof document === 'undefined') return;
 
   const later = (fn) => requestAnimationFrame(() => requestAnimationFrame(() => { try { fn(); } catch (e) { if (typeof _quiet === 'function') _quiet(e, 'ux-v3'); } }));
 
-  const UXV3 = {
+  const UXStability = {
     _infoPop: null,
     _cloudUserAt: 0,
     _tecFirstOpen: true,
@@ -53749,7 +53514,7 @@ else CloudStore.init();
       LeisScreen._uxv3LawPatched = true;
       const orig = LeisScreen.renderCards;
       LeisScreen.renderCards = function () {
-        const r = orig.apply(this, arguments); later(() => UXV3.decorateLawList()); return r;
+        const r = orig.apply(this, arguments); later(() => UXStability.decorateLawList()); return r;
       };
     },
 
@@ -53824,7 +53589,7 @@ else CloudStore.init();
           card.classList.remove('uxv3-collapsed'); btn.setAttribute('aria-expanded', 'true');
           const ch = btn.querySelector('.chev'); if (ch) ch.textContent = '▴';
         } else if (typeof ExtrasScreen !== 'undefined' && typeof ExtrasScreen.renderEmCurso === 'function') {
-          requestAnimationFrame(() => { ExtrasScreen.renderEmCurso(); later(() => UXV3.decorateCourse()); });
+          requestAnimationFrame(() => { ExtrasScreen.renderEmCurso(); later(() => UXStability.decorateCourse()); });
         }
       }, true);
     },
@@ -53842,7 +53607,7 @@ else CloudStore.init();
       const orig = ExtrasScreen.render;
       ExtrasScreen.render = function () {
         const r = orig.apply(this, arguments);
-        later(() => { UXV3.decorateExtrasToolbar(); UXV3.decorateLawCards(); UXV3.decorateCourse(); });
+        later(() => { UX.decorateExtrasToolbar(); UX.decorateLawCards(); UXStability.decorateCourse(); });
         return r;
       };
     },
@@ -53932,8 +53697,8 @@ else CloudStore.init();
     }
   };
 
-  UXV3.init();
-  window.UXV3 = UXV3;
+  UXStability.init();
+  window.UXStability = UXStability;
 })();
 /* ============================================================================
    STARTUP + LOADERS + REFORÇO CONTÍNUO V4
@@ -53949,8 +53714,8 @@ else CloudStore.init();
    martelar o mesmo assunto no mesmo dia.
    ============================================================================ */
 (() => {
-  if (typeof window === 'undefined' || window.__startupSpinnerReforcoV4) return;
-  window.__startupSpinnerReforcoV4 = true;
+  if (typeof window === 'undefined' || window.__startupSpinnerReforco) return;
+  window.__startupSpinnerReforco = true;
 
   const quiet = (e, tag) => { try { if (typeof _quiet === 'function') _quiet(e, tag || 'ux-v4'); } catch (ignored) { void ignored; } };
   const norm = (s) => {
@@ -53962,7 +53727,7 @@ else CloudStore.init();
   /* ── TELEMETRIA LOCAL DE STARTUP ──────────────────────────────────────────
      Não envia nada para fora. Serve para diagnosticar exatamente onde um login
      ficou lento: autenticação, abertura local ou reconciliação remota. */
-  const StartupTraceV4 = {
+  const StartupTrace = {
     KEY: 'diario-estudos:startup-v4:last',
     startedAt: performance && performance.now ? performance.now() : Date.now(),
     marks: [],
@@ -53978,11 +53743,11 @@ else CloudStore.init();
     },
     table() { try { console.table(this.last()); } catch (e) { quiet(e, 'startup-trace-table'); } return this.last(); }
   };
-  window.StartupTraceV4 = StartupTraceV4;
-  StartupTraceV4.mark('camada-v4-pronta');
+  window.StartupTrace = StartupTrace;
+  StartupTrace.mark('camada-v4-pronta');
 
   /* ── LOADERS / SPINNERS ────────────────────────────────────────────────── */
-  const LoaderUXV4 = {
+  const LoaderUX = {
     _seen: new WeakMap(),
     _observer: null,
     _timer: null,
@@ -54065,8 +53830,8 @@ else CloudStore.init();
       if (!this._timer) this._timer = setInterval(() => this.watchdog(), 1000);
     }
   };
-  window.LoaderUXV4 = LoaderUXV4;
-  LoaderUXV4.init();
+  window.LoaderUX = LoaderUX;
+  LoaderUX.init();
 
   function gateMessage(main, sub, localFirst) {
     try {
@@ -54093,7 +53858,7 @@ else CloudStore.init();
   async function reconcileProfile(id) {
     if (!id || !window.CloudStore || !CloudStore.isReady || !CloudStore.isReady() || !CloudStore.isLoggedIn || !CloudStore.isLoggedIn()) return false;
     if (window.ProfileManager && ProfileManager.getActiveProfileId && ProfileManager.getActiveProfileId() !== id) return false;
-    StartupTraceV4.mark('reconciliacao-inicio');
+    StartupTrace.mark('reconciliacao-inicio');
     syncNote('Conferindo novidades da nuvem em segundo plano…');
     try {
       // Primeiro entrega o que este aparelho ainda não enviou. Só depois pergunta
@@ -54113,12 +53878,12 @@ else CloudStore.init();
         else if (CloudStore.pullActiveAndReload) await CloudStore.pullActiveAndReload();
       } else {
         try { if (window.SectionSync) SectionSync.kick(); } catch (e) { quiet(e, 'reconcile-kick'); }
-        StartupTraceV4.mark('reconciliacao-sem-novidade');
+        StartupTrace.mark('reconciliacao-sem-novidade');
       }
       return true;
     } catch (e) {
       quiet(e, 'reconciliacao-v4');
-      StartupTraceV4.mark('reconciliacao-adiada', { erro: String(e && e.message || e || '') });
+      StartupTrace.mark('reconciliacao-adiada', { erro: String(e && e.message || e || '') });
       return false;
     } finally {
       setTimeout(() => syncNote(''), 650);
@@ -54135,7 +53900,7 @@ else CloudStore.init();
         return;
       }
       if (tent < 30) setTimeout(run, 250);
-      else StartupTraceV4.mark('reconciliacao-sem-sessao');
+      else StartupTrace.mark('reconciliacao-sem-sessao');
     };
     setTimeout(run, 80);
   }
@@ -54157,7 +53922,7 @@ else CloudStore.init();
       // local impede abrir dado de outra conta.
       if (logged && has && can) {
         const ativoAntes = ProfileManager.getActiveProfileId();
-        StartupTraceV4.mark('perfil-local-encontrado', { mesmoPerfil: ativoAntes === id });
+        StartupTrace.mark('perfil-local-encontrado', { mesmoPerfil: ativoAntes === id });
         this._autoEnterTried = true; this._entering = true;
         gateMessage('Abrindo seus estudos deste aparelho…', 'Você já pode entrar; a nuvem será conferida em segundo plano.', true);
         try { ProfileManager.setActiveProfile(id); if (ProfileManager._setOwner && uid) ProfileManager._setOwner(id, uid); } catch (e) { quiet(e, 'local-first-active'); }
@@ -54169,21 +53934,21 @@ else CloudStore.init();
           this._entering = false;
           try { this.hideGate(); this.renderChip(); } catch (e) { quiet(e, 'local-first-hide'); }
           try { DB.checarEspaco(); } catch (e) { quiet(e, 'local-first-space'); }
-          StartupTraceV4.mark('perfil-local-visivel');
+          StartupTrace.mark('perfil-local-visivel');
           scheduleReconcile(id);
           return true;
         }
 
         // Outro perfil local: troca o namespace e recarrega IMEDIATAMENTE a partir
         // do armazenamento local. Não espera hydrate/fetchPayload antes do reload.
-        StartupTraceV4.mark('troca-perfil-local-reload');
+        StartupTrace.mark('troca-perfil-local-reload');
         if (typeof recarregarApp === 'function') recarregarApp('troca local-first de perfil', { imediato: true });
         else location.reload();
         return true;
       }
 
       gateMessage('Baixando seu perfil…', 'Este aparelho ainda precisa receber os dados necessários antes de abrir.', false);
-      StartupTraceV4.mark('perfil-remoto-necessario');
+      StartupTrace.mark('perfil-remoto-necessario');
       return original(id);
     };
 
@@ -54383,7 +54148,7 @@ else CloudStore.init();
   installAdaptiveContinuity();
 
   // Exposto para auditoria automatizada e diagnóstico no console.
-  window.UXV4 = { StartupTraceV4, LoaderUXV4, reconcileProfile, installLocalFirst, installAdaptiveContinuity };
+  window.UX = { StartupTrace, LoaderUX, reconcileProfile, installLocalFirst, installAdaptiveContinuity };
 })();
 
 /* ============================================================================
@@ -54459,7 +54224,7 @@ else CloudStore.init();
     return r;
   };
 
-  window.ExtrasPlanoContinuityV4 = { aplicar };
+  window.ExtrasPlanoContinuity = { aplicar };
 })();
 
 /* ============================================================================
@@ -54471,8 +54236,8 @@ else CloudStore.init();
    seja aplicado uma única vez por cálculo do Plano.
    ============================================================================ */
 (() => {
-  if (typeof window === 'undefined' || !window.ReforcoAdaptativo || window.__raContinuityCoreV4) return;
-  window.__raContinuityCoreV4 = true;
+  if (typeof window === 'undefined' || !window.ReforcoAdaptativo || window.__raContinuityCore) return;
+  window.__raContinuityCore = true;
   const RA = window.ReforcoAdaptativo;
   if (typeof RA.prescrever !== 'function' || typeof RA.contexto !== 'function' ||
       typeof RA._aplicarContinuidade !== 'function') return;
@@ -54571,8 +54336,8 @@ else CloudStore.init();
    influencia na calibracao futura da dose.
    ============================================================================ */
 (() => {
-  if (typeof window === 'undefined' || window.__reforcoTecExtrasV8) return;
-  window.__reforcoTecExtrasV8 = true;
+  if (typeof window === 'undefined' || window.__reforcoTecExtras) return;
+  window.__reforcoTecExtras = true;
 
   const N=(v,d=0)=>Number.isFinite(Number(v))?Number(v):d;
   const C=(v,a,b)=>Math.max(a,Math.min(b,N(v,a)));
@@ -54646,7 +54411,7 @@ else CloudStore.init();
     }
   };
 
-  window.ReforcoTecExtrasV8=X;
+  window.ReforcoTecExtras=X;
 })();
 /* ============================================================================
    PLANO → EXTRAS — infraestrutura neutra dos motores V2
@@ -54656,8 +54421,8 @@ else CloudStore.init();
    chamam funções privadas um do outro.
    ============================================================================ */
 (() => {
-  if (typeof window === 'undefined' || window.__planoSugInfraV2) return;
-  window.__planoSugInfraV2 = true;
+  if (typeof window === 'undefined' || window.__planoSugInfra) return;
+  window.__planoSugInfra = true;
   if (typeof DB === 'undefined' || typeof DesempenhoTecScreen === 'undefined') return;
 
   const num = (v, d = 0) => Number.isFinite(Number(v)) ? Number(v) : d;
@@ -54722,20 +54487,19 @@ else CloudStore.init();
     }
   };
 
-  window.PlanoSugestoesInfraV2 = Object.freeze(I);
+  window.PlanoSugestoesInfra = Object.freeze(I);
 })();
 
 /* ============================================================================
-   MOTOR SIMPLIFICADO — revisão estatística V3
+   MOTOR SIMPLIFICADO — revisão estatística
    Pré: TEC escopado × meta × amostra mínima, sem sobrepor níveis da árvore.
    Pós: TEC × incidência hierárquica limpa da banca × valor da matéria.
    Independente de PlanoEngine, Mentor90 e do motor Robusto.
    ============================================================================ */
 (() => {
-  if (typeof window === 'undefined' || window.__planoSugSimplificadoV3) return;
-  window.__planoSugSimplificadoV3 = true;
-  window.__planoSugSimplificadoV2 = true;
-  const I = window.PlanoSugestoesInfraV2;
+  if (typeof window === 'undefined' || window.__planoSugSimplificado) return;
+  window.__planoSugSimplificado = true;
+  const I = window.PlanoSugestoesInfra;
   if (!I || typeof DB === 'undefined') return;
   const { num, clamp, norm } = I;
   const OWN_PREF_KEYS = Object.freeze(['fase','meta','minAmostra','banca','alvoQuestoes']);
@@ -54756,9 +54520,8 @@ else CloudStore.init();
   };
 
   const S = {
-    VERSAO: 3,
-    REVISAO_AUDITORIA: 3,
-    MOTOR: 'simplificado-v2', // identificador preservado para compatibilidade histórica
+    REVISAO_REGISTRO: 3,
+    MOTOR: 'simplificado-v2', // identificador histórico persistido; não renomear sem migração
     KEY: 'plano-simplificado-v2',
     DEFAULTS: Object.freeze({ fase:'auto', meta:90, minAmostra:20, banca:'__todas__', alvoQuestoes:30 }),
     PREF_KEYS: OWN_PREF_KEYS,
@@ -54766,7 +54529,7 @@ else CloudStore.init();
     prefs() {
       let raw = {};
       try { raw = JSON.parse(localStorage.getItem(DB._profilePrefix() + this.KEY) || '{}') || {}; }
-      catch (e) { if (typeof _quiet === 'function') _quiet(e, 'plano-simple-v3-prefs'); }
+      catch (e) { if (typeof _quiet === 'function') _quiet(e, 'plano-simple-prefs'); }
       const p = Object.assign({}, this.DEFAULTS, ownPrefs(raw));
       if (!['auto','pre','pos'].includes(p.fase)) p.fase = 'auto';
       p.meta = clamp(p.meta, 50, 100);
@@ -54786,14 +54549,14 @@ else CloudStore.init();
       try {
         const k = DB._profilePrefix() + this.KEY;
         if (DB.setRaw) DB.setRaw(k, JSON.stringify(persistido)); else localStorage.setItem(k, JSON.stringify(persistido));
-      } catch (e) { if (typeof _quiet === 'function') _quiet(e, 'plano-simple-v3-save'); }
+      } catch (e) { if (typeof _quiet === 'function') _quiet(e, 'plano-simple-save'); }
       return Object.assign({}, persistido);
     },
     restaurar() {
       try {
         const k = DB._profilePrefix() + this.KEY;
         if (DB.delRaw) DB.delRaw(k); else localStorage.removeItem(k);
-      } catch (e) { if (typeof _quiet === 'function') _quiet(e, 'plano-simple-v3-reset'); }
+      } catch (e) { if (typeof _quiet === 'function') _quiet(e, 'plano-simple-reset'); }
       return this.prefs();
     },
     fase(p) { return p.fase === 'pre' || p.fase === 'pos' ? p.fase : I.fasePlano(); },
@@ -54829,9 +54592,6 @@ else CloudStore.init();
         vistos.add(k);
         elegiveis.push({ item:r, disciplina, nome, taxa, qJanela:q, lacunaPP:Math.max(0,p.meta-taxa), codigo:String(r.codigo || ''), depth:num(r.depth,codeDepth(r.codigo)) });
       }
-      // Fronteira não sobreposta: se um descendente elegível já mede o ramo,
-      // o pai cumulativo não disputa junto. Isso remove a vantagem artificial
-      // de árvores profundas sem recorrer ao motor Robusto.
       return elegiveis.filter((x, i) => !elegiveis.some((y, j) => i !== j && norm(y.disciplina) === norm(x.disciplina) && isDesc(x.codigo, y.codigo)));
     },
     _mapaPlanejamento(disciplinas) {
@@ -54927,20 +54687,18 @@ else CloudStore.init();
         explicacao:fase==='pre' ? 'TEC direto × meta × amostra mínima em partição hierárquica não sobreposta.' : 'TEC direto × incidência hierárquica limpa da banca × planejamento; sem usar o motor Robusto.'
       };
     },
-    arquitetura() { return { motor:this.MOTOR, revisao:this.REVISAO_AUDITORIA, independente:true, usaPlanoEngine:false, usaMentor90:false, deps:this.deps.slice(), prefs:this.PREF_KEYS.slice(), particaoHierarquica:'nao-sobreposta' }; }
+    arquitetura() { return { motor:this.MOTOR, revisao:this.REVISAO_REGISTRO, independente:true, usaPlanoEngine:false, usaMentor90:false, deps:this.deps.slice(), prefs:this.PREF_KEYS.slice(), particaoHierarquica:'nao-sobreposta' }; }
   };
-  window.PlanoSugestoesSimplificadoV3 = S;
-  window.PlanoSugestoesSimplificadoV2 = S;
+  window.PlanoSugestoesSimplificado = S;
 })();
-
 /* ============================================================================
-   ROBUSTO V8 — MOTOR ESTATISTICO TEC + EXTRAS
+   MOTOR ROBUSTO — TEC + EXTRAS
    Escolhe onde atacar, em que ordem e com qual dose, sem decidir o método.
    ============================================================================ */
 (() => {
-  if(typeof window==='undefined'||window.__planoSugRobustoV8)return;
-  const I=window.PlanoSugestoesInfraV2;if(!I||typeof DB==='undefined')return;
-  window.__planoSugRobustoV8=true;
+  if(typeof window==='undefined'||window.__planoSugRobusto)return;
+  const I=window.PlanoSugestoesInfra;if(!I||typeof DB==='undefined')return;
+  window.__planoSugRobusto=true;
   const n=(v,d=0)=>Number.isFinite(Number(v))?Number(v):d;
   const clamp=(v,a,b)=>Math.max(a,Math.min(b,n(v,a)));
   const norm=I.norm||((s)=>String(s||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().replace(/\s+/g,' ').trim());
@@ -54958,16 +54716,16 @@ else CloudStore.init();
   const KEY='robusto-tec-v8',PREF_KEYS=Object.keys(DEFAULTS);
 
   const R={
-    VERSAO:8,REVISAO_AUDITORIA:8,MOTOR:'robusto-v8',KEY,DEFAULTS,PREF_KEYS,
+    REVISAO_REGISTRO:8,MOTOR:'plano-robusto',KEY,DEFAULTS,PREF_KEYS,
     prefs(){
-      let raw={};try{raw=JSON.parse(localStorage.getItem(DB._profilePrefix()+KEY)||'{}')||{};}catch(e){if(typeof _quiet==='function')_quiet(e,'robusto-v8-prefs');}
+      let raw={};try{raw=JSON.parse(localStorage.getItem(DB._profilePrefix()+KEY)||'{}')||{};}catch(e){if(typeof _quiet==='function')_quiet(e,'plano-robusto-prefs');}
       const p={...DEFAULTS};PREF_KEYS.forEach(k=>{if(Object.prototype.hasOwnProperty.call(raw,k))p[k]=raw[k];});
       p.meta=clamp(p.meta,60,99);p.minAmostra=Math.round(clamp(p.minAmostra,5,300));p.minObservacao=Math.round(clamp(p.minObservacao,1,p.minAmostra));p.forcaPrior=clamp(p.forcaPrior,.5,20);p.margemLacunaPP=clamp(p.margemLacunaPP,0,15);
       p.doseMin=Math.round(clamp(p.doseMin,5,60));p.doseMax=Math.round(clamp(p.doseMax,p.doseMin,100));p.doseBase=Math.round(clamp(p.doseBase,p.doseMin,p.doseMax));p.minCiclosDose=Math.round(clamp(p.minCiclosDose,2,20));p.shrinkDose=clamp(p.shrinkDose,1,40);p.ganhoMinPP100q=clamp(p.ganhoMinPP100q,0,20);p.minQuestoesTempoExtras=Math.round(clamp(p.minQuestoesTempoExtras,10,300));p.banca=typeof p.banca==='string'&&p.banca?p.banca:'__todas__';return p;
     },
-    salvar(patch){const p={...this.prefs()};PREF_KEYS.forEach(k=>{if(patch&&Object.prototype.hasOwnProperty.call(patch,k))p[k]=patch[k];});try{const raw=JSON.stringify(p);if(DB.setRaw)DB.setRaw(DB._profilePrefix()+KEY,raw);else localStorage.setItem(DB._profilePrefix()+KEY,raw);}catch(e){if(typeof _quiet==='function')_quiet(e,'robusto-v8-save');}return this.prefs();},
-    restaurar(){try{if(DB.delRaw)DB.delRaw(DB._profilePrefix()+KEY);else localStorage.removeItem(DB._profilePrefix()+KEY);}catch(e){if(typeof _quiet==='function')_quiet(e,'robusto-v8-reset');}return this.prefs();},
-    fase(){try{const p=typeof PlanManager!=='undefined'&&PlanManager.getActivePlan?PlanManager.getActivePlan():null;return /p[oó]s[- ]?edital/i.test(String(p&&p.tipo||''))?'pos':'pre';}catch(e){if(typeof _quiet==='function')_quiet(e,'robusto-v8-fase');return'pre';}},
+    salvar(patch){const p={...this.prefs()};PREF_KEYS.forEach(k=>{if(patch&&Object.prototype.hasOwnProperty.call(patch,k))p[k]=patch[k];});try{const raw=JSON.stringify(p);if(DB.setRaw)DB.setRaw(DB._profilePrefix()+KEY,raw);else localStorage.setItem(DB._profilePrefix()+KEY,raw);}catch(e){if(typeof _quiet==='function')_quiet(e,'plano-robusto-save');}return this.prefs();},
+    restaurar(){try{if(DB.delRaw)DB.delRaw(DB._profilePrefix()+KEY);else localStorage.removeItem(DB._profilePrefix()+KEY);}catch(e){if(typeof _quiet==='function')_quiet(e,'plano-robusto-reset');}return this.prefs();},
+    fase(){try{const p=typeof PlanManager!=='undefined'&&PlanManager.getActivePlan?PlanManager.getActivePlan():null;return /p[oó]s[- ]?edital/i.test(String(p&&p.tipo||''))?'pos':'pre';}catch(e){if(typeof _quiet==='function')_quiet(e,'plano-robusto-fase');return'pre';}},
     modoAtaque(){return this.fase();},
 
     posterior(taxa,q,meta,cfg,intervalo=true){
@@ -54977,13 +54735,13 @@ else CloudStore.init();
     },
     _snapshotSeries(snapshot){
       if(Array.isArray(snapshot&&snapshot._fontes)&&snapshot._fontes.length)return snapshot._fontes.slice().sort((a,b)=>dateKey(a).localeCompare(dateKey(b)));
-      let snaps=[];try{snaps=DB.getTecSnapshots?DB.getTecSnapshots()||[]:[];}catch(e){if(typeof _quiet==='function')_quiet(e,'robusto-v8-snapshots');}
-      try{const D=window.DesempenhoTecScreen||((typeof DesempenhoTecScreen!=='undefined')?DesempenhoTecScreen:null);if(D&&D.selectedSnapIds&&D.selectedSnapIds.size){const ids=D.selectedSnapIds,z=snaps.filter(s=>ids.has(s.id));if(z.length)snaps=z;}}catch(e){if(typeof _quiet==='function')_quiet(e,'robusto-v8-scope-series');}
+      let snaps=[];try{snaps=DB.getTecSnapshots?DB.getTecSnapshots()||[]:[];}catch(e){if(typeof _quiet==='function')_quiet(e,'plano-robusto-snapshots');}
+      try{const D=window.DesempenhoTecScreen||((typeof DesempenhoTecScreen!=='undefined')?DesempenhoTecScreen:null);if(D&&D.selectedSnapIds&&D.selectedSnapIds.size){const ids=D.selectedSnapIds,z=snaps.filter(s=>ids.has(s.id));if(z.length)snaps=z;}}catch(e){if(typeof _quiet==='function')_quiet(e,'plano-robusto-scope-series');}
       return snaps.slice(-12).sort((a,b)=>dateKey(a).localeCompare(dateKey(b)));
     },
     _tecDisciplinas(snapshot){return [...new Set(I.linhasTec(snapshot||I.snapshot()).map(r=>String(r.disciplina||'').trim()).filter(Boolean))].sort((a,b)=>a.localeCompare(b,'pt-BR'));},
-    _postConfig(){try{const p=PlanManager.getActivePlan();return p&&p.robustoTecPost&&typeof p.robustoTecPost==='object'?p.robustoTecPost:{configurado:false,disciplinas:{}};}catch(e){if(typeof _quiet==='function')_quiet(e,'robusto-v8-post-read');return{configurado:false,disciplinas:{}};}},
-    salvarPostConfig(patch){try{const p=PlanManager.getActivePlan();if(!p)return null;const atual=this._postConfig(),next={...atual,...patch,disciplinas:{...(atual.disciplinas||{}),...((patch&&patch.disciplinas)||{})}};PlanManager.updatePlan(p.id,{robustoTecPost:next});return next;}catch(e){if(typeof _quiet==='function')_quiet(e,'robusto-v8-post-save');return null;}},
+    _postConfig(){try{const p=PlanManager.getActivePlan();return p&&p.robustoTecPost&&typeof p.robustoTecPost==='object'?p.robustoTecPost:{configurado:false,disciplinas:{}};}catch(e){if(typeof _quiet==='function')_quiet(e,'plano-robusto-post-read');return{configurado:false,disciplinas:{}};}},
+    salvarPostConfig(patch){try{const p=PlanManager.getActivePlan();if(!p)return null;const atual=this._postConfig(),next={...atual,...patch,disciplinas:{...(atual.disciplinas||{}),...((patch&&patch.disciplinas)||{})}};PlanManager.updatePlan(p.id,{robustoTecPost:next});return next;}catch(e){if(typeof _quiet==='function')_quiet(e,'plano-robusto-post-save');return null;}},
 
     _fronteira(snapshot,p){
       const bloqueadas=I.disciplinasBloqueadas(),all=[],seen=new Set();
@@ -55004,11 +54762,11 @@ else CloudStore.init();
       let pts;if(index)pts=index.get(c._key||itemKey(c.disciplina,c.nome))||[];else{pts=[];for(const s of this._snapshotSeries(snapshot)){let row=null;for(const r of I.linhasTec(s||{})){if(itemKey(r.disciplina,r.nome)===(c._key||itemKey(c.disciplina,c.nome))){row=r;break;}}if(!row)continue;const q=I.q(row),taxa=I.taxa(row);if(q>=Math.max(3,Math.floor(p.minObservacao))&&taxa!=null)pts.push({data:dateKey(s),q,taxa});}}
       const abaixo=pts.filter(x=>x.taxa<p.meta).length,persist=pts.length?abaixo/pts.length:.5;let trend=.5,delta=0;if(pts.length>=2){delta=pts[0].taxa-pts[pts.length-1].taxa;trend=clamp(.5+delta/30,0,1);}return{n:pts.length,persistencia:persist,tendenciaRisco:trend,deltaPP:delta,pontos:pts};
     },
-    _incRows(p){let rows=[];try{rows=I.incidencia?I.incidencia()||[]:[];}catch(e){if(typeof _quiet==='function')_quiet(e,'robusto-v8-incidencia');}const b=norm(p.banca);return rows.filter(r=>p.banca==='__todas__'||!p.banca||norm(r&&r.banca)===b);},
+    _incRows(p){let rows=[];try{rows=I.incidencia?I.incidencia()||[]:[];}catch(e){if(typeof _quiet==='function')_quiet(e,'plano-robusto-incidencia');}const b=norm(p.banca);return rows.filter(r=>p.banca==='__todas__'||!p.banca||norm(r&&r.banca)===b);},
     _incIndex(rows){const m=new Map();for(const r of rows||[]){const k=itemKey(r&&r.disciplina,r&&r.topico),v=Math.max(0,n(r&&r.incidencia));m.set(k,(m.get(k)||0)+v);}return m;},
     _incidencia(c,rows,index){if(index){const valor=index.get(c._key||itemKey(c.disciplina,c.nome))||0;return valor>0?{valor,confianca:1,via:'disciplina-topico-exato'}:{valor:0,confianca:0,via:'ausente'};}const d=norm(c.disciplina),t=norm(c.nome),ex=(rows||[]).filter(r=>norm(r&&r.disciplina)===d&&norm(r&&r.topico)===t);if(!ex.length)return{valor:0,confianca:0,via:'ausente'};return{valor:ex.reduce((s,r)=>s+Math.max(0,n(r&&r.incidencia)),0),confianca:1,via:'disciplina-topico-exato'};},
     _componentes(pool,snapshot,p,extraObs){
-      const incRows=this._incRows(p),incIndex=this._incIndex(incRows),histIndex=this._historicoIndex(snapshot,pool,p),RX=window.ReforcoTecExtrasV8,rxCfg={minCiclosDose:p.minCiclosDose,ganhoMinPP100q:p.ganhoMinPP100q,_observacoes:extraObs};
+      const incRows=this._incRows(p),incIndex=this._incIndex(incRows),histIndex=this._historicoIndex(snapshot,pool,p),RX=window.ReforcoTecExtras,rxCfg={minCiclosDose:p.minCiclosDose,ganhoMinPP100q:p.ganhoMinPP100q,_observacoes:extraObs};
       for(const c of pool){
         const post=this.posterior(c.taxa,c.qJanela,p.meta,p,false),histTec=this._historicoTec(c,snapshot,p,histIndex),inc=this._incidencia(c,incRows,incIndex),histExtra=RX?RX.historico(c.disciplina,c.nome,rxCfg):{n:0,nEfetivo:0};
         c.posterior=post;c.histTec=histTec;c.incidencia=inc;c.histExtra=histExtra;c._gap=clamp((p.meta-post.media)/30,0,1);c._evid=clamp(post.pLacuna,0,1);c._persist=clamp(histTec.persistencia,0,1);c._trend=clamp(histTec.tendenciaRisco,0,1);
@@ -55029,47 +54787,47 @@ else CloudStore.init();
     calcular(){
       const p=this.prefs(),fase=this.fase(),snapshot=I.snapshot();if(!snapshot)return{erro:'sem-retrato',modo:'robusto',fase,itens:[]};let pool=this._fronteira(snapshot,p);if(!pool.length)return{erro:'sem-lacunas',modo:'robusto',fase,itens:[],arquitetura:this.arquitetura()};
       if(fase==='pos'){const pc=this._postConfig(),sel=Object.values(pc.disciplinas||{}).filter(x=>x&&x.ativo===true);if(!pc.configurado||!sel.length)return{erro:'post-pesos-pendentes',modo:'robusto',fase,itens:[],arquitetura:this.arquitetura()};}
-      const RX=window.ReforcoTecExtrasV8,extraObs=RX&&RX.observacoes?RX.observacoes():[];pool=this._componentes(pool,snapshot,p,extraObs);const grupos=this._disciplinas(pool,fase);if(!grupos.length)return{erro:'sem-candidatos',modo:'robusto',fase,itens:[],arquitetura:this.arquitetura()};
+      const RX=window.ReforcoTecExtras,extraObs=RX&&RX.observacoes?RX.observacoes():[];pool=this._componentes(pool,snapshot,p,extraObs);const grupos=this._disciplinas(pool,fase);if(!grupos.length)return{erro:'sem-candidatos',modo:'robusto',fase,itens:[],arquitetura:this.arquitetura()};
       const itens=[],rxCfg={...p,_observacoes:extraObs};for(const g of grupos.slice(0,3)){
         const top=g.topicos[0];top.posterior=this.posterior(top.taxa,top.qJanela,p.meta,p,true);const rx=RX?RX.prescrever({...top,minAmostra:p.minAmostra,meta:p.meta,componentes:{lacuna:top._gap,evidencia:top._evid,persistencia:top._persist}},rxCfg):{dose:p.doseBase,fonte:'tec',tempo:{confiavel:false,fonte:'indisponivel',minutosEstimados:null}},dose=Math.max(1,Math.round(n(rx.dose,p.doseBase))),tempo=rx.tempo||{confiavel:false,fonte:'indisponivel',minutosEstimados:null};
         itens.push({...top,modo:'robusto',fase,score:g.scoreDisciplina,scoreDisciplina:g.scoreDisciplina,scoreTopico:top.scoreTopico,alvo:dose,quantidadeRecomendada:dose,meta:p.meta,minAmostra:p.minAmostra,banca:p.banca,pesoPost:fase==='pos'?g.peso:1,prescricao:rx,topicosOrdenados:g.topicos.slice(0,8).map((x,i)=>({rank:i+1,nome:x.nome,taxa:x.taxa,qJanela:x.qJanela,score:x.scoreTopico,incidencia:x.incidencia.valor,persistencia:x.histTec.persistencia,evidencia:x.posterior.pLacuna})),motivo:`Disciplina #${itens.length+1}: prioridade ${g.scoreDisciplina.toFixed(0)}/100 · tópico líder ${top.scoreTopico.toFixed(0)}/100${fase==='pos'?` · peso manual ${g.peso}`:''}.`,auditoria:{revisaoAuditoria:8,fonteCanonica:'TEC',pesoDisciplina:fase==='pre'?1:g.peso,tempoSomenteExtras:true,metodoEstudoForaDoModelo:true,resultadoExtrasObservacional:true}});
       }
       return{modo:'robusto',motor:this.MOTOR,fase,banca:p.banca,itens,todos:pool,disciplinas:grupos.map(g=>({disciplina:g.disciplina,score:g.scoreDisciplina,peso:g.peso,topicos:g.topicos.slice(0,12).map(x=>({nome:x.nome,score:x.scoreTopico,taxa:x.taxa,qJanela:x.qJanela,incidencia:x.incidencia.valor,persistencia:x.histTec.persistencia}))})),configRobusto:{versao:8,prefs:p},arquitetura:this.arquitetura(),explicacao:fase==='pre'?'Pré-edital: todas as disciplinas têm peso 1. O ranking usa TEC, incidência e resposta observacional dos reforços em Extras.':'Pós-edital: identidade e pesos vêm das disciplinas padronizadas do TEC, configuradas manualmente neste planejamento.'};
     },
-    arquitetura(){return{motor:'Robusto V8',revisaoAuditoria:8,independente:true,independenteSimplificado:true,fontes:['TEC escopado','Incidência importada da banca','Reforços registrados em Extras'],naoUsa:['peso/nome do ciclo regular','tempo do ciclo regular','método de estudo','PlanoEngine para prioridade','roteador pedagógico','otimizador legado','Mentor90'],preEdital:'todas as disciplinas peso 1',posEdital:'disciplinas TEC selecionadas manualmente + peso manual',saida:['3 disciplinas','ranking de tópicos por disciplina','dose de questões','tempo somente quando medido nos reforços Extras']};},
+    arquitetura(){return{motor:'Robusto',revisaoAuditoria:8,independente:true,independenteSimplificado:true,fontes:['TEC escopado','Incidência importada da banca','Reforços registrados em Extras'],naoUsa:['peso/nome do ciclo regular','tempo do ciclo regular','método de estudo','PlanoEngine para prioridade','roteador pedagógico','otimizador legado','Mentor90'],preEdital:'todas as disciplinas peso 1',posEdital:'disciplinas TEC selecionadas manualmente + peso manual',saida:['3 disciplinas','ranking de tópicos por disciplina','dose de questões','tempo somente quando medido nos reforços Extras']};},
     config(){const p=this.prefs(),f=this.fase();return{versao:8,prefs:p,resumo:{rotulo:f==='pre'?'TEC · Pré-edital':'TEC · Pós-edital'}};},
-    _bancasHtml(atual){let bs=[];try{bs=I.bancas?I.bancas():[];}catch(e){if(typeof _quiet==='function')_quiet(e,'robusto-v8-bancas');}return `<option value="__todas__" ${atual==='__todas__'?'selected':''}>Todas as bancas importadas</option>`+bs.map(b=>`<option value="${esc(b)}" ${b===atual?'selected':''}>${esc(b)}</option>`).join('');},
+    _bancasHtml(atual){let bs=[];try{bs=I.bancas?I.bancas():[];}catch(e){if(typeof _quiet==='function')_quiet(e,'plano-robusto-bancas');}return `<option value="__todas__" ${atual==='__todas__'?'selected':''}>Todas as bancas importadas</option>`+bs.map(b=>`<option value="${esc(b)}" ${b===atual?'selected':''}>${esc(b)}</option>`).join('');},
     painelConfigHtml(){
       const p=this.prefs(),fase=this.fase(),snap=I.snapshot(),discs=this._tecDisciplinas(snap),post=this._postConfig(),cfg=post.disciplinas||{};
       const rows=fase==='pos'?`<section class="rv8-post"><header><div><b>Disciplinas da prova · Pós-edital</b><small>Escolha somente nomes padronizados vindos do TEC. O ciclo regular não participa deste cruzamento.</small></div></header>${discs.length?`<div class="rv8-post-list">${discs.map(d=>{const k=norm(d),x=cfg[k]||{};return`<label class="rv8-post-row"><input type="checkbox" data-rv8-post-active="${esc(k)}" ${x.ativo===true?'checked':''}><span>${esc(d)}</span><input type="number" min="0.1" max="20" step="0.1" value="${n(x.peso,1)}" data-rv8-post-weight="${esc(k)}" data-rv8-post-name="${esc(d)}"><small>peso</small></label>`;}).join('')}</div><button type="button" class="btn-primary" data-rv8-post-save>Salvar disciplinas e pesos</button>`:'<div class="pmc-empty"><b>Importe o TEC primeiro</b><span>Os pesos só podem ser vinculados depois que existirem nomes canônicos de disciplinas no TEC.</span></div>'}</section>`:`<section class="rv8-pre-note"><b>Pré-edital: peso 1 para todas as disciplinas.</b><span>Nenhum peso do ciclo regular é lido. O que diferencia prioridades é lacuna, evidência, persistência, tendência e incidência da banca.</span></section>`;
-      return`<div class="rv8-panel" data-rv8-panel><div class="rv8-method-note"><b>Robusto V8 · foco estatístico.</b><span>Escolhe três disciplinas, ordena seus tópicos e calcula a dose de questões. Seu método de resolução fica fora do algoritmo.</span></div><div class="pmc-simple-grid"><label><span>Meta de domínio</span><div class="pmc-suffix"><input data-rv8="meta" type="number" min="60" max="99" value="${p.meta}"><em>%</em></div><small>Régua comum do TEC.</small></label><label><span>Amostra mínima confiável</span><input data-rv8="minAmostra" type="number" min="5" max="300" value="${p.minAmostra}"><small>Acima daqui a medição recebe confiança plena.</small></label><label><span>Mínimo para observar</span><input data-rv8="minObservacao" type="number" min="1" max="${p.minAmostra}" value="${p.minObservacao}"><small>Abaixo disso o tópico ainda é cedo demais até para disputar.</small></label><label><span>Incidência</span><select data-rv8="banca">${this._bancasHtml(p.banca)}</select><small>Fonte objetiva de relevância.</small></label><label><span>Força do prior</span><input data-rv8="forcaPrior" type="number" min="0.5" max="20" step="0.5" value="${p.forcaPrior}"><small>Regularização Beta real para amostras pequenas.</small></label><label><span>Margem da lacuna</span><div class="pmc-suffix"><input data-rv8="margemLacunaPP" type="number" min="0" max="15" step="0.5" value="${p.margemLacunaPP}"><em>pp</em></div></label><label><span>Dose base</span><input data-rv8="doseBase" type="number" min="5" max="100" value="${p.doseBase}"><small>Recalibrada conservadoramente por TEC + Extras.</small></label><label><span>Dose mínima</span><input data-rv8="doseMin" type="number" min="5" max="60" value="${p.doseMin}"></label><label><span>Dose máxima</span><input data-rv8="doseMax" type="number" min="5" max="100" value="${p.doseMax}"></label></div>${rows}<footer class="rv8-footer"><span>Fontes: TEC + incidência + reforços em Extras.</span><b>Sem dependência de nomes/pesos/tempo do ciclo regular.</b><button type="button" data-rv8-reset>↺ Restaurar padrões</button></footer></div>`;
+      return`<div class="rv8-panel" data-rv8-panel><div class="rv8-method-note"><b>Robusto · foco estatístico.</b><span>Escolhe três disciplinas, ordena seus tópicos e calcula a dose de questões. Seu método de resolução fica fora do algoritmo.</span></div><div class="pmc-simple-grid"><label><span>Meta de domínio</span><div class="pmc-suffix"><input data-rv8="meta" type="number" min="60" max="99" value="${p.meta}"><em>%</em></div><small>Régua comum do TEC.</small></label><label><span>Amostra mínima confiável</span><input data-rv8="minAmostra" type="number" min="5" max="300" value="${p.minAmostra}"><small>Acima daqui a medição recebe confiança plena.</small></label><label><span>Mínimo para observar</span><input data-rv8="minObservacao" type="number" min="1" max="${p.minAmostra}" value="${p.minObservacao}"><small>Abaixo disso o tópico ainda é cedo demais até para disputar.</small></label><label><span>Incidência</span><select data-rv8="banca">${this._bancasHtml(p.banca)}</select><small>Fonte objetiva de relevância.</small></label><label><span>Força do prior</span><input data-rv8="forcaPrior" type="number" min="0.5" max="20" step="0.5" value="${p.forcaPrior}"><small>Regularização Beta real para amostras pequenas.</small></label><label><span>Margem da lacuna</span><div class="pmc-suffix"><input data-rv8="margemLacunaPP" type="number" min="0" max="15" step="0.5" value="${p.margemLacunaPP}"><em>pp</em></div></label><label><span>Dose base</span><input data-rv8="doseBase" type="number" min="5" max="100" value="${p.doseBase}"><small>Recalibrada conservadoramente por TEC + Extras.</small></label><label><span>Dose mínima</span><input data-rv8="doseMin" type="number" min="5" max="60" value="${p.doseMin}"></label><label><span>Dose máxima</span><input data-rv8="doseMax" type="number" min="5" max="100" value="${p.doseMax}"></label></div>${rows}<footer class="rv8-footer"><span>Fontes: TEC + incidência + reforços em Extras.</span><b>Sem dependência de nomes/pesos/tempo do ciclo regular.</b><button type="button" data-rv8-reset>↺ Restaurar padrões</button></footer></div>`;
     },
     bindConfig(host,onChange){if(!host)return;host.querySelectorAll('[data-rv8]').forEach(el=>el.addEventListener('change',()=>{this.salvar({[el.dataset.rv8]:el.type==='number'?Number(el.value):el.value});if(onChange)onChange();}));const reset=host.querySelector('[data-rv8-reset]');if(reset)reset.addEventListener('click',()=>{this.restaurar();if(onChange)onChange();});const save=host.querySelector('[data-rv8-post-save]');if(save)save.addEventListener('click',()=>{const ds={};host.querySelectorAll('[data-rv8-post-active]').forEach(cb=>{const k=cb.dataset.rv8PostActive,w=host.querySelector(`[data-rv8-post-weight="${CSS.escape(k)}"]`),nome=w&&w.dataset.rv8PostName||k;ds[k]={nome,ativo:cb.checked,peso:Math.max(.1,n(w&&w.value,1))};});this.salvarPostConfig({configurado:true,disciplinas:ds,atualizadoEm:new Date().toISOString()});if(typeof showToast==='function')showToast('Pesos Pós-edital vinculados às disciplinas do TEC ✓');if(onChange)onChange();});}
   };
-  window.PlanoSugestoesRobustoV8=R;
+  window.PlanoSugestoesRobusto=R;
 })();
 /* ============================================================================
-   PUXAR DO PLANO — ORQUESTRADOR NEUTRO V5
+   PUXAR DO PLANO — ORQUESTRADOR NEUTRO
    ----------------------------------------------------------------------------
-   Conhece as APIs públicas do Simplificado e do Robusto V8, mas nunca mistura
+   Conhece as APIs públicas do Simplificado e do Robusto, mas nunca mistura
    seus scores. Extras continua sendo uma fila única de execução.
    ============================================================================ */
 (() => {
-  if (typeof window === 'undefined' || window.__planoSugControllerV5) return;
-  const I=window.PlanoSugestoesInfraV2,S=window.PlanoSugestoesSimplificadoV3||window.PlanoSugestoesSimplificadoV2,R=window.PlanoSugestoesRobustoV8;
+  if (typeof window === 'undefined' || window.__planoSugController) return;
+  const I=window.PlanoSugestoesInfra,S=window.PlanoSugestoesSimplificado,R=window.PlanoSugestoesRobusto;
   if(!I||!S||!R||typeof ExtrasScreen==='undefined'||typeof PlanoCiclo==='undefined'||typeof DB==='undefined')return;
-  window.__planoSugControllerV5=true;
+  window.__planoSugController=true;
   const {num,norm,esc}=I;
 
   const C={
-    VERSAO:5,KEY:'plano-sug-ui-v5',LEGACY_KEYS:['plano-sug-ui-v3','plano-sug-ui-v2'],DEFAULTS:Object.freeze({modo:'robusto'}),_legacyPuxar:null,
-    prefs(){let modo=this.DEFAULTS.modo;try{let z=JSON.parse(localStorage.getItem(DB._profilePrefix()+this.KEY)||'null');if(!z){for(const k of this.LEGACY_KEYS){z=JSON.parse(localStorage.getItem(DB._profilePrefix()+k)||'null');if(z)break;}}if(z&&['simplificado','robusto','comparar'].includes(z.modo))modo=z.modo;}catch(e){if(typeof _quiet==='function')_quiet(e,'plano-controller-v5-prefs');}return{modo};},
-    salvar(patch){patch=patch||{};let modo=this.prefs().modo;if(['simplificado','robusto','comparar'].includes(patch.modo))modo=patch.modo;try{const k=DB._profilePrefix()+this.KEY,v=JSON.stringify({modo});if(DB.setRaw)DB.setRaw(k,v);else localStorage.setItem(k,v);}catch(e){if(typeof _quiet==='function')_quiet(e,'plano-controller-v5-save');}return{modo};},
+    KEY:'plano-sug-ui-v5',LEGACY_KEYS:['plano-sug-ui-v3','plano-sug-ui-v2'],DEFAULTS:Object.freeze({modo:'robusto'}),
+    prefs(){let modo=this.DEFAULTS.modo;try{let z=JSON.parse(localStorage.getItem(DB._profilePrefix()+this.KEY)||'null');if(!z){for(const k of this.LEGACY_KEYS){z=JSON.parse(localStorage.getItem(DB._profilePrefix()+k)||'null');if(z)break;}}if(z&&['simplificado','robusto','comparar'].includes(z.modo))modo=z.modo;}catch(e){if(typeof _quiet==='function')_quiet(e,'plano-controller-prefs');}return{modo};},
+    salvar(patch){patch=patch||{};let modo=this.prefs().modo;if(['simplificado','robusto','comparar'].includes(patch.modo))modo=patch.modo;try{const k=DB._profilePrefix()+this.KEY,v=JSON.stringify({modo});if(DB.setRaw)DB.setRaw(k,v);else localStorage.setItem(k,v);}catch(e){if(typeof _quiet==='function')_quiet(e,'plano-controller-save');}return{modo};},
     simplificado(){return S.calcular(S.prefs());},
-    robusto(){const r=R.calcular();try{if(window.PlanoRobustoAuditV2)PlanoRobustoAuditV2.registrarCalculo(r,{modoInterface:'robusto'});}catch(e){if(typeof _quiet==='function')_quiet(e,'plano-controller-v5-audit');}return r;},
+    robusto(){const r=R.calcular();try{if(window.PlanoRobustoAudit)PlanoRobustoAudit.registrarCalculo(r,{modoInterface:'robusto'});}catch(e){if(typeof _quiet==='function')_quiet(e,'plano-controller-audit');}return r;},
     comparar(){
-      let s,r;try{s=this.simplificado();}catch(e){s={erro:'falha-simplificado',modo:'simplificado',itens:[]};if(typeof _quiet==='function')_quiet(e,'plano-controller-v5-simple');}
-      try{r=R.calcular();if(window.PlanoRobustoAuditV2)PlanoRobustoAuditV2.registrarCalculo(r,{modoInterface:'comparar'});}catch(e){r={erro:'falha-robusto',modo:'robusto',itens:[]};if(typeof _quiet==='function')_quiet(e,'plano-controller-v5-robusto');}
+      let s,r;try{s=this.simplificado();}catch(e){s={erro:'falha-simplificado',modo:'simplificado',itens:[]};if(typeof _quiet==='function')_quiet(e,'plano-controller-simple');}
+      try{r=R.calcular();if(window.PlanoRobustoAudit)PlanoRobustoAudit.registrarCalculo(r,{modoInterface:'comparar'});}catch(e){r={erro:'falha-robusto',modo:'robusto',itens:[]};if(typeof _quiet==='function')_quiet(e,'plano-controller-robusto');}
       if(s.erro&&r.erro)return{erro:'ambos-indisponiveis',modo:'comparar',itens:[],simples:s,robusto:r};
       const rankMap=res=>{const m=new Map();(res.itens||[]).forEach((x,i)=>m.set(norm(x.disciplina),{c:x,rank:i+1}));return m;},a=rankMap(s),b=rankMap(r),ch=[...new Set([...a.keys(),...b.keys()])];
       const linhas=ch.map(k=>{const sa=a.get(k),rb=b.get(k),cons=!!(sa&&rb&&norm(sa.c.nome)===norm(rb.c.nome)),pontos=(sa?4-sa.rank:0)+(rb?4-rb.rank:0)+(cons?10:0);return{disciplina:(sa&&sa.c.disciplina)||(rb&&rb.c.disciplina),simplificado:sa&&sa.c||null,robusto:rb&&rb.c||null,rankSimplificado:sa&&sa.rank||null,rankRobusto:rb&&rb.rank||null,consenso:cons,pontosComparacao:pontos,escolha:cons?'consenso':(rb?'robusto':'simplificado')};}).sort((x,y)=>y.pontosComparacao-x.pontosComparacao).slice(0,3);
@@ -55090,33 +54848,32 @@ else CloudStore.init();
       'motor-desabilitado':'Este motor está desabilitado nas Configurações.',
       'motores-desabilitados':'Ative Simplificado ou Robusto em Configurações.'
     })[e]||'Não foi possível formar sugestões com o escopo atual.';},
-    _cabecalho(p,res){const modo=(p&&p.modo)||this.prefs().modo,info=modo==='simplificado'?'<b>Simplificado:</b> leitura direta do TEC com regra transparente.':modo==='robusto'?'<b>Robusto V8:</b> TEC + incidência + reforços em Extras; escolhe alvo, ordem e dose, não método de estudo.':'<b>Comparar:</b> confronta apenas posição/consenso entre as duas leituras.';return`<div class="ps-config-location"><span>⚙</span><div><b>Fonte centralizada</b><small>O motor é escolhido no Desempenho TEC e pode ser trocado aqui antes de criar as atividades.</small></div></div><div class="ps-rule">${info} <span>${esc((res&&res.explicacao)||'')}</span></div><div class="ps-rule"><b>Contrato:</b> até 3 disciplinas distintas · 1 tópico ativo por disciplina · uma fila única em Extras.</div>`;},
+    _cabecalho(p,res){const modo=(p&&p.modo)||this.prefs().modo,info=modo==='simplificado'?'<b>Simplificado:</b> leitura direta do TEC com regra transparente.':modo==='robusto'?'<b>Robusto:</b> TEC + incidência + reforços em Extras; escolhe alvo, ordem e dose, não método de estudo.':'<b>Comparar:</b> confronta apenas posição/consenso entre as duas leituras.';return`<div class="ps-config-location"><span>⚙</span><div><b>Fonte centralizada</b><small>O motor é escolhido no Desempenho TEC e pode ser trocado aqui antes de criar as atividades.</small></div></div><div class="ps-rule">${info} <span>${esc((res&&res.explicacao)||'')}</span></div><div class="ps-rule"><b>Contrato:</b> até 3 disciplinas distintas · 1 tópico ativo por disciplina · uma fila única em Extras.</div>`;},
     _topicos(c){if(!c||!Array.isArray(c.topicosOrdenados)||c.topicosOrdenados.length<2)return'';return`<details class="ps-topic-queue"><summary>Próximos tópicos desta disciplina</summary><ol>${c.topicosOrdenados.slice(1,5).map(x=>`<li><span>${esc(x.nome)}</span><small>${num(x.taxa).toFixed(0)}% · prioridade ${Math.round(num(x.score))}/100</small></li>`).join('')}</ol></details>`;},
     _card(c,i,checked=true){const q=Math.max(1,Math.round(num(c.quantidadeRecomendada,c.alvo))),tempo=c.prescricao&&c.prescricao.tempo,tempoTxt=c.modo==='robusto'&&tempo&&tempo.confiavel&&tempo.minutosEstimados?`<span>≈${Math.round(tempo.minutosEstimados)} min · Extras</span>`:'';return`<label class="ps-card"><input type="checkbox" class="ps-pick" data-i="${i}" ${checked?'checked':''}><div class="ps-card-body"><div class="ps-card-top"><span class="ps-disc">${esc(c.disciplina)}</span><span class="ps-score">${Math.round(num(c.score))}/100</span></div><strong>${esc(c.nome)}</strong><p>${esc(c.motivo)}</p><div class="ps-metrics"><span>${num(c.taxa,c.item&&c.item.taxa).toFixed(0)}% atual</span><span>${Math.round(num(c.qJanela,c.item&&c.item.qJanela))}q na amostra</span><span><b>${q}q</b> bloco recomendado</span>${tempoTxt}</div>${c.modo==='robusto'?this._topicos(c):''}</div></label>`;},
     _compareRow(x,i){const card=(c,k)=>c?`<label class="ps-compare-option ${x.consenso?'is-consensus':''}"><input type="radio" name="ps-choice-${i}" value="${k}" ${(x.escolha===k||(x.escolha==='consenso'&&k==='robusto'))?'checked':''}><div><span>${k==='simplificado'?'Simplificado':'Robusto'}${k==='simplificado'&&x.rankSimplificado?' · #'+x.rankSimplificado:k==='robusto'&&x.rankRobusto?' · #'+x.rankRobusto:''}</span><b>${esc(c.nome)}</b><small>${esc(c.motivo)}</small><small>${Math.max(1,Math.round(num(c.quantidadeRecomendada,c.alvo)))} questões</small></div></label>`:'';return`<section class="ps-compare-row" data-row="${i}"><header><b>${esc(x.disciplina)}</b>${x.consenso?'<span class="ps-consensus">✓ Consenso</span>':'<span>Escolha a leitura</span>'}</header><div class="ps-compare-grid">${card(x.simplificado,'simplificado')}${card(x.robusto,'robusto')}</div></section>`;},
     _renderLista(screen,p,res){const host=document.getElementById('pl-lista'),conta=document.getElementById('pl-conta');if(!host)return;if(res.erro){host.innerHTML=`<div class="ps-empty"><b>Sem sugestões</b><span>${esc(this._erroTexto(res.erro))}</span></div>`;if(conta)conta.textContent='';return;}if(p.modo==='comparar'){host.innerHTML=(res.itens||[]).map((x,i)=>this._compareRow(x,i)).join('')||'<div class="ps-empty">Nenhuma disciplina elegível.</div>';if(conta)conta.innerHTML=`<strong>${res.itens.length}</strong> disciplina(s) para comparar`;host.querySelectorAll('input[type=radio]').forEach(el=>el.addEventListener('change',()=>{const i=Number(el.name.replace('ps-choice-',''));if(res.itens[i])res.itens[i].escolha=el.value;}));}else{screen._planoSel=new Set((res.itens||[]).map((_,i)=>i));host.innerHTML=(res.itens||[]).map((c,i)=>this._card(c,i,true)).join('')||'<div class="ps-empty">Nenhuma sugestão elegível.</div>';if(conta)conta.innerHTML=`<strong>${res.itens.length}</strong> disciplina(s) · 1 tópico por disciplina`;host.querySelectorAll('.ps-pick').forEach(cb=>cb.addEventListener('change',()=>{const i=Number(cb.dataset.i);if(cb.checked)screen._planoSel.add(i);else screen._planoSel.delete(i);}));}},
     _renderModal(screen,p,res){const body=document.getElementById('ui-modal-body');if(!body)return;body.innerHTML=`${this._cabecalho(p,res)}<div class="ps-list-head"><span id="pl-conta"></span><small>Disciplinas com reforço aberto já foram removidas.</small></div><div id="pl-lista" class="ps-list"></div>`;this._renderLista(screen,p,res);body.querySelectorAll('[data-ps-modo]').forEach(b=>b.addEventListener('click',()=>{p=this.salvar({modo:b.dataset.psModo});this._recalcularModal(screen,p);}));},
-    _recalcularModal(screen,p){const host=document.getElementById('pl-lista');if(host)host.innerHTML='<div class="ps-loading">Recalculando sugestões…</div>';setTimeout(()=>{try{const res=this.calcular(p);screen._psResultado=res;this._renderModal(screen,p,res);}catch(e){if(typeof _quiet==='function')_quiet(e,'plano-controller-v5-recalc');}},0);},
+    _recalcularModal(screen,p){const host=document.getElementById('pl-lista');if(host)host.innerHTML='<div class="ps-loading">Recalculando sugestões…</div>';setTimeout(()=>{try{const res=this.calcular(p);screen._psResultado=res;this._renderModal(screen,p,res);}catch(e){if(typeof _quiet==='function')_quiet(e,'plano-controller-recalc');}},0);},
     _escolhidos(screen,p,res){if(!res||res.erro)return[];if(p.modo==='comparar')return(res.itens||[]).map(x=>x.consenso?(x.robusto||x.simplificado):(x.escolha==='simplificado'?x.simplificado:x.robusto)).filter(Boolean);return(res.itens||[]).filter((_,i)=>!screen._planoSel||screen._planoSel.has(i));},
     criar(screen,p,res){
       const itens=this._escolhidos(screen,p,res);let total=0;
       itens.forEach(c=>{
         if(!c||!c.item)return;const x=c.item,q=Math.max(1,Math.round(num(c.quantidadeRecomendada,c.alvo))),rob=c.modo==='robusto';
-        const e=DB.addExtra({titulo:PlanoCiclo.titulo(c.nome,'reforco',x.membros),tipo:'questoes',disciplina:c.disciplina||'',unidade:'questoes',alvo:q,periodo:'unica',contaMetricas:false,obs:`Gerado pelo Plano · ${rob?'Robusto V8':'Simplificado'} ${c.fase==='pos'?'Pós':'Pré'} · ${q} questões aprofundadas.`});
+        const e=DB.addExtra({titulo:PlanoCiclo.titulo(c.nome,'reforco',x.membros),tipo:'questoes',disciplina:c.disciplina||'',unidade:'questoes',alvo:q,periodo:'unica',contaMetricas:false,obs:`Gerado pelo Plano · ${rob?'Robusto':'Simplificado'} ${c.fase==='pos'?'Pós':'Pré'} · ${q} questões aprofundadas.`});
         if(!e)return;const origem=PlanoCiclo.origem(c.nome,c.disciplina,Object.assign({},x,{custoQ:q,taxa:c.taxa??x.taxa}),{motivo:'reforco'});
-        origem.sugestao={versao:this.VERSAO,motor:rob?R.MOTOR:S.MOTOR,revisaoAuditoria:rob?R.REVISAO_AUDITORIA:(S.REVISAO_AUDITORIA||3),modoInterface:p.modo,fase:c.fase,meta:c.meta,minAmostra:c.minAmostra,banca:c.banca||null,score:Math.round(num(c.score)*10)/10,quantidadeRecomendada:q,componentes:c.componentes||{},configRobusto:rob?{versao:8,prefs:R.prefs()}:null,prescricao:rob?(c.prescricao||null):null,topicosOrdenados:rob?(c.topicosOrdenados||[]):null,pesoPost:rob?(c.pesoPost||1):null,auditoria:c.auditoria||null,arquitetura:rob?R.arquitetura():S.arquitetura(),criadoEm:typeof todayLocal==='function'?todayLocal():new Date().toISOString().slice(0,10)};
+        origem.sugestao={versao:5,motor:rob?R.MOTOR:S.MOTOR,revisaoAuditoria:rob?R.REVISAO_REGISTRO:(S.REVISAO_REGISTRO||3),modoInterface:p.modo,fase:c.fase,meta:c.meta,minAmostra:c.minAmostra,banca:c.banca||null,score:Math.round(num(c.score)*10)/10,quantidadeRecomendada:q,componentes:c.componentes||{},configRobusto:rob?{versao:8,prefs:R.prefs()}:null,prescricao:rob?(c.prescricao||null):null,topicosOrdenados:rob?(c.topicosOrdenados||[]):null,pesoPost:rob?(c.pesoPost||1):null,auditoria:c.auditoria||null,arquitetura:rob?R.arquitetura():S.arquitetura(),criadoEm:typeof todayLocal==='function'?todayLocal():new Date().toISOString().slice(0,10)};
         DB.updateExtra(e.id,{origemPlano:origem});
-        if(rob){try{if(window.PlanoRobustoAuditV2)PlanoRobustoAuditV2.registrarCriacao(DB.getExtras().find(z=>z.id===e.id)||e);}catch(err){if(typeof _quiet==='function')_quiet(err,'plano-controller-v5-audit-create');}}
+        if(rob){try{if(window.PlanoRobustoAudit)PlanoRobustoAudit.registrarCriacao(DB.getExtras().find(z=>z.id===e.id)||e);}catch(err){if(typeof _quiet==='function')_quiet(err,'plano-controller-audit-create');}}
         total++;
       });
       screen.render();if(typeof showToast==='function')showToast(total?`${total} reforço(s) criado(s) · ${p.modo==='comparar'?'comparação concluída':p.modo}`:'Nenhuma sugestão selecionada');return total;
     },
-    abrir(screen){const p=this.prefs();let res;try{res=this.calcular(p);}catch(e){if(typeof _quiet==='function')_quiet(e,'plano-controller-v5-open');if(this._legacyPuxar)return this._legacyPuxar.call(screen);return;}screen._psResultado=res;screen._planoSel=new Set((res.itens||[]).map((_,i)=>i));new Promise(resolve=>{UI._resolve=resolve;UI._mode='confirm';UI._open('🏁 Puxar do Plano','Dois modelos independentes, uma única fila de execução','<div id="ps-root"></div>',{okText:'Criar atividades'});}).then(ok=>{if(!ok)return;const atual=this.prefs();return this.criar(screen,atual,screen._psResultado);});setTimeout(()=>{try{this._renderModal(screen,p,res);}catch(e){if(typeof _quiet==='function')_quiet(e,'plano-controller-v5-render');}},0);},
-    instalar(){if(ExtrasScreen._planoSugestoesV5)return;ExtrasScreen._planoSugestoesV5=true;this._legacyPuxar=ExtrasScreen.puxarDoPlano;const self=this;ExtrasScreen.puxarDoPlano=function(){return self.abrir(this);};}
+    abrir(screen){const p=this.prefs();let res;try{res=this.calcular(p);}catch(e){if(typeof _quiet==='function')_quiet(e,'plano-controller-open');if(typeof showToast==='function')showToast('Não foi possível calcular sugestões do Plano.');return;}screen._psResultado=res;screen._planoSel=new Set((res.itens||[]).map((_,i)=>i));new Promise(resolve=>{UI._resolve=resolve;UI._mode='confirm';UI._open('🏁 Puxar do Plano','Dois modelos independentes, uma única fila de execução','<div id="ps-root"></div>',{okText:'Criar atividades'});}).then(ok=>{if(!ok)return;const atual=this.prefs();return this.criar(screen,atual,screen._psResultado);});setTimeout(()=>{try{this._renderModal(screen,p,res);}catch(e){if(typeof _quiet==='function')_quiet(e,'plano-controller-render');}},0);},
+    instalar(){if(ExtrasScreen._planoSugestoesV5)return;ExtrasScreen._planoSugestoesV5=true;const self=this;ExtrasScreen.puxarDoPlano=function(){return self.abrir(this);};}
   };
-  C.instalar();window.PlanoSugestoesV5=C;window.PlanoSugestoesV4=C;window.PlanoSugestoesV3=C;window.PlanoSugestoesV2=C;
+  C.instalar();window.PlanoSugestoes=C;
 })();
-
 /* ============================================================================
    ROBUSTO V8 — FLIGHT RECORDER LOCAL V2
    ----------------------------------------------------------------------------
@@ -55129,10 +54886,10 @@ else CloudStore.init();
    um peso conservador de calibracao, nunca uma afirmacao causal.
    ============================================================================ */
 (() => {
-  if(typeof window==='undefined'||window.__planoRobustoAuditV2)return;
-  const R=window.PlanoSugestoesRobustoV8,X=window.ReforcoTecExtrasV8;
+  if(typeof window==='undefined'||window.__planoRobustoAudit)return;
+  const R=window.PlanoSugestoesRobusto,X=window.ReforcoTecExtras;
   if(!R||typeof DB==='undefined')return;
-  window.__planoRobustoAuditV2=true;
+  window.__planoRobustoAudit=true;
 
   const N=(v,d=0)=>Number.isFinite(Number(v))?Number(v):d;
   const finite=v=>Number.isFinite(Number(v));
@@ -55151,39 +54908,39 @@ else CloudStore.init();
     _novo(){return{schema:this.SCHEMA,schemaVersion:this.VERSAO,anonProfileId:uid('perfil'),criadoEm:iso(),atualizadoEm:iso(),seq:0,events:[],resultFingerprints:{}};},
     _load(){let z=null;try{z=JSON.parse(localStorage.getItem(this._key())||'null');}catch(e){if(typeof _quiet==='function')_quiet(e,'robusto-audit-v2-load');}if(!z||z.schema!==this.SCHEMA)z=this._novo();if(!Array.isArray(z.events))z.events=[];if(!z.resultFingerprints)z.resultFingerprints={};z.seq=Math.max(0,Math.round(N(z.seq)));return z;},
     _save(z){z.atualizadoEm=iso();if(z.events.length>this.MAX_EVENTS)z.events=z.events.slice(-this.MAX_EVENTS);try{const raw=JSON.stringify(z);if(DB.setRaw)DB.setRaw(this._key(),raw);else localStorage.setItem(this._key(),raw);}catch(e){if(typeof _quiet==='function')_quiet(e,'robusto-audit-v2-save');}return z;},
-    _append(z,tipo,payload){const ev={id:`evt-${++z.seq}`,ts:iso(),tipo,sessao:this.SESSION,motor:'robusto-v8',revisaoRobusto:8,...clone(payload||{})};z.events.push(ev);return ev;},
+    _append(z,tipo,payload){const ev={id:`evt-${++z.seq}`,ts:iso(),tipo,sessao:this.SESSION,motor:'plano-robusto',revisaoRobusto:8,...clone(payload||{})};z.events.push(ev);return ev;},
     _scope(){const out={};try{const D=window.DesempenhoTecScreen||((typeof DesempenhoTecScreen!=='undefined')?DesempenhoTecScreen:null);if(D){out.modo=D.scopeMode||null;out.retratosSelecionados=D.selectedSnapIds&&typeof D.selectedSnapIds.size==='number'?D.selectedSnapIds.size:null;out.dataInicio=D.rangeStart||null;out.dataFim=D.rangeEnd||null;}}catch(e){if(typeof _quiet==='function')_quiet(e,'robusto-audit-v2-scope');}try{const s=DB.getTecSnapshots?DB.getTecSnapshots()||[]:[],u=s[s.length-1];out.retratosDisponiveis=s.length;out.ultimoRetrato=u?{id:u.id??null,data:u.endDate||u.date||u.startDate||null}:null;}catch(e){if(typeof _quiet==='function')_quiet(e,'robusto-audit-v2-snaps');}return out;},
     _cand(c,rank){if(!c)return null;return{rank,disciplina:c.disciplina||'',topico:c.nome||'',scoreDisciplina:round(c.scoreDisciplina??c.score),scoreTopico:round(c.scoreTopico),taxa:round(c.taxa,2),qJanela:Math.max(0,Math.round(N(c.qJanela))),meta:round(c.meta,2),pesoPost:round(c.pesoPost,2),componentes:clone(c.componentes||{}),posterior:clone(c.posterior||null),historicoTec:clone(c.histTec||null),incidencia:clone(c.incidencia||null),prescricao:clone(c.prescricao||null),topicosOrdenados:clone(c.topicosOrdenados||[]),auditoria:clone(c.auditoria||null)};},
     _signature(res,ctx){return hash({modo:ctx&&ctx.modoInterface,fase:res&&res.fase,prefs:R.prefs(),itens:(res&&res.itens||[]).map((c,i)=>[c.disciplina,c.nome,round(c.score),Math.round(N(c.quantidadeRecomendada,c.alvo)),i])});},
     registrarCalculo(res,ctx){if(!res||res.erro)return null;this.reconciliar();const z=this._load(),sig=this._signature(res,ctx),ult=[...z.events].reverse().find(e=>e.tipo==='decisao');if(ult&&ult.assinatura===sig&&Date.now()-new Date(ult.ts).getTime()<this.DEDUPE_MS){this._lastDecisionId=ult.id;return ult;}const ev=this._append(z,'decisao',{assinatura:sig,modoInterface:ctx&&ctx.modoInterface||null,fase:res.fase||null,escopo:this._scope(),prefs:R.prefs(),explicacao:String(res.explicacao||'').slice(0,700),selecionados:(res.itens||[]).map((c,i)=>this._cand(c,i+1)),disciplinas:clone(res.disciplinas||[]),causal:false});this._lastDecisionId=ev.id;this._save(z);return ev;},
     _decisionFor(z,e){const d=norm(e&&e.disciplina),t=norm(e&&e.origemPlano&&e.origemPlano.topico);return [...z.events].reverse().find(x=>x.tipo==='decisao'&&(x.selecionados||[]).some(c=>norm(c.disciplina)===d&&norm(c.topico)===t))||null;},
-    registrarCriacao(extra){if(!extra)return null;const s=extra.origemPlano&&extra.origemPlano.sugestao||{};if(String(s.motor)!=='robusto-v8')return null;const z=this._load(),eid=String(extra.id||''),ja=z.events.find(e=>e.tipo==='atividade_criada'&&e.extraId===eid);if(ja)return ja;const dec=this._lastDecisionId?z.events.find(e=>e.id===this._lastDecisionId):this._decisionFor(z,extra),ev=this._append(z,'atividade_criada',{extraId:eid,decisionId:dec&&dec.id||null,disciplina:extra.disciplina||extra.origemPlano.disciplina||'',topico:extra.origemPlano.topico||'',quantidadeRecomendada:Math.max(0,Math.round(N(s.quantidadeRecomendada,extra.alvo))),fase:s.fase||null,pesoPost:s.pesoPost||1,prescricao:clone(s.prescricao||null),criadoEm:s.criadoEm||extra.createdAt||null,causal:false});this._save(z);return ev;},
+    registrarCriacao(extra){if(!extra)return null;const s=extra.origemPlano&&extra.origemPlano.sugestao||{};if(String(s.motor)!=='plano-robusto')return null;const z=this._load(),eid=String(extra.id||''),ja=z.events.find(e=>e.tipo==='atividade_criada'&&e.extraId===eid);if(ja)return ja;const dec=this._lastDecisionId?z.events.find(e=>e.id===this._lastDecisionId):this._decisionFor(z,extra),ev=this._append(z,'atividade_criada',{extraId:eid,decisionId:dec&&dec.id||null,disciplina:extra.disciplina||extra.origemPlano.disciplina||'',topico:extra.origemPlano.topico||'',quantidadeRecomendada:Math.max(0,Math.round(N(s.quantidadeRecomendada,extra.alvo))),fase:s.fase||null,pesoPost:s.pesoPost||1,prescricao:clone(s.prescricao||null),criadoEm:s.criadoEm||extra.createdAt||null,causal:false});this._save(z);return ev;},
     _estadoExtra(e){const h=Array.isArray(e&&e.historico)?e.historico:[],qHist=sum(h,x=>x&&x.quantidade),min=sum(h,x=>x&&x.minutos),q=Math.max(qHist,Math.max(0,N(e&&e.progresso)));const v=e&&e.origemPlano&&e.origemPlano.veredito||{},ganho=finite(v.ganhoPP)?Number(v.ganhoPP):null,atr=X&&X._atribuicao?X._atribuicao(q,v):{tipo:'observacional',pesoCalibracao:.25,causal:false};return{extraId:String(e.id||''),status:e.status||null,questoesExecutadas:q,minutosExecutados:min,concluida:e.status==='concluida'||(N(e.alvo)>0&&q>=N(e.alvo)),veredito:clone(v),ganhoPP:ganho,ganhoPP100q:ganho==null||q<=0?null:ganho/q*100,atribuicao:atr,causal:false};},
-    reconciliar(){let extras=[];try{extras=DB.getExtras?DB.getExtras()||[]:[];}catch(e){if(typeof _quiet==='function')_quiet(e,'robusto-audit-v2-extras');return;}const z=this._load();let mudou=false;for(const e of extras){const s=e&&e.origemPlano&&e.origemPlano.sugestao||{};if(String(s.motor)!=='robusto-v8')continue;if(!z.events.some(x=>x.tipo==='atividade_criada'&&x.extraId===String(e.id||''))){const dec=this._decisionFor(z,e);this._append(z,'atividade_criada',{extraId:String(e.id||''),decisionId:dec&&dec.id||null,disciplina:e.disciplina||e.origemPlano.disciplina||'',topico:e.origemPlano.topico||'',quantidadeRecomendada:Math.max(0,Math.round(N(s.quantidadeRecomendada,e.alvo))),fase:s.fase||null,pesoPost:s.pesoPost||1,prescricao:clone(s.prescricao||null),criadoEm:s.criadoEm||e.createdAt||null,causal:false});mudou=true;}const st=this._estadoExtra(e),fp=hash(st);if(z.resultFingerprints[st.extraId]!==fp){z.resultFingerprints[st.extraId]=fp;this._append(z,'resultado_observado',st);mudou=true;}}if(mudou)this._save(z);return z;},
+    reconciliar(){let extras=[];try{extras=DB.getExtras?DB.getExtras()||[]:[];}catch(e){if(typeof _quiet==='function')_quiet(e,'robusto-audit-v2-extras');return;}const z=this._load();let mudou=false;for(const e of extras){const s=e&&e.origemPlano&&e.origemPlano.sugestao||{};if(String(s.motor)!=='plano-robusto')continue;if(!z.events.some(x=>x.tipo==='atividade_criada'&&x.extraId===String(e.id||''))){const dec=this._decisionFor(z,e);this._append(z,'atividade_criada',{extraId:String(e.id||''),decisionId:dec&&dec.id||null,disciplina:e.disciplina||e.origemPlano.disciplina||'',topico:e.origemPlano.topico||'',quantidadeRecomendada:Math.max(0,Math.round(N(s.quantidadeRecomendada,e.alvo))),fase:s.fase||null,pesoPost:s.pesoPost||1,prescricao:clone(s.prescricao||null),criadoEm:s.criadoEm||e.createdAt||null,causal:false});mudou=true;}const st=this._estadoExtra(e),fp=hash(st);if(z.resultFingerprints[st.extraId]!==fp){z.resultFingerprints[st.extraId]=fp;this._append(z,'resultado_observado',st);mudou=true;}}if(mudou)this._save(z);return z;},
     _pairs(z){const criadas=z.events.filter(e=>e.tipo==='atividade_criada'),result=z.events.filter(e=>e.tipo==='resultado_observado');return criadas.map(c=>{const r=[...result].reverse().find(x=>x.extraId===c.extraId),d=z.events.find(x=>x.id===c.decisionId),sel=d&&(d.selecionados||[]).find(x=>norm(x.disciplina)===norm(c.disciplina)&&norm(x.topico)===norm(c.topico));return{extraId:c.extraId,features:{fase:c.fase,disciplina:c.disciplina,topico:c.topico,pesoPost:c.pesoPost,quantidadeRecomendada:c.quantidadeRecomendada,scoreDisciplina:sel&&sel.scoreDisciplina,scoreTopico:sel&&sel.scoreTopico,taxaInicial:sel&&sel.taxa,qInicial:sel&&sel.qJanela,componentes:sel&&sel.componentes,posterior:sel&&sel.posterior,incidencia:sel&&sel.incidencia,prescricao:c.prescricao},outcome:r?{concluida:r.concluida,questoesExecutadas:r.questoesExecutadas,minutosExecutados:r.minutosExecutados,ganhoPP:r.ganhoPP,ganhoPP100q:r.ganhoPP100q,atribuicao:r.atribuicao,causal:false}:null};});},
-    gerarPayload(){const z=this.reconciliar()||this._load(),pairs=this._pairs(z),medidos=pairs.filter(x=>x.outcome&&finite(x.outcome.ganhoPP)),pesoEfetivo=medidos.reduce((s,x)=>s+N(x.outcome.atribuicao&&x.outcome.atribuicao.pesoCalibracao,.25),0),horas=z.events.filter(e=>e.tipo==='resultado_observado').reduce((s,e)=>s+N(e.minutosExecutados)/60,0);return{schema:this.SCHEMA,schemaVersion:this.VERSAO,exportadoEm:iso(),meta:{motor:'robusto-v8',revisao:8,privacidade:'local-only; exportacao somente por acao do usuario',interpretacao:'observacional; TEC pode misturar reforco e ciclo regular; nao inferir causalidade'},anonProfileId:z.anonProfileId,diagnostico:{decisoes:z.events.filter(e=>e.tipo==='decisao').length,atividades:z.events.filter(e=>e.tipo==='atividade_criada').length,resultadosMedidos:medidos.length,amostraEfetivaAtribuicao:round(pesoEfetivo,2),horasExtras:round(horas,2)},events:clone(z.events),calibrationDataset:pairs};},
+    gerarPayload(){const z=this.reconciliar()||this._load(),pairs=this._pairs(z),medidos=pairs.filter(x=>x.outcome&&finite(x.outcome.ganhoPP)),pesoEfetivo=medidos.reduce((s,x)=>s+N(x.outcome.atribuicao&&x.outcome.atribuicao.pesoCalibracao,.25),0),horas=z.events.filter(e=>e.tipo==='resultado_observado').reduce((s,e)=>s+N(e.minutosExecutados)/60,0);return{schema:this.SCHEMA,schemaVersion:this.VERSAO,exportadoEm:iso(),meta:{motor:'plano-robusto',revisao:8,privacidade:'local-only; exportacao somente por acao do usuario',interpretacao:'observacional; TEC pode misturar reforco e ciclo regular; nao inferir causalidade'},anonProfileId:z.anonProfileId,diagnostico:{decisoes:z.events.filter(e=>e.tipo==='decisao').length,atividades:z.events.filter(e=>e.tipo==='atividade_criada').length,resultadosMedidos:medidos.length,amostraEfetivaAtribuicao:round(pesoEfetivo,2),horasExtras:round(horas,2)},events:clone(z.events),calibrationDataset:pairs};},
     exportar(){const payload=this.gerarPayload(),blob=new Blob([JSON.stringify(payload,null,2)],{type:'application/json'}),url=URL.createObjectURL(blob),a=document.createElement('a'),dia=new Date().toISOString().slice(0,10);a.href=url;a.download=`studynomentor-robusto-auditoria-${dia}.json`;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),0);return{payload,filename:a.download};},
     statsHtml(){const d=this.gerarPayload().diagnostico,ready=d.amostraEfetivaAtribuicao>=8;return`<div class="pmc-audit-stats"><span><b>${d.decisoes}</b>decisões</span><span><b>${d.atividades}</b>reforços</span><span><b>${d.resultadosMedidos}</b>resultados TEC</span><span><b>${d.amostraEfetivaAtribuicao}</b>amostra efetiva</span></div><small class="pmc-audit-readiness ${ready?'is-ready':''}">${ready?'Há base observacional para iniciar uma calibração assistida.':'Ainda acumule uso real; ciclos contaminados por questões fora do reforço têm peso menor automaticamente.'}</small>`;}
   };
 
-  window.PlanoRobustoAuditV2=A;
+  window.PlanoRobustoAudit=A;
 })();
 
 /* ============================================================================
-   GOVERNANCA DOS MOTORES DO PLANO V6
+   GOVERNANCA DOS MOTORES DO PLANO
    Disponibilidade global de Simplificado/Robusto sem tocar em suas formulas.
    ============================================================================ */
 (() => {
-  if(typeof window==='undefined'||window.__planoMotoresGovernancaV6)return;
-  const C=window.PlanoSugestoesV5||window.PlanoSugestoesV4||window.PlanoSugestoesV3||window.PlanoSugestoesV2;
+  if(typeof window==='undefined'||window.__planoMotoresGovernanca)return;
+  const C=window.PlanoSugestoes;
   if(!C||typeof DB==='undefined')return;
-  window.__planoMotoresGovernancaV6=true;
+  window.__planoMotoresGovernanca=true;
 
   const G={
-    VERSAO:6,KEY:'plano-motores-governanca-v5',DEFAULTS:Object.freeze({simplificado:true,robusto:true}),_orig:{},
+    KEY:'plano-motores-governanca-v5',DEFAULTS:Object.freeze({simplificado:true,robusto:true}),_orig:{},
     _key(){return DB._profilePrefix()+this.KEY;},
-    estado(){let z={};try{z=JSON.parse(localStorage.getItem(this._key())||'{}')||{};}catch(e){if(typeof _quiet==='function')_quiet(e,'plano-motores-v6-read');}return{simplificado:typeof z.simplificado==='boolean'?z.simplificado:true,robusto:typeof z.robusto==='boolean'?z.robusto:true};},
-    salvar(patch){const atual=this.estado(),p=patch||{},prox={simplificado:typeof p.simplificado==='boolean'?p.simplificado:atual.simplificado,robusto:typeof p.robusto==='boolean'?p.robusto:atual.robusto};try{const raw=JSON.stringify(prox);if(DB.setRaw)DB.setRaw(this._key(),raw);else localStorage.setItem(this._key(),raw);}catch(e){if(typeof _quiet==='function')_quiet(e,'plano-motores-v6-save');}try{window.dispatchEvent(new CustomEvent('plano:motores-change',{detail:prox}));}catch(e){if(typeof _quiet==='function')_quiet(e,'plano-motores-v6-event');}this.syncVisibility();this.renderConfig();return prox;},
+    estado(){let z={};try{z=JSON.parse(localStorage.getItem(this._key())||'{}')||{};}catch(e){if(typeof _quiet==='function')_quiet(e,'plano-motores-read');}return{simplificado:typeof z.simplificado==='boolean'?z.simplificado:true,robusto:typeof z.robusto==='boolean'?z.robusto:true};},
+    salvar(patch){const atual=this.estado(),p=patch||{},prox={simplificado:typeof p.simplificado==='boolean'?p.simplificado:atual.simplificado,robusto:typeof p.robusto==='boolean'?p.robusto:atual.robusto};try{const raw=JSON.stringify(prox);if(DB.setRaw)DB.setRaw(this._key(),raw);else localStorage.setItem(this._key(),raw);}catch(e){if(typeof _quiet==='function')_quiet(e,'plano-motores-save');}try{window.dispatchEvent(new CustomEvent('plano:motores-change',{detail:prox}));}catch(e){if(typeof _quiet==='function')_quiet(e,'plano-motores-event');}this.syncVisibility();this.renderConfig();return prox;},
     restaurar(){return this.salvar({simplificado:true,robusto:true});},
     ativos(){const e=this.estado(),out=[];if(e.simplificado)out.push('simplificado');if(e.robusto)out.push('robusto');if(e.simplificado&&e.robusto)out.push('comparar');return out;},
     resolverModo(preferido){const e=this.estado();if(preferido==='comparar'&&e.simplificado&&e.robusto)return'comparar';if(preferido==='simplificado'&&e.simplificado)return'simplificado';if(preferido==='robusto'&&e.robusto)return'robusto';if(e.robusto)return'robusto';if(e.simplificado)return'simplificado';return null;},
@@ -55194,33 +54951,32 @@ else CloudStore.init();
     renderConfig(){if(typeof document==='undefined')return;let card=document.getElementById('cfg-plano-motores-card');const anchor=document.getElementById('config-subjects-list')?.closest('.card');if(!anchor)return;if(!card){card=document.createElement('section');card.className='card pmg-card';card.id='cfg-plano-motores-card';anchor.parentNode.insertBefore(card,anchor);}const e=this.estado(),n=Number(e.simplificado)+Number(e.robusto),status=n===2?'<b>2 motores ativos</b> · você escolhe a fonte no Desempenho TEC e pode comparar antes de criar Extras.':n===1?`<b>1 motor ativo</b> · as sugestões usam apenas o ${e.robusto?'Robusto':'Simplificado'}.`:'<b>Nenhum motor ativo</b> · Plano/Puxar ficam ocultos; histórico já criado é preservado.';card.innerHTML=`<div class="card-header pmg-head"><div><h2>🏁 Motores do Plano</h2><p class="sub">Disponibilidade global. A configuração matemática fica em Desempenho TEC › Motores.</p></div><button type="button" class="btn-secondary" data-pmg-reset>↺ Restaurar padrão</button></div><div class="pmg-body"><div class="pmg-grid">${this._switchCard('simplificado','⚡ Simplificado','Direto','Prioriza lacunas do TEC com regra transparente.','Baseline independente, poucos parâmetros e dose fixa.',e.simplificado)}${this._switchCard('robusto','🧠 Robusto','Estatístico','Prioriza 3 disciplinas e seus tópicos com TEC, incidência e reforços em Extras.','Sem método pedagógico, sem nomes/pesos/tempo do ciclo regular.',e.robusto)}</div><div class="pmg-status ${n===0?'is-warning':''}">${status}</div></div>`;card.querySelectorAll('[data-pmg-toggle]').forEach(inp=>inp.addEventListener('change',()=>{const k=inp.dataset.pmgToggle,patch={[k]:!!inp.checked},prox=this.salvar(patch);if(typeof showToast==='function')showToast(`${k==='robusto'?'Robusto':'Simplificado'} ${prox[k]?'habilitado':'desabilitado'}`);}));card.querySelector('[data-pmg-reset]')?.addEventListener('click',()=>{this.restaurar();if(typeof showToast==='function')showToast('Motores restaurados ✓');});},
     _selectorHtml(modo){const e=this.estado();if(!(e.simplificado&&e.robusto)){const k=e.robusto?'robusto':e.simplificado?'simplificado':null;if(!k)return'';return`<div class="ps-single-engine"><span class="ps-single-ico">${k==='robusto'?'🧠':'⚡'}</span><div><small>Motor ativo</small><b>${k==='robusto'?'Robusto':'Simplificado'}</b><span>${k==='robusto'?'TEC + incidência + reforços em Extras':'Leitura direta do TEC'}</span></div></div>`;}const card=(k,ico,nome,tag,desc)=>`<button type="button" class="ps-engine-card ${modo===k?'active':''}" data-ps-modo="${k}" aria-pressed="${modo===k?'true':'false'}"><span class="ps-engine-check">✓</span><span class="ps-engine-ico">${ico}</span><span class="ps-engine-copy"><span class="ps-engine-name"><b>${nome}</b><em>${tag}</em></span><small>${desc}</small></span></button>`;return`<section class="ps-engine-chooser" aria-label="Fonte das sugestões"><header><div><small>FONTE DAS SUGESTÕES</small><b>Qual leitura quer usar para estas frentes?</b></div><span>Trocar recalcula tudo.</span></header><div class="ps-engine-primary">${card('simplificado','⚡','Simplificado','Direto','TEC com regra transparente e dose fixa.')}${card('robusto','🧠','Robusto','Estatístico','TEC + incidência + histórico dos reforços em Extras.')}</div><button type="button" class="ps-compare-launch ${modo==='comparar'?'active':''}" data-ps-modo="comparar" aria-pressed="${modo==='comparar'?'true':'false'}"><span>🔀</span><div><b>Comparar os dois</b><small>Confronta ranking/consenso sem misturar scores.</small></div><em>${modo==='comparar'?'Selecionado':'Abrir comparação'}</em></button></section>`;},
     instalarController(){if(this._controllerInstalled)return;this._controllerInstalled=true;['prefs','salvar','simplificado','robusto','comparar','calcular','criar','_cabecalho','abrir'].forEach(k=>{this._orig[k]=C[k]?.bind(C);});const self=this;C.prefs=function(){const p=self._orig.prefs?self._orig.prefs():{},modo=self.resolverModo(p&&p.modo);return{modo};};C.salvar=function(patch){const x={...(patch||{})};if('modo'in x)x.modo=self.resolverModo(x.modo);const out=self._orig.salvar?self._orig.salvar(x):x;return{modo:self.resolverModo(out&&out.modo)};};C.simplificado=function(){return self.pode('simplificado')?self._orig.simplificado():self._erro('simplificado');};C.robusto=function(){return self.pode('robusto')?self._orig.robusto():self._erro('robusto');};C.comparar=function(){return self.pode('comparar')?self._orig.comparar():self._erro('comparar');};C.calcular=function(p){const base={...(p||C.prefs())},modo=self.resolverModo(base.modo);if(!modo)return self._erro(null);base.modo=modo;if(modo==='simplificado')return C.simplificado();if(modo==='comparar')return C.comparar();return C.robusto();};const err=C._erroTexto?.bind(C);C._erroTexto=function(e){if(e==='motor-desabilitado')return'Este motor está desabilitado nas Configurações.';if(e==='motores-desabilitados')return'Ative Simplificado ou Robusto em Configurações.';return err?err(e):'Não foi possível formar sugestões.';};C._cabecalho=function(p,res){p={...(p||C.prefs()),modo:self.resolverModo(p&&p.modo)};if(!p.modo)return'<div class="ps-empty"><b>Motores desabilitados</b><span>Ative Simplificado ou Robusto em Configurações.</span></div>';return self._selectorHtml(p.modo)+(self._orig._cabecalho?self._orig._cabecalho(p,res):'');};C.criar=function(screen,p,res){const modo=self.resolverModo(p&&p.modo);if(!modo||!self.pode(modo))return 0;return self._orig.criar(screen,{...(p||{}),modo},res);};C.abrir=function(screen){const p=C.prefs();if(!p.modo){if(typeof showToast==='function')showToast('Ative um motor em Configurações.');return;}return self._orig.abrir(screen);};},
-    init(){this.instalarController();this.syncVisibility();this.renderConfig();try{window.addEventListener('screen:change',()=>{this.syncVisibility();if(typeof ConfigScreen!=='undefined'&&document.getElementById('screen-config')?.classList.contains('active'))this.renderConfig();});}catch(e){if(typeof _quiet==='function')_quiet(e,'plano-motores-v6-init');}}
+    init(){this.instalarController();this.syncVisibility();this.renderConfig();try{window.addEventListener('screen:change',()=>{this.syncVisibility();if(typeof ConfigScreen!=='undefined'&&document.getElementById('screen-config')?.classList.contains('active'))this.renderConfig();});}catch(e){if(typeof _quiet==='function')_quiet(e,'plano-motores-init');}}
   };
-  window.PlanoMotoresGovernancaV6=G;window.PlanoMotoresGovernancaV5=G;
+  window.PlanoMotoresGovernanca=G;
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>G.init(),{once:true});else G.init();
 })();
-
 /* ============================================================================
-   CENTRAL DOS MOTORES — DESEMPENHO TEC V5
-   Configuracao mora no TEC; Extras apenas executa. O Robusto ativo e V8.
+   CENTRAL DOS MOTORES — DESEMPENHO TEC
+   Configuracao mora no TEC; Extras apenas executa.
    ============================================================================ */
 (() => {
-  if(typeof window==='undefined'||window.__planoMotoresCentralTecV5)return;
-  window.__planoMotoresCentralTecV5=true;
-  const G=window.PlanoMotoresGovernancaV5,C=window.PlanoSugestoesV5||window.PlanoSugestoesV4||window.PlanoSugestoesV3,S=window.PlanoSugestoesSimplificadoV3||window.PlanoSugestoesSimplificadoV2,R=window.PlanoSugestoesRobustoV8,I=window.PlanoSugestoesInfraV2,A=window.PlanoRobustoAuditV2;
+  if(typeof window==='undefined'||window.__planoMotoresCentralTec)return;
+  window.__planoMotoresCentralTec=true;
+  const G=window.PlanoMotoresGovernanca,C=window.PlanoSugestoes,S=window.PlanoSugestoesSimplificado,R=window.PlanoSugestoesRobusto,I=window.PlanoSugestoesInfra,A=window.PlanoRobustoAudit;
   const DT=(typeof DesempenhoTecScreen!=='undefined'&&DesempenhoTecScreen)||window.DesempenhoTecScreen;
   if(!G||!C||!S||!R||!I||!DT)return;
   const esc=I.esc||((s)=>String(s??''));
 
   const M={
-    VERSAO:5,_origSwitch:DT.switchTecTab?.bind(DT),_origRender:DT.render?.bind(DT),_tabObserver:null,_renderQueued:false,
+    _origSwitch:DT.switchTecTab?.bind(DT),_origRender:DT.render?.bind(DT),_tabObserver:null,_renderQueued:false,
     _scheduleRenderPanel(){if(this._renderQueued)return;this._renderQueued=true;const run=()=>{this._renderQueued=false;this.renderPanel();};if(typeof queueMicrotask==='function')queueMicrotask(run);else Promise.resolve().then(run);},
     _bancas(atual){const bs=I.bancas?I.bancas():[];return `<option value="__todas__" ${atual==='__todas__'?'selected':''}>Selecionar automaticamente</option>`+bs.map(b=>`<option value="${esc(b)}" ${b===atual?'selected':''}>${esc(b)}</option>`).join('');},
     _simpleHtml(){const p=S.prefs(),fase=S.fase?S.fase(p):(p.fase||'auto');return `<section class="pmc-engine-card" data-pmc-engine="simplificado"><header><div class="pmc-engine-id"><span>⚡</span><div><small>MOTOR DISPONÍVEL</small><h3>Simplificado</h3><p>Leitura direta e transparente do TEC. Serve como baseline independente para confrontar o Robusto.</p></div></div><span class="pmc-pill">Direto</span></header><div class="pmc-simple-grid"><label><span>Fase</span><select data-pmc-simple="fase"><option value="auto" ${p.fase==='auto'?'selected':''}>Automática</option><option value="pre" ${p.fase==='pre'?'selected':''}>Pré-edital</option><option value="pos" ${p.fase==='pos'?'selected':''}>Pós-edital</option></select><small>Pré usa TEC direto; Pós usa a regra própria do Simplificado.</small></label><label><span>Meta desejada</span><div class="pmc-suffix"><input data-pmc-simple="meta" type="number" min="50" max="100" value="${p.meta}"><em>%</em></div><small>Assuntos abaixo da régua entram na disputa.</small></label><label><span>Amostra mínima</span><input data-pmc-simple="minAmostra" type="number" min="1" max="500" value="${p.minAmostra}"><small>Piso operacional; não significa alta precisão estatística.</small></label><label><span>Questões por frente</span><input data-pmc-simple="alvoQuestoes" type="number" min="5" max="200" value="${p.alvoQuestoes}"><small>Dose fixa deste motor.</small></label><label class="${fase==='pos'?'':'pmc-hidden'}"><span>Banca</span><select data-pmc-simple="banca">${this._bancas(p.banca)}</select><small>Incidência usada pelo Simplificado Pós.</small></label></div><footer><span>Configuração própria e isolada.</span><b>Não lê parâmetros do Robusto.</b><button type="button" data-pmc-simple-reset>↺ Restaurar padrões</button></footer></section>`;},
-    _auditHtml(){if(!A)return'';return `<section class="pmc-audit-card" data-pmc-robust-audit><header><div><small>AUDITORIA HUMANA · LOCAL</small><h4>Flight recorder do Robusto V8</h4><p>Registra decisão → reforço → execução → estado TEC posterior. Como o TEC pode incluir questões do ciclo regular, a evolução é tratada como observacional e recebe peso de atribuição conservador.</p></div><span class="pmc-audit-local">local-only</span></header><div data-pmc-audit-stats>${A.statsHtml()}</div><div class="pmc-audit-actions"><button type="button" class="btn-secondary" data-pmc-audit-refresh>↻ Atualizar leitura</button><button type="button" class="btn-primary" data-pmc-audit-export>⇩ Exportar auditoria .json</button></div><footer>O JSON exporta somente métricas do TEC, reforços em Extras, dose, tempo diretamente registrado no reforço e qualidade de atribuição. Não registra método subjetivo de estudo.</footer></section>`;},
-    _robustHtml(){const cfg=R.config(),rot=cfg?.resumo?.rotulo||'TEC';return `<section class="pmc-engine-card pmc-robusto" data-pmc-engine="robusto"><header><div class="pmc-engine-id"><span>🧠</span><div><small>MOTOR DISPONÍVEL · V8</small><h3>Robusto</h3><p>Motor estatístico focado em três decisões: qual disciplina atacar, qual tópico priorizar e quantas questões fazer. Usa TEC, incidência e reforços em Extras.</p></div></div><span class="pmc-pill">${esc(rot)}</span></header><div class="pmc-robust-summary"><b>Prioridade e dose</b><span>Sem nomes/pesos/tempo do ciclo regular. Pré-edital usa peso 1; Pós-edital vincula manualmente pesos aos nomes canônicos do TEC.</span></div><div data-pmc-robusto-host>${R.painelConfigHtml()}</div>${this._auditHtml()}</section>`;},
+    _auditHtml(){if(!A)return'';return `<section class="pmc-audit-card" data-pmc-robust-audit><header><div><small>AUDITORIA HUMANA · LOCAL</small><h4>Flight recorder do Robusto</h4><p>Registra decisão → reforço → execução → estado TEC posterior. Como o TEC pode incluir questões do ciclo regular, a evolução é tratada como observacional e recebe peso de atribuição conservador.</p></div><span class="pmc-audit-local">local-only</span></header><div data-pmc-audit-stats>${A.statsHtml()}</div><div class="pmc-audit-actions"><button type="button" class="btn-secondary" data-pmc-audit-refresh>↻ Atualizar leitura</button><button type="button" class="btn-primary" data-pmc-audit-export>⇩ Exportar auditoria .json</button></div><footer>O JSON exporta somente métricas do TEC, reforços em Extras, dose, tempo diretamente registrado no reforço e qualidade de atribuição. Não registra método subjetivo de estudo.</footer></section>`;},
+    _robustHtml(){const cfg=R.config(),rot=cfg?.resumo?.rotulo||'TEC';return `<section class="pmc-engine-card pmc-robusto" data-pmc-engine="robusto"><header><div class="pmc-engine-id"><span>🧠</span><div><small>MOTOR DISPONÍVEL</small><h3>Robusto</h3><p>Motor estatístico focado em três decisões: qual disciplina atacar, qual tópico priorizar e quantas questões fazer. Usa TEC, incidência e reforços em Extras.</p></div></div><span class="pmc-pill">${esc(rot)}</span></header><div class="pmc-robust-summary"><b>Prioridade e dose</b><span>Sem nomes/pesos/tempo do ciclo regular. Pré-edital usa peso 1; Pós-edital vincula manualmente pesos aos nomes canônicos do TEC.</span></div><div data-pmc-robusto-host>${R.painelConfigHtml()}</div>${this._auditHtml()}</section>`;},
     _panelHtml(){const e=G.estado(),ativos=Number(e.simplificado)+Number(e.robusto);return `<div class="pmc-shell"><section class="pmc-intro"><div><small>CENTRAL DOS MODELOS</small><h2>Configuração das sugestões do TEC</h2><p>As métricas observadas continuam sendo os seus dados. Aqui você configura apenas como cada modelo transforma esses dados em prioridade. A fonte usada na tela é escolhida no cabeçalho do Desempenho TEC.</p></div><div class="pmc-state"><b>${ativos}</b><span>${ativos===1?'motor ativo':'motores ativos'}</span></div></section>${e.simplificado?this._simpleHtml():''}${e.robusto?this._robustHtml():''}${ativos===0?'<div class="pmc-empty"><b>Nenhum motor habilitado</b><span>Ative Simplificado ou Robusto em Configurações.</span></div>':''}</div>`;},
-    _bindPanel(){const panel=document.getElementById('tec-panel-motores');if(!panel)return;panel.querySelectorAll('[data-pmc-simple]').forEach(el=>el.addEventListener('change',()=>{const k=el.dataset.pmcSimple,v=el.type==='number'?Number(el.value):el.value;S.salvar({[k]:v});if(k==='fase')this._scheduleRenderPanel();else if(typeof showToast==='function')showToast('Ajuste do Simplificado salvo ✓');}));panel.querySelector('[data-pmc-simple-reset]')?.addEventListener('click',()=>{S.restaurar?.();if(typeof showToast==='function')showToast('Simplificado restaurado aos padrões ✓');this._scheduleRenderPanel();});const host=panel.querySelector('[data-pmc-robusto-host]');if(host)R.bindConfig(host,()=>{if(typeof showToast==='function')showToast('Ajuste do Robusto V8 salvo ✓');this._scheduleRenderPanel();});panel.querySelector('[data-pmc-audit-refresh]')?.addEventListener('click',()=>{A?.reconciliar();if(typeof showToast==='function')showToast('Auditoria do Robusto atualizada ✓');this._scheduleRenderPanel();});panel.querySelector('[data-pmc-audit-export]')?.addEventListener('click',()=>{try{const r=A.exportar(),d=r.payload?.diagnostico;if(typeof showToast==='function')showToast(`Auditoria exportada · ${d?.resultadosMedidos||0} resultado(s) TEC ✓`);}catch(e){if(typeof _quiet==='function')_quiet(e,'robusto-audit-v2-ui-export');if(typeof showToast==='function')showToast('Não foi possível exportar a auditoria');}});},
+    _bindPanel(){const panel=document.getElementById('tec-panel-motores');if(!panel)return;panel.querySelectorAll('[data-pmc-simple]').forEach(el=>el.addEventListener('change',()=>{const k=el.dataset.pmcSimple,v=el.type==='number'?Number(el.value):el.value;S.salvar({[k]:v});if(k==='fase')this._scheduleRenderPanel();else if(typeof showToast==='function')showToast('Ajuste do Simplificado salvo ✓');}));panel.querySelector('[data-pmc-simple-reset]')?.addEventListener('click',()=>{S.restaurar?.();if(typeof showToast==='function')showToast('Simplificado restaurado aos padrões ✓');this._scheduleRenderPanel();});const host=panel.querySelector('[data-pmc-robusto-host]');if(host)R.bindConfig(host,()=>{if(typeof showToast==='function')showToast('Ajuste do Robusto salvo ✓');this._scheduleRenderPanel();});panel.querySelector('[data-pmc-audit-refresh]')?.addEventListener('click',()=>{A?.reconciliar();if(typeof showToast==='function')showToast('Auditoria do Robusto atualizada ✓');this._scheduleRenderPanel();});panel.querySelector('[data-pmc-audit-export]')?.addEventListener('click',()=>{try{const r=A.exportar(),d=r.payload?.diagnostico;if(typeof showToast==='function')showToast(`Auditoria exportada · ${d?.resultadosMedidos||0} resultado(s) TEC ✓`);}catch(e){if(typeof _quiet==='function')_quiet(e,'robusto-audit-ui-export');if(typeof showToast==='function')showToast('Não foi possível exportar a auditoria');}});},
     _aplicarVisibilidadeTab(btn,visivel){if(!btn)return;if(visivel){if(btn.classList.contains('ux-off'))btn.classList.remove('ux-off');if(btn.hidden)btn.hidden=false;if(btn.style.display)btn.style.removeProperty('display');if(btn.getAttribute('aria-hidden')!=='false')btn.setAttribute('aria-hidden','false');}else{if(!btn.hidden)btn.hidden=true;if(btn.style.display!=='none')btn.style.display='none';if(btn.getAttribute('aria-hidden')!=='true')btn.setAttribute('aria-hidden','true');}},
     _protegerTab(btn){if(!btn)return;const corrigir=()=>{const e=G.estado(),algum=e.simplificado||e.robusto;if(algum)this._aplicarVisibilidadeTab(btn,true);};corrigir();if(this._tabObserver)this._tabObserver.disconnect();this._tabObserver=new MutationObserver(()=>corrigir());this._tabObserver.observe(btn,{attributes:true,attributeFilter:['class','hidden','style','aria-hidden']});},
     ensureUi(){if(typeof document==='undefined')return;const tabs=document.getElementById('tec-subtabs');if(!tabs)return;let btn=tabs.querySelector('.tec-subtab[data-tectab="motores"]');if(!btn){btn=document.createElement('button');btn.type='button';btn.className='tec-subtab pmc-tab';btn.dataset.tectab='motores';btn.textContent='⚙ Motores';tabs.appendChild(btn);btn.addEventListener('click',()=>DT.switchTecTab('motores'));}let panel=document.getElementById('tec-panel-motores');if(!panel){panel=document.createElement('div');panel.id='tec-panel-motores';panel.style.display='none';const first=document.getElementById('tec-panel-analise');if(first?.parentNode)first.parentNode.insertBefore(panel,first);else tabs.insertAdjacentElement('afterend',panel);}this._protegerTab(btn);this.syncVisibility();this.renderPanel();},
@@ -55230,49 +54986,48 @@ else CloudStore.init();
     instalarRenderHook(){if(this._renderInstalled||!this._origRender)return;this._renderInstalled=true;const self=this;DT.render=function(){const r=self._origRender();self.ensureUi();self.syncVisibility();return r;};},
     init(){this.instalarTabs();this.instalarRenderHook();this.ensureUi();window.addEventListener('plano:motores-change',()=>{this.ensureUi();this.renderPanel();});}
   };
-  window.PlanoMotoresCentralTecV5=M;window.PlanoMotoresCentralTecV4=M;window.PlanoMotoresCentralTecV3=M;window.PlanoMotoresCentralTecV2=M;
+  window.PlanoMotoresCentralTec=M;
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>M.init(),{once:true});else M.init();
 })();
 /* ============================================================================
-   DESEMPENHO TEC — FONTE EXPLICITA DAS SUGESTOES V2
+   DESEMPENHO TEC — FONTE EXPLICITA DAS SUGESTOES
    ----------------------------------------------------------------------------
    Fatos observados (taxa, historico, cobertura) permanecem dados. A camada de
    decisao usa EXCLUSIVAMENTE o motor escolhido no topo do Desempenho TEC.
    ============================================================================ */
 (() => {
-  if(typeof window==='undefined'||window.__tecPlanoFonteMotorV2)return;
-  const D=(typeof DesempenhoTecScreen!=='undefined'&&DesempenhoTecScreen)||window.DesempenhoTecScreen,C=window.PlanoSugestoesV5||window.PlanoSugestoesV4||window.PlanoSugestoesV3,G=window.PlanoMotoresGovernancaV6||window.PlanoMotoresGovernancaV5,I=window.PlanoSugestoesInfraV2;
+  if(typeof window==='undefined'||window.__tecPlanoFonteMotor)return;
+  const D=(typeof DesempenhoTecScreen!=='undefined'&&DesempenhoTecScreen)||window.DesempenhoTecScreen,C=window.PlanoSugestoes,G=window.PlanoMotoresGovernanca,I=window.PlanoSugestoesInfra;
   if(!D||!C||!G||!I||typeof DB==='undefined')return;
-  window.__tecPlanoFonteMotorV2=true;
+  window.__tecPlanoFonteMotor=true;
   const esc=I.esc||((x)=>String(x==null?'':x)),n=(v,d=0)=>Number.isFinite(Number(v))?Number(v):d,fmt=(v,d=0)=>Number.isFinite(Number(v))?Number(v).toFixed(d).replace('.',','):'—';
 
   const M={
-    VERSAO:2,KEY:'tec-plano-fonte-motor-v2',LEGACY_KEY:'tec-plano-fonte-motor-v1',DEFAULT:'robusto',_origPaint:null,_origRender:null,_rendering:false,
+    KEY:'tec-plano-fonte-motor',LEGACY_KEY:'tec-plano-fonte-motor-v1',DEFAULT:'robusto',_origPaint:null,_origRender:null,_rendering:false,
     _key(){return DB._profilePrefix()+this.KEY;},
     _estado(){return G.estado?G.estado():{simplificado:true,robusto:true};},
     _resolver(preferido){const e=this._estado();if(preferido==='robusto'&&e.robusto)return'robusto';if(preferido==='simplificado'&&e.simplificado)return'simplificado';if(e.robusto)return'robusto';if(e.simplificado)return'simplificado';return null;},
-    fonte(){let k=this.DEFAULT;try{let z=JSON.parse(localStorage.getItem(this._key())||'null');if(!z)z=JSON.parse(localStorage.getItem(DB._profilePrefix()+this.LEGACY_KEY)||'null');if(z&&['simplificado','robusto'].includes(z.fonte))k=z.fonte;}catch(e){if(typeof _quiet==='function')_quiet(e,'tec-plano-fonte-v2-read');}return this._resolver(k);},
-    salvar(fonte){const k=this._resolver(fonte);if(!k)return null;try{const raw=JSON.stringify({fonte:k});if(DB.setRaw)DB.setRaw(this._key(),raw);else localStorage.setItem(this._key(),raw);}catch(e){if(typeof _quiet==='function')_quiet(e,'tec-plano-fonte-v2-save');}try{C.salvar({modo:k});}catch(e){if(typeof _quiet==='function')_quiet(e,'tec-plano-fonte-v2-sync-controller');}return k;},
-    calcular(fonte){const k=this._resolver(fonte||this.fonte());if(!k)return{erro:'motores-desabilitados',modo:null,itens:[]};try{return k==='simplificado'?C.simplificado():C.robusto();}catch(e){if(typeof _quiet==='function')_quiet(e,'tec-plano-fonte-v2-calc');return{erro:'falha-'+k,modo:k,itens:[]};}},
+    fonte(){let k=this.DEFAULT;try{let z=JSON.parse(localStorage.getItem(this._key())||'null');if(!z)z=JSON.parse(localStorage.getItem(DB._profilePrefix()+this.LEGACY_KEY)||'null');if(z&&['simplificado','robusto'].includes(z.fonte))k=z.fonte;}catch(e){if(typeof _quiet==='function')_quiet(e,'tec-plano-fonte-read');}return this._resolver(k);},
+    salvar(fonte){const k=this._resolver(fonte);if(!k)return null;try{const raw=JSON.stringify({fonte:k});if(DB.setRaw)DB.setRaw(this._key(),raw);else localStorage.setItem(this._key(),raw);}catch(e){if(typeof _quiet==='function')_quiet(e,'tec-plano-fonte-save');}try{C.salvar({modo:k});}catch(e){if(typeof _quiet==='function')_quiet(e,'tec-plano-fonte-sync-controller');}return k;},
+    calcular(fonte){const k=this._resolver(fonte||this.fonte());if(!k)return{erro:'motores-desabilitados',modo:null,itens:[]};try{return k==='simplificado'?C.simplificado():C.robusto();}catch(e){if(typeof _quiet==='function')_quiet(e,'tec-plano-fonte-calc');return{erro:'falha-'+k,modo:k,itens:[]};}},
     _criterio(fonte,r){if(fonte==='simplificado')return r&&r.fase==='pos'?'Pós-edital: regra direta do Simplificado, usando sua própria incidência/composição configurada.':'Pré-edital: distância para a meta + amostra mínima, sem sobrepor pai e filho.';return r&&r.fase==='pos'?'Pós-edital: lacuna estatística do TEC + persistência/tendência + incidência + peso manual da disciplina TEC + resposta observacional dos reforços.':'Pré-edital: todas as disciplinas têm peso 1; prioridade vem de lacuna estatística, evidência, persistência/tendência, incidência e resposta observacional dos reforços.';},
-    _erroTexto(r,fonte){const e=r&&r.erro,map={'sem-retrato':'Importe um retrato TEC neste escopo antes de calcular.','sem-lacunas':'Nenhum assunto observado está abaixo da régua deste motor.','sem-candidatos':'Não há frente elegível sem sobrepor reforços já abertos.','post-pesos-pendentes':'Robusto Pós-edital: abra ⚙ Motores, selecione as disciplinas canônicas do TEC que pertencem à prova e atribua os pesos.','pos-sem-banca':'Simplificado Pós precisa de uma banca específica.','pos-sem-planejamento':'Simplificado Pós precisa da composição da prova.','pos-sem-cruzamento':'O Simplificado não encontrou cruzamento suficiente.','motor-desabilitado':'Este motor está desabilitado.','motores-desabilitados':'Ative ao menos um motor em Configurações.','falha-simplificado':'Falha ao calcular o Simplificado.','falha-robusto':'Falha ao calcular o Robusto V8.'};return map[e]||`O ${fonte==='robusto'?'Robusto':'Simplificado'} não conseguiu formar recomendações neste escopo.`;},
+    _erroTexto(r,fonte){const e=r&&r.erro,map={'sem-retrato':'Importe um retrato TEC neste escopo antes de calcular.','sem-lacunas':'Nenhum assunto observado está abaixo da régua deste motor.','sem-candidatos':'Não há frente elegível sem sobrepor reforços já abertos.','post-pesos-pendentes':'Robusto Pós-edital: abra ⚙ Motores, selecione as disciplinas canônicas do TEC que pertencem à prova e atribua os pesos.','pos-sem-banca':'Simplificado Pós precisa de uma banca específica.','pos-sem-planejamento':'Simplificado Pós precisa da composição da prova.','pos-sem-cruzamento':'O Simplificado não encontrou cruzamento suficiente.','motor-desabilitado':'Este motor está desabilitado.','motores-desabilitados':'Ative ao menos um motor em Configurações.','falha-simplificado':'Falha ao calcular o Simplificado.','falha-robusto':'Falha ao calcular o Robusto.'};return map[e]||`O ${fonte==='robusto'?'Robusto':'Simplificado'} não conseguiu formar recomendações neste escopo.`;},
     _quantidade(c,fonte){if(!c)return null;return Math.max(1,Math.round(n(c.quantidadeRecomendada,c.alvo)))||null;},
     _tempo(c,fonte,q){if(fonte==='simplificado')return{texto:'—',detalhe:'O Simplificado não modela tempo.'};const t=c&&c.prescricao&&c.prescricao.tempo||{};if(t.confiavel&&n(t.minutosEstimados)>0)return{texto:`≈ ${Math.round(n(t.minutosEstimados))} min`,detalhe:`${fmt(n(t.segundosPorQuestao)/60,1)} min/questão · medido em reforços de Extras`};return{texto:'—',detalhe:'Sem tempo direto suficiente nos reforços de Extras.'};},
     _topicos(c,fonte){if(fonte!=='robusto'||!Array.isArray(c&&c.topicosOrdenados)||c.topicosOrdenados.length<2)return'';return`<details class="tpm-topic-order"><summary>Ordem dos próximos assuntos desta disciplina</summary><ol>${c.topicosOrdenados.slice(1,6).map(x=>`<li><span>${esc(x.nome)}</span><small>${fmt(x.taxa,0)}% · prioridade ${Math.round(n(x.score))}/100${n(x.incidencia)>0?' · incid. '+Math.round(n(x.incidencia)):''}</small></li>`).join('')}</ol></details>`;},
     _card(c,i,fonte){const q=this._quantidade(c,fonte),tempo=this._tempo(c,fonte,q),taxa=Number.isFinite(Number(c.taxa))?`${fmt(c.taxa,0)}%`:'—',amostra=Math.max(0,Math.round(n(c.qJanela))),score=Number.isFinite(Number(c.score))?Math.round(Number(c.score)):null;return`<article class="tpm-rec" data-tpm-rec data-disciplina="${esc(c.disciplina||'')}"><div class="tpm-rank">${i+1}</div><div class="tpm-main"><div class="tpm-head"><div><small>${esc(c.disciplina||'Disciplina')}</small><b>${esc(c.nome||'Assunto')}</b></div><span class="tpm-score">${score==null?'':'prioridade '+score+'/100'}</span></div><div class="tpm-metrics"><span><b>${taxa}</b><small>acerto observado</small></span><span><b>${amostra||'—'}</b><small>questões na amostra</small></span><span class="tpm-dose"><b>${q||'—'}</b><small>${fonte==='robusto'?'questões recomendadas':'questões por frente'}</small></span><span><b>${esc(tempo.texto)}</b><small>${esc(tempo.detalhe)}</small></span></div><p class="tpm-context">${esc(c.motivo||'')}</p>${this._topicos(c,fonte)}</div></article>`;},
     _buttons(fonte,compact=false){const e=this._estado(),btn=(k,ico,nome,desc)=>e[k]?`<button type="button" data-tpm-source="${k}" class="${fonte===k?'active':''}" aria-pressed="${fonte===k?'true':'false'}"><span>${ico}</span><div><b>${nome}</b><small>${desc}</small></div><i>${fonte===k?'em uso':''}</i></button>`:'';return`<div class="tpm-source-grid ${compact?'is-entry':''}">${btn('simplificado','⚡','Simplificado','Regra direta e transparente.')}${btn('robusto','🧠','Robusto','TEC + incidência + reforços em Extras.')}</div>`;},
     _entryHtml(fonte){const e=this._estado(),ambos=e.simplificado&&e.robusto;return`<section class="tpm-entry-selector" data-tpm-entry><div><small>MODELO DAS SUGESTÕES</small><strong>${ambos?'Escolha como o TEC deve priorizar suas fraquezas':'Modelo ativo'}</strong><p>A escolha afeta somente a camada prescritiva. Seus acertos, histórico e métricas observadas continuam iguais.</p></div>${this._buttons(fonte,true)}</section>`;},
-    _selectorHtml(fonte){const ambos=this._estado().simplificado&&this._estado().robusto;return`<section class="tpm-selector" data-tpm-selector><header><div><small>FONTE DA DECISÃO</small><strong>${fonte==='robusto'?'Robusto V8':'Simplificado'}</strong></div><span>${ambos?'Você pode trocar o modelo sem alterar os dados observados.':'Único motor habilitado.'}</span></header>${this._buttons(fonte,false)}<p><b>Separação de responsabilidades:</b> o TEC fornece os fatos; o motor escolhido decide disciplinas, assuntos e quantidade. O Robusto não escolhe seu método de estudo.</p></section>`;},
-    _outputHtml(fonte,r){const nome=fonte==='robusto'?'Robusto V8':'Simplificado',ico=fonte==='robusto'?'🧠':'⚡';if(!r||r.erro)return`<section class="tpm-output" data-tpm-output data-tpm-model="${fonte}"><header><div><small>${ico} ${nome.toUpperCase()}</small><strong>Recomendação deste modelo</strong></div></header><div class="tpm-empty">${esc(this._erroTexto(r,fonte))}</div></section>`;const itens=(r.itens||[]).slice().sort((a,b)=>fonte==='robusto'?n(b.score)-n(a.score):0);return`<section class="tpm-output" data-tpm-output data-tpm-model="${fonte}"><header><div><small>${ico} ${nome.toUpperCase()} · ${r.fase==='pos'?'PÓS-EDITAL':'PRÉ-EDITAL'}</small><strong>Onde atacar agora</strong><p>${esc(this._criterio(fonte,r))}</p></div><span>${itens.length} ${itens.length===1?'disciplina':'disciplinas'}</span></header>${fonte==='robusto'?'<div class="tpm-method"><b>O algoritmo para aqui:</b> recomenda alvo, ordem e quantidade. Sua resolução aprofundada — comentários, resumo, lei seca e cards — é seu modus operandi e não entra no score.</div>':''}<div class="tpm-recs">${itens.map((c,i)=>this._card(c,i,fonte)).join('')}</div><footer><b>Execução em Atividades → Puxar do Plano.</b><span>Resultados do TEC são observacionais: outras questões feitas no ciclo podem aparecer no mesmo retrato.</span></footer></section>`;},
-    _bindSource(root,fonte){root?.querySelectorAll('[data-tpm-source]').forEach(b=>b.addEventListener('click',()=>{const k=this.salvar(b.dataset.tpmSource);if(!k||k===fonte)return;if(typeof showToast==='function')showToast((k==='robusto'?'Robusto V8':'Simplificado')+' selecionado');this.renderEntry();if(D.tecTab==='plano')this.renderPlano();}));},
+    _selectorHtml(fonte){const ambos=this._estado().simplificado&&this._estado().robusto;return`<section class="tpm-selector" data-tpm-selector><header><div><small>FONTE DA DECISÃO</small><strong>${fonte==='robusto'?'Robusto':'Simplificado'}</strong></div><span>${ambos?'Você pode trocar o modelo sem alterar os dados observados.':'Único motor habilitado.'}</span></header>${this._buttons(fonte,false)}<p><b>Separação de responsabilidades:</b> o TEC fornece os fatos; o motor escolhido decide disciplinas, assuntos e quantidade. O Robusto não escolhe seu método de estudo.</p></section>`;},
+    _outputHtml(fonte,r){const nome=fonte==='robusto'?'Robusto':'Simplificado',ico=fonte==='robusto'?'🧠':'⚡';if(!r||r.erro)return`<section class="tpm-output" data-tpm-output data-tpm-model="${fonte}"><header><div><small>${ico} ${nome.toUpperCase()}</small><strong>Recomendação deste modelo</strong></div></header><div class="tpm-empty">${esc(this._erroTexto(r,fonte))}</div></section>`;const itens=(r.itens||[]).slice().sort((a,b)=>fonte==='robusto'?n(b.score)-n(a.score):0);return`<section class="tpm-output" data-tpm-output data-tpm-model="${fonte}"><header><div><small>${ico} ${nome.toUpperCase()} · ${r.fase==='pos'?'PÓS-EDITAL':'PRÉ-EDITAL'}</small><strong>Onde atacar agora</strong><p>${esc(this._criterio(fonte,r))}</p></div><span>${itens.length} ${itens.length===1?'disciplina':'disciplinas'}</span></header>${fonte==='robusto'?'<div class="tpm-method"><b>O algoritmo para aqui:</b> recomenda alvo, ordem e quantidade. Sua resolução aprofundada — comentários, resumo, lei seca e cards — é seu modus operandi e não entra no score.</div>':''}<div class="tpm-recs">${itens.map((c,i)=>this._card(c,i,fonte)).join('')}</div><footer><b>Execução em Atividades → Puxar do Plano.</b><span>Resultados do TEC são observacionais: outras questões feitas no ciclo podem aparecer no mesmo retrato.</span></footer></section>`;},
+    _bindSource(root,fonte){root?.querySelectorAll('[data-tpm-source]').forEach(b=>b.addEventListener('click',()=>{const k=this.salvar(b.dataset.tpmSource);if(!k||k===fonte)return;if(typeof showToast==='function')showToast((k==='robusto'?'Robusto':'Simplificado')+' selecionado');this.renderEntry();if(D.tecTab==='plano')this.renderPlano();}));},
     renderEntry(){if(typeof document==='undefined')return;const tabs=document.getElementById('tec-subtabs');if(!tabs)return;document.querySelectorAll('[data-tpm-entry]').forEach(el=>el.remove());const fonte=this.fonte();if(!fonte)return;const box=document.createElement('div');box.innerHTML=this._entryHtml(fonte);const el=box.firstElementChild;if(el){tabs.parentNode.insertBefore(el,tabs);this._bindSource(el,fonte);}},
     renderPlano(){if(this._rendering||typeof document==='undefined')return;const proj=document.getElementById('plano-proj'),lista=document.getElementById('plano-lista');if(!proj||!lista)return;const fonte=this.fonte();if(!fonte){lista.classList.remove('tpm-engine-active');proj.querySelectorAll('[data-tpm-selector]').forEach(el=>el.remove());lista.querySelectorAll('[data-tpm-output]').forEach(el=>el.remove());return;}this._rendering=true;try{proj.querySelectorAll('[data-tpm-selector]').forEach(el=>el.remove());const s=document.createElement('div');s.innerHTML=this._selectorHtml(fonte);const sel=s.firstElementChild;if(sel){proj.prepend(sel);this._bindSource(sel,fonte);}lista.querySelectorAll('[data-tpm-output]').forEach(el=>el.remove());const r=this.calcular(fonte),box=document.createElement('div');box.innerHTML=this._outputHtml(fonte,r);const out=box.firstElementChild;if(out)lista.prepend(out);lista.classList.add('tpm-engine-active');proj.querySelectorAll('.pl-hero-sub').forEach(p=>{if(/^\s*Caminho mais curto:/i.test(p.textContent||''))p.classList.add('tpm-legacy-decision');});}finally{this._rendering=false;}},
     init(){if(!this._origRender&&D.render){this._origRender=D.render;const self=this;D.render=function(){const r=self._origRender.apply(this,arguments);self.renderEntry();if(this.tecTab==='plano')setTimeout(()=>self.renderPlano(),0);return r;};}if(!this._origPaint&&D._pintarPlano){this._origPaint=D._pintarPlano;const self=this;D._pintarPlano=function(){const r=self._origPaint.apply(this,arguments);self.renderPlano();return r;};}window.addEventListener('plano:motores-change',()=>{const f=this.fonte();if(f)this.salvar(f);this.renderEntry();if(D.tecTab==='plano')this.renderPlano();});this.renderEntry();if(D.tecTab==='plano')this.renderPlano();}
   };
-  window.TecPlanoFonteMotorV2=M;window.TecPlanoFonteMotorV1=M;
+  window.TecPlanoFonteMotor=M;
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>M.init(),{once:true});else M.init();
 })();
-
 </script>
 
 <!-- ============================================================

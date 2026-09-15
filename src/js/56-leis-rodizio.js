@@ -2,8 +2,8 @@
    EXTRAS — cache rápido do Plano + rodízio inteligente de lei seca
    ============================================================ */
 (() => {
-  if (typeof window !== 'undefined' && window.__leiRodizioExtrasV1) return;
-  if (typeof window !== 'undefined') window.__leiRodizioExtrasV1 = true;
+  if (typeof window !== 'undefined' && window.__leiRodizioExtras) return;
+  if (typeof window !== 'undefined') window.__leiRodizioExtras = true;
 
   /* ── CACHE DO PLANO NO CAMINHO QUENTE DE EXTRAS ──────────────────────────
      A conclusão de uma Extra muda slots/progresso, mas NÃO muda o retrato TEC.
@@ -91,26 +91,6 @@
     ReforcoFila._planoRef = function () {
       try { return PlanFastCache.atual(); }
       catch (e) { _quiet(e, 'fila-plano-ref-fast'); return null; }
-    };
-
-    /* O resultado de PlanoEngine.calcular já chega ORDENADO conforme o modo que
-       o usuário escolheu. Usar PlanoPontos.esforcoPorMateria outra vez aqui
-       recompunha todo o quadro de matérias apenas para ordenar as mesmas
-       sugestões. Preservar a primeira ocorrência de cada disciplina espelha o
-       Plano e elimina essa segunda travessia pesada. */
-    ReforcoFila._rankDisciplinasPlano = function (cand) {
-      const porDisc = new Map();
-      const ordem = [];
-      (cand || []).forEach((x, i) => {
-        const k = this._norm(x.disciplina || 'sem disciplina');
-        if (!porDisc.has(k)) {
-          porDisc.set(k, { k, nome: x.disciplina || 'Sem disciplina', itens: [] });
-          ordem.push(k);
-        }
-        porDisc.get(k).itens.push({ x, i });
-      });
-      porDisc.forEach(g => g.itens.sort((a, b) => this._cmpSug(a, b)));
-      return { ordem, porDisc };
     };
   }
 

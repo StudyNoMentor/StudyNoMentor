@@ -593,7 +593,7 @@ const SectionSync = {
       const prep = this._prepare(rows);
       if (!prep.ok) { res.motivo = prep.motivo; return this._saveLast(res); }
       // Rede de segurança antes de sobrescrever o estado local.
-      try { if (window.VersionHistory && ProfileManager.getActiveProfileId() === id) await VersionHistory.snapshot('antes de baixar por seção'); } catch (_) { _quiet(_); }
+      try { if (window.BackupHistory && ProfileManager.getActiveProfileId() === id) await BackupHistory.snapshot('antes de baixar por seção'); } catch (_) { _quiet(_); }
       res.mudou = this._applyMap(id, prep.map, prep.revs, preservar, prep.manifestoRev);
       res.ok = true; res.seções = Object.keys(prep.map).length;
       if (preservar.length) res.preservadas = preservar;   // ficaram com o valor local, ainda na fila

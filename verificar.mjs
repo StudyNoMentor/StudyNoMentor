@@ -915,7 +915,7 @@ try {
    importados, o painel do Plano nem existe no DOM, entao a navegacao da etapa 6
    e o contraste da etapa 7 passavam por cima dele. Aqui os retratos sinteticos
    entram ANTES da etapa 7 — assim o plano renderizado (modos, bloco da semana,
-   explicacao da ordem, lista, segundo plano e lacunas do edital) tambem e
+   explicacao da ordem, lista, fonte explicita das sugestoes e lacunas do edital) tambem e
    medido nos dois temas, sem nenhum checador novo. */
 console.log('\n6.8) o Plano de pontos fracos renderiza com dado real');
 try {
@@ -953,7 +953,7 @@ try {
       modos: document.querySelectorAll('#plano-modos .pl-modo').length,
       dominio: /\d+\.\d%/.test(txt('#plano-proj')) || /% de dom/i.test(txt('#plano-proj')),
       bloco: !!q('.pl-hoje'), ordem: !!q('.pl-ordem'), porque: !!q('.pl-porque'),
-      edital: !!q('.pl-edital'), segundo: /SEGUNDO PLANO/i.test(txt('#plano-lista')),
+      edital: !!q('.pl-edital'), fonte: !!q('[data-tpm-output]') || !!q('[data-tpm-selector]'),
       itens: document.querySelectorAll('#plano-lista .pl-item').length,
       overflow: document.documentElement.scrollWidth - document.documentElement.clientWidth,
       /* Os campos moram na folha de ajustes. Contar `#tec-panel-plano .rfc-field`
@@ -967,7 +967,7 @@ try {
   (est.bloco && est.ordem && est.porque) ? ok('bloco da semana, explicacao da ordem e "por que o 1o" presentes')
     : erro('faltam blocos do plano: ' + JSON.stringify(est));
   est.itens >= 3 ? ok(`${est.itens} assuntos listados`) : erro('a lista do plano veio vazia');
-  est.segundo ? ok('segundo plano (sem diagnostico) presente') : erro('segundo plano ausente');
+  est.fonte ? ok('fonte explicita das sugestoes presente') : erro('fonte explicita das sugestoes ausente');
   est.edital ? ok('lacunas do planejamento sem medicao no TEC presentes') : erro('bloco de lacunas do edital ausente');
   est.overflow === 0 ? ok('nenhum vazamento horizontal a 360px') : erro(`o plano vaza ${est.overflow}px na horizontal a 360px`);
   /* Todo campo de ajuste tem de ter o seu "i". Um campo novo sem explicacao e
