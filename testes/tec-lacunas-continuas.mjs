@@ -31,7 +31,7 @@ const checks = [
   ['troca de planejamento não apaga lacunas globais', js.includes("a.status='deferred'") && js.includes("rec.planId=planId")],
   ['reforço é espelhado em Extras com identidade global', js.includes('origemLacunaGlobal') && js.includes('assignmentId:a.id')],
   ['histórico de reforço é reconciliado entre planejamentos', js.includes('PlanManager.getPlans') && js.includes('allPlanExtras()')],
-  ['progresso global usa offset do espelho e sobrevive à remoção do plano antigo', guards.includes('o.globalProgressBefore') && guards.includes('Math.max(progress,reached)') && guards.includes('assignment&&assignment.progress')],
+  ['progresso global usa offset do espelho e sobrevive à remoção do plano antigo', guards.includes('o.globalProgressBefore') && guards.includes('if (reached>progress) progress=reached') && guards.includes('assignment&&assignment.progress')],
   ['conclusão do reforço também fica no ledger global', guards.includes("source:'global-ledger'") && guards.includes("a.status!=='completed'")],
   ['mesmo reforço pode continuar após troca de plano sem duplicar a memória', js.includes('globalProgressBefore') && js.includes('remaining=Math.max(0,a.target-p.progress)')],
   ['UI expõe somente fila curta e simples', js.includes('Correção contínua de lacunas') && js.includes('até 3 disciplinas/dia')],
