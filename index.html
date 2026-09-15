@@ -57,7 +57,7 @@
      novo, e o antigo é descartado sozinho na ativação) e o que permite ao app
      dizer qual versão está rodando. Em src/ fica "dev" de propósito: a versão
      é gerada na montagem, não editada à mão. -->
-<meta name="diario-versao" content="vdcc0a4364e">
+<meta name="diario-versao" content="v5ae9e1bc4c">
 <script>
 /* ── ARRANQUE: abre o IndexedDB AGORA, em paralelo com o parse do documento ──
    A fachada de armazenamento vive no fim do <body>, depois de ~1,7 MB de HTML.
@@ -58401,8 +58401,9 @@ window.addEventListener('screen:activated', e => { if (e.detail && e.detail.scre
 
 /* Guardas finais da Correção Contínua de Lacunas.
  * Carrega logo depois do motor principal para manter o contrato visual simples:
- * no máximo 3 matérias no DIA inteiro (não apenas 3 pendentes simultâneas) e
- * leitura tolerante das matérias do ciclo quando vierem como string/objeto.
+ * no máximo 3 matérias no DIA inteiro (não apenas 3 pendentes simultâneas),
+ * leitura tolerante das matérias do ciclo e reaproveitamento de questões que já
+ * estavam registradas na biblioteca antes do histórico realtime existir.
  */
 (() => {
   const L=window.TecLacunasContinuas;
@@ -58411,6 +58412,47 @@ window.addEventListener('screen:activated', e => { if (e.detail && e.detail.scre
 
   const normLocal=(v)=>String(v==null?'':v).normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().replace(/[^a-z0-9]+/g,' ').replace(/\s+/g,' ').trim();
   const day=()=>typeof todayLocal==='function'?todayLocal():(()=>{const d=new Date();return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;})();
+  const localDateOf=(raw)=>{
+    const s=String(raw||'');
+    let m=s.match(/^(\d{4}-\d{2}-\d{2})/); if (m) return m[1];
+    m=s.match(/^(\d{2})\/(\d{2})\/(\d{4})$/); if (m) return `${m[3]}-${m[2]}-${m[1]}`;
+    const d=new Date(raw||Date.now());
+    return Number.isNaN(d.getTime())?day():`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+  };
+
+  /* Biblioteca importada/antiga também é patrimônio do aluno. O realtime é a
+     fonte preferencial porque preserva TODAS as tentativas; a biblioteca só
+     fornece um evento de backfill quando aquela combinação conta+caderno+ID
+     ainda não possui nenhuma resolução factual no ledger realtime. */
+  const originalEvents=L.events.bind(L);
+  L.events=function(){
+    const live=originalEvents()||[];
+    const covered=new Set(live.map(e=>[e&&e.tecAccount||'',e&&e.bookId||'',e&&e.questionId||''].join('|')));
+    const out=[...live];
+    try {
+      for (const row of this.libraryRows()||[]) {
+        const question=row&&row.question||{}, id=String(question.id||'').trim();
+        if (!id || typeof question.acertou!=='boolean') continue;
+        const account=String(row.tecAccount||'conta-importada'), book=String(row.bookId||question.cadernoId||'');
+        const sig=[account,book,id].join('|'); if (covered.has(sig)) continue;
+        const resolvedAt=String(question.capturadoEm||row.receivedAt||new Date().toISOString());
+        out.push({
+          eventId:`library_${encodeURIComponent(account)}_${encodeURIComponent(book)}_${encodeURIComponent(id)}`,
+          questionId:id, tecAccount:account, bookId:book, resolvedAt,
+          localDate:localDateOf(question.dataResolucao||resolvedAt), acertou:question.acertou,
+          marcada:question.marcada||null, correta:question.correta||null,
+          materia:String(question.materia||''), assunto:String(question.assunto||''), banca:String(question.banca||''), concurso:String(question.concurso||''),
+          favorite:question.favorite===true||question.favorita===true||question.favorito===true||question.isFavorite===true,
+          favorita:question.favorita===true||question.favorito===true,
+          phaseHint:question.phaseHint||question.contexto||question.origem||null,
+          bookLabel:question.bookLabel||question.cadernoNome||row.bookLabel||row.bookName||null,
+          source:'library-backfill', receivedAt:row.receivedAt||resolvedAt
+        });
+        covered.add(sig);
+      }
+    } catch (e) { if (typeof _quiet==='function') _quiet(e,'lacunas-library-backfill'); }
+    return out.sort((a,b)=>String(a.resolvedAt||'').localeCompare(String(b.resolvedAt||'')));
+  };
 
   const originalSubjects=L.currentSubjects.bind(L);
   L.currentSubjects=function(){
