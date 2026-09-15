@@ -1,14 +1,15 @@
 /* Guardas finais da Correção Contínua de Lacunas.
  * Carrega logo depois do motor principal para manter o contrato visual simples:
  * no máximo 3 matérias no DIA inteiro (não apenas 3 pendentes simultâneas),
- * leitura tolerante das matérias do ciclo e reaproveitamento de questões que já
- * estavam registradas na biblioteca antes do histórico realtime existir.
+ * leitura tolerante das matérias do ciclo, reaproveitamento da biblioteca antiga
+ * e progresso longitudinal que sobrevive à troca/remoção de planejamentos.
  */
 (() => {
   const L=window.TecLacunasContinuas;
   if (!L || window.__tecLacunasGuardas) return;
   window.__tecLacunasGuardas=true;
 
+  const num=(v,d=0)=>Number.isFinite(Number(v))?Number(v):d;
   const normLocal=(v)=>String(v==null?'':v).normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().replace(/[^a-z0-9]+/g,' ').replace(/\s+/g,' ').trim();
   const day=()=>typeof todayLocal==='function'?todayLocal():(()=>{const d=new Date();return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;})();
   const localDateOf=(raw)=>{
@@ -67,6 +68,43 @@
     const seen=new Set(), out=[];
     for (const raw of names) { const k=normLocal(raw); if (!k||seen.has(k)) continue; seen.add(k); out.push(String(raw).trim()); }
     return out;
+  };
+
+  /* O progresso verdadeiro é global. Cada espelho em Extras registra quanto já
+     havia sido feito antes de ele nascer. Por isso o valor canônico é o MAIOR
+     ponto alcançado (offset + progresso local), e não a soma cega de espelhos.
+     Isso continua correto mesmo se o planejamento anterior for removido. */
+  L.assignmentProgress=function(assignment){
+    const target=Math.max(0,num(assignment&&assignment.target));
+    let progress=Math.max(0,num(assignment&&assignment.progress));
+    let completedAt=assignment&&assignment.completedAt||null;
+    try {
+      for (const { extra } of this.allPlanExtras()||[]) {
+        const o=extra&&extra.origemLacunaGlobal;
+        if (!o || o.assignmentId!==(assignment&&assignment.id)) continue;
+        const reached=Math.max(0,num(o.globalProgressBefore))+Math.max(0,num(extra.progresso));
+        if (reached>progress) progress=reached;
+        const done=extra.status==='concluida' || (target>0 && reached>=target);
+        if (done && (!completedAt || String(extra.updatedAt||'')>String(completedAt))) completedAt=extra.updatedAt||completedAt;
+      }
+    } catch (e) { if (typeof _quiet==='function') _quiet(e,'lacunas-global-progress'); }
+    return { progress, completedAt, done:target>0&&progress>=target };
+  };
+
+  const originalCompletions=L.reinforcementCompletions.bind(L);
+  L.reinforcementCompletions=function(){
+    const byTopic=originalCompletions()||new Map();
+    try {
+      const st=this.state();
+      for (const rec of Object.values(st.days||{})) for (const a of rec&&rec.assignments||[]) {
+        if (!a || !a.topicKey || a.status!=='completed') continue;
+        if (!byTopic.has(a.topicKey)) byTopic.set(a.topicKey,[]);
+        const rows=byTopic.get(a.topicKey);
+        if (rows.some(x=>x&&x.assignmentId===a.id)) continue;
+        rows.push({ assignmentId:a.id, planId:a.planAtCreation||rec.planId||null, extraId:null, complete:true, progress:num(a.progress), target:num(a.target), completedAt:a.completedAt||rec.updatedAt||null, createdAt:a.createdAt||rec.createdAt||null, source:'global-ledger' });
+      }
+    } catch (e) { if (typeof _quiet==='function') _quiet(e,'lacunas-global-completions'); }
+    return byTopic;
   };
 
   const originalCandidates=L.candidates.bind(L);
