@@ -2,8 +2,8 @@
    TEC WORKBENCH + EVIDÊNCIA REAL DE REFORÇO
    ----------------------------------------------------------------------------
    1) corrige a experiência de entrada: o TEC abre automaticamente no quadro;
-   2) mantém um ledger pequeno e auditável do CONTEXTO existente no momento de
-      cada resolução (fato TEC + mapeamento do Plano + ciclos de reforço);
+   2) mantém um ledger pequeno e auditável do CONTEXTO disponível junto de
+      cada resolução, sem fingir reconstruir o passado quando o registro é antigo;
    3) sugere atenção/reforço por evidência híbrida:
         · erros reais recentes (janela móvel de 14 dias);
         · confirmação exata do motor Robusto quando existir;
@@ -19,6 +19,7 @@
   const KEY = 'tec-real-evidence-v1';
   const SCHEMA = 1;
   const WINDOW_DAYS = 14;
+  const CONTEXT_FRESH_MS = 10 * 60 * 1000;
   const norm = v => String(v == null ? '' : v).normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().replace(/\s+/g,' ').trim();
   const n = (v,d=0) => Number.isFinite(Number(v)) ? Number(v) : d;
   const today = () => typeof todayLocal === 'function' ? todayLocal() : (() => { const d=new Date(); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; })();
@@ -70,12 +71,14 @@
     },
     cycleSnapshot(e) {
       const o=e && e.origemPlano || {}, s=o.sugestao || {}, h=Array.isArray(e && e.historico) ? e.historico : [];
+      const updated=e && e.updatedAt || null;
       return {
         id:String(e && e.id || ''),
         status:String(e && e.status || ''),
         criadoEm:e && e.createdAt || null,
-        atualizadoEm:e && e.updatedAt || null,
+        atualizadoEm:updated,
         referenciaEm:this.cycleDate(e),
+        concluidoEmPreciso:e && e.status==='concluida' && updated && /T/.test(String(updated)) ? String(updated) : null,
         alvo:n(e && e.alvo),
         progresso:n(e && e.progresso),
         executado:h.reduce((sum,x)=>sum+Math.max(0,n(x && x.quantidade)),0),
@@ -100,18 +103,29 @@
         };
       } catch (_) { return { mapped:false, robustConfirmed:false }; }
     },
+    reinforcementSnapshot(cycles) {
+      return {
+        activeIds:cycles.filter(x=>x.status!=='concluida').map(x=>x.id),
+        completedIds:cycles.filter(x=>x.status==='concluida').map(x=>x.id),
+        latestCompletedAt:cycles.filter(x=>x.status==='concluida'&&x.referenciaEm).map(x=>x.referenciaEm).sort().pop() || null
+      };
+    },
     snapshot(ev) {
+      const observedAt=new Date().toISOString();
+      const resolvedMs=new Date(ev.resolvedAt || '').getTime();
+      const fresh=Number.isFinite(resolvedMs) && Math.abs(Date.now()-resolvedMs)<=CONTEXT_FRESH_MS;
       const cycles=this.matchingExtras(ev.materia,ev.assunto).map(e=>this.cycleSnapshot(e));
+      const plan=this.planSnapshot(ev), reinforcement=this.reinforcementSnapshot(cycles);
       return {
         eventId:String(ev.eventId || ''), questionId:String(ev.questionId || ''), resolvedAt:ev.resolvedAt || null, localDate:ev.localDate || null,
         materia:ev.materia || '', assunto:ev.assunto || '', acertou:ev.acertou === true,
         tecAccount:ev.tecAccount || null, bookId:ev.bookId || null,
-        planAtResolution:this.planSnapshot(ev),
-        reinforcementAtResolution:{
-          activeIds:cycles.filter(x=>x.status!=='concluida').map(x=>x.id),
-          completedIds:cycles.filter(x=>x.status==='concluida').map(x=>x.id),
-          latestCompletedAt:cycles.filter(x=>x.status==='concluida'&&x.referenciaEm).map(x=>x.referenciaEm).sort().pop() || null
-        }
+        contextObservedAt:observedAt,
+        contextTemporalAccuracy:fresh ? 'near-resolution' : 'backfilled-current-state',
+        planAtResolution:fresh ? plan : null,
+        reinforcementAtResolution:fresh ? reinforcement : null,
+        planAtLedgerCapture:fresh ? null : plan,
+        reinforcementAtLedgerCapture:fresh ? null : reinforcement
       };
     },
     syncLedger() {
@@ -122,6 +136,14 @@
       }
       if (changed) this.save(st);
       return st;
+    },
+    eventAfterCycle(ev,cycle) {
+      if (!ev || !cycle) return false;
+      const rt=new Date(ev.resolvedAt || '').getTime(), ct=new Date(cycle.concluidoEmPreciso || '').getTime();
+      if (Number.isFinite(rt) && Number.isFinite(ct)) return rt > ct;
+      // Sem horário preciso, não chamamos um erro do MESMO dia de posterior:
+      // é melhor perder um sinal por algumas horas do que fabricar uma recaída.
+      return !!(ev.localDate && cycle.referenciaEm && String(ev.localDate) > String(cycle.referenciaEm));
     },
     groups() {
       const from=addDays(today(),-(WINDOW_DAYS-1));
@@ -143,7 +165,7 @@
         const active=cycles.filter(x=>x.status!=='concluida');
         const completed=cycles.filter(x=>x.status==='concluida'&&x.referenciaEm).sort((a,b)=>String(a.referenciaEm).localeCompare(String(b.referenciaEm)));
         const lastCompleted=completed.length ? completed[completed.length-1] : null;
-        const errorsAfter=lastCompleted ? g.events.filter(e=>e.acertou===false && String(e.localDate || '')>=String(lastCompleted.referenciaEm)).length : 0;
+        const errorsAfter=lastCompleted ? g.events.filter(e=>e.acertou===false && this.eventAfterCycle(e,lastCompleted)).length : 0;
         const rate=g.attempts ? g.errors/g.attempts : 0;
         let kind='';
         if (active.length) kind='active';
