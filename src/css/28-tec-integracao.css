@@ -1,0 +1,91 @@
+.tec-connect-header {
+  display: flex; align-items: flex-start; justify-content: space-between; gap: 18px;
+}
+.tec-connect-eyebrow, .tec-connect-stage {
+  display: inline-block; padding: 5px 10px; border-radius: 999px; font-size: 10px; font-weight: 800;
+}
+.tec-connect-eyebrow {
+  margin-bottom: 7px; background: color-mix(in srgb, var(--accent) 13%, transparent);
+  color: var(--accent); letter-spacing: .08em; text-transform: uppercase;
+}
+.tec-connect-stage { flex: none; border: 1px solid var(--border); color: var(--text-muted); }
+.tec-connect-grid {
+  display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(280px, .8fr); gap: 16px;
+}
+.tec-connect-hero {
+  grid-column: 1 / -1; display: flex; align-items: center; gap: 20px; padding: 25px 28px;
+  background: linear-gradient(135deg, color-mix(in srgb, var(--accent) 10%, var(--surface)), var(--surface));
+}
+.tec-connect-hero h2 { margin: 0 0 7px; }
+.tec-connect-hero p { margin: 0; color: var(--text-muted); line-height: 1.55; }
+.tec-connect-hero-icon {
+  display: grid; place-items: center; width: 62px; height: 62px; flex: none; border-radius: 18px;
+  background: var(--accent); color: #fff; font-size: 29px;
+}
+.tec-connect-flow { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; margin-top: 17px; }
+.tec-connect-flow span {
+  padding: 7px 10px; border: 1px solid var(--border); border-radius: 8px;
+  background: var(--surface); font-size: 11px; font-weight: 700;
+}
+.tec-connect-flow b { color: var(--accent); }
+.tec-connect-status-card, .tec-connect-data-card, .tec-connect-project-card { padding-bottom: 22px; }
+.tec-connect-status {
+  display: flex; align-items: center; gap: 12px; margin: 3px 28px 18px; padding: 14px;
+  border: 1px solid var(--border); border-radius: 11px; background: var(--surface-soft);
+}
+.tec-connect-status div { display: flex; flex-direction: column; gap: 3px; }
+.tec-connect-status small, .tec-connect-steps small { color: var(--text-muted); }
+.tec-connect-dot {
+  width: 11px; height: 11px; flex: none; border-radius: 50%; background: var(--text-faint);
+  box-shadow: 0 0 0 5px color-mix(in srgb, var(--text-faint) 15%, transparent);
+}
+.tec-connect-actions { display: flex; gap: 8px; padding: 0 28px; }
+.tec-connect-status-card > .hint { margin: 13px 28px 0; }
+.tec-connect-metrics {
+  display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; padding: 2px 24px 18px;
+}
+.tec-connect-metrics div {
+  display: flex; flex-direction: column; gap: 3px; padding: 13px 8px;
+  border: 1px solid var(--border); border-radius: 10px; text-align: center;
+}
+.tec-connect-metrics strong { font-size: 22px; color: var(--accent); }
+.tec-connect-metrics span { font-size: 10px; color: var(--text-muted); }
+.tec-connect-empty {
+  margin: 0 24px; padding: 16px; border: 1px dashed var(--border); border-radius: 10px;
+  color: var(--text-muted); font-size: 12px; text-align: center;
+}
+.tec-connect-project-card { grid-column: 1 / -1; }
+.tec-connect-steps {
+  display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin: 0;
+  padding: 2px 28px; list-style: none;
+}
+.tec-connect-steps li {
+  display: flex; gap: 10px; padding: 14px; border: 1px solid var(--border); border-radius: 11px;
+}
+.tec-connect-steps li > span {
+  display: grid; place-items: center; width: 25px; height: 25px; flex: none; border-radius: 50%;
+  background: var(--surface-soft); color: var(--text-muted); font-size: 11px; font-weight: 800;
+}
+.tec-connect-steps li div { display: flex; flex-direction: column; gap: 4px; }
+.tec-connect-steps small { line-height: 1.4; }
+.tec-connect-steps .done > span { background: #166534; color: #fff; }
+.tec-connect-steps .current {
+  border-color: color-mix(in srgb, var(--accent) 55%, var(--border));
+  background: color-mix(in srgb, var(--accent) 5%, var(--surface));
+}
+.tec-connect-steps .current > span { background: #3730a3; color: #fff; }
+@media (max-width: 900px) {
+  .tec-connect-grid { grid-template-columns: 1fr; }
+  .tec-connect-hero, .tec-connect-project-card { grid-column: auto; }
+  .tec-connect-steps { grid-template-columns: 1fr 1fr; }
+}
+@media (max-width: 600px) {
+  .tec-connect-header { display: block; }
+  .tec-connect-stage { margin-top: 10px; }
+  .tec-connect-hero { align-items: flex-start; padding: 20px; flex-direction: column; }
+  .tec-connect-flow b { display: none; }
+  .tec-connect-flow span { width: 100%; box-sizing: border-box; }
+  .tec-connect-metrics { grid-template-columns: 1fr 1fr; }
+  .tec-connect-steps { grid-template-columns: 1fr; }
+  .tec-connect-actions { flex-direction: column; }
+}

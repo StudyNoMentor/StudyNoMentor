@@ -98,6 +98,8 @@ jobs:
         run: node testes/lei-rodizio-perf.mjs
       - name: Validar fila diaria de reforco
         run: node testes/reforco-fila.mjs
+      - name: Validar modulo separado da Integracao TEC
+        run: node testes/tec-integracao-modulo.mjs
       - name: Validar organizacao estrutural de Extras e TEC
         run: node testes/ui-organizacao-extras-tec.mjs
       - name: Instalar Chromium
