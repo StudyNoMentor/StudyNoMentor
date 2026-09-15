@@ -432,41 +432,41 @@
  {
   "arquivo": "js/87-plano-sugestoes-simplificado-v2.js",
   "de": 54728,
-  "ate": 54934
+  "ate": 54929
  },
  {
   "arquivo": "js/88-plano-sugestoes-robusto-v8.js",
-  "de": 54936,
-  "ate": 55050
+  "de": 54930,
+  "ate": 55044
  },
  {
   "arquivo": "js/89-plano-sugestoes-controller.js",
-  "de": 55051,
-  "ate": 55118
+  "de": 55045,
+  "ate": 55112
  },
  {
   "arquivo": "js/89a-plano-robusto-audit-log-v2.js",
-  "de": 55120,
-  "ate": 55170
+  "de": 55113,
+  "ate": 55163
  },
  {
   "arquivo": "js/90-plano-motores-governanca-v5.js",
-  "de": 55172,
-  "ate": 55201
+  "de": 55165,
+  "ate": 55194
  },
  {
   "arquivo": "js/91-plano-motores-central-tec-v1.js",
-  "de": 55203,
-  "ate": 55235
+  "de": 55195,
+  "ate": 55227
  },
  {
   "arquivo": "js/92-tec-plano-fonte-motor-v1.js",
-  "de": 55236,
-  "ate": 55274
+  "de": 55228,
+  "ate": 55266
  },
  {
   "arquivo": "html/90-rodape.html",
-  "de": 55276,
-  "ate": 55721
+  "de": 55267,
+  "ate": 55712
  }
 ]
