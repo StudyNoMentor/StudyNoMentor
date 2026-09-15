@@ -13,6 +13,7 @@
 
   const SOURCE = 'StudyMentorTecPage';
   const REQUEST_SOURCE = 'StudyMentorCompanionIsolated';
+  const ACTION_RX = /Resolver\s+quest[aã]o|Responder|Confirmar\s+resposta|Enviar\s+resposta|Corrigir|Ver\s+resposta|Finalizar|Desempenho\s+na\s+quest[aã]o/i;
   let lastSignature = '';
   let timer = null;
 
@@ -45,11 +46,12 @@
   }
 
   function candidateButtons() {
-    return [...document.querySelectorAll('button,a,[role="button"]')]
-      .filter(visible)
-      .filter(el => /Resolver\s+quest[aã]o|Responder|Confirmar\s+resposta|Desempenho\s+na\s+quest[aã]o/i.test(text(el)) ||
-        /desempenho na questão/i.test(String(el.getAttribute && el.getAttribute('aria-label') || '')))
-      .slice(0, 20);
+    const nodes = [...document.querySelectorAll('button,a,[role="button"],[ng-click],[data-ng-click],input[type="submit"]')].filter(visible);
+    const strong = nodes.filter(el => {
+      const attrs = [text(el), el.getAttribute?.('aria-label'), el.getAttribute?.('title'), el.getAttribute?.('ng-click'), el.getAttribute?.('data-ng-click')].join(' ');
+      return ACTION_RX.test(attrs) || /quest|respost|resolver|confirm|corrigir|finalizar/i.test(attrs);
+    });
+    return (strong.length ? strong : nodes).slice(0, 50);
   }
 
   function vmCandidates() {
@@ -114,15 +116,17 @@
 
   function extractDomContext() {
     let id = null;
-    for (const el of [...document.querySelectorAll('[data-question-id],[data-questao-id],[data-id-questao],[data-idquestao],h1,h2,h3,h4,strong,[class*="quest" i],[id*="quest" i]')].slice(0, 1000)) {
+    const selector = '[data-question-id],[data-questao-id],[data-id-questao],[data-idquestao],a[href],a[aria-label],button[aria-label],h1,h2,h3,h4,strong,[class*="quest" i],[id*="quest" i]';
+    for (const el of [...document.querySelectorAll(selector)].slice(0, 1400)) {
       if (!visible(el)) continue;
       for (const attr of ['data-question-id','data-questao-id','data-id-questao','data-idquestao']) {
         const v = el.getAttribute && el.getAttribute(attr);
         if (v && /^\d+$/.test(v)) { id = v; break; }
       }
       if (id) break;
-      const hay = text(el);
-      const m = hay.match(/(?:Quest[aã]o\s*#?\s*|\bID\s*[:#]?\s*)(\d{4,})/i);
+      const hay = [el.getAttribute?.('href'), el.getAttribute?.('aria-label'), text(el)].join(' ');
+      let m = hay.match(/(?:\/questoes\/|Quest[aã]o\s*#?\s*|#)(\d{4,})/i);
+      if (!m && /quest|cabec|header|detalh/i.test(String(el.className || '') + ' ' + String(el.id || ''))) m = hay.match(/\bID\s*[:#]?\s*(\d{4,})\b/i);
       if (m) { id = m[1]; break; }
     }
     return id ? { id, source:'dom-main' } : null;
@@ -156,8 +160,8 @@
   });
 
   document.addEventListener('click', (event) => {
-    const button = event.target && event.target.closest ? event.target.closest('button,a,[role="button"]') : null;
-    if (!button || !/Resolver\s+quest[aã]o|Responder|Confirmar\s+resposta/i.test(text(button))) return;
+    const control = event.target && event.target.closest ? event.target.closest('button,a,[role="button"],[ng-click],[data-ng-click],label,input[type="radio"],[role="radio"]') : null;
+    if (!control) return;
     emit(true);
     schedule(true, 120);
     schedule(true, 450);
