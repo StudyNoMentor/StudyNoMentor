@@ -48,4 +48,12 @@ for(const f of testesJs){
   }
 }
 
-console.log(`OK: higiene do repositório — ${fontes.length} fontes publicadas, nenhuma órfã/duplicada e nenhum artefato/alias obsoleto conhecido.`);
+// Todo teste executável precisa participar de uma barreira automática. Arquivo
+// .mjs sem referência no workflow/verificador é teste morto: parece proteção,
+// mas nunca roda e tende a apodrecer silenciosamente.
+const cobertura=readFileSync(join(ROOT,'.github','workflows','verificar.yml'),'utf8')+'\n'+readFileSync(join(ROOT,'verificar.mjs'),'utf8');
+const mjsTopo=readdirSync(join(ROOT,'testes')).filter(n=>n.endsWith('.mjs'));
+const orfaos=mjsTopo.filter(n=>!cobertura.includes(`testes/${n}`));
+assert.deepEqual(orfaos,[],`testes .mjs sem execução automática: ${orfaos.join(', ')}`);
+
+console.log(`OK: higiene do repositório — ${fontes.length} fontes publicadas, nenhuma órfã/duplicada, ${mjsTopo.length} testes executáveis cobertos e nenhum artefato/alias obsoleto conhecido.`);
