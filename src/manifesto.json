@@ -482,26 +482,26 @@
  {
   "arquivo": "js/94-tec-integracao.js",
   "de": 56445,
-  "ate": 56889
+  "ate": 56893
  },
  {
   "arquivo": "js/95-tec-companion.js",
-  "de": 56890,
-  "ate": 57322
+  "de": 56894,
+  "ate": 57326
  },
  {
   "arquivo": "js/96-tec-capture-diagnostics.js",
-  "de": 57324,
-  "ate": 57566
+  "de": 57328,
+  "ate": 57570
  },
  {
   "arquivo": "js/97-tec-ai-prompt-compat.js",
-  "de": 57568,
-  "ate": 57595
+  "de": 57572,
+  "ate": 57599
  },
  {
   "arquivo": "html/90-rodape.html",
-  "de": 57597,
-  "ate": 58042
+  "de": 57601,
+  "ate": 58046
  }
 ]
