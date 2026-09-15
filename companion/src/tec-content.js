@@ -325,10 +325,9 @@
     if (result(null)) return false;
     requestPageContext();
     const qid=questionId();
-    if (!qid) return false;
     const selected=(alternatives().find(a=>a.selected)||{}).letra||null;
-    pending={ token:uid(), qid:String(qid), selectedBefore:selected, startedAt:Date.now(), trigger:String(trigger||'interaction') };
-    markCapture('waiting-result',qid,null); sendReady('status');
+    pending={ token:uid(), qid:qid?String(qid):null, selectedBefore:selected, startedAt:Date.now(), trigger:String(trigger||'interaction') };
+    markCapture('waiting-result',qid||null,null); sendReady('status');
     setTimeout(()=>processPending(pending&&pending.token),80);
     return true;
   }
