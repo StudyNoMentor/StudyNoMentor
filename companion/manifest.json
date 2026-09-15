@@ -1,0 +1,33 @@
+{
+  "manifest_version": 3,
+  "name": "StudyNoMentor Companion",
+  "version": "1.0.0",
+  "description": "Integra o TecConcursos ao StudyNoMentor em tempo real, sem Tampermonkey.",
+  "permissions": ["storage"],
+  "host_permissions": [
+    "https://www.tecconcursos.com.br/*",
+    "https://tecconcursos.com.br/*",
+    "https://studynomentor.github.io/StudyNoMentor/*"
+  ],
+  "background": {
+    "service_worker": "src/background.js"
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "https://www.tecconcursos.com.br/*",
+        "https://tecconcursos.com.br/*"
+      ],
+      "js": ["src/tec-content.js"],
+      "run_at": "document_start"
+    },
+    {
+      "matches": ["https://studynomentor.github.io/StudyNoMentor/*"],
+      "js": ["src/study-bridge.js"],
+      "run_at": "document_start"
+    }
+  ],
+  "action": {
+    "default_title": "StudyNoMentor Companion"
+  }
+}
