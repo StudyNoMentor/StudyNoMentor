@@ -17,6 +17,8 @@ const bridge = read('companion/src/study-bridge.js');
 
 const contentMatches = (manifest.content_scripts || []).flatMap(x => x.matches || []);
 const mainWorldTec = (manifest.content_scripts || []).find(x => x.world === 'MAIN' && (x.js || []).includes('src/tec-page.js'));
+const isolatedTec = (manifest.content_scripts || []).find(x => (x.js || []).includes('src/tec-content.js'));
+const studyBridgeScript = (manifest.content_scripts || []).find(x => (x.js || []).includes('src/study-bridge.js'));
 const checks = [
   ['item de menu', nav.includes('data-screen="integracaotec"')],
   ['tela acessível', body.includes('id="screen-integracaotec"') && body.includes('role="region"')],
@@ -46,11 +48,14 @@ const checks = [
   ['sincronização por seção', js.includes('SectionSync.markDirty') || realtime.includes('DB.setRaw')],
 
   ['Companion usa Manifest V3', manifest.manifest_version === 3],
-  ['Companion está na versão 1.0.3', manifest.version === '1.0.3'],
+  ['Companion está na versão 1.0.4', manifest.version === '1.0.4'],
   ['Companion injeta no TEC', contentMatches.some(x => /tecconcursos/.test(x))],
   ['Companion injeta no Study', contentMatches.some(x => /studynomentor\.github\.io/.test(x))],
   ['Companion tem armazenamento sem cota curta', (manifest.permissions || []).includes('unlimitedStorage')],
   ['ponte MAIN world instalada no TEC', !!mainWorldTec && (mainWorldTec.matches || []).some(x => /tecconcursos/.test(x))],
+  ['ponte MAIN world roda também no iframe TEC', !!mainWorldTec && mainWorldTec.all_frames === true],
+  ['content script isolado roda também no iframe TEC', !!isolatedTec && isolatedTec.all_frames === true],
+  ['bridge do Study permanece apenas no frame principal', !!studyBridgeScript && studyBridgeScript.all_frames !== true],
   ['ponte MAIN world lê contexto Angular sem credencial', pageBridge.includes('angular.element') && pageBridge.includes("type:'question-context'") && !/authorization|bearer/i.test(pageBridge)],
   ['content script solicita e recebe contexto MAIN world', tec.includes("PAGE_SOURCE = 'StudyMentorTecPage'") && tec.includes("type:'context-request'") && tec.includes("msg.type !== 'question-context'")],
   ['ID da questão tem fallback Angular/DOM', tec.includes('return pageQuestionId()') && pageBridge.includes('extractAngularContext()') && pageBridge.includes('extractDomContext()')],
