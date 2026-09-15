@@ -67,6 +67,10 @@ jobs:
               ["assert.equal(S.VERSAO,3);\n",''],["assert.equal(R.VERSAO,8);\n",''],["assert.equal(C.VERSAO,5);\n",''],
               ['controller V5 usa apenas posição/consenso','controller usa apenas posição/consenso']
             ],
+            'testes/plano-robusto.mjs':[
+              ["assert(X&&R,'V8 deve publicar prescricao e motor');assert.equal(R.VERSAO,8);assert.equal(R.MOTOR,'plano-robusto');","assert(X&&R,'prescricao e motor Robusto devem estar disponiveis');assert.equal(R.MOTOR,'plano-robusto');"],
+              ["'V8 nao deve prescrever metodo de estudo'","'Robusto nao deve prescrever metodo de estudo'"]
+            ],
             'testes/plano-motores-governanca.mjs':[
               ["vm.runInContext(src,ctx,{filename:'90-plano-motores-governanca-v5.js'});","vm.runInContext(src,ctx,{filename:'90-plano-motores-governanca.js'});"],
               ['governança V6 deve instalar','governança deve instalar'],['governança V6 —','governança —']
