@@ -14,8 +14,9 @@ const checks=[
   ['merge remoto preserva eventos por eventId',js.includes('rs.events[ev.eventId]')&&js.includes('R.mergeEvent')],
   ['payload restaura também Biblioteca TEC',js.includes('payload.question')&&js.includes('T.mergeInto')],
   ['estado remoto vazio antigo não pode mais sobrescrever ledger local',js.includes('protectLegacySections()')&&js.includes("'tec-realtime:eventos-v1'")&&js.includes("'tec-integracao:estado-v2'")],
-  ['sync reage a foco, visibilidade e retorno da rede',js.includes("addEventListener('focus'")&&js.includes("addEventListener('online'")&&js.includes("visibilitychange")],
-  ['há assinatura realtime entre dispositivos',js.includes('postgres_changes')&&js.includes("table:TABLE")],
+  ['sync reage a foco, visibilidade e retorno da rede',js.includes("addEventListener('focus'")&&js.includes("addEventListener('online'")&&js.includes('visibilitychange')],
+  ['há assinatura realtime entre dispositivos',js.includes('postgres_changes')&&js.includes('table:TABLE')],
+  ['estado da sincronização fica auditável',js.includes('window.TecCloudLedger=C')&&js.includes('status()')&&js.includes('lastSyncAt')&&js.includes('lastError')],
   ['build carrega ledger depois das guardas',build.includes("'js/99b-tec-lacunas-guardas.js','js/99c-tec-cloud-ledger.js'")],
   ['não usa senha/cookie/token do TEC',!/chrome\.cookies|document\.cookie|password|bearer/i.test(js)]
 ];
