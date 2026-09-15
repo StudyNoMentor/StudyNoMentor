@@ -53,6 +53,7 @@ try{
   ok(visual.borderLeft>=3,'cabeçalho deve ter marcador lateral perceptível');
   ok(visual.radius>=14,'cabeçalho deve funcionar como bloco editorial visível');
   ok(visual.title>=23,'título deve ter hierarquia tipográfica perceptível');
+  console.log('UX_VISUAL_METRICS',JSON.stringify(visual));
 
   /* Ciclo: três indicadores acionáveis ganham prioridade sem apagar os demais. */
   const gauges=await page.evaluate(()=>{
