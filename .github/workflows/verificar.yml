@@ -108,6 +108,8 @@ jobs:
         run: node testes/tec-workbench-reforco-real.mjs
       - name: Validar memoria global e rodizio de lacunas
         run: node testes/tec-lacunas-continuas.mjs
+      - name: Validar comportamento da correcao continua de lacunas
+        run: node testes/tec-lacunas-continuas-logica.mjs
       - name: Validar organizacao estrutural de Extras e TEC
         run: node testes/ui-organizacao-extras-tec.mjs
       - name: Instalar Chromium
