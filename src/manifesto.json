@@ -515,8 +515,13 @@
   "ate": 58400
  },
  {
-  "arquivo": "html/90-rodape.html",
+  "arquivo": "js/99b-tec-lacunas-guardas.js",
   "de": 58402,
-  "ate": 58847
+  "ate": 58441
+ },
+ {
+  "arquivo": "html/90-rodape.html",
+  "de": 58443,
+  "ate": 58888
  }
 ]
