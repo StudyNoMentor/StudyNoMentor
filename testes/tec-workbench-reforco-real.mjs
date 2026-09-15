@@ -27,11 +27,15 @@ assert.match(js, /else if \(g\.errors>=2\) kind='watch';/,
 assert.match(js, /lastCompleted && errorsAfter>=2/,
   'erros recorrentes após reforço concluído devem ser classificados como recaída');
 assert.match(js, /activeIds:/,
-  'snapshot deve guardar reforços ativos no instante da resolução');
+  'snapshot deve identificar reforços ativos quando o contexto temporal é confiável');
 assert.match(js, /completedIds:/,
-  'snapshot deve guardar reforços concluídos no instante da resolução');
-assert.match(js, /planAtResolution:/,
-  'snapshot deve guardar o contexto do Plano no instante da resolução');
+  'snapshot deve identificar reforços concluídos quando o contexto temporal é confiável');
+assert.match(js, /contextTemporalAccuracy:fresh \? 'near-resolution' : 'backfilled-current-state'/,
+  'ledger deve diferenciar contexto capturado perto da resolução de backfill posterior');
+assert.match(js, /planAtResolution:fresh \? plan : null/,
+  'contexto atual não pode ser fingido como histórico em resoluções antigas');
+assert.match(js, /String\(ev\.localDate\) > String\(cycle\.referenciaEm\)/,
+  'sem horário preciso, erro do mesmo dia não pode ser chamado de posterior ao reforço');
 
 // O arquivo novo precisa chegar ao index gerado.
 assert.ok(build.includes("'js/98-tec-workbench-reforco-real.js'"),
