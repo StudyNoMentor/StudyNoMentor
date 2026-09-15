@@ -13,7 +13,7 @@ async function abrir(){await page.evaluate(()=>{switchScreen('extras');ExtrasScr
 async function esperar(m){await page.waitForFunction(x=>document.querySelector(`[data-ps-modo="${x}"]`)?.classList.contains('active'),m,{timeout:5000});await page.waitForTimeout(80);}
 try{
  const response=await page.goto(url,{waitUntil:'commit',timeout:10000});await page.waitForFunction(()=>!!document.body,{timeout:5000});await page.waitForTimeout(1400);
- const boot=await page.evaluate(()=>({switchScreen:typeof switchScreen,c:typeof PlanoSugestoesV5,s:typeof PlanoSugestoesSimplificadoV3,r:typeof PlanoSugestoesRobustoV8,rx:typeof ReforcoTecExtrasV8,g:typeof PlanoMotoresGovernancaV5,e:typeof ExtrasScreen}));
+ const boot=await page.evaluate(()=>({switchScreen:typeof switchScreen,c:typeof PlanoSugestoesV5,s:typeof PlanoSugestoesSimplificadoV3,r:typeof PlanoSugestoesRobustoV8,rx:typeof ReforcoTecExtrasV8,g:typeof PlanoMotoresGovernancaV6,e:typeof ExtrasScreen}));
  const diag=`status=${response?.status?.()} boot=${JSON.stringify(boot)} errors=${errors.join(' | ')}`;assert.equal(boot.switchScreen,'function',diag);for(const[k,v]of Object.entries(boot)){if(k!=='switchScreen')assert.equal(v,'object',`${k} ausente; ${diag}`);}
  await page.evaluate(()=>{
   try{ProfileUI.hideGate();}catch(e){if(typeof _quiet==='function')_quiet(e,'v8-browser-gate');}
@@ -21,7 +21,7 @@ try{
   const hoje=new Date(),dia=o=>{const d=new Date(hoje);d.setDate(d.getDate()+o);return d.toISOString().slice(0,10);},discs=['Auditoria','Contabilidade','Direito Tributário','AFO'];
   const rows=rod=>discs.flatMap((disc,di)=>Array.from({length:6},(_,ti)=>{const q=28+rod*3,taxa=Math.min(.88,.42+di*.055+ti*.035+rod*.01),ac=Math.round(q*taxa);return{codigo:`${di+1}.${ti+1}`,nome:`${disc} Tópico ${ti+1}`,depth:1,disciplina:disc,questoes:q,acertos:ac,pctAcerto:ac/q*100};}));
   const snaps=Array.from({length:3},(_,i)=>({id:9900+i,startDate:dia(-60+i*30),endDate:dia(-60+i*30),date:dia(-60+i*30),label:`V8 ${i+1}`,rows:rows(i)}));
-  DB._set(DB.KEYS.tec,snaps);DB.saveExtras([]);PlanoSugestoesSimplificadoV3.salvar({fase:'pre',meta:90,minAmostra:20,banca:'__todas__',alvoQuestoes:30});PlanoSugestoesRobustoV8.restaurar();PlanoSugestoesV5.salvar({modo:'robusto'});PlanoMotoresGovernancaV5.restaurar();
+  DB._set(DB.KEYS.tec,snaps);DB.saveExtras([]);PlanoSugestoesSimplificadoV3.salvar({fase:'pre',meta:90,minAmostra:20,banca:'__todas__',alvoQuestoes:30});PlanoSugestoesRobustoV8.restaurar();PlanoSugestoesV5.salvar({modo:'robusto'});PlanoMotoresGovernancaV6.restaurar();
   DesempenhoTecScreen.scopeMode='consolidado';DesempenhoTecScreen.selectedSnapIds=new Set(snaps.map(s=>s.id));DesempenhoTecScreen.rangeStart=null;DesempenhoTecScreen.rangeEnd=null;DesempenhoTecScreen._scopedC=null;DesempenhoTecScreen._planoRefC=null;
  });
  await abrir();assert.equal(await page.locator('.ps-engine-card').count(),2);assert.equal(await page.locator('.ps-compare-launch').count(),1);
