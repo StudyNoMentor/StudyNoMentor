@@ -14,39 +14,30 @@ assert.deepEqual([...new Set(duplicados)],[],'build.mjs não pode carregar a mes
 const fontesAbs=walk(join(ROOT,'src')).filter(f=>/\.(?:js|css|html)$/.test(f));
 const fontes=fontesAbs.map(f=>relative(join(ROOT,'src'),f).replaceAll('\\','/')).sort();
 for(const f of fontes) assert.equal(/-v\d+\.(?:js|css)$/i.test(f),false,`fonte atual não deve carregar sufixo de versão: ${f}`);
-const noBuild=[...new Set(declarados)].sort();
-assert.deepEqual(noBuild,fontes,'todo JS/CSS/HTML de src deve participar exatamente do build publicado');
+assert.deepEqual([...new Set(declarados)].sort(),fontes,'todo JS/CSS/HTML de src deve participar exatamente do build publicado');
 
 const proibidos=[
   'audit.html','audit-runner.cjs','audit-tests.js','audit-browser.js','audit-results.json','audit-browser-results.json',
   'testes/rodar-auditoria-browser.mjs','testes/stress-extras-tec.mjs','testes/resultado-stress-extras-tec.json',
-  'testes/plano-robusto-v4.mjs','testes/plano-robusto-foco-questoes-v7.mjs'
+  'testes/plano-robusto-v4.mjs','testes/plano-robusto-foco-questoes-v7.mjs','testes/reforco-cenarios.mjs'
 ];
 for(const p of proibidos)assert.equal(existsSync(join(ROOT,p)),false,`artefato obsoleto voltou: ${p}`);
 assert.equal(existsSync(join(ROOT,'testes','evidencias')),false,'evidências geradas não devem ser versionadas');
 
 const semComentarios=src=>src.replace(/\/\*[\s\S]*?\*\//g,'').replace(/(^|[^:])\/\/[^\n\r]*/g,'$1');
-const aliasesObsoletos=[
-  'PlanoSugestoesSimplificado','PlanoSugestoes','PlanoSugestoes','PlanoSugestoes',
-  'PlanoMotoresGovernanca','PlanoMotoresCentralTec','PlanoMotoresCentralTec','PlanoMotoresCentralTec','TecPlanoFonteMotor'
-];
+const apiVersionada=/\b(?:ReforcoTecExtras|PlanoSugestoes(?:Infra|Simplificado|Robusto)?|PlanoRobustoAuditLog|PlanoMotoresGovernanca|PlanoMotoresCentralTec|TecPlanoFonteMotor)V\d+\b/;
 const fontesJs=fontesAbs.filter(f=>f.endsWith('.js'));
 for(const f of fontesJs){
   const codigo=semComentarios(readFileSync(f,'utf8'));
-  for(const nome of aliasesObsoletos)assert.equal(new RegExp(`\\b${nome}\\b`).test(codigo),false,`alias executável obsoleto em src/: ${relative(ROOT,f)} → ${nome}`);
+  assert.equal(apiVersionada.test(codigo),false,`API técnica versionada em src/: ${relative(ROOT,f)}`);
   assert.equal(/_legacyPuxar\b/.test(codigo),false,`fallback para Puxar do Plano legado não pode voltar: ${relative(ROOT,f)}`);
 }
 
-// Nos testes, proíbe consumo executável dos aliases antigos, mas permite que
-// auditorias citem o nome em strings/regex para garantir que o legado não volte.
 const testeAtual=fileURLToPath(import.meta.url);
 const testesJs=walk(join(ROOT,'testes')).filter(f=>/\.(?:mjs|js)$/.test(f)&&f!==testeAtual);
 for(const f of testesJs){
   const codigo=semComentarios(readFileSync(f,'utf8'));
-  for(const nome of aliasesObsoletos){
-    const usa=new RegExp(`(?:typeof\\s+${nome}\\b|\\b${nome}\\s*\\.|window\\.${nome}\\b|ctx\\.window\\.${nome}\\b)`);
-    assert.equal(usa.test(codigo),false,`teste ainda consome alias obsoleto: ${relative(ROOT,f)} → ${nome}`);
-  }
+  assert.equal(apiVersionada.test(codigo),false,`teste ainda referencia API técnica versionada: ${relative(ROOT,f)}`);
 }
 
 // Todo teste executável precisa participar de uma barreira automática. Arquivo
@@ -57,7 +48,4 @@ const mjsTopo=readdirSync(join(ROOT,'testes')).filter(n=>n.endsWith('.mjs'));
 const orfaos=mjsTopo.filter(n=>!cobertura.includes(`testes/${n}`));
 assert.deepEqual(orfaos,[],`testes .mjs sem execução automática: ${orfaos.join(', ')}`);
 
-console.log(`OK: higiene do repositório — ${fontes.length} fontes publicadas, nenhuma órfã/duplicada, ${mjsTopo.length} testes executáveis cobertos e nenhum artefato/alias obsoleto conhecido.`);
-
-const APIsVersionadas=/\b(?:ReforcoTecExtras|PlanoSugestoes(?:Infra|Simplificado|Robusto)?|PlanoRobustoAuditLog|PlanoMotoresGovernanca|PlanoMotoresCentralTec|TecPlanoFonteMotor)V\d+\b/;
-for(const f of fontesAbs.filter(x=>x.endsWith('.js'))){const c=semComentarios(readFileSync(f,'utf8'));assert.equal(APIsVersionadas.test(c),false,`API canônica não deve expor nome versionado: ${relative(ROOT,f)}`);}
+console.log(`OK: higiene do repositório — ${fontes.length} fontes publicadas, nenhuma órfã/duplicada, ${mjsTopo.length} testes executáveis cobertos e nenhuma API técnica versionada.`);
