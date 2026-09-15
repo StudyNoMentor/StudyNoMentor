@@ -1,0 +1,159 @@
+name: Refatoracao canonica temporaria
+
+on:
+  push:
+    branches: [chore/main-hygiene-audit-v1]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  refatorar:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: chore/main-hygiene-audit-v1
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Canonicalizar fontes e testes
+        shell: bash
+        run: |
+          set -euo pipefail
+          node <<'NODE'
+          const fs=require('fs'), path=require('path');
+          const renames={
+            'src/js/13-historico-versoes.js':'src/js/13-backups-locais.js',
+            'src/css/06-ux-v47.css':'src/css/06-ux-base.css',
+            'src/css/07-ux-v48.css':'src/css/07-ux-layout.css',
+            'src/css/08-ux-v49.css':'src/css/08-ux-components.css',
+            'src/css/09-extras-v51.css':'src/css/09-extras.css',
+            'src/css/14-tec-layout-v2.css':'src/css/14-tec-layout.css',
+            'src/css/19-tec-auditoria-v2.css':'src/css/19-tec-auditoria.css',
+            'src/css/20-ux-stability-v3.css':'src/css/20-ux-stability.css',
+            'src/css/21-startup-spinners-reforco-v4.css':'src/css/21-startup-spinners-reforco.css',
+            'src/css/22-plano-sugestoes-v1.css':'src/css/22-plano-sugestoes.css',
+            'src/css/23-robusto-v8.css':'src/css/23-plano-robusto.css',
+            'src/css/24-plano-motores-governanca-v5.css':'src/css/24-plano-motores-governanca.css',
+            'src/css/25-plano-motores-central-tec-v1.css':'src/css/25-plano-motores-central-tec.css',
+            'src/css/26-tec-plano-fonte-motor-v1.css':'src/css/26-tec-plano-fonte-motor.css',
+            'src/js/59-tec-layout-v2.js':'src/js/59-tec-layout.js',
+            'src/js/59-tec-auditoria-v2.js':'src/js/59-tec-auditoria.js',
+            'src/js/81-ux-stability-v3.js':'src/js/81-ux-stability.js',
+            'src/js/82-startup-spinners-reforco-continuo-v4.js':'src/js/82-startup-spinners-reforco-continuo.js',
+            'src/js/83-extras-plano-continuity-v4.js':'src/js/83-extras-plano-continuidade.js',
+            'src/js/84-reforco-continuity-core-v4.js':'src/js/84-reforco-continuidade.js',
+            'src/js/84b-reforco-tec-extras-v8.js':'src/js/84b-reforco-tec-extras.js',
+            'src/js/86-plano-sugestoes-infra-v2.js':'src/js/86-plano-sugestoes-infra.js',
+            'src/js/87-plano-sugestoes-simplificado-v2.js':'src/js/87-plano-sugestoes-simplificado.js',
+            'src/js/88-plano-sugestoes-robusto-v8.js':'src/js/88-plano-sugestoes-robusto.js',
+            'src/js/89a-plano-robusto-audit-log-v2.js':'src/js/89a-plano-robusto-audit-log.js',
+            'src/js/90-plano-motores-governanca-v5.js':'src/js/90-plano-motores-governanca.js',
+            'src/js/91-plano-motores-central-tec-v1.js':'src/js/91-plano-motores-central-tec.js',
+            'src/js/92-tec-plano-fonte-motor-v1.js':'src/js/92-tec-plano-fonte-motor.js',
+            'testes/plano-motores-governanca-v5-browser.mjs':'testes/plano-motores-governanca-browser.mjs',
+            'testes/plano-motores-governanca-v5.mjs':'testes/plano-motores-governanca.mjs',
+            'testes/plano-robusto-v8.mjs':'testes/plano-robusto.mjs',
+            'testes/robusto-v8-legado-audit.mjs':'testes/plano-robusto-higiene.mjs',
+            'testes/startup-reforco-v4-browser.mjs':'testes/startup-reforco-browser.mjs',
+            'testes/ux-stability-v3-browser.mjs':'testes/ux-stability-browser.mjs'
+          };
+          for(const [a,b] of Object.entries(renames)){
+            if(fs.existsSync(a)) fs.renameSync(a,b);
+            else if(!fs.existsSync(b)) throw new Error('arquivo esperado ausente: '+a);
+          }
+
+          // Remove o seletor antigo do Plano, mantendo a fila diaria intacta.
+          {
+            const p='src/js/54-reforco-fila.js'; let s=fs.readFileSync(p,'utf8');
+            const ini='/* ── PUXAR DO PLANO: ciclo de slots, matéria primeiro, tópico depois ───── */';
+            const fim='window.ReforcoFila = ReforcoFila;'; const a=s.indexOf(ini), b=s.indexOf(fim);
+            if(a>=0){ if(!(b>a)) throw new Error('fim do seletor legado nao encontrado'); s=s.slice(0,a)+'/* A fila diaria nao decide sugestoes; apenas agenda e executa reforcos. */\n'+s.slice(b); fs.writeFileSync(p,s); }
+          }
+          {
+            const p='src/js/56-leis-rodizio.js'; let s=fs.readFileSync(p,'utf8');
+            const ini="  if (typeof ReforcoFila !== 'undefined') {", fim='\n\n  const LeiRodizio = {'; const a=s.indexOf(ini), b=s.indexOf(fim,a);
+            if(a>=0 && s.slice(a,b).includes('_rankDisciplinasPlano')){
+              const atual="  if (typeof ReforcoFila !== 'undefined') {\n    ReforcoFila._planoRef = function () {\n      try { return PlanFastCache.atual(); }\n      catch (e) { _quiet(e, 'fila-plano-ref-fast'); return null; }\n    };\n  }";
+              s=s.slice(0,a)+atual+s.slice(b); fs.writeFileSync(p,s);
+            }
+          }
+          {
+            const p='testes/reforco-fila.mjs'; let s=fs.readFileSync(p,'utf8');
+            const marco="console.log('OK: fila diária do reforço preserva ciclo, rodízio, criticidade e saldo.');"; const i=s.indexOf(marco);
+            if(i>=0 && /selecionarSugestoesPlano|_planoBind/.test(s.slice(i+marco.length))) fs.writeFileSync(p,s.slice(0,i+marco.length)+'\n');
+          }
+          if(fs.existsSync('testes/reforco-cenarios.mjs')) fs.unlinkSync('testes/reforco-cenarios.mjs');
+
+          const pathMap=Object.fromEntries(Object.entries(renames).map(([a,b])=>[a.replace(/^src\//,''),b.replace(/^src\//,'')]));
+          const exact={
+            'VersionHistory':'BackupHistory',
+            'StartupTraceV4':'StartupTrace',
+            'LoaderUXV4':'LoaderUX',
+            'ReforcoTecExtrasV8':'ReforcoTecExtras',
+            'PlanoSugestoesInfraV2':'PlanoSugestoesInfra',
+            'PlanoSugestoesSimplificadoV3':'PlanoSugestoesSimplificado',
+            'PlanoSugestoesRobustoV8':'PlanoSugestoesRobusto',
+            'PlanoSugestoesV5':'PlanoSugestoes',
+            'PlanoRobustoAuditLogV2':'PlanoRobustoAuditLog',
+            'PlanoMotoresGovernancaV6':'PlanoMotoresGovernanca',
+            'PlanoMotoresCentralTecV5':'PlanoMotoresCentralTec',
+            'TecPlanoFonteMotorV2':'TecPlanoFonteMotor'
+          };
+          const styleIds={
+            'ux-v47':'ux-base','ux-v48':'ux-layout','ux-v49':'ux-components','extras-v51':'extras',
+            'lei-rodizio-v1':'lei-rodizio','extras-governanca-v1':'extras-governanca','tec-premium-v1':'tec-premium',
+            'extras-central-v1':'extras-central','tec-layout-v2':'tec-layout','reforco-adaptativo-v1':'reforco-adaptativo',
+            'extras-stability-v1':'extras-stability','interaction-feedback-v1':'interaction-feedback','extras-ux100-v1':'extras-ux100',
+            'tec-auditoria-v2':'tec-auditoria','ux-stability-v3':'ux-stability','startup-spinners-reforco-v4':'startup-spinners-reforco',
+            'plano-sugestoes-v1':'plano-sugestoes','robusto-v8':'plano-robusto','plano-motores-governanca-v6':'plano-motores-governanca',
+            'plano-motores-central-tec-v5':'plano-motores-central-tec','tec-plano-fonte-motor-v2':'tec-plano-fonte-motor'
+          };
+          const textExt=/\.(?:js|mjs|css|html|md|json)$/;
+          function walk(d){ return fs.readdirSync(d,{withFileTypes:true}).flatMap(e=>e.name==='.git'||e.name==='.github'?[]:e.isDirectory()?walk(path.join(d,e.name)):[path.join(d,e.name)]); }
+          for(const f of walk('.').filter(x=>textExt.test(x)&&x!=='index.html')){
+            let s=fs.readFileSync(f,'utf8'), before=s;
+            for(const [a,b] of Object.entries(renames)){ s=s.split(a).join(b); s=s.split(a.replace(/^src\//,'')).join(b.replace(/^src\//,'')); }
+            for(const [a,b] of Object.entries(exact)) s=s.split(a).join(b);
+            for(const [a,b] of Object.entries(styleIds)) s=s.split(a).join(b);
+            s=s.replace(/\b((?:Startup|Loader|Reforco|Plano|Tec|Extras|UX)[A-Za-z0-9_$]*?)V\d+\b/g,'$1');
+            s=s.replace(/\b(__[A-Za-z0-9_$]+?)V\d+\b/g,'$1');
+            s=s.replace(/\b(Robusto|Simplificado|Governança|Central TEC|Startup|Reforço) V\d+\b/g,'$1');
+            if(s!==before) fs.writeFileSync(f,s);
+          }
+
+          // Higiene permanente: fonte atual nao usa versao no nome de arquivo nem APIs versionadas.
+          {
+            const p='testes/repositorio-higiene.mjs'; let s=fs.readFileSync(p,'utf8');
+            if(!s.includes('fonte atual não deve carregar sufixo de versão')){
+              const marker="const fontes=fontesAbs.map(f=>relative(join(ROOT,'src'),f).replaceAll('\\\\','/')).sort();";
+              const add="\nfor(const f of fontes) assert.equal(/-v\\d+\\.(?:js|css)$/i.test(f),false,`fonte atual não deve carregar sufixo de versão: ${f}`);";
+              s=s.replace(marker,marker+add);
+            }
+            if(!s.includes('API canônica não deve expor nome versionado')){
+              s += "\nconst APIsVersionadas=/\\b(?:ReforcoTecExtras|PlanoSugestoes(?:Infra|Simplificado|Robusto)?|PlanoRobustoAuditLog|PlanoMotoresGovernanca|PlanoMotoresCentralTec|TecPlanoFonteMotor)V\\d+\\b/;\nfor(const f of fontesAbs.filter(x=>x.endsWith('.js'))){const c=semComentarios(readFileSync(f,'utf8'));assert.equal(APIsVersionadas.test(c),false,`API canônica não deve expor nome versionado: ${relative(ROOT,f)}`);}\n";
+            }
+            fs.writeFileSync(p,s);
+          }
+          NODE
+
+          node --check build.mjs
+          for f in src/js/*.js testes/*.mjs; do node --check "$f"; done
+          node build.mjs
+          npm ci
+          node testes/reforco-fila.mjs
+          node testes/lei-rodizio-perf.mjs
+          node testes/plano-sugestoes-modulos.mjs
+          node testes/plano-robusto.mjs
+          node testes/plano-motores-governanca.mjs
+
+          git config user.name 'StudyNoMentor CI'
+          git config user.email 'actions@users.noreply.github.com'
+          git add -A -- ':!.github/workflows'
+          if git diff --cached --quiet; then exit 0; fi
+          git commit -m 'refactor: canonicaliza estrutura e remove versionamento tecnico'
+          git push origin HEAD:chore/main-hygiene-audit-v1
