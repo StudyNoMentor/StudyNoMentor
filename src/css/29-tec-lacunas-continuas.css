@@ -1,0 +1,27 @@
+/* Correção contínua de lacunas — UI simples; inteligência fica nos bastidores. */
+#tec-real-evidence-card { display:none !important; }
+.tec-lacunas-card { order:4; }
+.tec-lacunas-head { display:flex; justify-content:space-between; gap:16px; align-items:flex-start; }
+.tec-lacunas-head h2 { margin:0 0 4px; }
+.tec-lacunas-head .sub { margin:0; max-width:780px; }
+.tec-lacunas-actions { display:flex; gap:8px; flex-wrap:wrap; justify-content:flex-end; }
+.tec-lacunas-summary { margin:12px 0 8px; padding:10px 12px; border:1px solid var(--border); border-radius:10px; background:var(--surface-sunken); line-height:1.45; }
+.tec-lacunas-summary span { color:var(--text-muted); }
+.tec-lacunas-list { display:grid; gap:8px; }
+.tec-lacuna-row { display:grid; grid-template-columns:minmax(0,1fr) auto; gap:14px; align-items:center; padding:12px; border:1px solid var(--border); border-radius:12px; background:var(--surface); }
+.tec-lacuna-row.done { opacity:.72; }
+.tec-lacuna-main { min-width:0; }
+.tec-lacuna-title { display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
+.tec-lacuna-title b { overflow-wrap:anywhere; }
+.tec-lacuna-main small { display:block; margin-top:4px; color:var(--text-muted); }
+.tec-lacuna-meta { margin-top:5px; color:var(--text-faint); font-size:12px; line-height:1.4; }
+.tec-lacuna-badge { border:1px solid var(--border); border-radius:999px; padding:2px 7px; font-size:11px; color:var(--text-muted); white-space:nowrap; }
+.tec-lacuna-buttons { display:flex; gap:7px; flex-wrap:wrap; justify-content:flex-end; }
+.tec-lacuna-buttons button { min-height:34px; white-space:nowrap; }
+.tec-lacunas-foot { margin:10px 0 0; color:var(--text-faint); font-size:11px; line-height:1.45; }
+@media (max-width:760px) {
+  .tec-lacunas-head { display:grid; }
+  .tec-lacunas-actions { justify-content:flex-start; }
+  .tec-lacuna-row { grid-template-columns:1fr; }
+  .tec-lacuna-buttons { justify-content:flex-start; }
+}
