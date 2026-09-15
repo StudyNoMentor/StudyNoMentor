@@ -37,16 +37,35 @@ try{
   ok(copies.extras.includes('Execute hoje'),'Extras deve ser orientado à execução');
   ok(copies.tec.includes('prioridade de ataque'),'TEC deve separar medida de decisão');
 
+  /* A segunda passada precisa ser perceptível, não só uma mudança de 2–3% de opacidade. */
+  const visual=await page.evaluate(()=>{
+    switchScreen('registrar');UXHierarchy.onScreen('registrar');
+    const head=document.querySelector('#screen-registrar .page-header');
+    const hs=getComputedStyle(head),before=getComputedStyle(head,'::before');
+    return {
+      eyebrow:before.content||'',
+      borderLeft:parseFloat(hs.borderLeftWidth)||0,
+      radius:parseFloat(hs.borderRadius)||0,
+      title:parseFloat(getComputedStyle(document.querySelector('#screen-registrar .page-title')).fontSize)||0
+    };
+  });
+  ok(/EXECUÇÃO/.test(visual.eyebrow),'cabeçalho deve explicitar a camada da tela');
+  ok(visual.borderLeft>=3,'cabeçalho deve ter marcador lateral perceptível');
+  ok(visual.radius>=14,'cabeçalho deve funcionar como bloco editorial visível');
+  ok(visual.title>=23,'título deve ter hierarquia tipográfica perceptível');
+
   /* Ciclo: três indicadores acionáveis ganham prioridade sem apagar os demais. */
   const gauges=await page.evaluate(()=>{
     const h=document.getElementById('ciclo-overview-gauges');
     h.innerHTML=['cumprido','estudado','faltam','aproveitamento','finalizadas','por dia p/ fechar'].map((x,i)=>`<div class="mini-gauge-card"><div class="value">${i}</div><div class="label">${x}</div></div>`).join('');
     UXHierarchy.decorateCycleGauges();
-    return Array.from(h.querySelectorAll('.mini-gauge-card')).map(x=>({p:x.dataset.uxPriority,o:Number(x.style.order)}));
+    return Array.from(h.querySelectorAll('.mini-gauge-card')).map(x=>({p:x.dataset.uxPriority,o:Number(x.style.order),h:x.getBoundingClientRect().height,bt:parseFloat(getComputedStyle(x).borderTopWidth)||0}));
   });
   eq(gauges.filter(x=>x.p==='primary').length,3,'Ciclo deve ter exatamente três KPIs prioritários');
   eq(gauges.filter(x=>x.p==='tertiary').length,2,'Indicadores derivados devem continuar presentes, mas terciários');
   ok(gauges.some(x=>x.p==='secondary'),'Aproveitamento deve ficar como apoio forte');
+  ok(gauges.filter(x=>x.p==='primary').every(x=>x.bt>=3),'KPIs primários do Ciclo devem ter destaque visual forte');
+  ok(Math.min(...gauges.filter(x=>x.p==='primary').map(x=>x.h))>Math.max(...gauges.filter(x=>x.p==='tertiary').map(x=>x.h)),'KPIs primários devem ocupar mais presença visual que derivados');
 
   /* Cards: Estatísticas continua disponível como aba, sem atalho duplicado no menu. */
   await page.evaluate(()=>{switchScreen('cards');UXHierarchy.decorateCards();});
