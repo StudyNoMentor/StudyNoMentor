@@ -423,3 +423,7 @@
 /* UX V2: título permanece perceptível inclusive após regras móveis legadas. */
 .ux-hierarchy-ready .page-title{font-size:clamp(25px,2.5vw,34px)!important}
 @media(max-width:430px){.ux-hierarchy-ready .page-title{font-size:24px!important}}
+
+/* UX V2: a grade do Ciclo não estica indicadores derivados até a altura dos prioritários. */
+#ciclo-overview-gauges.ux-week-gauges{align-items:start}
+#ciclo-overview-gauges .mini-gauge-card{align-self:start}
