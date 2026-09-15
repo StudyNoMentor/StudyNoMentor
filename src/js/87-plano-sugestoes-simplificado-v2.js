@@ -7,7 +7,6 @@
 (() => {
   if (typeof window === 'undefined' || window.__planoSugSimplificadoV3) return;
   window.__planoSugSimplificadoV3 = true;
-  window.__planoSugSimplificadoV2 = true;
   const I = window.PlanoSugestoesInfraV2;
   if (!I || typeof DB === 'undefined') return;
   const { num, clamp, norm } = I;
@@ -31,7 +30,7 @@
   const S = {
     VERSAO: 3,
     REVISAO_AUDITORIA: 3,
-    MOTOR: 'simplificado-v2', // identificador preservado para compatibilidade histórica
+    MOTOR: 'simplificado-v2', // identificador histórico persistido; não renomear sem migração
     KEY: 'plano-simplificado-v2',
     DEFAULTS: Object.freeze({ fase:'auto', meta:90, minAmostra:20, banca:'__todas__', alvoQuestoes:30 }),
     PREF_KEYS: OWN_PREF_KEYS,
@@ -102,9 +101,6 @@
         vistos.add(k);
         elegiveis.push({ item:r, disciplina, nome, taxa, qJanela:q, lacunaPP:Math.max(0,p.meta-taxa), codigo:String(r.codigo || ''), depth:num(r.depth,codeDepth(r.codigo)) });
       }
-      // Fronteira não sobreposta: se um descendente elegível já mede o ramo,
-      // o pai cumulativo não disputa junto. Isso remove a vantagem artificial
-      // de árvores profundas sem recorrer ao motor Robusto.
       return elegiveis.filter((x, i) => !elegiveis.some((y, j) => i !== j && norm(y.disciplina) === norm(x.disciplina) && isDesc(x.codigo, y.codigo)));
     },
     _mapaPlanejamento(disciplinas) {
@@ -203,5 +199,4 @@
     arquitetura() { return { motor:this.MOTOR, revisao:this.REVISAO_AUDITORIA, independente:true, usaPlanoEngine:false, usaMentor90:false, deps:this.deps.slice(), prefs:this.PREF_KEYS.slice(), particaoHierarquica:'nao-sobreposta' }; }
   };
   window.PlanoSugestoesSimplificadoV3 = S;
-  window.PlanoSugestoesSimplificadoV2 = S;
 })();

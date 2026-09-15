@@ -5,7 +5,7 @@
 (() => {
   if(typeof window==='undefined'||window.__planoMotoresCentralTecV5)return;
   window.__planoMotoresCentralTecV5=true;
-  const G=window.PlanoMotoresGovernancaV5,C=window.PlanoSugestoesV5||window.PlanoSugestoesV4||window.PlanoSugestoesV3,S=window.PlanoSugestoesSimplificadoV3||window.PlanoSugestoesSimplificadoV2,R=window.PlanoSugestoesRobustoV8,I=window.PlanoSugestoesInfraV2,A=window.PlanoRobustoAuditV2;
+  const G=window.PlanoMotoresGovernancaV6,C=window.PlanoSugestoesV5,S=window.PlanoSugestoesSimplificadoV3,R=window.PlanoSugestoesRobustoV8,I=window.PlanoSugestoesInfraV2,A=window.PlanoRobustoAuditV2;
   const DT=(typeof DesempenhoTecScreen!=='undefined'&&DesempenhoTecScreen)||window.DesempenhoTecScreen;
   if(!G||!C||!S||!R||!I||!DT)return;
   const esc=I.esc||((s)=>String(s??''));
@@ -28,6 +28,6 @@
     instalarRenderHook(){if(this._renderInstalled||!this._origRender)return;this._renderInstalled=true;const self=this;DT.render=function(){const r=self._origRender();self.ensureUi();self.syncVisibility();return r;};},
     init(){this.instalarTabs();this.instalarRenderHook();this.ensureUi();window.addEventListener('plano:motores-change',()=>{this.ensureUi();this.renderPanel();});}
   };
-  window.PlanoMotoresCentralTecV5=M;window.PlanoMotoresCentralTecV4=M;window.PlanoMotoresCentralTecV3=M;window.PlanoMotoresCentralTecV2=M;
+  window.PlanoMotoresCentralTecV5=M;
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>M.init(),{once:true});else M.init();
 })();

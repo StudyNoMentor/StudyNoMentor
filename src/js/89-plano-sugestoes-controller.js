@@ -6,13 +6,13 @@
    ============================================================================ */
 (() => {
   if (typeof window === 'undefined' || window.__planoSugControllerV5) return;
-  const I=window.PlanoSugestoesInfraV2,S=window.PlanoSugestoesSimplificadoV3||window.PlanoSugestoesSimplificadoV2,R=window.PlanoSugestoesRobustoV8;
+  const I=window.PlanoSugestoesInfraV2,S=window.PlanoSugestoesSimplificadoV3,R=window.PlanoSugestoesRobustoV8;
   if(!I||!S||!R||typeof ExtrasScreen==='undefined'||typeof PlanoCiclo==='undefined'||typeof DB==='undefined')return;
   window.__planoSugControllerV5=true;
   const {num,norm,esc}=I;
 
   const C={
-    VERSAO:5,KEY:'plano-sug-ui-v5',LEGACY_KEYS:['plano-sug-ui-v3','plano-sug-ui-v2'],DEFAULTS:Object.freeze({modo:'robusto'}),_legacyPuxar:null,
+    VERSAO:5,KEY:'plano-sug-ui-v5',LEGACY_KEYS:['plano-sug-ui-v3','plano-sug-ui-v2'],DEFAULTS:Object.freeze({modo:'robusto'}),
     prefs(){let modo=this.DEFAULTS.modo;try{let z=JSON.parse(localStorage.getItem(DB._profilePrefix()+this.KEY)||'null');if(!z){for(const k of this.LEGACY_KEYS){z=JSON.parse(localStorage.getItem(DB._profilePrefix()+k)||'null');if(z)break;}}if(z&&['simplificado','robusto','comparar'].includes(z.modo))modo=z.modo;}catch(e){if(typeof _quiet==='function')_quiet(e,'plano-controller-v5-prefs');}return{modo};},
     salvar(patch){patch=patch||{};let modo=this.prefs().modo;if(['simplificado','robusto','comparar'].includes(patch.modo))modo=patch.modo;try{const k=DB._profilePrefix()+this.KEY,v=JSON.stringify({modo});if(DB.setRaw)DB.setRaw(k,v);else localStorage.setItem(k,v);}catch(e){if(typeof _quiet==='function')_quiet(e,'plano-controller-v5-save');}return{modo};},
     simplificado(){return S.calcular(S.prefs());},
@@ -61,8 +61,8 @@
       });
       screen.render();if(typeof showToast==='function')showToast(total?`${total} reforço(s) criado(s) · ${p.modo==='comparar'?'comparação concluída':p.modo}`:'Nenhuma sugestão selecionada');return total;
     },
-    abrir(screen){const p=this.prefs();let res;try{res=this.calcular(p);}catch(e){if(typeof _quiet==='function')_quiet(e,'plano-controller-v5-open');if(this._legacyPuxar)return this._legacyPuxar.call(screen);return;}screen._psResultado=res;screen._planoSel=new Set((res.itens||[]).map((_,i)=>i));new Promise(resolve=>{UI._resolve=resolve;UI._mode='confirm';UI._open('🏁 Puxar do Plano','Dois modelos independentes, uma única fila de execução','<div id="ps-root"></div>',{okText:'Criar atividades'});}).then(ok=>{if(!ok)return;const atual=this.prefs();return this.criar(screen,atual,screen._psResultado);});setTimeout(()=>{try{this._renderModal(screen,p,res);}catch(e){if(typeof _quiet==='function')_quiet(e,'plano-controller-v5-render');}},0);},
-    instalar(){if(ExtrasScreen._planoSugestoesV5)return;ExtrasScreen._planoSugestoesV5=true;this._legacyPuxar=ExtrasScreen.puxarDoPlano;const self=this;ExtrasScreen.puxarDoPlano=function(){return self.abrir(this);};}
+    abrir(screen){const p=this.prefs();let res;try{res=this.calcular(p);}catch(e){if(typeof _quiet==='function')_quiet(e,'plano-controller-v5-open');if(typeof showToast==='function')showToast('Não foi possível calcular sugestões do Plano.');return;}screen._psResultado=res;screen._planoSel=new Set((res.itens||[]).map((_,i)=>i));new Promise(resolve=>{UI._resolve=resolve;UI._mode='confirm';UI._open('🏁 Puxar do Plano','Dois modelos independentes, uma única fila de execução','<div id="ps-root"></div>',{okText:'Criar atividades'});}).then(ok=>{if(!ok)return;const atual=this.prefs();return this.criar(screen,atual,screen._psResultado);});setTimeout(()=>{try{this._renderModal(screen,p,res);}catch(e){if(typeof _quiet==='function')_quiet(e,'plano-controller-v5-render');}},0);},
+    instalar(){if(ExtrasScreen._planoSugestoesV5)return;ExtrasScreen._planoSugestoesV5=true;const self=this;ExtrasScreen.puxarDoPlano=function(){return self.abrir(this);};}
   };
-  C.instalar();window.PlanoSugestoesV5=C;window.PlanoSugestoesV4=C;window.PlanoSugestoesV3=C;window.PlanoSugestoesV2=C;
+  C.instalar();window.PlanoSugestoesV5=C;
 })();
