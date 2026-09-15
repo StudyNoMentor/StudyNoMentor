@@ -8,12 +8,13 @@ Transformar o histórico real de resoluções do TEC em uma memória longitudina
 - O caderno é contexto mutável. Seu tamanho pode aumentar ou diminuir sem reescrever o passado.
 - `questionId` identifica a questão; cada tentativa continua registrada separadamente.
 - A mesma questão em Base, Erradas e Favoritas conta uma única vez como questão distinta, mas as novas tentativas medem resistência.
-- O reforço usa prioritariamente e, nesta versão, exclusivamente questões já presentes no histórico pessoal.
+- O reforço usa, nesta versão, somente questões já presentes no histórico pessoal.
+- O próprio fluxo natural Erradas → Erradas das erradas → zeragem também é reconhecido como correção; o Study não deve duplicar imediatamente um trabalho que acabou de ser concluído no TEC.
 - O planejamento atual só filtra relevância/prioridade das lacunas globais.
 - A fila visível deve ser pequena; a complexidade fica nos bastidores.
 
 ## Dose diária padrão
-- Até **3 disciplinas por dia**.
+- Até **3 disciplinas no dia inteiro**, inclusive depois que um reforço for concluído.
 - Uma lacuna/tópico por disciplina por vez.
 - Microcorreção: até **3 questões**.
 - Reforço padrão: até **5 questões**.
@@ -21,24 +22,27 @@ Transformar o histórico real de resoluções do TEC em uma memória longitudina
 - Teto absoluto do dia: **18 questões**.
 - Se o histórico do tópico tiver menos questões úteis, usa somente as disponíveis.
 - Rodízio de **7 dias**, penalizando matérias usadas no dia anterior e matérias já muito usadas na semana; lacunas persistentes podem furar essa preferência.
+- Depois que todos os IDs errados de um tópico forem zerados no fluxo natural, há um resfriamento curto antes de voltar a sugeri-lo; um novo erro o reativa imediatamente.
 
 ## Fluxo operacional
 1. Resolver normalmente no TEC.
 2. Capturar ID, matéria, assunto, resposta marcada, gabarito, resultado, data/hora, caderno e metadados disponíveis.
 3. Registrar a resolução append-only.
-4. Agrupar por tópico e por `questionId`.
-5. Separar quantidade de questões distintas erradas de reincidências na mesma questão.
-6. O primeiro erro já pode gerar microcorreção.
-7. Novos IDs errados aumentam amplitude da lacuna.
-8. Novo erro no mesmo ID aumenta resistência.
-9. Erros em favoritas aumentam relevância quando o contexto de favorita estiver disponível.
-10. Montar reforço apenas com questões já feitas: erros atuais, erros antigos, favoritas relacionadas e acertos antigos do tópico.
-11. Deduplicar a lista final por ID.
-12. Espelhar o reforço do dia em Atividades Extras.
-13. Continuar estudando normalmente; as resoluções posteriores medem o efeito.
-14. Se melhorar, reduzir prioridade; se persistir, aumentar profundidade.
-15. Ao trocar de planejamento, preservar a memória inteira e trocar apenas a lente de relevância.
-16. Ao entrar em um novo pós-edital, resgatar automaticamente lacunas históricas das disciplinas do novo planejamento.
+4. Incorporar também questões antigas/importadas já armazenadas na biblioteca quando ainda não houver evento realtime equivalente.
+5. Agrupar por tópico e por `questionId`.
+6. Separar quantidade de questões distintas erradas de reincidências na mesma questão.
+7. O primeiro erro já pode gerar microcorreção.
+8. Novos IDs errados aumentam amplitude da lacuna.
+9. Novo erro no mesmo ID aumenta resistência.
+10. Se um ID errado terminar correto, ele é marcado como corrigido naquela rodada; quando todos os erros do tópico forem zerados, o tópico entra em resfriamento curto, não em “domínio definitivo”.
+11. Erros em favoritas aumentam relevância quando o contexto de favorita estiver disponível.
+12. Montar reforço apenas com questões já feitas: erros ainda abertos, erros antigos, favoritas relacionadas e acertos antigos do tópico.
+13. Deduplicar a lista final por ID.
+14. Espelhar o reforço do dia em Atividades Extras.
+15. Continuar estudando normalmente; as resoluções posteriores medem o efeito.
+16. Se melhorar, reduzir prioridade; se persistir, aumentar profundidade.
+17. Ao trocar de planejamento, preservar a memória inteira e trocar apenas a lente de relevância.
+18. Ao entrar em um novo pós-edital, resgatar automaticamente lacunas históricas das disciplinas do novo planejamento.
 
 ## Checklist de implementação
 
@@ -49,21 +53,25 @@ Transformar o histórico real de resoluções do TEC em uma memória longitudina
 - [x] Tentativas repetidas do mesmo ID continuam preservadas.
 - [x] Caderno permanece apenas contexto; não existe dependência de 400 questões.
 - [x] Alteração do tamanho/composição do caderno não reescreve resoluções anteriores.
+- [x] Questões antigas/importadas da biblioteca entram como backfill apenas quando não existe resolução realtime equivalente.
 
 ### Base / Erradas / Favoritas
 - [x] Mesma questão em mais de um contexto não duplica a quantidade de questões distintas.
 - [x] Reincidência no mesmo ID é medida separadamente da amplitude.
 - [x] Motor aceita metadados de favorita quando disponíveis na biblioteca/evento.
 - [x] Inferência conservadora de contexto por metadados textuais quando disponíveis.
+- [x] Zeragem natural do ID é reconhecida pelo último resultado correto sem apagar os erros anteriores.
+- [x] Tópico totalmente zerado entra em resfriamento curto em vez de ser tratado como domínio permanente.
 - [ ] Validar ao vivo se o TEC expõe de forma estável o nome/tipo do caderno de Favoritas para captura explícita pelo Companion.
 
 ### Reforço com o próprio histórico
 - [x] Não depende de filtrar novas questões no TEC.
 - [x] Pool do reforço é composto apenas por IDs já vistos.
-- [x] Erros reincidentes têm prioridade dentro do pool.
-- [x] Erros atuais entram antes de acertos antigos.
+- [x] Erros ainda abertos têm prioridade máxima dentro do pool.
+- [x] Erros reincidentes já corrigidos continuam úteis para consolidação, sem valer como novos IDs.
 - [x] Favoritas, quando identificadas, aumentam prioridade sem duplicar ID.
 - [x] Acertos antigos do mesmo tópico podem completar a dose sem sair do histórico.
+- [x] Entre questões já corrigidas, o motor prefere as vistas há mais tempo para reduzir mera memória do gabarito.
 - [x] Quantidade do reforço respeita o número realmente disponível.
 
 ### Intervenção precoce
@@ -72,9 +80,10 @@ Transformar o histórico real de resoluções do TEC em uma memória longitudina
 - [x] Erro repetido no mesmo ID promove resistência.
 - [x] Erros após reforço concluído detectam persistência.
 - [x] Bom desempenho posterior detecta melhora e reduz prioridade.
+- [x] Correção espontânea feita pelo próprio fluxo do TEC reduz temporariamente a prioridade sem apagar a memória.
 
 ### Rodízio diário/semanal
-- [x] Máximo de 3 disciplinas no dia.
+- [x] Máximo de 3 disciplinas no dia inteiro.
 - [x] Máximo de 1 tópico por disciplina no dia.
 - [x] Doses pequenas de 3/5/6 questões.
 - [x] Teto diário de 18 questões.
@@ -86,11 +95,13 @@ Transformar o histórico real de resoluções do TEC em uma memória longitudina
 ### Compartilhamento entre planejamentos
 - [x] Questões/resoluções do TEC já são armazenadas no namespace global do perfil.
 - [x] Memória de lacunas é global do perfil.
-- [x] Planejamento atual funciona como lente por disciplinas ativas/ciclo.
+- [x] Planejamento atual funciona como lente pelas disciplinas ativas; ciclo é somente fallback quando a lista ativa não existe.
 - [x] Ao trocar de planejamento, pendência irrelevante é adiada, não apagada.
 - [x] Lacunas históricas relevantes podem voltar no pós-edital.
 - [x] Reforços já executados são reconciliados entre todos os planejamentos.
 - [x] Um reforço global pode ser espelhado no planejamento atual com saldo remanescente.
+- [x] Progresso global usa `globalProgressBefore + progresso local`, preservando o que já foi feito mesmo se o plano anterior deixar de existir.
+- [x] Conclusões de reforço permanecem registradas no ledger global independentemente do Extra/plano de origem.
 
 ### Atividades Extras
 - [x] Reforço diário é espelhado automaticamente em Extras.
@@ -108,9 +119,14 @@ Transformar o histórico real de resoluções do TEC em uma memória longitudina
 - [x] Exportação técnica do mapa global para auditoria.
 - [x] Painel antigo de “Evidência real” fica oculto para evitar duplicidade conceitual.
 
+### Testes automatizados
+- [x] Contratos estruturais protegidos por `tec-lacunas-continuas.mjs`.
+- [x] Teste comportamental cobre deduplicação do mesmo ID, zeragem natural, biblioteca antiga, teto diário, rodízio, lente do planejamento e progresso global entre planos.
+- [x] Testes entram na barreira de CI do repositório.
+
 ### Validação necessária com uso real
 - [ ] Confirmar captura/identificação de Favoritas no DOM real do TEC.
-- [ ] Confirmar que questões repetidas em Erradas + Favoritas permanecem 1 ID com múltiplas tentativas.
+- [ ] Confirmar que questões repetidas em Erradas + Favoritas permanecem 1 ID com múltiplas tentativas no uso autenticado.
 - [ ] Confirmar que o rodízio diário gera 2–3 matérias quando existem candidatas suficientes.
 - [ ] Confirmar que doses 3/5/6 são confortáveis na rotina real.
 - [ ] Confirmar resgate de lacuna histórica ao mudar de planejamento.
@@ -118,4 +134,4 @@ Transformar o histórico real de resoluções do TEC em uma memória longitudina
 - [ ] Recalibrar pesos internos de prioridade depois de acumular uma amostra real suficiente.
 
 ## Critério de sucesso
-A tela deve continuar simples. O usuário resolve normalmente; o StudyNoMentor detecta, seleciona, agenda e mede. O sistema só deve aumentar a intervenção quando a evidência real de resistência/persistência justificar.
+A tela deve continuar simples. O usuário resolve normalmente; o StudyNoMentor detecta, seleciona, agenda e mede. O sistema só deve aumentar a intervenção quando a evidência real de resistência/persistência justificar. O planejamento muda; a memória do aluno não.
