@@ -1,5 +1,5 @@
 /* ============================================================================
-   MOTOR SIMPLIFICADO — revisão estatística V3
+   MOTOR SIMPLIFICADO — revisão estatística
    Pré: TEC escopado × meta × amostra mínima, sem sobrepor níveis da árvore.
    Pós: TEC × incidência hierárquica limpa da banca × valor da matéria.
    Independente de PlanoEngine, Mentor90 e do motor Robusto.
@@ -28,8 +28,7 @@
   };
 
   const S = {
-    VERSAO: 3,
-    REVISAO_AUDITORIA: 3,
+    REVISAO_REGISTRO: 3,
     MOTOR: 'simplificado-v2', // identificador histórico persistido; não renomear sem migração
     KEY: 'plano-simplificado-v2',
     DEFAULTS: Object.freeze({ fase:'auto', meta:90, minAmostra:20, banca:'__todas__', alvoQuestoes:30 }),
@@ -38,7 +37,7 @@
     prefs() {
       let raw = {};
       try { raw = JSON.parse(localStorage.getItem(DB._profilePrefix() + this.KEY) || '{}') || {}; }
-      catch (e) { if (typeof _quiet === 'function') _quiet(e, 'plano-simple-v3-prefs'); }
+      catch (e) { if (typeof _quiet === 'function') _quiet(e, 'plano-simple-prefs'); }
       const p = Object.assign({}, this.DEFAULTS, ownPrefs(raw));
       if (!['auto','pre','pos'].includes(p.fase)) p.fase = 'auto';
       p.meta = clamp(p.meta, 50, 100);
@@ -58,14 +57,14 @@
       try {
         const k = DB._profilePrefix() + this.KEY;
         if (DB.setRaw) DB.setRaw(k, JSON.stringify(persistido)); else localStorage.setItem(k, JSON.stringify(persistido));
-      } catch (e) { if (typeof _quiet === 'function') _quiet(e, 'plano-simple-v3-save'); }
+      } catch (e) { if (typeof _quiet === 'function') _quiet(e, 'plano-simple-save'); }
       return Object.assign({}, persistido);
     },
     restaurar() {
       try {
         const k = DB._profilePrefix() + this.KEY;
         if (DB.delRaw) DB.delRaw(k); else localStorage.removeItem(k);
-      } catch (e) { if (typeof _quiet === 'function') _quiet(e, 'plano-simple-v3-reset'); }
+      } catch (e) { if (typeof _quiet === 'function') _quiet(e, 'plano-simple-reset'); }
       return this.prefs();
     },
     fase(p) { return p.fase === 'pre' || p.fase === 'pos' ? p.fase : I.fasePlano(); },
@@ -196,7 +195,7 @@
         explicacao:fase==='pre' ? 'TEC direto × meta × amostra mínima em partição hierárquica não sobreposta.' : 'TEC direto × incidência hierárquica limpa da banca × planejamento; sem usar o motor Robusto.'
       };
     },
-    arquitetura() { return { motor:this.MOTOR, revisao:this.REVISAO_AUDITORIA, independente:true, usaPlanoEngine:false, usaMentor90:false, deps:this.deps.slice(), prefs:this.PREF_KEYS.slice(), particaoHierarquica:'nao-sobreposta' }; }
+    arquitetura() { return { motor:this.MOTOR, revisao:this.REVISAO_REGISTRO, independente:true, usaPlanoEngine:false, usaMentor90:false, deps:this.deps.slice(), prefs:this.PREF_KEYS.slice(), particaoHierarquica:'nao-sobreposta' }; }
   };
   window.PlanoSugestoesSimplificado = S;
 })();

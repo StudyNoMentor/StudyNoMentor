@@ -47,9 +47,6 @@ const S=W.PlanoSugestoesSimplificado||W.PlanoSugestoesSimplificado;
 const R=W.PlanoSugestoesRobusto;
 const C=W.PlanoSugestoes;
 assert(S&&R&&C,'motores e controller devem publicar APIs no window');
-assert.equal(S.VERSAO,3);
-assert.equal(R.VERSAO,8);
-assert.equal(C.VERSAO,5);
 
 const simpleExec=semComentarios(readFileSync(join(ROOT,'src/js/87-plano-sugestoes-simplificado.js'),'utf8'));
 const robExec=semComentarios(readFileSync(join(ROOT,'src/js/88-plano-sugestoes-robusto.js'),'utf8'));
@@ -93,4 +90,4 @@ C.salvar({modo:'robusto',meta:99,campoEstranho:'x'});
 const rawCtrl=JSON.parse(mem.get('p:'+C.KEY));
 assert.deepEqual(Object.keys(rawCtrl),['modo'],'controller persiste apenas modo');
 
-console.log('OK: Simplificado e Robusto independentes; controller V5 usa apenas posição/consenso e três disciplinas.');
+console.log('OK: Simplificado e Robusto independentes; controller usa apenas posição/consenso e três disciplinas.');

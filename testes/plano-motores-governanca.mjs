@@ -38,9 +38,9 @@ const ctx={
 ctx.window=Object.assign(ctx.window,ctx);
 vm.createContext(ctx);
 const src=readFileSync(join(ROOT,'src/js/90-plano-motores-governanca.js'),'utf8');
-vm.runInContext(src,ctx,{filename:'90-plano-motores-governanca-v5.js'});
+vm.runInContext(src,ctx,{filename:'90-plano-motores-governanca.js'});
 const G=ctx.window.PlanoMotoresGovernanca,C=ctx.window.PlanoSugestoes;
-assert(G&&C,'governança V6 deve instalar sobre o controller atual');
+assert(G&&C,'governança deve instalar sobre o controller atual');
 
 assert.deepEqual({...G.estado()},{simplificado:true,robusto:true},'compatibilidade: os dois motores devem nascer ativos');
 assert.deepEqual([...G.ativos()],['simplificado','robusto','comparar']);
@@ -85,4 +85,4 @@ assert.equal(G.resolverModo('comparar'),'comparar');
 assert(!/saveExtras|removeExtra|deleteExtra|updateExtra/.test(src),'governança não pode apagar ou reescrever atividades históricas');
 assert(/tec-subtab\[data-tectab="plano"\]/.test(src)&&/extras-plano-btn/.test(src),'visibilidade deve cobrir Plano TEC e Puxar em Extras');
 assert(/ConfigScreen/.test(src)&&/cfg-plano-motores-card/.test(src),'configuração global deve ser exposta na tela Configurações');
-console.log('OK: governança V6 — defaults, persistência, fallback, bloqueio de execução e preservação histórica validados.');
+console.log('OK: governança — defaults, persistência, fallback, bloqueio de execução e preservação histórica validados.');

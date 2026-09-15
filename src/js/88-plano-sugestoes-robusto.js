@@ -1,5 +1,5 @@
 /* ============================================================================
-   ROBUSTO V8 — MOTOR ESTATISTICO TEC + EXTRAS
+   MOTOR ROBUSTO — TEC + EXTRAS
    Escolhe onde atacar, em que ordem e com qual dose, sem decidir o método.
    ============================================================================ */
 (() => {
@@ -23,7 +23,7 @@
   const KEY='robusto-tec-v8',PREF_KEYS=Object.keys(DEFAULTS);
 
   const R={
-    VERSAO:8,REVISAO_AUDITORIA:8,MOTOR:'plano-robusto',KEY,DEFAULTS,PREF_KEYS,
+    REVISAO_REGISTRO:8,MOTOR:'plano-robusto',KEY,DEFAULTS,PREF_KEYS,
     prefs(){
       let raw={};try{raw=JSON.parse(localStorage.getItem(DB._profilePrefix()+KEY)||'{}')||{};}catch(e){if(typeof _quiet==='function')_quiet(e,'plano-robusto-prefs');}
       const p={...DEFAULTS};PREF_KEYS.forEach(k=>{if(Object.prototype.hasOwnProperty.call(raw,k))p[k]=raw[k];});

@@ -57,7 +57,7 @@
      novo, e o antigo é descartado sozinho na ativação) e o que permite ao app
      dizer qual versão está rodando. Em src/ fica "dev" de propósito: a versão
      é gerada na montagem, não editada à mão. -->
-<meta name="diario-versao" content="v514a7709b4">
+<meta name="diario-versao" content="va0eddc3d65">
 <script>
 /* ── ARRANQUE: abre o IndexedDB AGORA, em paralelo com o parse do documento ──
    A fachada de armazenamento vive no fim do <body>, depois de ~1,7 MB de HTML.
@@ -54491,7 +54491,7 @@ else CloudStore.init();
 })();
 
 /* ============================================================================
-   MOTOR SIMPLIFICADO — revisão estatística V3
+   MOTOR SIMPLIFICADO — revisão estatística
    Pré: TEC escopado × meta × amostra mínima, sem sobrepor níveis da árvore.
    Pós: TEC × incidência hierárquica limpa da banca × valor da matéria.
    Independente de PlanoEngine, Mentor90 e do motor Robusto.
@@ -54520,8 +54520,7 @@ else CloudStore.init();
   };
 
   const S = {
-    VERSAO: 3,
-    REVISAO_AUDITORIA: 3,
+    REVISAO_REGISTRO: 3,
     MOTOR: 'simplificado-v2', // identificador histórico persistido; não renomear sem migração
     KEY: 'plano-simplificado-v2',
     DEFAULTS: Object.freeze({ fase:'auto', meta:90, minAmostra:20, banca:'__todas__', alvoQuestoes:30 }),
@@ -54530,7 +54529,7 @@ else CloudStore.init();
     prefs() {
       let raw = {};
       try { raw = JSON.parse(localStorage.getItem(DB._profilePrefix() + this.KEY) || '{}') || {}; }
-      catch (e) { if (typeof _quiet === 'function') _quiet(e, 'plano-simple-v3-prefs'); }
+      catch (e) { if (typeof _quiet === 'function') _quiet(e, 'plano-simple-prefs'); }
       const p = Object.assign({}, this.DEFAULTS, ownPrefs(raw));
       if (!['auto','pre','pos'].includes(p.fase)) p.fase = 'auto';
       p.meta = clamp(p.meta, 50, 100);
@@ -54550,14 +54549,14 @@ else CloudStore.init();
       try {
         const k = DB._profilePrefix() + this.KEY;
         if (DB.setRaw) DB.setRaw(k, JSON.stringify(persistido)); else localStorage.setItem(k, JSON.stringify(persistido));
-      } catch (e) { if (typeof _quiet === 'function') _quiet(e, 'plano-simple-v3-save'); }
+      } catch (e) { if (typeof _quiet === 'function') _quiet(e, 'plano-simple-save'); }
       return Object.assign({}, persistido);
     },
     restaurar() {
       try {
         const k = DB._profilePrefix() + this.KEY;
         if (DB.delRaw) DB.delRaw(k); else localStorage.removeItem(k);
-      } catch (e) { if (typeof _quiet === 'function') _quiet(e, 'plano-simple-v3-reset'); }
+      } catch (e) { if (typeof _quiet === 'function') _quiet(e, 'plano-simple-reset'); }
       return this.prefs();
     },
     fase(p) { return p.fase === 'pre' || p.fase === 'pos' ? p.fase : I.fasePlano(); },
@@ -54688,12 +54687,12 @@ else CloudStore.init();
         explicacao:fase==='pre' ? 'TEC direto × meta × amostra mínima em partição hierárquica não sobreposta.' : 'TEC direto × incidência hierárquica limpa da banca × planejamento; sem usar o motor Robusto.'
       };
     },
-    arquitetura() { return { motor:this.MOTOR, revisao:this.REVISAO_AUDITORIA, independente:true, usaPlanoEngine:false, usaMentor90:false, deps:this.deps.slice(), prefs:this.PREF_KEYS.slice(), particaoHierarquica:'nao-sobreposta' }; }
+    arquitetura() { return { motor:this.MOTOR, revisao:this.REVISAO_REGISTRO, independente:true, usaPlanoEngine:false, usaMentor90:false, deps:this.deps.slice(), prefs:this.PREF_KEYS.slice(), particaoHierarquica:'nao-sobreposta' }; }
   };
   window.PlanoSugestoesSimplificado = S;
 })();
 /* ============================================================================
-   ROBUSTO V8 — MOTOR ESTATISTICO TEC + EXTRAS
+   MOTOR ROBUSTO — TEC + EXTRAS
    Escolhe onde atacar, em que ordem e com qual dose, sem decidir o método.
    ============================================================================ */
 (() => {
@@ -54717,7 +54716,7 @@ else CloudStore.init();
   const KEY='robusto-tec-v8',PREF_KEYS=Object.keys(DEFAULTS);
 
   const R={
-    VERSAO:8,REVISAO_AUDITORIA:8,MOTOR:'plano-robusto',KEY,DEFAULTS,PREF_KEYS,
+    REVISAO_REGISTRO:8,MOTOR:'plano-robusto',KEY,DEFAULTS,PREF_KEYS,
     prefs(){
       let raw={};try{raw=JSON.parse(localStorage.getItem(DB._profilePrefix()+KEY)||'{}')||{};}catch(e){if(typeof _quiet==='function')_quiet(e,'plano-robusto-prefs');}
       const p={...DEFAULTS};PREF_KEYS.forEach(k=>{if(Object.prototype.hasOwnProperty.call(raw,k))p[k]=raw[k];});
@@ -54808,7 +54807,7 @@ else CloudStore.init();
   window.PlanoSugestoesRobusto=R;
 })();
 /* ============================================================================
-   PUXAR DO PLANO — ORQUESTRADOR NEUTRO V5
+   PUXAR DO PLANO — ORQUESTRADOR NEUTRO
    ----------------------------------------------------------------------------
    Conhece as APIs públicas do Simplificado e do Robusto, mas nunca mistura
    seus scores. Extras continua sendo uma fila única de execução.
@@ -54821,14 +54820,14 @@ else CloudStore.init();
   const {num,norm,esc}=I;
 
   const C={
-    VERSAO:5,KEY:'plano-sug-ui-v5',LEGACY_KEYS:['plano-sug-ui-v3','plano-sug-ui-v2'],DEFAULTS:Object.freeze({modo:'robusto'}),
-    prefs(){let modo=this.DEFAULTS.modo;try{let z=JSON.parse(localStorage.getItem(DB._profilePrefix()+this.KEY)||'null');if(!z){for(const k of this.LEGACY_KEYS){z=JSON.parse(localStorage.getItem(DB._profilePrefix()+k)||'null');if(z)break;}}if(z&&['simplificado','robusto','comparar'].includes(z.modo))modo=z.modo;}catch(e){if(typeof _quiet==='function')_quiet(e,'plano-controller-v5-prefs');}return{modo};},
-    salvar(patch){patch=patch||{};let modo=this.prefs().modo;if(['simplificado','robusto','comparar'].includes(patch.modo))modo=patch.modo;try{const k=DB._profilePrefix()+this.KEY,v=JSON.stringify({modo});if(DB.setRaw)DB.setRaw(k,v);else localStorage.setItem(k,v);}catch(e){if(typeof _quiet==='function')_quiet(e,'plano-controller-v5-save');}return{modo};},
+    KEY:'plano-sug-ui-v5',LEGACY_KEYS:['plano-sug-ui-v3','plano-sug-ui-v2'],DEFAULTS:Object.freeze({modo:'robusto'}),
+    prefs(){let modo=this.DEFAULTS.modo;try{let z=JSON.parse(localStorage.getItem(DB._profilePrefix()+this.KEY)||'null');if(!z){for(const k of this.LEGACY_KEYS){z=JSON.parse(localStorage.getItem(DB._profilePrefix()+k)||'null');if(z)break;}}if(z&&['simplificado','robusto','comparar'].includes(z.modo))modo=z.modo;}catch(e){if(typeof _quiet==='function')_quiet(e,'plano-controller-prefs');}return{modo};},
+    salvar(patch){patch=patch||{};let modo=this.prefs().modo;if(['simplificado','robusto','comparar'].includes(patch.modo))modo=patch.modo;try{const k=DB._profilePrefix()+this.KEY,v=JSON.stringify({modo});if(DB.setRaw)DB.setRaw(k,v);else localStorage.setItem(k,v);}catch(e){if(typeof _quiet==='function')_quiet(e,'plano-controller-save');}return{modo};},
     simplificado(){return S.calcular(S.prefs());},
-    robusto(){const r=R.calcular();try{if(window.PlanoRobustoAudit)PlanoRobustoAudit.registrarCalculo(r,{modoInterface:'robusto'});}catch(e){if(typeof _quiet==='function')_quiet(e,'plano-controller-v5-audit');}return r;},
+    robusto(){const r=R.calcular();try{if(window.PlanoRobustoAudit)PlanoRobustoAudit.registrarCalculo(r,{modoInterface:'robusto'});}catch(e){if(typeof _quiet==='function')_quiet(e,'plano-controller-audit');}return r;},
     comparar(){
-      let s,r;try{s=this.simplificado();}catch(e){s={erro:'falha-simplificado',modo:'simplificado',itens:[]};if(typeof _quiet==='function')_quiet(e,'plano-controller-v5-simple');}
-      try{r=R.calcular();if(window.PlanoRobustoAudit)PlanoRobustoAudit.registrarCalculo(r,{modoInterface:'comparar'});}catch(e){r={erro:'falha-robusto',modo:'robusto',itens:[]};if(typeof _quiet==='function')_quiet(e,'plano-controller-v5-robusto');}
+      let s,r;try{s=this.simplificado();}catch(e){s={erro:'falha-simplificado',modo:'simplificado',itens:[]};if(typeof _quiet==='function')_quiet(e,'plano-controller-simple');}
+      try{r=R.calcular();if(window.PlanoRobustoAudit)PlanoRobustoAudit.registrarCalculo(r,{modoInterface:'comparar'});}catch(e){r={erro:'falha-robusto',modo:'robusto',itens:[]};if(typeof _quiet==='function')_quiet(e,'plano-controller-robusto');}
       if(s.erro&&r.erro)return{erro:'ambos-indisponiveis',modo:'comparar',itens:[],simples:s,robusto:r};
       const rankMap=res=>{const m=new Map();(res.itens||[]).forEach((x,i)=>m.set(norm(x.disciplina),{c:x,rank:i+1}));return m;},a=rankMap(s),b=rankMap(r),ch=[...new Set([...a.keys(),...b.keys()])];
       const linhas=ch.map(k=>{const sa=a.get(k),rb=b.get(k),cons=!!(sa&&rb&&norm(sa.c.nome)===norm(rb.c.nome)),pontos=(sa?4-sa.rank:0)+(rb?4-rb.rank:0)+(cons?10:0);return{disciplina:(sa&&sa.c.disciplina)||(rb&&rb.c.disciplina),simplificado:sa&&sa.c||null,robusto:rb&&rb.c||null,rankSimplificado:sa&&sa.rank||null,rankRobusto:rb&&rb.rank||null,consenso:cons,pontosComparacao:pontos,escolha:cons?'consenso':(rb?'robusto':'simplificado')};}).sort((x,y)=>y.pontosComparacao-x.pontosComparacao).slice(0,3);
@@ -54855,7 +54854,7 @@ else CloudStore.init();
     _compareRow(x,i){const card=(c,k)=>c?`<label class="ps-compare-option ${x.consenso?'is-consensus':''}"><input type="radio" name="ps-choice-${i}" value="${k}" ${(x.escolha===k||(x.escolha==='consenso'&&k==='robusto'))?'checked':''}><div><span>${k==='simplificado'?'Simplificado':'Robusto'}${k==='simplificado'&&x.rankSimplificado?' · #'+x.rankSimplificado:k==='robusto'&&x.rankRobusto?' · #'+x.rankRobusto:''}</span><b>${esc(c.nome)}</b><small>${esc(c.motivo)}</small><small>${Math.max(1,Math.round(num(c.quantidadeRecomendada,c.alvo)))} questões</small></div></label>`:'';return`<section class="ps-compare-row" data-row="${i}"><header><b>${esc(x.disciplina)}</b>${x.consenso?'<span class="ps-consensus">✓ Consenso</span>':'<span>Escolha a leitura</span>'}</header><div class="ps-compare-grid">${card(x.simplificado,'simplificado')}${card(x.robusto,'robusto')}</div></section>`;},
     _renderLista(screen,p,res){const host=document.getElementById('pl-lista'),conta=document.getElementById('pl-conta');if(!host)return;if(res.erro){host.innerHTML=`<div class="ps-empty"><b>Sem sugestões</b><span>${esc(this._erroTexto(res.erro))}</span></div>`;if(conta)conta.textContent='';return;}if(p.modo==='comparar'){host.innerHTML=(res.itens||[]).map((x,i)=>this._compareRow(x,i)).join('')||'<div class="ps-empty">Nenhuma disciplina elegível.</div>';if(conta)conta.innerHTML=`<strong>${res.itens.length}</strong> disciplina(s) para comparar`;host.querySelectorAll('input[type=radio]').forEach(el=>el.addEventListener('change',()=>{const i=Number(el.name.replace('ps-choice-',''));if(res.itens[i])res.itens[i].escolha=el.value;}));}else{screen._planoSel=new Set((res.itens||[]).map((_,i)=>i));host.innerHTML=(res.itens||[]).map((c,i)=>this._card(c,i,true)).join('')||'<div class="ps-empty">Nenhuma sugestão elegível.</div>';if(conta)conta.innerHTML=`<strong>${res.itens.length}</strong> disciplina(s) · 1 tópico por disciplina`;host.querySelectorAll('.ps-pick').forEach(cb=>cb.addEventListener('change',()=>{const i=Number(cb.dataset.i);if(cb.checked)screen._planoSel.add(i);else screen._planoSel.delete(i);}));}},
     _renderModal(screen,p,res){const body=document.getElementById('ui-modal-body');if(!body)return;body.innerHTML=`${this._cabecalho(p,res)}<div class="ps-list-head"><span id="pl-conta"></span><small>Disciplinas com reforço aberto já foram removidas.</small></div><div id="pl-lista" class="ps-list"></div>`;this._renderLista(screen,p,res);body.querySelectorAll('[data-ps-modo]').forEach(b=>b.addEventListener('click',()=>{p=this.salvar({modo:b.dataset.psModo});this._recalcularModal(screen,p);}));},
-    _recalcularModal(screen,p){const host=document.getElementById('pl-lista');if(host)host.innerHTML='<div class="ps-loading">Recalculando sugestões…</div>';setTimeout(()=>{try{const res=this.calcular(p);screen._psResultado=res;this._renderModal(screen,p,res);}catch(e){if(typeof _quiet==='function')_quiet(e,'plano-controller-v5-recalc');}},0);},
+    _recalcularModal(screen,p){const host=document.getElementById('pl-lista');if(host)host.innerHTML='<div class="ps-loading">Recalculando sugestões…</div>';setTimeout(()=>{try{const res=this.calcular(p);screen._psResultado=res;this._renderModal(screen,p,res);}catch(e){if(typeof _quiet==='function')_quiet(e,'plano-controller-recalc');}},0);},
     _escolhidos(screen,p,res){if(!res||res.erro)return[];if(p.modo==='comparar')return(res.itens||[]).map(x=>x.consenso?(x.robusto||x.simplificado):(x.escolha==='simplificado'?x.simplificado:x.robusto)).filter(Boolean);return(res.itens||[]).filter((_,i)=>!screen._planoSel||screen._planoSel.has(i));},
     criar(screen,p,res){
       const itens=this._escolhidos(screen,p,res);let total=0;
@@ -54863,14 +54862,14 @@ else CloudStore.init();
         if(!c||!c.item)return;const x=c.item,q=Math.max(1,Math.round(num(c.quantidadeRecomendada,c.alvo))),rob=c.modo==='robusto';
         const e=DB.addExtra({titulo:PlanoCiclo.titulo(c.nome,'reforco',x.membros),tipo:'questoes',disciplina:c.disciplina||'',unidade:'questoes',alvo:q,periodo:'unica',contaMetricas:false,obs:`Gerado pelo Plano · ${rob?'Robusto':'Simplificado'} ${c.fase==='pos'?'Pós':'Pré'} · ${q} questões aprofundadas.`});
         if(!e)return;const origem=PlanoCiclo.origem(c.nome,c.disciplina,Object.assign({},x,{custoQ:q,taxa:c.taxa??x.taxa}),{motivo:'reforco'});
-        origem.sugestao={versao:this.VERSAO,motor:rob?R.MOTOR:S.MOTOR,revisaoAuditoria:rob?R.REVISAO_AUDITORIA:(S.REVISAO_AUDITORIA||3),modoInterface:p.modo,fase:c.fase,meta:c.meta,minAmostra:c.minAmostra,banca:c.banca||null,score:Math.round(num(c.score)*10)/10,quantidadeRecomendada:q,componentes:c.componentes||{},configRobusto:rob?{versao:8,prefs:R.prefs()}:null,prescricao:rob?(c.prescricao||null):null,topicosOrdenados:rob?(c.topicosOrdenados||[]):null,pesoPost:rob?(c.pesoPost||1):null,auditoria:c.auditoria||null,arquitetura:rob?R.arquitetura():S.arquitetura(),criadoEm:typeof todayLocal==='function'?todayLocal():new Date().toISOString().slice(0,10)};
+        origem.sugestao={versao:5,motor:rob?R.MOTOR:S.MOTOR,revisaoAuditoria:rob?R.REVISAO_REGISTRO:(S.REVISAO_REGISTRO||3),modoInterface:p.modo,fase:c.fase,meta:c.meta,minAmostra:c.minAmostra,banca:c.banca||null,score:Math.round(num(c.score)*10)/10,quantidadeRecomendada:q,componentes:c.componentes||{},configRobusto:rob?{versao:8,prefs:R.prefs()}:null,prescricao:rob?(c.prescricao||null):null,topicosOrdenados:rob?(c.topicosOrdenados||[]):null,pesoPost:rob?(c.pesoPost||1):null,auditoria:c.auditoria||null,arquitetura:rob?R.arquitetura():S.arquitetura(),criadoEm:typeof todayLocal==='function'?todayLocal():new Date().toISOString().slice(0,10)};
         DB.updateExtra(e.id,{origemPlano:origem});
-        if(rob){try{if(window.PlanoRobustoAudit)PlanoRobustoAudit.registrarCriacao(DB.getExtras().find(z=>z.id===e.id)||e);}catch(err){if(typeof _quiet==='function')_quiet(err,'plano-controller-v5-audit-create');}}
+        if(rob){try{if(window.PlanoRobustoAudit)PlanoRobustoAudit.registrarCriacao(DB.getExtras().find(z=>z.id===e.id)||e);}catch(err){if(typeof _quiet==='function')_quiet(err,'plano-controller-audit-create');}}
         total++;
       });
       screen.render();if(typeof showToast==='function')showToast(total?`${total} reforço(s) criado(s) · ${p.modo==='comparar'?'comparação concluída':p.modo}`:'Nenhuma sugestão selecionada');return total;
     },
-    abrir(screen){const p=this.prefs();let res;try{res=this.calcular(p);}catch(e){if(typeof _quiet==='function')_quiet(e,'plano-controller-v5-open');if(typeof showToast==='function')showToast('Não foi possível calcular sugestões do Plano.');return;}screen._psResultado=res;screen._planoSel=new Set((res.itens||[]).map((_,i)=>i));new Promise(resolve=>{UI._resolve=resolve;UI._mode='confirm';UI._open('🏁 Puxar do Plano','Dois modelos independentes, uma única fila de execução','<div id="ps-root"></div>',{okText:'Criar atividades'});}).then(ok=>{if(!ok)return;const atual=this.prefs();return this.criar(screen,atual,screen._psResultado);});setTimeout(()=>{try{this._renderModal(screen,p,res);}catch(e){if(typeof _quiet==='function')_quiet(e,'plano-controller-v5-render');}},0);},
+    abrir(screen){const p=this.prefs();let res;try{res=this.calcular(p);}catch(e){if(typeof _quiet==='function')_quiet(e,'plano-controller-open');if(typeof showToast==='function')showToast('Não foi possível calcular sugestões do Plano.');return;}screen._psResultado=res;screen._planoSel=new Set((res.itens||[]).map((_,i)=>i));new Promise(resolve=>{UI._resolve=resolve;UI._mode='confirm';UI._open('🏁 Puxar do Plano','Dois modelos independentes, uma única fila de execução','<div id="ps-root"></div>',{okText:'Criar atividades'});}).then(ok=>{if(!ok)return;const atual=this.prefs();return this.criar(screen,atual,screen._psResultado);});setTimeout(()=>{try{this._renderModal(screen,p,res);}catch(e){if(typeof _quiet==='function')_quiet(e,'plano-controller-render');}},0);},
     instalar(){if(ExtrasScreen._planoSugestoesV5)return;ExtrasScreen._planoSugestoesV5=true;const self=this;ExtrasScreen.puxarDoPlano=function(){return self.abrir(this);};}
   };
   C.instalar();window.PlanoSugestoes=C;
@@ -54928,7 +54927,7 @@ else CloudStore.init();
 })();
 
 /* ============================================================================
-   GOVERNANCA DOS MOTORES DO PLANO V6
+   GOVERNANCA DOS MOTORES DO PLANO
    Disponibilidade global de Simplificado/Robusto sem tocar em suas formulas.
    ============================================================================ */
 (() => {
@@ -54938,10 +54937,10 @@ else CloudStore.init();
   window.__planoMotoresGovernanca=true;
 
   const G={
-    VERSAO:6,KEY:'plano-motores-governanca-v5',DEFAULTS:Object.freeze({simplificado:true,robusto:true}),_orig:{},
+    KEY:'plano-motores-governanca-v5',DEFAULTS:Object.freeze({simplificado:true,robusto:true}),_orig:{},
     _key(){return DB._profilePrefix()+this.KEY;},
-    estado(){let z={};try{z=JSON.parse(localStorage.getItem(this._key())||'{}')||{};}catch(e){if(typeof _quiet==='function')_quiet(e,'plano-motores-v6-read');}return{simplificado:typeof z.simplificado==='boolean'?z.simplificado:true,robusto:typeof z.robusto==='boolean'?z.robusto:true};},
-    salvar(patch){const atual=this.estado(),p=patch||{},prox={simplificado:typeof p.simplificado==='boolean'?p.simplificado:atual.simplificado,robusto:typeof p.robusto==='boolean'?p.robusto:atual.robusto};try{const raw=JSON.stringify(prox);if(DB.setRaw)DB.setRaw(this._key(),raw);else localStorage.setItem(this._key(),raw);}catch(e){if(typeof _quiet==='function')_quiet(e,'plano-motores-v6-save');}try{window.dispatchEvent(new CustomEvent('plano:motores-change',{detail:prox}));}catch(e){if(typeof _quiet==='function')_quiet(e,'plano-motores-v6-event');}this.syncVisibility();this.renderConfig();return prox;},
+    estado(){let z={};try{z=JSON.parse(localStorage.getItem(this._key())||'{}')||{};}catch(e){if(typeof _quiet==='function')_quiet(e,'plano-motores-read');}return{simplificado:typeof z.simplificado==='boolean'?z.simplificado:true,robusto:typeof z.robusto==='boolean'?z.robusto:true};},
+    salvar(patch){const atual=this.estado(),p=patch||{},prox={simplificado:typeof p.simplificado==='boolean'?p.simplificado:atual.simplificado,robusto:typeof p.robusto==='boolean'?p.robusto:atual.robusto};try{const raw=JSON.stringify(prox);if(DB.setRaw)DB.setRaw(this._key(),raw);else localStorage.setItem(this._key(),raw);}catch(e){if(typeof _quiet==='function')_quiet(e,'plano-motores-save');}try{window.dispatchEvent(new CustomEvent('plano:motores-change',{detail:prox}));}catch(e){if(typeof _quiet==='function')_quiet(e,'plano-motores-event');}this.syncVisibility();this.renderConfig();return prox;},
     restaurar(){return this.salvar({simplificado:true,robusto:true});},
     ativos(){const e=this.estado(),out=[];if(e.simplificado)out.push('simplificado');if(e.robusto)out.push('robusto');if(e.simplificado&&e.robusto)out.push('comparar');return out;},
     resolverModo(preferido){const e=this.estado();if(preferido==='comparar'&&e.simplificado&&e.robusto)return'comparar';if(preferido==='simplificado'&&e.simplificado)return'simplificado';if(preferido==='robusto'&&e.robusto)return'robusto';if(e.robusto)return'robusto';if(e.simplificado)return'simplificado';return null;},
@@ -54952,14 +54951,14 @@ else CloudStore.init();
     renderConfig(){if(typeof document==='undefined')return;let card=document.getElementById('cfg-plano-motores-card');const anchor=document.getElementById('config-subjects-list')?.closest('.card');if(!anchor)return;if(!card){card=document.createElement('section');card.className='card pmg-card';card.id='cfg-plano-motores-card';anchor.parentNode.insertBefore(card,anchor);}const e=this.estado(),n=Number(e.simplificado)+Number(e.robusto),status=n===2?'<b>2 motores ativos</b> · você escolhe a fonte no Desempenho TEC e pode comparar antes de criar Extras.':n===1?`<b>1 motor ativo</b> · as sugestões usam apenas o ${e.robusto?'Robusto':'Simplificado'}.`:'<b>Nenhum motor ativo</b> · Plano/Puxar ficam ocultos; histórico já criado é preservado.';card.innerHTML=`<div class="card-header pmg-head"><div><h2>🏁 Motores do Plano</h2><p class="sub">Disponibilidade global. A configuração matemática fica em Desempenho TEC › Motores.</p></div><button type="button" class="btn-secondary" data-pmg-reset>↺ Restaurar padrão</button></div><div class="pmg-body"><div class="pmg-grid">${this._switchCard('simplificado','⚡ Simplificado','Direto','Prioriza lacunas do TEC com regra transparente.','Baseline independente, poucos parâmetros e dose fixa.',e.simplificado)}${this._switchCard('robusto','🧠 Robusto','Estatístico','Prioriza 3 disciplinas e seus tópicos com TEC, incidência e reforços em Extras.','Sem método pedagógico, sem nomes/pesos/tempo do ciclo regular.',e.robusto)}</div><div class="pmg-status ${n===0?'is-warning':''}">${status}</div></div>`;card.querySelectorAll('[data-pmg-toggle]').forEach(inp=>inp.addEventListener('change',()=>{const k=inp.dataset.pmgToggle,patch={[k]:!!inp.checked},prox=this.salvar(patch);if(typeof showToast==='function')showToast(`${k==='robusto'?'Robusto':'Simplificado'} ${prox[k]?'habilitado':'desabilitado'}`);}));card.querySelector('[data-pmg-reset]')?.addEventListener('click',()=>{this.restaurar();if(typeof showToast==='function')showToast('Motores restaurados ✓');});},
     _selectorHtml(modo){const e=this.estado();if(!(e.simplificado&&e.robusto)){const k=e.robusto?'robusto':e.simplificado?'simplificado':null;if(!k)return'';return`<div class="ps-single-engine"><span class="ps-single-ico">${k==='robusto'?'🧠':'⚡'}</span><div><small>Motor ativo</small><b>${k==='robusto'?'Robusto':'Simplificado'}</b><span>${k==='robusto'?'TEC + incidência + reforços em Extras':'Leitura direta do TEC'}</span></div></div>`;}const card=(k,ico,nome,tag,desc)=>`<button type="button" class="ps-engine-card ${modo===k?'active':''}" data-ps-modo="${k}" aria-pressed="${modo===k?'true':'false'}"><span class="ps-engine-check">✓</span><span class="ps-engine-ico">${ico}</span><span class="ps-engine-copy"><span class="ps-engine-name"><b>${nome}</b><em>${tag}</em></span><small>${desc}</small></span></button>`;return`<section class="ps-engine-chooser" aria-label="Fonte das sugestões"><header><div><small>FONTE DAS SUGESTÕES</small><b>Qual leitura quer usar para estas frentes?</b></div><span>Trocar recalcula tudo.</span></header><div class="ps-engine-primary">${card('simplificado','⚡','Simplificado','Direto','TEC com regra transparente e dose fixa.')}${card('robusto','🧠','Robusto','Estatístico','TEC + incidência + histórico dos reforços em Extras.')}</div><button type="button" class="ps-compare-launch ${modo==='comparar'?'active':''}" data-ps-modo="comparar" aria-pressed="${modo==='comparar'?'true':'false'}"><span>🔀</span><div><b>Comparar os dois</b><small>Confronta ranking/consenso sem misturar scores.</small></div><em>${modo==='comparar'?'Selecionado':'Abrir comparação'}</em></button></section>`;},
     instalarController(){if(this._controllerInstalled)return;this._controllerInstalled=true;['prefs','salvar','simplificado','robusto','comparar','calcular','criar','_cabecalho','abrir'].forEach(k=>{this._orig[k]=C[k]?.bind(C);});const self=this;C.prefs=function(){const p=self._orig.prefs?self._orig.prefs():{},modo=self.resolverModo(p&&p.modo);return{modo};};C.salvar=function(patch){const x={...(patch||{})};if('modo'in x)x.modo=self.resolverModo(x.modo);const out=self._orig.salvar?self._orig.salvar(x):x;return{modo:self.resolverModo(out&&out.modo)};};C.simplificado=function(){return self.pode('simplificado')?self._orig.simplificado():self._erro('simplificado');};C.robusto=function(){return self.pode('robusto')?self._orig.robusto():self._erro('robusto');};C.comparar=function(){return self.pode('comparar')?self._orig.comparar():self._erro('comparar');};C.calcular=function(p){const base={...(p||C.prefs())},modo=self.resolverModo(base.modo);if(!modo)return self._erro(null);base.modo=modo;if(modo==='simplificado')return C.simplificado();if(modo==='comparar')return C.comparar();return C.robusto();};const err=C._erroTexto?.bind(C);C._erroTexto=function(e){if(e==='motor-desabilitado')return'Este motor está desabilitado nas Configurações.';if(e==='motores-desabilitados')return'Ative Simplificado ou Robusto em Configurações.';return err?err(e):'Não foi possível formar sugestões.';};C._cabecalho=function(p,res){p={...(p||C.prefs()),modo:self.resolverModo(p&&p.modo)};if(!p.modo)return'<div class="ps-empty"><b>Motores desabilitados</b><span>Ative Simplificado ou Robusto em Configurações.</span></div>';return self._selectorHtml(p.modo)+(self._orig._cabecalho?self._orig._cabecalho(p,res):'');};C.criar=function(screen,p,res){const modo=self.resolverModo(p&&p.modo);if(!modo||!self.pode(modo))return 0;return self._orig.criar(screen,{...(p||{}),modo},res);};C.abrir=function(screen){const p=C.prefs();if(!p.modo){if(typeof showToast==='function')showToast('Ative um motor em Configurações.');return;}return self._orig.abrir(screen);};},
-    init(){this.instalarController();this.syncVisibility();this.renderConfig();try{window.addEventListener('screen:change',()=>{this.syncVisibility();if(typeof ConfigScreen!=='undefined'&&document.getElementById('screen-config')?.classList.contains('active'))this.renderConfig();});}catch(e){if(typeof _quiet==='function')_quiet(e,'plano-motores-v6-init');}}
+    init(){this.instalarController();this.syncVisibility();this.renderConfig();try{window.addEventListener('screen:change',()=>{this.syncVisibility();if(typeof ConfigScreen!=='undefined'&&document.getElementById('screen-config')?.classList.contains('active'))this.renderConfig();});}catch(e){if(typeof _quiet==='function')_quiet(e,'plano-motores-init');}}
   };
   window.PlanoMotoresGovernanca=G;
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>G.init(),{once:true});else G.init();
 })();
 /* ============================================================================
-   CENTRAL DOS MOTORES — DESEMPENHO TEC V5
-   Configuracao mora no TEC; Extras apenas executa. O Robusto ativo e V8.
+   CENTRAL DOS MOTORES — DESEMPENHO TEC
+   Configuracao mora no TEC; Extras apenas executa.
    ============================================================================ */
 (() => {
   if(typeof window==='undefined'||window.__planoMotoresCentralTec)return;
@@ -54970,14 +54969,14 @@ else CloudStore.init();
   const esc=I.esc||((s)=>String(s??''));
 
   const M={
-    VERSAO:5,_origSwitch:DT.switchTecTab?.bind(DT),_origRender:DT.render?.bind(DT),_tabObserver:null,_renderQueued:false,
+    _origSwitch:DT.switchTecTab?.bind(DT),_origRender:DT.render?.bind(DT),_tabObserver:null,_renderQueued:false,
     _scheduleRenderPanel(){if(this._renderQueued)return;this._renderQueued=true;const run=()=>{this._renderQueued=false;this.renderPanel();};if(typeof queueMicrotask==='function')queueMicrotask(run);else Promise.resolve().then(run);},
     _bancas(atual){const bs=I.bancas?I.bancas():[];return `<option value="__todas__" ${atual==='__todas__'?'selected':''}>Selecionar automaticamente</option>`+bs.map(b=>`<option value="${esc(b)}" ${b===atual?'selected':''}>${esc(b)}</option>`).join('');},
     _simpleHtml(){const p=S.prefs(),fase=S.fase?S.fase(p):(p.fase||'auto');return `<section class="pmc-engine-card" data-pmc-engine="simplificado"><header><div class="pmc-engine-id"><span>⚡</span><div><small>MOTOR DISPONÍVEL</small><h3>Simplificado</h3><p>Leitura direta e transparente do TEC. Serve como baseline independente para confrontar o Robusto.</p></div></div><span class="pmc-pill">Direto</span></header><div class="pmc-simple-grid"><label><span>Fase</span><select data-pmc-simple="fase"><option value="auto" ${p.fase==='auto'?'selected':''}>Automática</option><option value="pre" ${p.fase==='pre'?'selected':''}>Pré-edital</option><option value="pos" ${p.fase==='pos'?'selected':''}>Pós-edital</option></select><small>Pré usa TEC direto; Pós usa a regra própria do Simplificado.</small></label><label><span>Meta desejada</span><div class="pmc-suffix"><input data-pmc-simple="meta" type="number" min="50" max="100" value="${p.meta}"><em>%</em></div><small>Assuntos abaixo da régua entram na disputa.</small></label><label><span>Amostra mínima</span><input data-pmc-simple="minAmostra" type="number" min="1" max="500" value="${p.minAmostra}"><small>Piso operacional; não significa alta precisão estatística.</small></label><label><span>Questões por frente</span><input data-pmc-simple="alvoQuestoes" type="number" min="5" max="200" value="${p.alvoQuestoes}"><small>Dose fixa deste motor.</small></label><label class="${fase==='pos'?'':'pmc-hidden'}"><span>Banca</span><select data-pmc-simple="banca">${this._bancas(p.banca)}</select><small>Incidência usada pelo Simplificado Pós.</small></label></div><footer><span>Configuração própria e isolada.</span><b>Não lê parâmetros do Robusto.</b><button type="button" data-pmc-simple-reset>↺ Restaurar padrões</button></footer></section>`;},
     _auditHtml(){if(!A)return'';return `<section class="pmc-audit-card" data-pmc-robust-audit><header><div><small>AUDITORIA HUMANA · LOCAL</small><h4>Flight recorder do Robusto</h4><p>Registra decisão → reforço → execução → estado TEC posterior. Como o TEC pode incluir questões do ciclo regular, a evolução é tratada como observacional e recebe peso de atribuição conservador.</p></div><span class="pmc-audit-local">local-only</span></header><div data-pmc-audit-stats>${A.statsHtml()}</div><div class="pmc-audit-actions"><button type="button" class="btn-secondary" data-pmc-audit-refresh>↻ Atualizar leitura</button><button type="button" class="btn-primary" data-pmc-audit-export>⇩ Exportar auditoria .json</button></div><footer>O JSON exporta somente métricas do TEC, reforços em Extras, dose, tempo diretamente registrado no reforço e qualidade de atribuição. Não registra método subjetivo de estudo.</footer></section>`;},
-    _robustHtml(){const cfg=R.config(),rot=cfg?.resumo?.rotulo||'TEC';return `<section class="pmc-engine-card pmc-robusto" data-pmc-engine="robusto"><header><div class="pmc-engine-id"><span>🧠</span><div><small>MOTOR DISPONÍVEL · V8</small><h3>Robusto</h3><p>Motor estatístico focado em três decisões: qual disciplina atacar, qual tópico priorizar e quantas questões fazer. Usa TEC, incidência e reforços em Extras.</p></div></div><span class="pmc-pill">${esc(rot)}</span></header><div class="pmc-robust-summary"><b>Prioridade e dose</b><span>Sem nomes/pesos/tempo do ciclo regular. Pré-edital usa peso 1; Pós-edital vincula manualmente pesos aos nomes canônicos do TEC.</span></div><div data-pmc-robusto-host>${R.painelConfigHtml()}</div>${this._auditHtml()}</section>`;},
+    _robustHtml(){const cfg=R.config(),rot=cfg?.resumo?.rotulo||'TEC';return `<section class="pmc-engine-card pmc-robusto" data-pmc-engine="robusto"><header><div class="pmc-engine-id"><span>🧠</span><div><small>MOTOR DISPONÍVEL</small><h3>Robusto</h3><p>Motor estatístico focado em três decisões: qual disciplina atacar, qual tópico priorizar e quantas questões fazer. Usa TEC, incidência e reforços em Extras.</p></div></div><span class="pmc-pill">${esc(rot)}</span></header><div class="pmc-robust-summary"><b>Prioridade e dose</b><span>Sem nomes/pesos/tempo do ciclo regular. Pré-edital usa peso 1; Pós-edital vincula manualmente pesos aos nomes canônicos do TEC.</span></div><div data-pmc-robusto-host>${R.painelConfigHtml()}</div>${this._auditHtml()}</section>`;},
     _panelHtml(){const e=G.estado(),ativos=Number(e.simplificado)+Number(e.robusto);return `<div class="pmc-shell"><section class="pmc-intro"><div><small>CENTRAL DOS MODELOS</small><h2>Configuração das sugestões do TEC</h2><p>As métricas observadas continuam sendo os seus dados. Aqui você configura apenas como cada modelo transforma esses dados em prioridade. A fonte usada na tela é escolhida no cabeçalho do Desempenho TEC.</p></div><div class="pmc-state"><b>${ativos}</b><span>${ativos===1?'motor ativo':'motores ativos'}</span></div></section>${e.simplificado?this._simpleHtml():''}${e.robusto?this._robustHtml():''}${ativos===0?'<div class="pmc-empty"><b>Nenhum motor habilitado</b><span>Ative Simplificado ou Robusto em Configurações.</span></div>':''}</div>`;},
-    _bindPanel(){const panel=document.getElementById('tec-panel-motores');if(!panel)return;panel.querySelectorAll('[data-pmc-simple]').forEach(el=>el.addEventListener('change',()=>{const k=el.dataset.pmcSimple,v=el.type==='number'?Number(el.value):el.value;S.salvar({[k]:v});if(k==='fase')this._scheduleRenderPanel();else if(typeof showToast==='function')showToast('Ajuste do Simplificado salvo ✓');}));panel.querySelector('[data-pmc-simple-reset]')?.addEventListener('click',()=>{S.restaurar?.();if(typeof showToast==='function')showToast('Simplificado restaurado aos padrões ✓');this._scheduleRenderPanel();});const host=panel.querySelector('[data-pmc-robusto-host]');if(host)R.bindConfig(host,()=>{if(typeof showToast==='function')showToast('Ajuste do Robusto salvo ✓');this._scheduleRenderPanel();});panel.querySelector('[data-pmc-audit-refresh]')?.addEventListener('click',()=>{A?.reconciliar();if(typeof showToast==='function')showToast('Auditoria do Robusto atualizada ✓');this._scheduleRenderPanel();});panel.querySelector('[data-pmc-audit-export]')?.addEventListener('click',()=>{try{const r=A.exportar(),d=r.payload?.diagnostico;if(typeof showToast==='function')showToast(`Auditoria exportada · ${d?.resultadosMedidos||0} resultado(s) TEC ✓`);}catch(e){if(typeof _quiet==='function')_quiet(e,'robusto-audit-v2-ui-export');if(typeof showToast==='function')showToast('Não foi possível exportar a auditoria');}});},
+    _bindPanel(){const panel=document.getElementById('tec-panel-motores');if(!panel)return;panel.querySelectorAll('[data-pmc-simple]').forEach(el=>el.addEventListener('change',()=>{const k=el.dataset.pmcSimple,v=el.type==='number'?Number(el.value):el.value;S.salvar({[k]:v});if(k==='fase')this._scheduleRenderPanel();else if(typeof showToast==='function')showToast('Ajuste do Simplificado salvo ✓');}));panel.querySelector('[data-pmc-simple-reset]')?.addEventListener('click',()=>{S.restaurar?.();if(typeof showToast==='function')showToast('Simplificado restaurado aos padrões ✓');this._scheduleRenderPanel();});const host=panel.querySelector('[data-pmc-robusto-host]');if(host)R.bindConfig(host,()=>{if(typeof showToast==='function')showToast('Ajuste do Robusto salvo ✓');this._scheduleRenderPanel();});panel.querySelector('[data-pmc-audit-refresh]')?.addEventListener('click',()=>{A?.reconciliar();if(typeof showToast==='function')showToast('Auditoria do Robusto atualizada ✓');this._scheduleRenderPanel();});panel.querySelector('[data-pmc-audit-export]')?.addEventListener('click',()=>{try{const r=A.exportar(),d=r.payload?.diagnostico;if(typeof showToast==='function')showToast(`Auditoria exportada · ${d?.resultadosMedidos||0} resultado(s) TEC ✓`);}catch(e){if(typeof _quiet==='function')_quiet(e,'robusto-audit-ui-export');if(typeof showToast==='function')showToast('Não foi possível exportar a auditoria');}});},
     _aplicarVisibilidadeTab(btn,visivel){if(!btn)return;if(visivel){if(btn.classList.contains('ux-off'))btn.classList.remove('ux-off');if(btn.hidden)btn.hidden=false;if(btn.style.display)btn.style.removeProperty('display');if(btn.getAttribute('aria-hidden')!=='false')btn.setAttribute('aria-hidden','false');}else{if(!btn.hidden)btn.hidden=true;if(btn.style.display!=='none')btn.style.display='none';if(btn.getAttribute('aria-hidden')!=='true')btn.setAttribute('aria-hidden','true');}},
     _protegerTab(btn){if(!btn)return;const corrigir=()=>{const e=G.estado(),algum=e.simplificado||e.robusto;if(algum)this._aplicarVisibilidadeTab(btn,true);};corrigir();if(this._tabObserver)this._tabObserver.disconnect();this._tabObserver=new MutationObserver(()=>corrigir());this._tabObserver.observe(btn,{attributes:true,attributeFilter:['class','hidden','style','aria-hidden']});},
     ensureUi(){if(typeof document==='undefined')return;const tabs=document.getElementById('tec-subtabs');if(!tabs)return;let btn=tabs.querySelector('.tec-subtab[data-tectab="motores"]');if(!btn){btn=document.createElement('button');btn.type='button';btn.className='tec-subtab pmc-tab';btn.dataset.tectab='motores';btn.textContent='⚙ Motores';tabs.appendChild(btn);btn.addEventListener('click',()=>DT.switchTecTab('motores'));}let panel=document.getElementById('tec-panel-motores');if(!panel){panel=document.createElement('div');panel.id='tec-panel-motores';panel.style.display='none';const first=document.getElementById('tec-panel-analise');if(first?.parentNode)first.parentNode.insertBefore(panel,first);else tabs.insertAdjacentElement('afterend',panel);}this._protegerTab(btn);this.syncVisibility();this.renderPanel();},
@@ -54991,7 +54990,7 @@ else CloudStore.init();
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>M.init(),{once:true});else M.init();
 })();
 /* ============================================================================
-   DESEMPENHO TEC — FONTE EXPLICITA DAS SUGESTOES V2
+   DESEMPENHO TEC — FONTE EXPLICITA DAS SUGESTOES
    ----------------------------------------------------------------------------
    Fatos observados (taxa, historico, cobertura) permanecem dados. A camada de
    decisao usa EXCLUSIVAMENTE o motor escolhido no topo do Desempenho TEC.
@@ -55004,13 +55003,13 @@ else CloudStore.init();
   const esc=I.esc||((x)=>String(x==null?'':x)),n=(v,d=0)=>Number.isFinite(Number(v))?Number(v):d,fmt=(v,d=0)=>Number.isFinite(Number(v))?Number(v).toFixed(d).replace('.',','):'—';
 
   const M={
-    VERSAO:2,KEY:'tec-plano-fonte-motor',LEGACY_KEY:'tec-plano-fonte-motor-v1',DEFAULT:'robusto',_origPaint:null,_origRender:null,_rendering:false,
+    KEY:'tec-plano-fonte-motor',LEGACY_KEY:'tec-plano-fonte-motor-v1',DEFAULT:'robusto',_origPaint:null,_origRender:null,_rendering:false,
     _key(){return DB._profilePrefix()+this.KEY;},
     _estado(){return G.estado?G.estado():{simplificado:true,robusto:true};},
     _resolver(preferido){const e=this._estado();if(preferido==='robusto'&&e.robusto)return'robusto';if(preferido==='simplificado'&&e.simplificado)return'simplificado';if(e.robusto)return'robusto';if(e.simplificado)return'simplificado';return null;},
-    fonte(){let k=this.DEFAULT;try{let z=JSON.parse(localStorage.getItem(this._key())||'null');if(!z)z=JSON.parse(localStorage.getItem(DB._profilePrefix()+this.LEGACY_KEY)||'null');if(z&&['simplificado','robusto'].includes(z.fonte))k=z.fonte;}catch(e){if(typeof _quiet==='function')_quiet(e,'tec-plano-fonte-v2-read');}return this._resolver(k);},
-    salvar(fonte){const k=this._resolver(fonte);if(!k)return null;try{const raw=JSON.stringify({fonte:k});if(DB.setRaw)DB.setRaw(this._key(),raw);else localStorage.setItem(this._key(),raw);}catch(e){if(typeof _quiet==='function')_quiet(e,'tec-plano-fonte-v2-save');}try{C.salvar({modo:k});}catch(e){if(typeof _quiet==='function')_quiet(e,'tec-plano-fonte-v2-sync-controller');}return k;},
-    calcular(fonte){const k=this._resolver(fonte||this.fonte());if(!k)return{erro:'motores-desabilitados',modo:null,itens:[]};try{return k==='simplificado'?C.simplificado():C.robusto();}catch(e){if(typeof _quiet==='function')_quiet(e,'tec-plano-fonte-v2-calc');return{erro:'falha-'+k,modo:k,itens:[]};}},
+    fonte(){let k=this.DEFAULT;try{let z=JSON.parse(localStorage.getItem(this._key())||'null');if(!z)z=JSON.parse(localStorage.getItem(DB._profilePrefix()+this.LEGACY_KEY)||'null');if(z&&['simplificado','robusto'].includes(z.fonte))k=z.fonte;}catch(e){if(typeof _quiet==='function')_quiet(e,'tec-plano-fonte-read');}return this._resolver(k);},
+    salvar(fonte){const k=this._resolver(fonte);if(!k)return null;try{const raw=JSON.stringify({fonte:k});if(DB.setRaw)DB.setRaw(this._key(),raw);else localStorage.setItem(this._key(),raw);}catch(e){if(typeof _quiet==='function')_quiet(e,'tec-plano-fonte-save');}try{C.salvar({modo:k});}catch(e){if(typeof _quiet==='function')_quiet(e,'tec-plano-fonte-sync-controller');}return k;},
+    calcular(fonte){const k=this._resolver(fonte||this.fonte());if(!k)return{erro:'motores-desabilitados',modo:null,itens:[]};try{return k==='simplificado'?C.simplificado():C.robusto();}catch(e){if(typeof _quiet==='function')_quiet(e,'tec-plano-fonte-calc');return{erro:'falha-'+k,modo:k,itens:[]};}},
     _criterio(fonte,r){if(fonte==='simplificado')return r&&r.fase==='pos'?'Pós-edital: regra direta do Simplificado, usando sua própria incidência/composição configurada.':'Pré-edital: distância para a meta + amostra mínima, sem sobrepor pai e filho.';return r&&r.fase==='pos'?'Pós-edital: lacuna estatística do TEC + persistência/tendência + incidência + peso manual da disciplina TEC + resposta observacional dos reforços.':'Pré-edital: todas as disciplinas têm peso 1; prioridade vem de lacuna estatística, evidência, persistência/tendência, incidência e resposta observacional dos reforços.';},
     _erroTexto(r,fonte){const e=r&&r.erro,map={'sem-retrato':'Importe um retrato TEC neste escopo antes de calcular.','sem-lacunas':'Nenhum assunto observado está abaixo da régua deste motor.','sem-candidatos':'Não há frente elegível sem sobrepor reforços já abertos.','post-pesos-pendentes':'Robusto Pós-edital: abra ⚙ Motores, selecione as disciplinas canônicas do TEC que pertencem à prova e atribua os pesos.','pos-sem-banca':'Simplificado Pós precisa de uma banca específica.','pos-sem-planejamento':'Simplificado Pós precisa da composição da prova.','pos-sem-cruzamento':'O Simplificado não encontrou cruzamento suficiente.','motor-desabilitado':'Este motor está desabilitado.','motores-desabilitados':'Ative ao menos um motor em Configurações.','falha-simplificado':'Falha ao calcular o Simplificado.','falha-robusto':'Falha ao calcular o Robusto.'};return map[e]||`O ${fonte==='robusto'?'Robusto':'Simplificado'} não conseguiu formar recomendações neste escopo.`;},
     _quantidade(c,fonte){if(!c)return null;return Math.max(1,Math.round(n(c.quantidadeRecomendada,c.alvo)))||null;},
