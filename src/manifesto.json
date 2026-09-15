@@ -490,8 +490,13 @@
   "ate": 56944
  },
  {
-  "arquivo": "html/90-rodape.html",
+  "arquivo": "js/96-tec-capture-diagnostics.js",
   "de": 56946,
-  "ate": 57391
+  "ate": 57033
+ },
+ {
+  "arquivo": "html/90-rodape.html",
+  "de": 57035,
+  "ate": 57480
  }
 ]
