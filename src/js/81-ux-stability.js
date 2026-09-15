@@ -10,7 +10,7 @@
 
   const later = (fn) => requestAnimationFrame(() => requestAnimationFrame(() => { try { fn(); } catch (e) { if (typeof _quiet === 'function') _quiet(e, 'ux-v3'); } }));
 
-  const UX = {
+  const UXStability = {
     _infoPop: null,
     _cloudUserAt: 0,
     _tecFirstOpen: true,
@@ -84,7 +84,7 @@
       LeisScreen._uxv3LawPatched = true;
       const orig = LeisScreen.renderCards;
       LeisScreen.renderCards = function () {
-        const r = orig.apply(this, arguments); later(() => UX.decorateLawList()); return r;
+        const r = orig.apply(this, arguments); later(() => UXStability.decorateLawList()); return r;
       };
     },
 
@@ -159,7 +159,7 @@
           card.classList.remove('uxv3-collapsed'); btn.setAttribute('aria-expanded', 'true');
           const ch = btn.querySelector('.chev'); if (ch) ch.textContent = '▴';
         } else if (typeof ExtrasScreen !== 'undefined' && typeof ExtrasScreen.renderEmCurso === 'function') {
-          requestAnimationFrame(() => { ExtrasScreen.renderEmCurso(); later(() => UX.decorateCourse()); });
+          requestAnimationFrame(() => { ExtrasScreen.renderEmCurso(); later(() => UXStability.decorateCourse()); });
         }
       }, true);
     },
@@ -177,7 +177,7 @@
       const orig = ExtrasScreen.render;
       ExtrasScreen.render = function () {
         const r = orig.apply(this, arguments);
-        later(() => { UX.decorateExtrasToolbar(); UX.decorateLawCards(); UX.decorateCourse(); });
+        later(() => { UX.decorateExtrasToolbar(); UX.decorateLawCards(); UXStability.decorateCourse(); });
         return r;
       };
     },
@@ -267,6 +267,6 @@
     }
   };
 
-  UX.init();
-  window.UX = UX;
+  UXStability.init();
+  window.UXStability = UXStability;
 })();

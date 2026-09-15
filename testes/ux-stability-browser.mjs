@@ -19,7 +19,7 @@ const ok=(v,m)=>{checks++;assert.ok(v,m)};const eq=(a,b,m)=>{checks++;assert.equ
 
 try{
   await page.goto(url,{waitUntil:'domcontentloaded'});
-  await page.waitForFunction(()=>window.switchScreen&&window.ExtrasScreen&&window.UX&&window.ExtrasModern,{timeout:30000});
+  await page.waitForFunction(()=>window.switchScreen&&window.ExtrasScreen&&window.UXStability&&window.ExtrasModern,{timeout:30000});
   await page.evaluate(()=>{try{ProfileUI.hideGate();}catch(_){} });
 
   /* Spinner: o carregamento usa animação no compositor, inclusive se o app estiver ocupado. */
@@ -74,13 +74,13 @@ try{
     const host=document.createElement('div');host.id='uxv3-law-host';host.innerHTML='<div class="lr-law-wrap"><article class="lei-card" data-id="lei-teste"></article><div class="lr-law-tools"><label class="lr-switch"><input type="checkbox" data-lr-law-on checked><span>Apta para rodízio</span></label><span class="lr-law-next">antigo</span><button data-lr-law-cfg>Ajustar</button></div></div>';
     const lawsRoot=document.getElementById('screen-leis'); if(!lawsRoot) throw new Error('screen-leis ausente'); lawsRoot.appendChild(host);
     DB.getLei=()=>({id:'lei-teste'});LeiRodizio.cfgLei=()=>({apta:true,linhasSessao:30});LeiRodizio.prefs=()=>({linhasSessao:30});LeiRodizio._bookmark=()=>31;
-    UX.decorateLawList();const h=host.querySelector('.lr-law-wrap'),out={in:h.textContent.includes('Incluída nos Extras automáticos'),next:h.textContent.includes('Linha 31'),sub:h.textContent.includes('Pode gerar a leitura do dia')};
+    UXStability.decorateLawList();const h=host.querySelector('.lr-law-wrap'),out={in:h.textContent.includes('Incluída nos Extras automáticos'),next:h.textContent.includes('Linha 31'),sub:h.textContent.includes('Pode gerar a leitura do dia')};
     DB.getLei=oldGet;LeiRodizio.cfgLei=oldCfg;LeiRodizio.prefs=oldPrefs;LeiRodizio._bookmark=oldBm;host.remove();return out;
   });
   ok(lawStatus.in&&lawStatus.next&&lawStatus.sub,'estado do rodízio deve explicar inclusão e próxima leitura');
 
   /* TEC: escopo fecha na primeira abertura e Central mantém grade legível. */
-  await page.evaluate(()=>{UX._tecFirstOpen=true;switchScreen('desempenhotec');try{DesempenhoTecScreen.render();}catch(_){}});
+  await page.evaluate(()=>{UXStability._tecFirstOpen=true;switchScreen('desempenhotec');try{DesempenhoTecScreen.render();}catch(_){}});
   await page.waitForTimeout(160);
   ok(await page.locator('#tec-scope-body').evaluate(el=>el.hidden),'Escopo da análise deve abrir recolhido');
   ok(await page.locator('#screen-desempenhotec .tp-command.uxv3-tec-command').count()===1,'Central TEC deve receber layout v3');
@@ -89,7 +89,7 @@ try{
 
   /* Falha automática de renovação não pode jogar formulário na frente do estudo. */
   const autoCloud=await page.evaluate(async()=>{
-    UX._cloudUserAt=0;
+    UXStability._cloudUserAt=0;
     const s=document.createElement('div');s.className='cloud-scrim';const m=document.createElement('div');m.className='cloud-menu';
     s.addEventListener('click',()=>{s.remove();m.remove();});document.body.appendChild(s);document.body.appendChild(m);
     await new Promise(r=>setTimeout(r,80));return {menu:document.querySelectorAll('.cloud-menu').length,scrim:document.querySelectorAll('.cloud-scrim').length};
@@ -103,5 +103,5 @@ try{
   const ov=await page.locator('#screen-extras').evaluate(el=>el.scrollWidth-el.clientWidth);ok(ov<=4,`Extras mobile sem overflow (${ov}px)`);
 
   ok(errors.length===0,'sem erros no navegador: '+errors.join(' | '));
-  console.log(`UX STABILITY V3 OK — ${checks} invariantes.`);
+  console.log(`UX STABILITY OK — ${checks} invariantes.`);
 } finally { await browser.close(); await new Promise(r=>server.close(r)); }
