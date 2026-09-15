@@ -25,12 +25,27 @@ for(const p of proibidos)assert.equal(existsSync(join(ROOT,p)),false,`artefato o
 assert.equal(existsSync(join(ROOT,'testes','evidencias')),false,'evidências geradas não devem ser versionadas');
 
 const semComentarios=src=>src.replace(/\/\*[\s\S]*?\*\//g,'').replace(/(^|[^:])\/\/[^\n\r]*/g,'$1');
-const codigo=fontesAbs.filter(f=>f.endsWith('.js')).map(f=>semComentarios(readFileSync(f,'utf8'))).join('\n');
 const aliasesObsoletos=[
   'PlanoSugestoesSimplificadoV2','PlanoSugestoesV2','PlanoSugestoesV3','PlanoSugestoesV4',
   'PlanoMotoresGovernancaV5','PlanoMotoresCentralTecV2','PlanoMotoresCentralTecV3','PlanoMotoresCentralTecV4','TecPlanoFonteMotorV1'
 ];
-for(const nome of aliasesObsoletos)assert.equal(new RegExp(`\\b${nome}\\b`).test(codigo),false,`alias executável obsoleto em src/: ${nome}`);
-assert.equal(/_legacyPuxar\b/.test(codigo),false,'fallback para Puxar do Plano legado não pode voltar');
+const fontesJs=fontesAbs.filter(f=>f.endsWith('.js'));
+for(const f of fontesJs){
+  const codigo=semComentarios(readFileSync(f,'utf8'));
+  for(const nome of aliasesObsoletos)assert.equal(new RegExp(`\\b${nome}\\b`).test(codigo),false,`alias executável obsoleto em src/: ${relative(ROOT,f)} → ${nome}`);
+  assert.equal(/_legacyPuxar\b/.test(codigo),false,`fallback para Puxar do Plano legado não pode voltar: ${relative(ROOT,f)}`);
+}
+
+// Nos testes, proíbe consumo executável dos aliases antigos, mas permite que
+// auditorias citem o nome em strings/regex para garantir que o legado não volte.
+const testeAtual=fileURLToPath(import.meta.url);
+const testesJs=walk(join(ROOT,'testes')).filter(f=>/\.(?:mjs|js)$/.test(f)&&f!==testeAtual);
+for(const f of testesJs){
+  const codigo=semComentarios(readFileSync(f,'utf8'));
+  for(const nome of aliasesObsoletos){
+    const usa=new RegExp(`(?:typeof\\s+${nome}\\b|\\b${nome}\\s*\\.|window\\.${nome}\\b|ctx\\.window\\.${nome}\\b)`);
+    assert.equal(usa.test(codigo),false,`teste ainda consome alias obsoleto: ${relative(ROOT,f)} → ${nome}`);
+  }
+}
 
 console.log(`OK: higiene do repositório — ${fontes.length} fontes publicadas, nenhuma órfã/duplicada e nenhum artefato/alias obsoleto conhecido.`);
