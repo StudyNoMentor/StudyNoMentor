@@ -13,6 +13,7 @@
   const num=(v,d=0)=>Number.isFinite(Number(v))?Number(v):d;
   const normLocal=(v)=>String(v==null?'':v).normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().replace(/[^a-z0-9]+/g,' ').replace(/\s+/g,' ').trim();
   const day=()=>typeof todayLocal==='function'?todayLocal():(()=>{const d=new Date();return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;})();
+  const addDay=(iso,delta)=>{const d=new Date(`${iso}T12:00:00`);d.setDate(d.getDate()+delta);return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;};
   const localDateOf=(raw)=>{
     const s=String(raw||'');
     let m=s.match(/^(\d{4}-\d{2}-\d{2})/); if (m) return m[1];
@@ -176,6 +177,23 @@
     const used=new Set(assignments.filter(a=>a&&a.status!=='deferred').map(a=>normLocal(a.disciplina)).filter(Boolean));
     const remaining=Math.max(0,3-used.size);
     if (!remaining) return [];
-    return rows.filter(r=>!used.has(normLocal(r&&r.disciplina))).slice(0,remaining);
+
+    let available=rows.filter(r=>!used.has(normLocal(r&&r.disciplina)));
+    const yesterday=addDay(day(),-1);
+    const notYesterday=available.filter(r=>r.lastUse!==yesterday);
+    if (notYesterday.length>=remaining) available=notYesterday;
+
+    /* Cobertura semanal primeiro: se há matérias que ainda não receberam nenhum
+       reforço nos últimos 7 dias, elas entram antes das repetições. Persistência
+       real pode voltar mais cedo, mas nunca força repetir ontem quando há opção. */
+    available.sort((a,b)=>{
+      const au=a.persistent&&a.unresolvedWrong>0?0:1, bu=b.persistent&&b.unresolvedWrong>0?0:1;
+      if (au!==bu) return au-bu;
+      const af=num(a.weeklyUse)===0?0:1, bf=num(b.weeklyUse)===0?0:1;
+      if (af!==bf) return af-bf;
+      if (num(a.weeklyUse)!==num(b.weeklyUse)) return num(a.weeklyUse)-num(b.weeklyUse);
+      return num(b.rotationScore)-num(a.rotationScore);
+    });
+    return available.slice(0,remaining);
   };
 })();
