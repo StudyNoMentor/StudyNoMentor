@@ -1,1 +1,6 @@
 node_modules/
+.artifacts/
+audit-results.json
+audit-browser-results.json
+testes/evidencias/
+testes/resultado-stress-extras-tec.json
