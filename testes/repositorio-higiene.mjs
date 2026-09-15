@@ -43,9 +43,22 @@ for(const f of testesJs){
 // Todo teste executável precisa participar de uma barreira automática. Arquivo
 // .mjs sem referência no workflow/verificador é teste morto: parece proteção,
 // mas nunca roda e tende a apodrecer silenciosamente.
-const cobertura=readFileSync(join(ROOT,'.github','workflows','verificar.yml'),'utf8')+'\n'+readFileSync(join(ROOT,'verificar.mjs'),'utf8');
+const workflow=readFileSync(join(ROOT,'.github','workflows','verificar.yml'),'utf8');
+const verificador=readFileSync(join(ROOT,'verificar.mjs'),'utf8');
+const cobertura=workflow+'\n'+verificador;
 const mjsTopo=readdirSync(join(ROOT,'testes')).filter(n=>n.endsWith('.mjs'));
 const orfaos=mjsTopo.filter(n=>!cobertura.includes(`testes/${n}`));
 assert.deepEqual(orfaos,[],`testes .mjs sem execução automática: ${orfaos.join(', ')}`);
+
+// A pasta test/ contém fixtures auxiliares carregadas pelo verificador agregado.
+// Ela ficava fora da barreira acima, então um helper abandonado poderia sobreviver
+// indefinidamente no repositório. Cada JS/MJS auxiliar precisa ter consumidor
+// explícito no verificar.mjs; se deixar de ter, deve ser removido junto da mudança.
+const auxDir=join(ROOT,'test');
+if(existsSync(auxDir)){
+  const auxiliares=readdirSync(auxDir).filter(n=>/\.(?:mjs|js)$/.test(n));
+  const auxOrfaos=auxiliares.filter(n=>!verificador.includes(`test/${n}`));
+  assert.deepEqual(auxOrfaos,[],`auxiliares de test/ sem consumidor no verificador: ${auxOrfaos.join(', ')}`);
+}
 
 console.log(`OK: higiene do repositório — ${fontes.length} fontes publicadas, nenhuma órfã/duplicada, ${mjsTopo.length} testes executáveis cobertos e nenhuma API técnica versionada.`);
