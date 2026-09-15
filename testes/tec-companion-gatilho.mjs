@@ -6,7 +6,7 @@ const tec = read('companion/src/tec-content.js');
 const page = read('companion/src/tec-page.js');
 
 const checks = [
-  ['Companion 1.0.5', manifest.version === '1.0.5'],
+  ['Companion preserva versão instalada 1.0.4 no hotfix', manifest.version === '1.0.4'],
   ['TEC continua em todos os frames', (manifest.content_scripts || []).filter(x => (x.matches || []).some(m => /tecconcursos/.test(m))).every(x => x.all_frames === true)],
   ['gatilho aceita controles além do texto Resolver', tec.includes('function interactionControl') && tec.includes('armPending') && tec.includes("armPending(resolver?'resolver':'interaction'"))],
   ['mudança e submit também armam captura', tec.includes("addEventListener('change'") && tec.includes("addEventListener('submit'"))],
