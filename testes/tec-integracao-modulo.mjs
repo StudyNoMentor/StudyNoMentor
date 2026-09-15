@@ -11,9 +11,11 @@ const edge = read('supabase/functions/tec-ai/index.ts');
 const manifest = JSON.parse(read('companion/manifest.json'));
 const bg = read('companion/src/background.js');
 const tec = read('companion/src/tec-content.js');
+const pageBridge = read('companion/src/tec-page.js');
 const bridge = read('companion/src/study-bridge.js');
 
 const contentMatches = (manifest.content_scripts || []).flatMap(x => x.matches || []);
+const mainWorldTec = (manifest.content_scripts || []).find(x => x.world === 'MAIN' && (x.js || []).includes('src/tec-page.js'));
 const checks = [
   ['item de menu', nav.includes('data-screen="integracaotec"')],
   ['tela acessível', body.includes('id="screen-integracaotec"') && body.includes('role="region"')],
@@ -41,6 +43,12 @@ const checks = [
   ['Companion injeta no TEC', contentMatches.some(x => /tecconcursos/.test(x))],
   ['Companion injeta no Study', contentMatches.some(x => /studynomentor\.github\.io/.test(x))],
   ['Companion tem armazenamento sem cota curta', (manifest.permissions || []).includes('unlimitedStorage')],
+  ['ponte MAIN world instalada no TEC', !!mainWorldTec && (mainWorldTec.matches || []).some(x => /tecconcursos/.test(x))],
+  ['ponte MAIN world lê contexto Angular sem credencial', pageBridge.includes('angular.element') && pageBridge.includes("type:'question-context'") && !/authorization|bearer/i.test(pageBridge)],
+  ['content script solicita e recebe contexto MAIN world', tec.includes("PAGE_SOURCE = 'StudyMentorTecPage'") && tec.includes("type: 'context-request'") && tec.includes("msg.type !== 'question-context'")],
+  ['ID da questão tem fallback Angular/DOM', tec.includes('return pageQuestionId()') && pageBridge.includes('extractAngularContext()') && pageBridge.includes('extractDomContext()')],
+  ['resultado tem fallback visual das alternativas', tec.includes('.wk7j7j,.bz2gcz') && tec.includes("source: 'alternatives'")],
+  ['clique não é descartado quando ID ainda não chegou', tec.includes("qid: qid ? String(qid) : null") && tec.includes("if (!tx.qid && liveId)")],
   ['fila da extensão é durável', bg.includes('chrome.storage.local') && bg.includes('QUEUE_KEY') && bg.includes("msg.type === 'ack'")],
   ['fila só baixa por ACK', bg.includes('async function ack') && bridge.includes("msg.type === 'ack'")],
   ['captura transacional acorda o worker', tec.includes("chrome.runtime.sendMessage({ kind: 'capture'") && bg.includes("msg.kind !== 'capture'")],

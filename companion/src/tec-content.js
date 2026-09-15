@@ -15,6 +15,8 @@
   window.__snmTecCompanion = true;
 
   const EXT_SOURCE = 'StudyMentorCompanion';
+  const PAGE_SOURCE = 'StudyMentorTecPage';
+  const PAGE_REQUEST_SOURCE = 'StudyMentorCompanionIsolated';
   const VERSION = chrome.runtime.getManifest().version;
   const STAGE_PREFIX = 'snmTecStageV1:';
   const MAX_STAGE_REPLAY = 500;
@@ -24,6 +26,8 @@
   let pending = null;
   let processing = false;
   let replaying = false;
+  let pageContext = null;
+  let lastCapture = { status: 'idle', questionId: null, at: null, reason: null };
   let lastFingerprint = '';
   let lastFingerprintAt = 0;
 
@@ -70,19 +74,55 @@
     return 'tec_' + fnv(seed);
   }
 
+  function acceptPageContext(raw) {
+    if (!raw || typeof raw !== 'object') return;
+    const id = String(raw.id || raw.questionId || '').match(/\d{4,}/)?.[0] || null;
+    pageContext = {
+      id,
+      materia: String(raw.materia || ''),
+      assunto: String(raw.assunto || ''),
+      banca: String(raw.banca || ''),
+      concurso: String(raw.concurso || ''),
+      enunciado: String(raw.enunciado || ''),
+      alternativas: Array.isArray(raw.alternativas) ? raw.alternativas.slice(0, 8) : [],
+      capturedAtMs: Number(raw.capturedAtMs || Date.now()),
+      href: String(raw.href || location.href)
+    };
+  }
+
+  function requestPageContext() {
+    try { window.postMessage({ source: PAGE_REQUEST_SOURCE, type: 'context-request', at: Date.now() }, location.origin); }
+    catch (_) {}
+  }
+
+  window.addEventListener('message', (event) => {
+    if (event.source !== window || event.origin !== location.origin) return;
+    const msg = event.data;
+    if (!msg || msg.source !== PAGE_SOURCE || msg.type !== 'question-context') return;
+    acceptPageContext(msg.context || msg.payload || {});
+  });
+
+  function pageQuestionId() {
+    if (!pageContext || Date.now() - Number(pageContext.capturedAtMs || 0) > 30000) return null;
+    return pageContext.id || null;
+  }
+
   function questionId() {
     for (const el of document.querySelectorAll('[data-question-id],[data-questao-id],[data-id-questao],[data-idquestao]')) {
       for (const a of ['data-question-id','data-questao-id','data-id-questao','data-idquestao']) {
         const v = el.getAttribute(a); if (v && /^\d+$/.test(v)) return v;
       }
     }
-    for (const el of [...document.querySelectorAll('a[href],a[aria-label],button[aria-label],h1,h2,h3,strong')].slice(0, 500)) {
+    for (const el of [...document.querySelectorAll('a[href],a[aria-label],button[aria-label],h1,h2,h3,h4,strong,[class*="quest" i],[id*="quest" i]')].slice(0, 1200)) {
       if (!visible(el)) continue;
       const hay = [el.getAttribute && el.getAttribute('href'), el.getAttribute && el.getAttribute('aria-label'), text(el)].join(' ');
-      const m = hay.match(/(?:\/questoes\/|quest[aã]o\s*#?\s*|#)(\d{4,})/i);
+      let m = hay.match(/(?:\/questoes\/|quest[aã]o\s*#?\s*|#)(\d{4,})/i);
+      if (!m && /quest|cabec|header|detalh/i.test(String(el.className || '') + ' ' + String(el.id || ''))) {
+        m = hay.match(/\bID\s*[:#]?\s*(\d{4,})\b/i);
+      }
       if (m) return m[1];
     }
-    return null;
+    return pageQuestionId();
   }
 
   function firstVisible(selectors) {
@@ -93,16 +133,20 @@
   }
 
   function matter() {
-    return text(firstVisible(['a[ng-href*="/materias/"]','a[href*="/materias/"]','[data-eq-slot="materia"]','[class*="materia" i]']));
+    return text(firstVisible(['a[ng-href*="/materias/"]','a[href*="/materias/"]','[data-eq-slot="materia"]','[class*="materia" i]'])) || String(pageContext && pageContext.materia || '');
   }
 
   function topic() {
-    return text(firstVisible(['span[ng-bind*="Assunto"]','[data-eq-slot="assunto"]','[class*="assunto" i]']));
+    return text(firstVisible(['span[ng-bind*="Assunto"]','span[ng-bind="vm.nomeAssuntoExibicao()"]','[data-eq-slot="assunto"]','[class*="assunto" i]'])) || String(pageContext && pageContext.assunto || '');
   }
 
   function metadataLink(kind) {
     const el = firstVisible([`a[href*="/${kind}/"]`]);
-    return text(el);
+    const live = text(el);
+    if (live) return live;
+    if (kind === 'bancas') return String(pageContext && pageContext.banca || '');
+    if (kind === 'concursos') return String(pageContext && pageContext.concurso || '');
+    return '';
   }
 
   function alternativeLetter(el) {
@@ -132,13 +176,13 @@
 
   function isWrongMarked(el) {
     const cl = String(el && el.className || '');
-    return /(?:incorrect|errad[ao]|danger|wrong)(?:\s|$|_|-)/i.test(cl)
+    return /(?:bz2gcz|incorrect|errad[ao]|danger|wrong)(?:\s|$|_|-)/i.test(cl)
       || !!(el && el.querySelector && el.querySelector('.glyphicon-remove,.fa-times,[class*="incorrect" i],[class*="errad" i]'));
   }
 
   function alternatives() {
     const map = new Map();
-    const nodes = [...document.querySelectorAll('label,button,[role="radio"],li')].slice(0, 800);
+    const nodes = [...document.querySelectorAll('label,button,[role="radio"],li,[data-letter],[data-letra],.wk7j7j,.bz2gcz')].slice(0, 1200);
     for (const node of nodes) {
       if (!visible(node)) continue;
       const letra = alternativeLetter(node);
@@ -152,21 +196,36 @@
 
   function statement() {
     const el = firstVisible(['[data-eq-slot="enunciado"]','[data-testid*="enunciado" i]','[class*="enunciado" i]','[id*="enunciado" i]','[class*="statement" i]']);
-    const t = text(el); return t.length >= 10 ? t : '';
+    const t = text(el); return t.length >= 10 ? t : String(pageContext && pageContext.enunciado || '');
   }
 
-  function result() {
-    const candidates = [...document.querySelectorAll('.jm44ow,[class*="resultado" i],[class*="feedback" i],[role="alert"]')].filter(visible).slice(0, 80);
+  function result(selectedBefore = null) {
+    const candidates = [...document.querySelectorAll('.jm44ow,[class*="resultado" i],[class*="feedback" i],[role="alert"]')].filter(visible).slice(0, 120);
     for (const el of candidates) {
       const t = text(el).toLowerCase();
-      if (el.querySelector('.glyphicon-ok-sign') || /você acertou|voce acertou|resposta correta|parabéns.*acert/i.test(t)) return { acertou: true, text: t };
-      if (el.querySelector('.glyphicon-remove') || /você errou|voce errou|resposta incorreta|resposta errada/i.test(t)) return { acertou: false, text: t };
+      if (el.querySelector('.glyphicon-ok-sign') || /você acertou|voce acertou|resposta correta|parabéns.*acert/i.test(t)) return { acertou: true, text: t, source: 'banner' };
+      if (el.querySelector('.glyphicon-remove') || /você errou|voce errou|resposta incorreta|resposta errada/i.test(t)) return { acertou: false, text: t, source: 'banner' };
     }
+    const alts = alternatives();
+    const correct = alts.find(a => a.correct);
+    const wrong = alts.find(a => a.wrong);
+    const marked = (alts.find(a => a.selected) || {}).letra || selectedBefore || null;
+    if (wrong && correct) return { acertou: false, text: 'estado visual das alternativas', source: 'alternatives' };
+    if (correct && marked) return { acertou: String(correct.letra) === String(marked), text: 'gabarito visual das alternativas', source: 'alternatives' };
     return null;
   }
 
   function buildQuestion(acertou, selectedBefore) {
-    const alts = alternatives();
+    let alts = alternatives();
+    if (alts.length < 2 && pageContext && Array.isArray(pageContext.alternativas)) {
+      alts = pageContext.alternativas.map((a, i) => ({
+        letra: String(a.letra || a.label || String.fromCharCode(65 + i)).toUpperCase().match(/[A-E]/)?.[0] || null,
+        texto: String(a.texto || a.text || a.descricao || ''),
+        selected: !!(a.selected || a.marcada),
+        correct: !!(a.correct || a.correta),
+        wrong: !!(a.wrong || a.errada)
+      })).filter(a => a.letra);
+    }
     let marcada = (alts.find(a => a.selected) || {}).letra || selectedBefore || null;
     const correta = (alts.find(a => a.correct) || {}).letra || null;
     if (acertou === true && correta && !marcada) marcada = correta;
@@ -224,7 +283,6 @@
       }
       return false;
     } catch (_) {
-      /* A cópia em chrome.storage.local continua intacta e será reenviada. */
       return false;
     }
   }
@@ -244,13 +302,13 @@
         if (!ok) break;
       }
     } catch (_) {
-      /* nova tentativa ocorrerá no próximo connect/status */
     } finally {
       replaying = false;
     }
   }
 
   function sendReady(type = 'ready') {
+    const qid = questionId();
     sendStatus(envelope(type, {
       tecAccount: accountFingerprint(),
       bookId: currentBookId(),
@@ -258,8 +316,15 @@
       capturedAt: new Date().toISOString(),
       localDate: localDate(),
       version: VERSION,
-      embedded: window.top !== window.self
+      embedded: window.top !== window.self,
+      capture: {
+        questionId: qid,
+        resolverVisible: [...document.querySelectorAll('button,a,[role="button"]')].some(el => visible(el) && /Resolver\s+quest[aã]o|Responder|Confirmar\s+resposta/i.test(text(el))),
+        mainWorldContext: !!(pageContext && pageContext.id),
+        last: lastCapture
+      }
     }));
+    requestPageContext();
     replayStaged();
   }
 
@@ -280,13 +345,16 @@
     processing = true;
     const tx = { ...pending };
     try {
-      for (let i = 0; i < 70; i++) {
+      requestPageContext();
+      for (let i = 0; i < 100; i++) {
         if (!pending || pending.token !== token) return;
-        if (questionId() && tx.qid && String(questionId()) !== String(tx.qid)) { pending = null; return; }
-        const r = result();
+        const liveId = questionId();
+        if (!tx.qid && liveId) { tx.qid = String(liveId); pending.qid = tx.qid; }
+        if (liveId && tx.qid && String(liveId) !== String(tx.qid)) { pending = null; lastCapture = { status:'aborted', questionId:tx.qid, at:new Date().toISOString(), reason:'question_changed' }; return; }
+        const r = result(tx.selectedBefore);
         if (!r) { await sleep(75); continue; }
         const q = buildQuestion(r.acertou, tx.selectedBefore);
-        if (!q.id) { await sleep(75); continue; }
+        if (!q.id) { requestPageContext(); await sleep(75); continue; }
         const now = new Date();
         const fp = [accountFingerprint(), currentBookId(), q.id, r.acertou, q.marcada || '', q.correta || ''].join('|');
         if (fp === lastFingerprint && Date.now() - lastFingerprintAt < 3500) { pending = null; return; }
@@ -312,29 +380,35 @@
           bookId: resolution.bookId,
           capturedAt: resolution.resolvedAt
         }, eventId);
-        await deliverEnvelope(env);
-        /* Mesmo sem resposta imediata do worker, o evento já está no estágio
-         * durável da extensão; por isso é seguro liberar a tentativa da página. */
+        const accepted = await deliverEnvelope(env);
+        lastCapture = { status: accepted ? 'queued' : 'staged', questionId: String(q.id), at: new Date().toISOString(), reason: accepted ? null : 'awaiting_worker' };
+        sendReady('status');
         pending = null;
         return;
       }
+      lastCapture = { status:'missed', questionId:tx.qid || null, at:new Date().toISOString(), reason: tx.qid ? 'result_not_detected' : 'question_id_not_detected' };
+      sendReady('status');
       pending = null;
     } finally { processing = false; }
   }
 
   function resolverButton(target) {
-    const b = target && target.closest ? target.closest('button,a') : null;
+    const b = target && target.closest ? target.closest('button,a,[role="button"]') : null;
     if (!b) return null;
-    return /^(?:Resolver\s+quest[aã]o|Responder|Confirmar\s+resposta)$/i.test(text(b)) ? b : null;
+    return /^(?:Resolver\s+quest[aã]o|Responder|Confirmar\s+resposta)(?:\s|$)/i.test(text(b)) ? b : null;
   }
 
   document.addEventListener('click', (event) => {
     if (!resolverButton(event.target)) return;
+    /* Não reutiliza contexto da questão anterior: em cadernos o URL pode ser o
+       mesmo enquanto o Angular troca a questão internamente. */
+    pageContext = null;
+    requestPageContext();
     const qid = questionId();
-    if (!qid) return;
     const selected = (alternatives().find(a => a.selected) || {}).letra || null;
-    pending = { token: uid(), qid: String(qid), selectedBefore: selected, startedAt: Date.now() };
-    setTimeout(() => processPending(pending && pending.token), 50);
+    pending = { token: uid(), qid: qid ? String(qid) : null, selectedBefore: selected, startedAt: Date.now() };
+    lastCapture = { status:'waiting-result', questionId:qid ? String(qid) : null, at:new Date().toISOString(), reason:null };
+    setTimeout(() => processPending(pending && pending.token), 80);
   }, true);
 
   let mutationTimer = null;
@@ -348,6 +422,7 @@
   }
 
   connect();
+  requestPageContext();
   replayStaged();
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', installObserver, { once: true });
   else installObserver();
