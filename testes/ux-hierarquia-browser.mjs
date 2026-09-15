@@ -57,11 +57,13 @@ try{
 
   /* Ciclo: três indicadores acionáveis ganham prioridade sem apagar os demais. */
   const gauges=await page.evaluate(()=>{
+    switchScreen('ciclo');UXHierarchy.onScreen('ciclo');
     const h=document.getElementById('ciclo-overview-gauges');
     h.innerHTML=['cumprido','estudado','faltam','aproveitamento','finalizadas','por dia p/ fechar'].map((x,i)=>`<div class="mini-gauge-card"><div class="value">${i}</div><div class="label">${x}</div></div>`).join('');
     UXHierarchy.decorateCycleGauges();
     return Array.from(h.querySelectorAll('.mini-gauge-card')).map(x=>({p:x.dataset.uxPriority,o:Number(x.style.order),h:x.getBoundingClientRect().height,bt:parseFloat(getComputedStyle(x).borderTopWidth)||0}));
   });
+  console.log('UX_GAUGE_METRICS',JSON.stringify(gauges));
   eq(gauges.filter(x=>x.p==='primary').length,3,'Ciclo deve ter exatamente três KPIs prioritários');
   eq(gauges.filter(x=>x.p==='tertiary').length,2,'Indicadores derivados devem continuar presentes, mas terciários');
   ok(gauges.some(x=>x.p==='secondary'),'Aproveitamento deve ficar como apoio forte');
