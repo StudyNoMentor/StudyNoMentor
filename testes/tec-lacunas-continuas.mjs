@@ -14,6 +14,7 @@ const checks = [
   ['favoritas podem coexistir sem duplicar a questão', js.includes('eventFavorite') && js.includes('favoriteWrongIds:new Set()')],
   ['base/erradas/favoritas são contexto inferível, não regra estrutural', js.includes("return 'favoritas'") && js.includes("return 'erradas'") && js.includes("return 'nao-identificada'")],
   ['reforço usa somente o histórico pessoal', js.includes("source:'historico-tec'") && js.includes('questionPool(topic)')],
+  ['biblioteca antiga/importada também alimenta a memória sem duplicar realtime', guards.includes("source:'library-backfill'") && guards.includes('covered.has(sig)') && guards.includes("typeof question.acertou!=='boolean'")],
   ['não há criação de filtro ou busca de questão nova no TEC', !/filtrar.*TEC|nova[s]? quest[oõ]es.*TEC/i.test(js)],
   ['dose diária é baixa e limitada', js.includes('MAX_DISCIPLINAS_DIA = 3') && js.includes('QUESTOES_MICRO = 3') && js.includes('QUESTOES_PADRAO = 5') && js.includes('QUESTOES_PERSISTENTE = 6') && js.includes('MAX_QUESTOES_DIA = 18')],
   ['rodízio semanal evita repetir matéria sem necessidade', js.includes('ROTACAO_DIAS = 7') && js.includes('yesterdayPenalty') && js.includes('weeklyPenalty')],
