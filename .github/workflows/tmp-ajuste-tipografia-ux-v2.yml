@@ -1,0 +1,42 @@
+name: Ajuste tipografia UX V2
+
+on:
+  push:
+    branches: [refactor/ux-hierarquia-visual-v2]
+
+permissions:
+  contents: write
+
+jobs:
+  ajustar:
+    if: ${{ github.actor != 'github-actions[bot]' }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: refactor/ux-hierarquia-visual-v2
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Corrigir hierarquia tipografica e limpar seletor morto
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path('src/css/27-ux-hierarquia.css')
+          s=p.read_text()
+          s=s.replace('#screen-evolucao #evolucao-day-chart.closest-card,#screen-evolucao #evolucao-acerto-linha.closest-card{grid-column:1/-1}\n','')
+          marker='/* UX V2: título permanece perceptível inclusive após regras móveis legadas. */\n'
+          if marker not in s:
+              s += '\n'+marker+'.ux-hierarchy-ready .page-title{font-size:clamp(25px,2.5vw,34px)!important}\n@media(max-width:430px){.ux-hierarchy-ready .page-title{font-size:24px!important}}\n'
+          p.write_text(s)
+          PY
+          rm .github/workflows/tmp-ajuste-tipografia-ux-v2.yml
+          node build.mjs
+          node testes/repositorio-higiene.mjs
+          git config user.name 'StudyNoMentor CI'
+          git config user.email 'actions@users.noreply.github.com'
+          git add src/css/27-ux-hierarquia.css .github/workflows/tmp-ajuste-tipografia-ux-v2.yml index.html sw.js src/manifesto.json
+          git commit -m 'fix: preserva hierarquia tipografica no mobile'
+          git push origin HEAD:refactor/ux-hierarquia-visual-v2
