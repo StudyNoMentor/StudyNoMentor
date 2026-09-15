@@ -427,3 +427,9 @@
 /* UX V2: a grade do Ciclo não estica indicadores derivados até a altura dos prioritários. */
 #ciclo-overview-gauges.ux-week-gauges{align-items:start}
 #ciclo-overview-gauges .mini-gauge-card{align-self:start}
+
+/* UX V2 final: presença física distinta dos KPIs do Ciclo, sem herdar altura uniforme. */
+#ciclo-overview-gauges.ux-week-gauges{align-items:start!important;grid-auto-rows:auto!important}
+#ciclo-overview-gauges.ux-week-gauges .mini-gauge-card{align-self:start!important;height:auto!important}
+#ciclo-overview-gauges.ux-week-gauges .mini-gauge-card[data-ux-priority="primary"]{min-height:116px!important;padding:20px 16px!important}
+#ciclo-overview-gauges.ux-week-gauges .mini-gauge-card[data-ux-priority="secondary"],#ciclo-overview-gauges.ux-week-gauges .mini-gauge-card[data-ux-priority="tertiary"]{min-height:0!important;padding:10px 12px!important}
