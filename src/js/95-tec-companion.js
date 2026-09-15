@@ -144,7 +144,8 @@
     },
     ack(messageId) {
       if (!messageId) return;
-      try { window.postMessage({ source:APP_SOURCE, type:'ack', messageId:String(messageId) }, location.origin); } catch (_) {}
+      try { window.postMessage({ source:APP_SOURCE, type:'ack', messageId:String(messageId) }, location.origin); }
+      catch (e) { if (typeof _quiet === 'function') _quiet(e, 'tec-realtime-ack'); }
     },
     setConnected(payload, transport) {
       const state = this.state();
@@ -159,7 +160,7 @@
       try {
         const T = window.TecIntegracaoScreen;
         if (T) { const s=T.state(); s.connection={ status:'connected', account:state.connection.account, bookId:state.connection.bookId, transport:state.connection.transport, lastSeenAt:state.connection.lastSeenAt }; T.save(s); }
-      } catch (_) {}
+      } catch (e) { if (typeof _quiet === 'function') _quiet(e, 'tec-realtime-connection-mirror'); }
       this.render();
     },
     accepted(event) {
@@ -201,13 +202,14 @@
     },
     motorContext() {
       let robust = null, all = [], tecRows = [];
-      try { if (window.PlanoSugestoesRobusto && PlanoSugestoesRobusto.calcular) robust = PlanoSugestoesRobusto.calcular(); } catch (_) {}
+      try { if (window.PlanoSugestoesRobusto && PlanoSugestoesRobusto.calcular) robust = PlanoSugestoesRobusto.calcular(); }
+      catch (e) { if (typeof _quiet === 'function') _quiet(e, 'tec-realtime-robusto'); }
       if (robust && !robust.erro && Array.isArray(robust.todos)) all = robust.todos;
       try {
         const I = window.PlanoSugestoesInfra;
         const snap = I && I.snapshot ? I.snapshot() : null;
         if (I && I.linhasTec && snap) tecRows = I.linhasTec(snap) || [];
-      } catch (_) {}
+      } catch (e) { if (typeof _quiet === 'function') _quiet(e, 'tec-realtime-tec-map'); }
       const key = (d,t) => norm(d) + '\u0001' + norm(t);
       return {
         robust,
@@ -250,7 +252,7 @@
             componentes:{ lacuna:candidate._gap, evidencia:candidate._evid, persistencia:candidate._persist } }, p);
           if (out && Number(out.dose) > 0) return Math.round(Number(out.dose));
         }
-      } catch (_) {}
+      } catch (e) { if (typeof _quiet === 'function') _quiet(e, 'tec-realtime-dose'); }
       return 15;
     },
     attack() {
@@ -279,8 +281,10 @@
         DB.updateExtra(extra.id, { origemPlano:origem });
         created++;
       }
-      try { if (typeof ReforcoFila !== 'undefined' && ReforcoFila.sincronizar) ReforcoFila.sincronizar(); } catch (_) {}
-      try { if (typeof ExtrasScreen !== 'undefined' && ExtrasScreen.render) ExtrasScreen.render(); } catch (_) {}
+      try { if (typeof ReforcoFila !== 'undefined' && ReforcoFila.sincronizar) ReforcoFila.sincronizar(); }
+      catch (e) { if (typeof _quiet === 'function') _quiet(e, 'tec-realtime-fila'); }
+      try { if (typeof ExtrasScreen !== 'undefined' && ExtrasScreen.render) ExtrasScreen.render(); }
+      catch (e) { if (typeof _quiet === 'function') _quiet(e, 'tec-realtime-extras-render'); }
       if (typeof showToast === 'function') showToast(created ? `Força-tarefa criada: ${created} reforço(s) a partir de fraquezas confirmadas ✓${skipped?' · '+skipped+' já estava(m) em curso':''}` : 'Os reforços correspondentes já estavam em curso.');
       return { created, skipped, chosen };
     },
@@ -343,7 +347,7 @@
       if (this._queuePatched || typeof ReforcoFila === 'undefined' || typeof DB === 'undefined') return;
       this._queuePatched=true; ReforcoFila.MAX_TAREFAS_DIA=Math.max(3,n(ReforcoFila.MAX_TAREFAS_DIA,2));
       const originalPrefs=ReforcoFila.prefs.bind(ReforcoFila);
-      ReforcoFila.prefs=function(){const p=originalPrefs();try{const raw=JSON.parse(localStorage.getItem(DB._profilePrefix()+this.KEY_PREF)||'{}');const d=Number(raw&&raw.disciplinasDia);if([1,2,3].includes(d))p.disciplinasDia=d;}catch(_){}return p;};
+      ReforcoFila.prefs=function(){const p=originalPrefs();try{const raw=JSON.parse(localStorage.getItem(DB._profilePrefix()+this.KEY_PREF)||'{}');const d=Number(raw&&raw.disciplinasDia);if([1,2,3].includes(d))p.disciplinasDia=d;}catch(e){if(typeof _quiet==='function')_quiet(e,'tec-realtime-fila-prefs');}return p;};
       const originalSave=ReforcoFila.salvarPrefs.bind(ReforcoFila);
       ReforcoFila.salvarPrefs=function(patch){
         if (!patch || Number(patch.disciplinasDia)!==3) return originalSave(patch);
@@ -352,13 +356,14 @@
         const key=DB._profilePrefix()+this.KEY_PREF;try{if(DB.setRaw)DB.setRaw(key,JSON.stringify(p));else localStorage.setItem(key,JSON.stringify(p));}catch(e){if(typeof _quiet==='function')_quiet(e,'fila-prefs-3');}
         this._assinaturaAnterior='';this.sincronizar();return p;
       };
-      document.addEventListener('change',(e)=>{const el=e.target;if(!el||el.id!=='exm-ref-disciplinas-dia'||el.value!=='3')return;e.stopImmediatePropagation();ReforcoFila.salvarPrefs({disciplinasDia:3});try{ExtrasScreen.selDay=today();ExtrasScreen.render();}catch(_){}if(typeof showToast==='function')showToast('Rodízio ajustado para 3 disciplinas por dia ✓');},true);
+      document.addEventListener('change',(e)=>{const el=e.target;if(!el||el.id!=='exm-ref-disciplinas-dia'||el.value!=='3')return;e.stopImmediatePropagation();ReforcoFila.salvarPrefs({disciplinasDia:3});try{ExtrasScreen.selDay=today();ExtrasScreen.render();}catch(err){if(typeof _quiet==='function')_quiet(err,'tec-realtime-extra-refresh');}if(typeof showToast==='function')showToast('Rodízio ajustado para 3 disciplinas por dia ✓');},true);
       const decorate=()=>{const el=document.getElementById('exm-ref-disciplinas-dia');if(el&&!el.querySelector('option[value="3"]')){const o=document.createElement('option');o.value='3';o.textContent='3 · força-tarefa';el.appendChild(o);if(ReforcoFila.prefs().disciplinasDia===3)el.value='3';}};
       this._observer=new MutationObserver(decorate);this._observer.observe(document.documentElement,{childList:true,subtree:true});decorate();
     },
     bind() {
       if (!this._messageBound) { this._messageBound=true; window.addEventListener('message',e=>this.onMessage(e)); }
-      try { window.postMessage({source:APP_SOURCE,type:'bridge-ready',version:1},location.origin); } catch (_) {}
+      try { window.postMessage({source:APP_SOURCE,type:'bridge-ready',version:1},location.origin); }
+      catch (e) { if (typeof _quiet === 'function') _quiet(e, 'tec-realtime-bridge-ready'); }
       this.patchQueue(); this.render();
     },
     init() { this.bind(); }
