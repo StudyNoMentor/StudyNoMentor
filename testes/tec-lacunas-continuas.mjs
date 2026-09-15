@@ -2,6 +2,7 @@ import { readFileSync } from 'node:fs';
 
 const read = p => readFileSync(new URL('../' + p, import.meta.url), 'utf8');
 const js = read('src/js/99-tec-lacunas-continuas.js');
+const guards = read('src/js/99b-tec-lacunas-guardas.js');
 const css = read('src/css/29-tec-lacunas-continuas.css');
 const build = read('build.mjs');
 
@@ -17,6 +18,8 @@ const checks = [
   ['dose diária é baixa e limitada', js.includes('MAX_DISCIPLINAS_DIA = 3') && js.includes('QUESTOES_MICRO = 3') && js.includes('QUESTOES_PADRAO = 5') && js.includes('QUESTOES_PERSISTENTE = 6') && js.includes('MAX_QUESTOES_DIA = 18')],
   ['rodízio semanal evita repetir matéria sem necessidade', js.includes('ROTACAO_DIAS = 7') && js.includes('yesterdayPenalty') && js.includes('weeklyPenalty')],
   ['uma matéria fornece no máximo um tópico por dia', js.includes('usedDisc.has(norm(t.disciplina))') && js.includes('usedDisc.add(norm(t.disciplina))')],
+  ['teto de três matérias vale no dia inteiro, inclusive após concluir reforços', guards.includes('const remaining=Math.max(0,3-used.size)') && guards.includes("a.status!=='deferred'") && guards.includes('.slice(0,remaining)')],
+  ['ciclo aceita matéria tanto em string quanto objeto', guards.includes("typeof s==='string'?s")],
   ['primeiro erro já pode entrar como microcorreção', js.includes("return 'Erro recente: microcorreção'") && js.includes("g.wrongIds.size>=2?'ativa':'inicial'")],
   ['persistência pós-reforço aumenta prioridade', js.includes('postErrors>=2') && js.includes("status=persistent?'persistente'")],
   ['melhora posterior reduz prioridade', js.includes('postRate>=0.8') && js.includes('(improving?35:0)')],
@@ -28,7 +31,7 @@ const checks = [
   ['UI expõe somente fila curta e simples', js.includes('Correção contínua de lacunas') && js.includes('até 3 disciplinas/dia')],
   ['mapa técnico continua exportável', js.includes("type:'StudyNoMentorLacunasContinuas'") && js.includes('copyExport')],
   ['módulo reage imediatamente a nova resolução', js.includes('patchRealtime()') && js.includes("self.refresh('resolution')")],
-  ['build inclui CSS e JS novos', build.includes("S('css/29-tec-lacunas-continuas.css')") && build.includes("'js/99-tec-lacunas-continuas.js'")],
+  ['build inclui CSS, motor e guardas', build.includes("S('css/29-tec-lacunas-continuas.css')") && build.includes("'js/99-tec-lacunas-continuas.js'") && build.includes("'js/99b-tec-lacunas-guardas.js'")],
   ['painel antigo de evidência fica fora da interface', css.includes('#tec-real-evidence-card { display:none !important; }')]
 ];
 
