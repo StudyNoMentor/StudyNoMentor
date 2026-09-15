@@ -220,7 +220,7 @@
       const sub=workspace && workspace.querySelector('.card-header .sub'); if (sub) sub.textContent='Seu caderno fica aqui; captura, histórico e IA trabalham ao redor sem reduzir a área de resolução.';
       const placeholder=document.getElementById('tec-workspace-placeholder');
       if (placeholder) { const strong=placeholder.querySelector('strong'), span=placeholder.querySelector('span'); if (strong) strong.textContent='Carregando TEC…'; if (span) span.textContent='Se não abrir, use Recarregar no cabeçalho.'; }
-      T.openEmbedded();
+      if (location.hostname === 'studynomentor.github.io') T.openEmbedded();
       const frame=document.getElementById('tec-workspace-frame');
       if (frame && !frame.hidden && placeholder) placeholder.hidden=true;
       this.render();
