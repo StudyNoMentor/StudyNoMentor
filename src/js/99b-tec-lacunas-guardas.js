@@ -59,17 +59,27 @@
     return out.sort((a,b)=>String(a.resolvedAt||'').localeCompare(String(b.resolvedAt||'')));
   };
 
-  const originalSubjects=L.currentSubjects.bind(L);
+  /* A lente deve seguir primeiro as matérias ATIVAS do planejamento. O ciclo é
+     fallback apenas quando essa lista não existe; assim uma disciplina desligada
+     que ainda permaneça num ciclo antigo não volta a ganhar prioridade sozinha. */
   L.currentSubjects=function(){
     const names=[];
-    try { names.push(...(originalSubjects()||[])); } catch (e) { if (typeof _quiet==='function') _quiet(e,'lacunas-guard-subjects-base'); }
     try {
-      const cyc=typeof DB!=='undefined'&&DB.getCurrentCycle?DB.getCurrentCycle():null;
-      for (const s of cyc&&cyc.subjects||[]) {
+      const active=typeof DB!=='undefined'&&DB.getActiveSubjects?DB.getActiveSubjects():[];
+      for (const s of active||[]) {
         const name=typeof s==='string'?s:s&&(s.nome||s.name||s.subject||s.disciplina);
         if (name) names.push(String(name));
       }
-    } catch (e) { if (typeof _quiet==='function') _quiet(e,'lacunas-guard-subjects-cycle'); }
+    } catch (e) { if (typeof _quiet==='function') _quiet(e,'lacunas-guard-subjects-active'); }
+    if (!names.length) {
+      try {
+        const cyc=typeof DB!=='undefined'&&DB.getCurrentCycle?DB.getCurrentCycle():null;
+        for (const s of cyc&&cyc.subjects||[]) {
+          const name=typeof s==='string'?s:s&&(s.nome||s.name||s.subject||s.disciplina);
+          if (name) names.push(String(name));
+        }
+      } catch (e) { if (typeof _quiet==='function') _quiet(e,'lacunas-guard-subjects-cycle'); }
+    }
     const seen=new Set(), out=[];
     for (const raw of names) { const k=normLocal(raw); if (!k||seen.has(k)) continue; seen.add(k); out.push(String(raw).trim()); }
     return out;
