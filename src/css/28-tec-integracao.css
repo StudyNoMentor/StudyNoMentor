@@ -73,7 +73,7 @@
 .tec-question-alternatives > .correct { border-color: #16a34a; background: rgb(22 163 74 / 8%); }
 .tec-ai-tabs { display: flex; gap: 5px; padding: 12px 24px 0; overflow-x: auto; border-top: 1px solid var(--border); }
 .tec-ai-tabs button { padding: 8px 10px; border: 0; border-radius: 8px; background: transparent; color: var(--text-muted); font-weight: 700; cursor: pointer; }
-.tec-ai-tabs button.active { background: color-mix(in srgb, var(--accent) 12%, var(--surface)); color: var(--accent); }
+.tec-ai-tabs button.active { background: color-mix(in srgb, var(--accent) 12%, var(--surface)); color: var(--accent-text); }
 .tec-ai-content { min-height: 120px; margin: 10px 24px 18px; padding: 14px; white-space: pre-wrap; line-height: 1.55; border: 1px solid var(--border); border-radius: 10px; background: var(--surface-soft); color: var(--text-muted); }
 .tec-reforco-add { display: block; margin-top: 14px; }
 .tec-professor-box { display: flex; gap: 8px; padding: 0 24px 24px; }
