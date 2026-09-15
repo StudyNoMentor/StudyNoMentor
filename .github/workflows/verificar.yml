@@ -102,6 +102,8 @@ jobs:
         run: node testes/tec-integracao-modulo.mjs
       - name: Validar gatilho resiliente do Companion
         run: node testes/tec-companion-gatilho.mjs
+      - name: Validar ChatGPT Plus sem API no Companion
+        run: node testes/tec-companion-plus.mjs
       - name: Validar organizacao estrutural de Extras e TEC
         run: node testes/ui-organizacao-extras-tec.mjs
       - name: Instalar Chromium
