@@ -64,7 +64,7 @@ add({id:'e2',qid:101,materia:'Direito Tributário',assunto:'Isenção',acertou:f
 add({id:'e3',qid:101,materia:'Direito Tributário',assunto:'Isenção',acertou:true,at:'2026-09-15T09:00:00',book:'erradas-favoritas'});
 add({id:'e4',qid:102,materia:'Direito Tributário',assunto:'Isenção',acertou:true,at:'2026-09-10T10:00:00',book:'base'});
 
-// Três matérias abertas para o rodízio.
+// Matérias abertas para o rodízio.
 add({id:'e5',qid:201,materia:'Auditoria',assunto:'Materialidade',acertou:false,at:'2026-09-15T10:00:00'});
 add({id:'e6',qid:301,materia:'Contabilidade Geral',assunto:'Custos',acertou:false,at:'2026-09-15T10:10:00'});
 add({id:'e7',qid:401,materia:'Tecnologia da Informação',assunto:'Segurança',acertou:false,at:'2026-09-15T10:20:00'});
@@ -95,10 +95,20 @@ state.days['2026-09-15']={day:'2026-09-15',planId:'pre',assignments:[
   {id:'a1',disciplina:'Auditoria',assunto:'Outro',status:'completed',target:3,progress:3},
   {id:'a2',disciplina:'Contabilidade Geral',assunto:'Outro',status:'completed',target:3,progress:3}
 ]};
-const candidates=L.candidates(state);
+let candidates=L.candidates(state);
 if (candidates.length!==1) throw new Error(`Teto diário estrito esperava 1 candidato restante, vieram ${candidates.length}.`);
 if (['Auditoria','Contabilidade Geral'].includes(candidates[0]?.disciplina)) throw new Error('Rodízio tentou repetir matéria já usada hoje.');
 if (candidates.some(x=>x.naturalCooldown)) throw new Error('Tópico recém-zerado entrou de novo imediatamente.');
+
+// Se ontem foi TI e existem outras 3 matérias abertas, não repete TI; dentro da semana, inéditas vêm antes.
+const rotationState=L.blank();
+rotationState.days['2026-09-14']={day:'2026-09-14',planId:'pre',assignments:[{id:'r1',disciplina:'Tecnologia da Informação',assunto:'Segurança',status:'completed',target:3,progress:3}]};
+rotationState.days['2026-09-12']={day:'2026-09-12',planId:'pre',assignments:[{id:'r2',disciplina:'Auditoria',assunto:'Materialidade',status:'completed',target:3,progress:3}]};
+candidates=L.candidates(rotationState);
+if (candidates.length!==3) throw new Error(`Rodízio semanal deveria preencher 3 matérias, veio ${candidates.length}.`);
+if (candidates.some(x=>x.disciplina==='Tecnologia da Informação')) throw new Error('Repetiu matéria de ontem apesar de haver alternativas suficientes.');
+const firstTwo=candidates.slice(0,2).map(x=>x.disciplina);
+if (!firstTwo.includes('Contabilidade Geral') || !firstTwo.includes('Direito Administrativo')) throw new Error('Matérias ainda não usadas na semana não vieram primeiro.');
 
 // Progresso entre planos usa offset + progresso local, não soma cega nem perde passado.
 L.allPlanExtras=()=>[
@@ -115,4 +125,4 @@ const admin=topics.find(t=>t.disciplina==='Direito Administrativo');
 if (!admin || admin.relevant!==false) throw new Error('Lente do planejamento não marcou histórico fora do plano como irrelevante.');
 if (!topics.find(t=>t.disciplina==='Auditoria')?.relevant) throw new Error('Disciplina do planejamento deveria permanecer relevante.');
 
-console.log('LACUNAS CONTÍNUAS LÓGICA: deduplicação, zeragem, backfill, teto diário, rodízio, lente e progresso global validados.');
+console.log('LACUNAS CONTÍNUAS LÓGICA: deduplicação, zeragem, backfill, teto diário, rodízio semanal, lente e progresso global validados.');
