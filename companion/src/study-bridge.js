@@ -10,6 +10,17 @@
   let retry = 500;
   const buffer = [];
 
+  function pageEnvelope(type, payload) {
+    return {
+      source: EXT_SOURCE,
+      protocol: 1,
+      type,
+      messageId: `${type}-${Date.now()}`,
+      createdAtMs: Date.now(),
+      payload: payload || {}
+    };
+  }
+
   function forwardEnvelope(env) {
     if (!env || env.source !== EXT_SOURCE || Number(env.protocol) !== 1) return;
     if (!pageReady) {
@@ -20,20 +31,20 @@
     window.postMessage(env, location.origin);
   }
 
+  function forwardHealth(payload) {
+    forwardEnvelope(pageEnvelope('companion-health', payload));
+  }
+
   function flushBuffer() {
     if (!pageReady) return;
     while (buffer.length) window.postMessage(buffer.shift(), location.origin);
   }
 
   function announce() {
-    window.postMessage({
-      source: EXT_SOURCE,
-      protocol: 1,
-      type: 'companion-ready',
-      messageId: 'companion-ready-' + Date.now(),
-      createdAtMs: Date.now(),
-      payload: { installed: true, version: chrome.runtime.getManifest().version }
-    }, location.origin);
+    forwardEnvelope(pageEnvelope('companion-ready', {
+      installed: true,
+      version: chrome.runtime.getManifest().version
+    }));
   }
 
   function connect() {
@@ -43,10 +54,14 @@
     port.onMessage.addListener((msg) => {
       if (!msg) return;
       if (msg.kind === 'envelope') forwardEnvelope(msg.envelope);
-      else if (msg.kind === 'batch' && Array.isArray(msg.envelopes)) msg.envelopes.forEach(forwardEnvelope);
+      else if (msg.kind === 'batch' && Array.isArray(msg.envelopes)) {
+        msg.envelopes.forEach(forwardEnvelope);
+        if (msg.health) forwardHealth(msg.health);
+      } else if (msg.kind === 'health') forwardHealth(msg.payload || {});
     });
     port.onDisconnect.addListener(() => {
       port = null;
+      forwardEnvelope(pageEnvelope('companion-disconnected', { reconnecting: true }));
       setTimeout(connect, retry);
       retry = Math.min(10000, retry * 2);
     });
