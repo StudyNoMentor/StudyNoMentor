@@ -63,7 +63,7 @@ const checks = [
   ['backend mantém precedência de rigor', edge.includes('regras superiores de rigor') && edge.includes('sem inventar normas')],
 
   ['Companion usa Manifest V3', manifest.manifest_version === 3],
-  ['Companion está na versão 1.0.4', manifest.version === '1.0.4'],
+  ['Companion está na versão 1.1.0', manifest.version === '1.1.0'],
   ['Companion injeta no TEC', contentMatches.some(x => /tecconcursos/.test(x))],
   ['Companion injeta no Study', contentMatches.some(x => /studynomentor\.github\.io/.test(x))],
   ['Companion tem armazenamento sem cota curta', (manifest.permissions || []).includes('unlimitedStorage')],
