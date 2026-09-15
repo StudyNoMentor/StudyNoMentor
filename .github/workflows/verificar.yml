@@ -106,6 +106,8 @@ jobs:
         run: node testes/tec-companion-plus.mjs
       - name: Validar workbench TEC e evidencia real
         run: node testes/tec-workbench-reforco-real.mjs
+      - name: Validar memoria global e rodizio de lacunas
+        run: node testes/tec-lacunas-continuas.mjs
       - name: Validar organizacao estrutural de Extras e TEC
         run: node testes/ui-organizacao-extras-tec.mjs
       - name: Instalar Chromium
