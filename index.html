@@ -57,7 +57,7 @@
      novo, e o antigo é descartado sozinho na ativação) e o que permite ao app
      dizer qual versão está rodando. Em src/ fica "dev" de propósito: a versão
      é gerada na montagem, não editada à mão. -->
-<meta name="diario-versao" content="vb7e3dd5a71">
+<meta name="diario-versao" content="v3aedfd628c">
 <script>
 /* ── ARRANQUE: abre o IndexedDB AGORA, em paralelo com o parse do documento ──
    A fachada de armazenamento vive no fim do <body>, depois de ~1,7 MB de HTML.
@@ -58460,17 +58460,27 @@ window.addEventListener('screen:activated', e => { if (e.detail && e.detail.scre
     return out.sort((a,b)=>String(a.resolvedAt||'').localeCompare(String(b.resolvedAt||'')));
   };
 
-  const originalSubjects=L.currentSubjects.bind(L);
+  /* A lente deve seguir primeiro as matérias ATIVAS do planejamento. O ciclo é
+     fallback apenas quando essa lista não existe; assim uma disciplina desligada
+     que ainda permaneça num ciclo antigo não volta a ganhar prioridade sozinha. */
   L.currentSubjects=function(){
     const names=[];
-    try { names.push(...(originalSubjects()||[])); } catch (e) { if (typeof _quiet==='function') _quiet(e,'lacunas-guard-subjects-base'); }
     try {
-      const cyc=typeof DB!=='undefined'&&DB.getCurrentCycle?DB.getCurrentCycle():null;
-      for (const s of cyc&&cyc.subjects||[]) {
+      const active=typeof DB!=='undefined'&&DB.getActiveSubjects?DB.getActiveSubjects():[];
+      for (const s of active||[]) {
         const name=typeof s==='string'?s:s&&(s.nome||s.name||s.subject||s.disciplina);
         if (name) names.push(String(name));
       }
-    } catch (e) { if (typeof _quiet==='function') _quiet(e,'lacunas-guard-subjects-cycle'); }
+    } catch (e) { if (typeof _quiet==='function') _quiet(e,'lacunas-guard-subjects-active'); }
+    if (!names.length) {
+      try {
+        const cyc=typeof DB!=='undefined'&&DB.getCurrentCycle?DB.getCurrentCycle():null;
+        for (const s of cyc&&cyc.subjects||[]) {
+          const name=typeof s==='string'?s:s&&(s.nome||s.name||s.subject||s.disciplina);
+          if (name) names.push(String(name));
+        }
+      } catch (e) { if (typeof _quiet==='function') _quiet(e,'lacunas-guard-subjects-cycle'); }
+    }
     const seen=new Set(), out=[];
     for (const raw of names) { const k=normLocal(raw); if (!k||seen.has(k)) continue; seen.add(k); out.push(String(raw).trim()); }
     return out;
