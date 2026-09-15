@@ -3,60 +3,94 @@ import vm from 'node:vm';
 import { readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-const ROOT=dirname(dirname(fileURLToPath(import.meta.url))),mem=new Map(),extras=[];
+
+const ROOT=dirname(dirname(fileURLToPath(import.meta.url)));
+const mem=new Map(), extras=[];
 const clone=x=>JSON.parse(JSON.stringify(x));
-let planPrefs={metaDominio:85,tetoDominio:90,minAmostra:20,banca:'FGV',validadeDias:120,ordenar:'pior',incluirPequenas:false};
-const baseItems=[
- {nome:'A pior',disciplina:'A',taxa:40,qJanela:100,qHist:100,custoQ:90,incid:30,pontosMateria:20,pontosGanho:3.6,diasDesdeMedicao:20,medicoes:3},
- {nome:'A segunda',disciplina:'A',taxa:55,qJanela:120,qHist:120,custoQ:70,incid:70,pontosMateria:20,pontosGanho:4.9,diasDesdeMedicao:8,medicoes:3},
- {nome:'B principal',disciplina:'B',taxa:60,qJanela:80,qHist:80,custoQ:65,incid:80,pontosMateria:15,pontosGanho:3.6,diasDesdeMedicao:50,medicoes:3},
- {nome:'C principal',disciplina:'C',taxa:70,qJanela:90,qHist:90,custoQ:55,incid:40,pontosMateria:10,pontosGanho:.8,diasDesdeMedicao:130,vencido:true,medicoes:3},
- {nome:'D curta',disciplina:'D',taxa:20,qJanela:8,qHist:8,custoQ:100,incid:90,pontosMateria:25,pontosGanho:8,diasDesdeMedicao:5,medicoes:1}
-];
-const rows=baseItems.map((x,i)=>({codigo:`${i+1}.1`,nome:x.nome,disciplina:x.disciplina,depth:1,questoes:x.qJanela,acertos:Math.round(x.qJanela*x.taxa/100),pctAcerto:x.taxa}));
-const incidencia=baseItems.map(x=>({banca:'FGV',disciplina:x.disciplina,topico:x.nome,incidencia:x.incid}));
-const subjects=[['A',20],['B',15],['C',10],['D',25]].map(([nome,q])=>({nome,qtdQuestoes:q,pontosPorQuestao:1,peso:1,ativo:true}));
-const cycles=[0,1,2].map(i=>({disciplina:'C',topico:'C principal',questoes:20,ganhoPP:1+i*.1}));
-const posterior=(taxa,n,meta,k)=>{const shrink=n/(Math.max(1,n)+Math.max(.1,k)),media=50+(taxa-50)*shrink,d=(media-meta)/12,pMeta=Math.max(0,Math.min(1,.5+d)),pLacuna=Math.max(0,Math.min(1,.5-d));return{media,pMeta,pLacuna,lo:null,hi:null};};
-const ctx={console,setTimeout:(fn)=>{fn();return 1;},clearTimeout(){},Date,Math,JSON,Set,Map,Promise,CustomEvent:class{constructor(t,o){this.type=t;this.detail=o?.detail;}},
- localStorage:{getItem:k=>mem.has(k)?mem.get(k):null,setItem:(k,v)=>mem.set(k,String(v)),removeItem:k=>mem.delete(k)},document:{getElementById:()=>null},window:{addEventListener(){},dispatchEvent(){}},escapeHtml:s=>String(s),showToast(){},_quiet(){},todayLocal:()=> '2026-09-14',
- ReforcoAdaptativo:{posterior},
- ReforcoEngine:{norm:s=>String(s||'').toLowerCase().trim(),incidenceMap:b=>incidencia.filter(x=>x.banca===b),incidPorDisciplina:b=>Object.fromEntries(subjects.map(s=>[s.nome,incidencia.filter(x=>x.banca===b&&x.disciplina===s.nome).reduce((a,z)=>a+z.incidencia,0)])),incidenciaDe:(mapa,nome,disc)=>{const z=mapa.find(x=>x.topico===nome&&x.disciplina===disc)||mapa.find(x=>x.topico===nome);return{valor:z?.incidencia||0,viaNome:!!z&&z.disciplina!==disc};}},
- DB:{_profilePrefix:()=> 'p:',setRaw:(k,v)=>mem.set(k,String(v)),delRaw:k=>mem.delete(k),getBancas:()=>['FGV'],getIncidencia:()=>clone(incidencia),getActiveSubjects:()=>clone(subjects),getSubjects:()=>clone(subjects),getExtras:()=>extras,getTecSnapshots:()=>[],addExtra:data=>{const e={id:'e'+(extras.length+1),status:'ativa',historico:[],...clone(data)};extras.push(e);return e;},updateExtra:(id,patch)=>{const e=extras.find(x=>x.id===id);Object.assign(e,clone(patch));return e;}},
- PlanoEngine:{prefs:()=>({...planPrefs}),calcular:()=>({meta:planPrefs.metaDominio,minAmostra:planPrefs.minAmostra,validadeDias:planPrefs.validadeDias,itens:clone(baseItems),pequenas:[]}),atividadeSobreposta:()=>false},
- DesempenhoTecScreen:{scopedSnapshot:()=>({id:1,rows:clone(rows)})},
- PlanoPontos:{temComposicao:()=>true,modo:()=> 'pre',composicao:()=>subjects.map(m=>({nome:m.nome,q:m.qtdQuestoes,pts:1,peso:1,valor:m.qtdQuestoes,minimo:null})),anexarPontos:()=>true},
- PlanoCiclo:{fechados:()=>clone(cycles),titulo:n=>'Reforçar: '+n,origem:(nome,disc,item)=>({topico:nome,disciplina:disc,taxaInicial:item.taxa,qBase:0,qBaseNo:0,metaAlvo:90,custoEstimado:item.custoQ,escopo:{tipo:'no',membros:[nome]}})},
- ExtrasScreen:{puxarDoPlano(){return'legacy';},render(){}},UI:{_open(){},_resolve:null,_mode:null}
-};ctx.window=Object.assign(ctx.window,ctx);vm.createContext(ctx);
-const files=['src/js/86-plano-sugestoes-infra-v2.js','src/js/87-plano-sugestoes-simplificado-v2.js','src/js/88-plano-sugestoes-robusto-v2.js','src/js/88a-plano-robusto-config-v4.js','src/js/88b-plano-robusto-router-v4.js','src/js/88c-plano-robusto-optimizer-v4.js','src/js/88d-plano-sugestoes-robusto-v4.js','src/js/89-plano-sugestoes-controller-v2.js'];
-for(const f of files)vm.runInContext(readFileSync(join(ROOT,f),'utf8'),ctx,{filename:f});
-const I=ctx.window.PlanoSugestoesInfraV2,S=ctx.window.PlanoSugestoesSimplificadoV2,R=ctx.window.PlanoSugestoesRobustoV5,C=ctx.window.PlanoSugestoesV3,RC=ctx.window.PlanoRobustoConfigV5;assert(I&&S&&R&&C&&RC,'motores/infra/controller V6 devem publicar APIs distintas');assert.equal(R.VERSAO,6);assert.equal(S.VERSAO,3);
-const simpleSrc=readFileSync(join(ROOT,'src/js/87-plano-sugestoes-simplificado-v2.js'),'utf8'),robustFiles=['src/js/88-plano-sugestoes-robusto-v2.js','src/js/88a-plano-robusto-config-v4.js','src/js/88b-plano-robusto-router-v4.js','src/js/88c-plano-robusto-optimizer-v4.js','src/js/88d-plano-sugestoes-robusto-v4.js'],robustSrc=robustFiles.map(f=>readFileSync(join(ROOT,f),'utf8')).join('\n'),controllerSrc=readFileSync(join(ROOT,'src/js/89-plano-sugestoes-controller-v2.js'),'utf8'),infraSrc=readFileSync(join(ROOT,'src/js/86-plano-sugestoes-infra-v2.js'),'utf8');
+const norm=s=>String(s??'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().trim();
 const semComentarios=src=>src.replace(/\/\*[\s\S]*?\*\//g,'').replace(/(^|[^:])\/\/[^\n\r]*/g,'$1');
-const simpleExec=semComentarios(simpleSrc),robustExec=semComentarios(robustSrc),infraExec=semComentarios(infraSrc);
-assert(!/\bPlanoEngine\s*[.(\[]|\bMentor90(?:V\d+)?\s*[.(\[]|\bPlanoSugestoesRobusto\w*\s*[.(\[]/.test(simpleExec),'Simplificado não pode executar PlanoEngine/Mentor90/Robusto');
-assert(!/\bPlanoSugestoesSimplificado\w*\s*[.(\[]|plano-simplificado-v2/.test(robustExec),'família Robusto não pode conhecer módulo/storage Simplificado');
-assert(/PlanoSugestoesSimplificadoV3|PlanoSugestoesSimplificadoV2/.test(controllerSrc)&&/PlanoSugestoesRobustoV6|PlanoSugestoesRobustoV5/.test(controllerSrc),'somente orquestrador pode conhecer os dois motores');
-assert(!/scoreBruto|politicaAprendida|pontosGanho/.test(infraExec),'infra neutra não pode conter fórmula de prioridade');
-assert.equal(R.arquitetura().usaSimplificado,false);assert.equal(R.arquitetura().estadoCompartilhadoComSimplificado,false);assert.equal(R.arquitetura().revisaoAuditoria,6);
-const simpleDefault=clone(S.prefs());C.salvar({modo:'robusto',meta:99,minAmostra:2,banca:'CEBRASPE',alvoQuestoes:77,campoEstranho:'x'});assert.deepEqual(clone(S.prefs()),simpleDefault,'controller não pode mutar Simple');assert.deepEqual([...Object.keys(C.prefs())],['modo']);const rawCtrl=JSON.parse(mem.get('p:'+C.KEY));assert.deepEqual(Object.keys(rawCtrl),['modo']);
-assert.equal(Object.hasOwn(S.prefs(),'modo'),false);assert.equal(Object.hasOwn(S.prefs(),'campoEstranho'),false);
-S.salvar({fase:'pre',meta:90,minAmostra:20,alvoQuestoes:30,banca:'FGV'});const pre=S.calcular();assert.equal(pre.erro,undefined);assert.equal(pre.itens.length,3);assert.equal(new Set(pre.itens.map(x=>x.disciplina)).size,3);assert.equal(pre.itens.find(x=>x.disciplina==='A').nome,'A pior');assert(pre.itens.every(x=>x.qJanela>=20));
-const hier=S._topicos({rows:[{codigo:'1.1',depth:1,nome:'Pai',disciplina:'H',questoes:100,acertos:40,pctAcerto:40},{codigo:'1.1.1',depth:2,nome:'Filho',disciplina:'H',questoes:50,acertos:30,pctAcerto:60}]},{minAmostra:20,meta:90});assert.equal(hier.length,1);assert.equal(hier[0].nome,'Filho','pai cumulativo não pode disputar junto com descendente elegível');
-const raiz=S._raizIncidencia([{codigo:'1.1',valor:60},{codigo:'1.2',valor:40},{codigo:'1.1.1',valor:30},{codigo:'1.1.2',valor:30},{codigo:'1.2.1',valor:20},{codigo:'1.2.2',valor:20}]);assert.equal(raiz,100,'denominador de incidência deve usar a raiz hierárquica, não pai+filhos');
-const rob=R.calcular();assert.equal(rob.erro,undefined);assert.equal(rob.motor,'robusto-v5');assert.equal(rob.revisaoAuditoria,6);assert.equal(rob.itens.length,3);assert.equal(new Set(rob.itens.map(x=>x.disciplina)).size,3);assert(rob.itens.every(x=>x.alvo>=x.doseDiaria));assert(rob.itens.every(x=>x.componentes&&Object.keys(x.componentes).length>=5));assert(rob.itens.every(x=>x.intervencao&&x.intervencao.tipo));assert(rob.itens.every(x=>x.configRobusto?.versao===5));assert(rob.itens.every(x=>x.auditoria?.robustoV6===true));assert.notDeepEqual(Object.keys(pre.itens[0].componentes).sort(),Object.keys(rob.itens[0].componentes).sort(),'motores devem materializar propostas matemáticas diferentes');
-const cfgPrior=RC.prefs('base');cfgPrior.dominio.forcaPrior=.5;const postFraco=R._posterior(75,20,85,cfgPrior);cfgPrior.dominio.forcaPrior=20;const postForte=R._posterior(75,20,85,cfgPrior),postForte90=R._posterior(75,20,90,cfgPrior);assert.notEqual(Math.round(postFraco.media*1000),Math.round(postForte.media*1000),'força do prior deve alterar realmente o posterior');assert(Math.abs(postForte.media-postForte90.media)<1e-9,'posterior de domínio deve ser único; mudar a meta não pode mudar sua média');assert.equal(postForte.deltaLacunaPP,cfgPrior.dominio.margemLacunaPP);assert.equal(postForte.forcaPrior,20);
-const simpleSig=()=>S.calcular().itens.map(x=>[x.disciplina,x.nome,Math.round(x.score*1000)]),robSig=()=>R.calcular().itens.map(x=>[x.disciplina,x.nome,Math.round(x.score*1000)]),s0=clone(simpleSig()),r0=clone(robSig()),rOrig=R.calcular,sOrig=S.calcular;R.calcular=()=>{throw new Error('robusto quebrado');};assert.deepEqual(clone(simpleSig()),s0);R.calcular=rOrig;S.calcular=()=>{throw new Error('simple quebrado');};assert.deepEqual(clone(robSig()),r0);S.calcular=sOrig;
-S.salvar({meta:99,minAmostra:2,alvoQuestoes:77,fase:'pre'});const rAfterSimple=R.calcular();assert.equal(rAfterSimple.configPlano.metaOperacional,85);assert.equal(rAfterSimple.configPlano.minAmostra,20);assert.deepEqual(clone(robSig()),r0,'configuração Simple não pode mover ranking Robusto');
-const simpleBefore=clone(simpleSig());RC.salvar('base',{fontes:{usarMetaPlano:false,metaOperacional:70,usarAmostraPlano:false,minAmostra:7},dominio:{metaCompetitiva:82}});const rCustom=R.calcular();assert.equal(rCustom.configPlano.metaOperacional,70);assert.equal(rCustom.configPlano.minAmostra,7);assert.equal(rCustom.configPlano.metaCompetitiva,82);assert.deepEqual(clone(simpleSig()),simpleBefore,'configuração Robusta não pode alterar saída Simple');RC.restaurarTudo('base');
-const simplePlanStable=clone(simpleSig());planPrefs={...planPrefs,metaDominio:72,minAmostra:7};const rPlan=R.calcular();assert.equal(rPlan.configPlano.metaOperacional,72);assert.equal(rPlan.configPlano.minAmostra,7);assert.deepEqual(clone(simpleSig()),simplePlanStable,'PlanoEngine não pode vazar para o Simplificado');planPrefs={...planPrefs,metaDominio:85,minAmostra:20};
-S.salvar({meta:90,minAmostra:20,alvoQuestoes:30,fase:'pre'});let comp=C.comparar();assert.equal(comp.itens.length,3);assert(comp.itens.every(x=>x.simplificado||x.robusto));assert(comp.itens.every(x=>!Object.hasOwn(x,'scoreMath')&&Number.isFinite(x.pontosComparacao)));R.calcular=()=>{throw new Error('off')};comp=C.comparar();assert.equal(comp.erro,undefined,'Comparar deve sobreviver com um motor disponível');assert(comp.itens.every(x=>x.simplificado));R.calcular=rOrig;
-RC.salvar('base',{tempo:{minQConfiavel:80}});S.salvar({meta:88});const keys=[...mem.keys()];assert(keys.some(k=>k.includes('plano-simplificado-v2')));assert(keys.some(k=>k.includes('plano-robusto-v5-base')));assert(!keys.some(k=>k.includes('plano-simplificado-v2')&&k.includes('robusto')));
-// Aprendizado V6: apenas pré/base entra; pós/curto é ruído proposital e deve ser excluído.
-for(let i=0;i<12;i++){const j=i%4,g=1+j;extras.push({id:'hist-'+i,status:'concluida',historico:[{quantidade:20,minutos:20}],origemPlano:{sugestao:{motor:'robusto-v5',fase:'pre',criadoEm:`2026-08-${String(i+1).padStart(2,'0')}`,configRobusto:{modo:'base'},componentes:{lacuna:.1+j*.2,evidencia:.5,incidencia:.5,recencia:.5,resposta:.5,eficiencia:.5}},veredito:{ganhoPP:g,questoes:20}}});}
-for(let i=0;i<5;i++)extras.push({id:'ruido-pos-'+i,status:'concluida',historico:[{quantidade:20,minutos:20}],origemPlano:{sugestao:{motor:'robusto-v5',fase:'pos',configRobusto:{modo:'edital'},componentes:{lacuna:1}},veredito:{ganhoPP:20,questoes:20}}});
-const cfgLearn=RC.prefs('base'),baseLearn=R._pesosBase('pre',cfgLearn),learn=R._aprender('pre',cfgLearn,baseLearn),pw=R._pesosEfetivos(baseLearn,learn,cfgLearn);assert.equal(learn.n,12);assert.equal(learn.nElegiveis,12);assert.equal(learn.outcome,'ganho-pp-hora');assert.equal(learn.validacao,'tres-janelas-cronologicas');assert.equal(learn.aprendida,true);assert.equal(learn.sinais.lacuna.estavel,true);assert(pw.aplicado&&pw.alpha>0);assert.equal(pw.regularizacao,'unica-mistura-final');assert(Math.abs(pw.pesos.lacuna-baseLearn.lacuna)>1e-5,'aprendizado estável deve conseguir alterar de fato o score, sem dupla regularização');
-const escolhido=R.calcular().itens[0],antes=extras.length,total=C.criar(ctx.ExtrasScreen,{modo:'robusto'},{modo:'robusto',itens:[escolhido]});assert.equal(total,1);const novo=extras.at(-1);assert.equal(extras.length,antes+1);assert.equal(novo.alvo,escolhido.alvo);assert.equal(novo.origemPlano.sugestao.motor,'robusto-v5');assert.equal(novo.origemPlano.sugestao.revisaoAuditoria,6);assert.equal(novo.origemPlano.sugestao.arquitetura.usaSimplificado,false);
-S.salvar({meta:77,minAmostra:9});assert.equal(S.prefs().meta,77);S.restaurar();assert.deepEqual(clone(S.prefs()),clone(S.DEFAULTS),'Simplificado deve ter restauração completa dos próprios defaults');
-console.log('OK: auditoria V6 — independência, hierarquia limpa, prior real, aprendizado segregado/temporal e execução compatível validados.');
+const discs=['A','B','C','D'];
+const rows=discs.flatMap((d,di)=>Array.from({length:3},(_,ti)=>{const q=30,t=45+di*7+ti*6,ac=Math.round(q*t/100);return{codigo:`${di+1}.${ti+1}`,depth:1,disciplina:d,nome:`${d} T${ti+1}`,questoes:q,acertos:ac,pctAcerto:ac/q*100};}));
+const snap={id:1,date:'2026-09-14',rows};
+const inc=rows.map((r,i)=>({banca:'FGV',disciplina:r.disciplina,topico:r.nome,incidencia:10+(i%3)*20}));
+const I={
+  num:(v,d=0)=>Number.isFinite(Number(v))?Number(v):d,
+  clamp:(v,a,b)=>Math.max(a,Math.min(b,Number(v))),norm,esc:s=>String(s??''),
+  fasePlano:()=> 'pre',bancas:()=>['FGV'],snapshot:()=>clone(snap),linhasTec:s=>(s&&s.rows)||[],
+  q:r=>Number(r?.questoes)||0,taxa:r=>Number(r?.pctAcerto),disciplinasBloqueadas:()=>new Set(),
+  incidencia:()=>clone(inc),materias:()=>[],atividadesAbertas:()=>[]
+};
+let plan={id:'p1',tipo:'Pré-edital'};
+const ctx={
+  console,setTimeout:(fn)=>{fn();return 1;},clearTimeout(){},JSON,Math,Date,Set,Map,Promise,
+  localStorage:{getItem:k=>mem.get(k)||null,setItem:(k,v)=>mem.set(k,String(v)),removeItem:k=>mem.delete(k)},
+  DB:{_profilePrefix:()=> 'p:',setRaw:(k,v)=>mem.set(k,String(v)),delRaw:k=>mem.delete(k),getExtras:()=>extras,getTecSnapshots:()=>[clone(snap)],getIncidencia:()=>clone(inc),getBancas:()=>['FGV'],getActiveSubjects:()=>[],addExtra:data=>{const e={id:'e'+(extras.length+1),status:'ativa',historico:[],...clone(data)};extras.push(e);return e;},updateExtra:(id,p)=>Object.assign(extras.find(x=>x.id===id),clone(p))},
+  PlanManager:{getActivePlan:()=>plan,updatePlan:(id,p)=>Object.assign(plan,clone(p))},
+  PlanoSugestoesInfraV2:I,
+  PlanoCiclo:{titulo:n=>'Reforçar: '+n,origem:(nome,disc,item)=>({topico:nome,disciplina:disc,taxaInicial:item.taxa})},
+  ExtrasScreen:{puxarDoPlano(){return'legacy';},render(){}},UI:{_open(){},_resolve:null,_mode:null},
+  escapeHtml:s=>String(s),showToast(){},_quiet(){},window:{addEventListener(){},dispatchEvent(){}}
+};
+ctx.window=Object.assign(ctx.window,ctx);
+vm.createContext(ctx);
+const load=f=>vm.runInContext(readFileSync(join(ROOT,f),'utf8'),ctx,{filename:f});
+load('src/js/84b-reforco-tec-extras-v8.js');
+// No navegador clássico, propriedades de window também resolvem como identificadores globais.
+// O vm do Node usa um objeto window separado, então reproduzimos explicitamente esse contrato.
+ctx.ReforcoTecExtrasV8=ctx.window.ReforcoTecExtrasV8;
+load('src/js/87-plano-sugestoes-simplificado-v2.js');
+load('src/js/88-plano-sugestoes-robusto-v8.js');
+load('src/js/89-plano-sugestoes-controller.js');
+
+const W=ctx.window;
+const S=W.PlanoSugestoesSimplificadoV3||W.PlanoSugestoesSimplificadoV2;
+const R=W.PlanoSugestoesRobustoV8;
+const C=W.PlanoSugestoesV5;
+assert(S&&R&&C,'motores e controller devem publicar APIs no window');
+assert.equal(S.VERSAO,3);
+assert.equal(R.VERSAO,8);
+assert.equal(C.VERSAO,5);
+
+const simpleExec=semComentarios(readFileSync(join(ROOT,'src/js/87-plano-sugestoes-simplificado-v2.js'),'utf8'));
+const robExec=semComentarios(readFileSync(join(ROOT,'src/js/88-plano-sugestoes-robusto-v8.js'),'utf8'));
+assert(!/\bPlanoEngine\s*[.(\[]|\bMentor90(?:V\d+)?\s*[.(\[]/.test(simpleExec),'Simplificado não deve executar PlanoEngine/Mentor90');
+assert(!/\bPlanoSugestoesSimplificado\w*\s*[.(\[]|plano-simplificado/.test(robExec),'Robusto não deve conhecer Simplificado/storage dele');
+
+S.salvar({fase:'pre',meta:90,minAmostra:20,alvoQuestoes:30,banca:'FGV'});
+let s=S.calcular(), r=R.calcular();
+assert.equal(s.erro,undefined);assert.equal(r.erro,undefined);
+assert.equal(s.itens.length,3);assert.equal(r.itens.length,3);
+assert.equal(new Set(s.itens.map(x=>x.disciplina)).size,3);
+assert.equal(new Set(r.itens.map(x=>x.disciplina)).size,3);
+assert(r.itens.every(x=>x.modo==='robusto'&&x.quantidadeRecomendada>=R.prefs().doseMin&&x.quantidadeRecomendada<=R.prefs().doseMax));
+assert(r.itens.every(x=>Array.isArray(x.topicosOrdenados)&&x.topicosOrdenados.length>=1));
+
+const sigS=()=>S.calcular().itens.map(x=>[x.disciplina,x.nome,Math.round(x.score*1000)]);
+const sigR=()=>R.calcular().itens.map(x=>[x.disciplina,x.nome,Math.round(x.score*1000),x.quantidadeRecomendada]);
+const s0=clone(sigS()),r0=clone(sigR());
+R.salvar({meta:75,doseBase:25});
+assert.deepEqual(clone(sigS()),s0,'config Robusto não pode alterar Simplificado');
+R.restaurar();
+S.salvar({meta:82,alvoQuestoes:55});
+assert.deepEqual(clone(sigR()),r0,'config Simplificado não pode alterar Robusto');
+S.salvar({fase:'pre',meta:90,minAmostra:20,alvoQuestoes:30});
+
+const rOrig=R.calcular,sOrig=S.calcular;
+R.calcular=()=>{throw new Error('robusto quebrado');};
+assert.deepEqual(clone(sigS()),clone(S.calcular().itens.map(x=>[x.disciplina,x.nome,Math.round(x.score*1000)])));
+R.calcular=rOrig;
+S.calcular=()=>{throw new Error('simple quebrado');};
+assert.deepEqual(clone(sigR()),r0);
+S.calcular=sOrig;
+
+const comp=C.comparar();
+assert.equal(comp.itens.length,3);
+assert(comp.itens.every(x=>x.simplificado||x.robusto));
+assert(comp.itens.every(x=>Number.isFinite(x.pontosComparacao)));
+assert(comp.itens.every(x=>!Object.hasOwn(x,'scoreMath')),'Comparar não deve criar score matemático misto');
+
+C.salvar({modo:'robusto',meta:99,campoEstranho:'x'});
+const rawCtrl=JSON.parse(mem.get('p:'+C.KEY));
+assert.deepEqual(Object.keys(rawCtrl),['modo'],'controller persiste apenas modo');
+
+console.log('OK: Simplificado V3 e Robusto V8 independentes; controller V5 usa apenas posição/consenso e três disciplinas.');

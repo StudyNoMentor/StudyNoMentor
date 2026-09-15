@@ -1,30 +1,7 @@
 # Barreira de qualidade: nada entra no main sem passar por aqui.
 #
-# O que ela impede, na pratica:
-#   · index.html e src/ sairem de sincronia (alguem edita um e esquece o outro);
-#   · um modulo de src/js com erro de sintaxe;
-#   · o agendador divergir do Anki (21 mil pontos contra fsrs-rs + rslib);
-#   · id duplicado ou tag estrutural desbalanceada no HTML publicado;
-#   · o app quebrar no carregamento ou alguma das 14 telas lancar erro;
-#   · a suite AutoTeste (FSRS, fuzz, agendador, parser TEC...) regredir;
-#   · o reforco adaptativo produzir dose ou parada estatisticamente invalida;
-#   · os motores Simplificado/Robusto/Comparar quebrarem o contrato 3 disciplinas × 1 topico;
-#   · o log do Robusto perder decisoes, desfechos, isolamento local ou privacidade do JSON;
-#   · a governanca global deixar motor desligado reaparecer ou executar por preferencia antiga;
-#   · configuracoes de Simplificado/Robusto vazarem de Desempenho TEC para Extras;
-#   · o Robusto V5 misturar alvo global/dose, inventar tempo ou quebrar os defaults por ataque;
-#   · Puxar do Plano duplicar execucao ao comparar motores ou misturar dose diaria com alvo global;
-#   · modais de Extras voltarem a se sobrepor ou a ativacao adaptativa travar;
-#   · hierarquia, presets, bordas e responsividade do menu Extras regredirem;
-#   · escopo, rodizio multidisciplinar, reabertura e responsividade do Desempenho TEC regredirem;
-#   · Desempenho TEC -> Plano voltar a congelar em perfis grandes;
-#   · interacoes de Extras/Plano deixarem rotulos transitórios presos nos botoes;
-#   · Lei Seca voltar a ter estado de rodizio ambiguo, chips repetidos ou proximas abertas por padrao;
-#   · spinners, popovers de ajuda e a abertura silenciosa da nuvem regredirem;
-#   · startup local-first voltar a bloquear na nuvem quando ja existe copia local segura;
-#   · reforco adaptativo repetir a mesma dose cegamente entre duas importacoes do TEC;
-#   · algum menu voltar a bloquear a interface em perfis grandes ou CPU movel;
-#   · o botao "Opcoes" da Grade voltar a vazar do cabecalho.
+# Protege build, motores, Extras, TEC, performance, acessibilidade e limpeza do
+# Robusto V8. O Reforco Adaptativo geral continua sendo validado separadamente.
 name: Verificacao
 
 on:
@@ -35,7 +12,7 @@ on:
   workflow_dispatch:
 
 concurrency:
-  group: verificacao-v2-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  group: verificacao-v3-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
 permissions:
@@ -54,11 +31,9 @@ jobs:
       - uses: actions/checkout@v4
         with:
           ref: ${{ github.event.pull_request.head.ref }}
-
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
-
       - name: Sincronizar build derivado
         id: sync
         shell: bash
@@ -87,81 +62,61 @@ jobs:
       - uses: actions/checkout@v4
         with:
           ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.ref || github.ref }}
-
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
-
       - name: Preflight rapido
         shell: bash
         run: |
           set -euo pipefail
           node --check build.mjs
           node --check verificar.mjs
-          for f in src/js/*.js testes/*.mjs; do
-            node --check "$f"
-          done
+          for f in src/js/*.js testes/*.mjs; do node --check "$f"; done
           node build.mjs
           git diff --exit-code -- index.html sw.js src/manifesto.json
-
       - name: Instalar dependencias de teste
         run: npm ci
-
-      - name: Simular prescricao adaptativa
+      - name: Simular prescricao adaptativa independente
         run: node testes/reforco-adaptativo-massivo.mjs
-
-      - name: Validar motores de sugestao do Plano
+      - name: Validar motores de sugestao independentes
         run: node testes/plano-sugestoes-modulos.mjs
-
-      - name: Validar roteador, otimizador e defaults do Robusto
-        run: node testes/plano-robusto-v4.mjs
-
-      - name: Validar log auditavel do Robusto
+      - name: Validar Robusto V8 TEC + Extras
+        run: node testes/plano-robusto-v8.mjs
+      - name: Auditar residuos do Robusto antigo
+        run: node testes/robusto-v8-legado-audit.mjs
+      - name: Validar log auditavel observacional do Robusto V8
         run: node testes/plano-robusto-audit-log.mjs
-
       - name: Validar governanca global dos motores do Plano
         run: node testes/plano-motores-governanca-v5.mjs
-
       - name: Validar estabilidade estrutural de Extras
         run: node testes/extras-estabilidade.mjs
-
       - name: Instalar Chromium
         run: |
           npm install --no-save playwright@1.56.1
           npx playwright install --with-deps chromium
-
       - name: Validar Puxar do Plano multimotor
         run: timeout 90s node testes/plano-sugestoes-modulos-browser.mjs
-
       - name: Validar governanca dos motores no navegador
         run: timeout 90s node testes/plano-motores-governanca-v5-browser.mjs
-
       - name: Validar central dos motores no Desempenho TEC
         run: timeout 90s node testes/plano-motores-central-tec-browser.mjs
-
+      - name: Validar fonte das sugestoes na abertura e no Plano TEC
+        run: timeout 90s node testes/tec-plano-fonte-motor-browser.mjs
       - name: Auditar startup, loaders e continuidade adaptativa
         run: node testes/startup-reforco-v4-browser.mjs
-
       - name: Auditar performance do site inteiro
         run: node testes/site-performance-browser.mjs
-
       - name: Validar modais e ativacao adaptativa no navegador
         run: node testes/extras-estabilidade-browser.mjs
-
       - name: Auditar UX completa de Extras
         run: node testes/extras-ux100-browser.mjs
-
       - name: Auditar governanca do Desempenho TEC
         run: node testes/tec-ux100-browser.mjs
-
       - name: Validar fluidez do Plano TEC
         run: node testes/tec-plano-performance-browser.mjs
-
       - name: Auditar interacoes de Extras e Plano TEC
         run: node testes/extras-tec-interacoes-browser.mjs
-
       - name: Auditar estabilidade visual v3
         run: node testes/ux-stability-v3-browser.mjs
-
       - name: Verificar
         run: node verificar.mjs
