@@ -57,7 +57,7 @@
      novo, e o antigo é descartado sozinho na ativação) e o que permite ao app
      dizer qual versão está rodando. Em src/ fica "dev" de propósito: a versão
      é gerada na montagem, não editada à mão. -->
-<meta name="diario-versao" content="v3aedfd628c">
+<meta name="diario-versao" content="vfc12f167aa">
 <script>
 /* ── ARRANQUE: abre o IndexedDB AGORA, em paralelo com o parse do documento ──
    A fachada de armazenamento vive no fim do <body>, depois de ~1,7 MB de HTML.
@@ -58414,6 +58414,7 @@ window.addEventListener('screen:activated', e => { if (e.detail && e.detail.scre
   const num=(v,d=0)=>Number.isFinite(Number(v))?Number(v):d;
   const normLocal=(v)=>String(v==null?'':v).normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().replace(/[^a-z0-9]+/g,' ').replace(/\s+/g,' ').trim();
   const day=()=>typeof todayLocal==='function'?todayLocal():(()=>{const d=new Date();return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;})();
+  const addDay=(iso,delta)=>{const d=new Date(`${iso}T12:00:00`);d.setDate(d.getDate()+delta);return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;};
   const localDateOf=(raw)=>{
     const s=String(raw||'');
     let m=s.match(/^(\d{4}-\d{2}-\d{2})/); if (m) return m[1];
@@ -58577,7 +58578,24 @@ window.addEventListener('screen:activated', e => { if (e.detail && e.detail.scre
     const used=new Set(assignments.filter(a=>a&&a.status!=='deferred').map(a=>normLocal(a.disciplina)).filter(Boolean));
     const remaining=Math.max(0,3-used.size);
     if (!remaining) return [];
-    return rows.filter(r=>!used.has(normLocal(r&&r.disciplina))).slice(0,remaining);
+
+    let available=rows.filter(r=>!used.has(normLocal(r&&r.disciplina)));
+    const yesterday=addDay(day(),-1);
+    const notYesterday=available.filter(r=>r.lastUse!==yesterday);
+    if (notYesterday.length>=remaining) available=notYesterday;
+
+    /* Cobertura semanal primeiro: se há matérias que ainda não receberam nenhum
+       reforço nos últimos 7 dias, elas entram antes das repetições. Persistência
+       real pode voltar mais cedo, mas nunca força repetir ontem quando há opção. */
+    available.sort((a,b)=>{
+      const au=a.persistent&&a.unresolvedWrong>0?0:1, bu=b.persistent&&b.unresolvedWrong>0?0:1;
+      if (au!==bu) return au-bu;
+      const af=num(a.weeklyUse)===0?0:1, bf=num(b.weeklyUse)===0?0:1;
+      if (af!==bf) return af-bf;
+      if (num(a.weeklyUse)!==num(b.weeklyUse)) return num(a.weeklyUse)-num(b.weeklyUse);
+      return num(b.rotationScore)-num(a.rotationScore);
+    });
+    return available.slice(0,remaining);
   };
 })();
 
