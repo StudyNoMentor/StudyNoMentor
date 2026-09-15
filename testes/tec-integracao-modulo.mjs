@@ -78,7 +78,7 @@ const checks = [
   ['clique não é descartado quando ID ainda não chegou', /qid\s*:\s*qid\s*\?\s*String\(qid\)\s*:\s*null/.test(tec) && /if\s*\(!tx\.qid\s*&&\s*liveId\)/.test(tec)],
   ['fila da extensão é durável', bg.includes('chrome.storage.local') && bg.includes('QUEUE_KEY') && bg.includes("msg.type === 'ack'")],
   ['fila só baixa por ACK', bg.includes('async function ack') && bridge.includes("msg.type==='ack'")],
-  ['captura transacional acorda o worker', /chrome\.runtime\.sendMessage\(\{\s*kind:'capture'/.test(tec) && /msg\.kind\s*!==\s*'capture'/.test(bg)],
+  ['captura transacional acorda o worker', /chrome\.runtime\.sendMessage\(\{\s*kind:'capture'/.test(tec) && (/msg\.kind\s*!==\s*'capture'/.test(bg) || /msg\.kind\s*===\s*'capture'\s*&&\s*isTec\(url\)/.test(bg))],
   ['captura só é aceita após enqueue', /await enqueue\(env\)/.test(bg) && /accepted:\s*!!result\.ok/.test(bg)],
   ['estágio local protege contra reinício/reload', tec.includes("STAGE_PREFIX = 'snmTecStageV1:'") && tec.includes('stageEnvelope(env)') && tec.includes('replayStaged()')],
   ['estágio só baixa após accepted', tec.includes('response && response.accepted') && tec.includes('await unstageEnvelope(env.messageId)')],
