@@ -7,6 +7,7 @@ const build = read('build.mjs');
 const js = read('src/js/94-tec-integracao.js');
 const realtime = read('src/js/95-tec-companion.js');
 const diagnostics = read('src/js/96-tec-capture-diagnostics.js');
+const css = read('src/css/28-tec-integracao.css');
 const head = read('src/html/00-cabecalho.html');
 const edge = read('supabase/functions/tec-ai/index.ts');
 const manifest = JSON.parse(read('companion/manifest.json'));
@@ -39,13 +40,27 @@ const checks = [
   ['importação JSON', body.includes('id="tec-connect-file"') && js.includes('importJSON(file)')],
   ['origem da ponte validada', js.includes("event.origin !== this.TEC_ORIGIN") && js.includes('event.source !== frame.contentWindow')],
   ['proteção contra duplicidade da biblioteca', js.includes('questionKey(account, book, id)')],
-  ['cache por versão', js.includes("PROMPT_VERSION: 'tec-pedagogico-v1'")],
+  ['cache pedagógico V2', js.includes("PROMPT_VERSION: 'tec-pedagogico-v2'")],
   ['seis abas do assistente', ['diagnostico','revisao','flashcards','quiz','reforco','professor'].every(x => body.includes(`data-section="${x}"`))],
   ['chave só no servidor', edge.includes("Deno.env.get('OPENAI_API_KEY')") && !js.includes('OPENAI_API_KEY')],
   ['backend autenticado e limitado', edge.includes('tokenSubject') && edge.includes('limited(userId)')],
   ['saída estruturada', edge.includes("type: 'json_schema'")],
   ['reforço em atividades extras', js.includes('DB.addExtra') || realtime.includes('DB.addExtra')],
   ['sincronização por seção', js.includes('SectionSync.markDirty') || realtime.includes('DB.setRaw')],
+
+  ['workbench prioriza TEC', css.includes('.tec-workspace-card') && css.includes('order:1') && css.includes('calc(100vh - 175px)')],
+  ['modo foco mantém iframe no Study', js.includes('toggleFocus(force)') && css.includes('.tec-focus-mode .tec-workspace-card') && js.includes("'tec-workspace-focus'")],
+  ['workspace tem recarga e abertura separada', js.includes('reloadEmbedded()') && js.includes('tec-workspace-open-external')],
+  ['copy legado é corrigido para Companion', js.includes('StudyNoMentor Companion') && js.includes('Companion ativo: resolva normalmente no TEC')],
+  ['prompts antigos migrados nativamente', ['erro','acerto','teoria','flashcards'].every(k => js.includes(`${k}:`)) && js.includes('DEFAULT_PROMPTS')],
+  ['prompts novos cobrem teste e reforço', js.includes('quiz:') && js.includes('reforco:')],
+  ['placeholders pedagógicos preservados', ['{{QUESTAO}}','{{MINHA_RESPOSTA}}','{{GABARITO}}','{{RESULTADO}}'].every(x => js.includes(x))],
+  ['editor de prompts tem histórico e restauração', js.includes('PROMPT_HISTORY_LIMIT: 20') && js.includes('tec-prompt-history') && js.includes('restorePromptVersion') && js.includes('resetPromptEditor')],
+  ['análise essencial replica tríade antiga', /\['diagnostico','revisao','flashcards'\]/.test(js)],
+  ['erro e acerto escolhem prompts diferentes', js.includes("q && q.acertou === true ? 'acerto'") && js.includes("q && q.acertou === false ? 'erro'")],
+  ['prompts personalizados vão ao backend', js.includes('customPrompts:this.customPromptsFor') && edge.includes('customPrompts(body?.customPrompts)')],
+  ['backend limita prompts do cliente', edge.includes('MAX_CUSTOM_PROMPT = 12000') && edge.includes('PROMPT_SECTIONS')],
+  ['backend mantém precedência de rigor', edge.includes('regras superiores de rigor') && edge.includes('sem inventar normas')],
 
   ['Companion usa Manifest V3', manifest.manifest_version === 3],
   ['Companion está na versão 1.0.4', manifest.version === '1.0.4'],

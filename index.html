@@ -57,7 +57,7 @@
      novo, e o antigo é descartado sozinho na ativação) e o que permite ao app
      dizer qual versão está rodando. Em src/ fica "dev" de propósito: a versão
      é gerada na montagem, não editada à mão. -->
-<meta name="diario-versao" content="v44afbc5156">
+<meta name="diario-versao" content="v43312b71ab">
 <script>
 /* ── ARRANQUE: abre o IndexedDB AGORA, em paralelo com o parse do documento ──
    A fachada de armazenamento vive no fim do <body>, depois de ~1,7 MB de HTML.
@@ -14083,122 +14083,247 @@ body:has(#tec-cfg-body) #tec-cfg-body{scrollbar-gutter:stable}
 </style>
 
 <style id="tec-integracao">
+/* ============================================================
+   INTEGRAÇÃO TEC — workbench de questões
+   O TEC é a superfície principal; telemetria e IA ficam como apoio.
+   ============================================================ */
+#screen-integracaotec.tec-workbench-v2 { padding-bottom: 28px; }
+.tec-workbench-lock { overflow: hidden !important; }
+
 .tec-connect-header {
-  display: flex; align-items: flex-start; justify-content: space-between; gap: 18px;
+  display:flex; align-items:flex-start; justify-content:space-between; gap:18px;
+  margin-bottom:12px;
 }
-.tec-connect-eyebrow, .tec-connect-stage {
-  display: inline-block; padding: 5px 10px; border-radius: 999px; font-size: 10px; font-weight: 800;
+.tec-connect-eyebrow,.tec-connect-stage {
+  display:inline-block; padding:5px 10px; border-radius:999px; font-size:10px; font-weight:800;
 }
 .tec-connect-eyebrow {
-  margin-bottom: 7px; background: color-mix(in srgb, var(--accent) 13%, transparent);
-  color: var(--accent); letter-spacing: .08em; text-transform: uppercase;
+  margin-bottom:7px; background:color-mix(in srgb,var(--accent) 13%,transparent);
+  color:var(--accent); letter-spacing:.08em; text-transform:uppercase;
 }
-.tec-connect-stage { flex: none; border: 1px solid var(--border); color: var(--text-muted); }
+.tec-connect-stage { flex:none; border:1px solid var(--border); color:var(--text-muted); }
+
 .tec-connect-grid {
-  display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(280px, .8fr); gap: 16px;
+  display:grid;
+  grid-template-columns:minmax(300px,.72fr) minmax(0,1.28fr);
+  gap:12px;
+  align-items:start;
 }
-.tec-connect-hero {
-  grid-column: 1 / -1; display: flex; align-items: center; gap: 20px; padding: 25px 28px;
-  background: linear-gradient(135deg, color-mix(in srgb, var(--accent) 10%, var(--surface)), var(--surface));
+/* A apresentação antiga ocupava a primeira dobra. O workbench começa pela ferramenta. */
+.tec-connect-hero[hidden],.tec-connect-hero { display:none !important; }
+
+/* 1. TEC — primeira superfície útil da tela */
+.tec-workspace-card {
+  grid-column:1 / -1;
+  order:1;
+  min-width:0;
+  overflow:hidden;
+  border-color:color-mix(in srgb,var(--accent) 20%,var(--border));
 }
-.tec-connect-hero h2 { margin: 0 0 7px; }
-.tec-connect-hero p { margin: 0; color: var(--text-muted); line-height: 1.55; }
-.tec-connect-hero-icon {
-  display: grid; place-items: center; width: 62px; height: 62px; flex: none; border-radius: 18px;
-  background: var(--accent); color: #fff; font-size: 29px;
+.tec-workspace-card > .card-header {
+  display:flex; align-items:center; justify-content:space-between; gap:12px;
+  padding-top:14px; padding-bottom:14px;
+  background:color-mix(in srgb,var(--surface-soft) 78%,transparent);
 }
-.tec-connect-flow { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; margin-top: 17px; }
-.tec-connect-flow span {
-  padding: 7px 10px; border: 1px solid var(--border); border-radius: 8px;
-  background: var(--surface); font-size: 11px; font-weight: 700;
+.tec-workspace-card > .card-header h2 { margin-bottom:2px; }
+.tec-workspace-tools,.tec-ai-head-actions {
+  display:flex; gap:7px; flex-wrap:wrap; align-items:center; flex:none;
 }
-.tec-connect-flow b { color: var(--accent); }
-.tec-connect-status-card, .tec-connect-data-card, .tec-connect-project-card { padding-bottom: 22px; }
+.tec-workspace-tools button,.tec-ai-head-actions button { white-space:nowrap; }
+.tec-workspace-placeholder {
+  min-height:clamp(420px,62vh,700px);
+  display:grid; place-content:center; gap:8px;
+  margin:0; text-align:center; color:var(--text-muted);
+  border-top:1px dashed var(--border);
+  background:linear-gradient(180deg,color-mix(in srgb,var(--accent) 2%,var(--surface)),var(--surface));
+}
+.tec-workspace-placeholder strong { color:var(--text); font-size:17px; }
+#tec-workspace-frame {
+  display:block;
+  width:100%;
+  height:clamp(720px,calc(100vh - 175px),1080px);
+  min-height:720px;
+  border:0;
+  border-top:1px solid var(--border);
+  background:#fff;
+}
+#tec-workspace-frame[hidden] { display:none; }
+
+/* Modo foco: mantém Study/Companion vivos, mas entrega a viewport ao TEC. */
+#screen-integracaotec.tec-focus-mode .tec-workspace-card {
+  position:fixed;
+  inset:10px;
+  z-index:1600;
+  margin:0;
+  display:flex;
+  flex-direction:column;
+  max-width:none;
+  max-height:none;
+  border-radius:14px;
+  box-shadow:0 24px 80px rgb(0 0 0 / 38%);
+  background:var(--surface);
+}
+#screen-integracaotec.tec-focus-mode .tec-workspace-card > .card-header { flex:none; }
+#screen-integracaotec.tec-focus-mode #tec-workspace-frame {
+  flex:1 1 auto;
+  height:auto;
+  min-height:0;
+}
+#screen-integracaotec.tec-focus-mode .tec-workspace-placeholder { flex:1; margin:0; }
+
+/* 2. Estado — compacto, depois do ambiente de resolução */
+.tec-connect-status-card { order:2; min-width:0; padding-bottom:16px; }
+.tec-connect-data-card { order:2; min-width:0; padding-bottom:16px; }
+.tec-connect-status-card .card-header,.tec-connect-data-card .card-header { padding-top:15px; padding-bottom:10px; }
 .tec-connect-status {
-  display: flex; align-items: center; gap: 12px; margin: 3px 28px 18px; padding: 14px;
-  border: 1px solid var(--border); border-radius: 11px; background: var(--surface-soft);
+  display:flex; align-items:center; gap:11px;
+  margin:0 20px 12px; padding:11px 12px;
+  border:1px solid var(--border); border-radius:10px; background:var(--surface-soft);
 }
-.tec-connect-status div { display: flex; flex-direction: column; gap: 3px; }
-.tec-connect-status small, .tec-connect-steps small { color: var(--text-muted); }
+.tec-connect-status div { display:flex; flex-direction:column; gap:3px; min-width:0; }
+.tec-connect-status small { color:var(--text-muted); overflow:hidden; text-overflow:ellipsis; }
 .tec-connect-dot {
-  width: 11px; height: 11px; flex: none; border-radius: 50%; background: var(--text-faint);
-  box-shadow: 0 0 0 5px color-mix(in srgb, var(--text-faint) 15%, transparent);
+  width:10px; height:10px; flex:none; border-radius:50%; background:var(--text-faint);
+  box-shadow:0 0 0 4px color-mix(in srgb,var(--text-faint) 15%,transparent);
 }
-.tec-connect-dot.connected { background: #22c55e; box-shadow: 0 0 0 5px rgb(34 197 94 / 16%); }
-.tec-connect-actions { display: flex; gap: 8px; padding: 0 28px; }
-.tec-connect-status-card > .hint { margin: 13px 28px 0; }
+.tec-connect-dot.connected { background:#22c55e; box-shadow:0 0 0 4px rgb(34 197 94 / 16%); }
+.tec-connect-actions { display:flex; gap:7px; flex-wrap:wrap; padding:0 20px; }
+.tec-connect-status-card > .hint { margin:10px 20px 0; }
 .tec-connect-metrics {
-  display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; padding: 2px 24px 18px;
+  display:grid; grid-template-columns:repeat(4,1fr); gap:7px; padding:0 18px 12px;
 }
 .tec-connect-metrics div {
-  display: flex; flex-direction: column; gap: 3px; padding: 13px 8px;
-  border: 1px solid var(--border); border-radius: 10px; text-align: center;
+  display:flex; flex-direction:column; gap:2px; padding:10px 5px;
+  border:1px solid var(--border); border-radius:9px; text-align:center;
 }
-.tec-connect-metrics strong { font-size: 22px; color: var(--accent); }
-.tec-connect-metrics span { font-size: 10px; color: var(--text-muted); }
+.tec-connect-metrics strong { font-size:20px; color:var(--accent); }
+.tec-connect-metrics span { font-size:10px; color:var(--text-muted); }
 .tec-connect-empty {
-  margin: 0 24px; padding: 16px; border: 1px dashed var(--border); border-radius: 10px;
-  color: var(--text-muted); font-size: 12px; text-align: center;
+  margin:0 18px; padding:13px;
+  border:1px dashed var(--border); border-radius:9px;
+  color:var(--text-muted); font-size:12px; text-align:center;
 }
-.tec-workspace-card { grid-column: 1 / -1; overflow: hidden; }
-.tec-workspace-placeholder { min-height: 260px; display: grid; place-content: center; gap: 7px; margin: 0 24px 24px; text-align: center; color: var(--text-muted); border: 1px dashed var(--border); border-radius: 12px; }
-.tec-workspace-placeholder strong { color: var(--text); font-size: 16px; }
-#tec-workspace-frame { width: 100%; height: min(76vh, 850px); border: 0; border-top: 1px solid var(--border); background: #fff; }
-.tec-library-card { min-width: 0; }
-.tec-assistant-card { min-width: 0; }
-.tec-question-list { display: grid; gap: 7px; padding: 0 24px 24px; max-height: 620px; overflow: auto; }
-.tec-question-row { display: flex; flex-direction: column; gap: 5px; width: 100%; padding: 12px; border: 1px solid var(--border); border-radius: 10px; background: var(--surface); color: var(--text); text-align: left; cursor: pointer; }
-.tec-question-row:hover, .tec-question-row.active { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 7%, var(--surface)); }
-.tec-question-row small { color: var(--text-muted); }
-.tec-question-detail { padding: 0 24px 18px; max-height: 370px; overflow: auto; }
-.tec-question-statement { white-space: pre-wrap; line-height: 1.55; }
-.tec-question-alternatives { display: grid; gap: 6px; }
-.tec-question-alternatives > div { padding: 9px 10px; border: 1px solid var(--border); border-radius: 8px; font-size: 12px; }
-.tec-question-alternatives > .selected { border-color: #ca8a04; background: rgb(202 138 4 / 8%); }
-.tec-question-alternatives > .correct { border-color: #16a34a; background: rgb(22 163 74 / 8%); }
-.tec-ai-tabs { display: flex; gap: 5px; padding: 12px 24px 0; overflow-x: auto; border-top: 1px solid var(--border); }
-.tec-ai-tabs button { padding: 8px 10px; border: 0; border-radius: 8px; background: transparent; color: var(--text-muted); font-weight: 700; cursor: pointer; }
-.tec-ai-tabs button.active { background: color-mix(in srgb, var(--accent) 12%, var(--surface)); color: var(--accent-text); }
-.tec-ai-content { min-height: 120px; margin: 10px 24px 18px; padding: 14px; white-space: pre-wrap; line-height: 1.55; border: 1px solid var(--border); border-radius: 10px; background: var(--surface-soft); color: var(--text-muted); }
-.tec-reforco-add { display: block; margin-top: 14px; }
-.tec-professor-box { display: flex; gap: 8px; padding: 0 24px 24px; }
-.tec-professor-box textarea { flex: 1; min-height: 70px; resize: vertical; padding: 10px; border: 1px solid var(--border); border-radius: 9px; background: var(--surface); color: var(--text); }
-.tec-connect-project-card { grid-column: 1 / -1; }
-.tec-connect-steps {
-  display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin: 0;
-  padding: 2px 28px; list-style: none;
+
+/* 3. Biblioteca + professor formam a bancada de pós-questão */
+.tec-library-card { order:3; min-width:0; }
+.tec-assistant-card { order:3; min-width:0; }
+.tec-library-card .card-header,.tec-assistant-card .card-header { padding-top:16px; padding-bottom:12px; }
+.tec-assistant-card > .card-header { align-items:flex-start; }
+.tec-question-list {
+  display:grid; gap:6px; padding:0 18px 18px;
+  max-height:680px; overflow:auto; overscroll-behavior:contain;
 }
-.tec-connect-steps li {
-  display: flex; gap: 10px; padding: 14px; border: 1px solid var(--border); border-radius: 11px;
+.tec-question-row {
+  display:flex; flex-direction:column; gap:4px; width:100%; padding:11px 12px;
+  border:1px solid var(--border); border-radius:9px; background:var(--surface);
+  color:var(--text); text-align:left; cursor:pointer;
 }
-.tec-connect-steps li > span {
-  display: grid; place-items: center; width: 25px; height: 25px; flex: none; border-radius: 50%;
-  background: var(--surface-soft); color: var(--text-muted); font-size: 11px; font-weight: 800;
+.tec-question-row:hover,.tec-question-row.active {
+  border-color:var(--accent); background:color-mix(in srgb,var(--accent) 7%,var(--surface));
 }
-.tec-connect-steps li div { display: flex; flex-direction: column; gap: 4px; }
-.tec-connect-steps small { line-height: 1.4; }
-.tec-connect-steps .done > span { background: #166534; color: #fff; }
-.tec-connect-steps .current {
-  border-color: color-mix(in srgb, var(--accent) 55%, var(--border));
-  background: color-mix(in srgb, var(--accent) 5%, var(--surface));
+.tec-question-row strong { font-size:12px; line-height:1.35; }
+.tec-question-row small { color:var(--text-muted); line-height:1.35; }
+.tec-question-detail { padding:0 20px 15px; max-height:360px; overflow:auto; }
+.tec-question-statement { white-space:pre-wrap; line-height:1.55; }
+.tec-question-alternatives { display:grid; gap:6px; }
+.tec-question-alternatives > div { padding:9px 10px; border:1px solid var(--border); border-radius:8px; font-size:12px; }
+.tec-question-alternatives > .selected { border-color:#ca8a04; background:rgb(202 138 4 / 8%); }
+.tec-question-alternatives > .correct { border-color:#16a34a; background:rgb(22 163 74 / 8%); }
+.tec-ai-tabs {
+  display:flex; gap:4px; padding:10px 20px 0; overflow-x:auto;
+  border-top:1px solid var(--border); scrollbar-width:thin;
 }
-.tec-connect-steps .current > span { background: #3730a3; color: #fff; }
-@media (max-width: 900px) {
-  .tec-connect-grid { grid-template-columns: 1fr; }
-  .tec-connect-hero, .tec-connect-project-card { grid-column: auto; }
-  .tec-connect-steps { grid-template-columns: 1fr 1fr; }
+.tec-ai-tabs button {
+  flex:none; padding:7px 9px; border:0; border-radius:8px;
+  background:transparent; color:var(--text-muted); font-weight:700; cursor:pointer;
 }
-@media (max-width: 600px) {
-  .tec-connect-header { display: block; }
-  .tec-connect-stage { margin-top: 10px; }
-  .tec-connect-hero { align-items: flex-start; padding: 20px; flex-direction: column; }
-  .tec-connect-flow b { display: none; }
-  .tec-connect-flow span { width: 100%; box-sizing: border-box; }
-  .tec-connect-metrics { grid-template-columns: 1fr 1fr; }
-  .tec-connect-steps { grid-template-columns: 1fr; }
-  .tec-connect-actions { flex-direction: column; }
-  #tec-workspace-frame { height: 70vh; }
-  .tec-professor-box { flex-direction: column; }
+.tec-ai-tabs button.active {
+  background:color-mix(in srgb,var(--accent) 16%,var(--surface));
+  color:var(--accent-text);
+  outline:1px solid color-mix(in srgb,var(--accent) 28%,transparent);
+}
+.tec-ai-content {
+  min-height:150px; max-height:520px; overflow:auto;
+  margin:10px 20px 16px; padding:14px;
+  white-space:pre-wrap; line-height:1.58;
+  border:1px solid var(--border); border-radius:10px;
+  background:var(--surface-soft); color:var(--text-muted);
+}
+.tec-ai-content ul { margin:0; padding-left:20px; display:grid; gap:7px; }
+.tec-reforco-add { display:block; margin-top:14px; }
+.tec-professor-box { display:flex; gap:8px; padding:0 20px 20px; }
+.tec-professor-box textarea {
+  flex:1; min-height:78px; resize:vertical; padding:10px;
+  border:1px solid var(--border); border-radius:9px; background:var(--surface); color:var(--text);
+}
+
+/* 4. Radar e diagnóstico: úteis, porém fora do caminho principal de resolução. */
+#tec-realtime-card { grid-column:1 / -1; order:4; margin-top:0 !important; }
+#tec-realtime-card #trt-capture-diagnostic { background:var(--surface-soft); }
+
+/* Editor de prompts nativo */
+.tec-prompt-modal { z-index:1750; }
+.tec-prompt-box { width:min(900px,calc(100vw - 28px)); max-width:900px; }
+.tec-prompt-text {
+  width:100%; min-height:360px; resize:vertical; box-sizing:border-box;
+  padding:12px; border:1px solid var(--border); border-radius:10px;
+  background:var(--surface); color:var(--text); font:12px/1.55 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+}
+.tec-prompt-history-wrap { margin-top:14px; border-top:1px solid var(--border); padding-top:12px; }
+.tec-prompt-history-wrap > summary { cursor:pointer; font-weight:800; }
+.tec-prompt-history { display:grid; gap:7px; margin-top:10px; }
+.tec-prompt-history-row {
+  display:flex; align-items:center; justify-content:space-between; gap:10px;
+  padding:9px 10px; border:1px solid var(--border); border-radius:9px; background:var(--surface-soft);
+}
+.tec-prompt-history-row span { font-size:12px; color:var(--text-muted); }
+.tec-prompt-history-row button { padding:5px 8px; font-size:11px; }
+
+/* Compatibilidade com blocos legados, caso ainda sejam montados */
+.tec-connect-flow { display:flex; align-items:center; flex-wrap:wrap; gap:8px; margin-top:17px; }
+.tec-connect-flow span { padding:7px 10px; border:1px solid var(--border); border-radius:8px; background:var(--surface); font-size:11px; font-weight:700; }
+.tec-connect-flow b { color:var(--accent); }
+.tec-connect-project-card { grid-column:1 / -1; order:5; padding-bottom:22px; }
+.tec-connect-steps { display:grid; grid-template-columns:repeat(4,1fr); gap:10px; margin:0; padding:2px 28px; list-style:none; }
+.tec-connect-steps li { display:flex; gap:10px; padding:14px; border:1px solid var(--border); border-radius:11px; }
+.tec-connect-steps li > span { display:grid; place-items:center; width:25px; height:25px; flex:none; border-radius:50%; background:var(--surface-soft); color:var(--text-muted); font-size:11px; font-weight:800; }
+.tec-connect-steps li div { display:flex; flex-direction:column; gap:4px; }
+.tec-connect-steps small { color:var(--text-muted); line-height:1.4; }
+.tec-connect-steps .done > span { background:#166534; color:#fff; }
+.tec-connect-steps .current { border-color:color-mix(in srgb,var(--accent) 55%,var(--border)); background:color-mix(in srgb,var(--accent) 5%,var(--surface)); }
+.tec-connect-steps .current > span { background:#3730a3; color:#fff; }
+
+@media (min-width:1400px) {
+  .tec-connect-grid { grid-template-columns:minmax(340px,.62fr) minmax(0,1.38fr); }
+  #tec-workspace-frame { height:clamp(760px,calc(100vh - 165px),1180px); }
+}
+@media (max-width:980px) {
+  .tec-connect-grid { grid-template-columns:1fr; }
+  .tec-workspace-card,.tec-connect-status-card,.tec-connect-data-card,.tec-library-card,.tec-assistant-card,#tec-realtime-card,.tec-connect-project-card { grid-column:1; }
+  .tec-library-card { order:3; }
+  .tec-assistant-card { order:4; }
+  #tec-realtime-card { order:5; }
+  #tec-workspace-frame { height:78vh; min-height:620px; }
+  .tec-connect-steps { grid-template-columns:1fr 1fr; }
+}
+@media (max-width:640px) {
+  .tec-connect-header { display:block; }
+  .tec-connect-stage { margin-top:9px; }
+  .tec-workspace-card > .card-header { align-items:flex-start; flex-direction:column; }
+  .tec-workspace-tools { width:100%; }
+  .tec-workspace-tools button { flex:1 1 auto; }
+  #tec-workspace-frame { height:76vh; min-height:560px; }
+  #screen-integracaotec.tec-focus-mode .tec-workspace-card { inset:0; border-radius:0; }
+  .tec-connect-metrics { grid-template-columns:repeat(2,1fr); }
+  .tec-connect-actions { flex-direction:column; }
+  .tec-connect-actions button { width:100%; }
+  .tec-assistant-card > .card-header { flex-direction:column; }
+  .tec-ai-head-actions { width:100%; }
+  .tec-ai-head-actions button { flex:1 1 auto; }
+  .tec-professor-box { flex-direction:column; }
+  .tec-prompt-text { min-height:300px; }
+  .tec-prompt-box .cards-modal-foot { flex-wrap:wrap; }
+  .tec-connect-steps { grid-template-columns:1fr; }
 }
 
 </style>
@@ -56318,16 +56443,106 @@ else CloudStore.init();
 })();
 
 /* ============================================================
-   INTEGRAÇÃO TEC — navegador incorporado, biblioteca e IA
+   INTEGRAÇÃO TEC — workbench, biblioteca e IA pedagógica
    ============================================================ */
 const TecIntegracaoScreen = {
   STORAGE_SUFFIX: 'tec-integracao:estado-v2',
+  PROMPT_SUFFIX: 'tec-integracao:prompts-v2',
   TEC_ORIGIN: 'https://www.tecconcursos.com.br',
   TEC_HOME: 'https://www.tecconcursos.com.br/questoes/cadernos',
-  PROMPT_VERSION: 'tec-pedagogico-v1',
+  PROMPT_VERSION: 'tec-pedagogico-v2',
+  PROMPT_HISTORY_LIMIT: 20,
   selectedKey: null,
   activeSection: 'diagnostico',
+  _messageBound: false,
+  _storageBound: false,
+  _experienceBound: false,
+
+  DEFAULT_PROMPTS: {
+    erro: `Você é um professor de alto nível especializado em concursos fiscais.
+
+Analise criticamente o erro que cometi na questão abaixo.
+
+1. Identifique o núcleo teórico efetivamente cobrado.
+2. Compare diretamente a alternativa que EU MARQUEI com o GABARITO CORRETO.
+3. Explique por que minha alternativa parece plausível e onde falha.
+4. Explique por que o gabarito está correto.
+5. Analise as demais alternativas e destaque pegadinhas.
+6. Classifique a provável origem do erro.
+7. Diga qual conhecimento preciso consolidar.
+8. Termine com REGRA PARA MEMORIZAR, ALERTA DE PEGADINHA e UMA PERGUNTA CURTA.
+
+Não invente fundamento normativo.
+
+QUESTÃO:
+
+{{QUESTAO}}`,
+    acerto: `Você é um professor de alto nível especializado em concursos fiscais.
+
+Eu ACERTEI a questão abaixo, mas quero aprofundá-la.
+
+1. Identifique o núcleo teórico.
+2. Explique por que o gabarito está correto.
+3. Analise as demais alternativas.
+4. Mostre conceitos próximos que a banca poderia confundir.
+5. Diga o que preciso decorar e compreender.
+6. Termine com uma pergunta curta.
+
+QUESTÃO:
+
+{{QUESTAO}}`,
+    teoria: `Você é um professor de alto nível especializado em concursos fiscais.
+
+Use a questão abaixo como DIAGNÓSTICO de uma possível lacuna e produza uma REVISÃO TEÓRICA COMPLETA, didática e tecnicamente rigorosa.
+
+# Diagnóstico da lacuna
+# Revisão teórica
+# Quadro comparativo
+# O que preciso decorar
+# O que preciso compreender
+# Resumo de revisão rápida
+# Checklist de domínio
+
+Não invente fundamento normativo.
+
+QUESTÃO:
+
+{{QUESTAO}}`,
+    flashcards: `Você é especialista em aprendizagem ativa, revisão espaçada e concursos fiscais.
+
+Crie FLASHCARDS a partir da questão abaixo, focando principalmente no meu erro. Compare o que EU MARQUEI, o GABARITO CORRETO, a diferença conceitual e as pegadinhas. Evite cartões redundantes.
+
+QUESTÃO:
+
+{{QUESTAO}}`,
+    quiz: `Você é um professor de alto nível especializado em concursos fiscais.
+
+Crie um teste curto e difícil para verificar se eu realmente dominei o núcleo teórico da questão. Priorize distinções conceituais, exceções e pegadinhas típicas de prova. Cada item deve ser autossuficiente e útil para revisão ativa.
+
+Não invente fundamento normativo.
+
+QUESTÃO:
+
+{{QUESTAO}}`,
+    reforco: `Você é um professor e estrategista de aprendizagem para concursos fiscais.
+
+A partir da questão abaixo, prescreva um reforço objetivo e executável para eliminar a lacuna. Diga exatamente o que revisar, o que comparar, o que memorizar e que tipo de questões resolver. Evite tarefas genéricas e volumes irreais.
+
+QUESTÃO:
+
+{{QUESTAO}}`
+  },
+  PROMPT_LABELS: {
+    erro: '🔎 Análise crítica do erro',
+    acerto: '🔍 Aprofundamento do acerto',
+    teoria: '📚 Revisão teórica',
+    flashcards: '🧠 Flashcards',
+    quiz: '🧪 Teste de domínio',
+    reforco: '🎯 Plano de reforço'
+  },
+
   _key() { try { return DB._profilePrefix() + this.STORAGE_SUFFIX; } catch (_) { return 'diario-estudos:' + this.STORAGE_SUFFIX; } },
+  _promptKey() { try { return DB._profilePrefix() + this.PROMPT_SUFFIX; } catch (_) { return 'diario-estudos:' + this.PROMPT_SUFFIX; } },
   blank() { return { schema: 2, questions: {}, analyses: {}, connection: {}, updatedAt: null }; },
   state() {
     try { const p = JSON.parse(localStorage.getItem(this._key()) || 'null'); return p && p.schema === 2 ? p : this.blank(); }
@@ -56340,8 +56555,27 @@ const TecIntegracaoScreen = {
       if (typeof SectionSync !== 'undefined' && SectionSync.markDirty) SectionSync.markDirty(this._key());
       if (window.CloudStore && CloudStore.notifyChange) CloudStore.notifyChange();
       return true;
-    }
-    catch (e) { _quiet(e, 'tec-integracao-save'); return false; }
+    } catch (e) { if (typeof _quiet === 'function') _quiet(e, 'tec-integracao-save'); return false; }
+  },
+  promptBlank() { return { schema:2, prompts:{ ...this.DEFAULT_PROMPTS }, history:[], updatedAt:null }; },
+  promptState() {
+    try {
+      const raw = JSON.parse(localStorage.getItem(this._promptKey()) || 'null');
+      if (!raw || raw.schema !== 2 || !raw.prompts) return this.promptBlank();
+      return { schema:2, prompts:{ ...this.DEFAULT_PROMPTS, ...raw.prompts }, history:Array.isArray(raw.history) ? raw.history.slice(-this.PROMPT_HISTORY_LIMIT) : [], updatedAt:raw.updatedAt || null };
+    } catch (_) { return this.promptBlank(); }
+  },
+  savePromptState(next, snapshot = true) {
+    const current = this.promptState();
+    const changed = JSON.stringify(current.prompts) !== JSON.stringify(next.prompts);
+    const out = { schema:2, prompts:{ ...this.DEFAULT_PROMPTS, ...(next.prompts || {}) }, history:Array.isArray(next.history) ? next.history.slice(-this.PROMPT_HISTORY_LIMIT) : [], updatedAt:new Date().toISOString() };
+    if (snapshot && changed) out.history = [...out.history, { savedAt:new Date().toISOString(), prompts:{ ...current.prompts } }].slice(-this.PROMPT_HISTORY_LIMIT);
+    try {
+      localStorage.setItem(this._promptKey(), JSON.stringify(out));
+      if (typeof SectionSync !== 'undefined' && SectionSync.markDirty) SectionSync.markDirty(this._promptKey());
+      if (window.CloudStore && CloudStore.notifyChange) CloudStore.notifyChange();
+      return true;
+    } catch (e) { if (typeof _quiet === 'function') _quiet(e, 'tec-prompt-save'); return false; }
   },
   text(v) { return String(v == null ? '' : v).trim(); },
   questionKey(account, book, id) { return [account || 'conta', book || 'caderno', id || 'sem-id'].map(encodeURIComponent).join(':'); },
@@ -56374,18 +56608,35 @@ const TecIntegracaoScreen = {
     if (!msg || msg.source !== 'StudyMentorTEC' || Number(msg.version) < 21) return;
     if (msg.type === 'ready') {
       const state = this.state(); state.connection = { status: 'connected', ...(msg.payload || {}), lastSeenAt: new Date().toISOString() };
-      this.save(state); this.render(); showToast('🔌 TEC conectado ao Study');
+      this.save(state); this.render(); if (typeof showToast === 'function') showToast('🔌 TEC conectado ao Study');
     } else if (msg.type === 'question') {
-      try { this.ingest(msg.payload && msg.payload.question, msg.payload || {}); showToast('✅ Questão recebida do TEC'); }
-      catch (e) { showToast('⚠️ ' + e.message); }
+      try { this.ingest(msg.payload && msg.payload.question, msg.payload || {}); if (typeof showToast === 'function') showToast('✅ Questão recebida do TEC'); }
+      catch (e) { if (typeof showToast === 'function') showToast('⚠️ ' + e.message); }
     }
   },
+
   openEmbedded() {
     const frame = document.getElementById('tec-workspace-frame'), placeholder = document.getElementById('tec-workspace-placeholder');
-    if (!frame) return; frame.hidden = false; if (placeholder) placeholder.hidden = true; if (!frame.src) frame.src = this.TEC_HOME;
+    if (!frame) return;
+    frame.hidden = false; if (placeholder) placeholder.hidden = true; if (!frame.src) frame.src = this.TEC_HOME;
+    try { sessionStorage.setItem('snm:tec-workspace-open', '1'); } catch (e) { if (typeof _quiet === 'function') _quiet(e, 'tec-workspace-session-save'); }
+    document.getElementById('screen-integracaotec')?.classList.add('tec-workspace-open');
     const msg = document.getElementById('tec-connect-message');
-    if (msg) msg.textContent = 'Faça login no TEC dentro do quadro. Quando o V21 estiver ativo, a conexão aparecerá automaticamente.';
+    if (msg) msg.textContent = 'Companion ativo: resolva normalmente no TEC. As respostas são capturadas e confirmadas pela fila durável.';
   },
+  reloadEmbedded() {
+    const frame = document.getElementById('tec-workspace-frame'); if (!frame) return;
+    const src = frame.getAttribute('src') || this.TEC_HOME; frame.setAttribute('src', src);
+    if (typeof showToast === 'function') showToast('↻ TEC recarregado');
+  },
+  toggleFocus(force) {
+    const root = document.getElementById('screen-integracaotec'); if (!root) return;
+    const on = typeof force === 'boolean' ? force : !root.classList.contains('tec-focus-mode');
+    root.classList.toggle('tec-focus-mode', on); document.body.classList.toggle('tec-workbench-lock', on);
+    const b = document.getElementById('tec-workspace-focus'); if (b) b.textContent = on ? '↙ Sair do foco' : '⛶ Modo foco';
+    if (on) this.openEmbedded();
+  },
+
   async importJSON(file) {
     const data = JSON.parse(await file.text()), questions = Array.isArray(data.questoes) ? data.questoes : [];
     if (!questions.length) throw new Error('O arquivo não contém questões exportadas pelo StudyMentor.');
@@ -56396,11 +56647,11 @@ const TecIntegracaoScreen = {
       const question = { ...raw };
       if (typeof question.acertou !== 'boolean') question.acertou = typeof result?.acertou === 'boolean' ? result.acertou : official?.acertou;
       lastKey = this.mergeInto(state, question, { tecAccount: data.contaTec, bookId: data.cadernoId || question.cadernoId,
-      history: data.desempenhoQuestoes && data.desempenhoQuestoes[String(question.id)], capturedAt: question.capturadoEm });
+        history: data.desempenhoQuestoes && data.desempenhoQuestoes[String(question.id)], capturedAt: question.capturadoEm });
     }
     if (!this.save(state)) throw new Error('Não foi possível salvar os dados importados.');
     this.selectedKey = lastKey; this.render();
-    showToast(`📥 ${questions.length} questão(ões) importada(s)`);
+    if (typeof showToast === 'function') showToast(`📥 ${questions.length} questão(ões) importada(s)`);
   },
   createText(tag, value, cls) { const el = document.createElement(tag); if (cls) el.className = cls; el.textContent = this.text(value); return el; },
   renderList(state) {
@@ -56411,8 +56662,9 @@ const TecIntegracaoScreen = {
     rows.forEach(row => {
       const q = row.question || {}, button = document.createElement('button'); button.type = 'button';
       button.className = 'tec-question-row' + (row.key === this.selectedKey ? ' active' : '');
-      button.append(this.createText('strong', `#${q.id || '—'} · ${q.materia || 'Matéria não identificada'}`));
-      button.append(this.createText('small', `${row.bookId} · ${q.assunto || q.banca || 'Sem assunto'} · ${q.acertou === true ? 'Acerto' : q.acertou === false ? 'Erro' : 'Sem resultado'}`));
+      const badge = q.acertou === true ? '✓' : q.acertou === false ? '×' : '•';
+      button.append(this.createText('strong', `${badge} #${q.id || '—'} · ${q.materia || 'Matéria não identificada'}`));
+      button.append(this.createText('small', `${q.assunto || q.banca || 'Sem assunto'} · caderno ${row.bookId || '—'}`));
       button.addEventListener('click', () => { this.selectedKey = row.key; this.render(); }); list.append(button);
     });
   },
@@ -56421,7 +56673,7 @@ const TecIntegracaoScreen = {
     const row = state.questions && state.questions[this.selectedKey], run = document.getElementById('tec-ai-run');
     if (!row) { if (run) run.disabled = true; root.append(this.createText('div', 'Nenhuma questão selecionada.', 'tec-connect-empty')); return; }
     const q = row.question || {}; if (run) run.disabled = false;
-    const sub = document.getElementById('tec-assistant-sub'); if (sub) sub.textContent = `Questão #${q.id || '—'} · ${q.materia || 'matéria não identificada'}`;
+    const sub = document.getElementById('tec-assistant-sub'); if (sub) sub.textContent = `#${q.id || '—'} · ${q.materia || 'matéria não identificada'} · ${q.acertou === true ? 'acerto' : q.acertou === false ? 'erro' : 'sem resultado'}`;
     root.append(this.createText('p', q.enunciado || 'Enunciado não capturado.', 'tec-question-statement'));
     const alternatives = document.createElement('div'); alternatives.className = 'tec-question-alternatives';
     (q.alternativas || []).forEach(a => { const item = this.createText('div', `${a.letra}) ${a.texto}`);
@@ -56429,14 +56681,60 @@ const TecIntegracaoScreen = {
       if (a.letra === q.marcada || a.marcadaPorMim) item.classList.add('selected'); alternatives.append(item); });
     root.append(alternatives); this.renderAnalysis(state);
   },
+
+  questionText(q = {}) {
+    const alternatives = (q.alternativas || []).map(a => `${a.letra || '—'}) ${a.texto || ''}${a.letra === q.marcada || a.marcadaPorMim ? ' [MINHA RESPOSTA]' : ''}${a.letra === q.correta || a.correta ? ' [GABARITO]' : ''}`).join('\n');
+    return [
+      `ID: ${q.id || '—'}`,
+      `Banca: ${q.banca || '—'}`,
+      `Concurso: ${q.concurso || '—'}`,
+      `Matéria: ${q.materia || '—'}`,
+      `Assunto: ${q.assunto || '—'}`,
+      '', 'Enunciado:', q.enunciado || '—', '', 'Alternativas:', alternatives || '—', '',
+      `Minha resposta: ${q.marcada || '—'}`,
+      `Gabarito: ${q.correta || '—'}`,
+      `Resultado: ${q.acertou === true ? 'ACERTOU' : q.acertou === false ? 'ERROU' : 'NÃO IDENTIFICADO'}`
+    ].join('\n');
+  },
+  renderPromptTemplate(template, q = {}) {
+    const alternatives = (q.alternativas || []).map(a => `${a.letra || '—'}) ${a.texto || ''}`).join('\n');
+    const values = {
+      QUESTAO:this.questionText(q), ID:q.id || '—', BANCA:q.banca || '—', CONCURSO:q.concurso || '—', MATERIA:q.materia || '—', ASSUNTO:q.assunto || '—',
+      ENUNCIADO:q.enunciado || '—', ALTERNATIVAS:alternatives || '—', MINHA_RESPOSTA:q.marcada || '—', GABARITO:q.correta || '—',
+      RESULTADO:q.acertou === true ? 'ACERTOU' : q.acertou === false ? 'ERROU' : 'NÃO IDENTIFICADO'
+    };
+    return String(template || '').replace(/\{\{([A-Z_]+)\}\}/g, (_, key) => String(values[key] == null ? '' : values[key]));
+  },
+  promptKindFor(section, q) {
+    if (section === 'diagnostico') return q && q.acertou === true ? 'acerto' : q && q.acertou === false ? 'erro' : 'teoria';
+    if (section === 'revisao') return 'teoria';
+    if (['flashcards','quiz','reforco'].includes(section)) return section;
+    return null;
+  },
+  customPromptsFor(section, q) {
+    const st = this.promptState();
+    const sections = section === 'all' ? ['diagnostico','revisao','flashcards'] : [section];
+    const out = {};
+    sections.forEach(sec => { const kind = this.promptKindFor(sec, q); if (kind && st.prompts[kind]) out[sec] = this.renderPromptTemplate(st.prompts[kind], q); });
+    return out;
+  },
+
   analysisFor(state) { return state.analyses && state.analyses[this.selectedKey + ':' + this.PROMPT_VERSION]; },
   renderAnalysis(state) {
     const content = document.getElementById('tec-ai-content'); if (!content) return;
     const professor = document.getElementById('tec-professor-box'); if (professor) professor.hidden = this.activeSection !== 'professor';
     content.replaceChildren(); const analysis = this.analysisFor(state), value = analysis && analysis[this.activeSection];
     const run = document.getElementById('tec-ai-run');
-    if (run) run.textContent = value ? 'Reprocessar esta aba' : (analysis ? 'Gerar esta aba' : 'Gerar análise completa');
-    if (!value) { content.textContent = this.activeSection === 'professor' ? 'Faça uma pergunta usando a questão e as análises como contexto.' : 'Clique em “Analisar com IA” para gerar esta seção.'; return; }
+    if (run) {
+      run.hidden = this.activeSection === 'professor';
+      run.textContent = value ? 'Reprocessar esta aba' : (analysis ? 'Gerar esta aba' : 'Gerar análise essencial');
+    }
+    if (!value) {
+      content.textContent = this.activeSection === 'professor'
+        ? 'Faça uma pergunta usando a questão e as análises já produzidas como contexto.'
+        : 'A IA usa os seus prompts pedagógicos. Gere a análise essencial ou apenas esta aba.';
+      return;
+    }
     if (Array.isArray(value)) { const list = document.createElement('ul'); value.forEach(x => list.append(this.createText('li', typeof x === 'string' ? x : JSON.stringify(x)))); content.append(list); }
     else content.textContent = typeof value === 'string' ? value : JSON.stringify(value, null, 2);
     if (this.activeSection === 'reforco' && value) {
@@ -56449,41 +56747,126 @@ const TecIntegracaoScreen = {
     if (!row || !analysis || !analysis.reforco || !DB.addExtra) return;
     const q = row.question || {}, steps = Array.isArray(analysis.reforco) ? analysis.reforco.join(' · ') : String(analysis.reforco);
     DB.addExtra({ titulo: `Reforço TEC #${q.id || '—'} — ${q.assunto || q.materia || 'revisão'}`, tipo: 'revisao', disciplina: q.materia || '', unidade: 'sessoes', alvo: 1, periodo: 'unica', marcador: steps });
-    showToast('✅ Reforço adicionado às Atividades Extras');
+    if (typeof showToast === 'function') showToast('✅ Reforço adicionado às Atividades Extras');
   },
   async callAI(section, professorQuestion) {
     const state = this.state(), row = state.questions && state.questions[this.selectedKey]; if (!row) throw new Error('Selecione uma questão.');
     const cs = window.CloudStore;
     if (!cs || !cs.isLoggedIn || !cs.isLoggedIn() || !cs.session) throw new Error('Entre na sua conta do Study para usar a IA.');
-    const analysisKey = row.key + ':' + this.PROMPT_VERSION, requestBody = JSON.stringify({ question: row.question, history: row.history,
-      existingAnalysis: state.analyses[analysisKey] || null, section: section || 'all', professorQuestion: professorQuestion || null, promptVersion: this.PROMPT_VERSION });
+    const analysisKey = row.key + ':' + this.PROMPT_VERSION;
+    const requestBody = JSON.stringify({ question:row.question, history:row.history, existingAnalysis:state.analyses[analysisKey] || null,
+      section:section || 'diagnostico', professorQuestion:professorQuestion || null, promptVersion:this.PROMPT_VERSION,
+      customPrompts:this.customPromptsFor(section, row.question) });
     let response;
     for (let attempt = 0; attempt < 2; attempt++) {
-      response = await cs._buscarComTeto(cs.SUPABASE_URL + '/functions/v1/tec-ai', { method: 'POST',
-        headers: { 'content-type': 'application/json', authorization: 'Bearer ' + cs.session.access_token }, body: requestBody });
-      if (response.ok || ![429, 502, 503, 504].includes(response.status) || attempt === 1) break;
+      response = await cs._buscarComTeto(cs.SUPABASE_URL + '/functions/v1/tec-ai', { method:'POST',
+        headers:{ 'content-type':'application/json', authorization:'Bearer ' + cs.session.access_token }, body:requestBody });
+      if (response.ok || ![429,502,503,504].includes(response.status) || attempt === 1) break;
       await new Promise(resolve => setTimeout(resolve, 700 + Math.floor(Math.random() * 500)));
     }
     const body = await response.json().catch(() => ({})); if (!response.ok) throw new Error(body.error || 'A análise não pôde ser concluída.');
-    state.analyses[analysisKey] = { ...(state.analyses[analysisKey] || {}), ...(body.analysis || body), updatedAt: new Date().toISOString() };
-    this.save(state); this.render();
+    state.analyses[analysisKey] = { ...(state.analyses[analysisKey] || {}), ...(body.analysis || body), updatedAt:new Date().toISOString() };
+    if (!this.save(state)) throw new Error('A análise foi gerada, mas não pôde ser salva.');
+    return body.analysis || body;
   },
   async runAI(section, question) {
-    const button = document.getElementById(section === 'professor' ? 'tec-professor-send' : 'tec-ai-run'), old = button && button.textContent;
-    if (button) { button.disabled = true; button.textContent = 'Analisando…'; }
-    try { await this.callAI(section, question); showToast('🤖 Análise pronta'); } catch (e) { showToast('⚠️ ' + e.message); }
-    finally { if (button) { button.disabled = false; button.textContent = old; } }
+    const isProfessor = section === 'professor';
+    const button = document.getElementById(isProfessor ? 'tec-professor-send' : 'tec-ai-run'), old = button && button.textContent;
+    if (button) { button.disabled = true; button.textContent = isProfessor ? 'Consultando…' : 'Analisando…'; }
+    try {
+      if (section === 'all') {
+        for (const part of ['diagnostico','revisao','flashcards']) await this.callAI(part, null);
+      } else await this.callAI(section, question);
+      this.render(); if (typeof showToast === 'function') showToast('🤖 Análise pronta');
+    } catch (e) { if (typeof showToast === 'function') showToast('⚠️ ' + e.message); }
+    finally {
+      if (button) { button.disabled = false; if (isProfessor) button.textContent = old; }
+      if (!isProfessor) this.renderAnalysis(this.state());
+    }
   },
+
+  ensurePromptModal() {
+    let modal = document.getElementById('tec-prompt-modal'); if (modal) return modal;
+    modal = document.createElement('div'); modal.id = 'tec-prompt-modal'; modal.className = 'cards-modal tec-prompt-modal'; modal.style.display = 'none';
+    modal.innerHTML = `<div class="cards-modal-box tec-prompt-box"><div class="cards-modal-head"><div><h2>⚙️ Prompts da IA</h2><p class="sub">Os prompts ficam no seu perfil. Cada alteração preserva a versão anterior.</p></div><button type="button" class="icon-btn" id="tec-prompt-x" aria-label="Fechar">✕</button></div><div class="cards-modal-body"><div class="field"><label for="tec-prompt-kind">Prompt</label><select id="tec-prompt-kind"></select></div><div class="field"><label for="tec-prompt-text">Instruções</label><textarea id="tec-prompt-text" class="tec-prompt-text"></textarea><p class="hint">Placeholders: {{QUESTAO}}, {{ID}}, {{BANCA}}, {{CONCURSO}}, {{MATERIA}}, {{ASSUNTO}}, {{ENUNCIADO}}, {{ALTERNATIVAS}}, {{MINHA_RESPOSTA}}, {{GABARITO}}, {{RESULTADO}}</p></div><details class="tec-prompt-history-wrap"><summary>Histórico de versões</summary><div id="tec-prompt-history" class="tec-prompt-history"></div></details></div><div class="cards-modal-foot"><button type="button" class="btn-secondary" id="tec-prompt-reset">↺ Restaurar este padrão</button><span style="flex:1"></span><button type="button" class="btn-secondary" id="tec-prompt-cancel">Cancelar</button><button type="button" class="btn-primary" id="tec-prompt-save">Salvar prompts</button></div></div>`;
+    document.body.appendChild(modal);
+    const sel = modal.querySelector('#tec-prompt-kind');
+    Object.entries(this.PROMPT_LABELS).forEach(([k,label]) => { const o=document.createElement('option'); o.value=k; o.textContent=label; sel.appendChild(o); });
+    sel.addEventListener('change', () => this.loadPromptEditor(sel.value));
+    modal.querySelector('#tec-prompt-x').addEventListener('click', () => this.closePromptEditor());
+    modal.querySelector('#tec-prompt-cancel').addEventListener('click', () => this.closePromptEditor());
+    modal.querySelector('#tec-prompt-save').addEventListener('click', () => this.savePromptEditor());
+    modal.querySelector('#tec-prompt-reset').addEventListener('click', () => this.resetPromptEditor());
+    modal.querySelector('#tec-prompt-history').addEventListener('click', e => { const b=e.target.closest('[data-history-index]'); if (b) this.restorePromptVersion(Number(b.dataset.historyIndex)); });
+    return modal;
+  },
+  loadPromptEditor(kind) {
+    const modal=this.ensurePromptModal(), st=this.promptState(), key=kind || modal.querySelector('#tec-prompt-kind').value || 'erro';
+    modal.querySelector('#tec-prompt-kind').value=key; modal.querySelector('#tec-prompt-text').value=st.prompts[key] || '';
+    const hist=modal.querySelector('#tec-prompt-history'); hist.replaceChildren();
+    if (!st.history.length) { hist.append(this.createText('p','Ainda não há versões anteriores.','hint')); return; }
+    [...st.history].reverse().forEach((v,revIdx) => { const index=st.history.length-1-revIdx, row=document.createElement('div'); row.className='tec-prompt-history-row';
+      const when=new Date(v.savedAt); row.append(this.createText('span', Number.isNaN(when.getTime()) ? `Versão ${index+1}` : when.toLocaleString('pt-BR')));
+      const b=this.createText('button','Restaurar','btn-secondary'); b.type='button'; b.dataset.historyIndex=String(index); row.append(b); hist.append(row); });
+  },
+  openPromptEditor() { const modal=this.ensurePromptModal(); modal.style.display='flex'; this.loadPromptEditor(modal.querySelector('#tec-prompt-kind').value || 'erro'); },
+  closePromptEditor() { const modal=document.getElementById('tec-prompt-modal'); if (modal) modal.style.display='none'; },
+  savePromptEditor() {
+    const modal=this.ensurePromptModal(), st=this.promptState(), kind=modal.querySelector('#tec-prompt-kind').value, value=this.text(modal.querySelector('#tec-prompt-text').value);
+    if (!value) { if (typeof showToast === 'function') showToast('⚠️ O prompt não pode ficar vazio.'); return; }
+    st.prompts[kind]=value; if (this.savePromptState(st,true)) { this.loadPromptEditor(kind); if (typeof showToast === 'function') showToast('✅ Prompt salvo com histórico'); }
+  },
+  resetPromptEditor() {
+    const modal=this.ensurePromptModal(), kind=modal.querySelector('#tec-prompt-kind').value, st=this.promptState(); st.prompts[kind]=this.DEFAULT_PROMPTS[kind];
+    if (this.savePromptState(st,true)) { this.loadPromptEditor(kind); if (typeof showToast === 'function') showToast('↺ Prompt padrão restaurado'); }
+  },
+  restorePromptVersion(index) {
+    const st=this.promptState(), version=st.history[index]; if (!version || !version.prompts) return;
+    st.prompts={ ...this.DEFAULT_PROMPTS, ...version.prompts }; if (this.savePromptState(st,true)) { this.loadPromptEditor(document.getElementById('tec-prompt-kind')?.value || 'erro'); if (typeof showToast === 'function') showToast('✅ Versão de prompts restaurada'); }
+  },
+
+  ensureExperienceUI() {
+    const root=document.getElementById('screen-integracaotec'); if (!root) return;
+    root.classList.add('tec-workbench-v2');
+    const subtitle=root.querySelector('.page-subtitle'); if (subtitle) subtitle.textContent='Resolva no TEC em uma área ampla; o Companion registra o desempenho e a IA transforma cada questão em diagnóstico, revisão e reforço.';
+    const hero=root.querySelector('.tec-connect-hero'); if (hero) hero.hidden=true;
+    const message=document.getElementById('tec-connect-message'); if (message) message.textContent='O StudyNoMentor Companion faz a ponte em tempo real. Importação JSON permanece apenas como contingência.';
+    const workspace=root.querySelector('.tec-workspace-card');
+    const wh=workspace?.querySelector('.card-header');
+    if (wh && !wh.querySelector('.tec-workspace-tools')) {
+      const tools=document.createElement('div'); tools.className='tec-workspace-tools';
+      tools.innerHTML='<button type="button" class="btn-secondary" id="tec-workspace-reload">↻ Recarregar</button><button type="button" class="btn-secondary" id="tec-workspace-open-external">↗ Separado</button><button type="button" class="btn-primary" id="tec-workspace-focus">⛶ Modo foco</button>';
+      wh.appendChild(tools);
+      tools.querySelector('#tec-workspace-reload').addEventListener('click',()=>this.reloadEmbedded());
+      tools.querySelector('#tec-workspace-open-external').addEventListener('click',()=>window.open(this.TEC_HOME,'_blank','noopener,noreferrer'));
+      tools.querySelector('#tec-workspace-focus').addEventListener('click',()=>this.toggleFocus());
+    }
+    const assistant=root.querySelector('.tec-assistant-card .card-header');
+    if (assistant && !document.getElementById('tec-ai-prompts')) {
+      const run=document.getElementById('tec-ai-run'), tools=document.createElement('div'); tools.className='tec-ai-head-actions';
+      const prompts=this.createText('button','⚙ Prompts','btn-secondary'); prompts.type='button'; prompts.id='tec-ai-prompts'; prompts.addEventListener('click',()=>this.openPromptEditor());
+      if (run) { run.parentElement?.removeChild(run); tools.append(prompts,run); } else tools.append(prompts); assistant.appendChild(tools);
+    }
+    this.ensurePromptModal();
+    if (!this._experienceBound) {
+      this._experienceBound=true;
+      document.addEventListener('keydown',e=>{ if (e.key==='Escape' && root.classList.contains('tec-focus-mode')) this.toggleFocus(false); });
+    }
+    try { if (sessionStorage.getItem('snm:tec-workspace-open')==='1') this.openEmbedded(); }
+    catch (e) { if (typeof _quiet === 'function') _quiet(e, 'tec-workspace-session-read'); }
+  },
+
   render() {
     const root = document.getElementById('screen-integracaotec'); if (!root) return;
+    this.ensureExperienceUI();
     const state = this.state(), metrics = this.metrics(state);
     for (const [name, value] of Object.entries(metrics)) { const el = document.getElementById('tec-connect-' + name); if (el) el.textContent = String(value); }
     const empty = document.getElementById('tec-connect-empty'); if (empty) empty.hidden = metrics.questions > 0;
-    const connected = state.connection.status === 'connected', stage = document.getElementById('tec-connect-stage'); if (stage) stage.textContent = connected ? 'TEC conectado' : 'Aguardando TEC';
+    const connected = state.connection.status === 'connected', stage = document.getElementById('tec-connect-stage'); if (stage) stage.textContent = connected ? 'Companion conectado' : 'Aguardando TEC';
     const status = document.getElementById('tec-connect-status');
     if (status) { const strong = status.querySelector('strong'), small = status.querySelector('small'), dot = status.querySelector('.tec-connect-dot');
-      if (strong) strong.textContent = connected ? 'Ponte ativa' : 'Aguardando a ponte';
-      if (small) small.textContent = connected ? `Conta ${state.connection.account || state.connection.tecAccount || 'identificada'} · caderno ${state.connection.bookId || '—'}` : 'Abra o TEC incorporado com o StudyMentor V21.';
+      if (strong) strong.textContent = connected ? 'Ponte ativa' : 'Aguardando o Companion';
+      if (small) small.textContent = connected ? `Conta ${state.connection.account || state.connection.tecAccount || 'identificada'} · caderno ${state.connection.bookId || '—'}` : 'Abra o TEC incorporado com o StudyNoMentor Companion ativo.';
       if (dot) dot.classList.toggle('connected', connected); }
     this.renderList(state); this.renderDetail(state);
   },
@@ -56492,23 +56875,22 @@ const TecIntegracaoScreen = {
     once('tec-connect-start', 'click', () => this.openEmbedded());
     once('tec-connect-external', 'click', () => window.open(this.TEC_HOME, '_blank', 'noopener,noreferrer'));
     once('tec-connect-import', 'click', () => document.getElementById('tec-connect-file')?.click());
-    once('tec-connect-file', 'change', e => { const f = e.target.files && e.target.files[0]; if (f) this.importJSON(f).catch(err => showToast('⚠️ ' + err.message)); e.target.value = ''; });
+    once('tec-connect-file', 'change', e => { const f = e.target.files && e.target.files[0]; if (f) this.importJSON(f).catch(err => { if (typeof showToast === 'function') showToast('⚠️ ' + err.message); }); e.target.value = ''; });
     once('tec-ai-run', 'click', () => {
       const state = this.state(), first = !this.analysisFor(state);
-      this.runAI(first ? 'all' : (this.activeSection === 'professor' ? 'all' : this.activeSection));
+      this.runAI(first ? 'all' : (this.activeSection === 'professor' ? 'diagnostico' : this.activeSection));
     });
     once('tec-professor-send', 'click', () => { const input = document.getElementById('tec-professor-question'), q = this.text(input && input.value); if (q) this.runAI('professor', q); });
     const tabs = document.getElementById('tec-ai-tabs');
     if (tabs && !tabs.dataset.tecBound) { tabs.dataset.tecBound = '1'; tabs.addEventListener('click', e => { const b = e.target.closest('[data-section]'); if (!b) return;
       this.activeSection = b.dataset.section; tabs.querySelectorAll('button').forEach(x => x.classList.toggle('active', x === b)); this.renderAnalysis(this.state()); }); }
     if (!this._messageBound) { this._messageBound = true; window.addEventListener('message', e => this.onMessage(e)); }
-    if (!this._storageBound) { this._storageBound = true; window.addEventListener('storage', e => { if (e.key === this._key()) this.render(); }); }
+    if (!this._storageBound) { this._storageBound = true; window.addEventListener('storage', e => { if (e.key === this._key() || e.key === this._promptKey()) this.render(); }); }
   },
-  init() { this.bind(); this.render(); }
+  init() { this.bind(); this.ensureExperienceUI(); this.render(); }
 };
 window.TecIntegracaoScreen = TecIntegracaoScreen;
 window.addEventListener('screen:activated', e => { if (e.detail && e.detail.screen === 'integracaotec') TecIntegracaoScreen.init(); });
-
 /* ============================================================================
    TEC REALTIME + STUDYNOMENTOR COMPANION
    ----------------------------------------------------------------------------
@@ -57185,6 +57567,35 @@ window.addEventListener('screen:activated', e => { if (e.detail && e.detail.scre
   };
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', start, { once:true });
   else start();
+})();
+
+/* ============================================================
+   IA TEC — compatibilidade progressiva de prompts
+   ------------------------------------------------------------
+   O backend novo recebe customPrompts de forma nativa. Enquanto uma instalação
+   ainda estiver com a Edge Function anterior, ela já conhece professorQuestion.
+   Espelhamos o prompt renderizado nesse campo para que a experiência pedagógica
+   V2 funcione antes e depois do deploy do backend, sem chave no cliente.
+   ============================================================ */
+(() => {
+  const T = window.TecIntegracaoScreen;
+  if (!T || T.__promptCompatV2 || typeof T.callAI !== 'function') return;
+  T.__promptCompatV2 = true;
+  const original = T.callAI;
+  T.callAI = function(section, professorQuestion) {
+    let instruction = professorQuestion;
+    try {
+      if (!instruction && section !== 'professor') {
+        const state = this.state(), row = state.questions && state.questions[this.selectedKey];
+        const custom = row && this.customPromptsFor ? this.customPromptsFor(section, row.question || {}) : null;
+        const rendered = custom && custom[section];
+        if (rendered) instruction = `[PROMPT PEDAGÓGICO DO ALUNO — ${String(section || 'analise').toUpperCase()}]\n${rendered}`;
+      }
+    } catch (error) {
+      if (typeof _quiet === 'function') _quiet(error, 'tec-ai-prompt-compat');
+    }
+    return original.call(this, section, instruction);
+  };
 })();
 
 </script>

@@ -1,117 +1,242 @@
+/* ============================================================
+   INTEGRAÇÃO TEC — workbench de questões
+   O TEC é a superfície principal; telemetria e IA ficam como apoio.
+   ============================================================ */
+#screen-integracaotec.tec-workbench-v2 { padding-bottom: 28px; }
+.tec-workbench-lock { overflow: hidden !important; }
+
 .tec-connect-header {
-  display: flex; align-items: flex-start; justify-content: space-between; gap: 18px;
+  display:flex; align-items:flex-start; justify-content:space-between; gap:18px;
+  margin-bottom:12px;
 }
-.tec-connect-eyebrow, .tec-connect-stage {
-  display: inline-block; padding: 5px 10px; border-radius: 999px; font-size: 10px; font-weight: 800;
+.tec-connect-eyebrow,.tec-connect-stage {
+  display:inline-block; padding:5px 10px; border-radius:999px; font-size:10px; font-weight:800;
 }
 .tec-connect-eyebrow {
-  margin-bottom: 7px; background: color-mix(in srgb, var(--accent) 13%, transparent);
-  color: var(--accent); letter-spacing: .08em; text-transform: uppercase;
+  margin-bottom:7px; background:color-mix(in srgb,var(--accent) 13%,transparent);
+  color:var(--accent); letter-spacing:.08em; text-transform:uppercase;
 }
-.tec-connect-stage { flex: none; border: 1px solid var(--border); color: var(--text-muted); }
+.tec-connect-stage { flex:none; border:1px solid var(--border); color:var(--text-muted); }
+
 .tec-connect-grid {
-  display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(280px, .8fr); gap: 16px;
+  display:grid;
+  grid-template-columns:minmax(300px,.72fr) minmax(0,1.28fr);
+  gap:12px;
+  align-items:start;
 }
-.tec-connect-hero {
-  grid-column: 1 / -1; display: flex; align-items: center; gap: 20px; padding: 25px 28px;
-  background: linear-gradient(135deg, color-mix(in srgb, var(--accent) 10%, var(--surface)), var(--surface));
+/* A apresentação antiga ocupava a primeira dobra. O workbench começa pela ferramenta. */
+.tec-connect-hero[hidden],.tec-connect-hero { display:none !important; }
+
+/* 1. TEC — primeira superfície útil da tela */
+.tec-workspace-card {
+  grid-column:1 / -1;
+  order:1;
+  min-width:0;
+  overflow:hidden;
+  border-color:color-mix(in srgb,var(--accent) 20%,var(--border));
 }
-.tec-connect-hero h2 { margin: 0 0 7px; }
-.tec-connect-hero p { margin: 0; color: var(--text-muted); line-height: 1.55; }
-.tec-connect-hero-icon {
-  display: grid; place-items: center; width: 62px; height: 62px; flex: none; border-radius: 18px;
-  background: var(--accent); color: #fff; font-size: 29px;
+.tec-workspace-card > .card-header {
+  display:flex; align-items:center; justify-content:space-between; gap:12px;
+  padding-top:14px; padding-bottom:14px;
+  background:color-mix(in srgb,var(--surface-soft) 78%,transparent);
 }
-.tec-connect-flow { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; margin-top: 17px; }
-.tec-connect-flow span {
-  padding: 7px 10px; border: 1px solid var(--border); border-radius: 8px;
-  background: var(--surface); font-size: 11px; font-weight: 700;
+.tec-workspace-card > .card-header h2 { margin-bottom:2px; }
+.tec-workspace-tools,.tec-ai-head-actions {
+  display:flex; gap:7px; flex-wrap:wrap; align-items:center; flex:none;
 }
-.tec-connect-flow b { color: var(--accent); }
-.tec-connect-status-card, .tec-connect-data-card, .tec-connect-project-card { padding-bottom: 22px; }
+.tec-workspace-tools button,.tec-ai-head-actions button { white-space:nowrap; }
+.tec-workspace-placeholder {
+  min-height:clamp(420px,62vh,700px);
+  display:grid; place-content:center; gap:8px;
+  margin:0; text-align:center; color:var(--text-muted);
+  border-top:1px dashed var(--border);
+  background:linear-gradient(180deg,color-mix(in srgb,var(--accent) 2%,var(--surface)),var(--surface));
+}
+.tec-workspace-placeholder strong { color:var(--text); font-size:17px; }
+#tec-workspace-frame {
+  display:block;
+  width:100%;
+  height:clamp(720px,calc(100vh - 175px),1080px);
+  min-height:720px;
+  border:0;
+  border-top:1px solid var(--border);
+  background:#fff;
+}
+#tec-workspace-frame[hidden] { display:none; }
+
+/* Modo foco: mantém Study/Companion vivos, mas entrega a viewport ao TEC. */
+#screen-integracaotec.tec-focus-mode .tec-workspace-card {
+  position:fixed;
+  inset:10px;
+  z-index:1600;
+  margin:0;
+  display:flex;
+  flex-direction:column;
+  max-width:none;
+  max-height:none;
+  border-radius:14px;
+  box-shadow:0 24px 80px rgb(0 0 0 / 38%);
+  background:var(--surface);
+}
+#screen-integracaotec.tec-focus-mode .tec-workspace-card > .card-header { flex:none; }
+#screen-integracaotec.tec-focus-mode #tec-workspace-frame {
+  flex:1 1 auto;
+  height:auto;
+  min-height:0;
+}
+#screen-integracaotec.tec-focus-mode .tec-workspace-placeholder { flex:1; margin:0; }
+
+/* 2. Estado — compacto, depois do ambiente de resolução */
+.tec-connect-status-card { order:2; min-width:0; padding-bottom:16px; }
+.tec-connect-data-card { order:2; min-width:0; padding-bottom:16px; }
+.tec-connect-status-card .card-header,.tec-connect-data-card .card-header { padding-top:15px; padding-bottom:10px; }
 .tec-connect-status {
-  display: flex; align-items: center; gap: 12px; margin: 3px 28px 18px; padding: 14px;
-  border: 1px solid var(--border); border-radius: 11px; background: var(--surface-soft);
+  display:flex; align-items:center; gap:11px;
+  margin:0 20px 12px; padding:11px 12px;
+  border:1px solid var(--border); border-radius:10px; background:var(--surface-soft);
 }
-.tec-connect-status div { display: flex; flex-direction: column; gap: 3px; }
-.tec-connect-status small, .tec-connect-steps small { color: var(--text-muted); }
+.tec-connect-status div { display:flex; flex-direction:column; gap:3px; min-width:0; }
+.tec-connect-status small { color:var(--text-muted); overflow:hidden; text-overflow:ellipsis; }
 .tec-connect-dot {
-  width: 11px; height: 11px; flex: none; border-radius: 50%; background: var(--text-faint);
-  box-shadow: 0 0 0 5px color-mix(in srgb, var(--text-faint) 15%, transparent);
+  width:10px; height:10px; flex:none; border-radius:50%; background:var(--text-faint);
+  box-shadow:0 0 0 4px color-mix(in srgb,var(--text-faint) 15%,transparent);
 }
-.tec-connect-dot.connected { background: #22c55e; box-shadow: 0 0 0 5px rgb(34 197 94 / 16%); }
-.tec-connect-actions { display: flex; gap: 8px; padding: 0 28px; }
-.tec-connect-status-card > .hint { margin: 13px 28px 0; }
+.tec-connect-dot.connected { background:#22c55e; box-shadow:0 0 0 4px rgb(34 197 94 / 16%); }
+.tec-connect-actions { display:flex; gap:7px; flex-wrap:wrap; padding:0 20px; }
+.tec-connect-status-card > .hint { margin:10px 20px 0; }
 .tec-connect-metrics {
-  display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; padding: 2px 24px 18px;
+  display:grid; grid-template-columns:repeat(4,1fr); gap:7px; padding:0 18px 12px;
 }
 .tec-connect-metrics div {
-  display: flex; flex-direction: column; gap: 3px; padding: 13px 8px;
-  border: 1px solid var(--border); border-radius: 10px; text-align: center;
+  display:flex; flex-direction:column; gap:2px; padding:10px 5px;
+  border:1px solid var(--border); border-radius:9px; text-align:center;
 }
-.tec-connect-metrics strong { font-size: 22px; color: var(--accent); }
-.tec-connect-metrics span { font-size: 10px; color: var(--text-muted); }
+.tec-connect-metrics strong { font-size:20px; color:var(--accent); }
+.tec-connect-metrics span { font-size:10px; color:var(--text-muted); }
 .tec-connect-empty {
-  margin: 0 24px; padding: 16px; border: 1px dashed var(--border); border-radius: 10px;
-  color: var(--text-muted); font-size: 12px; text-align: center;
+  margin:0 18px; padding:13px;
+  border:1px dashed var(--border); border-radius:9px;
+  color:var(--text-muted); font-size:12px; text-align:center;
 }
-.tec-workspace-card { grid-column: 1 / -1; overflow: hidden; }
-.tec-workspace-placeholder { min-height: 260px; display: grid; place-content: center; gap: 7px; margin: 0 24px 24px; text-align: center; color: var(--text-muted); border: 1px dashed var(--border); border-radius: 12px; }
-.tec-workspace-placeholder strong { color: var(--text); font-size: 16px; }
-#tec-workspace-frame { width: 100%; height: min(76vh, 850px); border: 0; border-top: 1px solid var(--border); background: #fff; }
-.tec-library-card { min-width: 0; }
-.tec-assistant-card { min-width: 0; }
-.tec-question-list { display: grid; gap: 7px; padding: 0 24px 24px; max-height: 620px; overflow: auto; }
-.tec-question-row { display: flex; flex-direction: column; gap: 5px; width: 100%; padding: 12px; border: 1px solid var(--border); border-radius: 10px; background: var(--surface); color: var(--text); text-align: left; cursor: pointer; }
-.tec-question-row:hover, .tec-question-row.active { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 7%, var(--surface)); }
-.tec-question-row small { color: var(--text-muted); }
-.tec-question-detail { padding: 0 24px 18px; max-height: 370px; overflow: auto; }
-.tec-question-statement { white-space: pre-wrap; line-height: 1.55; }
-.tec-question-alternatives { display: grid; gap: 6px; }
-.tec-question-alternatives > div { padding: 9px 10px; border: 1px solid var(--border); border-radius: 8px; font-size: 12px; }
-.tec-question-alternatives > .selected { border-color: #ca8a04; background: rgb(202 138 4 / 8%); }
-.tec-question-alternatives > .correct { border-color: #16a34a; background: rgb(22 163 74 / 8%); }
-.tec-ai-tabs { display: flex; gap: 5px; padding: 12px 24px 0; overflow-x: auto; border-top: 1px solid var(--border); }
-.tec-ai-tabs button { padding: 8px 10px; border: 0; border-radius: 8px; background: transparent; color: var(--text-muted); font-weight: 700; cursor: pointer; }
-.tec-ai-tabs button.active { background: color-mix(in srgb, var(--accent) 12%, var(--surface)); color: var(--accent-text); }
-.tec-ai-content { min-height: 120px; margin: 10px 24px 18px; padding: 14px; white-space: pre-wrap; line-height: 1.55; border: 1px solid var(--border); border-radius: 10px; background: var(--surface-soft); color: var(--text-muted); }
-.tec-reforco-add { display: block; margin-top: 14px; }
-.tec-professor-box { display: flex; gap: 8px; padding: 0 24px 24px; }
-.tec-professor-box textarea { flex: 1; min-height: 70px; resize: vertical; padding: 10px; border: 1px solid var(--border); border-radius: 9px; background: var(--surface); color: var(--text); }
-.tec-connect-project-card { grid-column: 1 / -1; }
-.tec-connect-steps {
-  display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin: 0;
-  padding: 2px 28px; list-style: none;
+
+/* 3. Biblioteca + professor formam a bancada de pós-questão */
+.tec-library-card { order:3; min-width:0; }
+.tec-assistant-card { order:3; min-width:0; }
+.tec-library-card .card-header,.tec-assistant-card .card-header { padding-top:16px; padding-bottom:12px; }
+.tec-assistant-card > .card-header { align-items:flex-start; }
+.tec-question-list {
+  display:grid; gap:6px; padding:0 18px 18px;
+  max-height:680px; overflow:auto; overscroll-behavior:contain;
 }
-.tec-connect-steps li {
-  display: flex; gap: 10px; padding: 14px; border: 1px solid var(--border); border-radius: 11px;
+.tec-question-row {
+  display:flex; flex-direction:column; gap:4px; width:100%; padding:11px 12px;
+  border:1px solid var(--border); border-radius:9px; background:var(--surface);
+  color:var(--text); text-align:left; cursor:pointer;
 }
-.tec-connect-steps li > span {
-  display: grid; place-items: center; width: 25px; height: 25px; flex: none; border-radius: 50%;
-  background: var(--surface-soft); color: var(--text-muted); font-size: 11px; font-weight: 800;
+.tec-question-row:hover,.tec-question-row.active {
+  border-color:var(--accent); background:color-mix(in srgb,var(--accent) 7%,var(--surface));
 }
-.tec-connect-steps li div { display: flex; flex-direction: column; gap: 4px; }
-.tec-connect-steps small { line-height: 1.4; }
-.tec-connect-steps .done > span { background: #166534; color: #fff; }
-.tec-connect-steps .current {
-  border-color: color-mix(in srgb, var(--accent) 55%, var(--border));
-  background: color-mix(in srgb, var(--accent) 5%, var(--surface));
+.tec-question-row strong { font-size:12px; line-height:1.35; }
+.tec-question-row small { color:var(--text-muted); line-height:1.35; }
+.tec-question-detail { padding:0 20px 15px; max-height:360px; overflow:auto; }
+.tec-question-statement { white-space:pre-wrap; line-height:1.55; }
+.tec-question-alternatives { display:grid; gap:6px; }
+.tec-question-alternatives > div { padding:9px 10px; border:1px solid var(--border); border-radius:8px; font-size:12px; }
+.tec-question-alternatives > .selected { border-color:#ca8a04; background:rgb(202 138 4 / 8%); }
+.tec-question-alternatives > .correct { border-color:#16a34a; background:rgb(22 163 74 / 8%); }
+.tec-ai-tabs {
+  display:flex; gap:4px; padding:10px 20px 0; overflow-x:auto;
+  border-top:1px solid var(--border); scrollbar-width:thin;
 }
-.tec-connect-steps .current > span { background: #3730a3; color: #fff; }
-@media (max-width: 900px) {
-  .tec-connect-grid { grid-template-columns: 1fr; }
-  .tec-connect-hero, .tec-connect-project-card { grid-column: auto; }
-  .tec-connect-steps { grid-template-columns: 1fr 1fr; }
+.tec-ai-tabs button {
+  flex:none; padding:7px 9px; border:0; border-radius:8px;
+  background:transparent; color:var(--text-muted); font-weight:700; cursor:pointer;
 }
-@media (max-width: 600px) {
-  .tec-connect-header { display: block; }
-  .tec-connect-stage { margin-top: 10px; }
-  .tec-connect-hero { align-items: flex-start; padding: 20px; flex-direction: column; }
-  .tec-connect-flow b { display: none; }
-  .tec-connect-flow span { width: 100%; box-sizing: border-box; }
-  .tec-connect-metrics { grid-template-columns: 1fr 1fr; }
-  .tec-connect-steps { grid-template-columns: 1fr; }
-  .tec-connect-actions { flex-direction: column; }
-  #tec-workspace-frame { height: 70vh; }
-  .tec-professor-box { flex-direction: column; }
+.tec-ai-tabs button.active {
+  background:color-mix(in srgb,var(--accent) 16%,var(--surface));
+  color:var(--accent-text);
+  outline:1px solid color-mix(in srgb,var(--accent) 28%,transparent);
+}
+.tec-ai-content {
+  min-height:150px; max-height:520px; overflow:auto;
+  margin:10px 20px 16px; padding:14px;
+  white-space:pre-wrap; line-height:1.58;
+  border:1px solid var(--border); border-radius:10px;
+  background:var(--surface-soft); color:var(--text-muted);
+}
+.tec-ai-content ul { margin:0; padding-left:20px; display:grid; gap:7px; }
+.tec-reforco-add { display:block; margin-top:14px; }
+.tec-professor-box { display:flex; gap:8px; padding:0 20px 20px; }
+.tec-professor-box textarea {
+  flex:1; min-height:78px; resize:vertical; padding:10px;
+  border:1px solid var(--border); border-radius:9px; background:var(--surface); color:var(--text);
+}
+
+/* 4. Radar e diagnóstico: úteis, porém fora do caminho principal de resolução. */
+#tec-realtime-card { grid-column:1 / -1; order:4; margin-top:0 !important; }
+#tec-realtime-card #trt-capture-diagnostic { background:var(--surface-soft); }
+
+/* Editor de prompts nativo */
+.tec-prompt-modal { z-index:1750; }
+.tec-prompt-box { width:min(900px,calc(100vw - 28px)); max-width:900px; }
+.tec-prompt-text {
+  width:100%; min-height:360px; resize:vertical; box-sizing:border-box;
+  padding:12px; border:1px solid var(--border); border-radius:10px;
+  background:var(--surface); color:var(--text); font:12px/1.55 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+}
+.tec-prompt-history-wrap { margin-top:14px; border-top:1px solid var(--border); padding-top:12px; }
+.tec-prompt-history-wrap > summary { cursor:pointer; font-weight:800; }
+.tec-prompt-history { display:grid; gap:7px; margin-top:10px; }
+.tec-prompt-history-row {
+  display:flex; align-items:center; justify-content:space-between; gap:10px;
+  padding:9px 10px; border:1px solid var(--border); border-radius:9px; background:var(--surface-soft);
+}
+.tec-prompt-history-row span { font-size:12px; color:var(--text-muted); }
+.tec-prompt-history-row button { padding:5px 8px; font-size:11px; }
+
+/* Compatibilidade com blocos legados, caso ainda sejam montados */
+.tec-connect-flow { display:flex; align-items:center; flex-wrap:wrap; gap:8px; margin-top:17px; }
+.tec-connect-flow span { padding:7px 10px; border:1px solid var(--border); border-radius:8px; background:var(--surface); font-size:11px; font-weight:700; }
+.tec-connect-flow b { color:var(--accent); }
+.tec-connect-project-card { grid-column:1 / -1; order:5; padding-bottom:22px; }
+.tec-connect-steps { display:grid; grid-template-columns:repeat(4,1fr); gap:10px; margin:0; padding:2px 28px; list-style:none; }
+.tec-connect-steps li { display:flex; gap:10px; padding:14px; border:1px solid var(--border); border-radius:11px; }
+.tec-connect-steps li > span { display:grid; place-items:center; width:25px; height:25px; flex:none; border-radius:50%; background:var(--surface-soft); color:var(--text-muted); font-size:11px; font-weight:800; }
+.tec-connect-steps li div { display:flex; flex-direction:column; gap:4px; }
+.tec-connect-steps small { color:var(--text-muted); line-height:1.4; }
+.tec-connect-steps .done > span { background:#166534; color:#fff; }
+.tec-connect-steps .current { border-color:color-mix(in srgb,var(--accent) 55%,var(--border)); background:color-mix(in srgb,var(--accent) 5%,var(--surface)); }
+.tec-connect-steps .current > span { background:#3730a3; color:#fff; }
+
+@media (min-width:1400px) {
+  .tec-connect-grid { grid-template-columns:minmax(340px,.62fr) minmax(0,1.38fr); }
+  #tec-workspace-frame { height:clamp(760px,calc(100vh - 165px),1180px); }
+}
+@media (max-width:980px) {
+  .tec-connect-grid { grid-template-columns:1fr; }
+  .tec-workspace-card,.tec-connect-status-card,.tec-connect-data-card,.tec-library-card,.tec-assistant-card,#tec-realtime-card,.tec-connect-project-card { grid-column:1; }
+  .tec-library-card { order:3; }
+  .tec-assistant-card { order:4; }
+  #tec-realtime-card { order:5; }
+  #tec-workspace-frame { height:78vh; min-height:620px; }
+  .tec-connect-steps { grid-template-columns:1fr 1fr; }
+}
+@media (max-width:640px) {
+  .tec-connect-header { display:block; }
+  .tec-connect-stage { margin-top:9px; }
+  .tec-workspace-card > .card-header { align-items:flex-start; flex-direction:column; }
+  .tec-workspace-tools { width:100%; }
+  .tec-workspace-tools button { flex:1 1 auto; }
+  #tec-workspace-frame { height:76vh; min-height:560px; }
+  #screen-integracaotec.tec-focus-mode .tec-workspace-card { inset:0; border-radius:0; }
+  .tec-connect-metrics { grid-template-columns:repeat(2,1fr); }
+  .tec-connect-actions { flex-direction:column; }
+  .tec-connect-actions button { width:100%; }
+  .tec-assistant-card > .card-header { flex-direction:column; }
+  .tec-ai-head-actions { width:100%; }
+  .tec-ai-head-actions button { flex:1 1 auto; }
+  .tec-professor-box { flex-direction:column; }
+  .tec-prompt-text { min-height:300px; }
+  .tec-prompt-box .cards-modal-foot { flex-wrap:wrap; }
+  .tec-connect-steps { grid-template-columns:1fr; }
 }
