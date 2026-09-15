@@ -1,6 +1,12 @@
 /* Captura de resoluções do TecConcursos para o StudyNoMentor Companion.
  * Não lê credenciais nem envia tokens. A identidade TEC é um fingerprint local
  * de identificadores/labels visíveis, nunca o valor bruto de autenticação.
+ *
+ * Entrega em duas fases:
+ *   1) o evento é salvo numa chave própria de estágio em chrome.storage.local;
+ *   2) o service worker confirma `accepted` somente depois de gravá-lo na fila.
+ * A cópia de estágio só é apagada após essa confirmação. Assim, reload, troca de
+ * página ou reinício do service worker não cria uma janela de perda silenciosa.
  */
 'use strict';
 
@@ -10,11 +16,14 @@
 
   const EXT_SOURCE = 'StudyMentorCompanion';
   const VERSION = chrome.runtime.getManifest().version;
+  const STAGE_PREFIX = 'snmTecStageV1:';
+  const MAX_STAGE_REPLAY = 500;
   const sleep = (ms) => new Promise(r => setTimeout(r, ms));
   let port = null;
   let reconnectMs = 500;
   let pending = null;
   let processing = false;
+  let replaying = false;
   let lastFingerprint = '';
   let lastFingerprintAt = 0;
 
@@ -183,20 +192,75 @@
     };
   }
 
-  function send(env) {
-    try { port && port.postMessage({ envelope: env }); return true; }
+  function sendStatus(env) {
+    if (!port) return false;
+    try { port.postMessage({ envelope: env }); return true; }
     catch (_) { return false; }
   }
 
+  function stageKey(messageId) {
+    return STAGE_PREFIX + String(messageId || '');
+  }
+
+  async function stageEnvelope(env) {
+    if (!env || !env.messageId) return false;
+    await chrome.storage.local.set({ [stageKey(env.messageId)]: env });
+    return true;
+  }
+
+  async function unstageEnvelope(messageId) {
+    if (!messageId) return;
+    await chrome.storage.local.remove(stageKey(messageId));
+  }
+
+  async function deliverEnvelope(env, alreadyStaged = false) {
+    if (!env || !env.messageId) return false;
+    try {
+      if (!alreadyStaged) await stageEnvelope(env);
+      const response = await chrome.runtime.sendMessage({ kind: 'capture', envelope: env });
+      if (response && response.accepted) {
+        await unstageEnvelope(env.messageId);
+        return true;
+      }
+      return false;
+    } catch (_) {
+      /* A cópia em chrome.storage.local continua intacta e será reenviada. */
+      return false;
+    }
+  }
+
+  async function replayStaged() {
+    if (replaying) return;
+    replaying = true;
+    try {
+      const all = await chrome.storage.local.get(null);
+      const rows = Object.entries(all)
+        .filter(([key, value]) => key.startsWith(STAGE_PREFIX) && value && value.messageId)
+        .map(([, value]) => value)
+        .sort((a, b) => Number(a.createdAtMs || 0) - Number(b.createdAtMs || 0))
+        .slice(0, MAX_STAGE_REPLAY);
+      for (const env of rows) {
+        const ok = await deliverEnvelope(env, true);
+        if (!ok) break;
+      }
+    } catch (_) {
+      /* nova tentativa ocorrerá no próximo connect/status */
+    } finally {
+      replaying = false;
+    }
+  }
+
   function sendReady(type = 'ready') {
-    send(envelope(type, {
+    sendStatus(envelope(type, {
       tecAccount: accountFingerprint(),
       bookId: currentBookId(),
       url: location.href,
       capturedAt: new Date().toISOString(),
       localDate: localDate(),
+      version: VERSION,
       embedded: window.top !== window.self
     }));
+    replayStaged();
   }
 
   function connect() {
@@ -242,12 +306,15 @@
           materia: q.materia || '', assunto: q.assunto || '', banca: q.banca || '', concurso: q.concurso || '',
           source: 'companion-live'
         };
-        send(envelope('resolution', {
+        const env = envelope('resolution', {
           resolution, question: q,
           tecAccount: resolution.tecAccount,
           bookId: resolution.bookId,
           capturedAt: resolution.resolvedAt
-        }, eventId));
+        }, eventId);
+        await deliverEnvelope(env);
+        /* Mesmo sem resposta imediata do worker, o evento já está no estágio
+         * durável da extensão; por isso é seguro liberar a tentativa da página. */
         pending = null;
         return;
       }
@@ -281,6 +348,7 @@
   }
 
   connect();
+  replayStaged();
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', installObserver, { once: true });
   else installObserver();
   setInterval(() => sendReady('status'), 15000);
