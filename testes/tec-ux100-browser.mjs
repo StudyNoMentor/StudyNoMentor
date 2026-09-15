@@ -116,7 +116,7 @@ try{
     await page.evaluate(()=>{switchScreen('desempenhotec');DesempenhoTecScreen.switchTecTab('plano');});await esperarPlano();
     const audit=await page.evaluate(()=>{
       const root=document.getElementById('screen-desempenhotec');const vis=e=>{const r=e.getBoundingClientRect(),s=getComputedStyle(e);return r.width>0&&r.height>0&&s.display!=='none'&&s.visibility!=='hidden'};
-      const btns=[...root.querySelectorAll('button')].filter(vis);const cards=[...root.querySelectorAll('.card,.pl-item,.pl-mat,.pl-hoje,.tp-command')].filter(vis);
+      const btns=[...root.querySelectorAll('button')].filter(vis);const cards=[...root.querySelectorAll('.card,.pl-item,.pl-mat,.pl-hoje,.tp-command,.tpm-entry-selector,.tpm-selector,.tpm-output,.tpm-rec')].filter(vis);
       return{overflow:Math.max(0,root.scrollWidth-root.clientWidth),empty:btns.filter(b=>!String(b.textContent||'').trim()&&!b.getAttribute('aria-label')&&!b.title).length,tiny:btns.filter(b=>{const r=b.getBoundingClientRect();return r.width<28||r.height<28}).length,badBorder:cards.filter(c=>getComputedStyle(c).borderStyle==='none').length,buttons:btns.length,cards:cards.length};
     });
     ok(audit.overflow<=4,`${width}px: Desempenho TEC sem overflow (${audit.overflow}px)`);
