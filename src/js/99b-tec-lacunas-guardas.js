@@ -1,8 +1,9 @@
 /* Guardas finais da Correção Contínua de Lacunas.
  * Carrega logo depois do motor principal para manter o contrato visual simples:
  * no máximo 3 matérias no DIA inteiro (não apenas 3 pendentes simultâneas),
- * leitura tolerante das matérias do ciclo, reaproveitamento da biblioteca antiga
- * e progresso longitudinal que sobrevive à troca/remoção de planejamentos.
+ * leitura tolerante das matérias do ciclo, reaproveitamento da biblioteca antiga,
+ * progresso longitudinal entre planejamentos e reconhecimento da correção natural
+ * feita pelo próprio fluxo Erradas → Erradas das erradas → zeragem.
  */
 (() => {
   const L=window.TecLacunasContinuas;
@@ -18,6 +19,10 @@
     m=s.match(/^(\d{2})\/(\d{2})\/(\d{4})$/); if (m) return `${m[3]}-${m[2]}-${m[1]}`;
     const d=new Date(raw||Date.now());
     return Number.isNaN(d.getTime())?day():`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+  };
+  const ageDays=(raw)=>{
+    const d=new Date(raw||0); if (Number.isNaN(d.getTime())) return 999;
+    return Math.max(0,Math.floor((Date.now()-d.getTime())/86400000));
   };
 
   /* Biblioteca importada/antiga também é patrimônio do aluno. O realtime é a
@@ -107,9 +112,55 @@
     return byTopic;
   };
 
+  /* O fluxo natural do aluno também corrige lacunas. Se TODAS as questões que
+     já foram erradas no tópico terminaram com uma tentativa correta, o tópico
+     entra em resfriamento curto. Não declaramos domínio permanente: um novo erro
+     em Favoritas, em outro caderno ou numa amostra posterior o reativa na hora. */
+  const originalTopics=L.topics.bind(L);
+  L.topics=function(){
+    const topics=originalTopics()||[];
+    for (const t of topics) {
+      const perId=new Map();
+      for (const ev of t.events||[]) {
+        const id=String(ev&&ev.questionId||''); if (!id) continue;
+        const r=perId.get(id)||{ hadWrong:false,lastResult:null,lastAt:null };
+        if (ev.acertou===false) r.hadWrong=true;
+        if (typeof ev.acertou==='boolean') { r.lastResult=ev.acertou; r.lastAt=ev.resolvedAt||r.lastAt; }
+        perId.set(id,r);
+      }
+      const wrongStates=[...perId.values()].filter(x=>x.hadWrong);
+      t.unresolvedWrong=wrongStates.filter(x=>x.lastResult===false).length;
+      t.correctedWrong=wrongStates.filter(x=>x.lastResult===true).length;
+      t.naturalRecovered=wrongStates.length>0 && t.unresolvedWrong===0 && t.correctedWrong===wrongStates.length;
+      const lastCorrection=[...perId.values()].filter(x=>x.hadWrong&&x.lastResult===true).map(x=>x.lastAt).filter(Boolean).sort().pop()||null;
+      t.lastNaturalCorrection=lastCorrection;
+      t.naturalCooldown=t.naturalRecovered && !t.persistent && ageDays(lastCorrection)<2;
+      if (t.naturalRecovered && !t.persistent) {
+        t.priority-=40;
+        if (!t.improving) t.status='corrigida-na-rodada';
+      }
+    }
+    return topics.sort((a,b)=>b.priority-a.priority||String(b.lastError||'').localeCompare(String(a.lastError||'')));
+  };
+
+  /* Dentro do banco pessoal, primeiro vêm erros AINDA abertos. Questões já
+     corrigidas são úteis para consolidação, mas preferimos as mais antigas para
+     reduzir mero reconhecimento do gabarito. */
+  const originalPool=L.questionPool.bind(L);
+  L.questionPool=function(topic){
+    const rows=originalPool(topic)||[];
+    return rows.sort((a,b)=>{
+      const ca=a.lastResult===false?0:(a.favorite&&a.errors>0?1:(a.errors>1?2:(a.errors>0?3:4)));
+      const cb=b.lastResult===false?0:(b.favorite&&b.errors>0?1:(b.errors>1?2:(b.errors>0?3:4)));
+      if (ca!==cb) return ca-cb;
+      if (ca===0) return String(b.lastError||b.lastSeen||'').localeCompare(String(a.lastError||a.lastSeen||''));
+      return String(a.lastSeen||'').localeCompare(String(b.lastSeen||''));
+    });
+  };
+
   const originalCandidates=L.candidates.bind(L);
   L.candidates=function(st){
-    const rows=originalCandidates(st)||[];
+    const rows=(originalCandidates(st)||[]).filter(r=>!r.naturalCooldown);
     const rec=st&&st.days&&st.days[day()];
     const assignments=rec&&Array.isArray(rec.assignments)?rec.assignments:[];
     const used=new Set(assignments.filter(a=>a&&a.status!=='deferred').map(a=>normLocal(a.disciplina)).filter(Boolean));
