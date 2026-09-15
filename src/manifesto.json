@@ -485,8 +485,13 @@
   "ate": 56510
  },
  {
-  "arquivo": "html/90-rodape.html",
+  "arquivo": "js/95-tec-companion.js",
   "de": 56512,
-  "ate": 56957
+  "ate": 56881
+ },
+ {
+  "arquivo": "html/90-rodape.html",
+  "de": 56883,
+  "ate": 57328
  }
 ]
