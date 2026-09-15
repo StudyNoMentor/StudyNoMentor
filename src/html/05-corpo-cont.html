@@ -256,6 +256,65 @@
 
   </section>
 
+  <!-- ============ TELA: INTEGRAÇÃO TEC ============ -->
+  <section role="region" tabindex="-1" class="screen" id="screen-integracaotec">
+    <div class="page-header tec-connect-header">
+      <div>
+        <span class="tec-connect-eyebrow">Novo projeto</span>
+        <h2 class="page-title">Integração TEC</h2>
+        <p class="page-subtitle">A ponte entre o userscript no TecConcursos e o seu perfil no StudyNoMentor.</p>
+      </div>
+      <span class="tec-connect-stage" id="tec-connect-stage">Estrutura inicial</span>
+    </div>
+
+    <div class="tec-connect-grid">
+      <section class="card tec-connect-hero">
+        <div class="tec-connect-hero-icon" aria-hidden="true">🔌</div>
+        <div>
+          <h2>TEC e StudyNoMentor no mesmo fluxo</h2>
+          <p>Ao final do projeto, cada questão resolvida no TEC poderá chegar aqui automaticamente, sem exportar planilhas e sem abrir outro site.</p>
+          <div class="tec-connect-flow" aria-label="Fluxo planejado da integração">
+            <span>Questão no TEC</span><b aria-hidden="true">→</b><span>Userscript</span><b aria-hidden="true">→</b><span>Ponte segura</span><b aria-hidden="true">→</b><span>StudyNoMentor</span>
+          </div>
+        </div>
+      </section>
+
+      <section class="card tec-connect-status-card">
+        <div class="card-header"><div><h2>Estado da conexão</h2><p class="sub">Esta área mostrará a conta TEC vinculada e a última sincronização.</p></div></div>
+        <div class="tec-connect-status" id="tec-connect-status">
+          <span class="tec-connect-dot waiting" aria-hidden="true"></span>
+          <div><strong>Aguardando a ponte</strong><small>Nenhuma conta TEC foi vinculada a este perfil.</small></div>
+        </div>
+        <div class="tec-connect-actions">
+          <button type="button" class="btn-primary" id="tec-connect-start">Preparar conexão</button>
+          <button type="button" class="btn-secondary" id="tec-connect-refresh">↻ Verificar</button>
+        </div>
+        <p class="hint" id="tec-connect-message">A conexão usará um código individual e revogável. Senhas e chaves de IA nunca serão enviadas ao userscript.</p>
+      </section>
+
+      <section class="card tec-connect-data-card">
+        <div class="card-header"><div><h2>Dados recebidos</h2><p class="sub">Resumo do que chegou do TEC para este perfil.</p></div></div>
+        <div class="tec-connect-metrics">
+          <div><strong id="tec-connect-questions">0</strong><span>questões</span></div>
+          <div><strong id="tec-connect-errors">0</strong><span>erros</span></div>
+          <div><strong id="tec-connect-books">0</strong><span>cadernos</span></div>
+          <div><strong id="tec-connect-pending">0</strong><span>pendentes</span></div>
+        </div>
+        <div class="tec-connect-empty" id="tec-connect-empty">Quando a ponte estiver ativa, as questões aparecerão aqui.</div>
+      </section>
+
+      <section class="card tec-connect-project-card">
+        <div class="card-header"><div><h2>Etapas do projeto</h2><p class="sub">A evolução fica visível sem misturar recursos ainda experimentais às telas atuais.</p></div></div>
+        <ol class="tec-connect-steps">
+          <li class="done"><span>1</span><div><strong>Módulo separado</strong><small>Menu e área própria dentro do StudyNoMentor.</small></div></li>
+          <li class="current"><span>2</span><div><strong>Ponte segura</strong><small>Vinculação do userscript por código de dispositivo.</small></div></li>
+          <li><span>3</span><div><strong>Sincronização automática</strong><small>Fila offline, proteção contra duplicidade e múltiplas contas.</small></div></li>
+          <li><span>4</span><div><strong>Reforço e IA</strong><small>Usar erros e reincidências no Reforço Diário e nas análises pedagógicas.</small></div></li>
+        </ol>
+      </section>
+    </div>
+  </section>
+
   <!-- ============ TELA: FERRAMENTAS ============ -->
   <section role="region" tabindex="-1" class="screen" id="screen-ferramentas">
     <div class="page-header">

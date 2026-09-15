@@ -57,7 +57,7 @@
      novo, e o antigo é descartado sozinho na ativação) e o que permite ao app
      dizer qual versão está rodando. Em src/ fica "dev" de propósito: a versão
      é gerada na montagem, não editada à mão. -->
-<meta name="diario-versao" content="va7a45a9e71">
+<meta name="diario-versao" content="vacab00d471">
 <script>
 /* ── ARRANQUE: abre o IndexedDB AGORA, em paralelo com o parse do documento ──
    A fachada de armazenamento vive no fim do <body>, depois de ~1,7 MB de HTML.
@@ -6235,6 +6235,7 @@ window.__idbBoot = (function () {
       <button class="tab" data-screen="evolucao" data-short="Evolução"><span class="tab-icon" aria-hidden="true">📈</span><span class="tab-label">Evolução</span></button>
       <button class="tab" data-screen="conquistas" data-short="Conquistas"><span class="tab-icon" aria-hidden="true">🏅</span><span class="tab-label">Conquistas</span></button>
       <button class="tab" data-screen="desempenhotec" data-short="TEC"><span class="tab-icon" aria-hidden="true">🎯</span><span class="tab-label">Desempenho TEC</span></button>
+      <button class="tab" data-screen="integracaotec" data-short="Integração"><span class="tab-icon" aria-hidden="true">🔌</span><span class="tab-label">Integração TEC</span></button>
       <button class="tab" data-screen="ferramentas" data-short="Ferram."><span class="tab-icon" aria-hidden="true">🧰</span><span class="tab-label">Ferramentas</span></button>
       <button class="tab" data-screen="config" data-short="Ajustes"><span class="tab-icon" aria-hidden="true">⚙</span><span class="tab-label">Configurações</span></button>
       <button type="button" class="nav-more-btn" id="nav-more-btn" aria-expanded="false" aria-controls="nav-sheet"><span class="tab-icon" aria-hidden="true">☰</span>Mais</button>
@@ -7666,6 +7667,65 @@ window.__idbBoot = (function () {
       </div>
     </section>
 
+  </section>
+
+  <!-- ============ TELA: INTEGRAÇÃO TEC ============ -->
+  <section role="region" tabindex="-1" class="screen" id="screen-integracaotec">
+    <div class="page-header tec-connect-header">
+      <div>
+        <span class="tec-connect-eyebrow">Novo projeto</span>
+        <h2 class="page-title">Integração TEC</h2>
+        <p class="page-subtitle">A ponte entre o userscript no TecConcursos e o seu perfil no StudyNoMentor.</p>
+      </div>
+      <span class="tec-connect-stage" id="tec-connect-stage">Estrutura inicial</span>
+    </div>
+
+    <div class="tec-connect-grid">
+      <section class="card tec-connect-hero">
+        <div class="tec-connect-hero-icon" aria-hidden="true">🔌</div>
+        <div>
+          <h2>TEC e StudyNoMentor no mesmo fluxo</h2>
+          <p>Ao final do projeto, cada questão resolvida no TEC poderá chegar aqui automaticamente, sem exportar planilhas e sem abrir outro site.</p>
+          <div class="tec-connect-flow" aria-label="Fluxo planejado da integração">
+            <span>Questão no TEC</span><b aria-hidden="true">→</b><span>Userscript</span><b aria-hidden="true">→</b><span>Ponte segura</span><b aria-hidden="true">→</b><span>StudyNoMentor</span>
+          </div>
+        </div>
+      </section>
+
+      <section class="card tec-connect-status-card">
+        <div class="card-header"><div><h2>Estado da conexão</h2><p class="sub">Esta área mostrará a conta TEC vinculada e a última sincronização.</p></div></div>
+        <div class="tec-connect-status" id="tec-connect-status">
+          <span class="tec-connect-dot waiting" aria-hidden="true"></span>
+          <div><strong>Aguardando a ponte</strong><small>Nenhuma conta TEC foi vinculada a este perfil.</small></div>
+        </div>
+        <div class="tec-connect-actions">
+          <button type="button" class="btn-primary" id="tec-connect-start">Preparar conexão</button>
+          <button type="button" class="btn-secondary" id="tec-connect-refresh">↻ Verificar</button>
+        </div>
+        <p class="hint" id="tec-connect-message">A conexão usará um código individual e revogável. Senhas e chaves de IA nunca serão enviadas ao userscript.</p>
+      </section>
+
+      <section class="card tec-connect-data-card">
+        <div class="card-header"><div><h2>Dados recebidos</h2><p class="sub">Resumo do que chegou do TEC para este perfil.</p></div></div>
+        <div class="tec-connect-metrics">
+          <div><strong id="tec-connect-questions">0</strong><span>questões</span></div>
+          <div><strong id="tec-connect-errors">0</strong><span>erros</span></div>
+          <div><strong id="tec-connect-books">0</strong><span>cadernos</span></div>
+          <div><strong id="tec-connect-pending">0</strong><span>pendentes</span></div>
+        </div>
+        <div class="tec-connect-empty" id="tec-connect-empty">Quando a ponte estiver ativa, as questões aparecerão aqui.</div>
+      </section>
+
+      <section class="card tec-connect-project-card">
+        <div class="card-header"><div><h2>Etapas do projeto</h2><p class="sub">A evolução fica visível sem misturar recursos ainda experimentais às telas atuais.</p></div></div>
+        <ol class="tec-connect-steps">
+          <li class="done"><span>1</span><div><strong>Módulo separado</strong><small>Menu e área própria dentro do StudyNoMentor.</small></div></li>
+          <li class="current"><span>2</span><div><strong>Ponte segura</strong><small>Vinculação do userscript por código de dispositivo.</small></div></li>
+          <li><span>3</span><div><strong>Sincronização automática</strong><small>Fila offline, proteção contra duplicidade e múltiplas contas.</small></div></li>
+          <li><span>4</span><div><strong>Reforço e IA</strong><small>Usar erros e reincidências no Reforço Diário e nas análises pedagógicas.</small></div></li>
+        </ol>
+      </section>
+    </div>
   </section>
 
   <!-- ============ TELA: FERRAMENTAS ============ -->
@@ -14003,6 +14063,101 @@ body:has(#tec-cfg-body) #tec-cfg-body{scrollbar-gutter:stable}
 #ciclo-overview-gauges.ux-week-gauges .mini-gauge-card{align-self:start!important;height:auto!important}
 #ciclo-overview-gauges.ux-week-gauges .mini-gauge-card[data-ux-priority="primary"]{min-height:116px!important;padding:20px 16px!important}
 #ciclo-overview-gauges.ux-week-gauges .mini-gauge-card[data-ux-priority="secondary"],#ciclo-overview-gauges.ux-week-gauges .mini-gauge-card[data-ux-priority="tertiary"]{min-height:0!important;padding:10px 12px!important}
+
+</style>
+
+<style id="tec-integracao">
+.tec-connect-header {
+  display: flex; align-items: flex-start; justify-content: space-between; gap: 18px;
+}
+.tec-connect-eyebrow, .tec-connect-stage {
+  display: inline-block; padding: 5px 10px; border-radius: 999px; font-size: 10px; font-weight: 800;
+}
+.tec-connect-eyebrow {
+  margin-bottom: 7px; background: color-mix(in srgb, var(--accent) 13%, transparent);
+  color: var(--accent); letter-spacing: .08em; text-transform: uppercase;
+}
+.tec-connect-stage { flex: none; border: 1px solid var(--border); color: var(--text-muted); }
+.tec-connect-grid {
+  display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(280px, .8fr); gap: 16px;
+}
+.tec-connect-hero {
+  grid-column: 1 / -1; display: flex; align-items: center; gap: 20px; padding: 25px 28px;
+  background: linear-gradient(135deg, color-mix(in srgb, var(--accent) 10%, var(--surface)), var(--surface));
+}
+.tec-connect-hero h2 { margin: 0 0 7px; }
+.tec-connect-hero p { margin: 0; color: var(--text-muted); line-height: 1.55; }
+.tec-connect-hero-icon {
+  display: grid; place-items: center; width: 62px; height: 62px; flex: none; border-radius: 18px;
+  background: var(--accent); color: #fff; font-size: 29px;
+}
+.tec-connect-flow { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; margin-top: 17px; }
+.tec-connect-flow span {
+  padding: 7px 10px; border: 1px solid var(--border); border-radius: 8px;
+  background: var(--surface); font-size: 11px; font-weight: 700;
+}
+.tec-connect-flow b { color: var(--accent); }
+.tec-connect-status-card, .tec-connect-data-card, .tec-connect-project-card { padding-bottom: 22px; }
+.tec-connect-status {
+  display: flex; align-items: center; gap: 12px; margin: 3px 28px 18px; padding: 14px;
+  border: 1px solid var(--border); border-radius: 11px; background: var(--surface-soft);
+}
+.tec-connect-status div { display: flex; flex-direction: column; gap: 3px; }
+.tec-connect-status small, .tec-connect-steps small { color: var(--text-muted); }
+.tec-connect-dot {
+  width: 11px; height: 11px; flex: none; border-radius: 50%; background: var(--text-faint);
+  box-shadow: 0 0 0 5px color-mix(in srgb, var(--text-faint) 15%, transparent);
+}
+.tec-connect-actions { display: flex; gap: 8px; padding: 0 28px; }
+.tec-connect-status-card > .hint { margin: 13px 28px 0; }
+.tec-connect-metrics {
+  display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; padding: 2px 24px 18px;
+}
+.tec-connect-metrics div {
+  display: flex; flex-direction: column; gap: 3px; padding: 13px 8px;
+  border: 1px solid var(--border); border-radius: 10px; text-align: center;
+}
+.tec-connect-metrics strong { font-size: 22px; color: var(--accent); }
+.tec-connect-metrics span { font-size: 10px; color: var(--text-muted); }
+.tec-connect-empty {
+  margin: 0 24px; padding: 16px; border: 1px dashed var(--border); border-radius: 10px;
+  color: var(--text-muted); font-size: 12px; text-align: center;
+}
+.tec-connect-project-card { grid-column: 1 / -1; }
+.tec-connect-steps {
+  display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin: 0;
+  padding: 2px 28px; list-style: none;
+}
+.tec-connect-steps li {
+  display: flex; gap: 10px; padding: 14px; border: 1px solid var(--border); border-radius: 11px;
+}
+.tec-connect-steps li > span {
+  display: grid; place-items: center; width: 25px; height: 25px; flex: none; border-radius: 50%;
+  background: var(--surface-soft); color: var(--text-muted); font-size: 11px; font-weight: 800;
+}
+.tec-connect-steps li div { display: flex; flex-direction: column; gap: 4px; }
+.tec-connect-steps small { line-height: 1.4; }
+.tec-connect-steps .done > span { background: #166534; color: #fff; }
+.tec-connect-steps .current {
+  border-color: color-mix(in srgb, var(--accent) 55%, var(--border));
+  background: color-mix(in srgb, var(--accent) 5%, var(--surface));
+}
+.tec-connect-steps .current > span { background: #3730a3; color: #fff; }
+@media (max-width: 900px) {
+  .tec-connect-grid { grid-template-columns: 1fr; }
+  .tec-connect-hero, .tec-connect-project-card { grid-column: auto; }
+  .tec-connect-steps { grid-template-columns: 1fr 1fr; }
+}
+@media (max-width: 600px) {
+  .tec-connect-header { display: block; }
+  .tec-connect-stage { margin-top: 10px; }
+  .tec-connect-hero { align-items: flex-start; padding: 20px; flex-direction: column; }
+  .tec-connect-flow b { display: none; }
+  .tec-connect-flow span { width: 100%; box-sizing: border-box; }
+  .tec-connect-metrics { grid-template-columns: 1fr 1fr; }
+  .tec-connect-steps { grid-template-columns: 1fr; }
+  .tec-connect-actions { flex-direction: column; }
+}
 
 </style>
 
@@ -56119,6 +56274,62 @@ else CloudStore.init();
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', () => U.init(), { once: true });
   else U.init();
 })();
+
+/* ============================================================
+   INTEGRAÇÃO TEC — módulo isolado do novo projeto
+   ============================================================ */
+const TecIntegracaoScreen = {
+  STORAGE_SUFFIX: 'tec-integracao:estado-v1',
+  _key() {
+    try { return DB._profilePrefix() + this.STORAGE_SUFFIX; }
+    catch (_) { return 'diario-estudos:' + this.STORAGE_SUFFIX; }
+  },
+  state() {
+    try {
+      const raw = localStorage.getItem(this._key());
+      const parsed = raw ? JSON.parse(raw) : null;
+      return parsed && typeof parsed === 'object' ? parsed : { status: 'waiting', metrics: {} };
+    } catch (_) { return { status: 'waiting', metrics: {} }; }
+  },
+  save(next) {
+    try { localStorage.setItem(this._key(), JSON.stringify(next)); }
+    catch (e) { _quiet(e, 'tec-integracao-save'); }
+  },
+  render() {
+    const root = document.getElementById('screen-integracaotec');
+    if (!root) return;
+    const state = this.state();
+    const metrics = state.metrics || {};
+    const set = (id, value) => { const el = document.getElementById(id); if (el) el.textContent = String(value || 0); };
+    set('tec-connect-questions', metrics.questions);
+    set('tec-connect-errors', metrics.errors);
+    set('tec-connect-books', metrics.books);
+    set('tec-connect-pending', metrics.pending);
+    const empty = document.getElementById('tec-connect-empty');
+    if (empty) empty.hidden = Number(metrics.questions || 0) > 0;
+  },
+  bind() {
+    const start = document.getElementById('tec-connect-start');
+    const refresh = document.getElementById('tec-connect-refresh');
+    if (start && !start.dataset.bound) {
+      start.dataset.bound = '1';
+      start.addEventListener('click', () => {
+        const msg = document.getElementById('tec-connect-message');
+        if (msg) msg.textContent = 'A tela está pronta. A próxima etapa criará o código de vinculação e a entrada segura no banco.';
+        showToast('🔌 Módulo da Integração TEC preparado');
+      });
+    }
+    if (refresh && !refresh.dataset.bound) {
+      refresh.dataset.bound = '1';
+      refresh.addEventListener('click', () => { this.render(); showToast('Estado da integração atualizado'); });
+    }
+  },
+  init() { this.bind(); this.render(); }
+};
+window.TecIntegracaoScreen = TecIntegracaoScreen;
+window.addEventListener('screen:activated', e => {
+  if (e.detail && e.detail.screen === 'integracaotec') TecIntegracaoScreen.init();
+});
 
 </script>
 
