@@ -336,7 +336,6 @@
   background:linear-gradient(135deg,color-mix(in srgb,var(--accent) 6%,var(--surface)),var(--surface));
 }
 #screen-evolucao .ux-primary-analysis{box-shadow:0 9px 24px rgba(15,23,42,.05)}
-#screen-evolucao #evolucao-day-chart.closest-card,#screen-evolucao #evolucao-acerto-linha.closest-card{grid-column:1/-1}
 #screen-evolucao #ux-evo-more{margin-top:10px;background:color-mix(in srgb,var(--surface-sunken) 52%,var(--surface));border-style:dashed}
 #screen-evolucao #ux-evo-more>summary{padding:17px 18px}
 #screen-evolucao #ux-evo-more>summary b{font-size:14px}
@@ -420,3 +419,7 @@
   .ux-auxiliary-screen>.page-header::after{display:none}
   #screen-extras #extras-agenda.ux-primary-workspace::before{font-size:9px}
 }
+
+/* UX V2: título permanece perceptível inclusive após regras móveis legadas. */
+.ux-hierarchy-ready .page-title{font-size:clamp(25px,2.5vw,34px)!important}
+@media(max-width:430px){.ux-hierarchy-ready .page-title{font-size:24px!important}}
