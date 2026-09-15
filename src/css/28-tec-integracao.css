@@ -39,6 +39,7 @@
   width: 11px; height: 11px; flex: none; border-radius: 50%; background: var(--text-faint);
   box-shadow: 0 0 0 5px color-mix(in srgb, var(--text-faint) 15%, transparent);
 }
+.tec-connect-dot.connected { background: #22c55e; box-shadow: 0 0 0 5px rgb(34 197 94 / 16%); }
 .tec-connect-actions { display: flex; gap: 8px; padding: 0 28px; }
 .tec-connect-status-card > .hint { margin: 13px 28px 0; }
 .tec-connect-metrics {
@@ -54,6 +55,29 @@
   margin: 0 24px; padding: 16px; border: 1px dashed var(--border); border-radius: 10px;
   color: var(--text-muted); font-size: 12px; text-align: center;
 }
+.tec-workspace-card { grid-column: 1 / -1; overflow: hidden; }
+.tec-workspace-placeholder { min-height: 260px; display: grid; place-content: center; gap: 7px; margin: 0 24px 24px; text-align: center; color: var(--text-muted); border: 1px dashed var(--border); border-radius: 12px; }
+.tec-workspace-placeholder strong { color: var(--text); font-size: 16px; }
+#tec-workspace-frame { width: 100%; height: min(76vh, 850px); border: 0; border-top: 1px solid var(--border); background: #fff; }
+.tec-library-card { min-width: 0; }
+.tec-assistant-card { min-width: 0; }
+.tec-question-list { display: grid; gap: 7px; padding: 0 24px 24px; max-height: 620px; overflow: auto; }
+.tec-question-row { display: flex; flex-direction: column; gap: 5px; width: 100%; padding: 12px; border: 1px solid var(--border); border-radius: 10px; background: var(--surface); color: var(--text); text-align: left; cursor: pointer; }
+.tec-question-row:hover, .tec-question-row.active { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 7%, var(--surface)); }
+.tec-question-row small { color: var(--text-muted); }
+.tec-question-detail { padding: 0 24px 18px; max-height: 370px; overflow: auto; }
+.tec-question-statement { white-space: pre-wrap; line-height: 1.55; }
+.tec-question-alternatives { display: grid; gap: 6px; }
+.tec-question-alternatives > div { padding: 9px 10px; border: 1px solid var(--border); border-radius: 8px; font-size: 12px; }
+.tec-question-alternatives > .selected { border-color: #ca8a04; background: rgb(202 138 4 / 8%); }
+.tec-question-alternatives > .correct { border-color: #16a34a; background: rgb(22 163 74 / 8%); }
+.tec-ai-tabs { display: flex; gap: 5px; padding: 12px 24px 0; overflow-x: auto; border-top: 1px solid var(--border); }
+.tec-ai-tabs button { padding: 8px 10px; border: 0; border-radius: 8px; background: transparent; color: var(--text-muted); font-weight: 700; cursor: pointer; }
+.tec-ai-tabs button.active { background: color-mix(in srgb, var(--accent) 12%, var(--surface)); color: var(--accent); }
+.tec-ai-content { min-height: 120px; margin: 10px 24px 18px; padding: 14px; white-space: pre-wrap; line-height: 1.55; border: 1px solid var(--border); border-radius: 10px; background: var(--surface-soft); color: var(--text-muted); }
+.tec-reforco-add { display: block; margin-top: 14px; }
+.tec-professor-box { display: flex; gap: 8px; padding: 0 24px 24px; }
+.tec-professor-box textarea { flex: 1; min-height: 70px; resize: vertical; padding: 10px; border: 1px solid var(--border); border-radius: 9px; background: var(--surface); color: var(--text); }
 .tec-connect-project-card { grid-column: 1 / -1; }
 .tec-connect-steps {
   display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin: 0;
@@ -88,4 +112,6 @@
   .tec-connect-metrics { grid-template-columns: 1fr 1fr; }
   .tec-connect-steps { grid-template-columns: 1fr; }
   .tec-connect-actions { flex-direction: column; }
+  #tec-workspace-frame { height: 70vh; }
+  .tec-professor-box { flex-direction: column; }
 }

@@ -114,6 +114,8 @@ jobs:
         run: timeout 90s node testes/plano-motores-central-tec-browser.mjs
       - name: Validar fonte das sugestoes na abertura e no Plano TEC
         run: timeout 90s node testes/tec-plano-fonte-motor-browser.mjs
+      - name: Validar ponte incorporada da Integracao TEC
+        run: timeout 90s node testes/tec-integracao-browser.mjs
       - name: Auditar startup, loaders e continuidade adaptativa
         run: node testes/startup-reforco-browser.mjs
       - name: Auditar performance do site inteiro
