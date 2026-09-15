@@ -80,12 +80,13 @@ try{
       entryHidden:fake.hidden,
       modosHidden:document.getElementById('plano-modos')?.hidden!==false,
       notaHidden:document.getElementById('plano-modo-nota')?.hidden!==false,
-      oldCfgHidden:document.querySelector('#tec-panel-plano .tec-cfg-bar')?.hidden!==false,
+      oldCfgVisible:document.querySelector('#tec-panel-plano .tec-cfg-bar')?.hidden===false,
       motoresLabel:document.querySelector('.tec-subtab[data-tectab="motores"]')?.textContent||''
     };
   });
   ok(tec.entryHidden,'seletor global duplicado de motor deve ficar oculto');
-  ok(tec.modosHidden&&tec.notaHidden&&tec.oldCfgHidden,'decisores legados do Plano não devem disputar com Simplificado/Robusto');
+  ok(tec.modosHidden&&tec.notaHidden,'decisores legados do Plano não devem disputar com Simplificado/Robusto');
+  ok(tec.oldCfgVisible,'ajustes analíticos válidos devem manter uma porta compacta e focável');
   ok(!tec.motoresLabel||tec.motoresLabel.includes('Modelos'),'nomenclatura técnica Motores deve virar Modelos na interface');
 
   /* Configurações: segurança e diagnóstico continuam intactos, mas deixam de competir com ajustes cotidianos. */
