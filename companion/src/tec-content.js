@@ -230,6 +230,8 @@
     lastCapture = { status, questionId:questionIdValue ? String(questionIdValue) : null, at:new Date().toISOString(), reason:reason || null };
   }
 
+  const ACTION_RX = /Resolver\s+quest[aã]o|Responder|Confirmar\s+resposta|Enviar\s+resposta|Corrigir|Ver\s+resposta|Finalizar/i;
+
   function sendReady(type='ready') {
     const qid = questionId();
     sendStatus(envelope(type, {
@@ -237,7 +239,7 @@
       embedded:window.top!==window.self,
       capture:{
         questionId:qid,
-        resolverVisible:[...document.querySelectorAll('button,a,[role="button"]')].some(el=>visible(el)&&/Resolver\s+quest[aã]o|Responder|Confirmar\s+resposta/i.test(text(el))),
+        resolverVisible:[...document.querySelectorAll('button,a,[role="button"],[ng-click],[data-ng-click]')].some(el=>visible(el)&&ACTION_RX.test(text(el))),
         mainWorldContext:!!(pageContext && pageContext.id),
         portConnected:!!port,
         visibility:document.visibilityState,
@@ -306,18 +308,43 @@
   }
 
   function resolverButton(target) {
-    const b=target&&target.closest?target.closest('button,a,[role="button"]'):null;
+    const b=target&&target.closest?target.closest('button,a,[role="button"],[ng-click],[data-ng-click]'):null;
     if (!b) return null;
-    return /^(?:Resolver\s+quest[aã]o|Responder|Confirmar\s+resposta)(?:\s|$)/i.test(text(b)) ? b : null;
+    return ACTION_RX.test(text(b)) ? b : null;
+  }
+
+  function interactionControl(target) {
+    if (!target || !target.closest) return null;
+    return target.closest('button,a,[role="button"],[ng-click],[data-ng-click],label,input[type="radio"],[role="radio"],[class*="alternativ" i],[class*="option" i]');
+  }
+
+  function armPending(trigger, target=null) {
+    if (pending || processing) return false;
+    const control = target ? interactionControl(target) : null;
+    if (target && !control) return false;
+    if (result(null)) return false;
+    requestPageContext();
+    const qid=questionId();
+    if (!qid) return false;
+    const selected=(alternatives().find(a=>a.selected)||{}).letra||null;
+    pending={ token:uid(), qid:String(qid), selectedBefore:selected, startedAt:Date.now(), trigger:String(trigger||'interaction') };
+    markCapture('waiting-result',qid,null); sendReady('status');
+    setTimeout(()=>processPending(pending&&pending.token),80);
+    return true;
   }
 
   document.addEventListener('click',(event)=>{
-    if (!resolverButton(event.target)) return;
-    pageContext=null; requestPageContext();
-    const qid=questionId(); const selected=(alternatives().find(a=>a.selected)||{}).letra||null;
-    pending={ token:uid(), qid:qid?String(qid):null, selectedBefore:selected, startedAt:Date.now() };
-    markCapture('waiting-result',qid||null,null); sendReady('status');
-    setTimeout(()=>processPending(pending&&pending.token),80);
+    const resolver=resolverButton(event.target);
+    if (resolver) { pageContext=null; requestPageContext(); }
+    armPending(resolver?'resolver':'interaction', event.target);
+  },true);
+
+  document.addEventListener('change',(event)=>{
+    armPending('change',event.target);
+  },true);
+
+  document.addEventListener('submit',(event)=>{
+    armPending('submit',event.target);
   },true);
 
   let mutationTimer=null;
