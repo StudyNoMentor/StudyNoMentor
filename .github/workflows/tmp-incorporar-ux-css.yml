@@ -1,0 +1,35 @@
+name: Incorporar polimento UX no CSS canonico
+
+on:
+  push:
+    branches: [refactor/ux-hierarquia-visual-v2]
+
+permissions:
+  contents: write
+
+jobs:
+  incorporar:
+    if: ${{ github.actor != 'github-actions[bot]' }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: refactor/ux-hierarquia-visual-v2
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Incorporar no arquivo canonico e regenerar build
+        shell: bash
+        run: |
+          set -euo pipefail
+          printf '\n\n' >> src/css/27-ux-hierarquia.css
+          cat src/css/28-ux-polimento-visual.css >> src/css/27-ux-hierarquia.css
+          rm src/css/28-ux-polimento-visual.css
+          rm .github/workflows/tmp-incorporar-ux-css.yml
+          node build.mjs
+          node testes/repositorio-higiene.mjs
+          git config user.name 'StudyNoMentor CI'
+          git config user.email 'actions@users.noreply.github.com'
+          git add src/css/27-ux-hierarquia.css src/css/28-ux-polimento-visual.css .github/workflows/tmp-incorporar-ux-css.yml index.html sw.js src/manifesto.json
+          git commit -m 'refactor: incorpora polimento visual ao CSS canonico'
+          git push origin HEAD:refactor/ux-hierarquia-visual-v2
