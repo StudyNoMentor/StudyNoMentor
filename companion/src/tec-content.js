@@ -400,6 +400,9 @@
 
   document.addEventListener('click', (event) => {
     if (!resolverButton(event.target)) return;
+    /* Não reutiliza contexto da questão anterior: em cadernos o URL pode ser o
+       mesmo enquanto o Angular troca a questão internamente. */
+    pageContext = null;
     requestPageContext();
     const qid = questionId();
     const selected = (alternatives().find(a => a.selected) || {}).letra || null;
