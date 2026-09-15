@@ -128,5 +128,7 @@ jobs:
         run: node testes/extras-tec-interacoes-browser.mjs
       - name: Auditar estabilidade visual
         run: node testes/ux-stability-browser.mjs
+      - name: Auditar hierarquia e fluidez global
+        run: node testes/ux-hierarquia-browser.mjs
       - name: Verificar
         run: node verificar.mjs

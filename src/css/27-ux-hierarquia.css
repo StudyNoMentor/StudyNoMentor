@@ -1,0 +1,149 @@
+/* ============================================================================
+   HIERARQUIA DE UX — resultado primeiro, detalhe depois
+   ============================================================================ */
+
+/* Ritmo visual global */
+.ux-hierarchy-ready .page-header{margin-bottom:18px}
+.ux-hierarchy-ready .page-title{letter-spacing:-.025em}
+.ux-hierarchy-ready .page-subtitle{max-width:860px;line-height:1.5;color:var(--text-soft)}
+.ux-hierarchy-ready .ux-primary-card,.ux-hierarchy-ready .ux-primary-workspace,.ux-hierarchy-ready .ux-primary-analysis{position:relative}
+.ux-hierarchy-ready .ux-secondary-area{opacity:.96}
+.ux-hierarchy-ready .ux-advanced-surface{background:color-mix(in srgb,var(--surface-sunken) 72%,var(--surface));border-radius:12px}
+.ux-hierarchy-ready .ux-priority-action{box-shadow:0 0 0 2px color-mix(in srgb,var(--accent) 10%,transparent)}
+.ux-hierarchy-ready .ux-tertiary-action{opacity:.78}
+.ux-hierarchy-ready .ux-diagnostic-action{opacity:.62}
+.ux-hierarchy-ready .ux-compact-control{transform:scale(.96);transform-origin:right center}
+.ux-hierarchy-ready .ux-instant-feedback{transform:translateY(1px) scale(.985)!important;filter:saturate(.88);transition:none!important}
+
+/* Registrar: entrada primeiro, consulta depois */
+#screen-registrar .ux-primary-card{border-color:color-mix(in srgb,var(--accent) 18%,var(--border));box-shadow:0 8px 28px color-mix(in srgb,var(--accent) 5%,transparent)}
+#screen-registrar #recent-section{margin-top:8px}
+#screen-registrar #recent-section .card{box-shadow:none}
+
+/* Ciclo: 3 respostas acionáveis primeiro */
+#ciclo-overview-gauges.ux-week-gauges{display:grid!important;grid-template-columns:repeat(3,minmax(0,1fr))!important;gap:10px!important}
+#ciclo-overview-gauges .mini-gauge-card{transition:opacity .16s ease,border-color .16s ease,transform .16s ease}
+#ciclo-overview-gauges .mini-gauge-card[data-ux-priority="primary"]{min-height:88px;border-color:color-mix(in srgb,var(--accent) 24%,var(--border));background:linear-gradient(150deg,color-mix(in srgb,var(--accent) 4%,var(--surface)),var(--surface));box-shadow:0 6px 18px rgba(15,23,42,.045)}
+#ciclo-overview-gauges .mini-gauge-card[data-ux-priority="primary"] .value{font-size:clamp(22px,2.2vw,30px)}
+#ciclo-overview-gauges .mini-gauge-card[data-ux-priority="secondary"]{opacity:.9}
+#ciclo-overview-gauges .mini-gauge-card[data-ux-priority="tertiary"]{opacity:.72;box-shadow:none}
+#screen-ciclo #ciclo-subjects-progress{margin-top:4px}
+
+/* Grade: a grade é o conteúdo; controles são suporte */
+#screen-grade .grade-density-ctl{display:none!important}
+#screen-grade #ciclo-grade{scrollbar-gutter:stable}
+#screen-grade .grade-cell,#screen-grade td{transition:background .12s ease,outline-color .12s ease}
+#screen-grade .grade-cell:focus-within,#screen-grade td:focus-within{outline:2px solid color-mix(in srgb,var(--accent) 42%,transparent);outline-offset:-2px}
+#screen-grade #grade-budget{font-size:var(--fs-2xs)}
+
+/* Estudo Novo: nome/status > métricas > notas */
+#screen-estudonovo .track-card-head.ux-card-primary{padding-bottom:10px}
+#screen-estudonovo .track-card-head .track-lesson-text{font-weight:750}
+#screen-estudonovo .track-stages.ux-card-support{opacity:.9}
+#screen-estudonovo .track-comment-wrap.ux-card-notes{margin-top:8px;padding-top:7px;border-top:1px dashed color-mix(in srgb,var(--border) 80%,transparent)}
+#screen-estudonovo #en-track-averages.ux-summary-first{margin-bottom:10px}
+#screen-estudonovo #en-view-seg{opacity:.82}
+
+/* Leis: texto legal domina; bancada avançada fica discreta */
+#screen-leis .leis-reader-card{box-shadow:0 10px 30px rgba(15,23,42,.055)}
+#screen-leis #leis-tools-body.ux-advanced-surface{margin-top:4px}
+#screen-leis #lei-marks-panel{margin-top:14px}
+#screen-leis .leis-mark-hint{font-size:var(--fs-2xs)}
+
+/* Cards: revisão domina; diagnóstico não compete */
+#screen-cards #cards-content.ux-primary-workspace{min-height:180px}
+#screen-cards #cards-filter-card{box-shadow:none}
+#screen-cards #cards-audit-export-btn.ux-diagnostic-action{font-size:var(--fs-2xs)}
+
+/* Extras: execução de hoje domina, parametrização recua */
+#screen-extras #extras-agenda.ux-primary-workspace{position:relative}
+#screen-extras .exm-stats{grid-template-columns:repeat(4,minmax(0,1fr));gap:8px}
+#screen-extras .exm-stat[data-ux-priority="primary"]{border-color:color-mix(in srgb,var(--accent) 22%,var(--border));background:color-mix(in srgb,var(--accent) 3%,var(--surface))}
+#screen-extras .exm-stat[data-ux-priority="secondary"]{opacity:.78}
+#screen-extras .exm-rotation.ux-advanced-surface,#screen-extras .exm-load.ux-advanced-surface{padding:10px 12px;margin-top:8px}
+#screen-extras .exm-source-filter{opacity:.7}
+#screen-extras #extras-curso.ux-secondary-area{margin-top:14px}
+
+/* Histórico: resumo curto; distribuição é apoio */
+#screen-historico .week-card.ux-history-card{overflow:hidden}
+#screen-historico .week-stats-row.ux-history-summary{gap:6px}
+#screen-historico .week-status-dist.ux-history-support{opacity:.76;margin-top:8px}
+#screen-historico .week-detail{background:color-mix(in srgb,var(--surface-sunken) 54%,transparent)}
+
+/* Evolução: uma narrativa principal e análises secundárias recolhidas */
+#screen-evolucao .evo-periodo-ctl.ux-redundant-period{display:none!important}
+#screen-evolucao #evo-gear-cards[hidden]{display:none!important}
+#screen-evolucao .ux-primary-analysis{border-color:color-mix(in srgb,var(--accent) 12%,var(--border))}
+#ux-evo-more{grid-column:1/-1;border:1px solid var(--border);border-radius:14px;background:var(--surface);overflow:hidden;margin-top:2px}
+#ux-evo-more>summary{list-style:none;cursor:pointer;display:flex;align-items:center;justify-content:space-between;gap:12px;padding:15px 18px;user-select:none}
+#ux-evo-more>summary::-webkit-details-marker{display:none}
+#ux-evo-more>summary span{display:grid;gap:2px}
+#ux-evo-more>summary b{font-size:var(--fs-sm)}
+#ux-evo-more>summary small{font-size:var(--fs-2xs);color:var(--text-soft);font-weight:500}
+#ux-evo-more>summary i{font-style:normal;color:var(--text-faint);transition:transform .16s ease}
+#ux-evo-more[open]>summary i{transform:rotate(180deg)}
+#ux-evo-more .ux-more-analysis-body{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px;padding:0 14px 14px}
+#ux-evo-more .ux-more-analysis-body>.card{margin:0;min-width:0}
+#ux-evo-more .ux-more-analysis-body>.evo-wide{grid-column:1/-1}
+
+/* TEC: fatos -> modelo -> força-tarefa -> ranking; legado visual não compete */
+#screen-desempenhotec [data-tpm-entry][hidden]{display:none!important}
+#screen-desempenhotec #plano-modos[hidden],#screen-desempenhotec #plano-modo-nota[hidden],#screen-desempenhotec #tec-panel-plano .tec-cfg-bar[hidden]{display:none!important}
+#screen-desempenhotec #plano-proj>.ux-legacy-projection{display:none!important}
+#screen-desempenhotec .tpm-output.ux-force-task{border-color:color-mix(in srgb,var(--accent) 30%,var(--border));box-shadow:0 10px 28px color-mix(in srgb,var(--accent) 6%,transparent)}
+#screen-desempenhotec .tpm-output.ux-force-task>header strong{font-size:clamp(18px,2vw,23px)}
+#screen-desempenhotec .tpm-output.ux-force-task .tpm-recs{gap:12px}
+#screen-desempenhotec .tpm-output.ux-force-task .tpm-rec{border-color:color-mix(in srgb,var(--accent) 18%,var(--border))}
+#screen-desempenhotec .tpm-ranking{margin-top:20px;padding-top:16px}
+#screen-desempenhotec .tec-subtab.ux-secondary-tab{opacity:.72}
+#screen-desempenhotec .tec-subtab.ux-secondary-tab.active{opacity:1}
+
+/* Configurações: cotidiano primeiro; recuperação/backup continuam completos, mas recolhidos */
+#ux-config-data{border:1px solid var(--border);border-radius:14px;background:var(--surface);margin-bottom:16px;overflow:hidden}
+#ux-config-data>summary{list-style:none;cursor:pointer;display:flex;align-items:center;justify-content:space-between;gap:12px;padding:16px 20px}
+#ux-config-data>summary::-webkit-details-marker{display:none}
+#ux-config-data>summary span{display:grid;gap:3px}
+#ux-config-data>summary b{font-size:var(--fs-sm)}
+#ux-config-data>summary small{font-size:var(--fs-2xs);color:var(--text-soft);font-weight:500}
+#ux-config-data>summary i{font-style:normal;color:var(--text-faint);transition:transform .16s ease}
+#ux-config-data[open]>summary i{transform:rotate(180deg)}
+#ux-config-data .ux-config-data-body{display:grid;gap:12px;padding:0 12px 12px}
+#ux-config-data .ux-config-data-body>.card{margin:0;box-shadow:none}
+#screen-config #cfg-plano-motores-card.ux-secondary-area{box-shadow:none}
+
+/* Telas auxiliares: continuam disponíveis sem parecer parte do caminho crítico */
+.ux-auxiliary-screen>.page-header{opacity:.9}
+
+/* Coerência de feedback e acessibilidade */
+.ux-hierarchy-ready button,.ux-hierarchy-ready [role="button"]{transition:background-color .14s ease,border-color .14s ease,color .14s ease,box-shadow .14s ease,transform .08s ease}
+.ux-hierarchy-ready button:focus-visible,.ux-hierarchy-ready [role="button"]:focus-visible{outline:2px solid color-mix(in srgb,var(--accent) 58%,transparent);outline-offset:2px}
+.ux-hierarchy-ready .tone-good,.ux-hierarchy-ready .accent-good{--ux-state-color:var(--good)}
+.ux-hierarchy-ready .tone-warn,.ux-hierarchy-ready .accent-warn{--ux-state-color:var(--warn)}
+.ux-hierarchy-ready .tone-bad,.ux-hierarchy-ready .accent-bad{--ux-state-color:var(--bad)}
+
+@media(max-width:900px){
+  #ux-evo-more .ux-more-analysis-body{grid-template-columns:1fr}
+  #ux-evo-more .ux-more-analysis-body>.evo-wide{grid-column:auto}
+}
+
+@media(max-width:720px){
+  .ux-hierarchy-ready .page-header{margin-bottom:14px;gap:9px!important}
+  .ux-hierarchy-ready .page-subtitle{font-size:var(--fs-xs);line-height:1.45}
+  #ciclo-overview-gauges.ux-week-gauges{grid-template-columns:repeat(2,minmax(0,1fr))!important}
+  #ciclo-overview-gauges .mini-gauge-card[data-ux-priority="primary"]{min-height:82px}
+  #screen-extras .exm-stats{grid-template-columns:repeat(2,minmax(0,1fr))}
+  #screen-estudonovo .track-stages{grid-template-columns:repeat(2,minmax(0,1fr))!important}
+  #ux-evo-more>summary,#ux-config-data>summary{padding:14px}
+  #ux-evo-more .ux-more-analysis-body{padding:0 10px 10px;gap:10px}
+  #ux-config-data .ux-config-data-body{padding:0 9px 9px}
+  #screen-desempenhotec .tpm-output.ux-force-task{padding:12px}
+}
+
+@media(max-width:430px){
+  #ciclo-overview-gauges.ux-week-gauges{grid-template-columns:1fr 1fr!important}
+  #ciclo-overview-gauges .mini-gauge-card[data-ux-priority="primary"]:first-of-type{grid-column:1/-1}
+  #screen-extras .exm-stats{grid-template-columns:1fr 1fr}
+  #screen-estudonovo .track-stages{grid-template-columns:1fr!important}
+  #screen-historico .week-stats-row{grid-template-columns:repeat(2,minmax(0,1fr))!important}
+  .ux-hierarchy-ready .ux-compact-control{transform:none}
+}
