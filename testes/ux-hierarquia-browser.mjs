@@ -37,16 +37,57 @@ try{
   ok(copies.extras.includes('Execute hoje'),'Extras deve ser orientado à execução');
   ok(copies.tec.includes('prioridade de ataque'),'TEC deve separar medida de decisão');
 
+  /* A segunda passada precisa ser perceptível, não só uma mudança de 2–3% de opacidade. */
+  const visual=await page.evaluate(()=>{
+    switchScreen('registrar');UXHierarchy.onScreen('registrar');
+    const head=document.querySelector('#screen-registrar .page-header');
+    const hs=getComputedStyle(head),before=getComputedStyle(head,'::before');
+    return {
+      eyebrow:before.content||'',
+      borderLeft:parseFloat(hs.borderLeftWidth)||0,
+      radius:parseFloat(hs.borderRadius)||0,
+      title:parseFloat(getComputedStyle(document.querySelector('#screen-registrar .page-title')).fontSize)||0
+    };
+  });
+  ok(/EXECUÇÃO/.test(visual.eyebrow),'cabeçalho deve explicitar a camada da tela');
+  ok(visual.borderLeft>=3,'cabeçalho deve ter marcador lateral perceptível');
+  ok(visual.radius>=14,'cabeçalho deve funcionar como bloco editorial visível');
+  ok(visual.title>=23,'título deve ter hierarquia tipográfica perceptível');
+  console.log('UX_VISUAL_METRICS',JSON.stringify(visual));
+
   /* Ciclo: três indicadores acionáveis ganham prioridade sem apagar os demais. */
   const gauges=await page.evaluate(()=>{
+    switchScreen('ciclo');UXHierarchy.onScreen('ciclo');
     const h=document.getElementById('ciclo-overview-gauges');
     h.innerHTML=['cumprido','estudado','faltam','aproveitamento','finalizadas','por dia p/ fechar'].map((x,i)=>`<div class="mini-gauge-card"><div class="value">${i}</div><div class="label">${x}</div></div>`).join('');
     UXHierarchy.decorateCycleGauges();
-    return Array.from(h.querySelectorAll('.mini-gauge-card')).map(x=>({p:x.dataset.uxPriority,o:Number(x.style.order)}));
+    return Array.from(h.querySelectorAll('.mini-gauge-card')).map(x=>{
+      const cs=getComputedStyle(x);
+      return {
+        p:x.dataset.uxPriority,
+        o:Number(x.style.order),
+        h:x.getBoundingClientRect().height,
+        bt:parseFloat(cs.borderTopWidth)||0,
+        minH:parseFloat(cs.minHeight)||0,
+        padV:(parseFloat(cs.paddingTop)||0)+(parseFloat(cs.paddingBottom)||0)
+      };
+    });
   });
-  eq(gauges.filter(x=>x.p==='primary').length,3,'Ciclo deve ter exatamente três KPIs prioritários');
-  eq(gauges.filter(x=>x.p==='tertiary').length,2,'Indicadores derivados devem continuar presentes, mas terciários');
+  console.log('UX_GAUGE_METRICS',JSON.stringify(gauges));
+  const primarios=gauges.filter(x=>x.p==='primary');
+  const terciarios=gauges.filter(x=>x.p==='tertiary');
+  eq(primarios.length,3,'Ciclo deve ter exatamente três KPIs prioritários');
+  eq(terciarios.length,2,'Indicadores derivados devem continuar presentes, mas terciários');
   ok(gauges.some(x=>x.p==='secondary'),'Aproveitamento deve ficar como apoio forte');
+  ok(primarios.every(x=>x.bt>=3),'KPIs primários do Ciclo devem ter destaque visual forte');
+  ok(Math.min(...primarios.map(x=>x.minH))>=110,'KPIs primários devem reservar altura visual claramente maior');
+  ok(Math.min(...primarios.map(x=>x.padV))>=Math.max(...terciarios.map(x=>x.padV))+12,'KPIs primários devem ter espaçamento vertical claramente maior que derivados');
+  // Em execuções nas quais o host participa do layout, a geometria real também deve
+  // confirmar a hierarquia. No DOM sintético do runner o host pode permanecer sem
+  // caixa de layout (altura 0), embora o box model computado acima seja válido.
+  if(gauges.some(x=>x.h>0)){
+    ok(Math.min(...primarios.map(x=>x.h))>Math.max(...terciarios.map(x=>x.h)),'KPIs primários devem ocupar mais presença visual que derivados');
+  }
 
   /* Cards: Estatísticas continua disponível como aba, sem atalho duplicado no menu. */
   await page.evaluate(()=>{switchScreen('cards');UXHierarchy.decorateCards();});

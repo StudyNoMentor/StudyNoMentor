@@ -149,3 +149,287 @@
   #screen-historico .week-stats-row{grid-template-columns:repeat(2,minmax(0,1fr))!important}
   .ux-hierarchy-ready .ux-compact-control{transform:none}
 }
+
+
+/* ============================================================================
+   POLIMENTO VISUAL — a hierarquia precisa ser percebida, não apenas medida
+   ----------------------------------------------------------------------------
+   Não cria comportamento nem regra de negócio. Apenas torna explícita a ordem:
+   contexto da tela -> ação/resultado principal -> execução -> apoio/diagnóstico.
+   ============================================================================ */
+
+/* Cabeçalho editorial: cada tela passa a dizer visualmente em qual camada do
+   estudo ela está. O contraste é deliberadamente maior que na primeira passada. */
+.ux-hierarchy-ready .page-header{
+  position:relative;
+  padding:18px 20px 18px 22px;
+  border:1px solid color-mix(in srgb,var(--accent) 16%,var(--border));
+  border-left:4px solid color-mix(in srgb,var(--accent) 78%,var(--border));
+  border-radius:18px;
+  background:linear-gradient(135deg,color-mix(in srgb,var(--accent) 7%,var(--surface)) 0%,var(--surface) 58%);
+  box-shadow:0 8px 24px rgba(15,23,42,.045);
+}
+.ux-hierarchy-ready .page-header::before{
+  display:block;
+  margin-bottom:6px;
+  font-size:10px;
+  line-height:1;
+  font-weight:850;
+  letter-spacing:.13em;
+  text-transform:uppercase;
+  color:var(--accent);
+}
+#screen-registrar .page-header::before{content:"EXECUÇÃO"}
+#screen-ciclo .page-header::before,#screen-grade .page-header::before{content:"PLANEJAMENTO DA SEMANA"}
+#screen-estudonovo .page-header::before{content:"TRILHA DE TEORIA"}
+#screen-leis .page-header::before{content:"LEITURA E MARCAÇÃO"}
+#screen-cards .page-header::before{content:"REVISÃO ESPAÇADA"}
+#screen-extras .page-header::before{content:"EXECUÇÃO COMPLEMENTAR"}
+#screen-historico .page-header::before{content:"MEMÓRIA DO ESTUDO"}
+#screen-evolucao .page-header::before{content:"TENDÊNCIA"}
+#screen-desempenhotec .page-header::before{content:"DIAGNÓSTICO E PRIORIDADE"}
+#screen-links .page-header::before,#screen-conquistas .page-header::before,#screen-ferramentas .page-header::before{content:"APOIO"}
+#screen-config .page-header::before{content:"PREFERÊNCIAS E DADOS"}
+#screen-planejamentos .page-header::before{content:"CONTEXTO DE ESTUDO"}
+.ux-hierarchy-ready .page-title{font-size:clamp(25px,2.5vw,34px);line-height:1.08;margin-bottom:5px}
+.ux-hierarchy-ready .page-subtitle{max-width:760px;font-size:13px}
+
+/* Ação/resultado principal tem linguagem visual própria. */
+.ux-hierarchy-ready .ux-primary-card,
+.ux-hierarchy-ready .ux-primary-workspace,
+.ux-hierarchy-ready .ux-primary-analysis{
+  border-color:color-mix(in srgb,var(--accent) 24%,var(--border));
+}
+.ux-hierarchy-ready .ux-priority-action{
+  font-weight:800;
+  box-shadow:0 0 0 2px color-mix(in srgb,var(--accent) 16%,transparent),0 7px 18px color-mix(in srgb,var(--accent) 10%,transparent);
+}
+.ux-hierarchy-ready .ux-secondary-area{opacity:1}
+.ux-hierarchy-ready .ux-tertiary-action{opacity:.68;filter:saturate(.82)}
+.ux-hierarchy-ready .ux-diagnostic-action{opacity:.52}
+
+/* Navegação: ferramentas periféricas continuam acessíveis, mas param de disputar
+   visualmente com o caminho diário. Somente desktop; o menu móvel mantém a regra
+   própria de navegação. */
+@media(min-width:901px){
+  .sidebar .tab[data-screen="links"],
+  .sidebar .tab[data-screen="conquistas"],
+  .sidebar .tab[data-screen="ferramentas"]{opacity:.62}
+  .sidebar .tab[data-screen="links"]{margin-top:8px;border-top:1px solid var(--border);padding-top:12px}
+  .sidebar .tab[data-screen="config"]{margin-top:7px;border-top:1px solid var(--border);padding-top:12px}
+  .sidebar .tab[data-screen="links"]:hover,
+  .sidebar .tab[data-screen="conquistas"]:hover,
+  .sidebar .tab[data-screen="ferramentas"]:hover,
+  .sidebar .tab.active{opacity:1}
+}
+
+/* REGISTRAR — o formulário é claramente a tarefa; consulta recente fica abaixo. */
+#screen-registrar .ux-primary-card{
+  border-width:2px;
+  box-shadow:0 14px 34px color-mix(in srgb,var(--accent) 9%,transparent);
+  overflow:hidden;
+}
+#screen-registrar .ux-primary-card>.card-header{
+  margin:-1px -1px 14px;
+  padding:16px 18px;
+  background:linear-gradient(100deg,color-mix(in srgb,var(--accent) 9%,var(--surface)),var(--surface));
+  border-bottom:1px solid color-mix(in srgb,var(--accent) 16%,var(--border));
+}
+#screen-registrar .ux-primary-card>.card-header h2{font-size:18px}
+#screen-registrar #recent-section{padding-top:10px;border-top:1px solid color-mix(in srgb,var(--border) 72%,transparent)}
+#screen-registrar #recent-section .card{background:color-mix(in srgb,var(--surface-sunken) 42%,var(--surface));border-style:dashed}
+
+/* CICLO — três números realmente dominam; o restante vira leitura auxiliar. */
+#ciclo-overview-gauges.ux-week-gauges{gap:12px!important}
+#ciclo-overview-gauges .mini-gauge-card[data-ux-priority="primary"]{
+  min-height:108px;
+  padding:17px 16px;
+  border-width:2px;
+  border-top:4px solid var(--accent);
+  background:linear-gradient(145deg,color-mix(in srgb,var(--accent) 10%,var(--surface)),var(--surface) 68%);
+  box-shadow:0 10px 24px rgba(15,23,42,.07);
+}
+#ciclo-overview-gauges .mini-gauge-card[data-ux-priority="primary"] .value{font-size:clamp(28px,3vw,38px);font-weight:850;letter-spacing:-.04em}
+#ciclo-overview-gauges .mini-gauge-card[data-ux-priority="primary"] .label{font-weight:750;color:var(--text)}
+#ciclo-overview-gauges .mini-gauge-card[data-ux-priority="secondary"]{min-height:72px;background:var(--surface);border-style:dashed}
+#ciclo-overview-gauges .mini-gauge-card[data-ux-priority="tertiary"]{min-height:72px;opacity:.62;background:color-mix(in srgb,var(--surface-sunken) 55%,var(--surface));border-style:dashed}
+#screen-ciclo #ciclo-subjects-progress{padding-top:14px;border-top:1px solid var(--border)}
+
+/* GRADE — aparência de workspace, não de painel de opções. */
+#screen-grade #ciclo-grade{
+  border:2px solid color-mix(in srgb,var(--accent) 18%,var(--border));
+  border-radius:16px;
+  background:var(--surface);
+  box-shadow:0 12px 28px rgba(15,23,42,.06);
+}
+#screen-grade .grade-cell:hover,#screen-grade td:hover{background:color-mix(in srgb,var(--accent) 5%,var(--surface))}
+#screen-grade .grade-cell:focus-within,#screen-grade td:focus-within{outline-width:3px;background:color-mix(in srgb,var(--accent) 7%,var(--surface))}
+#screen-grade #grade-budget{opacity:.72}
+#screen-grade #grade-chip-tray{padding-top:8px;border-top:1px dashed var(--border)}
+
+/* ESTUDO NOVO — cada aula ganha uma leitura vertical evidente. */
+#screen-estudonovo .track-card{
+  border-left:4px solid color-mix(in srgb,var(--accent) 58%,var(--border));
+  box-shadow:0 7px 20px rgba(15,23,42,.045);
+}
+#screen-estudonovo .track-card-head.ux-card-primary{background:linear-gradient(90deg,color-mix(in srgb,var(--accent) 5%,var(--surface)),transparent);margin:-1px -1px 10px;padding:14px 15px 12px;border-radius:12px 12px 0 0}
+#screen-estudonovo .track-card-head .track-lesson-text{font-size:15px;font-weight:820}
+#screen-estudonovo .track-stages.ux-card-support{opacity:.82}
+#screen-estudonovo .track-comment-wrap.ux-card-notes{opacity:.76}
+
+/* LEIS — o documento ganha área de leitura própria; ferramentas parecem ferramentas. */
+#screen-leis .leis-reader-card{
+  border:2px solid color-mix(in srgb,var(--accent) 13%,var(--border));
+  box-shadow:0 14px 38px rgba(15,23,42,.075);
+}
+#screen-leis .leis-reader-card .lei-texto,#screen-leis .leis-reader-card .leis-reader-text{font-size:1.02em;line-height:1.78}
+#screen-leis #leis-tools-body.ux-advanced-surface{border:1px dashed color-mix(in srgb,var(--border) 85%,transparent);box-shadow:none}
+#screen-leis #lei-marks-panel{opacity:.72}
+
+/* CARDS — durante revisão, conteúdo central e botões de julgamento dominam. */
+#screen-cards #cards-content.ux-primary-workspace{
+  padding:14px;
+  border:2px solid color-mix(in srgb,var(--accent) 19%,var(--border));
+  border-radius:18px;
+  background:linear-gradient(180deg,color-mix(in srgb,var(--accent) 4%,var(--surface)),var(--surface));
+  box-shadow:0 12px 30px rgba(15,23,42,.055);
+}
+#screen-cards #cards-filter-card{opacity:.75;border-style:dashed}
+#screen-cards #cards-filter-card:focus-within,#screen-cards #cards-filter-card:hover{opacity:1}
+
+/* EXTRAS — a agenda de hoje vira o centro operacional da tela. */
+#screen-extras #extras-agenda.ux-primary-workspace{
+  margin-top:12px;
+  padding:16px;
+  border:2px solid color-mix(in srgb,var(--accent) 24%,var(--border));
+  border-radius:18px;
+  background:linear-gradient(145deg,color-mix(in srgb,var(--accent) 7%,var(--surface)),var(--surface) 52%);
+  box-shadow:0 14px 34px color-mix(in srgb,var(--accent) 7%,transparent);
+}
+#screen-extras #extras-agenda.ux-primary-workspace::before{
+  content:"EXECUÇÃO DE HOJE";
+  display:block;
+  margin:0 0 11px;
+  font-size:10px;
+  font-weight:850;
+  letter-spacing:.12em;
+  color:var(--accent);
+}
+#screen-extras .exm-stat[data-ux-priority="primary"]{border-width:2px;background:linear-gradient(145deg,color-mix(in srgb,var(--accent) 8%,var(--surface)),var(--surface))}
+#screen-extras .exm-stat[data-ux-priority="primary"] .value,#screen-extras .exm-stat[data-ux-priority="primary"] strong{font-size:1.15em}
+#screen-extras .exm-stat[data-ux-priority="secondary"]{opacity:.62;border-style:dashed}
+#screen-extras #extras-curso.ux-secondary-area{padding-top:16px;border-top:1px solid var(--border)}
+#screen-extras .exm-source-filter{opacity:.58}
+#screen-extras .exm-source-filter:hover,#screen-extras .exm-source-filter.active{opacity:1}
+
+/* HISTÓRICO — resumo semanal primeiro, anatomia detalhada depois. */
+#screen-historico .week-card.ux-history-card{border-left:4px solid color-mix(in srgb,var(--accent) 46%,var(--border));box-shadow:0 7px 20px rgba(15,23,42,.045)}
+#screen-historico .week-stats-row.ux-history-summary{padding:12px;border-radius:12px;background:color-mix(in srgb,var(--accent) 4%,var(--surface-sunken))}
+#screen-historico .week-status-dist.ux-history-support{opacity:.62}
+#screen-historico .week-detail{border-top:1px dashed var(--border)}
+
+/* EVOLUÇÃO — sequência editorial: resumo -> tempo -> qualidade -> distribuição. */
+#screen-evolucao #evolucao-stats.ux-summary-first{
+  padding:14px;
+  border:2px solid color-mix(in srgb,var(--accent) 17%,var(--border));
+  border-radius:16px;
+  background:linear-gradient(135deg,color-mix(in srgb,var(--accent) 6%,var(--surface)),var(--surface));
+}
+#screen-evolucao .ux-primary-analysis{box-shadow:0 9px 24px rgba(15,23,42,.05)}
+#screen-evolucao #ux-evo-more{margin-top:10px;background:color-mix(in srgb,var(--surface-sunken) 52%,var(--surface));border-style:dashed}
+#screen-evolucao #ux-evo-more>summary{padding:17px 18px}
+#screen-evolucao #ux-evo-more>summary b{font-size:14px}
+
+/* TEC — força-tarefa é inequivocamente prescritiva; ranking é consulta. */
+#screen-desempenhotec .tpm-output.ux-force-task{
+  border-width:2px;
+  border-top:5px solid var(--accent);
+  padding:18px;
+  border-radius:18px;
+  background:linear-gradient(140deg,color-mix(in srgb,var(--accent) 9%,var(--surface)) 0%,var(--surface) 42%);
+  box-shadow:0 16px 40px color-mix(in srgb,var(--accent) 10%,transparent);
+}
+#screen-desempenhotec .tpm-output.ux-force-task>header{padding-bottom:13px;margin-bottom:13px;border-bottom:1px solid color-mix(in srgb,var(--accent) 18%,var(--border))}
+#screen-desempenhotec .tpm-output.ux-force-task>header strong{font-size:clamp(21px,2.5vw,28px);letter-spacing:-.025em}
+#screen-desempenhotec .tpm-output.ux-force-task .tpm-recs{gap:14px}
+#screen-desempenhotec .tpm-output.ux-force-task .tpm-rec{border-width:2px;background:var(--surface);box-shadow:0 7px 18px rgba(15,23,42,.045)}
+#screen-desempenhotec .tpm-ranking{
+  margin-top:24px;
+  padding:18px;
+  border:1px dashed color-mix(in srgb,var(--border) 90%,transparent);
+  border-radius:15px;
+  background:color-mix(in srgb,var(--surface-sunken) 62%,var(--surface));
+}
+#screen-desempenhotec .tpm-ranking>header strong{font-size:15px}
+#screen-desempenhotec .tec-cfg-bar.ux-analysis-settings{opacity:.62;border-style:dashed}
+#screen-desempenhotec .tec-cfg-bar.ux-analysis-settings:hover,#screen-desempenhotec .tec-cfg-bar.ux-analysis-settings:focus-within{opacity:1}
+#screen-desempenhotec .tec-subtab.ux-secondary-tab{opacity:.55}
+#screen-desempenhotec .tec-subtab.ux-secondary-tab:hover,#screen-desempenhotec .tec-subtab.ux-secondary-tab.active{opacity:1}
+
+/* CONFIGURAÇÕES — preferências cotidianas ficam soltas; infraestrutura parece
+   deliberadamente uma área avançada. */
+#screen-config #ux-config-data{
+  border-style:dashed;
+  background:color-mix(in srgb,var(--surface-sunken) 58%,var(--surface));
+  box-shadow:none;
+}
+#screen-config #ux-config-data>summary{min-height:58px}
+#screen-config #ux-config-data>summary b{font-size:14px}
+#screen-config #cfg-plano-motores-card.ux-secondary-area,#screen-config #cloud-connected-box.ux-secondary-area{opacity:.72;border-style:dashed;box-shadow:none}
+
+/* Telas auxiliares: continuam intactas, mas a própria página deixa claro que são
+   apoio e não o caminho crítico. */
+.ux-auxiliary-screen>.page-header{filter:saturate(.78)}
+.ux-auxiliary-screen>.page-header::after{
+  content:"Uso opcional";
+  position:absolute;
+  top:14px;
+  right:16px;
+  padding:4px 8px;
+  border:1px solid var(--border);
+  border-radius:999px;
+  background:var(--surface);
+  color:var(--text-faint);
+  font-size:10px;
+  font-weight:750;
+}
+
+@media(max-width:900px){
+  .ux-hierarchy-ready .page-header{padding:16px 16px 16px 18px;border-radius:15px}
+  .ux-hierarchy-ready .page-title{font-size:25px}
+  #screen-desempenhotec .tpm-output.ux-force-task{padding:14px}
+  #screen-extras #extras-agenda.ux-primary-workspace{padding:13px}
+}
+
+@media(max-width:720px){
+  .ux-hierarchy-ready .page-header{margin-bottom:14px}
+  .ux-hierarchy-ready .page-header::before{font-size:9px}
+  #ciclo-overview-gauges .mini-gauge-card[data-ux-priority="primary"]{min-height:92px;padding:14px}
+  #ciclo-overview-gauges .mini-gauge-card[data-ux-priority="primary"] .value{font-size:28px}
+  #screen-grade #ciclo-grade{border-width:1px;box-shadow:none}
+  #screen-cards #cards-content.ux-primary-workspace{padding:10px;border-width:1px}
+  #screen-extras #extras-agenda.ux-primary-workspace{border-width:1px;box-shadow:0 8px 22px color-mix(in srgb,var(--accent) 6%,transparent)}
+  #screen-desempenhotec .tpm-output.ux-force-task{border-width:1px;border-top-width:4px;box-shadow:0 10px 25px color-mix(in srgb,var(--accent) 8%,transparent)}
+}
+
+@media(max-width:430px){
+  .ux-hierarchy-ready .page-header{padding:14px 14px 14px 16px;border-left-width:3px}
+  .ux-hierarchy-ready .page-title{font-size:23px}
+  .ux-hierarchy-ready .page-subtitle{font-size:12px}
+  .ux-auxiliary-screen>.page-header::after{display:none}
+  #screen-extras #extras-agenda.ux-primary-workspace::before{font-size:9px}
+}
+
+/* UX V2: título permanece perceptível inclusive após regras móveis legadas. */
+.ux-hierarchy-ready .page-title{font-size:clamp(25px,2.5vw,34px)!important}
+@media(max-width:430px){.ux-hierarchy-ready .page-title{font-size:24px!important}}
+
+/* UX V2: a grade do Ciclo não estica indicadores derivados até a altura dos prioritários. */
+#ciclo-overview-gauges.ux-week-gauges{align-items:start}
+#ciclo-overview-gauges .mini-gauge-card{align-self:start}
+
+/* UX V2 final: presença física distinta dos KPIs do Ciclo, sem herdar altura uniforme. */
+#ciclo-overview-gauges.ux-week-gauges{align-items:start!important;grid-auto-rows:auto!important}
+#ciclo-overview-gauges.ux-week-gauges .mini-gauge-card{align-self:start!important;height:auto!important}
+#ciclo-overview-gauges.ux-week-gauges .mini-gauge-card[data-ux-priority="primary"]{min-height:116px!important;padding:20px 16px!important}
+#ciclo-overview-gauges.ux-week-gauges .mini-gauge-card[data-ux-priority="secondary"],#ciclo-overview-gauges.ux-week-gauges .mini-gauge-card[data-ux-priority="tertiary"]{min-height:0!important;padding:10px 12px!important}
