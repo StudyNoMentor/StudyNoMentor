@@ -53,7 +53,7 @@
     },
     observacoes(){return this._extras().map(e=>this._obs(e)).filter(Boolean);},
     historico(disciplina,topico,cfg={}){
-      cfg={...this.defaults,...cfg};const d=norm(disciplina),t=norm(topico),all=this.observacoes(),exact=all.filter(x=>norm(x.disciplina)===d&&norm(x.topico)===t),disc=all.filter(x=>norm(x.disciplina)===d);
+      cfg={...this.defaults,...cfg};const d=norm(disciplina),t=norm(topico),all=Array.isArray(cfg._observacoes)?cfg._observacoes:this.observacoes(),exact=all.filter(x=>norm(x.disciplina)===d&&norm(x.topico)===t),disc=all.filter(x=>norm(x.disciplina)===d);
       const min=Math.max(2,Math.round(N(cfg.minCiclosDose,4)));let pool=[],nivel='global';
       const efetivo=a=>a.filter(x=>x.ganhoPP!=null).reduce((s,x)=>s+N(x.atribuicao&&x.atribuicao.pesoCalibracao,.25),0);
       if(efetivo(exact)>=min){pool=exact;nivel='topico';}
@@ -65,7 +65,7 @@
       return{nivel,n:medidos.length,nEfetivo,qualidadeAtribuicao:qualidade,ganhoPP100qMediano:ganhoMed,doseEficienteMediana:doseMed,observacoes:medidos,causal:false};
     },
     tempo(disciplina,topico,dose,cfg={}){
-      cfg={...this.defaults,...cfg};const d=norm(disciplina),t=norm(topico),all=this.observacoes().filter(x=>x.questoes>0&&x.minutos>0),exact=all.filter(x=>norm(x.disciplina)===d&&norm(x.topico)===t),disc=all.filter(x=>norm(x.disciplina)===d);
+      cfg={...this.defaults,...cfg};const d=norm(disciplina),t=norm(topico),all=(Array.isArray(cfg._observacoes)?cfg._observacoes:this.observacoes()).filter(x=>x.questoes>0&&x.minutos>0),exact=all.filter(x=>norm(x.disciplina)===d&&norm(x.topico)===t),disc=all.filter(x=>norm(x.disciplina)===d);
       let pool=exact.reduce((s,x)=>s+x.questoes,0)>=Math.max(15,N(cfg.minQuestoesTempo,30)/2)?exact:disc;
       const q=pool.reduce((s,x)=>s+x.questoes,0),min=pool.reduce((s,x)=>s+x.minutos,0),confiavel=q>=Math.max(10,N(cfg.minQuestoesTempo,30))&&min>0,segQ=confiavel?min*60/q:null;
       return{confiavel,fonte:confiavel?(pool===exact?'extras-topico':'extras-disciplina'):'indisponivel',questoes:q,minutos:min,segundosPorQuestao:segQ,minutosEstimados:confiavel&&dose>0?Math.max(1,Math.round(dose*segQ/60)):null};
