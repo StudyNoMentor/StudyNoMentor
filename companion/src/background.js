@@ -1,11 +1,12 @@
 /* StudyNoMentor Companion — service worker MV3
  * Fila durável entre TEC e StudyNoMentor. O evento só sai da fila após ACK do site.
+ * A captura recebe uma confirmação própria somente DEPOIS de estar persistida.
  */
 'use strict';
 
 const QUEUE_KEY = 'snmTecQueueV1';
 const STATUS_KEY = 'snmTecStatusV1';
-const MAX_PENDING = 10000;
+const MAX_PENDING = 50000;
 const studyPorts = new Set();
 let writeChain = Promise.resolve();
 
@@ -37,21 +38,47 @@ function validEnvelope(env) {
   return !!(env && env.source === 'StudyMentorCompanion' && Number(env.protocol) === 1 && env.messageId && env.type);
 }
 
+function healthFrom(q) {
+  return {
+    pending: Object.keys(q && q.items || {}).length,
+    dropped: Number(q && q.dropped || 0),
+    limit: MAX_PENDING,
+    updatedAt: q && q.updatedAt || null
+  };
+}
+
+function safePost(port, msg) {
+  try { port.postMessage(msg); return true; } catch (_) { return false; }
+}
+
+function broadcast(msg) {
+  for (const port of [...studyPorts]) {
+    if (!safePost(port, msg)) studyPorts.delete(port);
+  }
+}
+
+function broadcastEnvelope(env) {
+  broadcast({ kind: 'envelope', envelope: env });
+}
+
+async function broadcastHealth() {
+  const q = await queueState();
+  broadcast({ kind: 'health', payload: healthFrom(q) });
+}
+
 async function enqueue(env) {
-  if (!validEnvelope(env)) return false;
+  if (!validEnvelope(env)) return { ok: false, reason: 'invalid' };
   return serialize(async () => {
     const q = await queueState();
-    q.items[String(env.messageId)] = env;
-    const rows = Object.values(q.items).sort((a, b) => Number(a.createdAtMs || 0) - Number(b.createdAtMs || 0));
-    while (rows.length > MAX_PENDING) {
-      const old = rows.shift();
-      if (old && old.messageId && q.items[old.messageId]) {
-        delete q.items[old.messageId];
-        q.dropped = Number(q.dropped || 0) + 1;
-      }
+    const id = String(env.messageId);
+    const exists = !!q.items[id];
+    const size = Object.keys(q.items).length;
+    if (!exists && size >= MAX_PENDING) {
+      return { ok: false, reason: 'queue_full', health: healthFrom(q) };
     }
+    q.items[id] = env;
     await saveQueue(q);
-    return true;
+    return { ok: true, duplicate: exists, health: healthFrom(q) };
   });
 }
 
@@ -64,10 +91,7 @@ async function ack(messageId) {
       await saveQueue(q);
     }
   });
-}
-
-function safePost(port, msg) {
-  try { port.postMessage(msg); return true; } catch (_) { return false; }
+  await broadcastHealth();
 }
 
 async function flushTo(port) {
@@ -76,16 +100,31 @@ async function flushTo(port) {
   if (status) safePost(port, { kind: 'envelope', envelope: status });
   const q = await queueState();
   const rows = Object.values(q.items).sort((a, b) => Number(a.createdAtMs || 0) - Number(b.createdAtMs || 0));
+  safePost(port, { kind: 'health', payload: healthFrom(q) });
   for (let i = 0; i < rows.length; i += 100) {
-    safePost(port, { kind: 'batch', envelopes: rows.slice(i, i + 100), dropped: Number(q.dropped || 0) });
+    safePost(port, { kind: 'batch', envelopes: rows.slice(i, i + 100), health: healthFrom(q) });
   }
 }
 
-function broadcast(env) {
-  for (const port of [...studyPorts]) {
-    if (!safePost(port, { kind: 'envelope', envelope: env })) studyPorts.delete(port);
-  }
+async function acceptCapture(env) {
+  const result = await enqueue(env);
+  if (result.ok) broadcastEnvelope(env);
+  broadcast({ kind: 'health', payload: result.health || healthFrom(await queueState()) });
+  return result;
 }
+
+/* Caminho transacional para as resoluções: runtime.sendMessage acorda o service
+ * worker e só responde `accepted:true` depois de a fila durável ter sido salva.
+ * O content script mantém uma cópia de estágio até receber esta confirmação. */
+chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
+  const url = String(sender && sender.url || '');
+  if (!msg || msg.kind !== 'capture' || !isTec(url)) return false;
+  const env = msg.envelope;
+  acceptCapture(env)
+    .then(result => sendResponse({ accepted: !!result.ok, duplicate: !!result.duplicate, reason: result.reason || null, health: result.health || null }))
+    .catch(err => sendResponse({ accepted: false, reason: 'storage_error', detail: String(err && err.message || err) }));
+  return true;
+});
 
 chrome.runtime.onConnect.addListener((port) => {
   const url = String(port.sender && port.sender.url || '');
@@ -102,17 +141,19 @@ chrome.runtime.onConnect.addListener((port) => {
     return;
   }
 
+  /* O port do TEC fica para presença/status e compatibilidade. Resoluções novas
+   * preferem o caminho transacional acima; se uma versão anterior ainda mandar
+   * pelo port, o mesmo enqueue idempotente continua protegendo os dados. */
   if (port.name === 'snm-tec-v1' && isTec(url)) {
     port.onMessage.addListener(async (msg) => {
       const env = msg && msg.envelope;
       if (!validEnvelope(env)) return;
       if (env.type === 'ready' || env.type === 'status') {
         await chrome.storage.local.set({ [STATUS_KEY]: env });
-        broadcast(env);
+        broadcastEnvelope(env);
         return;
       }
-      await enqueue(env);
-      broadcast(env);
+      await acceptCapture(env);
     });
   }
 });
