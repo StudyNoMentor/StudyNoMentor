@@ -19,6 +19,7 @@
   const KEY = 'tec-realtime:eventos-v1';
   const SCHEMA = 1;
   const DUP_WINDOW_MS = 5000;
+  const STALE_MS = 45000;
 
   const norm = (v) => {
     try { return typeof ReforcoEngine !== 'undefined' && ReforcoEngine.norm ? ReforcoEngine.norm(v || '') : String(v || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/\s+/g, ' ').trim(); }
@@ -33,10 +34,12 @@
   const R = {
     mode: 'day',
     selectedDay: null,
+    selectedAccount: null,
     _messageBound: false,
     _uiBound: false,
     _queuePatched: false,
     _observer: null,
+    _heartbeat: null,
 
     _key() { try { return DB._profilePrefix() + KEY; } catch (_) { return 'diario-estudos:' + KEY; } },
     blank() { return { schema: SCHEMA, events: {}, connection: {}, lastEventAt: null, updatedAt: null }; },
@@ -163,6 +166,38 @@
       } catch (e) { if (typeof _quiet === 'function') _quiet(e, 'tec-realtime-connection-mirror'); }
       this.render();
     },
+    setHealth(payload) {
+      const state = this.state();
+      state.connection = {
+        ...(state.connection || {}),
+        queuePending: Math.max(0, Math.round(n(payload && payload.pending, 0))),
+        queueDropped: Math.max(0, Math.round(n(payload && payload.dropped, 0))),
+        queueLimit: Math.max(0, Math.round(n(payload && payload.limit, 0))),
+        queueUpdatedAt: payload && payload.updatedAt || state.connection.queueUpdatedAt || null
+      };
+      this.save(state);
+      this.render();
+    },
+    setDisconnected() {
+      const state = this.state();
+      state.connection = { ...(state.connection || {}), status:'reconnecting' };
+      this.save(state);
+      this.render();
+    },
+    isConnected(connection) {
+      if (!connection || connection.status !== 'connected' || !connection.lastSeenAt) return false;
+      const t = new Date(connection.lastSeenAt).getTime();
+      return Number.isFinite(t) && Date.now() - t <= STALE_MS;
+    },
+    accounts() {
+      return [...new Set(Object.values(this.state().events || {}).map(e => String(e && e.tecAccount || '')).filter(Boolean))].sort();
+    },
+    activeAccount() {
+      if (this.selectedAccount === '__all__') return null;
+      if (this.selectedAccount) return this.selectedAccount;
+      const current = this.state().connection && this.state().connection.account;
+      return current || null;
+    },
     accepted(event) {
       const m = event && event.data;
       if (!m || typeof m !== 'object') return false;
@@ -178,6 +213,8 @@
       if (!this.accepted(event)) return;
       const m = event.data;
       if (m.type === 'companion-ready') { this.setConnected(m.payload || {}, 'extension'); return; }
+      if (m.type === 'companion-health') { this.setHealth(m.payload || {}); return; }
+      if (m.type === 'companion-disconnected') { this.setDisconnected(); return; }
       if (m.type === 'ready' || m.type === 'status') { this.setConnected(m.payload || {}, m.source === EXT_SOURCE ? 'extension' : (m.transport || 'userscript')); return; }
       if (m.type === 'resolution') { this.ingest(m.payload || {}, m.messageId); return; }
       if (m.type === 'question' && m.payload && m.payload.question) {
@@ -196,8 +233,8 @@
       return this.mode === '7d' ? { from:addDays(day,-6), to:day, label:'Últimos 7 dias' } : { from:day, to:day, label:day === today() ? 'Hoje' : day };
     },
     rows(range) {
-      const r = range || this.range();
-      return Object.values(this.state().events || {}).filter(e => e.localDate >= r.from && e.localDate <= r.to)
+      const r = range || this.range(), account = this.activeAccount();
+      return Object.values(this.state().events || {}).filter(e => e.localDate >= r.from && e.localDate <= r.to && (!account || e.tecAccount === account))
         .sort((a,b) => String(a.resolvedAt).localeCompare(String(b.resolvedAt)));
     },
     motorContext() {
@@ -277,7 +314,7 @@
         try { origem = PlanoCiclo.origem(g.assunto, g.disciplina, { ...g.robust, custoQ:dose }, { motivo:'reforco' }); } catch (_) {
           origem = { topico:g.assunto, disciplina:g.disciplina, motivo:'reforco', criadoEm:today(), taxaInicial:g.robust.taxa ?? null, custoEstimado:dose };
         }
-        origem.sinalTempoReal = { versao:1, intervalo:this.range(), ids:[...g.ids], erros:g.errors, idsUnicos:g.uniqueIds, criadoEm:new Date().toISOString(), fonte:'companion' };
+        origem.sinalTempoReal = { versao:1, intervalo:this.range(), contaTec:this.activeAccount() || '__todas__', ids:[...g.ids], erros:g.errors, idsUnicos:g.uniqueIds, criadoEm:new Date().toISOString(), fonte:'companion' };
         DB.updateExtra(extra.id, { origemPlano:origem });
         created++;
       }
@@ -290,7 +327,7 @@
     },
     exportJSON() {
       const range=this.range(), rows=this.rows(range), summary=this.summary(rows), groups=this.groups(rows).map(g=>({ disciplina:g.disciplina, assunto:g.assunto, erros:g.errors, ids:[...g.ids], recorrentes:g.recurrent, fraquezaConfirmada:!!g.robust, mapeadoNoTEC:!!g.tec }));
-      const data={ type:'StudyNoMentorTecRealtimeExport', schema:1, exportedAt:new Date().toISOString(), range, summary, groups, resolutions:rows };
+      const data={ type:'StudyNoMentorTecRealtimeExport', schema:1, exportedAt:new Date().toISOString(), range, account:this.activeAccount() || '__todas__', summary, groups, resolutions:rows };
       const blob=new Blob([JSON.stringify(data,null,2)],{type:'application/json'}), url=URL.createObjectURL(blob), a=document.createElement('a');
       a.href=url; a.download=`studynomentor-tec-${range.from}${range.to!==range.from?'-'+range.to:''}.json`; document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url);
     },
@@ -303,7 +340,7 @@
     ensureStyle() {
       if (document.getElementById('tec-realtime-style')) return;
       const s=document.createElement('style'); s.id='tec-realtime-style'; s.textContent=`
-        .trt-card{margin-top:16px}.trt-head{display:flex;gap:14px;justify-content:space-between;align-items:flex-start}.trt-status{display:inline-flex;gap:7px;align-items:center;font-size:12px;font-weight:700}.trt-dot{width:9px;height:9px;border-radius:50%;background:#9ca3af}.trt-dot.on{background:#16a34a}.trt-toolbar{display:flex;gap:8px;flex-wrap:wrap;align-items:center;padding:0 28px 16px}.trt-toolbar input{max-width:155px}.trt-kpis{display:grid;grid-template-columns:repeat(6,minmax(90px,1fr));gap:9px;padding:0 28px 16px}.trt-kpi{border:1px solid var(--border,#e5e7eb);border-radius:12px;padding:10px}.trt-kpi b{display:block;font-size:20px}.trt-kpi small{opacity:.7}.trt-list{padding:0 28px 22px}.trt-row{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:10px;padding:11px 0;border-top:1px solid var(--border,#e5e7eb)}.trt-row:first-child{border-top:0}.trt-row b{display:block}.trt-row small{display:block;opacity:.72;margin-top:3px}.trt-badge{font-size:11px;font-weight:800;border-radius:999px;padding:5px 8px;white-space:nowrap}.trt-badge.confirmed{background:#dcfce7;color:#166534}.trt-badge.mapped{background:#fef3c7;color:#92400e}.trt-badge.unmapped{background:#fee2e2;color:#991b1b}.trt-empty{padding:8px 0 4px;opacity:.7}.trt-actions{display:flex;gap:8px;flex-wrap:wrap;padding:0 28px 20px}.trt-note{padding:0 28px 16px;font-size:12px;opacity:.72}
+        .trt-card{margin-top:16px}.trt-head{display:flex;gap:14px;justify-content:space-between;align-items:flex-start}.trt-status{display:inline-flex;gap:7px;align-items:center;font-size:12px;font-weight:700}.trt-dot{width:9px;height:9px;border-radius:50%;background:#9ca3af}.trt-dot.on{background:#16a34a}.trt-toolbar{display:flex;gap:8px;flex-wrap:wrap;align-items:center;padding:0 28px 16px}.trt-toolbar input{max-width:155px}.trt-toolbar select{max-width:220px}.trt-queue{font-size:11px;opacity:.75}.trt-queue.warn{font-weight:800;color:#b45309}.trt-kpis{display:grid;grid-template-columns:repeat(6,minmax(90px,1fr));gap:9px;padding:0 28px 16px}.trt-kpi{border:1px solid var(--border,#e5e7eb);border-radius:12px;padding:10px}.trt-kpi b{display:block;font-size:20px}.trt-kpi small{opacity:.7}.trt-list{padding:0 28px 22px}.trt-row{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:10px;padding:11px 0;border-top:1px solid var(--border,#e5e7eb)}.trt-row:first-child{border-top:0}.trt-row b{display:block}.trt-row small{display:block;opacity:.72;margin-top:3px}.trt-badge{font-size:11px;font-weight:800;border-radius:999px;padding:5px 8px;white-space:nowrap}.trt-badge.confirmed{background:#dcfce7;color:#166534}.trt-badge.mapped{background:#fef3c7;color:#92400e}.trt-badge.unmapped{background:#fee2e2;color:#991b1b}.trt-empty{padding:8px 0 4px;opacity:.7}.trt-actions{display:flex;gap:8px;flex-wrap:wrap;padding:0 28px 20px}.trt-note{padding:0 28px 16px;font-size:12px;opacity:.72}
         @media(max-width:720px){.trt-head{display:block}.trt-kpis{grid-template-columns:repeat(2,1fr)}.trt-toolbar,.trt-kpis,.trt-list,.trt-actions,.trt-note{padding-left:16px;padding-right:16px}.trt-card .card-header{padding-left:16px;padding-right:16px}}
       `; document.head.appendChild(s);
     },
@@ -312,7 +349,7 @@
       this.ensureStyle();
       let card=document.getElementById('tec-realtime-card'); if (card) return card;
       card=document.createElement('section'); card.id='tec-realtime-card'; card.className='card trt-card';
-      card.innerHTML=`<div class="card-header trt-head"><div><h2>⚡ Radar TEC em tempo real</h2><p class="sub">Cada resolução vira um evento histórico. Erros são agrupados por assunto e só viram reforço automático quando o motor confirma a fraqueza.</p></div><span class="trt-status"><i class="trt-dot" id="trt-dot"></i><span id="trt-status">Companion não detectado</span></span></div><div class="trt-toolbar"><button type="button" class="btn-secondary" id="trt-today">Hoje</button><button type="button" class="btn-secondary" id="trt-7d">7 dias</button><input type="date" id="trt-date"><span id="trt-range-label"></span></div><div class="trt-kpis" id="trt-kpis"></div><div class="trt-note" id="trt-note"></div><div class="trt-list" id="trt-list"></div><div class="trt-actions"><button type="button" class="btn-primary" id="trt-attack">🎯 Atacar erros deste período</button><button type="button" class="btn-secondary" id="trt-copy">Copiar IDs errados</button><button type="button" class="btn-secondary" id="trt-export">Exportar JSON</button></div>`;
+      card.innerHTML=`<div class="card-header trt-head"><div><h2>⚡ Radar TEC em tempo real</h2><p class="sub">Cada resolução vira um evento histórico. Erros são agrupados por assunto e só viram reforço automático quando o motor confirma a fraqueza.</p></div><span class="trt-status"><i class="trt-dot" id="trt-dot"></i><span id="trt-status">Companion não detectado</span></span></div><div class="trt-toolbar"><button type="button" class="btn-secondary" id="trt-today">Hoje</button><button type="button" class="btn-secondary" id="trt-7d">7 dias</button><input type="date" id="trt-date"><select id="trt-account" aria-label="Conta TEC do Radar"></select><span id="trt-range-label"></span><span class="trt-queue" id="trt-queue"></span></div><div class="trt-kpis" id="trt-kpis"></div><div class="trt-note" id="trt-note"></div><div class="trt-list" id="trt-list"></div><div class="trt-actions"><button type="button" class="btn-primary" id="trt-attack">🎯 Atacar erros deste período</button><button type="button" class="btn-secondary" id="trt-copy">Copiar IDs errados</button><button type="button" class="btn-secondary" id="trt-export">Exportar JSON</button></div>`;
       const anchor=document.getElementById('tec-connect-status')?.closest('.card') || screen.querySelector('.tec-connect-data-card') || screen.firstElementChild;
       if (anchor && anchor.parentElement) anchor.insertAdjacentElement('afterend',card); else screen.prepend(card);
       this.bindUI(card); return card;
@@ -323,6 +360,7 @@
       date.addEventListener('change',()=>{this.selectedDay=date.value||today();this.mode='day';this.render();});
       card.querySelector('#trt-today').addEventListener('click',()=>{this.selectedDay=today();this.mode='day';date.value=this.selectedDay;this.render();});
       card.querySelector('#trt-7d').addEventListener('click',()=>{this.selectedDay=date.value||today();this.mode='7d';this.render();});
+      card.querySelector('#trt-account').addEventListener('change',(e)=>{this.selectedAccount=e.target.value||'__all__';this.render();});
       card.querySelector('#trt-attack').addEventListener('click',()=>this.attack());
       card.querySelector('#trt-copy').addEventListener('click',()=>this.copyWrongIds());
       card.querySelector('#trt-export').addEventListener('click',()=>this.exportJSON());
@@ -331,9 +369,28 @@
       const card=this.ensureUI(); if (!card) return;
       if (!this.selectedDay) this.selectedDay=today();
       const date=card.querySelector('#trt-date'); if (date && date.value!==this.selectedDay) date.value=this.selectedDay;
-      const state=this.state(), connected=state.connection && state.connection.status==='connected';
+      const state=this.state(), connection=state.connection || {}, connected=this.isConnected(connection);
       card.querySelector('#trt-dot')?.classList.toggle('on',!!connected);
-      const st=card.querySelector('#trt-status'); if(st) st.textContent=connected ? `Companion conectado${state.connection.account?' · '+state.connection.account:''}` : 'Companion não detectado';
+      const st=card.querySelector('#trt-status');
+      if(st) st.textContent=connected ? `Companion conectado${connection.account?' · '+connection.account:''}` : connection.status==='reconnecting' ? 'Companion reconectando…' : 'Companion não detectado';
+
+      const accountSelect=card.querySelector('#trt-account');
+      const accounts=this.accounts();
+      if (!this.selectedAccount) this.selectedAccount=connection.account || (accounts.length===1 ? accounts[0] : '__all__');
+      if (accountSelect) {
+        const opts=[['__all__','Todas as contas'],...accounts.map(a=>[a,a+(a===connection.account?' · atual':'')])];
+        accountSelect.innerHTML=opts.map(([v,l])=>`<option value="${esc(v)}">${esc(l)}</option>`).join('');
+        if (opts.some(([v])=>v===this.selectedAccount)) accountSelect.value=this.selectedAccount;
+        else { this.selectedAccount='__all__'; accountSelect.value='__all__'; }
+      }
+
+      const queue=card.querySelector('#trt-queue');
+      if (queue) {
+        const pending=Math.max(0,n(connection.queuePending,0)), dropped=Math.max(0,n(connection.queueDropped,0));
+        queue.classList.toggle('warn',pending>0||dropped>0);
+        queue.textContent=dropped>0 ? `⚠ fila: ${pending} pendente(s) · ${dropped} perda(s) legada(s)` : pending>0 ? `Fila segura: ${pending} aguardando ACK` : 'Fila sincronizada';
+      }
+
       const range=this.range(), rows=this.rows(range), s=this.summary(rows), groups=this.groups(rows);
       const label=card.querySelector('#trt-range-label'); if(label) label.textContent=range.label;
       const kpis=card.querySelector('#trt-kpis'); if(kpis) kpis.innerHTML=[['Resoluções',s.attempts],['Erros',s.errors],['IDs errados',s.uniqueWrong],['Corrigidos depois',s.corrected],['Matérias',s.disciplines],['Assuntos',s.topics]].map(([a,b])=>`<div class="trt-kpi"><b>${b}</b><small>${a}</small></div>`).join('');
@@ -364,6 +421,7 @@
       if (!this._messageBound) { this._messageBound=true; window.addEventListener('message',e=>this.onMessage(e)); }
       try { window.postMessage({source:APP_SOURCE,type:'bridge-ready',version:1},location.origin); }
       catch (e) { if (typeof _quiet === 'function') _quiet(e, 'tec-realtime-bridge-ready'); }
+      if (!this._heartbeat) this._heartbeat=setInterval(()=>{ if (document.getElementById('tec-realtime-card')) this.render(); },15000);
       this.patchQueue(); this.render();
     },
     init() { this.bind(); }
