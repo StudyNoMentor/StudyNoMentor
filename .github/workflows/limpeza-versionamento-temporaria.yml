@@ -1,0 +1,91 @@
+name: Limpeza final temporaria
+
+on:
+  push:
+    branches: [chore/main-hygiene-audit-v1]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  limpar:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    timeout-minutes: 4
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: chore/main-hygiene-audit-v1
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Remover versionamento tecnico residual
+        shell: bash
+        run: |
+          set -euo pipefail
+          node <<'NODE'
+          const fs=require('fs');
+          const edit=(p,fn)=>{let s=fs.readFileSync(p,'utf8'),n=fn(s);if(n!==s)fs.writeFileSync(p,n);};
+          const replacements={
+            'src/js/87-plano-sugestoes-simplificado.js':[
+              ['MOTOR SIMPLIFICADO — revisão estatística V3','MOTOR SIMPLIFICADO — revisão estatística'],
+              ['    VERSAO: 3,\n',''],
+              ['REVISAO_AUDITORIA','REVISAO_REGISTRO'],
+              ['plano-simple-v3-prefs','plano-simple-prefs'],['plano-simple-v3-save','plano-simple-save'],['plano-simple-v3-reset','plano-simple-reset']
+            ],
+            'src/js/88-plano-sugestoes-robusto.js':[
+              ['ROBUSTO V8 — MOTOR ESTATISTICO TEC + EXTRAS','MOTOR ROBUSTO — TEC + EXTRAS'],
+              ['    VERSAO:8,REVISAO_AUDITORIA:8,','    REVISAO_REGISTRO:8,'],
+              ['REVISAO_AUDITORIA','REVISAO_REGISTRO']
+            ],
+            'src/js/89-plano-sugestoes-controller.js':[
+              ['PUXAR DO PLANO — ORQUESTRADOR NEUTRO V5','PUXAR DO PLANO — ORQUESTRADOR NEUTRO'],
+              ['    VERSAO:5,KEY:','    KEY:'],
+              ['versao:this.VERSAO','versao:5'],
+              ['REVISAO_AUDITORIA','REVISAO_REGISTRO'],
+              ['plano-controller-v5-','plano-controller-']
+            ],
+            'src/js/90-plano-motores-governanca.js':[
+              ['GOVERNANCA DOS MOTORES DO PLANO V6','GOVERNANCA DOS MOTORES DO PLANO'],
+              ['    VERSAO:6,KEY:','    KEY:'],
+              ['plano-motores-v6-','plano-motores-']
+            ],
+            'src/js/91-plano-motores-central-tec.js':[
+              ['CENTRAL DOS MOTORES — DESEMPENHO TEC V5','CENTRAL DOS MOTORES — DESEMPENHO TEC'],
+              ['Configuracao mora no TEC; Extras apenas executa. O Robusto ativo e V8.','Configuracao mora no TEC; Extras apenas executa.'],
+              ['    VERSAO:5,_origSwitch:','    _origSwitch:'],
+              ['MOTOR DISPONÍVEL · V8','MOTOR DISPONÍVEL'],
+              ['robusto-audit-v2-ui-export','robusto-audit-ui-export']
+            ],
+            'src/js/92-tec-plano-fonte-motor.js':[
+              ['DESEMPENHO TEC — FONTE EXPLICITA DAS SUGESTOES V2','DESEMPENHO TEC — FONTE EXPLICITA DAS SUGESTOES'],
+              ['    VERSAO:2,KEY:','    KEY:'],
+              ['tec-plano-fonte-v2-','tec-plano-fonte-']
+            ],
+            'testes/plano-sugestoes-modulos.mjs':[
+              ["assert.equal(S.VERSAO,3);\n",''],["assert.equal(R.VERSAO,8);\n",''],["assert.equal(C.VERSAO,5);\n",''],
+              ['controller V5 usa apenas posição/consenso','controller usa apenas posição/consenso']
+            ],
+            'testes/plano-motores-governanca.mjs':[
+              ["vm.runInContext(src,ctx,{filename:'90-plano-motores-governanca-v5.js'});","vm.runInContext(src,ctx,{filename:'90-plano-motores-governanca.js'});"],
+              ['governança V6 deve instalar','governança deve instalar'],['governança V6 —','governança —']
+            ]
+          };
+          for(const [p,rs] of Object.entries(replacements)) edit(p,s=>rs.reduce((v,[a,b])=>v.split(a).join(b),s));
+          NODE
+          node --check build.mjs
+          for f in src/js/*.js testes/*.mjs; do node --check "$f"; done
+          node build.mjs
+          node testes/repositorio-higiene.mjs
+          node testes/plano-sugestoes-modulos.mjs
+          node testes/plano-robusto.mjs
+          node testes/plano-motores-governanca.mjs
+          node testes/reforco-fila.mjs
+          node testes/lei-rodizio-perf.mjs
+          git config user.name 'StudyNoMentor CI'
+          git config user.email 'actions@users.noreply.github.com'
+          git add -A -- ':!.github/workflows'
+          if git diff --cached --quiet; then exit 0; fi
+          git commit -m 'refactor: remove versionamento tecnico residual'
+          git push origin HEAD:chore/main-hygiene-audit-v1
