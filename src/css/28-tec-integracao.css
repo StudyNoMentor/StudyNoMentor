@@ -70,6 +70,7 @@
 #tec-workspace-frame {
   display:block;
   width:100%;
+  height:clamp(690px,calc(100vh - 175px),1040px);
   height:clamp(690px,calc(100dvh - 170px),1040px);
   min-height:690px;
   border:0;
