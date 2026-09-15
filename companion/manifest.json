@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "StudyNoMentor Companion",
-  "version": "1.0.5",
+  "version": "1.0.4",
   "description": "Integra o TecConcursos ao StudyNoMentor em tempo real, sem Tampermonkey.",
   "permissions": ["storage", "unlimitedStorage"],
   "host_permissions": [
