@@ -92,6 +92,18 @@ jobs:
         run: node testes/plano-motores-governanca-v5.mjs
       - name: Validar estabilidade estrutural de Extras
         run: node testes/extras-estabilidade.mjs
+      - name: Validar contratos premium de governanca
+        run: node testes/governanca-premium.mjs
+      - name: Validar rebalanceamento seletivo de reforcos
+        run: node testes/governanca-rebalanceamento.mjs
+      - name: Validar rodizio e cache de lei seca
+        run: node testes/lei-rodizio-perf.mjs
+      - name: Validar cenarios integrados de reforco
+        run: node testes/reforco-cenarios.mjs
+      - name: Validar fila diaria de reforco
+        run: node testes/reforco-fila.mjs
+      - name: Validar organizacao estrutural de Extras e TEC
+        run: node testes/ui-organizacao-extras-tec.mjs
       - name: Instalar Chromium
         run: |
           npm install --no-save playwright@1.56.1
