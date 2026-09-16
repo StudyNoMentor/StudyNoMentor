@@ -625,8 +625,13 @@
   "ate": 63556
  },
  {
-  "arquivo": "html/90-rodape.html",
+  "arquivo": "js/99p-tec-reset-epoch-guard.js",
   "de": 63558,
-  "ate": 64037
+  "ate": 63648
+ },
+ {
+  "arquivo": "html/90-rodape.html",
+  "de": 63650,
+  "ate": 64129
  }
 ]
