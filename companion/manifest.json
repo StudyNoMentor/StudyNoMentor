@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "StudyNoMentor Companion",
-  "version": "1.1.0",
+  "version": "1.1.1",
   "description": "Integra o TecConcursos e o ChatGPT Plus ao StudyNoMentor em tempo real, sem Tampermonkey e sem API paga.",
   "permissions": ["storage", "unlimitedStorage", "tabs"],
   "host_permissions": [
@@ -29,7 +29,7 @@
         "https://www.tecconcursos.com.br/*",
         "https://tecconcursos.com.br/*"
       ],
-      "js": ["src/tec-content.js"],
+      "js": ["src/tec-content.js", "src/tec-capture-watchdog.js"],
       "run_at": "document_start",
       "all_frames": true
     },
