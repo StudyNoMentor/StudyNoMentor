@@ -5,6 +5,7 @@ const js = read('src/js/99d-startup-stability-ai.js');
 const build = read('build.mjs');
 const section = read('src/js/62-section-sync.js');
 const gate = read('src/js/53-portao-de-acesso.js');
+const sessionGuard = read('src/js/61-session-guard.js');
 const footer = read('src/html/90-rodape.html');
 const sw = read('sw.js');
 const ai = read('src/js/94-tec-integracao.js');
@@ -23,6 +24,8 @@ const checks = [
   ['auth restaurada é idempotente por usuário', js.includes('__authLifecycleState') && js.includes('__startupSideEffectsUid')],
   ['session guard verifica posse antes de reivindicar', js.includes('check-before-claim') && js.includes("select('device_id,device_label')") && js.includes('if (!data || !data.device_id)')],
   ['login explícito pode reivindicar este dispositivo', js.includes('const originalSignIn = C.signIn.bind(C)') && js.includes('await Sg.claim(data.session.user.id)')],
+  ['session guard troca canal ao trocar de conta', sessionGuard.includes('_subscribedUid') && sessionGuard.includes('if (this.channel) this._unsub()') && sessionGuard.includes("'sess_guard_' + uid.slice(0, 8)")],
+  ['callback do session guard antigo é ignorado', sessionGuard.includes('if (this._subscribedUid !== uid) return')],
   ['realtime de seções é vinculado ao perfil confirmado', js.includes('_secProfileId') && js.includes('profileConfirmed(pid)') && js.includes("'sec_rt_' + pid.slice(0,8)")],
   ['callback realtime antigo não atua no perfil novo', js.includes('this._secProfileId !== pid') && js.includes('profileConfirmed(pid)')],
   ['hasRemoteUpdates usa revisões do id solicitado', js.includes('const locais = this._getRevs(id)')],
