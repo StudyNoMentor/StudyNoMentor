@@ -12,8 +12,8 @@ const plus = read('companion/src/study-ai-proxy.js');
 const chat = read('companion/src/chatgpt-content.js');
 
 const checks = [
-  ['módulo de estabilidade está no build', build.includes("'js/99d-startup-stability-ai.js'"))],
-  ['sincronização remota usa soft refresh', js.includes('S.pullAndReload = async function()') && js.includes("scheduleSoftRefresh('dados novos da nuvem')" )],
+  ['módulo de estabilidade está no build', build.includes("'js/99d-startup-stability-ai.js'")],
+  ['sincronização remota usa soft refresh', js.includes('S.pullAndReload = async function()') && js.includes("scheduleSoftRefresh('dados novos da nuvem')")],
   ['login no mesmo perfil não força reload', js.includes("why === 'entrada no perfil com dados novos'") && js.includes('current === ACTIVE_AT_LOAD')],
   ['troca real de perfil continua no caminho original', js.includes('return original(reason, opts)')],
   ['telemetria TEC fica local', js.includes("'tec-capture-log-v1'")],
@@ -26,7 +26,7 @@ const checks = [
   ['realtime de seções é vinculado ao perfil confirmado', js.includes('_secProfileId') && js.includes('profileConfirmed(pid)') && js.includes("'sec_rt_' + pid.slice(0,8)")],
   ['callback realtime antigo não atua no perfil novo', js.includes('this._secProfileId !== pid') && js.includes('profileConfirmed(pid)')],
   ['hasRemoteUpdates usa revisões do id solicitado', js.includes('const locais = this._getRevs(id)')],
-  ['entrada do perfil hidrata IDB antes da nuvem', js.includes("await window.__idbHydrateProfile(id)") && js.includes('const result = await original(id)')],
+  ['entrada do perfil hidrata IDB antes da nuvem', js.includes('await window.__idbHydrateProfile(id)') && js.includes('const result = await original(id)')],
   ['reset TEC remoto é checado antes da hidratação', js.includes('applyRemoteResetIfNeeded(id)') && js.indexOf('applyRemoteResetIfNeeded(id)') < js.indexOf('const result = await original(id)')],
   ['reset TEC tem marcador remoto anti-ressurreição', js.includes("TEC_RESET_SECTION = '__tec_reset_epoch'") && js.includes("reason:'tec-full-reset-v1'")],
   ['reset TEC preserva outros dados do perfil', js.includes('isTecSection(section)') && js.includes("from('tec_resolution_events').delete().eq('profile_id', id)")],
