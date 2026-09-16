@@ -530,8 +530,13 @@
   "ate": 59122
  },
  {
-  "arquivo": "html/90-rodape.html",
+  "arquivo": "js/99e-startup-hot-hydration.js",
   "de": 59124,
-  "ate": 59569
+  "ate": 59214
+ },
+ {
+  "arquivo": "html/90-rodape.html",
+  "de": 59216,
+  "ate": 59680
  }
 ]
