@@ -32,7 +32,7 @@
     return m ? m[1] : null;
   };
   const uid = () => globalThis.crypto && crypto.randomUUID ? crypto.randomUUID() : `${Date.now().toString(36)}_${Math.random().toString(36).slice(2)}`;
-  const quiet = (e,ctx) => { try { if (typeof _quiet === 'function') _quiet(e,ctx); } catch (_) {} };
+  const quiet = (e,ctx) => { try { if (typeof _quiet === 'function') _quiet(e,ctx); } catch (ignored) { void ignored; } };
 
   function semver(v) {
     return String(v || '').replace(/^v/i,'').split(/[.+-]/).slice(0,3).map(x => Number.parseInt(x,10) || 0);
