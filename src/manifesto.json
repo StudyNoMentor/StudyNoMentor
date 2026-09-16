@@ -572,66 +572,66 @@
  {
   "arquivo": "js/99e-startup-hot-hydration.js",
   "de": 60842,
-  "ate": 60932
+  "ate": 60993
  },
  {
   "arquivo": "js/99f-visual-consistency-tec-persistence.js",
-  "de": 60934,
-  "ate": 61022
+  "de": 60995,
+  "ate": 61083
  },
  {
   "arquivo": "js/99g-ux-tec-guards.js",
-  "de": 61024,
-  "ate": 61283
+  "de": 61085,
+  "ate": 61344
  },
  {
   "arquivo": "js/99h-tec-taxonomia-contract.js",
-  "de": 61285,
-  "ate": 61346
+  "de": 61346,
+  "ate": 61407
  },
  {
   "arquivo": "js/99i-tec-integridade-auditoria.js",
-  "de": 61348,
-  "ate": 61691
+  "de": 61409,
+  "ate": 61752
  },
  {
   "arquivo": "js/99j-tec-hardening-api.js",
-  "de": 61693,
-  "ate": 62042
+  "de": 61754,
+  "ate": 62103
  },
  {
   "arquivo": "js/99k-tec-cloud-ledger-hardening.js",
-  "de": 62044,
-  "ate": 62204
+  "de": 62105,
+  "ate": 62265
  },
  {
   "arquivo": "js/99l-tec-reconstrucao-caderno.js",
-  "de": 62206,
-  "ate": 62583
+  "de": 62267,
+  "ate": 62644
  },
  {
   "arquivo": "js/99m-tec-historico-gestao.js",
-  "de": 62585,
-  "ate": 62961
+  "de": 62646,
+  "ate": 63022
  },
  {
   "arquivo": "js/99n-tec-integracao-auditoria-total.js",
-  "de": 62963,
-  "ate": 63110
+  "de": 63024,
+  "ate": 63171
  },
  {
   "arquivo": "js/99o-tec-import-manager.js",
-  "de": 63112,
-  "ate": 63556
+  "de": 63173,
+  "ate": 63617
  },
  {
   "arquivo": "js/99p-tec-reset-epoch-guard.js",
-  "de": 63558,
-  "ate": 63772
+  "de": 63619,
+  "ate": 63833
  },
  {
   "arquivo": "html/90-rodape.html",
-  "de": 63774,
-  "ate": 64253
+  "de": 63835,
+  "ate": 64314
  }
 ]
