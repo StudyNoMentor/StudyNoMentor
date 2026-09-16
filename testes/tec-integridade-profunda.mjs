@@ -83,12 +83,20 @@ assert.ok(cloud.includes('ignoreDuplicates:true'));
 assert.ok(cloud.includes("CURSOR_SUFFIX='tec-cloud-ledger:cursor-v2'"));
 assert.ok(cloud.includes(".gte('created_at',cursor.at)"));
 
-/* IA multi-provedor: chave somente no backend. */
+/* IA multi-provedor: chave somente no backend, erros diagnósticos e modelo
+   Gemini de texto válido/estável. */
 assert.ok(edge.includes('callGemini'));
 assert.ok(edge.includes('callOpenAI'));
 assert.ok(edge.includes('callOpenAICompatible'));
 assert.ok(edge.includes('GEMINI_API_KEY'));
+assert.ok(edge.includes("DEFAULT_GEMINI_MODEL = 'gemini-2.5-flash'"));
+assert.ok(edge.includes("configured === 'gemini-3.8-flash'"), 'migração de configuração Gemini legada ausente');
+assert.ok(edge.includes('GEMINI_API_KEY_INVALID'));
+assert.ok(edge.includes('GEMINI_MODEL_UNAVAILABLE'));
+assert.ok(edge.includes('GEMINI_QUOTA_EXCEEDED'));
+assert.ok(edge.includes('callProviderWithRetry'));
 assert.ok(edge.includes('consume_tec_ai_quota'));
+assert.ok(edge.includes('MAX_REQUEST_CHARS'));
 assert.ok(!site.includes('GEMINI_API_KEY'));
 assert.ok(!site.includes('OPENAI_API_KEY'));
 assert.ok(build.includes("'js/99m-tec-historico-gestao.js','js/99n-tec-integracao-auditoria-total.js'"));
