@@ -96,6 +96,7 @@ jobs:
           node testes/tec-reconstrucao-duravel.mjs
           node testes/tec-historico-gestao.mjs
           node testes/tec-integracao-hardening-total.mjs
+          node testes/tec-import-manager.mjs
           node testes/tec-companion-gatilho.mjs
           node testes/tec-companion-watchdog.mjs
           node testes/tec-companion-plus.mjs
