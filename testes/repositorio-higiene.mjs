@@ -40,12 +40,16 @@ for(const f of testesJs){
   assert.equal(apiVersionada.test(codigo),false,`teste ainda referencia API técnica versionada: ${relative(ROOT,f)}`);
 }
 
-// Todo teste executável precisa participar de uma barreira automática. Arquivo
-// .mjs sem referência no workflow/verificador é teste morto: parece proteção,
-// mas nunca roda e tende a apodrecer silenciosamente.
-const workflow=readFileSync(join(ROOT,'.github','workflows','verificar.yml'),'utf8');
+// Todo teste executável precisa participar de alguma barreira automática.
+// Consideramos TODOS os workflows do repositório, não só verificar.yml: um teste
+// dedicado pode ter seu próprio workflow e ainda assim é proteção real de CI.
+const workflowsDir=join(ROOT,'.github','workflows');
+const workflows=readdirSync(workflowsDir)
+  .filter(n=>/\.ya?ml$/i.test(n))
+  .map(n=>readFileSync(join(workflowsDir,n),'utf8'))
+  .join('\n');
 const verificador=readFileSync(join(ROOT,'verificar.mjs'),'utf8');
-const cobertura=workflow+'\n'+verificador;
+const cobertura=workflows+'\n'+verificador;
 const mjsTopo=readdirSync(join(ROOT,'testes')).filter(n=>n.endsWith('.mjs'));
 const orfaos=mjsTopo.filter(n=>!cobertura.includes(`testes/${n}`));
 assert.deepEqual(orfaos,[],`testes .mjs sem execução automática: ${orfaos.join(', ')}`);
