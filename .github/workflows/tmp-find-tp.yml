@@ -1,0 +1,25 @@
+name: TEMP Find TP Metrics
+
+on:
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  find:
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.ref }}
+      - name: Localizar todas as regras TP
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo '=== TP METRICS ==='
+          grep -Rni --exclude=index.html 'tp-metrics' . || true
+          echo '=== RETRATOS NO ESCOPO ==='
+          grep -Rni --exclude=index.html 'retratos no escopo' . || true
