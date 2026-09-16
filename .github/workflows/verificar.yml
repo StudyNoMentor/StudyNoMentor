@@ -146,6 +146,7 @@ jobs:
           timeout 90s node testes/extras-tec-interacoes-browser.mjs
           timeout 90s node testes/ux-stability-browser.mjs
           timeout 90s node testes/ux-hierarquia-browser.mjs
+          timeout 90s node testes/site-visual-auditoria-total.mjs
 
   verificador-final:
     needs: [preflight]

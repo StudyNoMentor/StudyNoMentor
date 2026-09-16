@@ -1,0 +1,190 @@
+/* ============================================================================
+   STUDYNOMENTOR — HARDENING VISUAL GLOBAL
+   Última camada de apresentação. Nenhuma regra de negócio.
+   Objetivos: legibilidade consistente, superfícies sólidas, molduras só onde
+   comunicam hierarquia, controles estáveis e zero vazamento horizontal.
+   ============================================================================ */
+
+/* 1. Tipografia e superfícies: hierarquia por cor/espaço, nunca por apagar UI. */
+.ux-hierarchy-ready :where(.ux-secondary-area,.ux-tertiary-action,.ux-diagnostic-action),
+#screen-cards #cards-filter-card,
+#screen-extras #extras-suggest-btn,
+#screen-config .cfg-group {
+  opacity:1 !important;
+}
+
+/* O cabeçalho da página é título, não mais um cartão dentro da página. */
+.ux-hierarchy-ready .page-header,
+.page-header {
+  padding:0 0 4px !important;
+  margin:0 0 18px !important;
+  border:0 !important;
+  border-left:0 !important;
+  border-radius:0 !important;
+  background:transparent !important;
+  box-shadow:none !important;
+}
+.ux-hierarchy-ready .page-header::before,
+.page-header::before { display:none !important; }
+.page-header h2.page-title { line-height:1.16; text-wrap:balance; }
+.page-header .page-subtitle { line-height:1.55; }
+
+/* Cards principais: borda fina e sombra curta. Cartão dentro de cartão não
+   ganha uma segunda moldura pesada. */
+.screen .card {
+  border-width:1px;
+  box-shadow:0 1px 2px rgb(15 23 42 / 4%), 0 7px 22px rgb(15 23 42 / 3%);
+}
+.screen .card .card { box-shadow:none; }
+.screen :where(.performance-panel,.plan-card,.copy-options,.scope-toggle,.reg-act-btn) { border-width:1px; }
+@media (hover:hover) {
+  .screen .card { transition:border-color .16s ease,box-shadow .16s ease,background .16s ease; }
+  .screen .card:hover { border-color:var(--border-strong); box-shadow:0 2px 4px rgb(15 23 42 / 4%),0 10px 28px rgb(15 23 42 / 4%); }
+}
+
+/* 2. Controles: texto legível e altura estável. Ícones/toggles continuam
+   compactos, mas botões textuais não viram pílulas de 23–27px. */
+.screen :where(.btn-primary,.btn-secondary,.reg-quick,.scope-toggle button,.cards-pill,.cards-fav-toggle,.ux-gear,.evo-collapse-btn) {
+  min-height:32px;
+  line-height:1.2;
+}
+.screen :where(input:not([type="checkbox"]):not([type="radio"]):not([type="range"]),select,textarea) {
+  min-height:38px;
+  font-size:max(12px,var(--fs-sm));
+  line-height:1.4;
+}
+.info-dot {
+  width:22px !important;
+  height:22px !important;
+  min-width:22px;
+  min-height:22px;
+  font-size:11px !important;
+  line-height:1 !important;
+  top:0 !important;
+}
+.page-header h2.page-title .info-dot { width:24px !important; height:24px !important; }
+
+/* 3. Rótulos que estavam abaixo do piso de leitura. */
+#screen-registrar .step-opt,
+#screen-registrar .gauge-text .label,
+#screen-links .link-card-cat,
+#screen-desempenhotec .tp-eyebrow,
+#screen-desempenhotec .tec-plan-top small,
+#screen-ferramentas .lbl,
+#screen-config .cfg-nav-title {
+  font-size:11px !important;
+  line-height:1.35;
+}
+#screen-extras small,
+#screen-desempenhotec small { font-size:11px !important; line-height:1.4; }
+#screen-extras :where(.extras-central-kpi,.extras-overview-kpi,.extras-mini-kpi) :where(span,b,strong) { font-size:11px !important; }
+
+/* Calendário: futuro continua visualmente secundário por cor, não por opacidade
+   do elemento inteiro (que também apaga bordas e texto). */
+#screen-conquistas .calm-cell.futuro {
+  opacity:1 !important;
+  color:var(--text-faint) !important;
+  background:color-mix(in srgb,var(--surface-sunken) 72%,transparent) !important;
+}
+#screen-conquistas :where(.calm-weekdays,.calm-calendar,.calm-grid) span { font-size:11px; }
+
+/* 4. Integração TEC — tipografia e fluxo responsivo. */
+#screen-integracaotec .tec-connect-eyebrow,
+#screen-integracaotec .tec-connect-stage { font-size:11px; }
+#screen-integracaotec .tec-workspace-card > .card-header .sub,
+#screen-integracaotec .tec-connect-status small,
+#screen-integracaotec .tec-connect-status-card > .hint,
+#screen-integracaotec .tec-connect-metrics span,
+#screen-integracaotec .tec-question-row small,
+#screen-integracaotec .tec-real-window,
+#screen-integracaotec .tec-real-summary,
+#screen-integracaotec .tec-real-main small { font-size:11px !important; line-height:1.42; }
+#screen-integracaotec .tec-real-badge { font-size:10.5px; }
+#screen-integracaotec :where(.tec-connect-actions button,.tec-ai-tabs button,.tec-ai-head-actions button,.tec-workspace-tools button) {
+  font-size:11.5px !important;
+  min-height:34px;
+}
+#screen-integracaotec .tec-ai-provider-box {
+  grid-template-columns:max-content minmax(180px,280px) minmax(0,1fr);
+  max-width:100%;
+}
+#screen-integracaotec .tec-ai-provider-box > * { min-width:0; }
+#screen-integracaotec .tec-ai-provider-hint {
+  min-width:0;
+  max-width:100%;
+  overflow-wrap:anywhere;
+}
+
+/* 5. Defesas estruturais comuns. Não escondem overflow: permitem que o
+   conteúdo flex/grid encolha antes de vazar. */
+.screen,
+.screen .content-wrap,
+.screen .card,
+.screen .card-header,
+.screen .card-header > *,
+.screen .field,
+.screen [class*="grid"] > *,
+.screen [class*="row"] > * { min-width:0; }
+.screen :where(img,svg,canvas,video) { max-width:100%; }
+.screen :where(h1,h2,h3,h4,h5,h6,p,.sub,.hint) { overflow-wrap:break-word; }
+
+/* 6. Configurações: navegação categórica vira grade em tela estreita, em vez
+   de continuar como uma faixa de desktop que sai da viewport. O seletor por
+   atributo cobre as variantes cfg-nav geradas por JS sem afetar conteúdo. */
+@media (max-width:640px) {
+  #screen-config [class*="cfg-nav"]:has(> button) {
+    display:grid !important;
+    grid-template-columns:repeat(2,minmax(0,1fr)) !important;
+    width:100% !important;
+    max-width:100% !important;
+    gap:7px !important;
+    overflow:visible !important;
+  }
+  #screen-config [class*="cfg-nav"]:has(> button) > button {
+    width:100% !important;
+    min-width:0 !important;
+    max-width:100% !important;
+    white-space:normal !important;
+    justify-content:flex-start;
+    text-align:left;
+    overflow-wrap:anywhere;
+  }
+  #screen-integracaotec .tec-ai-tabs {
+    display:grid;
+    grid-template-columns:repeat(2,minmax(0,1fr));
+    gap:6px;
+    overflow:visible;
+    padding-inline:14px;
+  }
+  #screen-integracaotec .tec-ai-tabs button {
+    width:100%;
+    min-width:0;
+    white-space:normal;
+    text-align:center;
+  }
+}
+
+@media (max-width:860px) {
+  #screen-integracaotec .tec-ai-provider-box {
+    grid-template-columns:1fr;
+    margin-inline:14px;
+  }
+}
+
+/* 7. Mobile: reduzir moldura, não texto. */
+@media (max-width:560px) {
+  .main-content { padding-inline:14px; }
+  .screen .card { border-radius:13px; }
+  .screen .card-header { padding-left:16px; padding-right:16px; }
+  #screen-config [class*="cfg-nav"]:has(> button) { grid-template-columns:1fr 1fr !important; }
+}
+
+/* 8. Respeito a preferências de movimento. */
+@media (prefers-reduced-motion:reduce) {
+  .screen *, .screen *::before, .screen *::after {
+    animation-duration:.001ms !important;
+    animation-iteration-count:1 !important;
+    transition-duration:.001ms !important;
+    scroll-behavior:auto !important;
+  }
+}
