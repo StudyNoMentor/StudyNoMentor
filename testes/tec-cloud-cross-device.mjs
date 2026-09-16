@@ -14,6 +14,8 @@ const checks=[
   ['merge remoto preserva eventos por eventId',js.includes('rs.events[ev.eventId]')&&js.includes('R.mergeEvent')],
   ['payload restaura também Biblioteca TEC',js.includes('payload.question')&&js.includes('T.mergeInto')],
   ['estado remoto vazio antigo não pode mais sobrescrever ledger local',js.includes('protectLegacySections()')&&js.includes("'tec-realtime:eventos-v1'")&&js.includes("'tec-integracao:estado-v2'")],
+  ['secoes TEC antigas nao permanecem na caixa de saida do SectionSync',js.includes('(preservar||[]).filter(sec=>!LEGACY_SECTIONS.has(sec))')&&js.includes('S._dirty&&S._dirty.delete(sec)')],
+  ['modulo novo nao adiciona catches vazios',!/catch\s*\([^)]*\)\s*\{\s*\}/.test(js)&&!/.catch\(\s*\(\)\s*=>\s*\{\s*\}\s*\)/.test(js)],
   ['sync reage a foco, visibilidade e retorno da rede',js.includes("addEventListener('focus'")&&js.includes("addEventListener('online'")&&js.includes('visibilitychange')],
   ['há assinatura realtime entre dispositivos',js.includes('postgres_changes')&&js.includes('table:TABLE')],
   ['estado da sincronização fica auditável',js.includes('window.TecCloudLedger=C')&&js.includes('status()')&&js.includes('lastSyncAt')&&js.includes('lastError')],
