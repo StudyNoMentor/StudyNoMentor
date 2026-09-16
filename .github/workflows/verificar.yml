@@ -104,6 +104,8 @@ jobs:
         run: node testes/tec-companion-gatilho.mjs
       - name: Validar ChatGPT Plus sem API no Companion
         run: node testes/tec-companion-plus.mjs
+      - name: Validar abertura sem refresh e guarda da IA
+        run: node testes/startup-sem-refresh-loop.mjs
       - name: Validar workbench TEC e evidencia real
         run: node testes/tec-workbench-reforco-real.mjs
       - name: Validar memoria global e rodizio de lacunas
