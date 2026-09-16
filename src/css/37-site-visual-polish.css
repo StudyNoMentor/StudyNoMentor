@@ -38,3 +38,14 @@
   font-size:11px !important;
   line-height:1.4;
 }
+
+/* Últimos micro-rótulos encontrados pela auditoria em runtime. São componentes
+   específicos, então a correção fica no CSS e não exige MutationObserver nem
+   varredura global do DOM — preservando o orçamento de startup em CPU lenta. */
+#screen-extras .ux100-config-kpis span,
+#screen-extras .ux100-config-kpis b,
+#screen-desempenhotec .tp-metrics small,
+#screen-config .pmg-engine-title span {
+  font-size:11px !important;
+  line-height:1.35;
+}
