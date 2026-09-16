@@ -9,6 +9,7 @@ const realtime=read('src/js/95-tec-companion.js');
 const hardening=read('src/js/99j-tec-hardening-api.js');
 const cloud=read('src/js/99k-tec-cloud-ledger-hardening.js');
 const reconstruction=read('src/js/99l-tec-reconstrucao-caderno.js');
+const manager=read('src/js/99m-tec-historico-gestao.js');
 const diagnostics=read('src/js/96-tec-capture-diagnostics.js');
 const css=read('src/css/33-tec-hardening-api.css');
 const edge=read('supabase/functions/tec-ai/index.ts');
@@ -31,7 +32,7 @@ const study=scripts.find(x=>(x.js||[]).includes('src/study-bridge.js'));
 const checks=[
   ['menu/tela existem',nav.includes('data-screen="integracaotec"')&&body.includes('id="screen-integracaotec"')],
   ['workspace TEC existe',body.includes('id="tec-workspace-frame"')&&js.includes('openEmbedded()')],
-  ['módulos hardening/reconstrução no fim do build',build.indexOf("'js/99j-tec-hardening-api.js'")>build.indexOf("'js/99i-tec-integridade-auditoria.js'")&&build.indexOf("'js/99k-tec-cloud-ledger-hardening.js'")>build.indexOf("'js/99j-tec-hardening-api.js'")&&build.indexOf("'js/99l-tec-reconstrucao-caderno.js'")>build.indexOf("'js/99k-tec-cloud-ledger-hardening.js'")],
+  ['módulos hardening/reconstrução/gestão no fim do build',build.indexOf("'js/99j-tec-hardening-api.js'")>build.indexOf("'js/99i-tec-integridade-auditoria.js'")&&build.indexOf("'js/99k-tec-cloud-ledger-hardening.js'")>build.indexOf("'js/99j-tec-hardening-api.js'")&&build.indexOf("'js/99l-tec-reconstrucao-caderno.js'")>build.indexOf("'js/99k-tec-cloud-ledger-hardening.js'")&&build.indexOf("'js/99m-tec-historico-gestao.js'")>build.indexOf("'js/99l-tec-reconstrucao-caderno.js'")],
   ['CSS do provedor incluído',build.includes("S('css/33-tec-hardening-api.css')")&&css.includes('.tec-ai-provider-box')],
   ['Companion 1.3 MV3',manifest.manifest_version===3&&manifest.version==='1.3.0'],
   ['alarms e armazenamento durável permitidos',(manifest.permissions||[]).includes('alarms')&&(manifest.permissions||[]).includes('unlimitedStorage')],
@@ -63,6 +64,13 @@ const checks=[
   ['lotes acumulam estatísticas da execução',reconstruction.includes('addActiveStats')&&reconstruction.includes('stats:zeroStats()')&&reconstruction.includes('writeBook(latest.bookId')],
   ['payload reconstruído completo vai ao ledger',reconstruction.includes('TecCloudLedger')&&reconstruction.includes('C.pushPayload')&&reconstruction.includes('question:{...x.question}')&&reconstruction.includes('history:x.history||null')],
   ['bridge de reconstrução transmite lotes/progresso',reconBridge.includes('tec-reconstruct-batch')&&reconBridge.includes('tec-reconstruct-progress')&&reconBridge.includes('tec-reconstruct-result')],
+  ['gestor por caderno publicado',manager.includes('window.TecHistoricalManager=M')&&manager.includes('Gestão dos históricos TEC')],
+  ['gestor confronta snapshot local com leitura real',manager.includes('compareSnapshots')&&manager.includes("mode:'validation'")&&manager.includes("origin:'live-tec'")],
+  ['leitura parcial e conta divergente nunca recebem selo validado',manager.includes("status='partial'")&&manager.includes("status='account-mismatch'")&&manager.includes("status==='validated'?now():null")],
+  ['remoção local bloqueia reidratação cloud',manager.includes('patchCloudSuppression')&&manager.includes('isSuppressedBook')&&manager.includes("suppressed:true")],
+  ['restauração usa nova leitura real do TEC',manager.includes('Restaurar e validar no TEC')&&manager.includes("setSuppressed(id,false,'validacao-real-tec')")],
+  ['auditoria de caderno é exportável',manager.includes('studynomentor-tec-book-audit')&&manager.includes('Exportar auditoria')],
+  ['resultado oficial do JSON tem precedência estrita',manager.includes('tampermonkey-json-official-preferred')&&manager.includes("status:verified?'verified':'conflict'")],
   ['proxy só intercepta provedor browser',proxy.includes("BROWSER_PROVIDER = 'chatgpt-plus-browser'")&&proxy.includes("provider||'auto')!==BROWSER_PROVIDER")],
   ['TrustGate único publicado',hardening.includes('window.TecTrustGate=TecTrustGate')&&hardening.includes('TecTrustGate.prescriptive')],
   ['versão mínima geral Companion preservada',hardening.includes("MIN_COMPANION = '1.2.0'")],
