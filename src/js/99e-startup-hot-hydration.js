@@ -4,8 +4,11 @@
    A camada IndexedDB abre somente o perfil ativo no caminho crítico. Este módulo
    conecta essa otimização ao restante do app sem mudar a semântica dos dados:
    • antes de abrir/trocar para outro perfil, hidrata o namespace dele;
-   • perfis frios continuam sendo reconhecidos como existentes localmente pelo
-     índice de chaves do IndexedDB, evitando que a reconciliação os esconda;
+   • o MESMO perfil já seguro neste aparelho fica visível sem aguardar rede;
+   • a reconciliação remota ocorre em segundo plano; leituras independentes
+     podem ocorrer em paralelo, mas nenhum kick/upload é liberado antes de a
+     checagem do reset TEC terminar;
+   • perfis frios continuam reconhecidos pelo índice do IndexedDB;
    • expõe diagnóstico simples de startup para medir ganho em máquina real.
    ============================================================================ */
 (() => {
@@ -32,6 +35,55 @@
   }
   window.__ensureStudyProfileHydrated = ensureProfile;
 
+  function canOpenLocalNow(P, id) {
+    try {
+      const C = window.CloudStore;
+      if (!id || !C || !C.isReady || !C.isReady() || !C.isLoggedIn || !C.isLoggedIn()) return false;
+      if (!window.ProfileManager || ProfileManager.getActiveProfileId() !== id) return false;
+      if (!P._hasLocalData || !P._hasLocalData(id)) return false;
+      const uid = C.session && C.session.user && C.session.user.id;
+      if (ProfileManager._podeVerLocal && !ProfileManager._podeVerLocal(id, uid)) return false;
+      return true;
+    } catch (e) {
+      quiet(e, 'local-first-check');
+      return false;
+    }
+  }
+
+  function reconcileLocalProfileInBackground(id) {
+    setTimeout(async () => {
+      try {
+        if (!window.ProfileManager || ProfileManager.getActiveProfileId() !== id) return;
+        const S = window.SectionSync;
+        if (!S) return;
+
+        /* São apenas LEITURAS e são independentes, então começam juntas:
+           - resetPromise verifica se outro dispositivo zerou o TEC;
+           - remotePromise compara revisões da nuvem.
+
+           A barreira é importante: NENHUM pull que possa acabar em merge local,
+           e principalmente nenhum kick/upload, acontece antes de resetPromise
+           terminar. Assim o fast path não fica esperando a rede, a revisão é
+           consultada imediatamente em segundo plano e dado TEC antigo não volta. */
+        const resetPromise = (window.TecDataReset && TecDataReset.applyRemoteResetIfNeeded)
+          ? Promise.resolve(TecDataReset.applyRemoteResetIfNeeded(id)).catch(e => { quiet(e, 'local-first-reset-check'); return false; })
+          : Promise.resolve(false);
+
+        const remotePromise = S.hasRemoteUpdates
+          ? Promise.resolve(S.hasRemoteUpdates(id)).then(Boolean).catch(e => { quiet(e, 'local-first-remote-check'); return false; })
+          : Promise.resolve(false);
+
+        const [, remote] = await Promise.all([resetPromise, remotePromise]);
+        if (!window.ProfileManager || ProfileManager.getActiveProfileId() !== id) return;
+
+        if (remote && S.pullAndReload) await S.pullAndReload();
+        else if (S.kick) S.kick();
+      } catch (e) {
+        quiet(e, 'local-first-reconcile');
+      }
+    }, 0);
+  }
+
   function patchProfileUI() {
     const P = window.ProfileUI;
     if (!P || P.__hotHydrationPatched || typeof P.enterProfile !== 'function') return false;
@@ -39,6 +91,26 @@
     const original = P.enterProfile.bind(P);
     P.enterProfile = async function(id) {
       await ensureProfile(id);
+
+      if (canOpenLocalNow(P, id)) {
+        try { sessionStorage.setItem(P.SESSION_KEY || 'diario-estudos:entered', id); } catch (e) { quiet(e, 'local-first-session'); }
+        try { if (P.setLastProfile) P.setLastProfile(id); } catch (e) { quiet(e, 'local-first-last-profile'); }
+        try {
+          const C = window.CloudStore;
+          const uid = C && C.session && C.session.user && C.session.user.id;
+          if (ProfileManager._setOwner && uid) ProfileManager._setOwner(id, uid);
+        } catch (e) { quiet(e, 'local-first-owner'); }
+        P._entering = false;
+        try { if (P.hideGate) P.hideGate(); } catch (e) { quiet(e, 'local-first-hide-gate'); }
+        try { if (P.renderChip) P.renderChip(); } catch (e) { quiet(e, 'local-first-chip'); }
+        try { if (window.DB && DB.checarEspaco) DB.checarEspaco(); } catch (e) { quiet(e, 'local-first-space'); }
+        try {
+          if (window.StartupTrace && StartupTrace.mark) StartupTrace.mark('perfil-local-visivel', { id:String(id), mode:'local-first-v2' });
+        } catch (e) { quiet(e, 'local-first-trace'); }
+        reconcileLocalProfileInBackground(id);
+        return true;
+      }
+
       return original(id);
     };
     return true;

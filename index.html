@@ -57,7 +57,7 @@
      novo, e o antigo é descartado sozinho na ativação) e o que permite ao app
      dizer qual versão está rodando. Em src/ fica "dev" de propósito: a versão
      é gerada na montagem, não editada à mão. -->
-<meta name="diario-versao" content="v3add3b0779">
+<meta name="diario-versao" content="v63acc19473">
 <script>
 /* ── ARRANQUE: abre o IndexedDB AGORA, em paralelo com o parse do documento ──
    A fachada de armazenamento vive no fim do <body>, depois de ~1,7 MB de HTML.
@@ -49297,26 +49297,18 @@ window.CloudStore = CloudStore;
    aparelhos: quem vê um device_id diferente do seu entende que outro assumiu,
    é BLOQUEADO e tem a sincronização PAUSADA (para não sobrescrever dados).
 
-   Requer no Supabase (execute uma vez — SQL fornecido no relatório):
-     create table public.active_sessions (
-       user_id uuid primary key references auth.users(id) on delete cascade,
-       device_id text not null, device_label text, updated_at timestamptz default now());
-     alter table public.active_sessions enable row level security;
-     create policy "own_select" on public.active_sessions for select using (auth.uid()=user_id);
-     create policy "own_insert" on public.active_sessions for insert with check (auth.uid()=user_id);
-     create policy "own_update" on public.active_sessions for update using (auth.uid()=user_id);
-     alter publication supabase_realtime add table public.active_sessions;
-
-   Se a tabela ainda NÃO existir, o guard se desativa sozinho, sem quebrar o app
-   (o bloqueio local por aba continua funcionando).
+   A restauração automática de uma sessão não deve roubar a posse de outro
+   aparelho: a camada de startup verifica o dono primeiro. Login digitado ou a
+   ação explícita "Continuar neste aparelho" podem reivindicar a conta.
    ============================================================================ */
 const SessionGuard = {
   TABLE: 'active_sessions',
   DEVICE_KEY: 'diario-estudos:device-id',
-  enabled: true,        // vira false se a tabela não existir
+  enabled: true,
   channel: null,
+  _subscribedUid: null,
   _deviceId: null,
-  _claimedUid: null,    // uid para o qual já reivindicamos nesta carga de página
+  _claimedUid: null,
   _avisouSemTabela: false,
 
   deviceId() {
@@ -49330,7 +49322,6 @@ const SessionGuard = {
     this._deviceId = id;
     return id;
   },
-  // Rótulo legível do aparelho (aparece no aviso do outro dispositivo).
   deviceLabel() {
     try {
       const ua = navigator.userAgent || '';
@@ -49346,7 +49337,6 @@ const SessionGuard = {
       else if (/FxiOS|Firefox\//i.test(ua)) nav = 'Firefox';
       else if (/Chrome\//i.test(ua)) nav = 'Chrome';
       else if (/Safari\//i.test(ua)) nav = 'Safari';
-      // aparelhos Apple sem navegador específico identificado usam Safari
       if (nav === 'navegador' && (so === 'iPhone/iPad' || so === 'Mac')) nav = 'Safari';
       return so + ' · ' + nav;
     } catch (_) { return 'Dispositivo'; }
@@ -49361,18 +49351,18 @@ const SessionGuard = {
     this._unsub();
     if (!this._avisouSemTabela) {
       this._avisouSemTabela = true;
-      console.info('[SessionGuard] tabela active_sessions ausente — login único entre dispositivos desligado. Rode o SQL do relatório para ativar. Detalhe:', err && (err.message || err));
+      console.info('[SessionGuard] tabela active_sessions ausente — login único entre dispositivos desligado.', err && (err.message || err));
     }
   },
 
-  // Chamado pelo CloudStore quando há sessão (login ou sessão restaurada).
+  // Mantido como fallback. A camada de estabilidade substitui este método por
+  // check-before-claim no startup; ações explícitas continuam usando claim().
   async onLogin() {
     if (!this.enabled) return;
     const CS = window.CloudStore;
     if (!CS || !CS.isReady() || !CS.isLoggedIn()) return;
     const uid = CS.session.user.id;
     this.subscribe(uid);
-    // reivindica só uma vez por carga/uid (evita re-claim a cada evento de auth)
     if (this._claimedUid !== uid) { this._claimedUid = uid; await this.claim(uid); }
   },
   onLogout() {
@@ -49381,7 +49371,6 @@ const SessionGuard = {
     if (window.SessionLock && SessionLock.isBlocked() && SessionLock._origin === 'remote') SessionLock.unblock();
   },
 
-  // Grava este device como o dono ativo da conta (derruba os demais).
   async claim(uid) {
     if (!this.enabled) return false;
     const CS = window.CloudStore;
@@ -49396,7 +49385,6 @@ const SessionGuard = {
     } catch (err) { if (this._isMissingTable(err)) this._disable(err); else console.warn('[SessionGuard] claim erro', err); return false; }
   },
 
-  // Verifica quem é o dono atual (na entrada, antes mesmo do primeiro evento realtime).
   async check(uid) {
     if (!this.enabled) return;
     const CS = window.CloudStore;
@@ -49412,41 +49400,47 @@ const SessionGuard = {
   },
 
   subscribe(uid) {
-    if (!this.enabled || this.channel) return;
+    if (!this.enabled) return;
     const CS = window.CloudStore;
     if (!CS || !CS.isReady()) return;
+    uid = String(uid || '');
+    if (!uid) return;
+
+    // Um canal só pode representar UM usuário. Antes, trocar diretamente de
+    // conta mantinha `this.channel` vivo e o `return` abaixo fazia o novo login
+    // continuar ouvindo o filtro da conta anterior.
+    if (this.channel && this._subscribedUid === uid) return;
+    if (this.channel) this._unsub();
+    this._subscribedUid = uid;
     try {
-      this.channel = CS.client.channel('sess_guard')
+      this.channel = CS.client.channel('sess_guard_' + uid.slice(0, 8))
         .on('postgres_changes', { event: '*', schema: 'public', table: this.TABLE, filter: 'user_id=eq.' + uid }, (p) => {
+          if (this._subscribedUid !== uid) return; // callback atrasado da conta anterior
           const row = p.new || p.old || {};
           if (!row.device_id) return;
           if (row.device_id !== this.deviceId()) this._takenBy(row);
           else if (window.SessionLock && SessionLock.isBlocked() && SessionLock._origin === 'remote') SessionLock.unblock();
-          // se a tela de Configurações estiver aberta, reflete a mudança na hora
           try { const cfg = document.getElementById('screen-config'); if (cfg && cfg.classList.contains('active') && window.CloudUI) CloudUI.renderSessions(); } catch (_) { _quiet(_); }
         })
-        .subscribe((status) => { if (status === 'SUBSCRIBED') this.check(uid); });
-    } catch (e) { console.warn('[SessionGuard] realtime indisponível', e); }
+        .subscribe((status) => { if (status === 'SUBSCRIBED' && this._subscribedUid === uid) this.check(uid); });
+    } catch (e) {
+      this.channel = null;
+      this._subscribedUid = null;
+      console.warn('[SessionGuard] realtime indisponível', e);
+    }
   },
   _unsub() {
-    if (this.channel) { try { window.CloudStore.client.removeChannel(this.channel); } catch (_) { _quiet(_); } this.channel = null; }
+    if (this.channel) { try { window.CloudStore.client.removeChannel(this.channel); } catch (_) { _quiet(_); } }
+    this.channel = null;
+    this._subscribedUid = null;
   },
 
-  // Outro aparelho assumiu: bloqueia e pausa a sincronização aqui.
   _takenBy(row) {
     if (window.SessionLock) SessionLock.block('remote', { label: row.device_label });
-    /* Interrompe o ENVIO para não sobrescrever o outro aparelho — mas mantém a
-       pendência. Zerar _pending aqui apagava a alteração da fila: ela nunca mais
-       era tentada, e o download seguinte a removia também do armazenamento local.
-       A caixa de saída da camada por seção continua gravada e reenvia quando esta
-       sessão for retomada. */
     try { const CS = window.CloudStore; if (CS) { clearTimeout(CS._debounce); CS._debounce = null; } } catch (_) { _quiet(_); }
     if (window.CloudUI) CloudUI.refreshSyncBtn();
   },
 
-  // ---- Usado pela tela de Configurações ----
-  // status: 'ok' (leu a linha), 'empty' (sem sessão registrada), 'disabled'
-  // (tabela ausente/guard desligado), 'offline' (sem conexão/login), 'error'.
   async fetchActive() {
     if (!this.enabled) return { status: 'disabled' };
     const CS = window.CloudStore;
@@ -49465,8 +49459,6 @@ const SessionGuard = {
       };
     } catch (err) { if (this._isMissingTable(err)) { this._disable(err); return { status: 'disabled' }; } return { status: 'error', message: err && err.message }; }
   },
-  // Encerra a sessão do outro aparelho trazendo a posse para ESTE (reivindica).
-  // O outro aparelho recebe o evento em tempo real e é bloqueado.
   async endRemoteAndClaimHere() {
     const ok = await this.claim();
     if (ok && window.SessionLock && SessionLock.isBlocked() && SessionLock._origin === 'remote') SessionLock.unblock();
@@ -49475,7 +49467,6 @@ const SessionGuard = {
   }
 };
 window.SessionGuard = SessionGuard;
-// "Continuar neste aparelho" (no overlay remoto) → reivindica de volta a posse.
 if (window.SessionLock) SessionLock.onTakeover(async (origin) => {
   if (origin !== 'remote') return;
   const ok = await SessionGuard.claim();
@@ -60214,9 +60205,13 @@ window.addEventListener('screen:activated', e => { if (e.detail && e.detail.scre
    Objetivos:
    1) sincronização em segundo plano nunca deve ficar recarregando a página;
    2) entrar novamente no MESMO perfil aplica dados novos sem hard reload;
-   3) troca real de perfil / logout / atualização de versão continua podendo
-      recarregar, porque nesses casos limpar estado em memória é desejável;
-   4) telemetria e bookkeeping locais do TEC não entram no SectionSync.
+   3) autenticação restaurada é processada UMA vez por usuário, mesmo que o
+      Supabase dispare getSession + INITIAL_SESSION/TOKEN_REFRESHED;
+   4) Realtime de seções só acompanha o perfil realmente aberto nesta aba;
+   5) sessão restaurada não toma à força a posse de outro dispositivo;
+   6) reset TEC é destrutivo apenas para dados TEC do perfil ativo e pode ser
+      propagado por marcador remoto antes de qualquer reenvio contaminado;
+   7) telemetria e bookkeeping locais do TEC não entram no SectionSync.
    ============================================================================ */
 (() => {
   if (typeof window === 'undefined' || window.__snmStartupStability) return;
@@ -60227,17 +60222,38 @@ window.addEventListener('screen:activated', e => { if (e.detail && e.detail.scre
     catch (e) { if (typeof _quiet === 'function') _quiet(e, 'startup-active-profile'); return null; }
   })();
 
+  const TEC_RESET_SECTION = '__tec_reset_epoch';
   const LOCAL_ONLY_EXACT = new Set([
-    'tec-capture-log-v1'
+    'tec-capture-log-v1',
+    TEC_RESET_SECTION
   ]);
   const LOCAL_ONLY_PREFIX = [
     'tec-cloud-ledger:'
   ];
 
+  const quiet = (e, tag) => {
+    try { if (typeof _quiet === 'function') _quiet(e, tag || 'startup-stability'); }
+    catch (_) { /* diagnóstico nunca quebra o app */ }
+  };
+  const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
+
   const isLocalOnly = (section) => {
     const s = String(section || '');
     return LOCAL_ONLY_EXACT.has(s) || LOCAL_ONLY_PREFIX.some(p => s.startsWith(p));
   };
+
+  function enteredProfile() {
+    try { return sessionStorage.getItem('diario-estudos:entered') || null; }
+    catch (_) { return null; }
+  }
+  function activeProfile() {
+    try { return window.ProfileManager && ProfileManager.getActiveProfileId ? ProfileManager.getActiveProfileId() : null; }
+    catch (_) { return null; }
+  }
+  function profileConfirmed(id) {
+    const active = activeProfile(), entered = enteredProfile();
+    return !!id && active === id && entered === id;
+  }
 
   let softTimer = null;
   let softReasons = [];
@@ -60245,40 +60261,256 @@ window.addEventListener('screen:activated', e => { if (e.detail && e.detail.scre
     try {
       const el = document.querySelector('.screen.active');
       return el && el.id && el.id.startsWith('screen-') ? el.id.slice(7) : null;
-    } catch (e) { if (typeof _quiet === 'function') _quiet(e, 'soft-refresh-screen'); return null; }
+    } catch (e) { quiet(e, 'soft-refresh-screen'); return null; }
   }
 
   function softRefreshNow() {
     softTimer = null;
     const reasons = softReasons.splice(0);
-    try { if (window.PlanManager && PlanManager.init) PlanManager.init(); } catch (e) { if (typeof _quiet === 'function') _quiet(e, 'soft-refresh-plan'); }
-    try { if (window.ProfileUI && ProfileUI.renderChip) ProfileUI.renderChip(); } catch (e) { if (typeof _quiet === 'function') _quiet(e, 'soft-refresh-profile'); }
-    try { if (window.CloudUI && CloudUI.render) CloudUI.render(); } catch (e) { if (typeof _quiet === 'function') _quiet(e, 'soft-refresh-cloud'); }
-    try { if (window.TecIntegracaoScreen && TecIntegracaoScreen.render) TecIntegracaoScreen.render(); } catch (e) { if (typeof _quiet === 'function') _quiet(e, 'soft-refresh-tec'); }
-    try { if (window.TecRealtime && TecRealtime.render) TecRealtime.render(); } catch (e) { if (typeof _quiet === 'function') _quiet(e, 'soft-refresh-radar'); }
-    try { if (window.TecLacunasContinuas && TecLacunasContinuas.refresh) TecLacunasContinuas.refresh('cloud-soft-refresh'); } catch (e) { if (typeof _quiet === 'function') _quiet(e, 'soft-refresh-lacunas'); }
+    try { if (window.PlanManager && PlanManager.init) PlanManager.init(); } catch (e) { quiet(e, 'soft-refresh-plan'); }
+    try { if (window.ProfileUI && ProfileUI.renderChip) ProfileUI.renderChip(); } catch (e) { quiet(e, 'soft-refresh-profile'); }
+    try { if (window.CloudUI && CloudUI.render) CloudUI.render(); } catch (e) { quiet(e, 'soft-refresh-cloud'); }
+    try { if (window.TecIntegracaoScreen && TecIntegracaoScreen.render) TecIntegracaoScreen.render(); } catch (e) { quiet(e, 'soft-refresh-tec'); }
+    try { if (window.TecRealtime && TecRealtime.render) TecRealtime.render(); } catch (e) { quiet(e, 'soft-refresh-radar'); }
+    try { if (window.TecLacunasContinuas && TecLacunasContinuas.refresh) TecLacunasContinuas.refresh('cloud-soft-refresh'); } catch (e) { quiet(e, 'soft-refresh-lacunas'); }
 
     const screen = activeScreenName();
     try {
       if (screen) window.dispatchEvent(new CustomEvent('screen:activated', { detail:{ screen, reason:'cloud-soft-refresh' } }));
       window.dispatchEvent(new CustomEvent('study:cloud-applied', { detail:{ reasons, screen, at:new Date().toISOString() } }));
-    } catch (e) { if (typeof _quiet === 'function') _quiet(e, 'soft-refresh-event'); }
+    } catch (e) { quiet(e, 'soft-refresh-event'); }
   }
 
   function scheduleSoftRefresh(reason) {
     softReasons.push(String(reason || 'sincronização'));
     clearTimeout(softTimer);
-    // Pequeno debounce: uma rajada de seções remotas vira UMA atualização visual.
     softTimer = setTimeout(softRefreshNow, 180);
   }
   window.__snmSoftRefresh = scheduleSoftRefresh;
 
+  /* ───────────────────────── RESET TEC SEGURO ──────────────────────────── */
+  const TecDataReset = {
+    CONTROL_SECTION: TEC_RESET_SECTION,
+    APPLY_KEY_PREFIX: 'diario-estudos:tec-reset-applied:',
+    _running: null,
+
+    isTecSection(section) {
+      const s = String(section || '');
+      if (!s || s === this.CONTROL_SECTION) return false;
+      if (/^p:[^:]+:(?:tec(?:[-:_].*)?|incidencia)$/i.test(s)) return true;
+      if (/^tec(?:[-:_]|$)/i.test(s)) return true;
+      if (/^painel:tec(?:[-:_]|$)/i.test(s)) return true;
+      if (/^ux47:tec(?:[-:_]|$)/i.test(s)) return true;
+      return false;
+    },
+
+    _appliedKey(id) { return this.APPLY_KEY_PREFIX + String(id || ''); },
+    _getApplied(id) { try { return localStorage.getItem(this._appliedKey(id)) || ''; } catch (_) { return ''; } },
+    _setApplied(id, epoch) { try { localStorage.setItem(this._appliedKey(id), String(epoch || '')); } catch (e) { quiet(e, 'tec-reset-marker-local'); } },
+
+    _sanitizeSyncBookkeeping(id) {
+      const pfx = 'diario-estudos:u:' + id + ':';
+      const revKey = pfx + '__secrev';
+      try {
+        const revs = JSON.parse(localStorage.getItem(revKey) || '{}') || {};
+        let changed = false;
+        Object.keys(revs).forEach(sec => { if (this.isTecSection(sec)) { delete revs[sec]; changed = true; } });
+        if (changed) localStorage.setItem(revKey, JSON.stringify(revs));
+      } catch (e) { quiet(e, 'tec-reset-revs'); }
+      for (const suffix of ['__secpend','__secdel']) {
+        const key = pfx + suffix;
+        try {
+          const arr = JSON.parse(localStorage.getItem(key) || '[]');
+          if (!Array.isArray(arr)) continue;
+          const next = arr.filter(sec => !this.isTecSection(sec));
+          if (next.length) localStorage.setItem(key, JSON.stringify(next));
+          else localStorage.removeItem(key);
+        } catch (e) { quiet(e, 'tec-reset-' + suffix); }
+      }
+      try {
+        const S = window.SectionSync;
+        if (S && S._dirty) [...S._dirty].forEach(sec => { if (this.isTecSection(sec)) S._dirty.delete(sec); });
+        if (S && S._savePend) S._savePend();
+        if (S && S._seededProfile === id) S._seededProfile = null;
+      } catch (e) { quiet(e, 'tec-reset-section-memory'); }
+    },
+
+    clearLocal(id, epoch, markApplied = true) {
+      if (!id) return 0;
+      const pfx = 'diario-estudos:u:' + id + ':';
+      const keys = [];
+      try {
+        for (let i = 0; i < localStorage.length; i++) {
+          const key = localStorage.key(i);
+          if (!key) continue;
+          if (key.startsWith(pfx) && this.isTecSection(key.slice(pfx.length))) keys.push(key);
+          else if (key.startsWith('diario-estudos:') && !key.startsWith('diario-estudos:u:')) {
+            const globalSection = key.slice('diario-estudos:'.length);
+            if (this.isTecSection(globalSection)) keys.push(key);
+          }
+        }
+        keys.forEach(key => localStorage.removeItem(key));
+      } catch (e) { quiet(e, 'tec-reset-local'); }
+      this._sanitizeSyncBookkeeping(id);
+      if (markApplied && epoch) this._setApplied(id, epoch);
+      try {
+        window.postMessage({ source:'StudyNoMentorApp', type:'tec-reconstruct-hard-reset', payload:{} }, location.origin);
+      } catch (e) { quiet(e, 'tec-reset-companion'); }
+      return keys.length;
+    },
+
+    async remoteEpoch(id) {
+      const C = window.CloudStore;
+      if (!id || !C || !C.isReady || !C.isReady() || !C.isLoggedIn || !C.isLoggedIn()) return null;
+      const op = C.client.from('profile_sections')
+        .select('data,rev,updated_at')
+        .eq('profile_id', id)
+        .eq('section', this.CONTROL_SECTION)
+        .maybeSingle();
+      const res = C._withTimeout ? await C._withTimeout(op, 8000, 'Verificar limpeza TEC') : await op;
+      if (res && res.error) throw res.error;
+      const data = res && res.data && res.data.data;
+      if (data && typeof data === 'object' && data.epoch) return String(data.epoch);
+      if (typeof data === 'string') return data;
+      return null;
+    },
+
+    async applyRemoteResetIfNeeded(id) {
+      if (!id) return false;
+      try {
+        const epoch = await this.remoteEpoch(id);
+        if (!epoch || epoch <= this._getApplied(id)) return false;
+        const removed = this.clearLocal(id, epoch, true);
+        console.warn('[TEC reset] marcador remoto aplicado antes da hidratação:', epoch, '·', removed, 'chave(s) removida(s)');
+        return true;
+      } catch (e) {
+        quiet(e, 'tec-reset-remote-check');
+        return false;
+      }
+    },
+
+    async _cleanBlob(id) {
+      const C = window.CloudStore;
+      for (let attempt = 0; attempt < 4; attempt++) {
+        const remote = await C.fetchPayload(id);
+        const payload = JSON.parse(JSON.stringify(remote.payload || { data:{} }));
+        if (!payload.data || typeof payload.data !== 'object') payload.data = {};
+        Object.keys(payload.data).forEach(k => { if (this.isTecSection(k)) delete payload.data[k]; });
+        const meta = ProfileManager.getProfiles().find(p => p.id === id) || {};
+        const nextRev = Number(remote.rev || 0) + 1;
+        const { data, error } = await C.client.from(C.TABLE)
+          .update({ payload, rev:nextRev, updated_at:new Date().toISOString(), profile_name:meta.nome, avatar:meta.avatar, color:meta.cor })
+          .eq('id', id).eq('rev', Number(remote.rev || 0)).select('rev');
+        if (error) throw error;
+        if (data && data.length) { ProfileManager.setRev(id, nextRev); return true; }
+        await sleep(120 * (attempt + 1));
+      }
+      throw new Error('Conflito persistente ao limpar o blob TEC.');
+    },
+
+    async _deleteRemoteFacts(id) {
+      const C = window.CloudStore;
+      const rowsRes = await C.client.from('profile_sections').select('section').eq('profile_id', id);
+      if (rowsRes.error) throw rowsRes.error;
+      const names = [...new Set((rowsRes.data || []).map(r => r.section).filter(sec => this.isTecSection(sec)))];
+      if (names.length) {
+        const del = await C.client.from('profile_sections').delete().eq('profile_id', id).in('section', names);
+        if (del.error) throw del.error;
+      }
+      const events = await C.client.from('tec_resolution_events').delete().eq('profile_id', id);
+      if (events.error) throw events.error;
+      return names.length;
+    },
+
+    async _writeRemoteMarker(id, epoch) {
+      const C = window.CloudStore;
+      const got = await C.client.from('profile_sections')
+        .select('rev').eq('profile_id', id).eq('section', this.CONTROL_SECTION).maybeSingle();
+      if (got.error) throw got.error;
+      const rev = Number(got.data && got.data.rev || 0) + 1;
+      const up = await C.client.from('profile_sections').upsert({
+        profile_id:id,
+        section:this.CONTROL_SECTION,
+        data:{ epoch, reason:'tec-full-reset-v1' },
+        rev,
+        updated_at:new Date().toISOString()
+      }, { onConflict:'profile_id,section' });
+      if (up.error) throw up.error;
+      try {
+        const S = window.SectionSync;
+        if (S && S._syncManifest && S._getRevs) {
+          const revs = S._getRevs(id);
+          await S._syncManifest(id, revs);
+          if (S._saveRevs) S._saveRevs(revs, id);
+        }
+      } catch (e) { quiet(e, 'tec-reset-manifest'); }
+    },
+
+    async resetActive() {
+      if (this._running) return this._running;
+      const id = activeProfile();
+      const C = window.CloudStore;
+      if (!id || !C || !C.isReady || !C.isReady() || !C.isLoggedIn || !C.isLoggedIn()) {
+        if (typeof showToast === 'function') showToast('Entre na sua conta e abra o perfil antes de zerar o TEC.');
+        return false;
+      }
+      const confirmed = await UI.confirm(
+        'Isso remove do perfil aberto TODOS os dados derivados da integração TEC: questões, eventos, históricos reconstruídos, incidência importada, Radar TEC e filas técnicas.\n\nOs demais dados de estudo, planejamentos, registros, ciclo, leis, cards e atividades extras não serão apagados.\n\nVocê reconstruirá os cadernos do zero depois.',
+        { title:'⚠ Zerar integração TEC', okText:'Zerar TEC deste perfil' });
+      if (!confirmed) return false;
+
+      this._running = (async () => {
+        const epoch = new Date().toISOString();
+        try {
+          if (typeof showToast === 'function') showToast('Preparando limpeza TEC…');
+          try { if (C.flushPending) await C.flushPending(); } catch (e) { quiet(e, 'tec-reset-flush-before'); }
+          const localCount = this.clearLocal(id, null, false);
+          const sectionCount = await this._deleteRemoteFacts(id);
+          await this._cleanBlob(id);
+          await this._writeRemoteMarker(id, epoch);
+          this._setApplied(id, epoch);
+          try { if (window.__idbFlush) await window.__idbFlush(); } catch (e) { quiet(e, 'tec-reset-idb-flush'); }
+          try { if (window.TecIntegracaoScreen && TecIntegracaoScreen.render) TecIntegracaoScreen.render(); } catch (e) { quiet(e, 'tec-reset-render'); }
+          scheduleSoftRefresh('TEC zerado');
+          if (typeof showToast === 'function') showToast('Integração TEC zerada ✓ agora reconstrua seus cadernos.');
+          console.warn('[TEC reset] concluído', { localCount, sectionCount, epoch });
+          return true;
+        } catch (e) {
+          console.error('[TEC reset] falhou', e);
+          if (typeof showToast === 'function') showToast('A limpeza TEC não terminou: ' + String(e && e.message || e));
+          return false;
+        } finally {
+          this._running = null;
+        }
+      })();
+      return this._running;
+    },
+
+    installButton() {
+      if (document.getElementById('tec-full-reset-v1')) return true;
+      const card = document.getElementById('tec-reconstruction-card');
+      if (!card) return false;
+      const cancel = document.getElementById('tec-reconstruction-cancel');
+      const host = cancel && cancel.parentElement ? cancel.parentElement : card;
+      const button = document.createElement('button');
+      button.type = 'button';
+      button.id = 'tec-full-reset-v1';
+      button.className = 'btn-secondary';
+      button.textContent = 'Zerar dados TEC';
+      button.title = 'Remove apenas os dados da integração TEC deste perfil e preserva o restante do estudo.';
+      host.appendChild(button);
+      button.addEventListener('click', () => this.resetActive());
+      return true;
+    }
+  };
+  window.TecDataReset = TecDataReset;
+
+  /* ───────────────────── SEÇÕES + SOFT REFRESH ─────────────────────────── */
   function patchSectionSync() {
     const S = window.SectionSync;
     if (!S || S.__startupStabilityPatched) return false;
     S.__startupStabilityPatched = true;
 
-    // Bookkeeping e diagnóstico locais nunca devem gerar revisão remota.
     const originalSectionForKey = S.sectionForKey.bind(S);
     S.sectionForKey = function(fullKey, prefixo) {
       const section = originalSectionForKey(fullKey, prefixo);
@@ -60290,25 +60522,228 @@ window.addEventListener('screen:activated', e => { if (e.detail && e.detail.scre
         [...S._dirty].forEach(sec => { if (isLocalOnly(sec)) S._dirty.delete(sec); });
         if (S._savePend) S._savePend();
       }
-    } catch (e) { if (typeof _quiet === 'function') _quiet(e, 'section-local-only-clean'); }
+    } catch (e) { quiet(e, 'section-local-only-clean'); }
 
-    // A nuvem já foi aplicada ao localStorage pelo hydrate(). Em vez de um
-    // location.reload(), re-renderizamos a tela ativa. Isso elimina a cascata
-    // "login -> foco -> seção nova -> reload -> foco -> reload".
+    // Corrige a consulta de revisão: o método original ignorava o `id` recebido e
+    // lia as revisões do perfil ATIVO. Um callback atrasado do perfil anterior
+    // podia, portanto, anunciar atualização inexistente no perfil atual.
+    S.hasRemoteUpdates = async function(id) {
+      if (!id || !window.CloudStore || !CloudStore.isReady() || !CloudStore.isLoggedIn()) return false;
+      const { data, error } = await CloudStore.client.from(this.TABLE).select('section,rev').eq('profile_id', id);
+      if (error) throw error;
+      const locais = this._getRevs(id);
+      return (data || []).some(r => Number(r.rev || 0) > Number(locais[r.section] && locais[r.section].rev || 0));
+    };
+
     S.pullAndReload = async function() {
-      const id = window.ProfileManager && ProfileManager.getActiveProfileId ? ProfileManager.getActiveProfileId() : null;
+      const id = activeProfile();
       if (!id) return false;
+      await TecDataReset.applyRemoteResetIfNeeded(id);
       const r = await CloudStore.aplicando(() => this.hydrate(id));
       if (!r || !r.ok) return false;
       if (!r.mudou) {
         try { console.info('[SectionSync] nuvem conferida: nada mudou, sem recarregar'); }
-        catch (e) { if (typeof _quiet === 'function') _quiet(e, 'section-sync-info'); }
+        catch (e) { quiet(e, 'section-sync-info'); }
         return true;
       }
       try { if (typeof showToast === 'function') showToast('Sincronizado da nuvem ✓'); }
-      catch (e) { if (typeof _quiet === 'function') _quiet(e, 'section-sync-toast'); }
+      catch (e) { quiet(e, 'section-sync-toast'); }
       scheduleSoftRefresh('dados novos da nuvem');
       return true;
+    };
+    return true;
+  }
+
+  /* ─────────────────────── REALTIME POR PERFIL ─────────────────────────── */
+  function patchRealtimeSubscriptions() {
+    const C = window.CloudStore;
+    if (!C || C.__profileRealtimePatched) return false;
+    C.__profileRealtimePatched = true;
+
+    const remove = channel => {
+      try { if (channel && C.client) C.client.removeChannel(channel); } catch (e) { quiet(e, 'realtime-remove'); }
+    };
+
+    C.subscribeRealtime = function() {
+      if (!this.isReady() || !this.isLoggedIn()) return;
+      const uid = this.session && this.session.user && this.session.user.id;
+      if (!uid) return;
+      if (this.channel && this._rtUserId === uid) return;
+      if (this.channel) remove(this.channel);
+      this.channel = null;
+      this._rtUserId = uid;
+      try {
+        this.channel = this.client.channel('sp_rt_' + String(uid).slice(0,8))
+          .on('postgres_changes', { event:'*', schema:'public', table:this.TABLE, filter:'user_id=eq.' + uid }, p => this._onRealtime(p))
+          .subscribe();
+      } catch (e) { this.channel = null; console.warn('realtime indisponível', e); }
+    };
+
+    C.subscribeSections = function(profileId) {
+      if (!this.isReady() || !this.isLoggedIn()) return;
+      const pid = String(profileId || '');
+      if (!pid || !profileConfirmed(pid)) return;
+      if (this.secChannel && this._secProfileId === pid) return;
+      if (this.secChannel) remove(this.secChannel);
+      this.secChannel = null;
+      this._secProfileId = pid;
+      clearTimeout(this._secRtTimer);
+      try {
+        this.secChannel = this.client.channel('sec_rt_' + pid.slice(0,8))
+          .on('postgres_changes', { event:'*', schema:'public', table:'profile_sections', filter:'profile_id=eq.' + pid }, () => {
+            // Callback antigo jamais atua sobre o perfil novo.
+            if (!profileConfirmed(pid) || this._secProfileId !== pid) return;
+            clearTimeout(this._secRtTimer);
+            this._secRtTimer = setTimeout(() => {
+              if (profileConfirmed(pid) && this._secProfileId === pid) this._onSectionRealtime(pid);
+            }, 1200);
+          })
+          .subscribe();
+      } catch (e) { this.secChannel = null; this._secProfileId = null; console.warn('realtime de seções indisponível', e); }
+    };
+
+    const originalUnsub = C._unsub.bind(C);
+    C._unsub = function() {
+      try { originalUnsub(); } finally { this._rtUserId = null; this._secProfileId = null; }
+    };
+
+    const originalSectionRealtime = C._onSectionRealtime.bind(C);
+    C._onSectionRealtime = async function(pid) {
+      if (!profileConfirmed(String(pid || '')) || this._secProfileId !== String(pid || '')) return;
+      return originalSectionRealtime(pid);
+    };
+    return true;
+  }
+
+  /* ───────────────────── AUTH SEM EFEITO DUPLICADO ─────────────────────── */
+  function patchAuthLifecycle() {
+    const C = window.CloudStore, Sg = window.SessionGuard;
+    if (!C || C.__authLifecyclePatched) return false;
+    C.__authLifecyclePatched = true;
+
+    C.onAuth = function() {
+      const uid = this.session && this.session.user ? this.session.user.id : null;
+      const state = uid || 'anon';
+
+      // UI pode refletir token/estado em todos os eventos; efeitos caros só quando
+      // o usuário realmente muda. getSession + INITIAL_SESSION não duplicam boot.
+      try { if (window.ProfileUI) ProfileUI.onAuthChanged(); } catch (e) { quiet(e, 'auth-profile-ui'); }
+      try { if (window.CloudUI) CloudUI.refreshSyncBtn(); } catch (e) { quiet(e, 'auth-cloud-ui'); }
+      if (this.__authLifecycleState === state) return;
+      this.__authLifecycleState = state;
+
+      if (!uid) {
+        try { this._unsub(); } catch (e) { quiet(e, 'auth-unsub'); }
+        try { if (Sg) Sg.onLogout(); } catch (e) { quiet(e, 'auth-session-logout'); }
+        this.__startupSideEffectsUid = null;
+        return;
+      }
+
+      try { this.subscribeRealtime(); } catch (e) { quiet(e, 'auth-rt'); }
+      const pid = activeProfile();
+      if (pid && profileConfirmed(pid)) {
+        try { this.subscribeSections(pid); } catch (e) { quiet(e, 'auth-sec-rt'); }
+      }
+      try { if (Sg) Sg.onLogin(); } catch (e) { quiet(e, 'auth-session-login'); }
+
+      if (this.__startupSideEffectsUid === uid) return;
+      this.__startupSideEffectsUid = uid;
+      setTimeout(() => {
+        const current = activeProfile();
+        if (!current || !profileConfirmed(current)) return;
+        try { if (window.SectionSync) SectionSync.kick(); } catch (e) { quiet(e, 'auth-section-kick'); }
+      }, 700);
+      setTimeout(() => { try { if (window.BackupHistory) BackupHistory.limpar(); } catch (e) { quiet(e, 'auth-backup-clean'); } }, 1800);
+      setTimeout(() => { try { if (window.ProfileManager) ProfileManager.migrarIdsAntigos(); } catch (e) { quiet(e, 'auth-profile-migrate'); } }, 2800);
+    };
+
+    // Sessão restaurada: primeiro verifica o dono atual. Só reivindica
+    // automaticamente se não existir dono ou se já for este dispositivo.
+    if (Sg && !Sg.__checkBeforeClaimPatched) {
+      Sg.__checkBeforeClaimPatched = true;
+      Sg._loginCheckPromise = null;
+      Sg._loginCheckUid = null;
+      Sg.onLogin = async function() {
+        if (!this.enabled) return false;
+        const CS = window.CloudStore;
+        if (!CS || !CS.isReady() || !CS.isLoggedIn()) return false;
+        const uid = CS.session.user.id;
+        this.subscribe(uid);
+        if (this._claimedUid === uid) return true;
+        if (this._loginCheckPromise && this._loginCheckUid === uid) return this._loginCheckPromise;
+        this._loginCheckUid = uid;
+        this._loginCheckPromise = (async () => {
+          try {
+            const { data, error } = await CS.client.from(this.TABLE)
+              .select('device_id,device_label').eq('user_id', uid).maybeSingle();
+            if (error) {
+              if (this._isMissingTable(error)) { this._disable(error); return false; }
+              console.warn('[SessionGuard] check-before-claim falhou', error);
+              return false;
+            }
+            if (!data || !data.device_id) {
+              const ok = await this.claim(uid);
+              if (ok) this._claimedUid = uid;
+              return ok;
+            }
+            if (data.device_id === this.deviceId()) {
+              this._claimedUid = uid;
+              if (window.SessionLock && SessionLock.isBlocked() && SessionLock._origin === 'remote') SessionLock.unblock();
+              return true;
+            }
+            this._claimedUid = null;
+            this._takenBy(data);
+            return false;
+          } catch (e) {
+            if (this._isMissingTable(e)) this._disable(e);
+            else console.warn('[SessionGuard] check-before-claim erro', e);
+            return false;
+          } finally {
+            this._loginCheckPromise = null;
+            this._loginCheckUid = null;
+          }
+        })();
+        return this._loginCheckPromise;
+      };
+
+      // Login digitado é intenção explícita de usar ESTE aparelho: depois que o
+      // Supabase confirma a senha, este dispositivo pode assumir a sessão.
+      const originalSignIn = C.signIn.bind(C);
+      C.signIn = async function(email, password) {
+        const data = await originalSignIn(email, password);
+        try {
+          if (data && data.session) {
+            this.session = data.session;
+            const ok = await Sg.claim(data.session.user.id);
+            if (ok) {
+              Sg._claimedUid = data.session.user.id;
+              if (window.SessionLock && SessionLock.isBlocked() && SessionLock._origin === 'remote') SessionLock.unblock();
+            }
+          }
+        } catch (e) { quiet(e, 'signin-claim'); }
+        return data;
+      };
+    }
+    return true;
+  }
+
+  /* ───────────────────── PERFIL: PREFLIGHT ÚNICO ───────────────────────── */
+  function patchProfileEntry() {
+    const P = window.ProfileUI;
+    if (!P || P.__deterministicEntryPatched || typeof P.enterProfile !== 'function') return false;
+    P.__deterministicEntryPatched = true;
+    const original = P.enterProfile.bind(P);
+    P.enterProfile = async function(id) {
+      try { if (typeof window.__idbHydrateProfile === 'function') await window.__idbHydrateProfile(id); } catch (e) { quiet(e, 'entry-idb-hydrate'); }
+      try { await TecDataReset.applyRemoteResetIfNeeded(id); } catch (e) { quiet(e, 'entry-tec-reset'); }
+      const result = await original(id);
+      try {
+        if (profileConfirmed(id) && window.CloudStore) {
+          CloudStore.subscribeSections(id);
+          if (window.SectionSync) SectionSync.kick();
+        }
+      } catch (e) { quiet(e, 'entry-postflight'); }
+      return result;
     };
     return true;
   }
@@ -60319,13 +60754,8 @@ window.addEventListener('screen:activated', e => { if (e.detail && e.detail.scre
 
     function guardedReload(reason, opts) {
       const why = String(reason || '');
-      const current = (() => {
-        try { return window.ProfileManager && ProfileManager.getActiveProfileId ? ProfileManager.getActiveProfileId() : null; }
-        catch (e) { if (typeof _quiet === 'function') _quiet(e, 'reload-current-profile'); return null; }
-      })();
+      const current = activeProfile();
 
-      // Login no mesmo perfil: hydrate já escreveu o dado correto no armazenamento.
-      // Uma atualização visual é suficiente; hard reload só acrescentava piscadas.
       if (why === 'entrada no perfil com dados novos' && ACTIVE_AT_LOAD && current === ACTIVE_AT_LOAD) {
         scheduleSoftRefresh(why);
         try {
@@ -60334,12 +60764,11 @@ window.addEventListener('screen:activated', e => { if (e.detail && e.detail.scre
             if (ProfileUI.hideGate) ProfileUI.hideGate();
             if (ProfileUI.renderChip) ProfileUI.renderChip();
           }
-        } catch (e) { if (typeof _quiet === 'function') _quiet(e, 'login-soft-refresh'); }
+          if (profileConfirmed(current) && window.CloudStore) CloudStore.subscribeSections(current);
+        } catch (e) { quiet(e, 'login-soft-refresh'); }
         return;
       }
 
-      // Qualquer sincronização automática que já aplicou os dados deve atualizar
-      // a interface, não reiniciar a aplicação durante o estudo.
       if (!(opts && opts.imediato) && /^dados novos da nuvem/.test(why)) {
         scheduleSoftRefresh(why);
         return;
@@ -60350,7 +60779,7 @@ window.addEventListener('screen:activated', e => { if (e.detail && e.detail.scre
     guardedReload.__original = original;
     window.recarregarApp = guardedReload;
     try { recarregarApp = guardedReload; }
-    catch (e) { if (typeof _quiet === 'function') _quiet(e, 'reload-global-alias'); }
+    catch (e) { quiet(e, 'reload-global-alias'); }
     return true;
   }
 
@@ -60362,21 +60791,52 @@ window.addEventListener('screen:activated', e => { if (e.detail && e.detail.scre
     let running = null;
     C.syncOnFocus = function() {
       if (running) return running;
-      running = Promise.resolve().then(() => original()).finally(() => { running = null; });
+      running = Promise.resolve().then(async () => {
+        const id = activeProfile();
+        if (id) await TecDataReset.applyRemoteResetIfNeeded(id);
+        if (id && profileConfirmed(id)) this.subscribeSections(id);
+        return original();
+      }).finally(() => { running = null; });
       return running;
     };
     return true;
   }
 
+  const StartupCoordinator = {
+    status() {
+      const C = window.CloudStore, Sg = window.SessionGuard;
+      return {
+        activeProfile: activeProfile(),
+        enteredProfile: enteredProfile(),
+        authUserReady: !!(C && C.isLoggedIn && C.isLoggedIn()),
+        authLifecycleState: C && C.__authLifecycleState || null,
+        realtimeProfile: C && C._secProfileId || null,
+        sessionClaimed: Sg && Sg._claimedUid || null,
+        sectionPending: (() => { try { return window.SectionSync ? SectionSync.pendingQuick() : 0; } catch (_) { return null; } })(),
+        tecResetMarker: activeProfile() ? TecDataReset._getApplied(activeProfile()) : null
+      };
+    }
+  };
+  window.StartupCoordinator = StartupCoordinator;
+
   function patchAll() {
+    patchRealtimeSubscriptions();
+    patchAuthLifecycle();
     patchSectionSync();
+    patchProfileEntry();
     patchReload();
     patchFocusSync();
+    TecDataReset.installButton();
   }
 
   patchAll();
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', patchAll, { once:true });
-  setTimeout(patchAll, 0);
+  let tries = 0;
+  const timer = setInterval(() => {
+    tries++;
+    patchAll();
+    if (tries > 120 || (window.CloudStore && window.SectionSync && window.ProfileUI && TecDataReset.installButton())) clearInterval(timer);
+  }, 250);
 })();
 
 /* ============================================================================
@@ -60385,8 +60845,11 @@ window.addEventListener('screen:activated', e => { if (e.detail && e.detail.scre
    A camada IndexedDB abre somente o perfil ativo no caminho crítico. Este módulo
    conecta essa otimização ao restante do app sem mudar a semântica dos dados:
    • antes de abrir/trocar para outro perfil, hidrata o namespace dele;
-   • perfis frios continuam sendo reconhecidos como existentes localmente pelo
-     índice de chaves do IndexedDB, evitando que a reconciliação os esconda;
+   • o MESMO perfil já seguro neste aparelho fica visível sem aguardar rede;
+   • a reconciliação remota ocorre em segundo plano; leituras independentes
+     podem ocorrer em paralelo, mas nenhum kick/upload é liberado antes de a
+     checagem do reset TEC terminar;
+   • perfis frios continuam reconhecidos pelo índice do IndexedDB;
    • expõe diagnóstico simples de startup para medir ganho em máquina real.
    ============================================================================ */
 (() => {
@@ -60413,6 +60876,55 @@ window.addEventListener('screen:activated', e => { if (e.detail && e.detail.scre
   }
   window.__ensureStudyProfileHydrated = ensureProfile;
 
+  function canOpenLocalNow(P, id) {
+    try {
+      const C = window.CloudStore;
+      if (!id || !C || !C.isReady || !C.isReady() || !C.isLoggedIn || !C.isLoggedIn()) return false;
+      if (!window.ProfileManager || ProfileManager.getActiveProfileId() !== id) return false;
+      if (!P._hasLocalData || !P._hasLocalData(id)) return false;
+      const uid = C.session && C.session.user && C.session.user.id;
+      if (ProfileManager._podeVerLocal && !ProfileManager._podeVerLocal(id, uid)) return false;
+      return true;
+    } catch (e) {
+      quiet(e, 'local-first-check');
+      return false;
+    }
+  }
+
+  function reconcileLocalProfileInBackground(id) {
+    setTimeout(async () => {
+      try {
+        if (!window.ProfileManager || ProfileManager.getActiveProfileId() !== id) return;
+        const S = window.SectionSync;
+        if (!S) return;
+
+        /* São apenas LEITURAS e são independentes, então começam juntas:
+           - resetPromise verifica se outro dispositivo zerou o TEC;
+           - remotePromise compara revisões da nuvem.
+
+           A barreira é importante: NENHUM pull que possa acabar em merge local,
+           e principalmente nenhum kick/upload, acontece antes de resetPromise
+           terminar. Assim o fast path não fica esperando a rede, a revisão é
+           consultada imediatamente em segundo plano e dado TEC antigo não volta. */
+        const resetPromise = (window.TecDataReset && TecDataReset.applyRemoteResetIfNeeded)
+          ? Promise.resolve(TecDataReset.applyRemoteResetIfNeeded(id)).catch(e => { quiet(e, 'local-first-reset-check'); return false; })
+          : Promise.resolve(false);
+
+        const remotePromise = S.hasRemoteUpdates
+          ? Promise.resolve(S.hasRemoteUpdates(id)).then(Boolean).catch(e => { quiet(e, 'local-first-remote-check'); return false; })
+          : Promise.resolve(false);
+
+        const [, remote] = await Promise.all([resetPromise, remotePromise]);
+        if (!window.ProfileManager || ProfileManager.getActiveProfileId() !== id) return;
+
+        if (remote && S.pullAndReload) await S.pullAndReload();
+        else if (S.kick) S.kick();
+      } catch (e) {
+        quiet(e, 'local-first-reconcile');
+      }
+    }, 0);
+  }
+
   function patchProfileUI() {
     const P = window.ProfileUI;
     if (!P || P.__hotHydrationPatched || typeof P.enterProfile !== 'function') return false;
@@ -60420,6 +60932,26 @@ window.addEventListener('screen:activated', e => { if (e.detail && e.detail.scre
     const original = P.enterProfile.bind(P);
     P.enterProfile = async function(id) {
       await ensureProfile(id);
+
+      if (canOpenLocalNow(P, id)) {
+        try { sessionStorage.setItem(P.SESSION_KEY || 'diario-estudos:entered', id); } catch (e) { quiet(e, 'local-first-session'); }
+        try { if (P.setLastProfile) P.setLastProfile(id); } catch (e) { quiet(e, 'local-first-last-profile'); }
+        try {
+          const C = window.CloudStore;
+          const uid = C && C.session && C.session.user && C.session.user.id;
+          if (ProfileManager._setOwner && uid) ProfileManager._setOwner(id, uid);
+        } catch (e) { quiet(e, 'local-first-owner'); }
+        P._entering = false;
+        try { if (P.hideGate) P.hideGate(); } catch (e) { quiet(e, 'local-first-hide-gate'); }
+        try { if (P.renderChip) P.renderChip(); } catch (e) { quiet(e, 'local-first-chip'); }
+        try { if (window.DB && DB.checarEspaco) DB.checarEspaco(); } catch (e) { quiet(e, 'local-first-space'); }
+        try {
+          if (window.StartupTrace && StartupTrace.mark) StartupTrace.mark('perfil-local-visivel', { id:String(id), mode:'local-first-v2' });
+        } catch (e) { quiet(e, 'local-first-trace'); }
+        reconcileLocalProfileInBackground(id);
+        return true;
+      }
+
       return original(id);
     };
     return true;
@@ -63095,6 +63627,222 @@ window.addEventListener('screen:activated', e => { if (e.detail && e.detail.scre
   setTimeout(boot,1000);setTimeout(boot,3000);
 })();
 
+/* ============================================================================
+   TEC RESET EPOCH GUARD
+   ----------------------------------------------------------------------------
+   Uma limpeza TEC precisa ser monotônica: nenhum envelope factual capturado
+   antes da limpeza pode reaparecer depois através da fila durável do Companion.
+
+   Regra:
+   - o reset grava um epoch por perfil (`TecDataReset._getApplied`);
+   - envelope normal do Companion traz `payload.capturedAt`;
+   - se capturedAt < epoch, o envelope é ACKado e descartado;
+   - a DATA DA RESOLUÇÃO não participa desta decisão. Assim, uma reconstrução
+     feita hoje de uma questão resolvida meses atrás continua válida, pois sua
+     captura/reconstrução ocorreu depois do reset.
+   ============================================================================ */
+(() => {
+  if (typeof window === 'undefined' || window.__tecResetEpochGuard) return;
+  window.__tecResetEpochGuard = true;
+
+  const quiet = (e, tag) => {
+    try { if (typeof _quiet === 'function') _quiet(e, tag || 'tec-reset-epoch'); }
+    catch (ignored) { void ignored; }
+  };
+
+  function activeProfile() {
+    try { return window.ProfileManager && ProfileManager.getActiveProfileId ? ProfileManager.getActiveProfileId() : null; }
+    catch (_) { return null; }
+  }
+
+  function captureInstant(payload) {
+    const candidates = [
+      payload && payload.capturedAt,
+      payload && payload.question && payload.question.capturadoEm,
+      payload && payload.provenance && payload.provenance.capturedAt,
+      payload && payload.receivedAt
+    ];
+    for (const raw of candidates) {
+      if (!raw) continue;
+      const t = Date.parse(String(raw));
+      if (Number.isFinite(t)) return t;
+    }
+    return null;
+  }
+
+  function resetInstant(profileId) {
+    try {
+      const D = window.TecDataReset;
+      if (!D || typeof D._getApplied !== 'function' || !profileId) return null;
+      const raw = D._getApplied(profileId);
+      const t = raw ? Date.parse(String(raw)) : NaN;
+      return Number.isFinite(t) ? t : null;
+    } catch (e) { quiet(e, 'tec-reset-epoch-read'); return null; }
+  }
+
+  function patch() {
+    const R = window.TecRealtime;
+    const D = window.TecDataReset;
+    if (!R || !D || R.__resetEpochGuardPatched || typeof R.ingest !== 'function') return false;
+    R.__resetEpochGuardPatched = true;
+
+    const originalIngest = R.ingest.bind(R);
+    R.ingest = function(payload, messageId) {
+      const profileId = activeProfile();
+      const epoch = resetInstant(profileId);
+      const captured = captureInstant(payload);
+
+      // Só descartamos quando há DUAS evidências temporais válidas. Payload sem
+      // capturedAt nunca é presumido antigo, para não perder dado legítimo.
+      if (epoch != null && captured != null && captured < epoch) {
+        try { if (typeof this.ack === 'function') this.ack(messageId); } catch (e) { quiet(e, 'tec-reset-stale-ack'); }
+        try {
+          console.warn('[TEC reset] envelope anterior à limpeza descartado', {
+            profileId,
+            messageId:String(messageId || ''),
+            capturedAt:new Date(captured).toISOString(),
+            resetAt:new Date(epoch).toISOString()
+          });
+        } catch (e) { quiet(e, 'tec-reset-stale-log'); }
+        return { ok:true, dropped:true, reason:'pre-reset-capture' };
+      }
+      return originalIngest(payload, messageId);
+    };
+    return true;
+  }
+
+  patch();
+  let tries = 0;
+  const timer = setInterval(() => {
+    tries++;
+    if (patch() || tries >= 120) clearInterval(timer);
+  }, 250);
+})();
+
+/* ============================================================================
+   EGRESS HARDENING — conteúdo grande nunca trafega por Postgres Changes
+   ----------------------------------------------------------------------------
+   study_profiles.payload pode ultrapassar 1 MB e profile_sections.data pode
+   chegar a centenas de KB. Postgres Changes transmite a linha alterada para cada
+   assinante; autosaves frequentes transformavam pequenas edições em GB de egress.
+
+   Política:
+   - conteúdo de estudo usa sincronização explícita no startup, foco e ação manual;
+   - Realtime fica reservado a sinais pequenos (ex.: active_sessions e TEC);
+   - eventos repetidos de focus/pageshow/visibilitychange são deduplicados quando
+     não existe alteração local pendente.
+   ============================================================================ */
+(() => {
+  if (typeof window === 'undefined' || window.__snmEgressHardening) return;
+  window.__snmEgressHardening = true;
+
+  const FOCUS_MIN_INTERVAL_MS = 15000;
+  let lastFocusSyncAt = 0;
+  let focusRunning = null;
+
+  function quiet(e, tag) {
+    try { if (typeof _quiet === 'function') _quiet(e, tag || 'egress-hardening'); }
+    catch (ignored) { void ignored; }
+  }
+
+  function pendingLocal(C) {
+    try {
+      if (C && (C._pending || C._debounce || C._syncing)) return true;
+      return !!(window.SectionSync && SectionSync.pendingQuick && SectionSync.pendingQuick() > 0);
+    } catch (_) { return false; }
+  }
+
+  function removeChannel(C, key) {
+    const ch = C && C[key];
+    if (!ch) return;
+    try { if (C.client && C.client.removeChannel) C.client.removeChannel(ch); }
+    catch (e) { quiet(e, 'egress-remove-' + key); }
+    C[key] = null;
+  }
+
+  function disconnectHeavyRealtime(C) {
+    if (!C) return;
+    removeChannel(C, 'channel');
+    removeChannel(C, 'secChannel');
+    try { clearTimeout(C._secRtTimer); } catch (e) { quiet(e, 'egress-clear-section-timer'); }
+    C._secRtTimer = null;
+    C._rtUserId = null;
+    C._secProfileId = null;
+  }
+
+  function patch() {
+    const C = window.CloudStore;
+    if (!C || C.__egressHardeningPatched) return false;
+    C.__egressHardeningPatched = true;
+    C.CONTENT_REALTIME_MODE = 'explicit-pull-v1';
+    C.CONTENT_REALTIME_DISABLED_REASON = 'avoid-large-row-egress';
+
+    // Defesa no cliente: mesmo que as tabelas pesadas sejam republicadas no
+    // Supabase futuramente, este app não volta a assinar esses Postgres Changes.
+    C.subscribeRealtime = function() {
+      disconnectHeavyRealtime(this);
+      return false;
+    };
+    C.subscribeSections = function() {
+      removeChannel(this, 'secChannel');
+      try { clearTimeout(this._secRtTimer); } catch (e) { quiet(e, 'egress-clear-subscription-timer'); }
+      this._secRtTimer = null;
+      this._secProfileId = null;
+      return false;
+    };
+
+    if (typeof C.syncOnFocus === 'function' && !C.syncOnFocus.__egressPatched) {
+      const original = C.syncOnFocus.bind(C);
+      const guarded = function() {
+        if (focusRunning) return focusRunning;
+        const force = pendingLocal(this);
+        const now = Date.now();
+        if (!force && now - lastFocusSyncAt < FOCUS_MIN_INTERVAL_MS) return Promise.resolve(false);
+        lastFocusSyncAt = now;
+        focusRunning = Promise.resolve()
+          .then(() => original())
+          .finally(() => { focusRunning = null; });
+        return focusRunning;
+      };
+      guarded.__egressPatched = true;
+      guarded.__original = original;
+      C.syncOnFocus = guarded;
+    }
+
+    disconnectHeavyRealtime(C);
+
+    window.EgressGuard = {
+      mode: C.CONTENT_REALTIME_MODE,
+      focusMinIntervalMs: FOCUS_MIN_INTERVAL_MS,
+      status() {
+        return {
+          mode: C.CONTENT_REALTIME_MODE,
+          heavyRealtimeConnected: !!(C.channel || C.secChannel),
+          lastFocusSyncAt: lastFocusSyncAt || null,
+          focusRunning: !!focusRunning,
+          localPending: pendingLocal(C),
+          activeProfile: (() => {
+            try { return window.ProfileManager && ProfileManager.getActiveProfileId ? ProfileManager.getActiveProfileId() : null; }
+            catch (_) { return null; }
+          })()
+        };
+      }
+    };
+
+    try { console.info('[egress] Realtime pesado desativado; conteúdo usa pull explícito.'); }
+    catch (e) { quiet(e, 'egress-info-log'); }
+    return true;
+  }
+
+  patch();
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', patch, { once:true });
+  let tries = 0;
+  const timer = setInterval(() => {
+    tries++;
+    if (patch() || (window.CloudStore && window.CloudStore.__egressHardeningPatched) || tries > 120) clearInterval(timer);
+  }, 250);
+})();
+
 </script>
 
 <!-- ============================================================
@@ -63141,12 +63889,14 @@ window.addEventListener('screen:activated', e => { if (e.detail && e.detail.scre
   var touchedSinceBoot = new Set();
   var bootHydrateStarted = 0;
   var bootStats = window.__idbStartupStats = {
-    strategy: 'active-profile-hot-v1',
+    strategy: 'active-profile-hot-v2-safe-mirror',
     activeProfileId: null,
     totalKeys: 0,
     hotKeys: 0,
     coldKeys: 0,
     hotChars: 0,
+    nativeAdopted: 0,
+    nativeSkippedBecauseOnDisk: 0,
     hydrateMs: 0,
     appCodeMs: 0,
     visibleMs: 0
@@ -63426,21 +64176,34 @@ window.addEventListener('screen:activated', e => { if (e.detail && e.detail.scre
     return out;
   };
 
-  /* Adoção do localStorage antigo. Como o espelho guarda apenas valores pequenos,
-     esta fusão é barata e mantém a compatibilidade/rede de recuperação existente. */
+  /* Adoção do localStorage antigo.
+     REGRA CRÍTICA: o espelho nativo só é uma fonte de migração quando a chave
+     NÃO EXISTE no IndexedDB. Perfis frios não estão no cache ainda; versões
+     anteriores confundiam "não está no cache" com "não existe no disco" e
+     regravavam um espelho antigo por cima do IndexedDB antes de o perfil frio
+     ser hidratado. Era uma das causas de dados que pareciam voltar/sumir após
+     refresh e de a guia anônima funcionar melhor que a guia normal. */
   function migrateFromNative() {
     if (!nativeLS) return 0;
-    var adotadas = 0, bytes = 0;
+    var adotadas = 0, bytes = 0, puladasNoDisco = 0;
+    var disk = new Set((allDiskKeys || []).map(String));
     try {
       for (var i = 0; i < nativeLS.length; i++) {
         var k = nativeLS.key(i); if (k == null || cache.has(k)) continue;
+        k = String(k);
+        // Se o IndexedDB já conhece a chave, ele é a autoridade. Um perfil frio
+        // será carregado sob demanda; o mirror NÃO pode preencher esse vazio.
+        if (disk.has(k)) { puladasNoDisco++; continue; }
         var v = nativeLS.getItem(k); if (v == null) continue;
         cache.set(k, v); enqueue({ t: 'set', k: k, v: v });
+        disk.add(k); allDiskKeys.push(k);
         adotadas++; bytes += v.length;
       }
+      bootStats.nativeAdopted = adotadas;
+      bootStats.nativeSkippedBecauseOnDisk = puladasNoDisco;
       if (adotadas) {
         invalidateKeys();
-        try { console.warn('[armazenamento] ' + adotadas + ' chave(s) antigas adotadas (' + Math.round(bytes / 1024) + ' KB)'); } catch (e) { /* noop */ }
+        try { console.warn('[armazenamento] ' + adotadas + ' chave(s) LEGADAS adotadas (' + Math.round(bytes / 1024) + ' KB); ' + puladasNoDisco + ' espelho(s) antigo(s) ignorado(s) porque o IndexedDB já era autoridade.'); } catch (e) { /* noop */ }
       }
     } catch (e) { /* recuperação best-effort */ }
     return adotadas;

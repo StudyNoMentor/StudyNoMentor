@@ -44,12 +44,14 @@
   var touchedSinceBoot = new Set();
   var bootHydrateStarted = 0;
   var bootStats = window.__idbStartupStats = {
-    strategy: 'active-profile-hot-v1',
+    strategy: 'active-profile-hot-v2-safe-mirror',
     activeProfileId: null,
     totalKeys: 0,
     hotKeys: 0,
     coldKeys: 0,
     hotChars: 0,
+    nativeAdopted: 0,
+    nativeSkippedBecauseOnDisk: 0,
     hydrateMs: 0,
     appCodeMs: 0,
     visibleMs: 0
@@ -329,21 +331,34 @@
     return out;
   };
 
-  /* Adoção do localStorage antigo. Como o espelho guarda apenas valores pequenos,
-     esta fusão é barata e mantém a compatibilidade/rede de recuperação existente. */
+  /* Adoção do localStorage antigo.
+     REGRA CRÍTICA: o espelho nativo só é uma fonte de migração quando a chave
+     NÃO EXISTE no IndexedDB. Perfis frios não estão no cache ainda; versões
+     anteriores confundiam "não está no cache" com "não existe no disco" e
+     regravavam um espelho antigo por cima do IndexedDB antes de o perfil frio
+     ser hidratado. Era uma das causas de dados que pareciam voltar/sumir após
+     refresh e de a guia anônima funcionar melhor que a guia normal. */
   function migrateFromNative() {
     if (!nativeLS) return 0;
-    var adotadas = 0, bytes = 0;
+    var adotadas = 0, bytes = 0, puladasNoDisco = 0;
+    var disk = new Set((allDiskKeys || []).map(String));
     try {
       for (var i = 0; i < nativeLS.length; i++) {
         var k = nativeLS.key(i); if (k == null || cache.has(k)) continue;
+        k = String(k);
+        // Se o IndexedDB já conhece a chave, ele é a autoridade. Um perfil frio
+        // será carregado sob demanda; o mirror NÃO pode preencher esse vazio.
+        if (disk.has(k)) { puladasNoDisco++; continue; }
         var v = nativeLS.getItem(k); if (v == null) continue;
         cache.set(k, v); enqueue({ t: 'set', k: k, v: v });
+        disk.add(k); allDiskKeys.push(k);
         adotadas++; bytes += v.length;
       }
+      bootStats.nativeAdopted = adotadas;
+      bootStats.nativeSkippedBecauseOnDisk = puladasNoDisco;
       if (adotadas) {
         invalidateKeys();
-        try { console.warn('[armazenamento] ' + adotadas + ' chave(s) antigas adotadas (' + Math.round(bytes / 1024) + ' KB)'); } catch (e) { /* noop */ }
+        try { console.warn('[armazenamento] ' + adotadas + ' chave(s) LEGADAS adotadas (' + Math.round(bytes / 1024) + ' KB); ' + puladasNoDisco + ' espelho(s) antigo(s) ignorado(s) porque o IndexedDB já era autoridade.'); } catch (e) { /* noop */ }
       }
     } catch (e) { /* recuperação best-effort */ }
     return adotadas;
