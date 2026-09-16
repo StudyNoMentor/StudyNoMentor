@@ -2,6 +2,7 @@ import { readFileSync } from 'node:fs';
 
 const read = p => readFileSync(new URL('../' + p, import.meta.url), 'utf8');
 const js = read('src/js/99d-startup-stability-ai.js');
+const resetGuard = read('src/js/99p-tec-reset-epoch-guard.js');
 const build = read('build.mjs');
 const section = read('src/js/62-section-sync.js');
 const gate = read('src/js/53-portao-de-acesso.js');
@@ -14,6 +15,7 @@ const chat = read('companion/src/chatgpt-content.js');
 
 const checks = [
   ['módulo de estabilidade está no build', build.includes("'js/99d-startup-stability-ai.js'")],
+  ['guard de epoch TEC está no fim do build', build.includes("'js/99p-tec-reset-epoch-guard.js'") && build.indexOf("'js/99p-tec-reset-epoch-guard.js'") > build.indexOf("'js/99o-tec-import-manager.js'")],
   ['sincronização remota usa soft refresh', js.includes('S.pullAndReload = async function()') && js.includes("scheduleSoftRefresh('dados novos da nuvem')")],
   ['login no mesmo perfil não força reload', js.includes("why === 'entrada no perfil com dados novos'") && js.includes('current === ACTIVE_AT_LOAD')],
   ['troca real de perfil continua no caminho original', js.includes('return original(reason, opts)')],
@@ -34,6 +36,9 @@ const checks = [
   ['reset TEC tem marcador remoto anti-ressurreição', js.includes("TEC_RESET_SECTION = '__tec_reset_epoch'") && js.includes("reason:'tec-full-reset-v1'")],
   ['reset TEC preserva outros dados do perfil', js.includes('isTecSection(section)') && js.includes("from('tec_resolution_events').delete().eq('profile_id', id)")],
   ['botão de zerar TEC é instalado no módulo', js.includes("button.textContent = 'Zerar dados TEC'") && js.includes('this.resetActive()')],
+  ['envelope TEC antigo é ACKado e descartado após reset', resetGuard.includes("reason:'pre-reset-capture'") && resetGuard.includes("this.ack(messageId)") && resetGuard.includes('captured < epoch')],
+  ['guard usa instante de captura e não data histórica da resolução', resetGuard.includes('payload && payload.capturedAt') && !resetGuard.includes('resolvedAt')],
+  ['payload sem timestamp não é descartado por presunção', resetGuard.includes('epoch != null && captured != null && captured < epoch')],
   ['SectionSync antigo ainda evita reload quando nada mudou', section.includes("if (!r.mudou) { console.info('[SectionSync] nuvem conferida: nada mudou, sem recarregar')")],
   ['gate distingue mesmo perfil de troca', gate.includes('const jaEraOAtivo = (ProfileManager.getActiveProfileId() === id)')],
   ['mirror nativo não sobrescreve chave já existente no IndexedDB', footer.includes('if (disk.has(k)) { puladasNoDisco++; continue; }') && footer.includes("strategy: 'active-profile-hot-v2-safe-mirror'")],
