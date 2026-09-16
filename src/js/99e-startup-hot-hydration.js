@@ -4,8 +4,10 @@
    A camada IndexedDB abre somente o perfil ativo no caminho crítico. Este módulo
    conecta essa otimização ao restante do app sem mudar a semântica dos dados:
    • antes de abrir/trocar para outro perfil, hidrata o namespace dele;
-   • perfis frios continuam sendo reconhecidos como existentes localmente pelo
-     índice de chaves do IndexedDB, evitando que a reconciliação os esconda;
+   • o MESMO perfil já seguro neste aparelho fica visível sem aguardar rede;
+   • a reconciliação remota ocorre em segundo plano, mas o reset TEC remoto é
+     conferido ANTES de qualquer kick/upload para não ressuscitar dado antigo;
+   • perfis frios continuam reconhecidos pelo índice do IndexedDB;
    • expõe diagnóstico simples de startup para medir ganho em máquina real.
    ============================================================================ */
 (() => {
@@ -32,6 +34,45 @@
   }
   window.__ensureStudyProfileHydrated = ensureProfile;
 
+  function canOpenLocalNow(P, id) {
+    try {
+      const C = window.CloudStore;
+      if (!id || !C || !C.isReady || !C.isReady() || !C.isLoggedIn || !C.isLoggedIn()) return false;
+      if (!window.ProfileManager || ProfileManager.getActiveProfileId() !== id) return false;
+      if (!P._hasLocalData || !P._hasLocalData(id)) return false;
+      const uid = C.session && C.session.user && C.session.user.id;
+      if (ProfileManager._podeVerLocal && !ProfileManager._podeVerLocal(id, uid)) return false;
+      return true;
+    } catch (e) {
+      quiet(e, 'local-first-check');
+      return false;
+    }
+  }
+
+  function reconcileLocalProfileInBackground(id) {
+    setTimeout(async () => {
+      try {
+        /* Ordem deliberada: marcador de reset primeiro. Só depois consultamos
+           revisões e/ou liberamos a fila local. Assim a tela abre instantânea,
+           mas nenhum TEC anterior ao reset volta para a nuvem. */
+        if (window.TecDataReset && TecDataReset.applyRemoteResetIfNeeded) {
+          await TecDataReset.applyRemoteResetIfNeeded(id);
+        }
+        if (!window.ProfileManager || ProfileManager.getActiveProfileId() !== id) return;
+        const S = window.SectionSync;
+        if (!S) return;
+        let remote = false;
+        try { if (S.hasRemoteUpdates) remote = !!(await S.hasRemoteUpdates(id)); }
+        catch (e) { quiet(e, 'local-first-remote-check'); }
+        if (!window.ProfileManager || ProfileManager.getActiveProfileId() !== id) return;
+        if (remote && S.pullAndReload) await S.pullAndReload();
+        else if (S.kick) S.kick();
+      } catch (e) {
+        quiet(e, 'local-first-reconcile');
+      }
+    }, 0);
+  }
+
   function patchProfileUI() {
     const P = window.ProfileUI;
     if (!P || P.__hotHydrationPatched || typeof P.enterProfile !== 'function') return false;
@@ -39,6 +80,26 @@
     const original = P.enterProfile.bind(P);
     P.enterProfile = async function(id) {
       await ensureProfile(id);
+
+      if (canOpenLocalNow(P, id)) {
+        try { sessionStorage.setItem(P.SESSION_KEY || 'diario-estudos:entered', id); } catch (e) { quiet(e, 'local-first-session'); }
+        try { if (P.setLastProfile) P.setLastProfile(id); } catch (e) { quiet(e, 'local-first-last-profile'); }
+        try {
+          const C = window.CloudStore;
+          const uid = C && C.session && C.session.user && C.session.user.id;
+          if (ProfileManager._setOwner && uid) ProfileManager._setOwner(id, uid);
+        } catch (e) { quiet(e, 'local-first-owner'); }
+        P._entering = false;
+        try { if (P.hideGate) P.hideGate(); } catch (e) { quiet(e, 'local-first-hide-gate'); }
+        try { if (P.renderChip) P.renderChip(); } catch (e) { quiet(e, 'local-first-chip'); }
+        try { if (window.DB && DB.checarEspaco) DB.checarEspaco(); } catch (e) { quiet(e, 'local-first-space'); }
+        try {
+          if (window.StartupTrace && StartupTrace.mark) StartupTrace.mark('perfil-local-visivel', { id:String(id), mode:'local-first-v2' });
+        } catch (e) { quiet(e, 'local-first-trace'); }
+        reconcileLocalProfileInBackground(id);
+        return true;
+      }
+
       return original(id);
     };
     return true;
