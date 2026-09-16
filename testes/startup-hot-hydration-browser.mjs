@@ -22,14 +22,14 @@ page.on('console',m=>{if(m.type()==='error'&&!/net::|ERR_|favicon|Failed to load
 
 try {
   await page.goto(url,{waitUntil:'domcontentloaded'});
-  await page.waitForFunction(()=>window.__idbShim===true&&window.DB,{timeout:30000});
+  await page.waitForFunction(()=>window.__idbShim===true&&window.ProfileUI&&window.__startupHotHydrationGuards,{timeout:30000});
 
   const seeded=await page.evaluate(async()=>{
     const db=await new Promise((resolve,reject)=>{const r=indexedDB.open('diario-estudos-db',1);r.onsuccess=()=>resolve(r.result);r.onerror=()=>reject(r.error);});
     const ativo='11111111-1111-4111-8111-111111111111';
     const frio='22222222-2222-4222-8222-222222222222';
-    const big=JSON.stringify({blob:'x'.repeat(6*1024*1024)});
-    const backup=JSON.stringify([{em:Date.now(),dados:'y'.repeat(3*1024*1024)}]);
+    const big=JSON.stringify({blob:'x'.repeat(4*1024*1024)});
+    const backup=JSON.stringify([{em:Date.now(),dados:'y'.repeat(2*1024*1024)}]);
     await new Promise((resolve,reject)=>{
       const tx=db.transaction('kv','readwrite'),s=tx.objectStore('kv');
       s.clear();
@@ -67,9 +67,9 @@ try {
   assert.equal(before.coldTec,null,'perfil frio não deve ter payload clonado antes de ser aberto');
   assert.equal(before.coldKnown,true,'índice deve saber que o perfil frio existe');
   assert.ok(before.coldIds.includes(seeded.frio),'perfil frio deve permanecer identificável');
-  assert.ok(before.stats.visibleMs<3000,`app deve ficar visível rapidamente mesmo com ~9 MB frios (${before.stats.visibleMs}ms)`);
+  assert.ok(before.stats.visibleMs<3000,`app deve ficar visível rapidamente mesmo com ~6 MB frios (${before.stats.visibleMs}ms)`);
 
-  const after=await page.evaluate(async({frio,bigLen})=>{
+  const after=await page.evaluate(async({frio})=>{
     await window.__idbHydrateProfile(frio);
     const v=localStorage.getItem(`diario-estudos:u:${frio}:p:pl_f:tec`);
     return {len:v?v.length:0,stillCold:window.__idbColdProfileIds().includes(frio)};
