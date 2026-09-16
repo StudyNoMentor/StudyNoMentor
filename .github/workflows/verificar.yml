@@ -94,6 +94,7 @@ jobs:
           node testes/tec-integracao-modulo.mjs
           node testes/tec-reconstrucao-caderno.mjs
           node testes/tec-reconstrucao-duravel.mjs
+          node testes/tec-reconciliacao-multidispositivo.mjs
           node testes/tec-historico-gestao.mjs
           node testes/tec-integracao-hardening-total.mjs
           node testes/tec-import-manager.mjs
