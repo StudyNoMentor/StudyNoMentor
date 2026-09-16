@@ -590,8 +590,13 @@
   "ate": 61693
  },
  {
-  "arquivo": "html/90-rodape.html",
+  "arquivo": "js/99m-tec-historico-gestao.js",
   "de": 61695,
-  "ate": 62159
+  "ate": 62001
+ },
+ {
+  "arquivo": "html/90-rodape.html",
+  "de": 62003,
+  "ate": 62467
  }
 ]
