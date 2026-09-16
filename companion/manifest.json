@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "StudyNoMentor Companion",
   "version": "1.4.1",
-  "description": "Integra o TecConcursos e provedores de IA ao StudyNoMentor com captura factual, reconstrução histórica durável, roteamento por perfil, fila com ACK/replay e auditoria.",
+  "description": "Integra o TecConcursos e provedores de IA ao StudyNoMentor com captura factual, reconstrução histórica durável, retry por questão, roteamento por perfil, fila com ACK/replay e auditoria.",
   "permissions": ["storage", "unlimitedStorage", "tabs", "alarms"],
   "host_permissions": [
     "https://www.tecconcursos.com.br/*",
@@ -38,13 +38,13 @@
         "https://www.tecconcursos.com.br/*",
         "https://tecconcursos.com.br/*"
       ],
-      "js": ["src/tec-integrity-guard.js", "src/tec-reconstruct-backpressure-v2.js", "src/tec-reconstruct.js", "src/tec-capture-v2.js", "src/tec-content.js", "src/tec-capture-watchdog.js"],
+      "js": ["src/tec-integrity-guard.js", "src/tec-reconstruct-backpressure-v2.js", "src/tec-reconstruct-resilience-v3.js", "src/tec-reconstruct.js", "src/tec-capture-v2.js", "src/tec-content.js", "src/tec-capture-watchdog.js"],
       "run_at": "document_start",
       "all_frames": true
     },
     {
       "matches": ["https://studynomentor.github.io/StudyNoMentor/*"],
-      "js": ["src/study-ai-proxy.js", "src/study-reconstruct-ack-v2.js"],
+      "js": ["src/study-ai-proxy.js", "src/study-reconstruct-ack-v2.js", "src/study-reconstruct-resilience-v3.js"],
       "run_at": "document_start",
       "world": "MAIN"
     },

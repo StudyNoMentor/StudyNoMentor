@@ -4,6 +4,7 @@ const read=p=>readFileSync(new URL('../'+p,import.meta.url),'utf8');
 const manifest=JSON.parse(read('companion/manifest.json'));
 const capture=read('companion/src/tec-capture-v2.js');
 const pressure=read('companion/src/tec-reconstruct-backpressure-v2.js');
+const resilience=read('companion/src/tec-reconstruct-resilience-v3.js');
 const reconstruct=read('companion/src/tec-reconstruct.js');
 const legacy=read('companion/src/tec-capture-watchdog.js');
 const integrity=read('companion/src/tec-integrity-guard.js');
@@ -12,8 +13,9 @@ const tecScript=(manifest.content_scripts||[]).find(x=>(x.matches||[]).some(m=>m
 const order=tecScript?tecScript.js||[]:[];
 const checks=[
   ['Companion 1.4.1 ativo',manifest.version==='1.4.1'],
-  ['guarda, backpressure e reconstrutor carregam antes da captura factual',!!tecScript&&order.indexOf('src/tec-integrity-guard.js')===0&&order.indexOf('src/tec-reconstruct-backpressure-v2.js')===1&&order.indexOf('src/tec-reconstruct.js')===2&&order.indexOf('src/tec-capture-v2.js')===3],
+  ['guarda, backpressure, resiliência e reconstrutor carregam antes da captura factual',!!tecScript&&order.indexOf('src/tec-integrity-guard.js')===0&&order.indexOf('src/tec-reconstruct-backpressure-v2.js')===1&&order.indexOf('src/tec-reconstruct-resilience-v3.js')===2&&order.indexOf('src/tec-reconstruct.js')===3&&order.indexOf('src/tec-capture-v2.js')===4],
   ['backpressure exige persistência do lote antes do avanço',pressure.includes("kind:'tec-reconstruct-batch-state'")&&pressure.includes('ACK_TIMEOUT_MS')],
+  ['resiliência por questão roda antes do reconstrutor e exige prova do mesmo ID',resilience.includes('const MAX_RECOVERY_ATTEMPTS = 3')&&resilience.includes("const id = String(failedRow?.questionId || '')")&&resilience.includes("if (String(currentQuestionId() || id) !== id && String(snap?.context?.id || '') !== id)")],
   ['aba de reconstrução neutraliza captura normal',reconstruct.includes('window.__snmTecCompanionV2 = true')&&reconstruct.includes('window.__snmTecCaptureWatchdog = true')],
   ['legados carregam depois e são neutralizados',order.indexOf('src/tec-content.js')>order.indexOf('src/tec-capture-v2.js')&&order.indexOf('src/tec-capture-watchdog.js')>order.indexOf('src/tec-content.js')&&capture.includes('window.__snmTecCaptureWatchdog = true')],
   ['captura v2 roda em todos os frames TEC',!!tecScript&&tecScript.all_frames===true],

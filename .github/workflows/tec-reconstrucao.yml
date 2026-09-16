@@ -8,6 +8,7 @@ on:
       - 'src/js/99m-tec-historico-gestao.js'
       - 'companion/**'
       - 'testes/tec-reconstrucao-caderno.mjs'
+      - 'testes/tec-reconstrucao-resiliencia.mjs'
       - 'testes/tec-historico-gestao.mjs'
       - 'testes/tec-integracao-modulo.mjs'
       - '.github/workflows/tec-reconstrucao.yml'
@@ -33,11 +34,18 @@ jobs:
           node --check src/js/99m-tec-historico-gestao.js
           node --check companion/src/background-reconstruct.js
           node --check companion/src/study-reconstruct-bridge.js
+          node --check companion/src/study-reconstruct-ack-v2.js
+          node --check companion/src/study-reconstruct-resilience-v3.js
           node --check companion/src/tec-reconstruct-page.js
+          node --check companion/src/tec-reconstruct-backpressure-v2.js
+          node --check companion/src/tec-reconstruct-resilience-v3.js
           node --check companion/src/tec-reconstruct.js
           node --check testes/tec-reconstrucao-caderno.mjs
+          node --check testes/tec-reconstrucao-resiliencia.mjs
           node --check testes/tec-historico-gestao.mjs
       - name: Validar contratos factuais da reconstrucao
-        run: node testes/tec-reconstrucao-caderno.mjs
+        run: |
+          node testes/tec-reconstrucao-caderno.mjs
+          node testes/tec-reconstrucao-resiliencia.mjs
       - name: Estressar gestao e reconciliacao por caderno
         run: node testes/tec-historico-gestao.mjs

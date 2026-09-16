@@ -21,11 +21,13 @@ const background=read('companion/src/background-v2.js');
 const reconstructionBg=read('companion/src/background-reconstruct.js');
 const capture=read('companion/src/tec-capture-v2.js');
 const reconPressure=read('companion/src/tec-reconstruct-backpressure-v2.js');
+const reconResilience=read('companion/src/tec-reconstruct-resilience-v3.js');
 const reconControl=read('companion/src/background-reconstruct-backpressure-v2.js');
 const reconCapture=read('companion/src/tec-reconstruct.js');
 const reconPage=read('companion/src/tec-reconstruct-page.js');
 const bridge=read('companion/src/study-bridge.js');
 const reconBridge=read('companion/src/study-reconstruct-bridge.js');
+const reconStudyResilience=read('companion/src/study-reconstruct-resilience-v3.js');
 const proxy=read('companion/src/study-ai-proxy.js');
 
 const scripts=manifest.content_scripts||[];
@@ -42,7 +44,7 @@ const checks=[
   ['alarms e armazenamento durável permitidos',(manifest.permissions||[]).includes('alarms')&&(manifest.permissions||[]).includes('unlimitedStorage')],
   ['ponte MAIN roda em todos frames TEC',!!mainWorld&&mainWorld.world==='MAIN'&&mainWorld.all_frames===true],
   ['ponte MAIN de reconstrução isolada',!!reconMain&&reconMain.world==='MAIN'&&(reconMain.js||[]).includes('src/tec-reconstruct-page.js')],
-  ['reconstrutor bloqueia captura e possui backpressure antes da captura v2',!!isolated&&isolated.js[0]==='src/tec-integrity-guard.js'&&isolated.js[1]==='src/tec-reconstruct-backpressure-v2.js'&&isolated.js[2]==='src/tec-reconstruct.js'&&isolated.js[3]==='src/tec-capture-v2.js'],
+  ['reconstrutor bloqueia captura, possui backpressure e retry antes da captura v2',!!isolated&&isolated.js[0]==='src/tec-integrity-guard.js'&&isolated.js[1]==='src/tec-reconstruct-backpressure-v2.js'&&isolated.js[2]==='src/tec-reconstruct-resilience-v3.js'&&isolated.js[3]==='src/tec-reconstruct.js'&&isolated.js[4]==='src/tec-capture-v2.js'],
   ['bridge Study só no frame principal',!!study&&study.all_frames!==true&&(study.js||[]).includes('src/study-reconstruct-bridge.js')],
   ['captura v2 bloqueia legados em runtime',capture.includes('window.__snmTecCompanion = true')&&capture.includes('window.__snmTecCaptureWatchdog = true')],
   ['captura não inventa marcada pelo gabarito',!capture.includes('if (acertou === true && correta && !marcada)')&&capture.includes("source='marked-vs-gabarito'")],
@@ -69,6 +71,8 @@ const checks=[
   ['lote é durável no background antes do ACK',reconstructionBg.includes('BATCHES_KEY')&&reconstructionBg.includes('storeBatch')&&reconstructionBg.includes('durable:true')],
   ['lotes são reenviados e só finalizam após persistência',reconstructionBg.includes('replayBatches')&&reconstructionBg.includes('awaiting-persistence')&&reconstructionBg.includes('maybeFinalize')],
   ['backpressure impede scanner de avançar sem ACK real',reconPressure.includes("kind:'tec-reconstruct-batch-state'")&&reconPressure.includes('ACK_TIMEOUT_MS')&&reconPressure.includes('MAX_CONSECUTIVE_FAILURES')],
+  ['retry individual ocorre antes da persistência do lote',reconResilience.includes('MAX_RECOVERY_ATTEMPTS = 3')&&reconResilience.includes('recoverFailure(row)')&&reconResilience.indexOf('recoverFailure(row)')<reconResilience.indexOf('underlyingSend({ ...message, rows:nextRows })')],
+  ['falha definitiva fica identificável e parcial',reconResilience.includes('failedQuestionIds')&&reconResilience.includes('summary.incomplete = unresolvedFailures.size > 0')&&reconStudyResilience.includes('Reconstrução parcial')&&reconStudyResilience.includes('failureDetails')],
   ['reset técnico é isolado da fila factual',reconControl.includes('snmTecReconstructJobsV1')&&reconControl.includes('snmTecReconstructBatchesV1')&&!reconControl.includes('snmTecQueueV1')],
   ['bridge transmite ACK de lote',reconBridge.includes('tec-reconstruct-batch')&&reconBridge.includes('tec-reconstruct-batch-ack')&&reconBridge.includes('tec-reconstruct-result')],
   ['site torna replay idempotente e ACKa após ingestão',auditTotal.includes('hasBatch(batchId)')&&auditTotal.includes('markBatch(batchId)')&&auditTotal.includes("type:'tec-reconstruct-batch-ack'")],
