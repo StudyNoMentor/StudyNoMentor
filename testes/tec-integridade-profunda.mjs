@@ -4,6 +4,9 @@ import assert from 'node:assert/strict';
 const read = (p) => readFileSync(new URL('../' + p, import.meta.url), 'utf8');
 const guard = read('companion/src/tec-integrity-guard.js');
 const reconstruct = read('companion/src/tec-reconstruct.js');
+const reconstructBackpressure = read('companion/src/tec-reconstruct-backpressure-v2.js');
+const reconstructionControl = read('companion/src/background-reconstruct-backpressure-v2.js');
+const reconstructionAck = read('companion/src/study-reconstruct-ack-v2.js');
 const capture = read('companion/src/tec-capture-v2.js');
 const site = read('src/js/99j-tec-hardening-api.js');
 const cloud = read('src/js/99k-tec-cloud-ledger-hardening.js');
@@ -20,9 +23,10 @@ const manifest = JSON.parse(read('companion/manifest.json'));
 const isolated = (manifest.content_scripts || []).find((x) => (x.js || []).includes('src/tec-capture-v2.js'));
 assert.ok(isolated, 'captura factual v2 ausente do manifest');
 assert.equal(isolated.js[0], 'src/tec-integrity-guard.js', 'guarda precisa executar primeiro');
-assert.equal(isolated.js[1], 'src/tec-reconstruct.js', 'reconstrutor precisa bloquear a captura normal antes de navegar no caderno');
-assert.equal(isolated.js[2], 'src/tec-capture-v2.js', 'captura v2 precisa executar antes dos capturadores legados');
-assert.equal(manifest.version, '1.4.0');
+assert.equal(isolated.js[1], 'src/tec-reconstruct-backpressure-v2.js', 'barreira de persistência precisa envolver o reconstrutor antes da navegação');
+assert.equal(isolated.js[2], 'src/tec-reconstruct.js', 'reconstrutor precisa bloquear a captura normal antes dos capturadores factuais');
+assert.equal(isolated.js[3], 'src/tec-capture-v2.js', 'captura v2 precisa executar antes dos capturadores legados');
+assert.equal(manifest.version, '1.4.1');
 assert.ok((manifest.permissions || []).includes('alarms'));
 assert.ok((manifest.permissions || []).includes('unlimitedStorage'));
 
@@ -55,6 +59,16 @@ assert.ok(reconstructionHardening.includes("type:'tec-reconstruct-batch-ack'"));
 assert.ok(reconstructionHardening.includes('archive-before-removal'));
 assert.ok(reconstructionHardening.includes('canonicalDay'));
 
+/* Protocolo 1.4.1: storage durável não é confirmação de persistência no Study. */
+assert.ok(reconstructBackpressure.includes("kind:'tec-reconstruct-batch-state'"));
+assert.ok(reconstructBackpressure.includes('ACK_TIMEOUT_MS'));
+assert.ok(reconstructBackpressure.includes('MAX_CONSECUTIVE_FAILURES'));
+assert.ok(reconstructionControl.includes("kind === 'tec-reconstruct-batch-state'"));
+assert.ok(reconstructionControl.includes("kind === 'tec-reconstruct-reset-all'"));
+assert.ok(reconstructionAck.includes("type:'tec-reconstruct-batch-ack'"));
+assert.ok(reconstructionAck.includes('verifyQuestions(payload)'));
+assert.ok(reconstructionAck.includes('tec-reconstruct-applied-batches-v2'));
+
 /* TrustGate único: legado nunca entra silenciosamente em prescrição. */
 assert.ok(site.includes('window.TecTrustGate=TecTrustGate'));
 assert.ok(site.includes("reason='legacy-unverified'"));
@@ -72,7 +86,7 @@ assert.ok(background.includes('chrome.alarms'));
 
 /* ChatGPT browser é opcional, cancelável e isolado. */
 assert.ok(entry.includes('snmPlusOwnedTabV2'));
-assert.ok(entry.includes("importScripts('background-v2.js','background-reconstruct.js')"));
+assert.ok(entry.includes("'background-reconstruct-backpressure-v2.js'"));
 assert.ok(proxy.includes("BROWSER_PROVIDER = 'chatgpt-plus-browser'"));
 assert.ok(proxy.includes("type:'plus-ai-cancel'"));
 assert.ok(chatgpt.includes("throw new Error('PARTIAL_RESPONSE')"));
@@ -101,4 +115,4 @@ assert.ok(!site.includes('GEMINI_API_KEY'));
 assert.ok(!site.includes('OPENAI_API_KEY'));
 assert.ok(build.includes("'js/99m-tec-historico-gestao.js','js/99n-tec-integracao-auditoria-total.js'"));
 
-console.log('TEC INTEGRIDADE V4: captura factual, reconstrução durável, TrustGate, roteamento, ledger e IA validados.');
+console.log('TEC INTEGRIDADE V4.1: captura factual, reconstrução com backpressure durável, TrustGate, roteamento, ledger e IA validados.');

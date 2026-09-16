@@ -78,4 +78,4 @@
   chrome.tabs.onRemoved.addListener(tabId => { ownedTabId().then(id=>{ if (id===Number(tabId)) return forgetOwned(tabId); }).catch(()=>{}); });
 })();
 
-importScripts('background-v2.js','background-reconstruct.js');
+importScripts('background-v2.js','background-reconstruct.js','background-reconstruct-backpressure-v2.js');

@@ -1,5 +1,6 @@
 /* StudyNoMentor Companion — ponte isolada para reconstrução histórica do TEC.
- * Protocolo 1.4: lotes só saem da fila durável depois do ACK da página Study.
+ * Protocolo 1.4.1: lotes só saem da fila durável depois do ACK da página Study;
+ * reset operacional limpa somente jobs/lotes de reconstrução.
  */
 'use strict';
 
@@ -85,6 +86,13 @@
       send({ type:'reconstruct-resync', payload:msg.payload || {} });
     } else if (msg.type === 'tec-reconstruct-batch-ack') {
       send({ type:'reconstruct-batch-ack', payload:msg.payload || {} });
+    } else if (msg.type === 'tec-reconstruct-hard-reset') {
+      /* Nunca permita que um request/ACK antigo guardado nesta ponte seja
+         reenviado depois da limpeza e recrie um job que o usuário acabou de cancelar. */
+      pending.length = 0;
+      chrome.runtime.sendMessage({ kind:'tec-reconstruct-reset-all' })
+        .then(result => postToPage('tec-reconstruct-reset-result', result || { ok:false }))
+        .catch(error => postToPage('tec-reconstruct-reset-result', { ok:false, error:String(error && error.message || error) }));
     }
   });
 
