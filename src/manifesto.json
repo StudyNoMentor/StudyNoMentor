@@ -625,8 +625,13 @@
   "ate": 63096
  },
  {
-  "arquivo": "html/90-rodape.html",
+  "arquivo": "js/99p-tec-reconciliacao-multidispositivo.js",
   "de": 63098,
-  "ate": 63562
+  "ate": 63433
+ },
+ {
+  "arquivo": "html/90-rodape.html",
+  "de": 63435,
+  "ate": 63899
  }
 ]
