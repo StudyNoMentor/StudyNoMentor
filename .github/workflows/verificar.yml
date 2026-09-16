@@ -62,6 +62,7 @@ jobs:
           node testes/fidelidade-tec.mjs
           node testes/startup-hot-hydration.mjs
           node testes/egress-hardening.mjs
+          node testes/deploy-consistency.mjs
           node testes/reforco-adaptativo-massivo.mjs
           node testes/plano-sugestoes-modulos.mjs
           node testes/plano-robusto.mjs
@@ -133,6 +134,7 @@ jobs:
         run: |
           set -euo pipefail
           timeout 90s node testes/startup-hot-hydration-browser.mjs
+          timeout 90s node testes/deploy-consistency-browser.mjs
           timeout 90s node testes/plano-sugestoes-modulos-browser.mjs
           timeout 90s node testes/plano-motores-governanca-browser.mjs
           timeout 90s node testes/plano-motores-central-tec-browser.mjs

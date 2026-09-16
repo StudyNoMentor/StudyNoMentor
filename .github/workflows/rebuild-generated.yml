@@ -1,0 +1,51 @@
+name: Rebuild generated app
+
+on:
+  push:
+    branches:
+      - 'fix/**'
+      - 'feat/**'
+      - 'refactor/**'
+      - 'chore/**'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: rebuild-generated-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  rebuild:
+    # O commit produzido pelo próprio workflow não deve disparar outro rebuild.
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.ref_name }}
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Gerar casca publicada a partir de src
+        run: node build.mjs
+      - name: Validar sintaxe dos artefatos críticos
+        run: |
+          node --check build.mjs
+          node --check sw.js
+      - name: Commitar somente artefatos derivados
+        shell: bash
+        run: |
+          set -euo pipefail
+          if git diff --quiet -- index.html sw.js src/manifesto.json; then
+            echo 'Artefatos já sincronizados.'
+            exit 0
+          fi
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add index.html sw.js src/manifesto.json
+          git commit -m 'build: synchronize generated application'
+          git push origin HEAD:${{ github.ref_name }}

@@ -31,7 +31,7 @@
 /* O carimbo é gravado pelo build.mjs a partir de um resumo do conteúdo de src/.
    Ele muda a cada publicação real — é isso que dá um BALDE NOVO a cada versão e
    faz a faxina da ativação ter o que descartar. Não edite à mão. */
-const VERSAO = 'v63acc19473';
+const VERSAO = 'v7e4ae53121';
 
 const CACHE_APP = VERSAO + '-app';
 const CACHE_CDN = 'cdn-imutavel-v1';
