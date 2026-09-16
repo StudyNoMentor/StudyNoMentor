@@ -30,5 +30,7 @@ jobs:
           path: ~/.cache/ms-playwright
           key: playwright-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
       - run: npx playwright install --with-deps chromium
+      - name: Diagnosticar overflow em todas as telas
+        run: node testes/site-overflow-diagnostico.mjs
       - name: Auditar CSS, HTML, JS e todas as telas
         run: node testes/site-visual-auditoria-total.mjs
