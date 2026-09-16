@@ -48,7 +48,7 @@
 
   function schedule(root=document) {
     clearTimeout(timer);
-    timer = setTimeout(() => run(root), 70);
+    timer = setTimeout(() => run(root), 55);
   }
 
   const boot = () => {
@@ -65,6 +65,10 @@
     });
     observer.observe(target,{subtree:true,childList:true,attributes:true,attributeFilter:['class','style','hidden']});
     window.addEventListener('site:screen-changed',() => schedule(document),{passive:true});
+    /* Breakpoints podem reintroduzir 8/9px sem mutar o DOM. Reaplica o piso
+       depois de resize/orientação — útil no celular e no redimensionamento de janela. */
+    window.addEventListener('resize',() => schedule(document),{passive:true});
+    window.addEventListener('orientationchange',() => schedule(document),{passive:true});
   };
 
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded',boot,{once:true});

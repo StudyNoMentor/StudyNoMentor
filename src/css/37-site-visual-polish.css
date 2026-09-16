@@ -1,8 +1,9 @@
 /* Refinos encontrados pela auditoria Chromium integral. */
 
-/* Registrar: modos Compacto/Guiado eram botões de 26px. */
+/* Registrar: modos Compacto/Guiado e ações textuais não podem ficar abaixo do
+   alvo visual mínimo. 34px evita arredondamento subpixel para 29/30px. */
 #screen-registrar button:not(.info-dot):not(.reg-act-btn):not(.toggle-switch):not(.icon-btn):not(.btn-icon) {
-  min-height:30px;
+  min-height:34px;
 }
 
 /* Conquistas: ícones bloqueados deixam de ser apagados por opacity; o estado
