@@ -41,10 +41,13 @@
       .map(job => job && job.tabId)
       .filter(id => id != null)
       .map(Number))];
+
+    /* Remove ownership before closing tabs. Otherwise background-reconstruct.js
+       can observe tabs.onRemoved, call failJob() and resurrect a job we just reset. */
+    await chrome.storage.local.remove([JOBS_KEY, BATCHES_KEY]);
     for (const tabId of tabs) {
       try { await chrome.tabs.remove(tabId); } catch (_) {}
     }
-    await chrome.storage.local.remove([JOBS_KEY, BATCHES_KEY]);
     return { ok:true, closedTabs:tabs.length };
   }
 
