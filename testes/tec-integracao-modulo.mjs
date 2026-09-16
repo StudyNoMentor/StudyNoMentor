@@ -65,7 +65,7 @@ const checks=[
   ['payload reconstruído completo vai ao ledger',reconstruction.includes('TecCloudLedger')&&reconstruction.includes('C.pushPayload')&&reconstruction.includes('question:{...x.question}')&&reconstruction.includes('history:x.history||null')],
   ['bridge de reconstrução transmite lotes/progresso',reconBridge.includes('tec-reconstruct-batch')&&reconBridge.includes('tec-reconstruct-progress')&&reconBridge.includes('tec-reconstruct-result')],
   ['gestor por caderno publicado',manager.includes('window.TecHistoricalManager=M')&&manager.includes('Gestão dos históricos TEC')],
-  ['gestor confronta snapshot local com leitura real',manager.includes('compareSnapshots')&&manager.includes("mode:'validation'")&&manager.includes("origin:'live-tec'")],
+  ['gestor confronta snapshot local com leitura real',manager.includes('compareSnapshots')&&manager.includes("beginRun(active.requestId,id,'validation')")&&manager.includes("origin:'live-tec'")],
   ['leitura parcial e conta divergente nunca recebem selo validado',manager.includes("status='partial'")&&manager.includes("status='account-mismatch'")&&manager.includes("status==='validated'?now():null")],
   ['remoção local bloqueia reidratação cloud',manager.includes('patchCloudSuppression')&&manager.includes('isSuppressedBook')&&manager.includes("suppressed:true")],
   ['restauração usa nova leitura real do TEC',manager.includes('Restaurar e validar no TEC')&&manager.includes("setSuppressed(id,false,'validacao-real-tec')")],
