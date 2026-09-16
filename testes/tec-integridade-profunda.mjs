@@ -5,7 +5,7 @@ const read = (p) => readFileSync(new URL('../' + p, import.meta.url), 'utf8');
 const guard = read('companion/src/tec-integrity-guard.js');
 const capture = read('companion/src/tec-capture-v2.js');
 const site = read('src/js/99j-tec-hardening-api.js');
-const cloud = read('src/js/99k-tec-cloud-ledger-v2.js');
+const cloud = read('src/js/99k-tec-cloud-ledger-hardening.js');
 const background = read('companion/src/background-v2.js');
 const entry = read('companion/src/background-entry.js');
 const proxy = read('companion/src/study-ai-proxy.js');
@@ -69,6 +69,6 @@ assert.ok(edge.includes('GEMINI_API_KEY'));
 assert.ok(edge.includes('consume_tec_ai_quota'));
 assert.ok(!site.includes('GEMINI_API_KEY'));
 assert.ok(!site.includes('OPENAI_API_KEY'));
-assert.ok(build.includes("'js/99j-tec-hardening-api.js','js/99k-tec-cloud-ledger-v2.js'"));
+assert.ok(build.includes("'js/99j-tec-hardening-api.js','js/99k-tec-cloud-ledger-hardening.js'"));
 
 console.log('TEC INTEGRIDADE V2: contratos factuais, TrustGate, roteamento, ledger e IA validados.');
