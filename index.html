@@ -57,7 +57,7 @@
      novo, e o antigo é descartado sozinho na ativação) e o que permite ao app
      dizer qual versão está rodando. Em src/ fica "dev" de propósito: a versão
      é gerada na montagem, não editada à mão. -->
-<meta name="diario-versao" content="v63097aeab9">
+<meta name="diario-versao" content="v427e095747">
 <script>
 /* ── ARRANQUE: abre o IndexedDB AGORA, em paralelo com o parse do documento ──
    A fachada de armazenamento vive no fim do <body>, depois de ~1,7 MB de HTML.
@@ -15425,6 +15425,233 @@ body.leis-foco #screen-leis .leis-reader-card {
 body.tec-import-open{overflow:hidden}.tec-import-modal[hidden]{display:none!important}.tec-import-modal{position:fixed;inset:0;z-index:2140;display:grid;place-items:center;padding:18px}.tec-import-backdrop{position:absolute;inset:0;background:rgba(7,10,18,.72);backdrop-filter:blur(5px)}.tec-import-sheet{position:relative;z-index:1;width:min(1480px,calc(100vw - 28px));height:min(92vh,980px);display:grid;grid-template-rows:auto auto auto auto minmax(0,1fr) auto;background:var(--surface);border:1px solid var(--border);border-radius:18px;box-shadow:0 24px 80px rgba(0,0,0,.35);overflow:hidden}.tec-import-head{display:flex;align-items:flex-start;justify-content:space-between;gap:16px;padding:18px 20px;border-bottom:1px solid var(--border);background:var(--surface)}.tec-import-head h2{margin:2px 0 4px;font-size:20px}.tec-import-head .sub{margin:0;max-width:850px}.tec-import-head-actions{display:flex;gap:8px;align-items:center;flex-wrap:wrap;justify-content:flex-end}.tec-import-summary{display:grid;grid-template-columns:repeat(10,minmax(100px,1fr));gap:8px;padding:12px 16px;border-bottom:1px solid var(--border);background:var(--surface-sunken)}.tec-import-stat{min-width:0;padding:9px 10px;border:1px solid var(--border);border-radius:10px;background:var(--surface);display:grid;gap:2px}.tec-import-stat strong{font-size:17px;line-height:1.1}.tec-import-stat span{font-size:10.5px;color:var(--text-soft);line-height:1.25}.tec-import-filters{display:grid;grid-template-columns:minmax(220px,2fr) repeat(6,minmax(120px,1fr));gap:8px;padding:12px 16px;border-bottom:1px solid var(--border);background:var(--surface)}.tec-import-filters label{display:grid;gap:4px;min-width:0}.tec-import-filters label>span{font-size:10.5px;color:var(--text-soft);font-weight:700}.tec-import-filters input,.tec-import-filters select{width:100%;min-width:0;height:34px;font:inherit;font-size:12px;border:1px solid var(--border);border-radius:8px;background:var(--surface-sunken);color:var(--text);padding:0 9px}.tec-import-search{grid-column:span 2}.tec-import-toolbar{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:9px 16px;border-bottom:1px solid var(--border);background:var(--surface-sunken)}.tec-import-toolbar-actions{display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end}.tec-import-table-wrap{min-height:0;overflow:auto}.tec-import-table{width:100%;border-collapse:separate;border-spacing:0;font-size:12px}.tec-import-table th{position:sticky;top:0;z-index:2;text-align:left;padding:9px 8px;background:var(--surface);border-bottom:1px solid var(--border);white-space:nowrap}.tec-import-table td{vertical-align:top;padding:9px 8px;border-bottom:1px solid var(--border);background:var(--surface)}.tec-import-table tr:hover td{background:var(--surface-sunken)}.tec-import-table tr.is-excluded td{opacity:.64;background:var(--surface-sunken)}.tec-import-table th:first-child,.tec-import-table td:first-child{width:34px;text-align:center}.tec-import-table th:last-child,.tec-import-table td:last-child{width:92px}.tec-import-excerpt{max-width:360px;margin-top:3px;color:var(--text-soft);display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;line-height:1.35}.tec-import-mini{font-size:10.5px;color:var(--text-soft);line-height:1.35;margin-top:2px}.tec-import-result{display:inline-flex;padding:3px 7px;border-radius:999px;font-size:10.5px;font-weight:800;border:1px solid var(--border)}.tec-import-result.ok{background:rgba(34,197,94,.12)}.tec-import-result.bad{background:rgba(239,68,68,.12)}.tec-import-result.neutral{background:var(--surface-sunken)}.tec-import-pager{display:flex;align-items:center;justify-content:center;gap:10px;padding:10px 16px;border-top:1px solid var(--border);background:var(--surface)}.tec-import-pager span{font-size:12px;color:var(--text-soft)}.tec-import-detail-modal{z-index:2160}.tec-import-detail-sheet{width:min(980px,calc(100vw - 28px));height:min(90vh,920px);grid-template-rows:auto minmax(0,1fr)}.tec-import-detail-body{overflow:auto;padding:16px;display:grid;gap:14px}.tec-import-detail-summary{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px}.tec-import-detail-summary>div{display:grid;gap:3px;padding:10px;border:1px solid var(--border);border-radius:10px;background:var(--surface-sunken)}.tec-import-detail-summary span{font-size:10.5px;color:var(--text-soft)}.tec-import-detail-summary strong{font-size:12px}.tec-import-detail-section{border:1px solid var(--border);border-radius:12px;padding:14px;background:var(--surface)}.tec-import-detail-section h3{margin:0 0 10px;font-size:13px}.tec-import-statement{white-space:pre-wrap;line-height:1.58;margin:0}.tec-import-alternatives{display:grid;gap:7px}.tec-import-alt{display:grid;grid-template-columns:28px minmax(0,1fr) auto;gap:8px;align-items:start;padding:9px 10px;border:1px solid var(--border);border-radius:9px;background:var(--surface-sunken)}.tec-import-alt.is-marked{outline:2px solid rgba(59,130,246,.35)}.tec-import-alt.is-correct{border-color:rgba(34,197,94,.62)}.tec-import-alt-flags{font-size:10.5px;color:var(--text-soft);white-space:nowrap}.tec-import-attempts{width:100%;border-collapse:collapse;font-size:11.5px}.tec-import-attempts th,.tec-import-attempts td{text-align:left;border-bottom:1px solid var(--border);padding:7px}.tec-import-detail-actions{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px}.tec-import-note{display:grid;gap:5px}.tec-import-note>span{font-size:11px;font-weight:700;color:var(--text-soft)}.tec-import-note textarea{width:100%;resize:vertical;min-height:80px;padding:9px;border:1px solid var(--border);border-radius:9px;background:var(--surface-sunken);color:var(--text);font:inherit}.tec-import-raw{margin-top:12px}.tec-import-raw summary{cursor:pointer;font-size:11px;color:var(--text-soft)}.tec-import-raw pre{max-height:320px;overflow:auto;padding:10px;border-radius:8px;background:var(--surface-sunken);font-size:10.5px;white-space:pre-wrap;word-break:break-word}.tec-import-effective-meta{margin-top:5px;font-weight:600}.btn-sm{padding:6px 9px!important;font-size:11px!important}.sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
 @media(max-width:1100px){.tec-import-summary{grid-template-columns:repeat(5,minmax(95px,1fr))}.tec-import-filters{grid-template-columns:repeat(4,minmax(120px,1fr))}.tec-import-search{grid-column:span 2}.tec-import-table{min-width:1050px}.tec-import-detail-summary{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media(max-width:700px){.tec-import-modal{padding:0}.tec-import-sheet,.tec-import-detail-sheet{width:100vw;height:100dvh;max-height:none;border-radius:0;border-left:0;border-right:0}.tec-import-head{padding:13px 12px;align-items:flex-start}.tec-import-head-actions{max-width:44%;gap:5px}.tec-import-head-actions .btn-secondary{font-size:10.5px;padding:7px 8px}.tec-import-summary{grid-template-columns:repeat(2,minmax(0,1fr));padding:10px}.tec-import-filters{grid-template-columns:repeat(2,minmax(0,1fr));padding:10px}.tec-import-search{grid-column:1/-1}.tec-import-toolbar{align-items:flex-start;flex-direction:column;padding:9px 10px}.tec-import-toolbar-actions{justify-content:flex-start}.tec-import-pager{position:sticky;bottom:0}.tec-import-detail-body{padding:10px}.tec-import-detail-summary{grid-template-columns:1fr 1fr}.tec-import-alt{grid-template-columns:26px minmax(0,1fr)}.tec-import-alt-flags{grid-column:2;white-space:normal}}
+
+</style>
+
+<style id="site-visual-hardening">
+/* ============================================================================
+   STUDYNOMENTOR — HARDENING VISUAL GLOBAL
+   Última camada de apresentação. Nenhuma regra de negócio.
+   Objetivos: legibilidade consistente, superfícies sólidas, molduras só onde
+   comunicam hierarquia, controles estáveis e zero vazamento horizontal.
+   ============================================================================ */
+
+/* 1. Tipografia e superfícies: hierarquia por cor/espaço, nunca por apagar UI. */
+.ux-hierarchy-ready :where(.ux-secondary-area,.ux-tertiary-action,.ux-diagnostic-action),
+#screen-cards #cards-filter-card,
+#screen-extras #extras-suggest-btn,
+#screen-config .cfg-group {
+  opacity:1 !important;
+}
+
+/* O cabeçalho da página é título, não mais um cartão dentro da página. */
+.ux-hierarchy-ready .page-header,
+.page-header {
+  padding:0 0 4px !important;
+  margin:0 0 18px !important;
+  border:0 !important;
+  border-left:0 !important;
+  border-radius:0 !important;
+  background:transparent !important;
+  box-shadow:none !important;
+}
+.ux-hierarchy-ready .page-header::before,
+.page-header::before { display:none !important; }
+.page-header h2.page-title { line-height:1.16; text-wrap:balance; }
+.page-header .page-subtitle { line-height:1.55; }
+
+/* Cards principais: borda fina e sombra curta. Cartão dentro de cartão não
+   ganha uma segunda moldura pesada. */
+.screen .card {
+  border-width:1px;
+  box-shadow:0 1px 2px rgb(15 23 42 / 4%), 0 7px 22px rgb(15 23 42 / 3%);
+}
+.screen .card .card { box-shadow:none; }
+.screen :where(.performance-panel,.plan-card,.copy-options,.scope-toggle,.reg-act-btn) { border-width:1px; }
+@media (hover:hover) {
+  .screen .card { transition:border-color .16s ease,box-shadow .16s ease,background .16s ease; }
+  .screen .card:hover { border-color:var(--border-strong); box-shadow:0 2px 4px rgb(15 23 42 / 4%),0 10px 28px rgb(15 23 42 / 4%); }
+}
+
+/* 2. Controles: texto legível e altura estável. Ícones/toggles continuam
+   compactos, mas botões textuais não viram pílulas de 23–27px. */
+.screen :where(.btn-primary,.btn-secondary,.reg-quick,.scope-toggle button,.cards-pill,.cards-fav-toggle,.ux-gear,.evo-collapse-btn) {
+  min-height:32px;
+  line-height:1.2;
+}
+.screen :where(input:not([type="checkbox"]):not([type="radio"]):not([type="range"]),select,textarea) {
+  min-height:38px;
+  font-size:max(12px,var(--fs-sm));
+  line-height:1.4;
+}
+.info-dot {
+  width:22px !important;
+  height:22px !important;
+  min-width:22px;
+  min-height:22px;
+  font-size:11px !important;
+  line-height:1 !important;
+  top:0 !important;
+}
+.page-header h2.page-title .info-dot { width:24px !important; height:24px !important; }
+
+/* 3. Rótulos que estavam abaixo do piso de leitura. */
+#screen-registrar .step-opt,
+#screen-registrar .gauge-text .label,
+#screen-links .link-card-cat,
+#screen-desempenhotec .tp-eyebrow,
+#screen-desempenhotec .tec-plan-top small,
+#screen-ferramentas .lbl,
+#screen-config .cfg-nav-title {
+  font-size:11px !important;
+  line-height:1.35;
+}
+#screen-extras small,
+#screen-desempenhotec small { font-size:11px !important; line-height:1.4; }
+#screen-extras :where(.extras-central-kpi,.extras-overview-kpi,.extras-mini-kpi) :where(span,b,strong) { font-size:11px !important; }
+
+/* Calendário: futuro continua visualmente secundário por cor, não por opacidade
+   do elemento inteiro (que também apaga bordas e texto). */
+#screen-conquistas .calm-cell.futuro {
+  opacity:1 !important;
+  color:var(--text-faint) !important;
+  background:color-mix(in srgb,var(--surface-sunken) 72%,transparent) !important;
+}
+#screen-conquistas :where(.calm-weekdays,.calm-calendar,.calm-grid) span { font-size:11px; }
+
+/* 4. Integração TEC — tipografia e fluxo responsivo. */
+#screen-integracaotec .tec-connect-eyebrow,
+#screen-integracaotec .tec-connect-stage { font-size:11px; }
+#screen-integracaotec .tec-workspace-card > .card-header .sub,
+#screen-integracaotec .tec-connect-status small,
+#screen-integracaotec .tec-connect-status-card > .hint,
+#screen-integracaotec .tec-connect-metrics span,
+#screen-integracaotec .tec-question-row small,
+#screen-integracaotec .tec-real-window,
+#screen-integracaotec .tec-real-summary,
+#screen-integracaotec .tec-real-main small { font-size:11px !important; line-height:1.42; }
+#screen-integracaotec .tec-real-badge { font-size:10.5px; }
+#screen-integracaotec :where(.tec-connect-actions button,.tec-ai-tabs button,.tec-ai-head-actions button,.tec-workspace-tools button) {
+  font-size:11.5px !important;
+  min-height:34px;
+}
+#screen-integracaotec .tec-ai-provider-box {
+  grid-template-columns:max-content minmax(180px,280px) minmax(0,1fr);
+  max-width:100%;
+}
+#screen-integracaotec .tec-ai-provider-box > * { min-width:0; }
+#screen-integracaotec .tec-ai-provider-hint {
+  min-width:0;
+  max-width:100%;
+  overflow-wrap:anywhere;
+}
+
+/* 5. Defesas estruturais comuns. Não escondem overflow: permitem que o
+   conteúdo flex/grid encolha antes de vazar. */
+.screen,
+.screen .content-wrap,
+.screen .card,
+.screen .card-header,
+.screen .card-header > *,
+.screen .field,
+.screen [class*="grid"] > *,
+.screen [class*="row"] > * { min-width:0; }
+.screen :where(img,svg,canvas,video) { max-width:100%; }
+.screen :where(h1,h2,h3,h4,h5,h6,p,.sub,.hint) { overflow-wrap:break-word; }
+
+/* 6. Configurações: navegação categórica vira grade em tela estreita, em vez
+   de continuar como uma faixa de desktop que sai da viewport. O seletor por
+   atributo cobre as variantes cfg-nav geradas por JS sem afetar conteúdo. */
+@media (max-width:640px) {
+  #screen-config [class*="cfg-nav"]:has(> button) {
+    display:grid !important;
+    grid-template-columns:repeat(2,minmax(0,1fr)) !important;
+    width:100% !important;
+    max-width:100% !important;
+    gap:7px !important;
+    overflow:visible !important;
+  }
+  #screen-config [class*="cfg-nav"]:has(> button) > button {
+    width:100% !important;
+    min-width:0 !important;
+    max-width:100% !important;
+    white-space:normal !important;
+    justify-content:flex-start;
+    text-align:left;
+    overflow-wrap:anywhere;
+  }
+  #screen-integracaotec .tec-ai-tabs {
+    display:grid;
+    grid-template-columns:repeat(2,minmax(0,1fr));
+    gap:6px;
+    overflow:visible;
+    padding-inline:14px;
+  }
+  #screen-integracaotec .tec-ai-tabs button {
+    width:100%;
+    min-width:0;
+    white-space:normal;
+    text-align:center;
+  }
+}
+
+@media (max-width:860px) {
+  #screen-integracaotec .tec-ai-provider-box {
+    grid-template-columns:1fr;
+    margin-inline:14px;
+  }
+}
+
+/* 7. Mobile: reduzir moldura, não texto. */
+@media (max-width:560px) {
+  .main-content { padding-inline:14px; }
+  .screen .card { border-radius:13px; }
+  .screen .card-header { padding-left:16px; padding-right:16px; }
+  #screen-config [class*="cfg-nav"]:has(> button) { grid-template-columns:1fr 1fr !important; }
+}
+
+/* 8. Respeito a preferências de movimento. */
+@media (prefers-reduced-motion:reduce) {
+  .screen *, .screen *::before, .screen *::after {
+    animation-duration:.001ms !important;
+    animation-iteration-count:1 !important;
+    transition-duration:.001ms !important;
+    scroll-behavior:auto !important;
+  }
+}
+
+</style>
+
+<style id="site-visual-polish">
+/* Refinos encontrados pela auditoria Chromium integral. */
+
+/* Registrar: modos Compacto/Guiado e ações textuais não podem ficar abaixo do
+   alvo visual mínimo. 34px evita arredondamento subpixel para 29/30px. */
+#screen-registrar button:not(.info-dot):not(.reg-act-btn):not(.toggle-switch):not(.icon-btn):not(.btn-icon) {
+  min-height:34px;
+}
+
+/* Conquistas: ícones bloqueados deixam de ser apagados por opacity; o estado
+   continua secundário por saturação/cor. */
+#screen-conquistas .bi {
+  opacity:1 !important;
+  filter:saturate(.42);
+}
+#screen-conquistas .bmore { font-size:10.5px !important; line-height:1.35; }
+
+/* Radar vazio é informação, não estado desabilitado. */
+#screen-integracaotec .trt-empty {
+  opacity:1 !important;
+  color:var(--text-faint) !important;
+}
+
+/* Segmentos da Evolução não podem cair abaixo do piso de leitura no 360px. */
+#screen-evolucao button:not(.info-dot):not(.icon-btn):not(.btn-icon) {
+  font-size:max(11px,var(--fs-2xs)) !important;
+}
+
+/* Navegação e micro-rótulos de Configurações. */
+#screen-config [class*="cfg-nav"] span { font-size:11px !important; }
 
 </style>
 
@@ -62841,6 +63068,83 @@ window.addEventListener('screen:activated', e => { if (e.detail && e.detail.scre
   const boot=()=>{try{IM.bind();IM.decorateHistoryCards();}catch(e){quiet(e,'tec-import-manager-boot');}};
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',boot,{once:true});else boot();
   setTimeout(boot,1000);setTimeout(boot,3000);
+})();
+
+/* ============================================================================
+   VISUAL HARDENING — componentes dinâmicos
+   ----------------------------------------------------------------------------
+   Algumas telas criam HTML em runtime e trazem `font-size` inline/important de
+   versões antigas. A camada CSS global não consegue vencer inline !important.
+   Este guard aplica somente invariantes de apresentação aos nós já renderizados:
+   piso de leitura para texto real e correções de opacidade conhecidas.
+   Não toca dados, regras de negócio, visibilidade, conteúdo ou dimensões de layout.
+   ============================================================================ */
+(() => {
+  if (typeof window === 'undefined' || window.__siteVisualHardeningRuntime) return;
+  window.__siteVisualHardeningRuntime = true;
+
+  const FLOOR = 10.5;
+  let timer = 0;
+  const textualTags = new Set(['SMALL','SPAN','B','STRONG','LABEL','BUTTON','DIV','P','EM']);
+  const skip = '.sr-only,[aria-hidden="true"],pre,code,kbd,samp,.tab-icon,.gf-ico,.app-loading-spin,.status-swatch';
+  const emojiOnly = /^\s*[\p{Extended_Pictographic}\p{Emoji_Presentation}\uFE0F\u200D\s]+\s*$/u;
+
+  function readableText(el) {
+    if (!el || !textualTags.has(el.tagName) || el.matches(skip) || el.closest('.sr-only,pre,code,kbd,samp')) return false;
+    const t = String(el.innerText || el.textContent || '').replace(/\s+/g,' ').trim();
+    return t.length > 1 && !emojiOnly.test(t);
+  }
+
+  function enforceFontFloor(root) {
+    const nodes = root && root.matches && root.matches('.screen') ? [root, ...root.querySelectorAll('*')] : [...document.querySelectorAll('.screen.active *,.screen:not([hidden]) *')];
+    for (const el of nodes) {
+      if (!readableText(el)) continue;
+      const cs = getComputedStyle(el);
+      if (cs.display === 'none' || cs.visibility === 'hidden') continue;
+      const fs = parseFloat(cs.fontSize) || 0;
+      if (fs > 0 && fs < 9.75) el.style.setProperty('font-size', FLOOR + 'px', 'important');
+    }
+  }
+
+  function enforceKnownOpacity(root=document) {
+    const q = sel => root.querySelectorAll ? root.querySelectorAll(sel) : [];
+    for (const el of q('#screen-conquistas .bi,#screen-integracaotec .trt-empty,#screen-cards #cards-filter-card,#screen-extras #extras-suggest-btn')) {
+      if (!el.matches(':disabled,[disabled]') && !el.closest('[disabled],[aria-disabled="true"]')) el.style.setProperty('opacity','1','important');
+    }
+  }
+
+  function run(root=document) {
+    try { enforceFontFloor(root); enforceKnownOpacity(root); }
+    catch (e) { try { if (typeof _quiet === 'function') _quiet(e,'site-visual-hardening'); } catch (_) { void _; } }
+  }
+
+  function schedule(root=document) {
+    clearTimeout(timer);
+    timer = setTimeout(() => run(root), 55);
+  }
+
+  const boot = () => {
+    run(document);
+    const target = document.querySelector('.main-content') || document.body;
+    if (!target || typeof MutationObserver === 'undefined') return;
+    const observer = new MutationObserver(records => {
+      let relevant = false;
+      for (const rec of records) {
+        if (rec.type === 'childList' && rec.addedNodes.length) { relevant = true; break; }
+        if (rec.type === 'attributes' && ['class','style','hidden'].includes(rec.attributeName)) { relevant = true; break; }
+      }
+      if (relevant) schedule(document);
+    });
+    observer.observe(target,{subtree:true,childList:true,attributes:true,attributeFilter:['class','style','hidden']});
+    window.addEventListener('site:screen-changed',() => schedule(document),{passive:true});
+    /* Breakpoints podem reintroduzir 8/9px sem mutar o DOM. Reaplica o piso
+       depois de resize/orientação — útil no celular e no redimensionamento de janela. */
+    window.addEventListener('resize',() => schedule(document),{passive:true});
+    window.addEventListener('orientationchange',() => schedule(document),{passive:true});
+  };
+
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded',boot,{once:true});
+  else boot();
 })();
 
 </script>
