@@ -4,13 +4,23 @@ on:
     branches: [main]
     paths:
       - 'companion/**'
+      - 'src/js/94-tec-integracao.js'
+      - 'src/js/95-tec-companion.js'
       - 'src/js/99j-tec-hardening-api.js'
       - 'src/js/99k-tec-cloud-ledger-hardening.js'
+      - 'src/js/99l-tec-reconstrucao-caderno.js'
+      - 'src/js/99m-tec-historico-gestao.js'
+      - 'src/js/99n-tec-integracao-auditoria-total.js'
+      - 'src/css/28-tec-integracao.css'
+      - 'src/css/33-tec-hardening-api.css'
+      - 'src/css/34-tec-integracao-layout-guard.css'
       - 'supabase/functions/tec-ai/**'
       - 'testes/tec-*.mjs'
+      - 'build.mjs'
   workflow_dispatch:
+
 jobs:
-  syntax:
+  diagnostico:
     runs-on: ubuntu-latest
     timeout-minutes: 3
     steps:
@@ -18,21 +28,20 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
-      - name: Check build
-        run: node --check build.mjs
-      - name: Check hardening site
-        run: node --check src/js/99j-tec-hardening-api.js
-      - name: Check cloud hardening
-        run: node --check src/js/99k-tec-cloud-ledger-hardening.js
-      - name: Check integrity test
-        run: node --check testes/tec-integridade-profunda.mjs
-      - name: Check integration test
-        run: node --check testes/tec-integracao-modulo.mjs
-      - name: Check trigger test
-        run: node --check testes/tec-companion-gatilho.mjs
-      - name: Check watchdog test
-        run: node --check testes/tec-companion-watchdog.mjs
-      - name: Check plus test
-        run: node --check testes/tec-companion-plus.mjs
-      - name: Build
-        run: node build.mjs
+          cache: npm
+      - name: Sintaxe e contratos críticos TEC
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --check build.mjs
+          for f in companion/src/*.js src/js/94-tec-integracao.js src/js/95-tec-companion.js src/js/99{j,k,l,m,n}-*.js testes/tec-*.mjs; do node --check "$f"; done
+          node testes/tec-integridade-profunda.mjs
+          node testes/tec-integracao-modulo.mjs
+          node testes/tec-reconstrucao-caderno.mjs
+          node testes/tec-reconstrucao-duravel.mjs
+          node testes/tec-historico-gestao.mjs
+          node testes/tec-integracao-hardening-total.mjs
+          node testes/tec-companion-gatilho.mjs
+          node testes/tec-companion-watchdog.mjs
+          node testes/tec-companion-plus.mjs
+          node build.mjs

@@ -143,6 +143,12 @@
     ]));
   }
 
+  function latestAttempt(attempts) {
+    const dated=(attempts||[]).filter(x=>x&&x.resolvedAt).map((x,i)=>({x,i,t:Date.parse(x.resolvedAt)})).filter(v=>Number.isFinite(v.t));
+    if (dated.length) return dated.sort((a,b)=>b.t-a.t||a.i-b.i)[0].x;
+    return attempts&&attempts[0]||null;
+  }
+
   function historyFromVm(expectedId = null) {
     for (const vm of vmCandidates()) {
       const q = vm && (vm.questao || vm.questão || vm.question);
@@ -165,13 +171,13 @@
           source:'angular-desempenho'
         });
       }
-      const first = attempts[0] || null;
+      const latest = latestAttempt(attempts);
       return {
         total:attempts.length,
         acertos,
         erros,
-        ultimoResultado:first ? (first.acertou ? 'acerto' : 'erro') : null,
-        ultimaAlternativa:first ? first.alternativa : null,
+        ultimoResultado:latest ? (latest.acertou ? 'acerto' : 'erro') : null,
+        ultimaAlternativa:latest ? latest.alternativa : null,
         consistente:acertos + erros === attempts.length,
         attempts,
         source:'angular-main'
