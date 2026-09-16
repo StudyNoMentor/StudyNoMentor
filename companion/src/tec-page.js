@@ -15,7 +15,8 @@
   const REQUEST_SOURCE = 'StudyMentorCompanionIsolated';
   const ACTION_RX = /Resolver\s+quest[aã]o|Responder|Confirmar\s+resposta|Enviar\s+resposta|Corrigir|Ver\s+resposta|Finalizar|Desempenho\s+na\s+quest[aã]o/i;
   let lastSignature = '';
-  let timer = null;
+  let observerTimer = null;
+  const clickTimers = new Set();
 
   const text = (el) => el ? String(el.textContent || '').replace(/\s+/g, ' ').trim() : '';
   const visible = (el) => {
@@ -27,20 +28,14 @@
     if (value == null) return '';
     const s = String(value);
     if (!/[<>]/.test(s)) return s.replace(/\s+/g, ' ').trim();
-    try {
-      const d = document.createElement('div'); d.innerHTML = s;
-      return text(d);
-    } catch (_) {
-      return s.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
-    }
+    try { const d = document.createElement('div'); d.innerHTML = s; return text(d); }
+    catch (_) { return s.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim(); }
   }
 
   function firstUseful(obj, keys) {
     for (const key of keys) {
-      try {
-        const value = obj && obj[key];
-        if (value != null && String(value).trim()) return value;
-      } catch (_) {}
+      try { const value = obj && obj[key]; if (value != null && String(value).trim()) return value; }
+      catch (_) {}
     }
     return null;
   }
@@ -60,8 +55,7 @@
     const out = [];
     for (const node of candidateButtons()) {
       try {
-        const ng = angular.element(node);
-        const scopes = [];
+        const ng = angular.element(node), scopes = [];
         try { scopes.push(ng.scope && ng.scope()); } catch (_) {}
         try { scopes.push(ng.isolateScope && ng.isolateScope()); } catch (_) {}
         try { scopes.push(ng.data && ng.data('$scope')); } catch (_) {}
@@ -85,13 +79,10 @@
         const letra = String(firstUseful(a, ['letra','label','alternativa','codigo','sigla','idAlternativa','ordem']) ?? String.fromCharCode(65 + i)).toUpperCase().match(/[A-E]/)?.[0] || null;
         const texto = htmlishToText(firstUseful(a, ['texto','descricao','descrição','conteudo','conteúdo','enunciado','html','valor','text','description']));
         if (!letra) continue;
-        rows.push({
-          letra,
-          texto,
+        rows.push({ letra, texto,
           selected: !!firstUseful(a, ['selecionada','selecionado','selected','marcada','marcado','checked']),
           correct: !!firstUseful(a, ['correta','correto','correct','isCorrect','gabarito']),
-          wrong: !!firstUseful(a, ['errada','errado','wrong','incorrect'])
-        });
+          wrong: !!firstUseful(a, ['errada','errado','wrong','incorrect']) });
       }
       if (rows.length >= 2) return rows;
     }
@@ -148,9 +139,16 @@
     return true;
   }
 
-  function schedule(force = false, delay = 0) {
-    clearTimeout(timer);
-    timer = setTimeout(() => emit(force), delay);
+  /* Debounce do MutationObserver e leituras pós-clique são coisas diferentes.
+     A versão anterior usava um único timer: a leitura de 450 ms cancelava a de
+     120 ms. Agora ambas sobrevivem, enquanto mutações seguem coalescidas. */
+  function scheduleObserver(delay = 80) {
+    clearTimeout(observerTimer);
+    observerTimer = setTimeout(() => emit(false), delay);
+  }
+  function scheduleClick(delay) {
+    const id = setTimeout(() => { clickTimers.delete(id); emit(true); }, delay);
+    clickTimers.add(id);
   }
 
   window.addEventListener('message', (event) => {
@@ -163,13 +161,13 @@
     const control = event.target && event.target.closest ? event.target.closest('button,a,[role="button"],[ng-click],[data-ng-click],label,input[type="radio"],[role="radio"]') : null;
     if (!control) return;
     emit(true);
-    schedule(true, 120);
-    schedule(true, 450);
+    scheduleClick(120);
+    scheduleClick(450);
   }, true);
 
   const start = () => {
     emit(true);
-    const observer = new MutationObserver(() => schedule(false, 80));
+    const observer = new MutationObserver(() => scheduleObserver(80));
     if (document.documentElement) observer.observe(document.documentElement, { childList:true, subtree:true });
     setInterval(() => emit(false), 2000);
   };

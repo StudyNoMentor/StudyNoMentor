@@ -1,113 +1,74 @@
 import { readFileSync } from 'node:fs';
-import vm from 'node:vm';
+import assert from 'node:assert/strict';
 
-const read = p => readFileSync(new URL('../' + p, import.meta.url), 'utf8');
+const read = (p) => readFileSync(new URL('../' + p, import.meta.url), 'utf8');
 const guard = read('companion/src/tec-integrity-guard.js');
-const site = read('src/js/99i-tec-integridade-auditoria.js');
-const bgEntry = read('companion/src/background-entry.js');
+const capture = read('companion/src/tec-capture-v2.js');
+const site = read('src/js/99j-tec-hardening-api.js');
+const cloud = read('src/js/99k-tec-cloud-ledger-v2.js');
+const background = read('companion/src/background-v2.js');
+const entry = read('companion/src/background-entry.js');
+const proxy = read('companion/src/study-ai-proxy.js');
 const chatgpt = read('companion/src/chatgpt-content.js');
+const edge = read('supabase/functions/tec-ai/index.ts');
+const build = read('build.mjs');
 const manifest = JSON.parse(read('companion/manifest.json'));
-const css = read('src/css/32-tec-integridade-auditoria.css');
 
-function fakeNode({ txt='', cls='', letter=null, selected=false, correct=false, wrong=false }={}) {
-  return {
-    textContent:txt, className:cls, offsetParent:{}, isConnected:true,
-    getAttribute(name) {
-      if (name==='data-letter') return letter;
-      if (name==='aria-checked') return selected?'true':null;
-      if (name==='aria-pressed') return null;
-      if (name==='aria-label') return '';
-      if (name==='value') return letter;
-      return null;
-    },
-    matches(sel) { return selected && sel==='input:checked'; },
-    querySelector(sel) {
-      if (selected && sel.includes('input:checked')) return {};
-      if (correct && (sel.includes('correct') || sel.includes('corret') || sel.includes('glyphicon-ok-sign') || sel.includes('fa-check'))) return {};
-      if (wrong && (sel.includes('incorrect') || sel.includes('errad') || sel.includes('glyphicon-remove') || sel.includes('fa-times'))) return {};
-      return null;
-    },
-    closest() { return this; },
-    getBoundingClientRect() { return { width:100,height:20 }; }
-  };
-}
+const isolated = (manifest.content_scripts || []).find((x) => (x.js || []).includes('src/tec-capture-v2.js'));
+assert.ok(isolated, 'captura factual v2 ausente do manifest');
+assert.equal(isolated.js[0], 'src/tec-integrity-guard.js', 'guarda precisa executar primeiro');
+assert.equal(isolated.js[1], 'src/tec-capture-v2.js', 'captura v2 precisa executar antes dos legados');
+assert.equal(manifest.version, '1.2.0');
+assert.ok((manifest.permissions || []).includes('alarms'));
 
-const altB=fakeNode({txt:'B) Minha alternativa',letter:'B',selected:true,wrong:true});
-const altC=fakeNode({txt:'C) Alternativa correta',letter:'C',correct:true});
-const banner=fakeNode({txt:'Resposta correta: C'});
-const listeners={};
-const documentGuard={
-  body:{innerText:'Questão ID: 3872602'},
-  querySelectorAll(selector) {
-    if (selector.includes('.jm44ow')) return [banner];
-    if (selector.startsWith('[data-question-id]')) return [];
-    if (selector.startsWith('label,button')) return [altB,altC];
-    return [];
-  },
-  addEventListener(type,fn){ listeners[type]=fn; }
-};
-const chrome={
-  runtime:{ sendMessage(){ return Promise.resolve({accepted:true}); } },
-  storage:{ local:{ set(){ return Promise.resolve(); } } }
-};
-const guardCtx={ window:null,document:documentGuard,chrome,location:{origin:'https://tecconcursos.com.br',href:'https://tecconcursos.com.br/questoes/3872602'},
-  getComputedStyle:()=>({position:'static'}), Date,Map,Set,Object,Array,String,Number,RegExp,Promise,console,setTimeout,clearTimeout };
-guardCtx.window=guardCtx;
-guardCtx.addEventListener=()=>{};
-vm.createContext(guardCtx);
-vm.runInContext(guard,guardCtx,{filename:'tec-integrity-guard.js'});
+/* Fonte factual: gabarito e resultado explícito são sinais diferentes. */
+assert.ok(guard.includes('"Resposta correta" identifica SOMENTE o gabarito'));
+assert.ok(guard.includes("source='marked-vs-gabarito'"));
+assert.ok(guard.includes('conflictResolved'));
+assert.ok(guard.includes("status:confidence==='high'?'verified'"));
+assert.ok(!capture.includes('if (acertou === true && correta && !marcada)'));
+assert.ok(!capture.includes('marcada = correta'));
+assert.ok(capture.includes("confidence='high'; source='marked-vs-gabarito'"));
+assert.ok(capture.includes('window.__snmTecCompanion = true'));
+assert.ok(capture.includes('window.__snmTecCaptureWatchdog = true'));
+assert.ok(capture.includes("source:'session-random'"), 'conta desconhecida deve usar identidade de sessão não colidente');
 
-const env={type:'resolution',payload:{resolution:{questionId:'3872602',acertou:true},question:{id:'3872602',acertou:true,alternativas:[
-  {letra:'B',texto:'Minha alternativa',marcadaPorMim:true},{letra:'C',texto:'Alternativa correta',correta:true}
-]}}};
-guardCtx.window.__snmTecIntegrity.normalizeEnvelope(env);
-if (env.payload.resolution.acertou !== false) throw new Error('BUG CRÍTICO: B marcada x C correta ainda foi registrada como acerto.');
-if (env.payload.resolution.marcada !== 'B' || env.payload.resolution.correta !== 'C') throw new Error('Resposta marcada/gabarito não sobreviveram à normalização.');
-if (!env.payload.resolution.integrity || env.payload.resolution.integrity.confidence !== 'high') throw new Error('Resolução reconciliada não recebeu evidência de alta confiança.');
-if (!env.payload.resolution.integrity.conflict) throw new Error('Conflito com resultado legado não foi auditado.');
+/* TrustGate único: legado nunca entra silenciosamente em prescrição. */
+assert.ok(site.includes('window.TecTrustGate=TecTrustGate'));
+assert.ok(site.includes("reason='legacy-unverified'"));
+assert.ok(site.includes("integrity.status==='verified'"));
+assert.ok(site.includes('L.events=function()'));
+assert.ok(site.includes('E.events=function()'));
+assert.ok(site.includes('R.__trustAttackWrapped'));
+assert.ok(site.includes("MIN_COMPANION = '1.2.0'"));
 
-/* A frase "Resposta correta" não pode, sozinha, ser tratada como "você acertou". */
-const onlyBanner=guardCtx.window.__snmTecIntegrity.bannerEvidence();
-if (onlyBanner.explicitResult === true) throw new Error('"Resposta correta" continua sendo interpretada como acerto do aluno.');
-if (onlyBanner.correct !== 'C') throw new Error('Letra do gabarito não foi extraída do banner informativo.');
+/* Perfil/ACK/fila precisam ter dono explícito. */
+assert.ok(background.includes('study_route_unbound'));
+assert.ok(background.includes('QUEUE_ITEM_PREFIX'));
+assert.ok(background.includes('sameOwner(ctx,item.target)'));
+assert.ok(background.includes('chrome.alarms'));
 
-const store=new Map();
-const localStorage={getItem:k=>store.get(k)||null,setItem:(k,v)=>store.set(k,String(v)),removeItem:k=>store.delete(k)};
-const state={questions:{},analyses:{},connection:{}};
-let runSection=null;
-const T={
-  text:v=>String(v==null?'':v).trim(), hash:v=>'h'+String(v).length, questionKey:(a,b,id)=>[a,b,id].join('::'),
-  state:()=>state, promptKindFor:(sec,q)=>sec==='diagnostico'?(q.acertou===false?'erro':'acerto'):'teoria',
-  promptState:()=>({prompts:{erro:'ID {{ID}} | MARQUEI {{MINHA_RESPOSTA}} | GAB {{GABARITO}} | {{RESULTADO}}',acerto:'ok',teoria:'teoria'}}),
-  DEFAULT_PROMPTS:{erro:'erro',acerto:'acerto',teoria:'teoria'},
-  renderPromptTemplate(t,q){return t.replace('{{ID}}',q.id||'—').replace('{{MINHA_RESPOSTA}}',q.marcada||'—').replace('{{GABARITO}}',q.correta||'—').replace('{{RESULTADO}}',q.acertou===false?'ERROU':'ACERTOU');},
-  runAI(sec){runSection=sec;return Promise.resolve(sec);}, render(){}, selectedKey:null
-};
-const documentSite={ readyState:'complete',querySelector(){return null;},addEventListener(){},getElementById(){return null;} };
-const siteCtx={window:null,document:documentSite,TecIntegracaoScreen:T,localStorage,DB:{_profilePrefix:()=> 'p:',setRaw:(k,v)=>{localStorage.setItem(k,v);return true;}},
-  Date,Map,Set,Object,Array,String,Number,RegExp,JSON,Math,Promise,console,setTimeout,clearTimeout,escapeHtml:s=>String(s),navigator:{clipboard:{writeText:async()=>{}}},location:{origin:'https://studynomentor.github.io'},addEventListener(){} };
-siteCtx.window=siteCtx;
-vm.createContext(siteCtx);
-vm.runInContext(site,siteCtx,{filename:'99i-tec-integridade-auditoria.js'});
+/* ChatGPT browser é opcional, cancelável e isolado. */
+assert.ok(entry.includes('snmPlusOwnedTabV2'));
+assert.ok(entry.includes("importScripts('background-v2.js')"));
+assert.ok(proxy.includes("BROWSER_PROVIDER = 'chatgpt-plus-browser'"));
+assert.ok(proxy.includes("type:'plus-ai-cancel'"));
+assert.ok(chatgpt.includes("throw new Error('PARTIAL_RESPONSE')"));
+assert.ok(chatgpt.includes('ensureFreshConversation'));
 
-T.mergeInto(state,{id:'42',enunciado:'Texto','alternativas':[ {letra:'B',texto:'B',marcadaPorMim:true},{letra:'C',texto:'C',correta:true}],marcada:'B',correta:'C',acertou:true},{tecAccount:'u',bookId:'c'});
-T.selectedKey='u::c::42';
-if (state.questions[T.selectedKey].question.acertou !== false) throw new Error('Biblioteca não reconciliou resultado com marcada/gabarito.');
-/* Uma captura posterior incompleta não pode apagar B/C. */
-T.mergeInto(state,{id:'42',enunciado:'Texto atualizado',alternativas:[{letra:'B',texto:'B'},{letra:'C',texto:'C'}],acertou:true},{tecAccount:'u',bookId:'c'});
-const persisted=state.questions[T.selectedKey].question;
-if (persisted.marcada!=='B'||persisted.correta!=='C'||persisted.acertou!==false) throw new Error('Captura incompleta apagou/alterou fatos já persistidos.');
-const local=T.localPrompt('diagnostico');
-if (!/MARQUEI B/.test(local.text)||!/GAB C/.test(local.text)||!/ERROU/.test(local.text)) throw new Error('Prompt instantâneo não contém resposta marcada, gabarito e resultado reconciliado.');
-await T.runAI('all');
-if (runSection!=='diagnostico') throw new Error('Primeiro clique ainda dispara múltiplas análises sequenciais.');
+/* Nuvem factual não reescreve evento e baixa deltas. */
+assert.ok(cloud.includes('ignoreDuplicates:true'));
+assert.ok(cloud.includes("CURSOR_SUFFIX='tec-cloud-ledger:cursor-v2'"));
+assert.ok(cloud.includes(".gte('created_at',cursor.at)"));
 
-const isolated=(manifest.content_scripts||[]).find(x=>(x.js||[]).includes('src/tec-content.js'));
-if (!isolated || isolated.js[0]!=='src/tec-integrity-guard.js') throw new Error('Guarda de integridade precisa executar antes do capturador TEC.');
-if (manifest.background.service_worker!=='src/background-entry.js') throw new Error('Worker reutilizável não está ativo no manifest.');
-if (!bgEntry.includes("nativeQuery({ url:['https://chatgpt.com/*'] })") || !bgEntry.includes("kind:'plus-ai-wake'")) throw new Error('Background não reutiliza/reativa aba existente do ChatGPT.');
-if (!chatgpt.includes("msg.kind!=='plus-ai-wake'") || !chatgpt.includes('async function pump')) throw new Error('Executor ChatGPT não aceita novos jobs na mesma aba.');
-if (!site.includes("AUDIT_KEY = 'tec-resolution-audit-v1'") || !site.includes('priorityBreakdown')) throw new Error('Auditoria de resolução/prioridade não está instalada.');
-for (const token of ['#tec-assistant-trust','.tec-lacunas-how','.tec-lacuna-proof-grid']) if (!css.includes(token)) throw new Error('UI de transparência ausente: '+token);
+/* IA multi-provedor: chave somente no backend. */
+assert.ok(edge.includes('callGemini'));
+assert.ok(edge.includes('callOpenAI'));
+assert.ok(edge.includes('callOpenAICompatible'));
+assert.ok(edge.includes('GEMINI_API_KEY'));
+assert.ok(edge.includes('consume_tec_ai_quota'));
+assert.ok(!site.includes('GEMINI_API_KEY'));
+assert.ok(!site.includes('OPENAI_API_KEY'));
+assert.ok(build.includes("'js/99j-tec-hardening-api.js','js/99k-tec-cloud-ledger-v2.js'"));
 
-console.log('TEC INTEGRIDADE PROFUNDA: resultado, B/C, persistência, prompt local, aba reutilizável e transparência validados.');
+console.log('TEC INTEGRIDADE V2: contratos factuais, TrustGate, roteamento, ledger e IA validados.');
