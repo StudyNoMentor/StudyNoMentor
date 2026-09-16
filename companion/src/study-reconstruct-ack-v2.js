@@ -57,12 +57,12 @@
   function verifyQuestions(payload) {
     const rows = Array.isArray(payload && payload.rows) ? payload.rows : [];
     const expected = rows
+      .filter(row => row && row.question && row.question.id)
       .map(row => ({
-        id:String(row && row.question && row.question.id || row && row.questionId || ''),
-        bookId:String(payload && payload.bookId || row && row.bookId || row && row.question && row.question.cadernoId || '')
-      }))
-      .filter(x => x.id && rows.some(row => row && row.question && String(row.question.id || '') === x.id));
-    if (!expected.length) return true; // batches containing only failed/unavailable questions carry no fact to persist.
+        id:String(row.question.id),
+        bookId:String(payload && payload.bookId || row.bookId || row.question.cadernoId || '')
+      }));
+    if (!expected.length) return true; // lote só com indisponíveis/falhas não possui fato de questão para verificar.
 
     const T = window.TecIntegracaoScreen;
     if (!T || typeof T.state !== 'function') return false;
@@ -85,8 +85,44 @@
     } catch (_) {}
   }
 
+  function resetLocalReconstructionState() {
+    const H = window.TecHistoricalReconstruction;
+    try {
+      if (H && typeof H.state === 'function' && typeof H.save === 'function') {
+        const st = H.state();
+        st.active = null;
+        H.save(st);
+        H.activeRequestId = null;
+      }
+      if (H && typeof H.setStatus === 'function') H.setStatus('Fila técnica da reconstrução limpa. Cole o link ou ID do caderno e inicie uma nova extração.', 0, false);
+    } catch (_) {}
+  }
+
+  function ensureResetControl() {
+    const card = document.getElementById('tec-reconstruction-card');
+    if (!card || document.getElementById('tec-reconstruction-reset-v2')) return !!card;
+    const cancel = document.getElementById('tec-reconstruction-cancel');
+    const parent = cancel && cancel.parentElement;
+    if (!parent) return false;
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.id = 'tec-reconstruction-reset-v2';
+    button.className = 'btn-secondary';
+    button.textContent = 'Limpar fila';
+    button.title = 'Cancela abas/jobs presos e limpa somente a fila técnica de reconstrução; não apaga questões já salvas.';
+    parent.appendChild(button);
+    button.addEventListener('click', () => {
+      const ok = window.confirm('Limpar a fila técnica da reconstrução TEC e cancelar qualquer aba de extração presa? As questões já salvas no StudyNoMentor serão preservadas.');
+      if (!ok) return;
+      button.disabled = true;
+      window.postMessage({ source:APP_SOURCE, type:'tec-reconstruct-hard-reset', payload:{ context:context() } }, location.origin);
+      setTimeout(() => { button.disabled = false; }, 5000);
+    });
+    return true;
+  }
+
   function patch() {
-    if (patched) return true;
+    if (patched) { ensureResetControl(); return true; }
     const H = window.TecHistoricalReconstruction;
     if (!H || typeof H.onMessage !== 'function') return false;
 
@@ -123,13 +159,30 @@
     };
     H.__ackV2Patched = true;
     patched = true;
+    ensureResetControl();
     return true;
   }
+
+  window.addEventListener('message', event => {
+    if (event.source !== window || event.origin !== location.origin) return;
+    const msg = event.data;
+    if (!msg || msg.source !== EXT_SOURCE || msg.type !== 'tec-reconstruct-reset-result') return;
+    const button = document.getElementById('tec-reconstruction-reset-v2');
+    if (button) button.disabled = false;
+    if (msg.payload && msg.payload.ok) resetLocalReconstructionState();
+    else {
+      const H = window.TecHistoricalReconstruction;
+      if (H && typeof H.setStatus === 'function') H.setStatus(`Não foi possível limpar a fila TEC: ${String(msg.payload && (msg.payload.error || msg.payload.reason) || 'erro desconhecido')}`, 0, false);
+    }
+  });
 
   let attempts = 0;
   const timer = setInterval(() => {
     attempts++;
-    if (patch() || attempts >= 240) clearInterval(timer);
+    const ok = patch();
+    if (patched) ensureResetControl();
+    if (ok && document.getElementById('tec-reconstruction-reset-v2')) clearInterval(timer);
+    else if (attempts >= 480) clearInterval(timer);
   }, 250);
   patch();
 })();
