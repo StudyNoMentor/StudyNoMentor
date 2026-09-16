@@ -5,8 +5,9 @@
    conecta essa otimização ao restante do app sem mudar a semântica dos dados:
    • antes de abrir/trocar para outro perfil, hidrata o namespace dele;
    • o MESMO perfil já seguro neste aparelho fica visível sem aguardar rede;
-   • a reconciliação remota ocorre em segundo plano, mas o reset TEC remoto é
-     conferido ANTES de qualquer kick/upload para não ressuscitar dado antigo;
+   • a reconciliação remota ocorre em segundo plano; leituras independentes
+     podem ocorrer em paralelo, mas nenhum kick/upload é liberado antes de a
+     checagem do reset TEC terminar;
    • perfis frios continuam reconhecidos pelo índice do IndexedDB;
    • expõe diagnóstico simples de startup para medir ganho em máquina real.
    ============================================================================ */
@@ -52,19 +53,29 @@
   function reconcileLocalProfileInBackground(id) {
     setTimeout(async () => {
       try {
-        /* Ordem deliberada: marcador de reset primeiro. Só depois consultamos
-           revisões e/ou liberamos a fila local. Assim a tela abre instantânea,
-           mas nenhum TEC anterior ao reset volta para a nuvem. */
-        if (window.TecDataReset && TecDataReset.applyRemoteResetIfNeeded) {
-          await TecDataReset.applyRemoteResetIfNeeded(id);
-        }
         if (!window.ProfileManager || ProfileManager.getActiveProfileId() !== id) return;
         const S = window.SectionSync;
         if (!S) return;
-        let remote = false;
-        try { if (S.hasRemoteUpdates) remote = !!(await S.hasRemoteUpdates(id)); }
-        catch (e) { quiet(e, 'local-first-remote-check'); }
+
+        /* São apenas LEITURAS e são independentes, então começam juntas:
+           - resetPromise verifica se outro dispositivo zerou o TEC;
+           - remotePromise compara revisões da nuvem.
+
+           A barreira é importante: NENHUM pull que possa acabar em merge local,
+           e principalmente nenhum kick/upload, acontece antes de resetPromise
+           terminar. Assim o fast path não fica esperando a rede, a revisão é
+           consultada imediatamente em segundo plano e dado TEC antigo não volta. */
+        const resetPromise = (window.TecDataReset && TecDataReset.applyRemoteResetIfNeeded)
+          ? Promise.resolve(TecDataReset.applyRemoteResetIfNeeded(id)).catch(e => { quiet(e, 'local-first-reset-check'); return false; })
+          : Promise.resolve(false);
+
+        const remotePromise = S.hasRemoteUpdates
+          ? Promise.resolve(S.hasRemoteUpdates(id)).then(Boolean).catch(e => { quiet(e, 'local-first-remote-check'); return false; })
+          : Promise.resolve(false);
+
+        const [, remote] = await Promise.all([resetPromise, remotePromise]);
         if (!window.ProfileManager || ProfileManager.getActiveProfileId() !== id) return;
+
         if (remote && S.pullAndReload) await S.pullAndReload();
         else if (S.kick) S.kick();
       } catch (e) {
