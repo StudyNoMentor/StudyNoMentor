@@ -80,4 +80,5 @@ const checks=[
 ];
 const failed=checks.filter(([,ok])=>!ok);
 if(failed.length){failed.forEach(([name])=>console.error('FALHOU:',name));process.exit(1);}
+await import('./tec-reconstrucao-caderno.mjs');
 console.log(`INTEGRAÇÃO TEC 1.3: ${checks.length}/${checks.length} contratos válidos.`);
