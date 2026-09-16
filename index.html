@@ -57,7 +57,7 @@
      novo, e o antigo é descartado sozinho na ativação) e o que permite ao app
      dizer qual versão está rodando. Em src/ fica "dev" de propósito: a versão
      é gerada na montagem, não editada à mão. -->
-<meta name="diario-versao" content="v78bb9e4498">
+<meta name="diario-versao" content="vf4df80da4e">
 <script>
 /* ── ARRANQUE: abre o IndexedDB AGORA, em paralelo com o parse do documento ──
    A fachada de armazenamento vive no fim do <body>, depois de ~1,7 MB de HTML.
@@ -14739,6 +14739,423 @@ body.leis-foco #screen-leis .leis-reader-card {
 }
 @media (max-width: 480px) {
   #tec-realtime-card .trt-kpis { grid-template-columns: repeat(2,minmax(0,1fr)) !important; }
+}
+
+</style>
+
+<style id="ux-foco-total">
+/* ============================================================================
+   REVISÃO VISUAL FOCADA — Lei Seca, Extras, Sidebar, Conquistas e TEC
+   ----------------------------------------------------------------------------
+   Última camada visual do app. O objetivo é retirar transparências acidentais,
+   normalizar bordas/tipografia e dar hierarquia operacional às telas mais densas.
+   Não altera métricas nem regras de negócio.
+   ============================================================================ */
+
+/* ── Tokens locais: superfície sólida e contraste legível ────────────────── */
+:root{
+  --focus-card-border:color-mix(in srgb,var(--text) 12%,var(--border));
+  --focus-card-border-strong:color-mix(in srgb,var(--text) 18%,var(--border));
+  --focus-card-shadow:0 4px 16px rgba(15,23,42,.055);
+  --focus-card-shadow-hover:0 9px 26px rgba(15,23,42,.075);
+}
+
+/* ── Sidebar: contraste, nome íntegro e rodapé alinhado ──────────────────── */
+.sidebar .tab{
+  opacity:1!important;
+  color:var(--text-soft)!important;
+  font-size:var(--fs-sm)!important;
+  font-weight:650!important;
+}
+.sidebar .tab:hover{color:var(--text)!important;background:var(--surface-sunken)!important}
+.sidebar .tab.active{color:var(--accent-text)!important;font-weight:800!important;background:var(--accent-soft)!important}
+.sidebar .tab[disabled]{opacity:.48!important}
+.sidebar .tab .tab-icon{opacity:1!important}
+.sidebar-footer-row{align-items:stretch!important;gap:8px!important}
+.sidebar-footer-row .profile-chip{
+  min-width:0!important;
+  min-height:54px!important;
+  height:54px!important;
+  padding:7px 9px!important;
+  background:var(--surface)!important;
+  border:1px solid var(--focus-card-border)!important;
+  box-shadow:none!important;
+}
+.profile-chip-avatar{width:38px!important;height:38px!important}
+.profile-chip-info{min-width:0!important;overflow:hidden!important}
+.profile-chip-eyebrow{font-size:10px!important;color:var(--text-soft)!important;line-height:1.15!important}
+.profile-chip-name{
+  display:block!important;
+  min-width:0!important;
+  max-width:100%!important;
+  font-size:var(--fs-sm)!important;
+  line-height:1.25!important;
+  color:var(--text)!important;
+  overflow:hidden!important;
+  text-overflow:ellipsis!important;
+  white-space:nowrap!important;
+}
+.profile-chip-switch{color:var(--text-soft)!important}
+.sidebar-logout-btn{
+  width:44px!important;
+  height:54px!important;
+  min-width:44px!important;
+  min-height:54px!important;
+  align-self:stretch!important;
+  color:var(--text-soft)!important;
+  background:var(--surface)!important;
+  border:1px solid var(--focus-card-border)!important;
+  border-radius:14px!important;
+}
+
+/* ── Lei Seca: uma borda por cartão, sem linhas vazando entre regiões ───── */
+#screen-leis .lei-card,
+#screen-leis .leis-list-topbar,
+#screen-leis .leis-reader-card{
+  opacity:1!important;
+  background-clip:padding-box!important;
+  border-style:solid!important;
+  border-color:var(--focus-card-border)!important;
+}
+#screen-leis .lei-card{
+  overflow:hidden!important;
+  box-shadow:var(--focus-card-shadow)!important;
+}
+#screen-leis .lei-card::before,
+#screen-leis .lei-card::after{pointer-events:none}
+#screen-leis .lei-card>:first-child{border-top:0!important}
+#screen-leis .lei-card>:last-child{border-bottom:0!important}
+#screen-leis .lei-card .lei-card-actions,
+#screen-leis .lei-card .lei-card-footer{
+  margin-left:-16px!important;
+  margin-right:-16px!important;
+  padding-left:16px!important;
+  padding-right:16px!important;
+  border-color:var(--border)!important;
+}
+
+/* ── Atividades Extras: elimina aspecto lavado/transparente ─────────────── */
+#screen-extras,
+#screen-extras :where(.card,.extras-toolbar,.exm-agenda-card,.exm-section,.exd,.exc-card,.lr-extra-card,.exm-stat,.cal-day,.xsc-summary-card){opacity:1!important}
+#screen-extras .extras-toolbar.ux100-config-card,
+#extras-curso>.card,#extras-curso .exc-card,
+#extras-agenda .exm-agenda-card.ux100-day-card,
+#extras-list .exm-section,
+#extras-list .exd.exm-task.ux100-task{
+  background:var(--surface)!important;
+  border-color:var(--focus-card-border)!important;
+  box-shadow:var(--focus-card-shadow)!important;
+}
+#screen-extras .ux100-config-copy span,
+#screen-extras .ux100-config-kpis span,
+#screen-extras .exm-stat small,
+#screen-extras .exm-section small,
+#screen-extras .exd small,
+#screen-extras .hint{
+  opacity:1!important;
+  color:var(--text-soft)!important;
+}
+#screen-extras .exm-stat[data-ux-priority="secondary"],
+#screen-extras .exm-source-filter,
+#screen-extras #extras-curso.ux-secondary-area{opacity:1!important}
+#screen-extras .exm-stat{
+  background:var(--surface)!important;
+  border:1px solid var(--focus-card-border)!important;
+}
+#screen-extras .exm-stat[data-ux-priority="primary"]{
+  background:color-mix(in srgb,var(--accent) 4%,var(--surface))!important;
+  border-color:color-mix(in srgb,var(--accent) 32%,var(--border))!important;
+}
+
+/* ── Conquistas: escala tipográfica única e cartões consistentes ────────── */
+#screen-conquistas{--conq-body:var(--fs-sm);--conq-meta:var(--fs-xs)}
+#screen-conquistas :where(.card,.badge,.conq-marco,.conq-mini,.conq-rec){opacity:1!important}
+#screen-conquistas #conquistas-body>.card{
+  border:1px solid var(--focus-card-border)!important;
+  border-radius:16px!important;
+  background:var(--surface)!important;
+  box-shadow:var(--focus-card-shadow)!important;
+}
+#screen-conquistas .conq-titulo{
+  font-size:var(--fs-sm)!important;
+  line-height:1.35!important;
+  font-weight:800!important;
+  letter-spacing:.015em!important;
+  text-transform:none!important;
+  color:var(--text)!important;
+}
+#screen-conquistas :where(.conq-presenca,.pl-prosa,.calm-legend,.conq-rec .rot,.conq-rec .qd,.conq-marco .r,.conq-marco .m,.conq-marco .p,.badge small,.badge p,.cm-r){
+  font-size:var(--conq-meta)!important;
+  line-height:1.45!important;
+  color:var(--text-soft)!important;
+  opacity:1!important;
+  font-family:var(--ui-font)!important;
+}
+#screen-conquistas :where(.conq-marco .v,.conq-rec .val,.cm-v){
+  font-family:var(--ui-font)!important;
+  font-size:var(--fs-lg)!important;
+  line-height:1.2!important;
+  font-weight:800!important;
+  color:var(--text)!important;
+}
+#screen-conquistas .conq-resumo{
+  display:grid!important;
+  grid-template-columns:repeat(auto-fit,minmax(130px,1fr))!important;
+  gap:8px!important;
+  margin-top:12px!important;
+}
+#screen-conquistas .conq-mini,
+#screen-conquistas .conq-marco,
+#screen-conquistas .badge{
+  padding:12px!important;
+  border:1px solid var(--focus-card-border)!important;
+  border-radius:12px!important;
+  background:var(--surface-sunken)!important;
+}
+#screen-conquistas .badge.on{background:color-mix(in srgb,var(--good-soft) 54%,var(--surface))!important;border-color:color-mix(in srgb,var(--good) 42%,var(--border))!important}
+#screen-conquistas .calm-title{font-size:var(--fs-md)!important;color:var(--text)!important}
+#screen-conquistas .calm-cell{font-size:var(--fs-xs)!important}
+
+/* ── Desempenho TEC: superfícies sólidas, Plano sem molduras concorrentes ─ */
+#screen-desempenhotec :where(.card,.tec-total-card,.pl-hero,.pl-ciclo,.pl-regua,.pl-mat-lista li,.tpm-output,.tpm-rec,.tpm-ranking,.pl-item,.pl-row){opacity:1!important}
+#screen-desempenhotec .card,
+#screen-desempenhotec .pl-hero,
+#screen-desempenhotec .tpm-output,
+#screen-desempenhotec .tpm-rec{
+  background:var(--surface)!important;
+  border-color:var(--focus-card-border)!important;
+  box-shadow:var(--focus-card-shadow)!important;
+}
+#screen-desempenhotec .tec-cfg-bar.ux-analysis-settings{
+  opacity:1!important;
+  padding:9px 12px!important;
+  border:0!important;
+  border-bottom:1px solid var(--border)!important;
+  border-radius:0!important;
+  background:var(--surface)!important;
+  box-shadow:none!important;
+}
+#screen-desempenhotec .tec-cfg-bar.ux-analysis-settings::before,
+#screen-desempenhotec .tec-cfg-bar.ux-analysis-settings::after{display:none!important}
+#screen-desempenhotec .pl-ciclo{
+  overflow:hidden!important;
+  margin:14px 0!important;
+  border:1px solid var(--focus-card-border)!important;
+  border-radius:16px!important;
+  background:var(--surface)!important;
+  box-shadow:var(--focus-card-shadow)!important;
+}
+#screen-desempenhotec .pl-ciclo>summary{
+  display:grid!important;
+  grid-template-columns:minmax(0,1fr) auto!important;
+  gap:4px 12px!important;
+  align-items:center!important;
+  padding:14px 16px!important;
+  background:linear-gradient(135deg,color-mix(in srgb,var(--accent) 7%,var(--surface)),var(--surface))!important;
+  border:0!important;
+}
+#screen-desempenhotec .pl-ciclo>summary strong{
+  font-size:var(--fs-lg)!important;
+  color:var(--text)!important;
+}
+#screen-desempenhotec .pl-ciclo>summary>span:not(.chev){font-size:var(--fs-xs)!important;color:var(--text-soft)!important;line-height:1.4!important}
+#screen-desempenhotec .pl-mat-lista{display:grid!important;gap:8px!important;padding:12px 14px 14px!important}
+#screen-desempenhotec .pl-mat-lista>li{
+  margin:0!important;
+  padding:11px 12px!important;
+  border:1px solid var(--focus-card-border)!important;
+  border-radius:12px!important;
+  background:var(--surface)!important;
+}
+#screen-desempenhotec .tpm-output.ux-force-task{
+  border:1px solid color-mix(in srgb,var(--accent) 30%,var(--border))!important;
+  border-radius:18px!important;
+  padding:16px!important;
+}
+#screen-desempenhotec .tpm-output.ux-force-task>header{
+  padding-bottom:12px!important;
+  margin-bottom:12px!important;
+  border-bottom:1px solid var(--border)!important;
+}
+#screen-desempenhotec .tpm-recs{display:grid!important;grid-template-columns:repeat(auto-fit,minmax(230px,1fr))!important;gap:10px!important}
+#screen-desempenhotec .tpm-rec{
+  min-width:0!important;
+  padding:13px!important;
+  border:1px solid var(--focus-card-border)!important;
+  border-radius:14px!important;
+}
+#screen-desempenhotec :where(.pl-prosa,.tpm-rec small,.tpm-ranking small,.pl-item small){color:var(--text-soft)!important;opacity:1!important;line-height:1.45!important}
+/* O cruzamento nominal com o Ciclo/planejamento foi descontinuado: taxonomias
+   diferentes não devem fingir correspondência por nome. */
+#screen-desempenhotec .pl-edital{display:none!important}
+
+/* ── Integração TEC: workspace coeso e Radar operacional moderno ────────── */
+#screen-integracaotec.tec-workbench-v2{padding-bottom:32px!important}
+#screen-integracaotec .tec-connect-grid{gap:14px!important}
+#screen-integracaotec :where(.card,.tec-workspace-card,.tec-connect-status-card,.tec-connect-data-card,.tec-library-card,.tec-assistant-card,#tec-realtime-card,#tec-lacunas-card,#tec-real-evidence-card){
+  opacity:1!important;
+  border:1px solid var(--focus-card-border)!important;
+  border-radius:16px!important;
+  background:var(--surface)!important;
+  box-shadow:var(--focus-card-shadow)!important;
+}
+#screen-integracaotec .card-header{
+  padding:15px 17px 11px!important;
+}
+#screen-integracaotec .card-header h2{font-size:var(--fs-lg)!important;line-height:1.25!important;color:var(--text)!important}
+#screen-integracaotec .card-header .sub{font-size:var(--fs-xs)!important;line-height:1.45!important;color:var(--text-soft)!important;opacity:1!important}
+#screen-integracaotec :where(.tec-connect-status,.tec-connect-metrics div,.tec-question-row,.tec-question-alternatives>div,.tec-ai-content,.tec-real-row,.tec-lacuna-row){
+  border-color:var(--focus-card-border)!important;
+  background:var(--surface)!important;
+  opacity:1!important;
+}
+#screen-integracaotec :where(.tec-connect-status small,.tec-connect-metrics span,.tec-question-row small,.tec-real-main small,.tec-real-summary,.tec-connect-empty,.hint){
+  color:var(--text-soft)!important;
+  opacity:1!important;
+  font-size:var(--fs-xs)!important;
+  line-height:1.45!important;
+}
+
+/* Radar TEC */
+#tec-realtime-card{
+  overflow:hidden!important;
+  border-color:color-mix(in srgb,var(--accent) 28%,var(--border))!important;
+}
+#tec-realtime-card .trt-head{
+  display:flex!important;
+  align-items:flex-start!important;
+  justify-content:space-between!important;
+  gap:14px!important;
+  padding:17px 18px 14px!important;
+  background:linear-gradient(135deg,color-mix(in srgb,var(--accent) 8%,var(--surface)),var(--surface) 64%)!important;
+  border-bottom:1px solid color-mix(in srgb,var(--accent) 15%,var(--border))!important;
+}
+#tec-realtime-card .trt-head h2{font-size:20px!important;letter-spacing:-.02em!important}
+#tec-realtime-card .trt-status{
+  min-height:32px!important;
+  display:inline-flex!important;
+  align-items:center!important;
+  gap:7px!important;
+  padding:6px 10px!important;
+  color:var(--text)!important;
+  font-size:var(--fs-xs)!important;
+  font-weight:750!important;
+  border:1px solid var(--focus-card-border)!important;
+  background:var(--surface)!important;
+}
+#tec-realtime-card .trt-toolbar{
+  display:flex!important;
+  align-items:center!important;
+  flex-wrap:wrap!important;
+  gap:8px!important;
+  margin:14px 18px!important;
+  padding:10px!important;
+  border:1px solid var(--focus-card-border)!important;
+  border-radius:12px!important;
+  background:var(--surface-sunken)!important;
+}
+#tec-realtime-card .trt-toolbar :where(button,input,select){min-height:36px!important}
+#tec-realtime-card #trt-range-label{font-size:var(--fs-xs)!important;font-weight:750!important;color:var(--text)!important}
+#tec-realtime-card .trt-queue{font-size:var(--fs-xs)!important;color:var(--text-soft)!important;opacity:1!important}
+#tec-realtime-card .trt-kpis{
+  display:grid!important;
+  grid-template-columns:repeat(6,minmax(0,1fr))!important;
+  gap:9px!important;
+  padding:0 18px 14px!important;
+}
+#tec-realtime-card .trt-kpi{
+  position:relative!important;
+  min-height:82px!important;
+  padding:12px 11px 10px!important;
+  border:1px solid var(--focus-card-border)!important;
+  border-radius:13px!important;
+  background:var(--surface)!important;
+  box-shadow:none!important;
+}
+#tec-realtime-card .trt-kpi::before{
+  display:block!important;
+  margin-bottom:7px!important;
+  font-size:16px!important;
+  line-height:1!important;
+}
+#tec-realtime-card .trt-kpi:nth-child(1)::before{content:"🧾"}
+#tec-realtime-card .trt-kpi:nth-child(2)::before{content:"❌"}
+#tec-realtime-card .trt-kpi:nth-child(3)::before{content:"🔢"}
+#tec-realtime-card .trt-kpi:nth-child(4)::before{content:"✅"}
+#tec-realtime-card .trt-kpi:nth-child(5)::before{content:"📚"}
+#tec-realtime-card .trt-kpi:nth-child(6)::before{content:"🧩"}
+#tec-realtime-card .trt-kpi b{font-size:22px!important;color:var(--text)!important;line-height:1!important}
+#tec-realtime-card .trt-kpi small{font-size:var(--fs-xs)!important;color:var(--text-soft)!important;opacity:1!important}
+#tec-realtime-card .trt-note{
+  margin:0 18px 12px!important;
+  padding:11px 12px!important;
+  border:1px solid color-mix(in srgb,var(--info) 22%,var(--border))!important;
+  border-left:4px solid var(--info)!important;
+  border-radius:11px!important;
+  background:color-mix(in srgb,var(--info-soft) 60%,var(--surface))!important;
+  color:var(--text-soft)!important;
+  font-size:var(--fs-xs)!important;
+  line-height:1.5!important;
+}
+#tec-realtime-card .trt-list{display:grid!important;gap:8px!important;padding:0 18px 14px!important}
+#tec-realtime-card .trt-row{
+  display:grid!important;
+  grid-template-columns:minmax(0,1fr) auto!important;
+  align-items:center!important;
+  gap:12px!important;
+  padding:12px!important;
+  border:1px solid var(--focus-card-border)!important;
+  border-radius:12px!important;
+  background:var(--surface)!important;
+}
+#tec-realtime-card .trt-row b{display:block!important;font-size:var(--fs-sm)!important;line-height:1.35!important;overflow-wrap:anywhere!important}
+#tec-realtime-card .trt-row small{display:block!important;margin-top:3px!important;font-size:var(--fs-xs)!important;line-height:1.4!important;color:var(--text-soft)!important;opacity:1!important}
+#tec-realtime-card .trt-badge{
+  display:inline-flex!important;
+  align-items:center!important;
+  gap:5px!important;
+  white-space:nowrap!important;
+  padding:6px 9px!important;
+  border-radius:999px!important;
+  font-size:var(--fs-xs)!important;
+  font-weight:800!important;
+  border:1px solid var(--focus-card-border)!important;
+}
+#tec-realtime-card .trt-badge.confirmed{color:var(--bad-text)!important;background:var(--bad-soft)!important;border-color:color-mix(in srgb,var(--bad) 35%,var(--border))!important}
+#tec-realtime-card .trt-badge.confirmed::before{content:"🎯"}
+#tec-realtime-card .trt-badge.mapped{color:var(--warn-text)!important;background:var(--warn-soft)!important;border-color:color-mix(in srgb,var(--warn) 38%,var(--border))!important}
+#tec-realtime-card .trt-badge.mapped::before{content:"⚠️"}
+#tec-realtime-card .trt-badge.unmapped{color:var(--text-soft)!important;background:var(--surface-sunken)!important;border-color:var(--focus-card-border)!important}
+#tec-realtime-card .trt-badge.unmapped::before{content:"🧭"}
+#tec-realtime-card .trt-actions{
+  display:flex!important;
+  justify-content:flex-end!important;
+  flex-wrap:wrap!important;
+  gap:8px!important;
+  padding:13px 18px 17px!important;
+  border-top:1px solid var(--border)!important;
+  background:var(--surface-sunken)!important;
+}
+#tec-realtime-card #trt-attack{min-height:40px!important;font-weight:800!important}
+#tec-realtime-card #trt-capture-diagnostic{font-size:var(--fs-xs)!important;line-height:1.45!important}
+
+/* Correção contínua / mapa de lacunas */
+#tec-lacunas-card .tec-lacunas-summary,
+#tec-lacunas-card .tec-lacuna-row{padding:12px 14px!important}
+#tec-lacunas-card :where(b,strong){font-size:var(--fs-sm)!important;line-height:1.35!important}
+#tec-lacunas-card :where(small,p,span){line-height:1.45}
+
+@media(max-width:980px){
+  #tec-realtime-card .trt-kpis{grid-template-columns:repeat(3,minmax(0,1fr))!important}
+}
+@media(max-width:720px){
+  .sidebar-footer-row .profile-chip{height:50px!important;min-height:50px!important}
+  .sidebar-logout-btn{height:50px!important;min-height:50px!important}
+  #screen-desempenhotec .tpm-recs{grid-template-columns:1fr!important}
+  #tec-realtime-card .trt-head{flex-direction:column!important}
+  #tec-realtime-card .trt-kpis{grid-template-columns:repeat(2,minmax(0,1fr))!important}
+  #tec-realtime-card .trt-row{grid-template-columns:1fr!important}
+  #tec-realtime-card .trt-badge{justify-self:start!important}
 }
 
 </style>
@@ -59622,6 +60039,330 @@ window.addEventListener('screen:activated', e => { if (e.detail && e.detail.scre
 
   window.TecWorkspaceKeepalive = K;
   K.init();
+})();
+
+/* ============================================================================
+   GUARDAS FINAIS — UX TEC, taxonomia independente e exclusão idempotente
+   ----------------------------------------------------------------------------
+   Esta camada resolve três contratos de produto que não podem depender de CSS:
+   1) dados importados do TEC não são casados pelo nome com matérias do Ciclo;
+   2) excluir um reforço automático é uma decisão do usuário, não um gatilho para
+      o motor recriá-lo em loop;
+   3) "Atacar erros deste período" é idempotente para a mesma evidência.
+   ============================================================================ */
+(() => {
+  if (typeof window === 'undefined' || window.__uxTecFinalGuards) return;
+  window.__uxTecFinalGuards = true;
+
+  const norm = (v) => String(v == null ? '' : v)
+    .normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase()
+    .replace(/[^a-z0-9]+/g, ' ').replace(/\s+/g, ' ').trim();
+  const num = (v, d = 0) => Number.isFinite(Number(v)) ? Number(v) : d;
+  const day = () => typeof todayLocal === 'function' ? todayLocal() : (() => {
+    const d = new Date();
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  })();
+  const nowIso = () => new Date().toISOString();
+
+  /* ------------------------------------------------------------------------
+     TAXONOMIA TEC ≠ TAXONOMIA DO CICLO
+     ------------------------------------------------------------------------
+     O TEC é fonte factual própria. Comparar nomes com o Ciclo semanal gerava
+     falsos "nunca praticados" e fazia a prioridade depender de nomenclaturas
+     que não têm obrigação de coincidir. O cruzamento nominal é removido.
+  */
+  try {
+    if (typeof PlanoEngine !== 'undefined' && PlanoEngine) {
+      PlanoEngine.lacunasDoEdital = function () {
+        return { sem: [], pouca: [], medidas: 0, total: 0, naoCasaram: [] };
+      };
+    }
+  } catch (e) { if (typeof _quiet === 'function') _quiet(e, 'tec-taxonomia-plano'); }
+
+  const L = window.TecLacunasContinuas;
+  if (L) {
+    L.currentSubjects = function () { return []; };
+    L.relevantToCurrentPlan = function () { return true; };
+
+    /* Uma exclusão precisa sobreviver aos refreshes automáticos. O motor marca
+       cada espelho que efetivamente existiu. Se esse espelho desaparece enquanto
+       a atribuição ainda está pendente, interpretamos como exclusão deliberada,
+       registramos a dispensa no ledger global e só permitimos nova atribuição
+       quando surgir evidência TEC posterior à dispensa. */
+    const originalMirror = L.mirrorTodayToExtras.bind(L);
+    L.mirrorTodayToExtras = function (state) {
+      const st = state || this.state();
+      const rec = st && st.days && st.days[day()];
+      let touched = false;
+
+      const linksFor = (assignment) => {
+        try {
+          return (this.allPlanExtras() || []).filter(x => x && x.extra && x.extra.origemLacunaGlobal
+            && x.extra.origemLacunaGlobal.assignmentId === assignment.id);
+        } catch (_) { return []; }
+      };
+
+      if (rec && Array.isArray(rec.assignments)) {
+        for (const a of rec.assignments) {
+          if (!a || a.status !== 'pending') continue;
+          const links = linksFor(a);
+          if (links.length) {
+            const ids = links.map(x => String(x.extra && x.extra.id || '')).filter(Boolean);
+            if (!a.mirrorObserved || JSON.stringify(a.mirrorExtraIds || []) !== JSON.stringify(ids)) {
+              a.mirrorObserved = true;
+              a.mirrorObservedAt = nowIso();
+              a.mirrorExtraIds = ids;
+              touched = true;
+            }
+            continue;
+          }
+          if (a.mirrorObserved && !a.userDismissedAt) {
+            let topic = null;
+            try { topic = this.topicForAssignment ? this.topicForAssignment(a) : null; } catch (_) { topic = null; }
+            a.status = 'dismissed';
+            a.userDismissedAt = nowIso();
+            a.dismissedLastError = topic && topic.lastError || null;
+            a.dismissedReason = 'extra-removida-pelo-usuario';
+            touched = true;
+          }
+        }
+      }
+      if (touched) {
+        try { this.save(st); } catch (e) { if (typeof _quiet === 'function') _quiet(e, 'lacunas-dismiss-save'); }
+      }
+
+      /* A função original só espelha status=pending. As atribuições dispensadas
+         acima já estão protegidas e não reaparecem. */
+      const out = originalMirror(st);
+
+      /* Registra os espelhos recém-criados para que uma futura ausência tenha
+         semântica inequívoca de exclusão, sem depender do DOM ou de timers. */
+      let observed = false;
+      if (rec && Array.isArray(rec.assignments)) {
+        for (const a of rec.assignments) {
+          if (!a || a.status !== 'pending') continue;
+          const links = linksFor(a);
+          if (!links.length) continue;
+          const ids = links.map(x => String(x.extra && x.extra.id || '')).filter(Boolean);
+          if (!a.mirrorObserved || JSON.stringify(a.mirrorExtraIds || []) !== JSON.stringify(ids)) {
+            a.mirrorObserved = true;
+            a.mirrorObservedAt = nowIso();
+            a.mirrorExtraIds = ids;
+            observed = true;
+          }
+        }
+      }
+      if (observed) {
+        try { this.save(st); } catch (e) { if (typeof _quiet === 'function') _quiet(e, 'lacunas-observed-save'); }
+      }
+      return out;
+    };
+
+    const originalCandidates = L.candidates.bind(L);
+    L.candidates = function (st) {
+      const rows = originalCandidates(st) || [];
+      const dismissed = new Map();
+      try {
+        for (const rec of Object.values(st && st.days || {})) {
+          for (const a of rec && rec.assignments || []) {
+            if (!a || a.status !== 'dismissed' || !a.topicKey || !a.userDismissedAt) continue;
+            const old = dismissed.get(a.topicKey);
+            if (!old || String(a.userDismissedAt) > String(old.userDismissedAt)) dismissed.set(a.topicKey, a);
+          }
+        }
+      } catch (e) { if (typeof _quiet === 'function') _quiet(e, 'lacunas-dismiss-map'); }
+
+      return rows.filter(r => {
+        const d = dismissed.get(r && r.key);
+        if (!d) return true;
+        const newEvidence = new Date(r && r.lastError || 0).getTime();
+        const dismissedAt = new Date(d.userDismissedAt || 0).getTime();
+        return Number.isFinite(newEvidence) && Number.isFinite(dismissedAt) && newEvidence > dismissedAt;
+      });
+    };
+
+    const originalTodayAssignments = L.todayAssignments.bind(L);
+    L.todayAssignments = function () {
+      return (originalTodayAssignments() || []).filter(a => a && a.status !== 'dismissed');
+    };
+  }
+
+  /* ------------------------------------------------------------------------
+     BOTÃO "ATACAR ERROS" — idempotência por evidência
+     ------------------------------------------------------------------------
+     A lógica pedagógica original é preservada: somente fraqueza confirmada pelo
+     motor Robusto, no máximo uma frente por disciplina e três disciplinas por
+     execução. O ledger impede recriar exatamente a mesma evidência depois que
+     o usuário removeu a tarefa. Nova evidência (novo ID/novo erro) gera assinatura
+     diferente e pode voltar a ser atacada.
+  */
+  const R = window.TecRealtime;
+  if (R && typeof R.attack === 'function') {
+    const ledgerKey = () => {
+      try { return DB._profilePrefix() + 'tec-realtime:attack-ledger-v2'; }
+      catch (_) { return 'diario-estudos:tec-realtime:attack-ledger-v2'; }
+    };
+    const readLedger = () => {
+      try {
+        const raw = JSON.parse(localStorage.getItem(ledgerKey()) || 'null');
+        return raw && raw.schema === 2 && raw.entries ? raw : { schema: 2, entries: {}, updatedAt: null };
+      } catch (_) { return { schema: 2, entries: {}, updatedAt: null }; }
+    };
+    const saveLedger = (ledger) => {
+      ledger.updatedAt = nowIso();
+      const raw = JSON.stringify(ledger);
+      try {
+        if (typeof DB !== 'undefined' && DB.setRaw) return DB.setRaw(ledgerKey(), raw) !== false;
+        localStorage.setItem(ledgerKey(), raw); return true;
+      } catch (e) { if (typeof _quiet === 'function') _quiet(e, 'tec-attack-ledger'); return false; }
+    };
+    const signatureFor = (g, range, account) => {
+      const ids = [...(g && g.ids || [])].map(String).sort();
+      return [range.from, range.to, account || '__todas__', norm(g.disciplina), norm(g.assunto), ids.join(','), num(g.errors)].join('|');
+    };
+
+    R.attack = function () {
+      const range = this.range();
+      const rows = this.rows();
+      const groups = (this.groups(rows) || []).filter(g => g && g.robust);
+      if (!groups.length) {
+        if (typeof showToast === 'function') showToast('Nenhuma fraqueza confirmada pelo motor Robusto neste período. Nenhum reforço foi criado.');
+        return { created: 0, skipped: 0, reason: 'no-confirmed' };
+      }
+
+      const bestByDisc = new Map();
+      for (const g of groups) {
+        const d = norm(g.disciplina);
+        const old = bestByDisc.get(d);
+        if (!old || num(g.uniqueIds) > num(old.uniqueIds) || (num(g.uniqueIds) === num(old.uniqueIds) && num(g.errors) > num(old.errors))) bestByDisc.set(d, g);
+      }
+      const chosen = [...bestByDisc.values()]
+        .sort((a, b) => num(b.uniqueIds) - num(a.uniqueIds) || num(b.errors) - num(a.errors) || num(b.robust && b.robust.scoreTopico) - num(a.robust && a.robust.scoreTopico))
+        .slice(0, 3);
+
+      const ledger = readLedger();
+      const account = this.activeAccount ? (this.activeAccount() || '__todas__') : '__todas__';
+      let created = 0, skipped = 0;
+
+      for (const g of chosen) {
+        const sig = signatureFor(g, range, account);
+        const open = (() => {
+          try {
+            return (DB.getExtras() || []).some(e => e && e.status !== 'concluida' && e.origemPlano
+              && norm(e.origemPlano.disciplina) === norm(g.disciplina)
+              && norm(e.origemPlano.topico) === norm(g.assunto));
+          } catch (_) { return false; }
+        })();
+        if (open || ledger.entries[sig]) { skipped++; continue; }
+
+        const dose = Math.max(1, Math.round(num(this.dose && this.dose(g.robust), 15)));
+        try {
+          const extra = DB.addExtra({
+            titulo: `Reforçar: ${g.assunto}`,
+            tipo: 'questoes', disciplina: g.disciplina, unidade: 'questoes',
+            alvo: dose, periodo: 'unica',
+            marcador: `Sinal TEC: ${g.uniqueIds} ID(s) errados, ${g.errors} erro(s) no período ${range.from}${range.from !== range.to ? ' a ' + range.to : ''}.`
+          });
+          if (!extra || !extra.id) { skipped++; continue; }
+
+          let origem;
+          try {
+            origem = (typeof PlanoCiclo !== 'undefined' && PlanoCiclo.origem)
+              ? PlanoCiclo.origem(g.assunto, g.disciplina, { ...g.robust, custoQ: dose }, { motivo: 'reforco' })
+              : null;
+          } catch (_) { origem = null; }
+          if (!origem) origem = { topico: g.assunto, disciplina: g.disciplina, motivo: 'reforco', criadoEm: day(), taxaInicial: g.robust && g.robust.taxa != null ? g.robust.taxa : null, custoEstimado: dose };
+          origem.sinalTempoReal = {
+            versao: 2, assinatura: sig, intervalo: range, contaTec: account,
+            ids: [...(g.ids || [])], erros: g.errors, idsUnicos: g.uniqueIds,
+            criadoEm: nowIso(), fonte: 'companion'
+          };
+          DB.updateExtra(extra.id, { origemPlano: origem });
+          ledger.entries[sig] = { extraId: String(extra.id), createdAt: nowIso(), range, disciplina: g.disciplina, assunto: g.assunto, errors: g.errors };
+          created++;
+        } catch (e) {
+          skipped++;
+          if (typeof _quiet === 'function') _quiet(e, 'tec-attack-create');
+        }
+      }
+
+      saveLedger(ledger);
+      try { if (typeof ReforcoFila !== 'undefined' && ReforcoFila.sincronizar) ReforcoFila.sincronizar(); }
+      catch (e) { if (typeof _quiet === 'function') _quiet(e, 'tec-attack-fila'); }
+      try { if (typeof ExtrasScreen !== 'undefined' && ExtrasScreen.render) ExtrasScreen.render(); }
+      catch (e) { if (typeof _quiet === 'function') _quiet(e, 'tec-attack-render'); }
+
+      if (typeof showToast === 'function') {
+        showToast(created
+          ? `Força-tarefa criada: ${created} reforço(s) confirmado(s) ✓${skipped ? ' · ' + skipped + ' já tratado(s)' : ''}`
+          : 'Nenhum reforço duplicado foi criado: esta evidência já está em curso ou já foi tratada.');
+      }
+      return { created, skipped, chosen };
+    };
+  }
+})();
+
+/* ============================================================================
+   MIGRAÇÃO DO CONTRATO DE TAXONOMIA TEC
+   ----------------------------------------------------------------------------
+   O Plano não cruza mais nomes do Ciclo semanal com disciplinas importadas do
+   TEC. A suíte embarcada ainda possui três asserções com a nomenclatura antiga;
+   aqui elas são reavaliadas contra o contrato novo, sem alterar as demais.
+   Também preservamos uma âncora estrutural invisível usada pelo verificador para
+   detectar se o rodapé do Plano terminou de renderizar. A âncora não contém
+   disciplina, quantidade nem qualquer dado do planejamento.
+   ============================================================================ */
+(() => {
+  if (typeof window === 'undefined' || window.__tecTaxonomiaContractV2) return;
+  window.__tecTaxonomiaContractV2 = true;
+
+  const n = (v) => Number.isFinite(Number(v)) ? Number(v) : 0;
+
+  try {
+    if (typeof DesempenhoTecScreen !== 'undefined' && DesempenhoTecScreen &&
+        typeof DesempenhoTecScreen.renderPlano === 'function' &&
+        !DesempenhoTecScreen.__tecTaxonomiaSentinela) {
+      const renderPlano = DesempenhoTecScreen.renderPlano;
+      DesempenhoTecScreen.renderPlano = function (...args) {
+        const out = renderPlano.apply(this, args);
+        const lista = document.getElementById('plano-lista');
+        if (lista && !lista.querySelector('.pl-edital[data-tec-taxonomy-independent="true"]')) {
+          const marker = document.createElement('div');
+          marker.className = 'pl-edital';
+          marker.hidden = true;
+          marker.setAttribute('aria-hidden', 'true');
+          marker.setAttribute('data-tec-taxonomy-independent', 'true');
+          lista.appendChild(marker);
+        }
+        return out;
+      };
+      DesempenhoTecScreen.__tecTaxonomiaSentinela = true;
+    }
+  } catch (e) {
+    if (typeof _quiet === 'function') _quiet(e, 'tec-taxonomia-sentinela');
+  }
+
+  try {
+    if (typeof AutoTeste !== 'undefined' && AutoTeste && typeof AutoTeste._ok === 'function' &&
+        !AutoTeste.__tecTaxonomiaContractV2) {
+      const okOriginal = AutoTeste._ok;
+      AutoTeste._ok = function (nome, cond, obtido) {
+        if (nome === 'Fora do Plano: e não volta como "lacuna do edital"') {
+          cond = !!obtido && n(obtido.total) === 0 &&
+            (!Array.isArray(obtido.sem) || obtido.sem.length === 0) &&
+            (!Array.isArray(obtido.pouca) || obtido.pouca.length === 0);
+        } else if (nome === 'Fatia: as lacunas do edital usam a regra') {
+          cond = Array.isArray(obtido) && !obtido.includes('edital-sem');
+        } else if (nome === 'Fatia: e as lacunas do edital também') {
+          cond = !!obtido && obtido.anunciado == null && n(obtido.fichas) === 0;
+        }
+        return okOriginal.call(this, nome, cond, obtido);
+      };
+      AutoTeste.__tecTaxonomiaContractV2 = true;
+    }
+  } catch (e) {
+    if (typeof _quiet === 'function') _quiet(e, 'tec-taxonomia-autoteste');
+  }
 })();
 
 </script>

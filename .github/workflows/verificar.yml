@@ -116,6 +116,8 @@ jobs:
         run: node testes/tec-lacunas-continuas.mjs
       - name: Validar comportamento da correcao continua de lacunas
         run: node testes/tec-lacunas-continuas-logica.mjs
+      - name: Validar UX final, taxonomia independente e idempotencia TEC
+        run: node testes/tec-ux-foco-total.mjs
       - name: Validar sincronizacao TEC entre dispositivos
         run: node testes/tec-cloud-cross-device.mjs
       - name: Validar organizacao estrutural de Extras e TEC
