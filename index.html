@@ -57,7 +57,7 @@
      novo, e o antigo é descartado sozinho na ativação) e o que permite ao app
      dizer qual versão está rodando. Em src/ fica "dev" de propósito: a versão
      é gerada na montagem, não editada à mão. -->
-<meta name="diario-versao" content="v852d447c86">
+<meta name="diario-versao" content="v928c68fd7a">
 <script>
 /* ── ARRANQUE: abre o IndexedDB AGORA, em paralelo com o parse do documento ──
    A fachada de armazenamento vive no fim do <body>, depois de ~1,7 MB de HTML.
@@ -61698,9 +61698,9 @@ window.addEventListener('screen:activated', e => { if (e.detail && e.detail.scre
    Camada de governança por caderno:
    · inventaria fontes e dados locais;
    · compara o retrato local com uma nova leitura REAL do TEC;
-   · nunca converte divergência em dado verificado;
+   · nunca converte divergência ou leitura parcial em dado validado;
    · exporta auditoria por caderno;
-   · permite remover os dados locais de um caderno sem adulterar o ledger.
+   · permite remover/arquivar dados locais sem o ledger reidratá-los sozinho.
    ============================================================================ */
 (() => {
   if (typeof window === 'undefined' || window.__tecHistoricoGestao) return;
@@ -61720,11 +61720,18 @@ window.addEventListener('screen:activated', e => { if (e.detail && e.detail.scre
     return JSON.stringify(value);
   };
   const clone=value=>{try{return JSON.parse(JSON.stringify(value));}catch(e){quiet(e,'tec-history-clone');return value;}};
+  const knownAccount=value=>{
+    const v=text(value).toLowerCase();
+    return !!v&&!['conta-importada','conta-reconstruida','conta-nao-identificada','conta'].includes(v)&&!v.startsWith('session-random');
+  };
 
   const M={
     _patched:false,
+    _cloudPatched:false,
     _bound:false,
     _selectedBook:null,
+    _validationIntentBook:null,
+    _suppressedCloudRows:0,
 
     key(){try{return DB._profilePrefix()+KEY_SUFFIX;}catch(e){quiet(e,'tec-history-key');return'diario-estudos:'+KEY_SUFFIX;}},
     blank(){return{schema:SCHEMA,books:{},runs:{},updatedAt:null};},
@@ -61828,6 +61835,14 @@ window.addEventListener('screen:activated', e => { if (e.detail && e.detail.scre
       delete next.source;
       st.books[id]=next;this.save(st);return next;
     },
+    isSuppressedBook(bookId){
+      const book=this.state().books[String(bookId||'')];
+      return !!(book&&book.suppressed);
+    },
+    setSuppressed(bookId,suppressed,reason='manual'){
+      const id=String(bookId||'');if(!id)return null;
+      return this.touchBook(id,{suppressed:!!suppressed,suppressionReason:reason,suppressedAt:suppressed?now():null,restoredAt:suppressed?null:now()});
+    },
     beginRun(requestId,bookId,mode='reconstruction'){
       if(!requestId||!bookId)return null;
       const st=this.state(),baseline=this.snapshotFromLocal(bookId);
@@ -61840,19 +61855,30 @@ window.addEventListener('screen:activated', e => { if (e.detail && e.detail.scre
       if(!run){run={requestId:String(requestId),bookId:String(bookId),mode:'reconstruction',startedAt:now(),baseline:this.snapshotFromLocal(bookId),live:{}};run.baselineDigest=this.digestSnapshot(run.baseline);}
       Object.assign(run.live,this.snapshotFromRows(rows));st.runs[String(requestId)]=run;this.save(st);
     },
-    finishRun(requestId,bookId,source='caderno'){
+    finishRun(requestId,bookId,source='caderno',summary={},freshAccount='',expectedAccount=''){
       const st=this.state(),run=st.runs[String(requestId||'')];if(!run)return null;
       const live=run.live||{},baseline=run.baseline||{},report=this.compareSnapshots(baseline,live),liveDigest=this.digestSnapshot(live);
       const hadBaseline=Object.keys(baseline).length>0;
-      const status=hadBaseline?(report.exact?'validated':'divergent'):'captured';
+      const processed=num(summary&&summary.processed),total=num(summary&&summary.total),failedQuestions=num(summary&&summary.failedQuestions);
+      const incomplete=failedQuestions>0||(total>0&&processed<total);
+      const stored=text(expectedAccount||st.books[String(bookId)]&&st.books[String(bookId)].account),fresh=text(freshAccount||summary&&summary.tecAccount);
+      const accountMismatch=knownAccount(stored)&&knownAccount(fresh)&&stored!==fresh;
+      let status;
+      if(accountMismatch)status='account-mismatch';
+      else if(incomplete)status='partial';
+      else status=hadBaseline?(report.exact?'validated':'divergent'):'captured';
       const current=st.books[String(bookId)]||{bookId:String(bookId),firstSeenAt:now(),sources:[]};
       current.lastSeenAt=now();current.sources=[...new Set([...(current.sources||[]),source,'live-tec'])];
-      current.validation={status,origin:'live-tec',validatedAt:hadBaseline?now():null,capturedAt:now(),baselineDigest:run.baselineDigest,tecDigest:liveDigest,mode:run.mode,report};
+      current.validation={
+        status,origin:'live-tec',validatedAt:status==='validated'?now():null,capturedAt:now(),baselineDigest:run.baselineDigest,tecDigest:liveDigest,mode:run.mode,report,
+        completeness:{processed,total,failedQuestions,incomplete},
+        account:{stored:stored||null,fresh:fresh||null,mismatch:accountMismatch}
+      };
       st.books[String(bookId)]=current;delete st.runs[String(requestId)];this.save(st);this.render();return current.validation;
     },
     markImported(bookId,account,source){
-      const b=this.touchBook(bookId,{account:text(account),sources:[source],importedAt:now()});
-      if(b&&b.validation&&['validated','divergent'].includes(b.validation.status)){
+      const b=this.touchBook(bookId,{account:text(account),sources:[source],importedAt:now(),suppressed:false});
+      if(b&&b.validation&&['validated','divergent','partial','account-mismatch'].includes(b.validation.status)){
         b.validation={...b.validation,status:'stale',staleAt:now(),reason:'dados-importados-alteraram-o-retrato-local'};
         const st=this.state();st.books[String(bookId)]=b;this.save(st);
       }
@@ -61860,11 +61886,16 @@ window.addEventListener('screen:activated', e => { if (e.detail && e.detail.scre
     },
     validateBook(bookId){
       const H=window.TecHistoricalReconstruction;if(!H)return;
-      const input=document.getElementById('tec-reconstruction-input');if(input)input.value=String(bookId);
+      const id=String(bookId);
+      this.setSuppressed(id,false,'validacao-real-tec');
+      const input=document.getElementById('tec-reconstruction-input');if(input)input.value=id;
+      this._validationIntentBook=id;
       H.start();
       const active=H.state&&H.state().active;
-      if(active&&String(active.bookId)===String(bookId)&&active.requestId)this.beginRun(active.requestId,bookId,'validation');
-      this._selectedBook=String(bookId);this.render();
+      if(active&&String(active.bookId)===id&&active.requestId){
+        const st=this.state();if(!st.runs[String(active.requestId)])this.beginRun(active.requestId,id,'validation');
+      }else this._validationIntentBook=null;
+      this._selectedBook=id;this.render();
     },
     exportBook(bookId){
       const id=String(bookId),management=this.state().books[id]||null,questions=[],events=[];
@@ -61879,7 +61910,7 @@ window.addEventListener('screen:activated', e => { if (e.detail && e.detail.scre
     },
     removeLocalBook(bookId,{skipConfirm=false}={}){
       const id=String(bookId);
-      if(!skipConfirm&&typeof confirm==='function'&&!confirm(`Remover do StudyNoMentor todos os dados LOCAIS do caderno #${id}? O ledger de auditoria em nuvem não será reescrito.`))return false;
+      if(!skipConfirm&&typeof confirm==='function'&&!confirm(`Remover do StudyNoMentor todos os dados LOCAIS do caderno #${id}? O ledger de auditoria não será reescrito e o caderno ficará arquivado localmente até você restaurar e validar no TEC.`))return false;
       let removedQuestions=0,removedEvents=0;
       try{
         const T=window.TecIntegracaoScreen,st=T&&T.state?T.state():null;if(st){
@@ -61894,17 +61925,34 @@ window.addEventListener('screen:activated', e => { if (e.detail && e.detail.scre
           R.save(st);if(R.render)R.render();
         }
       }catch(e){quiet(e,'tec-history-remove-events');}
-      this.touchBook(id,{localRemovedAt:now(),removedQuestions,removedEvents});this.render();
-      if(typeof showToast==='function')showToast(`🗑️ Caderno #${id}: ${removedQuestions} questão(ões) e ${removedEvents} evento(s) locais removidos.`);
+      this.touchBook(id,{localRemovedAt:now(),removedQuestions,removedEvents,suppressed:true,suppressedAt:now(),suppressionReason:'manual-local-removal'});this.render();
+      if(typeof showToast==='function')showToast(`🗑️ Caderno #${id}: ${removedQuestions} questão(ões) e ${removedEvents} evento(s) locais removidos e arquivados.`);
       return true;
     },
     statusLabel(book){
+      if(book&&book.suppressed)return'⏸ Arquivado localmente';
       const s=book&&book.validation&&book.validation.status;
       if(s==='validated')return'✓ Validado com o TEC';
       if(s==='divergent')return'⚠ Divergências com o TEC';
+      if(s==='partial')return'⚠ Leitura TEC incompleta';
+      if(s==='account-mismatch')return'⚠ Conta TEC divergente';
       if(s==='stale')return'↻ Validação desatualizada';
       if(s==='captured')return'◉ Capturado do TEC';
       return'○ Ainda não validado';
+    },
+    patchCloudSuppression(){
+      const C=window.TecCloudLedger;if(!C||this._cloudPatched||typeof C.mergeRows!=='function')return;
+      this._cloudPatched=true;const original=C.mergeRows.bind(C),self=this;
+      C.mergeRows=function(rows){
+        const allowed=[],blocked=[];
+        for(const row of Array.isArray(rows)?rows:[]){
+          const bookId=text(row&&row.book_id||row&&row.payload&&row.payload.bookId||row&&row.payload&&row.payload.resolution&&row.payload.resolution.bookId||row&&row.payload&&row.payload.question&&row.payload.question.cadernoId);
+          if(bookId&&self.isSuppressedBook(bookId))blocked.push(row);else allowed.push(row);
+        }
+        self._suppressedCloudRows+=blocked.length;
+        const result=original(allowed)||{};
+        return{...result,suppressed:(result.suppressed||0)+blocked.length};
+      };
     },
     ensureStyle(){
       if(document.getElementById('tec-history-manager-style'))return;
@@ -61919,7 +61967,7 @@ window.addEventListener('screen:activated', e => { if (e.detail && e.detail.scre
       const screen=document.getElementById('screen-integracaotec');if(!screen)return null;
       let card=document.getElementById('tec-history-manager-card');if(card)return card;
       card=document.createElement('section');card.id='tec-history-manager-card';card.className='card';
-      const header=document.createElement('div');header.className='card-header';const wrap=document.createElement('div');const h=document.createElement('h2');h.textContent='🧾 Gestão dos históricos TEC';const p=document.createElement('p');p.className='sub';p.textContent='Gerencie cada caderno reconstruído/importado e valide o retrato local contra uma nova leitura real do TEC. Divergências ficam explícitas; nenhuma tentativa é inventada.';wrap.append(h,p);header.append(wrap);
+      const header=document.createElement('div');header.className='card-header';const wrap=document.createElement('div');const h=document.createElement('h2');h.textContent='🧾 Gestão dos históricos TEC';const p=document.createElement('p');p.className='sub';p.textContent='Gerencie cada caderno reconstruído/importado e valide o retrato local contra uma nova leitura real do TEC. Divergências, leituras parciais e conta diferente ficam explícitas; nenhuma tentativa é inventada.';wrap.append(h,p);header.append(wrap);
       const body=document.createElement('div');body.style.cssText='padding:14px 28px 22px;display:grid;gap:10px';const list=document.createElement('div');list.id='tec-history-manager-list';list.className='tec-history-manager-list';body.append(list);card.append(header,body);
       const anchor=document.getElementById('tec-reconstruction-card');if(anchor)anchor.insertAdjacentElement('afterend',card);else screen.prepend(card);return card;
     },
@@ -61935,14 +61983,18 @@ window.addEventListener('screen:activated', e => { if (e.detail && e.detail.scre
       for(const id of ids){
         const book=st.books[id]||{bookId:id,sources:[]},stats=this.currentBookStats(id),box=document.createElement('article');box.className='tec-history-book';box.dataset.bookId=id;
         const head=document.createElement('div');head.className='tec-history-book-head';const left=document.createElement('div');const title=document.createElement('strong');title.textContent=`Caderno #${id}`;const meta=document.createElement('div');meta.className='tec-history-meta';meta.textContent=`${stats.questions} questão(ões) · ${stats.aggregateAttempts} tentativa(s) agregadas · ${stats.events} evento(s) verificáveis`+(stats.account?` · conta ${stats.account}`:'');left.append(title,meta);const badge=document.createElement('span');badge.className='tec-history-badge';badge.textContent=this.statusLabel(book);head.append(left,badge);box.append(head);
-        const src=document.createElement('div');src.className='tec-history-meta';src.textContent=`Fontes: ${(book.sources||[]).join(', ')||'dados locais existentes'}`+(book.validation&&book.validation.validatedAt?` · validado em ${new Date(book.validation.validatedAt).toLocaleString()}`:'');box.append(src);
+        const src=document.createElement('div');src.className='tec-history-meta';src.textContent=`Fontes: ${(book.sources||[]).join(', ')||'dados locais existentes'}`+(book.validation&&book.validation.validatedAt?` · validado em ${new Date(book.validation.validatedAt).toLocaleString()}`:'')+(book.suppressed?' · reidratação automática bloqueada':'');box.append(src);
         const actions=document.createElement('div');actions.className='tec-history-actions';
         const mk=(label,action,primary=false)=>{const b=document.createElement('button');b.type='button';b.className=primary?'btn-primary':'btn-secondary';b.textContent=label;b.dataset.historyAction=action;b.dataset.bookId=id;actions.append(b);};
-        mk('Validar no TEC','validate',true);mk('Exportar auditoria','export');mk('Detalhes','details');mk('Remover local','remove');box.append(actions);
+        mk(book.suppressed?'Restaurar e validar no TEC':'Validar no TEC','validate',true);mk('Exportar auditoria','export');mk('Detalhes','details');mk('Remover local','remove');box.append(actions);
         const report=document.createElement('div');report.className='tec-history-report';report.hidden=this._selectedBook!==id;report.dataset.historyReport=id;
-        const vr=book.validation&&book.validation.report;
-        if(vr){report.textContent=`Comparação TEC: ${vr.matched} questão(ões) idênticas · ${vr.changed} alteradas · ${vr.localOnly} apenas no Study · ${vr.tecOnly} apenas no TEC.`;const diffs=(vr.differences||[]).slice(0,12);for(const d of diffs){const line=document.createElement('div');line.textContent=`#${d.questionId}: ${d.type}`+(d.fields&&d.fields.length?` — ${d.fields.map(x=>x.field).join(', ')}`:'');report.append(line);}if((vr.differences||[]).length>12){const more=document.createElement('div');more.textContent=`+ ${(vr.differences||[]).length-12} divergência(s) adicionais no relatório exportável.`;report.append(more);}}
-        else report.textContent='Sem comparação com o TEC ainda. Use “Validar no TEC” para abrir o caderno real em segundo plano e confrontar os dados.';
+        const validation=book.validation,vr=validation&&validation.report;
+        if(vr){
+          report.textContent=`Comparação TEC: ${vr.matched} questão(ões) idênticas · ${vr.changed} alteradas · ${vr.localOnly} apenas no Study · ${vr.tecOnly} apenas no TEC.`;
+          if(validation.completeness&&validation.completeness.incomplete){const line=document.createElement('div');line.textContent=`Leitura incompleta: ${validation.completeness.processed}/${validation.completeness.total||'?'} processadas · ${validation.completeness.failedQuestions} falha(s).`;report.append(line);}
+          if(validation.account&&validation.account.mismatch){const line=document.createElement('div');line.textContent=`Conta divergente: histórico ${validation.account.stored||'—'} × TEC atual ${validation.account.fresh||'—'}.`;report.append(line);}
+          const diffs=(vr.differences||[]).slice(0,12);for(const d of diffs){const line=document.createElement('div');line.textContent=`#${d.questionId}: ${d.type}`+(d.fields&&d.fields.length?` — ${d.fields.map(x=>x.field).join(', ')}`:'');report.append(line);}if((vr.differences||[]).length>12){const more=document.createElement('div');more.textContent=`+ ${(vr.differences||[]).length-12} divergência(s) adicionais no relatório exportável.`;report.append(more);}
+        }else report.textContent=book.suppressed?'Caderno arquivado localmente. O ledger não o reidrata. Use “Restaurar e validar no TEC” para reconstruir a partir da fonte real.':'Sem comparação com o TEC ainda. Use “Validar no TEC” para abrir o caderno real em segundo plano e confrontar os dados.';
         box.append(report);root.append(box);
       }
     },
@@ -61966,23 +62018,41 @@ window.addEventListener('screen:activated', e => { if (e.detail && e.detail.scre
     },
     patch(){
       const H=window.TecHistoricalReconstruction;if(!H||this._patched)return;this._patched=true;this.patchLegacyOfficialPrecedence(H);
-      const originalIngest=H.ingestBatch.bind(H),originalWrite=H.writeBook.bind(H),self=this;
+      const originalStart=typeof H.start==='function'?H.start.bind(H):null,originalIngest=H.ingestBatch.bind(H),originalWrite=H.writeBook.bind(H),self=this;
+      if(originalStart)H.start=function(...args){
+        const ret=originalStart(...args);
+        try{
+          const active=this.state&&this.state().active;
+          if(active&&active.requestId&&active.bookId){
+            const runs=self.state().runs||{};
+            if(!runs[String(active.requestId)]){
+              const intent=self._validationIntentBook&&String(self._validationIntentBook)===String(active.bookId)?'validation':'reconstruction';
+              self.beginRun(active.requestId,active.bookId,intent);
+            }
+            if(self._validationIntentBook&&String(self._validationIntentBook)===String(active.bookId))self._validationIntentBook=null;
+          }
+        }catch(e){quiet(e,'tec-history-start-baseline');}
+        return ret;
+      };
       H.ingestBatch=function(payload,opts={}){
         const active=this.state&&this.state().active,requestId=active&&active.requestId,bookId=String(payload&&payload.bookId||active&&active.bookId||'');
+        if(requestId&&bookId){const runs=self.state().runs||{};if(!runs[String(requestId)])self.beginRun(requestId,bookId,'reconstruction');}
         const out=originalIngest(payload,opts);
         if(requestId&&bookId)self.recordRunRows(requestId,bookId,payload&&payload.rows||[]);
-        if(opts&&opts.source==='tampermonkey-json'&&bookId)self.markImported(bookId,payload&&payload.tecAccount||out&&out.account,'tampermonkey-json');
         return out;
       };
       H.writeBook=function(bookId,account,stats,extra={}){
-        const active=this.state&&this.state().active,requestId=active&&active.requestId,ret=originalWrite(bookId,account,stats,extra),source=String(extra&&extra.source||'caderno');
-        self.touchBook(bookId,{account:text(account),sources:[source],lastStats:clone(stats)});
-        if(requestId)self.finishRun(requestId,bookId,source);else if(source==='tampermonkey-json')self.markImported(bookId,account,source);
+        const active=this.state&&this.state().active,requestId=active&&active.requestId,id=String(bookId||''),before=self.state().books[id]||{},ret=originalWrite(bookId,account,stats,extra),source=String(extra&&extra.source||'caderno');
+        let validation=null;
+        if(requestId)validation=self.finishRun(requestId,id,source,extra&&extra.companionSummary||extra,account,before.account);
+        const safeAccount=validation&&validation.status==='account-mismatch'?before.account:(text(account)||before.account||'');
+        self.touchBook(id,{account:safeAccount,sources:[source],lastStats:clone(stats),suppressed:false});
+        if(source==='tampermonkey-json')self.markImported(id,account,source);
         self.render();return ret;
       };
     },
     bind(){
-      this.patch();this.ensureStyle();this.ensureCard();this.render();
+      this.patch();this.patchCloudSuppression();this.ensureStyle();this.ensureCard();this.render();
       if(!this._bound){this._bound=true;document.addEventListener('click',event=>{
         const b=event.target&&event.target.closest&&event.target.closest('[data-history-action]');if(!b)return;
         const action=b.dataset.historyAction,id=b.dataset.bookId;if(!action||!id)return;event.preventDefault();
