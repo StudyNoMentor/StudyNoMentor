@@ -57,7 +57,7 @@
      novo, e o antigo é descartado sozinho na ativação) e o que permite ao app
      dizer qual versão está rodando. Em src/ fica "dev" de propósito: a versão
      é gerada na montagem, não editada à mão. -->
-<meta name="diario-versao" content="v4e8ffee415">
+<meta name="diario-versao" content="v3add3b0779">
 <script>
 /* ── ARRANQUE: abre o IndexedDB AGORA, em paralelo com o parse do documento ──
    A fachada de armazenamento vive no fim do <body>, depois de ~1,7 MB de HTML.
@@ -15666,10 +15666,13 @@ body.tec-import-open{overflow:hidden}.tec-import-modal[hidden]{display:none!impo
 
 /* Últimos micro-rótulos encontrados pela auditoria em runtime. São componentes
    específicos, então a correção fica no CSS e não exige MutationObserver nem
-   varredura global do DOM — preservando o orçamento de startup em CPU lenta. */
+   varredura global do DOM — preservando o orçamento de startup em CPU lenta.
+   O seletor do Desempenho TEC replica a especificidade de 20-ux-stability.css,
+   que usa !important, para garantir que o piso de 11px prevaleça pela ordem de
+   carregamento sem alterar o componente legado inteiro. */
 #screen-extras .ux100-config-kpis span,
 #screen-extras .ux100-config-kpis b,
-#screen-desempenhotec .tp-metrics small,
+#screen-desempenhotec .uxv3-tec-command .tp-metrics small,
 #screen-config .pmg-engine-title span {
   font-size:11px !important;
   line-height:1.35;
