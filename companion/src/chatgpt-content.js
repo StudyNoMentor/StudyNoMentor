@@ -1,7 +1,6 @@
-/* StudyNoMentor Companion — executor no ChatGPT web.
- * Usa exclusivamente a sessão do usuário em chatgpt.com. Não usa API, chave
- * secreta, cookie externo ou token exportado. A aba pode permanecer aberta e
- * receber novos jobs por mensagem, evitando criar/recarregar uma aba a cada uso.
+/* StudyNoMentor Companion — executor opcional no ChatGPT web.
+ * Usa exclusivamente a sessão do usuário. Cada job roda em conversa nova da aba
+ * dedicada do Companion, evitando contaminar análises com chats anteriores.
  */
 'use strict';
 
@@ -15,6 +14,7 @@
   const RESPONSE_TIMEOUT_MS = 120000;
   const STABLE_TICKS = 3;
   const MAX_PROMPT_CHARS = 60000;
+  const JOB_SESSION_KEY = 'snmPlusCurrentJobV2';
   let pumping = false;
 
   const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
@@ -33,9 +33,9 @@
 
   async function claimJob(retries = 1) {
     for (let i=0;i<Math.max(1,retries);i++) {
-      const response=await sendMessage({ kind:'plus-ai-claim' });
-      if (response && response.ok && response.job) return response.job;
-      if (i < retries-1) await sleep(CLAIM_DELAY_MS);
+      const response=await sendMessage({kind:'plus-ai-claim'});
+      if (response&&response.ok&&response.job) return response.job;
+      if (i<retries-1) await sleep(CLAIM_DELAY_MS);
     }
     return null;
   }
@@ -44,33 +44,25 @@
     const alternatives=Array.isArray(q.alternativas)
       ? q.alternativas.map(a=>`${text(a.letra)||'—'}) ${text(a.texto)}${a.marcadaPorMim===true?' [MINHA RESPOSTA]':''}${a.correta===true?' [GABARITO]':''}`).join('\n') : '';
     return [
-      q.id ? `ID: ${q.id}` : '',
-      q.banca ? `Banca: ${q.banca}` : '',
-      q.concurso ? `Concurso: ${q.concurso}` : '',
-      q.materia ? `Matéria: ${q.materia}` : '',
-      q.assunto ? `Assunto: ${q.assunto}` : '',
-      q.enunciado ? `Enunciado:\n${q.enunciado}` : '',
-      alternatives ? `Alternativas:\n${alternatives}` : '',
-      q.marcada ? `Minha resposta: ${q.marcada}` : 'Minha resposta: NÃO CAPTURADA',
-      q.correta ? `Gabarito: ${q.correta}` : 'Gabarito: NÃO CAPTURADO',
-      typeof q.acertou==='boolean' ? `Resultado: ${q.acertou ? 'ACERTOU' : 'ERROU'}` : 'Resultado: NÃO VALIDADO'
+      q.id?`ID: ${q.id}`:'', q.banca?`Banca: ${q.banca}`:'', q.concurso?`Concurso: ${q.concurso}`:'',
+      q.materia?`Matéria: ${q.materia}`:'', q.assunto?`Assunto: ${q.assunto}`:'',
+      q.enunciado?`Enunciado:\n${q.enunciado}`:'', alternatives?`Alternativas:\n${alternatives}`:'',
+      q.marcada?`Minha resposta: ${q.marcada}`:'Minha resposta: NÃO CAPTURADA',
+      q.correta?`Gabarito: ${q.correta}`:'Gabarito: NÃO CAPTURADO',
+      typeof q.acertou==='boolean'?`Resultado: ${q.acertou?'ACERTOU':'ERROU'}`:'Resultado: NÃO VALIDADO'
     ].filter(Boolean).join('\n\n');
   }
 
   function buildPrompt(payload={}) {
     const section=text(payload.section)||'diagnostico';
-    const custom=payload.customPrompts && typeof payload.customPrompts==='object'
-      ? text(payload.customPrompts[section]) : '';
+    const custom=payload.customPrompts&&typeof payload.customPrompts==='object'?text(payload.customPrompts[section]):'';
     if (custom) return custom.slice(0,MAX_PROMPT_CHARS);
-
     if (section==='professor') {
       return (`Você é um professor de alto nível especializado em concursos fiscais.\n\n`+
         `Considere a questão e, quando existirem, as análises já produzidas. Responda diretamente à pergunta do aluno, com rigor técnico e sem inventar fundamento normativo.\n\n`+
-        `QUESTÃO:\n${questionAsText(payload.question||{})}\n\n`+
-        `ANÁLISES EXISTENTES:\n${JSON.stringify(payload.existingAnalysis||{},null,2)}\n\n`+
+        `QUESTÃO:\n${questionAsText(payload.question||{})}\n\nANÁLISES EXISTENTES:\n${JSON.stringify(payload.existingAnalysis||{},null,2)}\n\n`+
         `PERGUNTA DO ALUNO:\n${text(payload.professorQuestion)||'Explique esta questão.'}`).slice(0,MAX_PROMPT_CHARS);
     }
-
     return (`Você é um professor de alto nível especializado em concursos fiscais.\n\n`+
       `Produza uma análise da seção "${section}" para a questão abaixo. Seja didático, preciso e não invente fundamento normativo.\n\n`+
       `${questionAsText(payload.question||{})}`).slice(0,MAX_PROMPT_CHARS);
@@ -89,21 +81,16 @@
       document.querySelector('main .ProseMirror[contenteditable="true"]')
     ].filter(Boolean);
   }
-
   function visible(el) {
-    if (!el || !el.isConnected) return false;
-    const r=el.getBoundingClientRect();
-    const s=getComputedStyle(el);
-    return r.width>0 && r.height>0 && s.display!=='none' && s.visibility!=='hidden';
+    if (!el||!el.isConnected) return false;
+    const r=el.getBoundingClientRect(), s=getComputedStyle(el);
+    return r.width>0&&r.height>0&&s.display!=='none'&&s.visibility!=='hidden';
   }
-
-  function composer() { return composerCandidates().find(visible) || null; }
-
+  function composer() { return composerCandidates().find(visible)||null; }
   function loginRequired() {
-    const body=text(document.body && document.body.innerText).toLowerCase();
-    return /log in|sign up|entrar|criar conta/.test(body) && !composer();
+    const body=text(document.body&&document.body.innerText).toLowerCase();
+    return /log in|sign up|entrar|criar conta/.test(body)&&!composer();
   }
-
   async function waitComposer() {
     const start=Date.now();
     while (Date.now()-start<COMPOSER_TIMEOUT_MS) {
@@ -116,53 +103,36 @@
 
   function setComposerValue(el,value) {
     el.focus();
-    if (el instanceof HTMLTextAreaElement || el instanceof HTMLInputElement) {
-      const proto=el instanceof HTMLTextAreaElement ? HTMLTextAreaElement.prototype : HTMLInputElement.prototype;
+    if (el instanceof HTMLTextAreaElement||el instanceof HTMLInputElement) {
+      const proto=el instanceof HTMLTextAreaElement?HTMLTextAreaElement.prototype:HTMLInputElement.prototype;
       const setter=Object.getOwnPropertyDescriptor(proto,'value')?.set;
       if (setter) setter.call(el,value); else el.value=value;
-      el.dispatchEvent(new Event('input',{bubbles:true}));
-      el.dispatchEvent(new Event('change',{bubbles:true}));
-      return;
+      el.dispatchEvent(new Event('input',{bubbles:true})); el.dispatchEvent(new Event('change',{bubbles:true})); return;
     }
     try {
-      const selection=window.getSelection();
-      const range=document.createRange(); range.selectNodeContents(el);
-      selection.removeAllRanges(); selection.addRange(range);
-      document.execCommand('insertText',false,value);
+      const selection=window.getSelection(), range=document.createRange(); range.selectNodeContents(el);
+      selection.removeAllRanges(); selection.addRange(range); document.execCommand('insertText',false,value);
     } catch (_) { el.textContent=value; }
-    if (!text(el.innerText || el.textContent)) el.textContent=value;
+    if (!text(el.innerText||el.textContent)) el.textContent=value;
     try { el.dispatchEvent(new InputEvent('input',{bubbles:true,inputType:'insertText',data:value})); }
     catch (_) { el.dispatchEvent(new Event('input',{bubbles:true})); }
   }
 
   function sendButton() {
-    const selectors=[
-      'button[data-testid="send-button"]',
-      'button[data-testid="composer-submit-button"]',
-      'button[aria-label*="send" i]',
-      'button[aria-label*="enviar" i]',
-      'form button[type="submit"]'
-    ];
+    const selectors=['button[data-testid="send-button"]','button[data-testid="composer-submit-button"]','button[aria-label*="send" i]','button[aria-label*="enviar" i]','form button[type="submit"]'];
     for (const selector of selectors) {
       const candidates=[...document.querySelectorAll(selector)].filter(visible);
-      const enabled=candidates.find(b=>!b.disabled && b.getAttribute('aria-disabled')!=='true');
+      const enabled=candidates.find(b=>!b.disabled&&b.getAttribute('aria-disabled')!=='true');
       if (enabled) return enabled;
     }
     return null;
   }
-
   function assistantNodes() {
-    const selectors=[
-      'main [data-message-author-role="assistant"]',
-      '[data-message-author-role="assistant"]',
-      '[data-testid^="conversation-turn-"] [data-message-author-role="assistant"]',
-      'article [data-message-author-role="assistant"]'
-    ];
-    const seen=new Set(), out=[];
+    const selectors=['main [data-message-author-role="assistant"]','[data-message-author-role="assistant"]','[data-testid^="conversation-turn-"] [data-message-author-role="assistant"]','article [data-message-author-role="assistant"]'];
+    const seen=new Set(),out=[];
     for (const selector of selectors) for (const el of document.querySelectorAll(selector)) if (!seen.has(el)) { seen.add(el); out.push(el); }
     return out;
   }
-
   function generationInProgress() {
     const selectors=['button[data-testid="stop-button"]','button[data-testid="composer-stop-button"]','button[aria-label*="stop" i]','button[aria-label*="parar" i]'];
     return selectors.some(sel=>[...document.querySelectorAll(sel)].some(visible));
@@ -180,67 +150,81 @@
       el.dispatchEvent(new KeyboardEvent('keydown',{key:'Enter',code:'Enter',keyCode:13,which:13,bubbles:true,cancelable:true}));
       el.dispatchEvent(new KeyboardEvent('keyup',{key:'Enter',code:'Enter',keyCode:13,which:13,bubbles:true,cancelable:true}));
       await sleep(450);
-      if (assistantNodes().length>baseline || generationInProgress()) return baseline;
+      if (assistantNodes().length>baseline||generationInProgress()) return baseline;
     } catch (_) {}
     throw new Error('SEND_BUTTON_NOT_FOUND');
   }
 
   async function waitAnswer(baseline) {
-    const start=Date.now(); let previous='', stable=0;
+    const start=Date.now(); let previous='',stable=0;
     while (Date.now()-start<RESPONSE_TIMEOUT_MS) {
       if (loginRequired()) throw new Error('LOGIN_REQUIRED');
-      const nodes=assistantNodes();
-      const node=nodes.length>baseline ? nodes[nodes.length-1] : null;
-      const current=text(node && (node.innerText || node.textContent));
+      const nodes=assistantNodes(), node=nodes.length>baseline?nodes[nodes.length-1]:null;
+      const current=text(node&&(node.innerText||node.textContent));
       if (current) {
         if (current===previous) stable++; else { previous=current; stable=0; }
-        if (stable>=STABLE_TICKS && !generationInProgress()) return current;
+        if (stable>=STABLE_TICKS&&!generationInProgress()) return current;
       }
       await sleep(500);
     }
-    if (previous) return previous;
+    /* Texto parcial não é sucesso. Só aceitamos o que estabilizou e terminou. */
+    if (previous) throw new Error('PARTIAL_RESPONSE');
     throw new Error('RESPONSE_TIMEOUT');
   }
 
   function friendlyError(code) {
     if (code==='LOGIN_REQUIRED') return 'Entre em chatgpt.com com a mesma conta do seu ChatGPT Plus e tente novamente.';
-    if (code==='COMPOSER_NOT_FOUND') return 'Não encontrei a caixa de mensagem do ChatGPT. Abra chatgpt.com, confirme que a página carregou e tente novamente.';
-    if (code==='SEND_BUTTON_NOT_FOUND') return 'O ChatGPT carregou, mas o Companion não encontrou uma forma segura de enviar o prompt. A interface pode ter mudado.';
-    if (code==='RESPONSE_TIMEOUT') return 'O ChatGPT não concluiu a resposta dentro do tempo esperado.';
+    if (code==='COMPOSER_NOT_FOUND') return 'Não encontrei a caixa de mensagem do ChatGPT na aba dedicada.';
+    if (code==='SEND_BUTTON_NOT_FOUND') return 'A interface do ChatGPT mudou e o Companion não encontrou uma forma segura de enviar o prompt.';
+    if (code==='RESPONSE_TIMEOUT') return 'O ChatGPT não iniciou/concluiu a resposta dentro do tempo esperado.';
+    if (code==='PARTIAL_RESPONSE') return 'O ChatGPT começou a responder, mas a resposta não terminou. O conteúdo parcial foi descartado.';
     if (code==='EMPTY_PROMPT') return 'O StudyNoMentor não conseguiu montar o prompt desta análise.';
-    return code || 'Falha ao executar o prompt no ChatGPT Plus.';
+    return code||'Falha ao executar o prompt no ChatGPT Plus.';
+  }
+
+  function ensureFreshConversation(requestId) {
+    try {
+      const current=sessionStorage.getItem(JOB_SESSION_KEY);
+      if (current===String(requestId)) return true;
+      sessionStorage.setItem(JOB_SESSION_KEY,String(requestId));
+      location.replace('https://chatgpt.com/?snm_companion=1');
+      return false;
+    } catch (_) {
+      /* Sem sessionStorage, ainda forçamos root uma vez pela query do job. */
+      const u=new URL(location.href);
+      if (u.searchParams.get('snm_job')===String(requestId)) return true;
+      location.replace('https://chatgpt.com/?snm_companion=1&snm_job='+encodeURIComponent(String(requestId)));
+      return false;
+    }
   }
 
   async function run(job) {
-    const requestId=job && job.requestId;
-    if (!requestId || !job.payload) return;
+    const requestId=job&&job.requestId;
+    if (!requestId||!job.payload) return;
+    if (!ensureFreshConversation(requestId)) return;
     try {
       const prompt=buildPrompt(job.payload); if (!prompt) throw new Error('EMPTY_PROMPT');
       const el=await waitComposer();
       const baseline=await submitPrompt(el,prompt);
       const answer=await waitAnswer(baseline);
-      await sendMessage({ kind:'plus-ai-result', requestId, result:{ ok:true, text:answer, status:200 } });
+      await sendMessage({kind:'plus-ai-result',requestId,result:{ok:true,text:answer,status:200,partial:false}});
     } catch (err) {
-      const code=String(err && err.message || err || 'UNKNOWN');
-      await sendMessage({ kind:'plus-ai-result', requestId, result:{ ok:false, text:'', error:friendlyError(code), status:code==='LOGIN_REQUIRED'?401:502 } });
+      const code=String(err&&err.message||err||'UNKNOWN');
+      await sendMessage({kind:'plus-ai-result',requestId,result:{ok:false,text:'',error:friendlyError(code),status:code==='LOGIN_REQUIRED'?401:502,partial:code==='PARTIAL_RESPONSE'}});
     }
   }
 
   async function pump(retries=1) {
     if (pumping) return;
     pumping=true;
-    try {
-      const job=await claimJob(retries);
-      if (job) await run(job);
-    } finally { pumping=false; }
+    try { const job=await claimJob(retries); if (job) await run(job); }
+    finally { pumping=false; }
   }
 
   chrome.runtime.onMessage.addListener((msg,_sender,sendResponse)=>{
-    if (!msg || msg.kind!=='plus-ai-wake') return false;
-    pump(8).then(()=>sendResponse({ok:true})).catch(()=>sendResponse({ok:false}));
-    return true;
+    if (!msg||msg.kind!=='plus-ai-wake') return false;
+    pump(8).then(()=>sendResponse({ok:true})).catch(()=>sendResponse({ok:false})); return true;
   });
-
   window.addEventListener('pageshow',()=>pump(2));
   document.addEventListener('visibilitychange',()=>{ if (document.visibilityState==='visible') pump(2); });
   pump(INITIAL_CLAIM_RETRIES);
