@@ -23,7 +23,7 @@
   const PENDING_SUFFIX = 'tec-cloud-ledger:pendentes-v1';
   const BACKFILL_SUFFIX = 'tec-cloud-ledger:backfill-v1';
   const LEGACY_SECTIONS = new Set(['tec-realtime:eventos-v1', 'tec-integracao:estado-v2']);
-  const sleep = ms => new Promise(r => setTimeout(r, ms));
+  const quiet = (e, contexto) => { if (typeof _quiet === 'function') _quiet(e, contexto); };
 
   const C = {
     _syncing: false,
@@ -64,7 +64,7 @@
         const a=[...set].slice(-50000);
         if (a.length) localStorage.setItem(this.pendingKey(),JSON.stringify(a));
         else localStorage.removeItem(this.pendingKey());
-      } catch (e) { if (typeof _quiet==='function') _quiet(e,'tec-cloud-pending'); }
+      } catch (e) { quiet(e,'tec-cloud-pending'); }
     },
     markPending(eventId) { if (!eventId) return; const s=this.loadPending(); s.add(String(eventId)); this.savePending(s); },
     unmarkPending(eventId) { if (!eventId) return; const s=this.loadPending(); s.delete(String(eventId)); this.savePending(s); },
@@ -167,10 +167,13 @@
     async backfillLocal() {
       if (!this.ready()) return 0;
       const sig=this.localSignature();
-      try { if (localStorage.getItem(this.backfillKey())===sig) return 0; } catch (_) {}
+      try { if (localStorage.getItem(this.backfillKey())===sig) return 0; } catch (e) { quiet(e,'tec-cloud-backfill-read'); }
       const R=this.realtime(); if (!R) return 0;
       const rows=Object.values(R.state().events||{}).map(ev=>this.rowFromLocal(ev)).filter(Boolean);
-      if (!rows.length) { try { localStorage.setItem(this.backfillKey(),sig); } catch (_){} return 0; }
+      if (!rows.length) {
+        try { localStorage.setItem(this.backfillKey(),sig); } catch (e) { quiet(e,'tec-cloud-backfill-empty'); }
+        return 0;
+      }
       try {
         const n=await this.upsertRows(rows);
         localStorage.setItem(this.backfillKey(),sig);
@@ -238,8 +241,8 @@
         if (qchanged&&T&&ts) T.save(ts);
       } finally { this._applying=false; }
       if (changed||qchanged) {
-        try { R.render(); } catch (_) {}
-        try { if (window.TecLacunasContinuas&&TecLacunasContinuas.refresh) TecLacunasContinuas.refresh('cloud-ledger'); } catch (_) {}
+        try { R.render(); } catch (e) { quiet(e,'tec-cloud-render'); }
+        try { if (window.TecLacunasContinuas&&TecLacunasContinuas.refresh) TecLacunasContinuas.refresh('cloud-ledger'); } catch (e) { quiet(e,'tec-cloud-lacunas-refresh'); }
       }
       this._pulled+=(rows||[]).length;
       return {events:changed,questions:qchanged};
@@ -257,10 +260,16 @@
       S._applyMap=function(id,map,revs,preservar,manifestoRev){
         const clean={...(map||{})}, cleanRevs={...(revs||{})};
         for (const sec of LEGACY_SECTIONS) { delete clean[sec]; delete cleanRevs[sec]; }
-        return originalApply(id,clean,cleanRevs,[...new Set([...(preservar||[]),...LEGACY_SECTIONS])],manifestoRev);
+        /* sectionForKey() já torna as duas chaves invisíveis para a varredura de
+           órfãs. NÃO entram em `preservar`: _applyMap transforma toda seção
+           preservada em pendência, o que manteria a caixa de saída eternamente
+           ocupada e poderia reativar a sincronização agregada que estamos
+           aposentando. */
+        const manter=(preservar||[]).filter(sec=>!LEGACY_SECTIONS.has(sec));
+        return originalApply(id,clean,cleanRevs,manter,manifestoRev);
       };
       for (const sec of LEGACY_SECTIONS) S._dirty&&S._dirty.delete(sec);
-      try { S._savePend&&S._savePend(); } catch (_) {}
+      try { S._savePend&&S._savePend(); } catch (e) { quiet(e,'tec-cloud-legacy-pend'); }
     },
     patchIngest() {
       if (this._patched) return;
@@ -271,14 +280,14 @@
         const res=original(payload,messageId);
         if (res&&res.ok&&res.event&&!self._applying) {
           self.markPending(res.event.eventId);
-          self.pushPayload(payload,res.event.eventId).catch(()=>{});
+          self.pushPayload(payload,res.event.eventId).catch(e=>quiet(e,'tec-cloud-push-async'));
         }
         return res;
       };
     },
     unsubscribe() {
       if (!this._channel||!window.CloudStore||!CloudStore.client) { this._channel=null; this._channelProfile=null; return; }
-      try { CloudStore.client.removeChannel(this._channel); } catch (_) {}
+      try { CloudStore.client.removeChannel(this._channel); } catch (e) { quiet(e,'tec-cloud-unsubscribe'); }
       this._channel=null; this._channelProfile=null;
     },
     subscribe() {
@@ -304,7 +313,8 @@
         const rows=await this.fetchAll();
         this.mergeRows(rows); this.subscribe();
         this._lastSyncAt=new Date().toISOString(); this._lastError=null;
-        try { window.dispatchEvent(new CustomEvent('tec-cloud-ledger-synced',{detail:{reason:reason||'sync',rows:rows.length,at:this._lastSyncAt}})); } catch (_) {}
+        try { window.dispatchEvent(new CustomEvent('tec-cloud-ledger-synced',{detail:{reason:reason||'sync',rows:rows.length,at:this._lastSyncAt}})); }
+        catch (e) { quiet(e,'tec-cloud-event'); }
         return true;
       } catch (e) {
         this._lastError=(e&&(e.message||e.code))||String(e); this.scheduleRetry(); return false;
