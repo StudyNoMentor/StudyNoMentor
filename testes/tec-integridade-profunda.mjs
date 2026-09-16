@@ -7,6 +7,7 @@ const reconstruct = read('companion/src/tec-reconstruct.js');
 const capture = read('companion/src/tec-capture-v2.js');
 const site = read('src/js/99j-tec-hardening-api.js');
 const cloud = read('src/js/99k-tec-cloud-ledger-hardening.js');
+const reconstructionHardening = read('src/js/99n-tec-integracao-auditoria-total.js');
 const background = read('companion/src/background-v2.js');
 const reconstructionBackground = read('companion/src/background-reconstruct.js');
 const entry = read('companion/src/background-entry.js');
@@ -21,8 +22,9 @@ assert.ok(isolated, 'captura factual v2 ausente do manifest');
 assert.equal(isolated.js[0], 'src/tec-integrity-guard.js', 'guarda precisa executar primeiro');
 assert.equal(isolated.js[1], 'src/tec-reconstruct.js', 'reconstrutor precisa bloquear a captura normal antes de navegar no caderno');
 assert.equal(isolated.js[2], 'src/tec-capture-v2.js', 'captura v2 precisa executar antes dos capturadores legados');
-assert.equal(manifest.version, '1.3.0');
+assert.equal(manifest.version, '1.4.0');
 assert.ok((manifest.permissions || []).includes('alarms'));
+assert.ok((manifest.permissions || []).includes('unlimitedStorage'));
 
 /* Fonte factual: gabarito e resultado explícito são sinais diferentes. */
 assert.ok(guard.includes('"Resposta correta" identifica SOMENTE o gabarito'));
@@ -34,15 +36,24 @@ assert.ok(!capture.includes('marcada = correta'));
 assert.ok(capture.includes("confidence='high'; source='marked-vs-gabarito'"));
 assert.ok(capture.includes('window.__snmTecCompanion = true'));
 assert.ok(capture.includes('window.__snmTecCaptureWatchdog = true'));
-assert.ok(capture.includes("source:'session-random'"), 'conta desconhecida deve usar identidade de sessão não colidente');
+assert.ok(capture.includes("source:'session-random'"), 'captura normal desconhecida continua isolada por sessão');
 
-/* A aba técnica de reconstrução não pode gerar falsas resoluções novas. */
+/* A aba técnica de reconstrução não pode gerar falsas resoluções novas nem
+   fabricar uma conta diferente a cada aba. */
 assert.ok(reconstruct.includes('window.__snmTecCompanionV2 = true'));
 assert.ok(reconstruct.includes('window.__snmTecCompanion = true'));
 assert.ok(reconstruct.includes('window.__snmTecCaptureWatchdog = true'));
 assert.ok(reconstruct.includes("selectFilter('Resolvidas')"));
+assert.ok(reconstruct.includes("id:'conta-nao-identificada'"));
 assert.ok(reconstructionBackground.includes('snm-study-reconstruct-v1'));
 assert.ok(reconstructionBackground.includes('sameOwner'));
+assert.ok(reconstructionBackground.includes('BATCHES_KEY'));
+assert.ok(reconstructionBackground.includes('awaiting-persistence'));
+assert.ok(reconstructionBackground.includes('replayBatches'));
+assert.ok(reconstructionHardening.includes("MIN_RECON_COMPANION='1.4.0'"));
+assert.ok(reconstructionHardening.includes("type:'tec-reconstruct-batch-ack'"));
+assert.ok(reconstructionHardening.includes('archive-before-removal'));
+assert.ok(reconstructionHardening.includes('canonicalDay'));
 
 /* TrustGate único: legado nunca entra silenciosamente em prescrição. */
 assert.ok(site.includes('window.TecTrustGate=TecTrustGate'));
@@ -72,14 +83,22 @@ assert.ok(cloud.includes('ignoreDuplicates:true'));
 assert.ok(cloud.includes("CURSOR_SUFFIX='tec-cloud-ledger:cursor-v2'"));
 assert.ok(cloud.includes(".gte('created_at',cursor.at)"));
 
-/* IA multi-provedor: chave somente no backend. */
+/* IA multi-provedor: chave somente no backend, erros diagnósticos e modelo
+   Gemini de texto válido/estável. */
 assert.ok(edge.includes('callGemini'));
 assert.ok(edge.includes('callOpenAI'));
 assert.ok(edge.includes('callOpenAICompatible'));
 assert.ok(edge.includes('GEMINI_API_KEY'));
+assert.ok(edge.includes("DEFAULT_GEMINI_MODEL = 'gemini-2.5-flash'"));
+assert.ok(edge.includes("configured === 'gemini-3.8-flash'"), 'migração de configuração Gemini legada ausente');
+assert.ok(edge.includes('GEMINI_API_KEY_INVALID'));
+assert.ok(edge.includes('GEMINI_MODEL_UNAVAILABLE'));
+assert.ok(edge.includes('GEMINI_QUOTA_EXCEEDED'));
+assert.ok(edge.includes('callProviderWithRetry'));
 assert.ok(edge.includes('consume_tec_ai_quota'));
+assert.ok(edge.includes('MAX_REQUEST_CHARS'));
 assert.ok(!site.includes('GEMINI_API_KEY'));
 assert.ok(!site.includes('OPENAI_API_KEY'));
-assert.ok(build.includes("'js/99j-tec-hardening-api.js','js/99k-tec-cloud-ledger-hardening.js','js/99l-tec-reconstrucao-caderno.js'"));
+assert.ok(build.includes("'js/99m-tec-historico-gestao.js','js/99n-tec-integracao-auditoria-total.js'"));
 
-console.log('TEC INTEGRIDADE V3: contratos factuais, reconstrução, TrustGate, roteamento, ledger e IA validados.');
+console.log('TEC INTEGRIDADE V4: captura factual, reconstrução durável, TrustGate, roteamento, ledger e IA validados.');

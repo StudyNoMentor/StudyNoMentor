@@ -10,7 +10,7 @@ const integrity=read('companion/src/tec-integrity-guard.js');
 const tecScript=(manifest.content_scripts||[]).find(x=>(x.matches||[]).some(m=>m.includes('tecconcursos.com.br'))&&(x.js||[]).includes('src/tec-capture-v2.js'));
 const order=tecScript?tecScript.js||[]:[];
 const checks=[
-  ['Companion 1.3 ativo',manifest.version==='1.3.0'],
+  ['Companion 1.4 ativo',manifest.version==='1.4.0'],
   ['guarda e reconstrutor carregam antes da captura factual',!!tecScript&&order.indexOf('src/tec-integrity-guard.js')===0&&order.indexOf('src/tec-reconstruct.js')===1&&order.indexOf('src/tec-capture-v2.js')===2],
   ['aba de reconstrução neutraliza captura normal',reconstruct.includes('window.__snmTecCompanionV2 = true')&&reconstruct.includes('window.__snmTecCaptureWatchdog = true')],
   ['legados carregam depois e são neutralizados',order.indexOf('src/tec-content.js')>order.indexOf('src/tec-capture-v2.js')&&order.indexOf('src/tec-capture-watchdog.js')>order.indexOf('src/tec-content.js')&&capture.includes('window.__snmTecCaptureWatchdog = true')],
@@ -25,4 +25,4 @@ const checks=[
 ];
 const failed=checks.filter(([,ok])=>!ok);
 if(failed.length){failed.forEach(([name])=>console.error('FALHOU:',name));process.exit(1);}
-console.log(`COMPANION WATCHDOG V3: ${checks.length}/${checks.length} contratos válidos.`);
+console.log(`COMPANION WATCHDOG V4: ${checks.length}/${checks.length} contratos válidos.`);

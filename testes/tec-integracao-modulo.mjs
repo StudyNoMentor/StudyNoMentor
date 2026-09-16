@@ -10,8 +10,10 @@ const hardening=read('src/js/99j-tec-hardening-api.js');
 const cloud=read('src/js/99k-tec-cloud-ledger-hardening.js');
 const reconstruction=read('src/js/99l-tec-reconstrucao-caderno.js');
 const manager=read('src/js/99m-tec-historico-gestao.js');
+const auditTotal=read('src/js/99n-tec-integracao-auditoria-total.js');
 const diagnostics=read('src/js/96-tec-capture-diagnostics.js');
 const css=read('src/css/33-tec-hardening-api.css');
+const layout=read('src/css/34-tec-integracao-layout-guard.css');
 const edge=read('supabase/functions/tec-ai/index.ts');
 const manifest=JSON.parse(read('companion/manifest.json'));
 const entry=read('companion/src/background-entry.js');
@@ -32,9 +34,9 @@ const study=scripts.find(x=>(x.js||[]).includes('src/study-bridge.js'));
 const checks=[
   ['menu/tela existem',nav.includes('data-screen="integracaotec"')&&body.includes('id="screen-integracaotec"')],
   ['workspace TEC existe',body.includes('id="tec-workspace-frame"')&&js.includes('openEmbedded()')],
-  ['módulos hardening/reconstrução/gestão no fim do build',build.indexOf("'js/99j-tec-hardening-api.js'")>build.indexOf("'js/99i-tec-integridade-auditoria.js'")&&build.indexOf("'js/99k-tec-cloud-ledger-hardening.js'")>build.indexOf("'js/99j-tec-hardening-api.js'")&&build.indexOf("'js/99l-tec-reconstrucao-caderno.js'")>build.indexOf("'js/99k-tec-cloud-ledger-hardening.js'")&&build.indexOf("'js/99m-tec-historico-gestao.js'")>build.indexOf("'js/99l-tec-reconstrucao-caderno.js'")],
-  ['CSS do provedor incluído',build.includes("S('css/33-tec-hardening-api.css')")&&css.includes('.tec-ai-provider-box')],
-  ['Companion 1.3 MV3',manifest.manifest_version===3&&manifest.version==='1.3.0'],
+  ['módulos de integração terminam no hardening total',build.indexOf("'js/99l-tec-reconstrucao-caderno.js'")>build.indexOf("'js/99k-tec-cloud-ledger-hardening.js'")&&build.indexOf("'js/99m-tec-historico-gestao.js'")>build.indexOf("'js/99l-tec-reconstrucao-caderno.js'")&&build.indexOf("'js/99n-tec-integracao-auditoria-total.js'")>build.indexOf("'js/99m-tec-historico-gestao.js'")],
+  ['CSS do provedor/layout incluídos',build.includes("S('css/33-tec-hardening-api.css')")&&build.includes("S('css/34-tec-integracao-layout-guard.css')")&&css.includes('.tec-ai-provider-box')&&layout.includes('#tec-reconstruction-card')],
+  ['Companion 1.4 MV3',manifest.manifest_version===3&&manifest.version==='1.4.0'],
   ['alarms e armazenamento durável permitidos',(manifest.permissions||[]).includes('alarms')&&(manifest.permissions||[]).includes('unlimitedStorage')],
   ['ponte MAIN roda em todos frames TEC',!!mainWorld&&mainWorld.world==='MAIN'&&mainWorld.all_frames===true],
   ['ponte MAIN de reconstrução isolada',!!reconMain&&reconMain.world==='MAIN'&&(reconMain.js||[]).includes('src/tec-reconstruct-page.js')],
@@ -42,7 +44,8 @@ const checks=[
   ['bridge Study só no frame principal',!!study&&study.all_frames!==true&&(study.js||[]).includes('src/study-reconstruct-bridge.js')],
   ['captura v2 bloqueia legados em runtime',capture.includes('window.__snmTecCompanion = true')&&capture.includes('window.__snmTecCaptureWatchdog = true')],
   ['captura não inventa marcada pelo gabarito',!capture.includes('if (acertou === true && correta && !marcada)')&&capture.includes("source='marked-vs-gabarito'")],
-  ['conta desconhecida é sessão aleatória',capture.includes('session-random')&&!capture.includes("|| 'tec-session'" )],
+  ['captura normal desconhecida é sessão isolada',capture.includes('session-random')&&!capture.includes("|| 'tec-session'" )],
+  ['reconstrução não fabrica conta aleatória',reconCapture.includes("id:'conta-nao-identificada'")&&reconCapture.includes("confidence:'unknown'")],
   ['ID prioriza contexto estruturado',capture.indexOf('const fromPage=pageQuestionId()')<capture.indexOf("document.querySelectorAll('[data-question-id]" )],
   ['fila granular v2',background.includes("QUEUE_ITEM_PREFIX = 'snmTecQueueItemV2:'")&&background.includes('QUEUE_INDEX_KEY')],
   ['captura exige rota Study',background.includes('study_route_unbound')&&background.includes('claimRoute')],
@@ -60,14 +63,18 @@ const checks=[
   ['histórico incompleto fica agregado, não fabricado',reconstruction.includes('unverifiableAttempts')&&reconstruction.includes('tentativa(s) sem data individual')],
   ['JSON Tampermonkey também recupera histórico',reconstruction.includes('patchJSONImport')&&reconstruction.includes('rowsFromLegacyJSON')&&reconstruction.includes('desempenhoQuestoes')],
   ['UI aceita link ou número do caderno',reconstruction.includes('tec-reconstruction-input')&&reconstruction.includes('questoes\\/cadernos')&&reconstruction.includes('Reconstruir histórico de um caderno')],
-  ['reconstrução exige Companion 1.3 e timeout de ACK',reconstruction.includes("MIN_COMPANION = '1.3.0'")&&reconstruction.includes('ACK_TIMEOUT_MS')&&reconstruction.includes('chrome://extensions')],
-  ['lotes acumulam estatísticas da execução',reconstruction.includes('addActiveStats')&&reconstruction.includes('stats:zeroStats()')&&reconstruction.includes('writeBook(latest.bookId')],
+  ['protocolo de reconstrução exige Companion 1.4',auditTotal.includes("MIN_RECON_COMPANION='1.4.0'")&&auditTotal.includes('chrome://extensions')],
+  ['lote é durável no background antes do ACK',reconstructionBg.includes('BATCHES_KEY')&&reconstructionBg.includes('storeBatch')&&reconstructionBg.includes('durable:true')],
+  ['lotes são reenviados e só finalizam após persistência',reconstructionBg.includes('replayBatches')&&reconstructionBg.includes('awaiting-persistence')&&reconstructionBg.includes('maybeFinalize')],
+  ['bridge transmite ACK de lote',reconBridge.includes('tec-reconstruct-batch')&&reconBridge.includes('tec-reconstruct-batch-ack')&&reconBridge.includes('tec-reconstruct-result')],
+  ['site torna replay idempotente e ACKa após ingestão',auditTotal.includes('hasBatch(batchId)')&&auditTotal.includes('markBatch(batchId)')&&auditTotal.includes("type:'tec-reconstruct-batch-ack'")],
   ['payload reconstruído completo vai ao ledger',reconstruction.includes('TecCloudLedger')&&reconstruction.includes('C.pushPayload')&&reconstruction.includes('question:{...x.question}')&&reconstruction.includes('history:x.history||null')],
-  ['bridge de reconstrução transmite lotes/progresso',reconBridge.includes('tec-reconstruct-batch')&&reconBridge.includes('tec-reconstruct-progress')&&reconBridge.includes('tec-reconstruct-result')],
   ['gestor por caderno publicado',manager.includes('window.TecHistoricalManager=M')&&manager.includes('Gestão dos históricos TEC')],
   ['gestor confronta snapshot local com leitura real',manager.includes('compareSnapshots')&&manager.includes("beginRun(active.requestId,id,'validation')")&&manager.includes("origin:'live-tec'")],
   ['leitura parcial e conta divergente nunca recebem selo validado',manager.includes("status='partial'")&&manager.includes("status='account-mismatch'")&&manager.includes("status==='validated'?now():null")],
   ['remoção local bloqueia reidratação cloud',manager.includes('patchCloudSuppression')&&manager.includes('isSuppressedBook')&&manager.includes("suppressed:true")],
+  ['remoção arquiva snapshot para restauração auditável',auditTotal.includes('archivedSnapshot')&&auditTotal.includes('archive-before-removal')],
+  ['datas equivalentes são canônicas na validação',auditTotal.includes('canonicalDay')&&auditTotal.includes('normalizeSnapshot')],
   ['restauração usa nova leitura real do TEC',manager.includes('Restaurar e validar no TEC')&&manager.includes("setSuppressed(id,false,'validacao-real-tec')")],
   ['auditoria de caderno é exportável',manager.includes('studynomentor-tec-book-audit')&&manager.includes('Exportar auditoria')],
   ['resultado oficial do JSON tem precedência estrita',manager.includes('tampermonkey-json-official-preferred')&&manager.includes("status:verified?'verified':'conflict'")],
@@ -89,4 +96,4 @@ const checks=[
 const failed=checks.filter(([,ok])=>!ok);
 if(failed.length){failed.forEach(([name])=>console.error('FALHOU:',name));process.exit(1);}
 await import('./tec-reconstrucao-caderno.mjs');
-console.log(`INTEGRAÇÃO TEC 1.3: ${checks.length}/${checks.length} contratos válidos.`);
+console.log(`INTEGRAÇÃO TEC 1.4: ${checks.length}/${checks.length} contratos válidos.`);

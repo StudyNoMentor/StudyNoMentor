@@ -10,8 +10,6 @@
   const marker = String(location.hash || '').match(/(?:^#|[&#])snm-reconstruct=([^&]+)/);
   if (!marker || window.top !== window.self) return;
 
-  /* Mesmo isolated world da extensão: estes flags fazem os capturadores que
-     vêm depois no manifest encerrarem no início, sem interferir no TEC normal. */
   window.__snmTecCompanionV2 = true;
   window.__snmTecCompanion = true;
   window.__snmTecCaptureWatchdog = true;
@@ -22,7 +20,6 @@
 
   const PAGE_SOURCE = 'StudyMentorTecReconstructPage';
   const PAGE_REQUEST_SOURCE = 'StudyMentorTecReconstructIsolated';
-  const SESSION_ACCOUNT_KEY = 'snmTecUnknownAccountV2';
   const MAX_LOAD_MORE = 220;
   const BATCH_SIZE = 10;
   let running = false;
@@ -34,7 +31,6 @@
     try { return !!(el && el.isConnected !== false && (el.offsetParent !== null || getComputedStyle(el).position === 'fixed')); }
     catch (_) { return !!el; }
   };
-  const uid = () => globalThis.crypto && crypto.randomUUID ? crypto.randomUUID() : `${Date.now().toString(36)}_${Math.random().toString(36).slice(2)}`;
   const letter = value => {
     const m = String(value == null ? '' : value).toUpperCase().match(/(?:^|\b)([A-E])(?:\b|$)/);
     return m ? m[1] : null;
@@ -70,12 +66,9 @@
     const weak = [...new Set(labels)].sort();
     if (weak.length) return { id:'tec_' + fnv(weak.join('|')), confidence:'heuristic', source:'visible-label' };
 
-    let sid = '';
-    try {
-      sid = sessionStorage.getItem(SESSION_ACCOUNT_KEY) || '';
-      if (!sid) { sid = 'unknown_' + uid(); sessionStorage.setItem(SESSION_ACCOUNT_KEY, sid); }
-    } catch (_) { sid = 'unknown_' + uid(); }
-    return { id:'tec_' + fnv(sid), confidence:'unknown', source:'session-random' };
+    /* Nunca fabricar uma identidade aparentemente forte a partir de aleatoriedade
+       por aba. Isso causava falsa divergência de conta entre duas validações. */
+    return { id:'conta-nao-identificada', confidence:'unknown', source:'unidentified' };
   }
 
   async function waitFor(fn, timeout = 7000, interval = 100) {
@@ -405,10 +398,14 @@
     if (response && response.ok === false && response.reason === 'job_mismatch') throw new Error('A sessão de reconstrução não pertence mais a esta aba.');
   }
 
-  async function sendBatch(requestId, tecAccount, rows) {
+  async function sendBatch(requestId, account, rows) {
     if (!rows.length) return;
-    const response = await chrome.runtime.sendMessage({ kind:'tec-reconstruct-batch', requestId, tecAccount, rows });
-    if (!response || response.ok !== true) throw new Error('O StudyNoMentor não confirmou o lote reconstruído.');
+    const response = await chrome.runtime.sendMessage({
+      kind:'tec-reconstruct-batch', requestId,
+      tecAccount:account.id, tecAccountConfidence:account.confidence, tecAccountSource:account.source,
+      rows
+    });
+    if (!response || response.ok !== true || response.durable !== true) throw new Error('O Companion não conseguiu armazenar de forma durável o lote reconstruído.');
   }
 
   async function run(requestId, bookId) {
@@ -445,7 +442,7 @@
         summary.processed = i + 1;
         summary.percent = Math.round(summary.processed / Math.max(1, summary.total) * 100);
         summary.phase = 'scanning';
-        if (batch.length >= BATCH_SIZE || i === targets.length - 1) { await sendBatch(requestId, account.id, batch); batch = []; }
+        if (batch.length >= BATCH_SIZE || i === targets.length - 1) { await sendBatch(requestId, account, batch); batch = []; }
         await sendProgress(requestId, summary);
       }
 

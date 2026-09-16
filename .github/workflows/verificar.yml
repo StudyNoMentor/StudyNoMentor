@@ -1,5 +1,6 @@
-# Barreira de qualidade: nada entra no main sem passar por aqui.
-# Protege build, motores, Extras, TEC, performance, acessibilidade e higiene do repositorio.
+# Barreira de qualidade rápida e completa.
+# Não altera a branch durante o CI: artefatos derivados devem chegar sincronizados
+# no próprio commit. Isso evita commits de bot que não disparam novos workflows.
 name: Verificacao
 
 on:
@@ -17,146 +18,166 @@ permissions:
   contents: read
 
 jobs:
-  sincronizar-gerados:
-    if: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository }}
+  preflight:
     runs-on: ubuntu-latest
-    timeout-minutes: 2
-    permissions:
-      contents: write
-    outputs:
-      alterou: ${{ steps.sync.outputs.alterou }}
+    timeout-minutes: 3
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: ${{ github.event.pull_request.head.ref }}
+          ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
-      - name: Sincronizar build derivado
-        id: sync
-        shell: bash
-        run: |
-          set -euo pipefail
-          node --check build.mjs
-          for f in src/js/*.js testes/*.mjs; do node --check "$f"; done
-          node build.mjs
-          if git diff --quiet -- index.html sw.js src/manifesto.json; then
-            echo 'alterou=false' >> "$GITHUB_OUTPUT"
-            exit 0
-          fi
-          git config user.name 'StudyNoMentor CI'
-          git config user.email 'actions@users.noreply.github.com'
-          git add index.html sw.js src/manifesto.json
-          git commit -m 'build: sincroniza artefatos gerados'
-          git push origin HEAD:${{ github.event.pull_request.head.ref }}
-          echo 'alterou=true' >> "$GITHUB_OUTPUT"
-
-  verificar:
-    needs: [sincronizar-gerados]
-    if: ${{ always() && (needs.sincronizar-gerados.result == 'skipped' || needs.sincronizar-gerados.result == 'success') }}
-    runs-on: ubuntu-latest
-    timeout-minutes: 12
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.ref || github.ref }}
-      - uses: actions/setup-node@v4
-        with:
-          node-version: '22'
-      - name: Preflight rapido
+          cache: npm
+      - name: Sintaxe, build, gerados e higiene
         shell: bash
         run: |
           set -euo pipefail
           node --check build.mjs
           node --check verificar.mjs
-          for f in src/js/*.js testes/*.mjs; do node --check "$f"; done
+          for f in src/js/*.js companion/src/*.js testes/*.mjs; do node --check "$f"; done
           node build.mjs
           git diff --exit-code -- index.html sw.js src/manifesto.json
-      - name: Auditar higiene do repositorio
-        run: node testes/repositorio-higiene.mjs
-      - name: Instalar dependencias de teste
-        run: npm ci
-      - name: Validar hidratação quente do startup
-        run: node testes/startup-hot-hydration.mjs
-      - name: Simular prescricao adaptativa independente
-        run: node testes/reforco-adaptativo-massivo.mjs
-      - name: Validar motores de sugestao independentes
-        run: node testes/plano-sugestoes-modulos.mjs
-      - name: Validar motor Robusto TEC + Extras
-        run: node testes/plano-robusto.mjs
-      - name: Auditar residuos do Robusto antigo
-        run: node testes/plano-robusto-higiene.mjs
-      - name: Validar log auditavel observacional do Robusto
-        run: node testes/plano-robusto-audit-log.mjs
-      - name: Validar governanca global dos motores do Plano
-        run: node testes/plano-motores-governanca.mjs
-      - name: Validar estabilidade estrutural de Extras
-        run: node testes/extras-estabilidade.mjs
-      - name: Validar contratos premium de governanca
-        run: node testes/governanca-premium.mjs
-      - name: Validar rebalanceamento seletivo de reforcos
-        run: node testes/governanca-rebalanceamento.mjs
-      - name: Validar rodizio e cache de lei seca
-        run: node testes/lei-rodizio-perf.mjs
-      - name: Validar fila diaria de reforco
-        run: node testes/reforco-fila.mjs
-      - name: Validar integridade profunda do Assistente TEC
-        run: node testes/tec-integridade-profunda.mjs
-      - name: Validar modulo separado da Integracao TEC
-        run: node testes/tec-integracao-modulo.mjs
-      - name: Validar gatilho resiliente do Companion
-        run: node testes/tec-companion-gatilho.mjs
-      - name: Validar watchdog de captura do Companion
-        run: node testes/tec-companion-watchdog.mjs
-      - name: Validar ChatGPT Plus sem API no Companion
-        run: node testes/tec-companion-plus.mjs
-      - name: Validar abertura sem refresh e guarda da IA
-        run: node testes/startup-sem-refresh-loop.mjs
-      - name: Validar workbench TEC e evidencia real
-        run: node testes/tec-workbench-reforco-real.mjs
-      - name: Validar memoria global e rodizio de lacunas
-        run: node testes/tec-lacunas-continuas.mjs
-      - name: Validar comportamento da correcao continua de lacunas
-        run: node testes/tec-lacunas-continuas-logica.mjs
-      - name: Validar UX final, taxonomia independente e idempotencia TEC
-        run: node testes/tec-ux-foco-total.mjs
-      - name: Validar sincronizacao TEC entre dispositivos
-        run: node testes/tec-cloud-cross-device.mjs
-      - name: Validar organizacao estrutural de Extras e TEC
-        run: node testes/ui-organizacao-extras-tec.mjs
-      - name: Instalar Chromium
+          node testes/repositorio-higiene.mjs
+
+  unit-core:
+    needs: [preflight]
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci
+      - name: Contratos centrais e motores
+        shell: bash
         run: |
-          npm install --no-save playwright@1.56.1
-          npx playwright install --with-deps chromium
-      - name: Medir startup com perfil inativo volumoso
-        run: timeout 90s node testes/startup-hot-hydration-browser.mjs
-      - name: Validar Puxar do Plano multimotor
-        run: timeout 90s node testes/plano-sugestoes-modulos-browser.mjs
-      - name: Validar governanca dos motores no navegador
-        run: timeout 90s node testes/plano-motores-governanca-browser.mjs
-      - name: Validar central dos motores no Desempenho TEC
-        run: timeout 90s node testes/plano-motores-central-tec-browser.mjs
-      - name: Validar fonte das sugestoes na abertura e no Plano TEC
-        run: timeout 90s node testes/tec-plano-fonte-motor-browser.mjs
-      - name: Validar ponte incorporada da Integracao TEC
-        run: timeout 90s node testes/tec-integracao-browser.mjs
-      - name: Auditar startup, loaders e continuidade adaptativa
-        run: node testes/startup-reforco-browser.mjs
-      - name: Auditar performance do site inteiro
-        run: node testes/site-performance-browser.mjs
-      - name: Validar modais e ativacao adaptativa no navegador
-        run: node testes/extras-estabilidade-browser.mjs
-      - name: Auditar UX completa de Extras
-        run: node testes/extras-ux100-browser.mjs
-      - name: Auditar governanca do Desempenho TEC
-        run: node testes/tec-ux100-browser.mjs
-      - name: Validar fluidez do Plano TEC
-        run: node testes/tec-plano-performance-browser.mjs
-      - name: Auditar interacoes de Extras e Plano TEC
-        run: node testes/extras-tec-interacoes-browser.mjs
-      - name: Auditar estabilidade visual
-        run: node testes/ux-stability-browser.mjs
-      - name: Auditar hierarquia e fluidez global
-        run: node testes/ux-hierarquia-browser.mjs
-      - name: Verificar
+          set -euo pipefail
+          node testes/paridade-anki.mjs
+          node testes/robustez-config.mjs
+          node testes/fidelidade-tec.mjs
+          node testes/startup-hot-hydration.mjs
+          node testes/reforco-adaptativo-massivo.mjs
+          node testes/plano-sugestoes-modulos.mjs
+          node testes/plano-robusto.mjs
+          node testes/plano-robusto-higiene.mjs
+          node testes/plano-robusto-audit-log.mjs
+          node testes/plano-motores-governanca.mjs
+          node testes/extras-estabilidade.mjs
+          node testes/governanca-premium.mjs
+          node testes/governanca-rebalanceamento.mjs
+          node testes/lei-rodizio-perf.mjs
+          node testes/reforco-fila.mjs
+
+  unit-tec:
+    needs: [preflight]
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci
+      - name: Integridade, reconstrução e gestão TEC
+        shell: bash
+        run: |
+          set -euo pipefail
+          node testes/tec-integridade-profunda.mjs
+          node testes/tec-integracao-modulo.mjs
+          node testes/tec-reconstrucao-caderno.mjs
+          node testes/tec-reconstrucao-duravel.mjs
+          node testes/tec-historico-gestao.mjs
+          node testes/tec-integracao-hardening-total.mjs
+          node testes/tec-companion-gatilho.mjs
+          node testes/tec-companion-watchdog.mjs
+          node testes/tec-companion-plus.mjs
+          node testes/startup-sem-refresh-loop.mjs
+          node testes/tec-workbench-reforco-real.mjs
+          node testes/tec-lacunas-continuas.mjs
+          node testes/tec-lacunas-continuas-logica.mjs
+          node testes/tec-ux-foco-total.mjs
+          node testes/tec-cloud-cross-device.mjs
+          node testes/ui-organizacao-extras-tec.mjs
+
+  browser:
+    needs: [preflight]
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci
+      - uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
+      - name: Preparar Chromium da versão travada no package-lock
+        run: npx playwright install --with-deps chromium
+      - name: Regressões reais no navegador
+        shell: bash
+        run: |
+          set -euo pipefail
+          timeout 90s node testes/startup-hot-hydration-browser.mjs
+          timeout 90s node testes/plano-sugestoes-modulos-browser.mjs
+          timeout 90s node testes/plano-motores-governanca-browser.mjs
+          timeout 90s node testes/plano-motores-central-tec-browser.mjs
+          timeout 90s node testes/tec-plano-fonte-motor-browser.mjs
+          timeout 90s node testes/tec-integracao-browser.mjs
+          timeout 90s node testes/startup-reforco-browser.mjs
+          timeout 90s node testes/site-performance-browser.mjs
+          timeout 90s node testes/extras-estabilidade-browser.mjs
+          timeout 90s node testes/extras-ux100-browser.mjs
+          timeout 90s node testes/tec-ux100-browser.mjs
+          timeout 90s node testes/tec-plano-performance-browser.mjs
+          timeout 90s node testes/extras-tec-interacoes-browser.mjs
+          timeout 90s node testes/ux-stability-browser.mjs
+          timeout 90s node testes/ux-hierarquia-browser.mjs
+
+  verificador-final:
+    needs: [preflight]
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci
+      - uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
+      - run: npx playwright install --with-deps chromium
+      - name: Verificador integral, AutoTeste e WCAG
         run: node verificar.mjs
+
+  gate:
+    needs: [preflight, unit-core, unit-tec, browser, verificador-final]
+    if: ${{ always() }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 1
+    steps:
+      - name: Todos os gates precisam estar verdes
+        shell: bash
+        run: |
+          test "${{ needs.preflight.result }}" = success
+          test "${{ needs.unit-core.result }}" = success
+          test "${{ needs.unit-tec.result }}" = success
+          test "${{ needs.browser.result }}" = success
+          test "${{ needs.verificador-final.result }}" = success

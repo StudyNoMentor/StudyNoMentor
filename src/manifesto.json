@@ -600,8 +600,13 @@
   "ate": 62241
  },
  {
-  "arquivo": "html/90-rodape.html",
+  "arquivo": "js/99n-tec-integracao-auditoria-total.js",
   "de": 62243,
-  "ate": 62707
+  "ate": 62390
+ },
+ {
+  "arquivo": "html/90-rodape.html",
+  "de": 62392,
+  "ate": 62856
  }
 ]

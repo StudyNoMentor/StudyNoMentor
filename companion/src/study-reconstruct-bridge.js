@@ -1,4 +1,6 @@
-/* StudyNoMentor Companion — ponte isolada para reconstrução histórica do TEC. */
+/* StudyNoMentor Companion — ponte isolada para reconstrução histórica do TEC.
+ * Protocolo 1.4: lotes só saem da fila durável depois do ACK da página Study.
+ */
 'use strict';
 
 (() => {
@@ -16,22 +18,27 @@
     try { window.postMessage({ source:EXT_SOURCE, type, payload }, location.origin); } catch (_) {}
   }
 
+  function queue(message) {
+    pending.push(message);
+    if (pending.length > 500) pending.splice(0, pending.length - 500);
+  }
+
   function send(message) {
     if (!port) {
-      pending.push(message);
-      if (pending.length > 100) pending.splice(0, pending.length - 100);
+      queue(message);
       connect();
       return false;
     }
     try { port.postMessage(message); return true; }
-    catch (_) { pending.push(message); scheduleReconnect(); return false; }
+    catch (_) { queue(message); port = null; scheduleReconnect(); return false; }
   }
 
   function flush() {
     if (!port) return;
     while (pending.length) {
-      try { port.postMessage(pending.shift()); }
-      catch (_) { scheduleReconnect(); break; }
+      const msg = pending[0];
+      try { port.postMessage(msg); pending.shift(); }
+      catch (_) { port = null; scheduleReconnect(); break; }
     }
   }
 
@@ -76,6 +83,8 @@
       send({ type:'reconstruct-cancel', payload:msg.payload || {} });
     } else if (msg.type === 'tec-reconstruct-resync') {
       send({ type:'reconstruct-resync', payload:msg.payload || {} });
+    } else if (msg.type === 'tec-reconstruct-batch-ack') {
+      send({ type:'reconstruct-batch-ack', payload:msg.payload || {} });
     }
   });
 
