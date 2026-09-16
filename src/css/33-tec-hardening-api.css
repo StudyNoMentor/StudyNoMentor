@@ -1,0 +1,51 @@
+/* TEC hardening v2 — provedor de IA e transparência do TrustGate */
+#screen-integracaotec .tec-ai-provider-box {
+  display:grid;
+  grid-template-columns:max-content minmax(220px,320px) minmax(260px,1fr);
+  gap:10px 12px;
+  align-items:center;
+  margin:0 20px 14px;
+  padding:12px 14px;
+  border:1px solid var(--border,#e5e7eb);
+  border-radius:12px;
+  background:var(--surface,#fff);
+}
+#screen-integracaotec .tec-ai-provider-box label {
+  margin:0;
+  font-size:12px;
+  font-weight:800;
+  letter-spacing:.01em;
+  color:var(--text,#111827);
+}
+#screen-integracaotec .tec-ai-provider-select {
+  width:100%;
+  min-height:38px;
+  padding:7px 34px 7px 10px;
+  border:1px solid var(--border,#d1d5db);
+  border-radius:9px;
+  background:var(--surface,#fff);
+  color:var(--text,#111827);
+  font:inherit;
+  font-size:13px;
+  font-weight:650;
+}
+#screen-integracaotec .tec-ai-provider-hint {
+  color:var(--text-soft,#667085);
+  font-size:11.5px;
+  line-height:1.4;
+}
+#screen-integracaotec .trt-trust-gate-v2 {
+  margin:0 28px 18px;
+  padding:10px 12px;
+  border:1px solid var(--border,#e5e7eb);
+  border-radius:10px;
+  background:var(--surface-soft,#f8fafc);
+  color:var(--text-soft,#475467);
+  font-size:12px;
+  line-height:1.45;
+  font-weight:600;
+}
+@media (max-width:860px) {
+  #screen-integracaotec .tec-ai-provider-box { grid-template-columns:1fr; margin-inline:14px; }
+  #screen-integracaotec .trt-trust-gate-v2 { margin-inline:14px; }
+}
