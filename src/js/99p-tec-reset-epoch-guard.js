@@ -18,7 +18,7 @@
 
   const quiet = (e, tag) => {
     try { if (typeof _quiet === 'function') _quiet(e, tag || 'tec-reset-epoch'); }
-    catch (_) {}
+    catch (ignored) { void ignored; }
   };
 
   function activeProfile() {
@@ -74,7 +74,7 @@
             capturedAt:new Date(captured).toISOString(),
             resetAt:new Date(epoch).toISOString()
           });
-        } catch (_) {}
+        } catch (e) { quiet(e, 'tec-reset-stale-log'); }
         return { ok:true, dropped:true, reason:'pre-reset-capture' };
       }
       return originalIngest(payload, messageId);
@@ -113,7 +113,7 @@
 
   function quiet(e, tag) {
     try { if (typeof _quiet === 'function') _quiet(e, tag || 'egress-hardening'); }
-    catch (_) {}
+    catch (ignored) { void ignored; }
   }
 
   function pendingLocal(C) {
@@ -135,7 +135,7 @@
     if (!C) return;
     removeChannel(C, 'channel');
     removeChannel(C, 'secChannel');
-    try { clearTimeout(C._secRtTimer); } catch (_) {}
+    try { clearTimeout(C._secRtTimer); } catch (e) { quiet(e, 'egress-clear-section-timer'); }
     C._secRtTimer = null;
     C._rtUserId = null;
     C._secProfileId = null;
@@ -156,7 +156,7 @@
     };
     C.subscribeSections = function() {
       removeChannel(this, 'secChannel');
-      try { clearTimeout(this._secRtTimer); } catch (_) {}
+      try { clearTimeout(this._secRtTimer); } catch (e) { quiet(e, 'egress-clear-subscription-timer'); }
       this._secRtTimer = null;
       this._secProfileId = null;
       return false;
@@ -201,7 +201,7 @@
     };
 
     try { console.info('[egress] Realtime pesado desativado; conteúdo usa pull explícito.'); }
-    catch (_) {}
+    catch (e) { quiet(e, 'egress-info-log'); }
     return true;
   }
 
