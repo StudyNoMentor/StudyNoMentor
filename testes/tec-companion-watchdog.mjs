@@ -4,12 +4,16 @@ const read = p => readFileSync(new URL('../' + p, import.meta.url), 'utf8');
 const manifest = JSON.parse(read('companion/manifest.json'));
 const watchdog = read('companion/src/tec-capture-watchdog.js');
 const main = read('companion/src/tec-content.js');
+const integrity = read('companion/src/tec-integrity-guard.js');
 
 const tecScript = (manifest.content_scripts || []).find(x => (x.matches || []).some(m => m.includes('tecconcursos.com.br')) && (x.js || []).includes('src/tec-content.js'));
+const order = tecScript ? tecScript.js || [] : [];
 const checks = [
-  ['Companion foi versionado após correção', manifest.version === '1.1.1'],
-  ['watchdog é carregado depois do capturador principal', !!tecScript && JSON.stringify(tecScript.js) === JSON.stringify(['src/tec-content.js','src/tec-capture-watchdog.js'])],
+  ['Companion mantém versão de compatibilidade', manifest.version === '1.1.1'],
+  ['guarda de integridade é carregada antes do capturador', !!tecScript && order.indexOf('src/tec-integrity-guard.js') >= 0 && order.indexOf('src/tec-integrity-guard.js') < order.indexOf('src/tec-content.js')],
+  ['watchdog é carregado depois do capturador principal', !!tecScript && order.indexOf('src/tec-content.js') >= 0 && order.indexOf('src/tec-capture-watchdog.js') > order.indexOf('src/tec-content.js')],
   ['watchdog roda em todos os frames TEC', !!tecScript && tecScript.all_frames === true],
+  ['guarda reconcilia marcada x gabarito', integrity.includes("source = 'marked-vs-gabarito'") && integrity.includes('canonical = marked === correct')],
   ['watchdog observa transição de resultado', watchdog.includes('checkTransition') && watchdog.includes('MutationObserver')],
   ['watchdog dá janela ao capturador principal', watchdog.includes('GRACE_MS') && watchdog.includes('mainCaptureStatus')],
   ['watchdog respeita status já capturado', watchdog.includes("['queued','staged','deduplicated']")],
