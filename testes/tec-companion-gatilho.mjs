@@ -4,10 +4,18 @@ const read = p => readFileSync(new URL('../' + p, import.meta.url), 'utf8');
 const manifest = JSON.parse(read('companion/manifest.json'));
 const tec = read('companion/src/tec-capture-v2.js');
 const page = read('companion/src/tec-page.js');
+const reconstruct = read('companion/src/tec-reconstruct.js');
+
+const scripts = manifest.content_scripts || [];
+const normalMain = scripts.find(x => (x.js || []).includes('src/tec-page.js'));
+const normalCapture = scripts.find(x => (x.js || []).includes('src/tec-capture-v2.js'));
+const reconstructMain = scripts.find(x => (x.js || []).includes('src/tec-reconstruct-page.js'));
 
 const checks = [
-  ['Companion está na versão 1.2.0', manifest.version === '1.2.0'],
-  ['TEC continua em todos os frames', (manifest.content_scripts || []).filter(x => (x.matches || []).some(m => /tecconcursos/.test(m))).every(x => x.all_frames === true)],
+  ['Companion está na versão 1.3.0', manifest.version === '1.3.0'],
+  ['captura TEC normal continua em todos os frames', normalMain?.all_frames === true && normalCapture?.all_frames === true],
+  ['leitor MAIN da reconstrução fica no frame principal', !!reconstructMain && reconstructMain.world === 'MAIN' && reconstructMain.all_frames !== true],
+  ['reconstrutor bloqueia captura normal na aba técnica', reconstruct.includes('window.__snmTecCompanionV2 = true') && reconstruct.includes('window.__snmTecCaptureWatchdog = true')],
   ['gatilho reconhece controles de resolução', tec.includes('ACTION_RX') && tec.includes("beginCapture('action')")],
   ['click/change preservam resposta efetivamente marcada', tec.includes("addEventListener('click'") && tec.includes("addEventListener('change'") && tec.includes('selectedByQuestion')],
   ['resultado factual espera evidência', tec.includes('awaitResult') && tec.includes("source='marked-vs-gabarito'")],
@@ -22,4 +30,4 @@ if (failed.length) {
   failed.forEach(([name]) => console.error('FALHOU:', name));
   process.exit(1);
 }
-console.log(`COMPANION GATILHO V2: ${checks.length}/${checks.length} contratos válidos.`);
+console.log(`COMPANION GATILHO V3: ${checks.length}/${checks.length} contratos válidos.`);

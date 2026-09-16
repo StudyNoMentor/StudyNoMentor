@@ -1,0 +1,43 @@
+name: TEC - reconstrucao historica
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'src/js/99l-tec-reconstrucao-caderno.js'
+      - 'src/js/99m-tec-historico-gestao.js'
+      - 'companion/**'
+      - 'testes/tec-reconstrucao-caderno.mjs'
+      - 'testes/tec-historico-gestao.mjs'
+      - 'testes/tec-integracao-modulo.mjs'
+      - '.github/workflows/tec-reconstrucao.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  validar-reconstrucao:
+    runs-on: ubuntu-latest
+    timeout-minutes: 4
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.ref || github.ref }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Validar sintaxe do fluxo de reconstrucao
+        run: |
+          node --check src/js/99l-tec-reconstrucao-caderno.js
+          node --check src/js/99m-tec-historico-gestao.js
+          node --check companion/src/background-reconstruct.js
+          node --check companion/src/study-reconstruct-bridge.js
+          node --check companion/src/tec-reconstruct-page.js
+          node --check companion/src/tec-reconstruct.js
+          node --check testes/tec-reconstrucao-caderno.mjs
+          node --check testes/tec-historico-gestao.mjs
+      - name: Validar contratos factuais da reconstrucao
+        run: node testes/tec-reconstrucao-caderno.mjs
+      - name: Estressar gestao e reconciliacao por caderno
+        run: node testes/tec-historico-gestao.mjs

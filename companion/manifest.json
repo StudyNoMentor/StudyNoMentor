@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
   "name": "StudyNoMentor Companion",
-  "version": "1.2.0",
-  "description": "Integra o TecConcursos e provedores de IA ao StudyNoMentor com captura factual, roteamento por perfil, fila durável e auditoria.",
+  "version": "1.3.0",
+  "description": "Integra o TecConcursos e provedores de IA ao StudyNoMentor com captura factual, reconstrução histórica, roteamento por perfil, fila durável e auditoria.",
   "permissions": ["storage", "unlimitedStorage", "tabs", "alarms"],
   "host_permissions": [
     "https://www.tecconcursos.com.br/*",
@@ -29,7 +29,16 @@
         "https://www.tecconcursos.com.br/*",
         "https://tecconcursos.com.br/*"
       ],
-      "js": ["src/tec-integrity-guard.js", "src/tec-capture-v2.js", "src/tec-content.js", "src/tec-capture-watchdog.js"],
+      "js": ["src/tec-reconstruct-page.js"],
+      "run_at": "document_start",
+      "world": "MAIN"
+    },
+    {
+      "matches": [
+        "https://www.tecconcursos.com.br/*",
+        "https://tecconcursos.com.br/*"
+      ],
+      "js": ["src/tec-integrity-guard.js", "src/tec-reconstruct.js", "src/tec-capture-v2.js", "src/tec-content.js", "src/tec-capture-watchdog.js"],
       "run_at": "document_start",
       "all_frames": true
     },
@@ -41,7 +50,7 @@
     },
     {
       "matches": ["https://studynomentor.github.io/StudyNoMentor/*"],
-      "js": ["src/study-bridge.js"],
+      "js": ["src/study-bridge.js", "src/study-reconstruct-bridge.js"],
       "run_at": "document_start"
     },
     {

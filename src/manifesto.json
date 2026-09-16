@@ -585,8 +585,18 @@
   "ate": 61314
  },
  {
-  "arquivo": "html/90-rodape.html",
+  "arquivo": "js/99l-tec-reconstrucao-caderno.js",
   "de": 61316,
-  "ate": 61780
+  "ate": 61693
+ },
+ {
+  "arquivo": "js/99m-tec-historico-gestao.js",
+  "de": 61695,
+  "ate": 62071
+ },
+ {
+  "arquivo": "html/90-rodape.html",
+  "de": 62073,
+  "ate": 62537
  }
 ]

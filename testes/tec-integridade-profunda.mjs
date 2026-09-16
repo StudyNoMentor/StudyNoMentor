@@ -3,10 +3,12 @@ import assert from 'node:assert/strict';
 
 const read = (p) => readFileSync(new URL('../' + p, import.meta.url), 'utf8');
 const guard = read('companion/src/tec-integrity-guard.js');
+const reconstruct = read('companion/src/tec-reconstruct.js');
 const capture = read('companion/src/tec-capture-v2.js');
 const site = read('src/js/99j-tec-hardening-api.js');
 const cloud = read('src/js/99k-tec-cloud-ledger-hardening.js');
 const background = read('companion/src/background-v2.js');
+const reconstructionBackground = read('companion/src/background-reconstruct.js');
 const entry = read('companion/src/background-entry.js');
 const proxy = read('companion/src/study-ai-proxy.js');
 const chatgpt = read('companion/src/chatgpt-content.js');
@@ -17,8 +19,9 @@ const manifest = JSON.parse(read('companion/manifest.json'));
 const isolated = (manifest.content_scripts || []).find((x) => (x.js || []).includes('src/tec-capture-v2.js'));
 assert.ok(isolated, 'captura factual v2 ausente do manifest');
 assert.equal(isolated.js[0], 'src/tec-integrity-guard.js', 'guarda precisa executar primeiro');
-assert.equal(isolated.js[1], 'src/tec-capture-v2.js', 'captura v2 precisa executar antes dos legados');
-assert.equal(manifest.version, '1.2.0');
+assert.equal(isolated.js[1], 'src/tec-reconstruct.js', 'reconstrutor precisa bloquear a captura normal antes de navegar no caderno');
+assert.equal(isolated.js[2], 'src/tec-capture-v2.js', 'captura v2 precisa executar antes dos capturadores legados');
+assert.equal(manifest.version, '1.3.0');
 assert.ok((manifest.permissions || []).includes('alarms'));
 
 /* Fonte factual: gabarito e resultado explícito são sinais diferentes. */
@@ -32,6 +35,14 @@ assert.ok(capture.includes("confidence='high'; source='marked-vs-gabarito'"));
 assert.ok(capture.includes('window.__snmTecCompanion = true'));
 assert.ok(capture.includes('window.__snmTecCaptureWatchdog = true'));
 assert.ok(capture.includes("source:'session-random'"), 'conta desconhecida deve usar identidade de sessão não colidente');
+
+/* A aba técnica de reconstrução não pode gerar falsas resoluções novas. */
+assert.ok(reconstruct.includes('window.__snmTecCompanionV2 = true'));
+assert.ok(reconstruct.includes('window.__snmTecCompanion = true'));
+assert.ok(reconstruct.includes('window.__snmTecCaptureWatchdog = true'));
+assert.ok(reconstruct.includes("selectFilter('Resolvidas')"));
+assert.ok(reconstructionBackground.includes('snm-study-reconstruct-v1'));
+assert.ok(reconstructionBackground.includes('sameOwner'));
 
 /* TrustGate único: legado nunca entra silenciosamente em prescrição. */
 assert.ok(site.includes('window.TecTrustGate=TecTrustGate'));
@@ -50,7 +61,7 @@ assert.ok(background.includes('chrome.alarms'));
 
 /* ChatGPT browser é opcional, cancelável e isolado. */
 assert.ok(entry.includes('snmPlusOwnedTabV2'));
-assert.ok(entry.includes("importScripts('background-v2.js')"));
+assert.ok(entry.includes("importScripts('background-v2.js','background-reconstruct.js')"));
 assert.ok(proxy.includes("BROWSER_PROVIDER = 'chatgpt-plus-browser'"));
 assert.ok(proxy.includes("type:'plus-ai-cancel'"));
 assert.ok(chatgpt.includes("throw new Error('PARTIAL_RESPONSE')"));
@@ -69,6 +80,6 @@ assert.ok(edge.includes('GEMINI_API_KEY'));
 assert.ok(edge.includes('consume_tec_ai_quota'));
 assert.ok(!site.includes('GEMINI_API_KEY'));
 assert.ok(!site.includes('OPENAI_API_KEY'));
-assert.ok(build.includes("'js/99j-tec-hardening-api.js','js/99k-tec-cloud-ledger-hardening.js'"));
+assert.ok(build.includes("'js/99j-tec-hardening-api.js','js/99k-tec-cloud-ledger-hardening.js','js/99l-tec-reconstrucao-caderno.js'"));
 
-console.log('TEC INTEGRIDADE V2: contratos factuais, TrustGate, roteamento, ledger e IA validados.');
+console.log('TEC INTEGRIDADE V3: contratos factuais, reconstrução, TrustGate, roteamento, ledger e IA validados.');
