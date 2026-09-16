@@ -1,0 +1,32 @@
+name: TEC Diagnostico
+on:
+  push:
+    branches: [fix/tec-p0-api-router]
+  workflow_dispatch:
+jobs:
+  syntax:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Check build
+        run: node --check build.mjs
+      - name: Check hardening site
+        run: node --check src/js/99j-tec-hardening-api.js
+      - name: Check cloud v2
+        run: node --check src/js/99k-tec-cloud-ledger-v2.js
+      - name: Check integrity test
+        run: node --check testes/tec-integridade-profunda.mjs
+      - name: Check integration test
+        run: node --check testes/tec-integracao-modulo.mjs
+      - name: Check trigger test
+        run: node --check testes/tec-companion-gatilho.mjs
+      - name: Check watchdog test
+        run: node --check testes/tec-companion-watchdog.mjs
+      - name: Check plus test
+        run: node --check testes/tec-companion-plus.mjs
+      - name: Build
+        run: node build.mjs
