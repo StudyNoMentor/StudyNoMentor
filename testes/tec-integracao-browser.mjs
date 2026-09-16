@@ -12,7 +12,7 @@ const browser = await chromium.launch();
 const page = await browser.newPage({ viewport: { width: 390, height: 844 } });
 try {
   await page.goto(`http://127.0.0.1:${server.address().port}/`, { waitUntil: 'domcontentloaded' });
-  await page.waitForFunction(() => window.TecIntegracaoScreen && window.TecRealtime && window.ProfileUI, { timeout: 30000 });
+  await page.waitForFunction(() => window.TecIntegracaoScreen && window.TecRealtime && window.ProfileUI && window.TecWorkspaceKeepalive, { timeout: 30000 });
   const result = await page.evaluate(() => {
     try { ProfileUI.hideGate(); } catch (_) {}
     TecIntegracaoScreen.init(); TecRealtime.init();
@@ -60,5 +60,58 @@ try {
   assert.equal(result.summary.uniqueWrong, 1);
   assert.equal(result.summary.corrected, 1, 'erro seguido de acerto deve ser reconhecido como corrigido');
   assert.match(result.radar, /Radar TEC em tempo real/);
-  console.log('INTEGRAÇÃO TEC BROWSER: origem, deduplicação, histórico append-only e Radar validados.');
+
+  /* Regressão do caderno que reiniciava ao trocar de menu. Usamos about:blank
+     para testar o browsing context sem depender da rede/conta real do TEC. */
+  await page.evaluate(() => {
+    const frame = document.getElementById('tec-workspace-frame');
+    frame.src = 'about:blank'; frame.hidden = false;
+    switchScreen('integracaotec');
+  });
+  await page.waitForTimeout(80);
+  const before = await page.evaluate(() => {
+    const frame = document.getElementById('tec-workspace-frame');
+    frame.contentWindow.name = 'snm-caderno-preservado';
+    return { node: frame.dataset.tecKeepaliveObserved, name: frame.contentWindow.name };
+  });
+  assert.equal(before.node, '1', 'iframe TEC deve estar sob keepalive');
+  assert.equal(before.name, 'snm-caderno-preservado');
+
+  await page.evaluate(() => switchScreen('registrar'));
+  await page.waitForTimeout(80);
+  const parked = await page.evaluate(() => {
+    const s = document.getElementById('screen-integracaotec');
+    const cs = getComputedStyle(s);
+    return { parked:s.classList.contains('tec-screen-parked'), display:cs.display, position:cs.position, inert:s.hasAttribute('inert'), hidden:s.getAttribute('aria-hidden') };
+  });
+  assert.equal(parked.parked, true, 'TEC deve ser estacionado, não desmontado');
+  assert.equal(parked.display, 'block', 'screen TEC deve continuar montado fora da viewport');
+  assert.equal(parked.position, 'fixed');
+  assert.equal(parked.inert, true);
+  assert.equal(parked.hidden, 'true');
+
+  await page.evaluate(() => switchScreen('integracaotec'));
+  await page.waitForTimeout(80);
+  const after = await page.evaluate(() => {
+    const frame = document.getElementById('tec-workspace-frame');
+    const s = document.getElementById('screen-integracaotec');
+    return { name:frame.contentWindow.name, parked:s.classList.contains('tec-screen-parked'), inert:s.hasAttribute('inert'), src:frame.getAttribute('src') };
+  });
+  assert.equal(after.name, 'snm-caderno-preservado', 'trocar de menu não pode recriar o browsing context do TEC');
+  assert.equal(after.parked, false);
+  assert.equal(after.inert, false);
+  assert.equal(after.src, 'about:blank', 'keepalive não pode reatribuir src');
+
+  const visual = await page.evaluate(() => {
+    const screen=document.getElementById('screen-integracaotec');
+    screen.focus();
+    const lac=document.querySelector('.tec-lacunas-card');
+    const cs=getComputedStyle(screen), lc=lac ? getComputedStyle(lac) : null;
+    return { outline:cs.outlineStyle, lacStart:lc?.gridColumnStart, lacEnd:lc?.gridColumnEnd, font:getComputedStyle(document.body).fontFamily };
+  });
+  assert.equal(visual.outline, 'none', 'screen focado não pode desenhar moldura gigante');
+  if (visual.lacStart) { assert.equal(visual.lacStart, '1'); assert.equal(visual.lacEnd, '-1'); }
+  assert.match(visual.font, /Inter|system-ui/, 'tipografia global deve usar a família UI canônica');
+
+  console.log('INTEGRAÇÃO TEC BROWSER: origem, deduplicação, Radar e persistência do caderno entre telas validados.');
 } finally { await browser.close(); await new Promise(resolve => server.close(resolve)); }
