@@ -525,8 +525,13 @@
   "ate": 58951
  },
  {
-  "arquivo": "html/90-rodape.html",
+  "arquivo": "js/99d-startup-stability-ai.js",
   "de": 58953,
-  "ate": 59398
+  "ate": 59122
+ },
+ {
+  "arquivo": "html/90-rodape.html",
+  "de": 59124,
+  "ate": 59569
  }
 ]

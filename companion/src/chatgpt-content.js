@@ -77,8 +77,10 @@
   function composerCandidates() {
     return [
       document.querySelector('#prompt-textarea'),
+      document.querySelector('[contenteditable="true"]#prompt-textarea'),
       document.querySelector('textarea[data-testid="prompt-textarea"]'),
       document.querySelector('textarea[name="prompt-textarea"]'),
+      document.querySelector('[data-testid="composer-text-input"][contenteditable="true"]'),
       document.querySelector('form [contenteditable="true"][data-lexical-editor="true"]'),
       document.querySelector('form .ProseMirror[contenteditable="true"]'),
       document.querySelector('main [contenteditable="true"][data-lexical-editor="true"]'),
@@ -137,6 +139,7 @@
   function sendButton() {
     const selectors=[
       'button[data-testid="send-button"]',
+      'button[data-testid="composer-submit-button"]',
       'button[aria-label*="send" i]',
       'button[aria-label*="enviar" i]',
       'form button[type="submit"]'
@@ -157,6 +160,13 @@
       if (button) { button.click(); return baseline; }
       await sleep(250);
     }
+    // Reserva: algumas versões do composer aceitam Enter e atrasam a criação do botão.
+    try {
+      el.dispatchEvent(new KeyboardEvent('keydown',{key:'Enter',code:'Enter',keyCode:13,which:13,bubbles:true,cancelable:true}));
+      el.dispatchEvent(new KeyboardEvent('keyup',{key:'Enter',code:'Enter',keyCode:13,which:13,bubbles:true,cancelable:true}));
+      await sleep(500);
+      if (assistantNodes().length>baseline || generationInProgress()) return baseline;
+    } catch (_) {}
     throw new Error('SEND_BUTTON_NOT_FOUND');
   }
 
@@ -164,7 +174,8 @@
     const selectors=[
       'main [data-message-author-role="assistant"]',
       '[data-message-author-role="assistant"]',
-      '[data-testid^="conversation-turn-"] [data-message-author-role="assistant"]'
+      '[data-testid^="conversation-turn-"] [data-message-author-role="assistant"]',
+      'article [data-message-author-role="assistant"]'
     ];
     const seen=new Set(), out=[];
     for (const selector of selectors) {
@@ -178,6 +189,7 @@
   function generationInProgress() {
     const selectors=[
       'button[data-testid="stop-button"]',
+      'button[data-testid="composer-stop-button"]',
       'button[aria-label*="stop" i]',
       'button[aria-label*="parar" i]'
     ];
@@ -188,6 +200,7 @@
     const start=Date.now();
     let previous='', stable=0;
     while (Date.now()-start<RESPONSE_TIMEOUT_MS) {
+      if (loginRequired()) throw new Error('LOGIN_REQUIRED');
       const nodes=assistantNodes();
       const node=nodes.length>baseline ? nodes[nodes.length-1] : null;
       const current=text(node && (node.innerText || node.textContent));
@@ -204,8 +217,9 @@
   function friendlyError(code) {
     if (code==='LOGIN_REQUIRED') return 'Entre em chatgpt.com com a mesma conta do seu ChatGPT Plus e tente novamente.';
     if (code==='COMPOSER_NOT_FOUND') return 'Não encontrei a caixa de mensagem do ChatGPT. Abra chatgpt.com, confirme que a página carregou e tente novamente.';
-    if (code==='SEND_BUTTON_NOT_FOUND') return 'O ChatGPT carregou, mas o Companion não encontrou o botão de enviar. A interface pode ter mudado.';
+    if (code==='SEND_BUTTON_NOT_FOUND') return 'O ChatGPT carregou, mas o Companion não encontrou uma forma segura de enviar o prompt. A interface pode ter mudado.';
     if (code==='RESPONSE_TIMEOUT') return 'O ChatGPT não concluiu a resposta dentro do tempo esperado.';
+    if (code==='EMPTY_PROMPT') return 'O StudyNoMentor não conseguiu montar o prompt desta análise.';
     return code || 'Falha ao executar o prompt no ChatGPT Plus.';
   }
 
