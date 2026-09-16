@@ -1,0 +1,63 @@
+name: TEMP Finalize TEC V3
+
+on:
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: write
+
+jobs:
+  finalize:
+    if: ${{ github.event.pull_request.head.repo.full_name == github.repository }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.ref }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Registrar guarda, testes e artefatos
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          b=Path('build.mjs')
+          s=b.read_text()
+          q="'js/99q-tec-reconciliation-guard.js'"
+          p="'js/99p-tec-reconciliacao-multidispositivo.js'"
+          if q not in s:
+              s=s.replace(p,p+','+q)
+              b.write_text(s)
+
+          v=Path('.github/workflows/verificar.yml')
+          s=v.read_text()
+          qline='          node testes/tec-reconciliation-guard.mjs\n'
+          anchor='          node testes/tec-reconciliacao-multidispositivo.mjs\n'
+          if qline not in s:
+              s=s.replace(anchor,anchor+qline)
+              v.write_text(s)
+
+          r=Path('.github/workflows/tec-reconstrucao.yml')
+          s=r.read_text()
+          if "src/js/99q-tec-reconciliation-guard.js" not in s:
+              s=s.replace("      - 'src/js/99p-tec-reconciliacao-multidispositivo.js'\n", "      - 'src/js/99p-tec-reconciliacao-multidispositivo.js'\n      - 'src/js/99q-tec-reconciliation-guard.js'\n")
+          if "testes/tec-reconciliation-guard.mjs" not in s:
+              s=s.replace("      - 'testes/tec-reconciliacao-multidispositivo.mjs'\n", "      - 'testes/tec-reconciliacao-multidispositivo.mjs'\n      - 'testes/tec-reconciliation-guard.mjs'\n")
+              s=s.replace("          node --check testes/tec-reconciliacao-multidispositivo.mjs\n", "          node --check testes/tec-reconciliacao-multidispositivo.mjs\n          node --check testes/tec-reconciliation-guard.mjs\n")
+              s=s.replace("          node testes/tec-reconciliacao-multidispositivo.mjs\n", "          node testes/tec-reconciliacao-multidispositivo.mjs\n          node testes/tec-reconciliation-guard.mjs\n")
+          r.write_text(s)
+          PY
+          node build.mjs
+          if git diff --quiet -- build.mjs .github/workflows/verificar.yml .github/workflows/tec-reconstrucao.yml index.html sw.js src/manifesto.json; then
+            echo 'Nada a sincronizar.'
+            exit 0
+          fi
+          git config user.name 'StudyNoMentor CI'
+          git config user.email 'actions@users.noreply.github.com'
+          git add build.mjs .github/workflows/verificar.yml .github/workflows/tec-reconstrucao.yml index.html sw.js src/manifesto.json
+          git commit -m 'build: integra guarda de reconciliacao TEC v3'
+          git push origin HEAD:${{ github.event.pull_request.head.ref }}
