@@ -1,6 +1,6 @@
 # Barreira de qualidade rápida e completa.
-# Estratégia: sincroniza artefatos uma vez; depois divide a suíte em jobs
-# paralelos. A cobertura continua integral, mas o tempo de parede cai bastante.
+# Não altera a branch durante o CI: artefatos derivados devem chegar sincronizados
+# no próprio commit. Isso evita commits de bot que não disparam novos workflows.
 name: Verificacao
 
 on:
@@ -18,54 +18,18 @@ permissions:
   contents: read
 
 jobs:
-  sincronizar-gerados:
-    if: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository }}
-    runs-on: ubuntu-latest
-    timeout-minutes: 2
-    permissions:
-      contents: write
-    outputs:
-      alterou: ${{ steps.sync.outputs.alterou }}
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          ref: ${{ github.event.pull_request.head.ref }}
-      - uses: actions/setup-node@v4
-        with:
-          node-version: '22'
-      - name: Sincronizar build derivado
-        id: sync
-        shell: bash
-        run: |
-          set -euo pipefail
-          node --check build.mjs
-          for f in src/js/*.js companion/src/*.js testes/*.mjs; do node --check "$f"; done
-          node build.mjs
-          if git diff --quiet -- index.html sw.js src/manifesto.json; then
-            echo 'alterou=false' >> "$GITHUB_OUTPUT"
-            exit 0
-          fi
-          git config user.name 'StudyNoMentor CI'
-          git config user.email 'actions@users.noreply.github.com'
-          git add index.html sw.js src/manifesto.json
-          git commit -m 'build: sincroniza artefatos gerados'
-          git push origin HEAD:${{ github.event.pull_request.head.ref }}
-          echo 'alterou=true' >> "$GITHUB_OUTPUT"
-
   preflight:
-    needs: [sincronizar-gerados]
-    if: ${{ always() && (needs.sincronizar-gerados.result == 'skipped' || needs.sincronizar-gerados.result == 'success') && needs.sincronizar-gerados.outputs.alterou != 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 3
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.ref || github.ref }}
+          ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
           cache: npm
-      - name: Sintaxe, build e higiene
+      - name: Sintaxe, build, gerados e higiene
         shell: bash
         run: |
           set -euo pipefail
@@ -83,7 +47,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.ref || github.ref }}
+          ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
@@ -116,7 +80,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.ref || github.ref }}
+          ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
@@ -150,7 +114,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.ref || github.ref }}
+          ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
@@ -189,7 +153,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.ref || github.ref }}
+          ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
@@ -204,7 +168,7 @@ jobs:
         run: node verificar.mjs
 
   gate:
-    needs: [unit-core, unit-tec, browser, verificador-final]
+    needs: [preflight, unit-core, unit-tec, browser, verificador-final]
     if: ${{ always() }}
     runs-on: ubuntu-latest
     timeout-minutes: 1
@@ -212,6 +176,7 @@ jobs:
       - name: Todos os gates precisam estar verdes
         shell: bash
         run: |
+          test "${{ needs.preflight.result }}" = success
           test "${{ needs.unit-core.result }}" = success
           test "${{ needs.unit-tec.result }}" = success
           test "${{ needs.browser.result }}" = success
