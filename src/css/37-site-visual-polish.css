@@ -27,3 +27,14 @@
 
 /* Navegação e micro-rótulos de Configurações. */
 #screen-config [class*="cfg-nav"] span { font-size:11px !important; }
+
+/* A Central de Configurações de Extras é um modal anexado ao body, portanto
+   não é descendente de #screen-extras. O piso tipográfico precisa ser aplicado
+   diretamente aos seus resumos/status; isso elimina os 9px sem varrer o DOM
+   inteiro em runtime. */
+.xsc-summary-card :where(span,b,strong,small),
+.xsc-law-status :where(span,b,strong,small),
+.xsc-kpis :where(span,b,strong,small) {
+  font-size:11px !important;
+  line-height:1.4;
+}
