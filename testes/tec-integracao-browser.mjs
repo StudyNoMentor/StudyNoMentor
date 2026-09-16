@@ -127,5 +127,46 @@ try {
   if (visual.lacStart) { assert.equal(visual.lacStart, '1'); assert.equal(visual.lacEnd, '-1'); }
   assert.match(visual.font, /Inter|system-ui/, 'tipografia global deve usar a família UI canônica');
 
-  console.log('INTEGRAÇÃO TEC BROWSER: origem, isolamento de rota, deduplicação, Radar e persistência do caderno entre telas validados.');
+  /* Auditoria responsiva do workbench completo. O bug de produção colocava os
+     cards dinâmicos de reconstrução/gestão em 1 das 12 colunas e fazia títulos
+     quebrarem letra por letra. Testamos desktop, notebook, tablet e mobile. */
+  await page.waitForSelector('#tec-reconstruction-card', { timeout: 5000 });
+  await page.waitForSelector('#tec-history-manager-card', { timeout: 5000 });
+  for (const viewport of [
+    { width:1280, height:900, name:'desktop' },
+    { width:1024, height:820, name:'notebook' },
+    { width:768, height:900, name:'tablet' },
+    { width:390, height:844, name:'mobile' }
+  ]) {
+    await page.setViewportSize({ width:viewport.width, height:viewport.height });
+    await page.evaluate(() => switchScreen('integracaotec'));
+    await page.waitForTimeout(70);
+    const layout = await page.evaluate(() => {
+      const grid=document.querySelector('#screen-integracaotec .tec-connect-grid');
+      const gridRect=grid?.getBoundingClientRect();
+      const targets=['tec-reconstruction-card','tec-history-manager-card'].map(id=>{
+        const el=document.getElementById(id),r=el?.getBoundingClientRect(),cs=el?getComputedStyle(el):null;
+        return { id,exists:!!el,width:r?.width||0,gridStart:cs?.gridColumnStart||'',gridEnd:cs?.gridColumnEnd||'',scrollWidth:el?.scrollWidth||0,clientWidth:el?.clientWidth||0,
+          titleWidth:el?.querySelector('h2')?.getBoundingClientRect().width||0 };
+      });
+      const direct=[...(grid?.children||[])]
+        .filter(el=>el.classList?.contains('card')&&getComputedStyle(el).display!=='none'&&el.getBoundingClientRect().width>0)
+        .map(el=>({id:el.id||el.className,width:el.getBoundingClientRect().width}));
+      return { gridWidth:gridRect?.width||0,targets,direct,screenScroll:document.getElementById('screen-integracaotec')?.scrollWidth||0,screenClient:document.getElementById('screen-integracaotec')?.clientWidth||0 };
+    });
+    assert.ok(layout.gridWidth > 200, `${viewport.name}: grid TEC precisa ter largura útil`);
+    for (const target of layout.targets) {
+      assert.equal(target.exists, true, `${viewport.name}: ${target.id} deve existir`);
+      assert.ok(target.width >= layout.gridWidth * 0.94, `${viewport.name}: ${target.id} deve ocupar a largura do grid, não uma coluna estreita`);
+      assert.equal(target.gridStart, '1', `${viewport.name}: ${target.id} deve começar na primeira coluna`);
+      assert.equal(target.gridEnd, '-1', `${viewport.name}: ${target.id} deve terminar na última coluna`);
+      assert.ok(target.scrollWidth <= target.clientWidth + 4, `${viewport.name}: ${target.id} não pode gerar overflow horizontal`);
+      assert.ok(target.titleWidth >= Math.min(180, layout.gridWidth * 0.55), `${viewport.name}: título de ${target.id} não pode colapsar letra por letra`);
+    }
+    const minRatio=Math.min(...layout.direct.map(x=>x.width/layout.gridWidth));
+    assert.ok(minRatio >= 0.25, `${viewport.name}: nenhum card direto visível pode cair em 1/12 do grid (menor razão ${minRatio.toFixed(3)})`);
+    assert.ok(layout.screenScroll <= layout.screenClient + 6, `${viewport.name}: a tela TEC não pode criar rolagem horizontal global`);
+  }
+
+  console.log('INTEGRAÇÃO TEC BROWSER: origem, isolamento, deduplicação, keepalive e layout responsivo desktop→mobile validados.');
 } finally { await browser.close(); await new Promise(resolve => server.close(resolve)); }
