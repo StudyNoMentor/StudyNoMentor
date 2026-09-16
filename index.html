@@ -57,7 +57,7 @@
      novo, e o antigo é descartado sozinho na ativação) e o que permite ao app
      dizer qual versão está rodando. Em src/ fica "dev" de propósito: a versão
      é gerada na montagem, não editada à mão. -->
-<meta name="diario-versao" content="v2d92337c28">
+<meta name="diario-versao" content="vbdbf3a5422">
 <script>
 /* ── ARRANQUE: abre o IndexedDB AGORA, em paralelo com o parse do documento ──
    A fachada de armazenamento vive no fim do <body>, depois de ~1,7 MB de HTML.
@@ -58966,7 +58966,7 @@ window.addEventListener('screen:activated', e => { if (e.detail && e.detail.scre
 
   const ACTIVE_AT_LOAD = (() => {
     try { return window.ProfileManager && ProfileManager.getActiveProfileId ? ProfileManager.getActiveProfileId() : null; }
-    catch (_) { return null; }
+    catch (e) { if (typeof _quiet === 'function') _quiet(e, 'startup-active-profile'); return null; }
   })();
 
   const LOCAL_ONLY_EXACT = new Set([
@@ -58987,7 +58987,7 @@ window.addEventListener('screen:activated', e => { if (e.detail && e.detail.scre
     try {
       const el = document.querySelector('.screen.active');
       return el && el.id && el.id.startsWith('screen-') ? el.id.slice(7) : null;
-    } catch (_) { return null; }
+    } catch (e) { if (typeof _quiet === 'function') _quiet(e, 'soft-refresh-screen'); return null; }
   }
 
   function softRefreshNow() {
@@ -59043,10 +59043,12 @@ window.addEventListener('screen:activated', e => { if (e.detail && e.detail.scre
       const r = await CloudStore.aplicando(() => this.hydrate(id));
       if (!r || !r.ok) return false;
       if (!r.mudou) {
-        try { console.info('[SectionSync] nuvem conferida: nada mudou, sem recarregar'); } catch (_) {}
+        try { console.info('[SectionSync] nuvem conferida: nada mudou, sem recarregar'); }
+        catch (e) { if (typeof _quiet === 'function') _quiet(e, 'section-sync-info'); }
         return true;
       }
-      try { if (typeof showToast === 'function') showToast('Sincronizado da nuvem ✓'); } catch (_) {}
+      try { if (typeof showToast === 'function') showToast('Sincronizado da nuvem ✓'); }
+      catch (e) { if (typeof _quiet === 'function') _quiet(e, 'section-sync-toast'); }
       scheduleSoftRefresh('dados novos da nuvem');
       return true;
     };
@@ -59061,7 +59063,7 @@ window.addEventListener('screen:activated', e => { if (e.detail && e.detail.scre
       const why = String(reason || '');
       const current = (() => {
         try { return window.ProfileManager && ProfileManager.getActiveProfileId ? ProfileManager.getActiveProfileId() : null; }
-        catch (_) { return null; }
+        catch (e) { if (typeof _quiet === 'function') _quiet(e, 'reload-current-profile'); return null; }
       })();
 
       // Login no mesmo perfil: hydrate já escreveu o dado correto no armazenamento.
@@ -59089,7 +59091,8 @@ window.addEventListener('screen:activated', e => { if (e.detail && e.detail.scre
     guardedReload.__startupStabilityPatched = true;
     guardedReload.__original = original;
     window.recarregarApp = guardedReload;
-    try { recarregarApp = guardedReload; } catch (_) {}
+    try { recarregarApp = guardedReload; }
+    catch (e) { if (typeof _quiet === 'function') _quiet(e, 'reload-global-alias'); }
     return true;
   }
 
