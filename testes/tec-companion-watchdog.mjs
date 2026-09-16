@@ -3,6 +3,7 @@ import { readFileSync } from 'node:fs';
 const read=p=>readFileSync(new URL('../'+p,import.meta.url),'utf8');
 const manifest=JSON.parse(read('companion/manifest.json'));
 const capture=read('companion/src/tec-capture-v2.js');
+const pressure=read('companion/src/tec-reconstruct-backpressure-v2.js');
 const reconstruct=read('companion/src/tec-reconstruct.js');
 const legacy=read('companion/src/tec-capture-watchdog.js');
 const integrity=read('companion/src/tec-integrity-guard.js');
@@ -10,8 +11,9 @@ const integrity=read('companion/src/tec-integrity-guard.js');
 const tecScript=(manifest.content_scripts||[]).find(x=>(x.matches||[]).some(m=>m.includes('tecconcursos.com.br'))&&(x.js||[]).includes('src/tec-capture-v2.js'));
 const order=tecScript?tecScript.js||[]:[];
 const checks=[
-  ['Companion 1.4 ativo',manifest.version==='1.4.0'],
-  ['guarda e reconstrutor carregam antes da captura factual',!!tecScript&&order.indexOf('src/tec-integrity-guard.js')===0&&order.indexOf('src/tec-reconstruct.js')===1&&order.indexOf('src/tec-capture-v2.js')===2],
+  ['Companion 1.4.1 ativo',manifest.version==='1.4.1'],
+  ['guarda, backpressure e reconstrutor carregam antes da captura factual',!!tecScript&&order.indexOf('src/tec-integrity-guard.js')===0&&order.indexOf('src/tec-reconstruct-backpressure-v2.js')===1&&order.indexOf('src/tec-reconstruct.js')===2&&order.indexOf('src/tec-capture-v2.js')===3],
+  ['backpressure exige persistência do lote antes do avanço',pressure.includes("kind:'tec-reconstruct-batch-state'")&&pressure.includes('ACK_TIMEOUT_MS')],
   ['aba de reconstrução neutraliza captura normal',reconstruct.includes('window.__snmTecCompanionV2 = true')&&reconstruct.includes('window.__snmTecCaptureWatchdog = true')],
   ['legados carregam depois e são neutralizados',order.indexOf('src/tec-content.js')>order.indexOf('src/tec-capture-v2.js')&&order.indexOf('src/tec-capture-watchdog.js')>order.indexOf('src/tec-content.js')&&capture.includes('window.__snmTecCaptureWatchdog = true')],
   ['captura v2 roda em todos os frames TEC',!!tecScript&&tecScript.all_frames===true],
@@ -25,4 +27,4 @@ const checks=[
 ];
 const failed=checks.filter(([,ok])=>!ok);
 if(failed.length){failed.forEach(([name])=>console.error('FALHOU:',name));process.exit(1);}
-console.log(`COMPANION WATCHDOG V4: ${checks.length}/${checks.length} contratos válidos.`);
+console.log(`COMPANION WATCHDOG V4.1: ${checks.length}/${checks.length} contratos válidos.`);
