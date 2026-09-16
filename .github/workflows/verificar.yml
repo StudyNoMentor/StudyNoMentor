@@ -76,6 +76,8 @@ jobs:
         run: node testes/repositorio-higiene.mjs
       - name: Instalar dependencias de teste
         run: npm ci
+      - name: Validar hidratação quente do startup
+        run: node testes/startup-hot-hydration.mjs
       - name: Simular prescricao adaptativa independente
         run: node testes/reforco-adaptativo-massivo.mjs
       - name: Validar motores de sugestao independentes
@@ -122,6 +124,8 @@ jobs:
         run: |
           npm install --no-save playwright@1.56.1
           npx playwright install --with-deps chromium
+      - name: Medir startup com perfil inativo volumoso
+        run: timeout 90s node testes/startup-hot-hydration-browser.mjs
       - name: Validar Puxar do Plano multimotor
         run: timeout 90s node testes/plano-sugestoes-modulos-browser.mjs
       - name: Validar governanca dos motores no navegador
