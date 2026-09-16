@@ -37,22 +37,30 @@ try{
   ok(copies.extras.includes('Execute hoje'),'Extras deve ser orientado à execução');
   ok(copies.tec.includes('prioridade de ataque'),'TEC deve separar medida de decisão');
 
-  /* A segunda passada precisa ser perceptível, não só uma mudança de 2–3% de opacidade. */
+  /* A auditoria visual global retirou o "cartão dentro da página" do cabeçalho.
+     A hierarquia agora vem da tipografia/copy: sem marcador lateral, moldura,
+     fundo ou sombra próprios. O pseudo-elemento semântico antigo pode manter o
+     conteúdo para compatibilidade, mas não pode ser exibido. */
   const visual=await page.evaluate(()=>{
     switchScreen('registrar');UXHierarchy.onScreen('registrar');
     const head=document.querySelector('#screen-registrar .page-header');
     const hs=getComputedStyle(head),before=getComputedStyle(head,'::before');
     return {
       eyebrow:before.content||'',
+      eyebrowDisplay:before.display,
       borderLeft:parseFloat(hs.borderLeftWidth)||0,
       radius:parseFloat(hs.borderRadius)||0,
+      background:hs.backgroundColor,
+      shadow:hs.boxShadow,
       title:parseFloat(getComputedStyle(document.querySelector('#screen-registrar .page-title')).fontSize)||0
     };
   });
-  ok(/EXECUÇÃO/.test(visual.eyebrow),'cabeçalho deve explicitar a camada da tela');
-  ok(visual.borderLeft>=3,'cabeçalho deve ter marcador lateral perceptível');
-  ok(visual.radius>=14,'cabeçalho deve funcionar como bloco editorial visível');
-  ok(visual.title>=23,'título deve ter hierarquia tipográfica perceptível');
+  ok(visual.eyebrowDisplay==='none','marcador editorial antigo do cabeçalho deve permanecer oculto');
+  ok(visual.borderLeft<1,'cabeçalho não deve ter marcador lateral decorativo');
+  ok(visual.radius<1,'cabeçalho não deve ser tratado como cartão arredondado');
+  ok(visual.shadow==='none','cabeçalho não deve competir com os cartões por sombra');
+  ok(visual.background==='rgba(0, 0, 0, 0)'||visual.background==='transparent','cabeçalho deve permanecer sem superfície própria');
+  ok(visual.title>=23,'título deve manter hierarquia tipográfica perceptível');
   console.log('UX_VISUAL_METRICS',JSON.stringify(visual));
 
   /* Ciclo: três indicadores acionáveis ganham prioridade sem apagar os demais. */
