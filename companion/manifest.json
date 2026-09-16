@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "StudyNoMentor Companion",
-  "version": "1.2.0",
+  "version": "1.1.1",
   "description": "Integra o TecConcursos e o ChatGPT Plus ao StudyNoMentor em tempo real, com validação de respostas, fila durável e auditoria de dados.",
   "permissions": ["storage", "unlimitedStorage", "tabs"],
   "host_permissions": [
