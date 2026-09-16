@@ -34,10 +34,13 @@ try {
       const tx=db.transaction('kv','readwrite'),s=tx.objectStore('kv');
       s.clear();
       s.put(ativo,'diario-estudos:active-profile');
-      s.put(JSON.stringify([{id:ativo,nome:'Ativo',avatar:'📘',cor:'#000'},{id:frio,nome:'Frio',avatar:'📗',cor:'#111'}]),'diario-estudos:profiles');
-      s.put(JSON.stringify([{id:'pl_a',nome:'Plano ativo',tipo:'Pré-edital'}]),`diario-estudos:u:${ativo}:planejamentos`);
-      s.put('pl_a',`diario-estudos:u:${ativo}:active-plan`);
-      s.put(JSON.stringify([{id:'e1',subject:'Auditoria',durationMin:60}]),`diario-estudos:u:${ativo}:p:pl_a:entries`);
+      s.put(JSON.stringify([
+        {id:ativo,nome:'Ativo',avatar:'📘',cor:'#000',createdAt:new Date().toISOString()},
+        {id:frio,nome:'Frio',avatar:'📗',cor:'#111',createdAt:new Date().toISOString()}
+      ]),'diario-estudos:profiles');
+      // O perfil ativo fica deliberadamente sem planejamento persistido: o próprio
+      // PlanManager cria sua estrutura padrão válida na abertura. Assim o benchmark
+      // mede armazenamento, sem introduzir fixtures parciais que não existiriam no uso real.
       s.put(big,`diario-estudos:u:${frio}:p:pl_f:tec`);
       s.put(backup,`diario-estudos:vhist:${frio}`);
       tx.oncomplete=resolve;tx.onerror=()=>reject(tx.error);tx.onabort=()=>reject(tx.error);
@@ -62,7 +65,7 @@ try {
     coldIds:window.__idbColdProfileIds?window.__idbColdProfileIds():[]
   }),seeded);
 
-  assert.ok(before.stats.totalKeys>=7,'índice deve enxergar dados quentes e frios');
+  assert.ok(before.stats.totalKeys>=4,'índice deve enxergar dados globais e o perfil frio');
   assert.ok(before.stats.coldKeys>=2,'payload volumoso de outro perfil deve ficar fora do caminho crítico');
   assert.equal(before.coldTec,null,'perfil frio não deve ter payload clonado antes de ser aberto');
   assert.equal(before.coldKnown,true,'índice deve saber que o perfil frio existe');
