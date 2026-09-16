@@ -39,7 +39,7 @@
   padding:10px 12px;
   border:1px solid var(--border,#e5e7eb);
   border-radius:10px;
-  background:var(--surface-soft,#f8fafc);
+  background:var(--surface-sunken,#f8fafc);
   color:var(--text-soft,#475467);
   font-size:12px;
   line-height:1.45;

@@ -21,8 +21,8 @@ const checks = [
   ['soft refresh reativa a tela atual', js.includes("new CustomEvent('screen:activated'")],
   ['SectionSync antigo ainda evita reload quando nada mudou', section.includes("if (!r.mudou) { console.info('[SectionSync] nuvem conferida: nada mudou, sem recarregar')")],
   ['gate distingue mesmo perfil de troca', gate.includes('const jaEraOAtivo = (ProfileManager.getActiveProfileId() === id)')],
-  ['IA continua usando o endpoint interceptável tec-ai', ai.includes("'/functions/v1/tec-ai'")],
-  ['proxy Plus espera resposta longa sem API paga', plus.includes('180000') && !plus.includes('api.openai.com')],
+  ['IA continua usando o endpoint tec-ai', ai.includes("'/functions/v1/tec-ai'")],
+  ['proxy Plus tem timeout próprio e não chama OpenAI diretamente', plus.includes('150000') && !plus.includes('api.openai.com')],
   ['executor ChatGPT tem detecção explícita de login', chat.includes("throw new Error('LOGIN_REQUIRED')")],
   ['executor aguarda conclusão estável da resposta', chat.includes('STABLE_TICKS') && chat.includes('generationInProgress()')]
 ];

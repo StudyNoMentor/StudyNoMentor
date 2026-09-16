@@ -16,7 +16,7 @@
 
   const CURSOR_SUFFIX='tec-cloud-ledger:cursor-v2';
   const PAGE_SIZE=1000;
-  const quiet=(e,ctx)=>{ try { if (typeof _quiet==='function') _quiet(e,ctx); } catch (_) {} };
+  const quiet=(e,ctx)=>{ try { if (typeof _quiet==='function') _quiet(e,ctx); } catch (ignored) { void ignored; } };
   const fnv=value=>{ let h=2166136261; const s=String(value||''); for (let i=0;i<s.length;i++){h^=s.charCodeAt(i);h=Math.imul(h,16777619);} return (h>>>0).toString(36); };
 
   function cursorKey() {
