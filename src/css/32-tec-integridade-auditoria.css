@@ -1,0 +1,31 @@
+/* TEC — integridade, confiança e explicabilidade */
+#tec-assistant-trust{
+  margin:0 16px 14px;padding:13px 14px;border:1px solid color-mix(in srgb,var(--accent) 24%,var(--border));
+  border-radius:14px;background:color-mix(in srgb,var(--accent) 3%,var(--surface));box-shadow:0 3px 12px rgba(15,23,42,.04)
+}
+.tec-trust-head{display:flex;gap:12px;justify-content:space-between;align-items:flex-start;flex-wrap:wrap}
+.tec-trust-head>div{display:grid;gap:4px;min-width:0}
+.tec-trust-head b{font-size:var(--fs-sm);line-height:1.35;color:var(--text)}
+.tec-trust-head small{font-size:var(--fs-xs);line-height:1.45;color:var(--text-soft)}
+.tec-trust-status{display:inline-flex;align-items:center;min-height:28px;padding:5px 9px;border:1px solid var(--border);border-radius:999px;background:var(--surface);font-size:var(--fs-xs);font-weight:750;color:var(--text-soft)}
+.tec-trust-chips{display:flex;gap:6px;flex-wrap:wrap;margin:10px 0}
+.tec-trust-chips span{display:inline-flex;align-items:center;padding:4px 7px;border-radius:999px;border:1px solid var(--border);font-size:11px;font-weight:700;background:var(--surface)}
+.tec-trust-chips .ok{color:var(--good);border-color:color-mix(in srgb,var(--good) 35%,var(--border));background:color-mix(in srgb,var(--good-soft) 55%,var(--surface))}
+.tec-trust-chips .miss{color:var(--warn);border-color:color-mix(in srgb,var(--warn) 34%,var(--border));background:color-mix(in srgb,var(--warn-soft) 48%,var(--surface))}
+.tec-trust-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:9px}
+#tec-assistant-trust>p{margin:9px 0 0;color:var(--text-soft);font-size:var(--fs-xs);line-height:1.45}
+.tec-trust-empty{font-size:var(--fs-xs);color:var(--text-soft);line-height:1.45}
+
+#tec-lacunas-card .tec-lacunas-how{margin:10px 16px 12px;padding:10px 12px;border:1px solid var(--border);border-radius:12px;background:var(--surface-sunken)}
+#tec-lacunas-card .tec-lacunas-how summary{cursor:pointer;font-size:var(--fs-sm);font-weight:800;color:var(--text)}
+#tec-lacunas-card .tec-lacunas-how>div{margin-top:8px;font-size:var(--fs-xs);line-height:1.55;color:var(--text-soft)}
+#tec-lacunas-card .tec-lacuna-proof{margin-top:9px;border-top:1px dashed var(--border);padding-top:8px}
+#tec-lacunas-card .tec-lacuna-proof summary{cursor:pointer;font-size:var(--fs-xs);font-weight:800;color:var(--accent-text)}
+.tec-lacuna-proof-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:7px;margin-top:8px}
+.tec-lacuna-proof-grid span{display:grid;gap:2px;padding:8px 9px;border:1px solid var(--border);border-radius:9px;background:var(--surface);font-size:11px;line-height:1.4;color:var(--text-soft)}
+.tec-lacuna-proof-grid b{font-size:10px;text-transform:uppercase;letter-spacing:.04em;color:var(--text)}
+
+@media(max-width:700px){
+  .tec-lacuna-proof-grid{grid-template-columns:1fr}
+  .tec-trust-actions>*{flex:1 1 180px}
+}

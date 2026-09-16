@@ -100,6 +100,8 @@ jobs:
         run: node testes/lei-rodizio-perf.mjs
       - name: Validar fila diaria de reforco
         run: node testes/reforco-fila.mjs
+      - name: Validar integridade profunda do Assistente TEC
+        run: node testes/tec-integridade-profunda.mjs
       - name: Validar modulo separado da Integracao TEC
         run: node testes/tec-integracao-modulo.mjs
       - name: Validar gatilho resiliente do Companion
