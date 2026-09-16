@@ -57,7 +57,7 @@
      novo, e o antigo é descartado sozinho na ativação) e o que permite ao app
      dizer qual versão está rodando. Em src/ fica "dev" de propósito: a versão
      é gerada na montagem, não editada à mão. -->
-<meta name="diario-versao" content="v9a32508aaa">
+<meta name="diario-versao" content="ve2e6665ad7">
 <script>
 /* ── ARRANQUE: abre o IndexedDB AGORA, em paralelo com o parse do documento ──
    A fachada de armazenamento vive no fim do <body>, depois de ~1,7 MB de HTML.
@@ -63644,6 +63644,130 @@ window.addEventListener('screen:activated', e => { if (e.detail && e.detail.scre
   const timer = setInterval(() => {
     tries++;
     if (patch() || tries >= 120) clearInterval(timer);
+  }, 250);
+})();
+
+/* ============================================================================
+   EGRESS HARDENING — conteúdo grande nunca trafega por Postgres Changes
+   ----------------------------------------------------------------------------
+   study_profiles.payload pode ultrapassar 1 MB e profile_sections.data pode
+   chegar a centenas de KB. Postgres Changes transmite a linha alterada para cada
+   assinante; autosaves frequentes transformavam pequenas edições em GB de egress.
+
+   Política:
+   - conteúdo de estudo usa sincronização explícita no startup, foco e ação manual;
+   - Realtime fica reservado a sinais pequenos (ex.: active_sessions e TEC);
+   - eventos repetidos de focus/pageshow/visibilitychange são deduplicados quando
+     não existe alteração local pendente.
+   ============================================================================ */
+(() => {
+  if (typeof window === 'undefined' || window.__snmEgressHardening) return;
+  window.__snmEgressHardening = true;
+
+  const FOCUS_MIN_INTERVAL_MS = 15000;
+  let lastFocusSyncAt = 0;
+  let focusRunning = null;
+
+  function quiet(e, tag) {
+    try { if (typeof _quiet === 'function') _quiet(e, tag || 'egress-hardening'); }
+    catch (_) {}
+  }
+
+  function pendingLocal(C) {
+    try {
+      if (C && (C._pending || C._debounce || C._syncing)) return true;
+      return !!(window.SectionSync && SectionSync.pendingQuick && SectionSync.pendingQuick() > 0);
+    } catch (_) { return false; }
+  }
+
+  function removeChannel(C, key) {
+    const ch = C && C[key];
+    if (!ch) return;
+    try { if (C.client && C.client.removeChannel) C.client.removeChannel(ch); }
+    catch (e) { quiet(e, 'egress-remove-' + key); }
+    C[key] = null;
+  }
+
+  function disconnectHeavyRealtime(C) {
+    if (!C) return;
+    removeChannel(C, 'channel');
+    removeChannel(C, 'secChannel');
+    try { clearTimeout(C._secRtTimer); } catch (_) {}
+    C._secRtTimer = null;
+    C._rtUserId = null;
+    C._secProfileId = null;
+  }
+
+  function patch() {
+    const C = window.CloudStore;
+    if (!C || C.__egressHardeningPatched) return false;
+    C.__egressHardeningPatched = true;
+    C.CONTENT_REALTIME_MODE = 'explicit-pull-v1';
+    C.CONTENT_REALTIME_DISABLED_REASON = 'avoid-large-row-egress';
+
+    // Defesa no cliente: mesmo que as tabelas pesadas sejam republicadas no
+    // Supabase futuramente, este app não volta a assinar esses Postgres Changes.
+    C.subscribeRealtime = function() {
+      disconnectHeavyRealtime(this);
+      return false;
+    };
+    C.subscribeSections = function() {
+      removeChannel(this, 'secChannel');
+      try { clearTimeout(this._secRtTimer); } catch (_) {}
+      this._secRtTimer = null;
+      this._secProfileId = null;
+      return false;
+    };
+
+    if (typeof C.syncOnFocus === 'function' && !C.syncOnFocus.__egressPatched) {
+      const original = C.syncOnFocus.bind(C);
+      const guarded = function() {
+        if (focusRunning) return focusRunning;
+        const force = pendingLocal(this);
+        const now = Date.now();
+        if (!force && now - lastFocusSyncAt < FOCUS_MIN_INTERVAL_MS) return Promise.resolve(false);
+        lastFocusSyncAt = now;
+        focusRunning = Promise.resolve()
+          .then(() => original())
+          .finally(() => { focusRunning = null; });
+        return focusRunning;
+      };
+      guarded.__egressPatched = true;
+      guarded.__original = original;
+      C.syncOnFocus = guarded;
+    }
+
+    disconnectHeavyRealtime(C);
+
+    window.EgressGuard = {
+      mode: C.CONTENT_REALTIME_MODE,
+      focusMinIntervalMs: FOCUS_MIN_INTERVAL_MS,
+      status() {
+        return {
+          mode: C.CONTENT_REALTIME_MODE,
+          heavyRealtimeConnected: !!(C.channel || C.secChannel),
+          lastFocusSyncAt: lastFocusSyncAt || null,
+          focusRunning: !!focusRunning,
+          localPending: pendingLocal(C),
+          activeProfile: (() => {
+            try { return window.ProfileManager && ProfileManager.getActiveProfileId ? ProfileManager.getActiveProfileId() : null; }
+            catch (_) { return null; }
+          })()
+        };
+      }
+    };
+
+    try { console.info('[egress] Realtime pesado desativado; conteúdo usa pull explícito.'); }
+    catch (_) {}
+    return true;
+  }
+
+  patch();
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', patch, { once:true });
+  let tries = 0;
+  const timer = setInterval(() => {
+    tries++;
+    if (patch() || (window.CloudStore && window.CloudStore.__egressHardeningPatched) || tries > 120) clearInterval(timer);
   }, 250);
 })();
 
