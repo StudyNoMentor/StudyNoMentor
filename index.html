@@ -57,7 +57,7 @@
      novo, e o antigo é descartado sozinho na ativação) e o que permite ao app
      dizer qual versão está rodando. Em src/ fica "dev" de propósito: a versão
      é gerada na montagem, não editada à mão. -->
-<meta name="diario-versao" content="v0d7ee29304">
+<meta name="diario-versao" content="vffa0250dee">
 <script>
 /* ── ARRANQUE: abre o IndexedDB AGORA, em paralelo com o parse do documento ──
    A fachada de armazenamento vive no fim do <body>, depois de ~1,7 MB de HTML.
@@ -15237,7 +15237,7 @@ body.leis-foco #screen-leis .leis-reader-card {
   padding:10px 12px;
   border:1px solid var(--border,#e5e7eb);
   border-radius:10px;
-  background:var(--surface-soft,#f8fafc);
+  background:var(--surface-sunken,#f8fafc);
   color:var(--text-soft,#475467);
   font-size:12px;
   line-height:1.45;
@@ -60834,7 +60834,7 @@ window.addEventListener('screen:activated', e => { if (e.detail && e.detail.scre
     return m ? m[1] : null;
   };
   const uid = () => globalThis.crypto && crypto.randomUUID ? crypto.randomUUID() : `${Date.now().toString(36)}_${Math.random().toString(36).slice(2)}`;
-  const quiet = (e,ctx) => { try { if (typeof _quiet === 'function') _quiet(e,ctx); } catch (_) {} };
+  const quiet = (e,ctx) => { try { if (typeof _quiet === 'function') _quiet(e,ctx); } catch (ignored) { void ignored; } };
 
   function semver(v) {
     return String(v || '').replace(/^v/i,'').split(/[.+-]/).slice(0,3).map(x => Number.parseInt(x,10) || 0);
