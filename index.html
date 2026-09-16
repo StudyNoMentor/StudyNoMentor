@@ -57,7 +57,7 @@
      novo, e o antigo é descartado sozinho na ativação) e o que permite ao app
      dizer qual versão está rodando. Em src/ fica "dev" de propósito: a versão
      é gerada na montagem, não editada à mão. -->
-<meta name="diario-versao" content="v61fe4c6069">
+<meta name="diario-versao" content="v6ca8cc43fd">
 <script>
 /* ── ARRANQUE: abre o IndexedDB AGORA, em paralelo com o parse do documento ──
    A fachada de armazenamento vive no fim do <body>, depois de ~1,7 MB de HTML.
@@ -49297,26 +49297,18 @@ window.CloudStore = CloudStore;
    aparelhos: quem vê um device_id diferente do seu entende que outro assumiu,
    é BLOQUEADO e tem a sincronização PAUSADA (para não sobrescrever dados).
 
-   Requer no Supabase (execute uma vez — SQL fornecido no relatório):
-     create table public.active_sessions (
-       user_id uuid primary key references auth.users(id) on delete cascade,
-       device_id text not null, device_label text, updated_at timestamptz default now());
-     alter table public.active_sessions enable row level security;
-     create policy "own_select" on public.active_sessions for select using (auth.uid()=user_id);
-     create policy "own_insert" on public.active_sessions for insert with check (auth.uid()=user_id);
-     create policy "own_update" on public.active_sessions for update using (auth.uid()=user_id);
-     alter publication supabase_realtime add table public.active_sessions;
-
-   Se a tabela ainda NÃO existir, o guard se desativa sozinho, sem quebrar o app
-   (o bloqueio local por aba continua funcionando).
+   A restauração automática de uma sessão não deve roubar a posse de outro
+   aparelho: a camada de startup verifica o dono primeiro. Login digitado ou a
+   ação explícita "Continuar neste aparelho" podem reivindicar a conta.
    ============================================================================ */
 const SessionGuard = {
   TABLE: 'active_sessions',
   DEVICE_KEY: 'diario-estudos:device-id',
-  enabled: true,        // vira false se a tabela não existir
+  enabled: true,
   channel: null,
+  _subscribedUid: null,
   _deviceId: null,
-  _claimedUid: null,    // uid para o qual já reivindicamos nesta carga de página
+  _claimedUid: null,
   _avisouSemTabela: false,
 
   deviceId() {
@@ -49330,7 +49322,6 @@ const SessionGuard = {
     this._deviceId = id;
     return id;
   },
-  // Rótulo legível do aparelho (aparece no aviso do outro dispositivo).
   deviceLabel() {
     try {
       const ua = navigator.userAgent || '';
@@ -49346,7 +49337,6 @@ const SessionGuard = {
       else if (/FxiOS|Firefox\//i.test(ua)) nav = 'Firefox';
       else if (/Chrome\//i.test(ua)) nav = 'Chrome';
       else if (/Safari\//i.test(ua)) nav = 'Safari';
-      // aparelhos Apple sem navegador específico identificado usam Safari
       if (nav === 'navegador' && (so === 'iPhone/iPad' || so === 'Mac')) nav = 'Safari';
       return so + ' · ' + nav;
     } catch (_) { return 'Dispositivo'; }
@@ -49361,18 +49351,18 @@ const SessionGuard = {
     this._unsub();
     if (!this._avisouSemTabela) {
       this._avisouSemTabela = true;
-      console.info('[SessionGuard] tabela active_sessions ausente — login único entre dispositivos desligado. Rode o SQL do relatório para ativar. Detalhe:', err && (err.message || err));
+      console.info('[SessionGuard] tabela active_sessions ausente — login único entre dispositivos desligado.', err && (err.message || err));
     }
   },
 
-  // Chamado pelo CloudStore quando há sessão (login ou sessão restaurada).
+  // Mantido como fallback. A camada de estabilidade substitui este método por
+  // check-before-claim no startup; ações explícitas continuam usando claim().
   async onLogin() {
     if (!this.enabled) return;
     const CS = window.CloudStore;
     if (!CS || !CS.isReady() || !CS.isLoggedIn()) return;
     const uid = CS.session.user.id;
     this.subscribe(uid);
-    // reivindica só uma vez por carga/uid (evita re-claim a cada evento de auth)
     if (this._claimedUid !== uid) { this._claimedUid = uid; await this.claim(uid); }
   },
   onLogout() {
@@ -49381,7 +49371,6 @@ const SessionGuard = {
     if (window.SessionLock && SessionLock.isBlocked() && SessionLock._origin === 'remote') SessionLock.unblock();
   },
 
-  // Grava este device como o dono ativo da conta (derruba os demais).
   async claim(uid) {
     if (!this.enabled) return false;
     const CS = window.CloudStore;
@@ -49396,7 +49385,6 @@ const SessionGuard = {
     } catch (err) { if (this._isMissingTable(err)) this._disable(err); else console.warn('[SessionGuard] claim erro', err); return false; }
   },
 
-  // Verifica quem é o dono atual (na entrada, antes mesmo do primeiro evento realtime).
   async check(uid) {
     if (!this.enabled) return;
     const CS = window.CloudStore;
@@ -49412,41 +49400,47 @@ const SessionGuard = {
   },
 
   subscribe(uid) {
-    if (!this.enabled || this.channel) return;
+    if (!this.enabled) return;
     const CS = window.CloudStore;
     if (!CS || !CS.isReady()) return;
+    uid = String(uid || '');
+    if (!uid) return;
+
+    // Um canal só pode representar UM usuário. Antes, trocar diretamente de
+    // conta mantinha `this.channel` vivo e o `return` abaixo fazia o novo login
+    // continuar ouvindo o filtro da conta anterior.
+    if (this.channel && this._subscribedUid === uid) return;
+    if (this.channel) this._unsub();
+    this._subscribedUid = uid;
     try {
-      this.channel = CS.client.channel('sess_guard')
+      this.channel = CS.client.channel('sess_guard_' + uid.slice(0, 8))
         .on('postgres_changes', { event: '*', schema: 'public', table: this.TABLE, filter: 'user_id=eq.' + uid }, (p) => {
+          if (this._subscribedUid !== uid) return; // callback atrasado da conta anterior
           const row = p.new || p.old || {};
           if (!row.device_id) return;
           if (row.device_id !== this.deviceId()) this._takenBy(row);
           else if (window.SessionLock && SessionLock.isBlocked() && SessionLock._origin === 'remote') SessionLock.unblock();
-          // se a tela de Configurações estiver aberta, reflete a mudança na hora
           try { const cfg = document.getElementById('screen-config'); if (cfg && cfg.classList.contains('active') && window.CloudUI) CloudUI.renderSessions(); } catch (_) { _quiet(_); }
         })
-        .subscribe((status) => { if (status === 'SUBSCRIBED') this.check(uid); });
-    } catch (e) { console.warn('[SessionGuard] realtime indisponível', e); }
+        .subscribe((status) => { if (status === 'SUBSCRIBED' && this._subscribedUid === uid) this.check(uid); });
+    } catch (e) {
+      this.channel = null;
+      this._subscribedUid = null;
+      console.warn('[SessionGuard] realtime indisponível', e);
+    }
   },
   _unsub() {
-    if (this.channel) { try { window.CloudStore.client.removeChannel(this.channel); } catch (_) { _quiet(_); } this.channel = null; }
+    if (this.channel) { try { window.CloudStore.client.removeChannel(this.channel); } catch (_) { _quiet(_); } }
+    this.channel = null;
+    this._subscribedUid = null;
   },
 
-  // Outro aparelho assumiu: bloqueia e pausa a sincronização aqui.
   _takenBy(row) {
     if (window.SessionLock) SessionLock.block('remote', { label: row.device_label });
-    /* Interrompe o ENVIO para não sobrescrever o outro aparelho — mas mantém a
-       pendência. Zerar _pending aqui apagava a alteração da fila: ela nunca mais
-       era tentada, e o download seguinte a removia também do armazenamento local.
-       A caixa de saída da camada por seção continua gravada e reenvia quando esta
-       sessão for retomada. */
     try { const CS = window.CloudStore; if (CS) { clearTimeout(CS._debounce); CS._debounce = null; } } catch (_) { _quiet(_); }
     if (window.CloudUI) CloudUI.refreshSyncBtn();
   },
 
-  // ---- Usado pela tela de Configurações ----
-  // status: 'ok' (leu a linha), 'empty' (sem sessão registrada), 'disabled'
-  // (tabela ausente/guard desligado), 'offline' (sem conexão/login), 'error'.
   async fetchActive() {
     if (!this.enabled) return { status: 'disabled' };
     const CS = window.CloudStore;
@@ -49465,8 +49459,6 @@ const SessionGuard = {
       };
     } catch (err) { if (this._isMissingTable(err)) { this._disable(err); return { status: 'disabled' }; } return { status: 'error', message: err && err.message }; }
   },
-  // Encerra a sessão do outro aparelho trazendo a posse para ESTE (reivindica).
-  // O outro aparelho recebe o evento em tempo real e é bloqueado.
   async endRemoteAndClaimHere() {
     const ok = await this.claim();
     if (ok && window.SessionLock && SessionLock.isBlocked() && SessionLock._origin === 'remote') SessionLock.unblock();
@@ -49475,7 +49467,6 @@ const SessionGuard = {
   }
 };
 window.SessionGuard = SessionGuard;
-// "Continuar neste aparelho" (no overlay remoto) → reivindica de volta a posse.
 if (window.SessionLock) SessionLock.onTakeover(async (origin) => {
   if (origin !== 'remote') return;
   const ok = await SessionGuard.claim();
