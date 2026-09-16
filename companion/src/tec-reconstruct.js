@@ -83,7 +83,7 @@
     while (Date.now() - start < timeout) {
       if (cancelled) throw new Error('Reconstrução cancelada.');
       let v = null;
-      try { v = fn(); } catch (_) {}
+      try { v = await fn(); } catch (_) {}
       if (v) return v;
       await sleep(interval);
     }
@@ -128,8 +128,8 @@
     let prev = tableSignature(), stable = 0;
     for (let i=0;i<35;i++) {
       await sleep(120);
-      const now = tableSignature();
-      if (now === prev) stable++; else { prev = now; stable = 0; }
+      const current = tableSignature();
+      if (current === prev) stable++; else { prev = current; stable = 0; }
       if (stable >= 3) return;
     }
   }
@@ -171,14 +171,13 @@
   }
 
   function scanTargets() {
-    const out = [];
-    const seen = new Set();
+    const out = [], seen = new Set();
     for (const row of document.querySelectorAll('table.tabela-gabaritos tbody tr.questao')) {
       const item = readGabaritoRow(row);
       if (!item) continue;
-      const k = `${item.id}|${item.dataResolucao}|${item.acertou ? 1 : 0}`;
-      if (seen.has(k)) continue;
-      seen.add(k); out.push(item);
+      const key = `${item.id}|${item.dataResolucao}|${item.acertou ? 1 : 0}`;
+      if (seen.has(key)) continue;
+      seen.add(key); out.push(item);
     }
     return out;
   }
@@ -188,7 +187,10 @@
       const link = document.querySelector(`td.id-questao a[href$="/questoes/${id}"]`);
       if (link) return link.closest('tr.questao');
       const more = loadMoreButton();
-      if (!more) { await waitStableTable(); return document.querySelector(`td.id-questao a[href$="/questoes/${id}"]`)?.closest('tr.questao') || null; }
+      if (!more) {
+        await waitStableTable();
+        return document.querySelector(`td.id-questao a[href$="/questoes/${id}"]`)?.closest('tr.questao') || null;
+      }
       const before = document.querySelectorAll('table.tabela-gabaritos tbody tr.questao').length;
       more.click();
       await waitFor(() => document.querySelector(`td.id-questao a[href$="/questoes/${id}"]`) || document.querySelectorAll('table.tabela-gabaritos tbody tr.questao').length > before || !loadMoreButton(), 5000, 100);
@@ -258,7 +260,6 @@
       for (const sel of selectors) for (const el of document.querySelectorAll(sel)) if (visible(el) && text(el)) return text(el);
       return '';
     };
-    const alternatives = [];
     const by = new Map();
     const nodes = [...document.querySelectorAll('label,button,[role="radio"],li,[data-letter],[data-letra],.wk7j7j,.bz2gcz')].slice(0,1500);
     for (const node of nodes) {
@@ -277,7 +278,6 @@
       old.selected = old.selected || selected; old.correct = old.correct || correct; old.wrong = old.wrong || wrong;
       by.set(l, old);
     }
-    alternatives.push(...[...by.values()].sort((a,b)=>a.letra.localeCompare(b.letra)).slice(0,8));
     return {
       id:String(id),
       materia:firstText(['a[ng-href*="/materias/"]','a[href*="/materias/"]','[data-eq-slot="materia"]','[class*="materia" i]']),
@@ -285,15 +285,14 @@
       banca:firstText(['a[href*="/bancas/"]']),
       concurso:firstText(['a[href*="/concursos/"]']),
       enunciado:firstText(['[data-eq-slot="enunciado"]','[data-testid*="enunciado" i]','[class*="enunciado" i]','[id*="enunciado" i]','[class*="statement" i]']),
-      alternativas,
+      alternativas:[...by.values()].sort((a,b)=>a.letra.localeCompare(b.letra)).slice(0,8),
       source:'dom-isolated'
     };
   }
 
   function normalizeContext(context, id) {
     const base = context && String(context.id || '') === String(id) ? context : contextFromDom(id);
-    const dom = contextFromDom(id);
-    const map = new Map();
+    const dom = contextFromDom(id), map = new Map();
     for (const a of [...(base.alternativas || []), ...(dom.alternativas || [])]) {
       if (!a || !letter(a.letra)) continue;
       const l = letter(a.letra), old = map.get(l) || { letra:l, texto:'', selected:false, correct:false, wrong:false };
@@ -325,7 +324,7 @@
       const qid = currentQuestionId();
       if (String(qid || '') === String(target.id)) return true;
       const snap = await requestSnapshot(target.id);
-      return snap && snap.context && String(snap.context.id || '') === String(target.id);
+      return !!(snap && snap.context && String(snap.context.id || '') === String(target.id));
     }, 7000, 180);
     if (!loaded) throw new Error(`A questão #${target.id} não terminou de abrir.`);
 
