@@ -61,6 +61,7 @@ jobs:
           node testes/robustez-config.mjs
           node testes/fidelidade-tec.mjs
           node testes/startup-hot-hydration.mjs
+          node testes/egress-hardening.mjs
           node testes/reforco-adaptativo-massivo.mjs
           node testes/plano-sugestoes-modulos.mjs
           node testes/plano-robusto.mjs
