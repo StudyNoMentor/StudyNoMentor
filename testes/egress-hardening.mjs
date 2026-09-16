@@ -14,7 +14,8 @@ const checks = [
   ['uma única sync de foco pode ficar em voo', guard.includes('if (focusRunning) return focusRunning')],
   ['reset TEC e consulta de revisão começam em paralelo', startup.includes('const resetPromise =') && startup.includes('const remotePromise =') && startup.includes('Promise.all([resetPromise, remotePromise])')],
   ['nenhum kick ocorre antes da barreira do reset', startup.indexOf('Promise.all([resetPromise, remotePromise])') < startup.indexOf('else if (S.kick) S.kick()')],
-  ['diagnóstico de egress fica exposto', guard.includes('window.EgressGuard =') && guard.includes('heavyRealtimeConnected')]
+  ['diagnóstico de egress fica exposto', guard.includes('window.EgressGuard =') && guard.includes('heavyRealtimeConnected')],
+  ['guard de egress não introduz catches vazios', !/catch\s*\([^)]*\)\s*\{\s*\}/.test(guard)]
 ];
 
 const failed = checks.filter(([, ok]) => !ok);
