@@ -1,0 +1,317 @@
+/* ============================================================================
+   CONSISTÊNCIA VISUAL GLOBAL — tipografia, foco, cartões e superfícies
+   ----------------------------------------------------------------------------
+   Camada final de apresentação. Não altera regra de negócio nem métricas.
+   Corrige também artefatos de foco nativo (quadriculados/moldura da tela) e
+   harmoniza Ciclo, Leis, Histórico e o workbench TEC.
+   ============================================================================ */
+
+:root {
+  --ui-font: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, Arial, sans-serif;
+  --ui-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  --ui-card-border: color-mix(in srgb, var(--text) 10%, var(--border));
+  --ui-card-shadow: 0 3px 12px rgba(15, 23, 42, .045);
+  --ui-card-shadow-hover: 0 7px 22px rgba(15, 23, 42, .07);
+}
+
+/* Uma única voz tipográfica para toda a interface. Mono fica reservado a
+   conteúdo realmente técnico (código e editor de prompts), não a métricas/UI. */
+body { font-family: var(--ui-font) !important; }
+body :where(button,input,select,textarea,summary,label,a,p,span,small,strong,b,i,div,section,article,header,footer,nav,aside,main,table,thead,tbody,tr,th,td,h1,h2,h3,h4,h5,h6) {
+  font-family: var(--ui-font) !important;
+}
+body :where(code,pre,kbd,samp,.tec-prompt-text) { font-family: var(--ui-mono) !important; }
+:where(.mini-gauge-card .value,.week-stat .value,.plan-stat .value,.lei-card-stats,.leis-mark-count,.extra-progress .nums b,.exd-reg .exd-num,.cal-chip-done,.eyebrow,.hint) {
+  font-family: var(--ui-font) !important;
+}
+:where(.mini-gauge-card .value,.week-stat .value,.plan-stat .value,.trt-kpi b,.tec-connect-metrics strong) {
+  font-variant-numeric: tabular-nums;
+}
+.page-title, .card-header h2, .card-header h3 { color: var(--text); }
+.page-subtitle, .card-header .sub, .hint { color: var(--text-soft); }
+
+/* Foco: elimina o quadriculado nativo e a moldura azul de página inteira.
+   O foco continua visível nos CONTROLES, com um anel curto e consistente. */
+main:focus, main:focus-visible,
+section.screen:focus, section.screen:focus-visible {
+  outline: none !important;
+  box-shadow: none !important;
+}
+:where(button,a[href],input,select,textarea,summary,[role='button'],[tabindex]:not([tabindex='-1'])):focus-visible {
+  outline: none !important;
+  box-shadow: 0 0 0 3px var(--accent-ring) !important;
+}
+.screen .card { border-style: solid; }
+#screen-desempenhotec :where(.tec-cfg-bar,.pl-foco-bt,.pl-hoje-lista li.tec-v2-injected) { border-style: solid !important; }
+
+/* ── CICLO DA SEMANA ─────────────────────────────────────────────────────── */
+#ciclo-overview-gauges.ux-week-gauges {
+  display: grid !important;
+  grid-template-columns: repeat(3, minmax(0,1fr)) !important;
+  gap: 10px !important;
+}
+#ciclo-overview-gauges .mini-gauge-card,
+#ciclo-overview-gauges .mini-gauge-card[data-ux-priority='primary'],
+#ciclo-overview-gauges .mini-gauge-card[data-ux-priority='secondary'],
+#ciclo-overview-gauges .mini-gauge-card[data-ux-priority='tertiary'] {
+  min-height: 88px !important;
+  padding: 13px 12px !important;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--ui-card-border) !important;
+  border-radius: 14px !important;
+  background: var(--surface) !important;
+  box-shadow: var(--ui-card-shadow) !important;
+  opacity: 1 !important;
+  transform: none !important;
+}
+#ciclo-overview-gauges .mini-gauge-card[data-ux-priority='primary'] {
+  border-top: 3px solid color-mix(in srgb, var(--accent) 72%, var(--border)) !important;
+  background: linear-gradient(180deg, color-mix(in srgb,var(--accent) 3%,var(--surface)), var(--surface)) !important;
+}
+#ciclo-overview-gauges .mini-gauge-card .value,
+#ciclo-overview-gauges .mini-gauge-card[data-ux-priority='primary'] .value {
+  font-size: clamp(21px,2vw,28px) !important;
+  line-height: 1.05;
+  letter-spacing: -.025em;
+}
+#ciclo-overview-gauges .mini-gauge-card .label {
+  margin-top: 6px !important;
+  font-size: 10px !important;
+  letter-spacing: .055em !important;
+  color: var(--text-soft) !important;
+}
+.subject-progress-item,
+.subject-progress-item.status-pendente,
+.subject-progress-item.status-iniciada,
+.subject-progress-item.status-finalizada {
+  border: 1px solid var(--ui-card-border) !important;
+  background: var(--surface) !important;
+  box-shadow: var(--ui-card-shadow);
+  border-radius: 14px;
+}
+.subject-progress-item.status-pendente { border-left: 4px solid var(--bad) !important; }
+.subject-progress-item.status-iniciada { border-left: 4px solid var(--warn) !important; }
+.subject-progress-item.status-finalizada { border-left: 4px solid var(--good) !important; }
+
+/* ── LEIS SECAS ──────────────────────────────────────────────────────────── */
+#screen-leis .leis-list-topbar {
+  padding: 10px 12px;
+  border: 1px solid var(--ui-card-border);
+  border-radius: 13px;
+  background: color-mix(in srgb,var(--accent) 2%,var(--surface));
+}
+#screen-leis .lei-card {
+  position: relative;
+  padding: 15px 16px !important;
+  border: 1px solid var(--ui-card-border) !important;
+  border-radius: 14px !important;
+  background: linear-gradient(135deg, color-mix(in srgb,var(--accent) 2.5%,var(--surface)), var(--surface) 68%) !important;
+  box-shadow: var(--ui-card-shadow) !important;
+  transform: none !important;
+}
+#screen-leis .lei-card:hover {
+  border-color: color-mix(in srgb,var(--accent) 30%,var(--border)) !important;
+  box-shadow: var(--ui-card-shadow-hover) !important;
+  transform: none !important;
+}
+#screen-leis .lei-card-title { font-size: 15px; line-height: 1.35; }
+#screen-leis .lei-card-meta { gap: 6px; }
+#screen-leis .lei-tag {
+  border: 1px solid color-mix(in srgb,var(--text) 8%,var(--border));
+  text-transform: none;
+  letter-spacing: 0;
+  font-size: 10px;
+}
+#screen-leis .leis-reader-card {
+  padding: 18px 20px;
+  border: 1px solid var(--ui-card-border);
+  border-radius: 16px;
+  background: var(--surface);
+  box-shadow: var(--ui-card-shadow);
+}
+#screen-leis .leis-reader-topbar { padding-bottom: 12px; border-bottom: 1px solid var(--border); }
+#screen-leis .lei-reader-body {
+  max-width: 940px;
+  margin-inline: auto;
+  line-height: 1.78;
+  font-size: var(--fs-md);
+}
+#screen-leis #leis-tools-body.ux-advanced-surface {
+  border: 1px solid var(--border);
+  padding: 10px;
+}
+body.leis-foco #screen-leis .leis-reader-card {
+  border: 0 !important;
+  box-shadow: none !important;
+  background: transparent !important;
+}
+
+/* ── HISTÓRICO ───────────────────────────────────────────────────────────── */
+#screen-historico .week-card.ux-history-card,
+#screen-historico .week-card {
+  border: 1px solid var(--ui-card-border);
+  border-radius: 16px;
+  box-shadow: var(--ui-card-shadow);
+  transform: none !important;
+  overflow: hidden;
+}
+#screen-historico .week-card::before { display: none !important; }
+#screen-historico .week-card:hover {
+  transform: none !important;
+  border-color: color-mix(in srgb,var(--accent) 20%,var(--border));
+  box-shadow: var(--ui-card-shadow-hover);
+}
+#screen-historico .week-stats-row.ux-history-summary { gap: 8px; }
+#screen-historico .week-stat {
+  padding: 9px 10px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface-sunken);
+}
+#screen-historico .week-stat .value { font-size: var(--fs-lg); }
+#screen-historico .week-detail {
+  border-top: 1px solid var(--border);
+  background: var(--surface-sunken) !important;
+}
+
+/* ── INTEGRAÇÃO TEC ──────────────────────────────────────────────────────── */
+/* A Correção contínua estava sem coluna no grid de 12 e podia virar uma faixa
+   de uma coluna, quebrando o título letra por letra. */
+#screen-integracaotec .tec-lacunas-card {
+  grid-column: 1 / -1 !important;
+  width: 100%;
+  min-width: 0;
+}
+#screen-integracaotec .tec-lacunas-summary,
+#screen-integracaotec .tec-lacuna-row { border-color: var(--ui-card-border); }
+#screen-integracaotec .tec-connect-empty { border-style: solid; background: var(--surface-sunken); }
+#screen-integracaotec .tec-ai-tabs button.active {
+  outline: none !important;
+  box-shadow: inset 0 0 0 1px color-mix(in srgb,var(--accent) 28%,transparent);
+}
+
+/* O screen do TEC permanece montado fora da viewport quando outra seção está
+   ativa. Assim o iframe não perde a sessão/caderno por descarte visual. */
+#screen-integracaotec.tec-workspace-keepalive.tec-screen-parked:not(.active) {
+  display: block !important;
+  position: fixed !important;
+  left: -220vw !important;
+  top: 0 !important;
+  width: max(1100px,100vw) !important;
+  height: 900px !important;
+  max-width: none !important;
+  overflow: hidden !important;
+  opacity: 0 !important;
+  pointer-events: none !important;
+  z-index: -1 !important;
+}
+#screen-integracaotec.tec-screen-parked #tec-workspace-frame {
+  display: block !important;
+  visibility: visible !important;
+}
+
+/* Radar TEC: uma superfície de operação, não uma pilha de blocos soltos. */
+#tec-realtime-card {
+  border: 1px solid var(--ui-card-border) !important;
+  border-radius: 16px !important;
+  box-shadow: var(--ui-card-shadow) !important;
+  overflow: hidden;
+}
+#tec-realtime-card .trt-head {
+  padding: 16px 18px 12px !important;
+  gap: 12px !important;
+  border-bottom: 0 !important;
+}
+#tec-realtime-card .trt-head h2 { margin-bottom: 3px; }
+#tec-realtime-card .trt-head .sub { max-width: 760px; line-height: 1.45; }
+#tec-realtime-card .trt-status {
+  flex: none;
+  padding: 6px 9px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--surface-sunken);
+  color: var(--text-soft);
+  font-size: 10px !important;
+}
+#tec-realtime-card .trt-toolbar {
+  margin: 0 18px 12px !important;
+  padding: 10px !important;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--surface-sunken);
+  gap: 7px !important;
+}
+#tec-realtime-card .trt-toolbar input,
+#tec-realtime-card .trt-toolbar select {
+  min-height: 34px;
+  padding-block: 6px;
+  background: var(--surface);
+}
+#tec-realtime-card .trt-queue { color: var(--text-soft); opacity: 1 !important; }
+#tec-realtime-card .trt-kpis {
+  grid-template-columns: repeat(6,minmax(90px,1fr)) !important;
+  gap: 8px !important;
+  padding: 0 18px 12px !important;
+}
+#tec-realtime-card .trt-kpi {
+  min-height: 68px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  border: 1px solid var(--ui-card-border) !important;
+  border-radius: 11px !important;
+  background: var(--surface) !important;
+  box-shadow: none;
+}
+#tec-realtime-card .trt-kpi b { font-size: 19px !important; line-height: 1.05; }
+#tec-realtime-card .trt-kpi small { color: var(--text-soft); opacity: 1 !important; }
+#tec-realtime-card .trt-note {
+  margin: 0 18px 10px;
+  padding: 9px 11px !important;
+  border-left: 3px solid color-mix(in srgb,var(--accent) 55%,var(--border));
+  border-radius: 0 9px 9px 0;
+  background: color-mix(in srgb,var(--accent) 4%,var(--surface));
+  color: var(--text-soft);
+  opacity: 1 !important;
+}
+#tec-realtime-card .trt-list {
+  display: grid;
+  gap: 7px;
+  padding: 0 18px 12px !important;
+}
+#tec-realtime-card .trt-row {
+  padding: 10px 11px !important;
+  border: 1px solid var(--border) !important;
+  border-radius: 10px;
+  background: var(--surface);
+}
+#tec-realtime-card .trt-row:first-child { border-top: 1px solid var(--border) !important; }
+#tec-realtime-card .trt-row small { color: var(--text-soft); opacity: 1 !important; }
+#tec-realtime-card .trt-actions {
+  justify-content: flex-end;
+  padding: 2px 18px 16px !important;
+}
+#tec-realtime-card #trt-capture-diagnostic {
+  border: 1px solid var(--border) !important;
+  border-radius: 11px !important;
+}
+
+@media (max-width: 900px) {
+  #tec-realtime-card .trt-kpis { grid-template-columns: repeat(3,minmax(0,1fr)) !important; }
+}
+@media (max-width: 720px) {
+  #ciclo-overview-gauges.ux-week-gauges { grid-template-columns: repeat(2,minmax(0,1fr)) !important; }
+  #ciclo-overview-gauges .mini-gauge-card[data-ux-priority='primary']:first-of-type { grid-column: 1 / -1; }
+  #screen-historico .week-stat { padding: 8px; }
+  #tec-realtime-card .trt-toolbar,
+  #tec-realtime-card .trt-note { margin-left: 12px !important; margin-right: 12px !important; }
+  #tec-realtime-card .trt-kpis,
+  #tec-realtime-card .trt-list,
+  #tec-realtime-card .trt-actions { padding-left: 12px !important; padding-right: 12px !important; }
+}
+@media (max-width: 480px) {
+  #tec-realtime-card .trt-kpis { grid-template-columns: repeat(2,minmax(0,1fr)) !important; }
+}
