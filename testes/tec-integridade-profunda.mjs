@@ -53,6 +53,7 @@ const chrome={
 const guardCtx={ window:null,document:documentGuard,chrome,location:{origin:'https://tecconcursos.com.br',href:'https://tecconcursos.com.br/questoes/3872602'},
   getComputedStyle:()=>({position:'static'}), Date,Map,Set,Object,Array,String,Number,RegExp,Promise,console,setTimeout,clearTimeout };
 guardCtx.window=guardCtx;
+guardCtx.addEventListener=()=>{};
 vm.createContext(guardCtx);
 vm.runInContext(guard,guardCtx,{filename:'tec-integrity-guard.js'});
 
@@ -84,7 +85,7 @@ const T={
 };
 const documentSite={ readyState:'complete',querySelector(){return null;},addEventListener(){},getElementById(){return null;} };
 const siteCtx={window:null,document:documentSite,TecIntegracaoScreen:T,localStorage,DB:{_profilePrefix:()=> 'p:',setRaw:(k,v)=>{localStorage.setItem(k,v);return true;}},
-  Date,Map,Set,Object,Array,String,Number,RegExp,JSON,Math,Promise,console,setTimeout,clearTimeout,escapeHtml:s=>String(s),navigator:{clipboard:{writeText:async()=>{}}},location:{origin:'https://studynomentor.github.io'} };
+  Date,Map,Set,Object,Array,String,Number,RegExp,JSON,Math,Promise,console,setTimeout,clearTimeout,escapeHtml:s=>String(s),navigator:{clipboard:{writeText:async()=>{}}},location:{origin:'https://studynomentor.github.io'},addEventListener(){} };
 siteCtx.window=siteCtx;
 vm.createContext(siteCtx);
 vm.runInContext(site,siteCtx,{filename:'99i-tec-integridade-auditoria.js'});
