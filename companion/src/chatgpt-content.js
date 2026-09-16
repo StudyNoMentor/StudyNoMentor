@@ -1,19 +1,21 @@
 /* StudyNoMentor Companion — executor no ChatGPT web.
  * Usa exclusivamente a sessão do usuário em chatgpt.com. Não usa API, chave
- * secreta, cookie externo ou token exportado. Se o usuário não estiver logado,
- * a execução falha de forma explícita e retorna ao StudyNoMentor.
+ * secreta, cookie externo ou token exportado. A aba pode permanecer aberta e
+ * receber novos jobs por mensagem, evitando criar/recarregar uma aba a cada uso.
  */
 'use strict';
 
 (() => {
-  if (window.top !== window.self) return;
+  if (window.top !== window.self || window.__snmPlusPersistentExecutor) return;
+  window.__snmPlusPersistentExecutor = true;
 
-  const CLAIM_RETRIES = 30;
-  const CLAIM_DELAY_MS = 1000;
-  const COMPOSER_TIMEOUT_MS = 30000;
-  const RESPONSE_TIMEOUT_MS = 150000;
-  const STABLE_TICKS = 4;
+  const INITIAL_CLAIM_RETRIES = 12;
+  const CLAIM_DELAY_MS = 350;
+  const COMPOSER_TIMEOUT_MS = 15000;
+  const RESPONSE_TIMEOUT_MS = 120000;
+  const STABLE_TICKS = 3;
   const MAX_PROMPT_CHARS = 60000;
+  let pumping = false;
 
   const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
   const text = v => String(v == null ? '' : v).trim();
@@ -29,18 +31,18 @@
     });
   }
 
-  async function claimJob() {
-    for (let i=0;i<CLAIM_RETRIES;i++) {
+  async function claimJob(retries = 1) {
+    for (let i=0;i<Math.max(1,retries);i++) {
       const response=await sendMessage({ kind:'plus-ai-claim' });
       if (response && response.ok && response.job) return response.job;
-      await sleep(CLAIM_DELAY_MS);
+      if (i < retries-1) await sleep(CLAIM_DELAY_MS);
     }
     return null;
   }
 
   function questionAsText(q={}) {
     const alternatives=Array.isArray(q.alternativas)
-      ? q.alternativas.map(a=>`${text(a.letra)||'—'}) ${text(a.texto)}`).join('\n') : '';
+      ? q.alternativas.map(a=>`${text(a.letra)||'—'}) ${text(a.texto)}${a.marcadaPorMim===true?' [MINHA RESPOSTA]':''}${a.correta===true?' [GABARITO]':''}`).join('\n') : '';
     return [
       q.id ? `ID: ${q.id}` : '',
       q.banca ? `Banca: ${q.banca}` : '',
@@ -49,9 +51,9 @@
       q.assunto ? `Assunto: ${q.assunto}` : '',
       q.enunciado ? `Enunciado:\n${q.enunciado}` : '',
       alternatives ? `Alternativas:\n${alternatives}` : '',
-      q.marcada ? `Minha resposta: ${q.marcada}` : '',
-      q.correta ? `Gabarito: ${q.correta}` : '',
-      typeof q.acertou==='boolean' ? `Resultado: ${q.acertou ? 'ACERTOU' : 'ERROU'}` : ''
+      q.marcada ? `Minha resposta: ${q.marcada}` : 'Minha resposta: NÃO CAPTURADA',
+      q.correta ? `Gabarito: ${q.correta}` : 'Gabarito: NÃO CAPTURADO',
+      typeof q.acertou==='boolean' ? `Resultado: ${q.acertou ? 'ACERTOU' : 'ERROU'}` : 'Resultado: NÃO VALIDADO'
     ].filter(Boolean).join('\n\n');
   }
 
@@ -107,7 +109,7 @@
     while (Date.now()-start<COMPOSER_TIMEOUT_MS) {
       const el=composer(); if (el) return el;
       if (loginRequired()) throw new Error('LOGIN_REQUIRED');
-      await sleep(350);
+      await sleep(250);
     }
     throw new Error('COMPOSER_NOT_FOUND');
   }
@@ -122,15 +124,12 @@
       el.dispatchEvent(new Event('change',{bubbles:true}));
       return;
     }
-
     try {
       const selection=window.getSelection();
       const range=document.createRange(); range.selectNodeContents(el);
       selection.removeAllRanges(); selection.addRange(range);
       document.execCommand('insertText',false,value);
-    } catch (_) {
-      el.textContent=value;
-    }
+    } catch (_) { el.textContent=value; }
     if (!text(el.innerText || el.textContent)) el.textContent=value;
     try { el.dispatchEvent(new InputEvent('input',{bubbles:true,inputType:'insertText',data:value})); }
     catch (_) { el.dispatchEvent(new Event('input',{bubbles:true})); }
@@ -152,24 +151,6 @@
     return null;
   }
 
-  async function submitPrompt(el,prompt) {
-    const baseline=assistantNodes().length;
-    setComposerValue(el,prompt);
-    for (let i=0;i<40;i++) {
-      const button=sendButton();
-      if (button) { button.click(); return baseline; }
-      await sleep(250);
-    }
-    // Reserva: algumas versões do composer aceitam Enter e atrasam a criação do botão.
-    try {
-      el.dispatchEvent(new KeyboardEvent('keydown',{key:'Enter',code:'Enter',keyCode:13,which:13,bubbles:true,cancelable:true}));
-      el.dispatchEvent(new KeyboardEvent('keyup',{key:'Enter',code:'Enter',keyCode:13,which:13,bubbles:true,cancelable:true}));
-      await sleep(500);
-      if (assistantNodes().length>baseline || generationInProgress()) return baseline;
-    } catch (_) {}
-    throw new Error('SEND_BUTTON_NOT_FOUND');
-  }
-
   function assistantNodes() {
     const selectors=[
       'main [data-message-author-role="assistant"]',
@@ -178,27 +159,34 @@
       'article [data-message-author-role="assistant"]'
     ];
     const seen=new Set(), out=[];
-    for (const selector of selectors) {
-      for (const el of document.querySelectorAll(selector)) {
-        if (seen.has(el)) continue; seen.add(el); out.push(el);
-      }
-    }
+    for (const selector of selectors) for (const el of document.querySelectorAll(selector)) if (!seen.has(el)) { seen.add(el); out.push(el); }
     return out;
   }
 
   function generationInProgress() {
-    const selectors=[
-      'button[data-testid="stop-button"]',
-      'button[data-testid="composer-stop-button"]',
-      'button[aria-label*="stop" i]',
-      'button[aria-label*="parar" i]'
-    ];
+    const selectors=['button[data-testid="stop-button"]','button[data-testid="composer-stop-button"]','button[aria-label*="stop" i]','button[aria-label*="parar" i]'];
     return selectors.some(sel=>[...document.querySelectorAll(sel)].some(visible));
   }
 
+  async function submitPrompt(el,prompt) {
+    const baseline=assistantNodes().length;
+    setComposerValue(el,prompt);
+    for (let i=0;i<28;i++) {
+      const button=sendButton();
+      if (button) { button.click(); return baseline; }
+      await sleep(180);
+    }
+    try {
+      el.dispatchEvent(new KeyboardEvent('keydown',{key:'Enter',code:'Enter',keyCode:13,which:13,bubbles:true,cancelable:true}));
+      el.dispatchEvent(new KeyboardEvent('keyup',{key:'Enter',code:'Enter',keyCode:13,which:13,bubbles:true,cancelable:true}));
+      await sleep(450);
+      if (assistantNodes().length>baseline || generationInProgress()) return baseline;
+    } catch (_) {}
+    throw new Error('SEND_BUTTON_NOT_FOUND');
+  }
+
   async function waitAnswer(baseline) {
-    const start=Date.now();
-    let previous='', stable=0;
+    const start=Date.now(); let previous='', stable=0;
     while (Date.now()-start<RESPONSE_TIMEOUT_MS) {
       if (loginRequired()) throw new Error('LOGIN_REQUIRED');
       const nodes=assistantNodes();
@@ -208,7 +196,7 @@
         if (current===previous) stable++; else { previous=current; stable=0; }
         if (stable>=STABLE_TICKS && !generationInProgress()) return current;
       }
-      await sleep(700);
+      await sleep(500);
     }
     if (previous) return previous;
     throw new Error('RESPONSE_TIMEOUT');
@@ -227,8 +215,7 @@
     const requestId=job && job.requestId;
     if (!requestId || !job.payload) return;
     try {
-      const prompt=buildPrompt(job.payload);
-      if (!prompt) throw new Error('EMPTY_PROMPT');
+      const prompt=buildPrompt(job.payload); if (!prompt) throw new Error('EMPTY_PROMPT');
       const el=await waitComposer();
       const baseline=await submitPrompt(el,prompt);
       const answer=await waitAnswer(baseline);
@@ -239,8 +226,22 @@
     }
   }
 
-  (async()=>{
-    const job=await claimJob();
-    if (job) await run(job);
-  })();
+  async function pump(retries=1) {
+    if (pumping) return;
+    pumping=true;
+    try {
+      const job=await claimJob(retries);
+      if (job) await run(job);
+    } finally { pumping=false; }
+  }
+
+  chrome.runtime.onMessage.addListener((msg,_sender,sendResponse)=>{
+    if (!msg || msg.kind!=='plus-ai-wake') return false;
+    pump(8).then(()=>sendResponse({ok:true})).catch(()=>sendResponse({ok:false}));
+    return true;
+  });
+
+  window.addEventListener('pageshow',()=>pump(2));
+  document.addEventListener('visibilitychange',()=>{ if (document.visibilityState==='visible') pump(2); });
+  pump(INITIAL_CLAIM_RETRIES);
 })();
