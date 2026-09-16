@@ -41,10 +41,13 @@
 
 /* Últimos micro-rótulos encontrados pela auditoria em runtime. São componentes
    específicos, então a correção fica no CSS e não exige MutationObserver nem
-   varredura global do DOM — preservando o orçamento de startup em CPU lenta. */
+   varredura global do DOM — preservando o orçamento de startup em CPU lenta.
+   O seletor do Desempenho TEC replica a especificidade de 20-ux-stability.css,
+   que usa !important, para garantir que o piso de 11px prevaleça pela ordem de
+   carregamento sem alterar o componente legado inteiro. */
 #screen-extras .ux100-config-kpis span,
 #screen-extras .ux100-config-kpis b,
-#screen-desempenhotec .tp-metrics small,
+#screen-desempenhotec .uxv3-tec-command .tp-metrics small,
 #screen-config .pmg-engine-title span {
   font-size:11px !important;
   line-height:1.35;
