@@ -2,6 +2,9 @@ import { readFileSync } from 'node:fs';
 import vm from 'node:vm';
 
 const source=readFileSync(new URL('../src/js/99l-tec-reconstrucao-caderno.js',import.meta.url),'utf8');
+const ackV2=readFileSync(new URL('../companion/src/study-reconstruct-ack-v2.js',import.meta.url),'utf8');
+const pressureV2=readFileSync(new URL('../companion/src/tec-reconstruct-backpressure-v2.js',import.meta.url),'utf8');
+const manifest=JSON.parse(readFileSync(new URL('../companion/manifest.json',import.meta.url),'utf8'));
 const context={
   console,Date,Math,JSON,Promise,Number,String,Array,Object,Map,Set,RegExp,
   crypto:{randomUUID:()=> 'test-uuid'},
@@ -20,6 +23,18 @@ ok(H,'módulo não publicou TecHistoricalReconstruction');
 ok(H.parseBookId('123456')==='123456','não aceitou ID numérico');
 ok(H.parseBookId('https://www.tecconcursos.com.br/questoes/cadernos/987654')==='987654','não extraiu ID do link do caderno');
 ok(H.parseBookId('https://example.com/987654')===null,'aceitou URL alheia como caderno');
+
+/* Contrato V2: ACK só existe junto de verificação + backpressure no runner. */
+ok(ackV2.includes("type:'tec-reconstruct-batch-ack'"),'guard V2 não emite ACK de persistência');
+ok(ackV2.includes('verifyQuestions(payload)'),'guard V2 não verifica persistência antes do ACK');
+ok(ackV2.includes('tec-reconstruct-applied-batches-v2'),'guard V2 não possui ledger idempotente de lotes');
+ok(pressureV2.includes("kind:'tec-reconstruct-batch-state'"),'runner V2 não consulta estado do lote');
+ok(pressureV2.includes('ACK_TIMEOUT_MS'),'runner V2 não possui timeout contra loop');
+const isolatedTec=manifest.content_scripts.find(row=>Array.isArray(row.js)&&row.js.includes('src/tec-reconstruct.js'));
+ok(isolatedTec,'manifest não carrega runner de reconstrução');
+ok(isolatedTec.js.indexOf('src/tec-reconstruct-backpressure-v2.js')>=0&&isolatedTec.js.indexOf('src/tec-reconstruct-backpressure-v2.js')<isolatedTec.js.indexOf('src/tec-reconstruct.js'),'backpressure precisa carregar antes do runner');
+const mainStudy=manifest.content_scripts.find(row=>row.world==='MAIN'&&Array.isArray(row.js)&&row.js.includes('src/study-reconstruct-ack-v2.js'));
+ok(mainStudy,'manifest não carrega ACK V2 no MAIN world do Study');
 
 const q={id:'40001',materia:'Direito Tributário',assunto:'Crédito tributário',banca:'CEBRASPE',concurso:'SEFAZ'};
 const day=H.makeEvent({account:'tec_1',bookId:'10',question:q,acertou:true,marcada:'B',correta:'B',date:'15/09/2026',attemptKey:'latest',source:'test'});
@@ -63,4 +78,4 @@ ok(legacy[0].history?.total===7&&legacy[0].history?.erros===3,'desempenhoQuestoe
 ok(legacy[0].question.integrity?.status==='verified','JSON com marcada+gabarito coerentes não foi verificado');
 ok(legacy[0].latest?.dataResolucao==='14/09/2026','data oficial do JSON não foi preservada');
 
-console.log('RECONSTRUÇÃO TEC: contratos factuais, datas e JSON legado válidos.');
+console.log('RECONSTRUÇÃO TEC V2: link/ID, ACK persistente, backpressure, contratos factuais, datas e JSON legado válidos.');
