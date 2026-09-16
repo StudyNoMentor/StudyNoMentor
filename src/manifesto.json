@@ -630,8 +630,13 @@
   "ate": 63844
  },
  {
-  "arquivo": "html/90-rodape.html",
+  "arquivo": "js/99q-deploy-consistency-guard.js",
   "de": 63846,
-  "ate": 64325
+  "ate": 64294
+ },
+ {
+  "arquivo": "html/90-rodape.html",
+  "de": 64296,
+  "ate": 64775
  }
 ]
