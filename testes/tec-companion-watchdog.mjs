@@ -14,7 +14,7 @@ const checks = [
   ['watchdog dá janela ao capturador principal', watchdog.includes('GRACE_MS') && watchdog.includes('mainCaptureStatus')],
   ['watchdog respeita status já capturado', watchdog.includes("['queued','staged','deduplicated']")],
   ['watchdog respeita captura em andamento', watchdog.includes("['waiting-result']") && watchdog.includes('WAITING_GRACE_MS')],
-  ['fallback usa a mesma fila durável', watchdog.includes("const STAGE_PREFIX = 'snmTecStageV1:'") && watchdog.includes("kind:'capture'")) ,
+  ['fallback usa a mesma fila durável', watchdog.includes("const STAGE_PREFIX = 'snmTecStageV1:'") && watchdog.includes("kind:'capture'")],
   ['fallback preserva resposta marcada quando erro é visual', watchdog.includes('!acertou&&errado&&errado.letra')],
   ['fallback publica status diagnóstico', watchdog.includes("type:'watchdog'") && watchdog.includes("reportStatus(ok?'queued':'staged'")],
   ['capturador principal continua presente', main.includes('async function processPending') && main.includes('armPending')]
