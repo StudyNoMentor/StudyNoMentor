@@ -1,5 +1,6 @@
 import { readFileSync } from 'node:fs';
 
+// Contratos críticos do hotfix: nenhum refresh automático em cascata e IA Plus íntegra.
 const read = p => readFileSync(new URL('../' + p, import.meta.url), 'utf8');
 const js = read('src/js/99d-startup-stability-ai.js');
 const build = read('build.mjs');
