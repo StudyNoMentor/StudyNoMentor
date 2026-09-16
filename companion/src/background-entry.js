@@ -1,14 +1,13 @@
 /* Entry point do service worker do Companion.
  *
- * A versão anterior abria e fechava uma aba nova do ChatGPT para CADA seção
- * pedagógica. Aqui preservamos toda a fila/transação do background original,
- * mas virtualizamos apenas create/remove de abas ChatGPT: uma aba existente é
- * reutilizada e acordada. Isso reduz latência e elimina a sensação de fluxo
- * imprevisível com janelas surgindo a cada clique.
+ * O Companion possui UMA aba ChatGPT própria. Nunca reutiliza uma conversa
+ * arbitrária do usuário. O ID da aba dedicada é persistido em chrome.storage e
+ * só é reutilizado quando continua apontando para chatgpt.com.
  */
 'use strict';
 
 (() => {
+  const OWNED_TAB_KEY = 'snmPlusOwnedTabV2';
   const nativeCreate = chrome.tabs.create.bind(chrome.tabs);
   const nativeRemove = chrome.tabs.remove.bind(chrome.tabs);
   const nativeQuery = chrome.tabs.query.bind(chrome.tabs);
@@ -26,36 +25,57 @@
     }, delay);
   }
 
+  async function ownedTabId() {
+    try { const row=await chrome.storage.local.get(OWNED_TAB_KEY); return row&&row[OWNED_TAB_KEY]!=null?Number(row[OWNED_TAB_KEY]):null; }
+    catch (_) { return null; }
+  }
+  async function rememberOwned(id) {
+    if (id==null) return;
+    try { await chrome.storage.local.set({[OWNED_TAB_KEY]:Number(id)}); } catch (_) {}
+  }
+  async function forgetOwned(id) {
+    try {
+      const current=await ownedTabId();
+      if (id==null||current===Number(id)) await chrome.storage.local.remove(OWNED_TAB_KEY);
+    } catch (_) {}
+  }
+
   chrome.tabs.create = async function(createProperties = {}) {
     const url = String(createProperties && createProperties.url || '');
     if (!CHAT_URL.test(url)) return nativeCreate(createProperties);
-    try {
-      const tabs = await nativeQuery({ url:['https://chatgpt.com/*'] });
-      const reusable = (tabs || []).find(t => t && t.id != null && !t.discarded);
-      if (reusable) {
-        wake(reusable.id, 400);
-        return reusable;
-      }
-    } catch (_) {}
+
+    const wanted=await ownedTabId();
+    if (wanted!=null) {
+      try {
+        const tab=await nativeGet(wanted);
+        if (tab && tab.id!=null && CHAT_URL.test(String(tab.url||'')) && !tab.discarded) {
+          wake(tab.id,350); return tab;
+        }
+      } catch (_) { await forgetOwned(wanted); }
+    }
+
+    /* A consulta existe apenas para validar que NÃO vamos adotar uma aba pessoal.
+       Nenhum resultado daqui é reutilizado sem o ID previamente persistido. */
+    try { await nativeQuery({ url:['https://chatgpt.com/*'] }); } catch (_) {}
+
     const tab = await nativeCreate(createProperties);
-    if (tab && tab.id != null) wake(tab.id, 1200);
+    if (tab && tab.id != null) { await rememberOwned(tab.id); wake(tab.id,1200); }
     return tab;
   };
 
   chrome.tabs.remove = async function(tabIds) {
     const ids = Array.isArray(tabIds) ? tabIds : [tabIds];
-    const keep = [], remove = [];
+    const owned=await ownedTabId();
+    const remove=[];
     for (const id of ids) {
-      try {
-        const tab = await nativeGet(Number(id));
-        if (tab && CHAT_URL.test(String(tab.url || ''))) keep.push(Number(id));
-        else remove.push(Number(id));
-      } catch (_) { remove.push(Number(id)); }
+      if (owned!=null && Number(id)===Number(owned)) { wake(id,120); continue; }
+      remove.push(Number(id));
     }
-    keep.forEach(id => wake(id, 120));
     if (remove.length) return nativeRemove(Array.isArray(tabIds) ? remove : remove[0]);
     return undefined;
   };
+
+  chrome.tabs.onRemoved.addListener(tabId => { ownedTabId().then(id=>{ if (id===Number(tabId)) return forgetOwned(tabId); }).catch(()=>{}); });
 })();
 
-importScripts('background.js');
+importScripts('background-v2.js');
