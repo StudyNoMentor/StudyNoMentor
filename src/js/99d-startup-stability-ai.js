@@ -14,7 +14,7 @@
 
   const ACTIVE_AT_LOAD = (() => {
     try { return window.ProfileManager && ProfileManager.getActiveProfileId ? ProfileManager.getActiveProfileId() : null; }
-    catch (_) { return null; }
+    catch (e) { if (typeof _quiet === 'function') _quiet(e, 'startup-active-profile'); return null; }
   })();
 
   const LOCAL_ONLY_EXACT = new Set([
@@ -35,7 +35,7 @@
     try {
       const el = document.querySelector('.screen.active');
       return el && el.id && el.id.startsWith('screen-') ? el.id.slice(7) : null;
-    } catch (_) { return null; }
+    } catch (e) { if (typeof _quiet === 'function') _quiet(e, 'soft-refresh-screen'); return null; }
   }
 
   function softRefreshNow() {
@@ -91,10 +91,12 @@
       const r = await CloudStore.aplicando(() => this.hydrate(id));
       if (!r || !r.ok) return false;
       if (!r.mudou) {
-        try { console.info('[SectionSync] nuvem conferida: nada mudou, sem recarregar'); } catch (_) {}
+        try { console.info('[SectionSync] nuvem conferida: nada mudou, sem recarregar'); }
+        catch (e) { if (typeof _quiet === 'function') _quiet(e, 'section-sync-info'); }
         return true;
       }
-      try { if (typeof showToast === 'function') showToast('Sincronizado da nuvem ✓'); } catch (_) {}
+      try { if (typeof showToast === 'function') showToast('Sincronizado da nuvem ✓'); }
+      catch (e) { if (typeof _quiet === 'function') _quiet(e, 'section-sync-toast'); }
       scheduleSoftRefresh('dados novos da nuvem');
       return true;
     };
@@ -109,7 +111,7 @@
       const why = String(reason || '');
       const current = (() => {
         try { return window.ProfileManager && ProfileManager.getActiveProfileId ? ProfileManager.getActiveProfileId() : null; }
-        catch (_) { return null; }
+        catch (e) { if (typeof _quiet === 'function') _quiet(e, 'reload-current-profile'); return null; }
       })();
 
       // Login no mesmo perfil: hydrate já escreveu o dado correto no armazenamento.
@@ -137,7 +139,8 @@
     guardedReload.__startupStabilityPatched = true;
     guardedReload.__original = original;
     window.recarregarApp = guardedReload;
-    try { recarregarApp = guardedReload; } catch (_) {}
+    try { recarregarApp = guardedReload; }
+    catch (e) { if (typeof _quiet === 'function') _quiet(e, 'reload-global-alias'); }
     return true;
   }
 
