@@ -7,7 +7,7 @@ const build=read('build.mjs');
 const js=read('src/js/94-tec-integracao.js');
 const realtime=read('src/js/95-tec-companion.js');
 const hardening=read('src/js/99j-tec-hardening-api.js');
-const cloud=read('src/js/99k-tec-cloud-ledger-v2.js');
+const cloud=read('src/js/99k-tec-cloud-ledger-hardening.js');
 const diagnostics=read('src/js/96-tec-capture-diagnostics.js');
 const css=read('src/css/33-tec-hardening-api.css');
 const edge=read('supabase/functions/tec-ai/index.ts');
@@ -25,7 +25,7 @@ const study=scripts.find(x=>(x.js||[]).includes('src/study-bridge.js'));
 const checks=[
   ['menu/tela existem',nav.includes('data-screen="integracaotec"')&&body.includes('id="screen-integracaotec"')],
   ['workspace TEC existe',body.includes('id="tec-workspace-frame"')&&js.includes('openEmbedded()')],
-  ['módulos hardening no fim do build',build.indexOf("'js/99j-tec-hardening-api.js'")>build.indexOf("'js/99i-tec-integridade-auditoria.js'")&&build.indexOf("'js/99k-tec-cloud-ledger-v2.js'")>build.indexOf("'js/99j-tec-hardening-api.js'")],
+  ['módulos hardening no fim do build',build.indexOf("'js/99j-tec-hardening-api.js'")>build.indexOf("'js/99i-tec-integridade-auditoria.js'")&&build.indexOf("'js/99k-tec-cloud-ledger-hardening.js'")>build.indexOf("'js/99j-tec-hardening-api.js'")],
   ['CSS do provedor incluído',build.includes("S('css/33-tec-hardening-api.css')")&&css.includes('.tec-ai-provider-box')],
   ['Companion 1.2 MV3',manifest.manifest_version===3&&manifest.version==='1.2.0'],
   ['alarms e armazenamento durável permitidos',(manifest.permissions||[]).includes('alarms')&&(manifest.permissions||[]).includes('unlimitedStorage')],
