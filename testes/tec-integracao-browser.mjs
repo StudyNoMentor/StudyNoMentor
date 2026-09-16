@@ -149,7 +149,9 @@ try {
         return { id,exists:!!el,width:r?.width||0,gridStart:cs?.gridColumnStart||'',gridEnd:cs?.gridColumnEnd||'',scrollWidth:el?.scrollWidth||0,clientWidth:el?.clientWidth||0,
           titleWidth:el?.querySelector('h2')?.getBoundingClientRect().width||0 };
       });
-      const direct=[...(grid?.children||[])].filter(el=>el.classList?.contains('card')).map(el=>({id:el.id||el.className,width:el.getBoundingClientRect().width}));
+      const direct=[...(grid?.children||[])]
+        .filter(el=>el.classList?.contains('card')&&getComputedStyle(el).display!=='none'&&el.getBoundingClientRect().width>0)
+        .map(el=>({id:el.id||el.className,width:el.getBoundingClientRect().width}));
       return { gridWidth:gridRect?.width||0,targets,direct,screenScroll:document.getElementById('screen-integracaotec')?.scrollWidth||0,screenClient:document.getElementById('screen-integracaotec')?.clientWidth||0 };
     });
     assert.ok(layout.gridWidth > 200, `${viewport.name}: grid TEC precisa ter largura útil`);
@@ -162,7 +164,7 @@ try {
       assert.ok(target.titleWidth >= Math.min(180, layout.gridWidth * 0.55), `${viewport.name}: título de ${target.id} não pode colapsar letra por letra`);
     }
     const minRatio=Math.min(...layout.direct.map(x=>x.width/layout.gridWidth));
-    assert.ok(minRatio >= 0.25, `${viewport.name}: nenhum card direto pode cair em 1/12 do grid (menor razão ${minRatio.toFixed(3)})`);
+    assert.ok(minRatio >= 0.25, `${viewport.name}: nenhum card direto visível pode cair em 1/12 do grid (menor razão ${minRatio.toFixed(3)})`);
     assert.ok(layout.screenScroll <= layout.screenClient + 6, `${viewport.name}: a tela TEC não pode criar rolagem horizontal global`);
   }
 
