@@ -1,32 +1,26 @@
 import { readFileSync } from 'node:fs';
 
-const read = p => readFileSync(new URL('../' + p, import.meta.url), 'utf8');
-const manifest = JSON.parse(read('companion/manifest.json'));
-const watchdog = read('companion/src/tec-capture-watchdog.js');
-const main = read('companion/src/tec-content.js');
-const integrity = read('companion/src/tec-integrity-guard.js');
+const read=p=>readFileSync(new URL('../'+p,import.meta.url),'utf8');
+const manifest=JSON.parse(read('companion/manifest.json'));
+const capture=read('companion/src/tec-capture-v2.js');
+const legacy=read('companion/src/tec-capture-watchdog.js');
+const integrity=read('companion/src/tec-integrity-guard.js');
 
-const tecScript = (manifest.content_scripts || []).find(x => (x.matches || []).some(m => m.includes('tecconcursos.com.br')) && (x.js || []).includes('src/tec-content.js'));
-const order = tecScript ? tecScript.js || [] : [];
-const checks = [
-  ['Companion mantém versão de compatibilidade', manifest.version === '1.1.1'],
-  ['guarda de integridade é carregada antes do capturador', !!tecScript && order.indexOf('src/tec-integrity-guard.js') >= 0 && order.indexOf('src/tec-integrity-guard.js') < order.indexOf('src/tec-content.js')],
-  ['watchdog é carregado depois do capturador principal', !!tecScript && order.indexOf('src/tec-content.js') >= 0 && order.indexOf('src/tec-capture-watchdog.js') > order.indexOf('src/tec-content.js')],
-  ['watchdog roda em todos os frames TEC', !!tecScript && tecScript.all_frames === true],
-  ['guarda reconcilia marcada x gabarito', integrity.includes("source = 'marked-vs-gabarito'") && integrity.includes('canonical = marked === correct')],
-  ['watchdog observa transição de resultado', watchdog.includes('checkTransition') && watchdog.includes('MutationObserver')],
-  ['watchdog dá janela ao capturador principal', watchdog.includes('GRACE_MS') && watchdog.includes('mainCaptureStatus')],
-  ['watchdog respeita status já capturado', watchdog.includes("['queued','staged','deduplicated']")],
-  ['watchdog respeita captura em andamento', watchdog.includes("['waiting-result']") && watchdog.includes('WAITING_GRACE_MS')],
-  ['fallback usa a mesma fila durável', watchdog.includes("const STAGE_PREFIX = 'snmTecStageV1:'") && watchdog.includes("kind:'capture'")],
-  ['fallback preserva resposta marcada quando erro é visual', watchdog.includes('!acertou&&errado&&errado.letra')],
-  ['fallback publica status diagnóstico', watchdog.includes("type:'watchdog'") && watchdog.includes("reportStatus(ok?'queued':'staged'")],
-  ['capturador principal continua presente', main.includes('async function processPending') && main.includes('armPending')]
+const tecScript=(manifest.content_scripts||[]).find(x=>(x.matches||[]).some(m=>m.includes('tecconcursos.com.br'))&&(x.js||[]).includes('src/tec-capture-v2.js'));
+const order=tecScript?tecScript.js||[]:[];
+const checks=[
+  ['Companion v2 ativo',manifest.version==='1.2.0'],
+  ['guarda carrega antes da captura factual',!!tecScript&&order.indexOf('src/tec-integrity-guard.js')===0&&order.indexOf('src/tec-capture-v2.js')===1],
+  ['legados carregam depois e são neutralizados',order.indexOf('src/tec-content.js')>1&&order.indexOf('src/tec-capture-watchdog.js')>order.indexOf('src/tec-content.js')&&capture.includes('window.__snmTecCaptureWatchdog = true')],
+  ['captura v2 roda em todos os frames TEC',!!tecScript&&tecScript.all_frames===true],
+  ['guarda reconcilia marcada x gabarito',integrity.includes("source='marked-vs-gabarito'")&&integrity.includes('canonical=marked===correct')],
+  ['watchdog v2 compartilha o mesmo parser de evidência',capture.includes('function watchdogProbe()')&&capture.includes('const ev=evidence(qid)')],
+  ['watchdog aguarda capturador principal',capture.includes("setTimeout(()=>awaitResult(String(qid),ev.marked||null,'watchdog'),700)")],
+  ['watchdog não fabrica resposta pelo gabarito',!capture.includes('!acertou&&errado&&errado.letra')&&!capture.includes('marcada = correta')],
+  ['resultado high exige marcada e correta',capture.includes('if (marked && correct)')||capture.includes('if (marked&&correct)')],
+  ['staging v2 é durável',capture.includes("const STAGE_PREFIX = 'snmTecStageV2:'")&&capture.includes("kind:'capture'")&&capture.includes('replayStaged()')],
+  ['legacy continua empacotado apenas para transição',legacy.includes('window.__snmTecCaptureWatchdog')]
 ];
-
-const failed = checks.filter(([, ok]) => !ok);
-if (failed.length) {
-  failed.forEach(([name]) => console.error('FALHOU:', name));
-  process.exit(1);
-}
-console.log(`COMPANION WATCHDOG: ${checks.length}/${checks.length} contratos válidos.`);
+const failed=checks.filter(([,ok])=>!ok);
+if(failed.length){failed.forEach(([name])=>console.error('FALHOU:',name));process.exit(1);}
+console.log(`COMPANION WATCHDOG V2: ${checks.length}/${checks.length} contratos válidos.`);
