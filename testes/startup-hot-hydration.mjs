@@ -13,7 +13,7 @@ const checks = [
   ['outros perfis têm hidratação sob demanda', footer.includes('window.__idbHydrateProfile = hydrateProfile')],
   ['escrita após boot não pode ser sobrescrita por hidratação tardia', footer.includes('touchedSinceBoot') && footer.includes('!touchedSinceBoot.has(key)')],
   ['índice sabe que perfil frio existe sem ler payload', footer.includes('window.__idbHasProfileNamespace') && footer.includes('window.__idbColdProfileIds')],
-  ['espelho nativo não sobrescreve chave existente no IDB', footer.includes('nativeSkippedBecauseOnDisk') && footer.includes('diskSet.has(k)')],
+  ['espelho nativo não sobrescreve chave existente no IDB', footer.includes('nativeSkippedBecauseOnDisk') && footer.includes('disk.has(k)')],
   ['telemetria mede hidratação e tempo visível', footer.includes('__idbStartupStats') && footer.includes('hydrateMs') && footer.includes('visibleMs')],
   ['troca de perfil hidrata antes de entrar', guard.includes('await ensureProfile(id)') && guard.includes('P.enterProfile = async function')],
   ['mesmo perfil local fica visível antes da reconciliação remota', guard.includes("StartupTrace.mark('perfil-local-visivel'") && guard.includes('reconcileLocalProfileInBackground(id)')],
