@@ -555,8 +555,13 @@
   "ate": 60303
  },
  {
-  "arquivo": "html/90-rodape.html",
+  "arquivo": "js/99h-tec-taxonomia-contract.js",
   "de": 60305,
-  "ate": 60769
+  "ate": 60366
+ },
+ {
+  "arquivo": "html/90-rodape.html",
+  "de": 60368,
+  "ate": 60832
  }
 ]
