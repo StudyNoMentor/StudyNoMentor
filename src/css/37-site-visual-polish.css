@@ -1,0 +1,28 @@
+/* Refinos encontrados pela auditoria Chromium integral. */
+
+/* Registrar: modos Compacto/Guiado eram botões de 26px. */
+#screen-registrar button:not(.info-dot):not(.reg-act-btn):not(.toggle-switch):not(.icon-btn):not(.btn-icon) {
+  min-height:30px;
+}
+
+/* Conquistas: ícones bloqueados deixam de ser apagados por opacity; o estado
+   continua secundário por saturação/cor. */
+#screen-conquistas .bi {
+  opacity:1 !important;
+  filter:saturate(.42);
+}
+#screen-conquistas .bmore { font-size:10.5px !important; line-height:1.35; }
+
+/* Radar vazio é informação, não estado desabilitado. */
+#screen-integracaotec .trt-empty {
+  opacity:1 !important;
+  color:var(--text-faint) !important;
+}
+
+/* Segmentos da Evolução não podem cair abaixo do piso de leitura no 360px. */
+#screen-evolucao button:not(.info-dot):not(.icon-btn):not(.btn-icon) {
+  font-size:max(11px,var(--fs-2xs)) !important;
+}
+
+/* Navegação e micro-rótulos de Configurações. */
+#screen-config [class*="cfg-nav"] span { font-size:11px !important; }
