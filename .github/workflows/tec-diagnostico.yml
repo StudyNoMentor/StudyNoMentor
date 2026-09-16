@@ -11,9 +11,11 @@ on:
       - 'src/js/99l-tec-reconstrucao-caderno.js'
       - 'src/js/99m-tec-historico-gestao.js'
       - 'src/js/99n-tec-integracao-auditoria-total.js'
+      - 'src/js/99o-tec-import-manager.js'
       - 'src/css/28-tec-integracao.css'
       - 'src/css/33-tec-hardening-api.css'
       - 'src/css/34-tec-integracao-layout-guard.css'
+      - 'src/css/35-tec-import-manager.css'
       - 'supabase/functions/tec-ai/**'
       - 'testes/tec-*.mjs'
       - 'build.mjs'
@@ -34,13 +36,14 @@ jobs:
         run: |
           set -euo pipefail
           node --check build.mjs
-          for f in companion/src/*.js src/js/94-tec-integracao.js src/js/95-tec-companion.js src/js/99{j,k,l,m,n}-*.js testes/tec-*.mjs; do node --check "$f"; done
+          for f in companion/src/*.js src/js/94-tec-integracao.js src/js/95-tec-companion.js src/js/99{j,k,l,m,n,o}-*.js testes/tec-*.mjs; do node --check "$f"; done
           node testes/tec-integridade-profunda.mjs
           node testes/tec-integracao-modulo.mjs
           node testes/tec-reconstrucao-caderno.mjs
           node testes/tec-reconstrucao-duravel.mjs
           node testes/tec-historico-gestao.mjs
           node testes/tec-integracao-hardening-total.mjs
+          node testes/tec-import-manager.mjs
           node testes/tec-companion-gatilho.mjs
           node testes/tec-companion-watchdog.mjs
           node testes/tec-companion-plus.mjs
