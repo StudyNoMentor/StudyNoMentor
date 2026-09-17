@@ -19,7 +19,10 @@ const ok=(v,m)=>{checks++;assert.ok(v,m)};const eq=(a,b,m)=>{checks++;assert.equ
 
 try{
   await page.goto(url,{waitUntil:'domcontentloaded'});
-  await page.waitForFunction(()=>window.switchScreen&&window.UXHierarchy&&window.ExtrasScreen&&window.EvolucaoScreen&&window.DesempenhoTecScreen,{timeout:30000});
+  // UXHierarchy é o último módulo do bundle; quando ele existe, os módulos de tela
+  // anteriores já foram avaliados. Alguns deles são bindings globais `const` e não
+  // propriedades de `window`, portanto não devem ser usados como sinal de prontidão.
+  await page.waitForFunction(()=>window.switchScreen&&window.UXHierarchy,{timeout:30000});
   await page.evaluate(()=>{try{ProfileUI.hideGate();}catch(_){}});
 
   /* Uma pergunta principal por tela: copy curto e orientado à decisão. */
