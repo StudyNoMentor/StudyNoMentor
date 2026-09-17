@@ -21,7 +21,7 @@
     syncVisibility(){if(typeof document==='undefined')return;const e=this.estado(),algum=e.simplificado||e.robusto;
       // A tela de Plano continua existindo nos dois estados: com motor ativo,
       // ela mostra somente o motor; sem motor, devolve o Plano legado.
-      document.documentElement.classList.toggle('tpm-motors-active',algum);
+      if(document.documentElement?.classList?.toggle) document.documentElement.classList.toggle('tpm-motors-active',algum);
       const puxar=new Set([document.getElementById('extras-plano-btn'),...document.querySelectorAll('[data-puxar-plano],[data-plano-sugestoes],.btn-puxar-plano')]);
       puxar.forEach(el=>{if(el){el.hidden=false;el.setAttribute('aria-hidden','false');}});
       const tab=document.querySelector('.tec-subtab[data-tectab="plano"]'),panel=document.getElementById('tec-panel-plano');
