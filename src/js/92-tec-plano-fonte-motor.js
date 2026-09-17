@@ -168,6 +168,19 @@
       const ambos = this._estado().simplificado && this._estado().robusto;
       return `<section class="tpm-selector" data-tpm-selector><header><div><small>FONTE DA DECISÃO</small><strong>${fonte === 'robusto' ? 'Robusto' : 'Simplificado'}</strong></div><span>${ambos ? 'Você pode trocar o modelo sem alterar os dados observados.' : 'Único motor habilitado.'}</span></header>${this._buttons(fonte, false)}<p><b>Separação de responsabilidades:</b> o TEC fornece os fatos; o motor escolhido decide disciplinas, assuntos e quantidade. O Robusto não escolhe seu método de estudo.</p></section>`;
     },
+
+    _panoramaHtml(fonte, r) {
+      const e = this._estado(), ambos = e.simplificado && e.robusto;
+      const total = Array.isArray(r && r.todos) ? r.todos.length : 0;
+      const top = Array.isArray(r && r.itens) ? r.itens.length : 0;
+      const nome = fonte === 'robusto' ? 'Robusto' : 'Simplificado';
+      const meta = Number(r && r.itens && r.itens[0] && r.itens[0].meta);
+      const titulo = ambos ? 'Panorama TEC — dois motores ativos' : 'Panorama TEC + ' + nome;
+      const descricao = ambos
+        ? 'Os fatos abaixo são comuns. Simplificado e Robusto aplicam regras independentes sobre eles.'
+        : (Number.isFinite(meta) ? 'Meta deste motor: ' + fmt(meta, 0) + '%. ' : '') + 'Somente as regras do ' + nome + ' orientam a força-tarefa abaixo.';
+      return '<section class="tpm-panorama" data-tpm-panorama><header><div><small>LEITURA DO TEC</small><strong>' + titulo + '</strong><p>' + descricao + '</p></div><span>' + total + ' ' + (total === 1 ? 'frente elegível' : 'frentes elegíveis') + '</span></header><div class="tpm-panorama-metrics"><span><b>' + top + '</b><small>na força-tarefa</small></span><span><b>' + total + '</b><small>na fila completa</small></span><span><b>' + (ambos ? '2' : (Number.isFinite(meta) ? fmt(meta, 0) + '%' : '—')) + '</b><small>' + (ambos ? 'leituras independentes' : 'meta do motor') + '</small></span></div><details><summary>' + (ambos ? 'Ver como cada motor interpreta os fatos' : 'Ver o que este panorama não decide') + '</summary><p>' + (ambos ? 'A comparação apenas mostra as duas saídas. Ela não cria um terceiro motor nem combina scores.' : 'Este painel não usa rota, ritmo, meta ou prognóstico do Plano legado.') + '</p></details></section>';
+    },
     _outputHtml(fonte, r) {
       const nome = fonte === 'robusto' ? 'Robusto' : 'Simplificado', ico = fonte === 'robusto' ? '🧠' : '⚡';
       if (!r || r.erro) return `<section class="tpm-output" data-tpm-output data-tpm-model="${fonte}"><header><div><small>${ico} ${nome.toUpperCase()}</small><strong>Recomendação deste modelo</strong></div></header><div class="tpm-empty">${esc(this._erroTexto(r, fonte))}</div></section>`;
@@ -225,19 +238,24 @@
       const fonte = this.fonte();
       if (!fonte) {
         lista.classList.remove('tpm-engine-active');
-        proj.querySelectorAll('[data-tpm-selector]').forEach(el => el.remove());
+        proj.querySelectorAll('[data-tpm-selector],[data-tpm-panorama]').forEach(el => el.remove());
+        proj.querySelectorAll('.pl-hero').forEach(el => { el.hidden = false; });
         lista.querySelectorAll('[data-tpm-output]').forEach(el => el.remove());
         return;
       }
       this._rendering = true;
       try {
-        proj.querySelectorAll('[data-tpm-selector]').forEach(el => el.remove());
+        proj.querySelectorAll('.pl-hero').forEach(el => { el.hidden = true; });
+        proj.querySelectorAll('[data-tpm-selector],[data-tpm-panorama]').forEach(el => el.remove());
         const s = document.createElement('div');
         s.innerHTML = this._selectorHtml(fonte);
         const sel = s.firstElementChild;
         if (sel) { proj.prepend(sel); this._bindSource(sel, fonte); }
         lista.querySelectorAll('[data-tpm-output]').forEach(el => el.remove());
-        const r = this.calcular(fonte), box = document.createElement('div');
+        const r = this.calcular(fonte), panorama = document.createElement('div'), box = document.createElement('div');
+        panorama.innerHTML = this._panoramaHtml(fonte, r);
+        const p = panorama.firstElementChild;
+        if (p) proj.prepend(p);
         box.innerHTML = this._outputHtml(fonte, r);
         const out = box.firstElementChild;
         if (out) { lista.prepend(out); this._bindRanking(out, fonte, r); }
