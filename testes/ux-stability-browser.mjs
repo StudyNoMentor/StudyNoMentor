@@ -22,6 +22,26 @@ try{
   await page.waitForFunction(()=>window.switchScreen&&window.ExtrasScreen&&window.UXStability&&window.ExtrasModern,{timeout:30000});
   await page.evaluate(()=>{try{ProfileUI.hideGate();}catch(_){} });
 
+  /* Botão do topo: tocar no indicador precisa sincronizar, não virar um botão morto/menu. */
+  const syncButton=await page.evaluate(async()=>{
+    const btn=document.getElementById('cloud-sync-btn');
+    if(!btn) return {calls:-1,menu:false,title:'',aria:''};
+    const original=CloudStore.syncNow;
+    let calls=0;
+    CloudStore.syncNow=()=>{calls++;};
+    btn.click();
+    await Promise.resolve();
+    const out={calls,menu:!!document.querySelector('.cloud-menu'),title:btn.title||'',aria:btn.getAttribute('aria-label')||''};
+    CloudStore.syncNow=original;
+    try{if(window.UX47&&UX47.closePop)UX47.closePop();}catch(_){}
+    document.querySelectorAll('.cloud-menu,.cloud-scrim').forEach(el=>el.remove());
+    return out;
+  });
+  eq(syncButton.calls,1,'botão de sincronização do topo deve chamar CloudStore.syncNow exatamente uma vez');
+  eq(syncButton.menu,false,'clique no spinner não deve ser desviado para o menu de conta');
+  eq(syncButton.title,'Sincronizar agora','botão deve explicar a ação direta no tooltip');
+  eq(syncButton.aria,'Sincronizar agora','botão deve expor a ação direta para leitor de tela');
+
   /* Spinner: o carregamento usa animação no compositor, inclusive se o app estiver ocupado. */
   const spin=await page.evaluate(()=>{const d=document.createElement('div');d.className='app-loading-spin';document.body.appendChild(d);const cs=getComputedStyle(d),r={name:cs.animationName,duration:cs.animationDuration,will:cs.willChange};d.remove();return r;});
   ok(spin.name!=='none','spinner global precisa estar animado');
