@@ -14,7 +14,6 @@ html.tpm-motors-active #tec-panel-plano>.card>.card-header,
 html.tpm-motors-active #tec-panel-plano .tec-cfg-bar,
 html.tpm-motors-active #tec-panel-plano #plano-modos,
 html.tpm-motors-active #tec-panel-plano #plano-modo-nota{display:none!important}
-html.tpm-motors-active #plano-proj>:not([data-tpm-selector]){display:none!important}
 html.tpm-motors-active #plano-lista>:not([data-tpm-output]){display:none!important}
 html.tpm-motors-active .tec-cfg-open[data-cfg="plano"]{display:none!important}
 html.tpm-motors-active #tec-cfg-nav [data-sec="essencial"],
