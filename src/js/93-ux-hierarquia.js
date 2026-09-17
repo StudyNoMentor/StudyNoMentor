@@ -278,7 +278,18 @@
       if (modos) { modos.hidden = true; modos.setAttribute('aria-hidden', 'true'); }
       if (nota) { nota.hidden = true; nota.setAttribute('aria-hidden', 'true'); }
       const oldCfg = q('#tec-panel-plano .tec-cfg-bar', s);
-      if (oldCfg) { oldCfg.hidden = true; oldCfg.setAttribute('aria-hidden', 'true'); }
+      if (oldCfg) {
+        // A folha ainda reúne ajustes analíticos válidos. Mantemos UMA porta compacta,
+        // sem devolver à superfície os modos/ordenadores legados de decisão.
+        oldCfg.hidden = false;
+        oldCfg.removeAttribute('aria-hidden');
+        oldCfg.classList.add('ux-analysis-settings');
+        const abrirAjustes = q('.tec-cfg-open', oldCfg);
+        if (abrirAjustes) {
+          abrirAjustes.innerHTML = '<span class="gg-ic">⚙</span>Ajustes da análise';
+          abrirAjustes.title = 'Ajustar métricas analíticas sem alterar o motor das sugestões';
+        }
+      }
 
       const proj = q('#plano-proj', s);
       if (proj && q('[data-tpm-selector]', proj)) {
