@@ -1010,11 +1010,11 @@ else CloudStore.init();
           b.className = 'csb-badge'; b.id = 'csb-badge'; b.textContent = '!';
           btn.appendChild(b);
         }
-        const clone = btn.cloneNode(true);   // remove o handler antigo (sincronizar direto)
-        btn.parentNode.replaceChild(clone, btn);
-        clone._ux47 = true;
-        clone.addEventListener('click', (e) => this.toggleMenu(e.currentTarget));
-        clone.title = 'Conta e sincronização';
+        // Preserve o elemento original: 63-cloud-ui.js ja ligou o clique a
+        // CloudStore.syncNow(). Clonar/substituir aqui removia esse listener.
+        // O spinner volta a executar a sincronizacao direta, sem perder o badge.
+        btn.title = 'Sincronizar agora';
+        // O menu de conta continua disponivel pelas Configuracoes.
       }
       // (Removido) O antigo botão de logout era injetado DENTRO do .profile-chip,
       // que hoje é um <button> — botão dentro de botão é HTML inválido e quebrava o
