@@ -1015,6 +1015,7 @@ else CloudStore.init();
         // O spinner volta a executar a sincronizacao direta, sem perder o badge.
         btn.title = 'Sincronizar agora';
         // O menu de conta continua disponivel pelas Configuracoes.
+        // O clique do topo permanece reservado para o envio imediato.
       }
       // (Removido) O antigo botão de logout era injetado DENTRO do .profile-chip,
       // que hoje é um <button> — botão dentro de botão é HTML inválido e quebrava o

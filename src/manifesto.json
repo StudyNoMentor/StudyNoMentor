@@ -402,81 +402,81 @@
  {
   "arquivo": "js/80-ajustes-finais.js",
   "de": 52207,
-  "ate": 53585
+  "ate": 53586
  },
  {
   "arquivo": "js/81-ux-stability.js",
-  "de": 53587,
-  "ate": 53858
+  "de": 53588,
+  "ate": 53859
  },
  {
   "arquivo": "js/82-startup-spinners-reforco-continuo.js",
-  "de": 53859,
-  "ate": 54308
+  "de": 53860,
+  "ate": 54309
  },
  {
   "arquivo": "js/83-extras-plano-continuidade.js",
-  "de": 54310,
-  "ate": 54384
+  "de": 54311,
+  "ate": 54385
  },
  {
   "arquivo": "js/84-reforco-continuidade.js",
-  "de": 54386,
-  "ate": 54480
+  "de": 54387,
+  "ate": 54481
  },
  {
   "arquivo": "js/84b-reforco-tec-extras.js",
-  "de": 54481,
-  "ate": 54571
+  "de": 54482,
+  "ate": 54572
  },
  {
   "arquivo": "js/86-plano-sugestoes-infra.js",
-  "de": 54572,
-  "ate": 54647
+  "de": 54573,
+  "ate": 54648
  },
  {
   "arquivo": "js/87-plano-sugestoes-simplificado.js",
-  "de": 54649,
-  "ate": 54849
+  "de": 54650,
+  "ate": 54850
  },
  {
   "arquivo": "js/88-plano-sugestoes-robusto.js",
-  "de": 54850,
-  "ate": 54964
+  "de": 54851,
+  "ate": 54965
  },
  {
   "arquivo": "js/89-plano-sugestoes-controller.js",
-  "de": 54965,
-  "ate": 55032
+  "de": 54966,
+  "ate": 55033
  },
  {
   "arquivo": "js/89a-plano-robusto-audit-log.js",
-  "de": 55033,
-  "ate": 55083
+  "de": 55034,
+  "ate": 55084
  },
  {
   "arquivo": "js/90-plano-motores-governanca.js",
-  "de": 55085,
-  "ate": 55114
+  "de": 55086,
+  "ate": 55115
  },
  {
   "arquivo": "js/91-plano-motores-central-tec.js",
-  "de": 55115,
-  "ate": 55147
+  "de": 55116,
+  "ate": 55148
  },
  {
   "arquivo": "js/92-tec-plano-fonte-motor.js",
-  "de": 55148,
-  "ate": 55431
+  "de": 55149,
+  "ate": 55432
  },
  {
   "arquivo": "js/93-ux-hierarquia.js",
-  "de": 55433,
-  "ate": 55837
+  "de": 55434,
+  "ate": 55838
  },
  {
   "arquivo": "html/90-rodape.html",
-  "de": 55839,
-  "ate": 56284
+  "de": 55840,
+  "ate": 56285
  }
 ]
