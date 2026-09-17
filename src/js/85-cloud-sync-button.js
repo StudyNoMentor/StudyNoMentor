@@ -6,9 +6,10 @@
    CloudStore.syncNow(). O resultado é um indicador visualmente correto, mas que
    deixou de cumprir o contrato de "toque para sincronizar agora".
 
-   Esta ponte roda DEPOIS de CloudUX, no nó definitivo. O listener em captura
-   garante uma única ação: sincronizar. Não altera CloudStore, SectionSync,
-   Supabase, filas, revisões ou regras de conflito.
+   CloudUX faz essa substituição num setTimeout(boot, 0) após DOMContentLoaded.
+   Por isso esta ponte agenda a instalação depois desse boot e atua no nó
+   definitivo. O listener em captura garante uma única ação: sincronizar.
+   Não altera CloudStore, SectionSync, Supabase, filas, revisões ou conflitos.
    ============================================================================ */
 (() => {
   if (typeof window === 'undefined' || window.__cloudSyncButtonDirect) return;
@@ -31,8 +32,10 @@
     }, true);
   };
 
-  install();
+  const installAfterCloudUX = () => setTimeout(install, 0);
   if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', install, { once: true });
+    document.addEventListener('DOMContentLoaded', installAfterCloudUX, { once: true });
+  } else {
+    installAfterCloudUX();
   }
 })();
