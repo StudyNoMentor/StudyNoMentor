@@ -1552,6 +1552,10 @@ try {
 console.log('\n6.14) os ajustes numa folha suspensa, nao empilhados na tela');
 try {
   await pag.setViewportSize({ width: 390, height: 844 });
+  // Esta seção audita deliberadamente a folha do Plano legado. Com algum
+  // motor ativo, essa folha é ocultada e a configuração correta fica em
+  // Desempenho TEC › Motores; desligamos ambos apenas durante esta auditoria.
+  await pag.evaluate(() => { if (window.PlanoMotoresGovernanca) PlanoMotoresGovernanca.salvar({ simplificado: false, robusto: false }); });
   await pag.evaluate(() => { switchScreen('desempenhotec'); DesempenhoTecScreen.switchTecTab('plano'); });
   await pag.waitForTimeout(400);
   // 1) nenhuma aba abre com campo de ajuste solto na tela
@@ -1745,6 +1749,7 @@ try {
   await pag.setViewportSize({ width: 390, height: 844 });
   await pag.evaluate(() => { DesempenhoTecScreen.switchTecTab('plano'); });
   await pag.waitForTimeout(250);
+  await pag.evaluate(() => { if (window.PlanoMotoresGovernanca) PlanoMotoresGovernanca.restaurar(); });
 
   /* 10) E nas OUTRAS DUAS ABAS o "Restaurar padroes" tem de mexer nos CAMPOS,
      nao so no armazenamento: o Reforco e a Analise leem os proprios campos a

@@ -62,7 +62,7 @@
       screen.render();if(typeof showToast==='function')showToast(total?`${total} reforço(s) criado(s) · ${p.modo==='comparar'?'comparação concluída':p.modo}`:'Nenhuma sugestão selecionada');return total;
     },
     abrir(screen){const p=this.prefs();let res;try{res=this.calcular(p);}catch(e){if(typeof _quiet==='function')_quiet(e,'plano-controller-open');if(typeof showToast==='function')showToast('Não foi possível calcular sugestões do Plano.');return;}screen._psResultado=res;screen._planoSel=new Set((res.itens||[]).map((_,i)=>i));new Promise(resolve=>{UI._resolve=resolve;UI._mode='confirm';UI._open('🏁 Puxar do Plano','Dois modelos independentes, uma única fila de execução','<div id="ps-root"></div>',{okText:'Criar atividades'});}).then(ok=>{if(!ok)return;const atual=this.prefs();return this.criar(screen,atual,screen._psResultado);});setTimeout(()=>{try{this._renderModal(screen,p,res);}catch(e){if(typeof _quiet==='function')_quiet(e,'plano-controller-render');}},0);},
-    instalar(){if(ExtrasScreen._planoSugestoesV5)return;ExtrasScreen._planoSugestoesV5=true;const self=this;ExtrasScreen.puxarDoPlano=function(){return self.abrir(this);};}
+    instalar(){if(ExtrasScreen._planoSugestoesV5)return;ExtrasScreen._planoSugestoesV5=true;const self=this;const legado=ExtrasScreen.puxarDoPlano;ExtrasScreen._puxarDoPlanoLegado=legado;ExtrasScreen.puxarDoPlano=function(){const g=window.PlanoMotoresGovernanca,e=g&&g.estado?g.estado():null;if(e&&!e.simplificado&&!e.robusto)return legado.apply(this,arguments);return self.abrir(this);};}
   };
   C.instalar();window.PlanoSugestoes=C;
 })();
