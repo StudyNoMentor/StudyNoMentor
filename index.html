@@ -57,7 +57,7 @@
      novo, e o antigo é descartado sozinho na ativação) e o que permite ao app
      dizer qual versão está rodando. Em src/ fica "dev" de propósito: a versão
      é gerada na montagem, não editada à mão. -->
-<meta name="diario-versao" content="v8753025821">
+<meta name="diario-versao" content="v0698e460d3">
 <script>
 /* ── ARRANQUE: abre o IndexedDB AGORA, em paralelo com o parse do documento ──
    A fachada de armazenamento vive no fim do <body>, depois de ~1,7 MB de HTML.
@@ -13694,7 +13694,7 @@ html.tpm-motors-active #plano-proj .pl-hero{display:none!important}
 #screen-desempenhotec #plano-modos[hidden],#screen-desempenhotec #plano-modo-nota[hidden]{display:none!important}
 #screen-desempenhotec .tec-cfg-bar.ux-analysis-settings{opacity:.78;margin-bottom:10px}
 #screen-desempenhotec .tec-cfg-bar.ux-analysis-settings:hover,#screen-desempenhotec .tec-cfg-bar.ux-analysis-settings:focus-within{opacity:1}
-#screen-desempenhotec #plano-proj>.ux-legacy-projection{display:none!important}
+html.tpm-motors-active #screen-desempenhotec #plano-proj>.ux-legacy-projection:not([data-tpm-panorama]){display:none!important}
 #screen-desempenhotec .tpm-output.ux-force-task{border-color:color-mix(in srgb,var(--accent) 30%,var(--border));box-shadow:0 10px 28px color-mix(in srgb,var(--accent) 6%,transparent)}
 #screen-desempenhotec .tpm-output.ux-force-task>header strong{font-size:clamp(18px,2vw,23px)}
 #screen-desempenhotec .tpm-output.ux-force-task .tpm-recs{gap:12px}
