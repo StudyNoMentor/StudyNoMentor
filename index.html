@@ -57,7 +57,7 @@
      novo, e o antigo é descartado sozinho na ativação) e o que permite ao app
      dizer qual versão está rodando. Em src/ fica "dev" de propósito: a versão
      é gerada na montagem, não editada à mão. -->
-<meta name="diario-versao" content="v9bfa3258aa">
+<meta name="diario-versao" content="v2dc2f415c2">
 <script>
 /* ── ARRANQUE: abre o IndexedDB AGORA, em paralelo com o parse do documento ──
    A fachada de armazenamento vive no fim do <body>, depois de ~1,7 MB de HTML.
@@ -54577,9 +54577,10 @@ else CloudStore.init();
    CloudStore.syncNow(). O resultado é um indicador visualmente correto, mas que
    deixou de cumprir o contrato de "toque para sincronizar agora".
 
-   Esta ponte roda DEPOIS de CloudUX, no nó definitivo. O listener em captura
-   garante uma única ação: sincronizar. Não altera CloudStore, SectionSync,
-   Supabase, filas, revisões ou regras de conflito.
+   CloudUX faz essa substituição num setTimeout(boot, 0) após DOMContentLoaded.
+   Por isso esta ponte agenda a instalação depois desse boot e atua no nó
+   definitivo. O listener em captura garante uma única ação: sincronizar.
+   Não altera CloudStore, SectionSync, Supabase, filas, revisões ou conflitos.
    ============================================================================ */
 (() => {
   if (typeof window === 'undefined' || window.__cloudSyncButtonDirect) return;
@@ -54602,9 +54603,11 @@ else CloudStore.init();
     }, true);
   };
 
-  install();
+  const installAfterCloudUX = () => setTimeout(install, 0);
   if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', install, { once: true });
+    document.addEventListener('DOMContentLoaded', installAfterCloudUX, { once: true });
+  } else {
+    installAfterCloudUX();
   }
 })();
 
