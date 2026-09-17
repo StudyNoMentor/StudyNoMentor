@@ -23,10 +23,8 @@
 /* Ciclo: 3 respostas acionáveis primeiro */
 #ciclo-overview-gauges.ux-week-gauges{display:grid!important;grid-template-columns:repeat(3,minmax(0,1fr))!important;gap:10px!important}
 #ciclo-overview-gauges .mini-gauge-card{transition:opacity .16s ease,border-color .16s ease,transform .16s ease}
-#ciclo-overview-gauges .mini-gauge-card[data-ux-priority="primary"]{min-height:88px;border-color:color-mix(in srgb,var(--accent) 24%,var(--border));background:linear-gradient(150deg,color-mix(in srgb,var(--accent) 4%,var(--surface)),var(--surface));box-shadow:0 6px 18px rgba(15,23,42,.045)}
-#ciclo-overview-gauges .mini-gauge-card[data-ux-priority="primary"] .value{font-size:clamp(22px,2.2vw,30px)}
-#ciclo-overview-gauges .mini-gauge-card[data-ux-priority="secondary"]{opacity:.9}
-#ciclo-overview-gauges .mini-gauge-card[data-ux-priority="tertiary"]{opacity:.72;box-shadow:none}
+#ciclo-overview-gauges .mini-gauge-card[data-ux-priority="primary"],#ciclo-overview-gauges .mini-gauge-card[data-ux-priority="secondary"],#ciclo-overview-gauges .mini-gauge-card[data-ux-priority="tertiary"]{min-height:88px;border-color:var(--border);background:var(--surface);box-shadow:var(--shadow-sm);opacity:1}
+#ciclo-overview-gauges .mini-gauge-card[data-ux-priority] .value{font-size:clamp(22px,2.2vw,30px)}
 #screen-ciclo #ciclo-subjects-progress{margin-top:4px}
 
 /* Grade: a grade é o conteúdo; controles são suporte */
@@ -91,7 +89,7 @@
 #screen-desempenhotec #plano-modos[hidden],#screen-desempenhotec #plano-modo-nota[hidden]{display:none!important}
 #screen-desempenhotec .tec-cfg-bar.ux-analysis-settings{opacity:.78;margin-bottom:10px}
 #screen-desempenhotec .tec-cfg-bar.ux-analysis-settings:hover,#screen-desempenhotec .tec-cfg-bar.ux-analysis-settings:focus-within{opacity:1}
-#screen-desempenhotec #plano-proj>.ux-legacy-projection{display:none!important}
+html.tpm-motors-active #screen-desempenhotec #plano-proj>.ux-legacy-projection:not([data-tpm-panorama]){display:none!important}
 #screen-desempenhotec .tpm-output.ux-force-task{border-color:color-mix(in srgb,var(--accent) 30%,var(--border));box-shadow:0 10px 28px color-mix(in srgb,var(--accent) 6%,transparent)}
 #screen-desempenhotec .tpm-output.ux-force-task>header strong{font-size:clamp(18px,2vw,23px)}
 #screen-desempenhotec .tpm-output.ux-force-task .tpm-recs{gap:12px}
