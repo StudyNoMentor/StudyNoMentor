@@ -353,7 +353,15 @@
     _desagrupar(lista) {
       if (!lista) return;
       lista.querySelectorAll(':scope > .tpm-legacy-exec').forEach(el => {
-        Array.from(el.children).forEach(ch => { if (ch.tagName !== 'SUMMARY') lista.insertBefore(ch, el); });
+        /* Devolve só o que veio da lista. O `<summary>` e a barra de ajustes
+           são construídos aqui a cada agrupamento: reinseri-los na lista
+           deixaria um rastro de cabeçalhos órfãos crescendo a cada repintura
+           — invisíveis por CSS, mas vivos no DOM e no leitor de tela. */
+        Array.from(el.children).forEach(ch => {
+          if (ch.tagName === 'SUMMARY') return;
+          if (ch.classList && ch.classList.contains('tpm-legacy-cfg')) return;
+          lista.insertBefore(ch, el);
+        });
         el.remove();
       });
     },
@@ -370,10 +378,26 @@
       box.open = this._legacyOpen === true;
       box.innerHTML = '<summary><span><b>🎯 Rota manual do Plano</b>'
         + '<small>Quadro de matérias com “Atacar”, o próximo bloco em lote e a criação avulsa de atividades.</small>'
-        + '</span><i>▾</i></summary>';
+        + '</span><i>▾</i></summary>'
+        /* ── OS AJUSTES DA ROTA MORAM DENTRO DA ROTA ────────────────────────
+           Meta, ritmo, ordem de ataque, régua, amostra, custo e frescor são
+           parâmetros DESTA rota: nenhum motor os lê. Enquanto a porta deles
+           era a mesma do Plano, cada campo carregava a dúvida "isso muda o
+           que o motor vai me mandar fazer?" — e, com motor ativo, o CSS
+           escondia aquela barra inteira, então eles não tinham porta nenhuma.
+           Agora a porta é esta, aqui dentro, e ela só abre o que é daqui. */
+        + '<div class="tpm-legacy-cfg">'
+        + '<button type="button" class="tec-cfg-open" data-cfg="rota" aria-haspopup="dialog">'
+        + '<span class="gg-ic">⚙</span>Ajustes da rota</button>'
+        + '<span class="tec-cfg-resumo" id="rota-cfg-resumo"></span>'
+        + '</div>';
       lista.appendChild(box);
       alvos.forEach(el => box.appendChild(el));
       box.addEventListener('toggle', () => { this._legacyOpen = box.open; });
+      /* O resumo é repintado junto: ele responde "com que régua esta rota está
+         montada agora" sem abrir a folha. */
+      try { if (window.TecAjustes) TecAjustes.sincronizar('rota'); }
+      catch (e) { if (typeof _quiet === 'function') _quiet(e, 'rota-cfg-resumo'); }
     },
     /* Quem clica em 🎯 Atacar / + focar está DENTRO da rota manual, e a
        repintura que o clique dispara reconstrói o `<details>`. Sem esta marca

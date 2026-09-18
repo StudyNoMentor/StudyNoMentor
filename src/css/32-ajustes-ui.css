@@ -1,0 +1,430 @@
+/* ═══════════════════════════════════════════════════════════════════════════
+   AJUSTES DE INTERFACE — CAMADA V2
+   ───────────────────────────────────────────────────────────────────────────
+   Quatro correções que só se resolvem DEPOIS de todas as camadas anteriores,
+   porque cada uma desfaz uma decisão tomada em uma delas:
+
+     1. o aviso de reconciliação da nuvem cobria a barra de navegação;
+     2. a fita de indicadores do Ciclo virou tipografia miúda de 8px;
+     3. a folha de Lei seca acumulou pixels crus fora da régua `--fs-*`;
+     4. um `input{width:100%}` global inchava TODA caixa de seleção que não
+        declarasse largura própria — a origem real do "checkbox solto no meio
+        do vazio" em Dias e variações e em Manuais.
+
+   Nenhuma delas muda comportamento, dado ou regra: é tudo apresentação.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* ── 1. O AVISO DA NUVEM SAI DE CIMA DO MENU ────────────────────────────────
+   `.uxv4-sync-note` era `bottom:14px` fixo — no celular, exatamente sobre a
+   barra de abas. Ele passa a ficar ACIMA dela, mais discreto, e (pelo JS)
+   só nasce se a conferência demorar mais de ~1s. */
+.uxv4-sync-note {
+  font-size: var(--fs-3xs);
+  padding: 7px 12px;
+  opacity: .92;
+  transition: opacity .18s ease;
+}
+@media (max-width: 860px) {
+  /* 6px + 6px de padding da barra + ~50px do alvo de toque + a safe area. */
+  .uxv4-sync-note {
+    right: 10px;
+    left: auto;
+    bottom: calc(72px + env(safe-area-inset-bottom));
+    max-width: min(300px, calc(100vw - 20px));
+  }
+  /* Nas telas em foco a barra some; o aviso desce junto. */
+  body.leis-foco .uxv4-sync-note,
+  body.cards-foco .uxv4-sync-note {
+    bottom: calc(14px + env(safe-area-inset-bottom));
+  }
+}
+
+/* ── 2. A FITA DE INDICADORES DO CICLO ──────────────────────────────────────
+   A camada `27-ux-hierarquia` encolheu os seis cartões para caberem numa
+   fileira só: etiqueta de 8px ACIMA de um número de 13px, tudo centralizado.
+   Coube, e virou ilegível — e não é o mesmo objeto que o Histórico mostra
+   três telas adiante com a mesma informação.
+
+   Aqui eles voltam a ser o cartão do Histórico (`#historico-list .week-stat`):
+   caixa recuada com borda visível, NÚMERO primeiro, etiqueta embaixo, tudo
+   alinhado à esquerda — a leitura em coluna que faz seis números comparáveis
+   de relance. A fileira única cede lugar a uma grade SIMÉTRICA: 3×2 no
+   tablet, 2×3 no celular. Nenhum cartão sobra sozinho numa linha órfã. */
+#ciclo-overview-gauges.ux-week-gauges {
+  gap: calc(10px * var(--fs-scale, 1)) !important;
+  margin-bottom: 16px !important;
+}
+#ciclo-overview-gauges .mini-gauge-card,
+#ciclo-overview-gauges .mini-gauge-card[data-ux-priority="primary"],
+#ciclo-overview-gauges .mini-gauge-card[data-ux-priority="secondary"],
+#ciclo-overview-gauges .mini-gauge-card[data-ux-priority="tertiary"] {
+  display: flex;
+  flex-direction: column;          /* número em cima, etiqueta embaixo */
+  align-items: flex-start;
+  justify-content: center;
+  gap: 0;
+  text-align: left;
+  min-height: calc(62px * var(--fs-scale, 1));
+  padding: calc(11px * var(--fs-scale, 1)) calc(13px * var(--fs-scale, 1));
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--surface-sunken);
+  box-shadow: none;
+  transition: border-color .15s ease, background .15s ease;
+}
+#ciclo-overview-gauges .mini-gauge-card:hover {
+  border-color: var(--border-strong);
+  background: var(--surface);
+}
+#ciclo-overview-gauges .mini-gauge-card[data-ux-priority] .value {
+  font-family: 'Space Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-weight: 800;
+  font-size: clamp(15px, calc(19px * var(--fs-scale, 1)), 24px);
+  letter-spacing: -0.03em;
+  line-height: 1.15;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
+}
+#ciclo-overview-gauges .mini-gauge-card[data-ux-priority] .label {
+  display: block;                  /* desfaz o flex centralizador da camada 07 */
+  min-height: 0;
+  margin-top: 4px;
+  font-size: var(--fs-3xs);
+  font-weight: 700;
+  letter-spacing: .06em;
+  line-height: 1.25;
+  text-align: left;
+  color: var(--text-faint);
+}
+/* O indicador que governa a semana continua marcado — pela cor da borda e do
+   número, não por uma caixa de tamanho diferente: a grade tem de ficar
+   simétrica para os seis serem comparáveis. */
+#ciclo-overview-gauges .mini-gauge-card[data-ux-priority="primary"] {
+  border-color: color-mix(in srgb, var(--accent) 30%, var(--border));
+  background: color-mix(in srgb, var(--accent) 5%, var(--surface));
+}
+#ciclo-overview-gauges .mini-gauge-card.accent-good .value { color: var(--good); }
+#ciclo-overview-gauges .mini-gauge-card.accent-warn .value { color: var(--warn); }
+#ciclo-overview-gauges .mini-gauge-card.accent-bad  .value { color: var(--bad); }
+
+/* Grades simétricas: 6 (=6×1) · 3 (=3×2) · 2 (=2×3). Nunca 4 ou 5 colunas,
+   que deixariam a última fileira incompleta. */
+@media (max-width: 1100px) {
+  #ciclo-overview-gauges.ux-week-gauges,
+  .ciclo-gauges { grid-template-columns: repeat(3, minmax(0, 1fr)) !important; }
+}
+@media (max-width: 560px) {
+  #ciclo-overview-gauges.ux-week-gauges,
+  .ciclo-gauges {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    gap: calc(9px * var(--fs-scale, 1)) !important;
+  }
+  #ciclo-overview-gauges .mini-gauge-card[data-ux-priority] {
+    min-height: calc(58px * var(--fs-scale, 1));
+    padding: calc(10px * var(--fs-scale, 1)) calc(11px * var(--fs-scale, 1));
+  }
+  #ciclo-overview-gauges .mini-gauge-card[data-ux-priority] .value {
+    font-size: clamp(14px, calc(17px * var(--fs-scale, 1)), 21px);
+  }
+}
+
+/* ── 3. A CAIXA DE SELEÇÃO QUE O CSS GLOBAL INFLAVA ─────────────────────────
+   Causa medida, não suposta: existe um `input, select, textarea { width:100% }`
+   na base. Uma caixa de seleção não declara largura própria, então ela herdava
+   os 100% e virava um item flex de ~116px com o desenho de 13px centralizado
+   dentro — daí o "checkbox isolado, com muita tela branca em volta".
+
+   O interruptor "Rotina ativa" nunca sofreu disso porque `.xsc-master-card
+   > input` fixa 17px à mão. Aqui a mesma proteção passa a valer para TODA
+   caixa de seleção e todo botão de opção dos painéis de Extras e de Leis —
+   uma regra, e não um remendo por caixa nova que aparecer. */
+.xsc-overlay input[type="checkbox"],
+.xsc-overlay input[type="radio"],
+.rg-overlay input[type="checkbox"],
+.rg-overlay input[type="radio"],
+.ra-overlay input[type="checkbox"],
+.ra-overlay input[type="radio"] {
+  width: calc(17px * var(--fs-scale, 1));
+  height: calc(17px * var(--fs-scale, 1));
+  min-width: calc(17px * var(--fs-scale, 1));
+  flex: 0 0 auto;
+  margin: 0;
+  padding: 0;
+  accent-color: var(--accent);
+}
+/* O interruptor do reforço adaptativo é um alvo invisível de 44px sobreposto
+   ao desenho da chave: ele PRECISA da largura própria. */
+.ra-switch-hero > input[type="checkbox"] {
+  width: 44px; height: 28px; min-width: 44px;
+}
+/* Os sete dias são botões desenhados; o input vive escondido atrás deles. */
+.xsc-days input[type="checkbox"] {
+  position: absolute; opacity: 0; pointer-events: none;
+  width: 1px; height: 1px; min-width: 0;
+}
+
+/* A LINHA DE MARCAR vira uma linha de verdade: caixa à esquerda, texto
+   colado nela, e o bloco inteiro ancorado no início — o mesmo desenho do
+   "Rotina ativa" logo acima, que é o que a tela já ensinava a ler. */
+.xsc-check {
+  display: grid !important;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: start;
+  gap: 10px;
+  text-align: left;
+  padding: 12px 13px;
+  border: 1.5px solid color-mix(in srgb, var(--text-faint) 34%, var(--border));
+  border-radius: 13px;
+  background: var(--surface);
+  cursor: pointer;
+  transition: border-color .15s ease, background .15s ease;
+}
+.xsc-check > input[type="checkbox"] { margin-top: 1px; }
+.xsc-check > span { display: grid; gap: 3px; min-width: 0; width: 100%; }
+.xsc-check b { font-size: var(--fs-xs); line-height: 1.35; }
+.xsc-check small { font-size: var(--fs-2xs); font-weight: 500; line-height: 1.45; color: var(--text-soft); }
+.xsc-check:hover { border-color: color-mix(in srgb, var(--accent) 40%, var(--border)); }
+.xsc-check:has(> input:checked) {
+  border-color: color-mix(in srgb, var(--accent) 46%, var(--border));
+  background: color-mix(in srgb, var(--accent) 5%, var(--surface));
+}
+/* Em "Dias e variações" ela dividia a fileira com o quadro dos sete dias e
+   herdava `align-items:center`, que empurrava a caixa para o meio de uma
+   altura de três linhas. Alinhar pelo topo é o que a faz ler como linha. */
+.xsc-days-group .xsc-check { align-items: start; }
+
+/* ── 4. BORDAS QUE SEPARAM DE VERDADE ───────────────────────────────────────
+   Todo elemento da central usava `--border` puro sobre `--surface`: no
+   celular, com pouca luz, os cartões viravam uma única mancha clara. As
+   bordas sobem para 1,5px com um terço de tinta de texto misturada — passa a
+   dar para contar os blocos sem ler nenhum deles. */
+.xsc-field,
+.xsc-days-wrap,
+.xsc-summary-card,
+.xsc-kpis span,
+.xsc-manual-grid article,
+.xsc-presets-card,
+.xsc-today {
+  border-width: 1.5px;
+  border-color: color-mix(in srgb, var(--text-faint) 36%, var(--border));
+}
+.xsc-setting-group {
+  border-width: 1.5px;
+  border-color: color-mix(in srgb, var(--text-faint) 34%, var(--border));
+}
+.xsc-setting-group > header {
+  border-bottom-color: color-mix(in srgb, var(--text-faint) 30%, var(--border));
+}
+.xsc-field input,
+.xsc-field select {
+  border: 1.5px solid color-mix(in srgb, var(--text-faint) 34%, var(--border));
+}
+.xsc-field input:focus,
+.xsc-field select:focus {
+  border-color: var(--accent);
+  outline: none;
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 14%, transparent);
+}
+.xsc-nav { border-bottom-width: 1.5px; border-bottom-color: color-mix(in srgb, var(--text-faint) 28%, var(--border)); }
+.xsc-head { border-bottom-width: 1.5px; border-bottom-color: color-mix(in srgb, var(--text-faint) 28%, var(--border)); }
+
+/* ── 5. A FOLHA DE LEI SECA, EM UMA RÉGUA SÓ ────────────────────────────────
+   A tela acumulou `9px`, `10px`, `11px`, `12px` crus em cinco camadas — e
+   pixel cru não passa por `--fs-scale`, então o A− / A+ movia o resto da tela
+   e deixava justamente os rótulos parados. Tudo aqui volta para os tokens.
+
+   A hierarquia passa a ser explícita e a mesma em todos os grupos:
+     rótulo de seção (maiúsculas)  -> --fs-3xs
+     título do grupo / do campo    -> --fs-xs
+     valor digitado                -> --fs-sm
+     texto de apoio                -> --fs-2xs
+   E cada grupo ganha uma cor de acento própria no ícone: é o que permite
+   achar "Dias e variações" rolando, sem ler os três cabeçalhos. */
+.xsc-law-compact { gap: 14px; }
+
+.xsc-law-hero {
+  padding: 15px;
+  border-width: 1.5px;
+  border-radius: 18px;
+  gap: 13px;
+}
+.xsc-law-hero-icon { border-radius: 14px; font-size: var(--fs-2xl); }
+.xsc-law-hero-copy > small { font-size: var(--fs-3xs); letter-spacing: .1em; }
+.xsc-law-hero-copy h4 { font-size: var(--fs-lg); margin: 3px 0; }
+.xsc-law-hero-copy p { font-size: var(--fs-2xs); line-height: 1.5; }
+.xsc-master-card { padding: 8px 13px; border-width: 1.5px; }
+.xsc-master-card b { font-size: var(--fs-xs); }
+.xsc-master-card small { font-size: var(--fs-3xs); }
+
+.xsc-presets-card { padding: 12px 13px; border-radius: 15px; gap: 8px; }
+.xsc-presets-card > div > b { font-size: var(--fs-xs); }
+.xsc-presets-card > div > small { font-size: var(--fs-3xs); line-height: 1.4; }
+.xsc-presets button { min-height: 36px; padding: 7px 14px; font-size: var(--fs-2xs); border-width: 1.5px; }
+.xsc-preset-feedback { font-size: var(--fs-3xs); }
+
+.xsc-setting-group { padding: 14px; border-radius: 17px; gap: 11px; }
+.xsc-setting-group > header { gap: 11px; padding-bottom: 10px; }
+.xsc-setting-group > header b { font-size: var(--fs-sm); }
+.xsc-setting-group > header small { font-size: var(--fs-3xs); line-height: 1.4; color: var(--text-faint); }
+.xsc-group-icon {
+  width: calc(34px * var(--fs-scale, 1));
+  height: calc(34px * var(--fs-scale, 1));
+  flex: 0 0 auto;
+  border-radius: 11px;
+  font-size: var(--fs-md);
+  background: color-mix(in srgb, var(--xsc-grupo, var(--accent)) 12%, var(--surface));
+  color: var(--xsc-grupo, var(--accent));
+}
+/* Uma cor por assunto. Os três grupos da folha, na ordem em que aparecem. */
+.xsc-setting-group:nth-of-type(1) { --xsc-grupo: var(--accent); }
+.xsc-setting-group:nth-of-type(2) { --xsc-grupo: #7a5af8; }
+.xsc-setting-group:nth-of-type(3) { --xsc-grupo: #0f9d63; }
+.xsc-setting-group > header {
+  border-bottom-color: color-mix(in srgb, var(--xsc-grupo, var(--accent)) 22%, var(--border));
+}
+
+.xsc-compact-grid { gap: 10px; }
+.xsc-compact-grid .xsc-field { padding: 11px 12px; gap: 6px; border-radius: 12px; }
+.xsc-compact-grid .xsc-label b { font-size: var(--fs-xs); }
+.xsc-compact-grid .xsc-field.is-secondary-mode {
+  opacity: 1;
+  border-style: dashed;
+  background: var(--surface-sunken);
+}
+.xsc-compact-grid .xsc-field.is-secondary-mode .xsc-label b { color: var(--text-faint); }
+
+.xsc-days-wrap { padding: 12px; border-radius: 12px; gap: 10px; }
+.xsc-days { gap: 7px; }
+.xsc-days span {
+  width: calc(38px * var(--fs-scale, 1));
+  height: calc(38px * var(--fs-scale, 1));
+  border-width: 1.5px;
+  border-radius: 11px;
+  font-size: var(--fs-2xs);
+  transition: background .13s ease, border-color .13s ease, color .13s ease;
+}
+.xsc-days label:hover span { border-color: color-mix(in srgb, var(--accent) 45%, var(--border)); }
+.xsc-days input:checked + span {
+  border-color: var(--accent);
+  background: var(--accent);
+  color: var(--on-accent);
+  font-weight: 900;
+}
+
+.xsc-law-footer { padding-top: 12px; gap: 12px; }
+.xsc-law-status span { font-size: var(--fs-2xs); padding: 7px 11px; border-width: 1.5px; }
+.xsc-law-footer .xsc-foot-actions button { min-height: 44px; font-size: var(--fs-xs); }
+
+@media (max-width: 560px) {
+  .xsc-law-hero { padding: 13px; gap: 11px; }
+  .xsc-law-hero-copy h4 { font-size: var(--fs-md); }
+  .xsc-setting-group { padding: 12px; gap: 10px; }
+  .xsc-group-icon { width: calc(31px * var(--fs-scale, 1)); height: calc(31px * var(--fs-scale, 1)); }
+  .xsc-compact-grid { gap: 8px; }
+  .xsc-compact-grid .xsc-field { padding: 10px; }
+  .xsc-compact-grid .xsc-label b { font-size: var(--fs-2xs); }
+  .xsc-field input, .xsc-field select { min-height: 42px; font-size: var(--fs-sm); }
+  .xsc-days { gap: 6px; }
+  .xsc-days span { width: calc(34px * var(--fs-scale, 1)); height: calc(34px * var(--fs-scale, 1)); }
+  .xsc-check { padding: 11px 12px; }
+}
+
+/* ── 6. OS "MANUAIS" TAMBÉM SÃO UMA LINHA ───────────────────────────────────
+   A caixa do 💡 Sugerir tinha o mesmo problema de largura e a mesma tela
+   vazia ao redor — a regra de `.xsc-check` acima já a corrige. Falta só a
+   borda: ela é a única caixa da aba e precisa se distinguir do fundo. */
+.xsc-manual-grid article { border-radius: 15px; }
+.xsc-manual-grid + .xsc-check,
+.xsc-scenarios + .xsc-check {
+  margin-top: 2px;
+  border-style: solid;
+}
+
+/* ── 7. A PORTA DE AJUSTES DA ROTA MANUAL ───────────────────────────────────
+   Ela vive DENTRO do `<details>` da rota, logo abaixo do cabeçalho: quem não
+   abriu a rota não precisa saber que ela existe, e quem abriu encontra a
+   régua da rota junto com a rota — não misturada com o recorte que os motores
+   também leem, nem com as regras de cada motor (essas ficam em ⚙ Modelos). */
+#plano-lista > .tpm-legacy-exec > .tpm-legacy-cfg {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin: 12px 14px 4px;
+  padding-bottom: 12px;
+  border-bottom: 1px dashed color-mix(in srgb, var(--border) 85%, transparent);
+}
+#plano-lista > .tpm-legacy-exec:not([open]) > .tpm-legacy-cfg { display: none; }
+#plano-lista > .tpm-legacy-exec > .tpm-legacy-cfg > .tec-cfg-open {
+  border-color: color-mix(in srgb, var(--accent) 34%, var(--border));
+  border-radius: 999px;
+}
+@media (max-width: 560px) {
+  #plano-lista > .tpm-legacy-exec > .tpm-legacy-cfg { margin: 11px 12px 4px; }
+  #plano-lista > .tpm-legacy-exec > .tpm-legacy-cfg > .tec-cfg-open { width: 100%; justify-content: center; }
+}
+
+/* Com motor ativo, a barra do Plano continua na tela — mas o que ela abre
+   agora é só o recorte dos dados. O rótulo do botão passa a dizer isso. */
+html.tpm-motors-active #tec-panel-plano .tec-cfg-bar {
+  margin: 0 0 12px;
+  padding: 10px 0 0;
+}
+
+/* ── 8. DOIS ACABAMENTOS DA FOLHA DE LEI SECA ───────────────────────────────
+   a) O PÉ PRESO ERA TRANSLÚCIDO. `position:sticky` + um gradiente que começa
+      em `transparent` deixava o campo de baixo aparecendo POR TRÁS das duas
+      pílulas de status — duas camadas de texto no mesmo pixel. O pé passa a
+      ser opaco, com borda e sombra próprias: ele é uma barra, e agora parece
+      uma. E o corpo ganha folga embaixo, para o último campo poder subir
+      inteiro acima dele.
+   b) OS SELETORES LONGOS NÃO CABEM EM MEIA LARGURA. "Circular · há mais tempo
+      sem ler" virava "Circular · há mai" numa coluna de 160px. No celular o
+      grupo de sequência passa a ter uma coluna só — e todo `select` ganha
+      reticências, para que o corte, quando acontecer, seja legível. */
+.xsc-law-footer {
+  /* O pé cola no fundo REAL do corpo rolável. Com `bottom:-1px` ele parava
+     1px abaixo do conteúdo mas ACIMA do respiro inferior do corpo — e a
+     seção seguinte aparecia rolando por baixo dele, naquela faixa de ~24px.
+     O deslocamento negativo bate com a margem negativa: não sobra faixa. */
+  bottom: -24px;
+  background: var(--surface);
+  border-top: 1.5px solid color-mix(in srgb, var(--text-faint) 30%, var(--border));
+  /* As duas primeiras sombras pintam as faixas laterais do respiro do corpo,
+     de onde o conteúdo apareceria por baixo. Sombra não entra no `scrollWidth`
+     — uma margem negativa entraria, e criava 13px de rolagem horizontal na
+     folha inteira em telas de 360px. */
+  box-shadow:
+    0 -8px 18px color-mix(in srgb, var(--text) 6%, transparent),
+    -22px 0 0 0 var(--surface),
+    22px 0 0 0 var(--surface);
+  margin: 4px 0 -24px;
+  padding: 12px 0 calc(12px + env(safe-area-inset-bottom));
+}
+.xsc-law-compact { padding-bottom: 2px; }
+.xsc-field select { text-overflow: ellipsis; }
+
+@media (max-width: 560px) {
+  .xsc-law-footer { bottom: -22px; margin: 4px 0 -22px; padding: 11px 0 calc(11px + env(safe-area-inset-bottom)); }
+  /* "Ordem do rodízio" e "Ao terminar uma lei": rótulos e opções longos. */
+  .xsc-setting-group:nth-of-type(2) .xsc-compact-grid { grid-template-columns: 1fr !important; }
+}
+
+/* ── 9. O CAMPO FORA DO ESCOPO PRECISA SUMIR DE VERDADE ─────────────────────
+   `.rfc-field { display:flex }` (base) vence o `display:none` que o navegador
+   dá a `[hidden]` — o atributo era posto, e o campo continuava na tela. Sem
+   esta linha a separação entre as duas portas do Plano existe só no DOM. */
+#tec-cfg-body .rfc-field[hidden] { display: none !important; }
+
+/* Numa porta já filtrada por escopo, o selo do escopo repete em todo campo o
+   que o subtítulo da folha acabou de dizer. Ele volta a aparecer na folha
+   completa (sem motor ativo), onde de fato distingue um campo do outro. */
+#tec-cfg-modal[data-escopo] .tec-cfg-escopo,
+#tec-cfg-modal[data-escopo] .tec-cfg-escopo-legenda { display: none; }
+/* O subtítulo da seção descreve a seção INTEIRA ("as cinco decisões…"); numa
+   porta filtrada ele passa a prometer campos que não estão ali. O subtítulo da
+   folha, que é escrito por porta, já diz o que esta mostra. */
+#tec-cfg-modal[data-escopo] .tec-cfg-sec-sub { display: none; }

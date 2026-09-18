@@ -2928,19 +2928,82 @@ window.PlanoCiclo = PlanoCiclo;
 const TecAjustes = {
   aba: null,
   secao: null,
+  /* ═══ CADA UM NO SEU QUADRADO ════════════════════════════════════════════
+     A folha do Plano guardava, no mesmo lugar, duas coisas que não se falam:
+
+       · o RECORTE DOS DADOS (disciplina em foco, matérias fora do Plano), que
+         os motores leem tanto quanto a leitura analítica;
+       · os PARÂMETROS DA ROTA MANUAL — meta, ritmo, ordem de ataque, régua,
+         amostra, custo, frescor —, que NENHUM motor lê. O Simplificado decide
+         em `_top3` e o Robusto em `grupos.slice(0,3)`; nenhum dos dois pode
+         sequer alcançar `PlanoEngine` (invariante conferida em
+         testes/plano-robusto.mjs).
+
+     Misturar os dois numa folha só produzia a pergunta errada a cada campo:
+     "mexer aqui muda o que o motor vai me mandar fazer?". Agora não há o que
+     perguntar, porque são DUAS PORTAS:
+
+       ⚙ Ajustes (no alto do Plano) — só o recorte dos dados.
+       ⚙ Ajustes da rota (dentro da 🎯 Rota manual) — só o que a rota usa.
+
+     Nada foi duplicado, movido de arquivo nem renomeado: os campos seguem
+     sendo os mesmos elementos, com os mesmos ids e os mesmos ouvintes. O que
+     a porta faz é ESCONDER o que não é dela. Com os motores desligados a rota
+     manual É a tela inteira, então a folha do Plano volta a mostrar tudo —
+     não há segunda fonte de decisão para separar dela. */
+  ABA_DOM: { rota: 'plano' },
+  ESCOPO_ABA: { rota: ['analise'], plano: ['ambos'] },
+  ESCOPO_PADRAO_SECAO: 'analise',
+  _abaDom(aba) { return this.ABA_DOM[aba] || aba; },
+  _motoresAtivos() {
+    try { return !!document.documentElement.classList.contains('tpm-motors-active'); }
+    catch (_) { return false; }
+  },
+  /* Sem motor não há o que separar: a folha do Plano mostra tudo, como antes. */
+  _escoposDe(aba) {
+    if (!this._motoresAtivos() && aba !== 'rota') return null;
+    return this.ESCOPO_ABA[aba] || null;
+  },
+  _escopoDoCampo(box) {
+    const el = [...box.querySelectorAll('[id]')].find(x => x.id in this.ESCOPO_CAMPO);
+    return el ? this.ESCOPO_CAMPO[el.id] : this.ESCOPO_PADRAO_SECAO;
+  },
+  /* Mostra/esconde cada `.rfc-field` conforme o escopo pedido. Devolve as
+     seções que sobraram com pelo menos um campo — é essa lista que vira a
+     fita de navegação, então seção vazia nunca aparece como chip morto. */
+  _aplicarEscopo(aba) {
+    const dom = this._abaDom(aba);
+    const escopos = this._escoposDe(aba);
+    const secs = [...document.querySelectorAll('#tec-cfg-body .tec-cfg-sec[data-tab="' + dom + '"]')];
+    return secs.filter(sec => {
+      let vivos = 0;
+      sec.querySelectorAll('.rfc-field').forEach(box => {
+        const ok = !escopos || escopos.indexOf(this._escopoDoCampo(box)) >= 0;
+        box.hidden = !ok;
+        if (ok) vivos++;
+      });
+      sec.dataset.escopoVazio = vivos ? '' : '1';
+      return vivos > 0;
+    });
+  },
   _secoes(aba) {
-    return [...document.querySelectorAll('#tec-cfg-body .tec-cfg-sec[data-tab="' + aba + '"]')];
+    const dom = this._abaDom(aba || this.aba);
+    return [...document.querySelectorAll('#tec-cfg-body .tec-cfg-sec[data-tab="' + dom + '"]')]
+      .filter(sec => sec.dataset.escopoVazio !== '1');
   },
   TITULOS: {
     plano: { t: '🏁 Ajustes do Plano', s: 'O que a fila otimiza e em que dado ela confia.' },
+    plano_motor: { t: '🏁 Recorte dos dados', s: 'O que entra na conta — vale para os motores e para a rota manual. As regras de cada motor ficam em ⚙ Modelos.' },
+    rota: { t: '🎯 Ajustes da Rota manual', s: 'A régua da leitura analítica do Plano. Nenhum motor lê estes campos.' },
     reforco: { t: '🎯 Ajustes do Reforço', s: 'Como a banca e o seu erro se cruzam para formar o ranking.' },
-    analise: { t: '📊 Ajustes da Análise', s: 'O corte que define a lista de pontos fracos.' }
+    analise: { t: '📊 Ajustes da lista', s: 'O corte que define quem entra na lista de assuntos abaixo da régua.' }
   },
   /* Padrão de fábrica de cada seção: é com isto que o ponto no chip sabe se
      você mexeu ali. Ler os defaults do motor (e não uma cópia) é o que impede
      o ponto de mentir quando um padrão mudar. */
   PADROES: {
     plano: () => Object.assign({}, PlanoEngine.DEFAULTS),
+    rota: () => Object.assign({}, PlanoEngine.DEFAULTS),
     reforco: () => ({ estrat: 50, gran: 50, minq: 10, limite: null, disc: '__todas__',
       reforcoView: 'global', reforcoOrdenar: 'oportunidade' }),
     analise: () => ({ weakOrdenar: 'taxa', weakDisc: '__todas__', weakLimiar: null, weakMinQ: 10, weakLeaves: true })
@@ -2949,10 +3012,18 @@ const TecAjustes = {
     const modal = document.getElementById('tec-cfg-modal');
     if (!modal || !this.TITULOS[aba]) return;
     this.aba = aba;
-    const secs = this._secoes(aba);
+    /* O escopo é aplicado ANTES de medir as seções: a fita de navegação e a
+       altura estável têm de enxergar a folha já filtrada, senão nasce um chip
+       para uma seção que ficou sem nenhum campo. */
+    const secs = this._aplicarEscopo(aba);
     if (!secs.length) return;
-    document.getElementById('tec-cfg-title').textContent = this.TITULOS[aba].t;
-    document.getElementById('tec-cfg-sub').textContent = this.TITULOS[aba].s;
+    const rot = (aba === 'plano' && this._motoresAtivos()) ? this.TITULOS.plano_motor : this.TITULOS[aba];
+    /* A folha se declara filtrada: é o que o CSS usa para calar os selos de
+       escopo, que numa porta de escopo único só repetiriam o subtítulo. */
+    const esc = this._escoposDe(aba);
+    if (esc) modal.dataset.escopo = esc.join(' '); else delete modal.dataset.escopo;
+    document.getElementById('tec-cfg-title').textContent = rot.t;
+    document.getElementById('tec-cfg-sub').textContent = rot.s;
     // a fita de seções nasce do próprio DOM: seção nova aparece sozinha aqui
     const nav = document.getElementById('tec-cfg-nav');
     nav.innerHTML = secs.map(sec => `<button type="button" role="tab" data-sec="${escapeHtml(sec.dataset.sec)}">` +
@@ -3070,6 +3141,8 @@ const TecAjustes = {
   restaurarCampos(aba) {
     const secs = this._secoes(aba);
     secs.forEach(sec => sec.querySelectorAll('input, select').forEach(el => {
+      const box = el.closest('.rfc-field');
+      if (box && box.hidden) return;   // fora do escopo desta porta, fora do restaurar
       if (el.type === 'checkbox' || el.type === 'radio') el.checked = el.defaultChecked;
       else if (el.tagName === 'SELECT') {
         const padrao = [...el.options].find(o => o.defaultSelected);
@@ -3192,8 +3265,9 @@ const TecAjustes = {
     /* Esconde TODAS as seções, não só as da aba corrente: as três abas dividem
        o mesmo corpo, e ocultar apenas as irmãs deixava a seção da aba anterior
        aparecendo por baixo — a folha do Plano mostrando os campos do Reforço. */
+    const dom = this._abaDom(this.aba);
     document.querySelectorAll('#tec-cfg-body .tec-cfg-sec').forEach(el => {
-      el.hidden = !(el.dataset.tab === this.aba && el.dataset.sec === sec);
+      el.hidden = !(el.dataset.tab === dom && el.dataset.sec === sec);
     });
     const nav = document.getElementById('tec-cfg-nav');
     nav.querySelectorAll('button').forEach(b => {
@@ -3218,6 +3292,10 @@ const TecAjustes = {
     if (!nav) return;
     this._secoes(this.aba).forEach(sec => {
       const fora = [...sec.querySelectorAll('[data-cfg-key]')].some(el => {
+        /* Campo escondido pelo escopo desta porta não acende o ponto dela: o
+           ponto quer dizer "você mexeu em algo AQUI DENTRO". */
+        const box = el.closest('.rfc-field');
+        if (box && box.hidden) return false;
         const k = el.dataset.cfgKey;
         if (!(k in padrao) || padrao[k] == null) return false;
         const atual = (el.type === 'checkbox') ? el.checked : el.value;
@@ -3244,9 +3322,21 @@ const TecAjustes = {
     const semEmoji = (t) => String(t || '').replace(/^[^\p{L}\d]+/u, '').split(' — ')[0].trim();
     const disc = (id) => { const d = semEmoji(sel(id)); return (!d || /^todas/i.test(d)) ? 'todas' : d; };
     const p = [];
-    if (aba === 'plano') {
+    if (aba === 'rota') {
+      /* A fita da rota responde "com que régua esta rota está montada" — e
+         nada mais: recorte de dados e regras de motor têm portas próprias. */
       if (val('plano-meta')) p.push(['meta', val('plano-meta') + '%']);
       p.push(['ordem', semEmoji(sel('plano-ordenar'))]);
+      p.push(['amostra', semEmoji(sel('plano-amostraalvo'))]);
+      if (val('plano-sug-disciplinas')) p.push(['frentes', val('plano-sug-disciplinas')]);
+      if (val('plano-sug-topicos')) p.push(['por matéria', val('plano-sug-topicos')]);
+      if (val('plano-limite')) p.push(['lista', val('plano-limite') + ' por vez']);
+    } else if (aba === 'plano') {
+      /* Com motor ativo esta porta é só o RECORTE. Anunciar meta e ordem de
+         ataque aqui seria prometer que ela governa o motor — e não governa. */
+      const soRecorte = this._motoresAtivos();
+      if (!soRecorte && val('plano-meta')) p.push(['meta', val('plano-meta') + '%']);
+      if (!soRecorte) p.push(['ordem', semEmoji(sel('plano-ordenar'))]);
       p.push(['disciplina', disc('plano-disc')]);
       /* A exclusão muda TODO número do Plano e mora dentro de uma caixa
          fechada. Sem ela na fita de resumo, o único lugar em que a porta dos
@@ -3254,8 +3344,11 @@ const TecAjustes = {
       try {
         const ex = PlanoEngine.prefs().excluidas;
         if (Array.isArray(ex) && ex.length) p.push(['fora', ex.length === 1 ? ex[0] : ex.length + ' matérias']);
+        /* Quando a porta é SÓ o recorte, "nada de fora" também é resposta: são
+           dois campos, e a fita tem de dizer o estado dos dois. */
+        else if (soRecorte) p.push(['fora', 'nenhuma matéria']);
       } catch (e) { _quiet(e, 'cfg-excluidas'); }
-      if (val('plano-limite')) p.push(['lista', val('plano-limite') + ' por vez']);
+      if (!soRecorte && val('plano-limite')) p.push(['lista', val('plano-limite') + ' por vez']);
     } else if (aba === 'reforco') {
       let b = ''; try { b = ReforcoEngine.rotuloBancas(DesempenhoTecScreen.bancaFiltro()); } catch (e) { _quiet(e, 'cfg-bancas'); }
       p.push([/todas/i.test(b) ? 'bancas' : (b.indexOf(' e ') > 0 ? 'bancas' : 'banca'), b.replace(/^todas as bancas$/, 'todas')]);
@@ -3273,7 +3366,7 @@ const TecAjustes = {
   },
   // chamado pelas telas a cada repintura: o resumo nunca pode ficar velho
   sincronizar(aba) {
-    const alvos = aba ? [aba] : ['plano', 'reforco', 'analise'];
+    const alvos = aba ? [aba] : ['plano', 'reforco', 'analise', 'rota'];
     alvos.forEach(a => {
       const el = document.getElementById(a + '-cfg-resumo');
       if (!el) return;
@@ -7580,10 +7673,17 @@ $id('tec-weak-disc').addEventListener('change', (e) => {
   if (reset) reset.addEventListener('click', async () => {
     const aba = TecAjustes.aba;
     if (!aba) return;
-    const nome = { plano: 'do Plano', reforco: 'do Reforço', analise: 'da Análise' }[aba] || '';
+    const nome = { plano: 'do Plano', rota: 'da Rota manual', reforco: 'do Reforço', analise: 'da lista' }[aba] || '';
     if (!await UI.confirm('Voltar todos os ajustes ' + nome + ' aos valores padrão?', { title: 'Restaurar padrões' })) return;
-    if (aba === 'plano') {
-      DB.delRaw(DB._profilePrefix() + PlanoEngine.KEY_PREF);
+    if (aba === 'plano' || aba === 'rota') {
+      /* "Restaurar padrões" restaura o que ESTA porta mostra, e nada além.
+         Apagar a preferência inteira a partir do Recorte levaria junto meta,
+         ritmo, régua e custo — que nem estão nesta tela. */
+      if (aba === 'plano' && TecAjustes._escoposDe('plano')) {
+        PlanoEngine.salvarPrefs({ disciplina: PlanoEngine.DEFAULTS.disciplina, excluidas: [] });
+      } else {
+        DB.delRaw(DB._profilePrefix() + PlanoEngine.KEY_PREF);
+      }
       PlanoEngine._c = null;
       DT.renderPlano();
     } else if (aba === 'reforco') {

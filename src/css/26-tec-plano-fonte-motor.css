@@ -31,8 +31,13 @@
 /* Com algum motor ativo, a superfície do Plano legado deixa de ser uma
    segunda fonte de decisão. O resultado novo continua dentro de #plano-lista,
    por isso escondemos apenas a moldura e os nós legados, nunca [data-tpm-*]. */
+/* A barra de ajustes do Plano DEIXOU de ser escondida: ela não mostra mais a
+   régua da rota manual (que foi para dentro da própria rota, ver
+   `TecAjustes.ESCOPO_ABA`), e sim apenas o recorte de dados — disciplina em
+   foco e matérias fora do Plano —, que vale para os motores tanto quanto para
+   a leitura analítica. Escondê-la deixava esse recorte sem nenhuma porta com
+   motor ativo. */
 html.tpm-motors-active #tec-panel-plano>.card>.card-header,
-html.tpm-motors-active #tec-panel-plano .tec-cfg-bar,
 html.tpm-motors-active #tec-panel-plano #plano-modos,
 html.tpm-motors-active #tec-panel-plano #plano-modo-nota{display:none!important}
 /* Só o que não é nem resultado do motor nem a rota manual reagrupada. */

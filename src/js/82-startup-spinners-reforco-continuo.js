@@ -142,12 +142,41 @@
     } catch (e) { quiet(e, 'gate-message'); }
   }
 
-  function syncNote(text) {
+  /* ── O AVISO DE RECONCILIAÇÃO NÃO PODE DISPUTAR A TELA COM O MENU ────────
+     Ele nascia no instante em que a conferência começava, fixo no canto de
+     baixo — exatamente onde, no celular, mora a barra de navegação. Na
+     abertura normal (a esmagadora maioria: nada mudou na nuvem) a conferência
+     dura poucas centenas de milissegundos, então o que a pessoa via era um
+     balão cobrindo os menus e sumindo sozinho — ruído puro, e bem em cima do
+     primeiro toque que ela ia dar.
+
+     Duas mudanças, e nenhuma delas esconde informação:
+
+     · ELE ESPERA. Só aparece se a conferência passar de `ATRASO` ms. Abaixo
+       disso ninguém precisa saber que ela aconteceu — e ninguém saberá.
+     · ELE NÃO ENCOSTA NA BARRA. O CSS o ancora ACIMA da navegação no celular
+       (ver `.uxv4-sync-note` em 32-ajustes-ui.css).
+
+     Quem tem novidade de verdade para baixar não espera: `syncNote(txt, true)`
+     pinta na hora, porque aí há um motivo concreto para ocupar a tela. */
+  const SYNC_ATRASO = 1100;
+  let _syncTimer = null;
+  function _syncPintar(text) {
+    let el = document.querySelector('.uxv4-sync-note');
+    if (!el) { el = document.createElement('div'); el.className = 'uxv4-sync-note'; el.innerHTML = '<span class="uxv4-mini-spin"></span><span></span>'; document.body.appendChild(el); }
+    el.querySelector('span:last-child').textContent = text;
+  }
+  function syncNote(text, imediato) {
     try {
-      let el = document.querySelector('.uxv4-sync-note');
-      if (!text) { if (el) el.remove(); return; }
-      if (!el) { el = document.createElement('div'); el.className = 'uxv4-sync-note'; el.innerHTML = '<span class="uxv4-mini-spin"></span><span></span>'; document.body.appendChild(el); }
-      el.querySelector('span:last-child').textContent = text;
+      if (_syncTimer) { clearTimeout(_syncTimer); _syncTimer = null; }
+      if (!text) {
+        const el = document.querySelector('.uxv4-sync-note');
+        if (el) el.remove();
+        return;
+      }
+      // já visível: trocar o texto é instantâneo, não reinicia a espera.
+      if (imediato || document.querySelector('.uxv4-sync-note')) { _syncPintar(text); return; }
+      _syncTimer = setTimeout(() => { _syncTimer = null; _syncPintar(text); }, SYNC_ATRASO);
     } catch (e) { quiet(e, 'sync-note'); }
   }
 
@@ -171,7 +200,7 @@
         const rr = await CloudStore._fetchRev(id); novidade = rr != null && rr > ProfileManager.getRev(id);
       }
       if (novidade) {
-        syncNote('Há novidades de outro aparelho. Atualizando com segurança…');
+        syncNote('Há novidades de outro aparelho. Atualizando com segurança…', true);
         if (window.SectionSync && SectionSync.readEnabled) await SectionSync.pullAndReload();
         else if (CloudStore.pullActiveAndReload) await CloudStore.pullActiveAndReload();
       } else {
