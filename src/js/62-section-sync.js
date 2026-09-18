@@ -610,17 +610,54 @@ const SectionSync = {
   },
   // Checagem barata "tem novidade na nuvem?" — compara as revisões remotas com as
   // que este aparelho já conhece. Substitui a comparação de rev do blob.
+  /* ── A CONTABILIDADE DE REVISÕES NÃO PROVA QUE O DADO ESTÁ AQUI ───────────
+     Esta checagem decide se vale baixar. Ela comparava só revisão contra
+     revisão — "a nuvem tem rev maior que a que eu anotei?" — e tinha dois
+     furos, os dois com a mesma consequência: responder "nada novo" e deixar o
+     aparelho com dado incompleto até alguém limpar o navegador.
+
+     1. `_getRevs()` era chamada SEM o `id`, então lia as revisões do perfil
+        ATIVO para comparar com as linhas remotas do perfil consultado. Com
+        `id` diferente do ativo, a comparação era entre coisas distintas.
+
+     2. Mais grave: a anotação de revisão é bookkeeping LOCAL, gravada quando
+        este aparelho enviou ou aplicou a seção. Ela pode continuar dizendo
+        "tenho a rev 5 de `entries`" depois de o conteúdo em si ter ido embora
+        — cota de armazenamento estourada no meio de uma gravação, uma
+        limpeza parcial do navegador, uma gravação interrompida. A seção fica
+        AUSENTE no localStorage com a revisão intacta, e como a revisão bate,
+        o download nunca acontecia: o registro sumia e não voltava mais.
+        Era exactamente o "faltam alguns registros, e só normaliza em guia
+        anônima" — guia anônima não tem revisão anotada, então baixa tudo.
+
+     A ausência do conteúdo passa a valer como novidade, do mesmo jeito que uma
+     revisão maior. A leitura é uma consulta ao localStorage por seção, que é
+     barata, e a decisão erra para o lado de baixar — que é o lado em que o
+     pior caso é tráfego, não perda. */
   async hasRemoteUpdates(id) {
     if (!window.CloudStore || !CloudStore.isReady() || !CloudStore.isLoggedIn()) return false;
     const { data, error } = await CloudStore.client.from(this.TABLE).select('section,rev').eq('profile_id', id);
     if (error) throw error;
-    const locais = this._getRevs();
-    let novidade = false;
-    (data || []).forEach(r => {
-      const meu = locais[r.section] ? locais[r.section].rev : 0;
-      if ((r.rev || 0) > meu) novidade = true;
-    });
-    return novidade;
+    const locais = this._getRevs(id);
+    const pfx = this._prefixFor(id);
+    return (data || []).some(r => this.precisaBaixar(r, locais, pfx));
+  },
+  /* A REGRA, separada da rede, para poder ser conferida sem inventar um
+     servidor: dada uma linha remota (`section`, `rev`), as revisões anotadas
+     neste aparelho e o prefixo do perfil, esta seção precisa ser baixada? */
+  precisaBaixar(r, locais, pfx) {
+    if (!r || !r.section || r.section === this.MANIFEST) return false;
+    const anotada = locais ? locais[r.section] : null;
+    const meu = anotada ? (anotada.rev || 0) : 0;
+    if ((r.rev || 0) > meu) return true;
+    /* Revisão anotada mas conteúdo ausente: o aparelho acha que tem e não tem.
+       Só conta quando existe anotação — sem ela, a semeadura normal já cuida, e
+       tratar como novidade faria todo perfil novo baixar duas vezes. */
+    if (anotada && localStorage.getItem(pfx + r.section) === null) {
+      console.warn('[SectionSync] seção anotada mas ausente no aparelho:', r.section, '— vai baixar');
+      return true;
+    }
+    return false;
   },
   // Baixa por seção e recarrega a tela (equivalente ao pullActiveAndReload do blob).
   /* Baixa por seção e recarrega a tela — MAS SÓ SE ALGO MUDOU DE VERDADE.

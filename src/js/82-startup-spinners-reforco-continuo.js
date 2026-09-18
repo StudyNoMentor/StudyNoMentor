@@ -250,11 +250,50 @@
       return original(id);
     };
 
-    // Se houve troca local + reload, a reconciliação continua depois que a sessão
-    // persistida do Supabase for restaurada. O app já estará utilizável.
+    /* ═══ ABRIR O APP SEM CONFERIR A NUVEM ERA O CAMINHO MAIS COMUM ═════════
+       A reconciliação de abertura — "a nuvem tem algo mais novo que este
+       aparelho?" — só era agendada quando `RECON_KEY` estava no sessionStorage,
+       e esse marcador é posto em UM lugar: o `enterProfile` envolvido aqui, ou
+       seja, quando se passa pela lista de perfis. Ele é consumido (removido) na
+       primeira reconciliação.
+
+       Só que `ProfileUI.boot()` tem um atalho de ENTRADA DIRETA: se
+       `sessionStorage[SESSION_KEY]` aponta para o perfil ativo e existe dado
+       local, ele fecha o portão e retorna — sem ler nada da nuvem. E
+       `sessionStorage` SOBREVIVE a um recarregamento da mesma aba. Então a
+       sequência real do dia a dia era:
+
+         1. entrar no perfil     → RECON_KEY posto, reconcilia, RECON_KEY some;
+         2. sai uma versão nova  → `recarregarApp()` recarrega a MESMA aba;
+         3. `boot()` vê SESSION_KEY e entra direto, sem RECON_KEY;
+         4. nada reconcilia, e `syncOnFocus` não roda numa carga nova (não há
+            evento `focus` nem `visibilitychange` quando a aba já está em foco);
+         5. a tela abre com o que havia no localStorage — atrasado, e sem os
+            registros que vieram de outro aparelho.
+
+       Isso explica os três contornos que funcionavam: guia anônima e outro
+       navegador começam com sessionStorage e localStorage vazios (download
+       completo); entrar e sair da conta limpa SESSION_KEY e força o caminho do
+       `enterProfile`, que põe RECON_KEY.
+
+       A correção não é mexer no atalho — abrir rápido com o dado local é
+       proposital e bom. É deixar de depender de um marcador consumível: TODA
+       abertura que termina dentro de um perfil agenda a conferência em segundo
+       plano. `reconcileProfile` já entrega o que está pendente antes de baixar,
+       já checa se há novidade real e só recarrega quando alguma seção mudou,
+       então agendar sempre não custa download nem recarga desnecessária. */
     try {
       const pending = sessionStorage.getItem(RECON_KEY);
-      if (pending) scheduleReconcile(pending);
+      if (pending) { scheduleReconcile(pending); }
+      else {
+        const ativo = (window.ProfileManager && ProfileManager.getActiveProfileId)
+          ? ProfileManager.getActiveProfileId() : null;
+        const chave = (window.ProfileUI && ProfileUI.SESSION_KEY) || 'diario-estudos:entered';
+        if (ativo && sessionStorage.getItem(chave) === ativo) {
+          StartupTrace.mark('reconciliacao-entrada-direta', { perfil: ativo });
+          scheduleReconcile(ativo);
+        }
+      }
     } catch (e) { quiet(e, 'reconcile-boot'); }
   }
   installLocalFirst();
