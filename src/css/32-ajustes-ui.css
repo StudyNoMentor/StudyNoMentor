@@ -60,10 +60,10 @@
 #ciclo-overview-gauges .mini-gauge-card[data-ux-priority="tertiary"] {
   display: flex;
   flex-direction: column;          /* número em cima, etiqueta embaixo */
-  align-items: flex-start;
+  align-items: center;
   justify-content: center;
   gap: 0;
-  text-align: left;
+  text-align: center;
   min-height: calc(62px * var(--fs-scale, 1));
   padding: calc(11px * var(--fs-scale, 1)) calc(13px * var(--fs-scale, 1));
   border: 1px solid var(--border);
@@ -96,15 +96,19 @@
   font-weight: 700;
   letter-spacing: .06em;
   line-height: 1.25;
-  text-align: left;
+  text-align: center;
   color: var(--text-faint);
 }
-/* O indicador que governa a semana continua marcado — pela cor da borda e do
-   número, não por uma caixa de tamanho diferente: a grade tem de ficar
-   simétrica para os seis serem comparáveis. */
+/* Os seis cartões usam o MESMO tom neutro — nenhum deles ganha borda ou
+   fundo diferente por causa da prioridade. A camada 27-ux-hierarquia ainda
+   pinta `[data-ux-priority="primary"]` com um tom de destaque; como esta
+   camada carrega depois, herdar aquele valor aqui era manter os três
+   primeiros cartões (Cumprido/Faltam/Por dia p/ Fechar) com uma cor
+   perceptivelmente diferente dos outros três — os seis passam a repetir
+   exatamente a borda e o fundo neutros declarados acima. */
 #ciclo-overview-gauges .mini-gauge-card[data-ux-priority="primary"] {
-  border-color: color-mix(in srgb, var(--accent) 30%, var(--border));
-  background: color-mix(in srgb, var(--accent) 5%, var(--surface));
+  border-color: var(--border);
+  background: var(--surface-sunken);
 }
 #ciclo-overview-gauges .mini-gauge-card.accent-good .value { color: var(--good); }
 #ciclo-overview-gauges .mini-gauge-card.accent-warn .value { color: var(--warn); }
@@ -428,3 +432,65 @@ html.tpm-motors-active #tec-panel-plano .tec-cfg-bar {
    porta filtrada ele passa a prometer campos que não estão ali. O subtítulo da
    folha, que é escrito por porta, já diz o que esta mostra. */
 #tec-cfg-modal[data-escopo] .tec-cfg-sec-sub { display: none; }
+
+/* ── 10. O "AJUSTAR" DE CADA LEI, NA TELA LEIS ──────────────────────────────
+   Esta é uma superfície diferente da Central de Extras (seção 5 acima): é o
+   painel que abre por lei individual, no botão ⚙ Ajustar de cada card na
+   tela Leis (`.lr-law-editor`, criado em `56-leis-rodizio.js` e completado
+   em `58-extras-governanca.js`). Nunca tinha passado por esta camada.
+
+   O rótulo de cada campo era 11px cru — nem por token `--fs-*` (o A−/A+ não
+   move) — e o valor, sem NENHUM estilo próprio, herdava a regra global que
+   força `input/select` para `--fs-lg` no celular (evita o zoom automático do
+   iOS; é assim em todo o site). Rótulo pequeno colado num valor grande, os
+   dois soltos sem moldura — lido como "fonte grande e fora do padrão", e de
+   fato estava: em todo outro painel já revisado, rótulo e valor moram dentro
+   de UM cartão com borda (como `.xsc-field`). Aqui não morava em nenhum.
+
+   O valor no celular continua nascendo em `--fs-lg`: baixar isso quebraria a
+   prevenção de zoom em TODO o site, não só aqui — o que muda é o rótulo (que
+   passa a usar a escala) e a moldura em volta dos dois, que é o que faltava
+   para o conjunto parecer um cartão, e não dois textos soltos. */
+#screen-leis .lr-law-editor {
+  grid-template-columns: repeat(3, minmax(140px, 1fr));
+  gap: 9px;
+  padding: 13px 14px;
+  background: var(--surface);
+}
+#screen-leis .lr-law-editor label {
+  gap: 4px;
+  padding: 10px 11px;
+  border: 1.5px solid color-mix(in srgb, var(--text-faint) 32%, var(--border));
+  border-radius: 12px;
+  background: var(--surface-sunken);
+  font-size: var(--fs-xs);
+  font-weight: 700;
+  color: var(--text-soft);
+  transition: border-color .15s ease;
+}
+#screen-leis .lr-law-editor label:focus-within {
+  border-color: color-mix(in srgb, var(--accent) 55%, var(--border));
+}
+#screen-leis .lr-law-editor input,
+#screen-leis .lr-law-editor select {
+  min-height: 36px;
+  padding: 6px 8px;
+  border-radius: 8px;
+  font-size: var(--fs-sm);
+  font-weight: 500;
+  color: var(--text);
+}
+#screen-leis .lr-law-editor-actions {
+  padding-top: 2px;
+}
+#screen-leis .lr-law-editor-actions button {
+  min-height: 40px;
+  font-size: var(--fs-xs);
+}
+@media (max-width: 850px) {
+  #screen-leis .lr-law-editor { grid-template-columns: repeat(2, minmax(120px, 1fr)); }
+}
+@media (max-width: 560px) {
+  #screen-leis .lr-law-editor { grid-template-columns: 1fr; padding: 12px; gap: 8px; }
+  #screen-leis .lr-law-editor label { padding: 9px 10px; }
+}

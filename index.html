@@ -57,7 +57,7 @@
      novo, e o antigo é descartado sozinho na ativação) e o que permite ao app
      dizer qual versão está rodando. Em src/ fica "dev" de propósito: a versão
      é gerada na montagem, não editada à mão. -->
-<meta name="diario-versao" content="vef287abd55">
+<meta name="diario-versao" content="v806a0971ee">
 <script>
 /* ── ARRANQUE: abre o IndexedDB AGORA, em paralelo com o parse do documento ──
    A fachada de armazenamento vive no fim do <body>, depois de ~1,7 MB de HTML.
@@ -13803,7 +13803,18 @@ html.tpm-motors-active #plano-lista>:not([data-tpm-output]):not(.tpm-legacy-exec
 .tpm-panorama{margin:0 0 10px;padding:12px 14px;border:1px solid color-mix(in srgb,var(--accent) 24%,var(--border));border-radius:15px;background:linear-gradient(135deg,color-mix(in srgb,var(--accent) 4%,var(--surface)),var(--surface));box-shadow:var(--shadow-sm)}.tpm-panorama>header{display:flex;align-items:flex-start;justify-content:space-between;gap:12px}.tpm-panorama header small{display:block;font-size:var(--fs-3xs);font-weight:900;letter-spacing:.08em;color:var(--accent)}.tpm-panorama header strong{display:block;margin-top:2px;font-size:var(--fs-sm)}.tpm-panorama header p{margin:3px 0 0;max-width:740px;font-size:var(--fs-3xs);line-height:1.4;color:var(--text-soft)}.tpm-panorama>header>span{padding:4px 7px;border-radius:999px;background:var(--surface);font-size:var(--fs-3xs);font-weight:850;color:var(--text-soft);white-space:nowrap}.tpm-panorama-metrics{display:flex;gap:7px;flex-wrap:wrap;margin-top:9px}.tpm-panorama-metrics>span{display:grid;gap:1px;min-width:102px;padding:7px 9px;border:1px solid var(--border);border-radius:10px;background:var(--surface)}.tpm-panorama-metrics b{font-size:var(--fs-sm)}.tpm-panorama-metrics small{font-size:var(--fs-3xs);color:var(--text-faint)}
 .tpm-panorama details{margin-top:6px}.tpm-panorama summary{cursor:pointer;color:var(--text-soft);font-size:var(--fs-3xs);font-weight:850}.tpm-panorama details p{margin:6px 0 0;font-size:var(--fs-3xs);line-height:1.45;color:var(--text-soft)}
 /* A fila completa segue a mesma linguagem dos cards de ataque. */
-.tpm-ranking-item{grid-template-columns:34px minmax(0,1fr);gap:10px;padding:11px 12px;border-radius:14px;border-color:color-mix(in srgb,var(--bad) 25%,var(--border));background:linear-gradient(135deg,color-mix(in srgb,var(--bad) 2%,var(--surface)),var(--surface))}.tpm-ranking-item.is-now{border-color:color-mix(in srgb,var(--bad) 42%,var(--border));background:linear-gradient(135deg,color-mix(in srgb,var(--bad) 4%,var(--surface)),var(--surface))}.tpm-ranking-rank{width:32px;height:32px;border:0;border-radius:999px;background:#c52b3a;color:#fff;font-size:var(--fs-3xs);box-shadow:0 4px 10px color-mix(in srgb,#c52b3a 18%,transparent)}.tpm-ranking-head em{color:color-mix(in srgb,var(--bad) 88%,var(--text))}.tpm-ranking-metrics>span{border:1px solid color-mix(in srgb,var(--border) 75%,var(--surface-sunken));background:var(--surface)}
+/* ── A FILA COMPLETA NÃO É UMA LISTA DE CRÍTICOS ──────────────────────────
+   Esta regra chegou a pintar TODO item do ranking — os 20, 30, 100 que
+   forem — com a paleta de perigo (borda e fundo em tom de "bad", círculo do
+   número em vermelho sólido #c52b3a). Um item a 55% de acerto e outro a 89%
+   recebiam exatamente a mesma cor de alarme, e o selo "ataque agora" do
+   item atual deixava de se destacar porque a lista inteira já estava
+   vermelha — foi lido como "o botão de atacar está diferente e não faz
+   nada". Os ajustes de forma (coluna mais larga, canto mais arredondado,
+   círculo maior) continuam; só a cor volta a ser neutra, com o item
+   "ataque agora" marcado pela MESMA linguagem de destaque usada em todo o
+   resto do app — acento, não vermelho. */
+.tpm-ranking-item{grid-template-columns:34px minmax(0,1fr);gap:10px;padding:11px 12px;border-radius:14px;border-color:var(--border);background:var(--surface)}.tpm-ranking-item.is-now{border-color:color-mix(in srgb,var(--accent) 42%,var(--border));background:color-mix(in srgb,var(--accent) 4%,var(--surface))}.tpm-ranking-rank{width:32px;height:32px;border:1px solid var(--border);border-radius:999px;background:var(--surface-sunken);color:var(--text);font-size:var(--fs-3xs);box-shadow:none}.tpm-ranking-item.is-now .tpm-ranking-rank{border-color:color-mix(in srgb,var(--accent) 55%,var(--border));background:var(--accent);color:var(--on-accent)}.tpm-ranking-head em{color:var(--accent)}.tpm-ranking-metrics>span{border:1px solid color-mix(in srgb,var(--border) 75%,var(--surface-sunken));background:var(--surface)}
 html.tpm-motors-active #plano-proj .pl-hero{display:none!important}
 @media(max-width:720px){.tpm-panorama{padding:11px}.tpm-panorama>header{display:block}.tpm-panorama>header>span{display:inline-block;margin-top:7px}.tpm-panorama-metrics>span{min-width:0;flex:1}.tpm-ranking-item{grid-template-columns:30px minmax(0,1fr);padding:10px}.tpm-ranking-rank{width:30px;height:30px}}
 
@@ -15395,10 +15406,10 @@ input[type="radio"]:focus-visible {
 #ciclo-overview-gauges .mini-gauge-card[data-ux-priority="tertiary"] {
   display: flex;
   flex-direction: column;          /* número em cima, etiqueta embaixo */
-  align-items: flex-start;
+  align-items: center;
   justify-content: center;
   gap: 0;
-  text-align: left;
+  text-align: center;
   min-height: calc(62px * var(--fs-scale, 1));
   padding: calc(11px * var(--fs-scale, 1)) calc(13px * var(--fs-scale, 1));
   border: 1px solid var(--border);
@@ -15431,15 +15442,19 @@ input[type="radio"]:focus-visible {
   font-weight: 700;
   letter-spacing: .06em;
   line-height: 1.25;
-  text-align: left;
+  text-align: center;
   color: var(--text-faint);
 }
-/* O indicador que governa a semana continua marcado — pela cor da borda e do
-   número, não por uma caixa de tamanho diferente: a grade tem de ficar
-   simétrica para os seis serem comparáveis. */
+/* Os seis cartões usam o MESMO tom neutro — nenhum deles ganha borda ou
+   fundo diferente por causa da prioridade. A camada 27-ux-hierarquia ainda
+   pinta `[data-ux-priority="primary"]` com um tom de destaque; como esta
+   camada carrega depois, herdar aquele valor aqui era manter os três
+   primeiros cartões (Cumprido/Faltam/Por dia p/ Fechar) com uma cor
+   perceptivelmente diferente dos outros três — os seis passam a repetir
+   exatamente a borda e o fundo neutros declarados acima. */
 #ciclo-overview-gauges .mini-gauge-card[data-ux-priority="primary"] {
-  border-color: color-mix(in srgb, var(--accent) 30%, var(--border));
-  background: color-mix(in srgb, var(--accent) 5%, var(--surface));
+  border-color: var(--border);
+  background: var(--surface-sunken);
 }
 #ciclo-overview-gauges .mini-gauge-card.accent-good .value { color: var(--good); }
 #ciclo-overview-gauges .mini-gauge-card.accent-warn .value { color: var(--warn); }
@@ -15763,6 +15778,68 @@ html.tpm-motors-active #tec-panel-plano .tec-cfg-bar {
    porta filtrada ele passa a prometer campos que não estão ali. O subtítulo da
    folha, que é escrito por porta, já diz o que esta mostra. */
 #tec-cfg-modal[data-escopo] .tec-cfg-sec-sub { display: none; }
+
+/* ── 10. O "AJUSTAR" DE CADA LEI, NA TELA LEIS ──────────────────────────────
+   Esta é uma superfície diferente da Central de Extras (seção 5 acima): é o
+   painel que abre por lei individual, no botão ⚙ Ajustar de cada card na
+   tela Leis (`.lr-law-editor`, criado em `56-leis-rodizio.js` e completado
+   em `58-extras-governanca.js`). Nunca tinha passado por esta camada.
+
+   O rótulo de cada campo era 11px cru — nem por token `--fs-*` (o A−/A+ não
+   move) — e o valor, sem NENHUM estilo próprio, herdava a regra global que
+   força `input/select` para `--fs-lg` no celular (evita o zoom automático do
+   iOS; é assim em todo o site). Rótulo pequeno colado num valor grande, os
+   dois soltos sem moldura — lido como "fonte grande e fora do padrão", e de
+   fato estava: em todo outro painel já revisado, rótulo e valor moram dentro
+   de UM cartão com borda (como `.xsc-field`). Aqui não morava em nenhum.
+
+   O valor no celular continua nascendo em `--fs-lg`: baixar isso quebraria a
+   prevenção de zoom em TODO o site, não só aqui — o que muda é o rótulo (que
+   passa a usar a escala) e a moldura em volta dos dois, que é o que faltava
+   para o conjunto parecer um cartão, e não dois textos soltos. */
+#screen-leis .lr-law-editor {
+  grid-template-columns: repeat(3, minmax(140px, 1fr));
+  gap: 9px;
+  padding: 13px 14px;
+  background: var(--surface);
+}
+#screen-leis .lr-law-editor label {
+  gap: 4px;
+  padding: 10px 11px;
+  border: 1.5px solid color-mix(in srgb, var(--text-faint) 32%, var(--border));
+  border-radius: 12px;
+  background: var(--surface-sunken);
+  font-size: var(--fs-xs);
+  font-weight: 700;
+  color: var(--text-soft);
+  transition: border-color .15s ease;
+}
+#screen-leis .lr-law-editor label:focus-within {
+  border-color: color-mix(in srgb, var(--accent) 55%, var(--border));
+}
+#screen-leis .lr-law-editor input,
+#screen-leis .lr-law-editor select {
+  min-height: 36px;
+  padding: 6px 8px;
+  border-radius: 8px;
+  font-size: var(--fs-sm);
+  font-weight: 500;
+  color: var(--text);
+}
+#screen-leis .lr-law-editor-actions {
+  padding-top: 2px;
+}
+#screen-leis .lr-law-editor-actions button {
+  min-height: 40px;
+  font-size: var(--fs-xs);
+}
+@media (max-width: 850px) {
+  #screen-leis .lr-law-editor { grid-template-columns: repeat(2, minmax(120px, 1fr)); }
+}
+@media (max-width: 560px) {
+  #screen-leis .lr-law-editor { grid-template-columns: 1fr; padding: 12px; gap: 8px; }
+  #screen-leis .lr-law-editor label { padding: 9px 10px; }
+}
 
 </style>
 
@@ -40308,15 +40385,31 @@ const TecAjustes = {
   },
   /* Mostra/esconde cada `.rfc-field` conforme o escopo pedido. Devolve as
      seções que sobraram com pelo menos um campo — é essa lista que vira a
-     fita de navegação, então seção vazia nunca aparece como chip morto. */
+     fita de navegação, então seção vazia nunca aparece como chip morto.
+
+     SEM ESCOPO (Análise, Reforço, e Plano/Rota com todos os motores
+     desligados) a função não deve contar nada: ela devolve as seções tal
+     como já estão, sem tocar em `.hidden`. Contar `.rfc-field` para decidir
+     se uma seção "sobreviveu" só faz sentido quando HÁ filtro de verdade —
+     a aba Análise usa outra classe de campo (`.field`), e contá-la contra
+     `.rfc-field` sempre dava zero: a seção "morria" mesmo sem nenhum campo
+     escondido, `abrir()` retornava antes de exibir a folha, e o botão
+     ⚙ Ajustes parecia simplesmente não fazer nada. */
   _aplicarEscopo(aba) {
     const dom = this._abaDom(aba);
     const escopos = this._escoposDe(aba);
     const secs = [...document.querySelectorAll('#tec-cfg-body .tec-cfg-sec[data-tab="' + dom + '"]')];
+    if (!escopos) {
+      secs.forEach(sec => {
+        sec.querySelectorAll('.rfc-field').forEach(box => { box.hidden = false; });
+        sec.dataset.escopoVazio = '';
+      });
+      return secs;
+    }
     return secs.filter(sec => {
       let vivos = 0;
       sec.querySelectorAll('.rfc-field').forEach(box => {
-        const ok = !escopos || escopos.indexOf(this._escopoDoCampo(box)) >= 0;
+        const ok = escopos.indexOf(this._escopoDoCampo(box)) >= 0;
         box.hidden = !ok;
         if (ok) vivos++;
       });

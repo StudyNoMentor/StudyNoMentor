@@ -2970,15 +2970,31 @@ const TecAjustes = {
   },
   /* Mostra/esconde cada `.rfc-field` conforme o escopo pedido. Devolve as
      seções que sobraram com pelo menos um campo — é essa lista que vira a
-     fita de navegação, então seção vazia nunca aparece como chip morto. */
+     fita de navegação, então seção vazia nunca aparece como chip morto.
+
+     SEM ESCOPO (Análise, Reforço, e Plano/Rota com todos os motores
+     desligados) a função não deve contar nada: ela devolve as seções tal
+     como já estão, sem tocar em `.hidden`. Contar `.rfc-field` para decidir
+     se uma seção "sobreviveu" só faz sentido quando HÁ filtro de verdade —
+     a aba Análise usa outra classe de campo (`.field`), e contá-la contra
+     `.rfc-field` sempre dava zero: a seção "morria" mesmo sem nenhum campo
+     escondido, `abrir()` retornava antes de exibir a folha, e o botão
+     ⚙ Ajustes parecia simplesmente não fazer nada. */
   _aplicarEscopo(aba) {
     const dom = this._abaDom(aba);
     const escopos = this._escoposDe(aba);
     const secs = [...document.querySelectorAll('#tec-cfg-body .tec-cfg-sec[data-tab="' + dom + '"]')];
+    if (!escopos) {
+      secs.forEach(sec => {
+        sec.querySelectorAll('.rfc-field').forEach(box => { box.hidden = false; });
+        sec.dataset.escopoVazio = '';
+      });
+      return secs;
+    }
     return secs.filter(sec => {
       let vivos = 0;
       sec.querySelectorAll('.rfc-field').forEach(box => {
-        const ok = !escopos || escopos.indexOf(this._escopoDoCampo(box)) >= 0;
+        const ok = escopos.indexOf(this._escopoDoCampo(box)) >= 0;
         box.hidden = !ok;
         if (ok) vivos++;
       });
