@@ -43,7 +43,8 @@ tem(tec, 'DT.agendarPlano(false)', 'digitação deve continuar debounced');
 tem(tec, "this._tpAnalysisDirty=true", 'análise oculta deve virar lazy/dirty em vez de render imediato');
 tem(tec, "PlanFastCache.withCache", 'render do Plano deve compartilhar cache pesado');
 tem(tec, 'auditoriaParametros()', 'TEC precisa auditar cobertura dos parâmetros');
-tem(tec, 'CENTRAL DE DESEMPENHO', 'TEC precisa do novo shell operacional');
+tem(tec, 'fonteAtual()', 'TEC precisa resolver a fonte operacional da fila');
+tem(tec, 'Quem decide a fila desta tela agora', 'TEC precisa do shell operacional orientado à decisão');
 
 // UX responsiva e janela modal independente.
 tem(css, '.rg-overlay', 'histórico/configuração precisam de modal independente');
