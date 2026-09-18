@@ -286,8 +286,8 @@
         oldCfg.classList.add('ux-analysis-settings');
         const abrirAjustes = q('.tec-cfg-open', oldCfg);
         if (abrirAjustes) {
-          abrirAjustes.innerHTML = '<span class="gg-ic">⚙</span>Ajustes da análise';
-          abrirAjustes.title = 'Ajustar métricas analíticas sem alterar o motor das sugestões';
+          abrirAjustes.innerHTML = '<span class="gg-ic">⚙</span>Escopo / legado';
+          abrirAjustes.title = 'Matérias fora do Plano afeta os motores; os demais campos pertencem ao Plano legado';
         }
       }
 
@@ -310,7 +310,7 @@
       const refTab = q('.tec-subtab[data-tectab="reforco"]', s);
       refTab?.classList.add('ux-secondary-tab');
       const motTab = q('.tec-subtab[data-tectab="motores"]', s);
-      if (motTab) { motTab.textContent = '⚙ Modelos'; motTab.classList.add('ux-secondary-tab'); }
+      if (motTab) { motTab.textContent = '⚙ Modelos'; motTab.classList.remove('ux-secondary-tab'); }
       q('#tec-panel-motores', s)?.classList.add('ux-advanced-surface');
     },
 
