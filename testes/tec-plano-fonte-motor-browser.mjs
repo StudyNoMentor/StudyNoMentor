@@ -53,11 +53,105 @@ try{
   await page.locator('[data-tpm-rank-more]').click();await page.waitForFunction(()=>document.querySelectorAll('[data-tpm-ranking-item]').length===20);ranking=page.locator('[data-tpm-ranking-item]');assert.equal(await ranking.count(),20,'primeiro avanço deve abrir mais 10');
   await page.locator('[data-tpm-rank-more]').click();await page.waitForFunction(()=>document.querySelectorAll('[data-tpm-ranking-item]').length===30);assert.equal(await page.locator('[data-tpm-ranking-item]').count(),30,'segundo avanço deve abrir mais 10');
   const all=page.locator('[data-tpm-rank-all]');if(await all.count()){await all.click();await page.waitForFunction(total=>document.querySelectorAll('[data-tpm-ranking-item]').length===total,totalRobusto);assert.equal(await page.locator('[data-tpm-ranking-item]').count(),totalRobusto,'mostrar todos deve revelar a fila completa do motor');}
+  /* ── A FILA COMPLETA, AGRUPADA POR DISCIPLINA ───────────────────────────
+     Era uma lista plana de mais de cem linhas, com os assuntos de uma mesma
+     materia espalhados por toda a ordem do motor: "o que tenho aberto em CADA
+     materia?" so se respondia rolando e contando a mao.
+
+     O agrupamento nao reordena: as materias saem pela melhor posicao que
+     alcancaram na fila DO MOTOR, e cada linha mantem o numero da posicao
+     GLOBAL. E o que este caso trava — se o agrupamento reordenar, as posicoes
+     deixam de ser 1..N em sequencia. */
+  const grupos=await page.evaluate(()=>{
+    const sec=document.querySelector('[data-tpm-ranking]');
+    const gs=[...sec.querySelectorAll('.tpm-rank-grupo')];
+    return {n:gs.length, itens:sec.querySelectorAll('[data-tpm-ranking-item]').length,
+      cabecalho:sec.querySelector('header>span').textContent.trim(),
+      discPorGrupo:gs.map(g=>new Set([...g.querySelectorAll('[data-tpm-ranking-item]')].map(x=>x.dataset.disciplina)).size),
+      melhor:gs.map(g=>Number((g.querySelector('header>em').textContent.match(/#(\d+)/)||[])[1])),
+      posicoes:[...sec.querySelectorAll('.tpm-ranking-rank')].map(x=>Number(x.textContent)),
+      posPorGrupo:gs.map(g=>[...g.querySelectorAll('.tpm-ranking-rank')].map(x=>Number(x.textContent))),
+      discRepetida:[...sec.querySelectorAll('.tpm-rank-grupo-itens .tpm-ranking-head small')].filter(x=>x.offsetParent!==null).length,
+      metricasIguais:[...sec.querySelectorAll('.tpm-ranking-metrics')].slice(0,5)
+        .every(m=>new Set([...m.children].map(c=>Math.round(c.getBoundingClientRect().width))).size<=1)};
+  });
+  assert.ok(grupos.n>=2,`a fila deve vir agrupada por disciplina (recebeu ${grupos.n} grupos)`);
+  assert.ok(grupos.discPorGrupo.every(x=>x===1),`cada grupo deve conter uma disciplina so: ${JSON.stringify(grupos.discPorGrupo)}`);
+  /* As posicoes de uma pagina aberta sao exatamente 1..N — cada uma uma vez.
+     Elas NAO saem em sequencia na tela, e nao deveriam: agrupar por disciplina
+     junta as posicoes de cada materia (1,2,3,9,13... depois 4,7,10...). O que
+     tem de valer e que dentro de cada grupo a ordem do motor e preservada. */
+  assert.deepEqual(grupos.posicoes.slice().sort((a,b)=>a-b),Array.from({length:grupos.itens},(_,i)=>i+1),
+    `toda posicao da pagina aberta deve aparecer exatamente uma vez: ${JSON.stringify(grupos.posicoes)}`);
+  grupos.posPorGrupo.forEach((ps,gi)=>assert.deepEqual(ps,ps.slice().sort((a,b)=>a-b),
+    `dentro do grupo ${gi} a ordem do motor deve ser preservada: ${JSON.stringify(ps)}`));
+  grupos.posPorGrupo.forEach((ps,gi)=>assert.equal(ps[0],grupos.melhor[gi],
+    `"melhor #" do grupo ${gi} deve ser a primeira posicao dele (${ps[0]} x ${grupos.melhor[gi]})`));
+  assert.deepEqual(grupos.melhor,grupos.melhor.slice().sort((a,b)=>a-b),'as disciplinas devem sair pela melhor posicao que alcancaram no motor');
+  assert.equal(grupos.discRepetida,0,'dentro do grupo a disciplina nao deve ser repetida em cada linha');
+  assert.ok(grupos.metricasIguais,'as metricas de cada linha devem ter colunas de largura igual');
+  assert.match(grupos.cabecalho,/\d+ de \d+ assuntos/,`o cabecalho deve contar disciplinas e assuntos: "${grupos.cabecalho}"`);
+
+  /* A ordem dos proximos assuntos da disciplina vinha como <ol> com marcador:
+     o numero ficava fora da caixa e as tres medidas numa frase separada por
+     pontos, entao nada se comparava de uma linha para a outra. */
+  const ordem=await page.evaluate(()=>{
+    const d=document.querySelector('#plano-lista .tpm-topic-order'); if(!d)return null;
+    d.open=true; const lis=[...d.querySelectorAll('ol>li')];
+    return {n:lis.length, transborda:lis.filter(l=>l.scrollWidth-l.clientWidth>1).length,
+      colunas:new Set(lis.map(l=>[...l.children].map(c=>Math.round(c.getBoundingClientRect().left)).join(','))).size};
+  });
+  assert.ok(ordem&&ordem.n>=2,'a ordem dos proximos assuntos da disciplina deve existir');
+  assert.equal(ordem.transborda,0,'nenhuma linha da ordem pode transbordar');
+  assert.equal(ordem.colunas,1,`as colunas da ordem devem coincidir em todas as linhas (recebeu ${ordem&&ordem.colunas} arranjos)`);
+
   await page.locator('[data-tpm-rank-reset]').click();await page.waitForFunction(()=>document.querySelectorAll('[data-tpm-ranking-item]').length===10);assert.equal(await page.locator('[data-tpm-ranking-item]').count(),10,'voltar a 10 deve recolher a fila sem alterar preferências');
 
   await page.locator('[data-tpm-entry] [data-tpm-source="simplificado"]').click();await page.waitForSelector('[data-tpm-output][data-tpm-model="simplificado"]');assert.equal(await page.evaluate(()=>TecPlanoFonteMotor.fonte()),'simplificado');const txtS=await page.locator('[data-tpm-output]').textContent();assert.match(txtS,/O Simplificado não modela tempo/i);assert.doesNotMatch(txtS,/min\/questão/i,'Simplificado não pode emprestar relógio do Robusto');cards=page.locator('[data-tpm-output] [data-tpm-rec]');const sdiscs=await cards.evaluateAll(xs=>xs.map(x=>x.dataset.disciplina));assert.equal(new Set(sdiscs).size,sdiscs.length,'TOP 3 do Simplificado continua em disciplinas distintas');
   const totalSimplificado=await page.evaluate(()=>TecPlanoFonteMotor.calcular('simplificado').todos.length);assert.ok(totalSimplificado>10);assert.equal(await page.locator('[data-tpm-ranking-item]').count(),10,'troca de motor deve abrir a fila do novo motor em 10');
   assert.equal(await page.locator('#plano-lista>.pl-item:visible').count(),0,'ranking completo não pode ressuscitar a lista decisória do PlanoEngine legado');
+
+  /* ── "🎯 ATACAR AGORA" TEM DE CRIAR A ATIVIDADE ─────────────────────────
+     O quadro dizia onde atacar e nao dava como: o rodape mandava a pessoa a
+     outra tela, reabrir o mesmo calculo num modal e reencontrar ali a
+     recomendacao que ja estava na frente dela. Nao havia botao nenhum — era
+     literalmente isso o "o botao atacar agora nao funciona".
+
+     O que este caso prova: o botao existe, cria UMA atividade com a dose que
+     ESTE motor recomendou, grava a procedencia (motor/fase/score) pela mesma
+     porta do modal, e o quadro repinta apontando o proximo alvo. */
+  await page.evaluate(()=>{TecPlanoFonteMotor.salvar('robusto');DesempenhoTecScreen.render();DesempenhoTecScreen.switchTecTab('plano');});
+  await page.waitForSelector('[data-tpm-output][data-tpm-model="robusto"] .tpm-atacar');
+  const atacar=await page.evaluate(async()=>{
+    const bt=document.querySelector('#plano-lista .tpm-atacar');
+    const alvo=document.querySelector('#plano-lista .tpm-rec .tpm-head b').textContent.trim();
+    const dose=Number((bt.textContent.match(/(\d+)\s*q/)||[])[1])||null;
+    const antes=DB.getExtras().length;
+    bt.click();
+    await new Promise(r=>setTimeout(r,1200));
+    const ex=DB.getExtras(),novo=ex[ex.length-1],sug=(novo&&novo.origemPlano&&novo.origemPlano.sugestao)||{};
+    return {alvo,dose,antes,depois:ex.length,titulo:novo&&novo.titulo,alvoQ:novo&&novo.alvo,
+      motor:sug.motor||null,fase:sug.fase||null,temScore:Number.isFinite(Number(sug.score)),
+      nomesDepois:[...document.querySelectorAll('#plano-lista .tpm-rec .tpm-head b')].map(x=>x.textContent.trim())};
+  });
+  assert.equal(atacar.depois,atacar.antes+1,'🎯 Atacar agora deve criar exatamente uma atividade');
+  assert.ok(String(atacar.titulo||'').includes(atacar.alvo),`a atividade criada deve ser do assunto do cartao (${atacar.titulo})`);
+  assert.equal(atacar.alvoQ,atacar.dose,`a meta da atividade deve ser a dose do motor (${atacar.dose} q), nao um padrao do Plano legado`);
+  assert.equal(atacar.motor,'plano-robusto','a atividade deve nascer com a procedencia do motor gravada');
+  assert.ok(['pre','pos'].includes(atacar.fase),'a fase do motor deve ser gravada junto');
+  assert.ok(atacar.temScore,'o score do motor deve ser gravado junto');
+  assert.ok(!atacar.nomesDepois.includes(atacar.alvo),'depois de atacar, o quadro deve apontar o PROXIMO alvo (o atacado sai da lista)');
+
+  /* ALINHAMENTO POR ESTRUTURA. O recuo de 49px a mao (repetido em seis regras,
+     com valor diferente por faixa de tela) deixava cada bloco novo do cartao
+     fora do prumo: explicador e acao comecavam na borda enquanto titulo,
+     metricas e contexto comecavam 49px adentro. */
+  const prumos=await page.evaluate(()=>{
+    const m=document.querySelector('#plano-lista .tpm-rec .tpm-main');
+    return [...m.children].map(c=>Math.round(c.getBoundingClientRect().left));
+  });
+  assert.ok(prumos.length>=4,`o cartao deve ter os blocos de conteudo (recebeu ${prumos.length})`);
+  assert.equal(new Set(prumos).size,1,`todo bloco do cartao deve comecar no mesmo prumo, recebeu ${JSON.stringify(prumos)}`);
 
   const tab=page.locator('.tec-subtab[data-tectab="plano"]');
   await page.evaluate(()=>PlanoMotoresGovernanca.salvar({robusto:false,simplificado:true}));await page.evaluate(()=>{DesempenhoTecScreen.render();DesempenhoTecScreen.switchTecTab('plano');});assert.equal(await tab.isVisible(),true,'Plano deve continuar disponível com apenas Simplificado');assert.equal(await page.locator('[data-tpm-source="robusto"]').count(),0);assert.equal(await page.locator('[data-tpm-output]').getAttribute('data-tpm-model'),'simplificado');assert.match(await page.locator('[data-tpm-panorama]').textContent(),/Panorama TEC \+ Simplificado/i,'1 motor deve mostrar panorama específico do Simplificado');assert.equal(await hero.isVisible(),false,'1 motor ativo ainda deve ocultar o card legado');

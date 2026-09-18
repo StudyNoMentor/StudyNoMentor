@@ -153,7 +153,10 @@ console.log('\n4.5) invariantes do service worker');
     [/const VERSAO = 'v[0-9a-f]{10}';/, 'a versao e um carimbo de conteudo (nao um nome fixo)'],
     [/CACHE_CDN = '(?!.*VERSAO)[^']+'/, 'o balde de CDN nao e versionado (nao se perde a cada publicacao)'],
     [/cache: 'reload'/, "o pre-carregamento usa cache: 'reload' (nao guarda a casca velha)"],
-    [/navigationPreload/, 'o pre-carregamento de navegacao esta ligado'],
+    [/navigationPreload[\s\S]{0,120}?disable\(\)/,
+      'o pre-carregamento de navegacao e desligado (a navegacao sai do cache)'],
+    [/function responderNavegacao[\s\S]{0,900}?if \(guardado\) \{/,
+      'a navegacao serve a casca guardada antes de pensar em rede'],
     [/supabase\\\.\(co\|in\)\$/, 'trafego do Supabase passa direto, sem cache'],
     [/req\.method !== 'GET'/, 'apenas GET pode ser cacheado'],
   ];
@@ -575,6 +578,41 @@ try {
   comQuery ? ok('offline com query string tambem abre (chave canonica funciona)')
     : erro('offline com query string caiu na pagina de erro');
   await p4.close(); await p5.close();   // clientes soltos atrapalham a encenacao abaixo
+
+  /* ── A NAVEGACAO NAO ESPERA A REDE ──────────────────────────────────────
+     Rede primeiro custava ate TIMEOUT_REDE de tela branca em toda abertura, e
+     o index.html tem alguns megabytes: em rede movel a corrida era perdida
+     sempre. Aqui o servidor passa a responder uma casca IMPOSTORA. Se a
+     navegacao ainda tocasse a rede, ela apareceria na tela. Como a casca sai do
+     balde desta versao, a impostora e ignorada — e a deteccao de versao nova
+     continua funcionando pelo sw.js, provado na encenacao seguinte. */
+  substitutos.set('/index.html',
+    '<!doctype html><meta charset="utf-8"><title>impostora</title><div id="casca-impostora">rede</div>');
+  try {
+    const p6 = await ctx.newPage();
+    const inicio = Date.now();
+    await p6.goto(base, { waitUntil: 'domcontentloaded' });
+    const gasto = Date.now() - inicio;
+    const doCache = await p6.evaluate(() => ({
+      temApp: !!document.getElementById('app-code'),
+      impostora: !!document.getElementById('casca-impostora')
+    }));
+    doCache.temApp && !doCache.impostora
+      ? ok(`a navegacao sai do cache da versao ativa (${gasto}ms, sem esperar a rede)`)
+      : erro('a navegacao foi buscar na rede: ' + JSON.stringify(doCache));
+    const semErro = [];
+    // mesmo filtro do resto do arquivo: recurso externo indisponivel no
+    // ambiente de teste (fontes, CDN) nao e defeito do worker
+    p6.on('console', (m) => {
+      if (m.type() === 'error' && !/net::|ERR_/.test(m.text())) semErro.push(m.text());
+    });
+    await p6.reload({ waitUntil: 'domcontentloaded' });
+    semErro.length === 0 ? ok('navegacao do cache sem reclamacao no console')
+      : erro('console reclamou na navegacao: ' + semErro.join(' | '));
+    await p6.close();
+  } finally {
+    substitutos.delete('/index.html');
+  }
 
   /* ── A TROCA DE VERSAO, ENCENADA ────────────────────────────────────────
      Publicamos um sw.js com outro carimbo e observamos as tres regras que

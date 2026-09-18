@@ -1096,6 +1096,11 @@
 
   /* ---------- Atividades Extras ---------- */
   .extras-toolbar { display: flex; align-items: center; justify-content: space-between; gap: 14px; flex-wrap: wrap; margin: 18px 0 10px; }
+  /* Fileira de acoes da barra de Extras. O estado final vem de
+     20-ux-stability.css (flex que cresce); isto e a base, valida antes de a
+     tela ser decorada, para que os botoes nunca aparecam empilhados. */
+  .extras-actions { display: flex; flex-wrap: wrap; gap: 8px; width: 100%; }
+  .extras-actions > button { flex: 1 1 calc(132px * var(--fs-scale, 1)); min-width: 0; justify-content: center; }
   .extras-global { display: flex; align-items: center; gap: 10px; font-size: var(--fs-sm); font-weight: 600; color: var(--text-soft); background: var(--surface-sunken); border: 1px solid var(--border); border-radius: 12px; padding: 9px 14px; }
   .extras-summary { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 16px; }
   @media (max-width: 640px) { .extras-summary { grid-template-columns: 1fr 1fr; } }
@@ -2249,11 +2254,9 @@
     .cycle-review-row .suggested { text-align: left; }
     .cycle-review-row .cycle-review-time-input { justify-self: end; }
     .btn-reset-suggestion { grid-column: 1 / -1; justify-self: start; padding-left: 0; }
-    /* 5 KPIs do ciclo: compactos em 3 colunas (2 linhas) em vez de caixas enormes */
-    #ciclo-overview-gauges { grid-template-columns: repeat(3, 1fr) !important; gap: 8px !important; }
-    #ciclo-overview-gauges .mini-gauge-card { padding: 10px 6px; border-radius: 10px; }
-    #ciclo-overview-gauges .mini-gauge-card .value { font-size: var(--fs-xl); }
-    #ciclo-overview-gauges .mini-gauge-card .label { font-size: calc(8px * var(--fs-scale, 1)); margin-top: 3px; letter-spacing: 0.02em; }
+    /* A fita dos indicadores da semana (colunas, alturas e tipos) e definida
+       em 27-ux-hierarquia.css, num lugar so. Aqui ficava uma segunda regra de
+       3 colunas com `!important` que disputava com ela. */
     .week-stats-row { grid-template-columns: 1fr 1fr; }
     .bar-row { grid-template-columns: 90px 1fr 46px; }
 

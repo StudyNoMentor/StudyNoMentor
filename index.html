@@ -57,7 +57,7 @@
      novo, e o antigo é descartado sozinho na ativação) e o que permite ao app
      dizer qual versão está rodando. Em src/ fica "dev" de propósito: a versão
      é gerada na montagem, não editada à mão. -->
-<meta name="diario-versao" content="v42f579270a">
+<meta name="diario-versao" content="v8bc6074a9a">
 <script>
 /* ── ARRANQUE: abre o IndexedDB AGORA, em paralelo com o parse do documento ──
    A fachada de armazenamento vive no fim do <body>, depois de ~1,7 MB de HTML.
@@ -1214,6 +1214,11 @@ window.__idbBoot = (function () {
 
   /* ---------- Atividades Extras ---------- */
   .extras-toolbar { display: flex; align-items: center; justify-content: space-between; gap: 14px; flex-wrap: wrap; margin: 18px 0 10px; }
+  /* Fileira de acoes da barra de Extras. O estado final vem de
+     20-ux-stability.css (flex que cresce); isto e a base, valida antes de a
+     tela ser decorada, para que os botoes nunca aparecam empilhados. */
+  .extras-actions { display: flex; flex-wrap: wrap; gap: 8px; width: 100%; }
+  .extras-actions > button { flex: 1 1 calc(132px * var(--fs-scale, 1)); min-width: 0; justify-content: center; }
   .extras-global { display: flex; align-items: center; gap: 10px; font-size: var(--fs-sm); font-weight: 600; color: var(--text-soft); background: var(--surface-sunken); border: 1px solid var(--border); border-radius: 12px; padding: 9px 14px; }
   .extras-summary { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 16px; }
   @media (max-width: 640px) { .extras-summary { grid-template-columns: 1fr 1fr; } }
@@ -2367,11 +2372,9 @@ window.__idbBoot = (function () {
     .cycle-review-row .suggested { text-align: left; }
     .cycle-review-row .cycle-review-time-input { justify-self: end; }
     .btn-reset-suggestion { grid-column: 1 / -1; justify-self: start; padding-left: 0; }
-    /* 5 KPIs do ciclo: compactos em 3 colunas (2 linhas) em vez de caixas enormes */
-    #ciclo-overview-gauges { grid-template-columns: repeat(3, 1fr) !important; gap: 8px !important; }
-    #ciclo-overview-gauges .mini-gauge-card { padding: 10px 6px; border-radius: 10px; }
-    #ciclo-overview-gauges .mini-gauge-card .value { font-size: var(--fs-xl); }
-    #ciclo-overview-gauges .mini-gauge-card .label { font-size: calc(8px * var(--fs-scale, 1)); margin-top: 3px; letter-spacing: 0.02em; }
+    /* A fita dos indicadores da semana (colunas, alturas e tipos) e definida
+       em 27-ux-hierarquia.css, num lugar so. Aqui ficava uma segunda regra de
+       3 colunas com `!important` que disputava com ela. */
     .week-stats-row { grid-template-columns: 1fr 1fr; }
     .bar-row { grid-template-columns: 90px 1fr 46px; }
 
@@ -8471,7 +8474,7 @@ window.__idbBoot = (function () {
         <button type="button" class="toggle-switch" id="extras-global-toggle" role="switch" aria-checked="false" aria-label="Incluir atividades extras nas métricas de Evolução" title="Somar as atividades marcadas às métricas de Evolução"></button>
         <span>Incluir Atividades Extras (marcadas) nas métricas de Evolução</span>
       </div>
-      <div style="display:flex; gap:8px; flex-wrap:wrap;">
+      <div class="extras-actions">
         <button type="button" class="btn-secondary" id="extras-manage-btn" title="Gerenciar todas as atividades recorrentes e avulsas num só lugar">🔁 Gerenciar</button>
         <button type="button" class="btn-secondary" id="extras-suggest-btn" title="Sugerir atividades com base nos seus pontos fracos do TEC">💡 Sugerir</button>
         <button type="button" class="btn-secondary" id="extras-plano-btn" title="Puxar os assuntos prioritários do Plano de pontos fracos, com meta já calculada">🏁 Puxar do Plano</button>
@@ -11363,13 +11366,11 @@ body.leis-foco .lei-sel-fab { --lei-fab-lift: 8px; }
   font-family: 'Space Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
 }
 .lei-card-bk { color: var(--warn-text); font-weight: 700; }
-.lei-card-go {
-  flex: 0 0 auto; width: 34px; height: 34px; border-radius: 50%;
-  display: flex; align-items: center; justify-content: center;
-  background: var(--surface-sunken); color: var(--text-soft); font-size: var(--fs-md); font-weight: 700;
-  transition: background .15s ease, color .15s ease;
-}
-.lei-card:hover .lei-card-go { background: var(--accent); color: #fff; }
+/* A ação do cartão era um disco de 34x34 com um "→" dentro. Ela agora NOMEIA o
+   que faz ("Começar / Continuar / Reler" + a linha) e a forma vive em
+   31-leis-lista.css. O tamanho fixo ficou aqui por um tempo e cortava o rótulo
+   ao meio — um disco de 34px com três filhos dentro. Nada a herdar daqui. */
+.lei-card-go { flex: 0 0 auto; }
 
 /* ── 8. Painel ⚙️ Exibição ─────────────────────────────────────────────── */
 .lei-prefs-grupo { display: grid; gap: 4px; }
@@ -12102,7 +12103,9 @@ body.leis-foco .leis-reader-card::before { display: none; }
   box-shadow: var(--shadow-sm);
 }
 #screen-extras .exm-toolbar .extras-global {
-  min-width: 240px;
+  /* A barra e uma pilha de faixas de largura inteira; um piso aqui só
+     reintroduziria a disputa de largura que fazia os botoes cascatearem. */
+  min-width: 0;
 }
 #screen-extras .exm-toolbar .extras-global > span {
   color: var(--text-soft);
@@ -12867,10 +12870,14 @@ html.extras-modal-open,html.extras-modal-open body{overflow:hidden!important;ove
 
 /* ── 1. Configurações passam a ser o primeiro bloco operacional ─────────── */
 #screen-extras .extras-toolbar.ux100-config-card{
+  /* UMA coluna, de propósito. Com duas, a fileira de acoes disputava largura
+     com o interruptor: abaixo de ~730px a coluna dos botoes era espremida e
+     eles desciam um por linha — a cascata. Em pilha, cada faixa usa a largura
+     inteira e os botoes cabem alinhados. */
   display:grid!important;
-  grid-template-columns:minmax(0,1fr) auto;
+  grid-template-columns:minmax(0,1fr);
   align-items:center;
-  gap:12px 16px;
+  gap:10px 16px;
   margin:12px 0 16px;
   padding:15px 16px;
   border:1.5px solid color-mix(in srgb,var(--accent) 34%,var(--border));
@@ -12900,7 +12907,6 @@ html.extras-modal-open,html.extras-modal-open body{overflow:hidden!important;ove
 #screen-extras .ux100-config-kpis span{padding:5px 8px;border:1px solid color-mix(in srgb,var(--accent) 18%,var(--border));border-radius:999px;background:var(--surface);color:var(--text-muted);font-size:9px;font-weight:750;white-space:nowrap}
 #screen-extras .extras-toolbar.ux100-config-card .extras-global{min-width:0;margin:0;align-self:center}
 #screen-extras .extras-toolbar.ux100-config-card .extras-global>span{font-size:10px;line-height:1.35}
-#screen-extras .extras-toolbar.ux100-config-card>div:last-child{justify-content:flex-end}
 #screen-extras #extras-settings-btn{border-color:color-mix(in srgb,var(--accent) 40%,var(--border));color:var(--accent);background:var(--surface);font-weight:850}
 
 /* ── 2. Reforços em curso ganham fronteira própria e leitura de médio prazo ─ */
@@ -13066,9 +13072,6 @@ html.extras-modal-open,html.extras-modal-open body{overflow:hidden!important;ove
   #screen-extras .ux100-config-head{grid-template-columns:38px minmax(0,1fr)}
   #screen-extras .ux100-config-icon{width:38px;height:38px}
   #screen-extras .ux100-config-kpis{grid-column:1/-1;justify-content:flex-start;padding-left:49px}
-  #screen-extras .extras-toolbar.ux100-config-card>div:last-child{display:grid!important;grid-template-columns:repeat(2,minmax(0,1fr));width:100%;gap:7px!important}
-  #screen-extras .extras-toolbar.ux100-config-card>div:last-child>button{width:100%;min-width:0;min-height:40px;padding:7px 8px;font-size:10px}
-  #screen-extras #extras-settings-btn{grid-column:1/-1}
   #screen-extras .extras-toolbar.ux100-config-card .extras-global{padding:7px 0;border-bottom:1px solid color-mix(in srgb,var(--text-faint) 20%,var(--border))}
 
   #extras-agenda .exm-stats{grid-template-columns:1fr 1fr}
@@ -13314,8 +13317,8 @@ body:has(#tec-cfg-body) #tec-cfg-body{scrollbar-gutter:stable}
 
 /* ── 4. Extras: barra de controle curta, legível e sem coluna espremida ───── */
 #screen-extras .extras-toolbar.uxv3-toolbar{
-  display:grid!important;grid-template-columns:minmax(260px,.7fr) minmax(420px,1.3fr)!important;
-  gap:12px 18px!important;align-items:center!important;padding:14px 16px!important;
+  display:grid!important;grid-template-columns:minmax(0,1fr)!important;
+  gap:10px!important;align-items:stretch!important;padding:14px 16px!important;
 }
 #screen-extras .extras-toolbar.uxv3-toolbar .ux100-config-head{grid-column:1/-1!important;margin:0!important}
 #screen-extras .extras-toolbar.uxv3-toolbar .extras-global{
@@ -13327,10 +13330,28 @@ body:has(#tec-cfg-body) #tec-cfg-body{scrollbar-gutter:stable}
   font-size:12px!important;line-height:1.3!important;white-space:normal!important;overflow-wrap:normal!important;word-break:normal!important;
 }
 #screen-extras .extras-toolbar.uxv3-toolbar .extras-global>span::first-line{font-weight:700}
+/* A fileira de acoes: flex que CRESCE. `flex-grow:1` com uma base minima e o
+   que resolve a cascata sem media query nenhuma — o navegador poe quantos
+   botoes couberem por linha e esticam para preencher a linha inteira, inclusive
+   a ultima. Nao sobra buraco, nao sobra botao orfao, e as bordas de todas as
+   linhas coincidem. `min-width` e o que impede um botao de afinar tanto que o
+   rotulo quebre no meio; abaixo dele, o navegador simplesmente poe menos por
+   linha. Todos com a mesma altura, entao a fileira le como uma fileira. */
 #screen-extras .extras-toolbar.uxv3-toolbar .uxv3-toolbar-actions{
-  display:flex;align-items:center;justify-content:flex-end;gap:7px;flex-wrap:wrap;min-width:0;
+  display:flex!important;flex-wrap:wrap;align-items:stretch;justify-content:stretch;
+  gap:8px;width:100%;min-width:0;margin:0;
 }
-#screen-extras .extras-toolbar.uxv3-toolbar .uxv3-toolbar-actions button{min-height:38px;padding:7px 12px;white-space:nowrap}
+#screen-extras .extras-toolbar.uxv3-toolbar .uxv3-toolbar-actions>button{
+  flex:1 1 calc(132px * var(--fs-scale,1));min-width:0;
+  display:inline-flex;align-items:center;justify-content:center;gap:6px;
+  min-height:calc(40px * var(--fs-scale,1));padding:8px 12px;
+  text-align:center;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+}
+@media(max-width:480px){
+  #screen-extras .extras-toolbar.uxv3-toolbar .uxv3-toolbar-actions>button{
+    flex-basis:calc(118px * var(--fs-scale,1));padding:8px 9px;
+  }
+}
 
 /* ── 5. Extras: Lei seca sem chips redundantes ───────────────────────────── */
 #extras-list .lr-extra-card .exd-tags{gap:5px!important}
@@ -13660,15 +13681,83 @@ html.tpm-motors-active #plano-lista>:not([data-tpm-output]):not(.tpm-legacy-exec
 @media(max-width:390px){.tpm-entry-selector{padding:11px}.tpm-metrics{grid-template-columns:1fr 1fr}.tpm-source-grid button{grid-template-columns:auto minmax(0,1fr)}.tpm-source-grid button i{grid-column:2}.tpm-head{display:block}.tpm-score{display:block;margin-top:4px}.tpm-rec{gap:7px}.tpm-ranking-item{grid-template-columns:27px minmax(0,1fr);padding:8px}.tpm-ranking-metrics>span{width:auto}.tpm-ranking-actions{display:grid;grid-template-columns:1fr}.tpm-ranking-actions button{width:100%}}
 
 
-/* Cards dos motores: mesma hierarquia visual dos cards do plano legado. */
-.tpm-rec{display:grid;grid-template-columns:1fr;gap:0;padding:14px 15px;border-color:color-mix(in srgb,var(--bad) 34%,var(--border));border-radius:16px;background:linear-gradient(135deg,color-mix(in srgb,var(--bad) 3.5%,var(--surface)),var(--surface));box-shadow:0 5px 18px rgba(12,25,45,.025)}
-.tpm-rec .tpm-rank{width:38px;height:38px;border:0;border-radius:999px;background:#c52b3a;color:#fff;font-size:var(--fs-xs);box-shadow:0 4px 10px color-mix(in srgb,#c52b3a 20%,transparent)}
-.tpm-rec .tpm-main{display:grid;grid-template-columns:minmax(0,1fr);min-width:0}.tpm-rec .tpm-head{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:10px;align-items:start;position:relative;padding-left:49px;min-height:38px}.tpm-rec .tpm-head small{font-weight:850}.tpm-rec .tpm-head>b{font-size:var(--fs-sm);line-height:1.35}.tpm-rec .tpm-head:after{content:"🎯 ataque agora";grid-column:1;font-style:normal;color:color-mix(in srgb,var(--bad) 88%,var(--text));font-size:var(--fs-2xs);font-weight:900;margin-top:3px}.tpm-rec .tpm-score{display:grid;justify-items:end;gap:1px;text-align:right;font-size:var(--fs-3xs);font-weight:900}.tpm-rec .tpm-score:before{content:"prioridade do motor";font-size:var(--fs-3xs);line-height:1.2;text-transform:uppercase;letter-spacing:.04em;color:var(--text-faint);font-weight:800}.tpm-rec .tpm-metrics{display:flex;gap:6px;flex-wrap:wrap;margin:10px 0 0;padding-left:49px}.tpm-rec .tpm-metrics>span{display:flex;align-items:baseline;gap:4px;padding:5px 7px;border:0;border-radius:8px;background:color-mix(in srgb,var(--surface) 78%,var(--surface-sunken));font-size:var(--fs-3xs);min-width:0}.tpm-rec .tpm-metrics b{font-size:var(--fs-2xs)}.tpm-rec .tpm-metrics small{margin:0;font-size:var(--fs-3xs);line-height:1.25}.tpm-rec .tpm-dose{border:1px solid color-mix(in srgb,var(--accent) 30%,var(--border))!important;background:color-mix(in srgb,var(--accent) 5%,var(--surface))!important}.tpm-rec .tpm-dose:before{content:"🎯";font-size:var(--fs-2xs)}.tpm-rec .tpm-context{margin:9px 0 0;padding-left:49px}.tpm-rec .tpm-topic-order{margin-left:49px}
-@media(max-width:720px){.tpm-rec{grid-template-columns:1fr;padding:12px}.tpm-rec .tpm-rank{width:34px;height:34px}.tpm-rec .tpm-head,.tpm-rec .tpm-metrics,.tpm-rec .tpm-context{padding-left:43px}.tpm-rec .tpm-topic-order{margin-left:43px}.tpm-rec .tpm-metrics{grid-template-columns:none}.tpm-rec .tpm-head{display:grid}}
-@media(max-width:390px){.tpm-rec .tpm-head{grid-template-columns:1fr;padding-left:40px}.tpm-rec .tpm-score{justify-items:start;text-align:left}.tpm-rec .tpm-rank{width:32px;height:32px}.tpm-rec .tpm-metrics,.tpm-rec .tpm-context{padding-left:40px}.tpm-rec .tpm-topic-order{margin-left:40px}}
+/* ── OS CARTÕES DE "ONDE ATACAR AGORA" ────────────────────────────────────
+   A versão anterior tirava o número da ordem do fluxo (`position:absolute`) e
+   depois empurrava CADA bloco de texto para a direita com um recuo à mão de
+   49px — repetido em cinco regras aqui e em mais uma em 28-tec-padrao.css, com
+   valores diferentes em cada faixa de tela (49 / 43 / 40). Qualquer bloco novo
+   no cartão nascia fora do prumo: era o caso do explicador e da ação, que
+   começavam na borda enquanto título, métricas e contexto começavam 49px
+   adentro. Daí "sem alinhamento nos textos e padronização".
 
-.tpm-rec{position:relative}.tpm-rec .tpm-rank{position:absolute;top:14px;left:15px;z-index:1}
-@media(max-width:720px){.tpm-rec .tpm-rank{top:12px;left:12px}}
+   Agora o cartão é uma grade de duas colunas de verdade: [ordem] [conteúdo].
+   O alinhamento passa a ser consequência da estrutura — tudo que entrar em
+   `.tpm-main` nasce no mesmo prumo, sem recuo para calcular, e a faixa estreita
+   só troca a largura da primeira coluna. */
+.tpm-rec{
+  display:grid;grid-template-columns:auto minmax(0,1fr);gap:0 13px;align-items:start;
+  padding:14px 15px;border-color:color-mix(in srgb,var(--bad) 34%,var(--border));
+  border-radius:16px;
+  background:linear-gradient(135deg,color-mix(in srgb,var(--bad) 3.5%,var(--surface)),var(--surface));
+  box-shadow:0 5px 18px rgba(12,25,45,.025);
+}
+.tpm-rec .tpm-rank{
+  width:calc(36px * var(--fs-scale,1));height:calc(36px * var(--fs-scale,1));
+  border:0;border-radius:999px;background:#c52b3a;color:#fff;font-size:var(--fs-xs);
+  box-shadow:0 4px 10px color-mix(in srgb,#c52b3a 20%,transparent);
+}
+.tpm-rec .tpm-main{display:grid;grid-template-columns:minmax(0,1fr);gap:9px;min-width:0}
+
+/* Cabeçalho: nome à esquerda, prioridade à direita, ambos ancorados no topo. */
+.tpm-rec .tpm-head{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:4px 12px;align-items:start;min-height:calc(36px * var(--fs-scale,1))}
+.tpm-rec .tpm-head small{font-weight:850}
+.tpm-rec .tpm-head>b{font-size:var(--fs-sm);line-height:1.35;overflow-wrap:anywhere}
+.tpm-rec .tpm-score{display:grid;justify-items:end;gap:1px;text-align:right;font-size:var(--fs-3xs);font-weight:900}
+.tpm-rec .tpm-score:before{content:"prioridade do motor";font-size:var(--fs-3xs);line-height:1.2;text-transform:uppercase;letter-spacing:.04em;color:var(--text-faint);font-weight:800}
+
+/* Métricas: QUATRO caixas iguais, em grade. Em `flex-wrap` elas tinham cada
+   uma a largura do próprio texto, então as bordas não coincidiam entre
+   cartões e a fileira parecia desalinhada mesmo estando correta. */
+.tpm-rec .tpm-metrics{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:6px;margin:0}
+.tpm-rec .tpm-metrics>span{
+  display:grid;gap:2px;align-content:start;padding:7px 9px;border:0;border-radius:9px;
+  background:color-mix(in srgb,var(--surface) 78%,var(--surface-sunken));font-size:var(--fs-3xs);min-width:0;
+}
+.tpm-rec .tpm-metrics b{font-size:var(--fs-2xs);overflow-wrap:anywhere}
+.tpm-rec .tpm-metrics small{margin:0;font-size:var(--fs-3xs);line-height:1.25;color:var(--text-faint)}
+.tpm-rec .tpm-dose{border:1px solid color-mix(in srgb,var(--accent) 30%,var(--border))!important;background:color-mix(in srgb,var(--accent) 5%,var(--surface))!important}
+.tpm-rec .tpm-context{margin:0;font-size:var(--fs-2xs);line-height:1.5;color:var(--text-soft)}
+.tpm-rec .tpm-topic-order{margin:0}
+
+/* ── A AÇÃO ───────────────────────────────────────────────────────────────
+   Onde antes havia um rótulo decorativo ("🎯 ataque agora", um `:after` que
+   parecia botão e não era) há agora o botão que cria a atividade. */
+.tpm-acoes{display:grid;grid-template-columns:auto minmax(0,1fr);align-items:center;gap:4px 11px}
+.tpm-acoes>small{font-size:var(--fs-3xs);line-height:1.35;color:var(--text-faint)}
+.tpm-atacar{
+  appearance:none;cursor:pointer;white-space:nowrap;
+  min-height:calc(40px * var(--fs-scale,1));padding:9px 15px;border-radius:11px;
+  border:0;background:#c52b3a;color:#fff;font-size:var(--fs-2xs);font-weight:900;
+  box-shadow:0 4px 12px color-mix(in srgb,#c52b3a 22%,transparent);
+  transition:filter .15s ease,box-shadow .15s ease;
+}
+.tpm-atacar:hover{filter:brightness(1.07)}
+.tpm-atacar:disabled{cursor:progress;filter:grayscale(.45);box-shadow:none}
+
+@media(max-width:720px){
+  .tpm-rec{gap:0 11px;padding:12px}
+  .tpm-rec .tpm-metrics{grid-template-columns:repeat(2,minmax(0,1fr))}
+}
+@media(max-width:430px){
+  /* A ordem vira uma faixa acima do conteúdo: em 430px, reservar uma coluna
+     para ela deixava o título com três palavras por linha. */
+  .tpm-rec{grid-template-columns:minmax(0,1fr);gap:8px}
+  .tpm-rec .tpm-head{grid-template-columns:minmax(0,1fr);min-height:0}
+  .tpm-rec .tpm-score{justify-items:start;text-align:left}
+  .tpm-rec .tpm-score:before{text-align:left}
+  .tpm-acoes{grid-template-columns:minmax(0,1fr)}
+  .tpm-atacar{width:100%}
+}
 
 
 /* Panorama do TEC: fatos visíveis, decisão e explicações progressivas. */
@@ -13719,11 +13808,42 @@ html.tpm-motors-active #plano-proj .pl-hero{display:none!important}
    da tela e deixava SÓ estes cartões do tamanho original. Agora as três
    medidas (altura, número e rótulo) são multiplicadas pela escala, e a grade é
    `auto-fit` — ao encolher o texto, cabem mais colunas em vez de sobrar vão. */
-#ciclo-overview-gauges.ux-week-gauges{display:grid!important;grid-template-columns:repeat(auto-fit,minmax(calc(158px * var(--fs-scale,1)),1fr))!important;gap:calc(10px * var(--fs-scale,1))!important}
+/* ── Os seis indicadores da semana: UMA fita, não seis cartões ─────────────
+   Eles são a MOLDURA da tela, não o seu conteúdo: o trabalho está na lista de
+   matérias logo abaixo. Com piso de 158px e 78px de altura, seis deles
+   quebravam em duas fileiras e comiam ~170px antes de a lista começar — em
+   telefone, a tela abria sem nada de acionável à vista.
+
+   Agora são seis colunas iguais numa fileira só, com a etiqueta ACIMA do
+   número. A etiqueta em cima não é estética: ela é curta e de largura
+   previsível, então é o número (que varia de "0" a "12h 30min") que recebe a
+   largura sobrando, e nenhuma coluna precisa de piso grande por causa dele.
+   Alturas e tipos continuam em `--fs-scale`, para A−/A+ seguirem valendo. */
+#ciclo-overview-gauges.ux-week-gauges{
+  display:grid!important;grid-template-columns:repeat(6,minmax(0,1fr))!important;
+  gap:calc(7px * var(--fs-scale,1))!important;margin-bottom:14px!important;
+}
 #ciclo-overview-gauges .mini-gauge-card{transition:opacity .16s ease,border-color .16s ease,transform .16s ease}
-#ciclo-overview-gauges .mini-gauge-card[data-ux-priority="primary"],#ciclo-overview-gauges .mini-gauge-card[data-ux-priority="secondary"],#ciclo-overview-gauges .mini-gauge-card[data-ux-priority="tertiary"]{min-height:calc(78px * var(--fs-scale,1));padding:calc(11px * var(--fs-scale,1)) calc(10px * var(--fs-scale,1));border-color:var(--border);background:var(--surface);box-shadow:var(--shadow-sm);opacity:1}
-#ciclo-overview-gauges .mini-gauge-card[data-ux-priority] .value{font-size:clamp(calc(18px * var(--fs-scale,1)),2.1vw,calc(26px * var(--fs-scale,1)));line-height:1.12}
-#ciclo-overview-gauges .mini-gauge-card[data-ux-priority] .label{font-size:calc(9.5px * var(--fs-scale,1))}
+#ciclo-overview-gauges .mini-gauge-card[data-ux-priority="primary"],#ciclo-overview-gauges .mini-gauge-card[data-ux-priority="secondary"],#ciclo-overview-gauges .mini-gauge-card[data-ux-priority="tertiary"]{
+  display:flex;flex-direction:column-reverse;justify-content:center;gap:calc(2px * var(--fs-scale,1));
+  min-height:calc(52px * var(--fs-scale,1));
+  padding:calc(7px * var(--fs-scale,1)) calc(8px * var(--fs-scale,1));
+  border-radius:calc(10px * var(--fs-scale,1));
+  border-color:var(--border);background:var(--surface);box-shadow:none;opacity:1;
+}
+#ciclo-overview-gauges .mini-gauge-card[data-ux-priority] .value{
+  font-size:clamp(calc(13px * var(--fs-scale,1)),1.5vw,calc(19px * var(--fs-scale,1)));
+  line-height:1.1;letter-spacing:-.02em;
+}
+#ciclo-overview-gauges .mini-gauge-card[data-ux-priority] .label{
+  font-size:calc(8px * var(--fs-scale,1));margin:0;line-height:1.2;letter-spacing:.03em;
+}
+/* O indicador que governa a semana ganha a cor da borda, não mais altura: a
+   fita continua com uma linha só e a hierarquia continua legível. */
+#ciclo-overview-gauges .mini-gauge-card[data-ux-priority="primary"]{
+  border-color:color-mix(in srgb,var(--accent) 30%,var(--border));
+  background:color-mix(in srgb,var(--accent) 4%,var(--surface));
+}
 #screen-ciclo #ciclo-subjects-progress{margin-top:4px}
 
 /* Grade: a grade é o conteúdo; controles são suporte */
@@ -13842,8 +13962,7 @@ html.tpm-motors-active #screen-desempenhotec #plano-proj>.ux-legacy-projection:n
 @media(max-width:720px){
   .ux-hierarchy-ready .page-header{margin-bottom:14px;gap:9px!important}
   .ux-hierarchy-ready .page-subtitle{font-size:var(--fs-xs);line-height:1.45}
-  #ciclo-overview-gauges.ux-week-gauges{grid-template-columns:repeat(2,minmax(0,1fr))!important}
-  #ciclo-overview-gauges .mini-gauge-card[data-ux-priority="primary"]{min-height:82px}
+  #ciclo-overview-gauges.ux-week-gauges{grid-template-columns:repeat(3,minmax(0,1fr))!important}
   #screen-extras .exm-stats{grid-template-columns:repeat(2,minmax(0,1fr))}
   #screen-estudonovo .track-stages{grid-template-columns:repeat(2,minmax(0,1fr))!important}
   #ux-evo-more>summary,#ux-config-data>summary{padding:14px}
@@ -13853,8 +13972,10 @@ html.tpm-motors-active #screen-desempenhotec #plano-proj>.ux-legacy-projection:n
 }
 
 @media(max-width:430px){
+  /* Em 430px, tres colunas deixariam a etiqueta com duas letras por linha.
+     Duas colunas, e nenhum cartao promovido a linha inteira: a fita tem de
+     continuar sendo moldura, com a lista de materias visivel sem rolar. */
   #ciclo-overview-gauges.ux-week-gauges{grid-template-columns:1fr 1fr!important}
-  #ciclo-overview-gauges .mini-gauge-card[data-ux-priority="primary"]:first-of-type{grid-column:1/-1}
   #screen-extras .exm-stats{grid-template-columns:1fr 1fr}
   #screen-estudonovo .track-stages{grid-template-columns:1fr!important}
   #screen-historico .week-stats-row{grid-template-columns:repeat(2,minmax(0,1fr))!important}
@@ -13924,7 +14045,9 @@ html.tpm-motors-active #screen-desempenhotec #plano-proj>.ux-legacy-projection:n
   border-radius: 11px;
   background: color-mix(in srgb, var(--surface-sunken) 60%, var(--surface));
 }
-.tpm-rec .tpm-why { margin-left: 49px; }
+/* O recuo à mão de 49px saiu: o cartão é uma grade de duas colunas e todo
+   bloco de `.tpm-main` já nasce no mesmo prumo. Ver 26-tec-plano-fonte-motor.css. */
+.tpm-rec .tpm-why { margin-left: 0; }
 .tpm-why > summary {
   cursor: pointer; list-style: none;
   padding: 8px 11px;
@@ -14269,6 +14392,130 @@ html.tpm-motors-active #screen-desempenhotec #plano-proj>.ux-legacy-projection:n
   background: var(--surface-sunken);
   color: var(--text-soft);
   border: 1px solid var(--border);
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   A FILA COMPLETA DO MOTOR — DISCIPLINAS E ASSUNTOS
+   ---------------------------------------------------------------------------
+   Duas coisas mudam aqui, e as duas por motivo concreto.
+
+   1. AS MÉTRICAS DE CADA LINHA eram chips em `flex-wrap`: cada um com a
+      largura do próprio texto, então as bordas não coincidiam de uma linha
+      para a outra e a fila parecia desalinhada mesmo estando correta — e o
+      Robusto mostra cinco métricas onde o Simplificado mostra três ou quatro,
+      o que deixava cada motor com uma fileira de formato diferente. Agora é
+      uma faixa de colunas iguais, quantas forem: `grid-auto-flow: column` com
+      `grid-auto-columns: 1fr` não precisa saber o número de antemão, então o
+      mesmo bloco serve aos dois motores sem uma regra por motor.
+
+   2. A FILA GANHA CABEÇALHO POR DISCIPLINA (o agrupamento vem do JS). O
+      cabeçalho é deliberadamente leve — ele orienta, não compete com o nome do
+      assunto, que continua sendo o que se lê.
+   ═══════════════════════════════════════════════════════════════════════════ */
+.tpm-rank-grupo {
+  border: 1px solid color-mix(in srgb, var(--border) 82%, var(--surface-sunken));
+  border-radius: 15px;
+  background: color-mix(in srgb, var(--surface-sunken) 42%, var(--surface));
+  overflow: hidden;
+}
+.tpm-rank-grupo > header {
+  display: grid; grid-template-columns: minmax(0, 1fr) auto auto;
+  align-items: center; gap: 4px 10px;
+  padding: 9px 12px;
+  border-bottom: 1px solid color-mix(in srgb, var(--border) 70%, var(--surface));
+  background: var(--surface);
+}
+.tpm-rank-grupo > header > b {
+  min-width: 0; font-size: var(--fs-2xs); font-weight: 900;
+  letter-spacing: .01em; color: var(--text); overflow-wrap: anywhere;
+}
+.tpm-rank-grupo > header > span,
+.tpm-rank-grupo > header > em {
+  font-style: normal; white-space: nowrap;
+  font-size: var(--fs-3xs); font-weight: 800; color: var(--text-faint);
+}
+.tpm-rank-grupo > header > em {
+  padding: 3px 7px; border-radius: 999px;
+  background: var(--surface-sunken); color: var(--text-soft);
+  font-family: 'Space Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+.tpm-rank-grupo-itens { display: grid; gap: 7px; padding: 8px; }
+/* Dentro do grupo a matéria já está dita no cabeçalho: repeti-la em cada
+   linha era a mesma palavra três vezes na mesma caixa. */
+.tpm-rank-grupo-itens .tpm-ranking-head small { display: none; }
+
+/* A faixa de métricas, igual para os dois motores. */
+.tpm-ranking-metrics {
+  display: grid !important; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr);
+  gap: 6px; margin-top: 7px;
+}
+.tpm-ranking-metrics > span {
+  display: grid; gap: 1px; align-content: start; justify-items: start;
+  padding: 6px 8px; border-radius: 8px; min-width: 0;
+  background: color-mix(in srgb, var(--surface) 72%, var(--surface-sunken));
+  font-size: var(--fs-3xs);
+}
+.tpm-ranking-metrics > span > b { font-size: var(--fs-2xs); overflow-wrap: anywhere; }
+.tpm-ranking-metrics > span > small { color: var(--text-faint); line-height: 1.25; }
+
+@media (max-width: 720px) {
+  /* Cinco colunas em 400px dariam duas letras por rótulo. Duas colunas, em
+     fluxo normal — as linhas continuam com as bordas coincidindo. */
+  .tpm-ranking-metrics {
+    grid-auto-flow: row !important;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  /* Em faixa estreita o cabeçalho volta a ser uma linha de texto que quebra
+     sozinha: forçar colunas aqui deixava a colocação das duas etiquetas
+     dependendo da ordem de auto-posicionamento, que é ambígua com três
+     filhos em duas colunas. */
+  .tpm-rank-grupo > header { display: flex; flex-wrap: wrap; align-items: baseline; }
+  .tpm-rank-grupo > header > b { flex: 1 1 100%; }
+}
+
+/* ── A ORDEM DOS PRÓXIMOS ASSUNTOS DA DISCIPLINA ──────────────────────────
+   Mesma forma da fila completa acima: posição, nome e as medidas em colunas
+   fixas. Assim as linhas se comparam na vertical — era o que a frase única
+   com pontos separando não permitia. */
+.tpm-topic-order > ol {
+  display: grid; gap: 4px; margin: 8px 0 0; padding: 0; list-style: none;
+}
+.tpm-topic-order > ol > li {
+  display: grid;
+  grid-template-columns: calc(22px * var(--fs-scale, 1)) minmax(0, 1fr) repeat(3, calc(54px * var(--fs-scale, 1)));
+  align-items: center; gap: 8px;
+  padding: 6px 8px; border-radius: 8px;
+  background: color-mix(in srgb, var(--surface-sunken) 55%, var(--surface));
+  font-size: var(--fs-3xs);
+}
+.tpm-topic-order > ol > li > i {
+  font-style: normal; text-align: center;
+  font-family: 'Space Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-weight: 800; color: var(--text-faint);
+}
+.tpm-topic-order > ol > li > span {
+  min-width: 0; color: var(--text); overflow-wrap: anywhere; line-height: 1.3;
+}
+.tpm-topic-order > ol > li > b {
+  text-align: right; font-size: var(--fs-2xs); font-weight: 800;
+  font-variant-numeric: tabular-nums; white-space: nowrap;
+}
+.tpm-topic-order > ol > li > b > small { font-weight: 600; color: var(--text-faint); }
+/* O rodapé nomeia as colunas uma vez, em vez de cada linha repetir o rótulo
+   de cada medida. */
+.tpm-topic-order > p {
+  margin: 7px 0 0; font-size: var(--fs-3xs); line-height: 1.4; color: var(--text-faint);
+}
+@media (max-width: 720px) {
+  /* Três colunas de medida em 390px sobrariam ~30px cada. O nome sobe para a
+     linha de cima e as medidas dividem a de baixo, ainda em colunas — as
+     bordas continuam coincidindo entre linhas. */
+  .tpm-topic-order > ol > li {
+    grid-template-columns: calc(22px * var(--fs-scale, 1)) repeat(3, minmax(0, 1fr));
+    gap: 4px 8px;
+  }
+  .tpm-topic-order > ol > li > span { grid-column: 2 / -1; }
+  .tpm-topic-order > ol > li > i { grid-row: span 2; align-self: start; padding-top: 2px; }
 }
 
 </style>
@@ -14798,6 +15045,65 @@ html.tpm-motors-active #screen-desempenhotec #plano-proj>.ux-legacy-projection:n
   }
   #screen-leis .lei-card-go > small { text-align: right; }
   #screen-leis .lr-law-tools { align-items: flex-start; }
+}
+
+/* ── 8. CONSERTOS DE ALINHAMENTO ──────────────────────────────────────────
+   Três defeitos concretos, um por bloco.
+
+   8.1 A AÇÃO ESTAVA CORTADA. A forma antiga da ação era um disco de 34x34 com
+   um "→" dentro, e o tamanho fixo continuava valendo em 07-ux-layout.css. O
+   conteúdo novo — rótulo, linha e seta — era empurrado para dentro de 34px:
+   na tela aparecia "meçar linha 1", com "Co" cortado fora da caixa. A largura
+   passa a ser do conteúdo, com piso para que os três estados ("Começar",
+   "Continuar", "Reler") tenham a MESMA largura e as caixas de todos os
+   cartões terminem na mesma linha vertical. */
+#screen-leis .lei-card-go {
+  flex: 0 0 auto;
+  width: auto; height: auto;
+  min-width: calc(124px * var(--fs-scale, 1));
+  min-height: calc(46px * var(--fs-scale, 1));
+  justify-items: start;
+  box-sizing: border-box;
+}
+#screen-leis .lei-card-go > i { justify-self: end; }
+
+/* 8.2 A FAIXA DE ESTADO DESAPARECIA NO RODÍZIO. `10-lei-rodizio.css` zera a
+   borda do cartão embrulhado (`border: 0 !important`) para que a moldura seja
+   a do invólucro. Declarar só a LARGURA da borda esquerda depois disso não
+   pinta nada: o estilo continua `none`. A faixa é redeclarada inteira. */
+#screen-leis .lr-law-wrap > .lei-card { border: 0 !important; border-radius: 0 !important; }
+#screen-leis .lr-law-wrap > .lei-card.is-lendo {
+  border-left: 3px solid color-mix(in srgb, var(--accent) 62%, var(--border)) !important;
+}
+#screen-leis .lr-law-wrap > .lei-card.is-fim {
+  border-left: 3px solid color-mix(in srgb, var(--good) 62%, var(--border)) !important;
+}
+#screen-leis .lr-law-wrap > .lei-card.is-nova {
+  border-left: 3px solid var(--border) !important;
+}
+
+/* 8.3 A FILEIRA DE ETIQUETAS ERA IRREGULAR. Selo de estado, matéria e
+   referência vinham de três folhas diferentes, com alturas e cantos próprios:
+   a linha do topo ficava serrilhada e cada cartão começava numa altura
+   diferente. Uma medida só para as três, e o topo volta a ser uma linha. */
+#screen-leis .lei-card-topo > .lei-estado,
+#screen-leis .lei-card-topo > .lei-tag {
+  min-height: calc(22px * var(--fs-scale, 1));
+  display: inline-flex; align-items: center;
+  padding: 2px 9px; border-radius: 999px;
+  font-size: var(--fs-3xs); line-height: 1.2;
+  max-width: 100%;
+}
+#screen-leis .lei-card-topo > .lei-tag { font-weight: 750; text-transform: none; letter-spacing: 0; }
+/* O título é a âncora da leitura: fica na mesma altura em todo cartão, e o
+   bloco de texto alinha à esquerda com ele — não com o selo. */
+#screen-leis .lei-card-main { align-content: start; }
+#screen-leis .lei-card { align-items: center; }
+
+@media (max-width: 620px) {
+  /* Em coluna única a ação vira uma faixa cheia, com a seta na ponta: sem piso
+     de largura, que aqui só criaria uma caixa estreita no meio do cartão. */
+  #screen-leis .lei-card-go { min-width: 0; width: 100%; }
 }
 
 </style>
@@ -30710,6 +31016,46 @@ const AutoTeste = {
      duas: o HASH do conteúdo. Se o texto de uma seção não bate com o hash do
      último envio, ela mudou depois disso — mesmo que as duas listas tenham se
      perdido. */
+  /* ── REVISÃO ANOTADA NÃO É PROVA DE QUE O DADO ESTÁ AQUI ──────────────────
+     `hasRemoteUpdates` decide se vale baixar da nuvem. Ela comparava somente
+     revisão contra revisão, e a revisão é bookkeeping LOCAL: continua dizendo
+     "tenho a rev 5 de entries" mesmo depois de o conteúdo ter ido embora (cota
+     estourada no meio de uma gravação, limpeza parcial do navegador, gravação
+     interrompida). Com a revisão batendo, a resposta era "nada novo" e o
+     registro sumia para sempre — o "faltam alguns registros, e só normaliza em
+     guia anônima", porque guia anônima não tem revisão anotada e baixa tudo.
+
+     Ausência do conteúdo passa a valer como novidade. As três situações estão
+     fixadas aqui, incluindo a que NÃO deve disparar download (seção sem
+     anotação nenhuma, que é perfil novo e a semeadura normal resolve). */
+  revisaoAnotadaSemConteudo() {
+    const PID = '__t_rev__';
+    const pfx = 'diario-estudos:u:' + PID + ':';
+    const criadas = [pfx + 'p:pl:entries'];
+    const rev = (n) => ({ 'p:pl:entries': { rev: n, hash: 'x' } });
+    try {
+      // anotado na rev 5 E presente no aparelho: nada a baixar
+      localStorage.setItem(pfx + 'p:pl:entries', '[{"id":"e1"}]');
+      this._ok('rev igual e conteúdo presente: não baixa',
+        SectionSync.precisaBaixar({ section: 'p:pl:entries', rev: 5 }, rev(5), pfx) === false);
+      // rev remota maior continua sendo novidade, como sempre foi
+      this._ok('rev remota maior: baixa',
+        SectionSync.precisaBaixar({ section: 'p:pl:entries', rev: 6 }, rev(5), pfx) === true);
+      // a MESMA anotação, sem o conteúdo: tem de baixar
+      localStorage.removeItem(pfx + 'p:pl:entries');
+      this._ok('rev anotada mas seção AUSENTE no aparelho: baixa',
+        SectionSync.precisaBaixar({ section: 'p:pl:entries', rev: 5 }, rev(5), pfx) === true);
+      // sem anotação nenhuma (perfil novo): a semeadura cuida, não é "novidade"
+      this._ok('seção sem anotação e rev 0 não dispara download',
+        SectionSync.precisaBaixar({ section: 'p:pl:entries', rev: 0 }, {}, pfx) === false);
+      // o manifesto é contabilidade da camada, nunca conteúdo de perfil
+      this._ok('o manifesto ausente não conta como registro faltando',
+        SectionSync.precisaBaixar({ section: SectionSync.MANIFEST, rev: 9 },
+          { [SectionSync.MANIFEST]: { rev: 9, hash: 'm' } }, pfx) === false);
+    } finally {
+      criadas.forEach(k => { try { localStorage.removeItem(k); } catch (e) { _quiet(e, 'rev-limpa'); } });
+    }
+  },
   filaDeEnvioSobrevive() {
     const PID = '__t_fila__';
     const ativoOriginal = localStorage.getItem(DB.ACTIVE_PROFILE_KEY);
@@ -33327,6 +33673,7 @@ const AutoTeste = {
      ['Travas contra perda', 'travasDePerda'],
      ['Tudo entra na sincronização', 'tudoEntraNaSincronizacao'],
      ['A fila de envio sobrevive', 'filaDeEnvioSobrevive'],
+     ['Revisão anotada sem conteúdo', 'revisaoAnotadaSemConteudo'],
      ['Link nunca vira código', 'linkNuncaViraCodigo'],
      ['Adota o id do banco', 'adotaOIdDoBanco'],
      ['Isolamento entre contas', 'isolamentoEntreContas'],
@@ -47795,7 +48142,10 @@ window.ReforcoFila = ReforcoFila;
 
       const settings = document.getElementById('extras-settings-btn');
       if (settings) {
-        settings.innerHTML = '⚙ Abrir configurações';
+        /* "Abrir configurações" era o rótulo mais longo da fileira, e era ele
+           que fazia os cinco botões não caberem numa linha só. O cartão ao
+           lado já diz "Configurações" em destaque; o verbo era redundante. */
+        settings.innerHTML = '⚙ Configurações';
         settings.setAttribute('aria-label', 'Abrir configurações de Atividades Extras');
       }
       const subtitle = screen && screen.querySelector('.page-subtitle');
@@ -49952,17 +50302,54 @@ const SectionSync = {
   },
   // Checagem barata "tem novidade na nuvem?" — compara as revisões remotas com as
   // que este aparelho já conhece. Substitui a comparação de rev do blob.
+  /* ── A CONTABILIDADE DE REVISÕES NÃO PROVA QUE O DADO ESTÁ AQUI ───────────
+     Esta checagem decide se vale baixar. Ela comparava só revisão contra
+     revisão — "a nuvem tem rev maior que a que eu anotei?" — e tinha dois
+     furos, os dois com a mesma consequência: responder "nada novo" e deixar o
+     aparelho com dado incompleto até alguém limpar o navegador.
+
+     1. `_getRevs()` era chamada SEM o `id`, então lia as revisões do perfil
+        ATIVO para comparar com as linhas remotas do perfil consultado. Com
+        `id` diferente do ativo, a comparação era entre coisas distintas.
+
+     2. Mais grave: a anotação de revisão é bookkeeping LOCAL, gravada quando
+        este aparelho enviou ou aplicou a seção. Ela pode continuar dizendo
+        "tenho a rev 5 de `entries`" depois de o conteúdo em si ter ido embora
+        — cota de armazenamento estourada no meio de uma gravação, uma
+        limpeza parcial do navegador, uma gravação interrompida. A seção fica
+        AUSENTE no localStorage com a revisão intacta, e como a revisão bate,
+        o download nunca acontecia: o registro sumia e não voltava mais.
+        Era exactamente o "faltam alguns registros, e só normaliza em guia
+        anônima" — guia anônima não tem revisão anotada, então baixa tudo.
+
+     A ausência do conteúdo passa a valer como novidade, do mesmo jeito que uma
+     revisão maior. A leitura é uma consulta ao localStorage por seção, que é
+     barata, e a decisão erra para o lado de baixar — que é o lado em que o
+     pior caso é tráfego, não perda. */
   async hasRemoteUpdates(id) {
     if (!window.CloudStore || !CloudStore.isReady() || !CloudStore.isLoggedIn()) return false;
     const { data, error } = await CloudStore.client.from(this.TABLE).select('section,rev').eq('profile_id', id);
     if (error) throw error;
-    const locais = this._getRevs();
-    let novidade = false;
-    (data || []).forEach(r => {
-      const meu = locais[r.section] ? locais[r.section].rev : 0;
-      if ((r.rev || 0) > meu) novidade = true;
-    });
-    return novidade;
+    const locais = this._getRevs(id);
+    const pfx = this._prefixFor(id);
+    return (data || []).some(r => this.precisaBaixar(r, locais, pfx));
+  },
+  /* A REGRA, separada da rede, para poder ser conferida sem inventar um
+     servidor: dada uma linha remota (`section`, `rev`), as revisões anotadas
+     neste aparelho e o prefixo do perfil, esta seção precisa ser baixada? */
+  precisaBaixar(r, locais, pfx) {
+    if (!r || !r.section || r.section === this.MANIFEST) return false;
+    const anotada = locais ? locais[r.section] : null;
+    const meu = anotada ? (anotada.rev || 0) : 0;
+    if ((r.rev || 0) > meu) return true;
+    /* Revisão anotada mas conteúdo ausente: o aparelho acha que tem e não tem.
+       Só conta quando existe anotação — sem ela, a semeadura normal já cuida, e
+       tratar como novidade faria todo perfil novo baixar duas vezes. */
+    if (anotada && localStorage.getItem(pfx + r.section) === null) {
+      console.warn('[SectionSync] seção anotada mas ausente no aparelho:', r.section, '— vai baixar');
+      return true;
+    }
+    return false;
   },
   // Baixa por seção e recarrega a tela (equivalente ao pullActiveAndReload do blob).
   /* Baixa por seção e recarrega a tela — MAS SÓ SE ALGO MUDOU DE VERDADE.
@@ -55514,13 +55901,24 @@ else CloudStore.init();
         const copy = global.querySelector('span');
         if (copy) copy.textContent = 'Contar Extras marcadas na Evolução';
       }
-      let actions = bar.querySelector('.uxv3-toolbar-actions');
-      if (!actions) {
-        const head = bar.querySelector('.ux100-config-head');
-        const movers = [...bar.children].filter(x => x !== head && x !== global);
-        actions = document.createElement('div'); actions.className = 'uxv3-toolbar-actions'; bar.appendChild(actions);
-        movers.forEach(x => actions.appendChild(x));
-      }
+      /* A fileira de acoes JA existe no HTML (`.extras-actions`). Antes criava-se
+         outro <div> em volta dela: os botoes ficavam a dois niveis de
+         profundidade e as regras de largura passavam a mirar o invólucro, nao
+         os botoes — e a barra cascateava um botao por linha. Agora a propria
+         fileira recebe a classe, e o que estiver solto na barra entra nela. */
+      let actions = bar.querySelector('.uxv3-toolbar-actions') || bar.querySelector('.extras-actions');
+      if (!actions) { actions = document.createElement('div'); actions.className = 'extras-actions'; bar.appendChild(actions); }
+      actions.classList.add('uxv3-toolbar-actions');
+      if (actions.parentElement !== bar) bar.appendChild(actions);
+      const head = bar.querySelector('.ux100-config-head');
+      [...bar.children].forEach((x) => {
+        if (x === head || x === global || x === actions) return;
+        // invólucro antigo (ou botao solto): o conteudo vai para a fileira
+        if (x.tagName === 'DIV' && !x.classList.contains('extras-actions')) {
+          while (x.firstElementChild) actions.appendChild(x.firstElementChild);
+          x.remove();
+        } else { actions.appendChild(x); }
+      });
     },
     decorateLawCards() {
       if (typeof LeiRodizio === 'undefined') return;
@@ -55939,11 +56337,50 @@ else CloudStore.init();
       return original(id);
     };
 
-    // Se houve troca local + reload, a reconciliação continua depois que a sessão
-    // persistida do Supabase for restaurada. O app já estará utilizável.
+    /* ═══ ABRIR O APP SEM CONFERIR A NUVEM ERA O CAMINHO MAIS COMUM ═════════
+       A reconciliação de abertura — "a nuvem tem algo mais novo que este
+       aparelho?" — só era agendada quando `RECON_KEY` estava no sessionStorage,
+       e esse marcador é posto em UM lugar: o `enterProfile` envolvido aqui, ou
+       seja, quando se passa pela lista de perfis. Ele é consumido (removido) na
+       primeira reconciliação.
+
+       Só que `ProfileUI.boot()` tem um atalho de ENTRADA DIRETA: se
+       `sessionStorage[SESSION_KEY]` aponta para o perfil ativo e existe dado
+       local, ele fecha o portão e retorna — sem ler nada da nuvem. E
+       `sessionStorage` SOBREVIVE a um recarregamento da mesma aba. Então a
+       sequência real do dia a dia era:
+
+         1. entrar no perfil     → RECON_KEY posto, reconcilia, RECON_KEY some;
+         2. sai uma versão nova  → `recarregarApp()` recarrega a MESMA aba;
+         3. `boot()` vê SESSION_KEY e entra direto, sem RECON_KEY;
+         4. nada reconcilia, e `syncOnFocus` não roda numa carga nova (não há
+            evento `focus` nem `visibilitychange` quando a aba já está em foco);
+         5. a tela abre com o que havia no localStorage — atrasado, e sem os
+            registros que vieram de outro aparelho.
+
+       Isso explica os três contornos que funcionavam: guia anônima e outro
+       navegador começam com sessionStorage e localStorage vazios (download
+       completo); entrar e sair da conta limpa SESSION_KEY e força o caminho do
+       `enterProfile`, que põe RECON_KEY.
+
+       A correção não é mexer no atalho — abrir rápido com o dado local é
+       proposital e bom. É deixar de depender de um marcador consumível: TODA
+       abertura que termina dentro de um perfil agenda a conferência em segundo
+       plano. `reconcileProfile` já entrega o que está pendente antes de baixar,
+       já checa se há novidade real e só recarrega quando alguma seção mudou,
+       então agendar sempre não custa download nem recarga desnecessária. */
     try {
       const pending = sessionStorage.getItem(RECON_KEY);
-      if (pending) scheduleReconcile(pending);
+      if (pending) { scheduleReconcile(pending); }
+      else {
+        const ativo = (window.ProfileManager && ProfileManager.getActiveProfileId)
+          ? ProfileManager.getActiveProfileId() : null;
+        const chave = (window.ProfileUI && ProfileUI.SESSION_KEY) || 'diario-estudos:entered';
+        if (ativo && sessionStorage.getItem(chave) === ativo) {
+          StartupTrace.mark('reconciliacao-entrada-direta', { perfil: ativo });
+          scheduleReconcile(ativo);
+        }
+      }
     } catch (e) { quiet(e, 'reconcile-boot'); }
   }
   installLocalFirst();
@@ -56970,17 +57407,31 @@ else CloudStore.init();
       }
       return(res.itens||[]).filter((_,i)=>!screen._planoSel||screen._planoSel.has(i));
     },
+    /* ── UM CANDIDATO VIRA UMA ATIVIDADE, NUM LUGAR SÓ ────────────────────
+       Isto era o corpo do laço de `criar`, e por isso a única porta de
+       execução era o modal "Puxar do Plano". O quadro "Onde atacar agora" do
+       Desempenho TEC precisa da MESMA porta — não de uma segunda cópia desta
+       gravação, que é onde vive `origem.sugestao` (o registro de qual motor
+       decidiu, com que score, dose, fase e prescrição) e o log de auditoria do
+       Robusto. Duas cópias divergiriam, e a divergência apareceria só semanas
+       depois, no veredito de uma atividade sem procedência.
+
+       Devolve `true` quando a atividade nasceu, para quem chamou contar.
+       Duplicata não é conferida aqui de propósito: os motores já removem as
+       disciplinas com reforço aberto antes de recomendar. */
+    _criarUm(c,p){
+      if(!c||!c.item)return false;const x=c.item,q=Math.max(1,Math.round(num(c.quantidadeRecomendada,c.alvo))),rob=c.modo==='robusto';
+      const modoInterface=(p&&p.modo)||c.modo||null;
+      const e=DB.addExtra({titulo:PlanoCiclo.titulo(c.nome,'reforco',x.membros),tipo:'questoes',disciplina:c.disciplina||'',unidade:'questoes',alvo:q,periodo:'unica',contaMetricas:false,obs:`Gerado pelo Plano · ${rob?'Robusto':'Simplificado'} ${c.fase==='pos'?'Pós':'Pré'} · ${q} questões aprofundadas.`});
+      if(!e)return false;const origem=PlanoCiclo.origem(c.nome,c.disciplina,Object.assign({},x,{custoQ:q,taxa:c.taxa??x.taxa}),{motivo:'reforco'});
+      origem.sugestao={versao:5,motor:rob?R.MOTOR:S.MOTOR,revisaoAuditoria:rob?R.REVISAO_REGISTRO:(S.REVISAO_REGISTRO||3),modoInterface,fase:c.fase,meta:c.meta,minAmostra:c.minAmostra,banca:c.banca||null,score:Math.round(num(c.score)*10)/10,quantidadeRecomendada:q,componentes:c.componentes||{},configRobusto:rob?{versao:8,prefs:R.prefs()}:null,prescricao:rob?(c.prescricao||null):null,topicosOrdenados:rob?(c.topicosOrdenados||[]):null,pesoPost:rob?(c.pesoPost||1):null,auditoria:c.auditoria||null,arquitetura:rob?R.arquitetura():S.arquitetura(),criadoEm:typeof todayLocal==='function'?todayLocal():new Date().toISOString().slice(0,10)};
+      DB.updateExtra(e.id,{origemPlano:origem});
+      if(rob){try{if(window.PlanoRobustoAudit)PlanoRobustoAudit.registrarCriacao(DB.getExtras().find(z=>z.id===e.id)||e);}catch(err){if(typeof _quiet==='function')_quiet(err,'plano-controller-audit-create');}}
+      return true;
+    },
     criar(screen,p,res){
       const itens=this._escolhidos(screen,p,res);let total=0;
-      itens.forEach(c=>{
-        if(!c||!c.item)return;const x=c.item,q=Math.max(1,Math.round(num(c.quantidadeRecomendada,c.alvo))),rob=c.modo==='robusto';
-        const e=DB.addExtra({titulo:PlanoCiclo.titulo(c.nome,'reforco',x.membros),tipo:'questoes',disciplina:c.disciplina||'',unidade:'questoes',alvo:q,periodo:'unica',contaMetricas:false,obs:`Gerado pelo Plano · ${rob?'Robusto':'Simplificado'} ${c.fase==='pos'?'Pós':'Pré'} · ${q} questões aprofundadas.`});
-        if(!e)return;const origem=PlanoCiclo.origem(c.nome,c.disciplina,Object.assign({},x,{custoQ:q,taxa:c.taxa??x.taxa}),{motivo:'reforco'});
-        origem.sugestao={versao:5,motor:rob?R.MOTOR:S.MOTOR,revisaoAuditoria:rob?R.REVISAO_REGISTRO:(S.REVISAO_REGISTRO||3),modoInterface:p.modo,fase:c.fase,meta:c.meta,minAmostra:c.minAmostra,banca:c.banca||null,score:Math.round(num(c.score)*10)/10,quantidadeRecomendada:q,componentes:c.componentes||{},configRobusto:rob?{versao:8,prefs:R.prefs()}:null,prescricao:rob?(c.prescricao||null):null,topicosOrdenados:rob?(c.topicosOrdenados||[]):null,pesoPost:rob?(c.pesoPost||1):null,auditoria:c.auditoria||null,arquitetura:rob?R.arquitetura():S.arquitetura(),criadoEm:typeof todayLocal==='function'?todayLocal():new Date().toISOString().slice(0,10)};
-        DB.updateExtra(e.id,{origemPlano:origem});
-        if(rob){try{if(window.PlanoRobustoAudit)PlanoRobustoAudit.registrarCriacao(DB.getExtras().find(z=>z.id===e.id)||e);}catch(err){if(typeof _quiet==='function')_quiet(err,'plano-controller-audit-create');}}
-        total++;
-      });
+      itens.forEach(c=>{ if(this._criarUm(c,p))total++; });
       screen.render();
       const ign=p.modo==='comparar'?(this._ignorados||0):0;
       const sufixo=ign?` · ${ign} sem leitura em nenhum motor, não criada(s)`:'';
@@ -57364,7 +57815,14 @@ else CloudStore.init();
     },
     _topicos(c, fonte) {
       if (fonte !== 'robusto' || !Array.isArray(c && c.topicosOrdenados) || c.topicosOrdenados.length < 2) return '';
-      return `<details class="tpm-topic-order"><summary>Ordem dos próximos assuntos desta disciplina</summary><ol>${c.topicosOrdenados.slice(1, 6).map(x => `<li><span>${esc(x.nome)}</span><small>${fmt(x.taxa, 0)}% · prioridade ${Math.round(n(x.score))}/100${n(x.incidencia) > 0 ? ' · incid. ' + Math.round(n(x.incidencia)) : ''}</small></li>`).join('')}</ol></details>`;
+      /* A ordem vinha como `<ol>` com marcador de lista: o número ficava fora
+         da caixa (recuo de 20px) e as três medidas de cada assunto vinham
+         numa frase única separada por pontos — `53% · prioridade 88/100 ·
+         incid. 12` —, então nada se comparava de uma linha para a outra. Cada
+         medida ganha coluna própria, com o número da posição DENTRO da linha:
+         é a mesma forma da fila completa logo abaixo, e comparar duas linhas
+         passa a ser olhar para baixo, não reler duas frases. */
+      return `<details class="tpm-topic-order"><summary>Ordem dos próximos assuntos desta disciplina</summary><ol>${c.topicosOrdenados.slice(1, 6).map((x, k) => `<li><i>${k + 2}</i><span>${esc(x.nome)}</span><b>${fmt(x.taxa, 0)}%</b><b>${Math.round(n(x.score))}<small>/100</small></b>${n(x.incidencia) > 0 ? `<b>${Math.round(n(x.incidencia))}<small> incid.</small></b>` : '<b>—</b>'}</li>`).join('')}</ol><p>Posição · acerto observado · prioridade do motor · incidência. A primeira desta disciplina é a do cartão acima.</p></details>`;
     },
     _card(c, i, fonte) {
       const q = this._quantidade(c);
@@ -57372,7 +57830,19 @@ else CloudStore.init();
       const taxa = Number.isFinite(Number(c.taxa)) ? `${fmt(c.taxa, 0)}%` : '—';
       const amostra = Math.max(0, Math.round(n(c.qJanela)));
       const score = Number.isFinite(Number(c.score)) ? Math.round(Number(c.score)) : null;
-      return `<article class="tpm-rec" data-tpm-rec data-disciplina="${esc(c.disciplina || '')}"><div class="tpm-rank">${i + 1}</div><div class="tpm-main"><div class="tpm-head"><div><small>${esc(c.disciplina || 'Disciplina')}</small><b>${esc(c.nome || 'Assunto')}</b></div><span class="tpm-score">${score == null ? '' : 'prioridade ' + score + '/100'}</span></div><div class="tpm-metrics"><span><b>${taxa}</b><small>acerto observado</small></span><span><b>${amostra || '—'}</b><small>questões na amostra</small></span><span class="tpm-dose"><b>${q || '—'}</b><small>${fonte === 'robusto' ? 'questões recomendadas' : 'questões por frente'}</small></span><span><b>${esc(tempo.texto)}</b><small>${esc(tempo.detalhe)}</small></span></div><p class="tpm-context">${esc(c.motivo || '')}</p>${this._explica(c, fonte)}${this._topicos(c, fonte)}</div></article>`;
+      /* ── A AÇÃO QUE FALTAVA ─────────────────────────────────────────────
+         O quadro dizia onde atacar e não dava como atacar: o rodapé mandava
+         a pessoa a outra tela ("Atividades → Puxar do Plano"), reabrir o
+         mesmo cálculo num modal e reencontrar ali a recomendação que já
+         estava na frente dela. Era esse o "o botão atacar agora não
+         funciona": não havia botão nenhum neste quadro.
+
+         Ele não é um atalho paralelo. Executa pela MESMA porta do modal
+         (`PlanoSugestoes._criarUm`), com a dose que ESTE motor recomendou —
+         então a atividade nasce com a mesma procedência gravada, incluindo o
+         log de auditoria do Robusto. O índice liga o botão de volta ao
+         candidato calculado, sem reserializar nada no atributo. */
+      return `<article class="tpm-rec" data-tpm-rec data-disciplina="${esc(c.disciplina || '')}"><div class="tpm-rank">${i + 1}</div><div class="tpm-main"><div class="tpm-head"><div><small>${esc(c.disciplina || 'Disciplina')}</small><b>${esc(c.nome || 'Assunto')}</b></div><span class="tpm-score">${score == null ? '' : 'prioridade ' + score + '/100'}</span></div><div class="tpm-metrics"><span><b>${taxa}</b><small>acerto observado</small></span><span><b>${amostra || '—'}</b><small>questões na amostra</small></span><span class="tpm-dose"><b>${q || '—'}</b><small>${fonte === 'robusto' ? 'questões recomendadas' : 'questões por frente'}</small></span><span><b>${esc(tempo.texto)}</b><small>${esc(tempo.detalhe)}</small></span></div><p class="tpm-context">${esc(c.motivo || '')}</p><div class="tpm-acoes"><button type="button" class="tpm-atacar" data-tpm-atacar="${i}" title="Cria a atividade de reforço deste assunto com as ${q || 30} questões que o ${fonte === 'robusto' ? 'Robusto' : 'Simplificado'} recomendou">🎯 Atacar agora${q ? ` · ${q} q` : ''}</button><small>Vai para Atividades Extras com a dose deste motor.</small></div>${this._explica(c, fonte)}${this._topicos(c, fonte)}</div></article>`;
     },
     /* ═══ "POR QUE ISSO, AQUI?" TEM DE SER RESPONDÍVEL SEM SAIR DA TELA ═════
        Os cartões mostravam a CONCLUSÃO do motor — "prioridade 87/100" — e o
@@ -57493,11 +57963,30 @@ else CloudStore.init();
       const aberto = Math.max(step, n(this._rankingVisible[sig], step));
       const visiveis = itens.slice(0, aberto);
       const ataque = new Set((r.itens || []).map(x => this._itemKey(x)));
+      /* ── A FILA AGRUPADA POR DISCIPLINA ─────────────────────────────────
+         Era uma lista plana. Com "Mostrar todos" ela passa de cem linhas, e a
+         pergunta com que se olha esta fila — "o que tenho aberto em CADA
+         matéria, e qual delas está mais atrás?" — só se respondia rolando e
+         contando à mão, porque os assuntos de uma mesma matéria aparecem
+         espalhados por toda a ordem do motor.
+
+         O agrupamento não reordena nada: as matérias saem na ordem em que a
+         primeira delas aparece na fila DO MOTOR (ou seja, pela melhor posição
+         que cada uma alcançou), e cada linha mantém o número da sua posição
+         GLOBAL. A ordem continua sendo a do motor — o que muda é onde o olho
+         consegue pousar. */
+      const grupos = [], porDisc = new Map();
+      visiveis.forEach((c, i) => {
+        const k = norm(c.disciplina || '');
+        let g = porDisc.get(k);
+        if (!g) { g = { nome: c.disciplina || 'Sem disciplina', melhor: i + 1, linhas: [] }; porDisc.set(k, g); grupos.push(g); }
+        g.linhas.push([c, i]);
+      });
       const faltam = Math.max(0, itens.length - visiveis.length);
       const controles = faltam || visiveis.length > step
         ? `<div class="tpm-ranking-actions">${faltam ? `<button type="button" data-tpm-rank-more>Mostrar mais ${Math.min(step, faltam)}</button>${faltam > step ? '<button type="button" data-tpm-rank-all>Mostrar todos</button>' : ''}` : ''}${visiveis.length > step ? `<button type="button" data-tpm-rank-reset>Voltar a ${step}</button>` : ''}</div>`
         : '';
-      return `<section class="tpm-ranking" data-tpm-ranking data-tpm-ranking-sig="${esc(sig)}"><header><div><small>RANKING COMPLETO DO MOTOR</small><strong>Todas as frentes elegíveis</strong><p>O TOP 3 acima é a força-tarefa atual. Esta fila mantém o restante visível para diagnóstico e planejamento, sem criar uma terceira regra de decisão.</p></div><span>${visiveis.length} de ${itens.length}</span></header><div class="tpm-ranking-list">${visiveis.map((c, i) => this._rankingRow(c, i, fonte, ataque.has(this._itemKey(c)))).join('')}</div>${controles}</section>`;
+      return `<section class="tpm-ranking" data-tpm-ranking data-tpm-ranking-sig="${esc(sig)}"><header><div><small>RANKING COMPLETO DO MOTOR</small><strong>Todas as frentes elegíveis</strong><p>O TOP 3 acima é a força-tarefa atual. Esta fila mantém o restante visível para diagnóstico e planejamento, sem criar uma terceira regra de decisão.</p></div><span>${grupos.length} ${grupos.length === 1 ? 'disciplina' : 'disciplinas'} · ${visiveis.length} de ${itens.length} assuntos</span></header><div class="tpm-ranking-list">${grupos.map(g => `<section class="tpm-rank-grupo"><header><b>${esc(g.nome)}</b><span>${g.linhas.length} ${g.linhas.length === 1 ? 'assunto' : 'assuntos'}</span><em>melhor #${g.melhor}</em></header><div class="tpm-rank-grupo-itens">${g.linhas.map(([c, i]) => this._rankingRow(c, i, fonte, ataque.has(this._itemKey(c)))).join('')}</div></section>`).join('')}</div>${controles}</section>`;
     },
     _buttons(fonte, compact = false) {
       const e = this._estado();
@@ -57529,7 +58018,7 @@ else CloudStore.init();
       const nome = fonte === 'robusto' ? 'Robusto' : 'Simplificado', ico = fonte === 'robusto' ? '🧠' : '⚡';
       if (!r || r.erro) return `<section class="tpm-output" data-tpm-output data-tpm-model="${fonte}"><header><div><small>${ico} ${nome.toUpperCase()}</small><strong>Recomendação deste modelo</strong></div></header><div class="tpm-empty">${esc(this._erroTexto(r, fonte))}</div></section>`;
       const itens = (r.itens || []).slice().sort((a, b) => fonte === 'robusto' ? n(b.score) - n(a.score) : 0);
-      return `<section class="tpm-output" data-tpm-output data-tpm-model="${fonte}"><header><div><small>${ico} ${nome.toUpperCase()} · ${r.fase === 'pos' ? 'PÓS-EDITAL' : 'PRÉ-EDITAL'}</small><strong>Onde atacar agora</strong><p>${esc(this._criterio(fonte, r))}</p></div><span>${itens.length} ${itens.length === 1 ? 'disciplina' : 'disciplinas'}</span></header>${fonte === 'robusto' ? '<div class="tpm-method"><b>O algoritmo para aqui:</b> recomenda alvo, ordem e quantidade. Sua resolução aprofundada — comentários, resumo, lei seca e cards — é seu modus operandi e não entra no score.</div>' : ''}<div class="tpm-recs">${itens.map((c, i) => this._card(c, i, fonte)).join('')}</div>${this._rankingHtml(fonte, r)}<footer><b>Execução em Atividades → Puxar do Plano.</b><span>Resultados do TEC são observacionais: outras questões feitas no ciclo podem aparecer no mesmo retrato.</span></footer></section>`;
+      return `<section class="tpm-output" data-tpm-output data-tpm-model="${fonte}"><header><div><small>${ico} ${nome.toUpperCase()} · ${r.fase === 'pos' ? 'PÓS-EDITAL' : 'PRÉ-EDITAL'}</small><strong>Onde atacar agora</strong><p>${esc(this._criterio(fonte, r))}</p></div><span>${itens.length} ${itens.length === 1 ? 'disciplina' : 'disciplinas'}</span></header>${fonte === 'robusto' ? '<div class="tpm-method"><b>O algoritmo para aqui:</b> recomenda alvo, ordem e quantidade. Sua resolução aprofundada — comentários, resumo, lei seca e cards — é seu modus operandi e não entra no score.</div>' : ''}<div class="tpm-recs">${itens.map((c, i) => this._card(c, i, fonte)).join('')}</div>${this._rankingHtml(fonte, r)}<footer><b>🎯 Atacar agora cria a atividade aqui mesmo</b><span>Ela aparece em Atividades Extras com a dose deste motor. Para criar várias de uma vez, use Atividades → Puxar do Plano. Resultados do TEC são observacionais: outras questões feitas no ciclo podem aparecer no mesmo retrato.</span></footer></section>`;
     },
     /* ═══ A ROTA MANUAL NÃO PODE DESAPARECER COM A DECISÃO ═════════════════
        O CSS apagava todo filho de `#plano-lista` que não fosse a saída do
@@ -57610,6 +58099,31 @@ else CloudStore.init();
         this._scheduleRender();
       }));
     },
+    /* Criar uma atividade muda os candidatos (o motor remove disciplinas com
+       reforço aberto), então a repintura depois do clique não é cosmética: é o
+       quadro dizendo qual é o PRÓXIMO alvo. */
+    _bindAtacar(root, fonte, r) {
+      root?.querySelectorAll('[data-tpm-atacar]').forEach(b => b.addEventListener('click', () => {
+        const c = (r && r.itens || [])[Number(b.dataset.tpmAtacar)];
+        if (!c) { if (typeof showToast === 'function') showToast('Recomendação expirada — recalculando.'); this._scheduleRender(); return; }
+        if (b.disabled) return;
+        b.disabled = true;
+        const rotulo = b.textContent;
+        b.textContent = 'Criando…';
+        let ok = false;
+        try { ok = C._criarUm(c, { modo: fonte }); }
+        catch (e) { if (typeof _quiet === 'function') _quiet(e, 'tpm-atacar'); }
+        if (typeof showToast === 'function') {
+          showToast(ok
+            ? `Atividade criada: ${c.nome} · ${this._quantidade(c) || ''} questões — veja em Atividades Extras`
+            : 'Não foi possível criar a atividade deste assunto.');
+        }
+        if (!ok) { b.disabled = false; b.textContent = rotulo; return; }
+        try { if (typeof ExtrasScreen !== 'undefined' && ExtrasScreen.render) ExtrasScreen.render(); }
+        catch (e) { if (typeof _quiet === 'function') _quiet(e, 'tpm-atacar-extras'); }
+        this._scheduleRender();
+      }));
+    },
     _bindRanking(root, fonte, r) {
       const itens = this._rankingItems(fonte, r);
       if (!itens.length) return;
@@ -57677,7 +58191,7 @@ else CloudStore.init();
         if (p) proj.prepend(p);
         box.innerHTML = this._outputHtml(fonte, r);
         const out = box.firstElementChild;
-        if (out) { lista.prepend(out); this._bindRanking(out, fonte, r); this._bindExplain(out); }
+        if (out) { lista.prepend(out); this._bindRanking(out, fonte, r); this._bindExplain(out); this._bindAtacar(out, fonte, r); }
         this._agruparRotaManual(lista);
         lista.classList.add('tpm-engine-active');
         proj.querySelectorAll('.pl-hero-sub').forEach(p => {

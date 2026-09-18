@@ -46,6 +46,40 @@ try{
   await page.waitForTimeout(180);
   ok(await page.locator('#screen-extras .extras-toolbar.uxv3-toolbar').count()===1,'toolbar de Extras deve usar layout v3');
   eq((await page.locator('#screen-extras .extras-global>span').innerText()).trim(),'Contar Extras marcadas na Evolução','controle global deve ter rótulo curto');
+
+  /* ── A FILEIRA DE ACOES NAO PODE CASCATEAR ─────────────────────────────
+     Tres camadas de CSS disputavam esta barra e a decoracao ainda embrulhava
+     os botoes num <div> extra — as regras de largura miravam o involucro e os
+     cinco botoes desciam um por linha, cada um com altura propria. Foi esse o
+     "deixou os botoes cascateados, feio e sem alinhamento".
+
+     O que este caso trava: nenhum involucro entre a fileira e os botoes, todos
+     com a MESMA altura, e no desktop uma linha so. */
+  const medirFileira=()=>page.evaluate(()=>{
+    const bar=document.querySelector('#screen-extras .extras-toolbar');
+    const acts=bar&&bar.querySelector('.uxv3-toolbar-actions');
+    const bts=acts?[...acts.querySelectorAll(':scope > button')]:[];
+    return {temFileira:!!acts,n:bts.length,
+      aninhados:acts?[...acts.children].filter(c=>c.tagName!=='BUTTON').length:null,
+      linhas:new Set(bts.map(b=>Math.round(b.getBoundingClientRect().top))).size,
+      alturas:new Set(bts.map(b=>Math.round(b.getBoundingClientRect().height))).size,
+      larguras:bts.map(b=>Math.round(b.getBoundingClientRect().width)),
+      overflow:bar?Math.max(0,bar.scrollWidth-bar.clientWidth):null};
+  });
+  const fileiraMob=await medirFileira();
+  ok(fileiraMob.temFileira,'a barra de Extras deve ter a fileira de acoes');
+  ok(fileiraMob.n>=4,`a fileira deve conter os botoes de acao (recebeu ${fileiraMob.n})`);
+  eq(fileiraMob.aninhados,0,'a fileira nao pode ter involucro entre ela e os botoes');
+  eq(fileiraMob.alturas,1,`os botoes devem ter a mesma altura (recebeu ${fileiraMob.alturas} alturas)`);
+  ok(fileiraMob.linhas<fileiraMob.n,`em 390px os botoes nao podem descer um por linha (${fileiraMob.linhas} linhas para ${fileiraMob.n} botoes)`);
+  eq(fileiraMob.overflow,0,'a barra de Extras nao pode transbordar na horizontal');
+  await page.setViewportSize({width:1280,height:900});
+  await page.waitForTimeout(140);
+  const fileiraDesk=await medirFileira();
+  eq(fileiraDesk.linhas,1,`no desktop os cinco botoes devem caber numa linha (recebeu ${fileiraDesk.linhas})`);
+  eq(new Set(fileiraDesk.larguras||[0]).size,1,'no desktop os botoes devem ter a mesma largura');
+  await page.setViewportSize({width:390,height:844});
+  await page.waitForTimeout(140);
   const future=page.locator('#extras-list details.exm-section-proximas');
   ok(await future.count()===1,'Próximas deve ser um painel recolhível');
   eq(await future.getAttribute('open'),null,'Próximas deve iniciar minimizada');
@@ -96,6 +130,52 @@ try{
   });
   eq(autoCloud.menu,0,'menu de relogin automático não deve interromper o usuário');
   eq(autoCloud.scrim,0,'scrim automático também deve ser removido');
+
+  /* ── OS CARTOES DA LISTA DE LEIS SECAS ──────────────────────────────────
+     A acao do cartao passou a NOMEAR o que faz ("Começar / Continuar / Reler"
+     + a linha), mas a forma antiga dela — um disco de 34x34 com um "→" dentro
+     — continuava valendo em 07-ux-layout.css. Tres filhos empurrados para
+     dentro de 34px: na tela lia-se "meçar linha 1", com o inicio do rotulo
+     cortado fora da caixa. Era esse o "bug visual" da lei seca.
+
+     O que este caso trava: a acao cabe no que ela mostra, tem a mesma largura
+     nos tres estados (as caixas terminam no mesmo prumo em toda a lista) e a
+     faixa de estado a esquerda continua pintada tambem dentro do involucro do
+     rodizio, onde `border:0!important` a apagava. */
+  const leis=await page.evaluate(()=>{
+    DB.saveLeis([
+      {id:'ux-l1',titulo:'Lei 8.112/1990 — Regime Juridico',referencia:'Lei 8.112/90',materia:'Direito Administrativo',
+       texto:Array.from({length:300},(_,i)=>`Art. ${i+1}. Texto ${i+1}.`).join('\n')},
+      {id:'ux-l2',titulo:'Constituicao Federal de 1988',referencia:'CF/88',materia:'Direito Constitucional',bookmark:137,
+       texto:Array.from({length:600},(_,i)=>`Art. ${i+1}. Disposicao ${i+1}.`).join('\n')},
+      {id:'ux-l3',titulo:'Codigo Tributario Nacional',referencia:'Lei 5.172/66',materia:'Direito Tributario',bookmark:599,
+       texto:Array.from({length:600},(_,i)=>`Art. ${i+1}. Norma ${i+1}.`).join('\n')}
+    ]);
+    switchScreen('leis'); LeisScreen.render();
+    const cards=[...document.querySelectorAll('#screen-leis .lei-card')];
+    return cards.map((c)=>{
+      const go=c.querySelector('.lei-card-go'), b=go&&go.querySelector('b');
+      const gr=go&&go.getBoundingClientRect(), br=b&&b.getBoundingClientRect(), cs=getComputedStyle(c);
+      return {estado:(c.className.match(/is-(nova|lendo|fim)/)||[])[0]||null,
+        rotulo:b?(b.textContent||'').trim():null,
+        largura:gr?Math.round(gr.width):null,
+        cortado: gr&&br? (br.left<gr.left-0.5||br.right>gr.right+0.5||br.bottom>gr.bottom+0.5) : null,
+        transbordaAcao: go?Math.max(0,go.scrollWidth-go.clientWidth):null,
+        transbordaCartao: Math.max(0,c.scrollWidth-c.clientWidth),
+        faixa: cs.borderLeftStyle};
+    });
+  });
+  await page.waitForTimeout(120);
+  ok(leis.length>=3,`a lista de leis deve ter os tres cartoes (recebeu ${leis.length})`);
+  eq(leis.filter(x=>x.cortado).length,0,`nenhum rotulo de acao pode ficar cortado: ${JSON.stringify(leis)}`);
+  eq(leis.filter(x=>x.transbordaAcao>0).length,0,'a caixa de acao nao pode transbordar o proprio conteudo');
+  eq(leis.filter(x=>x.transbordaCartao>0).length,0,'o cartao de lei nao pode transbordar na horizontal');
+  eq(new Set(leis.map(x=>x.largura)).size,1,`a acao deve ter a mesma largura nos tres estados: ${JSON.stringify(leis.map(x=>x.largura))}`);
+  eq(leis.filter(x=>x.faixa==='none').length,0,'a faixa de estado a esquerda do cartao deve estar pintada');
+  ok(leis.some(x=>x.rotulo==='Começar')&&leis.some(x=>x.rotulo==='Continuar')&&leis.some(x=>x.rotulo==='Reler'),
+    `os tres estados devem nomear a propria acao: ${JSON.stringify(leis.map(x=>x.rotulo))}`);
+  await page.evaluate(()=>{switchScreen('extras');ExtrasScreen.render();});
+  await page.waitForTimeout(160);
 
   /* Mobile: principais blocos permanecem dentro do viewport. */
   await page.setViewportSize({width:360,height:800});

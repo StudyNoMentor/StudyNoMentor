@@ -87,6 +87,48 @@ try {
   ok(localFirst.localVisible,'telemetria deve registrar quando o perfil local ficou visível');
   ok(localFirst.remoteCalls>=1,'reconciliação remota deve continuar em segundo plano');
 
+  /* 2b. ABRIR DIRETO (recarregamento da mesma aba) TAMBEM CONFERE A NUVEM.
+     `ProfileUI.boot()` tem um atalho: se `sessionStorage[SESSION_KEY]` aponta
+     para o perfil ativo e ha dado local, ele fecha o portao e retorna — sem
+     ler a nuvem. E sessionStorage SOBREVIVE a um recarregamento. Como o
+     marcador que agendava a reconciliacao (RECON_KEY) e posto so no
+     `enterProfile` e consumido na primeira conferencia, toda recarga seguinte
+     — inclusive a que uma versao nova dispara — abria com o localStorage e
+     mais nada: dados atrasados e registros de outro aparelho ausentes, que so
+     "normalizavam" em guia anonima ou entrando/saindo da conta.
+
+     Este teste reproduz exatamente esse estado (SESSION_KEY posto, RECON_KEY
+     ausente) e exige que a conferencia em segundo plano aconteca. */
+  const entradaDireta=await page.evaluate(async()=>{
+    const id='uxv4-perfil-direto';
+    const keep={
+      logged:CloudStore.isLoggedIn,ready:CloudStore.isReady,session:CloudStore.session,
+      active:ProfileManager.getActiveProfileId,rev:ProfileManager.getRev,
+      pending:SectionSync.pendingQuick,remote:SectionSync.hasRemoteUpdates,kick:SectionSync.kick,
+      flush:CloudStore.flushPending
+    };
+    let remoteCalls=0;
+    CloudStore.isLoggedIn=()=>true;CloudStore.isReady=()=>true;CloudStore.session={user:{id:'uxv4-user'}};
+    ProfileManager.getActiveProfileId=()=>id;ProfileManager.getRev=()=>1;
+    SectionSync.pendingQuick=()=>0;SectionSync.hasRemoteUpdates=async()=>{remoteCalls++;return false;};
+    SectionSync.kick=()=>{};CloudStore.flushPending=async()=>{};
+    // o estado de uma recarga apos entrada direta: sessao da aba sim, agendamento nao
+    sessionStorage.setItem(ProfileUI.SESSION_KEY,id);
+    sessionStorage.removeItem('diario-estudos:uxv4-reconcile');
+    ProfileUI._uxv4LocalFirst=false;          // permite reinstalar o gancho de abertura
+    UX.installLocalFirst();
+    await new Promise(r=>setTimeout(r,900));  // scheduleReconcile espera a sessao
+    const trace=StartupTrace.last();
+    CloudStore.isLoggedIn=keep.logged;CloudStore.isReady=keep.ready;CloudStore.session=keep.session;
+    ProfileManager.getActiveProfileId=keep.active;ProfileManager.getRev=keep.rev;
+    SectionSync.pendingQuick=keep.pending;SectionSync.hasRemoteUpdates=keep.remote;SectionSync.kick=keep.kick;
+    CloudStore.flushPending=keep.flush;
+    try{sessionStorage.removeItem(ProfileUI.SESSION_KEY);}catch(_){}
+    return {remoteCalls,marcou:trace.some(x=>x.etapa==='reconciliacao-entrada-direta')};
+  });
+  ok(entradaDireta.remoteCalls>=1,'abrir direto (recarga da mesma aba) tambem precisa conferir a nuvem');
+  ok(entradaDireta.marcou,'a telemetria deve registrar a reconciliacao da entrada direta');
+
   /* 3. Continuidade adaptativa: não repete cegamente 18q e não deixa o aluno ocioso. */
   const adaptive=await page.evaluate(()=>{
     const RA=ReforcoAdaptativo, oldSnaps=DB.getTecSnapshots,oldExtras=DB.getExtras;

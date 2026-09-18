@@ -43,8 +43,23 @@ tem(tec, 'DT.agendarPlano(false)', 'digitação deve continuar debounced');
 tem(tec, "this._tpAnalysisDirty=true", 'análise oculta deve virar lazy/dirty em vez de render imediato');
 tem(tec, "PlanFastCache.withCache", 'render do Plano deve compartilhar cache pesado');
 tem(tec, 'auditoriaParametros()', 'TEC precisa auditar cobertura dos parâmetros');
-tem(tec, 'fonteAtual()', 'TEC precisa resolver a fonte operacional da fila');
-tem(tec, 'Quem decide a fila desta tela agora', 'TEC precisa do shell operacional orientado à decisão');
+/* ── O MARCADOR DO SHELL NAO PODE SER O TEXTO QUE ELE EXIBE ────────────────
+   Esta linha procurava a string 'CENTRAL DE DESEMPENHO' — o rotulo maiusculo
+   que a faixa mostrava. O que ela quer garantir e que o shell operacional do
+   TEC EXISTE, e para isso o rotulo era so um marcador conveniente: qualquer
+   ajuste de copy derrubava a checagem sem que nada estrutural mudasse.
+
+   E o rotulo mudou por um motivo: a faixa repetia "retratos no escopo" e
+   "retratos salvos", que o cartao "Escopo da analise" logo abaixo ja mostra,
+   e trazia auditoria de parametros e um cronometro em milissegundos como se
+   fossem metrica de estudo. Ela passou a responder o que so ela pode — em que
+   aba voce esta, QUAL MODELO decide a fila agora, e se o retrato esta vencido.
+
+   Agora o teste olha a estrutura (a faixa e a funcao que a garante) e, de
+   quebra, exige a informacao nova: e mais forte do que era, nao menos. */
+tem(tec, "box.className='tp-command'", 'TEC precisa do shell operacional (faixa tp-command)');
+tem(tec, 'garantirComando()', 'o shell precisa ser garantido em um lugar so');
+tem(tec, 'fonteAtual()', 'o shell precisa dizer qual modelo decide a fila agora');
 
 // UX responsiva e janela modal independente.
 tem(css, '.rg-overlay', 'histórico/configuração precisam de modal independente');

@@ -112,7 +112,14 @@
     },
     _topicos(c, fonte) {
       if (fonte !== 'robusto' || !Array.isArray(c && c.topicosOrdenados) || c.topicosOrdenados.length < 2) return '';
-      return `<details class="tpm-topic-order"><summary>Ordem dos próximos assuntos desta disciplina</summary><ol>${c.topicosOrdenados.slice(1, 6).map(x => `<li><span>${esc(x.nome)}</span><small>${fmt(x.taxa, 0)}% · prioridade ${Math.round(n(x.score))}/100${n(x.incidencia) > 0 ? ' · incid. ' + Math.round(n(x.incidencia)) : ''}</small></li>`).join('')}</ol></details>`;
+      /* A ordem vinha como `<ol>` com marcador de lista: o número ficava fora
+         da caixa (recuo de 20px) e as três medidas de cada assunto vinham
+         numa frase única separada por pontos — `53% · prioridade 88/100 ·
+         incid. 12` —, então nada se comparava de uma linha para a outra. Cada
+         medida ganha coluna própria, com o número da posição DENTRO da linha:
+         é a mesma forma da fila completa logo abaixo, e comparar duas linhas
+         passa a ser olhar para baixo, não reler duas frases. */
+      return `<details class="tpm-topic-order"><summary>Ordem dos próximos assuntos desta disciplina</summary><ol>${c.topicosOrdenados.slice(1, 6).map((x, k) => `<li><i>${k + 2}</i><span>${esc(x.nome)}</span><b>${fmt(x.taxa, 0)}%</b><b>${Math.round(n(x.score))}<small>/100</small></b>${n(x.incidencia) > 0 ? `<b>${Math.round(n(x.incidencia))}<small> incid.</small></b>` : '<b>—</b>'}</li>`).join('')}</ol><p>Posição · acerto observado · prioridade do motor · incidência. A primeira desta disciplina é a do cartão acima.</p></details>`;
     },
     _card(c, i, fonte) {
       const q = this._quantidade(c);
@@ -120,7 +127,19 @@
       const taxa = Number.isFinite(Number(c.taxa)) ? `${fmt(c.taxa, 0)}%` : '—';
       const amostra = Math.max(0, Math.round(n(c.qJanela)));
       const score = Number.isFinite(Number(c.score)) ? Math.round(Number(c.score)) : null;
-      return `<article class="tpm-rec" data-tpm-rec data-disciplina="${esc(c.disciplina || '')}"><div class="tpm-rank">${i + 1}</div><div class="tpm-main"><div class="tpm-head"><div><small>${esc(c.disciplina || 'Disciplina')}</small><b>${esc(c.nome || 'Assunto')}</b></div><span class="tpm-score">${score == null ? '' : 'prioridade ' + score + '/100'}</span></div><div class="tpm-metrics"><span><b>${taxa}</b><small>acerto observado</small></span><span><b>${amostra || '—'}</b><small>questões na amostra</small></span><span class="tpm-dose"><b>${q || '—'}</b><small>${fonte === 'robusto' ? 'questões recomendadas' : 'questões por frente'}</small></span><span><b>${esc(tempo.texto)}</b><small>${esc(tempo.detalhe)}</small></span></div><p class="tpm-context">${esc(c.motivo || '')}</p>${this._explica(c, fonte)}${this._topicos(c, fonte)}</div></article>`;
+      /* ── A AÇÃO QUE FALTAVA ─────────────────────────────────────────────
+         O quadro dizia onde atacar e não dava como atacar: o rodapé mandava
+         a pessoa a outra tela ("Atividades → Puxar do Plano"), reabrir o
+         mesmo cálculo num modal e reencontrar ali a recomendação que já
+         estava na frente dela. Era esse o "o botão atacar agora não
+         funciona": não havia botão nenhum neste quadro.
+
+         Ele não é um atalho paralelo. Executa pela MESMA porta do modal
+         (`PlanoSugestoes._criarUm`), com a dose que ESTE motor recomendou —
+         então a atividade nasce com a mesma procedência gravada, incluindo o
+         log de auditoria do Robusto. O índice liga o botão de volta ao
+         candidato calculado, sem reserializar nada no atributo. */
+      return `<article class="tpm-rec" data-tpm-rec data-disciplina="${esc(c.disciplina || '')}"><div class="tpm-rank">${i + 1}</div><div class="tpm-main"><div class="tpm-head"><div><small>${esc(c.disciplina || 'Disciplina')}</small><b>${esc(c.nome || 'Assunto')}</b></div><span class="tpm-score">${score == null ? '' : 'prioridade ' + score + '/100'}</span></div><div class="tpm-metrics"><span><b>${taxa}</b><small>acerto observado</small></span><span><b>${amostra || '—'}</b><small>questões na amostra</small></span><span class="tpm-dose"><b>${q || '—'}</b><small>${fonte === 'robusto' ? 'questões recomendadas' : 'questões por frente'}</small></span><span><b>${esc(tempo.texto)}</b><small>${esc(tempo.detalhe)}</small></span></div><p class="tpm-context">${esc(c.motivo || '')}</p><div class="tpm-acoes"><button type="button" class="tpm-atacar" data-tpm-atacar="${i}" title="Cria a atividade de reforço deste assunto com as ${q || 30} questões que o ${fonte === 'robusto' ? 'Robusto' : 'Simplificado'} recomendou">🎯 Atacar agora${q ? ` · ${q} q` : ''}</button><small>Vai para Atividades Extras com a dose deste motor.</small></div>${this._explica(c, fonte)}${this._topicos(c, fonte)}</div></article>`;
     },
     /* ═══ "POR QUE ISSO, AQUI?" TEM DE SER RESPONDÍVEL SEM SAIR DA TELA ═════
        Os cartões mostravam a CONCLUSÃO do motor — "prioridade 87/100" — e o
@@ -241,11 +260,30 @@
       const aberto = Math.max(step, n(this._rankingVisible[sig], step));
       const visiveis = itens.slice(0, aberto);
       const ataque = new Set((r.itens || []).map(x => this._itemKey(x)));
+      /* ── A FILA AGRUPADA POR DISCIPLINA ─────────────────────────────────
+         Era uma lista plana. Com "Mostrar todos" ela passa de cem linhas, e a
+         pergunta com que se olha esta fila — "o que tenho aberto em CADA
+         matéria, e qual delas está mais atrás?" — só se respondia rolando e
+         contando à mão, porque os assuntos de uma mesma matéria aparecem
+         espalhados por toda a ordem do motor.
+
+         O agrupamento não reordena nada: as matérias saem na ordem em que a
+         primeira delas aparece na fila DO MOTOR (ou seja, pela melhor posição
+         que cada uma alcançou), e cada linha mantém o número da sua posição
+         GLOBAL. A ordem continua sendo a do motor — o que muda é onde o olho
+         consegue pousar. */
+      const grupos = [], porDisc = new Map();
+      visiveis.forEach((c, i) => {
+        const k = norm(c.disciplina || '');
+        let g = porDisc.get(k);
+        if (!g) { g = { nome: c.disciplina || 'Sem disciplina', melhor: i + 1, linhas: [] }; porDisc.set(k, g); grupos.push(g); }
+        g.linhas.push([c, i]);
+      });
       const faltam = Math.max(0, itens.length - visiveis.length);
       const controles = faltam || visiveis.length > step
         ? `<div class="tpm-ranking-actions">${faltam ? `<button type="button" data-tpm-rank-more>Mostrar mais ${Math.min(step, faltam)}</button>${faltam > step ? '<button type="button" data-tpm-rank-all>Mostrar todos</button>' : ''}` : ''}${visiveis.length > step ? `<button type="button" data-tpm-rank-reset>Voltar a ${step}</button>` : ''}</div>`
         : '';
-      return `<section class="tpm-ranking" data-tpm-ranking data-tpm-ranking-sig="${esc(sig)}"><header><div><small>RANKING COMPLETO DO MOTOR</small><strong>Todas as frentes elegíveis</strong><p>O TOP 3 acima é a força-tarefa atual. Esta fila mantém o restante visível para diagnóstico e planejamento, sem criar uma terceira regra de decisão.</p></div><span>${visiveis.length} de ${itens.length}</span></header><div class="tpm-ranking-list">${visiveis.map((c, i) => this._rankingRow(c, i, fonte, ataque.has(this._itemKey(c)))).join('')}</div>${controles}</section>`;
+      return `<section class="tpm-ranking" data-tpm-ranking data-tpm-ranking-sig="${esc(sig)}"><header><div><small>RANKING COMPLETO DO MOTOR</small><strong>Todas as frentes elegíveis</strong><p>O TOP 3 acima é a força-tarefa atual. Esta fila mantém o restante visível para diagnóstico e planejamento, sem criar uma terceira regra de decisão.</p></div><span>${grupos.length} ${grupos.length === 1 ? 'disciplina' : 'disciplinas'} · ${visiveis.length} de ${itens.length} assuntos</span></header><div class="tpm-ranking-list">${grupos.map(g => `<section class="tpm-rank-grupo"><header><b>${esc(g.nome)}</b><span>${g.linhas.length} ${g.linhas.length === 1 ? 'assunto' : 'assuntos'}</span><em>melhor #${g.melhor}</em></header><div class="tpm-rank-grupo-itens">${g.linhas.map(([c, i]) => this._rankingRow(c, i, fonte, ataque.has(this._itemKey(c)))).join('')}</div></section>`).join('')}</div>${controles}</section>`;
     },
     _buttons(fonte, compact = false) {
       const e = this._estado();
@@ -277,7 +315,7 @@
       const nome = fonte === 'robusto' ? 'Robusto' : 'Simplificado', ico = fonte === 'robusto' ? '🧠' : '⚡';
       if (!r || r.erro) return `<section class="tpm-output" data-tpm-output data-tpm-model="${fonte}"><header><div><small>${ico} ${nome.toUpperCase()}</small><strong>Recomendação deste modelo</strong></div></header><div class="tpm-empty">${esc(this._erroTexto(r, fonte))}</div></section>`;
       const itens = (r.itens || []).slice().sort((a, b) => fonte === 'robusto' ? n(b.score) - n(a.score) : 0);
-      return `<section class="tpm-output" data-tpm-output data-tpm-model="${fonte}"><header><div><small>${ico} ${nome.toUpperCase()} · ${r.fase === 'pos' ? 'PÓS-EDITAL' : 'PRÉ-EDITAL'}</small><strong>Onde atacar agora</strong><p>${esc(this._criterio(fonte, r))}</p></div><span>${itens.length} ${itens.length === 1 ? 'disciplina' : 'disciplinas'}</span></header>${fonte === 'robusto' ? '<div class="tpm-method"><b>O algoritmo para aqui:</b> recomenda alvo, ordem e quantidade. Sua resolução aprofundada — comentários, resumo, lei seca e cards — é seu modus operandi e não entra no score.</div>' : ''}<div class="tpm-recs">${itens.map((c, i) => this._card(c, i, fonte)).join('')}</div>${this._rankingHtml(fonte, r)}<footer><b>Execução em Atividades → Puxar do Plano.</b><span>Resultados do TEC são observacionais: outras questões feitas no ciclo podem aparecer no mesmo retrato.</span></footer></section>`;
+      return `<section class="tpm-output" data-tpm-output data-tpm-model="${fonte}"><header><div><small>${ico} ${nome.toUpperCase()} · ${r.fase === 'pos' ? 'PÓS-EDITAL' : 'PRÉ-EDITAL'}</small><strong>Onde atacar agora</strong><p>${esc(this._criterio(fonte, r))}</p></div><span>${itens.length} ${itens.length === 1 ? 'disciplina' : 'disciplinas'}</span></header>${fonte === 'robusto' ? '<div class="tpm-method"><b>O algoritmo para aqui:</b> recomenda alvo, ordem e quantidade. Sua resolução aprofundada — comentários, resumo, lei seca e cards — é seu modus operandi e não entra no score.</div>' : ''}<div class="tpm-recs">${itens.map((c, i) => this._card(c, i, fonte)).join('')}</div>${this._rankingHtml(fonte, r)}<footer><b>🎯 Atacar agora cria a atividade aqui mesmo</b><span>Ela aparece em Atividades Extras com a dose deste motor. Para criar várias de uma vez, use Atividades → Puxar do Plano. Resultados do TEC são observacionais: outras questões feitas no ciclo podem aparecer no mesmo retrato.</span></footer></section>`;
     },
     /* ═══ A ROTA MANUAL NÃO PODE DESAPARECER COM A DECISÃO ═════════════════
        O CSS apagava todo filho de `#plano-lista` que não fosse a saída do
@@ -358,6 +396,31 @@
         this._scheduleRender();
       }));
     },
+    /* Criar uma atividade muda os candidatos (o motor remove disciplinas com
+       reforço aberto), então a repintura depois do clique não é cosmética: é o
+       quadro dizendo qual é o PRÓXIMO alvo. */
+    _bindAtacar(root, fonte, r) {
+      root?.querySelectorAll('[data-tpm-atacar]').forEach(b => b.addEventListener('click', () => {
+        const c = (r && r.itens || [])[Number(b.dataset.tpmAtacar)];
+        if (!c) { if (typeof showToast === 'function') showToast('Recomendação expirada — recalculando.'); this._scheduleRender(); return; }
+        if (b.disabled) return;
+        b.disabled = true;
+        const rotulo = b.textContent;
+        b.textContent = 'Criando…';
+        let ok = false;
+        try { ok = C._criarUm(c, { modo: fonte }); }
+        catch (e) { if (typeof _quiet === 'function') _quiet(e, 'tpm-atacar'); }
+        if (typeof showToast === 'function') {
+          showToast(ok
+            ? `Atividade criada: ${c.nome} · ${this._quantidade(c) || ''} questões — veja em Atividades Extras`
+            : 'Não foi possível criar a atividade deste assunto.');
+        }
+        if (!ok) { b.disabled = false; b.textContent = rotulo; return; }
+        try { if (typeof ExtrasScreen !== 'undefined' && ExtrasScreen.render) ExtrasScreen.render(); }
+        catch (e) { if (typeof _quiet === 'function') _quiet(e, 'tpm-atacar-extras'); }
+        this._scheduleRender();
+      }));
+    },
     _bindRanking(root, fonte, r) {
       const itens = this._rankingItems(fonte, r);
       if (!itens.length) return;
@@ -425,7 +488,7 @@
         if (p) proj.prepend(p);
         box.innerHTML = this._outputHtml(fonte, r);
         const out = box.firstElementChild;
-        if (out) { lista.prepend(out); this._bindRanking(out, fonte, r); this._bindExplain(out); }
+        if (out) { lista.prepend(out); this._bindRanking(out, fonte, r); this._bindExplain(out); this._bindAtacar(out, fonte, r); }
         this._agruparRotaManual(lista);
         lista.classList.add('tpm-engine-active');
         proj.querySelectorAll('.pl-hero-sub').forEach(p => {

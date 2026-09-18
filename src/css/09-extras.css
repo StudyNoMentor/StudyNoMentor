@@ -14,7 +14,9 @@
   box-shadow: var(--shadow-sm);
 }
 #screen-extras .exm-toolbar .extras-global {
-  min-width: 240px;
+  /* A barra e uma pilha de faixas de largura inteira; um piso aqui só
+     reintroduziria a disputa de largura que fazia os botoes cascatearem. */
+  min-width: 0;
 }
 #screen-extras .exm-toolbar .extras-global > span {
   color: var(--text-soft);

@@ -1001,6 +1001,46 @@ const AutoTeste = {
      duas: o HASH do conteúdo. Se o texto de uma seção não bate com o hash do
      último envio, ela mudou depois disso — mesmo que as duas listas tenham se
      perdido. */
+  /* ── REVISÃO ANOTADA NÃO É PROVA DE QUE O DADO ESTÁ AQUI ──────────────────
+     `hasRemoteUpdates` decide se vale baixar da nuvem. Ela comparava somente
+     revisão contra revisão, e a revisão é bookkeeping LOCAL: continua dizendo
+     "tenho a rev 5 de entries" mesmo depois de o conteúdo ter ido embora (cota
+     estourada no meio de uma gravação, limpeza parcial do navegador, gravação
+     interrompida). Com a revisão batendo, a resposta era "nada novo" e o
+     registro sumia para sempre — o "faltam alguns registros, e só normaliza em
+     guia anônima", porque guia anônima não tem revisão anotada e baixa tudo.
+
+     Ausência do conteúdo passa a valer como novidade. As três situações estão
+     fixadas aqui, incluindo a que NÃO deve disparar download (seção sem
+     anotação nenhuma, que é perfil novo e a semeadura normal resolve). */
+  revisaoAnotadaSemConteudo() {
+    const PID = '__t_rev__';
+    const pfx = 'diario-estudos:u:' + PID + ':';
+    const criadas = [pfx + 'p:pl:entries'];
+    const rev = (n) => ({ 'p:pl:entries': { rev: n, hash: 'x' } });
+    try {
+      // anotado na rev 5 E presente no aparelho: nada a baixar
+      localStorage.setItem(pfx + 'p:pl:entries', '[{"id":"e1"}]');
+      this._ok('rev igual e conteúdo presente: não baixa',
+        SectionSync.precisaBaixar({ section: 'p:pl:entries', rev: 5 }, rev(5), pfx) === false);
+      // rev remota maior continua sendo novidade, como sempre foi
+      this._ok('rev remota maior: baixa',
+        SectionSync.precisaBaixar({ section: 'p:pl:entries', rev: 6 }, rev(5), pfx) === true);
+      // a MESMA anotação, sem o conteúdo: tem de baixar
+      localStorage.removeItem(pfx + 'p:pl:entries');
+      this._ok('rev anotada mas seção AUSENTE no aparelho: baixa',
+        SectionSync.precisaBaixar({ section: 'p:pl:entries', rev: 5 }, rev(5), pfx) === true);
+      // sem anotação nenhuma (perfil novo): a semeadura cuida, não é "novidade"
+      this._ok('seção sem anotação e rev 0 não dispara download',
+        SectionSync.precisaBaixar({ section: 'p:pl:entries', rev: 0 }, {}, pfx) === false);
+      // o manifesto é contabilidade da camada, nunca conteúdo de perfil
+      this._ok('o manifesto ausente não conta como registro faltando',
+        SectionSync.precisaBaixar({ section: SectionSync.MANIFEST, rev: 9 },
+          { [SectionSync.MANIFEST]: { rev: 9, hash: 'm' } }, pfx) === false);
+    } finally {
+      criadas.forEach(k => { try { localStorage.removeItem(k); } catch (e) { _quiet(e, 'rev-limpa'); } });
+    }
+  },
   filaDeEnvioSobrevive() {
     const PID = '__t_fila__';
     const ativoOriginal = localStorage.getItem(DB.ACTIVE_PROFILE_KEY);
@@ -3618,6 +3658,7 @@ const AutoTeste = {
      ['Travas contra perda', 'travasDePerda'],
      ['Tudo entra na sincronização', 'tudoEntraNaSincronizacao'],
      ['A fila de envio sobrevive', 'filaDeEnvioSobrevive'],
+     ['Revisão anotada sem conteúdo', 'revisaoAnotadaSemConteudo'],
      ['Link nunca vira código', 'linkNuncaViraCodigo'],
      ['Adota o id do banco', 'adotaOIdDoBanco'],
      ['Isolamento entre contas', 'isolamentoEntreContas'],
