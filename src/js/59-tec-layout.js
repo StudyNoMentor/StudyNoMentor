@@ -13,7 +13,40 @@
       for (const s of sels) { const el = panel.querySelector(s); if (el) return el; }
       return null;
     },
-    _scroll(el) { if (el && el.scrollIntoView) el.scrollIntoView({ behavior:'smooth', block:'start' }); },
+    /* ── UM ATALHO QUE NÃO ROLA PARA NADA NÃO É ATALHO ─────────────────────
+       Os três passos apontavam para `.pl-hero`, `.pl-tempo` e `.pl-hoje` — os
+       blocos do Plano legado. Com um motor ativo (o padrão), `.pl-hero` está
+       oculto e os outros dois vivem dentro do recolhível da rota manual: os
+       botões existiam, ficavam clicáveis e não levavam a lugar nenhum. É o
+       tipo de comando que faz duvidar de tudo o que está na tela.
+
+       Agora cada passo tem uma LISTA de alvos, na ordem da leitura atual:
+       primeiro a superfície do motor, depois a legada, para o atalho valer
+       nos dois estados. E se o alvo estiver dentro de um `<details>` fechado,
+       ele é aberto antes — rolar até algo invisível é a mesma falha com outra
+       aparência. */
+    _scroll(el) {
+      if (!el) return;
+      let d = el.closest ? el.closest('details:not([open])') : null;
+      while (d) { d.open = true; d = d.parentElement && d.parentElement.closest ? d.parentElement.closest('details:not([open])') : null; }
+      if (el.scrollIntoView) el.scrollIntoView({ behavior:'smooth', block:'start' });
+    },
+    _visivel(el) {
+      if (!el) return false;
+      if (el.hidden) return false;
+      /* `offsetParent` nulo cobre de uma vez `display:none` no elemento e em
+         qualquer ancestral — que é como o CSS do TEC oculta o legado. Um alvo
+         dentro de `<details>` fechado NÃO cai aqui (ele tem offsetParent), e
+         é de propósito: `_scroll` sabe abrir. */
+      return el.offsetParent !== null || !!(el.closest && el.closest('details'));
+    },
+    _primeiro(panel, sels) {
+      for (const sel of sels) {
+        const el = panel.querySelector(sel);
+        if (this._visivel(el)) return el;
+      }
+      return null;
+    },
     _guide(panel) {
       let guide = panel.querySelector('.tl2-guide');
       if (!guide) {
@@ -33,14 +66,18 @@
           !el.classList.contains('tl2-guide') && !el.classList.contains('tl2-summary-strip'));
         if (alvo) panel.insertBefore(guide, alvo); else panel.appendChild(guide);
       }
+      const ALVOS = {
+        // o panorama do motor primeiro; o hero legado só quando não há motor
+        panorama:   ['[data-tpm-panorama]', '.pl-hero'],
+        // a força-tarefa do motor é a prioridade de hoje; depois o quadro legado
+        prioridade: ['[data-tpm-output] .tpm-recs', '[data-tpm-output]', '.pl-tempo', '.pl-ciclo'],
+        // a ação: ranking completo do motor, ou o bloco/lista do legado
+        acao:       ['.tpm-ranking', '.tpm-legacy-exec', '.pl-hoje', '.pl-item']
+      };
       guide.querySelectorAll('[data-tl2-step]').forEach(b => b.onclick = () => {
-        const key = b.dataset.tl2Step;
-        const el = key === 'panorama'
-          ? this._find(panel,['.pl-hero'])
-          : key === 'prioridade'
-            ? this._find(panel,['.pl-tempo','.pl-ciclo'])
-            : this._find(panel,['.pl-hoje','.pl-item']);
-        this._scroll(el);
+        const el = this._primeiro(panel, ALVOS[b.dataset.tl2Step] || []);
+        if (el) this._scroll(el);
+        else if (typeof showToast === 'function') showToast('Esta etapa não tem nada para mostrar no escopo atual.');
       });
     },
     _decorateSections(panel) {
@@ -63,7 +100,13 @@
         strip=document.createElement('div');strip.className='tl2-summary-strip';
         const guide=panel.querySelector('.tl2-guide'); if(guide) guide.insertAdjacentElement('afterend',strip); else panel.prepend(strip);
       }
-      strip.innerHTML=`<span><b>${acao}</b><small>matéria${acao===1?'':'s'} para atacar</small></span><span><b>${fila}</b><small>na fila</small></span><span><b>${topicos}</b><small>tópico${topicos===1?'':'s'} exibido${topicos===1?'':'s'}</small></span><span><b>3 passos</b><small>panorama → prioridade → ação</small></span>`;
+      /* O quarto azulejo dizia "3 passos · panorama → prioridade → ação" —
+         a mesma frase da faixa "COMO LER O PLANO" imediatamente acima, no
+         formato de um número que não é número. Um dado por azulejo; a
+         instrução fica onde ela já estava. */
+      const frentes=panel.querySelectorAll('[data-tpm-rec]').length;
+      strip.innerHTML=`<span><b>${acao}</b><small>matéria${acao===1?'':'s'} para atacar</small></span><span><b>${fila}</b><small>na fila</small></span><span><b>${topicos}</b><small>tópico${topicos===1?'':'s'} exibido${topicos===1?'':'s'}</small></span>`
+        +(frentes?`<span><b>${frentes}</b><small>frente${frentes===1?'':'s'} na força-tarefa do motor</small></span>`:'');
     },
     decorarPlano() {
       const panel=document.getElementById('tec-panel-plano'); if(!panel)return;

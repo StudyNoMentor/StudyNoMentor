@@ -1862,11 +1862,21 @@ try {
     switchScreen('extras');
     if (window.ExtrasScreen) ExtrasScreen.render();
     const t = (document.getElementById('extras-list') || {}).textContent || '';
-    return { doPlano: /do Plano/.test(t), evo: /45% → 30%/.test(t), retrato: /pelo retrato/.test(t),
+    /* ── A ORIGEM FICOU MAIS PRECISA; O TESTE PEDE A INFORMACAO ────────────
+       A etiqueta dizia "🏁 do Plano" para QUALQUER atividade vinda do TEC —
+       leitura analitica legada, Simplificado e Robusto, as tres iguais. Com os
+       tres coexistindo isso impede a conferencia que mais importa: o que esta
+       na fila saiu do modelo que eu escolhi? Agora a etiqueta nomeia a fonte
+       (o dado ja estava em `origemPlano.sugestao.motor`, so nao chegava a
+       tela). O que este teste garante continua sendo o mesmo — o cartao diz de
+       ONDE veio —, e passa a aceitar qualquer uma das tres fontes em vez de
+       exigir a frase generica que existia quando havia so uma. */
+    return { doPlano: /do Plano|leitura anal[íi]tica|Robusto|Simplificado/.test(t),
+      evo: /45% → 30%/.test(t), retrato: /pelo retrato/.test(t),
       barra: /50 \/ 120/.test(t) };
   });
   (card.doPlano && card.evo && card.barra)
-    ? ok('o cartao da atividade diz que veio do Plano, mostra 45% → 30% e a barra em 50/120')
+    ? ok('o cartao da atividade nomeia a fonte que a gerou, mostra 45% → 30% e a barra em 50/120')
     : erro('o cartao nao trouxe o ciclo: ' + JSON.stringify(card));
 
   // a calibragem so aparece com historico, e propoe o SEU numero
@@ -2859,7 +2869,20 @@ try {
       PlanoEngine.salvarPrefs({ disciplina: '__todas__', minAmostra: 20, metaDominio: 85, limite: 30, ordenar: 'pior' });
       DesempenhoTecScreen._planoRefC = null;
       DesempenhoTecScreen.renderPlano();
-      const blocos = [...document.querySelectorAll('#plano-lista > *')].map((e) => (e.className || '').split(' ')[0]);
+      /* ── A ORDEM É A MESMA; A PROFUNDIDADE MUDOU ──────────────────────────
+         Esta leitura olhava só os filhos DIRETOS de `#plano-lista`. Com a rota
+         manual reagrupada num `<details class="tpm-legacy-exec">` (para o
+         botão 🎯 Atacar e a criação avulsa voltarem a existir quando há motor
+         ativo, sem recriar uma segunda fonte de decisão), "Onde atacar
+         primeiro" e "O seu próximo bloco" passaram a ser NETOS — e a busca
+         rasa devolvia -1 para o segundo.
+
+         O que o teste prova continua valendo e continua sendo verificado: a
+         matéria vem antes do bloco de assuntos. `querySelectorAll` devolve em
+         ordem de documento, então incluir o conteúdo do agrupamento mantém a
+         comparação de índices exata, com agrupamento ou sem ele. */
+      const blocos = [...document.querySelectorAll('#plano-lista > *, #plano-lista > .tpm-legacy-exec > *')]
+        .map((e) => (e.className || '').split(' ')[0]);
       const tm = PlanoPontos.esforcoPorMateria();
       const por = {}; tm.linhas.forEach((l) => { por[l.nome] = l; });
       const r = PlanoEngine.calcular(DesempenhoTecScreen.scopedSnapshot(), PlanoEngine.prefs());

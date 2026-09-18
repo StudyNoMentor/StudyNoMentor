@@ -2961,6 +2961,7 @@ const TecAjustes = {
     modal.style.display = 'flex';
     document.body.style.overflow = 'hidden';
     this.aplicarCondicionais();
+    try { this.marcarEscopos(); } catch (e) { _quiet(e, 'cfg-escopos'); }
     this.marcarPersonalizadas();
     this.estabilizarAltura();
     /* O foco cai no chip da seção, não no ✕. Abrir um painel de ajustes com o
@@ -3077,6 +3078,92 @@ const TecAjustes = {
       el.dispatchEvent(new Event('input', { bubbles: true }));
       el.dispatchEvent(new Event('change', { bubbles: true }));
     }));
+  },
+  /* ═══ CADA CAMPO DIZ O QUE ELE MOVE ══════════════════════════════════════
+     A folha do Plano reúne, na mesma grade, parâmetros de TRÊS consumidores
+     diferentes — e não dizia qual era qual. O efeito é o que se sente ao
+     abrir: "Meta de domínio (%)" aqui e "Meta desejada" na aba ⚙ Modelos
+     parecem o mesmo campo duplicado; "Ordem de ataque" parece decidir a fila
+     que o motor monta (não decide); e não havia como saber se mexer em algo
+     ali muda o número que está na tela ou um número que nem aparece mais.
+
+     Os três escopos reais:
+
+     · ANÁLISE — lidos por `PlanoEngine`, a leitura analítica do Plano: a
+       trajetória, o quadro de matérias, a nota projetada e a rota manual.
+       NÃO entram no Simplificado nem no Robusto, que têm régua própria.
+     · MOTORES — lidos pelos motores de sugestão, e valem tanto no Plano
+       quanto no "Puxar do Plano" de Extras.
+     · AMBOS — mexem no recorte de dados que os dois leem.
+
+     Um selo por campo, montado a partir deste mapa. Só rótulo: nenhum valor,
+     nenhuma regra e nenhum default muda por causa dele. O que muda é a pessoa
+     saber, antes de girar o botão, o que vai se mexer. */
+  ESCOPO_CAMPO: {
+    // recorte de dados — os dois lados leem
+    'plano-disc': 'ambos',
+    'plano-excluidas-pick': 'ambos',
+    /* ── ESTES DOIS NÃO SÃO DOS MOTORES ─────────────────────────────────
+       O rótulo no HTML dizia que eles governam o "Puxar do Plano", e não é
+       verdade desde que os motores existem: quem os lê é `TecAuditoria.
+       selecionarDiverso`, que monta "O seu próximo bloco" da rota manual.
+       O Simplificado decide as suas frentes em `_top3` e o Robusto em
+       `grupos.slice(0,3)` — nenhum dos dois pode nem ler `PlanoEngine`
+       (é invariante de arquitetura, conferida em testes/plano-robusto.mjs).
+       Cada motor ganhou o seu próprio campo de frentes, na aba ⚙ Modelos. */
+    'plano-sug-disciplinas': 'analise',
+    'plano-sug-topicos': 'analise',
+    // leitura analítica legada
+    'plano-limite': 'analise', 'plano-meta': 'analise', 'plano-amostraalvo': 'analise',
+    'plano-ritmo': 'analise', 'plano-ordenar': 'analise', 'plano-banca-pick': 'analise',
+    'plano-minamostra': 'analise', 'plano-piso': 'analise', 'plano-pequenas': 'analise',
+    'plano-folhas': 'analise', 'plano-granpiso': 'analise', 'plano-janelamax': 'analise',
+    'plano-validade': 'analise', 'plano-cadencia': 'analise', 'plano-teto': 'analise',
+    'plano-critico': 'analise', 'plano-fragil': 'analise', 'plano-consolidar': 'analise',
+    'plano-sens': 'analise', 'plano-ponderacao': 'analise', 'plano-customodo': 'analise',
+    'plano-custopiso': 'analise', 'plano-custoponto': 'analise', 'plano-custofixo': 'analise',
+    'plano-custofator': 'analise', 'plano-pesobanca': 'analise'
+  },
+  ROTULO_ESCOPO: {
+    analise: ['📐 análise', 'Vale para a leitura analítica do Plano — trajetória, quadro de matérias, nota projetada e a rota manual. Os motores Simplificado e Robusto têm régua própria e não leem este campo.'],
+    motor: ['🧠 motores', 'Vale para os motores de sugestão: quantas frentes eles mantêm abertas ao mesmo tempo, aqui e no “Puxar do Plano” de Extras.'],
+    ambos: ['🔗 análise + motores', 'Muda o recorte dos dados, então vale para os dois lados: a leitura analítica e os motores de sugestão.']
+  },
+  marcarEscopos() {
+    const secs = [...document.querySelectorAll('#tec-cfg-body .tec-cfg-sec[data-tab="plano"]')];
+    if (!secs.length) return;
+    secs.forEach(sec => {
+      if (!sec.querySelector('.tec-cfg-escopo-legenda')) {
+        const legenda = document.createElement('div');
+        legenda.className = 'tec-cfg-escopo-legenda';
+        legenda.innerHTML = '<b>O que cada selo quer dizer</b>'
+          + Object.keys(this.ROTULO_ESCOPO).map(k => {
+            const [rot, desc] = this.ROTULO_ESCOPO[k];
+            return `<span><span class="tec-cfg-escopo ${k === 'analise' ? '' : 'is-' + k}">${escapeHtml(rot)}</span> ${escapeHtml(desc.split('.')[0])}.</span>`;
+          }).join('');
+        const sub = sec.querySelector('.tec-cfg-sec-sub');
+        if (sub) sub.insertAdjacentElement('afterend', legenda); else sec.prepend(legenda);
+      }
+      Object.keys(this.ESCOPO_CAMPO).forEach(id => {
+        const campo = sec.querySelector('#' + id);
+        if (!campo) return;
+        const box = campo.closest('.rfc-field');
+        if (!box || box.querySelector('.tec-cfg-escopo')) return;
+        /* O rótulo da caixa de seleção é o próprio `<label class="rfc-check">`;
+           nos outros campos é o `<label for=...>` acima. Em ambos o selo entra
+           no fim do rótulo, para não separar o texto do controle. */
+        const rot = box.querySelector('label.rfc-check') || box.querySelector('label');
+        if (!rot) return;
+        const escopo = this.ESCOPO_CAMPO[id];
+        const [texto, titulo] = this.ROTULO_ESCOPO[escopo];
+        const selo = document.createElement('span');
+        selo.className = 'tec-cfg-escopo' + (escopo === 'analise' ? '' : ' is-' + escopo);
+        selo.title = titulo;
+        selo.textContent = texto;
+        if (rot.classList.contains('rfc-check')) rot.appendChild(selo);
+        else rot.appendChild(selo);
+      });
+    });
   },
   aplicarCondicionais() {
     document.querySelectorAll('#tec-cfg-body [data-cfg-se]').forEach(el => {
@@ -3341,6 +3428,66 @@ const DesempenhoTecScreen = {
      ele deixa de ser tempo MUDO. Dois `requestAnimationFrame` porque um só
      ainda pode rodar antes da pintura. */
   _depoisDePintar(alvoId, fn) { pintarDepois(alvoId, 'Calculando o seu plano…', fn); },
+
+  /* ═══ TODA ABA PESADA MERECE O MESMO TRATAMENTO ═════════════════════════
+     O adiamento com esqueleto existia só para o Plano. As outras três abas
+     chamavam o render direto do `click`, e cada uma faz trabalho pesado sobre
+     o mesmo conjunto de retratos: Análise soma totais, pontos fracos e o
+     quadro por disciplina; Incidência monta uma floresta por banca;
+     Reforço cruza incidência com erro em toda a árvore. Num perfil com dez
+     retratos e centenas de assuntos, o clique no chip simplesmente não
+     respondia por um tempo visível — a aba antiga continuava na tela, sem
+     nenhum sinal, e o app parecia ter travado. Era isso que se sentia ao
+     alternar entre 📊 Análise, 🏛️ Incidência, 🏁 Plano e ⚙ Modelos.
+
+     A correção é a mesma do Plano, generalizada: o que é barato (marcar o chip
+     ativo e trocar qual painel está visível) acontece no MESMO quadro do
+     toque, um sinal de trabalho aparece junto, e o cálculo roda no quadro
+     seguinte. O tempo total não muda — deixa de ser tempo mudo.
+
+     `switchTecTab` continua síncrona de propósito: quem a chama por código (e
+     a suíte de verificação) espera a tela pintada ao retornar. O adiamento
+     pertence ao clique, não à API. */
+  ABAS_TEC: ['analise', 'incidencia', 'reforco', 'plano', 'motores'],
+  /* Painéis cujo corpo é GERADO por inteiro podem receber o esqueleto no
+     lugar do conteúdo. Os demais têm HTML estático (cartões, filtros) que não
+     pode ser descartado — neles o sinal é o estado ocupado do próprio painel. */
+  ESQUELETO_ABA: { plano: 'plano-lista', motores: 'tec-panel-motores' },
+  ROTULO_ABA: {
+    analise: 'Somando os seus retratos…',
+    incidencia: 'Montando a árvore da banca…',
+    reforco: 'Cruzando o seu erro com a incidência…',
+    plano: 'Calculando o seu plano…',
+    motores: 'Lendo a configuração dos modelos…'
+  },
+  _pintarTrocaDeAba(alvo) {
+    this.tecTab = alvo;
+    document.querySelectorAll('#tec-subtabs .tec-subtab')
+      .forEach(x => x.classList.toggle('active', x.dataset.tectab === alvo));
+    document.querySelectorAll('[id^="tec-panel-"]').forEach(el => {
+      const mostrar = (el.id === 'tec-panel-' + alvo) ? 'block' : 'none';
+      if (el.style.display !== mostrar) el.style.display = mostrar;
+    });
+  },
+  trocarAbaPeloToque(alvo) {
+    if (!alvo || this.ABAS_TEC.indexOf(alvo) < 0) return;
+    this._pintarTrocaDeAba(alvo);
+    const skelId = this.ESQUELETO_ABA[alvo];
+    const skel = skelId ? document.getElementById(skelId) : null;
+    if (skel) { pintarDepois(skel, this.ROTULO_ABA[alvo], () => this.switchTecTab(alvo)); return; }
+    const painel = document.getElementById('tec-panel-' + alvo);
+    if (painel) { painel.setAttribute('aria-busy', 'true'); painel.classList.add('tec-aba-ocupada'); }
+    const soltar = () => {
+      if (!painel) return;
+      painel.removeAttribute('aria-busy');
+      painel.classList.remove('tec-aba-ocupada');
+    };
+    requestAnimationFrame(() => requestAnimationFrame(() => {
+      try { this.switchTecTab(alvo); }
+      catch (e) { _quiet(e, 'tec-troca-aba'); }
+      finally { soltar(); }
+    }));
+  },
   // ---- Escopo da análise: 'consolidado' (todos), 'select' (retratos marcados), 'range' (intervalo) ----
   scopeMode: 'consolidado',
   selectedSnapIds: null, // Set de ids marcados (modo 'select')
@@ -3437,16 +3584,28 @@ const DesempenhoTecScreen = {
     this.applyEnxuto();
     DB._tecReadSnapshot = null;
   },
-  // Mostra/oculta todos os filtros e configurações da tela (classe .tec-cfg),
-  // deixando só os resultados. Estado salvo por perfil.
+  /* ═══ UM CONTROLE DE DENSIDADE, NÃO DOIS QUE NINGUÉM ENTENDE ════════════
+     O menu ⚙ Exibição tinha dois itens, e o primeiro — "Filtros soltos nos
+     cartões" — prometia mostrar ou esconder os filtros da tela. Só que a
+     classe que ele liga (`.tec-cfg`) existe em UM elemento da tela inteira: o
+     campo de banca da aba Incidência. Nas abas Análise e Plano ele não
+     escondia filtro nenhum; o único efeito visível era `hide-heads`, que
+     enxuga os subtítulos dos cartões — coisa que o item não menciona, e que o
+     "Modo enxuto" logo abaixo já faz junto com o resto dos textos de ajuda.
+
+     Ou seja: um comando cujo rótulo descrevia algo que ele não fazia, e cujo
+     efeito real era um subconjunto do comando vizinho. Não dá para saber "para
+     que serve ou se funciona" porque as duas respostas eram "quase nada" e
+     "não como está escrito".
+
+     Fica UM controle. `hide-heads` passa a ser parte do Modo enxuto (que é
+     exatamente o que ele é: menos texto explicativo), e o filtro da Incidência
+     deixa de ser escondível — filtro que a pessoa precisa usar não é ruído.
+     `applyCfgHidden` continua existindo, agora só para garantir que nenhum
+     perfil fique com o estado antigo preso na tela. */
   applyCfgHidden() {
-    const on = !!this._loadPrefs().hideCfg;
     const wrap = document.getElementById('tec-analysis');
-    // hide-cfg esconde os filtros; hide-heads enxuga tambem os subtitulos longos
-    // dos cabecalhos de cartao, que so explicam o que a tela ja mostra.
-    if (wrap) { wrap.classList.toggle('hide-cfg', on); wrap.classList.toggle('hide-heads', on); }
-    const btn = document.getElementById('tec-toggle-cfg');
-    if (btn) { btn.classList.toggle('is-active', on); btn.innerHTML = `<span class="gg-ic">🔧</span>${on ? 'Mostrar filtros' : 'Ocultar filtros'}`; }
+    if (wrap) { wrap.classList.remove('hide-cfg'); wrap.classList.toggle('hide-heads', !!this._loadPrefs().enxuto); }
   },
   /* MODO ENXUTO — depois que você entende a tela, textos de ajuda, legendas e
      dicas viram ruído. Este modo esconde tudo isso e deixa só o que muda de
@@ -3455,8 +3614,16 @@ const DesempenhoTecScreen = {
     const on = !!this._loadPrefs().enxuto;
     const tela = document.getElementById('screen-desempenhotec');
     if (tela) tela.classList.toggle('tec-enxuto', on);
+    const wrap = document.getElementById('tec-analysis');
+    if (wrap) wrap.classList.toggle('hide-heads', on);
     const b = document.getElementById('tec-enxuto-btn');
-    if (b) { b.classList.toggle('is-active', on); b.innerHTML = `<span class="gg-ic">🔎</span>${on ? 'Modo completo' : 'Modo enxuto'}`; }
+    if (b) {
+      b.classList.toggle('is-active', on);
+      b.innerHTML = `<span class="gg-ic">🔎</span>${on ? 'Mostrar os textos de ajuda' : 'Esconder os textos de ajuda'}`;
+      b.title = on
+        ? 'Voltar a exibir subtítulos, legendas e explicações dos cartões'
+        : 'Deixar só números, barras e listas — esconde subtítulos, legendas e explicações';
+    }
   },
   /* ── QUAIS BANCAS SÃO AS MINHAS ───────────────────────────────────────────
      A escolha da banca existia em DOIS lugares (uma preferência no Reforço,
@@ -3554,6 +3721,43 @@ const DesempenhoTecScreen = {
      Cada linha mostra o tamanho do que sai da conta (assuntos e questões do
      histórico), porque "excluir Legislação do RN" tem consequências muito
      diferentes se ela vale 40 questões ou 2.400. */
+  /* ── O RÓTULO E O PÉ MUDAM; A LISTA NÃO ─────────────────────────────────
+     Marcar uma matéria muda exatamente duas coisas dentro desta caixa: o
+     texto do botão ("🚫 5 matérias fora") e a linha de ações no pé ("↺ Trazer
+     todas de volta" aparece a partir da primeira marcada). Os nomes, a ordem
+     e o volume de cada linha são os mesmos — eles vêm do histórico, não da
+     marcação.
+
+     Reconstruir o `innerHTML` inteiro para atualizar esses dois pedaços é o
+     que fazia a caixa "voltar para o início da lista": um painel novo nasce
+     com `scrollTop = 0`, e com trinta matérias você era devolvido ao topo a
+     cada clique — além de pagar `materiasExcluiveis()` (que varre todos os
+     retratos para contar assuntos e questões) de novo, o que é a travada que
+     se sentia junto. Agora só os dois pedaços são reescritos, no lugar. */
+  _sincronizarExcluidasPicker(host) {
+    if (!host) return false;
+    const btn = host.querySelector('.banca-pick-btn');
+    const painel = host.querySelector('.banca-pick-panel');
+    const acoes = painel && painel.querySelector('.banca-pick-acoes');
+    if (!btn || !painel || !acoes) return false;
+    const marcadas = [...painel.querySelectorAll('input[type="checkbox"]:checked')].length;
+    const total = painel.querySelectorAll('input[type="checkbox"]').length;
+    const rot = !total ? 'Nenhuma matéria conhecida'
+      : marcadas === 0 ? '✅ Todas as matérias no Plano'
+      : marcadas === 1 ? '🚫 1 matéria fora'
+      : `🚫 ${marcadas} matérias fora`;
+    const alvo = btn.querySelector('span:not(.chev)');
+    if (alvo && alvo.textContent !== rot) alvo.textContent = rot;
+    const acoesHtml = marcadas
+      ? '<button type="button" data-acao="nenhuma">↺ Trazer todas de volta</button>'
+      : '<span class="banca-pick-nota">Nenhuma matéria excluída — o Plano está vendo tudo.</span>';
+    if (acoes.innerHTML !== acoesHtml) {
+      acoes.innerHTML = acoesHtml;
+      const b = acoes.querySelector('[data-acao]');
+      if (b) b.addEventListener('click', () => this.setExcluidas([]));
+    }
+    return true;
+  },
   renderExcluidasPicker(hostId) {
     const host = document.getElementById(hostId || 'plano-excluidas-pick');
     if (!host) return;
@@ -3634,8 +3838,28 @@ const DesempenhoTecScreen = {
        só duas coisas mudaram de verdade: a lista de disciplinas oferecidas no
        filtro e o conteúdo do Plano. */
     this._sincronizarFiltroDisc();
-    this.renderExcluidasPicker('plano-excluidas-pick');
-    this.agendarPlano(true);
+    /* Atualização no lugar. Se por algum motivo a caixa não estiver montada
+       (primeira pintura, id trocado), cai na reconstrução completa — mas
+       guardando e devolvendo a rolagem do painel, que é o que se perdia. */
+    const host = document.getElementById('plano-excluidas-pick');
+    if (!this._sincronizarExcluidasPicker(host)) {
+      const painelAntes = host && host.querySelector('.banca-pick-panel');
+      const y = painelAntes ? painelAntes.scrollTop : 0;
+      this.renderExcluidasPicker('plano-excluidas-pick');
+      const painelDepois = host && host.querySelector('.banca-pick-panel');
+      if (painelDepois && y) painelDepois.scrollTop = y;
+    }
+    /* ── O RECÁLCULO ESPERA O ÚLTIMO CLIQUE ─────────────────────────────────
+       `agendarPlano(true)` roda o motor inteiro AGORA. Quem abre esta caixa
+       raramente tira uma matéria só: marcar cinco disparava cinco cálculos
+       completos em sequência, e cada um deles é o motor varrendo todos os
+       retratos. Era a travada de meio segundo a cada caixinha.
+
+       Uma caixa de seleção não é uma rajada de teclas, mas é uma rajada de
+       CLIQUES — e aqui o resultado só importa depois do último. O pedido passa
+       a ser agendado, como o dos campos numéricos: o sinal de "processando"
+       aparece na hora e o cálculo acontece uma vez. */
+    this.agendarPlano(false);
   },
   /* A lista do filtro de disciplina depende do que está excluído — é o único
      campo da folha que a exclusão precisa mexer. Extraído de `renderPlano`
@@ -7077,11 +7301,11 @@ document.addEventListener('click', () => {
 // Listeners da tela Desempenho TEC
 $id('tec-btn-first-import').addEventListener('click', () => DesempenhoTecScreen.openImport());
 $id('tec-btn-new-import').addEventListener('click', () => DesempenhoTecScreen.openImport());
-$id('tec-toggle-cfg').addEventListener('click', () => {
-  const p = DesempenhoTecScreen._loadPrefs();
-  DesempenhoTecScreen.savePrefs({ hideCfg: !p.hideCfg });
-  DesempenhoTecScreen.applyCfgHidden();
-});
+/* O item "Filtros soltos nos cartões" saiu do menu ⚙ Exibição (o botão é
+   removido do DOM em `applyEnxuto`'s vizinho, abaixo): ele prometia mexer nos
+   filtros e mexia só nos subtítulos, que agora fazem parte do Modo enxuto.
+   O ouvinte sai com ele; sem isso, um perfil antigo com `hideCfg` salvo
+   continuaria alternando uma classe que nenhum item da tela anuncia. */
 $id('tec-enxuto-btn').addEventListener('click', () => {
   const p = DesempenhoTecScreen._loadPrefs();
   DesempenhoTecScreen.savePrefs({ enxuto: !p.enxuto });
@@ -7214,20 +7438,16 @@ $id('tec-weak-disc').addEventListener('change', (e) => {
      O travamento que a pessoa sente é o do DEDO no chip: é ali que o quadro
      tem de ser liberado antes do cálculo. Chamada por código continua
      síncrona; o toque troca a aba agora e calcula no quadro seguinte. */
-  document.querySelectorAll('#tec-subtabs .tec-subtab').forEach(b => b.addEventListener('click', () => {
-    const alvo = b.dataset.tectab;
-    /* Reclicar o chip do Plano recalcula a tela inteira igual à primeira vez —
-       então ele também merece o esqueleto, e não a lista velha congelada. */
-    if (alvo !== 'plano') { DT.switchTecTab(alvo); return; }
-    // pinta a troca de aba e o esqueleto agora; o motor roda no quadro seguinte
-    DT.tecTab = alvo;
-    document.querySelectorAll('#tec-subtabs .tec-subtab').forEach(x => x.classList.toggle('active', x.dataset.tectab === alvo));
-    ['analise', 'incidencia', 'reforco', 'plano'].forEach(t => {
-      const el = document.getElementById('tec-panel-' + t);
-      if (el) el.style.display = (t === alvo) ? 'block' : 'none';
-    });
-    DT._depoisDePintar('plano-lista', () => DT.switchTecTab(alvo));
-  }));
+  /* A fita de abas usa UM ouvinte delegado, não um por botão: a aba
+     ⚙ Modelos é criada depois desta linha rodar (a central dos motores a
+     injeta), e um ouvinte por botão simplesmente não a alcançava — ela ficava
+     com o clique síncrono próprio, a única sem o adiamento. */
+  const fita = document.getElementById('tec-subtabs');
+  if (fita) fita.addEventListener('click', (ev) => {
+    const b = ev.target && ev.target.closest ? ev.target.closest('.tec-subtab') : null;
+    if (!b || !fita.contains(b) || !b.dataset.tectab) return;
+    DT.trocarAbaPeloToque(b.dataset.tectab);
+  });
   // Incidência
   on('incid-text', 'input', () => DT.updateIncidPreview());
   on('incid-banca', 'input', () => DT.updateIncidPreview());

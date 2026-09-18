@@ -75,6 +75,36 @@ const SaveGuard = {
     }
 
     if (opts.nuvem === false) return comPiso({ ok: true, local: true, cloud: false, motivo: 'sem-nuvem' });
+
+    /* ═══ ESPERAR A NUVEM NÃO MUDA A DECISÃO, SÓ A FRASE ═══════════════════
+       Com conta conectada, esta espera é o que faz "Registrar estudo" demorar:
+       o formulário fica travado até o `flushPending` terminar (teto de 12 s,
+       conferido de 250 em 250 ms). E o que se ganha esperando é APENAS a
+       precisão do aviso — "salvo e sincronizado ✓" em vez de "salvo no
+       aparelho · envio em andamento". O veredito não muda: falha de rede
+       continua devolvendo `ok: true`, porque o dado já está no aparelho e na
+       fila de envio, e o formulário é limpo do mesmo jeito. Ou seja, a pessoa
+       esperava por uma palavra, com o dado já seguro desde o passo anterior.
+
+       `nuvem: 'depois'` devolve o controle assim que a persistência local está
+       PROVADA (o passo que importa) e continua acompanhando a nuvem em
+       segundo plano, avisando pelo `aoSincronizar`. A garantia que existe aqui
+       desde o começo fica intacta: "sincronizado" só é dito depois de a fila
+       confirmar — o que muda é que o formulário não fica parado esperando
+       para ouvir isso.
+
+       Quem não passa a opção continua com a espera síncrona, byte por byte
+       como antes: nenhum outro salvamento do app muda de comportamento. */
+    if (opts.nuvem === 'depois') {
+      const res = await comPiso({ ok: true, local: true, cloud: false, motivo: 'enviando' });
+      this._aguardaNuvem(opts.timeout).then((r) => {
+        if (typeof opts.aoSincronizar === 'function') {
+          try { opts.aoSincronizar({ ok: true, local: true, cloud: r.enviado, motivo: r.motivo }); }
+          catch (e) { _quiet(e, 'saveguard-ao-sincronizar'); }
+        }
+      }, (e) => _quiet(e, 'saveguard-nuvem-depois'));
+      return res;
+    }
     const r = await this._aguardaNuvem(opts.timeout);
     return comPiso({ ok: true, local: true, cloud: r.enviado, motivo: r.motivo });
   },
@@ -108,6 +138,10 @@ const SaveGuard = {
     }
     if (res.cloud) { showToast(okTexto + ' — salvo e sincronizado ✓'); return; }
     if (res.motivo === 'offline') { showToast(okTexto + ' — salvo neste aparelho ✓'); return; }
+    /* `enviando` é o retorno imediato de `nuvem: 'depois'`: o dado está provado
+       no aparelho e a fila está subindo. Dizer "em andamento" aqui é a mesma
+       verdade do caminho síncrono quando o tempo estoura — e o
+       `aoSincronizar` corrige para "sincronizado" quando a fila confirmar. */
     showToast(okTexto + ' ✓ salvo no aparelho · envio para a nuvem em andamento');
   }
 };

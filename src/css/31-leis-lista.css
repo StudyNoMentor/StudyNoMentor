@@ -1,0 +1,170 @@
+/* ============================================================================
+   LEIS SECAS — A LISTA COMO VADE MECUM, NÃO COMO INVENTÁRIO
+   ----------------------------------------------------------------------------
+   A lista respondia "quais leis eu tenho" quando a pergunta de quem abre esta
+   tela é "de onde eu continuo". Os cartões traziam título, matéria, referência
+   e três contagens em cinza monoespaçado — todas com o mesmo peso, nenhuma
+   acionável — e o único elemento colorido da tela era o botão "＋ Nova lei"
+   no canto. O resultado é uma parede uniforme sem nada para o olho pousar.
+
+   O que esta folha faz, junto com o conteúdo novo do cartão (progresso, estado
+   e ação nomeada):
+
+   · dá COR AO ESTADO, e só a ele — começar, continuar e reler são três
+     decisões diferentes e agora se distinguem de longe;
+   · devolve a ação nomeada ao lugar onde havia uma seta solta;
+   · rebaixa a fileira do rodízio, que ocupava mais espaço vertical que o
+     título da própria lei em cada cartão.
+
+   Nenhuma cor é usada como único portador de informação: cada estado tem
+   emoji, rótulo em texto e cor — quem não distingue as cores lê o rótulo.
+   ============================================================================ */
+
+/* ── 1. A ESTRUTURA DO CARTÃO ────────────────────────────────────────────── */
+#screen-leis .lei-card {
+  display: grid; align-items: center; gap: 14px;
+  grid-template-columns: minmax(0, 1fr) auto;
+  padding: 15px 17px;
+  border: 1px solid var(--border); border-radius: 16px;
+  background: var(--surface);
+  text-align: left; width: 100%; cursor: pointer;
+  transition: border-color .15s ease, box-shadow .15s ease, transform .15s ease;
+}
+#screen-leis .lei-card:hover {
+  border-color: color-mix(in srgb, var(--accent) 48%, var(--border));
+  box-shadow: 0 8px 24px color-mix(in srgb, var(--text) 7%, transparent);
+  transform: translateY(-1px);
+}
+#screen-leis .lei-card-main { display: grid; gap: 7px; min-width: 0; }
+#screen-leis .lei-card-topo { display: flex; align-items: center; gap: 7px; flex-wrap: wrap; }
+#screen-leis .lei-card-title {
+  display: block; font-size: var(--fs-lg); font-weight: 800;
+  line-height: 1.3; letter-spacing: -.015em; color: var(--text);
+  overflow-wrap: anywhere;
+}
+
+/* ── 2. O SELO DE ESTADO ─────────────────────────────────────────────────── */
+#screen-leis .lei-estado {
+  display: inline-flex; align-items: center; gap: 5px;
+  padding: 3px 9px; border-radius: 999px;
+  border: 1px solid var(--border); background: var(--surface-sunken);
+  font-size: var(--fs-3xs); font-weight: 800; letter-spacing: .02em;
+  color: var(--text-soft); white-space: nowrap;
+}
+#screen-leis .lei-estado > i { font-style: normal; font-size: var(--fs-2xs); line-height: 1; }
+#screen-leis .lei-card.is-lendo .lei-estado {
+  border-color: color-mix(in srgb, var(--accent) 38%, var(--border));
+  background: var(--accent-soft); color: var(--accent-text);
+}
+#screen-leis .lei-card.is-fim .lei-estado {
+  border-color: color-mix(in srgb, var(--good) 38%, var(--border));
+  background: var(--good-soft); color: var(--good-text);
+}
+/* A borda esquerda repete o estado na altura do cartão inteiro: é o que faz a
+   lista deixar de ser uniforme quando se rola depressa. */
+#screen-leis .lei-card.is-lendo { border-left: 3px solid color-mix(in srgb, var(--accent) 62%, var(--border)); }
+#screen-leis .lei-card.is-fim { border-left: 3px solid color-mix(in srgb, var(--good) 62%, var(--border)); }
+#screen-leis .lei-card.is-nova { border-left: 3px solid var(--border); }
+
+/* ── 3. AS CONTAGENS ────────────────────────────────────────────────────────
+   Continuam monoespaçadas (são números que se comparam entre cartões), mas
+   deixam de ser uma frase cinza: cada uma é uma etiqueta legível, e o
+   destaque — a única que fala do SEU trabalho, não do tamanho da lei — recebe
+   cor própria. */
+#screen-leis .lei-card-stats { display: flex; flex-wrap: wrap; gap: 5px; }
+#screen-leis .lei-card-stats > span {
+  padding: 3px 8px; border-radius: 7px;
+  background: color-mix(in srgb, var(--surface-sunken) 78%, var(--surface));
+  font-family: 'Space Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: var(--fs-3xs); color: var(--text-soft); white-space: nowrap;
+}
+#screen-leis .lei-card-stats > .lei-stat-destaque {
+  background: var(--warn-soft); color: var(--warn-text);
+  border: 1px solid color-mix(in srgb, var(--warn) 26%, transparent);
+}
+
+/* ── 4. O PROGRESSO ────────────────────────────────────────────────────────
+   "📌 parou na linha 137" era um número sem denominador. A barra dá a escala
+   e o texto mantém o número exato, que é o que se usa para conferir. */
+#screen-leis .lei-prog { display: grid; gap: 4px; margin-top: 1px; }
+#screen-leis .lei-prog-track {
+  height: 6px; border-radius: 999px; overflow: hidden;
+  background: color-mix(in srgb, var(--surface-sunken) 85%, var(--surface));
+}
+#screen-leis .lei-prog-fill {
+  display: block; height: 100%; border-radius: 999px;
+  background: linear-gradient(90deg, var(--accent), color-mix(in srgb, var(--accent) 62%, transparent));
+  transition: width .3s ease;
+}
+#screen-leis .lei-card.is-fim .lei-prog-fill { background: var(--good); }
+#screen-leis .lei-prog-txt { font-size: var(--fs-3xs); color: var(--text-faint); }
+#screen-leis .lei-prog-txt b { color: var(--text); font-family: 'Space Mono', ui-monospace, SFMono-Regular, Menlo, monospace; }
+
+/* ── 5. A AÇÃO ────────────────────────────────────────────────────────────
+   Era um "→" solto: num cartão inteiro clicável, a seta sozinha sugeria que
+   só ela clicava, e não dizia o que ia acontecer. Agora nomeia o que faz. */
+#screen-leis .lei-card-go {
+  display: grid; grid-template-columns: auto auto; align-items: center;
+  gap: 2px 9px; grid-template-areas: "rot seta" "sub seta";
+  padding: 9px 13px; border-radius: 12px;
+  border: 1px solid color-mix(in srgb, var(--accent) 30%, var(--border));
+  background: var(--accent-soft);
+  transition: background .15s ease, border-color .15s ease;
+}
+#screen-leis .lei-card-go > b { grid-area: rot; font-size: var(--fs-xs); font-weight: 850; color: var(--accent-text); white-space: nowrap; }
+#screen-leis .lei-card-go > small { grid-area: sub; font-size: var(--fs-3xs); color: var(--text-soft); white-space: nowrap; }
+#screen-leis .lei-card-go > i { grid-area: seta; font-style: normal; font-size: var(--fs-lg); color: var(--accent-text); line-height: 1; }
+#screen-leis .lei-card:hover .lei-card-go {
+  background: var(--accent); border-color: var(--accent);
+}
+#screen-leis .lei-card:hover .lei-card-go > b,
+#screen-leis .lei-card:hover .lei-card-go > i,
+#screen-leis .lei-card:hover .lei-card-go > small { color: var(--on-accent); }
+#screen-leis .lei-card.is-fim .lei-card-go {
+  border-color: color-mix(in srgb, var(--good) 30%, var(--border)); background: var(--good-soft);
+}
+#screen-leis .lei-card.is-fim .lei-card-go > b,
+#screen-leis .lei-card.is-fim .lei-card-go > i { color: var(--good-text); }
+#screen-leis .lei-card.is-fim:hover .lei-card-go { background: var(--good); border-color: var(--good); }
+#screen-leis .lei-card.is-fim:hover .lei-card-go > b,
+#screen-leis .lei-card.is-fim:hover .lei-card-go > i,
+#screen-leis .lei-card.is-fim:hover .lei-card-go > small { color: var(--on-accent); }
+
+/* ── 6. A FILEIRA DO RODÍZIO RECUA ────────────────────────────────────────
+   Ela ocupava mais altura que o título da lei em cada cartão, repetindo o
+   mesmo texto longo dezenas de vezes na rolagem. O conteúdo é o mesmo; o peso
+   tipográfico deixa de competir com o nome da lei. */
+#screen-leis .lr-law-wrap { border-radius: 18px; margin-bottom: 10px; }
+#screen-leis .lr-law-wrap > .lei-card { border-left-width: 3px !important; border-radius: 0 !important; }
+#screen-leis .lr-law-tools { padding: 9px 14px; gap: 10px; }
+#screen-leis .uxv3-rotation-state { display: grid; gap: 1px; }
+#screen-leis .uxv3-rotation-state b { font-size: var(--fs-2xs); font-weight: 800; color: var(--text-soft); }
+#screen-leis .uxv3-rotation-state small { font-size: var(--fs-3xs); line-height: 1.4; color: var(--text-faint); }
+#screen-leis .lr-law-wrap.uxv3-law-in .uxv3-rotation-state b { color: var(--accent-text); }
+#screen-leis .uxv3-next-read { display: grid; gap: 0; margin-right: auto; }
+#screen-leis .uxv3-next-read > span {
+  font-size: var(--fs-3xs); font-weight: 900; letter-spacing: .08em;
+  text-transform: uppercase; color: var(--text-faint);
+}
+#screen-leis .uxv3-next-read > b { font-size: var(--fs-xs); }
+#screen-leis .uxv3-next-read > small { font-size: var(--fs-3xs); color: var(--text-faint); }
+#screen-leis .lr-law-tools [data-lr-law-cfg] { min-height: 38px; }
+
+/* ── 7. A BARRA DO TOPO ──────────────────────────────────────────────────── */
+#screen-leis #leis-list-contagem {
+  display: block; margin: 4px 0 10px;
+  font-size: var(--fs-3xs); font-weight: 900; letter-spacing: .09em;
+  text-transform: uppercase; color: var(--text-faint);
+}
+#screen-leis .leis-busca input { min-height: 44px; border-radius: 12px; font-size: var(--fs-sm); }
+
+@media (max-width: 620px) {
+  #screen-leis .lei-card { grid-template-columns: minmax(0, 1fr); gap: 11px; padding: 13px 14px; }
+  #screen-leis .lei-card-title { font-size: var(--fs-md); }
+  #screen-leis .lei-card-go {
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    grid-template-areas: "rot sub seta"; align-items: center; gap: 8px;
+  }
+  #screen-leis .lei-card-go > small { text-align: right; }
+  #screen-leis .lr-law-tools { align-items: flex-start; }
+}

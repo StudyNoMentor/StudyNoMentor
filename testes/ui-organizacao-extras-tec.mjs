@@ -8,9 +8,10 @@ const cssTec = fs.readFileSync('src/css/14-tec-layout.css','utf8');
 const build = fs.readFileSync('build.mjs','utf8');
 
 assert.match(extras,/extras-settings-btn/,'deve criar botão central de configurações');
-assert.match(extras,/data-xsc-tab="reforcos"/,'deve segmentar reforços');
-assert.match(extras,/data-xsc-tab="lei"/,'deve segmentar lei seca');
-assert.match(extras,/data-xsc-tab="manuais"/,'deve segmentar manuais');
+assert.match(extras,/\['reforcos',\s*'🎯',\s*'Reforços'/,'deve declarar a seção de reforços');
+assert.match(extras,/\['lei',\s*'📚',\s*'Lei seca'/,'deve declarar a seção de lei seca');
+assert.match(extras,/\['manuais',\s*'✍️',\s*'Manuais'/,'deve declarar a seção de manuais');
+assert.match(extras,/data-xsc-tab="\$\{id\}"/,'navegação deve materializar as seções dinamicamente');
 assert.match(extras,/data-xsc-law-mode/,'lei seca deve permitir meta por linhas ou tempo');
 assert.match(extras,/data-xsc-law-preset="leve"/,'deve oferecer cenários rápidos');
 assert.match(extras,/ReforcoGovernanca\.abrirPolitica/,'central deve reutilizar governança existente');

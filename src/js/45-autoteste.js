@@ -1284,6 +1284,65 @@ const AutoTeste = {
      portanto, DEPOIS — fora do `try` de quem gravou. Era por isso que o dado
      seguia na tela e só sumia na abertura seguinte, sem erro nenhum.
      Este grupo cuida da ponta que faltava: a fachada avisa, e o app age. */
+  /* ── REGISTRAR NÃO ESPERA A NUVEM PARA LIBERAR O FORMULÁRIO ──────────────
+     `SaveGuard.run` gravava, provava a persistência local e então ESPERAVA o
+     envio à nuvem antes de devolver o controle — até 12 s, conferindo de 250
+     em 250 ms. Com conta conectada, era isso que fazia "Registrar estudo"
+     demorar: o formulário travado esperando uma palavra, com o dado já seguro
+     um passo antes (falha de rede sempre devolveu `ok`, e o formulário é
+     limpo do mesmo jeito).
+
+     O modo `nuvem: 'depois'` devolve na hora e acompanha o envio em segundo
+     plano. Este teste fixa as duas metades do contrato, que é onde um
+     "otimizei o salvamento" costuma virar perda de dado:
+
+     1. ele só devolve depois de a gravação estar PROVADA no disco — se a
+        verificação falhar, o retorno é `ok:false` e ninguém é avisado de
+        sucesso, exatamente como no caminho síncrono;
+     2. "sincronizado" continua sendo dito só com confirmação da fila — o
+        retorno imediato diz "enviando", e a correção chega pelo callback. */
+  salvarSemEsperarNuvem() {
+    const flushOriginal = CloudStore.flushPending;
+    const prontoOriginal = CloudStore.isReady, logadoOriginal = CloudStore.isLoggedIn;
+    const pisoOriginal = SaveGuard.MIN_BUSY_MS;
+    try {
+      SaveGuard.MIN_BUSY_MS = 0;
+      CloudStore.isReady = () => true; CloudStore.isLoggedIn = () => true;
+      let liberouFila = null;
+      CloudStore.flushPending = () => new Promise(res => { liberouFila = res; });
+      CloudStore._pending = true; CloudStore._syncing = false;
+
+      let gravou = 0, avisos = [];
+      const pedido = SaveGuard.run({
+        escrever: () => { gravou++; return true; },
+        verificar: () => true,
+        nuvem: 'depois',
+        timeout: 400,
+        aoSincronizar: (r) => avisos.push(r)
+      });
+      this._ok('salvar sem esperar a nuvem devolve uma promessa e já gravou',
+        gravou === 1 && typeof pedido.then === 'function');
+      pedido.then(r => {
+        this._ok('o retorno imediato prova o disco e NÃO afirma sincronizado',
+          r.ok === true && r.local === true && r.cloud === false && r.motivo === 'enviando');
+      });
+
+      /* A prova de persistência continua sendo porta de entrada: sem ela, o
+         retorno é de falha mesmo no modo adiado. */
+      SaveGuard.run({ escrever: () => true, verificar: () => false, nuvem: 'depois' })
+        .then(r => this._ok('sem prova no disco, o modo adiado também recusa',
+          r.ok === false && r.local === false && r.motivo === 'nao-persistiu'));
+
+      if (liberouFila) { CloudStore._pending = false; liberouFila(); }
+      this._ok('o aviso de sincronizado fica para o callback, não para o retorno',
+        avisos.length === 0);
+    } finally {
+      SaveGuard.MIN_BUSY_MS = pisoOriginal;
+      CloudStore.flushPending = flushOriginal;
+      CloudStore.isReady = prontoOriginal; CloudStore.isLoggedIn = logadoOriginal;
+      delete CloudStore._pending; delete CloudStore._syncing;
+    }
+  },
   oDiscoQueRecusa() {
     this._ok('a fachada tem por onde avisar uma recusa de gravação',
       typeof window.__idbFalhouAoGravar === 'function');
@@ -3566,6 +3625,7 @@ const AutoTeste = {
      ['Esvaziar deixa rastro', 'esvaziarDeixaRastro'],
      ['Travas não ficam presas', 'travasNaoFicamPresas'],
      ['O disco que recusa gravação', 'oDiscoQueRecusa'],
+     ['Registrar não espera a nuvem', 'salvarSemEsperarNuvem'],
      ['Plano de pontos fracos', 'plano'],
      ['Motor do Reforço', 'reforcoMotor'],
      ['Incidência: gravação', 'incidenciaGravacao'],

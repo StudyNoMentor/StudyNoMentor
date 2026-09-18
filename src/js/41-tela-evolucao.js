@@ -28,9 +28,36 @@ const ConquistasEngine = {
     d.setDate(d.getDate() - ((d.getDay() + 6) % 7));
     return this._iso(d);
   },
+  /* ── SEIS VARREDURAS PARA UM MAPA SÓ ──────────────────────────────────────
+     `porDia` é chamada SEIS vezes numa única abertura das Conquistas —
+     calendário, marcos, recordes, medalhas, níveis e o resumo de presença,
+     cada um pedindo o seu mapa. E cada chamada varre três fontes inteiras: os
+     registros de estudo de todos os planejamentos, o histórico de revisões
+     (`getRevlog`) e o histórico de cada Atividade Extra. Com alguns anos de
+     diário, é o mesmo trabalho feito seis vezes antes do primeiro pixel — a
+     lentidão que se sente ao tocar em Conquistas. `pintarDepois` já tinha
+     tirado o congelamento, mas não o tempo.
+
+     A memória é chaveada pela IDENTIDADE do array de entradas, e isso não é
+     detalhe: `getAllEntriesTagged()` monta um array novo a cada chamada
+     (`flatMap` + spread por registro), então um render novo traz sempre uma
+     identidade nova e recalcula. Não existe janela para servir mapa velho —
+     ao contrário de chavear por tamanho ou por data, que não veriam uma
+     edição feita no mesmo dia.
+
+     Dentro do render, as seis chamadas recebem o MESMO array, então o mapa é
+     construído uma vez. */
+  _porDiaMemo: null,
+  porDia(entries) {
+    const memo = this._porDiaMemo;
+    if (memo && memo.src === entries) return memo.mapa;
+    const mapa = this._calcPorDia(entries);
+    this._porDiaMemo = { src: entries, mapa };
+    return mapa;
+  },
   // Mapa dia → { min, q, ac, cards, temAlgo }. Um dia em que você só revisou cards
   // ou só avançou uma atividade extra CONTA como presente.
-  porDia(entries) {
+  _calcPorDia(entries) {
     const m = {};
     const get = (dia) => (m[dia] = m[dia] || { min: 0, q: 0, ac: 0, cards: 0 });
     (entries || []).forEach(e => {
@@ -781,6 +808,7 @@ const EvolucaoScreen = {
     this.renderTecChart();
     this.renderModalityTable(entries);
     this.renderRitmo(entries);
+    this.renderMpq(entries);
   },
 
   // ------- Ritmo de estudo (avanço, tempo por modalidade e médias reais) -------
@@ -791,6 +819,83 @@ const EvolucaoScreen = {
     if (/revis/.test(m)) return 'revisao';
     if (/video|aula/.test(m)) return 'video';
     return 'pdf'; // Leitura, PDF, Resumo, Mapa mental, Outro → estudo novo por leitura
+  },
+  /* ═══ MINUTOS POR QUESTÃO ════════════════════════════════════════════════
+     O painel de ritmo media páginas por hora e minutos de vídeo por hora, mas
+     não a única taxa que responde "quanto tempo uma questão me custa?" — que
+     é o número de que se precisa para planejar um bloco de 30 questões, e o
+     que o Robusto tenta estimar a partir dos reforços de Extras.
+
+     A conta só usa sessões de QUESTÕES com tempo e total registrados: dividir
+     o tempo de uma sessão de leitura pelas questões que ela não tem produziria
+     um número sem significado. A média geral é ponderada pelo volume (tempo
+     total ÷ questões totais), não a média das médias — uma sessão de 3
+     questões não pode pesar como uma de 90.
+
+     O filtro é o mesmo padrão do gráfico de aproveitamento: um seletor por
+     disciplina, "todas" por padrão. */
+  ritmoMpqDisc: '__todas__',
+  _mpqDados(entries) {
+    const porDisc = new Map();
+    let totMin = 0, totQ = 0;
+    (entries || []).forEach(e => {
+      if (this.bucketOf(e.method) !== 'questoes') return;
+      const min = Number(e.durationMin) || 0, q = Number(e.total) || 0;
+      if (!(min > 0) || !(q > 0)) return;
+      const d = e.subject || '—';
+      const o = porDisc.get(d) || { nome: d, min: 0, q: 0, sessoes: 0 };
+      o.min += min; o.q += q; o.sessoes++;
+      porDisc.set(d, o);
+      totMin += min; totQ += q;
+    });
+    const linhas = [...porDisc.values()].map(o => Object.assign(o, { mpq: o.min / o.q }))
+      .sort((a, b) => b.mpq - a.mpq);
+    return { linhas, geral: totQ > 0 ? totMin / totQ : null, totMin, totQ };
+  },
+  renderMpq(entries) {
+    const host = document.getElementById('evolucao-mpq');
+    if (!host) return;
+    const d = this._mpqDados(entries);
+    if (!d.linhas.length) {
+      host.innerHTML = '<div class="evo-empty-mini">Registre sessões de <b>Questões</b> com tempo e total resolvido para ver quanto tempo cada questão custa.</div>';
+      return;
+    }
+    const sel = this.ritmoMpqDisc;
+    const existe = d.linhas.some(l => l.nome === sel);
+    const foco = (sel !== '__todas__' && existe) ? d.linhas.find(l => l.nome === sel) : null;
+    const visiveis = foco ? [foco] : d.linhas;
+    const maxMpq = Math.max(...visiveis.map(l => l.mpq));
+    const fmtMpq = (v) => v == null ? '—' : (v < 10 ? v.toFixed(2) : v.toFixed(1)).replace('.', ',');
+    const refer = foco ? foco.mpq : d.geral;
+    const seg = (v) => Math.round(v * 60);
+    const barras = visiveis.map((l, i) => {
+      const w = maxMpq > 0 ? Math.max(3, (l.mpq / maxMpq) * 100) : 3;
+      const cor = this._palette[i % this._palette.length];
+      /* Mais lento que a média geral não é "ruim": questão difícil leva mais
+         tempo. O tom só marca a distância, e o rótulo diz de que média. */
+      const tom = d.geral && l.mpq > d.geral * 1.25 ? 'is-lento' : (d.geral && l.mpq < d.geral * 0.8 ? 'is-rapido' : '');
+      return `<div class="mpq-row ${tom}" title="${escapeHtml(l.nome)}: ${fmtMpq(l.mpq)} min/questão (${l.q.toLocaleString('pt-BR')} questões em ${CycleEngine.fmtHM(Math.round(l.min))}, ${l.sessoes} sessão(ões))">
+          <div class="mpq-name">${escapeHtml(l.nome)}</div>
+          <div class="mpq-track"><div class="mpq-fill" style="width:${w.toFixed(2)}%; background:${cor};"></div></div>
+          <div class="mpq-val"><b>${fmtMpq(l.mpq)}</b><small>${seg(l.mpq)}s · ${l.q.toLocaleString('pt-BR')}q</small></div>
+        </div>`;
+    }).join('');
+    const opcoes = ['<option value="__todas__">Todas as disciplinas</option>']
+      .concat(d.linhas.map(l => `<option value="${escapeHtml(l.nome)}"${l.nome === sel ? ' selected' : ''}>${escapeHtml(l.nome)}</option>`)).join('');
+    host.innerHTML = `
+      <div class="mpq-head">
+        <div class="mpq-kpis">
+          <span><b>${fmtMpq(refer)}</b><small>min/questão ${foco ? 'em ' + escapeHtml(foco.nome) : '— média geral ponderada'}</small></span>
+          <span><b>${seg(refer)}s</b><small>por questão, em segundos</small></span>
+          <span><b>${(foco ? foco.q : d.totQ).toLocaleString('pt-BR')}</b><small>questões medidas</small></span>
+          <span><b>${CycleEngine.fmtHM(Math.round(foco ? foco.min : d.totMin))}</b><small>tempo somado</small></span>
+        </div>
+        <label class="mpq-filtro"><span>Disciplina</span><select id="evo-mpq-disc" aria-label="Filtrar minutos por questão por disciplina">${opcoes}</select></label>
+      </div>
+      <div class="mpq-chart">${barras}</div>
+      <p class="hint mpq-nota">Conta só sessões de <b>Questões</b> com tempo e total registrados${d.linhas.length > 1 && !foco ? ' · a média geral é ponderada pelo volume, não a média das médias' : ''}. Um bloco de 30 questões custaria cerca de <b>${CycleEngine.fmtHM(Math.round(refer * 30))}</b> nesse ritmo.</p>`;
+    const s2 = document.getElementById('evo-mpq-disc');
+    if (s2) s2.addEventListener('change', () => { this.ritmoMpqDisc = s2.value; this.renderMpq(entries); });
   },
   renderRitmo(entries) {
     const container = document.getElementById('evolucao-ritmo');
@@ -898,7 +1003,15 @@ const EvolucaoScreen = {
   },
 
   // ------- Tempo de estudo por dia (barras, com atalho de período OU intervalo de datas) -------
-  tempoDias: 7,
+  /* ── 30 DIAS, NÃO 7 ───────────────────────────────────────────────────────
+     Uma semana é curta demais para o que este gráfico responde: "estou
+     mantendo o ritmo?". Com sete barras, um feriado no meio ou dois dias
+     fortes mudam a leitura inteira, e a média do rodapé fala de uma amostra
+     que qualquer imprevisto distorce. Um mês mostra a semana cheia quatro
+     vezes — dá para ver o padrão (quais dias você realmente estuda) em vez de
+     só o acidente da semana corrente. Quem quer a semana continua a um clique
+     no seletor ao lado do título. */
+  tempoDias: 30,
   tempoStart: null, tempoEnd: null, // [MELHORIA] intervalo de datas personalizado (tem prioridade sobre os atalhos)
   renderDayChart(entries) {
     const container = document.getElementById('evolucao-day-chart');
@@ -937,15 +1050,37 @@ const EvolucaoScreen = {
       container.innerHTML = `<div class="evo-empty-mini">Nenhum tempo registrado ${usaRange ? 'no intervalo de ' + formatDateShort(start) + ' a ' + formatDateShort(end) : 'nos últimos ' + nDias + ' dias'}.</div>`;
       return;
     }
-    // com muitos dias, mostra rótulo a cada N (menos rótulos no celular)
-    const labelEvery = Math.max(1, Math.ceil(days.length / (this._vw() < 640 ? 6 : 12)));
+    /* ── O EIXO TEM DE CABER NA LARGURA QUE TEM ─────────────────────────────
+       Cada rótulo vivia numa célula `flex:1` do tamanho de UMA barra: com 30
+       dias, "17/09" precisa de ~38px e recebia ~11px, então o texto era
+       cortado no meio (`overflow:hidden`) e o eixo virava uma fileira de
+       fragmentos ilegíveis. Duas correções, juntas:
+
+       1. a quantidade de rótulos é calculada a partir da largura REAL
+          disponível, não de um divisor fixo — cada rótulo recebe no mínimo a
+          largura de que precisa para ser lido inteiro;
+       2. o rótulo é posicionado em `%` sobre uma faixa própria, centrado na
+          barra a que pertence e livre para transbordar a célula dela.
+
+       O primeiro e o último ganham âncora nas pontas, senão metade do texto
+       sairia da caixa justamente nas duas datas que delimitam a janela. */
+    const LARGURA_ROTULO = 44;
+    const larguraEixo = Math.max(240, (container.clientWidth || this._vw() || 900) - 48);
+    const maxRotulos = Math.max(2, Math.floor(larguraEixo / LARGURA_ROTULO));
+    const labelEvery = Math.max(1, Math.ceil(days.length / maxRotulos));
     const bars = days.map(d => {
       const min = byDate[d] || 0;
       const h = Math.round((min / maxMin) * 100);
       const title = `${formatDateShort(d)}: ${CycleEngine.fmtHM(min)}`;
       return `<div class="evo-day-bar ${min === 0 ? 'empty' : ''}" style="height:${Math.max(2, h)}%;" title="${title}"></div>`;
     }).join('');
-    const axis = days.map((d, i) => `<span>${(i % labelEvery === 0 || i === days.length - 1) ? formatDateShort(d) : ''}</span>`).join('');
+    const passo = 100 / days.length;
+    const axis = days.map((d, i) => {
+      if (!(i % labelEvery === 0 || i === days.length - 1)) return '';
+      const centro = (i + 0.5) * passo;
+      const ancora = i === 0 ? 'is-first' : (i === days.length - 1 ? 'is-last' : '');
+      return `<span class="${ancora}" style="left:${centro.toFixed(3)}%;">${formatDateShort(d)}</span>`;
+    }).join('');
     container.innerHTML = `
       <div class="evo-day-bar-row">${bars}</div>
       <div class="evo-day-axis">${axis}</div>

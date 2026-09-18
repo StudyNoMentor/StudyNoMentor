@@ -27,7 +27,15 @@ try{
   await page.locator('[data-tpm-entry] [data-tpm-source="simplificado"]').click();await page.waitForFunction(()=>TecPlanoFonteMotor.fonte()==='simplificado');assert.equal(await page.evaluate(()=>PlanoSugestoes.prefs().modo),'simplificado');
   await page.locator('[data-tpm-entry] [data-tpm-source="robusto"]').click();await page.waitForFunction(()=>TecPlanoFonteMotor.fonte()==='robusto');assert.equal(await page.evaluate(()=>PlanoSugestoes.prefs().modo),'robusto');
 
-  await page.evaluate(()=>DesempenhoTecScreen.switchTecTab('plano'));await page.waitForSelector('[data-tpm-selector]');await page.waitForSelector('[data-tpm-output][data-tpm-model="robusto"]');
+  /* ── UM SELETOR DE MOTOR, NAO DOIS ──────────────────────────────────────
+     Havia duas caixas identicas na mesma tela: `[data-tpm-entry]`
+     ("MODELO DAS SUGESTOES", acima das abas) e `[data-tpm-selector]`
+     ("FONTE DA DECISAO", dentro do Plano) — mesmos dois botoes, mesmo estado,
+     textos diferentes. A duplicata de dentro do Plano saiu; a de cima ficou,
+     porque vale para todas as abas e e onde a escolha se faz. Quem informa o
+     motor em vigor dentro do Plano e o `[data-tpm-panorama]`. */
+  await page.evaluate(()=>DesempenhoTecScreen.switchTecTab('plano'));await page.waitForSelector('[data-tpm-panorama]');await page.waitForSelector('[data-tpm-output][data-tpm-model="robusto"]');
+  assert.equal(await page.locator('[data-tpm-selector]').count(),0,'a segunda caixa de escolha de motor dentro do Plano nao deve existir');
   let cards=page.locator('[data-tpm-output] [data-tpm-rec]');assert.ok(await cards.count()>=1&&await cards.count()<=3,'Robusto deve sugerir até 3 frentes de ataque');const rdiscs=await cards.evaluateAll(xs=>xs.map(x=>x.dataset.disciplina));assert.equal(new Set(rdiscs).size,rdiscs.length,'Robusto deve usar disciplinas distintas no TOP 3');
   const txtR=await page.locator('[data-tpm-output]').textContent();assert.match(txtR,/questões recomendadas/i);assert.match(txtR,/Sem tempo direto suficiente nos reforços de Extras/i,'sem histórico vinculado o Robusto não deve inventar minutos');assert.match(txtR,/O algoritmo para aqui/i);
   assert.equal(await page.locator('[data-tpm-output] :is([data-rv8],[data-rv8-post-active],[data-pmc-simple])').count(),0,'Plano exibe recomendação, não configuração');
@@ -47,7 +55,7 @@ try{
   const all=page.locator('[data-tpm-rank-all]');if(await all.count()){await all.click();await page.waitForFunction(total=>document.querySelectorAll('[data-tpm-ranking-item]').length===total,totalRobusto);assert.equal(await page.locator('[data-tpm-ranking-item]').count(),totalRobusto,'mostrar todos deve revelar a fila completa do motor');}
   await page.locator('[data-tpm-rank-reset]').click();await page.waitForFunction(()=>document.querySelectorAll('[data-tpm-ranking-item]').length===10);assert.equal(await page.locator('[data-tpm-ranking-item]').count(),10,'voltar a 10 deve recolher a fila sem alterar preferências');
 
-  await page.locator('[data-tpm-selector] [data-tpm-source="simplificado"]').click();await page.waitForSelector('[data-tpm-output][data-tpm-model="simplificado"]');assert.equal(await page.evaluate(()=>TecPlanoFonteMotor.fonte()),'simplificado');const txtS=await page.locator('[data-tpm-output]').textContent();assert.match(txtS,/O Simplificado não modela tempo/i);assert.doesNotMatch(txtS,/min\/questão/i,'Simplificado não pode emprestar relógio do Robusto');cards=page.locator('[data-tpm-output] [data-tpm-rec]');const sdiscs=await cards.evaluateAll(xs=>xs.map(x=>x.dataset.disciplina));assert.equal(new Set(sdiscs).size,sdiscs.length,'TOP 3 do Simplificado continua em disciplinas distintas');
+  await page.locator('[data-tpm-entry] [data-tpm-source="simplificado"]').click();await page.waitForSelector('[data-tpm-output][data-tpm-model="simplificado"]');assert.equal(await page.evaluate(()=>TecPlanoFonteMotor.fonte()),'simplificado');const txtS=await page.locator('[data-tpm-output]').textContent();assert.match(txtS,/O Simplificado não modela tempo/i);assert.doesNotMatch(txtS,/min\/questão/i,'Simplificado não pode emprestar relógio do Robusto');cards=page.locator('[data-tpm-output] [data-tpm-rec]');const sdiscs=await cards.evaluateAll(xs=>xs.map(x=>x.dataset.disciplina));assert.equal(new Set(sdiscs).size,sdiscs.length,'TOP 3 do Simplificado continua em disciplinas distintas');
   const totalSimplificado=await page.evaluate(()=>TecPlanoFonteMotor.calcular('simplificado').todos.length);assert.ok(totalSimplificado>10);assert.equal(await page.locator('[data-tpm-ranking-item]').count(),10,'troca de motor deve abrir a fila do novo motor em 10');
   assert.equal(await page.locator('#plano-lista>.pl-item:visible').count(),0,'ranking completo não pode ressuscitar a lista decisória do PlanoEngine legado');
 

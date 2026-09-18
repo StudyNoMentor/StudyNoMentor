@@ -1,0 +1,277 @@
+/* ============================================================================
+   CONFIGURAÇÕES E CENTRAL DE EXTRAS — UMA RÉGUA SÓ
+   ----------------------------------------------------------------------------
+   As duas telas sofrem do mesmo problema, por motivos diferentes.
+
+   Em CONFIGURAÇÕES, `ConfigUX` divide a tela em cinco seções (Estudo,
+   Preferências, Conta e nuvem, Dados e backup, Diagnóstico) e move cartões
+   escritos em três épocas para dentro delas. Cada cartão trouxe a sua
+   tipografia: uns usam `.card-header h2`, outros `.section-label`, outros
+   `<p class="hint">` com `font-family` monoespaçada herdada. Lado a lado, na
+   mesma seção, viram uma pilha sem hierarquia — é o "as fontes não seguem um
+   padrão" da tela.
+
+   Na CENTRAL DE EXTRAS o problema é a própria folha: `13-extras-central.css`
+   declara toda a escala em pixels crus (9px a 22px), então nada ali acompanha
+   o A− / A+, e os quatro painéis usam quatro larguras de grade diferentes.
+
+   Esta folha não reescreve nenhum dos dois HTMLs. Ela impõe a régua por
+   PAPEL do elemento, nos dois lugares, com os tokens `--fs-*`.
+   ============================================================================ */
+
+/* ══ 1. CONFIGURAÇÕES — A CASCA DAS CINCO SEÇÕES ═══════════════════════════ */
+#screen-config .cfg-shell { display: grid; gap: 14px; }
+#screen-config .cfg-nav {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 6px;
+  padding: 10px 12px;
+  border: 1px solid var(--border); border-radius: 16px;
+  background: color-mix(in srgb, var(--surface-sunken) 55%, var(--surface));
+}
+#screen-config .cfg-nav-title {
+  flex: 0 0 auto; margin-right: 4px;
+  font-size: var(--fs-3xs); font-weight: 900; letter-spacing: .1em;
+  text-transform: uppercase; color: var(--text-faint);
+}
+#screen-config .cfg-nav button {
+  display: inline-flex; align-items: center; gap: 7px;
+  min-height: 38px; padding: 8px 13px;
+  border: 1px solid transparent; border-radius: 999px;
+  background: transparent; color: var(--text-soft);
+  font-size: var(--fs-xs); font-weight: 800; white-space: nowrap; cursor: pointer;
+  transition: background .14s ease, border-color .14s ease, color .14s ease;
+}
+#screen-config .cfg-nav button .ic { font-size: var(--fs-md); line-height: 1; }
+#screen-config .cfg-nav button:hover { border-color: var(--border); background: var(--surface); color: var(--text); }
+#screen-config .cfg-nav button.active {
+  border-color: color-mix(in srgb, var(--accent) 42%, var(--border));
+  background: var(--surface); color: var(--accent-text);
+  box-shadow: 0 2px 10px color-mix(in srgb, var(--text) 5%, transparent);
+}
+#screen-config .cfg-group { display: none; }
+#screen-config .cfg-group.active { display: grid; gap: 14px; }
+#screen-config .cfg-group-head { display: grid; gap: 4px; padding: 2px 2px 0; }
+#screen-config .cfg-group-head h3 { margin: 0; font-size: var(--fs-xl); letter-spacing: -.015em; }
+#screen-config .cfg-group-head p { margin: 0; max-width: 780px; font-size: var(--fs-xs); line-height: 1.55; color: var(--text-soft); }
+
+/* ── A régua dos cartões, qualquer que seja a época em que foram escritos ── */
+#screen-config .cfg-group > .card { margin: 0; border-radius: 16px; }
+#screen-config .cfg-group > .card > .card-header { align-items: flex-start; gap: 12px; }
+#screen-config .cfg-group > .card > .card-header h2 { font-size: var(--fs-lg); letter-spacing: -.01em; }
+#screen-config .cfg-group > .card > .card-header .sub { font-size: var(--fs-xs); line-height: 1.55; color: var(--text-soft); }
+#screen-config .cfg-group .section-label {
+  font-size: var(--fs-3xs); font-weight: 900; letter-spacing: .1em;
+  text-transform: uppercase; color: var(--text-faint);
+}
+/* `.hint` herdava a monoespaçada em alguns cartões e a de interface em
+   outros — dois parágrafos de apoio vizinhos com desenho diferente. */
+#screen-config .cfg-group .hint {
+  font-family: 'Inter', system-ui, sans-serif;
+  font-size: var(--fs-xs); line-height: 1.55; color: var(--text-soft);
+}
+#screen-config .cfg-group .hint strong,
+#screen-config .cfg-group .hint b { color: var(--text); }
+#screen-config .cfg-group .field > label { font-size: var(--fs-xs); font-weight: 700; }
+#screen-config .cfg-group input:not([type="checkbox"]):not([type="radio"]),
+#screen-config .cfg-group select,
+#screen-config .cfg-group textarea { font-size: var(--fs-sm); min-height: 42px; border-radius: 10px; }
+#screen-config .cfg-group .co-check { font-size: var(--fs-xs); line-height: 1.5; }
+
+/* Preferências, ações e diagnóstico: as três grades passam a ter o mesmo
+   comportamento (auto-fit) em vez de 2, 3 e 4 colunas fixas. */
+#screen-config .cfg-pref-grid,
+#screen-config .cfg-action-grid { display: grid; gap: 10px; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); }
+#screen-config .cfg-pref,
+#screen-config .cfg-action {
+  display: grid; gap: 5px; align-content: start;
+  padding: 13px 14px; min-width: 0;
+  border: 1px solid var(--border); border-radius: 13px;
+  background: var(--surface); text-align: left;
+}
+#screen-config .cfg-pref-lbl,
+#screen-config .cfg-action .t { font-size: var(--fs-sm); font-weight: 800; color: var(--text); }
+#screen-config .cfg-pref-desc,
+#screen-config .cfg-action .d { font-size: var(--fs-2xs); line-height: 1.5; color: var(--text-faint); }
+#screen-config .cfg-pref-row { display: flex; align-items: center; gap: 9px; margin-top: 3px; }
+#screen-config .cfg-action { cursor: pointer; transition: border-color .14s ease, background .14s ease; }
+#screen-config .cfg-action .ic { font-size: var(--fs-lg); line-height: 1; }
+#screen-config .cfg-action:hover { border-color: var(--accent); background: var(--accent-soft); }
+#screen-config .cfg-action.cfg-danger:hover { border-color: var(--bad); background: var(--bad-soft); }
+#screen-config .cfg-diag { display: grid; gap: 7px; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); }
+
+/* ══ 2. A FILA DE ENVIO PARA A NUVEM ═══════════════════════════════════════
+   O bloco vinha de `.submit-row` — um flex feito para "nota à esquerda, botão
+   à direita" — carregando uma caixa de seleção e dois botões. Quando a fila
+   tinha pendências, `CloudUI.renderQueue` injetava um TERCEIRO botão acima, e
+   os três se empilhavam em alturas diferentes: era o "Enviar Agora duas vezes
+   ao mesmo tempo", em cascata. O botão duplicado saiu do JS; aqui a linha
+   ganha uma grade própria, que quebra por inteiro em vez de por pedaço. */
+#cloud-connected-box .cloud-queue-row {
+  display: grid; gap: 10px;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  margin-top: 12px; padding: 12px 13px;
+  border: 1px solid var(--border); border-radius: 13px;
+  background: color-mix(in srgb, var(--surface-sunken) 50%, var(--surface));
+}
+#cloud-connected-box .cloud-queue-row > .cloud-queue-note {
+  min-width: 0; margin: 0;
+  font-family: 'Inter', system-ui, sans-serif;
+  font-size: var(--fs-2xs); line-height: 1.5; color: var(--text-faint);
+}
+#cloud-connected-box .cloud-queue-acoes { display: flex; gap: 8px; flex-wrap: wrap; justify-content: flex-end; }
+#cloud-connected-box .cloud-queue-acoes button { min-height: 40px; white-space: nowrap; }
+#cloud-queue-box { display: grid; gap: 7px; }
+#cloud-queue-box > p { margin: 0; font-family: 'Inter', system-ui, sans-serif; font-size: var(--fs-xs); line-height: 1.55; color: var(--text-soft); }
+#cloud-queue-box > p strong { color: var(--text); }
+#cloud-queue-box .cloud-queue-ok { color: var(--good-text); }
+#cloud-queue-box .cloud-queue-secoes {
+  display: flex; flex-wrap: wrap; gap: 5px;
+  font-family: 'Inter', system-ui, sans-serif;
+}
+#cloud-queue-box .cloud-queue-secoes > span {
+  padding: 3px 8px; border-radius: 999px;
+  border: 1px solid var(--border); background: var(--surface);
+  font-size: var(--fs-3xs); font-weight: 700; color: var(--text-soft);
+}
+#cloud-connected-box .cloud-status-row { align-items: center; gap: 12px; flex-wrap: wrap; }
+#cloud-connected-box .cloud-status-email { font-size: var(--fs-sm); font-weight: 800; }
+#cloud-connected-box .cloud-status-sub { font-size: var(--fs-2xs); color: var(--text-soft); }
+#cloud-connected-box .cloud-sessions-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+#cloud-connected-box > details > summary { font-size: var(--fs-sm); padding: 4px 0; }
+
+@media (max-width: 620px) {
+  #cloud-connected-box .cloud-queue-row { grid-template-columns: minmax(0, 1fr); }
+  #cloud-connected-box .cloud-queue-acoes { justify-content: stretch; }
+  #cloud-connected-box .cloud-queue-acoes button { flex: 1 1 auto; }
+  #screen-config .cfg-nav { padding: 9px 10px; }
+  #screen-config .cfg-nav-title { flex: 1 1 100%; margin-bottom: 2px; }
+}
+
+/* ══ 3. CENTRAL DE EXTRAS — A MESMA RÉGUA, EM TOKENS ═══════════════════════
+   Todos os tamanhos abaixo substituem pixels crus da folha 13. A conversão é
+   por papel, e a consequência prática é que a central passa a responder ao
+   A− / A+ como o resto do app. */
+.xsc-modal { border-radius: 22px; grid-template-rows: auto auto minmax(0, 1fr); }
+.xsc-head { padding: 20px 22px 15px; }
+.xsc-head small, .xsc-section-head small { font-size: var(--fs-3xs); letter-spacing: .11em; }
+.xsc-head h3 { font-size: var(--fs-2xl); letter-spacing: -.02em; }
+.xsc-head p, .xsc-section-head p { font-size: var(--fs-xs); line-height: 1.55; color: var(--text-soft); }
+.xsc-close { font-size: var(--fs-3xl); color: var(--text-soft); border-radius: 10px; }
+.xsc-close:hover { background: var(--surface-sunken); color: var(--text); }
+.xsc-nav { gap: 6px; padding: 10px 16px; }
+.xsc-nav button { min-height: 38px; padding: 8px 14px; font-size: var(--fs-xs); font-weight: 800; }
+.xsc-nav button:hover { border-color: var(--border); background: var(--surface); color: var(--text); }
+.xsc-nav button.active { color: var(--accent-text); }
+.xsc-body { padding: 18px 20px 24px; }
+.xsc-section { gap: 15px; }
+.xsc-section-head h4 { font-size: var(--fs-xl); letter-spacing: -.015em; }
+
+/* Uma grade só, `auto-fit`, para os quatro painéis: o resumo tinha 2 colunas
+   fixas, a explicação 3, os manuais 3 e o formulário 2 — quatro quebras
+   diferentes na mesma largura de tela. */
+.xsc-overview-grid,
+.xsc-explain,
+.xsc-manual-grid,
+.xsc-form-grid { display: grid; gap: 10px; grid-template-columns: repeat(auto-fit, minmax(258px, 1fr)); }
+.xsc-kpis { display: grid; gap: 8px; grid-template-columns: repeat(auto-fit, minmax(128px, 1fr)); }
+
+.xsc-summary-card { border-radius: 15px; padding: 14px; align-items: center; }
+.xsc-summary-icon { width: 40px; height: 40px; border-radius: 12px; font-size: var(--fs-xl); }
+.xsc-summary-card strong { font-size: var(--fs-sm); }
+.xsc-summary-card span { font-size: var(--fs-xs); color: var(--text-soft); }
+.xsc-summary-card small { font-size: var(--fs-2xs); line-height: 1.45; color: var(--text-faint); }
+.xsc-summary-card > button { min-height: 38px; font-size: var(--fs-2xs); white-space: nowrap; }
+
+.xsc-kpis span { padding: 12px; border-radius: 13px; }
+.xsc-kpis b { font-size: var(--fs-lg); font-family: 'Space Mono', ui-monospace, SFMono-Regular, Menlo, monospace; }
+.xsc-kpis small { font-size: var(--fs-2xs); color: var(--text-faint); }
+
+.xsc-field { border-radius: 13px; padding: 12px; gap: 7px; }
+.xsc-label { font-size: var(--fs-xs); color: var(--text-soft); }
+.xsc-label b { font-size: var(--fs-xs); color: var(--text); }
+.xsc-info { width: 21px; height: 21px; font-size: var(--fs-3xs); }
+.xsc-help { font-size: var(--fs-2xs); line-height: 1.5; }
+.xsc-field input, .xsc-field select { min-height: 42px; font-size: var(--fs-sm); border-radius: 10px; }
+
+.xsc-scenarios { border-radius: 14px; padding: 13px 14px; gap: 9px; }
+.xsc-scenarios > strong { font-size: var(--fs-sm); }
+.xsc-scenarios > div { grid-template-columns: minmax(120px, 160px) minmax(0, 1fr); gap: 10px; font-size: var(--fs-2xs); line-height: 1.5; }
+.xsc-scenarios > div > b { font-size: var(--fs-2xs); }
+
+.xsc-callout { border-radius: 14px; padding: 14px 15px; }
+.xsc-callout b { font-size: var(--fs-sm); }
+.xsc-callout span { font-size: var(--fs-2xs); line-height: 1.5; color: var(--text-soft); }
+.xsc-callout button { min-height: 42px; white-space: nowrap; }
+
+.xsc-master, .xsc-presets > span { font-size: var(--fs-xs); }
+.xsc-presets button { min-height: 34px; padding: 7px 12px; font-size: var(--fs-2xs); font-weight: 800; }
+.xsc-days span { width: 36px; height: 36px; border-radius: 10px; font-size: var(--fs-2xs); }
+.xsc-check { border-radius: 13px; padding: 12px; }
+.xsc-check b { font-size: var(--fs-xs); }
+.xsc-check small { font-size: var(--fs-2xs); line-height: 1.45; }
+.xsc-law-status span { padding: 6px 10px; font-size: var(--fs-2xs); }
+.xsc-foot-actions { gap: 8px; }
+.xsc-foot-actions button { min-height: 42px; }
+.xsc-manual-grid article { padding: 14px; border-radius: 14px; gap: 6px; }
+.xsc-manual-grid b { font-size: var(--fs-sm); }
+.xsc-manual-grid span { font-size: var(--fs-xs); color: var(--text-soft); }
+.xsc-manual-grid small { font-size: var(--fs-2xs); line-height: 1.5; color: var(--text-faint); }
+.xsc-manual-grid button { min-height: 40px; margin-top: 4px; }
+
+/* O pé da central fica preso: "Salvar rotina" era a última coisa de um corpo
+   rolável de 900px, então mexer em "Leis por dia" e não achar o botão era o
+   percurso padrão. */
+.xsc-section > .xsc-foot-actions {
+  position: sticky; bottom: -24px; z-index: 2;
+  margin: 4px -20px -24px; padding: 13px 20px;
+  border-top: 1px solid var(--border);
+  background: color-mix(in srgb, var(--surface) 92%, transparent);
+  backdrop-filter: blur(8px);
+}
+
+@media (max-width: 560px) {
+  .xsc-modal { border-radius: 0; }
+  .xsc-head { padding: 16px; }
+  .xsc-body { padding: 14px 13px 22px; }
+  .xsc-section > .xsc-foot-actions { margin: 4px -13px -22px; padding: 12px 13px; }
+  .xsc-scenarios > div { grid-template-columns: minmax(0, 1fr); gap: 2px; }
+}
+
+/* ══ 4. A FITA E A FAIXA DE "HOJE" DA CENTRAL DE EXTRAS ════════════════════ */
+.xsc-nav button { display: inline-flex; align-items: center; gap: 6px; }
+.xsc-nav button > span { font-size: var(--fs-md); line-height: 1; }
+.xsc-nav button > em {
+  font-style: normal; min-width: 18px; padding: 1px 6px;
+  border-radius: 999px; background: var(--surface-sunken);
+  font-size: var(--fs-3xs); font-weight: 900; color: var(--text-soft);
+  font-family: 'Space Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+.xsc-nav button.active > em { background: var(--accent); color: var(--on-accent); }
+
+/* A faixa responde "o que a automação coloca na minha fila hoje" — a soma que
+   antes exigia ler dois cartões e fazer a conta de cabeça. */
+.xsc-today {
+  display: flex; align-items: center; gap: 13px;
+  padding: 14px 15px; border-radius: 15px;
+  border: 1px solid var(--border);
+}
+.xsc-today-ic { font-size: var(--fs-3xl); line-height: 1; flex: 0 0 auto; }
+.xsc-today > div { display: grid; gap: 3px; min-width: 0; }
+.xsc-today strong { font-size: var(--fs-lg); letter-spacing: -.015em; }
+.xsc-today span { font-size: var(--fs-xs); line-height: 1.5; color: var(--text-soft); }
+.xsc-today.is-on {
+  border-color: color-mix(in srgb, var(--accent) 32%, var(--border));
+  background: linear-gradient(135deg, color-mix(in srgb, var(--accent) 7%, var(--surface)), var(--surface));
+}
+.xsc-today.is-on strong { color: var(--accent-text); }
+.xsc-today.is-off {
+  border-style: dashed;
+  background: color-mix(in srgb, var(--surface-sunken) 55%, var(--surface));
+}
+.xsc-today.is-off strong { color: var(--text-soft); }
+
+@media (max-width: 560px) {
+  .xsc-today { align-items: flex-start; padding: 13px; }
+  .xsc-today-ic { font-size: var(--fs-2xl); }
+  .xsc-nav button > span { display: none; }
+}

@@ -116,6 +116,11 @@ const ExtrasScreen = {
   renderEmCurso() {
     const host = document.getElementById('extras-curso');
     if (!host) return;
+    /* Marcado apenas pelo caminho de ABERTURA da tela, que já agendou esta
+       mesma função para o quadro seguinte. Sair aqui evita fazer o trabalho
+       duas vezes — e sem apagar o host, senão o esqueleto que acabou de ser
+       pintado sumiria antes de o cálculo começar. */
+    if (this._pularEmCurso) return;
     const extrasPlano = DB.getExtras().filter(e => e.origemPlano && e.origemPlano.topico && e.status !== 'concluida');
     if (!extrasPlano.length) { host.innerHTML = ''; return; }
     let itens = [];
@@ -565,8 +570,33 @@ const ExtrasScreen = {
     /* De onde a atividade veio e o que aconteceu com o assunto desde então. Sem
        isto o cartão é um item de lista de compras: não diz que nasceu de uma
        fraqueza medida, nem se a fraqueza cedeu. */
-    const planoTag = (x.origemPlano && x.origemPlano.topico)
-      ? `<span class="extra-tag plano" title="Criada a partir do 🏁 Plano de pontos fracos em ${escapeHtml(formatDateShort(x.origemPlano.criadoEm || ''))}">🏁 do Plano</span>` : '';
+    /* ── A ETIQUETA DIZ QUEM DECIDIU, NÃO SÓ "VEIO DO PLANO" ────────────────
+       Toda atividade vinda do TEC levava a mesma etiqueta "🏁 do Plano",
+       qualquer que fosse a origem: a leitura analítica legada, o Simplificado
+       ou o Robusto. Com três fontes possíveis e uma etiqueta só, não havia
+       como conferir, olhando a fila, se o que está sendo executado saiu do
+       modelo que você escolheu — e essa conferência é justamente o que dá (ou
+       tira) a confiança na tela.
+
+       A informação já estava gravada em `origemPlano.sugestao.motor` desde a
+       criação; ela só nunca tinha chegado à superfície. Cada atividade passa a
+       dizer qual motor a gerou e em que fase — e as criadas antes dos motores
+       continuam legíveis como "leitura analítica", que é o que elas são. */
+    const planoTag = (() => {
+      const o = x.origemPlano;
+      if (!o || !o.topico) return '';
+      const sug = o.sugestao || null;
+      const quando = escapeHtml(formatDateShort((sug && sug.criadoEm) || o.criadoEm || ''));
+      const motor = sug && sug.motor ? String(sug.motor) : '';
+      const fase = sug && sug.fase === 'pos' ? 'Pós-edital' : (sug && sug.fase === 'pre' ? 'Pré-edital' : '');
+      let ico = '🏁', rot = 'leitura analítica', cls = 'plano';
+      if (/robusto/i.test(motor)) { ico = '🧠'; rot = 'Robusto'; cls = 'plano motor-robusto'; }
+      else if (/simplificado/i.test(motor)) { ico = '⚡'; rot = 'Simplificado'; cls = 'plano motor-simples'; }
+      const det = /robusto|simplificado/i.test(motor)
+        ? `Gerada pelo motor ${rot}${fase ? ' · ' + fase : ''} em ${quando}. A dose e a ordem vieram das regras desse motor, não do Plano legado.`
+        : `Criada pela leitura analítica do Plano em ${quando} — antes dos motores, ou com eles desligados.`;
+      return `<span class="extra-tag ${cls}" title="${escapeHtml(det)}">${ico} ${escapeHtml(rot)}</span>`;
+    })();
     const evoTag = (ciclo && ciclo.origem.taxaInicial != null && ciclo.taxa != null)
       ? `<span class="extra-tag evo ${ciclo.delta != null && ciclo.delta >= 0 ? 'up' : 'down'}" title="Acerto no assunto quando você criou a atividade, e hoje">${ciclo.origem.taxaInicial.toFixed(0)}% → ${ciclo.taxa.toFixed(0)}%</span>` : '';
     const progBlock = (alvo > 0)
@@ -1232,5 +1262,33 @@ window.ExtrasScreen = ExtrasScreen;
   /* fundo desfocado nao fecha o modal: so o X / Cancelar / Esc fecham */
 })();
 window.addEventListener('screen:activated', (e) => {
-  if (e.detail.screen === 'extras') ExtrasScreen.render();
+  /* ═══ ABRIR EXTRAS NÃO PODE ESPERAR O MOTOR DO TEC ═════════════════════
+     `renderEmCurso` chama `DesempenhoTecScreen._planoRef()` para saber, de
+     cada reforço aberto, em que nível o assunto está hoje. Isso é o motor do
+     Plano inteiro rodando sobre todos os retratos — num perfil com 8 retratos
+     e ~960 assuntos, ~200 ms de trabalho síncrono ANTES da primeira pintura
+     (mais de 1 s num aparelho 4× mais lento). Era a tela mais lenta do app
+     para abrir, e o custo não vinha das atividades: vinha de uma consulta ao
+     TEC feita para enfeitar as barras de progresso.
+
+     A tela abre primeiro. O painel "em curso" pinta um esqueleto e se resolve
+     no quadro seguinte — as barras de progresso, que dependem só das próprias
+     atividades, aparecem junto com o resto.
+
+     `ExtrasScreen.render()` continua 100% síncrona: quem a chama por código
+     (e a suíte de verificação, que lê `#extras-curso` no mesmo tick) recebe a
+     tela pronta. O adiamento é só deste caminho, o do toque no menu. */
+  if (e.detail.screen === 'extras') {
+    const host = document.getElementById('extras-curso');
+    const temAberto = (() => {
+      try { return DB.getExtras().some(x => x && x.origemPlano && x.origemPlano.topico && x.status !== 'concluida'); }
+      catch (err) { _quiet(err, 'extras-abertura'); return false; }
+    })();
+    if (!host || !temAberto || typeof pintarDepois !== 'function') { ExtrasScreen.render(); return; }
+    ExtrasScreen._pularEmCurso = true;
+    try { ExtrasScreen.render(); } finally { ExtrasScreen._pularEmCurso = false; }
+    pintarDepois(host, 'Conferindo o que está em curso…', () => {
+      try { ExtrasScreen.renderEmCurso(); } catch (err) { _quiet(err, 'extras-em-curso'); }
+    });
+  }
 });

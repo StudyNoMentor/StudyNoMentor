@@ -10,7 +10,12 @@
   const I = window.PlanoSugestoesInfra;
   if (!I || typeof DB === 'undefined') return;
   const { num, clamp, norm } = I;
-  const OWN_PREF_KEYS = Object.freeze(['fase','meta','minAmostra','banca','alvoQuestoes']);
+  /* `maxDisciplinas` substitui o `3` que estava escrito dentro de `_top3`. O
+     contrato "até 3 frentes" era uma constante no código apresentada como
+     limite do produto, e o campo equivalente na folha do Plano governa a rota
+     manual (outro consumidor). Cada motor passa a ter o seu, na sua própria
+     configuração — nenhum dos dois lê `PlanoEngine`. */
+  const OWN_PREF_KEYS = Object.freeze(['fase','meta','minAmostra','banca','alvoQuestoes','maxDisciplinas']);
   const ownPrefs = (src) => {
     const out = {};
     src = src && typeof src === 'object' ? src : {};
@@ -31,7 +36,7 @@
     REVISAO_REGISTRO: 3,
     MOTOR: 'simplificado-v2', // identificador histórico persistido; não renomear sem migração
     KEY: 'plano-simplificado-v2',
-    DEFAULTS: Object.freeze({ fase:'auto', meta:90, minAmostra:20, banca:'__todas__', alvoQuestoes:30 }),
+    DEFAULTS: Object.freeze({ fase:'auto', meta:90, minAmostra:20, banca:'__todas__', alvoQuestoes:30, maxDisciplinas:3 }),
     PREF_KEYS: OWN_PREF_KEYS,
     deps: Object.freeze(['TEC-escopado','incidencia-bruta','planejamento-materias']),
     prefs() {
@@ -44,6 +49,7 @@
       p.minAmostra = Math.round(clamp(p.minAmostra, 1, 500));
       p.alvoQuestoes = Math.round(clamp(p.alvoQuestoes, 5, 200));
       p.banca = typeof p.banca === 'string' && p.banca ? p.banca : '__todas__';
+      p.maxDisciplinas = Math.round(clamp(p.maxDisciplinas, 1, 8));
       return p;
     },
     salvar(patch) {
@@ -53,6 +59,7 @@
       p.minAmostra = Math.round(clamp(p.minAmostra, 1, 500));
       p.alvoQuestoes = Math.round(clamp(p.alvoQuestoes, 5, 200));
       p.banca = typeof p.banca === 'string' && p.banca ? p.banca : '__todas__';
+      p.maxDisciplinas = Math.round(clamp(p.maxDisciplinas, 1, 8));
       const persistido = ownPrefs(p);
       try {
         const k = DB._profilePrefix() + this.KEY;
@@ -85,9 +92,12 @@
       const abr = lista.filter(x => { const tb=toks(x); if(tb.length!==ta.length)return false; return ta.every((t,i)=>{const u=tb[i],c=t.length<=u.length?t:u,g=t.length<=u.length?u:t;return c.length>=3&&g.startsWith(c);}); });
       return abr.length === 1 ? { nome:abr[0], confianca:.72, via:'abreviacao' } : null;
     },
-    _top3(cands) {
+    /* Uma frente por disciplina, até o limite configurado. O nome `_top3`
+       fica por compatibilidade com quem já o chama; o 3 virou parâmetro. */
+    _top3(cands, limite) {
+      const teto = Math.max(1, Math.round(num(limite, this.prefs().maxDisciplinas)) || 3);
       const usados = new Set(), out = [];
-      cands.slice().sort((a,b)=>num(b.score)-num(a.score)||num(a.taxa,999)-num(b.taxa,999)).forEach(c=>{const d=norm(c.disciplina);if(!d||usados.has(d)||out.length>=3)return;usados.add(d);out.push(c);});
+      cands.slice().sort((a,b)=>num(b.score)-num(a.score)||num(a.taxa,999)-num(b.taxa,999)).forEach(c=>{const d=norm(c.disciplina);if(!d||usados.has(d)||out.length>=teto)return;usados.add(d);out.push(c);});
       return out;
     },
     _topicos(snapshot, p) {
@@ -191,7 +201,7 @@
       }
       this._normalizar(cands);
       return {
-        modo:'simplificado', fase, banca:fase==='pos'?banca:null, itens:this._top3(cands), todos:cands, arquitetura:this.arquitetura(),
+        modo:'simplificado', fase, banca:fase==='pos'?banca:null, itens:this._top3(cands, p.maxDisciplinas), todos:cands, arquitetura:this.arquitetura(),
         explicacao:fase==='pre' ? 'TEC direto × meta × amostra mínima em partição hierárquica não sobreposta.' : 'TEC direto × incidência hierárquica limpa da banca × planejamento; sem usar o motor Robusto.'
       };
     },
