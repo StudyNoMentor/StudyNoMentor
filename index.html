@@ -57,7 +57,7 @@
      novo, e o antigo é descartado sozinho na ativação) e o que permite ao app
      dizer qual versão está rodando. Em src/ fica "dev" de propósito: a versão
      é gerada na montagem, não editada à mão. -->
-<meta name="diario-versao" content="va29f99afd5">
+<meta name="diario-versao" content="v42f579270a">
 <script>
 /* ── ARRANQUE: abre o IndexedDB AGORA, em paralelo com o parse do documento ──
    A fachada de armazenamento vive no fim do <body>, depois de ~1,7 MB de HTML.
@@ -18458,6 +18458,36 @@ const SaveGuard = {
     }
 
     if (opts.nuvem === false) return comPiso({ ok: true, local: true, cloud: false, motivo: 'sem-nuvem' });
+
+    /* ═══ ESPERAR A NUVEM NÃO MUDA A DECISÃO, SÓ A FRASE ═══════════════════
+       Com conta conectada, esta espera é o que faz "Registrar estudo" demorar:
+       o formulário fica travado até o `flushPending` terminar (teto de 12 s,
+       conferido de 250 em 250 ms). E o que se ganha esperando é APENAS a
+       precisão do aviso — "salvo e sincronizado ✓" em vez de "salvo no
+       aparelho · envio em andamento". O veredito não muda: falha de rede
+       continua devolvendo `ok: true`, porque o dado já está no aparelho e na
+       fila de envio, e o formulário é limpo do mesmo jeito. Ou seja, a pessoa
+       esperava por uma palavra, com o dado já seguro desde o passo anterior.
+
+       `nuvem: 'depois'` devolve o controle assim que a persistência local está
+       PROVADA (o passo que importa) e continua acompanhando a nuvem em
+       segundo plano, avisando pelo `aoSincronizar`. A garantia que existe aqui
+       desde o começo fica intacta: "sincronizado" só é dito depois de a fila
+       confirmar — o que muda é que o formulário não fica parado esperando
+       para ouvir isso.
+
+       Quem não passa a opção continua com a espera síncrona, byte por byte
+       como antes: nenhum outro salvamento do app muda de comportamento. */
+    if (opts.nuvem === 'depois') {
+      const res = await comPiso({ ok: true, local: true, cloud: false, motivo: 'enviando' });
+      this._aguardaNuvem(opts.timeout).then((r) => {
+        if (typeof opts.aoSincronizar === 'function') {
+          try { opts.aoSincronizar({ ok: true, local: true, cloud: r.enviado, motivo: r.motivo }); }
+          catch (e) { _quiet(e, 'saveguard-ao-sincronizar'); }
+        }
+      }, (e) => _quiet(e, 'saveguard-nuvem-depois'));
+      return res;
+    }
     const r = await this._aguardaNuvem(opts.timeout);
     return comPiso({ ok: true, local: true, cloud: r.enviado, motivo: r.motivo });
   },
@@ -18491,6 +18521,10 @@ const SaveGuard = {
     }
     if (res.cloud) { showToast(okTexto + ' — salvo e sincronizado ✓'); return; }
     if (res.motivo === 'offline') { showToast(okTexto + ' — salvo neste aparelho ✓'); return; }
+    /* `enviando` é o retorno imediato de `nuvem: 'depois'`: o dado está provado
+       no aparelho e a fila está subindo. Dizer "em andamento" aqui é a mesma
+       verdade do caminho síncrono quando o tempo estoura — e o
+       `aoSincronizar` corrige para "sincronizado" quando a fila confirmar. */
     showToast(okTexto + ' ✓ salvo no aparelho · envio para a nuvem em andamento');
   }
 };
@@ -20541,9 +20575,20 @@ const ReforcoEngine = {
         // duas vezes) recebiam o mesmo id — e a partir daí editar ou apagar um deles
         // atingia o outro. DB._uid() já é usado pelos cards e não colide.
         const entry = { id: DB._uid(), ...fields, createdAt: new Date().toISOString() };
+        /* ── O FORMULÁRIO NÃO ESPERA A NUVEM PARA SER LIBERADO ───────────────
+           Registrar um estudo é a ação mais repetida do app, e com conta
+           conectada ela ficava travada até o envio terminar. O que essa espera
+           acrescenta é só a palavra do aviso ("sincronizado" em vez de "envio
+           em andamento"): o dado está provado no aparelho um passo antes, e
+           falha de rede nunca preserva o formulário nem impede o registro.
+           Com `nuvem: 'depois'`, o campo já está pronto para a próxima sessão
+           e o aviso se corrige sozinho quando a fila confirma — a promessa de
+           nunca dizer "sincronizado" sem prova continua valendo. */
         const res = await SaveGuard.run({
           escrever: () => DB.saveEntry(entry),
-          verificar: () => !!DB.getEntry(entry.id)     // prova: esta no disco
+          verificar: () => !!DB.getEntry(entry.id),    // prova: esta no disco
+          nuvem: 'depois',
+          aoSincronizar: (r) => { if (r.cloud) showToast('Estudo registrado — salvo e sincronizado ✓'); }
         });
         if (!res.ok) { SaveGuard.toast(res, ''); return; }   // formulario preservado de proposito
         DB.upsertSubjectName(subject);
@@ -30948,6 +30993,65 @@ const AutoTeste = {
      portanto, DEPOIS — fora do `try` de quem gravou. Era por isso que o dado
      seguia na tela e só sumia na abertura seguinte, sem erro nenhum.
      Este grupo cuida da ponta que faltava: a fachada avisa, e o app age. */
+  /* ── REGISTRAR NÃO ESPERA A NUVEM PARA LIBERAR O FORMULÁRIO ──────────────
+     `SaveGuard.run` gravava, provava a persistência local e então ESPERAVA o
+     envio à nuvem antes de devolver o controle — até 12 s, conferindo de 250
+     em 250 ms. Com conta conectada, era isso que fazia "Registrar estudo"
+     demorar: o formulário travado esperando uma palavra, com o dado já seguro
+     um passo antes (falha de rede sempre devolveu `ok`, e o formulário é
+     limpo do mesmo jeito).
+
+     O modo `nuvem: 'depois'` devolve na hora e acompanha o envio em segundo
+     plano. Este teste fixa as duas metades do contrato, que é onde um
+     "otimizei o salvamento" costuma virar perda de dado:
+
+     1. ele só devolve depois de a gravação estar PROVADA no disco — se a
+        verificação falhar, o retorno é `ok:false` e ninguém é avisado de
+        sucesso, exatamente como no caminho síncrono;
+     2. "sincronizado" continua sendo dito só com confirmação da fila — o
+        retorno imediato diz "enviando", e a correção chega pelo callback. */
+  salvarSemEsperarNuvem() {
+    const flushOriginal = CloudStore.flushPending;
+    const prontoOriginal = CloudStore.isReady, logadoOriginal = CloudStore.isLoggedIn;
+    const pisoOriginal = SaveGuard.MIN_BUSY_MS;
+    try {
+      SaveGuard.MIN_BUSY_MS = 0;
+      CloudStore.isReady = () => true; CloudStore.isLoggedIn = () => true;
+      let liberouFila = null;
+      CloudStore.flushPending = () => new Promise(res => { liberouFila = res; });
+      CloudStore._pending = true; CloudStore._syncing = false;
+
+      let gravou = 0, avisos = [];
+      const pedido = SaveGuard.run({
+        escrever: () => { gravou++; return true; },
+        verificar: () => true,
+        nuvem: 'depois',
+        timeout: 400,
+        aoSincronizar: (r) => avisos.push(r)
+      });
+      this._ok('salvar sem esperar a nuvem devolve uma promessa e já gravou',
+        gravou === 1 && typeof pedido.then === 'function');
+      pedido.then(r => {
+        this._ok('o retorno imediato prova o disco e NÃO afirma sincronizado',
+          r.ok === true && r.local === true && r.cloud === false && r.motivo === 'enviando');
+      });
+
+      /* A prova de persistência continua sendo porta de entrada: sem ela, o
+         retorno é de falha mesmo no modo adiado. */
+      SaveGuard.run({ escrever: () => true, verificar: () => false, nuvem: 'depois' })
+        .then(r => this._ok('sem prova no disco, o modo adiado também recusa',
+          r.ok === false && r.local === false && r.motivo === 'nao-persistiu'));
+
+      if (liberouFila) { CloudStore._pending = false; liberouFila(); }
+      this._ok('o aviso de sincronizado fica para o callback, não para o retorno',
+        avisos.length === 0);
+    } finally {
+      SaveGuard.MIN_BUSY_MS = pisoOriginal;
+      CloudStore.flushPending = flushOriginal;
+      CloudStore.isReady = prontoOriginal; CloudStore.isLoggedIn = logadoOriginal;
+      delete CloudStore._pending; delete CloudStore._syncing;
+    }
+  },
   oDiscoQueRecusa() {
     this._ok('a fachada tem por onde avisar uma recusa de gravação',
       typeof window.__idbFalhouAoGravar === 'function');
@@ -33230,6 +33334,7 @@ const AutoTeste = {
      ['Esvaziar deixa rastro', 'esvaziarDeixaRastro'],
      ['Travas não ficam presas', 'travasNaoFicamPresas'],
      ['O disco que recusa gravação', 'oDiscoQueRecusa'],
+     ['Registrar não espera a nuvem', 'salvarSemEsperarNuvem'],
      ['Plano de pontos fracos', 'plano'],
      ['Motor do Reforço', 'reforcoMotor'],
      ['Incidência: gravação', 'incidenciaGravacao'],

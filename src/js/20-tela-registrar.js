@@ -660,9 +660,20 @@
         // duas vezes) recebiam o mesmo id — e a partir daí editar ou apagar um deles
         // atingia o outro. DB._uid() já é usado pelos cards e não colide.
         const entry = { id: DB._uid(), ...fields, createdAt: new Date().toISOString() };
+        /* ── O FORMULÁRIO NÃO ESPERA A NUVEM PARA SER LIBERADO ───────────────
+           Registrar um estudo é a ação mais repetida do app, e com conta
+           conectada ela ficava travada até o envio terminar. O que essa espera
+           acrescenta é só a palavra do aviso ("sincronizado" em vez de "envio
+           em andamento"): o dado está provado no aparelho um passo antes, e
+           falha de rede nunca preserva o formulário nem impede o registro.
+           Com `nuvem: 'depois'`, o campo já está pronto para a próxima sessão
+           e o aviso se corrige sozinho quando a fila confirma — a promessa de
+           nunca dizer "sincronizado" sem prova continua valendo. */
         const res = await SaveGuard.run({
           escrever: () => DB.saveEntry(entry),
-          verificar: () => !!DB.getEntry(entry.id)     // prova: esta no disco
+          verificar: () => !!DB.getEntry(entry.id),    // prova: esta no disco
+          nuvem: 'depois',
+          aoSincronizar: (r) => { if (r.cloud) showToast('Estudo registrado — salvo e sincronizado ✓'); }
         });
         if (!res.ok) { SaveGuard.toast(res, ''); return; }   // formulario preservado de proposito
         DB.upsertSubjectName(subject);
