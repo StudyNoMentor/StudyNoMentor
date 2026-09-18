@@ -54,9 +54,14 @@ const SaveGuard = {
     const t0 = Date.now();
     const escrever = opts.escrever;
     const verificar = opts.verificar;
-    // garante que o estado "Salvando…" fique visível tempo suficiente para ser lido
+    // garante que o estado "Salvando…" fique visível tempo suficiente para ser lido.
+    // Operações locais de alta frequência podem pedir um piso menor sem abrir mão
+    // da prova de persistência; a sincronização continua em segundo plano.
+    const pisoMs = Number.isFinite(Number(opts.minBusyMs))
+      ? Math.max(0, Math.min(this.MIN_BUSY_MS, Number(opts.minBusyMs)))
+      : this.MIN_BUSY_MS;
     const comPiso = async (r) => {
-      const falta = this.MIN_BUSY_MS - (Date.now() - t0);
+      const falta = pisoMs - (Date.now() - t0);
       if (falta > 0) await new Promise(res => setTimeout(res, falta));
       return r;
     };
