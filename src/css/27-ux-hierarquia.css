@@ -23,8 +23,8 @@
 /* Ciclo: 3 respostas acionáveis primeiro */
 #ciclo-overview-gauges.ux-week-gauges{display:grid!important;grid-template-columns:repeat(3,minmax(0,1fr))!important;gap:10px!important}
 #ciclo-overview-gauges .mini-gauge-card{transition:opacity .16s ease,border-color .16s ease,transform .16s ease}
-#ciclo-overview-gauges .mini-gauge-card[data-ux-priority="primary"],#ciclo-overview-gauges .mini-gauge-card[data-ux-priority="secondary"],#ciclo-overview-gauges .mini-gauge-card[data-ux-priority="tertiary"]{min-height:88px;border-color:var(--border);background:var(--surface);box-shadow:var(--shadow-sm);opacity:1}
-#ciclo-overview-gauges .mini-gauge-card[data-ux-priority] .value{font-size:clamp(22px,2.2vw,30px)}
+#ciclo-overview-gauges .mini-gauge-card[data-ux-priority="primary"],#ciclo-overview-gauges .mini-gauge-card[data-ux-priority="secondary"],#ciclo-overview-gauges .mini-gauge-card[data-ux-priority="tertiary"]{min-height:5.35em;padding:.72em .82em;border-color:var(--border);background:var(--surface);box-shadow:var(--shadow-sm);opacity:1}
+#ciclo-overview-gauges .mini-gauge-card[data-ux-priority] .value{font-size:1.55em}
 #screen-ciclo #ciclo-subjects-progress{margin-top:4px}
 
 /* Grade: a grade é o conteúdo; controles são suporte */
@@ -97,6 +97,21 @@ html.tpm-motors-active #screen-desempenhotec #plano-proj>.ux-legacy-projection:n
 #screen-desempenhotec .tpm-ranking{margin-top:20px;padding-top:16px}
 #screen-desempenhotec .tec-subtab.ux-secondary-tab{opacity:.72}
 #screen-desempenhotec .tec-subtab.ux-secondary-tab.active{opacity:1}
+#screen-desempenhotec .tec-subtab[data-tectab="motores"]{opacity:1!important}
+#screen-desempenhotec .tec-tab-is-loading,#screen-desempenhotec .pmc-is-loading{cursor:progress}
+#screen-desempenhotec .tpm-rec-actions,#screen-desempenhotec .tpm-ranking-actions-row{display:flex;align-items:center;gap:9px;flex-wrap:wrap;margin-top:10px}
+#screen-desempenhotec .tpm-create-extra{min-height:34px}
+#screen-desempenhotec .tpm-why{min-width:0}
+#screen-desempenhotec .tpm-why>summary{list-style:none;cursor:pointer;display:flex;align-items:center;gap:6px;color:var(--text-soft);font-size:var(--fs-xs);font-weight:700;user-select:none}
+#screen-desempenhotec .tpm-why>summary::-webkit-details-marker{display:none}
+#screen-desempenhotec .tpm-why>summary i{display:inline-grid;place-items:center;width:18px;height:18px;border:1px solid var(--border-strong);border-radius:50%;font-style:normal;font-size:11px;color:var(--text-soft);background:var(--surface)}
+#screen-desempenhotec .tpm-why-body{margin-top:8px;padding:10px 12px;border:1px solid var(--border);border-radius:10px;background:var(--surface-sunken)}
+#screen-desempenhotec .tpm-why-body>p{margin:0 0 8px;font-size:var(--fs-xs);line-height:1.5;color:var(--text-soft)}
+#screen-desempenhotec .tpm-why-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:6px;margin-bottom:7px}
+#screen-desempenhotec .tpm-why-grid>span{display:grid;gap:1px;padding:6px 8px;border-radius:8px;background:var(--surface)}
+#screen-desempenhotec .tpm-why-grid small{font-size:var(--fs-2xs);color:var(--text-faint)}
+#screen-desempenhotec .tpm-why-grid b{font-size:var(--fs-xs)}
+#tec-cfg-modal.is-motor-mode #tec-cfg-sub{max-width:660px}
 
 /* Configurações: cotidiano primeiro; recuperação/backup continuam completos, mas recolhidos */
 #ux-config-data{border:1px solid var(--border);border-radius:14px;background:var(--surface);margin-bottom:16px;overflow:hidden}
@@ -130,7 +145,7 @@ html.tpm-motors-active #screen-desempenhotec #plano-proj>.ux-legacy-projection:n
   .ux-hierarchy-ready .page-header{margin-bottom:14px;gap:9px!important}
   .ux-hierarchy-ready .page-subtitle{font-size:var(--fs-xs);line-height:1.45}
   #ciclo-overview-gauges.ux-week-gauges{grid-template-columns:repeat(2,minmax(0,1fr))!important}
-  #ciclo-overview-gauges .mini-gauge-card[data-ux-priority="primary"]{min-height:82px}
+  #ciclo-overview-gauges .mini-gauge-card[data-ux-priority="primary"]{min-height:5em}
   #screen-extras .exm-stats{grid-template-columns:repeat(2,minmax(0,1fr))}
   #screen-estudonovo .track-stages{grid-template-columns:repeat(2,minmax(0,1fr))!important}
   #ux-evo-more>summary,#ux-config-data>summary{padding:14px}
