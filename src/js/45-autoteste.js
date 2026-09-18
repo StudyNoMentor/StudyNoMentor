@@ -3426,11 +3426,31 @@ const AutoTeste = {
     this._ok('Ajustes: todo campo condicional aponta para uma opção que existe',
       quebrados.length === 0, quebrados.map(e => e.dataset.cfgSe));
     // o resumo devolve pares [rótulo, valor] preenchidos, nunca "undefined"
-    abas.forEach(aba => {
+    abas.concat(['rota']).forEach(aba => {
       const r = T.resumo(aba);
       this._ok('Ajustes: o resumo de "' + aba + '" tem etiquetas completas',
         Array.isArray(r) && r.length >= 2 && r.every(x => x[0] && x[1] && !/undefined|NaN/.test(String(x[1]))), r);
     });
+    /* ── CADA UM NO SEU QUADRADO ──────────────────────────────────────────
+       A folha do Plano tem duas portas: ⚙ Ajustes (o recorte dos dados, que
+       os motores também leem) e ⚙ Ajustes da rota (a régua da rota manual,
+       que nenhum motor lê). O que se cobra aqui é que a divisão seja REAL —
+       nenhum campo em duas portas, nenhum campo em porta nenhuma — porque
+       um campo órfão é exatamente o sintoma que a separação veio curar. */
+    const campos = [...document.querySelectorAll('#tec-cfg-body .tec-cfg-sec[data-tab="plano"] .rfc-field')];
+    const escopos = campos.map(box => T._escopoDoCampo(box));
+    this._ok('Ajustes: todo campo do Plano tem escopo declarado',
+      escopos.every(e => ['analise', 'motor', 'ambos'].indexOf(e) >= 0), [...new Set(escopos)]);
+    const naRota = campos.filter((_, i) => escopos[i] === 'analise').length;
+    const noRecorte = campos.filter((_, i) => escopos[i] === 'ambos').length;
+    this._ok('Ajustes: a rota manual e o recorte não ficam vazios',
+      naRota > 0 && noRecorte > 0, { naRota, noRecorte });
+    this._ok('Ajustes: nenhum campo cai nas duas portas',
+      naRota + noRecorte + campos.filter((_, i) => escopos[i] === 'motor').length === campos.length, campos.length);
+    this._ok('Ajustes: a rota manual tem título e subtítulo próprios',
+      !!(T.TITULOS.rota && T.TITULOS.rota.t && T.TITULOS.rota.s && T.TITULOS.plano_motor), T.TITULOS.rota);
+    this._ok('Ajustes: a rota reaproveita as seções do Plano, sem duplicar campo',
+      T._abaDom('rota') === 'plano', T._abaDom('rota'));
   },
 
 

@@ -57,7 +57,7 @@
      novo, e o antigo é descartado sozinho na ativação) e o que permite ao app
      dizer qual versão está rodando. Em src/ fica "dev" de propósito: a versão
      é gerada na montagem, não editada à mão. -->
-<meta name="diario-versao" content="vf352b43f31">
+<meta name="diario-versao" content="vef287abd55">
 <script>
 /* ── ARRANQUE: abre o IndexedDB AGORA, em paralelo com o parse do documento ──
    A fachada de armazenamento vive no fim do <body>, depois de ~1,7 MB de HTML.
@@ -13695,8 +13695,13 @@ body:has(#tec-cfg-body) #tec-cfg-body{scrollbar-gutter:stable}
 /* Com algum motor ativo, a superfície do Plano legado deixa de ser uma
    segunda fonte de decisão. O resultado novo continua dentro de #plano-lista,
    por isso escondemos apenas a moldura e os nós legados, nunca [data-tpm-*]. */
+/* A barra de ajustes do Plano DEIXOU de ser escondida: ela não mostra mais a
+   régua da rota manual (que foi para dentro da própria rota, ver
+   `TecAjustes.ESCOPO_ABA`), e sim apenas o recorte de dados — disciplina em
+   foco e matérias fora do Plano —, que vale para os motores tanto quanto para
+   a leitura analítica. Escondê-la deixava esse recorte sem nenhuma porta com
+   motor ativo. */
 html.tpm-motors-active #tec-panel-plano>.card>.card-header,
-html.tpm-motors-active #tec-panel-plano .tec-cfg-bar,
 html.tpm-motors-active #tec-panel-plano #plano-modos,
 html.tpm-motors-active #tec-panel-plano #plano-modo-nota{display:none!important}
 /* Só o que não é nem resultado do motor nem a rota manual reagrupada. */
@@ -15324,6 +15329,440 @@ input[type="radio"]:focus-visible {
      de largura, que aqui só criaria uma caixa estreita no meio do cartão. */
   #screen-leis .lei-card-go { min-width: 0; width: 100%; }
 }
+
+</style>
+
+<style id="ajustes-ui">
+/* ═══════════════════════════════════════════════════════════════════════════
+   AJUSTES DE INTERFACE — CAMADA V2
+   ───────────────────────────────────────────────────────────────────────────
+   Quatro correções que só se resolvem DEPOIS de todas as camadas anteriores,
+   porque cada uma desfaz uma decisão tomada em uma delas:
+
+     1. o aviso de reconciliação da nuvem cobria a barra de navegação;
+     2. a fita de indicadores do Ciclo virou tipografia miúda de 8px;
+     3. a folha de Lei seca acumulou pixels crus fora da régua `--fs-*`;
+     4. um `input{width:100%}` global inchava TODA caixa de seleção que não
+        declarasse largura própria — a origem real do "checkbox solto no meio
+        do vazio" em Dias e variações e em Manuais.
+
+   Nenhuma delas muda comportamento, dado ou regra: é tudo apresentação.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* ── 1. O AVISO DA NUVEM SAI DE CIMA DO MENU ────────────────────────────────
+   `.uxv4-sync-note` era `bottom:14px` fixo — no celular, exatamente sobre a
+   barra de abas. Ele passa a ficar ACIMA dela, mais discreto, e (pelo JS)
+   só nasce se a conferência demorar mais de ~1s. */
+.uxv4-sync-note {
+  font-size: var(--fs-3xs);
+  padding: 7px 12px;
+  opacity: .92;
+  transition: opacity .18s ease;
+}
+@media (max-width: 860px) {
+  /* 6px + 6px de padding da barra + ~50px do alvo de toque + a safe area. */
+  .uxv4-sync-note {
+    right: 10px;
+    left: auto;
+    bottom: calc(72px + env(safe-area-inset-bottom));
+    max-width: min(300px, calc(100vw - 20px));
+  }
+  /* Nas telas em foco a barra some; o aviso desce junto. */
+  body.leis-foco .uxv4-sync-note,
+  body.cards-foco .uxv4-sync-note {
+    bottom: calc(14px + env(safe-area-inset-bottom));
+  }
+}
+
+/* ── 2. A FITA DE INDICADORES DO CICLO ──────────────────────────────────────
+   A camada `27-ux-hierarquia` encolheu os seis cartões para caberem numa
+   fileira só: etiqueta de 8px ACIMA de um número de 13px, tudo centralizado.
+   Coube, e virou ilegível — e não é o mesmo objeto que o Histórico mostra
+   três telas adiante com a mesma informação.
+
+   Aqui eles voltam a ser o cartão do Histórico (`#historico-list .week-stat`):
+   caixa recuada com borda visível, NÚMERO primeiro, etiqueta embaixo, tudo
+   alinhado à esquerda — a leitura em coluna que faz seis números comparáveis
+   de relance. A fileira única cede lugar a uma grade SIMÉTRICA: 3×2 no
+   tablet, 2×3 no celular. Nenhum cartão sobra sozinho numa linha órfã. */
+#ciclo-overview-gauges.ux-week-gauges {
+  gap: calc(10px * var(--fs-scale, 1)) !important;
+  margin-bottom: 16px !important;
+}
+#ciclo-overview-gauges .mini-gauge-card,
+#ciclo-overview-gauges .mini-gauge-card[data-ux-priority="primary"],
+#ciclo-overview-gauges .mini-gauge-card[data-ux-priority="secondary"],
+#ciclo-overview-gauges .mini-gauge-card[data-ux-priority="tertiary"] {
+  display: flex;
+  flex-direction: column;          /* número em cima, etiqueta embaixo */
+  align-items: flex-start;
+  justify-content: center;
+  gap: 0;
+  text-align: left;
+  min-height: calc(62px * var(--fs-scale, 1));
+  padding: calc(11px * var(--fs-scale, 1)) calc(13px * var(--fs-scale, 1));
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--surface-sunken);
+  box-shadow: none;
+  transition: border-color .15s ease, background .15s ease;
+}
+#ciclo-overview-gauges .mini-gauge-card:hover {
+  border-color: var(--border-strong);
+  background: var(--surface);
+}
+#ciclo-overview-gauges .mini-gauge-card[data-ux-priority] .value {
+  font-family: 'Space Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-weight: 800;
+  font-size: clamp(15px, calc(19px * var(--fs-scale, 1)), 24px);
+  letter-spacing: -0.03em;
+  line-height: 1.15;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
+}
+#ciclo-overview-gauges .mini-gauge-card[data-ux-priority] .label {
+  display: block;                  /* desfaz o flex centralizador da camada 07 */
+  min-height: 0;
+  margin-top: 4px;
+  font-size: var(--fs-3xs);
+  font-weight: 700;
+  letter-spacing: .06em;
+  line-height: 1.25;
+  text-align: left;
+  color: var(--text-faint);
+}
+/* O indicador que governa a semana continua marcado — pela cor da borda e do
+   número, não por uma caixa de tamanho diferente: a grade tem de ficar
+   simétrica para os seis serem comparáveis. */
+#ciclo-overview-gauges .mini-gauge-card[data-ux-priority="primary"] {
+  border-color: color-mix(in srgb, var(--accent) 30%, var(--border));
+  background: color-mix(in srgb, var(--accent) 5%, var(--surface));
+}
+#ciclo-overview-gauges .mini-gauge-card.accent-good .value { color: var(--good); }
+#ciclo-overview-gauges .mini-gauge-card.accent-warn .value { color: var(--warn); }
+#ciclo-overview-gauges .mini-gauge-card.accent-bad  .value { color: var(--bad); }
+
+/* Grades simétricas: 6 (=6×1) · 3 (=3×2) · 2 (=2×3). Nunca 4 ou 5 colunas,
+   que deixariam a última fileira incompleta. */
+@media (max-width: 1100px) {
+  #ciclo-overview-gauges.ux-week-gauges,
+  .ciclo-gauges { grid-template-columns: repeat(3, minmax(0, 1fr)) !important; }
+}
+@media (max-width: 560px) {
+  #ciclo-overview-gauges.ux-week-gauges,
+  .ciclo-gauges {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    gap: calc(9px * var(--fs-scale, 1)) !important;
+  }
+  #ciclo-overview-gauges .mini-gauge-card[data-ux-priority] {
+    min-height: calc(58px * var(--fs-scale, 1));
+    padding: calc(10px * var(--fs-scale, 1)) calc(11px * var(--fs-scale, 1));
+  }
+  #ciclo-overview-gauges .mini-gauge-card[data-ux-priority] .value {
+    font-size: clamp(14px, calc(17px * var(--fs-scale, 1)), 21px);
+  }
+}
+
+/* ── 3. A CAIXA DE SELEÇÃO QUE O CSS GLOBAL INFLAVA ─────────────────────────
+   Causa medida, não suposta: existe um `input, select, textarea { width:100% }`
+   na base. Uma caixa de seleção não declara largura própria, então ela herdava
+   os 100% e virava um item flex de ~116px com o desenho de 13px centralizado
+   dentro — daí o "checkbox isolado, com muita tela branca em volta".
+
+   O interruptor "Rotina ativa" nunca sofreu disso porque `.xsc-master-card
+   > input` fixa 17px à mão. Aqui a mesma proteção passa a valer para TODA
+   caixa de seleção e todo botão de opção dos painéis de Extras e de Leis —
+   uma regra, e não um remendo por caixa nova que aparecer. */
+.xsc-overlay input[type="checkbox"],
+.xsc-overlay input[type="radio"],
+.rg-overlay input[type="checkbox"],
+.rg-overlay input[type="radio"],
+.ra-overlay input[type="checkbox"],
+.ra-overlay input[type="radio"] {
+  width: calc(17px * var(--fs-scale, 1));
+  height: calc(17px * var(--fs-scale, 1));
+  min-width: calc(17px * var(--fs-scale, 1));
+  flex: 0 0 auto;
+  margin: 0;
+  padding: 0;
+  accent-color: var(--accent);
+}
+/* O interruptor do reforço adaptativo é um alvo invisível de 44px sobreposto
+   ao desenho da chave: ele PRECISA da largura própria. */
+.ra-switch-hero > input[type="checkbox"] {
+  width: 44px; height: 28px; min-width: 44px;
+}
+/* Os sete dias são botões desenhados; o input vive escondido atrás deles. */
+.xsc-days input[type="checkbox"] {
+  position: absolute; opacity: 0; pointer-events: none;
+  width: 1px; height: 1px; min-width: 0;
+}
+
+/* A LINHA DE MARCAR vira uma linha de verdade: caixa à esquerda, texto
+   colado nela, e o bloco inteiro ancorado no início — o mesmo desenho do
+   "Rotina ativa" logo acima, que é o que a tela já ensinava a ler. */
+.xsc-check {
+  display: grid !important;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: start;
+  gap: 10px;
+  text-align: left;
+  padding: 12px 13px;
+  border: 1.5px solid color-mix(in srgb, var(--text-faint) 34%, var(--border));
+  border-radius: 13px;
+  background: var(--surface);
+  cursor: pointer;
+  transition: border-color .15s ease, background .15s ease;
+}
+.xsc-check > input[type="checkbox"] { margin-top: 1px; }
+.xsc-check > span { display: grid; gap: 3px; min-width: 0; width: 100%; }
+.xsc-check b { font-size: var(--fs-xs); line-height: 1.35; }
+.xsc-check small { font-size: var(--fs-2xs); font-weight: 500; line-height: 1.45; color: var(--text-soft); }
+.xsc-check:hover { border-color: color-mix(in srgb, var(--accent) 40%, var(--border)); }
+.xsc-check:has(> input:checked) {
+  border-color: color-mix(in srgb, var(--accent) 46%, var(--border));
+  background: color-mix(in srgb, var(--accent) 5%, var(--surface));
+}
+/* Em "Dias e variações" ela dividia a fileira com o quadro dos sete dias e
+   herdava `align-items:center`, que empurrava a caixa para o meio de uma
+   altura de três linhas. Alinhar pelo topo é o que a faz ler como linha. */
+.xsc-days-group .xsc-check { align-items: start; }
+
+/* ── 4. BORDAS QUE SEPARAM DE VERDADE ───────────────────────────────────────
+   Todo elemento da central usava `--border` puro sobre `--surface`: no
+   celular, com pouca luz, os cartões viravam uma única mancha clara. As
+   bordas sobem para 1,5px com um terço de tinta de texto misturada — passa a
+   dar para contar os blocos sem ler nenhum deles. */
+.xsc-field,
+.xsc-days-wrap,
+.xsc-summary-card,
+.xsc-kpis span,
+.xsc-manual-grid article,
+.xsc-presets-card,
+.xsc-today {
+  border-width: 1.5px;
+  border-color: color-mix(in srgb, var(--text-faint) 36%, var(--border));
+}
+.xsc-setting-group {
+  border-width: 1.5px;
+  border-color: color-mix(in srgb, var(--text-faint) 34%, var(--border));
+}
+.xsc-setting-group > header {
+  border-bottom-color: color-mix(in srgb, var(--text-faint) 30%, var(--border));
+}
+.xsc-field input,
+.xsc-field select {
+  border: 1.5px solid color-mix(in srgb, var(--text-faint) 34%, var(--border));
+}
+.xsc-field input:focus,
+.xsc-field select:focus {
+  border-color: var(--accent);
+  outline: none;
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 14%, transparent);
+}
+.xsc-nav { border-bottom-width: 1.5px; border-bottom-color: color-mix(in srgb, var(--text-faint) 28%, var(--border)); }
+.xsc-head { border-bottom-width: 1.5px; border-bottom-color: color-mix(in srgb, var(--text-faint) 28%, var(--border)); }
+
+/* ── 5. A FOLHA DE LEI SECA, EM UMA RÉGUA SÓ ────────────────────────────────
+   A tela acumulou `9px`, `10px`, `11px`, `12px` crus em cinco camadas — e
+   pixel cru não passa por `--fs-scale`, então o A− / A+ movia o resto da tela
+   e deixava justamente os rótulos parados. Tudo aqui volta para os tokens.
+
+   A hierarquia passa a ser explícita e a mesma em todos os grupos:
+     rótulo de seção (maiúsculas)  -> --fs-3xs
+     título do grupo / do campo    -> --fs-xs
+     valor digitado                -> --fs-sm
+     texto de apoio                -> --fs-2xs
+   E cada grupo ganha uma cor de acento própria no ícone: é o que permite
+   achar "Dias e variações" rolando, sem ler os três cabeçalhos. */
+.xsc-law-compact { gap: 14px; }
+
+.xsc-law-hero {
+  padding: 15px;
+  border-width: 1.5px;
+  border-radius: 18px;
+  gap: 13px;
+}
+.xsc-law-hero-icon { border-radius: 14px; font-size: var(--fs-2xl); }
+.xsc-law-hero-copy > small { font-size: var(--fs-3xs); letter-spacing: .1em; }
+.xsc-law-hero-copy h4 { font-size: var(--fs-lg); margin: 3px 0; }
+.xsc-law-hero-copy p { font-size: var(--fs-2xs); line-height: 1.5; }
+.xsc-master-card { padding: 8px 13px; border-width: 1.5px; }
+.xsc-master-card b { font-size: var(--fs-xs); }
+.xsc-master-card small { font-size: var(--fs-3xs); }
+
+.xsc-presets-card { padding: 12px 13px; border-radius: 15px; gap: 8px; }
+.xsc-presets-card > div > b { font-size: var(--fs-xs); }
+.xsc-presets-card > div > small { font-size: var(--fs-3xs); line-height: 1.4; }
+.xsc-presets button { min-height: 36px; padding: 7px 14px; font-size: var(--fs-2xs); border-width: 1.5px; }
+.xsc-preset-feedback { font-size: var(--fs-3xs); }
+
+.xsc-setting-group { padding: 14px; border-radius: 17px; gap: 11px; }
+.xsc-setting-group > header { gap: 11px; padding-bottom: 10px; }
+.xsc-setting-group > header b { font-size: var(--fs-sm); }
+.xsc-setting-group > header small { font-size: var(--fs-3xs); line-height: 1.4; color: var(--text-faint); }
+.xsc-group-icon {
+  width: calc(34px * var(--fs-scale, 1));
+  height: calc(34px * var(--fs-scale, 1));
+  flex: 0 0 auto;
+  border-radius: 11px;
+  font-size: var(--fs-md);
+  background: color-mix(in srgb, var(--xsc-grupo, var(--accent)) 12%, var(--surface));
+  color: var(--xsc-grupo, var(--accent));
+}
+/* Uma cor por assunto. Os três grupos da folha, na ordem em que aparecem. */
+.xsc-setting-group:nth-of-type(1) { --xsc-grupo: var(--accent); }
+.xsc-setting-group:nth-of-type(2) { --xsc-grupo: #7a5af8; }
+.xsc-setting-group:nth-of-type(3) { --xsc-grupo: #0f9d63; }
+.xsc-setting-group > header {
+  border-bottom-color: color-mix(in srgb, var(--xsc-grupo, var(--accent)) 22%, var(--border));
+}
+
+.xsc-compact-grid { gap: 10px; }
+.xsc-compact-grid .xsc-field { padding: 11px 12px; gap: 6px; border-radius: 12px; }
+.xsc-compact-grid .xsc-label b { font-size: var(--fs-xs); }
+.xsc-compact-grid .xsc-field.is-secondary-mode {
+  opacity: 1;
+  border-style: dashed;
+  background: var(--surface-sunken);
+}
+.xsc-compact-grid .xsc-field.is-secondary-mode .xsc-label b { color: var(--text-faint); }
+
+.xsc-days-wrap { padding: 12px; border-radius: 12px; gap: 10px; }
+.xsc-days { gap: 7px; }
+.xsc-days span {
+  width: calc(38px * var(--fs-scale, 1));
+  height: calc(38px * var(--fs-scale, 1));
+  border-width: 1.5px;
+  border-radius: 11px;
+  font-size: var(--fs-2xs);
+  transition: background .13s ease, border-color .13s ease, color .13s ease;
+}
+.xsc-days label:hover span { border-color: color-mix(in srgb, var(--accent) 45%, var(--border)); }
+.xsc-days input:checked + span {
+  border-color: var(--accent);
+  background: var(--accent);
+  color: var(--on-accent);
+  font-weight: 900;
+}
+
+.xsc-law-footer { padding-top: 12px; gap: 12px; }
+.xsc-law-status span { font-size: var(--fs-2xs); padding: 7px 11px; border-width: 1.5px; }
+.xsc-law-footer .xsc-foot-actions button { min-height: 44px; font-size: var(--fs-xs); }
+
+@media (max-width: 560px) {
+  .xsc-law-hero { padding: 13px; gap: 11px; }
+  .xsc-law-hero-copy h4 { font-size: var(--fs-md); }
+  .xsc-setting-group { padding: 12px; gap: 10px; }
+  .xsc-group-icon { width: calc(31px * var(--fs-scale, 1)); height: calc(31px * var(--fs-scale, 1)); }
+  .xsc-compact-grid { gap: 8px; }
+  .xsc-compact-grid .xsc-field { padding: 10px; }
+  .xsc-compact-grid .xsc-label b { font-size: var(--fs-2xs); }
+  .xsc-field input, .xsc-field select { min-height: 42px; font-size: var(--fs-sm); }
+  .xsc-days { gap: 6px; }
+  .xsc-days span { width: calc(34px * var(--fs-scale, 1)); height: calc(34px * var(--fs-scale, 1)); }
+  .xsc-check { padding: 11px 12px; }
+}
+
+/* ── 6. OS "MANUAIS" TAMBÉM SÃO UMA LINHA ───────────────────────────────────
+   A caixa do 💡 Sugerir tinha o mesmo problema de largura e a mesma tela
+   vazia ao redor — a regra de `.xsc-check` acima já a corrige. Falta só a
+   borda: ela é a única caixa da aba e precisa se distinguir do fundo. */
+.xsc-manual-grid article { border-radius: 15px; }
+.xsc-manual-grid + .xsc-check,
+.xsc-scenarios + .xsc-check {
+  margin-top: 2px;
+  border-style: solid;
+}
+
+/* ── 7. A PORTA DE AJUSTES DA ROTA MANUAL ───────────────────────────────────
+   Ela vive DENTRO do `<details>` da rota, logo abaixo do cabeçalho: quem não
+   abriu a rota não precisa saber que ela existe, e quem abriu encontra a
+   régua da rota junto com a rota — não misturada com o recorte que os motores
+   também leem, nem com as regras de cada motor (essas ficam em ⚙ Modelos). */
+#plano-lista > .tpm-legacy-exec > .tpm-legacy-cfg {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin: 12px 14px 4px;
+  padding-bottom: 12px;
+  border-bottom: 1px dashed color-mix(in srgb, var(--border) 85%, transparent);
+}
+#plano-lista > .tpm-legacy-exec:not([open]) > .tpm-legacy-cfg { display: none; }
+#plano-lista > .tpm-legacy-exec > .tpm-legacy-cfg > .tec-cfg-open {
+  border-color: color-mix(in srgb, var(--accent) 34%, var(--border));
+  border-radius: 999px;
+}
+@media (max-width: 560px) {
+  #plano-lista > .tpm-legacy-exec > .tpm-legacy-cfg { margin: 11px 12px 4px; }
+  #plano-lista > .tpm-legacy-exec > .tpm-legacy-cfg > .tec-cfg-open { width: 100%; justify-content: center; }
+}
+
+/* Com motor ativo, a barra do Plano continua na tela — mas o que ela abre
+   agora é só o recorte dos dados. O rótulo do botão passa a dizer isso. */
+html.tpm-motors-active #tec-panel-plano .tec-cfg-bar {
+  margin: 0 0 12px;
+  padding: 10px 0 0;
+}
+
+/* ── 8. DOIS ACABAMENTOS DA FOLHA DE LEI SECA ───────────────────────────────
+   a) O PÉ PRESO ERA TRANSLÚCIDO. `position:sticky` + um gradiente que começa
+      em `transparent` deixava o campo de baixo aparecendo POR TRÁS das duas
+      pílulas de status — duas camadas de texto no mesmo pixel. O pé passa a
+      ser opaco, com borda e sombra próprias: ele é uma barra, e agora parece
+      uma. E o corpo ganha folga embaixo, para o último campo poder subir
+      inteiro acima dele.
+   b) OS SELETORES LONGOS NÃO CABEM EM MEIA LARGURA. "Circular · há mais tempo
+      sem ler" virava "Circular · há mai" numa coluna de 160px. No celular o
+      grupo de sequência passa a ter uma coluna só — e todo `select` ganha
+      reticências, para que o corte, quando acontecer, seja legível. */
+.xsc-law-footer {
+  /* O pé cola no fundo REAL do corpo rolável. Com `bottom:-1px` ele parava
+     1px abaixo do conteúdo mas ACIMA do respiro inferior do corpo — e a
+     seção seguinte aparecia rolando por baixo dele, naquela faixa de ~24px.
+     O deslocamento negativo bate com a margem negativa: não sobra faixa. */
+  bottom: -24px;
+  background: var(--surface);
+  border-top: 1.5px solid color-mix(in srgb, var(--text-faint) 30%, var(--border));
+  /* As duas primeiras sombras pintam as faixas laterais do respiro do corpo,
+     de onde o conteúdo apareceria por baixo. Sombra não entra no `scrollWidth`
+     — uma margem negativa entraria, e criava 13px de rolagem horizontal na
+     folha inteira em telas de 360px. */
+  box-shadow:
+    0 -8px 18px color-mix(in srgb, var(--text) 6%, transparent),
+    -22px 0 0 0 var(--surface),
+    22px 0 0 0 var(--surface);
+  margin: 4px 0 -24px;
+  padding: 12px 0 calc(12px + env(safe-area-inset-bottom));
+}
+.xsc-law-compact { padding-bottom: 2px; }
+.xsc-field select { text-overflow: ellipsis; }
+
+@media (max-width: 560px) {
+  .xsc-law-footer { bottom: -22px; margin: 4px 0 -22px; padding: 11px 0 calc(11px + env(safe-area-inset-bottom)); }
+  /* "Ordem do rodízio" e "Ao terminar uma lei": rótulos e opções longos. */
+  .xsc-setting-group:nth-of-type(2) .xsc-compact-grid { grid-template-columns: 1fr !important; }
+}
+
+/* ── 9. O CAMPO FORA DO ESCOPO PRECISA SUMIR DE VERDADE ─────────────────────
+   `.rfc-field { display:flex }` (base) vence o `display:none` que o navegador
+   dá a `[hidden]` — o atributo era posto, e o campo continuava na tela. Sem
+   esta linha a separação entre as duas portas do Plano existe só no DOM. */
+#tec-cfg-body .rfc-field[hidden] { display: none !important; }
+
+/* Numa porta já filtrada por escopo, o selo do escopo repete em todo campo o
+   que o subtítulo da folha acabou de dizer. Ele volta a aparecer na folha
+   completa (sem motor ativo), onde de fato distingue um campo do outro. */
+#tec-cfg-modal[data-escopo] .tec-cfg-escopo,
+#tec-cfg-modal[data-escopo] .tec-cfg-escopo-legenda { display: none; }
+/* O subtítulo da seção descreve a seção INTEIRA ("as cinco decisões…"); numa
+   porta filtrada ele passa a prometer campos que não estão ali. O subtítulo da
+   folha, que é escrito por porta, já diz o que esta mostra. */
+#tec-cfg-modal[data-escopo] .tec-cfg-sec-sub { display: none; }
 
 </style>
 
@@ -33689,11 +34128,31 @@ const AutoTeste = {
     this._ok('Ajustes: todo campo condicional aponta para uma opção que existe',
       quebrados.length === 0, quebrados.map(e => e.dataset.cfgSe));
     // o resumo devolve pares [rótulo, valor] preenchidos, nunca "undefined"
-    abas.forEach(aba => {
+    abas.concat(['rota']).forEach(aba => {
       const r = T.resumo(aba);
       this._ok('Ajustes: o resumo de "' + aba + '" tem etiquetas completas',
         Array.isArray(r) && r.length >= 2 && r.every(x => x[0] && x[1] && !/undefined|NaN/.test(String(x[1]))), r);
     });
+    /* ── CADA UM NO SEU QUADRADO ──────────────────────────────────────────
+       A folha do Plano tem duas portas: ⚙ Ajustes (o recorte dos dados, que
+       os motores também leem) e ⚙ Ajustes da rota (a régua da rota manual,
+       que nenhum motor lê). O que se cobra aqui é que a divisão seja REAL —
+       nenhum campo em duas portas, nenhum campo em porta nenhuma — porque
+       um campo órfão é exatamente o sintoma que a separação veio curar. */
+    const campos = [...document.querySelectorAll('#tec-cfg-body .tec-cfg-sec[data-tab="plano"] .rfc-field')];
+    const escopos = campos.map(box => T._escopoDoCampo(box));
+    this._ok('Ajustes: todo campo do Plano tem escopo declarado',
+      escopos.every(e => ['analise', 'motor', 'ambos'].indexOf(e) >= 0), [...new Set(escopos)]);
+    const naRota = campos.filter((_, i) => escopos[i] === 'analise').length;
+    const noRecorte = campos.filter((_, i) => escopos[i] === 'ambos').length;
+    this._ok('Ajustes: a rota manual e o recorte não ficam vazios',
+      naRota > 0 && noRecorte > 0, { naRota, noRecorte });
+    this._ok('Ajustes: nenhum campo cai nas duas portas',
+      naRota + noRecorte + campos.filter((_, i) => escopos[i] === 'motor').length === campos.length, campos.length);
+    this._ok('Ajustes: a rota manual tem título e subtítulo próprios',
+      !!(T.TITULOS.rota && T.TITULOS.rota.t && T.TITULOS.rota.s && T.TITULOS.plano_motor), T.TITULOS.rota);
+    this._ok('Ajustes: a rota reaproveita as seções do Plano, sem duplicar campo',
+      T._abaDom('rota') === 'plano', T._abaDom('rota'));
   },
 
 
@@ -39807,19 +40266,82 @@ window.PlanoCiclo = PlanoCiclo;
 const TecAjustes = {
   aba: null,
   secao: null,
+  /* ═══ CADA UM NO SEU QUADRADO ════════════════════════════════════════════
+     A folha do Plano guardava, no mesmo lugar, duas coisas que não se falam:
+
+       · o RECORTE DOS DADOS (disciplina em foco, matérias fora do Plano), que
+         os motores leem tanto quanto a leitura analítica;
+       · os PARÂMETROS DA ROTA MANUAL — meta, ritmo, ordem de ataque, régua,
+         amostra, custo, frescor —, que NENHUM motor lê. O Simplificado decide
+         em `_top3` e o Robusto em `grupos.slice(0,3)`; nenhum dos dois pode
+         sequer alcançar `PlanoEngine` (invariante conferida em
+         testes/plano-robusto.mjs).
+
+     Misturar os dois numa folha só produzia a pergunta errada a cada campo:
+     "mexer aqui muda o que o motor vai me mandar fazer?". Agora não há o que
+     perguntar, porque são DUAS PORTAS:
+
+       ⚙ Ajustes (no alto do Plano) — só o recorte dos dados.
+       ⚙ Ajustes da rota (dentro da 🎯 Rota manual) — só o que a rota usa.
+
+     Nada foi duplicado, movido de arquivo nem renomeado: os campos seguem
+     sendo os mesmos elementos, com os mesmos ids e os mesmos ouvintes. O que
+     a porta faz é ESCONDER o que não é dela. Com os motores desligados a rota
+     manual É a tela inteira, então a folha do Plano volta a mostrar tudo —
+     não há segunda fonte de decisão para separar dela. */
+  ABA_DOM: { rota: 'plano' },
+  ESCOPO_ABA: { rota: ['analise'], plano: ['ambos'] },
+  ESCOPO_PADRAO_SECAO: 'analise',
+  _abaDom(aba) { return this.ABA_DOM[aba] || aba; },
+  _motoresAtivos() {
+    try { return !!document.documentElement.classList.contains('tpm-motors-active'); }
+    catch (_) { return false; }
+  },
+  /* Sem motor não há o que separar: a folha do Plano mostra tudo, como antes. */
+  _escoposDe(aba) {
+    if (!this._motoresAtivos() && aba !== 'rota') return null;
+    return this.ESCOPO_ABA[aba] || null;
+  },
+  _escopoDoCampo(box) {
+    const el = [...box.querySelectorAll('[id]')].find(x => x.id in this.ESCOPO_CAMPO);
+    return el ? this.ESCOPO_CAMPO[el.id] : this.ESCOPO_PADRAO_SECAO;
+  },
+  /* Mostra/esconde cada `.rfc-field` conforme o escopo pedido. Devolve as
+     seções que sobraram com pelo menos um campo — é essa lista que vira a
+     fita de navegação, então seção vazia nunca aparece como chip morto. */
+  _aplicarEscopo(aba) {
+    const dom = this._abaDom(aba);
+    const escopos = this._escoposDe(aba);
+    const secs = [...document.querySelectorAll('#tec-cfg-body .tec-cfg-sec[data-tab="' + dom + '"]')];
+    return secs.filter(sec => {
+      let vivos = 0;
+      sec.querySelectorAll('.rfc-field').forEach(box => {
+        const ok = !escopos || escopos.indexOf(this._escopoDoCampo(box)) >= 0;
+        box.hidden = !ok;
+        if (ok) vivos++;
+      });
+      sec.dataset.escopoVazio = vivos ? '' : '1';
+      return vivos > 0;
+    });
+  },
   _secoes(aba) {
-    return [...document.querySelectorAll('#tec-cfg-body .tec-cfg-sec[data-tab="' + aba + '"]')];
+    const dom = this._abaDom(aba || this.aba);
+    return [...document.querySelectorAll('#tec-cfg-body .tec-cfg-sec[data-tab="' + dom + '"]')]
+      .filter(sec => sec.dataset.escopoVazio !== '1');
   },
   TITULOS: {
     plano: { t: '🏁 Ajustes do Plano', s: 'O que a fila otimiza e em que dado ela confia.' },
+    plano_motor: { t: '🏁 Recorte dos dados', s: 'O que entra na conta — vale para os motores e para a rota manual. As regras de cada motor ficam em ⚙ Modelos.' },
+    rota: { t: '🎯 Ajustes da Rota manual', s: 'A régua da leitura analítica do Plano. Nenhum motor lê estes campos.' },
     reforco: { t: '🎯 Ajustes do Reforço', s: 'Como a banca e o seu erro se cruzam para formar o ranking.' },
-    analise: { t: '📊 Ajustes da Análise', s: 'O corte que define a lista de pontos fracos.' }
+    analise: { t: '📊 Ajustes da lista', s: 'O corte que define quem entra na lista de assuntos abaixo da régua.' }
   },
   /* Padrão de fábrica de cada seção: é com isto que o ponto no chip sabe se
      você mexeu ali. Ler os defaults do motor (e não uma cópia) é o que impede
      o ponto de mentir quando um padrão mudar. */
   PADROES: {
     plano: () => Object.assign({}, PlanoEngine.DEFAULTS),
+    rota: () => Object.assign({}, PlanoEngine.DEFAULTS),
     reforco: () => ({ estrat: 50, gran: 50, minq: 10, limite: null, disc: '__todas__',
       reforcoView: 'global', reforcoOrdenar: 'oportunidade' }),
     analise: () => ({ weakOrdenar: 'taxa', weakDisc: '__todas__', weakLimiar: null, weakMinQ: 10, weakLeaves: true })
@@ -39828,10 +40350,18 @@ const TecAjustes = {
     const modal = document.getElementById('tec-cfg-modal');
     if (!modal || !this.TITULOS[aba]) return;
     this.aba = aba;
-    const secs = this._secoes(aba);
+    /* O escopo é aplicado ANTES de medir as seções: a fita de navegação e a
+       altura estável têm de enxergar a folha já filtrada, senão nasce um chip
+       para uma seção que ficou sem nenhum campo. */
+    const secs = this._aplicarEscopo(aba);
     if (!secs.length) return;
-    document.getElementById('tec-cfg-title').textContent = this.TITULOS[aba].t;
-    document.getElementById('tec-cfg-sub').textContent = this.TITULOS[aba].s;
+    const rot = (aba === 'plano' && this._motoresAtivos()) ? this.TITULOS.plano_motor : this.TITULOS[aba];
+    /* A folha se declara filtrada: é o que o CSS usa para calar os selos de
+       escopo, que numa porta de escopo único só repetiriam o subtítulo. */
+    const esc = this._escoposDe(aba);
+    if (esc) modal.dataset.escopo = esc.join(' '); else delete modal.dataset.escopo;
+    document.getElementById('tec-cfg-title').textContent = rot.t;
+    document.getElementById('tec-cfg-sub').textContent = rot.s;
     // a fita de seções nasce do próprio DOM: seção nova aparece sozinha aqui
     const nav = document.getElementById('tec-cfg-nav');
     nav.innerHTML = secs.map(sec => `<button type="button" role="tab" data-sec="${escapeHtml(sec.dataset.sec)}">` +
@@ -39949,6 +40479,8 @@ const TecAjustes = {
   restaurarCampos(aba) {
     const secs = this._secoes(aba);
     secs.forEach(sec => sec.querySelectorAll('input, select').forEach(el => {
+      const box = el.closest('.rfc-field');
+      if (box && box.hidden) return;   // fora do escopo desta porta, fora do restaurar
       if (el.type === 'checkbox' || el.type === 'radio') el.checked = el.defaultChecked;
       else if (el.tagName === 'SELECT') {
         const padrao = [...el.options].find(o => o.defaultSelected);
@@ -40071,8 +40603,9 @@ const TecAjustes = {
     /* Esconde TODAS as seções, não só as da aba corrente: as três abas dividem
        o mesmo corpo, e ocultar apenas as irmãs deixava a seção da aba anterior
        aparecendo por baixo — a folha do Plano mostrando os campos do Reforço. */
+    const dom = this._abaDom(this.aba);
     document.querySelectorAll('#tec-cfg-body .tec-cfg-sec').forEach(el => {
-      el.hidden = !(el.dataset.tab === this.aba && el.dataset.sec === sec);
+      el.hidden = !(el.dataset.tab === dom && el.dataset.sec === sec);
     });
     const nav = document.getElementById('tec-cfg-nav');
     nav.querySelectorAll('button').forEach(b => {
@@ -40097,6 +40630,10 @@ const TecAjustes = {
     if (!nav) return;
     this._secoes(this.aba).forEach(sec => {
       const fora = [...sec.querySelectorAll('[data-cfg-key]')].some(el => {
+        /* Campo escondido pelo escopo desta porta não acende o ponto dela: o
+           ponto quer dizer "você mexeu em algo AQUI DENTRO". */
+        const box = el.closest('.rfc-field');
+        if (box && box.hidden) return false;
         const k = el.dataset.cfgKey;
         if (!(k in padrao) || padrao[k] == null) return false;
         const atual = (el.type === 'checkbox') ? el.checked : el.value;
@@ -40123,9 +40660,21 @@ const TecAjustes = {
     const semEmoji = (t) => String(t || '').replace(/^[^\p{L}\d]+/u, '').split(' — ')[0].trim();
     const disc = (id) => { const d = semEmoji(sel(id)); return (!d || /^todas/i.test(d)) ? 'todas' : d; };
     const p = [];
-    if (aba === 'plano') {
+    if (aba === 'rota') {
+      /* A fita da rota responde "com que régua esta rota está montada" — e
+         nada mais: recorte de dados e regras de motor têm portas próprias. */
       if (val('plano-meta')) p.push(['meta', val('plano-meta') + '%']);
       p.push(['ordem', semEmoji(sel('plano-ordenar'))]);
+      p.push(['amostra', semEmoji(sel('plano-amostraalvo'))]);
+      if (val('plano-sug-disciplinas')) p.push(['frentes', val('plano-sug-disciplinas')]);
+      if (val('plano-sug-topicos')) p.push(['por matéria', val('plano-sug-topicos')]);
+      if (val('plano-limite')) p.push(['lista', val('plano-limite') + ' por vez']);
+    } else if (aba === 'plano') {
+      /* Com motor ativo esta porta é só o RECORTE. Anunciar meta e ordem de
+         ataque aqui seria prometer que ela governa o motor — e não governa. */
+      const soRecorte = this._motoresAtivos();
+      if (!soRecorte && val('plano-meta')) p.push(['meta', val('plano-meta') + '%']);
+      if (!soRecorte) p.push(['ordem', semEmoji(sel('plano-ordenar'))]);
       p.push(['disciplina', disc('plano-disc')]);
       /* A exclusão muda TODO número do Plano e mora dentro de uma caixa
          fechada. Sem ela na fita de resumo, o único lugar em que a porta dos
@@ -40133,8 +40682,11 @@ const TecAjustes = {
       try {
         const ex = PlanoEngine.prefs().excluidas;
         if (Array.isArray(ex) && ex.length) p.push(['fora', ex.length === 1 ? ex[0] : ex.length + ' matérias']);
+        /* Quando a porta é SÓ o recorte, "nada de fora" também é resposta: são
+           dois campos, e a fita tem de dizer o estado dos dois. */
+        else if (soRecorte) p.push(['fora', 'nenhuma matéria']);
       } catch (e) { _quiet(e, 'cfg-excluidas'); }
-      if (val('plano-limite')) p.push(['lista', val('plano-limite') + ' por vez']);
+      if (!soRecorte && val('plano-limite')) p.push(['lista', val('plano-limite') + ' por vez']);
     } else if (aba === 'reforco') {
       let b = ''; try { b = ReforcoEngine.rotuloBancas(DesempenhoTecScreen.bancaFiltro()); } catch (e) { _quiet(e, 'cfg-bancas'); }
       p.push([/todas/i.test(b) ? 'bancas' : (b.indexOf(' e ') > 0 ? 'bancas' : 'banca'), b.replace(/^todas as bancas$/, 'todas')]);
@@ -40152,7 +40704,7 @@ const TecAjustes = {
   },
   // chamado pelas telas a cada repintura: o resumo nunca pode ficar velho
   sincronizar(aba) {
-    const alvos = aba ? [aba] : ['plano', 'reforco', 'analise'];
+    const alvos = aba ? [aba] : ['plano', 'reforco', 'analise', 'rota'];
     alvos.forEach(a => {
       const el = document.getElementById(a + '-cfg-resumo');
       if (!el) return;
@@ -44459,10 +45011,17 @@ $id('tec-weak-disc').addEventListener('change', (e) => {
   if (reset) reset.addEventListener('click', async () => {
     const aba = TecAjustes.aba;
     if (!aba) return;
-    const nome = { plano: 'do Plano', reforco: 'do Reforço', analise: 'da Análise' }[aba] || '';
+    const nome = { plano: 'do Plano', rota: 'da Rota manual', reforco: 'do Reforço', analise: 'da lista' }[aba] || '';
     if (!await UI.confirm('Voltar todos os ajustes ' + nome + ' aos valores padrão?', { title: 'Restaurar padrões' })) return;
-    if (aba === 'plano') {
-      DB.delRaw(DB._profilePrefix() + PlanoEngine.KEY_PREF);
+    if (aba === 'plano' || aba === 'rota') {
+      /* "Restaurar padrões" restaura o que ESTA porta mostra, e nada além.
+         Apagar a preferência inteira a partir do Recorte levaria junto meta,
+         ritmo, régua e custo — que nem estão nesta tela. */
+      if (aba === 'plano' && TecAjustes._escoposDe('plano')) {
+        PlanoEngine.salvarPrefs({ disciplina: PlanoEngine.DEFAULTS.disciplina, excluidas: [] });
+      } else {
+        DB.delRaw(DB._profilePrefix() + PlanoEngine.KEY_PREF);
+      }
       PlanoEngine._c = null;
       DT.renderPlano();
     } else if (aba === 'reforco') {
@@ -56223,12 +56782,41 @@ else CloudStore.init();
     } catch (e) { quiet(e, 'gate-message'); }
   }
 
-  function syncNote(text) {
+  /* ── O AVISO DE RECONCILIAÇÃO NÃO PODE DISPUTAR A TELA COM O MENU ────────
+     Ele nascia no instante em que a conferência começava, fixo no canto de
+     baixo — exatamente onde, no celular, mora a barra de navegação. Na
+     abertura normal (a esmagadora maioria: nada mudou na nuvem) a conferência
+     dura poucas centenas de milissegundos, então o que a pessoa via era um
+     balão cobrindo os menus e sumindo sozinho — ruído puro, e bem em cima do
+     primeiro toque que ela ia dar.
+
+     Duas mudanças, e nenhuma delas esconde informação:
+
+     · ELE ESPERA. Só aparece se a conferência passar de `ATRASO` ms. Abaixo
+       disso ninguém precisa saber que ela aconteceu — e ninguém saberá.
+     · ELE NÃO ENCOSTA NA BARRA. O CSS o ancora ACIMA da navegação no celular
+       (ver `.uxv4-sync-note` em 32-ajustes-ui.css).
+
+     Quem tem novidade de verdade para baixar não espera: `syncNote(txt, true)`
+     pinta na hora, porque aí há um motivo concreto para ocupar a tela. */
+  const SYNC_ATRASO = 1100;
+  let _syncTimer = null;
+  function _syncPintar(text) {
+    let el = document.querySelector('.uxv4-sync-note');
+    if (!el) { el = document.createElement('div'); el.className = 'uxv4-sync-note'; el.innerHTML = '<span class="uxv4-mini-spin"></span><span></span>'; document.body.appendChild(el); }
+    el.querySelector('span:last-child').textContent = text;
+  }
+  function syncNote(text, imediato) {
     try {
-      let el = document.querySelector('.uxv4-sync-note');
-      if (!text) { if (el) el.remove(); return; }
-      if (!el) { el = document.createElement('div'); el.className = 'uxv4-sync-note'; el.innerHTML = '<span class="uxv4-mini-spin"></span><span></span>'; document.body.appendChild(el); }
-      el.querySelector('span:last-child').textContent = text;
+      if (_syncTimer) { clearTimeout(_syncTimer); _syncTimer = null; }
+      if (!text) {
+        const el = document.querySelector('.uxv4-sync-note');
+        if (el) el.remove();
+        return;
+      }
+      // já visível: trocar o texto é instantâneo, não reinicia a espera.
+      if (imediato || document.querySelector('.uxv4-sync-note')) { _syncPintar(text); return; }
+      _syncTimer = setTimeout(() => { _syncTimer = null; _syncPintar(text); }, SYNC_ATRASO);
     } catch (e) { quiet(e, 'sync-note'); }
   }
 
@@ -56252,7 +56840,7 @@ else CloudStore.init();
         const rr = await CloudStore._fetchRev(id); novidade = rr != null && rr > ProfileManager.getRev(id);
       }
       if (novidade) {
-        syncNote('Há novidades de outro aparelho. Atualizando com segurança…');
+        syncNote('Há novidades de outro aparelho. Atualizando com segurança…', true);
         if (window.SectionSync && SectionSync.readEnabled) await SectionSync.pullAndReload();
         else if (CloudStore.pullActiveAndReload) await CloudStore.pullActiveAndReload();
       } else {
@@ -58161,7 +58749,15 @@ else CloudStore.init();
     _desagrupar(lista) {
       if (!lista) return;
       lista.querySelectorAll(':scope > .tpm-legacy-exec').forEach(el => {
-        Array.from(el.children).forEach(ch => { if (ch.tagName !== 'SUMMARY') lista.insertBefore(ch, el); });
+        /* Devolve só o que veio da lista. O `<summary>` e a barra de ajustes
+           são construídos aqui a cada agrupamento: reinseri-los na lista
+           deixaria um rastro de cabeçalhos órfãos crescendo a cada repintura
+           — invisíveis por CSS, mas vivos no DOM e no leitor de tela. */
+        Array.from(el.children).forEach(ch => {
+          if (ch.tagName === 'SUMMARY') return;
+          if (ch.classList && ch.classList.contains('tpm-legacy-cfg')) return;
+          lista.insertBefore(ch, el);
+        });
         el.remove();
       });
     },
@@ -58178,10 +58774,26 @@ else CloudStore.init();
       box.open = this._legacyOpen === true;
       box.innerHTML = '<summary><span><b>🎯 Rota manual do Plano</b>'
         + '<small>Quadro de matérias com “Atacar”, o próximo bloco em lote e a criação avulsa de atividades.</small>'
-        + '</span><i>▾</i></summary>';
+        + '</span><i>▾</i></summary>'
+        /* ── OS AJUSTES DA ROTA MORAM DENTRO DA ROTA ────────────────────────
+           Meta, ritmo, ordem de ataque, régua, amostra, custo e frescor são
+           parâmetros DESTA rota: nenhum motor os lê. Enquanto a porta deles
+           era a mesma do Plano, cada campo carregava a dúvida "isso muda o
+           que o motor vai me mandar fazer?" — e, com motor ativo, o CSS
+           escondia aquela barra inteira, então eles não tinham porta nenhuma.
+           Agora a porta é esta, aqui dentro, e ela só abre o que é daqui. */
+        + '<div class="tpm-legacy-cfg">'
+        + '<button type="button" class="tec-cfg-open" data-cfg="rota" aria-haspopup="dialog">'
+        + '<span class="gg-ic">⚙</span>Ajustes da rota</button>'
+        + '<span class="tec-cfg-resumo" id="rota-cfg-resumo"></span>'
+        + '</div>';
       lista.appendChild(box);
       alvos.forEach(el => box.appendChild(el));
       box.addEventListener('toggle', () => { this._legacyOpen = box.open; });
+      /* O resumo é repintado junto: ele responde "com que régua esta rota está
+         montada agora" sem abrir a folha. */
+      try { if (window.TecAjustes) TecAjustes.sincronizar('rota'); }
+      catch (e) { if (typeof _quiet === 'function') _quiet(e, 'rota-cfg-resumo'); }
     },
     /* Quem clica em 🎯 Atacar / + focar está DENTRO da rota manual, e a
        repintura que o clique dispara reconstrói o `<details>`. Sem esta marca
