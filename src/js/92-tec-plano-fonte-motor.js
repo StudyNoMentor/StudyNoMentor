@@ -122,7 +122,11 @@
       const comp = c.componentes || {};
       const score = fonte === 'robusto' ? n(c.scoreTopico, c.score) : n(c.score);
       const rows = [];
-      const add = (rot, val) => { if (val !== null && val !== undefined && val !== '' && Number.isFinite(Number(val))) rows.push([rot, val]); };
+      const add = (rot, val) => {
+        if (val === null || val === undefined) return;
+        const txt = String(val).trim();
+        if (txt) rows.push([rot, txt]);
+      };
       add('Prioridade do tópico', Math.round(score));
       add('Acerto observado', Number.isFinite(Number(c.taxa)) ? fmt(c.taxa, 1) + '%' : null);
       add('Amostra', Math.max(0, Math.round(n(c.qJanela))));
