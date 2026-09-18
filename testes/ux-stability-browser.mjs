@@ -58,7 +58,9 @@ try{
   const medirFileira=()=>page.evaluate(()=>{
     const bar=document.querySelector('#screen-extras .extras-toolbar');
     const acts=bar&&bar.querySelector('.uxv3-toolbar-actions');
-    const bts=acts?[...acts.querySelectorAll(':scope > button')]:[];
+    /* Botao escondido pela preferencia (💡 Sugerir nasce desligado) nao tem
+       caixa: medir a altura dele contaria um zero como "outra altura". */
+    const bts=acts?[...acts.querySelectorAll(':scope > button')].filter(b=>b.offsetParent!==null):[];
     return {temFileira:!!acts,n:bts.length,
       aninhados:acts?[...acts.children].filter(c=>c.tagName!=='BUTTON').length:null,
       linhas:new Set(bts.map(b=>Math.round(b.getBoundingClientRect().top))).size,
@@ -73,6 +75,30 @@ try{
   eq(fileiraMob.alturas,1,`os botoes devem ter a mesma altura (recebeu ${fileiraMob.alturas} alturas)`);
   ok(fileiraMob.linhas<fileiraMob.n,`em 390px os botoes nao podem descer um por linha (${fileiraMob.linhas} linhas para ${fileiraMob.n} botoes)`);
   eq(fileiraMob.overflow,0,'a barra de Extras nao pode transbordar na horizontal');
+  /* ── 💡 SUGERIR NASCE DESLIGADO ────────────────────────────────────────
+     Ele monta atividades a partir dos pontos fracos do TEC por um caminho
+     anterior aos motores; quem decide alvo, ordem e dose hoje e o motor
+     escolhido no Desempenho TEC, por 🏁 Puxar do Plano. Os dois sempre
+     visiveis sao duas respostas para a mesma pergunta, sem dizer qual vale. */
+  const sugerir=await page.evaluate(()=>{
+    const b=document.getElementById('extras-suggest-btn');
+    const antes={existe:!!b,visivel:b?b.offsetParent!==null:null,padrao:ExtrasBarraPrefs.mostrarSugerir()};
+    ExtrasBarraPrefs.salvar({sugerir:true}); ExtrasScreen.render(); UXStability.decorateExtrasToolbar();
+    const b2=document.getElementById('extras-suggest-btn');
+    const depois=b2?b2.offsetParent!==null:null;
+    ExtrasBarraPrefs.salvar({sugerir:false}); ExtrasScreen.render(); UXStability.decorateExtrasToolbar();
+    /* Os dois `render()` acima refazem a lista; a decoracao dos cartoes de lei
+       (que tira o chip duplicado) roda em rAF e ainda nao passou. Reaplicada
+       aqui para os casos seguintes verem a tela no estado decorado. */
+    UXStability.decorateLawCards();
+    const b3=document.getElementById('extras-suggest-btn');
+    return {...antes,ligado:depois,desligado:b3?b3.offsetParent!==null:null};
+  });
+  ok(sugerir.existe,'o botao Sugerir deve continuar existindo no HTML');
+  eq(sugerir.padrao,false,'a preferencia do Sugerir deve nascer desligada');
+  eq(sugerir.visivel,false,'por padrao o Sugerir nao deve aparecer na barra');
+  eq(sugerir.ligado,true,'ligar a preferencia deve trazer o Sugerir de volta');
+  eq(sugerir.desligado,false,'desligar a preferencia deve esconder o Sugerir de novo');
   await page.setViewportSize({width:1280,height:900});
   await page.waitForTimeout(140);
   const fileiraDesk=await medirFileira();
@@ -130,6 +156,47 @@ try{
   });
   eq(autoCloud.menu,0,'menu de relogin automático não deve interromper o usuário');
   eq(autoCloud.scrim,0,'scrim automático também deve ser removido');
+
+  /* ── O CARTAO DE REFORCOS EM CURSO ──────────────────────────────────────
+     O cabecalho pedia `minmax(190px,.75fr) minmax(360px,1.35fr) auto` — piso de
+     ~610px com os vaos. Num telefone de 390px ele transbordava e o titulo saia
+     pela esquerda, atras das caixas de missao. Havia correcao numa folha
+     posterior, mas presa a uma classe que o JS aplica dois quadros depois: no
+     intervalo, e em qualquer repintura que a perdesse, o piso voltava.
+
+     E o rodape do cartao de MODELO tinha o mesmo tipo de defeito ao contrario:
+     `flex: 1 1 260px` num container que virava `flex-direction:column` abaixo
+     de 720px — ali o 260px deixa de ser largura e vira ALTURA, e uma linha de
+     texto abria um vao de 260px antes do botao "Configurar". */
+  const curso=await page.evaluate(()=>{
+    DB.saveSubjects([{id:'uxc1',nome:'Economia e Finanças Públicas',ativo:true,peso:1}]);
+    const e=DB.addExtra({titulo:'Reforçar: Curvas de Phillips',tipo:'questoes',disciplina:'Economia e Finanças Públicas',
+      unidade:'questoes',alvo:10,periodo:'unica',contaMetricas:false});
+    DB.updateExtra(e.id,{origemPlano:{topico:'Curvas de Phillips',disciplina:'Economia e Finanças Públicas',motivo:'reforco',
+      criadoEm:todayLocal(),taxaInicial:44,qBase:16,qBaseNo:16,escopo:{tipo:'no',membros:['Curvas de Phillips']},
+      metaAlvo:90,custoEstimado:10,tetoAlvo:90,
+      sugestao:{versao:5,motor:'plano-robusto',fase:'pre',score:93,quantidadeRecomendada:10,criadoEm:todayLocal()}}});
+    switchScreen('extras');ExtrasScreen.render();
+    try{UXStability.decorateCourse();}catch(_){}
+    const card=document.getElementById('extras-curso');
+    const head=card&&card.querySelector('.exc-head');
+    const tit=head&&head.querySelector('.exc-tit');
+    const res=head&&head.querySelector('.exc-resumo');
+    const chev=head&&head.querySelector('.chev');
+    const cruza=(a,b)=>{if(!a||!b)return false;const x=a.getBoundingClientRect(),y=b.getBoundingClientRect();
+      return !(x.right<=y.left+.5||y.right<=x.left+.5||x.bottom<=y.top+.5||y.bottom<=x.top+.5);};
+    return {temCabecalho:!!head,
+      transbordaCartao:card?Math.max(0,card.scrollWidth-card.clientWidth):null,
+      transbordaCabecalho:head?Math.max(0,head.scrollWidth-head.clientWidth):null,
+      tituloForaDaTela:tit?tit.getBoundingClientRect().x< -0.5:null,
+      tituloXresumo:cruza(tit,res),tituloXchev:cruza(tit,chev),resumoXchev:cruza(res,chev)};
+  });
+  ok(curso.temCabecalho,'o cartao de reforcos em curso deve existir');
+  eq(curso.transbordaCartao,0,'o cartao de reforcos nao pode transbordar na horizontal');
+  eq(curso.transbordaCabecalho,0,'o cabecalho do cartao nao pode transbordar');
+  eq(curso.tituloForaDaTela,false,'o titulo "Reforcos em curso" nao pode ser empurrado para fora da tela');
+  ok(!curso.tituloXresumo&&!curso.tituloXchev&&!curso.resumoXchev,
+    `nada no cabecalho pode se sobrepor: ${JSON.stringify(curso)}`);
 
   /* ── OS CARTOES DA LISTA DE LEIS SECAS ──────────────────────────────────
      A acao do cartao passou a NOMEAR o que faz ("Começar / Continuar / Reler"

@@ -11,9 +11,42 @@
     ? escapeHtml(String(v == null ? '' : v))
     : String(v == null ? '' : v).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 
+  /* ── O QUE A BARRA DA TELA DE EXTRAS MOSTRA ───────────────────────────────
+     Uma preferência de tela, não de motor: por isso mora aqui e não dentro de
+     `ReforcoFila` ou `LeiRodizio`. Gravada por perfil, pela camada de escrita
+     do `DB` — `setRaw` avisa as duas camadas de sincronização, coisa que um
+     `localStorage.setItem` direto não faz.
+
+     `sugerir` nasce FALSO. O botão 💡 Sugerir monta atividades a partir dos
+     pontos fracos do TEC por um caminho anterior aos motores; quem decide
+     alvo, ordem e dose hoje é o motor escolhido no Desempenho TEC, por 🏁
+     Puxar do Plano. Deixar os dois sempre visíveis é oferecer duas respostas
+     para a mesma pergunta sem dizer qual vale. */
+  const ExtrasBarraPrefs = {
+    KEY: 'extras-barra-ui',
+    _key() { return DB._profilePrefix() + this.KEY; },
+    prefs() {
+      try {
+        const z = JSON.parse(localStorage.getItem(this._key()) || 'null');
+        if (z && typeof z === 'object') return z;
+      } catch (e) { if (typeof _quiet === 'function') _quiet(e, 'extras-barra-prefs-read'); }
+      return {};
+    },
+    mostrarSugerir() { return this.prefs().sugerir === true; },
+    salvar(patch) {
+      const p = Object.assign({}, this.prefs(), patch || {});
+      try {
+        const raw = JSON.stringify(p);
+        if (DB.setRaw) DB.setRaw(this._key(), raw); else localStorage.setItem(this._key(), raw);
+      } catch (e) { if (typeof _quiet === 'function') _quiet(e, 'extras-barra-prefs-save'); }
+      return p;
+    }
+  };
+  if (typeof window !== 'undefined') window.ExtrasBarraPrefs = ExtrasBarraPrefs;
+
   const ExtrasCentral = {
     modal: null,
-    tab: 'geral',
+    tab: 'reforcos',
 
     _info(txt) {
       return `<button type="button" class="xsc-info" aria-label="Mais informações" title="${esc(txt)}">i</button>`;
@@ -41,7 +74,7 @@
       btn.innerHTML = '⚙ Configurações';
       btn.title = 'Configurar automações, reforços, lei seca e comportamento das Atividades Extras';
       novo.parentElement.insertBefore(btn, novo.parentElement.firstChild);
-      btn.addEventListener('click', () => this.abrir('geral'));
+      btn.addEventListener('click', () => this.abrir('reforcos'));
     },
 
     /* A fita ganha ícone e contador: "Reforços" e "Lei seca" são as duas
@@ -50,7 +83,6 @@
     _nav() {
       const s = this._status();
       const itens = [
-        ['geral', '◎', 'Visão geral', ''],
         ['reforcos', '🎯', 'Reforços', String(s.reforcos)],
         ['lei', '📚', 'Lei seca', String(s.lei.aptas || 0)],
         ['manuais', '✍️', 'Manuais', '']
@@ -61,55 +93,16 @@
         </nav>`;
     },
 
-    _geral() {
-      const s = this._status(), lp = s.lei.prefs || {};
-      /* ── O RESUMO TEM DE DIZER SE ALGO ESTÁ ROLANDO HOJE ──────────────────
-         A visão geral listava quatro cartões de atalho e três "cenários" de
-         configuração, e nenhum deles respondia a pergunta com que se abre
-         esta janela: o que a automação vai colocar na minha fila hoje? Com
-         "0 ativo(s)" e "1 lei apta", a leitura correta é "nada de reforço,
-         uma leitura" — e isso precisava ser somado de dois cartões
-         diferentes. A faixa abaixo soma. */
-      const leiLigada = lp.ativo !== false;
-      const nLei = leiLigada ? Math.min(Number(lp.porDia) || 1, Number(s.lei.aptas) || 0) : 0;
-      const hoje = s.reforcos + nLei;
-      const estado = hoje === 0
-        ? { cls: 'is-off', ic: '💤', rot: 'Nada automático hoje', det: 'Nenhum reforço ativo e nenhuma leitura programada. Tudo o que aparecer em Extras vai ser o que você criar à mão.' }
-        : { cls: 'is-on', ic: '⚙️', rot: hoje === 1 ? '1 item automático hoje' : hoje + ' itens automáticos hoje',
-            det: [s.reforcos ? s.reforcos + ' reforço(s) de questões' : '', nLei ? nLei + ' leitura(s) de lei seca' : ''].filter(Boolean).join(' + ') + ' — o resto da fila é o que você criar.' };
-      return `
-        <section class="xsc-section xsc-overview">
-          <div class="xsc-section-head"><div><small>RESUMO OPERACIONAL</small><h4>O que está automatizado</h4><p>A tela principal fica só com execução. Ajustes raros ficam concentrados aqui.</p></div></div>
-          <div class="xsc-today ${estado.cls}">
-            <span class="xsc-today-ic" aria-hidden="true">${estado.ic}</span>
-            <div><strong>${esc(estado.rot)}</strong><span>${esc(estado.det)}</span></div>
-          </div>
-          <div class="xsc-overview-grid">
-            <article class="xsc-summary-card">
-              <div class="xsc-summary-icon">🎯</div><div><strong>Reforços</strong><span>${s.reforcos} ativo(s)</span><small>Padrão ${s.reforcoPrefs.disciplinasDia || 1}/dia · ${s.reforcoPrefs.blocoMin || 10}–${s.reforcoPrefs.blocoMax || 25} questões</small></div>
-              <button type="button" class="btn-secondary" data-xsc-go="reforcos">Configurar</button>
-            </article>
-            <article class="xsc-summary-card">
-              <div class="xsc-summary-icon">📚</div><div><strong>Lei seca</strong><span>${s.lei.aptas || 0} lei(s) apta(s)</span><small>${lp.ativo === false ? 'Rotina pausada' : `${lp.porDia || 1} lei(s)/dia · ${lp.modoCarga === 'tempo' ? `${lp.minutosSessao || 20} min/sessão` : `${lp.linhasSessao || 30} linhas/sessão`}`}</small></div>
-              <button type="button" class="btn-secondary" data-xsc-go="lei">Configurar</button>
-            </article>
-            <article class="xsc-summary-card">
-              <div class="xsc-summary-icon">✍️</div><div><strong>Atividades manuais</strong><span>Você decide quando e como</span><small>Anki, leitura, revisão, vídeo e tarefas livres continuam simples e independentes.</small></div>
-              <button type="button" class="btn-secondary" data-xsc-go="manuais">Ver opções</button>
-            </article>
-            <article class="xsc-summary-card">
-              <div class="xsc-summary-icon">◷</div><div><strong>Histórico gerenciado</strong><span>${s.fechados} reforço(s) encerrado(s)</span><small>Execução diária, alterações de regra e auditoria ficam fora da rotina principal.</small></div>
-              <button type="button" class="btn-secondary" data-xsc-history>Ver histórico</button>
-            </article>
-          </div>
-          <div class="xsc-scenarios">
-            <strong>Como pensar a configuração</strong>
-            <div><b>Rotina leve</b><span>1 reforço/dia + 1 lei curta. Boa quando o estudo principal já está pesado.</span></div>
-            <div><b>Rotina equilibrada</b><span>1–2 reforços compatíveis + 1 lei/dia. Mantém giro sem pulverizar o estudo.</span></div>
-            <div><b>Pós-edital</b><span>Use 2 reforços/dia somente nas frentes escolhidas e lei seca por tempo para controlar a carga total.</span></div>
-          </div>
-        </section>`;
-    },
+    /* ── A "VISÃO GERAL" SAIU ───────────────────────────────────────────
+       Ela era uma quinta aba que repetia as outras quatro: quatro cartões de
+       atalho ("Reforços · Configurar", "Lei seca · Configurar", "Manuais · Ver
+       opções") para abas que já estavam ali do lado, na mesma fita, a um
+       toque. Quem abre esta janela quer mexer em alguma coisa; a visão geral
+       cobrava um toque a mais para chegar em qualquer lugar e mostrava, no
+       caminho, três "cenários de configuração" que ninguém pode aplicar.
+
+       O que ela tinha de próprio — a porta para o histórico dos reforços
+       encerrados — já existia também na aba Reforços, e continua lá. */
 
     _reforcos() {
       const s = this._status(), p = s.reforcoPrefs;
@@ -161,6 +154,7 @@
             <article><b>🃏 Anki</b><span>Mantenha manual/recorrente.</span><small>A recorrência existente já resolve bem o problema sem criar mais um motor de rodízio.</small></article>
           </div>
           <div class="xsc-scenarios"><strong>Regra simples</strong><div><b>Automatize o que precisa decidir sozinho</b><span>Reforços e lei seca.</span></div><div><b>Mantenha manual o que você já sabe quando fazer</b><span>Anki, aulas extras, simulados e compromissos pontuais.</span></div></div>
+          <label class="xsc-check"><input type="checkbox" data-xsc-show-suggest ${ExtrasBarraPrefs.mostrarSugerir() ? 'checked' : ''}><span><b>Mostrar o botão 💡 Sugerir na barra de Extras</b><small>Ele monta atividades a partir dos seus pontos fracos do TEC. Nasce desligado porque quem decide alvo e dose é o motor escolhido no Desempenho TEC, por 🏁 Puxar do Plano — o Sugerir é um caminho antigo, paralelo a ele.</small></span></label>
         </section>`;
     },
 
@@ -168,7 +162,7 @@
       if (this.tab === 'reforcos') return this._reforcos();
       if (this.tab === 'lei') return this._lei();
       if (this.tab === 'manuais') return this._manuais();
-      return this._geral();
+      return this._reforcos();
     },
 
     /* A fita é repintada junto com o corpo: os contadores que ela mostra
@@ -212,6 +206,19 @@
       const pol = root.querySelector('[data-xsc-policy]');
       if (pol) pol.onclick = () => { this.fechar(); if (typeof ReforcoGovernanca !== 'undefined') ReforcoGovernanca.abrirPolitica(); };
 
+      const mostrarSug = root.querySelector('[data-xsc-show-suggest]');
+      if (mostrarSug) mostrarSug.onchange = () => {
+        ExtrasBarraPrefs.salvar({ sugerir: !!mostrarSug.checked });
+        if (typeof ExtrasScreen !== 'undefined' && ExtrasScreen.render) ExtrasScreen.render();
+        /* A decoração da barra roda em dois `requestAnimationFrame` depois do
+           render — cedo demais para quem acabou de clicar na caixa e quer ver
+           o efeito. Aplicada agora, de propósito: é a mesma função, idempotente. */
+        try { if (window.UXStability && UXStability.decorateExtrasToolbar) UXStability.decorateExtrasToolbar(); }
+        catch (e) { if (typeof _quiet === 'function') _quiet(e, 'extras-barra-aplicar'); }
+        if (typeof showToast === 'function') {
+          showToast(mostrarSug.checked ? 'Botão Sugerir visível na barra de Extras' : 'Botão Sugerir escondido');
+        }
+      };
       const novo = root.querySelector('[data-xsc-manual-new]');
       if (novo) novo.onclick = () => { this.fechar(); const b=document.getElementById('extras-new-btn'); if(b)b.click(); };
       const man = root.querySelector('[data-xsc-manual-manage]');
@@ -255,7 +262,7 @@
 
     abrir(tab) {
       if (this.modal) this.fechar();
-      this.tab = tab || 'geral';
+      this.tab = tab || 'reforcos';
       const ov = document.createElement('div');
       ov.className = 'xsc-overlay';
       ov.innerHTML = `<div class="xsc-modal" role="dialog" aria-modal="true" aria-label="Configurações de Atividades Extras">

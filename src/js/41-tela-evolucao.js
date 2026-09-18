@@ -1445,17 +1445,46 @@ const EvolucaoScreen = {
     series.forEach((s, si) => {
       const d = s.points.map((p, i) => `${i === 0 ? 'M' : 'L'} ${xAt(p.x)} ${yAt(p.pct)}`).join(' ');
       paths += `<path d="${d}" fill="none" stroke="${s.color}" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>`;
-      // rótulo de valor: no celular, rotula 1 a cada N pontos (evita amontoado); alterna acima/abaixo
+      /* ── ONDE PÔR O NÚMERO DE CADA PONTO ────────────────────────────────
+         Antes o lado era decidido por `i % 2`: par em cima, ímpar embaixo.
+         A paridade não sabe nada sobre o desenho, então metade dos rótulos
+         caía exatamente sobre o segmento que sai do ponto — foi o que deixou
+         o gráfico ilegível, com "77,40%" e "70,40%" em cima da própria linha.
+
+         O lado passa a ser escolhido pela GEOMETRIA: o rótulo vai para o lado
+         de onde a linha se afasta. Se os vizinhos estão mais abaixo na tela
+         (y maior), o espaço livre é acima do ponto; se estão mais acima, é
+         abaixo. Num pico o número fica em cima, num vale fica embaixo, e numa
+         subida ou descida fica do lado de fora da curva — que é justamente
+         onde não há traço nenhum.
+
+         Duas salvaguardas: o rótulo nunca sai da área do gráfico, e um que
+         ficaria colado no anterior DO MESMO LADO é omitido em vez de
+         sobrepor. E todos ganham um contorno da cor do fundo (`paint-order`),
+         para continuarem legíveis quando a linha passar por perto. */
+      const ALT = M.fVal + 6;                       // altura ocupada por um rótulo
+      const LARG = M.fVal * 3.4;                    // largura de "100,0%" com folga
+      let ultimo = null;                            // { x, acima } do último desenhado
       paths += s.points.map((p, i) => {
         const cx = xAt(p.x), cy = yAt(p.pct);
-        const mostra = !M.narrow || (i % M.labelEvery === 0) || (i === s.points.length - 1);
-        const acima = (i % 2 === 0) ? (cy > padT + 20) : false;
-        const ly = acima ? cy - 12 : cy + 22;
+        const dot = `<circle cx="${cx}" cy="${cy}" r="${M.narrow ? 5 : 4.5}" fill="${T.surface}" stroke="${s.color}" stroke-width="2.5"><title>${p.label}: ${formatPct(p.pct)}%</title></circle>`;
+        if (M.narrow && !(i % M.labelEvery === 0 || i === s.points.length - 1)) return dot;
+        const ant = s.points[i - 1], prox = s.points[i + 1];
+        const ys = [];
+        if (ant) ys.push(yAt(ant.pct));
+        if (prox) ys.push(yAt(prox.pct));
+        // y cresce para baixo: vizinho com y MAIOR está abaixo, logo o topo está livre
+        const vizinho = ys.length ? ys.reduce((a, b) => a + b, 0) / ys.length : cy + 1;
+        let acima = vizinho >= cy;
+        // e o rótulo nunca sai do quadro: se não couber do lado escolhido, vai para o outro
+        if (acima && cy - ALT < padT) acima = false;
+        else if (!acima && cy + ALT > h - padB) acima = true;
+        if (ultimo && ultimo.acima === acima && Math.abs(cx - ultimo.x) < LARG) return dot;
+        ultimo = { x: cx, acima };
+        const ly = acima ? cy - (ALT - 4) : cy + ALT + 4;
         const anchor = (i === 0) ? 'start' : (i === s.points.length - 1) ? 'end' : 'middle';
         const dx = (i === 0) ? 5 : (i === s.points.length - 1) ? -5 : 0;
-        const dot = `<circle cx="${cx}" cy="${cy}" r="${M.narrow ? 5 : 4.5}" fill="${T.surface}" stroke="${s.color}" stroke-width="2.5"><title>${p.label}: ${formatPct(p.pct)}%</title></circle>`;
-        const lbl = mostra ? `<text x="${cx + dx}" y="${ly}" font-size="${M.fVal}" fill="${s.color}" text-anchor="${anchor}" font-weight="700" font-family="${T.fMono}">${formatPct(p.pct)}%</text>` : '';
-        return dot + lbl;
+        return dot + `<text x="${cx + dx}" y="${ly}" font-size="${M.fVal}" fill="${s.color}" text-anchor="${anchor}" font-weight="700" font-family="${T.fMono}" paint-order="stroke" stroke="${T.surface}" stroke-width="3.5" stroke-linejoin="round">${formatPct(p.pct)}%</text>`;
       }).join('');
     });
     return `<svg viewBox="0 0 ${w} ${h}" style="width:100%; height:auto; overflow:visible;" preserveAspectRatio="xMidYMid meet">${grid}${refLines}${yAxisTitle}${paths}${xlabels}${xAxisTitle}</svg>`;

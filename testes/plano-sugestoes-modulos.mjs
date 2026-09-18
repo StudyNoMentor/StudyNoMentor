@@ -80,11 +80,45 @@ S.calcular=()=>{throw new Error('simple quebrado');};
 assert.deepEqual(clone(sigR()),r0);
 S.calcular=sOrig;
 
+/* ── COMPARAR MOSTRA O QUE CADA MOTOR ESCOLHEU ──────────────────────────────
+   A ordem era dada por uma pontuacao inventada no controller:
+     (4 - posNoSimplificado) + (4 - posNoRobusto) + 10 se consenso
+   e depois cortada em tres. Somar posicoes de DOIS rankings que nao
+   compartilham escala produz uma TERCEIRA ordem, que nao e a de nenhum dos
+   motores: uma disciplina em #2 nos dois lados (2+2=4) passava na frente da
+   que era #1 para um deles (3+0=3), e o corte deixava de fora recomendacoes
+   que os motores realmente fizeram.
+
+   O que passa a valer, e o que este bloco trava: toda linha visivel e o TOP 3
+   de pelo menos um dos motores, com o numero DAQUELE motor; a ordem e a melhor
+   posicao real alcancada; e nada e cortado — o contrato de tres vira selecao
+   (`incluir`), nao censura. */
 const comp=C.comparar();
-assert.equal(comp.itens.length,3);
+assert(comp.itens.length>=1&&comp.itens.length<=6,`Comparar mostra a uniao dos dois TOP 3 (recebeu ${comp.itens.length})`);
 assert(comp.itens.every(x=>x.simplificado||x.robusto));
-assert(comp.itens.every(x=>Number.isFinite(x.pontosComparacao)));
+assert(comp.itens.every(x=>!Object.hasOwn(x,'pontosComparacao')),
+  'a pontuacao somada dos dois rankings nao pode voltar');
 assert(comp.itens.every(x=>!Object.hasOwn(x,'scoreMath')),'Comparar não deve criar score matemático misto');
+
+// toda linha e TOP 3 de pelo menos um motor, e o numero exibido e o dele
+const topS=new Map((C.simplificado().itens||[]).map((x,i)=>[x.disciplina,i+1]));
+const topR=new Map((C.robusto().itens||[]).map((x,i)=>[x.disciplina,i+1]));
+comp.itens.forEach(x=>{
+  const s=topS.get(x.disciplina)||null,r=topR.get(x.disciplina)||null;
+  assert(s||r,`${x.disciplina} nao esta no TOP 3 de nenhum motor`);
+  if(s){assert.equal(x.rankSimplificado,s,`posicao do Simplificado de ${x.disciplina}`);assert.equal(x.foraSimplificado,false);}
+  if(r){assert.equal(x.rankRobusto,r,`posicao do Robusto de ${x.disciplina}`);assert.equal(x.foraRobusto,false);}
+  assert.equal(x.melhorPosicao,Math.min(...[s,r].filter(Boolean)),`melhor posicao de ${x.disciplina}`);
+});
+// a uniao dos dois TOP 3 aparece inteira
+[...topS.keys(),...topR.keys()].forEach(d=>assert(comp.itens.some(x=>x.disciplina===d),
+  `${d} esta no TOP 3 de um motor e sumiu da comparacao`));
+// a ordem sobe pela melhor posicao real
+const pos=comp.itens.map(x=>x.melhorPosicao);
+assert.deepEqual(pos,pos.slice().sort((a,b)=>a-b),'a comparacao deve subir pela melhor posicao real');
+// o contrato de tres vira selecao, nao corte
+assert.equal(comp.itens.filter(x=>x.incluir!==false).length,Math.min(3,comp.itens.length),
+  'as tres primeiras nascem marcadas; o resto fica visivel para trocar');
 
 C.salvar({modo:'robusto',meta:99,campoEstranho:'x'});
 const rawCtrl=JSON.parse(mem.get('p:'+C.KEY));

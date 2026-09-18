@@ -769,8 +769,6 @@ else CloudStore.init();
       to('#cfg-cloudbk-body', 'dados');   // no servidor, automático
       to('#cfg-vhist-body', 'dados');     // neste aparelho, automático
       this.buildDados();                  // em arquivo, manual
-      to('#cfg-rec-body', 'dados');       // resgate, quando algo já deu errado
-      to('#cfg-storage-body', 'dados');   // medidor de espaço
       this.buildPrefs();
       this.buildDiag();
       this.show(pget('cfg-group', 'estudo'));

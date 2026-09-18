@@ -237,7 +237,9 @@
 }
 #tec-panel-motores .pmc-resumo {
   display: grid; gap: 9px; padding: 16px 20px;
-  grid-template-columns: repeat(auto-fit, minmax(164px, 1fr));
+  /* 164px de piso dava UMA coluna no telefone: quatro fichas empilhadas, o
+     cartão com mais de 800px de altura e o botão de configurar fora da tela. */
+  grid-template-columns: repeat(auto-fit, minmax(138px, 1fr));
 }
 #tec-panel-motores .pmc-resumo > span {
   display: grid; gap: 2px; min-width: 0;
@@ -251,14 +253,28 @@
 }
 #tec-panel-motores .pmc-resumo b { font-size: var(--fs-md); line-height: 1.2; }
 #tec-panel-motores .pmc-resumo em { font-style: normal; font-size: var(--fs-3xs); line-height: 1.4; color: var(--text-soft); }
+/* ── O VÃO DE 260 PIXELS ───────────────────────────────────────────────────
+   O rodapé do cartão era `display:flex` em linha, com `flex: 1 1 260px` no
+   texto. Abaixo de 720px uma folha anterior o virava `flex-direction:column`
+   — e aí o `260px` do atalho `flex` deixa de ser LARGURA e passa a ser
+   ALTURA, porque o eixo principal virou o vertical. Uma linha de texto ficava
+   com 260px de altura, e entre ela e o botão "⚙ Configurar" abria-se o
+   paredão branco que se via no telefone.
+
+   Grade não tem essa ambiguidade: as faixas são explícitas nos dois eixos, e
+   trocar de uma coluna para duas não muda o significado de nenhum valor. */
 #tec-panel-motores .pmc-engine-foot {
-  display: flex; align-items: center; justify-content: space-between;
-  gap: 12px; flex-wrap: wrap;
+  display: grid !important;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center; gap: 10px 14px;
   padding: 13px 20px; border-top: 1px solid var(--border);
   font-size: var(--fs-2xs); color: var(--text-soft);
 }
-#tec-panel-motores .pmc-engine-foot > span { min-width: 0; flex: 1 1 260px; line-height: 1.5; }
+#tec-panel-motores .pmc-engine-foot > span { min-width: 0; line-height: 1.5; }
 #tec-panel-motores .pmc-engine-foot button { min-height: 42px; white-space: nowrap; }
+@media (max-width: 620px) {
+  #tec-panel-motores .pmc-engine-foot { grid-template-columns: minmax(0, 1fr); }
+}
 #tec-panel-motores > .pmc-shell > .pmc-audit-card { margin: 0; }
 
 /* A janela de um modelo. Mesma linguagem da folha de Ajustes do TEC: cabeçalho
@@ -529,4 +545,174 @@
   }
   .tpm-topic-order > ol > li > span { grid-column: 2 / -1; }
   .tpm-topic-order > ol > li > i { grid-row: span 2; align-self: start; padding-top: 2px; }
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   A MOLDURA QUE FICAVA DEPOIS DO TOQUE
+   ---------------------------------------------------------------------------
+   Marcar uma caixa deixava um retângulo em volta dela que não saía mais — mais
+   visível na tela "Puxar do Plano", onde se marcam várias seguidas. São dois
+   efeitos do navegador somados: o anel de foco, que o `:focus` mostra também
+   para o clique (e o clique não precisa dele — a pessoa sabe onde tocou), e o
+   realce de toque do Android, um retângulo cinza que sobra sobre o rótulo.
+
+   O anel continua existindo onde ele é necessário: `:focus-visible` é
+   exatamente "o navegador julga que esta pessoa está navegando pelo teclado".
+   Quem usa Tab continua enxergando onde está.
+   ═══════════════════════════════════════════════════════════════════════════ */
+input[type="checkbox"],
+input[type="radio"],
+label:has(> input[type="checkbox"]),
+label:has(> input[type="radio"]) {
+  -webkit-tap-highlight-color: transparent;
+}
+input[type="checkbox"]:focus:not(:focus-visible),
+input[type="radio"]:focus:not(:focus-visible) {
+  outline: none;
+  box-shadow: none;
+}
+input[type="checkbox"]:focus-visible,
+input[type="radio"]:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+/* ── A CAIXA DE INCLUIR, NO MODO COMPARAR ────────────────────────────────── */
+.ps-inc {
+  display: inline-flex; align-items: center; gap: 8px;
+  min-width: 0; cursor: pointer;
+}
+.ps-inc > input {
+  width: calc(17px * var(--fs-scale, 1));
+  height: calc(17px * var(--fs-scale, 1));
+  margin: 0; flex: 0 0 auto; accent-color: var(--accent);
+}
+/* Linha desmarcada continua legível (é preciso ler para decidir trocar), mas
+   recua: a borda perde a cor e o conteúdo perde peso, sem apagar nada. */
+.ps-compare-row.is-off {
+  border-style: dashed;
+  background: color-mix(in srgb, var(--surface-sunken) 45%, var(--surface));
+}
+.ps-compare-row.is-off .ps-compare-grid { opacity: .72; }
+.ps-compare-row.is-off .ps-inc > b { color: var(--text-muted); }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   CONFIGURAÇÃO DOS MODELOS — DELIMITAÇÃO, AJUDA SOB DEMANDA, SAÍDA CLARA
+   ---------------------------------------------------------------------------
+   Três correções, cada uma para um sintoma relatado.
+
+   1. "Bordas quase invisíveis." Os grupos numerados usavam `--border` puro
+      sobre `--surface`: em tela clara, uma linha de contraste baixo entre dois
+      brancos. A borda ganha um pouco da cor de destaque, e o corpo de cada
+      grupo assenta num fundo levemente rebaixado — a delimitação passa a vir
+      da SUPERFÍCIE, não de um fio.
+
+   2. "Textos gigantes." Cada campo trazia a explicação sempre aberta: onze
+      campos, onze parágrafos. A explicação vira conteúdo do "i" ao lado do
+      nome (ver `_decorarCampos`), e a janela volta a ser um painel de ajuste.
+
+   3. "Restaurar padrões está feio." Era um `<button>` sem classe nenhuma,
+      herdando o desenho cru do navegador no meio de uma tela desenhada.
+   ═══════════════════════════════════════════════════════════════════════════ */
+.pmc-modal-body .pmc-grupo {
+  border-color: color-mix(in srgb, var(--accent) 22%, var(--border));
+  box-shadow: 0 2px 10px color-mix(in srgb, var(--text) 4%, transparent);
+}
+.pmc-modal-body .pmc-grupo > h5 {
+  display: flex; align-items: center; gap: 8px;
+  color: var(--text);
+}
+.pmc-modal-body .pmc-grupo > .pmc-simple-grid {
+  background: color-mix(in srgb, var(--surface-sunken) 40%, var(--surface));
+}
+.pmc-modal-body .pmc-simple-grid > label {
+  background: var(--surface);
+  border-color: color-mix(in srgb, var(--text-faint) 26%, var(--border));
+}
+
+/* ── A AJUDA DE CADA CAMPO ────────────────────────────────────────────────── */
+.pmc-simple-grid > label > span {
+  display: flex; align-items: center; gap: 7px; min-width: 0;
+}
+.pmc-info {
+  flex: 0 0 auto;
+  width: calc(19px * var(--fs-scale, 1)); height: calc(19px * var(--fs-scale, 1));
+  padding: 0; display: inline-grid; place-items: center;
+  border: 1px solid var(--border); border-radius: 999px;
+  background: var(--surface-sunken); color: var(--text-faint);
+  font-size: var(--fs-3xs); font-weight: 900; line-height: 1; cursor: pointer;
+  transition: border-color .14s ease, color .14s ease, background .14s ease;
+}
+.pmc-info:hover, .pmc-info[aria-expanded="true"] {
+  border-color: var(--accent); color: var(--accent-text); background: var(--accent-soft);
+}
+.pmc-simple-grid > label > small.pmc-help { display: none; }
+.pmc-simple-grid > label.help-open > small.pmc-help {
+  display: block;
+  margin-top: 2px; padding: 8px 10px;
+  border-left: 3px solid color-mix(in srgb, var(--accent) 55%, var(--border));
+  border-radius: 0 9px 9px 0;
+  background: color-mix(in srgb, var(--accent) 5%, var(--surface));
+  color: var(--text-soft);
+}
+
+/* ── O AJUSTE FINO, RECOLHIDO ─────────────────────────────────────────────── */
+.pmc-avancado {
+  margin: 0 14px 13px;
+  border: 1px dashed color-mix(in srgb, var(--text-faint) 38%, var(--border));
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--surface-sunken) 30%, var(--surface));
+  overflow: hidden;
+}
+.pmc-avancado > summary {
+  list-style: none; cursor: pointer;
+  display: grid; gap: 2px; padding: 11px 13px;
+}
+.pmc-avancado > summary::-webkit-details-marker { display: none; }
+.pmc-avancado > summary > b { font-size: var(--fs-2xs); color: var(--text); }
+.pmc-avancado > summary > b::before { content: '▸ '; color: var(--text-faint); }
+.pmc-avancado[open] > summary > b::before { content: '▾ '; }
+.pmc-avancado > summary > small { font-size: var(--fs-3xs); line-height: 1.45; color: var(--text-faint); }
+.pmc-avancado > .pmc-simple-grid { padding: 0 13px 13px; }
+
+/* ── A SAÍDA ─────────────────────────────────────────────────────────────── */
+.pmc-reset { min-height: calc(40px * var(--fs-scale, 1)); white-space: nowrap; }
+.pmc-modal-body .pmc-engine-card > footer,
+.pmc-modal-body .rv8-footer {
+  display: grid; grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center; gap: 8px 14px;
+  margin-top: 4px; padding-top: 13px;
+  border-top: 1px solid var(--border);
+  font-size: var(--fs-3xs); line-height: 1.45; color: var(--text-faint);
+}
+.pmc-modal-body .pmc-engine-card > footer > b,
+.pmc-modal-body .rv8-footer > b { grid-column: 1; color: var(--text-soft); }
+.pmc-modal-body .pmc-engine-card > footer > button,
+.pmc-modal-body .rv8-footer > button { grid-column: 2; grid-row: 1 / span 2; }
+@media (max-width: 560px) {
+  .pmc-modal-body .pmc-engine-card > footer,
+  .pmc-modal-body .rv8-footer { grid-template-columns: minmax(0, 1fr); }
+  .pmc-modal-body .pmc-engine-card > footer > button,
+  .pmc-modal-body .rv8-footer > button { grid-column: 1; grid-row: auto; width: 100%; }
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   DE QUEM É CADA LISTA DO DESEMPENHO TEC
+   ---------------------------------------------------------------------------
+   "Fico sem saber sobre o que exatamente elas se referem. Se é de algum motor,
+   algum modelo, sei lá." A tela tem listas de duas naturezas e nada dizia qual
+   era qual: as da aba Análise são a sua MEDIÇÃO — o que você acertou e errou,
+   sem opinião de ninguém — e as da aba Plano são a DECISÃO do modelo ativo.
+
+   Um selo de escopo acima de cada título resolve sem texto novo no corpo. E a
+   lista de pontos fracos deixou de se chamar "onde focar": "onde focar" é uma
+   decisão, e havia dois lugares na mesma tela prometendo tomá-la — este, por
+   uma régua fixa, e "Onde atacar agora", pelo modelo. Agora ela declara o que
+   de fato é: uma lente sobre os mesmos números da lista de baixo.
+   ═══════════════════════════════════════════════════════════════════════════ */
+#tec-panel-analise .tec-escopo-lista {
+  display: block; margin-bottom: 3px;
+  font-size: var(--fs-3xs); font-weight: 900; letter-spacing: .09em;
+  color: var(--text-faint);
 }

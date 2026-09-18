@@ -43,7 +43,10 @@
 #screen-extras .ux100-config-kpis span{padding:5px 8px;border:1px solid color-mix(in srgb,var(--accent) 18%,var(--border));border-radius:999px;background:var(--surface);color:var(--text-muted);font-size:9px;font-weight:750;white-space:nowrap}
 #screen-extras .extras-toolbar.ux100-config-card .extras-global{min-width:0;margin:0;align-self:center}
 #screen-extras .extras-toolbar.ux100-config-card .extras-global>span{font-size:10px;line-height:1.35}
-#screen-extras #extras-settings-btn{border-color:color-mix(in srgb,var(--accent) 40%,var(--border));color:var(--accent);background:var(--surface);font-weight:850}
+/* O tratamento próprio do botão de Configurações saiu: ele era o terceiro
+   esquema visual de uma fileira que só tem dois papéis. Ver a padronização
+   em 81-ux-stability.js. */
+#screen-extras #extras-settings-btn[hidden]{display:none!important}
 
 /* ── 2. Reforços em curso ganham fronteira própria e leitura de médio prazo ─ */
 #extras-curso>.card,#extras-curso .exc-card{
@@ -152,8 +155,26 @@
 }
 .xsc-law-hero-icon{width:46px;height:46px;display:grid;place-items:center;border-radius:13px;background:color-mix(in srgb,#0f9d63 12%,var(--surface));font-size:22px}
 .xsc-law-hero-copy{min-width:0}.xsc-law-hero-copy>small{font-size:9px;font-weight:900;letter-spacing:.1em;color:#0a7a4e}.xsc-law-hero-copy h4{margin:2px 0;font-size:18px}.xsc-law-hero-copy p{margin:0;color:var(--text-faint);font-size:10px;line-height:1.4}
-.xsc-master-card{padding:8px 10px;border:1px solid color-mix(in srgb,#0f9d63 26%,var(--border));border-radius:12px;background:var(--surface)}
-.xsc-master-card>span{display:grid;gap:1px}.xsc-master-card b{font-size:11px}.xsc-master-card small{font-size:9px;color:var(--text-faint);font-weight:500}
+/* ── O INTERRUPTOR DA ROTINA ──────────────────────────────────────────────
+   Ele era uma caixa que esticava até a largura toda da faixa e continha duas
+   linhas de texto: um alvo de toque pequeno no meio de um retângulo grande,
+   com vazio em volta dos dois lados. A caixa passa a ter a largura do que ela
+   mostra (`max-content`), ancorada à esquerda, e o estado vira uma linha só —
+   "Ativa" mais a contagem, lado a lado. */
+.xsc-master-card{
+  display:grid;grid-template-columns:auto minmax(0,1fr);align-items:center;gap:8px;
+  justify-self:start;width:max-content;max-width:100%;
+  padding:7px 11px;border:1px solid color-mix(in srgb,#0f9d63 26%,var(--border));
+  border-radius:999px;background:var(--surface);
+}
+.xsc-master-card>input{width:calc(17px * var(--fs-scale,1));height:calc(17px * var(--fs-scale,1));margin:0}
+.xsc-master-card>span{display:flex;align-items:baseline;flex-wrap:wrap;gap:3px 7px;min-width:0}
+.xsc-master-card b{font-size:var(--fs-2xs)}
+.xsc-master-card small{font-size:var(--fs-3xs);color:var(--text-faint);font-weight:600}
+.xsc-master-card:has(>input:checked){
+  border-color:color-mix(in srgb,#0f9d63 52%,var(--border));
+  background:color-mix(in srgb,#0f9d63 7%,var(--surface));
+}
 .xsc-presets-card{padding:10px 12px;border:1.25px solid color-mix(in srgb,var(--text-faint) 25%,var(--border));border-radius:14px;background:var(--surface)}
 .xsc-presets-card>div{display:grid;gap:1px;margin-right:auto}.xsc-presets-card>div b{font-size:11px}.xsc-presets-card>div small{font-size:9px;color:var(--text-faint)}
 .xsc-presets button.active,.xsc-presets button[aria-pressed="true"]{border-color:var(--accent);background:var(--accent-soft);color:var(--accent);box-shadow:0 0 0 2px color-mix(in srgb,var(--accent) 8%,transparent)}
@@ -217,7 +238,7 @@
 
   .xsc-law-hero{grid-template-columns:42px minmax(0,1fr)}
   .xsc-law-hero-icon{width:42px;height:42px}
-  .xsc-master-card{grid-column:1/-1;justify-content:flex-start}
+  .xsc-master-card{grid-column:1/-1}
   .xsc-presets-card>div{width:100%}
   .xsc-compact-grid{grid-template-columns:repeat(2,minmax(0,1fr))!important}
   .xsc-days-group{grid-template-columns:1fr}

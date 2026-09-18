@@ -330,10 +330,23 @@
   background: color-mix(in srgb, var(--surface) 97%, var(--accent-soft));
   box-shadow: 0 12px 36px color-mix(in srgb, var(--text) 8%, transparent);
 }
+/* ── O CABEÇALHO NASCE EM UMA COLUNA ──────────────────────────────────────
+   Ele pedia `minmax(190px,.75fr) minmax(360px,1.35fr) auto`: com os vãos e o
+   botão, um piso de ~610px. Num telefone de 390px a faixa transbordava e o
+   título "🏁 Reforços em curso" saía pela esquerda, atrás das duas caixas de
+   missão — era o cabeçalho sobreposto do relato.
+
+   Havia uma correção para isso numa folha posterior, mas ela dependia de uma
+   classe que o JavaScript aplica depois de dois quadros: entre a pintura e a
+   decoração, e em qualquer repintura que a perdesse, o piso de 610px voltava a
+   valer. Agora a ordem se inverte — a forma estreita é a BASE, e as três
+   colunas entram por `min-width`, quando existe largura para elas. Nenhum
+   estado intermediário transborda. */
 #extras-curso .exc-head {
   display: grid;
-  grid-template-columns: minmax(190px, .75fr) minmax(360px, 1.35fr) auto;
-  gap: 14px;
+  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-areas: 'title chev' 'summary summary';
+  gap: 12px 14px;
   align-items: center;
   width: 100%;
   padding: 18px 20px;
@@ -346,6 +359,7 @@
   cursor: pointer;
 }
 #extras-curso .exc-tit {
+  grid-area: title;
   display: flex;
   align-items: center;
   min-width: 0;
@@ -355,6 +369,7 @@
   color: var(--text);
 }
 #extras-curso .exc-resumo {
+  grid-area: summary;
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 10px;
@@ -403,6 +418,7 @@
   white-space: nowrap;
 }
 #extras-curso .exc-head .chev {
+  grid-area: chev;
   display: grid;
   place-items: center;
   width: 32px;
@@ -435,13 +451,14 @@
   background: color-mix(in srgb, var(--border) 72%, transparent);
 }
 #extras-curso .pl-ciclo-lista { gap: 10px; }
+/* Mesma inversão da faixa acima: a linha do reforço nascia pedindo ~740px de
+   piso (260+250+210 mais dois vãos) e empilhava nome, barra, números e botões
+   uns sobre os outros no telefone. */
 #extras-curso .pl-ciclo-lista > li {
   position: relative;
   display: grid;
-  grid-template-columns: minmax(260px, 1.35fr) minmax(250px, .9fr) minmax(210px, .62fr);
-  grid-template-areas:
-    'top bar actions'
-    'top nums actions';
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-areas: 'top' 'bar' 'nums' 'actions';
   column-gap: 18px;
   row-gap: 9px;
   align-items: center;
@@ -452,6 +469,18 @@
   background: var(--surface);
   box-shadow: 0 5px 16px color-mix(in srgb, var(--text) 5%, transparent);
   transition: border-color .14s ease, box-shadow .14s ease, transform .14s ease;
+}
+@media (min-width: 760px) {
+  #extras-curso .exc-head {
+    grid-template-columns: minmax(0, .8fr) minmax(0, 1.4fr) auto;
+    grid-template-areas: 'title summary chev';
+  }
+  #extras-curso .pl-ciclo-lista > li {
+    grid-template-columns: minmax(0, 1.35fr) minmax(0, .9fr) minmax(190px, .62fr);
+    grid-template-areas:
+      'top bar actions'
+      'top nums actions';
+  }
 }
 #extras-curso .pl-ciclo-lista > li::before {
   content: '';

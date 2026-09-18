@@ -105,6 +105,24 @@
       let actions = bar.querySelector('.uxv3-toolbar-actions') || bar.querySelector('.extras-actions');
       if (!actions) { actions = document.createElement('div'); actions.className = 'extras-actions'; bar.appendChild(actions); }
       actions.classList.add('uxv3-toolbar-actions');
+      /* ── UMA PRIMÁRIA, O RESTO IGUAL ────────────────────────────────────
+         A fileira tinha três esquemas visuais: "⚙ Configurações" com borda e
+         texto na cor de destaque, três botões de borda cinza e um sólido. Três
+         pesos para cinco comandos não é hierarquia, é falta de regra. Fica o
+         que a hierarquia realmente tem: UMA ação primária (criar atividade) e
+         o resto secundário, idêntico entre si. */
+      actions.querySelectorAll(':scope > button').forEach((b) => {
+        const primaria = b.id === 'extras-new-btn';
+        b.classList.toggle('btn-primary', primaria);
+        b.classList.toggle('btn-secondary', !primaria);
+      });
+      /* O 💡 Sugerir é opcional e nasce escondido (ver `ExtrasBarraPrefs`). */
+      const sug = actions.querySelector('#extras-suggest-btn');
+      if (sug) {
+        const mostrar = !!(window.ExtrasBarraPrefs && ExtrasBarraPrefs.mostrarSugerir());
+        sug.hidden = !mostrar;
+        sug.setAttribute('aria-hidden', mostrar ? 'false' : 'true');
+      }
       if (actions.parentElement !== bar) bar.appendChild(actions);
       const head = bar.querySelector('.ux100-config-head');
       [...bar.children].forEach((x) => {

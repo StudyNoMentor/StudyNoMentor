@@ -14,7 +14,7 @@
     _origSwitch:DT.switchTecTab?.bind(DT),_origRender:DT.render?.bind(DT),_tabObserver:null,_renderQueued:false,
     _scheduleRenderPanel(){if(this._renderQueued)return;this._renderQueued=true;const run=()=>{this._renderQueued=false;this.renderPanel();};if(typeof queueMicrotask==='function')queueMicrotask(run);else Promise.resolve().then(run);},
     _bancas(atual){const bs=I.bancas?I.bancas():[];return `<option value="__todas__" ${atual==='__todas__'?'selected':''}>Selecionar automaticamente</option>`+bs.map(b=>`<option value="${esc(b)}" ${b===atual?'selected':''}>${esc(b)}</option>`).join('');},
-    _simpleHtml(){const p=S.prefs(),fase=S.fase?S.fase(p):(p.fase||'auto');return `<section class="pmc-engine-card" data-pmc-engine="simplificado"><header><div class="pmc-engine-id"><span>⚡</span><div><small>MOTOR DISPONÍVEL</small><h3>Simplificado</h3><p>Leitura direta e transparente do TEC. Serve como baseline independente para confrontar o Robusto.</p></div></div><span class="pmc-pill">Direto</span></header><div class="pmc-grupo"><h5>1 · Recorte da prova</h5><p>Em que fase o motor raciocina e quantas frentes ele abre de uma vez.</p><div class="pmc-simple-grid"><label><span>Fase</span><select data-pmc-simple="fase"><option value="auto" ${p.fase==='auto'?'selected':''}>Automática — segue o planejamento ativo</option><option value="pre" ${p.fase==='pre'?'selected':''}>Pré-edital</option><option value="pos" ${p.fase==='pos'?'selected':''}>Pós-edital</option></select><small>Hoje valendo: <b>${fase==='pre'?'Pré-edital':'Pós-edital'}</b>${p.fase==='auto'?' (derivada do planejamento)':' (fixada por você)'}. Pré usa TEC direto; Pós cruza com a incidência da banca.</small></label><label><span>Disciplinas por vez</span><input data-pmc-simple="maxDisciplinas" type="number" min="1" max="8" value="${p.maxDisciplinas}"><small>Quantas frentes distintas entram na força-tarefa. Era fixo em 3.</small></label><label class="${fase==='pos'?'':'pmc-hidden'}"><span>Banca</span><select data-pmc-simple="banca">${this._bancas(p.banca)}</select><small>Incidência usada pelo Simplificado Pós.</small></label></div></div><div class="pmc-grupo"><h5>2 · Régua</h5><p>O corte que decide quem disputa a fila.</p><div class="pmc-simple-grid"><label><span>Meta desejada</span><div class="pmc-suffix"><input data-pmc-simple="meta" type="number" min="50" max="100" value="${p.meta}"><em>%</em></div><small>Assuntos abaixo da régua entram na disputa.</small></label><label><span>Amostra mínima</span><input data-pmc-simple="minAmostra" type="number" min="1" max="500" value="${p.minAmostra}"><small>Piso operacional; não significa alta precisão estatística.</small></label></div></div><div class="pmc-grupo"><h5>3 · Dose de questões</h5><p>O tamanho do bloco recomendado por frente.</p><div class="pmc-simple-grid"><label><span>Questões por frente</span><input data-pmc-simple="alvoQuestoes" type="number" min="5" max="200" value="${p.alvoQuestoes}"><small>Dose fixa deste motor — o Simplificado não modela tempo nem recalibra.</small></label></div></div><footer><span>Configuração própria e isolada.</span><b>Não lê parâmetros do Robusto.</b><button type="button" data-pmc-simple-reset>↺ Restaurar padrões</button></footer></section>`;},
+    _simpleHtml(){const p=S.prefs(),fase=S.fase?S.fase(p):(p.fase||'auto');return `<section class="pmc-engine-card" data-pmc-engine="simplificado"><header><div class="pmc-engine-id"><span>⚡</span><div><small>MOTOR DISPONÍVEL</small><h3>Simplificado</h3><p>Leitura direta e transparente do TEC. Serve como baseline independente para confrontar o Robusto.</p></div></div><span class="pmc-pill">Direto</span></header><div class="pmc-grupo"><h5>1 · Recorte da prova</h5><p>Em que fase o motor raciocina e quantas frentes ele abre de uma vez.</p><div class="pmc-simple-grid"><label><span>Fase</span><select data-pmc-simple="fase"><option value="auto" ${p.fase==='auto'?'selected':''}>Automática — segue o planejamento ativo</option><option value="pre" ${p.fase==='pre'?'selected':''}>Pré-edital</option><option value="pos" ${p.fase==='pos'?'selected':''}>Pós-edital</option></select><small>Hoje valendo: <b>${fase==='pre'?'Pré-edital':'Pós-edital'}</b>${p.fase==='auto'?' (derivada do planejamento)':' (fixada por você)'}. Pré usa TEC direto; Pós cruza com a incidência da banca.</small></label><label><span>Disciplinas por vez</span><input data-pmc-simple="maxDisciplinas" type="number" min="1" max="8" value="${p.maxDisciplinas}"><small>Quantas frentes distintas entram na força-tarefa. Era fixo em 3.</small></label><label class="${fase==='pos'?'':'pmc-hidden'}"><span>Banca</span><select data-pmc-simple="banca">${this._bancas(p.banca)}</select><small>Incidência usada pelo Simplificado Pós.</small></label></div></div><div class="pmc-grupo"><h5>2 · Régua</h5><p>O corte que decide quem disputa a fila.</p><div class="pmc-simple-grid"><label><span>Meta desejada</span><div class="pmc-suffix"><input data-pmc-simple="meta" type="number" min="50" max="100" value="${p.meta}"><em>%</em></div><small>Assuntos abaixo da régua entram na disputa.</small></label><label><span>Amostra mínima</span><input data-pmc-simple="minAmostra" type="number" min="1" max="500" value="${p.minAmostra}"><small>Piso operacional; não significa alta precisão estatística.</small></label></div></div><div class="pmc-grupo"><h5>3 · Dose de questões</h5><p>O tamanho do bloco recomendado por frente.</p><div class="pmc-simple-grid"><label><span>Questões por frente</span><input data-pmc-simple="alvoQuestoes" type="number" min="5" max="200" value="${p.alvoQuestoes}"><small>Dose fixa deste motor — o Simplificado não modela tempo nem recalibra.</small></label></div></div><footer><span>Configuração própria e isolada.</span><b>Não lê parâmetros do Robusto.</b><button type="button" class="btn-secondary pmc-reset" data-pmc-simple-reset>↺ Restaurar padrões</button></footer></section>`;},
     _auditHtml(){if(!A)return'';return `<section class="pmc-audit-card" data-pmc-robust-audit><header><div><small>AUDITORIA HUMANA · LOCAL</small><h4>Flight recorder do Robusto</h4><p>Registra decisão → reforço → execução → estado TEC posterior. Como o TEC pode incluir questões do ciclo regular, a evolução é tratada como observacional e recebe peso de atribuição conservador.</p></div><span class="pmc-audit-local">local-only</span></header><div data-pmc-audit-stats>${A.statsHtml()}</div><div class="pmc-audit-actions"><button type="button" class="btn-secondary" data-pmc-audit-refresh>↻ Atualizar leitura</button><button type="button" class="btn-primary" data-pmc-audit-export>⇩ Exportar auditoria .json</button></div><footer>O JSON exporta somente métricas do TEC, reforços em Extras, dose, tempo diretamente registrado no reforço e qualidade de atribuição. Não registra método subjetivo de estudo.</footer></section>`;},
     _robustHtml(){const cfg=R.config(),rot=cfg?.resumo?.rotulo||'TEC';return `<section class="pmc-engine-card pmc-robusto" data-pmc-engine="robusto"><header><div class="pmc-engine-id"><span>🧠</span><div><small>MOTOR DISPONÍVEL</small><h3>Robusto</h3><p>Motor estatístico focado em três decisões: qual disciplina atacar, qual tópico priorizar e quantas questões fazer. Usa TEC, incidência e reforços em Extras.</p></div></div><span class="pmc-pill">${esc(rot)}</span></header><div class="pmc-robust-summary"><b>Prioridade e dose</b><span>Sem nomes/pesos/tempo do ciclo regular. Pré-edital usa peso 1; Pós-edital vincula manualmente pesos aos nomes canônicos do TEC.</span></div><div data-pmc-robusto-host>${R.painelConfigHtml()}</div></section>`;},
     /* ═══ PANORAMA NA ABA, PARÂMETROS NA JANELA ═══════════════════════════
@@ -106,10 +106,44 @@
        Robusto), e fazer isso no quadro seguinte, com o evento ja encerrado.
        Campos que nao mexem na estrutura apenas atualizam o panorama atras. */
     ESTRUTURAIS:['fase','__estrutura__'],
+    /* ── O QUE CADA PARÂMETRO SIGNIFICA, A UM TOQUE ──────────────────────────
+       A explicação de cada campo já existia, mas SEMPRE visível: onze campos
+       no Robusto viravam onze parágrafos cinzas, e a janela passava a ser
+       parede de texto em vez de painel de ajuste. Quem já sabe o que é "meta
+       de domínio" relia a definição toda vez; quem não sabia tinha de
+       encontrá-la no meio das outras dez.
+
+       A explicação continua inteira, atrás de um "i" ao lado do nome do
+       campo. Isto é decoração do DOM, não outra cópia dos textos: cada motor
+       continua dono do seu `<small>`, e um campo novo ganha o "i" sozinho. */
+    _decorarCampos(root){
+      if(!root)return;
+      root.querySelectorAll('.pmc-simple-grid > label').forEach(lab=>{
+        const nome=lab.querySelector(':scope > span');
+        const ajuda=lab.querySelector(':scope > small');
+        if(!nome||!ajuda||nome.querySelector('.pmc-info'))return;
+        ajuda.classList.add('pmc-help');
+        const b=document.createElement('button');
+        b.type='button';
+        b.className='pmc-info';
+        b.textContent='i';
+        b.setAttribute('aria-expanded','false');
+        b.setAttribute('aria-label','O que é '+(nome.textContent||'').trim());
+        /* O botão vive DENTRO do `<label>`: sem `preventDefault` o clique nele
+           seria repassado ao campo, que abriria o seletor ou focaria o input. */
+        b.addEventListener('click',(ev)=>{
+          ev.preventDefault(); ev.stopPropagation();
+          const aberto=lab.classList.toggle('help-open');
+          b.setAttribute('aria-expanded',aberto?'true':'false');
+        });
+        nome.appendChild(b);
+      });
+    },
     _pintarModal(k){
       const body=this._modal&&this._modal.querySelector('[data-pmc-modal-body]');
       if(!body)return;
       body.innerHTML=k==='robusto'?this._robustHtml():this._simpleHtml();
+      this._decorarCampos(body);
       this._bindMotor(body,k,(campo)=>{
         this._scheduleRenderPanel();
         if(!this.ESTRUTURAIS.includes(campo))return;
@@ -133,9 +167,25 @@
           if(typeof showToast==='function')showToast('Simplificado atualizado ✓');
           if(onChange)onChange(campo);
         }));
-        root.querySelector('[data-pmc-simple-reset]')?.addEventListener('click',()=>{
+        root.querySelector('[data-pmc-simple-reset]')?.addEventListener('click',async(ev)=>{
+          /* Restaurar apaga o que a pessoa ajustou. Ele devolvia os padrões em
+             silêncio, sem perguntar e sem dizer o que tinha mudado — do lado de
+             cá parecia que nada acontecia. */
+          const bt=ev.currentTarget;
+          const ok=typeof UI!=='undefined'&&UI.confirm
+            ? await UI.confirm('Voltar o Simplificado aos valores de fábrica?\n\nOs ajustes deste modelo são descartados. O Robusto não é afetado.',
+                {title:'↺ Restaurar padrões',okText:'Restaurar'})
+            : true;
+          if(!ok)return;
+          const antes=S.prefs();
           S.restaurar?.();
-          if(typeof showToast==='function')showToast('Simplificado restaurado aos padrões ✓');
+          const dep=S.prefs();
+          const mudou=Object.keys(dep).filter(k=>String(antes[k])!==String(dep[k]));
+          if(typeof showToast==='function'){
+            showToast(mudou.length?`Simplificado restaurado ✓ — ${mudou.length} ajuste(s) voltaram ao padrão`
+                                  :'O Simplificado já estava nos padrões');
+          }
+          if(bt)bt.blur();
           if(onChange)onChange('__estrutura__');
         });
         return;

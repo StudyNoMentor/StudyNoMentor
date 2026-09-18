@@ -156,95 +156,12 @@
   }
 })();
 
-/* ---- Medidor de espaço: consumo REAL por módulo e quanto ainda cabe ---- */
-const StorageMeter = {
-  // Fallback usado só quando navigator.storage.estimate() não está disponível.
-  // O IndexedDB costuma liberar centenas de MB / vários GB por origem.
-  LIMITE_FALLBACK: 512 * 1024 * 1024,
-  GRUPOS: [
-    ['Flashcards', /:cards$/], ['Histórico de revisões', /:revlog$/],
-    ['Registros de estudo', /:entries$/], ['Leis secas', /:leis$/],
-    ['Retratos do TEC', /:tec$/], ['Incidência da banca', /:incidencia$/],
-    ['Ciclos e grade', /:(current-cycle|cycle-history|grade-template|tracks|custom-siglas)$/],
-    ['Atividades extras', /:extras$/], ['Links e baralhos', /:(links|decks)$/]
-  ],
-  medir() {
-    const grupos = {}; let total = 0, outros = 0;
-    try {
-      for (let i = 0; i < localStorage.length; i++) {
-        const k = localStorage.key(i);
-        const bytes = (k.length + (localStorage.getItem(k) || '').length) * 2; // UTF-16
-        total += bytes;
-        const g = this.GRUPOS.find(([, re]) => re.test(k));
-        if (g) grupos[g[0]] = (grupos[g[0]] || 0) + bytes; else outros += bytes;
-      }
-    } catch (_) { _quiet(_); }
-    return { total, outros, grupos };
-  },
-  // Cota real do IndexedDB (por origem) via Storage API. Retorna também a origem
-  // do número: 'estimate' quando veio do navegador, 'fallback' caso contrário.
-  async cota() {
-    try {
-      if (navigator.storage && typeof navigator.storage.estimate === 'function') {
-        const est = await navigator.storage.estimate();
-        const quota = est && est.quota ? est.quota : this.LIMITE_FALLBACK;
-        const usage = est && typeof est.usage === 'number' ? est.usage : null;
-        return { quota, usage, fonte: 'estimate' };
-      }
-    } catch (_) { _quiet(_); }
-    return { quota: this.LIMITE_FALLBACK, usage: null, fonte: 'fallback' };
-  },
-  fmt(b) {
-    if (b >= 1073741824) return (b / 1073741824).toFixed(2) + ' GB';
-    if (b >= 1048576) return (b / 1048576).toFixed(2) + ' MB';
-    return Math.round(b / 1024) + ' KB';
-  },
-  async render() {
-    const host = document.getElementById('cfg-storage-body');
-    if (!host) return;
-    const { total, outros, grupos } = this.medir();
-    const { quota, usage, fonte } = await this.cota();
-    // "total" = tamanho dos dados do app (medido na camada de storage).
-    // "usage" = uso real da origem no disco (IndexedDB + caches), quando disponível.
-    const usoReal = (usage != null) ? Math.max(usage, total) : total;
-    const pct = quota > 0 ? Math.min(100, usoReal / quota * 100) : 0;
-    const tom = pct >= 85 ? 'bad' : pct >= 60 ? 'warn' : 'good';
-    // As barras por grupo são proporcionais aos DADOS DO APP (não à cota gigante),
-    // senão ficariam invisíveis. Assim continua fácil ver o que mais pesa.
-    const base = total > 0 ? total : 1;
-    const linhas = Object.entries(grupos).concat(outros > 0 ? [['Outros', outros]] : [])
-      .sort((a, b) => b[1] - a[1])
-      .map(([nome, b]) => `<div class="acm-row"><div class="acm-name">${escapeHtml(nome)}</div>
-        <div class="bar-track"><span style="width:${Math.min(100, b / base * 100)}%"></span></div>
-        <span class="acm-q">${this.fmt(b)}</span></div>`).join('');
-    const cotaLbl = fonte === 'estimate'
-      ? `de ${this.fmt(quota)} disponíveis (IndexedDB) · ${pct.toFixed(pct < 1 ? 1 : 0)}% usado`
-      : `dados do app · cota do IndexedDB não informada pelo navegador`;
-    const detalheUso = (usage != null && usage > total)
-      ? `<div class="hint" style="margin:-4px 0 10px;opacity:.75;">Dados do app: ${this.fmt(total)} · Uso total da origem: ${this.fmt(usoReal)}</div>`
-      : '';
-    // rótulos dos módulos precisam de mais largura que o padrão de .acm-row
-    host.innerHTML = `
-      <div style="font-family:'Space Mono',monospace;font-size:26px;font-weight:800;" class="tone-${tom}">${this.fmt(usoReal)}</div>
-      <div class="hint" style="margin:2px 0 10px;">${cotaLbl}</div>
-      ${detalheUso}
-      <div class="bar-track" style="height:10px;margin-bottom:16px;"><span style="width:${pct}%"></span></div>
-      ${linhas || '<p class="hint">Nenhum dado ainda.</p>'}
-      <p class="hint" style="margin-top:14px;">
-        ${pct >= 85
-          ? '⚠ Perto do limite da cota do navegador. Exporte um backup e considere remover imagens de cards ou leis que não usa mais.'
-          : pct >= 60
-            ? 'Espaço ainda confortável, mas vale acompanhar. Imagens coladas em cards são o que mais pesa.'
-            : 'Espaço tranquilo — agora sobre IndexedDB, com cota bem maior que os antigos ~5 MB do localStorage. O que mais cresce é o histórico de revisões, limitado a 8.000 entradas.'}
-      </p>`;
-  }
-};
-window.StorageMeter = StorageMeter;
-(function () {
-  const b = document.getElementById('cfg-storage-refresh');
-  if (b) b.addEventListener('click', () => { StorageMeter.render(); showToast('Espaço recalculado'); });
-  window.addEventListener('screen:activated', (e) => { if (e.detail && e.detail.screen === 'config') StorageMeter.render(); });
-})();
+/* O medidor de espaço ("Espaço usado") saiu de Ajustes ▸ Dados e backup. Ele
+   respondia a uma pergunta que o navegador hoje não faz mais: a cota do
+   IndexedDB é da ordem de gigabytes, e um perfil grande ocupa poucos MB. Era
+   um cartão permanente, com barra por módulo e recálculo, para um número que
+   nunca se aproxima do limite. Quem precisar do número tem o tamanho de cada
+   foto no Histórico de versões, logo abaixo, e o total no Diagnóstico. */
 
 /* ---- UI do Histórico de versões (Configurações) ---- */
 const BackupHistoryUI = {

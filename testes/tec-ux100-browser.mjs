@@ -82,6 +82,25 @@ try{
   await page.waitForTimeout(900);await esperarPlano();
   eq((await page.evaluate(()=>window.__ux2)).a,0,'intervalo no Plano continua sem render oculto de Análise');
 
+  /* ── ABA E ABA ──────────────────────────────────────────────────────────
+     "⚙ Modelos" e "🎯 Reforco" ganhavam borda tracejada para dizer "apoio, nao
+     caminho principal". Numa fita onde as outras tres tem borda cheia, o
+     tracejado nao le como "secundario": le como "indisponivel", ou como um
+     botao de outro tipo que caiu ali. A hierarquia entre elas ja esta dita
+     pela ORDEM e pelo fato de a aba ativa ser a unica preenchida. */
+  await page.evaluate(()=>{DesempenhoTecScreen.render();UXHierarchy.decorateTec();});
+  await page.waitForTimeout(120);
+  const abas=await page.evaluate(()=>[...document.querySelectorAll('#tec-subtabs .tec-subtab')]
+    .filter(b=>b.offsetParent!==null)
+    .map(b=>({rot:(b.textContent||'').trim().slice(0,18),
+      estilo:getComputedStyle(b).borderTopStyle,
+      opac:Number(getComputedStyle(b).opacity).toFixed(2),
+      secundaria:b.classList.contains('ux-secondary-tab')})));
+  ok(abas.length>=3,`a fita do TEC deve ter as abas visiveis (recebeu ${abas.length})`);
+  eq(new Set(abas.map(a=>a.estilo)).size,1,`todas as abas devem ter o mesmo estilo de borda: ${JSON.stringify(abas)}`);
+  eq(new Set(abas.map(a=>a.opac)).size,1,`nenhuma aba pode ficar mais palida que as outras: ${JSON.stringify(abas)}`);
+  eq(abas.filter(a=>a.secundaria).length,0,'nenhuma aba deve carregar a marca de "secundaria"');
+
   await page.evaluate(()=>TecAjustes.abrir('plano'));
   await page.waitForTimeout(120);
   const modalGeom=await page.evaluate(()=>{const body=document.getElementById('tec-cfg-body');const root=body?.closest('[role="dialog"],.modal,.tec-cfg-modal')||body?.parentElement;return{body:!!body,overflow:body?Math.max(0,body.scrollWidth-body.clientWidth):999,rootOverflow:root?Math.max(0,root.scrollWidth-root.clientWidth):999};});

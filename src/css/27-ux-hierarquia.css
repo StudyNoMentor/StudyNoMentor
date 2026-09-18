@@ -154,14 +154,13 @@ html.tpm-motors-active #screen-desempenhotec #plano-proj>.ux-legacy-projection:n
 #screen-desempenhotec .tpm-output.ux-force-task .tpm-recs{gap:12px}
 #screen-desempenhotec .tpm-output.ux-force-task .tpm-rec{border-color:color-mix(in srgb,var(--accent) 18%,var(--border))}
 #screen-desempenhotec .tpm-ranking{margin-top:20px;padding-top:16px}
-/* Aba secundária não é aba inativa. Com `opacity:.72` "⚙ Modelos" e
-   "🎯 Reforço" apareciam mais pálidas que as vizinhas — leitura imediata de
-   "desabilitado" — e o texto caía junto com a borda. A distinção passa a ser
-   só a borda tracejada, que separa apoio de caminho principal sem tocar no
-   contraste do rótulo. */
-#screen-desempenhotec .tec-subtab.ux-secondary-tab{opacity:1;border-style:dashed}
-#screen-desempenhotec .tec-subtab.ux-secondary-tab:hover,
-#screen-desempenhotec .tec-subtab.ux-secondary-tab.active{border-style:solid}
+/* A distinção de "aba secundária" saiu por inteiro. Ela passou por dois
+   tratamentos e nenhum funcionou: `opacity:.72` deixava "⚙ Modelos" mais
+   pálida que as vizinhas (lê-se "desabilitada"), e a borda tracejada que a
+   substituiu lê-se "isto não é uma aba como as outras". Cinco abas na mesma
+   fita são cinco abas; a única diferença legítima entre elas é qual está
+   ativa. A trava está em tec-ux100-browser. */
+#screen-desempenhotec .tec-subtab{border-style:solid}
 
 /* Configurações: cotidiano primeiro; recuperação/backup continuam completos, mas recolhidos */
 #ux-config-data{border:1px solid var(--border);border-radius:14px;background:var(--surface);margin-bottom:16px;overflow:hidden}
