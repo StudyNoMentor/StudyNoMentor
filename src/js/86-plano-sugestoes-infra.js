@@ -48,8 +48,27 @@
       try { return (DB.getExtras ? DB.getExtras() : []).filter(e => e && e.origemPlano && e.status !== 'concluida'); }
       catch (e) { if (typeof _quiet === 'function') _quiet(e, 'plano-sug-v2-abertas'); return []; }
     },
+    /* Escopo compartilhado: "Matérias fora do Plano" nasceu no Plano legado,
+       mas é uma decisão de ESCOPO, não uma fórmula de prioridade. Com os motores
+       novos ativos, ignorá-la fazia a tela aceitar a exclusão e continuar
+       recomendando exatamente a matéria marcada. A infraestrutura neutra é o
+       lugar certo para aplicar o recorte uma única vez aos dois motores. */
+    disciplinasForaDoPlano() {
+      const out = new Set();
+      try {
+        if (typeof PlanoEngine === 'undefined' || !PlanoEngine.prefs || !PlanoEngine.excluidasSet) return out;
+        const p = PlanoEngine.prefs(), fora = PlanoEngine.excluidasSet(p);
+        (PlanoEngine.materiasExcluiveis ? PlanoEngine.materiasExcluiveis() : []).forEach(m => {
+          const nome = m && m.nome ? m.nome : '';
+          if (nome && PlanoEngine.foraDoPlano(nome, fora)) out.add(norm(nome));
+        });
+      } catch (e) { if (typeof _quiet === 'function') _quiet(e, 'plano-sug-v2-fora'); }
+      return out;
+    },
     disciplinasBloqueadas() {
-      return new Set(this.abertasPlano().map(e => norm((e.origemPlano && e.origemPlano.disciplina) || e.disciplina)).filter(Boolean));
+      const out = new Set(this.abertasPlano().map(e => norm((e.origemPlano && e.origemPlano.disciplina) || e.disciplina)).filter(Boolean));
+      this.disciplinasForaDoPlano().forEach(d => out.add(d));
+      return out;
     },
     bancas() {
       try { return DB.getBancas ? DB.getBancas() : []; }
