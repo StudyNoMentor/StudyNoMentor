@@ -39,7 +39,11 @@ async function auditarCentral(width,height){
   await fecharCentral();
   await page.locator('#extras-settings-btn').click();
   await page.locator('.xsc-overlay').waitFor({state:'visible'});
-  for(const tab of ['geral','reforcos','lei','manuais']){
+  /* A aba "Visao geral" saiu da central: era uma quinta aba com atalhos para as
+     outras tres, que ja estao na mesma fita. Este laco ainda clicava nela e
+     ficava 30s esperando um seletor que nao existe mais. */
+  assert.equal(await page.locator('[data-xsc-tab="geral"]').count(),0,'a aba Visão geral não deve mais existir');
+  for(const tab of ['reforcos','lei','manuais']){
     await page.locator(`[data-xsc-tab="${tab}"]`).click();
     await page.waitForTimeout(40);
     await caixa('.xsc-modal',`Central/${tab} ${width}x${height}`);
