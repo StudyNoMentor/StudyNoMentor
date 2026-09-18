@@ -645,7 +645,10 @@
           verificar: () => {
             const e2 = DB.getEntry(alvo);
             return !!e2 && e2.date === date && e2.subject === subject && (e2.durationMin || 0) === durationMin;
-          }
+          },
+          // DB._set já agenda a nuvem. Não prende a UX ao tempo de rede.
+          nuvem: false,
+          minBusyMs: 180
         });
         if (!res.ok) { SaveGuard.toast(res, ''); return; }
         DB.upsertSubjectName(subject);
@@ -662,7 +665,10 @@
         const entry = { id: DB._uid(), ...fields, createdAt: new Date().toISOString() };
         const res = await SaveGuard.run({
           escrever: () => DB.saveEntry(entry),
-          verificar: () => !!DB.getEntry(entry.id)     // prova: esta no disco
+          verificar: () => !!DB.getEntry(entry.id),    // prova: esta no disco
+          // confirmação local primeiro; o hook da DB mantém o envio na fila
+          nuvem: false,
+          minBusyMs: 180
         });
         if (!res.ok) { SaveGuard.toast(res, ''); return; }   // formulario preservado de proposito
         DB.upsertSubjectName(subject);
