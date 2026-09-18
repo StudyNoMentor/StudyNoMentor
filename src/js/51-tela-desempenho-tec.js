@@ -2951,8 +2951,12 @@ const TecAjustes = {
     this.aba = aba;
     const secs = this._secoes(aba);
     if (!secs.length) return;
-    document.getElementById('tec-cfg-title').textContent = this.TITULOS[aba].t;
-    document.getElementById('tec-cfg-sub').textContent = this.TITULOS[aba].s;
+    const motoresAtivos = aba === 'plano' && document.documentElement.classList.contains('tpm-motors-active');
+    document.getElementById('tec-cfg-title').textContent = motoresAtivos ? '🏁 Escopo + ajustes do Plano legado' : this.TITULOS[aba].t;
+    document.getElementById('tec-cfg-sub').textContent = motoresAtivos
+      ? '“Matérias fora do Plano” vale para Simplificado e Robusto. Os demais parâmetros desta folha pertencem ao Plano legado; configure os motores em ⚙ Modelos.'
+      : this.TITULOS[aba].s;
+    modal.classList.toggle('is-motor-mode', motoresAtivos);
     // a fita de seções nasce do próprio DOM: seção nova aparece sozinha aqui
     const nav = document.getElementById('tec-cfg-nav');
     nav.innerHTML = secs.map(sec => `<button type="button" role="tab" data-sec="${escapeHtml(sec.dataset.sec)}">` +
@@ -3603,6 +3607,31 @@ const DesempenhoTecScreen = {
     painel.querySelectorAll('[data-acao]').forEach(b => b.addEventListener('click', () => this.setExcluidas([])));
     if (jaAberto) { painel.removeAttribute('hidden'); btn.setAttribute('aria-expanded', 'true'); }
   },
+  _atualizarExcluidasPicker(hostId) {
+    const host = document.getElementById(hostId || 'plano-excluidas-pick');
+    if (!host) return;
+    const mats = PlanoEngine.materiasExcluiveis(), p = PlanoEngine.prefs();
+    const fora = PlanoEngine.excluidasSet(p);
+    const marcada = (m) => PlanoEngine.foraDoPlano(m.nome, fora);
+    const n = mats.filter(marcada).length;
+    const rot = !mats.length ? 'Nenhuma matéria conhecida'
+      : n === 0 ? '✅ Todas as matérias no Plano'
+      : n === 1 ? '🚫 1 matéria fora'
+      : `🚫 ${n} matérias fora`;
+    const label = host.querySelector('.banca-pick-btn > span:first-child');
+    if (label) label.textContent = rot;
+    host.querySelectorAll('.banca-pick-item input[type="checkbox"]').forEach(ch => {
+      const m = mats.find(x => ReforcoEngine.norm(x.nome) === ReforcoEngine.norm(ch.value));
+      if (m) ch.checked = marcada(m);
+    });
+    const acoes = host.querySelector('.banca-pick-acoes');
+    if (acoes) {
+      acoes.innerHTML = n
+        ? '<button type="button" data-acao="nenhuma">↺ Trazer todas de volta</button>'
+        : '<span class="banca-pick-nota">Nenhuma matéria excluída — o Plano está vendo tudo.</span>';
+      acoes.querySelector('[data-acao]')?.addEventListener('click', () => this.setExcluidas([]));
+    }
+  },
   /* Gravar a exclusão muda o RECORTE, e o recorte pode ter acabado de tirar da
      tela a disciplina que o filtro apontava. Devolver o filtro para "Todas"
      aqui evita o estado sem saída: filtro numa matéria que o motor não vê
@@ -3634,8 +3663,12 @@ const DesempenhoTecScreen = {
        só duas coisas mudaram de verdade: a lista de disciplinas oferecidas no
        filtro e o conteúdo do Plano. */
     this._sincronizarFiltroDisc();
-    this.renderExcluidasPicker('plano-excluidas-pick');
-    this.agendarPlano(true);
+    /* Não reconstrói o dropdown: recriar o painel a cada checkbox zerava
+       scroll/foco e parecia um "salto para o início". O cálculo pesado também
+       entra na janela de debounce para vários cliques virarem um só cálculo. */
+    this._atualizarExcluidasPicker('plano-excluidas-pick');
+    this.agendarPlano(false);
+    try { if (typeof TecAjustes !== 'undefined' && TecAjustes.aba === 'plano') TecAjustes.marcarPersonalizadas(); } catch (e) { _quiet(e, 'excluidas-ajustes'); }
   },
   /* A lista do filtro de disciplina depende do que está excluído — é o único
      campo da folha que a exclusão precisa mexer. Extraído de `renderPlano`
@@ -7214,19 +7247,29 @@ $id('tec-weak-disc').addEventListener('change', (e) => {
      O travamento que a pessoa sente é o do DEDO no chip: é ali que o quadro
      tem de ser liberado antes do cálculo. Chamada por código continua
      síncrona; o toque troca a aba agora e calcula no quadro seguinte. */
+  let _tecTrocaToken = 0;
   document.querySelectorAll('#tec-subtabs .tec-subtab').forEach(b => b.addEventListener('click', () => {
     const alvo = b.dataset.tectab;
-    /* Reclicar o chip do Plano recalcula a tela inteira igual à primeira vez —
-       então ele também merece o esqueleto, e não a lista velha congelada. */
-    if (alvo !== 'plano') { DT.switchTecTab(alvo); return; }
-    // pinta a troca de aba e o esqueleto agora; o motor roda no quadro seguinte
+    if (!alvo || alvo === 'motores') return; // Modelos é criado e governado pelo módulo dos motores
+    const token = ++_tecTrocaToken;
+    /* O chip e o painel mudam AGORA. Análise/Incidência também podem varrer
+       milhares de linhas; fazê-lo dentro do click bloqueava a pintura e dava a
+       sensação de congelamento. */
     DT.tecTab = alvo;
     document.querySelectorAll('#tec-subtabs .tec-subtab').forEach(x => x.classList.toggle('active', x.dataset.tectab === alvo));
     ['analise', 'incidencia', 'reforco', 'plano'].forEach(t => {
       const el = document.getElementById('tec-panel-' + t);
       if (el) el.style.display = (t === alvo) ? 'block' : 'none';
     });
-    DT._depoisDePintar('plano-lista', () => DT.switchTecTab(alvo));
+    const painel = document.getElementById('tec-panel-' + alvo);
+    if (painel) { painel.setAttribute('aria-busy', 'true'); painel.classList.add('tec-tab-is-loading'); }
+    requestAnimationFrame(() => requestAnimationFrame(() => {
+      if (token !== _tecTrocaToken) return;
+      try { DT.switchTecTab(alvo); }
+      finally {
+        if (painel) { painel.removeAttribute('aria-busy'); painel.classList.remove('tec-tab-is-loading'); }
+      }
+    }));
   }));
   // Incidência
   on('incid-text', 'input', () => DT.updateIncidPreview());
