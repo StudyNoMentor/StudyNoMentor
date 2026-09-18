@@ -114,13 +114,48 @@
       if (fonte !== 'robusto' || !Array.isArray(c && c.topicosOrdenados) || c.topicosOrdenados.length < 2) return '';
       return `<details class="tpm-topic-order"><summary>Ordem dos próximos assuntos desta disciplina</summary><ol>${c.topicosOrdenados.slice(1, 6).map(x => `<li><span>${esc(x.nome)}</span><small>${fmt(x.taxa, 0)}% · prioridade ${Math.round(n(x.score))}/100${n(x.incidencia) > 0 ? ' · incid. ' + Math.round(n(x.incidencia)) : ''}</small></li>`).join('')}</ol></details>`;
     },
+    /* O "i" é deliberadamente um <details>: nasce recolhido, não ocupa espaço
+       no ranking e deixa a conta auditável quando o aluno quiser entender por
+       que aquele tópico ficou naquela posição. */
+    _porqueHtml(c, fonte) {
+      if (!c) return '';
+      const comp = c.componentes || {};
+      const score = fonte === 'robusto' ? n(c.scoreTopico, c.score) : n(c.score);
+      const rows = [];
+      const add = (rot, val) => { if (val !== null && val !== undefined && val !== '' && Number.isFinite(Number(val))) rows.push([rot, val]); };
+      add('Prioridade do tópico', Math.round(score));
+      add('Acerto observado', Number.isFinite(Number(c.taxa)) ? fmt(c.taxa, 1) + '%' : null);
+      add('Amostra', Math.max(0, Math.round(n(c.qJanela))));
+      if (fonte === 'simplificado') {
+        add('Lacuna para a meta', Number.isFinite(Number(comp.lacunaPP)) ? fmt(comp.lacunaPP, 1) + ' pp' : null);
+        add('Incidência na disciplina', Number.isFinite(Number(comp.incidenciaDiscPct)) ? fmt(comp.incidenciaDiscPct, 1) + '%' : null);
+        add('Valor estimado em pontos', Number.isFinite(Number(comp.valorPontos)) ? fmt(comp.valorPontos, 2) : null);
+      } else {
+        add('Evidência da lacuna', Number.isFinite(Number(comp.evidencia)) ? fmt(comp.evidencia * 100, 0) + '%' : null);
+        add('Persistência', Number.isFinite(Number(comp.persistencia)) ? fmt(comp.persistencia * 100, 0) + '%' : (c.histTec && Number.isFinite(Number(c.histTec.persistencia)) ? fmt(c.histTec.persistencia * 100, 0) + '%' : null));
+        add('Tendência de risco', Number.isFinite(Number(comp.tendencia)) ? fmt(comp.tendencia * 100, 0) + '%' : null);
+        add('Incidência', c.incidencia && Number.isFinite(Number(c.incidencia.valor)) ? Math.round(Number(c.incidencia.valor)) : null);
+        add('Confiança da amostra', Number.isFinite(Number(comp.confiancaAmostra)) ? fmt(comp.confiancaAmostra * 100, 0) + '%' : null);
+      }
+      const linhas = rows.map(([k,v]) => `<span><small>${esc(k)}</small><b>${esc(v)}</b></span>`).join('');
+      return `<details class="tpm-why"><summary><i aria-hidden="true">i</i><span>Por que esta posição?</span></summary><div class="tpm-why-body">${c.motivo ? `<p>${esc(c.motivo)}</p>` : ''}<div class="tpm-why-grid">${linhas}</div><small>A posição é recalculada com o retrato, o escopo e as regras do ${fonte === 'robusto' ? 'Robusto' : 'Simplificado'}; não altera seus dados observados.</small></div></details>`;
+    },
+    _paraCriacao(c, fonte, r) {
+      if (!c) return null;
+      if (fonte !== 'robusto' || n(c.quantidadeRecomendada, c.alvo) > 0) return c;
+      const R = window.PlanoSugestoesRobusto, p = R && R.prefs ? R.prefs() : {};
+      const q = Math.max(1, Math.round(n(p.doseBase, 15)));
+      return Object.assign({}, c, { modo:'robusto', fase:(r && r.fase) || (R && R.fase ? R.fase() : 'pre'),
+        meta:n(c.meta, p.meta || 90), minAmostra:n(c.minAmostra, p.minAmostra || 20), banca:c.banca || p.banca || '__todas__',
+        alvo:q, quantidadeRecomendada:q });
+    },
     _card(c, i, fonte) {
       const q = this._quantidade(c);
       const tempo = this._tempo(c, fonte);
       const taxa = Number.isFinite(Number(c.taxa)) ? `${fmt(c.taxa, 0)}%` : '—';
       const amostra = Math.max(0, Math.round(n(c.qJanela)));
       const score = Number.isFinite(Number(c.score)) ? Math.round(Number(c.score)) : null;
-      return `<article class="tpm-rec" data-tpm-rec data-disciplina="${esc(c.disciplina || '')}"><div class="tpm-rank">${i + 1}</div><div class="tpm-main"><div class="tpm-head"><div><small>${esc(c.disciplina || 'Disciplina')}</small><b>${esc(c.nome || 'Assunto')}</b></div><span class="tpm-score">${score == null ? '' : 'prioridade ' + score + '/100'}</span></div><div class="tpm-metrics"><span><b>${taxa}</b><small>acerto observado</small></span><span><b>${amostra || '—'}</b><small>questões na amostra</small></span><span class="tpm-dose"><b>${q || '—'}</b><small>${fonte === 'robusto' ? 'questões recomendadas' : 'questões por frente'}</small></span><span><b>${esc(tempo.texto)}</b><small>${esc(tempo.detalhe)}</small></span></div><p class="tpm-context">${esc(c.motivo || '')}</p>${this._topicos(c, fonte)}</div></article>`;
+      return `<article class="tpm-rec" data-tpm-rec data-disciplina="${esc(c.disciplina || '')}"><div class="tpm-rank">${i + 1}</div><div class="tpm-main"><div class="tpm-head"><div><small>${esc(c.disciplina || 'Disciplina')}</small><b>${esc(c.nome || 'Assunto')}</b></div><span class="tpm-score">${score == null ? '' : 'prioridade ' + score + '/100'}</span></div><div class="tpm-metrics"><span><b>${taxa}</b><small>acerto observado</small></span><span><b>${amostra || '—'}</b><small>questões na amostra</small></span><span class="tpm-dose"><b>${q || '—'}</b><small>${fonte === 'robusto' ? 'questões recomendadas' : 'questões por frente'}</small></span><span><b>${esc(tempo.texto)}</b><small>${esc(tempo.detalhe)}</small></span></div>${this._topicos(c, fonte)}<div class="tpm-rec-actions"><button type="button" class="btn-primary tpm-create-extra" data-tpm-create-top="${i}">🎯 Ataque agora</button>${this._porqueHtml(c, fonte)}</div></div></article>`;
     },
     _itemKey(c) { return norm(c && c.disciplina) + '\u0001' + norm(c && c.nome); },
     _rankingItems(fonte, r) {
@@ -139,7 +174,7 @@
       const persist = fonte === 'robusto' && Number.isFinite(Number(c && c.histTec && c.histTec.persistencia)) ? `${Math.round(Number(c.histTec.persistencia) * 100)}%` : null;
       const extras = fonte === 'simplificado' && n(c.alvo) > 0 ? `<span><b>${Math.round(n(c.alvo))}</b><small>questões por frente</small></span>` : '';
       const robustoExtra = fonte === 'robusto' ? `<span><b>${incidencia || '—'}</b><small>incidência</small></span><span><b>${persist || '—'}</b><small>persistência da lacuna</small></span>` : '';
-      return `<article class="tpm-ranking-item${ataque ? ' is-now' : ''}" data-tpm-ranking-item data-disciplina="${esc(c.disciplina || '')}"><div class="tpm-ranking-rank">${i + 1}</div><div class="tpm-ranking-main"><div class="tpm-ranking-head"><div><small>${esc(c.disciplina || 'Disciplina')}</small><b>${esc(c.nome || 'Assunto')}</b></div>${ataque ? '<em>ataque agora</em>' : ''}</div><div class="tpm-ranking-metrics"><span><b>${taxa}</b><small>acerto</small></span><span><b>${amostra || '—'}</b><small>amostra</small></span><span><b>${Math.round(score)}</b><small>prioridade do tópico</small></span>${extras}${robustoExtra}</div>${c.motivo ? `<p>${esc(c.motivo)}</p>` : ''}</div></article>`;
+      return `<article class="tpm-ranking-item${ataque ? ' is-now' : ''}" data-tpm-ranking-item data-disciplina="${esc(c.disciplina || '')}"><div class="tpm-ranking-rank">${i + 1}</div><div class="tpm-ranking-main"><div class="tpm-ranking-head"><div><small>${esc(c.disciplina || 'Disciplina')}</small><b>${esc(c.nome || 'Assunto')}</b></div>${ataque ? '<em>ataque agora</em>' : ''}</div><div class="tpm-ranking-metrics"><span><b>${taxa}</b><small>acerto</small></span><span><b>${amostra || '—'}</b><small>amostra</small></span><span><b>${Math.round(score)}</b><small>prioridade do tópico</small></span>${extras}${robustoExtra}</div><div class="tpm-ranking-actions-row"><button type="button" class="btn-secondary tpm-create-extra" data-tpm-create-rank="${i}">+ Gerar Extra</button>${this._porqueHtml(c, fonte)}</div></div></article>`;
     },
     _rankingHtml(fonte, r) {
       const itens = this._rankingItems(fonte, r);
@@ -185,7 +220,7 @@
       const nome = fonte === 'robusto' ? 'Robusto' : 'Simplificado', ico = fonte === 'robusto' ? '🧠' : '⚡';
       if (!r || r.erro) return `<section class="tpm-output" data-tpm-output data-tpm-model="${fonte}"><header><div><small>${ico} ${nome.toUpperCase()}</small><strong>Recomendação deste modelo</strong></div></header><div class="tpm-empty">${esc(this._erroTexto(r, fonte))}</div></section>`;
       const itens = (r.itens || []).slice().sort((a, b) => fonte === 'robusto' ? n(b.score) - n(a.score) : 0);
-      return `<section class="tpm-output" data-tpm-output data-tpm-model="${fonte}"><header><div><small>${ico} ${nome.toUpperCase()} · ${r.fase === 'pos' ? 'PÓS-EDITAL' : 'PRÉ-EDITAL'}</small><strong>Onde atacar agora</strong><p>${esc(this._criterio(fonte, r))}</p></div><span>${itens.length} ${itens.length === 1 ? 'disciplina' : 'disciplinas'}</span></header>${fonte === 'robusto' ? '<div class="tpm-method"><b>O algoritmo para aqui:</b> recomenda alvo, ordem e quantidade. Sua resolução aprofundada — comentários, resumo, lei seca e cards — é seu modus operandi e não entra no score.</div>' : ''}<div class="tpm-recs">${itens.map((c, i) => this._card(c, i, fonte)).join('')}</div>${this._rankingHtml(fonte, r)}<footer><b>Execução em Atividades → Puxar do Plano.</b><span>Resultados do TEC são observacionais: outras questões feitas no ciclo podem aparecer no mesmo retrato.</span></footer></section>`;
+      return `<section class="tpm-output" data-tpm-output data-tpm-model="${fonte}"><header><div><small>${ico} ${nome.toUpperCase()} · ${r.fase === 'pos' ? 'PÓS-EDITAL' : 'PRÉ-EDITAL'}</small><strong>Onde atacar agora</strong><p>${esc(this._criterio(fonte, r))}</p></div><span>${itens.length} ${itens.length === 1 ? 'disciplina' : 'disciplinas'}</span></header>${fonte === 'robusto' ? '<div class="tpm-method"><b>O algoritmo para aqui:</b> recomenda alvo, ordem e quantidade. Sua resolução aprofundada — comentários, resumo, lei seca e cards — é seu modus operandi e não entra no score.</div>' : ''}<div class="tpm-recs">${itens.map((c, i) => this._card(c, i, fonte)).join('')}</div>${this._rankingHtml(fonte, r)}<footer><b>Você pode criar a Atividade Extra daqui ou usar Atividades → Puxar do Plano.</b><span>Resultados do TEC são observacionais: outras questões feitas no ciclo podem aparecer no mesmo retrato.</span></footer></section>`;
     },
     _scheduleRender() {
       if (this._renderQueued) return;
@@ -218,6 +253,28 @@
       if (all) all.addEventListener('click', () => { this._rankingVisible[sig] = itens.length; rerender(); });
       const reset = root.querySelector('[data-tpm-rank-reset]');
       if (reset) reset.addEventListener('click', () => { this._rankingVisible[sig] = step; rerender(); });
+    },
+    _bindCriacao(root, fonte, r) {
+      if (!root || !r || r.erro || !C || typeof C.criarItem !== 'function') return;
+      const top = (r.itens || []).slice().sort((a,b) => fonte === 'robusto' ? n(b.score)-n(a.score) : 0);
+      const ranking = this._rankingItems(fonte, r);
+      const ligar = (sel, lista) => root.querySelectorAll(sel).forEach(b => b.addEventListener('click', () => {
+        const i = Number(sel.indexOf('top') >= 0 ? b.dataset.tpmCreateTop : b.dataset.tpmCreateRank);
+        const bruto = lista[i]; if (!bruto) return;
+        b.disabled = true; b.setAttribute('aria-busy','true');
+        try {
+          const candidato = this._paraCriacao(bruto, fonte, r);
+          const criado = C.criarItem(candidato, fonte);
+          if (criado && criado.ok) {
+            this._renderQueued = false;
+            this.renderPlano();
+          }
+        } finally {
+          if (document.contains(b)) { b.disabled = false; b.removeAttribute('aria-busy'); }
+        }
+      }));
+      ligar('[data-tpm-create-top]', top);
+      ligar('[data-tpm-create-rank]', ranking);
     },
     renderEntry() {
       if (typeof document === 'undefined') return;
@@ -258,7 +315,7 @@
         if (p) proj.prepend(p);
         box.innerHTML = this._outputHtml(fonte, r);
         const out = box.firstElementChild;
-        if (out) { lista.prepend(out); this._bindRanking(out, fonte, r); }
+        if (out) { lista.prepend(out); this._bindRanking(out, fonte, r); this._bindCriacao(out, fonte, r); }
         lista.classList.add('tpm-engine-active');
         proj.querySelectorAll('.pl-hero-sub').forEach(p => {
           if (/^\s*Caminho mais curto:/i.test(p.textContent || '')) p.classList.add('tpm-legacy-decision');
