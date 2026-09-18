@@ -231,9 +231,13 @@ const LawEngine = {
       // Conta só as linhas que INICIAM um artigo. Antes, cada citação ("nos termos do
       // art. 5º") era contada como um artigo novo e o total saía inflado.
       const arts = text.split('\n').filter(l => /^\s*art(?:\.|igo)?\s*\d+/i.test(l)).length;
-      e.stats = { artigos: arts, palavras: (text.match(/\S+/g) || []).length };
+      /* `linhas` entra aqui porque é o DENOMINADOR do marcador de leitura:
+         "parou na linha 137" não diz nada sem saber se a lei tem 150 ou 9.000
+         linhas. É a mesma contagem de `lines()` (linhas de conteúdo, em branco
+         não contam), lida do mesmo memo, então não custa uma varredura nova. */
+      e.stats = { artigos: arts, palavras: (text.match(/\S+/g) || []).length, linhas: this.lines(bruto).length };
     }
     // 'marcacoes' muda sem o texto mudar: fica FORA do memo.
-    return { artigos: e.stats.artigos, palavras: e.stats.palavras, marcacoes: ((lei && lei.marcacoes) || []).length };
+    return { artigos: e.stats.artigos, palavras: e.stats.palavras, linhas: e.stats.linhas, marcacoes: ((lei && lei.marcacoes) || []).length };
   }
 };

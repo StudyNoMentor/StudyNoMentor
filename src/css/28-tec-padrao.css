@@ -335,3 +335,45 @@
   .pmc-modal-foot button { width: 100%; }
   #tec-panel-motores .pmc-engine-foot button { width: 100%; }
 }
+
+/* ══ 7. PUXAR DO PLANO — A COMPARAÇÃO COM OS DOIS LADOS ════════════════════
+   A linha de comparação passou a ter sempre duas colunas: a leitura de cada
+   motor, ou a declaração de que aquele motor não tem leitura. Os estilos
+   abaixo dão a essas duas situações desenhos distintos, porque "o Robusto põe
+   isso em #7" e "o Robusto não vê isso" levam a decisões diferentes. */
+.ps-compare-row { border-radius: 14px; padding: 12px; }
+.ps-compare-row > header { align-items: baseline; flex-wrap: wrap; }
+.ps-compare-row > header b { font-size: var(--fs-sm); }
+.ps-compare-row > header span { font-size: var(--fs-2xs); color: var(--text-soft); }
+.ps-compare-grid { gap: 9px; }
+.ps-compare-option { border-radius: 12px; padding: 11px; gap: 9px; }
+.ps-compare-option span { font-size: var(--fs-3xs); letter-spacing: .04em; }
+.ps-compare-option b { font-size: var(--fs-xs); line-height: 1.35; }
+.ps-compare-option small { font-size: var(--fs-2xs); line-height: 1.45; }
+.ps-compare-option small b { font-size: inherit; color: var(--text); }
+
+/* Recuperado da fila completa: é uma leitura válida, só não é a aposta
+   principal daquele motor. Borda tracejada diz isso sem apagar o cartão. */
+.ps-compare-option.is-fora { border-style: dashed; background: color-mix(in srgb, var(--surface-sunken) 45%, var(--surface)); }
+.ps-fora-tag {
+  font-style: normal; align-self: flex-start;
+  margin: 1px 0 2px; padding: 2px 7px; border-radius: 999px;
+  border: 1px solid color-mix(in srgb, var(--warn) 34%, var(--border));
+  background: var(--warn-soft); color: var(--warn-text);
+  font-size: var(--fs-3xs); font-weight: 800;
+}
+/* Sem leitura: não é opção, então não tem rádio nem cursor de clique. */
+.ps-compare-option.is-sem {
+  grid-template-columns: minmax(0, 1fr);
+  border-style: dashed; cursor: default;
+  background: color-mix(in srgb, var(--surface-sunken) 65%, var(--surface));
+}
+.ps-compare-option.is-sem b { color: var(--text-soft); }
+.ps-compare-option.is-sem small { color: var(--text-faint); }
+.ps-so-um {
+  padding: 2px 8px; border-radius: 999px;
+  border: 1px solid color-mix(in srgb, var(--warn) 34%, var(--border));
+  background: var(--warn-soft); color: var(--warn-text) !important;
+  font-size: var(--fs-3xs); font-weight: 800;
+}
+.ps-consensus { color: var(--good-text) !important; font-weight: 800; }

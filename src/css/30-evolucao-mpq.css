@@ -1,0 +1,70 @@
+/* ============================================================================
+   EVOLUÇÃO — MINUTOS POR QUESTÃO
+   ----------------------------------------------------------------------------
+   Barras horizontais, uma por disciplina, ordenadas do mais lento para o mais
+   rápido. A leitura é comparativa: o que importa é "esta matéria leva o dobro
+   daquela", não o valor absoluto de cada uma — por isso a barra é proporcional
+   ao MAIOR da lista, e não a uma escala fixa que não existe (não há um
+   "min/questão ideal" universal).
+   ============================================================================ */
+#evolucao-mpq .mpq-head {
+  display: flex; align-items: flex-end; justify-content: space-between;
+  gap: 12px; flex-wrap: wrap; margin-bottom: 14px;
+}
+#evolucao-mpq .mpq-kpis {
+  display: grid; gap: 8px; flex: 1 1 380px; min-width: 0;
+  grid-template-columns: repeat(auto-fit, minmax(128px, 1fr));
+}
+#evolucao-mpq .mpq-kpis > span {
+  display: grid; gap: 2px; min-width: 0;
+  padding: 11px 12px;
+  border: 1px solid var(--border); border-radius: 12px;
+  background: color-mix(in srgb, var(--surface-sunken) 45%, var(--surface));
+}
+#evolucao-mpq .mpq-kpis b {
+  font-size: var(--fs-xl); line-height: 1.1;
+  font-family: 'Space Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+#evolucao-mpq .mpq-kpis small { font-size: var(--fs-3xs); line-height: 1.35; color: var(--text-faint); }
+#evolucao-mpq .mpq-filtro { display: grid; gap: 4px; flex: 0 1 220px; min-width: 0; }
+#evolucao-mpq .mpq-filtro > span {
+  font-size: var(--fs-3xs); font-weight: 900; letter-spacing: .08em;
+  text-transform: uppercase; color: var(--text-faint);
+}
+#evolucao-mpq .mpq-filtro select { width: 100%; min-height: 40px; border-radius: 10px; font-size: var(--fs-sm); }
+
+#evolucao-mpq .mpq-chart { display: grid; gap: 7px; }
+#evolucao-mpq .mpq-row {
+  display: grid; align-items: center; gap: 10px;
+  grid-template-columns: minmax(96px, 168px) minmax(0, 1fr) auto;
+}
+#evolucao-mpq .mpq-name {
+  font-size: var(--fs-xs); font-weight: 700; color: var(--text);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+#evolucao-mpq .mpq-track {
+  height: 20px; min-width: 0; border-radius: 6px;
+  background: color-mix(in srgb, var(--surface-sunken) 80%, var(--surface));
+  overflow: hidden;
+}
+#evolucao-mpq .mpq-fill { height: 100%; border-radius: 6px; transition: width .3s ease; }
+#evolucao-mpq .mpq-val { display: grid; gap: 1px; justify-items: end; text-align: right; }
+#evolucao-mpq .mpq-val b {
+  font-size: var(--fs-sm);
+  font-family: 'Space Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+#evolucao-mpq .mpq-val small { font-size: var(--fs-3xs); color: var(--text-faint); white-space: nowrap; }
+/* O tom marca a DISTÂNCIA da média, não um juízo: questão difícil leva mais
+   tempo, e isso não é um defeito do estudo. */
+#evolucao-mpq .mpq-row.is-lento .mpq-val b { color: var(--warn-text); }
+#evolucao-mpq .mpq-row.is-rapido .mpq-val b { color: var(--good-text); }
+#evolucao-mpq .mpq-nota { margin: 14px 0 0; font-size: var(--fs-2xs); line-height: 1.55; }
+
+@media (max-width: 620px) {
+  #evolucao-mpq .mpq-head { align-items: stretch; }
+  #evolucao-mpq .mpq-filtro { flex: 1 1 100%; }
+  #evolucao-mpq .mpq-row { grid-template-columns: minmax(0, 1fr) auto; grid-template-areas: "nome val" "track track"; }
+  #evolucao-mpq .mpq-name { grid-area: nome; white-space: normal; }
+  #evolucao-mpq .mpq-val { grid-area: val; }
+  #evolucao-mpq .mpq-track { grid-area: track; height: 14px; }
+}

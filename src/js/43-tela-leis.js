@@ -112,25 +112,59 @@ const LeisScreen = {
       wrap.innerHTML = `<div class="empty-state"><div class="big">🔎</div>Nenhuma lei encontrada para <strong>${escapeHtml(this._busca)}</strong>.</div>`;
       return;
     }
+    /* ── O CARTÃO DIZ ONDE VOCÊ ESTÁ, NÃO SÓ O QUE A LEI É ─────────────────
+       O cartão listava título, matéria, referência e três contagens em cinza
+       monoespaçado. Nenhuma delas responde a pergunta com que se abre esta
+       tela — "de onde eu continuo?" —, e as três tinham o mesmo peso visual,
+       então a lista virava uma parede uniforme sem nada para o olho pousar:
+       era o "morta, sem destaque" da tela.
+
+       Três mudanças, todas de informação (nenhuma contagem foi removida):
+
+       1. PROGRESSO. `bookmark` já existia e só aparecia como "📌 parou na
+          linha 137" — um número sem denominador, que não diz se é o começo ou
+          o fim. Agora vira barra e percentual sobre o total de linhas, que é o
+          que transforma "linha 137" em "23% lida".
+       2. ESTADO. Nunca aberta / em leitura / lida até o fim são três situações
+          diferentes, com ações diferentes, e apareciam idênticas. Cada uma
+          ganha selo e cor próprios.
+       3. AÇÃO. O `→` solto virava a única coisa clicável aparente num cartão
+          que é inteiro clicável. Vira um rótulo que diz o que vai acontecer —
+          "Continuar", "Começar" ou "Reler" —, com o número da linha. */
+    const fmtN = (v) => Number(v || 0).toLocaleString('pt-BR');
     wrap.innerHTML = leis.map(l => {
       const st = LawEngine.stats(l);
       const bk = (l.bookmark != null) ? LawEngine.resolveBookmark(l) : null;
+      const totalLinhas = Number(st.linhas) || 0;
+      const emLinha = (bk != null && bk > 0) ? Number(bk) : 0;
+      const pct = (totalLinhas > 0 && emLinha > 0)
+        ? Math.max(1, Math.min(100, Math.round((emLinha / totalLinhas) * 100))) : 0;
+      const fim = pct >= 99;
+      const estado = !emLinha ? { cls: 'is-nova', ic: '✨', rot: 'Não começou' }
+        : fim ? { cls: 'is-fim', ic: '✅', rot: 'Lida até o fim' }
+        : { cls: 'is-lendo', ic: '📖', rot: pct + '% lida' };
+      const acao = !emLinha ? 'Começar' : fim ? 'Reler' : 'Continuar';
       return `
-        <button type="button" class="lei-card" data-id="${l.id}" aria-label="Abrir ${escapeHtml(l.titulo)}">
+        <button type="button" class="lei-card ${estado.cls}" data-id="${l.id}" aria-label="${escapeHtml(acao)} ${escapeHtml(l.titulo)}">
           <span class="lei-card-main">
-            <span class="lei-card-title">${escapeHtml(l.titulo)}</span>
-            <span class="lei-card-meta">
+            <span class="lei-card-topo">
+              <span class="lei-estado"><i aria-hidden="true">${estado.ic}</i>${escapeHtml(estado.rot)}</span>
               ${l.materia ? `<span class="lei-tag mat">${escapeHtml(l.materia)}</span>` : ''}
               ${l.referencia ? `<span class="lei-tag ref">${escapeHtml(l.referencia)}</span>` : ''}
             </span>
+            <span class="lei-card-title">${escapeHtml(l.titulo)}</span>
             <span class="lei-card-stats">
-              <span>§ ${st.artigos} art.</span>
-              <span>📝 ${Number(st.palavras).toLocaleString('pt-BR')} palavras</span>
-              ${st.marcacoes ? `<span>🖍️ ${st.marcacoes} destaque${st.marcacoes === 1 ? '' : 's'}</span>` : ''}
-              ${bk != null && bk > 0 ? `<span class="lei-card-bk">📌 parou na linha ${bk}</span>` : ''}
+              <span title="Artigos reconhecidos no texto">§ ${fmtN(st.artigos)} art.</span>
+              <span title="Palavras no texto">📝 ${fmtN(st.palavras)} palavras</span>
+              ${totalLinhas ? `<span title="Linhas no texto">📏 ${fmtN(totalLinhas)} linhas</span>` : ''}
+              ${st.marcacoes ? `<span class="lei-stat-destaque" title="Trechos que você marcou">🖍️ ${fmtN(st.marcacoes)} destaque${st.marcacoes === 1 ? '' : 's'}</span>` : ''}
             </span>
+            ${emLinha ? `<span class="lei-prog" role="img" aria-label="${pct}% lida">
+              <span class="lei-prog-track"><span class="lei-prog-fill" style="width:${pct}%;"></span></span>
+              <span class="lei-prog-txt">📌 linha <b>${fmtN(emLinha)}</b>${totalLinhas ? ' de ' + fmtN(totalLinhas) : ''}</span>
+            </span>` : ''}
           </span>
-          <span class="lei-card-go" aria-hidden="true">→</span>
+          <span class="lei-card-go" aria-hidden="true"><b>${escapeHtml(acao)}</b><small>${emLinha ? 'linha ' + fmtN(emLinha) : 'linha 1'}</small><i>→</i></span>
         </button>`;
     }).join('');
     wrap.querySelectorAll('.lei-card').forEach(card => {
