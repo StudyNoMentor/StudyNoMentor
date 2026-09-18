@@ -210,7 +210,8 @@
       q('#extras-summary', s)?.classList.add('ux-summary-first');
       q('#extras-agenda', s)?.classList.add('ux-primary-workspace');
       q('#extras-curso', s)?.classList.add('ux-secondary-area');
-      q('#extras-suggest-btn', s)?.classList.add('ux-tertiary-action');
+      /* O Sugerir deixou de ser "terciário por opacidade": ou ele está na
+         barra (e então vale tanto quanto os vizinhos) ou não está. */
       q('#extras-plano-btn', s)?.classList.add('ux-priority-action');
       qa('.exm-stat', s).forEach((x, i) => x.dataset.uxPriority = i < 2 ? 'primary' : 'secondary');
       qa('.exm-rotation,.exm-load', s).forEach(x => x.classList.add('ux-advanced-surface'));
@@ -314,11 +315,16 @@
         const rankCopy = q('.tpm-ranking > header p', out);
         if (rankCopy) rankCopy.textContent = 'O TOP 3 é a execução imediata; o restante continua disponível para diagnóstico.';
       }
-      const refTab = q('.tec-subtab[data-tectab="reforco"]', s);
-      refTab?.classList.add('ux-secondary-tab');
+      /* ── ABA É ABA ─────────────────────────────────────────────────────
+         "⚙ Modelos" e "🎯 Reforço" ganhavam borda tracejada para dizer
+         "apoio, não caminho principal". Numa fita onde as outras três têm
+         borda cheia, o tracejado não lê como "secundário": lê como
+         "indisponível", ou como um botão de outro tipo que caiu ali. A
+         hierarquia entre elas já está dita pela ORDEM e pelo fato de a aba
+         ativa ser a única preenchida. */
       const motTab = q('.tec-subtab[data-tectab="motores"]', s);
       if (motTab && motTab.textContent !== '⚙ Modelos') motTab.textContent = '⚙ Modelos';
-      motTab?.classList.add('ux-secondary-tab');
+      qa('.tec-subtab.ux-secondary-tab', s).forEach(t => t.classList.remove('ux-secondary-tab'));
       q('#tec-panel-motores', s)?.classList.add('ux-advanced-surface');
     },
 

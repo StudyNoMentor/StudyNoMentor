@@ -12,6 +12,8 @@
   const {num,norm,esc}=I;
 
   const C={
+    /* O contrato de execução: até três disciplinas distintas numa fila só. */
+    CONTRATO_DISCIPLINAS:3,
     KEY:'plano-sug-ui-v5',LEGACY_KEYS:['plano-sug-ui-v3','plano-sug-ui-v2'],DEFAULTS:Object.freeze({modo:'robusto'}),
     prefs(){let modo=this.DEFAULTS.modo;try{let z=JSON.parse(localStorage.getItem(DB._profilePrefix()+this.KEY)||'null');if(!z){for(const k of this.LEGACY_KEYS){z=JSON.parse(localStorage.getItem(DB._profilePrefix()+k)||'null');if(z)break;}}if(z&&['simplificado','robusto','comparar'].includes(z.modo))modo=z.modo;}catch(e){if(typeof _quiet==='function')_quiet(e,'plano-controller-prefs');}return{modo};},
     salvar(patch){patch=patch||{};let modo=this.prefs().modo;if(['simplificado','robusto','comparar'].includes(patch.modo))modo=patch.modo;try{const k=DB._profilePrefix()+this.KEY,v=JSON.stringify({modo});if(DB.setRaw)DB.setRaw(k,v);else localStorage.setItem(k,v);}catch(e){if(typeof _quiet==='function')_quiet(e,'plano-controller-save');}return{modo};},
@@ -61,21 +63,52 @@
         const sa=a.get(k)||this._melhorDe(s,k);
         const rb=b.get(k)||this._melhorDe(r,k);
         const cons=!!(sa&&rb&&!sa.fora&&!rb.fora&&norm(sa.c.nome)===norm(rb.c.nome));
-        /* Só o TOP 3 pontua a posição; um lado recuperado da fila completa
-           entra para poder ser comparado, não para disputar a ordem das
-           linhas. */
-        const pontos=(sa&&!sa.fora?4-sa.rank:0)+(rb&&!rb.fora?4-rb.rank:0)+(cons?10:0);
         const escolhaPadrao=cons?'consenso':((rb&&!rb.fora)?'robusto':(sa&&!sa.fora)?'simplificado':rb?'robusto':'simplificado');
+        /* A MELHOR POSIÇÃO QUE A DISCIPLINA ALCANÇOU em algum dos dois motores
+           — e ela é sempre uma posição REAL, de um ranking real. */
+        const posicoes=[];
+        if(sa&&!sa.fora)posicoes.push(sa.rank);
+        if(rb&&!rb.fora)posicoes.push(rb.rank);
         return{
           disciplina:(sa&&sa.c.disciplina)||(rb&&rb.c.disciplina),
           simplificado:sa&&sa.c||null, robusto:rb&&rb.c||null,
           rankSimplificado:sa?sa.rank:null, rankRobusto:rb?rb.rank:null,
           foraSimplificado:!!(sa&&sa.fora), foraRobusto:!!(rb&&rb.fora),
           semSimplificado:!sa, semRobusto:!rb,
-          consenso:cons, pontosComparacao:pontos, escolha:escolhaPadrao
+          consenso:cons, escolha:escolhaPadrao,
+          melhorPosicao:posicoes.length?Math.min.apply(null,posicoes):99,
+          somaPosicoes:posicoes.length?posicoes.reduce((a,b)=>a+b,0):99
         };
-      }).sort((x,y)=>y.pontosComparacao-x.pontosComparacao).slice(0,3);
-      return{modo:'comparar',fase:{simplificado:s.fase,robusto:r.fase},itens:linhas,simples:s,robusto:r,explicacao:'Comparação por posição em cada ranking + consenso. Scores dos motores nunca são somados nem tratados como a mesma escala.'};
+      });
+      /* ── COMPARAR MOSTRA O QUE CADA MOTOR ESCOLHEU, NÃO UM TERCEIRO RANKING ──
+         A ordem era dada por uma pontuação inventada aqui:
+           `(4-posNoSimplificado) + (4-posNoRobusto) + 10 se consenso`
+         e depois cortada em três. Uma soma de posições de DOIS rankings que
+         não compartilham escala produz uma terceira ordem, que não é a de
+         nenhum dos motores — e o corte em três deixava de fora recomendações
+         que os motores realmente fizeram. Na prática: uma disciplina em #2
+         nos dois lados (2+2=4) passava na frente da que era #1 para um deles
+         (3+0=3). O topo da comparação virava o "mais ou menos para os dois",
+         e a #1 de um motor sumia da tela. Era exatamente o "exibe itens de
+         posições bem diferentes dos sugeridos quando seleciono um motor
+         individualmente".
+
+         Agora a ordem é a MELHOR POSIÇÃO REAL que a disciplina alcançou em
+         algum dos dois motores; empate vai para o consenso e, depois, para a
+         soma das posições. Toda linha visível é, comprovadamente, o TOP 3 de
+         pelo menos um dos motores — e o número que ela mostra é o daquele
+         motor, conferível na aba dele.
+
+         Nada é cortado: a união dos dois TOP 3 cabe em seis linhas. O
+         CONTRATO de execução (até 3 disciplinas) continua valendo, mas como
+         seleção, não como censura — as três primeiras nascem marcadas e as
+         demais ficam à vista para trocar. */
+      linhas.sort((x,y)=>x.melhorPosicao-y.melhorPosicao
+        ||(y.consenso?1:0)-(x.consenso?1:0)
+        ||x.somaPosicoes-y.somaPosicoes
+        ||String(x.disciplina||'').localeCompare(String(y.disciplina||''),'pt-BR'));
+      linhas.forEach((l,i)=>{l.incluir=i<this.CONTRATO_DISCIPLINAS;});
+      return{modo:'comparar',fase:{simplificado:s.fase,robusto:r.fase},itens:linhas,simples:s,robusto:r,explicacao:'Cada linha é o TOP 3 de pelo menos um dos motores, na posição que ELE deu. Os scores nunca são somados nem tratados como a mesma escala.'};
     },
     calcular(p){const modo=(p&&p.modo)||this.prefs().modo;return modo==='simplificado'?this.simplificado():modo==='comparar'?this.comparar():this.robusto();},
     _erroTexto(e){return({
@@ -108,7 +141,10 @@
         if(sem||!c)return`<div class="ps-compare-option is-sem"><div><span>${rotulo(k)}</span><b>Sem leitura</b>`
           +`<small>Esta disciplina não é elegível para a régua deste motor no escopo atual — ou ele não conseguiu calcular. Escolher o outro lado não mistura nada: a atividade nasce com o motor que você marcar.</small></div></div>`;
         const marcado=(x.escolha===k||(x.escolha==='consenso'&&k==='robusto'))?' checked':'';
-        const pos=rank?(fora?`#${rank} na fila completa`:`#${rank} no TOP 3`):'posição não apurada';
+        /* "#2 no TOP 3" não dizia de QUEM era o 2. Com dois rankings lado a
+           lado, o número só significa alguma coisa junto com o dono dele. */
+        const dono=k==='simplificado'?'do Simplificado':'do Robusto';
+        const pos=rank?(fora?`#${rank} na fila completa ${dono}`:`#${rank} ${dono}`):'posição não apurada';
         return`<label class="ps-compare-option${x.consenso?' is-consensus':''}${fora?' is-fora':''}">`
           +`<input type="radio" name="ps-choice-${i}" value="${k}"${marcado}>`
           +`<div><span>${rotulo(k)} · ${esc(pos)}</span><b>${esc(c.nome)}</b>`
@@ -119,9 +155,33 @@
         :(x.semSimplificado||x.semRobusto)?'<span class="ps-so-um">Só um motor tem leitura</span>'
         :(x.foraSimplificado||x.foraRobusto)?'<span>Um dos motores não a colocou no TOP 3</span>'
         :'<span>Escolha a leitura</span>';
-      return`<section class="ps-compare-row" data-row="${i}"><header><b>${esc(x.disciplina)}</b>${estado}</header><div class="ps-compare-grid">${card(x.simplificado,'simplificado')}${card(x.robusto,'robusto')}</div></section>`;
+      /* A comparação mostra a UNIÃO dos dois TOP 3 (até seis disciplinas), mas
+         a execução continua com o contrato de até três. A caixa resolve os
+         dois: as três primeiras nascem marcadas, o resto fica à vista para
+         trocar — em vez de sumir da tela. */
+      const inc=x.incluir!==false?' checked':'';
+      return`<section class="ps-compare-row${x.incluir===false?' is-off':''}" data-row="${i}">`
+        +`<header><label class="ps-inc"><input type="checkbox" data-ps-inc="${i}"${inc}><b>${esc(x.disciplina)}</b></label>${estado}</header>`
+        +`<div class="ps-compare-grid">${card(x.simplificado,'simplificado')}${card(x.robusto,'robusto')}</div></section>`;
     },
-    _renderLista(screen,p,res){const host=document.getElementById('pl-lista'),conta=document.getElementById('pl-conta');if(!host)return;if(res.erro){host.innerHTML=`<div class="ps-empty"><b>Sem sugestões</b><span>${esc(this._erroTexto(res.erro))}</span></div>`;if(conta)conta.textContent='';return;}if(p.modo==='comparar'){host.innerHTML=(res.itens||[]).map((x,i)=>this._compareRow(x,i)).join('')||'<div class="ps-empty">Nenhuma disciplina elegível.</div>';if(conta)conta.innerHTML=`<strong>${res.itens.length}</strong> disciplina(s) para comparar`;host.querySelectorAll('input[type=radio]').forEach(el=>el.addEventListener('change',()=>{const i=Number(el.name.replace('ps-choice-',''));if(res.itens[i])res.itens[i].escolha=el.value;}));}else{screen._planoSel=new Set((res.itens||[]).map((_,i)=>i));host.innerHTML=(res.itens||[]).map((c,i)=>this._card(c,i,true)).join('')||'<div class="ps-empty">Nenhuma sugestão elegível.</div>';if(conta)conta.innerHTML=`<strong>${res.itens.length}</strong> disciplina(s) · 1 tópico por disciplina`;host.querySelectorAll('.ps-pick').forEach(cb=>cb.addEventListener('change',()=>{const i=Number(cb.dataset.i);if(cb.checked)screen._planoSel.add(i);else screen._planoSel.delete(i);}));}},
+    _renderLista(screen,p,res){const host=document.getElementById('pl-lista'),conta=document.getElementById('pl-conta');if(!host)return;if(res.erro){host.innerHTML=`<div class="ps-empty"><b>Sem sugestões</b><span>${esc(this._erroTexto(res.erro))}</span></div>`;if(conta)conta.textContent='';return;}if(p.modo==='comparar'){
+        const pintaConta=()=>{if(conta)conta.innerHTML=`<strong>${(res.itens||[]).filter(x=>x.incluir!==false).length}</strong> de ${res.itens.length} disciplina(s) marcada(s) · contrato de até ${this.CONTRATO_DISCIPLINAS}`;};
+        host.innerHTML=(res.itens||[]).map((x,i)=>this._compareRow(x,i)).join('')||'<div class="ps-empty">Nenhuma disciplina elegível.</div>';
+        pintaConta();
+        host.querySelectorAll('input[type=radio]').forEach(el=>el.addEventListener('change',()=>{const i=Number(el.name.replace('ps-choice-',''));if(res.itens[i])res.itens[i].escolha=el.value;}));
+        host.querySelectorAll('[data-ps-inc]').forEach(cb=>cb.addEventListener('change',()=>{
+          const i=Number(cb.dataset.psInc),x=res.itens[i];if(!x)return;
+          const marcadas=(res.itens||[]).filter(z=>z.incluir!==false).length;
+          if(cb.checked&&marcadas>=this.CONTRATO_DISCIPLINAS){
+            cb.checked=false;
+            if(typeof showToast==='function')showToast(`A fila cabe ${this.CONTRATO_DISCIPLINAS} disciplinas — desmarque uma antes`);
+            return;
+          }
+          x.incluir=cb.checked;
+          const row=cb.closest('.ps-compare-row');if(row)row.classList.toggle('is-off',!cb.checked);
+          pintaConta();
+        }));
+      }else{screen._planoSel=new Set((res.itens||[]).map((_,i)=>i));host.innerHTML=(res.itens||[]).map((c,i)=>this._card(c,i,true)).join('')||'<div class="ps-empty">Nenhuma sugestão elegível.</div>';if(conta)conta.innerHTML=`<strong>${res.itens.length}</strong> disciplina(s) · 1 tópico por disciplina`;host.querySelectorAll('.ps-pick').forEach(cb=>cb.addEventListener('change',()=>{const i=Number(cb.dataset.i);if(cb.checked)screen._planoSel.add(i);else screen._planoSel.delete(i);}));}},
     _renderModal(screen,p,res){const body=document.getElementById('ui-modal-body');if(!body)return;body.innerHTML=`${this._cabecalho(p,res)}<div class="ps-list-head"><span id="pl-conta"></span><small>Disciplinas com reforço aberto já foram removidas.</small></div><div id="pl-lista" class="ps-list"></div>`;this._renderLista(screen,p,res);body.querySelectorAll('[data-ps-modo]').forEach(b=>b.addEventListener('click',()=>{p=this.salvar({modo:b.dataset.psModo});this._recalcularModal(screen,p);}));},
     _recalcularModal(screen,p){const host=document.getElementById('pl-lista');if(host)host.innerHTML='<div class="ps-loading">Recalculando sugestões…</div>';setTimeout(()=>{try{const res=this.calcular(p);screen._psResultado=res;this._renderModal(screen,p,res);}catch(e){if(typeof _quiet==='function')_quiet(e,'plano-controller-recalc');}},0);},
     /* ── UMA LINHA SEM LADO ESCOLHIDO NÃO PODE SUMIR CALADA ────────────────
@@ -134,6 +194,7 @@
       if(p.modo==='comparar'){
         const out=[];this._ignorados=0;
         (res.itens||[]).forEach(x=>{
+          if(x.incluir===false)return;          // desmarcada não é ignorada: é uma escolha
           const preferido=x.consenso?(x.robusto||x.simplificado)
             :(x.escolha==='simplificado'?x.simplificado:x.robusto);
           const c=preferido||x.robusto||x.simplificado;

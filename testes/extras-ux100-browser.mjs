@@ -82,7 +82,10 @@ async function centralAudit(width,height){
   await page.evaluate(()=>{switchScreen('extras');ExtrasScreen.render();});
   await page.locator('#extras-settings-btn').click();
   await page.locator('.xsc-overlay').waitFor({state:'visible'});
-  for(const tab of ['geral','reforcos','lei','manuais']){
+  /* "Visão geral" saiu: era uma quinta aba que repetia as outras tres, com
+     cartoes de atalho para abas que ja estao na mesma fita. */
+  eq(await page.locator('[data-xsc-tab="geral"]').count(),0,'a aba Visão geral não deve mais existir');
+  for(const tab of ['reforcos','lei','manuais']){
     await page.locator(`[data-xsc-tab="${tab}"]`).click();await page.waitForTimeout(35);
     await noOverflow('.xsc-modal',`Central/${tab}/${width}`);
     await noOverflow('.xsc-body',`Central body/${tab}/${width}`);

@@ -135,15 +135,19 @@ try{
     return {
       semDuplicata:!document.getElementById('ux-config-data'),
       secoes:document.querySelectorAll('#screen-config .cfg-group').length,
-      storage:dentro('cfg-storage-card'),
-      recovery:dentro('cfg-recuperacao-card'),
+      /* "Espaço usado" e "Recuperação de dados" sairam: um medidor permanente
+         para uma cota que nunca se aproxima do limite, e um botao de
+         emergencia para um defeito que hoje tem conserto na raiz. */
+      semStorage:!document.getElementById('cfg-storage-card'),
+      semRecovery:!document.getElementById('cfg-recuperacao-card'),
       backup:dentro('cfg-cloudbk-card'),
       versoes:dentro('cfg-vhist-card')
     };
   });
   ok(cfg.semDuplicata,'Configuracoes deve ter UM agrupador, nao um <details> dentro da secao que ja agrupa');
   ok(cfg.secoes>=5,'as cinco secoes de Configuracoes devem existir');
-  ok(cfg.storage&&cfg.recovery&&cfg.backup&&cfg.versoes,'backup/recuperação devem continuar acessíveis, agrupados uma vez só');
+  ok(cfg.backup&&cfg.versoes,'backup e histórico de versões devem continuar acessíveis, agrupados uma vez só');
+  ok(cfg.semStorage&&cfg.semRecovery,'o medidor de espaço e o painel de recuperação não devem mais existir na tela');
 
   /* Leis: perfil novo nasce com leitura limpa, sem remover nenhum comando. */
   const leis=await page.evaluate(()=>{

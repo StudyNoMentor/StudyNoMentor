@@ -730,20 +730,16 @@
 }
 
 /* 7.4 — Cartão de espaço usado: números e barras alinhados de verdade */
-#cfg-storage-card .acm-row {
   display: grid !important;
   grid-template-columns: minmax(140px, 1.35fr) minmax(90px, 2fr) 78px !important;
   align-items: center; gap: 12px !important; padding: 6px 0;
 }
-#cfg-storage-card .acm-name {
   font-size: var(--fs-xs) !important; font-weight: 600; color: var(--text-soft);
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
-#cfg-storage-card .acm-q {
   font-family: 'Space Mono', ui-monospace, SFMono-Regular, Menlo, monospace; font-size: var(--fs-2xs); font-weight: 700;
   text-align: right; color: var(--text); font-variant-numeric: tabular-nums; white-space: nowrap;
 }
-#cfg-storage-card .bar-track { height: 7px; border-radius: 999px; }
 .cfg-storage-hero {
   display: flex; align-items: flex-end; gap: 14px; flex-wrap: wrap; margin-bottom: 4px;
 }
@@ -754,10 +750,6 @@
 }
 .cfg-storage-meta { font-size: var(--fs-xs); color: var(--text-faint); line-height: 1.5; padding-bottom: 3px; }
 @media (max-width: 620px) {
-  #cfg-storage-card .acm-row { grid-template-columns: minmax(0, 1fr) 70px !important; grid-template-areas: "nome q" "bar bar"; row-gap: 4px; }
-  #cfg-storage-card .acm-name { grid-area: nome; }
-  #cfg-storage-card .acm-q { grid-area: q; }
-  #cfg-storage-card .bar-track { grid-area: bar; }
 }
 
 /* 7.5 — Histórico de versões e Backup no banco: linhas legíveis.
