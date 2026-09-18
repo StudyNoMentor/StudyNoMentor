@@ -417,6 +417,7 @@ const EvolucaoScreen = {
   scope: 'plan', // 'plan' = só o planejamento ativo | 'all' = todos somados
   evoLineMode: 'week', // 'week' = % por semana | 'cum' = média acumulada
   evoLineSubjects: null, // Set de disciplinas selecionadas (null = ainda não inicializado)
+  ritmoQuestDisc: '__geral__', // filtro do gráfico min/questão
 
   // segunda-feira da semana de uma data (chave do agrupamento temporal)
   _weekKey(dateStr) {
@@ -794,6 +795,7 @@ const EvolucaoScreen = {
   },
   renderRitmo(entries) {
     const container = document.getElementById('evolucao-ritmo');
+    const nFinite = (v) => Number.isFinite(Number(v)) ? Number(v) : 0;
     // avanço: páginas lidas (soma de pageEnd-pageStart+1 quando houver)
     let totalPaginas = 0, horasComPaginas = 0;
     let totalVideoMin = 0, clockMinComVideo = 0; // conteúdo assistido (min) e tempo real gasto nele
@@ -828,6 +830,36 @@ const EvolucaoScreen = {
     const minVideoPorHora = clockMinComVideo > 0 ? Math.round(totalVideoMin / (clockMinComVideo / 60)) : null;
     const velocidadeVideo = clockMinComVideo > 0 ? Math.round((totalVideoMin / clockMinComVideo) * 100) / 100 : null;
 
+    /* Minutos por questão: média PONDERADA (soma dos minutos ÷ soma das
+       questões), nunca média de médias por sessão. Só entram sessões em que
+       tempo e quantidade foram ambos registrados. */
+    const qTodas = entries.filter(e => this.bucketOf(e.method) === 'questoes' && nFinite(e.total) > 0);
+    const qComTempo = qTodas.filter(e => nFinite(e.durationMin) > 0);
+    const qDiscs = [...new Set(qComTempo.map(e => e.subject).filter(Boolean))].sort((a,b) => a.localeCompare(b, 'pt-BR'));
+    if (this.ritmoQuestDisc !== '__geral__' && !qDiscs.includes(this.ritmoQuestDisc)) this.ritmoQuestDisc = '__geral__';
+    const qFiltradas = this.ritmoQuestDisc === '__geral__' ? qComTempo : qComTempo.filter(e => e.subject === this.ritmoQuestDisc);
+    const somaQ = (arr) => arr.reduce((s,e) => s + Math.max(0, nFinite(e.total)), 0);
+    const somaMin = (arr) => arr.reduce((s,e) => s + Math.max(0, nFinite(e.durationMin)), 0);
+    const qN = somaQ(qFiltradas), qMin = somaMin(qFiltradas), qMedia = qN > 0 ? qMin / qN : null;
+    const qGeralN = somaQ(qComTempo), qGeralMin = somaMin(qComTempo), qMediaGeral = qGeralN > 0 ? qGeralMin / qGeralN : null;
+    const qTotalInformadas = somaQ(qTodas);
+    const semanasQ = new Map();
+    qFiltradas.forEach(e => {
+      const k = this._weekKey(e.date), z = semanasQ.get(k) || { k, q:0, min:0 };
+      z.q += Math.max(0, nFinite(e.total)); z.min += Math.max(0, nFinite(e.durationMin)); semanasQ.set(k,z);
+    });
+    const pontosQ = [...semanasQ.values()].filter(x => x.q > 0).sort((a,b) => a.k.localeCompare(b.k)).slice(-12)
+      .map(x => ({ ...x, media:x.min/x.q }));
+    const maxQMedia = Math.max(0, ...pontosQ.map(x => x.media));
+    const qGrafico = pontosQ.length
+      ? `<div class="ritmo-q-chart" role="img" aria-label="Média semanal de minutos por questão">${pontosQ.map(x => {
+          const h = maxQMedia > 0 ? Math.max(6, Math.round(x.media / maxQMedia * 100)) : 6;
+          return `<div class="ritmo-q-col" title="${formatDateShort(x.k)} · ${formatPct(x.media)} min/questão · ${Math.round(x.q)} questões"><span>${formatPct(x.media)}</span><i style="height:${h}%"></i><small>${formatDateShort(x.k)}</small></div>`;
+        }).join('')}</div>`
+      : '<div class="evo-empty-mini">Registre tempo e quantidade em sessões de questões para formar a série.</div>';
+    const qSelect = `<select id="ritmo-q-disc" aria-label="Filtrar minutos por questão por disciplina"><option value="__geral__">Geral · todas as disciplinas</option>${qDiscs.map(d => `<option value="${escapeHtml(d)}" ${this.ritmoQuestDisc === d ? 'selected' : ''}>${escapeHtml(d)}</option>`).join('')}</select>`;
+    const qResumo = `<section class="ritmo-q-block"><div class="ritmo-q-head"><div><small>VELOCIDADE EM QUESTÕES</small><b>Média de minutos por questão</b><span>Média ponderada pelo número de questões, dentro do período selecionado.</span></div>${qSelect}</div><div class="ritmo-q-metrics"><div><b>${qMedia == null ? '—' : formatPct(qMedia)}</b><small>min/questão ${this.ritmoQuestDisc === '__geral__' ? '· geral' : '· ' + escapeHtml(this.ritmoQuestDisc)}</small></div><div><b>${qN ? Math.round(qN).toLocaleString('pt-BR') : '—'}</b><small>questões com tempo medido</small></div><div><b>${qMediaGeral == null ? '—' : formatPct(qMediaGeral)}</b><small>média geral min/questão</small></div></div>${qGrafico}<p class="ritmo-q-foot">${qGeralN ? Math.round(qGeralN).toLocaleString('pt-BR') : '0'} de ${qTotalInformadas ? Math.round(qTotalInformadas).toLocaleString('pt-BR') : '0'} questões do período têm tempo associado; sessões sem tempo não entram na média.</p></section>`;
+
     const fmt = (min) => CycleEngine.fmtHM(Math.round(min));
     container.innerHTML = `
       <table class="ritmo-table">
@@ -849,6 +881,8 @@ const EvolucaoScreen = {
           <tr><td class="rk">% Questões</td><td class="rv">${formatPct(pct(horas.questoes))}%</td></tr>
         </tbody>
       </table>
+
+      ${qResumo}
 
       <div class="ritmo-highlight">
         <div class="ritmo-highlight-title">⚡ Seu ritmo real <span class="rk-hint">— use como parâmetro na Estimativa de Tempo</span></div>
@@ -874,6 +908,11 @@ const EvolucaoScreen = {
         </button>
       </div>
     `;
+    const qDiscSel = document.getElementById('ritmo-q-disc');
+    if (qDiscSel) qDiscSel.addEventListener('change', () => {
+      this.ritmoQuestDisc = qDiscSel.value || '__geral__';
+      this.renderRitmo(entries);
+    });
     const btn = document.getElementById('ritmo-use-btn');
     if (btn && (pagPorHora !== null || minVideoPorHora !== null)) {
       btn.addEventListener('click', () => this.sendRitmoToEstimativa(pagPorHora, minVideoPorHora));
