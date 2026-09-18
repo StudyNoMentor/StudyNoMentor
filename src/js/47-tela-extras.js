@@ -565,8 +565,33 @@ const ExtrasScreen = {
     /* De onde a atividade veio e o que aconteceu com o assunto desde então. Sem
        isto o cartão é um item de lista de compras: não diz que nasceu de uma
        fraqueza medida, nem se a fraqueza cedeu. */
-    const planoTag = (x.origemPlano && x.origemPlano.topico)
-      ? `<span class="extra-tag plano" title="Criada a partir do 🏁 Plano de pontos fracos em ${escapeHtml(formatDateShort(x.origemPlano.criadoEm || ''))}">🏁 do Plano</span>` : '';
+    /* ── A ETIQUETA DIZ QUEM DECIDIU, NÃO SÓ "VEIO DO PLANO" ────────────────
+       Toda atividade vinda do TEC levava a mesma etiqueta "🏁 do Plano",
+       qualquer que fosse a origem: a leitura analítica legada, o Simplificado
+       ou o Robusto. Com três fontes possíveis e uma etiqueta só, não havia
+       como conferir, olhando a fila, se o que está sendo executado saiu do
+       modelo que você escolheu — e essa conferência é justamente o que dá (ou
+       tira) a confiança na tela.
+
+       A informação já estava gravada em `origemPlano.sugestao.motor` desde a
+       criação; ela só nunca tinha chegado à superfície. Cada atividade passa a
+       dizer qual motor a gerou e em que fase — e as criadas antes dos motores
+       continuam legíveis como "leitura analítica", que é o que elas são. */
+    const planoTag = (() => {
+      const o = x.origemPlano;
+      if (!o || !o.topico) return '';
+      const sug = o.sugestao || null;
+      const quando = escapeHtml(formatDateShort((sug && sug.criadoEm) || o.criadoEm || ''));
+      const motor = sug && sug.motor ? String(sug.motor) : '';
+      const fase = sug && sug.fase === 'pos' ? 'Pós-edital' : (sug && sug.fase === 'pre' ? 'Pré-edital' : '');
+      let ico = '🏁', rot = 'leitura analítica', cls = 'plano';
+      if (/robusto/i.test(motor)) { ico = '🧠'; rot = 'Robusto'; cls = 'plano motor-robusto'; }
+      else if (/simplificado/i.test(motor)) { ico = '⚡'; rot = 'Simplificado'; cls = 'plano motor-simples'; }
+      const det = /robusto|simplificado/i.test(motor)
+        ? `Gerada pelo motor ${rot}${fase ? ' · ' + fase : ''} em ${quando}. A dose e a ordem vieram das regras desse motor, não do Plano legado.`
+        : `Criada pela leitura analítica do Plano em ${quando} — antes dos motores, ou com eles desligados.`;
+      return `<span class="extra-tag ${cls}" title="${escapeHtml(det)}">${ico} ${escapeHtml(rot)}</span>`;
+    })();
     const evoTag = (ciclo && ciclo.origem.taxaInicial != null && ciclo.taxa != null)
       ? `<span class="extra-tag evo ${ciclo.delta != null && ciclo.delta >= 0 ? 'up' : 'down'}" title="Acerto no assunto quando você criou a atividade, e hoje">${ciclo.origem.taxaInicial.toFixed(0)}% → ${ciclo.taxa.toFixed(0)}%</span>` : '';
     const progBlock = (alvo > 0)

@@ -459,8 +459,21 @@
               <div class="grade-gear-wrap">
                 <button class="btn-secondary grade-gear-btn" id="tec-gear-btn" type="button" title="Opções de exibição" aria-haspopup="true" aria-expanded="false">⚙ Exibição</button>
                 <div class="grade-gear-menu" id="tec-gear-menu" role="menu" aria-hidden="true">
-                  <button class="grade-gear-item" id="tec-toggle-cfg" type="button" role="menuitem" title="Mostrar/ocultar os filtros que ficam soltos nos cartões. Os ajustes de cada aba moram no botão ⚙ Ajustes e continuam sempre acessíveis."><span class="gg-ic">🔧</span>Filtros soltos nos cartões</button>
-                  <button class="grade-gear-item" id="tec-enxuto-btn" type="button" role="menuitem" title="Esconde textos de ajuda e legendas — deixa só números, barras e listas"><span class="gg-ic">🔎</span>Modo enxuto</button>
+                  <!-- ── UM ITEM SÓ, E ELE DIZ O QUE FAZ ─────────────────────
+                       Havia dois. O primeiro, "Filtros soltos nos cartões",
+                       ligava a classe `.tec-cfg` — que existe em UM elemento
+                       da tela inteira (o campo de banca da aba Incidência).
+                       Nas abas Análise e Plano não escondia filtro nenhum: o
+                       único efeito era enxugar os subtítulos dos cartões, que
+                       o item não mencionava e que o "Modo enxuto" ao lado já
+                       fazia. Um comando com rótulo que descreve o que ele não
+                       faz, e efeito que é subconjunto do vizinho — daí não
+                       dar para saber "para que serve ou se funciona".
+
+                       Ficou o controle de densidade, com o rótulo dizendo o
+                       que acontece ao clicar (o texto alterna conforme o
+                       estado, em `applyEnxuto`). -->
+                  <button class="grade-gear-item" id="tec-enxuto-btn" type="button" role="menuitem" title="Deixar só números, barras e listas — esconde subtítulos, legendas e explicações"><span class="gg-ic">🔎</span>Esconder os textos de ajuda</button>
                 </div>
               </div>
               <button class="btn-primary" id="tec-btn-new-import" type="button">+ Nova importação</button>

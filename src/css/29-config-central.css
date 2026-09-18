@@ -236,3 +236,42 @@
   .xsc-section > .xsc-foot-actions { margin: 4px -13px -22px; padding: 12px 13px; }
   .xsc-scenarios > div { grid-template-columns: minmax(0, 1fr); gap: 2px; }
 }
+
+/* ══ 4. A FITA E A FAIXA DE "HOJE" DA CENTRAL DE EXTRAS ════════════════════ */
+.xsc-nav button { display: inline-flex; align-items: center; gap: 6px; }
+.xsc-nav button > span { font-size: var(--fs-md); line-height: 1; }
+.xsc-nav button > em {
+  font-style: normal; min-width: 18px; padding: 1px 6px;
+  border-radius: 999px; background: var(--surface-sunken);
+  font-size: var(--fs-3xs); font-weight: 900; color: var(--text-soft);
+  font-family: 'Space Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+.xsc-nav button.active > em { background: var(--accent); color: var(--on-accent); }
+
+/* A faixa responde "o que a automação coloca na minha fila hoje" — a soma que
+   antes exigia ler dois cartões e fazer a conta de cabeça. */
+.xsc-today {
+  display: flex; align-items: center; gap: 13px;
+  padding: 14px 15px; border-radius: 15px;
+  border: 1px solid var(--border);
+}
+.xsc-today-ic { font-size: var(--fs-3xl); line-height: 1; flex: 0 0 auto; }
+.xsc-today > div { display: grid; gap: 3px; min-width: 0; }
+.xsc-today strong { font-size: var(--fs-lg); letter-spacing: -.015em; }
+.xsc-today span { font-size: var(--fs-xs); line-height: 1.5; color: var(--text-soft); }
+.xsc-today.is-on {
+  border-color: color-mix(in srgb, var(--accent) 32%, var(--border));
+  background: linear-gradient(135deg, color-mix(in srgb, var(--accent) 7%, var(--surface)), var(--surface));
+}
+.xsc-today.is-on strong { color: var(--accent-text); }
+.xsc-today.is-off {
+  border-style: dashed;
+  background: color-mix(in srgb, var(--surface-sunken) 55%, var(--surface));
+}
+.xsc-today.is-off strong { color: var(--text-soft); }
+
+@media (max-width: 560px) {
+  .xsc-today { align-items: flex-start; padding: 13px; }
+  .xsc-today-ic { font-size: var(--fs-2xl); }
+  .xsc-nav button > span { display: none; }
+}

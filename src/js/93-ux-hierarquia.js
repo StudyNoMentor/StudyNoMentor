@@ -272,8 +272,15 @@
 
     decorateTec() {
       const s = screenEl('desempenhotec'); if (!s) return;
-      // A escolha do motor aparece uma vez, dentro do Plano; o seletor global duplicado some.
-      qa('[data-tpm-entry]', s).forEach(x => { x.hidden = true; x.setAttribute('aria-hidden', 'true'); });
+      /* ── A ESCOLHA DO MOTOR APARECE UMA VEZ, E É ESTA ───────────────────
+         Havia duas caixas idênticas: esta, acima das abas, e a "FONTE DA
+         DECISÃO" dentro do Plano. Esta camada escondia a de cima — mas
+         `TecPlanoFonteMotor.renderEntry()` a recria a cada render do TEC,
+         depois desta passada, então as duas reapareciam juntas. A duplicata
+         que saiu foi a de dentro do Plano (ela valia só ali); esta fica,
+         porque vale para todas as abas. Um `hidden` que não se sustenta é
+         pior que nenhum: ele pisca. */
+      qa('[data-tpm-entry][hidden]', s).forEach(x => { x.hidden = false; x.removeAttribute('aria-hidden'); });
       const modos = q('#plano-modos', s), nota = q('#plano-modo-nota', s);
       if (modos) { modos.hidden = true; modos.setAttribute('aria-hidden', 'true'); }
       if (nota) { nota.hidden = true; nota.setAttribute('aria-hidden', 'true'); }

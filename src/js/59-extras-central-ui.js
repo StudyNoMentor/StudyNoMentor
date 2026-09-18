@@ -44,21 +44,46 @@
       btn.addEventListener('click', () => this.abrir('geral'));
     },
 
+    /* A fita ganha ícone e contador: "Reforços" e "Lei seca" são as duas
+       seções que TÊM estado, e saber quantos itens há em cada uma antes de
+       entrar é o que evita abrir as quatro para achar o que se procura. */
     _nav() {
+      const s = this._status();
+      const itens = [
+        ['geral', '◎', 'Visão geral', ''],
+        ['reforcos', '🎯', 'Reforços', String(s.reforcos)],
+        ['lei', '📚', 'Lei seca', String(s.lei.aptas || 0)],
+        ['manuais', '✍️', 'Manuais', '']
+      ];
       return `
         <nav class="xsc-nav" aria-label="Seções das configurações de Extras">
-          <button type="button" data-xsc-tab="geral">Visão geral</button>
-          <button type="button" data-xsc-tab="reforcos">Reforços</button>
-          <button type="button" data-xsc-tab="lei">Lei seca</button>
-          <button type="button" data-xsc-tab="manuais">Manuais</button>
+          ${itens.map(([id, ic, rot, n]) => `<button type="button" data-xsc-tab="${id}" aria-current="${this.tab === id ? 'page' : 'false'}"><span aria-hidden="true">${ic}</span>${esc(rot)}${n ? `<em>${esc(n)}</em>` : ''}</button>`).join('')}
         </nav>`;
     },
 
     _geral() {
       const s = this._status(), lp = s.lei.prefs || {};
+      /* ── O RESUMO TEM DE DIZER SE ALGO ESTÁ ROLANDO HOJE ──────────────────
+         A visão geral listava quatro cartões de atalho e três "cenários" de
+         configuração, e nenhum deles respondia a pergunta com que se abre
+         esta janela: o que a automação vai colocar na minha fila hoje? Com
+         "0 ativo(s)" e "1 lei apta", a leitura correta é "nada de reforço,
+         uma leitura" — e isso precisava ser somado de dois cartões
+         diferentes. A faixa abaixo soma. */
+      const leiLigada = lp.ativo !== false;
+      const nLei = leiLigada ? Math.min(Number(lp.porDia) || 1, Number(s.lei.aptas) || 0) : 0;
+      const hoje = s.reforcos + nLei;
+      const estado = hoje === 0
+        ? { cls: 'is-off', ic: '💤', rot: 'Nada automático hoje', det: 'Nenhum reforço ativo e nenhuma leitura programada. Tudo o que aparecer em Extras vai ser o que você criar à mão.' }
+        : { cls: 'is-on', ic: '⚙️', rot: hoje === 1 ? '1 item automático hoje' : hoje + ' itens automáticos hoje',
+            det: [s.reforcos ? s.reforcos + ' reforço(s) de questões' : '', nLei ? nLei + ' leitura(s) de lei seca' : ''].filter(Boolean).join(' + ') + ' — o resto da fila é o que você criar.' };
       return `
         <section class="xsc-section xsc-overview">
           <div class="xsc-section-head"><div><small>RESUMO OPERACIONAL</small><h4>O que está automatizado</h4><p>A tela principal fica só com execução. Ajustes raros ficam concentrados aqui.</p></div></div>
+          <div class="xsc-today ${estado.cls}">
+            <span class="xsc-today-ic" aria-hidden="true">${estado.ic}</span>
+            <div><strong>${esc(estado.rot)}</strong><span>${esc(estado.det)}</span></div>
+          </div>
           <div class="xsc-overview-grid">
             <article class="xsc-summary-card">
               <div class="xsc-summary-icon">🎯</div><div><strong>Reforços</strong><span>${s.reforcos} ativo(s)</span><small>Padrão ${s.reforcoPrefs.disciplinasDia || 1}/dia · ${s.reforcoPrefs.blocoMin || 10}–${s.reforcoPrefs.blocoMax || 25} questões</small></div>
@@ -146,11 +171,26 @@
       return this._geral();
     },
 
+    /* A fita é repintada junto com o corpo: os contadores que ela mostra
+       (reforços ativos, leis aptas) mudam quando se salva a rotina, e uma fita
+       montada uma vez só na abertura passaria a mentir a partir do primeiro
+       salvamento. */
     _render() {
       if (!this.modal) return;
       this.modal.querySelector('[data-xsc-body]').innerHTML = this._body();
+      const nav = this.modal.querySelector('.xsc-nav');
+      if (nav) {
+        const novo = document.createElement('div');
+        novo.innerHTML = this._nav();
+        const el = novo.firstElementChild;
+        if (el) { nav.replaceWith(el); this._bindNav(el); }
+      }
       this.modal.querySelectorAll('[data-xsc-tab]').forEach(b => b.classList.toggle('active', b.dataset.xscTab === this.tab));
       this._bindBody();
+    },
+    _bindNav(nav) {
+      if (!nav) return;
+      nav.querySelectorAll('[data-xsc-tab]').forEach(b => b.onclick = () => { this.tab = b.dataset.xscTab; this._render(); });
     },
 
     _bindInfo(root) {
@@ -225,11 +265,19 @@
       document.body.appendChild(ov); this.modal = ov;
       ov.querySelector('.xsc-close').onclick = () => this.fechar();
       ov.addEventListener('click', e => { if (e.target === ov) this.fechar(); });
-      ov.querySelectorAll('[data-xsc-tab]').forEach(b => b.onclick = () => { this.tab=b.dataset.xscTab; this._render(); });
+      this._bindNav(ov.querySelector('.xsc-nav'));
+      /* Esc fecha: a janela cobre a tela inteira no celular e não havia saída
+         pelo teclado — só o × no canto. */
+      this._esc = (ev) => { if (ev.key === 'Escape') this.fechar(); };
+      document.addEventListener('keydown', this._esc);
       this._render();
     },
 
-    fechar() { if (this.modal) this.modal.remove(); this.modal = null; },
+    fechar() {
+      if (this._esc) { document.removeEventListener('keydown', this._esc); this._esc = null; }
+      if (this.modal) this.modal.remove();
+      this.modal = null;
+    },
 
     instalar() {
       this.garantirBotao();

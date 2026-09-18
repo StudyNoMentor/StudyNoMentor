@@ -57,7 +57,7 @@
      novo, e o antigo é descartado sozinho na ativação) e o que permite ao app
      dizer qual versão está rodando. Em src/ fica "dev" de propósito: a versão
      é gerada na montagem, não editada à mão. -->
-<meta name="diario-versao" content="v4eb4792c8d">
+<meta name="diario-versao" content="v51adb36e43">
 <script>
 /* ── ARRANQUE: abre o IndexedDB AGORA, em paralelo com o parse do documento ──
    A fachada de armazenamento vive no fim do <body>, depois de ~1,7 MB de HTML.
@@ -7902,8 +7902,21 @@ window.__idbBoot = (function () {
               <div class="grade-gear-wrap">
                 <button class="btn-secondary grade-gear-btn" id="tec-gear-btn" type="button" title="Opções de exibição" aria-haspopup="true" aria-expanded="false">⚙ Exibição</button>
                 <div class="grade-gear-menu" id="tec-gear-menu" role="menu" aria-hidden="true">
-                  <button class="grade-gear-item" id="tec-toggle-cfg" type="button" role="menuitem" title="Mostrar/ocultar os filtros que ficam soltos nos cartões. Os ajustes de cada aba moram no botão ⚙ Ajustes e continuam sempre acessíveis."><span class="gg-ic">🔧</span>Filtros soltos nos cartões</button>
-                  <button class="grade-gear-item" id="tec-enxuto-btn" type="button" role="menuitem" title="Esconde textos de ajuda e legendas — deixa só números, barras e listas"><span class="gg-ic">🔎</span>Modo enxuto</button>
+                  <!-- ── UM ITEM SÓ, E ELE DIZ O QUE FAZ ─────────────────────
+                       Havia dois. O primeiro, "Filtros soltos nos cartões",
+                       ligava a classe `.tec-cfg` — que existe em UM elemento
+                       da tela inteira (o campo de banca da aba Incidência).
+                       Nas abas Análise e Plano não escondia filtro nenhum: o
+                       único efeito era enxugar os subtítulos dos cartões, que
+                       o item não mencionava e que o "Modo enxuto" ao lado já
+                       fazia. Um comando com rótulo que descreve o que ele não
+                       faz, e efeito que é subconjunto do vizinho — daí não
+                       dar para saber "para que serve ou se funciona".
+
+                       Ficou o controle de densidade, com o rótulo dizendo o
+                       que acontece ao clicar (o texto alterna conforme o
+                       estado, em `applyEnxuto`). -->
+                  <button class="grade-gear-item" id="tec-enxuto-btn" type="button" role="menuitem" title="Deixar só números, barras e listas — esconde subtítulos, legendas e explicações"><span class="gg-ic">🔎</span>Esconder os textos de ajuda</button>
                 </div>
               </div>
               <button class="btn-primary" id="tec-btn-new-import" type="button">+ Nova importação</button>
@@ -13783,7 +13796,8 @@ html.tpm-motors-active #plano-proj .pl-hero{display:none!important}
 #ux-evo-more .ux-more-analysis-body>.evo-wide,#ux-evo-more .ux-more-analysis-body>.evo-col{grid-column:1/-1}
 
 /* TEC: fatos -> modelo -> força-tarefa -> ranking; legado visual não compete */
-#screen-desempenhotec [data-tpm-entry][hidden]{display:none!important}
+/* O seletor de motor acima das abas é o ÚNICO da tela; nada o esconde.
+   (A duplicata que saiu foi a de dentro do Plano, "FONTE DA DECISÃO".) */
 #screen-desempenhotec #plano-modos[hidden],#screen-desempenhotec #plano-modo-nota[hidden]{display:none!important}
 #screen-desempenhotec .tec-cfg-bar.ux-analysis-settings{opacity:1;margin-bottom:10px}
 #screen-desempenhotec .tec-cfg-bar.ux-analysis-settings:hover,#screen-desempenhotec .tec-cfg-bar.ux-analysis-settings:focus-within{opacity:1}
@@ -14230,6 +14244,33 @@ html.tpm-motors-active #screen-desempenhotec #plano-proj>.ux-legacy-projection:n
 }
 .ps-consensus { color: var(--good-text) !important; font-weight: 800; }
 
+/* ══ 8. A ETIQUETA DE ORIGEM EM EXTRAS ═════════════════════════════════════
+   Toda atividade vinda do TEC usava a mesma etiqueta "🏁 do Plano", sem
+   distinguir a leitura analítica legada do Simplificado e do Robusto. Com os
+   três coexistindo, a fila não permitia conferir se o que está em execução
+   saiu do modelo escolhido. Agora cada motor tem a sua, com a mesma cor que
+   ele usa no resto do app — o texto vem do JS, a cor daqui. */
+#extras-list .extra-tag.plano.motor-robusto,
+#extras-agenda .extra-tag.plano.motor-robusto {
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
+  color: var(--accent-text);
+  border: 1px solid color-mix(in srgb, var(--accent) 30%, transparent);
+}
+#extras-list .extra-tag.plano.motor-simples,
+#extras-agenda .extra-tag.plano.motor-simples {
+  background: var(--warn-soft);
+  color: var(--warn-text);
+  border: 1px solid color-mix(in srgb, var(--warn) 30%, transparent);
+}
+/* Sem motor identificado = criada pela leitura analítica. Fica neutra, porque
+   é a fonte que NÃO está mais decidindo quando há motor ativo. */
+#extras-list .extra-tag.plano:not(.motor-robusto):not(.motor-simples),
+#extras-agenda .extra-tag.plano:not(.motor-robusto):not(.motor-simples) {
+  background: var(--surface-sunken);
+  color: var(--text-soft);
+  border: 1px solid var(--border);
+}
+
 </style>
 
 <style id="config-central">
@@ -14470,6 +14511,45 @@ html.tpm-motors-active #screen-desempenhotec #plano-proj>.ux-legacy-projection:n
   .xsc-body { padding: 14px 13px 22px; }
   .xsc-section > .xsc-foot-actions { margin: 4px -13px -22px; padding: 12px 13px; }
   .xsc-scenarios > div { grid-template-columns: minmax(0, 1fr); gap: 2px; }
+}
+
+/* ══ 4. A FITA E A FAIXA DE "HOJE" DA CENTRAL DE EXTRAS ════════════════════ */
+.xsc-nav button { display: inline-flex; align-items: center; gap: 6px; }
+.xsc-nav button > span { font-size: var(--fs-md); line-height: 1; }
+.xsc-nav button > em {
+  font-style: normal; min-width: 18px; padding: 1px 6px;
+  border-radius: 999px; background: var(--surface-sunken);
+  font-size: var(--fs-3xs); font-weight: 900; color: var(--text-soft);
+  font-family: 'Space Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+.xsc-nav button.active > em { background: var(--accent); color: var(--on-accent); }
+
+/* A faixa responde "o que a automação coloca na minha fila hoje" — a soma que
+   antes exigia ler dois cartões e fazer a conta de cabeça. */
+.xsc-today {
+  display: flex; align-items: center; gap: 13px;
+  padding: 14px 15px; border-radius: 15px;
+  border: 1px solid var(--border);
+}
+.xsc-today-ic { font-size: var(--fs-3xl); line-height: 1; flex: 0 0 auto; }
+.xsc-today > div { display: grid; gap: 3px; min-width: 0; }
+.xsc-today strong { font-size: var(--fs-lg); letter-spacing: -.015em; }
+.xsc-today span { font-size: var(--fs-xs); line-height: 1.5; color: var(--text-soft); }
+.xsc-today.is-on {
+  border-color: color-mix(in srgb, var(--accent) 32%, var(--border));
+  background: linear-gradient(135deg, color-mix(in srgb, var(--accent) 7%, var(--surface)), var(--surface));
+}
+.xsc-today.is-on strong { color: var(--accent-text); }
+.xsc-today.is-off {
+  border-style: dashed;
+  background: color-mix(in srgb, var(--surface-sunken) 55%, var(--surface));
+}
+.xsc-today.is-off strong { color: var(--text-soft); }
+
+@media (max-width: 560px) {
+  .xsc-today { align-items: flex-start; padding: 13px; }
+  .xsc-today-ic { font-size: var(--fs-2xl); }
+  .xsc-nav button > span { display: none; }
 }
 
 </style>
@@ -34527,8 +34607,33 @@ const ExtrasScreen = {
     /* De onde a atividade veio e o que aconteceu com o assunto desde então. Sem
        isto o cartão é um item de lista de compras: não diz que nasceu de uma
        fraqueza medida, nem se a fraqueza cedeu. */
-    const planoTag = (x.origemPlano && x.origemPlano.topico)
-      ? `<span class="extra-tag plano" title="Criada a partir do 🏁 Plano de pontos fracos em ${escapeHtml(formatDateShort(x.origemPlano.criadoEm || ''))}">🏁 do Plano</span>` : '';
+    /* ── A ETIQUETA DIZ QUEM DECIDIU, NÃO SÓ "VEIO DO PLANO" ────────────────
+       Toda atividade vinda do TEC levava a mesma etiqueta "🏁 do Plano",
+       qualquer que fosse a origem: a leitura analítica legada, o Simplificado
+       ou o Robusto. Com três fontes possíveis e uma etiqueta só, não havia
+       como conferir, olhando a fila, se o que está sendo executado saiu do
+       modelo que você escolheu — e essa conferência é justamente o que dá (ou
+       tira) a confiança na tela.
+
+       A informação já estava gravada em `origemPlano.sugestao.motor` desde a
+       criação; ela só nunca tinha chegado à superfície. Cada atividade passa a
+       dizer qual motor a gerou e em que fase — e as criadas antes dos motores
+       continuam legíveis como "leitura analítica", que é o que elas são. */
+    const planoTag = (() => {
+      const o = x.origemPlano;
+      if (!o || !o.topico) return '';
+      const sug = o.sugestao || null;
+      const quando = escapeHtml(formatDateShort((sug && sug.criadoEm) || o.criadoEm || ''));
+      const motor = sug && sug.motor ? String(sug.motor) : '';
+      const fase = sug && sug.fase === 'pos' ? 'Pós-edital' : (sug && sug.fase === 'pre' ? 'Pré-edital' : '');
+      let ico = '🏁', rot = 'leitura analítica', cls = 'plano';
+      if (/robusto/i.test(motor)) { ico = '🧠'; rot = 'Robusto'; cls = 'plano motor-robusto'; }
+      else if (/simplificado/i.test(motor)) { ico = '⚡'; rot = 'Simplificado'; cls = 'plano motor-simples'; }
+      const det = /robusto|simplificado/i.test(motor)
+        ? `Gerada pelo motor ${rot}${fase ? ' · ' + fase : ''} em ${quando}. A dose e a ordem vieram das regras desse motor, não do Plano legado.`
+        : `Criada pela leitura analítica do Plano em ${quando} — antes dos motores, ou com eles desligados.`;
+      return `<span class="extra-tag ${cls}" title="${escapeHtml(det)}">${ico} ${escapeHtml(rot)}</span>`;
+    })();
     const evoTag = (ciclo && ciclo.origem.taxaInicial != null && ciclo.taxa != null)
       ? `<span class="extra-tag evo ${ciclo.delta != null && ciclo.delta >= 0 ? 'up' : 'down'}" title="Acerto no assunto quando você criou a atividade, e hoje">${ciclo.origem.taxaInicial.toFixed(0)}% → ${ciclo.taxa.toFixed(0)}%</span>` : '';
     const progBlock = (alvo > 0)
@@ -39625,16 +39730,28 @@ const DesempenhoTecScreen = {
     this.applyEnxuto();
     DB._tecReadSnapshot = null;
   },
-  // Mostra/oculta todos os filtros e configurações da tela (classe .tec-cfg),
-  // deixando só os resultados. Estado salvo por perfil.
+  /* ═══ UM CONTROLE DE DENSIDADE, NÃO DOIS QUE NINGUÉM ENTENDE ════════════
+     O menu ⚙ Exibição tinha dois itens, e o primeiro — "Filtros soltos nos
+     cartões" — prometia mostrar ou esconder os filtros da tela. Só que a
+     classe que ele liga (`.tec-cfg`) existe em UM elemento da tela inteira: o
+     campo de banca da aba Incidência. Nas abas Análise e Plano ele não
+     escondia filtro nenhum; o único efeito visível era `hide-heads`, que
+     enxuga os subtítulos dos cartões — coisa que o item não menciona, e que o
+     "Modo enxuto" logo abaixo já faz junto com o resto dos textos de ajuda.
+
+     Ou seja: um comando cujo rótulo descrevia algo que ele não fazia, e cujo
+     efeito real era um subconjunto do comando vizinho. Não dá para saber "para
+     que serve ou se funciona" porque as duas respostas eram "quase nada" e
+     "não como está escrito".
+
+     Fica UM controle. `hide-heads` passa a ser parte do Modo enxuto (que é
+     exatamente o que ele é: menos texto explicativo), e o filtro da Incidência
+     deixa de ser escondível — filtro que a pessoa precisa usar não é ruído.
+     `applyCfgHidden` continua existindo, agora só para garantir que nenhum
+     perfil fique com o estado antigo preso na tela. */
   applyCfgHidden() {
-    const on = !!this._loadPrefs().hideCfg;
     const wrap = document.getElementById('tec-analysis');
-    // hide-cfg esconde os filtros; hide-heads enxuga tambem os subtitulos longos
-    // dos cabecalhos de cartao, que so explicam o que a tela ja mostra.
-    if (wrap) { wrap.classList.toggle('hide-cfg', on); wrap.classList.toggle('hide-heads', on); }
-    const btn = document.getElementById('tec-toggle-cfg');
-    if (btn) { btn.classList.toggle('is-active', on); btn.innerHTML = `<span class="gg-ic">🔧</span>${on ? 'Mostrar filtros' : 'Ocultar filtros'}`; }
+    if (wrap) { wrap.classList.remove('hide-cfg'); wrap.classList.toggle('hide-heads', !!this._loadPrefs().enxuto); }
   },
   /* MODO ENXUTO — depois que você entende a tela, textos de ajuda, legendas e
      dicas viram ruído. Este modo esconde tudo isso e deixa só o que muda de
@@ -39643,8 +39760,16 @@ const DesempenhoTecScreen = {
     const on = !!this._loadPrefs().enxuto;
     const tela = document.getElementById('screen-desempenhotec');
     if (tela) tela.classList.toggle('tec-enxuto', on);
+    const wrap = document.getElementById('tec-analysis');
+    if (wrap) wrap.classList.toggle('hide-heads', on);
     const b = document.getElementById('tec-enxuto-btn');
-    if (b) { b.classList.toggle('is-active', on); b.innerHTML = `<span class="gg-ic">🔎</span>${on ? 'Modo completo' : 'Modo enxuto'}`; }
+    if (b) {
+      b.classList.toggle('is-active', on);
+      b.innerHTML = `<span class="gg-ic">🔎</span>${on ? 'Mostrar os textos de ajuda' : 'Esconder os textos de ajuda'}`;
+      b.title = on
+        ? 'Voltar a exibir subtítulos, legendas e explicações dos cartões'
+        : 'Deixar só números, barras e listas — esconde subtítulos, legendas e explicações';
+    }
   },
   /* ── QUAIS BANCAS SÃO AS MINHAS ───────────────────────────────────────────
      A escolha da banca existia em DOIS lugares (uma preferência no Reforço,
@@ -43322,11 +43447,11 @@ document.addEventListener('click', () => {
 // Listeners da tela Desempenho TEC
 $id('tec-btn-first-import').addEventListener('click', () => DesempenhoTecScreen.openImport());
 $id('tec-btn-new-import').addEventListener('click', () => DesempenhoTecScreen.openImport());
-$id('tec-toggle-cfg').addEventListener('click', () => {
-  const p = DesempenhoTecScreen._loadPrefs();
-  DesempenhoTecScreen.savePrefs({ hideCfg: !p.hideCfg });
-  DesempenhoTecScreen.applyCfgHidden();
-});
+/* O item "Filtros soltos nos cartões" saiu do menu ⚙ Exibição (o botão é
+   removido do DOM em `applyEnxuto`'s vizinho, abaixo): ele prometia mexer nos
+   filtros e mexia só nos subtítulos, que agora fazem parte do Modo enxuto.
+   O ouvinte sai com ele; sem isso, um perfil antigo com `hideCfg` salvo
+   continuaria alternando uma classe que nenhum item da tela anuncia. */
 $id('tec-enxuto-btn').addEventListener('click', () => {
   const p = DesempenhoTecScreen._loadPrefs();
   DesempenhoTecScreen.savePrefs({ enxuto: !p.enxuto });
@@ -46355,16 +46480,61 @@ window.ReforcoFila = ReforcoFila;
       const screen=document.getElementById('screen-desempenhotec');if(!screen)return null;let box=screen.querySelector('.tp-command');if(box)return box;
       box=document.createElement('section');box.className='tp-command';const head=screen.querySelector('.page-header');if(head)head.insertAdjacentElement('afterend',box);else screen.prepend(box);return box;
     },
+    /* Quem está decidindo AGORA. É a pergunta que a tela mais falhava em
+       responder: com dois modelos ativos e o Plano legado ainda presente em
+       partes, não havia uma frase única dizendo de onde vem a fila de hoje. */
+    fonteAtual() {
+      try {
+        const g = window.PlanoMotoresGovernanca, e = g && g.estado ? g.estado() : null;
+        if (e && !e.simplificado && !e.robusto) return { rot: 'Leitura analítica do Plano', det: 'nenhum modelo ativo — a fila vem dos parâmetros do Plano' };
+        const f = window.TecPlanoFonteMotor && TecPlanoFonteMotor.fonte ? TecPlanoFonteMotor.fonte() : null;
+        if (f === 'robusto') return { rot: '🧠 Robusto', det: 'TEC + incidência + reforços em Extras' };
+        if (f === 'simplificado') return { rot: '⚡ Simplificado', det: 'lacuna até a meta, regra direta do TEC' };
+      } catch (e) { if (typeof _quiet === 'function') _quiet(e, 'tp-fonte'); }
+      return { rot: '—', det: 'sem modelo resolvido' };
+    },
+    /* ═══ UM CABEÇALHO QUE RESPONDE, EM VEZ DE SE APRESENTAR ════════════════
+       Esta faixa trazia quatro azulejos: retratos no escopo, retratos salvos,
+       última medição e "parâmetros auditados" — mais um cronômetro em
+       milissegundos e um botão de Diagnóstico. Três problemas de uma vez:
+
+       · os dois primeiros azulejos repetiam, palavra por palavra, o que o
+         cartão "ESCOPO DA ANÁLISE" logo abaixo já mostra;
+       · "parâmetros auditados" e os milissegundos são instrumentação de quem
+         DESENVOLVE a tela, apresentados como métrica de quem a usa — e um
+         "251.7 ms" no cabeçalho não sustenta nenhuma decisão de estudo;
+       · o parágrafo descrevia a arquitetura da tela ("cálculos pesados só
+         rodam quando a informação necessária mudou"), não o estado dela.
+
+       Sobra o que só esta faixa pode dizer: em que aba você está, QUAL MODELO
+       está decidindo agora, e se o retrato que sustenta tudo isso está
+       velho. A auditoria e o cronômetro continuam existindo, inteiros, dentro
+       do Diagnóstico — que é o lugar deles. */
     atualizarComando() {
-      const box=this.garantirComando();if(!box)return;const s=this.escopoResumo(),tab=DT.tecTab||'analise',aud=this.auditoriaParametros(),ms=this.tempos[tab]??this.tempos[tab==='plano'?'plano':'analise'];
+      const box=this.garantirComando();if(!box)return;
+      const s=this.escopoResumo(),tab=DT.tecTab||'analise',fonte=this.fonteAtual();
       const dataUlt=s.ultimo&&/^\d{4}-\d{2}-\d{2}/.test(String(s.ultimo))?String(s.ultimo).slice(0,10).split('-').reverse().join('/'):(s.ultimo||'—');
-      box.innerHTML=`<div class="tp-main"><div class="tp-eyebrow">CENTRAL DE DESEMPENHO</div><div class="tp-title"><strong>${this.tabNome(tab)}</strong><span>${s.modo}</span></div><p>Leitura do TEC, decisões do Plano e reforço usando o mesmo escopo. Ajustes ficam concentrados por aba e cálculos pesados só rodam quando a informação necessária mudou.</p></div><div class="tp-metrics"><span><b>${s.ativos}</b><small>retrato${s.ativos===1?'':'s'} no escopo</small></span><span><b>${s.total}</b><small>retrato${s.total===1?'':'s'} salvo${s.total===1?'':'s'}</small></span><span><b>${dataUlt}</b><small>última medição</small></span><span class="${aud.ok?'ok':'warn'}"><b>${aud.ok?'✓':'!'}</b><small>${aud.ok?'parâmetros auditados':aud.faltantes.length+' parâmetro(s) sem controle'}</small></span></div><div class="tp-actions"><button type="button" class="btn-primary" data-tp-settings>⚙ Ajustes de ${this.tabNome(tab)}</button><button type="button" class="btn-secondary" data-tp-audit>◎ Diagnóstico</button>${ms!=null?`<span class="tp-ms" title="Tempo da última renderização medida desta área">${ms} ms</span>`:''}</div>`;
-      box.querySelector('[data-tp-settings]').onclick=()=>{if(typeof TecAjustes!=='undefined'&&['analise','plano','reforco'].includes(tab))TecAjustes.abrir(tab);else{const b=document.querySelector(`.tec-cfg-open[data-cfg="${tab}"]`);if(b)b.click();else showToast('Esta aba não possui ajustes específicos');}};
+      let idade=null;
+      try { if (s.ultimo && /^\d{4}-\d{2}-\d{2}/.test(String(s.ultimo))) idade=Math.floor((new Date(todayLocal()+'T00:00:00')-new Date(String(s.ultimo).slice(0,10)+'T00:00:00'))/86400000); }
+      catch(e){ if(typeof _quiet==='function')_quiet(e,'tp-idade-retrato'); }
+      let cadencia=30;
+      try { cadencia=Number((PlanoEngine.prefs()||{}).cadenciaDias)||30; }
+      catch(e){ if(typeof _quiet==='function')_quiet(e,'tp-cadencia'); }
+      const velho=idade!=null&&idade>cadencia;
+      const esc=(v)=>typeof escapeHtml==='function'?escapeHtml(String(v==null?'':v)):String(v==null?'':v);
+      box.innerHTML=`<div class="tp-main"><div class="tp-eyebrow">DESEMPENHO TEC</div>`
+        +`<div class="tp-title"><strong>${esc(this.tabNome(tab))}</strong><span>${esc(s.modo)} · ${s.ativos} de ${s.total}</span></div>`
+        +`<p>Quem decide a fila desta tela agora é <b>${esc(fonte.rot)}</b> — ${esc(fonte.det)}.</p></div>`
+        +`<div class="tp-metrics"><span class="${velho?'warn':'ok'}"><b>${esc(dataUlt)}</b>`
+        +`<small>${idade==null?'última medição':(idade===0?'medido hoje':idade===1?'medido ontem':'medido há '+idade+' dias')}${velho?' · retrato vencido':''}</small></span></div>`
+        +`<div class="tp-actions"><button type="button" class="btn-primary" data-tp-settings>⚙ Ajustes de ${esc(this.tabNome(tab))}</button>`
+        +`<button type="button" class="btn-secondary" data-tp-audit title="Integridade dos parâmetros, escopo efetivo e tempo de cálculo desta sessão">◎ Diagnóstico</button></div>`;
+      box.querySelector('[data-tp-settings]').onclick=()=>{if(typeof TecAjustes!=='undefined'&&['analise','plano','reforco'].includes(tab))TecAjustes.abrir(tab);else if(tab==='motores'){if(window.PlanoMotoresCentralTec)showToast('Escolha o modelo para configurar no painel abaixo');}else{const b=document.querySelector(`.tec-cfg-open[data-cfg="${tab}"]`);if(b)b.click();else showToast('Esta aba não possui ajustes específicos');}};
       box.querySelector('[data-tp-audit]').onclick=()=>this.abrirDiagnostico();
     },
     abrirDiagnostico() {
       const a=this.auditoriaParametros(),s=this.escopoResumo(),ov=document.createElement('div');ov.className='tp-overlay';
-      ov.innerHTML=`<div class="tp-modal"><div class="tp-modal-head"><div><small>DIAGNÓSTICO DO DESEMPENHO TEC</small><h3>Integridade, parâmetros e desempenho</h3></div><button type="button" aria-label="Fechar">×</button></div><div class="tp-audit-grid"><article><b>${a.ok?'✓ Completo':'⚠ Revisar'}</b><span>Parâmetros do Plano</span><small>${a.faltantes.length?`Sem controle: ${a.faltantes.join(', ')}`:'Todos os parâmetros operacionais possuem controle ou rota deliberadamente derivada.'}</small></article><article><b>${s.ativos}/${s.total}</b><span>Escopo efetivo</span><small>${s.modo}. É este mesmo recorte que alimenta Análise, Plano e Reforço.</small></article><article><b>${this.tempos.plano!=null?this.tempos.plano+' ms':'—'}</b><span>Último Plano</span><small>Tempo observado nesta sessão. O cálculo é memoizado por retrato, escopo e preferências.</small></article><article><b>${this.tempos.analise!=null?this.tempos.analise+' ms':'—'}</b><span>Última Análise</span><small>A Análise oculta não é mais calculada só para depois ser descartada.</small></article></div><div class="tp-audit-body"><h4>Cobertura dos ajustes</h4>${['plano','reforco','analise'].map(t=>`<div><strong>${this.tabNome(t)}</strong><span>${a.tabs[t].length} controle(s) configurável(is)</span><em>${a.duplicadas[t].length?'chaves duplicadas: '+a.duplicadas[t].join(', '):'sem chaves duplicadas'}</em></div>`).join('')}<p>Parâmetros derivados do Plano (<code>${this.DERIVADOS.join(', ')}</code>) são administrados por foco, exclusões, banca ou migração e não devem ganhar um segundo campo concorrente.</p></div></div>`;
+      ov.innerHTML=`<div class="tp-modal"><div class="tp-modal-head"><div><small>DIAGNÓSTICO DO DESEMPENHO TEC</small><h3>Integridade, parâmetros e desempenho</h3></div><button type="button" aria-label="Fechar">×</button></div><div class="tp-audit-grid"><article><b>${a.ok?'✓ Completo':'⚠ Revisar'}</b><span>Parâmetros do Plano</span><small>${a.faltantes.length?`Sem controle: ${a.faltantes.join(', ')}`:'Todos os parâmetros operacionais possuem controle ou rota deliberadamente derivada.'}</small></article><article><b>${s.ativos}/${s.total}</b><span>Escopo efetivo</span><small>${s.modo}. É este mesmo recorte que alimenta Análise, Plano e Reforço.</small></article><article><b>${this.tempos.plano!=null?this.tempos.plano+' ms':'—'}</b><span>Último Plano</span><small>Tempo observado nesta sessão. O cálculo é memoizado por retrato, escopo e preferências.</small></article><article><b>${this.tempos.analise!=null?this.tempos.analise+' ms':'—'}</b><span>Última Análise</span><small>A Análise oculta não é mais calculada só para depois ser descartada.</small></article><article><b>${['analise','plano','reforco','incidencia'].map(t=>this.tempos[t]).filter(v=>v!=null).length}</b><span>Áreas medidas nesta sessão</span><small>${['analise','plano','reforco','incidencia'].filter(t=>this.tempos[t]!=null).map(t=>this.tabNome(t)+': '+this.tempos[t]+' ms').join(' · ')||'Nada medido ainda nesta sessão.'} O cronômetro saiu do cabeçalho da tela e vive aqui: é instrumentação de manutenção, não métrica de estudo.</small></article></div><div class="tp-audit-body"><h4>Cobertura dos ajustes</h4>${['plano','reforco','analise'].map(t=>`<div><strong>${this.tabNome(t)}</strong><span>${a.tabs[t].length} controle(s) configurável(is)</span><em>${a.duplicadas[t].length?'chaves duplicadas: '+a.duplicadas[t].join(', '):'sem chaves duplicadas'}</em></div>`).join('')}<p>Parâmetros derivados do Plano (<code>${this.DERIVADOS.join(', ')}</code>) são administrados por foco, exclusões, banca ou migração e não devem ganhar um segundo campo concorrente.</p></div></div>`;
       document.body.appendChild(ov);ov.querySelector('.tp-modal-head button').onclick=()=>ov.remove();
     },
     instalarSugestoes() {
@@ -46432,21 +46602,46 @@ window.ReforcoFila = ReforcoFila;
       btn.addEventListener('click', () => this.abrir('geral'));
     },
 
+    /* A fita ganha ícone e contador: "Reforços" e "Lei seca" são as duas
+       seções que TÊM estado, e saber quantos itens há em cada uma antes de
+       entrar é o que evita abrir as quatro para achar o que se procura. */
     _nav() {
+      const s = this._status();
+      const itens = [
+        ['geral', '◎', 'Visão geral', ''],
+        ['reforcos', '🎯', 'Reforços', String(s.reforcos)],
+        ['lei', '📚', 'Lei seca', String(s.lei.aptas || 0)],
+        ['manuais', '✍️', 'Manuais', '']
+      ];
       return `
         <nav class="xsc-nav" aria-label="Seções das configurações de Extras">
-          <button type="button" data-xsc-tab="geral">Visão geral</button>
-          <button type="button" data-xsc-tab="reforcos">Reforços</button>
-          <button type="button" data-xsc-tab="lei">Lei seca</button>
-          <button type="button" data-xsc-tab="manuais">Manuais</button>
+          ${itens.map(([id, ic, rot, n]) => `<button type="button" data-xsc-tab="${id}" aria-current="${this.tab === id ? 'page' : 'false'}"><span aria-hidden="true">${ic}</span>${esc(rot)}${n ? `<em>${esc(n)}</em>` : ''}</button>`).join('')}
         </nav>`;
     },
 
     _geral() {
       const s = this._status(), lp = s.lei.prefs || {};
+      /* ── O RESUMO TEM DE DIZER SE ALGO ESTÁ ROLANDO HOJE ──────────────────
+         A visão geral listava quatro cartões de atalho e três "cenários" de
+         configuração, e nenhum deles respondia a pergunta com que se abre
+         esta janela: o que a automação vai colocar na minha fila hoje? Com
+         "0 ativo(s)" e "1 lei apta", a leitura correta é "nada de reforço,
+         uma leitura" — e isso precisava ser somado de dois cartões
+         diferentes. A faixa abaixo soma. */
+      const leiLigada = lp.ativo !== false;
+      const nLei = leiLigada ? Math.min(Number(lp.porDia) || 1, Number(s.lei.aptas) || 0) : 0;
+      const hoje = s.reforcos + nLei;
+      const estado = hoje === 0
+        ? { cls: 'is-off', ic: '💤', rot: 'Nada automático hoje', det: 'Nenhum reforço ativo e nenhuma leitura programada. Tudo o que aparecer em Extras vai ser o que você criar à mão.' }
+        : { cls: 'is-on', ic: '⚙️', rot: hoje === 1 ? '1 item automático hoje' : hoje + ' itens automáticos hoje',
+            det: [s.reforcos ? s.reforcos + ' reforço(s) de questões' : '', nLei ? nLei + ' leitura(s) de lei seca' : ''].filter(Boolean).join(' + ') + ' — o resto da fila é o que você criar.' };
       return `
         <section class="xsc-section xsc-overview">
           <div class="xsc-section-head"><div><small>RESUMO OPERACIONAL</small><h4>O que está automatizado</h4><p>A tela principal fica só com execução. Ajustes raros ficam concentrados aqui.</p></div></div>
+          <div class="xsc-today ${estado.cls}">
+            <span class="xsc-today-ic" aria-hidden="true">${estado.ic}</span>
+            <div><strong>${esc(estado.rot)}</strong><span>${esc(estado.det)}</span></div>
+          </div>
           <div class="xsc-overview-grid">
             <article class="xsc-summary-card">
               <div class="xsc-summary-icon">🎯</div><div><strong>Reforços</strong><span>${s.reforcos} ativo(s)</span><small>Padrão ${s.reforcoPrefs.disciplinasDia || 1}/dia · ${s.reforcoPrefs.blocoMin || 10}–${s.reforcoPrefs.blocoMax || 25} questões</small></div>
@@ -46534,11 +46729,26 @@ window.ReforcoFila = ReforcoFila;
       return this._geral();
     },
 
+    /* A fita é repintada junto com o corpo: os contadores que ela mostra
+       (reforços ativos, leis aptas) mudam quando se salva a rotina, e uma fita
+       montada uma vez só na abertura passaria a mentir a partir do primeiro
+       salvamento. */
     _render() {
       if (!this.modal) return;
       this.modal.querySelector('[data-xsc-body]').innerHTML = this._body();
+      const nav = this.modal.querySelector('.xsc-nav');
+      if (nav) {
+        const novo = document.createElement('div');
+        novo.innerHTML = this._nav();
+        const el = novo.firstElementChild;
+        if (el) { nav.replaceWith(el); this._bindNav(el); }
+      }
       this.modal.querySelectorAll('[data-xsc-tab]').forEach(b => b.classList.toggle('active', b.dataset.xscTab === this.tab));
       this._bindBody();
+    },
+    _bindNav(nav) {
+      if (!nav) return;
+      nav.querySelectorAll('[data-xsc-tab]').forEach(b => b.onclick = () => { this.tab = b.dataset.xscTab; this._render(); });
     },
 
     _bindInfo(root) {
@@ -46613,11 +46823,19 @@ window.ReforcoFila = ReforcoFila;
       document.body.appendChild(ov); this.modal = ov;
       ov.querySelector('.xsc-close').onclick = () => this.fechar();
       ov.addEventListener('click', e => { if (e.target === ov) this.fechar(); });
-      ov.querySelectorAll('[data-xsc-tab]').forEach(b => b.onclick = () => { this.tab=b.dataset.xscTab; this._render(); });
+      this._bindNav(ov.querySelector('.xsc-nav'));
+      /* Esc fecha: a janela cobre a tela inteira no celular e não havia saída
+         pelo teclado — só o × no canto. */
+      this._esc = (ev) => { if (ev.key === 'Escape') this.fechar(); };
+      document.addEventListener('keydown', this._esc);
       this._render();
     },
 
-    fechar() { if (this.modal) this.modal.remove(); this.modal = null; },
+    fechar() {
+      if (this._esc) { document.removeEventListener('keydown', this._esc); this._esc = null; }
+      if (this.modal) this.modal.remove();
+      this.modal = null;
+    },
 
     instalar() {
       this.garantirBotao();
@@ -46725,7 +46943,40 @@ window.ReforcoFila = ReforcoFila;
       for (const s of sels) { const el = panel.querySelector(s); if (el) return el; }
       return null;
     },
-    _scroll(el) { if (el && el.scrollIntoView) el.scrollIntoView({ behavior:'smooth', block:'start' }); },
+    /* ── UM ATALHO QUE NÃO ROLA PARA NADA NÃO É ATALHO ─────────────────────
+       Os três passos apontavam para `.pl-hero`, `.pl-tempo` e `.pl-hoje` — os
+       blocos do Plano legado. Com um motor ativo (o padrão), `.pl-hero` está
+       oculto e os outros dois vivem dentro do recolhível da rota manual: os
+       botões existiam, ficavam clicáveis e não levavam a lugar nenhum. É o
+       tipo de comando que faz duvidar de tudo o que está na tela.
+
+       Agora cada passo tem uma LISTA de alvos, na ordem da leitura atual:
+       primeiro a superfície do motor, depois a legada, para o atalho valer
+       nos dois estados. E se o alvo estiver dentro de um `<details>` fechado,
+       ele é aberto antes — rolar até algo invisível é a mesma falha com outra
+       aparência. */
+    _scroll(el) {
+      if (!el) return;
+      let d = el.closest ? el.closest('details:not([open])') : null;
+      while (d) { d.open = true; d = d.parentElement && d.parentElement.closest ? d.parentElement.closest('details:not([open])') : null; }
+      if (el.scrollIntoView) el.scrollIntoView({ behavior:'smooth', block:'start' });
+    },
+    _visivel(el) {
+      if (!el) return false;
+      if (el.hidden) return false;
+      /* `offsetParent` nulo cobre de uma vez `display:none` no elemento e em
+         qualquer ancestral — que é como o CSS do TEC oculta o legado. Um alvo
+         dentro de `<details>` fechado NÃO cai aqui (ele tem offsetParent), e
+         é de propósito: `_scroll` sabe abrir. */
+      return el.offsetParent !== null || !!(el.closest && el.closest('details'));
+    },
+    _primeiro(panel, sels) {
+      for (const sel of sels) {
+        const el = panel.querySelector(sel);
+        if (this._visivel(el)) return el;
+      }
+      return null;
+    },
     _guide(panel) {
       let guide = panel.querySelector('.tl2-guide');
       if (!guide) {
@@ -46745,14 +46996,18 @@ window.ReforcoFila = ReforcoFila;
           !el.classList.contains('tl2-guide') && !el.classList.contains('tl2-summary-strip'));
         if (alvo) panel.insertBefore(guide, alvo); else panel.appendChild(guide);
       }
+      const ALVOS = {
+        // o panorama do motor primeiro; o hero legado só quando não há motor
+        panorama:   ['[data-tpm-panorama]', '.pl-hero'],
+        // a força-tarefa do motor é a prioridade de hoje; depois o quadro legado
+        prioridade: ['[data-tpm-output] .tpm-recs', '[data-tpm-output]', '.pl-tempo', '.pl-ciclo'],
+        // a ação: ranking completo do motor, ou o bloco/lista do legado
+        acao:       ['.tpm-ranking', '.tpm-legacy-exec', '.pl-hoje', '.pl-item']
+      };
       guide.querySelectorAll('[data-tl2-step]').forEach(b => b.onclick = () => {
-        const key = b.dataset.tl2Step;
-        const el = key === 'panorama'
-          ? this._find(panel,['.pl-hero'])
-          : key === 'prioridade'
-            ? this._find(panel,['.pl-tempo','.pl-ciclo'])
-            : this._find(panel,['.pl-hoje','.pl-item']);
-        this._scroll(el);
+        const el = this._primeiro(panel, ALVOS[b.dataset.tl2Step] || []);
+        if (el) this._scroll(el);
+        else if (typeof showToast === 'function') showToast('Esta etapa não tem nada para mostrar no escopo atual.');
       });
     },
     _decorateSections(panel) {
@@ -46775,7 +47030,13 @@ window.ReforcoFila = ReforcoFila;
         strip=document.createElement('div');strip.className='tl2-summary-strip';
         const guide=panel.querySelector('.tl2-guide'); if(guide) guide.insertAdjacentElement('afterend',strip); else panel.prepend(strip);
       }
-      strip.innerHTML=`<span><b>${acao}</b><small>matéria${acao===1?'':'s'} para atacar</small></span><span><b>${fila}</b><small>na fila</small></span><span><b>${topicos}</b><small>tópico${topicos===1?'':'s'} exibido${topicos===1?'':'s'}</small></span><span><b>3 passos</b><small>panorama → prioridade → ação</small></span>`;
+      /* O quarto azulejo dizia "3 passos · panorama → prioridade → ação" —
+         a mesma frase da faixa "COMO LER O PLANO" imediatamente acima, no
+         formato de um número que não é número. Um dado por azulejo; a
+         instrução fica onde ela já estava. */
+      const frentes=panel.querySelectorAll('[data-tpm-rec]').length;
+      strip.innerHTML=`<span><b>${acao}</b><small>matéria${acao===1?'':'s'} para atacar</small></span><span><b>${fila}</b><small>na fila</small></span><span><b>${topicos}</b><small>tópico${topicos===1?'':'s'} exibido${topicos===1?'':'s'}</small></span>`
+        +(frentes?`<span><b>${frentes}</b><small>frente${frentes===1?'':'s'} na força-tarefa do motor</small></span>`:'');
     },
     decorarPlano() {
       const panel=document.getElementById('tec-panel-plano'); if(!panel)return;
@@ -57045,10 +57306,10 @@ else CloudStore.init();
       const e = this._estado(), ambos = e.simplificado && e.robusto;
       return `<section class="tpm-entry-selector" data-tpm-entry><div><small>MODELO DAS SUGESTÕES</small><strong>${ambos ? 'Escolha como o TEC deve priorizar suas fraquezas' : 'Modelo ativo'}</strong><p>A escolha afeta somente a camada prescritiva. Seus acertos, histórico e métricas observadas continuam iguais.</p></div>${this._buttons(fonte, true)}</section>`;
     },
-    _selectorHtml(fonte) {
-      const ambos = this._estado().simplificado && this._estado().robusto;
-      return `<section class="tpm-selector" data-tpm-selector><header><div><small>FONTE DA DECISÃO</small><strong>${fonte === 'robusto' ? 'Robusto' : 'Simplificado'}</strong></div><span>${ambos ? 'Você pode trocar o modelo sem alterar os dados observados.' : 'Único motor habilitado.'}</span></header>${this._buttons(fonte, false)}<p><b>Separação de responsabilidades:</b> o TEC fornece os fatos; o motor escolhido decide disciplinas, assuntos e quantidade. O Robusto não escolhe seu método de estudo.</p></section>`;
-    },
+    /* `_selectorHtml` foi removido junto com a segunda caixa de escolha do
+       motor: era o gerador do `[data-tpm-selector]` que duplicava, dentro do
+       Plano, os mesmos dois botões do `[data-tpm-entry]` acima das abas.
+       Quem informa o motor em vigor dentro do Plano é o `tpm-panorama`. */
 
     _panoramaHtml(fonte, r) {
       const e = this._estado(), ambos = e.simplificado && e.robusto;
@@ -57179,11 +57440,21 @@ else CloudStore.init();
       this._rendering = true;
       try {
         proj.querySelectorAll('.pl-hero').forEach(el => { el.hidden = true; });
+        /* ── DOIS SELETORES DO MESMO MOTOR, NA MESMA TELA ────────────────────
+           A tela tinha DUAS caixas para escolher o motor, uma embaixo da
+           outra: "MODELO DAS SUGESTÕES" (acima das abas, `[data-tpm-entry]`) e
+           "FONTE DA DECISÃO" (aqui, `[data-tpm-selector]`) — mesmos dois
+           botões, mesmo estado, textos diferentes. A camada de hierarquia
+           tentou resolver escondendo a primeira, mas `renderEntry()` a recria
+           a cada render do TEC, depois da passada de decoração: o resultado
+           era as duas voltarem, e quem olhava não tinha como saber se eram a
+           mesma escolha ou duas coisas distintas.
+
+           Fica UMA: a de cima, porque vale para todas as abas e é onde a
+           escolha naturalmente se faz. Esta é removida e não volta; o Plano
+           herda a mesma escolha, e o `tpm-panorama` abaixo continua dizendo
+           qual motor está valendo. */
         proj.querySelectorAll('[data-tpm-selector],[data-tpm-panorama]').forEach(el => el.remove());
-        const s = document.createElement('div');
-        s.innerHTML = this._selectorHtml(fonte);
-        const sel = s.firstElementChild;
-        if (sel) { proj.prepend(sel); this._bindSource(sel, fonte); }
         lista.querySelectorAll('[data-tpm-output]').forEach(el => el.remove());
         const r = this.calcular(fonte), panorama = document.createElement('div'), box = document.createElement('div');
         panorama.innerHTML = this._panoramaHtml(fonte, r);
@@ -57509,8 +57780,15 @@ else CloudStore.init();
 
     decorateTec() {
       const s = screenEl('desempenhotec'); if (!s) return;
-      // A escolha do motor aparece uma vez, dentro do Plano; o seletor global duplicado some.
-      qa('[data-tpm-entry]', s).forEach(x => { x.hidden = true; x.setAttribute('aria-hidden', 'true'); });
+      /* ── A ESCOLHA DO MOTOR APARECE UMA VEZ, E É ESTA ───────────────────
+         Havia duas caixas idênticas: esta, acima das abas, e a "FONTE DA
+         DECISÃO" dentro do Plano. Esta camada escondia a de cima — mas
+         `TecPlanoFonteMotor.renderEntry()` a recria a cada render do TEC,
+         depois desta passada, então as duas reapareciam juntas. A duplicata
+         que saiu foi a de dentro do Plano (ela valia só ali); esta fica,
+         porque vale para todas as abas. Um `hidden` que não se sustenta é
+         pior que nenhum: ele pisca. */
+      qa('[data-tpm-entry][hidden]', s).forEach(x => { x.hidden = false; x.removeAttribute('aria-hidden'); });
       const modos = q('#plano-modos', s), nota = q('#plano-modo-nota', s);
       if (modos) { modos.hidden = true; modos.setAttribute('aria-hidden', 'true'); }
       if (nota) { nota.hidden = true; nota.setAttribute('aria-hidden', 'true'); }

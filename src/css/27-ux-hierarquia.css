@@ -112,7 +112,8 @@
 #ux-evo-more .ux-more-analysis-body>.evo-wide,#ux-evo-more .ux-more-analysis-body>.evo-col{grid-column:1/-1}
 
 /* TEC: fatos -> modelo -> força-tarefa -> ranking; legado visual não compete */
-#screen-desempenhotec [data-tpm-entry][hidden]{display:none!important}
+/* O seletor de motor acima das abas é o ÚNICO da tela; nada o esconde.
+   (A duplicata que saiu foi a de dentro do Plano, "FONTE DA DECISÃO".) */
 #screen-desempenhotec #plano-modos[hidden],#screen-desempenhotec #plano-modo-nota[hidden]{display:none!important}
 #screen-desempenhotec .tec-cfg-bar.ux-analysis-settings{opacity:1;margin-bottom:10px}
 #screen-desempenhotec .tec-cfg-bar.ux-analysis-settings:hover,#screen-desempenhotec .tec-cfg-bar.ux-analysis-settings:focus-within{opacity:1}

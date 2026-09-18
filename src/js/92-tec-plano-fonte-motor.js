@@ -256,10 +256,10 @@
       const e = this._estado(), ambos = e.simplificado && e.robusto;
       return `<section class="tpm-entry-selector" data-tpm-entry><div><small>MODELO DAS SUGESTÕES</small><strong>${ambos ? 'Escolha como o TEC deve priorizar suas fraquezas' : 'Modelo ativo'}</strong><p>A escolha afeta somente a camada prescritiva. Seus acertos, histórico e métricas observadas continuam iguais.</p></div>${this._buttons(fonte, true)}</section>`;
     },
-    _selectorHtml(fonte) {
-      const ambos = this._estado().simplificado && this._estado().robusto;
-      return `<section class="tpm-selector" data-tpm-selector><header><div><small>FONTE DA DECISÃO</small><strong>${fonte === 'robusto' ? 'Robusto' : 'Simplificado'}</strong></div><span>${ambos ? 'Você pode trocar o modelo sem alterar os dados observados.' : 'Único motor habilitado.'}</span></header>${this._buttons(fonte, false)}<p><b>Separação de responsabilidades:</b> o TEC fornece os fatos; o motor escolhido decide disciplinas, assuntos e quantidade. O Robusto não escolhe seu método de estudo.</p></section>`;
-    },
+    /* `_selectorHtml` foi removido junto com a segunda caixa de escolha do
+       motor: era o gerador do `[data-tpm-selector]` que duplicava, dentro do
+       Plano, os mesmos dois botões do `[data-tpm-entry]` acima das abas.
+       Quem informa o motor em vigor dentro do Plano é o `tpm-panorama`. */
 
     _panoramaHtml(fonte, r) {
       const e = this._estado(), ambos = e.simplificado && e.robusto;
@@ -390,11 +390,21 @@
       this._rendering = true;
       try {
         proj.querySelectorAll('.pl-hero').forEach(el => { el.hidden = true; });
+        /* ── DOIS SELETORES DO MESMO MOTOR, NA MESMA TELA ────────────────────
+           A tela tinha DUAS caixas para escolher o motor, uma embaixo da
+           outra: "MODELO DAS SUGESTÕES" (acima das abas, `[data-tpm-entry]`) e
+           "FONTE DA DECISÃO" (aqui, `[data-tpm-selector]`) — mesmos dois
+           botões, mesmo estado, textos diferentes. A camada de hierarquia
+           tentou resolver escondendo a primeira, mas `renderEntry()` a recria
+           a cada render do TEC, depois da passada de decoração: o resultado
+           era as duas voltarem, e quem olhava não tinha como saber se eram a
+           mesma escolha ou duas coisas distintas.
+
+           Fica UMA: a de cima, porque vale para todas as abas e é onde a
+           escolha naturalmente se faz. Esta é removida e não volta; o Plano
+           herda a mesma escolha, e o `tpm-panorama` abaixo continua dizendo
+           qual motor está valendo. */
         proj.querySelectorAll('[data-tpm-selector],[data-tpm-panorama]').forEach(el => el.remove());
-        const s = document.createElement('div');
-        s.innerHTML = this._selectorHtml(fonte);
-        const sel = s.firstElementChild;
-        if (sel) { proj.prepend(sel); this._bindSource(sel, fonte); }
         lista.querySelectorAll('[data-tpm-output]').forEach(el => el.remove());
         const r = this.calcular(fonte), panorama = document.createElement('div'), box = document.createElement('div');
         panorama.innerHTML = this._panoramaHtml(fonte, r);

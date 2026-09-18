@@ -377,3 +377,30 @@
   font-size: var(--fs-3xs); font-weight: 800;
 }
 .ps-consensus { color: var(--good-text) !important; font-weight: 800; }
+
+/* ══ 8. A ETIQUETA DE ORIGEM EM EXTRAS ═════════════════════════════════════
+   Toda atividade vinda do TEC usava a mesma etiqueta "🏁 do Plano", sem
+   distinguir a leitura analítica legada do Simplificado e do Robusto. Com os
+   três coexistindo, a fila não permitia conferir se o que está em execução
+   saiu do modelo escolhido. Agora cada motor tem a sua, com a mesma cor que
+   ele usa no resto do app — o texto vem do JS, a cor daqui. */
+#extras-list .extra-tag.plano.motor-robusto,
+#extras-agenda .extra-tag.plano.motor-robusto {
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
+  color: var(--accent-text);
+  border: 1px solid color-mix(in srgb, var(--accent) 30%, transparent);
+}
+#extras-list .extra-tag.plano.motor-simples,
+#extras-agenda .extra-tag.plano.motor-simples {
+  background: var(--warn-soft);
+  color: var(--warn-text);
+  border: 1px solid color-mix(in srgb, var(--warn) 30%, transparent);
+}
+/* Sem motor identificado = criada pela leitura analítica. Fica neutra, porque
+   é a fonte que NÃO está mais decidindo quando há motor ativo. */
+#extras-list .extra-tag.plano:not(.motor-robusto):not(.motor-simples),
+#extras-agenda .extra-tag.plano:not(.motor-robusto):not(.motor-simples) {
+  background: var(--surface-sunken);
+  color: var(--text-soft);
+  border: 1px solid var(--border);
+}

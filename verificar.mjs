@@ -1862,11 +1862,21 @@ try {
     switchScreen('extras');
     if (window.ExtrasScreen) ExtrasScreen.render();
     const t = (document.getElementById('extras-list') || {}).textContent || '';
-    return { doPlano: /do Plano/.test(t), evo: /45% → 30%/.test(t), retrato: /pelo retrato/.test(t),
+    /* ── A ORIGEM FICOU MAIS PRECISA; O TESTE PEDE A INFORMACAO ────────────
+       A etiqueta dizia "🏁 do Plano" para QUALQUER atividade vinda do TEC —
+       leitura analitica legada, Simplificado e Robusto, as tres iguais. Com os
+       tres coexistindo isso impede a conferencia que mais importa: o que esta
+       na fila saiu do modelo que eu escolhi? Agora a etiqueta nomeia a fonte
+       (o dado ja estava em `origemPlano.sugestao.motor`, so nao chegava a
+       tela). O que este teste garante continua sendo o mesmo — o cartao diz de
+       ONDE veio —, e passa a aceitar qualquer uma das tres fontes em vez de
+       exigir a frase generica que existia quando havia so uma. */
+    return { doPlano: /do Plano|leitura anal[íi]tica|Robusto|Simplificado/.test(t),
+      evo: /45% → 30%/.test(t), retrato: /pelo retrato/.test(t),
       barra: /50 \/ 120/.test(t) };
   });
   (card.doPlano && card.evo && card.barra)
-    ? ok('o cartao da atividade diz que veio do Plano, mostra 45% → 30% e a barra em 50/120')
+    ? ok('o cartao da atividade nomeia a fonte que a gerou, mostra 45% → 30% e a barra em 50/120')
     : erro('o cartao nao trouxe o ciclo: ' + JSON.stringify(card));
 
   // a calibragem so aparece com historico, e propoe o SEU numero

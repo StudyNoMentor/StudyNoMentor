@@ -3584,16 +3584,28 @@ const DesempenhoTecScreen = {
     this.applyEnxuto();
     DB._tecReadSnapshot = null;
   },
-  // Mostra/oculta todos os filtros e configurações da tela (classe .tec-cfg),
-  // deixando só os resultados. Estado salvo por perfil.
+  /* ═══ UM CONTROLE DE DENSIDADE, NÃO DOIS QUE NINGUÉM ENTENDE ════════════
+     O menu ⚙ Exibição tinha dois itens, e o primeiro — "Filtros soltos nos
+     cartões" — prometia mostrar ou esconder os filtros da tela. Só que a
+     classe que ele liga (`.tec-cfg`) existe em UM elemento da tela inteira: o
+     campo de banca da aba Incidência. Nas abas Análise e Plano ele não
+     escondia filtro nenhum; o único efeito visível era `hide-heads`, que
+     enxuga os subtítulos dos cartões — coisa que o item não menciona, e que o
+     "Modo enxuto" logo abaixo já faz junto com o resto dos textos de ajuda.
+
+     Ou seja: um comando cujo rótulo descrevia algo que ele não fazia, e cujo
+     efeito real era um subconjunto do comando vizinho. Não dá para saber "para
+     que serve ou se funciona" porque as duas respostas eram "quase nada" e
+     "não como está escrito".
+
+     Fica UM controle. `hide-heads` passa a ser parte do Modo enxuto (que é
+     exatamente o que ele é: menos texto explicativo), e o filtro da Incidência
+     deixa de ser escondível — filtro que a pessoa precisa usar não é ruído.
+     `applyCfgHidden` continua existindo, agora só para garantir que nenhum
+     perfil fique com o estado antigo preso na tela. */
   applyCfgHidden() {
-    const on = !!this._loadPrefs().hideCfg;
     const wrap = document.getElementById('tec-analysis');
-    // hide-cfg esconde os filtros; hide-heads enxuga tambem os subtitulos longos
-    // dos cabecalhos de cartao, que so explicam o que a tela ja mostra.
-    if (wrap) { wrap.classList.toggle('hide-cfg', on); wrap.classList.toggle('hide-heads', on); }
-    const btn = document.getElementById('tec-toggle-cfg');
-    if (btn) { btn.classList.toggle('is-active', on); btn.innerHTML = `<span class="gg-ic">🔧</span>${on ? 'Mostrar filtros' : 'Ocultar filtros'}`; }
+    if (wrap) { wrap.classList.remove('hide-cfg'); wrap.classList.toggle('hide-heads', !!this._loadPrefs().enxuto); }
   },
   /* MODO ENXUTO — depois que você entende a tela, textos de ajuda, legendas e
      dicas viram ruído. Este modo esconde tudo isso e deixa só o que muda de
@@ -3602,8 +3614,16 @@ const DesempenhoTecScreen = {
     const on = !!this._loadPrefs().enxuto;
     const tela = document.getElementById('screen-desempenhotec');
     if (tela) tela.classList.toggle('tec-enxuto', on);
+    const wrap = document.getElementById('tec-analysis');
+    if (wrap) wrap.classList.toggle('hide-heads', on);
     const b = document.getElementById('tec-enxuto-btn');
-    if (b) { b.classList.toggle('is-active', on); b.innerHTML = `<span class="gg-ic">🔎</span>${on ? 'Modo completo' : 'Modo enxuto'}`; }
+    if (b) {
+      b.classList.toggle('is-active', on);
+      b.innerHTML = `<span class="gg-ic">🔎</span>${on ? 'Mostrar os textos de ajuda' : 'Esconder os textos de ajuda'}`;
+      b.title = on
+        ? 'Voltar a exibir subtítulos, legendas e explicações dos cartões'
+        : 'Deixar só números, barras e listas — esconde subtítulos, legendas e explicações';
+    }
   },
   /* ── QUAIS BANCAS SÃO AS MINHAS ───────────────────────────────────────────
      A escolha da banca existia em DOIS lugares (uma preferência no Reforço,
@@ -7281,11 +7301,11 @@ document.addEventListener('click', () => {
 // Listeners da tela Desempenho TEC
 $id('tec-btn-first-import').addEventListener('click', () => DesempenhoTecScreen.openImport());
 $id('tec-btn-new-import').addEventListener('click', () => DesempenhoTecScreen.openImport());
-$id('tec-toggle-cfg').addEventListener('click', () => {
-  const p = DesempenhoTecScreen._loadPrefs();
-  DesempenhoTecScreen.savePrefs({ hideCfg: !p.hideCfg });
-  DesempenhoTecScreen.applyCfgHidden();
-});
+/* O item "Filtros soltos nos cartões" saiu do menu ⚙ Exibição (o botão é
+   removido do DOM em `applyEnxuto`'s vizinho, abaixo): ele prometia mexer nos
+   filtros e mexia só nos subtítulos, que agora fazem parte do Modo enxuto.
+   O ouvinte sai com ele; sem isso, um perfil antigo com `hideCfg` salvo
+   continuaria alternando uma classe que nenhum item da tela anuncia. */
 $id('tec-enxuto-btn').addEventListener('click', () => {
   const p = DesempenhoTecScreen._loadPrefs();
   DesempenhoTecScreen.savePrefs({ enxuto: !p.enxuto });
