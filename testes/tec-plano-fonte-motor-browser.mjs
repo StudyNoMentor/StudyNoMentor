@@ -53,6 +53,58 @@ try{
   await page.locator('[data-tpm-rank-more]').click();await page.waitForFunction(()=>document.querySelectorAll('[data-tpm-ranking-item]').length===20);ranking=page.locator('[data-tpm-ranking-item]');assert.equal(await ranking.count(),20,'primeiro avanço deve abrir mais 10');
   await page.locator('[data-tpm-rank-more]').click();await page.waitForFunction(()=>document.querySelectorAll('[data-tpm-ranking-item]').length===30);assert.equal(await page.locator('[data-tpm-ranking-item]').count(),30,'segundo avanço deve abrir mais 10');
   const all=page.locator('[data-tpm-rank-all]');if(await all.count()){await all.click();await page.waitForFunction(total=>document.querySelectorAll('[data-tpm-ranking-item]').length===total,totalRobusto);assert.equal(await page.locator('[data-tpm-ranking-item]').count(),totalRobusto,'mostrar todos deve revelar a fila completa do motor');}
+  /* ── A FILA COMPLETA, AGRUPADA POR DISCIPLINA ───────────────────────────
+     Era uma lista plana de mais de cem linhas, com os assuntos de uma mesma
+     materia espalhados por toda a ordem do motor: "o que tenho aberto em CADA
+     materia?" so se respondia rolando e contando a mao.
+
+     O agrupamento nao reordena: as materias saem pela melhor posicao que
+     alcancaram na fila DO MOTOR, e cada linha mantem o numero da posicao
+     GLOBAL. E o que este caso trava — se o agrupamento reordenar, as posicoes
+     deixam de ser 1..N em sequencia. */
+  const grupos=await page.evaluate(()=>{
+    const sec=document.querySelector('[data-tpm-ranking]');
+    const gs=[...sec.querySelectorAll('.tpm-rank-grupo')];
+    return {n:gs.length, itens:sec.querySelectorAll('[data-tpm-ranking-item]').length,
+      cabecalho:sec.querySelector('header>span').textContent.trim(),
+      discPorGrupo:gs.map(g=>new Set([...g.querySelectorAll('[data-tpm-ranking-item]')].map(x=>x.dataset.disciplina)).size),
+      melhor:gs.map(g=>Number((g.querySelector('header>em').textContent.match(/#(\d+)/)||[])[1])),
+      posicoes:[...sec.querySelectorAll('.tpm-ranking-rank')].map(x=>Number(x.textContent)),
+      posPorGrupo:gs.map(g=>[...g.querySelectorAll('.tpm-ranking-rank')].map(x=>Number(x.textContent))),
+      discRepetida:[...sec.querySelectorAll('.tpm-rank-grupo-itens .tpm-ranking-head small')].filter(x=>x.offsetParent!==null).length,
+      metricasIguais:[...sec.querySelectorAll('.tpm-ranking-metrics')].slice(0,5)
+        .every(m=>new Set([...m.children].map(c=>Math.round(c.getBoundingClientRect().width))).size<=1)};
+  });
+  assert.ok(grupos.n>=2,`a fila deve vir agrupada por disciplina (recebeu ${grupos.n} grupos)`);
+  assert.ok(grupos.discPorGrupo.every(x=>x===1),`cada grupo deve conter uma disciplina so: ${JSON.stringify(grupos.discPorGrupo)}`);
+  /* As posicoes de uma pagina aberta sao exatamente 1..N — cada uma uma vez.
+     Elas NAO saem em sequencia na tela, e nao deveriam: agrupar por disciplina
+     junta as posicoes de cada materia (1,2,3,9,13... depois 4,7,10...). O que
+     tem de valer e que dentro de cada grupo a ordem do motor e preservada. */
+  assert.deepEqual(grupos.posicoes.slice().sort((a,b)=>a-b),Array.from({length:grupos.itens},(_,i)=>i+1),
+    `toda posicao da pagina aberta deve aparecer exatamente uma vez: ${JSON.stringify(grupos.posicoes)}`);
+  grupos.posPorGrupo.forEach((ps,gi)=>assert.deepEqual(ps,ps.slice().sort((a,b)=>a-b),
+    `dentro do grupo ${gi} a ordem do motor deve ser preservada: ${JSON.stringify(ps)}`));
+  grupos.posPorGrupo.forEach((ps,gi)=>assert.equal(ps[0],grupos.melhor[gi],
+    `"melhor #" do grupo ${gi} deve ser a primeira posicao dele (${ps[0]} x ${grupos.melhor[gi]})`));
+  assert.deepEqual(grupos.melhor,grupos.melhor.slice().sort((a,b)=>a-b),'as disciplinas devem sair pela melhor posicao que alcancaram no motor');
+  assert.equal(grupos.discRepetida,0,'dentro do grupo a disciplina nao deve ser repetida em cada linha');
+  assert.ok(grupos.metricasIguais,'as metricas de cada linha devem ter colunas de largura igual');
+  assert.match(grupos.cabecalho,/\d+ de \d+ assuntos/,`o cabecalho deve contar disciplinas e assuntos: "${grupos.cabecalho}"`);
+
+  /* A ordem dos proximos assuntos da disciplina vinha como <ol> com marcador:
+     o numero ficava fora da caixa e as tres medidas numa frase separada por
+     pontos, entao nada se comparava de uma linha para a outra. */
+  const ordem=await page.evaluate(()=>{
+    const d=document.querySelector('#plano-lista .tpm-topic-order'); if(!d)return null;
+    d.open=true; const lis=[...d.querySelectorAll('ol>li')];
+    return {n:lis.length, transborda:lis.filter(l=>l.scrollWidth-l.clientWidth>1).length,
+      colunas:new Set(lis.map(l=>[...l.children].map(c=>Math.round(c.getBoundingClientRect().left)).join(','))).size};
+  });
+  assert.ok(ordem&&ordem.n>=2,'a ordem dos proximos assuntos da disciplina deve existir');
+  assert.equal(ordem.transborda,0,'nenhuma linha da ordem pode transbordar');
+  assert.equal(ordem.colunas,1,`as colunas da ordem devem coincidir em todas as linhas (recebeu ${ordem&&ordem.colunas} arranjos)`);
+
   await page.locator('[data-tpm-rank-reset]').click();await page.waitForFunction(()=>document.querySelectorAll('[data-tpm-ranking-item]').length===10);assert.equal(await page.locator('[data-tpm-ranking-item]').count(),10,'voltar a 10 deve recolher a fila sem alterar preferências');
 
   await page.locator('[data-tpm-entry] [data-tpm-source="simplificado"]').click();await page.waitForSelector('[data-tpm-output][data-tpm-model="simplificado"]');assert.equal(await page.evaluate(()=>TecPlanoFonteMotor.fonte()),'simplificado');const txtS=await page.locator('[data-tpm-output]').textContent();assert.match(txtS,/O Simplificado não modela tempo/i);assert.doesNotMatch(txtS,/min\/questão/i,'Simplificado não pode emprestar relógio do Robusto');cards=page.locator('[data-tpm-output] [data-tpm-rec]');const sdiscs=await cards.evaluateAll(xs=>xs.map(x=>x.dataset.disciplina));assert.equal(new Set(sdiscs).size,sdiscs.length,'TOP 3 do Simplificado continua em disciplinas distintas');

@@ -112,7 +112,14 @@
     },
     _topicos(c, fonte) {
       if (fonte !== 'robusto' || !Array.isArray(c && c.topicosOrdenados) || c.topicosOrdenados.length < 2) return '';
-      return `<details class="tpm-topic-order"><summary>Ordem dos próximos assuntos desta disciplina</summary><ol>${c.topicosOrdenados.slice(1, 6).map(x => `<li><span>${esc(x.nome)}</span><small>${fmt(x.taxa, 0)}% · prioridade ${Math.round(n(x.score))}/100${n(x.incidencia) > 0 ? ' · incid. ' + Math.round(n(x.incidencia)) : ''}</small></li>`).join('')}</ol></details>`;
+      /* A ordem vinha como `<ol>` com marcador de lista: o número ficava fora
+         da caixa (recuo de 20px) e as três medidas de cada assunto vinham
+         numa frase única separada por pontos — `53% · prioridade 88/100 ·
+         incid. 12` —, então nada se comparava de uma linha para a outra. Cada
+         medida ganha coluna própria, com o número da posição DENTRO da linha:
+         é a mesma forma da fila completa logo abaixo, e comparar duas linhas
+         passa a ser olhar para baixo, não reler duas frases. */
+      return `<details class="tpm-topic-order"><summary>Ordem dos próximos assuntos desta disciplina</summary><ol>${c.topicosOrdenados.slice(1, 6).map((x, k) => `<li><i>${k + 2}</i><span>${esc(x.nome)}</span><b>${fmt(x.taxa, 0)}%</b><b>${Math.round(n(x.score))}<small>/100</small></b>${n(x.incidencia) > 0 ? `<b>${Math.round(n(x.incidencia))}<small> incid.</small></b>` : '<b>—</b>'}</li>`).join('')}</ol><p>Posição · acerto observado · prioridade do motor · incidência. A primeira desta disciplina é a do cartão acima.</p></details>`;
     },
     _card(c, i, fonte) {
       const q = this._quantidade(c);
@@ -253,11 +260,30 @@
       const aberto = Math.max(step, n(this._rankingVisible[sig], step));
       const visiveis = itens.slice(0, aberto);
       const ataque = new Set((r.itens || []).map(x => this._itemKey(x)));
+      /* ── A FILA AGRUPADA POR DISCIPLINA ─────────────────────────────────
+         Era uma lista plana. Com "Mostrar todos" ela passa de cem linhas, e a
+         pergunta com que se olha esta fila — "o que tenho aberto em CADA
+         matéria, e qual delas está mais atrás?" — só se respondia rolando e
+         contando à mão, porque os assuntos de uma mesma matéria aparecem
+         espalhados por toda a ordem do motor.
+
+         O agrupamento não reordena nada: as matérias saem na ordem em que a
+         primeira delas aparece na fila DO MOTOR (ou seja, pela melhor posição
+         que cada uma alcançou), e cada linha mantém o número da sua posição
+         GLOBAL. A ordem continua sendo a do motor — o que muda é onde o olho
+         consegue pousar. */
+      const grupos = [], porDisc = new Map();
+      visiveis.forEach((c, i) => {
+        const k = norm(c.disciplina || '');
+        let g = porDisc.get(k);
+        if (!g) { g = { nome: c.disciplina || 'Sem disciplina', melhor: i + 1, linhas: [] }; porDisc.set(k, g); grupos.push(g); }
+        g.linhas.push([c, i]);
+      });
       const faltam = Math.max(0, itens.length - visiveis.length);
       const controles = faltam || visiveis.length > step
         ? `<div class="tpm-ranking-actions">${faltam ? `<button type="button" data-tpm-rank-more>Mostrar mais ${Math.min(step, faltam)}</button>${faltam > step ? '<button type="button" data-tpm-rank-all>Mostrar todos</button>' : ''}` : ''}${visiveis.length > step ? `<button type="button" data-tpm-rank-reset>Voltar a ${step}</button>` : ''}</div>`
         : '';
-      return `<section class="tpm-ranking" data-tpm-ranking data-tpm-ranking-sig="${esc(sig)}"><header><div><small>RANKING COMPLETO DO MOTOR</small><strong>Todas as frentes elegíveis</strong><p>O TOP 3 acima é a força-tarefa atual. Esta fila mantém o restante visível para diagnóstico e planejamento, sem criar uma terceira regra de decisão.</p></div><span>${visiveis.length} de ${itens.length}</span></header><div class="tpm-ranking-list">${visiveis.map((c, i) => this._rankingRow(c, i, fonte, ataque.has(this._itemKey(c)))).join('')}</div>${controles}</section>`;
+      return `<section class="tpm-ranking" data-tpm-ranking data-tpm-ranking-sig="${esc(sig)}"><header><div><small>RANKING COMPLETO DO MOTOR</small><strong>Todas as frentes elegíveis</strong><p>O TOP 3 acima é a força-tarefa atual. Esta fila mantém o restante visível para diagnóstico e planejamento, sem criar uma terceira regra de decisão.</p></div><span>${grupos.length} ${grupos.length === 1 ? 'disciplina' : 'disciplinas'} · ${visiveis.length} de ${itens.length} assuntos</span></header><div class="tpm-ranking-list">${grupos.map(g => `<section class="tpm-rank-grupo"><header><b>${esc(g.nome)}</b><span>${g.linhas.length} ${g.linhas.length === 1 ? 'assunto' : 'assuntos'}</span><em>melhor #${g.melhor}</em></header><div class="tpm-rank-grupo-itens">${g.linhas.map(([c, i]) => this._rankingRow(c, i, fonte, ataque.has(this._itemKey(c)))).join('')}</div></section>`).join('')}</div>${controles}</section>`;
     },
     _buttons(fonte, compact = false) {
       const e = this._estado();

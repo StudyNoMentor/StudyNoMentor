@@ -406,3 +406,127 @@
   color: var(--text-soft);
   border: 1px solid var(--border);
 }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   A FILA COMPLETA DO MOTOR — DISCIPLINAS E ASSUNTOS
+   ---------------------------------------------------------------------------
+   Duas coisas mudam aqui, e as duas por motivo concreto.
+
+   1. AS MÉTRICAS DE CADA LINHA eram chips em `flex-wrap`: cada um com a
+      largura do próprio texto, então as bordas não coincidiam de uma linha
+      para a outra e a fila parecia desalinhada mesmo estando correta — e o
+      Robusto mostra cinco métricas onde o Simplificado mostra três ou quatro,
+      o que deixava cada motor com uma fileira de formato diferente. Agora é
+      uma faixa de colunas iguais, quantas forem: `grid-auto-flow: column` com
+      `grid-auto-columns: 1fr` não precisa saber o número de antemão, então o
+      mesmo bloco serve aos dois motores sem uma regra por motor.
+
+   2. A FILA GANHA CABEÇALHO POR DISCIPLINA (o agrupamento vem do JS). O
+      cabeçalho é deliberadamente leve — ele orienta, não compete com o nome do
+      assunto, que continua sendo o que se lê.
+   ═══════════════════════════════════════════════════════════════════════════ */
+.tpm-rank-grupo {
+  border: 1px solid color-mix(in srgb, var(--border) 82%, var(--surface-sunken));
+  border-radius: 15px;
+  background: color-mix(in srgb, var(--surface-sunken) 42%, var(--surface));
+  overflow: hidden;
+}
+.tpm-rank-grupo > header {
+  display: grid; grid-template-columns: minmax(0, 1fr) auto auto;
+  align-items: center; gap: 4px 10px;
+  padding: 9px 12px;
+  border-bottom: 1px solid color-mix(in srgb, var(--border) 70%, var(--surface));
+  background: var(--surface);
+}
+.tpm-rank-grupo > header > b {
+  min-width: 0; font-size: var(--fs-2xs); font-weight: 900;
+  letter-spacing: .01em; color: var(--text); overflow-wrap: anywhere;
+}
+.tpm-rank-grupo > header > span,
+.tpm-rank-grupo > header > em {
+  font-style: normal; white-space: nowrap;
+  font-size: var(--fs-3xs); font-weight: 800; color: var(--text-faint);
+}
+.tpm-rank-grupo > header > em {
+  padding: 3px 7px; border-radius: 999px;
+  background: var(--surface-sunken); color: var(--text-soft);
+  font-family: 'Space Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+.tpm-rank-grupo-itens { display: grid; gap: 7px; padding: 8px; }
+/* Dentro do grupo a matéria já está dita no cabeçalho: repeti-la em cada
+   linha era a mesma palavra três vezes na mesma caixa. */
+.tpm-rank-grupo-itens .tpm-ranking-head small { display: none; }
+
+/* A faixa de métricas, igual para os dois motores. */
+.tpm-ranking-metrics {
+  display: grid !important; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr);
+  gap: 6px; margin-top: 7px;
+}
+.tpm-ranking-metrics > span {
+  display: grid; gap: 1px; align-content: start; justify-items: start;
+  padding: 6px 8px; border-radius: 8px; min-width: 0;
+  background: color-mix(in srgb, var(--surface) 72%, var(--surface-sunken));
+  font-size: var(--fs-3xs);
+}
+.tpm-ranking-metrics > span > b { font-size: var(--fs-2xs); overflow-wrap: anywhere; }
+.tpm-ranking-metrics > span > small { color: var(--text-faint); line-height: 1.25; }
+
+@media (max-width: 720px) {
+  /* Cinco colunas em 400px dariam duas letras por rótulo. Duas colunas, em
+     fluxo normal — as linhas continuam com as bordas coincidindo. */
+  .tpm-ranking-metrics {
+    grid-auto-flow: row !important;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  /* Em faixa estreita o cabeçalho volta a ser uma linha de texto que quebra
+     sozinha: forçar colunas aqui deixava a colocação das duas etiquetas
+     dependendo da ordem de auto-posicionamento, que é ambígua com três
+     filhos em duas colunas. */
+  .tpm-rank-grupo > header { display: flex; flex-wrap: wrap; align-items: baseline; }
+  .tpm-rank-grupo > header > b { flex: 1 1 100%; }
+}
+
+/* ── A ORDEM DOS PRÓXIMOS ASSUNTOS DA DISCIPLINA ──────────────────────────
+   Mesma forma da fila completa acima: posição, nome e as medidas em colunas
+   fixas. Assim as linhas se comparam na vertical — era o que a frase única
+   com pontos separando não permitia. */
+.tpm-topic-order > ol {
+  display: grid; gap: 4px; margin: 8px 0 0; padding: 0; list-style: none;
+}
+.tpm-topic-order > ol > li {
+  display: grid;
+  grid-template-columns: calc(22px * var(--fs-scale, 1)) minmax(0, 1fr) repeat(3, calc(54px * var(--fs-scale, 1)));
+  align-items: center; gap: 8px;
+  padding: 6px 8px; border-radius: 8px;
+  background: color-mix(in srgb, var(--surface-sunken) 55%, var(--surface));
+  font-size: var(--fs-3xs);
+}
+.tpm-topic-order > ol > li > i {
+  font-style: normal; text-align: center;
+  font-family: 'Space Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-weight: 800; color: var(--text-faint);
+}
+.tpm-topic-order > ol > li > span {
+  min-width: 0; color: var(--text); overflow-wrap: anywhere; line-height: 1.3;
+}
+.tpm-topic-order > ol > li > b {
+  text-align: right; font-size: var(--fs-2xs); font-weight: 800;
+  font-variant-numeric: tabular-nums; white-space: nowrap;
+}
+.tpm-topic-order > ol > li > b > small { font-weight: 600; color: var(--text-faint); }
+/* O rodapé nomeia as colunas uma vez, em vez de cada linha repetir o rótulo
+   de cada medida. */
+.tpm-topic-order > p {
+  margin: 7px 0 0; font-size: var(--fs-3xs); line-height: 1.4; color: var(--text-faint);
+}
+@media (max-width: 720px) {
+  /* Três colunas de medida em 390px sobrariam ~30px cada. O nome sobe para a
+     linha de cima e as medidas dividem a de baixo, ainda em colunas — as
+     bordas continuam coincidindo entre linhas. */
+  .tpm-topic-order > ol > li {
+    grid-template-columns: calc(22px * var(--fs-scale, 1)) repeat(3, minmax(0, 1fr));
+    gap: 4px 8px;
+  }
+  .tpm-topic-order > ol > li > span { grid-column: 2 / -1; }
+  .tpm-topic-order > ol > li > i { grid-row: span 2; align-self: start; padding-top: 2px; }
+}
