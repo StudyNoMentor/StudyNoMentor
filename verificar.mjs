@@ -2859,7 +2859,20 @@ try {
       PlanoEngine.salvarPrefs({ disciplina: '__todas__', minAmostra: 20, metaDominio: 85, limite: 30, ordenar: 'pior' });
       DesempenhoTecScreen._planoRefC = null;
       DesempenhoTecScreen.renderPlano();
-      const blocos = [...document.querySelectorAll('#plano-lista > *')].map((e) => (e.className || '').split(' ')[0]);
+      /* ── A ORDEM É A MESMA; A PROFUNDIDADE MUDOU ──────────────────────────
+         Esta leitura olhava só os filhos DIRETOS de `#plano-lista`. Com a rota
+         manual reagrupada num `<details class="tpm-legacy-exec">` (para o
+         botão 🎯 Atacar e a criação avulsa voltarem a existir quando há motor
+         ativo, sem recriar uma segunda fonte de decisão), "Onde atacar
+         primeiro" e "O seu próximo bloco" passaram a ser NETOS — e a busca
+         rasa devolvia -1 para o segundo.
+
+         O que o teste prova continua valendo e continua sendo verificado: a
+         matéria vem antes do bloco de assuntos. `querySelectorAll` devolve em
+         ordem de documento, então incluir o conteúdo do agrupamento mantém a
+         comparação de índices exata, com agrupamento ou sem ele. */
+      const blocos = [...document.querySelectorAll('#plano-lista > *, #plano-lista > .tpm-legacy-exec > *')]
+        .map((e) => (e.className || '').split(' ')[0]);
       const tm = PlanoPontos.esforcoPorMateria();
       const por = {}; tm.linhas.forEach((l) => { por[l.nome] = l; });
       const r = PlanoEngine.calcular(DesempenhoTecScreen.scopedSnapshot(), PlanoEngine.prefs());

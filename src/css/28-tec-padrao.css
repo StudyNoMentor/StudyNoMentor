@@ -1,0 +1,337 @@
+/* ============================================================================
+   DESEMPENHO TEC — CAMADA DE PADRONIZAÇÃO
+   ----------------------------------------------------------------------------
+   Esta folha não cria componente novo. Ela resolve três problemas que só
+   apareciam quando as camadas anteriores eram vistas juntas na mesma tela:
+
+   1. ESCALA TIPOGRÁFICA. Os painéis do TEC nasceram em momentos diferentes e
+      cada um trouxe a sua régua: `tpm-*` usa os tokens `--fs-*`, `pmc-*` e
+      `tl2-*` declaram pixels crus (9px, 10px, 11px, 15px, 19px, 22px). O
+      resultado é que o MESMO papel — o rótulo maiúsculo acima de um título,
+      por exemplo — tem três tamanhos diferentes em três cartões vizinhos, e
+      nenhum deles acompanha o A− / A+ da barra lateral. Aqui os pixels crus
+      são reconduzidos aos tokens, por papel, não por componente.
+
+   2. SINAL DE TRABALHO. A troca de aba e os recálculos passaram a ser
+      adiados um quadro; sem um estado visível, o adiamento só troca "travado"
+      por "nada acontece". `.tec-aba-ocupada` é esse estado.
+
+   3. SUPERFÍCIES NOVAS. O explicador de score (`.tpm-why`) e a rota manual
+      reagrupada (`.tpm-legacy-exec`) precisam nascer já dentro da linguagem
+      da tela, não como enxerto.
+   ============================================================================ */
+
+/* ── 1. ABA OCUPADA ─────────────────────────────────────────────────────────
+   O painel continua legível (esconder o conteúdo antigo seria pior: a tela
+   pisca em branco), mas fica inerte e ganha uma barra de progresso no topo.
+   Diz "estou trabalhando" sem mentir que já terminou. */
+#screen-desempenhotec .tec-aba-ocupada {
+  position: relative;
+  pointer-events: none;
+  filter: saturate(.55);
+  transition: filter .12s ease;
+}
+#screen-desempenhotec .tec-aba-ocupada::before {
+  content: "";
+  position: absolute; inset: 0 0 auto 0; height: 3px; z-index: 5;
+  border-radius: 999px;
+  background: linear-gradient(90deg, transparent, var(--accent), transparent);
+  background-size: 42% 100%; background-repeat: no-repeat;
+  animation: tec-aba-varre 900ms linear infinite;
+}
+@keyframes tec-aba-varre {
+  0%   { background-position: -45% 0; }
+  100% { background-position: 145% 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+  #screen-desempenhotec .tec-aba-ocupada::before { animation: none; background-position: 0 0; background-size: 100% 100%; opacity: .5; }
+}
+
+/* ── 2. O EXPLICADOR DO SCORE ───────────────────────────────────────────────
+   Mora dentro de cartões que já são densos, então: fechado ele é uma linha;
+   aberto, uma tabela de três colunas (fator · medida · contribuição) com uma
+   barra de fundo proporcional ao valor do fator, para a leitura ser de
+   relance antes de ser aritmética. */
+.tpm-why {
+  margin-top: 10px;
+  border: 1px dashed color-mix(in srgb, var(--border) 88%, var(--text-faint));
+  border-radius: 11px;
+  background: color-mix(in srgb, var(--surface-sunken) 60%, var(--surface));
+}
+.tpm-rec .tpm-why { margin-left: 49px; }
+.tpm-why > summary {
+  cursor: pointer; list-style: none;
+  padding: 8px 11px;
+  font-size: var(--fs-2xs); font-weight: 800; color: var(--text-soft);
+  display: flex; align-items: center; gap: 7px;
+}
+.tpm-why > summary::-webkit-details-marker { display: none; }
+.tpm-why > summary::before {
+  content: "▸"; font-size: var(--fs-3xs); color: var(--text-faint);
+  transition: transform .15s ease; display: inline-block;
+}
+.tpm-why[open] > summary::before { transform: rotate(90deg); }
+.tpm-why > summary:hover { color: var(--accent-text); }
+.tpm-why-list { margin: 0; padding: 2px 11px 4px; list-style: none; display: grid; gap: 5px; }
+.tpm-why-list > li {
+  position: relative; overflow: hidden;
+  display: grid; grid-template-columns: minmax(0, 1fr) auto auto;
+  grid-template-areas: "nome medida pontos" "ajuda ajuda ajuda";
+  align-items: baseline; gap: 2px 9px;
+  padding: 7px 9px; border-radius: 8px;
+  background: var(--surface); border: 1px solid var(--border);
+}
+/* A barra é fundo, não conteúdo: fica atrás do texto e nunca o empurra. */
+.tpm-why-bar {
+  position: absolute; inset: 0 auto 0 0; z-index: 0;
+  width: var(--tpm-why-w, 0%);
+  background: color-mix(in srgb, var(--accent) 11%, transparent);
+  pointer-events: none;
+}
+.tpm-why-list > li > b,
+.tpm-why-list > li > em,
+.tpm-why-list > li > strong,
+.tpm-why-list > li > small { position: relative; z-index: 1; }
+.tpm-why-list > li > b { grid-area: nome; font-size: var(--fs-2xs); color: var(--text); }
+.tpm-why-list > li > em { grid-area: medida; font-style: normal; font-size: var(--fs-3xs); color: var(--text-soft); white-space: nowrap; }
+.tpm-why-list > li > strong { grid-area: pontos; font-size: var(--fs-2xs); font-weight: 900; color: var(--accent-text); white-space: nowrap; }
+.tpm-why-list > li > small { grid-area: ajuda; font-size: var(--fs-3xs); line-height: 1.4; color: var(--text-faint); }
+.tpm-why-list.is-plain > li { grid-template-columns: minmax(0, 1fr) auto; grid-template-areas: "nome pontos" "ajuda ajuda"; }
+.tpm-why-foot {
+  display: flex; flex-wrap: wrap; gap: 7px;
+  margin: 6px 11px 0; padding-top: 8px;
+  border-top: 1px solid var(--border);
+}
+.tpm-why-foot > span { display: grid; gap: 1px; min-width: 92px; }
+.tpm-why-foot b { font-size: var(--fs-xs); font-family: 'Space Mono', ui-monospace, SFMono-Regular, Menlo, monospace; }
+.tpm-why-foot small { font-size: var(--fs-3xs); color: var(--text-faint); line-height: 1.35; }
+.tpm-why-nota { margin: 8px 11px 10px; font-size: var(--fs-3xs); line-height: 1.5; color: var(--text-soft); }
+.tpm-why-nota b { color: var(--text); }
+
+/* ── 3. A ROTA MANUAL REAGRUPADA ────────────────────────────────────────────
+   Precisa parecer o que é: um caminho completo e válido, só não o primeiro.
+   Borda sólida (não tracejada — não é rascunho nem coisa obsoleta) e um
+   cabeçalho que diz o que há dentro, porque recolher sem rotular esconde
+   informação em vez de ruído. */
+#plano-lista > .tpm-legacy-exec {
+  margin: 4px 0 16px;
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  background: var(--surface);
+  overflow: hidden;
+}
+#plano-lista > .tpm-legacy-exec > summary {
+  cursor: pointer; list-style: none; user-select: none;
+  display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  padding: 14px 16px;
+  background: color-mix(in srgb, var(--surface-sunken) 55%, var(--surface));
+}
+#plano-lista > .tpm-legacy-exec > summary::-webkit-details-marker { display: none; }
+#plano-lista > .tpm-legacy-exec > summary > span { display: grid; gap: 2px; min-width: 0; }
+#plano-lista > .tpm-legacy-exec > summary b { font-size: var(--fs-sm); }
+#plano-lista > .tpm-legacy-exec > summary small { font-size: var(--fs-2xs); font-weight: 500; color: var(--text-soft); line-height: 1.45; }
+#plano-lista > .tpm-legacy-exec > summary > i { font-style: normal; color: var(--text-faint); transition: transform .16s ease; }
+#plano-lista > .tpm-legacy-exec[open] > summary { border-bottom: 1px solid var(--border); }
+#plano-lista > .tpm-legacy-exec[open] > summary > i { transform: rotate(180deg); }
+#plano-lista > .tpm-legacy-exec > :not(summary) { margin-left: 14px; margin-right: 14px; }
+#plano-lista > .tpm-legacy-exec > :not(summary):last-child { margin-bottom: 14px; }
+
+/* ── 4. UMA RÉGUA SÓ ────────────────────────────────────────────────────────
+   Os seletores abaixo reconduzem aos tokens `--fs-*` os pixels crus que cada
+   camada do TEC declarou por conta própria. A conversão é por PAPEL:
+
+     rótulo maiúsculo de seção  -> --fs-3xs
+     título de cartão           -> --fs-sm / --fs-md
+     texto de apoio             -> --fs-2xs
+     número em destaque         -> --fs-lg
+
+   Com isso o A− / A+ volta a mover a tela inteira: um `font-size: 9px` não
+   passa por `--fs-scale` e, num perfil com fonte reduzida, esses rótulos
+   ficavam do mesmo tamanho enquanto todo o resto encolhia. */
+#screen-desempenhotec .pmc-intro small,
+#screen-desempenhotec .pmc-engine-id small,
+#screen-desempenhotec .pmc-audit-card header small,
+#screen-desempenhotec .tl2-guide-copy small,
+#screen-desempenhotec .tp-command small { font-size: var(--fs-3xs); letter-spacing: .09em; }
+#screen-desempenhotec .tl2-guide-copy strong,
+#screen-desempenhotec .pmc-engine-id h3,
+#screen-desempenhotec .pmc-audit-card h4 { font-size: var(--fs-md); }
+#screen-desempenhotec .pmc-intro h2 { font-size: var(--fs-xl); }
+#screen-desempenhotec .tl2-guide-copy span,
+#screen-desempenhotec .tl2-steps button small,
+#screen-desempenhotec .tl2-summary-strip small,
+#screen-desempenhotec .pmc-engine-id p,
+#screen-desempenhotec .pmc-intro p,
+#screen-desempenhotec .pmc-simple-grid small,
+#screen-desempenhotec .rv8-panel small,
+#screen-desempenhotec .pmc-engine-card footer,
+#screen-desempenhotec .pmc-audit-card footer { font-size: var(--fs-2xs); line-height: 1.5; }
+#screen-desempenhotec .tl2-steps button strong,
+#screen-desempenhotec .tl2-summary-strip b,
+#screen-desempenhotec .pmc-simple-grid > label > span,
+#screen-desempenhotec .rv8-panel label > span { font-size: var(--fs-xs); }
+#screen-desempenhotec .tl2-summary-strip b { font-size: var(--fs-sm); }
+#screen-desempenhotec .pmc-state b { font-size: var(--fs-2xl); }
+/* Campos de formulário do TEC: uma altura e um raio, em todos os painéis. */
+#screen-desempenhotec .pmc-simple-grid input,
+#screen-desempenhotec .pmc-simple-grid select,
+#screen-desempenhotec .rv8-panel input,
+#screen-desempenhotec .rv8-panel select {
+  min-height: 42px; border-radius: 10px;
+  font-size: var(--fs-sm);
+  border: 1px solid var(--border); background: var(--surface); color: var(--text);
+}
+#screen-desempenhotec .pmc-simple-grid input:focus-visible,
+#screen-desempenhotec .pmc-simple-grid select:focus-visible,
+#screen-desempenhotec .rv8-panel input:focus-visible,
+#screen-desempenhotec .rv8-panel select:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--accent) 55%, transparent); outline-offset: 1px;
+}
+
+/* ── 5. A FOLHA DE AJUSTES DIZ O QUE CADA CAMPO MOVE ────────────────────────
+   O selo de escopo (montado em `TecAjustes.marcarEscopos`) responde a
+   pergunta que a folha não respondia: este campo mexe na leitura analítica
+   legada, no ciclo dos motores, ou nos dois? Sem ele, "Meta de domínio" e
+   "Meta desejada" (na aba Modelos) pareciam o mesmo campo duplicado. */
+.tec-cfg-escopo {
+  display: inline-flex; align-items: center; gap: 4px;
+  margin-left: 6px; padding: 2px 7px;
+  border-radius: 999px;
+  font-size: var(--fs-3xs); font-weight: 800; letter-spacing: .02em;
+  white-space: nowrap; vertical-align: middle;
+  border: 1px solid var(--border); background: var(--surface-sunken); color: var(--text-soft);
+}
+.tec-cfg-escopo.is-motor { border-color: color-mix(in srgb, var(--accent) 38%, var(--border)); background: var(--accent-soft); color: var(--accent-text); }
+.tec-cfg-escopo.is-ambos { border-color: color-mix(in srgb, var(--good) 38%, var(--border)); background: var(--good-soft); color: var(--good-text); }
+.tec-cfg-escopo-legenda {
+  display: flex; flex-wrap: wrap; gap: 6px 10px;
+  margin: 0 0 12px; padding: 10px 12px;
+  border: 1px dashed var(--border); border-radius: 11px;
+  background: color-mix(in srgb, var(--surface-sunken) 55%, var(--surface));
+  font-size: var(--fs-3xs); line-height: 1.5; color: var(--text-soft);
+}
+.tec-cfg-escopo-legenda > b { flex: 1 1 100%; font-size: var(--fs-2xs); color: var(--text); }
+
+@media (max-width: 720px) {
+  .tpm-rec .tpm-why { margin-left: 0; }
+  .tpm-why-list > li { grid-template-columns: minmax(0, 1fr) auto; grid-template-areas: "nome pontos" "medida medida" "ajuda ajuda"; }
+  .tpm-why-list > li > em { white-space: normal; }
+  #plano-lista > .tpm-legacy-exec > summary { padding: 13px; }
+  #plano-lista > .tpm-legacy-exec > :not(summary) { margin-left: 10px; margin-right: 10px; }
+  .tec-cfg-escopo { margin-left: 0; margin-top: 4px; }
+}
+
+/* ══ 6. CENTRAL DOS MODELOS — PANORAMA NA ABA, PARÂMETROS NA JANELA ════════
+   A aba deixou de despejar as duas configurações inteiras. Agora cada modelo
+   é um cartão que responde "o que ele decide, com que fase, quantas frentes e
+   que régua" — e os parâmetros abrem numa janela por modelo. Os estilos abaixo
+   cobrem só o que é novo; o resto continua vindo da folha 25. */
+#tec-panel-motores .pmc-engine-card.is-em-uso {
+  border-color: color-mix(in srgb, var(--accent) 42%, var(--border));
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 12%, transparent);
+}
+#tec-panel-motores .pmc-pill.is-on {
+  border-color: var(--accent); background: var(--accent); color: var(--on-accent);
+}
+#tec-panel-motores .pmc-resumo {
+  display: grid; gap: 9px; padding: 16px 20px;
+  grid-template-columns: repeat(auto-fit, minmax(164px, 1fr));
+}
+#tec-panel-motores .pmc-resumo > span {
+  display: grid; gap: 2px; min-width: 0;
+  padding: 11px 12px;
+  border: 1px solid var(--border); border-radius: 12px;
+  background: color-mix(in srgb, var(--surface-sunken) 45%, var(--surface));
+}
+#tec-panel-motores .pmc-resumo small {
+  font-size: var(--fs-3xs); font-weight: 900; letter-spacing: .08em;
+  text-transform: uppercase; color: var(--text-faint);
+}
+#tec-panel-motores .pmc-resumo b { font-size: var(--fs-md); line-height: 1.2; }
+#tec-panel-motores .pmc-resumo em { font-style: normal; font-size: var(--fs-3xs); line-height: 1.4; color: var(--text-soft); }
+#tec-panel-motores .pmc-engine-foot {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 12px; flex-wrap: wrap;
+  padding: 13px 20px; border-top: 1px solid var(--border);
+  font-size: var(--fs-2xs); color: var(--text-soft);
+}
+#tec-panel-motores .pmc-engine-foot > span { min-width: 0; flex: 1 1 260px; line-height: 1.5; }
+#tec-panel-motores .pmc-engine-foot button { min-height: 42px; white-space: nowrap; }
+#tec-panel-motores > .pmc-shell > .pmc-audit-card { margin: 0; }
+
+/* A janela de um modelo. Mesma linguagem da folha de Ajustes do TEC: cabeçalho
+   fixo, corpo rolável, pé com a saída — para o "Concluir" não fugir do polegar
+   quando o corpo cresce. */
+.pmc-overlay {
+  position: fixed; inset: 0; z-index: 100120;
+  display: grid; place-items: center; padding: 18px;
+  background: rgba(11, 18, 32, .52); backdrop-filter: blur(6px);
+}
+.pmc-modal {
+  width: min(880px, 100%); max-height: min(92vh, 940px);
+  display: grid; grid-template-rows: auto minmax(0, 1fr) auto;
+  overflow: hidden;
+  border: 1px solid var(--border); border-radius: 22px;
+  background: var(--surface);
+  box-shadow: 0 30px 90px rgba(0, 0, 0, .3);
+}
+.pmc-modal-head {
+  display: flex; align-items: flex-start; gap: 16px;
+  padding: 19px 22px 16px; border-bottom: 1px solid var(--border);
+}
+.pmc-modal-head > div { flex: 1; min-width: 0; display: grid; gap: 3px; }
+.pmc-modal-head small { font-size: var(--fs-3xs); font-weight: 900; letter-spacing: .11em; color: var(--accent-text); }
+.pmc-modal-head h3 { margin: 0; font-size: var(--fs-2xl); letter-spacing: -.02em; }
+.pmc-modal-head p { margin: 0; max-width: 640px; font-size: var(--fs-xs); line-height: 1.55; color: var(--text-soft); }
+.pmc-modal-x {
+  flex: 0 0 auto; width: 38px; height: 38px; padding: 0;
+  border: 1px solid transparent; border-radius: 11px;
+  background: transparent; color: var(--text-soft);
+  font-size: var(--fs-3xl); line-height: 1; cursor: pointer;
+}
+.pmc-modal-x:hover { border-color: var(--border); background: var(--surface-sunken); color: var(--text); }
+.pmc-modal-body { overflow: auto; padding: 16px 20px 20px; }
+.pmc-modal-body .pmc-engine-card { border: 0; border-radius: 0; background: transparent; }
+.pmc-modal-body .pmc-engine-card > header { display: none; }
+.pmc-modal-body .pmc-robust-summary,
+.pmc-modal-body .rv8-method-note,
+.pmc-modal-body .rv8-pre-note { margin-left: 0; margin-right: 0; }
+.pmc-modal-body [data-pmc-robusto-host] { padding: 0; }
+.pmc-modal-body .pmc-engine-card > footer { padding-left: 0; padding-right: 0; }
+.pmc-modal-foot {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 12px; flex-wrap: wrap;
+  padding: 13px 20px; border-top: 1px solid var(--border);
+  background: color-mix(in srgb, var(--surface-sunken) 45%, var(--surface));
+}
+.pmc-modal-foot > span { font-size: var(--fs-2xs); color: var(--text-soft); }
+.pmc-modal-foot button { min-height: 42px; }
+
+/* Os grupos numerados dentro da janela: é o que dá a delimitação que faltava
+   quando os dezesseis campos do Robusto vinham numa grade só. */
+.pmc-grupo {
+  margin: 0 0 13px;
+  border: 1px solid var(--border); border-radius: 14px;
+  background: var(--surface); overflow: hidden;
+}
+.pmc-grupo > h5 {
+  margin: 0; padding: 12px 14px 0;
+  font-size: var(--fs-sm); letter-spacing: -.01em;
+}
+.pmc-grupo > p {
+  margin: 3px 14px 0; padding-bottom: 11px;
+  border-bottom: 1px solid var(--border);
+  font-size: var(--fs-2xs); line-height: 1.5; color: var(--text-soft);
+}
+.pmc-grupo > .pmc-simple-grid { padding: 13px 14px; grid-template-columns: repeat(auto-fit, minmax(226px, 1fr)); }
+.pmc-modal-body .pmc-simple-grid { grid-template-columns: repeat(auto-fit, minmax(226px, 1fr)); }
+
+@media (max-width: 560px) {
+  .pmc-overlay { padding: 0; }
+  .pmc-modal { height: 100vh; max-height: 100vh; border-radius: 0; width: 100%; }
+  .pmc-modal-head { padding: 16px; }
+  .pmc-modal-body { padding: 14px 13px 18px; }
+  .pmc-modal-foot { padding: 12px 13px; }
+  .pmc-modal-foot button { width: 100%; }
+  #tec-panel-motores .pmc-engine-foot button { width: 100%; }
+}

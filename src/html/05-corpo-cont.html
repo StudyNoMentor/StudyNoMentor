@@ -188,9 +188,20 @@
             <button type="button" class="btn-secondary sess-refresh" id="cloud-queue-refresh" title="Atualizar a fila" aria-label="Atualizar a fila">↻</button>
           </div>
           <div id="cloud-queue-box"></div>
-          <div class="submit-row" style="margin-top:10px;">
-            <label class="co-check" style="margin:0;"><input type="checkbox" id="cloud-autosync" checked> Sincronizar automaticamente</label>
-            <div style="display:flex; gap:8px;">
+          <!-- ── UMA LINHA DE AÇÕES, QUE QUEBRA POR INTEIRO ─────────────────
+               Era uma `.submit-row` — flex pensado para "nota à esquerda,
+               botão à direita" — carregando uma caixa de seleção e dois
+               botões. Com o terceiro botão que o JS injetava acima (removido),
+               as peças se empilhavam em alturas diferentes: a cascata que
+               mostrava "Enviar agora" duas vezes. Agora é uma grade própria
+               (`.cloud-queue-row`), que passa a uma coluna de uma vez.
+               A caixa "Sincronizar automaticamente" continua no DOM porque
+               `CloudUI.render` a esconde quando a conta está conectada — ali a
+               sincronização é sempre automática, e oferecer o contrário seria
+               um controle que não controla nada. -->
+          <div class="cloud-queue-row">
+            <label class="co-check cloud-queue-note" style="margin:0;"><input type="checkbox" id="cloud-autosync" checked> Sincronizar automaticamente</label>
+            <div class="cloud-queue-acoes">
               <button type="button" class="btn-secondary" id="cloud-push-now">↑ Enviar agora</button>
               <button type="button" class="btn-primary" id="cloud-pull-now">↓ Baixar da nuvem</button>
             </div>
@@ -728,11 +739,11 @@
               <input type="number" inputmode="numeric" id="plano-limite" data-cfg-key="limite" min="3" max="200" step="1">
             </div>
             <div class="rfc-field">
-              <label for="plano-sug-disciplinas" data-info="Tamanho do ciclo automático de pontos fracos. O app mantém até esta quantidade de disciplinas simultaneamente em ataque. Quando uma frente do Plano termina, a vaga fica disponível e o próximo Puxar do Plano já pré-seleciona a próxima matéria prioritária ainda livre.">Disciplinas no ciclo de sugestões</label>
+              <label for="plano-sug-disciplinas" data-info="Quantas disciplinas o bloco &quot;O seu próximo bloco&quot; — da rota manual do Plano — pode marcar de uma vez. Quando uma frente termina, a vaga abre e a próxima matéria prioritária entra no lugar. NÃO vale para o Simplificado nem para o Robusto: cada motor tem o seu próprio limite de frentes, na aba ⚙ Modelos.">Disciplinas no ciclo de sugestões</label>
               <input type="number" inputmode="numeric" id="plano-sug-disciplinas" data-cfg-key="sugestoesDisciplinas" min="1" max="12" step="1">
             </div>
             <div class="rfc-field">
-              <label for="plano-sug-topicos" data-info="Quantos assuntos de CADA disciplina podem ficar simultaneamente em reforço. Com 1, o ciclo abre uma frente por matéria; com 2, só abre o segundo tópico depois de respeitar a prioridade e os slots já ocupados.">Tópicos por disciplina no ciclo</label>
+              <label for="plano-sug-topicos" data-info="Quantos assuntos de CADA disciplina a rota manual do Plano pode marcar ao mesmo tempo. Com 1, uma frente por matéria; com 2, o segundo tópico só entra depois de respeitada a prioridade e os slots já ocupados. NÃO vale para os motores — o limite deles fica na aba ⚙ Modelos.">Tópicos por disciplina no ciclo</label>
               <input type="number" inputmode="numeric" id="plano-sug-topicos" data-cfg-key="sugestoesTopicosDisc" min="1" max="5" step="1">
             </div>
             <div class="rfc-field">

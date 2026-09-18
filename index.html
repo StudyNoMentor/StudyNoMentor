@@ -57,7 +57,7 @@
      novo, e o antigo é descartado sozinho na ativação) e o que permite ao app
      dizer qual versão está rodando. Em src/ fica "dev" de propósito: a versão
      é gerada na montagem, não editada à mão. -->
-<meta name="diario-versao" content="v0698e460d3">
+<meta name="diario-versao" content="v0d310a8d0d">
 <script>
 /* ── ARRANQUE: abre o IndexedDB AGORA, em paralelo com o parse do documento ──
    A fachada de armazenamento vive no fim do <body>, depois de ~1,7 MB de HTML.
@@ -4227,8 +4227,22 @@ window.__idbBoot = (function () {
   .evo-day-bar { flex: 1; background: linear-gradient(180deg, var(--accent), color-mix(in srgb, var(--accent) 72%, transparent)); border-radius: 5px 5px 0 0; min-height: 2px; position: relative; transition: height 0.3s ease, filter 0.15s ease; }
   .evo-day-bar:hover { filter: brightness(1.08) saturate(1.1); }
   .evo-day-bar.empty { background: var(--border); }
-  .evo-day-axis { display: flex; gap: 3px; padding: 6px 4px 0; }
-  .evo-day-axis span { flex: 1; text-align: center; font-family: 'Space Mono', ui-monospace, SFMono-Regular, Menlo, monospace; font-size: var(--fs-3xs); color: var(--text-faint); overflow: hidden; white-space: nowrap; }
+  /* ── EIXO POSICIONADO, NÃO DISTRIBUÍDO ────────────────────────────────────
+     Uma célula `flex:1` por dia dá a cada rótulo a largura de UMA barra. Com
+     30 dias isso é ~11px para um texto de ~38px: o `overflow: hidden` cortava
+     as datas no meio e o eixo virava uma fileira de fragmentos. Agora a faixa
+     é um trilho posicionado: o JS coloca cada rótulo no centro da barra a que
+     pertence e ele transborda livremente para os lados. As duas pontas ganham
+     âncora própria, senão metade do texto sairia da caixa exatamente nas
+     datas que delimitam a janela. */
+  .evo-day-axis { position: relative; height: 1.35em; margin-top: 6px; padding: 0 4px; }
+  .evo-day-axis span {
+    position: absolute; top: 0; transform: translateX(-50%);
+    font-family: 'Space Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: var(--fs-3xs); color: var(--text-faint); white-space: nowrap; pointer-events: none;
+  }
+  .evo-day-axis span.is-first { transform: none; }
+  .evo-day-axis span.is-last { transform: translateX(-100%); }
   .evo-legend { display: flex; flex-wrap: wrap; gap: 10px 16px; padding: 12px 24px 4px; }
   .evo-legend-item { display: inline-flex; align-items: center; gap: 6px; font-size: var(--fs-2xs); font-weight: 600; color: var(--text-soft); }
   .evo-legend-swatch { width: 12px; height: 3px; border-radius: 8px; }
@@ -7600,9 +7614,20 @@ window.__idbBoot = (function () {
             <button type="button" class="btn-secondary sess-refresh" id="cloud-queue-refresh" title="Atualizar a fila" aria-label="Atualizar a fila">↻</button>
           </div>
           <div id="cloud-queue-box"></div>
-          <div class="submit-row" style="margin-top:10px;">
-            <label class="co-check" style="margin:0;"><input type="checkbox" id="cloud-autosync" checked> Sincronizar automaticamente</label>
-            <div style="display:flex; gap:8px;">
+          <!-- ── UMA LINHA DE AÇÕES, QUE QUEBRA POR INTEIRO ─────────────────
+               Era uma `.submit-row` — flex pensado para "nota à esquerda,
+               botão à direita" — carregando uma caixa de seleção e dois
+               botões. Com o terceiro botão que o JS injetava acima (removido),
+               as peças se empilhavam em alturas diferentes: a cascata que
+               mostrava "Enviar agora" duas vezes. Agora é uma grade própria
+               (`.cloud-queue-row`), que passa a uma coluna de uma vez.
+               A caixa "Sincronizar automaticamente" continua no DOM porque
+               `CloudUI.render` a esconde quando a conta está conectada — ali a
+               sincronização é sempre automática, e oferecer o contrário seria
+               um controle que não controla nada. -->
+          <div class="cloud-queue-row">
+            <label class="co-check cloud-queue-note" style="margin:0;"><input type="checkbox" id="cloud-autosync" checked> Sincronizar automaticamente</label>
+            <div class="cloud-queue-acoes">
               <button type="button" class="btn-secondary" id="cloud-push-now">↑ Enviar agora</button>
               <button type="button" class="btn-primary" id="cloud-pull-now">↓ Baixar da nuvem</button>
             </div>
@@ -8140,11 +8165,11 @@ window.__idbBoot = (function () {
               <input type="number" inputmode="numeric" id="plano-limite" data-cfg-key="limite" min="3" max="200" step="1">
             </div>
             <div class="rfc-field">
-              <label for="plano-sug-disciplinas" data-info="Tamanho do ciclo automático de pontos fracos. O app mantém até esta quantidade de disciplinas simultaneamente em ataque. Quando uma frente do Plano termina, a vaga fica disponível e o próximo Puxar do Plano já pré-seleciona a próxima matéria prioritária ainda livre.">Disciplinas no ciclo de sugestões</label>
+              <label for="plano-sug-disciplinas" data-info="Quantas disciplinas o bloco &quot;O seu próximo bloco&quot; — da rota manual do Plano — pode marcar de uma vez. Quando uma frente termina, a vaga abre e a próxima matéria prioritária entra no lugar. NÃO vale para o Simplificado nem para o Robusto: cada motor tem o seu próprio limite de frentes, na aba ⚙ Modelos.">Disciplinas no ciclo de sugestões</label>
               <input type="number" inputmode="numeric" id="plano-sug-disciplinas" data-cfg-key="sugestoesDisciplinas" min="1" max="12" step="1">
             </div>
             <div class="rfc-field">
-              <label for="plano-sug-topicos" data-info="Quantos assuntos de CADA disciplina podem ficar simultaneamente em reforço. Com 1, o ciclo abre uma frente por matéria; com 2, só abre o segundo tópico depois de respeitar a prioridade e os slots já ocupados.">Tópicos por disciplina no ciclo</label>
+              <label for="plano-sug-topicos" data-info="Quantos assuntos de CADA disciplina a rota manual do Plano pode marcar ao mesmo tempo. Com 1, uma frente por matéria; com 2, o segundo tópico só entra depois de respeitada a prioridade e os slots já ocupados. NÃO vale para os motores — o limite deles fica na aba ⚙ Modelos.">Tópicos por disciplina no ciclo</label>
               <input type="number" inputmode="numeric" id="plano-sug-topicos" data-cfg-key="sugestoesTopicosDisc" min="1" max="5" step="1">
             </div>
             <div class="rfc-field">
@@ -13559,8 +13584,29 @@ body:has(#tec-cfg-body) #tec-cfg-body{scrollbar-gutter:stable}
 .tpm-source-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin-top:12px}.tpm-source-grid.is-entry{margin:0}.tpm-source-grid button{appearance:none;border:1.5px solid var(--border);background:var(--surface-sunken);color:var(--text);border-radius:12px;padding:10px 11px;display:grid;grid-template-columns:auto minmax(0,1fr) auto;align-items:center;gap:9px;text-align:left;cursor:pointer;min-width:0;transition:border-color .15s ease,box-shadow .15s ease,background .15s ease}.tpm-source-grid button:hover{border-color:color-mix(in srgb,var(--accent) 46%,var(--border))}.tpm-source-grid button.active{border-color:var(--accent);background:color-mix(in srgb,var(--accent) 5%,var(--surface));box-shadow:0 0 0 2px color-mix(in srgb,var(--accent) 14%,transparent)}.tpm-source-grid button>span{font-size:20px}.tpm-source-grid button b{display:block;font-size:10px}.tpm-source-grid button small{display:block;color:var(--text-soft);font-size:var(--fs-3xs);line-height:1.35;margin-top:2px}.tpm-source-grid button i{font-style:normal;font-size:var(--fs-3xs);font-weight:800;color:var(--accent);white-space:nowrap}
 .tpm-output{padding:15px 16px;margin:0 0 16px}.tpm-output>header p{margin:5px 0 0;max-width:850px;color:var(--text-soft);font-size:var(--fs-2xs);line-height:1.5}.tpm-method{margin:12px 0;padding:10px 12px;border-radius:10px;background:var(--surface-sunken);font-size:var(--fs-2xs);line-height:1.55;color:var(--text-soft)}.tpm-recs{display:grid;gap:10px;margin-top:12px}.tpm-rec{display:grid;grid-template-columns:34px minmax(0,1fr);gap:10px;border:1px solid var(--border);border-radius:12px;padding:11px;background:var(--surface-sunken)}.tpm-rank{width:30px;height:30px;border-radius:9px;display:grid;place-items:center;font-weight:900;background:var(--surface);border:1px solid var(--border)}.tpm-main{min-width:0}.tpm-head{display:flex;justify-content:space-between;align-items:flex-start;gap:10px;flex-wrap:wrap}.tpm-head small{display:block;color:var(--text-faint);font-size:var(--fs-3xs);font-weight:800}.tpm-head b{display:block;margin-top:1px;font-size:var(--fs-sm)}.tpm-score{font-size:var(--fs-3xs);font-weight:800;color:var(--text-soft);white-space:nowrap}.tpm-metrics{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:7px;margin-top:9px}.tpm-metrics>span{border:1px solid var(--border);background:var(--surface);border-radius:9px;padding:7px 8px;min-width:0}.tpm-metrics b{display:block;font-size:var(--fs-sm);overflow-wrap:anywhere}.tpm-metrics small{display:block;margin-top:2px;color:var(--text-faint);font-size:var(--fs-3xs);line-height:1.3}.tpm-dose{border-color:color-mix(in srgb,var(--accent) 35%,var(--border))!important}.tpm-context{margin:8px 0 0;font-size:var(--fs-2xs);line-height:1.5;color:var(--text-soft)}.tpm-topic-order{margin-top:9px;padding:8px 10px;border:1px solid var(--border);border-radius:9px;background:var(--surface)}.tpm-topic-order summary{cursor:pointer;font-size:var(--fs-3xs);font-weight:800;color:var(--text-soft)}.tpm-topic-order ol{display:grid;gap:5px;margin:8px 0 0;padding-left:20px}.tpm-topic-order li{font-size:var(--fs-3xs)}.tpm-topic-order li span{display:block;color:var(--text)}.tpm-topic-order li small{display:block;color:var(--text-faint);margin-top:1px}.tpm-output>footer{display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap;margin-top:11px;padding-top:10px;border-top:1px solid var(--border);font-size:var(--fs-3xs);color:var(--text-faint)}.tpm-empty{padding:14px 0 2px;color:var(--text-soft);font-size:var(--fs-sm)}
 .tpm-ranking{margin-top:16px;padding-top:14px;border-top:1px solid var(--border)}.tpm-ranking>header{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;flex-wrap:wrap}.tpm-ranking>header>div{min-width:0;max-width:850px}.tpm-ranking>header small{display:block;color:var(--text-faint);font-size:var(--fs-3xs);font-weight:900;letter-spacing:.08em}.tpm-ranking>header strong{display:block;margin-top:2px;font-size:var(--fs-sm)}.tpm-ranking>header p{margin:4px 0 0;color:var(--text-soft);font-size:var(--fs-2xs);line-height:1.5}.tpm-ranking>header>span{font-size:var(--fs-2xs);font-weight:800;color:var(--text-soft);white-space:nowrap}.tpm-ranking-list{display:grid;gap:7px;margin-top:10px}.tpm-ranking-item{display:grid;grid-template-columns:30px minmax(0,1fr);gap:9px;padding:9px 10px;border:1px solid var(--border);border-radius:10px;background:var(--surface)}.tpm-ranking-item.is-now{border-color:color-mix(in srgb,var(--accent) 38%,var(--border));background:color-mix(in srgb,var(--accent) 3%,var(--surface))}.tpm-ranking-rank{width:28px;height:28px;display:grid;place-items:center;border:1px solid var(--border);border-radius:8px;background:var(--surface-sunken);font-size:var(--fs-2xs);font-weight:900}.tpm-ranking-main{min-width:0}.tpm-ranking-head{display:flex;justify-content:space-between;gap:9px;align-items:flex-start;flex-wrap:wrap}.tpm-ranking-head small{display:block;color:var(--text-faint);font-size:var(--fs-3xs);font-weight:800}.tpm-ranking-head b{display:block;margin-top:1px;font-size:var(--fs-xs);overflow-wrap:anywhere}.tpm-ranking-head em{font-style:normal;font-size:var(--fs-3xs);font-weight:900;color:var(--accent);white-space:nowrap}.tpm-ranking-metrics{display:flex;gap:6px;flex-wrap:wrap;margin-top:6px}.tpm-ranking-metrics>span{display:flex;gap:4px;align-items:baseline;padding:4px 6px;border-radius:7px;background:var(--surface-sunken);font-size:var(--fs-3xs)}.tpm-ranking-metrics b{font-size:var(--fs-2xs)}.tpm-ranking-metrics small{color:var(--text-faint)}.tpm-ranking-item p{margin:6px 0 0;color:var(--text-soft);font-size:var(--fs-3xs);line-height:1.45}.tpm-ranking-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}.tpm-ranking-actions button{appearance:none;min-height:36px;border:1px solid var(--border);border-radius:9px;background:var(--surface);color:var(--text);padding:7px 10px;font-size:var(--fs-2xs);font-weight:800;cursor:pointer}.tpm-ranking-actions button:first-child{border-color:color-mix(in srgb,var(--accent) 42%,var(--border));color:var(--accent)}.tpm-ranking-actions button:hover{background:var(--surface-sunken)}
-/* Com fonte explícita, a terceira lógica legada deixa de disputar a decisão. */
-#plano-lista.tpm-engine-active>.pl-ciclo.pl-tempo,#plano-lista.tpm-engine-active>.pl-hoje,#plano-lista.tpm-engine-active>.pl-ciclo.pl-calib,#plano-lista.tpm-engine-active>.pl-ordem,#plano-lista.tpm-engine-active>.pl-porque,#plano-lista.tpm-engine-active>.pl-item,#plano-lista.tpm-engine-active>.pl-marco,#plano-lista.tpm-engine-active>.pl-segundo,#plano-lista.tpm-engine-active>.pl-mais{display:none!important}#plano-proj .tpm-legacy-decision{display:none!important}
+/* ═══ DECISÃO x EXECUÇÃO: ESCONDER UMA APAGAVA A OUTRA ═══════════════════════
+   Estas duas regras (esta e a `#plano-lista>:not([data-tpm-output])` logo
+   abaixo) existiam para que o Plano legado não disputasse a DECISÃO com o
+   motor escolhido. O efeito colateral foi apagar tudo que também EXECUTA:
+
+   · `.pl-ciclo.pl-tempo` é o quadro "🎯 Onde atacar primeiro" — e é onde vive
+     o botão 🎯 Atacar, o único caminho da matéria para os assuntos dela;
+   · `.pl-hoje` é "O seu próximo bloco", de onde saem as atividades em lote;
+   · `.pl-item` são as linhas de assunto, cada uma com o seu "+ Atividade".
+
+   Com os dois motores ligados por padrão, `html.tpm-motors-active` está sempre
+   presente — então os botões eram renderizados, tinham ouvinte ligado e
+   ficavam invisíveis. Clicar não fazia nada porque não havia no que clicar: é
+   exatamente o "o botão ataque não funciona em nenhum lugar e não deixa gerar
+   o extra manualmente".
+
+   A correção separa as duas coisas em vez de apagar as duas. O que era
+   DECISÃO legada continua fora (ordem, marco, porquê, calibragem, segundo
+   plano — o motor já responde por isso). O que é EXECUÇÃO é reagrupado pelo
+   JS num `<details class="tpm-legacy-exec">` que fica DEPOIS do resultado do
+   motor e nasce recolhido: o motor segue sendo a única fonte de decisão à
+   primeira vista, e a rota manual volta a existir a um toque. */
+#plano-lista.tpm-engine-active>.pl-ciclo.pl-calib,#plano-lista.tpm-engine-active>.pl-ordem,#plano-lista.tpm-engine-active>.pl-porque,#plano-lista.tpm-engine-active>.pl-marco{display:none!important}#plano-proj .tpm-legacy-decision{display:none!important}
 /* Com algum motor ativo, a superfície do Plano legado deixa de ser uma
    segunda fonte de decisão. O resultado novo continua dentro de #plano-lista,
    por isso escondemos apenas a moldura e os nós legados, nunca [data-tpm-*]. */
@@ -13568,14 +13614,17 @@ html.tpm-motors-active #tec-panel-plano>.card>.card-header,
 html.tpm-motors-active #tec-panel-plano .tec-cfg-bar,
 html.tpm-motors-active #tec-panel-plano #plano-modos,
 html.tpm-motors-active #tec-panel-plano #plano-modo-nota{display:none!important}
-html.tpm-motors-active #plano-lista>:not([data-tpm-output]){display:none!important}
-html.tpm-motors-active .tec-cfg-open[data-cfg="plano"]{display:none!important}
-html.tpm-motors-active #tec-cfg-nav [data-sec="essencial"],
-html.tpm-motors-active #tec-cfg-nav [data-sec="amostra"],
-html.tpm-motors-active #tec-cfg-nav [data-sec="frescor"],
-html.tpm-motors-active #tec-cfg-nav [data-sec="regua"],
-html.tpm-motors-active #tec-cfg-nav [data-sec="esforco"],
-html.tpm-motors-active #tec-cfg-nav [data-sec="auditoria"]{display:none!important}
+/* Só o que não é nem resultado do motor nem a rota manual reagrupada. */
+html.tpm-motors-active #plano-lista>:not([data-tpm-output]):not(.tpm-legacy-exec){display:none!important}
+/* ── A FOLHA DE AJUSTES NÃO PODE ABRIR SEM A SUA NAVEGAÇÃO ─────────────────
+   Estes seis seletores escondiam os CHIPS de seção da folha do Plano, mas não
+   a folha: `TecAjustes.abrir()` continuava exibindo a primeira seção. O que se
+   via era "Ajustes do Plano" com os campos de "Essencial" e nenhuma fita de
+   navegação acima — sem como chegar em Amostra, Frescor, Régua, Esforço ou
+   Auditoria, e sem nada dizendo que elas existiam. Com a rota manual de volta,
+   esses parâmetros voltam a ter efeito visível, e a navegação volta com eles.
+   O que cada campo move passa a estar escrito no próprio campo (o selo de
+   escopo abaixo do rótulo), que é a informação que faltava de verdade. */
 @media(max-width:820px){.tpm-entry-selector{grid-template-columns:1fr}.tpm-source-grid.is-entry{margin-top:7px}}
 @media(max-width:720px){.tpm-source-grid{grid-template-columns:1fr}.tpm-metrics{grid-template-columns:repeat(2,minmax(0,1fr))}.tpm-output,.tpm-selector{padding:12px}.tpm-rec{grid-template-columns:30px minmax(0,1fr);padding:9px}.tpm-output>header>span{width:100%}.tpm-ranking-actions button{min-height:44px}.tpm-ranking>header>span{width:100%}}
 @media(max-width:390px){.tpm-entry-selector{padding:11px}.tpm-metrics{grid-template-columns:1fr 1fr}.tpm-source-grid button{grid-template-columns:auto minmax(0,1fr)}.tpm-source-grid button i{grid-column:2}.tpm-head{display:block}.tpm-score{display:block;margin-top:4px}.tpm-rec{gap:7px}.tpm-ranking-item{grid-template-columns:27px minmax(0,1fr);padding:8px}.tpm-ranking-metrics>span{width:auto}.tpm-ranking-actions{display:grid;grid-template-columns:1fr}.tpm-ranking-actions button{width:100%}}
@@ -13615,8 +13664,16 @@ html.tpm-motors-active #plano-proj .pl-hero{display:none!important}
 .ux-hierarchy-ready .ux-secondary-area{opacity:.96}
 .ux-hierarchy-ready .ux-advanced-surface{background:color-mix(in srgb,var(--surface-sunken) 72%,var(--surface));border-radius:12px}
 .ux-hierarchy-ready .ux-priority-action{box-shadow:0 0 0 2px color-mix(in srgb,var(--accent) 10%,transparent)}
-.ux-hierarchy-ready .ux-tertiary-action{opacity:.78}
-.ux-hierarchy-ready .ux-diagnostic-action{opacity:.62}
+/* ── DE-ÊNFASE SEM APAGAR ────────────────────────────────────────────────────
+   `opacity` rebaixa o texto E a borda juntos: um botão a 0,62 passa de
+   "secundário" a "desabilitado", e quem olha não tenta clicar. A hierarquia
+   agora vem do PESO (fundo neutro, borda discreta, tipografia menor) — que
+   diferencia sem mentir sobre o estado do controle e sem derrubar o contraste
+   do texto abaixo do WCAG AA. */
+.ux-hierarchy-ready .ux-tertiary-action,
+.ux-hierarchy-ready .ux-diagnostic-action{opacity:1;font-weight:700;background:var(--surface);border-color:var(--border);color:var(--text-soft)}
+.ux-hierarchy-ready .ux-tertiary-action:hover,
+.ux-hierarchy-ready .ux-diagnostic-action:hover{border-color:var(--accent);color:var(--accent-text);background:var(--accent-soft)}
 .ux-hierarchy-ready .ux-compact-control{transform:scale(.96);transform-origin:right center}
 .ux-hierarchy-ready .ux-instant-feedback{transform:translateY(1px) scale(.985)!important;filter:saturate(.88);transition:none!important}
 
@@ -13626,10 +13683,17 @@ html.tpm-motors-active #plano-proj .pl-hero{display:none!important}
 #screen-registrar #recent-section .card{box-shadow:none}
 
 /* Ciclo: 3 respostas acionáveis primeiro */
-#ciclo-overview-gauges.ux-week-gauges{display:grid!important;grid-template-columns:repeat(3,minmax(0,1fr))!important;gap:10px!important}
+/* ── OS CARTÕES ACOMPANHAM O A− / A+ ────────────────────────────────────────
+   `min-height:88px` e `font-size:clamp(22px,2.2vw,30px)` são pixels crus: não
+   passam por `--fs-scale`, então reduzir a fonte do app encolhia todo o resto
+   da tela e deixava SÓ estes cartões do tamanho original. Agora as três
+   medidas (altura, número e rótulo) são multiplicadas pela escala, e a grade é
+   `auto-fit` — ao encolher o texto, cabem mais colunas em vez de sobrar vão. */
+#ciclo-overview-gauges.ux-week-gauges{display:grid!important;grid-template-columns:repeat(auto-fit,minmax(calc(158px * var(--fs-scale,1)),1fr))!important;gap:calc(10px * var(--fs-scale,1))!important}
 #ciclo-overview-gauges .mini-gauge-card{transition:opacity .16s ease,border-color .16s ease,transform .16s ease}
-#ciclo-overview-gauges .mini-gauge-card[data-ux-priority="primary"],#ciclo-overview-gauges .mini-gauge-card[data-ux-priority="secondary"],#ciclo-overview-gauges .mini-gauge-card[data-ux-priority="tertiary"]{min-height:88px;border-color:var(--border);background:var(--surface);box-shadow:var(--shadow-sm);opacity:1}
-#ciclo-overview-gauges .mini-gauge-card[data-ux-priority] .value{font-size:clamp(22px,2.2vw,30px)}
+#ciclo-overview-gauges .mini-gauge-card[data-ux-priority="primary"],#ciclo-overview-gauges .mini-gauge-card[data-ux-priority="secondary"],#ciclo-overview-gauges .mini-gauge-card[data-ux-priority="tertiary"]{min-height:calc(78px * var(--fs-scale,1));padding:calc(11px * var(--fs-scale,1)) calc(10px * var(--fs-scale,1));border-color:var(--border);background:var(--surface);box-shadow:var(--shadow-sm);opacity:1}
+#ciclo-overview-gauges .mini-gauge-card[data-ux-priority] .value{font-size:clamp(calc(18px * var(--fs-scale,1)),2.1vw,calc(26px * var(--fs-scale,1)));line-height:1.12}
+#ciclo-overview-gauges .mini-gauge-card[data-ux-priority] .label{font-size:calc(9.5px * var(--fs-scale,1))}
 #screen-ciclo #ciclo-subjects-progress{margin-top:4px}
 
 /* Grade: a grade é o conteúdo; controles são suporte */
@@ -13662,9 +13726,10 @@ html.tpm-motors-active #plano-proj .pl-hero{display:none!important}
 #screen-extras #extras-agenda.ux-primary-workspace{position:relative}
 #screen-extras .exm-stats{grid-template-columns:repeat(4,minmax(0,1fr));gap:8px}
 #screen-extras .exm-stat[data-ux-priority="primary"]{border-color:color-mix(in srgb,var(--accent) 22%,var(--border));background:color-mix(in srgb,var(--accent) 3%,var(--surface))}
-#screen-extras .exm-stat[data-ux-priority="secondary"]{opacity:.78}
+#screen-extras .exm-stat[data-ux-priority="secondary"]{opacity:1;background:var(--surface-sunken);border-color:var(--border)}
 #screen-extras .exm-rotation.ux-advanced-surface,#screen-extras .exm-load.ux-advanced-surface{padding:10px 12px;margin-top:8px}
-#screen-extras .exm-source-filter{opacity:.7}
+#screen-extras .exm-source-filter,#screen-extras .ux-source-filter{opacity:1;background:var(--surface);border-color:var(--border);color:var(--text-soft)}
+#screen-extras .ux-source-filter:hover,#screen-extras .ux-source-filter.active{border-color:var(--accent);color:var(--accent-text);background:var(--accent-soft)}
 #screen-extras #extras-curso.ux-secondary-area{margin-top:14px}
 
 /* Histórico: resumo curto; distribuição é apoio */
@@ -13674,7 +13739,12 @@ html.tpm-motors-active #plano-proj .pl-hero{display:none!important}
 #screen-historico .week-detail{background:color-mix(in srgb,var(--surface-sunken) 54%,transparent)}
 
 /* Evolução: uma narrativa principal e análises secundárias recolhidas */
-#screen-evolucao .evo-periodo-ctl.ux-redundant-period{display:none!important}
+/* O seletor de período do gráfico de tempo NÃO é redundante: o filtro geral da
+   tela recorta os registros, este escolhe a janela desenhada no gráfico. Ele
+   ficou escondido por `display:none` e, com isso, não havia mais como trocar a
+   janela. A classe continua aplicada (outros módulos a consultam), mas ela
+   deixa de apagar o controle. */
+#screen-evolucao .evo-periodo-ctl.ux-redundant-period{display:flex!important}
 #screen-evolucao #evo-gear-cards[hidden]{display:none!important}
 #screen-evolucao .ux-primary-analysis{border-color:color-mix(in srgb,var(--accent) 12%,var(--border))}
 #ux-evo-more{grid-column:1/-1;border:1px solid var(--border);border-radius:14px;background:var(--surface);overflow:hidden;margin-top:2px}
@@ -13685,14 +13755,20 @@ html.tpm-motors-active #plano-proj .pl-hero{display:none!important}
 #ux-evo-more>summary small{font-size:var(--fs-2xs);color:var(--text-soft);font-weight:500}
 #ux-evo-more>summary i{font-style:normal;color:var(--text-faint);transition:transform .16s ease}
 #ux-evo-more[open]>summary i{transform:rotate(180deg)}
-#ux-evo-more .ux-more-analysis-body{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px;padding:0 14px 14px}
+/* ── ANÁLISE RECOLHIDA NÃO É ANÁLISE EM MINIATURA ──────────────────────────
+   Duas colunas aqui reduziam "Horas acumuladas" e "Aproveitamento por semana
+   fechado" a metade da largura — gráficos de série temporal com o eixo
+   comprimido ao ponto de não se ler. Recolher é sobre ORDEM (o que aparece
+   primeiro), não sobre tamanho: aberto, cada cartão ocupa a mesma largura que
+   os de cima. */
+#ux-evo-more .ux-more-analysis-body{display:grid;grid-template-columns:minmax(0,1fr);gap:14px;padding:0 14px 14px}
 #ux-evo-more .ux-more-analysis-body>.card{margin:0;min-width:0}
-#ux-evo-more .ux-more-analysis-body>.evo-wide{grid-column:1/-1}
+#ux-evo-more .ux-more-analysis-body>.evo-wide,#ux-evo-more .ux-more-analysis-body>.evo-col{grid-column:1/-1}
 
 /* TEC: fatos -> modelo -> força-tarefa -> ranking; legado visual não compete */
 #screen-desempenhotec [data-tpm-entry][hidden]{display:none!important}
 #screen-desempenhotec #plano-modos[hidden],#screen-desempenhotec #plano-modo-nota[hidden]{display:none!important}
-#screen-desempenhotec .tec-cfg-bar.ux-analysis-settings{opacity:.78;margin-bottom:10px}
+#screen-desempenhotec .tec-cfg-bar.ux-analysis-settings{opacity:1;margin-bottom:10px}
 #screen-desempenhotec .tec-cfg-bar.ux-analysis-settings:hover,#screen-desempenhotec .tec-cfg-bar.ux-analysis-settings:focus-within{opacity:1}
 html.tpm-motors-active #screen-desempenhotec #plano-proj>.ux-legacy-projection:not([data-tpm-panorama]){display:none!important}
 #screen-desempenhotec .tpm-output.ux-force-task{border-color:color-mix(in srgb,var(--accent) 30%,var(--border));box-shadow:0 10px 28px color-mix(in srgb,var(--accent) 6%,transparent)}
@@ -13700,8 +13776,14 @@ html.tpm-motors-active #screen-desempenhotec #plano-proj>.ux-legacy-projection:n
 #screen-desempenhotec .tpm-output.ux-force-task .tpm-recs{gap:12px}
 #screen-desempenhotec .tpm-output.ux-force-task .tpm-rec{border-color:color-mix(in srgb,var(--accent) 18%,var(--border))}
 #screen-desempenhotec .tpm-ranking{margin-top:20px;padding-top:16px}
-#screen-desempenhotec .tec-subtab.ux-secondary-tab{opacity:.72}
-#screen-desempenhotec .tec-subtab.ux-secondary-tab.active{opacity:1}
+/* Aba secundária não é aba inativa. Com `opacity:.72` "⚙ Modelos" e
+   "🎯 Reforço" apareciam mais pálidas que as vizinhas — leitura imediata de
+   "desabilitado" — e o texto caía junto com a borda. A distinção passa a ser
+   só a borda tracejada, que separa apoio de caminho principal sem tocar no
+   contraste do rótulo. */
+#screen-desempenhotec .tec-subtab.ux-secondary-tab{opacity:1;border-style:dashed}
+#screen-desempenhotec .tec-subtab.ux-secondary-tab:hover,
+#screen-desempenhotec .tec-subtab.ux-secondary-tab.active{border-style:solid}
 
 /* Configurações: cotidiano primeiro; recuperação/backup continuam completos, mas recolhidos */
 #ux-config-data{border:1px solid var(--border);border-radius:14px;background:var(--surface);margin-bottom:16px;overflow:hidden}
@@ -13726,11 +13808,6 @@ html.tpm-motors-active #screen-desempenhotec #plano-proj>.ux-legacy-projection:n
 .ux-hierarchy-ready .tone-warn,.ux-hierarchy-ready .accent-warn{--ux-state-color:var(--warn)}
 .ux-hierarchy-ready .tone-bad,.ux-hierarchy-ready .accent-bad{--ux-state-color:var(--bad)}
 
-@media(max-width:900px){
-  #ux-evo-more .ux-more-analysis-body{grid-template-columns:1fr}
-  #ux-evo-more .ux-more-analysis-body>.evo-wide{grid-column:auto}
-}
-
 @media(max-width:720px){
   .ux-hierarchy-ready .page-header{margin-bottom:14px;gap:9px!important}
   .ux-hierarchy-ready .page-subtitle{font-size:var(--fs-xs);line-height:1.45}
@@ -13751,6 +13828,589 @@ html.tpm-motors-active #screen-desempenhotec #plano-proj>.ux-legacy-projection:n
   #screen-estudonovo .track-stages{grid-template-columns:1fr!important}
   #screen-historico .week-stats-row{grid-template-columns:repeat(2,minmax(0,1fr))!important}
   .ux-hierarchy-ready .ux-compact-control{transform:none}
+}
+
+</style>
+
+<style id="tec-padrao">
+/* ============================================================================
+   DESEMPENHO TEC — CAMADA DE PADRONIZAÇÃO
+   ----------------------------------------------------------------------------
+   Esta folha não cria componente novo. Ela resolve três problemas que só
+   apareciam quando as camadas anteriores eram vistas juntas na mesma tela:
+
+   1. ESCALA TIPOGRÁFICA. Os painéis do TEC nasceram em momentos diferentes e
+      cada um trouxe a sua régua: `tpm-*` usa os tokens `--fs-*`, `pmc-*` e
+      `tl2-*` declaram pixels crus (9px, 10px, 11px, 15px, 19px, 22px). O
+      resultado é que o MESMO papel — o rótulo maiúsculo acima de um título,
+      por exemplo — tem três tamanhos diferentes em três cartões vizinhos, e
+      nenhum deles acompanha o A− / A+ da barra lateral. Aqui os pixels crus
+      são reconduzidos aos tokens, por papel, não por componente.
+
+   2. SINAL DE TRABALHO. A troca de aba e os recálculos passaram a ser
+      adiados um quadro; sem um estado visível, o adiamento só troca "travado"
+      por "nada acontece". `.tec-aba-ocupada` é esse estado.
+
+   3. SUPERFÍCIES NOVAS. O explicador de score (`.tpm-why`) e a rota manual
+      reagrupada (`.tpm-legacy-exec`) precisam nascer já dentro da linguagem
+      da tela, não como enxerto.
+   ============================================================================ */
+
+/* ── 1. ABA OCUPADA ─────────────────────────────────────────────────────────
+   O painel continua legível (esconder o conteúdo antigo seria pior: a tela
+   pisca em branco), mas fica inerte e ganha uma barra de progresso no topo.
+   Diz "estou trabalhando" sem mentir que já terminou. */
+#screen-desempenhotec .tec-aba-ocupada {
+  position: relative;
+  pointer-events: none;
+  filter: saturate(.55);
+  transition: filter .12s ease;
+}
+#screen-desempenhotec .tec-aba-ocupada::before {
+  content: "";
+  position: absolute; inset: 0 0 auto 0; height: 3px; z-index: 5;
+  border-radius: 999px;
+  background: linear-gradient(90deg, transparent, var(--accent), transparent);
+  background-size: 42% 100%; background-repeat: no-repeat;
+  animation: tec-aba-varre 900ms linear infinite;
+}
+@keyframes tec-aba-varre {
+  0%   { background-position: -45% 0; }
+  100% { background-position: 145% 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+  #screen-desempenhotec .tec-aba-ocupada::before { animation: none; background-position: 0 0; background-size: 100% 100%; opacity: .5; }
+}
+
+/* ── 2. O EXPLICADOR DO SCORE ───────────────────────────────────────────────
+   Mora dentro de cartões que já são densos, então: fechado ele é uma linha;
+   aberto, uma tabela de três colunas (fator · medida · contribuição) com uma
+   barra de fundo proporcional ao valor do fator, para a leitura ser de
+   relance antes de ser aritmética. */
+.tpm-why {
+  margin-top: 10px;
+  border: 1px dashed color-mix(in srgb, var(--border) 88%, var(--text-faint));
+  border-radius: 11px;
+  background: color-mix(in srgb, var(--surface-sunken) 60%, var(--surface));
+}
+.tpm-rec .tpm-why { margin-left: 49px; }
+.tpm-why > summary {
+  cursor: pointer; list-style: none;
+  padding: 8px 11px;
+  font-size: var(--fs-2xs); font-weight: 800; color: var(--text-soft);
+  display: flex; align-items: center; gap: 7px;
+}
+.tpm-why > summary::-webkit-details-marker { display: none; }
+.tpm-why > summary::before {
+  content: "▸"; font-size: var(--fs-3xs); color: var(--text-faint);
+  transition: transform .15s ease; display: inline-block;
+}
+.tpm-why[open] > summary::before { transform: rotate(90deg); }
+.tpm-why > summary:hover { color: var(--accent-text); }
+.tpm-why-list { margin: 0; padding: 2px 11px 4px; list-style: none; display: grid; gap: 5px; }
+.tpm-why-list > li {
+  position: relative; overflow: hidden;
+  display: grid; grid-template-columns: minmax(0, 1fr) auto auto;
+  grid-template-areas: "nome medida pontos" "ajuda ajuda ajuda";
+  align-items: baseline; gap: 2px 9px;
+  padding: 7px 9px; border-radius: 8px;
+  background: var(--surface); border: 1px solid var(--border);
+}
+/* A barra é fundo, não conteúdo: fica atrás do texto e nunca o empurra. */
+.tpm-why-bar {
+  position: absolute; inset: 0 auto 0 0; z-index: 0;
+  width: var(--tpm-why-w, 0%);
+  background: color-mix(in srgb, var(--accent) 11%, transparent);
+  pointer-events: none;
+}
+.tpm-why-list > li > b,
+.tpm-why-list > li > em,
+.tpm-why-list > li > strong,
+.tpm-why-list > li > small { position: relative; z-index: 1; }
+.tpm-why-list > li > b { grid-area: nome; font-size: var(--fs-2xs); color: var(--text); }
+.tpm-why-list > li > em { grid-area: medida; font-style: normal; font-size: var(--fs-3xs); color: var(--text-soft); white-space: nowrap; }
+.tpm-why-list > li > strong { grid-area: pontos; font-size: var(--fs-2xs); font-weight: 900; color: var(--accent-text); white-space: nowrap; }
+.tpm-why-list > li > small { grid-area: ajuda; font-size: var(--fs-3xs); line-height: 1.4; color: var(--text-faint); }
+.tpm-why-list.is-plain > li { grid-template-columns: minmax(0, 1fr) auto; grid-template-areas: "nome pontos" "ajuda ajuda"; }
+.tpm-why-foot {
+  display: flex; flex-wrap: wrap; gap: 7px;
+  margin: 6px 11px 0; padding-top: 8px;
+  border-top: 1px solid var(--border);
+}
+.tpm-why-foot > span { display: grid; gap: 1px; min-width: 92px; }
+.tpm-why-foot b { font-size: var(--fs-xs); font-family: 'Space Mono', ui-monospace, SFMono-Regular, Menlo, monospace; }
+.tpm-why-foot small { font-size: var(--fs-3xs); color: var(--text-faint); line-height: 1.35; }
+.tpm-why-nota { margin: 8px 11px 10px; font-size: var(--fs-3xs); line-height: 1.5; color: var(--text-soft); }
+.tpm-why-nota b { color: var(--text); }
+
+/* ── 3. A ROTA MANUAL REAGRUPADA ────────────────────────────────────────────
+   Precisa parecer o que é: um caminho completo e válido, só não o primeiro.
+   Borda sólida (não tracejada — não é rascunho nem coisa obsoleta) e um
+   cabeçalho que diz o que há dentro, porque recolher sem rotular esconde
+   informação em vez de ruído. */
+#plano-lista > .tpm-legacy-exec {
+  margin: 4px 0 16px;
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  background: var(--surface);
+  overflow: hidden;
+}
+#plano-lista > .tpm-legacy-exec > summary {
+  cursor: pointer; list-style: none; user-select: none;
+  display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  padding: 14px 16px;
+  background: color-mix(in srgb, var(--surface-sunken) 55%, var(--surface));
+}
+#plano-lista > .tpm-legacy-exec > summary::-webkit-details-marker { display: none; }
+#plano-lista > .tpm-legacy-exec > summary > span { display: grid; gap: 2px; min-width: 0; }
+#plano-lista > .tpm-legacy-exec > summary b { font-size: var(--fs-sm); }
+#plano-lista > .tpm-legacy-exec > summary small { font-size: var(--fs-2xs); font-weight: 500; color: var(--text-soft); line-height: 1.45; }
+#plano-lista > .tpm-legacy-exec > summary > i { font-style: normal; color: var(--text-faint); transition: transform .16s ease; }
+#plano-lista > .tpm-legacy-exec[open] > summary { border-bottom: 1px solid var(--border); }
+#plano-lista > .tpm-legacy-exec[open] > summary > i { transform: rotate(180deg); }
+#plano-lista > .tpm-legacy-exec > :not(summary) { margin-left: 14px; margin-right: 14px; }
+#plano-lista > .tpm-legacy-exec > :not(summary):last-child { margin-bottom: 14px; }
+
+/* ── 4. UMA RÉGUA SÓ ────────────────────────────────────────────────────────
+   Os seletores abaixo reconduzem aos tokens `--fs-*` os pixels crus que cada
+   camada do TEC declarou por conta própria. A conversão é por PAPEL:
+
+     rótulo maiúsculo de seção  -> --fs-3xs
+     título de cartão           -> --fs-sm / --fs-md
+     texto de apoio             -> --fs-2xs
+     número em destaque         -> --fs-lg
+
+   Com isso o A− / A+ volta a mover a tela inteira: um `font-size: 9px` não
+   passa por `--fs-scale` e, num perfil com fonte reduzida, esses rótulos
+   ficavam do mesmo tamanho enquanto todo o resto encolhia. */
+#screen-desempenhotec .pmc-intro small,
+#screen-desempenhotec .pmc-engine-id small,
+#screen-desempenhotec .pmc-audit-card header small,
+#screen-desempenhotec .tl2-guide-copy small,
+#screen-desempenhotec .tp-command small { font-size: var(--fs-3xs); letter-spacing: .09em; }
+#screen-desempenhotec .tl2-guide-copy strong,
+#screen-desempenhotec .pmc-engine-id h3,
+#screen-desempenhotec .pmc-audit-card h4 { font-size: var(--fs-md); }
+#screen-desempenhotec .pmc-intro h2 { font-size: var(--fs-xl); }
+#screen-desempenhotec .tl2-guide-copy span,
+#screen-desempenhotec .tl2-steps button small,
+#screen-desempenhotec .tl2-summary-strip small,
+#screen-desempenhotec .pmc-engine-id p,
+#screen-desempenhotec .pmc-intro p,
+#screen-desempenhotec .pmc-simple-grid small,
+#screen-desempenhotec .rv8-panel small,
+#screen-desempenhotec .pmc-engine-card footer,
+#screen-desempenhotec .pmc-audit-card footer { font-size: var(--fs-2xs); line-height: 1.5; }
+#screen-desempenhotec .tl2-steps button strong,
+#screen-desempenhotec .tl2-summary-strip b,
+#screen-desempenhotec .pmc-simple-grid > label > span,
+#screen-desempenhotec .rv8-panel label > span { font-size: var(--fs-xs); }
+#screen-desempenhotec .tl2-summary-strip b { font-size: var(--fs-sm); }
+#screen-desempenhotec .pmc-state b { font-size: var(--fs-2xl); }
+/* Campos de formulário do TEC: uma altura e um raio, em todos os painéis. */
+#screen-desempenhotec .pmc-simple-grid input,
+#screen-desempenhotec .pmc-simple-grid select,
+#screen-desempenhotec .rv8-panel input,
+#screen-desempenhotec .rv8-panel select {
+  min-height: 42px; border-radius: 10px;
+  font-size: var(--fs-sm);
+  border: 1px solid var(--border); background: var(--surface); color: var(--text);
+}
+#screen-desempenhotec .pmc-simple-grid input:focus-visible,
+#screen-desempenhotec .pmc-simple-grid select:focus-visible,
+#screen-desempenhotec .rv8-panel input:focus-visible,
+#screen-desempenhotec .rv8-panel select:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--accent) 55%, transparent); outline-offset: 1px;
+}
+
+/* ── 5. A FOLHA DE AJUSTES DIZ O QUE CADA CAMPO MOVE ────────────────────────
+   O selo de escopo (montado em `TecAjustes.marcarEscopos`) responde a
+   pergunta que a folha não respondia: este campo mexe na leitura analítica
+   legada, no ciclo dos motores, ou nos dois? Sem ele, "Meta de domínio" e
+   "Meta desejada" (na aba Modelos) pareciam o mesmo campo duplicado. */
+.tec-cfg-escopo {
+  display: inline-flex; align-items: center; gap: 4px;
+  margin-left: 6px; padding: 2px 7px;
+  border-radius: 999px;
+  font-size: var(--fs-3xs); font-weight: 800; letter-spacing: .02em;
+  white-space: nowrap; vertical-align: middle;
+  border: 1px solid var(--border); background: var(--surface-sunken); color: var(--text-soft);
+}
+.tec-cfg-escopo.is-motor { border-color: color-mix(in srgb, var(--accent) 38%, var(--border)); background: var(--accent-soft); color: var(--accent-text); }
+.tec-cfg-escopo.is-ambos { border-color: color-mix(in srgb, var(--good) 38%, var(--border)); background: var(--good-soft); color: var(--good-text); }
+.tec-cfg-escopo-legenda {
+  display: flex; flex-wrap: wrap; gap: 6px 10px;
+  margin: 0 0 12px; padding: 10px 12px;
+  border: 1px dashed var(--border); border-radius: 11px;
+  background: color-mix(in srgb, var(--surface-sunken) 55%, var(--surface));
+  font-size: var(--fs-3xs); line-height: 1.5; color: var(--text-soft);
+}
+.tec-cfg-escopo-legenda > b { flex: 1 1 100%; font-size: var(--fs-2xs); color: var(--text); }
+
+@media (max-width: 720px) {
+  .tpm-rec .tpm-why { margin-left: 0; }
+  .tpm-why-list > li { grid-template-columns: minmax(0, 1fr) auto; grid-template-areas: "nome pontos" "medida medida" "ajuda ajuda"; }
+  .tpm-why-list > li > em { white-space: normal; }
+  #plano-lista > .tpm-legacy-exec > summary { padding: 13px; }
+  #plano-lista > .tpm-legacy-exec > :not(summary) { margin-left: 10px; margin-right: 10px; }
+  .tec-cfg-escopo { margin-left: 0; margin-top: 4px; }
+}
+
+/* ══ 6. CENTRAL DOS MODELOS — PANORAMA NA ABA, PARÂMETROS NA JANELA ════════
+   A aba deixou de despejar as duas configurações inteiras. Agora cada modelo
+   é um cartão que responde "o que ele decide, com que fase, quantas frentes e
+   que régua" — e os parâmetros abrem numa janela por modelo. Os estilos abaixo
+   cobrem só o que é novo; o resto continua vindo da folha 25. */
+#tec-panel-motores .pmc-engine-card.is-em-uso {
+  border-color: color-mix(in srgb, var(--accent) 42%, var(--border));
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 12%, transparent);
+}
+#tec-panel-motores .pmc-pill.is-on {
+  border-color: var(--accent); background: var(--accent); color: var(--on-accent);
+}
+#tec-panel-motores .pmc-resumo {
+  display: grid; gap: 9px; padding: 16px 20px;
+  grid-template-columns: repeat(auto-fit, minmax(164px, 1fr));
+}
+#tec-panel-motores .pmc-resumo > span {
+  display: grid; gap: 2px; min-width: 0;
+  padding: 11px 12px;
+  border: 1px solid var(--border); border-radius: 12px;
+  background: color-mix(in srgb, var(--surface-sunken) 45%, var(--surface));
+}
+#tec-panel-motores .pmc-resumo small {
+  font-size: var(--fs-3xs); font-weight: 900; letter-spacing: .08em;
+  text-transform: uppercase; color: var(--text-faint);
+}
+#tec-panel-motores .pmc-resumo b { font-size: var(--fs-md); line-height: 1.2; }
+#tec-panel-motores .pmc-resumo em { font-style: normal; font-size: var(--fs-3xs); line-height: 1.4; color: var(--text-soft); }
+#tec-panel-motores .pmc-engine-foot {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 12px; flex-wrap: wrap;
+  padding: 13px 20px; border-top: 1px solid var(--border);
+  font-size: var(--fs-2xs); color: var(--text-soft);
+}
+#tec-panel-motores .pmc-engine-foot > span { min-width: 0; flex: 1 1 260px; line-height: 1.5; }
+#tec-panel-motores .pmc-engine-foot button { min-height: 42px; white-space: nowrap; }
+#tec-panel-motores > .pmc-shell > .pmc-audit-card { margin: 0; }
+
+/* A janela de um modelo. Mesma linguagem da folha de Ajustes do TEC: cabeçalho
+   fixo, corpo rolável, pé com a saída — para o "Concluir" não fugir do polegar
+   quando o corpo cresce. */
+.pmc-overlay {
+  position: fixed; inset: 0; z-index: 100120;
+  display: grid; place-items: center; padding: 18px;
+  background: rgba(11, 18, 32, .52); backdrop-filter: blur(6px);
+}
+.pmc-modal {
+  width: min(880px, 100%); max-height: min(92vh, 940px);
+  display: grid; grid-template-rows: auto minmax(0, 1fr) auto;
+  overflow: hidden;
+  border: 1px solid var(--border); border-radius: 22px;
+  background: var(--surface);
+  box-shadow: 0 30px 90px rgba(0, 0, 0, .3);
+}
+.pmc-modal-head {
+  display: flex; align-items: flex-start; gap: 16px;
+  padding: 19px 22px 16px; border-bottom: 1px solid var(--border);
+}
+.pmc-modal-head > div { flex: 1; min-width: 0; display: grid; gap: 3px; }
+.pmc-modal-head small { font-size: var(--fs-3xs); font-weight: 900; letter-spacing: .11em; color: var(--accent-text); }
+.pmc-modal-head h3 { margin: 0; font-size: var(--fs-2xl); letter-spacing: -.02em; }
+.pmc-modal-head p { margin: 0; max-width: 640px; font-size: var(--fs-xs); line-height: 1.55; color: var(--text-soft); }
+.pmc-modal-x {
+  flex: 0 0 auto; width: 38px; height: 38px; padding: 0;
+  border: 1px solid transparent; border-radius: 11px;
+  background: transparent; color: var(--text-soft);
+  font-size: var(--fs-3xl); line-height: 1; cursor: pointer;
+}
+.pmc-modal-x:hover { border-color: var(--border); background: var(--surface-sunken); color: var(--text); }
+.pmc-modal-body { overflow: auto; padding: 16px 20px 20px; }
+.pmc-modal-body .pmc-engine-card { border: 0; border-radius: 0; background: transparent; }
+.pmc-modal-body .pmc-engine-card > header { display: none; }
+.pmc-modal-body .pmc-robust-summary,
+.pmc-modal-body .rv8-method-note,
+.pmc-modal-body .rv8-pre-note { margin-left: 0; margin-right: 0; }
+.pmc-modal-body [data-pmc-robusto-host] { padding: 0; }
+.pmc-modal-body .pmc-engine-card > footer { padding-left: 0; padding-right: 0; }
+.pmc-modal-foot {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 12px; flex-wrap: wrap;
+  padding: 13px 20px; border-top: 1px solid var(--border);
+  background: color-mix(in srgb, var(--surface-sunken) 45%, var(--surface));
+}
+.pmc-modal-foot > span { font-size: var(--fs-2xs); color: var(--text-soft); }
+.pmc-modal-foot button { min-height: 42px; }
+
+/* Os grupos numerados dentro da janela: é o que dá a delimitação que faltava
+   quando os dezesseis campos do Robusto vinham numa grade só. */
+.pmc-grupo {
+  margin: 0 0 13px;
+  border: 1px solid var(--border); border-radius: 14px;
+  background: var(--surface); overflow: hidden;
+}
+.pmc-grupo > h5 {
+  margin: 0; padding: 12px 14px 0;
+  font-size: var(--fs-sm); letter-spacing: -.01em;
+}
+.pmc-grupo > p {
+  margin: 3px 14px 0; padding-bottom: 11px;
+  border-bottom: 1px solid var(--border);
+  font-size: var(--fs-2xs); line-height: 1.5; color: var(--text-soft);
+}
+.pmc-grupo > .pmc-simple-grid { padding: 13px 14px; grid-template-columns: repeat(auto-fit, minmax(226px, 1fr)); }
+.pmc-modal-body .pmc-simple-grid { grid-template-columns: repeat(auto-fit, minmax(226px, 1fr)); }
+
+@media (max-width: 560px) {
+  .pmc-overlay { padding: 0; }
+  .pmc-modal { height: 100vh; max-height: 100vh; border-radius: 0; width: 100%; }
+  .pmc-modal-head { padding: 16px; }
+  .pmc-modal-body { padding: 14px 13px 18px; }
+  .pmc-modal-foot { padding: 12px 13px; }
+  .pmc-modal-foot button { width: 100%; }
+  #tec-panel-motores .pmc-engine-foot button { width: 100%; }
+}
+
+</style>
+
+<style id="config-central">
+/* ============================================================================
+   CONFIGURAÇÕES E CENTRAL DE EXTRAS — UMA RÉGUA SÓ
+   ----------------------------------------------------------------------------
+   As duas telas sofrem do mesmo problema, por motivos diferentes.
+
+   Em CONFIGURAÇÕES, `ConfigUX` divide a tela em cinco seções (Estudo,
+   Preferências, Conta e nuvem, Dados e backup, Diagnóstico) e move cartões
+   escritos em três épocas para dentro delas. Cada cartão trouxe a sua
+   tipografia: uns usam `.card-header h2`, outros `.section-label`, outros
+   `<p class="hint">` com `font-family` monoespaçada herdada. Lado a lado, na
+   mesma seção, viram uma pilha sem hierarquia — é o "as fontes não seguem um
+   padrão" da tela.
+
+   Na CENTRAL DE EXTRAS o problema é a própria folha: `13-extras-central.css`
+   declara toda a escala em pixels crus (9px a 22px), então nada ali acompanha
+   o A− / A+, e os quatro painéis usam quatro larguras de grade diferentes.
+
+   Esta folha não reescreve nenhum dos dois HTMLs. Ela impõe a régua por
+   PAPEL do elemento, nos dois lugares, com os tokens `--fs-*`.
+   ============================================================================ */
+
+/* ══ 1. CONFIGURAÇÕES — A CASCA DAS CINCO SEÇÕES ═══════════════════════════ */
+#screen-config .cfg-shell { display: grid; gap: 14px; }
+#screen-config .cfg-nav {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 6px;
+  padding: 10px 12px;
+  border: 1px solid var(--border); border-radius: 16px;
+  background: color-mix(in srgb, var(--surface-sunken) 55%, var(--surface));
+}
+#screen-config .cfg-nav-title {
+  flex: 0 0 auto; margin-right: 4px;
+  font-size: var(--fs-3xs); font-weight: 900; letter-spacing: .1em;
+  text-transform: uppercase; color: var(--text-faint);
+}
+#screen-config .cfg-nav button {
+  display: inline-flex; align-items: center; gap: 7px;
+  min-height: 38px; padding: 8px 13px;
+  border: 1px solid transparent; border-radius: 999px;
+  background: transparent; color: var(--text-soft);
+  font-size: var(--fs-xs); font-weight: 800; white-space: nowrap; cursor: pointer;
+  transition: background .14s ease, border-color .14s ease, color .14s ease;
+}
+#screen-config .cfg-nav button .ic { font-size: var(--fs-md); line-height: 1; }
+#screen-config .cfg-nav button:hover { border-color: var(--border); background: var(--surface); color: var(--text); }
+#screen-config .cfg-nav button.active {
+  border-color: color-mix(in srgb, var(--accent) 42%, var(--border));
+  background: var(--surface); color: var(--accent-text);
+  box-shadow: 0 2px 10px color-mix(in srgb, var(--text) 5%, transparent);
+}
+#screen-config .cfg-group { display: none; }
+#screen-config .cfg-group.active { display: grid; gap: 14px; }
+#screen-config .cfg-group-head { display: grid; gap: 4px; padding: 2px 2px 0; }
+#screen-config .cfg-group-head h3 { margin: 0; font-size: var(--fs-xl); letter-spacing: -.015em; }
+#screen-config .cfg-group-head p { margin: 0; max-width: 780px; font-size: var(--fs-xs); line-height: 1.55; color: var(--text-soft); }
+
+/* ── A régua dos cartões, qualquer que seja a época em que foram escritos ── */
+#screen-config .cfg-group > .card { margin: 0; border-radius: 16px; }
+#screen-config .cfg-group > .card > .card-header { align-items: flex-start; gap: 12px; }
+#screen-config .cfg-group > .card > .card-header h2 { font-size: var(--fs-lg); letter-spacing: -.01em; }
+#screen-config .cfg-group > .card > .card-header .sub { font-size: var(--fs-xs); line-height: 1.55; color: var(--text-soft); }
+#screen-config .cfg-group .section-label {
+  font-size: var(--fs-3xs); font-weight: 900; letter-spacing: .1em;
+  text-transform: uppercase; color: var(--text-faint);
+}
+/* `.hint` herdava a monoespaçada em alguns cartões e a de interface em
+   outros — dois parágrafos de apoio vizinhos com desenho diferente. */
+#screen-config .cfg-group .hint {
+  font-family: 'Inter', system-ui, sans-serif;
+  font-size: var(--fs-xs); line-height: 1.55; color: var(--text-soft);
+}
+#screen-config .cfg-group .hint strong,
+#screen-config .cfg-group .hint b { color: var(--text); }
+#screen-config .cfg-group .field > label { font-size: var(--fs-xs); font-weight: 700; }
+#screen-config .cfg-group input:not([type="checkbox"]):not([type="radio"]),
+#screen-config .cfg-group select,
+#screen-config .cfg-group textarea { font-size: var(--fs-sm); min-height: 42px; border-radius: 10px; }
+#screen-config .cfg-group .co-check { font-size: var(--fs-xs); line-height: 1.5; }
+
+/* Preferências, ações e diagnóstico: as três grades passam a ter o mesmo
+   comportamento (auto-fit) em vez de 2, 3 e 4 colunas fixas. */
+#screen-config .cfg-pref-grid,
+#screen-config .cfg-action-grid { display: grid; gap: 10px; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); }
+#screen-config .cfg-pref,
+#screen-config .cfg-action {
+  display: grid; gap: 5px; align-content: start;
+  padding: 13px 14px; min-width: 0;
+  border: 1px solid var(--border); border-radius: 13px;
+  background: var(--surface); text-align: left;
+}
+#screen-config .cfg-pref-lbl,
+#screen-config .cfg-action .t { font-size: var(--fs-sm); font-weight: 800; color: var(--text); }
+#screen-config .cfg-pref-desc,
+#screen-config .cfg-action .d { font-size: var(--fs-2xs); line-height: 1.5; color: var(--text-faint); }
+#screen-config .cfg-pref-row { display: flex; align-items: center; gap: 9px; margin-top: 3px; }
+#screen-config .cfg-action { cursor: pointer; transition: border-color .14s ease, background .14s ease; }
+#screen-config .cfg-action .ic { font-size: var(--fs-lg); line-height: 1; }
+#screen-config .cfg-action:hover { border-color: var(--accent); background: var(--accent-soft); }
+#screen-config .cfg-action.cfg-danger:hover { border-color: var(--bad); background: var(--bad-soft); }
+#screen-config .cfg-diag { display: grid; gap: 7px; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); }
+
+/* ══ 2. A FILA DE ENVIO PARA A NUVEM ═══════════════════════════════════════
+   O bloco vinha de `.submit-row` — um flex feito para "nota à esquerda, botão
+   à direita" — carregando uma caixa de seleção e dois botões. Quando a fila
+   tinha pendências, `CloudUI.renderQueue` injetava um TERCEIRO botão acima, e
+   os três se empilhavam em alturas diferentes: era o "Enviar Agora duas vezes
+   ao mesmo tempo", em cascata. O botão duplicado saiu do JS; aqui a linha
+   ganha uma grade própria, que quebra por inteiro em vez de por pedaço. */
+#cloud-connected-box .cloud-queue-row {
+  display: grid; gap: 10px;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  margin-top: 12px; padding: 12px 13px;
+  border: 1px solid var(--border); border-radius: 13px;
+  background: color-mix(in srgb, var(--surface-sunken) 50%, var(--surface));
+}
+#cloud-connected-box .cloud-queue-row > .cloud-queue-note {
+  min-width: 0; margin: 0;
+  font-family: 'Inter', system-ui, sans-serif;
+  font-size: var(--fs-2xs); line-height: 1.5; color: var(--text-faint);
+}
+#cloud-connected-box .cloud-queue-acoes { display: flex; gap: 8px; flex-wrap: wrap; justify-content: flex-end; }
+#cloud-connected-box .cloud-queue-acoes button { min-height: 40px; white-space: nowrap; }
+#cloud-queue-box { display: grid; gap: 7px; }
+#cloud-queue-box > p { margin: 0; font-family: 'Inter', system-ui, sans-serif; font-size: var(--fs-xs); line-height: 1.55; color: var(--text-soft); }
+#cloud-queue-box > p strong { color: var(--text); }
+#cloud-queue-box .cloud-queue-ok { color: var(--good-text); }
+#cloud-queue-box .cloud-queue-secoes {
+  display: flex; flex-wrap: wrap; gap: 5px;
+  font-family: 'Inter', system-ui, sans-serif;
+}
+#cloud-queue-box .cloud-queue-secoes > span {
+  padding: 3px 8px; border-radius: 999px;
+  border: 1px solid var(--border); background: var(--surface);
+  font-size: var(--fs-3xs); font-weight: 700; color: var(--text-soft);
+}
+#cloud-connected-box .cloud-status-row { align-items: center; gap: 12px; flex-wrap: wrap; }
+#cloud-connected-box .cloud-status-email { font-size: var(--fs-sm); font-weight: 800; }
+#cloud-connected-box .cloud-status-sub { font-size: var(--fs-2xs); color: var(--text-soft); }
+#cloud-connected-box .cloud-sessions-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+#cloud-connected-box > details > summary { font-size: var(--fs-sm); padding: 4px 0; }
+
+@media (max-width: 620px) {
+  #cloud-connected-box .cloud-queue-row { grid-template-columns: minmax(0, 1fr); }
+  #cloud-connected-box .cloud-queue-acoes { justify-content: stretch; }
+  #cloud-connected-box .cloud-queue-acoes button { flex: 1 1 auto; }
+  #screen-config .cfg-nav { padding: 9px 10px; }
+  #screen-config .cfg-nav-title { flex: 1 1 100%; margin-bottom: 2px; }
+}
+
+/* ══ 3. CENTRAL DE EXTRAS — A MESMA RÉGUA, EM TOKENS ═══════════════════════
+   Todos os tamanhos abaixo substituem pixels crus da folha 13. A conversão é
+   por papel, e a consequência prática é que a central passa a responder ao
+   A− / A+ como o resto do app. */
+.xsc-modal { border-radius: 22px; grid-template-rows: auto auto minmax(0, 1fr); }
+.xsc-head { padding: 20px 22px 15px; }
+.xsc-head small, .xsc-section-head small { font-size: var(--fs-3xs); letter-spacing: .11em; }
+.xsc-head h3 { font-size: var(--fs-2xl); letter-spacing: -.02em; }
+.xsc-head p, .xsc-section-head p { font-size: var(--fs-xs); line-height: 1.55; color: var(--text-soft); }
+.xsc-close { font-size: var(--fs-3xl); color: var(--text-soft); border-radius: 10px; }
+.xsc-close:hover { background: var(--surface-sunken); color: var(--text); }
+.xsc-nav { gap: 6px; padding: 10px 16px; }
+.xsc-nav button { min-height: 38px; padding: 8px 14px; font-size: var(--fs-xs); font-weight: 800; }
+.xsc-nav button:hover { border-color: var(--border); background: var(--surface); color: var(--text); }
+.xsc-nav button.active { color: var(--accent-text); }
+.xsc-body { padding: 18px 20px 24px; }
+.xsc-section { gap: 15px; }
+.xsc-section-head h4 { font-size: var(--fs-xl); letter-spacing: -.015em; }
+
+/* Uma grade só, `auto-fit`, para os quatro painéis: o resumo tinha 2 colunas
+   fixas, a explicação 3, os manuais 3 e o formulário 2 — quatro quebras
+   diferentes na mesma largura de tela. */
+.xsc-overview-grid,
+.xsc-explain,
+.xsc-manual-grid,
+.xsc-form-grid { display: grid; gap: 10px; grid-template-columns: repeat(auto-fit, minmax(258px, 1fr)); }
+.xsc-kpis { display: grid; gap: 8px; grid-template-columns: repeat(auto-fit, minmax(128px, 1fr)); }
+
+.xsc-summary-card { border-radius: 15px; padding: 14px; align-items: center; }
+.xsc-summary-icon { width: 40px; height: 40px; border-radius: 12px; font-size: var(--fs-xl); }
+.xsc-summary-card strong { font-size: var(--fs-sm); }
+.xsc-summary-card span { font-size: var(--fs-xs); color: var(--text-soft); }
+.xsc-summary-card small { font-size: var(--fs-2xs); line-height: 1.45; color: var(--text-faint); }
+.xsc-summary-card > button { min-height: 38px; font-size: var(--fs-2xs); white-space: nowrap; }
+
+.xsc-kpis span { padding: 12px; border-radius: 13px; }
+.xsc-kpis b { font-size: var(--fs-lg); font-family: 'Space Mono', ui-monospace, SFMono-Regular, Menlo, monospace; }
+.xsc-kpis small { font-size: var(--fs-2xs); color: var(--text-faint); }
+
+.xsc-field { border-radius: 13px; padding: 12px; gap: 7px; }
+.xsc-label { font-size: var(--fs-xs); color: var(--text-soft); }
+.xsc-label b { font-size: var(--fs-xs); color: var(--text); }
+.xsc-info { width: 21px; height: 21px; font-size: var(--fs-3xs); }
+.xsc-help { font-size: var(--fs-2xs); line-height: 1.5; }
+.xsc-field input, .xsc-field select { min-height: 42px; font-size: var(--fs-sm); border-radius: 10px; }
+
+.xsc-scenarios { border-radius: 14px; padding: 13px 14px; gap: 9px; }
+.xsc-scenarios > strong { font-size: var(--fs-sm); }
+.xsc-scenarios > div { grid-template-columns: minmax(120px, 160px) minmax(0, 1fr); gap: 10px; font-size: var(--fs-2xs); line-height: 1.5; }
+.xsc-scenarios > div > b { font-size: var(--fs-2xs); }
+
+.xsc-callout { border-radius: 14px; padding: 14px 15px; }
+.xsc-callout b { font-size: var(--fs-sm); }
+.xsc-callout span { font-size: var(--fs-2xs); line-height: 1.5; color: var(--text-soft); }
+.xsc-callout button { min-height: 42px; white-space: nowrap; }
+
+.xsc-master, .xsc-presets > span { font-size: var(--fs-xs); }
+.xsc-presets button { min-height: 34px; padding: 7px 12px; font-size: var(--fs-2xs); font-weight: 800; }
+.xsc-days span { width: 36px; height: 36px; border-radius: 10px; font-size: var(--fs-2xs); }
+.xsc-check { border-radius: 13px; padding: 12px; }
+.xsc-check b { font-size: var(--fs-xs); }
+.xsc-check small { font-size: var(--fs-2xs); line-height: 1.45; }
+.xsc-law-status span { padding: 6px 10px; font-size: var(--fs-2xs); }
+.xsc-foot-actions { gap: 8px; }
+.xsc-foot-actions button { min-height: 42px; }
+.xsc-manual-grid article { padding: 14px; border-radius: 14px; gap: 6px; }
+.xsc-manual-grid b { font-size: var(--fs-sm); }
+.xsc-manual-grid span { font-size: var(--fs-xs); color: var(--text-soft); }
+.xsc-manual-grid small { font-size: var(--fs-2xs); line-height: 1.5; color: var(--text-faint); }
+.xsc-manual-grid button { min-height: 40px; margin-top: 4px; }
+
+/* O pé da central fica preso: "Salvar rotina" era a última coisa de um corpo
+   rolável de 900px, então mexer em "Leis por dia" e não achar o botão era o
+   percurso padrão. */
+.xsc-section > .xsc-foot-actions {
+  position: sticky; bottom: -24px; z-index: 2;
+  margin: 4px -20px -24px; padding: 13px 20px;
+  border-top: 1px solid var(--border);
+  background: color-mix(in srgb, var(--surface) 92%, transparent);
+  backdrop-filter: blur(8px);
+}
+
+@media (max-width: 560px) {
+  .xsc-modal { border-radius: 0; }
+  .xsc-head { padding: 16px; }
+  .xsc-body { padding: 14px 13px 22px; }
+  .xsc-section > .xsc-foot-actions { margin: 4px -13px -22px; padding: 12px 13px; }
+  .xsc-scenarios > div { grid-template-columns: minmax(0, 1fr); gap: 2px; }
 }
 
 </style>
@@ -24294,7 +24954,15 @@ const EvolucaoScreen = {
   },
 
   // ------- Tempo de estudo por dia (barras, com atalho de período OU intervalo de datas) -------
-  tempoDias: 7,
+  /* ── 30 DIAS, NÃO 7 ───────────────────────────────────────────────────────
+     Uma semana é curta demais para o que este gráfico responde: "estou
+     mantendo o ritmo?". Com sete barras, um feriado no meio ou dois dias
+     fortes mudam a leitura inteira, e a média do rodapé fala de uma amostra
+     que qualquer imprevisto distorce. Um mês mostra a semana cheia quatro
+     vezes — dá para ver o padrão (quais dias você realmente estuda) em vez de
+     só o acidente da semana corrente. Quem quer a semana continua a um clique
+     no seletor ao lado do título. */
+  tempoDias: 30,
   tempoStart: null, tempoEnd: null, // [MELHORIA] intervalo de datas personalizado (tem prioridade sobre os atalhos)
   renderDayChart(entries) {
     const container = document.getElementById('evolucao-day-chart');
@@ -24333,15 +25001,37 @@ const EvolucaoScreen = {
       container.innerHTML = `<div class="evo-empty-mini">Nenhum tempo registrado ${usaRange ? 'no intervalo de ' + formatDateShort(start) + ' a ' + formatDateShort(end) : 'nos últimos ' + nDias + ' dias'}.</div>`;
       return;
     }
-    // com muitos dias, mostra rótulo a cada N (menos rótulos no celular)
-    const labelEvery = Math.max(1, Math.ceil(days.length / (this._vw() < 640 ? 6 : 12)));
+    /* ── O EIXO TEM DE CABER NA LARGURA QUE TEM ─────────────────────────────
+       Cada rótulo vivia numa célula `flex:1` do tamanho de UMA barra: com 30
+       dias, "17/09" precisa de ~38px e recebia ~11px, então o texto era
+       cortado no meio (`overflow:hidden`) e o eixo virava uma fileira de
+       fragmentos ilegíveis. Duas correções, juntas:
+
+       1. a quantidade de rótulos é calculada a partir da largura REAL
+          disponível, não de um divisor fixo — cada rótulo recebe no mínimo a
+          largura de que precisa para ser lido inteiro;
+       2. o rótulo é posicionado em `%` sobre uma faixa própria, centrado na
+          barra a que pertence e livre para transbordar a célula dela.
+
+       O primeiro e o último ganham âncora nas pontas, senão metade do texto
+       sairia da caixa justamente nas duas datas que delimitam a janela. */
+    const LARGURA_ROTULO = 44;
+    const larguraEixo = Math.max(240, (container.clientWidth || this._vw() || 900) - 48);
+    const maxRotulos = Math.max(2, Math.floor(larguraEixo / LARGURA_ROTULO));
+    const labelEvery = Math.max(1, Math.ceil(days.length / maxRotulos));
     const bars = days.map(d => {
       const min = byDate[d] || 0;
       const h = Math.round((min / maxMin) * 100);
       const title = `${formatDateShort(d)}: ${CycleEngine.fmtHM(min)}`;
       return `<div class="evo-day-bar ${min === 0 ? 'empty' : ''}" style="height:${Math.max(2, h)}%;" title="${title}"></div>`;
     }).join('');
-    const axis = days.map((d, i) => `<span>${(i % labelEvery === 0 || i === days.length - 1) ? formatDateShort(d) : ''}</span>`).join('');
+    const passo = 100 / days.length;
+    const axis = days.map((d, i) => {
+      if (!(i % labelEvery === 0 || i === days.length - 1)) return '';
+      const centro = (i + 0.5) * passo;
+      const ancora = i === 0 ? 'is-first' : (i === days.length - 1 ? 'is-last' : '');
+      return `<span class="${ancora}" style="left:${centro.toFixed(3)}%;">${formatDateShort(d)}</span>`;
+    }).join('');
     container.innerHTML = `
       <div class="evo-day-bar-row">${bars}</div>
       <div class="evo-day-axis">${axis}</div>
@@ -37862,6 +38552,7 @@ const TecAjustes = {
     modal.style.display = 'flex';
     document.body.style.overflow = 'hidden';
     this.aplicarCondicionais();
+    try { this.marcarEscopos(); } catch (e) { _quiet(e, 'cfg-escopos'); }
     this.marcarPersonalizadas();
     this.estabilizarAltura();
     /* O foco cai no chip da seção, não no ✕. Abrir um painel de ajustes com o
@@ -37978,6 +38669,92 @@ const TecAjustes = {
       el.dispatchEvent(new Event('input', { bubbles: true }));
       el.dispatchEvent(new Event('change', { bubbles: true }));
     }));
+  },
+  /* ═══ CADA CAMPO DIZ O QUE ELE MOVE ══════════════════════════════════════
+     A folha do Plano reúne, na mesma grade, parâmetros de TRÊS consumidores
+     diferentes — e não dizia qual era qual. O efeito é o que se sente ao
+     abrir: "Meta de domínio (%)" aqui e "Meta desejada" na aba ⚙ Modelos
+     parecem o mesmo campo duplicado; "Ordem de ataque" parece decidir a fila
+     que o motor monta (não decide); e não havia como saber se mexer em algo
+     ali muda o número que está na tela ou um número que nem aparece mais.
+
+     Os três escopos reais:
+
+     · ANÁLISE — lidos por `PlanoEngine`, a leitura analítica do Plano: a
+       trajetória, o quadro de matérias, a nota projetada e a rota manual.
+       NÃO entram no Simplificado nem no Robusto, que têm régua própria.
+     · MOTORES — lidos pelos motores de sugestão, e valem tanto no Plano
+       quanto no "Puxar do Plano" de Extras.
+     · AMBOS — mexem no recorte de dados que os dois leem.
+
+     Um selo por campo, montado a partir deste mapa. Só rótulo: nenhum valor,
+     nenhuma regra e nenhum default muda por causa dele. O que muda é a pessoa
+     saber, antes de girar o botão, o que vai se mexer. */
+  ESCOPO_CAMPO: {
+    // recorte de dados — os dois lados leem
+    'plano-disc': 'ambos',
+    'plano-excluidas-pick': 'ambos',
+    /* ── ESTES DOIS NÃO SÃO DOS MOTORES ─────────────────────────────────
+       O rótulo no HTML dizia que eles governam o "Puxar do Plano", e não é
+       verdade desde que os motores existem: quem os lê é `TecAuditoria.
+       selecionarDiverso`, que monta "O seu próximo bloco" da rota manual.
+       O Simplificado decide as suas frentes em `_top3` e o Robusto em
+       `grupos.slice(0,3)` — nenhum dos dois pode nem ler `PlanoEngine`
+       (é invariante de arquitetura, conferida em testes/plano-robusto.mjs).
+       Cada motor ganhou o seu próprio campo de frentes, na aba ⚙ Modelos. */
+    'plano-sug-disciplinas': 'analise',
+    'plano-sug-topicos': 'analise',
+    // leitura analítica legada
+    'plano-limite': 'analise', 'plano-meta': 'analise', 'plano-amostraalvo': 'analise',
+    'plano-ritmo': 'analise', 'plano-ordenar': 'analise', 'plano-banca-pick': 'analise',
+    'plano-minamostra': 'analise', 'plano-piso': 'analise', 'plano-pequenas': 'analise',
+    'plano-folhas': 'analise', 'plano-granpiso': 'analise', 'plano-janelamax': 'analise',
+    'plano-validade': 'analise', 'plano-cadencia': 'analise', 'plano-teto': 'analise',
+    'plano-critico': 'analise', 'plano-fragil': 'analise', 'plano-consolidar': 'analise',
+    'plano-sens': 'analise', 'plano-ponderacao': 'analise', 'plano-customodo': 'analise',
+    'plano-custopiso': 'analise', 'plano-custoponto': 'analise', 'plano-custofixo': 'analise',
+    'plano-custofator': 'analise', 'plano-pesobanca': 'analise'
+  },
+  ROTULO_ESCOPO: {
+    analise: ['📐 análise', 'Vale para a leitura analítica do Plano — trajetória, quadro de matérias, nota projetada e a rota manual. Os motores Simplificado e Robusto têm régua própria e não leem este campo.'],
+    motor: ['🧠 motores', 'Vale para os motores de sugestão: quantas frentes eles mantêm abertas ao mesmo tempo, aqui e no “Puxar do Plano” de Extras.'],
+    ambos: ['🔗 análise + motores', 'Muda o recorte dos dados, então vale para os dois lados: a leitura analítica e os motores de sugestão.']
+  },
+  marcarEscopos() {
+    const secs = [...document.querySelectorAll('#tec-cfg-body .tec-cfg-sec[data-tab="plano"]')];
+    if (!secs.length) return;
+    secs.forEach(sec => {
+      if (!sec.querySelector('.tec-cfg-escopo-legenda')) {
+        const legenda = document.createElement('div');
+        legenda.className = 'tec-cfg-escopo-legenda';
+        legenda.innerHTML = '<b>O que cada selo quer dizer</b>'
+          + Object.keys(this.ROTULO_ESCOPO).map(k => {
+            const [rot, desc] = this.ROTULO_ESCOPO[k];
+            return `<span><span class="tec-cfg-escopo ${k === 'analise' ? '' : 'is-' + k}">${escapeHtml(rot)}</span> ${escapeHtml(desc.split('.')[0])}.</span>`;
+          }).join('');
+        const sub = sec.querySelector('.tec-cfg-sec-sub');
+        if (sub) sub.insertAdjacentElement('afterend', legenda); else sec.prepend(legenda);
+      }
+      Object.keys(this.ESCOPO_CAMPO).forEach(id => {
+        const campo = sec.querySelector('#' + id);
+        if (!campo) return;
+        const box = campo.closest('.rfc-field');
+        if (!box || box.querySelector('.tec-cfg-escopo')) return;
+        /* O rótulo da caixa de seleção é o próprio `<label class="rfc-check">`;
+           nos outros campos é o `<label for=...>` acima. Em ambos o selo entra
+           no fim do rótulo, para não separar o texto do controle. */
+        const rot = box.querySelector('label.rfc-check') || box.querySelector('label');
+        if (!rot) return;
+        const escopo = this.ESCOPO_CAMPO[id];
+        const [texto, titulo] = this.ROTULO_ESCOPO[escopo];
+        const selo = document.createElement('span');
+        selo.className = 'tec-cfg-escopo' + (escopo === 'analise' ? '' : ' is-' + escopo);
+        selo.title = titulo;
+        selo.textContent = texto;
+        if (rot.classList.contains('rfc-check')) rot.appendChild(selo);
+        else rot.appendChild(selo);
+      });
+    });
   },
   aplicarCondicionais() {
     document.querySelectorAll('#tec-cfg-body [data-cfg-se]').forEach(el => {
@@ -38242,6 +39019,66 @@ const DesempenhoTecScreen = {
      ele deixa de ser tempo MUDO. Dois `requestAnimationFrame` porque um só
      ainda pode rodar antes da pintura. */
   _depoisDePintar(alvoId, fn) { pintarDepois(alvoId, 'Calculando o seu plano…', fn); },
+
+  /* ═══ TODA ABA PESADA MERECE O MESMO TRATAMENTO ═════════════════════════
+     O adiamento com esqueleto existia só para o Plano. As outras três abas
+     chamavam o render direto do `click`, e cada uma faz trabalho pesado sobre
+     o mesmo conjunto de retratos: Análise soma totais, pontos fracos e o
+     quadro por disciplina; Incidência monta uma floresta por banca;
+     Reforço cruza incidência com erro em toda a árvore. Num perfil com dez
+     retratos e centenas de assuntos, o clique no chip simplesmente não
+     respondia por um tempo visível — a aba antiga continuava na tela, sem
+     nenhum sinal, e o app parecia ter travado. Era isso que se sentia ao
+     alternar entre 📊 Análise, 🏛️ Incidência, 🏁 Plano e ⚙ Modelos.
+
+     A correção é a mesma do Plano, generalizada: o que é barato (marcar o chip
+     ativo e trocar qual painel está visível) acontece no MESMO quadro do
+     toque, um sinal de trabalho aparece junto, e o cálculo roda no quadro
+     seguinte. O tempo total não muda — deixa de ser tempo mudo.
+
+     `switchTecTab` continua síncrona de propósito: quem a chama por código (e
+     a suíte de verificação) espera a tela pintada ao retornar. O adiamento
+     pertence ao clique, não à API. */
+  ABAS_TEC: ['analise', 'incidencia', 'reforco', 'plano', 'motores'],
+  /* Painéis cujo corpo é GERADO por inteiro podem receber o esqueleto no
+     lugar do conteúdo. Os demais têm HTML estático (cartões, filtros) que não
+     pode ser descartado — neles o sinal é o estado ocupado do próprio painel. */
+  ESQUELETO_ABA: { plano: 'plano-lista', motores: 'tec-panel-motores' },
+  ROTULO_ABA: {
+    analise: 'Somando os seus retratos…',
+    incidencia: 'Montando a árvore da banca…',
+    reforco: 'Cruzando o seu erro com a incidência…',
+    plano: 'Calculando o seu plano…',
+    motores: 'Lendo a configuração dos modelos…'
+  },
+  _pintarTrocaDeAba(alvo) {
+    this.tecTab = alvo;
+    document.querySelectorAll('#tec-subtabs .tec-subtab')
+      .forEach(x => x.classList.toggle('active', x.dataset.tectab === alvo));
+    document.querySelectorAll('[id^="tec-panel-"]').forEach(el => {
+      const mostrar = (el.id === 'tec-panel-' + alvo) ? 'block' : 'none';
+      if (el.style.display !== mostrar) el.style.display = mostrar;
+    });
+  },
+  trocarAbaPeloToque(alvo) {
+    if (!alvo || this.ABAS_TEC.indexOf(alvo) < 0) return;
+    this._pintarTrocaDeAba(alvo);
+    const skelId = this.ESQUELETO_ABA[alvo];
+    const skel = skelId ? document.getElementById(skelId) : null;
+    if (skel) { pintarDepois(skel, this.ROTULO_ABA[alvo], () => this.switchTecTab(alvo)); return; }
+    const painel = document.getElementById('tec-panel-' + alvo);
+    if (painel) { painel.setAttribute('aria-busy', 'true'); painel.classList.add('tec-aba-ocupada'); }
+    const soltar = () => {
+      if (!painel) return;
+      painel.removeAttribute('aria-busy');
+      painel.classList.remove('tec-aba-ocupada');
+    };
+    requestAnimationFrame(() => requestAnimationFrame(() => {
+      try { this.switchTecTab(alvo); }
+      catch (e) { _quiet(e, 'tec-troca-aba'); }
+      finally { soltar(); }
+    }));
+  },
   // ---- Escopo da análise: 'consolidado' (todos), 'select' (retratos marcados), 'range' (intervalo) ----
   scopeMode: 'consolidado',
   selectedSnapIds: null, // Set de ids marcados (modo 'select')
@@ -38455,6 +39292,43 @@ const DesempenhoTecScreen = {
      Cada linha mostra o tamanho do que sai da conta (assuntos e questões do
      histórico), porque "excluir Legislação do RN" tem consequências muito
      diferentes se ela vale 40 questões ou 2.400. */
+  /* ── O RÓTULO E O PÉ MUDAM; A LISTA NÃO ─────────────────────────────────
+     Marcar uma matéria muda exatamente duas coisas dentro desta caixa: o
+     texto do botão ("🚫 5 matérias fora") e a linha de ações no pé ("↺ Trazer
+     todas de volta" aparece a partir da primeira marcada). Os nomes, a ordem
+     e o volume de cada linha são os mesmos — eles vêm do histórico, não da
+     marcação.
+
+     Reconstruir o `innerHTML` inteiro para atualizar esses dois pedaços é o
+     que fazia a caixa "voltar para o início da lista": um painel novo nasce
+     com `scrollTop = 0`, e com trinta matérias você era devolvido ao topo a
+     cada clique — além de pagar `materiasExcluiveis()` (que varre todos os
+     retratos para contar assuntos e questões) de novo, o que é a travada que
+     se sentia junto. Agora só os dois pedaços são reescritos, no lugar. */
+  _sincronizarExcluidasPicker(host) {
+    if (!host) return false;
+    const btn = host.querySelector('.banca-pick-btn');
+    const painel = host.querySelector('.banca-pick-panel');
+    const acoes = painel && painel.querySelector('.banca-pick-acoes');
+    if (!btn || !painel || !acoes) return false;
+    const marcadas = [...painel.querySelectorAll('input[type="checkbox"]:checked')].length;
+    const total = painel.querySelectorAll('input[type="checkbox"]').length;
+    const rot = !total ? 'Nenhuma matéria conhecida'
+      : marcadas === 0 ? '✅ Todas as matérias no Plano'
+      : marcadas === 1 ? '🚫 1 matéria fora'
+      : `🚫 ${marcadas} matérias fora`;
+    const alvo = btn.querySelector('span:not(.chev)');
+    if (alvo && alvo.textContent !== rot) alvo.textContent = rot;
+    const acoesHtml = marcadas
+      ? '<button type="button" data-acao="nenhuma">↺ Trazer todas de volta</button>'
+      : '<span class="banca-pick-nota">Nenhuma matéria excluída — o Plano está vendo tudo.</span>';
+    if (acoes.innerHTML !== acoesHtml) {
+      acoes.innerHTML = acoesHtml;
+      const b = acoes.querySelector('[data-acao]');
+      if (b) b.addEventListener('click', () => this.setExcluidas([]));
+    }
+    return true;
+  },
   renderExcluidasPicker(hostId) {
     const host = document.getElementById(hostId || 'plano-excluidas-pick');
     if (!host) return;
@@ -38535,8 +39409,28 @@ const DesempenhoTecScreen = {
        só duas coisas mudaram de verdade: a lista de disciplinas oferecidas no
        filtro e o conteúdo do Plano. */
     this._sincronizarFiltroDisc();
-    this.renderExcluidasPicker('plano-excluidas-pick');
-    this.agendarPlano(true);
+    /* Atualização no lugar. Se por algum motivo a caixa não estiver montada
+       (primeira pintura, id trocado), cai na reconstrução completa — mas
+       guardando e devolvendo a rolagem do painel, que é o que se perdia. */
+    const host = document.getElementById('plano-excluidas-pick');
+    if (!this._sincronizarExcluidasPicker(host)) {
+      const painelAntes = host && host.querySelector('.banca-pick-panel');
+      const y = painelAntes ? painelAntes.scrollTop : 0;
+      this.renderExcluidasPicker('plano-excluidas-pick');
+      const painelDepois = host && host.querySelector('.banca-pick-panel');
+      if (painelDepois && y) painelDepois.scrollTop = y;
+    }
+    /* ── O RECÁLCULO ESPERA O ÚLTIMO CLIQUE ─────────────────────────────────
+       `agendarPlano(true)` roda o motor inteiro AGORA. Quem abre esta caixa
+       raramente tira uma matéria só: marcar cinco disparava cinco cálculos
+       completos em sequência, e cada um deles é o motor varrendo todos os
+       retratos. Era a travada de meio segundo a cada caixinha.
+
+       Uma caixa de seleção não é uma rajada de teclas, mas é uma rajada de
+       CLIQUES — e aqui o resultado só importa depois do último. O pedido passa
+       a ser agendado, como o dos campos numéricos: o sinal de "processando"
+       aparece na hora e o cálculo acontece uma vez. */
+    this.agendarPlano(false);
   },
   /* A lista do filtro de disciplina depende do que está excluído — é o único
      campo da folha que a exclusão precisa mexer. Extraído de `renderPlano`
@@ -42115,20 +43009,16 @@ $id('tec-weak-disc').addEventListener('change', (e) => {
      O travamento que a pessoa sente é o do DEDO no chip: é ali que o quadro
      tem de ser liberado antes do cálculo. Chamada por código continua
      síncrona; o toque troca a aba agora e calcula no quadro seguinte. */
-  document.querySelectorAll('#tec-subtabs .tec-subtab').forEach(b => b.addEventListener('click', () => {
-    const alvo = b.dataset.tectab;
-    /* Reclicar o chip do Plano recalcula a tela inteira igual à primeira vez —
-       então ele também merece o esqueleto, e não a lista velha congelada. */
-    if (alvo !== 'plano') { DT.switchTecTab(alvo); return; }
-    // pinta a troca de aba e o esqueleto agora; o motor roda no quadro seguinte
-    DT.tecTab = alvo;
-    document.querySelectorAll('#tec-subtabs .tec-subtab').forEach(x => x.classList.toggle('active', x.dataset.tectab === alvo));
-    ['analise', 'incidencia', 'reforco', 'plano'].forEach(t => {
-      const el = document.getElementById('tec-panel-' + t);
-      if (el) el.style.display = (t === alvo) ? 'block' : 'none';
-    });
-    DT._depoisDePintar('plano-lista', () => DT.switchTecTab(alvo));
-  }));
+  /* A fita de abas usa UM ouvinte delegado, não um por botão: a aba
+     ⚙ Modelos é criada depois desta linha rodar (a central dos motores a
+     injeta), e um ouvinte por botão simplesmente não a alcançava — ela ficava
+     com o clique síncrono próprio, a única sem o adiamento. */
+  const fita = document.getElementById('tec-subtabs');
+  if (fita) fita.addEventListener('click', (ev) => {
+    const b = ev.target && ev.target.closest ? ev.target.closest('.tec-subtab') : null;
+    if (!b || !fita.contains(b) || !b.dataset.tectab) return;
+    DT.trocarAbaPeloToque(b.dataset.tectab);
+  });
   // Incidência
   on('incid-text', 'input', () => DT.updateIncidPreview());
   on('incid-banca', 'input', () => DT.updateIncidPreview());
@@ -48436,27 +49326,42 @@ const CloudUI = {
     if (semPlano.indexOf('pref-') === 0 || semPlano.indexOf('painel:') === 0 || semPlano.indexOf('ux47:') === 0) return 'preferências de tela';
     return semPlano;
   },
+  /* ── UM BOTÃO DE ENVIAR, NÃO DOIS ─────────────────────────────────────────
+     Este método injetava um `<button id="cloud-queue-flush">↑ Enviar agora</button>`
+     dentro de `#cloud-queue-box` — a poucos pixels do `#cloud-push-now`
+     "↑ Enviar agora" que já existe no HTML, logo abaixo, na mesma caixa. Com a
+     fila vazia só um aparecia e ninguém notava; com qualquer pendência os dois
+     ficavam visíveis ao mesmo tempo, com o mesmo rótulo e a mesma seta, em
+     duas linhas que quebravam em alturas diferentes. Era o "Enviar Agora duas
+     vezes ao mesmo tempo, cascateado e quebrado".
+
+     Dois botões com o mesmo texto não são redundância inofensiva: fazem
+     duvidar se um deles envia outra coisa. Fica o do HTML, que é o que a linha
+     de ações agrupa junto com "Baixar da nuvem"; este bloco volta a ser só o
+     que ele deveria ter sido — o ESTADO da fila. O clique daquele botão passa
+     por `CloudUX`, que já mostra progresso e reconsulta a fila.
+
+     As seções pendentes deixam de ser um parágrafo com " · " no meio e viram
+     etiquetas: com oito seções na fila, a frase corrida virava três linhas de
+     texto cinza em que não se achava nenhuma. */
   renderQueue() {
     const box = document.getElementById('cloud-queue-box');
     if (!box) return;
     let fila = [];
     try { if (window.SectionSync) fila = SectionSync.pendingSections(); } catch (_) { _quiet(_); }
+    const acoes = document.getElementById('cloud-push-now');
     if (!fila.length) {
-      box.innerHTML = '<p class="hint" style="margin:4px 0 0;">✓ <strong>Nada pendente.</strong> Tudo o que você registrou já está na nuvem e aparece ao entrar em outro aparelho.</p>';
+      box.innerHTML = '<p class="cloud-queue-ok">✓ <strong>Nada pendente.</strong> Tudo o que você registrou já está na nuvem e aparece ao entrar em outro aparelho.</p>';
+      if (acoes) acoes.disabled = false;
       return;
     }
     const nomes = [...new Set(fila.map(s => this._nomeSecao(s)))];
-    box.innerHTML = '<p class="hint" style="margin:4px 0 8px;"><strong>' + fila.length +
+    box.innerHTML = '<p><strong>' + fila.length +
       (fila.length === 1 ? ' alteração ainda não enviada' : ' alterações ainda não enviadas') +
       '.</strong> Está salvo neste aparelho e sobe sozinho assim que houver conexão — nada é perdido, e nenhum download apaga o que está aqui.</p>' +
-      '<p class="hint" style="margin:0 0 10px;">Aguardando: ' + escapeHtml(nomes.join(' · ')) + '</p>' +
-      '<button type="button" class="btn-primary" id="cloud-queue-flush">↑ Enviar agora</button>';
-    const b = document.getElementById('cloud-queue-flush');
-    if (b) b.addEventListener('click', async () => {
-      b.disabled = true; b.textContent = 'Enviando…';
-      try { await CloudStore.flushPending(); } catch (_) { _quiet(_); }
-      this.renderQueue();
-    });
+      '<div class="cloud-queue-secoes" aria-label="Seções aguardando envio">' +
+      nomes.map(n => '<span>' + escapeHtml(n) + '</span>').join('') + '</div>';
+    if (acoes) acoes.disabled = false;
   },
   // Painel "Aparelho com sessão ativa" (login único entre dispositivos).
   async renderSessions() {
@@ -54692,7 +55597,12 @@ else CloudStore.init();
   const I = window.PlanoSugestoesInfra;
   if (!I || typeof DB === 'undefined') return;
   const { num, clamp, norm } = I;
-  const OWN_PREF_KEYS = Object.freeze(['fase','meta','minAmostra','banca','alvoQuestoes']);
+  /* `maxDisciplinas` substitui o `3` que estava escrito dentro de `_top3`. O
+     contrato "até 3 frentes" era uma constante no código apresentada como
+     limite do produto, e o campo equivalente na folha do Plano governa a rota
+     manual (outro consumidor). Cada motor passa a ter o seu, na sua própria
+     configuração — nenhum dos dois lê `PlanoEngine`. */
+  const OWN_PREF_KEYS = Object.freeze(['fase','meta','minAmostra','banca','alvoQuestoes','maxDisciplinas']);
   const ownPrefs = (src) => {
     const out = {};
     src = src && typeof src === 'object' ? src : {};
@@ -54713,7 +55623,7 @@ else CloudStore.init();
     REVISAO_REGISTRO: 3,
     MOTOR: 'simplificado-v2', // identificador histórico persistido; não renomear sem migração
     KEY: 'plano-simplificado-v2',
-    DEFAULTS: Object.freeze({ fase:'auto', meta:90, minAmostra:20, banca:'__todas__', alvoQuestoes:30 }),
+    DEFAULTS: Object.freeze({ fase:'auto', meta:90, minAmostra:20, banca:'__todas__', alvoQuestoes:30, maxDisciplinas:3 }),
     PREF_KEYS: OWN_PREF_KEYS,
     deps: Object.freeze(['TEC-escopado','incidencia-bruta','planejamento-materias']),
     prefs() {
@@ -54726,6 +55636,7 @@ else CloudStore.init();
       p.minAmostra = Math.round(clamp(p.minAmostra, 1, 500));
       p.alvoQuestoes = Math.round(clamp(p.alvoQuestoes, 5, 200));
       p.banca = typeof p.banca === 'string' && p.banca ? p.banca : '__todas__';
+      p.maxDisciplinas = Math.round(clamp(p.maxDisciplinas, 1, 8));
       return p;
     },
     salvar(patch) {
@@ -54735,6 +55646,7 @@ else CloudStore.init();
       p.minAmostra = Math.round(clamp(p.minAmostra, 1, 500));
       p.alvoQuestoes = Math.round(clamp(p.alvoQuestoes, 5, 200));
       p.banca = typeof p.banca === 'string' && p.banca ? p.banca : '__todas__';
+      p.maxDisciplinas = Math.round(clamp(p.maxDisciplinas, 1, 8));
       const persistido = ownPrefs(p);
       try {
         const k = DB._profilePrefix() + this.KEY;
@@ -54767,9 +55679,12 @@ else CloudStore.init();
       const abr = lista.filter(x => { const tb=toks(x); if(tb.length!==ta.length)return false; return ta.every((t,i)=>{const u=tb[i],c=t.length<=u.length?t:u,g=t.length<=u.length?u:t;return c.length>=3&&g.startsWith(c);}); });
       return abr.length === 1 ? { nome:abr[0], confianca:.72, via:'abreviacao' } : null;
     },
-    _top3(cands) {
+    /* Uma frente por disciplina, até o limite configurado. O nome `_top3`
+       fica por compatibilidade com quem já o chama; o 3 virou parâmetro. */
+    _top3(cands, limite) {
+      const teto = Math.max(1, Math.round(num(limite, this.prefs().maxDisciplinas)) || 3);
       const usados = new Set(), out = [];
-      cands.slice().sort((a,b)=>num(b.score)-num(a.score)||num(a.taxa,999)-num(b.taxa,999)).forEach(c=>{const d=norm(c.disciplina);if(!d||usados.has(d)||out.length>=3)return;usados.add(d);out.push(c);});
+      cands.slice().sort((a,b)=>num(b.score)-num(a.score)||num(a.taxa,999)-num(b.taxa,999)).forEach(c=>{const d=norm(c.disciplina);if(!d||usados.has(d)||out.length>=teto)return;usados.add(d);out.push(c);});
       return out;
     },
     _topicos(snapshot, p) {
@@ -54873,7 +55788,7 @@ else CloudStore.init();
       }
       this._normalizar(cands);
       return {
-        modo:'simplificado', fase, banca:fase==='pos'?banca:null, itens:this._top3(cands), todos:cands, arquitetura:this.arquitetura(),
+        modo:'simplificado', fase, banca:fase==='pos'?banca:null, itens:this._top3(cands, p.maxDisciplinas), todos:cands, arquitetura:this.arquitetura(),
         explicacao:fase==='pre' ? 'TEC direto × meta × amostra mínima em partição hierárquica não sobreposta.' : 'TEC direto × incidência hierárquica limpa da banca × planejamento; sem usar o motor Robusto.'
       };
     },
@@ -54902,7 +55817,24 @@ else CloudStore.init();
   function betaI(x,a,b){x=clamp(x,0,1);if(x===0||x===1)return x;const bt=Math.exp(logGamma(a+b)-logGamma(a)-logGamma(b)+a*Math.log(x)+b*Math.log(1-x));return x<(a+1)/(a+b+2)?bt*betacf(a,b,x)/a:1-bt*betacf(b,a,1-x)/b;}
   function qbeta(p,a,b){let l=0,h=1;for(let i=0;i<42;i++){const m=(l+h)/2;if(betaI(m,a,b)<p)l=m;else h=m;}return(l+h)/2;}
 
-  const DEFAULTS=Object.freeze({meta:90,minAmostra:20,minObservacao:5,banca:'__todas__',forcaPrior:3,margemLacunaPP:3,doseMin:10,doseBase:15,doseMax:30,minCiclosDose:4,shrinkDose:8,ganhoMinPP100q:3,minQuestoesTempoExtras:30});
+    /* ── A FASE PASSA A SER CONFIGURÁVEL, COMO NO SIMPLIFICADO ────────────────
+     `fase()` só derivava do tipo do planejamento ativo, sem nenhum controle na
+     interface: a aba ⚙ Modelos mostrava "TEC · Pré-edital" como um selo de
+     leitura, e não havia onde escolher. O Simplificado já tinha o campo
+     (auto/pre/pos) e, com os dois motores lado a lado, a ausência no Robusto
+     lia como "este não tem fase" em vez de "esta fase é derivada".
+
+     `auto` mantém o comportamento antigo (segue o planejamento) e é o padrão,
+     então nenhum perfil existente muda de fase por causa disto.
+
+     `maxDisciplinas`/`topicosPorDisciplina` substituem os `3` e `1` que
+     estavam escritos no corpo de `calcular`. O contrato de Extras (até 3
+     disciplinas distintas, 1 tópico ativo por disciplina) era apresentado como
+     limite do produto quando era uma constante no código — e o campo
+     equivalente na folha do Plano (`plano-sug-disciplinas`) governa a rota
+     manual, não este motor. Agora cada motor tem o seu, dentro da sua própria
+     configuração, sem ler nada de `PlanoEngine`. */
+  const DEFAULTS=Object.freeze({fase:'auto',meta:90,minAmostra:20,minObservacao:5,banca:'__todas__',forcaPrior:3,margemLacunaPP:3,doseMin:10,doseBase:15,doseMax:30,minCiclosDose:4,shrinkDose:8,ganhoMinPP100q:3,minQuestoesTempoExtras:30,maxDisciplinas:3,topicosPorDisciplina:1});
   const KEY='robusto-tec-v8',PREF_KEYS=Object.keys(DEFAULTS);
 
   const R={
@@ -54911,11 +55843,12 @@ else CloudStore.init();
       let raw={};try{raw=JSON.parse(localStorage.getItem(DB._profilePrefix()+KEY)||'{}')||{};}catch(e){if(typeof _quiet==='function')_quiet(e,'plano-robusto-prefs');}
       const p={...DEFAULTS};PREF_KEYS.forEach(k=>{if(Object.prototype.hasOwnProperty.call(raw,k))p[k]=raw[k];});
       p.meta=clamp(p.meta,60,99);p.minAmostra=Math.round(clamp(p.minAmostra,5,300));p.minObservacao=Math.round(clamp(p.minObservacao,1,p.minAmostra));p.forcaPrior=clamp(p.forcaPrior,.5,20);p.margemLacunaPP=clamp(p.margemLacunaPP,0,15);
-      p.doseMin=Math.round(clamp(p.doseMin,5,60));p.doseMax=Math.round(clamp(p.doseMax,p.doseMin,100));p.doseBase=Math.round(clamp(p.doseBase,p.doseMin,p.doseMax));p.minCiclosDose=Math.round(clamp(p.minCiclosDose,2,20));p.shrinkDose=clamp(p.shrinkDose,1,40);p.ganhoMinPP100q=clamp(p.ganhoMinPP100q,0,20);p.minQuestoesTempoExtras=Math.round(clamp(p.minQuestoesTempoExtras,10,300));p.banca=typeof p.banca==='string'&&p.banca?p.banca:'__todas__';return p;
+      p.doseMin=Math.round(clamp(p.doseMin,5,60));p.doseMax=Math.round(clamp(p.doseMax,p.doseMin,100));p.doseBase=Math.round(clamp(p.doseBase,p.doseMin,p.doseMax));p.minCiclosDose=Math.round(clamp(p.minCiclosDose,2,20));p.shrinkDose=clamp(p.shrinkDose,1,40);p.ganhoMinPP100q=clamp(p.ganhoMinPP100q,0,20);p.minQuestoesTempoExtras=Math.round(clamp(p.minQuestoesTempoExtras,10,300));p.banca=typeof p.banca==='string'&&p.banca?p.banca:'__todas__';if(!['auto','pre','pos'].includes(p.fase))p.fase='auto';p.maxDisciplinas=Math.round(clamp(p.maxDisciplinas,1,8));p.topicosPorDisciplina=Math.round(clamp(p.topicosPorDisciplina,1,4));return p;
     },
     salvar(patch){const p={...this.prefs()};PREF_KEYS.forEach(k=>{if(patch&&Object.prototype.hasOwnProperty.call(patch,k))p[k]=patch[k];});try{const raw=JSON.stringify(p);if(DB.setRaw)DB.setRaw(DB._profilePrefix()+KEY,raw);else localStorage.setItem(DB._profilePrefix()+KEY,raw);}catch(e){if(typeof _quiet==='function')_quiet(e,'plano-robusto-save');}return this.prefs();},
     restaurar(){try{if(DB.delRaw)DB.delRaw(DB._profilePrefix()+KEY);else localStorage.removeItem(DB._profilePrefix()+KEY);}catch(e){if(typeof _quiet==='function')_quiet(e,'plano-robusto-reset');}return this.prefs();},
-    fase(){try{const p=typeof PlanManager!=='undefined'&&PlanManager.getActivePlan?PlanManager.getActivePlan():null;return /p[oó]s[- ]?edital/i.test(String(p&&p.tipo||''))?'pos':'pre';}catch(e){if(typeof _quiet==='function')_quiet(e,'plano-robusto-fase');return'pre';}},
+    faseAuto(){try{const p=typeof PlanManager!=='undefined'&&PlanManager.getActivePlan?PlanManager.getActivePlan():null;return /p[oó]s[- ]?edital/i.test(String(p&&p.tipo||''))?'pos':'pre';}catch(e){if(typeof _quiet==='function')_quiet(e,'plano-robusto-fase');return'pre';}},
+    fase(cfg){const f=(cfg||this.prefs()).fase;return f==='pre'||f==='pos'?f:this.faseAuto();},
     modoAtaque(){return this.fase();},
 
     posterior(taxa,q,meta,cfg,intervalo=true){
@@ -54975,22 +55908,22 @@ else CloudStore.init();
       if(fase==='pos'){const mx=Math.max(1,...active.map(x=>x.peso));active.forEach(g=>{g.pesoNorm=g.peso/mx;g.scoreDisciplina=.72*g.scoreBase+.28*g.pesoNorm*100;});}else active.forEach(g=>{g.pesoNorm=1;g.scoreDisciplina=g.scoreBase;});return active.sort((a,b)=>b.scoreDisciplina-a.scoreDisciplina||b.topicos.length-a.topicos.length);
     },
     calcular(){
-      const p=this.prefs(),fase=this.fase(),snapshot=I.snapshot();if(!snapshot)return{erro:'sem-retrato',modo:'robusto',fase,itens:[]};let pool=this._fronteira(snapshot,p);if(!pool.length)return{erro:'sem-lacunas',modo:'robusto',fase,itens:[],arquitetura:this.arquitetura()};
+      const p=this.prefs(),fase=this.fase(p),snapshot=I.snapshot();if(!snapshot)return{erro:'sem-retrato',modo:'robusto',fase,itens:[]};let pool=this._fronteira(snapshot,p);if(!pool.length)return{erro:'sem-lacunas',modo:'robusto',fase,itens:[],arquitetura:this.arquitetura()};
       if(fase==='pos'){const pc=this._postConfig(),sel=Object.values(pc.disciplinas||{}).filter(x=>x&&x.ativo===true);if(!pc.configurado||!sel.length)return{erro:'post-pesos-pendentes',modo:'robusto',fase,itens:[],arquitetura:this.arquitetura()};}
       const RX=window.ReforcoTecExtras,extraObs=RX&&RX.observacoes?RX.observacoes():[];pool=this._componentes(pool,snapshot,p,extraObs);const grupos=this._disciplinas(pool,fase);if(!grupos.length)return{erro:'sem-candidatos',modo:'robusto',fase,itens:[],arquitetura:this.arquitetura()};
-      const itens=[],rxCfg={...p,_observacoes:extraObs};for(const g of grupos.slice(0,3)){
+      const itens=[],rxCfg={...p,_observacoes:extraObs};for(const g of grupos.slice(0,Math.max(1,p.maxDisciplinas))){
         const top=g.topicos[0];top.posterior=this.posterior(top.taxa,top.qJanela,p.meta,p,true);const rx=RX?RX.prescrever({...top,minAmostra:p.minAmostra,meta:p.meta,componentes:{lacuna:top._gap,evidencia:top._evid,persistencia:top._persist}},rxCfg):{dose:p.doseBase,fonte:'tec',tempo:{confiavel:false,fonte:'indisponivel',minutosEstimados:null}},dose=Math.max(1,Math.round(n(rx.dose,p.doseBase))),tempo=rx.tempo||{confiavel:false,fonte:'indisponivel',minutosEstimados:null};
         itens.push({...top,modo:'robusto',fase,score:g.scoreDisciplina,scoreDisciplina:g.scoreDisciplina,scoreTopico:top.scoreTopico,alvo:dose,quantidadeRecomendada:dose,meta:p.meta,minAmostra:p.minAmostra,banca:p.banca,pesoPost:fase==='pos'?g.peso:1,prescricao:rx,topicosOrdenados:g.topicos.slice(0,8).map((x,i)=>({rank:i+1,nome:x.nome,taxa:x.taxa,qJanela:x.qJanela,score:x.scoreTopico,incidencia:x.incidencia.valor,persistencia:x.histTec.persistencia,evidencia:x.posterior.pLacuna})),motivo:`Disciplina #${itens.length+1}: prioridade ${g.scoreDisciplina.toFixed(0)}/100 · tópico líder ${top.scoreTopico.toFixed(0)}/100${fase==='pos'?` · peso manual ${g.peso}`:''}.`,auditoria:{revisaoAuditoria:8,fonteCanonica:'TEC',pesoDisciplina:fase==='pre'?1:g.peso,tempoSomenteExtras:true,metodoEstudoForaDoModelo:true,resultadoExtrasObservacional:true}});
       }
       return{modo:'robusto',motor:this.MOTOR,fase,banca:p.banca,itens,todos:pool,disciplinas:grupos.map(g=>({disciplina:g.disciplina,score:g.scoreDisciplina,peso:g.peso,topicos:g.topicos.slice(0,12).map(x=>({nome:x.nome,score:x.scoreTopico,taxa:x.taxa,qJanela:x.qJanela,incidencia:x.incidencia.valor,persistencia:x.histTec.persistencia}))})),configRobusto:{versao:8,prefs:p},arquitetura:this.arquitetura(),explicacao:fase==='pre'?'Pré-edital: todas as disciplinas têm peso 1. O ranking usa TEC, incidência e resposta observacional dos reforços em Extras.':'Pós-edital: identidade e pesos vêm das disciplinas padronizadas do TEC, configuradas manualmente neste planejamento.'};
     },
     arquitetura(){return{motor:'Robusto',revisaoAuditoria:8,independente:true,independenteSimplificado:true,fontes:['TEC escopado','Incidência importada da banca','Reforços registrados em Extras'],naoUsa:['peso/nome do ciclo regular','tempo do ciclo regular','método de estudo','PlanoEngine para prioridade','roteador pedagógico','otimizador legado','Mentor90'],preEdital:'todas as disciplinas peso 1',posEdital:'disciplinas TEC selecionadas manualmente + peso manual',saida:['3 disciplinas','ranking de tópicos por disciplina','dose de questões','tempo somente quando medido nos reforços Extras']};},
-    config(){const p=this.prefs(),f=this.fase();return{versao:8,prefs:p,resumo:{rotulo:f==='pre'?'TEC · Pré-edital':'TEC · Pós-edital'}};},
+    config(){const p=this.prefs(),f=this.fase(p);return{versao:8,prefs:p,resumo:{rotulo:(f==='pre'?'TEC · Pré-edital':'TEC · Pós-edital')+(p.fase==='auto'?' (automática)':' (fixada)')}};},
     _bancasHtml(atual){let bs=[];try{bs=I.bancas?I.bancas():[];}catch(e){if(typeof _quiet==='function')_quiet(e,'plano-robusto-bancas');}return `<option value="__todas__" ${atual==='__todas__'?'selected':''}>Todas as bancas importadas</option>`+bs.map(b=>`<option value="${esc(b)}" ${b===atual?'selected':''}>${esc(b)}</option>`).join('');},
     painelConfigHtml(){
-      const p=this.prefs(),fase=this.fase(),snap=I.snapshot(),discs=this._tecDisciplinas(snap),post=this._postConfig(),cfg=post.disciplinas||{};
+      const p=this.prefs(),fase=this.fase(p),snap=I.snapshot(),discs=this._tecDisciplinas(snap),post=this._postConfig(),cfg=post.disciplinas||{};
       const rows=fase==='pos'?`<section class="rv8-post"><header><div><b>Disciplinas da prova · Pós-edital</b><small>Escolha somente nomes padronizados vindos do TEC. O ciclo regular não participa deste cruzamento.</small></div></header>${discs.length?`<div class="rv8-post-list">${discs.map(d=>{const k=norm(d),x=cfg[k]||{};return`<label class="rv8-post-row"><input type="checkbox" data-rv8-post-active="${esc(k)}" ${x.ativo===true?'checked':''}><span>${esc(d)}</span><input type="number" min="0.1" max="20" step="0.1" value="${n(x.peso,1)}" data-rv8-post-weight="${esc(k)}" data-rv8-post-name="${esc(d)}"><small>peso</small></label>`;}).join('')}</div><button type="button" class="btn-primary" data-rv8-post-save>Salvar disciplinas e pesos</button>`:'<div class="pmc-empty"><b>Importe o TEC primeiro</b><span>Os pesos só podem ser vinculados depois que existirem nomes canônicos de disciplinas no TEC.</span></div>'}</section>`:`<section class="rv8-pre-note"><b>Pré-edital: peso 1 para todas as disciplinas.</b><span>Nenhum peso do ciclo regular é lido. O que diferencia prioridades é lacuna, evidência, persistência, tendência e incidência da banca.</span></section>`;
-      return`<div class="rv8-panel" data-rv8-panel><div class="rv8-method-note"><b>Robusto · foco estatístico.</b><span>Escolhe três disciplinas, ordena seus tópicos e calcula a dose de questões. Seu método de resolução fica fora do algoritmo.</span></div><div class="pmc-simple-grid"><label><span>Meta de domínio</span><div class="pmc-suffix"><input data-rv8="meta" type="number" min="60" max="99" value="${p.meta}"><em>%</em></div><small>Régua comum do TEC.</small></label><label><span>Amostra mínima confiável</span><input data-rv8="minAmostra" type="number" min="5" max="300" value="${p.minAmostra}"><small>Acima daqui a medição recebe confiança plena.</small></label><label><span>Mínimo para observar</span><input data-rv8="minObservacao" type="number" min="1" max="${p.minAmostra}" value="${p.minObservacao}"><small>Abaixo disso o tópico ainda é cedo demais até para disputar.</small></label><label><span>Incidência</span><select data-rv8="banca">${this._bancasHtml(p.banca)}</select><small>Fonte objetiva de relevância.</small></label><label><span>Força do prior</span><input data-rv8="forcaPrior" type="number" min="0.5" max="20" step="0.5" value="${p.forcaPrior}"><small>Regularização Beta real para amostras pequenas.</small></label><label><span>Margem da lacuna</span><div class="pmc-suffix"><input data-rv8="margemLacunaPP" type="number" min="0" max="15" step="0.5" value="${p.margemLacunaPP}"><em>pp</em></div></label><label><span>Dose base</span><input data-rv8="doseBase" type="number" min="5" max="100" value="${p.doseBase}"><small>Recalibrada conservadoramente por TEC + Extras.</small></label><label><span>Dose mínima</span><input data-rv8="doseMin" type="number" min="5" max="60" value="${p.doseMin}"></label><label><span>Dose máxima</span><input data-rv8="doseMax" type="number" min="5" max="100" value="${p.doseMax}"></label></div>${rows}<footer class="rv8-footer"><span>Fontes: TEC + incidência + reforços em Extras.</span><b>Sem dependência de nomes/pesos/tempo do ciclo regular.</b><button type="button" data-rv8-reset>↺ Restaurar padrões</button></footer></div>`;
+      return`<div class="rv8-panel" data-rv8-panel><div class="rv8-method-note"><b>Robusto · foco estatístico.</b><span>Escolhe até ${p.maxDisciplinas} disciplina(s), ordena seus tópicos e calcula a dose de questões. Seu método de resolução fica fora do algoritmo.</span></div><div class="pmc-grupo"><h5>1 · Recorte da prova</h5><p>Em que fase o motor raciocina e quantas frentes ele abre de uma vez.</p><div class="pmc-simple-grid"><label><span>Fase</span><select data-rv8="fase"><option value="auto" ${p.fase==='auto'?'selected':''}>Automática — segue o planejamento ativo</option><option value="pre" ${p.fase==='pre'?'selected':''}>Pré-edital</option><option value="pos" ${p.fase==='pos'?'selected':''}>Pós-edital</option></select><small>Hoje valendo: <b>${fase==='pre'?'Pré-edital':'Pós-edital'}</b>${p.fase==='auto'?' (derivada do planejamento)':' (fixada por você)'}. Pré dá peso 1 a todas as disciplinas; Pós usa os pesos manuais abaixo.</small></label><label><span>Disciplinas por vez</span><input data-rv8="maxDisciplinas" type="number" min="1" max="8" value="${p.maxDisciplinas}"><small>Quantas frentes distintas a força-tarefa abre. Era fixo em 3.</small></label></div></div><div class="pmc-grupo"><h5>2 · Régua e confiança</h5><p>O que conta como lacuna e quanta amostra o motor exige para acreditar nela.</p><div class="pmc-simple-grid"><label><span>Meta de domínio</span><div class="pmc-suffix"><input data-rv8="meta" type="number" min="60" max="99" value="${p.meta}"><em>%</em></div><small>Régua comum do TEC.</small></label><label><span>Amostra mínima confiável</span><input data-rv8="minAmostra" type="number" min="5" max="300" value="${p.minAmostra}"><small>Acima daqui a medição recebe confiança plena.</small></label><label><span>Mínimo para observar</span><input data-rv8="minObservacao" type="number" min="1" max="${p.minAmostra}" value="${p.minObservacao}"><small>Abaixo disso o tópico ainda é cedo demais até para disputar.</small></label><label><span>Incidência</span><select data-rv8="banca">${this._bancasHtml(p.banca)}</select><small>Fonte objetiva de relevância.</small></label><label><span>Força do prior</span><input data-rv8="forcaPrior" type="number" min="0.5" max="20" step="0.5" value="${p.forcaPrior}"><small>Regularização Beta real para amostras pequenas.</small></label><label><span>Margem da lacuna</span><div class="pmc-suffix"><input data-rv8="margemLacunaPP" type="number" min="0" max="15" step="0.5" value="${p.margemLacunaPP}"><em>pp</em></div><small>Folga abaixo da meta antes de chamar de lacuna.</small></label></div></div><div class="pmc-grupo"><h5>3 · Dose de questões</h5><p>O tamanho do bloco que o motor recomenda para cada frente.</p><div class="pmc-simple-grid"><label><span>Dose base</span><input data-rv8="doseBase" type="number" min="5" max="100" value="${p.doseBase}"><small>Recalibrada conservadoramente por TEC + Extras.</small></label><label><span>Dose mínima</span><input data-rv8="doseMin" type="number" min="5" max="60" value="${p.doseMin}"></label><label><span>Dose máxima</span><input data-rv8="doseMax" type="number" min="5" max="100" value="${p.doseMax}"></label></div></div>${rows}<footer class="rv8-footer"><span>Fontes: TEC + incidência + reforços em Extras.</span><b>Sem dependência de nomes/pesos/tempo do ciclo regular.</b><button type="button" data-rv8-reset>↺ Restaurar padrões</button></footer></div>`;
     },
     bindConfig(host,onChange){if(!host)return;host.querySelectorAll('[data-rv8]').forEach(el=>el.addEventListener('change',()=>{this.salvar({[el.dataset.rv8]:el.type==='number'?Number(el.value):el.value});if(onChange)onChange();}));const reset=host.querySelector('[data-rv8-reset]');if(reset)reset.addEventListener('click',()=>{this.restaurar();if(onChange)onChange();});const save=host.querySelector('[data-rv8-post-save]');if(save)save.addEventListener('click',()=>{const ds={};host.querySelectorAll('[data-rv8-post-active]').forEach(cb=>{const k=cb.dataset.rv8PostActive,w=host.querySelector(`[data-rv8-post-weight="${CSS.escape(k)}"]`),nome=w&&w.dataset.rv8PostName||k;ds[k]={nome,ativo:cb.checked,peso:Math.max(.1,n(w&&w.value,1))};});this.salvarPostConfig({configurado:true,disciplinas:ds,atualizadoEm:new Date().toISOString()});if(typeof showToast==='function')showToast('Pesos Pós-edital vinculados às disciplinas do TEC ✓');if(onChange)onChange();});}
   };
@@ -55173,14 +56106,128 @@ else CloudStore.init();
     _origSwitch:DT.switchTecTab?.bind(DT),_origRender:DT.render?.bind(DT),_tabObserver:null,_renderQueued:false,
     _scheduleRenderPanel(){if(this._renderQueued)return;this._renderQueued=true;const run=()=>{this._renderQueued=false;this.renderPanel();};if(typeof queueMicrotask==='function')queueMicrotask(run);else Promise.resolve().then(run);},
     _bancas(atual){const bs=I.bancas?I.bancas():[];return `<option value="__todas__" ${atual==='__todas__'?'selected':''}>Selecionar automaticamente</option>`+bs.map(b=>`<option value="${esc(b)}" ${b===atual?'selected':''}>${esc(b)}</option>`).join('');},
-    _simpleHtml(){const p=S.prefs(),fase=S.fase?S.fase(p):(p.fase||'auto');return `<section class="pmc-engine-card" data-pmc-engine="simplificado"><header><div class="pmc-engine-id"><span>⚡</span><div><small>MOTOR DISPONÍVEL</small><h3>Simplificado</h3><p>Leitura direta e transparente do TEC. Serve como baseline independente para confrontar o Robusto.</p></div></div><span class="pmc-pill">Direto</span></header><div class="pmc-simple-grid"><label><span>Fase</span><select data-pmc-simple="fase"><option value="auto" ${p.fase==='auto'?'selected':''}>Automática</option><option value="pre" ${p.fase==='pre'?'selected':''}>Pré-edital</option><option value="pos" ${p.fase==='pos'?'selected':''}>Pós-edital</option></select><small>Pré usa TEC direto; Pós usa a regra própria do Simplificado.</small></label><label><span>Meta desejada</span><div class="pmc-suffix"><input data-pmc-simple="meta" type="number" min="50" max="100" value="${p.meta}"><em>%</em></div><small>Assuntos abaixo da régua entram na disputa.</small></label><label><span>Amostra mínima</span><input data-pmc-simple="minAmostra" type="number" min="1" max="500" value="${p.minAmostra}"><small>Piso operacional; não significa alta precisão estatística.</small></label><label><span>Questões por frente</span><input data-pmc-simple="alvoQuestoes" type="number" min="5" max="200" value="${p.alvoQuestoes}"><small>Dose fixa deste motor.</small></label><label class="${fase==='pos'?'':'pmc-hidden'}"><span>Banca</span><select data-pmc-simple="banca">${this._bancas(p.banca)}</select><small>Incidência usada pelo Simplificado Pós.</small></label></div><footer><span>Configuração própria e isolada.</span><b>Não lê parâmetros do Robusto.</b><button type="button" data-pmc-simple-reset>↺ Restaurar padrões</button></footer></section>`;},
+    _simpleHtml(){const p=S.prefs(),fase=S.fase?S.fase(p):(p.fase||'auto');return `<section class="pmc-engine-card" data-pmc-engine="simplificado"><header><div class="pmc-engine-id"><span>⚡</span><div><small>MOTOR DISPONÍVEL</small><h3>Simplificado</h3><p>Leitura direta e transparente do TEC. Serve como baseline independente para confrontar o Robusto.</p></div></div><span class="pmc-pill">Direto</span></header><div class="pmc-grupo"><h5>1 · Recorte da prova</h5><p>Em que fase o motor raciocina e quantas frentes ele abre de uma vez.</p><div class="pmc-simple-grid"><label><span>Fase</span><select data-pmc-simple="fase"><option value="auto" ${p.fase==='auto'?'selected':''}>Automática — segue o planejamento ativo</option><option value="pre" ${p.fase==='pre'?'selected':''}>Pré-edital</option><option value="pos" ${p.fase==='pos'?'selected':''}>Pós-edital</option></select><small>Hoje valendo: <b>${fase==='pre'?'Pré-edital':'Pós-edital'}</b>${p.fase==='auto'?' (derivada do planejamento)':' (fixada por você)'}. Pré usa TEC direto; Pós cruza com a incidência da banca.</small></label><label><span>Disciplinas por vez</span><input data-pmc-simple="maxDisciplinas" type="number" min="1" max="8" value="${p.maxDisciplinas}"><small>Quantas frentes distintas entram na força-tarefa. Era fixo em 3.</small></label><label class="${fase==='pos'?'':'pmc-hidden'}"><span>Banca</span><select data-pmc-simple="banca">${this._bancas(p.banca)}</select><small>Incidência usada pelo Simplificado Pós.</small></label></div></div><div class="pmc-grupo"><h5>2 · Régua</h5><p>O corte que decide quem disputa a fila.</p><div class="pmc-simple-grid"><label><span>Meta desejada</span><div class="pmc-suffix"><input data-pmc-simple="meta" type="number" min="50" max="100" value="${p.meta}"><em>%</em></div><small>Assuntos abaixo da régua entram na disputa.</small></label><label><span>Amostra mínima</span><input data-pmc-simple="minAmostra" type="number" min="1" max="500" value="${p.minAmostra}"><small>Piso operacional; não significa alta precisão estatística.</small></label></div></div><div class="pmc-grupo"><h5>3 · Dose de questões</h5><p>O tamanho do bloco recomendado por frente.</p><div class="pmc-simple-grid"><label><span>Questões por frente</span><input data-pmc-simple="alvoQuestoes" type="number" min="5" max="200" value="${p.alvoQuestoes}"><small>Dose fixa deste motor — o Simplificado não modela tempo nem recalibra.</small></label></div></div><footer><span>Configuração própria e isolada.</span><b>Não lê parâmetros do Robusto.</b><button type="button" data-pmc-simple-reset>↺ Restaurar padrões</button></footer></section>`;},
     _auditHtml(){if(!A)return'';return `<section class="pmc-audit-card" data-pmc-robust-audit><header><div><small>AUDITORIA HUMANA · LOCAL</small><h4>Flight recorder do Robusto</h4><p>Registra decisão → reforço → execução → estado TEC posterior. Como o TEC pode incluir questões do ciclo regular, a evolução é tratada como observacional e recebe peso de atribuição conservador.</p></div><span class="pmc-audit-local">local-only</span></header><div data-pmc-audit-stats>${A.statsHtml()}</div><div class="pmc-audit-actions"><button type="button" class="btn-secondary" data-pmc-audit-refresh>↻ Atualizar leitura</button><button type="button" class="btn-primary" data-pmc-audit-export>⇩ Exportar auditoria .json</button></div><footer>O JSON exporta somente métricas do TEC, reforços em Extras, dose, tempo diretamente registrado no reforço e qualidade de atribuição. Não registra método subjetivo de estudo.</footer></section>`;},
-    _robustHtml(){const cfg=R.config(),rot=cfg?.resumo?.rotulo||'TEC';return `<section class="pmc-engine-card pmc-robusto" data-pmc-engine="robusto"><header><div class="pmc-engine-id"><span>🧠</span><div><small>MOTOR DISPONÍVEL</small><h3>Robusto</h3><p>Motor estatístico focado em três decisões: qual disciplina atacar, qual tópico priorizar e quantas questões fazer. Usa TEC, incidência e reforços em Extras.</p></div></div><span class="pmc-pill">${esc(rot)}</span></header><div class="pmc-robust-summary"><b>Prioridade e dose</b><span>Sem nomes/pesos/tempo do ciclo regular. Pré-edital usa peso 1; Pós-edital vincula manualmente pesos aos nomes canônicos do TEC.</span></div><div data-pmc-robusto-host>${R.painelConfigHtml()}</div>${this._auditHtml()}</section>`;},
-    _panelHtml(){const e=G.estado(),ativos=Number(e.simplificado)+Number(e.robusto);return `<div class="pmc-shell"><section class="pmc-intro"><div><small>CENTRAL DOS MODELOS</small><h2>Configuração das sugestões do TEC</h2><p>As métricas observadas continuam sendo os seus dados. Aqui você configura apenas como cada modelo transforma esses dados em prioridade. A fonte usada na tela é escolhida no cabeçalho do Desempenho TEC.</p></div><div class="pmc-state"><b>${ativos}</b><span>${ativos===1?'motor ativo':'motores ativos'}</span></div></section>${e.simplificado?this._simpleHtml():''}${e.robusto?this._robustHtml():''}${ativos===0?'<div class="pmc-empty"><b>Nenhum motor habilitado</b><span>Ative Simplificado ou Robusto em Configurações.</span></div>':''}</div>`;},
-    _bindPanel(){const panel=document.getElementById('tec-panel-motores');if(!panel)return;panel.querySelectorAll('[data-pmc-simple]').forEach(el=>el.addEventListener('change',()=>{const k=el.dataset.pmcSimple,v=el.type==='number'?Number(el.value):el.value;S.salvar({[k]:v});if(k==='fase')this._scheduleRenderPanel();else if(typeof showToast==='function')showToast('Ajuste do Simplificado salvo ✓');}));panel.querySelector('[data-pmc-simple-reset]')?.addEventListener('click',()=>{S.restaurar?.();if(typeof showToast==='function')showToast('Simplificado restaurado aos padrões ✓');this._scheduleRenderPanel();});const host=panel.querySelector('[data-pmc-robusto-host]');if(host)R.bindConfig(host,()=>{if(typeof showToast==='function')showToast('Ajuste do Robusto salvo ✓');this._scheduleRenderPanel();});panel.querySelector('[data-pmc-audit-refresh]')?.addEventListener('click',()=>{A?.reconciliar();if(typeof showToast==='function')showToast('Auditoria do Robusto atualizada ✓');this._scheduleRenderPanel();});panel.querySelector('[data-pmc-audit-export]')?.addEventListener('click',()=>{try{const r=A.exportar(),d=r.payload?.diagnostico;if(typeof showToast==='function')showToast(`Auditoria exportada · ${d?.resultadosMedidos||0} resultado(s) TEC ✓`);}catch(e){if(typeof _quiet==='function')_quiet(e,'robusto-audit-ui-export');if(typeof showToast==='function')showToast('Não foi possível exportar a auditoria');}});},
+    _robustHtml(){const cfg=R.config(),rot=cfg?.resumo?.rotulo||'TEC';return `<section class="pmc-engine-card pmc-robusto" data-pmc-engine="robusto"><header><div class="pmc-engine-id"><span>🧠</span><div><small>MOTOR DISPONÍVEL</small><h3>Robusto</h3><p>Motor estatístico focado em três decisões: qual disciplina atacar, qual tópico priorizar e quantas questões fazer. Usa TEC, incidência e reforços em Extras.</p></div></div><span class="pmc-pill">${esc(rot)}</span></header><div class="pmc-robust-summary"><b>Prioridade e dose</b><span>Sem nomes/pesos/tempo do ciclo regular. Pré-edital usa peso 1; Pós-edital vincula manualmente pesos aos nomes canônicos do TEC.</span></div><div data-pmc-robusto-host>${R.painelConfigHtml()}</div></section>`;},
+    /* ═══ PANORAMA NA ABA, PARÂMETROS NA JANELA ═══════════════════════════
+       A aba despejava as duas configurações inteiras, abertas, uma embaixo da
+       outra: dezesseis campos do Robusto, cinco do Simplificado, a tabela de
+       pesos do Pós-edital e o painel de auditoria — tudo no mesmo rolo, sem
+       fronteira entre "o que este motor é" e "o que eu posso mexer nele". Ler
+       de cima para baixo não respondia nem a primeira pergunta ("qual motor
+       está decidindo agora?"), e mexer num campo exigia achá-lo no meio de
+       outros vinte iguais.
+
+       A aba passa a responder só o que se olha de relance: cada motor, em um
+       cartão, com o que ele decide, a fase valendo, as frentes que abre e a
+       régua. Os parâmetros ficam a um clique, numa janela por motor — uma
+       coisa por vez, com as seções numeradas que o motor já usa internamente
+       (recorte → régua → dose). A auditoria, que não é configuração, ganha o
+       seu próprio cartão no fim. */
+    _resumoSimples(){
+      const p=S.prefs(),fase=S.fase?S.fase(p):(p.fase||'auto');
+      return [['Fase',fase==='pos'?'Pós-edital':'Pré-edital',p.fase==='auto'?'derivada do planejamento':'fixada por você'],
+        ['Frentes por vez',String(p.maxDisciplinas),'disciplinas distintas'],
+        ['Régua',p.meta+'%','meta de domínio'],
+        ['Dose',p.alvoQuestoes+'q','fixa por frente']];
+    },
+    _resumoRobusto(){
+      const p=R.prefs(),fase=R.fase?R.fase(p):'pre';
+      return [['Fase',fase==='pos'?'Pós-edital':'Pré-edital',p.fase==='auto'?'derivada do planejamento':'fixada por você'],
+        ['Frentes por vez',String(p.maxDisciplinas),(p.topicosPorDisciplina||1)+' tópico(s) por disciplina'],
+        ['Régua',p.meta+'%','meta · amostra mínima '+p.minAmostra],
+        ['Dose',p.doseMin+'–'+p.doseMax+'q','base '+p.doseBase+', recalibrada por Extras']];
+    },
+    _cardMotor(k){
+      const emUso=(window.TecPlanoFonteMotor&&TecPlanoFonteMotor.fonte&&TecPlanoFonteMotor.fonte())===k;
+      const rob=k==='robusto';
+      const resumo=rob?this._resumoRobusto():this._resumoSimples();
+      const decide=rob
+        ?'Escolhe disciplinas, ordena os tópicos de cada uma e calcula a dose. Lê TEC, incidência da banca e o resultado observado dos reforços em Extras.'
+        :'Ordena pela distância até a meta, com amostra mínima e sem sobrepor tópico-pai e tópico-filho. Leitura direta do TEC.';
+      const naoLe=rob
+        ?'nomes, pesos ou tempo do ciclo regular · método de estudo · PlanoEngine'
+        :'o motor Robusto · persistência · tendência · histórico de reforços';
+      return `<section class="pmc-engine-card${rob?' pmc-robusto':''}${emUso?' is-em-uso':''}" data-pmc-engine="${k}">`
+        +`<header><div class="pmc-engine-id"><span>${rob?'🧠':'⚡'}</span><div><small>${emUso?'DECIDINDO AGORA':'MOTOR DISPONÍVEL'}</small><h3>${rob?'Robusto':'Simplificado'}</h3><p>${esc(decide)}</p></div></div>`
+        +`<span class="pmc-pill${emUso?' is-on':''}">${emUso?'em uso':(rob?'Estatístico':'Direto')}</span></header>`
+        +`<div class="pmc-resumo">${resumo.map(([rot,val,det])=>`<span><small>${esc(rot)}</small><b>${esc(val)}</b><em>${esc(det)}</em></span>`).join('')}</div>`
+        +`<footer class="pmc-engine-foot"><span><b>Não lê:</b> ${esc(naoLe)}</span>`
+        +`<button type="button" class="btn-primary" data-pmc-config="${k}">⚙ Configurar o ${rob?'Robusto':'Simplificado'}</button></footer></section>`;
+    },
+    _panelHtml(){
+      const e=G.estado(),ativos=Number(e.simplificado)+Number(e.robusto);
+      return `<div class="pmc-shell"><section class="pmc-intro"><div><small>CENTRAL DOS MODELOS</small><h2>Quem decide as suas sugestões</h2><p>Os seus acertos, o histórico e as métricas do TEC são <b>fatos</b> e não mudam aqui. Um modelo é a regra que transforma esses fatos em prioridade — e cada um tem regra, régua e dose próprias, sem ler nada do outro. Qual deles está valendo na tela você escolhe no alto do Desempenho TEC.</p></div><div class="pmc-state"><b>${ativos}</b><span>${ativos===1?'modelo ativo':'modelos ativos'}</span></div></section>`
+        +`${e.simplificado?this._cardMotor('simplificado'):''}${e.robusto?this._cardMotor('robusto'):''}`
+        +`${e.robusto?this._auditHtml():''}`
+        +`${ativos===0?'<div class="pmc-empty"><b>Nenhum modelo habilitado</b><span>Ative Simplificado ou Robusto em Configurações › Estudo › Motores do Plano. Sem nenhum ativo, o Plano volta a usar a leitura analítica legada.</span></div>':''}</div>`;
+    },
+    /* ── A JANELA DE UM MOTOR ────────────────────────────────────────────── */
+    _modal:null,
+    abrirConfig(k){
+      this.fecharConfig();
+      const rob=k==='robusto';
+      const ov=document.createElement('div');
+      ov.className='pmc-overlay';
+      ov.innerHTML=`<div class="pmc-modal" role="dialog" aria-modal="true" aria-label="Configuração do ${rob?'Robusto':'Simplificado'}">`
+        +`<header class="pmc-modal-head"><div><small>CONFIGURAÇÃO DO MODELO</small><h3>${rob?'🧠 Robusto':'⚡ Simplificado'}</h3>`
+        +`<p>${rob?'Só TEC, incidência da banca e o resultado observado dos reforços em Extras. Nada aqui lê o ciclo regular nem o seu método de estudo.':'Regra direta sobre o TEC, com poucos parâmetros. Serve de baseline independente para confrontar o Robusto.'}</p></div>`
+        +`<button type="button" class="pmc-modal-x" aria-label="Fechar">×</button></header>`
+        +`<main class="pmc-modal-body" data-pmc-modal-body></main>`
+        +`<footer class="pmc-modal-foot"><span>Alterações valem na hora e só para este modelo.</span><button type="button" class="btn-primary" data-pmc-modal-ok>Concluir</button></footer></div>`;
+      document.body.appendChild(ov);
+      this._modal=ov;
+      document.body.style.overflow='hidden';
+      const fechar=()=>this.fecharConfig();
+      ov.querySelector('.pmc-modal-x').addEventListener('click',fechar);
+      ov.querySelector('[data-pmc-modal-ok]').addEventListener('click',fechar);
+      ov.addEventListener('click',(ev)=>{if(ev.target===ov)fechar();});
+      this._escFecha=(ev)=>{if(ev.key==='Escape')fechar();};
+      document.addEventListener('keydown',this._escFecha);
+      this._pintarModal(k);
+    },
+    _pintarModal(k){
+      const body=this._modal&&this._modal.querySelector('[data-pmc-modal-body]');
+      if(!body)return;
+      body.innerHTML=k==='robusto'?this._robustHtml():this._simpleHtml();
+      this._bindMotor(body,k,()=>{this._pintarModal(k);this._scheduleRenderPanel();});
+    },
+    fecharConfig(){
+      if(this._escFecha){document.removeEventListener('keydown',this._escFecha);this._escFecha=null;}
+      if(this._modal){this._modal.remove();this._modal=null;document.body.style.overflow='';}
+    },
+    /* Os campos de um motor, onde quer que estejam montados (hoje, dentro da
+       janela; o painel fica só com os botões de abrir e a auditoria). Um lugar
+       só, para os dois motores não divergirem na primeira correção. */
+    _bindMotor(root,k,onChange){
+      if(!root)return;
+      if(k==='simplificado'){
+        root.querySelectorAll('[data-pmc-simple]').forEach(el=>el.addEventListener('change',()=>{
+          const campo=el.dataset.pmcSimple,v=el.type==='number'?Number(el.value):el.value;
+          S.salvar({[campo]:v});
+          if(typeof showToast==='function')showToast('Simplificado atualizado ✓');
+          if(onChange)onChange();
+        }));
+        root.querySelector('[data-pmc-simple-reset]')?.addEventListener('click',()=>{
+          S.restaurar?.();
+          if(typeof showToast==='function')showToast('Simplificado restaurado aos padrões ✓');
+          if(onChange)onChange();
+        });
+        return;
+      }
+      const host=root.querySelector('[data-pmc-robusto-host]')||root;
+      R.bindConfig(host,()=>{if(typeof showToast==='function')showToast('Robusto atualizado ✓');if(onChange)onChange();});
+    },
+    _bindPanel(){
+      const panel=document.getElementById('tec-panel-motores');
+      if(!panel)return;
+      panel.querySelectorAll('[data-pmc-config]').forEach(b=>b.addEventListener('click',()=>this.abrirConfig(b.dataset.pmcConfig)));
+      panel.querySelector('[data-pmc-audit-refresh]')?.addEventListener('click',()=>{A?.reconciliar();if(typeof showToast==='function')showToast('Auditoria do Robusto atualizada ✓');this._scheduleRenderPanel();});
+      panel.querySelector('[data-pmc-audit-export]')?.addEventListener('click',()=>{try{const r=A.exportar(),d=r.payload?.diagnostico;if(typeof showToast==='function')showToast(`Auditoria exportada · ${d?.resultadosMedidos||0} resultado(s) TEC ✓`);}catch(e){if(typeof _quiet==='function')_quiet(e,'robusto-audit-ui-export');if(typeof showToast==='function')showToast('Não foi possível exportar a auditoria');}});
+    },
     _aplicarVisibilidadeTab(btn,visivel){if(!btn)return;if(visivel){if(btn.classList.contains('ux-off'))btn.classList.remove('ux-off');if(btn.hidden)btn.hidden=false;if(btn.style.display)btn.style.removeProperty('display');if(btn.getAttribute('aria-hidden')!=='false')btn.setAttribute('aria-hidden','false');}else{if(!btn.hidden)btn.hidden=true;if(btn.style.display!=='none')btn.style.display='none';if(btn.getAttribute('aria-hidden')!=='true')btn.setAttribute('aria-hidden','true');}},
     _protegerTab(btn){if(!btn)return;const corrigir=()=>{const e=G.estado(),algum=e.simplificado||e.robusto;if(algum)this._aplicarVisibilidadeTab(btn,true);};corrigir();if(this._tabObserver)this._tabObserver.disconnect();this._tabObserver=new MutationObserver(()=>corrigir());this._tabObserver.observe(btn,{attributes:true,attributeFilter:['class','hidden','style','aria-hidden']});},
-    ensureUi(){if(typeof document==='undefined')return;const tabs=document.getElementById('tec-subtabs');if(!tabs)return;let btn=tabs.querySelector('.tec-subtab[data-tectab="motores"]');if(!btn){btn=document.createElement('button');btn.type='button';btn.className='tec-subtab pmc-tab';btn.dataset.tectab='motores';btn.textContent='⚙ Motores';tabs.appendChild(btn);btn.addEventListener('click',()=>DT.switchTecTab('motores'));}let panel=document.getElementById('tec-panel-motores');if(!panel){panel=document.createElement('div');panel.id='tec-panel-motores';panel.style.display='none';const first=document.getElementById('tec-panel-analise');if(first?.parentNode)first.parentNode.insertBefore(panel,first);else tabs.insertAdjacentElement('afterend',panel);}this._protegerTab(btn);this.syncVisibility();this.renderPanel();},
+    ensureUi(){if(typeof document==='undefined')return;const tabs=document.getElementById('tec-subtabs');if(!tabs)return;let btn=tabs.querySelector('.tec-subtab[data-tectab="motores"]');if(!btn){btn=document.createElement('button');btn.type='button';btn.className='tec-subtab pmc-tab';btn.dataset.tectab='motores';btn.textContent='⚙ Motores';tabs.appendChild(btn);/* Sem ouvinte próprio: a fita `#tec-subtabs` tem um ouvinte DELEGADO que cobre qualquer chip, inclusive os injetados depois. Um ouvinte aqui faria o clique em Modelos disparar a troca duas vezes — e a segunda, síncrona, desfazia o adiamento que existe justamente para a aba não congelar. */if(typeof DT.trocarAbaPeloToque!=='function')btn.addEventListener('click',()=>DT.switchTecTab('motores'));}let panel=document.getElementById('tec-panel-motores');if(!panel){panel=document.createElement('div');panel.id='tec-panel-motores';panel.style.display='none';const first=document.getElementById('tec-panel-analise');if(first?.parentNode)first.parentNode.insertBefore(panel,first);else tabs.insertAdjacentElement('afterend',panel);}this._protegerTab(btn);this.syncVisibility();this.renderPanel();},
     renderPanel(){if(typeof document==='undefined')return;const panel=document.getElementById('tec-panel-motores');if(!panel)return;panel.innerHTML=this._panelHtml();this._bindPanel();},
     syncVisibility(){if(typeof document==='undefined')return;const e=G.estado(),algum=e.simplificado||e.robusto,btn=document.querySelector('.tec-subtab[data-tectab="motores"]'),panel=document.getElementById('tec-panel-motores');this._aplicarVisibilidadeTab(btn,algum);if(!algum&&DT.tecTab==='motores'){if(this._origSwitch)this._origSwitch('analise');else DT.tecTab='analise';}if(panel&&!algum&&panel.style.display!=='none')panel.style.display='none';},
     instalarTabs(){if(this._tabsInstalled)return;this._tabsInstalled=true;const self=this;if(this._origSwitch)DT.switchTecTab=function(tab){if(tab==='motores'){self.ensureUi();const e=G.estado();if(!e.simplificado&&!e.robusto)return self._origSwitch('analise');this.tecTab='motores';document.querySelectorAll('#tec-subtabs .tec-subtab').forEach(b=>b.classList.toggle('active',b.dataset.tectab==='motores'));document.querySelectorAll('[id^="tec-panel-"]').forEach(el=>{const alvo=el.id==='tec-panel-motores'?'block':'none';if(el.style.display!==alvo)el.style.display=alvo;});self.renderPanel();self.syncVisibility();return;}const out=self._origSwitch(tab);const p=document.getElementById('tec-panel-motores');if(p&&p.style.display!=='none')p.style.display='none';self.syncVisibility();return out;};},
@@ -55312,7 +56359,99 @@ else CloudStore.init();
       const taxa = Number.isFinite(Number(c.taxa)) ? `${fmt(c.taxa, 0)}%` : '—';
       const amostra = Math.max(0, Math.round(n(c.qJanela)));
       const score = Number.isFinite(Number(c.score)) ? Math.round(Number(c.score)) : null;
-      return `<article class="tpm-rec" data-tpm-rec data-disciplina="${esc(c.disciplina || '')}"><div class="tpm-rank">${i + 1}</div><div class="tpm-main"><div class="tpm-head"><div><small>${esc(c.disciplina || 'Disciplina')}</small><b>${esc(c.nome || 'Assunto')}</b></div><span class="tpm-score">${score == null ? '' : 'prioridade ' + score + '/100'}</span></div><div class="tpm-metrics"><span><b>${taxa}</b><small>acerto observado</small></span><span><b>${amostra || '—'}</b><small>questões na amostra</small></span><span class="tpm-dose"><b>${q || '—'}</b><small>${fonte === 'robusto' ? 'questões recomendadas' : 'questões por frente'}</small></span><span><b>${esc(tempo.texto)}</b><small>${esc(tempo.detalhe)}</small></span></div><p class="tpm-context">${esc(c.motivo || '')}</p>${this._topicos(c, fonte)}</div></article>`;
+      return `<article class="tpm-rec" data-tpm-rec data-disciplina="${esc(c.disciplina || '')}"><div class="tpm-rank">${i + 1}</div><div class="tpm-main"><div class="tpm-head"><div><small>${esc(c.disciplina || 'Disciplina')}</small><b>${esc(c.nome || 'Assunto')}</b></div><span class="tpm-score">${score == null ? '' : 'prioridade ' + score + '/100'}</span></div><div class="tpm-metrics"><span><b>${taxa}</b><small>acerto observado</small></span><span><b>${amostra || '—'}</b><small>questões na amostra</small></span><span class="tpm-dose"><b>${q || '—'}</b><small>${fonte === 'robusto' ? 'questões recomendadas' : 'questões por frente'}</small></span><span><b>${esc(tempo.texto)}</b><small>${esc(tempo.detalhe)}</small></span></div><p class="tpm-context">${esc(c.motivo || '')}</p>${this._explica(c, fonte)}${this._topicos(c, fonte)}</div></article>`;
+    },
+    /* ═══ "POR QUE ISSO, AQUI?" TEM DE SER RESPONDÍVEL SEM SAIR DA TELA ═════
+       Os cartões mostravam a CONCLUSÃO do motor — "prioridade 87/100" — e o
+       motivo em uma frase. Nenhum dos dois diz de onde o 87 saiu, e é essa a
+       pergunta de quem vai gastar a semana no assunto: qual métrica pesou,
+       quanto ela pesou, e o que mudaria a posição.
+
+       O Robusto compõe o score de seis fatores normalizados (0..1) com pesos
+       fixos, renormalizados sobre os fatores que existem naquele assunto — um
+       fator sem dado (incidência não importada, sem reforço medido) sai da
+       conta em vez de entrar como zero. O explicador mostra exatamente isso:
+       cada fator com o seu valor, o seu peso efetivo e a contribuição em
+       pontos, mais o ajuste de amostra aplicado no fim. A soma das
+       contribuições fecha com o número do cartão — é a mesma aritmética, não
+       uma paráfrase.
+
+       Nasce RECOLHIDO de propósito: é auditoria, não leitura diária. */
+    PESOS_ROBUSTO: Object.freeze({ lacuna: .30, evidencia: .23, persistencia: .17, tendencia: .08, incidencia: .17, resistencia: .05 }),
+    ROTULO_FATOR: Object.freeze({
+      lacuna: ['Lacuna até a meta', 'Distância entre o seu acerto e a meta do motor, saturada em 30 pp.'],
+      evidencia: ['Evidência da lacuna', 'Probabilidade de a lacuna ser real e não sorte de amostra (posterior Beta).'],
+      persistencia: ['Persistência', 'Em quantos dos seus retratos este assunto já apareceu abaixo da meta.'],
+      tendencia: ['Tendência', 'Se a taxa vem caindo entre os retratos (risco) ou subindo.'],
+      incidencia: ['Incidência da banca', 'Quanto o assunto cai na prova, em escala logarítmica sobre o maior do escopo.'],
+      resistencia: ['Resistência ao treino', 'Quanto os seus reforços em Extras renderam por 100 questões aqui.']
+    }),
+    _explicaRobusto(c) {
+      const comp = c && c.componentes;
+      if (!comp) return '';
+      const pesos = this.PESOS_ROBUSTO;
+      const vivos = Object.keys(pesos).filter(k => comp[k] != null);
+      if (!vivos.length) return '';
+      const den = vivos.reduce((t, k) => t + pesos[k], 0) || 1;
+      const conf = n(comp.confiancaAmostra, 1);
+      const ajuste = .68 + .32 * conf;
+      const puro = vivos.reduce((t, k) => t + pesos[k] * n(comp[k]), 0) / den * 100;
+      const linhas = vivos
+        .map(k => ({ k, peso: pesos[k] / den, valor: n(comp[k]) }))
+        .sort((a, b) => (b.peso * b.valor) - (a.peso * a.valor))
+        .map(x => {
+          const [rot, ajuda] = this.ROTULO_FATOR[x.k];
+          const pontos = x.peso * x.valor * 100 * ajuste;
+          return `<li><span class="tpm-why-bar" style="--tpm-why-w:${(x.valor * 100).toFixed(1)}%"></span>`
+            + `<b>${esc(rot)}</b><em>${fmt(x.valor * 100, 0)}/100 · peso ${fmt(x.peso * 100, 0)}%</em>`
+            + `<strong>+${fmt(pontos, 1)}</strong><small>${esc(ajuda)}</small></li>`;
+        }).join('');
+      const fora = Object.keys(pesos).filter(k => comp[k] == null)
+        .map(k => this.ROTULO_FATOR[k][0]);
+      return `<details class="tpm-why"><summary>Por que nesta posição — a conta do Robusto</summary>`
+        + `<ol class="tpm-why-list">${linhas}</ol>`
+        + `<div class="tpm-why-foot">`
+        + `<span><b>${fmt(puro, 1)}</b><small>soma dos fatores</small></span>`
+        + `<span><b>×${fmt(ajuste, 2)}</b><small>ajuste de amostra (${fmt(conf * 100, 0)}% da amostra mínima)</small></span>`
+        + `<span><b>${fmt(n(c.scoreTopico, puro * ajuste), 1)}</b><small>prioridade do tópico</small></span>`
+        + `</div>`
+        + (fora.length ? `<p class="tpm-why-nota"><b>Fora da conta:</b> ${esc(fora.join(' · '))} — sem dado para este assunto, então o peso é redistribuído entre os demais em vez de entrar como zero.</p>` : '')
+        + (Number.isFinite(Number(c.score)) && Number.isFinite(Number(c.scoreTopico)) && Math.abs(n(c.score) - n(c.scoreTopico)) > .05
+          ? `<p class="tpm-why-nota"><b>Prioridade da disciplina (${fmt(c.score, 0)}/100):</b> média dos três melhores tópicos desta disciplina, com pesos 60/25/15${n(c.pesoPost, 1) !== 1 ? `, e o peso manual ${fmt(c.pesoPost, 1)} do Pós-edital` : ''}. É ela que define a ORDEM das disciplinas; a prioridade acima define qual tópico da disciplina vem primeiro.</p>` : '')
+        + `</details>`;
+    },
+    _explicaSimplificado(c) {
+      const comp = c && c.componentes;
+      if (!comp) return '';
+      const item = (rot, val, ajuda) => `<li><b>${esc(rot)}</b><strong>${esc(val)}</strong><small>${esc(ajuda)}</small></li>`;
+      let linhas = '';
+      if (comp.incidenciaDiscPct != null) {
+        linhas = item('Lacuna até a meta', fmt(comp.lacunaPP, 1) + ' pp', 'Quanto falta do seu acerto atual até a meta deste motor.')
+          + item('Fatia da incidência', fmt(comp.incidenciaDiscPct, 1) + '%', 'Peso do assunto dentro da incidência da disciplina na banca, sem contar pai e filho duas vezes.')
+          + item('Peso da matéria', fmt(comp.pesoMateria, 1) + ' ponto(s)', 'O que a matéria vale na composição da prova que você declarou.')
+          + item('Confiança do cruzamento', fmt(n(comp.confiancaCruzamento) * 100, 0) + '%', 'Quão seguro foi casar os nomes do TEC com os da incidência e do edital.')
+          + item('Valor em pontos', fmt(comp.valorPontos, 2), 'Produto dos quatro acima — é o número bruto que o motor ordena.');
+      } else {
+        linhas = item('Lacuna até a meta', fmt(comp.lacunaPP, 1) + ' pp', 'É o critério ÚNICO do Simplificado Pré: nada mais entra na conta.')
+          + item('Amostra', Math.round(n(comp.amostra)) + ' questões', 'Usada só como porta de entrada (amostra mínima), não como peso.')
+          + item('Acerto observado', fmt(comp.taxa, 0) + '%', 'A taxa medida no escopo de retratos selecionado.');
+      }
+      return `<details class="tpm-why"><summary>Por que nesta posição — a conta do Simplificado</summary>`
+        + `<ol class="tpm-why-list is-plain">${linhas}</ol>`
+        + `<div class="tpm-why-foot"><span><b>${fmt(c.score, 0)}/100</b><small>prioridade, normalizada pelo maior valor bruto do escopo</small></span></div>`
+        + `<p class="tpm-why-nota"><b>Regra:</b> ${esc((c.auditoria && c.auditoria.formula) || 'lacunaPP')} — leitura direta do TEC, sem estatística de persistência, tendência ou reforços.</p>`
+        + `</details>`;
+    },
+    _explica(c, fonte) {
+      try { return fonte === 'robusto' ? this._explicaRobusto(c) : this._explicaSimplificado(c); }
+      catch (e) { if (typeof _quiet === 'function') _quiet(e, 'tpm-explica'); return ''; }
+    },
+    /* Um `<details>` dentro de um cartão clicável precisa parar a propagação,
+       senão abrir a explicação também dispara o que o cartão faz. */
+    _bindExplain(root) {
+      if (!root) return;
+      root.querySelectorAll('.tpm-why > summary').forEach(sm =>
+        sm.addEventListener('click', (e) => e.stopPropagation()));
     },
     _itemKey(c) { return norm(c && c.disciplina) + '\u0001' + norm(c && c.nome); },
     _rankingItems(fonte, r) {
@@ -55331,7 +56470,7 @@ else CloudStore.init();
       const persist = fonte === 'robusto' && Number.isFinite(Number(c && c.histTec && c.histTec.persistencia)) ? `${Math.round(Number(c.histTec.persistencia) * 100)}%` : null;
       const extras = fonte === 'simplificado' && n(c.alvo) > 0 ? `<span><b>${Math.round(n(c.alvo))}</b><small>questões por frente</small></span>` : '';
       const robustoExtra = fonte === 'robusto' ? `<span><b>${incidencia || '—'}</b><small>incidência</small></span><span><b>${persist || '—'}</b><small>persistência da lacuna</small></span>` : '';
-      return `<article class="tpm-ranking-item${ataque ? ' is-now' : ''}" data-tpm-ranking-item data-disciplina="${esc(c.disciplina || '')}"><div class="tpm-ranking-rank">${i + 1}</div><div class="tpm-ranking-main"><div class="tpm-ranking-head"><div><small>${esc(c.disciplina || 'Disciplina')}</small><b>${esc(c.nome || 'Assunto')}</b></div>${ataque ? '<em>ataque agora</em>' : ''}</div><div class="tpm-ranking-metrics"><span><b>${taxa}</b><small>acerto</small></span><span><b>${amostra || '—'}</b><small>amostra</small></span><span><b>${Math.round(score)}</b><small>prioridade do tópico</small></span>${extras}${robustoExtra}</div>${c.motivo ? `<p>${esc(c.motivo)}</p>` : ''}</div></article>`;
+      return `<article class="tpm-ranking-item${ataque ? ' is-now' : ''}" data-tpm-ranking-item data-disciplina="${esc(c.disciplina || '')}"><div class="tpm-ranking-rank">${i + 1}</div><div class="tpm-ranking-main"><div class="tpm-ranking-head"><div><small>${esc(c.disciplina || 'Disciplina')}</small><b>${esc(c.nome || 'Assunto')}</b></div>${ataque ? '<em>ataque agora</em>' : ''}</div><div class="tpm-ranking-metrics"><span><b>${taxa}</b><small>acerto</small></span><span><b>${amostra || '—'}</b><small>amostra</small></span><span><b>${Math.round(score)}</b><small>prioridade do tópico</small></span>${extras}${robustoExtra}</div>${c.motivo ? `<p>${esc(c.motivo)}</p>` : ''}${this._explica(c, fonte)}</div></article>`;
     },
     _rankingHtml(fonte, r) {
       const itens = this._rankingItems(fonte, r);
@@ -55379,6 +56518,52 @@ else CloudStore.init();
       const itens = (r.itens || []).slice().sort((a, b) => fonte === 'robusto' ? n(b.score) - n(a.score) : 0);
       return `<section class="tpm-output" data-tpm-output data-tpm-model="${fonte}"><header><div><small>${ico} ${nome.toUpperCase()} · ${r.fase === 'pos' ? 'PÓS-EDITAL' : 'PRÉ-EDITAL'}</small><strong>Onde atacar agora</strong><p>${esc(this._criterio(fonte, r))}</p></div><span>${itens.length} ${itens.length === 1 ? 'disciplina' : 'disciplinas'}</span></header>${fonte === 'robusto' ? '<div class="tpm-method"><b>O algoritmo para aqui:</b> recomenda alvo, ordem e quantidade. Sua resolução aprofundada — comentários, resumo, lei seca e cards — é seu modus operandi e não entra no score.</div>' : ''}<div class="tpm-recs">${itens.map((c, i) => this._card(c, i, fonte)).join('')}</div>${this._rankingHtml(fonte, r)}<footer><b>Execução em Atividades → Puxar do Plano.</b><span>Resultados do TEC são observacionais: outras questões feitas no ciclo podem aparecer no mesmo retrato.</span></footer></section>`;
     },
+    /* ═══ A ROTA MANUAL NÃO PODE DESAPARECER COM A DECISÃO ═════════════════
+       O CSS apagava todo filho de `#plano-lista` que não fosse a saída do
+       motor. Isso tirava da tela três coisas que EXECUTAM, não decidem: o
+       quadro "🎯 Onde atacar primeiro" (onde vive o 🎯 Atacar, único caminho da
+       matéria para os assuntos dela), "O seu próximo bloco" (atividades em
+       lote) e as linhas de assunto com "+ Atividade". Os botões existiam, com
+       ouvinte ligado, invisíveis — daí "o botão de ataque não funciona em
+       nenhum lugar e não deixa gerar o extra manualmente".
+
+       Em vez de devolver tudo ao fluxo (o que recria a segunda fonte de
+       decisão que essa camada existe para evitar), a rota manual é reagrupada
+       aqui: um `<details>` DEPOIS do resultado do motor, recolhido, com um
+       rótulo que diz exatamente o que há dentro. A ordem de leitura continua
+       sendo motor primeiro; a rota manual fica a um toque.
+
+       `appendChild` MOVE o nó: os ouvintes que `_pintarPlano` acabou de ligar
+       em cada botão vão junto. E como `_pintarPlano` reescreve a lista inteira
+       a cada repintura, o agrupamento é refeito na sequência, sempre. */
+    LEGADO_EXEC: ['.pl-ciclo.pl-tempo', '.pl-hoje', '.pl-item', '.pl-segundo', '.pl-mais', '.pl-ciclo.pl-feito'],
+    _agruparRotaManual(lista) {
+      if (!lista) return;
+      lista.querySelectorAll(':scope > .tpm-legacy-exec').forEach(el => {
+        /* Desmonta o agrupamento anterior antes de refazer: sem isto, uma
+           repintura aninharia `<details>` dentro de `<details>`. */
+        while (el.firstElementChild && el.firstElementChild.tagName !== 'SUMMARY') lista.insertBefore(el.firstElementChild, el);
+        el.remove();
+      });
+      const alvos = Array.from(lista.children).filter(el =>
+        !el.matches('[data-tpm-output]') && this.LEGADO_EXEC.some(sel => el.matches(sel)));
+      if (!alvos.length) return;
+      const box = document.createElement('details');
+      box.className = 'tpm-legacy-exec';
+      /* O estado fica guardado: quem usa a rota manual toda semana não deve
+         reabri-la a cada repintura da tela. */
+      box.open = this._legacyOpen === true;
+      box.innerHTML = '<summary><span><b>🎯 Rota manual do Plano</b>'
+        + '<small>Quadro de matérias com “Atacar”, o próximo bloco em lote e a criação avulsa de atividades.</small>'
+        + '</span><i>▾</i></summary>';
+      lista.appendChild(box);
+      alvos.forEach(el => box.appendChild(el));
+      box.addEventListener('toggle', () => { this._legacyOpen = box.open; });
+    },
+    /* Quem clica em 🎯 Atacar / + focar está DENTRO da rota manual, e a
+       repintura que o clique dispara reconstrói o `<details>`. Sem esta marca
+       ele voltaria recolhido no meio da ação. */
+    _legacyOpen: false,
     _scheduleRender() {
       if (this._renderQueued) return;
       this._renderQueued = true;
@@ -55433,6 +56618,12 @@ else CloudStore.init();
         proj.querySelectorAll('[data-tpm-selector],[data-tpm-panorama]').forEach(el => el.remove());
         proj.querySelectorAll('.pl-hero').forEach(el => { el.hidden = false; });
         lista.querySelectorAll('[data-tpm-output]').forEach(el => el.remove());
+        /* Sem motor, o Plano legado É a tela: nada de agrupar a rota manual
+           num recolhível, porque aqui ela não é rota alternativa nenhuma. */
+        lista.querySelectorAll(':scope > .tpm-legacy-exec').forEach(el => {
+          while (el.firstElementChild && el.firstElementChild.tagName !== 'SUMMARY') lista.insertBefore(el.firstElementChild, el);
+          el.remove();
+        });
         return;
       }
       this._rendering = true;
@@ -55450,7 +56641,8 @@ else CloudStore.init();
         if (p) proj.prepend(p);
         box.innerHTML = this._outputHtml(fonte, r);
         const out = box.firstElementChild;
-        if (out) { lista.prepend(out); this._bindRanking(out, fonte, r); }
+        if (out) { lista.prepend(out); this._bindRanking(out, fonte, r); this._bindExplain(out); }
+        this._agruparRotaManual(lista);
         lista.classList.add('tpm-engine-active');
         proj.querySelectorAll('.pl-hero-sub').forEach(p => {
           if (/^\s*Caminho mais curto:/i.test(p.textContent || '')) p.classList.add('tpm-legacy-decision');
@@ -55722,21 +56914,21 @@ else CloudStore.init();
       });
     },
 
+    /* ── O PERÍODO DO GRÁFICO É ESCOLHA DE QUEM OLHA ────────────────────────
+       Esta camada envolvia `renderDayChart` e reescrevia `tempoStart`/`tempoEnd`
+       a CADA repintura, com o intervalo do filtro geral da tela. O efeito era
+       o seletor de período do gráfico não funcionar mais: qualquer escolha
+       ("última semana", "último mês", um intervalo digitado) era sobrescrita no
+       render seguinte, e o campo voltava sozinho para o intervalo inteiro. Duas
+       coisas diferentes com o mesmo nome — o filtro recorta QUAIS registros
+       entram na tela, o seletor escolhe a JANELA desenhada no gráfico — foram
+       forçadas a ser a mesma, e a que o usuário controlava foi a que morreu.
+
+       Nada substitui o método original: o gráfico volta a ler o seu próprio
+       estado, que é o único lugar onde a escolha dele existe. */
     syncEvolutionPeriod() {
       if (typeof EvolucaoScreen === 'undefined' || EvolucaoScreen.__uxHierarchyPeriod) return;
       EvolucaoScreen.__uxHierarchyPeriod = true;
-      const anterior = EvolucaoScreen.renderDayChart;
-      if (typeof anterior !== 'function') return;
-      EvolucaoScreen.renderDayChart = function(entries) {
-        try {
-          const datas = (entries || []).map(e => e && e.date).filter(Boolean).sort();
-          if (datas.length) {
-            this.tempoStart = this.filterStart || datas[0];
-            this.tempoEnd = this.filterEnd || datas[datas.length - 1];
-          }
-        } catch (e) { if (typeof _quiet === 'function') _quiet(e, 'ux-hierarchy-evo-period'); }
-        return anterior.apply(this, arguments);
-      };
     },
 
     decorateEvolution() {
@@ -55805,25 +56997,32 @@ else CloudStore.init();
       const refTab = q('.tec-subtab[data-tectab="reforco"]', s);
       refTab?.classList.add('ux-secondary-tab');
       const motTab = q('.tec-subtab[data-tectab="motores"]', s);
-      if (motTab) { motTab.textContent = '⚙ Modelos'; motTab.classList.add('ux-secondary-tab'); }
+      if (motTab && motTab.textContent !== '⚙ Modelos') motTab.textContent = '⚙ Modelos';
+      motTab?.classList.add('ux-secondary-tab');
       q('#tec-panel-motores', s)?.classList.add('ux-advanced-surface');
     },
 
+    /* ── DOIS AGRUPADORES SOBRE A MESMA TELA ────────────────────────────────
+       `ConfigUX` (80-ajustes-finais) já divide Configurações em cinco seções
+       navegáveis — Estudo, Preferências, Conta e nuvem, Dados e backup,
+       Diagnóstico — e MOVE cada cartão para o painel certo. Esta camada, sem
+       saber disso, criava um `<details>` "Dados, backup e diagnóstico" e movia
+       os mesmos quatro cartões para DENTRO dele, já dentro do painel "Dados".
+       Resultado: uma seção dentro da seção, títulos repetidos, e a escala
+       tipográfica do `<details>` (`--fs-sm`/`--fs-2xs`) brigando com a dos
+       cartões — era daí que vinha a sensação de fonte sem padrão na tela.
+
+       Um agrupador só. Esta camada passa a apenas marcar prioridade, e o
+       `<details>` legado que tenha sobrado de uma sessão anterior é desmontado
+       devolvendo os cartões ao painel onde `ConfigUX` os colocou. */
     decorateConfig() {
       const s = screenEl('config'); if (!s) return;
-      let details = document.getElementById('ux-config-data');
-      const cards = ['cfg-storage-card', 'cfg-recuperacao-card', 'cfg-vhist-card', 'cfg-cloudbk-card']
-        .map(id => document.getElementById(id)).filter(Boolean);
-      if (cards.length && !details) {
-        details = document.createElement('details');
-        details.id = 'ux-config-data';
-        details.className = 'ux-config-data';
-        details.innerHTML = '<summary><span><b>Dados, backup e diagnóstico</b><small>Recuperação, versões locais, cópias no banco e espaço usado.</small></span><i>▾</i></summary><div class="ux-config-data-body"></div>';
-        const anchor = cards[0];
-        anchor.parentNode.insertBefore(details, anchor);
+      const legado = document.getElementById('ux-config-data');
+      if (legado) {
+        const destino = legado.parentElement;
+        qa('.ux-config-data-body > *', legado).forEach(card => destino && destino.insertBefore(card, legado));
+        legado.remove();
       }
-      const body = q('.ux-config-data-body', details);
-      cards.forEach(card => { if (body && card.parentElement !== body) body.appendChild(card); });
       q('#cfg-plano-motores-card', s)?.classList.add('ux-secondary-area');
       q('#cloud-connected-box', s)?.classList.add('ux-secondary-area');
     },

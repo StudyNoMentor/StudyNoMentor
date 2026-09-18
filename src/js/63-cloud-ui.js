@@ -43,27 +43,42 @@ const CloudUI = {
     if (semPlano.indexOf('pref-') === 0 || semPlano.indexOf('painel:') === 0 || semPlano.indexOf('ux47:') === 0) return 'preferências de tela';
     return semPlano;
   },
+  /* ── UM BOTÃO DE ENVIAR, NÃO DOIS ─────────────────────────────────────────
+     Este método injetava um `<button id="cloud-queue-flush">↑ Enviar agora</button>`
+     dentro de `#cloud-queue-box` — a poucos pixels do `#cloud-push-now`
+     "↑ Enviar agora" que já existe no HTML, logo abaixo, na mesma caixa. Com a
+     fila vazia só um aparecia e ninguém notava; com qualquer pendência os dois
+     ficavam visíveis ao mesmo tempo, com o mesmo rótulo e a mesma seta, em
+     duas linhas que quebravam em alturas diferentes. Era o "Enviar Agora duas
+     vezes ao mesmo tempo, cascateado e quebrado".
+
+     Dois botões com o mesmo texto não são redundância inofensiva: fazem
+     duvidar se um deles envia outra coisa. Fica o do HTML, que é o que a linha
+     de ações agrupa junto com "Baixar da nuvem"; este bloco volta a ser só o
+     que ele deveria ter sido — o ESTADO da fila. O clique daquele botão passa
+     por `CloudUX`, que já mostra progresso e reconsulta a fila.
+
+     As seções pendentes deixam de ser um parágrafo com " · " no meio e viram
+     etiquetas: com oito seções na fila, a frase corrida virava três linhas de
+     texto cinza em que não se achava nenhuma. */
   renderQueue() {
     const box = document.getElementById('cloud-queue-box');
     if (!box) return;
     let fila = [];
     try { if (window.SectionSync) fila = SectionSync.pendingSections(); } catch (_) { _quiet(_); }
+    const acoes = document.getElementById('cloud-push-now');
     if (!fila.length) {
-      box.innerHTML = '<p class="hint" style="margin:4px 0 0;">✓ <strong>Nada pendente.</strong> Tudo o que você registrou já está na nuvem e aparece ao entrar em outro aparelho.</p>';
+      box.innerHTML = '<p class="cloud-queue-ok">✓ <strong>Nada pendente.</strong> Tudo o que você registrou já está na nuvem e aparece ao entrar em outro aparelho.</p>';
+      if (acoes) acoes.disabled = false;
       return;
     }
     const nomes = [...new Set(fila.map(s => this._nomeSecao(s)))];
-    box.innerHTML = '<p class="hint" style="margin:4px 0 8px;"><strong>' + fila.length +
+    box.innerHTML = '<p><strong>' + fila.length +
       (fila.length === 1 ? ' alteração ainda não enviada' : ' alterações ainda não enviadas') +
       '.</strong> Está salvo neste aparelho e sobe sozinho assim que houver conexão — nada é perdido, e nenhum download apaga o que está aqui.</p>' +
-      '<p class="hint" style="margin:0 0 10px;">Aguardando: ' + escapeHtml(nomes.join(' · ')) + '</p>' +
-      '<button type="button" class="btn-primary" id="cloud-queue-flush">↑ Enviar agora</button>';
-    const b = document.getElementById('cloud-queue-flush');
-    if (b) b.addEventListener('click', async () => {
-      b.disabled = true; b.textContent = 'Enviando…';
-      try { await CloudStore.flushPending(); } catch (_) { _quiet(_); }
-      this.renderQueue();
-    });
+      '<div class="cloud-queue-secoes" aria-label="Seções aguardando envio">' +
+      nomes.map(n => '<span>' + escapeHtml(n) + '</span>').join('') + '</div>';
+    if (acoes) acoes.disabled = false;
   },
   // Painel "Aparelho com sessão ativa" (login único entre dispositivos).
   async renderSessions() {

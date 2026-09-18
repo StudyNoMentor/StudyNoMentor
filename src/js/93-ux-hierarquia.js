@@ -227,21 +227,21 @@
       });
     },
 
+    /* ── O PERÍODO DO GRÁFICO É ESCOLHA DE QUEM OLHA ────────────────────────
+       Esta camada envolvia `renderDayChart` e reescrevia `tempoStart`/`tempoEnd`
+       a CADA repintura, com o intervalo do filtro geral da tela. O efeito era
+       o seletor de período do gráfico não funcionar mais: qualquer escolha
+       ("última semana", "último mês", um intervalo digitado) era sobrescrita no
+       render seguinte, e o campo voltava sozinho para o intervalo inteiro. Duas
+       coisas diferentes com o mesmo nome — o filtro recorta QUAIS registros
+       entram na tela, o seletor escolhe a JANELA desenhada no gráfico — foram
+       forçadas a ser a mesma, e a que o usuário controlava foi a que morreu.
+
+       Nada substitui o método original: o gráfico volta a ler o seu próprio
+       estado, que é o único lugar onde a escolha dele existe. */
     syncEvolutionPeriod() {
       if (typeof EvolucaoScreen === 'undefined' || EvolucaoScreen.__uxHierarchyPeriod) return;
       EvolucaoScreen.__uxHierarchyPeriod = true;
-      const anterior = EvolucaoScreen.renderDayChart;
-      if (typeof anterior !== 'function') return;
-      EvolucaoScreen.renderDayChart = function(entries) {
-        try {
-          const datas = (entries || []).map(e => e && e.date).filter(Boolean).sort();
-          if (datas.length) {
-            this.tempoStart = this.filterStart || datas[0];
-            this.tempoEnd = this.filterEnd || datas[datas.length - 1];
-          }
-        } catch (e) { if (typeof _quiet === 'function') _quiet(e, 'ux-hierarchy-evo-period'); }
-        return anterior.apply(this, arguments);
-      };
     },
 
     decorateEvolution() {
@@ -310,25 +310,32 @@
       const refTab = q('.tec-subtab[data-tectab="reforco"]', s);
       refTab?.classList.add('ux-secondary-tab');
       const motTab = q('.tec-subtab[data-tectab="motores"]', s);
-      if (motTab) { motTab.textContent = '⚙ Modelos'; motTab.classList.add('ux-secondary-tab'); }
+      if (motTab && motTab.textContent !== '⚙ Modelos') motTab.textContent = '⚙ Modelos';
+      motTab?.classList.add('ux-secondary-tab');
       q('#tec-panel-motores', s)?.classList.add('ux-advanced-surface');
     },
 
+    /* ── DOIS AGRUPADORES SOBRE A MESMA TELA ────────────────────────────────
+       `ConfigUX` (80-ajustes-finais) já divide Configurações em cinco seções
+       navegáveis — Estudo, Preferências, Conta e nuvem, Dados e backup,
+       Diagnóstico — e MOVE cada cartão para o painel certo. Esta camada, sem
+       saber disso, criava um `<details>` "Dados, backup e diagnóstico" e movia
+       os mesmos quatro cartões para DENTRO dele, já dentro do painel "Dados".
+       Resultado: uma seção dentro da seção, títulos repetidos, e a escala
+       tipográfica do `<details>` (`--fs-sm`/`--fs-2xs`) brigando com a dos
+       cartões — era daí que vinha a sensação de fonte sem padrão na tela.
+
+       Um agrupador só. Esta camada passa a apenas marcar prioridade, e o
+       `<details>` legado que tenha sobrado de uma sessão anterior é desmontado
+       devolvendo os cartões ao painel onde `ConfigUX` os colocou. */
     decorateConfig() {
       const s = screenEl('config'); if (!s) return;
-      let details = document.getElementById('ux-config-data');
-      const cards = ['cfg-storage-card', 'cfg-recuperacao-card', 'cfg-vhist-card', 'cfg-cloudbk-card']
-        .map(id => document.getElementById(id)).filter(Boolean);
-      if (cards.length && !details) {
-        details = document.createElement('details');
-        details.id = 'ux-config-data';
-        details.className = 'ux-config-data';
-        details.innerHTML = '<summary><span><b>Dados, backup e diagnóstico</b><small>Recuperação, versões locais, cópias no banco e espaço usado.</small></span><i>▾</i></summary><div class="ux-config-data-body"></div>';
-        const anchor = cards[0];
-        anchor.parentNode.insertBefore(details, anchor);
+      const legado = document.getElementById('ux-config-data');
+      if (legado) {
+        const destino = legado.parentElement;
+        qa('.ux-config-data-body > *', legado).forEach(card => destino && destino.insertBefore(card, legado));
+        legado.remove();
       }
-      const body = q('.ux-config-data-body', details);
-      cards.forEach(card => { if (body && card.parentElement !== body) body.appendChild(card); });
       q('#cfg-plano-motores-card', s)?.classList.add('ux-secondary-area');
       q('#cloud-connected-box', s)?.classList.add('ux-secondary-area');
     },

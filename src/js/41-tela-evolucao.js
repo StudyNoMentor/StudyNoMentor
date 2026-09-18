@@ -898,7 +898,15 @@ const EvolucaoScreen = {
   },
 
   // ------- Tempo de estudo por dia (barras, com atalho de período OU intervalo de datas) -------
-  tempoDias: 7,
+  /* ── 30 DIAS, NÃO 7 ───────────────────────────────────────────────────────
+     Uma semana é curta demais para o que este gráfico responde: "estou
+     mantendo o ritmo?". Com sete barras, um feriado no meio ou dois dias
+     fortes mudam a leitura inteira, e a média do rodapé fala de uma amostra
+     que qualquer imprevisto distorce. Um mês mostra a semana cheia quatro
+     vezes — dá para ver o padrão (quais dias você realmente estuda) em vez de
+     só o acidente da semana corrente. Quem quer a semana continua a um clique
+     no seletor ao lado do título. */
+  tempoDias: 30,
   tempoStart: null, tempoEnd: null, // [MELHORIA] intervalo de datas personalizado (tem prioridade sobre os atalhos)
   renderDayChart(entries) {
     const container = document.getElementById('evolucao-day-chart');
@@ -937,15 +945,37 @@ const EvolucaoScreen = {
       container.innerHTML = `<div class="evo-empty-mini">Nenhum tempo registrado ${usaRange ? 'no intervalo de ' + formatDateShort(start) + ' a ' + formatDateShort(end) : 'nos últimos ' + nDias + ' dias'}.</div>`;
       return;
     }
-    // com muitos dias, mostra rótulo a cada N (menos rótulos no celular)
-    const labelEvery = Math.max(1, Math.ceil(days.length / (this._vw() < 640 ? 6 : 12)));
+    /* ── O EIXO TEM DE CABER NA LARGURA QUE TEM ─────────────────────────────
+       Cada rótulo vivia numa célula `flex:1` do tamanho de UMA barra: com 30
+       dias, "17/09" precisa de ~38px e recebia ~11px, então o texto era
+       cortado no meio (`overflow:hidden`) e o eixo virava uma fileira de
+       fragmentos ilegíveis. Duas correções, juntas:
+
+       1. a quantidade de rótulos é calculada a partir da largura REAL
+          disponível, não de um divisor fixo — cada rótulo recebe no mínimo a
+          largura de que precisa para ser lido inteiro;
+       2. o rótulo é posicionado em `%` sobre uma faixa própria, centrado na
+          barra a que pertence e livre para transbordar a célula dela.
+
+       O primeiro e o último ganham âncora nas pontas, senão metade do texto
+       sairia da caixa justamente nas duas datas que delimitam a janela. */
+    const LARGURA_ROTULO = 44;
+    const larguraEixo = Math.max(240, (container.clientWidth || this._vw() || 900) - 48);
+    const maxRotulos = Math.max(2, Math.floor(larguraEixo / LARGURA_ROTULO));
+    const labelEvery = Math.max(1, Math.ceil(days.length / maxRotulos));
     const bars = days.map(d => {
       const min = byDate[d] || 0;
       const h = Math.round((min / maxMin) * 100);
       const title = `${formatDateShort(d)}: ${CycleEngine.fmtHM(min)}`;
       return `<div class="evo-day-bar ${min === 0 ? 'empty' : ''}" style="height:${Math.max(2, h)}%;" title="${title}"></div>`;
     }).join('');
-    const axis = days.map((d, i) => `<span>${(i % labelEvery === 0 || i === days.length - 1) ? formatDateShort(d) : ''}</span>`).join('');
+    const passo = 100 / days.length;
+    const axis = days.map((d, i) => {
+      if (!(i % labelEvery === 0 || i === days.length - 1)) return '';
+      const centro = (i + 0.5) * passo;
+      const ancora = i === 0 ? 'is-first' : (i === days.length - 1 ? 'is-last' : '');
+      return `<span class="${ancora}" style="left:${centro.toFixed(3)}%;">${formatDateShort(d)}</span>`;
+    }).join('');
     container.innerHTML = `
       <div class="evo-day-bar-row">${bars}</div>
       <div class="evo-day-axis">${axis}</div>

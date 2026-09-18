@@ -10,8 +10,16 @@
 .ux-hierarchy-ready .ux-secondary-area{opacity:.96}
 .ux-hierarchy-ready .ux-advanced-surface{background:color-mix(in srgb,var(--surface-sunken) 72%,var(--surface));border-radius:12px}
 .ux-hierarchy-ready .ux-priority-action{box-shadow:0 0 0 2px color-mix(in srgb,var(--accent) 10%,transparent)}
-.ux-hierarchy-ready .ux-tertiary-action{opacity:.78}
-.ux-hierarchy-ready .ux-diagnostic-action{opacity:.62}
+/* ── DE-ÊNFASE SEM APAGAR ────────────────────────────────────────────────────
+   `opacity` rebaixa o texto E a borda juntos: um botão a 0,62 passa de
+   "secundário" a "desabilitado", e quem olha não tenta clicar. A hierarquia
+   agora vem do PESO (fundo neutro, borda discreta, tipografia menor) — que
+   diferencia sem mentir sobre o estado do controle e sem derrubar o contraste
+   do texto abaixo do WCAG AA. */
+.ux-hierarchy-ready .ux-tertiary-action,
+.ux-hierarchy-ready .ux-diagnostic-action{opacity:1;font-weight:700;background:var(--surface);border-color:var(--border);color:var(--text-soft)}
+.ux-hierarchy-ready .ux-tertiary-action:hover,
+.ux-hierarchy-ready .ux-diagnostic-action:hover{border-color:var(--accent);color:var(--accent-text);background:var(--accent-soft)}
 .ux-hierarchy-ready .ux-compact-control{transform:scale(.96);transform-origin:right center}
 .ux-hierarchy-ready .ux-instant-feedback{transform:translateY(1px) scale(.985)!important;filter:saturate(.88);transition:none!important}
 
@@ -21,10 +29,17 @@
 #screen-registrar #recent-section .card{box-shadow:none}
 
 /* Ciclo: 3 respostas acionáveis primeiro */
-#ciclo-overview-gauges.ux-week-gauges{display:grid!important;grid-template-columns:repeat(3,minmax(0,1fr))!important;gap:10px!important}
+/* ── OS CARTÕES ACOMPANHAM O A− / A+ ────────────────────────────────────────
+   `min-height:88px` e `font-size:clamp(22px,2.2vw,30px)` são pixels crus: não
+   passam por `--fs-scale`, então reduzir a fonte do app encolhia todo o resto
+   da tela e deixava SÓ estes cartões do tamanho original. Agora as três
+   medidas (altura, número e rótulo) são multiplicadas pela escala, e a grade é
+   `auto-fit` — ao encolher o texto, cabem mais colunas em vez de sobrar vão. */
+#ciclo-overview-gauges.ux-week-gauges{display:grid!important;grid-template-columns:repeat(auto-fit,minmax(calc(158px * var(--fs-scale,1)),1fr))!important;gap:calc(10px * var(--fs-scale,1))!important}
 #ciclo-overview-gauges .mini-gauge-card{transition:opacity .16s ease,border-color .16s ease,transform .16s ease}
-#ciclo-overview-gauges .mini-gauge-card[data-ux-priority="primary"],#ciclo-overview-gauges .mini-gauge-card[data-ux-priority="secondary"],#ciclo-overview-gauges .mini-gauge-card[data-ux-priority="tertiary"]{min-height:88px;border-color:var(--border);background:var(--surface);box-shadow:var(--shadow-sm);opacity:1}
-#ciclo-overview-gauges .mini-gauge-card[data-ux-priority] .value{font-size:clamp(22px,2.2vw,30px)}
+#ciclo-overview-gauges .mini-gauge-card[data-ux-priority="primary"],#ciclo-overview-gauges .mini-gauge-card[data-ux-priority="secondary"],#ciclo-overview-gauges .mini-gauge-card[data-ux-priority="tertiary"]{min-height:calc(78px * var(--fs-scale,1));padding:calc(11px * var(--fs-scale,1)) calc(10px * var(--fs-scale,1));border-color:var(--border);background:var(--surface);box-shadow:var(--shadow-sm);opacity:1}
+#ciclo-overview-gauges .mini-gauge-card[data-ux-priority] .value{font-size:clamp(calc(18px * var(--fs-scale,1)),2.1vw,calc(26px * var(--fs-scale,1)));line-height:1.12}
+#ciclo-overview-gauges .mini-gauge-card[data-ux-priority] .label{font-size:calc(9.5px * var(--fs-scale,1))}
 #screen-ciclo #ciclo-subjects-progress{margin-top:4px}
 
 /* Grade: a grade é o conteúdo; controles são suporte */
@@ -57,9 +72,10 @@
 #screen-extras #extras-agenda.ux-primary-workspace{position:relative}
 #screen-extras .exm-stats{grid-template-columns:repeat(4,minmax(0,1fr));gap:8px}
 #screen-extras .exm-stat[data-ux-priority="primary"]{border-color:color-mix(in srgb,var(--accent) 22%,var(--border));background:color-mix(in srgb,var(--accent) 3%,var(--surface))}
-#screen-extras .exm-stat[data-ux-priority="secondary"]{opacity:.78}
+#screen-extras .exm-stat[data-ux-priority="secondary"]{opacity:1;background:var(--surface-sunken);border-color:var(--border)}
 #screen-extras .exm-rotation.ux-advanced-surface,#screen-extras .exm-load.ux-advanced-surface{padding:10px 12px;margin-top:8px}
-#screen-extras .exm-source-filter{opacity:.7}
+#screen-extras .exm-source-filter,#screen-extras .ux-source-filter{opacity:1;background:var(--surface);border-color:var(--border);color:var(--text-soft)}
+#screen-extras .ux-source-filter:hover,#screen-extras .ux-source-filter.active{border-color:var(--accent);color:var(--accent-text);background:var(--accent-soft)}
 #screen-extras #extras-curso.ux-secondary-area{margin-top:14px}
 
 /* Histórico: resumo curto; distribuição é apoio */
@@ -69,7 +85,12 @@
 #screen-historico .week-detail{background:color-mix(in srgb,var(--surface-sunken) 54%,transparent)}
 
 /* Evolução: uma narrativa principal e análises secundárias recolhidas */
-#screen-evolucao .evo-periodo-ctl.ux-redundant-period{display:none!important}
+/* O seletor de período do gráfico de tempo NÃO é redundante: o filtro geral da
+   tela recorta os registros, este escolhe a janela desenhada no gráfico. Ele
+   ficou escondido por `display:none` e, com isso, não havia mais como trocar a
+   janela. A classe continua aplicada (outros módulos a consultam), mas ela
+   deixa de apagar o controle. */
+#screen-evolucao .evo-periodo-ctl.ux-redundant-period{display:flex!important}
 #screen-evolucao #evo-gear-cards[hidden]{display:none!important}
 #screen-evolucao .ux-primary-analysis{border-color:color-mix(in srgb,var(--accent) 12%,var(--border))}
 #ux-evo-more{grid-column:1/-1;border:1px solid var(--border);border-radius:14px;background:var(--surface);overflow:hidden;margin-top:2px}
@@ -80,14 +101,20 @@
 #ux-evo-more>summary small{font-size:var(--fs-2xs);color:var(--text-soft);font-weight:500}
 #ux-evo-more>summary i{font-style:normal;color:var(--text-faint);transition:transform .16s ease}
 #ux-evo-more[open]>summary i{transform:rotate(180deg)}
-#ux-evo-more .ux-more-analysis-body{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px;padding:0 14px 14px}
+/* ── ANÁLISE RECOLHIDA NÃO É ANÁLISE EM MINIATURA ──────────────────────────
+   Duas colunas aqui reduziam "Horas acumuladas" e "Aproveitamento por semana
+   fechado" a metade da largura — gráficos de série temporal com o eixo
+   comprimido ao ponto de não se ler. Recolher é sobre ORDEM (o que aparece
+   primeiro), não sobre tamanho: aberto, cada cartão ocupa a mesma largura que
+   os de cima. */
+#ux-evo-more .ux-more-analysis-body{display:grid;grid-template-columns:minmax(0,1fr);gap:14px;padding:0 14px 14px}
 #ux-evo-more .ux-more-analysis-body>.card{margin:0;min-width:0}
-#ux-evo-more .ux-more-analysis-body>.evo-wide{grid-column:1/-1}
+#ux-evo-more .ux-more-analysis-body>.evo-wide,#ux-evo-more .ux-more-analysis-body>.evo-col{grid-column:1/-1}
 
 /* TEC: fatos -> modelo -> força-tarefa -> ranking; legado visual não compete */
 #screen-desempenhotec [data-tpm-entry][hidden]{display:none!important}
 #screen-desempenhotec #plano-modos[hidden],#screen-desempenhotec #plano-modo-nota[hidden]{display:none!important}
-#screen-desempenhotec .tec-cfg-bar.ux-analysis-settings{opacity:.78;margin-bottom:10px}
+#screen-desempenhotec .tec-cfg-bar.ux-analysis-settings{opacity:1;margin-bottom:10px}
 #screen-desempenhotec .tec-cfg-bar.ux-analysis-settings:hover,#screen-desempenhotec .tec-cfg-bar.ux-analysis-settings:focus-within{opacity:1}
 html.tpm-motors-active #screen-desempenhotec #plano-proj>.ux-legacy-projection:not([data-tpm-panorama]){display:none!important}
 #screen-desempenhotec .tpm-output.ux-force-task{border-color:color-mix(in srgb,var(--accent) 30%,var(--border));box-shadow:0 10px 28px color-mix(in srgb,var(--accent) 6%,transparent)}
@@ -95,8 +122,14 @@ html.tpm-motors-active #screen-desempenhotec #plano-proj>.ux-legacy-projection:n
 #screen-desempenhotec .tpm-output.ux-force-task .tpm-recs{gap:12px}
 #screen-desempenhotec .tpm-output.ux-force-task .tpm-rec{border-color:color-mix(in srgb,var(--accent) 18%,var(--border))}
 #screen-desempenhotec .tpm-ranking{margin-top:20px;padding-top:16px}
-#screen-desempenhotec .tec-subtab.ux-secondary-tab{opacity:.72}
-#screen-desempenhotec .tec-subtab.ux-secondary-tab.active{opacity:1}
+/* Aba secundária não é aba inativa. Com `opacity:.72` "⚙ Modelos" e
+   "🎯 Reforço" apareciam mais pálidas que as vizinhas — leitura imediata de
+   "desabilitado" — e o texto caía junto com a borda. A distinção passa a ser
+   só a borda tracejada, que separa apoio de caminho principal sem tocar no
+   contraste do rótulo. */
+#screen-desempenhotec .tec-subtab.ux-secondary-tab{opacity:1;border-style:dashed}
+#screen-desempenhotec .tec-subtab.ux-secondary-tab:hover,
+#screen-desempenhotec .tec-subtab.ux-secondary-tab.active{border-style:solid}
 
 /* Configurações: cotidiano primeiro; recuperação/backup continuam completos, mas recolhidos */
 #ux-config-data{border:1px solid var(--border);border-radius:14px;background:var(--surface);margin-bottom:16px;overflow:hidden}
@@ -120,11 +153,6 @@ html.tpm-motors-active #screen-desempenhotec #plano-proj>.ux-legacy-projection:n
 .ux-hierarchy-ready .tone-good,.ux-hierarchy-ready .accent-good{--ux-state-color:var(--good)}
 .ux-hierarchy-ready .tone-warn,.ux-hierarchy-ready .accent-warn{--ux-state-color:var(--warn)}
 .ux-hierarchy-ready .tone-bad,.ux-hierarchy-ready .accent-bad{--ux-state-color:var(--bad)}
-
-@media(max-width:900px){
-  #ux-evo-more .ux-more-analysis-body{grid-template-columns:1fr}
-  #ux-evo-more .ux-more-analysis-body>.evo-wide{grid-column:auto}
-}
 
 @media(max-width:720px){
   .ux-hierarchy-ready .page-header{margin-bottom:14px;gap:9px!important}

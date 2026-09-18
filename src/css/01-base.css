@@ -4109,8 +4109,22 @@
   .evo-day-bar { flex: 1; background: linear-gradient(180deg, var(--accent), color-mix(in srgb, var(--accent) 72%, transparent)); border-radius: 5px 5px 0 0; min-height: 2px; position: relative; transition: height 0.3s ease, filter 0.15s ease; }
   .evo-day-bar:hover { filter: brightness(1.08) saturate(1.1); }
   .evo-day-bar.empty { background: var(--border); }
-  .evo-day-axis { display: flex; gap: 3px; padding: 6px 4px 0; }
-  .evo-day-axis span { flex: 1; text-align: center; font-family: 'Space Mono', ui-monospace, SFMono-Regular, Menlo, monospace; font-size: var(--fs-3xs); color: var(--text-faint); overflow: hidden; white-space: nowrap; }
+  /* ── EIXO POSICIONADO, NÃO DISTRIBUÍDO ────────────────────────────────────
+     Uma célula `flex:1` por dia dá a cada rótulo a largura de UMA barra. Com
+     30 dias isso é ~11px para um texto de ~38px: o `overflow: hidden` cortava
+     as datas no meio e o eixo virava uma fileira de fragmentos. Agora a faixa
+     é um trilho posicionado: o JS coloca cada rótulo no centro da barra a que
+     pertence e ele transborda livremente para os lados. As duas pontas ganham
+     âncora própria, senão metade do texto sairia da caixa exatamente nas
+     datas que delimitam a janela. */
+  .evo-day-axis { position: relative; height: 1.35em; margin-top: 6px; padding: 0 4px; }
+  .evo-day-axis span {
+    position: absolute; top: 0; transform: translateX(-50%);
+    font-family: 'Space Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: var(--fs-3xs); color: var(--text-faint); white-space: nowrap; pointer-events: none;
+  }
+  .evo-day-axis span.is-first { transform: none; }
+  .evo-day-axis span.is-last { transform: translateX(-100%); }
   .evo-legend { display: flex; flex-wrap: wrap; gap: 10px 16px; padding: 12px 24px 4px; }
   .evo-legend-item { display: inline-flex; align-items: center; gap: 6px; font-size: var(--fs-2xs); font-weight: 600; color: var(--text-soft); }
   .evo-legend-swatch { width: 12px; height: 3px; border-radius: 8px; }
