@@ -94,11 +94,28 @@
       document.addEventListener('keydown',this._escFecha);
       this._pintarModal(k);
     },
+    /* ── NAO SE REESCREVE A CAIXA DE DENTRO DO `change` DELA ─────────────────
+       Remontar o corpo da janela dentro do proprio manipulador de `change`
+       remove o nó que acabou de disparar o evento — e o navegador levanta
+       `NotFoundError: The node to be removed is no longer a child of this
+       node`, porque o `blur` que vem junto ainda espera encontra-lo. Alem do
+       erro, quem estava digitando perde o foco a cada campo salvo.
+
+       Duas correcoes: remontar so quando a ESTRUTURA muda (a `fase` decide
+       quais campos existem — a banca no Simplificado, a tabela de pesos no
+       Robusto), e fazer isso no quadro seguinte, com o evento ja encerrado.
+       Campos que nao mexem na estrutura apenas atualizam o panorama atras. */
+    ESTRUTURAIS:['fase','__estrutura__'],
     _pintarModal(k){
       const body=this._modal&&this._modal.querySelector('[data-pmc-modal-body]');
       if(!body)return;
       body.innerHTML=k==='robusto'?this._robustHtml():this._simpleHtml();
-      this._bindMotor(body,k,()=>{this._pintarModal(k);this._scheduleRenderPanel();});
+      this._bindMotor(body,k,(campo)=>{
+        this._scheduleRenderPanel();
+        if(!this.ESTRUTURAIS.includes(campo))return;
+        const refazer=()=>{ if(this._modal)this._pintarModal(k); };
+        if(typeof requestAnimationFrame==='function')requestAnimationFrame(refazer);else setTimeout(refazer,0);
+      });
     },
     fecharConfig(){
       if(this._escFecha){document.removeEventListener('keydown',this._escFecha);this._escFecha=null;}
@@ -114,17 +131,17 @@
           const campo=el.dataset.pmcSimple,v=el.type==='number'?Number(el.value):el.value;
           S.salvar({[campo]:v});
           if(typeof showToast==='function')showToast('Simplificado atualizado ✓');
-          if(onChange)onChange();
+          if(onChange)onChange(campo);
         }));
         root.querySelector('[data-pmc-simple-reset]')?.addEventListener('click',()=>{
           S.restaurar?.();
           if(typeof showToast==='function')showToast('Simplificado restaurado aos padrões ✓');
-          if(onChange)onChange();
+          if(onChange)onChange('__estrutura__');
         });
         return;
       }
       const host=root.querySelector('[data-pmc-robusto-host]')||root;
-      R.bindConfig(host,()=>{if(typeof showToast==='function')showToast('Robusto atualizado ✓');if(onChange)onChange();});
+      R.bindConfig(host,(campo)=>{if(typeof showToast==='function')showToast('Robusto atualizado ✓');if(onChange)onChange(campo);});
     },
     _bindPanel(){
       const panel=document.getElementById('tec-panel-motores');

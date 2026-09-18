@@ -66,7 +66,18 @@ try{
   ok(evo.details,'Evolução deve reunir análises secundárias');
   ok(evo.moved>=4,'blocos redundantes/secundários devem ficar em Mais análises');
   ok(evo.dayDirect&&evo.accDirect,'tempo e aproveitamento devem continuar na narrativa principal');
-  eq(evo.periodDisplay,'none','gráfico de tempo deve obedecer ao período global, sem segundo seletor');
+  /* ── O SELETOR DO GRAFICO NAO E UM SEGUNDO FILTRO ────────────────────────
+     Este teste exigia `display:none` no `.evo-periodo-ctl`, partindo da ideia
+     de que ele duplicava o filtro global da tela. Nao duplica: o filtro global
+     escolhe QUAIS registros entram na tela; este escolhe a JANELA desenhada no
+     grafico de tempo (ultima semana, ultimo mes, intervalo digitado). Esconde-lo
+     nao unificou nada — tirou a unica forma de trocar a janela, e a camada de
+     hierarquia ainda reescrevia `tempoStart`/`tempoEnd` a cada render, anulando
+     qualquer escolha feita antes de ele ser escondido.
+
+     O que o teste passa a garantir e o que de fato importa aqui: o controle
+     existe e e operavel. O grafico nasce em 30 dias por padrao. */
+  eq(evo.periodDisplay,'flex','o seletor de periodo do grafico de tempo deve existir e ser operavel');
   ok(evo.gearHidden,'seletor de blocos deixa de ser necessário após a hierarquia fixa');
 
   /* TEC: motor escolhido é a única decisão prescritiva visível; legado permanece no DOM só por compatibilidade. */
@@ -77,27 +88,62 @@ try{
     if(!fake){fake=document.createElement('section');fake.dataset.tpmEntry='';s.prepend(fake);}
     UXHierarchy.decorateTec();
     return {
-      entryHidden:fake.hidden,
+      entryVisivel:fake.hidden===false,
+      seletorDuplicadoNoPlano:!!document.querySelector('#tec-panel-plano [data-tpm-selector]'),
       modosHidden:document.getElementById('plano-modos')?.hidden!==false,
       notaHidden:document.getElementById('plano-modo-nota')?.hidden!==false,
       oldCfgVisible:document.querySelector('#tec-panel-plano .tec-cfg-bar')?.hidden===false,
       motoresLabel:document.querySelector('.tec-subtab[data-tectab="motores"]')?.textContent||''
     };
   });
-  ok(tec.entryHidden,'seletor global duplicado de motor deve ficar oculto');
+  /* ── QUAL DOS DOIS SELETORES DESAPARECE ──────────────────────────────────
+     Havia duas caixas identicas para escolher o motor: `[data-tpm-entry]`
+     acima das abas e `[data-tpm-selector]` ("FONTE DA DECISAO") dentro do
+     Plano. Este teste exigia que a de cima ficasse oculta — mas
+     `TecPlanoFonteMotor.renderEntry()` a recria a cada render do TEC, DEPOIS
+     desta passada de decoracao, entao na tela real as duas reapareciam juntas
+     e a asserção so passava aqui porque o teste chama `decorateTec()` por
+     ultimo.
+
+     A duplicata removida foi a de dentro do Plano, que valia so ali; a de cima
+     vale para todas as abas e e onde a escolha naturalmente se faz. O teste
+     passa a garantir as duas metades disso: a de cima existe e esta visivel, e
+     a de dentro do Plano nao existe mais. */
+  ok(tec.entryVisivel,'o seletor de motor acima das abas e o unico e deve estar visivel');
+  ok(!tec.seletorDuplicadoNoPlano,'a segunda caixa de escolha de motor dentro do Plano nao deve existir');
   ok(tec.modosHidden&&tec.notaHidden,'decisores legados do Plano não devem disputar com Simplificado/Robusto');
   ok(tec.oldCfgVisible,'ajustes analíticos válidos devem manter uma porta compacta e focável');
   ok(!tec.motoresLabel||tec.motoresLabel.includes('Modelos'),'nomenclatura técnica Motores deve virar Modelos na interface');
 
-  /* Configurações: segurança e diagnóstico continuam intactos, mas deixam de competir com ajustes cotidianos. */
+  /* ── UM AGRUPADOR SO EM CONFIGURACOES ────────────────────────────────────
+     Este teste exigia que quatro cartoes (espaco usado, recuperacao, versoes
+     locais, backup no banco) vivessem dentro de um `<details id=ux-config-data>`
+     criado por esta camada. So que `ConfigUX` (80-ajustes-finais) JA divide a
+     tela em cinco secoes navegaveis — Estudo, Preferencias, Conta e nuvem,
+     Dados e backup, Diagnostico — e move esses mesmos cartoes para o painel
+     "Dados e backup". As duas camadas agrupavam o mesmo conteudo: o resultado
+     era uma secao dentro da secao, com titulos repetidos e duas escalas
+     tipograficas brigando (era daí que vinha a sensacao de fonte sem padrao
+     na tela).
+
+     O `<details>` desta camada saiu. O teste passa a garantir o que de fato
+     precisa valer: os quatro cartoes continuam acessiveis e agrupados — agora
+     no painel de `ConfigUX`, uma vez so. */
   await page.evaluate(()=>{switchScreen('config');UXHierarchy.decorateConfig();});
-  const cfg=await page.evaluate(()=>({
-    details:!!document.getElementById('ux-config-data'),
-    storage:document.getElementById('cfg-storage-card')?.closest('#ux-config-data')!=null,
-    recovery:document.getElementById('cfg-recuperacao-card')?.closest('#ux-config-data')!=null,
-    backup:document.getElementById('cfg-cloudbk-card')?.closest('#ux-config-data')!=null
-  }));
-  ok(cfg.details&&cfg.storage&&cfg.recovery&&cfg.backup,'backup/recuperação devem continuar acessíveis dentro da área avançada');
+  const cfg=await page.evaluate(()=>{
+    const dentro=(id)=>{const c=document.getElementById(id);return !!(c&&c.closest('.cfg-group'));};
+    return {
+      semDuplicata:!document.getElementById('ux-config-data'),
+      secoes:document.querySelectorAll('#screen-config .cfg-group').length,
+      storage:dentro('cfg-storage-card'),
+      recovery:dentro('cfg-recuperacao-card'),
+      backup:dentro('cfg-cloudbk-card'),
+      versoes:dentro('cfg-vhist-card')
+    };
+  });
+  ok(cfg.semDuplicata,'Configuracoes deve ter UM agrupador, nao um <details> dentro da secao que ja agrupa');
+  ok(cfg.secoes>=5,'as cinco secoes de Configuracoes devem existir');
+  ok(cfg.storage&&cfg.recovery&&cfg.backup&&cfg.versoes,'backup/recuperação devem continuar acessíveis, agrupados uma vez só');
 
   /* Leis: perfil novo nasce com leitura limpa, sem remover nenhum comando. */
   const leis=await page.evaluate(()=>{

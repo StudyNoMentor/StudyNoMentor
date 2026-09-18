@@ -57,7 +57,7 @@
      novo, e o antigo é descartado sozinho na ativação) e o que permite ao app
      dizer qual versão está rodando. Em src/ fica "dev" de propósito: a versão
      é gerada na montagem, não editada à mão. -->
-<meta name="diario-versao" content="v51adb36e43">
+<meta name="diario-versao" content="va29f99afd5">
 <script>
 /* ── ARRANQUE: abre o IndexedDB AGORA, em paralelo com o parse do documento ──
    A fachada de armazenamento vive no fim do <body>, depois de ~1,7 MB de HTML.
@@ -34158,6 +34158,11 @@ const ExtrasScreen = {
   renderEmCurso() {
     const host = document.getElementById('extras-curso');
     if (!host) return;
+    /* Marcado apenas pelo caminho de ABERTURA da tela, que já agendou esta
+       mesma função para o quadro seguinte. Sair aqui evita fazer o trabalho
+       duas vezes — e sem apagar o host, senão o esqueleto que acabou de ser
+       pintado sumiria antes de o cálculo começar. */
+    if (this._pularEmCurso) return;
     const extrasPlano = DB.getExtras().filter(e => e.origemPlano && e.origemPlano.topico && e.status !== 'concluida');
     if (!extrasPlano.length) { host.innerHTML = ''; return; }
     let itens = [];
@@ -35299,7 +35304,35 @@ window.ExtrasScreen = ExtrasScreen;
   /* fundo desfocado nao fecha o modal: so o X / Cancelar / Esc fecham */
 })();
 window.addEventListener('screen:activated', (e) => {
-  if (e.detail.screen === 'extras') ExtrasScreen.render();
+  /* ═══ ABRIR EXTRAS NÃO PODE ESPERAR O MOTOR DO TEC ═════════════════════
+     `renderEmCurso` chama `DesempenhoTecScreen._planoRef()` para saber, de
+     cada reforço aberto, em que nível o assunto está hoje. Isso é o motor do
+     Plano inteiro rodando sobre todos os retratos — num perfil com 8 retratos
+     e ~960 assuntos, ~200 ms de trabalho síncrono ANTES da primeira pintura
+     (mais de 1 s num aparelho 4× mais lento). Era a tela mais lenta do app
+     para abrir, e o custo não vinha das atividades: vinha de uma consulta ao
+     TEC feita para enfeitar as barras de progresso.
+
+     A tela abre primeiro. O painel "em curso" pinta um esqueleto e se resolve
+     no quadro seguinte — as barras de progresso, que dependem só das próprias
+     atividades, aparecem junto com o resto.
+
+     `ExtrasScreen.render()` continua 100% síncrona: quem a chama por código
+     (e a suíte de verificação, que lê `#extras-curso` no mesmo tick) recebe a
+     tela pronta. O adiamento é só deste caminho, o do toque no menu. */
+  if (e.detail.screen === 'extras') {
+    const host = document.getElementById('extras-curso');
+    const temAberto = (() => {
+      try { return DB.getExtras().some(x => x && x.origemPlano && x.origemPlano.topico && x.status !== 'concluida'); }
+      catch (err) { _quiet(err, 'extras-abertura'); return false; }
+    })();
+    if (!host || !temAberto || typeof pintarDepois !== 'function') { ExtrasScreen.render(); return; }
+    ExtrasScreen._pularEmCurso = true;
+    try { ExtrasScreen.render(); } finally { ExtrasScreen._pularEmCurso = false; }
+    pintarDepois(host, 'Conferindo o que está em curso…', () => {
+      try { ExtrasScreen.renderEmCurso(); } catch (err) { _quiet(err, 'extras-em-curso'); }
+    });
+  }
 });
 
 /* ============================================================
@@ -44796,12 +44829,48 @@ const ReforcoFila = {
     const dias = Object.keys(m).filter(d => (!ate || d <= ate) && parseFloat(m[d]) > 0).sort();
     return dias.length ? dias[dias.length - 1] : '';
   },
+  /* ── A MESMA CONTA, EM DOIS CACHES DIFERENTES (OU EM NENHUM) ─────────────
+     Esta função era `PlanoEngine.calcular(scopedSnapshot(), prefs())` — byte
+     por byte o que `DesempenhoTecScreen._planoRef()` faz, com a diferença de
+     que aquela guarda o resultado por 3 segundos e esta não guardava nada. E
+     ela é chamada de `sincronizar()`, que envolve `ExtrasScreen.render()`:
+     TODA repintura de Extras rodava o motor do Plano inteiro sobre todos os
+     retratos, de novo. Com 8 retratos e ~960 assuntos são ~200 ms por render,
+     e um render acontece a cada clique em caixinha, a cada conclusão, a cada
+     mudança de dia no calendário.
+
+     Delegar para o cache que já existe resolve as duas coisas: a conta passa a
+     ser feita uma vez por janela de 3 s, e deixa de haver duas fontes para o
+     mesmo número (que é como elas divergem na primeira correção que alguém
+     faz só de um lado). O caminho próprio fica como reserva, para o caso de a
+     tela do TEC não estar carregada. */
+  /* ── ESTA FILA NÃO PRECISA DO RANKING, SÓ DOS RETRATOS ───────────────────
+     Isto era `PlanoEngine.calcular(scopedSnapshot(), prefs())`: o motor do
+     Plano inteiro — índice por assunto, janela adaptativa, sequências, série
+     histórica, quadro de matérias, ranking — sem cache nenhum. E é chamado de
+     `sincronizar()`, que envolve `ExtrasScreen.render()`: cada repintura de
+     Extras rodava tudo de novo. Com 8 retratos e ~960 assuntos são ~200 ms,
+     por clique em caixinha, por conclusão, por troca de dia no calendário. Era
+     a tela mais lenta do app.
+
+     O que esta fila realmente lê do resultado, por `saldo()` e
+     `_recuperarParcialFechado()`, é `alvo`, `feito`, `bateu` e `mediu`. Em
+     `PlanoCiclo.avaliar` esses quatro saem do VOLUME e do histórico do
+     assunto (`volumeDoEscopo`, `qHistDe`, `taxaDoNo`), que dependem de
+     `_snapshots`. O único campo que vem do ranking é `custoHoje` — usado
+     somente pelo painel do Plano no TEC, nunca aqui.
+
+     Então a referência que esta fila monta é a barata: os mesmos retratos que
+     o motor usaria (`_fontes` do escopo, ou o histórico do perfil), sem rodar
+     o ranking para jogá-lo fora. Quem precisa do resultado completo continua
+     chamando `DesempenhoTecScreen._planoRef()`, que tem o seu próprio cache. */
   _planoRef() {
     try {
       if (typeof PlanoEngine === 'undefined' || typeof DesempenhoTecScreen === 'undefined') return null;
       const snap = DesempenhoTecScreen.scopedSnapshot();
       if (!snap) return null;
-      return PlanoEngine.calcular(snap, PlanoEngine.prefs());
+      const fontes = (snap._fontes && snap._fontes.length) ? snap._fontes : (DB.getTecSnapshots() || []);
+      return { _snapshots: (fontes.length ? fontes : [snap]).slice(), _fila: true };
     } catch (e) { _quiet(e, 'fila-plano-ref'); return null; }
   },
   avaliarGlobal(e, ref) {
@@ -44859,13 +44928,20 @@ const ReforcoFila = {
       const hoje = todayLocal();
       const list = DB.getExtras();
       if (!Array.isArray(list) || !list.length) return { mudou: false };
-      const ref = this._planoRef();
+      /* ── A REFERÊNCIA DO TEC SÓ É PAGA QUANDO ALGUÉM A USA ────────────────
+         `ref` serve exclusivamente às atividades vindas do Plano, no laço
+         abaixo. Quem nunca usou o "Puxar do Plano" não tem nenhuma — e mesmo
+         assim pagava o motor inteiro a cada repintura de Extras, para o
+         resultado ser descartado sem uma única leitura. Agora a conta é
+         adiada até a primeira atividade que realmente precise dela. */
+      const doPlano = list.filter(e => this.ePlano(e));
+      let ref = null, refLido = false;
+      const obterRef = () => { if (!refLido) { refLido = true; ref = this._planoRef(); } return ref; };
 
       // Primeiro, recupera fechamentos prematuros identificáveis e adota todos
       // os reforços abertos do Plano na fila nova.
-      list.forEach(e => {
-        if (!this.ePlano(e)) return;
-        if (this._recuperarParcialFechado(e, ref)) mudou = true;
+      doPlano.forEach(e => {
+        if (this._recuperarParcialFechado(e, obterRef())) mudou = true;
         if (e.status !== 'concluida' && !e.reforcoFila) { this._meta(e); mudou = true; }
         if (e.reforcoFila) this._meta(e);
       });
@@ -44895,7 +44971,7 @@ const ReforcoFila = {
         if (!this.alvoNoDia(e, hoje)) {
           const feitoHoje = this.feitoNoDia(e, hoje);
           if (feitoHoje > 0) {
-            const s = this.saldo(e, ref).restante;
+            const s = this.saldo(e, obterRef()).restante;
             const limiteHoje = this.limitesBloco(e).max;
             m.alvosPorDia[hoje] = Math.max(feitoHoje, Math.min(limiteHoje, feitoHoje + s));
             if (!e.datas.includes(hoje)) e.datas.push(hoje);
@@ -44911,7 +44987,7 @@ const ReforcoFila = {
 
       ativos.forEach(e => {
         const m = this._meta(e);
-        const s = this.saldo(e, ref);
+        const s = this.saldo(e, obterRef());
         let restante = s.restante;
         const qHoje = this.alvoNoDia(e, hoje);
         const disc = this._norm(e.disciplina || (e.origemPlano && e.origemPlano.disciplina) || 'sem disciplina');
@@ -56636,7 +56712,11 @@ else CloudStore.init();
       const rows=fase==='pos'?`<section class="rv8-post"><header><div><b>Disciplinas da prova · Pós-edital</b><small>Escolha somente nomes padronizados vindos do TEC. O ciclo regular não participa deste cruzamento.</small></div></header>${discs.length?`<div class="rv8-post-list">${discs.map(d=>{const k=norm(d),x=cfg[k]||{};return`<label class="rv8-post-row"><input type="checkbox" data-rv8-post-active="${esc(k)}" ${x.ativo===true?'checked':''}><span>${esc(d)}</span><input type="number" min="0.1" max="20" step="0.1" value="${n(x.peso,1)}" data-rv8-post-weight="${esc(k)}" data-rv8-post-name="${esc(d)}"><small>peso</small></label>`;}).join('')}</div><button type="button" class="btn-primary" data-rv8-post-save>Salvar disciplinas e pesos</button>`:'<div class="pmc-empty"><b>Importe o TEC primeiro</b><span>Os pesos só podem ser vinculados depois que existirem nomes canônicos de disciplinas no TEC.</span></div>'}</section>`:`<section class="rv8-pre-note"><b>Pré-edital: peso 1 para todas as disciplinas.</b><span>Nenhum peso do ciclo regular é lido. O que diferencia prioridades é lacuna, evidência, persistência, tendência e incidência da banca.</span></section>`;
       return`<div class="rv8-panel" data-rv8-panel><div class="rv8-method-note"><b>Robusto · foco estatístico.</b><span>Escolhe até ${p.maxDisciplinas} disciplina(s), ordena seus tópicos e calcula a dose de questões. Seu método de resolução fica fora do algoritmo.</span></div><div class="pmc-grupo"><h5>1 · Recorte da prova</h5><p>Em que fase o motor raciocina e quantas frentes ele abre de uma vez.</p><div class="pmc-simple-grid"><label><span>Fase</span><select data-rv8="fase"><option value="auto" ${p.fase==='auto'?'selected':''}>Automática — segue o planejamento ativo</option><option value="pre" ${p.fase==='pre'?'selected':''}>Pré-edital</option><option value="pos" ${p.fase==='pos'?'selected':''}>Pós-edital</option></select><small>Hoje valendo: <b>${fase==='pre'?'Pré-edital':'Pós-edital'}</b>${p.fase==='auto'?' (derivada do planejamento)':' (fixada por você)'}. Pré dá peso 1 a todas as disciplinas; Pós usa os pesos manuais abaixo.</small></label><label><span>Disciplinas por vez</span><input data-rv8="maxDisciplinas" type="number" min="1" max="8" value="${p.maxDisciplinas}"><small>Quantas frentes distintas a força-tarefa abre. Era fixo em 3.</small></label></div></div><div class="pmc-grupo"><h5>2 · Régua e confiança</h5><p>O que conta como lacuna e quanta amostra o motor exige para acreditar nela.</p><div class="pmc-simple-grid"><label><span>Meta de domínio</span><div class="pmc-suffix"><input data-rv8="meta" type="number" min="60" max="99" value="${p.meta}"><em>%</em></div><small>Régua comum do TEC.</small></label><label><span>Amostra mínima confiável</span><input data-rv8="minAmostra" type="number" min="5" max="300" value="${p.minAmostra}"><small>Acima daqui a medição recebe confiança plena.</small></label><label><span>Mínimo para observar</span><input data-rv8="minObservacao" type="number" min="1" max="${p.minAmostra}" value="${p.minObservacao}"><small>Abaixo disso o tópico ainda é cedo demais até para disputar.</small></label><label><span>Incidência</span><select data-rv8="banca">${this._bancasHtml(p.banca)}</select><small>Fonte objetiva de relevância.</small></label><label><span>Força do prior</span><input data-rv8="forcaPrior" type="number" min="0.5" max="20" step="0.5" value="${p.forcaPrior}"><small>Regularização Beta real para amostras pequenas.</small></label><label><span>Margem da lacuna</span><div class="pmc-suffix"><input data-rv8="margemLacunaPP" type="number" min="0" max="15" step="0.5" value="${p.margemLacunaPP}"><em>pp</em></div><small>Folga abaixo da meta antes de chamar de lacuna.</small></label></div></div><div class="pmc-grupo"><h5>3 · Dose de questões</h5><p>O tamanho do bloco que o motor recomenda para cada frente.</p><div class="pmc-simple-grid"><label><span>Dose base</span><input data-rv8="doseBase" type="number" min="5" max="100" value="${p.doseBase}"><small>Recalibrada conservadoramente por TEC + Extras.</small></label><label><span>Dose mínima</span><input data-rv8="doseMin" type="number" min="5" max="60" value="${p.doseMin}"></label><label><span>Dose máxima</span><input data-rv8="doseMax" type="number" min="5" max="100" value="${p.doseMax}"></label></div></div>${rows}<footer class="rv8-footer"><span>Fontes: TEC + incidência + reforços em Extras.</span><b>Sem dependência de nomes/pesos/tempo do ciclo regular.</b><button type="button" data-rv8-reset>↺ Restaurar padrões</button></footer></div>`;
     },
-    bindConfig(host,onChange){if(!host)return;host.querySelectorAll('[data-rv8]').forEach(el=>el.addEventListener('change',()=>{this.salvar({[el.dataset.rv8]:el.type==='number'?Number(el.value):el.value});if(onChange)onChange();}));const reset=host.querySelector('[data-rv8-reset]');if(reset)reset.addEventListener('click',()=>{this.restaurar();if(onChange)onChange();});const save=host.querySelector('[data-rv8-post-save]');if(save)save.addEventListener('click',()=>{const ds={};host.querySelectorAll('[data-rv8-post-active]').forEach(cb=>{const k=cb.dataset.rv8PostActive,w=host.querySelector(`[data-rv8-post-weight="${CSS.escape(k)}"]`),nome=w&&w.dataset.rv8PostName||k;ds[k]={nome,ativo:cb.checked,peso:Math.max(.1,n(w&&w.value,1))};});this.salvarPostConfig({configurado:true,disciplinas:ds,atualizadoEm:new Date().toISOString()});if(typeof showToast==='function')showToast('Pesos Pós-edital vinculados às disciplinas do TEC ✓');if(onChange)onChange();});}
+    /* `onChange` recebe a CHAVE do campo alterado. Sem isso quem escuta nao tem
+     como saber se precisa remontar o painel (a `fase` muda quais campos
+     existem) ou se basta atualizar o resumo — e remontar a cada tecla num
+     campo numerico tira o foco de quem esta digitando. */
+    bindConfig(host,onChange){if(!host)return;host.querySelectorAll('[data-rv8]').forEach(el=>el.addEventListener('change',()=>{const k=el.dataset.rv8;this.salvar({[k]:el.type==='number'?Number(el.value):el.value});if(onChange)onChange(k);}));const reset=host.querySelector('[data-rv8-reset]');if(reset)reset.addEventListener('click',()=>{this.restaurar();if(onChange)onChange('__estrutura__');});const save=host.querySelector('[data-rv8-post-save]');if(save)save.addEventListener('click',()=>{const ds={};host.querySelectorAll('[data-rv8-post-active]').forEach(cb=>{const k=cb.dataset.rv8PostActive,w=host.querySelector(`[data-rv8-post-weight="${CSS.escape(k)}"]`),nome=w&&w.dataset.rv8PostName||k;ds[k]={nome,ativo:cb.checked,peso:Math.max(.1,n(w&&w.value,1))};});this.salvarPostConfig({configurado:true,disciplinas:ds,atualizadoEm:new Date().toISOString()});if(typeof showToast==='function')showToast('Pesos Pós-edital vinculados às disciplinas do TEC ✓');if(onChange)onChange('__estrutura__');});}
   };
   window.PlanoSugestoesRobusto=R;
 })();
@@ -56997,11 +57077,28 @@ else CloudStore.init();
       document.addEventListener('keydown',this._escFecha);
       this._pintarModal(k);
     },
+    /* ── NAO SE REESCREVE A CAIXA DE DENTRO DO `change` DELA ─────────────────
+       Remontar o corpo da janela dentro do proprio manipulador de `change`
+       remove o nó que acabou de disparar o evento — e o navegador levanta
+       `NotFoundError: The node to be removed is no longer a child of this
+       node`, porque o `blur` que vem junto ainda espera encontra-lo. Alem do
+       erro, quem estava digitando perde o foco a cada campo salvo.
+
+       Duas correcoes: remontar so quando a ESTRUTURA muda (a `fase` decide
+       quais campos existem — a banca no Simplificado, a tabela de pesos no
+       Robusto), e fazer isso no quadro seguinte, com o evento ja encerrado.
+       Campos que nao mexem na estrutura apenas atualizam o panorama atras. */
+    ESTRUTURAIS:['fase','__estrutura__'],
     _pintarModal(k){
       const body=this._modal&&this._modal.querySelector('[data-pmc-modal-body]');
       if(!body)return;
       body.innerHTML=k==='robusto'?this._robustHtml():this._simpleHtml();
-      this._bindMotor(body,k,()=>{this._pintarModal(k);this._scheduleRenderPanel();});
+      this._bindMotor(body,k,(campo)=>{
+        this._scheduleRenderPanel();
+        if(!this.ESTRUTURAIS.includes(campo))return;
+        const refazer=()=>{ if(this._modal)this._pintarModal(k); };
+        if(typeof requestAnimationFrame==='function')requestAnimationFrame(refazer);else setTimeout(refazer,0);
+      });
     },
     fecharConfig(){
       if(this._escFecha){document.removeEventListener('keydown',this._escFecha);this._escFecha=null;}
@@ -57017,17 +57114,17 @@ else CloudStore.init();
           const campo=el.dataset.pmcSimple,v=el.type==='number'?Number(el.value):el.value;
           S.salvar({[campo]:v});
           if(typeof showToast==='function')showToast('Simplificado atualizado ✓');
-          if(onChange)onChange();
+          if(onChange)onChange(campo);
         }));
         root.querySelector('[data-pmc-simple-reset]')?.addEventListener('click',()=>{
           S.restaurar?.();
           if(typeof showToast==='function')showToast('Simplificado restaurado aos padrões ✓');
-          if(onChange)onChange();
+          if(onChange)onChange('__estrutura__');
         });
         return;
       }
       const host=root.querySelector('[data-pmc-robusto-host]')||root;
-      R.bindConfig(host,()=>{if(typeof showToast==='function')showToast('Robusto atualizado ✓');if(onChange)onChange();});
+      R.bindConfig(host,(campo)=>{if(typeof showToast==='function')showToast('Robusto atualizado ✓');if(onChange)onChange(campo);});
     },
     _bindPanel(){
       const panel=document.getElementById('tec-panel-motores');
@@ -57348,14 +57445,30 @@ else CloudStore.init();
        em cada botão vão junto. E como `_pintarPlano` reescreve a lista inteira
        a cada repintura, o agrupamento é refeito na sequência, sempre. */
     LEGADO_EXEC: ['.pl-ciclo.pl-tempo', '.pl-hoje', '.pl-item', '.pl-segundo', '.pl-mais', '.pl-ciclo.pl-feito'],
-    _agruparRotaManual(lista) {
+    /* ── DESMONTAR É DEVOLVER, NÃO APAGAR ──────────────────────────────────
+       A primeira versão disto usava
+         `while (el.firstElementChild.tagName !== 'SUMMARY') mover(...)`
+       para esvaziar o `<details>` antes de refazê-lo. Só que o `<summary>` é
+       justamente o PRIMEIRO filho — o laço encerrava na primeira volta, sem
+       mover nada, e o `el.remove()` seguinte levava embora todo o conteúdo
+       ainda dentro dele. Na segunda repintura do Plano, o quadro de matérias,
+       "O seu próximo bloco" e as linhas de assunto simplesmente deixavam de
+       existir: o mesmo desaparecimento que o agrupamento veio consertar,
+       agora por outra causa.
+
+       A condição de parada não é "encontrei o summary", é "não há mais nada
+       além do summary". Iterar sobre a lista de filhos e pular o summary diz
+       isso sem depender da ordem. */
+    _desagrupar(lista) {
       if (!lista) return;
       lista.querySelectorAll(':scope > .tpm-legacy-exec').forEach(el => {
-        /* Desmonta o agrupamento anterior antes de refazer: sem isto, uma
-           repintura aninharia `<details>` dentro de `<details>`. */
-        while (el.firstElementChild && el.firstElementChild.tagName !== 'SUMMARY') lista.insertBefore(el.firstElementChild, el);
+        Array.from(el.children).forEach(ch => { if (ch.tagName !== 'SUMMARY') lista.insertBefore(ch, el); });
         el.remove();
       });
+    },
+    _agruparRotaManual(lista) {
+      if (!lista) return;
+      this._desagrupar(lista);
       const alvos = Array.from(lista.children).filter(el =>
         !el.matches('[data-tpm-output]') && this.LEGADO_EXEC.some(sel => el.matches(sel)));
       if (!alvos.length) return;
@@ -57431,10 +57544,7 @@ else CloudStore.init();
         lista.querySelectorAll('[data-tpm-output]').forEach(el => el.remove());
         /* Sem motor, o Plano legado É a tela: nada de agrupar a rota manual
            num recolhível, porque aqui ela não é rota alternativa nenhuma. */
-        lista.querySelectorAll(':scope > .tpm-legacy-exec').forEach(el => {
-          while (el.firstElementChild && el.firstElementChild.tagName !== 'SUMMARY') lista.insertBefore(el.firstElementChild, el);
-          el.remove();
-        });
+        this._desagrupar(lista);
         return;
       }
       this._rendering = true;

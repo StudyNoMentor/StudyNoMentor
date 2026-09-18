@@ -153,12 +153,48 @@ const ReforcoFila = {
     const dias = Object.keys(m).filter(d => (!ate || d <= ate) && parseFloat(m[d]) > 0).sort();
     return dias.length ? dias[dias.length - 1] : '';
   },
+  /* ── A MESMA CONTA, EM DOIS CACHES DIFERENTES (OU EM NENHUM) ─────────────
+     Esta função era `PlanoEngine.calcular(scopedSnapshot(), prefs())` — byte
+     por byte o que `DesempenhoTecScreen._planoRef()` faz, com a diferença de
+     que aquela guarda o resultado por 3 segundos e esta não guardava nada. E
+     ela é chamada de `sincronizar()`, que envolve `ExtrasScreen.render()`:
+     TODA repintura de Extras rodava o motor do Plano inteiro sobre todos os
+     retratos, de novo. Com 8 retratos e ~960 assuntos são ~200 ms por render,
+     e um render acontece a cada clique em caixinha, a cada conclusão, a cada
+     mudança de dia no calendário.
+
+     Delegar para o cache que já existe resolve as duas coisas: a conta passa a
+     ser feita uma vez por janela de 3 s, e deixa de haver duas fontes para o
+     mesmo número (que é como elas divergem na primeira correção que alguém
+     faz só de um lado). O caminho próprio fica como reserva, para o caso de a
+     tela do TEC não estar carregada. */
+  /* ── ESTA FILA NÃO PRECISA DO RANKING, SÓ DOS RETRATOS ───────────────────
+     Isto era `PlanoEngine.calcular(scopedSnapshot(), prefs())`: o motor do
+     Plano inteiro — índice por assunto, janela adaptativa, sequências, série
+     histórica, quadro de matérias, ranking — sem cache nenhum. E é chamado de
+     `sincronizar()`, que envolve `ExtrasScreen.render()`: cada repintura de
+     Extras rodava tudo de novo. Com 8 retratos e ~960 assuntos são ~200 ms,
+     por clique em caixinha, por conclusão, por troca de dia no calendário. Era
+     a tela mais lenta do app.
+
+     O que esta fila realmente lê do resultado, por `saldo()` e
+     `_recuperarParcialFechado()`, é `alvo`, `feito`, `bateu` e `mediu`. Em
+     `PlanoCiclo.avaliar` esses quatro saem do VOLUME e do histórico do
+     assunto (`volumeDoEscopo`, `qHistDe`, `taxaDoNo`), que dependem de
+     `_snapshots`. O único campo que vem do ranking é `custoHoje` — usado
+     somente pelo painel do Plano no TEC, nunca aqui.
+
+     Então a referência que esta fila monta é a barata: os mesmos retratos que
+     o motor usaria (`_fontes` do escopo, ou o histórico do perfil), sem rodar
+     o ranking para jogá-lo fora. Quem precisa do resultado completo continua
+     chamando `DesempenhoTecScreen._planoRef()`, que tem o seu próprio cache. */
   _planoRef() {
     try {
       if (typeof PlanoEngine === 'undefined' || typeof DesempenhoTecScreen === 'undefined') return null;
       const snap = DesempenhoTecScreen.scopedSnapshot();
       if (!snap) return null;
-      return PlanoEngine.calcular(snap, PlanoEngine.prefs());
+      const fontes = (snap._fontes && snap._fontes.length) ? snap._fontes : (DB.getTecSnapshots() || []);
+      return { _snapshots: (fontes.length ? fontes : [snap]).slice(), _fila: true };
     } catch (e) { _quiet(e, 'fila-plano-ref'); return null; }
   },
   avaliarGlobal(e, ref) {
@@ -216,13 +252,20 @@ const ReforcoFila = {
       const hoje = todayLocal();
       const list = DB.getExtras();
       if (!Array.isArray(list) || !list.length) return { mudou: false };
-      const ref = this._planoRef();
+      /* ── A REFERÊNCIA DO TEC SÓ É PAGA QUANDO ALGUÉM A USA ────────────────
+         `ref` serve exclusivamente às atividades vindas do Plano, no laço
+         abaixo. Quem nunca usou o "Puxar do Plano" não tem nenhuma — e mesmo
+         assim pagava o motor inteiro a cada repintura de Extras, para o
+         resultado ser descartado sem uma única leitura. Agora a conta é
+         adiada até a primeira atividade que realmente precise dela. */
+      const doPlano = list.filter(e => this.ePlano(e));
+      let ref = null, refLido = false;
+      const obterRef = () => { if (!refLido) { refLido = true; ref = this._planoRef(); } return ref; };
 
       // Primeiro, recupera fechamentos prematuros identificáveis e adota todos
       // os reforços abertos do Plano na fila nova.
-      list.forEach(e => {
-        if (!this.ePlano(e)) return;
-        if (this._recuperarParcialFechado(e, ref)) mudou = true;
+      doPlano.forEach(e => {
+        if (this._recuperarParcialFechado(e, obterRef())) mudou = true;
         if (e.status !== 'concluida' && !e.reforcoFila) { this._meta(e); mudou = true; }
         if (e.reforcoFila) this._meta(e);
       });
@@ -252,7 +295,7 @@ const ReforcoFila = {
         if (!this.alvoNoDia(e, hoje)) {
           const feitoHoje = this.feitoNoDia(e, hoje);
           if (feitoHoje > 0) {
-            const s = this.saldo(e, ref).restante;
+            const s = this.saldo(e, obterRef()).restante;
             const limiteHoje = this.limitesBloco(e).max;
             m.alvosPorDia[hoje] = Math.max(feitoHoje, Math.min(limiteHoje, feitoHoje + s));
             if (!e.datas.includes(hoje)) e.datas.push(hoje);
@@ -268,7 +311,7 @@ const ReforcoFila = {
 
       ativos.forEach(e => {
         const m = this._meta(e);
-        const s = this.saldo(e, ref);
+        const s = this.saldo(e, obterRef());
         let restante = s.restante;
         const qHoje = this.alvoNoDia(e, hoje);
         const disc = this._norm(e.disciplina || (e.origemPlano && e.origemPlano.disciplina) || 'sem disciplina');

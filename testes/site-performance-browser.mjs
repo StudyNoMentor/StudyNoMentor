@@ -51,7 +51,26 @@ try {
     });
     const snaps=Array.from({length:8},(_,i)=>({id:9500+i,startDate:dia(-210+i*30),endDate:dia(-210+i*30),date:dia(-210+i*30),label:`Retrato global ${i+1}`,rows:linhas(i)}));
     DB._set(DB.KEYS.tec,snaps);
-    DB._set(DB.KEYS.extras,Array.from({length:180},(_,i)=>({id:`extra-${i}`,titulo:`Atividade Extra ${i+1}`,descricao:'Carga de auditoria',tipo:i%3===0?'questoes':'teoria',disciplina:disciplinas[i%disciplinas.length],qtd:20+(i%30),feito:i%4===0,status:i%4===0?'concluida':'ativa',createdAt:instante(i*86400000),updatedAt:instante(i*3600000)})));
+    /* ── A CARGA PRECISA INCLUIR REFORÇO VINDO DO PLANO ────────────────────
+       Nenhuma das 180 atividades tinha `origemPlano`, e por isso esta medicao
+       nunca passava pelo caminho mais caro de abrir Extras: o painel "em
+       curso" chama `DesempenhoTecScreen._planoRef()` para dizer em que nivel
+       cada assunto esta hoje — ou seja, roda o motor do Plano inteiro sobre
+       todos os retratos antes da primeira pintura. Quem usa o "Puxar do
+       Plano" paga isso toda vez que abre a tela; a carga sintetica, nao.
+
+       Seis atividades com origem no Plano bastam para o caminho existir (o
+       custo e do calculo do TEC, nao do numero de atividades) e mantem esta
+       medicao guardando o adiamento que a abertura da tela passou a fazer. */
+    DB._set(DB.KEYS.extras,Array.from({length:180},(_,i)=>{
+      const disc=disciplinas[i%disciplinas.length];
+      const x={id:`extra-${i}`,titulo:`Atividade Extra ${i+1}`,descricao:'Carga de auditoria',tipo:i%3===0?'questoes':'teoria',disciplina:disc,qtd:20+(i%30),alvo:20+(i%30),feito:i%4===0,status:i%4===0?'concluida':'ativa',createdAt:instante(i*86400000),updatedAt:instante(i*3600000)};
+      if(i<6){
+        x.status='ativa'; x.tipo='questoes'; x.unidade='questoes'; x.alvo=120;
+        x.origemPlano={topico:`Tópico ${String(i+1).padStart(3,'0')}`,disciplina:disc,criadoEm:dia(-30),qBase:0,taxaInicial:40,custoEstimado:120,motivo:'reforco'};
+      }
+      return x;
+    }));
     DB._set(DB.KEYS.links,Array.from({length:250},(_,i)=>({id:`link-${i}`,titulo:`Link ${i+1}`,url:'https://example.com/'+i,categoria:'Referência',updatedAt:instante(i*60000)})));
     DB._set(DB.KEYS.leis,Array.from({length:120},(_,i)=>({id:`lei-${i}`,titulo:`Lei ${i+1}`,nome:`Lei ${i+1}`,texto:'Art. 1º Texto de teste. '.repeat(20),updatedAt:instante(i*1000)})));
     DB._set(DB.KEYS.entries,Array.from({length:2400},(_,i)=>({id:`ent-${i}`,date:dia(-(i%240)),data:dia(-(i%240)),subject:disciplinas[i%disciplinas.length],disciplina:disciplinas[i%disciplinas.length],minutes:30+(i%90),minutos:30+(i%90),durationMin:30+(i%90),questions:20+(i%40),questoes:20+(i%40),total:20+(i%40),correct:10+(i%20),acertos:10+(i%20),method:'Questões',metodo:'Questões'})));

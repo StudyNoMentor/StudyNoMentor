@@ -298,14 +298,30 @@
        em cada botão vão junto. E como `_pintarPlano` reescreve a lista inteira
        a cada repintura, o agrupamento é refeito na sequência, sempre. */
     LEGADO_EXEC: ['.pl-ciclo.pl-tempo', '.pl-hoje', '.pl-item', '.pl-segundo', '.pl-mais', '.pl-ciclo.pl-feito'],
-    _agruparRotaManual(lista) {
+    /* ── DESMONTAR É DEVOLVER, NÃO APAGAR ──────────────────────────────────
+       A primeira versão disto usava
+         `while (el.firstElementChild.tagName !== 'SUMMARY') mover(...)`
+       para esvaziar o `<details>` antes de refazê-lo. Só que o `<summary>` é
+       justamente o PRIMEIRO filho — o laço encerrava na primeira volta, sem
+       mover nada, e o `el.remove()` seguinte levava embora todo o conteúdo
+       ainda dentro dele. Na segunda repintura do Plano, o quadro de matérias,
+       "O seu próximo bloco" e as linhas de assunto simplesmente deixavam de
+       existir: o mesmo desaparecimento que o agrupamento veio consertar,
+       agora por outra causa.
+
+       A condição de parada não é "encontrei o summary", é "não há mais nada
+       além do summary". Iterar sobre a lista de filhos e pular o summary diz
+       isso sem depender da ordem. */
+    _desagrupar(lista) {
       if (!lista) return;
       lista.querySelectorAll(':scope > .tpm-legacy-exec').forEach(el => {
-        /* Desmonta o agrupamento anterior antes de refazer: sem isto, uma
-           repintura aninharia `<details>` dentro de `<details>`. */
-        while (el.firstElementChild && el.firstElementChild.tagName !== 'SUMMARY') lista.insertBefore(el.firstElementChild, el);
+        Array.from(el.children).forEach(ch => { if (ch.tagName !== 'SUMMARY') lista.insertBefore(ch, el); });
         el.remove();
       });
+    },
+    _agruparRotaManual(lista) {
+      if (!lista) return;
+      this._desagrupar(lista);
       const alvos = Array.from(lista.children).filter(el =>
         !el.matches('[data-tpm-output]') && this.LEGADO_EXEC.some(sel => el.matches(sel)));
       if (!alvos.length) return;
@@ -381,10 +397,7 @@
         lista.querySelectorAll('[data-tpm-output]').forEach(el => el.remove());
         /* Sem motor, o Plano legado É a tela: nada de agrupar a rota manual
            num recolhível, porque aqui ela não é rota alternativa nenhuma. */
-        lista.querySelectorAll(':scope > .tpm-legacy-exec').forEach(el => {
-          while (el.firstElementChild && el.firstElementChild.tagName !== 'SUMMARY') lista.insertBefore(el.firstElementChild, el);
-          el.remove();
-        });
+        this._desagrupar(lista);
         return;
       }
       this._rendering = true;
