@@ -120,7 +120,19 @@
       const taxa = Number.isFinite(Number(c.taxa)) ? `${fmt(c.taxa, 0)}%` : '—';
       const amostra = Math.max(0, Math.round(n(c.qJanela)));
       const score = Number.isFinite(Number(c.score)) ? Math.round(Number(c.score)) : null;
-      return `<article class="tpm-rec" data-tpm-rec data-disciplina="${esc(c.disciplina || '')}"><div class="tpm-rank">${i + 1}</div><div class="tpm-main"><div class="tpm-head"><div><small>${esc(c.disciplina || 'Disciplina')}</small><b>${esc(c.nome || 'Assunto')}</b></div><span class="tpm-score">${score == null ? '' : 'prioridade ' + score + '/100'}</span></div><div class="tpm-metrics"><span><b>${taxa}</b><small>acerto observado</small></span><span><b>${amostra || '—'}</b><small>questões na amostra</small></span><span class="tpm-dose"><b>${q || '—'}</b><small>${fonte === 'robusto' ? 'questões recomendadas' : 'questões por frente'}</small></span><span><b>${esc(tempo.texto)}</b><small>${esc(tempo.detalhe)}</small></span></div><p class="tpm-context">${esc(c.motivo || '')}</p>${this._explica(c, fonte)}${this._topicos(c, fonte)}</div></article>`;
+      /* ── A AÇÃO QUE FALTAVA ─────────────────────────────────────────────
+         O quadro dizia onde atacar e não dava como atacar: o rodapé mandava
+         a pessoa a outra tela ("Atividades → Puxar do Plano"), reabrir o
+         mesmo cálculo num modal e reencontrar ali a recomendação que já
+         estava na frente dela. Era esse o "o botão atacar agora não
+         funciona": não havia botão nenhum neste quadro.
+
+         Ele não é um atalho paralelo. Executa pela MESMA porta do modal
+         (`PlanoSugestoes._criarUm`), com a dose que ESTE motor recomendou —
+         então a atividade nasce com a mesma procedência gravada, incluindo o
+         log de auditoria do Robusto. O índice liga o botão de volta ao
+         candidato calculado, sem reserializar nada no atributo. */
+      return `<article class="tpm-rec" data-tpm-rec data-disciplina="${esc(c.disciplina || '')}"><div class="tpm-rank">${i + 1}</div><div class="tpm-main"><div class="tpm-head"><div><small>${esc(c.disciplina || 'Disciplina')}</small><b>${esc(c.nome || 'Assunto')}</b></div><span class="tpm-score">${score == null ? '' : 'prioridade ' + score + '/100'}</span></div><div class="tpm-metrics"><span><b>${taxa}</b><small>acerto observado</small></span><span><b>${amostra || '—'}</b><small>questões na amostra</small></span><span class="tpm-dose"><b>${q || '—'}</b><small>${fonte === 'robusto' ? 'questões recomendadas' : 'questões por frente'}</small></span><span><b>${esc(tempo.texto)}</b><small>${esc(tempo.detalhe)}</small></span></div><p class="tpm-context">${esc(c.motivo || '')}</p><div class="tpm-acoes"><button type="button" class="tpm-atacar" data-tpm-atacar="${i}" title="Cria a atividade de reforço deste assunto com as ${q || 30} questões que o ${fonte === 'robusto' ? 'Robusto' : 'Simplificado'} recomendou">🎯 Atacar agora${q ? ` · ${q} q` : ''}</button><small>Vai para Atividades Extras com a dose deste motor.</small></div>${this._explica(c, fonte)}${this._topicos(c, fonte)}</div></article>`;
     },
     /* ═══ "POR QUE ISSO, AQUI?" TEM DE SER RESPONDÍVEL SEM SAIR DA TELA ═════
        Os cartões mostravam a CONCLUSÃO do motor — "prioridade 87/100" — e o
@@ -277,7 +289,7 @@
       const nome = fonte === 'robusto' ? 'Robusto' : 'Simplificado', ico = fonte === 'robusto' ? '🧠' : '⚡';
       if (!r || r.erro) return `<section class="tpm-output" data-tpm-output data-tpm-model="${fonte}"><header><div><small>${ico} ${nome.toUpperCase()}</small><strong>Recomendação deste modelo</strong></div></header><div class="tpm-empty">${esc(this._erroTexto(r, fonte))}</div></section>`;
       const itens = (r.itens || []).slice().sort((a, b) => fonte === 'robusto' ? n(b.score) - n(a.score) : 0);
-      return `<section class="tpm-output" data-tpm-output data-tpm-model="${fonte}"><header><div><small>${ico} ${nome.toUpperCase()} · ${r.fase === 'pos' ? 'PÓS-EDITAL' : 'PRÉ-EDITAL'}</small><strong>Onde atacar agora</strong><p>${esc(this._criterio(fonte, r))}</p></div><span>${itens.length} ${itens.length === 1 ? 'disciplina' : 'disciplinas'}</span></header>${fonte === 'robusto' ? '<div class="tpm-method"><b>O algoritmo para aqui:</b> recomenda alvo, ordem e quantidade. Sua resolução aprofundada — comentários, resumo, lei seca e cards — é seu modus operandi e não entra no score.</div>' : ''}<div class="tpm-recs">${itens.map((c, i) => this._card(c, i, fonte)).join('')}</div>${this._rankingHtml(fonte, r)}<footer><b>Execução em Atividades → Puxar do Plano.</b><span>Resultados do TEC são observacionais: outras questões feitas no ciclo podem aparecer no mesmo retrato.</span></footer></section>`;
+      return `<section class="tpm-output" data-tpm-output data-tpm-model="${fonte}"><header><div><small>${ico} ${nome.toUpperCase()} · ${r.fase === 'pos' ? 'PÓS-EDITAL' : 'PRÉ-EDITAL'}</small><strong>Onde atacar agora</strong><p>${esc(this._criterio(fonte, r))}</p></div><span>${itens.length} ${itens.length === 1 ? 'disciplina' : 'disciplinas'}</span></header>${fonte === 'robusto' ? '<div class="tpm-method"><b>O algoritmo para aqui:</b> recomenda alvo, ordem e quantidade. Sua resolução aprofundada — comentários, resumo, lei seca e cards — é seu modus operandi e não entra no score.</div>' : ''}<div class="tpm-recs">${itens.map((c, i) => this._card(c, i, fonte)).join('')}</div>${this._rankingHtml(fonte, r)}<footer><b>🎯 Atacar agora cria a atividade aqui mesmo</b><span>Ela aparece em Atividades Extras com a dose deste motor. Para criar várias de uma vez, use Atividades → Puxar do Plano. Resultados do TEC são observacionais: outras questões feitas no ciclo podem aparecer no mesmo retrato.</span></footer></section>`;
     },
     /* ═══ A ROTA MANUAL NÃO PODE DESAPARECER COM A DECISÃO ═════════════════
        O CSS apagava todo filho de `#plano-lista` que não fosse a saída do
@@ -358,6 +370,31 @@
         this._scheduleRender();
       }));
     },
+    /* Criar uma atividade muda os candidatos (o motor remove disciplinas com
+       reforço aberto), então a repintura depois do clique não é cosmética: é o
+       quadro dizendo qual é o PRÓXIMO alvo. */
+    _bindAtacar(root, fonte, r) {
+      root?.querySelectorAll('[data-tpm-atacar]').forEach(b => b.addEventListener('click', () => {
+        const c = (r && r.itens || [])[Number(b.dataset.tpmAtacar)];
+        if (!c) { if (typeof showToast === 'function') showToast('Recomendação expirada — recalculando.'); this._scheduleRender(); return; }
+        if (b.disabled) return;
+        b.disabled = true;
+        const rotulo = b.textContent;
+        b.textContent = 'Criando…';
+        let ok = false;
+        try { ok = C._criarUm(c, { modo: fonte }); }
+        catch (e) { if (typeof _quiet === 'function') _quiet(e, 'tpm-atacar'); }
+        if (typeof showToast === 'function') {
+          showToast(ok
+            ? `Atividade criada: ${c.nome} · ${this._quantidade(c) || ''} questões — veja em Atividades Extras`
+            : 'Não foi possível criar a atividade deste assunto.');
+        }
+        if (!ok) { b.disabled = false; b.textContent = rotulo; return; }
+        try { if (typeof ExtrasScreen !== 'undefined' && ExtrasScreen.render) ExtrasScreen.render(); }
+        catch (e) { if (typeof _quiet === 'function') _quiet(e, 'tpm-atacar-extras'); }
+        this._scheduleRender();
+      }));
+    },
     _bindRanking(root, fonte, r) {
       const itens = this._rankingItems(fonte, r);
       if (!itens.length) return;
@@ -425,7 +462,7 @@
         if (p) proj.prepend(p);
         box.innerHTML = this._outputHtml(fonte, r);
         const out = box.firstElementChild;
-        if (out) { lista.prepend(out); this._bindRanking(out, fonte, r); this._bindExplain(out); }
+        if (out) { lista.prepend(out); this._bindRanking(out, fonte, r); this._bindExplain(out); this._bindAtacar(out, fonte, r); }
         this._agruparRotaManual(lista);
         lista.classList.add('tpm-engine-active');
         proj.querySelectorAll('.pl-hero-sub').forEach(p => {

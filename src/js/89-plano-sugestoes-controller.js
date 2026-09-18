@@ -143,17 +143,31 @@
       }
       return(res.itens||[]).filter((_,i)=>!screen._planoSel||screen._planoSel.has(i));
     },
+    /* ── UM CANDIDATO VIRA UMA ATIVIDADE, NUM LUGAR SÓ ────────────────────
+       Isto era o corpo do laço de `criar`, e por isso a única porta de
+       execução era o modal "Puxar do Plano". O quadro "Onde atacar agora" do
+       Desempenho TEC precisa da MESMA porta — não de uma segunda cópia desta
+       gravação, que é onde vive `origem.sugestao` (o registro de qual motor
+       decidiu, com que score, dose, fase e prescrição) e o log de auditoria do
+       Robusto. Duas cópias divergiriam, e a divergência apareceria só semanas
+       depois, no veredito de uma atividade sem procedência.
+
+       Devolve `true` quando a atividade nasceu, para quem chamou contar.
+       Duplicata não é conferida aqui de propósito: os motores já removem as
+       disciplinas com reforço aberto antes de recomendar. */
+    _criarUm(c,p){
+      if(!c||!c.item)return false;const x=c.item,q=Math.max(1,Math.round(num(c.quantidadeRecomendada,c.alvo))),rob=c.modo==='robusto';
+      const modoInterface=(p&&p.modo)||c.modo||null;
+      const e=DB.addExtra({titulo:PlanoCiclo.titulo(c.nome,'reforco',x.membros),tipo:'questoes',disciplina:c.disciplina||'',unidade:'questoes',alvo:q,periodo:'unica',contaMetricas:false,obs:`Gerado pelo Plano · ${rob?'Robusto':'Simplificado'} ${c.fase==='pos'?'Pós':'Pré'} · ${q} questões aprofundadas.`});
+      if(!e)return false;const origem=PlanoCiclo.origem(c.nome,c.disciplina,Object.assign({},x,{custoQ:q,taxa:c.taxa??x.taxa}),{motivo:'reforco'});
+      origem.sugestao={versao:5,motor:rob?R.MOTOR:S.MOTOR,revisaoAuditoria:rob?R.REVISAO_REGISTRO:(S.REVISAO_REGISTRO||3),modoInterface,fase:c.fase,meta:c.meta,minAmostra:c.minAmostra,banca:c.banca||null,score:Math.round(num(c.score)*10)/10,quantidadeRecomendada:q,componentes:c.componentes||{},configRobusto:rob?{versao:8,prefs:R.prefs()}:null,prescricao:rob?(c.prescricao||null):null,topicosOrdenados:rob?(c.topicosOrdenados||[]):null,pesoPost:rob?(c.pesoPost||1):null,auditoria:c.auditoria||null,arquitetura:rob?R.arquitetura():S.arquitetura(),criadoEm:typeof todayLocal==='function'?todayLocal():new Date().toISOString().slice(0,10)};
+      DB.updateExtra(e.id,{origemPlano:origem});
+      if(rob){try{if(window.PlanoRobustoAudit)PlanoRobustoAudit.registrarCriacao(DB.getExtras().find(z=>z.id===e.id)||e);}catch(err){if(typeof _quiet==='function')_quiet(err,'plano-controller-audit-create');}}
+      return true;
+    },
     criar(screen,p,res){
       const itens=this._escolhidos(screen,p,res);let total=0;
-      itens.forEach(c=>{
-        if(!c||!c.item)return;const x=c.item,q=Math.max(1,Math.round(num(c.quantidadeRecomendada,c.alvo))),rob=c.modo==='robusto';
-        const e=DB.addExtra({titulo:PlanoCiclo.titulo(c.nome,'reforco',x.membros),tipo:'questoes',disciplina:c.disciplina||'',unidade:'questoes',alvo:q,periodo:'unica',contaMetricas:false,obs:`Gerado pelo Plano · ${rob?'Robusto':'Simplificado'} ${c.fase==='pos'?'Pós':'Pré'} · ${q} questões aprofundadas.`});
-        if(!e)return;const origem=PlanoCiclo.origem(c.nome,c.disciplina,Object.assign({},x,{custoQ:q,taxa:c.taxa??x.taxa}),{motivo:'reforco'});
-        origem.sugestao={versao:5,motor:rob?R.MOTOR:S.MOTOR,revisaoAuditoria:rob?R.REVISAO_REGISTRO:(S.REVISAO_REGISTRO||3),modoInterface:p.modo,fase:c.fase,meta:c.meta,minAmostra:c.minAmostra,banca:c.banca||null,score:Math.round(num(c.score)*10)/10,quantidadeRecomendada:q,componentes:c.componentes||{},configRobusto:rob?{versao:8,prefs:R.prefs()}:null,prescricao:rob?(c.prescricao||null):null,topicosOrdenados:rob?(c.topicosOrdenados||[]):null,pesoPost:rob?(c.pesoPost||1):null,auditoria:c.auditoria||null,arquitetura:rob?R.arquitetura():S.arquitetura(),criadoEm:typeof todayLocal==='function'?todayLocal():new Date().toISOString().slice(0,10)};
-        DB.updateExtra(e.id,{origemPlano:origem});
-        if(rob){try{if(window.PlanoRobustoAudit)PlanoRobustoAudit.registrarCriacao(DB.getExtras().find(z=>z.id===e.id)||e);}catch(err){if(typeof _quiet==='function')_quiet(err,'plano-controller-audit-create');}}
-        total++;
-      });
+      itens.forEach(c=>{ if(this._criarUm(c,p))total++; });
       screen.render();
       const ign=p.modo==='comparar'?(this._ignorados||0):0;
       const sufixo=ign?` · ${ign} sem leitura em nenhum motor, não criada(s)`:'';

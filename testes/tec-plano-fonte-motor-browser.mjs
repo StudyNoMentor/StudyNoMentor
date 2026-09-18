@@ -59,6 +59,48 @@ try{
   const totalSimplificado=await page.evaluate(()=>TecPlanoFonteMotor.calcular('simplificado').todos.length);assert.ok(totalSimplificado>10);assert.equal(await page.locator('[data-tpm-ranking-item]').count(),10,'troca de motor deve abrir a fila do novo motor em 10');
   assert.equal(await page.locator('#plano-lista>.pl-item:visible').count(),0,'ranking completo não pode ressuscitar a lista decisória do PlanoEngine legado');
 
+  /* ── "🎯 ATACAR AGORA" TEM DE CRIAR A ATIVIDADE ─────────────────────────
+     O quadro dizia onde atacar e nao dava como: o rodape mandava a pessoa a
+     outra tela, reabrir o mesmo calculo num modal e reencontrar ali a
+     recomendacao que ja estava na frente dela. Nao havia botao nenhum — era
+     literalmente isso o "o botao atacar agora nao funciona".
+
+     O que este caso prova: o botao existe, cria UMA atividade com a dose que
+     ESTE motor recomendou, grava a procedencia (motor/fase/score) pela mesma
+     porta do modal, e o quadro repinta apontando o proximo alvo. */
+  await page.evaluate(()=>{TecPlanoFonteMotor.salvar('robusto');DesempenhoTecScreen.render();DesempenhoTecScreen.switchTecTab('plano');});
+  await page.waitForSelector('[data-tpm-output][data-tpm-model="robusto"] .tpm-atacar');
+  const atacar=await page.evaluate(async()=>{
+    const bt=document.querySelector('#plano-lista .tpm-atacar');
+    const alvo=document.querySelector('#plano-lista .tpm-rec .tpm-head b').textContent.trim();
+    const dose=Number((bt.textContent.match(/(\d+)\s*q/)||[])[1])||null;
+    const antes=DB.getExtras().length;
+    bt.click();
+    await new Promise(r=>setTimeout(r,1200));
+    const ex=DB.getExtras(),novo=ex[ex.length-1],sug=(novo&&novo.origemPlano&&novo.origemPlano.sugestao)||{};
+    return {alvo,dose,antes,depois:ex.length,titulo:novo&&novo.titulo,alvoQ:novo&&novo.alvo,
+      motor:sug.motor||null,fase:sug.fase||null,temScore:Number.isFinite(Number(sug.score)),
+      nomesDepois:[...document.querySelectorAll('#plano-lista .tpm-rec .tpm-head b')].map(x=>x.textContent.trim())};
+  });
+  assert.equal(atacar.depois,atacar.antes+1,'🎯 Atacar agora deve criar exatamente uma atividade');
+  assert.ok(String(atacar.titulo||'').includes(atacar.alvo),`a atividade criada deve ser do assunto do cartao (${atacar.titulo})`);
+  assert.equal(atacar.alvoQ,atacar.dose,`a meta da atividade deve ser a dose do motor (${atacar.dose} q), nao um padrao do Plano legado`);
+  assert.equal(atacar.motor,'plano-robusto','a atividade deve nascer com a procedencia do motor gravada');
+  assert.ok(['pre','pos'].includes(atacar.fase),'a fase do motor deve ser gravada junto');
+  assert.ok(atacar.temScore,'o score do motor deve ser gravado junto');
+  assert.ok(!atacar.nomesDepois.includes(atacar.alvo),'depois de atacar, o quadro deve apontar o PROXIMO alvo (o atacado sai da lista)');
+
+  /* ALINHAMENTO POR ESTRUTURA. O recuo de 49px a mao (repetido em seis regras,
+     com valor diferente por faixa de tela) deixava cada bloco novo do cartao
+     fora do prumo: explicador e acao comecavam na borda enquanto titulo,
+     metricas e contexto comecavam 49px adentro. */
+  const prumos=await page.evaluate(()=>{
+    const m=document.querySelector('#plano-lista .tpm-rec .tpm-main');
+    return [...m.children].map(c=>Math.round(c.getBoundingClientRect().left));
+  });
+  assert.ok(prumos.length>=4,`o cartao deve ter os blocos de conteudo (recebeu ${prumos.length})`);
+  assert.equal(new Set(prumos).size,1,`todo bloco do cartao deve comecar no mesmo prumo, recebeu ${JSON.stringify(prumos)}`);
+
   const tab=page.locator('.tec-subtab[data-tectab="plano"]');
   await page.evaluate(()=>PlanoMotoresGovernanca.salvar({robusto:false,simplificado:true}));await page.evaluate(()=>{DesempenhoTecScreen.render();DesempenhoTecScreen.switchTecTab('plano');});assert.equal(await tab.isVisible(),true,'Plano deve continuar disponível com apenas Simplificado');assert.equal(await page.locator('[data-tpm-source="robusto"]').count(),0);assert.equal(await page.locator('[data-tpm-output]').getAttribute('data-tpm-model'),'simplificado');assert.match(await page.locator('[data-tpm-panorama]').textContent(),/Panorama TEC \+ Simplificado/i,'1 motor deve mostrar panorama específico do Simplificado');assert.equal(await hero.isVisible(),false,'1 motor ativo ainda deve ocultar o card legado');
   await page.evaluate(()=>PlanoMotoresGovernanca.salvar({robusto:true,simplificado:false}));await page.evaluate(()=>{DesempenhoTecScreen.render();DesempenhoTecScreen.switchTecTab('plano');});assert.equal(await tab.isVisible(),true,'Plano deve continuar disponível com apenas Robusto');assert.equal(await page.locator('[data-tpm-source="simplificado"]').count(),0);assert.equal(await page.locator('[data-tpm-output]').getAttribute('data-tpm-model'),'robusto');assert.match(await page.locator('[data-tpm-panorama]').textContent(),/Panorama TEC \+ Robusto/i,'1 motor deve mostrar panorama específico do Robusto');assert.equal(await hero.isVisible(),false,'1 motor ativo ainda deve ocultar o card legado');

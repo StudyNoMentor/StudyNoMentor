@@ -97,13 +97,24 @@
         const copy = global.querySelector('span');
         if (copy) copy.textContent = 'Contar Extras marcadas na Evolução';
       }
-      let actions = bar.querySelector('.uxv3-toolbar-actions');
-      if (!actions) {
-        const head = bar.querySelector('.ux100-config-head');
-        const movers = [...bar.children].filter(x => x !== head && x !== global);
-        actions = document.createElement('div'); actions.className = 'uxv3-toolbar-actions'; bar.appendChild(actions);
-        movers.forEach(x => actions.appendChild(x));
-      }
+      /* A fileira de acoes JA existe no HTML (`.extras-actions`). Antes criava-se
+         outro <div> em volta dela: os botoes ficavam a dois niveis de
+         profundidade e as regras de largura passavam a mirar o invólucro, nao
+         os botoes — e a barra cascateava um botao por linha. Agora a propria
+         fileira recebe a classe, e o que estiver solto na barra entra nela. */
+      let actions = bar.querySelector('.uxv3-toolbar-actions') || bar.querySelector('.extras-actions');
+      if (!actions) { actions = document.createElement('div'); actions.className = 'extras-actions'; bar.appendChild(actions); }
+      actions.classList.add('uxv3-toolbar-actions');
+      if (actions.parentElement !== bar) bar.appendChild(actions);
+      const head = bar.querySelector('.ux100-config-head');
+      [...bar.children].forEach((x) => {
+        if (x === head || x === global || x === actions) return;
+        // invólucro antigo (ou botao solto): o conteudo vai para a fileira
+        if (x.tagName === 'DIV' && !x.classList.contains('extras-actions')) {
+          while (x.firstElementChild) actions.appendChild(x.firstElementChild);
+          x.remove();
+        } else { actions.appendChild(x); }
+      });
     },
     decorateLawCards() {
       if (typeof LeiRodizio === 'undefined') return;

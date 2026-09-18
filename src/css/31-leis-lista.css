@@ -168,3 +168,62 @@
   #screen-leis .lei-card-go > small { text-align: right; }
   #screen-leis .lr-law-tools { align-items: flex-start; }
 }
+
+/* ── 8. CONSERTOS DE ALINHAMENTO ──────────────────────────────────────────
+   Três defeitos concretos, um por bloco.
+
+   8.1 A AÇÃO ESTAVA CORTADA. A forma antiga da ação era um disco de 34x34 com
+   um "→" dentro, e o tamanho fixo continuava valendo em 07-ux-layout.css. O
+   conteúdo novo — rótulo, linha e seta — era empurrado para dentro de 34px:
+   na tela aparecia "meçar linha 1", com "Co" cortado fora da caixa. A largura
+   passa a ser do conteúdo, com piso para que os três estados ("Começar",
+   "Continuar", "Reler") tenham a MESMA largura e as caixas de todos os
+   cartões terminem na mesma linha vertical. */
+#screen-leis .lei-card-go {
+  flex: 0 0 auto;
+  width: auto; height: auto;
+  min-width: calc(124px * var(--fs-scale, 1));
+  min-height: calc(46px * var(--fs-scale, 1));
+  justify-items: start;
+  box-sizing: border-box;
+}
+#screen-leis .lei-card-go > i { justify-self: end; }
+
+/* 8.2 A FAIXA DE ESTADO DESAPARECIA NO RODÍZIO. `10-lei-rodizio.css` zera a
+   borda do cartão embrulhado (`border: 0 !important`) para que a moldura seja
+   a do invólucro. Declarar só a LARGURA da borda esquerda depois disso não
+   pinta nada: o estilo continua `none`. A faixa é redeclarada inteira. */
+#screen-leis .lr-law-wrap > .lei-card { border: 0 !important; border-radius: 0 !important; }
+#screen-leis .lr-law-wrap > .lei-card.is-lendo {
+  border-left: 3px solid color-mix(in srgb, var(--accent) 62%, var(--border)) !important;
+}
+#screen-leis .lr-law-wrap > .lei-card.is-fim {
+  border-left: 3px solid color-mix(in srgb, var(--good) 62%, var(--border)) !important;
+}
+#screen-leis .lr-law-wrap > .lei-card.is-nova {
+  border-left: 3px solid var(--border) !important;
+}
+
+/* 8.3 A FILEIRA DE ETIQUETAS ERA IRREGULAR. Selo de estado, matéria e
+   referência vinham de três folhas diferentes, com alturas e cantos próprios:
+   a linha do topo ficava serrilhada e cada cartão começava numa altura
+   diferente. Uma medida só para as três, e o topo volta a ser uma linha. */
+#screen-leis .lei-card-topo > .lei-estado,
+#screen-leis .lei-card-topo > .lei-tag {
+  min-height: calc(22px * var(--fs-scale, 1));
+  display: inline-flex; align-items: center;
+  padding: 2px 9px; border-radius: 999px;
+  font-size: var(--fs-3xs); line-height: 1.2;
+  max-width: 100%;
+}
+#screen-leis .lei-card-topo > .lei-tag { font-weight: 750; text-transform: none; letter-spacing: 0; }
+/* O título é a âncora da leitura: fica na mesma altura em todo cartão, e o
+   bloco de texto alinha à esquerda com ele — não com o selo. */
+#screen-leis .lei-card-main { align-content: start; }
+#screen-leis .lei-card { align-items: center; }
+
+@media (max-width: 620px) {
+  /* Em coluna única a ação vira uma faixa cheia, com a seta na ponta: sem piso
+     de largura, que aqui só criaria uma caixa estreita no meio do cartão. */
+  #screen-leis .lei-card-go { min-width: 0; width: 100%; }
+}

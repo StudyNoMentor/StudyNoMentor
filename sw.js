@@ -6,10 +6,16 @@
 
    Estratégia deliberada, uma por tipo de recurso:
 
-   · O PRÓPRIO APP (navegação) → rede primeiro, com queda para o cache.
-     Rede primeiro porque o index.html muda com frequência: cache-first faria
-     você ver a versão antiga por dias sem entender por quê. Se a rede falhar ou
-     passar de 3s, serve o cache. Offline, abre igual.
+   · O PRÓPRIO APP (navegação) → do cache da versão ativa, sem passar pela rede.
+     Não há versão velha para servir: o balde CACHE_APP leva a versão no nome e
+     a instalação já baixa a casca nova para o balde NOVO (ver `precarregar`).
+     A casca guardada é, por construção, a casca do worker que está servindo.
+     Rede primeiro custava até TIMEOUT_REDE de tela branca em TODA abertura —
+     e o index.html tem alguns megabytes, então em rede móvel a corrida era
+     perdida sempre: pagava-se a espera e servia-se o cache no fim. A versão
+     nova continua sendo detectada na navegação (o sw.js é sempre buscado da
+     rede, `updateViaCache:'none'`) e continua sendo anunciada pela barra de
+     atualização. Rede aqui é só o plano B, quando o balde está vazio.
 
    · FONTES do Google → serve do cache e revalida em segundo plano.
      Instantâneas a partir da 2ª visita. Fontes quase nunca mudam e são o
@@ -30,7 +36,7 @@
 /* O carimbo é gravado pelo build.mjs a partir de um resumo do conteúdo de src/.
    Ele muda a cada publicação real — é isso que dá um BALDE NOVO a cada versão e
    faz a faxina da ativação ter o que descartar. Não edite à mão. */
-const VERSAO = 'v12c85c1f4d';
+const VERSAO = 'v438262d259';
 
 /* Dois baldes com ciclos de vida diferentes, e a diferença é proposital:
 
@@ -157,20 +163,26 @@ async function podarCdn() {
   } catch (_) { /* poda é higiene, nunca motivo para falhar a ativação */ }
 }
 
-/* Pré-carregamento de navegação: o navegador dispara o pedido do documento EM
-   PARALELO com o despertar do worker. Sem isso, toda navegação com o worker
-   dormindo paga a inicialização dele antes de a rede sequer começar. */
-async function ligarPreCarregamento() {
+/* Pré-carregamento de navegação: DESLIGADO de propósito, e é preciso desligar
+   explicitamente porque o ajuste fica gravado na registração e sobrevive à
+   publicação — uma versão anterior o ligou.
+
+   Ele existia para a estratégia antiga: com rede primeiro, valia disparar o
+   pedido do documento em paralelo com o despertar do worker. Agora a navegação
+   é servida do cache, então esse pedido nunca seria usado — seriam alguns
+   megabytes baixados em TODA abertura, disputando a rede exatamente com o que
+   a página precisa de verdade (fontes, biblioteca da nuvem, seus dados). */
+async function desligarPreCarregamento() {
   try {
     if (self.registration && self.registration.navigationPreload) {
-      await self.registration.navigationPreload.enable();
+      await self.registration.navigationPreload.disable();
     }
-  } catch (_) { /* navegador sem suporte: segue sem */ }
+  } catch (_) { /* navegador sem suporte: nunca esteve ligado */ }
 }
 
 self.addEventListener('activate', (evt) => {
   evt.waitUntil(
-    Promise.all([faxinaDeBaldes(), ligarPreCarregamento()])
+    Promise.all([faxinaDeBaldes(), desligarPreCarregamento()])
       .then(() => podarCdn())
       .then(() => self.clients.claim())
       .catch(() => self.clients.claim())
@@ -211,26 +223,42 @@ function redePrimeiro(evt, req, cacheNome) {
   });
 }
 
-/* Navegação: igual à rota acima, mas aproveitando o pré-carregamento quando o
-   navegador o oferece. A resposta pré-carregada precisa ser consumida — ignorá-la
-   faz o navegador cancelá-la e reclamar no console. */
+/* Navegação: a casca sai do balde DESTA versão, sem tocar a rede.
+
+   O que torna isso seguro (e não um "cache-first que serve versão velha") é o
+   balde levar a versão no nome: `precarregar()` baixa a casca nova, com
+   `cache: 'reload'`, para o balde NOVO durante a INSTALAÇÃO do worker novo, e a
+   ativação descarta o balde anterior. Logo, a casca encontrada aqui é sempre a
+   casca da versão que está servindo — nunca uma anterior.
+
+   Antes, "rede primeiro" tinha um efeito perverso além da espera: o worker
+   VELHO baixava e servia o index.html NOVO, então a página rodava a versão nova
+   enquanto a barra de atualização anunciava uma atualização — e quem seguia o
+   aviso recarregava sem que nada mudasse. Agora casca e worker andam juntos. */
 function responderNavegacao(evt) {
   const req = evt.request;
-  let gravacao = null;
-  const daRede = Promise.resolve(evt.preloadResponse)
-    .catch(() => null)
-    .then((pre) => pre || buscar(req))
-    .then((r) => { gravacao = guardar(CACHE_APP, CHAVE_CASCA, r); return r; });
-  manterVivo(evt, daRede.then(() => gravacao));
-  const relogio = new Promise((_, rej) => setTimeout(() => rej(new Error('timeout')), TIMEOUT_REDE));
-  return Promise.race([daRede, relogio]).catch(async () => {
-    const c = await caches.open(CACHE_APP);
-    /* `ignoreVary` de propósito: se a hospedagem responder com um `Vary` que não
-       bate na comparação, a casca guardada existiria e ainda assim não seria
-       encontrada — e o app "sem conexão" com a cópia boa a um passo de distância. */
-    return (await c.match(CHAVE_CASCA, { ignoreVary: true }))
-        || (await c.match(req, { ignoreVary: true }))
-        || respostaSemConexao();
+  return caches.open(CACHE_APP).then(async (c) => {
+    const guardado = await c.match(CHAVE_CASCA, { ignoreVary: true });
+    if (guardado) {
+      /* O pré-carregamento é desligado na ativação, mas uma aba que abriu antes
+         disso ainda pode receber uma resposta pré-carregada — e uma que ninguém
+         consome é cancelada pelo navegador, com reclamação no console. Então ela
+         é consumida: vai para a chave da casca, no balde desta MESMA versão. */
+      manterVivo(evt, Promise.resolve(evt.preloadResponse).catch(() => null)
+        .then((pre) => (pre ? guardar(CACHE_APP, CHAVE_CASCA, pre) : null)));
+      return guardado;
+    }
+    /* Balde vazio: primeira visita com o worker recém-ativo, ou o
+       pré-carregamento da instalação não conseguiu completar. Aí a rede é a
+       única fonte possível — e não há espera a economizar. */
+    let gravacao = null;
+    const daRede = Promise.resolve(evt.preloadResponse)
+      .catch(() => null)
+      .then((pre) => pre || buscar(req))
+      .then((r) => { gravacao = guardar(CACHE_APP, CHAVE_CASCA, r); return r; });
+    manterVivo(evt, daRede.then(() => gravacao));
+    return daRede.catch(async () =>
+      (await c.match(req, { ignoreVary: true })) || respostaSemConexao());
   });
 }
 

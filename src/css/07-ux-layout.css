@@ -1108,13 +1108,11 @@ body.leis-foco .lei-sel-fab { --lei-fab-lift: 8px; }
   font-family: 'Space Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
 }
 .lei-card-bk { color: var(--warn-text); font-weight: 700; }
-.lei-card-go {
-  flex: 0 0 auto; width: 34px; height: 34px; border-radius: 50%;
-  display: flex; align-items: center; justify-content: center;
-  background: var(--surface-sunken); color: var(--text-soft); font-size: var(--fs-md); font-weight: 700;
-  transition: background .15s ease, color .15s ease;
-}
-.lei-card:hover .lei-card-go { background: var(--accent); color: #fff; }
+/* A ação do cartão era um disco de 34x34 com um "→" dentro. Ela agora NOMEIA o
+   que faz ("Começar / Continuar / Reler" + a linha) e a forma vive em
+   31-leis-lista.css. O tamanho fixo ficou aqui por um tempo e cortava o rótulo
+   ao meio — um disco de 34px com três filhos dentro. Nada a herdar daqui. */
+.lei-card-go { flex: 0 0 auto; }
 
 /* ── 8. Painel ⚙️ Exibição ─────────────────────────────────────────────── */
 .lei-prefs-grupo { display: grid; gap: 4px; }

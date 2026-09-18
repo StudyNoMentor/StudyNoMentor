@@ -58,7 +58,9 @@
   border-radius: 11px;
   background: color-mix(in srgb, var(--surface-sunken) 60%, var(--surface));
 }
-.tpm-rec .tpm-why { margin-left: 49px; }
+/* O recuo à mão de 49px saiu: o cartão é uma grade de duas colunas e todo
+   bloco de `.tpm-main` já nasce no mesmo prumo. Ver 26-tec-plano-fonte-motor.css. */
+.tpm-rec .tpm-why { margin-left: 0; }
 .tpm-why > summary {
   cursor: pointer; list-style: none;
   padding: 8px 11px;

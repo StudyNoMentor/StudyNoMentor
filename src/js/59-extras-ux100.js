@@ -66,7 +66,10 @@
 
       const settings = document.getElementById('extras-settings-btn');
       if (settings) {
-        settings.innerHTML = '⚙ Abrir configurações';
+        /* "Abrir configurações" era o rótulo mais longo da fileira, e era ele
+           que fazia os cinco botões não caberem numa linha só. O cartão ao
+           lado já diz "Configurações" em destaque; o verbo era redundante. */
+        settings.innerHTML = '⚙ Configurações';
         settings.setAttribute('aria-label', 'Abrir configurações de Atividades Extras');
       }
       const subtitle = screen && screen.querySelector('.page-subtitle');

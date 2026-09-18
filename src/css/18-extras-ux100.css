@@ -6,10 +6,14 @@
 
 /* ── 1. Configurações passam a ser o primeiro bloco operacional ─────────── */
 #screen-extras .extras-toolbar.ux100-config-card{
+  /* UMA coluna, de propósito. Com duas, a fileira de acoes disputava largura
+     com o interruptor: abaixo de ~730px a coluna dos botoes era espremida e
+     eles desciam um por linha — a cascata. Em pilha, cada faixa usa a largura
+     inteira e os botoes cabem alinhados. */
   display:grid!important;
-  grid-template-columns:minmax(0,1fr) auto;
+  grid-template-columns:minmax(0,1fr);
   align-items:center;
-  gap:12px 16px;
+  gap:10px 16px;
   margin:12px 0 16px;
   padding:15px 16px;
   border:1.5px solid color-mix(in srgb,var(--accent) 34%,var(--border));
@@ -39,7 +43,6 @@
 #screen-extras .ux100-config-kpis span{padding:5px 8px;border:1px solid color-mix(in srgb,var(--accent) 18%,var(--border));border-radius:999px;background:var(--surface);color:var(--text-muted);font-size:9px;font-weight:750;white-space:nowrap}
 #screen-extras .extras-toolbar.ux100-config-card .extras-global{min-width:0;margin:0;align-self:center}
 #screen-extras .extras-toolbar.ux100-config-card .extras-global>span{font-size:10px;line-height:1.35}
-#screen-extras .extras-toolbar.ux100-config-card>div:last-child{justify-content:flex-end}
 #screen-extras #extras-settings-btn{border-color:color-mix(in srgb,var(--accent) 40%,var(--border));color:var(--accent);background:var(--surface);font-weight:850}
 
 /* ── 2. Reforços em curso ganham fronteira própria e leitura de médio prazo ─ */
@@ -205,9 +208,6 @@
   #screen-extras .ux100-config-head{grid-template-columns:38px minmax(0,1fr)}
   #screen-extras .ux100-config-icon{width:38px;height:38px}
   #screen-extras .ux100-config-kpis{grid-column:1/-1;justify-content:flex-start;padding-left:49px}
-  #screen-extras .extras-toolbar.ux100-config-card>div:last-child{display:grid!important;grid-template-columns:repeat(2,minmax(0,1fr));width:100%;gap:7px!important}
-  #screen-extras .extras-toolbar.ux100-config-card>div:last-child>button{width:100%;min-width:0;min-height:40px;padding:7px 8px;font-size:10px}
-  #screen-extras #extras-settings-btn{grid-column:1/-1}
   #screen-extras .extras-toolbar.ux100-config-card .extras-global{padding:7px 0;border-bottom:1px solid color-mix(in srgb,var(--text-faint) 20%,var(--border))}
 
   #extras-agenda .exm-stats{grid-template-columns:1fr 1fr}

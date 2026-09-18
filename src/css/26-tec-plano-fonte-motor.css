@@ -51,15 +51,83 @@ html.tpm-motors-active #plano-lista>:not([data-tpm-output]):not(.tpm-legacy-exec
 @media(max-width:390px){.tpm-entry-selector{padding:11px}.tpm-metrics{grid-template-columns:1fr 1fr}.tpm-source-grid button{grid-template-columns:auto minmax(0,1fr)}.tpm-source-grid button i{grid-column:2}.tpm-head{display:block}.tpm-score{display:block;margin-top:4px}.tpm-rec{gap:7px}.tpm-ranking-item{grid-template-columns:27px minmax(0,1fr);padding:8px}.tpm-ranking-metrics>span{width:auto}.tpm-ranking-actions{display:grid;grid-template-columns:1fr}.tpm-ranking-actions button{width:100%}}
 
 
-/* Cards dos motores: mesma hierarquia visual dos cards do plano legado. */
-.tpm-rec{display:grid;grid-template-columns:1fr;gap:0;padding:14px 15px;border-color:color-mix(in srgb,var(--bad) 34%,var(--border));border-radius:16px;background:linear-gradient(135deg,color-mix(in srgb,var(--bad) 3.5%,var(--surface)),var(--surface));box-shadow:0 5px 18px rgba(12,25,45,.025)}
-.tpm-rec .tpm-rank{width:38px;height:38px;border:0;border-radius:999px;background:#c52b3a;color:#fff;font-size:var(--fs-xs);box-shadow:0 4px 10px color-mix(in srgb,#c52b3a 20%,transparent)}
-.tpm-rec .tpm-main{display:grid;grid-template-columns:minmax(0,1fr);min-width:0}.tpm-rec .tpm-head{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:10px;align-items:start;position:relative;padding-left:49px;min-height:38px}.tpm-rec .tpm-head small{font-weight:850}.tpm-rec .tpm-head>b{font-size:var(--fs-sm);line-height:1.35}.tpm-rec .tpm-head:after{content:"🎯 ataque agora";grid-column:1;font-style:normal;color:color-mix(in srgb,var(--bad) 88%,var(--text));font-size:var(--fs-2xs);font-weight:900;margin-top:3px}.tpm-rec .tpm-score{display:grid;justify-items:end;gap:1px;text-align:right;font-size:var(--fs-3xs);font-weight:900}.tpm-rec .tpm-score:before{content:"prioridade do motor";font-size:var(--fs-3xs);line-height:1.2;text-transform:uppercase;letter-spacing:.04em;color:var(--text-faint);font-weight:800}.tpm-rec .tpm-metrics{display:flex;gap:6px;flex-wrap:wrap;margin:10px 0 0;padding-left:49px}.tpm-rec .tpm-metrics>span{display:flex;align-items:baseline;gap:4px;padding:5px 7px;border:0;border-radius:8px;background:color-mix(in srgb,var(--surface) 78%,var(--surface-sunken));font-size:var(--fs-3xs);min-width:0}.tpm-rec .tpm-metrics b{font-size:var(--fs-2xs)}.tpm-rec .tpm-metrics small{margin:0;font-size:var(--fs-3xs);line-height:1.25}.tpm-rec .tpm-dose{border:1px solid color-mix(in srgb,var(--accent) 30%,var(--border))!important;background:color-mix(in srgb,var(--accent) 5%,var(--surface))!important}.tpm-rec .tpm-dose:before{content:"🎯";font-size:var(--fs-2xs)}.tpm-rec .tpm-context{margin:9px 0 0;padding-left:49px}.tpm-rec .tpm-topic-order{margin-left:49px}
-@media(max-width:720px){.tpm-rec{grid-template-columns:1fr;padding:12px}.tpm-rec .tpm-rank{width:34px;height:34px}.tpm-rec .tpm-head,.tpm-rec .tpm-metrics,.tpm-rec .tpm-context{padding-left:43px}.tpm-rec .tpm-topic-order{margin-left:43px}.tpm-rec .tpm-metrics{grid-template-columns:none}.tpm-rec .tpm-head{display:grid}}
-@media(max-width:390px){.tpm-rec .tpm-head{grid-template-columns:1fr;padding-left:40px}.tpm-rec .tpm-score{justify-items:start;text-align:left}.tpm-rec .tpm-rank{width:32px;height:32px}.tpm-rec .tpm-metrics,.tpm-rec .tpm-context{padding-left:40px}.tpm-rec .tpm-topic-order{margin-left:40px}}
+/* ── OS CARTÕES DE "ONDE ATACAR AGORA" ────────────────────────────────────
+   A versão anterior tirava o número da ordem do fluxo (`position:absolute`) e
+   depois empurrava CADA bloco de texto para a direita com um recuo à mão de
+   49px — repetido em cinco regras aqui e em mais uma em 28-tec-padrao.css, com
+   valores diferentes em cada faixa de tela (49 / 43 / 40). Qualquer bloco novo
+   no cartão nascia fora do prumo: era o caso do explicador e da ação, que
+   começavam na borda enquanto título, métricas e contexto começavam 49px
+   adentro. Daí "sem alinhamento nos textos e padronização".
 
-.tpm-rec{position:relative}.tpm-rec .tpm-rank{position:absolute;top:14px;left:15px;z-index:1}
-@media(max-width:720px){.tpm-rec .tpm-rank{top:12px;left:12px}}
+   Agora o cartão é uma grade de duas colunas de verdade: [ordem] [conteúdo].
+   O alinhamento passa a ser consequência da estrutura — tudo que entrar em
+   `.tpm-main` nasce no mesmo prumo, sem recuo para calcular, e a faixa estreita
+   só troca a largura da primeira coluna. */
+.tpm-rec{
+  display:grid;grid-template-columns:auto minmax(0,1fr);gap:0 13px;align-items:start;
+  padding:14px 15px;border-color:color-mix(in srgb,var(--bad) 34%,var(--border));
+  border-radius:16px;
+  background:linear-gradient(135deg,color-mix(in srgb,var(--bad) 3.5%,var(--surface)),var(--surface));
+  box-shadow:0 5px 18px rgba(12,25,45,.025);
+}
+.tpm-rec .tpm-rank{
+  width:calc(36px * var(--fs-scale,1));height:calc(36px * var(--fs-scale,1));
+  border:0;border-radius:999px;background:#c52b3a;color:#fff;font-size:var(--fs-xs);
+  box-shadow:0 4px 10px color-mix(in srgb,#c52b3a 20%,transparent);
+}
+.tpm-rec .tpm-main{display:grid;grid-template-columns:minmax(0,1fr);gap:9px;min-width:0}
+
+/* Cabeçalho: nome à esquerda, prioridade à direita, ambos ancorados no topo. */
+.tpm-rec .tpm-head{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:4px 12px;align-items:start;min-height:calc(36px * var(--fs-scale,1))}
+.tpm-rec .tpm-head small{font-weight:850}
+.tpm-rec .tpm-head>b{font-size:var(--fs-sm);line-height:1.35;overflow-wrap:anywhere}
+.tpm-rec .tpm-score{display:grid;justify-items:end;gap:1px;text-align:right;font-size:var(--fs-3xs);font-weight:900}
+.tpm-rec .tpm-score:before{content:"prioridade do motor";font-size:var(--fs-3xs);line-height:1.2;text-transform:uppercase;letter-spacing:.04em;color:var(--text-faint);font-weight:800}
+
+/* Métricas: QUATRO caixas iguais, em grade. Em `flex-wrap` elas tinham cada
+   uma a largura do próprio texto, então as bordas não coincidiam entre
+   cartões e a fileira parecia desalinhada mesmo estando correta. */
+.tpm-rec .tpm-metrics{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:6px;margin:0}
+.tpm-rec .tpm-metrics>span{
+  display:grid;gap:2px;align-content:start;padding:7px 9px;border:0;border-radius:9px;
+  background:color-mix(in srgb,var(--surface) 78%,var(--surface-sunken));font-size:var(--fs-3xs);min-width:0;
+}
+.tpm-rec .tpm-metrics b{font-size:var(--fs-2xs);overflow-wrap:anywhere}
+.tpm-rec .tpm-metrics small{margin:0;font-size:var(--fs-3xs);line-height:1.25;color:var(--text-faint)}
+.tpm-rec .tpm-dose{border:1px solid color-mix(in srgb,var(--accent) 30%,var(--border))!important;background:color-mix(in srgb,var(--accent) 5%,var(--surface))!important}
+.tpm-rec .tpm-context{margin:0;font-size:var(--fs-2xs);line-height:1.5;color:var(--text-soft)}
+.tpm-rec .tpm-topic-order{margin:0}
+
+/* ── A AÇÃO ───────────────────────────────────────────────────────────────
+   Onde antes havia um rótulo decorativo ("🎯 ataque agora", um `:after` que
+   parecia botão e não era) há agora o botão que cria a atividade. */
+.tpm-acoes{display:grid;grid-template-columns:auto minmax(0,1fr);align-items:center;gap:4px 11px}
+.tpm-acoes>small{font-size:var(--fs-3xs);line-height:1.35;color:var(--text-faint)}
+.tpm-atacar{
+  appearance:none;cursor:pointer;white-space:nowrap;
+  min-height:calc(40px * var(--fs-scale,1));padding:9px 15px;border-radius:11px;
+  border:0;background:#c52b3a;color:#fff;font-size:var(--fs-2xs);font-weight:900;
+  box-shadow:0 4px 12px color-mix(in srgb,#c52b3a 22%,transparent);
+  transition:filter .15s ease,box-shadow .15s ease;
+}
+.tpm-atacar:hover{filter:brightness(1.07)}
+.tpm-atacar:disabled{cursor:progress;filter:grayscale(.45);box-shadow:none}
+
+@media(max-width:720px){
+  .tpm-rec{gap:0 11px;padding:12px}
+  .tpm-rec .tpm-metrics{grid-template-columns:repeat(2,minmax(0,1fr))}
+}
+@media(max-width:430px){
+  /* A ordem vira uma faixa acima do conteúdo: em 430px, reservar uma coluna
+     para ela deixava o título com três palavras por linha. */
+  .tpm-rec{grid-template-columns:minmax(0,1fr);gap:8px}
+  .tpm-rec .tpm-head{grid-template-columns:minmax(0,1fr);min-height:0}
+  .tpm-rec .tpm-score{justify-items:start;text-align:left}
+  .tpm-rec .tpm-score:before{text-align:left}
+  .tpm-acoes{grid-template-columns:minmax(0,1fr)}
+  .tpm-atacar{width:100%}
+}
 
 
 /* Panorama do TEC: fatos visíveis, decisão e explicações progressivas. */
