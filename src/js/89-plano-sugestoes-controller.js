@@ -48,17 +48,38 @@
     _renderModal(screen,p,res){const body=document.getElementById('ui-modal-body');if(!body)return;body.innerHTML=`${this._cabecalho(p,res)}<div class="ps-list-head"><span id="pl-conta"></span><small>Disciplinas com reforço aberto já foram removidas.</small></div><div id="pl-lista" class="ps-list"></div>`;this._renderLista(screen,p,res);body.querySelectorAll('[data-ps-modo]').forEach(b=>b.addEventListener('click',()=>{p=this.salvar({modo:b.dataset.psModo});this._recalcularModal(screen,p);}));},
     _recalcularModal(screen,p){const host=document.getElementById('pl-lista');if(host)host.innerHTML='<div class="ps-loading">Recalculando sugestões…</div>';setTimeout(()=>{try{const res=this.calcular(p);screen._psResultado=res;this._renderModal(screen,p,res);}catch(e){if(typeof _quiet==='function')_quiet(e,'plano-controller-recalc');}},0);},
     _escolhidos(screen,p,res){if(!res||res.erro)return[];if(p.modo==='comparar')return(res.itens||[]).map(x=>x.consenso?(x.robusto||x.simplificado):(x.escolha==='simplificado'?x.simplificado:x.robusto)).filter(Boolean);return(res.itens||[]).filter((_,i)=>!screen._planoSel||screen._planoSel.has(i));},
+    /* Criação centralizada de UMA frente. O modal "Puxar do Plano" e os botões
+       "Ataque agora" da tela TEC passam pelo mesmo caminho, portanto origem,
+       auditoria e proteção contra duplicata não podem divergir. */
+    _criarItem(c,modoInterface){
+      if(!c||!c.item)return{ok:false,motivo:'item-invalido'};
+      const x=c.item,q=Math.max(1,Math.round(num(c.quantidadeRecomendada,c.alvo))),rob=c.modo==='robusto';
+      const d=norm(c.disciplina||''),t=norm(c.nome||'');
+      const duplicada=I.abertasPlano().find(z=>{
+        const o=z.origemPlano||{},zd=norm(o.disciplina||z.disciplina||''),zt=norm(o.topico||'');
+        return d&&zd===d&&t&&zt===t;
+      });
+      if(duplicada)return{ok:false,motivo:'duplicada',extra:duplicada};
+      const e=DB.addExtra({titulo:PlanoCiclo.titulo(c.nome,'reforco',x.membros),tipo:'questoes',disciplina:c.disciplina||'',unidade:'questoes',alvo:q,periodo:'unica',contaMetricas:false,obs:`Gerado pelo Plano · ${rob?'Robusto':'Simplificado'} ${c.fase==='pos'?'Pós':'Pré'} · ${q} questões aprofundadas.`});
+      if(!e)return{ok:false,motivo:'falha-gravacao'};
+      const origem=PlanoCiclo.origem(c.nome,c.disciplina,Object.assign({},x,{custoQ:q,taxa:c.taxa??x.taxa}),{motivo:'reforco'});
+      origem.sugestao={versao:5,motor:rob?R.MOTOR:S.MOTOR,revisaoAuditoria:rob?R.REVISAO_REGISTRO:(S.REVISAO_REGISTRO||3),modoInterface:modoInterface||c.modo,fase:c.fase,meta:c.meta,minAmostra:c.minAmostra,banca:c.banca||null,score:Math.round(num(c.score)*10)/10,quantidadeRecomendada:q,componentes:c.componentes||{},configRobusto:rob?{versao:8,prefs:R.prefs()}:null,prescricao:rob?(c.prescricao||null):null,topicosOrdenados:rob?(c.topicosOrdenados||[]):null,pesoPost:rob?(c.pesoPost||1):null,auditoria:c.auditoria||null,arquitetura:rob?R.arquitetura():S.arquitetura(),criadoEm:typeof todayLocal==='function'?todayLocal():new Date().toISOString().slice(0,10)};
+      DB.updateExtra(e.id,{origemPlano:origem});
+      if(rob){try{if(window.PlanoRobustoAudit)PlanoRobustoAudit.registrarCriacao(DB.getExtras().find(z=>z.id===e.id)||e);}catch(err){if(typeof _quiet==='function')_quiet(err,'plano-controller-audit-create');}}
+      return{ok:true,extra:e,q,rob};
+    },
+    criarItem(c,modoInterface){
+      const r=this._criarItem(c,modoInterface);
+      if(typeof showToast==='function'){
+        if(r.ok)showToast(`Atividade Extra criada · ${r.q} questões ✓`);
+        else if(r.motivo==='duplicada')showToast('Já existe uma Atividade Extra aberta para este tópico.');
+        else showToast('Não foi possível criar a Atividade Extra.');
+      }
+      return r;
+    },
     criar(screen,p,res){
       const itens=this._escolhidos(screen,p,res);let total=0;
-      itens.forEach(c=>{
-        if(!c||!c.item)return;const x=c.item,q=Math.max(1,Math.round(num(c.quantidadeRecomendada,c.alvo))),rob=c.modo==='robusto';
-        const e=DB.addExtra({titulo:PlanoCiclo.titulo(c.nome,'reforco',x.membros),tipo:'questoes',disciplina:c.disciplina||'',unidade:'questoes',alvo:q,periodo:'unica',contaMetricas:false,obs:`Gerado pelo Plano · ${rob?'Robusto':'Simplificado'} ${c.fase==='pos'?'Pós':'Pré'} · ${q} questões aprofundadas.`});
-        if(!e)return;const origem=PlanoCiclo.origem(c.nome,c.disciplina,Object.assign({},x,{custoQ:q,taxa:c.taxa??x.taxa}),{motivo:'reforco'});
-        origem.sugestao={versao:5,motor:rob?R.MOTOR:S.MOTOR,revisaoAuditoria:rob?R.REVISAO_REGISTRO:(S.REVISAO_REGISTRO||3),modoInterface:p.modo,fase:c.fase,meta:c.meta,minAmostra:c.minAmostra,banca:c.banca||null,score:Math.round(num(c.score)*10)/10,quantidadeRecomendada:q,componentes:c.componentes||{},configRobusto:rob?{versao:8,prefs:R.prefs()}:null,prescricao:rob?(c.prescricao||null):null,topicosOrdenados:rob?(c.topicosOrdenados||[]):null,pesoPost:rob?(c.pesoPost||1):null,auditoria:c.auditoria||null,arquitetura:rob?R.arquitetura():S.arquitetura(),criadoEm:typeof todayLocal==='function'?todayLocal():new Date().toISOString().slice(0,10)};
-        DB.updateExtra(e.id,{origemPlano:origem});
-        if(rob){try{if(window.PlanoRobustoAudit)PlanoRobustoAudit.registrarCriacao(DB.getExtras().find(z=>z.id===e.id)||e);}catch(err){if(typeof _quiet==='function')_quiet(err,'plano-controller-audit-create');}}
-        total++;
-      });
+      itens.forEach(c=>{if(this._criarItem(c,p.modo).ok)total++;});
       screen.render();if(typeof showToast==='function')showToast(total?`${total} reforço(s) criado(s) · ${p.modo==='comparar'?'comparação concluída':p.modo}`:'Nenhuma sugestão selecionada');return total;
     },
     abrir(screen){const p=this.prefs();let res;try{res=this.calcular(p);}catch(e){if(typeof _quiet==='function')_quiet(e,'plano-controller-open');if(typeof showToast==='function')showToast('Não foi possível calcular sugestões do Plano.');return;}screen._psResultado=res;screen._planoSel=new Set((res.itens||[]).map((_,i)=>i));new Promise(resolve=>{UI._resolve=resolve;UI._mode='confirm';UI._open('🏁 Puxar do Plano','Dois modelos independentes, uma única fila de execução','<div id="ps-root"></div>',{okText:'Criar atividades'});}).then(ok=>{if(!ok)return;const atual=this.prefs();return this.criar(screen,atual,screen._psResultado);});setTimeout(()=>{try{this._renderModal(screen,p,res);}catch(e){if(typeof _quiet==='function')_quiet(e,'plano-controller-render');}},0);},
