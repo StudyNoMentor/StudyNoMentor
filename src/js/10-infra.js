@@ -154,44 +154,39 @@ function _appOcupado() {
   return false;
 }
 var _recargaAgendada = null;
-/* opts.imediato = a recarga foi PEDIDA pela pessoa (entrar num perfil, sair da
-   conta, restaurar uma versão). Aí ela não espera nada: só a confirmação do
-   disco. A espera educada é para as recargas que vêm de FORA — uma atualização
-   chegando de outro aparelho no meio do seu trabalho. */
+/* opts.imediato = a recarga foi PEDIDA pela pessoa. A diferença continua
+   sendo apenas de UX: a durabilidade sempre depende do PostgreSQL quando há
+   uma sessão autenticada. */
 function recarregarApp(motivo, opts) {
-  const ir = () => {
+  const ir = async () => {
     try { console.info('[recarga]', motivo || 'sem motivo declarado'); } catch (e) { _quiet(e, 'recarga-log'); }
-    const disco = window.__idbFlushStrict
-      ? window.__idbFlushStrict(10000)
-      : (window.__idbFlush ? window.__idbFlush().then(() => ({ ok: true })) : Promise.resolve({ ok: true }));
-    Promise.resolve(disco).then((r) => {
-      if (r && r.ok === false) {
-        try { console.error('[recarga] cancelada: armazenamento local não confirmou o commit', r); } catch (e) { _quiet(e, 'recarga-disco'); }
-        try { showToast('⚠ Não recarreguei: ainda há dados sendo gravados neste aparelho. Tente novamente em instantes.'); } catch (e) { _quiet(e, 'recarga-aviso-disco'); }
-        return;
+    try {
+      const conectado = window.CloudStore && CloudStore.isReady && CloudStore.isReady() &&
+        CloudStore.isLoggedIn && CloudStore.isLoggedIn();
+      if (conectado) {
+        if (!window.RelationalStore) throw new Error('camada relacional indisponível');
+        await RelationalStore.flush();
+        if (RelationalStore.pendingCount() !== 0 || RelationalStore._lastError) {
+          throw RelationalStore._lastError || new Error('operações SQL pendentes');
+        }
       }
       location.reload();
-    }).catch((e) => {
-      try { console.error('[recarga] cancelada por falha ao confirmar o armazenamento', e); } catch (_) { _quiet(_); }
-      try { showToast('⚠ Não recarreguei porque o armazenamento local não pôde ser confirmado.'); } catch (_) { _quiet(_); }
-    });
+    } catch (e) {
+      try { console.error('[recarga] cancelada: banco não confirmou as alterações', e); } catch (_) { _quiet(_); }
+      try { showToast('⚠ Não recarreguei: o banco ainda não confirmou todas as alterações.'); } catch (_) { _quiet(_); }
+    }
   };
-  if ((opts && opts.imediato) || !_appOcupado()) { ir(); return; }
-  if (_recargaAgendada) return;                 // já há uma esperando a sua vez
+  if ((opts && opts.imediato) || !_appOcupado()) { void ir(); return; }
+  if (_recargaAgendada) return;
   try { showToast('Há dados novos — a tela será atualizada quando você terminar aqui'); } catch (e) { _quiet(e, 'recarga-aviso'); }
   _recargaAgendada = setInterval(() => {
     if (_appOcupado()) return;
     clearInterval(_recargaAgendada); _recargaAgendada = null;
-    ir();
+    void ir();
   }, 1500);
 }
 window.recarregarApp = recarregarApp;
 
-// Hook do APAGAMENTO de uma chave do perfil. Apagar também é uma alteração que
-// precisa chegar aos outros aparelhos — mas pelo MANIFESTO (a lista de seções que
-// o perfil tem), não como conteúdo. Marcar a seção como "suja" aqui faria subir
-// uma linha vazia em vez de removê-la; por isso o apagamento tem hook próprio.
-var _sectionDropHook = null;
 
 /* ═══════════════════ LIXEIRA — apagar deixou de ser definitivo ═════════════
    O episódio que originou este código: um download tratou "esta seção não está
