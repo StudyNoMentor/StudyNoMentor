@@ -177,8 +177,15 @@ const CloudStore = {
       this.subscribeRealtime();
       this.subscribeSections();
       if (window.SessionGuard) {
-        Promise.resolve(SessionGuard.onLogin()).then(() => {
-          try { if (window.ProfileUI && ProfileUI.isGateOpen()) ProfileUI.refreshStage(); } catch (_) { _quiet(_); }
+        Promise.resolve(SessionGuard.onLogin()).then((acesso) => {
+          try {
+            if (!window.ProfileUI) return;
+            if (acesso && acesso.ok && ProfileUI._pendingSessionProfile && ProfileUI.resumeAfterSessionClaim) {
+              ProfileUI.resumeAfterSessionClaim();
+              return;
+            }
+            if (!(acesso && acesso.blocked) && ProfileUI.isGateOpen()) ProfileUI.refreshStage();
+          } catch (_) { _quiet(_); }
         }).catch(e => _quiet(e, 'session-guard-login'));
       }
     } else { this._unsub(); if (window.SessionGuard) SessionGuard.onLogout(); }
@@ -561,6 +568,7 @@ const CloudStore = {
   // Assim, editar no celular e no PC não sobrescreve um ao outro no uso normal.
   async syncOnFocus() {
     if (!this.isReady() || !this.isLoggedIn()) return;
+    if (window.SessionGuard && SessionGuard.enabled && SessionGuard.canEnterNow && !SessionGuard.canEnterNow()) return;
     if (window.SessionGuard && SessionGuard.isBlockedByRemote && SessionGuard.isBlockedByRemote()) return;
     if (window.SessionLock && SessionLock.isBlocked() && SessionLock._origin === 'remote') return;
     try { if (!sessionStorage.getItem('diario-estudos:entered')) return; } catch (e) { return; }
@@ -612,6 +620,10 @@ const CloudStore = {
   // Botão manual "Sincronizar agora": empurra pendências e puxa se a nuvem estiver mais nova.
   async syncNow() {
     if (!this.isReady() || !this.isLoggedIn()) { showToast('Entre na sua conta para sincronizar (Configurações → Nuvem).'); return; }
+    if (window.SessionGuard && SessionGuard.enabled && SessionGuard.canEnterNow && !SessionGuard.canEnterNow()) {
+      showToast('Aguardando confirmação da sessão deste aparelho.');
+      return;
+    }
     if ((window.SessionGuard && SessionGuard.isBlockedByRemote && SessionGuard.isBlockedByRemote()) ||
         (window.SessionLock && SessionLock.isBlocked() && SessionLock._origin === 'remote')) {
       showToast('Sincronização pausada: esta conta está ativa em outro aparelho.');
@@ -635,6 +647,10 @@ const CloudStore = {
   },
   async pullActiveAndReload(opts) {
     opts = opts || {};
+    if (window.SessionGuard && SessionGuard.enabled && SessionGuard.canEnterNow && !SessionGuard.canEnterNow()) {
+      console.info('[CloudStore] pull adiado: sessão deste aparelho ainda não confirmada');
+      return false;
+    }
     if ((window.SessionGuard && SessionGuard.isBlockedByRemote && SessionGuard.isBlockedByRemote()) ||
         (window.SessionLock && SessionLock.isBlocked() && SessionLock._origin === 'remote')) {
       console.info('[CloudStore] pull adiado: sessão pertencente a outro aparelho');
@@ -770,6 +786,10 @@ const CloudStore = {
   async _onSectionRealtime(pid) {
     if (pid !== ProfileManager.getActiveProfileId()) {
       this._secRemotePending = false;
+      return;
+    }
+    if (window.SessionGuard && SessionGuard.enabled && SessionGuard.canEnterNow && !SessionGuard.canEnterNow()) {
+      this._secRemotePending = true;
       return;
     }
     if ((window.SessionGuard && SessionGuard.isBlockedByRemote && SessionGuard.isBlockedByRemote()) ||
