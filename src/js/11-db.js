@@ -152,27 +152,17 @@ const DB = {
           } catch (_) { try { UI.alert('Armazenamento do navegador cheio (' + uso + ' MB). O último dado não foi salvo. Faça um backup e libere espaço.', { title: 'Armazenamento cheio' }); } catch (__) { _quiet(__); } }
         }
       } else {
-        try { showToast('⚠ Não foi possível salvar. Verifique se o navegador não está em modo privado.'); } catch (_) { _quiet(_); }
+        try { showToast('⚠ Não foi possível salvar. Verifique a conexão com o banco.'); } catch (_) { _quiet(_); }
       }
       return false;
     }
-    // dispara sincronização automática com atraso (se conectado à nuvem) — não bloqueia a escrita
-    if (_cloudNotifyHook) _cloudNotifyHook();
-    if (_sectionMarkHook) _sectionMarkHook(key); // marca a seção alterada (sync por seção)
+    // a fachada localStorage em RAM encaminha a mutação ao RelationalStore.
     return true;
   },
   /* ── CANAL ÚNICO DE ESCRITA ────────────────────────────────────────────────
-     _set serve para valores JSON. Mas dezenas de pontos do app guardam TEXTO
-     puro (preferências de tela, sinalizadores de painel recolhido, escala da
-     fonte...) e chamavam localStorage.setItem direto. Isso pulava o aviso da
-     camada por seção: o dado subia só no "blob" periódico e a linha da seção
-     correspondente ficava velha na nuvem. Como a LEITURA hoje vem das seções,
-     ao abrir em outro aparelho o valor voltava desatualizado — parecia que a
-     alteração "não tinha salvo".
-
-     setRaw/delRaw dão a esses pontos o mesmo caminho de _set: grava, avisa a
-     nuvem e marca a seção. Toda escrita no namespace do perfil deve passar por
-     _set, setRaw ou delRaw — nunca por localStorage direto. */
+     _set trata JSON; setRaw/delRaw tratam texto e exclusões. Todos escrevem na
+     projeção em RAM, cuja fachada encaminha a mutação imediatamente ao
+     RelationalStore. */
   setRaw(key, value) {
     try {
       const txt = String(value);
@@ -181,11 +171,9 @@ const DB = {
       localStorage.setItem(key, txt);
     } catch (e) {
       console.error('Falha ao gravar', key, e);
-      try { showToast('⚠ Não foi possível salvar. Verifique o espaço do navegador ou o modo privado.'); } catch (_) { _quiet(_, 'setRaw-aviso'); }
+      try { showToast('⚠ Não foi possível salvar. Verifique a conexão com o banco.'); } catch (_) { _quiet(_, 'setRaw-aviso'); }
       return false;
     }
-    if (_cloudNotifyHook) _cloudNotifyHook();
-    if (_sectionMarkHook) _sectionMarkHook(key);
     return true;
   },
   /* Apagar deixou de ser definitivo: o valor vai para a LIXEIRA antes de sair.
@@ -194,8 +182,6 @@ const DB = {
   delRaw(key, motivo) {
     try { Lixeira.guardar(key, motivo || 'apagada pelo app'); } catch (e) { _quiet(e, 'delRaw-lixeira'); }
     try { localStorage.removeItem(key); } catch (e) { _quiet(e, 'delRaw'); return false; }
-    if (_cloudNotifyHook) _cloudNotifyHook();
-    if (_sectionDropHook) _sectionDropHook(key);
     return true;
   },
   _del(key) { return this.delRaw(key); },
@@ -313,7 +299,6 @@ const DB = {
     entries.push(entry);
     const key = this.KEYS.entries;
     if (this._set(key, entries) === false) return null;
-    try { if (_entryMutationHook) _entryMutationHook(key, { type: 'upsert', id: entry && entry.id, entry: entry }); } catch (e) { _quiet(e, 'entry-op-save'); }
     return entry;
   },
   /* Comparação por TEXTO, de propósito. Registros antigos têm id NUMÉRICO
