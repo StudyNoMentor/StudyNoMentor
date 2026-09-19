@@ -322,29 +322,21 @@ const SectionSync = {
     try { out = JSON.parse(raw); } catch (_) { return null; }
     if (!Array.isArray(out)) return null;
     out = out.slice();
+    /* Regra de conflito por ID:
+       - IDs que este aparelho NÃO tocou ficam exatamente como vieram da nuvem;
+       - DELETE explícito remove somente aquele ID;
+       - UPSERT explícito substitui/cria somente aquele ID.
+       Portanto uma operação local nunca regride registros independentes do PC.
+       Se ambos mexerem no MESMO ID, a operação explícita que está sendo
+       reconciliada agora vence naquele ID — determinístico e sem conflito eterno. */
     for (const op of (ops || [])) {
       const sid = String(op.id);
       const idx = out.findIndex(e => e && String(e.id) === sid);
-      const atual = idx >= 0 ? out[idx] : null;
       if (op.type === 'delete') {
-        if (idx < 0) continue; // já apagado remotamente: operação satisfeita
-        /* Se o MESMO registro foi editado no outro aparelho depois da nossa
-           base, não adivinhamos que a exclusão deve vencer. O conflito continua
-           protegido; alterações em IDs diferentes continuam mesclando sozinhas. */
-        if (op.before && !this._entrySame(atual, op.before)) return null;
-        out.splice(idx, 1);
+        if (idx >= 0) out.splice(idx, 1);
       } else if (op.type === 'upsert' && op.entry) {
-        if (op.before == null) {
-          // criação local: só é automática se o ID ainda não existe, ou já é idêntico
-          if (idx < 0) out.push(op.entry);
-          else if (!this._entrySame(atual, op.entry)) return null;
-        } else {
-          // edição local: o remoto precisa continuar na imagem-base (ou já conter nosso resultado)
-          if (idx < 0) return null;
-          if (this._entrySame(atual, op.entry)) continue;
-          if (!this._entrySame(atual, op.before)) return null;
-          out[idx] = op.entry;
-        }
+        if (idx >= 0) out[idx] = op.entry;
+        else out.push(op.entry);
       }
     }
     try { return JSON.stringify(out); } catch (_) { return null; }
@@ -353,7 +345,7 @@ const SectionSync = {
     const ops = this._entryOpsFor(id, sec, gen);
     if (!ops.length) return null; // conflito legado/sem intenção registrada: não adivinha
     let remoto = remotoInicial;
-    for (let tentativa = 0; tentativa < 3; tentativa++) {
+    for (let tentativa = 0; tentativa < 5; tentativa++) {
       if (!remoto) return null;
       const remotoRaw = this._decode(remoto.data);
       if (remotoRaw == null) return null;
