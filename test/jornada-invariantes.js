@@ -59,34 +59,39 @@ window.RODAR_JORNADA = function () {
       const ks = [].concat(r.itens || [], r.pequenas || []).map(x => x.disciplina + '|' + x.nome);
       if (new Set(ks).size !== ks.length) F(passo, 'assunto repetido entre lista e segundo plano');
     }
-    /* 5. INVARIANTES DO MOTOR HIERARQUICO.
-       A régua decide a granularidade, nunca autoriza depth 0, e a dose agora é
-       POR ATIVIDADE: cada reforço respeita o piso útil e não ultrapassa a
-       base configurada. Não existe mais um "caderno total" repartido. */
+    /* 5. INVARIANTES DO MOTOR SIMPLES.
+       O piso de questões decide a granularidade; depth 0 nunca vira atividade;
+       prioridade é lacuna percentual e a dose é fixa por atividade. */
     try {
       const rm = MotorSugestao.calcular();
       if (rm && !rm.erro) {
-        const lim = rm.prefs.margemMax;
+        const piso = rm.prefs.minAmostra;
         (rm.itens || []).forEach(x => {
-          if (x.margem == null || x.margem > lim) {
-            F(passo, 'frente fora da regua', { nome: x.nome, m: x.margem, lim });
+          if (!num(x.questoes) || x.questoes < piso) {
+            F(passo, 'frente abaixo da amostra minima', { nome: x.nome, q: x.questoes, piso });
           }
           if (x.nivel <= 0 || ReforcoEngine.norm(x.nome) === ReforcoEngine.norm(x.disciplina)) {
             F(passo, 'disciplina virou unidade executavel', { nome: x.nome, disc: x.disciplina, nivel: x.nivel });
           }
-          if (!num(x.questoes) || x.questoes <= 0) F(passo, 'frente sem volume', { nome: x.nome, q: x.questoes });
-          if (!num(x.score) || x.score < 0) F(passo, 'score podre', { nome: x.nome, s: x.score });
-          if (!num(x.dose) || x.dose < rm.prefs.doseMin) {
-            F(passo, 'atividade abaixo do piso util', { nome: x.nome, dose: x.dose, piso: rm.prefs.doseMin });
-          }
-          if (x.dose > rm.prefs.alvoQuestoes) {
-            F(passo, 'atividade acima da base configurada', { nome: x.nome, dose: x.dose, base: rm.prefs.alvoQuestoes });
+          if (!num(x.score) || x.score <= 0) F(passo, 'lacuna/score podre', { nome: x.nome, s: x.score });
+          if (!num(x.gapMeta) || x.gapMeta <= 0) F(passo, 'lacuna simples podre', { nome: x.nome, gap: x.gapMeta });
+          if (x.dose !== rm.prefs.alvoQuestoes) {
+            F(passo, 'atividade fora da dose fixa', { nome: x.nome, dose: x.dose, base: rm.prefs.alvoQuestoes });
           }
         });
         (rm.todos || []).forEach(x => {
-          if (!num(x.questoes) || x.questoes <= 0) F(passo, 'no do ranking sem volume', { nome: x.nome, q: x.questoes });
+          if (!num(x.questoes) || x.questoes < piso) F(passo, 'no do ranking abaixo da amostra minima', { nome: x.nome, q: x.questoes, piso });
           if (x.nivel <= 0) F(passo, 'ranking recebeu raiz de disciplina', { nome: x.nome, nivel: x.nivel });
         });
+        for (let i = 1; i < (rm.disciplinas || []).length; i++) {
+          const ant = rm.disciplinas[i - 1], atual = rm.disciplinas[i];
+          if (Number(ant.lacunaDisc || 0) < Number(atual.lacunaDisc || 0) - 1e-9) {
+            F(passo, 'ranking de materia fora da ordem de lacuna', {
+              antes: ant.nome, lacunaAntes: ant.lacunaDisc,
+              depois: atual.nome, lacunaDepois: atual.lacunaDisc
+            });
+          }
+        }
       }
     } catch (e) { F(passo, 'motor lancou', { erro: String(e && e.message) }); }
     // 6. toda atividade viva com volume no histórico NÃO pode ser órfã
