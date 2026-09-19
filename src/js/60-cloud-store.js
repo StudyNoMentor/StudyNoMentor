@@ -881,6 +881,45 @@ Object.assign(CloudStore, {
     }
   },
 
+  async createRow({ name, avatar, color }) {
+    const { data, error } = await this.client.from(this.TABLE)
+      .insert({
+        user_id: this.session.user.id,
+        profile_name: name,
+        avatar: avatar || '📘',
+        color: color || '#4f46e5',
+        payload: {},
+        rev: 1
+      })
+      .select('id,rev,created_at').maybeSingle();
+    if (error) throw error;
+    return data;
+  },
+
+  async updateMeta(id, { nome, avatar, cor }) {
+    const { data, error } = await this.client.from(this.TABLE)
+      .update({
+        profile_name: nome,
+        avatar: avatar,
+        color: cor,
+        updated_at: new Date().toISOString()
+      })
+      .eq('id', id)
+      .select('id,rev').maybeSingle();
+    if (error) throw error;
+    return data;
+  },
+
+  async saveActive(id) {
+    /* Blob integral aposentado. Mantido só como assinatura de compatibilidade. */
+    if (window.RelationalStore) await RelationalStore.flush();
+    return { relational: true };
+  },
+
+  async saveActiveWithRetry(id) {
+    return this.saveActive(id);
+  },
+
   notifyChange() {
     /* A fachada de memória já chamou RelationalStore.onStorageMutation.
        Não existe segunda fila/blob para agendar. */
