@@ -155,31 +155,58 @@
     if (!db) { flushing = false; avisarDisco(); return; }
     var ops = queue; queue = [];
     if (!ops.length) { flushing = false; avisarDisco(); return; }
-    var tx, store;
+    var tx, store, encerrado = false;
     try { tx = db.transaction(IDB_STORE, 'readwrite'); store = tx.objectStore(IDB_STORE); }
     catch (e) { _quiet(e); devolverAFila(ops); return; }
+
+    /* error e abort podem ocorrer na mesma transação. Sem esta trava o lote
+       podia voltar DUAS vezes para a fila e uma gravação antiga reaparecer depois
+       da nova. O lote inteiro tem exatamente um desfecho: commit OU requeue. */
+    function falharLote(e) {
+      if (encerrado) return;
+      encerrado = true;
+      try { if (e) _quiet(e); } catch (_) {}
+      devolverAFila(ops);
+    }
+    tx.oncomplete = function () {
+      if (encerrado) return;
+      encerrado = true;
+      flushing = false; falhasSeguidas = 0;
+      if (queue.length) scheduleFlush(); else avisarDisco();
+    };
+    tx.onerror = function () { falharLote(tx.error); };
+    tx.onabort = function () { falharLote(tx.error); };
+
     for (var i = 0; i < ops.length; i++) {
       var op = ops[i];
       try {
         if (op.t === 'set') store.put(op.v, op.k);
         else if (op.t === 'del') store.delete(op.k);
         else if (op.t === 'clear') store.clear();
-      } catch (e) { _quiet(e); }
+      } catch (e) {
+        /* Uma operação que nem conseguiu entrar na transação NÃO pode ser
+           silenciosamente esquecida. Abortar garante atomicidade do lote e o
+           handler acima recoloca TODAS as operações na ordem original. */
+        try { tx.abort(); } catch (_) { falharLote(e); }
+        return;
+      }
     }
-    tx.oncomplete = function () {
-      flushing = false; falhasSeguidas = 0;
-      if (queue.length) scheduleFlush(); else avisarDisco();
-    };
-    tx.onerror = function () { devolverAFila(ops); };
-    tx.onabort = function () { devolverAFila(ops); };
   }
   function enqueue(op) { queue.push(op); scheduleFlush(); }
 
-  // Espelho best-effort no localStorage nativo: mantém chaves pequenas (ex.: tema)
-  // acessíveis ao script que evita o "flash" de tela clara. Erros de cota são ignorados.
+  /* O armazenamento nativo NÃO é mais uma segunda cópia genérica do perfil.
+     Manter conteúdo/revisões pequenos aqui e conteúdo grande só no IndexedDB
+     criava estados impossíveis ("rev nova + dado antigo") depois de um reload.
+     Antes do shim só o tema é lido, portanto só ele precisa de espelho síncrono. */
   function mirrorNative(t, k, v) {
     if (!nativeLS) return;
     try {
+      if (k !== 'diario-estudos:theme') {
+        /* Cada escrita futura também remove uma cópia antiga que versões
+           anteriores possam ter deixado para trás. */
+        nativeLS.removeItem(k);
+        return;
+      }
       if (t === 'set') { if (v.length < MIRROR_MAX) nativeLS.setItem(k, v); else nativeLS.removeItem(k); }
       else if (t === 'del') nativeLS.removeItem(k);
     } catch (e) { _quiet(e); }
