@@ -556,6 +556,45 @@ try {
   ok(remoteDeleteDetection.nova,'manifesto remoto mais novo deve disparar pull para propagar exclusões');
   ok(!remoteDeleteDetection.igual,'manifesto na mesma revisão não deve gerar falso download');
 
+
+  /* 2o.3. Linha V2 selada precisa validar o próprio conteúdo contra content_hash. */
+  const remoteHashIntegrity=await page.evaluate(()=>{
+    const raw=JSON.stringify([{id:7}]);
+    const h=SectionSync._hash(raw);
+    const okRows=[
+      {section:'entries',data:[{id:7}],rev:4,content_hash:h},
+      {section:'__manifest',data:{v:2,sections:['entries']},rev:3,content_hash:SectionSync._hash('entries')}
+    ];
+    const badRows=[
+      {section:'entries',data:[{id:7}],rev:4,content_hash:'hash-incorreto'},
+      {section:'__manifest',data:{v:2,sections:['entries']},rev:3,content_hash:SectionSync._hash('entries')}
+    ];
+    const manifestBad=[
+      {section:'entries',data:[{id:7}],rev:4,content_hash:h},
+      {section:'__manifest',data:{v:2,sections:['entries']},rev:3,content_hash:'manifest-incorreto'}
+    ];
+    return {
+      ok:SectionSync._prepare(okRows),
+      bad:SectionSync._prepare(badRows),
+      manifestBad:SectionSync._prepare(manifestBad)
+    };
+  });
+  ok(remoteHashIntegrity.ok&&remoteHashIntegrity.ok.ok,'linha V2 com hash coerente deve ser aceita');
+  eq(remoteHashIntegrity.bad&&remoteHashIntegrity.bad.motivo,'hash-remoto-invalido','conteúdo remoto adulterado/incoerente deve ser recusado');
+  eq(remoteHashIntegrity.manifestBad&&remoteHashIntegrity.manifestBad.motivo,'hash-manifesto-invalido','manifesto V2 com hash incoerente deve ser recusado');
+
+  /* 2o.4. Mesmo rev não basta no V2: hash diferente precisa disparar leitura. */
+  const sameRevHashMismatch=await page.evaluate(()=>{
+    const pfx='diario-estudos:u:p-hash-mismatch:';
+    const locais={entries:{rev:12,hash:'local-h'}};
+    return {
+      diferente:SectionSync.precisaBaixar({section:'entries',rev:12,content_hash:'remote-h'},locais,pfx),
+      igual:SectionSync.precisaBaixar({section:'entries',rev:12,content_hash:'local-h'},locais,pfx)
+    };
+  });
+  ok(sameRevHashMismatch.diferente,'mesma revisão com hash diferente deve disparar validação remota');
+  ok(!sameRevHashMismatch.igual,'mesma revisão e mesmo hash não deve gerar download');
+
   /* 2p. Manifesto com revisão remota mais nova deve se realinhar e avançar
      sem apagar a união remota/local. */
   const manifestRebase=await page.evaluate(async()=>{
