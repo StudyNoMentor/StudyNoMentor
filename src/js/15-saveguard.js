@@ -132,20 +132,11 @@ window.SaveGuard = SaveGuard;
 // ---- Metas/limiares de aproveitamento (editáveis pelo usuário) ----
 // good = verde a partir de METAS.bom; warn entre METAS.atencao e METAS.bom; bad abaixo.
 // METAS.linhas = linhas de referência exibidas nos gráficos (ex.: 70/80/85).
-/* ── METAS: eram a única configuração do usuário fora da sincronização ──────
-   Esta chave era GLOBAL (`diario-estudos:metas`), e não namespaced pelo perfil.
-   Toda chave fora de `diario-estudos:u:<perfil>:` é invisível para o
-   SectionSync — logo, estas metas nunca entravam em `profile_sections`, nunca
-   iam para o blob e nunca apareciam em backup nenhum. Quem definia "bom = 75%"
-   e as linhas de referência dos gráficos perdia isso ao abrir em outro
-   aparelho, e nem o backup no banco trazia de volta. Como elas alimentam
-   `toneFor()` (a cor de aproveitamento em TODAS as telas) e `metaRefs()` (as
-   linhas dos gráficos), o app inteiro voltava a julgar o desempenho por uma
-   régua diferente da que a pessoa escolheu.
-
-   Além disso gravava com `localStorage.setItem` direto — sem avisar a nuvem e
-   sem marcar a seção — e o cache em memória nunca era invalidado: depois de um
-   download da nuvem, a tela continuava com o valor velho até recarregar.
+/* ── METAS: configuração do usuário precisa pertencer ao perfil ────────────
+   Esta chave já foi global e, por isso, não acompanhava o usuário entre
+   aparelhos. Hoje ela fica no namespace do perfil e segue pelo RelationalStore
+   para o PostgreSQL. A memória local é apenas projeção; o banco é a fonte de
+   verdade.
 
    As três coisas corrigidas, no mesmo padrão de CardsConfig: chave namespaced,
    escrita por DB._set (que avisa a nuvem e marca a seção) e cache amarrado à
