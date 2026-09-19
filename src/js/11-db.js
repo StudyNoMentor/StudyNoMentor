@@ -137,23 +137,8 @@ const DB = {
       try { if (valorVazio(txt)) Lixeira.guardar(key, 'esvaziada pelo app'); } catch (e2) { _quiet(e2, 'set-lixeira'); }
       localStorage.setItem(key, txt);
     } catch (e) {
-      // Estouro de cota (imagens coladas em cards, leis longas, muitos retratos do TEC).
-      // Antes, a exceção subia e abortava a operação em silêncio — o dado simplesmente
-      // não era salvo e nada avisava o usuário.
-      const cota = e && (e.name === 'QuotaExceededError' || e.name === 'NS_ERROR_DOM_QUOTA_REACHED' || e.code === 22);
-      console.error('Falha ao gravar', key, e);
-      if (cota) {
-        if (!DB._quotaAvisado) {
-          DB._quotaAvisado = true;
-          setTimeout(() => { DB._quotaAvisado = false; }, 15000);
-          const uso = DB.storageUsageMB();
-          try {
-            showToast('⚠ Armazenamento cheio (' + uso + ' MB): este dado NÃO foi salvo. Libere espaço em Configurações → exporte um backup e apague imagens de cards ou leis antigas.');
-          } catch (_) { try { UI.alert('Armazenamento do navegador cheio (' + uso + ' MB). O último dado não foi salvo. Faça um backup e libere espaço.', { title: 'Armazenamento cheio' }); } catch (__) { _quiet(__); } }
-        }
-      } else {
-        try { showToast('⚠ Não foi possível salvar. Verifique a conexão com o banco.'); } catch (_) { _quiet(_); }
-      }
+      console.error('Falha ao atualizar a projeção em memória', key, e);
+      try { showToast('⚠ Não foi possível atualizar o estado local. A gravação foi cancelada.'); } catch (_) { _quiet(_); }
       return false;
     }
     // a fachada localStorage em RAM encaminha a mutação ao RelationalStore.
@@ -185,93 +170,6 @@ const DB = {
     return true;
   },
   _del(key) { return this.delRaw(key); },
-  // Quanto o app está ocupando no navegador (útil na mensagem de cota e em Configurações)
-  storageUsageMB() {
-    try {
-      let n = 0;
-      for (let i = 0; i < localStorage.length; i++) {
-        const k = localStorage.key(i);
-        n += (k.length + (localStorage.getItem(k) || '').length);
-      }
-      return (n * 2 / 1048576).toFixed(1); // UTF-16: ~2 bytes por caractere
-    } catch (_) { return '?'; }
-  },
-  /* ── AVISO ANTECIPADO DE ESPAÇO ────────────────────────────────────────────
-     O tratamento de QuotaExceededError em _set já existe, mas age DEPOIS do
-     estouro: você descobre que acabou o espaço no instante em que um dado deixa
-     de ser salvo — no meio de uma revisão, por exemplo. Este aviso chega antes,
-     enquanto ainda dá tempo de exportar um backup com calma.
-
-     O limite depende de ONDE o app está gravando:
-       · sobre a fachada de IndexedDB (o normal) → centenas de MB; o alerta só
-         faz sentido perto do teto real informado pelo navegador;
-       · caída no localStorage nativo (modo privado antigo, navegador sem
-         suporte) → ~5 MB, e aí o aperto chega rápido.
-     Sem essa distinção, o aviso dispararia com 4 MB mesmo havendo 500 MB livres. */
-  /* ── O DISCO RECUSOU A GRAVAÇÃO ───────────────────────────────────────────
-     A fachada de IndexedDB volta na hora (grava em memória e envia ao disco
-     depois). O `catch` de cota logo acima, portanto, NUNCA dispara no caminho
-     normal: o `setItem` não lança, porque quem lança é a transação, minutos ou
-     milissegundos depois, em outro contexto.
-
-     Esta é a ponta que faltava. A fachada retenta sozinha; quando desiste, chama
-     esta função — e aqui a informação finalmente chega a quem pode agir. O aviso
-     é direto sobre o que está em jogo: o que está na tela ainda NÃO está gravado
-     neste aparelho, e a saída é subir para a nuvem ou exportar um backup.
-
-     A alteração não está perdida: ela segue no cache em memória, na fila do
-     disco (que não é descartada) e na fila de envio para a nuvem — o envio é o
-     que de fato a coloca a salvo, e por isso é o que forçamos aqui. */
-  _falhaDiscoAvisada: false,
-  aoFalharGravacaoLocal(pendentes) {
-    console.error('[armazenamento] o navegador recusou ' + pendentes + ' gravação(ões) no disco');
-    // a nuvem passa a ser a cópia que importa: força a subida imediata
-    try { if (window.CloudStore && CloudStore.isReady() && CloudStore.isLoggedIn()) CloudStore.flushPending(); }
-    catch (e) { _quiet(e, 'falha-disco-envio'); }
-    if (this._falhaDiscoAvisada) return;
-    this._falhaDiscoAvisada = true;
-    setTimeout(() => { this._falhaDiscoAvisada = false; }, 60000);
-    const msg = '🛑 O navegador recusou gravar neste aparelho (armazenamento cheio ou bloqueado). '
-      + 'O que está na tela ainda não está salvo AQUI — mantenha a conexão para que suba para a nuvem '
-      + 'e exporte um backup em Configurações.';
-    try { showToast(msg); }
-    catch (_) { try { UI.alert(msg, { title: 'Não foi possível gravar neste aparelho' }); } catch (__) { _quiet(__); } }
-  },
-  LIMITE_NATIVO_MB: 5,
-  _quotaAvisoKey() { return 'diario-estudos:quota-aviso'; },
-  async checarEspaco() {
-    /* Dados de estudo não ocupam armazenamento persistente do navegador nesta
-       arquitetura. A projeção em RAM não tem quota de localStorage/IndexedDB a
-       ser monitorada; o banco é quem persiste e valida as escritas. */
-    if (window.__memoryOnlyStore) return;
-    try {
-      const hoje = todayLocal();
-      if (localStorage.getItem(this._quotaAvisoKey()) === hoje) return; // 1x por dia
-      const usoMB = parseFloat(this.storageUsageMB());
-      if (!isFinite(usoMB)) return;
-
-      let limiteMB = this.LIMITE_NATIVO_MB, sobreIDB = false;
-      if (window.__idbShim) {
-        sobreIDB = true;
-        limiteMB = 512; // piso conservador se o navegador não informar a cota
-        try {
-          if (navigator.storage && navigator.storage.estimate) {
-            const est = await navigator.storage.estimate();
-            if (est && est.quota) limiteMB = est.quota / 1048576;
-          }
-        } catch (_) { _quiet(_); }
-      }
-      const pct = usoMB / limiteMB;
-      const gatilho = sobreIDB ? 0.85 : 0.75;
-      if (pct < gatilho) return;
-
-      localStorage.setItem(this._quotaAvisoKey(), hoje);
-      const msg = pct >= 0.95
-        ? '🛑 Espaço quase no fim (' + usoMB.toFixed(1) + ' MB de ~' + Math.round(limiteMB) + ' MB). Exporte um backup AGORA — a partir daqui alterações podem deixar de ser salvas.'
-        : '⚠ Armazenamento em ' + Math.round(pct * 100) + '% (' + usoMB.toFixed(1) + ' MB). Veja o medidor em Configurações e considere limpar imagens de cards ou retratos antigos do TEC.';
-      setTimeout(() => { try { showToast(msg); } catch (_) { _quiet(_); } }, 2500);
-    } catch (_) { _quiet(_); }
-  },
   _uid() {
     // UUID v4 real quando disponível. crypto.randomUUID exige contexto seguro —
     // funciona em file:// e https://, mas NÃO em http:// simples (ex.: servir de um NAS).
@@ -290,10 +188,9 @@ const DB = {
 
   // --- Entries (Diário) ---
   getEntries() { return this._get(this.KEYS.entries, []); },
-  /* Devolve o ENTRY quando a gravacao deu certo e null quando falhou (cota
-     estourada, modo privado). Antes devolvia sempre o entry, entao a tela dizia
-     "Estudo registrado" mesmo quando o localStorage recusou a escrita — foi
-     assim que registros "sumiram" sem aviso nenhum. */
+  /* Devolve o ENTRY quando a projeção em RAM aceitou a mutação e null quando
+     a escrita síncrona falhou. A confirmação persistente acontece depois, no
+     PostgreSQL, pelo SaveGuard/RelationalStore. */
   saveEntry(entry) {
     const entries = this.getEntries();
     entries.push(entry);
@@ -1854,9 +1751,3 @@ const DB = {
   }
 };
 
-/* Ponte com a fachada de armazenamento: ela roda antes do código do app, num
-   escopo próprio, e por isso não enxerga `DB`. Sem esta linha, a desistência da
-   gravação continuaria acontecendo em silêncio. */
-window.__idbFalhouAoGravar = function (pendentes) {
-  try { DB.aoFalharGravacaoLocal(pendentes); } catch (e) { _quiet(e, 'ponte-disco'); }
-};
