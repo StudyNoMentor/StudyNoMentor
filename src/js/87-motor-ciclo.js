@@ -220,7 +220,7 @@
 
     emCurso() {
       let r = null;
-      try { r = MotorSugestao.calcular(); } catch (_) {}
+      try { r = MotorSugestao.calcular(); } catch (e) { _quiet(e, 'motor-ciclo-em-curso'); }
       return (DB.getExtras() || [])
         .filter(e => e.status !== 'concluida' && this.origemDe(e) && this.origemDe(e).topico)
         .map(e => this.avaliar(e, r))
