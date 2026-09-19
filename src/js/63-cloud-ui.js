@@ -64,20 +64,26 @@ const CloudUI = {
   renderQueue() {
     const box = document.getElementById('cloud-queue-box');
     if (!box) return;
-    let fila = [];
-    try { if (window.SectionSync) fila = SectionSync.pendingSections(); } catch (_) { _quiet(_); }
+    const rs = window.RelationalStore;
+    const n = rs ? rs.pendingCount() : 0;
     const acoes = document.getElementById('cloud-push-now');
-    if (!fila.length) {
-      box.innerHTML = '<p class="cloud-queue-ok">✓ <strong>Nada pendente.</strong> Tudo o que você registrou já está na nuvem e aparece ao entrar em outro aparelho.</p>';
+    if (!rs) {
+      box.innerHTML = '<p class="cloud-queue-ok">⚠ Camada relacional indisponível.</p>';
+      if (acoes) acoes.disabled = true;
+      return;
+    }
+    if (!n && !rs._lastError) {
+      box.innerHTML = '<p class="cloud-queue-ok">✓ <strong>Nada pendente.</strong> O estado exibido foi confirmado no banco.</p>';
       if (acoes) acoes.disabled = false;
       return;
     }
-    const nomes = [...new Set(fila.map(s => this._nomeSecao(s)))];
-    box.innerHTML = '<p><strong>' + fila.length +
-      (fila.length === 1 ? ' alteração ainda não enviada' : ' alterações ainda não enviadas') +
-      '.</strong> Está salvo neste aparelho e sobe sozinho assim que houver conexão — nada é perdido, e nenhum download apaga o que está aqui.</p>' +
-      '<div class="cloud-queue-secoes" aria-label="Seções aguardando envio">' +
-      nomes.map(n => '<span>' + escapeHtml(n) + '</span>').join('') + '</div>';
+    if (rs._lastError) {
+      box.innerHTML = '<p><strong>Falha ao confirmar no banco.</strong> A tela não considera a alteração persistida até o PostgreSQL responder.</p>';
+      if (acoes) acoes.disabled = false;
+      return;
+    }
+    box.innerHTML = '<p><strong>' + n + (n === 1 ? ' operação SQL em andamento' : ' operações SQL em andamento') +
+      '.</strong> O indicador volta a verde somente após a confirmação do banco.</p>';
     if (acoes) acoes.disabled = false;
   },
   // Painel "Aparelho com sessão ativa" (login único entre dispositivos).
