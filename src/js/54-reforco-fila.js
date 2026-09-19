@@ -452,7 +452,7 @@ DB.addExtraProgress = function () {
 ReforcoFila._orig.updateExtra = DB.updateExtra;
 DB.updateExtra = function (id, patch) {
   const r = ReforcoFila._orig.updateExtra.call(this, id, patch);
-  if (ReforcoFila.ePlano(r) || (patch && patch.origemPlano)) {
+  if (ReforcoFila.eMotor(r) || (patch && patch.origemMotor)) {
     ReforcoFila._assinaturaAnterior = '';
     ReforcoFila.sinalizar();
   }
@@ -493,7 +493,7 @@ ExtrasScreen.cardHtml = function (x, day) {
   const feitoDia = ReforcoFila.feitoNoDia(x, day);
   const selo = `<span class="extra-tag rec" title="Meta executável desta data.">Missão diária · <b>${Math.min(q, feitoDia)}</b>/${q} q</span>` +
     `<span class="extra-tag" title="Progresso acumulado do ciclo de reforço.">Missão geral · <b>${geral.feito || 0}</b>/${geral.alvo || 0} q · saldo ${saldo}</span>`;
-  if (html.includes('🏁 do Plano</span>')) html = html.replace('🏁 do Plano</span>', '🏁 do Plano</span>' + selo);
+  if (html.includes('🧭 Motor')) html = html.replace(/(<span class="extra-tag plano"[^>]*>🧭 Motor[^<]*<\/span>)/, '$1' + selo);
   return html;
 };
 
