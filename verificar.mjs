@@ -994,7 +994,8 @@ try {
       fases: document.querySelectorAll('#motor-fase button[data-fase]').length,
       faseAtiva: document.querySelectorAll('#motor-fase button.active').length,
       itens: document.querySelectorAll('#motor-lista .ms-suggestion-card').length,
-      disciplinas: document.querySelectorAll('#motor-lista .ms-priority-card').length,
+      filtro: !!document.querySelector('#motor-lista .ms-disc-filter'),
+      todasPrimeiro: !!document.querySelector('#motor-lista .ms-disc-filter-panel > [data-ms-disc-all]:first-child'),
       etapas: document.querySelectorAll('#motor-lista .ms-stage').length,
       comMargem: [...document.querySelectorAll('#motor-lista .ms-suggestion-card')]
         .filter((it) => /margem/i.test(it.innerText)).length,
@@ -1026,9 +1027,9 @@ try {
   (est.lacunasValidas && est.cardsComLacuna === est.itens && est.itens > 0)
     ? ok('cada sugestao expõe a lacuna confiavel que sustenta sua prioridade')
     : erro('a prioridade voltou a ser percentual cru ou ficou opaca: ' + JSON.stringify(est));
-  (est.etapas === 2 && est.disciplinas >= 2 && est.rankingDisc >= est.disciplinas && est.temFilas >= est.disciplinas)
-    ? ok(`o Motor mostra ${est.disciplinas} disciplina(s) prioritarias, as frentes e as filas hierarquicas`)
-    : erro('a hierarquia disciplina -> fila -> topico nao apareceu: ' + JSON.stringify(est));
+  (est.etapas === 1 && est.filtro && est.todasPrimeiro && est.rankingDisc >= est.itens && est.temFilas >= est.rankingDisc)
+    ? ok('o Motor mostra uma rodada unica, filtro com Todas primeiro e filas completas por materia')
+    : erro('a rodada/filtro/filas do Motor nao apareceram como contrato: ' + JSON.stringify(est));
   (est.nenhumaDiscInteira && est.umaPorDisc)
     ? ok('nenhuma disciplina inteira vira reforco e ha no maximo um topico por disciplina')
     : erro('o Motor voltou a usar disciplina como unidade executavel: ' + JSON.stringify(est));
@@ -1046,6 +1047,36 @@ try {
   (est.semDica === 0 && est.camposNaFolha >= 4)
     ? ok(`todos os ${est.camposNaFolha} campos de ajuste do Motor tem dica explicativa`)
     : erro(`${est.semDica} campo(s) sem o "i" (de ${est.camposNaFolha} encontrados — se veio zero, o seletor perdeu os campos)`);
+
+  const filtroMotor = await pag.evaluate(async () => {
+    const host = document.getElementById('motor-lista');
+    const btn = host.querySelector('.ms-disc-filter-btn');
+    btn.click();
+    let panel = host.querySelector('.ms-disc-filter-panel');
+    panel.dataset.guard = 'mesmo-fluxo';
+    const escolher = async nome => {
+      panel = document.querySelector('#motor-lista .ms-disc-filter-panel');
+      const ch = [...panel.querySelectorAll('.ms-disc-filter-item input')].find(x => x.value === nome);
+      if (!ch) return false;
+      ch.checked = true; ch.dispatchEvent(new Event('change', { bubbles: true }));
+      await new Promise(r => setTimeout(r, 80));
+      panel = document.querySelector('#motor-lista .ms-disc-filter-panel');
+      return !panel.hasAttribute('hidden');
+    };
+    const a = await escolher('Direito Administrativo');
+    const b = await escolher('Portugues');
+    const p = MotorSugestao.prefs();
+    const r = MotorSugestao.calcular();
+    const nomes = new Set((r.disciplinas || []).map(d => ReforcoEngine.norm(d.nome)));
+    const okEscopo = (p.disciplinasSel || []).length === 2
+      && [...nomes].every(n => n === ReforcoEngine.norm('Direito Administrativo') || n === ReforcoEngine.norm('Portugues'));
+    MotorSugestao.salvar({ disciplinasSel: [] });
+    DesempenhoTecScreen.renderMotor();
+    return { a, b, n: (p.disciplinasSel || []).length, okEscopo };
+  });
+  (filtroMotor.a && filtroMotor.b && filtroMotor.n === 2 && filtroMotor.okEscopo)
+    ? ok('filtro do Motor aceita varias disciplinas, permanece aberto e muda o calculo de verdade')
+    : erro('filtro do Motor virou apenas filtro visual ou fechou entre cliques: ' + JSON.stringify(filtroMotor));
 
   /* A poda nao pode maquiar ruido como "bloco": toda frente executavel,
      agregada ou nao, precisa caber na margem e precisa estar abaixo da raiz. */
@@ -1071,16 +1102,25 @@ try {
     const blocoGrande = MotorSugestao._planejarNo(muitos, 15, []).find(x => x.agregado);
     const raiz = MotorSugestao._planejarNo(n('Teste', 40, 11, 0, [top]), 15, []);
     const p = Object.assign(MotorSugestao.prefs(), { fase: 'pre', metaAcerto: 90 });
-    const la = MotorSugestao._lacuna({ taxa: 59, margem: 13, questoes: 60 }, p);
-    const lb = MotorSugestao._lacuna({ taxa: 61, margem: 3, questoes: 800 }, p);
-    const A = { melhorTopico: Object.assign({ peso: 60, questoes: 60 }, la) };
-    const B = { melhorTopico: Object.assign({ peso: 800, questoes: 800 }, lb) };
+    const forte = { faixaPrioridade: 1, questoes: 900, deficitSeguro: 0, gapConfiavelDisc: 0,
+      melhorTopico: { gapConfiavel: 30 } };
+    const fraca = { faixaPrioridade: 0, questoes: 900, deficitSeguro: 225, gapConfiavelDisc: 25,
+      melhorTopico: { gapConfiavel: 18 } };
+
+    const R = (id, rows) => ({ id, startDate: '2026-0' + id + '-01', endDate: '2026-0' + id + '-28', rows });
+    const row = (nome, depth, codigo, q, ac) => ({ nome, depth, codigo, questoes: q, acertos: ac, disciplina: 'Disc X' });
+    const s1 = R(1, [row('Disc X',0,null,80,40), row('A',1,'01',40,15), row('A-filho',2,'01.01',20,5), row('B',1,'02',40,25), row('B-filho',2,'02.01',20,15)]);
+    const s2 = R(2, [row('Disc X',0,null,100,55), row('B',1,'01',50,30), row('B-filho',2,'01.01',25,17), row('A',1,'02',50,25), row('A-filho',2,'02.01',25,8)]);
+    const sf = MotorSugestao._forestEstavel({ rows: s1.rows.concat(s2.rows), _fontes: [s1,s2] });
+    const dx = sf[0] || { children: [] }, na = dx.children.find(x => x.nome === 'A'), nb = dx.children.find(x => x.nome === 'B');
     return {
       bloco: bloco ? { pai: bloco.pai, membros: bloco.membros, nivel: bloco.nivel } : null,
       blocoGrande: blocoGrande ? { pai: blocoGrande.pai, membros: blocoGrande.membros } : null,
       raiz: raiz.length,
-      gapA: la.gapConfiavel, gapB: lb.gapConfiavel,
-      bVemAntes: MotorSugestao._compararDisciplinas(B, A, p) < 0
+      fracaAntes: MotorSugestao._compararDisciplinas(fraca, forte, p) < 0,
+      codigoEstavel: !!(na && nb && na.questoes === 90 && nb.questoes === 90
+        && na.children[0] && na.children[0].nome === 'A-filho'
+        && nb.children[0] && nb.children[0].nome === 'B-filho')
     };
   });
   (hier.bloco && hier.bloco.pai === 'Topico' && hier.bloco.membros.length === 3 && hier.raiz === 0)
@@ -1089,9 +1129,12 @@ try {
   (hier.blocoGrande && hier.blocoGrande.pai === 'Topico B' && hier.blocoGrande.membros.length > 4)
     ? ok('o agrupamento usa quantos irmaos pequenos forem necessarios; nao existe mais teto magico de 4')
     : erro('o agrupamento ainda parou num limite arbitrario: ' + JSON.stringify(hier.blocoGrande));
-  (hier.bVemAntes && hier.gapB > hier.gapA)
-    ? ok('entre disciplinas, lacuna comprovada pela margem vence percentual cru ligeiramente pior')
-    : erro('o ranking de disciplinas voltou a privilegiar percentual cru: ' + JSON.stringify(hier));
+  hier.fracaAntes
+    ? ok('materia sistemicamente fraca vem antes de materia forte com bolsao local ruim')
+    : erro('o ranking voltou a deixar um topico isolado dominar a escolha da materia: ' + JSON.stringify(hier));
+  hier.codigoEstavel
+    ? ok('mudanca/reuso de codigo TEC entre retratos nao troca filhos de pai no consolidado')
+    : erro('o Motor ainda usa codigo posicional como identidade historica: ' + JSON.stringify(hier));
 
   /* Trocar a fase troca a FONTE DO PESO, e sem incidencia importada o pos tem
      de dizer isso em vez de inventar um ranking. */

@@ -1218,3 +1218,123 @@ html.tpm-motors-active #tec-panel-plano .tec-cfg-bar {
 .ms-suggestion-rank > span { background: var(--text); color: var(--surface); }
 .ms-suggestion-card .ms-dose b { color: var(--text); }
 #tec-disc-list .tnode-stat.is-good b { color: var(--text); }
+
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   MOTOR V3 — filtro real + rodada única legível
+   ═══════════════════════════════════════════════════════════════════════════ */
+.ms-disc-filter {
+  position: relative; z-index: 12;
+  margin: 10px 0 12px; padding: 12px;
+  border: 1px solid var(--border); border-radius: 14px;
+  background: var(--surface);
+}
+.ms-disc-filter-label { display: grid; gap: 2px; margin-bottom: 8px; }
+.ms-disc-filter-label b { color: var(--text); font-size: var(--fs-xs); }
+.ms-disc-filter-label small { color: var(--text-faint); font-size: var(--fs-3xs); line-height: 1.4; }
+.ms-disc-filter-btn {
+  width: 100%; min-height: 42px; padding: 8px 11px;
+  display: flex; align-items: center; justify-content: space-between; gap: 10px;
+  border: 1px solid color-mix(in srgb,var(--accent) 28%,var(--border));
+  border-radius: 11px; background: var(--surface-sunken); color: var(--text);
+  font-weight: 800; text-align: left; cursor: pointer;
+}
+.ms-disc-filter-btn span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ms-disc-filter-btn i { font-style: normal; color: var(--text-faint); }
+.ms-disc-filter-panel {
+  position: absolute; left: 12px; right: 12px; top: calc(100% - 3px);
+  max-height: min(560px,68vh); padding: 8px;
+  border: 1px solid var(--border); border-radius: 12px;
+  background: var(--surface); box-shadow: var(--shadow-lg); overflow: hidden;
+}
+.ms-disc-filter-panel[hidden] { display: none; }
+.ms-disc-filter-all {
+  width: 100%; display: grid; grid-template-columns: 22px minmax(0,1fr); gap: 9px;
+  align-items: center; padding: 9px; border: 1px solid var(--border);
+  border-radius: 9px; background: var(--surface-sunken); color: var(--text);
+  text-align: left; cursor: pointer;
+}
+.ms-disc-filter-all.is-active {
+  border-color: color-mix(in srgb,var(--accent) 65%,var(--border));
+  background: color-mix(in srgb,var(--accent) 8%,var(--surface));
+}
+.ms-disc-filter-all > span:last-child { display: grid; gap: 1px; }
+.ms-disc-filter-all b { font-size: var(--fs-xs); }
+.ms-disc-filter-all small { color: var(--text-faint); font-size: var(--fs-3xs); line-height: 1.35; }
+.ms-disc-all-mark {
+  width: 21px; height: 21px; display: grid; place-items: center;
+  border: 1px solid var(--border); border-radius: 7px; color: transparent;
+}
+.ms-disc-filter-all.is-active .ms-disc-all-mark {
+  color: var(--on-accent); border-color: var(--accent); background: var(--accent);
+}
+.ms-disc-filter-search {
+  margin: 7px 0; padding: 0 9px; min-height: 38px;
+  display: flex; align-items: center; gap: 7px;
+  border: 1px solid var(--border); border-radius: 9px; background: var(--surface);
+}
+.ms-disc-filter-search span { color: var(--text-faint); }
+.ms-disc-filter-search input {
+  min-width: 0; flex: 1; border: 0; outline: 0; background: transparent; color: var(--text);
+}
+.ms-disc-filter-list {
+  max-height: min(350px,44vh); overflow-y: auto; overscroll-behavior: contain;
+  scrollbar-gutter: stable; display: grid; gap: 3px;
+}
+.ms-disc-filter-item {
+  display: grid; grid-template-columns: 22px minmax(0,1fr); align-items: center; gap: 8px;
+  padding: 8px; border-radius: 8px; cursor: pointer;
+}
+.ms-disc-filter-item:hover { background: var(--surface-sunken); }
+.ms-disc-filter-item input { width: 17px; height: 17px; accent-color: var(--accent); }
+.ms-disc-filter-item span { min-width: 0; overflow-wrap: anywhere; color: var(--text); font-size: var(--fs-2xs); }
+.ms-disc-filter-foot {
+  min-height: 28px; padding: 7px 4px 0; margin-top: 5px;
+  border-top: 1px solid var(--border); color: var(--text-faint); font-size: var(--fs-3xs);
+}
+.ms-action-context {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 5px;
+  margin: -2px 0 10px; padding: 7px 8px;
+  border-radius: 9px; background: color-mix(in srgb,var(--ms-tone) 5%,var(--surface-sunken));
+}
+.ms-action-context b { margin-right: auto; color: var(--text); font-size: var(--fs-xs); overflow-wrap: anywhere; }
+.ms-action-context span {
+  padding: 3px 6px; border-radius: 999px; background: var(--surface);
+  border: 1px solid var(--border); color: var(--text-soft);
+  font-size: var(--fs-3xs); font-weight: 750;
+}
+.ms-stage-action > header small { max-width: 760px; }
+@media(max-width:560px) {
+  .ms-disc-filter { padding: 10px; }
+  .ms-disc-filter-panel { left: 10px; right: 10px; }
+  .ms-action-context b { flex-basis: 100%; margin-right: 0; }
+}
+
+
+/* Puxar do Motor — recomendação e alternativas deixam de ser uma lista plana. */
+.pl-rec-block,.pl-alt-block{display:grid;gap:8px;margin:8px 0 12px}
+.pl-rec-title{display:grid;gap:2px;padding:2px 2px 4px}
+.pl-rec-title b{font-size:var(--fs-xs);color:var(--text)}
+.pl-rec-title small{font-size:var(--fs-3xs);color:var(--text-faint);line-height:1.4}
+.pl-linha.is-recommended{
+  border:1px solid color-mix(in srgb,var(--accent) 36%,var(--border));
+  border-radius:11px;background:color-mix(in srgb,var(--accent) 5%,var(--surface));
+  padding:10px;
+}
+.pl-rec-eyebrow{font-size:var(--fs-3xs);font-weight:850;letter-spacing:.04em;text-transform:uppercase;color:var(--accent);margin-bottom:3px}
+.pl-alt-group{border:1px solid var(--border);border-radius:11px;background:var(--surface);overflow:hidden}
+.pl-alt-group>summary{list-style:none;cursor:pointer;display:grid;grid-template-columns:minmax(0,1fr) auto auto;gap:8px;align-items:center;padding:10px 11px}
+.pl-alt-group>summary::-webkit-details-marker{display:none}
+.pl-alt-group>summary span{font-size:var(--fs-xs);font-weight:800;color:var(--text);overflow-wrap:anywhere}
+.pl-alt-group>summary small{font-size:var(--fs-3xs);color:var(--text-faint)}
+.pl-alt-group>summary i{font-style:normal;color:var(--text-faint);transition:transform .15s}
+.pl-alt-group[open]>summary i{transform:rotate(180deg)}
+.pl-alt-list{border-top:1px solid var(--border);padding:5px}
+.pl-alt-list .pl-linha{border-radius:8px;padding:8px}
+.pl-alt-list .pl-linha:hover{background:var(--surface-sunken)}
+.pl-disc-search{display:flex;align-items:center;gap:7px;min-height:36px;margin:6px;padding:0 8px;border:1px solid var(--border);border-radius:8px}
+.pl-disc-search input{flex:1;min-width:0;border:0;outline:0;background:transparent;color:var(--text)}
+@media(max-width:560px){
+  .pl-alt-group>summary{grid-template-columns:minmax(0,1fr) auto}
+  .pl-alt-group>summary small{grid-column:1/-1}
+}

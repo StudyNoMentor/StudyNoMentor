@@ -4146,6 +4146,81 @@ const DesempenhoTecScreen = {
     }
     return false;
   },
+  /* Filtro do Motor: estado próprio, compartilhado com o Puxar do Motor.
+     Vazio significa "todas". Trocar uma caixa repinta o resultado, mas reabre
+     o mesmo painel, no mesmo scroll e com a mesma busca — multiseleção não pode
+     parecer um formulário que reinicia a cada clique. */
+  _motorDiscFilterHtml(disciplinas, prefs) {
+    const lista = (disciplinas || []).slice().sort((a, b) => a.localeCompare(b, 'pt-BR'));
+    const sel = (prefs && Array.isArray(prefs.disciplinasSel)) ? prefs.disciplinasSel : [];
+    const set = new Set(sel.map(ReforcoEngine.norm));
+    const rot = !sel.length ? 'Todas as disciplinas'
+      : sel.length === 1 ? sel[0]
+      : sel.length + ' disciplinas selecionadas';
+    return '<div class="ms-disc-filter">'
+      + '<div class="ms-disc-filter-label"><b>Disciplinas que o Motor pode sugerir</b><small>Vazio = todas. Este mesmo recorte vale no Puxar do Motor em Atividades Extras.</small></div>'
+      + '<button type="button" class="ms-disc-filter-btn" aria-expanded="false"><span>' + escapeHtml(rot) + '</span><i>▾</i></button>'
+      + '<div class="ms-disc-filter-panel" hidden>'
+      + '<button type="button" class="ms-disc-filter-all ' + (!sel.length ? 'is-active' : '') + '" data-ms-disc-all>'
+      + '<span class="ms-disc-all-mark">✓</span><span><b>Todas as disciplinas</b><small>Deixar o Motor considerar qualquer matéria do escopo TEC</small></span></button>'
+      + '<label class="ms-disc-filter-search"><span>⌕</span><input type="search" placeholder="Buscar disciplina" autocomplete="off"></label>'
+      + '<div class="ms-disc-filter-list">'
+      + lista.map(d => '<label class="ms-disc-filter-item" data-s="' + escapeHtml(ReforcoEngine.norm(d)) + '">'
+        + '<input type="checkbox" value="' + escapeHtml(d) + '" ' + (set.has(ReforcoEngine.norm(d)) ? 'checked' : '') + '>'
+        + '<span>' + escapeHtml(d) + '</span></label>').join('')
+      + '</div>'
+      + '<div class="ms-disc-filter-foot"><span>' + (sel.length ? sel.length + ' no recorte' : lista.length + ' disponíveis') + '</span></div>'
+      + '</div></div>';
+  },
+  _bindMotorDiscFilter(host) {
+    const wrap = host && host.querySelector('.ms-disc-filter');
+    if (!wrap) return;
+    const btn = wrap.querySelector('.ms-disc-filter-btn');
+    const panel = wrap.querySelector('.ms-disc-filter-panel');
+    const search = wrap.querySelector('input[type="search"]');
+    const list = wrap.querySelector('.ms-disc-filter-list');
+    const abrir = () => {
+      panel.removeAttribute('hidden'); btn.setAttribute('aria-expanded', 'true');
+      if (search) search.focus({ preventScroll: true });
+    };
+    const fechar = () => { panel.setAttribute('hidden', ''); btn.setAttribute('aria-expanded', 'false'); };
+    btn.onclick = e => {
+      e.stopPropagation();
+      if (panel.hasAttribute('hidden')) abrir(); else fechar();
+    };
+    panel.onclick = e => e.stopPropagation();
+    const aplicar = lista => {
+      this._motorDiscUiRestore = {
+        open: true,
+        y: list ? list.scrollTop : 0,
+        busca: search ? search.value : ''
+      };
+      MotorSugestao.salvar({ disciplinasSel: lista });
+      this.renderMotor();
+    };
+    panel.querySelectorAll('.ms-disc-filter-item input').forEach(ch => ch.onchange = () => {
+      aplicar([...panel.querySelectorAll('.ms-disc-filter-item input:checked')].map(x => x.value));
+    });
+    const all = panel.querySelector('[data-ms-disc-all]');
+    if (all) all.onclick = () => aplicar([]);
+    if (search) search.oninput = () => {
+      const q = ReforcoEngine.norm(search.value);
+      panel.querySelectorAll('.ms-disc-filter-item').forEach(item => {
+        item.style.display = !q || (item.dataset.s || '').includes(q) ? '' : 'none';
+      });
+    };
+    const st = this._motorDiscUiRestore;
+    if (st && st.open) {
+      this._motorDiscUiRestore = null;
+      abrir();
+      if (search) {
+        search.value = st.busca || '';
+        search.dispatchEvent(new Event('input', { bubbles: true }));
+      }
+      requestAnimationFrame(() => { if (list) list.scrollTop = st.y || 0; });
+    }
+  },
+
   /* ── A ABA DO MOTOR ──────────────────────────────────────────────────────
      A leitura agora é deliberadamente em DOIS PASSOS:
        1) quais matérias concentram a maior lacuna mensurável;
@@ -4160,8 +4235,8 @@ const DesempenhoTecScreen = {
     const p = MotorSugestao.prefs();
     if (fase) {
       const b = (k, rot, sub) => `<button type="button" data-fase="${k}" class="${p.fase === k ? 'active' : ''}" aria-pressed="${p.fase === k}"><b>${rot}</b><span>${sub}</span></button>`;
-      fase.innerHTML = b('pre', 'Pré-edital', 'Pior recorte mensurável primeiro')
-        + b('pos', 'Pós-edital', 'Fraqueza ponderada pela incidência');
+      fase.innerHTML = b('pre', 'Pré-edital', 'Lacuna sistêmica da matéria primeiro')
+        + b('pos', 'Pós-edital', 'Lacuna da matéria × incidência da banca');
     }
     try { TecAjustes.sincronizar('motor'); } catch (e) { _quiet(e, 'motor-resumo'); }
 
@@ -4176,8 +4251,10 @@ const DesempenhoTecScreen = {
       host.innerHTML = `<p class="wd-empty" style="padding:18px 0;">${escapeHtml(msg)}</p>`;
       return;
     }
+    const filterHtml = this._motorDiscFilterHtml(r.disciplinasDisponiveis || [], r.prefs || p);
     if (!r.itens.length) {
-      host.innerHTML = `<div class="ms-empty-honesto"><span>🧭</span><div><b>Nenhum recorte confiável para atacar agora</b><p>O motor não vai transformar uma disciplina inteira em tarefa. Com a margem atual de ±${r.prefs.margemMax}pp, nenhum tópico abaixo da meta de ${r.prefs.metaAcerto}% tem amostra suficiente. Acumule mais questões ou revise a régua em ⚙ Ajustes.</p></div></div>`;
+      host.innerHTML = filterHtml + `<div class="ms-empty-honesto"><span>🧭</span><div><b>Nenhuma lacuna confiável neste recorte</b><p>O Motor não promove matéria por um percentual isolado. Com a margem atual de ±${r.prefs.margemMax}pp, as disciplinas selecionadas não têm tópico comprovadamente abaixo da meta de ${r.prefs.metaAcerto}%. Você pode ampliar o filtro acima ou acumular mais questões.</p></div></div>`;
+      this._bindMotorDiscFilter(host);
       return;
     }
 
@@ -4226,6 +4303,13 @@ const DesempenhoTecScreen = {
         : `<span><i>amostra</i><b>${x.questoes}</b></span>`;
       return `
         <article class="ms-suggestion-card tone-${tom(x)}" data-i="${i}">
+          <div class="ms-action-context">
+            <b>${escapeHtml(x.disciplina)}</b>
+            <span>${fmt1(x.disciplinaTaxa)}% geral</span>
+            <span>${x.categoriaPrioridade === 'correcao' ? 'correção sistêmica' : 'manutenção localizada'}</span>
+            <span>déficit seguro ~${fmt1(x.disciplinaDeficitSeguro)} q</span>
+            ${r.fase === 'pos' ? '<span>incidência da matéria ' + fmt1(x.disciplinaIncidencia) + '</span>' : ''}
+          </div>
           <div class="ms-suggestion-head">
             <div class="ms-suggestion-rank"><span>${i + 1}</span><i>${emoji(x)}</i></div>
             <div class="ms-suggestion-title">
@@ -4256,50 +4340,46 @@ const DesempenhoTecScreen = {
 
     const discRank = (r.disciplinas || []).map((d, i) => {
       const t = d.melhorTopico;
-      return `<li><span>${i + 1}</span><div><b>${escapeHtml(d.nome)}</b><small>${t ? fmt1(t.gapConfiavel) + 'pp de lacuna segura · ' + fmt1(t.taxa) + '% · ' + escapeHtml(t.nome) : 'sem recorte acionável'} · ${(d.fila || []).length} frente(s) na fila</small></div></li>`;
+      return `<li><span>${i + 1}</span><div><b>${escapeHtml(d.nome)}</b><small>${fmt1(d.taxa)}% geral · déficit seguro ~${fmt1(d.deficitSeguro)} q${r.fase === 'pos' ? ' · incidência ' + fmt1(d.incidenciaDisc) : ''} · entrada: ${t ? escapeHtml(t.nome) + ' (' + fmt1(t.taxa) + '%)' : '—'} · ${(d.fila || []).length} frente(s)</small></div></li>`;
     }).join('');
 
     const filas = (r.disciplinas || []).map(d => {
       const itens = (d.fila || []).slice(0, 15).map((x, i) =>
-        `<li><span>${i + 1}</span><div><b>${escapeHtml(x.nome)}</b><small>${fmt1(x.taxa)}% acerto · nível ${x.nivel}${x.agregado ? ' · bloco de ' + x.membros.length + ' irmãos' : ''}</small></div></li>`
+        `<li><span>${i + 1}</span><div><b>${escapeHtml(x.nome)}</b><small>${fmt1(x.taxa)}% acerto · lacuna segura ${fmt1(x.gapConfiavel)}pp · nível ${x.nivel}${x.agregado ? ' · bloco de ' + x.membros.length + ' irmãos' : ''}</small></div></li>`
       ).join('');
       return `<section class="ms-queue-group"><h4>${escapeHtml(d.nome)}</h4><ol>${itens}</ol></section>`;
     }).join('');
 
     const somaDose = r.itens.reduce((s, x) => s + Number(x.dose || 0), 0);
-    host.innerHTML = `
+    host.innerHTML = filterHtml + `
       <div class="ms-rule-summary">
-        <span>🧭 ${r.itens.length} disciplinas agora</span>
+        <span>🧭 ${r.itens.length} matérias na rodada</span>
         <span>🧩 1 frente de cada</span>
         <span>📚 ${r.prefs.doseMin}+ questões por atividade</span>
         <span>📏 margem ±${r.prefs.margemMax}pp</span>
         <span>🎯 meta ${r.prefs.metaAcerto}%</span>
-        <span>🛡️ ranking pela lacuna após a margem</span>
+        <span>🛡️ primeiro matéria, depois tópico</span>
       </div>
 
-      <section class="ms-stage">
-        <header><span>1</span><div><b>Onde entrar primeiro</b><small>Até 3 disciplinas, ordenadas pela lacuna que continua comprovada após considerar a margem. A disciplina só escolhe a porta; nunca vira atividade.</small></div></header>
-        <div class="ms-priority-list">${disciplinasHtml}</div>
-      </section>
-
-      <section class="ms-stage">
-        <header><span>2</span><div><b>Atacar agora</b><small>O primeiro recorte da fila hierárquica de cada disciplina, sempre do pior para o melhor.</small></div></header>
+      <section class="ms-stage ms-stage-action">
+        <header><span>1</span><div><b>Rodada recomendada agora</b><small>Primeiro o Motor escolhe a matéria pela lacuna geral comprovada; só então percorre essa matéria e pega o primeiro tópico/subtópico confiável da fila. Não há mistura global de tópicos.</small></div></header>
         <div class="ms-suggestion-list">${linhas}</div>
-        <p class="ms-round-total">Se executar as ${r.itens.length} sugestões: <b>${somaDose} questões</b>. Nenhuma atividade pode nascer com menos de ${r.prefs.doseMin}.</p>
+        <p class="ms-round-total">Se executar a rodada: <b>${somaDose} questões</b> em ${r.itens.length} matéria(s). Nenhuma atividade nasce abaixo de ${r.prefs.doseMin} questões.</p>
       </section>
 
       <div class="ms-rankings">
         <details>
-          <summary><span>📊 Ranking de disciplinas</span><small>${(r.disciplinas || []).length} com frente acionável</small><i>⌄</i></summary>
+          <summary><span>📊 Por que estas matérias?</span><small>ranking por déficit seguro${r.fase === 'pos' ? ' × incidência' : ''}</small><i>⌄</i></summary>
           <ol class="ms-rank-list">${discRank}</ol>
         </details>
         <details>
-          <summary><span>🧬 Filas hierárquicas por disciplina</span><small>pior → melhor, sem misturar árvores</small><i>⌄</i></summary>
+          <summary><span>🧬 O que vem depois em cada matéria?</span><small>fila interna pior → melhor, sem pular de ramo</small><i>⌄</i></summary>
           <div class="ms-queue-wrap">${filas}</div>
         </details>
       </div>
-      <p class="hint ms-nota">Regra estrutural: subtópicos pequenos só podem ser agrupados com outros irmãos pequenos do mesmo pai, do pior para o melhor, até a amostra ficar suficiente. Se sobrar uma cauda pequena demais para medir sozinha, ela entra no último bloco local em vez de forçar a subida de toda a árvore. A fronteira da disciplina nunca é atravessada.</p>`;
+      <p class="hint ms-nota">Regra estrutural: o histórico é consolidado por identidade semântica do assunto, não pelo número do código do TEC. Dentro de uma matéria, subtópicos pequenos só agrupam com irmãos do mesmo pai. A fronteira da disciplina nunca é atravessada.</p>`;
 
+    this._bindMotorDiscFilter(host);
     host.querySelectorAll('[data-motor-extra]').forEach(b => b.addEventListener('click', () => {
       const x = r.itens[Number(b.dataset.motorExtra)];
       if (!x) return;

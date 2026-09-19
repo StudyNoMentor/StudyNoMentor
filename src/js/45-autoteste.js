@@ -3061,6 +3061,31 @@ const AutoTeste = {
     this._ok('Motor: depth 0 é fronteira absoluta e nunca vira atividade',
       M._planejarNo(raiz, 15, []).length === 0);
 
+    /* Códigos do TEC podem mudar entre retratos. 01=A num mês e 01=B no outro
+       não pode trocar os filhos de pai no histórico consolidado. */
+    const snap = (id, linhas) => ({ id, startDate: '2026-0' + id + '-01', endDate: '2026-0' + id + '-28', rows: linhas });
+    const rr = (nome, depth, codigo, q, ac) => ({ nome, depth, codigo, questoes: q, acertos: ac, disciplina: 'Disc X' });
+    const s1 = snap(1, [
+      rr('Disc X', 0, null, 80, 40),
+      rr('Tópico A', 1, '01', 40, 15), rr('Filho A', 2, '01.01', 20, 5),
+      rr('Tópico B', 1, '02', 40, 25), rr('Filho B', 2, '02.01', 20, 15)
+    ]);
+    const s2 = snap(2, [
+      rr('Disc X', 0, null, 100, 55),
+      rr('Tópico B', 1, '01', 50, 30), rr('Filho B', 2, '01.01', 25, 17),
+      rr('Tópico A', 1, '02', 50, 25), rr('Filho A', 2, '02.01', 25, 8)
+    ]);
+    const estavel = M._forestEstavel({ rows: s1.rows.concat(s2.rows), _fontes: [s1, s2] });
+    const dx = estavel[0] || { children: [] };
+    const ta = dx.children.find(x => x.nome === 'Tópico A');
+    const tb = dx.children.find(x => x.nome === 'Tópico B');
+    this._ok('Motor: troca de códigos entre retratos não troca filhos de pai',
+      !!(ta && tb && ta.questoes === 90 && tb.questoes === 90
+        && ta.children.length === 1 && ta.children[0].nome === 'Filho A'
+        && tb.children.length === 1 && tb.children[0].nome === 'Filho B'),
+      { A: ta && { q: ta.questoes, filhos: ta.children.map(x => x.nome) },
+        B: tb && { q: tb.questoes, filhos: tb.children.map(x => x.nome) } });
+
     /* A fila é depth-first, sempre pior→melhor em CADA nível: primeiro entra
        no pior tópico, resolve seus filhos do pior ao melhor, só depois segue
        para o próximo tópico da disciplina. */
@@ -3081,21 +3106,45 @@ const AutoTeste = {
     /* A margem continua sendo a trava estatística, não o percentual cru. */
     this._ok('Motor: 2 questões nunca passam na régua de ±15pp', !M.legivel(2, 0, 15));
     this._ok('Motor: 200 questões passam na mesma régua', M.legivel(200, 100, 15));
+    const semIntervalo = M._lacuna({ taxa: 0, margem: null, questoes: 1 }, Object.assign(M.prefs(), { metaAcerto: 90 }));
+    this._ok('Motor: uma questão isolada nunca vira "lacuna segura" de matéria',
+      semIntervalo.gapConfiavel === 0 && semIntervalo.deficitSeguro === 0, semIntervalo);
     this._ok('Motor: a meta padrão é 90% e a rodada padrão tem no máximo 3 disciplinas',
       M.DEFAULTS.metaAcerto === 90 && M.LIMITES.maxFrentes[1] === 3,
       { meta: M.DEFAULTS.metaAcerto, max: M.LIMITES.maxFrentes });
 
-    /* Lacuna confiável desconta a margem: um percentual ligeiramente pior,
-       porém muito incerto, não pode automaticamente superar um déficit mais
-       comprovado. */
+    /* O ranking ENTRE matérias usa a raiz. Uma matéria forte com um bolsão
+       ruim é manutenção; ela não atropela outra matéria sistemicamente fraca. */
     const pa = Object.assign(M.prefs(), { metaAcerto: 90, fase: 'pre' });
-    const la = M._lacuna({ taxa: 59, margem: 13, questoes: 60 }, pa);
-    const lb = M._lacuna({ taxa: 61, margem: 3, questoes: 800 }, pa);
-    const da = { melhorTopico: Object.assign({ peso: 60, questoes: 60 }, la) };
-    const db = { melhorTopico: Object.assign({ peso: 800, questoes: 800 }, lb) };
-    this._ok('Motor: ranking entre disciplinas privilegia lacuna comprovada, não percentual cru',
-      M._compararDisciplinas(db, da, pa) < 0 && lb.gapConfiavel > la.gapConfiavel,
-      { a: la, b: lb });
+    const forte = {
+      nome: 'Forte', faixaPrioridade: 1, questoes: 900, taxa: 88,
+      gapConfiavelDisc: 0, deficitSeguro: 0,
+      melhorTopico: { gapConfiavel: 28, taxa: 55, questoes: 50 }
+    };
+    const fraca = {
+      nome: 'Fraca', faixaPrioridade: 0, questoes: 900, taxa: 62,
+      gapConfiavelDisc: 25, deficitSeguro: 225,
+      melhorTopico: { gapConfiavel: 18, taxa: 60, questoes: 120 }
+    };
+    this._ok('Motor: matéria 88% com bolsão ruim não passa na frente de matéria 62% sistêmica',
+      M._compararDisciplinas(fraca, forte, pa) < 0, { forte, fraca });
+
+    /* Stress determinístico: em mil cenários adversariais, nenhuma manutenção
+       localizada pode vencer uma correção sistêmica só porque tem um tópico
+       mais feio. */
+    let seed = 7331, falhasStress = 0;
+    const rnd = () => { seed = (seed * 1664525 + 1013904223) >>> 0; return seed / 4294967296; };
+    for (let z = 0; z < 1000; z++) {
+      const a = { faixaPrioridade: 1, questoes: 300 + Math.floor(rnd() * 1200),
+        deficitSeguro: 0, gapConfiavelDisc: 0,
+        melhorTopico: { gapConfiavel: 20 + rnd() * 30 } };
+      const b = { faixaPrioridade: 0, questoes: 300 + Math.floor(rnd() * 1200),
+        deficitSeguro: 20 + rnd() * 300, gapConfiavelDisc: 5 + rnd() * 30,
+        melhorTopico: { gapConfiavel: 5 + rnd() * 25 } };
+      if (M._compararDisciplinas(b, a, pa) >= 0) falhasStress++;
+    }
+    this._ok('Motor: stress 1.000× preserva matéria sistêmica antes de manutenção localizada',
+      falhasStress === 0, falhasStress);
 
     /* Dose é POR ATIVIDADE. O base de 25 não é um bolo para repartir em 1, 2,
        3 questões; cada reforço recebe pelo menos o piso útil. */
