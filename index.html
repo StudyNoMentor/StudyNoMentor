@@ -57,7 +57,7 @@
      novo, e o antigo é descartado sozinho na ativação) e o que permite ao app
      dizer qual versão está rodando. Em src/ fica "dev" de propósito: a versão
      é gerada na montagem, não editada à mão. -->
-<meta name="diario-versao" content="v7e9ae34e35">
+<meta name="diario-versao" content="v984d0fa1f0">
 <script>
 /* ── ARRANQUE: abre o IndexedDB AGORA, em paralelo com o parse do documento ──
    A fachada de armazenamento vive no fim do <body>, depois de ~1,7 MB de HTML.
@@ -41557,6 +41557,7 @@ const SectionSync = {
     const out = new Set();
     if (mesmo) this._dirty.forEach(s => out.add(s));
     this._loadPend(id).forEach(s => out.add(s));
+    this._loadDel(id).forEach(x => { if (x && x.section) out.add(x.section); });
     const revs = this._getRevs(id), pfx = this._prefixFor(id);
     try {
       for (let i = 0; i < localStorage.length; i++) {
@@ -41583,6 +41584,7 @@ const SectionSync = {
     const out = new Set();
     if (mesmo) this._dirty.forEach(s => out.add(s));
     this._loadPend(id).forEach(s => out.add(s));
+    this._loadDel(id).forEach(x => { if (x && x.section) out.add(x.section); });
     return [...out];
   },
   hasLocalPending(id) { return this.pendingSections(id).length > 0; },
@@ -41593,6 +41595,7 @@ const SectionSync = {
   pendingQuick() {
     const out = new Set(this._dirty);
     this._loadPend().forEach(s => out.add(s));
+    this._loadDel().forEach(x => { if (x && x.section) out.add(x.section); });
     return out.size;
   },
   /* Tenta ENTREGAR o que está pendente antes de qualquer download sobrescrever o
