@@ -247,7 +247,6 @@ try {
     };
     SectionSync._writeSectionCAS=keep.write;SectionSync._syncManifest=keep.manifest;
     ProfileManager.getActiveProfileId=keep.active;CloudStore.isReady=keep.ready;CloudStore.isLoggedIn=keep.logged;
-    SessionGuard.enabled=keep.guardEnabled;SessionGuard.canEnterNow=keep.guardCan;
     SectionSync._dirty.clear();SectionSync._dirtyGen.clear();
     localStorage.removeItem(key);localStorage.removeItem('diario-estudos:u:'+id+':__secrev');
     localStorage.removeItem('diario-estudos:u:'+id+':__secpend');
@@ -741,6 +740,7 @@ try {
     SectionSync.fetchAllSections=keep.fetch;SectionSync.pushDirty=keep.push;
     if(window.BackupHistory)BackupHistory.snapshot=keep.snapshot;
     ProfileManager.getActiveProfileId=keep.active;CloudStore.isReady=keep.ready;CloudStore.isLoggedIn=keep.logged;
+    SessionGuard.enabled=keep.guardEnabled;SessionGuard.canEnterNow=keep.guardCan;
     SectionSync._dirty.clear();SectionSync._dirtyGen.clear();
     localStorage.removeItem(key);localStorage.removeItem(pfx+'__secrev');localStorage.removeItem(pfx+'__secpend');localStorage.removeItem(pfx+'__secdel');
     return {beforePending,beforeExplicit,pushCalls,r,depois,remoto};
