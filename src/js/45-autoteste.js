@@ -383,7 +383,7 @@ const AutoTeste = {
 
      A resposta depende de UMA regra, e ela é binária: só é sincronizado o que
      mora dentro de `diario-estudos:u:<perfil>:`. Uma chave fora desse prefixo
-     é invisível para o sincronização legada — não entra em `tabela legada por seção`, não
+     era invisível para a sincronização legada — não entrava na tabela por seção, não
      entra no blob, não entra em backup nenhum, e some quando o navegador é
      limpo. Não existe meio-termo nem aviso: a gravação parece funcionar
      perfeitamente e o dado simplesmente não viaja.
@@ -916,8 +916,8 @@ const AutoTeste = {
     this._ok('Persistência: armazenamento de estudo é apenas projeção em RAM',
       window.__memoryOnlyStore === true && window.__idbShim === false,
       { memoryOnly: window.__memoryOnlyStore, idb: window.__idbShim });
-    this._ok('Persistência: sincronização legada foi removido',
-      typeof window.sincronização legada === 'undefined');
+    this._ok('Persistência: sincronização legada foi removida',
+      typeof window.SectionSync === 'undefined');
     this._ok('Persistência: CloudStore não possui caminho blob/seções',
       typeof CloudStore.fetchPayload === 'undefined' &&
       typeof CloudStore._pushSectionsNow === 'undefined' &&
