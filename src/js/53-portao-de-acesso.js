@@ -45,13 +45,17 @@ const ProfileUI = {
     // aba prova apenas que o perfil já foi aberto aqui; não prova posse remota.
     const sessaoLiberada = this._offline ||
       !!(window.SessionGuard && (!SessionGuard.enabled || SessionGuard.canEnterNow()));
-    if (entered && entered === active && this._hasLocalData(active) && sessaoLiberada) {
+    if (entered && entered === active && this._hasLocalData(active)) {
+      if (!sessaoLiberada) {
+        /* F5 com sessão já conhecida: não mostra o seletor nem o cache parcial.
+           Mantém um gate neutro "Entrando…" até CloudStore+SessionGuard decidirem
+           se este aparelho pode usar a conta; depois retoma ESTE mesmo perfil. */
+        this._showEnteringGate(active);
+        return;
+      }
       this.hideGate();
       // Só depois de entrar de fato: no gate o aviso não teria o que fazer.
       try { DB.checarEspaco(); } catch (_) { _quiet(_); }
-      // Faxina de dados órfãos deixados por versões anteriores (histórico e
-      // contadores apontando para cards já excluídos). Silenciosa quando não há
-      // nada a limpar; avisa quando limpa, para você saber que aconteceu.
       try {
         const nOrf = DB.limparOrfaos();
         if (nOrf > 0) {
@@ -72,6 +76,22 @@ const ProfileUI = {
   isGateOpen() { const g = document.getElementById('profile-gate'); return g && g.style.display !== 'none'; },
   showGate() { $id('profile-gate').style.display = 'block'; this.refreshStage(); },
   hideGate() { $id('profile-gate').style.display = 'none'; },
+  _showEnteringGate(id) {
+    this._pendingSessionProfile = id || null;
+    this._entering = true;
+    this._autoEnterTried = true;
+    this._stage = 'entering';
+    const g = document.getElementById('profile-gate');
+    const loginEl = document.getElementById('gate-login');
+    const profilesEl = document.getElementById('gate-profiles');
+    const enteringEl = document.getElementById('gate-entering');
+    const head = document.querySelector('#profile-gate .gate-panel-head');
+    if (g) g.style.display = 'block';
+    if (loginEl) loginEl.style.display = 'none';
+    if (profilesEl) profilesEl.style.display = 'none';
+    if (enteringEl) enteringEl.style.display = 'block';
+    if (head) head.style.display = 'none';
+  },
   resumeAfterSessionClaim() {
     clearTimeout(this._sessionRetryTimer);
     this._sessionRetryTimer = null;
@@ -330,7 +350,10 @@ const ProfileUI = {
         // sendo escrito. Nenhum caminho fica sem plano B.
         let porSecao = null;
         if (window.SectionSync && SectionSync.readEnabled) {
-          porSecao = await SectionSync.hydrate(id);
+          /* Entrada/reabertura nunca promove divergência de hash a edição.
+             Só a outbox explícita pode subir antes da leitura; cache regressado
+             é corrigido pela cópia canônica da nuvem. */
+          porSecao = await SectionSync.hydrate(id, { explicitOnly: true });
           if (porSecao.ok) {
             mudou = porSecao.mudou || 0;
             try { ProfileManager.setRev(id, await CloudStore._fetchRev(id) || ProfileManager.getRev(id)); } catch (_) { _quiet(_); }
@@ -357,7 +380,7 @@ const ProfileUI = {
             /* Perfil legado sem linhas por seção: aqui o blob ainda é o plano B
                compatível, preservando qualquer alteração local pendente. */
             let preservar = [];
-            try { if (window.SectionSync) preservar = await SectionSync.flushBeforeRead(id); } catch (e) { _quiet(e, 'entrar-pendencia'); }
+            try { if (window.SectionSync) preservar = await SectionSync.flushBeforeRead(id, { explicitOnly: true }); } catch (e) { _quiet(e, 'entrar-pendencia'); }
             const res = await CloudStore.fetchPayload(id);
             mudou = ProfileManager.restorePayloadInto(id, (res.payload && res.payload.data) || {}, preservar);
             ProfileManager.setRev(id, res.rev);

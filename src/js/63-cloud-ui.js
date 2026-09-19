@@ -591,6 +591,11 @@ window.SessionLock = {
   }
 };
 
+/* O SessionGuard foi carregado antes deste arquivo. Agora que SessionLock
+   realmente existe, liga o takeover REMOTO. Sem esta chamada o botão ficava
+   eternamente em "Confirmando…" porque nenhum callback remoto estava registrado. */
+try { if (window.SessionGuard && SessionGuard.bindSessionLock) SessionGuard.bindSessionLock(); } catch (_) { _quiet(_); }
+
 /* ---- Camada LOCAL: uma aba/janela por vez (BroadcastChannel) ---- */
 (function () {
   let bc = null;

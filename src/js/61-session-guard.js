@@ -311,18 +311,30 @@ const SessionGuard = {
     }
     if (window.CloudUI) CloudUI.refreshSyncBtn();
     return ok;
+  },
+
+  /* 61-session-guard carrega ANTES de 63-cloud-ui, onde SessionLock nasce.
+     Portanto o binding remoto não pode depender de "if (window.SessionLock)"
+     executado uma única vez durante o parse deste arquivo. Esta função é
+     idempotente e é chamada de novo por 63-cloud-ui logo depois de criar o lock. */
+  _sessionLockBound: false,
+  bindSessionLock() {
+    if (this._sessionLockBound || !window.SessionLock || !SessionLock.onTakeover) return false;
+    this._sessionLockBound = true;
+    SessionLock.onTakeover(async (origin) => {
+      if (origin !== 'remote') return;
+      const ok = await SessionGuard.endRemoteAndClaimHere();
+      if (ok) {
+        showToast('Sessão retomada neste aparelho ✓');
+        try { if (window.ProfileUI && ProfileUI.resumeAfterSessionClaim) ProfileUI.resumeAfterSessionClaim(); } catch (_) { _quiet(_); }
+      } else {
+        showToast('Não foi possível retomar agora — verifique a internet');
+        SessionLock.block('remote', {});
+      }
+    });
+    return true;
   }
 };
 window.SessionGuard = SessionGuard;
-// "Continuar neste aparelho" (no overlay remoto) → reivindica de volta a posse.
-if (window.SessionLock) SessionLock.onTakeover(async (origin) => {
-  if (origin !== 'remote') return;
-  const ok = await SessionGuard.endRemoteAndClaimHere();
-  if (ok) {
-    showToast('Sessão retomada neste aparelho ✓');
-    try { if (window.ProfileUI && ProfileUI.resumeAfterSessionClaim) ProfileUI.resumeAfterSessionClaim(); } catch (_) { _quiet(_); }
-  } else {
-    showToast('Não foi possível retomar agora — verifique a internet');
-    SessionLock.block('remote', {});
-  }
-});
+// No bundle atual SessionLock ainda não existe aqui; em ordens futuras, liga já.
+try { SessionGuard.bindSessionLock(); } catch (_) { _quiet(_); }

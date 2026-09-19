@@ -177,8 +177,15 @@ const CloudStore = {
       this.subscribeRealtime();
       this.subscribeSections();
       if (window.SessionGuard) {
-        Promise.resolve(SessionGuard.onLogin()).then(() => {
-          try { if (window.ProfileUI && ProfileUI.isGateOpen()) ProfileUI.refreshStage(); } catch (_) { _quiet(_); }
+        Promise.resolve(SessionGuard.onLogin()).then((acesso) => {
+          try {
+            if (!window.ProfileUI) return;
+            if (acesso && acesso.ok && ProfileUI._pendingSessionProfile && ProfileUI.resumeAfterSessionClaim) {
+              ProfileUI.resumeAfterSessionClaim();
+              return;
+            }
+            if (!(acesso && acesso.blocked) && ProfileUI.isGateOpen()) ProfileUI.refreshStage();
+          } catch (_) { _quiet(_); }
         }).catch(e => _quiet(e, 'session-guard-login'));
       }
     } else { this._unsub(); if (window.SessionGuard) SessionGuard.onLogout(); }
@@ -561,6 +568,7 @@ const CloudStore = {
   // Assim, editar no celular e no PC não sobrescreve um ao outro no uso normal.
   async syncOnFocus() {
     if (!this.isReady() || !this.isLoggedIn()) return;
+    if (window.SessionGuard && SessionGuard.enabled && SessionGuard.canEnterNow && !SessionGuard.canEnterNow()) return;
     if (window.SessionGuard && SessionGuard.isBlockedByRemote && SessionGuard.isBlockedByRemote()) return;
     if (window.SessionLock && SessionLock.isBlocked() && SessionLock._origin === 'remote') return;
     try { if (!sessionStorage.getItem('diario-estudos:entered')) return; } catch (e) { return; }
@@ -612,6 +620,10 @@ const CloudStore = {
   // Botão manual "Sincronizar agora": empurra pendências e puxa se a nuvem estiver mais nova.
   async syncNow() {
     if (!this.isReady() || !this.isLoggedIn()) { showToast('Entre na sua conta para sincronizar (Configurações → Nuvem).'); return; }
+    if (window.SessionGuard && SessionGuard.enabled && SessionGuard.canEnterNow && !SessionGuard.canEnterNow()) {
+      showToast('Aguardando confirmação da sessão deste aparelho.');
+      return;
+    }
     if ((window.SessionGuard && SessionGuard.isBlockedByRemote && SessionGuard.isBlockedByRemote()) ||
         (window.SessionLock && SessionLock.isBlocked() && SessionLock._origin === 'remote')) {
       showToast('Sincronização pausada: esta conta está ativa em outro aparelho.');
@@ -635,6 +647,10 @@ const CloudStore = {
   },
   async pullActiveAndReload(opts) {
     opts = opts || {};
+    if (window.SessionGuard && SessionGuard.enabled && SessionGuard.canEnterNow && !SessionGuard.canEnterNow()) {
+      console.info('[CloudStore] pull adiado: sessão deste aparelho ainda não confirmada');
+      return false;
+    }
     if ((window.SessionGuard && SessionGuard.isBlockedByRemote && SessionGuard.isBlockedByRemote()) ||
         (window.SessionLock && SessionLock.isBlocked() && SessionLock._origin === 'remote')) {
       console.info('[CloudStore] pull adiado: sessão pertencente a outro aparelho');
@@ -720,6 +736,13 @@ const CloudStore = {
   // Tempo real das SEÇÕES: escuta profile_sections do perfil aberto. O gatilho não
   // recarrega direto — pergunta antes se há revisão nova de verdade (hasRemoteUpdates).
   // Sem essa checagem, os nossos PRÓPRIOS envios disparariam um loop de recarga.
+  _isOwnSectionEvent(evt) {
+    try {
+      const row = (evt && (evt.new || evt.old)) || {};
+      const mine = window.SessionGuard && SessionGuard.deviceId ? SessionGuard.deviceId() : null;
+      return !!(mine && row.device_id && row.device_id === mine);
+    } catch (_) { return false; }
+  },
   subscribeSections(pid) {
     if (!this.isReady() || !this.isLoggedIn()) return;
     pid = pid || ProfileManager.getActiveProfileId(); if (!pid) return;
@@ -733,7 +756,14 @@ const CloudStore = {
     try {
       this._secChannelProfile = pid;
       this.secChannel = this.client.channel('sec_rt_' + pid)
-        .on('postgres_changes', { event: '*', schema: 'public', table: 'profile_sections', filter: 'profile_id=eq.' + pid }, () => {
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'profile_sections', filter: 'profile_id=eq.' + pid }, (evt) => {
+          /* V2 grava device_id em cada mutação. Evento produzido por ESTE
+             aparelho não é "novidade remota": a revisão/hash locais já são
+             atualizados pelo retorno do CAS. Reagir ao próprio evento criava
+             um falso pull/reload logo depois de salvar um registro, exatamente
+             o fluxo "salvei e fui parar no seletor de perfil". Clientes antigos
+             não têm device_id; nesses casos continuamos com a checagem normal. */
+          if (this._isOwnSectionEvent(evt)) return;
           this._secRemotePending = true;
           clearTimeout(this._secRtTimer);
           this._secRtTimer = setTimeout(() => this._onSectionRealtime(pid), 1200);
@@ -759,6 +789,10 @@ const CloudStore = {
   async _onSectionRealtime(pid) {
     if (pid !== ProfileManager.getActiveProfileId()) {
       this._secRemotePending = false;
+      return;
+    }
+    if (window.SessionGuard && SessionGuard.enabled && SessionGuard.canEnterNow && !SessionGuard.canEnterNow()) {
+      this._secRemotePending = true;
       return;
     }
     if ((window.SessionGuard && SessionGuard.isBlockedByRemote && SessionGuard.isBlockedByRemote()) ||
