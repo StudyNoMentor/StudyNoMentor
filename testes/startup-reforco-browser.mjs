@@ -427,12 +427,12 @@ try {
     const keep={
       client:CloudStore.client,ready:CloudStore.isReady,logged:CloudStore.isLoggedIn,session:CloudStore.session,
       subscribe:SessionGuard.subscribe,claim:SessionGuard.claim,taken:SessionGuard._takenBy,
-      claimed:SessionGuard._claimedUid,device:SessionGuard._deviceId,enabled:SessionGuard.enabled,
+      claimed:SessionGuard._claimedUid,device:SessionGuard._deviceId,enabled:SessionGuard.enabled,mode:SessionGuard.singleDeviceMode,
       accessUid:SessionGuard._accessUid,accessState:SessionGuard._accessState,
       loginPromise:SessionGuard._loginPromise,loginPromiseUid:SessionGuard._loginPromiseUid
     };
     let claims=0,blocked=0;
-    SessionGuard.enabled=true;SessionGuard._claimedUid=null;SessionGuard._deviceId='device-local';
+    SessionGuard.enabled=true;SessionGuard.singleDeviceMode=true;SessionGuard._claimedUid=null;SessionGuard._deviceId='device-local';
     SessionGuard._accessUid=null;SessionGuard._accessState='unknown';SessionGuard._loginPromise=null;SessionGuard._loginPromiseUid=null;
     CloudStore.isReady=()=>true;CloudStore.isLoggedIn=()=>true;CloudStore.session={user:{id:'user-1'}};
     SessionGuard.subscribe=()=>{};
@@ -442,13 +442,35 @@ try {
     await SessionGuard.onLogin();
     CloudStore.client=keep.client;CloudStore.isReady=keep.ready;CloudStore.isLoggedIn=keep.logged;CloudStore.session=keep.session;
     SessionGuard.subscribe=keep.subscribe;SessionGuard.claim=keep.claim;SessionGuard._takenBy=keep.taken;
-    SessionGuard._claimedUid=keep.claimed;SessionGuard._deviceId=keep.device;SessionGuard.enabled=keep.enabled;
+    SessionGuard._claimedUid=keep.claimed;SessionGuard._deviceId=keep.device;SessionGuard.enabled=keep.enabled;SessionGuard.singleDeviceMode=keep.mode;
     SessionGuard._accessUid=keep.accessUid;SessionGuard._accessState=keep.accessState;
     SessionGuard._loginPromise=keep.loginPromise;SessionGuard._loginPromiseUid=keep.loginPromiseUid;
     return {claims,blocked};
   });
   eq(sessionNoTakeover.claims,0,'sessão restaurada não pode tomar posse automaticamente de outro aparelho');
   eq(sessionNoTakeover.blocked,1,'sessão restaurada deve reconhecer e bloquear diante de outro aparelho');
+
+  const multiDeviceAllowsBoth=await page.evaluate(async()=>{
+    const keep={
+      ready:CloudStore.isReady,logged:CloudStore.isLoggedIn,session:CloudStore.session,
+      mode:SessionGuard.singleDeviceMode,enabled:SessionGuard.enabled,
+      uid:SessionGuard._accessUid,state:SessionGuard._accessState,
+      block:SessionLock.block,unblock:SessionLock.unblock
+    };
+    let blocks=0;
+    CloudStore.isReady=()=>true;CloudStore.isLoggedIn=()=>true;CloudStore.session={user:{id:'user-multi'}};
+    SessionGuard.enabled=true;SessionGuard.singleDeviceMode=false;SessionGuard._accessUid=null;SessionGuard._accessState='unknown';
+    SessionLock.block=()=>{blocks++;};SessionLock.unblock=()=>{};
+    const r=await SessionGuard.onLogin();
+    CloudStore.isReady=keep.ready;CloudStore.isLoggedIn=keep.logged;CloudStore.session=keep.session;
+    SessionGuard.singleDeviceMode=keep.mode;SessionGuard.enabled=keep.enabled;
+    SessionGuard._accessUid=keep.uid;SessionGuard._accessState=keep.state;
+    SessionLock.block=keep.block;SessionLock.unblock=keep.unblock;
+    return {r,blocks};
+  });
+  ok(multiDeviceAllowsBoth.r&&multiDeviceAllowsBoth.r.ok&&multiDeviceAllowsBoth.r.multiDevice,
+    'modo padrão deve liberar PC e celular simultaneamente');
+  eq(multiDeviceAllowsBoth.blocks,0,'modo multiaparelho não pode abrir overlay remoto');
 
 
   /* 2l.1. Duas notificações de auth simultâneas compartilham a MESMA checagem:
@@ -462,7 +484,7 @@ try {
       loginPromise:SessionGuard._loginPromise,loginPromiseUid:SessionGuard._loginPromiseUid
     };
     let selects=0,claims=0,blocked=0;
-    SessionGuard.enabled=true;SessionGuard._claimedUid=null;SessionGuard._deviceId='device-local';
+    SessionGuard.enabled=true;SessionGuard.singleDeviceMode=true;SessionGuard._claimedUid=null;SessionGuard._deviceId='device-local';
     SessionGuard._accessUid=null;SessionGuard._accessState='unknown';SessionGuard._loginPromise=null;SessionGuard._loginPromiseUid=null;
     CloudStore.isReady=()=>true;CloudStore.isLoggedIn=()=>true;CloudStore.session={user:{id:'user-serial'}};
     SessionGuard.subscribe=()=>{};
@@ -472,7 +494,7 @@ try {
     const [a,b]=await Promise.all([SessionGuard.onLogin(),SessionGuard.onLogin()]);
     CloudStore.client=keep.client;CloudStore.isReady=keep.ready;CloudStore.isLoggedIn=keep.logged;CloudStore.session=keep.session;
     SessionGuard.subscribe=keep.subscribe;SessionGuard.claim=keep.claim;SessionGuard._takenBy=keep.taken;
-    SessionGuard._claimedUid=keep.claimed;SessionGuard._deviceId=keep.device;SessionGuard.enabled=keep.enabled;
+    SessionGuard._claimedUid=keep.claimed;SessionGuard._deviceId=keep.device;SessionGuard.enabled=keep.enabled;SessionGuard.singleDeviceMode=keep.mode;
     SessionGuard._accessUid=keep.accessUid;SessionGuard._accessState=keep.accessState;
     SessionGuard._loginPromise=keep.loginPromise;SessionGuard._loginPromiseUid=keep.loginPromiseUid;
     return {selects,claims,blocked,a,b};
@@ -564,13 +586,14 @@ try {
   /* 2l.6. O overlay remoto é autoridade final: nem um estado interno "allowed"
      vindo de evento atrasado pode liberar o perfil antes da ação explícita. */
   const overlayBeatsLateAllowed=await page.evaluate(()=>{
-    const keep={uid:SessionGuard._accessUid,state:SessionGuard._accessState,session:CloudStore.session};
+    const keep={uid:SessionGuard._accessUid,state:SessionGuard._accessState,session:CloudStore.session,mode:SessionGuard.singleDeviceMode};
     CloudStore.session={user:{id:'user-overlay'}};
+    SessionGuard.singleDeviceMode=true;
     SessionGuard._accessUid='user-overlay';SessionGuard._accessState='allowed';
     SessionLock.block('remote',{label:'Outro'});
     const can=SessionGuard.canEnterNow();
     SessionLock.unblock();
-    SessionGuard._accessUid=keep.uid;SessionGuard._accessState=keep.state;CloudStore.session=keep.session;
+    SessionGuard.singleDeviceMode=keep.mode;SessionGuard._accessUid=keep.uid;SessionGuard._accessState=keep.state;CloudStore.session=keep.session;
     return can;
   });
   eq(overlayBeatsLateAllowed,false,'overlay remoto deve impedir entrada mesmo diante de allowed atrasado');
@@ -839,11 +862,12 @@ try {
       active:ProfileManager.getActiveProfileId,
       capture:SectionSync.captureExplicitSnapshot,drain:SectionSync.drainExplicitSnapshot,
       block:SessionLock.block,refresh:CloudUI.refreshSyncBtn,
-      state:SessionGuard._accessState,uid:SessionGuard._accessUid,
+      state:SessionGuard._accessState,uid:SessionGuard._accessUid,mode:SessionGuard.singleDeviceMode,
       handoff:SessionGuard._handoffDraining,last:SessionGuard._handoffLast
     };
     let captures=0,drains=0,blocked=0;
     ProfileManager.getActiveProfileId=()=>id;
+    SessionGuard.singleDeviceMode=true;
     SectionSync.captureExplicitSnapshot=()=>{captures++;return [{section:'entries',gen:7}];};
     SectionSync.drainExplicitSnapshot=async(pid,snap)=>{if(pid===id&&snap&&snap.length===1)drains++;return {ok:true,sent:1,remaining:0};};
     SessionLock.block=()=>{blocked++;};
@@ -852,7 +876,7 @@ try {
     await new Promise(r=>setTimeout(r,30));
     ProfileManager.getActiveProfileId=keep.active;SectionSync.captureExplicitSnapshot=keep.capture;SectionSync.drainExplicitSnapshot=keep.drain;
     SessionLock.block=keep.block;CloudUI.refreshSyncBtn=keep.refresh;
-    SessionGuard._accessState=keep.state;SessionGuard._accessUid=keep.uid;
+    SessionGuard._accessState=keep.state;SessionGuard._accessUid=keep.uid;SessionGuard.singleDeviceMode=keep.mode;
     SessionGuard._handoffDraining=keep.handoff;SessionGuard._handoffLast=keep.last;
     return {captures,drains,blocked};
   });
