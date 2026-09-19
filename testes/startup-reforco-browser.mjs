@@ -189,11 +189,11 @@ try {
       quick:SectionSync.pendingQuick,explicit:SectionSync.explicitPendingSections,
       remote:SectionSync.hasRemoteUpdates,read:SectionSync.readEnabled
     };
-    let flushCalls=0,pullCalls=0,remoteCalls=0;
+    let flushCalls=0,pullCalls=0,remoteCalls=0,pullReadOnly=false;
     CloudStore.isLoggedIn=()=>true;CloudStore.isReady=()=>true;ProfileManager.getActiveProfileId=()=>id;
     CloudStore._pending=true;CloudStore._debounce=null;CloudStore._syncing=false;
     CloudStore.flushPending=async()=>{flushCalls++;CloudStore._pending=false;};
-    CloudStore.pullActiveAndReload=async()=>{pullCalls++;return true;};
+    CloudStore.pullActiveAndReload=async(opts)=>{pullCalls++;pullReadOnly=!!(opts&&opts.readOnly);return true;};
     SectionSync.readEnabled=true;SectionSync.pendingQuick=()=>0;SectionSync.explicitPendingSections=()=>[];
     SectionSync.hasRemoteUpdates=async()=>{remoteCalls++;return true;};
     sessionStorage.setItem('diario-estudos:entered',id);
@@ -204,11 +204,12 @@ try {
     CloudStore._pending=keep.pending;CloudStore._debounce=keep.debounce;CloudStore._syncing=keep.syncing;
     SectionSync.pendingQuick=keep.quick;SectionSync.explicitPendingSections=keep.explicit;
     SectionSync.hasRemoteUpdates=keep.remote;SectionSync.readEnabled=keep.read;
-    return {flushCalls,pullCalls,remoteCalls};
+    return {flushCalls,pullCalls,remoteCalls,pullReadOnly};
   });
   eq(pushPull.flushCalls,1,'syncOnFocus deve concluir o envio pendente');
   eq(pushPull.remoteCalls,1,'syncOnFocus deve conferir a nuvem logo após o envio');
   eq(pushPull.pullCalls,1,'syncOnFocus deve baixar novidade na mesma rodada');
+  ok(pushPull.pullReadOnly,'pull automático após o push deve ser somente-leitura');
 
   /* 2e. Edição nova durante upload antigo: a confirmação velha NÃO pode limpar
      a geração mais nova da fila. */
