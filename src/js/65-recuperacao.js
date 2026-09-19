@@ -67,7 +67,7 @@ const Recuperacao = {
           if (item) p.lixo.push(item);
           continue;
         }
-        if (sub === '__secrev' || sub === '__secpend') continue;
+        if (sub === '__secrev' || sub === '__secpend' || sub === '__secdel' || sub === '__entryops') continue;
         p.secoes.push({ chave: k, sec: sub, bytes });
       }
     } catch (e) { _quiet(e, 'rec-varrer'); }
@@ -213,7 +213,7 @@ const Recuperacao = {
       let data = null;
       try { const json = await BackupHistory._gunzip(rec); data = json ? JSON.parse(json) : null; } catch (e) { _quiet(e, 'rec-abrir-foto'); }
       if (!data) continue;
-      const secoes = Object.keys(data).filter(s => s !== '__secrev' && s !== '__secpend' && s.indexOf('vhist') !== 0);
+      const secoes = Object.keys(data).filter(s => s !== '__secrev' && s !== '__secpend' && s !== '__secdel' && s !== '__entryops' && s.indexOf('vhist') !== 0);
       out.push({ ts: rec.ts, nota: rec.note || '', secoes, total: secoes.length,
         bytes: secoes.reduce((a, s) => a + String(data[s] || '').length, 0) });
     }
@@ -233,7 +233,7 @@ const Recuperacao = {
     const prefix = 'diario-estudos:u:' + alvo + ':';
     const trazidas = [];
     Object.keys(data).forEach(sub => {
-      if (sub === '__secrev' || sub === '__secpend' || sub.indexOf('vhist') === 0) return;
+      if (sub === '__secrev' || sub === '__secpend' || sub === '__secdel' || sub === '__entryops' || sub.indexOf('vhist') === 0) return;
       const atual = localStorage.getItem(prefix + sub);
       if (atual !== null && atual !== '' && atual !== '[]' && atual !== '{}' && atual !== 'null') return; // já há algo vivo aqui
       const valor = data[sub];
