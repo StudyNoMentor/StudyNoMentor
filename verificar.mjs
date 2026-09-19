@@ -763,6 +763,7 @@ try {
       ? ok('DELETE relacional removeu so o ID solicitado')
       : erro('DELETE relacional atingiu linhas erradas: '+JSON.stringify(idsBanco));
 
+    const pedidosAntesCore=api.estado.pedidos.length;
     const hidratou=await pg.evaluate(async (pid) => {
       const pfx='diario-estudos:u:'+pid+':';
       RelationalStore._applying=true;
@@ -770,12 +771,61 @@ try {
         const ks=[]; for(let i=0;i<localStorage.length;i++){const k=localStorage.key(i);if(k&&k.startsWith(pfx))ks.push(k);}
         ks.forEach((k)=>localStorage.removeItem(k));
       } finally { RelationalStore._applying=false; }
-      const r=await RelationalStore.hydrateProfile(pid,{motivo:'e2e'});
-      return {ok:!!r,ids:(DB.getEntries()||[]).map((e)=>String(e.id)).sort()};
+      const r=await RelationalStore.hydrateProfile(pid,{reason:'e2e-core',includeHeavy:false});
+      return {
+        ok:!!r,
+        heavyReady:RelationalStore.isHeavyReady(pid),
+        ids:(DB.getEntries()||[]).map((e)=>String(e.id)).sort()
+      };
     },criacao.id);
-    hidratou.ok && hidratou.ids.length===1 && hidratou.ids[0]==='e-sql-2'
-      ? ok('SELECT relacional reconstruiu a memoria do zero')
-      : erro('hidratacao relacional divergiu: '+JSON.stringify(hidratou));
+    const pedidosCore=api.estado.pedidos.slice(pedidosAntesCore).map((p)=>p.caminho);
+    hidratou.ok && hidratou.ids.length===1 && hidratou.ids[0]==='e-sql-2' && !hidratou.heavyReady
+      ? ok('SELECT relacional reconstruiu o nucleo sem bloquear no TEC')
+      : erro('hidratacao relacional do nucleo divergiu: '+JSON.stringify(hidratou));
+    pedidosCore.some((p)=>p.includes('/rpc/read_study_profile_core')) &&
+        !pedidosCore.some((p)=>p.includes('/rpc/read_study_profile_heavy') ||
+          p.includes('/study_tec_snapshot_rows') || p.includes('/study_incidence'))
+      ? ok('abertura usa um pacote relacional e nao baixa TEC/incidencia')
+      : erro('abertura voltou a consultar dado pesado: '+JSON.stringify(pedidosCore));
+
+    api.estado.tabelas.study_tec_snapshots.push({
+      profile_id:criacao.id,plan_id:criacao.plan,snapshot_id:'tec-e2e',snapshot_date:'2026-03-03',
+      start_date:'2026-03-01',end_date:'2026-03-03',imported_at:'2026-03-03T10:00:00Z',
+      label:'E2E',bancas:[],position:0,extra:{}
+    });
+    api.estado.tabelas.study_tec_snapshot_rows.push({
+      profile_id:criacao.id,plan_id:criacao.plan,snapshot_id:'tec-e2e',row_no:0,
+      name:'AFO',weight:1,depth:0,code:null,correct:7,questions:10,accuracy_pct:70,
+      discipline:'AFO',extra:{}
+    });
+    api.estado.tabelas.study_incidence.push({
+      profile_id:criacao.id,plan_id:criacao.plan,incidence_id:'inc-e2e',row_no:0,
+      pct:30,banca:'FGV',depth:0,code:null,topic:'AFO',discipline:'AFO',incidence:30,
+      position:0,extra:{}
+    });
+    const pedidosAntesHeavy=api.estado.pedidos.length;
+    const pesado=await pg.evaluate(async (pid) => {
+      await RelationalStore.ensureHeavyData(pid,{reason:'e2e-heavy'});
+      return {
+        ready:RelationalStore.isHeavyReady(pid),
+        tec:(DB.getTecSnapshots()||[]).length,
+        incidencia:(DB.getIncidencia()||[]).length
+      };
+    },criacao.id);
+    const pedidosHeavy=api.estado.pedidos.slice(pedidosAntesHeavy).map((p)=>p.caminho);
+    pesado.ready && pesado.tec===1 && pesado.incidencia===1 &&
+        pedidosHeavy.some((p)=>p.includes('/rpc/read_study_profile_heavy'))
+      ? ok('TEC/incidencia carregam sob demanda em um unico pacote')
+      : erro('carga pesada sob demanda falhou: '+JSON.stringify({pesado,pedidosHeavy}));
+
+    const pedidosAntesCatch=api.estado.pedidos.length;
+    const semMudanca=await pg.evaluate(async (pid) => RelationalStore.catchUp(pid,'e2e-no-change'),criacao.id);
+    const pedidosCatch=api.estado.pedidos.slice(pedidosAntesCatch).map((p)=>p.caminho);
+    semMudanca && semMudanca.mudou===0 &&
+        pedidosCatch.some((p)=>p.includes('/rpc/read_study_change_summary')) &&
+        !pedidosCatch.some((p)=>p.includes('/rpc/read_study_profile_core')||p.includes('/rpc/read_study_profile_heavy'))
+      ? ok('catch-up sem alteracao nao rebaixa o perfil inteiro')
+      : erro('catch-up redundante ainda recarregou dados: '+JSON.stringify({semMudanca,pedidosCatch}));
 
     /* Regressão do caso real pós-migração: o SELECT já tinha preenchido a RAM,
        mas o nome do planejamento e os registros continuavam vazios no DOM
