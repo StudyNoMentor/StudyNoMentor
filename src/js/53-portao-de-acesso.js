@@ -17,6 +17,8 @@ const ProfileUI = {
   _editingId: null,
   _draftAvatar: null,
   _draftColor: null,
+  _pendingSessionProfile: null,
+  _sessionRetryTimer: null,
 
   AUTO_ENTER_KEY: 'diario-estudos:auto-enter',
   autoEnterOn() { try { return localStorage.getItem(this.AUTO_ENTER_KEY) !== '0'; } catch (e) { return true; } },
@@ -38,11 +40,12 @@ const ProfileUI = {
     let entered = null;
     try { entered = sessionStorage.getItem(this.SESSION_KEY); } catch (e) { _quiet(e); }
     const active = ProfileManager.getActiveProfileId();
-    // Só entramos direto quando há o marcador de sessão desta aba (SESSION_KEY).
-    // NÃO entramos apenas por existir dado local — senão, após deslogar + F5, o
-    // app abriria sem sessão. O "entrar direto" acontece após o login confirmado
-    // (loadCloudProfiles → auto-enter do último perfil).
-    if (entered && entered === active && this._hasLocalData(active)) {
+    // Mesmo com SESSION_KEY, um reload não pode exibir cache local antes de o
+    // SessionGuard confirmar que ESTE aparelho pode usar a conta. O marcador da
+    // aba prova apenas que o perfil já foi aberto aqui; não prova posse remota.
+    const sessaoLiberada = this._offline ||
+      !!(window.SessionGuard && (!SessionGuard.enabled || SessionGuard.canEnterNow()));
+    if (entered && entered === active && this._hasLocalData(active) && sessaoLiberada) {
       this.hideGate();
       // Só depois de entrar de fato: no gate o aviso não teria o que fazer.
       try { DB.checarEspaco(); } catch (_) { _quiet(_); }
@@ -69,6 +72,20 @@ const ProfileUI = {
   isGateOpen() { const g = document.getElementById('profile-gate'); return g && g.style.display !== 'none'; },
   showGate() { $id('profile-gate').style.display = 'block'; this.refreshStage(); },
   hideGate() { $id('profile-gate').style.display = 'none'; },
+  resumeAfterSessionClaim() {
+    clearTimeout(this._sessionRetryTimer);
+    this._sessionRetryTimer = null;
+    const id = this._pendingSessionProfile;
+    this._pendingSessionProfile = null;
+    if (id) {
+      this._entering = true;
+      this.enterProfile(id);
+      return;
+    }
+    this._entering = false;
+    this._autoEnterTried = false;
+    this.refreshStage();
+  },
   // O Supabase dispara vários eventos de auth (INITIAL_SESSION, SIGNED_IN, TOKEN_REFRESHED...).
   // Sem este guarda, cada evento re-renderizava o gate e causava a "piscada" nos perfis.
   onAuthChanged() {
@@ -128,7 +145,9 @@ const ProfileUI = {
         let localAlvo = this.getDefaultProfile() || this.getLastProfile();
         const ativoLocal = ProfileManager.getActiveProfileId();
         const uidAtual = this._uid();
-        const podeAbrirLocal = localAlvo && localAlvo === ativoLocal && this._hasLocalData(localAlvo) &&
+        const guardLiberou = this._offline ||
+          !!(window.SessionGuard && (!SessionGuard.enabled || SessionGuard.canEnterNow()));
+        const podeAbrirLocal = guardLiberou && localAlvo && localAlvo === ativoLocal && this._hasLocalData(localAlvo) &&
           (!ProfileManager._podeVerLocal || ProfileManager._podeVerLocal(localAlvo, uidAtual));
         if (podeAbrirLocal) {
           this._autoEnterTried = true;
@@ -271,6 +290,29 @@ const ProfileUI = {
   },
 
   async enterProfile(id) {
+    // A posse da sessão é uma BARREIRA, não um aviso cosmético. Em especial num
+    // aparelho com cache velho, nada pode hidratar, aplicar ou esconder o gate
+    // enquanto a consulta a active_sessions ainda não terminou.
+    if (window.CloudStore && CloudStore.isLoggedIn() && window.SessionGuard && SessionGuard.enabled) {
+      this._pendingSessionProfile = id;
+      const acesso = await SessionGuard.onLogin();
+      if (!acesso || !acesso.ok) {
+        if (acesso && acesso.blocked) {
+          this._entering = true; // mantém "Entrando…" atrás do overlay; nenhum dado é exibido
+          return;
+        }
+        this._entering = true;
+        clearTimeout(this._sessionRetryTimer);
+        this._sessionRetryTimer = setTimeout(() => {
+          if (this._pendingSessionProfile === id && this.isGateOpen()) this.enterProfile(id);
+        }, 2500);
+        return;
+      }
+      this._pendingSessionProfile = null;
+      clearTimeout(this._sessionRetryTimer);
+      this._sessionRetryTimer = null;
+    }
+
     // Entrar no MESMO perfil que já está aberto neste aparelho e não haver
     // nenhuma novidade na nuvem é o caso mais comum de todos — e era justamente
     // o que provocava o recarregamento visível ("a tela pisca e carrega de
