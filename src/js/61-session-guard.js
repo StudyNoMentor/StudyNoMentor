@@ -82,8 +82,29 @@ const SessionGuard = {
     if (!CS || !CS.isReady() || !CS.isLoggedIn()) return;
     const uid = CS.session.user.id;
     this.subscribe(uid);
-    // reivindica só uma vez por carga/uid (evita re-claim a cada evento de auth)
-    if (this._claimedUid !== uid) { this._claimedUid = uid; await this.claim(uid); }
+    if (this._claimedUid === uid) return;
+    this._claimedUid = uid;
+
+    /* Restaurar a sessão NÃO é um takeover. Primeiro consultamos quem possui a
+       conta. Se outro aparelho está ativo, este é bloqueado e não toca na linha.
+       Só uma conta livre ou já pertencente a este device é renovada. */
+    try {
+      const { data, error } = await CS.client.from(this.TABLE)
+        .select('device_id,device_label').eq('user_id', uid).maybeSingle();
+      if (error) {
+        if (this._isMissingTable(error)) this._disable(error);
+        else console.warn('[SessionGuard] verificação inicial falhou', error);
+        return;
+      }
+      if (data && data.device_id && data.device_id !== this.deviceId()) {
+        this._takenBy(data);
+        return;
+      }
+      await this.claim(uid);
+    } catch (err) {
+      if (this._isMissingTable(err)) this._disable(err);
+      else console.warn('[SessionGuard] verificação inicial erro', err);
+    }
   },
   onLogout() {
     this._claimedUid = null;
