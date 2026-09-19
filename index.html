@@ -57,7 +57,7 @@
      novo, e o antigo é descartado sozinho na ativação) e o que permite ao app
      dizer qual versão está rodando. Em src/ fica "dev" de propósito: a versão
      é gerada na montagem, não editada à mão. -->
-<meta name="diario-versao" content="v9c21cd75a5">
+<meta name="diario-versao" content="vb1055bb8a8">
 <script>
 /* Persistência de estudo NÃO usa mais IndexedDB/localStorage.
    O Supabase relacional é a fonte de verdade; a compatibilidade síncrona das
@@ -41876,32 +41876,37 @@ const RelationalStore = {
   },
   async _syncById(table, profileId, planId, idCol, oldArr, newArr, map, onConflict) {
     oldArr=Array.isArray(oldArr)?oldArr:[]; newArr=Array.isArray(newArr)?newArr:[];
-    const oldIds=new Set(oldArr.filter(x=>x&&x.id!=null).map(x=>String(x.id)));
+    const oldById=new Map();
+    oldArr.forEach((x,i)=>{ if(x&&x.id!=null) oldById.set(String(x.id),{raw:x,index:i}); });
     const newIds=new Set(newArr.filter(x=>x&&x.id!=null).map(x=>String(x.id)));
-    const removed=[...oldIds].filter(x=>!newIds.has(x));
-    for(const ch of this._chunks(removed,300)){
-      let q=CloudStore.client.from(table).delete().eq('profile_id',profileId).eq('plan_id',planId).in(idCol,ch);
-      const {error}=await q;if(error)throw error;
-    }
-    const rows=newArr.map((x,i)=>map(x,i)).filter(Boolean);
-    if(rows.length)await this._upsertChunks(table,rows,onConflict);
+    const removed=[...oldById.keys()].filter(x=>!newIds.has(x));
+    const rows=[];
+    newArr.forEach((x,i)=>{
+      if(!x||x.id==null)return;
+      const id=String(x.id), prev=oldById.get(id);
+      const changed=!prev || prev.index!==i || JSON.stringify(prev.raw)!==JSON.stringify(x);
+      if(changed){ const row=map(x,i); if(row)rows.push(row); }
+    });
+    if(!removed.length&&!rows.length)return;
+    const {error}=await CloudStore.client.rpc('mutate_study_plan_rows',{
+      p_table:table,p_profile_id:profileId,p_plan_id:planId,p_delete_ids:removed,p_rows:rows
+    });
+    if(error)throw error;
   },
   async _replacePlanRows(table,profileId,planId,rows,onConflict){
-    const del=await CloudStore.client.from(table).delete().eq('profile_id',profileId).eq('plan_id',planId); if(del.error)throw del.error;
-    if(rows.length)await this._upsertChunks(table,rows,onConflict);
+    const {error}=await CloudStore.client.rpc('replace_study_plan_rows',{
+      p_table:table,p_profile_id:profileId,p_plan_id:planId,p_rows:rows||[]
+    });
+    if(error)throw error;
   },
   _arr(raw){const v=this._parse(raw,[]);return Array.isArray(v)?v:[];},
   _obj(raw){const v=this._parse(raw,{});return v&&typeof v==='object'&&!Array.isArray(v)?v:{};},
 
   async _persistPlans(profileId,oldRaw,newRaw){
-    const oldA=this._arr(oldRaw),newA=this._arr(newRaw);
-    const oldIds=new Set(oldA.map(x=>String(x.id))), newIds=new Set(newA.map(x=>String(x.id)));
-    for(const id of [...oldIds].filter(x=>!newIds.has(x))){
-      const {error}=await CloudStore.client.from('study_plans').delete().eq('profile_id',profileId).eq('plan_id',id).eq('legacy_orphan',false);
-      if(error)throw error;
-    }
+    const newA=this._arr(newRaw);
     const rows=newA.map((p,i)=>({profile_id:profileId,plan_id:String(p.id),name:p.nome||String(p.id),plan_type:p.tipo||null,created_at:p.createdAt||new Date().toISOString(),position:i+1,hidden:false,legacy_orphan:false}));
-    if(rows.length)await this._upsertChunks('study_plans',rows,'profile_id,plan_id');
+    const {error}=await CloudStore.client.rpc('mutate_study_plans',{p_profile_id:profileId,p_rows:rows});
+    if(error)throw error;
   },
 
   async _persistPlanKey(profileId,planId,sub,oldRaw,newRaw){
@@ -41946,10 +41951,11 @@ const RelationalStore = {
     }
     if(sub==='tec'){
       const snaps=newA.map((x,i)=>Object.assign(base(),{snapshot_id:String(x.id),snapshot_date:x.date||null,start_date:x.startDate||null,end_date:x.endDate||null,imported_at:x.importedAt||null,label:x.label||null,bancas:x.bancas==null?null:x.bancas,position:i+1,extra:{}}));
-      const del=await CloudStore.client.from('study_tec_snapshots').delete().eq('profile_id',profileId).eq('plan_id',planId);if(del.error)throw del.error;
-      if(snaps.length)await this._upsertChunks('study_tec_snapshots',snaps,'profile_id,plan_id,snapshot_id');
       const rows=[];newA.forEach(x=>(x.rows||[]).forEach((r,i)=>rows.push(Object.assign(base(),{snapshot_id:String(x.id),row_no:i+1,name:r.nome||'',weight:r.peso==null?null:Number(r.peso),depth:r.depth==null?null:Number(r.depth),code:r.codigo||null,correct:r.acertos==null?null:Number(r.acertos),questions:r.questoes==null?null:Number(r.questoes),accuracy_pct:r.pctAcerto==null?null:Number(r.pctAcerto),discipline:r.disciplina||null,extra:{}}))));
-      if(rows.length)await this._upsertChunks('study_tec_snapshot_rows',rows,'profile_id,plan_id,snapshot_id,row_no');
+      const {error}=await CloudStore.client.rpc('replace_study_tec',{
+        p_profile_id:profileId,p_plan_id:planId,p_snapshots:snaps,p_rows:rows
+      });
+      if(error)throw error;
       return;
     }
     return this._persistPlanState(profileId,planId,sub,newRaw);
