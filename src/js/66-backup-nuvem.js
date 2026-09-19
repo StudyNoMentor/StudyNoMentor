@@ -297,22 +297,13 @@ const CloudBackup = {
     try { await BackupHistory.snapshot('antes de restaurar um backup da nuvem'); } catch (e) { _quiet(e, 'cbk-vh'); }
     try { await this.criar('antes de restaurar um backup da nuvem', { forcar: true }); } catch (e) { _quiet(e, 'cbk-pre'); }
     try {
-      CloudStore._applying = true;
-      ProfileManager.restorePayloadInto(id, foto.data);
-      CloudStore._applying = false;
+      if (!window.RelationalStore) throw new Error('Camada relacional indisponível');
+      const r = await RelationalStore.replaceProfileFromPayload(id, foto.data, { reason: 'cloud-backup-restore' });
+      return { ok: true, secoes: r.secoes || Object.keys(foto.data).length };
     } catch (e) {
-      CloudStore._applying = false;
-      console.error('[CloudBackup] restauração falhou', e);
+      console.error('[CloudBackup] restauração relacional falhou', e);
       return { ok: false, motivo: 'falha-ao-aplicar' };
     }
-    /* O que foi restaurado precisa SUBIR: sem isto o aparelho ficaria com o
-       estado bom e a nuvem com o ruim, e o próximo download desfaria tudo. */
-    try {
-      if (window.SectionSync) { SectionSync._seededProfile = null; SectionSync.markAllDirty(); }
-      CloudStore._pending = true;
-      CloudStore._forceBlob = true;
-    } catch (e) { _quiet(e, 'cbk-fila'); }
-    return { ok: true, secoes: Object.keys(foto.data).length };
   },
 
   /* ── RETENÇÃO EM FAIXAS (avô-pai-filho) ───────────────────────────────────
