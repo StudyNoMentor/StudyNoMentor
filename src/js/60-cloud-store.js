@@ -173,8 +173,15 @@ const CloudStore = {
   onAuth() {
     if (window.ProfileUI) ProfileUI.onAuthChanged();
     if (window.CloudUI) CloudUI.refreshSyncBtn();
-    if (this.isLoggedIn()) { this.subscribeRealtime(); this.subscribeSections(); if (window.SessionGuard) SessionGuard.onLogin(); }
-    else { this._unsub(); if (window.SessionGuard) SessionGuard.onLogout(); }
+    if (this.isLoggedIn()) {
+      this.subscribeRealtime();
+      this.subscribeSections();
+      if (window.SessionGuard) {
+        Promise.resolve(SessionGuard.onLogin()).then(() => {
+          try { if (window.ProfileUI && ProfileUI.isGateOpen()) ProfileUI.refreshStage(); } catch (_) { _quiet(_); }
+        }).catch(e => _quiet(e, 'session-guard-login'));
+      }
+    } else { this._unsub(); if (window.SessionGuard) SessionGuard.onLogout(); }
     // Sync por seção (Opção B): ao logar / restaurar sessão, popula a tabela nova
     // proativamente — sem depender de uma edição. Pequeno atraso para o perfil ativar.
     try { if (window.SectionSync) setTimeout(() => SectionSync.kick(), 1500); } catch (_) { _quiet(_); }
@@ -554,6 +561,8 @@ const CloudStore = {
   // Assim, editar no celular e no PC não sobrescreve um ao outro no uso normal.
   async syncOnFocus() {
     if (!this.isReady() || !this.isLoggedIn()) return;
+    if (window.SessionGuard && SessionGuard.isBlockedByRemote && SessionGuard.isBlockedByRemote()) return;
+    if (window.SessionLock && SessionLock.isBlocked() && SessionLock._origin === 'remote') return;
     try { if (!sessionStorage.getItem('diario-estudos:entered')) return; } catch (e) { return; }
     const id = ProfileManager.getActiveProfileId(); if (!id) return;
 
@@ -603,6 +612,11 @@ const CloudStore = {
   // Botão manual "Sincronizar agora": empurra pendências e puxa se a nuvem estiver mais nova.
   async syncNow() {
     if (!this.isReady() || !this.isLoggedIn()) { showToast('Entre na sua conta para sincronizar (Configurações → Nuvem).'); return; }
+    if ((window.SessionGuard && SessionGuard.isBlockedByRemote && SessionGuard.isBlockedByRemote()) ||
+        (window.SessionLock && SessionLock.isBlocked() && SessionLock._origin === 'remote')) {
+      showToast('Sincronização pausada: esta conta está ativa em outro aparelho.');
+      return;
+    }
     if (window.CloudUI) CloudUI.setStatus('syncing', 'Sincronizando...');
     let fila = 0;
     try { if (window.SectionSync) fila = SectionSync.pendingQuick(); } catch (e) { _quiet(e, 'syncNow-fila'); }
@@ -621,6 +635,11 @@ const CloudStore = {
   },
   async pullActiveAndReload(opts) {
     opts = opts || {};
+    if ((window.SessionGuard && SessionGuard.isBlockedByRemote && SessionGuard.isBlockedByRemote()) ||
+        (window.SessionLock && SessionLock.isBlocked() && SessionLock._origin === 'remote')) {
+      console.info('[CloudStore] pull adiado: sessão pertencente a outro aparelho');
+      return false;
+    }
     const id = ProfileManager.getActiveProfileId(); if (!id) return;
     // FASE 2: tenta primeiro por seção. Em modo readOnly, nenhuma escrita remota é permitida.
     if (window.SectionSync && SectionSync.readEnabled) {
@@ -740,6 +759,11 @@ const CloudStore = {
   async _onSectionRealtime(pid) {
     if (pid !== ProfileManager.getActiveProfileId()) {
       this._secRemotePending = false;
+      return;
+    }
+    if ((window.SessionGuard && SessionGuard.isBlockedByRemote && SessionGuard.isBlockedByRemote()) ||
+        (window.SessionLock && SessionLock.isBlocked() && SessionLock._origin === 'remote')) {
+      this._secRemotePending = true;
       return;
     }
     if (!window.SectionSync || !SectionSync.readEnabled) {
