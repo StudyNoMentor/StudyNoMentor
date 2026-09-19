@@ -33,14 +33,13 @@
 
   const M = {
     KEY: 'motor-sugestao-v1',
-    MAX_IRMAOS_GRUPO: 4,
     DEFAULTS: Object.freeze({
       fase: 'pre',
       margemMax: 15,
       alvoQuestoes: 25,       // tamanho-base DE CADA atividade
       doseMin: 12,            // piso real: atividade simbólica não entra
       maxFrentes: 3,          // disciplinas distintas na rodada
-      metaAcerto: 85
+      metaAcerto: 90
     }),
     LIMITES: Object.freeze({
       margemMax: [5, 40],
@@ -158,8 +157,12 @@
 
     /* Planeja UM ramo sem atravessar o pai.
        - filho confiável: tenta descer;
-       - filho pequeno: agrega com os PRÓXIMOS irmãos na ordem de fraqueza;
-       - se até 4 irmãos não sustentam a medida, volta ao próprio nó;
+       - filho pequeno: procura OUTROS irmãos pequenos do mesmo pai, na ordem
+         pior→melhor, até a soma sustentar a margem;
+       - não existe limite arbitrário de "4 irmãos": quem encerra o grupo é a
+         suficiência estatística;
+       - irmãos que já são confiáveis sozinhos não são engolidos pelo bloco;
+       - se nem todos os pequenos juntos fecham a amostra, volta ao próprio nó;
        - nunca sobe para depth 0. */
     _planejarNo(node, margemMax, caminho) {
       if (!node || num(node.depth) <= 0) return [];
@@ -173,37 +176,35 @@
       }
 
       const plano = [];
-      let i = 0;
-      while (i < kids.length) {
+      const usados = new Set();
+      for (let i = 0; i < kids.length; i++) {
+        if (usados.has(i)) continue;
         const filho = kids[i];
         if (this.legivel(num(filho.questoes), num(filho.acertos), margemMax)) {
           const fundo = this._planejarNo(filho, margemMax, aqui);
-          // O filho já é mensurável. Se o nível abaixo não fecha, ele próprio é
-          // o degrau correto — não há motivo para subir além dele.
           plano.push(...(fundo.length ? fundo : [this._item(filho, { caminho: aqui })]));
-          i += 1;
           continue;
         }
 
-        // O ramo pequeno lidera o grupo. Acrescenta irmãos seguintes, sempre
-        // dentro do mesmo pai e na ordem pior→melhor, até a amostra fechar.
-        const grupo = [filho];
-        let j = i + 1;
+        // O primeiro ramo pequeno lidera um bloco só de ramos pequenos. Irmão
+        // mensurável fica fora: ele merece sua própria posição na fila.
+        const grupo = [filho], idxs = [i];
         let qg = num(filho.questoes), ag = num(filho.acertos);
-        while (j < kids.length && grupo.length < this.MAX_IRMAOS_GRUPO && !this.legivel(qg, ag, margemMax)) {
-          grupo.push(kids[j]);
-          qg += num(kids[j].questoes);
-          ag += num(kids[j].acertos);
-          j += 1;
+        for (let j = i + 1; j < kids.length && !this.legivel(qg, ag, margemMax); j++) {
+          if (usados.has(j)) continue;
+          const cand = kids[j];
+          if (this.legivel(num(cand.questoes), num(cand.acertos), margemMax)) continue;
+          grupo.push(cand); idxs.push(j);
+          qg += num(cand.questoes); ag += num(cand.acertos);
         }
         if (grupo.length >= 2 && this.legivel(qg, ag, margemMax)) {
+          idxs.slice(1).forEach(k => usados.add(k));
           plano.push(this._grupo(node, grupo, caminho));
-          i = j;
           continue;
         }
 
-        // Não há um bloco local honesto. O nó atual é o último degrau possível.
-        // Retornar só ele evita sobreposição entre pai e filhos já planejados.
+        // Se até a soma de todos os irmãos pequenos continua imprecisa, misturar
+        // pai e filhos produziria escopos sobrepostos. O recorte honesto é o pai.
         return proprioLegivel
           ? [this._item(node, { caminho: (caminho || []).slice(), motivoNivel: 'subnivel-insuficiente' })]
           : [];
@@ -238,15 +239,29 @@
       return soma;
     },
 
+    _lacuna(item, p) {
+      const taxa = item && item.taxa != null ? num(item.taxa) : 100 - num(item && item.taxaErro);
+      const margem = Math.max(0, num(item && item.margem));
+      const gapMeta = Math.max(0, num(p.metaAcerto, this.DEFAULTS.metaAcerto) - taxa);
+      // "Lacuna confiável": o que ainda falta mesmo no extremo OTIMISTA da
+      // margem de erro. Assim amostra pequena não ganha prioridade só por ter
+      // produzido um percentual assustador.
+      const gapConfiavel = Math.max(0, gapMeta - margem);
+      const lacunaMeta = Math.max(0, Math.round(num(item && item.questoes) * gapMeta / 100));
+      return { taxa, margem, gapMeta, gapConfiavel, lacunaMeta };
+    },
     _dose(item, p) {
       const piso = Math.max(this.DEFAULTS.doseMin, num(p.doseMin, this.DEFAULTS.doseMin));
       const base = Math.max(piso, num(p.alvoQuestoes, this.DEFAULTS.alvoQuestoes));
-      const erro = num(item.taxaErro);
-      const fator = erro >= 50 ? 1
-        : erro >= 35 ? 0.82
-        : erro >= 20 ? 0.68
-        : 0.58;
-      return Math.max(piso, Math.round(base * fator));
+      const l = this._lacuna(item, p);
+      /* Dose contínua, não quatro degraus arbitrários:
+         - lacuna confiável 0pp => ~45% da base, limitado pelo piso;
+         - +10pp => ~67% da base;
+         - +20pp => ~89% da base;
+         - +25pp ou mais => base inteira.
+         O tamanho responde à necessidade de treino, mas nunca vira 1–5 questões. */
+      const fator = clamp(0.45 + l.gapConfiavel / 45, 0.45, 1);
+      return Math.max(piso, Math.min(base, Math.round(base * fator)));
     },
     dosar(itens, alvo, doseMin) {
       const p = Object.assign(this.prefs(), {
@@ -286,8 +301,15 @@
       const disciplinasTodas = forest.map(d => {
         const fila = this._filaDisciplina(d, p);
         fila.forEach(x => {
+          const l = this._lacuna(x, p);
+          x.gapMeta = l.gapMeta;
+          x.gapConfiavel = l.gapConfiavel;
+          x.lacunaMeta = l.lacunaMeta;
           x.peso = this._peso(x, p.fase, incMap);
-          x.score = x.peso * (x.taxaErro / 100);
+          // score fica como número de compatibilidade para telas auxiliares.
+          // A ordem interna NÃO lê esse score: continua sendo a árvore do TEC.
+          x.score = p.fase === 'pos' ? x.gapMeta * x.peso : x.gapMeta;
+          x.prioridade = p.fase === 'pos' ? x.gapConfiavel * x.peso : x.gapConfiavel;
           x.legivel = x.margem != null && x.margem <= p.margemMax;
         });
         const acionaveis = fila.filter(x => x.legivel && (p.fase !== 'pos' || x.peso > 0));
@@ -303,16 +325,31 @@
           margem: this.margem(q, ac),
           fila: acionaveis,
           melhorTopico: melhor,
-          // Pré: prioridade reproduz o ponto fraco do primeiro recorte acionável.
-          // Pós: a banca pesa QUAL disciplina entra antes, mas não mexe na fila interna.
-          prioridade: melhor ? (p.fase === 'pos' ? melhor.score : (100 - melhor.taxa)) : -1,
+          prioridade: melhor ? melhor.prioridade : -1,
           score: acionaveis.reduce((s, x) => s + num(x.score), 0)
         };
       });
 
+      /* ENTRE disciplinas, não usamos o percentual cru:
+         1) maior lacuna que continua existindo mesmo no extremo otimista da margem;
+         2) maior distância observada para a meta;
+         3) maior volume estimado de déficit naquele recorte.
+         No pós-edital, a incidência pesa as duas primeiras chaves. Dentro de cada
+         disciplina nada disso reordena a fila: a travessia hierárquica manda. */
       const disciplinas = disciplinasTodas.filter(d => d.melhorTopico).sort((a, b) => {
-        if (p.fase === 'pos') return b.prioridade - a.prioridade || a.melhorTopico.taxa - b.melhorTopico.taxa || b.questoes - a.questoes;
-        return a.melhorTopico.taxa - b.melhorTopico.taxa || (a.taxa == null ? 100 : a.taxa) - (b.taxa == null ? 100 : b.taxa) || b.questoes - a.questoes;
+        const A = a.melhorTopico, B = b.melhorTopico;
+        if (p.fase === 'pos') {
+          return (B.gapConfiavel * B.peso) - (A.gapConfiavel * A.peso)
+            || (B.gapMeta * B.peso) - (A.gapMeta * A.peso)
+            || B.gapConfiavel - A.gapConfiavel
+            || B.gapMeta - A.gapMeta
+            || B.lacunaMeta - A.lacunaMeta
+            || B.questoes - A.questoes;
+        }
+        return B.gapConfiavel - A.gapConfiavel
+          || B.gapMeta - A.gapMeta
+          || B.lacunaMeta - A.lacunaMeta
+          || B.questoes - A.questoes;
       });
       disciplinas.forEach((d, i) => {
         d.rank = i + 1;
@@ -333,7 +370,7 @@
         prefs: p,
         erro: null,
         banca: p.fase === 'pos' ? banca : null,
-        criterioDisciplinas: p.fase === 'pos' ? 'fraqueza × incidência' : 'pior recorte acionável',
+        criterioDisciplinas: p.fase === 'pos' ? 'lacuna confiável × incidência' : 'lacuna confiável do pior recorte',
         itens,
         disciplinas,
         disciplinasTodas,
