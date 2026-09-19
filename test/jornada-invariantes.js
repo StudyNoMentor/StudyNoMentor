@@ -3,7 +3,7 @@
    ----------------------------------------------------------------------------
    Prova o contrato central:
      medir -> ordenar lacunas -> atacar até 3 matérias -> novo retrato ->
-     reordenar tudo -> rotacionar quem perdeu prioridade -> repetir.
+     reordenar tudo -> julgar a rodada pelo retrato corrente -> repetir.
    ========================================================================== */
 window.RODAR_JORNADA = function () {
   const falhas = [], notas = [];
@@ -86,16 +86,18 @@ window.RODAR_JORNADA = function () {
     const ordem2 = r.disciplinas.slice(0, 4).map(d => d.nome);
     if (ordem2.slice(0, 3).join(',') !== 'B,C,D') F('rodada-2', 'materia melhorada nao liberou a vaga', { ordem2 });
     const c2 = C.conciliar();
-    if (c2.rotacionadas.length !== 1) F('rodada-2', 'esperava uma rotacao', { c2 });
-    const rot1 = banco.find(e => c2.rotacionadas.includes(e.id));
-    if (!rot1 || C.origemDe(rot1).disciplina !== 'A') F('rodada-2', 'a materia rotacionada deveria ser A');
+    const resolvidaA = banco.find(e => c2.resolvidas.includes(e.id));
+    if (!resolvidaA || C.origemDe(resolvidaA).disciplina !== 'A') {
+      F('rodada-2', 'A deveria encerrar por atingir a meta no retrato corrente', { c2 });
+    }
+    if (c2.rodadas.length !== 2) F('rodada-2', 'B e C deveriam concluir a dose da rodada', { c2 });
     if (banco.some(e => e.status !== 'concluida' && C.origemDe(e))) {
       F('rodada-2', 'a rodada anterior ficou presa depois do novo retrato');
     }
     const criadas2 = criarRodada(r);
     const ativas2 = banco.filter(e => e.status !== 'concluida' && C.origemDe(e)).map(e => C.origemDe(e).disciplina).sort();
     if (ativas2.join(',') !== 'B,C,D') F('rodada-2', 'nova rodada nao assumiu B,C,D', { ativas2 });
-    notas.push({ passo: 2, ordem: ordem2, rotacionadas: c2.rotacionadas.length, rodadas: c2.rodadas.length, criadas: criadas2 });
+    notas.push({ passo: 2, ordem: ordem2, resolvidas: c2.resolvidas.length, rodadas: c2.rodadas.length, criadas: criadas2 });
 
     // Outro retrato: B melhora e cai para 4º. A volta ao top 3 porque sua lacuna,
     // embora pequena, agora é maior que a de B. Nada fica congelado por memória.
@@ -104,9 +106,12 @@ window.RODAR_JORNADA = function () {
     const ordem3 = r.disciplinas.slice(0, 4).map(d => d.nome);
     if (ordem3.slice(0, 3).join(',') !== 'D,C,A') F('rodada-3', 'ranking nao foi recalculado do zero', { ordem3 });
     const c3 = C.conciliar();
-    const rot2 = banco.find(e => c3.rotacionadas.includes(e.id));
-    if (!rot2 || C.origemDe(rot2).disciplina !== 'B') F('rodada-3', 'B deveria liberar sua vaga ao melhorar', { c3 });
-    notas.push({ passo: 3, ordem: ordem3, rotacionadas: c3.rotacionadas.length, rodadas: c3.rodadas.length });
+    const resolvidaB = banco.find(e => c3.resolvidas.includes(e.id));
+    if (!resolvidaB || C.origemDe(resolvidaB).disciplina !== 'B') {
+      F('rodada-3', 'B deveria encerrar por atingir a meta e liberar sua vaga', { c3 });
+    }
+    if (c3.rodadas.length !== 2) F('rodada-3', 'C e D deveriam concluir a dose da rodada', { c3 });
+    notas.push({ passo: 3, ordem: ordem3, resolvidas: c3.resolvidas.length, rodadas: c3.rodadas.length });
 
     // Apagar/voltar para retrato antigo NÃO é um novo ciclo.
     snaps = [s1, s2];
