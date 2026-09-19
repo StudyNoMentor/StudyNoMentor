@@ -108,7 +108,7 @@
       if (document.documentElement.dataset.uxInstantFeedback === '1') return;
       document.documentElement.dataset.uxInstantFeedback = '1';
       const sel = [
-        '.tec-subtab', '#extras-plano-btn',
+        '.tec-subtab', '#extras-motor-btn',
         '#btn-calc-cycle', '#btn-confirm-cycle', '#study-report-generate', '#cards-foco-btn',
         '#tec-cfg-done', '[data-tpm-rank-more]', '[data-tpm-rank-all]'
       ].join(',');
@@ -212,7 +212,7 @@
       q('#extras-curso', s)?.classList.add('ux-secondary-area');
       /* O Sugerir deixou de ser "terciário por opacidade": ou ele está na
          barra (e então vale tanto quanto os vizinhos) ou não está. */
-      q('#extras-plano-btn', s)?.classList.add('ux-priority-action');
+      q('#extras-motor-btn', s)?.classList.add('ux-priority-action');
       qa('.exm-stat', s).forEach((x, i) => x.dataset.uxPriority = i < 2 ? 'primary' : 'secondary');
       qa('.exm-rotation,.exm-load', s).forEach(x => x.classList.add('ux-advanced-surface'));
       qa('.exm-chip[data-exm-view="reforco"],.exm-chip[data-exm-view="manual"],.exm-chip[data-exm-view="plano"]', s)
