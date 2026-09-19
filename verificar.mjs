@@ -1435,9 +1435,10 @@ try {
     // a mesma selecao tem de valer nas outras abas
     DesempenhoTecScreen.switchTecTab('motor');
     await esperar(350);
+    const motorCalc = MotorSugestao.calcular({ fase: 'pos' });
     const noPlano = {
-      rotulo: (document.querySelector('#motor-banca-pick .banca-pick-btn span') || {}).textContent || '',
-      filtro: DesempenhoTecScreen.bancaFiltro()
+      filtro: DesempenhoTecScreen.bancaFiltro(),
+      motorBanca: motorCalc && !motorCalc.erro ? motorCalc.banca : null
     };
     DesempenhoTecScreen.switchTecTab('incidencia');
     await esperar(250);
@@ -1461,8 +1462,10 @@ try {
   (sel.duas.incid === 66 && /2 bancas/.test(sel.duas.rotulo) && sel.duas.blocos === 2 && /FGV e Cebraspe|Cebraspe e FGV/.test(sel.duas.resumo))
     ? ok('duas bancas somam so as duas (40+26 = 66) e o resumo nomeia as duas')
     : erro('a soma de duas bancas saiu errada: ' + JSON.stringify(sel.duas));
-  (/2 bancas/.test(sel.noPlano.rotulo) && Array.isArray(sel.noPlano.filtro) && sel.noPlano.filtro.length === 2)
-    ? ok('a mesma selecao vale no Motor, sem precisar escolher de novo')
+  (Array.isArray(sel.noPlano.filtro) && sel.noPlano.filtro.length === 2
+      && Array.isArray(sel.noPlano.motorBanca) && sel.noPlano.motorBanca.length === 2
+      && sel.noPlano.filtro.map(ReforcoEngine.norm).sort().join('|') === sel.noPlano.motorBanca.map(ReforcoEngine.norm).sort().join('|'))
+    ? ok('a mesma selecao de duas bancas chega ao calculo do Motor, sem seletor duplicado')
     : erro('a selecao nao atravessou para o Motor: ' + JSON.stringify(sel.noPlano));
   (sel.voltou.incid === 166 && /Todas/.test(sel.voltou.rotulo))
     ? ok('voltar a todas as bancas devolve a soma completa')
