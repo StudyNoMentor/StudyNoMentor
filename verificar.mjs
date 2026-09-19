@@ -775,34 +775,45 @@ try {
     : erro('o blob de seguranca nao subiu: ' + JSON.stringify(blob));
 
 
-  // ── 4. CONFLITO DE REVISAO: a alteracao local nao pode ser descartada ────
-  /* Outro aparelho subiu algo: a `rev` do banco anda sozinha. O envio daqui,
-     filtrado por `rev=eq.<antiga>`, nao acerta linha nenhuma — e e assim que o
-     conflito nasce. O que importa provar e o desfecho: a retentativa realinha
-     a revisao e o dado DAQUI prevalece, em vez de sumir. */
+  // ── 4. CONFLITO DE REVISAO: conflito PROTEGE, nunca autoriza clobber ─────
+  /* Outro aparelho avançou o blob. A cópia local não pode "resolver" isso
+     copiando a rev remota e reenviando o perfil inteiro. A alteração local
+     continua existindo e deve chegar pela fonte operacional: profile_sections. */
   api.estado.tabelas.study_profiles.find((p) => p.id === criacao.id).rev = 99;
   const conflito = await pg.evaluate(async () => {
     DB.saveEntry({ id: 'e-teste-2', subject: 'Português', method: 'Teoria', date: '2026-03-02', durationMin: 45 });
     const direto = await CloudStore.saveActive();          // deve bater no conflito
-    const comRetentativa = await CloudStore.saveActiveWithRetry();
-    return { conflitou: !!(direto && direto.conflict), resolvido: !!(comRetentativa && comRetentativa.rev) };
-  });
-  conflito.conflitou ? ok('a trava otimista detecta o envio de outro aparelho (conflito)')
-    : erro('o conflito de revisao NAO foi detectado — a trava otimista nao esta valendo');
-  const depoisDoConflito = api.estado.tabelas.study_profiles.find((p) => p.id === criacao.id);
-  conflito.resolvido && JSON.stringify(depoisDoConflito.payload).includes('Português')
-    ? ok(`a retentativa resolveu e o dado local prevaleceu (rev ${depoisDoConflito.rev})`)
-    : erro('o dado local se perdeu no conflito: ' + JSON.stringify(conflito));
+    const protegido = await CloudStore.saveActiveWithRetry();
+    const localAindaExiste = (DB.getEntries() || []).some((e) => e.subject === 'Português');
 
-  /* AS DUAS COPIAS TEM DE CONTAR A MESMA HISTORIA. `saveActive` grava so o
-     blob; quem mantem as secoes em dia e o ciclo normal de sincronizacao. Se
-     as duas divergissem, um aparelho NOVO — que le pelas secoes — abriria sem
-     a alteracao mais recente, mesmo com ela salva no blob. */
+    /* O caminho normal agora publica a seção com CAS. */
+    await SectionSync.pushDirty();
+    return {
+      conflitou: !!(direto && direto.conflict),
+      continuouConflito: !!(protegido && protegido.conflict),
+      remoteRev: protegido && protegido.remoteRev,
+      localAindaExiste
+    };
+  });
+  conflito.conflitou && conflito.continuouConflito && conflito.remoteRev === 99
+    ? ok('conflito de blob foi preservado sem ganhar autorização artificial para sobrescrever')
+    : erro('conflito de blob não ficou protegido: ' + JSON.stringify(conflito));
+  conflito.localAindaExiste
+    ? ok('a alteração local continua intacta depois do conflito do blob')
+    : erro('a alteração local sumiu depois do conflito do blob');
+
+  const secaoAposConflito = api.estado.tabelas.profile_sections
+    .find((l) => l.profile_id === criacao.id && /entries$/.test(l.section));
+  JSON.stringify(secaoAposConflito && secaoAposConflito.data).includes('Português')
+    ? ok('a alteração conflitante chegou pela seção canônica com CAS')
+    : erro('a alteração local não chegou à fonte canônica depois do conflito');
+
+  /* Em modo por seção o blob é checkpoint legado, não uma segunda autoridade.
+     Portanto divergência temporária entre checkpoint e seção é permitida e,
+     sobretudo, NÃO pode provocar regressão da seção canônica. */
   const drenou = await pg.evaluate(async () => {
     CloudStore._pending = true;
-    await CloudStore.autoSave();         // o ciclo real: o blob dispara o envio das secoes
-    // esperar a FILA ESVAZIAR, e nao so a chamada voltar: o envio das secoes
-    // segue em andamento depois que o blob termina
+    await CloudStore.autoSave();
     for (let i = 0; i < 100; i++) {
       if (!SectionSync._pushing && SectionSync._dirty.size === 0) return true;
       await new Promise((r) => setTimeout(r, 100));
@@ -813,11 +824,13 @@ try {
   const secaoDepois = api.estado.tabelas.profile_sections
     .find((l) => l.profile_id === criacao.id && /entries$/.test(l.section));
   const blobDepois = api.estado.tabelas.study_profiles.find((p) => p.id === criacao.id);
-  const nasDuas = (t) => JSON.stringify(secaoDepois && secaoDepois.data).includes(t)
-                      && JSON.stringify(blobDepois && blobDepois.payload).includes(t);
-  nasDuas('Direito Constitucional') && nasDuas('Português')
-    ? ok('depois do ciclo de sincronizacao, secoes e blob contam a mesma historia')
-    : erro('secoes e blob divergiram apos o ciclo de sincronizacao');
+  const secaoTem = (t) => JSON.stringify(secaoDepois && secaoDepois.data).includes(t);
+  secaoTem('Direito Constitucional') && secaoTem('Português')
+    ? ok('a fonte canônica por seção preservou a história completa após o conflito')
+    : erro('a seção canônica perdeu conteúdo após o conflito');
+  blobDepois && blobDepois.rev === 99
+    ? ok('o checkpoint em conflito permaneceu intocado, sem clobber')
+    : erro('o blob em conflito foi alterado indevidamente: ' + JSON.stringify(blobDepois && blobDepois.rev));
 
   // ── 5. BACKUP NO BANCO: a primeira foto vira ancora ─────────────────────
   const bkp1 = await pg.evaluate(async () => {
