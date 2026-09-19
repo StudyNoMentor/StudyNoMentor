@@ -57,7 +57,7 @@
      novo, e o antigo é descartado sozinho na ativação) e o que permite ao app
      dizer qual versão está rodando. Em src/ fica "dev" de propósito: a versão
      é gerada na montagem, não editada à mão. -->
-<meta name="diario-versao" content="vfee1b743f3">
+<meta name="diario-versao" content="v053ba24e76">
 <script>
 /* ── ARRANQUE: abre o IndexedDB AGORA, em paralelo com o parse do documento ──
    A fachada de armazenamento vive no fim do <body>, depois de ~1,7 MB de HTML.
@@ -18796,7 +18796,15 @@ const SaveGuard = {
     /* flushPending pode reprogramar novas tentativas (rede instável). Esperamos
        a fila esvaziar de verdade em vez de confiar no retorno da primeira. */
     while (Date.now() < limite) {
-      if (!CS._pending && !CS._syncing) return { enviado: true, motivo: '' };
+      let secPendente = false;
+      try {
+        if (window.SectionSync) {
+          const pid = window.ProfileManager ? ProfileManager.getActiveProfileId() : null;
+          secPendente = !!SectionSync._pushing ||
+            !!(pid && SectionSync.explicitPendingSections && SectionSync.explicitPendingSections(pid).length);
+        }
+      } catch (_) { secPendente = true; }
+      if (!CS._pending && !CS._syncing && !secPendente) return { enviado: true, motivo: '' };
       await new Promise(r => setTimeout(r, 250));
     }
     return { enviado: false, motivo: 'tempo-esgotado' };
@@ -37218,13 +37226,17 @@ const ProfileUI = {
     // aba prova apenas que o perfil já foi aberto aqui; não prova posse remota.
     const sessaoLiberada = this._offline ||
       !!(window.SessionGuard && (!SessionGuard.enabled || SessionGuard.canEnterNow()));
-    if (entered && entered === active && this._hasLocalData(active) && sessaoLiberada) {
+    if (entered && entered === active && this._hasLocalData(active)) {
+      if (!sessaoLiberada) {
+        /* F5 com sessão já conhecida: não mostra o seletor nem o cache parcial.
+           Mantém um gate neutro "Entrando…" até CloudStore+SessionGuard decidirem
+           se este aparelho pode usar a conta; depois retoma ESTE mesmo perfil. */
+        this._showEnteringGate(active);
+        return;
+      }
       this.hideGate();
       // Só depois de entrar de fato: no gate o aviso não teria o que fazer.
       try { DB.checarEspaco(); } catch (_) { _quiet(_); }
-      // Faxina de dados órfãos deixados por versões anteriores (histórico e
-      // contadores apontando para cards já excluídos). Silenciosa quando não há
-      // nada a limpar; avisa quando limpa, para você saber que aconteceu.
       try {
         const nOrf = DB.limparOrfaos();
         if (nOrf > 0) {
@@ -37245,6 +37257,22 @@ const ProfileUI = {
   isGateOpen() { const g = document.getElementById('profile-gate'); return g && g.style.display !== 'none'; },
   showGate() { $id('profile-gate').style.display = 'block'; this.refreshStage(); },
   hideGate() { $id('profile-gate').style.display = 'none'; },
+  _showEnteringGate(id) {
+    this._pendingSessionProfile = id || null;
+    this._entering = true;
+    this._autoEnterTried = true;
+    this._stage = 'entering';
+    const g = document.getElementById('profile-gate');
+    const loginEl = document.getElementById('gate-login');
+    const profilesEl = document.getElementById('gate-profiles');
+    const enteringEl = document.getElementById('gate-entering');
+    const head = document.querySelector('#profile-gate .gate-panel-head');
+    if (g) g.style.display = 'block';
+    if (loginEl) loginEl.style.display = 'none';
+    if (profilesEl) profilesEl.style.display = 'none';
+    if (enteringEl) enteringEl.style.display = 'block';
+    if (head) head.style.display = 'none';
+  },
   resumeAfterSessionClaim() {
     clearTimeout(this._sessionRetryTimer);
     this._sessionRetryTimer = null;
@@ -37503,7 +37531,10 @@ const ProfileUI = {
         // sendo escrito. Nenhum caminho fica sem plano B.
         let porSecao = null;
         if (window.SectionSync && SectionSync.readEnabled) {
-          porSecao = await SectionSync.hydrate(id);
+          /* Entrada/reabertura nunca promove divergência de hash a edição.
+             Só a outbox explícita pode subir antes da leitura; cache regressado
+             é corrigido pela cópia canônica da nuvem. */
+          porSecao = await SectionSync.hydrate(id, { explicitOnly: true });
           if (porSecao.ok) {
             mudou = porSecao.mudou || 0;
             try { ProfileManager.setRev(id, await CloudStore._fetchRev(id) || ProfileManager.getRev(id)); } catch (_) { _quiet(_); }
@@ -37530,7 +37561,7 @@ const ProfileUI = {
             /* Perfil legado sem linhas por seção: aqui o blob ainda é o plano B
                compatível, preservando qualquer alteração local pendente. */
             let preservar = [];
-            try { if (window.SectionSync) preservar = await SectionSync.flushBeforeRead(id); } catch (e) { _quiet(e, 'entrar-pendencia'); }
+            try { if (window.SectionSync) preservar = await SectionSync.flushBeforeRead(id, { explicitOnly: true }); } catch (e) { _quiet(e, 'entrar-pendencia'); }
             const res = await CloudStore.fetchPayload(id);
             mudou = ProfileManager.restorePayloadInto(id, (res.payload && res.payload.data) || {}, preservar);
             ProfileManager.setRev(id, res.rev);
@@ -40738,8 +40769,15 @@ const CloudStore = {
       this.subscribeRealtime();
       this.subscribeSections();
       if (window.SessionGuard) {
-        Promise.resolve(SessionGuard.onLogin()).then(() => {
-          try { if (window.ProfileUI && ProfileUI.isGateOpen()) ProfileUI.refreshStage(); } catch (_) { _quiet(_); }
+        Promise.resolve(SessionGuard.onLogin()).then((acesso) => {
+          try {
+            if (!window.ProfileUI) return;
+            if (acesso && acesso.ok && ProfileUI._pendingSessionProfile && ProfileUI.resumeAfterSessionClaim) {
+              ProfileUI.resumeAfterSessionClaim();
+              return;
+            }
+            if (!(acesso && acesso.blocked) && ProfileUI.isGateOpen()) ProfileUI.refreshStage();
+          } catch (_) { _quiet(_); }
         }).catch(e => _quiet(e, 'session-guard-login'));
       }
     } else { this._unsub(); if (window.SessionGuard) SessionGuard.onLogout(); }
@@ -41122,6 +41160,7 @@ const CloudStore = {
   // Assim, editar no celular e no PC não sobrescreve um ao outro no uso normal.
   async syncOnFocus() {
     if (!this.isReady() || !this.isLoggedIn()) return;
+    if (window.SessionGuard && SessionGuard.enabled && SessionGuard.canEnterNow && !SessionGuard.canEnterNow()) return;
     if (window.SessionGuard && SessionGuard.isBlockedByRemote && SessionGuard.isBlockedByRemote()) return;
     if (window.SessionLock && SessionLock.isBlocked() && SessionLock._origin === 'remote') return;
     try { if (!sessionStorage.getItem('diario-estudos:entered')) return; } catch (e) { return; }
@@ -41173,6 +41212,10 @@ const CloudStore = {
   // Botão manual "Sincronizar agora": empurra pendências e puxa se a nuvem estiver mais nova.
   async syncNow() {
     if (!this.isReady() || !this.isLoggedIn()) { showToast('Entre na sua conta para sincronizar (Configurações → Nuvem).'); return; }
+    if (window.SessionGuard && SessionGuard.enabled && SessionGuard.canEnterNow && !SessionGuard.canEnterNow()) {
+      showToast('Aguardando confirmação da sessão deste aparelho.');
+      return;
+    }
     if ((window.SessionGuard && SessionGuard.isBlockedByRemote && SessionGuard.isBlockedByRemote()) ||
         (window.SessionLock && SessionLock.isBlocked() && SessionLock._origin === 'remote')) {
       showToast('Sincronização pausada: esta conta está ativa em outro aparelho.');
@@ -41196,6 +41239,10 @@ const CloudStore = {
   },
   async pullActiveAndReload(opts) {
     opts = opts || {};
+    if (window.SessionGuard && SessionGuard.enabled && SessionGuard.canEnterNow && !SessionGuard.canEnterNow()) {
+      console.info('[CloudStore] pull adiado: sessão deste aparelho ainda não confirmada');
+      return false;
+    }
     if ((window.SessionGuard && SessionGuard.isBlockedByRemote && SessionGuard.isBlockedByRemote()) ||
         (window.SessionLock && SessionLock.isBlocked() && SessionLock._origin === 'remote')) {
       console.info('[CloudStore] pull adiado: sessão pertencente a outro aparelho');
@@ -41281,6 +41328,13 @@ const CloudStore = {
   // Tempo real das SEÇÕES: escuta profile_sections do perfil aberto. O gatilho não
   // recarrega direto — pergunta antes se há revisão nova de verdade (hasRemoteUpdates).
   // Sem essa checagem, os nossos PRÓPRIOS envios disparariam um loop de recarga.
+  _isOwnSectionEvent(evt) {
+    try {
+      const row = (evt && (evt.new || evt.old)) || {};
+      const mine = window.SessionGuard && SessionGuard.deviceId ? SessionGuard.deviceId() : null;
+      return !!(mine && row.device_id && row.device_id === mine);
+    } catch (_) { return false; }
+  },
   subscribeSections(pid) {
     if (!this.isReady() || !this.isLoggedIn()) return;
     pid = pid || ProfileManager.getActiveProfileId(); if (!pid) return;
@@ -41294,7 +41348,14 @@ const CloudStore = {
     try {
       this._secChannelProfile = pid;
       this.secChannel = this.client.channel('sec_rt_' + pid)
-        .on('postgres_changes', { event: '*', schema: 'public', table: 'profile_sections', filter: 'profile_id=eq.' + pid }, () => {
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'profile_sections', filter: 'profile_id=eq.' + pid }, (evt) => {
+          /* V2 grava device_id em cada mutação. Evento produzido por ESTE
+             aparelho não é "novidade remota": a revisão/hash locais já são
+             atualizados pelo retorno do CAS. Reagir ao próprio evento criava
+             um falso pull/reload logo depois de salvar um registro, exatamente
+             o fluxo "salvei e fui parar no seletor de perfil". Clientes antigos
+             não têm device_id; nesses casos continuamos com a checagem normal. */
+          if (this._isOwnSectionEvent(evt)) return;
           this._secRemotePending = true;
           clearTimeout(this._secRtTimer);
           this._secRtTimer = setTimeout(() => this._onSectionRealtime(pid), 1200);
@@ -41320,6 +41381,10 @@ const CloudStore = {
   async _onSectionRealtime(pid) {
     if (pid !== ProfileManager.getActiveProfileId()) {
       this._secRemotePending = false;
+      return;
+    }
+    if (window.SessionGuard && SessionGuard.enabled && SessionGuard.canEnterNow && !SessionGuard.canEnterNow()) {
+      this._secRemotePending = true;
       return;
     }
     if ((window.SessionGuard && SessionGuard.isBlockedByRemote && SessionGuard.isBlockedByRemote()) ||
@@ -41688,21 +41753,33 @@ const SessionGuard = {
     }
     if (window.CloudUI) CloudUI.refreshSyncBtn();
     return ok;
+  },
+
+  /* 61-session-guard carrega ANTES de 63-cloud-ui, onde SessionLock nasce.
+     Portanto o binding remoto não pode depender de "if (window.SessionLock)"
+     executado uma única vez durante o parse deste arquivo. Esta função é
+     idempotente e é chamada de novo por 63-cloud-ui logo depois de criar o lock. */
+  _sessionLockBound: false,
+  bindSessionLock() {
+    if (this._sessionLockBound || !window.SessionLock || !SessionLock.onTakeover) return false;
+    this._sessionLockBound = true;
+    SessionLock.onTakeover(async (origin) => {
+      if (origin !== 'remote') return;
+      const ok = await SessionGuard.endRemoteAndClaimHere();
+      if (ok) {
+        showToast('Sessão retomada neste aparelho ✓');
+        try { if (window.ProfileUI && ProfileUI.resumeAfterSessionClaim) ProfileUI.resumeAfterSessionClaim(); } catch (_) { _quiet(_); }
+      } else {
+        showToast('Não foi possível retomar agora — verifique a internet');
+        SessionLock.block('remote', {});
+      }
+    });
+    return true;
   }
 };
 window.SessionGuard = SessionGuard;
-// "Continuar neste aparelho" (no overlay remoto) → reivindica de volta a posse.
-if (window.SessionLock) SessionLock.onTakeover(async (origin) => {
-  if (origin !== 'remote') return;
-  const ok = await SessionGuard.endRemoteAndClaimHere();
-  if (ok) {
-    showToast('Sessão retomada neste aparelho ✓');
-    try { if (window.ProfileUI && ProfileUI.resumeAfterSessionClaim) ProfileUI.resumeAfterSessionClaim(); } catch (_) { _quiet(_); }
-  } else {
-    showToast('Não foi possível retomar agora — verifique a internet');
-    SessionLock.block('remote', {});
-  }
-});
+// No bundle atual SessionLock ainda não existe aqui; em ordens futuras, liga já.
+try { SessionGuard.bindSessionLock(); } catch (_) { _quiet(_); }
 
 /* ============================================================
    SECTION SYNC — sincronização POR SEÇÃO (Opção B) · FASE 1: escrita dupla
@@ -42075,7 +42152,9 @@ const SectionSync = {
     this._saveDel(del, id);
   },
   // Marca as seções do perfil que REALMENTE MUDARAM (hash diferente do último envio).
-  // Assim a semeadura de cada sessão não re-sobe tudo nem infla o rev à toa.
+  // Mantido para ações EXPLÍCITAS de recuperação/reenviar tudo. Não é seguro
+  // usar esta heurística automaticamente no startup: conteúdo físico antigo +
+  // __secrev novo é indistinguível de uma edição se olharmos apenas o hash.
   markAllDirty(id) {
     const alvo = id || this._activeProfileId();
     const pfx = this._prefixFor(alvo);
@@ -42087,7 +42166,26 @@ const SectionSync = {
         if (!sec) continue;
         const raw = localStorage.getItem(full) || '';
         const h = this._hash(raw);
-        if (!revs[sec] || revs[sec].hash !== h) this._ensureDirty(sec, alvo); // só o que mudou
+        if (!revs[sec] || revs[sec].hash !== h) this._ensureDirty(sec, alvo);
+      }
+    } catch (_) { _quiet(_); }
+    this._savePend(alvo);
+  },
+  /* Startup conservador: só semeia seção que NUNCA teve revisão conhecida.
+     Se já existe __secrev, divergência de hash NÃO vira edição automaticamente.
+     Alterações reais feitas pelo usuário passam por DB._set/setRaw/delRaw e
+     entram na outbox pelo hook no mesmo instante. Assim cache regressado nunca
+     ganha autoridade só porque o navegador foi reaberto. */
+  seedUntrackedOnly(id) {
+    const alvo = id || this._activeProfileId();
+    const pfx = this._prefixFor(alvo);
+    const revs = this._getRevs(alvo);
+    try {
+      for (let i = 0; i < localStorage.length; i++) {
+        const full = localStorage.key(i);
+        const sec = this.sectionForKey(full, pfx);
+        if (!sec || revs[sec]) continue;
+        this._ensureDirty(sec, alvo);
       }
     } catch (_) { _quiet(_); }
     this._savePend(alvo);
@@ -42096,7 +42194,7 @@ const SectionSync = {
     const id = ProfileManager.getActiveProfileId();
     if (!id || this._seededProfile === id) return;
     this._seededProfile = id;
-    this.markAllDirty(id);
+    this.seedUntrackedOnly(id);
   },
   /* ── O QUE FAZER COM UMA SEÇÃO SUJA (decisão pura, testável) ──────────────
      Recebe o texto local e o que sabemos do último envio; devolve a ação. Está
@@ -42178,6 +42276,7 @@ const SectionSync = {
   async pushDirty(id) {
     if (!this.enabled || this._pushing) return;
     if (!window.CloudStore || !CloudStore.isReady() || !CloudStore.isLoggedIn()) return;
+    if (window.SessionGuard && SessionGuard.enabled && SessionGuard.canEnterNow && !SessionGuard.canEnterNow()) return;
     if ((window.SessionGuard && SessionGuard.isBlockedByRemote && SessionGuard.isBlockedByRemote()) ||
         (window.SessionLock && SessionLock.isBlocked() && SessionLock._origin === 'remote')) return;
     id = id || this._activeProfileId();
@@ -42452,6 +42551,7 @@ const SectionSync = {
     if (!this.enabled) return;
     try {
       if (!window.CloudStore || !CloudStore.isReady() || !CloudStore.isLoggedIn()) return;
+      if (window.SessionGuard && SessionGuard.enabled && SessionGuard.canEnterNow && !SessionGuard.canEnterNow()) return;
       if ((window.SessionGuard && SessionGuard.isBlockedByRemote && SessionGuard.isBlockedByRemote()) ||
           (window.SessionLock && SessionLock.isBlocked() && SessionLock._origin === 'remote')) return;
       try { if (!sessionStorage.getItem('diario-estudos:entered')) return; } catch (_) { return; }
@@ -42606,6 +42706,10 @@ const SectionSync = {
     const res = { ok: false, motivo: null, seções: 0, em: new Date().toISOString() };
     try {
       res.origem = 'seções';
+      if (window.SessionGuard && SessionGuard.enabled && SessionGuard.canEnterNow && !SessionGuard.canEnterNow()) {
+        res.motivo = 'sessão-ainda-não-confirmada';
+        return this._saveLast(res);
+      }
       if ((window.SessionGuard && SessionGuard.isBlockedByRemote && SessionGuard.isBlockedByRemote()) ||
           (window.SessionLock && SessionLock.isBlocked() && SessionLock._origin === 'remote')) {
         res.motivo = 'sessão-bloqueada-em-outro-aparelho';
@@ -43521,6 +43625,11 @@ window.SessionLock = {
     if (r) r.addEventListener('click', () => recarregarApp('recarga pedida no aviso de sessão', { imediato: true }));
   }
 };
+
+/* O SessionGuard foi carregado antes deste arquivo. Agora que SessionLock
+   realmente existe, liga o takeover REMOTO. Sem esta chamada o botão ficava
+   eternamente em "Confirmando…" porque nenhum callback remoto estava registrado. */
+try { if (window.SessionGuard && SessionGuard.bindSessionLock) SessionGuard.bindSessionLock(); } catch (_) { _quiet(_); }
 
 /* ---- Camada LOCAL: uma aba/janela por vez (BroadcastChannel) ---- */
 (function () {
