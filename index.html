@@ -57,7 +57,7 @@
      novo, e o antigo é descartado sozinho na ativação) e o que permite ao app
      dizer qual versão está rodando. Em src/ fica "dev" de propósito: a versão
      é gerada na montagem, não editada à mão. -->
-<meta name="diario-versao" content="vfe3503e2fa">
+<meta name="diario-versao" content="v0fa0c789d3">
 <script>
 /* ── ARRANQUE: abre o IndexedDB AGORA, em paralelo com o parse do documento ──
    A fachada de armazenamento vive no fim do <body>, depois de ~1,7 MB de HTML.
@@ -41269,7 +41269,6 @@ const SessionGuard = {
     const uid = CS.session.user.id;
     this.subscribe(uid);
     if (this._claimedUid === uid) return;
-    this._claimedUid = uid;
 
     /* Restaurar a sessão NÃO é um takeover. Primeiro consultamos quem possui a
        conta. Se outro aparelho está ativo, este é bloqueado e não toca na linha.
@@ -41280,13 +41279,14 @@ const SessionGuard = {
       if (error) {
         if (this._isMissingTable(error)) this._disable(error);
         else console.warn('[SessionGuard] verificação inicial falhou', error);
-        return;
+        return; // não carimba _claimedUid: uma chamada futura pode tentar de novo
       }
       if (data && data.device_id && data.device_id !== this.deviceId()) {
+        this._claimedUid = uid;
         this._takenBy(data);
         return;
       }
-      await this.claim(uid);
+      if (await this.claim(uid)) this._claimedUid = uid;
     } catch (err) {
       if (this._isMissingTable(err)) this._disable(err);
       else console.warn('[SessionGuard] verificação inicial erro', err);
@@ -41676,12 +41676,26 @@ const SectionSync = {
   DEL: '__secdel',
   _delKey(id) { return this._prefixFor(id) + this.DEL; },
   _loadDel(id) {
-    try { const a = JSON.parse(localStorage.getItem(this._delKey(id))); return Array.isArray(a) ? a : []; }
-    catch (_) { return []; }
+    try {
+      const a = JSON.parse(localStorage.getItem(this._delKey(id)));
+      if (!Array.isArray(a)) return [];
+      /* Compatibilidade com o formato antigo ["sec"]. O formato novo preserva
+         a revisão-base da exclusão para que DELETE também seja CAS. */
+      return a.map(x => typeof x === 'string'
+        ? { section: x, rev: null }
+        : (x && x.section ? { section: x.section, rev: Number(x.rev) || null } : null)
+      ).filter(Boolean);
+    } catch (_) { return []; }
   },
   _saveDel(lista, id) {
     try {
-      if (lista.length) localStorage.setItem(this._delKey(id), JSON.stringify([...new Set(lista)]));
+      const porSec = new Map();
+      (lista || []).forEach(x => {
+        const it = typeof x === 'string' ? { section: x, rev: null } : x;
+        if (it && it.section) porSec.set(it.section, { section: it.section, rev: Number(it.rev) || null });
+      });
+      const out = [...porSec.values()];
+      if (out.length) localStorage.setItem(this._delKey(id), JSON.stringify(out));
       else localStorage.removeItem(this._delKey(id));
     } catch (e) { _quiet(e, 'secdel-gravar'); }
   },
@@ -41695,9 +41709,10 @@ const SectionSync = {
     this._dirtyGen.delete(sec);
     this._savePend();
     const revs = this._getRevs();
+    const baseRev = revs[sec] ? (revs[sec].rev || 0) : 0;
     if (revs[sec]) { delete revs[sec]; this._saveRevs(revs); }
     const del = this._loadDel();
-    del.push(sec);
+    del.push({ section: sec, rev: baseRev || null });
     this._saveDel(del);
   },
   // Marca as seções do perfil que REALMENTE MUDARAM (hash diferente do último envio).
@@ -41891,7 +41906,13 @@ const SectionSync = {
     // O MANIFESTO só é atualizado quando TODAS as seções sujas subiram. Se alguma
     // falhou, a nuvem ainda está incompleta — publicar o manifesto agora faria a
     // leitura por seção esperar uma linha que não existe (e cair no plano B à toa).
-    if (!falhas.length) { try { await this._syncManifest(id, revs); } catch (_) { _quiet(_); } }
+    if (!falhas.length) {
+      try { await this._syncManifest(id, revs); }
+      catch (e) {
+        const msg = (e && (e.message || e.code || JSON.stringify(e))) || 'erro';
+        falhas.push(this.MANIFEST + ' (' + msg + ')');
+      }
+    }
     this._saveRevs(revs);
     this._savePend();   // o que sobrou na fila continua gravado: sobrevive ao fechamento
     if (okCount) { this._lastPushAt = Date.now(); this._pushedCount += okCount; }
@@ -41920,16 +41941,21 @@ const SectionSync = {
   },
   async _syncManifest(id, revs) {
     const locais = this.localSections();
-    const apagadas = this._loadDel(id);
-    /* O manifesto NÃO é mais "o que existe aqui agora". É "o que existe aqui" MAIS
-       "o que existe na nuvem e ninguém mandou apagar". Assim um sumiço local
-       nunca se converte em exclusão remota — e a seção volta para cá na próxima
-       leitura, em vez de deixar de existir no mundo. */
-    let remotas = [];
+    const delEntries = this._loadDel(id);
+    const apagadas = delEntries.map(x => x.section);
+    /* Lemos também a rev remota: exclusão e manifesto precisam da mesma regra
+       CAS das seções de conteúdo. */
+    let remoteRows = [];
     try {
-      const { data } = await CloudStore.client.from(this.TABLE).select('section').eq('profile_id', id);
-      remotas = (data || []).map(r => r.section).filter(sec => sec !== this.MANIFEST);
-    } catch (e) { console.warn('[SectionSync] não deu para ler a lista remota; manifesto sai só com o local', e); }
+      const { data, error } = await CloudStore.client.from(this.TABLE)
+        .select('section,rev').eq('profile_id', id);
+      if (error) throw error;
+      remoteRows = data || [];
+    } catch (e) {
+      console.warn('[SectionSync] não deu para ler a lista remota; manifesto não será publicado às cegas', e);
+      throw e;
+    }
+    const remotas = remoteRows.map(r => r.section).filter(sec => sec !== this.MANIFEST);
     const sobreviventes = remotas.filter(sec => locais.indexOf(sec) === -1 && apagadas.indexOf(sec) === -1);
     if (sobreviventes.length) {
       console.warn('[SectionSync] ' + sobreviventes.length + ' seção(ões) existem na nuvem e não aqui, sem ordem de exclusão — MANTIDAS: ' + sobreviventes.join(', '));
@@ -41938,26 +41964,64 @@ const SectionSync = {
     const body = { v: this.FORMAT, sections: list, at: new Date().toISOString() };
     const h = this._hash(list.join('|'));
     const prev = revs[this.MANIFEST] || { rev: 0, hash: null };
-    if (prev.hash === h) return false;               // lista inalterada → nada a fazer
-    const rev = prev.rev + 1;
-    const { error } = await CloudStore.client.from(this.TABLE)
-      .upsert({ profile_id: id, section: this.MANIFEST, data: body, rev, updated_at: body.at }, { onConflict: 'profile_id,section' });
-    if (error) throw error;
-    revs[this.MANIFEST] = { rev, hash: h };
-    /* Só some da nuvem o que foi apagado DE PROPÓSITO (passou por dropSection).
-       Ausência local nunca apaga nada lá. */
-    const sobra = remotas.filter(sec => apagadas.indexOf(sec) !== -1);
-    if (sobra.length) {
-      try {
-        await CloudStore.client.from(this.TABLE).delete().eq('profile_id', id).in('section', sobra);
-        sobra.forEach(sec => { delete revs[sec]; });
-        this._saveDel(apagadas.filter(sec => sobra.indexOf(sec) === -1), id);
-        console.info('[SectionSync] removidas da nuvem', sobra.length, 'seção(ões) excluída(s) de propósito');
-      } catch (e) { console.warn('[SectionSync] limpeza de seções excluídas falhou', e); }
+    if (prev.hash !== h) {
+      const rev = (prev.rev || 0) + 1;
+      const wr = await this._writeSectionCAS(
+        { profile_id: id, section: this.MANIFEST, data: body, rev, updated_at: body.at },
+        prev.rev || 0
+      );
+      if (!wr.ok && wr.conflict) {
+        const remoto = await this._remoteSection(id, this.MANIFEST);
+        const secs = remoto && remoto.data && Array.isArray(remoto.data.sections)
+          ? remoto.data.sections.slice().sort() : null;
+        const rh = secs ? this._hash(secs.join('|')) : null;
+        if (remoto && rh === h) {
+          revs[this.MANIFEST] = { rev: remoto.rev || rev, hash: h };
+        } else {
+          this._lastConflict = { em: Date.now(), seções: [this.MANIFEST] };
+          throw new Error('conflito de revisão protegido no manifesto');
+        }
+      } else {
+        revs[this.MANIFEST] = { rev: wr.rev || rev, hash: h };
+      }
     }
+
+    /* Exclusão também é CAS. Uma ordem baseada na rev 12 não pode apagar uma
+       edição remota que já chegou à rev 13. */
+    const restantes = [];
+    for (const del of delEntries) {
+      const rr = remoteRows.find(r => r.section === del.section);
+      if (!rr) { delete revs[del.section]; continue; } // já não existe: tombstone cumprido
+      if (!del.rev || rr.rev !== del.rev) {
+        restantes.push(del);
+        this._lastConflict = { em: Date.now(), seções: [del.section], tipo: 'exclusão' };
+        console.warn('[SectionSync] exclusão protegida por conflito:', del.section, 'base', del.rev, 'remota', rr.rev);
+        continue;
+      }
+      try {
+        const { data, error } = await CloudStore.client.from(this.TABLE)
+          .delete()
+          .eq('profile_id', id)
+          .eq('section', del.section)
+          .eq('rev', del.rev)
+          .select('section');
+        if (error) throw error;
+        if (!data || !data.length) {
+          restantes.push(del);
+          this._lastConflict = { em: Date.now(), seções: [del.section], tipo: 'exclusão' };
+          continue;
+        }
+        delete revs[del.section];
+        console.info('[SectionSync] removida da nuvem seção excluída de propósito:', del.section);
+      } catch (e) {
+        restantes.push(del);
+        console.warn('[SectionSync] exclusão remota falhou:', del.section, e);
+      }
+    }
+    this._saveDel(restantes, id);
+    if (restantes.length) throw new Error('há exclusões com conflito ou falha pendentes');
     return true;
   },
-
   // Semeia (1x) e envia — dispara PROATIVAMENTE (não depende de uma edição/salvamento).
   // Chamado no login, ao entrar num perfil, periodicamente, e após cada salvamento.
   async kick() {
