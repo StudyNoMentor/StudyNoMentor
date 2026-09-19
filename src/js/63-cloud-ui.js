@@ -158,14 +158,27 @@ const CloudUI = {
     if (!btn) return;
     const CS = window.CloudStore;
     let tone = forceTone, text = forceText;
-    // sessão assumida em outro aparelho
-    if (window.SessionLock && SessionLock.isBlocked() && SessionLock._origin === 'remote') { tone = 'error'; text = 'Pausado (outro aparelho)'; }
-    // Estado tranquilizador — o app salva SEMPRE no aparelho na hora. O spinner
-    // (azul) só aparece durante um envio REAL e curto; o resto é verde "ok".
-    // Fila real de envio (sobrevive a recarregamentos): é o que permite dizer
-    // "tudo sincronizado" só quando é verdade — e quanto falta quando não é.
+    // Fila real de envio (sobrevive a recarregamentos).
     let fila = 0;
     try { if (window.SectionSync) fila = SectionSync.pendingQuick(); } catch (_) { _quiet(_); }
+    // Sessão em outro aparelho não é, por si só, erro. Se estamos entregando a
+    // outbox anterior, mostra envio real; depois fica neutro/pausado. Vermelho
+    // fica reservado para conflito/falha de transporte.
+    if (window.SessionLock && SessionLock.isBlocked() && SessionLock._origin === 'remote') {
+      if (window.SessionGuard && SessionGuard._handoffDraining) {
+        tone = 'syncing'; text = 'Entregando alteração pendente antes de pausar…';
+      } else if (fila) {
+        const hs = window.SessionGuard && SessionGuard._handoffLast ? SessionGuard._handoffLast.status : '';
+        tone = hs === 'erro' || hs === 'pendente' ? 'error' : 'pending';
+        text = hs === 'erro' || hs === 'pendente'
+          ? 'Alteração preservada neste aparelho · envio pendente'
+          : 'Salvo neste aparelho · aguardando entrega';
+      } else {
+        tone = 'off'; text = 'Pausado · conta ativa em outro aparelho';
+      }
+    }
+    // Estado tranquilizador — o app salva SEMPRE no aparelho na hora. O spinner
+    // (azul) só aparece durante um envio REAL e curto; o resto é verde "ok".
     if (!tone) {
       if (!CS || !CS.isReady() || !CS.isLoggedIn()) { tone = 'off'; text = 'Salvo neste aparelho'; }
       else if (CS._syncing) { tone = 'syncing'; text = 'Enviando para a nuvem…'; }
