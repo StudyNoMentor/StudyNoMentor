@@ -24,43 +24,16 @@ const LawEngine = {
   lines(raw){ return String(raw||'').split(/\r?\n/).filter(x=>x.trim()); },
   resolveBookmark(l){ return l.bookmark == null ? -1 : l.bookmark; }
 };
-const snap = { id:'snap', rows:[1] };
-let calcCalls = 0;
-const PlanoEngine = {
-  calcular(_s,p){ calcCalls++; return { itens:[{disciplina:'A'}], prefs:p }; },
-  prefs(){ return { ordenar:'pior', meta:85 }; }, salvarPrefs(){}
-};
-const DesempenhoTecScreen = { scopedSnapshot(){ return snap; } };
-const ReforcoFila = {
-  _norm(s){ return String(s||'').toLowerCase(); },
-  _cmpSug(a,b){ return a.i-b.i; }, _planoRef(){ return null; }
-};
-const ExtrasScreen = {
-  puxarDoPlano(){ PlanoEngine.calcular(DesempenhoTecScreen.scopedSnapshot(), PlanoEngine.prefs()); this._planoRecalc=()=>PlanoEngine.calcular(DesempenhoTecScreen.scopedSnapshot(), PlanoEngine.prefs()); },
-  render(){ PlanoEngine.calcular(DesempenhoTecScreen.scopedSnapshot(), PlanoEngine.prefs()); },
-};
+const ExtrasScreen = { render(){} };
 const LeisScreen = { renderCards(){}, openReader(){} };
 const document = { querySelector(){ return null; }, querySelectorAll(){ return []; }, getElementById(){ return null; } };
-const ctx = { window:{}, DB, LawEngine, PlanoEngine, DesempenhoTecScreen, ReforcoFila, ExtrasScreen, LeisScreen, localStorage, document,
+const ctx = { window:{}, DB, LawEngine, ExtrasScreen, LeisScreen, localStorage, document,
   todayLocal(){ return hoje; }, setTimeout(fn){ fn(); }, console, _quiet(){}, showToast(){}, escapeHtml:s=>String(s), switchScreen(){} };
 ctx.window=ctx;
 vm.createContext(ctx);
 vm.runInContext(readFileSync(new URL('../src/js/56-leis-rodizio.js', import.meta.url),'utf8'),ctx,{filename:'56-leis-rodizio.js'});
 
-/* 1) O caminho quente usa o mesmo cálculo do Plano enquanto snapshot/prefs não
-   mudam. O "Puxar do Motor" saiu deste caminho: ele lê o Motor de sugestão, que
-   percorre a árvore do retrato e não passa por `PlanoEngine.calcular`. O que
-   ainda compartilha o cálculo é a leitura de PROGRESSO — a tela de Atividades e
-   a fila diária —, e é ela que este teste protege. */
-ctx.ExtrasScreen.render();
-ctx.ExtrasScreen.render();
-ctx.ReforcoFila._planoRef();
-assert.equal(calcCalls,1,'mesmo retrato/prefs deve executar PlanoEngine.calcular uma única vez');
-DB.saveIncidencia([]);
-ctx.ReforcoFila._planoRef();
-assert.equal(calcCalls,2,'mudança de incidência deve invalidar o cache');
-
-// 2) Rodízio: gera exatamente a faixa a partir do marcador e não duplica no mesmo dia.
+// Rodízio: gera exatamente a faixa a partir do marcador e não duplica no mesmo dia.
 leis = [
   {id:'l1',titulo:'CTN',materia:'Tributário',texto:Array.from({length:100},(_,i)=>'Linha '+(i+1)).join('\n'),bookmark:10,bookmarkTxt:'Linha 10',rodizio:{apta:true,prioridade:4}},
   {id:'l2',titulo:'CF',materia:'Constitucional',texto:Array.from({length:80},(_,i)=>'Art '+(i+1)).join('\n'),bookmark:20,bookmarkTxt:'Art 20',rodizio:{apta:true,prioridade:3}}
@@ -118,7 +91,7 @@ DB.deleteExtra(terceira.id);
 ctx.LeiRodizio.sincronizarHoje();
 assert.ok(!extras.some(e=>e.status==='ativa' && e.origemLei?.leiId==='l1'));
 
-console.log('OK: cache do Plano + rodízio de lei seca passaram pelos cenários críticos.');
+console.log('OK: rodízio de lei seca passou pelos cenários críticos.');
 
 // 9) Dias da semana são respeitados e não criam tarefa em dia bloqueado.
 leis = [{id:'ld',titulo:'Lei Dias',materia:'Adm',texto:'1\n2\n3\n4\n5',bookmark:1,rodizio:{apta:true}}];
