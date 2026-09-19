@@ -85,6 +85,10 @@ const CloudUI = {
     const box = document.getElementById('cloud-sessions-list');
     if (!box) return;
     if (!window.SessionGuard) { box.innerHTML = '<p class="cloud-sessions-off">Controle de sessões indisponível nesta versão.</p>'; return; }
+    if (SessionGuard.enabled === false) {
+      box.innerHTML = '<div class="cloud-sessions-empty">✓ <strong>PC e celular podem permanecer conectados.</strong> A sincronização usa controle de revisão para conciliar alterações sem expulsar o outro aparelho.</div>';
+      return;
+    }
     box.innerHTML = '<p class="hint" style="text-align:center; padding:10px;">Carregando…</p>';
     const r = await SessionGuard.fetchActive();
     if (r.status === 'multi') {
