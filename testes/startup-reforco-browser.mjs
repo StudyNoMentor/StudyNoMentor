@@ -115,13 +115,16 @@ try {
   /* 2e. SaveGuard só declara sucesso depois da confirmação SQL. */
   const guard=await page.evaluate(async()=>{
     const keep={flush:RelationalStore.flush,pending:RelationalStore.pendingCount,err:RelationalStore._lastError,
-      active:ProfileManager.getActiveProfileId,hydrate:RelationalStore.hydrateProfile};
+      active:ProfileManager.getActiveProfileId,hydrate:RelationalStore.hydrateProfile,
+      ready:CloudStore.isReady,logged:CloudStore.isLoggedIn};
     let flush=0;
+    CloudStore.isReady=()=>true;CloudStore.isLoggedIn=()=>true;
     RelationalStore.flush=async()=>{flush++;};
     RelationalStore.pendingCount=()=>0;RelationalStore._lastError=null;
     const r=await SaveGuard.run({escrever:async()=>true,verificar:()=>true});
     RelationalStore.flush=keep.flush;RelationalStore.pendingCount=keep.pending;RelationalStore._lastError=keep.err;
     ProfileManager.getActiveProfileId=keep.active;RelationalStore.hydrateProfile=keep.hydrate;
+    CloudStore.isReady=keep.ready;CloudStore.isLoggedIn=keep.logged;
     return {r,flush};
   });
   ok(guard.r.ok&&guard.r.cloud,'SaveGuard deve devolver sucesso cloud somente após SQL');
