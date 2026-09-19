@@ -80,6 +80,32 @@
       setTimeout(resolve, 2000);   // teto: nunca travar a interface esperando o disco
     });
   };
+  /* Barreira ESTRITA de durabilidade. Ao contrário de __idbFlush(), não transforma
+     timeout em sucesso: só confirma quando a transação terminou (flushing=false)
+     E não restou nenhuma operação na fila. Usada antes de qualquer recarga que
+     poderia matar uma transação em voo. */
+  window.__idbPendingCount = function () { return queue.length + (flushing ? 1 : 0); };
+  window.__idbFlushStrict = function (limiteMs) {
+    var teto = Math.max(1000, Number(limiteMs) || 10000);
+    /* Sem IndexedDB ativo, o app está no localStorage nativo, cuja escrita é
+       síncrona. Não há transação assíncrona a esperar. */
+    if (!db) return Promise.resolve({ ok: true, fallback: true, pending: 0 });
+    var fim = Date.now() + teto;
+    return new Promise(function (resolve) {
+      var acabou = false;
+      function terminar(r) { if (acabou) return; acabou = true; resolve(r); }
+      function conferir() {
+        if (!queue.length && !flushing) { terminar({ ok: true, pending: 0 }); return; }
+        if (Date.now() >= fim) {
+          terminar({ ok: false, motivo: 'timeout', pending: queue.length + (flushing ? 1 : 0) });
+          return;
+        }
+        scheduleFlush();
+        setTimeout(conferir, 50);
+      }
+      conferir();
+    });
+  };
   // App indo para segundo plano/fechando: garante a descarga do que está na fila.
   try {
     window.addEventListener('pagehide', function () { try { window.__idbFlush(); } catch (e) {} });
