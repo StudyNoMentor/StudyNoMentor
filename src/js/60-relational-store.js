@@ -272,6 +272,11 @@ const RelationalStore = {
   },
   onStorageMutation(key, oldRaw, newRaw) {
     if(this._applying || !this.enabled) return;
+    /* O portão de acesso pode montar/medir telas antes de existir uma sessão.
+       Essas escritas de UI são apenas projeção efêmera; não entram em fila e
+       não viram falso erro de banco. Depois do login, isReady() permanece true
+       mesmo se a rede oscilar, então mutações reais continuam sendo retentadas. */
+    if(!this.isReady()) return;
     const p=this._keyParts(key); if(!p) return;
     if(p.scope==='user') {
       if(p.sub==='profiles'||p.sub==='active-profile'||p.sub.indexOf('rev:')===0||p.sub.indexOf('owner:')===0||
