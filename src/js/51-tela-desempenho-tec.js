@@ -92,64 +92,6 @@ const PlanoEngine = {
        antigo já nascer "migrado" e a migração nunca aconteceria. */
     migracao: 1
   },
-  /* ── MODOS DE ATAQUE ──────────────────────────────────────────────────────
-     A tela oferecia sete ordenações e dezenove parâmetros, e nenhuma frase
-     dizendo QUANDO usar cada coisa. Escolher entre sete ordens sem saber o que
-     elas respondem não é liberdade, é sorteio.
-
-     Cada modo é um conjunto COERENTE de ajustes com uma pergunta única. Mexer
-     em qualquer campo depois devolve o rótulo "Modo livre" — o preset é um
-     ponto de partida, nunca uma trava. */
-  MODOS: {
-    base: {
-      rot: '🧱 Base ampla', fase: 'pré-edital',
-      quando: 'Sem edital publicado, construindo repertório. A pergunta é "o que ainda não sei?".',
-      /* A FRASE ANTIGA BRIGAVA COM O QUADRO LOGO ABAIXO. Ela prometia que
-         "nenhuma banca decide por você antes da hora" enquanto "Onde atacar
-         primeiro" ordenava as matérias pela incidência das bancas, na mesma
-         tela. Não eram duas opiniões: são dois níveis. O preset governa a
-         ordem DENTRO da matéria — ali todo assunto pesa igual, para nada se
-         esconder atrás de pouco volume. Entre matérias, quem decide é o peso
-         da prova, porque é a única régua que existe antes do edital. */
-      porque: 'Dentro de cada matéria, todo assunto pesa igual e o pior acerto vem primeiro — nada se esconde atrás de pouco volume. Qual matéria atacar primeiro é o quadro "Onde atacar primeiro" que responde, pela incidência das bancas.',
-      patch: { ponderacao: 'igual', ordenar: 'pior', metaDominio: 85, tetoDominio: 90, custoModo: 'lacuna', incluirPequenas: false }
-    },
-    edital: {
-      rot: '🎯 Edital publicado', fase: 'pós-edital',
-      quando: 'Edital na mão, banca definida. A pergunta muda para "o que me dá ponto NESTA prova?".',
-      porque: 'Ordena por fraqueza × incidência na banca e pesa por volume: assunto que cai muito e que você erra sobe ao topo, mesmo que não seja o seu pior acerto absoluto.',
-      patch: { ponderacao: 'volume', ordenar: 'banca', metaDominio: 85, tetoDominio: 90, custoModo: 'lacuna', incluirPequenas: false },
-      exige: 'incidencia'
-    },
-    curto: {
-      rot: '⏱️ Tempo curto', fase: 'qualquer fase',
-      quando: 'Poucas semanas até a prova e muito a fazer. A pergunta é "o que rende mais por questão resolvida?".',
-      porque: 'Ordena por ganho ÷ custo com o custo medido pela lacuna: assunto muito distante da meta perde para outro que fecha rápido — em tempo curto, dois assuntos resolvidos valem mais que um começado.',
-      patch: { ponderacao: 'igual', ordenar: 'rendimento', custoModo: 'lacuna', incluirPequenas: false }
-    },
-    manutencao: {
-      rot: '🛡️ Manutenção', fase: 'véspera / nível bom',
-      quando: 'Você já está no nível e o risco agora é PERDER o que ganhou.',
-      porque: 'Ordena pela maior queda recente e destaca o que está sem medição nova: aqui o inimigo é o esquecimento, não a ignorância.',
-      patch: { ponderacao: 'igual', ordenar: 'queda', custoModo: 'lacuna', incluirPequenas: false }
-    },
-    diagnostico: {
-      rot: '🔍 Diagnóstico', fase: 'plano novo / poucos dados',
-      quando: 'Poucas importações, muita coisa sem amostra. A pergunta é "onde eu estou, afinal?".',
-      porque: 'Traz para o cálculo os assuntos de amostra pequena e ordena pelo pior acerto: aqui o objetivo não é atacar fraqueza, é produzir dado para saber qual fraqueza é real.',
-      patch: { ponderacao: 'igual', ordenar: 'pior', incluirPequenas: true, minAmostra: 5, custoModo: 'lacuna' }
-    }
-  },
-  /* ── O PRESET NÃO MEXE NO PASSO DE LEITURA ───────────────────────────────
-     Os cinco modos gravavam `limite` (30, 20, 10, 15 e 40). Fazia sentido
-     quando `limite` era "mostrar até N" — um recorte de estratégia. Deixou de
-     fazer no instante em que ele virou o PASSO com que sete listas abrem:
-     escolher "Diagnóstico" passaria a despejar 40 itens de cada lista de uma
-     vez, que é exatamente o que o passo de 10 veio resolver, e "Tempo curto"
-     encolheria a fila de todo mundo sem ter sido pedido.
-
-     Modo de ataque é sobre O QUE a fila otimiza. Quanto cabe na sua tela é
-     decisão de leitura, e é sua — não muda quando você troca de fase. */
   /* ── AS CINCO ORDENS QUE DECIDEM ALGO ────────────────────────────────────
      Eram sete. Duas foram embora porque não eram escolha nenhuma:
 
@@ -208,157 +150,6 @@ const PlanoEngine = {
       armadilha: 'Um assunto ótimo que caiu de 95% para 88% aparece acima de um crônico de 30% que nunca melhorou.'
     }
   },
-  /* ── O QUE UM MODO DE ATAQUE CONTROLA ─────────────────────────────────────
-     Esta lista é a ÚNICA fonte: o diálogo de editar um modo nasce dela, o
-     `modoPatch` só devolve campos dela e o resumo dos chips lê os mesmos
-     campos. O diálogo tinha uma lista escrita à mão, e ela já havia divergido
-     nos DOIS sentidos:
-
-       · oferecia "Assuntos por vez" (`limite`), que deixou de ser estratégia
-         no instante em que virou o PASSO com que sete listas abrem. Os presets
-         tinham sido limpos desse campo de propósito, e editar um modo o
-         reintroduzia pela porta de trás — escolher "Diagnóstico" voltava a
-         despejar 40 itens de cada lista de uma vez;
-       · e NÃO oferecia justamente os parâmetros que dão nome a três dos cinco
-         modos: `minAmostra` (o Diagnóstico existe para baixá-lo), `pesoBanca`
-         (o Edital publicado existe para ele — a própria explicação da ordem
-         manda ajustar "quanto a banca pesa") e a régua de custo
-         (`custoPiso`/`custoPorPonto`, sem a qual a divisão ganho ÷ custo do
-         Tempo curto não significa nada).
-
-     Regra para entrar aqui: o campo muda O QUE A FILA OTIMIZA ou EM QUEM ela
-     confia. Fica fora o que é preferência de leitura (quantos itens por vez),
-     de escopo (disciplina, matérias fora do Plano) ou régua de medição
-     partilhada pela tela inteira (validade, consolidação, sensibilidade,
-     janela, piso da série). */
-  MODO_CAMPOS: [
-    { key: 'ordenar', label: 'Ordem de ataque', tipo: 'ordens',
-      hint: 'A pergunta que a fila responde.' },
-    { key: 'ponderacao', label: 'Como pesar cada assunto', tipo: 'select', op: [
-      ['igual', '⚖️ Todo assunto pesa igual'], ['volume', '📊 Pelo volume de questões'], ['ambas', '🔀 Mostrar as duas'] ] },
-    { key: 'metaDominio', label: 'Meta de domínio (%)', tipo: 'num', min: 30, max: 100,
-      hint: 'A nota que você considera suficiente em cada assunto.' },
-    { key: 'tetoDominio', label: 'Acerto máximo realista (%)', tipo: 'num', min: 50, max: 100,
-      hint: 'Onde a lacuna de cada assunto termina — é ele que dimensiona o custo e o prêmio.' },
-    // `numerico` porque as opções são números escritos como texto: sem isso o
-    // modo guardaria a string "100" e a comparação com o valor em vigor (100)
-    // marcaria o modo como personalizado sem ninguém ter mexido nele.
-    { key: 'amostraAlvo', label: 'Amostra desejada por assunto', tipo: 'select', numerico: true, op: [
-      ['30', '30 questões (±18pp)'], ['50', '50 questões (±14pp)'], ['100', '100 questões (±10pp)'], ['200', '200 questões (±7pp)'] ] },
-    { key: 'minAmostra', label: 'Amostra mínima para entrar na conta', tipo: 'num', min: 1, max: 200,
-      hint: 'Abaixo disso o assunto vai para o segundo plano — é este número que o modo Diagnóstico baixa.' },
-    { key: 'incluirPequenas', label: 'Incluir amostra pequena no cálculo', tipo: 'bool', op: [
-      ['0', 'Não — vai para o segundo plano'], ['1', 'Sim — entra no cálculo (diagnóstico)'] ] },
-    { key: 'custoModo', label: 'Como estimar o custo', tipo: 'select', op: [
-      ['lacuna', '📐 Pela lacuna até o máximo realista'], ['fixo', 'Número fixo de questões'], ['proporcional', 'Proporcional ao praticado'] ] },
-    { key: 'custoPiso', label: 'Custo: piso para remedir (questões)', tipo: 'num', min: 0, max: 500,
-      hint: 'Só com custo por lacuna: o bloco que mede o assunto de novo.' },
-    { key: 'custoPorPonto', label: 'Custo: questões por ponto de lacuna', tipo: 'num', min: 0, max: 50,
-      hint: 'Só com custo por lacuna. É o que a calibragem pelo seu histórico ajusta.' },
-    { key: 'pesoBanca', label: 'Quanto a banca pesa na ordem', tipo: 'num', min: 0, max: 20,
-      hint: 'Só na ordem "fraqueza × incidência". 0 ignora a banca.' }
-  ],
-  MODO_CAMPO_CHAVES: null,   // preenchido na 1ª leitura (ver `_chavesDeModo`)
-  _chavesDeModo() {
-    if (!this.MODO_CAMPO_CHAVES) this.MODO_CAMPO_CHAVES = this.MODO_CAMPOS.map(c => c.key);
-    return this.MODO_CAMPO_CHAVES;
-  },
-  /* ── MODOS EDITÁVEIS ──────────────────────────────────────────────────────
-     Os cinco modos são um ponto de partida, não um dogma: a meta que serve para
-     um concurso não serve para outro, e quem estuda é quem sabe. Cada modo pode
-     ser ajustado e guarda o SEU ajuste no perfil; `MODOS` continua sendo o
-     padrão de fábrica, e cada modo pode voltar a ele sozinho, sem levar os
-     outros junto.
-
-     Os ajustes ficam no perfil, não no retrato: reimportar o TEC todo mês
-     recalcula os números, nunca as suas preferências. */
-  modoPatch(k) {
-    const base = (this.MODOS[k] && this.MODOS[k].patch) || {};
-    const custom = (this.prefs().modosCustom || {})[k] || {};
-    const junto = Object.assign({}, base, custom);
-    /* Filtra pelos campos declarados: um perfil que já gravou `limite` dentro
-       de um modo (o diálogo antigo permitia) para de ter o passo de leitura
-       trocado ao aplicar o preset, sem precisar migrar dado nenhum. */
-    const ok = this._chavesDeModo();
-    const out = {};
-    Object.keys(junto).forEach(c => { if (ok.indexOf(c) >= 0) out[c] = junto[c]; });
-    return out;
-  },
-  modoEditado(k) {
-    const custom = (this.prefs().modosCustom || {})[k];
-    if (!custom) return false;
-    const base = (this.MODOS[k] && this.MODOS[k].patch) || {};
-    return Object.keys(custom).some(c => String(custom[c]) !== String(base[c]));
-  },
-  /* Guarda só o que DIFERE do padrão de fábrica, somando ao que já estava
-     ajustado. Gravar o patch inteiro fazia um "salvar" sem mexer em nada
-     marcar o modo como editado — e enfiava no modo campos que ele nunca quis
-     definir (um modo que não fixa a meta passava a fixá-la, mudando o que
-     "aplicar" significa). Campo que volta ao valor de fábrica sai do registro;
-     modo sem nenhuma diferença deixa de existir como personalizado. */
-  salvarModo(k, patch) {
-    const base = (this.MODOS[k] && this.MODOS[k].patch) || {};
-    const m = Object.assign({}, this.prefs().modosCustom || {});
-    const atual = Object.assign({}, m[k] || {}, patch || {});
-    const permitidos = this._chavesDeModo();
-    Object.keys(atual).forEach(c => {
-      // campo que não é do modo (o passo de leitura, por exemplo) não entra:
-      // guardado, ele apareceria como "modo personalizado" sem efeito nenhum
-      if (permitidos.indexOf(c) < 0) { delete atual[c]; return; }
-      if (base[c] !== undefined && String(atual[c]) === String(base[c])) delete atual[c];
-      if (atual[c] === undefined || (typeof atual[c] === 'number' && isNaN(atual[c]))) delete atual[c];
-    });
-    if (Object.keys(atual).length) m[k] = atual; else delete m[k];
-    this.salvarPrefs({ modosCustom: m });
-  },
-  restaurarModo(k) {
-    const p = this.prefs();
-    const m = Object.assign({}, p.modosCustom || {});
-    delete m[k];
-    this.salvarPrefs({ modosCustom: m });
-  },
-  // Um preset está "em vigor" quando TODOS os campos que ele define batem com o
-  // que está valendo. Basta mexer num deles para a tela voltar a dizer livre.
-  modoAtivo(p) {
-    p = p || this.prefs();
-    const chaves = Object.keys(this.MODOS);
-    for (const k of chaves) {
-      const patch = this.modoPatch(k);
-      if (Object.keys(patch).every(c => String(p[c]) === String(patch[c]))) return k;
-    }
-    return 'livre';
-  },
-  // Resumo legível do que um modo aplica — é o que a tela mostra sob os chips.
-  resumoModo(k) {
-    /* O que vale DEPOIS de aplicar: um modo que não define a meta mantém a que
-       está valendo. Lendo só o patch, o resumo escrevia "meta undefined%" nos
-       três modos que não a fixam. */
-    const patch = Object.assign({}, this.prefs(), this.modoPatch(k));
-    const rot = (this.ORDENS[patch.ordenar] || {}).rot || patch.ordenar;
-    const pond = patch.ponderacao === 'volume' ? 'peso por volume' : patch.ponderacao === 'ambas' ? 'as duas métricas' : 'peso igual';
-    const custo = patch.custoModo === 'fixo' ? 'custo fixo' : patch.custoModo === 'proporcional' ? 'custo proporcional' : 'custo por lacuna';
-    const partes = [rot, 'meta ' + patch.metaDominio + '%'];
-    if (patch.tetoDominio != null) partes.push('teto ' + patch.tetoDominio + '%');
-    partes.push(pond, custo);
-    if (patch.incluirPequenas) partes.push('inclui amostra pequena');
-    /* Os campos que ESTE modo define por conta própria (o patch, não o que ele
-       herda): é o que distingue "Diagnóstico" de "Base ampla" quando os dois
-       ordenam pelo pior acerto. `limite` saiu — passo de leitura não é modo. */
-    const proprio = this.modoPatch(k);
-    if (proprio.minAmostra != null) partes.push('amostra mínima ' + proprio.minAmostra);
-    if (proprio.amostraAlvo != null) partes.push('alvo ' + proprio.amostraAlvo + 'q');
-    if (proprio.pesoBanca != null) partes.push('banca pesa ' + proprio.pesoBanca);
-    if (proprio.custoPiso != null || proprio.custoPorPonto != null) {
-      partes.push('custo ' + (proprio.custoPiso != null ? proprio.custoPiso : patch.custoPiso)
-        + '+' + (proprio.custoPorPonto != null ? proprio.custoPorPonto : patch.custoPorPonto) + '/pt');
-    }
-    return partes.join(' · ');
-  },
-  /* Preferências podem chegar do localStorage, de backup ou da nuvem. A tela
-     limita os campos, mas esses caminhos não passam pelos inputs HTML. Um único
-     "abc", infinito ou número negativo propagava NaN pelo domínio e pelo custo.
-     A fronteira de leitura agora aceita somente chaves conhecidas e aplica os
-     mesmos limites visíveis na interface. */
   sanearPrefs(raw) {
     const src = raw && typeof raw === 'object' ? raw : {};
     const out = Object.assign({}, this.DEFAULTS);
@@ -398,22 +189,6 @@ const PlanoEngine = {
     else {
       const ritmo = Number(src.ritmoSemanal);
       out.ritmoSemanal = Number.isFinite(ritmo) ? Math.max(1, Math.min(2000, ritmo)) : null;
-    }
-    const permitidosModo = this._chavesDeModo ? this._chavesDeModo() : [];
-    out.modosCustom = {};
-    if (src.modosCustom && typeof src.modosCustom === 'object' && !Array.isArray(src.modosCustom)) {
-      Object.keys(this.MODOS).forEach(modo => {
-        const recebido = src.modosCustom[modo];
-        if (!recebido || typeof recebido !== 'object' || Array.isArray(recebido)) return;
-        const limpo = {};
-        permitidosModo.forEach(k => {
-          if (!Object.prototype.hasOwnProperty.call(recebido, k)) return;
-          if (specs[k]) limpo[k] = limpaNum(k, recebido[k], out[k]);
-          else if (enums[k] && enums[k].includes(recebido[k])) limpo[k] = recebido[k];
-          else if (k === 'incluirPequenas' && typeof recebido[k] === 'boolean') limpo[k] = recebido[k];
-        });
-        if (Object.keys(limpo).length) out.modosCustom[modo] = limpo;
-      });
     }
     // Opções internas não são persistidas, mas precisam atravessar chamadas do motor.
     if (Array.isArray(src._snapshots)) out._snapshots = src._snapshots;
@@ -1976,7 +1751,7 @@ const PlanoEngine = {
       idxMeta, qAteMeta: idxMeta >= 0 ? qAteMeta : null, caminho, equivalentes,
       equivalentesConfiaveis: plano.length >= 5,
       custoModo: opts.custoModo, custoPiso: opts.custoPiso, custoPorPonto: opts.custoPorPonto,
-      pesoBanca: opts.pesoBanca, minAmostra: opts.minAmostra, modo: this.modoAtivo(opts),
+      pesoBanca: opts.pesoBanca, minAmostra: opts.minAmostra,
       ritmo, ritmoMedido: this.ritmoRecente(snapsDesc, 120, fora),
       /* Divergente quando o número travado erra a medição por mais de 50% —
          abaixo disso a previsão ainda é da mesma ordem de grandeza e o aviso
@@ -2614,10 +2389,30 @@ const PlanoCiclo = {
       escopo,
       // a MESMA régua, lida nas linhas cruas — a que o progresso usa de fato
       qBaseNo: PlanoEngine.volumeDoEscopo(escopo, disciplina, p).q,
-      metaAlvo: p.metaDominio,
-      custoEstimado: (item && item.custoQ) || null,
-      tetoAlvo: p.tetoDominio
+      /* A META É A DO MOTOR NO DIA DA CRIAÇÃO, gravada aqui: mudar a régua
+         depois não pode reescrever o veredito de quem já está correndo. */
+      metaAlvo: this._metaDoMotor(),
+      custoEstimado: (item && item.dose) || (item && item.custoQ) || null,
+      /* Quem decidiu, e pensando em quê. Com um motor só, o que a etiqueta da
+         atividade precisa dizer é a FASE — pré e pós escolhem por razões
+         diferentes, e seis meses depois isso é o que explica a escolha. */
+      sugestao: this._assinaturaDoMotor(item)
     };
+  },
+  _metaDoMotor() {
+    try { return MotorSugestao.prefs().metaAcerto; }
+    catch (e) { _quiet(e, 'ciclo-meta'); return 85; }
+  },
+  _assinaturaDoMotor(item) {
+    try {
+      const p = MotorSugestao.prefs();
+      return {
+        motor: 'motor', fase: p.fase, criadoEm: todayLocal(),
+        margemMax: p.margemMax,
+        margem: (item && item.margem != null) ? Math.round(item.margem * 10) / 10 : null,
+        bloco: !!(item && item.agregado)
+      };
+    } catch (e) { _quiet(e, 'ciclo-assinatura'); return null; }
   },
   /* ── A LENTE LEGADA, PINADA ───────────────────────────────────────────────
      Atividade criada antes do escopo não tem `qBaseNo`, e o `qBase` dela foi
@@ -2928,116 +2723,27 @@ window.PlanoCiclo = PlanoCiclo;
 const TecAjustes = {
   aba: null,
   secao: null,
-  /* ═══ CADA UM NO SEU QUADRADO ════════════════════════════════════════════
-     A folha do Plano guardava, no mesmo lugar, duas coisas que não se falam:
-
-       · o RECORTE DOS DADOS (disciplina em foco, matérias fora do Plano), que
-         os motores leem tanto quanto a leitura analítica;
-       · os PARÂMETROS DA ROTA MANUAL — meta, ritmo, ordem de ataque, régua,
-         amostra, custo, frescor —, que NENHUM motor lê. O Simplificado decide
-         em `_top3` e o Robusto em `grupos.slice(0,3)`; nenhum dos dois pode
-         sequer alcançar `PlanoEngine` (invariante conferida em
-         testes/plano-robusto.mjs).
-
-     Misturar os dois numa folha só produzia a pergunta errada a cada campo:
-     "mexer aqui muda o que o motor vai me mandar fazer?". Agora não há o que
-     perguntar, porque são DUAS PORTAS:
-
-       ⚙ Ajustes (no alto do Plano) — só o recorte dos dados.
-       ⚙ Ajustes da rota (dentro da 🎯 Rota manual) — só o que a rota usa.
-
-     Nada foi duplicado, movido de arquivo nem renomeado: os campos seguem
-     sendo os mesmos elementos, com os mesmos ids e os mesmos ouvintes. O que
-     a porta faz é ESCONDER o que não é dela. Com os motores desligados a rota
-     manual É a tela inteira, então a folha do Plano volta a mostrar tudo —
-     não há segunda fonte de decisão para separar dela. */
-  ABA_DOM: { rota: 'plano' },
-  ESCOPO_ABA: { rota: ['analise'], plano: ['ambos'] },
-  ESCOPO_PADRAO_SECAO: 'analise',
-  _abaDom(aba) { return this.ABA_DOM[aba] || aba; },
-  _motoresAtivos() {
-    try { return !!document.documentElement.classList.contains('tpm-motors-active'); }
-    catch (_) { return false; }
-  },
-  /* Sem motor não há o que separar: a folha do Plano mostra tudo, como antes. */
-  _escoposDe(aba) {
-    if (!this._motoresAtivos() && aba !== 'rota') return null;
-    return this.ESCOPO_ABA[aba] || null;
-  },
-  _escopoDoCampo(box) {
-    const el = [...box.querySelectorAll('[id]')].find(x => x.id in this.ESCOPO_CAMPO);
-    return el ? this.ESCOPO_CAMPO[el.id] : this.ESCOPO_PADRAO_SECAO;
-  },
-  /* Mostra/esconde cada `.rfc-field` conforme o escopo pedido. Devolve as
-     seções que sobraram com pelo menos um campo — é essa lista que vira a
-     fita de navegação, então seção vazia nunca aparece como chip morto.
-
-     SEM ESCOPO (Análise, Reforço, e Plano/Rota com todos os motores
-     desligados) a função não deve contar nada: ela devolve as seções tal
-     como já estão, sem tocar em `.hidden`. Contar `.rfc-field` para decidir
-     se uma seção "sobreviveu" só faz sentido quando HÁ filtro de verdade —
-     a aba Análise usa outra classe de campo (`.field`), e contá-la contra
-     `.rfc-field` sempre dava zero: a seção "morria" mesmo sem nenhum campo
-     escondido, `abrir()` retornava antes de exibir a folha, e o botão
-     ⚙ Ajustes parecia simplesmente não fazer nada. */
-  _aplicarEscopo(aba) {
-    const dom = this._abaDom(aba);
-    const escopos = this._escoposDe(aba);
-    const secs = [...document.querySelectorAll('#tec-cfg-body .tec-cfg-sec[data-tab="' + dom + '"]')];
-    if (!escopos) {
-      secs.forEach(sec => {
-        sec.querySelectorAll('.rfc-field').forEach(box => { box.hidden = false; });
-        sec.dataset.escopoVazio = '';
-      });
-      return secs;
-    }
-    return secs.filter(sec => {
-      let vivos = 0;
-      sec.querySelectorAll('.rfc-field').forEach(box => {
-        const ok = escopos.indexOf(this._escopoDoCampo(box)) >= 0;
-        box.hidden = !ok;
-        if (ok) vivos++;
-      });
-      sec.dataset.escopoVazio = vivos ? '' : '1';
-      return vivos > 0;
-    });
-  },
   _secoes(aba) {
-    const dom = this._abaDom(aba || this.aba);
-    return [...document.querySelectorAll('#tec-cfg-body .tec-cfg-sec[data-tab="' + dom + '"]')]
-      .filter(sec => sec.dataset.escopoVazio !== '1');
+    return [...document.querySelectorAll('#tec-cfg-body .tec-cfg-sec[data-tab="' + (aba || this.aba) + '"]')];
   },
   TITULOS: {
-    plano: { t: '🏁 Ajustes do Plano', s: 'O que a fila otimiza e em que dado ela confia.' },
-    plano_motor: { t: '🏁 Recorte dos dados', s: 'O que entra na conta — vale para os motores e para a rota manual. As regras de cada motor ficam em ⚙ Modelos.' },
-    rota: { t: '🎯 Ajustes da Rota manual', s: 'A régua da leitura analítica do Plano. Nenhum motor lê estes campos.' },
-    reforco: { t: '🎯 Ajustes do Reforço', s: 'Como a banca e o seu erro se cruzam para formar o ranking.' },
+    motor: { t: '🧭 Ajustes do Motor', s: 'A margem que decide até onde descer na árvore e o tamanho do caderno que o motor reparte.' },
     analise: { t: '📊 Ajustes da lista', s: 'O corte que define quem entra na lista de assuntos abaixo da régua.' }
   },
   /* Padrão de fábrica de cada seção: é com isto que o ponto no chip sabe se
      você mexeu ali. Ler os defaults do motor (e não uma cópia) é o que impede
      o ponto de mentir quando um padrão mudar. */
   PADROES: {
-    plano: () => Object.assign({}, PlanoEngine.DEFAULTS),
-    rota: () => Object.assign({}, PlanoEngine.DEFAULTS),
-    reforco: () => ({ estrat: 50, gran: 50, minq: 10, limite: null, disc: '__todas__',
-      reforcoView: 'global', reforcoOrdenar: 'oportunidade' }),
+    motor: () => Object.assign({}, MotorSugestao.DEFAULTS),
     analise: () => ({ weakOrdenar: 'taxa', weakDisc: '__todas__', weakLimiar: null, weakMinQ: 10, weakLeaves: true })
   },
   abrir(aba) {
     const modal = document.getElementById('tec-cfg-modal');
     if (!modal || !this.TITULOS[aba]) return;
     this.aba = aba;
-    /* O escopo é aplicado ANTES de medir as seções: a fita de navegação e a
-       altura estável têm de enxergar a folha já filtrada, senão nasce um chip
-       para uma seção que ficou sem nenhum campo. */
-    const secs = this._aplicarEscopo(aba);
+    const secs = this._secoes(aba);
     if (!secs.length) return;
-    const rot = (aba === 'plano' && this._motoresAtivos()) ? this.TITULOS.plano_motor : this.TITULOS[aba];
-    /* A folha se declara filtrada: é o que o CSS usa para calar os selos de
-       escopo, que numa porta de escopo único só repetiriam o subtítulo. */
-    const esc = this._escoposDe(aba);
-    if (esc) modal.dataset.escopo = esc.join(' '); else delete modal.dataset.escopo;
+    const rot = this.TITULOS[aba];
     document.getElementById('tec-cfg-title').textContent = rot.t;
     document.getElementById('tec-cfg-sub').textContent = rot.s;
     // a fita de seções nasce do próprio DOM: seção nova aparece sozinha aqui
@@ -3048,7 +2754,6 @@ const TecAjustes = {
     modal.style.display = 'flex';
     document.body.style.overflow = 'hidden';
     this.aplicarCondicionais();
-    try { this.marcarEscopos(); } catch (e) { _quiet(e, 'cfg-escopos'); }
     this.marcarPersonalizadas();
     this.estabilizarAltura();
     /* O foco cai no chip da seção, não no ✕. Abrir um painel de ajustes com o
@@ -3058,28 +2763,6 @@ const TecAjustes = {
       const at = document.querySelector('#tec-cfg-nav button.is-active');
       if (at) { try { at.focus(); } catch (e) { _quiet(e, 'cfg-foco'); } }
     }, 80);
-  },
-  /* ── O ARQUIVO SE AUTO-CONFERE, E A TELA MOSTRA O VEREDITO ───────────────
-     A exportação rodava as invariantes sobre os dados reais e escondia o
-     resultado dentro do .json: quem exportava não tinha como saber que o
-     próprio arquivo havia reprovado uma conferência. Agora o painel lista as
-     que falharam (e diz quantas passaram), porque é por elas que qualquer
-     análise séria começa. */
-  pintarInvariantes(a) {
-    const host = document.getElementById('plano-aud-inv');
-    if (!host) return;
-    const inv = (a && a.invariantes) || [];
-    if (!inv.length) { host.innerHTML = '<p class="pl-ciclo-obs">Exporte para ver a conferência.</p>'; return; }
-    const falhas = inv.filter(i => !i.ok);
-    const na = inv.filter(i => i.aplicavel === false);
-    const okN = inv.length - falhas.length - na.length;
-    host.innerHTML = `
-      <p class="pl-aud-inv-top ${falhas.length ? 'tone-bad' : 'tone-good'}">
-        ${falhas.length ? '⚠ ' + falhas.length + ' conferência(s) reprovada(s)' : '✓ as ' + okN + ' conferências aplicáveis passaram'}
-        ${na.length ? ' · ' + na.length + ' não se aplica(m) a este retrato' : ''}
-      </p>
-      ${falhas.map(i => `<p class="pl-ciclo-obs tone-bad">✗ ${escapeHtml(i.nome)}${i.detalhe ? ' — ' + escapeHtml(JSON.stringify(i.detalhe)) : ''}</p>`).join('')}
-      ${na.map(i => `<p class="pl-ciclo-obs">— ${escapeHtml(i.nome)}: ${escapeHtml((i.detalhe && i.detalhe.porque) || 'não se aplica')}</p>`).join('')}`;
   },
   /* ── A FITA NÃO PODE FUGIR DO DEDO ───────────────────────────────────────
      No celular a folha é ancorada embaixo: a base fica presa na borda da tela
@@ -3157,8 +2840,6 @@ const TecAjustes = {
   restaurarCampos(aba) {
     const secs = this._secoes(aba);
     secs.forEach(sec => sec.querySelectorAll('input, select').forEach(el => {
-      const box = el.closest('.rfc-field');
-      if (box && box.hidden) return;   // fora do escopo desta porta, fora do restaurar
       if (el.type === 'checkbox' || el.type === 'radio') el.checked = el.defaultChecked;
       else if (el.tagName === 'SELECT') {
         const padrao = [...el.options].find(o => o.defaultSelected);
@@ -3167,92 +2848,6 @@ const TecAjustes = {
       el.dispatchEvent(new Event('input', { bubbles: true }));
       el.dispatchEvent(new Event('change', { bubbles: true }));
     }));
-  },
-  /* ═══ CADA CAMPO DIZ O QUE ELE MOVE ══════════════════════════════════════
-     A folha do Plano reúne, na mesma grade, parâmetros de TRÊS consumidores
-     diferentes — e não dizia qual era qual. O efeito é o que se sente ao
-     abrir: "Meta de domínio (%)" aqui e "Meta desejada" na aba ⚙ Modelos
-     parecem o mesmo campo duplicado; "Ordem de ataque" parece decidir a fila
-     que o motor monta (não decide); e não havia como saber se mexer em algo
-     ali muda o número que está na tela ou um número que nem aparece mais.
-
-     Os três escopos reais:
-
-     · ANÁLISE — lidos por `PlanoEngine`, a leitura analítica do Plano: a
-       trajetória, o quadro de matérias, a nota projetada e a rota manual.
-       NÃO entram no Simplificado nem no Robusto, que têm régua própria.
-     · MOTORES — lidos pelos motores de sugestão, e valem tanto no Plano
-       quanto no "Puxar do Plano" de Extras.
-     · AMBOS — mexem no recorte de dados que os dois leem.
-
-     Um selo por campo, montado a partir deste mapa. Só rótulo: nenhum valor,
-     nenhuma regra e nenhum default muda por causa dele. O que muda é a pessoa
-     saber, antes de girar o botão, o que vai se mexer. */
-  ESCOPO_CAMPO: {
-    // recorte de dados — os dois lados leem
-    'plano-disc': 'ambos',
-    'plano-excluidas-pick': 'ambos',
-    /* ── ESTES DOIS NÃO SÃO DOS MOTORES ─────────────────────────────────
-       O rótulo no HTML dizia que eles governam o "Puxar do Plano", e não é
-       verdade desde que os motores existem: quem os lê é `TecAuditoria.
-       selecionarDiverso`, que monta "O seu próximo bloco" da rota manual.
-       O Simplificado decide as suas frentes em `_top3` e o Robusto em
-       `grupos.slice(0,3)` — nenhum dos dois pode nem ler `PlanoEngine`
-       (é invariante de arquitetura, conferida em testes/plano-robusto.mjs).
-       Cada motor ganhou o seu próprio campo de frentes, na aba ⚙ Modelos. */
-    'plano-sug-disciplinas': 'analise',
-    'plano-sug-topicos': 'analise',
-    // leitura analítica legada
-    'plano-limite': 'analise', 'plano-meta': 'analise', 'plano-amostraalvo': 'analise',
-    'plano-ritmo': 'analise', 'plano-ordenar': 'analise', 'plano-banca-pick': 'analise',
-    'plano-minamostra': 'analise', 'plano-piso': 'analise', 'plano-pequenas': 'analise',
-    'plano-folhas': 'analise', 'plano-granpiso': 'analise', 'plano-janelamax': 'analise',
-    'plano-validade': 'analise', 'plano-cadencia': 'analise', 'plano-teto': 'analise',
-    'plano-critico': 'analise', 'plano-fragil': 'analise', 'plano-consolidar': 'analise',
-    'plano-sens': 'analise', 'plano-ponderacao': 'analise', 'plano-customodo': 'analise',
-    'plano-custopiso': 'analise', 'plano-custoponto': 'analise', 'plano-custofixo': 'analise',
-    'plano-custofator': 'analise', 'plano-pesobanca': 'analise'
-  },
-  ROTULO_ESCOPO: {
-    analise: ['📐 análise', 'Vale para a leitura analítica do Plano — trajetória, quadro de matérias, nota projetada e a rota manual. Os motores Simplificado e Robusto têm régua própria e não leem este campo.'],
-    motor: ['🧠 motores', 'Vale para os motores de sugestão: quantas frentes eles mantêm abertas ao mesmo tempo, aqui e no “Puxar do Plano” de Extras.'],
-    ambos: ['🔗 análise + motores', 'Muda o recorte dos dados, então vale para os dois lados: a leitura analítica e os motores de sugestão.']
-  },
-  marcarEscopos() {
-    const secs = [...document.querySelectorAll('#tec-cfg-body .tec-cfg-sec[data-tab="plano"]')];
-    if (!secs.length) return;
-    secs.forEach(sec => {
-      if (!sec.querySelector('.tec-cfg-escopo-legenda')) {
-        const legenda = document.createElement('div');
-        legenda.className = 'tec-cfg-escopo-legenda';
-        legenda.innerHTML = '<b>O que cada selo quer dizer</b>'
-          + Object.keys(this.ROTULO_ESCOPO).map(k => {
-            const [rot, desc] = this.ROTULO_ESCOPO[k];
-            return `<span><span class="tec-cfg-escopo ${k === 'analise' ? '' : 'is-' + k}">${escapeHtml(rot)}</span> ${escapeHtml(desc.split('.')[0])}.</span>`;
-          }).join('');
-        const sub = sec.querySelector('.tec-cfg-sec-sub');
-        if (sub) sub.insertAdjacentElement('afterend', legenda); else sec.prepend(legenda);
-      }
-      Object.keys(this.ESCOPO_CAMPO).forEach(id => {
-        const campo = sec.querySelector('#' + id);
-        if (!campo) return;
-        const box = campo.closest('.rfc-field');
-        if (!box || box.querySelector('.tec-cfg-escopo')) return;
-        /* O rótulo da caixa de seleção é o próprio `<label class="rfc-check">`;
-           nos outros campos é o `<label for=...>` acima. Em ambos o selo entra
-           no fim do rótulo, para não separar o texto do controle. */
-        const rot = box.querySelector('label.rfc-check') || box.querySelector('label');
-        if (!rot) return;
-        const escopo = this.ESCOPO_CAMPO[id];
-        const [texto, titulo] = this.ROTULO_ESCOPO[escopo];
-        const selo = document.createElement('span');
-        selo.className = 'tec-cfg-escopo' + (escopo === 'analise' ? '' : ' is-' + escopo);
-        selo.title = titulo;
-        selo.textContent = texto;
-        if (rot.classList.contains('rfc-check')) rot.appendChild(selo);
-        else rot.appendChild(selo);
-      });
-    });
   },
   aplicarCondicionais() {
     document.querySelectorAll('#tec-cfg-body [data-cfg-se]').forEach(el => {
@@ -3278,12 +2873,11 @@ const TecAjustes = {
   mostrar(sec) {
     if (!this.aba) return;
     this.secao = sec;
-    /* Esconde TODAS as seções, não só as da aba corrente: as três abas dividem
-       o mesmo corpo, e ocultar apenas as irmãs deixava a seção da aba anterior
-       aparecendo por baixo — a folha do Plano mostrando os campos do Reforço. */
-    const dom = this._abaDom(this.aba);
+    /* Esconde TODAS as seções, não só as da aba corrente: as abas dividem o
+       mesmo corpo, e ocultar apenas as irmãs deixava a seção da aba anterior
+       aparecendo por baixo. */
     document.querySelectorAll('#tec-cfg-body .tec-cfg-sec').forEach(el => {
-      el.hidden = !(el.dataset.tab === dom && el.dataset.sec === sec);
+      el.hidden = !(el.dataset.tab === this.aba && el.dataset.sec === sec);
     });
     const nav = document.getElementById('tec-cfg-nav');
     nav.querySelectorAll('button').forEach(b => {
@@ -3310,8 +2904,6 @@ const TecAjustes = {
       const fora = [...sec.querySelectorAll('[data-cfg-key]')].some(el => {
         /* Campo escondido pelo escopo desta porta não acende o ponto dela: o
            ponto quer dizer "você mexeu em algo AQUI DENTRO". */
-        const box = el.closest('.rfc-field');
-        if (box && box.hidden) return false;
         const k = el.dataset.cfgKey;
         if (!(k in padrao) || padrao[k] == null) return false;
         const atual = (el.type === 'checkbox') ? el.checked : el.value;
@@ -3338,40 +2930,17 @@ const TecAjustes = {
     const semEmoji = (t) => String(t || '').replace(/^[^\p{L}\d]+/u, '').split(' — ')[0].trim();
     const disc = (id) => { const d = semEmoji(sel(id)); return (!d || /^todas/i.test(d)) ? 'todas' : d; };
     const p = [];
-    if (aba === 'rota') {
-      /* A fita da rota responde "com que régua esta rota está montada" — e
-         nada mais: recorte de dados e regras de motor têm portas próprias. */
-      if (val('plano-meta')) p.push(['meta', val('plano-meta') + '%']);
-      p.push(['ordem', semEmoji(sel('plano-ordenar'))]);
-      p.push(['amostra', semEmoji(sel('plano-amostraalvo'))]);
-      if (val('plano-sug-disciplinas')) p.push(['frentes', val('plano-sug-disciplinas')]);
-      if (val('plano-sug-topicos')) p.push(['por matéria', val('plano-sug-topicos')]);
-      if (val('plano-limite')) p.push(['lista', val('plano-limite') + ' por vez']);
-    } else if (aba === 'plano') {
-      /* Com motor ativo esta porta é só o RECORTE. Anunciar meta e ordem de
-         ataque aqui seria prometer que ela governa o motor — e não governa. */
-      const soRecorte = this._motoresAtivos();
-      if (!soRecorte && val('plano-meta')) p.push(['meta', val('plano-meta') + '%']);
-      if (!soRecorte) p.push(['ordem', semEmoji(sel('plano-ordenar'))]);
-      p.push(['disciplina', disc('plano-disc')]);
-      /* A exclusão muda TODO número do Plano e mora dentro de uma caixa
-         fechada. Sem ela na fita de resumo, o único lugar em que a porta dos
-         ajustes diria o que está valendo seria o que ela não diz. */
-      try {
-        const ex = PlanoEngine.prefs().excluidas;
-        if (Array.isArray(ex) && ex.length) p.push(['fora', ex.length === 1 ? ex[0] : ex.length + ' matérias']);
-        /* Quando a porta é SÓ o recorte, "nada de fora" também é resposta: são
-           dois campos, e a fita tem de dizer o estado dos dois. */
-        else if (soRecorte) p.push(['fora', 'nenhuma matéria']);
-      } catch (e) { _quiet(e, 'cfg-excluidas'); }
-      if (!soRecorte && val('plano-limite')) p.push(['lista', val('plano-limite') + ' por vez']);
-    } else if (aba === 'reforco') {
-      let b = ''; try { b = ReforcoEngine.rotuloBancas(DesempenhoTecScreen.bancaFiltro()); } catch (e) { _quiet(e, 'cfg-bancas'); }
-      p.push([/todas/i.test(b) ? 'bancas' : (b.indexOf(' e ') > 0 ? 'bancas' : 'banca'), b.replace(/^todas as bancas$/, 'todas')]);
-      p.push(['ordem', semEmoji(sel('reforco-ordenar'))]);
-      p.push(['disciplina', disc('reforco-disc')]);
-      const g = val('reforco-gran');
-      p.push(['nível', g === '0' ? 'disciplina' : g === '100' ? 'tópico' : 'assunto']);
+    if (aba === 'motor') {
+      const m = MotorSugestao.prefs();
+      p.push(['fase', m.fase === 'pos' ? 'pós-edital' : 'pré-edital']);
+      if (m.fase === 'pos') {
+        let b = ''; try { b = ReforcoEngine.rotuloBancas(m.banca); } catch (e) { _quiet(e, 'cfg-bancas'); }
+        p.push([/ e /.test(b) ? 'bancas' : 'banca', b.replace(/^todas as bancas$/, 'todas')]);
+      }
+      p.push(['margem', '±' + m.margemMax + 'pp']);
+      p.push(['caderno', m.alvoQuestoes + ' questões']);
+      p.push(['disciplinas', String(m.maxFrentes)]);
+      p.push(['meta', m.metaAcerto + '%']);
     } else if (aba === 'analise') {
       if (val('tec-weak-threshold')) p.push(['fraco abaixo de', val('tec-weak-threshold') + '%']);
       p.push(['ordem', semEmoji(sel('tec-weak-ordenar'))]);
@@ -3382,7 +2951,7 @@ const TecAjustes = {
   },
   // chamado pelas telas a cada repintura: o resumo nunca pode ficar velho
   sincronizar(aba) {
-    const alvos = aba ? [aba] : ['plano', 'reforco', 'analise', 'rota'];
+    const alvos = aba ? [aba] : ['motor', 'analise'];
     alvos.forEach(a => {
       const el = document.getElementById(a + '-cfg-resumo');
       if (!el) return;
@@ -3396,148 +2965,6 @@ window.TecAjustes = TecAjustes;
 
 const DesempenhoTecScreen = {
   currentSnapId: null,
-  /* Quanto cada lista do Plano tem ABERTO além do passo configurado (ver
-     `fatiar`). Estado de leitura da sessão: qualquer mudança de ajuste zera
-     tudo, porque outra configuração é outra fila. */
-  _fatias: null,
-  /* ── UMA REGRA DE FATIA PARA TODAS AS LISTAS DO PLANO ───────────────────
-     O Plano tem sete listas, e cada uma tratava o próprio comprimento de um
-     jeito: a de assuntos ia até um campo de ajuste, a de matérias não tinha
-     limite, o segundo plano cortava em 15 fixos e escondia os outros 716 sem
-     dizer, os ciclos fechados cortavam em 12, e as lacunas do edital
-     despejavam tudo. Quatro comportamentos diferentes para a mesma pergunta —
-     "cabe na tela?" — e três deles mentindo por omissão.
-
-     Uma regra só, no passo que você configurar: abre em N, o rodapé diz de
-     quantos, e um toque abre mais N. O estado de abertura é por lista e vive
-     na sessão, nunca nas preferências: abrir a fila inteira uma vez não pode
-     deixar a tela abrindo em 991 itens para sempre. */
-  fatiar(chave, itens, passo) {
-    const arr = Array.isArray(itens) ? itens : [];
-    if (!this._fatias) this._fatias = Object.create(null);
-    const p = Math.max(1, passo || 10);
-    const vis = arr.slice(0, p + (this._fatias[chave] || 0));
-    return { chave, passo: p, vis, total: arr.length, faltam: arr.length - vis.length };
-  },
-  /* O rodapé conta em ITENS por padrão, mas quem tem uma moeda melhor passa
-     `resumo` — a tabela de matérias conta em pontos em jogo, porque é isso que
-     decide se o que ficou escondido importava. */
-  rodapeFatia(f, um, muitos, resumo) {
-    if (!f.total) return '';
-    const abertos = (this._fatias && this._fatias[f.chave]) || 0;
-    const menos = `<button type="button" class="pl-hero-limpar" data-fatia="${f.chave}" data-fatia-op="menos">voltar a ${f.passo}</button>`;
-    if (!f.faltam) {
-      return abertos ? `<div class="pl-mais"><p class="pl-mais-nota">Fim da lista — ${f.total === 1 ? 'o único item está' : 'os <b>' + f.total + '</b> ' + muitos + ' estão'} à vista.</p><div class="pl-mais-bts">${menos}</div></div>` : '';
-    }
-    return `<div class="pl-mais">
-        <p class="pl-mais-nota${(resumo && resumo.tom) ? ' ' + resumo.tom : ''}">Mostrando <b>${f.vis.length}</b> de <b>${f.total}</b> ${f.total === 1 ? um : muitos}${(resumo && resumo.txt) ? ' · ' + resumo.txt : ''}</p>
-        <div class="pl-mais-bts">
-          <button type="button" class="btn-secondary" data-fatia="${f.chave}" data-fatia-op="mais">▾ Mostrar mais ${Math.min(f.passo, f.faltam)}</button>
-          ${f.faltam > f.passo ? `<button type="button" class="pl-hero-limpar" data-fatia="${f.chave}" data-fatia-op="tudo">ver ${f.total === 1 ? 'o item' : 'os ' + f.total}</button>` : ''}
-          ${f.vis.length > f.passo ? menos : ''}
-        </div>
-      </div>`;
-  },
-  /* Um ouvinte para as sete listas. Abrir mais NÃO rola a tela de volta ao
-     topo: a pessoa está lendo o fim de uma lista, e perder o lugar dela é o
-     tipo de detalhe que faz um app parecer desleixado. */
-  _ligarFatias(host) {
-    if (!host) return;
-    host.querySelectorAll('[data-fatia]').forEach(b => b.addEventListener('click', () => {
-      const chave = b.dataset.fatia, op = b.dataset.fatiaOp;
-      if (!this._fatias) this._fatias = Object.create(null);
-      const marca = b.closest('.pl-mais');
-      const antes = marca ? marca.getBoundingClientRect().top : null;
-      if (op === 'menos') this._fatias[chave] = 0;
-      else if (op === 'tudo') this._fatias[chave] = 100000;
-      else this._fatias[chave] = (this._fatias[chave] || 0) + (this._passoFatia || 10);
-      this.renderPlanoConteudo();
-      if (op === 'menos') {
-        const alvo = document.querySelector('[data-fatia="' + chave + '"]');
-        if (alvo && alvo.closest('.pl-mais')) alvo.closest('.pl-mais').scrollIntoView({ block: 'center' });
-        return;
-      }
-      const depois = document.querySelector('[data-fatia="' + chave + '"][data-fatia-op="mais"]');
-      const caixa = depois && depois.closest('.pl-mais');
-      if (antes != null && caixa) window.scrollBy(0, caixa.getBoundingClientRect().top - antes);
-    }));
-  },
-  _passoFatia: 10,
-  /* Quantos assuntos o "próximo bloco" marca de uma vez. Ele é do tamanho do
-     seu ritmo, com este teto: cinco frentes abertas na mesma semana já é mais
-     do que alguém executa, e a fila logo abaixo continua disponível para
-     trocar qualquer um deles. */
-  PLANO_BLOCO_MAX: 5,
-
-  /* ═══ O PLANO NÃO PODE REPINTAR A CADA TECLA ════════════════════════════
-     Cada campo dos ajustes chamava `renderPlanoConteudo` direto, no evento
-     `input`. Digitar "120" num campo numérico disparava TRÊS repinturas — e
-     uma repintura do Plano é o motor inteiro rodando sobre todos os retratos
-     (índice por assunto, janela adaptativa, sequências, série histórica,
-     quadro de matérias) mais alguns milhares de nós de HTML. Num perfil real,
-     com 991 assuntos e 10 retratos, isso trava a digitação: a tecla seguinte
-     espera o cálculo da anterior terminar.
-
-     O pedido passa a ser AGENDADO. Teclas em rajada colapsam em uma repintura
-     só — a última é a que vale, que é justamente o que a pessoa quis dizer.
-     Um clique (caixa de seleção, botão, troca de aba) pede `imediato`, porque
-     ali não existe rajada e qualquer espera é lentidão percebida.
-
-     260ms é a janela: abaixo disso um digitador médio ainda dispara no meio da
-     palavra; acima, o resultado parece ter esquecido o comando. */
-  PLANO_ESPERA: 260,
-  _planoTimer: null,
-  agendarPlano(imediato) {
-    if (this._planoTimer) { clearTimeout(this._planoTimer); this._planoTimer = null; }
-    if (imediato) { this.renderPlanoConteudo(); return; }
-    /* O sinal de "estou processando" tem de aparecer ANTES da espera, não
-       depois: é durante a espera que a tela parece travada. */
-    this._marcarPlanoOcupado(true);
-    this._planoTimer = setTimeout(() => {
-      this._planoTimer = null;
-      this.renderPlanoConteudo();
-    }, this.PLANO_ESPERA);
-  },
-  _marcarPlanoOcupado(on) {
-    const l = document.getElementById('plano-lista');
-    const p = document.getElementById('plano-proj');
-    [l, p].forEach(e => { if (e) { e.classList.toggle('pl-ocupado', !!on); if (on) e.setAttribute('aria-busy', 'true'); else e.removeAttribute('aria-busy'); } });
-  },
-  _trabalharPlano(alvo, rotulo, fn, overlay) {
-    if (window.WorkFeedback) return WorkFeedback.run(alvo, rotulo || 'Processando…', fn, { overlay: !!overlay, region: '#tec-panel-plano', context: 'plano-interacao' });
-    return fn();
-  },
-
-  /* ── REPINTAR NÃO PODE MOVER A PÁGINA DEBAIXO DO DEDO ────────────────────
-     Marcar uma matéria na caixa de exclusão reescrevia `#plano-lista` inteiro.
-     A lista encurta (menos assuntos), a página encurta com ela, e o navegador
-     "sobe" a rolagem sozinho — com a folha de ajustes aberta na frente, o
-     efeito é a barra pulando a cada clique, como se o app estivesse
-     instável.
-
-     Guardar e devolver a posição resolve os dois casos de uma vez: a folha
-     aberta (onde a página atrás nem está sendo lida) e a leitura direta da
-     lista (onde a âncora é o ponto em que o dedo estava). */
-  _comRolagemPreservada(fn) {
-    const y = window.scrollY || document.documentElement.scrollTop || 0;
-    try { fn(); } finally {
-      const agora = window.scrollY || document.documentElement.scrollTop || 0;
-      if (Math.abs(agora - y) > 1) { try { window.scrollTo(0, y); } catch (e) { _quiet(e, 'plano-rolagem'); } }
-    }
-  },
-
-  /* ── A ABA PESADA ABRE ANTES DE TERMINAR DE PENSAR ───────────────────────
-     Abrir o Plano (e as Conquistas) dava uma travada e um atraso: o clique
-     disparava todo o cálculo ANTES de o navegador ter pintado a troca de aba,
-     então a interface ficava congelada no estado antigo sem nenhum sinal de
-     que algo estava acontecendo.
-
-     Agora a aba troca, um esqueleto aparece no mesmo quadro, e o cálculo
-     acontece no quadro seguinte. O tempo total é o mesmo; o que muda é que
-     ele deixa de ser tempo MUDO. Dois `requestAnimationFrame` porque um só
-     ainda pode rodar antes da pintura. */
-  _depoisDePintar(alvoId, fn) { pintarDepois(alvoId, 'Calculando o seu plano…', fn); },
-
   /* ═══ TODA ABA PESADA MERECE O MESMO TRATAMENTO ═════════════════════════
      O adiamento com esqueleto existia só para o Plano. As outras três abas
      chamavam o render direto do `click`, e cada uma faz trabalho pesado sobre
@@ -3557,17 +2984,15 @@ const DesempenhoTecScreen = {
      `switchTecTab` continua síncrona de propósito: quem a chama por código (e
      a suíte de verificação) espera a tela pintada ao retornar. O adiamento
      pertence ao clique, não à API. */
-  ABAS_TEC: ['analise', 'incidencia', 'reforco', 'plano', 'motores'],
+  ABAS_TEC: ['analise', 'incidencia', 'motor'],
   /* Painéis cujo corpo é GERADO por inteiro podem receber o esqueleto no
      lugar do conteúdo. Os demais têm HTML estático (cartões, filtros) que não
      pode ser descartado — neles o sinal é o estado ocupado do próprio painel. */
-  ESQUELETO_ABA: { plano: 'plano-lista', motores: 'tec-panel-motores' },
+  ESQUELETO_ABA: { motor: 'motor-lista' },
   ROTULO_ABA: {
     analise: 'Somando os seus retratos…',
     incidencia: 'Montando a árvore da banca…',
-    reforco: 'Cruzando o seu erro com a incidência…',
-    plano: 'Calculando o seu plano…',
-    motores: 'Lendo a configuração dos modelos…'
+    motor: 'Achando o nível certo de cada ramo…'
   },
   _pintarTrocaDeAba(alvo) {
     this.tecTab = alvo;
@@ -3618,18 +3043,6 @@ const DesempenhoTecScreen = {
     this._prefs = p;
     DB.setRaw(this._prefsKey(), JSON.stringify(p));
   },
-  // aplica as preferências salvas aos controles do Reforço (chamado ao renderizar)
-  applyReforcoPrefs() {
-    const p = this._loadPrefs();
-    if (p.reforcoView) this.reforcoView = p.reforcoView;
-    const set = (id, v) => { const el = document.getElementById(id); if (el && v != null && v !== '') el.value = v; };
-    if (p.ordenar) { const el = document.getElementById('reforco-ordenar'); if (el && [...el.options].some(o => o.value === p.ordenar)) el.value = p.ordenar; }
-    if (p.estrat != null) set('reforco-estrat', p.estrat);
-    if (p.gran != null) set('reforco-gran', p.gran);
-    if (p.minq != null) set('reforco-minq', p.minq);
-    if (p.limite != null) set('reforco-limite', p.limite);
-    if (p.disc) { const el = document.getElementById('reforco-disc'); if (el && [...el.options].some(o => o.value === p.disc)) el.value = p.disc; }
-  },
   render() {
     // Uma abertura do TEC consulta os mesmos retratos em escopo, análise, série,
     // árvore e Plano. Desserializar 8× milhares de linhas a cada chamada era
@@ -3671,7 +3084,7 @@ const DesempenhoTecScreen = {
     // restaura o modo de escopo salvo (persistência de filtros)
     const _p = this._loadPrefs();
     if (_p.scopeMode && ['consolidado', 'select', 'range'].includes(_p.scopeMode)) this.scopeMode = _p.scopeMode;
-    if (_p.reforcoView) this.reforcoView = _p.reforcoView;
+    if (['fracos', 'fortes', 'indice'].includes(_p.treeOrdem)) this.treeOrdem = _p.treeOrdem;
     // Na primeira abertura, restaura inclusive []: "Limpar" é um estado válido.
     if (this.selectedSnapIds === null) {
       const salvos = Array.isArray(_p.selectedSnapIds) ? _p.selectedSnapIds : null;
@@ -3767,12 +3180,11 @@ const DesempenhoTecScreen = {
     this.savePrefs({ bancasSel: Array.isArray(lista) ? lista : [] });
     try { if (typeof PlanoEngine !== 'undefined') PlanoEngine.salvarPrefs({ banca: '__todas__' }); } catch (e) { _quiet(e, 'banca-plano'); }
     this.renderBancaPickers();
-    if (this.tecTab === 'reforco') this.renderReforco();
-    else if (this.tecTab === 'plano') this.renderPlanoConteudo();
+    if (this.tecTab === 'motor') this.renderMotor();
     else if (this.tecTab === 'incidencia') this.renderIncidencia();
   },
   renderBancaPickers() {
-    ['reforco-banca-pick', 'plano-banca-pick', 'incid-banca-pick'].forEach(id => this.renderBancaPicker(id));
+    ['motor-banca-pick', 'incid-banca-pick'].forEach(id => this.renderBancaPicker(id));
   },
   /* O seletor: um botão que diz o que está valendo e um painel de caixas. Não é
      uma lista suspensa porque a resposta certa costuma ser MAIS DE UMA — e numa
@@ -3940,7 +3352,7 @@ const DesempenhoTecScreen = {
     patch.foco = focoLimpo;
     patch.disciplina = (focoLimpo.length === 1) ? focoLimpo[0] : '__todas__';
     PlanoEngine.salvarPrefs(patch);
-    this._planoRefC = null; this._fatias = null;
+    this._planoRefC = null;
     /* `renderPlano()` reconstrói TODOS os campos da folha, inclusive o select
        de disciplina e a própria caixa que você acabou de tocar — e era isso
        que fazia a caixa fechar e a página saltar a cada matéria marcada. Aqui
@@ -4121,7 +3533,6 @@ const DesempenhoTecScreen = {
     this.savePrefs(this._scopePrefsPatch());
     this._scopedC = null;
     this._planoRefC = null;
-    this._fatias = null;
     if (typeof PlanoEngine !== 'undefined') {
       PlanoEngine._agrC = null;
       PlanoEngine._tecScopeSignature = null;
@@ -4129,8 +3540,7 @@ const DesempenhoTecScreen = {
     }
     this.renderScopeControls(DB.getTecSnapshots());
     this.renderAnalysis();
-    if (this.tecTab === 'plano') this.renderPlano();
-    else if (this.tecTab === 'reforco') this.renderReforco();
+    if (this.tecTab === 'motor') this.renderMotor();
     else if (this.tecTab === 'incidencia') this.renderIncidencia();
   },
   openImport() {
@@ -4563,14 +3973,13 @@ const DesempenhoTecScreen = {
   switchTecTab(tab) {
     this.tecTab = tab;
     document.querySelectorAll('#tec-subtabs .tec-subtab').forEach(b => b.classList.toggle('active', b.dataset.tectab === tab));
-    ['analise', 'incidencia', 'reforco', 'plano'].forEach(t => {
+    ['analise', 'incidencia', 'motor'].forEach(t => {
       const el = document.getElementById('tec-panel-' + t);
       if (el) el.style.display = (t === tab) ? 'block' : 'none';
     });
     if (tab === 'analise') this.renderAnalysis();
     if (tab === 'incidencia') this.renderIncidencia();
-    if (tab === 'reforco') this.renderReforco();
-    if (tab === 'plano') this.renderPlano();
+    if (tab === 'motor') this.renderMotor();
     try { TecAjustes.sincronizar(); } catch (e) { _quiet(e, 'resumo-abas'); }
     this.applyCfgHidden();
   },
@@ -4654,7 +4063,10 @@ const DesempenhoTecScreen = {
   },
   // `lote` = criação em série: sem aviso por item e sem repintar a cada um.
   // Devolve true quando a atividade nasceu, para o chamador contar.
-  criarExtraDoPlano(topico, disciplina, alvo, motivo, lote) {
+  /* `sugerido` é a frente como o Motor a devolveu (margem, bloco, membros).
+     Ela é opcional: o portão continua servindo a quem cria uma atividade
+     direto de um nó da árvore, sem passar pela fila. */
+  criarExtraDoPlano(topico, disciplina, alvo, motivo, lote, sugerido) {
     /* Só uma atividade ABERTA bloqueia. Uma já encerrada é história: o assunto
        pode ter voltado a cair — e no caso do veredito "não funcionou" ele
        PRECISA de um ataque novo, de outro tipo. Recusar por causa dela
@@ -4662,7 +4074,7 @@ const DesempenhoTecScreen = {
     /* A unidade do Plano vem ANTES da trava: é dela que sai a lista de tópicos
        que um bloco cobre, e sem ela a trava não veria a atividade aberta em um
        membro. Ela também é o item que a origem lê para gravar o escopo. */
-    const alvoTop = this._unidadeDoPlano(topico, disciplina);
+    const alvoTop = sugerido || this._unidadeDoPlano(topico, disciplina);
     const unidade = alvoTop || { nome: topico, disciplina: disciplina || '' };
     const jaTem = DB.getExtras().find(e => e.status !== 'concluida' && this._casaUnidade(e.origemPlano, unidade));
     if (jaTem) { if (!lote) showToast('Já existe uma atividade em aberto para "' + topico + '"'); return false; }
@@ -4681,1624 +4093,103 @@ const DesempenhoTecScreen = {
       periodo: 'unica',
       contaMetricas: false,
       obs: diag
-        ? 'Gerado pelo Plano: amostra insuficiente. Resolva estas questões para saber se é fraqueza real.'
-        : 'Gerado pelo Plano de pontos fracos. Ao importar o próximo retrato do TEC, a métrica dirá se o assunto saiu da lista.'
+        ? 'Gerado pelo Motor: amostra insuficiente. Resolva estas questões para saber se é fraqueza real.'
+        : 'Gerado pelo Motor de sugestão. Ao importar o próximo retrato do TEC, a métrica dirá se o assunto saiu da fila.'
     });
     if (e) {
       // um só lugar monta a origem: os dois portões gravam exatamente o mesmo
       DB.updateExtra(e.id, { origemPlano: PlanoCiclo.origem(topico, disciplina, alvoTop, { motivo: motivo || 'reforco' }) });
       if (!lote) {
         showToast('Atividade criada: ' + (diag ? 'diagnosticar ' : 'reforçar ') + topico);
-        this.renderPlanoConteudo();
+        if (this.tecTab === 'motor') this.renderMotor();
       }
       return true;
     }
     return false;
   },
-  renderPlano() {
-    const p = PlanoEngine.prefs();
-    const set = (id, v) => { const e = document.getElementById(id); if (e) e.value = v; };
-    const chk = (id, v) => { const e = document.getElementById(id); if (e) e.checked = !!v; };
-    set('plano-meta', p.metaDominio); set('plano-teto', p.tetoDominio);
-    set('plano-ponderacao', p.ponderacao); set('plano-minamostra', p.minAmostra);
-    set('plano-customodo', p.custoModo); set('plano-custofixo', p.custoFixo);
-    set('plano-custofator', p.custoFator); set('plano-limite', p.limite);
-    set('plano-custopiso', p.custoPiso); set('plano-custoponto', p.custoPorPonto);
-    set('plano-pesobanca', p.pesoBanca);
-    const lblPB = document.getElementById('plano-pesobanca-label');
-    if (lblPB) lblPB.textContent = p.pesoBanca === 0 ? '0 — banca ignorada' : String(p.pesoBanca);
-    chk('plano-folhas', p.apenasFolhas); chk('plano-pequenas', p.incluirPequenas);
-    set('plano-granpiso', String(parseInt(p.granPiso || 0, 10) || 0));
-    set('plano-amostraalvo', p.amostraAlvo); set('plano-cadencia', p.cadenciaDias); set('plano-ordenar', p.ordenar);
-    set('plano-sug-disciplinas', p.sugestoesDisciplinas); set('plano-sug-topicos', p.sugestoesTopicosDisc);
-    /* Os rótulos das sete ordens existiam em TRÊS lugares: neste select, no
-       diálogo "Puxar do Plano" e no texto que explica a ordem escolhida. Três
-       cópias divergem — uma renomeada, as outras não. Agora o select nasce da
-       mesma tabela que explica os cenários, e cada opção carrega o "quando
-       usar" como dica. As opções do HTML continuam lá como base: se o JS não
-       rodar, o campo ainda funciona. */
-    const os_ = document.getElementById('plano-ordenar');
-    if (os_ && typeof PlanoEngine.ORDENS === 'object') {
-      /* A ordem por PONTOS só existe com edital preenchido. Oferecê-la vazia
-         seria uma opção que não muda nada — e uma ordem que não ordena é a
-         forma mais rápida de a pessoa perder a confiança na tela. Com o edital
-         publicado e a composição em branco, ela aparece desabilitada dizendo o
-         que falta, em vez de sumir sem explicação. */
-      const podePontos = (typeof PlanoPontos !== 'undefined') && PlanoPontos.temComposicao();
-      const ehPos = (typeof PlanoPontos !== 'undefined') && PlanoPontos.modo() === 'pos';
-      os_.innerHTML = Object.keys(PlanoEngine.ORDENS).map(k => {
-        const o = PlanoEngine.ORDENS[k];
-        if (o.soPos && !ehPos) return '';
-        const off = o.soPos && !podePontos;
-        return `<option value="${k}" title="${escapeHtml(o.quando)}"${k === p.ordenar && !off ? ' selected' : ''}${off ? ' disabled' : ''}>${escapeHtml(o.rot)}${off ? ' (preencha a composição da prova)' : ''}</option>`;
-      }).join('');
-      if (![...os_.options].some(o => o.value === p.ordenar && !o.disabled)) os_.value = 'pior';
+  /* ── A ABA DO MOTOR ──────────────────────────────────────────────────────
+     Ela mostra três coisas, nesta ordem: em que fase o motor está pensando,
+     o que ele escolheu, e POR QUE cada linha ficou no nível em que ficou. A
+     última é a que faz a tela ser auditável em vez de um oráculo — uma linha
+     que diz "23 questões, ±14pp, bloco de 4 subtópicos" pode ser conferida
+     contra a árvore da Análise em dez segundos. */
+  renderMotor() {
+    const host = document.getElementById('motor-lista');
+    const fase = document.getElementById('motor-fase');
+    if (!host) return;
+    const p = MotorSugestao.prefs();
+    if (fase) {
+      const b = (k, rot, sub) => `<button type="button" data-fase="${k}" class="${p.fase === k ? 'active' : ''}" aria-pressed="${p.fase === k}"><b>${rot}</b><span>${sub}</span></button>`;
+      fase.innerHTML = b('pre', 'Pré-edital', 'Peso = o seu volume no TEC')
+        + b('pos', 'Pós-edital', 'Peso = incidência da banca');
     }
-    set('plano-janelamax', p.janelaMax); set('plano-consolidar', p.consolidarEm); set('plano-validade', p.validadeDias);
-    set('plano-critico', p.faixaCritico); set('plano-fragil', p.faixaFragil);
-    set('plano-piso', p.pisoSerie); set('plano-sens', p.sensTendencia);
-    const desc = DB.getTecSnapshots().slice().reverse();
-    set('plano-ritmo', p.ritmoSemanal || PlanoEngine.ritmoRecente(desc, 120, PlanoEngine.excluidasSet(p)) || 25);
-    /* Uma matéria fora do Plano não pode continuar na lista do filtro: o motor
-       já não a enxerga, e escolhê-la levaria a uma tela vazia sem explicação.
-       Ela volta à lista no instante em que você a desmarcar. */
-    this._sincronizarFiltroDisc();
-    this.renderExcluidasPicker('plano-excluidas-pick');
-    // Seletor de banca: só aparece quando há dados de incidência importados.
-    // Alimenta a ordenação "🎯 Prioridade na banca".
-    const bf = document.getElementById('plano-banca-field');
-    if (bf) {
-      const temInc = (typeof ReforcoEngine !== 'undefined') && ReforcoEngine.hasIncidencia && ReforcoEngine.hasIncidencia();
-      bf.style.display = temInc ? '' : 'none';
-      if (temInc) this.renderBancaPicker('plano-banca-pick');
-    }
-    this.renderModosDeAtaque();
-    this.renderPlanoConteudo();
-  },
-  /* ── MODO DE ATAQUE ───────────────────────────────────────────────────────
-     Um preset por pergunta, e a pergunta escrita por extenso. Antes desta faixa
-     a tela oferecia sete ordenações e dezenove parâmetros sem nenhuma frase
-     dizendo quando usar cada coisa — e quem não sabe escolher não escolhe:
-     fica no padrão e desconfia do resultado.
-     Os chips não travam nada. Mexeu num campo, o rótulo volta para "livre" e o
-     modo escolhido deixa de aparecer marcado. */
-  renderModosDeAtaque() {
-    const box = document.getElementById('plano-modos');
-    const nota = document.getElementById('plano-modo-nota');
-    if (!box) return;
-    const p = PlanoEngine.prefs();
-    const ativo = PlanoEngine.modoAtivo(p);
-    const temInc = (typeof ReforcoEngine !== 'undefined') && ReforcoEngine.hasIncidencia && ReforcoEngine.hasIncidencia();
-    box.innerHTML = `<span class="pl-modos-rot">Modo de ataque</span>` +
-      Object.keys(PlanoEngine.MODOS).map(k => {
-        const m = PlanoEngine.MODOS[k];
-        const bloqueado = m.exige === 'incidencia' && !temInc;
-        const editado = PlanoEngine.modoEditado(k);
-        return `<span class="pl-modo-wrap">
-          <button type="button" class="pl-modo${ativo === k ? ' on' : ''}${bloqueado ? ' off' : ''}" data-modo="${k}"
-            title="${escapeHtml(m.quando + ' — ' + PlanoEngine.resumoModo(k))}">${m.rot}${editado ? ' <i class="pl-modo-edit-dot" title="Ajustado por você">•</i>' : ''}<small>${m.fase}</small></button>
-          <button type="button" class="pl-modo-edit" data-editar="${k}" title="Ajustar os parâmetros deste modo" aria-label="Ajustar ${escapeHtml(m.rot)}">✎</button>
-        </span>`;
-      }).join('') +
-      /* "Livre" é ESTADO, não ação: é onde você cai ao mexer num campo, e um
-         botão que não faz nada ao ser tocado ensina que a faixa toda é
-         decorativa. Por isso sai como marcador, e só aparece quando é o caso. */
-      (ativo === 'livre' ? `<span class="pl-modo on estado" title="Seus ajustes, do seu jeito — é o que fica valendo assim que você mexe em qualquer campo.">✏️ Livre<small>seus ajustes</small></span>` : '');
-    if (nota) {
-      const m = PlanoEngine.MODOS[ativo];
-      nota.innerHTML = m
-        ? `<p class="pl-modo-nota"><strong>${m.rot} · ${escapeHtml(m.fase)}</strong> — ${escapeHtml(m.quando)}<br><span>${escapeHtml(m.porque)}</span>
-             <br><span class="pl-modo-param">Aplica: ${escapeHtml(PlanoEngine.resumoModo(ativo))}${PlanoEngine.modoEditado(ativo) ? ' · ajustado por você' : ''} — toque em ✎ para mudar.</span>
-             ${(m.exige === 'incidencia' && !temInc) ? '<br><em>Sem dados de incidência importados, esta ordem não tem como funcionar: importe em 🏛️ Incidência.</em>' : ''}</p>`
-        : `<p class="pl-modo-nota"><strong>✏️ Modo livre</strong> — seus ajustes não correspondem a nenhum preset. Toque num modo acima para partir de um conjunto coerente; nada do que você configurou se perde antes disso.</p>`;
-    }
-    box.querySelectorAll('.pl-modo').forEach(b => b.addEventListener('click', () => {
-      const k = b.dataset.modo;
-      if (k === 'livre') return;
-      if (!PlanoEngine.MODOS[k]) return;
-      this._trabalharPlano(b, 'Aplicando modo…', () => {
-        PlanoEngine.salvarPrefs(PlanoEngine.modoPatch(k));
-        this.renderPlano();
-        showToast(PlanoEngine.MODOS[k].rot + ' aplicado');
-      });
-    }));
-    box.querySelectorAll('.pl-modo-edit').forEach(b => b.addEventListener('click', (e) => {
-      e.stopPropagation();
-      this.editarModo(b.dataset.editar);
-    }));
-    try { if (window.InfoTips) InfoTips.upgrade(); } catch (e) { _quiet(e, 'info-modos'); }
-  },
-  /* Editar um modo: os mesmos parâmetros do painel de ajustes, só que salvos
-     COMO o modo — e com a volta ao padrão de fábrica no mesmo lugar, por modo,
-     sem levar os outros quatro junto. */
-  async editarModo(k) {
-    const m = PlanoEngine.MODOS[k];
-    if (!m) return;
-    // se o modo em edição é o que está valendo agora, o ajuste tem de valer já
-    const eraAtivo = (PlanoEngine.modoAtivo() === k);
-    /* Valores EFETIVOS: o que vai valer se você aplicar este modo agora. Um
-       modo que não fixa a meta herda a que está valendo — ler só o patch dele
-       abria o diálogo com campos vazios, e salvar assim gravava NaN. */
-    const p = Object.assign({}, PlanoEngine.prefs(), PlanoEngine.modoPatch(k));
-    /* ── O DIÁLOGO NASCE DA LISTA DE CAMPOS DO MODO ────────────────────────
-       Era uma lista escrita à mão aqui, e ela divergiu do que um modo controla:
-       oferecia o passo de leitura (que os presets tinham deixado de mexer de
-       propósito) e omitia a amostra mínima, o peso da banca e a régua de custo
-       — os três parâmetros que dão sentido a "Diagnóstico", "Edital publicado"
-       e "Tempo curto". Agora há UMA fonte (`PlanoEngine.MODO_CAMPOS`), e o que
-       o diálogo mostra é exatamente o que o modo é capaz de guardar. */
-    const ordens = Object.keys(PlanoEngine.ORDENS)
-      .filter(x => !PlanoEngine.ORDENS[x].soPos || (typeof PlanoPontos !== 'undefined' && PlanoPontos.modo() === 'pos'))
-      .map(x => ({ value: x, label: PlanoEngine.ORDENS[x].rot }));
-    const campos = PlanoEngine.MODO_CAMPOS.map(c => {
-      const valor = (c.tipo === 'bool') ? (p[c.key] ? '1' : '0') : p[c.key];
-      if (c.tipo === 'ordens') return { key: c.key, label: c.label, type: 'select', value: valor, options: ordens, hint: c.hint };
-      if (c.tipo === 'select' || c.tipo === 'bool') {
-        return { key: c.key, label: c.label, type: 'select', value: String(valor),
-          options: (c.op || []).map(([v, l]) => ({ value: v, label: l })), hint: c.hint };
-      }
-      return { key: c.key, label: c.label, type: 'number', value: valor, min: c.min, max: c.max, hint: c.hint };
-    });
-    campos.push({ key: 'restaurar', label: 'Restaurar o padrão deste modo', type: 'select', value: '0',
-      hint: 'Descarta os seus ajustes SÓ deste modo e volta ao padrão de fábrica.',
-      options: [{ value: '0', label: 'Não, salvar o que está acima' }, { value: '1', label: '↺ Sim, voltar ao padrão' }] });
-    const r = await UI.prompt(campos, { title: 'Ajustar ' + m.rot, sub: m.quando, okText: 'Salvar modo' });
-    if (!r) return;
-    if (String(r.restaurar) === '1') {
-      PlanoEngine.restaurarModo(k);
-      showToast(m.rot + ' voltou ao padrão ✓');
-    } else {
-      /* Só os campos que a pessoa REALMENTE mexeu entram no modo. Gravar todos
-         faria um modo herdar decisões que ele não quis tomar, e um "salvar"
-         sem alteração nenhuma marcaria o modo como personalizado. */
-      const novo = {};
-      PlanoEngine.MODO_CAMPOS.forEach(c => {
-        const bruto = r[c.key];
-        if (bruto === undefined || bruto === null || bruto === '') return;
-        if (c.tipo === 'bool') { novo[c.key] = String(bruto) === '1'; return; }
-        if (c.tipo === 'num' || c.numerico) {
-          const n = parseInt(bruto, 10);
-          if (isNaN(n)) return;
-          novo[c.key] = Math.max(c.min != null ? c.min : 0, Math.min(c.max != null ? c.max : 100000, n));
-          return;
-        }
-        novo[c.key] = bruto;
-      });
-      const mudou = {};
-      Object.keys(novo).forEach(c => { if (String(novo[c]) !== String(p[c])) mudou[c] = novo[c]; });
-      if (Object.keys(mudou).length) { PlanoEngine.salvarModo(k, mudou); showToast(m.rot + ' ajustado ✓'); }
-      else showToast('Nada mudou neste modo');
-    }
-    if (eraAtivo) PlanoEngine.salvarPrefs(PlanoEngine.modoPatch(k));
-    this.renderPlano();
-  },
-  /* Texto pronto para viver dentro de um atributo `data-info`: o que vem de
-     dado do usuário já passou por escapeHtml (que não deixa aspa crua), então
-     só sobra fechar as aspas duplas da nossa própria redação. */
-  _info(html) { return String(html == null ? '' : html).replace(/"/g, '&quot;'); },
-  /* ── O BLOCO TEM DE SE ANUNCIAR ───────────────────────────────────────────
-     Uma unidade que soma cinco tópicos e se chama "Atos administrativos ·
-     bloco" não pode parecer um assunto do TEC: quem compara a tela com o site
-     precisa saber na hora por que aquele nome não existe lá, o que ele cobre e
-     por que a taxa dele é média de coisas diferentes. O selo diz que é bloco e
-     quantos tópicos entraram; o "i" lista os tópicos e a regra. */
-  _seloBloco(x, piso) {
-    if (!x || !(x.nAtomos > 1) || !x.membros) return '';
-    const lista = x.membros.slice(0, 14).map(n => '· ' + escapeHtml(n)).join('<br>');
-    const resto = x.membros.length > 14 ? '<br>· … e mais ' + (x.membros.length - 14) : '';
-    const info = '<b>Esta unidade é um bloco de ' + x.nAtomos + ' tópicos do TEC</b>, medidos juntos.'
-      + '<br><br>Nenhum deles alcança, sozinho, as ' + piso + ' questões que você pediu por unidade — '
-      + 'volume assim não mede nada: a margem de erro engole qualquer conclusão. '
-      + 'Somados, eles viram uma unidade com amostra suficiente para você comparar e acompanhar.'
-      + (x.baseBloco ? '<br><br>O bloco foi montado subindo a árvore até <b>' + escapeHtml(x.baseBloco) + '</b> — '
-        + 'o app sobe um nível por vez e para no primeiro que alcança o piso. '
-        + 'Ele nunca atravessa matéria: no limite, um bloco é uma matéria inteira, nunca duas.' : '')
-      + '<br><br><b>Tópicos neste bloco</b><br>' + lista + resto
-      + '<br><br>O total de questões é o mesmo com ou sem agrupamento — nada é escondido nem contado duas vezes. '
-      + 'Para ver tópico por tópico outra vez, ponha <b>&quot;Juntar assuntos com menos de&quot;</b> em '
-      + '<b>não juntar</b>, nos ajustes ▸ Amostra.';
-    return '<span class="reforco-tag pl-tag-bloco" data-info="' + this._info(info) + '">🧩 bloco · '
-      + x.nAtomos + ' tópicos</span>';
-  },
+    try { TecAjustes.sincronizar('motor'); } catch (e) { _quiet(e, 'motor-resumo'); }
 
-  /* ── POR QUE ESTA MATÉRIA ESTÁ NESTA POSIÇÃO ──────────────────────────────
-     A pergunta que o quadro "Onde atacar primeiro" nunca respondia — e a
-     dúvida exata de quem olha a tela: "tenho matérias com percentual menor
-     que aparecem muito depois; por quê?".
-
-     A resposta não cabe numa célula de tabela, e escrevê-la em cada linha era
-     o que transformava o quadro numa parede de texto. Ela vira uma análise
-     completa, atrás do "i" da linha: a conta do prêmio feita com os números
-     daquela matéria, quem está imediatamente acima e abaixo dela na fila, um
-     CONTRAEXEMPLO tirado da própria tela (uma matéria em que você acerta menos
-     e que mesmo assim aparece depois) e o que fazer a respeito.
-
-     Devolve { titulo, html } — o `html` é montado aqui, com todo dado do
-     usuário já escapado, e abre em `UI.detalhe` (ver o porquê lá). */
-  _analiseMateria(l, pos, tm, VER, grandes, alvo, r) {
-    const [ic, tom, rot, frase] = VER[l.veredito] || ['', '', '', ''];
-    const n = grandes.length;
-    const pp = (v) => (v == null ? '—' : v.toFixed(1).replace('.', ',') + ' pp');
-    const pc = (v) => (v == null ? '—' : ((v > 0 && v < 0.5) ? '<1%' : v.toFixed(0) + '%'));
-    const base = l.taxa != null ? l.taxa : (tm.taxaGeral != null ? tm.taxaGeral : 50);
-    const lacuna = Math.max(0, tm.teto - base);
-    const acima = grandes[pos - 2], abaixo = grandes[pos];
-    const b = [];
-    b.push(`<p class="pl-det-lead">Das <b>${n}</b> matérias do quadro, esta é a <b>${pos}ª</b>. A fila é ordenada por <b>pontos em jogo</b> — e aqui estão <b>${pp(l.ganho)}</b> da prova inteira.</p>`);
-
-    b.push('<p class="pl-det-rot">1 · De onde sai esse número</p>');
-    if (l.sharePeso != null && l.sharePeso > 0) {
-      b.push(`<p class="pl-det-conta"><b>${pc(l.sharePeso)}</b> <i>peso na prova</i> × <b>${lacuna.toFixed(0)} pontos</b> <i>de lacuna</i> = <b>${pp(l.ganho)}</b></p>`);
-      b.push(`<p>A lacuna é a distância entre ${l.taxa != null ? `o seu nível medido (<b>${l.taxa.toFixed(0)}%</b>)` : `o nível estimado (<b>${base.toFixed(0)}%</b>)`} e o máximo realista que você configurou (<b>${tm.teto}%</b>). Levar esta matéria até lá recupera ${pp(l.ganho)} da prova — não da matéria, da <b>prova toda</b>.</p>`);
-      if (l.estimado) {
-        b.push(`<p class="pl-det-alerta">Você ainda não tem questões medidas aqui: a lacuna usa a sua média geral (<b>${base.toFixed(0)}%</b>) como palpite. O número é grosseiro, mas a posição não é — sem medição, quem manda é o peso, e este é exatamente o peso que a sua prova dá a esta matéria.</p>`);
-      }
-    } else {
-      b.push(`<p>Esta matéria <b>não aparece no peso da sua prova</b> ${tm.fontePeso === 'edital' ? '(a composição que você declarou não a inclui)' : '(a incidência das suas bancas não a registra)'}. Sem peso não há prêmio a calcular: ela fica no fim da fila por definição, não por você ir bem nela.</p>`);
-    }
-
-    b.push('<p class="pl-det-rot">2 · Onde ela está na fila</p>');
-    const viz = [];
-    if (acima) viz.push(`<li>logo acima: <b>${escapeHtml(acima.nome)}</b> — ${pp(acima.ganho)}</li>`);
-    viz.push(`<li><b>${escapeHtml(l.nome)}</b> — ${pp(l.ganho)} <i>(esta)</i></li>`);
-    if (abaixo) viz.push(`<li>logo abaixo: <b>${escapeHtml(abaixo.nome)}</b> — ${pp(abaixo.ganho)}</li>`);
-    b.push(`<ul class="pl-det-lista">${viz.join('')}</ul>`);
-    b.push(`<p>No total há <b>${pp(tm.emJogo)}</b> em jogo, e as <b>${tm.nCorte}</b> primeiras concentram metade disso — é a faixa em que a próxima hora de estudo rende mais.${l.noCorte ? ' <b>Esta matéria está nessa faixa.</b>' : (l.naFila ? ' Esta está na faixa seguinte: entra assim que as de cima saírem.' : '')}</p>`);
-
-    /* O CONTRAEXEMPLO É TIRADO DA PRÓPRIA TELA. Dizer "não é o percentual que
-       ordena" em tese não convence ninguém; mostrar a matéria em que a pessoa
-       acerta MENOS e que ainda assim está mais abaixo, com a conta das duas,
-       responde a dúvida com o dado dela. */
-    const abaixoPior = grandes.slice(pos).filter(o => o.taxa != null && l.taxa != null && o.taxa < l.taxa - 1)
-      .sort((a, c) => a.taxa - c.taxa)[0];
-    if (abaixoPior) {
-      const pos2 = grandes.indexOf(abaixoPior) + 1;
-      b.push('<p class="pl-det-rot">3 · Por que não é o seu percentual que ordena</p>');
-      b.push(`<p>Em <b>${escapeHtml(abaixoPior.nome)}</b> você acerta <b>${abaixoPior.taxa.toFixed(0)}%</b> — menos que os <b>${l.taxa.toFixed(0)}%</b> daqui — e mesmo assim ela é a <b>${pos2}ª</b>. O motivo é o peso: ela vale <b>${pc(abaixoPior.sharePeso)}</b> da prova, então fechar a lacuna dela rende <b>${pp(abaixoPior.ganho)}</b>, contra os <b>${pp(l.ganho)}</b> desta.</p>`);
-      b.push(`<p>É a mesma aritmética da prova: <b>ir mal numa matéria leve custa poucos pontos; ir razoavelmente numa matéria pesada custa muitos.</b> Percentual baixo dói mais no orgulho; peso alto dói mais na nota.</p>`);
-    }
-
-    b.push(`<p class="pl-det-rot">${abaixoPior ? '4' : '3'} · O seu esforço aqui</p>`);
-    if (l.q > 0) {
-      b.push(`<p><b>${l.q.toLocaleString('pt-BR')}</b> questões resolvidas = <b>${pc(l.shareEsforco)}</b> de tudo que você já resolveu${l.sharePeso != null ? `, para <b>${pc(l.sharePeso)}</b> da prova` : ''}${l.razao != null ? ` (razão <b>${l.razao.toFixed(1)}×</b>)` : ''}.${l.medido ? ` O nível vem da janela adaptativa: <b>${l.medido.toLocaleString('pt-BR')}</b> questões, das importações mais recentes para trás — não da sua média histórica.` : ''}</p>`);
-      if (l.sobra) {
-        b.push(`<p class="pl-det-alerta">Você já dedica <b>${l.razao.toFixed(1)}×</b> o peso desta matéria: proporcionalmente, é onde o seu tempo mais entra. Quando isso aparece junto de um prêmio alto, o recado não é "estude mais", é <b>estude diferente</b> — o volume que já entra aqui não está virando acerto.</p>`);
-      }
-    } else {
-      b.push(`<p>Você <b>nunca resolveu uma questão</b> desta matéria nos retratos importados. Ela não aparece como fraca porque não aparece de jeito nenhum — e é por isso que o prêmio dela é estimado.</p>`);
-    }
-
-    b.push(`<p class="pl-det-rot">${abaixoPior ? '5' : '4'} · O que fazer</p>`);
-    b.push(`<p class="pl-det-verbo"><span class="reforco-tag ${tom}">${ic} ${rot}</span> ${escapeHtml(frase)}.</p>`);
-    if (l.taxa != null && r && l.taxa < r.faixaFragil) {
-      b.push(`<p>O nível aqui está abaixo da sua faixa frágil (<b>${r.faixaFragil}%</b>): o caminho curto é teoria antes de volume — resolver mais questões sobre um conteúdo que ainda não assentou mede o buraco em vez de fechá-lo.</p>`);
-    }
-    if (alvo) {
-      b.push(`<p>O botão <b>🎯 Atacar</b> desta linha filtra a lista de assuntos por <b>${escapeHtml(alvo)}</b> e leva você ao bloco de criar atividades — é o caminho da matéria para os assuntos dela.</p>`);
-    } else if (l.veredito === 'manter' || l.veredito === 'foraDoPeso') {
-      b.push(`<p>Não há botão de ataque nesta linha de propósito: ele convidaria a fazer exatamente o que o quadro acabou de dizer para não fazer agora.</p>`);
-    }
-    /* O título vai por `textContent` no diálogo: escapar aqui faria aparecer
-       "&amp;" na tela de quem tem "&" no nome da matéria. */
-    return { titulo: l.nome + ' — ' + pos + 'ª no prêmio', html: b.join('') };
-  },
-  /* ── OS NÚMEROS POR TRÁS DA TRAJETÓRIA ────────────────────────────────────
-     O gráfico mostra uma linha e um crachá; os dois só se entendem com os
-     volumes por trás — quantos assuntos entraram em cada importação, quantas
-     questões, e qual variação é comparável. Esses volumes nunca estiveram na
-     tela: o que estava eram dois parágrafos explicando números invisíveis.
-
-     Aqui eles aparecem: a explicação primeiro, a série inteira depois. */
-  _analiseTrajetoria(S, r, m) {
-    if (!S || S.length < 2) return null;
-    const pp = (v) => (v == null ? '—' : (v >= 0 ? '+' : '') + v.toFixed(1).replace('.', ',') + 'pp');
-    // pt-BR: a vírgula decimal vale também aqui dentro, senão "0.7pp a cada
-    // 1.000 questões" põe ponto nos dois papéis na mesma frase.
-    const pc1 = (v) => (v == null ? '—' : v.toFixed(1).replace('.', ',') + '%');
-    const p0 = S[0], pn = S[S.length - 1];
-    const b = [];
-    b.push(`<p class="pl-det-lead">São <b>${S.length}</b> importações, de <b>${escapeHtml(formatDateShort(p0.data))}</b> a <b>${escapeHtml(formatDateShort(pn.data))}</b>. Nesse intervalo o seu domínio saiu de <b>${pc1(p0.dominio)}</b> para <b>${pc1(pn.dominio)}</b>, com a cobertura indo de <b>${p0.assuntos}</b> para <b>${pn.assuntos}</b> assuntos medidos.</p>`);
-
-    b.push('<p class="pl-det-rot">1 · O que a LINHA é</p>');
-    b.push(`<p>O seu nível médio sobre <b>tudo</b> que você já tinha medido naquela data. Ela mistura duas coisas: o quanto você melhorou e o quanto você ampliou. Abrir frente nova entra na média com a taxa baixa de quem está começando — então a linha pode <b>cair</b> num período em que todo assunto individual subiu.${m.divergem ? ` Foi o que aconteceu aqui: a linha ${pn.dominio >= p0.dominio ? 'subiu só' : 'caiu'} de ${p0.dominio.toFixed(0)}% para ${pn.dominio.toFixed(0)}% enquanto a cobertura ia de ${p0.assuntos} para ${pn.assuntos} assuntos.` : ''}</p>`);
-
-    b.push('<p class="pl-det-rot">2 · O que o número ao lado é</p>');
-    if (m.comp && m.comp.length) {
-      b.push(`<p>Ele não cai nessa: soma a variação <b>assunto a assunto</b>, só sobre os que aparecem em <b>dois retratos seguidos</b> — em média <b>${m.baseComp}</b> assuntos por período. Encadeado por toda a série dá <b>${pp(m.ganho)}</b>, contra <b>${pp(m.ganhoBruto)}</b> da diferença bruta entre o primeiro e o último ponto.</p>`);
-      if (m.baseComp < 10) {
-        b.push(`<p class="pl-det-alerta">São só <b>${m.baseComp}</b> assuntos em comum por período: é pouca base. Leia o número como <b>direção</b>, não como medida. Repetir os mesmos assuntos entre importações é o que aperta essa conta.</p>`);
-      }
-    } else {
-      b.push(`<p>Sem assuntos repetidos entre retratos consecutivos, ele é apenas a diferença entre o primeiro e o último ponto da linha: <b>${pp(m.ganhoBruto)}</b>.</p>`);
-    }
-
-    b.push('<p class="pl-det-rot">3 · O retorno do seu esforço</p>');
-    if (m.rendMedio != null) {
-      const mil = Math.abs(m.rendMedio) < 0.5;
-      const esc = mil ? 1000 : 100, rot = mil ? '1.000' : '100';
-      const ult = pn.rendimento;
-      b.push(`<p><b>${(m.rendMedio * esc / 100).toFixed(1).replace('.', ',')}pp</b> de domínio a cada <b>${rot}</b> questões resolvidas, na média da série.${ult != null ? ` No último período foram <b>${(ult * esc / 100).toFixed(1).replace('.', ',')}pp</b>${ult < m.rendMedio * 0.5 ? ' — bem abaixo da sua média, sinal de que só aumentar o volume parou de funcionar neste momento.' : '.'}` : ''}</p>`);
-      b.push(`<p>A conta usa a variação comparável dividida pelas questões <b>desses mesmos assuntos</b>. Com dezenas de assuntos medidos, mover a MÉDIA em 1pp exige mover um assunto em dezenas de pontos — é por isso que a escala às vezes precisa ser por mil questões para o número não virar 0,1.</p>`);
-    } else {
-      b.push(`<p>Ainda não há dois retratos com assuntos em comum suficientes para medir o retorno por questão. Ele aparece assim que você reimportar mantendo parte dos mesmos assuntos.</p>`);
-    }
-
-    b.push('<p class="pl-det-rot">4 · A série, importação por importação</p>');
-    b.push(`<div class="pl-det-tab-wrap"><table class="pl-det-tab"><thead><tr><th>data</th><th>domínio</th><th>assuntos</th><th>questões</th><th>Δ comp.</th></tr></thead><tbody>${
-      S.slice().reverse().map(x => `<tr><td>${escapeHtml(formatDateShort(x.data))}</td><td><b>${pc1(x.dominio)}</b></td><td>${x.assuntos}</td><td>${(x.questoes || 0).toLocaleString('pt-BR')}</td><td>${x.deltaComp != null ? pp(x.deltaComp) + ' <i>(' + x.comuns + ')</i>' : '—'}</td></tr>`).join('')
-    }</tbody></table></div>`);
-    b.push(`<p class="pl-det-fim"><b>Δ comp.</b> é a variação daquele retrato contra o anterior, contada só sobre os assuntos presentes nos dois — o número entre parênteses é quantos são. A linha tracejada do gráfico é a sua meta de domínio (<b>${r.meta}%</b>). Só assuntos com pelo menos <b>${PlanoEngine.prefs().pisoSerie || PlanoEngine.PISO_SERIE}</b> questões no retrato entram nesta série — abaixo disso a taxa oscila demais para virar ponto de um gráfico.</p>`);
-    /* ── A LENTE TEM DE ESTAR ESCRITA AQUI ───────────────────────────────────
-       Esta é a tela em que a pessoa compara o hoje com o passado — e a unidade
-       de comparação é escolha dela. Um gráfico que diz "37 assuntos medidos"
-       sem dizer que 5 deles são blocos de 4 tópicos convida à conclusão errada
-       ("cobri menos matéria"). Então a lente vem por escrito, com o número que
-       ela muda e o que ela NÃO muda. */
-    const ag = PlanoEngine._agrupamento(PlanoEngine.prefs());
-    if (ag) {
-      b.push(`<p class="pl-det-fim">A série é contada na lente que você escolheu: os assuntos são somados subindo pelo tópico-pai até cada unidade ter <b>${ag.piso}</b> questões no histórico. São <b>${ag.nBlocos}</b> ${ag.nBlocos === 1 ? 'bloco' : 'blocos'} cobrindo <b>${ag.atomos}</b> tópicos do TEC. Isso muda a <b>contagem de assuntos</b> desta tabela — não o volume de questões, que é o mesmo em qualquer lente.</p>`);
-    }
-    return { titulo: 'Sua trajetória — os números', html: b.join('') };
-  },
-  renderPlanoConteudo() {
-    /* O corpo real fica em `_pintarPlano`; esta camada só garante as duas
-       coisas que TODA repintura precisa e nenhuma chamada deve ter de lembrar:
-       a rolagem não se mexe, e o sinal de "processando" sempre sai. */
-    if (this._planoTimer) { clearTimeout(this._planoTimer); this._planoTimer = null; }
-    this._comRolagemPreservada(() => this._pintarPlano());
-    this._marcarPlanoOcupado(false);
-  },
-  _pintarPlano() {
-    const proj = document.getElementById('plano-proj');
-    const lista = document.getElementById('plano-lista');
-    if (!proj || !lista) return;
-    // com os ajustes na folha suspensa, a linha da porta diz o que esta valendo
-    try { TecAjustes.sincronizar('plano'); } catch (e) { _quiet(e, 'resumo-plano'); }
-    const num = (id, d) => { const e = document.getElementById(id); const n = parseFloat(e && e.value); return isNaN(n) ? d : n; };
-    const val = (id, d) => { const e = document.getElementById(id); return (e && e.value) || d; };
-    const bool = (id) => { const e = document.getElementById(id); return !!(e && e.checked); };
-    const salvas = PlanoEngine.prefs();
-    /* UMA VERDADE, DERIVADA NUM LUGAR SÓ. O select carrega uma matéria (ou
-       Todas); o quadro de matérias carrega N e deixa o select em `__varias__`.
-       Ler o select aqui e derivar `disciplina` do foco — e não o contrário — é o
-       que impede os dois de discordarem depois de qualquer repintura. */
-    const dsel = val('plano-disc', '__todas__');
-    const focoAtual = Array.isArray(salvas.foco) ? salvas.foco : [];
-    const foco = (dsel === '__varias__') ? focoAtual : (dsel === '__todas__' ? [] : [dsel]);
-    const opts = {
-      foco,
-      disciplina: (foco.length === 1) ? foco[0] : '__todas__',
-      metaDominio: Math.max(30, Math.min(100, num('plano-meta', 80))),
-      tetoDominio: Math.max(50, Math.min(100, num('plano-teto', 90))),
-      ponderacao: val('plano-ponderacao', 'igual'),
-      minAmostra: Math.max(0, num('plano-minamostra', 20)),
-      incluirPequenas: bool('plano-pequenas'),
-      custoModo: val('plano-customodo', 'lacuna'),
-      custoFixo: Math.max(10, num('plano-custofixo', 60)),
-      custoFator: Math.max(0.1, num('plano-custofator', 0.5)),
-      custoPiso: Math.max(10, num('plano-custopiso', 50)),
-      custoPorPonto: Math.max(0, num('plano-custoponto', 2)),
-      pesoBanca: Math.max(0, Math.min(12, num('plano-pesobanca', 6))),
-      apenasFolhas: bool('plano-folhas'),
-      granPiso: Math.max(0, Math.min(100, parseInt(val('plano-granpiso', '0'), 10) || 0)),
-      limite: Math.max(3, num('plano-limite', 10)),
-      sugestoesDisciplinas: Math.max(1, Math.min(12, num('plano-sug-disciplinas', 3))),
-      sugestoesTopicosDisc: Math.max(1, Math.min(5, num('plano-sug-topicos', 1))),
-      amostraAlvo: Math.max(10, num('plano-amostraalvo', 50)),
-      janelaMax: Math.max(30, num('plano-janelamax', 365)),
-      cadenciaDias: Math.max(7, num('plano-cadencia', 30)),
-      consolidarEm: Math.max(1, num('plano-consolidar', 2)),
-      faixaCritico: Math.max(0, Math.min(100, num('plano-critico', 50))),
-      faixaFragil: Math.max(0, Math.min(100, num('plano-fragil', 65))),
-      pisoSerie: Math.max(1, num('plano-piso', 5)),
-      sensTendencia: Math.max(1, num('plano-sens', 3)),
-      validadeDias: Math.max(30, num('plano-validade', 120)),
-      ordenar: val('plano-ordenar', 'rendimento'),
-      banca: this.bancaFiltro()
-    };
-    // O ritmo SEGUE a medição automaticamente. Só vira manual se você digitar algo
-    // diferente do medido — assim novos imports atualizam o número sozinhos.
-    const descSnaps = DB.getTecSnapshots().slice().reverse();
-    const medido = PlanoEngine.ritmoRecente(descSnaps, 120, PlanoEngine.excluidasSet(PlanoEngine.prefs())) || 25;
-    const digitado = Math.max(1, num('plano-ritmo', medido));
-    opts.ritmoSemanal = (digitado === medido) ? null : digitado;
-    /* GRAVA O CONFIGURADO, DESENHA O ABERTO. O "mostrar mais" é estado de
-       leitura desta sessão, não uma preferência: se ele entrasse no que é
-       salvo, abrir a lista inteira uma vez deixaria a tela abrindo em 81
-       assuntos para sempre — exatamente a tela extensa que o passo de 10 veio
-       resolver. */
-    /* ── TROCAR A LENTE MUDA O NÚMERO GRANDE, E A TELA TEM DE DIZER ─────────
-       O volume é o mesmo em qualquer piso (invariante da auditoria), mas o
-       domínio é média POR UNIDADE: juntar átomos muda numerador e denominador.
-       Recalcular a série inteira com a lente nova mantém a TENDÊNCIA honesta —
-       o que faltava era avisar quem decorou o número de ontem. Calcular o
-       antigo custa um `calcular` extra, e só no instante em que a pessoa mexe
-       na lente: uma ação explícita e rara. */
-    const pisoAntes = parseInt(salvas.granPiso || 0, 10) || 0;
-    const trocouLente = pisoAntes !== (opts.granPiso || 0);
-    let antes = null;
-    if (trocouLente) {
-      try {
-        const rAntes = PlanoEngine.calcular(this.scopedSnapshot(), Object.assign({}, opts, { granPiso: pisoAntes }));
-        antes = rAntes && !rAntes.erro ? { dom: rAntes.dominioPct, n: rAntes.assuntos } : { dom: null, n: null };
-      } catch (e) { _quiet(e, 'lente-antes'); }
-    }
-    PlanoEngine.salvarPrefs(opts);
-    // o passo que TODAS as listas do Plano usam, vindo do campo único
-    this._passoFatia = opts.limite;
-    if (!this._fatias) this._fatias = Object.create(null);
-    /* A lista de assuntos é a única fatiada pelo MOTOR — é de lá que saem
-       `totalItens` e o custo do que ficou de fora. O quanto abrir, porém, vem
-       do mesmo registro das outras seis, para o botão ser o mesmo botão.
-
-       DUAS listas comem dessa mesma fila: a lista de assuntos e a fila do
-       "próximo bloco". Cada uma abre no seu próprio passo, então o motor tem
-       de calcular o suficiente para a MAIOR das duas — senão "mostrar mais 10"
-       na fila do bloco não teria de onde tirar item, e o botão abriria nada. O
-       bloco consome até `PLANO_BLOCO_MAX` itens antes de a fila começar, e é
-       por isso que ele entra na conta. */
-    const abreLista = this._fatias['assuntos'] || 0;
-    const abreFila = (this._fatias['proximos'] || 0) + this.PLANO_BLOCO_MAX;
-    opts.limite = Math.min(opts.limite + Math.max(abreLista, abreFila), 100000);
-    // ajuste novo invalida o retrato em cache usado ao criar atividades
-    this._planoRefC = null;
-    opts.ritmoSemanal = opts.ritmoSemanal || medido;
-    const r = PlanoEngine.calcular(this.scopedSnapshot(), opts);
-    /* O aviso sai UMA vez, com os dois números lado a lado: o que a pessoa
-       tinha na cabeça e o que ela tem agora, mais a garantia do que NÃO mudou.
-       Sem o "volume intacto" o aviso assustaria em vez de informar. */
-    if (trocouLente && antes) {
-      const fmt = (v) => (v == null ? '—' : v.toFixed(1).replace('.', ',') + '%');
-      const uni = (r && !r.erro) ? r.assuntos : null;
-      showToast('Lente ' + (opts.granPiso > 0 ? 'em ' + opts.granPiso + ' questões' : 'desligada')
-        + ' · domínio ' + fmt(antes.dom) + ' → ' + fmt((r && !r.erro) ? r.dominioPct : null)
-        + (antes.n != null && uni != null ? ' · ' + antes.n + ' → ' + uni + ' unidades' : '')
-        + ' · volume intacto');
-    }
-    // liga cada assunto à atividade extra já criada para ele (ciclo de acompanhamento)
-    if (r && r.itens) {
-      const extras = DB.getExtras().filter(e => e.origemPlano && e.origemPlano.topico);
-      const doTopico = (x) => extras.filter(e => this._casaUnidade(e.origemPlano, x));
-      // pinado: este mapa só serve de atalho para `avaliar`, que mede atividade
-      // antiga na lente legada — passar `opts` aqui era vazar a lente de volta
-      const mapaQ = PlanoEngine.totalHistorico(PlanoCiclo.LENTE_LEGADA);
-      [].concat(r.itens, r.pequenas || []).forEach(x => {
-        const meus = doTopico(x);
-        if (!meus.length) return;
-        /* A ABERTA manda. Se só há encerradas, a linha mostra o VEREDITO da
-           última — e não um "✓" que, no caso do "não funcionou", diria o
-           contrário do que aconteceu. */
-        const aberta = meus.find(e => e.status !== 'concluida');
-        const e = aberta || meus[meus.length - 1];
-        x.extra = e; x.extraAberta = !!aberta; x.extraAlvo = e.alvo || 0;
-        const v = PlanoCiclo.avaliar(e, r, mapaQ);
-        x.extraFeito = v ? v.feito : (DB.extraProgressoPeriodo ? DB.extraProgressoPeriodo(e) : (e.progresso || 0));
-        x.extraVeredito = (e.origemPlano && e.origemPlano.veredito) ? e.origemPlano.veredito.tipo : null;
-        x.extraConcluida = !aberta;
-      });
-    }
-    if (r.erro === 'sem-retrato') {
-      proj.innerHTML = `<p class="hint" style="padding:18px 0;">Importe ao menos um retrato de desempenho em <strong>📊 Análise</strong>.</p>`;
-      lista.innerHTML = ''; return;
-    }
-    /* Excluir tudo tem saída óbvia — e ela precisa estar AQUI, não em algum
-       menu que o usuário teria de lembrar que abriu. */
-    if (r.erro === 'tudo-excluido') {
-      proj.innerHTML = `<p class="hint" style="padding:18px 0;">Todas as matérias com retrato estão marcadas como <strong>fora do Plano</strong>${r.excluidasAssuntos ? ` — ${r.excluidasAssuntos} ${r.excluidasAssuntos === 1 ? 'assunto' : 'assuntos'} e ${(r.excluidasQ || 0).toLocaleString('pt-BR')} questões de lado` : ''}. <button type="button" id="plano-excluidas-voltar" class="pl-hero-limpar">trazer todas de volta</button></p>`;
-      lista.innerHTML = '';
-      const bv = document.getElementById('plano-excluidas-voltar');
-      if (bv) bv.addEventListener('click', () => this.setExcluidas([]));
+    let r = null;
+    try { r = MotorSugestao.calcular(); } catch (e) { _quiet(e, 'motor-calcular'); }
+    if (!r || r.erro) {
+      const msg = {
+        'sem-retrato': 'Importe um retrato do TecConcursos na aba 📊 Análise para o motor ter o que ler.',
+        'sem-arvore': 'O retrato em escopo não tem árvore de tópicos.',
+        'sem-incidencia': 'O pós-edital precisa da incidência da banca. Importe-a na aba 🏛️ Incidência ou volte para o pré-edital.'
+      }[(r && r.erro) || ''] || 'Não foi possível calcular agora.';
+      host.innerHTML = `<p class="wd-empty" style="padding:18px 0;">${escapeHtml(msg)}</p>`;
       return;
     }
-    if (r.erro === 'janela') {
-      proj.innerHTML = `<p class="hint" style="padding:18px 0;">Os retratos deste escopo estão inteiramente fora da janela de <strong>${r.janelaMax} dias</strong>. Amplie a janela nos ajustes avançados ou selecione um retrato mais recente.</p>`;
-      lista.innerHTML = '';
+    if (!r.itens.length) {
+      host.innerHTML = `<p class="wd-empty" style="padding:18px 0;">Nenhuma frente alcança o mínimo de ${r.prefs.doseMin} questões por rodada. Aumente o caderno ou baixe o mínimo por frente em ⚙ Ajustes.</p>`;
       return;
     }
-    if (r.erro === 'amostra') {
-      /* A saída em UM TOQUE, com os números do retrato na frase. O índice do
-         TEC é fino: é normal um retrato ter centenas de assuntos de uma ou
-         duas questões cada, e a resposta do app para isso tem nome — o modo
-         🔍 Diagnóstico, que traz a amostra pequena para o cálculo justamente
-         para produzir dado. Mandar "reduza nos ajustes avançados" sem dizer
-         para quanto era empurrar o problema de volta para quem não tem como
-         saber. */
-      const sug = r.sugestaoMinAmostra || 1;
-      const g = r.granSugerida || null;
-      proj.innerHTML = `
-        <p class="hint" style="padding:14px 0 6px;">
-          Nenhum dos <strong>${(r.assuntosNoRetrato || 0).toLocaleString('pt-BR')}</strong> assuntos deste retrato
-          atingiu a amostra mínima de <strong>${r.minAmostra}</strong> questões
-          — a maior amostra é de <strong>${r.maiorAmostra || 0}</strong> ${r.maiorAmostra === 1 ? 'questão' : 'questões'}
-          e a mediana é <strong>${r.medianaAmostra || 0}</strong>.
-          O índice do TecConcursos é fino: com muitos assuntos de uma ou duas questões, medir assunto por assunto
-          exige baixar a régua — e assumir que a taxa vai ser um indício, não uma medição.
-        </p>
-        <div class="pl-aud-bts" style="margin:8px 0 4px;">
-          ${g ? `<button type="button" class="btn-primary" id="plano-juntar-finos">🧩 Juntar os assuntos finos (${g.qualificam} ${g.qualificam === 1 ? 'unidade medível' : 'unidades medíveis'})</button>` : ''}
-          <button type="button" class="btn-${g ? 'secondary' : 'primary'}" id="plano-modo-diag">🔍 Usar o modo Diagnóstico</button>
-          <button type="button" class="btn-secondary" id="plano-baixar-min">Baixar a régua para ${sug} ${sug === 1 ? 'questão' : 'questões'}${r.qualificamNaSugestao ? ` (entram ${r.qualificamNaSugestao})` : ''}</button>
-        </div>
-        ${g ? `<p class="pl-ciclo-obs"><strong>O primeiro botão é o único que não enfraquece a medição.</strong> Ele junta os assuntos subindo pelo tópico-pai até cada unidade ter ${g.piso} questões — ${g.topicos} tópicos viram ${g.blocos} ${g.blocos === 1 ? 'bloco' : 'blocos'}, e a tela passa a ter ${g.unidades} unidades, ${g.qualificam} com amostra suficiente. Nenhuma questão é escondida nem contada duas vezes: o volume total não muda, só o tamanho da unidade que você compara.</p>` : ''}
-        <p class="pl-ciclo-obs">O Diagnóstico inclui a amostra pequena no cálculo e baixa a régua de uma vez; o terceiro botão só mexe na régua — os dois compram cobertura pagando em margem de erro. Todos ficam salvos e podem ser desfeitos em ⚙ Ajustes.</p>`;
-      lista.innerHTML = '';
-      const bj = document.getElementById('plano-juntar-finos');
-      if (bj && g) bj.addEventListener('click', () => this._trabalharPlano(bj, 'Agrupando…', () => {
-        PlanoEngine.salvarPrefs({ granPiso: g.piso });
-        PlanoEngine._agrC = null;
-        this.renderPlano(); showToast('🧩 Assuntos com menos de ' + g.piso + ' questões agrupados');
-      }));
-      const bd = document.getElementById('plano-modo-diag');
-      if (bd) bd.addEventListener('click', () => this._trabalharPlano(bd, 'Aplicando…', () => {
-        PlanoEngine.salvarPrefs(PlanoEngine.modoPatch('diagnostico'));
-        this.renderPlano(); showToast('🔍 Diagnóstico aplicado');
-      }));
-      const bm = document.getElementById('plano-baixar-min');
-      if (bm) bm.addEventListener('click', () => this._trabalharPlano(bm, 'Recalculando…', () => {
-        PlanoEngine.salvarPrefs({ minAmostra: sug });
-        this.renderPlano(); showToast('Amostra mínima em ' + sug + ' questões');
-      }));
-      return;
-    }
-    const tom = r.jaAtinge ? 'good' : (r.falta <= 8 ? 'warn' : 'bad');
-    const pond = r.ponderacao === 'volume' ? 'peso pelo volume praticado' : 'todo assunto com o mesmo peso';
-    const aviso = (txt, cor) => `<p class="pl-aviso" style="border-color:var(--${cor});background:var(--${cor}-soft);color:var(--${cor}-text);">${txt}</p>`;
-    const escopo = r.focoRotulo || ((r.disciplina && r.disciplina !== '__todas__') ? r.disciplina : '');
-    proj.innerHTML = `
-      <div class="pl-hero">
-        <div class="pl-hero-top">
-          <span class="pl-hero-num tone-${tom}">${r.dominioPct.toFixed(1)}%</span>
-          <span class="pl-hero-uni">de domínio${escopo ? ' em' : ''}</span>
-        </div>
-        ${/* ── O NÚMERO GRANDE PRECISA DIZER DE QUEM ELE É ────────────────────
-              Com o filtro numa disciplina, TUDO neste cartão passa a ser dela:
-              o domínio, os "faltam X pontos", o caminho mais curto, as
-              semanas. Medido no mesmo perfil, o número saltava de 79,0% em 27
-              assuntos para 65,5% em 6 sem nada na tela dizendo por quê — e o
-              aluno lê o número da matéria como se fosse o geral, planeja em
-              cima disso e se assusta (ou se tranquiliza) pelo motivo errado.
-              O filtro vive numa folha suspensa, longe daqui; o rótulo não. */''}
-        ${escopo ? `<p class="pl-hero-escopo">${escapeHtml(escopo)}<button type="button" id="plano-todas-disc" class="pl-hero-limpar">ver o geral</button></p>` : ''}
-        ${/* A EXCLUSÃO NÃO SE ANUNCIA AQUI. Foi uma decisão sua, e repeti-la
-              no topo de toda repintura é ruído: quem excluiu sabe o que
-              excluiu, e a lista marcada está a um toque em Ajustes ▸
-              Essencial. O que o topo precisa garantir é o contrário — que
-              nenhum número dele tenha visto a matéria excluída. */''}
-        <p class="pl-hero-sub"${(opts.granPiso > 0) ? ` data-info="${this._info(`<b>Este número é uma média por UNIDADE</b>, e a unidade é escolha sua.<br><br>Com o piso em <b>${opts.granPiso}</b> questões, os assuntos que não medem sozinhos são somados subindo pelo tópico-pai até a unidade alcançar esse volume. Isso muda a <b>contagem</b> de unidades e, com ela, a média — juntar dois assuntos de 30% e 50% num bloco não dá 40% se eles tiverem volumes diferentes.<br><br>O que NÃO muda em nenhum piso: o total de questões e de acertos (a auditoria confere isso no ato, em toda exportação), o quadro "Onde atacar primeiro" (ele soma por matéria) e o progresso das atividades já criadas (elas medem pelas linhas cruas).<br><br>A trajetória é recalculada inteira na mesma lente, então a TENDÊNCIA continua comparável — o que não se compara é este número com uma anotação feita em outra lente. Para voltar, ponha <b>não juntar</b> em ⚙ Ajustes ▸ 🔬 Amostra.`)}"` : ''}>
-          Média de acerto ${(opts.granPiso > 0)
-            ? `nas <strong>${r.assuntos}</strong> ${r.assuntos === 1 ? 'unidade' : 'unidades'}`
-            : `nos <strong>${r.assuntos}</strong> ${r.assuntos === 1 ? 'assunto' : 'assuntos'}`}${escopo ? ((r.foco && r.foco.length > 1) ? ' destas matérias' : ' desta matéria') : ''} com amostra suficiente ·
-          ${r.qTotal.toLocaleString('pt-BR')} questões · recorte médio de ${r.janelaMedia || '—'} dias
-        </p>
-        <div class="pl-medidor" style="height:12px;">
-          <i style="width:${Math.min(100, r.dominioPct)}%"></i>
-          <u style="left:${Math.min(100, r.meta)}%"></u>
-        </div>
-        <p class="pl-hero-call tone-${tom}">
-          ${r.jaAtinge
-            ? `✓ Meta de ${r.meta}% alcançada, com folga de ${(r.dominioPct - r.meta).toFixed(1)} pontos.`
-            : `Faltam <span class="pl-num">${r.falta.toFixed(1)}</span> pontos para a meta de ${r.meta}%.`}
-        </p>
-        ${(!r.jaAtinge && r.caminho) ? `<p class="pl-hero-sub" style="margin:6px 0 0;">
-          Caminho mais curto: <strong>${r.caminho.n} ${r.caminho.n === 1 ? 'assunto' : 'assuntos'}</strong> ·
-          <strong>${r.caminho.q.toLocaleString('pt-BR')} questões</strong>${r.semanas ? ` · cerca de <strong>${Math.ceil(r.semanas)} semanas</strong> no seu ritmo de ${r.ritmo}/semana` : ''}
-          ${(r.qAteMeta && r.qAteMeta > r.caminho.q * 1.15) ? `<br><span class="pl-hero-alerta" data-tip="O caminho curto é sempre o mesmo: os assuntos de melhor ganho ÷ custo. A ordem que você escolheu é uma forma de LER a lista, e chega lá por um percurso mais caro.">⚠ na ordem que você escolheu são ${r.qAteMeta.toLocaleString('pt-BR')} questões — ${Math.round((r.qAteMeta / r.caminho.q - 1) * 100)}% a mais</span>` : ''}
-        </p>` : ''}
-
-        ${/* No celular o `title` de uma ficha NUNCA abre: as explicações dos
-              seis contadores existiam só para quem usa mouse. Um "i" na faixa
-              explica todos de uma vez, com os números desta tela dentro. */''}
-        <div class="pl-chips" data-info="${this._info(
-          `<b>🟢 ${r.solidosAtuais} sólidos</b> — assuntos que ficaram na meta de ${r.meta}% em <b>${r.consolidarEm}</b> importações seguidas E têm medição recente. São os que você pode riscar da lista.`
-          + `<br><br><b>🟠 sólidos sem medição nova</b> — sustentaram a meta, mas a última medição passou de <b>${r.validadeDias}</b> dias. Antes de riscar, remeça: consolidado com dado velho é lembrança, não medição.`
-          + `<br><br><b>🟡 recém-corrigidos</b> — cruzaram a meta há pouco e ainda não provaram que fixaram. Contam como conquista, não como assunto resolvido.`
-          + `<br><br><b>📊 melhorando · piorando</b> — variação acima de <b>${r.sensTendencia}pp</b> contra o período anterior, já descontado o que a amostra não comprova.`
-          + `<br><br><b>⏳ com dado vencido</b> — sem medição nova há mais de <b>${r.validadeDias}</b> dias: a taxa pode não descrever você hoje.`
-          + `<br><br><b>🕳️ sem diagnóstico</b> — menos de <b>${r.minAmostra || PlanoEngine.prefs().minAmostra}</b> questões resolvidas. Ficam fora da média de propósito e esperam no <b>segundo plano</b>, no fim da tela: com amostra assim a taxa real pode variar dezenas de pontos.`)}">
-          <span class="pl-chip res" style="border-color:var(--good);color:var(--good-text);" title="Sustentaram a meta em ${r.consolidarEm}+ importações seguidas, com medição recente">🟢 ${r.solidosAtuais} sólidos</span>
-          ${r.solidosVencidos ? `<span class="pl-chip res" style="border-color:var(--warn);color:var(--warn-text);" title="Sustentaram a meta, mas a última medição tem mais de ${r.validadeDias} dias — remeça antes de riscar da lista">🟠 ${r.solidosVencidos} sólidos sem medição nova</span>` : ''}
-          ${r.recentes ? `<span class="pl-chip res" style="border-color:var(--warn);color:var(--warn-text);" title="Cruzaram a meta há pouco — ainda não provaram que fixaram">🟡 ${r.recentes} recém-corrigidos</span>` : ''}
-          ${(r.melhorando || r.piorando) ? `<span class="pl-chip res" style="border-color:var(--${r.melhorando >= r.piorando ? 'good' : 'bad'});color:var(--${r.melhorando >= r.piorando ? 'good' : 'bad'}-text);" title="Variação acima de ${r.sensTendencia}pp contra o histórico">📊 ${r.melhorando} melhorando · ${r.piorando} piorando</span>` : ''}
-          ${r.vencidos ? `<span class="pl-chip res" style="border-color:var(--bad);color:var(--bad-text);" title="Sem medição nova há mais de ${r.validadeDias} dias">⏳ ${r.vencidos} com dado vencido</span>` : ''}
-          ${r.ignorados ? `<span class="pl-chip res" style="border-color:var(--warn);color:var(--warn-text);" title="Sem amostra suficiente — veja o segundo plano no fim">🕳️ ${r.ignorados} sem diagnóstico</span>` : ''}
-        </div>
-        <div class="pl-chips" style="margin-top:6px;" data-info="${this._info(
-          `Os três ajustes que mais mudam o que você lê acima — todos em <b>⚙ Ajustes</b>.`
-          + `<br><br><b>amostra-alvo ${r.amostraAlvo}q</b> — para cada assunto o app parte da importação mais recente e volta no tempo só até juntar esta quantidade de questões. Maior = taxa mais confiável e dado mais antigo; menor = retrato de agora com margem maior.`
-          + `<br><br><b>ritmo ${r.ritmo}/sem</b> — quantas questões você resolve por semana. ${r.ritmoMedido === r.ritmo ? 'Este veio <b>medido</b> dos seus retratos.' : `Está <b>digitado</b> por você; os seus retratos medem <b>${r.ritmoMedido}/semana</b>.`} Só afeta as previsões em semanas, nunca a ordem da fila.`
-          + `<br><br><b>${pond}</b> — como cada assunto pesa na média: <em>todo assunto igual</em> impede que um tema de 400 questões esconda um de 20; <em>por volume</em> faz o que você mais pratica mandar no número.`)}">
-          <span class="pl-chip cfg">amostra-alvo ${r.amostraAlvo}q</span>
-          <span class="pl-chip cfg">ritmo ${r.ritmo}/sem${r.ritmoMedido === r.ritmo ? ' (medido)' : ''}</span>
-          <span class="pl-chip cfg">${pond}</span>
-        </div>
-
-        ${r.ignorados >= r.assuntos * 0.5 ? aviso(
-          `📐 Este ${r.dominioPct.toFixed(0)}% descreve só os <strong>${r.assuntos}</strong> assuntos medidos. Outros <strong>${r.ignorados}</strong> ainda não têm dado — bater a meta aqui não é dominar a disciplina inteira.`, 'warn') : ''}
-        ${r.alvoInviavel ? aviso(
-          `⚙ Alvo de amostra alto para o seu volume: só ${r.comAlvo} de ${r.assuntos} chegam a ${r.amostraAlvo} questões (o maior tem ${r.maiorAmostra}). Experimente <strong>${r.alvoSugerido}</strong> em "Amostra confiável" — metade dos seus assuntos já chega lá.`, 'warn') : ''}
-        ${/* ── UM RITMO MANUAL VELHO ESTRAGA TODA PREVISÃO, E EM SILÊNCIO ───
-              O campo "ritmo" segue a medição sozinho — até alguém digitar um
-              número. A partir daí ele fica travado para sempre, e toda conta
-              de semanas passa a dividir por ele. Visto numa auditoria real:
-              ritmo digitado 30/sem contra 563/sem medidos nos últimos 120
-              dias, e o "caminho mais curto" anunciando 486 semanas (nove
-              anos) para um percurso que, no ritmo de verdade, leva 26.
-              Um número assim não desanima só a pessoa: desacredita a tela
-              inteira, e o único sinal que havia era a AUSÊNCIA da palavra
-              "(medido)" ao lado do chip. Sinal por omissão não é sinal. */''}
-        ${r.ritmoDivergente ? aviso(
-          `⏱️ O ritmo está fixo em <strong>${r.ritmo}/semana</strong>, mas os seus retratos dos últimos 120 dias medem <strong>${r.ritmoMedido}/semana</strong>. Toda previsão em semanas está dividindo pelo número travado — o caminho mais curto sai em ${r.semanas != null ? Math.round(r.semanas) : '—'} semanas em vez de ${r.caminho && r.ritmoMedido ? Math.round(r.caminho.q / r.ritmoMedido) : '—'}. <button type="button" class="pl-hero-limpar" id="plano-ritmo-medido">usar o medido</button>`, 'warn') : ''}
-        ${r.defasado ? aviso(
-          `⏳ Última importação há <strong>${r.idadeUltimo} dias</strong> — você definiu ${r.cadenciaDias}. Importe um novo período para a leitura refletir seu nível de hoje.`, 'warn') : ''}
-      </div>`;
-
-    // ── Trajetória do domínio a cada importação ──
-    const S = r.serie || [];
-    let grafico = '';
-    this._trajAnalise = null;   // sem série, não há análise a abrir
-    if (S.length >= 2) {
-      const W = 100, H = 34;
-      const lo = Math.max(0, Math.min(...S.map(p => p.dominio), r.meta) - 6);
-      const hi = Math.min(100, Math.max(...S.map(p => p.dominio), r.meta) + 6);
-      const px = (i) => (S.length === 1 ? W / 2 : i / (S.length - 1) * W);
-      const py = (v) => H - (v - lo) / Math.max(1, hi - lo) * H;
-      const pts = S.map((p, i) => `${px(i).toFixed(1)},${py(p.dominio).toFixed(1)}`).join(' ');
-      const yMeta = py(r.meta).toFixed(1);
-      const ganhoBruto = S[S.length - 1].dominio - S[0].dominio;
-      /* O CRACHÁ COMPARA ASSUNTO COM ASSUNTO. Encadeando as variações de cada
-         par de retratos consecutivos sobre os assuntos que existem nos dois,
-         a soma atravessa a série inteira sem nunca creditar (ou debitar) ao
-         aluno o simples fato de ter aberto frente nova. */
-      const comp = S.filter(p => p.deltaComp != null);
-      const ganho = comp.length ? comp.reduce((a, p) => a + p.deltaComp, 0) : ganhoBruto;
-      const baseComp = comp.length ? Math.round(comp.reduce((a, p) => a + p.comuns, 0) / comp.length) : 0;
-      const divergem = comp.length > 0 && Math.abs(ganho - ganhoBruto) >= 2;
-      /* A BASE DO CRACHÁ APARECE QUANDO É PEQUENA, não só quando os dois
-         números divergem. Numa auditoria real o crachá dizia "+3,9pp" apoiado
-         em 7 assuntos comuns por período — de 260 medidos — e a nota ficava
-         escondida porque o bruto calhava de estar a 1,6pp dali. Um número
-         construído sobre sete assuntos precisa dizer isso sempre; quando ele
-         também discorda do bruto, aí a nota explica as duas coisas. */
-      const baseFina = comp.length > 0 && baseComp < 10;
-      const rend = S.filter(p => p.rendimento != null);
-      const rendMedio = rend.length ? rend.reduce((a, p) => a + p.rendimento, 0) / rend.length : null;
-      const ultimo = S[S.length - 1];
-      grafico = `
-        <div class="card" style="background:var(--surface-sunken);box-shadow:var(--shadow-sm);border:1.5px solid var(--border);margin:0 0 16px;">
-          <div style="padding:14px 16px;">
-            <div style="display:flex;align-items:baseline;justify-content:space-between;gap:10px;flex-wrap:wrap;">
-              <strong style="font-size: var(--fs-sm);">📈 Sua trajetória<button type="button" class="info-dot pl-mat-det" data-traj-det="1" aria-label="Os números por trás da trajetória" title="Os números por trás da trajetória">i</button></strong>
-              <span class="reforco-tag ${ganho >= 0 ? 'tone-good' : 'tone-bad'}" title="${comp.length ? 'Variação média assunto a assunto, só sobre os que existem em retratos consecutivos' : 'Diferença entre a primeira e a última medição'}">${ganho >= 0 ? '+' : ''}${ganho.toFixed(1)}pp em ${S.length} importações</span>
-            </div>
-            <div style="position:relative;height:74px;margin:10px 0 4px;">
-              <svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" style="position:absolute;inset:0;width:100%;height:100%;overflow:visible;">
-                <line x1="0" y1="${yMeta}" x2="${W}" y2="${yMeta}" stroke="var(--text-faint)" stroke-width="0.4" stroke-dasharray="2 2" vector-effect="non-scaling-stroke"/>
-                <polyline points="${pts}" fill="none" stroke="var(--accent)" stroke-width="2" vector-effect="non-scaling-stroke" stroke-linejoin="round" stroke-linecap="round"/>
-              </svg>
-              ${/* pontos em HTML: dentro do SVG esticado eles viravam elipses */''}
-              ${S.map((p, i) => `<span title="${escapeHtml(formatDateShort(p.data))}: ${p.dominio.toFixed(1)}%"
-                style="position:absolute;left:${px(i).toFixed(1)}%;top:${(py(p.dominio) / H * 100).toFixed(1)}%;
-                width:8px;height:8px;margin:-4px 0 0 -4px;border-radius:50%;
-                background:var(--accent);border:2px solid var(--surface);box-sizing:border-box;"></span>`).join('')}
-            </div>
-            <div style="display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap;font-family:'Inter',sans-serif;font-size: var(--fs-3xs);color:var(--text-faint);">
-              <span>${escapeHtml(formatDateShort(S[0].data))} · ${S[0].dominio.toFixed(0)}%</span>
-              <span style="color:var(--text-soft);font-weight:700;">linha tracejada = meta ${r.meta}%</span>
-              <span>${escapeHtml(formatDateShort(ultimo.data))} · ${ultimo.dominio.toFixed(0)}%</span>
-            </div>
-            ${/* ── OS TEXTOS LONGOS SAÍRAM DA TELA ───────────────────────
-                  Aqui moravam dois parágrafos de explicação (o artefato da
-                  cobertura crescente e o retorno do esforço) que, juntos,
-                  ocupavam mais altura que o próprio gráfico — e falavam de
-                  números que a tela nem mostrava. Os dois viraram a ANÁLISE do
-                  "i" ao lado do título, agora acompanhados da série inteira em
-                  números: data, domínio, assuntos medidos, questões, variação
-                  comparável e retorno de cada importação. A tela fica com o
-                  desenho; quem quer os volumes por trás abre uma vez. */''}
-            ${(divergem || baseFina || rendMedio != null) ? `<p class="pl-ciclo-obs" style="margin:8px 0 0;">${
-              divergem ? 'A linha inclui os assuntos novos; o número ao lado compara assunto com assunto.'
-              : baseFina ? `O número ao lado se apoia em <b>${baseComp}</b> assuntos por período — leia como direção, não como medida.`
-              : `Retorno do seu esforço: <b>${(rendMedio * (Math.abs(rendMedio) < 0.5 ? 1000 : 100) / 100).toFixed(1)}pp</b> de domínio a cada ${Math.abs(rendMedio) < 0.5 ? '1.000' : '100'} questões.`
-            } <button type="button" class="pl-ciclo-acao" data-traj-det="1">ver os números</button></p>` : ''}
-          </div>
-        </div>`;
-      /* A análise fica guardada e abre no diálogo — a série inteira em números
-         não cabe num popover de 320px, e é justamente ela que responde "de onde
-         vêm esses valores". */
-      this._trajAnalise = this._analiseTrajetoria(S, r, { ganho, ganhoBruto, comp, baseComp, divergem, rendMedio });
-    }
-    /* Por que ESTE assunto está NESTA posição. A mesma pergunta que o item do
-       topo responde, para qualquer linha da lista — é o que separa uma ordem
-       que ensina de uma ordem que só manda. */
-    const motivoDaPosicao = (x, i) => {
-      const p = [];
-      if (r.ordenar === 'pior' || r.ordenar === 'ganhoDominio') p.push(`acerto de ${x.taxa.toFixed(0)}%`);
-      if (r.ordenar === 'rendimento') p.push(`${x.ganhoPP.toFixed(1)}pp de ganho por cerca de ${x.custoQ} questões`);
-      if (r.ordenar === 'ganhoGeral') p.push(`${x.ganhoGeral.toFixed(2)}pp no aproveitamento geral (${x.qJanela} questões na amostra)`);
-      if (r.ordenar === 'volume') p.push(`${x.qJanela} questões na amostra`);
-      if (r.ordenar === 'queda') p.push(x.delta != null ? `variação de ${x.delta}pp contra o período anterior` : 'sem período anterior para comparar');
-      if (r.ordenar === 'banca') p.push(x.incid > 0 ? `retorno ${x.rendimento.toFixed(2)} × incidência ${x.incid} na banca` : 'sem incidência registrada — entrou só pelo retorno');
-      return `${i + 1}º na ordem "${(PlanoEngine.ORDENS[r.ordenar] || {}).rot || ''}": ${p.join(' · ')}.`;
-    };
-    /* UM selo para os dois lugares onde a atividade aparece (a fila do bloco e
-       a lista). Duas cópias divergiam: a do bloco dizia "✓" para uma atividade
-       encerrada com "não funcionou". */
-    const SELO_ATIV = (x) => `<span class="reforco-tag ${x.extraVeredito === 'naoFuncionou' ? 'tone-bad' : x.extraConcluida ? 'tone-good' : 'incid'}" title="${x.extraVeredito === 'naoFuncionou' ? 'Você cumpriu as questões e a taxa não subiu — o buraco é de teoria, não de volume' : x.extraConcluida ? 'Encerrada: o retrato disse que o assunto foi resolvido' : 'Em aberto — o progresso vem dos seus retratos'}">${x.extraVeredito === 'naoFuncionou' ? '⚠️ não funcionou' : x.extraConcluida ? '✓ resolvido' : '▶ ' + x.extraFeito + '/' + x.extraAlvo}</span>`;
-    /* O motor pode ter calculado mais do que a lista grande deve mostrar (ver
-       o cálculo do limite acima): ela continua exibindo a fatia DELA. */
-    const itensVis = r.itens.slice(0, this._passoFatia + abreLista);
-    const linhas = itensVis.map((x, i) => {
-      const sens = r.sensTendencia || 3;
-      /* O ▲▼ agora compara a janela com o período ANTERIOR a ela. Quando não
-         existe período anterior, a tela diz isso — antes simplesmente não
-         mostrava nada, e "sem seta" era lido como "estável". */
-      const seta = x.delta == null
-        ? (x.qAntes === 0 ? `<span class="reforco-tag" title="Não há período anterior a esta janela para comparar: é a primeira medição do assunto.">🆕 primeira medição</span>` : '')
-        : (Math.abs(x.delta) >= sens && !x.deltaFirme)
-          ? `<span class="reforco-tag semincid" title="A diferença existe na medição, mas as amostras dos dois períodos são pequenas demais para descartar acaso: aqui só ${x.deltaMinimo != null ? x.deltaMinimo.toFixed(0) : '—'}pp seriam comprováveis (${x.qAntes}q antes, ${x.qJanela}q agora).">${x.delta > 0 ? '▲' : '▼'} ${x.delta}pp · dentro da margem</span>`
-        : x.delta >= sens ? `<span class="reforco-tag tone-good" title="Acima do que você fazia no período anterior a esta janela, e a diferença passa do mínimo comprovável (${x.deltaMinimo != null ? x.deltaMinimo.toFixed(0) : '—'}pp)">▲ ${x.delta}pp</span>` :
-          x.delta <= -sens ? `<span class="reforco-tag tone-bad" title="Abaixo do que você fazia no período anterior a esta janela, e a diferença passa do mínimo comprovável (${x.deltaMinimo != null ? x.deltaMinimo.toFixed(0) : '—'}pp)">▼ ${x.delta}pp</span>` : '';
-      const desdeAtiv = (x.extra && x.extra.origemPlano && x.extra.origemPlano.taxaInicial != null && x.taxa != null)
-        ? `<span class="reforco-tag ${x.taxa - x.extra.origemPlano.taxaInicial >= 0 ? 'tone-good' : 'tone-bad'}" title="Evolução desde que você criou a atividade em ${escapeHtml(formatDateShort(x.extra.origemPlano.criadoEm))}">desde a atividade ${x.extra.origemPlano.taxaInicial.toFixed(0)}→${x.taxa.toFixed(0)}%</span>` : '';
-      const marca = (i === r.idxMeta) ? `<div class="pl-marco">🏁 <b>Nesta ordem</b>, daqui para cima já basta para chegar a ${r.meta}% de domínio${r.qAteMeta ? ` — ${r.qAteMeta.toLocaleString('pt-BR')} questões` : ''}${(r.caminho && r.qAteMeta && r.qAteMeta > r.caminho.q) ? `, contra ${r.caminho.q.toLocaleString('pt-BR')} pelo caminho mais curto` : ''}</div>` : '';
-      /* UMA orientação por item, não duas. A "direção curta" repetia, com outras
-         palavras, o que a guia logo abaixo já dizia — e a versão curta era a
-         genérica, escrita para a faixa e não para o caso. Ficou a do motor,
-         que usa a taxa, a distância até a meta e o histórico daquele assunto;
-         a guia passou a trazer o que faltava: por que ele está nesta posição. */
-      const faltaMeta = Math.max(0, r.meta - x.taxa);
-      const dirTom = x.taxa < r.faixaCritico ? 'bad' : x.taxa < r.faixaFragil ? 'bad'
-        : x.taxa < r.meta ? 'warn' : (x.status.tom || 'good');
-      /* ── A CAIXA QUE FALTAVA: QUANTAS QUESTÕES PARA O NÚMERO SER FIEL ────
-         A tela pedia decisões a partir de uma taxa e mostrava a margem dela
-         (63% ±11), mas nunca dizia o que fazer com essa margem. E a resposta é
-         um número fechado: `n = z²·p(1−p)/E²`. Com a taxa deste assunto, esta
-         caixa diz quantas questões AINDA faltam para a próxima medição sair com
-         ±MARGEM_ALVO pontos — isto é, para a evolução medida ser evolução e não
-         oscilação de amostra curta. É o número que fideliza a estatística, e
-         era o único dos cinco que o aluno não tinha como calcular de cabeça. */
-      const qMedir = PlanoEngine.qParaMedir(x.taxa, PlanoEngine.MARGEM_ALVO);
-      const faltaMedir = Math.max(0, qMedir - x.qJanela);
-      /* Quantas questões a próxima medição precisa ter para o app CRAVAR uma
-         melhora do tamanho da sua sensibilidade — pode não existir resposta, e
-         nesse caso o que falta é base, não esforço. */
-      const qProvar = PlanoEngine.qParaProvar(x.taxa, x.qJanela, sens);
-      const faixaNome = x.taxa < r.faixaCritico ? 'crítica' : x.taxa < r.faixaFragil ? 'frágil'
-        : x.taxa < r.meta ? 'abaixo da meta' : x.taxa < r.teto ? 'na meta' : 'no teto';
-      // Caixinhas numéricas (leitura rápida do status) — e o "i" que explica
-      // cada uma DELAS, com os números deste assunto em vez de teoria.
-      const explicaCaixas = this._info(
-        `<b>${x.taxa.toFixed(0)}% acerto${x.margem != null ? ' ±' + x.margem.toFixed(0) : ''}</b> — a sua taxa aqui, medida em <b>${x.qJanela}</b> questões${x.diasJanela ? ' dos últimos <b>' + x.diasJanela + '</b> dias' : ''}.`
-        + (x.margem != null ? ` A margem diz que o valor real está entre <b>${Math.max(0, x.taxa - x.margem).toFixed(0)}%</b> e <b>${Math.min(100, x.taxa + x.margem).toFixed(0)}%</b> (95% de confiança). Confiabilidade da amostra: <b>${x.conf.nivel}</b>.` : '')
-        + `<br><br><b>${faltaMeta > 0 ? faltaMeta.toFixed(0) : '✓'} pts p/ meta</b> — quanto falta da sua taxa até a meta de <b>${r.meta}%</b>. Você está na faixa <b>${faixaNome}</b> (crítica abaixo de ${r.faixaCritico}%, frágil abaixo de ${r.faixaFragil}%, teto realista em ${r.teto}%).`
-        + `<br><br><b>${x.custoQ} questões (custo)</b> — a estimativa de quanto trabalho fecha essa lacuna${r.custoModo === 'lacuna' ? `: ${r.custoPiso} para remedir + ${Math.round(r.custoPorPonto * x.lacunaPP * x.amplitude)} pela lacuna de ${x.lacunaPP.toFixed(0)} pontos` : ''}. É o alvo que vai para a atividade quando você toca em <b>+ Atividade</b>.`
-        + `<br><br><b>${x.qJanela} na amostra</b> — as questões que sustentam a taxa acima.${x.qHist > x.qJanela ? ` Você resolveu <b>${x.qHist}</b> no total, mas a janela usa só as mais recentes: assunto já corrigido não pode ficar preso ao desempenho antigo.` : ''}`
-        + `<br><br><b>${faltaMedir ? '+' + faltaMedir : '✓'} q p/ medir ±${PlanoEngine.MARGEM_ALVO}</b> — ${faltaMedir
-            ? `faltam <b>${faltaMedir}</b> questões (de <b>${qMedir}</b> necessárias) para a próxima medição deste assunto sair com margem de ±${PlanoEngine.MARGEM_ALVO}pp. Abaixo disso a taxa balança mais que o seu progresso, e "subiu 4pp" pode ser só sorteio.`
-            : `a sua amostra já passa das <b>${qMedir}</b> questões que dão margem de ±${PlanoEngine.MARGEM_ALVO}pp: a taxa daqui é medição, não palpite.`}`
-        + (qProvar ? `<br><br>Para o app <b>cravar</b> uma melhora de ${sens}pp na próxima importação, esta janela precisaria de cerca de <b>${qProvar}</b> questões.` : ''));
-      const metricas = `
-        <div class="pl-metrics">
-          <div class="plm"><b class="tone-${x.conf.tom}">${x.taxa.toFixed(0)}%</b><span>acerto${x.margem != null ? ' ±' + x.margem.toFixed(0) : ''}</span></div>
-          <div class="plm"><b class="tone-${dirTom}">${faltaMeta > 0 ? faltaMeta.toFixed(0) : '✓'}</b><span>pts p/ meta</span></div>
-          <div class="plm"><b>${x.custoQ}</b><span>questões (custo)</span></div>
-          <div class="plm"><b>${x.qJanela}</b><span>na amostra</span></div>
-          <div class="plm plm-amostra"><b class="tone-${faltaMedir ? 'warn' : 'good'}">${faltaMedir ? '+' + faltaMedir : '✓'}</b><span>q p/ medir ±${PlanoEngine.MARGEM_ALVO}</span></div>
-          <div class="plm plm-info" data-info="${explicaCaixas}"></div>
-        </div>`;
-      /* ── A GUIA DEIXOU DE SER TRÊS PARÁGRAFOS SOLTOS ────────────────────
-         Ela respondia "por que está aqui" com uma frase de ordenação e dois
-         parágrafos de números corridos, sem separar a POSIÇÃO (por que este
-         assunto antes daquele), o DIAGNÓSTICO (o que os números dizem sobre
-         ele) e a AÇÃO (o que fazer amanhã de manhã). São três perguntas
-         diferentes, e é por isso que agora são três seções rotuladas, cada uma
-         com os dados que a sustentam — inclusive os que o aluno não tinha:
-         o intervalo real da taxa, o empate técnico com o primeiro da fila e o
-         bloco de questões que devolve uma medição confiável.
-
-         Ela continua RECOLHIDA por padrão, e nenhuma abre sozinha. Já foram
-         abertas nos três primeiros itens (e, quando a meta era inalcançável,
-         em TODOS): a 390px os itens respondiam por 84% de uma página de
-         20.681px, com cada cartão em 647px — quase uma tela de celular por
-         assunto. O detalhe continua a um toque em qualquer linha. */
-      const abreGuia = false;
-      const empatouComPrimeiro = (i > 0 && r.ordenar === 'pior' && PlanoEngine.empateTecnico(itensVis[0], x));
-      const guia = `
-        <details class="pl-guia" ${abreGuia ? 'open' : ''}>
-          <summary>💡 Por que está aqui, e o que fazer <span class="chev">▾</span></summary>
-          <div class="pl-guia-body">
-            <span class="pl-guia-rot">Por que nesta posição</span>
-            <p class="pl-porque-item">${escapeHtml(motivoDaPosicao(x, i))}</p>
-            ${empatouComPrimeiro ? `<p class="pl-base">Estatisticamente <b>empatado com o 1º</b> da fila: a diferença entre os dois cabe na margem de erro das duas amostras. Trocar um pelo outro não perde nada — a fila diz <b>onde procurar</b>, não em que ordem exata.</p>` : ''}
-            ${(x.incid > 0 && r.ordenar !== 'banca') ? `<p class="pl-base">A banca cobra este assunto <b>${x.incid}</b> ${x.incid === 1 ? 'vez' : 'vezes'} no índice importado — a ordem atual não usa isso; a ordem <b>🎯 Prioridade na banca</b> usa.</p>` : ''}
-
-            <span class="pl-guia-rot">O que os números dizem</span>
-            <p class="pl-guia-num">
-              <span>acerto <b>${x.taxa.toFixed(0)}%</b>${x.margem != null ? ` (real entre <b>${Math.max(0, x.taxa - x.margem).toFixed(0)}%</b> e <b>${Math.min(100, x.taxa + x.margem).toFixed(0)}%</b>)` : ''}</span>
-              <span>faixa <b>${faixaNome}</b></span>
-              <span>amostra <b>${x.qJanela}</b> q${x.diasJanela ? ` · <b>${x.diasJanela}</b> dias` : ''}${x.qHist > x.qJanela ? ` (de ${x.qHist} no total)` : ''}</span>
-              ${x.pctAntes != null ? `<span>antes da janela <b>${x.pctAntes.toFixed(0)}%</b>${x.delta != null ? ` (${x.delta >= 0 ? '+' : ''}${x.delta}pp)` : ''}</span>` : ''}
-              <span>teto realista <b>${r.teto}%</b> · faltam <b>${(r.teto - x.taxa).toFixed(0)} pts</b> até lá</span>
-              ${x.vencido ? `<span class="tone-bad">última medição há <b>${x.diasDesdeMedicao}</b> dias</span>` : ''}
-            </p>
-            ${x.delta != null && Math.abs(x.delta) >= sens && !x.deltaFirme
-              ? `<p class="pl-base">A variação de <b>${x.delta}pp</b> contra o período anterior <b>não é comprovável</b>: com ${x.qAntes}q antes e ${x.qJanela}q agora, só uma diferença de ${x.deltaMinimo != null ? x.deltaMinimo.toFixed(0) : '—'}pp escaparia do acaso. Trate como estável.</p>` : ''}
-            ${faltaMedir ? `<p class="pl-base">Para a <b>próxima</b> medição deste assunto valer como medição (±${PlanoEngine.MARGEM_ALVO}pp), a janela precisa de <b>${qMedir}</b> questões — você tem ${x.qJanela}, faltam <b>${faltaMedir}</b>. É esse bloco que transforma "achei que melhorei" em número.</p>`
-              : `<p class="pl-base">A amostra já passa das <b>${qMedir}</b> questões que dão ±${PlanoEngine.MARGEM_ALVO}pp de margem: o que esta linha diz sobre você é medição, não impressão.</p>`}
-
-            <span class="pl-guia-rot">O que fazer</span>
-            <p class="pl-acao pl-guia-acao tone-${x.status.tom}">${escapeHtml(x.status.acao)}</p>
-            <p class="pl-base">Custo estimado de <b>${x.custoQ}</b> questões${r.custoModo === 'lacuna' ? ' = ' + r.custoPiso + ' para remedir + ' + Math.round(r.custoPorPonto * x.lacunaPP * x.amplitude) + ' pela lacuna de ' + x.lacunaPP.toFixed(0) + ' pontos' + (Math.abs(x.amplitude - 1) > 0.08 ? ' num assunto ' + (x.amplitude > 1 ? 'mais amplo' : 'mais estreito') + ' que a sua média (×' + x.amplitude.toFixed(1).replace('.', ',') + ')' : '') : ''}${r.ritmo ? (x.custoQ < r.ritmo
-              ? ` — <b>menos de uma semana</b> no seu ritmo de ${r.ritmo}/semana`
-              : ` — cerca de <b>${(Math.round(x.custoQ / r.ritmo * 10) / 10).toFixed(1).replace('.', ',')}</b> semanas no seu ritmo de ${r.ritmo}/semana`) : ''}.</p>
-            <p class="pl-base">Fechar este assunto sozinho move o seu domínio em <b>+${x.ganhoPP.toFixed(1)}pp</b>${r.ponderacao === 'ambas' ? ` (e o aproveitamento geral em +${x.ganhoGeral.toFixed(2)}pp)` : ''} — e só o próximo retrato importado diz se funcionou: nenhuma outra coisa nesta tela diz.</p>
-          </div>
-        </details>`;
+    const totalDose = r.itens.reduce((a, x) => a + x.dose, 0);
+    const linhas = r.itens.map((x, i) => {
+      const erroPct = Math.round(x.taxaErro * 10) / 10;
+      const margem = x.margem == null ? '—' : '±' + (Math.round(x.margem * 10) / 10) + 'pp';
+      const bloco = x.agregado ? (() => {
+        const partes = [];
+        if (x.membros && x.membros.length) partes.push(x.membros.length + ' ramo' + (x.membros.length > 1 ? 's' : '') + ' miúdo' + (x.membros.length > 1 ? 's' : ''));
+        if (x.residuo > 0) partes.push(x.residuo + ' questões sem subtópico detalhado');
+        const dica = 'Filtre por "' + x.nome + '" no TecConcursos: este bloco é ' + partes.join(' + ')
+          + (x.membros && x.membros.length ? ' — ' + x.membros.join(' · ') : '')
+          + '. Sozinhos, nenhum deles tem questões suficientes para o percentual significar algo.';
+        return `<span class="ms-selo" title="${escapeHtml(dica)}">bloco · ${escapeHtml(partes.join(' + '))}</span>`;
+      })() : '';
+      const peso = r.fase === 'pos'
+        ? `<i>incidência</i>${x.peso}`
+        : `<i>volume</i>${x.questoes}`;
       return `
-        <div class="pl-item">
-          <div class="pl-rank">${i + 1}</div>
-          <div class="pl-nome">${escapeHtml(x.nome)}</div>
-          <div class="pl-ganho">
-            ${r.ponderacao === 'ambas' ? `
-              <b class="pl-g-dom" title="Sobe o DOMÍNIO: cada assunto pesa igual">+${x.ganhoDominio.toFixed(1)}pp</b>
-              <span title="Sobe o DOMÍNIO">⚖️ domínio</span>
-              <b class="pl-g-ger" title="Sobe o APROVEITAMENTO GERAL (ponderado por questão): são ${Math.round(x.ganhoQuestoes)} questões a mais acertadas nas ${x.qJanela} da amostra">+${x.ganhoGeral.toFixed(2)}pp</b>
-              <span title="Aproveitamento geral desta tela">📊 geral · ${Math.round(x.ganhoQuestoes)}q na amostra</span>
-            ` : `
-              <b>+${x.ganhoPP.toFixed(1)}pp</b>
-              <span>${r.ponderacao === 'volume' ? '📊 geral → ' : '⚖️ domínio → '}${x.acumulado.toFixed(1)}%</span>
-            `}
+        <div class="ms-item" data-i="${i}">
+          <div class="ms-item-top">
+            <span class="ms-rank">${i + 1}</span>
+            <div class="ms-id">
+              <small>${escapeHtml(x.disciplina)}</small>
+              <b>${escapeHtml(x.nome)}</b>${bloco}
+            </div>
+            <span class="ms-dose" title="Questões desta frente no caderno da rodada">${x.dose}<small>questões</small></span>
           </div>
-          <div class="pl-corpo">
-            ${x.disciplina ? `<div class="pl-disc">${escapeHtml(x.disciplina)}</div>` : ''}
-            <div class="pl-tags">
-              <span class="reforco-tag tone-${x.status.tom}" title="${x.status.seq != null ? x.status.seq + ' importação(ões) seguidas na meta' : 'Faixa de acerto'}">${x.status.rot}${x.status.seq ? ' ' + x.status.seq + '×' : ''}</span>
-              ${this._seloBloco(x, opts.granPiso)}
-              ${(x.incid > 0) ? `<span class="reforco-tag incid" title="Quantas vezes este assunto já caiu em ${escapeHtml(ReforcoEngine.rotuloBancas(r.banca))}">🎯 incidência ${x.incid}</span>` : ''}
-              ${seta}${desdeAtiv}
-              ${x.vencido ? `<span class="reforco-tag tone-bad" title="Sem medição nova — a taxa pode não refletir você hoje">⏳ ${x.diasDesdeMedicao}d</span>` : ''}
-            </div>
-            <div class="pl-medidor" title="${x.taxa.toFixed(0)}% de acerto · marcador no máximo realista de ${r.teto}%">
-              <i style="width:${Math.min(100, x.taxa)}%"></i><u style="left:${Math.min(100, r.teto)}%"></u>
-            </div>
-            <p class="pl-direcao tone-${dirTom}"><span class="seta">➜</span><span>${escapeHtml(x.status.ordem || x.status.acao)}</span></p>
-            ${metricas}
-            ${guia}
-            <div class="pl-rodape">
-              ${x.extra
-                ? SELO_ATIV(x)
-                : `<button type="button" class="btn-secondary plano-nova-extra" style="padding:6px 12px;font-size: var(--fs-2xs);white-space:nowrap;" data-topico="${escapeHtml(x.nome)}"
-                     data-disc="${escapeHtml(x.disciplina || '')}" data-alvo="${x.custoQ}" data-motivo="reforco">+ Atividade</button>`}
-            </div>
+          <div class="ms-nums">
+            <span class="ms-pill"><i>erro</i>${erroPct}%</span>
+            <span class="ms-pill"><i>resolvidas</i>${x.questoes}</span>
+            <span class="ms-pill" title="Margem de erro do percentual, a 95% de confiança. É ela que decidiu parar neste nível da árvore."><i>margem</i>${margem}</span>
+            <span class="ms-pill">${peso}</span>
+            <span class="ms-pill ms-score" title="${escapeHtml(r.fase === 'pos' ? 'Incidência da banca × taxa de erro: o erro esperado na prova.' : 'Volume × taxa de erro: literalmente o número de questões que você erra aqui.')}"><i>lacuna</i>${Math.round(x.score)}</span>
           </div>
-        </div>${marca}`;
+          <div class="ms-acoes">
+            <button type="button" class="btn-secondary" data-motor-extra="${i}">+ Criar atividade de ${x.dose} questões</button>
+          </div>
+        </div>`;
     }).join('');
-    const fPeq = this.fatiar('pequenas', r.pequenas, this._passoFatia);
-    const pequenas = r.pequenas.length ? `
-      <div class="pl-segundo" style="margin-top:22px;padding-top:16px;border-top:2px solid var(--border);">
-        <p class="section-label" style="margin:0 0 4px;">🕳️ Segundo plano — assuntos sem diagnóstico</p>
-        <p class="pl-prosa" style="margin:0 0 12px;">
-          Menos de ${opts.minAmostra} questões resolvidas: ainda não dá para afirmar que é fraqueza.
-          Ficam fora da média de domínio de propósito — com amostra assim pequena a taxa real pode variar dezenas de pontos.
-          <strong>Aqui a ação é outra:</strong> resolver questões para descobrir onde você está.
-          ${opts.granPiso > 0 ? `Com o agrupamento ligado, o que sobra aqui é o que <strong>não mede nem subindo a árvore inteira</strong> — a matéria toda daquele assunto ainda não alcançou as ${opts.minAmostra} questões.` : ''}
-        </p>
-        ${fPeq.vis.map((x, i) => `
-          <div class="pl-item">
-            <div class="pl-rank" style="background:var(--surface-sunken);color:var(--text-faint)">${i + 1}</div>
-            <div class="pl-nome">${escapeHtml(x.nome)}</div>
-            <div class="pl-ganho"><b style="color:var(--text-faint);font-size: var(--fs-sm);">?</b></div>
-            <div class="pl-corpo">
-              ${x.disciplina ? `<div class="pl-disc">${escapeHtml(x.disciplina)}</div>` : ''}
-              <div class="pl-tags">
-                ${this._seloBloco(x, opts.granPiso)}
-                <span class="reforco-tag tone-warn" title="Margem de erro grande demais para servir de diagnóstico">
-                  ${x.taxa != null ? x.taxa.toFixed(0) + '%' : '—'}${x.margem != null ? ' ±' + x.margem.toFixed(0) + 'pp' : ''} em ${x.qJanela} ${x.qJanela === 1 ? 'questão' : 'questões'}
-                </span>
-              </div>
-              <div class="pl-rodape">
-                <p class="pl-base">Resolva <b>${x.faltaAmostra}</b> ${x.faltaAmostra === 1 ? 'questão' : 'questões'} para este assunto entrar no cálculo${x.faltaIdeal > x.faltaAmostra ? ` — <b>${x.faltaIdeal}</b> para a taxa ficar confiável de verdade` : ''}.</p>
-                <button type="button" class="btn-secondary plano-nova-extra" style="padding:6px 12px;font-size: var(--fs-2xs);white-space:nowrap;"
-                  data-topico="${escapeHtml(x.nome)}" data-disc="${escapeHtml(x.disciplina || '')}"
-                  data-alvo="${x.faltaAmostra}" data-motivo="diagnostico">+ Atividade</button>
-              </div>
-            </div>
-          </div>`).join('')}
-        ${this.rodapeFatia(fPeq, 'assunto sem diagnóstico', 'assuntos sem diagnóstico',
-          fPeq.faltam ? { txt: 'todos esperam questões para entrar na conta' } : null)}
-      </div>` : '';
-    /* COMO LER — enxugado de oito parágrafos para três. Os outros cinco viraram
-       "i" no lugar exato onde o termo aparece: explicação que só existe num
-       texto de apoio no fim da tela é explicação que ninguém lê na hora da
-       dúvida. Este bloco fica no RODAPÉ agora, como referência, e não como a
-       primeira coisa entre você e a sua lista. */
-    /* ── A PORTA DA AUDITORIA MUDOU DE LUGAR ────────────────────────────────
-       Ela vivia aqui, recolhida no fim do Plano — depois de trinta assuntos, do
-       segundo plano e das lacunas do edital. Quem queria auditar rolava a tela
-       inteira para achar; quem não queria esbarrava nela toda vez. Agora é uma
-       seção da folha de ajustes (🧪 Auditoria), junto dos parâmetros que o
-       arquivo carrega, e os botões são marcação fixa: os ouvintes ficam
-       registrados uma vez só, fora da repintura. */
-    const comoLer = `
-      <details class="rfc-advanced" style="margin:18px 0 0;padding:12px 14px;">
-        <summary style="cursor:pointer;font-weight:700;font-size: var(--fs-sm);">📖 Como ler esta tela</summary>
-        <div class="pl-prosa" style="margin-top:10px;line-height:1.7;">
-          <p style="margin:0 0 10px;"><strong>Domínio</strong> é a sua taxa média de acerto nos assuntos que você já praticou o suficiente para medir — o número grande lá em cima, e o que deve subir. <strong>pp</strong> é <em>ponto percentual</em>: sair de 70% para 75% é ganhar 5pp.</p>
-          <p style="margin:0 0 10px;"><strong>A taxa de cada assunto é sempre a mais recente possível.</strong> O app parte da última importação e só recua no tempo até juntar a amostra que você pediu — por isso um assunto já corrigido não fica preso ao desempenho antigo, e por isso cada item mostra em quantas questões e de quantos dias ele foi medido. Amostra pequena dá margem grande (63% ±11pp), e é por isso que assunto pouco praticado fica de fora da média, no segundo plano.</p>
-          <p style="margin:0;"><strong>Como agir:</strong> escolha o modo de ataque que corresponde ao seu momento, comece pelo topo da lista e use <strong>+ Atividade</strong> para virar cada assunto numa tarefa com meta. Reimporte o TEC quando terminar: é a reimportação que diz se funcionou — nenhuma outra coisa nesta tela diz.</p>
-        </div>
-      </details>`;
-
-    /* ── O QUE FAZER HOJE ────────────────────────────────────────────────────
-       A tela terminava num diagnóstico: aqui está o seu domínio, aqui estão
-       trinta assuntos em ordem. Diagnóstico não é plano. Este bloco corta a
-       lista no tamanho de UMA semana do seu ritmo real e transforma o topo em
-       tarefa — de uma vez, porque criar sete atividades tocando sete botões é
-       uma barreira que faz a pessoa não criar nenhuma. */
-    let hoje = '';
-    if (r.itens.length) {
-      /* O bloco é do TAMANHO DO SEU RITMO, e o rótulo diz quanto tempo ele leva
-         de verdade. Prometer "esta semana" para um assunto que exige três
-         semanas do seu ritmo é o mesmo erro do "caminho mais curto" que não era
-         curto: um número que soa exato e planeja errado.
-
-         E a fila não para no bloco: os próximos vêm listados junto, marcáveis.
-         Fechar a lista no que cabe numa semana escondia a decisão mais comum —
-         "este eu faço agora, aquele eu troco pelo seguinte" — e obrigava a
-         descer a lista inteira para criar a atividade de um assunto que estava
-         em quarto lugar. */
-      const capacidade = Math.max(1, r.ritmo || 0);
-      const bloco = [];
-      let somaQ = 0;
-      for (const x of r.itens) {
-        if (bloco.length >= this.PLANO_BLOCO_MAX || somaQ >= capacidade) break;
-        bloco.push(x); somaQ += x.custoQ;
-      }
-      const semanasBloco = Math.max(1, Math.round(somaQ / capacidade));
-      /* ── A FILA DEPOIS DO BLOCO ABRE COMO TODAS AS OUTRAS LISTAS ────────
-         Ela mostrava oito itens fixos e terminava sem dizer que terminava:
-         quem quisesse trocar o quinto por um assunto que estava em décimo
-         segundo lugar tinha de descer a lista inteira lá embaixo e criar a
-         atividade de lá. Agora ela segue a MESMA regra das outras sete listas
-         do Plano — abre no passo configurado (10 por padrão) e um toque abre
-         mais 10 — com o rodapé dizendo de quantos. */
-      /* O TOTAL da fila é o plano INTEIRO menos o bloco — não o que o motor
-         calculou. É a mesma honestidade da lista de assuntos: sem isso o
-         rodapé diria "fim da fila" com 209 assuntos esperando atrás do
-         limite, que é exatamente a mentira por omissão que o passo de 10 veio
-         desfazer. */
-      const fProx = {
-        chave: 'proximos', passo: this._passoFatia,
-        vis: r.itens.slice(bloco.length, bloco.length + this._passoFatia + (this._fatias['proximos'] || 0)),
-        total: Math.max(0, (r.totalItens || r.itens.length) - bloco.length)
-      };
-      fProx.faltam = Math.max(0, fProx.total - fProx.vis.length);
-      const proximos = fProx.vis;
-      const linhaHoje = (x, dentro) => `
-        <li class="${dentro ? '' : 'fora'}">
-          <label class="pl-hoje-check">
-            <input type="checkbox" class="pl-hoje-sel" ${dentro && !x.extraAberta ? 'checked' : ''} ${x.extraAberta ? 'disabled' : ''}
-              data-topico="${escapeHtml(x.nome)}" data-disc="${escapeHtml(x.disciplina || '')}" data-alvo="${x.custoQ}">
-            <span class="pl-hoje-nome">${escapeHtml(x.nome)}</span>
-          </label>
-          <span class="pl-hoje-num tone-${x.conf.tom}">${x.taxa.toFixed(0)}%</span>
-          <span class="pl-hoje-q">${x.custoQ}q</span>
-          ${x.extra ? SELO_ATIV(x) : ''}
-        </li>`;
-      hoje = `
-        <div class="pl-hoje">
-          <div class="pl-hoje-top">
-            <strong>🎯 O seu próximo bloco</strong>
-            <span>${bloco.length} ${bloco.length === 1 ? 'assunto' : 'assuntos'} · ${somaQ.toLocaleString('pt-BR')} questões · ≈${semanasBloco} ${semanasBloco === 1 ? 'semana' : 'semanas'} no seu ritmo de ${capacidade}/sem</span>
-          </div>
-          ${/* A FILA PROMETE MAIS PRECISÃO DO QUE A AMOSTRA TEM. Com 20 a 50
-                questões por assunto, a diferença entre o 1º e o 4º costuma
-                caber dentro da margem de erro dos dois — e o aluno reordena a
-                vida atrás de um primeiro lugar que o dado não sustenta. Dizer
-                o empate não enfraquece a fila: liberta a escolha, porque
-                qualquer um dos empatados rende praticamente o mesmo. */''}
-          ${/* UM EMPATE CURTO ORIENTA; UM EMPATE LONGO DENUNCIA. Dizer "os 21
-                primeiros estão empatados" é verdade e é inútil: demole a lista
-                sem dizer o que fazer. Até o tamanho do bloco, o empate é uma
-                permissão ("troque à vontade"). Acima disso, o que o número
-                está contando é outra coisa — a amostra por assunto é curta
-                demais para ordenar — e a saída não é escolher melhor, é
-                concentrar volume. */''}
-          ${(r.ordenar === 'pior' && r.empatados >= 2) ? (r.empatados <= bloco.length + 2
-            ? `<p class="pl-ciclo-obs pl-empate">⚖️ Os <b>${r.empatados} primeiros</b> estão empatados dentro da margem de erro: marcamos os ${bloco.length} de cima, mas troque por qualquer um deles sem perda.</p>`
-            : `<p class="pl-ciclo-obs pl-empate">⚖️ <b>${r.empatados} assuntos</b> do topo estão empatados dentro da margem — a mediana de ${r.medianaJanela} questões por assunto não dá para ordenar tão fino. A fila serve para dizer <b>onde procurar</b>, não em que ordem exata — a escolha que de fato pesa está no quadro acima, entre matérias.</p>`) : ''}
-          <ol class="pl-hoje-lista">
-            ${bloco.map(x => linhaHoje(x, true)).join('')}
-            ${proximos.length ? `<li class="pl-hoje-sep">depois destes, a fila segue com:</li>` + proximos.map(x => linhaHoje(x, false)).join('') : ''}
-          </ol>
-          ${this.rodapeFatia(fProx, 'assunto na fila', 'assuntos na fila',
-            fProx.faltam ? { txt: 'marque qualquer um: a fila não obriga a ordem' } : null)}
-          <button type="button" class="btn-primary" id="plano-lote">＋ Criar as atividades marcadas</button>
-          <p class="pl-hoje-nota">A fila é recalculada a cada retrato importado — marcar aqui não a congela.</p>
-        </div>`;
-    }
-
-    /* ── A ORDEM ESCOLHIDA, POR EXTENSO ──────────────────────────────────────
-       Inclusive as ordens GÊMEAS: com os ajustes de agora, quais outras dariam
-       exatamente esta mesma lista. Antes isso aparecia num único caso e só
-       quando você escolhia "melhor retorno" — nos outros, você trocava de
-       cenário, via a mesma lista e concluía que a tela estava quebrada. */
-    const info = PlanoEngine.ORDENS[r.ordenar] || PlanoEngine.ORDENS.pior;
-    const gemeas = r.equivalentesConfiaveis ? (r.equivalentes || []).map(k => (PlanoEngine.ORDENS[k] || {}).rot).filter(Boolean) : [];
-    const ordemNota = `
-      <div class="pl-ordem">
-        <p class="pl-ordem-tit">${info.rot} · ${r.itens.length} ${r.itens.length === 1 ? 'assunto' : 'assuntos'}</p>
-        <p class="pl-ordem-txt">${escapeHtml(info.oque)}</p>
-        <p class="pl-ordem-txt"><b>Quando usar:</b> ${escapeHtml(info.quando)}</p>
-        <p class="pl-ordem-txt tone-warn"><b>Armadilha:</b> ${escapeHtml(info.armadilha)}</p>
-        ${(r.ordenar === 'banca' && !r.temIncid)
-          ? `<p class="pl-ordem-txt tone-bad"><b>Sem efeito agora:</b> nenhuma incidência importada — importe em 🎲 Incidência para esta ordem existir de verdade.</p>` : ''}
-        ${(r.ordenar === 'banca' && r.temIncid)
-          ? `<p class="pl-ordem-txt">${r.comIncid} dos ${r.itens.length} assuntos listados têm incidência em <b>${escapeHtml(ReforcoEngine.rotuloBancas(r.banca))}</b>; a banca pesa ${r.pesoBanca} nesta fila.</p>` : ''}
-        ${gemeas.length
-          ? `<p class="pl-ordem-txt tone-warn"><b>Com os seus dados e ajustes de agora, esta ordem está dando a mesma lista que:</b> ${gemeas.map(escapeHtml).join(' · ')}. Trocar entre elas não muda uma linha — para separá-las, mude o custo ou a ponderação nos ajustes avançados.</p>` : ''}
-      </div>`;
-
-    /* ── POR QUE O PRIMEIRO É O PRIMEIRO ─────────────────────────────────────
-       A pergunta que a lista nunca respondia. Sem ela, a ordem é um oráculo:
-       obedece-se ou desconfia-se, e nos dois casos não se aprende nada. */
-    let porQue = '';
-    if (r.itens.length) {
-      const x = r.itens[0];
-      const partes = [`acerta <b>${x.taxa.toFixed(0)}%</b> (${Math.max(0, r.meta - x.taxa).toFixed(0)} pontos abaixo da meta)`];
-      if (r.ordenar === 'rendimento' || r.ordenar === 'banca') partes.push(`fecha com cerca de <b>${x.custoQ}</b> questões`);
-      if (r.ordenar === 'ganhoGeral' || r.ordenar === 'volume' || r.ponderacao === 'volume') partes.push(`tem <b>${x.qJanela}</b> questões na amostra`);
-      if (r.ordenar === 'queda' && x.delta != null) partes.push(`caiu <b>${Math.abs(x.delta)}pp</b> contra o período anterior`);
-      if (r.ordenar === 'banca' && x.incid > 0) partes.push(`e aparece <b>${x.incid}</b> vezes na incidência da banca`);
-      if (r.ordenar === 'ganhoDominio') partes.push(`e sozinho levanta <b>${x.ganhoDominio.toFixed(1)}pp</b> do seu domínio`);
-      porQue = `<p class="pl-porque">👉 <b>${escapeHtml(x.nome)}</b> está em 1º porque ${partes.join(', ')}.</p>`;
-    }
-
-    /* ── O QUE O TEC NÃO MEDIU ───────────────────────────────────────────────
-       Disciplina do seu planejamento sem questão resolvida não é ponto forte
-       nem fraco: é um ponto cego, e some justamente da tela feita para não
-       deixar nada se esconder. */
-    let edital = '';
-    /* Só com a tela em "Todas": este bloco fala de AMPLITUDE — o que do seu
-       planejamento ficou fora de todas as contas. Filtrada numa disciplina, a
-       tela responde outra pergunta, e listar as lacunas das outras ali seria
-       resposta para pergunta que ninguém fez. */
-    const lac = PlanoEngine.focoSet(opts) ? null : PlanoEngine.lacunasDoEdital(opts);
-    if (lac && (lac.sem.length || lac.pouca.length)) {
-      const chip = (d, extra) => `<span class="pl-edital-chip">${escapeHtml(d.nome)}${extra}</span>`;
-      /* Fichas ocupam pouco cada uma e muito no conjunto: com um edital
-         grande, "nunca praticadas" virava um parágrafo de trinta linhas antes
-         do próximo bloco. Mesmo passo das outras listas. */
-      const fSem = this.fatiar('edital-sem', lac.sem, this._passoFatia);
-      const fPouca = this.fatiar('edital-pouca', lac.pouca, this._passoFatia);
-      edital = `
-        <div class="pl-edital">
-          <p class="section-label" style="margin:0 0 4px;">🚧 Do seu planejamento, sem medição no TEC</p>
-          <p class="pl-prosa" style="margin:0 0 10px;">
-            O Plano só enxerga o que você praticou. Estas disciplinas estão no seu planejamento e
-            <strong>não têm questões suficientes</strong> para entrar em nenhuma conta desta tela —
-            não aparecem como fracas porque não aparecem de jeito nenhum.
-            ${lac.medidas} de ${lac.total} disciplinas do plano estão medidas.
-          </p>
-          ${lac.sem.length ? `<p class="pl-edital-linha"><b>Nunca praticadas:</b> ${fSem.vis.map(d => chip(d, '')).join('')}</p>
-            ${this.rodapeFatia(fSem, 'disciplina nunca praticada', 'disciplinas nunca praticadas')}` : ''}
-          ${lac.pouca.length ? `<p class="pl-edital-linha"><b>Quase sem dado:</b> ${fPouca.vis.map(d => chip(d, ' · ' + d.q + 'q')).join('')}</p>
-            ${this.rodapeFatia(fPouca, 'disciplina quase sem dado', 'disciplinas quase sem dado')}` : ''}
-          ${lac.naoCasaram.length ? `<p class="pl-prosa" style="margin:10px 0 0;color:var(--text-faint);">
-            O cruzamento é pelo NOME da disciplina. Estas existem no TEC e não em nenhuma disciplina do seu planejamento —
-            se alguma for a mesma coisa com outro nome, renomeie para o app parar de contá-la à parte:
-            ${lac.naoCasaram.map(n => escapeHtml(n)).join(' · ')}</p>` : ''}
-        </div>`;
-    }
-
-    /* ── O CICLO NA TELA ──────────────────────────────────────────────────
-       Três blocos que juntos respondem "está funcionando?": o que está aberto
-       agora, o que os retratos já julgaram, e o que o seu histórico ensinou
-       sobre o custo de virar um assunto. Sem eles a tela só sabia mandar. */
-    const emCurso = PlanoCiclo.emCurso(r);
-    const SELO = {
-      funcionou: ['✅', 'tone-good', 'resolvido'],
-      naoFuncionou: ['⚠️', 'tone-bad', 'volume não resolveu'],
-      subiu: ['📈', 'tone-good', 'subindo'],
-      andamento: ['▶', 'incid', 'em andamento'],
-      orfa: ['❓', '', 'sem correspondência no TEC']
-    };
-    /* ── O PLANO NÃO GERENCIA, O PLANO DECIDE ──────────────────────────────
-       O bloco completo de atividades em curso morava aqui — e transformava a
-       tela de decisão em painel de gestão. Três lugares para a mesma coisa
-       (aqui, a agenda do dia e a lista de pendências) não é organização, é
-       dispersão: simplicidade vem de mover, não de somar. A gestão mudou para
-       a tela de Atividades, onde a execução já vive; aqui fica a linha que diz
-       que existe algo em curso e leva até lá.
-
-       O detalhe continua disponível para quem quiser: o bloco abre. Só não é
-       mais a primeira coisa que a tela de decisão mostra. */
-    const emAlerta = emCurso.filter(v => v.estado === 'naoFuncionou' || v.estado === 'orfa').length;
-    /* Ordena o que PEDE ATENÇÃO para o topo antes de fatiar: cortar uma lista
-       na ordem de criação esconderia justamente o reforço que não funcionou. */
-    const cursoOrd = emCurso.slice().sort((a, b) => {
-      const peso = (v) => (v.estado === 'naoFuncionou' ? 0 : v.estado === 'orfa' ? 1 : 2);
-      return peso(a) - peso(b) || (b.pct || 0) - (a.pct || 0);
-    });
-    const fCurso = this.fatiar('curso', cursoOrd, this._passoFatia);
-    const blocoCurso = !emCurso.length ? '' : `
-      <details class="pl-ciclo pl-ciclo-mini">
-        <summary>
-          <strong>📌 ${emCurso.length} ${emCurso.length === 1 ? 'reforço em curso' : 'reforços em curso'}</strong>
-          <span>${emCurso.reduce((a, v) => a + v.feito, 0)}/${emCurso.reduce((a, v) => a + v.alvo, 0)} questões · o progresso vem dos seus retratos${emAlerta ? ' · <b class="tone-bad">' + emAlerta + ' pedindo atenção</b>' : ''}</span>
-          <span class="chev">▾</span>
-        </summary>
-        <p class="pl-ciclo-obs">A gestão completa fica em <button type="button" class="pl-ciclo-acao" id="plano-ir-extras">✅ Atividades</button> — aqui é só a decisão.</p>
-        <ul class="pl-ciclo-lista">
-          ${fCurso.vis.map(v => {
-            const [ic, tom, rot] = SELO[v.estado] || SELO.andamento;
-            const evo = (v.origem.taxaInicial != null && v.taxa != null)
-              ? `${v.origem.taxaInicial.toFixed(0)}% → <b class="tone-${v.delta != null && v.delta >= 0 ? 'good' : 'bad'}">${v.taxa.toFixed(0)}%</b>`
-              : (v.taxa != null ? `${v.taxa.toFixed(0)}%` : 'sem medição');
-            /* O alvo velho não vira alarme: fica o número de hoje ao lado, para
-               quem quiser ver que a estimativa mudou. Um aviso a cada retrato
-               seria ruído num dado que não muda decisão nenhuma. */
-            const custo = (v.custoHoje && Math.abs(v.custoHoje - v.alvo) >= Math.max(20, v.alvo * 0.35))
-              ? `<span class="pl-ciclo-obs" title="A estimativa do Plano mudou com os retratos novos. O alvo da atividade continua o que você combinou.">o Plano hoje estima ${v.custoHoje}q</span>` : '';
-            return `<li data-extra="${escapeHtml(v.extra.id)}">
-              <div class="pl-ciclo-top">
-                <span class="pl-ciclo-nome">${escapeHtml(v.origem.topico)}</span>
-                <span class="reforco-tag ${tom}">${ic} ${rot}</span>
-              </div>
-              <div class="pl-ciclo-barra"><i style="width:${v.pct}%"></i></div>
-              <div class="pl-ciclo-nums">
-                <span><b>${v.feito}</b>/${v.alvo} questões${v.medido > v.manual ? ' <span class="pl-ciclo-obs" title="Contadas a partir dos seus retratos do TEC — você não precisa lançar à mão.">medidas pelo retrato</span>' : ''}</span>
-                <span>${evo}</span>
-                ${custo}
-              </div>
-              ${v.estado === 'orfa' ? `<p class="pl-ciclo-obs">Este assunto não aparece em nenhum retrato — renomeado ou removido no TEC. <button type="button" class="pl-ciclo-acao" data-ciclo-excluir="${escapeHtml(v.extra.id)}">Excluir a atividade</button></p>` : ''}
-              ${v.estado === 'naoFuncionou' ? `<p class="pl-ciclo-obs tone-bad">Você cumpriu as questões e a taxa não subiu: o buraco é de teoria, não de volume. Retome o conteúdo antes de resolver mais.</p>` : ''}
-            </li>`;
-          }).join('')}
-        </ul>
-        ${this.rodapeFatia(fCurso, 'reforço em curso', 'reforços em curso',
-          fCurso.faltam ? { txt: 'os que pedem atenção vêm primeiro' } : null)}
-      </details>`;
-
-    const fTodosFech = PlanoCiclo.fechados();
-    const fFech = this.fatiar('fechados', fTodosFech, this._passoFatia);
-    const fechados = fFech.vis;
-    const blocoFeito = !fechados.length ? '' : `
-      <details class="pl-ciclo pl-ciclo-hist">
-        <summary><strong>🏅 O que os retratos já julgaram</strong> <span>${fechados.length} ciclo(s) fechado(s)</span> <span class="chev">▾</span></summary>
-        <ul class="pl-ciclo-lista">
-          ${fechados.map(v => {
-            /* Cinco desfechos, e cada um diz uma coisa diferente. Antes eram
-               dois, e tudo que não fosse "funcionou" virava "não funcionou" —
-               inclusive o diagnóstico que mediu e a atividade que VOCÊ encerrou,
-               nenhum dos dois um fracasso. */
-            const SEL = {
-              funcionou: ['tone-good', '✅ funcionou'],
-              subiu: ['tone-good', '📈 subiu, sem bater a meta'],
-              naoFuncionou: ['tone-bad', '⚠️ não funcionou'],
-              mediu: ['incid', '🔬 mediu'],
-              encerradaPorVoce: ['nivel', '🏁 encerrada por você']
-            };
-            const [tom, rot] = SEL[v.tipo] || SEL.naoFuncionou;
-            return `<li>
-              <div class="pl-ciclo-top">
-                <span class="pl-ciclo-nome">${escapeHtml(v.topico)}</span>
-                <span class="reforco-tag ${tom}"${v.semMedicaoNova ? ' title="Encerrada sem retrato novo medindo o assunto — por isso não conta para a calibragem"' : ''}>${rot}</span>
-              </div>
-              <div class="pl-ciclo-nums">
-                <span>${v.taxaInicial != null ? v.taxaInicial.toFixed(0) + '%' : '?'} → <b>${v.taxaFinal != null ? v.taxaFinal.toFixed(0) + '%' : '?'}</b>${v.ganhoPP != null ? ` (${v.ganhoPP >= 0 ? '+' : ''}${v.ganhoPP}pp)` : ''}</span>
-                <span>${v.questoes} questões · ${escapeHtml(formatDateShort(v.em))}</span>
-              </div>
-            </li>`;
-          }).join('')}
-        </ul>
-        ${this.rodapeFatia(fFech, 'ciclo julgado', 'ciclos julgados')}
-      </details>`;
-
-    /* A CALIBRAGEM: o custo por ponto do Plano é um palpite de fábrica até o
-       seu histórico responder a mesma pergunta. Aqui ele responde. */
-    /* ── A NOTA PROJETADA ─────────────────────────────────────────────────
-       Um número que "estudar" não dá: onde você está em relação a passar. Vem
-       com a composição à vista de propósito — a projeção é aritmética sobre o
-       que VOCÊ digitou, e erro de digitação tem de virar visível em vez de
-       virar recomendação errada. E o corte é declarado como estimativa sua,
-       não como fato: "faltam 12 pontos" sem dizer de onde veio o 72 é pior que
-       não ter número nenhum. */
-    const pj = r.projecao;
-    const nEliminatorias = pj ? pj.eliminatorias.length : 0;
-    const blocoPontos = (!pj || !r.temPontos) ? '' : `
-      <div class="pl-ciclo pl-pontos">
-        <div class="pl-hoje-top">
-          <strong>🎯 Se a prova fosse hoje</strong>
-          <span>pela composição que você declarou no editor de matérias</span>
-        </div>
-        <div class="pl-pontos-nums">
-          <div class="plm"><b class="tone-${pj.passaHoje === false ? 'bad' : 'good'}">${pj.hoje.toFixed(0)}</b><span>de ${pj.valorTotal.toFixed(0)} pontos hoje</span></div>
-          <div class="plm"><b class="tone-good">${pj.potencial.toFixed(0)}</b><span>fechando o Plano</span></div>
-          ${pj.corte != null ? `<div class="plm"><b>${pj.corte}</b><span>corte que você informou</span></div>` : ''}
-        </div>
-        ${pj.corte != null ? `<p class="pl-prosa">${pj.passaHoje
-          ? `Você já passaria, com <b>${(pj.hoje - pj.corte).toFixed(0)}</b> pontos de folga. Fechar o Plano leva a <b>${pj.potencial.toFixed(0)}</b>.`
-          : `Faltam <b>${pj.faltaCorte.toFixed(0)}</b> pontos para o corte. Fechando o Plano você chegaria a <b>${pj.potencial.toFixed(0)}</b>${pj.potencial >= pj.corte ? ' — passa.' : ' — ainda não basta: reveja o teto ou a composição.'}`}
-          <span class="pl-ciclo-obs">Corte estimado por você, do concurso anterior — não é um dado do app.</span></p>` : `
-          <p class="pl-prosa">Informe a nota de corte do concurso anterior para ver a distância.
-            <button type="button" class="pl-ciclo-acao" id="plano-def-corte">definir o corte</button></p>`}
-        ${nEliminatorias ? `<p class="pl-aviso" style="border-color:var(--bad);background:var(--bad-soft);color:var(--bad-text);">
-          🚨 <b>${nEliminatorias} ${nEliminatorias === 1 ? 'matéria abaixo do mínimo' : 'matérias abaixo do mínimo'} eliminatório:</b>
-          ${pj.eliminatorias.map(l => escapeHtml(l.nome) + ' (' + l.taxa.toFixed(0) + '% de ' + l.minimo + '% exigidos)').join(' · ')}.
-          Isso elimina independentemente do total — vem antes de qualquer otimização de pontos.</p>` : ''}
-        ${pj.semDado.length ? `<p class="pl-ciclo-obs">Sem medição no TEC: ${pj.semDado.map(escapeHtml).join(', ')} — ${pj.semDado.length === 1 ? 'esta matéria ficou' : 'estas matérias ficaram'} fora da projeção.</p>` : ''}
-        <details class="pl-comp">
-          <summary>a composição que estou usando <span class="chev">▾</span></summary>
-          <ul class="pl-comp-lista">
-            ${this.fatiar('composicao', pj.linhas, this._passoFatia).vis.map(l => `<li><span>${escapeHtml(l.nome)}</span><span>${l.q} questões × ${l.pts} pt${l.peso !== 1 ? ' × peso ' + l.peso : ''}</span><span>${l.taxa != null ? l.taxa.toFixed(0) + '%' : '—'}${l.minimo != null ? ' · mín. ' + l.minimo + '%' : ''}</span></li>`).join('')}
-          </ul>
-          <p class="pl-ciclo-obs">Editável em ⚙ Ciclo → matérias. Erro de digitação aqui vira recomendação errada.</p>
-        </details>
-      </div>`;
-    /* PRÉ-EDITAL a régua NÃO troca: sem composição você não maximiza pontos
-       conhecidos, encolhe o pior caso — e é isso que "todo assunto pesa igual"
-       faz. A tela diz qual régua está valendo, porque a decisão muda com ela. */
-    const blocoRegua = r.modoEdital === 'pos' && !r.temPontos ? `
-      <p class="pl-aviso" style="border-color:var(--warn);background:var(--warn-soft);color:var(--warn-text);">
-        📋 Edital publicado, mas a composição da prova está em branco. Preencha
-        <b>Qtd. Q.</b> e <b>Pts/Q</b> por matéria em ⚙ Ciclo e o Plano passa a contar
-        <b>pontos</b> em vez de domínio.</p>` : '';
-    /* ── O QUADRO QUE RESPONDE "QUAIS MATÉRIAS EU PRIORIZO" ───────────────── */
-    const tm = PlanoPontos.esforcoPorMateria(opts);
-    /* Cada veredito tem DUAS redações: o VERBO, que cabe na linha, e a frase
-       inteira, que explica o verbo e agora mora na análise do "i". Antes só
-       existia a frase — e ela era repetida em cada linha do quadro, o que
-       transformava seis matérias em seis parágrafos. */
-    const VER = {
-      comecar:    ['🔴', 'tone-bad',  'comece agora',     'vale ponto na sua prova e você não tem nenhuma questão resolvida aqui'],
-      atacar:     ['🎯', 'tone-bad',  'ataque aqui',      'é onde mais ponto da prova ainda está em jogo'],
-      reduzir:    ['🟠', 'tone-warn', 'reduza',           'você gasta muito tempo aqui e já sobrou pouco a ganhar'],
-      fila:       ['🟡', 'tone-warn', 'na fila',          'entra assim que as de cima saírem'],
-      depois:     ['🟡', 'tone-warn', 'fica para depois', 'você vai mal, mas esta matéria pesa pouco na sua prova'],
-      manter:     ['✅', 'tone-good', 'mantenha',         'pouco a ganhar aqui — você já está perto do seu máximo realista'],
-      foraDoPeso: ['⚪', 'tone-soft', 'fora do peso',     'não aparece no peso da sua prova: nem o edital que você declarou nem a incidência das suas bancas a registram']
-    };
-    const comVeredito = tm.linhas.filter(l => l.veredito);
-    /* ── DE ONDE SAI O ALVO DO BOTÃO ───────────────────────────────────────
-       Das DISCIPLINAS DO RETRATO, não da lista já filtrada. Saía de `r.itens`,
-       que é o resultado do Plano com o filtro de disciplina aplicado — então,
-       assim que você filtrava por uma matéria, TODAS as outras perdiam o
-       botão, e sobrava exatamente uma linha com ele: a que já estava
-       filtrada. O botão de "vá para outra matéria" só funcionava para a
-       matéria em que você já estava. */
-    const focoAtivo = PlanoEngine.focoSet(PlanoEngine.prefs());
-    const discDoPlano = {};
-    try {
-      PlanoEngine.disciplinas(this.scopedSnapshot()).forEach(d => {
-        const k = ReforcoEngine.norm(d || '');
-        if (k && !discDoPlano[k]) discDoPlano[k] = d;
-      });
-    } catch (e) { _quiet(e, 'atacar-discs'); }
-    const grandes = comVeredito.filter(l => !l.resumo);
-    const soma = (tipo) => {
-      const arr = comVeredito.filter(l => l.resumo === tipo);
-      return arr.length ? arr.reduce((a, l) => ({ n: a.n + 1, peso: a.peso + (l.sharePeso || 0), esf: a.esf + l.shareEsforco, ganho: a.ganho + l.ganho }), { n: 0, peso: 0, esf: 0, ganho: 0 }) : null;
-    };
-    const rComecar = soma('comecar');
-    const rMiudas = soma('miuda');
-    /* ── A TABELA DE MATÉRIAS É A MAIS LONGA DA TELA, E ERA A SEM LIMITE ───
-       A lista de ASSUNTOS ganhou passo de 10; esta, que vem antes dela e é a
-       primeira coisa que se vê ao rolar, continuava despejando todas as
-       matérias de uma vez — 21 linhas num caso real, cada uma com três
-       sublinhas, antes de o aluno chegar ao bloco de ação. Quem reclamou de
-       "a tela fica muito extensa" estava olhando exatamente para cá.
-
-       Mesmo passo da lista (o campo "Assuntos por vez"), para não existirem
-       dois números de configuração dizendo a mesma coisa. O rodapé declara o
-       que ficou de fora em PONTOS EM JOGO, não em linhas: esconder 12
-       matérias que somam 0,4pp é economia de rolagem; esconder duas que somam
-       6pp seria esconder a decisão. */
-    const fMat = this.fatiar('materias', grandes, this._passoFatia);
-    const matVis = fMat.vis;
-    const matOcultas = grandes.slice(matVis.length);
-    const ganhoOculto = matOcultas.reduce((a, l) => a + (l.ganho || 0), 0);
-    const acoesOcultas = matOcultas.filter(l => l.veredito === 'atacar' || l.veredito === 'comecar').length;
-    const muitoOculto = tm.emJogo > 0 && ganhoOculto >= tm.emJogo / 3;
-    /* Esconder a cauda é economia de rolagem; esconder um terço do prêmio é
-       esconder a decisão. A moeda deste rodapé é o PONTO EM JOGO, não a
-       linha — e quando o oculto passa de um terço, a nota troca de tom. */
-    const maisDasMaterias = this.rodapeFatia(fMat, 'matéria', 'matérias', fMat.faltam ? {
-      tom: muitoOculto ? 'warn' : '',
-      txt: `as outras somam <b>${ganhoOculto >= 0.05 ? ganhoOculto.toFixed(1) + ' pp' : 'menos de 0,1 pp'}</b> em jogo`
-        + (muitoOculto ? ` — <b>${Math.round(ganhoOculto / tm.emJogo * 100)}% do prêmio está aqui embaixo</b>` : '')
-        + (acoesOcultas ? ` · <b>${acoesOcultas}</b> ${acoesOcultas === 1 ? 'pede ataque' : 'pedem ataque'}` : '')
-    } : null);
-    /* As linhas SOMADAS (miúdas, nunca começadas) não são ação: uma linha
-       discreta com o total, para o quadro não perder nada sem virar parede. */
-    const linhaResumo = (rs, um, muitos, obs, tom) => !rs ? '' : `
-      <li class="pl-mat is-resumo" data-peso="${rs.peso.toFixed(1)}">
-        <span class="pl-mat-pos">∑</span>
-        <span class="pl-mat-nome">+ ${rs.n} ${rs.n === 1 ? um : muitos}</span>
-        <span class="pl-mat-jogo ${rs.ganho >= 0.05 ? '' : 'fraco'}">${rs.ganho >= 0.05 ? rs.ganho.toFixed(1).replace('.', ',') : '—'}<small>pp em jogo</small></span>
-        <span class="pl-mat-acoes"></span>
-        <span class="pl-mat-sub">
-          <span class="reforco-tag ${tom}">somadas, para o quadro não perder nada</span>
-          <span><b>${rs.peso.toFixed(0)}%</b> da prova</span>
-          <span><b>${rs.esf.toFixed(0)}%</b> do seu esforço</span>
-          <span>${obs}</span>
-        </span>
-      </li>`;
-    let temPesoDeProva = tm.fontePeso === 'edital';
-    try { temPesoDeProva = temPesoDeProva || !!(ReforcoEngine.hasIncidencia && ReforcoEngine.hasIncidencia()); } catch (e) { _quiet(e, 'peso-prova'); }
-    const manchete = tm.emJogo < 0.1
-      ? (temPesoDeProva
-        ? 'nada relevante em jogo — você está no teto no que a prova cobra'
-        : 'sem peso de prova cadastrado — importe incidência ou preencha o edital para medir pontos em jogo')
-      : `<b class="tone-bad">${tm.emJogo.toFixed(0)} pp da prova ainda em jogo</b> · ${tm.nCorte} ${tm.nCorte === 1 ? 'matéria concentra' : 'matérias concentram'} metade disso`;
-    /* Abaixo de meio ponto a tela diz "<1%": "0% do seu esforço · nível 57%" é
-       uma linha que se contradiz (se o nível foi medido, houve questão), e o
-       zero era só arredondamento que o leitor não tinha como adivinhar. */
-    const pctCurto = (v) => (v == null) ? '—' : ((v > 0 && v < 0.5) ? '<1%' : v.toFixed(0) + '%');
-    /* A ANÁLISE DE CADA MATÉRIA fica guardada aqui e abre no "i" da linha. Ela
-       é o motivo desta reforma: a tabela antiga tentava explicar a posição
-       dentro da própria célula, e o resultado era uma parede de texto em que a
-       pergunta que importa — "por que ESTA antes daquela?" — continuava sem
-       resposta. Guardar o HTML num mapa (em vez de num atributo) mantém a
-       linha enxuta e não paga escape de HTML dentro de atributo. */
-    this._matAnalise = Object.create(null);
-    const blocoTempo = (!comVeredito.length) ? '' : `
-      <details class="pl-ciclo pl-tempo"${tm.acoes ? ' open' : ''}>
-        <summary>
-          <strong>🎯 Onde atacar primeiro</strong>
-          <span>${manchete}${temPesoDeProva ? ` · peso ${tm.fontePeso === 'edital' ? 'pelo edital que você declarou' : 'pela incidência das suas bancas'}` : ''}</span>
-          <span class="chev">▾</span>
-        </summary>
-        <ul class="pl-mat-lista">
-          ${matVis.map((l, i) => {
-            const [ic, tom, rot] = VER[l.veredito];
-            /* ── DA MATÉRIA PARA O ASSUNTO, EM UM TOQUE ────────────────────
-               O quadro fala de MATÉRIAS; a lista abaixo fala de ASSUNTOS, e é
-               ela que vira atividade. Sem esta ponte o caminho era de cinco
-               passos manuais para uma decisão que o próprio quadro acabou de
-               tomar.
-
-               O botão vai onde o quadro mandou ATACAR — e só ali. Antes ele
-               nascia em "muito esforço para o peso que ela tem", ou seja,
-               convidava a investir mais exatamente na matéria que a linha
-               acabava de acusar de consumir demais, e que era a de MENOR
-               prêmio da tela. */
-            const alvo = (l.veredito === 'atacar' || l.veredito === 'comecar') ? discDoPlano[l.chave] : null;
-            /* ── ESCOLHER A SEMANA, NÃO UMA MATÉRIA POR VEZ ─────────────────
-               Este quadro existe para dizer que três ou quatro matérias
-               concentram metade do que está em jogo — e o único caminho para a
-               lista de baixo era "uma matéria por vez". O chip acumula: marque
-               as que vão entrar na semana e a lista abaixo passa a ser só
-               delas. Só aparece onde existe assunto medido: prometer foco numa
-               matéria sem retrato seria abrir uma lista vazia. */
-            const focavel = discDoPlano[l.chave] || null;
-            const emFoco = !!(focavel && focoAtivo && PlanoEngine.noFoco(focavel, focoAtivo));
-            this._matAnalise[l.chave] = this._analiseMateria(l, i + 1, tm, VER, grandes, alvo, r);
-            const classe = (l.veredito === 'atacar' || l.veredito === 'comecar') ? ' is-acao' : (l.veredito === 'fila' ? ' is-fila' : '');
-            return `
-          <li class="pl-mat${classe}">
-            <span class="pl-mat-pos">${i + 1}</span>
-            <span class="pl-mat-nome">${escapeHtml(l.nome)}<button type="button" class="info-dot pl-mat-det" data-mat-det="${escapeHtml(l.chave)}"
-                aria-label="Por que ${escapeHtml(l.nome)} está nesta posição" title="Por que está nesta posição">i</button></span>
-            <span class="pl-mat-jogo ${l.ganho >= 0.05 ? '' : 'fraco'}">${l.ganho >= 0.05 ? l.ganho.toFixed(1).replace('.', ',') : '—'}<small>pp em jogo</small></span>
-            ${/* sem botão a célula fica VAZIA de verdade (nem um espaço), para o
-                  `:empty` do CSS poder apagá-la em vez de abrir buraco */''}
-            <span class="pl-mat-acoes">${alvo ? `<button type="button" class="pl-atacar-bt" data-atacar="${escapeHtml(alvo)}"
-                title="Filtra a lista de assuntos por ${escapeHtml(alvo)} e leva você ao bloco de criar atividades">🎯 Atacar</button>` : ''}${focavel
-                ? `<button type="button" class="pl-foco-bt${emFoco ? ' is-on' : ''}" data-foco="${escapeHtml(focavel)}"
-                aria-pressed="${emFoco ? 'true' : 'false'}"
-                title="${emFoco ? 'Tirar ' + escapeHtml(focavel) + ' do foco' : 'Somar ' + escapeHtml(focavel) + ' ao foco — a lista de assuntos abaixo passa a ser só das matérias em foco'}">${emFoco ? '✓ em foco' : '+ focar'}</button>`
-                : ''}</span>
-            <span class="pl-mat-sub">
-              <span class="pl-mat-verbo"><span class="reforco-tag ${tom}">${ic} ${rot}</span></span>
-              <span><b>${pctCurto(l.sharePeso)}</b> da prova</span>
-              <span>nível <b class="${l.taxa == null ? '' : l.taxa >= r.meta ? 'tone-good' : l.taxa < r.faixaFragil ? 'tone-bad' : 'tone-warn'}">${l.taxa != null ? l.taxa.toFixed(0) + '%' : '—'}</b>${l.estimado ? ' (estimado)' : ''}</span>
-              <span><b>${pctCurto(l.shareEsforco)}</b> do seu esforço · ${l.q.toLocaleString('pt-BR')} q</span>
-              ${l.sobra ? `<span class="tone-warn">já leva ${l.razao.toFixed(1)}× o peso dela</span>` : ''}
-            </span>
-          </li>`;
-          }).join('')}
-          ${linhaResumo(rComecar, 'matéria que você ainda não começou', 'matérias que você ainda não começou', 'nenhuma questão sua, cada uma abaixo de 5% da prova', 'tone-warn')}
-          ${linhaResumo(rMiudas, 'matéria miúda', 'matérias miúdas', 'abaixo de 1% dos dois lados', 'tone-soft')}
-        </ul>
-        ${maisDasMaterias}
-        <p class="pl-ciclo-obs pl-tempo-nota" data-info="${this._info(`<b>Pontos em jogo</b> = peso da matéria na sua prova × a lacuna que falta até o seu máximo realista (${tm.teto}%). É quanto da prova INTEIRA você recupera levando aquela matéria ao teto — e é a única conta que responde &quot;onde ponho a próxima hora&quot;.<br><br>Por isso a ordem não é a do seu percentual: ir mal numa matéria que vale 3% da prova rende menos que ir razoavelmente numa que vale 13%. Toque no <b>i</b> de cada linha para ver essa conta feita com os seus números.<br><br>A moeda das outras medidas é a <b>questão</b> — a única que os dois lados falam, o que faz o quadro não depender do nome que você deu às matérias no ciclo. Ir mal numa matéria que vale pouco pode ser decisão sua; o que a tela impede é você fazer essa troca sem perceber.`)}">Ordenado por <b>pontos em jogo</b> — não pelo seu percentual de acerto.</p>
-      </details>`;
-    const cal = PlanoCiclo.calibragem();
-    const blocoCal = (cal && cal.pronta && cal.divergente) ? `
-      <div class="pl-ciclo pl-calib">
-        <p class="pl-ciclo-top"><strong>🎓 O que o seu histórico ensinou</strong></p>
-        <p class="pl-prosa">Nos seus <b>${cal.n}</b> ciclos fechados, 100 questões renderam em média <b>${cal.ppPorCem}pp</b> de acerto no assunto atacado — ou seja, <b>${cal.qPorPonto} questões por ponto</b>. O Plano está calculando o custo com <b>${cal.atual}</b>. Calibrar deixa o caminho mais curto ser curto <em>para você</em>, e não para uma média que não existe.</p>
-        <button type="button" class="btn-secondary" id="plano-calibrar">Calibrar com o meu histórico (${cal.qPorPonto} q/ponto)</button>
-      </div>` : '';
-
-    /* ── O RESTO DA FILA NÃO PODE FICAR ATRÁS DE UM CAMPO NUMÉRICO ─────────
-       A lista terminava sem dizer que terminava. O topo anunciava um caminho
-       mais curto de 81 assuntos, a tela mostrava 30, e a única forma de ver o
-       resto era adivinhar que existia um campo "Mostrar até" dentro de uma
-       folha de ajustes. Dois números certos, lado a lado, mentindo juntos.
-
-       Agora o fim da lista diz onde você está (10 de 81), quanto falta e —
-       quando a bandeira da meta cai fora da fatia — em que posição ela está.
-       Abrir é um toque, no passo que você configurou; "ver todos" existe para
-       quem quer a fila inteira de uma vez. */
-    const fAss = {
-      chave: 'assuntos', passo: this._passoFatia, vis: itensVis,
-      total: r.totalItens || itensVis.length,
-      faltam: Math.max(0, (r.totalItens || 0) - itensVis.length)
-    };
-    /* A bandeira da meta cai fora da fatia com frequência: o caminho mais
-       curto do topo pode ter 81 assuntos e a tela abrir com 10. Dizer em que
-       posição ela está é o que impede os dois números de se contradizerem. */
-    const marcoFora = (r.idxMeta != null && r.idxMeta >= 0 && r.idxMeta >= itensVis.length);
-    const maisDaLista = !linhas ? '' : this.rodapeFatia(fAss, 'assunto', 'assuntos', fAss.faltam ? {
-      txt: (marcoFora ? `<b>a meta de ${r.meta}% fecha no ${r.idxMeta + 1}º</b> desta ordem` : '')
-        + (marcoFora && r.qRestante ? ' · ' : '')
-        + (r.qRestante ? `${r.qRestante.toLocaleString('pt-BR')} questões nos que faltam` : '')
-    } : null);
-
-    lista.innerHTML = (linhas
-      /* ── A PERGUNTA VEM ANTES DA RESPOSTA ──────────────────────────────
-         "O seu próximo bloco" já vinha com quatro assuntos marcados e um botão
-         grande, ANTES de "Onde atacar primeiro" dizer qual matéria importa.
-         Para quem abre a tela pela primeira vez isso é começar pelo fim: ele
-         cria quatro atividades sem nunca ter visto que 10pp da prova estão em
-         jogo e que quatro matérias concentram metade. O quadro de matérias
-         escolhe ONDE; o bloco escolhe O QUÊ. Nessa ordem. */
-      ? blocoPontos + blocoRegua + blocoTempo + hoje + blocoCurso + blocoCal + grafico + blocoFeito + ordemNota + porQue + linhas
-      : blocoPontos + blocoRegua + blocoCurso + blocoTempo + blocoCal + blocoFeito + `<p class="hint" style="padding:18px 0;">Nenhum assunto abaixo do máximo realista — você já domina tudo que pratica.</p>`) + maisDaLista + pequenas + edital + comoLer;
-    /* As sete listas do Plano compartilham um ouvinte só. Antes eram duas
-       implementações quase iguais (a de assuntos e a de matérias) e cinco
-       listas sem nenhuma — o tipo de duplicação que diverge na primeira
-       correção que alguém faz só de um lado. */
-    this._ligarFatias(lista);
-    lista.querySelectorAll('.plano-nova-extra').forEach(b => b.addEventListener('click', () => {
-      this._confirmarSobreposicao(b.dataset.topico, b.dataset.disc).then(ok => {
-        if (!ok) return;
-        this._trabalharPlano(b, 'Criando atividade…', () =>
-          this.criarExtraDoPlano(b.dataset.topico, b.dataset.disc, b.dataset.alvo, b.dataset.motivo));
-      });
+    host.innerHTML = `
+      <p class="ms-resumo">${r.itens.length} frente(s) · ${totalDose} questões no caderno ·
+        margem tolerada de ±${r.prefs.margemMax}pp ·
+        peso ${r.fase === 'pos' ? 'pela incidência de ' + escapeHtml(ReforcoEngine.rotuloBancas(r.banca)) : 'pelo seu volume no TEC'}</p>
+      <div class="ms-lista">${linhas}</div>
+      <p class="hint ms-nota">Cada linha parou no nível em que a margem ainda sustenta o percentual: descer mais devolveria nós pequenos demais para medir. “Bloco” é um agrupamento dos ramos miúdos do mesmo pai — filtre por eles juntos no TecConcursos.</p>`;
+    host.querySelectorAll('[data-motor-extra]').forEach(b => b.addEventListener('click', () => {
+      const x = r.itens[Number(b.dataset.motorExtra)];
+      if (!x) return;
+      this.criarExtraDoPlano(x.nome, x.disciplina, x.dose, 'reforco', false, x);
     }));
-    /* O "i" de cada matéria: a análise inteira num diálogo, que é onde ela cabe
-       — 320px de popover não seguram cinco seções com contas. */
-    lista.querySelectorAll('[data-mat-det]').forEach(b => b.addEventListener('click', (e) => {
-      e.preventDefault(); e.stopPropagation();
-      const d = (this._matAnalise || {})[b.dataset.matDet];
-      if (d) UI.detalhe(d.html, { title: d.titulo });
-    }));
-    lista.querySelectorAll('[data-traj-det]').forEach(b => b.addEventListener('click', (e) => {
-      e.preventDefault(); e.stopPropagation();
-      const d = this._trajAnalise;
-      if (d) UI.detalhe(d.html, { title: d.titulo });
-    }));
-    const defCorte = document.getElementById('plano-def-corte');
-    if (defCorte) defCorte.addEventListener('click', async () => {
-      const r2 = await UI.prompt([{ key: 'corte', label: 'Nota de corte (em pontos)', type: 'number',
-        value: PlanoPontos._corte() || '', hint: 'Do concurso anterior, para a mesma vaga. É uma estimativa sua — a tela sempre dirá isso.' }],
-        { title: 'Nota de corte', okText: 'Salvar' });
-      if (!r2) return;
-      this._trabalharPlano(defCorte, 'Atualizando…', () => { PlanoPontos.setCorte(r2.corte); this.renderPlanoConteudo(); showToast('Corte registrado ✓'); });
-    });
-    lista.querySelectorAll('[data-atacar]').forEach(b => b.addEventListener('click', () => {
-      const sel = document.getElementById('plano-disc');
-      if (!sel) return;
-      const alvo = b.dataset.atacar;
-      const op = [...sel.options].find(o => ReforcoEngine.norm(o.value) === ReforcoEngine.norm(alvo));
-      if (!op) { showToast('Sem assuntos medidos em ' + alvo); return; }
-      this._trabalharPlano(b, 'Filtrando…', () => {
-        // "Atacar" é decisão de uma matéria só: substitui o foco, não soma a ele
-        PlanoEngine.salvarPrefs({ foco: [op.value], disciplina: op.value });
-        this._sincronizarFiltroDisc();
-        this._planoRefC = null;
-        this.renderPlanoConteudo();
-        if (window.garantirRotulosFocoPlano) garantirRotulosFocoPlano();
-        requestAnimationFrame(() => {
-          const bloco = document.querySelector('#plano-lista .pl-hoje');
-          if (bloco) { try { bloco.scrollIntoView({ block: 'start', behavior: 'smooth' }); } catch (e) { _quiet(e, 'atacar-scroll'); } }
-        });
-        showToast('Plano filtrado por ' + op.value + ' — marque o que atacar');
-      });
-    }));
-    /* ── O FOCO ACUMULA ───────────────────────────────────────────────────
-       Marcar não é filtrar por uma: é montar o recorte da semana. A rolagem
-       até a lista acontece só quando o foco SAI do zero — repetir o salto a
-       cada matéria marcada brigaria com quem ainda está escolhendo. */
-    lista.querySelectorAll('[data-foco]').forEach(b => b.addEventListener('click', () => {
-      const nome = b.dataset.foco;
-      const p = PlanoEngine.prefs();
-      const atual = Array.isArray(p.foco) ? p.foco.slice() : [];
-      const k = ReforcoEngine.norm(nome);
-      const i = atual.findIndex(n => ReforcoEngine.norm(n) === k);
-      const primeira = atual.length === 0;
-      if (i >= 0) atual.splice(i, 1);
-      else if (atual.length >= PlanoEngine.MAX_FOCO) { showToast('O foco cabe ' + PlanoEngine.MAX_FOCO + ' matérias'); return; }
-      else atual.push(nome);
-      this._trabalharPlano(b, 'Atualizando foco…', () => {
-        PlanoEngine.salvarPrefs({ foco: atual, disciplina: atual.length === 1 ? atual[0] : '__todas__' });
-        this._sincronizarFiltroDisc();
-        this._planoRefC = null; this._fatias = null;
-        this.renderPlanoConteudo();
-        if (window.garantirRotulosFocoPlano) garantirRotulosFocoPlano();
-        if (!atual.length) { showToast('Foco limpo — o Plano voltou a falar de todas as matérias'); return; }
-        showToast(atual.length === 1 ? 'Foco em ' + atual[0] : atual.length + ' matérias em foco — a lista abaixo é só delas');
-        if (primeira) requestAnimationFrame(() => {
-          const bloco = document.querySelector('#plano-lista .pl-hoje');
-          if (bloco) { try { bloco.scrollIntoView({ block: 'start', behavior: 'smooth' }); } catch (e) { _quiet(e, 'foco-scroll'); } }
-        });
-      });
-    }));
-    const irExtras = document.getElementById('plano-ir-extras');
-    if (irExtras) irExtras.addEventListener('click', () => {
-      if (window.WorkFeedback) WorkFeedback.run(irExtras, 'Abrindo atividades…', () => switchScreen('extras'), { overlay: true, region: '#tec-panel-plano', context: 'plano-ir-extras' });
-      else switchScreen('extras');
-    });
-    lista.querySelectorAll('[data-ciclo-excluir]').forEach(b => b.addEventListener('click', async () => {
-      const e = DB.getExtras().find(x => x.id === b.dataset.cicloExcluir);
-      if (!e) return;
-      if (!await UI.confirm('Excluir "' + e.titulo + '"? O assunto não aparece mais nos seus retratos.', { title: 'Excluir atividade', okText: 'Excluir', danger: true })) return;
-      this._trabalharPlano(b, 'Excluindo…', () => { DB.deleteExtra(e.id); showToast('Atividade excluída'); this.renderPlanoConteudo(); });
-    }));
-    const ritmoBtn = document.getElementById('plano-ritmo-medido');
-    if (ritmoBtn) ritmoBtn.addEventListener('click', () => {
-      const medido = PlanoEngine.ritmoRecente(DB.getTecSnapshots().slice().reverse(), 120, PlanoEngine.excluidasSet(PlanoEngine.prefs()));
-      if (!medido) return;
-      const campo = document.getElementById('plano-ritmo');
-      if (campo) campo.value = medido;
-      this._trabalharPlano(ritmoBtn, 'Recalculando…', () => {
-        PlanoEngine.salvarPrefs({ ritmoSemanal: null });
-        this._planoRefC = null;
-        this.renderPlanoConteudo();
-        showToast('Ritmo voltou a seguir a sua medição (' + medido + '/sem)');
-      });
-    });
-    const todasBtn = document.getElementById('plano-todas-disc');
-    if (todasBtn) todasBtn.addEventListener('click', () => {
-      this._trabalharPlano(todasBtn, 'Abrindo geral…', () => {
-        PlanoEngine.salvarPrefs({ foco: [], disciplina: '__todas__' });
-        this._sincronizarFiltroDisc();
-        this._planoRefC = null; this._fatias = null;
-        this.renderPlanoConteudo();
-        showToast('Mostrando o número geral, de todas as matérias');
-      });
-    });
-    const calBtn = document.getElementById('plano-calibrar');
-    if (calBtn) calBtn.addEventListener('click', async () => {
-      const c = PlanoCiclo.calibragem();
-      if (!c || !c.pronta) return;
-      if (!await UI.confirm('Passar o custo por ponto de ' + c.atual + ' para ' + c.qPorPonto + ' questões, com base nos seus ' + c.n + ' ciclos fechados?\n\nIsso muda o custo estimado de cada assunto — e, com ele, o caminho mais curto e a ordem "melhor retorno".', { title: 'Calibrar com o meu histórico', okText: 'Calibrar' })) return;
-      this._trabalharPlano(calBtn, 'Calibrando…', () => { PlanoEngine.salvarPrefs({ custoPorPonto: c.qPorPonto }); this.renderPlano(); showToast('Custo calibrado com o seu histórico ✓'); });
-    });
-    const lote = document.getElementById('plano-lote');
-    const sincLote = () => {
-      if (!lote) return;
-      const n = lista.querySelectorAll('.pl-hoje-sel:checked:not(:disabled)').length;
-      lote.textContent = n === 0 ? '＋ Marque ao menos um assunto'
-        : n === 1 ? '＋ Criar a atividade marcada' : `＋ Criar as ${n} atividades marcadas`;
-      lote.disabled = n === 0;
-    };
-    lista.querySelectorAll('.pl-hoje-sel').forEach(c => c.addEventListener('change', sincLote));
-    sincLote();
-    if (lote) lote.addEventListener('click', () => {
-      this._trabalharPlano(lote, 'Criando atividades…', () => {
-        let n = 0, sobre = 0;
-        lista.querySelectorAll('.pl-hoje-sel:checked:not(:disabled)').forEach(c => {
-          const u = this._unidadeDoPlano(c.dataset.topico, c.dataset.disc);
-          if (PlanoEngine.atividadeSobreposta(c.dataset.topico, c.dataset.disc, u && u.membros)) { sobre++; return; }
-          if (this.criarExtraDoPlano(c.dataset.topico, c.dataset.disc, c.dataset.alvo, 'reforco', true)) n++;
-        });
-        showToast((n ? n + (n === 1 ? ' atividade criada ✓' : ' atividades criadas ✓') : 'Nenhuma atividade nova a criar')
-          + (sobre ? ' · ' + sobre + (sobre === 1 ? ' pulado: já dentro de uma atividade aberta' : ' pulados: já dentro de atividades abertas') : ''));
-        this.renderPlanoConteudo();
-      }, true);
-    });
-    /* Os "i" desta tela nascem de `data-info` e são montados pelo InfoTips —
-       que roda na ativação da tela, muito antes desta lista existir. Sem esta
-       chamada, toda explicação que a repintura acabou de criar (a régua do
-       quadro de matérias, as caixas de cada assunto, a trajetória) ficaria
-       escrita no atributo e invisível para quem lê no telefone. */
-    try { if (window.InfoTips) InfoTips.upgrade(); } catch (e) { _quiet(e, 'info-plano'); }
   },
-  // ---- Incidência ----
   _incidParsed: null,
   renderIncidencia() {
     // Render novo = árvores novas. Sem limpar, uma banca excluída (ou renomeada)
@@ -6322,7 +4213,7 @@ const DesempenhoTecScreen = {
     const resumoEl = document.getElementById('incid-selecao-resumo');
     if (resumoEl) {
       if (!sel.length) {
-        resumoEl.innerHTML = `<p class="incid-selecao">Somando <b>todas as ${todasBancas.length} bancas</b> importadas. Marque as suas no seletor acima para o Reforço e o Plano priorizarem só o que elas cobram.</p>`;
+        resumoEl.innerHTML = `<p class="incid-selecao">Somando <b>todas as ${todasBancas.length} bancas</b> importadas. Marque as suas no seletor acima para o 🧭 Motor, no pós-edital, priorizar só o que elas cobram.</p>`;
       } else {
         const rs = DB.getIncidencia().filter(r => ReforcoEngine._daBanca(filtro, r.banca));
         const raiz = rs.filter(r => r.depth === 0);
@@ -6757,304 +4648,6 @@ const DesempenhoTecScreen = {
     this.renderIncidencia();
   },
   // ---- Reforço ----
-  renderReforco() {
-    const snap = this.scopedSnapshot() || ReforcoEngine.currentSnapshot();
-    this.renderBancaPicker('reforco-banca-pick');
-    // popula o filtro de DISCIPLINA a partir da incidência das bancas escolhidas
-    const discSel = document.getElementById('reforco-disc');
-    if (discSel) {
-      const filtro = ReforcoEngine.filtroBanca(this.bancaFiltro());
-      const discs = [...new Set(DB.getIncidencia()
-        .filter(r => r.depth === 0 && ReforcoEngine._daBanca(filtro, r.banca))
-        .map(r => r.topico))].sort();
-      const curD = discSel.value || '__todas__';
-      discSel.innerHTML = `<option value="__todas__">📚 Todas as disciplinas</option>` +
-        discs.map(d => `<option value="${escapeHtml(d)}" ${d === curD ? 'selected' : ''}>${escapeHtml(d)}</option>`).join('');
-      if (![...discSel.options].some(o => o.value === curD)) discSel.value = '__todas__';
-    }
-    // sugere limite pela carga horária (só na 1ª vez); depois respeita a preferência salva
-    if (!this._reforcoInit) { $id('reforco-limite').value = ReforcoEngine.sugerirLimite(); this._reforcoInit = true; }
-    // restaura filtros/seleções salvos (banca, ordenação, sliders, mín. e qtd.)
-    this.applyReforcoPrefs();
-    this.updateEstratLabel();
-    this.updateGranLabel();
-    // sincroniza o alternador de visão e a visibilidade dos cards laterais
-    const vt = document.getElementById('reforco-view-toggle');
-    if (vt) vt.querySelectorAll('button').forEach(b => b.classList.toggle('active', b.dataset.view === (this.reforcoView || 'global')));
-    const side = document.querySelector('.reforco-side-grid');
-    if (side) side.style.display = ((this.reforcoView || 'global') === 'disc') ? 'none' : '';
-    this.renderReforcoList();
-  },
-  updateEstratLabel() {
-    const v = parseInt($id('reforco-estrat').value, 10);
-    const lbl = document.getElementById('reforco-estrat-label');
-    lbl.textContent = v <= 25 ? 'foco no erro' : v >= 75 ? 'foco na incidência' : 'equilíbrio';
-  },
-  /* A granularidade era um cursor de 0 a 100 que, por dentro, virava
-     `Math.round(g*3)` — quatro valores. Arrastar de 0 a 16 não mudava nada; de
-     16 a 17 mudava tudo. Agora são três botões, que é o que o controle sempre
-     foi; o campo escondido guarda o mesmo valor de antes, então a preferência
-     salva de quem já usava continua valendo. */
-  updateGranLabel() {
-    const el = document.getElementById('reforco-gran');
-    const tog = document.getElementById('reforco-gran-toggle');
-    if (!el || !tog) return;
-    const v = parseInt(el.value, 10);
-    const alvo = v < 33 ? '0' : v > 66 ? '100' : '50';
-    if (String(v) !== alvo) el.value = alvo;   // normaliza valores antigos do cursor
-    tog.querySelectorAll('button[data-gran]').forEach(b => b.classList.toggle('active', b.dataset.gran === alvo));
-  },
-  renderReforcoList() {
-    const list = document.getElementById('reforco-list');
-    const status = document.getElementById('reforco-status');
-    const projEl = document.getElementById('reforco-proj');
-    const snap = this.scopedSnapshot() || ReforcoEngine.currentSnapshot();
-    if (!snap) {
-      list.innerHTML = `<div class="evo-empty-mini">Importe seu desempenho do TEC (aba Importar) para gerar o reforço.</div>`;
-      status.textContent = ''; if (projEl) projEl.innerHTML = '';
-      $id('reforco-blind-card').style.display = 'none';
-      $id('reforco-over-card').style.display = 'none';
-      return;
-    }
-    const gEl = document.getElementById('reforco-gran');
-    const ordEl = document.getElementById('reforco-ordenar');
-    const ordenarPor = ordEl ? ordEl.value : 'oportunidade';
-    /* O teto (acerto máximo realista) era 0.90 fixo no motor, enquanto o Plano
-       já expõe esse mesmo conceito como ajuste. Duas telas, dois tetos, um
-       deles invisível. Agora o Reforço lê o do Plano. */
-    const tetoPlano = (typeof PlanoEngine !== 'undefined') ? Math.max(50, Math.min(100, PlanoEngine.prefs().tetoDominio)) / 100 : 0.90;
-    const res = ReforcoEngine.suggestFrontier(snap, {
-      teto: tetoPlano,
-      banca: this.bancaFiltro(),
-      estrategia: parseInt($id('reforco-estrat').value, 10) / 100,
-      granularidade: gEl ? parseInt(gEl.value, 10) / 100 : 0.5,
-      minQuestoes: parseInt($id('reforco-minq').value, 10) || 10,
-      limite: parseInt($id('reforco-limite').value, 10) || 12,
-      ordenarPor
-    });
-    // filtro por DISCIPLINA (pós-processa o resultado, sem mexer no motor)
-    const discSel = document.getElementById('reforco-disc');
-    const discFiltro = discSel ? discSel.value : '__todas__';
-    if (discFiltro && discFiltro !== '__todas__') {
-      const nk = ReforcoEngine.norm(discFiltro);
-      res.items = res.items.filter(it => ReforcoEngine.norm(it.disciplina) === nk);
-      res.porDisciplina = res.porDisciplina.filter(d => ReforcoEngine.norm(d.disciplina) === nk);
-      res.blindSpots = (res.blindSpots || []).filter(b => ReforcoEngine.norm(b.disciplina) === nk);
-      res.overinvest = (res.overinvest || []).filter(o => ReforcoEngine.norm(o.disciplina) === nk);
-    }
-    // Rótulo explícito de ordenação (#2 didático)
-    const olEl = document.getElementById('reforco-orderlabel');
-    if (olEl) {
-      const map = {
-        oportunidade: ['🎯', 'Ordenado por <b>oportunidade de pontos</b> (erro × incidência × zona de virada) — do que mais rende ao que menos rende.'],
-        erro: ['🔴', 'Ordenado por <b>maior erro</b> — do tópico em que você mais erra ao que menos erra.'],
-        incidencia: ['🏛️', 'Ordenado por <b>maior incidência</b> — do assunto mais cobrado pela banca ao menos cobrado.']
-      };
-      const m = map[ordenarPor] || map.oportunidade;
-      olEl.innerHTML = `<span class="oi">${m[0]}</span> <span>${m[1]}</span>`;
-    }
-    // Banner de projeção da média (só quando há incidência cadastrada)
-    if (projEl) {
-      if (res.hasAnyIncid && res.cobertura > 0) {
-        const cls = res.confianca === 'alta' ? 'alta' : res.confianca === 'media' ? 'media' : 'baixa';
-        projEl.innerHTML = `<div class="reforco-proj-banner">
-          <div class="reforco-proj-item"><span class="pv now">${res.projAtual}%</span><span class="pl">Média projetada (banca)</span></div>
-          <span class="reforco-proj-arrow">→</span>
-          <div class="reforco-proj-item"><span class="pv pot">${res.projPotencial}%</span><span class="pl">Potencial (dominando o TOP)</span></div>
-          <div class="reforco-proj-note">Cobertura de <b>${res.cobertura}%</b> da prova pela sua amostra<span class="reforco-conf ${cls}">confiança ${res.confianca}</span></div>
-        </div>`;
-      } else projEl.innerHTML = '';
-    }
-    // status
-    const parts = [];
-    if (!res.fresh && res.snapDate) parts.push(`<span style="color:var(--warn)">⚠ Retrato mais recente (${formatDateShort(res.snapDate)}) tem mais de 3 meses — reimporte para dados atuais.</span>`);
-    if (!res.hasAnyIncid) parts.push(`<b>${res.totalErros}</b> assunto(s) no ranking, ordenados <b>só pelo seu erro</b> — sem incidência cadastrada não há como saber o que a prova cobra. Importe o índice da banca em <b>🏛️ Incidência</b> para a fila passar a valer pontos de prova.`);
-    else parts.push(`<b>${res.totalErros}</b> unidade(s) no ranking de erros · <b>${res.totalCegos}</b> ponto(s) cego(s) · fronteira com <b>${res.totalUnidades}</b> unidade(s), sem dupla contagem.`);
-    status.innerHTML = parts.join(' · ');
-    /* ── NOME QUE NÃO CASOU NÃO É PONTO CEGO ─────────────────────────────────
-       Uma unidade da banca sem nenhuma linha de desempenho correspondente ia
-       para "🕳️ você quase não praticou" — mesmo que você tivesse trezentas
-       questões resolvidas ali sob outro nome. São coisas opostas: uma pede
-       estudo, a outra pede acertar o nome. */
-    const avisoEl = document.getElementById('reforco-casamento');
-    if (avisoEl) {
-      const n = res.totalSemCasamento || 0;
-      if (!n) avisoEl.innerHTML = '';
-      else avisoEl.innerHTML = `<div class="rfc-casamento">
-        <b>⚠ ${n} ${n === 1 ? 'assunto da banca não casou' : 'assuntos da banca não casaram'} com nenhum nome do seu desempenho.</b>
-        Eles ficam fora do ranking e <b>não</b> entram como ponto cego — sem casar, o app não sabe se você praticou ou não.
-        Costuma ser diferença de nome entre o índice do caderno e o seu relatório de desempenho.
-        ${res.casadosPorNome ? `Outros ${res.casadosPorNome} casaram só pelo nome do tópico, sem bater a disciplina.` : ''}
-        <span class="rfc-casamento-lista">${res.semCasamento.map(x => escapeHtml(x.nome) + ' (' + escapeHtml(x.disciplina || '—') + ', N=' + x.incidencia + ')').join(' · ')}</span>
-      </div>`;
-    }
-    // Renderiza conforme a visão escolhida: global (ranking) ou por disciplina (acordeão)
-    if ((this.reforcoView || 'global') === 'disc') {
-      this._renderReforcoPorDisciplina(list, res);
-    } else {
-      this._renderReforcoGlobal(list, res);
-    }
-    // Na visão "por disciplina" os cards laterais já entram embutidos → escondemos aqui
-    const discView = (this.reforcoView || 'global') === 'disc';
-    // 🕳️ Pontos cegos (alta incidência, pouca prática) — fora do ranking de erros
-    const blindCard = document.getElementById('reforco-blind-card');
-    const blindList = document.getElementById('reforco-blind-list');
-    if (!discView && res.blindSpots && res.blindSpots.length) {
-      blindCard.style.display = 'block';
-      const maxB = Math.max(1, ...res.blindSpots.map(b => b.incidencia || 0));
-      blindList.innerHTML = res.blindSpots.map(b => `
-        <div class="reforco-mini tone-blind">
-          <div class="rm-ico">🕳️</div>
-          <div class="rm-body">
-            <div class="rm-name" title="${escapeHtml(b.nome)}">${escapeHtml(b.nome)}</div>
-            <div class="rm-sub">${escapeHtml(b.disciplina)}</div>
-            <div class="rm-bar"><span style="width:${Math.round((b.incidencia / maxB) * 100)}%"></span></div>
-          </div>
-          <div class="rm-val">${b.incidencia}<small>${b.questoes}q feitas</small></div>
-        </div>`).join('');
-    } else blindCard.style.display = 'none';
-    // ⚖️ Sobre-investimento
-    const overCard = document.getElementById('reforco-over-card');
-    const overList = document.getElementById('reforco-over-list');
-    if (!discView && res.overinvest && res.overinvest.length) {
-      overCard.style.display = 'block';
-      const maxO = Math.max(1, ...res.overinvest.map(o => o.fatiaEsforco || 0));
-      overList.innerHTML = res.overinvest.map(o => `
-        <div class="reforco-mini tone-over">
-          <div class="rm-ico">⚖️</div>
-          <div class="rm-body">
-            <div class="rm-name" title="${escapeHtml(o.nome)}">${escapeHtml(o.nome)}</div>
-            <div class="rm-sub">${escapeHtml(o.disciplina)} · esforço ${o.fatiaEsforco}% vs banca ${o.fatiaBanca}%</div>
-            <div class="rm-bar"><span style="width:${Math.round((o.fatiaEsforco / maxO) * 100)}%"></span></div>
-          </div>
-          <div class="rm-val">${o.fatiaEsforco}%<small>seu tempo</small></div>
-        </div>`).join('');
-    } else overCard.style.display = 'none';
-  },
-  // linha de tópico reutilizável (sem botões de ação)
-  _reforcoItemHtml(it, rank) {
-    const tone = it.pctAcerto >= 70 ? 'good' : it.pctAcerto >= 50 ? 'warn' : 'bad';
-    const seloTxt = it.selo === 'fraco' ? '🔥 fraco' : it.selo === 'atencao' ? '⚠️ atenção' : '• ok';
-    // #3 — por que este item está nesta posição (fator dominante)
-    const motivoMap = {
-      erro: ['m-erro', '🔴 subiu pelo erro'],
-      incidencia: ['m-incidencia', '🎯 subiu pela incidência'],
-      equilibrio: ['m-equilibrio', '⚖️ erro + incidência']
-    };
-    const mv = motivoMap[it.motivo] || motivoMap.equilibrio;
-    const motivoHtml = `<span class="reforco-motivo ${mv[0]}" title="Fator que mais pesou para esta posição no ranking">${mv[1]}</span>`;
-    // #4 — "Sem Classificação": marca e esmaece
-    const semClassTag = it.semClass ? `<span class="reforco-tag semclass" title="Balde genérico do índice do TEC — pouco acionável para estudo">sem classificação</span>` : '';
-    return `
-      <div class="reforco-row ${it.semClass ? 'is-semclass' : ''}">
-        <div class="reforco-rank">${rank}</div>
-        <div class="reforco-main">
-          <div class="reforco-topico">${escapeHtml(it.nome)}</div>
-          <div class="reforco-meta">
-            <span class="reforco-tag selo-${it.selo}">${seloTxt}</span>
-            ${motivoHtml}
-            <span class="reforco-tag nivel">nível ${it.nivel}</span>
-            <span class="reforco-tag tone-${tone}">${it.taxaErro}% erro · ${it.erros}/${it.questoes}</span>
-            ${it.temIncid
-              ? `<span class="reforco-tag incid">incidência ${it.incidencia}</span><span class="reforco-tag pts">~${it.pontosRecuperaveis} pts recuperáveis</span>`
-              : (it.pontosRecuperaveis > 0
-                  ? `<span class="reforco-tag pts" title="Questões que você passaria a acertar na SUA amostra ao levar este assunto ao máximo realista. Sem incidência importada não dá para falar em pontos da prova.">~${it.pontosRecuperaveis} questões recuperáveis</span>`
-                  : `<span class="reforco-tag semincid">sem incidência</span>`)}
-            ${semClassTag}
-          </div>
-        </div>
-      </div>`;
-  },
-  _renderReforcoGlobal(list, res) {
-    if (!res.items.length) {
-      /* A mensagem antiga mandava baixar o mínimo de questões ou mudar a
-         granularidade — conselhos que não resolvem quando a causa é outra.
-         Agora o texto depende do motivo real de a lista estar vazia. */
-      /* A condição anterior exigia `!res.totalUnidades` junto com unidades sem
-         casamento — e uma exclui a outra: se não há unidade, não há como haver
-         unidade sem casamento. A mensagem mais útil das três nunca aparecia. */
-      const motivo = (res.totalSemCasamento > 0)
-        ? `Nenhum assunto com amostra suficiente — e <b>${res.totalSemCasamento}</b> assunto(s) da banca não casaram com nenhum nome do seu desempenho. Comece por aí: é diferença de nome, não falta de estudo.`
-        : (res.totalUnidades === 0)
-          ? 'Nenhum assunto com questões resolvidas no escopo atual. Importe um retrato em <b>📊 Análise</b> ou amplie o escopo.'
-          : 'Nenhum assunto passou do mínimo de questões com erro a corrigir. Baixe o "mín. de questões" nos ajustes, mude a granularidade para Disciplina, ou amplie o escopo.';
-      list.innerHTML = `<div class="evo-empty-mini">${motivo}</div>`;
-      return;
-    }
-    list.innerHTML = res.items.map((it, i) => this._reforcoItemHtml(it, i + 1)).join('');
-  },
-  _renderReforcoPorDisciplina(list, res) {
-    const discs = (res.porDisciplina || []).filter(d => d.itens.length > 0 || d.nFracos > 0 || d.incidencia > 0);
-    if (!discs.length) {
-      list.innerHTML = `<div class="evo-empty-mini">Nenhuma disciplina com dados suficientes. Ajuste os filtros ou importe mais retratos.</div>`;
-      return;
-    }
-    list.innerHTML = discs.map((d, idx) => {
-      const emDia = d.itens.length === 0;
-      const pct = (d.pctAcerto != null) ? d.pctAcerto + '%' : '—';
-      const itensHtml = d.itens.length
-        ? d.itens.map((it, i) => this._reforcoItemHtml(it, i + 1)).join('')
-          + (d.nItens > d.itens.length ? `<div class="rfd-emptyline">+ ${d.nItens - d.itens.length} outro(s) ponto(s) fraco(s) nesta disciplina (aumente "Qtd. de tópicos").</div>` : '')
-        : `<div class="rfd-emptyline">✓ Sem pontos fracos com amostra suficiente aqui — disciplina em dia.</div>`;
-      const cegosHtml = d.cegos && d.cegos.length
-        ? `<div>🕳️ <b>Pontos cegos:</b> ${d.cegos.map(c => escapeHtml(c.nome) + ' (N=' + c.incidencia + ', ' + c.questoes + 'q)').join(' · ')}</div>` : '';
-      const overHtml = d.over && d.over.length
-        ? `<div>⚖️ <b>Sobre-investimento:</b> ${d.over.map(o => escapeHtml(o.nome) + ' (' + o.fatiaEsforco + '% vs banca ' + o.fatiaBanca + '%)').join(' · ')}</div>` : '';
-      const extra = (cegosHtml || overHtml) ? `<div class="rfd-extra">${cegosHtml}${overHtml}</div>` : '';
-      return `
-        <div class="rfd-card ${idx === 0 && !emDia ? 'open' : ''}" data-disc="${escapeHtml(d.disciplina)}">
-          <div class="rfd-head">
-            <span class="rfd-caret">▶</span>
-            <div class="rfd-title">
-              <div class="rfd-name">${escapeHtml(d.disciplina)}</div>
-              <div class="rfd-sub">
-                <span class="chip">🏛️ ${d.incidencia} na banca</span>
-                <span class="chip">🎯 ${pct} acerto</span>
-                ${emDia ? '<span class="rfd-badge-ok">✓ em dia</span>' : `<span class="chip">🔥 ${d.nFracos} ponto(s) fraco(s)</span>`}
-              </div>
-            </div>
-            <div class="rfd-opp ${emDia ? 'rfd-acc-good' : ''}">
-              <div class="v">${emDia ? '—' : '+' + d.pontosRec}</div>
-              <div class="l">${emDia ? 'em dia' : 'pts recuperáveis'}</div>
-            </div>
-          </div>
-          <div class="rfd-body">${itensHtml}${extra}</div>
-        </div>`;
-    }).join('');
-    list.querySelectorAll('.rfd-head').forEach(head => {
-      head.addEventListener('click', () => head.closest('.rfd-card').classList.toggle('open'));
-    });
-  },
-  reforcoToCard(topico, disciplina) {
-    if (!window.CardsScreen) { showToast('Abra a aba Cards uma vez e tente de novo'); return; }
-    switchScreen('cards');
-    setTimeout(() => {
-      CardsScreen.openCardModal(null);
-      setTimeout(() => {
-        const t = document.getElementById('card-topico'); if (t) t.value = topico;
-        // tenta casar a disciplina do card com uma matéria existente
-        const dest = document.getElementById('card-destino');
-        if (dest) {
-          const opt = [...dest.options].find(o => o.textContent.trim().toLowerCase() === (disciplina || '').toLowerCase());
-          if (opt) dest.value = opt.value;
-        }
-        const fr = document.getElementById('card-frente'); if (fr) fr.focus();
-      }, 60);
-    }, 60);
-    showToast('Criando card de reforço de "' + topico + '"');
-  },
-  reforcoToCiclo(topico, disciplina) {
-    // adiciona como uma trilha/tarefa: cria a matéria se não existir e registra no Estudo Novo como aula de reforço
-    let subj = DB.getActiveSubjects().find(s => s.nome.toLowerCase() === (disciplina || '').toLowerCase());
-    if (!subj && disciplina) subj = DB.addSubject({ nome: disciplina, dificuldade: 3, fase: 'Reforço' });
-    const alvo = subj ? subj.nome : (disciplina || topico);
-    if (subj) {
-      DB.addTrackLesson(alvo, '⚠ Reforço: ' + topico);
-      showToast('Reforço adicionado à trilha de "' + alvo + '" (Estudo Novo)');
-    } else {
-      showToast('Cadastre a disciplina "' + disciplina + '" em Configurações primeiro');
-    }
-  },
   toneOf(pct) { return pct >= 70 ? 'good' : pct >= 50 ? 'warn' : 'bad'; },
   renderTotais(snap) {
     const tot = TecEngine.totais(snap);
@@ -7259,7 +4852,6 @@ const DesempenhoTecScreen = {
   // Renderiza UM nó; os filhos ficam como promessa até serem abertos
   treeNodeHtml(node, prevIdx, level) {
     const pct = this.nodePct(node);
-    const tone = this.toneOf(pct);
     const hasKids = node.children && node.children.length > 0;
     const indent = 10 + level * 18;
     const delta = this.deltaHtml(node, prevIdx);
@@ -7271,13 +4863,16 @@ const DesempenhoTecScreen = {
       this._lazyReg.set(lid, { node, level, prevIdx });
       kidsHtml = `<div class="tnode-children" data-lazy="${lid}"></div>`;
     }
+    const erros = Math.max(0, (node.questoes || 0) - (node.acertos || 0));
+    const pctErro = Math.round((100 - pct) * 10) / 10;
     return `
       <div class="tnode ${level === 0 ? 'lvl0' : ''}" data-haskids="${hasKids ? '1' : '0'}">
         <div class="tnode-row ${hasKids ? 'has-kids' : ''}" style="padding-left:${indent}px;">
           ${caret}
           <span class="${nameCls}" title="${escapeHtml(node.nome)}">${escapeHtml(node.nome)}${delta}</span>
-          <div class="tnode-track"><div class="tnode-fill tone-${tone}" style="width:${pct}%;"></div></div>
-          <span class="tnode-pct tone-${tone}">${pct}%<span class="q">${node.acertos}/${node.questoes}</span></span>
+          <span class="tnode-q" title="Questões resolvidas">${node.questoes}</span>
+          <div class="tnode-track" title="${pct}% de acerto · ${pctErro}% de erro"><div class="tnode-fill" style="width:${pct}%;"></div></div>
+          <span class="tnode-pct"><b class="tone-good">${pct}%</b> <i>(${node.acertos})</i> <b class="tone-bad">${pctErro}%</b> <i>(${erros})</i></span>
         </div>
         ${kidsHtml}
       </div>`;
@@ -7293,8 +4888,7 @@ const DesempenhoTecScreen = {
     if (!reg) return false;
     // ordena os filhos SEMPRE do mais fraco para o mais forte (em cada nível e subnível),
     // para que os pontos fracos fiquem no topo em qualquer profundidade
-    const kids = reg.node.children.slice()
-      .sort((a, b) => this.nodePct(a) - this.nodePct(b) || b.questoes - a.questoes);
+    const kids = this._ordenarNos(reg.node.children);
     box.innerHTML = kids.map(c => this.treeNodeHtml(c, reg.prevIdx, reg.level + 1)).join('');
     return true;
   },
@@ -7313,13 +4907,29 @@ const DesempenhoTecScreen = {
     }
   },
   discFilter: '__todas__', // '__todas__' = todas as disciplinas | nome = focar numa
+  /* ── A ORDEM VALE PARA A ÁRVORE INTEIRA ─────────────────────────────────
+     Ordenar só o primeiro nível responde "qual disciplina vai mal" e para aí:
+     para saber O QUE nela vai mal é preciso abrir e ler tópico por tópico.
+     Aplicando a mesma ordem em cada nível, abrir a disciplina mais fraca leva
+     direto ao tópico mais fraco dela, e dali ao subtópico — que é o caminho
+     que se percorre de verdade. Índice devolve a ordem do próprio TecConcursos
+     (pelo código), para conferir contra a planilha. */
+  treeOrdem: 'fracos',   // 'fracos' | 'fortes' | 'indice'
+  _ordenarNos(arr) {
+    const lista = (arr || []).slice();
+    if (this.treeOrdem === 'indice') {
+      return lista.sort((a, b) => String(a.codigo || '').localeCompare(String(b.codigo || ''), 'pt-BR', { numeric: true }));
+    }
+    const dir = this.treeOrdem === 'fortes' ? -1 : 1;
+    return lista.sort((a, b) => dir * (this.nodePct(a) - this.nodePct(b)) || b.questoes - a.questoes);
+  },
   renderDisciplinas(snap) {
     const container = document.getElementById('tec-disc-list');
     const focusEl = document.getElementById('tec-disc-focus');
     const filterSel = document.getElementById('tec-disc-filter');
     // árvore completa, ordenada do pior para o melhor aproveitamento
     // (desempate: quem tem mais questões aparece antes)
-    let forest = TecEngine.buildTree(snap).sort((a, b) => this.nodePct(a) - this.nodePct(b) || b.questoes - a.questoes);
+    let forest = this._ordenarNos(TecEngine.buildTree(snap));
     const prevIdx = this.parIndices();
     if (forest.length === 0) {
       focusEl.innerHTML = '';
@@ -7570,61 +5180,35 @@ $id('tec-weak-disc').addEventListener('change', (e) => {
     idz.addEventListener('drop', (e) => { e.preventDefault(); idz.classList.remove('dragover'); if (e.dataTransfer.files[0]) DT.handleIncidFile(e.dataTransfer.files[0]); });
   }
   on('incid-file', 'change', (e) => { if (e.target.files[0]) DT.handleIncidFile(e.target.files[0]); });
-  // Reforço (todos salvam a preferência para lembrar entre sessões)
-  // Plano de pontos fracos
-  ['plano-disc','plano-meta','plano-ritmo','plano-teto','plano-ponderacao','plano-minamostra',
-   'plano-customodo','plano-custofixo','plano-custofator','plano-custopiso','plano-custoponto',
-   'plano-pesobanca','plano-limite','plano-folhas','plano-pequenas','plano-granpiso',
-   'plano-amostraalvo','plano-cadencia','plano-janelamax','plano-ordenar','plano-consolidar','plano-validade','plano-critico','plano-fragil','plano-piso','plano-sens'].forEach(id => {
-    /* Mexer num campo pode DESFAZER um preset — e o chip aceso tem de deixar de
-       estar aceso na mesma hora, senão a tela afirma um modo que não vale mais. */
-    /* O RÓTULO RESPONDE NA HORA; O MOTOR ESPERA A RAJADA ACABAR. Quem arrasta
-       o peso da banca precisa ver o número mudar sob o dedo — isso é barato.
-       Recalcular o Plano a cada parada do arraste é que travava a tela. */
-    const eco = () => {
-      if (id === 'plano-pesobanca') {
-        const v = document.getElementById('plano-pesobanca');
-        const l = document.getElementById('plano-pesobanca-label');
-        if (v && l) l.textContent = (parseInt(v.value, 10) === 0) ? '0 — banca ignorada' : v.value;
-      }
-      DT._fatias = null;   // outra configuração, outra fila: toda lista volta ao passo
-      DT.renderModosDeAtaque();
-    };
-    /* `change` é o fim do gesto (soltou o select, saiu do campo): ali não há
-       rajada nenhuma e esperar seria só lentidão. `input` é o meio da
-       digitação, e é ele que precisa da janela. */
-    on(id, 'change', () => { eco(); DT.agendarPlano(true); });
-    on(id, 'input', () => { eco(); DT.agendarPlano(false); });
+
+  /* Ordem de exibição da árvore: um clique, um atributo, uma repintura. Ela
+     não é um ajuste da folha porque é a pergunta que se troca o tempo todo
+     enquanto se lê a lista — esconder isso atrás de ⚙ seria escondê-la. */
+  const ordem = document.getElementById('tec-ordem');
+  if (ordem) ordem.addEventListener('click', (e) => {
+    const b = e.target.closest('button[data-ordem]');
+    if (!b) return;
+    DT.treeOrdem = b.dataset.ordem;
+    DT.savePrefs({ treeOrdem: b.dataset.ordem });
+    ordem.querySelectorAll('button').forEach(x => x.classList.toggle('active', x === b));
+    const snap = DT.scopedSnapshot();
+    if (snap) DT.renderDisciplinas(snap);
   });
-  on('reforco-disc', 'change', (e) => { DT.savePrefs({ disc: e.target.value }); DT.renderReforcoList(); });
-  on('reforco-minq', 'input', (e) => { DT.savePrefs({ minq: e.target.value }); DT.renderReforcoList(); });
-  on('reforco-limite', 'input', (e) => { DT.savePrefs({ limite: e.target.value }); DT.renderReforcoList(); });
-  on('reforco-estrat', 'input', (e) => { DT.savePrefs({ estrat: e.target.value }); DT.updateEstratLabel(); DT.renderReforcoList(); });
-  {
-    const tog = document.getElementById('reforco-gran-toggle');
-    if (tog) tog.addEventListener('click', (e) => {
-      const b = e.target.closest('button[data-gran]');
-      if (!b) return;
-      const el = document.getElementById('reforco-gran');
-      if (el) el.value = b.dataset.gran;
-      DT.savePrefs({ gran: b.dataset.gran });
-      DT.updateGranLabel();
-      DT.renderReforcoList();
+
+  // Motor de sugestão: fase no painel, parâmetros na folha de ajustes.
+  const mf = document.getElementById('motor-fase');
+  if (mf) mf.addEventListener('click', (e) => {
+    const b = e.target.closest('button[data-fase]');
+    if (!b) return;
+    MotorSugestao.salvar({ fase: b.dataset.fase });
+    DT.renderMotor();
+  });
+  ['motor-margem', 'motor-alvo', 'motor-dosemin', 'motor-frentes', 'motor-meta'].forEach(id => {
+    on(id, 'change', (e) => {
+      const el = e.target;
+      MotorSugestao.salvar({ [el.dataset.cfgKey]: el.value });
+      DT.renderMotor();
     });
-  }
-  on('reforco-ordenar', 'change', (e) => { DT.savePrefs({ ordenar: e.target.value }); DT.renderReforcoList(); }); // #1 Ordenar por
-  // alternador de visão: ranking global x por disciplina
-  const vt = document.getElementById('reforco-view-toggle');
-  if (vt) vt.addEventListener('click', (e) => {
-    const btn = e.target.closest('button[data-view]');
-    if (!btn) return;
-    DT.reforcoView = btn.dataset.view;
-    DT.savePrefs({ reforcoView: btn.dataset.view });
-    vt.querySelectorAll('button').forEach(b => b.classList.toggle('active', b === btn));
-    // no modo "por disciplina", os cards laterais viram redundantes (já entram em cada disciplina)
-    const side = document.querySelector('.reforco-side-grid');
-    if (side) side.style.display = (DT.reforcoView === 'disc') ? 'none' : '';
-    DT.renderReforcoList();
   });
 })();
 
@@ -7671,42 +5255,16 @@ $id('tec-weak-disc').addEventListener('change', (e) => {
   /* RESTAURAR PADRÕES vale para a aba aberta, e só para ela. Um botão que
      zerasse as três de uma vez seria uma armadilha: ninguém espera que mexer
      no Reforço apague a régua do Plano. */
-  /* ── A AUDITORIA DENTRO DA FOLHA ────────────────────────────────────────
-     Marcação fixa, ouvinte registrado uma vez: enquanto o bloco vivia dentro da
-     lista repintada, cada repintura criava botões novos e precisava religá-los.
-     O painel também mostra, ali mesmo, o que as invariantes disseram na última
-     exportação — é a diferença entre "exportei" e "o arquivo está coerente". */
-  document.addEventListener('click', (e) => {
-    const b = e.target.closest && e.target.closest('#tec-cfg-body [data-aud]');
-    if (!b) return;
-    const anon = !!(document.getElementById('plano-aud-anon') || {}).checked;
-    const a = PlanoAuditoria.exportar(b.dataset.aud, anon);
-    const el = document.getElementById('plano-aud-resumo');
-    if (el) el.textContent = (a && a.erro) ? 'Não foi possível exportar: ' + a.erro : (a ? a.resumo : '');
-    TecAjustes.pintarInvariantes(a);
-  });
   const reset = document.getElementById('tec-cfg-reset');
   if (reset) reset.addEventListener('click', async () => {
     const aba = TecAjustes.aba;
     if (!aba) return;
-    const nome = { plano: 'do Plano', rota: 'da Rota manual', reforco: 'do Reforço', analise: 'da lista' }[aba] || '';
+    const nome = { motor: 'do Motor de sugestão', analise: 'da lista' }[aba] || '';
     if (!await UI.confirm('Voltar todos os ajustes ' + nome + ' aos valores padrão?', { title: 'Restaurar padrões' })) return;
-    if (aba === 'plano' || aba === 'rota') {
-      /* "Restaurar padrões" restaura o que ESTA porta mostra, e nada além.
-         Apagar a preferência inteira a partir do Recorte levaria junto meta,
-         ritmo, régua e custo — que nem estão nesta tela. */
-      if (aba === 'plano' && TecAjustes._escoposDe('plano')) {
-        PlanoEngine.salvarPrefs({ disciplina: PlanoEngine.DEFAULTS.disciplina, excluidas: [] });
-      } else {
-        DB.delRaw(DB._profilePrefix() + PlanoEngine.KEY_PREF);
-      }
-      PlanoEngine._c = null;
-      DT.renderPlano();
-    } else if (aba === 'reforco') {
-      DT.savePrefs({ estrat: null, gran: null, minq: null, limite: null, disc: null,
-        reforcoView: null, reforcoOrdenar: null });
-      TecAjustes.restaurarCampos('reforco');
-      DT.renderReforco();
+    if (aba === 'motor') {
+      MotorSugestao.restaurar();
+      TecAjustes.restaurarCampos('motor');
+      DT.renderMotor();
     } else {
       DT.savePrefs({ weakOrdenar: null, weakDisc: null, weakLimiar: null, weakMinQ: null, weakLeaves: null });
       TecAjustes.restaurarCampos('analise');
@@ -7718,23 +5276,7 @@ $id('tec-weak-disc').addEventListener('change', (e) => {
     showToast('Ajustes restaurados ✓');
   });
 })();
-/* ── ENTRAR NA TELA COM O PLANO ABERTO TAMBÉM É TEMPO MUDO ─────────────────
-   O esqueleto existia só no CHIP da aba. Mas o Plano também é a aba ativa de
-   quem esteve nele e voltou pelo menu: aí a tela inteira era recalculada com o
-   dedo já fora da tela e sem um único sinal de que algo acontecia — a lista
-   antiga ficava plantada por algumas centenas de milissegundos e só então
-   piscava para a nova. O mesmo remédio das Conquistas, no mesmo formato: troca
-   agora, esqueleto no mesmo quadro, conta no quadro seguinte. */
 window.addEventListener('screen:activated', (e) => {
   if (e.detail.screen !== 'desempenhotec') return;
-  const DT = DesempenhoTecScreen;
-  const temRetrato = (() => { try { return (DB.getTecSnapshots() || []).length > 0; } catch (_) { return false; } })();
-  const painel = document.getElementById('tec-panel-plano');
-  /* Só quando o painel do Plano JÁ está na tela: pintar um esqueleto dentro de
-     um `display:none` é adiar a conta sem mostrar nada em troca. */
-  if (DT.tecTab === 'plano' && temRetrato && painel && painel.style.display !== 'none') {
-    DT._depoisDePintar('plano-lista', () => DT.render());
-    return;
-  }
-  DT.render();
+  DesempenhoTecScreen.render();
 });

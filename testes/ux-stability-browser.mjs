@@ -70,39 +70,18 @@ try{
   });
   const fileiraMob=await medirFileira();
   ok(fileiraMob.temFileira,'a barra de Extras deve ter a fileira de acoes');
-  ok(fileiraMob.n>=4,`a fileira deve conter os botoes de acao (recebeu ${fileiraMob.n})`);
+  ok(fileiraMob.n>=3,`a fileira deve conter os botoes de acao (recebeu ${fileiraMob.n})`);
   eq(fileiraMob.aninhados,0,'a fileira nao pode ter involucro entre ela e os botoes');
   eq(fileiraMob.alturas,1,`os botoes devem ter a mesma altura (recebeu ${fileiraMob.alturas} alturas)`);
   ok(fileiraMob.linhas<fileiraMob.n,`em 390px os botoes nao podem descer um por linha (${fileiraMob.linhas} linhas para ${fileiraMob.n} botoes)`);
   eq(fileiraMob.overflow,0,'a barra de Extras nao pode transbordar na horizontal');
-  /* ── 💡 SUGERIR NASCE DESLIGADO ────────────────────────────────────────
-     Ele monta atividades a partir dos pontos fracos do TEC por um caminho
-     anterior aos motores; quem decide alvo, ordem e dose hoje e o motor
-     escolhido no Desempenho TEC, por 🏁 Puxar do Plano. Os dois sempre
-     visiveis sao duas respostas para a mesma pergunta, sem dizer qual vale. */
-  const sugerir=await page.evaluate(()=>{
-    const b=document.getElementById('extras-suggest-btn');
-    const antes={existe:!!b,visivel:b?b.offsetParent!==null:null,padrao:ExtrasBarraPrefs.mostrarSugerir()};
-    ExtrasBarraPrefs.salvar({sugerir:true}); ExtrasScreen.render(); UXStability.decorateExtrasToolbar();
-    const b2=document.getElementById('extras-suggest-btn');
-    const depois=b2?b2.offsetParent!==null:null;
-    ExtrasBarraPrefs.salvar({sugerir:false}); ExtrasScreen.render(); UXStability.decorateExtrasToolbar();
-    /* Os dois `render()` acima refazem a lista; a decoracao dos cartoes de lei
-       (que tira o chip duplicado) roda em rAF e ainda nao passou. Reaplicada
-       aqui para os casos seguintes verem a tela no estado decorado. */
-    UXStability.decorateLawCards();
-    const b3=document.getElementById('extras-suggest-btn');
-    return {...antes,ligado:depois,desligado:b3?b3.offsetParent!==null:null};
-  });
-  ok(sugerir.existe,'o botao Sugerir deve continuar existindo no HTML');
-  eq(sugerir.padrao,false,'a preferencia do Sugerir deve nascer desligada');
-  eq(sugerir.visivel,false,'por padrao o Sugerir nao deve aparecer na barra');
-  eq(sugerir.ligado,true,'ligar a preferencia deve trazer o Sugerir de volta');
-  eq(sugerir.desligado,false,'desligar a preferencia deve esconder o Sugerir de novo');
+  /* A fileira tem quatro botões e nenhuma preferência para escondê-los: o
+     antigo 💡 Sugerir saiu com o segundo motor que o alimentava, e com ele a
+     caixa de "mostrar o botão" que só existia para negociar a duplicata. */
   await page.setViewportSize({width:1280,height:900});
   await page.waitForTimeout(140);
   const fileiraDesk=await medirFileira();
-  eq(fileiraDesk.linhas,1,`no desktop os cinco botoes devem caber numa linha (recebeu ${fileiraDesk.linhas})`);
+  eq(fileiraDesk.linhas,1,`no desktop os botoes devem caber numa linha (recebeu ${fileiraDesk.linhas})`);
   eq(new Set(fileiraDesk.larguras||[0]).size,1,'no desktop os botoes devem ter a mesma largura');
   await page.setViewportSize({width:390,height:844});
   await page.waitForTimeout(140);

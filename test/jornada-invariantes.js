@@ -59,11 +59,27 @@ window.RODAR_JORNADA = function () {
       const ks = [].concat(r.itens || [], r.pequenas || []).map(x => x.disciplina + '|' + x.nome);
       if (new Set(ks).size !== ks.length) F(passo, 'assunto repetido entre lista e segundo plano');
     }
-    // 5. as invariantes da própria auditoria
+    /* 5. AS INVARIANTES DO MOTOR DE SUGESTAO. Sao as duas que sustentam a
+       promessa da tela: a poda nao inventa nem perde volume, e nenhuma frente
+       chega a fila com a margem estourada sem estar declarada como bloco. */
     try {
-      const a = PlanoAuditoria.gerar({ cadencia: 'avulsa' });
-      (a.invariantes || []).filter(i => !i.ok).forEach(i => F(passo, 'invariante da auditoria falhou', { nome: i.nome, det: i.detalhe }));
-    } catch (e) { F(passo, 'auditoria lancou', { erro: String(e && e.message) }); }
+      const rm = MotorSugestao.calcular();
+      if (rm && !rm.erro) {
+        const lim = rm.prefs.margemMax;
+        (rm.itens || []).forEach(x => {
+          if (!x.agregado && (x.margem == null || x.margem > lim)) {
+            F(passo, 'frente fora da regua sem virar bloco', { nome: x.nome, m: x.margem, lim });
+          }
+          if (!num(x.questoes) || x.questoes <= 0) F(passo, 'frente sem volume', { nome: x.nome, q: x.questoes });
+          if (!num(x.score) || x.score < 0) F(passo, 'score podre', { nome: x.nome, s: x.score });
+        });
+        (rm.todos || []).forEach(x => {
+          if (!num(x.questoes) || x.questoes <= 0) F(passo, 'no do ranking sem volume', { nome: x.nome, q: x.questoes });
+        });
+        const somaDose = (rm.itens || []).reduce((a, x) => a + x.dose, 0);
+        if (somaDose > rm.prefs.alvoQuestoes) F(passo, 'a dose estourou o caderno', { somaDose, alvo: rm.prefs.alvoQuestoes });
+      }
+    } catch (e) { F(passo, 'motor lancou', { erro: String(e && e.message) }); }
     // 6. toda atividade viva com volume no histórico NÃO pode ser órfã
     const rr = (r && !r.erro) ? r : { itens: [], pequenas: [] };
     C.emCurso(rr).forEach(v => {

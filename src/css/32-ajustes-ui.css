@@ -159,11 +159,6 @@
   padding: 0;
   accent-color: var(--accent);
 }
-/* O interruptor do reforço adaptativo é um alvo invisível de 44px sobreposto
-   ao desenho da chave: ele PRECISA da largura própria. */
-.ra-switch-hero > input[type="checkbox"] {
-  width: 44px; height: 28px; min-width: 44px;
-}
 /* Os sete dias são botões desenhados; o input vive escondido atrás deles. */
 .xsc-days input[type="checkbox"] {
   position: absolute; opacity: 0; pointer-events: none;
@@ -360,15 +355,6 @@
   margin: 12px 14px 4px;
   padding-bottom: 12px;
   border-bottom: 1px dashed color-mix(in srgb, var(--border) 85%, transparent);
-}
-#plano-lista > .tpm-legacy-exec:not([open]) > .tpm-legacy-cfg { display: none; }
-#plano-lista > .tpm-legacy-exec > .tpm-legacy-cfg > .tec-cfg-open {
-  border-color: color-mix(in srgb, var(--accent) 34%, var(--border));
-  border-radius: 999px;
-}
-@media (max-width: 560px) {
-  #plano-lista > .tpm-legacy-exec > .tpm-legacy-cfg { margin: 11px 12px 4px; }
-  #plano-lista > .tpm-legacy-exec > .tpm-legacy-cfg > .tec-cfg-open { width: 100%; justify-content: center; }
 }
 
 /* Com motor ativo, a barra do Plano continua na tela — mas o que ela abre

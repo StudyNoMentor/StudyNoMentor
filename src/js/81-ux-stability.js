@@ -116,13 +116,6 @@
         b.classList.toggle('btn-primary', primaria);
         b.classList.toggle('btn-secondary', !primaria);
       });
-      /* O 💡 Sugerir é opcional e nasce escondido (ver `ExtrasBarraPrefs`). */
-      const sug = actions.querySelector('#extras-suggest-btn');
-      if (sug) {
-        const mostrar = !!(window.ExtrasBarraPrefs && ExtrasBarraPrefs.mostrarSugerir());
-        sug.hidden = !mostrar;
-        sug.setAttribute('aria-hidden', mostrar ? 'false' : 'true');
-      }
       if (actions.parentElement !== bar) bar.appendChild(actions);
       const head = bar.querySelector('.ux100-config-head');
       [...bar.children].forEach((x) => {

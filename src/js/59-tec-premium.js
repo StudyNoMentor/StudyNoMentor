@@ -9,23 +9,22 @@
 
   const TecPremium = {
     tempos: {},
-    PARAM_PLANO: {
-      metaDominio:'plano-meta', tetoDominio:'plano-teto', ponderacao:'plano-ponderacao', minAmostra:'plano-minamostra', incluirPequenas:'plano-pequenas',
-      custoModo:'plano-customodo', custoFixo:'plano-custofixo', custoFator:'plano-custofator', custoPiso:'plano-custopiso', custoPorPonto:'plano-custoponto',
-      ritmoSemanal:'plano-ritmo', apenasFolhas:'plano-folhas', granPiso:'plano-granpiso', limite:'plano-limite', ordenar:'plano-ordenar',
-      sugestoesDisciplinas:'plano-sug-disciplinas', sugestoesTopicosDisc:'plano-sug-topicos', faixaCritico:'plano-critico', faixaFragil:'plano-fragil',
-      pisoSerie:'plano-piso', sensTendencia:'plano-sens', consolidarEm:'plano-consolidar', validadeDias:'plano-validade', amostraAlvo:'plano-amostraalvo',
-      janelaMax:'plano-janelamax', cadenciaDias:'plano-cadencia', pesoBanca:'plano-pesobanca'
+    /* Todo parâmetro que decide alguma coisa mora no Motor, e o Motor tem um
+       campo para cada um. Esta auditoria confere justamente isso: que nenhum
+       default do motor esteja sem controle na interface. */
+    PARAM_MOTOR: {
+      margemMax: 'motor-margem', alvoQuestoes: 'motor-alvo',
+      doseMin: 'motor-dosemin', maxFrentes: 'motor-frentes'
     },
-    DERIVADOS: ['disciplina','foco','excluidas','banca','migracao'],
+    DERIVADOS: ['fase'],
     medir(nome, fn) {
       const ini=(typeof performance!=='undefined'&&performance.now)?performance.now():Date.now();
       try{return fn();}finally{const fim=(typeof performance!=='undefined'&&performance.now)?performance.now():Date.now();this.tempos[nome]=Math.round((fim-ini)*10)/10;this.atualizarComando();}
     },
     auditoriaParametros() {
-      const defaults=(typeof PlanoEngine!=='undefined'&&PlanoEngine.DEFAULTS)||{}, faltantes=[];
-      Object.keys(defaults).forEach(k=>{if(this.DERIVADOS.includes(k))return;const id=this.PARAM_PLANO[k];if(!id||!document.getElementById(id))faltantes.push(k);});
-      const tabs={plano:[],reforco:[],analise:[]};
+      const defaults=(typeof MotorSugestao!=='undefined'&&MotorSugestao.DEFAULTS)||{}, faltantes=[];
+      Object.keys(defaults).forEach(k=>{if(this.DERIVADOS.includes(k))return;const id=this.PARAM_MOTOR[k];if(!id||!document.getElementById(id))faltantes.push(k);});
+      const tabs={motor:[],analise:[]};
       document.querySelectorAll('#tec-cfg-body [data-tab] [data-cfg-key]').forEach(el=>{const sec=el.closest('[data-tab]');if(sec&&tabs[sec.dataset.tab])tabs[sec.dataset.tab].push(el.dataset.cfgKey);});
       const duplicadas={};Object.keys(tabs).forEach(t=>{const s=new Set();duplicadas[t]=tabs[t].filter(k=>{if(s.has(k))return true;s.add(k);return false;});});
       return{faltantes,tabs,duplicadas,ok:faltantes.length===0&&Object.values(duplicadas).every(a=>a.length===0)};
@@ -36,23 +35,20 @@
       const ultimo=snaps.length?snaps[snaps.length-1]:null, modo=DT.scopeMode==='all'?'Todos os retratos':DT.scopeMode==='range'?'Intervalo':'Retratos selecionados';
       return{ativos:snaps.length,total:all.length,modo,ultimo:ultimo&&(ultimo.endDate||ultimo.date||ultimo.startDate)||null};
     },
-    tabNome(tab){return({analise:'Análise',plano:'Plano',reforco:'Reforço',incidencia:'Incidência',importar:'Importar'})[tab]||tab||'Análise';},
+    tabNome(tab){return({analise:'Análise',motor:'Motor de sugestão',incidencia:'Incidência',importar:'Importar'})[tab]||tab||'Análise';},
     garantirComando() {
       const screen=document.getElementById('screen-desempenhotec');if(!screen)return null;let box=screen.querySelector('.tp-command');if(box)return box;
       box=document.createElement('section');box.className='tp-command';const head=screen.querySelector('.page-header');if(head)head.insertAdjacentElement('afterend',box);else screen.prepend(box);return box;
     },
-    /* Quem está decidindo AGORA. É a pergunta que a tela mais falhava em
-       responder: com dois modelos ativos e o Plano legado ainda presente em
-       partes, não havia uma frase única dizendo de onde vem a fila de hoje. */
+    /* Quem está decidindo AGORA. Com um motor só, a resposta é a FASE em que
+       ele está pensando — é ela que troca a fonte do peso. */
     fonteAtual() {
       try {
-        const g = window.PlanoMotoresGovernanca, e = g && g.estado ? g.estado() : null;
-        if (e && !e.simplificado && !e.robusto) return { rot: 'Leitura analítica do Plano', det: 'nenhum modelo ativo — a fila vem dos parâmetros do Plano' };
-        const f = window.TecPlanoFonteMotor && TecPlanoFonteMotor.fonte ? TecPlanoFonteMotor.fonte() : null;
-        if (f === 'robusto') return { rot: '🧠 Robusto', det: 'TEC + incidência + reforços em Extras' };
-        if (f === 'simplificado') return { rot: '⚡ Simplificado', det: 'lacuna até a meta, regra direta do TEC' };
+        const f = window.MotorSugestao ? MotorSugestao.prefs().fase : null;
+        if (f === 'pos') return { rot: '🧭 Motor · pós-edital', det: 'peso pela incidência da banca' };
+        if (f === 'pre') return { rot: '🧭 Motor · pré-edital', det: 'peso pelo seu volume no TEC' };
       } catch (e) { if (typeof _quiet === 'function') _quiet(e, 'tp-fonte'); }
-      return { rot: '—', det: 'sem modelo resolvido' };
+      return { rot: '—', det: 'motor indisponível' };
     },
     /* ═══ UM CABEÇALHO QUE RESPONDE, EM VEZ DE SE APRESENTAR ════════════════
        Esta faixa trazia quatro azulejos: retratos no escopo, retratos salvos,
@@ -95,23 +91,19 @@
     },
     abrirDiagnostico() {
       const a=this.auditoriaParametros(),s=this.escopoResumo(),ov=document.createElement('div');ov.className='tp-overlay';
-      ov.innerHTML=`<div class="tp-modal"><div class="tp-modal-head"><div><small>DIAGNÓSTICO DO DESEMPENHO TEC</small><h3>Integridade, parâmetros e desempenho</h3></div><button type="button" aria-label="Fechar">×</button></div><div class="tp-audit-grid"><article><b>${a.ok?'✓ Completo':'⚠ Revisar'}</b><span>Parâmetros do Plano</span><small>${a.faltantes.length?`Sem controle: ${a.faltantes.join(', ')}`:'Todos os parâmetros operacionais possuem controle ou rota deliberadamente derivada.'}</small></article><article><b>${s.ativos}/${s.total}</b><span>Escopo efetivo</span><small>${s.modo}. É este mesmo recorte que alimenta Análise, Plano e Reforço.</small></article><article><b>${this.tempos.plano!=null?this.tempos.plano+' ms':'—'}</b><span>Último Plano</span><small>Tempo observado nesta sessão. O cálculo é memoizado por retrato, escopo e preferências.</small></article><article><b>${this.tempos.analise!=null?this.tempos.analise+' ms':'—'}</b><span>Última Análise</span><small>A Análise oculta não é mais calculada só para depois ser descartada.</small></article><article><b>${['analise','plano','reforco','incidencia'].map(t=>this.tempos[t]).filter(v=>v!=null).length}</b><span>Áreas medidas nesta sessão</span><small>${['analise','plano','reforco','incidencia'].filter(t=>this.tempos[t]!=null).map(t=>this.tabNome(t)+': '+this.tempos[t]+' ms').join(' · ')||'Nada medido ainda nesta sessão.'} O cronômetro saiu do cabeçalho da tela e vive aqui: é instrumentação de manutenção, não métrica de estudo.</small></article></div><div class="tp-audit-body"><h4>Cobertura dos ajustes</h4>${['plano','reforco','analise'].map(t=>`<div><strong>${this.tabNome(t)}</strong><span>${a.tabs[t].length} controle(s) configurável(is)</span><em>${a.duplicadas[t].length?'chaves duplicadas: '+a.duplicadas[t].join(', '):'sem chaves duplicadas'}</em></div>`).join('')}<p>Parâmetros derivados do Plano (<code>${this.DERIVADOS.join(', ')}</code>) são administrados por foco, exclusões, banca ou migração e não devem ganhar um segundo campo concorrente.</p></div></div>`;
+      ov.innerHTML=`<div class="tp-modal"><div class="tp-modal-head"><div><small>DIAGNÓSTICO DO DESEMPENHO TEC</small><h3>Integridade, parâmetros e desempenho</h3></div><button type="button" aria-label="Fechar">×</button></div><div class="tp-audit-grid"><article><b>${a.ok?'✓ Completo':'⚠ Revisar'}</b><span>Parâmetros do Motor</span><small>${a.faltantes.length?`Sem controle: ${a.faltantes.join(', ')}`:'Todos os parâmetros operacionais possuem controle ou rota deliberadamente derivada.'}</small></article><article><b>${s.ativos}/${s.total}</b><span>Escopo efetivo</span><small>${s.modo}. É este mesmo recorte que alimenta a Análise, a Incidência e o Motor.</small></article><article><b>${this.tempos.motor!=null?this.tempos.motor+' ms':'—'}</b><span>Último Motor</span><small>Tempo observado nesta sessão, da poda da árvore até a fila dosada.</small></article><article><b>${this.tempos.analise!=null?this.tempos.analise+' ms':'—'}</b><span>Última Análise</span><small>A Análise oculta não é mais calculada só para depois ser descartada.</small></article><article><b>${['analise','motor','incidencia'].map(t=>this.tempos[t]).filter(v=>v!=null).length}</b><span>Áreas medidas nesta sessão</span><small>${['analise','motor','incidencia'].filter(t=>this.tempos[t]!=null).map(t=>this.tabNome(t)+': '+this.tempos[t]+' ms').join(' · ')||'Nada medido ainda nesta sessão.'} O cronômetro saiu do cabeçalho da tela e vive aqui: é instrumentação de manutenção, não métrica de estudo.</small></article></div><div class="tp-audit-body"><h4>Cobertura dos ajustes</h4>${['motor','analise'].map(t=>`<div><strong>${this.tabNome(t)}</strong><span>${a.tabs[t].length} controle(s) configurável(is)</span><em>${a.duplicadas[t].length?'chaves duplicadas: '+a.duplicadas[t].join(', '):'sem chaves duplicadas'}</em></div>`).join('')}<p>A fase (pré/pós-edital) não aparece aqui porque o controle dela é o par de botões no alto da aba, e não um campo da folha de ajustes.</p></div></div>`;
       document.body.appendChild(ov);ov.querySelector('.tp-modal-head button').onclick=()=>ov.remove();
-    },
-    instalarSugestoes() {
-      ['plano-sug-disciplinas','plano-sug-topicos'].forEach(id=>{const el=document.getElementById(id);if(!el||el.dataset.tpBound==='1')return;el.dataset.tpBound='1';const eco=()=>{try{if(typeof TecAjustes!=='undefined'){TecAjustes.sincronizar();TecAjustes.marcarPersonalizadas();}}catch(e){_quiet(e,'tp-sug-sync');}};el.addEventListener('input',()=>{eco();DT.agendarPlano(false);});el.addEventListener('change',()=>{eco();DT.agendarPlano(true);});});
     },
     instalarPerformance() {
       if(DT._tpPerfInstalled)return;DT._tpPerfInstalled=true;const self=this;
       const originalAnalysis=DT.renderAnalysis;DT.renderAnalysis=function(){this._tpAnalysisDirty=false;return self.medir('analise',()=>originalAnalysis.apply(this,arguments));};
-      const originalPlan=DT.renderPlanoConteudo;DT.renderPlanoConteudo=function(){const args=arguments,run=()=>originalPlan.apply(this,args);return self.medir('plano',()=>typeof PlanFastCache!=='undefined'?PlanFastCache.withCache(run):run());};
-      const originalReforco=DT.renderReforco;DT.renderReforco=function(){return self.medir('reforco',()=>originalReforco.apply(this,arguments));};
+      const originalMotor=DT.renderMotor;DT.renderMotor=function(){return self.medir('motor',()=>originalMotor.apply(this,arguments));};
       const originalInc=DT.renderIncidencia;DT.renderIncidencia=function(){return self.medir('incidencia',()=>originalInc.apply(this,arguments));};
       const originalRender=DT.render;DT.render=function(){const tab=this.tecTab||'analise';if(tab==='analise')return originalRender.apply(this,arguments);const ra=this.renderAnalysis;this.renderAnalysis=()=>{this._tpAnalysisDirty=true;};try{return originalRender.apply(this,arguments);}finally{this.renderAnalysis=ra;self.atualizarComando();}};
       const originalSwitch=DT.switchTecTab;DT.switchTecTab=function(tab){const r=originalSwitch.apply(this,arguments);if(tab==='analise'&&this._tpAnalysisDirty){this._tpAnalysisDirty=false;this.renderAnalysis();}self.atualizarComando();return r;};
       if(typeof DT.aplicarMudancaEscopo==='function'){const base=DT.aplicarMudancaEscopo;DT.aplicarMudancaEscopo=function(){this._tpAnalysisDirty=true;return base.apply(this,arguments);};}
     },
-    instalar(){this.instalarPerformance();this.instalarSugestoes();this.atualizarComando();}
+    instalar(){this.instalarPerformance();this.atualizarComando();}
   };
   TecPremium.instalar();
   if(typeof window!=='undefined')window.TecPremium=TecPremium;

@@ -6,14 +6,6 @@ const css = readFileSync(new URL('../src/css/16-extras-stability.css', import.me
 
 assert.match(js, /MutationObserver/, 'pilha de overlays deve observar modais criados dinamicamente');
 assert.match(js, /extras-overlay-background/, 'modais atrás precisam ficar inertes');
-assert.match(js, /fromCentral:true/, 'editor adaptativo deve sair da Central antes de abrir');
-assert.match(js, /getComputedStyle\(screen\)\.display!==['"]none['"]/, 'recalculo do TEC deve ocorrer apenas quando visível');
-assert.match(js, /ctx\._histIndex=this\._historyIndex\(\)/, 'histórico deve ser indexado uma vez por cálculo');
-
-const deco = js.match(/RA\.decorarPlano\s*=\s*function\(\)\s*\{([\s\S]*?)\n  \};/);
-assert.ok(deco, 'decorarPlano otimizado deve existir');
-assert.equal((deco[1].match(/PlanoEngine\.calcular/g)||[]).length, 0, 'decorarPlano não pode recalcular o Plano por card');
-assert.match(deco[1], /new Map\(\)/, 'lookup dos tópicos deve ser indexado');
 
 /* Contrato novo: Extras ocupa somente a faixa de modal do design system. O
    z-index é derivado da pilha PRESENTE, não de um contador que cresce a cada

@@ -240,7 +240,7 @@ window.BackupHistoryUI = BackupHistoryUI;
    Funciona por delegação: qualquer elemento com title ou data-tip dentro de uma
    área de gráfico responde, sem precisar alterar cada gráfico. */
 const GraficoTip = {
-  AREAS: '#screen-evolucao, #screen-conquistas, #tec-panel-plano, #tec-panel-analise, #tec-panel-incidencia, #tec-panel-reforco, #screen-ciclo, #screen-historico',
+  AREAS: '#screen-evolucao, #screen-conquistas, #tec-panel-analise, #tec-panel-incidencia, #tec-panel-motor, #screen-ciclo, #screen-historico',
   _el: null, _timer: null, _alvo: null,
   bolha() {
     if (!this._el) {

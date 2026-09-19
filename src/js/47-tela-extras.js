@@ -143,16 +143,28 @@ const ExtrasScreen = {
     const discsTotal = [...new Set(itens.map(v => v.origem.disciplina || 'Sem disciplina'))];
     const visiveis = itens.slice(0, this._cursoLimit || this.PAGE_SIZE);
     const discs = [...new Set(visiveis.map(v => v.origem.disciplina || 'Sem disciplina'))];
-    /* Dias até a próxima importação: é a cadência que VOCÊ definiu no Plano,
-       contada a partir do último retrato. É o horizonte real do ciclo — não
-       adianta espalhar um bloco por trinta dias se você reimporta em quinze. */
+    /* Dias até a próxima importação. O horizonte não é mais um número que
+       alguém precisa configurar: ele sai do SEU histórico de importações — a
+       mediana do intervalo entre os retratos que você já trouxe. Quem importa
+       de quinze em quinze dias vê o bloco espalhado em quinze; quem importa
+       uma vez por mês, em trinta. Sem retrato suficiente para medir, trinta
+       dias é o palpite declarado. */
     let dias = 0;
     try {
-      const p = PlanoEngine.prefs();
-      const snaps = DB.getTecSnapshots();
+      const snaps = DB.getTecSnapshots() || [];
+      const fim = (s2) => s2 && (s2.endDate || s2.date || s2.startDate);
+      const gaps = [];
+      for (let i = 1; i < snaps.length; i++) {
+        const a = fim(snaps[i - 1]), b = fim(snaps[i]);
+        if (!a || !b) continue;
+        const d = Math.round((new Date(b + 'T00:00:00') - new Date(a + 'T00:00:00')) / 86400000);
+        if (d > 0) gaps.push(d);
+      }
+      gaps.sort((x, y) => x - y);
+      const cadencia = gaps.length ? gaps[gaps.length >> 1] : 30;
       const ult = snaps[snaps.length - 1];
-      const idade = ult ? PlanoEngine._diasDesde(ult.endDate || ult.date) : 0;
-      dias = Math.max(1, (p.cadenciaDias || 30) - idade);
+      const idade = ult ? PlanoEngine._diasDesde(fim(ult)) : 0;
+      dias = Math.max(1, cadencia - idade);
     } catch (e) { _quiet(e, 'curso-dias'); }
     const porDia = Math.max(1, Math.ceil(totalFalta / dias));
     /* `mediu` é o desfecho do DIAGNÓSTICO: ele foi buscar amostra, não acerto.
@@ -304,70 +316,55 @@ const ExtrasScreen = {
     const m = document.getElementById('extras-manage-modal');
     if (m && m.style.display === 'flex') this.renderManageList();
   },
-  // Puxa os assuntos prioritários do Plano de pontos fracos, com a meta já calculada
+  /* ── PUXAR DO MOTOR ───────────────────────────────────────────────────────
+     A fila daqui é a MESMA do 🧭 Motor de sugestão: mesma poda por margem de
+     erro, mesmo score, mesma fase. O que este diálogo acrescenta é a escolha
+     de quais frentes entram hoje — e, escolhidas elas, o caderno é repartido
+     entre as selecionadas pela mesma regra de dose. Não há segunda ordenação
+     nem segundo critério: um motor, uma fila. */
   puxarDoPlano() {
-    if (typeof PlanoEngine === 'undefined' || typeof DesempenhoTecScreen === 'undefined') { showToast('Plano indisponível'); return; }
-    // guarda o estado do diálogo: prioridade (ordenação) e disciplinas marcadas
-    this._planoOrd = this._planoOrd || 'pior';
+    if (typeof MotorSugestao === 'undefined' || typeof DesempenhoTecScreen === 'undefined') { showToast('Motor indisponível'); return; }
     this._planoDiscSel = this._planoDiscSel || new Set(); // vazio = todas
     this._planoDiscOpen = false;
     this._planoSel = new Set();
-    // recomputa os candidatos com a ordenação escolhida (aproveita o motor do Plano)
     this._planoRecalc = () => {
-      const r = PlanoEngine.calcular(DesempenhoTecScreen.scopedSnapshot(),
-        Object.assign({}, PlanoEngine.prefs(), { disciplina: '__todas__', limite: 200, ordenar: this._planoOrd }));
+      const r = MotorSugestao.calcular();
       if (!r || r.erro) { this._planoCand = null; this._planoErr = (r && r.erro) || 'erro'; return; }
-      /* A DEDUPLICAÇÃO É POR DISCIPLINA + NOME, como no resto do motor. Comparar
+      /* A DEDUPLICAÇÃO É POR DISCIPLINA + NOME, como no resto do app. Comparar
          só o nome fazia criar "Atos" de Administrativo esconder o "Atos" de
          Constitucional deste diálogo: dois assuntos de verdade, um deles sem
          porta nenhuma para virar atividade. E uma atividade JÁ CONCLUÍDA não
          bloqueia: o assunto pode ter voltado a cair, e atacá-lo de novo é o
          uso normal do app, não uma duplicata. */
       const abertas = DB.getExtras().filter(e => e.origemPlano && e.status !== 'concluida');
-      /* Além da mesma unidade, o candidato sai da lista quando já está DENTRO
-         (ou CONTÉM) o escopo de uma atividade aberta: desde que a atividade
-         mede o nó pelas linhas cruas, as duas contariam as mesmas questões, e o
-         volume dobrado rebaixa a calibragem. Aqui não há como perguntar item por
-         item — a lista é um lote — então o candidato simplesmente não é
-         oferecido. Quem quiser afunilar encerra a frente mais ampla primeiro. */
       const jaTem = (x) => abertas.some(e => DesempenhoTecScreen._casaUnidade(e.origemPlano, x))
         || !!PlanoEngine.atividadeSobreposta(x.nome, x.disciplina, x.membros);
-      this._planoCand = []
-        .concat((r.itens || []).map(x => ({ ...x, motivo: 'reforco', alvo: x.custoQ })))
-        .concat((r.pequenas || []).map(x => ({ ...x, motivo: 'diagnostico', alvo: x.faltaAmostra })))
-        .filter(x => !jaTem(x));
+      this._planoPrefs = r.prefs;
+      this._planoFase = r.fase;
+      this._planoCand = (r.todos || []).filter(x => !jaTem(x)).slice(0, 200);
+      this._planoFila = (r.itens || []).map(x => x.disciplina + '\u0001' + x.nome);
       this._planoErr = null;
     };
     this._planoRecalc();
     if (this._planoErr) {
-      showToast(this._planoErr === 'sem-retrato'
-        ? 'Importe um retrato do TEC em Desempenho TEC → Análise'
-        : 'Sem dados suficientes no Plano ainda');
+      showToast(this._planoErr === 'sem-incidencia'
+        ? 'O pós-edital precisa da incidência da banca. Importe-a em Desempenho TEC → Incidência.'
+        : this._planoErr === 'sem-retrato'
+          ? 'Importe um retrato do TEC em Desempenho TEC → Análise'
+          : 'Sem dados suficientes para o motor ainda');
       return;
     }
-    if (!this._planoCand.length) { showToast('Todos os assuntos prioritários já têm atividade'); return; }
-    // marca os 3 primeiros por padrão
-    this._planoCand.forEach((_, i) => { if (i < 3) this._planoSel.add(i); });
-
-    /* Os rótulos vêm do MOTOR, não de uma cópia local: eram sete pares escritos
-       à mão aqui e outros sete na tela do Plano, já divergindo entre si
-       ("Prioridade na banca" x "Fraqueza × incidência"). Cada opção leva junto
-       o "quando usar" como dica — a mesma explicação dos dois lados. */
-    const ORDENS = (typeof PlanoEngine !== 'undefined' && PlanoEngine.ORDENS)
-      ? Object.keys(PlanoEngine.ORDENS).map(k => [k, PlanoEngine.ORDENS[k].rot, PlanoEngine.ORDENS[k].quando])
-      : [['pior', '🔴 Pior acerto primeiro', '']];
-    const temInc = (typeof ReforcoEngine !== 'undefined') && ReforcoEngine.hasIncidencia && ReforcoEngine.hasIncidencia();
+    if (!this._planoCand.length) { showToast('Todas as frentes prioritárias já têm atividade'); return; }
+    /* Nascem marcadas exatamente as frentes que o Motor colocaria na rodada de
+       hoje — a tela de Extras não pode discordar da aba do Motor. */
+    const naFila = new Set(this._planoFila || []);
+    this._planoCand.forEach((x, i) => { if (naFila.has(x.disciplina + '\u0001' + x.nome)) this._planoSel.add(i); });
+    if (!this._planoSel.size) this._planoSel.add(0);
 
     // HTML fixo do diálogo (a lista e o dropdown de disciplinas são preenchidos por JS)
     const body = `
-      <p class="hint" style="margin:0 0 10px;">Cada item vira uma atividade de questões com a meta já calculada. Ao importar o próximo retrato do TEC, o Plano avisa se o assunto saiu da lista.</p>
+      <p class="hint" style="margin:0 0 10px;">A fila é a do 🧭 Motor de sugestão, na fase ${this._planoFase === 'pos' ? '<b>pós-edital</b> (peso pela incidência da banca)' : '<b>pré-edital</b> (peso pelo seu volume no TEC)'}. A rodada abre <b>${this._planoPrefs.maxFrentes} disciplina(s), uma frente em cada</b>, e as ${this._planoPrefs.alvoQuestoes} questões do caderno são repartidas entre as marcadas. Marcar outro tópico da mesma disciplina troca o que estava marcado nela.</p>
       <div class="pl-modal-tools">
-        <label class="pl-modal-field">
-          <span>Prioridade</span>
-          <select id="pl-ordenar">
-            ${ORDENS.map(o => `<option value="${o[0]}" title="${escapeHtml(o[2] || '')}" ${o[0] === this._planoOrd ? 'selected' : ''} ${o[0] === 'banca' && !temInc ? 'disabled' : ''}>${escapeHtml(o[1])}${o[0] === 'banca' && !temInc ? ' (importe a incidência)' : ''}</option>`).join('')}
-          </select>
-        </label>
         <div class="pl-modal-field" style="position:relative;">
           <span>Disciplinas</span>
           <button type="button" class="pl-disc-toggle" id="pl-disc-toggle">Todas <span class="chev">▾</span></button>
@@ -383,23 +380,24 @@ const ExtrasScreen = {
 
     new Promise((resolve) => {
       UI._resolve = resolve; UI._mode = 'confirm';
-      UI._open('🏁 Puxar do Plano', 'Assuntos prioritários com meta pronta', body, { okText: 'Criar atividades' });
+      UI._open('🧭 Puxar do Motor', 'As frentes que o motor escolheu, com a dose já repartida', body, { okText: 'Criar atividades' });
     }).then((ok) => {
       if (!ok) return;
       const criar = () => {
         let n = 0;
+        const doses = this._planoDoses();
         (this._planoCand || []).forEach((x, i) => {
           if (!this._planoSel || !this._planoSel.has(i)) return;
           const e = DB.addExtra({
             // o mesmo título dos dois portões (ver `PlanoCiclo.titulo`)
-            titulo: PlanoCiclo.titulo(x.nome, x.motivo, x.membros),
+            titulo: PlanoCiclo.titulo(x.nome, 'reforco', x.membros),
             tipo: 'questoes', disciplina: x.disciplina || '', unidade: 'questoes',
-            alvo: Math.max(1, x.alvo), periodo: 'unica', contaMetricas: false,
-            obs: 'Gerado pelo Plano de pontos fracos.'
+            alvo: Math.max(1, doses[i] || this._planoPrefs.doseMin), periodo: 'unica', contaMetricas: false,
+            obs: 'Gerado pelo Motor de sugestão — dose repartida do caderno da rodada.'
           });
           // mesma origem do outro portão: sem isto a atividade nascia sem
           // `taxaInicial` nem `qBase`, e o ciclo dela nunca teria veredito
-          if (e) { DB.updateExtra(e.id, { origemPlano: PlanoCiclo.origem(x.nome, x.disciplina, x, { motivo: x.motivo }) }); n++; }
+          if (e) { DB.updateExtra(e.id, { origemPlano: PlanoCiclo.origem(x.nome, x.disciplina, x, { motivo: 'reforco' }) }); n++; }  // `x` é a frente do Motor: margem, bloco e membros vão junto
         });
         this.render();
         showToast(n ? n + ' atividade(s) criada(s) ✓' : 'Nenhuma selecionada');
@@ -412,12 +410,53 @@ const ExtrasScreen = {
     // liga a interface do diálogo depois de renderizado
     setTimeout(() => this._planoBind(), 40);
   },
+  /* ── TRÊS DISCIPLINAS, UM TÓPICO CADA ─────────────────────────────────────
+     O contrato de execução do motor vale aqui também, e vale como REGRA, não
+     como censura: o ranking inteiro continua à vista para trocar qualquer
+     frente. Marcar um segundo tópico da mesma disciplina TROCA o que já estava
+     marcado nela — é o gesto que a pessoa quis fazer. O que não passa é abrir
+     uma quarta disciplina: aí a escolha é dela, e a tela diz o que fazer. */
+  _planoMarcar(i, silencioso) {
+    const cand = this._planoCand || [];
+    const x = cand[i];
+    if (!x) return false;
+    const chave = (y) => String((y && y.disciplina) || '').trim().toLowerCase();
+    const marcados = [...this._planoSel].map(k => ({ k, x: cand[k] })).filter(o => o.x);
+    const mesma = marcados.find(o => chave(o.x) === chave(x));
+    if (mesma) this._planoSel.delete(mesma.k);
+    const discs = new Set(marcados.filter(o => o !== mesma).map(o => chave(o.x)));
+    const teto = (this._planoPrefs || MotorSugestao.prefs()).maxFrentes;
+    if (!mesma && discs.size >= teto) {
+      if (!silencioso) showToast(`A rodada abre ${teto} disciplina(s), uma frente em cada. Desmarque uma para trocar.`);
+      return false;
+    }
+    this._planoSel.add(i);
+    return true;
+  },
+  /* A DOSE DEPENDE DE QUEM ESTÁ MARCADO. O caderno tem um tamanho só; marcar
+     mais frentes não o aumenta, reparte-o mais fino. Mostrar a dose mudando a
+     cada clique é o que torna esse limite visível antes de criar as atividades
+     — e é a mesma função de rateio que a aba do Motor usa. */
+  _planoDoses() {
+    const cand = this._planoCand || [];
+    const p = this._planoPrefs || MotorSugestao.prefs();
+    const escolhidos = [...(this._planoSel || [])].sort((a, b) => a - b)
+      .map(i => ({ i, x: cand[i] })).filter(o => o.x);
+    if (!escolhidos.length) return {};
+    const copia = escolhidos.map(o => ({ score: o.x.score }));
+    MotorSugestao.dosar(copia, p.alvoQuestoes, 0);
+    const out = {};
+    escolhidos.forEach((o, k) => { out[o.i] = copia[k].dose; });
+    return out;
+  },
   // Preenche a lista de assuntos do diálogo conforme o filtro de disciplinas atual.
   _planoRenderLista() {
     const host = document.getElementById('pl-lista');
     if (!host) return;
     const sel = this._planoDiscSel;
     const cand = this._planoCand || [];
+    const doses = this._planoDoses();
+    const pos = this._planoFase === 'pos';
     const visiveis = cand
       .map((x, i) => ({ x, i }))
       .filter(({ x }) => sel.size === 0 || sel.has(x.disciplina || ''));
@@ -425,21 +464,21 @@ const ExtrasScreen = {
       <label class="sug-row pl-linha" style="align-items:flex-start;">
         <input type="checkbox" class="pl-pick" data-i="${i}" ${this._planoSel.has(i) ? 'checked' : ''}>
         <div style="min-width:0;">
-          <div style="font-weight:700;">${escapeHtml(x.nome)}</div>
+          <div style="font-weight:700;">${escapeHtml(x.nome)}${x.agregado ? ` <span class="ms-selo">bloco${x.membros ? ' · ' + x.membros.length + ' ramos' : ''}${x.residuo > 0 ? ' · resto não detalhado' : ''}</span>` : ''}</div>
           <div class="hint" style="margin:2px 0 0;">
             ${x.disciplina ? escapeHtml(x.disciplina) + ' · ' : ''}
-            ${x.taxa != null ? x.taxa.toFixed(0) + '% de acerto' : 'sem taxa'} em ${x.qJanela} questões
-            ${(x.incid > 0) ? ' · 🎯 incidência ' + x.incid : ''} ·
-            ${x.motivo === 'diagnostico'
-              ? `<strong>diagnóstico</strong>: resolver ${x.alvo} para saber onde está`
-              : `<strong>reforço</strong>: ${x.alvo} questões · +${x.ganhoPP.toFixed(1)}pp de domínio`}
+            ${Math.round(x.taxaErro)}% de erro em ${x.questoes} questões
+            ${x.margem != null ? ' · margem ±' + (Math.round(x.margem * 10) / 10) + 'pp' : ''}
+            ${pos ? ' · 🎯 incidência ' + x.peso : ''}
+            ${doses[i] ? ' · <strong>' + doses[i] + ' questões nesta rodada</strong>' : ''}
           </div>
         </div>
-      </label>`).join('') : `<p class="hint" style="padding:16px 4px;">Nenhum assunto nas disciplinas selecionadas.</p>`;
+      </label>`).join('') : `<p class="hint" style="padding:16px 4px;">Nenhuma frente nas disciplinas selecionadas.</p>`;
     host.querySelectorAll('.pl-pick').forEach(cb => cb.addEventListener('change', () => {
       const i = parseInt(cb.dataset.i, 10);
-      if (cb.checked) this._planoSel.add(i); else this._planoSel.delete(i);
-      this._planoUpdConta();
+      if (!cb.checked) { this._planoSel.delete(i); this._planoRenderLista(); return; }
+      if (this._planoMarcar(i)) this._planoRenderLista();
+      else { cb.checked = false; }
     }));
     this._planoUpdConta();
   },
@@ -450,8 +489,10 @@ const ExtrasScreen = {
     const cand = this._planoCand || [];
     const vis = cand.filter(x => sel.size === 0 || sel.has(x.disciplina || '')).length;
     const marcados = this._planoSel ? this._planoSel.size : 0;
-    conta.innerHTML = (sel.size === 0 ? `${vis} assunto(s)` : `${vis} assunto(s) em ${sel.size} disciplina(s)`)
-      + ` · <strong>${marcados} marcado(s)</strong>`;
+    const p = this._planoPrefs || MotorSugestao.prefs();
+    conta.innerHTML = (sel.size === 0 ? `${vis} frente(s)` : `${vis} frente(s) em ${sel.size} disciplina(s)`)
+      + ` · <strong>${marcados} marcada(s)</strong>`
+      + (marcados ? ` · caderno de ${p.alvoQuestoes} questões repartido entre elas` : '');
   },
   // Monta o dropdown de disciplinas (com contagem de pontos fracos) e liga tudo.
   _planoBind() {
@@ -495,28 +536,13 @@ const ExtrasScreen = {
       toggle.classList.toggle('open', this._planoDiscOpen);
     });
     setToggleLabel();
-    // seletor de prioridade → recomputa e repinta
-    const ord = document.getElementById('pl-ordenar');
-    if (ord) ord.addEventListener('change', () => {
-      const executar = () => {
-        this._planoOrd = ord.value;
-        this._planoRecalc();
-        // mantém as marcações por NOME do assunto ao reordenar
-        const marcadosNomes = new Set([...this._planoSel].map(i => (cand[i] || {}).nome).filter(Boolean));
-        this._planoSel = new Set();
-        (this._planoCand || []).forEach((x, i) => { if (marcadosNomes.has(x.nome)) this._planoSel.add(i); });
-        // atualiza o dropdown de disciplinas (a contagem pode mudar) e a lista
-        this._planoBind();
-        this._planoRenderLista();
-      };
-      if (window.WorkFeedback) WorkFeedback.run(null, 'Reordenando sugestões…', executar, { overlay: true, region: '#ui-modal', context: 'extras-plano-ordem' });
-      else executar();
-    });
     // marcar visíveis / limpar
     const marcar = document.getElementById('pl-marcar');
     if (marcar) marcar.addEventListener('click', () => {
       const sel = this._planoDiscSel;
-      (this._planoCand || []).forEach((x, i) => { if (sel.size === 0 || sel.has(x.disciplina || '')) this._planoSel.add(i); });
+      /* "Marcar visíveis" preenche até o teto da rodada e para, em silêncio:
+         avisar a cada linha recusada seria uma fila de avisos para um clique. */
+      (this._planoCand || []).forEach((x, i) => { if (sel.size === 0 || sel.has(x.disciplina || '')) this._planoMarcar(i, true); });
       this._planoRenderLista();
     });
     const limpar = document.getElementById('pl-limpar');
@@ -570,32 +596,25 @@ const ExtrasScreen = {
     /* De onde a atividade veio e o que aconteceu com o assunto desde então. Sem
        isto o cartão é um item de lista de compras: não diz que nasceu de uma
        fraqueza medida, nem se a fraqueza cedeu. */
-    /* ── A ETIQUETA DIZ QUEM DECIDIU, NÃO SÓ "VEIO DO PLANO" ────────────────
-       Toda atividade vinda do TEC levava a mesma etiqueta "🏁 do Plano",
-       qualquer que fosse a origem: a leitura analítica legada, o Simplificado
-       ou o Robusto. Com três fontes possíveis e uma etiqueta só, não havia
-       como conferir, olhando a fila, se o que está sendo executado saiu do
-       modelo que você escolheu — e essa conferência é justamente o que dá (ou
-       tira) a confiança na tela.
-
-       A informação já estava gravada em `origemPlano.sugestao.motor` desde a
-       criação; ela só nunca tinha chegado à superfície. Cada atividade passa a
-       dizer qual motor a gerou e em que fase — e as criadas antes dos motores
-       continuam legíveis como "leitura analítica", que é o que elas são. */
+    /* ── A ETIQUETA DIZ EM QUE FASE A ESCOLHA FOI FEITA ────────────────────
+       Com um motor só, "quem decidiu" deixou de ser pergunta. O que continua
+       valendo é a FASE: pré-edital prioriza pelo seu volume, pós-edital pela
+       incidência da banca — e seis meses depois é isso que explica por que
+       aquela atividade nasceu. Atividades anteriores ao motor não têm a
+       assinatura e continuam legíveis pelo que são. */
     const planoTag = (() => {
       const o = x.origemPlano;
       if (!o || !o.topico) return '';
       const sug = o.sugestao || null;
       const quando = escapeHtml(formatDateShort((sug && sug.criadoEm) || o.criadoEm || ''));
-      const motor = sug && sug.motor ? String(sug.motor) : '';
-      const fase = sug && sug.fase === 'pos' ? 'Pós-edital' : (sug && sug.fase === 'pre' ? 'Pré-edital' : '');
-      let ico = '🏁', rot = 'leitura analítica', cls = 'plano';
-      if (/robusto/i.test(motor)) { ico = '🧠'; rot = 'Robusto'; cls = 'plano motor-robusto'; }
-      else if (/simplificado/i.test(motor)) { ico = '⚡'; rot = 'Simplificado'; cls = 'plano motor-simples'; }
-      const det = /robusto|simplificado/i.test(motor)
-        ? `Gerada pelo motor ${rot}${fase ? ' · ' + fase : ''} em ${quando}. A dose e a ordem vieram das regras desse motor, não do Plano legado.`
-        : `Criada pela leitura analítica do Plano em ${quando} — antes dos motores, ou com eles desligados.`;
-      return `<span class="extra-tag ${cls}" title="${escapeHtml(det)}">${ico} ${escapeHtml(rot)}</span>`;
+      const fase = sug && sug.fase === 'pos' ? 'pós-edital' : (sug && sug.fase === 'pre' ? 'pré-edital' : '');
+      const rot = fase ? 'Motor · ' + fase : 'do TEC';
+      const det = fase
+        ? `Escolhida pelo Motor de sugestão em ${quando}, na fase ${fase}`
+          + (sug.margem != null ? ` · margem de ±${sug.margem}pp no nível em que parou` : '')
+          + (sug.bloco ? ' · bloco de ramos miúdos' : '') + '.'
+        : `Criada a partir do seu desempenho no TEC em ${quando}, antes do Motor de sugestão.`;
+      return `<span class="extra-tag plano" title="${escapeHtml(det)}">🧭 ${escapeHtml(rot)}</span>`;
     })();
     const evoTag = (ciclo && ciclo.origem.taxaInicial != null && ciclo.taxa != null)
       ? `<span class="extra-tag evo ${ciclo.delta != null && ciclo.delta >= 0 ? 'up' : 'down'}" title="Acerto no assunto quando você criou a atividade, e hoje">${ciclo.origem.taxaInicial.toFixed(0)}% → ${ciclo.taxa.toFixed(0)}%</span>` : '';
@@ -948,15 +967,7 @@ const ExtrasScreen = {
     }
     $id('extra-modal').style.display = 'none';
     const okBtn = document.getElementById('extra-save'); if (okBtn) okBtn.textContent = 'Salvar';
-    // se veio das sugestões: marca como adicionada e volta para a lista de sugestões
-    if (this._fromSuggest != null) {
-      if (this._sugAdded) this._sugAdded.add(this._fromSuggest);
-      this._fromSuggest = null;
-      this.render();
-      this.openSuggest(); // reabre para configurar as próximas
-    } else {
-      this.render();
-    }
+    this.render();
   },
   // ===== Calendário em linha: vincule atividades a datas =====
   _addDays(iso, delta) { const d = new Date(iso + 'T00:00:00'); d.setDate(d.getDate() + delta); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; },
@@ -1066,146 +1077,6 @@ const ExtrasScreen = {
   _tipoColor(tipo) {
     return { anki: '#7c3aed', leitura: '#0f9d63', questoes: '#2563eb', revisao: '#d97a12', video: '#e0393f', livre: '#0a95a8' }[tipo] || '#6b7280';
   },
-  // ===== Sugestões a partir dos pontos fracos do TEC =====
-  _suggestions() {
-    const snap = (typeof DesempenhoTecScreen !== 'undefined' && DesempenhoTecScreen.scopedSnapshot)
-      ? DesempenhoTecScreen.scopedSnapshot() : ReforcoEngine.currentSnapshot();
-    if (!snap) return [];
-    const bancaEl = document.getElementById('extra-suggest-banca');
-    const discEl = document.getElementById('extra-suggest-disc');
-    const ordEl = document.getElementById('extra-suggest-ordenar');
-    const minqEl = document.getElementById('extra-suggest-minq');
-    const banca = (bancaEl && bancaEl.value) || (DB.getBancas()[0]) || '__todas__';
-    const ordenarPor = (ordEl && ordEl.value) || 'oportunidade';
-    const minq = (minqEl && parseInt(minqEl.value, 10)) || 8;
-    const res = ReforcoEngine.suggestFrontier(snap, { banca, estrategia: 0.5, granularidade: 0.5, minQuestoes: minq, limite: 60, ordenarPor });
-    let items = (res.items || []).filter(it => it.selo !== 'ok');
-    // filtro por disciplina
-    const disc = discEl ? discEl.value : '__todas__';
-    if (disc && disc !== '__todas__') { const nk = ReforcoEngine.norm(disc); items = items.filter(it => ReforcoEngine.norm(it.disciplina) === nk); }
-    return items.slice(0, 20);
-  },
-  _populateSuggestFilters() {
-    const bancaEl = document.getElementById('extra-suggest-banca');
-    const discEl = document.getElementById('extra-suggest-disc');
-    if (bancaEl) {
-      const bancas = DB.getBancas();
-      const cur = bancaEl.value;
-      bancaEl.innerHTML = (bancas.length ? '' : '<option value="__todas__">Todas</option>') +
-        bancas.map(b => `<option value="${escapeHtml(b)}">${escapeHtml(b)}</option>`).join('');
-      if (cur && [...bancaEl.options].some(o => o.value === cur)) bancaEl.value = cur;
-    }
-    if (discEl) {
-      const bsel = bancaEl ? bancaEl.value : '__todas__';
-      const discs = [...new Set(DB.getIncidencia().filter(r => r.depth === 0 && (bsel === '__todas__' || r.banca === bsel)).map(r => r.topico))].sort();
-      const cur = discEl.value || '__todas__';
-      discEl.innerHTML = `<option value="__todas__">📚 Todas as disciplinas</option>` + discs.map(d => `<option value="${escapeHtml(d)}">${escapeHtml(d)}</option>`).join('');
-      if ([...discEl.options].some(o => o.value === cur)) discEl.value = cur;
-    }
-  },
-  _sugAdded: null,   // conjunto de índices já adicionados (para marcar ✓)
-  openSuggest() {
-    this._populateSuggestFilters();
-    const sugs = this._suggestions();
-    this._sugAdded = this._sugAdded || new Set();
-    const listEl = document.getElementById('extra-suggest-list');
-    if (!sugs.length) {
-      listEl.innerHTML = `<div class="extras-empty" style="padding:24px;">Nenhum ponto fraco encontrado no escopo atual do Desempenho TEC.<br>Importe/atualize seus retratos e a incidência da banca primeiro.</div>`;
-      $id('extra-suggest-count').textContent = '';
-    } else {
-      this._sugCache = sugs;
-      listEl.innerHTML = sugs.map((it, i) => {
-        const added = this._sugAdded.has(i);
-        return `
-        <div class="sug-row ${added ? 'is-added' : ''}">
-          <input type="checkbox" class="sug-chk" data-i="${i}" ${added ? 'disabled' : ''}>
-          <span class="sug-body">
-            <span class="sug-name" title="${escapeHtml(it.nome)}">${escapeHtml(it.nome)}</span>
-            <span class="sug-meta">
-              <span class="sug-selo ${it.selo}">${it.selo === 'fraco' ? '🔥 fraco' : '⚠️ atenção'}</span>
-              <span class="sug-tag">${escapeHtml(it.disciplina)}</span>
-              <span class="sug-tag">${it.taxaErro}% erro</span>
-              <span class="sug-tag">N=${it.incidencia}</span>
-              <span class="sug-tag pts">+${it.pontosRecuperaveis} pts</span>
-            </span>
-          </span>
-          ${added
-            ? `<span class="sug-added-badge">✓ adicionada</span>`
-            : `<button type="button" class="btn-secondary sug-config" data-i="${i}" title="Configurar a meta e adicionar esta atividade">⚙ Configurar</button>`}
-        </div>`;
-      }).join('');
-      this._updateSugCount();
-    }
-    $id('extra-suggest-modal').style.display = 'flex';
-    listEl.querySelectorAll('.sug-chk').forEach(c => c.addEventListener('change', () => this._updateSugCount()));
-    listEl.querySelectorAll('.sug-config').forEach(b => b.addEventListener('click', () => this.configureSuggestion(parseInt(b.dataset.i, 10))));
-    // botão marcar/desmarcar todos reflete o estado
-    this._syncSelectAllBtn();
-  },
-  _updateSugCount() {
-    const n = document.querySelectorAll('#extra-suggest-list .sug-chk:checked').length;
-    const el = document.getElementById('extra-suggest-count');
-    if (el) el.textContent = n ? `${n} selecionada(s) para adição rápida` : 'Configure uma a uma (⚙) ou marque para adicionar em lote';
-    this._syncSelectAllBtn();
-  },
-  _syncSelectAllBtn() {
-    const btn = document.getElementById('extra-suggest-all');
-    if (!btn) return;
-    const boxes = [...document.querySelectorAll('#extra-suggest-list .sug-chk:not(:disabled)')];
-    const allOn = boxes.length > 0 && boxes.every(c => c.checked);
-    btn.textContent = allOn ? '☐ Desmarcar todos' : '☑ Marcar todos';
-    btn.dataset.state = allOn ? 'on' : 'off';
-  },
-  toggleSelectAll() {
-    const boxes = [...document.querySelectorAll('#extra-suggest-list .sug-chk:not(:disabled)')];
-    const btn = document.getElementById('extra-suggest-all');
-    const turnOn = !(btn && btn.dataset.state === 'on');
-    boxes.forEach(c => c.checked = turnOn);
-    this._updateSugCount();
-  },
-  // Defaults de meta/unidade por tipo (usado no config e no lote)
-  _tipoDefaults(tipo) {
-    return {
-      revisao: { prefixo: 'Revisar', unidade: 'sessoes', alvo: 3 },
-      questoes: { prefixo: 'Questões de', unidade: 'questoes', alvo: 20 },
-      video: { prefixo: 'Vídeo de', unidade: 'min', alvo: 30 },
-      anki: { prefixo: 'Flashcards de', unidade: 'cards', alvo: 20 }
-    }[tipo] || { prefixo: 'Estudar', unidade: 'itens', alvo: 0 };
-  },
-  // ⚙ Configurar UMA sugestão: abre a caixinha (modal) pré-preenchida com meta ajustável
-  configureSuggestion(i) {
-    const it = this._sugCache[i];
-    if (!it) return;
-    const tipo = $id('extra-suggest-tipo').value;
-    const d = this._tipoDefaults(tipo);
-    this._fromSuggest = i; // marca que veio das sugestões
-    // esconde o modal de sugestões e abre o de configuração por cima
-    $id('extra-suggest-modal').style.display = 'none';
-    this.openModal(null, {
-      titulo: `${d.prefixo} ${it.nome}`,
-      tipo, disciplina: it.disciplina,
-      alvo: d.alvo, unidade: d.unidade, periodo: 'unica', contaMetricas: true
-    });
-  },
-  // Adição em LOTE das marcadas (com defaults do tipo escolhido)
-  addSuggested() {
-    const tipo = $id('extra-suggest-tipo').value;
-    const checks = [...document.querySelectorAll('#extra-suggest-list .sug-chk:checked')];
-    if (!checks.length) { showToast('Marque as sugestões ou use ⚙ Configurar para ajustar cada uma'); return; }
-    const d = this._tipoDefaults(tipo);
-    let n = 0;
-    checks.forEach(c => {
-      const it = this._sugCache[parseInt(c.dataset.i, 10)];
-      if (!it) return;
-      DB.addExtra({ titulo: `${d.prefixo} ${it.nome}`, tipo, disciplina: it.disciplina, alvo: d.alvo, unidade: d.unidade, periodo: 'unica', contaMetricas: true });
-      this._sugAdded.add(parseInt(c.dataset.i, 10));
-      n++;
-    });
-    $id('extra-suggest-modal').style.display = 'none';
-    this._sugAdded = new Set(); // limpa para a próxima abertura
-    this.render();
-    showToast(`${n} atividade(s) criada(s) a partir dos pontos fracos ✓`);
-  },
   deleteCurrent() {
     if (!this._editingId) return;
     const idToDel = this._editingId;
@@ -1217,8 +1088,7 @@ const ExtrasScreen = {
 window.ExtrasScreen = ExtrasScreen;
 (function () {
   const on = (id, ev, fn) => { const el = document.getElementById(id); if (el) el.addEventListener(ev, fn); };
-  on('extras-new-btn', 'click', () => { ExtrasScreen._fromSuggest = null; ExtrasScreen._sugAdded = new Set(); ExtrasScreen.openModal(null); });
-  on('extras-suggest-btn', 'click', (ev) => { ExtrasScreen._sugAdded = new Set(); if (window.WorkFeedback) WorkFeedback.run(ev.currentTarget, 'Analisando…', () => ExtrasScreen.openSuggest(), { overlay: true, region: '#screen-extras', context: 'extras-sugestoes' }); else ExtrasScreen.openSuggest(); });
+  on('extras-new-btn', 'click', () => { ExtrasScreen.openModal(null); });
   on('extras-plano-btn', 'click', (ev) => {
     if (window.WorkFeedback) WorkFeedback.run(ev.currentTarget, 'Analisando Plano…', () => ExtrasScreen.puxarDoPlano(), { overlay: true, region: '#screen-extras', context: 'extras-puxar-plano' });
     else ExtrasScreen.puxarDoPlano();
@@ -1227,23 +1097,12 @@ window.ExtrasScreen = ExtrasScreen;
   on('extras-manage-btn', 'click', () => ExtrasScreen.manageOpen());
   on('extras-manage-close', 'click', () => ExtrasScreen.manageClose());
   on('extras-manage-done', 'click', () => ExtrasScreen.manageClose());
-  on('extras-manage-new', 'click', () => { ExtrasScreen._fromSuggest = null; ExtrasScreen._sugAdded = new Set(); ExtrasScreen.openModal(null); });
+  on('extras-manage-new', 'click', () => { ExtrasScreen.openModal(null); });
   const _mng = document.getElementById('extras-manage-modal');
   if (_mng) _mng.addEventListener('click', (e) => { if (e.target === _mng) ExtrasScreen.manageClose(); });
-  on('extra-suggest-close', 'click', () => { $id('extra-suggest-modal').style.display = 'none'; ExtrasScreen._sugAdded = new Set(); });
-  on('extra-suggest-cancel', 'click', () => { $id('extra-suggest-modal').style.display = 'none'; ExtrasScreen._sugAdded = new Set(); });
-  on('extra-suggest-add', 'click', (ev) => { if (window.WorkFeedback) WorkFeedback.run(ev.currentTarget, 'Criando…', () => ExtrasScreen.addSuggested(), { overlay: true, region: '#extra-suggest-modal', context: 'extras-sugestoes-criar' }); else ExtrasScreen.addSuggested(); });
-  on('extra-suggest-all', 'click', () => ExtrasScreen.toggleSelectAll());
-  // filtros das sugestões (recarregam a lista) — como no Reforço
-  on('extra-suggest-banca', 'change', () => { ExtrasScreen._populateSuggestFilters(); ExtrasScreen.openSuggest(); });
-  on('extra-suggest-disc', 'change', () => ExtrasScreen.openSuggest());
-  on('extra-suggest-ordenar', 'change', () => ExtrasScreen.openSuggest());
-  on('extra-suggest-minq', 'input', () => ExtrasScreen.openSuggest());
-  // fechar/cancelar o config: se veio das sugestões, volta para elas
   const closeExtraModal = () => {
     $id('extra-modal').style.display = 'none';
     const okBtn = document.getElementById('extra-save'); if (okBtn) okBtn.textContent = 'Salvar';
-    if (ExtrasScreen._fromSuggest != null) { ExtrasScreen._fromSuggest = null; ExtrasScreen.openSuggest(); }
   };
   on('extra-modal-close', 'click', closeExtraModal);
   on('extra-cancel', 'click', closeExtraModal);

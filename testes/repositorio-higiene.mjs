@@ -25,7 +25,7 @@ for(const p of proibidos)assert.equal(existsSync(join(ROOT,p)),false,`artefato o
 assert.equal(existsSync(join(ROOT,'testes','evidencias')),false,'evidências geradas não devem ser versionadas');
 
 const semComentarios=src=>src.replace(/\/\*[\s\S]*?\*\//g,'').replace(/(^|[^:])\/\/[^\n\r]*/g,'$1');
-const apiVersionada=/\b(?:ReforcoTecExtras|PlanoSugestoes(?:Infra|Simplificado|Robusto)?|PlanoRobustoAuditLog|PlanoMotoresGovernanca|PlanoMotoresCentralTec|TecPlanoFonteMotor)V\d+\b/;
+const apiVersionada=/\bMotorSugestaoV\d+\b/;
 const fontesJs=fontesAbs.filter(f=>f.endsWith('.js'));
 for(const f of fontesJs){
   const codigo=semComentarios(readFileSync(f,'utf8'));

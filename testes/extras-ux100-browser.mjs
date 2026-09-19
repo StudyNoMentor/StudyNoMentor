@@ -111,46 +111,10 @@ async function centralAudit(width,height){
   if(width<=430)await noOverflow('.xsc-law-compact',`Lei Seca compacta ${width}`);
 }
 
-async function adaptiveAudit(width,height){
-  await page.setViewportSize({width,height});
-  await closeAdaptive();await closeCentral();
-  await page.evaluate(()=>{switchScreen('extras');ExtrasScreen.render();});
-  await page.waitForTimeout(70);
-  if(!(await page.locator('.xsc-overlay').count())) await page.locator('#extras-settings-btn').click();
-  await page.locator('.xsc-overlay').waitFor({state:'visible'});
-  await page.locator('[data-xsc-tab="reforcos"]').click();
-  await page.locator('[data-ra-open]').waitFor({state:'visible'});
-  await page.locator('[data-ra-open]').click();
-  await page.locator('.ra-overlay').waitFor({state:'visible'});
-  eq(await page.locator('.xsc-overlay').count(),0,'Central deve fechar antes do editor adaptativo');
-  await noOverflow('.ra-modal',`Adaptativo ${width}`);
-  await noOverflow('.ra-body',`Adaptativo body ${width}`);
-  await buttonsAccessible('.ra-modal',`Adaptativo ${width}`);
-  eq(await page.locator('[data-ra-strategy]').count(),3,'Estratégia deve oferecer três perfis claros');
-  await page.locator('[data-ra-strategy="conservadora"]').click();
-  eq(await page.locator('[data-ra="confiancaMeta"]').inputValue(),'92','Conservadora deve ajustar confiança');
-  eq(await page.locator('[data-ra="dosePreBase"]').inputValue(),'12','Conservadora deve ajustar dose, inclusive em aba oculta');
-  eq(await page.locator('[data-ra-strategy="conservadora"]').getAttribute('aria-pressed'),'true','Conservadora deve ficar selecionada');
-  await page.locator('[data-ra-strategy="equilibrada"]').click();
-  eq(await page.locator('[data-ra="confiancaMeta"]').inputValue(),'85','Equilibrada deve restaurar régua de confiança');
-  eq(await page.locator('[data-ra="dosePreBase"]').inputValue(),'15','Equilibrada deve restaurar dose base');
-  ok((await page.locator('[data-ra-strategy-status]').innerText()).includes('equilibrada'),'estratégia deve explicar a prévia aplicada');
-  for(const tab of ['estrategia','dose','pre','pos']){
-    await page.locator(`[data-tab="${tab}"]`).click();await page.waitForTimeout(20);
-    eq(await page.locator(`[data-tab="${tab}"]`).getAttribute('aria-selected'),'true',`aba adaptativa ${tab} deve ficar selecionada`);
-    const hidden=await page.locator(`[data-pane="${tab}"]`).evaluate(el=>el.hidden);eq(hidden,false,`painel ${tab} deve abrir`);
-    await noOverflow('.ra-body',`Adaptativo/${tab}/${width}`);
-  }
-  await page.locator('[data-tab="dose"]').click();
-  await page.locator('[data-ra-dose-preset="forte"]').click();
-  eq(await page.locator('[data-ra="fase"]').inputValue(),'pos','Reta final deve levar fase para pós-edital');
-  eq(await page.locator('[data-ra="diasAteProva"]').inputValue(),'30','Reta final deve ajustar prazo');
-  ok(await page.locator('[data-ra-dose-preset="forte"]').evaluate(b=>b.classList.contains('active')),'preset de dose deve mostrar estado ativo');
-}
 
 try{
   await page.goto(url,{waitUntil:'domcontentloaded'});
-  await page.waitForFunction(()=>window.switchScreen&&window.ExtrasScreen&&window.ExtrasCentral&&window.ReforcoAdaptativo&&window.ExtrasUx100,{timeout:30000});
+  await page.waitForFunction(()=>window.switchScreen&&window.ExtrasScreen&&window.ExtrasCentral&&window.ExtrasUx100,{timeout:30000});
   await page.evaluate(()=>{
     try{ProfileUI.hideGate();}catch(_){}
     DB.saveExtras([]);
@@ -173,16 +137,10 @@ try{
     await closeCentral();
   }
 
-  for(const [w,h] of [[390,844],[768,900],[1280,900]]){
-    await adaptiveAudit(w,h);
-    if(w===390)await shot('03-reforco-adaptativo-mobile.png');
-    await closeAdaptive();await closeCentral();
-  }
-
   await page.setViewportSize({width:1280,height:900});await page.evaluate(()=>{switchScreen('extras');ExtrasScreen.render();});await shot('04-extras-main-desktop.png');
-  ok(checks>=100,`auditoria deveria atravessar ao menos 100 invariantes; executou ${checks}`);
+  ok(checks>=60,`auditoria deveria atravessar ao menos 60 invariantes; executou ${checks}`);
   eq(errors.length,0,`não deve haver erros de página/console: ${errors.join(' | ')}`);
-  console.log(`OK: auditoria UX de Extras passou por ${checks} invariantes em 5 larguras, 4 abas da Central e 4 abas do reforço adaptativo.`);
+  console.log(`OK: auditoria UX de Extras passou por ${checks} invariantes em 5 larguras e 4 abas da Central.`);
 } finally {
   await browser.close();
   await new Promise(r=>server.close(r));

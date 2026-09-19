@@ -546,47 +546,10 @@
 .tec-subtabs-wrap .tec-subtabs { margin: 0; flex: 1 1 auto; }
 .tec-subtab.ux-off { display: none !important; }
 
-/* — Plano: blocos organizados por finalidade — */
-.pl-toolgroup {
-  border: 1.5px solid var(--border);
-  border-radius: 14px;
-  background: var(--surface-sunken);
-  padding: 12px 14px 14px;
-  margin-bottom: 12px;
-}
-.pl-toolgroup > .pl-toolgroup-head {
-  display: flex; align-items: baseline; gap: 9px; flex-wrap: wrap; margin-bottom: 10px;
-}
-.pl-toolgroup-title {
-  font-size: var(--fs-2xs); font-weight: 800; letter-spacing: .07em; text-transform: uppercase;
-  color: var(--accent-text);
-}
-.pl-toolgroup-desc { font-size: var(--fs-2xs); color: var(--text-faint); line-height: 1.5; }
-.pl-toolgroup .rfc-toolbar { padding: 0 !important; margin: 0 !important; gap: 12px; }
-.pl-toolgroup .rfc-field label { color: var(--text-soft); }
-
-#tec-panel-plano .rfc-advanced { margin-top: 6px; }
-#tec-panel-plano .rfc-adv-grid { gap: 14px 16px; }
-
 /* passos didáticos do plano */
 /* A faixa do método virou um bloco recolhível abaixo do resultado: o número
    primeiro, a explicação de como ele nasce logo em seguida, para quem quiser. */
 .pl-steps-wrap { margin: 0 0 18px; border: 1px solid var(--border); border-radius: 12px; background: var(--surface-sunken); overflow: hidden; }
-.pl-steps-wrap > summary { cursor: pointer; list-style: none; padding: 10px 14px; font-family: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif; font-size: var(--fs-2xs); font-weight: 700; color: var(--text-soft); display: flex; align-items: center; gap: 8px; }
-.pl-steps-wrap > summary::-webkit-details-marker { display: none; }
-.pl-steps-wrap > summary .chev { margin-left: auto; color: var(--text-faint); font-size: var(--fs-3xs); transition: transform 0.18s ease; }
-.pl-steps-wrap[open] > summary .chev { transform: rotate(180deg); }
-.pl-steps-wrap > summary:hover { color: var(--accent); }
-.pl-steps-wrap .pl-steps { margin: 0; padding: 0 14px 14px; }
-.pl-steps { display: grid; grid-template-columns: repeat(auto-fit, minmax(215px, 1fr)); gap: 12px; margin: 4px 0 18px; }
-.pl-step {
-  position: relative; background: var(--surface); border: 1.5px solid var(--border); border-radius: 14px;
-  padding: 14px 14px 13px 15px; box-shadow: var(--shadow-sm);
-}
-.pl-step::before {
-  content: ''; position: absolute; left: 0; top: 12px; bottom: 12px; width: 3px; border-radius: 0 3px 3px 0;
-  background: var(--pl-step-color, var(--accent));
-}
 /* O numero do passo era branco sobre a cor do passo — 1,65:1 no tema escuro
    com o amarelo, ilegivel. Ninguem tinha visto porque este bloco so existe
    quando ha retratos importados, e a verificacao de contraste nunca chegava
@@ -599,26 +562,9 @@
   color: var(--pl-step-text, var(--text));
   font-family: 'Space Mono', ui-monospace, SFMono-Regular, Menlo, monospace; font-size: var(--fs-3xs); font-weight: 800; margin-bottom: 8px;
 }
-.pl-step .t { font-size: var(--fs-sm); font-weight: 700; color: var(--text); margin-bottom: 4px; }
-.pl-step .d { font-size: var(--fs-2xs); color: var(--text-soft); line-height: 1.55; }
-.pl-step .v {
-  display: block; margin-top: 8px; font-family: 'Space Mono', ui-monospace, SFMono-Regular, Menlo, monospace; font-weight: 800;
-  font-size: clamp(14px, calc(17px * var(--fs-scale, 1)), 21px); color: var(--pl-step-color, var(--accent));
-  font-variant-numeric: tabular-nums; letter-spacing: -0.02em;
-}
 
 /* números grandes do plano nunca estouram */
 .pl-hero-num { font-size: clamp(26px, calc(34px * var(--fs-scale, 1)), 44px) !important; letter-spacing: -0.04em; font-variant-numeric: tabular-nums; }
-.pl-hero { padding: 18px 20px !important; }
-#tec-panel-plano .pl-chips { gap: 7px; }
-
-/* projeção do Reforço: percentuais grandes controlados */
-.rfc-card .rfc-section .rf-proj-num,
-#reforco-proj [style*="font-size"] { font-variant-numeric: tabular-nums; }
-#reforco-proj { padding: 4px 22px 0 !important; }
-
-/* cartões laterais do reforço */
-.reforco-side-grid { gap: 18px; margin-top: 18px; }
 
 /* números grandes de qualquer painel TEC: tabulares e sem quebra feia */
 #screen-desempenhotec .tone-good,
@@ -749,8 +695,6 @@
   font-variant-numeric: tabular-nums;
 }
 .cfg-storage-meta { font-size: var(--fs-xs); color: var(--text-faint); line-height: 1.5; padding-bottom: 3px; }
-@media (max-width: 620px) {
-}
 
 /* 7.5 — Histórico de versões e Backup no banco: linhas legíveis.
    As duas telas usam a MESMA marcação (.cloud-slot-row) de propósito — mas
@@ -1113,7 +1057,6 @@
   .leis-reader-card { border-radius: 14px; }
 }
 
-
 /* ---------- 9. Complementos v47 ---------- */
 /* Os rotulos de valor ficam ACIMA da barra: o container precisa de folga no topo
    e nao pode recortar. O padding inline do HTML exige !important aqui. */
@@ -1135,8 +1078,6 @@
 }
 /* barra de exibição da Evolução não cola no cartão de escopo */
 #evo-viewbar + .empty-state, #evo-viewbar + #evolucao-content { margin-top: 4px; }
-/* Plano: a linha que sobrou na barra original (botão de avançados) */
-.pl-toolbar-rest { padding: 0 !important; }
 /* Registrar: barra de modo não estoura no celular */
 @media (max-width: 560px) {
   #screen-registrar .reg-modebar { margin-left: 0; width: 100%; }
@@ -1164,7 +1105,6 @@
   display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
   margin: 12px 24px 8px;
 }
-#tec-panel-plano .tec-cfg-bar { margin: 10px 0 6px; }
 .tec-cfg-open {
   display: inline-flex; align-items: center; gap: 7px;
   background: var(--surface-sunken); border: 1.5px solid var(--border);
@@ -1260,10 +1200,8 @@
 }
 /* a caixa de marcar não pode virar um campo de largura total */
 .tec-cfg-grid input[type="checkbox"] { flex: 0 0 auto; width: 17px; height: 17px; margin: 0; }
-.tec-cfg-grid .rfc-field.wide > .rfc-check + .rfc-check { margin-top: 10px; }
 .tec-cfg-grid .scope-toggle { width: 100%; }
 .tec-cfg-grid .scope-toggle button { flex: 1 1 0; justify-content: center; }
-.tec-cfg-grid .reforco-slider { width: 100%; }
 .tec-cfg-grid .banca-pick { width: 100%; }
 
 .tec-cfg-foot { padding: 12px 22px; gap: 10px; }
@@ -1319,7 +1257,6 @@
   background: var(--surface-sunken); border: 1.5px solid var(--border);
   border-radius: 14px; padding: 14px 16px; margin: 0 0 16px;
 }
-.pl-ciclo .pl-hoje-top, .pl-ciclo > summary { margin-bottom: 10px; }
 .pl-ciclo-lista { list-style: none; margin: 0; padding: 0; display: grid; gap: 12px; }
 .pl-ciclo-lista > li { display: grid; gap: 6px; }
 .pl-ciclo-top { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; justify-content: space-between; }
@@ -1333,22 +1270,10 @@
   font-size: var(--fs-2xs); color: var(--text-soft);
 }
 .pl-ciclo-nums b { color: var(--text); }
-.pl-ciclo-obs { font-size: var(--fs-3xs); color: var(--text-faint); margin: 0; line-height: 1.5; }
-.pl-ciclo-obs.tone-bad { color: var(--bad-text); }
 .pl-ciclo-acao {
   background: none; border: 0; padding: 0; font: inherit; cursor: pointer;
   color: var(--accent); font-weight: 700; text-decoration: underline;
 }
-.pl-ciclo-hist > summary {
-  cursor: pointer; display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
-  font-size: var(--fs-sm); list-style: none;
-}
-.pl-ciclo-hist > summary::-webkit-details-marker { display: none; }
-.pl-ciclo-hist > summary span { font-size: var(--fs-2xs); color: var(--text-faint); font-weight: 600; }
-.pl-ciclo-hist > summary .chev { margin-left: auto; transition: transform .18s ease; }
-.pl-ciclo-hist[open] > summary .chev { transform: rotate(180deg); }
-.pl-calib { border-color: var(--accent); }
-.pl-calib .btn-secondary { margin-top: 8px; }
 /* o modo enxuto esconde prosa, não o veredito */
 .tec-enxuto .pl-ciclo-obs { display: none !important; }
 /* selos do Plano no cartão da atividade */
@@ -1377,58 +1302,8 @@
   margin: 12px 0 6px; font-size: var(--fs-3xs); font-weight: 800; text-transform: uppercase;
   letter-spacing: .05em; color: var(--text-faint);
 }
-/* o resumo do Plano: uma linha que leva para a gestão */
-.pl-ciclo-mini > summary {
-  cursor: pointer; display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
-  font-size: var(--fs-sm); list-style: none;
-}
-.pl-ciclo-mini > summary::-webkit-details-marker { display: none; }
-.pl-ciclo-mini > summary span { font-size: var(--fs-2xs); color: var(--text-faint); font-weight: 600; }
-.pl-ciclo-mini > summary .chev { margin-left: auto; transition: transform .18s ease; }
-.pl-ciclo-mini[open] > summary .chev { transform: rotate(180deg); }
-.pl-ciclo-mini .pl-ciclo-lista { margin-top: 12px; }
-
-/* ═══ A RÉGUA DE PONTOS ════════════════════════════════════════════════════ */
-.pl-pontos { border-color: var(--accent); }
-.pl-pontos-nums { display: flex; gap: 10px 22px; flex-wrap: wrap; margin: 4px 0 10px; }
-.pl-pontos-nums .plm { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
-.pl-pontos-nums .plm b { font-size: var(--fs-lg); font-weight: 800; line-height: 1.1; }
-.pl-pontos-nums .plm span { font-size: var(--fs-3xs); color: var(--text-faint); }
-.pl-comp > summary {
-  cursor: pointer; list-style: none; font-size: var(--fs-2xs); color: var(--text-soft);
-  font-weight: 700; display: flex; align-items: center; gap: 6px; margin-top: 8px;
-}
-.pl-comp > summary::-webkit-details-marker { display: none; }
-.pl-comp > summary .chev { transition: transform .18s ease; }
-.pl-comp[open] > summary .chev { transform: rotate(180deg); }
-.pl-comp-lista { list-style: none; margin: 8px 0 4px; padding: 0; display: grid; gap: 6px; }
-.pl-comp-lista > li {
-  display: flex; gap: 8px; justify-content: space-between; flex-wrap: wrap;
-  font-size: var(--fs-2xs); color: var(--text-soft);
-  border-bottom: 1px solid var(--border); padding-bottom: 5px;
-}
-.pl-comp-lista > li > span:first-child { font-weight: 700; color: var(--text); }
 /* a coluna do mínimo no editor de matérias não pode espremer as outras */
 .cycle-subject-row.pos .cs-min { max-width: 84px; }
-
-/* ═══ ONDE O SEU TEMPO ESTÁ INDO ═══════════════════════════════════════════ */
-.pl-tempo > summary {
-  cursor: pointer; list-style: none; display: flex; align-items: center; gap: 8px;
-  flex-wrap: wrap; font-size: var(--fs-sm);
-}
-.pl-tempo > summary::-webkit-details-marker { display: none; }
-.pl-tempo > summary span { font-size: var(--fs-2xs); color: var(--text-faint); font-weight: 600; }
-.pl-tempo > summary .chev { margin-left: auto; transition: transform .18s ease; }
-.pl-tempo[open] > summary .chev { transform: rotate(180deg); }
-.pl-tempo-wrap { overflow-x: auto; margin: 12px 0 4px; }
-.pl-tempo-tab { width: 100%; border-collapse: collapse; font-size: var(--fs-2xs); }
-.pl-tempo-tab th {
-  text-align: left; font-size: var(--fs-3xs); text-transform: uppercase; letter-spacing: .04em;
-  color: var(--text-faint); font-weight: 700; padding: 0 10px 6px 0; white-space: nowrap;
-}
-.pl-tempo-tab td { padding: 8px 10px 8px 0; border-top: 1px solid var(--border); vertical-align: top; }
-.pl-tempo-tab td:first-child { min-width: 120px; }
-.pl-tempo-tab .pl-ciclo-obs { display: block; margin-top: 2px; }
 /* a dificuldade que o TEC mede, ao lado da que você declarou */
 .cs-medida {
   display: block; margin-top: 4px; font-size: var(--fs-3xs); font-weight: 700;
@@ -1436,48 +1311,13 @@
   color: var(--accent); text-decoration: underline; text-align: left;
 }
 .cs-medida.ok { color: var(--good-text); text-decoration: none; cursor: default; }
-/* o botão que leva da matéria para os assuntos dela */
-.pl-atacar { display: block; margin-top: 6px; white-space: nowrap; }
-.pl-tempo-fora{border-left:3px solid var(--warn,#e8a33d);padding-left:8px;margin-top:10px}
-.pl-tempo-miudas td { color: var(--text-soft); }
-.pl-tempo-tab .reforco-tag.tone-soft { color: var(--text-soft); background: var(--surface-sunken); }
-.pl-tempo-mini { display: none; }
-@media (max-width: 620px) {
-  .pl-tempo-tab th:nth-child(2), .pl-tempo-tab td:nth-child(2),
-  .pl-tempo-tab th:nth-child(3), .pl-tempo-tab td:nth-child(3),
-  .pl-tempo-tab th:nth-child(4), .pl-tempo-tab td:nth-child(4) { display: none; }
-  .pl-tempo-mini { display: block; }
-  .pl-tempo-tab td:first-child { min-width: 0; }
-  .pl-tempo-tab .reforco-tag { white-space: normal; }
-  /* o rotulo do botao era a maior palavra indivisivel da tabela e sozinho
-     empurrava 35px de rolagem horizontal em 390px */
-  .pl-tempo-tab .pl-atacar { white-space: normal; }
-  .pl-tempo-tab td, .pl-tempo-tab th { padding-right: 6px; }
-}
-.pl-empate { margin: 4px 0 10px; }
-.pl-hero-escopo {
-  display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap;
-  margin: -2px 0 6px; font-size: var(--fs-sm); font-weight: 800; color: var(--accent);
-}
-.pl-hero-limpar {
-  background: none; border: none; padding: 0; cursor: pointer;
-  font: inherit; font-size: var(--fs-2xs); font-weight: 700;
-  color: var(--text-soft); text-decoration: underline;
-}
 .profile-card-stats.so-local { color: var(--warn-text); font-weight: 700; }
-.pl-aud-bts { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin: 6px 0 4px; }
-.pl-aud-anon { font-size: var(--fs-2xs); }
-#plano-aud-resumo:empty { display: none; }
 
 /* ── O FIM DA FILA ────────────────────────────────────────────────────────
    Fecha a lista em vez de deixá-la escorrer: uma linha dizendo onde você está
    no percurso e os botões que abrem o resto. Sem cartão nem borda pesada — é
    rodapé de lista, não um bloco novo competindo com o conteúdo. */
 .pl-mais { margin: 10px 0 4px; padding: 12px 0 2px; border-top: 1px dashed var(--border); }
-.pl-mais-nota { margin: 0 0 8px; font-size: var(--fs-2xs); color: var(--text-soft); line-height: 1.5; }
-.pl-mais-bts { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 14px; }
-.pl-mais-bts .btn-secondary { padding: 8px 14px; font-size: var(--fs-xs); }
-.pl-mais-nota.warn { color: var(--warn-text); }
 
 /* ── SINAL DE PROCESSANDO, E O ESQUELETO DA ABERTURA ──────────────────────
    Duas formas do mesmo problema: tempo mudo. Enquanto o Plano recalcula, o
@@ -1502,5 +1342,4 @@
 @keyframes pl-gira { to { transform: rotate(360deg); } }
 @media (prefers-reduced-motion: reduce) {
   .pl-skel-giro { animation-duration: 2.4s; }
-  #tec-panel-plano .pl-ocupado { transition: none; }
 }

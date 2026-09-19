@@ -549,8 +549,7 @@ else CloudStore.init();
   const TEC_TABS = [
     { id: 'analise', label: '📊 Análise', desc: 'Totais, pontos fracos e aproveitamento por disciplina.' },
     { id: 'incidencia', label: '🏛️ Incidência', desc: 'Cadastro de quantas vezes cada tópico caiu na banca.' },
-    { id: 'reforco', label: '🎯 Reforço', desc: 'Cruza seu erro com a incidência e ordena por ganho de pontos.' },
-    { id: 'plano', label: '🏁 Plano', desc: 'Rota até a meta de domínio, assunto por assunto.' }
+    { id: 'motor', label: '🧭 Motor de sugestão', desc: 'A fila do dia: onde atacar, em que nível da árvore e com quantas questões.' }
   ];
   const TecUX = {
     visible() {
@@ -632,7 +631,6 @@ else CloudStore.init();
         gear.addEventListener('click', (e) => this.pop(e.currentTarget));
       }
       this.apply();
-      this.plano();
     },
     pop(btn) {
       const vis = this.visible();
@@ -666,55 +664,6 @@ else CloudStore.init();
         if (typeof DT !== 'undefined' && vis.indexOf(DT.tecTab) === -1) DT.switchTecTab(vis[0]);
       } catch (_) { _quiet(_); }
     },
-    /* — Plano: agrupa os controles por finalidade e abre com um resumo do método — */
-    plano() {
-      const panel = $('#tec-panel-plano');
-      if (!panel || $('#pl-steps')) return;
-      const toolbar = panel.querySelector('.rfc-toolbar');
-      if (!toolbar) return;
-      const grab = (sel) => { const el = panel.querySelector(sel); return el ? el.closest('.rfc-field') : null; };
-      const groups = [
-        { t: '1 · Recorte', d: 'Sobre qual conjunto de assuntos o plano vai raciocinar.', f: ['#plano-disc', '#plano-amostraalvo'] },
-        { t: '2 · Meta e ritmo', d: 'Onde você quer chegar e quantas questões consegue resolver por semana.', f: ['#plano-meta', '#plano-ritmo'] },
-        { t: '3 · Ordem de ataque', d: 'O critério que decide qual assunto vem primeiro na lista.', f: ['#plano-ordenar', '#plano-banca'] }
-      ];
-      const frag = document.createDocumentFragment();
-      groups.forEach(g => {
-        const box = document.createElement('div');
-        box.className = 'pl-toolgroup';
-        box.innerHTML = `<div class="pl-toolgroup-head"><span class="pl-toolgroup-title">${esc(g.t)}</span><span class="pl-toolgroup-desc">${esc(g.d)}</span></div><div class="rfc-toolbar"></div>`;
-        const inner = box.querySelector('.rfc-toolbar');
-        let any = false;
-        g.f.forEach(sel => { const f = grab(sel); if (f) { inner.appendChild(f); any = true; } });
-        if (any) frag.appendChild(box);
-      });
-      toolbar.parentNode.insertBefore(frag, toolbar);
-      // o que sobrou (botão de avançados) fica numa linha própria, embaixo
-      toolbar.classList.add('pl-toolbar-rest');
-      toolbar.style.marginTop = '2px';
-      /* Faixa didática do MÉTODO — agora recolhida e ABAIXO do resultado.
-         Quatro cartões empilhados antes do primeiro número enchiam duas telas
-         de celular com a explicação de como a conta é feita, para quem só
-         queria saber o que estudar hoje. Quem precisa da explicação abre; quem
-         já sabe vê o número primeiro. */
-      const steps = document.createElement('details');
-      steps.className = 'pl-steps-wrap';
-      steps.id = 'pl-steps';
-      const corpo = document.createElement('div');
-      corpo.className = 'pl-steps';
-      corpo.innerHTML = [
-        { c: 'var(--info)', t: 'Mede', d: 'Para cada assunto, o app volta no tempo nos seus retratos até juntar a amostra que você pediu.' },
-        { c: 'var(--warn)', t: 'Compara', d: 'A taxa de acerto de cada assunto é confrontada com a meta de domínio definida acima.' },
-        { c: 'var(--accent)', t: 'Ordena', d: 'A lista sai pelo critério escolhido em “Ordem de ataque” — não é ordem alfabética nem aleatória.' },
-        { c: 'var(--good)', t: 'Fecha o ciclo', d: 'Você cria a atividade, resolve as questões, importa o próximo retrato e o número se move sozinho.' }
-      ].map((s, i) => `<div class="pl-step" style="--pl-step-color:${s.c}"><span class="n">${i + 1}</span><div class="t">${s.t}</div><div class="d">${esc(s.d)}</div></div>`).join('');
-      const resumo = document.createElement('summary');
-      resumo.innerHTML = '⚙️ Como este plano é calculado <span class="chev">▾</span>';
-      steps.appendChild(resumo);
-      steps.appendChild(corpo);
-      const proj = $('#plano-proj');
-      if (proj) proj.parentNode.insertBefore(steps, proj.nextSibling);
-    }
   };
 
   /* ═════════════════════════════════════════════════════════════════════════

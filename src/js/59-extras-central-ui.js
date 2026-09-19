@@ -11,38 +11,6 @@
     ? escapeHtml(String(v == null ? '' : v))
     : String(v == null ? '' : v).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 
-  /* ── O QUE A BARRA DA TELA DE EXTRAS MOSTRA ───────────────────────────────
-     Uma preferência de tela, não de motor: por isso mora aqui e não dentro de
-     `ReforcoFila` ou `LeiRodizio`. Gravada por perfil, pela camada de escrita
-     do `DB` — `setRaw` avisa as duas camadas de sincronização, coisa que um
-     `localStorage.setItem` direto não faz.
-
-     `sugerir` nasce FALSO. O botão 💡 Sugerir monta atividades a partir dos
-     pontos fracos do TEC por um caminho anterior aos motores; quem decide
-     alvo, ordem e dose hoje é o motor escolhido no Desempenho TEC, por 🏁
-     Puxar do Plano. Deixar os dois sempre visíveis é oferecer duas respostas
-     para a mesma pergunta sem dizer qual vale. */
-  const ExtrasBarraPrefs = {
-    KEY: 'extras-barra-ui',
-    _key() { return DB._profilePrefix() + this.KEY; },
-    prefs() {
-      try {
-        const z = JSON.parse(localStorage.getItem(this._key()) || 'null');
-        if (z && typeof z === 'object') return z;
-      } catch (e) { if (typeof _quiet === 'function') _quiet(e, 'extras-barra-prefs-read'); }
-      return {};
-    },
-    mostrarSugerir() { return this.prefs().sugerir === true; },
-    salvar(patch) {
-      const p = Object.assign({}, this.prefs(), patch || {});
-      try {
-        const raw = JSON.stringify(p);
-        if (DB.setRaw) DB.setRaw(this._key(), raw); else localStorage.setItem(this._key(), raw);
-      } catch (e) { if (typeof _quiet === 'function') _quiet(e, 'extras-barra-prefs-save'); }
-      return p;
-    }
-  };
-  if (typeof window !== 'undefined') window.ExtrasBarraPrefs = ExtrasBarraPrefs;
 
   const ExtrasCentral = {
     modal: null,
@@ -154,7 +122,6 @@
             <article><b>🃏 Anki</b><span>Mantenha manual/recorrente.</span><small>A recorrência existente já resolve bem o problema sem criar mais um motor de rodízio.</small></article>
           </div>
           <div class="xsc-scenarios"><strong>Regra simples</strong><div><b>Automatize o que precisa decidir sozinho</b><span>Reforços e lei seca.</span></div><div><b>Mantenha manual o que você já sabe quando fazer</b><span>Anki, aulas extras, simulados e compromissos pontuais.</span></div></div>
-          <label class="xsc-check"><input type="checkbox" data-xsc-show-suggest ${ExtrasBarraPrefs.mostrarSugerir() ? 'checked' : ''}><span><b>Mostrar o botão 💡 Sugerir na barra de Extras</b><small>Ele monta atividades a partir dos seus pontos fracos do TEC. Nasce desligado porque quem decide alvo e dose é o motor escolhido no Desempenho TEC, por 🏁 Puxar do Plano — o Sugerir é um caminho antigo, paralelo a ele.</small></span></label>
         </section>`;
     },
 
@@ -206,19 +173,6 @@
       const pol = root.querySelector('[data-xsc-policy]');
       if (pol) pol.onclick = () => { this.fechar(); if (typeof ReforcoGovernanca !== 'undefined') ReforcoGovernanca.abrirPolitica(); };
 
-      const mostrarSug = root.querySelector('[data-xsc-show-suggest]');
-      if (mostrarSug) mostrarSug.onchange = () => {
-        ExtrasBarraPrefs.salvar({ sugerir: !!mostrarSug.checked });
-        if (typeof ExtrasScreen !== 'undefined' && ExtrasScreen.render) ExtrasScreen.render();
-        /* A decoração da barra roda em dois `requestAnimationFrame` depois do
-           render — cedo demais para quem acabou de clicar na caixa e quer ver
-           o efeito. Aplicada agora, de propósito: é a mesma função, idempotente. */
-        try { if (window.UXStability && UXStability.decorateExtrasToolbar) UXStability.decorateExtrasToolbar(); }
-        catch (e) { if (typeof _quiet === 'function') _quiet(e, 'extras-barra-aplicar'); }
-        if (typeof showToast === 'function') {
-          showToast(mostrarSug.checked ? 'Botão Sugerir visível na barra de Extras' : 'Botão Sugerir escondido');
-        }
-      };
       const novo = root.querySelector('[data-xsc-manual-new]');
       if (novo) novo.onclick = () => { this.fechar(); const b=document.getElementById('extras-new-btn'); if(b)b.click(); };
       const man = root.querySelector('[data-xsc-manual-manage]');
