@@ -4081,11 +4081,12 @@ const DesempenhoTecScreen = {
     return false;
   },
   /* ── A ABA DO MOTOR ──────────────────────────────────────────────────────
-     Ela mostra três coisas, nesta ordem: em que fase o motor está pensando,
-     o que ele escolheu, e POR QUE cada linha ficou no nível em que ficou. A
-     última é a que faz a tela ser auditável em vez de um oráculo — uma linha
-     que diz "23 questões, ±14pp, bloco de 4 subtópicos" pode ser conferida
-     contra a árvore da Análise em dez segundos. */
+     A leitura agora é deliberadamente em DOIS PASSOS:
+       1) quais matérias concentram a maior lacuna mensurável;
+       2) dentro de cada uma, qual tópico é o melhor filtro executável.
+     Disciplina é contexto de prioridade; atividade sempre nasce em tópico ou
+     subtópico. Isso evita transformar "matéria fraca" em caderno da matéria
+     inteira e deixa a decisão auditável contra a árvore da Análise. */
   renderMotor() {
     const host = document.getElementById('motor-lista');
     const fase = document.getElementById('motor-fase');
@@ -4110,22 +4111,40 @@ const DesempenhoTecScreen = {
       return;
     }
     if (!r.itens.length) {
-      host.innerHTML = `<p class="wd-empty" style="padding:18px 0;">Nenhuma frente alcança o mínimo de ${r.prefs.doseMin} questões por rodada. Aumente o caderno ou baixe o mínimo por frente em ⚙ Ajustes.</p>`;
+      host.innerHTML = `<p class="wd-empty" style="padding:18px 0;">Há dados de desempenho, mas nenhum <b>tópico</b> tem amostra suficiente para virar reforço com a margem atual de ±${r.prefs.margemMax}pp. O motor não vai substituir isso por uma disciplina inteira. Ajuste a margem ou acumule mais questões.</p>`;
       return;
     }
+
+    const fmt1 = v => Math.round(Number(v || 0) * 10) / 10;
+    const discTop = (r.disciplinas || []).slice(0, Math.min(3, r.prefs.maxFrentes || 3));
+    const disciplinasHtml = discTop.map((d, i) => {
+      const top = d.melhorTopico;
+      return `
+        <article class="ms-disc-card">
+          <span class="ms-rank">${i + 1}</span>
+          <div class="ms-disc-main">
+            <b>${escapeHtml(d.nome)}</b>
+            <small>melhor recorte: ${escapeHtml(top ? top.nome : '—')}</small>
+          </div>
+          <div class="ms-disc-kpis">
+            <span><i>erro</i>${fmt1(d.taxaErro)}%</span>
+            <span><i>resolvidas</i>${d.questoes.toLocaleString('pt-BR')}</span>
+            <span><i>lacuna</i>${Math.round(d.score)}</span>
+          </div>
+        </article>`;
+    }).join('');
+
     const totalDose = r.itens.reduce((a, x) => a + x.dose, 0);
     const linhas = r.itens.map((x, i) => {
-      const erroPct = Math.round(x.taxaErro * 10) / 10;
-      const margem = x.margem == null ? '—' : '±' + (Math.round(x.margem * 10) / 10) + 'pp';
+      const erroPct = fmt1(x.taxaErro);
+      const margem = x.margem == null ? '—' : '±' + fmt1(x.margem) + 'pp';
       const bloco = x.agregado ? (() => {
         const partes = [];
         if (x.membros && x.membros.length) partes.push(x.membros.length + ' ramo' + (x.membros.length > 1 ? 's' : '') + ' miúdo' + (x.membros.length > 1 ? 's' : ''));
         if (x.residuo > 0) partes.push(x.residuo + ' questões sem subtópico detalhado');
-        const dica = 'Filtre por "' + x.nome + '" no TecConcursos: este bloco é ' + partes.join(' + ')
-          + (x.membros && x.membros.length ? ' — ' + x.membros.join(' · ') : '')
-          + '. Sozinhos, nenhum deles tem questões suficientes para o percentual significar algo.';
-        return `<span class="ms-selo" title="${escapeHtml(dica)}">bloco · ${escapeHtml(partes.join(' + '))}</span>`;
-      })() : '';
+        const dica = 'O motor subiu para "' + x.nome + '" porque os níveis abaixo, isolados, não têm amostra suficiente. A disciplina inteira nunca é usada como filtro.';
+        return `<span class="ms-selo" title="${escapeHtml(dica)}">nível agregado · ${escapeHtml(partes.join(' + '))}</span>`;
+      })() : `<span class="ms-selo ms-selo-nivel">nível ${Math.max(1, x.nivel)}</span>`;
       const peso = r.fase === 'pos'
         ? `<i>incidência</i>${x.peso}`
         : `<i>volume</i>${x.questoes}`;
@@ -4134,7 +4153,7 @@ const DesempenhoTecScreen = {
           <div class="ms-item-top">
             <span class="ms-rank">${i + 1}</span>
             <div class="ms-id">
-              <small>${escapeHtml(x.disciplina)}</small>
+              <small>${escapeHtml(x.disciplina)} · tópico recomendado</small>
               <b>${escapeHtml(x.nome)}</b>${bloco}
             </div>
             <span class="ms-dose" title="Questões desta frente no caderno da rodada">${x.dose}<small>questões</small></span>
@@ -4142,21 +4161,48 @@ const DesempenhoTecScreen = {
           <div class="ms-nums">
             <span class="ms-pill"><i>erro</i>${erroPct}%</span>
             <span class="ms-pill"><i>resolvidas</i>${x.questoes}</span>
-            <span class="ms-pill" title="Margem de erro do percentual, a 95% de confiança. É ela que decidiu parar neste nível da árvore."><i>margem</i>${margem}</span>
+            <span class="ms-pill" title="Margem de erro do percentual, a 95% de confiança."><i>margem</i>${margem}</span>
             <span class="ms-pill">${peso}</span>
-            <span class="ms-pill ms-score" title="${escapeHtml(r.fase === 'pos' ? 'Incidência da banca × taxa de erro: o erro esperado na prova.' : 'Volume × taxa de erro: literalmente o número de questões que você erra aqui.')}"><i>lacuna</i>${Math.round(x.score)}</span>
+            <span class="ms-pill ms-score"><i>lacuna</i>${Math.round(x.score)}</span>
           </div>
           <div class="ms-acoes">
             <button type="button" class="btn-secondary" data-motor-extra="${i}">+ Criar atividade de ${x.dose} questões</button>
           </div>
         </div>`;
     }).join('');
+
+    const discRank = (r.disciplinas || []).slice(0, 30).map((d, i) =>
+      `<li><span>${i + 1}</span><b>${escapeHtml(d.nome)}</b><small>${fmt1(d.taxaErro)}% erro · lacuna ${Math.round(d.score)} · melhor tópico: ${escapeHtml((d.melhorTopico || {}).nome || 'sem tópico confiável')}</small></li>`
+    ).join('');
+    const topRank = (r.todos || []).slice(0, 30).map((x, i) =>
+      `<li class="${x.legivel ? '' : 'is-incerto'}"><span>${i + 1}</span><b>${escapeHtml(x.nome)}</b><small>${escapeHtml(x.disciplina)} · ${fmt1(x.taxaErro)}% erro · ${x.questoes} questões · ${x.legivel ? 'amostra utilizável' : 'amostra ainda fraca'}</small></li>`
+    ).join('');
+
     host.innerHTML = `
-      <p class="ms-resumo">${r.itens.length} frente(s) · ${totalDose} questões no caderno ·
-        margem tolerada de ±${r.prefs.margemMax}pp ·
-        peso ${r.fase === 'pos' ? 'pela incidência de ' + escapeHtml(ReforcoEngine.rotuloBancas(r.banca)) : 'pelo seu volume no TEC'}</p>
-      <div class="ms-lista">${linhas}</div>
-      <p class="hint ms-nota">Cada linha parou no nível em que a margem ainda sustenta o percentual: descer mais devolveria nós pequenos demais para medir. “Bloco” é um agrupamento dos ramos miúdos do mesmo pai — filtre por eles juntos no TecConcursos.</p>`;
+      <p class="ms-resumo">${r.itens.length} frente(s) · ${totalDose} questões no caderno · margem tolerada de ±${r.prefs.margemMax}pp · peso ${r.fase === 'pos' ? 'pela incidência de ' + escapeHtml(ReforcoEngine.rotuloBancas(r.banca)) : 'pelo seu volume no TEC'}</p>
+
+      <section class="ms-stage">
+        <header><span>1</span><div><b>Disciplinas prioritárias</b><small>Primeiro o motor escolhe as matérias; disciplina não vira atividade.</small></div></header>
+        <div class="ms-disc-list">${disciplinasHtml}</div>
+      </section>
+
+      <section class="ms-stage">
+        <header><span>2</span><div><b>Tópicos para atacar agora</b><small>Um tópico de cada disciplina acima, no nível mais específico que a amostra sustenta.</small></div></header>
+        <div class="ms-lista">${linhas}</div>
+      </section>
+
+      <div class="ms-rankings">
+        <details>
+          <summary>Ranking de disciplinas <small>${(r.disciplinas || []).length} com tópico mensurável</small><i>⌄</i></summary>
+          <ol>${discRank}</ol>
+        </details>
+        <details>
+          <summary>Ranking de tópicos <small>${(r.todos || []).length} candidatos</small><i>⌄</i></summary>
+          <ol>${topRank}</ol>
+        </details>
+      </div>
+      <p class="hint ms-nota">A poda nunca ultrapassa a fronteira da disciplina. Se um subtópico tem poucas questões, o motor sobe para o tópico-pai; se nem o tópico for confiável, ele fica fora da rodada em vez de recomendar a matéria inteira.</p>`;
+
     host.querySelectorAll('[data-motor-extra]').forEach(b => b.addEventListener('click', () => {
       const x = r.itens[Number(b.dataset.motorExtra)];
       if (!x) return;
