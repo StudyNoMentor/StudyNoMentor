@@ -87,8 +87,12 @@ const CloudUI = {
     if (!window.SessionGuard) { box.innerHTML = '<p class="cloud-sessions-off">Controle de sessões indisponível nesta versão.</p>'; return; }
     box.innerHTML = '<p class="hint" style="text-align:center; padding:10px;">Carregando…</p>';
     const r = await SessionGuard.fetchActive();
+    if (r.status === 'multi') {
+      box.innerHTML = '<div class="cloud-sessions-empty">✓ <strong>PC e celular podem ficar conectados ao mesmo tempo.</strong> A sincronização usa revisão protegida e reconciliação de registros; apenas duas abas do mesmo navegador continuam evitando edição simultânea.</div>';
+      return;
+    }
     if (r.status === 'disabled') {
-      box.innerHTML = '<div class="cloud-sessions-off">🔒 O <strong>login único entre dispositivos</strong> ainda não está ativado. Rode o script SQL (tabela <code>active_sessions</code>) no Supabase para habilitar. O bloqueio entre abas do mesmo navegador já funciona.</div>';
+      box.innerHTML = '<div class="cloud-sessions-off">Controle remoto de sessão indisponível. A sincronização multiaparelho continua protegida pelas revisões dos dados; o bloqueio entre abas do mesmo navegador segue ativo.</div>';
       return;
     }
     if (r.status === 'offline') { box.innerHTML = '<div class="cloud-sessions-off">Sem conexão com a conta agora. Tente novamente.</div>'; return; }
