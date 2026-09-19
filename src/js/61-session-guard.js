@@ -41,6 +41,7 @@ const SessionGuard = {
     return this._accessState || 'unknown';
   },
   canEnterNow() {
+    if (window.SessionLock && SessionLock.isBlocked() && SessionLock._origin === 'remote') return false;
     const s = this.accessState();
     return s === 'allowed' || s === 'disabled';
   },
@@ -108,6 +109,11 @@ const SessionGuard = {
     const uid = CS.session.user.id;
     this.subscribe(uid);
 
+    if (window.SessionLock && SessionLock.isBlocked() && SessionLock._origin === 'remote') {
+      this._accessUid = uid;
+      this._accessState = 'blocked';
+      return { ok: false, blocked: true, status: 'blocked' };
+    }
     if (this._accessUid === uid && this._accessState === 'allowed') {
       return { ok: true, status: 'allowed' };
     }
@@ -212,7 +218,8 @@ const SessionGuard = {
         this._accessUid = uid;
         this._accessState = 'blocked';
         this._takenBy({ device_id: data.device_id, device_label: data.device_label });
-      } else if (data && data.device_id === this.deviceId()) {
+      } else if (data && data.device_id === this.deviceId() &&
+                 !(window.SessionLock && SessionLock.isBlocked() && SessionLock._origin === 'remote')) {
         this._accessUid = uid;
         this._accessState = 'allowed';
         this._claimedUid = uid;
@@ -233,7 +240,7 @@ const SessionGuard = {
             this._accessUid = uid;
             this._accessState = 'blocked';
             this._takenBy(row);
-          } else {
+          } else if (!(window.SessionLock && SessionLock.isBlocked() && SessionLock._origin === 'remote')) {
             this._accessUid = uid;
             this._accessState = 'allowed';
             this._claimedUid = uid;
