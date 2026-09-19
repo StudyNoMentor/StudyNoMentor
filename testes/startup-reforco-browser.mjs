@@ -750,6 +750,116 @@ try {
   eq(fastPathRejected.hides,0,'cache divergente não pode ser exibido antes do hydrate');
   eq(fastPathRejected.loads,0,'perfil local conhecido pode hidratar direto sem voltar ao seletor');
 
+  /* 2l.15. Handoff: uma mutação JÁ gravada antes do bloqueio pode terminar de
+     subir mesmo com SessionLock remoto, sempre sob CAS. */
+  const handoffDrainsOldOutbox=await page.evaluate(async()=>{
+    const id='syncv2-handoff-drain',sec='entries',pfx='diario-estudos:u:'+id+':',key=pfx+sec;
+    const old='[{"v":1}]',novo='[{"v":2}]';
+    const keep={
+      ready:CloudStore.isReady,logged:CloudStore.isLoggedIn,
+      active:ProfileManager.getActiveProfileId,write:SectionSync._writeSectionCAS,
+      guardEnabled:SessionGuard.enabled,guardCan:SessionGuard.canEnterNow,
+      blocked:SessionGuard.isBlockedByRemote
+    };
+    let writes=0;
+    CloudStore.isReady=()=>true;CloudStore.isLoggedIn=()=>true;ProfileManager.getActiveProfileId=()=>id;
+    SessionGuard.enabled=true;SessionGuard.canEnterNow=()=>false;SessionGuard.isBlockedByRemote=()=>true;
+    SectionSync._dirtyFor(id).clear();SectionSync._dirtyGenFor(id).clear();
+    localStorage.setItem(key,novo);
+    localStorage.setItem(pfx+'__secrev',JSON.stringify({entries:{rev:5,hash:SectionSync._hash(old),len:old.length}}));
+    SectionSync.markDirty(key);
+    const snap=SectionSync.captureExplicitSnapshot(id);
+    SectionSync._writeSectionCAS=async()=>{writes++;return {ok:true,rev:6,content_hash:SectionSync._hash(novo)};};
+    const r=await SectionSync.drainExplicitSnapshot(id,snap);
+    const remaining=SectionSync.explicitPendingSections(id);
+    SectionSync._writeSectionCAS=keep.write;CloudStore.isReady=keep.ready;CloudStore.isLoggedIn=keep.logged;
+    ProfileManager.getActiveProfileId=keep.active;SessionGuard.enabled=keep.guardEnabled;
+    SessionGuard.canEnterNow=keep.guardCan;SessionGuard.isBlockedByRemote=keep.blocked;
+    SectionSync._dirtyFor(id).clear();SectionSync._dirtyGenFor(id).clear();
+    localStorage.removeItem(key);localStorage.removeItem(pfx+'__secrev');localStorage.removeItem(pfx+'__secpend');
+    return {writes,r,remaining};
+  });
+  eq(handoffDrainsOldOutbox.writes,1,'handoff deve enviar a mutação capturada mesmo sob bloqueio remoto');
+  ok(handoffDrainsOldOutbox.r&&handoffDrainsOldOutbox.r.ok,'handoff CAS confirmado deve concluir');
+  eq(handoffDrainsOldOutbox.remaining.length,0,'mutação entregue no handoff deve sair da outbox');
+
+  /* 2l.16. Uma geração posterior ao snapshot NÃO pode viajar no handoff. */
+  const handoffRejectsNewGeneration=await page.evaluate(async()=>{
+    const id='syncv2-handoff-generation',sec='entries',pfx='diario-estudos:u:'+id+':',key=pfx+sec;
+    const base='[{"v":1}]';
+    const keep={ready:CloudStore.isReady,logged:CloudStore.isLoggedIn,active:ProfileManager.getActiveProfileId,write:SectionSync._writeSectionCAS};
+    let writes=0;
+    CloudStore.isReady=()=>true;CloudStore.isLoggedIn=()=>true;ProfileManager.getActiveProfileId=()=>id;
+    SectionSync._dirtyFor(id).clear();SectionSync._dirtyGenFor(id).clear();
+    localStorage.setItem(key,'[{"v":2}]');
+    localStorage.setItem(pfx+'__secrev',JSON.stringify({entries:{rev:3,hash:SectionSync._hash(base),len:base.length}}));
+    SectionSync.markDirty(key);
+    const snap=SectionSync.captureExplicitSnapshot(id);
+    localStorage.setItem(key,'[{"v":3}]');
+    SectionSync.markDirty(key);
+    SectionSync._writeSectionCAS=async()=>{writes++;return {ok:true,rev:4};};
+    const r=await SectionSync.drainExplicitSnapshot(id,snap);
+    const remaining=SectionSync.explicitPendingSections(id);
+    SectionSync._writeSectionCAS=keep.write;CloudStore.isReady=keep.ready;CloudStore.isLoggedIn=keep.logged;ProfileManager.getActiveProfileId=keep.active;
+    SectionSync._dirtyFor(id).clear();SectionSync._dirtyGenFor(id).clear();
+    localStorage.removeItem(key);localStorage.removeItem(pfx+'__secrev');localStorage.removeItem(pfx+'__secpend');
+    return {writes,r,remaining};
+  });
+  eq(handoffRejectsNewGeneration.writes,0,'geração criada depois do bloqueio não pode ser enviada pelo snapshot antigo');
+  ok(handoffRejectsNewGeneration.remaining.includes('entries'),'geração nova deve continuar na outbox');
+
+  /* 2l.17. O autosave inicial não pode voltar a usar markAllDirty. */
+  const autoSaveSeedsOnlyUntracked=await page.evaluate(async()=>{
+    const id='syncv2-autosave-seed';
+    const keep={
+      active:ProfileManager.getActiveProfileId,seed:SectionSync.seedUntrackedOnly,
+      mark:SectionSync.markAllDirty,push:SectionSync.pushDirty,explicit:SectionSync.explicitPendingSections,
+      seeded:SectionSync._seededProfile,lastError:SectionSync._lastError
+    };
+    let seedCalls=0,markCalls=0;
+    ProfileManager.getActiveProfileId=()=>id;SectionSync._seededProfile=null;SectionSync._lastError=null;
+    SectionSync.seedUntrackedOnly=()=>{seedCalls++;};
+    SectionSync.markAllDirty=()=>{markCalls++;};
+    SectionSync.pushDirty=async()=>{};
+    SectionSync.explicitPendingSections=()=>[];
+    const okPush=await CloudStore._pushSectionsNow(id);
+    ProfileManager.getActiveProfileId=keep.active;SectionSync.seedUntrackedOnly=keep.seed;
+    SectionSync.markAllDirty=keep.mark;SectionSync.pushDirty=keep.push;SectionSync.explicitPendingSections=keep.explicit;
+    SectionSync._seededProfile=keep.seeded;SectionSync._lastError=keep.lastError;
+    return {seedCalls,markCalls,okPush};
+  });
+  eq(autoSaveSeedsOnlyUntracked.seedCalls,1,'primeiro autosave deve semear apenas seções nunca rastreadas');
+  eq(autoSaveSeedsOnlyUntracked.markCalls,0,'autosave não pode promover divergência de hash a edição');
+  ok(autoSaveSeedsOnlyUntracked.okPush,'outbox vazia deve ser considerada entregue');
+
+  /* 2l.18. O evento real de takeover deve acionar a drenagem do snapshot. */
+  const takenByWiresDrain=await page.evaluate(async()=>{
+    const id='syncv2-takenby-drain';
+    const keep={
+      active:ProfileManager.getActiveProfileId,
+      capture:SectionSync.captureExplicitSnapshot,drain:SectionSync.drainExplicitSnapshot,
+      block:SessionLock.block,refresh:CloudUI.refreshSyncBtn,
+      state:SessionGuard._accessState,uid:SessionGuard._accessUid,
+      handoff:SessionGuard._handoffDraining,last:SessionGuard._handoffLast
+    };
+    let captures=0,drains=0,blocked=0;
+    ProfileManager.getActiveProfileId=()=>id;
+    SectionSync.captureExplicitSnapshot=()=>{captures++;return [{section:'entries',gen:7}];};
+    SectionSync.drainExplicitSnapshot=async(pid,snap)=>{if(pid===id&&snap&&snap.length===1)drains++;return {ok:true,sent:1,remaining:0};};
+    SessionLock.block=()=>{blocked++;};
+    CloudUI.refreshSyncBtn=()=>{};
+    SessionGuard._takenBy({device_id:'outro',device_label:'Outro'});
+    await new Promise(r=>setTimeout(r,30));
+    ProfileManager.getActiveProfileId=keep.active;SectionSync.captureExplicitSnapshot=keep.capture;SectionSync.drainExplicitSnapshot=keep.drain;
+    SessionLock.block=keep.block;CloudUI.refreshSyncBtn=keep.refresh;
+    SessionGuard._accessState=keep.state;SessionGuard._accessUid=keep.uid;
+    SessionGuard._handoffDraining=keep.handoff;SessionGuard._handoffLast=keep.last;
+    return {captures,drains,blocked};
+  });
+  eq(takenByWiresDrain.captures,1,'takeover remoto deve congelar a outbox existente');
+  eq(takenByWiresDrain.drains,1,'takeover remoto deve tentar entregar o snapshot congelado');
+  eq(takenByWiresDrain.blocked,1,'takeover remoto deve continuar bloqueando novas ações na interface');
+
   /* 2m. Tombstone precisa contar como pendência mesmo após recarregar. */
   const pendingDelete=await page.evaluate(()=>{
     const id='syncv2-pending-delete',sec='entries';

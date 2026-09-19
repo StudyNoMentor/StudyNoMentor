@@ -31,6 +31,8 @@ const SessionGuard = {
   _accessState: 'unknown', // unknown | checking | allowed | blocked | error | disabled
   _loginPromise: null,
   _loginPromiseUid: null,
+  _handoffDraining: false,
+  _handoffLast: null,
   _avisouSemTabela: false,
 
   accessState() {
@@ -259,7 +261,8 @@ const SessionGuard = {
     if (this.channel) { try { window.CloudStore.client.removeChannel(this.channel); } catch (_) { _quiet(_); } this.channel = null; }
   },
 
-  // Outro aparelho assumiu: bloqueia e pausa a sincronização aqui.
+  // Outro aparelho assumiu: bloqueia NOVAS ações aqui, mas entrega primeiro
+  // a caixa de saída que já estava comprovadamente gravada neste aparelho.
   _takenBy(row) {
     try {
       const CS = window.CloudStore;
@@ -267,13 +270,39 @@ const SessionGuard = {
       if (uid) this._accessUid = uid;
       this._accessState = 'blocked';
     } catch (_) { _quiet(_); }
+
     if (window.SessionLock) SessionLock.block('remote', { label: row.device_label });
-    /* Interrompe o ENVIO para não sobrescrever o outro aparelho — mas mantém a
-       pendência. Zerar _pending aqui apagava a alteração da fila: ela nunca mais
-       era tentada, e o download seguinte a removia também do armazenamento local.
-       A caixa de saída da camada por seção continua gravada e reenvia quando esta
-       sessão for retomada. */
-    try { const CS = window.CloudStore; if (CS) { clearTimeout(CS._debounce); CS._debounce = null; } } catch (_) { _quiet(_); }
+
+    try {
+      const pid = window.ProfileManager ? ProfileManager.getActiveProfileId() : null;
+      const SS = window.SectionSync;
+      const snap = pid && SS && SS.captureExplicitSnapshot ? SS.captureExplicitSnapshot(pid) : [];
+      if (pid && snap && snap.length && SS && SS.drainExplicitSnapshot) {
+        this._handoffDraining = true;
+        this._handoffLast = { em: Date.now(), perfil: pid, total: snap.length, status: 'enviando' };
+        if (window.CloudUI) CloudUI.refreshSyncBtn('syncing', 'Entregando alteração pendente antes de pausar…');
+        Promise.resolve(SS.drainExplicitSnapshot(pid, snap)).then((r) => {
+          this._handoffDraining = false;
+          this._handoffLast = { em: Date.now(), perfil: pid, total: snap.length, status: r && r.ok ? 'ok' : 'pendente', resultado: r || null };
+          try {
+            const CS2 = window.CloudStore;
+            const resta = SS.pendingQuick ? SS.pendingQuick(pid) : 0;
+            if (CS2 && !resta) {
+              CS2._pending = false;
+              clearTimeout(CS2._debounce);
+              CS2._debounce = null;
+            }
+          } catch (_) { _quiet(_); }
+          if (window.CloudUI) CloudUI.refreshSyncBtn();
+        }).catch((e) => {
+          this._handoffDraining = false;
+          this._handoffLast = { em: Date.now(), perfil: pid, total: snap.length, status: 'erro', erro: String(e && (e.message || e) || 'erro') };
+          if (window.CloudUI) CloudUI.refreshSyncBtn('error', 'Alteração preservada neste aparelho · envio pendente');
+        });
+      } else {
+        try { const CS = window.CloudStore; if (CS) { clearTimeout(CS._debounce); CS._debounce = null; } } catch (_) { _quiet(_); }
+      }
+    } catch (_) { _quiet(_); }
     if (window.CloudUI) CloudUI.refreshSyncBtn();
   },
 

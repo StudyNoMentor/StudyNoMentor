@@ -57,7 +57,7 @@
      novo, e o antigo é descartado sozinho na ativação) e o que permite ao app
      dizer qual versão está rodando. Em src/ fica "dev" de propósito: a versão
      é gerada na montagem, não editada à mão. -->
-<meta name="diario-versao" content="v919a4acae9">
+<meta name="diario-versao" content="v6ee925b60a">
 <script>
 /* ── ARRANQUE: abre o IndexedDB AGORA, em paralelo com o parse do documento ──
    A fachada de armazenamento vive no fim do <body>, depois de ~1,7 MB de HTML.
@@ -41011,10 +41011,16 @@ const CloudStore = {
     try {
       if (SectionSync._seededProfile !== id) {
         SectionSync._seededProfile = id;
-        SectionSync.markAllDirty(id);
+        /* Startup/envio não transforma divergência de hash em edição. Só
+           seções nunca rastreadas entram automaticamente; mutações reais já
+           estão na outbox explícita pelo hook de DB._set. */
+        if (SectionSync.seedUntrackedOnly) SectionSync.seedUntrackedOnly(id);
       }
       await SectionSync.pushDirty(id);
-      return SectionSync._dirtyFor(id).size === 0 && !SectionSync._lastError;
+      const resta = SectionSync.explicitPendingSections
+        ? SectionSync.explicitPendingSections(id).length
+        : SectionSync._dirtyFor(id).size;
+      return resta === 0 && !SectionSync._lastError;
     } catch (_) { return false; }
   },
   async autoSave() {
@@ -41498,6 +41504,8 @@ const SessionGuard = {
   _accessState: 'unknown', // unknown | checking | allowed | blocked | error | disabled
   _loginPromise: null,
   _loginPromiseUid: null,
+  _handoffDraining: false,
+  _handoffLast: null,
   _avisouSemTabela: false,
 
   accessState() {
@@ -41726,7 +41734,8 @@ const SessionGuard = {
     if (this.channel) { try { window.CloudStore.client.removeChannel(this.channel); } catch (_) { _quiet(_); } this.channel = null; }
   },
 
-  // Outro aparelho assumiu: bloqueia e pausa a sincronização aqui.
+  // Outro aparelho assumiu: bloqueia NOVAS ações aqui, mas entrega primeiro
+  // a caixa de saída que já estava comprovadamente gravada neste aparelho.
   _takenBy(row) {
     try {
       const CS = window.CloudStore;
@@ -41734,13 +41743,39 @@ const SessionGuard = {
       if (uid) this._accessUid = uid;
       this._accessState = 'blocked';
     } catch (_) { _quiet(_); }
+
     if (window.SessionLock) SessionLock.block('remote', { label: row.device_label });
-    /* Interrompe o ENVIO para não sobrescrever o outro aparelho — mas mantém a
-       pendência. Zerar _pending aqui apagava a alteração da fila: ela nunca mais
-       era tentada, e o download seguinte a removia também do armazenamento local.
-       A caixa de saída da camada por seção continua gravada e reenvia quando esta
-       sessão for retomada. */
-    try { const CS = window.CloudStore; if (CS) { clearTimeout(CS._debounce); CS._debounce = null; } } catch (_) { _quiet(_); }
+
+    try {
+      const pid = window.ProfileManager ? ProfileManager.getActiveProfileId() : null;
+      const SS = window.SectionSync;
+      const snap = pid && SS && SS.captureExplicitSnapshot ? SS.captureExplicitSnapshot(pid) : [];
+      if (pid && snap && snap.length && SS && SS.drainExplicitSnapshot) {
+        this._handoffDraining = true;
+        this._handoffLast = { em: Date.now(), perfil: pid, total: snap.length, status: 'enviando' };
+        if (window.CloudUI) CloudUI.refreshSyncBtn('syncing', 'Entregando alteração pendente antes de pausar…');
+        Promise.resolve(SS.drainExplicitSnapshot(pid, snap)).then((r) => {
+          this._handoffDraining = false;
+          this._handoffLast = { em: Date.now(), perfil: pid, total: snap.length, status: r && r.ok ? 'ok' : 'pendente', resultado: r || null };
+          try {
+            const CS2 = window.CloudStore;
+            const resta = SS.pendingQuick ? SS.pendingQuick(pid) : 0;
+            if (CS2 && !resta) {
+              CS2._pending = false;
+              clearTimeout(CS2._debounce);
+              CS2._debounce = null;
+            }
+          } catch (_) { _quiet(_); }
+          if (window.CloudUI) CloudUI.refreshSyncBtn();
+        }).catch((e) => {
+          this._handoffDraining = false;
+          this._handoffLast = { em: Date.now(), perfil: pid, total: snap.length, status: 'erro', erro: String(e && (e.message || e) || 'erro') };
+          if (window.CloudUI) CloudUI.refreshSyncBtn('error', 'Alteração preservada neste aparelho · envio pendente');
+        });
+      } else {
+        try { const CS = window.CloudStore; if (CS) { clearTimeout(CS._debounce); CS._debounce = null; } } catch (_) { _quiet(_); }
+      }
+    } catch (_) { _quiet(_); }
     if (window.CloudUI) CloudUI.refreshSyncBtn();
   },
 
@@ -41979,6 +42014,16 @@ const SectionSync = {
     const novas = dirty.size - antes;
     if (novas) console.info('[SectionSync] ' + novas + ' alteração(ões) recuperada(s) da caixa de saída');
     return novas;
+  },
+  captureExplicitSnapshot(id) {
+    const alvo = id || this._activeProfileId();
+    if (!alvo) return [];
+    this.restorePending(alvo);
+    const dirty = this._dirtyFor(alvo), gens = this._dirtyGenFor(alvo);
+    return [...dirty].map(sec => {
+      const gen = gens.get(sec) || this._ensureDirty(sec, alvo);
+      return { section: sec, gen };
+    });
   },
   /* Tudo que ainda não foi confirmado na nuvem para um perfil. Soma duas fontes:
        1. a caixa de saída gravada (o que sabemos que ficou por enviar);
@@ -42331,23 +42376,24 @@ const SectionSync = {
     };
   },
   // Envia as seções sujas para profile_sections com controle otimista por revisão.
-  async pushDirty(id) {
+  async pushDirty(id, opts) {
+    opts = opts || {};
     if (!this.enabled || this._pushing) return;
     if (!window.CloudStore || !CloudStore.isReady() || !CloudStore.isLoggedIn()) return;
-    if (window.SessionGuard && SessionGuard.enabled && SessionGuard.canEnterNow && !SessionGuard.canEnterNow()) return;
-    if ((window.SessionGuard && SessionGuard.isBlockedByRemote && SessionGuard.isBlockedByRemote()) ||
-        (window.SessionLock && SessionLock.isBlocked() && SessionLock._origin === 'remote')) return;
+    if (!opts.allowBlocked) {
+      if (window.SessionGuard && SessionGuard.enabled && SessionGuard.canEnterNow && !SessionGuard.canEnterNow()) return;
+      if ((window.SessionGuard && SessionGuard.isBlockedByRemote && SessionGuard.isBlockedByRemote()) ||
+          (window.SessionLock && SessionLock.isBlocked() && SessionLock._origin === 'remote')) return;
+    }
     id = id || this._activeProfileId();
     if (!id) return;
-    /* A marca de "envio em curso" é global para serializar os requests, mas o
-       ALVO fica congelado neste id até o fim. Trocar o perfil na interface não
-       redireciona uma confirmação em voo. */
     this._pushing = true;
     this._pushingProfile = id;
-    try { await this._enviarSujas(id); }
+    try { await this._enviarSujas(id, opts); }
     finally { this._pushing = false; this._pushingProfile = null; }
   },
-  async _enviarSujas(id) {
+  async _enviarSujas(id, opts) {
+    opts = opts || {};
     /* A operação inteira fica vinculada ao perfil capturado em pushDirty().
        Nunca voltamos a consultar "perfil ativo" no meio de uma requisição. */
     const pfx = this._prefixFor(id);
@@ -42356,11 +42402,15 @@ const SectionSync = {
     // Monta as linhas com hash de conteúdo. Só bumpa o rev quando o conteúdo mudou
     // de verdade (evita inflar o rev quando a semeadura reencontra dados idênticos).
     const dirty = this._dirtyFor(id), gens = this._dirtyGenFor(id);
-    const secs = [...dirty];
+    const snap = Array.isArray(opts.snapshot) ? new Map(opts.snapshot.map(x => [x.section, x.gen])) : null;
+    const secs = snap
+      ? [...snap.keys()].filter(sec => dirty.has(sec) && (gens.get(sec) || 0) === (snap.get(sec) || 0))
+      : [...dirty];
     const rows = [];
     const sumidas = [], esvaziando = [];
     secs.forEach(sec => {
-      const gen = gens.get(sec) || this._ensureDirty(sec, id);
+      const gen = snap ? (snap.get(sec) || 0) : (gens.get(sec) || this._ensureDirty(sec, id));
+      if (snap && (gens.get(sec) || 0) !== gen) return;
       const raw = localStorage.getItem(pfx + sec);
       const d = this.decidirEnvio(raw, revs[sec]);
       if (d.acao === 'sumida') { this._clearDirtyIfGeneration(sec, gen, id); sumidas.push(sec); return; }
@@ -42383,7 +42433,13 @@ const SectionSync = {
       try { if (window.GuardaNuvem) await GuardaNuvem.antesDeEsvaziar(id, esvaziando); } catch (e) { _quiet(e, 'guarda-esvaziar'); }
     }
     if (rows.length === 0) {
-      // Nada de conteúdo novo, mas manifesto/exclusões ainda podem estar pendentes.
+      // No handoff enviamos SOMENTE o snapshot capturado; manifesto/tombstones
+      // ficam para a sessão que detém a interface.
+      if (opts.skipManifest) {
+        this._saveRevs(revs, id);
+        this._savePend(id);
+        return;
+      }
       try {
         await this._syncManifest(id, revs);
         this._lastError = null;
@@ -42441,7 +42497,7 @@ const SectionSync = {
     // O MANIFESTO só é atualizado quando TODAS as seções sujas subiram. Se alguma
     // falhou, a nuvem ainda está incompleta — publicar o manifesto agora faria a
     // leitura por seção esperar uma linha que não existe (e cair no plano B à toa).
-    if (!falhas.length) {
+    if (!falhas.length && !opts.skipManifest) {
       try { await this._syncManifest(id, revs); }
       catch (e) {
         const msg = (e && (e.message || e.code || JSON.stringify(e))) || 'erro';
@@ -42603,6 +42659,27 @@ const SectionSync = {
     if (restantes.length) throw new Error('há exclusões com conflito ou falha pendentes');
     return true;
   },
+  /* Entrega final antes/depois de outro aparelho assumir a interface.
+     O snapshot congela seção+geração; qualquer escrita posterior ao bloqueio
+     recebe outra geração e fica FORA deste lote. O CAS do servidor continua
+     sendo a autoridade: se a base já avançou, nada é sobrescrito. */
+  async drainExplicitSnapshot(id, snapshot) {
+    const alvo = id || this._activeProfileId();
+    const snap = Array.isArray(snapshot) ? snapshot : this.captureExplicitSnapshot(alvo);
+    if (!alvo || !snap.length) return { ok: true, sent: 0, remaining: 0 };
+    /* Se o takeover chegou no meio de um envio, não declaramos o handoff
+       fracassado só porque _pushing estava ocupado. Esperamos a rodada em voo
+       encerrar e então reenviamos apenas o que do snapshot ainda sobrou. */
+    const limite = Date.now() + 8000;
+    while (this._pushing && Date.now() < limite) {
+      await new Promise(r => setTimeout(r, 80));
+    }
+    await this.pushDirty(alvo, { allowBlocked: true, snapshot: snap, skipManifest: true });
+    const dirty = this._dirtyFor(alvo), gens = this._dirtyGenFor(alvo);
+    const remaining = snap.filter(x => dirty.has(x.section) && (gens.get(x.section) || 0) === (x.gen || 0));
+    return { ok: remaining.length === 0 && !this._lastConflict, sent: snap.length - remaining.length, remaining: remaining.length };
+  },
+
   // Semeia (1x) e envia — dispara PROATIVAMENTE (não depende de uma edição/salvamento).
   // Chamado no login, ao entrar num perfil, periodicamente, e após cada salvamento.
   async kick() {
@@ -43251,14 +43328,27 @@ const CloudUI = {
     if (!btn) return;
     const CS = window.CloudStore;
     let tone = forceTone, text = forceText;
-    // sessão assumida em outro aparelho
-    if (window.SessionLock && SessionLock.isBlocked() && SessionLock._origin === 'remote') { tone = 'error'; text = 'Pausado (outro aparelho)'; }
-    // Estado tranquilizador — o app salva SEMPRE no aparelho na hora. O spinner
-    // (azul) só aparece durante um envio REAL e curto; o resto é verde "ok".
-    // Fila real de envio (sobrevive a recarregamentos): é o que permite dizer
-    // "tudo sincronizado" só quando é verdade — e quanto falta quando não é.
+    // Fila real de envio (sobrevive a recarregamentos).
     let fila = 0;
     try { if (window.SectionSync) fila = SectionSync.pendingQuick(); } catch (_) { _quiet(_); }
+    // Sessão em outro aparelho não é, por si só, erro. Se estamos entregando a
+    // outbox anterior, mostra envio real; depois fica neutro/pausado. Vermelho
+    // fica reservado para conflito/falha de transporte.
+    if (window.SessionLock && SessionLock.isBlocked() && SessionLock._origin === 'remote') {
+      if (window.SessionGuard && SessionGuard._handoffDraining) {
+        tone = 'syncing'; text = 'Entregando alteração pendente antes de pausar…';
+      } else if (fila) {
+        const hs = window.SessionGuard && SessionGuard._handoffLast ? SessionGuard._handoffLast.status : '';
+        tone = hs === 'erro' || hs === 'pendente' ? 'error' : 'pending';
+        text = hs === 'erro' || hs === 'pendente'
+          ? 'Alteração preservada neste aparelho · envio pendente'
+          : 'Salvo neste aparelho · aguardando entrega';
+      } else {
+        tone = 'off'; text = 'Pausado · conta ativa em outro aparelho';
+      }
+    }
+    // Estado tranquilizador — o app salva SEMPRE no aparelho na hora. O spinner
+    // (azul) só aparece durante um envio REAL e curto; o resto é verde "ok".
     if (!tone) {
       if (!CS || !CS.isReady() || !CS.isLoggedIn()) { tone = 'off'; text = 'Salvo neste aparelho'; }
       else if (CS._syncing) { tone = 'syncing'; text = 'Enviando para a nuvem…'; }
