@@ -217,9 +217,26 @@
       return [...roots.values()];
     },
 
+    _dataRetrato(s) {
+      return String((s && (s.endDate || s.date || s.startDate)) || '');
+    },
+    retratoAtual() {
+      let snaps = [];
+      try {
+        snaps = (DesempenhoTecScreen.activeSnapshots ? DesempenhoTecScreen.activeSnapshots() : DB.getTecSnapshots()) || [];
+      } catch (e) { if (typeof _quiet === 'function') _quiet(e, 'motor-retrato-atual'); }
+      if (!snaps.length) return null;
+      const ordenados = snaps.slice().sort((a, b) =>
+        this._dataRetrato(a).localeCompare(this._dataRetrato(b))
+        || String(a.importedAt || '').localeCompare(String(b.importedAt || ''))
+        || String(a.id || '').localeCompare(String(b.id || ''), 'pt-BR', { numeric: true })
+      );
+      return ordenados[ordenados.length - 1] || null;
+    },
+
     disciplinasDisponiveis() {
       let snap = null;
-      try { snap = DesempenhoTecScreen.scopedSnapshot(); }
+      try { snap = this.retratoAtual(); }
       catch (e) { if (typeof _quiet === 'function') _quiet(e, 'motor-disc-snap'); }
       return this._forestEstavel(snap).map(d => d.nome).filter(Boolean).sort((a, b) => a.localeCompare(b, 'pt-BR'));
     },
@@ -401,7 +418,7 @@
     estadoAtual(origem, opts) {
       const o = origem || {};
       let snap = null;
-      try { snap = DesempenhoTecScreen.scopedSnapshot(); }
+      try { snap = this.retratoAtual(); }
       catch (e) { if (typeof _quiet === 'function') _quiet(e, 'motor-estado-snap'); }
       if (!snap || !(snap.rows || []).length) return null;
       const forest = this._forestEstavel(snap);
@@ -477,7 +494,7 @@
       p.maxFrentes = Math.min(3, Math.max(1, num(p.maxFrentes, 3)));
 
       let snap = null;
-      try { snap = DesempenhoTecScreen.scopedSnapshot(); }
+      try { snap = this.retratoAtual(); }
       catch (e) { if (typeof _quiet === 'function') _quiet(e, 'motor-sug-snap'); }
       if (!snap || !(snap.rows || []).length) return {
         erro: 'sem-retrato', fase: p.fase, prefs: p, itens: [], todos: [],
