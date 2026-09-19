@@ -583,8 +583,7 @@ else CloudStore.init();
     { id: 'estudo', ic: '📚', label: 'Estudo', title: 'Estrutura do seu estudo', desc: 'Matérias, fases, formas e modos. É daqui que saem as opções de todas as outras telas.' },
     { id: 'prefs', ic: '🎛️', label: 'Preferências', title: 'Aparência e comportamento', desc: 'Ajustes deste dispositivo. Não afetam seus dados nem são enviados para a nuvem.' },
     { id: 'conta', ic: '☁️', label: 'Conta e nuvem', title: 'Conta, sessão e sincronização', desc: 'Acesso em vários aparelhos, controle da sessão e envio manual quando você quiser.' },
-    { id: 'dados', ic: '💾', label: 'Dados e backup', title: 'Seus dados', desc: 'As cópias de segurança em ordem de força: no servidor, neste aparelho e em arquivo — mais a ferramenta de resgate.' },
-    { id: 'diag', ic: '🩺', label: 'Diagnóstico', title: 'Diagnóstico e manutenção', desc: 'O estado real do app agora — útil quando algo parece fora do lugar.' }
+    { id: 'dados', ic: '💾', label: 'Dados e backup', title: 'Seus dados', desc: 'As cópias de segurança em ordem de força: no servidor, neste aparelho e em arquivo — mais a ferramenta de resgate.' }
   ];
   const ConfigUX = {
     init() {
@@ -629,11 +628,12 @@ else CloudStore.init();
       to('#cfg-vhist-body', 'dados');     // neste aparelho, automático
       this.buildDados();                  // em arquivo, manual
       this.buildPrefs();
-      this.buildDiag();
+      /* A antiga tela "Diagnóstico" saiu da navegação: era uma superfície de
+         manutenção técnica sem papel no fluxo de estudo. Os helpers internos
+         ficam disponíveis para suporte, mas não criam botão nem tela. */
       this.show(pget('cfg-group', 'estudo'));
       window.addEventListener('screen:activated', (e) => {
         if (!e.detail || e.detail.screen !== 'config') return;
-        this.refreshDiag();
         const t = $('#cfgp-tema');
         if (t) { try { t.value = localStorage.getItem('diario-estudos:theme-mode') || localStorage.getItem('diario-estudos:theme') || 'light'; } catch (_) { _quiet(_); } }
       });
@@ -643,7 +643,6 @@ else CloudStore.init();
       pset('cfg-group', id);
       $$('#cfg-nav button').forEach(b => b.classList.toggle('active', b.dataset.g === id));
       $$('.cfg-group').forEach(p => p.classList.toggle('active', p.id === 'cfg-g-' + id));
-      if (id === 'diag') this.refreshDiag();
     },
     card(gid, title, sub, bodyHtml, headExtra) {
       const s = document.createElement('section');
