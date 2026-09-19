@@ -57,7 +57,7 @@
      novo, e o antigo é descartado sozinho na ativação) e o que permite ao app
      dizer qual versão está rodando. Em src/ fica "dev" de propósito: a versão
      é gerada na montagem, não editada à mão. -->
-<meta name="diario-versao" content="vcfda272143">
+<meta name="diario-versao" content="v336ed70c35">
 <script>
 /* ── ARRANQUE: abre o IndexedDB AGORA, em paralelo com o parse do documento ──
    A fachada de armazenamento vive no fim do <body>, depois de ~1,7 MB de HTML.
@@ -17566,7 +17566,16 @@ const ProfileManager = {
   },
   getActiveProfileId() { try { return localStorage.getItem(DB.ACTIVE_PROFILE_KEY); } catch (e) { return null; } },
   getActiveProfile() { return this.getProfiles().find(p => p.id === this.getActiveProfileId()) || null; },
-  setActiveProfile(id) { localStorage.setItem(DB.ACTIVE_PROFILE_KEY, id); },
+  setActiveProfile(id) {
+    localStorage.setItem(DB.ACTIVE_PROFILE_KEY, id);
+    /* A assinatura Realtime de seções depende do perfil ativo. Centralizar o
+       aviso aqui evita deixar um canal antigo ouvindo o perfil anterior. */
+    try {
+      if (window.CloudStore && CloudStore.onActiveProfileChanged) {
+        CloudStore.onActiveProfileChanged(id);
+      }
+    } catch (e) { _quiet(e, 'perfil-canal-secoes'); }
+  },
 
   // hash simples (NÃO é segurança forte — apenas evita guardar o PIN em texto puro)
   _hash(str) {
@@ -48743,31 +48752,58 @@ else CloudStore.init();
     if (!db) { flushing = false; avisarDisco(); return; }
     var ops = queue; queue = [];
     if (!ops.length) { flushing = false; avisarDisco(); return; }
-    var tx, store;
+    var tx, store, encerrado = false;
     try { tx = db.transaction(IDB_STORE, 'readwrite'); store = tx.objectStore(IDB_STORE); }
     catch (e) { _quiet(e); devolverAFila(ops); return; }
+
+    /* error e abort podem ocorrer na mesma transação. Sem esta trava o lote
+       podia voltar DUAS vezes para a fila e uma gravação antiga reaparecer depois
+       da nova. O lote inteiro tem exatamente um desfecho: commit OU requeue. */
+    function falharLote(e) {
+      if (encerrado) return;
+      encerrado = true;
+      try { if (e) _quiet(e); } catch (_) {}
+      devolverAFila(ops);
+    }
+    tx.oncomplete = function () {
+      if (encerrado) return;
+      encerrado = true;
+      flushing = false; falhasSeguidas = 0;
+      if (queue.length) scheduleFlush(); else avisarDisco();
+    };
+    tx.onerror = function () { falharLote(tx.error); };
+    tx.onabort = function () { falharLote(tx.error); };
+
     for (var i = 0; i < ops.length; i++) {
       var op = ops[i];
       try {
         if (op.t === 'set') store.put(op.v, op.k);
         else if (op.t === 'del') store.delete(op.k);
         else if (op.t === 'clear') store.clear();
-      } catch (e) { _quiet(e); }
+      } catch (e) {
+        /* Uma operação que nem conseguiu entrar na transação NÃO pode ser
+           silenciosamente esquecida. Abortar garante atomicidade do lote e o
+           handler acima recoloca TODAS as operações na ordem original. */
+        try { tx.abort(); } catch (_) { falharLote(e); }
+        return;
+      }
     }
-    tx.oncomplete = function () {
-      flushing = false; falhasSeguidas = 0;
-      if (queue.length) scheduleFlush(); else avisarDisco();
-    };
-    tx.onerror = function () { devolverAFila(ops); };
-    tx.onabort = function () { devolverAFila(ops); };
   }
   function enqueue(op) { queue.push(op); scheduleFlush(); }
 
-  // Espelho best-effort no localStorage nativo: mantém chaves pequenas (ex.: tema)
-  // acessíveis ao script que evita o "flash" de tela clara. Erros de cota são ignorados.
+  /* O armazenamento nativo NÃO é mais uma segunda cópia genérica do perfil.
+     Manter conteúdo/revisões pequenos aqui e conteúdo grande só no IndexedDB
+     criava estados impossíveis ("rev nova + dado antigo") depois de um reload.
+     Antes do shim só o tema é lido, portanto só ele precisa de espelho síncrono. */
   function mirrorNative(t, k, v) {
     if (!nativeLS) return;
     try {
+      if (k !== 'diario-estudos:theme') {
+        /* Cada escrita futura também remove uma cópia antiga que versões
+           anteriores possam ter deixado para trás. */
+        nativeLS.removeItem(k);
+        return;
+      }
       if (t === 'set') { if (v.length < MIRROR_MAX) nativeLS.setItem(k, v); else nativeLS.removeItem(k); }
       else if (t === 'del') nativeLS.removeItem(k);
     } catch (e) { _quiet(e); }
