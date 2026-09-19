@@ -504,22 +504,6 @@
       <!-- Cards de totais -->
       <div id="tec-totais" style="display:grid; grid-template-columns: repeat(4,1fr); gap:14px; margin-top:16px;"></div>
 
-      <!-- Pontos fracos -->
-      <div class="card">
-        <div class="card-header">
-          <div>
-            <small class="tec-escopo-lista">FATOS DO SEU TEC · NENHUM MODELO OPINA AQUI</small>
-            <h2>🔎 Assuntos abaixo da sua régua</h2>
-            <p class="sub">A mesma medição da lista abaixo, filtrada pelo corte que você escolher — é uma LENTE sobre os seus números, não uma recomendação. Quem escolhe o que atacar, em que ordem e com quantas questões é o modelo ativo, na aba 🏁 Plano.</p>
-          </div>
-        </div>
-        <div class="tec-cfg-bar">
-          <button type="button" class="tec-cfg-open" data-cfg="analise" aria-haspopup="dialog"><span class="gg-ic">⚙</span>Ajustes</button>
-          <span class="tec-cfg-resumo" id="analise-cfg-resumo"></span>
-        </div>
-        <div style="padding: 6px 24px 24px;" id="tec-weak-list"></div>
-      </div>
-
       <!-- Desempenho por disciplina -->
       <div class="card">
         <div class="evo-card-head">
@@ -649,8 +633,8 @@
        uma aparece por vez, e nenhuma cascateia.
 
        Os campos são OS MESMOS de antes, com os mesmos ids — as telas
-       continuam lendo `plano-meta`, `reforco-minq`, `tec-weak-minq`. O que
-       mudou foi onde eles moram. -->
+       continuam usando os mesmos ids e chaves do Motor. O que mudou foi
+       onde eles moram. -->
   <div id="tec-cfg-modal" class="cards-modal tec-cfg-modal" style="display:none;" aria-labelledby="tec-cfg-title">
     <div class="cards-modal-box tec-cfg-box">
       <div class="cards-modal-head tec-cfg-head">
@@ -704,31 +688,6 @@
               <label data-info="Quais históricos de incidência entram na conta do pós-edital. A incidência é importada na aba 🏛️ Incidência; aqui você só escolhe quais bancas contam.">Bancas do pós-edital</label>
               <div id="motor-banca-pick" class="banca-pick"></div>
             </div>
-          </div>
-        </div>
-        <div class="tec-cfg-sec" data-tab="analise" data-sec="fracos" data-ic="🎯" data-rot="Pontos fracos" hidden>
-          <p class="tec-cfg-sec-sub">O corte que decide quem entra na lista de pontos fracos e como ela é ordenada.</p>
-          <div class="tec-cfg-grid">
-            <div class="field" style="margin-bottom:0; min-width:200px;">
-              <label for="tec-weak-ordenar" data-info="Duas perguntas diferentes. &quot;Pior taxa&quot; responde onde você erra mais por questão resolvida — bom para achar assunto mal aprendido. &quot;Mais erros&quot; responde onde você PERDE mais questões: um tópico grande a 60% costuma custar mais pontos que um pequeno a 20%. Antes só existia a primeira, e com ela um tópico de 3 questões subia acima de um de 300.">Ordenar por</label>
-              <select id="tec-weak-ordenar" data-cfg-key="weakOrdenar">
-                <option value="taxa">🔴 Pior taxa de acerto</option>
-                <option value="impacto">📉 Mais erros (impacto)</option>
-              </select>
-            </div>
-            <div class="field" style="margin-bottom:0; min-width:200px;">
-              <label for="tec-weak-disc" data-info="Todas: agrupa por disciplina, da mais fraca para a mais forte. Uma disciplina: lista plana só dela, para atacar uma matéria por vez.">Agrupar / filtrar por disciplina</label>
-              <select id="tec-weak-disc" data-cfg-key="weakDisc"></select>
-            </div>
-            <div class="field" style="margin-bottom:0;">
-              <label data-info="Abaixo disto um tópico é considerado ponto fraco. Nasce igual à meta de domínio do 🏁 Plano, para que as duas telas usem a mesma régua — mude aqui se quiser um corte diferente só nesta lista.">Aproveitamento abaixo de</label>
-              <div class="time-input"><input type="number" inputmode="numeric" id="tec-weak-threshold" data-cfg-key="weakLimiar" min="1" max="100" value="80" style="width:70px; text-align:center;"><span>%</span></div>
-            </div>
-            <div class="field" style="margin-bottom:0;">
-              <label for="tec-weak-minq" data-info="Tópicos com menos questões que isto ficam fora da lista. Com 3 questões, a taxa de acerto pode variar dezenas de pontos: cada linha mostra a margem (±pp) para você ver isso. Baixar este número enche a lista de amostras curtas.">Mínimo de questões</label>
-              <input type="number" inputmode="numeric" id="tec-weak-minq" data-cfg-key="weakMinQ" min="1" value="10" style="width:80px; text-align:center;">
-            </div>
-            <label class="co-check" style="margin-bottom:6px;" data-info="O TEC agrupa assunto dentro de assunto. Ligado, só o nível mais específico entra — sem isso o mesmo erro aparece contado no tópico-pai e no filho, como se fossem dois pontos fracos."><input type="checkbox" id="tec-weak-leaves" data-cfg-key="weakLeaves" checked> Só tópicos específicos (folhas)</label>
           </div>
         </div>
       </div>

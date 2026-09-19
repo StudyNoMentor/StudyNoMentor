@@ -408,18 +408,11 @@ input[type="radio"]:focus-visible {
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
-   DE QUEM É CADA LISTA DO DESEMPENHO TEC
+   DE QUEM É CADA LEITURA DO DESEMPENHO TEC
    ---------------------------------------------------------------------------
-   "Fico sem saber sobre o que exatamente elas se referem. Se é de algum motor,
-   algum modelo, sei lá." A tela tem listas de duas naturezas e nada dizia qual
-   era qual: as da aba Análise são a sua MEDIÇÃO — o que você acertou e errou,
-   sem opinião de ninguém — e as da aba Plano são a DECISÃO do modelo ativo.
-
-   Um selo de escopo acima de cada título resolve sem texto novo no corpo. E a
-   lista de pontos fracos deixou de se chamar "onde focar": "onde focar" é uma
-   decisão, e havia dois lugares na mesma tela prometendo tomá-la — este, por
-   uma régua fixa, e "Onde atacar agora", pelo modelo. Agora ela declara o que
-   de fato é: uma lente sobre os mesmos números da lista de baixo.
+   A aba Análise descreve somente a medição importada do TEC. A decisão de
+   prioridade fica no Motor de sugestão. O selo de escopo deixa essa separação
+   explícita sem misturar interpretação prescritiva com os números observados.
    ═══════════════════════════════════════════════════════════════════════════ */
 #tec-panel-analise .tec-escopo-lista {
   display: block; margin-bottom: 3px;

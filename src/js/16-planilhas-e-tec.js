@@ -518,22 +518,6 @@ const TecEngine = {
     if (!snap) return [];
     return snap.rows.filter(r => r.depth > 0 && r.disciplina === disciplina);
   },
-  // Pontos fracos: linhas (tópicos) com volume mínimo e % abaixo do limiar, ordenadas do pior p/ melhor
-  pontosFracos(snap, { minQuestoes = 3, limiar = 70, apenasFolhas = true } = {}) {
-    if (!snap) return [];
-    let rows = snap.rows.filter(r => r.depth > 0 && r.questoes >= minQuestoes && r.pctAcerto < limiar);
-    if (apenasFolhas) {
-      // remove linhas que são "pai" de outra (mantém só as folhas mais específicas)
-      const codigos = new Set(rows.map(r => (r.disciplina + '|' + r.codigo)));
-      rows = rows.filter(r => {
-        if (!r.codigo) return true;
-        // é folha se nenhuma outra linha da mesma disciplina tem código que começa com "r.codigo."
-        return !snap.rows.some(o => o !== r && o.disciplina === r.disciplina && o.codigo &&
-          o.codigo.startsWith(r.codigo + '.'));
-      });
-    }
-    return rows.sort((a, b) => a.pctAcerto - b.pctAcerto || b.questoes - a.questoes);
-  },
   // Totais globais de um snapshot
   totais(snap) {
     if (!snap) return { questoes: 0, acertos: 0, pct: 0, disciplinas: 0 };

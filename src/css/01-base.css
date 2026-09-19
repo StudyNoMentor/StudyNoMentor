@@ -3484,10 +3484,6 @@
   /* ── LEGENDAS DA ABA ANÁLISE ───────────────────────────────────────────── */
   .tec-totais-legenda { grid-column: 1 / -1; margin: 2px 0 0; font-family: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif; font-size: var(--fs-3xs); line-height: 1.55; color: var(--text-faint); }
   .tec-totais-legenda b { color: var(--text-soft); }
-  .weak-legenda { font-family: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif; font-size: var(--fs-3xs); line-height: 1.55; color: var(--text-faint); margin: 0 0 12px; }
-  .weak-legenda b { color: var(--text-soft); }
-  .weak-row .wmeta { font-family: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif; font-size: calc(9.5px * var(--fs-scale,1)); color: var(--text-faint); margin-top: 2px; }
-  .weak-row .wmeta b { color: var(--warn-text); font-weight: 700; }
   .tec-inline-lbl { font-size: calc(9.5px * var(--fs-scale,1)); font-weight: 800; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-faint); display: block; margin-bottom: 4px; }
 
   /* ── SELETOR DE BANCAS ─────────────────────────────────────────────────────
@@ -3522,7 +3518,7 @@
      ("Você  acerta  37%:  erra  mais  do  que") — e o texto que mais precisa
      ser lido de relance era o que parecia mais quebrado. */
   .pl-prosa, .pl-ordem-txt, .pl-modo-nota, .pl-porque, .pl-acao,
-  .weak-legenda, .tec-totais-legenda, .pl-guia-body .pl-base, .pl-hero-sub, .rfc-casamento,
+  .tec-totais-legenda, .pl-guia-body .pl-base, .pl-hero-sub, .rfc-casamento,
   .pl-edital .pl-prosa, .pl-steps .d {
     text-align: justify; text-align-last: left; hyphens: auto; -webkit-hyphens: auto;
   }
@@ -3630,40 +3626,6 @@
   .tec-total-card .val.tone-warn { color: var(--warn-text); }
   .tec-total-card .val.tone-bad { color: var(--bad-text); }
   .tec-total-card .lbl { font-size: var(--fs-3xs); font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; color: var(--text-faint); margin-top: 6px; }
-  /* Ponto fraco */
-  .weak-row {
-    display: grid; grid-template-columns: 1fr 150px 84px; align-items: center; gap: 14px;
-    padding: 11px 0; border-bottom: 1px solid var(--border);
-  }
-  .weak-row:last-child { border-bottom: none; }
-  /* Grupo de pontos fracos por disciplina */
-  .weak-group { margin-bottom: 14px; }
-  .weak-group:last-child { margin-bottom: 0; }
-  .weak-group-head {
-    display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap;
-    padding: 8px 12px; margin-bottom: 4px; border-radius: 8px;
-    background: var(--surface-sunken); border: 1px solid var(--border);
-  }
-  .weak-group-name { font-size: var(--fs-xs); font-weight: 800; color: var(--text); letter-spacing: -0.01em; }
-  .weak-group-meta { display: inline-flex; align-items: center; gap: 10px; }
-  .weak-group-pct { font-family: 'Space Mono', ui-monospace, SFMono-Regular, Menlo, monospace; font-weight: 700; font-size: var(--fs-xs); padding: 2px 8px; border-radius: 12px; }
-  .weak-group-pct.tone-good { color: var(--good-text); background: var(--good-soft); }
-  .weak-group-pct.tone-warn { color: var(--warn-text); background: var(--warn-soft); }
-  .weak-group-pct.tone-bad { color: var(--bad-text); background: var(--bad-soft); }
-  .weak-group-count { font-size: var(--fs-3xs); font-weight: 600; color: var(--text-faint); text-transform: uppercase; letter-spacing: 0.03em; }
-  .weak-group .weak-row { padding-left: 12px; padding-right: 12px; }
-  .weak-info .wname { font-size: var(--fs-sm); font-weight: 600; color: var(--text); }
-  .weak-info .wdisc { font-size: var(--fs-3xs); color: var(--text-faint); margin-top: 2px; text-transform: uppercase; letter-spacing: 0.03em; }
-  .weak-track { height: 10px; background: var(--surface-sunken); border: 1px solid var(--border); border-radius: 20px; overflow: hidden; }
-  .weak-fill { height: 100%; border-radius: 20px; transition: width 0.4s ease; }
-  .weak-fill.tone-bad { background: var(--bad); }
-  .weak-fill.tone-warn { background: var(--warn); }
-  .weak-fill.tone-good { background: var(--good); }
-  .weak-pct { font-family: 'Space Mono', ui-monospace, SFMono-Regular, Menlo, monospace; font-weight: 700; font-size: var(--fs-sm); text-align: right; }
-  .weak-pct .q { display:block; font-size: var(--fs-3xs); color: var(--text-faint); font-weight: 400; }
-  .weak-pct.tone-bad { color: var(--bad-text); }
-  .weak-pct.tone-warn { color: var(--warn-text); }
-  .weak-pct.tone-good { color: var(--good-text); }
   /* Disciplina expansível */
   .tec-disc {
     border: 1.5px solid var(--border); border-radius: 14px; margin-bottom: 10px; overflow: hidden;
@@ -3767,8 +3729,6 @@
   .tnode-children .tnode { border-top: 1px dashed var(--border); }
   @media (max-width: 560px) {
     #tec-totais { grid-template-columns: 1fr 1fr !important; }
-    .weak-row { grid-template-columns: 1fr 70px; }
-    .weak-track { display: none; }
     .tec-disc-head { grid-template-columns: 16px 1fr 70px; }
     .tec-disc-track { display: none; }
     .tnode-row { grid-template-columns: 16px 1fr 116px; }
@@ -5292,11 +5252,11 @@
      Nome de aula, matéria ou tópico pode ser uma frase inteira. Com nowrap o selo
      não cabia e vazava para fora do cartão. */
   :where(.meta-badge, .extra-tag, .subject-meta-tag, .status-badge, .cards-type-tag,
-         .weak-group-name, .weak-group-meta, .lei-tag, .acm-ref-tag) {
+         .lei-tag, .acm-ref-tag) {
     max-width: 100%;
     overflow-wrap: break-word;
   }
-  .meta-badge.badge-lesson, .extra-tag.disc, .weak-group-name { white-space: normal; text-align: left; }
+  .meta-badge.badge-lesson, .extra-tag.disc { white-space: normal; text-align: left; }
   .recent-main .subject { overflow-wrap: break-word; }
 
   /* ── Alvos de toque ───────────────────────────────────────────────────────
@@ -5368,7 +5328,7 @@
      content-visibility:auto o navegador só calcula layout do que está perto da
      janela; contain-intrinsic-size reserva a altura estimada para a barra de
      rolagem não pular enquanto o usuário desce. */
-  .card-row, .weak-row, .tec-tree-row, .lei-art, .extra-card, .link-row {
+  .card-row, .tec-tree-row, .lei-art, .extra-card, .link-row {
     content-visibility: auto;
     contain-intrinsic-size: auto 72px;
   }
@@ -5451,11 +5411,6 @@
   .tec-total-card { padding: 12px 14px; }
   .tec-total-card .val { font-size: calc(20px * var(--fs-scale,1)); }
   .tec-filterbar { padding: 10px 14px !important; margin: 10px 20px 6px !important; gap: 10px 14px !important; }
-  /* — Pontos fracos: grupos e linhas mais compactos — */
-  .weak-group { margin-bottom: 10px; }
-  .weak-group-head { padding: 7px 12px; margin-bottom: 3px; }
-  .weak-row { padding: 8px 0; gap: 12px; }
-  .weak-info .wname { font-size: calc(12.5px * var(--fs-scale,1)); }
   /* — Aproveitamento por disciplina (cascata) — */
   .tec-disc-head { padding: 10px 14px; }
   .tec-disc-body { padding: 4px 14px 10px; }

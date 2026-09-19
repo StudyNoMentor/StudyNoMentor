@@ -1076,38 +1076,24 @@ try {
     DesempenhoTecScreen.switchTecTab('analise');
     DesempenhoTecScreen.renderAnalysis();
     await new Promise((r) => setTimeout(r, 150));
-    /* textContent, nao innerText: `.weak-row` usa content-visibility:auto, e o
-       que esta fora da tela some do innerText — o teste reprovaria o app por
-       uma otimizacao de render. */
     const txt = (s) => { const e = document.querySelector(s); return e ? e.textContent : ''; };
-    const antes = [...document.querySelectorAll('#tec-weak-list .weak-row .wname')].map((e) => e.textContent);
-    const sel = document.getElementById('tec-weak-ordenar');
-    sel.value = 'impacto'; sel.dispatchEvent(new Event('change', { bubbles: true }));
-    await new Promise((r) => setTimeout(r, 150));
-    const depois = [...document.querySelectorAll('#tec-weak-list .weak-row .wname')].map((e) => e.textContent);
-    sel.value = 'taxa'; sel.dispatchEvent(new Event('change', { bubbles: true }));
-    await new Promise((r) => setTimeout(r, 120));
     return {
-      legenda: !!document.querySelector('#tec-weak-list .weak-legenda'),
-      margem: /±\d+pp/.test(txt('#tec-weak-list')),
+      semListaParalela: !document.getElementById('tec-weak-list'),
+      semAjusteParalelo: !document.querySelector('[data-cfg="analise"], #tec-cfg-body [data-tab="analise"]'),
       delta: !!document.querySelector('#tec-totais .tec-delta'),
       legendaTotais: /compara o último retrato/i.test(txt('#tec-totais')),
-      ordemTaxa: antes.join('|'),
-      limiar: document.getElementById('tec-weak-threshold').value,
-      metaPlano: String(PlanoEngine.prefs().metaDominio),
-      mudouOrdem: antes.join('|') !== depois.join('|'),
-      itens: antes.length
+      linhas: document.querySelectorAll('#tec-disc-list .tnode-row').length
     };
   });
-  an.legenda ? ok('pontos fracos trazem a legenda do criterio') : erro('legenda dos pontos fracos ausente');
-  an.margem ? ok('cada ponto fraco mostra a margem de erro (±pp)') : erro('a margem de erro nao aparece nos pontos fracos');
+  (an.semListaParalela && an.semAjusteParalelo)
+    ? ok('a Analise nao recria a lista paralela removida nem ajustes orfaos')
+    : erro('a lista paralela removida voltou ao DOM: ' + JSON.stringify(an));
   an.delta && an.legendaTotais
     ? ok('a evolucao aparece no escopo consolidado, dizendo o que compara')
     : erro('o delta do aproveitamento nao aparece no escopo padrao: ' + JSON.stringify(an));
-  an.limiar === an.metaPlano ? ok(`o limiar de ponto fraco nasce da meta do Plano (${an.limiar}%)`)
-    : erro(`limiar ${an.limiar}% divergente da meta do Plano ${an.metaPlano}%`);
-  an.mudouOrdem ? ok('o modo "mais erros" produz uma fila diferente de "pior taxa"')
-    : erro('os dois modos de leitura dos pontos fracos dao a mesma lista');
+  an.linhas > 0
+    ? ok(`a arvore hierarquica da Analise continua renderizando com dado real (${an.linhas} linha(s))`)
+    : erro('a arvore hierarquica da Analise ficou vazia');
 
   // ── INCIDENCIA: importar duas vezes nao pode dobrar ──────────────────────
   const inc = await pag.evaluate(async () => {
@@ -1191,7 +1177,7 @@ try {
        que a tela deixou de abrir em formulario. Sem esses dois seletores o
        teste conta zero campos e passa sem olhar nada. */
     const alvos = ['#tec-panel-analise', '#tec-panel-incidencia', '#tec-panel-motor',
-      '#tec-cfg-body .tec-cfg-sec[data-tab="analise"]', '#tec-cfg-body .tec-cfg-sec[data-tab="motor"]'];
+      '#tec-cfg-body .tec-cfg-sec[data-tab="motor"]'];
     let sem = [];
     alvos.forEach((a) => {
       document.querySelectorAll(a + ' .field > label, ' + a + ' .rfc-field > label').forEach((l) => {
@@ -1202,7 +1188,7 @@ try {
     });
     return sem;
   });
-  dicas.length === 0 ? ok('todos os controles das tres abas tem dica explicativa')
+  dicas.length === 0 ? ok('todos os controles remanescentes das abas tem dica explicativa')
     : erro(`${dicas.length} controle(s) sem "i": ` + dicas.slice(0, 6).join(' | '));
   await pag.setViewportSize({ width: 1280, height: 900 });
 } catch (e) { erro('as abas de fatos nao renderizaram com dado real: ' + e.message); }
@@ -1224,7 +1210,6 @@ try {
 
     // estado ANTES: preferencias proprias e uma atividade em curso
     MotorSugestao.salvar({ metaAcerto: 88 });
-    DesempenhoTecScreen.savePrefs({ weakLimiar: 62 });
     DesempenhoTecScreen.switchTecTab('motor');
     await esperar(300);
     const alvo = (PlanoEngine.calcular(DesempenhoTecScreen.scopedSnapshot(), PlanoEngine.prefs()).itens[0] || {});
@@ -1235,7 +1220,7 @@ try {
     const antes = {
       taxa: alvo.taxa, dominio: PlanoEngine.calcular(DesempenhoTecScreen.scopedSnapshot(), PlanoEngine.prefs()).dominioPct,
       taxaInicial: extra && extra.origemPlano.taxaInicial, modo: MotorSugestao.prefs().metaAcerto,
-      limiar: DesempenhoTecScreen._loadPrefs().weakLimiar, retratos: DB.getTecSnapshots().length
+      retratos: DB.getTecSnapshots().length
     };
 
     // O MES SEGUINTE: o assunto do topo melhorou muito; entra um retrato novo
@@ -1259,7 +1244,6 @@ try {
         dominio: r2.dominioPct,
         taxaInicial: extra2 && extra2.origemPlano.taxaInicial,
         modo: MotorSugestao.prefs().metaAcerto,
-        limiar: DesempenhoTecScreen._loadPrefs().weakLimiar,
         retratos: DB.getTecSnapshots().length,
         temExtra: !!extra2,
         comparando: DesempenhoTecScreen.rotuloComparacao()
@@ -1272,9 +1256,9 @@ try {
   (d.taxa != null && a.taxa != null && d.taxa > a.taxa)
     ? ok(`a taxa do assunto atacado subiu com o dado novo (${a.taxa.toFixed(0)}% → ${d.taxa.toFixed(0)}%)`)
     : erro('a taxa nao acompanhou o retrato novo: ' + JSON.stringify({ a: a.taxa, d: d.taxa }));
-  (d.modo === 88 && d.limiar === 62)
-    ? ok('o modo ajustado e o limiar escolhido sobrevivem a importacao')
-    : erro('a importacao levou as preferencias junto: ' + JSON.stringify({ modo: d.modo, limiar: d.limiar }));
+  (d.modo === 88)
+    ? ok('a configuracao do Motor sobrevive a importacao')
+    : erro('a importacao levou a configuracao do Motor junto: ' + JSON.stringify({ modo: d.modo }));
   (d.temExtra && d.taxaInicial === a.taxaInicial)
     ? ok('a atividade continua ligada ao assunto, com a taxa inicial preservada')
     : erro('o vinculo da atividade se perdeu: ' + JSON.stringify({ t: d.temExtra, i: d.taxaInicial, a: a.taxaInicial }));
@@ -1445,7 +1429,7 @@ try {
 console.log('\n6.14) os ajustes numa folha suspensa, nao empilhados na tela');
 try {
   await pag.setViewportSize({ width: 390, height: 844 });
-  const ABAS = ['analise', 'motor'];
+  const ABAS = ['motor'];
   await pag.evaluate(() => { switchScreen('desempenhotec'); DesempenhoTecScreen.switchTecTab('motor'); });
   await pag.waitForTimeout(400);
   // 1) nenhuma aba abre com campo de ajuste solto na tela
@@ -1466,7 +1450,7 @@ try {
   }, ABAS);
   const tudoLimpo = ABAS.every((t) => solto[t].campos === 0 && solto[t].porta && solto[t].etiquetas >= 3);
   tudoLimpo
-    ? ok(`as duas abas abrem em RESULTADO: 0 campos soltos, a porta ⚙ e ${ABAS.map((t) => solto[t].etiquetas).join('/')} etiquetas do que esta valendo`)
+    ? ok(`o Motor abre em RESULTADO: 0 campos soltos, a porta ⚙ e ${solto.motor.etiquetas} etiquetas do que esta valendo`)
     : erro('ainda ha ajuste solto na tela: ' + JSON.stringify(solto));
   const maisAlta = Math.max(...ABAS.map((t) => solto[t].alturaBarra));
   maisAlta > 0 && maisAlta < 170
@@ -1502,19 +1486,7 @@ try {
     ? ok(`a folha do Motor tem ${abre.chips.length} secoes e mostra UMA por vez (${abre.inicio[0]} → ${abre.depois[0]})`)
     : erro('a folha nao esta mostrando uma secao por vez: ' + JSON.stringify(abre));
 
-  /* 4) As abas dividem o mesmo corpo. Esconder so as secoes irmas deixava a
-     secao da aba anterior aparecendo por baixo. */
-  const vaza = await pag.evaluate(() => {
-    TecAjustes.fechar();
-    DesempenhoTecScreen.switchTecTab('analise');
-    document.querySelector('.tec-cfg-open[data-cfg="analise"]').click();
-    return [...document.querySelectorAll('#tec-cfg-body .tec-cfg-sec')].filter((s) => !s.hidden)
-      .map((s) => s.dataset.tab + '/' + s.dataset.sec);
-  });
-  (vaza.length === 1 && vaza[0].indexOf('analise/') === 0)
-    ? ok('trocar de aba nao deixa a secao da outra aparecendo por baixo')
-    : erro('secao de outra aba vazou na folha: ' + JSON.stringify(vaza));
-
+  // 5) mexer num campo aplica NA HORA e atualiza a etiqueta do que esta valendo
   // 5) mexer num campo aplica NA HORA e atualiza a etiqueta do que esta valendo
   const vivo = await pag.evaluate(async () => {
     TecAjustes.fechar();
@@ -1564,46 +1536,20 @@ try {
   /^tec-cfg-open/.test(esc.foco) ? ok('e o foco volta para o botao por onde se entrou')
     : erro('o foco nao voltou para a porta: ' + esc.foco);
 
-  // 8) restaurar padroes vale para a aba aberta, e so para ela
+  // 8) restaurar padroes vale para os ajustes do Motor
   const rest = await pag.evaluate(async () => {
-    DesempenhoTecScreen.savePrefs({ weakMinQ: 44 });
     document.querySelector('.tec-cfg-open[data-cfg="motor"]').click();
     document.getElementById('tec-cfg-reset').click();
     await new Promise((r) => setTimeout(r, 120));
     document.getElementById('ui-modal-ok').click();
     await new Promise((r) => setTimeout(r, 300));
-    return { alvo: MotorSugestao.prefs().alvoQuestoes, padrao: MotorSugestao.DEFAULTS.alvoQuestoes,
-      analiseIntacta: DesempenhoTecScreen._loadPrefs().weakMinQ };
+    return { alvo: MotorSugestao.prefs().alvoQuestoes, padrao: MotorSugestao.DEFAULTS.alvoQuestoes };
   });
-  (rest.alvo === rest.padrao && String(rest.analiseIntacta) === '44')
-    ? ok(`restaurar padroes zera SO a aba aberta (caderno volta a ${rest.padrao}, a Analise fica)`)
-    : erro('restaurar padroes passou dos limites: ' + JSON.stringify(rest));
+  (rest.alvo === rest.padrao)
+    ? ok(`restaurar padroes devolve o Motor ao caderno padrao de ${rest.padrao} questoes`)
+    : erro('restaurar padroes do Motor falhou: ' + JSON.stringify(rest));
 
-  /* 9) E na Analise o "Restaurar padroes" tem de mexer nos CAMPOS, nao so no
-     armazenamento: ela le os proprios campos a cada repintura, entao apagar a
-     preferencia salva deixava a tela igualzinha — um botao que dizia restaurar
-     e nao restaurava nada. */
-  const restAna = await pag.evaluate(async () => {
-    TecAjustes.fechar();
-    DesempenhoTecScreen.switchTecTab('analise');
-    await new Promise((r) => setTimeout(r, 200));
-    const minq = document.getElementById('tec-weak-minq');
-    const ord = document.getElementById('tec-weak-ordenar');
-    minq.value = '77'; minq.dispatchEvent(new Event('input', { bubbles: true }));
-    ord.value = 'impacto'; ord.dispatchEvent(new Event('change', { bubbles: true }));
-    const antes = { minq: minq.value, ord: ord.value };
-    document.querySelector('.tec-cfg-open[data-cfg="analise"]').click();
-    document.getElementById('tec-cfg-reset').click();
-    await new Promise((r) => setTimeout(r, 120));
-    document.getElementById('ui-modal-ok').click();
-    await new Promise((r) => setTimeout(r, 300));
-    return { antes, depois: { minq: minq.value, ord: ord.value },
-      padrao: { minq: minq.defaultValue, ord: ([...ord.options].find((o) => o.defaultSelected) || ord.options[0] || {}).value } };
-  });
-  (restAna.antes.minq === '77' && restAna.depois.minq === restAna.padrao.minq && restAna.depois.ord === restAna.padrao.ord)
-    ? ok(`restaurar padroes devolve os CAMPOS da Analise ao padrao (77 → ${restAna.depois.minq})`)
-    : erro('restaurar padroes da Analise nao mexeu nos campos: ' + JSON.stringify(restAna));
-
+  /* 10) A FITA NAO PODE FUGIR DO DEDO. No celular a folha e ancorada embaixo:
   /* 10) A FITA NAO PODE FUGIR DO DEDO. No celular a folha e ancorada embaixo:
      a base fica presa na borda da tela e e o TOPO que se move quando o conteudo
      muda de tamanho. Trocar de secao mexia 219px no topo, e a fita de chips —
@@ -1635,7 +1581,7 @@ try {
         : erro(`${rot} · ${aba}: a folha pula ao trocar de secao — topo ${osc('topo')}px, fita ${osc('fita')}px, pe ${osc('pe')}px`);
     }
   }
-  await pag.evaluate(() => { try { TecAjustes.fechar(); } catch (e) {} DesempenhoTecScreen.savePrefs({ weakMinQ: null }); });
+  await pag.evaluate(() => { try { TecAjustes.fechar(); } catch (e) {} });
   await pag.setViewportSize({ width: 1280, height: 900 });
 } catch (e) { erro('a folha de ajustes falhou: ' + e.message); }
 
@@ -1655,6 +1601,7 @@ try {
       L('02', 'Atos', 'Dir Adm', 100, b), L('03', 'Contratos', 'Dir Adm', 100, c)];
     DB.saveIncidencia([]); DB._set(DB.KEYS.extras, []);
     DB._set(DB.KEYS.tec, [R('c1', dia(90), dia(70), base(40, 40, 45)), R('c2', dia(60), dia(35), base(40, 40, 45))]);
+    MotorSugestao.salvar({ metaAcerto: 85 });
     PlanoEngine.salvarPrefs({ minAmostra: 1, limite: 20, ordenar: 'pior', metaDominio: 85, tetoDominio: 90, disciplina: '__todas__' });
     DesempenhoTecScreen._planoRefC = null; DesempenhoTecScreen._cicloSel = null;
     switchScreen('desempenhotec'); DesempenhoTecScreen.render(); DesempenhoTecScreen.switchTecTab('motor');
