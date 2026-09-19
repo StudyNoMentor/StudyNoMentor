@@ -176,7 +176,9 @@
       const o = this.origemDe(extra);
       if (!o || !o.topico) return null;
       let r = resultado;
-      try { if (!r) r = MotorSugestao.calcular(); }
+      try {
+        if (!r) r = MotorSugestao.calcular({ retrato: MotorSugestao.retratoDeCiclo() });
+      }
       catch (e) { if (typeof _quiet === 'function') _quiet(e, 'motor-ciclo-calcular'); }
       if (!r || r.erro) return null;
 
@@ -226,7 +228,7 @@
 
     conciliar() {
       let r = null;
-      try { r = MotorSugestao.calcular(); }
+      try { r = MotorSugestao.calcular({ retrato: MotorSugestao.retratoDeCiclo() }); }
       catch (e) { if (typeof _quiet === 'function') _quiet(e, 'motor-ciclo-conciliar-calculo'); }
       if (!r || r.erro) return { fechadas: [], rotacionadas: [], resolvidas: [], rodadas: [] };
 
@@ -259,7 +261,7 @@
 
     emCurso() {
       let r = null;
-      try { r = MotorSugestao.calcular(); } catch (e) { _quiet(e, 'motor-ciclo-em-curso'); }
+      try { r = MotorSugestao.calcular({ retrato: MotorSugestao.retratoDeCiclo() }); } catch (e) { _quiet(e, 'motor-ciclo-em-curso'); }
       return (DB.getExtras() || [])
         .filter(e => e.status !== 'concluida' && this.origemDe(e) && this.origemDe(e).topico)
         .map(e => this.avaliar(e, r))

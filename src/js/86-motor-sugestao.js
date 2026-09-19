@@ -546,13 +546,15 @@
 
     calcular(opts) {
       const p = Object.assign(this.prefs(), opts || {});
+      const retratoOverride = opts && opts.retrato ? opts.retrato : null;
+      delete p.retrato;
       p.disciplinasSel = Array.isArray(p.disciplinasSel) ? p.disciplinasSel.slice() : [];
       p.doseMin = Math.max(this.DEFAULTS.doseMin, num(p.doseMin, this.DEFAULTS.doseMin));
       p.alvoQuestoes = Math.max(p.doseMin, num(p.alvoQuestoes, this.DEFAULTS.alvoQuestoes));
       p.maxFrentes = Math.min(3, Math.max(1, num(p.maxFrentes, 3)));
 
       let snap = null;
-      try { snap = this.retratoAtual(); }
+      try { snap = retratoOverride || this.retratoAtual(); }
       catch (e) { if (typeof _quiet === 'function') _quiet(e, 'motor-sug-snap'); }
       if (!snap || !(snap.rows || []).length) return {
         erro: 'sem-retrato', fase: p.fase, prefs: p, itens: [], todos: [],
