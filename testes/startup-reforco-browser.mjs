@@ -66,6 +66,8 @@ try {
       flush:CloudStore.flushPending
     };
     let hidden=false,remoteCalls=0;
+    const buildKey=UX.buildReconcileKey(id), build=UX.currentBuild();
+    if(build) localStorage.setItem(buildKey,build); // este caso testa o fast path, não a barreira de build
     const gate=document.getElementById('profile-gate');gate.style.display='block';
     CloudStore.isLoggedIn=()=>true;CloudStore.isReady=()=>true;CloudStore.session={user:{id:uid}};
     ProfileManager.getActiveProfileId=()=>id;ProfileManager.setActiveProfile=()=>{};
@@ -80,6 +82,7 @@ try {
     ProfileManager.getActiveProfileId=keep.active;ProfileManager.setActiveProfile=keep.setActive;ProfileManager._podeVerLocal=keep.owner;ProfileManager._setOwner=keep.setOwner;
     ProfileUI._hasLocalData=keep.has;ProfileUI.setLastProfile=keep.last;ProfileUI.renderChip=keep.render;ProfileUI.hideGate=oldHide;
     DB.checarEspaco=keep.space;SectionSync.pendingQuick=keep.pending;SectionSync.hasRemoteUpdates=keep.remote;SectionSync.kick=keep.kick;CloudStore.flushPending=keep.flush;
+    localStorage.removeItem(buildKey);
     return {hidden,elapsed,remoteCalls,localVisible:trace.some(x=>x.etapa==='perfil-local-visivel')};
   });
   ok(localFirst.hidden,'perfil local seguro deve liberar a interface imediatamente');
@@ -113,6 +116,8 @@ try {
     SectionSync.pendingQuick=()=>0;SectionSync.hasRemoteUpdates=async()=>{remoteCalls++;return false;};
     SectionSync.kick=()=>{};CloudStore.flushPending=async()=>{};
     // o estado de uma recarga apos entrada direta: sessao da aba sim, agendamento nao
+    const buildKey=UX.buildReconcileKey(id), build=UX.currentBuild();
+    if(build) localStorage.setItem(buildKey,build); // 2b isola o agendamento; 2c testa a barreira nova
     sessionStorage.setItem(ProfileUI.SESSION_KEY,id);
     sessionStorage.removeItem('diario-estudos:uxv4-reconcile');
     ProfileUI._uxv4LocalFirst=false;          // permite reinstalar o gancho de abertura
@@ -124,6 +129,7 @@ try {
     SectionSync.pendingQuick=keep.pending;SectionSync.hasRemoteUpdates=keep.remote;SectionSync.kick=keep.kick;
     CloudStore.flushPending=keep.flush;
     try{sessionStorage.removeItem(ProfileUI.SESSION_KEY);}catch(_){}
+    localStorage.removeItem(buildKey);
     return {remoteCalls,marcou:trace.some(x=>x.etapa==='reconciliacao-entrada-direta')};
   });
   ok(entradaDireta.remoteCalls>=1,'abrir direto (recarga da mesma aba) tambem precisa conferir a nuvem');
