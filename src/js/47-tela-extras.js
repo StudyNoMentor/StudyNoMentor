@@ -317,11 +317,10 @@ const ExtrasScreen = {
     if (m && m.style.display === 'flex') this.renderManageList();
   },
   /* ── PUXAR DO MOTOR ───────────────────────────────────────────────────────
-     A fila daqui é a MESMA do 🧭 Motor de sugestão: mesma poda por margem de
-     erro, mesmo score, mesma fase. O que este diálogo acrescenta é a escolha
-     de quais frentes entram hoje — e, escolhidas elas, o caderno é repartido
-     entre as selecionadas pela mesma regra de dose. Não há segunda ordenação
-     nem segundo critério: um motor, uma fila. */
+     A fila daqui é a MESMA do 🧭 Motor de sugestão: mesma travessia
+     hierárquica, mesma régua e mesma fase. O diálogo só deixa escolher quais
+     frentes executar hoje. Cada frente mantém sua própria dose útil; marcar
+     mais uma não espreme as anteriores até virar atividade simbólica. */
   puxarDoPlano() {
     if (typeof MotorSugestao === 'undefined' || typeof DesempenhoTecScreen === 'undefined') { showToast('Motor indisponível'); return; }
     this._planoDiscSel = this._planoDiscSel || new Set(); // vazio = todas
@@ -363,7 +362,7 @@ const ExtrasScreen = {
 
     // HTML fixo do diálogo (a lista e o dropdown de disciplinas são preenchidos por JS)
     const body = `
-      <p class="hint" style="margin:0 0 10px;">A fila é a do 🧭 Motor de sugestão, na fase ${this._planoFase === 'pos' ? '<b>pós-edital</b> (peso pela incidência da banca)' : '<b>pré-edital</b> (peso pelo seu volume no TEC)'}. A rodada abre <b>${this._planoPrefs.maxFrentes} disciplina(s), uma frente em cada</b>, e as ${this._planoPrefs.alvoQuestoes} questões do caderno são repartidas entre as marcadas. Marcar outro tópico da mesma disciplina troca o que estava marcado nela.</p>
+      <p class="hint" style="margin:0 0 10px;">A fila é a do 🧭 Motor de sugestão, na fase ${this._planoFase === 'pos' ? '<b>pós-edital</b> (fraqueza ponderada pela incidência)' : '<b>pré-edital</b> (pior recorte mensurável primeiro)'}. A rodada abre <b>${this._planoPrefs.maxFrentes} disciplina(s), uma frente em cada</b>. Cada atividade recebe uma dose própria, com piso de <b>${this._planoPrefs.doseMin} questões</b>; marcar outra frente não reduz as anteriores.</p>
       <div class="pl-modal-tools">
         <div class="pl-modal-field" style="position:relative;">
           <span>Disciplinas</span>
@@ -380,7 +379,7 @@ const ExtrasScreen = {
 
     new Promise((resolve) => {
       UI._resolve = resolve; UI._mode = 'confirm';
-      UI._open('🧭 Puxar do Motor', 'As frentes que o motor escolheu, com a dose já repartida', body, { okText: 'Criar atividades' });
+      UI._open('🧭 Puxar do Motor', 'As frentes que o motor escolheu, cada uma com uma dose útil de reforço', body, { okText: 'Criar atividades' });
     }).then((ok) => {
       if (!ok) return;
       const criar = () => {
@@ -393,7 +392,7 @@ const ExtrasScreen = {
             titulo: PlanoCiclo.titulo(x.nome, 'reforco', x.membros),
             tipo: 'questoes', disciplina: x.disciplina || '', unidade: 'questoes',
             alvo: Math.max(1, doses[i] || this._planoPrefs.doseMin), periodo: 'unica', contaMetricas: false,
-            obs: 'Gerado pelo Motor de sugestão — dose repartida do caderno da rodada.'
+            obs: 'Gerado pelo Motor de sugestão — dose própria do reforço hierárquico.'
           });
           // mesma origem do outro portão: sem isto a atividade nascia sem
           // `taxaInicial` nem `qBase`, e o ciclo dela nunca teria veredito
@@ -433,18 +432,21 @@ const ExtrasScreen = {
     this._planoSel.add(i);
     return true;
   },
-  /* A DOSE DEPENDE DE QUEM ESTÁ MARCADO. O caderno tem um tamanho só; marcar
-     mais frentes não o aumenta, reparte-o mais fino. Mostrar a dose mudando a
-     cada clique é o que torna esse limite visível antes de criar as atividades
-     — e é a mesma função de rateio que a aba do Motor usa. */
+  /* Cada frente conserva uma dose independente. O seletor muda O QUE será
+     estudado, não comprime todas as atividades dentro de um orçamento único. */
   _planoDoses() {
     const cand = this._planoCand || [];
     const p = this._planoPrefs || MotorSugestao.prefs();
     const escolhidos = [...(this._planoSel || [])].sort((a, b) => a - b)
       .map(i => ({ i, x: cand[i] })).filter(o => o.x);
     if (!escolhidos.length) return {};
-    const copia = escolhidos.map(o => ({ score: o.x.score }));
-    MotorSugestao.dosar(copia, p.alvoQuestoes, 0);
+    const copia = escolhidos.map(o => ({
+      score: o.x.score,
+      taxaErro: o.x.taxaErro,
+      questoes: o.x.questoes,
+      margem: o.x.margem
+    }));
+    MotorSugestao.dosar(copia, p.alvoQuestoes, p.doseMin);
     const out = {};
     escolhidos.forEach((o, k) => { out[o.i] = copia[k].dose; });
     return out;
@@ -492,7 +494,7 @@ const ExtrasScreen = {
     const p = this._planoPrefs || MotorSugestao.prefs();
     conta.innerHTML = (sel.size === 0 ? `${vis} frente(s)` : `${vis} frente(s) em ${sel.size} disciplina(s)`)
       + ` · <strong>${marcados} marcada(s)</strong>`
-      + (marcados ? ` · caderno de ${p.alvoQuestoes} questões repartido entre elas` : '');
+      + (marcados ? ` · cada atividade com pelo menos ${p.doseMin} questões` : '');
   },
   // Monta o dropdown de disciplinas (com contagem de pontos fracos) e liga tudo.
   _planoBind() {
@@ -508,15 +510,15 @@ const ExtrasScreen = {
       if (toggle) toggle.firstChild.textContent = (n === 0 ? 'Todas ' : n + ' selecionada' + (n > 1 ? 's ' : ' '));
     };
     if (panel) {
-      panel.innerHTML = discs.map(d => `
+      panel.innerHTML = `
+        <div class="pl-disc-actions is-first">
+          <button type="button" data-act="all" class="${this._planoDiscSel.size ? '' : 'active'}">✓ Todas as disciplinas</button>
+        </div>` + discs.map(d => `
         <label class="pl-disc-check">
           <input type="checkbox" data-disc="${escapeHtml(d)}" ${this._planoDiscSel.has(d) ? 'checked' : ''}>
           <span class="pl-disc-name">${escapeHtml(d)}</span>
           <span class="pl-disc-count">${cont[d]}</span>
-        </label>`).join('') + `
-        <div class="pl-disc-actions">
-          <button type="button" data-act="all">Todas</button>
-        </div>`;
+        </label>`).join('');
       panel.querySelectorAll('input[data-disc]').forEach(chk => chk.addEventListener('change', () => {
         const d = chk.dataset.disc;
         if (chk.checked) this._planoDiscSel.add(d); else this._planoDiscSel.delete(d);
