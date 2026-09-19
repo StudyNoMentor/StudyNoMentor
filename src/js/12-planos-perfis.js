@@ -427,9 +427,9 @@ const ProfileManager = {
      era daí que saíam os "🛟 Perfil recuperado" aparecendo sozinhos, sem que
      ninguém tivesse feito nada.
 
-     Abrir um perfil UMA vez já grava ajuste: a tela do Plano salva
-     `plano-prefs` a cada repintura, o tamanho da fonte grava `fs-scale`, a
-     última aba grava `recent-view`. Se depois esse perfil for apagado noutro
+     Abrir um perfil UMA vez já grava ajustes de interface: o tamanho da
+     fonte grava `fs-scale`, a última aba grava `recent-view` e painéis
+     lembram se estavam recolhidos. Se depois esse perfil for apagado noutro
      aparelho, a nuvem para de trazê-lo, este aparelho encontra as preferências
      órfãs, conclui "tem dado aqui" e o devolve à lista — em TODA sincronização,
      para sempre. Um perfil sem uma única anotação ressuscitando por causa do
@@ -441,7 +441,7 @@ const ProfileManager = {
      verdade, que é exatamente o problema que esta varredura veio resolver.
      Os ajustes seguem contados à parte (`ajustes`), para quem precise saber
      que o namespace existe mesmo sem nada dentro. */
-  AJUSTES_SEM_ESTUDO: ['plano-prefs', 'tec-prefs', 'plano-auditoria-ledger', 'plano-corte',
+  AJUSTES_SEM_ESTUDO: ['tec-prefs',
     'fs-scale', 'recent-view', 'active-plan', 'planejamentos', 'evo-scope-collapsed',
     'grade-budget-open', 'extras-in-metrics', 'ferramentas', 'onboarded'],
   _soAjuste(sub) {
