@@ -572,6 +572,102 @@ try {
   });
   eq(overlayBeatsLateAllowed,false,'overlay remoto deve impedir entrada mesmo diante de allowed atrasado');
 
+  /* 2l.7. O binding remoto precisa existir na ORDEM REAL do bundle
+     (61-session-guard antes de 63-cloud-ui). Foi exatamente o que deixou o
+     botão preso em "Confirmando…" em produção. */
+  ok(!!SessionGuard._sessionLockBound,'handler remoto deve estar ligado depois que SessionLock nasce');
+
+  /* 2l.8. Realtime originado neste aparelho não é novidade remota. */
+  const ownRealtime=await page.evaluate(()=>{
+    const keep=SessionGuard._deviceId;
+    SessionGuard._deviceId='device-meu';
+    const own=CloudStore._isOwnSectionEvent({new:{device_id:'device-meu'}});
+    const remote=CloudStore._isOwnSectionEvent({new:{device_id:'device-outro'}});
+    const legacy=CloudStore._isOwnSectionEvent({new:{device_id:null}});
+    SessionGuard._deviceId=keep;
+    return {own,remote,legacy};
+  });
+  ok(ownRealtime.own,'evento V2 do próprio device deve ser ignorado');
+  eq(ownRealtime.remote,false,'evento de outro device deve continuar sendo processado');
+  eq(ownRealtime.legacy,false,'evento legado sem device_id deve continuar na checagem normal');
+
+  /* 2l.9. Startup não pode transformar cache regressado em edição explícita.
+     Só seção sem revisão conhecida é semeada automaticamente. */
+  const conservativeSeed=await page.evaluate(()=>{
+    const id='syncv2-seed-safe',pfx='diario-estudos:u:'+id+':';
+    const keep=ProfileManager.getActiveProfileId;
+    ProfileManager.getActiveProfileId=()=>id;
+    SectionSync._dirtyFor(id).clear();SectionSync._dirtyGenFor(id).clear();
+    localStorage.setItem(pfx+'entries','[{"v":1}]');
+    localStorage.setItem(pfx+'nova','{"x":1}');
+    localStorage.setItem(pfx+'__secrev',JSON.stringify({
+      entries:{rev:9,hash:SectionSync._hash('[{"v":2}]'),len:9}
+    }));
+    localStorage.removeItem(pfx+'__secpend');localStorage.removeItem(pfx+'__secdel');
+    SectionSync.seedUntrackedOnly(id);
+    const pend=SectionSync.explicitPendingSections(id);
+    SectionSync._dirtyFor(id).clear();SectionSync._dirtyGenFor(id).clear();
+    localStorage.removeItem(pfx+'entries');localStorage.removeItem(pfx+'nova');
+    localStorage.removeItem(pfx+'__secrev');localStorage.removeItem(pfx+'__secpend');localStorage.removeItem(pfx+'__secdel');
+    ProfileManager.getActiveProfileId=keep;
+    return pend;
+  });
+  ok(conservativeSeed.includes('nova'),'seção nunca rastreada deve ser semeada');
+  ok(!conservativeSeed.includes('entries'),'hash divergente com revisão conhecida não pode virar edição no startup');
+
+  /* 2l.10. Entrar/reabrir perfil usa explicitOnly: cache divergente sem outbox
+     deve ser corrigido pela nuvem, nunca publicado antes da leitura. */
+  const entryUsesExplicitOnly=await page.evaluate(async()=>{
+    const id='syncv2-entry-safe';
+    const keep={
+      logged:CloudStore.isLoggedIn,fetchRev:CloudStore._fetchRev,
+      enabled:SessionGuard.enabled,hydrate:SectionSync.hydrate,
+      active:ProfileManager.getActiveProfileId,setActive:ProfileManager.setActiveProfile,
+      init:PlanManager.init,hide:ProfileUI.hideGate,chip:ProfileUI.renderChip,
+      pending:ProfileUI._pendingSessionProfile,entering:ProfileUI._entering
+    };
+    let opts=null;
+    CloudStore.isLoggedIn=()=>true;CloudStore._fetchRev=async()=>1;
+    SessionGuard.enabled=false;
+    SectionSync.hydrate=async(_id,o)=>{opts=o||{};return {ok:true,mudou:0};};
+    ProfileManager.getActiveProfileId=()=>id;ProfileManager.setActiveProfile=()=>{};
+    PlanManager.init=()=>{};ProfileUI.hideGate=()=>{};ProfileUI.renderChip=()=>{};
+    ProfileUI._pendingSessionProfile=null;ProfileUI._entering=true;
+    await ProfileUI.enterProfile(id);
+    CloudStore.isLoggedIn=keep.logged;CloudStore._fetchRev=keep.fetchRev;SessionGuard.enabled=keep.enabled;
+    SectionSync.hydrate=keep.hydrate;ProfileManager.getActiveProfileId=keep.active;ProfileManager.setActiveProfile=keep.setActive;
+    PlanManager.init=keep.init;ProfileUI.hideGate=keep.hide;ProfileUI.renderChip=keep.chip;
+    ProfileUI._pendingSessionProfile=keep.pending;ProfileUI._entering=keep.entering;
+    return opts;
+  });
+  ok(entryUsesExplicitOnly&&entryUsesExplicitOnly.explicitOnly===true,'entrada do perfil deve hidratar com explicitOnly');
+
+  /* 2l.11. F5 de perfil já aberto fica em "Entrando…" enquanto a posse ainda
+     não foi validada; não cai no seletor "Quem vai estudar?". */
+  const reloadKeepsEntering=await page.evaluate(()=>{
+    const id='syncv2-f5-safe';
+    const keep={
+      active:ProfileManager.getActiveProfileId,has:ProfileUI._hasLocalData,
+      can:SessionGuard.canEnterNow,enabled:SessionGuard.enabled,
+      showEntering:ProfileUI._showEnteringGate,show:ProfileUI.showGate,
+      render:ProfileUI.renderChip,offline:ProfileUI._offline,
+      entered:sessionStorage.getItem(ProfileUI.SESSION_KEY)
+    };
+    let entering=0,picker=0;
+    ProfileManager.getActiveProfileId=()=>id;ProfileUI._hasLocalData=()=>true;
+    SessionGuard.enabled=true;SessionGuard.canEnterNow=()=>false;ProfileUI._offline=false;
+    ProfileUI._showEnteringGate=()=>{entering++;};ProfileUI.showGate=()=>{picker++;};ProfileUI.renderChip=()=>{};
+    sessionStorage.setItem(ProfileUI.SESSION_KEY,id);
+    ProfileUI.boot();
+    ProfileManager.getActiveProfileId=keep.active;ProfileUI._hasLocalData=keep.has;
+    SessionGuard.canEnterNow=keep.can;SessionGuard.enabled=keep.enabled;ProfileUI._showEnteringGate=keep.showEntering;
+    ProfileUI.showGate=keep.show;ProfileUI.renderChip=keep.render;ProfileUI._offline=keep.offline;
+    if(keep.entered===null)sessionStorage.removeItem(ProfileUI.SESSION_KEY);else sessionStorage.setItem(ProfileUI.SESSION_KEY,keep.entered);
+    return {entering,picker};
+  });
+  eq(reloadKeepsEntering.entering,1,'F5 deve aguardar sessão no estado Entrando');
+  eq(reloadKeepsEntering.picker,0,'F5 não deve cair no seletor de perfis enquanto valida sessão');
+
   /* 2m. Tombstone precisa contar como pendência mesmo após recarregar. */
   const pendingDelete=await page.evaluate(()=>{
     const id='syncv2-pending-delete',sec='entries';
