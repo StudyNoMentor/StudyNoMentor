@@ -341,11 +341,10 @@ with check (
 revoke all on table public.profile_sections from anon;
 grant select, insert, update on table public.profile_sections to authenticated;
 revoke delete, truncate, trigger, references on table public.profile_sections from authenticated;
-```
 
 /* Realtime é acelerador, não requisito de consistência. As duas tabelas que
    o frontend assina precisam estar na publicação. Bloco idempotente. */
-do $
+do $$
 begin
   if not exists (
     select 1 from pg_publication_tables
@@ -359,7 +358,7 @@ begin
   ) then
     execute 'alter publication supabase_realtime add table public.profile_sections';
   end if;
-end $;
+end $$;
 ```
 
 ### Protocolo de concorrência
@@ -393,7 +392,7 @@ returns trigger
 language plpgsql
 security invoker
 set search_path = ''
-as $
+as $$
 begin
   if tg_op = 'INSERT' then
     if new.rev is null or new.rev < 1 then
@@ -414,7 +413,7 @@ begin
   end if;
   return new;
 end;
-$;
+$$;
 
 revoke all on function private.enforce_profile_section_revision()
   from public, anon, authenticated;
