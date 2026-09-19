@@ -577,7 +577,7 @@ else CloudStore.init();
   };
 
   /* ═════════════════════════════════════════════════════════════════════════
-     7) CONFIGURAÇÕES — tela de gestão com seções, preferências e diagnóstico
+     7) CONFIGURAÇÕES — tela de gestão com seções e preferências
      ═════════════════════════════════════════════════════════════════════════ */
   const CFG_GROUPS = [
     { id: 'estudo', ic: '📚', label: 'Estudo', title: 'Estrutura do seu estudo', desc: 'Matérias, fases, formas e modos. É daqui que saem as opções de todas as outras telas.' },
@@ -1006,7 +1006,7 @@ else CloudStore.init();
               <option value="720"${idle === '720' ? ' selected' : ''}>Após 12 horas</option>
             </select></div>
           <div class="cloud-menu-sep"></div>
-          <button type="button" class="cloud-menu-item" data-a="cfg"><span class="ic">⚙</span><span class="tx">Abrir Configurações da conta<small>Espaços na nuvem, diagnóstico e backups.</small></span></button>
+          <button type="button" class="cloud-menu-item" data-a="cfg"><span class="ic">⚙</span><span class="tx">Abrir Configurações da conta<small>Sessão, sincronização e backups.</small></span></button>
           <button type="button" class="cloud-menu-item danger" data-a="out1" ${logged ? '' : 'disabled'}><span class="ic">🚪</span><span class="tx">Sair deste dispositivo</span></button>
           <button type="button" class="cloud-menu-item danger" data-a="outall" ${logged ? '' : 'disabled'}><span class="ic">🌐</span><span class="tx">Sair de todos os dispositivos</span></button>
         </div>
