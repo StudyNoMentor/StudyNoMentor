@@ -324,16 +324,20 @@ const DB = {
     const removido = antes.find(e => this._mesmoId(e.id, id)) || null;
     const entries = antes.filter(e => !this._mesmoId(e.id, id));
     if (this._set(key, entries) === false) return false;
-    try { if (_entryMutationHook && removido) _entryMutationHook(key, { type: 'delete', id: removido.id }); } catch (e) { _quiet(e, 'entry-op-delete'); }
+    try { if (_entryMutationHook && removido) _entryMutationHook(key, { type: 'delete', id: removido.id, before: removido }); } catch (e) { _quiet(e, 'entry-op-delete'); }
     return true;
   },
   updateEntry(id, patch) {
     const key = this.KEYS.entries;
     const entries = this.getEntries();
     const e = entries.find(x => this._mesmoId(x.id, id));
-    if (e) Object.assign(e, patch);
+    let before = null;
+    if (e) {
+      try { before = JSON.parse(JSON.stringify(e)); } catch (_) { before = Object.assign({}, e); }
+      Object.assign(e, patch);
+    }
     if (this._set(key, entries) === false) return null;
-    try { if (_entryMutationHook && e) _entryMutationHook(key, { type: 'upsert', id: e.id, entry: e }); } catch (err) { _quiet(err, 'entry-op-update'); }
+    try { if (_entryMutationHook && e) _entryMutationHook(key, { type: 'upsert', id: e.id, entry: e, before: before }); } catch (err) { _quiet(err, 'entry-op-update'); }
     return e;
   },
   getEntry(id) { return this.getEntries().find(e => this._mesmoId(e.id, id)); },
