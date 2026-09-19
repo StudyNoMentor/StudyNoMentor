@@ -909,26 +909,17 @@ else CloudStore.init();
     },
     async wipeLocal() {
       const CS = window.CloudStore;
-      if (!CS || !CS.isLoggedIn()) { toast('Conecte a conta antes: sem nuvem, apagar o local apaga tudo.'); return; }
-      let fila = 0;
-      try { if (window.SectionSync) fila = SectionSync.pendingQuick(); } catch (_) { _quiet(_); }
-      if (CS._pending || CS._debounce || fila) { toast('Há alterações não enviadas. Sincronize antes de limpar.'); return; }
-      const ok1 = await UI.confirm(
-        'Revalidar este perfil com a nuvem?\n\nO app primeiro valida o conjunto remoto e guarda uma versão de segurança. A cópia local NÃO é apagada antes; se a nuvem estiver incompleta ou offline, nada daqui é substituído.',
-        { title: '🧹 Revalidar dados locais', okText: 'Validar e baixar' });
-      if (!ok1) return;
+      if (!CS || !CS.isLoggedIn() || !window.RelationalStore) { toast('Conecte a conta para consultar o banco.'); return; }
+      const ok = await UI.confirm(
+        'Reconsultar agora todos os dados deste perfil no banco?\n\nA projeção desta aba será descartada e reconstruída por SELECTs no PostgreSQL.',
+        { title: '🧹 Reconsultar banco', okText: 'Reconsultar' });
+      if (!ok) return;
       try {
-        if (window.BackupHistory) await BackupHistory.snapshot('antes de limpar dados locais');
-        /* Esta é a única ação do app que apaga dados de propósito. A foto local
-           acima some junto se o navegador for limpo depois; a do banco, não. */
-        if (window.CloudBackup) await CloudBackup.protegerAgora('antes de limpar os dados locais');
-        /* Não apagamos primeiro. O download por seção já valida o conjunto
-           inteiro ANTES de aplicar. Se a nuvem estiver incompleta ou offline,
-           esta cópia local permanece exatamente como estava. */
-        toast('Validando e baixando da nuvem…');
-        const okPull = await CS.pullActiveAndReload({ readOnly: true });
-        if (okPull === false) toast('A cópia local foi mantida porque a nuvem não pôde ser validada com segurança.');
-      } catch (e) { toast('Não foi possível concluir a limpeza.'); }
+        toast('Consultando banco…');
+        await RelationalStore.flush();
+        await RelationalStore.catchUp(ProfileManager.getActiveProfileId(), 'manual-revalidate');
+        toast('Dados recarregados do banco ✓');
+      } catch (e) { toast('Não foi possível consultar o banco agora.'); }
     },
 
     /* — 8.4 Menu — */
@@ -939,26 +930,16 @@ else CloudStore.init();
       if (this._scrim) { this._scrim.remove(); this._scrim = null; }
     },
     state() {
-      const CS = window.CloudStore;
-      // Mensagens calmas: os dados estão SEMPRE salvos no aparelho; a nuvem é um
-      // reforço automático. Nada aqui deve soar como risco de perda.
-      if (!CS || !CS.isReady()) return { tone: 'ok', title: 'Salvo neste aparelho', sub: 'A nuvem conecta automaticamente quando disponível.' };
-      if (!CS.isLoggedIn()) return { tone: 'ok', title: 'Salvo neste aparelho', sub: 'Entre na sua conta para sincronizar entre aparelhos.' };
-      if (this._recon) return { tone: 'syncing', title: 'Reconectando…', sub: 'Renovando o acesso sem pedir a senha.' };
-      let fila = 0;
-      try { if (window.SectionSync) fila = SectionSync.pendingQuick(); } catch (_) { _quiet(_); }
-      if (window.SessionLock && SessionLock.isBlocked() && SessionLock._origin === 'remote') {
-        return { tone: 'syncing', title: 'Envio pausado', sub: fila
-          ? (fila + (fila === 1 ? ' alteração está guardada' : ' alterações estão guardadas') + ' e sobe quando a sessão voltar para cá.')
-          : 'A sessão está em outro aparelho. Nada foi perdido.' };
-      }
-      if (CS._syncing || CS._pending || CS._debounce || fila) {
-        return { tone: 'syncing', title: 'Salvando…', sub: fila
-          ? ('Já está salvo no aparelho; ' + fila + (fila === 1 ? ' alteração na fila' : ' alterações na fila') + ' para a nuvem.')
-          : 'Já está salvo no aparelho; enviando para a nuvem.' };
-      }
-      const t = CS._lastSyncAt ? (window.CloudUI ? CloudUI._timeAgo(CS._lastSyncAt) : '') : '';
-      return { tone: 'ok', title: 'Tudo sincronizado', sub: t ? ('Último envio ' + t + '.') : 'Seus dados estão salvos e sincronizados.' };
+      const CS = window.CloudStore, RS = window.RelationalStore;
+      if (!CS || !CS.isReady()) return { tone: 'error', title: 'Banco indisponível', sub: 'Verifique a conexão.' };
+      if (!CS.isLoggedIn()) return { tone: 'off', title: 'Conta desconectada', sub: 'Entre para acessar seus dados.' };
+      if (this._recon) return { tone: 'syncing', title: 'Reconectando…', sub: 'Renovando a conexão com o banco.' };
+      if (!RS) return { tone: 'error', title: 'Camada de dados indisponível', sub: 'Atualize o aplicativo.' };
+      if (RS._lastError) return { tone: 'error', title: 'Falha no banco', sub: 'A última alteração não foi considerada salva.' };
+      const fila = RS.pendingCount();
+      if (fila) return { tone: 'syncing', title: 'Salvando no banco…', sub: fila + (fila === 1 ? ' operação SQL em andamento.' : ' operações SQL em andamento.') };
+      const t = RS._lastSyncAt ? (window.CloudUI ? CloudUI._timeAgo(RS._lastSyncAt) : '') : '';
+      return { tone: 'ok', title: 'Banco sincronizado', sub: t ? ('Última confirmação ' + t + '.') : 'Dados carregados do PostgreSQL.' };
     },
     openMenu(btn, forceRelogin) {
       this.closeMenu();
@@ -1061,8 +1042,8 @@ else CloudStore.init();
     /* Versão antiga presa no cache do navegador é a causa clássica de "o app não
        atualiza" e de login que falha sem explicação: o worker antigo continua
        servindo o index.html antigo. Isto apaga os caches e os workers e recarrega
-       — os dados de estudo vivem no IndexedDB e não são tocados. Antes de tudo,
-       envia o que estiver pendente, para não recarregar por cima de uma fila. */
+       — os dados de estudo vivem no PostgreSQL e não são tocados. Antes de tudo,
+       confirma qualquer operação SQL em andamento. */
     async repararCache() {
       const ok = await UI.confirm('Baixar de novo a versão mais recente do app?\n\nO cache do navegador é limpo e a página recarrega. Nenhum dado de estudo é apagado — o que estiver pendente é enviado antes.',
         { title: '🔄 Atualizar o app', okText: 'Atualizar agora' });
@@ -1074,14 +1055,12 @@ else CloudStore.init();
     },
     setBtn(tone, text) { try { if (window.CloudUI) CloudUI.refreshSyncBtn(tone, text); } catch (_) { _quiet(_); } },
     refreshBadge() {
-      const CS = window.CloudStore;
+      const CS = window.CloudStore, RS = window.RelationalStore;
       const btn = $('#cloud-sync-btn');
       if (!btn || !CS) return;
-      let fila = 0;
-      try { if (window.SectionSync) fila = SectionSync.pendingQuick(); } catch (_) { _quiet(_); }
-      const pend = !!(CS.isLoggedIn() && (CS._pending || CS._debounce || fila));
+      const pend = !!(CS.isLoggedIn() && RS && RS.pendingCount() > 0);
       btn.classList.toggle('has-pend', pend);
-      if (this._recon) btn.classList.add('st-recon');
+      if (this._recon) btn.classList.add('st-recon'); else btn.classList.remove('st-recon');
     }
   };
 
