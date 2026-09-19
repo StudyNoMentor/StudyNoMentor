@@ -275,11 +275,15 @@ const SectionSync = {
     // Uma intenção mais nova para o mesmo ID substitui a anterior. Se criou e
     // apagou antes de sincronizar, o resultado final é delete — idempotente.
     const next = list.filter(x => String(x.id) !== sid);
-    if (op.type === 'delete') next.push({ type: 'delete', id: sid, gen });
-    else if (op.type === 'upsert' && op.entry) {
-      let entry = op.entry;
+    if (op.type === 'delete') {
+      let before = op.before || null;
+      try { before = before == null ? null : JSON.parse(JSON.stringify(before)); } catch (_) { _quiet(_); }
+      next.push({ type: 'delete', id: sid, before, gen });
+    } else if (op.type === 'upsert' && op.entry) {
+      let entry = op.entry, before = op.before || null;
       try { entry = JSON.parse(JSON.stringify(op.entry)); } catch (_) { _quiet(_); }
-      next.push({ type: 'upsert', id: sid, entry, gen });
+      try { before = before == null ? null : JSON.parse(JSON.stringify(before)); } catch (_) { _quiet(_); }
+      next.push({ type: 'upsert', id: sid, entry, before, gen });
     } else return;
     all[sec] = next;
     this._saveEntryOps(all, id);
@@ -299,22 +303,39 @@ const SectionSync = {
     this._saveEntryOps(all, id);
     return restantes;
   },
+  _entrySame(a, b) {
+    try { return this._stable(a) === this._stable(b); } catch (_) { return JSON.stringify(a) === JSON.stringify(b); }
+  },
   _applyEntryOps(raw, ops) {
     let out;
     try { out = JSON.parse(raw); } catch (_) { return null; }
     if (!Array.isArray(out)) return null;
     out = out.slice();
-    (ops || []).forEach(op => {
+    for (const op of (ops || [])) {
       const sid = String(op.id);
       const idx = out.findIndex(e => e && String(e.id) === sid);
+      const atual = idx >= 0 ? out[idx] : null;
       if (op.type === 'delete') {
-        if (idx >= 0) out.splice(idx, 1);
+        if (idx < 0) continue; // já apagado remotamente: operação satisfeita
+        /* Se o MESMO registro foi editado no outro aparelho depois da nossa
+           base, não adivinhamos que a exclusão deve vencer. O conflito continua
+           protegido; alterações em IDs diferentes continuam mesclando sozinhas. */
+        if (op.before && !this._entrySame(atual, op.before)) return null;
+        out.splice(idx, 1);
       } else if (op.type === 'upsert' && op.entry) {
-        const entry = op.entry;
-        if (idx >= 0) out[idx] = entry;
-        else out.push(entry);
+        if (op.before == null) {
+          // criação local: só é automática se o ID ainda não existe, ou já é idêntico
+          if (idx < 0) out.push(op.entry);
+          else if (!this._entrySame(atual, op.entry)) return null;
+        } else {
+          // edição local: o remoto precisa continuar na imagem-base (ou já conter nosso resultado)
+          if (idx < 0) return null;
+          if (this._entrySame(atual, op.entry)) continue;
+          if (!this._entrySame(atual, op.before)) return null;
+          out[idx] = op.entry;
+        }
       }
-    });
+    }
     try { return JSON.stringify(out); } catch (_) { return null; }
   },
   async _resolveEntriesConflict(id, sec, remotoInicial, gen) {
