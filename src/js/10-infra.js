@@ -20,10 +20,10 @@
      Registrar · Ciclo · Grade · Cards · Leis · Extras · Links · Histórico
      Evolução · Conquistas · Desempenho TEC · Ferramentas · Config
 
-   NUVEM (opcional)
-     CloudStore .................. blob + sync por seção (Supabase)
-     SessionGuard ................ uma sessão por vez
-     SectionSync ................. escrita/leitura por seção
+   BANCO
+     CloudStore .................. autenticação e fachada Supabase
+     RelationalStore ............. leitura/escrita SQL relacional
+     SessionGuard ................ coordenação entre dispositivos
 
    QUALIDADE
      AutoTeste.rodar() ........... suíte de testes no console
@@ -67,7 +67,7 @@ window.$id = $id;
 
 /* ── _quiet(): erros engolidos passam a deixar rastro ─────────────────────
    Havia 169 blocos `catch (_) { _quiet(_); }`. Cada um transformava uma falha real —
-   cota estourada, IndexedDB bloqueado, JSON corrompido — em silêncio: o
+   falha de rede, JSON corrompido ou exceção de integração — em silêncio: o
    usuário achava que salvou. Remover os catch seria pior (quebraria fluxos
    que dependem da tolerância). Então eles continuam engolindo, mas agora
    REGISTRAM: contador, buffer circular dos últimos 50 e console.debug.
@@ -90,7 +90,7 @@ window.__diag = function () {
     porTipo: Object.assign({}, _engolidos.porTipo),
     ultimos: _engolidos.ultimos.slice(-15),
     idsAusentes: Array.from(_idsAusentes),
-    armazenamento: (window.__idbShim ? 'IndexedDB' : 'localStorage nativo'),
+    armazenamento: (window.__memoryOnlyStore ? 'projeção em RAM + PostgreSQL' : 'modo inesperado'),
     cards: (function () { try { return DB.getCards().length; } catch (_) { return '?'; } })(),
     revisoes: (function () { try { return (DB.getRevlog() || []).length; } catch (_) { return '?'; } })()
   };
@@ -126,17 +126,6 @@ function jsonSeguro(texto) {
 }
 window.jsonSeguro = jsonSeguro;
 
-// Hook seguro para a sincronização na nuvem (CloudStore é definido bem mais abaixo no script).
-// Usar `var` evita o erro de "temporal dead zone" que aconteceria com `typeof CloudStore`
-// caso DB._set seja chamado durante a inicialização, antes do CloudStore existir.
-var _cloudNotifyHook = null;
-// Hook da SINCRONIZAÇÃO POR SEÇÃO (Opção B, Fase 1 = escrita dupla). Marca a seção
-// alterada como "suja" para ser enviada à tabela profile_sections em paralelo ao blob.
-// var (não const) evita erro de zona morta se DB._set rodar antes do SectionSync existir.
-var _sectionMarkHook = null;
-// Hook de mutações individuais do Diário. Permite resolver conflitos de `entries`
-// por ID (adicionar/editar/excluir) sem sobrescrever a seção inteira de outro aparelho.
-var _entryMutationHook = null;
 /* ── RECARGA SEGURA E EDUCADA ──────────────────────────────────────────────
    Havia `location.reload()` espalhado por nove pontos do app. Dois problemas:
 
@@ -145,13 +134,9 @@ var _entryMutationHook = null;
       Aqui a recarga ESPERA você terminar: se há um diálogo aberto ou o cursor
       está dentro de um campo, ela fica agendada e acontece quando a mão sai.
 
-   2. RECARREGAR ANTES DO DISCO TERMINAR DE GRAVAR. O armazenamento do app é uma
-      fachada síncrona sobre o IndexedDB: `setItem` volta na hora, mas a gravação
-      real acontece logo depois, de forma assíncrona. Um reload imediato podia
-      abortar essa transação — e era assim que a sessão recém-gravada do login
-      às vezes não estava lá na abertura seguinte ("tive que entrar de novo").
-      Agora a recarga espera o disco confirmar (com teto de 2 s, para nunca
-      travar a interface). */
+   2. RECARREGAR COM SQL PENDENTE. A projeção do app vive em RAM; portanto um
+      reload só é seguro depois que as mutações relevantes foram confirmadas no
+      PostgreSQL pelos fluxos que solicitaram a recarga. */
 function _appOcupado() {
   try {
     const a = document.activeElement;
