@@ -197,16 +197,15 @@ window.recarregarApp = recarregarApp;
 
    Então a remoção deixa de ser destrutiva. Toda seção do perfil apagada pelo
    app passa por aqui: o valor é guardado em `__trash:<seção>` com a data e o
-   motivo, e continua no aparelho por RETENCAO_DIAS. A tela de Recuperação
-   lista e devolve com um clique.
+   motivo. Como a chave pertence ao perfil, o RelationalStore a persiste no
+   PostgreSQL; a tela de Recuperação lista e devolve com um clique.
 
    Regras que mantêm a lixeira barata:
      · só entra o que tem conteúdo (apagar chave vazia não gera lixo);
      · uma entrada por seção — reapagar substitui, não empilha;
      · expira em 30 dias e nunca passa de ORCAMENTO_BYTES (as mais antigas saem
-       primeiro), então ela não come o espaço do navegador;
-     · fica FORA da sincronização (sectionForKey a ignora): é uma rede local,
-       não um dado do perfil.
+       primeiro), limitando o custo no banco;
+     · usa o mesmo canal SQL do perfil, sem fila paralela, blob ou seção legada.
    ═══════════════════════════════════════════════════════════════════════════ */
 const Lixeira = {
   PREFIXO: '__trash:',
