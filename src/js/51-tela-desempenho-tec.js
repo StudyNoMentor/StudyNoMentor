@@ -4817,9 +4817,6 @@ const DesempenhoTecScreen = {
       const d = shown[0];
       const pct = this.nodePct(d);
       const tone = this.toneOf(pct);
-      // conta tópicos-folha fracos dentro da disciplina
-      const leafWeak = TecEngine.pontosFracos({ rows: snap.rows }, { minQuestoes: 1, limiar: 70, apenasFolhas: true })
-        .filter(t => t.disciplina === d.nome).length;
       focusEl.innerHTML = `
         <div class="tec-focus-card">
           <div class="tec-focus-main">
@@ -4830,7 +4827,6 @@ const DesempenhoTecScreen = {
             <div class="tfs"><span class="tfs-val tone-${tone}">${pct}%</span><span class="tfs-lbl">aproveitamento</span></div>
             <div class="tfs"><span class="tfs-val">${d.questoes}</span><span class="tfs-lbl">questões</span></div>
             <div class="tfs"><span class="tfs-val" style="color:var(--good)">${d.acertos}</span><span class="tfs-lbl">acertos</span></div>
-            <div class="tfs"><span class="tfs-val ${leafWeak ? '' : ''}" style="color:${leafWeak ? 'var(--bad)' : 'var(--good)'}">${leafWeak}</span><span class="tfs-lbl">tópicos < 70%</span></div>
           </div>
         </div>`;
     } else {
