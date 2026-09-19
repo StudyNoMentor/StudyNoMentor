@@ -57,7 +57,7 @@
      novo, e o antigo é descartado sozinho na ativação) e o que permite ao app
      dizer qual versão está rodando. Em src/ fica "dev" de propósito: a versão
      é gerada na montagem, não editada à mão. -->
-<meta name="diario-versao" content="vef77b4536e">
+<meta name="diario-versao" content="ved142de920">
 <script>
 /* ── ARRANQUE: abre o IndexedDB AGORA, em paralelo com o parse do documento ──
    A fachada de armazenamento vive no fim do <body>, depois de ~1,7 MB de HTML.
@@ -47462,7 +47462,7 @@ else CloudStore.init();
 
     emCurso() {
       let r = null;
-      try { r = MotorSugestao.calcular(); } catch (_) {}
+      try { r = MotorSugestao.calcular(); } catch (e) { _quiet(e, 'motor-ciclo-em-curso'); }
       return (DB.getExtras() || [])
         .filter(e => e.status !== 'concluida' && this.origemDe(e) && this.origemDe(e).topico)
         .map(e => this.avaliar(e, r))
