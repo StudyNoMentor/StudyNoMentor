@@ -187,10 +187,12 @@ try {
       flush:CloudStore.flushPending,pull:CloudStore.pullActiveAndReload,
       pending:CloudStore._pending,debounce:CloudStore._debounce,syncing:CloudStore._syncing,
       quick:SectionSync.pendingQuick,explicit:SectionSync.explicitPendingSections,
-      remote:SectionSync.hasRemoteUpdates,read:SectionSync.readEnabled
+      remote:SectionSync.hasRemoteUpdates,read:SectionSync.readEnabled,
+      guardEnabled:SessionGuard.enabled,guardCan:SessionGuard.canEnterNow
     };
     let flushCalls=0,pullCalls=0,remoteCalls=0,pullReadOnly=false;
     CloudStore.isLoggedIn=()=>true;CloudStore.isReady=()=>true;ProfileManager.getActiveProfileId=()=>id;
+    SessionGuard.enabled=true;SessionGuard.canEnterNow=()=>true;
     CloudStore._pending=true;CloudStore._debounce=null;CloudStore._syncing=false;
     CloudStore.flushPending=async()=>{flushCalls++;CloudStore._pending=false;};
     CloudStore.pullActiveAndReload=async(opts)=>{pullCalls++;pullReadOnly=!!(opts&&opts.readOnly);return true;};
@@ -204,6 +206,7 @@ try {
     CloudStore._pending=keep.pending;CloudStore._debounce=keep.debounce;CloudStore._syncing=keep.syncing;
     SectionSync.pendingQuick=keep.quick;SectionSync.explicitPendingSections=keep.explicit;
     SectionSync.hasRemoteUpdates=keep.remote;SectionSync.readEnabled=keep.read;
+    SessionGuard.enabled=keep.guardEnabled;SessionGuard.canEnterNow=keep.guardCan;
     return {flushCalls,pullCalls,remoteCalls,pullReadOnly};
   });
   eq(pushPull.flushCalls,1,'syncOnFocus deve concluir o envio pendente');
