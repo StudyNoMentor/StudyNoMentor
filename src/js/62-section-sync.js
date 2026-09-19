@@ -224,6 +224,39 @@ const SectionSync = {
     this._loadDel(alvo).forEach(x => { if (x && x.section) out.add(x.section); });
     return out.size;
   },
+
+  /* PROVA PARA O FAST PATH LOCAL.
+     Um perfil só pode ser exibido sem hidratar a nuvem quando:
+       1) não há mutação explícita ainda pendente; e
+       2) cada seção já rastreada continua byte-a-byte com o hash que acompanha
+          a revisão conhecida.
+     Isso fecha o caso "metadata nova + conteúdo físico antigo": o rev pode estar
+     em 12, mas se entries ainda contém uma versão velha o hash denuncia a
+     regressão e o gate força uma hidratação canônica antes de mostrar o perfil. */
+  fastPathIntegrity(id) {
+    const alvo = id || this._activeProfileId();
+    if (!alvo) return { ok: false, reason: 'sem-perfil', checked: 0, mismatches: [] };
+    const explicitas = this.explicitPendingSections(alvo);
+    if (explicitas.length) {
+      return { ok: false, reason: 'pendencia-explicita', checked: 0, mismatches: explicitas.slice() };
+    }
+    const revs = this._getRevs(alvo);
+    const pfx = this._prefixFor(alvo);
+    let checked = 0;
+    const mismatches = [];
+    Object.keys(revs || {}).forEach(sec => {
+      if (sec === '__manifest') return;
+      const meta = revs[sec];
+      if (!meta || !meta.hash) return;
+      checked++;
+      let raw = null;
+      try { raw = localStorage.getItem(pfx + sec); } catch (_) { raw = null; }
+      if (raw === null || this._hash(raw) !== meta.hash) mismatches.push(sec);
+    });
+    if (!checked) return { ok: false, reason: 'sem-prova-local', checked: 0, mismatches: [] };
+    if (mismatches.length) return { ok: false, reason: 'hash-divergente', checked, mismatches };
+    return { ok: true, reason: '', checked, mismatches: [] };
+  },
   /* Tenta ENTREGAR o que está pendente antes de qualquer download sobrescrever o
      local. Devolve o que CONTINUA pendente depois da tentativa — quem chamou usa
      essa lista para preservar essas seções em vez de apagá-las. */
