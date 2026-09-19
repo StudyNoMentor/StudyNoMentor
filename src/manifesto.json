@@ -387,21 +387,21 @@
  {
   "arquivo": "js/86-motor-sugestao.js",
   "de": 46678,
-  "ate": 47335
+  "ate": 47337
  },
  {
   "arquivo": "js/87-motor-ciclo.js",
-  "de": 47337,
-  "ate": 47638
+  "de": 47339,
+  "ate": 47642
  },
  {
   "arquivo": "js/93-ux-hierarquia.js",
-  "de": 47640,
-  "ate": 48020
+  "de": 47644,
+  "ate": 48024
  },
  {
   "arquivo": "html/90-rodape.html",
-  "de": 48022,
-  "ate": 48467
+  "de": 48026,
+  "ate": 48471
  }
 ]

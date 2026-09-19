@@ -57,7 +57,7 @@
      novo, e o antigo é descartado sozinho na ativação) e o que permite ao app
      dizer qual versão está rodando. Em src/ fica "dev" de propósito: a versão
      é gerada na montagem, não editada à mão. -->
-<meta name="diario-versao" content="veb743c36c5">
+<meta name="diario-versao" content="v9a2498a4c4">
 <script>
 /* ── ARRANQUE: abre o IndexedDB AGORA, em paralelo com o parse do documento ──
    A fachada de armazenamento vive no fim do <body>, depois de ~1,7 MB de HTML.
@@ -47223,13 +47223,15 @@ else CloudStore.init();
 
     calcular(opts) {
       const p = Object.assign(this.prefs(), opts || {});
+      const retratoOverride = opts && opts.retrato ? opts.retrato : null;
+      delete p.retrato;
       p.disciplinasSel = Array.isArray(p.disciplinasSel) ? p.disciplinasSel.slice() : [];
       p.doseMin = Math.max(this.DEFAULTS.doseMin, num(p.doseMin, this.DEFAULTS.doseMin));
       p.alvoQuestoes = Math.max(p.doseMin, num(p.alvoQuestoes, this.DEFAULTS.alvoQuestoes));
       p.maxFrentes = Math.min(3, Math.max(1, num(p.maxFrentes, 3)));
 
       let snap = null;
-      try { snap = this.retratoAtual(); }
+      try { snap = retratoOverride || this.retratoAtual(); }
       catch (e) { if (typeof _quiet === 'function') _quiet(e, 'motor-sug-snap'); }
       if (!snap || !(snap.rows || []).length) return {
         erro: 'sem-retrato', fase: p.fase, prefs: p, itens: [], todos: [],
@@ -47512,7 +47514,9 @@ else CloudStore.init();
       const o = this.origemDe(extra);
       if (!o || !o.topico) return null;
       let r = resultado;
-      try { if (!r) r = MotorSugestao.calcular(); }
+      try {
+        if (!r) r = MotorSugestao.calcular({ retrato: MotorSugestao.retratoDeCiclo() });
+      }
       catch (e) { if (typeof _quiet === 'function') _quiet(e, 'motor-ciclo-calcular'); }
       if (!r || r.erro) return null;
 
@@ -47562,7 +47566,7 @@ else CloudStore.init();
 
     conciliar() {
       let r = null;
-      try { r = MotorSugestao.calcular(); }
+      try { r = MotorSugestao.calcular({ retrato: MotorSugestao.retratoDeCiclo() }); }
       catch (e) { if (typeof _quiet === 'function') _quiet(e, 'motor-ciclo-conciliar-calculo'); }
       if (!r || r.erro) return { fechadas: [], rotacionadas: [], resolvidas: [], rodadas: [] };
 
@@ -47595,7 +47599,7 @@ else CloudStore.init();
 
     emCurso() {
       let r = null;
-      try { r = MotorSugestao.calcular(); } catch (e) { _quiet(e, 'motor-ciclo-em-curso'); }
+      try { r = MotorSugestao.calcular({ retrato: MotorSugestao.retratoDeCiclo() }); } catch (e) { _quiet(e, 'motor-ciclo-em-curso'); }
       return (DB.getExtras() || [])
         .filter(e => e.status !== 'concluida' && this.origemDe(e) && this.origemDe(e).topico)
         .map(e => this.avaliar(e, r))
