@@ -57,7 +57,7 @@
      novo, e o antigo é descartado sozinho na ativação) e o que permite ao app
      dizer qual versão está rodando. Em src/ fica "dev" de propósito: a versão
      é gerada na montagem, não editada à mão. -->
-<meta name="diario-versao" content="v1e6be31be7">
+<meta name="diario-versao" content="va727658e20">
 <script>
 /* ── ARRANQUE: abre o IndexedDB AGORA, em paralelo com o parse do documento ──
    A fachada de armazenamento vive no fim do <body>, depois de ~1,7 MB de HTML.
@@ -38674,19 +38674,13 @@ window.ReforcoFila = ReforcoFila;
 })();
 
 /* ============================================================
-   EXTRAS — cache rápido do Plano + rodízio inteligente de lei seca
+   EXTRAS — rodízio inteligente de lei seca
    ============================================================ */
 (() => {
   if (typeof window !== 'undefined' && window.__leiRodizioExtras) return;
   if (typeof window !== 'undefined') window.__leiRodizioExtras = true;
 
-  /* ── CACHE DO PLANO NO CAMINHO QUENTE DE EXTRAS ──────────────────────────
-     A conclusão de uma Extra muda slots/progresso, mas NÃO muda o retrato TEC.
-     Antes cada conclusão + render + "Puxar do Motor" recalculava a mesma árvore
-     inteira várias vezes. O cache é por OBJETO do scopedSnapshot (que já possui
-     assinatura de conteúdo) + preferências efetivas. Alterou retrato/escopo ou
-     preferência? A chave muda naturalmente. */
-  /* Lei seca não consulta nem cacheia qualquer modelo de prioridade do TEC. */
+  /* Lei seca é independente do Motor de sugestão: agenda apenas leitura. */
   const LeiRodizio = {
     KEY_PREF: 'lei-rodizio-prefs-v1',
     DEFAULTS: {
