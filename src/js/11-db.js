@@ -254,6 +254,10 @@ const DB = {
   LIMITE_NATIVO_MB: 5,
   _quotaAvisoKey() { return 'diario-estudos:quota-aviso'; },
   async checarEspaco() {
+    /* Dados de estudo não ocupam armazenamento persistente do navegador nesta
+       arquitetura. A projeção em RAM não tem quota de localStorage/IndexedDB a
+       ser monitorada; o banco é quem persiste e valida as escritas. */
+    if (window.__memoryOnlyStore) return;
     try {
       const hoje = todayLocal();
       if (localStorage.getItem(this._quotaAvisoKey()) === hoje) return; // 1x por dia
