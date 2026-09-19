@@ -199,6 +199,57 @@ export function montarApiFalsa() {
       return erro(403, { code: '42501', message: 'profile not owned by current user' });
     }
 
+    /* Leituras agrupadas do modelo relacional. Em produção são funções SQL
+       SECURITY INVOKER: continuam obedecendo RLS, mas evitam dezenas de idas
+       HTTP para reconstruir a projeção síncrona do app. */
+    const rowsDoPerfil = (tabela) => (tabelas[tabela] || []).filter((x) => x.profile_id === a.p_profile_id);
+    if (nome === 'read_study_profile_core') {
+      return { status: 200, corpo: {
+        profile: {
+          id: perfil.id, profile_name: perfil.profile_name, avatar: perfil.avatar, color: perfil.color,
+          pin_hash: perfil.pin_hash ?? null, active_plan_id: perfil.active_plan_id ?? null,
+          created_at: perfil.created_at, updated_at: perfil.updated_at
+        },
+        plans: rowsDoPerfil('study_plans'),
+        profileSettings: rowsDoPerfil('study_profile_settings'),
+        planState: rowsDoPerfil('study_plan_state'),
+        subjects: rowsDoPerfil('study_subjects'),
+        methods: rowsDoPerfil('study_methods'),
+        phases: rowsDoPerfil('study_phases'),
+        statuses: rowsDoPerfil('study_statuses'),
+        modes: rowsDoPerfil('study_modes'),
+        entries: rowsDoPerfil('study_entries'),
+        decks: rowsDoPerfil('study_decks'),
+        cards: rowsDoPerfil('study_cards'),
+        revlog: rowsDoPerfil('study_review_log'),
+        laws: rowsDoPerfil('study_laws'),
+        lawKeywords: rowsDoPerfil('study_law_keywords'),
+        links: rowsDoPerfil('study_links'),
+        extras: rowsDoPerfil('study_extras'),
+        siglas: rowsDoPerfil('study_custom_siglas'),
+        cycles: rowsDoPerfil('study_cycle_history'),
+        savedGrades: rowsDoPerfil('study_saved_grades'),
+        tracks: rowsDoPerfil('study_track_items')
+      }};
+    }
+    if (nome === 'read_study_profile_heavy') {
+      return { status: 200, corpo: {
+        tecSnapshots: rowsDoPerfil('study_tec_snapshots'),
+        tecRows: rowsDoPerfil('study_tec_snapshot_rows'),
+        incidence: rowsDoPerfil('study_incidence')
+      }};
+    }
+    if (nome === 'read_study_change_summary') {
+      const after = Number(a.p_after_change_id) || 0;
+      const rows = rowsDoPerfil('study_change_log').filter((x) => Number(x.change_id) > after);
+      const max = rows.reduce((m, x) => Math.max(m, Number(x.change_id) || 0), after);
+      return { status: 200, corpo: {
+        count: rows.length,
+        max_change_id: max,
+        tables: [...new Set(rows.map((x) => x.table_name).filter(Boolean))]
+      }};
+    }
+
     const key = String(a.p_profile_id) + '\0' + String(a.p_section);
     const achar = () => tabelas.profile_sections.find((l) =>
       l.profile_id === a.p_profile_id && l.section === a.p_section);
