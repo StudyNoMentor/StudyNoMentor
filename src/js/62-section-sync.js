@@ -1520,12 +1520,19 @@ const SectionSync = {
     return achados;
   }
 };
+/* Compatibilidade temporária: o objeto permanece para chamadas antigas,
+   mas profile_sections foi aposentado. Nenhuma escrita/leitura operacional
+   pode nascer desta camada. */
+SectionSync.enabled = false;
+SectionSync.readEnabled = false;
+SectionSync.pendingQuick = function () { return 0; };
+SectionSync.pendingSections = function () { return []; };
+SectionSync.explicitPendingSections = function () { return []; };
+SectionSync.kick = function () {};
+SectionSync.markDirty = function () {};
+SectionSync.dropSection = function () {};
+SectionSync.restorePending = function () {};
 window.SectionSync = SectionSync;
-// liga o hook do DB._set a esta camada (var definida lá no topo, sem zona morta)
-_sectionMarkHook = function (key) { try { SectionSync.markDirty(key); } catch (_) { _quiet(_); } };
-// Journal por registro: só o Diário usa esta trilha fina de conflito.
-_entryMutationHook = function (key, op) { try { SectionSync.recordEntryMutation(key, op); } catch (_) { _quiet(_); } };
-// e o hook do DB.delRaw: apagar sai da fila e viaja pelo manifesto
-_sectionDropHook = function (key) { try { SectionSync.dropSection(key); } catch (_) { _quiet(_); } };
-// Recupera na abertura o que ficou por enviar (antes de qualquer leitura da nuvem).
-try { SectionSync.restorePending(); } catch (_) { _quiet(_); }
+_sectionMarkHook = function () {};
+_entryMutationHook = function () {};
+_sectionDropHook = function () {};
