@@ -31,7 +31,7 @@
     conquistas: 'Marcos acumulados da sua trajetória, sem transformar progresso em cobrança.',
     desempenhotec: 'Meça o desempenho e transforme fraquezas em prioridade de ataque.',
     ferramentas: 'Use os cálculos auxiliares quando precisar, fora do fluxo diário.',
-    config: 'Ajuste o que muda o estudo. Backup, recuperação e diagnóstico ficam em segundo plano.',
+    config: 'Ajuste o que muda o estudo. Conta, backup e recuperação ficam organizados em segundo plano.',
     planejamentos: 'Alterne entre contextos de estudo sem misturar históricos.'
   });
 
@@ -285,9 +285,9 @@
     },
 
     /* ── DOIS AGRUPADORES SOBRE A MESMA TELA ────────────────────────────────
-       `ConfigUX` (80-ajustes-finais) já divide Configurações em cinco seções
-       navegáveis — Estudo, Preferências, Conta e nuvem, Dados e backup,
-       Diagnóstico — e MOVE cada cartão para o painel certo. Esta camada, sem
+       `ConfigUX` (80-ajustes-finais) divide Configurações em quatro seções
+       navegáveis — Estudo, Preferências, Conta e nuvem e Dados e backup — e
+       MOVE cada cartão para o painel certo. Esta camada, sem
        saber disso, criava um `<details>` "Dados, backup e diagnóstico" e movia
        os mesmos quatro cartões para DENTRO dele, já dentro do painel "Dados".
        Resultado: uma seção dentro da seção, títulos repetidos, e a escala
