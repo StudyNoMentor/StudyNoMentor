@@ -57,7 +57,7 @@
      novo, e o antigo é descartado sozinho na ativação) e o que permite ao app
      dizer qual versão está rodando. Em src/ fica "dev" de propósito: a versão
      é gerada na montagem, não editada à mão. -->
-<meta name="diario-versao" content="vfa31d1fb8e">
+<meta name="diario-versao" content="v90ac25c5ed">
 <script>
 /* ── ARRANQUE: abre o IndexedDB AGORA, em paralelo com o parse do documento ──
    A fachada de armazenamento vive no fim do <body>, depois de ~1,7 MB de HTML.
@@ -38265,6 +38265,35 @@ ExtrasScreen.renderEmCurso = function () {
     const q = ReforcoFila.alvoNoDia(e, todayLocal());
     if (q == null) return;
     const feitoHoje = ReforcoFila.feitoNoDia(e, todayLocal());
+
+    /* O reforço precisa ser executável sem adivinhação: quantidade do caderno
+       + trilha/filtros que devem ser marcados no TEC ficam visíveis também no
+       painel "Reforços em curso", não só no cartão do dia. */
+    const guiaTec = (typeof MotorCiclo !== 'undefined' && MotorCiclo.filtroTecDe)
+      ? MotorCiclo.filtroTecDe(e) : null;
+    if (guiaTec && !li.querySelector('.exc-tec-guide')) {
+      const qtdCaderno = Math.max(1, Math.round(Number(guiaTec.quantidade || (MotorCiclo.origemDe(e) || {}).alvoQuestoes || e.alvo) || 1));
+      const base = [guiaTec.disciplina].concat(Array.isArray(guiaTec.caminho) ? guiaTec.caminho : []).filter(Boolean);
+      const rota = (guiaTec.agregado ? base : base.concat(guiaTec.selecoes || [])).filter(Boolean).join(' → ');
+      const nivel = Math.max(1, Number(guiaTec.nivel) || 1);
+      const rotulo = nivel <= 1 ? 'tópico' : (nivel === 2 ? 'subtópico' : 'subtópico nível ' + nivel);
+      const box = document.createElement('div');
+      box.className = 'exc-tec-guide';
+      box.style.cssText = 'margin-top:8px;padding:9px 10px;border:1px solid var(--border);border-radius:var(--r-md);background:var(--surface-sunken);font-size:var(--fs-sm);';
+      box.innerHTML = '<div style="display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap;"><b>🎯 Caderno no TEC</b><strong>'
+        + qtdCaderno + ' questões</strong></div>'
+        + '<div class="hint" style="margin-top:4px;"><b>Filtro:</b> ' + escapeHtml(rota) + '</div>'
+        + (guiaTec.agregado
+          ? '<div class="hint" style="margin-top:3px;"><b>Marque juntos:</b> '
+            + (guiaTec.selecoes || []).map(escapeHtml).join(' + ')
+            + ' <span class="opt">(' + (guiaTec.selecoes || []).length + ' itens no mesmo nível)</span></div>'
+          : '<div class="hint" style="margin-top:3px;"><b>Selecionar:</b> '
+            + escapeHtml((guiaTec.selecoes || [])[0] || '') + ' <span class="opt">(' + escapeHtml(rotulo) + ')</span></div>');
+      const acoesHost = li.querySelector('.exc-acoes');
+      if (acoesHost) li.insertBefore(box, acoesHost);
+      else li.appendChild(box);
+    }
+
     const nums = li.querySelector('.pl-ciclo-nums');
     if (nums && !nums.querySelector('.exc-hoje')) {
       nums.insertAdjacentHTML('afterbegin', `<span class="exc-hoje" title="Parcela executável desta data."><small>Hoje</small><b>${Math.min(q, feitoHoje)}</b>/${q} q</span>`);
