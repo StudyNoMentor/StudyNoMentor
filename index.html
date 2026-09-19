@@ -57,7 +57,7 @@
      novo, e o antigo é descartado sozinho na ativação) e o que permite ao app
      dizer qual versão está rodando. Em src/ fica "dev" de propósito: a versão
      é gerada na montagem, não editada à mão. -->
-<meta name="diario-versao" content="ve271cdffbc">
+<meta name="diario-versao" content="vd3079ab226">
 <script>
 /* ── ARRANQUE: abre o IndexedDB AGORA, em paralelo com o parse do documento ──
    A fachada de armazenamento vive no fim do <body>, depois de ~1,7 MB de HTML.
@@ -30795,6 +30795,13 @@ const AutoTeste = {
       const pendentes = SectionSync.pendingSections(PID);
       this._ok('conteúdo diferente do último envio é detectado como pendente',
         pendentes.indexOf('p:pl:entries') !== -1, pendentes);
+      /* A mesma divergência NÃO é uma pendência explícita. Esta distinção é a
+         barreira contra cache regressado após atualização: sem __secpend/_dirty,
+         o app não pode concluir automaticamente que "o local foi editado" e
+         publicar o conteúdo velho por cima da nuvem. */
+      const explicitas = SectionSync.explicitPendingSections(PID);
+      this._ok('divergência só por hash não vira upload explícito após atualização',
+        explicitas.indexOf('p:pl:entries') === -1, explicitas);
 
       // 5. e o inverso: conteúdo idêntico ao último envio NÃO vira pendência
       localStorage.setItem(pfx + '__secrev', JSON.stringify({
@@ -40973,18 +40980,36 @@ const CloudStore = {
   async syncOnFocus() {
     if (!this.isReady() || !this.isLoggedIn()) return;
     try { if (!sessionStorage.getItem('diario-estudos:entered')) return; } catch (e) { return; }
-    if (this._pending || this._debounce) { await this.flushPending(); return; }
     const id = ProfileManager.getActiveProfileId(); if (!id) return;
-    // Pendência que sobreviveu a um recarregamento (caixa de saída gravada):
-    // ENVIA antes de qualquer coisa; baixar primeiro sobrescreveria o que falta subir.
+
+    /* PUSH → CONFIRMA → PULL, numa única rodada.
+       Antes havia dois `return` logo depois do envio. O efeito era sutil: ao
+       voltar ao app com UMA alteração local pendente, a rodada só enviava.
+       Mesmo que a nuvem também tivesse dados mais novos, eles só seriam vistos
+       em outro foco/visibilitychange — ou nunca, se a aba já ficasse aberta.
+       É exatamente o tipo de atraso de "um ou dois dias" que parece demora da
+       nuvem. */
     try {
-      if (window.SectionSync && SectionSync.pendingQuick() > 0) {
+      let haviaPendencia = !!(this._pending || this._debounce);
+      try { if (window.SectionSync && SectionSync.pendingQuick() > 0) haviaPendencia = true; } catch (e) { _quiet(e, 'syncOnFocus-pendencia'); }
+      if (haviaPendencia) {
         this._pending = true;
         await this.flushPending();
-        return;
+
+        /* Só continua para o download se a entrega realmente terminou. Se a
+           rede falhou, mantemos a cópia local como autoridade e tentamos de
+           novo no próximo pulso — nunca baixamos por cima de algo pendente. */
+        let resta = !!(this._pending || this._debounce || this._syncing);
+        try {
+          if (window.SectionSync) {
+            resta = resta || (SectionSync.explicitPendingSections
+              ? SectionSync.explicitPendingSections(id).length > 0
+              : SectionSync.pendingQuick() > 0);
+          }
+        } catch (e) { _quiet(e, 'syncOnFocus-resta'); }
+        if (resta) return;
       }
-    } catch (e) { _quiet(e, 'syncOnFocus-pendencia'); }
-    try {
+
       // FASE 2: a novidade é detectada pelas revisões DAS SEÇÕES. Vantagem sobre a
       // rev do blob: só baixa quando o conteúdo em si mudou, e sabemos o que mudou.
       let novidade;
@@ -41445,6 +41470,23 @@ const SectionSync = {
     } catch (_) { _quiet(_); }
     return [...out];
   },
+  /* Pendência EXPLÍCITA = alteração que passou pelo canal normal de escrita e
+     ficou registrada na caixa de saída. Diferente de pendingSections(), este
+     método NÃO infere "mudou localmente" só porque o hash do conteúdo divergiu
+     da última revisão anotada.
+
+     Essa distinção é crítica logo depois de uma ATUALIZAÇÃO DO APP: o IndexedDB
+     pode ter restaurado um valor antigo enquanto __secrev já contém a revisão
+     mais nova. Tratar essa divergência de cache como edição do usuário faria o
+     aparelho subir o valor velho por cima da cópia correta da nuvem. */
+  explicitPendingSections(id) {
+    const ativo = (window.ProfileManager ? ProfileManager.getActiveProfileId() : null);
+    const mesmo = !id || id === ativo;
+    const out = new Set();
+    if (mesmo) this._dirty.forEach(s => out.add(s));
+    this._loadPend(id).forEach(s => out.add(s));
+    return [...out];
+  },
   hasLocalPending(id) { return this.pendingSections(id).length > 0; },
   /* Contagem BARATA, sem varrer nem re-hashear o conteúdo: é a que alimenta o
      indicador na tela, chamado a cada foco e a cada 30 s. A checagem completa
@@ -41458,15 +41500,23 @@ const SectionSync = {
   /* Tenta ENTREGAR o que está pendente antes de qualquer download sobrescrever o
      local. Devolve o que CONTINUA pendente depois da tentativa — quem chamou usa
      essa lista para preservar essas seções em vez de apagá-las. */
-  async flushBeforeRead(id) {
-    const pend = this.pendingSections(id);
+  async flushBeforeRead(id, opts) {
+    opts = opts || {};
+    /* No fluxo normal, a comparação por hash é uma segunda rede de segurança:
+       se a lista __secpend se perder, uma edição local ainda é reencontrada.
+       Já na PRIMEIRA RECONCILIAÇÃO DE UMA NOVA VERSÃO usamos explicitOnly:
+       divergência de hash sem fila explícita pode ser cache local regressado,
+       não uma edição. Nesse caso a cópia local é fotografada antes da aplicação
+       e a nuvem confirmada vence, em vez de o cache velho ser publicado. */
+    const listar = () => opts.explicitOnly ? this.explicitPendingSections(id) : this.pendingSections(id);
+    const pend = listar();
     if (!pend.length) return [];
     const ativo = (window.ProfileManager ? ProfileManager.getActiveProfileId() : null);
     if (id && id !== ativo) return pend;   // outro perfil: não há como enviar daqui agora
     pend.forEach(s => this._dirty.add(s));
     this._savePend();
     try { await this.pushDirty(); } catch (e) { console.warn('[SectionSync] envio antes da leitura falhou', e); }
-    const resta = this.pendingSections(id);
+    const resta = listar();
     if (resta.length) console.warn('[SectionSync] preservando ' + resta.length + ' seção(ões) não enviada(s):', resta.join(', '));
     return resta;
   },
@@ -41902,7 +41952,7 @@ const SectionSync = {
          conseguir subir volta como `preservar` e sai ileso do download — é o que
          garante que uma alteração feita offline (ou com a sessão em outro
          aparelho) não seja apagada pela cópia mais velha da nuvem. */
-      const preservar = await this.flushBeforeRead(id);
+      const preservar = await this.flushBeforeRead(id, { explicitOnly: !!opts.explicitOnly });
       const rows = await this.fetchAllSections(id);
       const prep = this._prepare(rows);
       if (!prep.ok) { res.motivo = prep.motivo; return this._saveLast(res); }
@@ -41922,6 +41972,18 @@ const SectionSync = {
       return res;
     }
   },
+  /* Barreira de consistência após trocar a versão do aplicativo.
+     Faz UMA hidratação completa usando somente a fila explícita como autoridade
+     local. Isso corrige o caso em que o cache/IndexedDB volta com conteúdo de
+     ontem mas a contabilidade __secrev já diz que a revisão de hoje foi vista.
+
+     A hidratação já fotografa BackupHistory antes de aplicar qualquer coisa e
+     _applyMap preserva seções locais que nunca existiram na nuvem. Portanto a
+     barreira corrige cache regressado sem transformar ausência remota em perda. */
+  async hydrateAfterAppUpdate(id) {
+    return this.hydrate(id, { force: true, explicitOnly: true });
+  },
+
   // Checagem barata "tem novidade na nuvem?" — compara as revisões remotas com as
   // que este aparelho já conhece. Substitui a comparação de rev do blob.
   /* ── A CONTABILIDADE DE REVISÕES NÃO PROVA QUE O DADO ESTÁ AQUI ───────────
@@ -46622,18 +46684,87 @@ else CloudStore.init();
 
   /* ── ABERTURA LOCAL-FIRST ──────────────────────────────────────────────── */
   const RECON_KEY = 'diario-estudos:uxv4-reconcile';
+  const BUILD_RECON_PREFIX = 'diario-estudos:uxv4-build-ok:';
+  function currentBuild() {
+    try {
+      const m = document.querySelector('meta[name="diario-versao"]');
+      return (m && m.content && m.content !== 'dev') ? m.content : null;
+    } catch (_) { return null; }
+  }
+  function buildReconcileKey(id) { return BUILD_RECON_PREFIX + String(id || ''); }
+
   async function reconcileProfile(id) {
     if (!id || !window.CloudStore || !CloudStore.isReady || !CloudStore.isReady() || !CloudStore.isLoggedIn || !CloudStore.isLoggedIn()) return false;
     if (window.ProfileManager && ProfileManager.getActiveProfileId && ProfileManager.getActiveProfileId() !== id) return false;
     StartupTrace.mark('reconciliacao-inicio');
     syncNote('Conferindo novidades da nuvem em segundo plano…');
     try {
-      // Primeiro entrega o que este aparelho ainda não enviou. Só depois pergunta
-      // se a nuvem tem algo mais novo — evita download apagar uma edição local.
+      /* 1) ENTREGA PRIMEIRO o que está explicitamente na fila. A reconciliação
+         nunca pode baixar por cima de uma edição cuja entrega ainda está
+         comprovadamente pendente. */
       let pend = 0;
       try { if (window.SectionSync) pend = SectionSync.pendingQuick(); } catch (e) { quiet(e, 'reconcile-pend'); }
       if (pend && CloudStore.flushPending) await CloudStore.flushPending();
 
+      /* Se ainda existe fila EXPLÍCITA depois da tentativa, a rede não confirmou
+         o envio. Adiamos a leitura; tentar "resolver" isso com download seria
+         transformar uma falha de rede em conflito de dados. */
+      let pendRestante = 0;
+      try {
+        if (window.SectionSync) {
+          pendRestante = SectionSync.explicitPendingSections
+            ? SectionSync.explicitPendingSections(id).length
+            : SectionSync.pendingQuick();
+        }
+      } catch (e) { quiet(e, 'reconcile-pend-restante'); }
+      if (pendRestante) {
+        StartupTrace.mark('reconciliacao-adiada-pendencia', { pendencias: pendRestante });
+        try { if (window.SectionSync) SectionSync.kick(); } catch (e) { quiet(e, 'reconcile-kick-pendente'); }
+        return false;
+      }
+
+      /* 2) BARREIRA POR VERSÃO.
+         O bug residual estava aqui: depois de uma atualização o conteúdo local
+         podia voltar um ou dois dias enquanto __secrev continuava parecendo
+         atual. Uma consulta só por revisão respondia "nada novo".
+
+         Na PRIMEIRA abertura de cada build fazemos uma hidratação completa. Ela
+         usa explicitOnly: só a caixa de saída comprovada pode ser enviada antes
+         da leitura. Uma mera divergência de hash sem fila não vira upload, pois
+         pode ser precisamente um cache local regressado. A cópia local é
+         fotografada pelo BackupHistory antes de qualquer aplicação. */
+      const build = currentBuild();
+      const precisaBarreira = !!(
+        build &&
+        window.SectionSync &&
+        SectionSync.readEnabled &&
+        SectionSync.hydrateAfterAppUpdate &&
+        localStorage.getItem(buildReconcileKey(id)) !== build
+      );
+      if (precisaBarreira) {
+        syncNote('Nova versão instalada. Validando seus dados com a nuvem…', true);
+        const r = await SectionSync.hydrateAfterAppUpdate(id);
+        if (!r || !r.ok) {
+          StartupTrace.mark('reconciliacao-build-adiada', { motivo: (r && r.motivo) || 'falha' });
+          return false;
+        }
+        /* Marca ANTES da eventual recarga. recarregarApp() chama __idbFlush,
+           então este carimbo entra na mesma confirmação de disco e a nova
+           versão não repete o download completo em loop. */
+        try { localStorage.setItem(buildReconcileKey(id), build); } catch (e) { quiet(e, 'reconcile-build-key'); }
+        StartupTrace.mark('reconciliacao-build-ok', { build, mudou: r.mudou || 0, secoes: r.seções || 0 });
+        if (r.mudou) {
+          syncNote('Dados mais recentes encontrados. Atualizando a tela…', true);
+          if (typeof recarregarApp === 'function') recarregarApp('reconciliação obrigatória após atualização');
+          else location.reload();
+        } else {
+          StartupTrace.mark('reconciliacao-sem-novidade');
+        }
+        return true;
+      }
+
+      /* 3) Nas aberturas normais permanece a checagem barata por revisão.
+         A barreira pesada é uma vez por build, não em todo foco da janela. */
       let novidade = false;
       if (window.SectionSync && SectionSync.readEnabled) novidade = await SectionSync.hasRemoteUpdates(id);
       else if (CloudStore._fetchRev) {
@@ -46769,7 +46900,7 @@ else CloudStore.init();
 
 
   // Exposto para auditoria automatizada e diagnóstico no console.
-  window.UX = { StartupTrace, LoaderUX, reconcileProfile, installLocalFirst };
+  window.UX = { StartupTrace, LoaderUX, reconcileProfile, installLocalFirst, currentBuild, buildReconcileKey };
 })();
 
 /* ============================================================================
