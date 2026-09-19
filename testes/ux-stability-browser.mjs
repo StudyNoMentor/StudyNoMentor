@@ -137,7 +137,7 @@ try{
   eq(autoCloud.scrim,0,'scrim automático também deve ser removido');
 
   /* ── O CARTAO DE REFORCOS EM CURSO ──────────────────────────────────────
-     O cabecalho pedia `minmax(190px,.75fr) minmax(360px,1.35fr) auto` — piso de
+     O cabeçalho de Reforços em curso precisa continuar estável mesmo com a receita do Motor — piso de
      ~610px com os vaos. Num telefone de 390px ele transbordava e o titulo saia
      pela esquerda, atras das caixas de missao. Havia correcao numa folha
      posterior, mas presa a uma classe que o JS aplica dois quadros depois: no
@@ -151,10 +151,12 @@ try{
     DB.saveSubjects([{id:'uxc1',nome:'Economia e Finanças Públicas',ativo:true,peso:1}]);
     const e=DB.addExtra({titulo:'Reforçar: Curvas de Phillips',tipo:'questoes',disciplina:'Economia e Finanças Públicas',
       unidade:'questoes',alvo:10,periodo:'unica',contaMetricas:false});
-    DB.updateExtra(e.id,{origemPlano:{topico:'Curvas de Phillips',disciplina:'Economia e Finanças Públicas',motivo:'reforco',
-      criadoEm:todayLocal(),taxaInicial:44,qBase:16,qBaseNo:16,escopo:{tipo:'no',membros:['Curvas de Phillips']},
-      metaAlvo:90,custoEstimado:10,tetoAlvo:90,
-      sugestao:{versao:5,motor:'plano-robusto',fase:'pre',score:93,quantidadeRecomendada:10,criadoEm:todayLocal()}}});
+    DB.updateExtra(e.id,{origemMotor:{motor:'sugestao',versao:3,topico:'Curvas de Phillips',
+      disciplina:'Economia e Finanças Públicas',criadoEm:todayLocal(),taxaInicial:44,qBase:16,
+      metaAlvo:90,alvoQuestoes:10,nivel:1,caminho:[],membros:null,
+      escopo:{tipo:'no',membros:['Curvas de Phillips']},fase:'pre',minAmostra:20,
+      filtroTec:{versao:1,disciplina:'Economia e Finanças Públicas',nivel:1,tipo:'no',agregado:false,
+        caminho:[],selecoes:['Curvas de Phillips'],trilha:['Economia e Finanças Públicas','Curvas de Phillips'],quantidade:10}}});
     switchScreen('extras');ExtrasScreen.render();
     try{UXStability.decorateCourse();}catch(_){}
     const card=document.getElementById('extras-curso');
