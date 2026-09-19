@@ -323,7 +323,8 @@ const ExtrasScreen = {
      mais uma não espreme as anteriores até virar atividade simbólica. */
   puxarDoPlano() {
     if (typeof MotorSugestao === 'undefined' || typeof DesempenhoTecScreen === 'undefined') { showToast('Motor indisponível'); return; }
-    this._planoDiscSel = this._planoDiscSel || new Set(); // vazio = todas
+    const motorPrefsIni = MotorSugestao.prefs();
+    this._planoDiscSel = new Set(Array.isArray(motorPrefsIni.disciplinasSel) ? motorPrefsIni.disciplinasSel : []); // vazio = todas
     this._planoDiscOpen = false;
     this._planoSel = new Set();
     this._planoRecalc = () => {
@@ -341,7 +342,8 @@ const ExtrasScreen = {
       this._planoPrefs = r.prefs;
       this._planoFase = r.fase;
       this._planoDiscOrder = (r.disciplinas || []).map(d => d.nome);
-      this._planoCand = (r.todos || []).filter(x => !jaTem(x)).slice(0, 200);
+      this._planoDiscsDisponiveis = (r.disciplinasDisponiveis || []).slice();
+      this._planoCand = (r.todos || []).filter(x => !jaTem(x)).slice(0, 240);
       this._planoFila = (r.itens || []).map(x => x.disciplina + '\u0001' + x.nome);
       this._planoErr = null;
     };
@@ -357,13 +359,11 @@ const ExtrasScreen = {
     if (!this._planoCand.length) { showToast('Todas as frentes prioritárias já têm atividade'); return; }
     /* Nascem marcadas exatamente as frentes que o Motor colocaria na rodada de
        hoje — a tela de Extras não pode discordar da aba do Motor. */
-    const naFila = new Set(this._planoFila || []);
-    this._planoCand.forEach((x, i) => { if (naFila.has(x.disciplina + '\u0001' + x.nome)) this._planoSel.add(i); });
-    if (!this._planoSel.size) this._planoSel.add(0);
+    this._planoSelecionarRecomendadas();
 
     // HTML fixo do diálogo (a lista e o dropdown de disciplinas são preenchidos por JS)
     const body = `
-      <p class="hint" style="margin:0 0 10px;">A fila é a do 🧭 Motor de sugestão, na fase ${this._planoFase === 'pos' ? '<b>pós-edital</b> (fraqueza ponderada pela incidência)' : '<b>pré-edital</b> (pior recorte mensurável primeiro)'}. A rodada abre <b>${this._planoPrefs.maxFrentes} disciplina(s), uma frente em cada</b>. Cada atividade recebe uma dose própria, com piso de <b>${this._planoPrefs.doseMin} questões</b>; marcar outra frente não reduz as anteriores.</p>
+      <p class="hint" style="margin:0 0 10px;">Este diálogo usa exatamente o mesmo 🧭 Motor e o mesmo filtro de disciplinas da tela TEC. Primeiro ele escolhe até <b>${this._planoPrefs.maxFrentes} matéria(s)</b> pela lacuna geral comprovada${this._planoFase === 'pos' ? ' × incidência da banca' : ''}; depois pega <b>uma frente de cada</b>, seguindo a fila hierárquica da matéria. As recomendadas ficam juntas no topo; alternativas ficam agrupadas logo abaixo.</p>
       <div class="pl-modal-tools">
         <div class="pl-modal-field" style="position:relative;">
           <span>Disciplinas</span>
@@ -373,14 +373,14 @@ const ExtrasScreen = {
       </div>
       <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:0 0 8px;">
         <span class="hint" id="pl-conta" style="margin:0;flex:1;min-width:0;"></span>
-        <button type="button" class="btn-secondary" id="pl-marcar" style="white-space:nowrap;padding:5px 10px;">Marcar visíveis</button>
+        <button type="button" class="btn-secondary" id="pl-marcar" style="white-space:nowrap;padding:5px 10px;">Usar recomendadas</button>
         <button type="button" class="btn-secondary" id="pl-limpar" style="white-space:nowrap;padding:5px 10px;">Limpar</button>
       </div>
       <div style="max-height:42vh;overflow:auto;" id="pl-lista"></div>`;
 
     new Promise((resolve) => {
       UI._resolve = resolve; UI._mode = 'confirm';
-      UI._open('🧭 Puxar do Motor', 'As frentes que o motor escolheu, cada uma com uma dose útil de reforço', body, { okText: 'Criar atividades' });
+      UI._open('🧭 Puxar do Motor', 'Rodada recomendada primeiro; alternativas separadas por matéria', body, { okText: 'Criar atividades' });
     }).then((ok) => {
       if (!ok) return;
       const criar = () => {
@@ -416,6 +416,14 @@ const ExtrasScreen = {
      frente. Marcar um segundo tópico da mesma disciplina TROCA o que já estava
      marcado nela — é o gesto que a pessoa quis fazer. O que não passa é abrir
      uma quarta disciplina: aí a escolha é dela, e a tela diz o que fazer. */
+  _planoSelecionarRecomendadas() {
+    this._planoSel = new Set();
+    const naFila = new Set(this._planoFila || []);
+    (this._planoCand || []).forEach((x, i) => {
+      if (naFila.has(x.disciplina + '\u0001' + x.nome)) this._planoSel.add(i);
+    });
+    if (!this._planoSel.size && (this._planoCand || []).length) this._planoSel.add(0);
+  },
   _planoMarcar(i, silencioso) {
     const cand = this._planoCand || [];
     const x = cand[i];
@@ -456,86 +464,118 @@ const ExtrasScreen = {
   _planoRenderLista() {
     const host = document.getElementById('pl-lista');
     if (!host) return;
-    const sel = this._planoDiscSel;
     const cand = this._planoCand || [];
     const doses = this._planoDoses();
     const pos = this._planoFase === 'pos';
-    const visiveis = cand
-      .map((x, i) => ({ x, i }))
-      .filter(({ x }) => sel.size === 0 || sel.has(x.disciplina || ''));
-    host.innerHTML = visiveis.length ? visiveis.map(({ x, i }) => `
-      <label class="sug-row pl-linha" style="align-items:flex-start;">
-        <input type="checkbox" class="pl-pick" data-i="${i}" ${this._planoSel.has(i) ? 'checked' : ''}>
-        <div style="min-width:0;">
-          <div style="font-weight:700;">${escapeHtml(x.nome)}${x.agregado ? ` <span class="ms-selo">bloco${x.membros ? ' · ' + x.membros.length + ' ramos' : ''}${x.residuo > 0 ? ' · resto não detalhado' : ''}</span>` : ''}</div>
-          <div class="hint" style="margin:2px 0 0;">
-            ${x.disciplina ? escapeHtml(x.disciplina) + ' · ' : ''}
-            ${Math.round(x.taxaErro)}% de erro em ${x.questoes} questões
-            ${x.margem != null ? ' · margem ±' + (Math.round(x.margem * 10) / 10) + 'pp' : ''}
-            ${pos ? ' · 🎯 incidência ' + x.peso : ''}
-            ${doses[i] ? ' · <strong>' + doses[i] + ' questões nesta rodada</strong>' : ''}
-          </div>
-        </div>
-      </label>`).join('') : `<p class="hint" style="padding:16px 4px;">Nenhuma frente nas disciplinas selecionadas.</p>`;
+    const recomendadas = new Set(this._planoFila || []);
+    const porDisc = new Map();
+    cand.forEach((x, i) => {
+      const d = x.disciplina || '—';
+      if (!porDisc.has(d)) porDisc.set(d, []);
+      porDisc.get(d).push({ x, i });
+    });
+    const linha = ({ x, i }, destaque, ordem) => {
+      const dose = doses[i];
+      return '<label class="sug-row pl-linha ' + (destaque ? 'is-recommended' : '') + '" style="align-items:flex-start;">'
+        + '<input type="checkbox" class="pl-pick" data-i="' + i + '" ' + (this._planoSel.has(i) ? 'checked' : '') + '>'
+        + '<div style="min-width:0;">'
+        + (destaque ? '<div class="pl-rec-eyebrow">Recomendação ' + ordem + ' · ' + escapeHtml(x.disciplina || '') + '</div>' : '')
+        + '<div style="font-weight:700;">' + escapeHtml(x.nome)
+        + (x.agregado ? ' <span class="ms-selo">bloco' + (x.membros ? ' · ' + x.membros.length + ' ramos' : '') + '</span>' : '') + '</div>'
+        + '<div class="hint" style="margin:2px 0 0;">'
+        + (!destaque && x.disciplina ? escapeHtml(x.disciplina) + ' · ' : '')
+        + Math.round(x.taxaErro) + '% de erro em ' + x.questoes + ' questões'
+        + (x.gapConfiavel != null ? ' · lacuna segura ' + (Math.round(x.gapConfiavel * 10) / 10) + 'pp' : '')
+        + (x.margem != null ? ' · margem ±' + (Math.round(x.margem * 10) / 10) + 'pp' : '')
+        + (pos && x.peso ? ' · incidência do tópico ' + x.peso : '')
+        + (dose ? ' · <strong>' + dose + ' questões</strong>' : '')
+        + '</div></div></label>';
+    };
+
+    const top = [];
+    let ordem = 0;
+    cand.forEach((x, i) => {
+      const k = x.disciplina + '\u0001' + x.nome;
+      if (!recomendadas.has(k)) return;
+      top.push(linha({ x, i }, true, ++ordem));
+    });
+    const grupos = [];
+    (this._planoDiscOrder || [...porDisc.keys()]).forEach(d => {
+      const itens = porDisc.get(d) || [];
+      if (!itens.length) return;
+      const alternativas = itens.filter(({ x }) => !recomendadas.has(x.disciplina + '\u0001' + x.nome));
+      grupos.push('<details class="pl-alt-group"><summary><span>' + escapeHtml(d) + '</span><small>'
+        + itens.length + ' frente(s) na fila · pior → melhor</small><i>⌄</i></summary>'
+        + '<div class="pl-alt-list">' + (alternativas.length
+          ? alternativas.map(o => linha(o, false, 0)).join('')
+          : '<p class="hint" style="padding:8px;">A recomendação acima já é a única frente acionável desta matéria.</p>')
+        + '</div></details>');
+    });
+
+    host.innerHTML = (top.length
+      ? '<section class="pl-rec-block"><div class="pl-rec-title"><b>🎯 Rodada recomendada agora</b><small>Uma frente por matéria, juntas e na ordem real do Motor.</small></div>' + top.join('') + '</section>'
+      : '<p class="hint" style="padding:12px 4px;">Nenhuma recomendação automática neste recorte.</p>')
+      + '<section class="pl-alt-block"><div class="pl-rec-title"><b>🧬 Alternativas por matéria</b><small>Trocar uma frente mantém a mesma matéria; abrir outra respeita o teto da rodada.</small></div>'
+      + grupos.join('') + '</section>';
+
     host.querySelectorAll('.pl-pick').forEach(cb => cb.addEventListener('change', () => {
       const i = parseInt(cb.dataset.i, 10);
       if (!cb.checked) { this._planoSel.delete(i); this._planoRenderLista(); return; }
       if (this._planoMarcar(i)) this._planoRenderLista();
-      else { cb.checked = false; }
+      else cb.checked = false;
     }));
     this._planoUpdConta();
   },
   _planoUpdConta() {
     const conta = document.getElementById('pl-conta');
     if (!conta) return;
-    const sel = this._planoDiscSel;
     const cand = this._planoCand || [];
-    const vis = cand.filter(x => sel.size === 0 || sel.has(x.disciplina || '')).length;
+    const vis = cand.length;
+    const nDisc = new Set(cand.map(x => x.disciplina || '')).size;
     const marcados = this._planoSel ? this._planoSel.size : 0;
     const p = this._planoPrefs || MotorSugestao.prefs();
-    conta.innerHTML = (sel.size === 0 ? `${vis} frente(s)` : `${vis} frente(s) em ${sel.size} disciplina(s)`)
+    conta.innerHTML = `${vis} frente(s) em ${nDisc} matéria(s)`
       + ` · <strong>${marcados} marcada(s)</strong>`
-      + (marcados ? ` · cada atividade com pelo menos ${p.doseMin} questões` : '');
+      + (marcados ? ` · piso ${p.doseMin} questões por atividade` : '');
   },
   // Monta o dropdown de disciplinas (com contagem de pontos fracos) e liga tudo.
   _planoBind() {
-    const cand = this._planoCand || [];
-    // disciplinas com contagem
-    const cont = {};
-    cand.forEach(x => { const d = x.disciplina || '—'; cont[d] = (cont[d] || 0) + 1; });
-    const rank = new Map((this._planoDiscOrder || []).map((d, i) => [String(d).trim().toLowerCase(), i]));
-    const discs = Object.keys(cont).sort((a, b) => {
-      const ra = rank.has(a.trim().toLowerCase()) ? rank.get(a.trim().toLowerCase()) : 9999;
-      const rb = rank.has(b.trim().toLowerCase()) ? rank.get(b.trim().toLowerCase()) : 9999;
-      return ra - rb || a.localeCompare(b, 'pt-BR');
-    });
+    const discs = (this._planoDiscsDisponiveis || []).slice().sort((a, b) => a.localeCompare(b, 'pt-BR'));
     const panel = document.getElementById('pl-disc-panel');
     const toggle = document.getElementById('pl-disc-toggle');
     const setToggleLabel = () => {
       const n = this._planoDiscSel.size;
       if (toggle) toggle.firstChild.textContent = (n === 0 ? 'Todas ' : n + ' selecionada' + (n > 1 ? 's ' : ' '));
     };
+    const recalcular = () => {
+      MotorSugestao.salvar({ disciplinasSel: [...this._planoDiscSel] });
+      this._planoRecalc();
+      if (this._planoErr) { showToast('Sem dados suficientes neste recorte'); return; }
+      this._planoSelecionarRecomendadas();
+      this._planoRenderLista();
+    };
     if (panel) {
-      panel.innerHTML = `
-        <div class="pl-disc-actions is-first">
-          <button type="button" data-act="all" class="${this._planoDiscSel.size ? '' : 'active'}">✓ Todas as disciplinas</button>
-        </div>` + discs.map(d => `
-        <label class="pl-disc-check">
-          <input type="checkbox" data-disc="${escapeHtml(d)}" ${this._planoDiscSel.has(d) ? 'checked' : ''}>
-          <span class="pl-disc-name">${escapeHtml(d)}</span>
-          <span class="pl-disc-count">${cont[d]}</span>
-        </label>`).join('');
+      panel.innerHTML = '<div class="pl-disc-actions is-first"><button type="button" data-act="all" class="'
+        + (this._planoDiscSel.size ? '' : 'active') + '">✓ Todas as disciplinas</button></div>'
+        + '<label class="pl-disc-search"><span>⌕</span><input type="search" placeholder="Buscar disciplina" autocomplete="off"></label>'
+        + discs.map(d => '<label class="pl-disc-check" data-s="' + escapeHtml(ReforcoEngine.norm(d)) + '">'
+          + '<input type="checkbox" data-disc="' + escapeHtml(d) + '" ' + (this._planoDiscSel.has(d) ? 'checked' : '') + '>'
+          + '<span class="pl-disc-name">' + escapeHtml(d) + '</span></label>').join('');
+      const busca = panel.querySelector('input[type="search"]');
+      if (busca) busca.oninput = () => {
+        const q = ReforcoEngine.norm(busca.value);
+        panel.querySelectorAll('.pl-disc-check').forEach(el => { el.style.display = !q || (el.dataset.s || '').includes(q) ? '' : 'none'; });
+      };
       panel.querySelectorAll('input[data-disc]').forEach(chk => chk.addEventListener('change', () => {
         const d = chk.dataset.disc;
         if (chk.checked) this._planoDiscSel.add(d); else this._planoDiscSel.delete(d);
-        setToggleLabel();
-        this._planoRenderLista();
+        setToggleLabel(); recalcular();
       }));
       const allBtn = panel.querySelector('[data-act="all"]');
       if (allBtn) allBtn.addEventListener('click', () => {
         this._planoDiscSel.clear();
-        panel.querySelectorAll('input[data-disc]').forEach(c => c.checked = false);
-        setToggleLabel(); this._planoRenderLista();
+        panel.querySelectorAll('input[data-disc]').forEach(x => x.checked = false);
+        setToggleLabel(); recalcular();
       });
     }
     if (toggle) toggle.addEventListener('click', () => {
@@ -544,15 +584,8 @@ const ExtrasScreen = {
       toggle.classList.toggle('open', this._planoDiscOpen);
     });
     setToggleLabel();
-    // marcar visíveis / limpar
     const marcar = document.getElementById('pl-marcar');
-    if (marcar) marcar.addEventListener('click', () => {
-      const sel = this._planoDiscSel;
-      /* "Marcar visíveis" preenche até o teto da rodada e para, em silêncio:
-         avisar a cada linha recusada seria uma fila de avisos para um clique. */
-      (this._planoCand || []).forEach((x, i) => { if (sel.size === 0 || sel.has(x.disciplina || '')) this._planoMarcar(i, true); });
-      this._planoRenderLista();
-    });
+    if (marcar) marcar.addEventListener('click', () => { this._planoSelecionarRecomendadas(); this._planoRenderLista(); });
     const limpar = document.getElementById('pl-limpar');
     if (limpar) limpar.addEventListener('click', () => { this._planoSel.clear(); this._planoRenderLista(); });
     this._planoRenderLista();
