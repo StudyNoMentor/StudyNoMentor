@@ -534,6 +534,42 @@ try {
   eq(realtimeProfileSwitch.second,'perfil-b','troca de perfil deve religar realtime no perfil B');
   ok(realtimeProfileSwitch.removed.some(x=>String(x).includes('perfil-a')),'canal do perfil anterior deve ser removido');
 
+  /* 2r. Evento realtime recebido durante upload não pode desaparecer. */
+  const realtimeDuringUpload=await page.evaluate(async()=>{
+    const id='syncv2-rt-busy';
+    const keep={
+      active:ProfileManager.getActiveProfileId,syncing:CloudStore._syncing,pending:CloudStore._pending,
+      debounce:CloudStore._debounce,applying:CloudStore._applying,remotePending:CloudStore._secRemotePending,
+      remote:SectionSync.hasRemoteUpdates,pull:SectionSync.pullAndReload,pushing:SectionSync._pushing
+    };
+    ProfileManager.getActiveProfileId=()=>id;
+    SectionSync._dirtyFor(id).clear();
+    SectionSync._pushing=false;
+    CloudStore._pending=false;CloudStore._debounce=null;CloudStore._applying=false;
+    CloudStore._secRemotePending=true;CloudStore._syncing=true;
+    let remoteCalls=0,pullCalls=0,readOnly=false;
+    SectionSync.hasRemoteUpdates=async()=>{remoteCalls++;return true;};
+    SectionSync.pullAndReload=async(opts)=>{pullCalls++;readOnly=!!(opts&&opts.readOnly);return true;};
+
+    await CloudStore._onSectionRealtime(id);
+    const ficouPendente=CloudStore._secRemotePending;
+
+    CloudStore._syncing=false;
+    await CloudStore._onSectionRealtime(id);
+    const drenou=!CloudStore._secRemotePending;
+
+    ProfileManager.getActiveProfileId=keep.active;CloudStore._syncing=keep.syncing;CloudStore._pending=keep.pending;
+    CloudStore._debounce=keep.debounce;CloudStore._applying=keep.applying;CloudStore._secRemotePending=keep.remotePending;
+    SectionSync.hasRemoteUpdates=keep.remote;SectionSync.pullAndReload=keep.pull;SectionSync._pushing=keep.pushing;
+    SectionSync._dirtyFor(id).clear();
+    return {ficouPendente,drenou,remoteCalls,pullCalls,readOnly};
+  });
+  ok(realtimeDuringUpload.ficouPendente,'evento remoto durante upload deve permanecer pendente');
+  ok(realtimeDuringUpload.drenou,'hint remoto deve ser drenado quando o upload termina');
+  eq(realtimeDuringUpload.remoteCalls,1,'hint drenado deve conferir a revisão remota uma vez');
+  eq(realtimeDuringUpload.pullCalls,1,'novidade remota deve ser aplicada após estabilizar');
+  ok(realtimeDuringUpload.readOnly,'realtime nunca pode iniciar upload implícito');
+
   /* 2r. O espelho nativo não pode continuar guardando bookkeeping/perfil.
      A escrita pela fachada deve remover uma cópia legada pequena do nativeLS. */
   const nativeMirrorIsolation=await page.evaluate(async()=>{
