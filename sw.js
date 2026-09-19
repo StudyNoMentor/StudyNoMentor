@@ -36,7 +36,7 @@
 /* O carimbo é gravado pelo build.mjs a partir de um resumo do conteúdo de src/.
    Ele muda a cada publicação real — é isso que dá um BALDE NOVO a cada versão e
    faz a faxina da ativação ter o que descartar. Não edite à mão. */
-const VERSAO = 'v4081e5ce72';
+const VERSAO = 'vb2ee7a6a2b';
 
 /* Dois baldes com ciclos de vida diferentes, e a diferença é proposital:
 

@@ -57,7 +57,7 @@
      novo, e o antigo é descartado sozinho na ativação) e o que permite ao app
      dizer qual versão está rodando. Em src/ fica "dev" de propósito: a versão
      é gerada na montagem, não editada à mão. -->
-<meta name="diario-versao" content="v4081e5ce72">
+<meta name="diario-versao" content="vb2ee7a6a2b">
 <script>
 /* Persistência de estudo NÃO usa mais IndexedDB/localStorage.
    O Supabase relacional é a fonte de verdade; a compatibilidade síncrona das
@@ -42022,6 +42022,76 @@ const RelationalStore = {
     return this._persistPlanState(profileId,planId,sub,newRaw);
   },
 
+
+  /* Aplica um backup JSON ao modelo relacional. O arquivo continua no formato
+     histórico do app, mas a persistência final é linha-a-linha no PostgreSQL.
+     Em restore=true, a projeção atual do perfil é substituída; a operação é
+     segura porque CloudBackup cria uma foto anterior antes de chamar este fluxo. */
+  async replaceProfileFromPayload(profileId, dataObj, opts) {
+    opts = opts || {};
+    if (!this.isReady()) throw new Error('Banco indisponível');
+    if (!profileId) throw new Error('Perfil ausente');
+    const data = (dataObj && typeof dataObj === 'object') ? dataObj : {};
+    const pfx = this._pfx(profileId);
+
+    /* O backup pode ser antigo e não conter "planejamentos". Inferimos os ids
+       das chaves p:<id>:... para nunca perder conteúdo importável. */
+    let plans = [];
+    try { plans = JSON.parse(data.planejamentos || '[]') || []; } catch (_) { plans = []; }
+    const vistos = new Set(plans.map(p => String(p && p.id)).filter(Boolean));
+    Object.keys(data).forEach(k => {
+      const m = /^p:([^:]+):/.exec(k);
+      if (!m || vistos.has(m[1])) return;
+      vistos.add(m[1]);
+      plans.push({ id: m[1], nome: m[1], tipo: 'Importado', createdAt: new Date().toISOString() });
+    });
+    if (!plans.length) plans = [{ id:'pl_inicial', nome:'Planejamento inicial', tipo:'Importado', createdAt:new Date().toISOString() }];
+
+    /* Primeiro limpa SOMENTE a nova base relacional do perfil. O snapshot legado
+       e os backups ficam intocados. FK CASCADE remove entidades dependentes. */
+    const delPlans = await CloudStore.client.from('study_plans').delete().eq('profile_id', profileId);
+    if (delPlans.error) throw delPlans.error;
+    const delSettings = await CloudStore.client.from('study_profile_settings').delete().eq('profile_id', profileId);
+    if (delSettings.error) throw delSettings.error;
+
+    this._clearProfileMemory(profileId);
+    this._applying = true;
+    try {
+      localStorage.setItem(pfx+'planejamentos', JSON.stringify(plans));
+      const activeRaw = data['active-plan'];
+      const active = activeRaw == null
+        ? String(plans[0].id)
+        : String(this._parse(activeRaw, activeRaw)).replace(/^"|"$/g,'');
+      localStorage.setItem(pfx+'active-plan', active || String(plans[0].id));
+      Object.keys(data).forEach(sub => {
+        if (sub === 'planejamentos' || sub === 'active-plan') return;
+        if (sub.startsWith('u:') || this._ignoreSub(sub)) return;
+        localStorage.setItem(pfx+sub, String(data[sub]));
+      });
+    } finally { this._applying = false; }
+
+    /* Ordem deliberada: planos -> ponteiro ativo -> settings -> conteúdo de
+       cada plano. Assim as FKs sempre encontram o pai antes dos filhos. */
+    await this._persistPlans(profileId, null, JSON.stringify(plans));
+    await this._persistActivePlan(profileId, localStorage.getItem(pfx+'active-plan'));
+
+    const planKeys = [], profileKeys = [];
+    for (let i=0;i<localStorage.length;i++) {
+      const k=localStorage.key(i);
+      if (!k || !k.startsWith(pfx)) continue;
+      const rel=k.slice(pfx.length);
+      if (rel==='planejamentos'||rel==='active-plan'||this._ignoreSub(rel)) continue;
+      const m=/^p:([^:]+):(.+)$/.exec(rel);
+      if (m) planKeys.push({key:k,planId:m[1],sub:m[2]});
+      else profileKeys.push({key:k,sub:rel});
+    }
+    for (const x of profileKeys) await this._persistProfileSetting(profileId,x.sub,localStorage.getItem(x.key));
+    for (const x of planKeys) await this._persistPlanKey(profileId,x.planId,x.sub,null,localStorage.getItem(x.key));
+
+    await this.hydrateProfile(profileId,{reason:opts.reason||'backup-restore'});
+    return { ok:true, secoes:Object.keys(data).length, planos:plans.length };
+  },
+
   async catchUp(profileId, reason) {
     const id=profileId||(window.ProfileManager&&ProfileManager.getActiveProfileId&&ProfileManager.getActiveProfileId());
     if(!id||!this.isReady())return false;
@@ -45536,22 +45606,13 @@ const CloudBackup = {
     try { await BackupHistory.snapshot('antes de restaurar um backup da nuvem'); } catch (e) { _quiet(e, 'cbk-vh'); }
     try { await this.criar('antes de restaurar um backup da nuvem', { forcar: true }); } catch (e) { _quiet(e, 'cbk-pre'); }
     try {
-      CloudStore._applying = true;
-      ProfileManager.restorePayloadInto(id, foto.data);
-      CloudStore._applying = false;
+      if (!window.RelationalStore) throw new Error('Camada relacional indisponível');
+      const r = await RelationalStore.replaceProfileFromPayload(id, foto.data, { reason: 'cloud-backup-restore' });
+      return { ok: true, secoes: r.secoes || Object.keys(foto.data).length };
     } catch (e) {
-      CloudStore._applying = false;
-      console.error('[CloudBackup] restauração falhou', e);
+      console.error('[CloudBackup] restauração relacional falhou', e);
       return { ok: false, motivo: 'falha-ao-aplicar' };
     }
-    /* O que foi restaurado precisa SUBIR: sem isto o aparelho ficaria com o
-       estado bom e a nuvem com o ruim, e o próximo download desfaria tudo. */
-    try {
-      if (window.SectionSync) { SectionSync._seededProfile = null; SectionSync.markAllDirty(); }
-      CloudStore._pending = true;
-      CloudStore._forceBlob = true;
-    } catch (e) { _quiet(e, 'cbk-fila'); }
-    return { ok: true, secoes: Object.keys(foto.data).length };
   },
 
   /* ── RETENÇÃO EM FAIXAS (avô-pai-filho) ───────────────────────────────────
