@@ -387,12 +387,12 @@
 
     _lacuna(item, p) {
       const taxa = item && item.taxa != null ? num(item.taxa) : 100 - num(item && item.taxaErro);
-      const margem = Math.max(0, num(item && item.margem));
+      const margemConhecida = !!(item && item.margem != null && Number.isFinite(Number(item.margem)));
+      const margem = margemConhecida ? Math.max(0, num(item.margem)) : null;
       const gapMeta = Math.max(0, num(p.metaAcerto, this.DEFAULTS.metaAcerto) - taxa);
-      // "Lacuna confiável": o que ainda falta mesmo no extremo OTIMISTA da
-      // margem de erro. Assim amostra pequena não ganha prioridade só por ter
-      // produzido um percentual assustador.
-      const gapConfiavel = Math.max(0, gapMeta - margem);
+      // Sem intervalo não existe "lacuna segura". Tratar margem ausente como 0
+      // faria 0/1 parecer uma certeza de 90pp — exatamente o oposto da régua.
+      const gapConfiavel = margemConhecida ? Math.max(0, gapMeta - margem) : 0;
       const lacunaMeta = Math.max(0, Math.round(num(item && item.questoes) * gapMeta / 100));
       const deficitSeguro = Math.max(0, num(item && item.questoes) * gapConfiavel / 100);
       return { taxa, margem, gapMeta, gapConfiavel, lacunaMeta, deficitSeguro };
@@ -513,8 +513,12 @@
         const dl = this._lacuna({ taxa, margem: margemDisc, questoes: q }, p);
         const incidenciaDisc = p.fase === 'pos' ? this._incidenciaDisciplina(d.nome, incDisc) : null;
         const melhor = fila[0] || null;
-        const deficitSeguro = dl.deficitSeguro;
-        // correção sistêmica sempre vem antes de manutenção localizada
+        /* Uma matéria inteira só recebe o rótulo "correção sistêmica" quando a
+           própria RAIZ cabe na mesma régua estatística usada nos tópicos. Isso
+           impede um concurso antigo com 8–20 questões de furar a fila só porque
+           o percentual bruto foi baixo. */
+        const raizLegivel = margemDisc != null && margemDisc <= p.margemMax;
+        const deficitSeguro = raizLegivel ? dl.deficitSeguro : 0;
         const faixaPrioridade = deficitSeguro > 0 ? 0 : 1;
         const basePrioridade = deficitSeguro > 0 ? deficitSeguro : num(melhor && melhor.gapConfiavel);
         const prioridadeDisc = p.fase === 'pos' ? basePrioridade * num(incidenciaDisc) : basePrioridade;
@@ -523,7 +527,8 @@
           taxaErro: taxa == null ? null : 100 - taxa,
           margem: margemDisc,
           gapMetaDisc: dl.gapMeta,
-          gapConfiavelDisc: dl.gapConfiavel,
+          gapConfiavelDisc: raizLegivel ? dl.gapConfiavel : 0,
+          raizLegivel,
           deficitSeguro,
           incidenciaDisc,
           faixaPrioridade,
