@@ -5,7 +5,7 @@ const CloudStore = {
   SUPABASE_URL: 'https://gizhxgnbmmhhniubelbz.supabase.co',
   SUPABASE_KEY: 'sb_publishable_5t8P8QpVF4tLoWNjQVWsSQ_3dpbxG94',
   TABLE: 'study_profiles',
-  client: null, session: null, libStatus: 'pending', channel: null, secChannel: null, _secRtTimer: null,
+  client: null, session: null, libStatus: 'pending', channel: null, secChannel: null, _secChannelProfile: null, _secRtTimer: null,
   _debounce: null, DEBOUNCE_MS: 1500, _applying: false, _cfgMode: 'signin',
   _pending: false, _lastSyncAt: null, _syncing: false, _dirtyAt: null, _syncingDesde: 0,
   SYNC_TRAVADO_MS: 60000,   // teto para um envio "em curso" antes de ser considerado preso
@@ -685,17 +685,39 @@ const CloudStore = {
   // Tempo real das SEÇÕES: escuta profile_sections do perfil aberto. O gatilho não
   // recarrega direto — pergunta antes se há revisão nova de verdade (hasRemoteUpdates).
   // Sem essa checagem, os nossos PRÓPRIOS envios disparariam um loop de recarga.
-  subscribeSections() {
-    if (!this.isReady() || !this.isLoggedIn() || this.secChannel) return;
-    const pid = ProfileManager.getActiveProfileId(); if (!pid) return;
+  subscribeSections(pid) {
+    if (!this.isReady() || !this.isLoggedIn()) return;
+    pid = pid || ProfileManager.getActiveProfileId(); if (!pid) return;
+    if (this.secChannel && this._secChannelProfile === pid) return;
+    if (this.secChannel) {
+      try { this.client.removeChannel(this.secChannel); } catch (e) { _quiet(e); }
+      this.secChannel = null;
+      this._secChannelProfile = null;
+    }
     try {
-      this.secChannel = this.client.channel('sec_rt')
+      this._secChannelProfile = pid;
+      this.secChannel = this.client.channel('sec_rt_' + pid)
         .on('postgres_changes', { event: '*', schema: 'public', table: 'profile_sections', filter: 'profile_id=eq.' + pid }, () => {
           clearTimeout(this._secRtTimer);
           this._secRtTimer = setTimeout(() => this._onSectionRealtime(pid), 1200);
         })
-        .subscribe();
-    } catch (e) { console.warn('realtime de seções indisponível', e); }
+        .subscribe((status) => {
+          if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED') {
+            if (this._secChannelProfile === pid) {
+              this.secChannel = null;
+              this._secChannelProfile = null;
+            }
+          }
+        });
+    } catch (e) {
+      this.secChannel = null;
+      this._secChannelProfile = null;
+      console.warn('realtime de seções indisponível', e);
+    }
+  },
+  onActiveProfileChanged(pid) {
+    if (!this.isReady() || !this.isLoggedIn()) return;
+    this.subscribeSections(pid);
   },
   async _onSectionRealtime(pid) {
     if (this._applying || this._pending || this._syncing || this._debounce) return; // edição local em curso: não atropela
@@ -711,6 +733,7 @@ const CloudStore = {
   _unsub() {
     if (this.channel) { try { this.client.removeChannel(this.channel); } catch (e) { _quiet(e); } this.channel = null; }
     if (this.secChannel) { try { this.client.removeChannel(this.secChannel); } catch (e) { _quiet(e); } this.secChannel = null; }
+    this._secChannelProfile = null;
     clearTimeout(this._secRtTimer);
   },
   _onRealtime(evt) {
