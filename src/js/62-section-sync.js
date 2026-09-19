@@ -235,6 +235,135 @@ const SectionSync = {
     return out.size;
   },
 
+  /* ── JOURNAL DE MUTAÇÕES DO DIÁRIO ───────────────────────────────────────
+     A seção `entries` é um array inteiro. CAS protege contra sobrescrita cega,
+     mas dois aparelhos que editam o array em revisões diferentes precisam de uma
+     forma de combinar intenções. Guardamos as mutações por ID neste aparelho:
+     add/update = upsert do registro; delete = remoção daquele ID. Em conflito,
+     baixamos a versão remota mais nova, reaplicamos SOMENTE essas operações e
+     tentamos CAS outra vez. Assim uma exclusão no celular não apaga um registro
+     novo criado no PC — e também não fica eternamente presa no spinner vermelho. */
+  ENTRY_OPS: '__entryops',
+  _entryOpsKey(id) { return this._prefixFor(id) + this.ENTRY_OPS; },
+  _isEntriesSection(sec) { return !!sec && /(^|:)entries$/.test(String(sec)); },
+  _loadEntryOps(id) {
+    try {
+      const v = JSON.parse(localStorage.getItem(this._entryOpsKey(id))) || {};
+      return v && typeof v === 'object' && !Array.isArray(v) ? v : {};
+    } catch (_) { return {}; }
+  },
+  _saveEntryOps(v, id) {
+    try {
+      const limpo = {};
+      Object.keys(v || {}).forEach(sec => {
+        const a = Array.isArray(v[sec]) ? v[sec].filter(x => x && x.id != null && (x.type === 'delete' || x.type === 'upsert')) : [];
+        if (a.length) limpo[sec] = a;
+      });
+      if (Object.keys(limpo).length) localStorage.setItem(this._entryOpsKey(id), JSON.stringify(limpo));
+      else localStorage.removeItem(this._entryOpsKey(id));
+    } catch (e) { _quiet(e, 'entryops-gravar'); }
+  },
+  recordEntryMutation(fullKey, op) {
+    if (!this.enabled || !op || op.id == null) return;
+    const id = this._profileIdFromKey(fullKey);
+    const sec = this.sectionForKey(fullKey, this._prefixFor(id));
+    if (!id || !this._isEntriesSection(sec)) return;
+    const all = this._loadEntryOps(id);
+    const list = Array.isArray(all[sec]) ? all[sec] : [];
+    const sid = String(op.id);
+    const gen = this._dirtyGenFor(id).get(sec) || this._ensureDirty(sec, id);
+    // Uma intenção mais nova para o mesmo ID substitui a anterior. Se criou e
+    // apagou antes de sincronizar, o resultado final é delete — idempotente.
+    const next = list.filter(x => String(x.id) !== sid);
+    if (op.type === 'delete') next.push({ type: 'delete', id: sid, gen });
+    else if (op.type === 'upsert' && op.entry) {
+      let entry = op.entry;
+      try { entry = JSON.parse(JSON.stringify(op.entry)); } catch (_) { _quiet(_); }
+      next.push({ type: 'upsert', id: sid, entry, gen });
+    } else return;
+    all[sec] = next;
+    this._saveEntryOps(all, id);
+  },
+  _entryOpsFor(id, sec, maxGen) {
+    const all = this._loadEntryOps(id);
+    const a = Array.isArray(all[sec]) ? all[sec] : [];
+    return a.filter(x => maxGen == null || (Number(x.gen) || 0) <= Number(maxGen));
+  },
+  _ackEntryOps(id, sec, maxGen) {
+    const all = this._loadEntryOps(id);
+    const a = Array.isArray(all[sec]) ? all[sec] : [];
+    if (!a.length) return [];
+    const restantes = a.filter(x => (Number(x.gen) || 0) > Number(maxGen || 0));
+    if (restantes.length) all[sec] = restantes;
+    else delete all[sec];
+    this._saveEntryOps(all, id);
+    return restantes;
+  },
+  _applyEntryOps(raw, ops) {
+    let out;
+    try { out = JSON.parse(raw); } catch (_) { return null; }
+    if (!Array.isArray(out)) return null;
+    out = out.slice();
+    (ops || []).forEach(op => {
+      const sid = String(op.id);
+      const idx = out.findIndex(e => e && String(e.id) === sid);
+      if (op.type === 'delete') {
+        if (idx >= 0) out.splice(idx, 1);
+      } else if (op.type === 'upsert' && op.entry) {
+        const entry = op.entry;
+        if (idx >= 0) out[idx] = entry;
+        else out.push(entry);
+      }
+    });
+    try { return JSON.stringify(out); } catch (_) { return null; }
+  },
+  async _resolveEntriesConflict(id, sec, remotoInicial, gen) {
+    const ops = this._entryOpsFor(id, sec, gen);
+    if (!ops.length) return null; // conflito legado/sem intenção registrada: não adivinha
+    let remoto = remotoInicial;
+    for (let tentativa = 0; tentativa < 3; tentativa++) {
+      if (!remoto) return null;
+      const remotoRaw = this._decode(remoto.data);
+      if (remotoRaw == null) return null;
+      const mergedRaw = this._applyEntryOps(remotoRaw, ops);
+      if (mergedRaw == null) return null;
+      const mergedHash = this._hash(mergedRaw);
+      const remoteHash = remoto.content_hash == null ? this._hash(remotoRaw) : String(remoto.content_hash);
+      if (mergedHash === remoteHash) {
+        const restantes = this._ackEntryOps(id, sec, gen);
+        const finalRaw = restantes.length ? this._applyEntryOps(mergedRaw, restantes) : mergedRaw;
+        if (finalRaw != null) localStorage.setItem(this._prefixFor(id) + sec, finalRaw);
+        if (!restantes.length) this._clearDirtyIfGeneration(sec, gen, id);
+        return { ok: true, rev: remoto.rev || 1, hash: mergedHash, raw: mergedRaw, len: mergedRaw.length, already: true };
+      }
+      const wr = await this._writeSectionCAS(
+        {
+          profile_id: id, section: sec, data: this._encode(mergedRaw),
+          rev: (Number(remoto.rev) || 0) + 1, updated_at: new Date().toISOString(),
+          _contentHash: mergedHash
+        },
+        Number(remoto.rev) || 0,
+        remoto.content_hash == null ? null : String(remoto.content_hash),
+        this._mutationId(sec, mergedHash)
+      );
+      if (wr.ok) {
+        const restantes = this._ackEntryOps(id, sec, gen);
+        /* Rebase local: primeiro a versão remota+operações confirmadas; depois
+           reaplica alterações que aconteceram neste aparelho enquanto o request
+           estava em voo. Nenhuma edição nova some por causa da reconciliação. */
+        const finalRaw = restantes.length ? this._applyEntryOps(mergedRaw, restantes) : mergedRaw;
+        if (finalRaw != null) localStorage.setItem(this._prefixFor(id) + sec, finalRaw);
+        if (!restantes.length) this._clearDirtyIfGeneration(sec, gen, id);
+        else this._ensureDirty(sec, id);
+        this._savePend(id);
+        return { ok: true, rev: wr.rev || ((Number(remoto.rev) || 0) + 1), hash: mergedHash, raw: mergedRaw, len: mergedRaw.length };
+      }
+      if (!wr.conflict) return null;
+      remoto = await this._remoteSection(id, sec); // outro aparelho avançou de novo: rebaseia e tenta novamente
+    }
+    return null;
+  },
+
   /* PROVA PARA O FAST PATH LOCAL.
      Um perfil só pode ser exibido sem hidratar a nuvem quando:
        1) não há mutação explícita ainda pendente; e
@@ -340,6 +469,7 @@ const SectionSync = {
     if (sub.indexOf('vhist') === 0) return null;     // histórico de versões é local
     if (sub.indexOf(Lixeira.PREFIXO) === 0) return null; // lixeira: rede local, não é dado do perfil
     if (sub.indexOf(this.DEL) === 0) return null;    // registro de exclusões: contabilidade local
+    if (sub.indexOf(this.ENTRY_OPS) === 0) return null; // journal de mutações do diário: somente local
     return sub;
   },
   _profileIdFromKey(fullKey) {
@@ -627,11 +757,23 @@ const SectionSync = {
           const remotoHash = remotoRaw === null ? null : this._hash(remotoRaw);
           if (remoto && remotoHash === _hash) {
             revs[_sec] = { rev: remoto.rev || row.rev, hash: _hash, len: _len };
-            this._ackSent(_sec, _gen, _hash, pfx, id);
+            const ack = this._ackSent(_sec, _gen, _hash, pfx, id);
+            if (this._isEntriesSection(_sec)) this._ackEntryOps(id, _sec, _gen);
             /* Se houve edição nova durante o voo, a geração mudou e a seção fica
                suja; agora ela já parte da revisão remota confirmada. */
             okCount++;
             continue;
+          }
+          /* Para o Diário, conflito não é sentença final: temos um journal por ID.
+             Rebaseamos delete/upsert sobre a cópia remota atual e repetimos CAS.
+             Outras seções continuam com a política conservadora de preservar ambos. */
+          if (remoto && this._isEntriesSection(_sec)) {
+            const merged = await this._resolveEntriesConflict(id, _sec, remoto, _gen);
+            if (merged && merged.ok) {
+              revs[_sec] = { rev: merged.rev || row.rev, hash: merged.hash, len: merged.len };
+              okCount++;
+              continue;
+            }
           }
           conflitos.push(_sec);
           falhas.push(_sec + ' (conflito de revisão protegido)');
@@ -640,6 +782,7 @@ const SectionSync = {
         // `len` é a prova de que esta seção JÁ TEVE conteúdo na nuvem.
         revs[_sec] = { rev: wr.rev || row.rev, hash: _hash, len: _len };
         this._ackSent(_sec, _gen, _hash, pfx, id);
+        if (this._isEntriesSection(_sec)) this._ackEntryOps(id, _sec, _gen);
         okCount++;
       } catch (e) {
         const msg = (e && (e.message || e.code || JSON.stringify(e))) || 'erro';
@@ -1320,6 +1463,8 @@ const SectionSync = {
 window.SectionSync = SectionSync;
 // liga o hook do DB._set a esta camada (var definida lá no topo, sem zona morta)
 _sectionMarkHook = function (key) { try { SectionSync.markDirty(key); } catch (_) { _quiet(_); } };
+// Journal por registro: só o Diário usa esta trilha fina de conflito.
+_entryMutationHook = function (key, op) { try { SectionSync.recordEntryMutation(key, op); } catch (_) { _quiet(_); } };
 // e o hook do DB.delRaw: apagar sai da fila e viaja pelo manifesto
 _sectionDropHook = function (key) { try { SectionSync.dropSection(key); } catch (_) { _quiet(_); } };
 // Recupera na abertura o que ficou por enviar (antes de qualquer leitura da nuvem).
