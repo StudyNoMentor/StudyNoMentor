@@ -296,29 +296,52 @@ tem `user_id` próprio: o dono é o dono do perfil. As políticas precisam
 verificar isso por consulta — nunca `using (true)`.
 
 ```sql
-drop policy if exists "secoes_do_meu_perfil_select" on public.profile_sections;
-create policy "secoes_do_meu_perfil_select" on public.profile_sections
-  for select using (exists (
-    select 1 from public.study_profiles p
-    where p.id = profile_sections.profile_id and p.user_id = auth.uid()));
+drop policy if exists ps_select on public.profile_sections;
+drop policy if exists ps_insert on public.profile_sections;
+drop policy if exists ps_update on public.profile_sections;
+drop policy if exists ps_delete on public.profile_sections;
 
-drop policy if exists "secoes_do_meu_perfil_insert" on public.profile_sections;
-create policy "secoes_do_meu_perfil_insert" on public.profile_sections
-  for insert with check (exists (
+create policy ps_select on public.profile_sections
+for select to authenticated
+using (
+  exists (
     select 1 from public.study_profiles p
-    where p.id = profile_sections.profile_id and p.user_id = auth.uid()));
+    where p.id = profile_sections.profile_id
+      and p.user_id = (select auth.uid())
+  )
+);
 
-drop policy if exists "secoes_do_meu_perfil_update" on public.profile_sections;
-create policy "secoes_do_meu_perfil_update" on public.profile_sections
-  for update using (exists (
+create policy ps_insert on public.profile_sections
+for insert to authenticated
+with check (
+  exists (
     select 1 from public.study_profiles p
-    where p.id = profile_sections.profile_id and p.user_id = auth.uid()));
+    where p.id = profile_sections.profile_id
+      and p.user_id = (select auth.uid())
+  )
+);
 
-drop policy if exists "secoes_do_meu_perfil_delete" on public.profile_sections;
-create policy "secoes_do_meu_perfil_delete" on public.profile_sections
-  for delete using (exists (
+create policy ps_update on public.profile_sections
+for update to authenticated
+using (
+  exists (
     select 1 from public.study_profiles p
-    where p.id = profile_sections.profile_id and p.user_id = auth.uid()));
+    where p.id = profile_sections.profile_id
+      and p.user_id = (select auth.uid())
+  )
+)
+with check (
+  exists (
+    select 1 from public.study_profiles p
+    where p.id = profile_sections.profile_id
+      and p.user_id = (select auth.uid())
+  )
+);
+
+revoke all on table public.profile_sections from anon;
+grant select, insert, update on table public.profile_sections to authenticated;
+revoke delete, truncate, trigger, references on table public.profile_sections from authenticated;
+```
 
 /* Realtime é acelerador, não requisito de consistência. As duas tabelas que
    o frontend assina precisam estar na publicação. Bloco idempotente. */
