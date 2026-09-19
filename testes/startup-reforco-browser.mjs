@@ -62,8 +62,8 @@ try {
       active:ProfileManager.getActiveProfileId,setActive:ProfileManager.setActiveProfile,
       owner:ProfileManager._podeVerLocal,setOwner:ProfileManager._setOwner,
       has:ProfileUI._hasLocalData,last:ProfileUI.setLastProfile,render:ProfileUI.renderChip,
-      space:DB.checarEspaco,pending:SectionSync.pendingQuick,remote:SectionSync.hasRemoteUpdates,kick:SectionSync.kick,
-      flush:CloudStore.flushPending
+      space:DB.checarEspaco,pending:SectionSync.pendingQuick,explicit:SectionSync.explicitPendingSections,
+      remote:SectionSync.hasRemoteUpdates,kick:SectionSync.kick,flush:CloudStore.flushPending
     };
     let hidden=false,remoteCalls=0;
     const buildKey=UX.buildReconcileKey(id), build=UX.currentBuild();
@@ -74,14 +74,16 @@ try {
     ProfileManager._podeVerLocal=()=>true;ProfileManager._setOwner=()=>{};
     ProfileUI._hasLocalData=()=>true;ProfileUI.setLastProfile=()=>{};ProfileUI.renderChip=()=>{};
     const oldHide=ProfileUI.hideGate;ProfileUI.hideGate=function(){hidden=true;gate.style.display='none';};
-    DB.checarEspaco=()=>{};SectionSync.pendingQuick=()=>0;SectionSync.hasRemoteUpdates=async()=>{remoteCalls++;return false;};SectionSync.kick=()=>{};CloudStore.flushPending=async()=>{};
+    DB.checarEspaco=()=>{};SectionSync.pendingQuick=()=>0;SectionSync.explicitPendingSections=()=>[];
+    SectionSync.hasRemoteUpdates=async()=>{remoteCalls++;return false;};SectionSync.kick=()=>{};CloudStore.flushPending=async()=>{};
     const t0=performance.now();await ProfileUI.enterProfile(id);const elapsed=performance.now()-t0;
     await new Promise(r=>setTimeout(r,380));
     const trace=StartupTrace.last();
     CloudStore.isLoggedIn=keep.logged;CloudStore.isReady=keep.ready;CloudStore.session=keep.session;
     ProfileManager.getActiveProfileId=keep.active;ProfileManager.setActiveProfile=keep.setActive;ProfileManager._podeVerLocal=keep.owner;ProfileManager._setOwner=keep.setOwner;
     ProfileUI._hasLocalData=keep.has;ProfileUI.setLastProfile=keep.last;ProfileUI.renderChip=keep.render;ProfileUI.hideGate=oldHide;
-    DB.checarEspaco=keep.space;SectionSync.pendingQuick=keep.pending;SectionSync.hasRemoteUpdates=keep.remote;SectionSync.kick=keep.kick;CloudStore.flushPending=keep.flush;
+    DB.checarEspaco=keep.space;SectionSync.pendingQuick=keep.pending;SectionSync.explicitPendingSections=keep.explicit;
+    SectionSync.hasRemoteUpdates=keep.remote;SectionSync.kick=keep.kick;CloudStore.flushPending=keep.flush;
     localStorage.removeItem(buildKey);
     return {hidden,elapsed,remoteCalls,localVisible:trace.some(x=>x.etapa==='perfil-local-visivel')};
   });
@@ -107,13 +109,14 @@ try {
     const keep={
       logged:CloudStore.isLoggedIn,ready:CloudStore.isReady,session:CloudStore.session,
       active:ProfileManager.getActiveProfileId,rev:ProfileManager.getRev,
-      pending:SectionSync.pendingQuick,remote:SectionSync.hasRemoteUpdates,kick:SectionSync.kick,
-      flush:CloudStore.flushPending
+      pending:SectionSync.pendingQuick,explicit:SectionSync.explicitPendingSections,
+      remote:SectionSync.hasRemoteUpdates,kick:SectionSync.kick,flush:CloudStore.flushPending
     };
     let remoteCalls=0;
     CloudStore.isLoggedIn=()=>true;CloudStore.isReady=()=>true;CloudStore.session={user:{id:'uxv4-user'}};
     ProfileManager.getActiveProfileId=()=>id;ProfileManager.getRev=()=>1;
-    SectionSync.pendingQuick=()=>0;SectionSync.hasRemoteUpdates=async()=>{remoteCalls++;return false;};
+    SectionSync.pendingQuick=()=>0;SectionSync.explicitPendingSections=()=>[];
+    SectionSync.hasRemoteUpdates=async()=>{remoteCalls++;return false;};
     SectionSync.kick=()=>{};CloudStore.flushPending=async()=>{};
     // o estado de uma recarga apos entrada direta: sessao da aba sim, agendamento nao
     const buildKey=UX.buildReconcileKey(id), build=UX.currentBuild();
@@ -126,8 +129,8 @@ try {
     const trace=StartupTrace.last();
     CloudStore.isLoggedIn=keep.logged;CloudStore.isReady=keep.ready;CloudStore.session=keep.session;
     ProfileManager.getActiveProfileId=keep.active;ProfileManager.getRev=keep.rev;
-    SectionSync.pendingQuick=keep.pending;SectionSync.hasRemoteUpdates=keep.remote;SectionSync.kick=keep.kick;
-    CloudStore.flushPending=keep.flush;
+    SectionSync.pendingQuick=keep.pending;SectionSync.explicitPendingSections=keep.explicit;
+    SectionSync.hasRemoteUpdates=keep.remote;SectionSync.kick=keep.kick;CloudStore.flushPending=keep.flush;
     try{sessionStorage.removeItem(ProfileUI.SESSION_KEY);}catch(_){}
     localStorage.removeItem(buildKey);
     return {remoteCalls,marcou:trace.some(x=>x.etapa==='reconciliacao-entrada-direta')};
