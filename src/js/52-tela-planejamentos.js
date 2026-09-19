@@ -167,7 +167,16 @@ $id('np-source').addEventListener('change', () => PlanUI.updateCopyOptionsVisibi
 $id('np-create').addEventListener('click', () => PlanUI.createFromForm());
 
 window.addEventListener('screen:activated', (e) => {
+  /* O seletor é global e pode ter sido pintado antes do login/hidratação. */
+  PlanUI.renderSidebar();
   if (e.detail.screen === 'planejamentos') PlanUI.renderScreen();
+});
+window.addEventListener('data:relational-hydrated', () => {
+  /* hydrateProfile já reconstruiu planejamentos + active-plan na memória.
+     Repaint aqui evita o nome "—" permanecer preso no DOM pré-login. */
+  PlanUI.renderSidebar();
+  const tela = document.getElementById('screen-planejamentos');
+  if (tela && tela.classList.contains('active')) PlanUI.renderScreen();
 });
 
 // Render inicial do seletor na sidebar
