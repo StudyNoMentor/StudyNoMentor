@@ -170,50 +170,67 @@ const CloudUI = {
   refreshSyncBtn(forceTone, forceText) {
     const btn = document.getElementById('cloud-sync-btn');
     if (!btn) return;
+
     const CS = window.CloudStore;
+    const RS = window.RelationalStore;
     let tone = forceTone, text = forceText;
-    // Fila real de envio (sobrevive a recarregamentos).
     let fila = 0;
-    try { if (window.SectionSync) fila = SectionSync.pendingQuick(); } catch (_) { _quiet(_); }
-    // Sessão em outro aparelho não é, por si só, erro. Se estamos entregando a
-    // outbox anterior, mostra envio real; depois fica neutro/pausado. Vermelho
-    // fica reservado para conflito/falha de transporte.
+    try { fila = RS && RS.pendingCount ? RS.pendingCount() : 0; }
+    catch (e) { _quiet(e, 'sync-ui-pending'); }
+
     if (window.SessionLock && SessionLock.isBlocked() && SessionLock._origin === 'remote') {
       if (window.SessionGuard && SessionGuard._handoffDraining) {
-        tone = 'syncing'; text = 'Entregando alteração pendente antes de pausar…';
-      } else if (fila) {
-        const hs = window.SessionGuard && SessionGuard._handoffLast ? SessionGuard._handoffLast.status : '';
-        tone = hs === 'erro' || hs === 'pendente' ? 'error' : 'pending';
-        text = hs === 'erro' || hs === 'pendente'
-          ? 'Alteração preservada neste aparelho · envio pendente'
-          : 'Salvo neste aparelho · aguardando entrega';
+        tone = 'syncing';
+        text = 'Finalizando gravação no banco antes de pausar…';
       } else {
-        tone = 'off'; text = 'Pausado · conta ativa em outro aparelho';
+        tone = 'off';
+        text = 'Pausado · conta ativa em outro aparelho';
       }
     }
-    // Estado tranquilizador — o app salva SEMPRE no aparelho na hora. O spinner
-    // (azul) só aparece durante um envio REAL e curto; o resto é verde "ok".
+
     if (!tone) {
-      if (!CS || !CS.isReady() || !CS.isLoggedIn()) { tone = 'off'; text = 'Salvo neste aparelho'; }
-      else if (CS._syncing) { tone = 'syncing'; text = 'Enviando para a nuvem…'; }
-      else if (CS._pending || CS._debounce || fila) { tone = 'ok'; text = fila ? ('Salvo · ' + fila + (fila === 1 ? ' alteração aguardando envio' : ' alterações aguardando envio')) : 'Salvo · será enviado em instantes'; }
-      else if (CS._lastSyncAt) { tone = 'ok'; text = 'Sincronizado ' + this._timeAgo(CS._lastSyncAt); }
-      else { tone = 'ok'; text = 'Sincronizado'; }
-    } else {
-      if (tone === 'pending') { tone = 'ok'; text = 'Salvo · será enviado em instantes'; }
-      if (tone === 'off') text = 'Salvo neste aparelho';
-      if (tone === 'ok' && CS && CS._lastSyncAt) text = 'Sincronizado ' + this._timeAgo(CS._lastSyncAt);
+      if (!CS || !CS.isReady()) {
+        tone = 'error'; text = 'Banco indisponível';
+      } else if (!CS.isLoggedIn()) {
+        tone = 'off'; text = 'Entre para acessar o banco';
+      } else if (RS && RS._lastError) {
+        tone = 'error'; text = 'Falha ao confirmar no banco';
+      } else if ((CS && CS._syncing) || fila > 0) {
+        tone = 'syncing';
+        text = fila > 0
+          ? 'Salvando no banco · ' + fila + (fila === 1 ? ' operação' : ' operações')
+          : 'Salvando no banco…';
+      } else if ((RS && RS._lastSyncAt) || (CS && CS._lastSyncAt)) {
+        const ts = (RS && RS._lastSyncAt) || CS._lastSyncAt;
+        tone = 'ok'; text = 'Banco sincronizado ' + this._timeAgo(ts);
+      } else {
+        tone = 'ok'; text = 'Banco conectado';
+      }
     }
-    // Trava anti-"eterno-Salvando": se ficar em syncing por muito tempo, cai para ok.
+
+    if (tone === 'ok') {
+      const ts = (RS && RS._lastSyncAt) || (CS && CS._lastSyncAt);
+      if (ts && !forceText) text = 'Banco sincronizado ' + this._timeAgo(ts);
+    }
+
     if (tone === 'syncing') {
       clearTimeout(this._syncStuckT);
-      this._syncStuckT = setTimeout(() => { try { this.refreshSyncBtn('ok', 'Salvo neste aparelho'); } catch (_) { _quiet(_); } }, 8000);
+      this._syncStuckT = setTimeout(() => {
+        try {
+          const ainda = window.RelationalStore && RelationalStore.pendingCount
+            ? RelationalStore.pendingCount() : 0;
+          if (ainda > 0) this.refreshSyncBtn('error', 'Banco demorando para confirmar · toque para tentar de novo');
+          else this.refreshSyncBtn();
+        } catch (e) { _quiet(e, 'sync-ui-stuck'); }
+      }, 12000);
     } else {
       clearTimeout(this._syncStuckT);
     }
+
     btn.className = 'cloud-sync-btn st-' + tone;
-    btn.title = (tone === 'error') ? (text || 'Erro na sincronização — toque para tentar de novo')
-      : (text || 'Sincronização');
+    btn.title = text || (tone === 'error'
+      ? 'Erro no banco — toque para tentar de novo'
+      : 'Persistência no banco');
   },
   async submitAuth() {
     const email = $id('cloud-email').value.trim();
